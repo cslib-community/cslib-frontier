@@ -19,9 +19,10 @@ stream `s` several times from left to right. It is a one-pass algorithm
 (`Cslib.Streaming.Algorithm`) whose memory state is kept from one pass to the next, with
 `endPass` applied at the end of each pass, so that it can for instance count its passes; after `p`
 passes it reports the output of its state (`Cslib.Streaming.MultiPass.run`). Its memory is
-measured as for one pass: `A.SpaceLE p m b` says that the states it reaches during `p` passes over
-streams of at most `m` items have an injective `b`-bit encoding. A one-pass algorithm is the case
-`p = 1` (`Cslib.Streaming.Algorithm.run_toMultiPass`,
+measured as for one pass: `A.SpaceLE p m b` says that the states it holds between items during
+`p` passes over streams of at most `m` items have an injective `b`-bit encoding. The state after
+`endPass` of the last pass is not counted: it is only used for the answer. A one-pass algorithm is
+the case `p = 1` (`Cslib.Streaming.Algorithm.run_toMultiPass`,
 `Cslib.Streaming.Algorithm.spaceLE_toMultiPass_iff`).
 
 **Simulation.** With the stream split as `u x ++ v y`, Alice runs each pass on `u x` and sends the
@@ -31,9 +32,11 @@ This takes `p` messages from Alice and `p - 1` from Bob, so if the answer on `u 
 determines `f x y`, then `f` has a deterministic protocol with `(2 p - 1) b + 1` bits
 (`Cslib.Streaming.MultiPass.ecomplexityFun_le_of_spaceLE`), and, for randomized multi-pass
 algorithms with public randomness, a public-coin protocol with the same error
-(`Cslib.Streaming.MultiPass.Randomized.ecomplexityFun_le_of_spaceLE`). For `p = 1` this is the
-transfer of `CslibFrontier.Computability.Streaming.Communication`; the multi-pass form is the
-standard argument behind multi-pass streaming lower bounds [AlonMatiasSzegedy1999, Section 3].
+(`Cslib.Streaming.MultiPass.Randomized.ecomplexityFun_le_of_spaceLE`). This extends the one-pass
+reduction of Alon, Matias and Szegedy [AlonMatiasSzegedy1999, Section 3]
+(`CslibFrontier.Computability.Streaming.Communication`) to `p` passes. Since later passes depend on
+the whole stream, the whole stream `u x ++ v y` must have at most `m` items, whereas one pass only
+needs this of `u x`; so for `p = 1` the one-pass theorem is slightly stronger.
 
 ## Main definitions
 
@@ -50,6 +53,8 @@ standard argument behind multi-pass streaming lower bounds [AlonMatiasSzegedy199
 
 * `Cslib.Streaming.Algorithm.run_toMultiPass`, `Cslib.Streaming.Algorithm.spaceLE_toMultiPass_iff`:
   one pass of a one-pass algorithm.
+* `Cslib.Streaming.MultiPass.SpaceLE.mono`: memory bounds for longer streams and more passes give
+  memory bounds for shorter streams and fewer passes.
 * `Cslib.Streaming.MultiPass.depth_toProtocol_le`, `Cslib.Streaming.MultiPass.run_toProtocol`: the
   simulation sends `(2 p - 1) b + 1` bits and answers as the algorithm.
 * `Cslib.Streaming.MultiPass.ecomplexityFun_le_of_spaceLE`,
@@ -100,10 +105,9 @@ theorem pass_append (s t : List α) (q : σ) :
   rw [pass, A.stateFrom_append]
 
 /-- The memory states reachable during `p` passes over streams of length at most `m`: the states
-during each pass, and the state after the last pass. -/
+held between items during each pass, from its start to its end (before `endPass`). -/
 @[expose] def reachable (p m : ℕ) : Set σ :=
-  {q | ∃ s : List α, s.length ≤ m ∧
-    ((∃ k < p, ∃ t, t <+: s ∧ A.stateFrom (A.passes s k) t = q) ∨ A.passes s p = q)}
+  {q | ∃ s : List α, s.length ≤ m ∧ ∃ k < p, ∃ t, t <+: s ∧ A.stateFrom (A.passes s k) t = q}
 
 /-- `A` **uses at most `b` bits of memory during `p` passes over streams of length at most `m`**:
 the memory states it reaches have an injective encoding by `b`-bit strings. -/
@@ -112,13 +116,23 @@ the memory states it reaches have an injective encoding by `b`-bit strings. -/
 
 theorem stateFrom_mem_reachable {p m k : ℕ} {s t : List α} (hs : s.length ≤ m) (hk : k < p)
     (ht : t <+: s) : A.stateFrom (A.passes s k) t ∈ A.reachable p m :=
-  ⟨s, hs, Or.inl ⟨k, hk, t, ht, rfl⟩⟩
+  ⟨s, hs, k, hk, t, ht, rfl⟩
 
-theorem passes_mem_reachable {p m k : ℕ} {s : List α} (hs : s.length ≤ m) (hk : k ≤ p) :
-    A.passes s k ∈ A.reachable p m := by
-  rcases hk.lt_or_eq with hk | rfl
-  · exact A.stateFrom_mem_reachable hs hk (List.nil_prefix)
-  · exact ⟨s, hs, Or.inr rfl⟩
+theorem passes_mem_reachable {p m k : ℕ} {s : List α} (hs : s.length ≤ m) (hk : k < p) :
+    A.passes s k ∈ A.reachable p m :=
+  A.stateFrom_mem_reachable hs hk List.nil_prefix
+
+theorem reachable_mono {p p' m m' : ℕ} (hp : p ≤ p') (hm : m ≤ m') :
+    A.reachable p m ⊆ A.reachable p' m' :=
+  fun _ ⟨s, hs, k, hk, t, ht, hq⟩ => ⟨s, hs.trans hm, k, hk.trans_le hp, t, ht, hq⟩
+
+variable {A} in
+/-- Memory bounds for longer streams and more passes give memory bounds for shorter streams and
+fewer passes. -/
+theorem SpaceLE.mono {p p' m m' b : ℕ} (h : A.SpaceLE p' m' b) (hp : p ≤ p') (hm : m ≤ m') :
+    A.SpaceLE p m b :=
+  let ⟨enc, henc⟩ := h
+  ⟨enc, henc.mono (A.reachable_mono hp hm)⟩
 
 end MultiPass
 
@@ -138,12 +152,11 @@ variable {σ α β : Type*} (A : Algorithm σ α β)
 theorem reachable_toMultiPass (m : ℕ) : A.toMultiPass.reachable 1 m = A.reachable m := by
   ext q
   constructor
-  · rintro ⟨s, hs, ⟨k, hk, t, ht, rfl⟩ | rfl⟩
-    · obtain rfl : k = 0 := by omega
-      exact ⟨t, ht.length_le.trans hs, rfl⟩
-    · exact ⟨s, hs, rfl⟩
+  · rintro ⟨s, hs, k, hk, t, ht, rfl⟩
+    obtain rfl : k = 0 := by omega
+    exact ⟨t, ht.length_le.trans hs, rfl⟩
   · rintro ⟨s, hs, rfl⟩
-    exact ⟨s, hs, Or.inr rfl⟩
+    exact ⟨s, hs, 0, one_pos, s, List.prefix_rfl, rfl⟩
 
 /-- `A.toMultiPass` uses `b` bits of memory in one pass exactly when `A` does. -/
 theorem spaceLE_toMultiPass_iff {m b : ℕ} : A.toMultiPass.SpaceLE 1 m b ↔ A.SpaceLE m b := by

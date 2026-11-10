@@ -18,13 +18,15 @@ A **nondeterministic multi-pass streaming algorithm**
 (`Cslib.Streaming.Nondeterministic.Algorithm σ α β`) reads the stream several times from left to
 right, like a deterministic one (`Cslib.Streaming.MultiPass`), but each update and each transition
 at the end of a pass may lead to any of a set of memory states. Its memory is measured as in the
-deterministic case: `A.SpaceLE p m b` says that the states reached by some computation during `p`
-passes over streams of at most `m` items have an injective `b`-bit encoding.
+deterministic case: `A.SpaceLE p m b` says that the states held between items by some computation
+during `p` passes over streams of at most `m` items have an injective `b`-bit encoding.
 
 A function `f` is decided with answer `z` when, on the stream `u x ++ v y`, `f x y = z` holds
 exactly when some computation of `p` passes ends in a state whose answer `d` maps to `z`. For
 `z = true` this is a nondeterministic algorithm, which accepts when some computation accepts; for
 `z = false` it is a co-nondeterministic one, which rejects when some computation rejects.
+Computations that get stuck (an empty set of successors) neither accept nor reject, as usual for
+nondeterministic machines; so `N⁰(f)` is `N¹` of the negation of `f`.
 
 **Covers.** A computation on `u x ++ v y` is determined, as far as the two players are concerned,
 by the `2 p - 1` memory states at the boundaries between `u x` and `v y`: the state after Alice's
@@ -35,9 +37,10 @@ the boundary states of an accepting computation. So `f` has a `z`-cover by `2 ^ 
 rectangles, and nondeterministic complexity at most `(2 p - 1) b`
 (`Cslib.Streaming.Nondeterministic.Algorithm.ecomplexityFun_le_of_spaceLE`). Unlike the
 deterministic simulation (`Cslib.Streaming.MultiPass.ecomplexityFun_le_of_spaceLE`), no final bit
-is needed: the cover is checked, not computed. This is the nondeterministic case of the standard
-argument behind streaming lower bounds [AlonMatiasSzegedy1999, Section 3], with nondeterministic
-communication complexity defined by covers as in `Cslib.Communication.Nondeterministic`.
+is needed: the cover is checked, not computed. This adapts the one-pass reduction of Alon, Matias
+and Szegedy [AlonMatiasSzegedy1999, Section 3] to `p` passes and to nondeterministic algorithms,
+with nondeterministic communication complexity defined by covers as in
+`Cslib.Communication.Nondeterministic`.
 
 ## Main definitions
 
@@ -171,10 +174,10 @@ theorem mem_passes_iff_exists_chain {s t : List α} {k : ℕ} {q : σ} :
       exact A.mem_pass_append.2 ⟨mid k, hmid, hst⟩
 
 /-- The memory states reachable during `p` passes over streams of length at most `m`: the states
-possible during each pass, and after the last pass. -/
+possible between items during each pass, from its start to its end (before `endPass`). -/
 @[expose] def reachable (p m : ℕ) : Set σ :=
   {q | ∃ s : List α, s.length ≤ m ∧
-    ((∃ k < p, ∃ t, t <+: s ∧ ∃ q₀ ∈ A.passes s k, q ∈ A.statesFrom q₀ t) ∨ q ∈ A.passes s p)}
+    ∃ k < p, ∃ t, t <+: s ∧ ∃ q₀ ∈ A.passes s k, q ∈ A.statesFrom q₀ t}
 
 /-- `A` **uses at most `b` bits of memory during `p` passes over streams of length at most `m`**:
 the memory states it can reach have an injective encoding by `b`-bit strings. -/
@@ -184,13 +187,11 @@ the memory states it can reach have an injective encoding by `b`-bit strings. -/
 theorem mem_reachable_of_statesFrom {p m k : ℕ} {s t : List α} {q₀ q : σ} (hs : s.length ≤ m)
     (hk : k < p) (ht : t <+: s) (hq₀ : q₀ ∈ A.passes s k) (hq : q ∈ A.statesFrom q₀ t) :
     q ∈ A.reachable p m :=
-  ⟨s, hs, Or.inl ⟨k, hk, t, ht, q₀, hq₀, hq⟩⟩
+  ⟨s, hs, k, hk, t, ht, q₀, hq₀, hq⟩
 
-theorem mem_reachable_of_passes {p m k : ℕ} {s : List α} {q : σ} (hs : s.length ≤ m) (hk : k ≤ p)
-    (hq : q ∈ A.passes s k) : q ∈ A.reachable p m := by
-  rcases hk.lt_or_eq with hk | rfl
-  · exact A.mem_reachable_of_statesFrom hs hk List.nil_prefix hq rfl
-  · exact ⟨s, hs, Or.inr hq⟩
+theorem mem_reachable_of_passes {p m k : ℕ} {s : List α} {q : σ} (hs : s.length ≤ m) (hk : k < p)
+    (hq : q ∈ A.passes s k) : q ∈ A.reachable p m :=
+  A.mem_reachable_of_statesFrom hs hk List.nil_prefix hq rfl
 
 /-- Decoding a `b`-bit guess: the reachable state that `enc` maps to it, if any. -/
 noncomputable def decode (p m b : ℕ) (enc : σ → BitString b) (w : BitString b) : σ :=
