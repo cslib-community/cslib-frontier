@@ -30,9 +30,9 @@ communication complexity of computing a function `f` is that of the relation `f 
 inputs (`Protocol.ecomplexityFun`), and a protocol solves that relation exactly when it computes
 `f` (`Protocol.solves_univ_iff`). A protocol can be run on transformed inputs (`Protocol.comap`).
 
-Alice can send a bit string in as many bits (`Protocol.aliceSend`), so every Boolean function of
-Alice's `n` bits and Bob's input has a protocol with `n + 1` bits: Alice sends her input and Bob
-announces the value (`Protocol.ecomplexityFun_le_succ`).
+Either player can send a bit string in as many bits (`Protocol.aliceSend`, `Protocol.bobSend`),
+so every Boolean function of Alice's `n` bits and Bob's input has a protocol with `n + 1` bits:
+Alice sends her input and Bob announces the value (`Protocol.ecomplexityFun_le_succ`).
 
 ## Main definitions
 
@@ -43,7 +43,8 @@ announces the value (`Protocol.ecomplexityFun_le_succ`).
 * `Cslib.Communication.Protocol.ecomplexity`: the communication complexity of a relation.
 * `Cslib.Communication.Protocol.ecomplexityFun`: the communication complexity of a function.
 * `Cslib.Communication.Protocol.comap`: running a protocol on transformed inputs.
-* `Cslib.Communication.Protocol.aliceSend`: Alice sends a bit string.
+* `Cslib.Communication.Protocol.aliceSend`, `Cslib.Communication.Protocol.bobSend`: Alice or Bob
+  sends a bit string.
 
 ## Main results
 
@@ -308,6 +309,36 @@ theorem depth_aliceSend_le {n d : ℕ} {msg : X → BitString n} {cont : BitStri
     have h₀ := ih (cont := fun m => cont (Fin.cons false m)) (msg := fun x => Fin.tail (msg x))
       fun m => h _
     have h₁ := ih (cont := fun m => cont (Fin.cons true m)) (msg := fun x => Fin.tail (msg x))
+      fun m => h _
+    omega
+
+/-- Bob sends the `n` bits of `msg y`, first bit first, after which the protocol continues with
+`cont` of the bits sent. -/
+def bobSend : (n : ℕ) → (Y → BitString n) → (BitString n → Protocol X Y Z) → Protocol X Y Z
+  | 0, _, cont => cont Fin.elim0
+  | n + 1, msg, cont => bob (fun y => msg y 0)
+      (bobSend n (fun y => Fin.tail (msg y)) fun m => cont (Fin.cons false m))
+      (bobSend n (fun y => Fin.tail (msg y)) fun m => cont (Fin.cons true m))
+
+@[simp] theorem run_bobSend (n : ℕ) (msg : Y → BitString n) (cont : BitString n → Protocol X Y Z)
+    (x : X) (y : Y) : (bobSend n msg cont).run x y = (cont (msg y)).run x y := by
+  induction n with
+  | zero => rw [bobSend, Subsingleton.elim (msg y) Fin.elim0]
+  | succ n ih =>
+    simp only [bobSend, run_bob, ih]
+    conv_rhs => rw [← Fin.cons_self_tail (msg y)]
+    cases msg y 0 <;> rfl
+
+/-- Sending `n` bits adds at most `n` to the depth. -/
+theorem depth_bobSend_le {n d : ℕ} {msg : Y → BitString n} {cont : BitString n → Protocol X Y Z}
+    (h : ∀ m, (cont m).depth ≤ d) : (bobSend n msg cont).depth ≤ n + d := by
+  induction n generalizing d with
+  | zero => simpa [bobSend] using h _
+  | succ n ih =>
+    simp only [bobSend, depth_bob]
+    have h₀ := ih (cont := fun m => cont (Fin.cons false m)) (msg := fun y => Fin.tail (msg y))
+      fun m => h _
+    have h₁ := ih (cont := fun m => cont (Fin.cons true m)) (msg := fun y => Fin.tail (msg y))
       fun m => h _
     omega
 

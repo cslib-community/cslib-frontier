@@ -3511,6 +3511,8 @@ public import CslibFrontier.Computability.Streaming.GraphStream
 public import CslibFrontier.Computability.Streaming.JoinSize
 public import CslibFrontier.Computability.Streaming.MisraGries
 public import CslibFrontier.Computability.Streaming.MomentLowerBound
+public import CslibFrontier.Computability.Streaming.MultiPass
+public import CslibFrontier.Computability.Streaming.Nondeterministic
 public import CslibFrontier.Computability.TreeEval.Ary.Basic
 public import CslibFrontier.Computability.TreeEval.Ary.CookMertz
 public import CslibFrontier.Computability.TreeEval.Ary.Descending
