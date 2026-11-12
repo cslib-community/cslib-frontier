@@ -2175,10 +2175,14 @@ public import CslibFrontier.Computability.Complexity.Classes.Tally
 public import CslibFrontier.Computability.Complexity.Classes.Time
 public import CslibFrontier.Computability.Complexity.Classes.Time.AcceptCount
 public import CslibFrontier.Computability.Complexity.Classes.Time.BoundedExists
+public import CslibFrontier.Computability.Complexity.Classes.Time.CountingBarrier
 public import CslibFrontier.Computability.Complexity.Classes.Time.Polynomial
+public import CslibFrontier.Computability.Complexity.Classes.Time.RandomAccessATM
 public import CslibFrontier.Computability.Complexity.Classes.Time.SampleVerify
+public import CslibFrontier.Computability.Complexity.Classes.Time.SigmaThree
 public import CslibFrontier.Computability.Complexity.Classes.Time.SigmaTwo
 public import CslibFrontier.Computability.Complexity.Classes.Time.SigmaTwoChain
+public import CslibFrontier.Computability.Complexity.Classes.Time.TseitinObstruction
 public import CslibFrontier.Computability.Complexity.Classes.Time.TwoPow
 public import CslibFrontier.Computability.Complexity.Classes.Time.Verifier
 public import CslibFrontier.Computability.Complexity.Classes.Time.WordRAM

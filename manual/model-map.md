@@ -16,6 +16,7 @@ The [module census script](data/census.py) can enumerate every tracked Lean sour
 | `native-probabilistic` | [Fair-coin multitape PTM](machines-and-classes/native-and-resources.md) | native |
 | `native-counting` | [List-branching counting TM](machines-and-classes/native-and-resources.md) | native |
 | `native-alternating` | [Binary alternating multitape ATM](machines-and-classes/native-and-resources.md) | native |
+| `random-access-alternating` | [Clocked index-tape random-access ATM](machines-and-classes/native-and-resources.md) | native |
 | `oracle-ppt` | [Native stateful oracle-PPT realization](machines-and-classes/native-and-resources.md) | native-oracle |
 | `raw-resource-transducer` | [Independent time/workspace transducer](machines-and-classes/native-and-resources.md) | resource |
 | `charged-resource-transducer` | [Output-charged compositional space](machines-and-classes/native-and-resources.md) | resource |
