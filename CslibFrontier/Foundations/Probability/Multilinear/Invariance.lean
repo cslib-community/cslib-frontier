@@ -10,9 +10,9 @@ module
 public import CslibFrontier.Foundations.Probability.Multilinear.Bonami
 public import Mathlib.Analysis.Calculus.ContDiff.Defs
 public import Mathlib.Analysis.SpecialFunctions.Pow.Real
-import CslibFrontier.Foundations.Analysis.Calculus.Taylor
 import CslibFrontier.Foundations.MeasureTheory.Integral.CauchySchwarz
 import CslibFrontier.Foundations.MeasureTheory.Integral.PiUpdate
+import CslibFrontier.Foundations.Probability.SmoothTests
 
 /-!
 # The Basic Invariance Principle
@@ -32,8 +32,11 @@ Corollary 11.67). The typical instance takes `x` uniform `±1` bits and `y` stan
 The proof is Lindeberg's replacement method. The hybrids `Measure.pi (s.piecewise ν μ)` replace the
 coordinates in `s` one at a time (`MeasureTheory.abs_integral_pi_sub_le_sum`). Replacing coordinate
 `t` writes `F = E_t F + z · D_t F` with `E_t F`, `D_t F` independent of the new coordinate `z`; by
-Taylor's theorem to third order, the first three moments of `x_t` and `y_t` agree, so the step costs
-at most `C / 24 · (E[x_t⁴] + E[y_t⁴]) · E[(D_t F)⁴] ≤ 3 C / 4 · E[(D_t F)⁴]`
+Taylor's theorem to third order (the one-coordinate step
+`ProbabilityTheory.abs_integral_sub_integral_le_of_moments` of
+`CslibFrontier.Foundations.Probability.SmoothTests`), the first three moments of `x_t` and `y_t`
+agree, so the step costs at most
+`C / 24 · (E[x_t⁴] + E[y_t⁴]) · E[(D_t F)⁴] ≤ 3 C / 4 · E[(D_t F)⁴]`
 (`HasInvarianceMoments.abs_integral_sub_le`). The Bonami Lemma for the hybrid ensemble
 (`integral_multilinearEval_pow_four_le`) bounds `E[(D_t F)⁴] ≤ 9 ^ (k - 1) Inf_t[F] ^ 2`.
 
@@ -48,8 +51,6 @@ place of `3 ^ k`; the hypercontractive version (Exercise 11.47) is not formalize
 
 ## Main results
 
-* `ProbabilityTheory.abs_integral_sub_integral_le_of_moments`: the one-dimensional replacement
-  step, for laws with matching moments up to order `n` and a `C^(n+1)` test function.
 * `ProbabilityTheory.abs_integral_comp_multilinearEval_sub_le`: the Basic Invariance Principle.
 * `ProbabilityTheory.abs_integral_comp_multilinearEval_sub_le_of_influence_le`: Corollary 11.67.
 * `ProbabilityTheory.abs_integral_comp_multilinearEval_sub_le_of_contDiff_three`: the `C³` form.
@@ -65,62 +66,6 @@ open MeasureTheory Finset
 open scoped Nat ENNReal
 
 namespace ProbabilityTheory
-
-/-! ### One coordinate -/
-
-/-- **The one-dimensional replacement step.** If the laws `μ` and `ν` have finite moments of order
-`n + 1` and the same moments of orders `0, …, n`, and `ψ` is `C^(n+1)` with `|ψ⁽ⁿ⁺¹⁾| ≤ C`, then
-for all `a`, `b`, `|E_μ ψ(a + s b) - E_ν ψ(a + s b)|` is at most
-`C / (n + 1)! · |b| ^ (n + 1) · (E_μ |s| ^ (n + 1) + E_ν |s| ^ (n + 1))`. -/
-theorem abs_integral_sub_integral_le_of_moments {μ ν : Measure ℝ} [IsProbabilityMeasure μ]
-    [IsProbabilityMeasure ν] {n : ℕ} (hμ : MemLp id ((n + 1 : ℕ) : ℝ≥0∞) μ)
-    (hν : MemLp id ((n + 1 : ℕ) : ℝ≥0∞) ν)
-    (hmom : ∀ j ≤ n, ∫ s, s ^ j ∂μ = ∫ s, s ^ j ∂ν)
-    {ψ : ℝ → ℝ} (hψ : ContDiff ℝ (n + 1) ψ) {C : ℝ}
-    (hC : ∀ y, |iteratedDeriv (n + 1) ψ y| ≤ C) (a b : ℝ) :
-    |∫ s, ψ (a + s * b) ∂μ - ∫ s, ψ (a + s * b) ∂ν| ≤
-      C / (n + 1)! * |b| ^ (n + 1) * (∫ s, |s| ^ (n + 1) ∂μ + ∫ s, |s| ^ (n + 1) ∂ν) := by
-  set T : ℝ → ℝ := fun s => ∑ j ∈ range (n + 1), iteratedDeriv j ψ a * (s * b) ^ j / (j ! : ℝ)
-  set R : ℝ → ℝ := fun s => ψ (a + s * b) - T s
-  set K : ℝ := C / (n + 1)! * |b| ^ (n + 1)
-  have hR (s : ℝ) : |R s| ≤ K * |s| ^ (n + 1) := by
-    calc |R s| ≤ C * |s * b| ^ (n + 1) / (n + 1)! := abs_sub_sum_iteratedDeriv_le hψ hC a (s * b)
-      _ = K * |s| ^ (n + 1) := by rw [abs_mul, mul_pow]; ring
-  have hψc : Continuous ψ := hψ.continuous
-  have hTint {m : Measure ℝ} [IsProbabilityMeasure m] (hm : MemLp id ((n + 1 : ℕ) : ℝ≥0∞) m) :
-      Integrable T m ∧ ∫ s, T s ∂m =
-        ∑ j ∈ range (n + 1), iteratedDeriv j ψ a * b ^ j / j ! * ∫ s, s ^ j ∂m := by
-    have hint (j : ℕ) (hj : j ∈ range (n + 1)) :
-        Integrable (fun s => iteratedDeriv j ψ a * (s * b) ^ j / j !) m := by
-      have := (integrable_pow_of_memLp hm (j := j) (by
-        have := mem_range.1 hj; omega)).const_mul (iteratedDeriv j ψ a * b ^ j / j !)
-      refine this.congr (ae_of_all _ fun s => ?_)
-      simp only [mul_pow]; ring
-    refine ⟨integrable_finsetSum _ hint, ?_⟩
-    rw [integral_finsetSum _ hint]
-    refine sum_congr rfl fun j _ => ?_
-    rw [← integral_const_mul]
-    congr 1 with s : 1; simp only [mul_pow]; ring
-  have hRint {m : Measure ℝ} [IsProbabilityMeasure m] (hm : MemLp id ((n + 1 : ℕ) : ℝ≥0∞) m) :
-      Integrable R m :=
-    ((integrable_abs_pow_of_memLp hm le_rfl).const_mul K).mono'
-      (by fun_prop : Continuous R).aestronglyMeasurable
-      (ae_of_all _ fun s => by simpa using hR s)
-  have hsplit {m : Measure ℝ} [IsProbabilityMeasure m] (hm : MemLp id ((n + 1 : ℕ) : ℝ≥0∞) m) :
-      ∫ s, ψ (a + s * b) ∂m = ∫ s, T s ∂m + ∫ s, R s ∂m := by
-    rw [← integral_add (hTint hm).1 (hRint hm)]
-    congr 1 with s : 1; simp [R]
-  have hRle {m : Measure ℝ} [IsProbabilityMeasure m] (hm : MemLp id ((n + 1 : ℕ) : ℝ≥0∞) m) :
-      |∫ s, R s ∂m| ≤ K * ∫ s, |s| ^ (n + 1) ∂m := by
-    rw [← integral_const_mul]
-    exact (abs_integral_le_integral_abs).trans (integral_mono (hRint hm).abs
-      ((integrable_abs_pow_of_memLp hm le_rfl).const_mul K) hR)
-  have hT : ∫ s, T s ∂μ = ∫ s, T s ∂ν := by
-    rw [(hTint hμ).2, (hTint hν).2]
-    refine sum_congr rfl fun j hj => ?_
-    rw [hmom j (Nat.lt_succ_iff.1 (mem_range.1 hj))]
-  rw [hsplit hμ, hsplit hν, hT, add_sub_add_left_eq_sub, mul_add]
-  exact (abs_sub _ _).trans (add_le_add (hRle hμ) (hRle hν))
 
 namespace HasInvarianceMoments
 
@@ -205,13 +150,9 @@ polynomial of `L⁴` variables is integrable. -/
 theorem integrable_comp_multilinearEval (μ : ι → Measure ℝ) [∀ i, IsProbabilityMeasure (μ i)]
     (hμ : ∀ i, MemLp id 4 (μ i)) (c : Finset ι → ℝ) {ψ : ℝ → ℝ} {n : ℕ} (hn : n + 1 ≤ 4)
     (hψ : ContDiff ℝ (n + 1) ψ) {C : ℝ} (hC : ∀ y, |iteratedDeriv (n + 1) ψ y| ≤ C) :
-    Integrable (fun z => ψ (multilinearEval c z)) (Measure.pi μ) := by
-  obtain ⟨K, hK⟩ := hψ.exists_abs_le_mul_one_add_pow_of_abs_iteratedDeriv_le hC
-  refine (((integrable_const 1).add
-    (integrable_abs_multilinearEval_pow μ hμ c hn)).const_mul K).mono'
-    (hψ.continuous.comp (continuous_multilinearEval c)).aestronglyMeasurable
-    (ae_of_all _ fun z => ?_)
-  simpa [Real.norm_eq_abs] using hK (multilinearEval c z)
+    Integrable (fun z => ψ (multilinearEval c z)) (Measure.pi μ) :=
+  integrable_comp_of_memLp hψ hC ((memLp_multilinearEval μ (p := 4) (by norm_num)
+    (by exact_mod_cast hμ) c).mono_exponent (by exact_mod_cast hn))
 
 /-- One step of the hybrid argument for a multilinear polynomial: if each one-coordinate
 replacement costs at most `K |b| ^ p` for the coefficient `b` of the replaced variable, then

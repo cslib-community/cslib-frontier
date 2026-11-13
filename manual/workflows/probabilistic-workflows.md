@@ -3239,7 +3239,14 @@ and is derived from it. Cauchy–Schwarz for real integrals,
 `MeasureTheory.sq_integral_mul_le`, needs no sign condition. It is in
 [`Integral/CauchySchwarz`](../../CslibFrontier/Foundations/MeasureTheory/Integral/CauchySchwarz.lean)
 with `MeasureTheory.integrable_pow_of_memLp` and `MeasureTheory.integrable_abs_pow_of_memLp`, which
-give integrability of the moments of order `j ≤ n` of a variable in `Lⁿ`.
+give integrability of the moments of order `j ≤ n` of a variable in `Lⁿ`. The tools that do not
+involve polynomials are in
+[`SmoothTests.lean`](../../CslibFrontier/Foundations/Probability/SmoothTests.lean) (namespace
+`ProbabilityTheory`), which the invariance principle for sums below also uses. Its one-coordinate
+replacement step, `abs_integral_sub_integral_le_of_moments`, works at any order: laws with equal
+moments of orders `0` to `n` and a `C^(n+1)` test with `|ψ⁽ⁿ⁺¹⁾| ≤ C`. For such a test,
+`integrable_comp_of_memLp hψ hC hU` makes `ψ ∘ U` integrable for any `hU : MemLp U (n + 1) P`
+on a finite measure space.
 
 The checked [`MultilinearInvariance.lean` clients](../../CslibFrontierTests/MultilinearInvariance.lean)
 cover Hypothesis 11.65 for Gaussians and signs and its failure for a point mass, and bits versus
@@ -3255,11 +3262,14 @@ For a test function that is only Lipschitz (Corollary 11.68), import
 hypotheses of `abs_integral_comp_multilinearEval_sub_le_of_influence_le` with
 `hψ : LipschitzWith K ψ` (`K : ℝ≥0`) in place of the `C⁴` bound, and bounds the difference by
 `9 * K * 2 ^ k * ε ^ (1 / 4 : ℝ)`. Integrability of `ψ (multilinearEval c ·)` is proved inside.
-The general transfer behind it, `abs_integral_comp_sub_le_of_lipschitzWith hτ h hψ` with
-`hτ : 0 ≤ τ`, applies to any two real random variables `X` and `Y`, on different probability
-spaces if needed. Here `h` must prove, for every `C⁴` `φ` with `|φ''''| ≤ C`, that `φ ∘ X` and
-`φ ∘ Y` are integrable and that their expectations differ by at most `C * τ ^ 4`; measurability of
-`X` and `Y` follows from `h`. The result bounds the difference for `ψ` by `16 * K * τ`.
+The general transfer behind it, `abs_integral_comp_sub_le_of_lipschitzWith hm hτ h hψ` in
+[`SmoothTests.lean`](../../CslibFrontier/Foundations/Probability/SmoothTests.lean), with
+`hm : m ≠ 0` and `hτ : 0 ≤ τ`, applies to any two real random variables `X` and `Y`, on different
+probability spaces if needed. Here `h` must prove, for every `φ` with `ContDiff ℝ m φ` and
+`|iteratedDeriv m φ| ≤ C`, that `φ ∘ X` and `φ ∘ Y` are integrable and that their expectations
+differ by at most `C * τ ^ m`; measurability of `X` and `Y` follows from `h`. The result bounds
+the difference for `ψ` by `(2 * m + 2 ^ (m - 1)) * K * τ`, which is `16 * K * τ` for `m = 4`
+(Corollary 11.68) and `10 * K * τ` for `m = 3` (Corollary 11.59).
 `LipschitzWith.abs_integral_comp_sub_le_sqrt hψ hX hY`, next to Cauchy–Schwarz in
 [`Integral/CauchySchwarz`](../../CslibFrontier/Foundations/MeasureTheory/Integral/CauchySchwarz.lean),
 gives `|∫ ψ (X ω) - ∫ ψ (Y ω)| ≤ K * √(∫ (X ω - Y ω) ^ 2)` for `MemLp X 2 P` and `MemLp Y 2 P` on a
@@ -3271,6 +3281,8 @@ The smoothing is in
 (namespace `Real`). `Real.movingAverage h φ s = h⁻¹ * ∫ t in 0..h, φ (s + t)`
 (`Real.movingAverage_def`). For continuous `φ`, `Real.hasDerivAt_movingAverage` and
 `Real.contDiff_iterate_movingAverage` show that `(Real.movingAverage h)^[m] φ` is `ContDiff ℝ m`.
+For continuous `φ` and `0 < h`, `Real.iterate_movingAverage_mem_Icc` shows that
+`(movingAverage h)^[m] φ s ∈ Set.Icc a b` whenever `φ` maps `[s, s + m * h]` into `[a, b]`.
 For `hψ : LipschitzWith K ψ` and `0 < h`, `hψ.abs_iterate_movingAverage_sub_le` gives
 `|(movingAverage h)^[m] ψ s - ψ s| ≤ m * K * h`, and
 `hψ.abs_iteratedDeriv_iterate_movingAverage_le` gives `|iteratedDeriv (k + 1) _ s| ≤
@@ -3327,6 +3339,62 @@ has no `(ε, δ)`-notable coordinates when every `aᵢ² ≤ ε`; for the normal
 `15 * (1 / m) ^ (1 / 60) = 0.15`, below the trivial bound `1`. Run
 `scripts/build.sh CslibFrontierTests.InvarianceLipschitz` from the repository root to check them.
 
+### Distribution functions: the Lévy distance
+
+For distribution functions, import
+[`CslibFrontier.Foundations.Probability.Multilinear.InvarianceLevy`](../../CslibFrontier/Foundations/Probability/Multilinear/InvarianceLevy.lean),
+or [`CslibFrontier.Foundations.BooleanAnalysis.InvarianceLevy`](../../CslibFrontier/Foundations/BooleanAnalysis/InvarianceLevy.lean)
+on the cube. They prove the first statement of [O'Donnell, Corollary 11.70][odonnell14], the
+Lévy-distance bound `O(2ᵏ ε^(1/5))` in the setting of Corollary 11.67, with explicit constants.
+Take the hypotheses of `abs_integral_comp_multilinearEval_sub_le_of_influence_le` without a test
+function, add `u : ℝ`, and write `δ = 4 * 2 ^ k * ε ^ (1 / 5 : ℝ)`.
+
+- `measureReal_multilinearEval_le_le_add μ ν hμ hν hc hvar hε0 hε u` gives
+  `(Measure.pi μ).real {z | multilinearEval c z ≤ u} ≤
+  (Measure.pi ν).real {z | multilinearEval c z ≤ u + δ} + δ`.
+- `measureReal_multilinearEval_le_sub_le μ ν hμ hν hc hvar hε0 hε u` gives
+  `(Measure.pi ν).real {z | multilinearEval c z ≤ u - δ} - δ ≤
+  (Measure.pi μ).real {z | multilinearEval c z ≤ u}`. Together the two bound the Lévy distance by
+  `δ`.
+- On the cube, `dens_le_le_measureReal_multilinearEval_le_add μ hμ hf hvar hε0 hε u` and
+  `measureReal_multilinearEval_le_sub_le_dens` (namespace `Cslib.BitString`) state the same pair
+  with `(dens {x | f x ≤ u} : ℝ)`, the probability at uniform bits, in place of the `μ` side.
+  `measureReal_pi_rademacher`, in `BooleanAnalysis/Invariance.lean`, converts a probability under
+  `Measure.pi fun _ => rademacher` into such a density.
+
+The general step is in
+[`LevyDistance.lean`](../../CslibFrontier/Foundations/Probability/LevyDistance.lean) (namespace
+`ProbabilityTheory`), for any real random variables `X` and `Y` on probability spaces `P` and `Q`.
+It needs `hX : AEMeasurable X P`, `hY : AEMeasurable Y Q` and `h` proving, for every `φ` with
+`ContDiff ℝ m φ` and `|iteratedDeriv m φ| ≤ C`, that
+`|∫ ω, φ (X ω) ∂P - ∫ ω, φ (Y ω) ∂Q| ≤ C * B`; integrability is not needed.
+
+- `measureReal_le_le_add_div_pow_of_forall_contDiff hX hY h u hη`, for `0 < η`, gives
+  `P.real {ω | X ω ≤ u} ≤ Q.real {ω | Y ω ≤ u + η} + 2 ^ (m - 1) * (m + 1) ^ m * B / η ^ m`.
+- For `hδ : 0 ≤ δ` and `hB : 2 ^ (m - 1) * (m + 1) ^ m * B ≤ δ ^ (m + 1)`,
+  `measureReal_le_le_add_of_forall_contDiff hX hY h hδ hB u` and
+  `measureReal_le_sub_le_of_forall_contDiff hX hY h hδ hB u` give the Lévy-distance pair. When
+  `δ = 0`, `le_measureReal_le_of_forall_lt` (right-continuity of `v ↦ P.real {ω | X ω ≤ v}`)
+  finishes the argument.
+
+The test is `Real.stepSmoothing m u h` in `LipschitzSmoothing.lean`, the `m`-fold moving average
+of a ramp of width `h`. For `0 < h`, `stepSmoothing_mem_Icc` keeps it in `[0, 1]`,
+`stepSmoothing_eq_one_of_le` makes it `1` for `s ≤ u` and `stepSmoothing_eq_zero_of_le` makes it
+`0` for `u + (m + 1) * h ≤ s`. `contDiff_stepSmoothing` makes it `ContDiff ℝ m`, and
+`abs_iteratedDeriv_stepSmoothing_le` bounds its `m`-th derivative by `2 ^ (m - 1) / h ^ m`.
+`measureReal_le_le_integral_comp` and `integral_comp_le_measureReal_le` compare
+`P.real {ω | X ω ≤ v}` with `∫ ω, φ (X ω) ∂P` for such `[0, 1]`-valued tests. Corollary 11.70 uses
+`m = 4`, `B = k * 9 ^ k * ε / 12` from Corollary 11.67, and `η = δ`, so the test has
+`|φ⁗| ≤ 5000 / δ⁴`. The second statement of Corollary 11.70, in the setting of Remark 11.66, is
+not formalized, because the hypercontractive Invariance Principle of Remark 11.66 is not.
+
+The checked [`InvarianceSums.lean` clients](../../CslibFrontierTests/InvarianceSums.lean) apply
+both inequalities to `∑ xᵢ / √m`, as the linear form with coefficients `1 / √m`: it has degree
+`1`, variance `1` and influences `1 / m`. Signs and Gaussians then have Lévy distance at most
+`4 * 2 * (1 / m) ^ (1 / 5)`, which is `8 / 100` for `m = 100⁵`, below the trivial bound `1`.
+They also instantiate the cube pair for any function with small influences. Run
+`scripts/build.sh CslibFrontierTests.InvarianceSums` from the repository root to check them.
+
 ### Reasonable random variables
 
 `IsReasonable B X P`, in
@@ -3360,9 +3428,78 @@ but not `9`-reasonable: polynomials in two of them are `100`-reasonable, sharply
 product, and sums of `n` of them are `10`-reasonable. Run
 `scripts/build.sh CslibFrontierTests.Reasonable` from the repository root to check them.
 
-The following are not formalized: the Lévy-distance form
-(Corollary 11.70), cdf-closeness through the Carbery–Wright theorem (Theorem 11.71), the general
-Invariance Principle with hypercontractive ensembles, and Majority Is Stablest.
+The following are not formalized: the second statement of Corollary 11.70 (the Lévy-distance
+bound in the setting of Remark 11.66), cdf-closeness through the Carbery–Wright theorem
+(Theorem 11.71), the general Invariance Principle with hypercontractive ensembles, and Majority
+Is Stablest.
+
+## Compare sums of independent random variables
+
+Import
+[`CslibFrontier.Foundations.Probability.InvarianceSums`](../../CslibFrontier/Foundations/Probability/InvarianceSums.lean)
+and open `ProbabilityTheory`. It proves the Invariance Principle for Sums of Random Variables of
+[O'Donnell, §11.5][odonnell14], Corollaries 11.59 and 11.61, and Corollary 11.62 in the form with
+`γ_XY`. The variables are the coordinates under product laws: `X` has law `Measure.pi μ` and `Y`
+has law `Measure.pi ν`, for `μ ν : ι → Measure ℝ` with `[Fintype ι]` and
+`[∀ i, IsProbabilityMeasure (μ i)]` (and likewise for `ν`). The two families need not live on one
+probability space. Take `hμ : ∀ i, MemLp id 3 (μ i)`, `hν : ∀ i, MemLp id 3 (ν i)`,
+`h₁ : ∀ i, ∫ s, s ∂μ i = ∫ s, s ∂ν i` and `h₂ : ∀ i, ∫ s, s ^ 2 ∂μ i = ∫ s, s ^ 2 ∂ν i`, and
+write `γ = ∑ i, (∫ s, |s| ^ 3 ∂μ i + ∫ s, |s| ^ 3 ∂ν i)`. Every bound below is stated with this sum
+written out.
+
+- For `hψ : ContDiff ℝ 3 ψ` and `hC : ∀ y, |iteratedDeriv 3 ψ y| ≤ C`,
+  `abs_integral_comp_sum_sub_le μ ν hμ hν h₁ h₂ hψ hC` bounds
+  `|∫ z, ψ (∑ i, z i) ∂Measure.pi μ - ∫ z, ψ (∑ i, z i) ∂Measure.pi ν|` by `C / 6 * γ`.
+  Integrability of `ψ` of the sums is proved inside, from `integrable_comp_of_memLp`.
+- Corollary 11.59: for `hψ : LipschitzWith K ψ`,
+  `abs_integral_comp_sum_sub_le_of_lipschitzWith μ ν hμ hν h₁ h₂ hψ` bounds the same difference
+  by `6 * K * γ ^ (1 / 3 : ℝ)`.
+- Corollary 11.61 (Lévy distance): with `ε = 3 * γ ^ (1 / 4 : ℝ)`,
+  `measureReal_sum_le_le_add μ ν hμ hν h₁ h₂ u` gives
+  `(Measure.pi μ).real {z | ∑ i, z i ≤ u} ≤ (Measure.pi ν).real {z | ∑ i, z i ≤ u + ε} + ε`, and
+  `measureReal_sum_le_sub_le μ ν hμ hν h₁ h₂ u` gives
+  `(Measure.pi ν).real {z | ∑ i, z i ≤ u - ε} - ε ≤ (Measure.pi μ).real {z | ∑ i, z i ≤ u}`. To
+  choose the shift yourself, `measureReal_sum_le_le_add_div_pow μ ν hμ hν h₁ h₂ u hη` gives the
+  error term `128 / 3 * γ / η ^ 3` for `0 < η`.
+- Corollary 11.62: if also
+  `hG : HasLaw (fun z : ι → ℝ => ∑ i, z i) (gaussianReal 0 1) (Measure.pi ν)`, then
+  `abs_measureReal_sum_le_sub_cdf_le μ ν hμ hν h₁ h₂ hG u` bounds
+  `|(Measure.pi μ).real {z | ∑ i, z i ≤ u} - cdf (gaussianReal 0 1) u|` by
+  `9 / 2 * γ ^ (1 / 4 : ℝ)`. The Gaussian anticoncentration it uses,
+  `gaussianReal_real_Iic_add_le μ x hv hε` (`Pr[Z ≤ x + ε] ≤ Pr[Z ≤ x] + ε / √(2πv)` for
+  `Z ∼ N(μ, v)` with `v ≠ 0`), is in
+  [`Gaussian/Real.lean`](../../CslibFrontier/Foundations/Probability/Gaussian/Real.lean).
+
+For independent random variables `X i : Ω → ℝ` on one space, `iIndepFun_iff_map_fun_eq_pi_map`
+identifies the law of `fun ω i => X i ω` with `Measure.pi fun i => P.map (X i)`; take
+`μ i = P.map (X i)`. For `HasLaw` of a weighted sum of standard Gaussian coordinates, use
+`pi_gaussianReal_map_dotProduct`, after `Measure.pi_map_pi` when the coordinate laws are scaled.
+
+The proof is the replacement method of the previous section with the one-coordinate step
+`abs_integral_sub_integral_le_of_moments` of `SmoothTests.lean` at `n = 2`. Corollary 11.59 uses
+the Lipschitz transfer of the same file at `m = 3`, and Corollary 11.61 the Lévy-distance step of
+`LevyDistance.lean` at `m = 3`, where the test has `|φ'''| ≤ 256 / η³`. The module imports no
+`Multilinear` module.
+
+The checked [`InvarianceSums.lean` clients](../../CslibFrontierTests/InvarianceSums.lean) compare
+`∑ xᵢ / √m` for `m` uniform signs with `∑ gᵢ / √m` for standard Gaussians, as sums of coordinates
+under the laws `rademacher.map ((√m)⁻¹ * ·)` and `(gaussianReal 0 1).map ((√m)⁻¹ * ·)`. From
+Hypothesis 11.65 they get `E|c z|³ ≤ 3 |c|³` and `γ ≤ 6 / √m`. With `ψ = cos` the bound is
+`1 / √m`. For `m = 10¹²`, the clamp `u ↦ min 1 (max 0 u)` gives `3 / 20`, and the distribution
+function at `u = 0` is within `9 / 20` of `Φ(0) = 1 / 2`, below the trivial bounds `1` and
+`1 / 2`. They also apply both Corollary 11.61 inequalities at `u = 0`. For `m = 10¹²` they bound
+the Lévy distance by `3 / 10`, and the explicit-shift form with `η = 1 / 10` gives the error
+`1 / 2`. They check the values and the derivative bound of `Real.stepSmoothing 3 0 1`, and the
+`δ = 0` case of `measureReal_le_le_add_of_forall_contDiff`, which uses right-continuity. Run
+`scripts/build.sh CslibFrontierTests.InvarianceSums` from the repository root to check them.
+
+The Berry–Esseen Theorem of §11.5, with error `O(∑ E|Xᵢ|³)`, is not covered: these results lose a
+power, as in the book. The Variant Berry–Esseen Theorem and the book's form of Corollary 11.62,
+where only `X` is given, are not covered either: constructing the Gaussian comparison family
+`Yᵢ ∼ N(E[Xᵢ], Var[Xᵢ])` from `X` alone, and the bound (11.28)
+`γ ≤ (1 + 2 √(2/π)) ∑ E|Xᵢ|³`, are left to the user. `ROADMAP.md` tracks them.
+
+[odonnell14]: ../sources.md#odonnell14
 
 ## Evaluate a multi-component conditional walk via validated words
 
