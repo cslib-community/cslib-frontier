@@ -3472,7 +3472,8 @@ The checked
 [`BooleanAnalysisMajority.lean` clients](../../CslibFrontierTests/BooleanAnalysisMajority.lean)
 instantiate these statements on small cubes. Run
 `scripts/build.sh CslibFrontierTests.BooleanAnalysisMajority` from the repository root to check
-them. The asymptotic value of `I[Majₙ]` in Theorem 2.33 is not part of this module.
+them. The leading term of `I[Majₙ]` in Theorem 2.33 is in `BooleanAnalysis.MajorityInfluence`, in
+the next section.
 
 ## Take the degree-one weight of a Hamming ball to its Gaussian limit
 
@@ -3517,6 +3518,24 @@ type, reindex to `Fin n` first, for example with `Fintype.expect_comp_arrowCongr
 - `tendsto_expect_abs_inv_sqrt_mul_sum_signVal` is `𝔼 x, |Zₙ x| → √(2 / π)`,
   [O'Donnell][odonnell14], Section 5.2, equation (5.4).
 
+The total influence of majority follows from the last of these. Import
+[`CslibFrontier.Foundations.BooleanAnalysis.MajorityInfluence`](../../CslibFrontier/Foundations/BooleanAnalysis/MajorityInfluence.lean);
+majority is `Cslib.majority n : BooleanFunction n` on `BitString n = Fin n → Bool`, read as signs
+with `fun x => signVal (majority n x)`. It is true when at least `(n + 1) / 2` bits are true, so for
+odd `n` it is the book's `Majₙ` and for even `n` it breaks ties towards `true` (sign `-1`).
+
+- `totalInfluence_majority_eq_expect_abs n` is the exact identity
+  `I[Majₙ] = 𝔼 x, |∑ i, signVal (x i)|` of [O'Donnell][odonnell14], Section 5.2, equation (5.2).
+  It combines Proposition 2.31, `totalInfluence_eq_sum_fourierCoeff_singleton_of_monotone` in
+  [`Monotone`](../../CslibFrontier/Foundations/BooleanAnalysis/Monotone.lean) with
+  `monotone_majority`, and `sum_fourierCoeff_singleton_majority` in
+  [`Majority`](../../CslibFrontier/Foundations/BooleanAnalysis/Majority.lean).
+- `tendsto_totalInfluence_majority_div_sqrt` is `I[Majₙ] / √n → √(2 / π)` along all `n`, the
+  leading term of `I[Majₙ] = √(2/π) √n + O(n^{-1/2})` in
+  [O'Donnell][odonnell14], Theorem 2.33, and
+  `tendsto_totalInfluence_majority_two_mul_add_one_div_sqrt` is the same along odd `n = 2m + 1`.
+  The error term `O(n^{-1/2})` is not formalized.
+
 These come from Mathlib's `tendstoInDistribution_inv_sqrt_mul_sum` applied to independent uniform
 signs under `Measure.infinitePi`, carried to the cube through `integral_pi_rademacher`. The
 quadratic-growth form uses
@@ -3540,7 +3559,10 @@ degree-one coefficients computed directly. They also give the limits `1 / (2π)`
 `e⁻¹ / (2π)` at `t = 1`, the mean limit `1 / 2` at `t = 0`, the central limit theorem for
 `z - |z|`, and that `𝔼 x, |Zₙ x|` is eventually below `1`. Run
 `scripts/build.sh CslibFrontierTests.BooleanAnalysisHammingBallWeight` from the repository root
-to check them.
+to check them. The
+[`BooleanAnalysisMajorityInfluence.lean` clients](../../CslibFrontierTests/BooleanAnalysisMajorityInfluence.lean)
+compute `I[Maj₃] = 3 / 2` both through the identity and as the average sensitivity, and derive
+`I[Majₙ] / n → 0` and, along odd `n`, `I[Majₙ] < √n` eventually from the limits; check them with `scripts/build.sh CslibFrontierTests.BooleanAnalysisMajorityInfluence`.
 
 Only the limits are formalized, with no rate of convergence. The book's restatement
 `W¹[fₙ] → U(α)²` through the Gaussian isoperimetric function `U` of Definition 5.26 is not

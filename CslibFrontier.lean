@@ -5927,6 +5927,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.LowDegreeMoments
 public import CslibFrontier.Foundations.BooleanAnalysis.LowDegreeParity
 public import CslibFrontier.Foundations.BooleanAnalysis.LowDegreePhase
 public import CslibFrontier.Foundations.BooleanAnalysis.Majority
+public import CslibFrontier.Foundations.BooleanAnalysis.MajorityInfluence
 public import CslibFrontier.Foundations.BooleanAnalysis.MaximalSupport
 public import CslibFrontier.Foundations.BooleanAnalysis.MirrorSets
 public import CslibFrontier.Foundations.BooleanAnalysis.Mobius
