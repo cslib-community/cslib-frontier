@@ -3474,6 +3474,78 @@ instantiate these statements on small cubes. Run
 `scripts/build.sh CslibFrontierTests.BooleanAnalysisMajority` from the repository root to check
 them. The asymptotic value of `I[Majₙ]` in Theorem 2.33 is not part of this module.
 
+## Take the degree-one weight of a Hamming ball to its Gaussian limit
+
+Import
+[`CslibFrontier.Foundations.BooleanAnalysis.HammingBallWeight`](../../CslibFrontier/Foundations/BooleanAnalysis/HammingBallWeight.lean)
+and open `Cslib.BitString`, `ProbabilityTheory`, `Filter`, `Topology` and `Real` (and
+`scoped BigOperators` for the `𝔼` notation). A point of the cube is `x : Fin n → Bool`, read as the signs `signVal (x i)`
+(`false ↦ 1`, `true ↦ -1`). The Hamming ball indicator `fₙ` of
+[O'Donnell][odonnell14], Proposition 5.25, with `fₙ(x) = 1` iff `∑ᵢ xᵢ / √n > t`, is the real
+function `fun x : Fin n → Bool => if t < (√n)⁻¹ * ∑ i, signVal (x i) then (1 : ℝ) else 0`; it is
+the ball around the all-`false` point. The Gaussian density `φ` is `gaussianPDFReal 0 1` and the
+cdf `Φ` is `cdf (gaussianReal 0 1)`. The book states `lim E[fₙ]` as the complementary cdf
+`Φ̄(t) = 1 - Φ(t)`; plain-text extractions of the book drop the overbar, so it reads as `Φ(t)`.
+Here it is `1 - cdf (gaussianReal 0 1) t`.
+
+- `tendsto_levelWeight_one_hammingBall t` is `W¹[fₙ] → φ(t)²` as a `Tendsto` along `atTop`, and
+  `tendsto_expect_hammingBall t` is `𝔼 x, fₙ x → 1 - Φ(t)`.
+- `levelWeight_one_hammingBall n t` is the exact identity `W¹[fₙ] = (𝔼 x, fₙ x * Zₙ x)²` with
+  `Zₙ x = (√n)⁻¹ * ∑ i, signVal (x i)`. It is the case of
+  `levelWeight_one_eq_sq_expect_mul_of_comp_perm` in
+  [`LevelWeight`](../../CslibFrontier/Foundations/BooleanAnalysis/LevelWeight.lean), which holds
+  for every `f` invariant under permutations of the coordinates;
+  `levelWeight_one_mul_card_of_comp_perm` is the unnormalized form
+  `W¹[f] · n = (𝔼 x, f x * ∑ i, signVal (x i))²`.
+- `setIntegral_Ioi_id_gaussianReal t`, in
+  [`Gaussian/Moments`](../../CslibFrontier/Foundations/Probability/Gaussian/Moments.lean), is the
+  Gaussian tail mean `∫ z in Set.Ioi t, z ∂gaussianReal 0 1 = φ(t)`, and
+  `integral_abs_gaussianReal` is `∫ z, |z| ∂gaussianReal 0 1 = √(2 / π)`.
+
+For other limits on the cube, import
+[`CslibFrontier.Foundations.BooleanAnalysis.CentralLimit`](../../CslibFrontier/Foundations/BooleanAnalysis/CentralLimit.lean)
+(same namespaces). Write the expectation in exactly the form
+`𝔼 x : Fin n → Bool, g ((√n)⁻¹ * ∑ i, signVal (x i))`, with `n` cast to `ℝ`; for another index
+type, reindex to `Fin n` first, for example with `Fintype.expect_comp_arrowCongr`.
+
+- `tendsto_expect_inv_sqrt_mul_sum_signVal g` is the central limit theorem
+  `𝔼 x, g (Zₙ x) → ∫ z, g z ∂gaussianReal 0 1` for a bounded continuous `g : ℝ →ᵇ ℝ`.
+- `tendsto_expect_indicator_inv_sqrt_mul_sum_signVal hE h0` does the same for `E.indicator 1`,
+  where `E` is measurable and `gaussianReal 0 1 (frontier E) = 0`.
+- `tendsto_expect_inv_sqrt_mul_sum_signVal_of_sq_le hc hab` does the same for a continuous `h`
+  with `h z ^ 2 ≤ a * z ^ 2 + b` for all `z`; `h` may be unbounded and of either sign.
+- `tendsto_expect_abs_inv_sqrt_mul_sum_signVal` is `𝔼 x, |Zₙ x| → √(2 / π)`,
+  [O'Donnell][odonnell14], Section 5.2, equation (5.4).
+
+These come from Mathlib's `tendstoInDistribution_inv_sqrt_mul_sum` applied to independent uniform
+signs under `Measure.infinitePi`, carried to the cube through `integral_pi_rademacher`. The
+quadratic-growth form uses
+`MeasureTheory.ProbabilityMeasure.tendsto_integral_of_integral_sq_le` in
+[`WeakConvergenceMoments`](../../CslibFrontier/Foundations/MeasureTheory/Measure/WeakConvergenceMoments.lean),
+which holds for any weakly convergent probability measures on `ℝ` whose second moments are
+bounded by a common `C`; it clamps `h` to `[-M, M]` and bounds the error by
+`(max a 0 * C + b) / M`. The clamping estimate,
+`MeasureTheory.abs_integral_sub_integral_max_neg_min_le`, holds on any measurable space for a
+weight `Φ ≥ 0` with `∫ Φ ≤ C` and `h² ≤ a Φ + b`; here `Φ z = z²`. The second
+moments on the cube are `expect_sq_inv_sqrt_card_mul_sum_signVal_le` in
+[`Rademacher`](../../CslibFrontier/Probability/BitString/Rademacher.lean). The Hamming ball proof
+follows the hint of [O'Donnell][odonnell14], Exercise 5.30: symmetry turns `W¹` into the square of
+one expectation, and `z · 1{z > t} = (z - t)⁺ + t · 1{z > t}` splits it into a function of
+quadratic growth and an event.
+
+The checked
+[`BooleanAnalysisHammingBallWeight.lean` clients](../../CslibFrontierTests/BooleanAnalysisHammingBallWeight.lean)
+evaluate the exact identity at `n = 2`, `t = 0` (`W¹ = 1 / 8`) and check it against the two
+degree-one coefficients computed directly. They also give the limits `1 / (2π)` at `t = 0` and
+`e⁻¹ / (2π)` at `t = 1`, the mean limit `1 / 2` at `t = 0`, the central limit theorem for
+`z - |z|`, and that `𝔼 x, |Zₙ x|` is eventually below `1`. Run
+`scripts/build.sh CslibFrontierTests.BooleanAnalysisHammingBallWeight` from the repository root
+to check them.
+
+Only the limits are formalized, with no rate of convergence. The book's restatement
+`W¹[fₙ] → U(α)²` through the Gaussian isoperimetric function `U` of Definition 5.26 is not
+stated.
+
 ## Compare bits with Gaussians by the invariance principle
 
 Import
