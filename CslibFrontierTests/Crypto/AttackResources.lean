@@ -151,7 +151,7 @@ theorem sampleCompiler_accounted (n : ℕ) :
       Game.AttackResources.ofInventory]
   · simp only [SampleCompilerCertifies, sampleResources, sampleExecution,
       sampleCompilerExecution, sampleOnlinePhases, Game.AttackResources.ofInventory]
-    constructor <;> omega
+    exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, by omega, by omega⟩
   · change 18 * (n + 1) + 19 * (n + 1) ≤ 299 * n + 299
     omega
   · change 31 * (n + 1) ≤ 42 * n + 42
@@ -178,7 +178,7 @@ theorem inlinedCompiler_accounted (n : ℕ) :
       Game.AttackResources.ofInventory]
   · simp only [SampleCompilerCertifies, inlinedCompilerResources, sampleExecution,
       sampleCompilerExecution, sampleOnlinePhases, Game.AttackResources.ofInventory]
-    constructor <;> omega
+    exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, by omega, by omega⟩
   · change 18 * (n + 1) + 19 * (n + 1) ≤ 299 * n + 299
     omega
   · change 31 * (n + 1) ≤ 42 * n + 42
@@ -204,7 +204,7 @@ theorem sampleOnlinePhases_accounted (n : ℕ) :
   refine ⟨?_, ?_, ?_⟩
   · simp only [SampleAttackCertifies, sampleResources, sampleExecution, sampleOnlinePhases,
       Game.AttackResources.ofInventory]
-    constructor <;> omega
+    exact ⟨rfl, rfl, rfl, by omega, by omega⟩
   · change (sampleOnlinePhases n).totalTime = 299 * n + 299
     simp [Game.OnlinePhaseLedger.totalTime, Game.OnlinePhaseLedger.asList,
       sampleOnlinePhases]
@@ -219,7 +219,7 @@ theorem sampleOutput_accounted (n : ℕ) :
   refine ⟨?_, ?_, ?_, ?_, ?_⟩
   · simp only [SampleAttackCertifies, sampleResources, sampleExecution, sampleOnlinePhases,
       Game.AttackResources.ofInventory]
-    constructor <;> omega
+    exact ⟨rfl, rfl, rfl, by omega, by omega⟩
   · change 17 * (n + 1) + 28 * (n + 1) + 29 * (n + 1) ≤ 299 * n + 299
     omega
   · change 30 * (n + 1) ≤ 42 * n + 42
