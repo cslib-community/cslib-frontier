@@ -234,9 +234,9 @@ example : ∃ K c, ComputableInTimeAndSpace
     (R := fun _ _ => K + 9) (Q := fun _ => K) (B := fun _ => 4)
     (fun p i hi s hs => by
       constructor
-      · simp [length_encPair, encBool_apply]
+      · simp [encBool_apply]
       · exact le_rfl)
-    (fun p i hi s hs => by simp [length_encPair, encBool_apply])
+    (fun p i hi s hs => by simp [encBool_apply])
   refine ⟨K, c, ?_, hs⟩
   simpa [Finset.sum_const, Finset.card_range, smul_eq_mul, Nat.add_assoc] using hc
 
@@ -267,7 +267,8 @@ example : ∃ c, ComputableInTimeAndSpace repeatedWord (encPair encBits encUnary
     (fun x i hi => by omega)
     (fun x i hi => by simp [encBits_apply])
   refine ⟨c, ?_⟩
-  simpa [repeatedWord, Finset.sum_const, Finset.card_range, smul_eq_mul, Nat.add_assoc] using hc
+  unfold repeatedWord
+  simpa [Finset.sum_const, Finset.card_range, smul_eq_mul, Nat.add_assoc] using hc
 
 -- Output really grows: the final callback emits once even when there are zero rounds.
 example (w : List Bool) : repeatedWord (w, 0) = w := by simp [repeatedWord]
