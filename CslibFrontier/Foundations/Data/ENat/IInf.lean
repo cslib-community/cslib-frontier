@@ -20,8 +20,7 @@ Mathlib's `iInf_le_iff_of_not_isPredPrelimit`: a finite `k` is covered by `k + 1
 predecessor prelimit. This module packages the upper/lower bound characterizations, attainment when
 a witness exists, and monotonicity for `ℕ∞`-valued subtype infima, two-parameter indexed subtype
 infima (used by private-coin communication models), and `ℕ`-valued `sInf` complexity measures (used
-by decision-tree models), together with the binary-tree leaf-count recurrence step
-`Nat.add_le_two_pow_max_succ`.
+by decision-tree models).
 
 ## Main results
 
@@ -37,8 +36,6 @@ by decision-tree models), together with the binary-tree leaf-count recurrence st
 * `Nat.sInf_le_of_le`, `Nat.exists_eq_sInf_of_exists`, `Nat.sInf_le_iff_of_exists`,
   `Nat.le_sInf_iff_of_exists`, `Nat.sInf_mono_of_exists`: shared least-cost API for
   `sInf {d : ℕ | ∃ w, P w ∧ cost w ≤ d}` when a witness exists.
-* `Nat.add_le_two_pow_max_succ`: if two subtrees have at most `2 ^ d₀` and `2 ^ d₁` leaves, their
-  parent has at most `2 ^ (max d₀ d₁ + 1)` leaves.
 -/
 
 public section
@@ -245,15 +242,5 @@ theorem exists_eq_of_le_iff [Nonempty α] {x : ℕ} {f : α → ℕ}
   have hbdd : BddAbove (Set.range f) := ⟨x, Set.forall_mem_range.mpr ((h x).mp le_rfl)⟩
   obtain ⟨a, ha⟩ := Nat.sSup_mem (Set.range_nonempty _) hbdd
   exact ⟨a, ha.trans (eq_ciSup_of_le_iff h).symm⟩
-
-/-- Inductive step for binary-tree leaf-count bounds: if two subtrees of depths `d₀` and `d₁` have
-at most `2 ^ d₀` and `2 ^ d₁` leaves, then their parent has at most `2 ^ (max d₀ d₁ + 1)`
-leaves. -/
-theorem add_le_two_pow_max_succ {l₀ l₁ d₀ d₁ : ℕ}
-    (h₀ : l₀ ≤ 2 ^ d₀) (h₁ : l₁ ≤ 2 ^ d₁) :
-    l₀ + l₁ ≤ 2 ^ (max d₀ d₁ + 1) := by
-  rw [Nat.pow_succ, Nat.mul_two]
-  exact Nat.add_le_add (h₀.trans (Nat.pow_le_pow_right Nat.two_pos (le_max_left _ _)))
-    (h₁.trans (Nat.pow_le_pow_right Nat.two_pos (le_max_right _ _)))
 
 end Nat

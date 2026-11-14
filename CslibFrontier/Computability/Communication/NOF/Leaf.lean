@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Communication.NOF.Protocol
-import CslibFrontier.Foundations.Data.ENat.IInf
+import CslibFrontier.Foundations.Data.Nat.Power
 
 /-!
 # Leaves of number-on-forehead protocols

@@ -10,7 +10,7 @@ module
 public import CslibFrontier.Computability.DecisionTree.Basic
 public import CslibFrontier.Foundations.Data.BitString.Weight
 public import Mathlib.Data.Nat.Choose.Sum
-import CslibFrontier.Foundations.Data.ENat.IInf
+import CslibFrontier.Foundations.Data.Nat.Power
 
 /-!
 # Leaves, rank, decision lists, and energy of decision trees

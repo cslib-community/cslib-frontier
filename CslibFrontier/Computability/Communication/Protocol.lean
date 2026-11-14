@@ -11,6 +11,7 @@ public import Cslib.Init
 public import Cslib.Foundations.Data.BitString
 public import Mathlib.Data.ENat.Lattice
 import CslibFrontier.Foundations.Data.ENat.IInf
+import CslibFrontier.Foundations.Data.Nat.Power
 
 /-!
 # Deterministic communication protocols
