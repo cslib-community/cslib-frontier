@@ -182,4 +182,56 @@ example (m : ℕ) :
       (2 : ℝ≥0∞) * ((2 : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ m)) :=
   toOuterMeasure_run_memoize_not_traceCollisionFree_le m isQueryBounded_twoQueryProg
 
+/-! ### Polynomial-time certificates for straight-line trace extraction and collision finding -/
+
+/-- A polynomial-time length-regular keyed hash returning its key. -/
+def keyProjectionHash (k _ : List Bool) : List Bool := k
+
+@[program_certificate]
+theorem computableInPolyTime_keyProjectionHash :
+    ComputableInPolyTime (fun p : List Bool × List Bool => keyProjectionHash p.1 p.2)
+      (encPair encBits encBits) encBits :=
+  ComputableInPolyTime.fst encBits encBits
+
+example (d : ℕ) :
+    ComputableInPolyTime
+      (fun p : (List (List Bool × List Bool) × List Bool) × ℕ =>
+        extractLeafFromTrace p.1.1 d p.1.2 p.2)
+      (encPair (encPair encMerkleTrace encBits) encUnary) (encOption encBits) := by
+  fun_prop
+
+example (d : ℕ) :
+    ComputableInPolyTime
+      (fun p : (List (List Bool × List Bool) × List Bool) × List Bool =>
+        extractTableFromTrace p.1.1 d p.1.2 p.2)
+      (encPair (encPair encMerkleTrace encBits) encBits) (encList encBits) := by
+  fun_prop
+
+example :
+    ComputableInPolyTime
+      (fun p : ((List Bool × List (List Bool × List Bool)) × ℕ) × (List Bool × List (List Bool)) =>
+        extractTraceCollision keyProjectionHash p.1.1.1 p.1.1.2 p.1.2 p.2.1 p.2.2)
+      (encPair (encPair (encPair encBits encMerkleTrace) encUnary)
+        (encPair encBits (encList encBits)))
+      (encPair encBits encBits) :=
+  computableInPolyTime_extractTraceCollision computableInPolyTime_keyProjectionHash
+    (fun _ _ => rfl) (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
+
+example :
+    ComputableInPolyTime
+      (fun p : List Bool × List (List Bool × List Bool) =>
+        decide (TraceConsistentWith (keyProjectionHash p.1) p.2))
+      (encPair encBits encMerkleTrace) encBool :=
+  computableInPolyTime_decide_traceConsistentWith computableInPolyTime_keyProjectionHash
+    (by fun_prop) (by fun_prop)
+
+example :
+    ComputableInPolyTime
+      (fun p : ((List Bool × List (List Bool × List Bool)) × ℕ) × (List Bool × List (List Bool)) =>
+        decide (PathQueriedInTrace keyProjectionHash p.1.1.1 p.1.1.2 p.1.2 p.2.1 p.2.2))
+      (encPair (encPair (encPair encBits encMerkleTrace) encUnary)
+        (encPair encBits (encList encBits))) encBool :=
+  computableInPolyTime_decide_pathQueriedInTrace computableInPolyTime_keyProjectionHash
+    (fun _ _ => rfl) (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
+
 end CslibFrontierTests.Crypto.ROMMerkleExtract

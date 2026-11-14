@@ -170,4 +170,94 @@ example :
   bcs_knowledge_or_merkleCollision encSym_injective (fun _ => rfl) (by decide)
     (fun h => by revert h; decide) 2
 
+/-! ### Polynomial-time collision extraction and standard-model `CollisionResistant` reductions -/
+
+open Cslib Cslib.Probability Turing.MultiTapeTM
+
+/-- Constant Fiat–Shamir oracle used to exercise uniform polynomial-time reductions. -/
+def constFS (_ : Bool) (_ : List (List Bool)) : Bool := false
+
+/-- Single-round, depth-one IOP querying entry `0` of round `0` and checking equality with `x`. -/
+def ksIOP : PublicCoinIOP 1 1 Bool Bool Bool Bool where
+  proveRound _ _ w _ := fun _ => w
+  queries _ _ := [(⟨0, by decide⟩, ⟨0, by decide⟩)]
+  decide x _ answers := answers == [x]
+
+/-- Straight-line knowledge extractor for `ksIOP` reading entry `0` of round `0`. -/
+def ksExtract (_ : Bool) (oracles : Fin 1 → OracleTable 1 Bool) : Bool :=
+  oracles ⟨0, by decide⟩ ⟨0, by decide⟩
+
+theorem ksIOP_knowledgeSound : IOPKnowledgeSoundness ksIOP toyRel ksExtract := by
+  intro x chals oracles hver
+  simp only [iopVerify, iopAnswers, ksIOP, List.map_cons, List.map_nil, beq_iff_eq,
+    List.cons.injEq, and_true] at hver
+  exact hver.symm
+
+theorem computableInPolyTime_constHash :
+    ComputableInPolyTime (fun p : List Bool × List Bool => constHash p.1 p.2)
+      (encPair encBits encBits) encBits :=
+  ComputableInPolyTime.fst encBits encBits
+
+theorem computableInPolyTime_ksIOP_queries :
+    ComputableInPolyTime (fun p : Bool × (Fin 1 → Bool) => ksIOP.queries p.1 p.2)
+      (encPair encBool (encFinFn 1 encBool)) (encList (encPair encFinUnary encFinUnary)) :=
+  ComputableInPolyTime.const _
+
+theorem computableInPolyTime_constFS :
+    ComputableInPolyTime (fun p : Bool × List (List Bool) => constFS p.1 p.2)
+      (encPair encBool (encList encBits)) encBool :=
+  ComputableInPolyTime.const false
+
+/-- Concrete strict-PPT table-committing BCS adversary. -/
+def toyTableAdversary : BCSTableCommitAdversary 1 1 Bool Bool :=
+  fun _ _ => pure
+    { stmt := true
+      oracles := fun _ _ => false
+      proof := { roots := fun _ => [], openings := [⟨true, [[]]⟩] } }
+
+theorem isPPTOn_toyTableAdversary :
+    IsPPTOn (encPair encUnary encBits) (encBCSTableCommitOutput 1 1 Bool Bool encBool encBool)
+      (fun ⟨n, k⟩ => toyTableAdversary n k) :=
+  (ComputableInPolyTime.const _).tidy.isPPTOn
+
+-- 5. Poly-time certificate for `bcsExtractTableCollision` and `isPPT_bcsTableCollisionFinder`.
+example :
+    ComputableInPolyTime
+      (fun p : List Bool × BCSTableCommitOutput 1 1 Bool Bool =>
+        bcsExtractTableCollision ksIOP constHash p.1 (fun b => encBool b) constFS
+          p.2.stmt p.2.oracles p.2.proof)
+      (encPair encBits (encBCSTableCommitOutput 1 1 Bool Bool encBool encBool))
+      (encPair encBits encBits) :=
+  computableInPolyTime_bcsExtractTableCollision computableInPolyTime_constHash (fun _ _ => rfl)
+    computableInPolyTime_ksIOP_queries computableInPolyTime_constFS
+    (ComputableInPolyTime.fst encBits _)
+    ((encBCSTableCommitOutput_stmt_polyTime 1 1 Bool Bool encBool encBool
+      (ComputableInPolyTime.snd encBits _)))
+    ((encBCSTableCommitOutput_oracles_polyTime 1 1 Bool Bool encBool encBool
+      (ComputableInPolyTime.snd encBits _)))
+    ((encBCSTableCommitOutput_proof_polyTime 1 1 Bool Bool encBool encBool
+      (ComputableInPolyTime.snd encBits _)))
+
+example :
+    IsPPT (encPair encBits encBits)
+      (bcsTableCollisionFinder ksIOP constHash (fun b => encBool b) constFS toyTableAdversary) :=
+  isPPT_bcsTableCollisionFinder computableInPolyTime_constHash (fun _ _ => rfl)
+    computableInPolyTime_ksIOP_queries computableInPolyTime_constFS isPPTOn_toyTableAdversary
+
+-- 6. Standard-model reductions from BCS table binding and knowledge soundness to
+-- `CollisionResistant`.
+example (hCR : CollisionResistant constHash) :
+    Negligible (fun n => Game.succProbability (ProbComp.eval
+      (bcsTableBindingGame ksIOP constHash (fun b => encBool b) constFS toyTableAdversary n))) :=
+  CollisionResistant.bcsTableBinding_negligible hCR computableInPolyTime_constHash (fun _ _ => rfl)
+    computableInPolyTime_ksIOP_queries computableInPolyTime_constFS isPPTOn_toyTableAdversary
+
+example (hCR : CollisionResistant constHash) :
+    Negligible (fun n => Game.succProbability (ProbComp.eval
+      (bcsTableKnowledgeGame ksIOP toyRel ksExtract constHash (fun b => encBool b) constFS
+        toyTableAdversary n))) :=
+  CollisionResistant.bcsTableKnowledge_negligible ksIOP_knowledgeSound hCR
+    computableInPolyTime_constHash (fun _ _ => rfl) computableInPolyTime_ksIOP_queries
+    computableInPolyTime_constFS isPPTOn_toyTableAdversary
+
 end CslibFrontierTests.Crypto.BCSTransform

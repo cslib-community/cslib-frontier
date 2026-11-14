@@ -577,4 +577,122 @@ example :
       isCostBounded_MT_verifier_largeChalCheater)
     largeChal_bound_lt_one_third
 
+/-! ### Part 5: Poly-time trace extraction and standard-model `CollisionResistant` reduction -/
+
+/-- A polynomial-time length-regular keyed hash returning its key. -/
+def keyProjHash (k _ : List Bool) : List Bool := k
+
+/-- Constant Fiat–Shamir oracle used to exercise uniform polynomial-time reductions. -/
+def constTraceFS (_ : Bool) (_ : List (List Bool)) : Bool := false
+
+/-- Single-round, depth-one IOP querying entry `0` of round `0` and checking equality with `x`. -/
+def traceKSIOP : PublicCoinIOP 1 1 Bool Bool Bool Bool where
+  proveRound _ _ w _ := fun _ => w
+  queries _ _ := [(⟨0, by decide⟩, ⟨0, by decide⟩)]
+  decide x _ answers := answers == [x]
+
+/-- Straight-line knowledge extractor for `traceKSIOP` reading entry `0` of round `0`. -/
+def traceKSExtract (_ : Bool) (oracles : Fin 1 → OracleTable 1 Bool) : Bool :=
+  oracles ⟨0, by decide⟩ ⟨0, by decide⟩
+
+theorem traceKSIOP_knowledgeSound : IOPKnowledgeSoundness traceKSIOP Eq traceKSExtract := by
+  intro x chals oracles hver
+  simp only [iopVerify, iopAnswers, traceKSIOP, List.map_cons, List.map_nil, beq_iff_eq,
+    List.cons.injEq, and_true] at hver
+  exact hver.symm
+
+theorem computableInPolyTime_decSym : ComputableInPolyTime decSym encBits encBool :=
+  ComputableInPolyTime.headD false
+
+theorem computableInPolyTime_traceKSExtract :
+    ComputableInPolyTime (fun p : Bool × (Fin 1 → OracleTable 1 Bool) => traceKSExtract p.1 p.2)
+      (encPair encBool (encFinFn 1 (encOracleTable 1 encBool))) encBool :=
+  ComputableInPolyTime.of_finite _
+
+theorem computableInPolyTime_keyProjHash :
+    ComputableInPolyTime (fun p : List Bool × List Bool => keyProjHash p.1 p.2)
+      (encPair encBits encBits) encBits :=
+  ComputableInPolyTime.fst encBits encBits
+
+theorem computableInPolyTime_traceKSIOP_queries :
+    ComputableInPolyTime (fun p : Bool × (Fin 1 → Bool) => traceKSIOP.queries p.1 p.2)
+      (encPair encBool (encFinFn 1 encBool)) (encList (encPair encFinUnary encFinUnary)) :=
+  ComputableInPolyTime.const _
+
+theorem computableInPolyTime_constTraceFS :
+    ComputableInPolyTime (fun p : Bool × List (List Bool) => constTraceFS p.1 p.2)
+      (encPair encBool (encList encBits)) encBool :=
+  ComputableInPolyTime.const false
+
+/-- Concrete strict-PPT trace-recording BCS adversary. -/
+def toyTraceAdversary : BCSTraceAdversary 1 Bool Bool :=
+  fun _ _ => pure
+    { trace := []
+      stmt := true
+      proof := { roots := fun _ => [], openings := [⟨true, [[]]⟩] } }
+
+theorem isPPTOn_toyTraceAdversary :
+    IsPPTOn (encPair encUnary encBits) (encBCSTraceOutput 1 Bool Bool encBool encBool)
+      (fun ⟨n, k⟩ => toyTraceAdversary n k) :=
+  (ComputableInPolyTime.const _).tidy.isPPTOn
+
+-- Polynomial-time certificates for `bcsExtractTable`, `bcsExtractOracles`, `bcsExtractWitness`,
+-- and `bcsExtractTraceCollision`.
+example :
+    ComputableInPolyTime
+      (fun p : List (List Bool × List Bool) × List Bool =>
+        bcsExtractTable decSym false p.1 1 p.2)
+      (encPair encMerkleTrace encBits) (encOracleTable 1 encBool) :=
+  computableInPolyTime_bcsExtractTable 1 false computableInPolyTime_decSym
+    (ComputableInPolyTime.fst encMerkleTrace encBits)
+    (ComputableInPolyTime.snd encMerkleTrace encBits)
+
+example :
+    ComputableInPolyTime
+      (fun p : List (List Bool × List Bool) × (Fin 1 → List Bool) =>
+        bcsExtractOracles decSym false p.1 1 p.2)
+      (encPair encMerkleTrace (encFinFn 1 encBits)) (encFinFn 1 (encOracleTable 1 encBool)) :=
+  computableInPolyTime_bcsExtractOracles 1 1 false computableInPolyTime_decSym
+    (ComputableInPolyTime.fst encMerkleTrace _)
+    (ComputableInPolyTime.snd encMerkleTrace _)
+
+example :
+    ComputableInPolyTime
+      (fun p : (List (List Bool × List Bool) × Bool) × (Fin 1 → List Bool) =>
+        bcsExtractWitness traceKSExtract decSym false p.1.1 p.1.2 p.2)
+      (encPair (encPair encMerkleTrace encBool) (encFinFn 1 encBits)) encBool :=
+  computableInPolyTime_bcsExtractWitness 1 1 false computableInPolyTime_traceKSExtract
+    computableInPolyTime_decSym
+    ((ComputableInPolyTime.fst encMerkleTrace encBool).comp
+      (ComputableInPolyTime.fst (encPair encMerkleTrace encBool) (encFinFn 1 encBits)))
+    ((ComputableInPolyTime.snd encMerkleTrace encBool).comp
+      (ComputableInPolyTime.fst (encPair encMerkleTrace encBool) (encFinFn 1 encBits)))
+    (ComputableInPolyTime.snd (encPair encMerkleTrace encBool) (encFinFn 1 encBits))
+
+example :
+    IsPPT (encPair encBits encBits)
+      (bcsTraceCollisionFinder traceKSIOP keyProjHash (fun b => encBool b) constTraceFS
+        toyTraceAdversary) :=
+  isPPT_bcsTraceCollisionFinder computableInPolyTime_keyProjHash (fun _ _ => rfl)
+    computableInPolyTime_traceKSIOP_queries computableInPolyTime_constTraceFS
+    isPPTOn_toyTraceAdversary
+
+-- Standard-model reductions from trace-extraction BCS binding and knowledge soundness to
+-- `CollisionResistant`.
+example (hCR : CollisionResistant keyProjHash) :
+    Negligible (fun n => Game.succProbability (ProbComp.eval
+      (bcsTraceBindingGame traceKSIOP keyProjHash (fun b => encBool b) decSym false constTraceFS
+        toyTraceAdversary n))) :=
+  CollisionResistant.bcsTraceBinding_negligible decSym_encSym false hCR
+    computableInPolyTime_keyProjHash (fun _ _ => rfl) computableInPolyTime_traceKSIOP_queries
+    computableInPolyTime_constTraceFS isPPTOn_toyTraceAdversary
+
+example (hCR : CollisionResistant keyProjHash) :
+    Negligible (fun n => Game.succProbability (ProbComp.eval
+      (bcsTraceKnowledgeGame traceKSIOP Eq traceKSExtract keyProjHash (fun b => encBool b) decSym
+        false constTraceFS toyTraceAdversary n))) :=
+  CollisionResistant.bcsTraceKnowledge_negligible traceKSIOP_knowledgeSound decSym_encSym false hCR
+    computableInPolyTime_keyProjHash (fun _ _ => rfl) computableInPolyTime_traceKSIOP_queries
+    computableInPolyTime_constTraceFS isPPTOn_toyTraceAdversary
+
 end CslibFrontierTests.Crypto.BCSROM
