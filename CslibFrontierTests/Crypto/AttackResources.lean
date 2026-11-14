@@ -4,8 +4,12 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.Crypto.Game.AttackResources
+module
+
+public import CslibFrontier.Crypto.Game.AttackResources
 import CslibFrontier.Tactic.PolyTime
+
+public section
 
 /-!
 # Checked clients for componentwise attack resources
@@ -82,7 +86,7 @@ def sampleExecution (n : ℕ) : Game.AttackExecutionResources where
 coordinate. The compiler runs online here: its time is included in `onlineTime`, its workspace fits
 the online peak, and its generated program is a distinct installed occurrence. -/
 def sampleResources (n : ℕ) : Game.AttackResources :=
-  Game.AttackResources.ofInventory (sampleInventory n) (sampleExecution n)
+  ⟨sampleInventory n, sampleExecution n⟩
 
 /-- Per-kind sums keep adversary and reducer storage separate from both generic-program copies. -/
 theorem sampleInstalledBits_at_two :
@@ -113,9 +117,7 @@ theorem sampleOnlineSentinels_at_two :
 /-- A handler and table/advice hardwired into the retained main program are not separately
 installed occurrences and therefore are not charged again under their independent categories. -/
 def hardwiredStaticResources (n : ℕ) : Game.AttackResources :=
-  Game.AttackResources.ofInventory
-    [{ kind := .program, bits := 12 * n + 3 }]
-    (sampleExecution n)
+  ⟨[{ kind := .program, bits := 12 * n + 3 }], sampleExecution n⟩
 
 theorem hardwiredStatic_not_doubleCounted (n : ℕ) :
     (hardwiredStaticResources n).adversaryBits = 0 ∧
@@ -145,12 +147,10 @@ theorem sampleCompiler_accounted (n : ℕ) :
     Game.AttackResources.AccountsForExecutedCompiler SampleCompilerCertifies n
       (.separatelyInstalled (7 * n + 1)) (sampleResources n) := by
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-  · simp [Game.CompilerInstallation.IsInInventory, sampleResources, sampleInventory,
-      Game.AttackResources.ofInventory]
-  · simp [sampleResources, sampleInventory, sampleExecution, sampleCompilerExecution,
-      Game.AttackResources.ofInventory]
+  · simp [Game.CompilerInstallation.IsInInventory, sampleResources, sampleInventory]
+  · simp [sampleResources, sampleInventory, sampleExecution, sampleCompilerExecution]
   · simp only [SampleCompilerCertifies, sampleResources, sampleExecution,
-      sampleCompilerExecution, sampleOnlinePhases, Game.AttackResources.ofInventory]
+      sampleCompilerExecution, sampleOnlinePhases]
     exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, by omega, by omega⟩
   · change 18 * (n + 1) + 19 * (n + 1) ≤ 299 * n + 299
     omega
@@ -162,22 +162,18 @@ theorem sampleCompiler_accounted (n : ℕ) :
 /-- The same executed compiler may be inlined into one installed main program. No separate
 compiler occurrence is present or charged; the emitted program remains a distinct occurrence. -/
 def inlinedCompilerResources (n : ℕ) : Game.AttackResources :=
-  Game.AttackResources.ofInventory
-    [{ kind := .program, bits := 12 * n + 2 },
-      { kind := .generatedProgram, bits := 5 * n + 1 }]
-    (sampleExecution n)
+  ⟨[{ kind := .program, bits := 12 * n + 2 },
+    { kind := .generatedProgram, bits := 5 * n + 1 }], sampleExecution n⟩
 
 theorem inlinedCompiler_accounted (n : ℕ) :
     (inlinedCompilerResources n).compilerBits = 0 ∧
       Game.AttackResources.AccountsForExecutedCompiler SampleCompilerCertifies n
         (.inlinedIntoProgram (12 * n + 2)) (inlinedCompilerResources n) := by
   refine ⟨rfl, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · simp [Game.CompilerInstallation.IsInInventory, inlinedCompilerResources,
-      Game.AttackResources.ofInventory]
-  · simp [inlinedCompilerResources, sampleExecution, sampleCompilerExecution,
-      Game.AttackResources.ofInventory]
+  · simp [Game.CompilerInstallation.IsInInventory, inlinedCompilerResources]
+  · simp [inlinedCompilerResources, sampleExecution, sampleCompilerExecution]
   · simp only [SampleCompilerCertifies, inlinedCompilerResources, sampleExecution,
-      sampleCompilerExecution, sampleOnlinePhases, Game.AttackResources.ofInventory]
+      sampleCompilerExecution, sampleOnlinePhases]
     exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, by omega, by omega⟩
   · change 18 * (n + 1) + 19 * (n + 1) ≤ 299 * n + 299
     omega
@@ -202,8 +198,7 @@ theorem sampleOnlinePhases_accounted (n : ℕ) :
     Game.AttackResources.AccountsForOnlinePhases SampleAttackCertifies n
       (sampleResources n) := by
   refine ⟨?_, ?_, ?_⟩
-  · simp only [SampleAttackCertifies, sampleResources, sampleExecution, sampleOnlinePhases,
-      Game.AttackResources.ofInventory]
+  · simp only [SampleAttackCertifies, sampleResources, sampleExecution, sampleOnlinePhases]
     exact ⟨rfl, rfl, rfl, by omega, by omega⟩
   · change (sampleOnlinePhases n).totalTime = 299 * n + 299
     simp [Game.OnlinePhaseLedger.totalTime, Game.OnlinePhaseLedger.asList,
@@ -217,8 +212,7 @@ theorem sampleOnlinePhases_accounted (n : ℕ) :
 theorem sampleOutput_accounted (n : ℕ) :
     Game.AttackResources.AccountsForOutput SampleAttackCertifies n (sampleResources n) := by
   refine ⟨?_, ?_, ?_, ?_, ?_⟩
-  · simp only [SampleAttackCertifies, sampleResources, sampleExecution, sampleOnlinePhases,
-      Game.AttackResources.ofInventory]
+  · simp only [SampleAttackCertifies, sampleResources, sampleExecution, sampleOnlinePhases]
     exact ⟨rfl, rfl, rfl, by omega, by omega⟩
   · change 17 * (n + 1) + 28 * (n + 1) + 29 * (n + 1) ≤ 299 * n + 299
     omega
@@ -247,9 +241,8 @@ def offlinePhases (n : ℕ) : Game.OnlinePhaseLedger where
   outputCopy := { time := n + 1, workspace := n + 1 }
 
 def offlineCompiledResources (n : ℕ) : Game.AttackResources :=
-  Game.AttackResources.ofInventory
-    [{ kind := .program, bits := 2 * n + 1 },
-      { kind := .generatedProgram, bits := n + 1 }] {
+  ⟨[{ kind := .program, bits := 2 * n + 1 },
+    { kind := .generatedProgram, bits := n + 1 }], {
     inputBits := n
     onlineTime := 3 * n + 2
     onlineWorkspace := n + 1
@@ -262,7 +255,7 @@ def offlineCompiledResources (n : ℕ) : Game.AttackResources :=
     gates := 2 * n + 1
     requestBits := n
     replyBits := n
-    outputBits := n + 1 }
+    outputBits := n + 1 }⟩
 
 theorem offlineCompilation_separate (n : ℕ) :
     (offlineCompiledResources n).programBits = 2 * n + 1 ∧
@@ -274,7 +267,7 @@ theorem offlineCompilation_separate (n : ℕ) :
       (offlineCompiledResources n).execution.phases.compiler.workspace = 0 ∧
       (offlineCompiledResources n).execution.phases.compilerOutputCopy.time = 0 ∧
       (offlineCompiledResources n).execution.phases.compilerOutputCopy.workspace = 0 := by
-  simp [offlineCompiledResources, offlinePhases, Game.AttackResources.ofInventory,
+  simp [offlineCompiledResources, offlinePhases,
     Game.AttackResources.programBits, Game.AttackResources.generatedProgramBits,
     Game.AttackResources.compilerBits, Game.AttackResources.artifactBits,
     Game.InstalledArtifact.installedBits]
@@ -328,43 +321,43 @@ private theorem sampleArtifactBits_isPolynomial (kind : Game.InstalledArtifactKi
     PolynomiallyBounded fun n => (sampleResources n).artifactBits kind := by
   cases kind with
   | adversary =>
-      simpa [sampleResources, sampleInventory, Game.AttackResources.ofInventory,
+      simpa [sampleResources, sampleInventory,
         Game.AttackResources.artifactBits, Game.InstalledArtifact.installedBits] using
         (show PolynomiallyBounded (fun n => n + 1) by fun_prop)
   | reducer =>
-      simpa [sampleResources, sampleInventory, Game.AttackResources.ofInventory,
+      simpa [sampleResources, sampleInventory,
         Game.AttackResources.artifactBits, Game.InstalledArtifact.installedBits] using
         (show PolynomiallyBounded (fun n => 2 * n + 1) by fun_prop)
   | program =>
-      simpa [sampleResources, sampleInventory, Game.AttackResources.ofInventory,
+      simpa [sampleResources, sampleInventory,
         Game.AttackResources.artifactBits, Game.InstalledArtifact.installedBits] using
         (show PolynomiallyBounded (fun n => (3 * n + 1) + (4 * n + 1)) by fun_prop)
   | generatedProgram =>
-      simpa [sampleResources, sampleInventory, Game.AttackResources.ofInventory,
+      simpa [sampleResources, sampleInventory,
         Game.AttackResources.artifactBits, Game.InstalledArtifact.installedBits] using
         (show PolynomiallyBounded (fun n => 5 * n + 1) by fun_prop)
   | generator =>
-      simpa [sampleResources, sampleInventory, Game.AttackResources.ofInventory,
+      simpa [sampleResources, sampleInventory,
         Game.AttackResources.artifactBits, Game.InstalledArtifact.installedBits] using
         (show PolynomiallyBounded (fun n => 6 * n + 1) by fun_prop)
   | compiler =>
-      simpa [sampleResources, sampleInventory, Game.AttackResources.ofInventory,
+      simpa [sampleResources, sampleInventory,
         Game.AttackResources.artifactBits, Game.InstalledArtifact.installedBits] using
         (show PolynomiallyBounded (fun n => 7 * n + 1) by fun_prop)
   | interpreter =>
-      simpa [sampleResources, sampleInventory, Game.AttackResources.ofInventory,
+      simpa [sampleResources, sampleInventory,
         Game.AttackResources.artifactBits, Game.InstalledArtifact.installedBits] using
         (show PolynomiallyBounded (fun n => 8 * n + 1) by fun_prop)
   | controller =>
-      simpa [sampleResources, sampleInventory, Game.AttackResources.ofInventory,
+      simpa [sampleResources, sampleInventory,
         Game.AttackResources.artifactBits, Game.InstalledArtifact.installedBits] using
         (show PolynomiallyBounded (fun n => 9 * n + 1) by fun_prop)
   | handler =>
-      simpa [sampleResources, sampleInventory, Game.AttackResources.ofInventory,
+      simpa [sampleResources, sampleInventory,
         Game.AttackResources.artifactBits, Game.InstalledArtifact.installedBits] using
         (show PolynomiallyBounded (fun n => 10 * n + 1) by fun_prop)
   | table =>
-      simpa [sampleResources, sampleInventory, Game.AttackResources.ofInventory,
+      simpa [sampleResources, sampleInventory,
         Game.AttackResources.artifactBits, Game.InstalledArtifact.installedBits] using
         (show PolynomiallyBounded (fun n => 11 * n + 1) by fun_prop)
 
@@ -402,48 +395,46 @@ theorem sampleResources_isPolynomial :
     simpa only [Game.AttackResources.tableBits] using
       sampleArtifactBits_isPolynomial .table
   inputBits := by
-    simpa only [sampleResources, sampleExecution, Game.AttackResources.ofInventory] using
+    simpa only [sampleResources, sampleExecution] using
       (show PolynomiallyBounded (fun n => 12 * n + 1) by fun_prop)
   onlineTime := by
-    simpa only [sampleResources, sampleExecution, Game.AttackResources.ofInventory] using
+    simpa only [sampleResources, sampleExecution] using
       (show PolynomiallyBounded (fun n => 299 * n + 299) by fun_prop)
   onlineWorkspace := by
-    simpa only [sampleResources, sampleExecution, Game.AttackResources.ofInventory] using
+    simpa only [sampleResources, sampleExecution] using
       (show PolynomiallyBounded (fun n => 42 * n + 42) by fun_prop)
   phases := by
-    simpa only [sampleResources, sampleExecution, Game.AttackResources.ofInventory] using
+    simpa only [sampleResources, sampleExecution] using
       sampleOnlinePhases_isPolynomial
   compilerInputBits := by
-    simpa only [sampleResources, sampleExecution, sampleCompilerExecution,
-      Game.AttackResources.ofInventory] using
+    simpa only [sampleResources, sampleExecution, sampleCompilerExecution] using
       (show PolynomiallyBounded (fun n => 2 * n + 1) by fun_prop)
   compilerOutputBits := by
-    simpa only [sampleResources, sampleExecution, sampleCompilerExecution,
-      Game.AttackResources.ofInventory] using
+    simpa only [sampleResources, sampleExecution, sampleCompilerExecution] using
       (show PolynomiallyBounded (fun n => 5 * n + 1) by fun_prop)
   randomBits := by
-    simpa only [sampleResources, sampleExecution, Game.AttackResources.ofInventory] using
+    simpa only [sampleResources, sampleExecution] using
       (show PolynomiallyBounded (fun n => 14 * n + 1) by fun_prop)
   classicalQueries := by
-    simpa only [sampleResources, sampleExecution, Game.AttackResources.ofInventory] using
+    simpa only [sampleResources, sampleExecution] using
       (show PolynomiallyBounded (fun n => 15 * n + 1) by fun_prop)
   quantumQueries := by
-    simpa only [sampleResources, sampleExecution, Game.AttackResources.ofInventory] using
+    simpa only [sampleResources, sampleExecution] using
       (show PolynomiallyBounded (fun n => 16 * n + 1) by fun_prop)
   qubits := by
-    simpa only [sampleResources, sampleExecution, Game.AttackResources.ofInventory] using
+    simpa only [sampleResources, sampleExecution] using
       (show PolynomiallyBounded (fun n => 17 * n + 1) by fun_prop)
   gates := by
-    simpa only [sampleResources, sampleExecution, Game.AttackResources.ofInventory] using
+    simpa only [sampleResources, sampleExecution] using
       (show PolynomiallyBounded (fun n => 18 * n + 1) by fun_prop)
   requestBits := by
-    simpa only [sampleResources, sampleExecution, Game.AttackResources.ofInventory] using
+    simpa only [sampleResources, sampleExecution] using
       (show PolynomiallyBounded (fun n => 19 * n + 1) by fun_prop)
   replyBits := by
-    simpa only [sampleResources, sampleExecution, Game.AttackResources.ofInventory] using
+    simpa only [sampleResources, sampleExecution] using
       (show PolynomiallyBounded (fun n => 20 * n + 1) by fun_prop)
   outputBits := by
-    simpa only [sampleResources, sampleExecution, Game.AttackResources.ofInventory] using
+    simpa only [sampleResources, sampleExecution] using
       (show PolynomiallyBounded (fun n => 16 * n + 1) by fun_prop)
 
 /-- The finite predicate records the exact profile and requires the model-specific compiler and

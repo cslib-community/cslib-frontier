@@ -196,15 +196,6 @@ namespace OnlinePhaseLedger
 @[expose] def peakWorkspace (ledger : OnlinePhaseLedger) : ℕ :=
   (ledger.asList.map fun phase => phase.workspace).foldl max 0
 
-/-- The total-time accessor is the sum over the canonical phase order. -/
-theorem totalTime_eq_sum (ledger : OnlinePhaseLedger) :
-    ledger.totalTime = (ledger.asList.map fun phase => phase.time).sum := rfl
-
-/-- The workspace accessor is the fold maximum over the canonical phase order. -/
-theorem peakWorkspace_eq_foldl_max (ledger : OnlinePhaseLedger) :
-    ledger.peakWorkspace =
-      (ledger.asList.map fun phase => phase.workspace).foldl max 0 := rfl
-
 /-- Every phase coordinate of `used` fits the corresponding phase coordinate of `budget`. -/
 @[expose] def Fits (used budget : OnlinePhaseLedger) : Prop :=
   used.inputRead.Fits budget.inputRead ∧
@@ -320,11 +311,6 @@ instance (installation : CompilerInstallation) (inventory : List InstalledArtifa
 end CompilerInstallation
 
 namespace AttackResources
-
-/-- Construct a profile from its explicit installed-occurrence inventory and execution costs. -/
-@[expose] def ofInventory (inventory : List InstalledArtifact)
-    (execution : AttackExecutionResources) : AttackResources :=
-  ⟨inventory, execution⟩
 
 /-- Per-kind installed description bits of a resource profile. -/
 @[expose] def artifactBits (resources : AttackResources)
