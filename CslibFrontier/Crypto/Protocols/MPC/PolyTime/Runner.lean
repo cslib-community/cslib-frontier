@@ -390,7 +390,7 @@ private theorem isPPTOn_pi_sampleList {α : Type} {input : α ↪ List Bool}
         (fun pair : α × List Bool =>
           (fun xs => (pair.2, xs)) <$>
             OracleComp.pi (fun i : Fin m => Cslib.BitString.sampleList (len pair.1 i.succ))) :=
-      (hrest.preprocess (fst input encBits)).pair (snd input encBits)
+      (hrest.preprocess (fst input encBits)).map_with (by fun_prop)
     have hbind :=
       (h0.bind_with (second := fun a x0 =>
         (fun xs => (x0, xs)) <$>
@@ -472,7 +472,7 @@ private noncomputable def realPairCall (m : ℕ) (p : OrderedPair m) (x : Fin m 
 private theorem isOraclePPTOn_realPairCall (m : ℕ) (p : OrderedPair m) :
     IsOraclePPTOn (encFinite (Fin m → Bool × Bool)) (encPair encBool encBool)
       (realPairCall m p) := by
-  refine (IsOraclePPTOn.finite_cases
+  refine (IsOraclePPTOn.finite_cases'
     (tagEncoding := encFinite (Fin m → Bool × Bool))
     (tag := id) (branch := fun x _ => realPairCall m p x) id' ?_).congr
     fun _ _ _ _ => rfl
@@ -678,7 +678,7 @@ private noncomputable def realGateCore (m : ℕ) [NeZero m] (p : Boolean.Op × (
 private theorem isOraclePPTOn_realGateCore (m : ℕ) [NeZero m] :
     IsOraclePPTOn (encFinite (Boolean.Op × (Fin m → Bool × Bool))) (encStep2Acc m)
       (realGateCore m) := by
-  refine (IsOraclePPTOn.finite_cases
+  refine (IsOraclePPTOn.finite_cases'
     (tagEncoding := encFinite (Boolean.Op × (Fin m → Bool × Bool)))
     (tag := id) (branch := fun choice _ => realGateCore m choice) id' ?_).congr
     fun _ _ _ _ => rfl
@@ -961,7 +961,7 @@ private noncomputable def realOutCore (m : ℕ) [NeZero m] (item : OutItem m) :
 
 private theorem isOraclePPTOn_realOutCore (m : ℕ) [NeZero m] :
     IsOraclePPTOn (encFinite (OutItem m)) (encStep3Acc m) (realOutCore m) := by
-  refine (IsOraclePPTOn.finite_cases
+  refine (IsOraclePPTOn.finite_cases'
     (tagEncoding := encFinite (OutItem m))
     (tag := id) (branch := fun item _ => realOutCore m item) id' ?_).congr
     fun _ _ _ _ => rfl
@@ -996,7 +996,8 @@ private noncomputable def realOutStep (m : ℕ) [NeZero m] (item : OutItem m) (a
 private theorem isOraclePPTOn_realOutStep (m : ℕ) [NeZero m] :
     IsOraclePPTOn (encPair (encFinite (OutItem m)) (encStep3Acc m)) (encStep3Acc m)
       (fun p => realOutStep m p.1 p.2) :=
-  ((isOraclePPTOn_realOutCore m).preprocess' (fst (encFinite (OutItem m)) (encStep3Acc m))).map_with'
+  ((isOraclePPTOn_realOutCore m).preprocess'
+    (fst (encFinite (OutItem m)) (encStep3Acc m))).map_with'
     (f := fun (p : OutItem m × Step3Acc m) delta => appendStep3Acc m p.2 delta)
     (computableInPolyTime_appendAcc_post (encFinite (OutItem m))
       (computableInPolyTime_appendStep3Acc m))
@@ -1169,7 +1170,7 @@ private theorem isPPTOn_sampleTwoPiBits {α : Type} {input : α ↪ List Bool}
   have h1 := isPPTOn_pi_sampleList m hw1
   have h2 := isPPTOn_pi_sampleList (input := encPair input ePi) m
     (fun i => comp' (hw2 i) (fst input ePi))
-  have h2_pair := h2.pair (snd input ePi)
+  have h2_pair := h2.map_with (f := fun pair xs => (pair.2, xs)) (by fun_prop)
   simpa only [sampleTwoPiBits, bind_map_left] using h1.keep_input.bind h2_pair
 
 private theorem computableInPolyTime_familyRunInput_bits
