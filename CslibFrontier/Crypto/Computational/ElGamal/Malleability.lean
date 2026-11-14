@@ -53,10 +53,11 @@ outputs whether this is `x₁ + g`.
   (`not_indcca2On_elGamalGroupEncryptProb`). Both also fail the interleaved multi-challenge CCA
   notion of Definition 12.1 (`not_indcca2InterleavedOf_elGamalBitEncryptProb`,
   `not_indcca2InterleavedOn_elGamalGroupEncryptProb`).
-* As in `ElGamal/ProbComp.lean`, the group at parameter `n` is the fixed description `d n`, and key
-  generation and encryption sample exponents with `F.sampleExp`. The attack succeeds for every key
-  and every encryption coin, so these choices do not affect the result. Decryption never rejects,
-  as in the source, so the CCA decryptor is `elGamalDecryptOpt d = some ∘ elGamalDecryptDet d`.
+* As in `CslibFrontier/Crypto/Computational/ElGamal/ProbComp.lean`, the group at parameter `n` is
+  the fixed description `d n`, and key generation and encryption sample exponents with
+  `F.sampleExp`. The attack succeeds for every key and every encryption coin, so these choices do
+  not affect the result. Decryption never rejects, as in the source, so the CCA decryptor is
+  `elGamalDecryptOpt d = some ∘ elGamalDecryptDet d`.
 
 ## Main definitions
 
@@ -117,7 +118,7 @@ Exercise 11.5(c) (p. 459). -/
   encPair encBits encBits (unframe ct, F.add (d, dropFrame ct, F.encode d (F.generator d)))
 
 /-- On encoded group elements, `elGamalMaulCiphertext` maps `(v, e)` to `(v, e + g)`. -/
-@[simp] theorem elGamalMaulCiphertext_encode (d : F.Desc) (v e : F.Carrier d) :
+theorem elGamalMaulCiphertext_encode (d : F.Desc) (v e : F.Carrier d) :
     F.elGamalMaulCiphertext d (encPair encBits encBits (F.encode d v, F.encode d e)) =
       encPair encBits encBits (F.encode d v, F.encode d (e + F.generator d)) := by
   simp only [elGamalMaulCiphertext, unframe_encPair_encBits, dropFrame_encPair_encBits,
