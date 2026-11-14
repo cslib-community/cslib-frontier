@@ -1950,6 +1950,8 @@ public import CslibFrontier.Computability.Complexity.Classes.Constructible.TwoPo
 public import CslibFrontier.Computability.Complexity.Classes.Constructible.UnaryClock
 public import CslibFrontier.Computability.Complexity.Classes.Counting.OracleSpace
 public import CslibFrontier.Computability.Complexity.Classes.Counting.Space
+public import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy
+public import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.Aggregation
 public import CslibFrontier.Computability.Complexity.Classes.CountingSimulation.Accumulate
 public import CslibFrontier.Computability.Complexity.Classes.CountingSimulation.Admissible
 public import CslibFrontier.Computability.Complexity.Classes.CountingSimulation.Assembly
@@ -2110,6 +2112,7 @@ public import CslibFrontier.Computability.Complexity.Classes.NP.Witness
 public import CslibFrontier.Computability.Complexity.Classes.Operators
 public import CslibFrontier.Computability.Complexity.Classes.Oracle
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.BakerGillSolovay
+public import CslibFrontier.Computability.Complexity.Classes.Oracle.BinarySearch
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.BoundedQuery
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.CanonicalReplay
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.Closure
@@ -2119,6 +2122,7 @@ public import CslibFrontier.Computability.Complexity.Classes.Oracle.CountingEqui
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.Deterministic
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.Diagonal
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.Exponential
+public import CslibFrontier.Computability.Complexity.Classes.Oracle.Function
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.ListOracle
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.Lowness
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.Monotone
@@ -2160,6 +2164,7 @@ public import CslibFrontier.Computability.Complexity.Classes.PP.Bit
 public import CslibFrontier.Computability.Complexity.Classes.PP.Characterization
 public import CslibFrontier.Computability.Complexity.Classes.PP.Closure
 public import CslibFrontier.Computability.Complexity.Classes.PP.Oracle
+public import CslibFrontier.Computability.Complexity.Classes.PP.Oracle.Closure
 public import CslibFrontier.Computability.Complexity.Classes.PP.Time
 public import CslibFrontier.Computability.Complexity.Classes.PP.TruthTable
 public import CslibFrontier.Computability.Complexity.Classes.Padding
@@ -2212,6 +2217,8 @@ public import CslibFrontier.Computability.Complexity.Classes.SharpP.Machine
 public import CslibFrontier.Computability.Complexity.Classes.SharpP.Metric
 public import CslibFrontier.Computability.Complexity.Classes.SharpP.MetricOracle
 public import CslibFrontier.Computability.Complexity.Classes.SharpP.Oracle
+public import CslibFrontier.Computability.Complexity.Classes.SharpP.Oracle.Closure
+public import CslibFrontier.Computability.Complexity.Classes.SharpP.Oracle.Search
 public import CslibFrontier.Computability.Complexity.Classes.SharpP.OracleReplay
 public import CslibFrontier.Computability.Complexity.Classes.SharpP.PaddedCount
 public import CslibFrontier.Computability.Complexity.Classes.SharpP.PolyTime
