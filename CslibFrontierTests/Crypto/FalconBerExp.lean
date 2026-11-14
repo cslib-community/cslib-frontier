@@ -16,6 +16,8 @@ These ordinary-import clients check the strict deterministic boundary and exact 
 at thresholds zero, one, one half of the 64-bit range, and the maximal unsigned value.
 -/
 
+set_option linter.privateModule false
+
 namespace CslibFrontierTests.Crypto.FalconBerExp
 
 open Cslib Cslib.Crypto.Falcon
