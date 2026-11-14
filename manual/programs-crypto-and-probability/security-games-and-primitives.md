@@ -426,9 +426,11 @@ or FIPS validations.
 The shared byte and SHA-2 boundary used by the FIPS 205 SHA2 parameter sets is in
 [`ByteString.lean`](../../CslibFrontier/Crypto/Primitives/ByteString.lean) and
 [`SHA2.lean`](../../CslibFrontier/Crypto/Primitives/Hash/SHA2.lean) [fips1804][fips1804].
-`FixedBytes n` records digest and truncation lengths in the type, while `sha256` and `sha512`
-implement FIPS 180-4's byte-aligned padding, message schedule, compression and digest conversion
-under the standard's input-length domains. The
+`FixedBytes n` records digest lengths in the type, while Mathlib's `Fin.take` and `Fin.append`
+provide typed truncation and concatenation. `sha256` and `sha512` are total executable functions;
+`ValidSHA256Input` and `ValidSHA512Input` record FIPS 180-4's prescribed input-length domains.
+The implementation follows the standard's byte-aligned padding, message schedule, compression and
+digest conversion, but no independent functional-correctness theorem is claimed. The
 [ordinary-import client](../../CslibFrontierTests/Crypto/SHA2.lean) checks NIST's official
 one- and two-block SHA-256 and SHA-512 examples and both padding boundaries. This is reusable
 executable infrastructure: it does not yet package FIPS 205's `F`, `H`, `T_l`, `PRF`, `PRF_msg` or
