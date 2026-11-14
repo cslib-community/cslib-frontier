@@ -87,7 +87,7 @@ open scoped Cslib ENNReal NNReal
 `H(ekKEM)` as the prefix. -/
 structure JointInput (Prefix M Salt : Type) where
   /-- Public prefix selecting the target encapsulation key. -/
-  prefix : Prefix
+  keyPrefix : Prefix
   /-- PKE plaintext whose encryption coins are derived by the oracle. -/
   message : M
   /-- Public salt carried by the KEM ciphertext. -/
@@ -117,7 +117,7 @@ prevents a generic opaque oracle domain from hiding the secret-prefix boundary u
 preceding guessing hop. -/
 structure RejectionInput (Prefix Sigma CT Salt : Type) where
   /-- Public prefix selecting the PKE public key. -/
-  prefix : Prefix
+  keyPrefix : Prefix
   /-- Secret implicit-rejection seed. -/
   secret : Sigma
   /-- Full salted KEM ciphertext. -/
