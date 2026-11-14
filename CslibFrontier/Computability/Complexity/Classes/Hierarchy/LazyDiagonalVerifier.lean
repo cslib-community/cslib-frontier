@@ -201,7 +201,8 @@ theorem exists_computableInO_lazyTests
     hx.append (ComputableInO.const (encMid := encBits) [false]) fun _ => rfl
   have hc₀ := (computableInO_shortDesc.comp (hun.comp hx)).mono_time (T' := C) 3 fun p => by
     have hu := length_unframe_le p.1
-    have hn : p.1.length ≤ (encPair encBits encBits p).length := by enc_len
+    have hn : p.1.length ≤ (encPair encBits encBits p).length := by
+      simpa only [encBits_apply] using length_le_encPair_left encBits encBits p
     have hc := hC p
     simp only [Function.comp_apply]
     omega
