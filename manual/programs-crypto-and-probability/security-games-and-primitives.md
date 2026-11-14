@@ -102,7 +102,9 @@ average-case decoder correctness. `FuzzyExtractor.ComputationallySecure` is the 
 `FuzzyExtractor.computationallySecure_lweFuzzyExtractor` proves the family
 `κ ↦ lweFuzzyExtractor (m κ) (k κ) (l κ) (2 ^ w κ)` secure against uniform strict PPT
 distinguishers on every source ensemble for which `DecisionLWEWithErrors l m w source` holds
-(decision LWE with the source as the joint error law), given polynomial-time unary parameter
+(decision LWE with the source as the joint error law, which is [fmr20][fmr20] Definition 4.5 as
+Lemma 4.7 and Theorem 4.11 use it, at modulus `2 ^ w κ` instead of a prime and against uniform
+PPT distinguishers instead of size-bounded ones), given polynomial-time unary parameter
 schedules; `LWEFamily.isPPT_keyReduction` and `LWEFamily.isPPT_uniformReduction` certify the
 reductions. The modulus is `2 ^ w κ`, the modulus of the typed decision LWE.
 
