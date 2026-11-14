@@ -13,8 +13,8 @@ public import CslibFrontier.Computability.Probabilistic.Repeat
 public import CslibFrontier.Computability.Probabilistic.UniformNat
 public import CslibFrontier.Languages.Probabilistic.IntBox
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Int.Binary
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Int.BinaryDiv
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Tactic.PPT
@@ -50,7 +50,6 @@ open Turing.MultiTapeTM
 theorem computableInPolyTime_boxShift :
     ComputableInPolyTime (fun p : ℕ × ℕ => boxShift p.1 p.2)
       (encPair encNat encNat) encIntBin := by
-  apply ComputableInPolyTime.of_tidy
   unfold boxShift
   fun_prop
 
@@ -59,23 +58,23 @@ theorem computableInPolyTime_boxShift :
 theorem computableInPolyTime_sampleModNatCoins :
     ComputableInPolyTime (fun p : ℕ × List Bool => sampleModNatCoins p.1 p.2)
       (encPair encNat encBits) encNat := by
-  apply ComputableInPolyTime.of_tidy
   unfold sampleModNatCoins
-  fun_prop
-
-@[local fun_prop]
-private theorem computableTidilyInPolyTime_sampleIntBoxCoins :
-    ComputableTidilyInPolyTime (fun p : ℕ × List Bool => sampleIntBoxCoins p.1 p.2)
-      (encPair encNat encBits) encIntBin := by
-  unfold sampleIntBoxCoins sampleModNatCoins boxShift
-  fun_prop
+  exact ComputableInPolyTime.binary_mod'
+    (ComputableInPolyTime.bitsBinaryValue.comp (by fun_prop)) (by fun_prop)
 
 /-- `sampleIntBoxCoins` is computable in polynomial time from a binary bound and raw coin bits. -/
 @[fun_prop]
 theorem computableInPolyTime_sampleIntBoxCoins :
     ComputableInPolyTime (fun p : ℕ × List Bool => sampleIntBoxCoins p.1 p.2)
-      (encPair encNat encBits) encIntBin :=
-  .of_tidy computableTidilyInPolyTime_sampleIntBoxCoins
+      (encPair encNat encBits) encIntBin := by
+  unfold sampleIntBoxCoins
+  have hmodulus : ComputableInPolyTime (fun p : ℕ × List Bool => 2 * p.1 + 1)
+      (encPair encNat encBits) encNat :=
+    ComputableInPolyTime.binary_add' (by fun_prop) (by fun_prop)
+  apply computableInPolyTime_boxShift.comp
+  apply ComputableInPolyTime.prod
+  · fun_prop
+  · exact computableInPolyTime_sampleModNatCoins.comp (hmodulus.prod (by fun_prop))
 
 /-- `sampleIntBox` is uniformly strict PPT when the radius `B` is supplied in binary and the bit
 width `width` is supplied in unary. -/
@@ -84,15 +83,10 @@ theorem isPPTOn_sampleIntBox {α : Type} {input : α ↪ List Bool} {B width : �
     (hwidth : ComputableInPolyTime width input encUnary) :
     IsPPTOn input encIntBin (fun a => sampleIntBox (B a) (width a)) := by
   have hmod : ComputableInPolyTime (fun a => 2 * B a + 1) input encNat := by
-    apply ComputableInPolyTime.of_tidy
-    have := hB.tidy
-    fun_prop
+    exact ComputableInPolyTime.binary_add' (by fun_prop) (by fun_prop)
   have hshift : ComputableInPolyTime (fun p : α × ℕ => boxShift (B p.1) p.2)
-      (encPair input encNat) encIntBin := by
-    apply ComputableInPolyTime.of_tidy
-    have := hB.tidy
-    unfold boxShift
-    fun_prop
+      (encPair input encNat) encIntBin :=
+    computableInPolyTime_boxShift.comp (by fun_prop)
   exact (isPPTOn_sampleModNat hwidth hmod).map_with hshift
 
 /-- `sampleIntBoxListCoins` is computable in polynomial time when `B` is in binary and `m, width`
@@ -102,9 +96,10 @@ theorem computableInPolyTime_sampleIntBoxListCoins :
     ComputableInPolyTime
       (fun p : ℕ × ℕ × ℕ × List Bool => sampleIntBoxListCoins p.1 p.2.1 p.2.2.1 p.2.2.2)
       (encPair encNat (encPair encUnary (encPair encUnary encBits))) (encList encIntBin) := by
-  apply ComputableInPolyTime.of_tidy
   unfold sampleIntBoxListCoins
-  fun_prop
+  apply ComputableInPolyTime.mapWithInput
+  · exact ComputableInPolyTime.bitsRowsWithInput (by fun_prop) (by fun_prop) (by fun_prop)
+  · exact computableInPolyTime_sampleIntBoxCoins.comp (by fun_prop)
 
 /-- `sampleIntBoxList` is uniformly strict PPT when `B` is in binary and `m, width` are in unary. -/
 theorem isPPTOn_sampleIntBoxList {α : Type} {input : α ↪ List Bool} {B m width : α → ℕ}
@@ -119,7 +114,6 @@ theorem isPPTOn_sampleIntBoxList {α : Type} {input : α ↪ List Bool} {B m wid
 theorem computableInPolyTime_sampleDyadicIntBoxCoins :
     ComputableInPolyTime (fun p : ℕ × List Bool => sampleDyadicIntBoxCoins p.1 p.2)
       (encPair encUnary encBits) encIntBin := by
-  apply ComputableInPolyTime.of_tidy
   unfold sampleDyadicIntBoxCoins
   fun_prop
 
@@ -130,8 +124,6 @@ theorem isPPTOn_sampleDyadicIntBox {α : Type} {input : α ↪ List Bool} {width
   have hshift : ComputableInPolyTime
       (fun p : α × ℕ => (p.2 : ℤ) - (2 : ℤ) ^ (width p.1 - 1))
       (encPair input encNat) encIntBin := by
-    apply ComputableInPolyTime.of_tidy
-    have := hwidth.tidy
     fun_prop
   exact (ComputableInPolyTime.sampleBinaryNat hwidth).map_with hshift
 
