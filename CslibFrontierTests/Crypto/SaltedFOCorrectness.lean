@@ -199,6 +199,13 @@ def halfDecapsProgram : OracleComp HalfResponse Bool := do
   let reply ← OracleComp.query (Query.decaps halfCiphertext)
   return reply.getD false
 
+/-- A nontrivial completion client: decapsulation prefetches the decoded joint coordinate in the
+proof-only world, then a direct query consumes both the cached key and coin. -/
+def halfDecapsThenJointProgram : OracleComp HalfResponse Bool := do
+  let decapsReply ← OracleComp.query (Query.decaps halfCiphertext)
+  let jointReply ← OracleComp.query (Query.joint halfJointInput)
+  return (decapsReply.getD false == jointReply.key) && (jointReply.key == jointReply.coins)
+
 theorem halfDirectProgram_bounds : QueryBounds halfDirectProgram 1 0 := by
   refine ⟨?_, ?_⟩ <;>
     exact (OracleComp.IsCostBounded.query (Query.joint halfJointInput)).bind fun _ =>
@@ -208,6 +215,12 @@ theorem halfDecapsProgram_bounds : QueryBounds halfDecapsProgram 0 1 := by
   refine ⟨?_, ?_⟩ <;>
     exact (OracleComp.IsCostBounded.query (Query.decaps halfCiphertext)).bind fun _ =>
       OracleComp.IsCostBounded.pure _ 0
+
+theorem halfDecapsThenJointProgram_bounds : QueryBounds halfDecapsThenJointProgram 1 1 := by
+  refine ⟨?_, ?_⟩ <;>
+    exact (OracleComp.IsCostBounded.query (Query.decaps halfCiphertext)).bind fun _ =>
+      (OracleComp.IsCostBounded.query (Query.joint halfJointInput)).bind fun _ =>
+        OracleComp.IsCostBounded.pure _ 0
 
 /-- Direct-query execution under the real concrete handler. -/
 noncomputable def halfDirectReal : PMF Bool :=
@@ -228,6 +241,38 @@ noncomputable def halfDecapsReal : PMF Bool :=
 noncomputable def halfDecapsSimulated : PMF Bool :=
   ((OracleComp.interpret (halfErrorScheme.simHandler () halfChallenge)
     halfDecapsProgram).run ({} : HalfState)).map Prod.fst
+
+/-- The concrete direct-query hop uses the direct `qRO` coefficient and the fixture's exact
+fixed-key error `1 / 2`. -/
+theorem halfDirectConcrete_closeTo :
+    CloseTo halfDirectReal halfDirectSimulated
+      (((1 + 0 : ℕ) : ℝ≥0∞) * ENNReal.ofReal (1 / 2 : ℝ)) := by
+  simpa only [halfDirectReal, halfDirectSimulated, halfErrorScheme,
+    halfErrorPKE_keyPairMaxFailProb] using
+    (halfErrorScheme.closeTo_run_realHandler_simHandler () () halfChallenge halfDirectProgram
+      halfDirectProgram_bounds)
+
+/-- The concrete decapsulation-only hop uses the independent `qD` coefficient. -/
+theorem halfDecapsConcrete_closeTo :
+    CloseTo halfDecapsReal halfDecapsSimulated
+      (((0 + 1 : ℕ) : ℝ≥0∞) * ENNReal.ofReal (1 / 2 : ℝ)) := by
+  simpa only [halfDecapsReal, halfDecapsSimulated, halfErrorScheme,
+    halfErrorPKE_keyPairMaxFailProb] using
+    (halfErrorScheme.closeTo_run_realHandler_simHandler () () halfChallenge halfDecapsProgram
+      halfDecapsProgram_bounds)
+
+/-- The decaps-then-joint client checks the completion-valued relation rather than equality of
+the private lazy caches. -/
+example :
+    CloseTo
+      (((OracleComp.interpret (halfErrorScheme.realHandler () () halfChallenge)
+        halfDecapsThenJointProgram).run ({} : HalfState)).map Prod.fst)
+      (((OracleComp.interpret (halfErrorScheme.simHandler () halfChallenge)
+        halfDecapsThenJointProgram).run ({} : HalfState)).map Prod.fst)
+      (((1 + 1 : ℕ) : ℝ≥0∞) * ENNReal.ofReal (1 / 2 : ℝ)) := by
+  simpa only [halfErrorScheme, halfErrorPKE_keyPairMaxFailProb] using
+    (halfErrorScheme.closeTo_run_realHandler_simHandler () () halfChallenge
+      halfDecapsThenJointProgram halfDecapsThenJointProgram_bounds)
 
 /-- Challenge decapsulation is rejected by the dispatcher before either concrete decapsulation
 implementation changes its caches. -/

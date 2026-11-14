@@ -23,11 +23,11 @@ projection. The rejection oracle is a separate channel and does not create a PKE
 witness. Decapsulation is punctured at the challenge ciphertext and has its own cost.
 
 `Scheme.realHandler` constructs the decrypt/re-encrypt path and `Scheme.simHandler` constructs the
-secret-key-free patched-cache path. Both use the common punctured dispatcher, fused-oracle cache,
-separate `J` table and Figure-11 decapsulation table. The generic accumulation lemma
-`closeTo_run_corr` turns their local identical-until-`CORR` and one-error-per-step facts into the
-exact fixed-key loss `(qRO + qD) * ε`; `advantage_randomizedKeyedGame_corr_le` then averages a
-public-key-only randomized adversary over key generation using `ExplicitCoinPKE.DeltaCorrect δ`.
+secret-key-free patched-cache path. The proof inserts a private prefetch handler: real and prefetch
+are identical until one cached encryption coin fails to decrypt, while prefetch and keyless have
+exactly the same output law after completing their joined coin, `LD` and `J` tables. The concrete
+fixed-key theorem therefore loses exactly `(qRO + qD) * ε`; the randomized theorem averages a
+public-key-only adversary over key generation using `ExplicitCoinPKE.DeltaCorrect δ`.
 
 This is the single-user, single-challenge specialization of the `CORR` step in Theorem 11 and
 Figure 11 of [GlabushHoevelmannsStebila2025]. In HQC v5.1, Section 6.2.2, Theorem 6.4, the source
@@ -62,8 +62,12 @@ resources must be supplied by a later transform and HQC realization.
 
 * `Cslib.Crypto.Protocols.FujisakiOkamoto.Salted.closeTo_run_corr`: exact fixed-key
   `(qRO + qD) * ε` all-events bound.
+* `Cslib.Crypto.Protocols.FujisakiOkamoto.Salted.Scheme.closeTo_run_realHandler_simHandler`:
+  concrete real-to-keyless fixed-key hop.
 * `Cslib.Crypto.Protocols.FujisakiOkamoto.Salted.advantage_randomizedKeyedGame_corr_le`: the same
   bound for public-key-only randomized adversaries with per-random-tape bounds.
+* `Cslib.Crypto.Protocols.FujisakiOkamoto.Salted.Scheme.advantage_randomizedKeyedGame_realHandler_simHandler_le`:
+  concrete randomized real-to-keyless advantage bound.
 * `Cslib.Crypto.Protocols.FujisakiOkamoto.Salted.advantage_keyedGame_corr_le`: exact
   `(qRO + qD) * δ` two-world advantage bound under `ExplicitCoinPKE.DeltaCorrect δ`.
 
