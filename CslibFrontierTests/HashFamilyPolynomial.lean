@@ -53,8 +53,10 @@ example :
     IsUniversalHash (PMF.uniformOfFintype (Fin 3))
         (fun s (x : Fin 2 → ZMod 5) => coeffPolyHash (finThreeToZModFive s) x) (2 / 3) ∧
       (2 / 3 : ℝ≥0∞) < 1 := by
-  refine ⟨?_, by norm_num⟩
+  refine ⟨?_, ?_⟩
   simpa using isUniversalHash_coeffPolyHash_of_embedding finThreeToZModFive 2
+  rw [ENNReal.div_lt_iff (by norm_num) (by norm_num)]
+  norm_num
 
 /-- The empty coefficient vector evaluates to zero. -/
 example (k : ZMod 5) (x : Fin 0 → ZMod 5) : coeffPolyHash k x = 0 := by
