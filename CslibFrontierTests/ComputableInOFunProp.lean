@@ -7,8 +7,8 @@ Authors: Christian Reitwiessner
 module
 -- upstream: candidate
 
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.FunProp
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.FunProp
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair
 
 /-!
 # `fun_prop` for bounds up to constants
