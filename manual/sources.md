@@ -1469,6 +1469,18 @@ Igor Carboni Oliveira and Rahul Santhanam. *Conspiracies Between Learning Algori
 
 Igor Carboni Oliveira and Rahul Santhanam. *Hardness Magnification for Natural Problems*. FOCS 2018, 65–76. https://doi.org/10.1109/FOCS.2018.00016 . Full version ECCC TR18-139. Bibliographic data comes from the repository bibliography; the paper was not inspected for this chapter. The Lean module documentation quotes Theorems 1, 5, 17 and 27 and Lemma 16 from the ECCC full version with page locators.
 
+<a id="openaich26"></a>
+## openaich26
+
+OpenAI. *Existential–universal real sentences in the counting hierarchy*. Preprint,
+4 October 2026, not peer reviewed. Bibliography key `OpenAI2026CountingHierarchy`;
+source revision `adc7f1241b42e322a6451854ab7e4b4c146bf78a`.
+[Section 2 TeX](https://github.com/openai/math/blob/adc7f1241b42e322a6451854ab7e4b4c146bf78a/preprints/Existential-universal-real-sentences-in-the-counting-hierarchy-October-4-2026/build/sections/02-counting.tex)
+and Appendix A (`08-existential-bound.tex`) were read on 2026-11-14 for the CRT circle identity,
+dyadic error, first-flag sign argument, and its use in the appendix. The mathematical layer
+allows arbitrary pairwise coprime positive moduli and explicit numerical bounds; the manuscript's
+prime-window estimate and computational complexity claims are separate obligations.
+
 <a id="openai-logspace26"></a>
 ## openai-logspace26
 

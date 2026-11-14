@@ -6248,7 +6248,11 @@ public import CslibFrontier.Foundations.NumberTheory.AKS.IntegerVariant
 public import CslibFrontier.Foundations.NumberTheory.AKS.Introspective
 public import CslibFrontier.Foundations.NumberTheory.AKS.PerfectPower
 public import CslibFrontier.Foundations.NumberTheory.AKS.SmallR
+public import CslibFrontier.Foundations.NumberTheory.CRTCircle
+public import CslibFrontier.Foundations.NumberTheory.CRTSign
 public import CslibFrontier.Foundations.NumberTheory.CentralBinomPrimes
+public import CslibFrontier.Foundations.NumberTheory.DoublingSign
+public import CslibFrontier.Foundations.NumberTheory.DyadicCircle
 public import CslibFrontier.Foundations.NumberTheory.FiniteField.Enumeration
 public import CslibFrontier.Foundations.NumberTheory.FiniteField.GeneratorProducts
 public import CslibFrontier.Foundations.NumberTheory.Harmonic
