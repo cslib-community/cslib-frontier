@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+import CslibFrontier.Crypto.Computational.CompositeResiduosity
 import CslibFrontier.Crypto.Computational.RabinFactoring
 import Mathlib.Tactic.NormNum.Prime
 
@@ -54,8 +55,8 @@ example : qrEulerTest 21 4 3 7 = true := by decide
 `qrEulerTest 21 20 3 7 = false`. -/
 example : qrEulerTest 21 20 3 7 = false := by decide
 
-/-- `16 = 1 + 15` is an `N`-th residue modulo `15 ^ 2 = 225` (`16 ^ 8 ≡ 1 [MOD 225]` is false,
-while `2 ^ 15 % 225 = 113` has `113 ^ 8 % 225 = 1`). -/
+/-- `2 ^ 15 % 225 = 143` is a `15`-th residue modulo `15 ^ 2 = 225` (`143 ^ 8 % 225 = 1`), whereas
+`16 = 1 + 15` has order `15` (`16 ^ 8 % 225 = 121 ≠ 1`). -/
 example : dcrTotientTest 15 (2 ^ 15 % 225) 3 5 = true := by decide
 
 example : dcrTotientTest 15 16 3 5 = false := by decide
@@ -64,10 +65,11 @@ example (setup : ℕ → PMF ModulusDesc) (h : QuadraticResiduosityHard setup) :
     ModulusFactoringHard (fun n => (setup n).map ModulusDesc.modulus) :=
   h.modulusFactoringHard
 
-example (gen : BlumGen)
-    (h : QuadraticResiduosityHard (fun n => (gen n).map BlumDesc.toModulusDesc)) :
+example (gen : BlumGen) (setup : ℕ → PMF ModulusDesc)
+    (h : QuadraticResiduosityHard setup)
+    (hmod : ∀ n, (setup n).map ModulusDesc.modulus = (gen n).map BlumDesc.modulus) :
     FactoringHard gen :=
-  h.factoringHard
+  h.factoringHard hmod
 
 example (setup : ℕ → PMF BalancedModulus.Desc) (h : DCR setup) :
     ModulusFactoringHard (fun n => (setup n).map BalancedModulus.Desc.modulus) :=
@@ -77,7 +79,7 @@ example (gen : BlumGen) (setup : ℕ → PMF BalancedModulus.Desc)
     (h : DCR setup)
     (hmod : ∀ n, (setup n).map BalancedModulus.Desc.modulus = (gen n).map BlumDesc.modulus) :
     FactoringHard gen :=
-  h.factoringHard hmod
+  FactoringHard.of_modulusFactoringHard h.modulusFactoringHard hmod
 
 /-- info: 'Cslib.Crypto.QuadraticResiduosityHard.modulusFactoringHard' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
@@ -91,8 +93,8 @@ example (gen : BlumGen) (setup : ℕ → PMF BalancedModulus.Desc)
 #guard_msgs in
 #print axioms Cslib.Crypto.DCR.modulusFactoringHard
 
-/-- info: 'Cslib.Crypto.DCR.factoringHard' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'Cslib.Crypto.FactoringHard.of_modulusFactoringHard' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
-#print axioms Cslib.Crypto.DCR.factoringHard
+#print axioms Cslib.Crypto.FactoringHard.of_modulusFactoringHard
 
 end CslibFrontierTests.Crypto.RabinFactoring

@@ -108,6 +108,9 @@ example : BinaryGcd.modInv 3 20 = 7 := by
 example : 3 * BinaryGcd.modInv 3 20 ≡ 1 [MOD 20] :=
   BinaryGcd.mul_modInv_modEq_one (by decide) (by decide)
 
+example : BinaryGcd.modInv 3 20 = ((3 : ZMod 20)⁻¹).val :=
+  BinaryGcd.modInv_eq_zmod_inv_val (by decide) (by decide)
+
 example (gen : RSAGen) :
     TotientHard gen ↔ ModulusFactoringHard (fun n => (gen n).map RSADesc.modulus) :=
   totientHard_iff_modulusFactoringHard gen
@@ -121,11 +124,6 @@ example (gen : RSAGen) (h : RSAOneWay gen) : TotientHard gen :=
 example (gen : RSAGen) (h : RSAOneWay gen) :
     ModulusFactoringHard (fun n => (gen n).map RSADesc.modulus) :=
   h.modulusFactoringHard
-
-example (gen : RSAGen) (blumGen : BlumGen) (h : RSAOneWay gen)
-    (hmod : ∀ n, (gen n).map RSADesc.modulus = (blumGen n).map BlumDesc.modulus) :
-    FactoringHard blumGen :=
-  h.factoringHard hmod
 
 /-- info: 'Cslib.Crypto.totientHard_iff_modulusFactoringHard' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
@@ -142,9 +140,5 @@ example (gen : RSAGen) (blumGen : BlumGen) (h : RSAOneWay gen)
 /-- info: 'Cslib.Crypto.RSAOneWay.modulusFactoringHard' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms Cslib.Crypto.RSAOneWay.modulusFactoringHard
-
-/-- info: 'Cslib.Crypto.RSAOneWay.factoringHard' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Cslib.Crypto.RSAOneWay.factoringHard
 
 end CslibFrontierTests.Crypto.RSAAttacks

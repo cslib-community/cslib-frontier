@@ -4,9 +4,11 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+import CslibFrontier.Crypto.Computational.CompositeResiduosity
 import CslibFrontier.Crypto.Computational.DiffieHellman
 import CslibFrontier.Crypto.Computational.Encryption.CCA
 import CslibFrontier.Crypto.Computational.PseudorandomFunction
+import CslibFrontier.Crypto.Computational.RabinFactoring
 import CslibFrontier.Crypto.Computational.RSAAttacks
 import CslibFrontier.Probability.PMF.UniformPoint
 import CslibFrontier.Probability.Product

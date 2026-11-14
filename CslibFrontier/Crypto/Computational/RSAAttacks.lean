@@ -7,8 +7,10 @@ Authors: Karn Seth, Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Gcd
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Sqrt
-public import CslibFrontier.Crypto.Computational.RabinFactoring
+public import CslibFrontier.Crypto.Computational.Factoring
 public import CslibFrontier.Crypto.Computational.RSATrapdoor
 public import Mathlib.Data.Nat.ChineseRemainder
 import CslibFrontier.Crypto.Negligible.Basic
@@ -22,8 +24,8 @@ import Mathlib.Data.ZMod.Units
 
 Algebraic attacks on plain (textbook) RSA encryption `c = m ^ e % N` (`rsaEval`), the elementary
 steps that recover the factorization of `N` from secret RSA data, and the polynomial-time
-reductions connecting `RSAOneWay`, `RSAKeyRecoveryHard`, `TotientHard`, `ModulusFactoringHard`, and
-`FactoringHard`.
+reductions connecting `RSAOneWay`, `RSAKeyRecoveryHard`, `TotientHard`, and
+`ModulusFactoringHard`.
 
 * **Malleability.** `rsaEval` is multiplicative, so anyone can turn an encryption of `m` into an
   encryption of `m * s % N`.
@@ -37,12 +39,12 @@ reductions connecting `RSAOneWay`, `RSAKeyRecoveryHard`, `TotientHard`, `Modulus
 * **Factoring from `φ(N)` and `TotientHard ↔ ModulusFactoringHard`.** `N = p * q` and
   `φ(N) = (p - 1) * (q - 1)` determine `p + q` and `(p - q) ^ 2`, hence `p` and `q` in polynomial
   time (`factorOfTotient`, `computableInPolyTime_factorOfTotient`), giving the polynomial-time
-  equivalence `totientHard_iff_modulusFactoringHard` ([KatzLindell2020], Theorem 9.49).
+  equivalence `totientHard_iff_modulusFactoringHard` (after [KatzLindell2020], Theorem 9.49).
 * **Computing `d` from `φ(N)` and `RSAOneWay ⇒ RSAKeyRecoveryHard ⇒ TotientHard ⇔
   ModulusFactoringHard`.** Given `(N, e)` and `φ(N)`, the unsigned extended Euclidean algorithm
   `BinaryGcd.modInv e φ(N)` recovers a valid private exponent `d'`, and `rsaInvert N d'` inverts
   `rsaEval N e` on all residues modulo `N` (`RSAOneWay.rsaKeyRecoveryHard`,
-  `RSAOneWay.totientHard`, `RSAOneWay.modulusFactoringHard`, `RSAOneWay.factoringHard`).
+  `RSAOneWay.totientHard`, `RSAOneWay.modulusFactoringHard`).
 * **Factoring from `(N, e, d)` and nontrivial square roots of `1`.** Every unit `x` modulo `N`
   satisfies `x ^ (e * d - 1) ≡ 1`, and for any `N` and `y`, a square root `y` of `1` modulo
   `N` other than `±1` gives the proper factors `gcd(y - 1, N)` and `gcd(y + 1, N)`
@@ -73,11 +75,11 @@ reductions connecting `RSAOneWay`, `RSAKeyRecoveryHard`, `TotientHard`, `Modulus
 * `Cslib.Crypto.factorOfTotient_eq`, `Cslib.Crypto.RSADesc.factorOfTotient_eq`,
   `Cslib.Crypto.computableInPolyTime_factorOfTotient`: factoring from `φ(N)` in polynomial time.
 * `Cslib.Crypto.totientHard_iff_modulusFactoringHard`: computing `φ(N)` from `N = p * q` is
-  polynomial-time equivalent to factoring `N` ([KatzLindell2020], Theorem 9.49).
+  polynomial-time equivalent to factoring `N` (after [KatzLindell2020], Theorem 9.49).
 * `Cslib.Crypto.RSAKeyRecoveryHard.totientHard`,
   `Cslib.Crypto.RSAKeyRecoveryHard.modulusFactoringHard`,
   `Cslib.Crypto.RSAOneWay.rsaKeyRecoveryHard`, `Cslib.Crypto.RSAOneWay.totientHard`,
-  `Cslib.Crypto.RSAOneWay.modulusFactoringHard`, `Cslib.Crypto.RSAOneWay.factoringHard`:
+  `Cslib.Crypto.RSAOneWay.modulusFactoringHard`:
   `RSAOneWay` implies private-exponent recovery hardness, totient hardness, and integer factoring
   hardness.
 * `Cslib.Crypto.gcd_sub_one_proper_of_sq_modEq_one`,
@@ -390,6 +392,23 @@ def totientToFactor (T : ℕ → ℕ → ProbComp ℕ) (n N : ℕ) : ProbComp (�
   let φ' ← T n N
   return factorOfTotient N φ'
 
+private theorem computableInPolyTime_totientIfFactor {α : Type} {enc : α ↪ List Bool}
+    {N a b : α → ℕ}
+    (hN : ComputableInPolyTime N enc encNat)
+    (ha : ComputableInPolyTime a enc encNat)
+    (hb : ComputableInPolyTime b enc encNat) :
+    ComputableInPolyTime
+      (fun x => if 1 < a x ∧ 1 < b x ∧ a x * b x = N x then (a x - 1) * (b x - 1) else 0)
+      enc encNat := by
+  have hcond : ComputableInPolyTime
+      (fun x => decide (1 < a x ∧ 1 < b x ∧ a x * b x = N x)) enc encBool := by
+    fun_prop
+  have hprod : ComputableInPolyTime (fun x => (a x - 1) * (b x - 1)) enc encNat := by
+    fun_prop
+  have hzero : ComputableInPolyTime (fun _ : α => 0) enc encNat := by
+    fun_prop
+  simpa only [decide_eq_true_eq] using ComputableInPolyTime.ite hcond hprod hzero
+
 /-- `factorToTotient F` is uniform PPT whenever `F` is uniform PPT. -/
 theorem isPPTOn_factorToTotient {F : ℕ → ℕ → ProbComp (ℕ × ℕ)}
     (hF : IsPPTOn (encPair encUnary encNat) (encPair encNat encNat)
@@ -397,12 +416,7 @@ theorem isPPTOn_factorToTotient {F : ℕ → ℕ → ProbComp (ℕ × ℕ)}
     IsPPTOn (encPair encUnary encNat) encNat (fun input => factorToTotient F input.1 input.2) := by
   unfold factorToTotient
   refine IsPPTOn.bind_with hF ?_
-  have hite : ComputableInPolyTime
-      (fun p : (ℕ × ℕ) × (ℕ × ℕ) =>
-        if 1 < p.2.1 ∧ 1 < p.2.2 ∧ p.2.1 * p.2.2 = p.1.2 then (p.2.1 - 1) * (p.2.2 - 1) else 0)
-      (encPair (encPair encUnary encNat) (encPair encNat encNat)) encNat := by
-    fun_prop
-  exact hite.isPPTOn
+  exact (computableInPolyTime_totientIfFactor (by fun_prop) (by fun_prop) (by fun_prop)).isPPTOn
 
 /-- `totientToFactor T` is uniform PPT whenever `T` is uniform PPT. -/
 theorem isPPTOn_totientToFactor {T : ℕ → ℕ → ProbComp ℕ}
@@ -428,7 +442,7 @@ theorem totientGame_factorToTotient (gen : RSAGen) (F : ℕ → ℕ → ProbComp
   by_cases hfac : 1 < ab.1 ∧ 1 < ab.2 ∧ ab.1 * ab.2 = desc.modulus
   · rcases hfac with ⟨ha, hb, hab⟩
     have htot : (ab.1 - 1) * (ab.2 - 1) = desc.totient := by
-      rcases mul_eq_blum_cases desc.hp desc.hq ha hb hab with ⟨h1, h2⟩ | ⟨h1, h2⟩
+      rcases mul_eq_mul_primes_cases desc.hp desc.hq ha hb hab with ⟨h1, h2⟩ | ⟨h1, h2⟩
       · rw [h1, h2]
       · rw [h1, h2, mul_comm]
     simp [ha, hb, hab, htot]
@@ -474,7 +488,7 @@ theorem ModulusFactoringHard.totientHard {gen : RSAGen}
   negligible_of_le (h (totientToFactor T) (isPPTOn_totientToFactor hT))
     (succProbability_totientGame_le gen T)
 
-/-- **Theorem 9.49** ([KatzLindell2020]): computing `φ(N)` from `N = p * q` is polynomial-time
+/-- After [KatzLindell2020], Theorem 9.49: computing `φ(N)` from `N = p * q` is polynomial-time
 equivalent to factoring `N`. -/
 theorem totientHard_iff_modulusFactoringHard (gen : RSAGen) :
     TotientHard gen ↔ ModulusFactoringHard (fun n => (gen n).map RSADesc.modulus) :=
@@ -642,12 +656,5 @@ theorem RSAOneWay.totientHard {gen : RSAGen} (h : RSAOneWay gen) :
 theorem RSAOneWay.modulusFactoringHard {gen : RSAGen} (h : RSAOneWay gen) :
     ModulusFactoringHard (fun n => (gen n).map RSADesc.modulus) :=
   h.totientHard.modulusFactoringHard
-
-/-- **RSA one-wayness implies `FactoringHard`** for any Blum modulus generator `blumGen` whose
-modulus distribution matches `gen`. -/
-theorem RSAOneWay.factoringHard {gen : RSAGen} {blumGen : BlumGen} (h : RSAOneWay gen)
-    (hmod : ∀ n, (gen n).map RSADesc.modulus = (blumGen n).map BlumDesc.modulus) :
-    FactoringHard blumGen :=
-  (factoringHard_iff_modulusFactoringHard blumGen).mpr (h.modulusFactoringHard.congr hmod)
 
 end Cslib.Crypto

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
 public import Mathlib.Data.Nat.ModEq
+public import Mathlib.Data.ZMod.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Iteration
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
@@ -45,8 +46,9 @@ whenever `Nat.Coprime a m`.
 * `Turing.MultiTapeTM.BinaryGcd.iterate_gcdStep_eq`: iterating `gcdStep` for `gcdCount p` steps
   produces `(Nat.gcd p.1 p.2, 0)`.
 * `Turing.MultiTapeTM.BinaryGcd.mul_modInv_modEq_gcd`,
-  `Turing.MultiTapeTM.BinaryGcd.mul_modInv_modEq_one`, `Turing.MultiTapeTM.BinaryGcd.modInv_lt`:
-  correctness and range bounds for `BinaryGcd.modInv`.
+  `Turing.MultiTapeTM.BinaryGcd.mul_modInv_modEq_one`, `Turing.MultiTapeTM.BinaryGcd.modInv_lt`,
+  `Turing.MultiTapeTM.BinaryGcd.modInv_eq_zmod_inv_val`:
+  correctness, range bounds, and `ZMod` inverse bridge for `BinaryGcd.modInv`.
 * `Turing.MultiTapeTM.ComputableInPolyTime.binary_gcd`, `.binary_gcd'`,
   `Turing.MultiTapeTM.ComputableInPolyTime.binary_modInv`, `.binary_modInv'`: polynomial-time
   certificates for `Nat.gcd` and `BinaryGcd.modInv` on `encNat`.
@@ -366,6 +368,25 @@ theorem mul_modInv_modEq_one {a m : ℕ} (hm : 0 < m) (hcop : Nat.Coprime a m) :
     rw [Nat.gcd_comm]
     exact hcop
   simpa [hgcd] using mul_modInv_modEq_gcd a hm
+
+/-- When `0 < m` and `Nat.Coprime a m`, `modInv a m` equals the canonical natural-number
+representative `((a : ZMod m)⁻¹).val` of the modular inverse in `ZMod m`. -/
+theorem modInv_eq_zmod_inv_val {a m : ℕ} (hm : 0 < m) (hcop : Nat.Coprime a m) :
+    modInv a m = ((a : ZMod m)⁻¹).val := by
+  rcases m with _ | _ | m
+  · exact absurd hm (Nat.lt_irrefl 0)
+  · have hlt := modInv_lt (a := a) zero_lt_one
+    have hval := ZMod.val_lt ((a : ZMod 1)⁻¹)
+    lia
+  · have hm1 : 1 < m + 2 := by lia
+    have : Fact (1 < m + 2) := ⟨hm1⟩
+    have hmul : (a : ZMod (m + 2)) * (modInv a (m + 2) : ZMod (m + 2)) = 1 := by
+      have hmod := (ZMod.natCast_eq_natCast_iff (a * modInv a (m + 2)) 1 (m + 2)).mpr
+        (mul_modInv_modEq_one (by lia) hcop)
+      simpa using hmod
+    have hinv := ZMod.inv_eq_of_mul_eq_one (m + 2) (a : ZMod (m + 2))
+      (modInv a (m + 2) : ZMod (m + 2)) hmul
+    rw [hinv, ZMod.val_natCast_of_lt (modInv_lt (by lia))]
 
 /-- At every extended-Euclidean step, the encoded state has length at most
 `9 * (encPair encNat encNat (a, m)).length`. -/
