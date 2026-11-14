@@ -35,10 +35,12 @@ sampler has no strict fair-coin runtime certificate in general.
 `dyadicSize queryBound`, not the paper's `queryBound + 1`. The checked bounds
 `queryBound < dyadicSize queryBound ≤ 2 * (queryBound + 1)` keep the asymptotic loss polynomial.
 
-This module defines the exact challenges, games and executable reductions. The adaptive coupling
-inequality and machine-resource compiler are deliberately not asserted here: the former must show
-that the all-false execution agrees through the first correct query, and the latter must charge
-request/reply marshalling and each installed finite table exactly once.
+The adaptive first-divergence proof bounds real PGOW success by the number of correct all-false
+queries plus a correct final output. A global query budget converts this potential into the
+executable slot sum, yielding the paper's exact `queryBound + 1` semantic loss and the dyadic
+variant's exact `dyadicSize queryBound` loss. The machine-resource compiler remains separate: it
+must charge the complete all-false run, request/reply marshalling and each installed finite table
+exactly once.
 
 ## Main definitions
 
@@ -51,6 +53,16 @@ request/reply marshalling and each installed finite table exactly once.
 * `Cslib.Crypto.partialGuessingToDomain`: the paper's semantic uniform-slot reduction.
 * `Cslib.Crypto.partialGuessingToDomainDyadic`: the strict fair-coin slot sampler variant.
 
+## Main results
+
+* `Cslib.Crypto.evalWith_partialGuessingLaw_apply_le_allFalsePotential`: adaptive
+  first-divergence coupling under shared private coins.
+* `Cslib.Crypto.partialGuessingAdvantage_le_mul_partialDomainAdvantage`: Lemma C.1 with the
+  paper's exact `queryBound + 1` semantic loss.
+* `Cslib.Crypto.partialGuessingAdvantage_le_dyadicSize_mul_partialDomainAdvantage`,
+  `Cslib.Crypto.partialGuessingAdvantage_le_two_mul_partialDomainAdvantage`: exact and coarse
+  strict-fair-coin loss bounds.
+
 ## References
 
 * [H. Kosuge, K. Xagawa, *Towards Formal Security Proofs of MQOM*][KosugeXagawa2026],
@@ -62,7 +74,7 @@ request/reply marshalling and each installed finite table exactly once.
 namespace Cslib.Crypto
 
 open Probability
-open scoped NNReal
+open scoped ENNReal NNReal
 
 /-- A challenge sampled from the source distribution `D_F`: public index `index`, hidden
 preimage `secret`, and public image `image`. Distribution validity below states the source's
@@ -179,6 +191,36 @@ noncomputable def partialGuessingAllFalsePotential {Prefix : Type} [DecidableEq 
       (partialGuessingCorrectCost secret) program +
     OracleComp.evalWith (partialGuessingFalseLaw (Prefix := Prefix)) program secret
 
+private theorem partialGuessingAllFalsePotential_pure {Prefix : Type} [DecidableEq Prefix]
+    (secret output : Prefix) :
+    partialGuessingAllFalsePotential secret
+        (pure output : ProbOracleComp (PartialGuessingResponse Prefix) Prefix) =
+      if output = secret then 1 else 0 := by
+  simp [partialGuessingAllFalsePotential]
+
+private theorem partialGuessingAllFalsePotential_sample_bind {Prefix : Type}
+    [DecidableEq Prefix] (secret : Prefix) (n : Nat)
+    (cont : Fin (n + 1) → ProbOracleComp (PartialGuessingResponse Prefix) Prefix) :
+    partialGuessingAllFalsePotential secret
+        (ProbOracleComp.sample (ProbComp.unifFin n) >>= cont) =
+      ∑' answer, ProbComp.unifOracle n answer *
+        partialGuessingAllFalsePotential secret (cont answer) := by
+  rw [ProbOracleComp.sample_unifFin]
+  simp only [partialGuessingAllFalsePotential, partialGuessingFalseLaw,
+    partialGuessingCorrectCost, OracleComp.sumHandler_inl,
+    OracleComp.expectedCost_query_bind, OracleComp.evalWith_bind,
+    OracleComp.evalWith_query, zero_add, PMF.bind_apply]
+  simp only [mul_add, tsum_add]
+
+private theorem partialGuessingAllFalsePotential_query_bind {Prefix : Type}
+    [DecidableEq Prefix] (secret candidate : Prefix)
+    (cont : Bool → ProbOracleComp (PartialGuessingResponse Prefix) Prefix) :
+    partialGuessingAllFalsePotential secret (ProbOracleComp.query candidate >>= cont) =
+      (if candidate = secret then 1 else 0) +
+        partialGuessingAllFalsePotential secret (cont false) := by
+  simp [partialGuessingAllFalsePotential, partialGuessingFalseLaw,
+    partialGuessingCorrectCost, OracleComp.expectedCost_query_bind]
+
 /-- **Adaptive first-divergence coupling.** A real PGOW run can succeed only by crossing its first
 correct validation query, or by reaching a correct final output without any correct query. Before
 that first divergence the real and all-false executions use the same private samples and false
@@ -256,34 +298,37 @@ theorem eval_run_partialGuessingReply_apply_le_allFalsePotential {Prefix : Type}
 /-- Private state of the all-false validation handler. It retains only the selected candidate,
 not a transcript of all validation queries. -/
 structure PartialGuessingSelectionState (Prefix : Type) where
-  /-- Number of validation calls already answered. -/
-  count : Nat
+  /-- Number of validation calls still to skip before retaining a candidate. -/
+  remaining : Nat
   /-- Candidate asked at the selected call, if that call occurred. -/
   selected : Option Prefix
 
 namespace PartialGuessingSelectionState
 
-/-- No validation call has occurred and no candidate has been selected. -/
-def empty {Prefix : Type} : PartialGuessingSelectionState Prefix :=
-  { count := 0, selected := none }
+/-- Initialize the one-candidate state for a selected validation slot. -/
+def at {Prefix : Type} (slot : Nat) : PartialGuessingSelectionState Prefix :=
+  { remaining := slot, selected := none }
 
 end PartialGuessingSelectionState
 
-/-- Answer every validation call with false while retaining the candidate at `slot`. Calls are
-numbered from zero. Continuing after the selected call costs at most one full adversary run and
-does not require storing later candidates. -/
-def selectFalseOracle {Prefix : Type} (slot : Nat) (candidate : Prefix) :
+/-- Answer every validation call with false. Before the selected call, decrement the remaining
+skip count; at that call retain its candidate; afterward preserve the retained candidate while the
+adversary completes. -/
+def selectFalseOracle {Prefix : Type} (candidate : Prefix) :
     StateT (PartialGuessingSelectionState Prefix) ProbComp Bool := fun state =>
-  pure (false,
-    { count := state.count + 1
-      selected := if state.count = slot then some candidate else state.selected })
+  match state.selected with
+  | some _ => pure (false, state)
+  | none => match state.remaining with
+    | 0 => pure (false, { remaining := 0, selected := some candidate })
+    | remaining + 1 => pure (false, { remaining, selected := none })
 
-@[simp] theorem selectFalseOracle_run {Prefix : Type} (slot : Nat) (candidate : Prefix)
+@[simp] theorem selectFalseOracle_run {Prefix : Type} (candidate : Prefix)
     (state : PartialGuessingSelectionState Prefix) :
-    (selectFalseOracle slot candidate).run state =
-      pure (false,
-        { count := state.count + 1
-          selected := if state.count = slot then some candidate else state.selected }) := rfl
+    (selectFalseOracle candidate).run state = match state.selected with
+      | some _ => pure (false, state)
+      | none => match state.remaining with
+        | 0 => pure (false, { remaining := 0, selected := some candidate })
+        | remaining + 1 => pure (false, { remaining, selected := none }) := rfl
 
 /-- Extract the selected query for slots below `queryBound`, or the adversary's separately
 checked final output for slot `queryBound`. A missing selected query yields `fallback`. -/
@@ -304,14 +349,195 @@ def partialGuessingSelectedCandidate {Prefix : Type} (fallback : Prefix)
     partialGuessingSelectedCandidate fallback queryBound slot result = result.1 := by
   simp only [partialGuessingSelectedCandidate, hslot, if_false]
 
+/-- Execute one fixed source slot against an already instantiated PGOW program. Keeping this
+closed-program core separate makes the bounded-slot proof independent of the public challenge
+parameters. -/
+private def partialGuessingAt {Prefix : Type} (fallback : Prefix) (queryBound slot : Nat)
+    (program : ProbOracleComp (PartialGuessingResponse Prefix) Prefix) : ProbComp Prefix := do
+  let result ← (program.runState selectFalseOracle).run
+    (PartialGuessingSelectionState.at slot)
+  return partialGuessingSelectedCandidate fallback queryBound slot result
+
+/-- Success mass of one fixed all-false source slot. -/
+private noncomputable def partialGuessingSlotMass {Prefix : Type} (fallback : Prefix)
+    (queryBound slot : Nat) (secret : Prefix)
+    (program : ProbOracleComp (PartialGuessingResponse Prefix) Prefix) : ℝ≥0∞ :=
+  (ProbOracleComp.runWith
+      (fun candidate state => ProbComp.eval ((selectFalseOracle candidate).run state))
+      program (PartialGuessingSelectionState.at slot)).map
+    (partialGuessingSelectedCandidate fallback queryBound slot) secret
+
+/-- The state-machine definition of a fixed slot has exactly the slot mass above. -/
+private theorem eval_partialGuessingAt {Prefix : Type} (fallback : Prefix) (queryBound slot : Nat)
+    (program : ProbOracleComp (PartialGuessingResponse Prefix) Prefix) :
+    ProbComp.eval (partialGuessingAt fallback queryBound slot program) =
+      (ProbOracleComp.runWith
+        (fun candidate state => ProbComp.eval ((selectFalseOracle candidate).run state))
+        program (PartialGuessingSelectionState.at slot)).map
+      (partialGuessingSelectedCandidate fallback queryBound slot) := by
+  simp only [partialGuessingAt, ProbComp.eval_bind, ProbComp.eval_pure,
+    ProbOracleComp.eval_runState, PMF.bind_pure_comp, Function.comp_def]
+  rfl
+
+/-- Once a candidate has been retained, the all-false handler preserves it while the adversary
+completes. The remaining execution is the ordinary memoryless all-false run paired with the
+unchanged one-candidate state. -/
+private theorem runState_selectFalseOracle_selected {Prefix : Type}
+    (selected : Prefix) (remaining : Nat)
+    (program : ProbOracleComp (PartialGuessingResponse Prefix) Prefix) :
+    (program.runState selectFalseOracle).run
+        { remaining, selected := some selected } =
+      (fun output => (output,
+        { remaining, selected := some selected })) <$>
+        program.run (fun _ => pure false) := by
+  induction program using ProbOracleComp.induction with
+  | pure output => rfl
+  | sample_bind n cont ih =>
+      simp only [ProbOracleComp.runState_bind, ProbOracleComp.runState_sample,
+        StateT.run_bind, StateT.lift, ProbOracleComp.run_bind, ProbOracleComp.run_sample,
+        ih, bind_pure_comp, Function.comp_def]
+  | query_bind candidate cont ih =>
+      simp only [ProbOracleComp.runState_bind, ProbOracleComp.runState_query,
+        selectFalseOracle, StateT.run_bind, ProbOracleComp.run_bind,
+        ProbOracleComp.run_query, pure_bind, ih]
+
+/-- PMF form of `runState_selectFalseOracle_selected`. -/
+private theorem runWith_selectFalseOracle_selected {Prefix : Type}
+    (selected : Prefix) (remaining : Nat)
+    (program : ProbOracleComp (PartialGuessingResponse Prefix) Prefix) :
+    ProbOracleComp.runWith
+        (fun candidate state => ProbComp.eval ((selectFalseOracle candidate).run state))
+        program { remaining, selected := some selected } =
+      (ProbComp.eval (program.run fun _ => pure false)).map fun output =>
+        (output, { remaining, selected := some selected }) := by
+  have h := congrArg ProbComp.eval
+    (runState_selectFalseOracle_selected selected remaining program)
+  simpa only [ProbOracleComp.eval_runState, ProbComp.eval_map] using h
+
+@[simp] private theorem partialGuessingSlotMass_pure_final {Prefix : Type} [DecidableEq Prefix]
+    (fallback secret output : Prefix) (queryBound : Nat) :
+    partialGuessingSlotMass fallback queryBound queryBound secret
+        (pure output : ProbOracleComp (PartialGuessingResponse Prefix) Prefix) =
+      if output = secret then 1 else 0 := by
+  simp [partialGuessingSlotMass, PartialGuessingSelectionState.at,
+    partialGuessingSelectedCandidate]
+
+private theorem partialGuessingSlotMass_sample_bind {Prefix : Type} (fallback secret : Prefix)
+    (queryBound slot n : Nat)
+    (cont : Fin (n + 1) → ProbOracleComp (PartialGuessingResponse Prefix) Prefix) :
+    partialGuessingSlotMass fallback queryBound slot secret
+        (ProbOracleComp.sample (ProbComp.unifFin n) >>= cont) =
+      ∑' answer, ProbComp.unifOracle n answer *
+        partialGuessingSlotMass fallback queryBound slot secret (cont answer) := by
+  simp only [partialGuessingSlotMass, ProbOracleComp.runWith_sample_bind,
+    ProbComp.eval_unifFin, PMF.map_apply, PMF.bind_apply, PMF.map_apply,
+    Function.comp_def]
+  rfl
+
+@[simp] private theorem partialGuessingSlotMass_query_zero {Prefix : Type} [DecidableEq Prefix]
+    (fallback secret candidate : Prefix) (queryBound : Nat)
+    (cont : Bool → ProbOracleComp (PartialGuessingResponse Prefix) Prefix) :
+    partialGuessingSlotMass fallback (queryBound + 1) 0 secret
+        (ProbOracleComp.query candidate >>= cont) =
+      if candidate = secret then 1 else 0 := by
+  simp only [partialGuessingSlotMass, ProbOracleComp.runWith_bind,
+    ProbOracleComp.runWith_query, PartialGuessingSelectionState.at, selectFalseOracle,
+    ProbComp.eval_pure, PMF.pure_bind]
+  rw [runWith_selectFalseOracle_selected candidate 0 (cont false)]
+  simp [partialGuessingSelectedCandidate]
+
+@[simp] private theorem partialGuessingSlotMass_query_succ {Prefix : Type}
+    (fallback secret candidate : Prefix)
+    (queryBound slot : Nat) (hslot : slot ≤ queryBound)
+    (cont : Bool → ProbOracleComp (PartialGuessingResponse Prefix) Prefix) :
+    partialGuessingSlotMass fallback (queryBound + 1) (slot + 1) secret
+        (ProbOracleComp.query candidate >>= cont) =
+      partialGuessingSlotMass fallback queryBound slot secret (cont false) := by
+  simp only [partialGuessingSlotMass, ProbOracleComp.runWith_bind,
+    ProbOracleComp.runWith_query, PartialGuessingSelectionState.at, selectFalseOracle,
+    ProbComp.eval_pure, PMF.pure_bind]
+  congr 2 with result
+  simp only [partialGuessingSelectedCandidate]
+  split_ifs <;> omega
+
+/-- A global query budget turns the all-false potential into the sum of the `queryBound` query
+slots and the final-output slot. The proof follows the executable countdown state: an external
+call contributes slot zero and shifts every remaining slot into its false continuation, while a
+private sample averages the pointwise induction hypothesis under the same coins. -/
+private theorem partialGuessingAllFalsePotential_le_sum_slotMass {Prefix : Type}
+    [DecidableEq Prefix] (fallback secret : Prefix) (queryBound : Nat)
+    (program : ProbOracleComp (PartialGuessingResponse Prefix) Prefix)
+    (hbound : program.IsQueryBounded queryBound) :
+    partialGuessingAllFalsePotential secret program ≤
+      ∑ slot : Fin (queryBound + 1),
+        partialGuessingSlotMass fallback queryBound slot secret program := by
+  induction program using ProbOracleComp.induction generalizing queryBound with
+  | pure output =>
+      rw [partialGuessingAllFalsePotential_pure]
+      calc
+        (if output = secret then 1 else 0) =
+            partialGuessingSlotMass fallback queryBound queryBound secret
+              (pure output : ProbOracleComp (PartialGuessingResponse Prefix) Prefix) := by
+          rw [partialGuessingSlotMass_pure_final]
+        _ ≤ ∑ slot : Fin (queryBound + 1),
+              partialGuessingSlotMass fallback queryBound slot secret
+                (pure output : ProbOracleComp (PartialGuessingResponse Prefix) Prefix) :=
+          Finset.single_le_sum (fun _ _ => zero_le)
+            (Finset.mem_univ ⟨queryBound, Nat.lt_succ_self queryBound⟩)
+  | sample_bind n cont ih =>
+      obtain ⟨_, hcont⟩ := OracleComp.IsCostBounded.liftBind_iff.mp hbound
+      rw [partialGuessingAllFalsePotential_sample_bind]
+      calc
+        (∑' answer, ProbComp.unifOracle n answer *
+            partialGuessingAllFalsePotential secret (cont answer)) ≤
+            ∑' answer, ProbComp.unifOracle n answer *
+              (∑ slot : Fin (queryBound + 1),
+                partialGuessingSlotMass fallback queryBound slot secret (cont answer)) :=
+          tsum_le_tsum fun answer => mul_le_mul_left'
+            (ih answer queryBound (by simpa using hcont answer)) _
+        _ = ∑' answer, ∑' slot : Fin (queryBound + 1),
+              ProbComp.unifOracle n answer *
+                partialGuessingSlotMass fallback queryBound slot secret (cont answer) := by
+          congr 1 with answer
+          rw [tsum_fintype, Finset.mul_sum]
+        _ = ∑' slot : Fin (queryBound + 1), ∑' answer,
+              ProbComp.unifOracle n answer *
+                partialGuessingSlotMass fallback queryBound slot secret (cont answer) :=
+          tsum_comm
+        _ = ∑ slot : Fin (queryBound + 1),
+              partialGuessingSlotMass fallback queryBound slot secret
+                (ProbOracleComp.sample (ProbComp.unifFin n) >>= cont) := by
+          rw [tsum_fintype]
+          apply Finset.sum_congr rfl
+          intro slot _
+          rw [partialGuessingSlotMass_sample_bind]
+  | query_bind candidate cont ih =>
+      obtain ⟨hpositive, hcont⟩ := OracleComp.IsCostBounded.liftBind_iff.mp hbound
+      obtain ⟨queryBound, rfl⟩ : ∃ previous, queryBound = previous + 1 :=
+        ⟨queryBound - 1, by simp only [Sum.elim_inr] at hpositive; omega⟩
+      rw [partialGuessingAllFalsePotential_query_bind, Fin.sum_univ_succ,
+        partialGuessingSlotMass_query_zero]
+      apply add_le_add_left
+      calc
+        partialGuessingAllFalsePotential secret (cont false) ≤
+            ∑ slot : Fin (queryBound + 1),
+              partialGuessingSlotMass fallback queryBound slot secret (cont false) :=
+          ih false queryBound (by
+            simpa only [Sum.elim_inr, Nat.add_sub_cancel] using hcont false)
+        _ = ∑ slot : Fin (queryBound + 1),
+              partialGuessingSlotMass fallback (queryBound + 1) slot.succ secret
+                (ProbOracleComp.query candidate >>= cont) := by
+          apply Finset.sum_congr rfl
+          intro slot _
+          rw [partialGuessingSlotMass_query_succ fallback secret candidate queryBound slot
+            (Nat.le_of_lt_succ slot.isLt) cont]
+
 /-- One deterministic slot of the PGOW-to-PDOW reduction. It runs the adversary once, answers
 all validation calls locally with false, and returns either the selected call or final output. -/
 def partialGuessingToDomainAt {Index Image Prefix : Type} (fallback : Prefix)
     (queryBound slot : Nat) (adversary : PartialGuessingAdversary Index Image Prefix) :
-    PartialDomainAdversary Index Image Prefix := fun index image => do
-  let result ← ((adversary index image).runState (selectFalseOracle slot)).run
-    PartialGuessingSelectionState.empty
-  return partialGuessingSelectedCandidate fallback queryBound slot result
+    PartialDomainAdversary Index Image Prefix := fun index image =>
+  partialGuessingAt fallback queryBound slot (adversary index image)
 
 /-- Lemma C.1's semantic reduction: choose exactly one of the `queryBound` validation positions
 or the final output, uniformly. `ProbComp.uniform` specifies the exact finite distribution but is
@@ -321,6 +547,115 @@ noncomputable def partialGuessingToDomain {Index Image Prefix : Type} (fallback 
     PartialDomainAdversary Index Image Prefix := fun index image => do
   let slot ← ProbComp.uniform (Fin (queryBound + 1))
   partialGuessingToDomainAt fallback queryBound slot adversary index image
+
+private theorem eval_partialGuessingToDomain_apply {Index Image Prefix : Type}
+    (fallback secret : Prefix) (queryBound : Nat)
+    (adversary : PartialGuessingAdversary Index Image Prefix) (index : Index) (image : Image) :
+    ProbComp.eval (partialGuessingToDomain fallback queryBound adversary index image) secret =
+      (∑ slot : Fin (queryBound + 1),
+        partialGuessingSlotMass fallback queryBound slot secret (adversary index image)) /
+        (queryBound + 1 : ℝ≥0∞) := by
+  simp only [partialGuessingToDomain, partialGuessingToDomainAt, ProbComp.eval_bind,
+    PMF.bind_apply, eval_partialGuessingAt]
+  change ProbComp.expect (ProbComp.uniform (Fin (queryBound + 1)))
+      (fun slot => partialGuessingSlotMass fallback queryBound slot secret
+        (adversary index image)) = _
+  rw [ProbComp.expect_uniform]
+
+/-- **Exact bounded-slot reduction, pointwise form.** If one global budget bounds every public
+challenge supplied to the PGOW adversary, its real success mass on each challenge is at most
+`queryBound + 1` times the success mass of the paper's exactly uniform semantic reduction. This
+combines the adaptive first-divergence coupling with the executable query/final-slot sum. -/
+theorem eval_run_partialGuessingReply_apply_le_mul_eval_toDomain
+    {Index Image Prefix : Type} [DecidableEq Prefix]
+    (fallback secret : Prefix) (queryBound : Nat)
+    (adversary : PartialGuessingAdversary Index Image Prefix)
+    (hbound : adversary.IsQueryBounded queryBound) (index : Index) (image : Image) :
+    ProbComp.eval ((adversary index image).run fun candidate =>
+        pure (partialGuessingReply secret candidate)) secret ≤
+      (queryBound + 1 : ℝ≥0∞) *
+        ProbComp.eval (partialGuessingToDomain fallback queryBound adversary index image) secret := by
+  calc
+    ProbComp.eval ((adversary index image).run fun candidate =>
+        pure (partialGuessingReply secret candidate)) secret ≤
+        partialGuessingAllFalsePotential secret (adversary index image) :=
+      eval_run_partialGuessingReply_apply_le_allFalsePotential secret (adversary index image)
+    _ ≤ ∑ slot : Fin (queryBound + 1),
+          partialGuessingSlotMass fallback queryBound slot secret (adversary index image) :=
+      partialGuessingAllFalsePotential_le_sum_slotMass fallback secret queryBound
+        (adversary index image) (hbound index image)
+    _ = (queryBound + 1 : ℝ≥0∞) *
+          ProbComp.eval (partialGuessingToDomain fallback queryBound adversary index image) secret := by
+      have hne : (queryBound + 1 : ℝ≥0∞) ≠ 0 := by
+        exact_mod_cast Nat.succ_ne_zero queryBound
+      rw [eval_partialGuessingToDomain_apply, mul_div_cancel₀ _ hne]
+
+private theorem eval_partialGuessingExperiment_true {Index Domain Image Prefix : Type}
+    [DecidableEq Prefix] (sample : ProbComp (PartialOneWayChallenge Index Domain Image))
+    (part : Domain → Prefix) (adversary : PartialGuessingAdversary Index Image Prefix) :
+    ProbComp.eval (partialGuessingExperiment sample part adversary) true =
+      ∑' challenge, ProbComp.eval sample challenge *
+        ProbComp.eval ((adversary challenge.index challenge.image).run fun candidate =>
+          pure (partialGuessingReply (part challenge.secret) candidate))
+            (part challenge.secret) := by
+  simp only [partialGuessingExperiment, ProbComp.eval_bind, ProbComp.eval_pure,
+    PMF.bind_apply, partialGuessingReply, PMF.bind_pure_decide_eq_apply_true]
+
+private theorem eval_partialDomainExperiment_true {Index Domain Image Prefix : Type}
+    [DecidableEq Prefix] (sample : ProbComp (PartialOneWayChallenge Index Domain Image))
+    (part : Domain → Prefix) (adversary : PartialDomainAdversary Index Image Prefix) :
+    ProbComp.eval (partialDomainExperiment sample part adversary) true =
+      ∑' challenge, ProbComp.eval sample challenge *
+        ProbComp.eval (adversary challenge.index challenge.image) (part challenge.secret) := by
+  simp only [partialDomainExperiment, ProbComp.eval_bind, ProbComp.eval_pure,
+    PMF.bind_apply, partialGuessingReply, PMF.bind_pure_decide_eq_apply_true]
+
+/-- **Classical PGOW-to-PDOW reduction** ([KosugeXagawa2026, Appendix C, Lemma C.1,
+pp. 33--34]). A PGOW adversary making at most `queryBound` validation calls is bounded by
+`queryBound + 1` times the PDOW success of the exact-uniform all-false reduction. The hypothesis is
+global over public indices and images, as required for the same slot set to cover every supported
+challenge. -/
+theorem partialGuessingAdvantage_le_mul_partialDomainAdvantage
+    {Index Domain Image Prefix : Type} [DecidableEq Prefix]
+    (sample : ProbComp (PartialOneWayChallenge Index Domain Image)) (part : Domain → Prefix)
+    (fallback : Prefix) (queryBound : Nat)
+    (adversary : PartialGuessingAdversary Index Image Prefix)
+    (hbound : adversary.IsQueryBounded queryBound) :
+    partialGuessingAdvantage sample part adversary ≤
+      (queryBound + 1 : ℝ≥0) *
+        partialDomainAdvantage sample part
+          (partialGuessingToDomain fallback queryBound adversary) := by
+  have htotal :
+      ProbComp.eval (partialGuessingExperiment sample part adversary) true ≤
+        (queryBound + 1 : ℝ≥0∞) *
+          ProbComp.eval (partialDomainExperiment sample part
+            (partialGuessingToDomain fallback queryBound adversary)) true := by
+    rw [eval_partialGuessingExperiment_true, eval_partialDomainExperiment_true]
+    calc
+      (∑' challenge, ProbComp.eval sample challenge *
+          ProbComp.eval ((adversary challenge.index challenge.image).run fun candidate =>
+            pure (partialGuessingReply (part challenge.secret) candidate))
+              (part challenge.secret)) ≤
+          ∑' challenge, ProbComp.eval sample challenge *
+            ((queryBound + 1 : ℝ≥0∞) *
+              ProbComp.eval
+                (partialGuessingToDomain fallback queryBound adversary
+                  challenge.index challenge.image) (part challenge.secret)) :=
+        tsum_le_tsum fun challenge => mul_le_mul_left'
+          (eval_run_partialGuessingReply_apply_le_mul_eval_toDomain fallback
+            (part challenge.secret) queryBound adversary hbound challenge.index challenge.image) _
+      _ = (queryBound + 1 : ℝ≥0∞) *
+          ∑' challenge, ProbComp.eval sample challenge *
+            ProbComp.eval
+              (partialGuessingToDomain fallback queryBound adversary
+                challenge.index challenge.image) (part challenge.secret) := by
+        rw [← ENNReal.tsum_mul_left]
+        congr 1 with challenge
+        ac_rfl
+  simpa only [partialGuessingAdvantage, partialDomainAdvantage, Game.succProbability,
+    ENNReal.toNNReal_mul, ENNReal.toNNReal_ofNat] using
+    ENNReal.toNNReal_mono
+      (ENNReal.mul_ne_top ENNReal.ofNat_ne_top (PMF.apply_ne_top _ _)) htotal
 
 /-- Fixed-clock fair-coin slot-sampling variant. The power-of-two sampler covers source slots `0`
 through `queryBound`; any remaining padding slot returns `fallback` without running the adversary.
@@ -344,5 +679,150 @@ theorem partialGuessing_sourceSlot_lt_dyadicSize (queryBound slot : Nat)
 theorem partialGuessing_dyadicSize_le (queryBound : Nat) :
     Probability.dyadicSize queryBound ≤ 2 * (queryBound + 1) :=
   Probability.dyadicSize_le queryBound
+
+private noncomputable def partialGuessingDyadicTrialMass {Prefix : Type}
+    [DecidableEq Prefix] (fallback secret : Prefix) (queryBound slot : Nat)
+    (program : ProbOracleComp (PartialGuessingResponse Prefix) Prefix) : ℝ≥0∞ :=
+  if slot ≤ queryBound then
+    partialGuessingSlotMass fallback queryBound slot secret program
+  else if fallback = secret then 1 else 0
+
+private theorem eval_partialGuessingToDomainDyadic_apply {Index Image Prefix : Type}
+    [DecidableEq Prefix] (fallback secret : Prefix) (queryBound : Nat)
+    (adversary : PartialGuessingAdversary Index Image Prefix) (index : Index) (image : Image) :
+    ProbComp.eval (partialGuessingToDomainDyadic fallback queryBound adversary index image) secret =
+      (∑ slot : Fin (Probability.dyadicSize queryBound),
+        partialGuessingDyadicTrialMass fallback secret queryBound slot
+          (adversary index image)) /
+        (Probability.dyadicSize queryBound : ℝ≥0∞) := by
+  simp only [partialGuessingToDomainDyadic, ProbComp.eval_bind,
+    ProbComp.eval_sampleDyadicIndex, PMF.bind_map, Function.comp_def]
+  rw [PMF.bind_apply, ← ProbComp.eval_uniform]
+  change ProbComp.expect (ProbComp.uniform (Fin (Probability.dyadicSize queryBound)))
+      (fun slot => partialGuessingDyadicTrialMass fallback secret queryBound slot
+        (adversary index image)) = _
+  rw [ProbComp.expect_uniform]
+  congr 1
+  apply Finset.sum_congr rfl
+  intro slot _
+  by_cases hslot : slot.val ≤ queryBound
+  · simp only [partialGuessingDyadicTrialMass, hslot, if_true,
+      partialGuessingToDomainAt, eval_partialGuessingAt]
+  · simp only [partialGuessingDyadicTrialMass, hslot, if_false, ProbComp.eval_pure,
+      PMF.pure_apply]
+
+private theorem sum_slotMass_le_sum_dyadicTrialMass {Prefix : Type}
+    [DecidableEq Prefix] (fallback secret : Prefix) (queryBound : Nat)
+    (program : ProbOracleComp (PartialGuessingResponse Prefix) Prefix) :
+    (∑ slot : Fin (queryBound + 1),
+        partialGuessingSlotMass fallback queryBound slot secret program) ≤
+      ∑ slot : Fin (Probability.dyadicSize queryBound),
+        partialGuessingDyadicTrialMass fallback secret queryBound slot program := by
+  rw [Fin.sum_univ_eq_sum_range, Fin.sum_univ_eq_sum_range]
+  have hsource :
+      (∑ slot ∈ Finset.range (queryBound + 1),
+          partialGuessingSlotMass fallback queryBound slot secret program) =
+        ∑ slot ∈ Finset.range (queryBound + 1),
+          partialGuessingDyadicTrialMass fallback secret queryBound slot program := by
+    apply Finset.sum_congr rfl
+    intro slot hslot
+    simp only [partialGuessingDyadicTrialMass,
+      (Nat.le_of_lt_succ (Finset.mem_range.mp hslot)), if_true]
+  rw [hsource]
+  exact Finset.sum_le_sum_of_subset_of_nonneg
+    (Finset.range_mono (by omega : queryBound + 1 ≤ Probability.dyadicSize queryBound))
+    (fun _ _ _ => zero_le)
+
+/-- **Fixed-clock bounded-slot reduction, pointwise form.** The strict fair-coin sampler loses
+exactly `dyadicSize queryBound`; padding slots return the declared fallback and can only add
+success mass. -/
+theorem eval_run_partialGuessingReply_apply_le_dyadicSize_mul_eval_toDomainDyadic
+    {Index Image Prefix : Type} [DecidableEq Prefix]
+    (fallback secret : Prefix) (queryBound : Nat)
+    (adversary : PartialGuessingAdversary Index Image Prefix)
+    (hbound : adversary.IsQueryBounded queryBound) (index : Index) (image : Image) :
+    ProbComp.eval ((adversary index image).run fun candidate =>
+        pure (partialGuessingReply secret candidate)) secret ≤
+      (Probability.dyadicSize queryBound : ℝ≥0∞) *
+        ProbComp.eval
+          (partialGuessingToDomainDyadic fallback queryBound adversary index image) secret := by
+  calc
+    ProbComp.eval ((adversary index image).run fun candidate =>
+        pure (partialGuessingReply secret candidate)) secret ≤
+        partialGuessingAllFalsePotential secret (adversary index image) :=
+      eval_run_partialGuessingReply_apply_le_allFalsePotential secret (adversary index image)
+    _ ≤ ∑ slot : Fin (queryBound + 1),
+          partialGuessingSlotMass fallback queryBound slot secret (adversary index image) :=
+      partialGuessingAllFalsePotential_le_sum_slotMass fallback secret queryBound
+        (adversary index image) (hbound index image)
+    _ ≤ ∑ slot : Fin (Probability.dyadicSize queryBound),
+          partialGuessingDyadicTrialMass fallback secret queryBound slot
+            (adversary index image) :=
+      sum_slotMass_le_sum_dyadicTrialMass fallback secret queryBound (adversary index image)
+    _ = (Probability.dyadicSize queryBound : ℝ≥0∞) *
+          ProbComp.eval
+            (partialGuessingToDomainDyadic fallback queryBound adversary index image) secret := by
+      have hne : (Probability.dyadicSize queryBound : ℝ≥0∞) ≠ 0 := by
+        exact_mod_cast (Probability.dyadicSize_pos queryBound).ne'
+      rw [eval_partialGuessingToDomainDyadic_apply, mul_div_cancel₀ _ hne]
+
+/-- Concrete fixed-clock advantage bound with the exact dyadic loss. -/
+theorem partialGuessingAdvantage_le_dyadicSize_mul_partialDomainAdvantage
+    {Index Domain Image Prefix : Type} [DecidableEq Prefix]
+    (sample : ProbComp (PartialOneWayChallenge Index Domain Image)) (part : Domain → Prefix)
+    (fallback : Prefix) (queryBound : Nat)
+    (adversary : PartialGuessingAdversary Index Image Prefix)
+    (hbound : adversary.IsQueryBounded queryBound) :
+    partialGuessingAdvantage sample part adversary ≤
+      (Probability.dyadicSize queryBound : ℝ≥0) *
+        partialDomainAdvantage sample part
+          (partialGuessingToDomainDyadic fallback queryBound adversary) := by
+  have htotal :
+      ProbComp.eval (partialGuessingExperiment sample part adversary) true ≤
+        (Probability.dyadicSize queryBound : ℝ≥0∞) *
+          ProbComp.eval (partialDomainExperiment sample part
+            (partialGuessingToDomainDyadic fallback queryBound adversary)) true := by
+    rw [eval_partialGuessingExperiment_true, eval_partialDomainExperiment_true]
+    calc
+      (∑' challenge, ProbComp.eval sample challenge *
+          ProbComp.eval ((adversary challenge.index challenge.image).run fun candidate =>
+            pure (partialGuessingReply (part challenge.secret) candidate))
+              (part challenge.secret)) ≤
+          ∑' challenge, ProbComp.eval sample challenge *
+            ((Probability.dyadicSize queryBound : ℝ≥0∞) *
+              ProbComp.eval
+                (partialGuessingToDomainDyadic fallback queryBound adversary
+                  challenge.index challenge.image) (part challenge.secret)) :=
+        tsum_le_tsum fun challenge => mul_le_mul_left'
+          (eval_run_partialGuessingReply_apply_le_dyadicSize_mul_eval_toDomainDyadic fallback
+            (part challenge.secret) queryBound adversary hbound challenge.index challenge.image) _
+      _ = (Probability.dyadicSize queryBound : ℝ≥0∞) *
+          ∑' challenge, ProbComp.eval sample challenge *
+            ProbComp.eval
+              (partialGuessingToDomainDyadic fallback queryBound adversary
+                challenge.index challenge.image) (part challenge.secret) := by
+        rw [← ENNReal.tsum_mul_left]
+        congr 1 with challenge
+        ac_rfl
+  simpa only [partialGuessingAdvantage, partialDomainAdvantage, Game.succProbability,
+    ENNReal.toNNReal_mul, ENNReal.toNNReal_ofNat] using
+    ENNReal.toNNReal_mono
+      (ENNReal.mul_ne_top ENNReal.ofNat_ne_top (PMF.apply_ne_top _ _)) htotal
+
+/-- The fixed-clock loss is at most twice the paper's exact `queryBound + 1` factor. -/
+theorem partialGuessingAdvantage_le_two_mul_partialDomainAdvantage
+    {Index Domain Image Prefix : Type} [DecidableEq Prefix]
+    (sample : ProbComp (PartialOneWayChallenge Index Domain Image)) (part : Domain → Prefix)
+    (fallback : Prefix) (queryBound : Nat)
+    (adversary : PartialGuessingAdversary Index Image Prefix)
+    (hbound : adversary.IsQueryBounded queryBound) :
+    partialGuessingAdvantage sample part adversary ≤
+      (2 * (queryBound + 1) : ℝ≥0) *
+        partialDomainAdvantage sample part
+          (partialGuessingToDomainDyadic fallback queryBound adversary) :=
+  (partialGuessingAdvantage_le_dyadicSize_mul_partialDomainAdvantage sample part fallback
+    queryBound adversary hbound).trans <| by
+      gcongr
+      exact_mod_cast partialGuessing_dyadicSize_le queryBound
 
 end Cslib.Crypto
