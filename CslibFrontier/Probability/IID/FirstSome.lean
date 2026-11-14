@@ -40,7 +40,7 @@ variable {α : Type*}
 theorem map_findSome_iid_apply_none (μ : PMF (Option α)) (K : ℕ) :
     (iid μ K).map Fin.findSome? none = (μ none) ^ K := by
   rw [PMF.map_apply, tsum_eq_single (fun _ : Fin K => (none : Option α))]
-  · rw [if_pos (Fin.findSome?_eq_none_iff.mpr (fun _ => rfl)).symm, iid_apply]
+  · rw [ite_eq_left (Fin.findSome?_eq_none_iff.mpr (fun _ => rfl)).symm, iid_apply]
     simp
   · intro attempts hne
     split_ifs with h

@@ -62,6 +62,7 @@ public section
 namespace Cslib.Crypto.MLDSA
 
 open Cslib.Probability
+open scoped ENNReal
 
 variable (P : Params)
 
@@ -74,7 +75,7 @@ variable (P : Params)
 @[expose] def LowProductShort (ct₀ : Fin P.k → Fin P.n → ZMod P.q) : Prop :=
   ∀ i j, |(ct₀ i j).valMinAbs| < P.γ₂
 
-@[expose] instance (ct₀ : Fin P.k → Fin P.n → ZMod P.q) :
+instance (ct₀ : Fin P.k → Fin P.n → ZMod P.q) :
     Decidable (LowProductShort P ct₀) :=
   inferInstanceAs (Decidable (∀ _ _, _))
 
