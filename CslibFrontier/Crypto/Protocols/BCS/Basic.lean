@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.DPi
 public import CslibFrontier.Crypto.Computational.MerkleTree.Binding
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
@@ -68,16 +69,17 @@ multi-round public-coin Interactive Oracle Proof (`PublicCoinIOP`) into a non-in
 * `Cslib.Crypto.Protocols.BCS.bcsFindConflict`,
   `Cslib.Crypto.Protocols.BCS.bcsExtractTableCollision`: deterministic Merkle collision extraction
   when an accepted BCS proof opens a queried entry inconsistently with the committed oracle tables.
-* `Cslib.Crypto.Protocols.BCS.encFinUnary`, `Cslib.Crypto.Protocols.BCS.encFinFn`,
-  `Cslib.Crypto.Protocols.BCS.encOracleTable`, `Cslib.Crypto.Protocols.BCS.encMerkleOpeningOf`,
+* `Cslib.Crypto.Protocols.BCS.encOracleTable`, `Cslib.Crypto.Protocols.BCS.encMerkleOpeningOf`,
   `Cslib.Crypto.Protocols.BCS.encBCSProof`, `Cslib.Crypto.Protocols.BCS.BCSTableCommitOutput`,
   `Cslib.Crypto.Protocols.BCS.encBCSTableCommitOutput`,
   `Cslib.Crypto.Protocols.BCS.BCSTableCommitAdversary`,
   `Cslib.Crypto.Protocols.BCS.bcsTableCollisionFinder`,
   `Cslib.Crypto.Protocols.BCS.bcsBreaksTableBinding`,
   `Cslib.Crypto.Protocols.BCS.bcsTableBindingGame`,
-  `Cslib.Crypto.Protocols.BCS.bcsTableKnowledgeGame`: encodings, collision-finding reduction, and
-  standard-model committed-table binding and knowledge-soundness games.
+  `Cslib.Crypto.Protocols.BCS.bcsTableKnowledgeGame`: encodings (building on `encFinUnary` and
+  `encFinFn` from `CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.DPi`),
+  collision-finding reduction, and standard-model committed-table binding and knowledge-soundness
+  games.
 
 ## Main results
 
@@ -733,31 +735,6 @@ end Transform
 
 open Probability Turing.MultiTapeTM
 
-/-- Encoding of `Fin m` as the unary encoding of its underlying natural number. -/
-def encFinUnary {m : ℕ} : Fin m ↪ List Bool where
-  toFun i := encUnary i.val
-  inj' _ _ h := Fin.ext (encUnary.injective h)
-
-@[simp]
-theorem encFinUnary_apply {m : ℕ} (i : Fin m) : encFinUnary i = encUnary i.val := rfl
-
-/-- Reading the underlying natural number of a `Fin m` encoded with `encFinUnary` is
-polynomial-time. -/
-@[scoped fun_prop, program_certificate]
-theorem computableInPolyTime_finVal {m : ℕ} {γ : Type} {encIn : γ ↪ List Bool}
-    {g : γ → Fin m} (hg : ComputableInPolyTime g encIn encFinUnary) :
-    ComputableInPolyTime (fun a => (g a).val) encIn encUnary :=
-  hg.of_enc_eq fun _ => rfl
-
-/-- Encoding of a finite vector `Fin m → α` as the framed list `List.ofFn f`. -/
-def encFinFn (m : ℕ) {α : Type} (enc : α ↪ List Bool) : (Fin m → α) ↪ List Bool where
-  toFun f := encList enc (List.ofFn f)
-  inj' _ _ h := List.ofFn_injective ((encList enc).injective h)
-
-@[simp]
-theorem encFinFn_apply (m : ℕ) {α : Type} (enc : α ↪ List Bool) (f : Fin m → α) :
-    encFinFn m enc f = encList enc (List.ofFn f) := rfl
-
 /-- Encoding of a depth-`d` oracle table `OracleTable d Sym` as a framed list of `2 ^ d` encoded
 symbols. -/
 abbrev encOracleTable (d : ℕ) {Sym : Type} (encSym : Sym ↪ List Bool) :
@@ -783,56 +760,11 @@ abbrev encIOPTranscript (r : ℕ) {Stmt Chal : Type}
     (Stmt × (Fin r → Chal)) ↪ List Bool :=
   encPair encStmt (encFinFn r encChal)
 
-/-- Converting a finite vector `Fin m → α` encoded with `encFinFn m enc` to `List.ofFn` is
-polynomial-time. -/
-@[scoped fun_prop, program_certificate]
-theorem computableInPolyTime_ofFn {m : ℕ} {α γ : Type} {enc : α ↪ List Bool}
-    {encIn : γ ↪ List Bool} {g : γ → Fin m → α}
-    (hg : ComputableInPolyTime g encIn (encFinFn m enc)) :
-    ComputableInPolyTime (fun a => List.ofFn (g a)) encIn (encList enc) :=
-  hg.of_enc_eq fun _ => rfl
-
-/-- Assembling a finite vector `Fin m → α` from polynomial-time coordinate functions takes
-polynomial time. -/
-theorem computableInPolyTime_finFn_of_forall {m : ℕ} {α γ : Type} {enc : α ↪ List Bool}
-    {encIn : γ ↪ List Bool} {f : γ → Fin m → α}
-    (hf : ∀ i : Fin m, ComputableInPolyTime (fun a => f a i) encIn enc) :
-    ComputableInPolyTime f encIn (encFinFn m enc) := by
-  have hmap := ComputableInPolyTime.mapConst (List.finRange m) (f := f) (fun i _ => hf i)
-  exact hmap.of_enc_eq fun a => by simp [encFinFn, List.ofFn_eq_map]
-
-theorem getD_ofFn {m : ℕ} {α : Type} (f : Fin m → α) (idx : Fin m) (defaultVal : α) :
-    (List.ofFn f).getD idx.val defaultVal = f idx := by
-  simp
-
-/-- Indexing into a finite vector `Fin m → α` at a computed `Fin m` index takes polynomial time. -/
-theorem computableInPolyTime_finFnGet {m : ℕ} {α γ : Type} {enc : α ↪ List Bool}
-    {encIn : γ ↪ List Bool} (defaultVal : α) {g : γ → Fin m → α} {idx : γ → Fin m}
-    (hg : ComputableInPolyTime g encIn (encFinFn m enc))
-    (hidx : ComputableInPolyTime idx encIn encFinUnary) :
-    ComputableInPolyTime (fun a => g a (idx a)) encIn enc := by
-  convert ComputableInPolyTime.listGetDWithInput (computableInPolyTime_ofFn hg)
-    (computableInPolyTime_finVal hidx) defaultVal using 1
-  funext a
-  exact (getD_ofFn (g a) (idx a) defaultVal).symm
-
 theorem encList_oracleLeaves {Sym : Type} (encSym : Sym ↪ List Bool) (d : ℕ)
     (π : OracleTable d Sym) :
     encList encBits (oracleLeaves encSym d π) = encOracleTable d encSym π := by
   simp [oracleLeaves, encOracleTable, encFinFn, encList, List.ofFn_eq_map, List.flatMap_map,
     Function.comp_def]
-
-theorem encList_ofFn_oracleLeaves {r d : ℕ} {Sym : Type} (encSym : Sym ↪ List Bool)
-    (oracles : Fin r → OracleTable d Sym) :
-    encList (encList encBits) (List.ofFn fun t : Fin r => oracleLeaves encSym d (oracles t)) =
-      encFinFn r (encOracleTable d encSym) oracles := by
-  rw [encFinFn_apply, List.ofFn_eq_map, List.ofFn_eq_map]
-  change ((List.finRange r).map (fun t => oracleLeaves encSym d (oracles t))).flatMap
-      (frame ∘ encList encBits) =
-    ((List.finRange r).map oracles).flatMap (frame ∘ encOracleTable d encSym)
-  rw [List.flatMap_map, List.flatMap_map]
-  refine List.flatMap_congr fun t _ => ?_
-  exact congrArg frame (encList_oracleLeaves encSym d (oracles t))
 
 /-- Encoding an oracle table into its Merkle leaf list `oracleLeaves` takes polynomial time. -/
 @[scoped fun_prop, program_certificate]
@@ -849,14 +781,8 @@ theorem computableInPolyTime_oracleLeaves_apply {r d : ℕ} {Sym γ : Type}
     (horacles : ComputableInPolyTime oracles encIn (encFinFn r (encOracleTable d encSym)))
     (hj : ComputableInPolyTime j encIn encFinUnary) :
     ComputableInPolyTime (fun a => oracleLeaves encSym d (oracles a (j a)))
-      encIn (encList encBits) := by
-  have hlist : ComputableInPolyTime
-      (fun a => List.ofFn fun t : Fin r => oracleLeaves encSym d (oracles a t))
-      encIn (encList (encList encBits)) :=
-    horacles.of_enc_eq fun a => encList_ofFn_oracleLeaves encSym (oracles a)
-  convert ComputableInPolyTime.listGetDWithInput hlist (computableInPolyTime_finVal hj) [] using 1
-  funext a
-  exact (getD_ofFn (fun t : Fin r => oracleLeaves encSym d (oracles a t)) (j a) []).symm
+      encIn (encList encBits) :=
+  computableInPolyTime_oracleLeaves (ComputableInPolyTime.finFn_apply' horacles hj)
 
 /-- Reading the encoded symbol `encSym (oracles a (j a) (idx a))` at a computed `(round, index)`
 pair takes polynomial time without requiring `Inhabited Sym`. -/
@@ -866,24 +792,19 @@ theorem computableInPolyTime_encode_oracles_apply {r d : ℕ} {Sym γ : Type}
     (horacles : ComputableInPolyTime oracles encIn (encFinFn r (encOracleTable d encSym)))
     (hj : ComputableInPolyTime j encIn encFinUnary)
     (hidx : ComputableInPolyTime idx encIn encFinUnary) :
-    ComputableInPolyTime (fun a => encSym (oracles a (j a) (idx a))) encIn encBits := by
-  convert ComputableInPolyTime.listGetDWithInput
-    (computableInPolyTime_oracleLeaves_apply horacles hj)
-    (computableInPolyTime_finVal hidx) [] using 1
-  funext a
-  exact (getD_oracleLeaves encSym d (oracles a (j a)) (idx a)).symm
+    ComputableInPolyTime (fun a => encSym (oracles a (j a) (idx a))) encIn encBits :=
+  (ComputableInPolyTime.finFn_apply'
+    (ComputableInPolyTime.finFn_apply' horacles hj) hidx).of_enc_eq fun _ => rfl
 
 /-- Computing `rootPrefix` at round `j` takes polynomial time. -/
 @[scoped fun_prop, program_certificate]
 theorem computableInPolyTime_rootPrefix {r : ℕ} {γ : Type} {encIn : γ ↪ List Bool}
     (j : Fin r) {roots : γ → Fin r → List Bool}
     (hroots : ComputableInPolyTime roots encIn (encFinFn r encBits)) :
-    ComputableInPolyTime (fun a => rootPrefix (roots a) j) encIn (encList encBits) := by
-  have h := ComputableInPolyTime.mapConst (List.finRange (j.val + 1))
-    (f := fun a (t : Fin (j.val + 1)) => roots a ⟨t.val, Nat.lt_of_lt_of_le t.isLt j.isLt⟩)
-    (fun t _ => computableInPolyTime_finFnGet [] hroots
-      (ComputableInPolyTime.const (⟨t.val, Nat.lt_of_lt_of_le t.isLt j.isLt⟩ : Fin r)))
-  exact h.of_enc_eq fun a => by rw [rootPrefix, List.ofFn_eq_map]
+    ComputableInPolyTime (fun a => rootPrefix (roots a) j) encIn (encList encBits) :=
+  ComputableInPolyTime.ofFn fun t =>
+    (ComputableInPolyTime.finFn_apply encBits ⟨t.val, Nat.lt_of_lt_of_le t.isLt j.isLt⟩).comp
+      hroots
 
 /-- Deriving the Fiat–Shamir challenge vector `bcsChallenge` takes polynomial time when `hFS` is
 polynomial-time. -/
@@ -897,7 +818,7 @@ theorem computableInPolyTime_bcsChallenge {r : ℕ} {Stmt Chal γ : Type}
     (hx : ComputableInPolyTime x encIn encStmt)
     (hroots : ComputableInPolyTime roots encIn (encFinFn r encBits)) :
     ComputableInPolyTime (fun a => bcsChallenge hFS (x a) (roots a)) encIn (encFinFn r encChal) :=
-  computableInPolyTime_finFn_of_forall fun j =>
+  ComputableInPolyTime.finFn fun j =>
     hhFS.comp (hx.prod (computableInPolyTime_rootPrefix j hroots))
 
 /-- Encoding of a `MerkleOpening Sym` with symbol encoding `encSym`. -/
@@ -937,22 +858,19 @@ theorem computableInPolyTime_bcsFindConflict {r d : ℕ} {Stmt Wit Sym Chal γ :
   have hchals := computableInPolyTime_bcsChallenge hhFS hx hroots
   have hqs := hqueries.comp (hx.prod hchals)
   have hzip := (ComputableInPolyTime.zip
-    (encPair (encFinUnary (m := r)) (encFinUnary (m := 2 ^ d)))
-    (encMerkleOpeningOf Sym encSym)).comp (hqs.prod hopenings)
+    (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp (hqs.prod hopenings)
   let encElem : ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) ↪ List Bool :=
-    encPair (encPair encFinUnary encFinUnary) (encMerkleOpeningOf Sym encSym)
+    encPair (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)
   have hfst := ComputableInPolyTime.fst encIn encElem
   have hsnd := ComputableInPolyTime.snd encIn encElem
   have hqpair := (ComputableInPolyTime.fst
-    (encPair (encFinUnary (m := r)) (encFinUnary (m := 2 ^ d)))
-    (encMerkleOpeningOf Sym encSym)).comp hsnd
+    (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp hsnd
   have ho := (ComputableInPolyTime.snd
-    (encPair (encFinUnary (m := r)) (encFinUnary (m := 2 ^ d)))
-    (encMerkleOpeningOf Sym encSym)).comp hsnd
+    (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp hsnd
   have hj := (ComputableInPolyTime.fst
-    (encFinUnary (m := r)) (encFinUnary (m := 2 ^ d))).comp hqpair
+    (encFinUnary (count := r)) (encFinUnary (count := 2 ^ d))).comp hqpair
   have hidx := (ComputableInPolyTime.snd
-    (encFinUnary (m := r)) (encFinUnary (m := 2 ^ d))).comp hqpair
+    (encFinUnary (count := r)) (encFinUnary (count := 2 ^ d))).comp hqpair
   have hval : ComputableInPolyTime
       (fun p : γ × ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) => encSym p.2.2.leaf)
       (encPair encIn encElem) encBits :=
@@ -992,20 +910,18 @@ theorem computableInPolyTime_bcsExtractTableCollision {r d : ℕ} {Stmt Wit Sym 
       encIn (encPair encBits encBits) := by
   have hfind := computableInPolyTime_bcsFindConflict hqueries hhFS hx horacles hprf
   let encElem : ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) ↪ List Bool :=
-    encPair (encPair encFinUnary encFinUnary) (encMerkleOpeningOf Sym encSym)
+    encPair (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)
   have hfst := ComputableInPolyTime.fst encIn encElem
   have hsnd := ComputableInPolyTime.snd encIn encElem
   have hqpair := (ComputableInPolyTime.fst
-    (encPair (encFinUnary (m := r)) (encFinUnary (m := 2 ^ d)))
-    (encMerkleOpeningOf Sym encSym)).comp hsnd
+    (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp hsnd
   have ho := (ComputableInPolyTime.snd
-    (encPair (encFinUnary (m := r)) (encFinUnary (m := 2 ^ d)))
-    (encMerkleOpeningOf Sym encSym)).comp hsnd
+    (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp hsnd
   have hj := (ComputableInPolyTime.fst
-    (encFinUnary (m := r)) (encFinUnary (m := 2 ^ d))).comp hqpair
+    (encFinUnary (count := r)) (encFinUnary (count := 2 ^ d))).comp hqpair
   have hidx := (ComputableInPolyTime.snd
-    (encFinUnary (m := r)) (encFinUnary (m := 2 ^ d))).comp hqpair
-  have hidxVal := computableInPolyTime_finVal hidx
+    (encFinUnary (count := r)) (encFinUnary (count := 2 ^ d))).comp hqpair
+  have hidxVal := ComputableInPolyTime.finVal hidx
   have hval : ComputableInPolyTime
       (fun p : γ × ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) => encSym p.2.2.leaf)
       (encPair encIn encElem) encBits :=

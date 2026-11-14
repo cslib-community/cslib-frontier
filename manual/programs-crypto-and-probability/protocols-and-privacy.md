@@ -209,18 +209,30 @@ into a non-interactive proof (`BCSProof r Sym`, `bcsProve`, `bcsVerify`):
   `iopExtract`, `bcs_knowledge_or_soundness_violation_or_collision` and
   `bcs_knowledge_or_merkleCollision` reduce an accepting BCS proof to a valid
   extracted witness `rel x (iopExtract x oracles)`, an IOP knowledge-soundness
-  violation at the Fiat–Shamir challenge, or an explicit `H k` collision. Using
-  the encodings `encFinUnary`, `encFinFn`, `encOracleTable`, `encFSTranscript`,
-  `encIOPQuery`, `encIOPQueryList`, `encIOPTranscript`, `encMerkleOpeningOf`,
-  `encBCSProof`, and `encBCSTableCommitOutput`, `computableInPolyTime_bcsChallenge`,
-  `computableInPolyTime_bcsFindConflict`, and `computableInPolyTime_bcsExtractTableCollision`
-  certify polynomial-time collision extraction (`isPPT_bcsTableCollisionFinder`
-  for `bcsTableCollisionFinder`), while `succProbability_bcsTableBindingGame_le`,
-  `succProbability_bcsTableKnowledgeGame_le`, `CollisionResistant.bcsTableBinding_negligible`,
-  `CollisionResistant.bcsTableKnowledge_negligible`, `HashFamily.bcsTableBinding_negligible`,
-  and `HashFamily.bcsTableKnowledge_negligible` reduce `bcsTableBindingGame` and
-  `bcsTableKnowledgeGame` against any uniform strict-PPT `BCSTableCommitAdversary`
-  to `CollisionResistant H`. Checked examples are in
+  violation at the Fiat–Shamir challenge, or an explicit `H k` collision. For a
+  fixed round count `r` and tree depth `d` outside the security parameter, using
+  the encodings `encFinUnary` and `encFinFn` (from
+  [`Encodings/DPi.lean`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Encodings/DPi.lean))
+  together with `encOracleTable`, `encFSTranscript`, `encIOPQuery`,
+  `encIOPQueryList`, `encIOPTranscript`, `encMerkleOpeningOf`, `encBCSProof`,
+  and `encBCSTableCommitOutput`, `computableInPolyTime_bcsChallenge`,
+  `computableInPolyTime_bcsFindConflict`, and
+  `computableInPolyTime_bcsExtractTableCollision` certify polynomial-time
+  collision extraction (`isPPT_bcsTableCollisionFinder` for
+  `bcsTableCollisionFinder`) under an efficient length-preserving keyed hash
+  `H`, polynomial-time `iop.queries`, and deterministic polynomial-time `hFS`.
+  In `bcsTableBindingGame` and `bcsTableKnowledgeGame`, the game checks that the
+  proof roots match adversary-supplied full tables `oracles`;
+  `succProbability_bcsTableBindingGame_le`,
+  `succProbability_bcsTableKnowledgeGame_le`,
+  `CollisionResistant.bcsTableBinding_negligible`,
+  `CollisionResistant.bcsTableKnowledge_negligible`,
+  `HashFamily.bcsTableBinding_negligible`, and
+  `HashFamily.bcsTableKnowledge_negligible` reduce those table-committing games
+  against any uniform strict-PPT `BCSTableCommitAdversary` to
+  `CollisionResistant H` (where the knowledge failure bounds assume semantic
+  zero-error `IOPKnowledgeSoundness` without certifying efficient witness
+  extraction). Checked examples are in
   [`CslibFrontierTests/Crypto/BCSTransform.lean`](../../CslibFrontierTests/Crypto/BCSTransform.lean).
 
 For unconditional random-oracle soundness and straight-line knowledge extraction, import
@@ -244,10 +256,12 @@ trace extraction from Construction 18.5.3 and Lemma 18.5.7, pp. 199 and 207):
   instantiated with `chainedFS f`, giving perfect completeness in the lazy two-channel ROM
   (`bcsHonestROMGame_eq_pure_true`).
 - **Straight-line multi-round oracle reconstruction and standard-model `CollisionResistant` reduction:** given `Function.LeftInverse decSym encSym`
-  and `defaultSym : Sym`, `bcsExtractTable`, `bcsExtractOracles`, and `bcsExtractWitness`
+  and `defaultSym : Sym` for fixed `r` and `d` outside the security parameter,
+  `bcsExtractTable`, `bcsExtractOracles`, and `bcsExtractWitness`
   reconstruct all `r` committed round tables and a candidate witness directly from a Merkle trace
   `tr_MT` via `extractLeafFromTrace` without rewinding (`computableInPolyTime_bcsExtractTable`,
-  `computableInPolyTime_bcsExtractOracles`, `computableInPolyTime_bcsExtractWitness`). Under
+  `computableInPolyTime_bcsExtractOracles`, and, when `iopExtract` and `decSym` are
+  polynomial-time, `computableInPolyTime_bcsExtractWitness`). Under
   `TraceCollisionFree tr_MT` and `BCSOpeningsQueriedInTrace`, `iopVerify_bcsExtractOracles_of_bcsVerify`
   proves that `iopVerify` accepts `bcsExtractOracles`, `exists_collision_of_bcsVerify_of_iopVerify_eq_false`
   and `bcsExtractTraceCollision` (`bcsFindTraceConflict`, `bcs_trace_sound_or_collision`,
@@ -255,13 +269,17 @@ trace extraction from Construction 18.5.3 and Lemma 18.5.7, pp. 199 and 207):
   `computableInPolyTime_bcsFindTraceConflict`, `computableInPolyTime_bcsExtractTraceCollision`)
   extract an explicit trace collision in polynomial time whenever `iopVerify` rejects, and
   `bcsExtractTable_cons_of_ne` / `bcsExtractOracles_cons_of_ne` prove invariance under fresh Merkle
-  answers that avoid target roots and child digests. For standard-model keyed hashes,
+  answers that avoid target roots and child digests. For standard-model efficient length-preserving
+  keyed hashes, polynomial-time `iop.queries`, and deterministic polynomial-time `hFS`,
   `bcsTraceCollisionFinder` (`isPPT_bcsTraceCollisionFinder`), `succProbability_bcsTraceBindingGame_le`,
   `succProbability_bcsTraceKnowledgeGame_le`, `CollisionResistant.bcsTraceBinding_negligible`,
   `CollisionResistant.bcsTraceKnowledge_negligible`, `HashFamily.bcsTraceBinding_negligible`, and
   `HashFamily.bcsTraceKnowledge_negligible` reduce `bcsTraceBindingGame` and `bcsTraceKnowledgeGame`
   against any uniform strict-PPT `BCSTraceAdversary` (`BCSTraceOutput`, `encBCSTraceOutput`) to
-  `CollisionResistant H`.
+  `CollisionResistant H`. Here the adversary supplies an `H k`-consistent trace covering every
+  opened path (rather than a transcript generated by an adaptive lazy-ROM prover), and the
+  knowledge failure bounds assume semantic zero-error `IOPKnowledgeSoundness` (which alone does not
+  establish efficient proof of knowledge without `computableInPolyTime_bcsExtractWitness`).
 - **Adaptive two-channel ROM soundness:** under `IOPRoundByRoundSoundness iop lang doomed goodStep`
   with per-round challenge escape probability `≤ ε_rbr`, `BCSGoodState` combines
   `TraceCollisionFree tr_MT` with `BCSChainDoomed` across recorded Fiat–Shamir chains of length
@@ -300,7 +318,7 @@ transcript-chained Fiat–Shamir channel) and derives the explicit additive loss
 round-by-round escape hypotheses (`IOPRoundByRoundSoundness`, `IOPRoundByRoundKnowledgeSoundness`,
 whose deterministic `extract_of_doomed` on complete `doomed` transcripts is stronger than
 Definition 31.1.6's two-phase per-round experiment) and two-channel query budgets (`bcsMTCost`,
-`bcsFSCost`), counting all oracle queries including malformed opening paths. Straight-line extraction (`bcsExtractTable`, `bcsExtractOracles`, `bcsExtractWitness`) and trace/table collision extraction (`bcsExtractTableCollision`, `bcsExtractTraceCollision`, `bcsTableCollisionFinder`, `bcsTraceCollisionFinder`) carry polynomial-time certificates and standard-model `CollisionResistant H` reductions; the two-channel ROM soundness games (`bcsSoundnessGame`, `bcsKnowledgeSoundnessGame`) establish exact `OracleComp` probability bounds without digest truncation accounting, NP-witness-to-IOP encoding runtime, or zero-knowledge simulation.
+`bcsFSCost`), counting all oracle queries including malformed opening paths. For fixed `r` and `d`, straight-line extraction (`bcsExtractTable`, `bcsExtractOracles`, `bcsExtractWitness`) and explicit table/trace collision extraction (`bcsExtractTableCollision`, `bcsExtractTraceCollision`, `bcsTableCollisionFinder`, `bcsTraceCollisionFinder`) carry polynomial-time certificates and standard-model `CollisionResistant H` reductions on adversary-supplied tables or `H k`-consistent traces; the two-channel ROM soundness games (`bcsSoundnessGame`, `bcsKnowledgeSoundnessGame`) establish exact `OracleComp` probability bounds without parameter-growing IOP/Merkle families, adaptive PPT ROM reductions, machine-level (`IsPPT` / native Turing-machine) verifier or multi-extractor runtime certificates (compare Chiesa–Yogev Remark 18.5.8), digest truncation accounting, NP-witness-to-IOP encoding runtime, or zero-knowledge simulation.
 
 ## Shared random oracles and ideal permutations
 

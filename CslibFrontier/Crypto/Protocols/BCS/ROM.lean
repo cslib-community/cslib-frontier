@@ -2555,7 +2555,7 @@ theorem computableInPolyTime_bcsExtractTable (d : ℕ)
     ComputableInPolyTime
       (fun a => bcsExtractTable decSym defaultSym (tr_MT a) d (rt a))
       encIn (encOracleTable d encSym) := by
-  refine computableInPolyTime_finFn_of_forall fun idx => ?_
+  refine ComputableInPolyTime.finFn fun idx => ?_
   have hleaf := computableInPolyTime_extractLeafFromTrace d htr hrt
     (ComputableInPolyTime.const idx.val)
   convert hleaf.optionElimWithInput (body := fun _ bits => decSym bits)
@@ -2578,9 +2578,9 @@ theorem computableInPolyTime_bcsExtractOracles (r d : ℕ)
     ComputableInPolyTime
       (fun a => bcsExtractOracles decSym defaultSym (tr_MT a) d (roots a))
       encIn (encFinFn r (encOracleTable d encSym)) :=
-  computableInPolyTime_finFn_of_forall fun j =>
+  ComputableInPolyTime.finFn fun j =>
     computableInPolyTime_bcsExtractTable d defaultSym hdec htr
-      (computableInPolyTime_finFnGet [] hroots (ComputableInPolyTime.const j))
+      ((ComputableInPolyTime.finFn_apply encBits j).comp hroots)
 
 /-- Straight-line BCS witness extraction (`bcsExtractWitness`) runs in polynomial time when the
 underlying straight-line IOP extractor `iopExtract` and symbol decoder `decSym` run in polynomial
@@ -2633,28 +2633,25 @@ theorem computableInPolyTime_bcsFindTraceConflict
   have hchals := computableInPolyTime_bcsChallenge hhFS hx hroots
   have hqs := hqueries.comp (hx.prod hchals)
   have hzip := (ComputableInPolyTime.zip
-    (encPair (encFinUnary (m := r)) (encFinUnary (m := 2 ^ d)))
-    (encMerkleOpeningOf Sym encSym)).comp (hqs.prod hopenings)
+    (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp (hqs.prod hopenings)
   let encElem : ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) ↪ List Bool :=
-    encPair (encPair encFinUnary encFinUnary) (encMerkleOpeningOf Sym encSym)
+    encPair (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)
   have hfst := ComputableInPolyTime.fst encIn encElem
   have hsnd := ComputableInPolyTime.snd encIn encElem
   have hqpair := (ComputableInPolyTime.fst
-    (encPair (encFinUnary (m := r)) (encFinUnary (m := 2 ^ d)))
-    (encMerkleOpeningOf Sym encSym)).comp hsnd
+    (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp hsnd
   have ho := (ComputableInPolyTime.snd
-    (encPair (encFinUnary (m := r)) (encFinUnary (m := 2 ^ d)))
-    (encMerkleOpeningOf Sym encSym)).comp hsnd
+    (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp hsnd
   have hj := (ComputableInPolyTime.fst
-    (encFinUnary (m := r)) (encFinUnary (m := 2 ^ d))).comp hqpair
+    (encFinUnary (count := r)) (encFinUnary (count := 2 ^ d))).comp hqpair
   have hidx := (ComputableInPolyTime.snd
-    (encFinUnary (m := r)) (encFinUnary (m := 2 ^ d))).comp hqpair
-  have hidxVal := computableInPolyTime_finVal hidx
+    (encFinUnary (count := r)) (encFinUnary (count := 2 ^ d))).comp hqpair
+  have hidxVal := ComputableInPolyTime.finVal hidx
   have hval : ComputableInPolyTime
       (fun p : γ × ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) => encSym p.2.2.leaf)
       (encPair encIn encElem) encBits :=
     (encMerkleOpeningOf_leaf_polyTime Sym encSym ho).of_enc_eq fun _ => rfl
-  have hrtJ := computableInPolyTime_finFnGet [] (hroots.comp hfst) hj
+  have hrtJ := ComputableInPolyTime.finFn_apply' (hroots.comp hfst) hj
   have hextract := computableInPolyTime_extractLeafFromTrace d (htr.comp hfst) hrtJ hidxVal
   have htest : ComputableInPolyTime
       (fun p : γ × ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) =>
@@ -2700,18 +2697,16 @@ theorem computableInPolyTime_bcsExtractTraceCollision
       encIn (encPair encBits encBits) := by
   have hfind := computableInPolyTime_bcsFindTraceConflict hqueries hhFS htr hx hprf
   let encElem : ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) ↪ List Bool :=
-    encPair (encPair encFinUnary encFinUnary) (encMerkleOpeningOf Sym encSym)
+    encPair (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)
   have hfst := ComputableInPolyTime.fst encIn encElem
   have hsnd := ComputableInPolyTime.snd encIn encElem
   have hqpair := (ComputableInPolyTime.fst
-    (encPair (encFinUnary (m := r)) (encFinUnary (m := 2 ^ d)))
-    (encMerkleOpeningOf Sym encSym)).comp hsnd
+    (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp hsnd
   have ho := (ComputableInPolyTime.snd
-    (encPair (encFinUnary (m := r)) (encFinUnary (m := 2 ^ d)))
-    (encMerkleOpeningOf Sym encSym)).comp hsnd
+    (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp hsnd
   have hidx := (ComputableInPolyTime.snd
-    (encFinUnary (m := r)) (encFinUnary (m := 2 ^ d))).comp hqpair
-  have hidxVal := computableInPolyTime_finVal hidx
+    (encFinUnary (count := r)) (encFinUnary (count := 2 ^ d))).comp hqpair
+  have hidxVal := ComputableInPolyTime.finVal hidx
   have hval : ComputableInPolyTime
       (fun p : γ × ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) => encSym p.2.2.leaf)
       (encPair encIn encElem) encBits :=
@@ -2758,7 +2753,7 @@ variable {r d : ℕ} {Stmt Wit Sym Chal : Type}
 
 /-- The collision finder built from a trace-recording BCS adversary: run the adversary and extract
 a Merkle collision from its trace with `bcsExtractTraceCollision`. -/
-def bcsTraceCollisionFinder (iop : PublicCoinIOP r d Stmt Wit Sym Chal)
+@[expose] def bcsTraceCollisionFinder (iop : PublicCoinIOP r d Stmt Wit Sym Chal)
     (H : List Bool → List Bool → List Bool) (encSym : Sym → List Bool)
     (hFS : Stmt → List (List Bool) → Chal)
     (adversary : BCSTraceAdversary r Stmt Sym) : CollisionFinder := fun n k => do
@@ -2769,7 +2764,7 @@ def bcsTraceCollisionFinder (iop : PublicCoinIOP r d Stmt Wit Sym Chal)
 is consistent with `H k` and covers all opened authentication paths of `out.proof`, `bcsVerify`
 accepts `out.proof`, and `iopVerify` rejects the straight-line extracted tables
 `bcsExtractOracles`. -/
-def bcsBreaksTraceBinding (iop : PublicCoinIOP r d Stmt Wit Sym Chal)
+@[expose] def bcsBreaksTraceBinding (iop : PublicCoinIOP r d Stmt Wit Sym Chal)
     (H : List Bool → List Bool → List Bool) (k : List Bool) (encSym : Sym → List Bool)
     (decSym : List Bool → Sym) (defaultSym : Sym)
     (hFS : Stmt → List (List Bool) → Chal) (out : BCSTraceOutput r Stmt Sym) : Bool :=

@@ -4,6 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+
 import CslibFrontier.Crypto.Computational.MerkleDamgard
 import CslibFrontier.Crypto.Computational.MerkleTree.ROMExtract
 
@@ -20,6 +22,9 @@ both openings; because `extractLeafFromTrace` returns the first-recorded leaf `[
 collision from the trace. Finally, we check the random-oracle collision probability bound on a
 concrete two-query `OracleComp` program.
 -/
+
+-- This regression module checks ordinary imports and exports no test fixtures.
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.Crypto.ROMMerkleExtract
 
@@ -128,6 +133,12 @@ example : extractLeafFromTrace trCollide 2 rtCollide 1 = some [false, true] := b
 
 example : extractLeafFromTrace trCollide 2 rtCollide 1 ≠ some [true, true] := by decide
 
+-- Edge case: when the opened leaf agrees with the trace, `extractTraceCollision` returns the
+-- default empty pair `([], [])`.
+example :
+    extractTraceCollision idHash key trId 2 [true, false]
+      (merklePath idHash key leaves 2) = ([], []) := by decide
+
 -- `extractTraceCollision` deterministically extracts the colliding pair
 -- `([true, true], [false, true])`.
 example :
@@ -187,7 +198,6 @@ example (m : ℕ) :
 /-- A polynomial-time length-regular keyed hash returning its key. -/
 def keyProjectionHash (k _ : List Bool) : List Bool := k
 
-@[program_certificate]
 theorem computableInPolyTime_keyProjectionHash :
     ComputableInPolyTime (fun p : List Bool × List Bool => keyProjectionHash p.1 p.2)
       (encPair encBits encBits) encBits :=

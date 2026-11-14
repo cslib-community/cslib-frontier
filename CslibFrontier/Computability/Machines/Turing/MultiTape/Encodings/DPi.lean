@@ -7,25 +7,35 @@ Authors: Erik Demaine
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pi
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import Mathlib.Algebra.BigOperators.Fin
 
 /-!
-# Encodings of dependent finite tables
+# Encodings of dependent and canonical-order finite tables
 
 A fixed finite table may store a different type at each index. Encode each entry using its own
 encoding and store the resulting words with the existing finite-table encoding `encPi`.
 
+When the index type is `Fin count`, `encFinUnary` and `encFinFn` provide computable encodings in the
+canonical index order `0, …, count - 1` (`i.val` and `List.ofFn`), in contrast to `encFinite` and
+`encPi`, which reorder along the noncomputable equivalence `Fintype.equivFin`.
+
 ## Main definitions
 
 * `Turing.MultiTapeTM.encDPi`: encode a dependent family over a fixed finite index type.
+* `Turing.MultiTapeTM.encFinUnary`: computably encode `Fin count` in unary by `i.val`.
+* `Turing.MultiTapeTM.encFinFn`: computably encode `Fin count → Value` in canonical `Fin` order.
 
 ## Main results
 
 * `Turing.MultiTapeTM.length_encDPi_le`: bound the table from the encoded sizes of its entries.
 * `Turing.MultiTapeTM.length_encDPi`: the exact sum of the framed entry sizes.
 * `Turing.MultiTapeTM.length_encDPi_update_le`: changing one entry only charges its size growth.
+* `Turing.MultiTapeTM.encFinEnum_fin_apply`: `encFinEnum (Fin count)` agrees with `encFinUnary`.
+* `Turing.MultiTapeTM.length_encFinFn`, `Turing.MultiTapeTM.length_encFinFn_le`: exact and bounded
+  table lengths for `encFinFn`.
 
 ## References
 
@@ -83,5 +93,57 @@ theorem length_encDPi_update_le [DecidableEq Index]
       · simp only [Function.update_of_ne h, ite_eq_right h, Nat.add_zero]
         exact le_rfl
     _ = _ := by simp [Finset.sum_add_distrib]
+
+/-- Computably encode `Fin count` in unary by its underlying natural number `i.val`. Unlike
+`encFinite`, which uses the noncomputable enumeration `Fintype.equivFin`, `encFinUnary` is
+computable and definitionally `encUnary i.val`. It agrees pointwise with `encFinEnum (Fin count)`
+(`encFinEnum_fin_apply`). -/
+def encFinUnary {count : ℕ} : Fin count ↪ List Bool where
+  toFun i := encUnary i.val
+  inj' _ _ h := Fin.ext (encUnary.injective h)
+
+@[simp] theorem encFinUnary_apply {count : ℕ} (i : Fin count) :
+    encFinUnary i = encUnary i.val := rfl
+
+/-- Every unary `Fin count` code has length strictly less than `count`. -/
+theorem length_encFinUnary_lt {count : ℕ} (i : Fin count) :
+    (encFinUnary i).length < count := by
+  simp [encFinUnary]
+
+/-- `encFinEnum (Fin count)` agrees pointwise with `encFinUnary`. -/
+theorem encFinEnum_fin_apply {count : ℕ} (i : Fin count) :
+    encFinEnum (Fin count) i = encFinUnary i := by
+  dsimp [encFinEnum, FinEnum.equiv, FinEnum.fin, FinEnum.ofList, FinEnum.ofNodupList]
+  simp [List.dedup_eq_self.mpr (List.nodup_finRange count)]
+
+/-- Computably encode a finite family `Fin count → Value` in canonical index order
+`0, …, count - 1` as `encList enc (List.ofFn values)`. Unlike `encPi`, which reorders indices along
+the noncomputable equivalence `Fintype.equivFin`, `encFinFn` is computable and definitionally
+`encList enc ∘ List.ofFn`. -/
+def encFinFn (count : ℕ) {Value : Type} (enc : Value ↪ List Bool) :
+    (Fin count → Value) ↪ List Bool where
+  toFun values := encList enc (List.ofFn values)
+  inj' _ _ h := List.ofFn_injective ((encList enc).injective h)
+
+@[simp] theorem encFinFn_apply (count : ℕ) {Value : Type} (enc : Value ↪ List Bool)
+    (values : Fin count → Value) :
+    encFinFn count enc values = encList enc (List.ofFn values) := rfl
+
+/-- The canonical-order `Fin count` table encoding has length equal to the sum of its framed entry
+sizes. -/
+theorem length_encFinFn (count : ℕ) {Value : Type} (enc : Value ↪ List Bool)
+    (values : Fin count → Value) :
+    (encFinFn count enc values).length = ∑ i : Fin count, (2 * (enc (values i)).length + 1) := by
+  rw [encFinFn_apply, length_encList]
+  simp [List.map_ofFn, Function.comp_def, List.sum_ofFn]
+
+/-- The canonical-order `Fin count` table encoding charges every entry and its framing. -/
+theorem length_encFinFn_le (count : ℕ) {Value : Type} (enc : Value ↪ List Bool)
+    (values : Fin count → Value) {bound : ℕ}
+    (hbound : ∀ i, (enc (values i)).length ≤ bound) :
+    (encFinFn count enc values).length ≤ count * (2 * bound + 1) := by
+  simpa only [encFinFn_apply, List.length_ofFn] using length_encList_le enc
+    (List.ofFn values)
+    (fun value hvalue => by obtain ⟨i, rfl⟩ := List.mem_ofFn.mp hvalue; exact hbound _)
 
 end Turing.MultiTapeTM
