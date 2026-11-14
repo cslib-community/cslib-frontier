@@ -155,6 +155,17 @@ bounds the encoded output family. The families themselves need not be computable
 [amplification](../../CslibFrontier/Crypto/Computational/ZeroKnowledge/Amplification.lean)
 proofs use this rule to transport witness families through the same deterministic reduction.
 
+For binary-natural preprocessing, import
+[`BigO.NatPolynomial`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/BigO/NatPolynomial.lean).
+`hf.nat_inO` and `hf.natPair_inO` turn plain polynomial-time certificates into
+output-charged bounds linear in the numeric value or sum, for arbitrary output encodings.
+Their proofs use the realizing machine's cost degree; the independent output degree need not
+coincide with it. The [padding certificates](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/BigO/PolynomialPadding.lean)
+compose these bounds with plain framing, unframing and unary writing. The polynomial writer
+retains time exponent `2 * k` and space exponent `k` for `k ≥ 1`; the guard retains quadratic
+time and linear space in the full input length, including insufficient or malformed padding.
+The [regression source](../../CslibFrontierTests/PolynomialPadding.lean) includes the guard certificate and empty-input controls.
+
 A reduction closure proof that runs a certificate or counting bound `q(|f a|)` of the target on
 the reduced instance needs one polynomial in the source length. For
 `hf : ComputableInPolyTime f encIn encOut`, `hf.exists_polynomial_eval_length_le q` in
