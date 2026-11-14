@@ -4,11 +4,14 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.Probability.PMF.Uniform
-import CslibFrontier.Crypto.Protocols.SigmaProtocol.Composition
-import CslibFrontier.Crypto.Protocols.SigmaProtocol.Linear
+module
+-- upstream: candidate
+
+public import CslibFrontier.Probability.PMF.Uniform
+public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Composition
+public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Linear
+public import Mathlib.Algebra.Module.ZMod
 import CslibFrontier.Probability.PMF
-import Mathlib.Algebra.Module.ZMod
 import Mathlib.Tactic.NormNum.Prime
 
 /-!
@@ -20,6 +23,8 @@ conversations with a common commitment, and applies the simulator theorems to th
 The protocol definitions are noncomputable only through their distributions; verification and
 extraction evaluate by `decide`.
 -/
+
+@[expose] public section
 
 namespace CslibFrontierTests.Crypto.SigmaProtocol
 
@@ -173,6 +178,15 @@ example : orExtract (linearExtract (Y := ZMod 11) ι) (linearExtract (Y := ZMod 
     ((5, 7, 6) : ZMod 11 × ZMod 11 × ZMod 11) 2 (9, 2, 6) = .inl 7 := by
   decide +kernel
 
+/-- Heterogeneous AND extraction pairing Schnorr (`W₀ = ZMod 11`) and Okamoto
+(`W₁ = ZMod 11 × ZMod 11`). -/
+example : andExtract (linearExtract (Y := ZMod 11) ι)
+    (linearExtract (M := ZMod 11 × ZMod 11) (Y := ZMod 11) ι)
+    ((3, 4) : ZMod 11 × ZMod 11) ((10, 1) : ZMod 11 × ZMod 11)
+    3 ((4, (10, 3)) : ZMod 11 × (ZMod 11 × ZMod 11))
+    5 (7, (5, 0)) = ((7 : ZMod 11), ((3 : ZMod 11), (4 : ZMod 11))) := by
+  decide +kernel
+
 /-- The composite simulators and completeness properties hold for the composite relations. -/
 example : (orProof (schnorr ι (2 : ZMod 11)) (schnorr ι (2 : ZMod 11))
     (linearSimulate (fun _ => LinearMap.toSpanSingleton (ZMod 11) (ZMod 11) 2) id ι)
@@ -186,5 +200,35 @@ example : (orProof (schnorr ι (2 : ZMod 11)) (schnorr ι (2 : ZMod 11))
         (x.2 • (2 : ZMod 11) = y.2.2.1 ∧ x.2 • y.2.1 = y.2.2.2) :=
   ⟨orProof_specialHVZK schnorr_specialHVZK schnorr_specialHVZK,
    andProof_complete schnorr_complete chaumPedersen_complete⟩
+
+/-! ### Parallel repetition
+
+Two-fold parallel repetition of Schnorr in `ZMod 11` for the statement `3 = 7 • 2`:
+both coordinates commit to `10` with randomness `5`; the challenge pairs `![3, 3]` and `![3, 6]`
+differ at coordinate `1` and yield the extracted witness `7`. -/
+
+example : ((schnorr ι (2 : ZMod 11)).parallelRepetition 2).Accepts
+    3 ![10, 10] ![3, 3] ![4, 4] := by
+  decide
+
+example : ((schnorr ι (2 : ZMod 11)).parallelRepetition 2).Accepts
+    3 ![10, 10] ![3, 6] ![4, 3] := by
+  decide
+
+example : parallelExtract (linearExtract (M := ZMod 11) (Y := ZMod 11) ι) 2
+    (3 : ZMod 11) ![10, 10] ![3, 3] ![4, 4] ![3, 6] ![4, 3] = (7 : ZMod 11) := by
+  decide +kernel
+
+example (k : ℕ) :
+    ((schnorr ι (2 : ZMod 11)).parallelRepetition k).Complete (fun α u => α • (2 : ZMod 11) = u) ∧
+    ((schnorr ι (2 : ZMod 11)).parallelRepetition k).SpecialSoundness
+      (fun α u => α • (2 : ZMod 11) = u) (parallelExtract (linearExtract ι) k) ∧
+    ((schnorr ι (2 : ZMod 11)).parallelRepetition k).SpecialHVZK
+      (fun α u => α • (2 : ZMod 11) = u)
+      (parallelSimulate
+        (linearSimulate (fun _ => LinearMap.toSpanSingleton (ZMod 11) (ZMod 11) 2) id ι) k) :=
+  ⟨parallelRepetition_complete schnorr_complete,
+   parallelRepetition_specialSoundness schnorr_specialSoundness,
+   parallelRepetition_specialHVZK schnorr_specialHVZK⟩
 
 end CslibFrontierTests.Crypto.SigmaProtocol

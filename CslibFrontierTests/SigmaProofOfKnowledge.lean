@@ -151,4 +151,85 @@ example (y : Bool) :
   have := (Real.le_sqrt' (by norm_num)).mp hsqrt
   linarith
 
+/-- Averaged over a uniform statement `y ← PMF.uniformOfFintype Bool`,
+`sq_sub_le_bind_extractionGame` gives the same `1 / 2` lower bound on extraction success. -/
+example :
+    (1 / 2 : ℝ) ≤ Game.succProbability ((PMF.uniformOfFintype Bool).bind fun y =>
+      extractionGame xorEncoding (fun _ => encBool) (fun _ x y => x = y)
+        (knowledgeExtractor xorEncoding (fun _ => ProbComp.uniform Bool) xorExtractWord xorProver)
+        () y) := by
+  have hacc : Game.succProbability ((PMF.uniformOfFintype Bool).bind fun y =>
+      acceptanceGame (fun _ => xorProtocol) xorEncoding xorProver () y
+        (PMF.uniformOfFintype Bool)) = 1 := by
+    have hbind : ((PMF.uniformOfFintype Bool).bind fun y =>
+        acceptanceGame (fun _ => xorProtocol) xorEncoding xorProver () y
+          (PMF.uniformOfFintype Bool)) = PMF.pure true := by
+      have hpure (y : Bool) : acceptanceGame (fun _ => xorProtocol) xorEncoding xorProver () y
+          (PMF.uniformOfFintype Bool) = PMF.pure true := by
+        have hacc' (c : Bool) : AcceptsWord (fun _ => xorProtocol) xorEncoding () y [] c
+            (List.zipWith xor (xorEncoding.challenge () c) (xorEncoding.statement () y)) :=
+          ⟨(), xor c y, rfl, rfl, by simp [SigmaProtocol.Accepts, xorProtocol]⟩
+        simp only [acceptanceGame, xorProver, ProbComp.eval_pure, PMF.monad_bind_eq_bind,
+          PMF.monad_pure_eq_pure, PMF.pure_bind, hacc', decide_true, PMF.bind_const]
+      simp only [hpure, PMF.bind_const]
+    simp [hbind, Game.succProbability]
+  have h := sq_sub_le_bind_extractionGame (P := fun _ => xorProtocol)
+    (fun _ => xorProtocol_specialSoundness) xorExtractorRealizedBy xorProver ()
+    (PMF.uniformOfFintype Bool) (sampleChallenge := fun _ => ProbComp.uniform Bool)
+    (ProbComp.eval_uniform _)
+  rw [hacc] at h
+  simp only [NNReal.coe_one, one_pow, Fintype.card_bool, Nat.cast_ofNat] at h
+  linarith
+
+/-! ### Average-key Schnorr proof of knowledge and composed Schnorr efficiency -/
+
+open scoped NNReal ENNReal in
+/-- Under `F.DiscreteLog setup`, the echoing prover succeeds in `schnorrPoKGame` with negligible
+probability. -/
+example (F : PrimeOrderGroupFamily) (setup : ℕ → PMF F.Desc) (hDL : F.DiscreteLog setup)
+    (m : ℕ → ℕ) (hm0 : ∀ n, 0 < m n) (hm : ∀ n, ∀ d ∈ (setup n).support, m n ≤ F.order d)
+    (hinv : Negligible fun n => (1 / m n : ℝ≥0)) :
+    Negligible fun n => Game.succProbability (F.schnorrPoKGame setup (echoProver _) n) :=
+  hDL.negligible_schnorrPoKGame hm0 hm hinv (isPPT_echoProver _)
+
+open scoped ENNReal in
+/-- Efficiency transfer for `andProof`, `orProof`, and `parallelRepetition` applied to
+`schnorrFamily`. -/
+example (F : PrimeOrderGroupFamily) (k : ℕ × F.Desc → ℕ) :
+    EfficientSpecialSoundness
+      (fun i => (F.schnorrFamily i).andProof (F.schnorrFamily i))
+      (fun i x y => x.1 • F.generator i.2 = y.1 ∧ x.2 • F.generator i.2 = y.2)
+      (F.schnorrEncoding.andProof F.schnorrEncoding)
+      (fun i => encPair (F.encScalar i.2) (F.encScalar i.2))
+      (fun i => andExtract (F.schnorrExtract i) (F.schnorrExtract i)) ∧
+    EfficientSpecialSoundness
+      (fun i => SigmaProtocol.orProof (F.schnorrFamily i) (F.schnorrFamily i)
+        (linearSimulate (fun _ => LinearMap.toSpanSingleton (ZMod (F.order i.2))
+          (F.Carrier i.2) (F.generator i.2)) id (Function.Embedding.refl _))
+        (linearSimulate (fun _ => LinearMap.toSpanSingleton (ZMod (F.order i.2))
+          (F.Carrier i.2) (F.generator i.2)) id (Function.Embedding.refl _)))
+      (fun i => orRelation (fun α u => α • F.generator i.2 = u)
+        (fun α u => α • F.generator i.2 = u))
+      (F.schnorrEncoding.orProof F.schnorrEncoding)
+      (fun i => encSum (F.encScalar i.2) (F.encScalar i.2))
+      (fun i => orExtract (F.schnorrExtract i) (F.schnorrExtract i)) ∧
+    EfficientSpecialSoundness
+      (fun i => (F.schnorrFamily i).parallelRepetition (k i))
+      (fun i α u => α • F.generator i.2 = u)
+      (F.schnorrEncoding.parallelRepetition k)
+      (fun i => F.encScalar i.2)
+      (fun i => parallelExtract (F.schnorrExtract i) (k i)) ∧
+    EfficientSpecialHVZK
+      (fun i => (F.schnorrFamily i).parallelRepetition (k i))
+      (fun i α u => α • F.generator i.2 = u)
+      (F.schnorrEncoding.parallelRepetition k)
+      (fun i => parallelSimulate
+        (linearSimulate (fun _ => LinearMap.toSpanSingleton (ZMod (F.order i.2))
+          (F.Carrier i.2) (F.generator i.2)) id (Function.Embedding.refl _)) (k i))
+      (fun i => (k i : ℝ≥0∞) * (1 / 2 ^ i.1)) :=
+  ⟨F.efficientSpecialSoundness_andProof_schnorr,
+   F.efficientSpecialSoundness_orProof_schnorr,
+   F.efficientSpecialSoundness_parallelRepetition_schnorr k,
+   F.efficientSpecialHVZK_parallelRepetition_schnorr k⟩
+
 end CslibFrontierTests.SigmaProofOfKnowledge

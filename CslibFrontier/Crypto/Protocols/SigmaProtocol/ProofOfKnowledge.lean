@@ -14,6 +14,8 @@ import CslibFrontier.Crypto.Game.CloseTo
 import CslibFrontier.Crypto.Game.Order
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Probability.PMF.Expect
+import CslibFrontier.Probability.PMF.ToReal
 import CslibFrontier.Probability.Rewinding
 
 /-!
@@ -73,11 +75,13 @@ amplifies its success probability.
 
 * `SigmaProtocol.isPPTOn_knowledgeExtractor`: the extractor is uniform strict PPT whenever the
   prover is.
-* `SigmaProtocol.sq_sub_mul_le_extractionGame`: `ε ^ 2 - κ * ε ≤ ε'` for a sampler with atoms at
-  most `κ`.
-* `SigmaProtocol.sq_sub_le_extractionGame`: `ε ^ 2 - ε / |C| ≤ ε'` for an exactly uniform sampler.
-* `SigmaProtocol.le_add_sqrt_extractionGame`: `ε ≤ 1 / |C| + 2 δ + √ε'` for a sampler within `δ`
-  of uniform.
+* `SigmaProtocol.sq_sub_mul_le_bind_extractionGame`, `SigmaProtocol.sq_sub_mul_le_extractionGame`:
+  `ε ^ 2 - κ * ε ≤ ε'` for a sampler with atoms at most `κ` (averaged over a statement distribution
+  and on a fixed statement).
+* `SigmaProtocol.sq_sub_le_bind_extractionGame`, `SigmaProtocol.sq_sub_le_extractionGame`:
+  `ε ^ 2 - ε / |C| ≤ ε'` for an exactly uniform sampler.
+* `SigmaProtocol.le_add_sqrt_bind_extractionGame`, `SigmaProtocol.le_add_sqrt_extractionGame`:
+  `ε ≤ 1 / |C| + 2 δ + √ε'` for a sampler within `δ` of uniform.
 
 ## References
 
@@ -258,6 +262,79 @@ private theorem twice_le_extractionGame
         rw [← ht, ← hz, ← hz', hreal, decide_eq_true ⟨_, rfl, hR⟩, PMF.pure_apply_self]
   · simp [Bool.eq_false_iff.mpr hwin]
 
+/-- The prover's first stage after sampling a statement `y` from `μ`, keeping `y` alongside the
+commitment and state words. -/
+private noncomputable def firstStageWithStatement (enc : Encoding I Y T C Z)
+    (A : MaliciousProver I) (i : I) (μ : PMF (Y i)) : PMF (Y i × List Bool × List Bool) :=
+  μ.bind fun y => (firstStage enc A i y).map (y, ·)
+
+/-- Averaging `acceptanceGame` over a statement distribution `μ` is one run of the two-stage
+experiment of the rewinding lemma with `firstStageWithStatement`. -/
+private theorem bind_acceptanceGame_eq_once (A : MaliciousProver I) (i : I) (μ : PMF (Y i))
+    (challenge : PMF (C i)) :
+    (μ.bind fun y => acceptanceGame P enc A i y challenge) =
+      Rewinding.once (firstStageWithStatement enc A i μ) (fun _ => challenge)
+        (fun yts c => ProbComp.eval (A.respond i yts.2.2 (enc.challenge i c)))
+        (fun yts c z =>
+          @decide (AcceptsWord P enc i yts.1 yts.2.1 c z) (Classical.propDecidable _)) := by
+  simp only [Rewinding.once, firstStageWithStatement, acceptanceGame_eq_once,
+    PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.bind_map,
+    Function.comp_def]
+
+/-- Two accepting runs on a statement drawn from `μ` with distinct challenges lead the knowledge
+extractor to a witness on average over `μ`. -/
+private theorem twice_withStatement_le_bind_extractionGame
+    (hsound : ∀ i, (P i).SpecialSoundness (R i) (extract i))
+    (hreal : ExtractorRealizedBy enc encW extract extractWord)
+    (sampleChallenge : ∀ i, ProbComp (C i)) (A : MaliciousProver I) (i : I) (μ : PMF (Y i))
+    [DecidableEq (C i)] :
+    Rewinding.twice (firstStageWithStatement enc A i μ) (fun _ => ProbComp.eval (sampleChallenge i))
+        (fun yts c => ProbComp.eval (A.respond i yts.2.2 (enc.challenge i c)))
+        (fun yts c z =>
+          @decide (AcceptsWord P enc i yts.1 yts.2.1 c z) (Classical.propDecidable _))
+        true ≤
+      (μ.bind fun y => extractionGame enc encW R
+        (knowledgeExtractor enc sampleChallenge extractWord A) i y) true := by
+  have htwice :
+      Rewinding.twice (firstStageWithStatement enc A i μ)
+          (fun _ => ProbComp.eval (sampleChallenge i))
+          (fun yts c => ProbComp.eval (A.respond i yts.2.2 (enc.challenge i c)))
+          (fun yts c z =>
+            @decide (AcceptsWord P enc i yts.1 yts.2.1 c z) (Classical.propDecidable _)) =
+        μ.bind fun y => Rewinding.twice (firstStage enc A i y)
+          (fun _ => ProbComp.eval (sampleChallenge i))
+          (fun ts c => ProbComp.eval (A.respond i ts.2 (enc.challenge i c)))
+          (fun ts c z => @decide (AcceptsWord P enc i y ts.1 c z) (Classical.propDecidable _)) := by
+    simp only [Rewinding.twice, firstStageWithStatement, PMF.monad_bind_eq_bind,
+      PMF.monad_pure_eq_pure, PMF.bind_bind, PMF.bind_map, Function.comp_def]
+  rw [htwice]
+  exact Probability.PMF.bind_apply_mono_on_support _ _ fun y _ =>
+    twice_le_extractionGame hsound hreal sampleChallenge A i y
+
+/-- **Average-statement extraction by rewinding**: for any statement distribution `μ : PMF (Y i)`,
+if the prover `A` convinces the verifier with average probability `ε` over `y ← μ` when challenges
+are drawn by `sampleChallenge i`, and every challenge has probability at most `κ` under that
+sampler, the knowledge extractor outputs a witness for `y` with average probability at least
+`ε ^ 2 - κ * ε` over `y ← μ`. -/
+theorem sq_sub_mul_le_bind_extractionGame [∀ i, Finite (C i)]
+    (hsound : ∀ i, (P i).SpecialSoundness (R i) (extract i))
+    (hreal : ExtractorRealizedBy enc encW extract extractWord)
+    (sampleChallenge : ∀ i, ProbComp (C i)) (A : MaliciousProver I) (i : I) (μ : PMF (Y i))
+    {κ : ℝ} (hκ : ∀ c, (ProbComp.eval (sampleChallenge i) c).toReal ≤ κ) :
+    (Game.succProbability
+        (μ.bind fun y => acceptanceGame P enc A i y (ProbComp.eval (sampleChallenge i))) :
+        ℝ) ^ 2 -
+      κ * Game.succProbability
+        (μ.bind fun y => acceptanceGame P enc A i y (ProbComp.eval (sampleChallenge i))) ≤
+    Game.succProbability (μ.bind fun y => extractionGame enc encW R
+      (knowledgeExtractor enc sampleChallenge extractWord A) i y) := by
+  classical
+  simp only [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal]
+  rw [bind_acceptanceGame_eq_once]
+  exact (Rewinding.sq_sub_mul_le_twice _ _ _ _ fun _ _ c => hκ c).trans
+    (ENNReal.toReal_mono (PMF.apply_ne_top _ _)
+      (twice_withStatement_le_bind_extractionGame hsound hreal sampleChallenge A i μ))
+
 /-- **Extraction by rewinding**: on every statement `y`, if the prover `A` convinces the verifier
 with probability `ε` when challenges are drawn by `sampleChallenge i`, and every challenge has
 probability at most `κ` under that sampler, the knowledge extractor outputs a witness for `y`
@@ -272,14 +349,33 @@ theorem sq_sub_mul_le_extractionGame [∀ i, Finite (C i)]
       κ * Game.succProbability (acceptanceGame P enc A i y (ProbComp.eval (sampleChallenge i))) ≤
     Game.succProbability (extractionGame enc encW R
       (knowledgeExtractor enc sampleChallenge extractWord A) i y) := by
-  classical
-  simp only [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal]
-  rw [acceptanceGame_eq_once]
-  exact (Rewinding.sq_sub_mul_le_twice _ _ _ _ fun _ _ c => hκ c).trans
-    (ENNReal.toReal_mono (PMF.apply_ne_top _ _)
-      (twice_le_extractionGame hsound hreal sampleChallenge A i y))
+  simpa only [PMF.pure_bind] using
+    sq_sub_mul_le_bind_extractionGame hsound hreal sampleChallenge A i (PMF.pure y) hκ
 
 variable [∀ i, Fintype (C i)] [∀ i, Nonempty (C i)]
+
+/-- **Average-statement extraction by rewinding with exactly uniform challenges**: for any statement
+distribution `μ : PMF (Y i)`, if the prover `A` convinces the honest verifier with average
+probability `ε` over `y ← μ` and `sampleChallenge i` samples uniform challenges, the knowledge
+extractor outputs a witness for `y` with average probability at least `ε ^ 2 - ε / |C i|` over
+`y ← μ`. -/
+theorem sq_sub_le_bind_extractionGame (hsound : ∀ i, (P i).SpecialSoundness (R i) (extract i))
+    (hreal : ExtractorRealizedBy enc encW extract extractWord)
+    {sampleChallenge : ∀ i, ProbComp (C i)} (A : MaliciousProver I) (i : I) (μ : PMF (Y i))
+    (huniform : ProbComp.eval (sampleChallenge i) = PMF.uniformOfFintype (C i)) :
+    (Game.succProbability
+        (μ.bind fun y => acceptanceGame P enc A i y (PMF.uniformOfFintype (C i))) : ℝ) ^ 2 -
+      Game.succProbability
+        (μ.bind fun y => acceptanceGame P enc A i y (PMF.uniformOfFintype (C i))) /
+        Fintype.card (C i) ≤
+    Game.succProbability (μ.bind fun y => extractionGame enc encW R
+      (knowledgeExtractor enc sampleChallenge extractWord A) i y) := by
+  have h := sq_sub_mul_le_bind_extractionGame hsound hreal sampleChallenge A i μ
+    (κ := (Fintype.card (C i) : ℝ)⁻¹) fun c => by
+      simp only [huniform, Probability.PMF.uniformOfFintype_apply, ENNReal.toReal_inv,
+        ENNReal.toReal_natCast, le_refl]
+  rw [huniform] at h
+  simpa only [div_eq_mul_inv, mul_comm] using h
 
 /-- **Extraction by rewinding with exactly uniform challenges**: on every statement `y`, if the
 prover `A` convinces the honest verifier with probability `ε` and `sampleChallenge i` samples
@@ -294,25 +390,23 @@ theorem sq_sub_le_extractionGame (hsound : ∀ i, (P i).SpecialSoundness (R i) (
         Fintype.card (C i) ≤
     Game.succProbability (extractionGame enc encW R
       (knowledgeExtractor enc sampleChallenge extractWord A) i y) := by
-  have h := sq_sub_mul_le_extractionGame hsound hreal sampleChallenge A i y
-    (κ := (Fintype.card (C i) : ℝ)⁻¹) fun c => by
-      simp only [huniform, Probability.PMF.uniformOfFintype_apply, ENNReal.toReal_inv,
-        ENNReal.toReal_natCast, le_refl]
-  rw [huniform] at h
-  simpa only [div_eq_mul_inv, mul_comm] using h
+  simpa only [PMF.pure_bind] using
+    sq_sub_le_bind_extractionGame hsound hreal A i (PMF.pure y) huniform
 
-/-- **Extraction by rewinding with approximately uniform challenges**: on every statement `y`, if
-`sampleChallenge i` is within statistical distance `δ` of uniform, the honest verifier's
-acceptance probability `ε` of the prover `A` and the knowledge extractor's success probability
-`ε'` satisfy `ε ≤ 1 / |C i| + 2 δ + √ε'`. -/
-theorem le_add_sqrt_extractionGame (hsound : ∀ i, (P i).SpecialSoundness (R i) (extract i))
+/-- **Average-statement extraction by rewinding with approximately uniform challenges**: for any
+statement distribution `μ : PMF (Y i)`, if `sampleChallenge i` is within statistical distance `δ`
+of uniform, the honest verifier's average acceptance probability `ε` of the prover `A` over
+`y ← μ` and the knowledge extractor's average success probability `ε'` over `y ← μ` satisfy
+`ε ≤ 1 / |C i| + 2 δ + √ε'`. -/
+theorem le_add_sqrt_bind_extractionGame (hsound : ∀ i, (P i).SpecialSoundness (R i) (extract i))
     (hreal : ExtractorRealizedBy enc encW extract extractWord)
-    {sampleChallenge : ∀ i, ProbComp (C i)} (A : MaliciousProver I) (i : I) (y : Y i)
+    {sampleChallenge : ∀ i, ProbComp (C i)} (A : MaliciousProver I) (i : I) (μ : PMF (Y i))
     {δ : ℝ≥0}
     (hclose : CloseTo (PMF.uniformOfFintype (C i)) (ProbComp.eval (sampleChallenge i)) δ) :
-    (Game.succProbability (acceptanceGame P enc A i y (PMF.uniformOfFintype (C i))) : ℝ) ≤
+    (Game.succProbability
+        (μ.bind fun y => acceptanceGame P enc A i y (PMF.uniformOfFintype (C i))) : ℝ) ≤
       1 / Fintype.card (C i) + 2 * δ +
-        √(Game.succProbability (extractionGame enc encW R
+        √(Game.succProbability (μ.bind fun y => extractionGame enc encW R
           (knowledgeExtractor enc sampleChallenge extractWord A) i y)) := by
   classical
   set κ : ℝ := 1 / Fintype.card (C i) + δ with hκ_def
@@ -330,21 +424,88 @@ theorem le_add_sqrt_extractionGame (hsound : ∀ i, (P i).SpecialSoundness (R i)
           ENNReal.toReal_inv, ENNReal.toReal_natCast, ENNReal.coe_toReal, hκ_def, one_div]
   -- With challenges from the sampler, the prover succeeds with probability at most `κ + √ε'`.
   have hsampled : (Game.succProbability
-      (acceptanceGame P enc A i y (ProbComp.eval (sampleChallenge i))) : ℝ) ≤
-      κ + √(Game.succProbability (extractionGame enc encW R
+      (μ.bind fun y => acceptanceGame P enc A i y (ProbComp.eval (sampleChallenge i))) : ℝ) ≤
+      κ + √(Game.succProbability (μ.bind fun y => extractionGame enc encW R
         (knowledgeExtractor enc sampleChallenge extractWord A) i y)) := by
     simp only [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal]
-    rw [acceptanceGame_eq_once]
+    rw [bind_acceptanceGame_eq_once]
     exact (Rewinding.le_add_sqrt_twice _ _ _ _ fun _ _ c => hκ c).trans
       (add_le_add le_rfl (Real.sqrt_le_sqrt (ENNReal.toReal_mono (PMF.apply_ne_top _ _)
-        (twice_le_extractionGame hsound hreal sampleChallenge A i y))))
+        (twice_withStatement_le_bind_extractionGame hsound hreal sampleChallenge A i μ))))
   -- Replacing uniform challenges by the sampler changes acceptance by at most `δ`.
-  have hgame : CloseTo (acceptanceGame P enc A i y (PMF.uniformOfFintype (C i)))
-      (acceptanceGame P enc A i y (ProbComp.eval (sampleChallenge i))) δ := by
-    simp only [acceptanceGame_eq_once, Rewinding.once]
-    exact CloseTo.bind_right _ fun ts _ => hclose.bind_left _
+  have hgame : CloseTo
+      (μ.bind fun y => acceptanceGame P enc A i y (PMF.uniformOfFintype (C i)))
+      (μ.bind fun y => acceptanceGame P enc A i y (ProbComp.eval (sampleChallenge i))) δ := by
+    simp only [bind_acceptanceGame_eq_once, Rewinding.once]
+    exact CloseTo.bind_right _ fun yts _ => hclose.bind_left _
   have hswap := Game.coe_succProbability_le_add_of_advantage_le
     (NNReal.coe_le_coe.mpr (Game.closeTo_iff_advantage_le.mp hgame))
   linarith
+
+/-- **Extraction by rewinding with approximately uniform challenges**: on every statement `y`, if
+`sampleChallenge i` is within statistical distance `δ` of uniform, the honest verifier's
+acceptance probability `ε` of the prover `A` and the knowledge extractor's success probability
+`ε'` satisfy `ε ≤ 1 / |C i| + 2 δ + √ε'`. -/
+theorem le_add_sqrt_extractionGame (hsound : ∀ i, (P i).SpecialSoundness (R i) (extract i))
+    (hreal : ExtractorRealizedBy enc encW extract extractWord)
+    {sampleChallenge : ∀ i, ProbComp (C i)} (A : MaliciousProver I) (i : I) (y : Y i)
+    {δ : ℝ≥0}
+    (hclose : CloseTo (PMF.uniformOfFintype (C i)) (ProbComp.eval (sampleChallenge i)) δ) :
+    (Game.succProbability (acceptanceGame P enc A i y (PMF.uniformOfFintype (C i))) : ℝ) ≤
+      1 / Fintype.card (C i) + 2 * δ +
+        √(Game.succProbability (extractionGame enc encW R
+          (knowledgeExtractor enc sampleChallenge extractWord A) i y)) := by
+  simpa only [PMF.pure_bind] using
+    le_add_sqrt_bind_extractionGame hsound hreal A i (PMF.pure y) hclose
+
+/-- Pointwise quadratic extraction bounds `ε(a) ^ 2 - κ * ε(a) ≤ ε'(a)` survive averaging over
+`a ← ν` by Jensen's inequality (`Probability.PMF.sq_tsum_le_tsum_sq`). -/
+theorem sq_sub_mul_le_bind {α : Type*} (ν : PMF α) (G H : α → Game) {κ : ℝ}
+    (h : ∀ a ∈ ν.support,
+      (Game.succProbability (G a) : ℝ) ^ 2 - κ * Game.succProbability (G a) ≤
+        Game.succProbability (H a)) :
+    (Game.succProbability (ν.bind G) : ℝ) ^ 2 - κ * Game.succProbability (ν.bind G) ≤
+      Game.succProbability (ν.bind H) := by
+  simp only [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal] at h ⊢
+  set g : α → ℝ := fun a => (G a true).toReal
+  set f : α → ℝ := fun a => (H a true).toReal
+  have hg0 (a : α) : 0 ≤ g a := ENNReal.toReal_nonneg
+  have hg1 (a : α) : g a ≤ 1 := PMF.toReal_apply_le_one (G a) true
+  have hf0 (a : α) : 0 ≤ f a := ENNReal.toReal_nonneg
+  have hf1 (a : α) : f a ≤ 1 := PMF.toReal_apply_le_one (H a) true
+  have hm : Summable fun a => (ν a).toReal := Probability.PMF.summable_toReal ν
+  have hsum {k : α → ℝ} (k0 : ∀ a, 0 ≤ k a) (k1 : ∀ a, k a ≤ 1) :
+      Summable fun a => (ν a).toReal * k a :=
+    hm.of_nonneg_of_le (fun a => mul_nonneg ENNReal.toReal_nonneg (k0 a))
+      fun a => mul_le_of_le_one_right ENNReal.toReal_nonneg (k1 a)
+  have hsumg := hsum hg0 hg1
+  have hsumg2 := hsum (fun a => sq_nonneg (g a)) fun a => pow_le_one₀ (hg0 a) (hg1 a)
+  have hsumf := hsum hf0 hf1
+  have hpoint (a : α) :
+      (ν a).toReal * g a ^ 2 - κ * ((ν a).toReal * g a) ≤ (ν a).toReal * f a := by
+    by_cases ha : a ∈ ν.support
+    · calc _ = (ν a).toReal * (g a ^ 2 - κ * g a) := by ring
+           _ ≤ _ := mul_le_mul_of_nonneg_left (h a ha) ENNReal.toReal_nonneg
+    · simp [(PMF.apply_eq_zero_iff ν a).mpr ha]
+  rw [Probability.PMF.bind_apply_toReal_tsum, Probability.PMF.bind_apply_toReal_tsum]
+  calc (∑' a, (ν a).toReal * g a) ^ 2 - κ * (∑' a, (ν a).toReal * g a)
+      ≤ ∑' a, (ν a).toReal * g a ^ 2 - κ * (∑' a, (ν a).toReal * g a) := by
+        gcongr
+        exact Probability.PMF.sq_tsum_le_tsum_sq ν hg0 hg1
+    _ = ∑' a, ((ν a).toReal * g a ^ 2 - κ * ((ν a).toReal * g a)) := by
+        rw [hsumg2.tsum_sub (hsumg.mul_left κ), tsum_mul_left]
+    _ ≤ ∑' a, (ν a).toReal * f a :=
+        (hsumg2.sub (hsumg.mul_left κ)).tsum_le_tsum hpoint hsumf
+
+/-- Solving a quadratic extraction bound `ε ^ 2 - κ * ε ≤ ε'` for `ε` gives `ε ≤ κ + √ε'` when
+`0 ≤ κ`. -/
+theorem le_add_sqrt_of_sq_sub_mul_le {ε ε' κ : ℝ} (hκ0 : 0 ≤ κ) (h : ε ^ 2 - κ * ε ≤ ε') :
+    ε ≤ κ + √ε' := by
+  by_cases hε : ε ≤ κ
+  · exact hε.trans (le_add_of_nonneg_right (Real.sqrt_nonneg _))
+  · have hsq : (ε - κ) ^ 2 ≤ ε' := by
+      nlinarith [mul_nonneg hκ0 (sub_nonneg.mpr (le_of_not_ge hε))]
+    have := Real.abs_le_sqrt hsq
+    linarith [le_abs_self (ε - κ)]
 
 end Cslib.Crypto.Protocols.SigmaProtocol
