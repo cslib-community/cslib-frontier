@@ -470,7 +470,7 @@ theorem table_polyTime :
   have hdrop : ComputableInPolyTime (fun r : (Call T × List (List ℕ)) × ℕ =>
       r.1.2.drop ((nodes r.1.1).idxOf r.2 * numPoints r.1.1)) (encPair e encUnary)
       (encList (encList encNat)) :=
-    (ComputableInPolyTime.dropUnary).comp
+    (ComputableInPolyTime.dropUnary (encA := encList encNat)).comp
       (hV'.prod (ComputableInPolyTime.unary_mul' hidx hn))
   have htake : ComputableInPolyTime (fun r : (Call T × List (List ℕ)) × ℕ =>
       (r.1.2.drop ((nodes r.1.1).idxOf r.2 * numPoints r.1.1)).take (numPoints r.1.1))
