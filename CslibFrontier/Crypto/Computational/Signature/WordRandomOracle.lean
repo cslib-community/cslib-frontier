@@ -255,19 +255,17 @@ theorem succProbability_wordEufCmaGame_le_wordSufCmaGame {SK : Type}
   refine PMF.bind_apply_mono_on_support _ true fun ⟨⟨msig, pairs⟩, cache⟩ _ => ?_
   refine PMF.bind_apply_mono_on_support _ true fun verified _ => ?_
   by_cases hmsg : (pairs.map Prod.fst).contains msig.1 = true
-  · simp [hmsg]
-  · have hpair : pairs.contains msig = false := by
-      have hnotmem : msig.1 ∉ pairs.map Prod.fst := fun hmem =>
-        hmsg (List.contains_iff_mem.mpr hmem)
+  · have hmem : msig.1 ∈ pairs.map Prod.fst := List.contains_iff_mem.mp hmsg
+    simp [hmem]
+  · have hnotmem : msig.1 ∉ pairs.map Prod.fst := fun hmem =>
+      hmsg (List.contains_iff_mem.mpr hmem)
+    have hnotPair : msig ∉ pairs := by
       have hfreshMessage : freshMessage msig.1 msig.2 pairs = true := by
         simp only [freshMessage, decide_eq_true_eq]
         exact hnotmem
       have hfreshPair := freshPair_of_freshMessage hfreshMessage
-      have hnotPair : msig ∉ pairs := by
-        simpa only [freshPair, decide_eq_true_eq] using hfreshPair
-      exact Bool.eq_false_iff.mpr fun hcontains =>
-        hnotPair (List.contains_iff_mem.mp hcontains)
-    simp [hmsg, hpair]
+      simpa only [freshPair, decide_eq_true_eq] using hfreshPair
+    simp [hnotmem, hnotPair]
 
 /-- Native ROM SUF-CMA security implies native ROM EUF-CMA security for the same scheme family. -/
 theorem SUFCMA.eufCma {Digest : ℕ → Type} [∀ n, Fintype (Digest n)]
@@ -575,7 +573,15 @@ theorem exists_sufCmaGame_savedCoinForger
   apply PMF.bind_congr_on_support
   intro keys hkeys
   rw [hgen'] at hkeys
-  simpa only [PMF.monad_bind_eq_bind] using
+  have hcontains (pairs : List (List Bool × List Bool))
+      (msig : List Bool × List Bool) :
+      @List.contains (List Bool × List Bool)
+          (@instBEqProd (List Bool) (List Bool)
+            instBEqOfDecidableEq instBEqOfDecidableEq) pairs msig =
+        pairs.contains msig := by
+    apply Bool.eq_iff_iff.mpr
+    simp
+  simpa only [PMF.monad_bind_eq_bind, hcontains] using
     eval_worldRealize_eq_bind scheme keys.1 keys.2 _ _ _
       (hrun n keys hkeys Digest digestEncoding)
       (fun verified msig pairs => verified && !pairs.contains msig)
