@@ -8,6 +8,8 @@ module
 -- upstream: candidate (addition to Cslib/Crypto/Game.lean)
 
 public import CslibFrontier.Crypto.Game
+import CslibFrontier.Probability.PMF.Expect
+import CslibFrontier.Probability.PMF.ToReal
 
 /-!
 # Comparing success probabilities
@@ -25,6 +27,8 @@ the distinguishing advantage of two experiments bounds one success probability b
   by another game's success probability plus their distinguishing advantage.
 * `Cslib.Crypto.Game.apply_true_le_of_advantage_le`: an `ℝ≥0` advantage bound between two games
   implies mutual `ℝ≥0∞` upper bounds on their acceptance probabilities.
+* `Cslib.Crypto.Game.sq_sub_mul_le_bind`: pointwise quadratic bounds
+  `ε(a) ^ 2 - κ * ε(a) ≤ ε'(a)` survive averaging over `a ← ν` by Jensen's inequality.
 -/
 
 public section
@@ -65,5 +69,43 @@ theorem apply_true_le_of_advantage_le {g₁ g₂ : Game} {c : ℝ≥0}
     rwa [ENNReal.coe_add, ENNReal.coe_toNNReal (PMF.apply_ne_top a true),
       ENNReal.coe_toNNReal (PMF.apply_ne_top b true)] at hsucc
   exact ⟨hle h, hle (advantage_comm g₂ g₁ ▸ h)⟩
+
+/-- Pointwise quadratic bounds `ε(a) ^ 2 - κ * ε(a) ≤ ε'(a)` on game success probabilities survive
+averaging over `a ← ν` by Jensen's inequality (`Probability.PMF.sq_tsum_le_tsum_sq`). -/
+theorem sq_sub_mul_le_bind {α : Type*} (ν : PMF α) (G H : α → Game) {κ : ℝ}
+    (h : ∀ a ∈ ν.support,
+      (succProbability (G a) : ℝ) ^ 2 - κ * succProbability (G a) ≤ succProbability (H a)) :
+    (succProbability (ν.bind G) : ℝ) ^ 2 - κ * succProbability (ν.bind G) ≤
+      succProbability (ν.bind H) := by
+  simp only [succProbability, ENNReal.coe_toNNReal_eq_toReal] at h ⊢
+  set g : α → ℝ := fun a => (G a true).toReal
+  set f : α → ℝ := fun a => (H a true).toReal
+  have hg0 (a : α) : 0 ≤ g a := ENNReal.toReal_nonneg
+  have hg1 (a : α) : g a ≤ 1 := Probability.PMF.toReal_apply_le_one (G a) true
+  have hf0 (a : α) : 0 ≤ f a := ENNReal.toReal_nonneg
+  have hf1 (a : α) : f a ≤ 1 := Probability.PMF.toReal_apply_le_one (H a) true
+  have hm : Summable fun a => (ν a).toReal := Probability.PMF.summable_toReal ν
+  have hsum {k : α → ℝ} (k0 : ∀ a, 0 ≤ k a) (k1 : ∀ a, k a ≤ 1) :
+      Summable fun a => (ν a).toReal * k a :=
+    hm.of_nonneg_of_le (fun a => mul_nonneg ENNReal.toReal_nonneg (k0 a))
+      fun a => mul_le_of_le_one_right ENNReal.toReal_nonneg (k1 a)
+  have hsumg := hsum hg0 hg1
+  have hsumg2 := hsum (fun a => sq_nonneg (g a)) fun a => pow_le_one₀ (hg0 a) (hg1 a)
+  have hsumf := hsum hf0 hf1
+  have hpoint (a : α) :
+      (ν a).toReal * g a ^ 2 - κ * ((ν a).toReal * g a) ≤ (ν a).toReal * f a := by
+    by_cases ha : a ∈ ν.support
+    · calc _ = (ν a).toReal * (g a ^ 2 - κ * g a) := by ring
+           _ ≤ _ := mul_le_mul_of_nonneg_left (h a ha) ENNReal.toReal_nonneg
+    · simp [(PMF.apply_eq_zero_iff ν a).mpr ha]
+  rw [Probability.PMF.bind_apply_toReal_tsum, Probability.PMF.bind_apply_toReal_tsum]
+  calc (∑' a, (ν a).toReal * g a) ^ 2 - κ * (∑' a, (ν a).toReal * g a)
+      ≤ ∑' a, (ν a).toReal * g a ^ 2 - κ * (∑' a, (ν a).toReal * g a) := by
+        gcongr
+        exact Probability.PMF.sq_tsum_le_tsum_sq ν hg0 hg1
+    _ = ∑' a, ((ν a).toReal * g a ^ 2 - κ * ((ν a).toReal * g a)) := by
+        rw [hsumg2.tsum_sub (hsumg.mul_left κ), tsum_mul_left]
+    _ ≤ ∑' a, (ν a).toReal * f a :=
+        (hsumg2.sub (hsumg.mul_left κ)).tsum_le_tsum hpoint hsumf
 
 end Cslib.Crypto.Game
