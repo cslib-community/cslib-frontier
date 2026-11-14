@@ -198,8 +198,12 @@ theorem ComputesTidily.comp_of_le {tm₁ : MultiTapePTM k₁ Bool State₁ Opera
       (w, s') ∈ (ProbOracleComp.runWith oracle prog₁ s).support →
         tm₂.ComputesTidily w t₂ (prog₂ w)) :
     (tm₂.tidyComp tm₁ mark).ComputesTidily x (t₁ + t₂ + 4 * l + 9) (prog₁ >>= prog₂) := by
+  have hencBits : (encBits : List Bool → List Bool) = id := by
+    funext word
+    exact encBits_apply word
   have h₁' : tm₁.ComputesTidily x t₁ (encBits <$> prog₁) := by
-    simpa only [encBits_apply, id_map] using h₁
+    rw [hencBits, id_map]
+    exact h₁
   exact ComputesTidily.comp_encoded_of_le encBits mark h₁'
     (fun OracleState oracle s w s' hw => by
       simpa only [encBits_apply] using hl OracleState oracle s w s' hw)
@@ -240,9 +244,11 @@ theorem ComputesTidily.comp_encoded {Alpha : Type}
       (s : OracleState) (a : Alpha) (s' : OracleState)
       (ha : (a, s') ∈ (ProbOracleComp.runWith oracle prog₁ s).support) :
       (encode a).length ≤ t₁ := by
-    apply h₁.length_output_le oracle s
-    rw [ProbOracleComp.runWith_map]
-    exact (PMF.mem_support_map_iff _ _ _).mpr ⟨(a, s'), ha, rfl⟩
+    have haEncoded : (encode a, s') ∈
+        (ProbOracleComp.runWith oracle (encode <$> prog₁) s).support := by
+      rw [ProbOracleComp.runWith_map]
+      exact (PMF.mem_support_map_iff _ _ _).mpr ⟨(a, s'), ha, rfl⟩
+    exact h₁.length_output_le oracle s haEncoded
   exact (ComputesTidily.comp_encoded_of_le encode mark h₁ hl h₂).mono (by omega)
 
 /-- Run `tm₁` and then `tm₂` on the same input, both padded to `max k₁ k₂` work tapes. -/

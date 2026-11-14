@@ -305,9 +305,10 @@ theorem of_map (f : α → β) (ws₁' : β → Fin k → List Bool) (emit' : β
 
 /-- Reinterpret a mapped program law as its typed source law, moving the result map into the tape
 and output maps. This is a semantic refactoring of the same run, not an executed decoder. -/
-theorem of_mapped_program (f : α → β)
-    (h : machine.RunsWords x ws₀ out₀ time (f <$> program) ws₁ emit) :
-    machine.RunsWords x ws₀ out₀ time program (fun a => ws₁ (f a)) (fun a => emit (f a)) := by
+theorem of_mapped_program (f : α → β) {ws₁' : β → Fin k → List Bool}
+    {emit' : β → List Bool}
+    (h : machine.RunsWords x ws₀ out₀ time (f <$> program) ws₁' emit') :
+    machine.RunsWords x ws₀ out₀ time program (fun a => ws₁' (f a)) (fun a => emit' (f a)) := by
   intro OracleState oracle s cfg htapes hbuf
   obtain ⟨hlaw, hclean⟩ := h OracleState oracle s cfg htapes hbuf
   refine ⟨?_, hclean⟩
