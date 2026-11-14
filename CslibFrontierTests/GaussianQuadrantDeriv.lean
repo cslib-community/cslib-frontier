@@ -4,7 +4,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Vincent Liew
 -/
 
-import CslibFrontier.Foundations.Probability.Gaussian.QuadrantDeriv
+module
+
+public import CslibFrontier.Foundations.Probability.Gaussian.QuadrantDeriv
 
 /-! # Tests for the derivatives and `ρ`-concavity of the Gaussian quadrant probability
 
@@ -12,20 +14,26 @@ The quantile `Φ⁻¹`: its sign below `1 / 2`, continuity, and derivative `√(
 bivariate formula at `ρ = 0`, which factors as `Φ(t) Φ(t')`. The first derivative
 `∂Λ_ρ / ∂α = Φ(0) = 1 / 2` at `α = β = 1 / 2`; consistency with `Λ_0(α, β) = αβ` at `ρ = 0`;
 the second derivative `-ρ / √(1 - ρ²)` and the mixed derivative `1 / √(1 - ρ²)` at
-`α = β = 1 / 2`; the density symmetry; an entry of the `ρ`-Hessian, its vanishing determinant,
-and the negative semidefiniteness of `H_{1/2} Λ_{1/2}` at `(1 / 2, 1 / 2)`. -/
+`α = β = 1 / 2`; the Fréchet derivatives of `Λ_ρ` and of `∂Λ_ρ / ∂α` at `(1 / 2, 1 / 2)` and
+the `C²` regularity of `Λ_ρ` on `(0, 1)²`; the density symmetry; an entry of the `ρ`-Hessian, its
+vanishing determinant, and the negative semidefiniteness of `H_{1/2} Λ_{1/2}` at
+`(1 / 2, 1 / 2)`. -/
+
+public section
 
 namespace CslibFrontierTests.GaussianQuadrantDeriv
 
 open MeasureTheory ProbabilityTheory Real Set
 
-private theorem half_mem : (2⁻¹ : ℝ) ∈ Ioo 0 1 := by norm_num
+/-- `1 / 2 ∈ (0, 1)`. -/
+theorem half_mem : (2⁻¹ : ℝ) ∈ Ioo 0 1 := by norm_num
 
-private theorem abs_half_lt_one : |(1 / 2 : ℝ)| < 1 := by norm_num [abs_of_pos]
+/-- `|1 / 2| < 1`. -/
+theorem abs_half_lt_one : |(1 / 2 : ℝ)| < 1 := by norm_num [abs_of_pos]
 
 /-- `φ 0 = 1 / √(2π)`. -/
-private theorem gaussianPDFReal_zero : gaussianPDFReal 0 1 0 = (√(2 * π))⁻¹ := by
-  simp [gaussianPDFReal]
+theorem gaussianPDFReal_zero : gaussianPDFReal 0 1 0 = (√(2 * π))⁻¹ := by
+  simp [gaussianPDFReal_def]
 
 /-- `Φ⁻¹ (Φ 1) = 1`. -/
 example : gaussianQuantile (cdf (gaussianReal 0 1) 1) = 1 := gaussianQuantile_cdf 1
@@ -45,11 +53,7 @@ example (t t' : ℝ) :
   rw [measureReal_correlatedGaussian_setOf_le_and_le (by norm_num)]
   simp only [zero_mul, sub_zero, ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow,
     sqrt_one, div_one]
-  have hΦ : ∀ x, cdf (gaussianReal 0 1) x = ∫ y in Iic x, gaussianPDFReal 0 1 y := fun x => by
-    rw [cdf_eq_real, measureReal_def, gaussianReal_apply_eq_integral 0 one_ne_zero,
-      ENNReal.toReal_ofReal
-        (setIntegral_nonneg measurableSet_Iic fun y _ => gaussianPDFReal_nonneg 0 1 y)]
-  rw [integral_mul_const, hΦ t]
+  rw [integral_mul_const, cdf_gaussianReal_eq_integral 0 one_ne_zero t]
 
 /-- `(Φ⁻¹)' (1 / 2) = √(2π)`. -/
 example : HasDerivAt gaussianQuantile √(2 * π) 2⁻¹ := by
@@ -99,6 +103,31 @@ example {ρ : ℝ} (hρ : |ρ| < 1) :
   have : (√(2 * π))⁻¹ ≠ 0 := by positivity
   rwa [gaussianQuantile_half, mul_zero, sub_zero, zero_div, gaussianPDFReal_zero,
     mul_assoc, inv_mul_cancel₀ this, mul_one] at h
+
+/-- At `(1 / 2, 1 / 2)` the Fréchet derivative of `Λ_ρ` is `(u, v) ↦ (u + v) / 2`. -/
+example {ρ : ℝ} (hρ : |ρ| < 1) :
+    HasFDerivAt (Function.uncurry (gaussianQuadrant ρ))
+      ((2⁻¹ : ℝ) • ContinuousLinearMap.fst ℝ ℝ ℝ + (2⁻¹ : ℝ) • ContinuousLinearMap.snd ℝ ℝ ℝ)
+      (2⁻¹, 2⁻¹) := by
+  have h := hasFDerivAt_gaussianQuadrant hρ half_mem half_mem
+  rwa [gaussianQuantile_half, mul_zero, sub_zero, zero_div,
+    cdf_gaussianReal_zero_zero one_ne_zero] at h
+
+/-- At `(1 / 2, 1 / 2)` the Fréchet derivative of `∂Λ_ρ / ∂α` is
+`(u, v) ↦ (-ρ u + v) / √(1 - ρ²)`. -/
+example {ρ : ℝ} (hρ : |ρ| < 1) :
+    HasFDerivAt (fun p : ℝ × ℝ => deriv (fun α => gaussianQuadrant ρ α p.2) p.1)
+      ((-(ρ / √(1 - ρ ^ 2))) • ContinuousLinearMap.fst ℝ ℝ ℝ +
+        (√(1 - ρ ^ 2))⁻¹ • ContinuousLinearMap.snd ℝ ℝ ℝ) (2⁻¹, 2⁻¹) := by
+  have h := hasFDerivAt_deriv_gaussianQuadrant_left hρ half_mem half_mem
+  have : (√(2 * π))⁻¹ ≠ 0 := by positivity
+  rwa [gaussianQuantile_half, mul_zero, sub_zero, zero_div, gaussianPDFReal_zero, mul_assoc,
+    inv_mul_cancel₀ this, mul_one, mul_assoc, inv_mul_cancel₀ this, mul_one] at h
+
+/-- `Λ_ρ` is `C²` on `(0, 1)²`, as the book's definition of `ρ`-concavity requires. -/
+example {ρ : ℝ} (hρ : |ρ| < 1) :
+    ContDiffOn ℝ 2 (Function.uncurry (gaussianQuadrant ρ)) (Ioo 0 1 ×ˢ Ioo 0 1) :=
+  contDiffOn_infty.1 (contDiffOn_gaussianQuadrant hρ) 2
 
 /-- The symmetry of the bivariate density at `ρ = 1 / 2`, `t = 1`, `t' = 0`. -/
 example : gaussianPDFReal 0 1 1 * gaussianPDFReal 0 1 ((0 - 1 / 2 * 1) / √(1 - (1 / 2) ^ 2)) =

@@ -32,7 +32,8 @@ Three estimates and a density formula for the real Gaussian distribution `gaussi
 
 ## Main results
 
-* `ProbabilityTheory.continuous_gaussianPDFReal`: the Gaussian density is continuous.
+* `ProbabilityTheory.continuous_gaussianPDFReal`, `ProbabilityTheory.contDiff_gaussianPDFReal`:
+  the Gaussian density is continuous and smooth.
 * `ProbabilityTheory.gaussianPDFReal_le`: the Gaussian density is at most `1 / √(2πv)`.
 * `ProbabilityTheory.gaussianReal_le_ofReal_mul_volume`: the Gaussian measure of a set is at most
   `1 / √(2πv)` times its Lebesgue measure.
@@ -51,7 +52,15 @@ open scoped NNReal ENNReal
 namespace ProbabilityTheory
 
 /-- The Gaussian density is continuous. -/
+@[fun_prop]
 theorem continuous_gaussianPDFReal (μ : ℝ) (v : ℝ≥0) : Continuous (gaussianPDFReal μ v) := by
+  rw [gaussianPDFReal_def]
+  fun_prop
+
+/-- The Gaussian density is smooth. -/
+@[fun_prop]
+theorem contDiff_gaussianPDFReal {n : WithTop ℕ∞} (μ : ℝ) (v : ℝ≥0) :
+    ContDiff ℝ n (gaussianPDFReal μ v) := by
   rw [gaussianPDFReal_def]
   fun_prop
 

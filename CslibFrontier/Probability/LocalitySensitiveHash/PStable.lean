@@ -608,7 +608,7 @@ theorem p2StableProb_eq_sub {r c : ℝ} (hr : 0 < r) (hc : 0 < c) :
     (integrable_gaussianPDFReal 0 1).intervalIntegrable
   have hi2 : IntervalIntegrable (fun z : ℝ => (c * z / r) * gaussianPDFReal 0 1 z) volume 0
       (r / c) :=
-    Continuous.intervalIntegrable (by have := continuous_gaussianPDFReal 0 1; fun_prop) _ _
+    Continuous.intervalIntegrable (by fun_prop) _ _
   have hsplit : (fun z : ℝ => (1 - c * z / r) * gaussianPDFReal 0 1 z) =
       fun z => gaussianPDFReal 0 1 z - (c * z / r) * gaussianPDFReal 0 1 z := funext fun z => by
     ring

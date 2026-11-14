@@ -11,6 +11,8 @@ module
 public import CslibFrontier.Foundations.Probability.Gaussian.Quadrant
 public import CslibFrontier.Foundations.Probability.Gaussian.Quantile
 public import Mathlib.LinearAlgebra.Matrix.PosDef
+import CslibFrontier.Foundations.Analysis.Calculus.FDeriv.Partial
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.PosDef
 import CslibFrontier.Foundations.MeasureTheory.Integral.IntegralEqImproper
 import CslibFrontier.Foundations.Probability.Gaussian.Real
 
@@ -39,16 +41,15 @@ Differentiating once more gives [O'Donnell, Exercise 11.28][ODonnell2014]:
 * (d) for `ρ ∈ (0, 1)` the diagonal second derivatives are negative, so `H_ρ Λ_ρ` is negative
   semidefinite at every point of `(0, 1)²`.
 
-Part (d) is the pointwise Hessian form of `ρ`-concavity: `rhoHessian` is built from iterated
-`deriv`s, and the `HasDerivAt` lemmas show that these second partials of `Λ_ρ` exist. Joint `C²`
-regularity of `Λ_ρ`, which the book's definition of `ρ`-concavity assumes and which the chain
-rule and integration by parts of [O'Donnell, Exercise 11.29][ODonnell2014] need, is not proved.
-Nor is that exercise, the Mossel–Neeman semigroup argument for the one-dimensional Two-Function
-Borell Isoperimetric Theorem.
-
-The private lemma `posSemidef_fin_two` (a symmetric `2 × 2` real matrix with nonnegative diagonal
-and determinant is positive semidefinite) is a further upstream candidate, for Mathlib's
-`Mathlib/LinearAlgebra/Matrix/PosDef.lean`.
+The book defines `ρ`-concavity for `C²` functions. For `|ρ| < 1`, `Λ_ρ` is `C^∞` on `(0, 1)²`
+(`contDiffOn_gaussianQuadrant`): continuous first partials make `Λ_ρ` Fréchet differentiable
+(`hasFDerivAt_gaussianQuadrant`), and its derivative is built from `Φ` and `Φ⁻¹`, both smooth.
+The first partials are in turn Fréchet differentiable with the second partials above as
+components (`hasFDerivAt_deriv_gaussianQuadrant_left`, `hasFDerivAt_deriv_gaussianQuadrant_right`),
+so `rhoHessian`, built from iterated `deriv`s, is the `ρ`-Hessian of the `C²` function `Λ_ρ`, and
+part (d) is its `ρ`-concavity. [O'Donnell, Exercise 11.29][ODonnell2014], the Mossel–Neeman
+semigroup argument for the one-dimensional Two-Function Borell Isoperimetric Theorem, is not
+proved.
 
 ## Main definitions
 
@@ -62,19 +63,24 @@ and determinant is positive semidefinite) is a further upstream candidate, for M
   `ProbabilityTheory.hasDerivAt_measureReal_correlatedGaussian_setOf_le_and_le_right`: its
   partial derivatives in `t` and `t'`.
 * `ProbabilityTheory.hasDerivAt_gaussianQuadrant_left`,
-  `ProbabilityTheory.hasDerivAt_gaussianQuadrant_right`: Exercise 11.19 (d).
+  `ProbabilityTheory.hasDerivAt_gaussianQuadrant_right`,
+  `ProbabilityTheory.hasFDerivAt_gaussianQuadrant`: Exercise 11.19 (d), as partial and as Fréchet
+  derivatives.
 * `ProbabilityTheory.hasDerivAt_gaussianQuadrant_left_left`,
   `ProbabilityTheory.hasDerivAt_gaussianQuadrant_right_right`: Exercise 11.28 (a).
 * `ProbabilityTheory.hasDerivAt_gaussianQuadrant_left_right`,
   `ProbabilityTheory.hasDerivAt_gaussianQuadrant_right_left`,
   `ProbabilityTheory.gaussianPDFReal_mul_gaussianPDFReal_comm`: Exercise 11.28 (b).
+* `ProbabilityTheory.hasFDerivAt_deriv_gaussianQuadrant_left`,
+  `ProbabilityTheory.hasFDerivAt_deriv_gaussianQuadrant_right`,
+  `ProbabilityTheory.contDiffOn_gaussianQuadrant`: the first partials are Fréchet differentiable,
+  and `Λ_ρ` is `C^∞` on `(0, 1)²`.
 * `ProbabilityTheory.rhoHessian_gaussianQuadrant`,
   `ProbabilityTheory.det_rhoHessian_gaussianQuadrant`: Exercise 11.28 (c).
 * `ProbabilityTheory.deriv_gaussianQuadrant_left_left_neg`,
   `ProbabilityTheory.deriv_gaussianQuadrant_right_right_neg`,
   `ProbabilityTheory.negSemidef_rhoHessian_gaussianQuadrant`,
-  `ProbabilityTheory.dotProduct_mulVec_rhoHessian_gaussianQuadrant_nonpos`: Exercise 11.28 (d),
-  in pointwise Hessian form.
+  `ProbabilityTheory.dotProduct_mulVec_rhoHessian_gaussianQuadrant_nonpos`: Exercise 11.28 (d).
 
 ## References
 
@@ -84,6 +90,7 @@ and determinant is positive semidefinite) is a further upstream candidate, for M
 public section
 
 open MeasureTheory Real Set Filter
+open scoped ContDiff
 
 namespace ProbabilityTheory
 
@@ -300,6 +307,103 @@ theorem gaussianPDFReal_mul_gaussianPDFReal_comm {ρ : ℝ} (hρ : |ρ| < 1) (t 
   rw [hs2]
   ring
 
+/-! ### Joint differentiability and smoothness -/
+
+/-- **`Λ_ρ` is jointly differentiable on `(0, 1)²`** [O'Donnell, Exercise 11.19 (d)][ODonnell2014]:
+for `|ρ| < 1` and `α, β ∈ (0, 1)`, the Fréchet derivative of `(α, β) ↦ Λ_ρ(α, β)` at `(α, β)` is
+`(u, v) ↦ Φ((t' - ρt) / √(1 - ρ²)) u + Φ((t - ρt') / √(1 - ρ²)) v`, where `t = Φ⁻¹ α` and
+`t' = Φ⁻¹ β`. -/
+theorem hasFDerivAt_gaussianQuadrant {ρ : ℝ} (hρ : |ρ| < 1) {α β : ℝ} (hα : α ∈ Ioo 0 1)
+    (hβ : β ∈ Ioo 0 1) :
+    HasFDerivAt (Function.uncurry (gaussianQuadrant ρ))
+      (Φ ((gaussianQuantile β - ρ * gaussianQuantile α) / √(1 - ρ ^ 2)) •
+          ContinuousLinearMap.fst ℝ ℝ ℝ +
+        Φ ((gaussianQuantile α - ρ * gaussianQuantile β) / √(1 - ρ ^ 2)) •
+          ContinuousLinearMap.snd ℝ ℝ ℝ) (α, β) := by
+  have hU := prod_mem_nhds (Ioo_mem_nhds hα.1 hα.2) (Ioo_mem_nhds hβ.1 hβ.2)
+  have := continuousAt_gaussianQuantile hα
+  have := continuousAt_gaussianQuantile hβ
+  have := continuous_cdf_gaussianReal 0 one_ne_zero
+  refine (hasStrictFDerivAt_uncurry_of_hasDerivAt
+    (f₁ := fun α β => Φ ((gaussianQuantile β - ρ * gaussianQuantile α) / √(1 - ρ ^ 2)))
+    (f₂ := fun α β => Φ ((gaussianQuantile α - ρ * gaussianQuantile β) / √(1 - ρ ^ 2)))
+    (u := (α, β)) ?_ ?_ (by fun_prop) (by fun_prop)).hasFDerivAt
+  · filter_upwards [hU] with v hv using hasDerivAt_gaussianQuadrant_left hρ hv.1 hv.2
+  · filter_upwards [hU] with v hv using hasDerivAt_gaussianQuadrant_right hρ hv.1 hv.2
+
+/-- **The Fréchet derivative of `∂Λ_ρ / ∂α`** [O'Donnell, Exercise 11.28 (a), (b)][ODonnell2014]:
+for `|ρ| < 1` and `α, β ∈ (0, 1)`, `(α, β) ↦ ∂Λ_ρ(α, β) / ∂α` is differentiable at `(α, β)`, with
+the partial derivatives `hasDerivAt_gaussianQuadrant_left_left` and
+`hasDerivAt_gaussianQuadrant_left_right` as its components. -/
+theorem hasFDerivAt_deriv_gaussianQuadrant_left {ρ : ℝ} (hρ : |ρ| < 1) {α β : ℝ}
+    (hα : α ∈ Ioo 0 1) (hβ : β ∈ Ioo 0 1) :
+    HasFDerivAt (fun p : ℝ × ℝ => deriv (fun α => gaussianQuadrant ρ α p.2) p.1)
+      ((-(ρ / √(1 - ρ ^ 2)) * (φ (gaussianQuantile α))⁻¹ *
+          φ ((gaussianQuantile β - ρ * gaussianQuantile α) / √(1 - ρ ^ 2))) •
+          ContinuousLinearMap.fst ℝ ℝ ℝ +
+        ((√(1 - ρ ^ 2))⁻¹ * (φ (gaussianQuantile β))⁻¹ *
+          φ ((gaussianQuantile β - ρ * gaussianQuantile α) / √(1 - ρ ^ 2))) •
+          ContinuousLinearMap.snd ℝ ℝ ℝ) (α, β) := by
+  have hU := prod_mem_nhds (Ioo_mem_nhds hα.1 hα.2) (Ioo_mem_nhds hβ.1 hβ.2)
+  have := continuousAt_gaussianQuantile hα
+  have := continuousAt_gaussianQuantile hβ
+  refine (hasStrictFDerivAt_uncurry_of_hasDerivAt
+    (f := fun α β => deriv (fun α => gaussianQuadrant ρ α β) α)
+    (f₁ := fun α β => -(ρ / √(1 - ρ ^ 2)) * (φ (gaussianQuantile α))⁻¹ *
+      φ ((gaussianQuantile β - ρ * gaussianQuantile α) / √(1 - ρ ^ 2)))
+    (f₂ := fun α β => (√(1 - ρ ^ 2))⁻¹ * (φ (gaussianQuantile β))⁻¹ *
+      φ ((gaussianQuantile β - ρ * gaussianQuantile α) / √(1 - ρ ^ 2)))
+    (u := (α, β)) ?_ ?_ ?_ ?_).hasFDerivAt
+  · filter_upwards [hU] with v hv using hasDerivAt_gaussianQuadrant_left_left hρ hv.1 hv.2
+  · filter_upwards [hU] with v hv using hasDerivAt_gaussianQuadrant_left_right hρ hv.1 hv.2
+  all_goals fun_prop (disch := exact (gaussianPDFReal_pos _ _ _ one_ne_zero).ne')
+
+/-- **The Fréchet derivative of `∂Λ_ρ / ∂β`** [O'Donnell, Exercise 11.28 (a), (b)][ODonnell2014]:
+for `|ρ| < 1` and `α, β ∈ (0, 1)`, `(α, β) ↦ ∂Λ_ρ(α, β) / ∂β` is differentiable at `(α, β)`, with
+the partial derivatives `hasDerivAt_gaussianQuadrant_right_left` and
+`hasDerivAt_gaussianQuadrant_right_right` as its components. -/
+theorem hasFDerivAt_deriv_gaussianQuadrant_right {ρ : ℝ} (hρ : |ρ| < 1) {α β : ℝ}
+    (hα : α ∈ Ioo 0 1) (hβ : β ∈ Ioo 0 1) :
+    HasFDerivAt (fun p : ℝ × ℝ => deriv (fun β => gaussianQuadrant ρ p.1 β) p.2)
+      (((√(1 - ρ ^ 2))⁻¹ * (φ (gaussianQuantile α))⁻¹ *
+          φ ((gaussianQuantile α - ρ * gaussianQuantile β) / √(1 - ρ ^ 2))) •
+          ContinuousLinearMap.fst ℝ ℝ ℝ +
+        (-(ρ / √(1 - ρ ^ 2)) * (φ (gaussianQuantile β))⁻¹ *
+          φ ((gaussianQuantile α - ρ * gaussianQuantile β) / √(1 - ρ ^ 2))) •
+          ContinuousLinearMap.snd ℝ ℝ ℝ) (α, β) := by
+  have hU := prod_mem_nhds (Ioo_mem_nhds hα.1 hα.2) (Ioo_mem_nhds hβ.1 hβ.2)
+  have := continuousAt_gaussianQuantile hα
+  have := continuousAt_gaussianQuantile hβ
+  refine (hasStrictFDerivAt_uncurry_of_hasDerivAt
+    (f := fun α β => deriv (fun β => gaussianQuadrant ρ α β) β)
+    (f₁ := fun α β => (√(1 - ρ ^ 2))⁻¹ * (φ (gaussianQuantile α))⁻¹ *
+      φ ((gaussianQuantile α - ρ * gaussianQuantile β) / √(1 - ρ ^ 2)))
+    (f₂ := fun α β => -(ρ / √(1 - ρ ^ 2)) * (φ (gaussianQuantile β))⁻¹ *
+      φ ((gaussianQuantile α - ρ * gaussianQuantile β) / √(1 - ρ ^ 2)))
+    (u := (α, β)) ?_ ?_ ?_ ?_).hasFDerivAt
+  · filter_upwards [hU] with v hv using hasDerivAt_gaussianQuadrant_right_left hρ hv.1 hv.2
+  · filter_upwards [hU] with v hv using hasDerivAt_gaussianQuadrant_right_right hρ hv.1 hv.2
+  all_goals fun_prop (disch := exact (gaussianPDFReal_pos _ _ _ one_ne_zero).ne')
+
+/-- **`Λ_ρ` is smooth on `(0, 1)²`**: for `|ρ| < 1`, `(α, β) ↦ Λ_ρ(α, β)` is `C^∞` on the open
+square, since its Fréchet derivative (`hasFDerivAt_gaussianQuadrant`) is built from
+`Φ`, `Φ⁻¹` and the coordinates, all smooth there. In particular `Λ_ρ` is `C²`, as the book's
+definition of `ρ`-concavity [O'Donnell, Exercise 11.28][ODonnell2014] requires. -/
+theorem contDiffOn_gaussianQuadrant {ρ : ℝ} (hρ : |ρ| < 1) :
+    ContDiffOn ℝ ∞ (Function.uncurry (gaussianQuadrant ρ)) (Ioo 0 1 ×ˢ Ioo 0 1) := by
+  have hQ₁ : ContDiffOn ℝ ∞ (fun p : ℝ × ℝ => gaussianQuantile p.1) (Ioo 0 1 ×ˢ Ioo 0 1) :=
+    contDiffOn_gaussianQuantile.comp contDiffOn_fst fun _ hp => hp.1
+  have hQ₂ : ContDiffOn ℝ ∞ (fun p : ℝ × ℝ => gaussianQuantile p.2) (Ioo 0 1 ×ˢ Ioo 0 1) :=
+    contDiffOn_gaussianQuantile.comp contDiffOn_snd fun _ hp => hp.2
+  have hΦ := contDiff_cdf_gaussianReal 0 one_ne_zero
+  refine (contDiffOn_infty_iff_fderiv_of_isOpen (isOpen_Ioo.prod isOpen_Ioo)).2
+    ⟨fun p hp => (hasFDerivAt_gaussianQuadrant hρ hp.1 hp.2).differentiableAt
+      |>.differentiableWithinAt, ?_⟩
+  refine ContDiffOn.congr ?_ fun p hp => (hasFDerivAt_gaussianQuadrant hρ hp.1 hp.2).fderiv
+  exact ((hΦ.comp_contDiffOn ((hQ₂.sub (contDiffOn_const.mul hQ₁)).div_const _)).smul
+    contDiffOn_const).add
+    ((hΦ.comp_contDiffOn ((hQ₁.sub (contDiffOn_const.mul hQ₂)).div_const _)).smul contDiffOn_const)
+
 /-! ### Exercise 11.28 (c), (d): the `ρ`-Hessian and `ρ`-concavity -/
 
 /-- The **`ρ`-Hessian** `H_ρ F = (H F) ∘ [[1, ρ], [ρ, 1]]` of `F : ℝ → ℝ → ℝ` at `(x, y)`
@@ -368,29 +472,9 @@ theorem deriv_gaussianQuadrant_right_right_neg {ρ : ℝ} (hρ0 : 0 < ρ) (hρ1 
   simp_rw [gaussianQuadrant_comm (abs_lt.2 ⟨by linarith, hρ1⟩).le α]
   exact deriv_gaussianQuadrant_left_left_neg hρ0 hρ1 hβ hα
 
-/-- A symmetric `2 × 2` real matrix with nonnegative diagonal and nonnegative determinant is
-positive semidefinite. -/
-private theorem posSemidef_fin_two {a b c : ℝ} (ha : 0 ≤ a) (hc : 0 ≤ c) (h : b ^ 2 ≤ a * c) :
-    (!![a, b; b, c]).PosSemidef := by
-  refine Matrix.PosSemidef.of_dotProduct_mulVec_nonneg ?_ fun x => ?_
-  · ext i j
-    fin_cases i <;> fin_cases j <;> rfl
-  · simp only [Matrix.mulVec, dotProduct, Fin.sum_univ_two, Matrix.of_apply,
-      Matrix.cons_val', Matrix.cons_val_zero, Matrix.cons_val_one, Matrix.empty_val',
-      Matrix.cons_val_fin_one, star_trivial]
-    rcases ha.eq_or_lt with rfl | hapos
-    · have hb : b = 0 := pow_eq_zero_iff two_ne_zero |>.1 (le_antisymm (by simpa using h)
-        (sq_nonneg b))
-      subst hb
-      nlinarith [mul_nonneg hc (sq_nonneg (x 1))]
-    · refine (mul_nonneg_iff_of_pos_left hapos).1 ?_
-      nlinarith [sq_nonneg (a * x 0 + b * x 1), mul_nonneg (sub_nonneg.2 h) (sq_nonneg (x 1))]
-
 /-- **`H_ρ Λ_ρ` is negative semidefinite** [O'Donnell, Exercise 11.28 (d)][ODonnell2014]: for
-`ρ ∈ (0, 1)` and `α, β ∈ (0, 1)`, `-H_ρ Λ_ρ(α, β)` is positive semidefinite. This is the
-pointwise Hessian form of the `ρ`-concavity of `Λ_ρ`, at points where its second partials exist
-(`hasDerivAt_gaussianQuadrant_left_left` and its siblings); the joint `C²` regularity that the
-book's definition of `ρ`-concavity assumes, and that Exercise 11.29 needs, is not proved. -/
+`ρ ∈ (0, 1)` and `α, β ∈ (0, 1)`, `-H_ρ Λ_ρ(α, β)` is positive semidefinite. Since `Λ_ρ` is
+`C^∞` on `(0, 1)²` (`contDiffOn_gaussianQuadrant`), this is the `ρ`-concavity of `Λ_ρ` there. -/
 theorem negSemidef_rhoHessian_gaussianQuadrant {ρ : ℝ} (hρ0 : 0 < ρ) (hρ1 : ρ < 1) {α β : ℝ}
     (hα : α ∈ Ioo 0 1) (hβ : β ∈ Ioo 0 1) :
     (-rhoHessian ρ (gaussianQuadrant ρ) α β).PosSemidef := by
@@ -420,7 +504,7 @@ theorem negSemidef_rhoHessian_gaussianQuadrant {ρ : ℝ} (hρ0 : 0 < ρ) (hρ1 
     ext i j
     fin_cases i <;> fin_cases j <;> simp [hsymm]
   rw [hM]
-  refine posSemidef_fin_two (by simpa [M, rhoHessian] using h00.le)
+  refine Matrix.posSemidef_fin_two (by simpa [M, rhoHessian] using h00.le)
     (by simpa [M, rhoHessian] using h11.le) ?_
   rw [Matrix.det_fin_two, ← hsymm] at hdet
   nlinarith

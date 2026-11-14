@@ -36,8 +36,9 @@ coordinates (`TwoFunctionBorellInequality`, `TwoSetBorellInequality`), and prove
 
 The one-dimensional two-function inequality (the heat-flow argument of Mossel and Neeman) is
 **not** proved here: it appears only as the hypothesis `TwoFunctionBorellInequality ρ (Fin 1)`,
-so Borell's Isoperimetric Theorem itself remains open. Exercise 11.28, in pointwise Hessian form,
-is in `CslibFrontier.Foundations.Probability.Gaussian.QuadrantDeriv`; Exercise 11.29 is not proved.
+so Borell's Isoperimetric Theorem itself remains open. Exercise 11.28, the `ρ`-concavity of the
+smooth function `Λ_ρ`, is in `CslibFrontier.Foundations.Probability.Gaussian.QuadrantDeriv`;
+Exercise 11.29 is not proved.
 As non-vacuity checks, the predicate holds at `ρ = 0` and at `ρ = 1`, and the parallel halfspaces
 attain equality.
 
