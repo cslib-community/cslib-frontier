@@ -3565,6 +3565,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.One
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeBinaryDivision
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeBinaryPower
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeBinaryPrimitives
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeFinitePrimitives
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListBinaryLookup
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListLookup
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListMap
