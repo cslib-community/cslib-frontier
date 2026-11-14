@@ -7,10 +7,10 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Pi
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Option
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Unary
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Pi
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Option
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Unary
 
 /-!
 # Native tuple and retained-input option clients
