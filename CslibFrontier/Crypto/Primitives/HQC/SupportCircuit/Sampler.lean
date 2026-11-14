@@ -10,9 +10,11 @@ module
 public import CslibFrontier.Computability.Circuit.Boolean.Formula
 public import CslibFrontier.Computability.Circuit.Pi
 public import CslibFrontier.Computability.Circuit.Quantum.Reversible.Sampling.Resources
+public import CslibFrontier.Crypto.Primitives.HQC.SupportCircuit
 public import CslibFrontier.Crypto.Primitives.HQC.SupportCircuit.Resolve
 public import CslibFrontier.Crypto.Primitives.HQC.SupportProbability
 public import CslibFrontier.Foundations.Data.BitString.Support.Weight
+import CslibFrontier.Foundations.Data.BitString.Binary
 
 /-!
 # Native circuit sampler for HQC supports
@@ -88,24 +90,22 @@ theorem eval_supportWordFormula {bits count value : ℕ} (hvalue : value < 2 ^ b
   simp only [supportWordFormula, Formula.eval_andList, List.all_eq_true,
     List.forall_mem_ofFn_iff, Formula.eval_literal, beq_iff_eq, decide_eq_true_eq]
   let valueFin : Fin (2 ^ bits) := ⟨value, hvalue⟩
-  have hbits : (fun k : Fin bits => value.testBit k.val) =
-      (equivFin bits).symm valueFin := by
-    funext k
-    exact (equivFin_symm_apply valueFin k).symm
   constructor
   · intro h
     have hx : block x j = (equivFin bits).symm valueFin := by
-      rw [← hbits]
       funext k
+      rw [BitString.equivFin_symm_apply]
       exact h k
     have := congrArg (equivFin bits) hx
     simpa only [Equiv.apply_symm_apply, valueFin] using congrArg Fin.val this
   · intro h
     have hx : block x j = (equivFin bits).symm valueFin := by
       apply (equivFin bits).injective
+      rw [Equiv.apply_symm_apply]
       exact Fin.ext h
     intro k
-    rw [hx, ← hbits]
+    change block x j k = value.testBit k.val
+    rw [hx, BitString.equivFin_symm_apply]
 
 /-- The indicator circuit returns the finite set of values represented by the corrected words. -/
 theorem eval_supportIndicatorCircuit {bits n count : ℕ} (hn : n ≤ 2 ^ bits)
@@ -159,10 +159,10 @@ theorem eval_supportSamplerCircuit {width bits n count : ℕ} (hcount : count �
       indicatorVector n (supportFromWords width n
         (fun j => equivFin width (block x j))) := by
   have hscan := val_eval_supportScanCircuit (bits := bits) (offset := 0) (count := count)
-    (show count ≤ 2 ^ bits by omega)
+    (show 0 + count ≤ 2 ^ bits by omega)
     (block ((supportCandidateCircuit width bits n count).eval interpretation x))
   have hcandidates := val_block_eval_supportCandidateCircuit hcount hn x
-  simp only [Nat.zero_add, blocksEquiv_symm_block] at hscan
+  simp only [blocksEquiv_symm_block] at hscan
   rw [supportSamplerCircuit, Circuit.eval_comp, Circuit.eval_comp,
     eval_supportIndicatorCircuit hn.le, hscan, toFinset_scanSupport, supportFromWords,
     hcandidates]
@@ -226,8 +226,10 @@ besides one Hadamard per seed and one CNOT per output. -/
 theorem length_supportSamplerCodes_le (width bits n count : ℕ) :
     (samplerCodes (count * width) (supportSamplerCircuit width bits n count).code).length ≤
       count * width + 3 * (supportSamplerCircuit width bits n count).size + n := by
-  simpa [Circuit.code] using
+  have h :=
     length_samplerCodes_le (count * width) (supportSamplerCircuit width bits n count).code
+  rw [Circuit.length_code_fst] at h
+  simpa only [Circuit.code, List.length_ofFn] using h
 
 /-- The native sampler has the exact active width, the construction-derived gate budget, and no
 coherent oracle queries. -/
@@ -238,8 +240,10 @@ theorem within_supportSamplerCodes (width bits n count : ℕ) :
       (count * width + (supportSamplerCircuit width bits n count).size + 1 + n)
       ⟨count * width + (supportSamplerCircuit width bits n count).size + 1 + n,
         count * width + 3 * (supportSamplerCircuit width bits n count).size + n, 0⟩ := by
-  simpa [Circuit.code, samplerWidth_circuit] using
-    within_samplerCodes (count * width) (supportSamplerCircuit width bits n count).code
+  have h := within_samplerCodes (count * width)
+    (supportSamplerCircuit width bits n count).code
+  rw [samplerWidth_circuit, Circuit.length_code_fst] at h
+  simpa only [Circuit.code, List.length_ofFn] using h
 
 /-- Encoded instruction length, including unary wire indices and list framing. -/
 theorem length_encoding_supportSamplerCodes_le (width bits n count : ℕ) :
@@ -247,9 +251,10 @@ theorem length_encoding_supportSamplerCodes_le (width bits n count : ℕ) :
       (samplerCodes (count * width) (supportSamplerCircuit width bits n count).code)).length ≤
       (count * width + 3 * (supportSamplerCircuit width bits n count).size + n) *
         (12 * (count * width + (supportSamplerCircuit width bits n count).size + 1 + n) + 1) := by
-  simpa [Circuit.code, samplerWidth_circuit] using
-    length_encoding_samplerCodes_le (count * width)
-      (supportSamplerCircuit width bits n count).code
+  have h := length_encoding_samplerCodes_le (count * width)
+    (supportSamplerCircuit width bits n count).code
+  rw [samplerWidth_circuit, Circuit.length_code_fst] at h
+  simpa only [Circuit.code, List.length_ofFn] using h
 
 /-! ### Non-dyadic collision and boundary cases -/
 
@@ -285,7 +290,9 @@ theorem eval_nonDyadicSupportCircuit_collision :
   have hseed : (fun j => equivFin 1 (block nonDyadicCollisionSeed j)) =
       nonDyadicCollisionWords := by
     funext j
-    simp [nonDyadicCollisionSeed]
+    change equivFin 1
+      (block (blocksEquiv.symm fun j => (equivFin 1).symm (nonDyadicCollisionWords j)) j) = _
+    rw [congrFun (block_blocksEquiv_symm _) j, Equiv.apply_symm_apply]
   rw [hseed, supportFromWords_nonDyadicCollision]
 
 /-- Exact measured law of the concrete non-dyadic client. -/
@@ -308,7 +315,8 @@ theorem nonDyadicSupportCircuit_closeTo_ideal :
 /-- The concrete non-dyadic client has fixed output weight two. -/
 theorem weight_eval_nonDyadicSupportCircuit (x : BitString 2) :
     weight (nonDyadicSupportCircuit.eval interpretation x) = 2 := by
-  exact weight_eval_supportSamplerCircuit (by decide) (by decide) x
+  exact weight_eval_supportSamplerCircuit (width := 1) (bits := 2) (n := 3) (count := 2)
+    (by decide) (by decide) x
 
 /-- Exact active width of the concrete non-dyadic client. -/
 theorem nonDyadicSupportCircuit_width :
@@ -344,11 +352,13 @@ theorem eval_supportSamplerCircuit_zero_count {width bits n : ℕ} (hn : n < 2 ^
     (x : BitString (0 * width)) :
     (supportSamplerCircuit width bits n 0).eval interpretation x = fun _ => false := by
   rw [eval_supportSamplerCircuit (Nat.zero_le n) hn]
-  simp [supportFromWords, resolveSupport, indicatorVector]
+  funext i
+  simp [supportFromWords, resolveSupport]
 
 /-- The empty universe and empty requested support give the unique empty bit string. -/
 theorem eval_supportSamplerCircuit_zero_universe (width bits : ℕ) (x : BitString 0) :
-    (supportSamplerCircuit width bits 0 0).eval interpretation x = fun _ => false := by
+    (supportSamplerCircuit width bits 0 0).eval interpretation
+      (x ∘ Fin.cast (Nat.zero_mul width)) = fun _ => false := by
   funext i
   exact i.elim0
 
