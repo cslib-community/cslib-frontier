@@ -12,8 +12,9 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.S
 import Mathlib.Tactic.FinCases
 
 /-! Concrete `module` clients for deterministic branching programs (`BranchingProgram`),
-`ReadOnceProgram.toBranchingProgram`, `MultiTapeTM.toBranchingProgram`, and Arora–Barak
-Theorem 13.15 (`DSPACE.exists_branchingProgram_of_log_le`, `DSPACE.exists_branchingProgram_slice`,
+`ReadOnceProgram.toBranchingProgram`, `MultiTapeTM.toBranchingProgram`, and the native
+visited-space (`DSPACE`) branching-program simulation after Arora–Barak Theorem 13.15
+(`DSPACE.exists_branchingProgram_of_log_le`, `DSPACE.exists_branchingProgram_slice`,
 `L.exists_branchingProgram`, `L.exists_branchingProgram_slice`). -/
 
 public section
@@ -121,8 +122,9 @@ example (n S : ℕ) (hlog : Nat.log 2 n ≤ S) (hS : 1 ≤ S) :
 `firstBitTM`. -/
 def FirstBit : Language Bool := {w | w.head? = some true}
 
-/-- At `n = 1` and `S 1 = 0 ≥ Nat.log 2 1`, no branching program of size `≤ 1 = c ^ 0` can compute
-`FirstBit.slice 1`, witnessing that the `max (S n) 1` floor in Theorem 13.15 is necessary when
+/-- Native boundary witness at `n = 1` and `S 1 = 0 ≥ Nat.log 2 1`: no branching program of size
+`≤ 1 = c ^ 0` can compute `FirstBit.slice 1`, witnessing that the `max (S n) 1` floor in the native
+visited-space simulation (`DSPACE.exists_branchingProgram_of_log_le`) is necessary when
 `S 1 = 0`. -/
 theorem not_exists_size_le_one_eval_eq_firstBit_slice {Node : Type*} [Fintype Node]
     (P : BranchingProgram (Fin 1) Bool Node) (hsize : P.size ≤ 1) :
@@ -140,11 +142,11 @@ theorem not_exists_size_le_one_eval_eq_firstBit_slice {Node : Type*} [Fintype No
   rw [h0, h1] at hconst
   exact Bool.false_ne_true hconst
 
-/-! ### 4. Arora–Barak Theorem 13.15 on concrete problems in `L` and `DSPACE` -/
+/-! ### 4. Native visited-space simulation (after Arora–Barak Theorem 13.15) on concrete problems in `L` and `DSPACE` -/
 
-/-- Arora–Barak Theorem 13.15 instantiated on Reingold's `USTCON_mem_L`: undirected `s`–`t`
-connectivity has polynomial-size deterministic branching programs of size at most
-`c ^ (Nat.log 2 n + 1)`. -/
+/-- Native visited-space branching-program simulation (after Arora–Barak Theorem 13.15)
+instantiated on Reingold's `USTCON_mem_L`: undirected `s`–`t` connectivity has polynomial-size
+deterministic branching programs of size at most `c ^ (Nat.log 2 n + 1)`. -/
 theorem ustcon_branchingPrograms :
     ∃ c ≥ 2, ∀ n, ∃ (Node : Type) (_ : Fintype Node) (P : BranchingProgram (Fin n) Bool Node),
       P.size ≤ c ^ (Nat.log 2 n + 1) ∧
@@ -174,7 +176,8 @@ theorem oddOnes_mem_DSPACE :
   rw [Nat.log2_eq_log_two]
   omega
 
-/-- Arora–Barak Theorem 13.15 instantiated on `OddOnes ∈ DSPACE encBits (log₂ n + 1)` and `L`. -/
+/-- Native visited-space branching-program simulation (after Arora–Barak Theorem 13.15)
+instantiated on `OddOnes ∈ DSPACE encBits (log₂ n + 1)` and `L`. -/
 theorem oddOnes_branchingPrograms :
     (∃ c ≥ 2, ∀ n, ∃ (Node : Type) (_ : Fintype Node) (P : BranchingProgram (Fin n) Bool Node),
       P.size ≤ c ^ (Nat.log 2 n + 1) ∧ P.eval = OddOnes.slice n) ∧
