@@ -29,9 +29,9 @@ private abbrev maxThreshold : BerExpThreshold := ⟨2 ^ 64 - 1, by norm_num⟩
 
 /-- The strict comparison accepts zero below threshold one, but rejects equality and every sample
 at threshold zero. -/
-example : berExpThresholdAccepts oneThreshold zeroThreshold = true ∧
-    berExpThresholdAccepts oneThreshold oneThreshold = false ∧
-    berExpThresholdAccepts zeroThreshold zeroThreshold = false := by decide
+example : berExpThresholdAccepts oneThreshold zeroThreshold.val = true ∧
+    berExpThresholdAccepts oneThreshold oneThreshold.val = false ∧
+    berExpThresholdAccepts zeroThreshold zeroThreshold.val = false := by decide
 
 /-- Threshold zero has zero acceptance mass. -/
 example : (ProbComp.eval (berExpThresholdCoin zeroThreshold) true).toReal = 0 := by

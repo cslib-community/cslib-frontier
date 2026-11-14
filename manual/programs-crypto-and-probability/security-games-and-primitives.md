@@ -435,8 +435,9 @@ now checks the concrete 20-byte prefix used by that fixture.
 
 [`Falcon/BerExp.lean`](../../CslibFrontier/Crypto/Computational/Falcon/BerExp.lean) isolates
 Algorithm 14's exact distributional threshold step after its floating-point approximation has
-already produced `z : Fin (2^64)`. `Falcon.berExpThresholdCoin` uses the shared fixed 64-fair-bit
-sampler, and `Falcon.eval_berExpThresholdCoin_true` proves acceptance mass exactly `z / 2^64`.
+already produced `z : Fin (2^64)`. `Falcon.berExpThresholdCoin` applies the public deterministic
+strict comparison to a sample from the shared fixed 64-fair-bit sampler, and
+`Falcon.eval_berExpThresholdCoin_true` proves acceptance mass exactly `z / 2^64`.
 The [ordinary-import client](../../CslibFrontierTests/Crypto/FalconBerExp.lean) checks the strict
 comparison and the thresholds zero, one, one half and `2^64 - 1`. This denotational interface does
 not model the reference implementation's lazy one-to-eight-byte trace, bound `ApproxExp`'s

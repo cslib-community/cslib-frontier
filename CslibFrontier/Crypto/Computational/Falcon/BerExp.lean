@@ -22,6 +22,7 @@ Algorithm 14's threshold comparison, but does not model the reference implementa
 one-to-eight-byte consumption trace. It also does not formalize `ApproxExp`, bound floating-point
 error, construct `BaseSampler` or `SamplerZ`, prove a Gaussian law or termination, certify native
 resources, or establish a security reduction or the still-developing FN-DSA / FIPS 206 interface.
+NIST lists that interface as under development as of 13 November 2026 ([NISTPQC2026]).
 
 ## Main definitions
 
@@ -43,7 +44,10 @@ resources, or establish a security reduction or the still-developing FN-DSA / FI
 * [Falcon team, *Falcon: Fast-Fourier Lattice-based Compact Signatures over NTRU*, Round 3
   submission, version 1.2][Falcon2020], Section 3.9.3, Algorithm 14, lines 4–10.
 * Pinned [Falcon2020] archive,
-  `Reference_Implementation/falcon512/falcon512int/sign.c::BerExp`, lines 1331–1344.
+  `Reference_Implementation/falcon512/falcon512int/sign.c::BerExp`: threshold assignment at line
+  1074 and lazy comparison at lines 1082–1087.
+* [National Institute of Standards and Technology, *Post-Quantum Cryptography
+  Standardization*][NISTPQC2026].
 -/
 
 public section
@@ -55,21 +59,25 @@ open Probability
 /-- The 64-bit unsigned integer threshold produced before Algorithm 14's uniform comparison. -/
 abbrev BerExpThreshold := Fin (2 ^ 64)
 
-/-- Algorithm 14 accepts a uniform word exactly when it is strictly below the threshold. -/
+/-- Algorithm 14 accepts a uniform word exactly when it is strictly below the threshold.
+
+The probabilistic experiment supplies a sample below `2 ^ 64`; accepting a natural number keeps
+this predicate as the single comparison implementation used by both the experiment and direct
+clients. -/
 @[expose] def berExpThresholdAccepts
-    (threshold sample : BerExpThreshold) : Bool :=
-  decide (sample.val < threshold.val)
+    (threshold : BerExpThreshold) (sample : ℕ) : Bool :=
+  decide (sample < threshold.val)
 
 /-- The deterministic threshold comparison accepts exactly below the threshold. -/
 @[simp] theorem berExpThresholdAccepts_eq_true_iff
-    (threshold sample : BerExpThreshold) :
-    berExpThresholdAccepts threshold sample = true ↔ sample.val < threshold.val := by
+    (threshold : BerExpThreshold) (sample : ℕ) :
+    berExpThresholdAccepts threshold sample = true ↔ sample < threshold.val := by
   simp [berExpThresholdAccepts]
 
 /-- The deterministic threshold comparison rejects exactly at or above the threshold. -/
 @[simp] theorem berExpThresholdAccepts_eq_false_iff
-    (threshold sample : BerExpThreshold) :
-    berExpThresholdAccepts threshold sample = false ↔ threshold.val ≤ sample.val := by
+    (threshold : BerExpThreshold) (sample : ℕ) :
+    berExpThresholdAccepts threshold sample = false ↔ threshold.val ≤ sample := by
   simp [berExpThresholdAccepts]
 
 /-- The exact distributional threshold step of Falcon v1.2 `BerExp`.
@@ -79,13 +87,13 @@ successive bytes lazily; that operational consumption trace is deliberately outs
 denotational interface. -/
 noncomputable def berExpThresholdCoin (threshold : BerExpThreshold) : ProbComp Bool := do
   let sample ← ProbComp.sampleBinaryNat 64
-  return decide (sample < threshold.val)
+  return berExpThresholdAccepts threshold sample
 
 /-- Algorithm 14's threshold step accepts with exact mass `z / 2^64`. -/
 theorem eval_berExpThresholdCoin_true (threshold : BerExpThreshold) :
     ProbComp.eval (berExpThresholdCoin threshold) true =
       (threshold.val : ENNReal) / 2 ^ 64 := by
-  simp only [berExpThresholdCoin, ProbComp.eval_bind, ProbComp.eval_pure,
+  simp only [berExpThresholdCoin, berExpThresholdAccepts, ProbComp.eval_bind, ProbComp.eval_pure,
     ProbComp.eval_sampleBinaryNat, PMF.bind_map]
   rw [Cslib.Probability.uniformFin_decide_lt,
     Nat.min_eq_right threshold.isLt.le]
