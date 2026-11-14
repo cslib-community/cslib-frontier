@@ -323,11 +323,13 @@ noncomputable abbrev ccrAdvantage (H : MixedModulusHash T μ ℓ) (B : CCRAdvers
 *Relation to the source.* Definition 1 admits only adversaries that query their oracle on distinct
 tweaks `g` and with `a ≠ 0`. `CCRAdversary.IsLegal` also admits adversaries that repeat a tweak,
 provided that no query has `a = 0` and that two queries agreeing on the tweak, the source sort, the
-label and `a` are equal. Every adversary legal for Definition 1 is legal here, so for the same class
-and bound this assumption implies the one of Definition 1; the converse is not known, so it is a
-stronger assumption. The relaxation is what the privacy proof uses: `BMR16.reduction` asks `m - 1`
-queries under the tweak of a projection gate from modulus `m`. Definition 1 is asymptotic, while
-this is a concrete bound `ε` for one class `𝒟`.
+label and `a` are equal. Every adversary legal for Definition 1 is legal here, so for the same hash,
+class and bound this assumption implies the analogue of Definition 1. The converse fails in general:
+if `H'` satisfies Definition 1, so does `H g i (k, c) j := H' g i (k, 0) j`, yet two queries under
+one tweak with labels `(k, 0)` and `(k, 1)`, `a = 1` and `b = 0` get equal real answers. So it is a
+strictly stronger assumption. The relaxation is what the privacy proof uses: `BMR16.reduction`
+asks `m - 1` queries under the tweak of a projection gate from modulus `m`. Definition 1 is
+asymptotic, while this is a concrete bound `ε` for one class `𝒟`.
 
 *Why it is plausible.* If `H` is a random oracle, the real oracle answers different legal queries
 with independent uniform labels, as the ideal oracle does, unless two of them hash the same input
