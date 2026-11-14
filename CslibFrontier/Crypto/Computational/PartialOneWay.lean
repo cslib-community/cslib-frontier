@@ -599,7 +599,10 @@ private theorem eval_partialGuessingExperiment_true {Index Domain Image Prefix :
           pure (partialGuessingReply (part challenge.secret) candidate))
             (part challenge.secret) := by
   simp only [partialGuessingExperiment, ProbComp.eval_bind, ProbComp.eval_pure,
-    PMF.bind_apply, partialGuessingReply, PMF.bind_pure_decide_eq_apply_true]
+    partialGuessingReply]
+  rw [PMF.bind_apply]
+  congr 1 with challenge
+  rw [PMF.bind_pure_decide_eq_apply_true']
 
 private theorem eval_partialDomainExperiment_true {Index Domain Image Prefix : Type}
     [DecidableEq Prefix] (sample : ProbComp (PartialOneWayChallenge Index Domain Image))
@@ -608,7 +611,10 @@ private theorem eval_partialDomainExperiment_true {Index Domain Image Prefix : T
       ∑' challenge, ProbComp.eval sample challenge *
         ProbComp.eval (adversary challenge.index challenge.image) (part challenge.secret) := by
   simp only [partialDomainExperiment, ProbComp.eval_bind, ProbComp.eval_pure,
-    PMF.bind_apply, partialGuessingReply, PMF.bind_pure_decide_eq_apply_true]
+    partialGuessingReply]
+  rw [PMF.bind_apply]
+  congr 1 with challenge
+  rw [PMF.bind_pure_decide_eq_apply_true']
 
 /-- **Classical PGOW-to-PDOW reduction** ([KosugeXagawa2026, Appendix C, Lemma C.1,
 pp. 33--34]). A PGOW adversary making at most `queryBound` validation calls is bounded by
@@ -697,19 +703,24 @@ private theorem eval_partialGuessingToDomainDyadic_apply {Index Image Prefix : T
         (Probability.dyadicSize queryBound : ℝ≥0∞) := by
   simp only [partialGuessingToDomainDyadic, ProbComp.eval_bind,
     ProbComp.eval_sampleDyadicIndex, PMF.bind_map, Function.comp_def]
-  rw [PMF.bind_apply, ← ProbComp.eval_uniform]
+  rw [PMF.bind_apply]
+  have htrial (slot : Fin (Probability.dyadicSize queryBound)) :
+      (if slot.val ≤ queryBound then
+          ProbComp.eval (partialGuessingToDomainAt fallback queryBound slot.val adversary
+            index image)
+        else PMF.pure fallback) secret =
+        partialGuessingDyadicTrialMass fallback secret queryBound slot.val
+          (adversary index image) := by
+    by_cases hslot : slot.val ≤ queryBound
+    · simp only [hslot, if_true, partialGuessingDyadicTrialMass,
+        partialGuessingToDomainAt, eval_partialGuessingAt]
+    · simp only [hslot, if_false, partialGuessingDyadicTrialMass, PMF.pure_apply]
+  simp_rw [htrial]
+  rw [← ProbComp.eval_uniform]
   change ProbComp.expect (ProbComp.uniform (Fin (Probability.dyadicSize queryBound)))
       (fun slot => partialGuessingDyadicTrialMass fallback secret queryBound slot
         (adversary index image)) = _
   rw [ProbComp.expect_uniform]
-  congr 1
-  apply Finset.sum_congr rfl
-  intro slot _
-  by_cases hslot : slot.val ≤ queryBound
-  · simp only [partialGuessingDyadicTrialMass, hslot, if_true,
-      partialGuessingToDomainAt, eval_partialGuessingAt]
-  · simp only [partialGuessingDyadicTrialMass, hslot, if_false, ProbComp.eval_pure,
-      PMF.pure_apply]
 
 private theorem sum_slotMass_le_sum_dyadicTrialMass {Prefix : Type}
     [DecidableEq Prefix] (fallback secret : Prefix) (queryBound : Nat)
@@ -730,7 +741,7 @@ private theorem sum_slotMass_le_sum_dyadicTrialMass {Prefix : Type}
       (Nat.le_of_lt_succ (Finset.mem_range.mp hslot)), if_true]
   rw [hsource]
   exact Finset.sum_le_sum_of_subset_of_nonneg
-    (Finset.range_mono (by omega : queryBound + 1 ≤ Probability.dyadicSize queryBound))
+    (Finset.range_mono (Nat.succ_le_of_lt (Probability.lt_dyadicSize queryBound)))
     (fun _ _ _ => zero_le)
 
 /-- **Fixed-clock bounded-slot reduction, pointwise form.** The strict fair-coin sampler loses
