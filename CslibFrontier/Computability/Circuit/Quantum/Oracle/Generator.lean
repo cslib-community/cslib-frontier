@@ -16,17 +16,21 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Run
 /-!
 # Encoded generators of uniform quantum oracle circuits
 
-`UniformOracleCircuitFamily.GeneratorCertificate` selects one deterministic multi-tape machine
-behind the existential polynomial-time uniformity proof. Its static program is the exact word
-`Universal.eDesc certificate.code`. The certificate keeps its time and work-tape-space bounds
-separate and identifies the exact generated output word with `encOracleCircuitDescription`.
+`UniformOracleCircuitFamily.GeneratorCertificate` records a deterministic multi-tape generator.
+Its static program is the exact word `Universal.eDesc certificate.code`. The certificate keeps
+its time and work-tape-space bounds separate and identifies the exact generated output word with
+`encOracleCircuitDescription`. `exists_generatorCertificate` repackages the existential native
+uniformity witness; clients that need inspectable finite constants must instead supply a
+construction-defined certificate.
 
 `GeneratorResources` records four independent coordinates: static generator-program bits,
 generator time, generator workspace and generated output bits. Addition and polynomial schedules
-are componentwise. No result in this module adds static code or generated output bits to online
-adversary runtime. Such a charge requires a separate theorem for the particular operation that
-executes, interprets or copies those words. Random coins, circuit execution resources and oracle
-queries likewise remain outside this deterministic offline certificate.
+are componentwise. `GeneratorResources.total` is their explicit scalar sum, so it charges both
+the static program and the emitted description even for this offline certificate. The sum is an
+accounting aggregate, not an assertion that code or output bits are online adversary steps. Such a
+runtime charge requires a separate theorem for the operation that executes, interprets or copies
+those words. Random coins, circuit execution resources and oracle queries likewise remain outside
+this deterministic offline certificate.
 
 ## Main definitions
 
@@ -34,18 +38,21 @@ queries likewise remain outside this deterministic offline certificate.
   generator with separate polynomial time and workspace bounds.
 * `Cslib.Quantum.UniformOracleCircuitFamily.GeneratorResources`: static code, time, workspace and
   exact output-size coordinates.
+* `Cslib.Quantum.UniformOracleCircuitFamily.GeneratorResources.total`: the scalar sum of all four
+  offline coordinates.
 * `Cslib.Quantum.UniformOracleCircuitFamily.GeneratorResources.IsPolynomial`: componentwise
   polynomial schedules.
 
 ## Main results
 
-* `Cslib.Quantum.UniformOracleCircuitFamily.exists_generatorCertificate` and
-  `Cslib.Quantum.UniformOracleCircuitFamily.generatorCertificate`: every native uniform family
-  has a selected encoded generator certificate.
+* `Cslib.Quantum.UniformOracleCircuitFamily.exists_generatorCertificate`: every native uniform
+  family has an encoded generator certificate.
 * `Cslib.Quantum.UniformOracleCircuitFamily.GeneratorCertificate.resources_isPolynomial`:
   polynomial encoded input schedules induce componentwise polynomial generator schedules.
 * `Cslib.Quantum.UniformOracleCircuitFamily.GeneratorResources.IsPolynomial.add`:
   componentwise sums preserve polynomial schedules.
+* `Cslib.Quantum.UniformOracleCircuitFamily.GeneratorResources.IsPolynomial.total`:
+  a componentwise polynomial schedule has a polynomial scalar aggregate.
 -/
 
 public section
@@ -83,7 +90,7 @@ structure GeneratorCertificate (F : UniformOracleCircuitFamily) where
 /-- Independent resource coordinates of one offline generator run. `codeBits` is static across
 inputs and `outputBits` is the exact generated circuit-description length. -/
 structure GeneratorResources where
-  /-- Bits in the selected static generator-program encoding. -/
+  /-- Bits in the certificate's static generator-program encoding. -/
   codeBits : ℕ
   /-- Generator steps. -/
   time : ℕ
@@ -94,8 +101,10 @@ structure GeneratorResources where
 
 namespace GeneratorResources
 
-/-- Componentwise addition of independent generator costs. This operation does not assert that
-either generator is executed online. -/
+/-- Componentwise addition for two independently stored generator artifacts. It charges both
+static encodings and does not deduplicate a shared certificate. Repeated execution of one
+certificate must retain one `codeBits` charge instead of using this operation. This operation
+does not assert that either generator is executed online. -/
 @[expose] protected def add (r s : GeneratorResources) : GeneratorResources :=
   ⟨r.codeBits + s.codeBits, r.time + s.time, r.workspace + s.workspace,
     r.outputBits + s.outputBits⟩
@@ -114,6 +123,19 @@ instance : Add GeneratorResources := ⟨GeneratorResources.add⟩
 @[simp] theorem add_outputBits (r s : GeneratorResources) :
     (r + s).outputBits = r.outputBits + s.outputBits := rfl
 
+/-- The scalar offline accounting cost: static code bits, native steps, visited workspace cells and
+emitted description bits are all charged once. This sum does not identify any coordinate with
+online circuit runtime. When the output is later viewed as an `OracleCircuitDescription`, its
+`descriptionBits` coordinate is the same artifact and must not be added a second time. -/
+@[expose] def total (r : GeneratorResources) : ℕ :=
+  r.codeBits + r.time + r.workspace + r.outputBits
+
+/-- Scalar accounting respects componentwise composition. -/
+@[simp] theorem total_add (r s : GeneratorResources) :
+    (r + s).total = r.total + s.total := by
+  simp only [total, add_codeBits, add_time, add_workspace, add_outputBits]
+  omega
+
 /-- Every generator coordinate is polynomially bounded independently. -/
 @[expose] def IsPolynomial (schedule : ℕ → GeneratorResources) : Prop :=
   PolynomiallyBounded (fun n => (schedule n).codeBits) ∧
@@ -127,6 +149,12 @@ theorem IsPolynomial.add {r s : ℕ → GeneratorResources}
     IsPolynomial (fun n => r n + s n) :=
   ⟨hr.1.add hs.1, hr.2.1.add hs.2.1, hr.2.2.1.add hs.2.2.1,
     hr.2.2.2.add hs.2.2.2⟩
+
+/-- The scalar sum of a componentwise polynomial schedule is polynomially bounded. -/
+theorem IsPolynomial.total {schedule : ℕ → GeneratorResources}
+    (h : IsPolynomial schedule) :
+    PolynomiallyBounded fun n => (schedule n).total := by
+  simpa only [total] using (((h.1.add h.2.1).add h.2.2.1).add h.2.2.2)
 
 end GeneratorResources
 
@@ -161,8 +189,9 @@ theorem resources_isPolynomial {input : ℕ → OracleInputSize}
 
 end GeneratorCertificate
 
-/-- Native polynomial-time uniformity has a finite-state witness whose exact universal-machine
-description, time, workspace and output can be exposed componentwise. -/
+/-- Native polynomial-time uniformity has a finite-state witness whose universal-machine
+description, time, workspace and output can be exposed componentwise. This existence result does
+not make the chosen witness or its finite constants computationally inspectable. -/
 theorem exists_generatorCertificate (F : UniformOracleCircuitFamily) :
     Nonempty F.GeneratorCertificate := by
     classical
@@ -189,11 +218,5 @@ theorem exists_generatorCertificate (F : UniformOracleCircuitFamily) :
     · intro input
       rw [Universal.simSpace_desc]
       exact space_le_of_runsInSpace (hmachine input).2.2 _
-
-/-- Select the finite-state machine witnessed by native polynomial-time uniformity and expose its
-exact universal-machine description. The choice is static; this definition does not run the
-generator as part of circuit execution. -/
-noncomputable def generatorCertificate (F : UniformOracleCircuitFamily) : F.GeneratorCertificate :=
-  Classical.choice F.exists_generatorCertificate
 
 end Cslib.Quantum.UniformOracleCircuitFamily
