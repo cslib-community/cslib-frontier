@@ -452,14 +452,16 @@ compressed matrix payload plus final 16-byte salt and exposes the source `U[i][i
 The client covers shortened groups, legal and illegal encodings, salt splitting, malformed
 signatures and the non-square `l != r` hash reindexing.
 
-`SNOVA.verificationHashWithXof` uses a typed-length XOF interface for the 48-byte public-key digest,
-64-byte message digest and final hash expansion; `SNOVA.verificationHash` instantiates that interface
-with the concrete FIPS 202 `Keccak.shake256`. `SNOVA.verifyWithXof` passes the original public-key
-bytes and decoded matrices to a caller-supplied evaluator, which owns public-key validation,
-expansion and rejection, then accepts only when the evaluator result equals the complete
-verification hash. This is a serialization, hashing and equality shell, not public-key expansion,
-the twisted public map, signing or a correctness/security/resource theorem. It establishes no MBS,
-EUF-CMA, ROM/QROM, constant-time, asymptotic, retained-program or static-resource claim.
+At the typed-length XOF interface, `SNOVA.verificationHashWithXof` computes
+`xof(xof(publicKey, 48) || xof(message, 64) || salt₁₆, P.hashBytes)`, where
+`P.hashBytes = encodedByteCount P.encoding (P.o * P.l * P.r)`, before Algorithm-2 decoding and
+reindexing. `SNOVA.verificationHash` instantiates that interface with the concrete FIPS 202
+`Keccak.shake256`. `SNOVA.verifyWithXof` passes the original public-key bytes and decoded matrices
+to a caller-supplied evaluator, which owns public-key validation, expansion and rejection, then
+accepts only when the evaluator result equals the complete verification hash. This is a
+serialization, hashing and equality shell, not public-key expansion, the twisted public map,
+signing or a correctness/security/resource theorem. It establishes no MBS, EUF-CMA, ROM/QROM,
+constant-time, asymptotic, retained-program or static-resource claim.
 
 The source-faithful SLH-DSA WOTS+ digit preprocessing from FIPS 205 is in
 [`SLHDSA/WOTS/Digits.lean`](../../CslibFrontier/Crypto/Primitives/SLHDSA/WOTS/Digits.lean), with
