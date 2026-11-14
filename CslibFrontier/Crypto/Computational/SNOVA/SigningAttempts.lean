@@ -14,10 +14,10 @@ import Mathlib.Tactic.Omega
 # SNOVA's bounded signing-attempt schedule
 
 SNOVA derives fresh vinegar variables for a signing attempt from a one-byte counter `numsig`.
-Algorithm 17 of the Round-3 specification increments this counter before an attempt and returns
-failure when the incremented counter is `255`, before deriving those variables. Algorithm 14 uses
-the surviving counter value as part of the SHAKE256 input. Thus a signing invocation tries exactly
-the increasing bytes `1, ..., 254`; neither `0` nor the failure sentinel `255` is tried.
+Algorithm 17 of [SNOVA2026] increments this counter before an attempt and returns failure when the
+incremented counter is `255`, before deriving those variables. Algorithm 14 uses the surviving
+counter value as part of the SHAKE256 input. Thus a signing invocation tries exactly the increasing
+bytes `1, ..., 254`; neither `0` nor the failure sentinel `255` is tried.
 
 This module records only that source-level schedule. It makes no claim about the distribution or
 independence of the resulting linear systems, their solvability, or SNOVA's signing-failure
@@ -34,11 +34,14 @@ reference implementation's informal probability estimate.
 * `Cslib.Crypto.SNOVA.getElem_signingAttemptCounters`: attempt index `i` uses byte `i + 1`.
 * `Cslib.Crypto.SNOVA.mem_signingAttemptCounters_iff`: exactly bytes 1 through 254 occur.
 * `Cslib.Crypto.SNOVA.pairwise_lt_signingAttemptCounters`: the schedule is strictly increasing.
+* `Cslib.Crypto.SNOVA.nodup_signingAttemptCounters`: no counter byte is attempted twice.
+* `Cslib.Crypto.SNOVA.first_signingAttemptCounter`: the first attempted counter is 1.
+* `Cslib.Crypto.SNOVA.last_signingAttemptCounter`: the last attempted counter is 254.
 
 ## References
 
-* SNOVA v3.0 (August 2026), Algorithms 14 and 17, pp. 23 and 25; NIST Round-3 submission
-  `SNOVA_specifications.pdf`, SHA-256
+* [Lih-Chung Wang et al., *SNOVA: Proposal for NIST PQC: Additional Digital Signature Schemes*,
+  version 3.0][SNOVA2026], Algorithms 14 and 17, pp. 23 and 25; PDF SHA-256
   `67bf2e5414001d4562f76fff77cbc72b6c997ff2cffef3b5180a886359892898`.
 * SNOVA Round-3 reference implementation, commit
   `d88ef38bfa28587372f29f10482aa208c703f1aa`, `src/snova_ref.c`.
