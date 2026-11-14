@@ -350,8 +350,16 @@ and payload-capacity condition; and `Falcon.signingCandidateAccepts_eq_true_iff`
 the independent squared-norm rejection from Algorithm 10. The
 [ordinary-import client](../../CslibFrontierTests/Crypto/FalconCompression.lean) checks the
 127/128 unary boundary, exact buffer and ±2047 range boundaries, independent rejection causes and
-the two recommended payload capacities. This layer does not yet emit bytes, prove a codec
-round-trip, or model the sampler, retry probability, termination, resource cost or security.
+the two recommended payload capacities. Import
+[`Falcon/CompressionEncoding.lean`](../../CslibFrontier/Crypto/Computational/Falcon/CompressionEncoding.lean)
+for the minimal-byte reference encoder. `Falcon.referenceCompressedBytes` appends fewer than eight
+low zero bits and uses the shared big-endian byte conversion, while
+`Falcon.referenceCompress_eq_none_iff` reuses the exact range-and-capacity failure boundary. Its
+[ordinary-import client](../../CslibFrontierTests/Crypto/FalconCompressionEncoding.lean) checks the
+exact `[1, 128, 64]` fixture, exact and short capacities, ±2047/±2048, and concrete mixed-sign
+round-trips through the canonical decoder. A quantified codec round-trip awaits a stable proof
+interface for the decoder's nested coefficient loop; fixed-width signed-message writing, the
+sampler, retry probability, termination, resource cost and security remain separate obligations.
 
 The source-faithful SLH-DSA WOTS+ digit preprocessing from FIPS 205 is in
 [`SLHDSA/WOTS/Digits.lean`](../../CslibFrontier/Crypto/Primitives/SLHDSA/WOTS/Digits.lean), with
