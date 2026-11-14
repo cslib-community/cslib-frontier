@@ -3,6 +3,24 @@
 This file is part of the project instructions. [AGENTS.md](../AGENTS.md) states the rules in
 brief and says when to read this file; the full text here governs the details.
 
+## Staying current with these instructions
+
+At the start of work and when resuming, read the full applicable instructions. Coordinators
+also check the instruction revisions on current `main` before assigning reviews, reviewing or
+integrating work. Fetch in an authorized checkout and keep your own clean `main` current with
+fast-forward updates; preserve occupied checkouts, other contributors' work and approved PR heads.
+When local Git operations are restricted, read the files remotely at a pinned current-main commit.
+A feature worktree or automatically supplied instruction snapshot can remain stale.
+
+Compare with the revisions recorded in your private handoff. Read changed `AGENTS.md`,
+`policy/*.md`, `CONTRIBUTING.md`, applicable upstream guidance and relevant manual sections, and
+pass material changes to retained workers and reviewers before affected work continues. Record the
+checked main commit and instruction revisions in that handoff; a fetched branch or an old
+conversation summary alone does not establish that the guidance was read. Apply any additional
+instructions for the files being changed. Explicit user directions still control; surface material
+conflicts. Keep policy changes focused on recurring problems, and update linked guidance and
+templates together instead of adding another exception for each incident.
+
 ## Agent roles and task ownership
 
 Each agent works as either a **coordinator** or a **worker**. Follow the role assigned by the
@@ -64,8 +82,10 @@ documentation progress.
    Explicitly released work is available immediately. A claim with no open PR and no activity by
    its owner (a commit, push or comment) for 24 hours after that notice is released without
    further action: record the takeover in the task and proceed. Work that has an open PR is not
-   released by silence, since awaiting review is not abandonment; a coordinator may reassign it
-   after the same notice and 24 hours. Whoever takes over preserves the earlier work and its
+   released by silence, since awaiting review is not abandonment; when such a PR needs author
+   action (changes requested, a conflict or failing CI), a coordinator may reassign it after the
+   same notice and 24 hours. Where a human has given a session a stricter standing direction on
+   ownership, that direction controls for that session. Whoever takes over preserves the earlier work and its
    credit, builds on it where it is sound, and says what was carried over. A returning owner
    rebases onto the result and raises anything it lost.
 4. Implement, self-review and validate. Assess both manuals for every change and update affected
@@ -92,8 +112,8 @@ and carry each improvement through to the clients that benefit. In review, ask w
 person will no longer have to figure out; the answer should be visible in the code, examples or
 tooling.
 
-- Read the PR and existing reviews. Arrange review of uncovered questions under the review cycle
-  below; do not commission a fresh review merely because a new coordinator arrived.
+- Read the PR and existing reviews. Arrange review of uncovered questions under
+  [Review cycle](review.md#review-cycle); do not commission a fresh review merely because a new coordinator arrived.
 - Give a clear verdict and a useful next step. Link requested changes from the task issue when
   needed for handoff; resolve unavailable ownership using the worker rules above.
 - Resolve ownership and dependency conflicts, and help stale tasks reach a useful next step.
@@ -155,7 +175,7 @@ exhaust the host's file handles before its processors; agree on a limit on concu
 Place reusable definitions and general lemmas in the lowest suitable mathematical module.
 Specialized theorem modules should import their prerequisites. During review, look for general
 APIs buried in a particular application or proof. Extract them to their natural shared home and
-update the affected clients in the same PR, applying the migration policy below. A second
+update the affected clients in the same PR, applying [the migration rule](../AGENTS.md#proof-hygiene). A second
 application importing the first for general infrastructure is a concrete signal to do this.
 Keep unrelated architectural redesign out of scope; use the exceptional deferral rule below when
 a technical dependency prevents completing the extraction.

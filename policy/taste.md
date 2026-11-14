@@ -23,6 +23,13 @@ Not results, and not listed under "Main results":
 - **Tests.** `decide` or `#guard` on a toy instance shows a definition computes; it does not
   establish the general property.
 
+Interface lemmas are a different thing. Under the module system a public definition's body is
+not exposed, so clients cannot unfold it and rely on its `@[simp]`, `_apply` and `_iff`
+specifications, including those `enc_structure` generates; their proofs are `rfl` inside the
+defining module, and they are legitimate API. They are still not listed under "Main results". What
+should not exist is a bare `rfl` restatement of an exposed definition or `abbrev` that plays no
+part in a `simp` normal form.
+
 If a module has definitions and none of its theorems would survive this list, say so: the PR
 title and module documentation call it definitions only.
 
@@ -55,8 +62,9 @@ theorem consumes is not needed.
 
 ## Replace, do not accumulate
 
-When a change introduces a better notion, it migrates the old one's clients and deletes it, or
-it records who will and by when. A third eavesdropping game beside two existing ones, a second
+When a change introduces a better notion, it migrates the old one's clients and deletes it,
+except under an accepted deferral
+([Improving library ergonomics](../AGENTS.md#improving-library-ergonomics)). A third eavesdropping game beside two existing ones, a second
 CPA formalism bridged to the first, a new first-success construction beside two others: each
 leaves the reader to work out which is authoritative. Bridging lemmas between parallel notions
 are a sign that one of them should go ([Faithful headlines](../AGENTS.md#faithful-headlines),

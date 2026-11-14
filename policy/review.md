@@ -60,7 +60,8 @@ supplements this gate on elaborated premise shapes ([Security theorems](statemen
 without replacing semantic review.
 
 **Ask what should not exist.** For each new public declaration, definition, file and test, ask
-whether the library is better with it. Is it used by a caller in this PR or by a stated next step?
+whether the library is better with it ([taste.md](taste.md)). Is it used by a caller in this PR, by
+a stated next step or by a reader applying the cited result?
 Is it a one-line restatement of another declaration (a `.not_superset` or negated-containment
 companion, a re-export, a specialization a caller obtains with `simpa`)? Does it parallel a
 neighbouring API? In the review, name what you asked the author to delete, merge or make private,
@@ -155,7 +156,10 @@ Pending source, advisory-notice or rendered-manual review is also a hold. Inspec
 record the hold's resolution and link the existing proof/API/caller assessment before queueing;
 do not start a waiting helper while completing CI will still produce material that needs review.
 A successful check does not release a review hold, and the helper does not judge whether review
-is complete. `python3 scripts/queue_pr.py --help` describes its waiting behavior.
+is complete. Updating `main` does not upgrade a running copy of the helper: its owner stops an old
+waiter before replacing it after holds clear. The helper's waiting behavior is described in the
+module docstring of `scripts/queue_pr.py` and in
+[the queueing procedure](../manual/workflows/agent-operations.md#queue-approved-work-and-keep-its-approval).
 
 The script refuses a head other than the approved one, a draft, a PR not based on `main`, a
 conflicting PR and failed checks. When the reviewer cannot queue, any other non-author agent with

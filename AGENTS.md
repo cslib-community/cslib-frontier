@@ -28,10 +28,13 @@ binding: read the file for a task before doing that task.
 
 At the start of work and when resuming, read this file and the policy files for your task from
 current `main`, not from a feature worktree or an automatically supplied snapshot, which can be
-stale. Coordinators recheck the revisions on current `main` before assigning reviews, reviewing or
-integrating, pass material changes to retained workers and reviewers, and record the checked
-commit in their handoff. Explicit user directions still control; surface material conflicts. Keep
-policy changes focused on recurring problems, and prefer shortening a rule to adding an exception.
+stale. Coordinators recheck the revisions of `AGENTS.md`, `policy/*.md`, `CONTRIBUTING.md` and the
+relevant manual sections on current `main` before assigning reviews, reviewing or integrating,
+pass material changes to retained workers and reviewers, and record the checked commit in their
+private handoff ([details](policy/workflow.md#staying-current-with-these-instructions)). Explicit
+user directions still control; surface material conflicts. Keep policy changes focused on
+recurring problems, update linked guidance and templates together, and prefer shortening a rule
+to adding an exception.
 
 ## What matters most
 
@@ -144,15 +147,19 @@ to reach a count. A review does the following, in this order.
    each hypothesis: (i) an assumption the source names; (ii) membership of the adversary or input
    in the admitted class; (iii) a property of a generic component the source takes as given; (iv)
    anything else. Any vacuous hypothesis blocks approval. For a statement presented as the cited
-   endpoint, any (iv) hypothesis, undisclosed deviation, overclaiming name or weaker stand-in
+   endpoint, or one advertising a headline property that its premises assume rather than
+   establish, any (iv) hypothesis, undisclosed deviation, overclaiming name or weaker stand-in
    blocks approval; it is not a nit, is not deferred to a follow-up, and is not resolved by
-   "document it as a milestone". Fix the statement or rename it as a step.
+   "document it as a milestone". Fix the statement or rename it as a step, and check that the
+   change removes or demotes any stand-in it supersedes.
 2. **Ask what should not exist.** For each new public declaration, definition, file and test, ask
-   whether the library is better with it. Is it used by a caller in this PR or by a stated next
-   step? Is it a one-line restatement of another declaration, or a specialization a caller gets
-   for free? Does it parallel a neighbouring API? Name what you asked the author to delete, merge
-   or make private, or say that you looked and found nothing to remove. A review without an
-   answer to this question is incomplete.
+   whether the library is better with it ([policy/taste.md](policy/taste.md)). Is it used by a
+   caller in this PR, by a stated next step or by a reader applying the cited result? Is it a
+   one-line restatement of another declaration, or a specialization a caller gets for free? Does
+   it parallel a neighbouring API? Name what you asked the author to delete, merge or make
+   private, or say that you looked and found nothing to remove. A review without an answer to
+   this question is incomplete. A zero reference count alone does not justify removing expected
+   mathematical API.
 3. **Name the first real property.** For each new definition, construction or transcribed
    algorithm, say what its first non-trivial property is (signatures verify, the padding is
    block-aligned, the simulator's output is close) and whether this PR proves it. Unfoldings,
@@ -194,8 +201,10 @@ Approving a PR's exact current head and queueing it are one step. The non-author
 queues the approved head with `scripts/queue_pr.py`, run from a trusted checkout of current
 `main` ([command](manual/workflows/agent-operations.md#queue-approved-work-and-keep-its-approval)).
 Authors do not queue their own PRs. Approve without queueing, and say why, when human review has
-been requested or the approval names a hold (an unlanded lower PR, a migration, pending source or
-manual review). A passing check does not release a review hold.
+been requested or the approval names a hold (an unlanded lower PR, a migration, or pending
+source, advisory-notice or rendered-manual review). A passing check does not release a review
+hold; do not start `queue_pr.py --wait` while running CI will still produce notices or rendered
+pages that need review.
 
 **Every merge to `main` goes through the merge queue.** Never call a direct merge endpoint: the
 REST merge API, a GitHub connector's `merge_pull_request` tool, or `gh pr merge --admin`. With
@@ -282,9 +291,11 @@ remains.
    or session and branch. A shared GitHub account does not identify the active agent.
 2. Update the task when scope changes, a blocker needs help, work is handed off, or you stop.
 3. Before taking over work, inspect the issue, PR, recent commits and activity, and notify the
-   owner in the task record. A claim with no open PR and no activity by its owner for 24 hours
-   after that notice is released: record the takeover and proceed. Work with an open PR is
-   reassigned by a coordinator after the same notice. Preserve the earlier work and its credit.
+   owner in the task record. Explicitly released work is available immediately. A claim with no
+   open PR and no activity by its owner for 24 hours after that notice is released: record the
+   takeover and proceed. A PR that needs author action (changes requested, a conflict or failing
+   CI) may be reassigned by a coordinator after the same notice and 24 hours; a PR awaiting
+   review is never released by silence. Preserve the earlier work and its credit.
 4. Implement, self-review and validate. Assess both manuals and update affected instructions,
    reference sections and checked examples in the same change.
 5. Open a PR with validation and limitations and request coordinator review.
