@@ -2295,8 +2295,7 @@ its templates permits nonuniform certificate preprocessing; it does not prove
 a preprocessing bound in the size of varying trees or languages. The next
 section supplies full target acceptance and framed native time for fixed trees.
 Figure 1/NAND boundary tables remain macro skeletons until their expanded
-original-language ordered witnesses are proved. OneHot3/CROSS macro expansion,
-the initial normalization twist and Figure-1 expanded ordered witnesses, geometric/
+original-language ordered witnesses are proved. OneHot3/CROSS macro expansion and Figure-1 expanded ordered witnesses, geometric/
 source comparison, recognition and full #3091 remain open.
 
 
@@ -2390,9 +2389,24 @@ closed auxiliary/nullary components, unused ports, duplicate degree-six rows,
 literal output tables and sparse `2^250` names.
 Run `scripts/build.sh CslibFrontierTests.CSPGadgetGenus CslibFrontierTests.CSPConstructionCompiler CslibFrontierTests.CSPGadgetSubstitution --wfail --iofail`.
 
-Expanded original-language OneHot3/CROSS and normalization/Figure-1 witnesses,
+Expanded original-language OneHot3/CROSS and Figure-1 witnesses,
 source-model comparison, bare recognition, Hanani–Tutte and full #3091 remain
 open. The finite PL equivalence is already proved.
+
+# Static Expansion of Checked Macros
+
+Import `CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.Expansion`.
+`w.expand gadgets witnesses B hB` constructs the witness for exactly
+`g.expand gadgets` from a checked macro `w : GadgetWitness g` and checked
+replacement gadgets. Original macro auxiliaries precede separate per-occurrence
+blocks of their actual sizes. Repeated copies, nullaries, closed components,
+unused ports and empty boundaries are retained. The bound `B` concerns the
+numeric intermediate representation; neither alphabet must be finite.
+The numeric naming injection, full checker acceptance and original free order
+are proved internally. This is static preprocessing, with no native runtime
+claim for varying languages/templates or arbitrary PP planarity-closure claim.
+`CslibFrontierTests/CSPGadgetExpansion.lean` checks an explicit computed ten-entry
+table, full checkers and SAT/UNSAT rows.
 
 # Original-Language Ordered Disequality
 
@@ -2541,10 +2555,20 @@ hidden old port 2 before all old auxiliaries. No degree or connectedness restric
 is imposed. See `CslibFrontierTests/PlanarNormalizationBoundaryProgram.lean` for
 checked repeated-scope, unused-port, previous-auxiliary and closed-nullary clients.
 
-This is an original reconstruction of the omitted argument behind Dvořák–Kupec
-Lemma 6. The initial twist and complete normalization-construction witness,
-expanded original-language witnesses and full planar theorem remain open.
-The combinatorial clients are in `CslibFrontierTests/PlanarNormalization.lean`.
+For the complete construction, import
+`CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.Normalization`.
+Every `c : Normalization.Construction R` supplies `c.orderedWitness`, a witness
+of exactly `c.gadget` with no provider premise. The initial twist retains the
+original relation row, ordered one/two disequality spokes, and all allocated
+middle labels, including unused ones. Its checked clients are in
+`CslibFrontierTests/PlanarNormalizationBoundaryTwist.lean`; the separate table
+clients identify noncomputable certificates by uniqueness before checking
+explicit displayed tables with kernel decision.
+
+This is an original numerical reconstruction of the omitted argument behind
+Dvořák–Kupec Lemma 6. Expanded original-language witnesses, geometric/source-model
+correspondence and the full planar theorem remain open. The combinatorial
+clients are in `CslibFrontierTests/PlanarNormalization.lean`.
 
 
 # Original-Language Nonselfdual Gadgets
