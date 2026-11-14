@@ -3247,3 +3247,19 @@ distinct from `countHittingTime`. Run `scripts/build.sh CslibFrontierTests.Stoch
 the repository root to check them.
 Instantiating these theorems on oracle-program executions remains open until the stochastic-oracle
 semantics ([#2530](https://github.com/cslib-community/cslib-frontier/pull/2530)) lands on `main`.
+
+### Plain certificates for closed adaptive loops
+
+Import [Adaptive.lean](../../CslibFrontier/Computability/Probabilistic/Adaptive.lean).
+`IsPPTOn.iterate_spec'` and `iterateWith_spec'` take plain `ComputableInPolyTime`
+certificates for the unary count and initial state. Use `iterate_of_bounded_growth'`
+for fixed additive encoded-state growth, `iterateWith_of_bounded_growth'` for growth
+polynomially bounded in the captured input, and `iterate_of_length_le'` when the
+step never increases encoded size. The growth premises cover every supported result.
+The unprimed entry points retain their existing tidy premises during #862 migration.
+
+The [layered evaluator](../../CslibFrontier/Crypto/Computational/Homomorphic/Layered/PolyTime.lean)
+passes its existing `hcount` and `hinit` directly to the captured-growth rule. Its bound
+still covers malformed public inputs. The ordinary-import
+[adaptive regression client](../../CslibFrontierTests/AdaptivePPT.lean) applies the plain
+constant-growth rule to a quadratic number of random bit-prepending steps.
