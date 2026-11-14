@@ -6186,6 +6186,7 @@ public import CslibFrontier.Foundations.MeasureTheory.Group.ConvolutionDensity
 public import CslibFrontier.Foundations.MeasureTheory.Group.FundamentalDomain
 public import CslibFrontier.Foundations.MeasureTheory.Group.QuotientDensity
 public import CslibFrontier.Foundations.MeasureTheory.Integral.CauchySchwarz
+public import CslibFrontier.Foundations.MeasureTheory.Integral.IntegralEqImproper
 public import CslibFrontier.Foundations.MeasureTheory.Integral.IntervalPrimitive
 public import CslibFrontier.Foundations.MeasureTheory.Integral.Pi
 public import CslibFrontier.Foundations.MeasureTheory.Integral.PiUpdate
@@ -6263,6 +6264,8 @@ public import CslibFrontier.Foundations.Probability.Gaussian.Poisson
 public import CslibFrontier.Foundations.Probability.Gaussian.PolynomialDense
 public import CslibFrontier.Foundations.Probability.Gaussian.Projection
 public import CslibFrontier.Foundations.Probability.Gaussian.Quadrant
+public import CslibFrontier.Foundations.Probability.Gaussian.QuadrantDeriv
+public import CslibFrontier.Foundations.Probability.Gaussian.Quantile
 public import CslibFrontier.Foundations.Probability.Gaussian.Quotient
 public import CslibFrontier.Foundations.Probability.Gaussian.Real
 public import CslibFrontier.Foundations.Probability.Gaussian.Sheppard
