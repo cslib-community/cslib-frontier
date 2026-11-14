@@ -43,7 +43,6 @@ namespace Turing.MultiTapeTM.ComputableInO
 variable {α β γ : Type} {encIn : α ↪ List Bool} {encMid : β ↪ List Bool}
   {encOut : γ ↪ List Bool} {T S : α → ℕ}
 
-attribute [fun_prop] ComputableInO
 attribute [fun_prop] const prod fst' snd' ite
 
 /-- Copy an encoded value, within linear time and space. -/
