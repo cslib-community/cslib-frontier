@@ -759,9 +759,9 @@ theorem deleteFinishProg_bucket_spec {U V w₀ n_max h_space w base b q_target m
         have hs'_eq : s' = (Memory.spec 0).clientState s₄
             (popBackSlotProg U V w₀ n_max h_space (base, b)) := by
           change (Memory.spec 0).clientState s (deleteFinishProg U V w₀ n_max h_space d_fin) = _
-          simp only [deleteFinishProg, deleteFoundProg, deleteSwapProg, deleteFinishGenProg,
-            deleteFoundGenProg_mk, deleteFoundGenProg, unlinkIfIndexedGenProg_mk,
-            readBucketCountGenProg_mk, deleteSwapGenProg_mk, popBackSlotGenProg_mk,
+          simp only [deleteFinishProg, deleteFinishGenProg,
+            deleteFoundGenProg, unlinkIfIndexedGenProg_mk,
+            readBucketCountGenProg_mk, popBackSlotGenProg_mk,
             deleteSwapGenProg, copyLastPayloadGenProg_mk, prependIfIndexedGenProg_mk]
           simp only [pure_bind, d_fin]
           rw [ite_eq_left hf1, StateTransitionSpec.clientState_bind,
@@ -771,7 +771,7 @@ theorem deleteFinishProg_bucket_spec {U V w₀ n_max h_space w base b q_target m
           repeat rw [StateTransitionSpec.clientState_bind]
         have hcost_fin : memoryCost (deleteFinishProg U V w₀ n_max h_space d_fin) s ≤
             66 + memoryCost (popBackSlotProg U V w₀ n_max h_space (base, b)) s₄ := by
-          simp only [deleteFinishProg, deleteFoundProg, deleteFinishGenProg, deleteFoundGenProg_mk,
+          simp only [deleteFinishProg, deleteFinishGenProg,
             deleteFoundGenProg, unlinkIfIndexedGenProg_mk, readBucketCountGenProg_mk,
             deleteSwapGenProg_mk, popBackSlotGenProg_mk]
           simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind, d_fin]
@@ -894,7 +894,7 @@ theorem deleteFinishProg_bucket_spec {U V w₀ n_max h_space w base b q_target m
         have hs'_eq : s' = (Memory.spec 0).clientState s₁
             (popBackSlotProg U V w₀ n_max h_space (base, b)) := by
           change (Memory.spec 0).clientState s (deleteFinishProg U V w₀ n_max h_space d_fin) = _
-          simp only [deleteFinishProg, deleteFoundProg, deleteFinishGenProg, deleteFoundGenProg_mk,
+          simp only [deleteFinishProg, deleteFinishGenProg,
             deleteFoundGenProg, unlinkIfIndexedGenProg_mk, readBucketCountGenProg_mk,
             deleteSwapGenProg_mk, popBackSlotGenProg_mk]
           simp only [pure_bind, d_fin]
@@ -904,7 +904,7 @@ theorem deleteFinishProg_bucket_spec {U V w₀ n_max h_space w base b q_target m
             ite_eq_right hlt]
         have hcost_fin : memoryCost (deleteFinishProg U V w₀ n_max h_space d_fin) s ≤
             16 + memoryCost (popBackSlotProg U V w₀ n_max h_space (base, b)) s₁ := by
-          simp only [deleteFinishProg, deleteFoundProg, deleteFinishGenProg, deleteFoundGenProg_mk,
+          simp only [deleteFinishProg, deleteFinishGenProg,
             deleteFoundGenProg, unlinkIfIndexedGenProg_mk, readBucketCountGenProg_mk,
             deleteSwapGenProg_mk, popBackSlotGenProg_mk]
           simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind, d_fin]

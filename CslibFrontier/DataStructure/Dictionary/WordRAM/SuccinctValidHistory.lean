@@ -531,7 +531,8 @@ theorem validProg_demoteStep {U V w n_max h_space : ℕ} {x : (ℕ × ℕ) × �
       (demoteStepProg U V w n_max h_space x) := by
   obtain ⟨-, htop_idx_lt, h0_idx_lt, -, hg_del_lt, hg_last_lt, ⟨htail, hb, hr_cap, -⟩, -,
       hg_tail_lt, -⟩ := demoteStep_bounds hw ⟨hpre, hb_pos⟩
-  simp only [demoteStepProg, demoteStepGenProg, p_slabSizeSubOne_mk, p_slabSize_mk, p_nMaxSubOne_mk,
+  simp only [demoteStepProg, demoteStepGenProg, p_slabSizeSubOne_mk, p_slabSize_mk,
+    p_nMaxSubOne_mk,
     readGMGenProg_mk, readQuotGenProg_mk, readValGenProg_mk, writeQuotGenProg_mk, writeValGenProg_mk,
     appendTailItemGenProg_mk]
   refine validProg_bind (validProg_readGM hw htop_idx_lt) ?_
@@ -749,26 +750,32 @@ theorem validProg_popBackSlot {U V w n_max h_space : ℕ}
 
 /-! ## Section 4: Micro-Chain Accessors, Prepend/Unlink, and Search Loops -/
 
+-- Specialize parameter projections through their named equations rather than reducing the
+-- packed layout when comparing programs and intermediate states.
+attribute [local irreducible] mkDictParams
+
 theorem validProg_readLMHead {U V w n_max h_space base b m : ℕ}
     (hw : 0 < w) {s : Memory.State}
     (hb : b < numBuckets n_max) (hm : m < numMicroPerBucket n_max) :
     ValidProg w (dictFrontier U V w n_max h_space base) s
-      (readLMHeadProg U V w n_max h_space ((base, b), m)) :=
-  validProg_readLM hw (by decide) (lmHeadIdx_lt hb hm)
+      (readLMHeadProg U V w n_max h_space ((base, b), m)) := by
+  simp only [readLMHeadProg, readLMHeadGenProg, p_numMicro_mk, readLMGenProg_mk]
+  exact validProg_readLM hw (by decide) (lmHeadIdx_lt hb hm)
 
 theorem validProg_writeLMHead {U V w n_max h_space base b m v : ℕ}
     (hw : 0 < w) (hnU : n_max ≤ U) (hU : U < 2 ^ w) {s : Memory.State}
     (hb : b < numBuckets n_max) (hm : m < numMicroPerBucket n_max) :
     ValidProg w (dictFrontier U V w n_max h_space base) s
-      (writeLMHeadProg U V w n_max h_space (((base, b), m), v)) :=
-  validProg_writeLM hw hnU hU (by decide) (lmHeadIdx_lt hb hm)
+      (writeLMHeadProg U V w n_max h_space (((base, b), m), v)) := by
+  simp only [writeLMHeadProg, writeLMHeadGenProg, p_numMicro_mk, writeLMGenProg_mk]
+  exact validProg_writeLM hw hnU hU (by decide) (lmHeadIdx_lt hb hm)
 
 theorem validProg_readLMMod4 {U V w n_max h_space c_base base b j : ℕ}
     (hw : 0 < w) (hc : c_base + 3 < 9) {s : Memory.State}
     (hb : b < numBuckets n_max) (hj : j < effBucketCap n_max) :
     ValidProg w (dictFrontier U V w n_max h_space base) s
       (readLMMod4Prog U V w n_max h_space c_base ((base, b), j)) := by
-  simp only [readLMMod4Prog, readLMMod4GenProg, p_numMicro_mk, readLMGenProg_mk]
+  simp only [readLMMod4Prog]
   simp only [pure_bind]
   split_ifs <;> exact validProg_readLM hw (by omega) (lmSlotIdx_lt hb hj)
 
@@ -778,7 +785,7 @@ theorem validProg_writeLMMod4 {U V w n_max h_space c_base base b j v : ℕ}
     (hb : b < numBuckets n_max) (hj : j < effBucketCap n_max) :
     ValidProg w (dictFrontier U V w n_max h_space base) s
       (writeLMMod4Prog U V w n_max h_space c_base (((base, b), j), v)) := by
-  simp only [writeLMMod4Prog, writeLMMod4GenProg, p_numMicro_mk, writeLMGenProg_mk]
+  simp only [writeLMMod4Prog]
   simp only [pure_bind]
   split_ifs <;> exact validProg_writeLM hw hnU hU (by omega) (lmSlotIdx_lt hb hj)
 
@@ -1233,7 +1240,8 @@ theorem validProg_deleteSwap {U V w n_max h_space : ℕ}
     refine ⟨hpre.1, hpre.2.2.1, hpre.2.2.2.1, ?_⟩
     rw [eff_c.2.2.2.2.1]
     exact (hval₁.1 d.1.1.1.2 hpre.2.2.1 d.2.1 hpre.2.2.2.1).head_le_cap
-  simp only [deleteSwapProg, deleteSwapGenProg, unlinkIfIndexedGenProg_mk, copyLastPayloadGenProg_mk,
+  simp only [deleteSwapProg, deleteSwapGenProg, unlinkIfIndexedGenProg_mk,
+    copyLastPayloadGenProg_mk,
     prependIfIndexedGenProg_mk]
   refine validProg_bind
     (validProg_unlinkIfIndexed (d := ((d.1.1.1, d.2.1), d.2.2)) hw hnU hU hu_pre) ?_
