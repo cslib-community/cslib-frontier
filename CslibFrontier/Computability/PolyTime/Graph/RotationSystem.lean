@@ -132,8 +132,8 @@ private theorem fiberCheck_polyTime :
   apply ComputableInPolyTime.decide_eq'
   · exact orbitBool_polyTime (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
   · apply ComputableInPolyTime.decide_eq'
-    · exact ComputableInPolyTime.listGetD_binary 0 (by fun_prop) (by fun_prop)
-    · exact ComputableInPolyTime.listGetD_binary 0 (by fun_prop) (by fun_prop)
+    · exact ComputableInPolyTime.listGetD_binary (encA := encNat) 0 (by fun_prop) (by fun_prop)
+    · exact ComputableInPolyTime.listGetD_binary (encA := encNat) 0 (by fun_prop) (by fun_prop)
 
 /-- Every part of rotation validation runs natively in polynomial time in the graph and table
 encodings, without an assumed checker, recognizer, or well-formedness hypothesis. -/
