@@ -4991,6 +4991,13 @@ public import CslibFrontier.DataStructure.Dictionary.PerfectHashing.Construction
 public import CslibFrontier.DataStructure.Dictionary.PerfectHashing.Table
 public import CslibFrontier.DataStructure.Dictionary.Spec
 public import CslibFrontier.DataStructure.Dictionary.Spillover
+public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.BitBudget
+public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.Canonical
+public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.NodeSeeds
+public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.NodeSlackBounds
+public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.Params
+public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.Schedule
+public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.SeedBounds
 public import CslibFrontier.DataStructure.Dictionary.SuccinctBucket
 public import CslibFrontier.DataStructure.Dictionary.UniformProbing
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.BitPackedArray
@@ -6098,6 +6105,7 @@ public import CslibFrontier.Foundations.GroupTheory.Perm.RemoveTwo
 public import CslibFrontier.Foundations.GroupTheory.Perm.ReverseCycle
 public import CslibFrontier.Foundations.GroupTheory.Perm.SelectedOrbitJoin
 public import CslibFrontier.Foundations.GroupTheory.Perm.SelectedOrbits
+public import CslibFrontier.Foundations.LinearAlgebra.AffineSolutionSampling
 public import CslibFrontier.Foundations.LinearAlgebra.CubeSum
 public import CslibFrontier.Foundations.LinearAlgebra.ExchangeReplacement
 public import CslibFrontier.Foundations.LinearAlgebra.FreeAlgebra
