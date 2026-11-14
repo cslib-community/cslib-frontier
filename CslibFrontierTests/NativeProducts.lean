@@ -9,7 +9,8 @@ module
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Pi
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Option
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Unary
 
 /-!
 # Native tuple and retained-input option clients
