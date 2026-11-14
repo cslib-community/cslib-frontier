@@ -211,8 +211,9 @@ byte string is canonical because the coefficient modulus is `2 ^ d`. -/
 def IsCanonical (d : CodecWidth) (B : EncodedBytes d) : Prop :=
   byteEncode d (byteDecode d B) = B
 
-instance (d : CodecWidth) (B : EncodedBytes d) : Decidable (IsCanonical d B) :=
-  Classical.decEq _ _ _
+instance (d : CodecWidth) (B : EncodedBytes d) : Decidable (IsCanonical d B) := by
+  change Decidable (byteEncode d (byteDecode d B) = B)
+  exact Fintype.decidablePiFintype _ _
 
 /-- Every output of `byteEncode` is canonical. -/
 theorem byteEncode_isCanonical (d : CodecWidth) (F : Coefficients d) :
