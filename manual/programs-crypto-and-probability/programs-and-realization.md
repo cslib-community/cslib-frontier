@@ -99,11 +99,23 @@ or operation tags halt locally, and an
 invalid operation tag makes no external call. `Desc.toMachine` leaves operation dispatch inside a
 finite machine (`Fin operations`), while `Desc.runWith_toMachine` identifies the full output and
 shared-state law for every stateful handler. The supplied fuel remains an external clock and the
-handler's own computation remains outside it. This layer provides syntax and denotation only: it
-does not yet provide a fixed universal interpreter, its controller/copying/marshalling resource
-map, or a PPT/QROM certificate. The complete
-[`OracleDescription.lean` client](../../CslibFrontierTests/OracleDescription.lean) separately runs
-one fixed logging handler and checks adaptive queries, zero clock and malformed-tag boundaries.
+handler's own computation remains outside it. The description module itself provides syntax and
+denotation only. [`Universal/Interpreter.lean`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Probabilistic/Universal/Interpreter.lean)
+adds the fixed-`Fin r` Boolean-word source program and exact joint result/state semantics, while
+[`Universal/Interpreter/Native.lean`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Probabilistic/Universal/Interpreter/Native.lean)
+retains one actual finite-control machine for that program. Runtime fuel and the supplied `Desc`
+remain encoded input; they do not change the installed machine. Its initializer, controller,
+single table lookup, operation-tag validation and literal finite dispatch, request marshalling,
+fixed-operation query, bounded reply copy, unary-list codec, reply installation and output copy are
+named retained stages in the componentwise online ledger. The final composed description is the
+single installed occurrence; generated static bits, encoded runtime input, supplied-description
+size and emitted-output bits remain separate coordinates. Its structural bound exposes the exact
+exhaustive row factor, so the family theorem keeps that row schedule as an explicit premise and
+only claims an unconditional polynomial corollary for each fixed tape/channel interpreter.
+The complete [`OracleInterpreter.lean` client](../../CslibFrontierTests/OracleInterpreter.lean)
+runs a stateful adaptive handler whose second request depends on the first reply and checks the
+retained machine, non-head lookup, finite dispatch, zero clock, channel mismatch and malformed-word
+boundaries. This is a classical open-oracle realization, not a PPT/QROM security theorem.
 
 The internal
 [`NativeOracleProgram`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/NativeOracleProgram.lean)
