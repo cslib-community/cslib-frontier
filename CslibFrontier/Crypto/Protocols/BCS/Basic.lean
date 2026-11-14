@@ -76,8 +76,8 @@ multi-round public-coin Interactive Oracle Proof (`PublicCoinIOP`) into a non-in
   `Cslib.Crypto.Protocols.BCS.bcsTableCollisionFinder`,
   `Cslib.Crypto.Protocols.BCS.bcsBreaksTableBinding`,
   `Cslib.Crypto.Protocols.BCS.bcsTableBindingGame`,
-  `Cslib.Crypto.Protocols.BCS.bcsTableKnowledgeGame`: encodings (building on `encFinUnary` and
-  `encFinFn` from `CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.DPi`),
+  `Cslib.Crypto.Protocols.BCS.bcsTableKnowledgeGame`: encodings (building on `encFinEnum (Fin ...)`
+  and `encFinFn` from `CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.DPi`),
   collision-finding reduction, and standard-model committed-table binding and knowledge-soundness
   games.
 
@@ -748,7 +748,7 @@ abbrev encFSTranscript {Stmt : Type} (encStmt : Stmt ↪ List Bool) :
 
 /-- Encoding of an IOP query coordinate `(round, index) : Fin r × Fin (2 ^ d)`. -/
 abbrev encIOPQuery (r d : ℕ) : (Fin r × Fin (2 ^ d)) ↪ List Bool :=
-  encPair encFinUnary encFinUnary
+  encPair (encFinEnum (Fin r)) (encFinEnum (Fin (2 ^ d)))
 
 /-- Encoding of a list of IOP query coordinates `List (Fin r × Fin (2 ^ d))`. -/
 abbrev encIOPQueryList (r d : ℕ) : List (Fin r × Fin (2 ^ d)) ↪ List Bool :=
@@ -779,7 +779,7 @@ theorem computableInPolyTime_oracleLeaves_apply {r d : ℕ} {Sym γ : Type}
     {encSym : Sym ↪ List Bool} {encIn : γ ↪ List Bool}
     {oracles : γ → Fin r → OracleTable d Sym} {j : γ → Fin r}
     (horacles : ComputableInPolyTime oracles encIn (encFinFn r (encOracleTable d encSym)))
-    (hj : ComputableInPolyTime j encIn encFinUnary) :
+    (hj : ComputableInPolyTime j encIn (encFinEnum (Fin r))) :
     ComputableInPolyTime (fun a => oracleLeaves encSym d (oracles a (j a)))
       encIn (encList encBits) :=
   computableInPolyTime_oracleLeaves (ComputableInPolyTime.finFn_apply' horacles hj)
@@ -790,8 +790,8 @@ theorem computableInPolyTime_encode_oracles_apply {r d : ℕ} {Sym γ : Type}
     {encSym : Sym ↪ List Bool} {encIn : γ ↪ List Bool}
     {oracles : γ → Fin r → OracleTable d Sym} {j : γ → Fin r} {idx : γ → Fin (2 ^ d)}
     (horacles : ComputableInPolyTime oracles encIn (encFinFn r (encOracleTable d encSym)))
-    (hj : ComputableInPolyTime j encIn encFinUnary)
-    (hidx : ComputableInPolyTime idx encIn encFinUnary) :
+    (hj : ComputableInPolyTime j encIn (encFinEnum (Fin r)))
+    (hidx : ComputableInPolyTime idx encIn (encFinEnum (Fin (2 ^ d)))) :
     ComputableInPolyTime (fun a => encSym (oracles a (j a) (idx a))) encIn encBits :=
   (ComputableInPolyTime.finFn_apply'
     (ComputableInPolyTime.finFn_apply' horacles hj) hidx).of_enc_eq fun _ => rfl
@@ -868,9 +868,9 @@ theorem computableInPolyTime_bcsFindConflict {r d : ℕ} {Stmt Wit Sym Chal γ :
   have ho := (ComputableInPolyTime.snd
     (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp hsnd
   have hj := (ComputableInPolyTime.fst
-    (encFinUnary (count := r)) (encFinUnary (count := 2 ^ d))).comp hqpair
+    (encFinEnum (Fin r)) (encFinEnum (Fin (2 ^ d)))).comp hqpair
   have hidx := (ComputableInPolyTime.snd
-    (encFinUnary (count := r)) (encFinUnary (count := 2 ^ d))).comp hqpair
+    (encFinEnum (Fin r)) (encFinEnum (Fin (2 ^ d)))).comp hqpair
   have hval : ComputableInPolyTime
       (fun p : γ × ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) => encSym p.2.2.leaf)
       (encPair encIn encElem) encBits :=
@@ -918,9 +918,9 @@ theorem computableInPolyTime_bcsExtractTableCollision {r d : ℕ} {Stmt Wit Sym 
   have ho := (ComputableInPolyTime.snd
     (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp hsnd
   have hj := (ComputableInPolyTime.fst
-    (encFinUnary (count := r)) (encFinUnary (count := 2 ^ d))).comp hqpair
+    (encFinEnum (Fin r)) (encFinEnum (Fin (2 ^ d)))).comp hqpair
   have hidx := (ComputableInPolyTime.snd
-    (encFinUnary (count := r)) (encFinUnary (count := 2 ^ d))).comp hqpair
+    (encFinEnum (Fin r)) (encFinEnum (Fin (2 ^ d)))).comp hqpair
   have hidxVal := ComputableInPolyTime.finVal hidx
   have hval : ComputableInPolyTime
       (fun p : γ × ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) => encSym p.2.2.leaf)

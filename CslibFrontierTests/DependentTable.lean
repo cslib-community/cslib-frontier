@@ -66,13 +66,13 @@ example : encDPi (fun i : Empty => i.elim) (Empty.elim : Empty → Empty) = [] :
   rw [length_encDPi]
   simp
 
--- Computable canonical-order `Fin` unary codes agree with `encFinEnum (Fin count)` and bound
--- length by `count`.
-example (i : Fin 5) : encFinEnum (Fin 5) i = encFinUnary i :=
+-- Computable canonical-order `Fin` unary codes via `encFinEnum (Fin count)` equal `encUnary i.val`
+-- and have length strictly less than `count`.
+example (i : Fin 5) : encFinEnum (Fin 5) i = encUnary i.val :=
   encFinEnum_fin_apply i
 
-example (i : Fin 5) : (encFinUnary i).length < 5 :=
-  length_encFinUnary_lt i
+example (i : Fin 5) : (encFinEnum (Fin 5) i).length < Nat.card (Fin 5) :=
+  length_encFinEnum_lt i
 
 -- Construct and index a canonical-order `Fin 3 → List Bool` table of unbounded words without
 -- importing BCS.
@@ -93,10 +93,10 @@ private theorem computableInPolyTime_wordFamily :
 example :
     ComputableInPolyTime
       (fun p : List Bool × Fin 3 => wordFamily p.1 p.2)
-      (encPair encBits encFinUnary) encBits :=
+      (encPair encBits (encFinEnum (Fin 3))) encBits :=
   finFn_apply'
-    (computableInPolyTime_wordFamily.comp (fst encBits encFinUnary))
-    (snd encBits encFinUnary)
+    (computableInPolyTime_wordFamily.comp (fst encBits (encFinEnum (Fin 3))))
+    (snd encBits (encFinEnum (Fin 3)))
 
 example :
     wordFamily [true, false] ⟨1, by decide⟩ = [false, true] ∧

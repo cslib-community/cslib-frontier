@@ -211,7 +211,7 @@ into a non-interactive proof (`BCSProof r Sym`, `bcsProve`, `bcsVerify`):
   extracted witness `rel x (iopExtract x oracles)`, an IOP knowledge-soundness
   violation at the Fiat–Shamir challenge, or an explicit `H k` collision. For a
   fixed round count `r` and tree depth `d` outside the security parameter, using
-  the encodings `encFinUnary` and `encFinFn` (from
+  the encodings `encFinEnum (Fin ...)` (`encFinEnum_fin_apply`) and `encFinFn` (from
   [`Encodings/DPi.lean`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Encodings/DPi.lean))
   together with `encOracleTable`, `encFSTranscript`, `encIOPQuery`,
   `encIOPQueryList`, `encIOPTranscript`, `encMerkleOpeningOf`, `encBCSProof`,
@@ -259,9 +259,12 @@ trace extraction from Construction 18.5.3 and Lemma 18.5.7, pp. 199 and 207):
   and `defaultSym : Sym` for fixed `r` and `d` outside the security parameter,
   `bcsExtractTable`, `bcsExtractOracles`, and `bcsExtractWitness`
   reconstruct all `r` committed round tables and a candidate witness directly from a Merkle trace
-  `tr_MT` via `extractLeafFromTrace` without rewinding (`computableInPolyTime_bcsExtractTable`,
-  `computableInPolyTime_bcsExtractOracles`, and, when `iopExtract` and `decSym` are
-  polynomial-time, `computableInPolyTime_bcsExtractWitness`). Under
+  `tr_MT` via `extractLeafFromTrace` without rewinding: when the symbol decoder `decSym` is
+  polynomial-time, `computableInPolyTime_bcsExtractTable` and
+  `computableInPolyTime_bcsExtractOracles` certify polynomial-time table and oracle reconstruction
+  (a semantic left inverse `Function.LeftInverse decSym encSym` alone does not supply decoder
+  efficiency), and `computableInPolyTime_bcsExtractWitness` additionally requires polynomial-time
+  `iopExtract`. Under
   `TraceCollisionFree tr_MT` and `BCSOpeningsQueriedInTrace`, `iopVerify_bcsExtractOracles_of_bcsVerify`
   proves that `iopVerify` accepts `bcsExtractOracles`, `exists_collision_of_bcsVerify_of_iopVerify_eq_false`
   and `bcsExtractTraceCollision` (`bcsFindTraceConflict`, `bcs_trace_sound_or_collision`,

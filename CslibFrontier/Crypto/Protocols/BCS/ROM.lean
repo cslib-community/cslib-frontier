@@ -2643,9 +2643,9 @@ theorem computableInPolyTime_bcsFindTraceConflict
   have ho := (ComputableInPolyTime.snd
     (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp hsnd
   have hj := (ComputableInPolyTime.fst
-    (encFinUnary (count := r)) (encFinUnary (count := 2 ^ d))).comp hqpair
+    (encFinEnum (Fin r)) (encFinEnum (Fin (2 ^ d)))).comp hqpair
   have hidx := (ComputableInPolyTime.snd
-    (encFinUnary (count := r)) (encFinUnary (count := 2 ^ d))).comp hqpair
+    (encFinEnum (Fin r)) (encFinEnum (Fin (2 ^ d)))).comp hqpair
   have hidxVal := ComputableInPolyTime.finVal hidx
   have hval : ComputableInPolyTime
       (fun p : γ × ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) => encSym p.2.2.leaf)
@@ -2705,7 +2705,7 @@ theorem computableInPolyTime_bcsExtractTraceCollision
   have ho := (ComputableInPolyTime.snd
     (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp hsnd
   have hidx := (ComputableInPolyTime.snd
-    (encFinUnary (count := r)) (encFinUnary (count := 2 ^ d))).comp hqpair
+    (encFinEnum (Fin r)) (encFinEnum (Fin (2 ^ d)))).comp hqpair
   have hidxVal := ComputableInPolyTime.finVal hidx
   have hval : ComputableInPolyTime
       (fun p : γ × ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) => encSym p.2.2.leaf)

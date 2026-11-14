@@ -205,7 +205,8 @@ theorem computableInPolyTime_constHash :
 
 theorem computableInPolyTime_ksIOP_queries :
     ComputableInPolyTime (fun p : Bool × (Fin 1 → Bool) => ksIOP.queries p.1 p.2)
-      (encPair encBool (encFinFn 1 encBool)) (encList (encPair encFinUnary encFinUnary)) :=
+      (encPair encBool (encFinFn 1 encBool))
+      (encList (encPair (encFinEnum (Fin 1)) (encFinEnum (Fin 2)))) :=
   ComputableInPolyTime.const _
 
 theorem computableInPolyTime_constFS :
