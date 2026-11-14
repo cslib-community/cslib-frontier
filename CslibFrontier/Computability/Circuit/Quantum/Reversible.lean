@@ -82,7 +82,7 @@ def codes (n z : ℕ) (gates : List (Op × List ℕ)) : List GateCode :=
 
 /-- The qubit holding a Boolean output wire `o` when `z` is the compiler's zero qubit. Malformed
 wire numbers at or above `z` read that zero qubit, matching `evalCode`'s default-false semantics. -/
-@[expose] def outQubit (z o : ℕ) : ℕ := min z o
+def outQubit (z o : ℕ) : ℕ := min z o
 
 theorem codes_append_singleton (n z : ℕ) (gates : List (Op × List ℕ)) (g : Op × List ℕ) :
     codes n z (gates ++ [g]) = codes n z gates ++ gateCodes z (n + gates.length) g := by
