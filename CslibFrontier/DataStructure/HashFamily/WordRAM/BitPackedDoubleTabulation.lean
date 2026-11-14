@@ -14,6 +14,7 @@ public import CslibFrontier.Computability.WordRAM.Realization.Primitive
 public import CslibFrontier.Computability.WordRAM.Realization.Reindex
 public import CslibFrontier.Computability.WordRAM.Realization.Witness
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.BitPackedArray
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.BitPackedArrayProg
 public import CslibFrontier.DataStructure.HashFamily.WordRAM.DoubleTabulation
 public import CslibFrontier.DataStructure.HashFamily.WordRAM.Tabulation
 public import CslibFrontier.Probability.KWiseIndependent.DoubleTabulation
@@ -579,6 +580,14 @@ theorem seedRep_congr_mem {base w w₀ c_tab d b_char M_out : ℕ}
         (by dsimp only [offBot, botWords] at ha2 hsp_eq ⊢; omega)) hidx]
     exact hrep.2.2 j y
 
+/-- Congruence of `SeedRep` under memory updates preserving `[base, base + space)`. -/
+theorem SeedRep.congr_on {base w w₀ c_tab d b_char M_out : ℕ}
+    {θ : Seed w₀ c_tab d b_char M_out} {mem mem' : ℕ → ℕ}
+    (hrep : SeedRep base w w₀ c_tab d b_char M_out θ mem) (hw : 0 < w)
+    (heq : ∀ a, base ≤ a → a < base + space w c_tab d b_char M_out → mem' a = mem a) :
+    SeedRep base w w₀ c_tab d b_char M_out θ mem' :=
+  seedRep_congr_mem hw hrep heq
+
 /-! ### Single-pass `randFillLoop` seed resampling (`resampleCode`) -/
 
 /-- Combined additive homomorphism projecting `topWords + botWords` `w`-bit strings onto the pair of
@@ -1000,155 +1009,12 @@ theorem map_extractSeed_eval_resampleComp {base w w₀ c_tab d b_char M_out : �
 
 /-! ## Section 3: `Memory.Prog` + `realize` deterministic `O(c_tab * d)` evaluation -/
 
-/-- `Memory.Prog` read of the `k`-bit entry at `idx` in a bit-packed array at `base + offset`. -/
-@[expose] def readPackedProg (base offset k w idx : ℕ) : Memory.Prog ℕ := do
-  let wOff := wordOffset k w idx
-  let bOff := bitOffset k w idx
-  let k₀ := lowWidth k w idx
-  let k₁ := highWidth k w idx
-  let word₀ ← Memory.read (base + offset + wOff)
-  let word₁ ← Memory.read (base + offset + wOff + 1)
-  let low := (word₀ >>> bOff) &&& (2 ^ k₀ - 1)
-  let high := (word₁ >>> 0) &&& (2 ^ k₁ - 1)
-  pure (low ^^^ (high <<< k₀))
-
-/-- Parameter-free `Memory.Prog` wrapper for `readPackedProg`
-(`d = (((base, offset), (k, w)), idx)`). -/
-@[expose] def readPackedGenProg : ((ℕ × ℕ) × (ℕ × ℕ)) × ℕ → Memory.Prog ℕ
-  | (((base, offset), (k, w)), idx) => readPackedProg base offset k w idx
-
-theorem validHistory_readPackedProg {w base offset N k idx : ℕ} {s : Memory.State}
-    (hw : 0 < w) (hidx : idx < N)
-    (ha : base + offset + packedWords N k w ≤ s.frontier) :
-    (Memory.spec w).ValidHistory s
-      ((Memory.spec w).clientHistory s (readPackedProg base offset k w idx)) := by
-  have hlt := wordOffset_add_one_lt_packedWords (k := k) hw hidx
-  change base + offset + wordOffset k w idx < s.frontier ∧
-    base + offset + wordOffset k w idx + 1 < s.frontier ∧ True
-  exact ⟨by omega, by omega, trivial⟩
-
-@[simp]
-theorem clientResult_readPackedProg (base offset k w idx : ℕ) (s : Memory.State) :
-    (Memory.spec 0).clientResult s (readPackedProg base offset k w idx) =
-      readPacked (base + offset) k w s.mem idx := rfl
-
-theorem clientState_readPackedProg (base offset k w idx : ℕ) (s : Memory.State) :
-    (Memory.spec 0).clientState s (readPackedProg base offset k w idx) = s := rfl
-
-@[simp]
-theorem memoryCost_readPackedProg (base offset k w idx : ℕ) (s : Memory.State) :
-    memoryCost (readPackedProg base offset k w idx) s = 2 := rfl
-
 @[simp]
 private theorem clientResult_pure' {α : Type} (w : ℕ) (s : Memory.State) (a : α) :
     (Memory.spec w).clientResult s (pure a) = a := rfl
 
 private theorem clientState_pure' {α : Type} (w : ℕ) (s : Memory.State) (a : α) :
     (Memory.spec w).clientState s (pure a) = s := rfl
-
-private theorem readPackedCode_not_readsWidth : ¬readPackedCode.ReadsWidth := by
-  simp [readPackedCode, addrSetupCode, offsetSetupCode, maskSetupCode, readPackedFinishCode,
-    Code.ReadsWidth, Op.ReadsWidth, Op.exactBin]
-
-/-- Uniform parameter-free `Realizes .exact` certificate for `readPackedGenProg`. -/
-theorem realizes_readPackedGen :
-    Realizes .exact readPackedGenProg
-      (WordEncoding.encode (α := ((ℕ × ℕ) × (ℕ × ℕ)) × ℕ)) (WordEncoding.encode (α := ℕ))
-      (fun w (((base, offset), (k, w')), idx) _ => ∃ N, w = w' ∧ 0 < w ∧ k ≤ w ∧ idx < N ∧
-        Fits w (base + offset + packedWords N k w))
-      (fun _ _ => 0) := by
-  let perm : Fin 10 ≃ Fin 10 := Equiv.swap 0 2
-  refine ⟨8, 38, fun _ src tmp =>
-    .seq (.op (.exactBin .add (tmp 2) (src 0) (src 1)))
-      (.seq (.op (.copy (tmp 1) (src 4)))
-        (.seq (.op (.copy (tmp 8) (src 3)))
-          (.seq (.op (.copy (tmp 9) (src 2)))
-            (readPackedCode.rename (tmp ∘ perm))))), ?_⟩
-  intro r frontier src tmp hi hd hf _
-  have hperm_inj : Function.Injective (tmp ∘ perm) := hi.comp perm.injective
-  refine ⟨?_, ?_⟩
-  · simp [Code.ReadsWidth, Op.ReadsWidth, Op.exactBin, Code.readsWidth_rename,
-      readPackedCode_not_readsWidth]
-  · intro w ⟨⟨⟨base, offset⟩, ⟨k, w'⟩⟩, idx⟩ x hx hin ⟨N, heq, hw, hkw, hidx, hfit⟩ _
-    have hsrc0 : x.regs (src 0) = base := congrFun hin 0
-    have hsrc1 : x.regs (src 1) = offset := congrFun hin 1
-    have hsrc2 : x.regs (src 2) = k := congrFun hin 2
-    have hsrc3 : x.regs (src 3) = w' := congrFun hin 3
-    have hsrc4 : x.regs (src 4) = idx := congrFun hin 4
-    let x₁ := x.set (tmp 2) (base + offset)
-    let x₂ := x₁.set (tmp 1) (x₁.regs (src 4))
-    let x₃ := x₂.set (tmp 8) (x₂.regs (src 3))
-    let x₄ := x₃.set (tmp 9) (x₃.regs (src 2))
-    have hc1 :
-        ExecWithin (B := .exact) w (.op (.exactBin .add (tmp 2) (src 0) (src 1))) x x₁ 1 := by
-      apply ExecWithin.op
-      rw [Op.eval_exactBin, hsrc0, hsrc1]
-      exact Data.put_of_fits (hfit.of_le (by omega))
-    have hc2 : ExecWithin (B := .exact) w (.op (.copy (tmp 1) (src 4))) x₁ x₂ 1 := ExecWithin.copy
-    have hc3 : ExecWithin (B := .exact) w (.op (.copy (tmp 8) (src 3))) x₂ x₃ 1 := ExecWithin.copy
-    have hc4 : ExecWithin (B := .exact) w (.op (.copy (tmp 9) (src 2))) x₃ x₄ 1 := ExecWithin.copy
-    have hx₄_bdd : x₄.Bounded w := hc4.bounded (hc3.bounded (hc2.bounded (hc1.bounded hx)))
-    have hne : ∀ (a b : Fin 10), a ≠ b → tmp a ≠ tmp b := fun a b hab h => hab (hi h)
-    have hbase0 : (x₄.comap (tmp ∘ perm)).regs 0 = base + offset := by
-      change x₄.regs (tmp (perm 0)) = base + offset
-      have hp0 : perm 0 = 2 := by decide
-      rw [hp0]; dsimp only [x₄, x₃, x₂, x₁, Data.set]
-      rw [Function.update_of_ne (hne 2 9 (by decide)),
-        Function.update_of_ne (hne 2 8 (by decide)),
-        Function.update_of_ne (hne 2 1 (by decide)), Function.update_self]
-    have hidx1 : (x₄.comap (tmp ∘ perm)).regs 1 = idx := by
-      change x₄.regs (tmp (perm 1)) = idx
-      have hp1 : perm 1 = 1 := by decide
-      rw [hp1]; dsimp only [x₄, x₃, x₂, x₁, Data.set]
-      rw [Function.update_of_ne (hne 1 9 (by decide)),
-        Function.update_of_ne (hne 1 8 (by decide)),
-        Function.update_self, Function.update_of_ne (hd 4 2), hsrc4]
-    have hw8 : (x₄.comap (tmp ∘ perm)).regs 8 = w := by
-      change x₄.regs (tmp (perm 8)) = w
-      have hp8 : perm 8 = 8 := by decide
-      rw [hp8]; dsimp only [x₄, x₃, x₂, x₁, Data.set]
-      rw [Function.update_of_ne (hne 8 9 (by decide)), Function.update_self,
-        Function.update_of_ne (hd 3 1), Function.update_of_ne (hd 3 2), hsrc3, heq]
-    have hk9 : (x₄.comap (tmp ∘ perm)).regs 9 = k := by
-      change x₄.regs (tmp (perm 9)) = k
-      have hp9 : perm 9 = 9 := by decide
-      rw [hp9]; dsimp only [x₄, x₃, x₂, x₁, Data.set]
-      rw [Function.update_self, Function.update_of_ne (hd 2 8),
-        Function.update_of_ne (hd 2 1), Function.update_of_ne (hd 2 2), hsrc2]
-    obtain ⟨y_core, hex_core, hymem, _, _, hy2⟩ :=
-      readPackedCode_execWithin hw hkw hidx (hx₄_bdd.comap (tmp ∘ perm)) hbase0 hidx1 hw8 hk9 hfit
-    have hex_ren := hex_core.rename hperm_inj
-    let y := y_core.extend (tmp ∘ perm) x₄
-    refine ⟨y, (hc1.seq (hc2.seq (hc3.seq (hc4.seq hex_ren)))).mono
-      (by change 1 + (1 + (1 + (1 + 34))) ≤ 38 * (2 + 0 + 1); omega), ?_, ?_, ?_⟩
-    · apply Memory.State.ext
-      · exact hymem
-      · change y.regs frontier = x.regs frontier
-        have hnot : ¬∃ j : Fin 10, (tmp ∘ perm) j = frontier := by
-          rintro ⟨j, hj⟩; exact hf (perm j) hj
-        change Function.extend (tmp ∘ perm) y_core.regs x₄.regs frontier = x.regs frontier
-        rw [Function.extend_apply' _ _ _ hnot]
-        dsimp only [x₄, x₃, x₂, x₁, Data.set]
-        rw [Function.update_of_ne (hf 9).symm, Function.update_of_ne (hf 8).symm,
-          Function.update_of_ne (hf 1).symm, Function.update_of_ne (hf 2).symm]
-    · intro i
-      have hi0 : i = 0 := Fin.eq_zero i
-      subst hi0
-      rw [clientResult_width]
-      change y.regs (tmp 0) = readPacked (base + offset) k w' x.mem idx
-      have hp2 : tmp 0 = (tmp ∘ perm) 2 := by congr 1
-      rw [hp2]
-      change (y.comap (tmp ∘ perm)).regs 2 = _
-      rw [Data.comap_extend hperm_inj, hy2, ← heq]
-      rfl
-    · intro i _ htmp
-      have hnot : ¬∃ j : Fin 10, (tmp ∘ perm) j = i := by
-        rintro ⟨j, hj⟩; exact htmp (perm j) hj
-      change Function.extend (tmp ∘ perm) y_core.regs x₄.regs i = x.regs i
-      rw [Function.extend_apply' _ _ _ hnot]
-      dsimp only [x₄, x₃, x₂, x₁, Data.set]
-      rw [Function.update_of_ne (htmp 9).symm, Function.update_of_ne (htmp 8).symm,
-        Function.update_of_ne (htmp 1).symm, Function.update_of_ne (htmp 2).symm]
 
 /-- Runtime register block of 16 precomputed hash parameters for parameter-free `Realizes`. -/
 @[expose] def HashParams : Type := Fin 16 → ℕ
@@ -1460,14 +1326,18 @@ theorem memoryCost_outerStepGenProg_pos
   rw [memoryCost_bind, memoryCost_bind, memoryCost_readPackedProg]
   omega
 
-private theorem innerLoop_invariant {w : ℕ} {hp : HashParams} {base j : ℕ} {s : Memory.State}
+/-- Extract the XOR accumulator `y` from the inner-loop state `((i, y), r)`. -/
+abbrev innerAcc (st : (ℕ × ℕ) × ℕ) : ℕ := st.1.2
+
+/-- Loop-safety, state-preservation, and accumulator-range invariant for `innerStepGenProg`. -/
+theorem innerLoop_invariant {w : ℕ} {hp : HashParams} {base j : ℕ} {s : Memory.State}
     (henv : HashEnv w hp base) (hj : j < hpD hp) :
     ∀ m i y r, i + m ≤ hpCTab hp → y < hpPowB hp →
       iterationSafe innerStepGenProg InnerStepGenPre w (hp, (base, j)) m ((i, y), r) s ∧
       (Memory.spec 0).clientState s
         (iterate innerStepGenProg (hp, (base, j)) m ((i, y), r)) = s ∧
-      ((Memory.spec 0).clientResult s
-        (iterate innerStepGenProg (hp, (base, j)) m ((i, y), r))).1.2 < hpPowB hp := by
+      innerAcc ((Memory.spec 0).clientResult s
+        (iterate innerStepGenProg (hp, (base, j)) m ((i, y), r))) < hpPowB hp := by
   obtain ⟨w₀, R, c_tab, d_par, b_char, M_out, hw, hw₀, hw₀_le, hb, hM, htop_lt, hbot_lt,
     hc1, hd_lt, hfit_sp, rfl⟩ := henv
   intro m
@@ -1711,7 +1581,6 @@ bit-packed double tabulation in `O(c_tab * d)` deterministic steps. -/
 @[expose] def EvalGenPre (w : ℕ) : HashParams × ((ℕ × ℕ) × ℕ) → Memory.State → Prop
   | (hp, ((base, s_val), u_val)), s =>
     HashEnv w hp base ∧
-    base < s.frontier ∧
     s.mem base ≤ hpMaskM hp ∧
     s_val < hpPowB hp ∧
     u_val ≤ (hpMaskM hp <<< 1) + 1
@@ -1745,99 +1614,12 @@ private theorem mul_parts_fits {w₀ w α_val u_val : ℕ} (hw₀ : 0 < w₀) (h
     Fits w ((u_val >>> 1) + hm) ∧
     Fits w ((((u_val >>> 1) + hm) &&& (2 ^ m - 1)) <<< 1) ∧
     Fits w ((u_val &&& 1) + ((((u_val >>> 1) + hm) &&& (2 ^ m - 1)) <<< 1)) := by
-  intro m h x' α₀ α₁ x₀ x₁ p₀ p₁ p₂ p₃ s₁ s₂ hm
-  have h2m_lt_w : 2 * 2 ^ m ≤ 2 ^ w := by
-    have hm1 : m + 1 = w₀ := Nat.sub_add_cancel hw₀
-    calc 2 * 2 ^ m = 2 ^ (m + 1) := (pow_succ' 2 m).symm
-      _ = 2 ^ w₀ := by rw [hm1]
-      _ ≤ 2 ^ w := Nat.pow_le_pow_right two_pos hw₀_le
-  have hm_lt_w : 2 ^ m < 2 ^ w := by
-    have := Nat.two_pow_pos m
-    omega
-  have h_le : h ≤ m := Nat.div_le_self m 2
-  have h2_le : 2 * h ≤ m := Nat.mul_div_le m 2
-  have hα₀ : α₀ < 2 ^ h := by
-    dsimp only [α₀]; rw [Nat.and_two_pow_sub_one_eq_mod]; exact Nat.mod_lt _ (Nat.two_pow_pos _)
-  have hx₀ : x₀ < 2 ^ h := by
-    dsimp only [x₀]; rw [Nat.and_two_pow_sub_one_eq_mod]; exact Nat.mod_lt _ (Nat.two_pow_pos _)
-  have hα₁ : α₁ < 2 ^ (m - h) := by
-    dsimp only [α₁]; rw [Nat.shiftRight_eq_div_pow]
-    refine Nat.div_lt_of_lt_mul ?_
-    rw [← pow_add, Nat.add_sub_of_le h_le]
-    exact hα
-  have hx' : x' < 2 ^ m := by
-    dsimp only [x']; rw [Nat.and_two_pow_sub_one_eq_mod]; exact Nat.mod_lt _ (Nat.two_pow_pos _)
-  have hx₁ : x₁ < 2 ^ (m - h) := by
-    dsimp only [x₁]; rw [Nat.shiftRight_eq_div_pow]
-    refine Nat.div_lt_of_lt_mul ?_
-    rw [← pow_add, Nat.add_sub_of_le h_le]
-    exact hx'
-  have hp₀_raw : α₀ * x₀ < 2 ^ m := by
-    calc α₀ * x₀ < 2 ^ h * 2 ^ h := Nat.mul_lt_mul'' hα₀ hx₀
-      _ = 2 ^ (2 * h) := by rw [← pow_add, two_mul]
-      _ ≤ 2 ^ m := Nat.pow_le_pow_right two_pos h2_le
-  have hp₁_raw : α₀ * x₁ < 2 ^ m := by
-    calc α₀ * x₁ < 2 ^ h * 2 ^ (m - h) := Nat.mul_lt_mul'' hα₀ hx₁
-      _ = 2 ^ m := by rw [← pow_add, Nat.add_sub_of_le h_le]
-  have hp₂_raw : α₁ * x₀ < 2 ^ m := by
-    calc α₁ * x₀ < 2 ^ (m - h) * 2 ^ h := Nat.mul_lt_mul'' hα₁ hx₀
-      _ = 2 ^ m := by rw [← pow_add, Nat.sub_add_cancel h_le]
-  have hp₁_lt : p₁ < 2 ^ m := by
-    dsimp only [p₁]; rw [Nat.shiftLeft_eq, Nat.and_two_pow_sub_one_eq_mod]
-    calc ((α₀ * x₁) % 2 ^ (m - h)) * 2 ^ h
-        < 2 ^ (m - h) * 2 ^ h := Nat.mul_lt_mul_of_pos_right (Nat.mod_lt _ (Nat.two_pow_pos _))
-          (Nat.two_pow_pos _)
-      _ = 2 ^ m := by rw [← pow_add, Nat.sub_add_cancel h_le]
-  have hp₂_lt : p₂ < 2 ^ m := by
-    dsimp only [p₂]; rw [Nat.shiftLeft_eq, Nat.and_two_pow_sub_one_eq_mod]
-    calc ((α₁ * x₀) % 2 ^ (m - h)) * 2 ^ h
-        < 2 ^ (m - h) * 2 ^ h := Nat.mul_lt_mul_of_pos_right (Nat.mod_lt _ (Nat.two_pow_pos _))
-          (Nat.two_pow_pos _)
-      _ = 2 ^ m := by rw [← pow_add, Nat.sub_add_cancel h_le]
-  have hp₃_mul_lt :
-      (α₁ &&& (2 ^ (m - 2 * h) - 1)) * (x₁ &&& (2 ^ (m - 2 * h) - 1)) < 2 ^ (m - 2 * h) := by
-    rw [Nat.and_two_pow_sub_one_eq_mod, Nat.and_two_pow_sub_one_eq_mod]
-    have hd_le : m - 2 * h ≤ 1 := by omega
-    rcases (by omega : m - 2 * h = 0 ∨ m - 2 * h = 1) with hd0 | hd1
-    · rw [hd0, pow_zero, Nat.mod_one, zero_mul]; exact one_pos
-    · rw [hd1, pow_one]
-      have h1 : α₁ % 2 < 2 := Nat.mod_lt _ two_pos
-      have h2 : x₁ % 2 < 2 := Nat.mod_lt _ two_pos
-      rcases (by omega : α₁ % 2 = 0 ∨ α₁ % 2 = 1) with h0 | h1_eq
-      · simp [h0]
-      · simp [h1_eq, h2]
-  have hp₃_lt : p₃ < 2 ^ m := by
-    dsimp only [p₃]; rw [Nat.shiftLeft_eq]
-    calc _ < 2 ^ (m - 2 * h) * 2 ^ (2 * h) :=
-          Nat.mul_lt_mul_of_pos_right hp₃_mul_lt (Nat.two_pow_pos _)
-      _ = 2 ^ m := by rw [← pow_add, Nat.sub_add_cancel h2_le]
-  have hp₀_lt : p₀ < 2 ^ m := by
-    dsimp only [p₀]; rw [Nat.and_two_pow_sub_one_eq_mod]; exact Nat.mod_lt _ (Nat.two_pow_pos _)
-  have hs₁_lt : s₁ < 2 ^ m := by
-    dsimp only [s₁]; rw [Nat.and_two_pow_sub_one_eq_mod]; exact Nat.mod_lt _ (Nat.two_pow_pos _)
-  have hs₂_lt : s₂ < 2 ^ m := by
-    dsimp only [s₂]; rw [Nat.and_two_pow_sub_one_eq_mod]; exact Nat.mod_lt _ (Nat.two_pow_pos _)
-  have hhm_lt : hm < 2 ^ m := by
-    dsimp only [hm]; rw [Nat.and_two_pow_sub_one_eq_mod]; exact Nat.mod_lt _ (Nat.two_pow_pos _)
-  have hu_shr : u_val >>> 1 < 2 ^ m := by
-    rw [Nat.shiftRight_eq_div_pow, pow_one]
-    refine Nat.div_lt_of_lt_mul ?_
-    calc u_val < 2 ^ w₀ := hu
-      _ = 2 * 2 ^ m := by rw [← pow_succ', Nat.sub_add_cancel hw₀]
-  have hsh_fin : ((((u_val >>> 1) + hm) &&& (2 ^ m - 1)) <<< 1) ≤ 2 * 2 ^ m - 2 := by
-    rw [Nat.shiftLeft_eq, pow_one, Nat.and_two_pow_sub_one_eq_mod]
-    have hmod : ((u_val >>> 1) + hm) % 2 ^ m < 2 ^ m := Nat.mod_lt _ (Nat.two_pow_pos _)
-    omega
-  have hubit : u_val &&& 1 < 2 := by
-    change u_val &&& (2 ^ 1 - 1) < 2
-    rw [Nat.and_two_pow_sub_one_eq_mod]
-    exact Nat.mod_lt _ two_pos
-  dsimp only [Fits]
-  exact ⟨hp₀_raw.trans hm_lt_w, hp₁_raw.trans hm_lt_w, hp₁_lt.trans hm_lt_w,
-    hp₂_raw.trans hm_lt_w, hp₂_lt.trans hm_lt_w,
-    hp₃_mul_lt.trans_le ((Nat.pow_le_pow_right two_pos (by omega)).trans hm_lt_w.le),
-    hp₃_lt.trans hm_lt_w,
-    by omega, by omega, by omega, by omega, by omega, by omega⟩
+  have hpow : 2 ^ w₀ ≤ 2 ^ w := Nat.pow_le_pow_right two_pos hw₀_le
+  obtain ⟨h₁, h₂, h₃, h₄, h₅, h₆, h₇, h₈, h₉, h₁₀, h₁₁, h₁₂, h₁₃⟩ :=
+    oddMulModWord_parts_lt hw₀ hα hu
+  exact ⟨h₁.trans_le hpow, h₂.trans_le hpow, h₃.trans_le hpow, h₄.trans_le hpow, h₅.trans_le hpow,
+    h₆.trans_le hpow, h₇.trans_le hpow, h₈.trans_le hpow, h₉.trans_le hpow, h₁₀.trans_le hpow,
+    h₁₁.trans_le hpow, h₁₂.trans_le hpow, h₁₃.trans_le hpow⟩
 
 /-- **Parameter-free `Realizes .exact` certificate for `evalGenProg` (`¬ReadsWidth`, single compiled
 `Code .exact`)**. -/
@@ -1851,7 +1633,7 @@ theorem realizes_evalGen :
   realize
   all_goals (
     rcases d with ⟨hp, ⟨base, s_val⟩, u_val⟩
-    obtain ⟨henv, hbase_fr, hα_le, hs_lt, hu_le⟩ := h
+    obtain ⟨henv, hα_le, hs_lt, hu_le⟩ := h
     obtain ⟨w₀, R, c_tab, d_par, b_char, M_out, hw, hw₀, hw₀_le, hb, hM, htop_lt, hbot_lt,
       hc1, hd_lt, hfit_sp, heq_hp⟩ := henv
     subst heq_hp
@@ -2261,7 +2043,7 @@ theorem validHistory_evalGenProg {w : ℕ} {hp : HashParams} {base s_val u_val :
     (hfr : base + space w (hpCTab hp) (hpD hp) (hpBChar hp) (hpMOut hp) ≤ s.frontier) :
     (Memory.spec w).ValidHistory s
       ((Memory.spec w).clientHistory s (evalGenProg (hp, ((base, s_val), u_val)))) := by
-  obtain ⟨henv, hbase_fr, _, hs_lt, _⟩ := hpre
+  obtain ⟨henv, _, hs_lt, _⟩ := hpre
   obtain ⟨w₀, R, c_tab, d_par, b_char, M_out, hw, hw₀, hw₀_le, hb, hM, htop_lt, hbot_lt,
     hc1, hd_lt, hfit_sp, heq_hp⟩ := henv
   subst heq_hp
@@ -2269,6 +2051,9 @@ theorem validHistory_evalGenProg {w : ℕ} {hp : HashParams} {base s_val u_val :
     ⟨w₀, R, c_tab, d_par, b_char, M_out, hw, hw₀, hw₀_le, hb, hM, htop_lt, hbot_lt, hc1,
       hd_lt, hfit_sp, rfl⟩
   dsimp only [hpCTab_mk, hpD_mk, hpBChar_mk, hpMOut_mk, hpPowB_mk] at hfr hs_lt
+  have hbase_fr : base < s.frontier := by
+    have := space_pos w c_tab d_par b_char M_out
+    omega
   have hinner_valid : ∀ j (hj : j < d_par) rKey,
       (Memory.spec w).ValidHistory s
         ((Memory.spec w).clientHistory s

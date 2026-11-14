@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Probability.KWiseIndependent
 import CslibFrontier.Foundations.Data.Finset.Expect
+import CslibFrontier.Probability.KWiseIndependent.Concentration
 import Mathlib.Algebra.BigOperators.Balance
 import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Algebra.BigOperators.Ring.Finset
@@ -32,8 +33,16 @@ This module provides two high-probability concentration tools for `k`-wise indep
    `dens_filter_le_abs_sum_sub_expect_of_Icc`):
    Refines `IsKWiseIndependentHash.expect_sum_pow_le` when centered terms `Z x` (`|Z x| ≤ 1`)
    satisfy per-coordinate second-moment bounds `𝔼 y, (Z x y) ^ 2 ≤ v x` (`0 ≤ v x`). Replacing `#S`
-   with `max (∑ x ∈ S, v x) 1` yields polynomial `1 - n ^ (-c)` balls-into-bins and Feistel-bucket
-   concentration under `O(c log n / log log n)`-wise independence.
+   with `max (∑ x ∈ S, v x) 1` gives tail density `m * (m ^ 2 * max (∑ x ∈ S, v x) 1 / a ^ 2) ^ m`,
+   yielding polynomial `1 - n ^ (-c)` concentration under `O(c log n)`-wise independence whenever
+   `a ^ 2 ≥ Ω(m ^ 2 * max (∑ x ∈ S, v x) 1)` (because `sum_prod_image_eq_card_le` drops the `1 / r!`
+   symmetry factor, leaving `m ^ 2` rather than `m` in the numerator).
+   Compare `CslibFrontier.Probability.KWiseIndependent.Concentration`
+   (`expect_sum_sub_expect_pow_le`, `dens_abs_sum_sub_expect_le`), which retains `1 / r!` for
+   `[0, 1]`-valued variables under the lower-mean regime `2 * m ≤ 3 * μ` to obtain
+   `2 * (3 * m * μ / a ^ 2) ^ m` (supporting `O(c log n / log log n)`-wise unit-mean balls-into-bins
+   bounds when `2 * m ≤ 3 * μ`), whereas the bounds here apply to general centered `[-1, 1]`
+   variables and arbitrary `∑ x ∈ S, v x` without requiring `2 * m ≤ 3 * ∑ x ∈ S, v x`.
 2. **Multi-salt collision-freedom and batch collision-count tail bounds**
    (`dens_forall_salt_exists_collision_le`, `dens_card_salt_colliding_ge_le`):
    Bounds the probability that all `s_max` salts collide on a bucket under `2 * s_max`-wise
@@ -348,27 +357,7 @@ theorem dens_filter_le_abs_sum_sub_expect_of_Icc {m : ℕ} (hm : 1 ≤ m)
     rw [abs_le]
     constructor <;> linarith [(hg x hx y).1, (hg x hx y).2]
   · have : Nonempty Y := ⟨h hh.nonempty.some x⟩
-    have hcard_pos : (0 : ℝ) < (Fintype.card Y : ℝ) := Nat.cast_pos.mpr Fintype.card_pos
-    set μ : ℝ := 𝔼 y', g x y'
-    have hμ_eq : ∑ y : Y, g x y = (Fintype.card Y : ℝ) * μ := by
-      dsimp only [μ]
-      rw [Finset.expect_eq_sum_div_card, card_univ, mul_div_cancel₀ _ hcard_pos.ne']
-    have hsq_le : ∀ y : Y, (g x y) ^ 2 ≤ g x y := fun y => by
-      have h0 := (hg x hx y).1
-      have h1 := (hg x hx y).2
-      nlinarith
-    have hsum_id :
-        ∑ y : Y, (g x y - μ) ^ 2 =
-          (∑ y : Y, (g x y) ^ 2) - (Fintype.card Y : ℝ) * μ ^ 2 := by
-      have hexp : ∀ y : Y, (g x y - μ) ^ 2 = (g x y) ^ 2 - 2 * μ * g x y + μ ^ 2 :=
-        fun _ => by ring
-      simp_rw [hexp, sum_add_distrib, sum_sub_distrib, ← mul_sum, sum_const, card_univ,
-        nsmul_eq_mul, hμ_eq]
-      ring
-    rw [Finset.expect_eq_sum_div_card, card_univ, div_le_iff₀ hcard_pos, mul_comm μ]
-    have h1 : ∑ y : Y, (g x y) ^ 2 ≤ ∑ y : Y, g x y := sum_le_sum fun y _ => hsq_le y
-    have h2 : 0 ≤ (Fintype.card Y : ℝ) * μ ^ 2 := by positivity
-    linarith [hsum_id, hμ_eq]
+    exact (le_abs_self _).trans (abs_expect_sub_expect_pow_le (g x) (hg x hx) le_rfl)
 
 /-! ## Section 2: Multi-salt collision-freedom and batch collision-count tail bounds -/
 
