@@ -71,40 +71,6 @@ universe u
 
 namespace ComputableInDegree
 
-/-- The first component of a pair computed with given degrees.
-The input universe is independent of the pair's universe. -/
-theorem fst' {α : Type*} {β₁ β₂ : Type u} {encIn : α ↪ List Bool}
-    {enc₁ : β₁ ↪ List Bool} {enc₂ : β₂ ↪ List Bool} {d e : ℕ}
-    {f : α → β₁ × β₂} (h : ComputableInDegree f encIn (encPair enc₁ enc₂) d e) :
-    ComputableInDegree (fun x => (f x).1) encIn enc₁ (max d e) e :=
-  ((fst enc₁ enc₂).comp h).mono
-
-/-- The second component of a pair computed with given degrees.
-The input universe is independent of the pair's universe. -/
-theorem snd' {α : Type*} {β₁ β₂ : Type u} {encIn : α ↪ List Bool}
-    {enc₁ : β₁ ↪ List Bool} {enc₂ : β₂ ↪ List Bool} {d e : ℕ}
-    {f : α → β₁ × β₂} (h : ComputableInDegree f encIn (encPair enc₁ enc₂) d e) :
-    ComputableInDegree (fun x => (f x).2) encIn enc₂ (max d e) e :=
-  ((snd enc₁ enc₂).comp h).mono
-
-/-- `List.headD` on any list encoding. -/
-theorem headD {β : Type*} {enc₁ : β ↪ List Bool} {enc : List β ↪ List Bool}
-    [ListEncoding enc₁ enc] (d : β) :
-    ComputableInDegree (fun l => l.headD d) enc enc₁ 1 1 :=
-  ListEncoding.headD d
-
-/-- `List.tail` on any list encoding. -/
-theorem tail {β : Type*} {enc₁ : β ↪ List Bool} {enc : List β ↪ List Bool}
-    [ListEncoding enc₁ enc] :
-    ComputableInDegree List.tail enc enc 1 1 :=
-  ListEncoding.tail (enc₁ := enc₁)
-
-/-- `List.isEmpty` on any list encoding. -/
-theorem isEmpty {β : Type*} {enc₁ : β ↪ List Bool} {enc : List β ↪ List Bool}
-    [ListEncoding enc₁ enc] :
-    ComputableInDegree List.isEmpty enc encBool 1 1 :=
-  ListEncoding.isEmpty (enc₁ := enc₁)
-
 /-- **Left folds with bounds of given degrees**, compiled directly from plain degree
 certificates. -/
 theorem foldl' {γ α β : Type} {encIn : γ ↪ List Bool}
@@ -213,21 +179,6 @@ theorem foldlWith {γ α β π : Type} {encIn : γ ↪ List Bool}
     le_max_of_le_right (le_add_left ((le_max_left _ eL).trans
       (Nat.le_mul_of_pos_left _ (lt_of_lt_of_le Nat.one_pos (le_max_left _ _)))))
   exact ⟨(h.mono (max_le le_rfl hY) le_rfl).1, hB.mono fun x => by simpa using hstates x _ le_rfl⟩
-
-/-- Adding an element at the end of a framed list. -/
-theorem snoc {α : Type} (enc : α ↪ List Bool) :
-    ComputableInDegree (fun p : List α × α => p.1 ++ [p.2]) (encPair (encList enc) enc)
-      (encList enc) 1 1 :=
-  ((fst (encList enc) enc).append ((ComputableInDegree.of_frame (f := id) (encIn := enc)
-      (encMid := encFramed enc) fun _ => rfl).comp (snd (encList enc) enc))
-    (enc₂ := encFramed enc) fun _ => by simp).mono
-
-/-- Concatenating two framed lists. -/
-theorem listAppend {α : Type} (enc : α ↪ List Bool) :
-    ComputableInDegree (fun p : List α × List α => p.1 ++ p.2)
-      (encPair (encList enc) (encList enc)) (encList enc) 1 1 :=
-  ((fst (encList enc) (encList enc)).append (snd (encList enc) (encList enc))
-    fun _ => by simp).mono
 
 /-- Truncated subtraction of unary numbers. -/
 theorem unary_sub :
@@ -381,12 +332,6 @@ namespace ComputableInDegree
 theorem listIsEmpty {α : Type*} (enc : α ↪ List Bool) :
     ComputableInDegree List.isEmpty (encList enc) encBool 1 1 :=
   isEmpty (enc₁ := enc)
-
-/-- Copy an encoded value. This identity rule also lets `fun_prop` retain a shared let binding. -/
-@[fun_prop]
-theorem id' {α : Type*} {enc : α ↪ List Bool} :
-    ComputableInDegree (fun x : α => x) enc enc 1 1 :=
-  of_eq fun _ => rfl
 
 /-- Reverse a raw bit list in linear time and linear output size. -/
 @[fun_prop]
