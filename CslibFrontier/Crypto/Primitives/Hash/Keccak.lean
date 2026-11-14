@@ -369,7 +369,7 @@ theorem ofSpongeView_toSpongeView (layout : SpongeLayout) (A : State) :
     | nil => simp
     | cons state states ih =>
       rw [List.flatMap_cons, List.length_append, length_rateBytesFor, ih, List.length_cons]
-      simp [Nat.mul_succ, Nat.add_comm]
+      simp only [Nat.mul_add, Nat.mul_one]
   have hcount :
       (Sponge.hashBlocks (keccakP1600Rounds24View layout) Prod.fst count blocks).length = count :=
     Sponge.length_squeeze _ _ _ _

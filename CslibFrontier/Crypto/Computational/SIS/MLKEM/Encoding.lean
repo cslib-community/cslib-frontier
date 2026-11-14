@@ -78,9 +78,9 @@ def codecModulus (d : CodecWidth) : ℕ :=
 /-- The selected coefficient modulus is positive. -/
 theorem codecModulus_pos (d : CodecWidth) : 0 < codecModulus d := by
   by_cases h : d.val = 12
-  · rw [codecModulus, if_pos h]
+  · rw [codecModulus, ite_eq_left h]
     decide
-  · rw [codecModulus, if_neg h]
+  · rw [codecModulus, ite_eq_right h]
     exact Nat.two_pow_pos d.val
 
 instance (d : CodecWidth) : NeZero (codecModulus d) :=
@@ -89,9 +89,9 @@ instance (d : CodecWidth) : NeZero (codecModulus d) :=
 /-- The codec modulus fits in the `d` bits allocated to a coefficient. -/
 theorem codecModulus_le_two_pow (d : CodecWidth) : codecModulus d ≤ 2 ^ d.val := by
   by_cases h : d.val = 12
-  · rw [codecModulus, if_pos h, h]
+  · rw [codecModulus, ite_eq_left h, h]
     decide
-  · rw [codecModulus, if_neg h]
+  · rw [codecModulus, ite_eq_right h]
 
 /-- The 256 coefficients consumed and produced by the FIPS 203 byte codec. -/
 abbrev Coefficients (d : CodecWidth) := Fin 256 → ZMod (codecModulus d)
@@ -117,7 +117,7 @@ def byteEncode (d : CodecWidth) (F : Coefficients d) : EncodedBytes d := fun r =
       (fun a =>
         (F ⟨a / d.val % 256, Nat.mod_lt _ (by decide)⟩).val.testBit (a % d.val))
       8 (32 * d.val) r,
-    by exact BitString.packWords_lt
+    BitString.packWords_lt
       (fun a => (F ⟨a / d.val % 256, Nat.mod_lt _ (by decide)⟩).val.testBit (a % d.val))
       8 (32 * d.val) r⟩
 
@@ -132,8 +132,11 @@ def byteDecode (d : CodecWidth) (B : EncodedBytes d) : Coefficients d := fun i =
 theorem rawCoefficient_byteEncode (d : CodecWidth) (F : Coefficients d) (i : Fin 256) :
     rawCoefficient d (byteEncode d F) i = (F i).val := by
   have hcapacity : i.val * d.val + d.val ≤ (32 * d.val) * 8 := by
-    have hi := i.isLt
-    omega
+    calc
+      i.val * d.val + d.val = (i.val + 1) * d.val := by
+        rw [Nat.add_mul, Nat.one_mul]
+      _ ≤ 256 * d.val := Nat.mul_le_mul_right d.val (Nat.succ_le_iff.mpr i.isLt)
+      _ = (32 * d.val) * 8 := by omega
   have hvalue :
       (F ⟨i.val % 256, Nat.mod_lt _ (by decide)⟩).val < 2 ^ d.val :=
     lt_of_lt_of_le (ZMod.val_lt _) (codecModulus_le_two_pow d)
@@ -142,9 +145,7 @@ theorem rawCoefficient_byteEncode (d : CodecWidth) (F : Coefficients d) (i : Fin
     (h := 8) (B := 32 * d.val) (q := i.val) (s := d.val) d.pos hcapacity hvalue
   have hindex : (⟨i.val % 256, Nat.mod_lt _ (by decide)⟩ : Fin 256) = i :=
     Fin.ext (Nat.mod_eq_of_lt i.isLt)
-  change BitString.readPackedField 8 (fun r => (byteEncode d F r).val)
-    (i.val * d.val) d.val = (F i).val
-  rw [hfield, hindex]
+  simpa only [rawCoefficient, byteEncode, hindex] using hfield
 
 /-- Decoding an encoded coefficient vector recovers every coefficient. -/
 @[simp] theorem byteDecode_byteEncode (d : CodecWidth) (F : Coefficients d) :
@@ -159,11 +160,10 @@ theorem byteEncode_byteDecode_of_raw_lt (d : CodecWidth) (B : EncodedBytes d)
     byteEncode d (byteDecode d B) = B := by
   have hval (i : Fin 256) : (byteDecode d B i).val = rawCoefficient d B i := by
     rw [byteDecode, ZMod.val_natCast_of_lt (hraw i)]
-  let w : Fin (32 * d.val) → ℕ := fun r => (B r).val
-  have hw (r : Fin (32 * d.val)) : w r < 2 ^ 8 := by
+  have hw (r : Fin (32 * d.val)) : (B r).val < 2 ^ 8 := by
     exact (B r).isLt
   have hrepack := BitString.packWords_readPackedField (h := 8) (B := 32 * d.val)
-    (s := d.val) (by decide) d.pos w hw
+    (s := d.val) (by decide) d.pos (fun r => (B r).val) hw
   funext r
   apply Fin.ext
   change BitString.packWords
@@ -175,24 +175,25 @@ theorem byteEncode_byteDecode_of_raw_lt (d : CodecWidth) (B : EncodedBytes d)
             ⟨a / d.val % 256, Nat.mod_lt _ (by decide)⟩).val.testBit (a % d.val))
           8 (32 * d.val) =
         BitString.packWords
-          (fun a => (BitString.readPackedField 8 w (a / d.val * d.val) d.val).testBit
-            (a % d.val)) 8 (32 * d.val) := by
+          (fun a => (BitString.readPackedField 8 (fun r => (B r).val)
+            (a / d.val * d.val) d.val).testBit (a % d.val)) 8 (32 * d.val) := by
     apply BitString.packWords_congr
     intro a ha
     have hindex : a / d.val < 256 := by
       apply (Nat.div_lt_iff_lt_mul d.pos).mpr
       omega
-    have hi : (⟨a / d.val % 256, Nat.mod_lt _ (by decide)⟩ : Fin 256) =
-        ⟨a / d.val, hindex⟩ := Fin.ext (Nat.mod_eq_of_lt hindex)
-    rw [hi, hval]
-    rfl
-  rw [hstreams]
-  exact congrFun hrepack r
+    rw [hval]
+    change (BitString.readPackedField 8 (fun r => (B r).val)
+      (a / d.val % 256 * d.val) d.val).testBit (a % d.val) =
+        (BitString.readPackedField 8 (fun r => (B r).val)
+          (a / d.val * d.val) d.val).testBit (a % d.val)
+    rw [Nat.mod_eq_of_lt hindex]
+  exact (congrFun hstreams r).trans (congrFun hrepack r)
 
 /-- Below width 12 the coefficient modulus is the full `d`-bit range. -/
 theorem codecModulus_eq_two_pow {d : CodecWidth} (h : d.val ≤ 11) :
     codecModulus d = 2 ^ d.val := by
-  rw [codecModulus, if_neg (by omega)]
+  rw [codecModulus, ite_eq_right (by omega)]
 
 /-- For every width `d ≤ 11`, encoding and decoding are inverse in the byte-to-coefficient
 direction as well. -/
@@ -211,7 +212,7 @@ def IsCanonical (d : CodecWidth) (B : EncodedBytes d) : Prop :=
   byteEncode d (byteDecode d B) = B
 
 instance (d : CodecWidth) (B : EncodedBytes d) : Decidable (IsCanonical d B) :=
-  inferInstance
+  Classical.decEq _ _
 
 /-- Every output of `byteEncode` is canonical. -/
 theorem byteEncode_isCanonical (d : CodecWidth) (F : Coefficients d) :
