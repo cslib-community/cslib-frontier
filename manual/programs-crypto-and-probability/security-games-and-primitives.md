@@ -1795,6 +1795,18 @@ gives `PseudorandomFunction.exists_weak_not_pseudorandom` and
 evaluates the function after rounding odd inputs to even ones; the zero patch is simpler and
 separates the same notions. Encryption from a weak pseudorandom function (Exercise 3.28(d)) is not formalized.
 
+For fixed-length coefficient-vector hashing, import
+[`Probability/HashFamily/Polynomial.lean`](../../CslibFrontier/Probability/HashFamily/Polynomial.lean).
+`coeffPolyHash k x` performs the `n` Horner multiply-add rounds for `x : Fin n → F`, and
+`coeffPolyHashLinear` packages its linearity in `x`. If the evaluation point is uniform in a
+finite seed type `S` injected into the field, `isUniversalHash_coeffPolyHash_of_embedding` gives
+the conservative collision bound `n / |S|`; `isUniversalHash_coeffPolyHash` specializes it to
+the full field. This is the restricted-domain polynomial-evaluation fact used in
+[FAEST v3 §4.2](https://faest.info/faest-spec-v3.0.pdf), including its 64-bit ZKHash challenge,
+but it does not construct that embedding or compose VOLEHash/ZKHash. The evaluator records exact
+field-operation and working-state counts; it does not claim polynomial time without encoded field
+operations and a certified sampler.
+
 For polynomial-evaluation hashing of messages shorter than `ℓ` over a finite field, import
 [`Protocols/MAC/PolynomialEvaluation.lean`](../../CslibFrontier/Crypto/Protocols/MAC/PolynomialEvaluation.lean)
 (Katz–Lindell 3rd ed., §4.5.2, Theorem 4.17 and Exercise 4.22). A message with its length code
