@@ -295,7 +295,7 @@ theorem eval_bind_pi_update {m : ℕ} {α : Fin m → Type} (programs : (i : Fin
 
 /-- Evaluating a homogeneous `OracleComp.pi` run produces `PMF.piFin` of the coordinate laws,
 without any finiteness assumption on `α`. -/
-@[simp] theorem eval_pi_eq_piFin :
+theorem eval_pi_eq_piFin :
     ∀ {m : ℕ} (programs : Fin m → ProbComp α),
       eval (OracleComp.pi programs) = Probability.PMF.piFin fun i => eval (programs i)
   | 0, _ => rfl

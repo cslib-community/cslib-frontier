@@ -192,7 +192,6 @@ example (F : PrimeOrderGroupFamily) (setup : ℕ → PMF F.Desc) (hDL : F.Discre
     Negligible fun n => Game.succProbability (F.schnorrPoKGame setup (echoProver _) n) :=
   hDL.negligible_schnorrPoKGame hm0 hm hinv (isPPT_echoProver _)
 
-open scoped ENNReal in
 /-- The rewinding knowledge extractor built from `efficientSpecialSoundness_andProof_schnorr` is
 uniform strict PPT on the echoing prover. -/
 example (F : PrimeOrderGroupFamily) :
@@ -206,6 +205,48 @@ example (F : PrimeOrderGroupFamily) :
     (computableInPolyTime_andExtractWord (enc₀ := F.schnorrEncoding) (enc₁ := F.schnorrEncoding) rfl
       F.computableInPolyTime_schnorrExtractWord F.computableInPolyTime_schnorrExtractWord)
     (isPPT_echoProver _)
+
+/-- The rewinding knowledge extractor built from `efficientSpecialSoundness_orProof_schnorr` and
+`schnorrSubChallengeWord` is uniform strict PPT on the echoing prover. -/
+example (F : PrimeOrderGroupFamily) :
+    IsPPTOn (encPair (F.schnorrEncoding.orProof F.schnorrEncoding).index encBits) encBits
+      (knowledgeExtractor (F.schnorrEncoding.orProof F.schnorrEncoding)
+        F.schnorrSampleChallenge
+        (orExtractWord F.schnorrSubChallengeWord F.schnorrExtractWord F.schnorrExtractWord)
+        (echoProver _)) :=
+  isPPTOn_knowledgeExtractor (enc := F.schnorrEncoding.orProof F.schnorrEncoding)
+    F.isPPTOn_schnorrSampleChallenge
+    (computableInPolyTime_orExtractWord (enc₀ := F.schnorrEncoding) (enc₁ := F.schnorrEncoding) rfl
+      F.computableInPolyTime_schnorrSubChallengeWord
+      F.computableInPolyTime_schnorrExtractWord F.computableInPolyTime_schnorrExtractWord)
+    (isPPT_echoProver _)
+
+/-- The composed Schnorr OR-proof and parallel-repetition bundles instantiate cleanly on any
+`PrimeOrderGroupFamily`. -/
+example (F : PrimeOrderGroupFamily) (k : ℕ × F.Desc → ℕ) :
+    Nonempty
+      (EfficientSpecialSoundness
+        (fun i => SigmaProtocol.orProof (F.schnorrFamily i) (F.schnorrFamily i)
+          (linearSimulate (fun _ => LinearMap.toSpanSingleton (ZMod (F.order i.2))
+            (F.Carrier i.2) (F.generator i.2)) id (Function.Embedding.refl _))
+          (linearSimulate (fun _ => LinearMap.toSpanSingleton (ZMod (F.order i.2))
+            (F.Carrier i.2) (F.generator i.2)) id (Function.Embedding.refl _)))
+        (fun i => orRelation (fun α u => α • F.generator i.2 = u)
+          (fun α u => α • F.generator i.2 = u))
+        (F.schnorrEncoding.orProof F.schnorrEncoding)
+        (fun i => encSum (F.encScalar i.2) (F.encScalar i.2))
+        (fun i => orExtract (F.schnorrExtract i) (F.schnorrExtract i))) ∧
+    Nonempty
+      (EfficientSpecialHVZK
+        (fun i => (F.schnorrFamily i).parallelRepetition (k i))
+        (fun i α u => α • F.generator i.2 = u)
+        (F.schnorrEncoding.parallelRepetition k)
+        (fun i => parallelSimulate
+          (linearSimulate (fun _ => LinearMap.toSpanSingleton (ZMod (F.order i.2))
+            (F.Carrier i.2) (F.generator i.2)) id (Function.Embedding.refl _)) (k i))
+        (fun i => (k i : ENNReal) * (1 / 2 ^ i.1))) :=
+  ⟨⟨F.efficientSpecialSoundness_orProof_schnorr⟩,
+   ⟨F.efficientSpecialHVZK_parallelRepetition_schnorr k⟩⟩
 
 /-- Concrete evaluation of `orExtractWord` via `extractorRealizedBy_orExtractWord`: when the first
 side's challenge words differ, it outputs `encSum encBool encBool (.inl true)`; when they agree, it
