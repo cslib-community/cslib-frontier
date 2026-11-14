@@ -71,10 +71,10 @@ bounds for garbling, evaluation, the simulator or the reduction.
 * `Cslib.Crypto.Garbling.BMR16.reduction_isLegal`: the reduction is a legal adversary.
 * `Cslib.Crypto.Garbling.BMR16.advantage_realGame_simGame`: privacy, as an equality with the
   mixed-modulus CCR advantage of the reduction.
-* `BMR16.advantage_realGame_simGame_le_of_mixedModulusCCR_of_reduction_mem`: an algebraic helper,
-  not a security theorem: the bound `ε` of `MixedModulusCCR`, an assumption novel to this library,
-  transfers to privacy once the caller shows that the reduction built from `D` lies in the
-  assumption's adversary class.
+* `Cslib.Crypto.Garbling.BMR16.advantage_realGame_simGame_le_of_mixedModulusCCR_of_reduction_mem`:
+  an algebraic helper, not a security theorem: the bound `ε` of `MixedModulusCCR`, an assumption
+  novel to this library, transfers to privacy once the caller shows that the reduction built from
+  `D` lies in the assumption's adversary class.
 
 ## References
 
@@ -932,8 +932,9 @@ class `𝒟`, and the caller supplies `hD`, that the reduction built from this d
 in `𝒟`, then `D` has advantage at most `ε` between the real and the simulated view. Legality of
 the reduction is proved (`reduction_isLegal`), but its membership in `𝒟` is a premise, and no cost
 bound for the reduction is proved. The premise `MixedModulusCCR` is novel to this library and
-stronger than the source's Definition 1 (see its docstring). The concrete statement is the equality
-`advantage_realGame_simGame`. -/
+stronger than the source's Definition 1, and when some modulus is not prime it fails for every
+`H` once `ε` is small enough and `𝒟` contains a two-query adversary (see its docstring). The
+concrete statement is the equality `advantage_realGame_simGame`. -/
 theorem advantage_realGame_simGame_le_of_mixedModulusCCR_of_reduction_mem
     [Fintype T] [DecidableEq T] (H : MixedModulusHash T μ ℓ)
     (tw : ℕ → T) (C : MixedModulusCircuit μ (Projection μ) Γ Θ) (x : Env (Residue μ) Γ)

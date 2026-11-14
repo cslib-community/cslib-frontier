@@ -43,8 +43,10 @@ distinct `g` values and `a ≠ 0`". A simulation proof for a projection gate fro
 legality condition: along every run, no query uses `a = 0`, and two queries that agree on the
 tweak, the source sort, `X` and `a` are equal (`CCRAdversary.IsLegal`). Every adversary legal for
 Definition 1 is legal here, so `MixedModulusCCR` is a *stronger* assumption than Definition 1 as
-literally stated, and novel to this library. A run answers every call, private coin or oracle
-query, independently with an arbitrary reply (`IsRun`).
+literally stated, and novel to this library. When some modulus is not prime, it fails for every
+hash once its bound is small enough and its class contains a two-query adversary described at
+`MixedModulusCCR`. A run answers every call, private coin or oracle query, independently with an
+arbitrary reply (`IsRun`).
 
 ## Main definitions
 
@@ -331,11 +333,39 @@ strictly stronger assumption. The relaxation is what the privacy proof uses: `BM
 asks `m - 1` queries under the tweak of a projection gate from modulus `m`. Definition 1 is
 asymptotic, while this is a concrete bound `ε` for one class `𝒟`.
 
-*Why it is plausible.* If `H` is a random oracle, the real oracle answers different legal queries
-with independent uniform labels, as the ideal oracle does, unless two of them hash the same input
-`X + a • Δ_i` under the same tweak and sorts. For two different legal queries that requires
-`(a' - a) • δ_i = X - X'` on the key part, for the secret uniform `δ_i`. This heuristic is not
-formalized. -/
+*Why it is plausible.* Heuristically, let `H` be a random oracle that the adversary may also
+evaluate directly. The real oracle then answers different legal queries with independent uniform
+labels, as the ideal oracle does, unless, under one tweak and pair of sorts, the hash input
+`X + a • Δ_i` of a query equals
+* the hash input of a different legal query `(X', a')`. Legality forces `a' ≠ a` (if `a' = a`,
+  then `X = X'` and the two queries have the same `ccrKey`), so this requires
+  `(a' - a) • δ_i = X - X'` on the key part; or
+* a point `Y` at which the adversary evaluated `H`, which requires `a • δ_i = Y - X` on the key
+  part, where `a ≠ 0`.
+
+Each event is an equation `s • δ_i = v` with `s ≠ 0` in `ZMod (μ i)`, for the secret uniform
+`δ_i`. Each equation `s * x = w` has at most `μ i / p` solutions `x` in `ZMod (μ i)`, where `p` is
+the least prime factor of `μ i`, so the event has probability at most `1 / p ^ ℓ i`. When `μ i` is
+prime, `s` is a unit, `s • δ_i` is uniform and this is `1 / μ i ^ ℓ i`. Summing over the pairs of
+queries, and of a query and a hash evaluation, bounds the advantage. This heuristic is not
+formalized.
+
+*Composite moduli.* If `μ i` is not prime, the bound `1 / p ^ ℓ i` is attained for every `H`, up to
+the probability that the ideal oracle repeats a label. Let `r = μ i / p`, so that `r • δ_i = 0`
+with probability `1 / p ^ ℓ i`. Fix a tweak `g`, a target sort `j`, a key `k` and a colour `c`.
+The queries with labels `(k, c)` and `(k, c - r)`, multipliers `a = 1` and `a' = 1 + r`, and
+`b = 0` have different `ccrKey`s and nonzero multipliers, and they hash the same input exactly
+when `r • δ_i = 0`. The adversary that asks both and compares the answers is legal, never
+evaluates `H`, and has advantage at least `1 / p ^ ℓ i - 1 / μ j ^ (ℓ j + 1)` against every `H`.
+So `MixedModulusCCR H 𝒟 ε` is false for every `H` once `𝒟` contains this adversary and `ε` is
+below that value. For `μ i = 2 ^ λ` with `λ ≥ 2` and `ℓ i = 1`, that value is
+`1 / 2 - 1 / μ j ^ (ℓ j + 1)`. For a fixed composite modulus and a key length
+`ℓ i ≈ λ / log₂ (μ i)`, it is about `2 ^ (-λ log₂ p / log₂ (μ i))`: small, but larger than
+`2 ^ (-λ)`. The single query `(g, i, j, X, r, 0)`, compared with `H g i (X + (0, r)) j`, has
+advantage at least the same value and is legal for Definition 1 too, so the analogue of
+Definition 1 fails in the same way when the adversary can evaluate `H`. The theorems of `BMR16`
+allow every modulus. Whether [BallMalkinRosulek2016] restricts its moduli, for example to primes,
+has not been checked at the source. -/
 def MixedModulusCCR (H : MixedModulusHash T μ ℓ) (𝒟 : Set (CCRAdversary T μ ℓ)) (ε : ℝ≥0) : Prop :=
   ∀ B ∈ 𝒟, B.IsLegal → ccrAdvantage H B ≤ ε
 
