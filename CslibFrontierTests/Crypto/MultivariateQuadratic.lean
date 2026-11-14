@@ -31,6 +31,10 @@ private def oilVinegarMatrix (R : Type*) [CommRing R] : Unit → Matrix (Fin 2) 
 private def oilSpace (R : Type*) [CommRing R] : Submodule R (Fin 2 → R) :=
   LinearMap.ker (LinearMap.proj 0)
 
+/-- A nonidentity input change used to exercise matrix congruence. -/
+private def inputChange (R : Type*) [CommRing R] : Matrix (Fin 2) (Fin 2) R :=
+  !![1, 1; 0, 1]
+
 private theorem vanishesOn_oilSpace (R : Type*) [CommRing R] :
     VanishesOn (ofMatrices (oilVinegarMatrix R)) (oilSpace R) := by
   intro o ho
@@ -50,14 +54,27 @@ example : (![0, 1] : Fin 2 → ZMod 2) ≠ 0 := by
 example (R : Type*) [CommRing R] (v : Fin 2 → R) {o : Fin 2 → R} (ho : o ∈ oilSpace R) :
     ofMatrices (oilVinegarMatrix R) (v + o) =
       ofMatrices (oilVinegarMatrix R) v +
-        linearization (ofMatrices (oilVinegarMatrix R)) v o :=
+        (ofMatrices (oilVinegarMatrix R)).polarBilin v o :=
   map_add_of_mem (vanishesOn_oilSpace R) v ho
+
+example (R : Type*) [CommRing R] {o₁ o₂ : Fin 2 → R}
+    (ho₁ : o₁ ∈ oilSpace R) (ho₂ : o₂ ∈ oilSpace R) :
+    (ofMatrices (oilVinegarMatrix R)).polarBilin o₁ o₂ = 0 :=
+  (vanishesOn_oilSpace R).polarBilin_eq_zero ho₁ ho₂
+
+example (R : Type*) [CommRing R] :
+    (ofMatrices (oilVinegarMatrix R)).comp (inputChange R).mulVecLin =
+      ofMatrices (fun u ↦ (inputChange R).transpose * oilVinegarMatrix R u * inputChange R) :=
+  ofMatrices_comp_mulVecLin _ _
+
+example : inputChange (ZMod 2) ≠ 1 := by
+  decide
 
 example (R : Type*) [CommRing R] :
     VanishesOn
-      ((ofMatrices (oilVinegarMatrix R)).comp (LinearMap.id (R := R) (M := Fin 2 → R)))
-      ((oilSpace R).comap (LinearMap.id (R := R) (M := Fin 2 → R))) :=
-  (vanishesOn_oilSpace R).comp_comap _
+      ((LinearMap.proj ()).compQuadraticMap (ofMatrices (oilVinegarMatrix R)))
+      (oilSpace R) :=
+  (vanishesOn_oilSpace R).compQuadraticMap _
 
 example : ofMatrices (oilVinegarMatrix (ZMod 2)) ![1, 1] () = 0 := by decide
 

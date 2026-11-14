@@ -1172,8 +1172,11 @@ For the shared algebra of multivariate post-quantum signatures, import
 coordinate without assuming that `2` is invertible or choosing symmetric representatives.
 `VanishesOn P S` states that the central map vanishes on an oil subspace. For `o ∈ S`,
 `map_add_of_mem` gives the exact UOV/MAYO identity
-`P (v + o) = P v + linearization P v o`, where `linearization P v = P.polarBilin v` is linear in
-`o`; `VanishesOn.comp_comap` transports this invariant across a linear change of input variables.
+`P (v + o) = P v + P.polarBilin v o`, using Mathlib's existing linear map in `o` directly;
+`VanishesOn.polarBilin_eq_zero` says the polar form vanishes on two oil inputs.
+`ofMatrices_comp_mulVecLin` gives the characteristic-free matrix congruence `Aₒ ↦ Mᵀ Aₒ M`,
+while `VanishesOn.comp_comap` and `VanishesOn.compQuadraticMap` transport the invariant across
+linear changes of input and output variables.
 The [checked clients](../../CslibFrontierTests/Crypto/MultivariateQuadratic.lean) use a nonsymmetric
 matrix for `x₀² + x₀x₁`, prove that it vanishes on a nontrivial oil space, and evaluate it and its
 polar form over both `ZMod 2` and `ZMod 5`. This layer contains no keys, signing algorithm,

@@ -31,15 +31,17 @@ vanishing subspace by `Submodule.comap`.
 * `Cslib.MultivariateQuadraticMap.ofMatrices`: construct a map from one coefficient matrix per
   output coordinate.
 * `Cslib.MultivariateQuadraticMap.VanishesOn`: a quadratic map vanishes on a submodule.
-* `Cslib.MultivariateQuadraticMap.linearization`: the polar form with its first argument fixed.
-
 ## Main results
 
 * `Cslib.MultivariateQuadraticMap.map_add_of_mem`: the Oil and Vinegar linearization identity.
+* `Cslib.MultivariateQuadraticMap.VanishesOn.polarBilin_eq_zero`: the polar form vanishes on two
+  oil-space inputs.
 * `Cslib.MultivariateQuadraticMap.VanishesOn.comp_comap`: a linear change of variables transports
   a vanishing subspace.
 * `Cslib.MultivariateQuadraticMap.ofMatrices_apply` and
   `Cslib.MultivariateQuadraticMap.polar_ofMatrices_apply`: matrix evaluation and polarization.
+* `Cslib.MultivariateQuadraticMap.ofMatrices_comp_mulVecLin`: matrix congruence under an input
+  change of variables.
 
 ## References
 
@@ -130,6 +132,20 @@ theorem polar_ofMatrices_apply (A : O → Matrix I I R) (x y : I → R) (o : O) 
   rw [Matrix.toQuadraticForm', LinearMap.BilinMap.polar_toQuadraticMap]
   simp only [Matrix.toLinearMap₂'_apply']
 
+/-- Hiding a matrix-presented quadratic map by the input transformation `M` replaces every
+coefficient matrix `Aₒ` by the congruent matrix `Mᵀ Aₒ M`.  This is valid in every
+characteristic. -/
+@[simp]
+theorem ofMatrices_comp_mulVecLin {J : Type*} [Fintype J] [DecidableEq J]
+    (A : O → Matrix I I R) (M : Matrix I J R) :
+    (ofMatrices A).comp M.mulVecLin =
+      ofMatrices (fun o ↦ M.transpose * A o * M) := by
+  apply ext
+  intro o x
+  simp only [QuadraticMap.comp_apply, Matrix.mulVecLin_apply, ofMatrices_apply]
+  rw [← Matrix.mulVec_mulVec, ← Matrix.mulVec_mulVec,
+    Matrix.dotProduct_transpose_mulVec, dotProduct_comm]
+
 end Matrices
 
 /-- A quadratic map vanishes on a submodule.  Oil spaces in UOV-type constructions satisfy this
@@ -145,23 +161,29 @@ theorem vanishesOn_zero (S : Submodule R M) : VanishesOn (0 : QuadraticMap R M N
   intro x hx
   rfl
 
-/-- Fixing the first argument of the polar form gives the linear system solved for the oil
-variables in UOV-type signing. -/
-@[expose] def linearization (P : QuadraticMap R M N) (v : M) : M →ₗ[R] N :=
-  P.polarBilin v
-
-@[simp]
-theorem linearization_apply (P : QuadraticMap R M N) (v o : M) :
-    linearization P v o = QuadraticMap.polar P v o :=
-  rfl
+/-- If `P` vanishes on a submodule, its bilinear polar form vanishes when both arguments lie in
+that submodule. -/
+theorem VanishesOn.polarBilin_eq_zero {P : QuadraticMap R M N} {S : Submodule R M}
+    (hP : VanishesOn P S) {o₁ o₂ : M} (ho₁ : o₁ ∈ S) (ho₂ : o₂ ∈ S) :
+    P.polarBilin o₁ o₂ = 0 := by
+  rw [QuadraticMap.polarBilin_apply_apply, QuadraticMap.polar,
+    hP (o₁ + o₂) (S.add_mem ho₁ ho₂), hP o₁ ho₁, hP o₂ ho₂]
+  simp
 
 /-- If `P` vanishes on `S`, evaluating at a public part plus a vector in `S` reduces to a value
 independent of that vector plus a linear function of it. -/
 theorem map_add_of_mem {P : QuadraticMap R M N} {S : Submodule R M}
     (hP : VanishesOn P S) (v : M) {o : M} (ho : o ∈ S) :
-    P (v + o) = P v + linearization P v o := by
+    P (v + o) = P v + P.polarBilin v o := by
   rw [QuadraticMap.map_add P v o, hP o ho, add_zero]
   rfl
+
+/-- A linear change of output variables preserves vanishing on a submodule. -/
+theorem VanishesOn.compQuadraticMap {P : QuadraticMap R M N} {S : Submodule R M}
+    (hP : VanishesOn P S) {N' : Type*} [AddCommGroup N'] [Module R N']
+    (L : N →ₗ[R] N') : VanishesOn (L.compQuadraticMap P) S := by
+  intro x hx
+  simp [hP x hx]
 
 /-- A linear change of input variables transports a vanishing subspace by preimage. -/
 theorem VanishesOn.comp_comap {P : QuadraticMap R M N} {S : Submodule R M}
