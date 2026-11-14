@@ -78,6 +78,8 @@ private theorem whiteTable_polyTime (encRel : Rel ↪ List Bool) :
         p.1.2.successor.idxOf (2 * p.2))
       (encPair (encCSPRotationCertificate encRel encNat) encUnary) encUnary := by
     apply (ComputableInPolyTime.idxOf encNat).comp
+      (g := fun p : (CSP Rel ℕ × Graph.RotationCertificate) × ℕ =>
+        (p.1.2.successor, 2 * p.2))
     apply ComputableInPolyTime.prod (hs.comp (by fun_prop))
     exact ComputableInPolyTime.unary_to_binary.comp (by
       unfold encCSPRotationCertificate
