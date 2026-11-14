@@ -261,7 +261,7 @@ private def linearViews (fn encIn encOut : Term) (base : Name) : CommandElabM Un
         ComputableInO.of_enc_eq $inj fun _ => rfl))
     -- Space rules forget only the time witnesses, retaining independent workspace bounds.
     let mut sb : TSyntaxArray ``Lean.Parser.Term.bracketedBinder := #[]
-    let mut unpack : TSyntaxArray ``Lean.Parser.Tactic.tactic := #[]
+    let mut unpack : TSyntaxArray `tactic := #[]
     for j in [0:k] do
       sb := sb.push (← `(bracketedBinder| {$(xN j) : $γ → _}))
       sb := sb.push (← `(bracketedBinder| {$(SN j) : $γ → ℕ}))
@@ -279,7 +279,7 @@ private def linearViews (fn encIn encOut : Term) (base : Name) : CommandElabM Un
     -- Recover explicit clocks from the polynomial hypotheses, then lift the existing
     -- arbitrary-resource constructor certificate. No constructor machine is rebuilt here.
     let mut pb : TSyntaxArray ``Lean.Parser.Term.bracketedBinder := #[]
-    let mut clocks : TSyntaxArray ``Lean.Parser.Tactic.tactic := #[]
+    let mut clocks : TSyntaxArray `tactic := #[]
     let boundBase : Term ← `(PolyBounded.self.add (PolyBounded.const 1))
     let dN (j : Nat) := mkIdent (Name.mkSimple s!"d{j}")
     let eN (j : Nat) := mkIdent (Name.mkSimple s!"e{j}")
@@ -464,7 +464,7 @@ private def linearViews (fn encIn encOut : Term) (base : Name) : CommandElabM Un
   -- The case space contract charges precisely the selected branch's workspace. Its time
   -- function is existential, independently for every branch.
   let mut spaceBinders : TSyntaxArray ``Lean.Parser.Term.bracketedBinder := #[]
-  let mut unpack : TSyntaxArray ``Lean.Parser.Tactic.tactic := #[]
+  let mut unpack : TSyntaxArray `tactic := #[]
   for i in [0:n] do
     spaceBinders := spaceBinders.push (← `(bracketedBinder| {$(gN i) : π × $(argTys[i]!) → ε}))
     spaceBinders := spaceBinders.push (← `(bracketedBinder| {$(SN i) : π × $(argTys[i]!) → ℕ}))
@@ -483,9 +483,9 @@ private def linearViews (fn encIn encOut : Term) (base : Name) : CommandElabM Un
   -- Polynomial elimination reuses the arbitrary-resource case machine. Each branch clock is
   -- bounded in the full input size before the finitely many envelopes are added.
   let mut pb : TSyntaxArray ``Lean.Parser.Term.bracketedBinder := #[]
-  let mut clocks : TSyntaxArray ``Lean.Parser.Tactic.tactic := #[]
-  let mut estimates : TSyntaxArray ``Lean.Parser.Tactic.tactic := #[]
-  let mut facts : TSyntaxArray ``Lean.Parser.Tactic.tactic := #[]
+  let mut clocks : TSyntaxArray `tactic := #[]
+  let mut estimates : TSyntaxArray `tactic := #[]
+  let mut facts : TSyntaxArray `tactic := #[]
   let mut proofs : Array Term := #[]
   let dN (i : Nat) := mkIdent (Name.mkSimple s!"d{i}")
   let eN (i : Nat) := mkIdent (Name.mkSimple s!"e{i}")
