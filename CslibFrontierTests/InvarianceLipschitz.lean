@@ -4,9 +4,11 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Vincent Liew
 -/
 
-import CslibFrontier.Foundations.Analysis.Calculus.LipschitzSmoothing
-import CslibFrontier.Foundations.BooleanAnalysis.InvarianceNoise
-import CslibFrontier.Foundations.Probability.Multilinear.InvarianceLipschitz
+module
+
+public import CslibFrontier.Foundations.Analysis.Calculus.LipschitzSmoothing
+public import CslibFrontier.Foundations.BooleanAnalysis.InvarianceNoise
+public import CslibFrontier.Foundations.Probability.Multilinear.InvarianceLipschitz
 
 /-! # Tests for invariance with Lipschitz tests and noise-smoothed functions
 
@@ -17,6 +19,8 @@ below the trivial bound `1`, and its form (11.31) on the cube; the monotonicity 
 influences in the rate and under noise; and Corollary 11.69, for a linear form plus a scaled
 parity (a high-degree tail) and for `T_{1-δ}` of linear forms, where the normalized sum of
 `m = 100⁶⁰` signs with `δ = 1/20` gives the bound `0.15`. -/
+
+public section
 
 namespace CslibFrontierTests.InvarianceLipschitz
 

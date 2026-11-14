@@ -5371,6 +5371,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.Hypercube
 public import CslibFrontier.Foundations.BooleanAnalysis.IncidenceExpansion
 public import CslibFrontier.Foundations.BooleanAnalysis.Influence
 public import CslibFrontier.Foundations.BooleanAnalysis.Invariance
+public import CslibFrontier.Foundations.BooleanAnalysis.InvarianceLevy
 public import CslibFrontier.Foundations.BooleanAnalysis.InvarianceNoise
 public import CslibFrontier.Foundations.BooleanAnalysis.KahnKalaiLinial
 public import CslibFrontier.Foundations.BooleanAnalysis.LevelWeight
@@ -6282,13 +6283,17 @@ public import CslibFrontier.Foundations.Probability.Gaussian.Smoothing
 public import CslibFrontier.Foundations.Probability.Gaussian.Standard
 public import CslibFrontier.Foundations.Probability.Gaussian.Stein
 public import CslibFrontier.Foundations.Probability.InfinitePi
+public import CslibFrontier.Foundations.Probability.InvarianceSums
+public import CslibFrontier.Foundations.Probability.LevyDistance
 public import CslibFrontier.Foundations.Probability.Multilinear.Basic
 public import CslibFrontier.Foundations.Probability.Multilinear.Bonami
 public import CslibFrontier.Foundations.Probability.Multilinear.Invariance
+public import CslibFrontier.Foundations.Probability.Multilinear.InvarianceLevy
 public import CslibFrontier.Foundations.Probability.Multilinear.InvarianceLipschitz
 public import CslibFrontier.Foundations.Probability.ProductDensity
 public import CslibFrontier.Foundations.Probability.Reasonable
 public import CslibFrontier.Foundations.Probability.SecondMoment
+public import CslibFrontier.Foundations.Probability.SmoothTests
 public import CslibFrontier.Foundations.Probability.SpectralPayment
 public import CslibFrontier.Foundations.Probability.TwoStage
 public import CslibFrontier.Foundations.Quantum.Bell
