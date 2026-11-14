@@ -157,7 +157,7 @@ theorem quickSilverMaskedReply_correct [CommRing F] (x y z v_x v_y v_z : Fin t �
 
 section Soundness
 
-variable [Field F] [Fintype F] [DecidableEq F]
+variable [Field F] [DecidableEq F]
 
 private def quickSilverResidualPolynomial (residual : Fin t → F) : Polynomial F :=
   Polynomial.ofFn (t + 1) (Fin.cons 0 residual)
@@ -167,7 +167,7 @@ private theorem quickSilverResidualPolynomial_eval (residual : Fin t → F) (chi
       ∑ i, quickSilverWeight chi i * residual i := by
   rw [quickSilverResidualPolynomial, Polynomial.ofFn_eq_sum_monomial]
   change Polynomial.evalRingHom chi
-    (∑ i : Fin (t + 1), Polynomial.monomial i (Fin.cons 0 residual i)) = _
+    (∑ i : Fin (t + 1), Polynomial.monomial i ((Fin.cons (0 : F) residual) i)) = _
   rw [map_sum, Fin.sum_univ_succ]
   simp [quickSilverWeight, Polynomial.eval_monomial, mul_comm]
 
@@ -188,10 +188,12 @@ private theorem quickSilverResidualPolynomial_natDegree_le (residual : Fin t →
   rw [quickSilverResidualPolynomial]
   exact Nat.le_of_lt_succ (Polynomial.ofFn_natDegree_lt (by omega) (Fin.cons 0 residual))
 
+variable [Fintype F]
+
+omit [DecidableEq F] in
 /-- If at least one fixed residual is nonzero, the scalar-power weighted sum vanishes for a
 uniform challenge with probability at most `t / |F|`. The residuals are fixed before `chi` is
 sampled. The bound includes the unavoidable cancellation at `chi = 0` for every nonempty batch. -/
-omit [DecidableEq F] in
 theorem toOuterMeasure_quickSilverWeight_sum_eq_zero_le (residual : Fin t → F)
     (hne : ∃ i, residual i ≠ 0) :
     (PMF.uniformOfFintype F).toOuterMeasure
@@ -203,12 +205,12 @@ theorem toOuterMeasure_quickSilverWeight_sum_eq_zero_le (residual : Fin t → F)
     (quickSilverResidualPolynomial_natDegree_le residual) (by simp) ?_
   intro chi hchi
   rw [quickSilverResidualPolynomial_eval]
-  simpa only [Polynomial.eval_zero, Set.mem_setOf_eq] using hchi
+  simpa only [Polynomial.eval_zero, Set.mem_ofPred_eq] using hchi
 
+omit [DecidableEq F] in
 /-- Conditional on a nonzero scalar-weighted residual, an arbitrary source-order affine reply
 passes the multiplication check for an independent uniform hidden key with probability at most
 `2 / |F|`. -/
-omit [DecidableEq F] in
 theorem toOuterMeasure_quickSilverMulCheck_key_le (x y z v_x v_y v_z : Fin t → F)
     (chi : F) (reply : F × F)
     (hne : ∑ i, quickSilverWeight chi i * (x i * y i - z i) ≠ 0) :
