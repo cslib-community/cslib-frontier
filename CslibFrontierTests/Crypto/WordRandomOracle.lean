@@ -8,6 +8,7 @@ module
 
 import CslibFrontier.Crypto.Computational.Signature.WordRandomOracle
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Probability.PMF.Bind
 
 /-! Actual native word forgers, shared signing/hash caches, freshness, and off-support tapes. -/
