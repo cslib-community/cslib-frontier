@@ -165,6 +165,8 @@ private theorem leastIrreducibleCode_eight : leastIrreducibleCode 512 8 = 283 :=
   have h282 : (codeRange 282 1).find?
       (fun m => Nat.log 2 m == 8 && isIrreducibleCode m) = none := by
     decide
+  have h283_log : Nat.log 2 283 = 8 := by
+    decide
   have h283_irreducible : isIrreducibleCode 283 = true := by
     unfold isIrreducibleCode
     rw [Bool.and_eq_true]
@@ -176,12 +178,11 @@ private theorem leastIrreducibleCode_eight : leastIrreducibleCode 512 8 = 283 :=
     · simp only [Bool.or_eq_true, decide_eq_true_eq]
       left
       right
+      rw [h283_log]
       have hlog : 5 ≤ Nat.log 2 d :=
         Nat.le_log_of_pow_le one_lt_two (by norm_num; omega)
       norm_num
       omega
-  have h283_log : Nat.log 2 283 = 8 := by
-    norm_num
   have h283 : (codeRange 283 1).find?
       (fun m => Nat.log 2 m == 8 && isIrreducibleCode m) = some 283 := by
     simp [codeRange, h283_irreducible, h283_log]
