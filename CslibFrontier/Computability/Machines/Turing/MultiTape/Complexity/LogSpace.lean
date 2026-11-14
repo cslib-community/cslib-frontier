@@ -298,7 +298,7 @@ transducer runs without work tapes. -/
 theorem Transducer.computableInLogSpace {Q : Type} [Finite Q] (τ : Transducer Bool Q)
     {α β : Type} {encIn : α ↪ List Bool} {encOut : β ↪ List Bool} {f : α → β}
     (hf : ∀ a, encOut (f a) = τ.run τ.q₀ (encIn a)) : ComputableInLogSpace f encIn encOut :=
-  ⟨_, 0, (τ.computableTidilyInTimeAndSpace hf).computableInTimeAndSpace.mono (fun _ => le_rfl)
+  ⟨_, 0, (τ.computableInTimeAndSpace hf).mono (fun _ => le_rfl)
     fun _ => Nat.zero_le _⟩
 
 /-- **Framing an encoded instance** is computable in logarithmic space, by a finite-state
