@@ -161,7 +161,7 @@ example : (∃ c, ComputableInTimeAndSpace (fun l : List Bool =>
         List.length_append, hs]
       exact ⟨by lia, Nat.mul_le_mul_left k (by lia)⟩)
     (by intro l i hi state hs; simpa [hs] using hi)
-  refine ⟨⟨c * (3 * k + 3), h.mono (fun l => ?_) (fun l => ?_)⟩, hpost⟩
+  refine ⟨⟨c * (3 * k + 3), h.computableInTimeAndSpace.mono (fun l => ?_) (fun l => ?_)⟩, hpost⟩
   · have hsum (n : ℕ) : (∑ i ∈ Finset.range n, (k * (2 * i + 3) + 2 * i + 2)) =
         (k + 1) * n ^ 2 + (2 * k + 1) * n := by
       induction n with
