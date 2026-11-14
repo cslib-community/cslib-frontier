@@ -32,7 +32,7 @@ When statistical simulation is too strong or callers interact through game indis
 - **Attack Game 20.4 at one index ([chvzkExperiment](../../CslibFrontier/Crypto/Protocols/SigmaProtocol/Computational.lean#L117), [advantage_chvzkExperiment_le](../../CslibFrontier/Crypto/Protocols/SigmaProtocol/Computational.lean#L128)):** `chvzkExperiment R conv A` runs a typed two-stage adversary `A : TwoStage Unit (X × Y) (T × C × Z) Bool σ`, which chooses a witness-statement pair `(x, y)` and a saved state. When `R x y` holds, the challenger samples a conversation from `conv x y : PMF (T × C × Z)` and the experiment outputs `A`'s guess on it; it outputs `false` when `R x y` fails, so `R` need not be efficiently decidable by the challenger. Conversation laws that are `ε`-close on valid pairs give advantage at most `ε` against every adversary, including computationally unbounded ones.
 - **Families and efficiency ([CHVZKAdversary](../../CslibFrontier/Crypto/Protocols/SigmaProtocol/Computational.lean#L152), [CHVZKAdversary.IsPPT](../../CslibFrontier/Crypto/Protocols/SigmaProtocol/Computational.lean#L187), [chvzkRealGame](../../CslibFrontier/Crypto/Protocols/SigmaProtocol/Computational.lean#L209), [chvzkSimGame](../../CslibFrontier/Crypto/Protocols/SigmaProtocol/Computational.lean#L220)):** both games draw `i ← setup n` and run the experiment at `i` with the adversary `A n i`. `chvzkRealGame` uses the honest `(P i).conversation x y`; `chvzkSimGame` uses `simulatedConversation sim i y`, which samples `c ← PMF.uniformOfFintype (C i)` and runs the typed simulator `sim i y c` without `x`; neither game mentions an encoding. `CHVZKAdversary.IsPPT enc encW encσ` clocks `choose` on `(1^n, i)`, writing `((encW i x, enc.statement i y), encσ state)`, and `guess` on the record `encCHVZKGuessInput` of the security parameter, state, index and encoded commitment, challenge and response.
 - **Predicate and acceptance parameter ([ComputationalSpecialHVZK](../../CslibFrontier/Crypto/Protocols/SigmaProtocol/Computational.lean#L234)):** bundles uniform strict PPT admissibility of the typed simulator `sim` (`Simulator.IsPPT enc sim`), acceptance probability at least `1 - δ i` on every `(i, y, c)` (`δ = fun _ => 0` gives exact Definition 20.6 acceptance; non-zero `δ` accommodates strict fair-coin approximations of non-dyadic distributions), and `Game.Indistinguishable` against strict-PPT `CHVZKAdversary` distinguishers for every state type `σ` and state encoding `encσ`.
-- **Statistical-to-computational bridge and Schnorr instance:** [SimulatorRealizedBy.advantage_chvzkExperiment_le](../../CslibFrontier/Crypto/Protocols/SigmaProtocol/Computational.lean#L290) and [SimulatorRealizedBy.advantage_chvzkGame_le](../../CslibFrontier/Crypto/Protocols/SigmaProtocol/Computational.lean#L302) bound Attack Game 20.4 advantage against *arbitrary* (even unbounded) adversaries via `Game.advantage_bind_le_of_closeTo` ([Game/CloseTo.lean](../../CslibFrontier/Crypto/Game/CloseTo.lean#L133)), yielding [EfficientSpecialHVZK.exists_computationalSpecialHVZK](../../CslibFrontier/Crypto/Protocols/SigmaProtocol/Computational.lean#L341) whenever `δ` is bounded along `setup` by a `Negligible` function and [SimulatorRealizedBy.computationalSpecialHVZK_of_accepts](../../CslibFrontier/Crypto/Protocols/SigmaProtocol/Computational.lean#L314) when exact acceptance holds separately. In [SchnorrProtocol.lean](../../CslibFrontier/Crypto/Computational/SchnorrProtocol.lean#L379), `PrimeOrderGroupFamily.computationalSpecialHVZK_schnorr` establishes `ComputationalSpecialHVZK` with exact zero acceptance error (`δ = fun _ => 0`) for any `setup : ℕ → PMF F.Desc`.
+- **Statistical-to-computational bridge and Schnorr instance:** [SimulatorRealizedBy.advantage_chvzkExperiment_le](../../CslibFrontier/Crypto/Protocols/SigmaProtocol/Computational.lean#L290) and [SimulatorRealizedBy.advantage_chvzkGame_le](../../CslibFrontier/Crypto/Protocols/SigmaProtocol/Computational.lean#L302) bound Attack Game 20.4 advantage against *arbitrary* (even unbounded) adversaries via `Game.advantage_bind_le_of_closeTo` ([Game/CloseTo.lean](../../CslibFrontier/Crypto/Game/CloseTo.lean#L133)), yielding [EfficientSpecialHVZK.exists_computationalSpecialHVZK](../../CslibFrontier/Crypto/Protocols/SigmaProtocol/Computational.lean#L341) whenever `δ` is bounded along `setup` by a `Negligible` function and [SimulatorRealizedBy.computationalSpecialHVZK_of_accepts](../../CslibFrontier/Crypto/Protocols/SigmaProtocol/Computational.lean#L314) when exact acceptance holds separately. In [SchnorrProtocol.lean](../../CslibFrontier/Crypto/Computational/SchnorrProtocol.lean#L400), `PrimeOrderGroupFamily.computationalSpecialHVZK_schnorr` establishes `ComputationalSpecialHVZK` with exact zero acceptance error (`δ = fun _ => 0`) for any `setup : ℕ → PMF F.Desc`.
 - **Two-sided separations ([CslibFrontierTests/ComputationalSpecialHVZK.lean](../../CslibFrontierTests/ComputationalSpecialHVZK.lean)):** `not_wordComputationalSpecialHVZK_sendWitness` proves that the perfectly `SpecialHVZK` protocol `sendWitnessFamily F` fails the word-simulator form `WordComputationalSpecialHVZK` under `F.DiscreteLog setup` for *every* word simulator program, including programs whose output does not decode, and *every* `δ` (without invoking `accepts`). Every typed simulator gives such a program (`exists_wordComputationalSpecialHVZK`), so `not_computationalSpecialHVZK_sendWitness` rules out `ComputationalSpecialHVZK` for every typed `sim`. Conversely, `computationalSpecialHVZK_prgWitnessSigma` and `exists_computationalSpecialHVZK_and_not_specialHVZK` construct from any stretching `PseudorandomGenerator` (or uniform `OneWay` function) a complete Sigma protocol family satisfying `ComputationalSpecialHVZK` with `δ = fun _ => 0` that fails `SpecialHVZK`, `EfficientSpecialHVZK` for every `δ`, and even unbounded statistical HVZK below error `1 / 4`. The same file checks that the earlier word-level game, with encoded pairs and the decoded relation `wordRelation`, is `chvzkExperiment` at word types, so the generic bound covers it (`advantage_wordChvzkExperiment_le`).
 
 Abort is observable in [CslibFrontier/Crypto/Protocols/SigmaProtocol/Abort.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Protocols/SigmaProtocol/Abort.lean): accepted transcripts and conversations return `Option`, with `none` representing abort. `NonAbortSpecialHVZK` matches the accepted-transcript law including abort mass. Its `none` erases the commitment, so this does not simulate the full view of aborted signing queries. Nonabort completeness alone does not give a lower bound on success, an expected retry cost, or a strict-PPT rejection-sampling implementation; [SigmaProtocol/Lyubashevsky/Efficient.lean](../../CslibFrontier/Crypto/Protocols/SigmaProtocol/Lyubashevsky/Efficient.lean) realizes `lyubashevskySimulate` under `EfficientNonAbortSpecialHVZK` by the typed `lyubashevskySimulator`, a `NonAbortSimulator` with strict-PPT integer-box sampling (`sampleIntBox`, `sampleIntBoxVec`, `sampleIntBoxList`), whose statistical distance from `intBox (Fin m) B` is at most `m * ((2 * B + 1) / 2 ^ width)` ([Game/CloseTo/IntBox.lean](../../CslibFrontier/Crypto/Game/CloseTo/IntBox.lean)). [SigmaProtocol/Lyubashevsky/Signature.lean](../../CslibFrontier/Crypto/Protocols/SigmaProtocol/Lyubashevsky/Signature.lean) adds the Fiat–Shamir-with-aborts signing and verification layer (`FiatShamirWithAborts`, `fsAbortSignAttempt`, `fsAbortSignBounded`, `fsAbortVerify`, and their Lyubashevsky specializations), proving completeness of non-aborting single and bounded `K`-attempt runs (`fsAbortVerify_of_fsAbortSignAttempt_eq_some`, `fsAbortVerify_of_fsAbortSignBounded_eq_some`), the exact `K`-retry abort law `(p_abort) ^ K` (`fsAbortSignBounded_apply_none`), direct-attack identification security for `lyubashevsky` against the relaxed `[A | T]` SIS relation (`lyubashevsky_succProbability_directAttack_le`), and the witness-invariance collision reduction (`isSISSolution_sub_smul_secret`, `extractSISFromRelaxedWitness`, `extractSISFromTwoTranscripts`, `lyubashevskyForkToSIS`, `lyubashevskySignatureForkToSIS`) that folds an extracted `[A | T]` kernel vector into a homogeneous `SIS.IsSolution` for `A` whenever the extracted response difference differs from the honest secret key's shift (exercised in [CslibFrontierTests/Crypto/LyubashevskySignature.lean](../../CslibFrontierTests/Crypto/LyubashevskySignature.lean)). Full random-oracle EUF-CMA game-hop bounds for aborting signers and strict-PPT computational reductions to `SIS` remain separate open obligations.
@@ -160,7 +160,7 @@ Merkle root. `micaliVerify_micaliProve_eq_true` and
 oracles and in the lazy random-oracle experiment `micaliHonestGame` (checked
 in [`CslibFrontierTests/Crypto/Micali.lean`](../../CslibFrontierTests/Crypto/Micali.lean)).
 
-In the random-oracle model, [`CslibFrontier/Crypto/Computational/MerkleTree/ROMExtract.lean`](../../CslibFrontier/Crypto/Computational/MerkleTree/ROMExtract.lean) replaces two-transcript rewinding with straight-line extraction from a recorded hash query-answer trace `tr : List (List Bool × List Bool)` ([bcs16][bcs16]; Chiesa–Yogev Construction 18.5.3 and Lemma 18.5.7): `findPreimageInTrace` inverts `encPair encBits encBits` via `(unframe, dropFrame)`, `extractNodeFromTrace` and `extractLeafFromTrace` walk `d` levels down from the Merkle root `rt` along the bits of position `i`, and `extractTableFromTrace` reconstructs all `2 ^ d` leaves. When `tr` is collision-free (`TraceCollisionFree tr`) and records every hash step along a valid opening (`PathQueriedInTrace H k tr i leaf path` and `merkleVerify H k d rt i leaf path = true`), `extractLeafFromTrace_eq_some_of_merkleVerify` and `getD_extractTableFromTrace_eq_of_merkleVerify` prove that the extracted leaf and table entry equal `leaf`; conversely, when `tr` is consistent with `H k` (`TraceConsistentWith (H k) tr`) and an accepted queried opening disagrees with `extractLeafFromTrace`, `extractTraceCollision` deterministically extracts a hash collision in `tr` (`extractTraceCollision_spec`, `isCollision_extractTraceCollision`). For a lazy uniform `m`-bit random oracle `memoize (fun _ => BitString.uniformList m)`, `toOuterMeasure_uniformList_mem_list_le`, `toOuterMeasure_memoize_not_traceCollisionFree_step` and `toOuterMeasure_run_memoize_not_traceCollisionFree_le` bound the preimage-hitting probability and the `Q * (Q * (1 / 2 ^ m))` collision probability of any `IsQueryBounded program Q` computation; executable checks are in [`CslibFrontierTests/Crypto/ROMMerkleExtract.lean`](../../CslibFrontierTests/Crypto/ROMMerkleExtract.lean).
+In the random-oracle model, [`CslibFrontier/Crypto/Computational/MerkleTree/ROMExtract.lean`](../../CslibFrontier/Crypto/Computational/MerkleTree/ROMExtract.lean) replaces two-transcript rewinding with straight-line extraction from a recorded hash query-answer trace `tr : List (List Bool × List Bool)` ([bcs16][bcs16]; Chiesa–Yogev Construction 18.5.3 and Lemma 18.5.7): `findPreimageInTrace` inverts `encPair encBits encBits` via `(unframe, dropFrame)`, `extractNodeFromTrace` and `extractLeafFromTrace` walk `d` levels down from the Merkle root `rt` along the bits of position `i`, and `extractTableFromTrace` reconstructs all `2 ^ d` leaves. When `tr` is collision-free (`TraceCollisionFree tr`) and records every hash step along a valid opening (`PathQueriedInTrace H k tr i leaf path` and `merkleVerify H k d rt i leaf path = true`), `extractLeafFromTrace_eq_some_of_merkleVerify` and `getD_extractTableFromTrace_eq_of_merkleVerify` prove that the extracted leaf and table entry equal `leaf`; conversely, when `tr` is consistent with `H k` (`TraceConsistentWith (H k) tr`) and an accepted queried opening disagrees with `extractLeafFromTrace`, `extractTraceCollision` deterministically extracts a hash collision in `tr` (`extractTraceCollision_spec`, `isCollision_extractTraceCollision`). With `encMerkleTrace` and `computableInPolyTime_merkleInputs` ([`MerkleTree.lean`](../../CslibFrontier/Crypto/Computational/MerkleTree.lean)), `computableInPolyTime_findQueryInTrace`, `computableInPolyTime_findPreimageInTrace`, `computableInPolyTime_extractNodeFromTrace`, `computableInPolyTime_extractLeafFromTrace`, `computableInPolyTime_extractTableFromTrace`, `computableInPolyTime_extractTraceCollision`, `computableInPolyTime_decide_traceConsistentWith`, and `computableInPolyTime_decide_pathQueriedInTrace` certify that straight-line trace extraction, trace collision extraction, and trace-consistency checks run in polynomial time. For a lazy uniform `m`-bit random oracle `memoize (fun _ => BitString.uniformList m)`, `toOuterMeasure_uniformList_mem_list_le`, `toOuterMeasure_memoize_not_traceCollisionFree_step` and `toOuterMeasure_run_memoize_not_traceCollisionFree_le` bound the preimage-hitting probability and the `Q * (Q * (1 / 2 ^ m))` collision probability of any `IsQueryBounded program Q` computation; executable checks are in [`CslibFrontierTests/Crypto/ROMMerkleExtract.lean`](../../CslibFrontierTests/Crypto/ROMMerkleExtract.lean).
 
 [`CslibFrontier/Crypto/Computational/Kilian/MicaliSoundness.lean`](../../CslibFrontier/Crypto/Computational/Kilian/MicaliSoundness.lean) combines straight-line Merkle extraction with Fiat–Shamir challenge analysis to prove soundness for an unsalted, two-channel Micali variant in the random-oracle model (Micali 2000; compare Chiesa–Yogev Construction 21.1.1 and Theorem 21.2.1, March 25, 2026 version, pp. 239–242):
 
@@ -199,7 +199,7 @@ into a non-interactive proof (`BCSProof r Sym`, `bcsProve`, `bcsVerify`):
   on the full challenge vector `bcsHonestChallenges`, yielding perfect
   completeness (`bcsVerify_bcsProve_eq_true`) for every hash `H k` and every
   Fiat–Shamir function `hFS`.
-- **Binding and knowledge-extraction reductions:** against committed round
+- **Binding, knowledge-extraction, and standard-model `CollisionResistant` reductions:** against committed round
   tables `oracles : Fin r → OracleTable d Sym` with injective symbol encoding
   `encSym`, `bcs_sound_or_merkleCollision` proves that any accepted `BCSProof`
   either makes `iopVerify` accept `oracles` at `bcsChallenge hFS x prf.roots` or
@@ -209,8 +209,30 @@ into a non-interactive proof (`BCSProof r Sym`, `bcsProve`, `bcsVerify`):
   `iopExtract`, `bcs_knowledge_or_soundness_violation_or_collision` and
   `bcs_knowledge_or_merkleCollision` reduce an accepting BCS proof to a valid
   extracted witness `rel x (iopExtract x oracles)`, an IOP knowledge-soundness
-  violation at the Fiat–Shamir challenge, or an explicit `H k` collision. Checked
-  examples for these deterministic algebraic reductions are in
+  violation at the Fiat–Shamir challenge, or an explicit `H k` collision. For a
+  fixed round count `r` and tree depth `d` outside the security parameter, using
+  the encodings `encFinEnum (Fin ...)` (`encFinEnum_fin_apply`) and `encFinFn` (from
+  [`Encodings/DPi.lean`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Encodings/DPi.lean))
+  together with `encOracleTable`, `encFSTranscript`, `encIOPQuery`,
+  `encIOPQueryList`, `encIOPTranscript`, `encMerkleOpeningOf`, `encBCSProof`,
+  and `encBCSTableCommitOutput`, `computableInPolyTime_bcsChallenge`,
+  `computableInPolyTime_bcsFindConflict`, and
+  `computableInPolyTime_bcsExtractTableCollision` certify polynomial-time
+  collision extraction (`isPPT_bcsTableCollisionFinder` for
+  `bcsTableCollisionFinder`) under an efficient length-preserving keyed hash
+  `H`, polynomial-time `iop.queries`, and deterministic polynomial-time `hFS`.
+  In `bcsTableBindingGame` and `bcsTableKnowledgeGame`, the game checks that the
+  proof roots match adversary-supplied full tables `oracles`;
+  `succProbability_bcsTableBindingGame_le`,
+  `succProbability_bcsTableKnowledgeGame_le`,
+  `CollisionResistant.bcsTableBinding_negligible`,
+  `CollisionResistant.bcsTableKnowledge_negligible`,
+  `HashFamily.bcsTableBinding_negligible`, and
+  `HashFamily.bcsTableKnowledge_negligible` reduce those table-committing games
+  against any uniform strict-PPT `BCSTableCommitAdversary` to
+  `CollisionResistant H` (where the knowledge failure bounds assume semantic
+  zero-error `IOPKnowledgeSoundness` without certifying efficient witness
+  extraction). Checked examples are in
   [`CslibFrontierTests/Crypto/BCSTransform.lean`](../../CslibFrontierTests/Crypto/BCSTransform.lean).
 
 For unconditional random-oracle soundness and straight-line knowledge extraction, import
@@ -233,15 +255,34 @@ trace extraction from Construction 18.5.3 and Lemma 18.5.7, pp. 199 and 207):
   `evalPure_bcsVerifyROM` identify `bcsProveROM` and `bcsVerifyROM` with `bcsProve` and `bcsVerify`
   instantiated with `chainedFS f`, giving perfect completeness in the lazy two-channel ROM
   (`bcsHonestROMGame_eq_pure_true`).
-- **Straight-line multi-round oracle reconstruction:** given `Function.LeftInverse decSym encSym`
-  and `defaultSym : Sym`, `bcsExtractTable`, `bcsExtractOracles`, and `bcsExtractWitness`
+- **Straight-line multi-round oracle reconstruction and standard-model `CollisionResistant` reduction:** given `Function.LeftInverse decSym encSym`
+  and `defaultSym : Sym` for fixed `r` and `d` outside the security parameter,
+  `bcsExtractTable`, `bcsExtractOracles`, and `bcsExtractWitness`
   reconstruct all `r` committed round tables and a candidate witness directly from a Merkle trace
-  `tr_MT` via `extractLeafFromTrace` without rewinding. Under `TraceCollisionFree tr_MT` and
-  `BCSOpeningsQueriedInTrace`, `iopVerify_bcsExtractOracles_of_bcsVerify` proves that `iopVerify`
-  accepts `bcsExtractOracles`, `exists_collision_of_bcsVerify_of_iopVerify_eq_false` extracts a
-  trace collision whenever `iopVerify` rejects, and `bcsExtractTable_cons_of_ne` /
-  `bcsExtractOracles_cons_of_ne` prove invariance under fresh Merkle answers that avoid target roots
-  and child digests.
+  `tr_MT` via `extractLeafFromTrace` without rewinding: when the symbol decoder `decSym` is
+  polynomial-time, `computableInPolyTime_bcsExtractTable` and
+  `computableInPolyTime_bcsExtractOracles` certify polynomial-time table and oracle reconstruction
+  (a semantic left inverse `Function.LeftInverse decSym encSym` alone does not supply decoder
+  efficiency), and `computableInPolyTime_bcsExtractWitness` additionally requires polynomial-time
+  `iopExtract`. Under
+  `TraceCollisionFree tr_MT` and `BCSOpeningsQueriedInTrace`, `iopVerify_bcsExtractOracles_of_bcsVerify`
+  proves that `iopVerify` accepts `bcsExtractOracles`, `exists_collision_of_bcsVerify_of_iopVerify_eq_false`
+  and `bcsExtractTraceCollision` (`bcsFindTraceConflict`, `bcs_trace_sound_or_collision`,
+  `isCollision_bcsExtractTraceCollision`, `bcs_trace_knowledge_or_collision`,
+  `computableInPolyTime_bcsFindTraceConflict`, `computableInPolyTime_bcsExtractTraceCollision`)
+  extract an explicit trace collision in polynomial time whenever `iopVerify` rejects, and
+  `bcsExtractTable_cons_of_ne` / `bcsExtractOracles_cons_of_ne` prove invariance under fresh Merkle
+  answers that avoid target roots and child digests. For standard-model efficient length-preserving
+  keyed hashes, polynomial-time `iop.queries`, and deterministic polynomial-time `hFS`,
+  `bcsTraceCollisionFinder` (`isPPT_bcsTraceCollisionFinder`), `succProbability_bcsTraceBindingGame_le`,
+  `succProbability_bcsTraceKnowledgeGame_le`, `CollisionResistant.bcsTraceBinding_negligible`,
+  `CollisionResistant.bcsTraceKnowledge_negligible`, `HashFamily.bcsTraceBinding_negligible`, and
+  `HashFamily.bcsTraceKnowledge_negligible` reduce `bcsTraceBindingGame` and `bcsTraceKnowledgeGame`
+  against any uniform strict-PPT `BCSTraceAdversary` (`BCSTraceOutput`, `encBCSTraceOutput`) to
+  `CollisionResistant H`. Here the adversary supplies an `H k`-consistent trace covering every
+  opened path (rather than a transcript generated by an adaptive lazy-ROM prover), and the
+  knowledge failure bounds assume semantic zero-error `IOPKnowledgeSoundness` (which alone does not
+  establish efficient proof of knowledge without `computableInPolyTime_bcsExtractWitness`).
 - **Adaptive two-channel ROM soundness:** under `IOPRoundByRoundSoundness iop lang doomed goodStep`
   with per-round challenge escape probability `≤ ε_rbr`, `BCSGoodState` combines
   `TraceCollisionFree tr_MT` with `BCSChainDoomed` across recorded Fiat–Shamir chains of length
@@ -280,12 +321,7 @@ transcript-chained Fiat–Shamir channel) and derives the explicit additive loss
 round-by-round escape hypotheses (`IOPRoundByRoundSoundness`, `IOPRoundByRoundKnowledgeSoundness`,
 whose deterministic `extract_of_doomed` on complete `doomed` transcripts is stronger than
 Definition 31.1.6's two-phase per-round experiment) and two-channel query budgets (`bcsMTCost`,
-`bcsFSCost`), counting all oracle queries including malformed opening paths. Straight-line
-extraction (`bcsExtractWitness` on the prover's pre-verifier Merkle trace `tr_P`; compare
-Construction 26.1.3) and the soundness games establish exact `OracleComp` probability bounds without
-machine-level (`IsPPT` / native Turing-machine) verifier or multi-extractor runtime certificates
-(compare Chiesa–Yogev Remark 18.5.8), digest truncation accounting, NP-witness-to-IOP encoding
-runtime, or zero-knowledge simulation.
+`bcsFSCost`), counting all oracle queries including malformed opening paths. For fixed `r` and `d`, straight-line extraction (`bcsExtractTable`, `bcsExtractOracles`, `bcsExtractWitness`) and explicit table/trace collision extraction (`bcsExtractTableCollision`, `bcsExtractTraceCollision`, `bcsTableCollisionFinder`, `bcsTraceCollisionFinder`) carry polynomial-time certificates and standard-model `CollisionResistant H` reductions on adversary-supplied tables or `H k`-consistent traces; the two-channel ROM soundness games (`bcsSoundnessGame`, `bcsKnowledgeSoundnessGame`) establish exact `OracleComp` probability bounds without parameter-growing IOP/Merkle families, adaptive PPT ROM reductions, machine-level (`IsPPT` / native Turing-machine) verifier or multi-extractor runtime certificates (compare Chiesa–Yogev Remark 18.5.8), digest truncation accounting, NP-witness-to-IOP encoding runtime, or zero-knowledge simulation.
 
 ## Shared random oracles and ideal permutations
 
@@ -493,6 +529,19 @@ For strict-PPT **identification** under discrete log, use `SchnorrImpersonator`,
 conversations, use `SchnorrEavesdropAdversary`, `schnorrEavesdropGame` and
 `negligible_schnorrEavesdropGame` from
 [`SchnorrEavesdrop.lean`](../../CslibFrontier/Crypto/Computational/SchnorrEavesdrop.lean).
+When key generation also uses the shared bounded fair-coin key generator `schnorrSigKeyGen` from
+[`SchnorrProtocol.lean`](../../CslibFrontier/Crypto/Computational/SchnorrProtocol.lean) (certified
+`IsPPTOn` by `isPPTOn_schnorrSigKeyGen` and within statistical distance `1 / 2 ^ n` of uniform key
+generation via `closeTo_schnorrSigKeyGen` and `advantage_bind_schnorrSigKeyGen_le`),
+`schnorrDirectProbGame` and `schnorrEavesdropProbGame` satisfy the concrete bounds
+`succProbability_schnorrDirectProbGame_le` and `succProbability_schnorrEavesdropProbGame_le` and
+remain secure under `F.DiscreteLog setup` (`negligible_schnorrDirectProbGame`,
+`negligible_schnorrEavesdropProbGame`, `schnorr_isProbEavesdropSecure_of_discreteLogHard`). At a
+fixed group description `d`, `schnorrDirectProbExperiment` and `schnorrEavesdropProbExperiment` are
+their executable `ProbComp Bool` realizations (`bind_eval_schnorrDirectProbExperiment`,
+`bind_eval_schnorrEavesdropProbExperiment`, `isPPTOn_schnorrDirectProbExperiment`,
+`isPPTOn_schnorrEavesdropProbExperiment`), checking acceptance via the shared polynomial-time
+verifier `encodeSchnorrVerify` (`schnorrRecoverCommitBits`).
 These identification games draw a fresh verifier challenge after the adversary's commitment.
 Signature EUF-CMA instead gives adaptive signing and hash access, uses the same memoized hash
 answer at verification, and rejects a final message previously signed. Discarding a message field
