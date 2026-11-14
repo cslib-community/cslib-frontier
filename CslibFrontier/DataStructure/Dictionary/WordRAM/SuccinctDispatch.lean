@@ -1270,9 +1270,10 @@ private theorem exec_opCode_query {U V w n_max base : ℕ}
   rcases hrep with ⟨hx_bdd, _, hfr, htab, hseed, hdict⟩
   let dp := mkDictParams U V w n_max (hashSpace U w n_max)
   have henv : DictEnvGen w dp base := by
-    unfold dp mkDictParams
-    exact
-      ⟨⟨U, V, w, n_max, hashSpace U w n_max, hwf.1, hwf.2.1, hwf.2.2.1, hwf.2.2.2, rfl⟩, rfl, hfit⟩
+    refine ⟨⟨U, V, w, n_max, hashSpace U w n_max,
+      hwf.1, hwf.2.1, hwf.2.2.1, hwf.2.2.2, rfl⟩, ?_⟩
+    simpa only [dp, p_U_mk, p_V_mk, p_w_mk, p_nMax_mk, p_hSpace_mk] using
+      (show DictEnv U V w n_max (hashSpace U w n_max) w base from ⟨rfl, hfit⟩)
   have hcond_pos : (Cond.eq tagReg zeroReg).Holds x₃ := by
     change x₃.regs tagReg = x₃.regs zeroReg
     rw [htag₃, htag, hzero₃]
@@ -1386,9 +1387,10 @@ private theorem exec_opCode_insert {U V w n_max base : ℕ}
   rcases hrep with ⟨hx_bdd, _, hfr, htab, hseed, hdict⟩
   let dp := mkDictParams U V w n_max (hashSpace U w n_max)
   have henv : DictEnvGen w dp base := by
-    unfold dp mkDictParams
-    exact
-      ⟨⟨U, V, w, n_max, hashSpace U w n_max, hwf.1, hwf.2.1, hwf.2.2.1, hwf.2.2.2, rfl⟩, rfl, hfit⟩
+    refine ⟨⟨U, V, w, n_max, hashSpace U w n_max,
+      hwf.1, hwf.2.1, hwf.2.2.1, hwf.2.2.2, rfl⟩, ?_⟩
+    simpa only [dp, p_U_mk, p_V_mk, p_w_mk, p_nMax_mk, p_hSpace_mk] using
+      (show DictEnv U V w n_max (hashSpace U w n_max) w base from ⟨rfl, hfit⟩)
   have hcond_neg0 : ¬(Cond.eq tagReg zeroReg).Holds x₃ := by
     change x₃.regs tagReg ≠ x₃.regs zeroReg
     rw [htag₃, htag, hzero₃]
@@ -1591,9 +1593,10 @@ private theorem exec_opCode_delete {U V w n_max base : ℕ}
   rcases hrep with ⟨hx_bdd, _, hfr, htab, hseed, hdict⟩
   let dp := mkDictParams U V w n_max (hashSpace U w n_max)
   have henv : DictEnvGen w dp base := by
-    unfold dp mkDictParams
-    exact
-      ⟨⟨U, V, w, n_max, hashSpace U w n_max, hwf.1, hwf.2.1, hwf.2.2.1, hwf.2.2.2, rfl⟩, rfl, hfit⟩
+    refine ⟨⟨U, V, w, n_max, hashSpace U w n_max,
+      hwf.1, hwf.2.1, hwf.2.2.1, hwf.2.2.2, rfl⟩, ?_⟩
+    simpa only [dp, p_U_mk, p_V_mk, p_w_mk, p_nMax_mk, p_hSpace_mk] using
+      (show DictEnv U V w n_max (hashSpace U w n_max) w base from ⟨rfl, hfit⟩)
   have hcond_neg0 : ¬(Cond.eq tagReg zeroReg).Holds x₃ := by
     change x₃.regs tagReg ≠ x₃.regs zeroReg
     rw [htag₃, htag, hzero₃]
