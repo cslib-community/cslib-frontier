@@ -16,7 +16,6 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
-import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Log
 
 /-!
 # PCP without randomness
@@ -57,6 +56,8 @@ classes with zero randomness are therefore classes of deterministic verification
 
 ## References
 
+* [S. Arora, B. Barak, *Computational Complexity: A Modern Approach* (2007 draft),
+  Chapter 18, Problem §4(i)][AroraBarak07]
 * [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*][AroraBarak09]
 -/
 
@@ -133,20 +134,10 @@ theorem isPolyTime_exhaustiveTableDecider {c d : ℕ} (hV : V.PolyTime enc)
     (hcoins : ∀ a, V.coins a ≤ c * (Nat.log 2 (enc a).length + 1))
     (hqueries : ∀ a, (V.queryTable a).length ≤ d * (Nat.log 2 (enc a).length + 1)) :
     ComputableInPolyTime V.exhaustiveTableDecider enc encBool := by
-  have htable := V.isPolyTime_queryTable hV hcoins
   have hlen : ComputableInPolyTime (fun a => (V.queryTable a).length) enc encUnary :=
-    (ComputableInPolyTime.length_list encNat).comp htable
-  have henum : ComputableInPolyTime (fun a => BitString.enumList (V.queryTable a).length)
-      enc (encList encBits) := by
-    apply ComputableInPolyTime.bitsEnumList hlen
-      (size := fun n => 2 ^ (d * (Nat.log 2 n + 1)) * (2 * (d * (Nat.log 2 n + 1)) + 1))
-    · have hpow := polynomiallyBounded_two_pow_mul_log d
-      fun_prop
-    · intro a
-      have ha := hqueries a
-      exact Nat.mul_le_mul (Nat.pow_le_pow_right (by decide) ha) (by lia)
+    (ComputableInPolyTime.length_list encNat).comp (V.isPolyTime_queryTable hV hcoins)
   exact ComputableInPolyTime.anyWithInput (test := fun a table => V.tableVerifier (a, table))
-    henum (V.isPolyTime_tableVerifier hV hcoins)
+    (isPolyTime_enumList_of_le_mul_log hlen hqueries) (V.isPolyTime_tableVerifier hV hcoins)
 
 end PCPVerifier
 

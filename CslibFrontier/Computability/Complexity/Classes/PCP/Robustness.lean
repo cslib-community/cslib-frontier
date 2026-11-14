@@ -20,7 +20,6 @@ import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Log
-import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Log
 import Mathlib.Algebra.Order.Archimedean.Basic
 
 /-!
@@ -62,9 +61,9 @@ real completeness threshold `c` ("accept with probability `≥ c`") and soundnes
 * `Cslib.Complexity.PCPVerifier.repeatRowWidth`, `Cslib.Complexity.PCPVerifier.repeatQueries`,
   `Cslib.Complexity.PCPVerifier.repeatAll`: polynomial-time `k`-fold independent repetition of a
   nonadaptive PCP verifier.
-* `Cslib.Complexity.PCPVerifier.proofOfTable`, `Cslib.Complexity.PCPVerifier.tableAcceptCount`,
-  `Cslib.Complexity.PCPVerifier.majorityTableVerifier`: proof reconstruction and threshold table
-  verification over all `2 ^ V.coins a` random strings.
+* `Cslib.Complexity.PCPVerifier.tableAcceptCount`,
+  `Cslib.Complexity.PCPVerifier.majorityTableVerifier`: threshold table verification over all
+  `2 ^ V.coins a` random strings.
 
 ## Main results
 
@@ -478,27 +477,6 @@ namespace PCPVerifier
 
 variable (V : PCPVerifier α)
 
-/-- Expand a bit table indexed by `V.queryTable a` into a full proof string by looking up each
-address's first occurrence in `V.queryTable a`. -/
-def proofOfTable (a : α) (table : List Bool) : List Bool :=
-  (List.range ((V.queryTable a).sum + 1)).map fun address =>
-    table.getD ((V.queryTable a).idxOf address) false
-
-/-- On any random word of length `V.coins a`, `V.proofOfTable a table` gives the exact same verdict
-as first-occurrence lookup in `table`. -/
-theorem accepts_proofOfTable (a : α) (table word : List Bool)
-    (hword : word.length = V.coins a) :
-    V.accepts a (V.proofOfTable a table) word =
-      V.verdict ((a, word), (V.queries (a, word)).map fun address =>
-        table.getD ((V.queryTable a).idxOf address) false) := by
-  unfold accepts answers
-  congr 2
-  refine List.map_congr_left fun address haddress => ?_
-  have hmem := V.mem_queryTable hword haddress
-  have hbound : address < (V.queryTable a).sum + 1 :=
-    Nat.lt_succ_of_le (List.le_sum_of_mem hmem)
-  simp [proofOfTable, List.getD_eq_getElem?_getD, hbound]
-
 /-- Number of random words of length `V.coins input.1` on which `V` accepts using the bit at each
 queried address's first occurrence in `V.queryTable input.1`. -/
 def tableAcceptCount (input : α × List Bool) : ℕ :=
@@ -515,14 +493,7 @@ theorem tableAcceptCount_answers_append (a : α) (proof padding : List Bool) :
   unfold tableAcceptCount acceptCount Cslib.Complexity.acceptCount
   rw [← BitString.countP_enumList (V.coins a) (fun word => V.accepts a proof word)]
   refine List.countP_congr fun word hword => ?_
-  have hlen := BitString.mem_enumList.mp hword
-  apply Iff.of_eq
-  congr 1
-  unfold accepts answers
-  congr 2
-  refine List.map_congr_left fun address haddress => ?_
-  have hmem := V.mem_queryTable hlen haddress
-  simp [List.getD_eq_getElem?_getD, List.getElem?_append_left, List.idxOf_lt_length_iff.mpr hmem]
+  rw [V.verdict_answers_queryTable_append a proof padding word (BitString.mem_enumList.mp hword)]
 
 /-- Every bit table has the exact same accepted-word count as its expanded proof
 `V.proofOfTable a table`. -/
@@ -539,53 +510,31 @@ theorem tableAcceptCount_eq_acceptCount_proofOfTable (a : α) (table : List Bool
 def majorityTableVerifier (input : α × List Bool) : Bool :=
   decide ((BitString.enumList (V.coins input.1)).length < 2 * V.tableAcceptCount input)
 
-variable {V} {c : ℕ}
+/-- A proof with acceptance probability strictly above `1 / 2` makes `V.majorityTableVerifier`
+accept its query table with arbitrary trailing padding. -/
+theorem majorityTableVerifier_complete (a : α) (proof padding : List Bool)
+    (h : 1 / 2 < V.acceptProb a proof) :
+    V.majorityTableVerifier (a, answers proof (V.queryTable a) ++ padding) = true := by
+  simp only [majorityTableVerifier, BitString.length_enumList, decide_eq_true_eq,
+    V.tableAcceptCount_answers_append]
+  have hnot : ¬ V.acceptProb a proof ≤ 1 / 2 := not_le.mpr h
+  rwa [V.acceptProb_le_half_iff, not_le] at hnot
 
-private theorem enum_coins' (hV : V.PolyTime enc)
-    (hcoins : ∀ a, V.coins a ≤ c * (Nat.log 2 (enc a).length + 1)) :
-    ComputableInPolyTime (fun a => BitString.enumList (V.coins a))
-      enc (encList encBits) := by
-  have hcoins_unary : ComputableInPolyTime V.coins enc encUnary :=
-    .binary_to_unary_bounded hV.coins (by fun_prop) hcoins
-  apply ComputableInPolyTime.bitsEnumList hcoins_unary
-    (size := fun n => 2 ^ (c * (Nat.log 2 n + 1)) * (2 * (c * (Nat.log 2 n + 1)) + 1))
-  · have hpow := polynomiallyBounded_two_pow_mul_log c
-    fun_prop
-  · intro a
-    have ha := hcoins a
-    exact Nat.mul_le_mul (Nat.pow_le_pow_right (by decide) (hcoins a)) (by lia)
+variable {V} {c : ℕ}
 
 /-- Counting accepted random words on a table is polynomial-time under a logarithmic coin bound. -/
 theorem isPolyTime_tableAcceptCount (hV : V.PolyTime enc)
     (hcoins : ∀ a, V.coins a ≤ c * (Nat.log 2 (enc a).length + 1)) :
-    ComputableInPolyTime V.tableAcceptCount (encPair enc encBits) encUnary := by
-  have he := enum_coins' hV hcoins
-  have hq := hV.queries
-  have hv := hV.verdict
-  have ht := V.isPolyTime_queryTable hV hcoins
-  have hinput := ComputableInPolyTime.fst (encPair enc encBits) encBits
-  have hword := ComputableInPolyTime.snd (encPair enc encBits) encBits
-  have hqueries := hq.comp (hinput.fst'.prod hword)
-  have htable := ht.comp hinput.fst'
-  have hproof := hinput.snd'
-  have houter := ComputableInPolyTime.fst (encPair (encPair enc encBits) encBits) encNat
-  have haddress := ComputableInPolyTime.snd (encPair (encPair enc encBits) encBits) encNat
-  have hlookup := (ComputableInPolyTime.bitsGetD false).comp
-    ((hproof.comp houter).prod ((ComputableInPolyTime.idxOf encNat).comp
-      ((htable.comp houter).prod haddress)))
-  have hanswers := ComputableInPolyTime.listToBits.comp
-    (ComputableInPolyTime.mapWithInput
-      (f := fun input address => input.1.2.getD (List.idxOf address (V.queryTable input.1.1)) false)
-      hqueries (by simpa only [Function.comp_def] using hlookup))
-  have htest := hv.comp ((hinput.fst'.prod hword).prod hanswers)
-  exact ComputableInPolyTime.countPWithInput
-    (he.comp (ComputableInPolyTime.fst enc encBits)) htest
+    ComputableInPolyTime V.tableAcceptCount (encPair enc encBits) encUnary :=
+  ComputableInPolyTime.countPWithInput
+    ((V.isPolyTime_enumCoins hV hcoins).comp (ComputableInPolyTime.fst enc encBits))
+    (V.isPolyTime_tableWordVerdict hV hcoins)
 
 /-- Majority table verification is polynomial-time under a logarithmic coin bound. -/
 theorem isPolyTime_majorityTableVerifier (hV : V.PolyTime enc)
     (hcoins : ∀ a, V.coins a ≤ c * (Nat.log 2 (enc a).length + 1)) :
     ComputableInPolyTime V.majorityTableVerifier (encPair enc encBits) encBool := by
-  have he := enum_coins' hV hcoins
+  have he := V.isPolyTime_enumCoins hV hcoins
   have htotal : ComputableInPolyTime
       (fun input : α × List Bool => (BitString.enumList (V.coins input.1)).length)
       (encPair enc encBits) encUnary :=
@@ -606,14 +555,7 @@ theorem IsPCPVerifierWith.mem_iff_exists_majorityTableVerifier {c : ℝ} {r q : 
     a ∈ A ↔ ∃ table, V.majorityTableVerifier (a, table) = true := by
   refine ⟨fun ha => ?_, fun ⟨table, htable⟩ => ?_⟩
   · obtain ⟨proof, hproof⟩ := h.complete a ha
-    refine ⟨PCPVerifier.answers proof (V.queryTable a), ?_⟩
-    simp only [PCPVerifier.majorityTableVerifier, BitString.length_enumList, decide_eq_true_eq]
-    have hgt : 1 / 2 < V.acceptProb a proof := hc.trans_le hproof
-    have hnot : ¬ V.acceptProb a proof ≤ 1 / 2 := not_le.mpr hgt
-    rw [V.acceptProb_le_half_iff, not_le] at hnot
-    have ht := V.tableAcceptCount_answers_append a proof []
-    simp only [List.append_nil] at ht
-    rwa [ht]
+    exact ⟨_, by simpa using V.majorityTableVerifier_complete a proof [] (hc.trans_le hproof)⟩
   · by_contra ha
     simp only [PCPVerifier.majorityTableVerifier, BitString.length_enumList,
       decide_eq_true_eq, V.tableAcceptCount_eq_acceptCount_proofOfTable] at htable
@@ -626,28 +568,12 @@ checked exhaustively in `NP`, regardless of the query bound `q`. -/
 theorem PCPWith_log_subset_NP {c : ℝ} (hc : 1 / 2 < c) (q : ℕ → ℕ) :
     PCPWith c (1 / 2) (fun n => Nat.log 2 n + 1) q enc ⊆ NP enc := by
   rintro A ⟨V, c_r, c_q, hV, hpcp⟩
-  have hcoins := hpcp.coins_le
-  obtain ⟨p, hlength⟩ :=
-    (PCPVerifier.isPolyTime_queryTable hV hcoins).polyBounded_length.exists_polynomial
-  have hbound (a : α) : (V.queryTable a).length ≤ p.eval (enc a).length :=
-    (length_le_length_encList encNat (V.queryTable a)).trans (hlength a)
-  refine ⟨p, V.majorityTableVerifier, PCPVerifier.isPolyTime_majorityTableVerifier hV hcoins,
-    fun a => ?_⟩
-  constructor
-  · intro ha
-    obtain ⟨proof, hproof⟩ := hpcp.complete a ha
-    let table := PCPVerifier.answers proof (V.queryTable a)
-    refine ⟨table ++ List.replicate (p.eval (enc a).length - table.length) false, ?_, ?_⟩
-    · have htable : table.length ≤ p.eval (enc a).length := by
-        simpa [table, PCPVerifier.answers] using hbound a
-      simp only [List.length_append, List.length_replicate]
-      lia
-    · simp only [PCPVerifier.majorityTableVerifier, BitString.length_enumList, decide_eq_true_eq,
-        table, V.tableAcceptCount_answers_append]
-      have hnot : ¬ V.acceptProb a proof ≤ 1 / 2 := not_le.mpr (hc.trans_le hproof)
-      rwa [V.acceptProb_le_half_iff, not_le] at hnot
-  · rintro ⟨table, _, htable⟩
-    exact (hpcp.mem_iff_exists_majorityTableVerifier hc a).mpr ⟨table, htable⟩
+  exact PCPVerifier.mem_NP_of_tableCheck hV hpcp.coins_le
+    (V.isPolyTime_majorityTableVerifier hV hpcp.coins_le)
+    (fun a ha =>
+      let ⟨proof, hproof⟩ := hpcp.complete a ha
+      ⟨proof, fun padding => V.majorityTableVerifier_complete a proof padding (hc.trans_le hproof)⟩)
+    (fun a table htable => (hpcp.mem_iff_exists_majorityTableVerifier hc a).mpr ⟨table, htable⟩)
 
 /-- For every positive constant `q ≥ 1`, `PCP(log n, q) = NP`. -/
 theorem PCP_log_const {q : ℕ} (hq : 1 ≤ q) :

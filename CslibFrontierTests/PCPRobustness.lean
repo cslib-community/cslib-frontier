@@ -81,7 +81,8 @@ example (r q : ℕ → ℕ) : PCPWith 1 (1 / 1000) r q encBool = PCP r q encBool
   PCPWith_one (by norm_num) (by norm_num) r q
 
 -- Imperfect completeness (`Arora–Barak Ch. 18 Problem 2, corrected`):
--- majority table counting and `PCPWith c (1 / 2) (log n) O(1) = PCP(log n, O(1))`.
+-- majority table counting, concrete `IsPCPVerifierWith` with `c = 3 / 4 < 1` and `s = 1 / 2`,
+-- `IsPCPVerifierWith.repeatAll`, `PCPWith_log_subset_NP`, and `PCPWith_log_const`.
 example : halfSoundVerifier.tableAcceptCount (false, [true, true, true]) = 1 := by decide
 
 example : halfSoundVerifier.majorityTableVerifier (false, [true, true, true]) = false := by decide
@@ -89,6 +90,65 @@ example : halfSoundVerifier.majorityTableVerifier (false, [true, true, true]) = 
 example : halfSoundVerifier.tableAcceptCount (true, [true, true, true]) = 2 := by decide
 
 example : halfSoundVerifier.majorityTableVerifier (true, [true, true, true]) = true := by decide
+
+/-- A 2-coin verifier on `Bool` for `{a : Bool | a = true}` with imperfect completeness `3 / 4` and
+soundness `1 / 2`:
+* when `a = true` and `π = [true]`, accepts the 3 random words `[false, false]`, `[false, true]`,
+  `[true, false]` and rejects `[true, true]`;
+* when `a = false`, ignores `π` and accepts `[false, false]` and `[false, true]`. -/
+private def threeQuarterVerifier : PCPVerifier Bool where
+  coins _ := 2
+  queries _ := [0]
+  verdict p :=
+    if p.1.1 then
+      !(p.1.2.getD 0 false && p.1.2.getD 1 false) && p.2.getD 0 false
+    else
+      !p.1.2.getD 0 false
+
+private theorem threeQuarterVerifier_polyTime : threeQuarterVerifier.PolyTime encBool := by
+  constructor <;> unfold threeQuarterVerifier <;> fun_prop
+
+private theorem threeQuarterVerifier_isPCPVerifierWith :
+    IsPCPVerifierWith encBool (3 / 4) (1 / 2)
+      (fun n => 2 * (Nat.log 2 n + 1)) (fun _ => 1 * 1)
+      threeQuarterVerifier {a : Bool | a = true} where
+  coins_le a := by
+    simp only [threeQuarterVerifier]
+    omega
+  length_queries_le a _ _ := by simp [threeQuarterVerifier]
+  complete a ha := by
+    subst ha
+    refine ⟨[true], ?_⟩
+    rw [PCPVerifier.acceptProb]
+    have hcnt : threeQuarterVerifier.acceptCount true [true] = 3 := by decide
+    rw [hcnt]
+    simp [threeQuarterVerifier]
+    norm_num
+  sound a ha π := by
+    have hfalse : a = false := Bool.eq_false_iff.mpr ha
+    subst hfalse
+    rw [PCPVerifier.acceptProb]
+    have hcnt : threeQuarterVerifier.acceptCount false π = 2 :=
+      show threeQuarterVerifier.acceptCount false [] = 2 by decide
+    rw [hcnt]
+    simp [threeQuarterVerifier]
+    norm_num
+
+example :
+    IsPCPVerifierWith encBool ((3 / 4 : ℝ) ^ 2) ((1 / 2 : ℝ) ^ 2)
+      (fun n => 2 * (2 * (Nat.log 2 n + 1))) (fun _ => 2 * (1 * 1))
+      (threeQuarterVerifier.repeatAll 2) {a : Bool | a = true} :=
+  threeQuarterVerifier_isPCPVerifierWith.repeatAll (by norm_num) 2
+
+example (a : Bool) :
+    a ∈ ({b : Bool | b = true} : Set Bool) ↔
+      ∃ table, threeQuarterVerifier.majorityTableVerifier (a, table) = true :=
+  threeQuarterVerifier_isPCPVerifierWith.mem_iff_exists_majorityTableVerifier (by norm_num) a
+
+example : {a : Bool | a = true} ∈ NP encBool :=
+  PCPWith_log_subset_NP (c := 3 / 4) (by norm_num) (fun _ => 1)
+    ⟨threeQuarterVerifier, 2, 1, threeQuarterVerifier_polyTime,
+      threeQuarterVerifier_isPCPVerifierWith⟩
 
 example :
     PCPWith (3 / 4) (1 / 2) (fun n => Nat.log 2 n + 1) (fun _ => 3) encBool =
