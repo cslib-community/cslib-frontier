@@ -929,6 +929,11 @@ Thomas Holenstein. “Pseudorandom Generators from One-Way Functions: A Simple C
 
 Thomas Holenstein. “Parallel Repetition: Simplifications and the No-Signaling Case.” *Theory of Computing* 5(8), 141–172, 2009. https://doi.org/10.4086/toc.2009.v005a008 . Journal PDF inspected (Definition 2.4 and Theorem 2.5, p. 146; Definition 5.1, p. 151; Lemma 5.4 and (5.5), p. 153; Claims 6.2 and 6.3, p. 154; Lemma 6.4 and (6.3)–(6.7) of its proof, p. 155; (6.8)–(6.16), p. 156; the first stage of the embedding, from (6.15) and (6.16) by Corollary 5.3, (6.17)–(6.19) and the second stage, and Lemma 6.5, (6.20) and its proof, p. 157; Lemma 7.1, p. 158; the proof of Theorem 2.5, (7.6) and (7.7), p. 159).
 
+<a id="hooverpersianoyeo26"></a>
+## hooverpersianoyeo26
+
+Alex Hoover, Giuseppe Persiano and Kevin Yeo. "Lower Bounds for PIR with Preprocessing from Blackbox Cryptography." Cryptology ePrint Archive, Paper 2026/1384, 2026. https://eprint.iacr.org/2026/1384 . Checked against the ePrint PDF on 2026-11-14 (no conference or journal venue found as of 2026-11-14): Section 6.1 (Definition 6.1, pp. 44–45, `k`-batch SPIR with client preprocessing and shared offline/online server randomness `R`), Section 6.2 (Theorem 6.2 and its proof, pp. 45–46, batch SPIR storage lower bound), and Section 6.3 (pp. 47–48, random-permutation toy construction). The library formalizes the plain-model, single-round, deterministic-online-client version of Definition 6.1 (`Scheme`) and Theorem 6.2 (`Scheme.eval_onlineTranscript_eq`, `Scheme.correct_le_card_div_two_pow`, `Scheme.batchSPIR_limitation` with the explicit `2 ≤ n` guard needed at `n = k = 1, s = 0`), the online-randomized client variant with explicit `Fintype.card Ω` factor (`RandomizedScheme.correct_le_card_mul_card_div_two_pow`), and the Section 6.3 random-permutation toy scheme (`toyScheme`) with ideal setup functionality (`ToyState` of size `2 ^ n * n!`, perfect correctness, perfect data privacy, perfect privacy on injective batch tuples, and the repeated-query counterexample for `2 ≤ k` and `2 ≤ n`); the random-oracle model phrasing, Lemma 6.3 and Theorem 6.4, the PRF inner-product toy construction, and the Section 6.4–6.5 sublinear SPIR construction (Theorem 6.5) are not formalized.
+
 <a id="hoyerleespalek07"></a>
 ## hoyerleespalek07
 
