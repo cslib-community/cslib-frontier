@@ -15,6 +15,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Probability.PMF.Expect
+import Mathlib.Data.List.GetD
+import Mathlib.Data.List.Sigma
 
 /-!
 # Reversible quantum realization of Boolean samplers
@@ -114,7 +116,8 @@ theorem isClassical_outputCopyCodes {W z base : ℕ} {outputs : List ℕ} (hzb :
     (hW : base + outputs.length ≤ W) : IsClassical W (outputCopyCodes z base outputs) := by
   intro g hg
   obtain ⟨p, hp, rfl⟩ := List.mem_map.mp hg
-  have hi : p.2 < outputs.length := (List.mem_zipIdx hp).2.1
+  have hi : p.2 < outputs.length := by
+    simpa only [Nat.zero_add] using (List.mem_zipIdx hp).2.1
   have hout : outQubit z p.1 ≤ z := by unfold outQubit; omega
   refine ⟨rfl, by simp, ?_, ?_⟩
   · simp only [List.nodup_cons, List.mem_cons, List.not_mem_nil, or_false, List.nodup_nil,
@@ -146,7 +149,7 @@ theorem wellFormed_samplerCodes (n : ℕ) (code : List (Op × List ℕ) × List 
 @[simp] theorem length_samplerCodes (n : ℕ) (code : List (Op × List ℕ) × List ℕ) :
     (samplerCodes n code).length =
       n + (codes n (samplerZero n code) code.1).length + code.2.length := by
-  simp [samplerCodes, samplerClassicalCodes, hadamardCodes]
+  simp [samplerCodes, samplerClassicalCodes, hadamardCodes, Nat.add_assoc]
 
 /-! ### Classical correctness -/
 
@@ -162,13 +165,13 @@ theorem readBit_classicalRun_outputCopyCodes {W z base : ℕ} {outputs : List �
   have hlt : ∀ g ∈ outputCopyCodes z base outputs, g.2.1 < W := by
     intro g hg
     obtain ⟨b, t, cs⟩ := g
-    obtain ⟨hb, hg'⟩ := hclass (b, t, cs) hg
-    subst b
+    obtain ⟨_, hg'⟩ := hclass (b, t, cs) hg
     exact hg'.2.2 t (List.mem_cons_self ..)
   have hnd : ((outputCopyCodes z base outputs).map fun g => g.2.1).Nodup := by
-    have hshift : ((outputs.zipIdx.map Prod.snd).map fun i => base + i).Nodup :=
+    rw [outputCopyCodes, List.map_map]
+    change (outputs.zipIdx.map fun p => base + p.2).Nodup
+    simpa only [List.map_map, Function.comp_apply] using
       (List.nodup_zipIdx_map_snd outputs).map fun i j h => by omega
-    simpa only [outputCopyCodes, List.map_map, Function.comp_apply] using hshift
   have hread : ∀ g ∈ outputCopyCodes z base outputs,
       ∀ g' ∈ outputCopyCodes z base outputs, g.2.1 ∉ g'.2.2 := by
     intro g hg g' hg'
@@ -230,10 +233,14 @@ theorem samplerReadout_classicalRun {n m : ℕ} (C : Circuits.Circuit signature 
       omega) (by
       dsimp only [W, base]
       unfold samplerWidth
-      rfl) X₁ hzero (by simpa [Circuit.code] using j.isLt)]
+      rfl) X₁ hzero (by simp [Circuit.code])]
   have hout : C.code.2.getD j.val 0 = (C.outputs j).toNat := by
     simp [Circuit.code, List.getD_eq_getElem?_getD]
-  rw [hout, outQubit, min_eq_right (C.outputs j).toNat_lt.le, hcodes,
+  have houtz : (C.outputs j).toNat ≤ z := by
+    dsimp only [z]
+    unfold samplerZero
+    simpa only [Circuit.length_code_fst] using (C.outputs j).toNat_lt.le
+  rw [hout, outQubit, min_eq_right houtz, hcodes,
     Circuit.eval_eq_evalOutput]
   rfl
 
@@ -251,7 +258,7 @@ theorem samplerDist_eq_outputDist {n m : ℕ} (C : Circuits.Circuit signature n 
   let s : ℂ := (((Real.sqrt 2)⁻¹ : ℝ) : ℂ)
   let U : Qubits W →ₗᵢ[ℂ] Qubits W :=
     (Circuit.eval (Circuit.ofCodes W (samplerClassicalCodes n C.code))).toLinearIsometry
-  have hnW : n ≤ W := by
+  have hnW : 0 + n ≤ W := by
     dsimp only [W]
     unfold samplerWidth samplerOutputStart samplerZero
     omega
