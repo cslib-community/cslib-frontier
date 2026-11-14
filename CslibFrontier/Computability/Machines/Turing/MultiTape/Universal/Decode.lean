@@ -18,7 +18,8 @@ the decoder inverts the encoding `Turing.MultiTapeTM.Universal.eDesc` of descrip
 description of polynomial encoded length on every other word, and is computable within
 bounds of fixed degrees. It is assembled from the generic decoders of
 `CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder` along the fields of a
-description, its transitions, their keys and their actions.
+description, its transitions, their keys and their actions. The same constructive chain decodes
+the signed unary head position and zipper fields of a work tape.
 
 A description framed at the start of a word is recovered whatever follows it
 (`Turing.MultiTapeTM.Universal.decodeDesc_unframe_frame_append`), so a description can be padded
@@ -27,6 +28,8 @@ to any length.
 ## Main definitions
 
 * `Turing.MultiTapeTM.Universal.decodeDesc`: the description decoded from a word.
+* `Turing.MultiTapeTM.Universal.intUnaryDecoder`, `.tapeDecoder`: total decoders of signed unary
+  integers and encoded work tapes.
 
 ## Main results
 
@@ -56,6 +59,19 @@ def signDecoder : Decoder encSign where
 
 /-- Symbols and blanks. -/
 def symDecoder : Decoder eSym := .option .unary
+
+/-- Unary signed integers, through their nonnegative/negative tagged-sum representation. -/
+def intUnaryDecoder : Decoder encIntUnary :=
+  (Decoder.sum .unary .unary).map
+    (Sum.elim Int.ofNat Int.negSucc)
+    (fun z => match z with | .ofNat n => .inl n | .negSucc n => .inr n)
+    (fun z => by cases z <;> rfl) fun s => by cases s <;> rfl
+
+/-- Work-tape zippers, from their signed head position and two symbol lists. -/
+def tapeDecoder : Decoder eTape :=
+  (Decoder.pair intUnaryDecoder (.pair (.list symDecoder) (.list symDecoder))).map
+    (fun t => ⟨t.1, t.2.1, t.2.2⟩)
+    (fun t => (t.head, t.left, t.right)) (fun _ => rfl) fun _ => rfl
 
 /-- Keys of transitions, from their fields. -/
 def keyDecoder : Decoder eKey :=
