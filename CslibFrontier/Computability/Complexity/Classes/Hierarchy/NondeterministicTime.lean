@@ -263,8 +263,7 @@ private theorem exists_computableInO_verifier (d : ℕ) :
     (hfacts p).2.2
   obtain ⟨S₀, S₁, S₂, hc₀, hc₁', hc₂'⟩ := Diagonal.exists_computableInO_lazyTests
     (H := clock d) (hE'.of_enc_eq fun p => by
-      simp only [Function.comp_apply, clock, length_frame]
-      rfl) (fun p => (hfacts p).1) hQ
+      simp only [Function.comp_apply, clock, length_frame]) (fun p => (hfacts p).1) hQ
   obtain ⟨S, h⟩ := Diagonal.exists_computableInO_lazyVerifier
     (β := fun y _ => clock d y.length) (L := certLen d) (H := clock d) hacc hbrute hc₀ hc₁' hc₂'
     (fun p => (hfacts p).1)
