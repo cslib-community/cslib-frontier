@@ -162,8 +162,7 @@ private def eLoopTail3 : LoopTail3 ↪ List Bool := encPair encUnary (encPair en
 private def eLoopTail4 : LoopTail4 ↪ List Bool := encPair encUnary eICfg
 
 private abbrev RunTail := ℕ × (List ℕ × ℕ)
-private def eRunTail : RunTail ↪ List Bool :=
-  encPair encUnary (encPair (encList encUnary) encUnary)
+private abbrev eRunTail : RunTail ↪ List Bool := eRunParameters
 
 /-- Retained loop-state description projection. -/
 noncomputable def descCompiler : NativeCompiler LoopState.desc eLoopState eDesc :=
@@ -649,7 +648,8 @@ noncomputable def queryDispatch (r : ℕ) (fallback : Fin r) :=
     ((operations r).map (operationCase r fallback)) (queryFallback r)
 
 private theorem dispatchProgram_operations (r : ℕ) (fallback operation : Fin r)
-    (input : CommandInput r) :
+    (input : CommandInput r)
+    (hoperation : (commandQueryPayload r fallback input).1 = operation) :
     NativeOracleProgram.dispatchProgram
         ((operations r).map (operationCase r fallback))
         (fun command => pure (localAdvance r command)) input =
@@ -662,9 +662,10 @@ private theorem dispatchProgram_operations (r : ℕ) (fallback operation : Fin r
       rw [List.map_cons, NativeOracleProgram.dispatchProgram]
       by_cases h : head = operation
       · subst head
-        simp [operationCase, operationTest]
-      · have htail : operation ∈ tail := (List.mem_cons.mp hmem).resolve_left h
-        simp only [operationCase, operationTest, h, decide_false, encTest_apply,
+        simp [operationCase, operationTest, hoperation]
+      · have hne : operation ≠ head := fun hop => h hop.symm
+        have htail : operation ∈ tail := (List.mem_cons.mp hmem).resolve_left hne
+        simp only [operationCase, operationTest, hoperation, hne, decide_false, encTest_apply,
           Bool.false_eq_true, List.replicate_zero]
         exact ih htail
 
@@ -697,7 +698,7 @@ noncomputable def commandExecutorSucc (r : ℕ) :
       simp only [executeCommand, commandIsQueryCompiler, commandSumInputCompiler,
         commandValueCompiler, commandSumCompiler, Command.equivSum, encTest_apply,
         Bool.true_eq, List.replicate_one, List.cons_ne_nil, ↓reduceIte]
-      exact dispatchProgram_operations (r + 1) 0 operation input
+      exact dispatchProgram_operations (r + 1) 0 operation input rfl
 
 /-- Zero-channel command execution has no query branch and therefore installs no dummy `Fin 0`
 operation or query artifact. -/
@@ -903,11 +904,12 @@ noncomputable def body (r : ℕ) :
             simp only [bodyIsSome, bodyRemainingIsZero, bodyControlIsSome, hremaining,
               hcontrol, Option.isSome_some, encTest_apply, Bool.true_eq,
               List.replicate_one, List.cons_ne_nil, ↓reduceIte]
-            simp [step, activeProgram, NativeOracleProgram.capturedProgram, lookupResult,
-              commandFromLookup, commandProgram, executeCommand, queryBranchProgram,
-              NativeOracleProgram.queryTakeProgram, queryInput, queryPost,
-              commandQueryPayload, defaultQueryPayload,
-              commandAtFromLookup_firstMatch, hremaining, hcontrol]
+            cases r <;>
+              simp [step, activeProgram, NativeOracleProgram.capturedProgram, lookupResult,
+                commandFromLookup, commandProgram, executeCommand, queryBranchProgram,
+                NativeOracleProgram.queryTakeProgram, queryInput, queryPost,
+                commandQueryPayload, defaultQueryPayload,
+                commandAtFromLookup_firstMatch, hremaining, hcontrol]
 
 /-! ### Finite proof reachability and uniform round bounds -/
 

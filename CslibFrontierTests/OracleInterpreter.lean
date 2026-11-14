@@ -138,8 +138,10 @@ example (result : List ℕ) :
     generatedStaticBits 1 = (artifact 1).staticBits ∧
       runInputSize runInput = (eRunInput runInput).length ∧
       suppliedDescSize runInput = descLen runInput.desc ∧
+      runParameterSize runInput =
+        (eRunParameters (runInput.fuel, runInput.input, runInput.replyBits)).length ∧
       emittedOutputBits result = (encList encUnary result).length :=
-  ⟨rfl, rfl, rfl, rfl⟩
+  ⟨rfl, rfl, rfl, rfl, rfl⟩
 
 /-- The exact generated size has both an honest structural bound and a fixed-channel polynomial
 family theorem. -/

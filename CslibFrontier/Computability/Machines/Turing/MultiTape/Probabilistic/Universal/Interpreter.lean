@@ -55,16 +55,17 @@ separate installed copies would double count them. Component sizes may still be 
 nonadditive construction coordinates. A separately installed handler is a distinct inventory
 entry. The runtime description supplied in `RunInput` is not an installed artifact in this module.
 
-The resource coordinates proved here are exposed separately: runtime input bits, the supplied
-description's bits, physical fair coins, source calls and request lengths, encoded request lengths,
-source reply-prefix symbols and encoded reply-prefix bits. The supplied description is already a
-field of `RunInput`, so it is charged there; adding `suppliedDescSize` to `runInputSize` would
-double count it. A construction that instead hardwires the supplied descriptor must move that
-charge into the generated static program rather than retain both charges. The fixed interpreter's
-own static description is a different coordinate and may depend on `r`; it must include its
-controller and finite-channel dispatch code. Native online time and workspace are likewise
-separate coordinates. No scalar aggregate is canonical here; any scalar bound must be explicitly
-defined and proved from the componentwise bounds.
+The resource coordinates proved here are exposed separately: complete runtime input bits, its
+non-description clock/input/reply-budget tail, the supplied description's bits, physical fair
+coins, source calls and request lengths, encoded request lengths, source reply-prefix symbols and
+encoded reply-prefix bits. The supplied description is already a field of `RunInput`, so it is
+charged there; adding `suppliedDescSize` to `runInputSize` would double count it. A construction
+that instead hardwires the supplied descriptor must move that charge into the generated static
+program rather than retain both charges. The fixed interpreter's own static description is a
+different coordinate and may depend on `r`; it must include its controller and finite-channel
+dispatch code. Native online time and workspace are likewise separate coordinates. No scalar
+aggregate is canonical here; any scalar bound must be explicitly defined and proved from the
+componentwise bounds.
 
 No offline compiler is executed by `run`. If a later construction uses an offline compiler to
 produce the fixed interpreter, the compiler's output size is the interpreter's static-code charge;
@@ -74,6 +75,7 @@ compiler, in which case they must be included in that program's online resources
 ## Main definitions
 
 * `Turing.MultiTapePTM.Universal.RunInput`: descriptor, source clock, input and reply-code budget.
+* `Turing.MultiTapePTM.Universal.runParameterSize`: the non-description runtime-data coordinate.
 * `Turing.MultiTapePTM.Universal.Channel`, `.ICfg`: first-order interpreter storage.
 * `Turing.MultiTapePTM.Universal.run`: fixed-`Fin r` Boolean-channel interpretation.
 * `Turing.MultiTapePTM.Universal.wordCodec`: unary-list word view of source oracle channels.
@@ -120,6 +122,11 @@ structure RunInput where
 enc_structure eRunInput : RunInput where
   desc : eDesc, fuel : encUnary, input : (encList encUnary), replyBits : encUnary
 
+/-- Encoding of the runtime source clock, source input and reply-copy budget after the separately
+framed supplied description. -/
+def eRunParameters : (ℕ × (List ℕ × ℕ)) ↪ List Bool :=
+  encPair encUnary (encPair (encList encUnary) encUnary)
+
 /-- The supplied descriptor's unary model-code size. This exposes its source/adversary program
 size even though the descriptor is runtime data here. Hardwiring it moves this charge into the
 generated static program rather than counting it in both coordinates. -/
@@ -128,6 +135,12 @@ def suppliedDescSize (i : RunInput) : ℕ := descLen i.desc
 /-- The encoded runtime input size. This includes the supplied descriptor, source input, unary
 clock and unary reply-code prefix budget exactly once, but not the fixed interpreter code. -/
 def runInputSize (i : RunInput) : ℕ := (eRunInput i).length
+
+/-- Exact size of the non-description runtime-data tail: source clock, source input and encoded
+reply-prefix budget. This and the framed supplied description partition `eRunInput`; do not add
+`suppliedDescSize` to `runInputSize`, which already contains both. -/
+def runParameterSize (i : RunInput) : ℕ :=
+  (eRunParameters (i.fuel, i.input, i.replyBits)).length
 
 /-- Maximum number of private fair coins: at most one is drawn per source instruction, and halted
 storage draws none. -/
@@ -953,8 +966,8 @@ private theorem wordIterate_requestBounds {r : ℕ} {d : Desc} {input : List ℕ
       (cfg.wordStep_requestLengthBound hlength next hnext) (by omega)
 
 /-- Fixed-channel Boolean interpreter word program. A channel-count mismatch is rejected before
-sampling a coin or making a call. A later named native witness realizes this program and supplies
-the independent static-code, online-time and workspace coordinates. -/
+sampling a coin or making a call. `Universal.NativeInterpreter.artifact` realizes this program and
+supplies the independent static-code, online-time and workspace coordinates. -/
 noncomputable def run (r : ℕ) (i : RunInput) : WordOracleComp (Fin r) (List ℕ) :=
   if i.desc.operations = r then
     (fun cfg => cfg.output) <$> OracleComp.iterate i.fuel
