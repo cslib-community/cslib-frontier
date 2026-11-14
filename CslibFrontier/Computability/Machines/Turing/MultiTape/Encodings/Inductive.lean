@@ -11,6 +11,8 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Su
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Sum
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Cases
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.Bounds
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Bounds
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Plain
 public meta import Lean.Elab.Command
 
 /-!
@@ -28,9 +30,10 @@ The command declares:
 * `eTPayload`, the encoding of the sum, and `eT_toSum`, the map from `T` to the sum;
 * `eT`, the encoding of `T`, and `eT_apply`, unfolding `eT x` to `eTPayload (eT_toSum x)`;
 * `eT_toSum_deg`, the linear map to the sum;
-* for each constructor `c`, the rule `eT_c_inO`, which adds up the bounds of its arguments;
+* for each constructor `c`, the rule `eT_c_inO`, which adds up the bounds of its arguments,
+  `eT_c_inSpace`, retaining their independent workspace bounds, and `eT_c_polyTime`;
 * `eT_elim`, case analysis by constructor on the payloads, and its rule `eT_elim_inO`, which
-  charges only the case taken.
+  charges only the case taken, together with `eT_elim_inSpace` at the same workspace bound.
 
 The `toSum` and constructor rules are `scoped` `fun_prop` rules, as for `enc_structure`. The case
 rule is stated for an input paired with the value, as `ComputableInO.sumElimSnd` is.
@@ -192,6 +195,16 @@ private partial def summands (t : Expr) : Nat → MetaM (Array Expr)
         {$encIn : $γ ↪ List Bool} :
         ComputableInO (fun _ : $γ => $ctor) $encIn $eT (fun $x => ($encIn $x).length)
           fun $x => ($encIn $x).length := ComputableInO.const _))
+      elabCommand (← `(@[scoped fun_prop] public theorem
+        $(app name s!"_{cs[i]!.getId}_inSpace"):ident {$γ : Type}
+        {$encIn : $γ ↪ List Bool} :
+        ComputableInSpace (fun _ : $γ => $ctor) $encIn $eT
+          (fun $x => ($encIn $x).length) := ComputableInSpace.of_inO $rule))
+      elabCommand (← `(@[scoped fun_prop] public theorem
+        $(app name s!"_{cs[i]!.getId}_polyTime"):ident {$γ : Type}
+        {$encIn : $γ ↪ List Bool} :
+        ComputableInPolyTime (fun _ : $γ => $ctor) $encIn $eT :=
+          ($rule).computableInPolyTime PolyBounded.self PolyBounded.self))
       continue
     let xN (j : Nat) := mkIdent (Name.mkSimple s!"x{j}")
     let hN (j : Nat) := mkIdent (Name.mkSimple s!"h{j}")
@@ -224,6 +237,48 @@ private partial def summands (t : Expr) : Nat → MetaM (Array Expr)
       {$encIn : $γ ↪ List Bool} $binders* :
       ComputableInO (fun $x => $appl) $encIn $eT (fun $x => $sumT) fun $x => $sumS :=
         ComputableInO.of_enc_eq $inj fun _ => rfl))
+    -- Space rules forget only the time witnesses, retaining independent workspace bounds.
+    let mut sb : TSyntaxArray ``Lean.Parser.Term.bracketedBinder := #[]
+    let mut unpack : TSyntaxArray ``Lean.Parser.Tactic.tactic := #[]
+    for j in [0:k] do
+      sb := sb.push (← `(bracketedBinder| {$(xN j) : $γ → _}))
+      sb := sb.push (← `(bracketedBinder| {$(SN j) : $γ → ℕ}))
+    for j in [0:k] do
+      sb := sb.push (← `(bracketedBinder|
+        ($(hN j) : ComputableInSpace $(xN j) $encIn $(es[j]!) $(SN j))))
+      unpack := unpack.push (← `(tactic| obtain ⟨$(TN j), $(hN j)⟩ := $(hN j).exists_inO))
+    let hs : Array Term := (Array.range k).map fun j => hN j
+    elabCommand (← `(@[scoped fun_prop] public theorem
+      $(app name s!"_{cs[i]!.getId}_inSpace"):ident {$γ : Type}
+      {$encIn : $γ ↪ List Bool} $sb* :
+      ComputableInSpace (fun $x => $appl) $encIn $eT (fun $x => $sumS) := by
+        $unpack:tactic*
+        exact ComputableInSpace.of_inO ($rule $hs*)))
+    -- Recover explicit clocks from the polynomial hypotheses, then lift the existing
+    -- arbitrary-resource constructor certificate. No constructor machine is rebuilt here.
+    let mut pb : TSyntaxArray ``Lean.Parser.Term.bracketedBinder := #[]
+    let mut clocks : TSyntaxArray ``Lean.Parser.Tactic.tactic := #[]
+    let boundBase : Term ← `(PolyBounded.self.add (PolyBounded.const 1))
+    let dN (j : Nat) := mkIdent (Name.mkSimple s!"d{j}")
+    let eN (j : Nat) := mkIdent (Name.mkSimple s!"e{j}")
+    let mut proofs : Array Term := #[]
+    for j in [0:k] do
+      pb := pb.push (← `(bracketedBinder| {$(xN j) : $γ → _}))
+    for j in [0:k] do
+      pb := pb.push (← `(bracketedBinder|
+        ($(hN j) : ComputableInPolyTime $(xN j) $encIn $(es[j]!))))
+      clocks := clocks.push (← `(tactic|
+        obtain ⟨$(dN j), $(eN j), $(hN j)⟩ := $(hN j).exists_degree))
+      proofs := proofs.push (← `($(hN j).inO))
+    let mut polyBound : Term ← `(($boundBase).pow $(dN last))
+    for j in (List.range last).reverse do
+      polyBound ← `((($boundBase).pow $(dN j)).add $polyBound)
+    elabCommand (← `(@[scoped fun_prop] public theorem
+      $(app name s!"_{cs[i]!.getId}_polyTime"):ident {$γ : Type}
+      {$encIn : $γ ↪ List Bool} $pb* :
+      ComputableInPolyTime (fun $x => $appl) $encIn $eT := by
+        $clocks:tactic*
+        exact ($rule $proofs*).computableInPolyTime $polyBound $polyBound))
   -- case analysis on the payloads
   let elim := app name "_elim"
   let fN (i : Nat) := mkIdent (Name.mkSimple s!"f{i}")
@@ -276,5 +331,23 @@ private partial def summands (t : Expr) : Nat → MetaM (Array Expr)
       simp only [Function.comp_apply, $elim:ident, $toSum:ident, $applyName:ident, Sum.elim_inl,
         Sum.elim_inr, length_encPair, encSum_inl, encSum_inr, List.length_cons] <;>
       omega))
+  -- The case space contract charges precisely the selected branch's workspace. Its time
+  -- function is existential, independently for every branch.
+  let mut spaceBinders : TSyntaxArray ``Lean.Parser.Term.bracketedBinder := #[]
+  let mut unpack : TSyntaxArray ``Lean.Parser.Tactic.tactic := #[]
+  for i in [0:n] do
+    spaceBinders := spaceBinders.push (← `(bracketedBinder| {$(gN i) : π × $(argTys[i]!) → ε}))
+    spaceBinders := spaceBinders.push (← `(bracketedBinder| {$(SN i) : π × $(argTys[i]!) → ℕ}))
+  for i in [0:n] do
+    spaceBinders := spaceBinders.push (← `(bracketedBinder|
+      ($(hN i) : ComputableInSpace $(gN i) (encPair $encP $(payloads[i]!)) $encE $(SN i))))
+    unpack := unpack.push (← `(tactic| obtain ⟨$(TN i), $(hN i)⟩ := $(hN i).exists_inO))
+  let hs : Array Term := (Array.range n).map fun i => hN i
+  elabCommand (← `(public theorem $(app name "_elim_inSpace"):ident {π ε : Type}
+      {$encP : π ↪ List Bool} {$encE : ε ↪ List Bool} $spaceBinders* :
+      ComputableInSpace (fun $p : π × $T => $fnTerm) (encPair $encP $eT) $encE
+        (fun $p => $nLit * (encPair $encP $eT $p).length + $sTerm) := by
+    $unpack:tactic*
+    exact ComputableInSpace.of_inO ($(app name "_elim_inO") $hs*)))
 
 end Turing.MultiTapeTM

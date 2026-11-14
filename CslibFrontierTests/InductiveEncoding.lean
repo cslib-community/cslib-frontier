@@ -42,6 +42,26 @@ example : ComputableInO (fun p : ℕ × List Bool => Label.eval p.1 p.2) (encPai
   · simp only [length_encPair]
     omega
 
+/-! Lifted constructor families cover captured arguments and independent workspace bounds. -/
+
+example {α : Type} {enc : α ↪ List Bool} {u : α → ℕ} {v : α → List Bool}
+    (hu : ComputableInPolyTime u enc encUnary) (hv : ComputableInPolyTime v enc encBits) :
+    ComputableInPolyTime (fun a => Label.eval (u a) (v a)) enc eLabel :=
+  eLabel_eval_polyTime hu hv
+
+example {α : Type} {enc : α ↪ List Bool} {u : α → ℕ} {v : α → List Bool}
+    {S₁ S₂ : α → ℕ} (hu : ComputableInSpace u enc encUnary S₁)
+    (hv : ComputableInSpace v enc encBits S₂) :
+    ComputableInSpace (fun a => Label.eval (u a) (v a)) enc eLabel (fun a => S₁ a + S₂ a) :=
+  eLabel_eval_inSpace hu hv
+
+example {α : Type} {enc : α ↪ List Bool} :
+    ComputableInPolyTime (fun _ : α => Label.resample) enc eLabel := eLabel_resample_polyTime
+
+example {α : Type} {enc : α ↪ List Bool} {u : α → ℕ}
+    (hu : ComputableInPolyTime u enc encUnary) :
+    ComputableInPolyTime (fun a => Label.count (u a)) enc eLabel := eLabel_count_polyTime hu
+
 /-! Case analysis charges only the constructor taken. -/
 
 /-- The size of a label's payload. -/
@@ -100,6 +120,21 @@ example : ComputableInO (fun p : Unit × Wrap => eWrap_elim p.2 fun q => q.1)
     fun p => 1 * (encPair encUnit eWrap p).length +
       eWrap_elim p.2 fun q => (encPair encUnit (encPair encUnary encBool) (p.1, q)).length :=
   eWrap_elim_inO ((ComputableInDegree.snd encUnit (encPair encUnary encBool)).fst').inO_one
+
+/-! Single-constructor generation keeps both resource witnesses and all captured inputs. -/
+
+example {α : Type} {enc : α ↪ List Bool} {u : α → ℕ} {v : α → Bool}
+    (hu : ComputableInPolyTime u enc encUnary) (hv : ComputableInPolyTime v enc encBool) :
+    ComputableInPolyTime (fun a => Wrap.wrap (u a) (v a)) enc eWrap :=
+  eWrap_wrap_polyTime hu hv
+
+example {ε π : Type} {encP : π ↪ List Bool} {encE : ε ↪ List Bool}
+    {g : π × (ℕ × Bool) → ε} {S : π × (ℕ × Bool) → ℕ}
+    (h : ComputableInSpace g (encPair encP (encPair encUnary encBool)) encE S) :
+    ComputableInSpace (fun p : π × Wrap => eWrap_elim p.2 fun a => g (p.1, a))
+      (encPair encP eWrap) encE
+      (fun p => 1 * (encPair encP eWrap p).length + eWrap_elim p.2 fun a => S (p.1, a)) :=
+  eWrap_elim_inSpace h
 
 /-! Mistakes in the constructor list are reported before anything is declared. -/
 
