@@ -212,7 +212,7 @@ def IsCanonical (d : CodecWidth) (B : EncodedBytes d) : Prop :=
   byteEncode d (byteDecode d B) = B
 
 instance (d : CodecWidth) (B : EncodedBytes d) : Decidable (IsCanonical d B) :=
-  Classical.decEq _ _
+  Classical.decEq _ _ _
 
 /-- Every output of `byteEncode` is canonical. -/
 theorem byteEncode_isCanonical (d : CodecWidth) (F : Coefficients d) :
