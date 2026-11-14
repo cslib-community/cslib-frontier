@@ -7,11 +7,11 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-import CslibFrontier.Computability.Probabilistic.Oracle.Parameter
-import CslibFrontier.Computability.Probabilistic.Oracle.RunState
-import CslibFrontier.Computability.Probabilistic.Oracle.Memoize
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+public import CslibFrontier.Computability.Probabilistic.Oracle.Parameter
+public import CslibFrontier.Computability.Probabilistic.Oracle.RunState
+public import CslibFrontier.Computability.Probabilistic.Oracle.Memoize
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Tactic.PPT
 import CslibFrontier.Tactic.PolyTime
 
