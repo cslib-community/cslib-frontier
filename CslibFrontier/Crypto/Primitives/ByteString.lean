@@ -31,6 +31,7 @@ with a different within-byte convention, such as FIPS 202's Keccak, keep that co
 
 * `Cslib.Crypto.FixedBytes.append_left`, `Cslib.Crypto.FixedBytes.append_right`: concatenation
   agrees with its left and right inputs.
+* `Cslib.Crypto.FixedBytes.ofListExact`: turn a list with a proved length into typed bytes.
 * `Cslib.Crypto.length_bytesToBitsBE`: byte serialization has eight bits per byte.
 * `Cslib.Crypto.byteOfBitsBE_byteBitsBE`, `Cslib.Crypto.byteBitsBE_byteOfBitsBE`: converting one
   byte to bits and back is exact in either direction.
@@ -51,6 +52,10 @@ abbrev Byte := Fin (2 ^ 8)
 abbrev FixedBytes (n : ℕ) := Fin n → Byte
 
 namespace FixedBytes
+
+/-- Turn a list whose length is known exactly into a fixed-length byte string. -/
+def ofListExact {n : ℕ} (X : List Byte) (h : X.length = n) : FixedBytes n := fun i =>
+  X.get ⟨i.val, by simpa [h] using i.isLt⟩
 
 /-- The list view of a fixed-length byte string. -/
 def toList {n : ℕ} (X : FixedBytes n) : List Byte := List.ofFn X

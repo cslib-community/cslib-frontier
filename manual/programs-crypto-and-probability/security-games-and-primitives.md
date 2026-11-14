@@ -422,9 +422,9 @@ while `H` and `T_l` use SHA-256 at `n = 16` and SHA-512 at `n = 24, 32`. General
 concatenation reuses `BitString.blocksEquiv.symm`, while the two-block convenience wrapper is
 derived from `FixedBytes.append`; WOTS+, FORS, and tree clients therefore preserve block structure
 at this byte boundary. The arbitrary-`l` SHA2 input-domain obligation is explicit, and the
-standardized block counts are proved valid. This executable layer does not yet package `PRF_msg`
-or `H_msg` and establishes no asymptotic or concrete security, query, machine-resource, or
-program-size bound.
+standardized block counts are proved valid. The separate message-call layer below reuses this
+boundary. The addressed calls establish no asymptotic or concrete security, query,
+machine-resource, or program-size bound.
 
 The shared SHA-2 message-call prerequisites are in
 [`HMAC.lean`](../../CslibFrontier/Crypto/Primitives/Hash/HMAC.lean) and
@@ -438,8 +438,29 @@ spurious seed-length restriction for an empty mask. The
 [ordinary-import client](../../CslibFrontierTests/Crypto/HMACMGF1.lean) checks RFC 4231 short- and
 long-key vectors, exact-block keys, empty and digest-boundary masks, and the final four-byte
 counter [rfc4231][rfc4231]. These executable functions are not constant-time implementations,
-FIPS validations, security proofs, or machine/resource bounds; the FIPS 205 `PRF_msg` and `H_msg`
-wrappers remain separate.
+FIPS validations, security proofs, or machine/resource bounds.
+
+The FIPS 205 arbitrary-message calls are packaged in
+[`SLHDSA/MessageCalls.lean`](../../CslibFrontier/Crypto/Primitives/SLHDSA/MessageCalls.lean), with
+ordinary-import clients in
+[`SLHDSAMessageCalls.lean`](../../CslibFrontierTests/Crypto/SLHDSAMessageCalls.lean)
+[fips205][fips205]. `ParameterShape.digestBytes` derives the six `m = 30, 34, 39, 42, 47, 49`
+byte lengths from Section 9 and Table 2. `prfMessage` and `hMessage` retain the exact SHAKE and
+SHA2 packages of Sections 11.1--11.2.2, including left HMAC truncation and the SHA-2 digest inside
+the MGF1 seed. Their SHA-2 source domains are erased proof obligations, not runtime failures; the
+pure calls install no oracle handler, cannot abort, and leave the hedged or deterministic choice
+of `opt_rand` to Algorithm 19's caller. The source-cost record gives exact package/output bytes,
+SHA-2 compression blocks, Keccak-f[1600] evaluations, and reused static-table entry counts. It is
+not a compiled-machine certificate and deliberately omits `descSize`, wrappers, advice, layouts,
+copies, interpreter cost, emitted output, gates, and qubits.
+
+Hülsing and Kudinov's corrected SPHINCS+ proof separates `PRF_msg` PRF insecurity and `H_msg`
+ITSR insecurity in Theorem 3 and Equations (5)--(6) [hulsingkudinov22][hulsingkudinov22]. Its
+`H_msg` output length is in bits, so the FIPS mapping is `m_paper = 8m`; honest signing and
+secret-keyed oracles remain classical even for quantum adversaries. The executable calls do not
+prove either assumption, a FIPS-to-paper game bridge, digest slicing, signing/verification
+correctness, EUF-CMA/QROM security, constant-time behavior, FIPS validation, or machine-level
+resources.
 
 Falcon's current checked layer ([falcon2020][falcon2020]) is deliberately narrower than a security
 theorem. Import
@@ -1845,6 +1866,7 @@ The finite query-only PRG/cipher results, semantic commitment interfaces and uni
 [hhrvw20]: ../sources.md#hhrvw20
 [hill99]: ../sources.md#hill99
 [holenstein06]: ../sources.md#holenstein06
+[hulsingkudinov22]: ../sources.md#hulsingkudinov22
 [katzlindell20]: ../sources.md#katzlindell20
 [manin56]: ../sources.md#manin56
 [naoryung89]: ../sources.md#naoryung89

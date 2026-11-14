@@ -131,11 +131,8 @@ def sha512Input {p : SecurityBytes} {m : ℕ} (publicSeed : NBytes p)
     (sha512Input publicSeed address message).length = 128 + 22 + m := by
   exact length_sha2Input 128 publicSeed address message (p.count_le_32.trans (by decide))
 
-private def fixedBytesOfExactList (X : List Byte) (n : ℕ) (h : X.length = n) : FixedBytes n :=
-  fun i => X.get ⟨i.val, by omega⟩
-
 private def shakeFixed (input : List Byte) (outputBytes : ℕ) : FixedBytes outputBytes :=
-  fixedBytesOfExactList (Keccak.shake256 input outputBytes) outputBytes
+  FixedBytes.ofListExact (Keccak.shake256 input outputBytes)
     (Keccak.length_shake256 input outputBytes)
 
 private def sha256Truncated {p : SecurityBytes} (input : List Byte)
