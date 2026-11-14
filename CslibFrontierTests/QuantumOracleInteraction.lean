@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.InteractionResources
+public import CslibFrontier.Computability.Circuit.Quantum.Oracle.RandomOracle
 public import CslibFrontierTests.QuantumOracleDecapsulation
 public import CslibFrontierTests.QuantumOracleShared
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
@@ -492,9 +493,8 @@ theorem fullMeasurementRead_eq (H Hservice : QuantumOracleDecapsulation.Hash) :
     measure_ket, PMF.pure_map, answerWord_memory, PMF.bind_pure]
 
 /-- One ideal table is sampled outside both native stages and the decapsulation service. -/
-noncomputable def sharedExperiment : PMF Bool := do
-  let H ← Probability.PMF.uniformOfFintype QuantumOracleDecapsulation.Hash
-  nativeRead H H 1
+noncomputable def sharedExperiment : PMF Bool :=
+  Quantum.RandomOracle.sample fun H => nativeRead H H 1
 
 theorem sharedExperiment_eq : sharedExperiment = PMF.pure false := by
   simp [sharedExperiment, nativeRead_shared]
