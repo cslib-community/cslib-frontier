@@ -19,7 +19,7 @@ import Mathlib.Algebra.Field.ZMod
 The affine family over `ZMod 3` is universal and Δ-universal through pairwise independence; Boolean
 matrices and subset sums are Δ-universal; a constant family is not universal for any bound below
 `1`; and the bounds are exact for a two-element family. Fixed-length polynomial evaluation uses a
-two-point subset of `ZMod 5`; Carter–Wegman polynomial evaluation is evaluated over `ZMod 5`, and
+three-point subset of `ZMod 5`; Carter–Wegman polynomial evaluation is evaluated over `ZMod 5`, and
 multiply-shift on `4`-bit words, where its collision bound is attained.
 -/
 
@@ -82,31 +82,38 @@ example :
 
 instance : Fact (Nat.Prime 5) := ⟨by decide⟩
 
-private def boolToZModFive : Bool ↪ ZMod 5 where
-  toFun b := if b then 1 else 0
-  inj' := by
-    intro a b h
-    cases a <;> cases b <;> simp_all
+private def finThreeToZModFive : Fin 3 ↪ ZMod 5 := Fin.castLEEmb (by decide : 3 ≤ 5)
 
 private def restrictedX : Fin 2 → ZMod 5 := ![1, 0]
 
 private def restrictedY : Fin 2 → ZMod 5 := ![0, 0]
 
 /-- The two distinct messages `X` and `Y` collide at exactly the embedded point `0`, so the
-restricted two-point seed space has a nonempty collision set. -/
+restricted three-point seed space has a nonempty collision set. -/
 example :
     restrictedX ≠ restrictedY ∧
-    (Finset.univ.filter fun s : Bool =>
-      coeffPolyHash (boolToZModFive s) restrictedX =
-        coeffPolyHash (boolToZModFive s) restrictedY).card = 1 := by
+    (Finset.univ.filter fun s : Fin 3 =>
+      coeffPolyHash (finThreeToZModFive s) restrictedX =
+        coeffPolyHash (finThreeToZModFive s) restrictedY).card = 1 := by
   decide
 
-/-- The restricted-domain theorem applies to the two-point embedding into `ZMod 5`. -/
+/-- Source-order Horner evaluation agrees with the reversed ascending-coefficient API and with
+the fixed-length specialization of the monic variable-length API. -/
 example :
-    IsUniversalHash (PMF.uniformOfFintype Bool)
-      (fun s (x : Fin 2 → ZMod 5) => coeffPolyHash (boolToZModFive s) x)
-      (2 / Fintype.card Bool) :=
-  isUniversalHash_coeffPolyHash_of_embedding boolToZModFive 2
+    coeffPolyHash (3 : ZMod 5) restrictedX =
+        polynomialHash (restrictedX ∘ Fin.rev) 3 ∧
+      polyHash (3 : ZMod 5) (List.ofFn restrictedX) =
+        3 ^ 2 + coeffPolyHash 3 restrictedX :=
+  ⟨coeffPolyHash_eq_polynomialHash_rev 3 restrictedX, polyHash_ofFn_eq 3 restrictedX⟩
+
+/-- The restricted-domain theorem gives the nontrivial bound `2 / 3 < 1` for the three-point
+embedding into `ZMod 5`. -/
+example :
+    IsUniversalHash (PMF.uniformOfFintype (Fin 3))
+        (fun s (x : Fin 2 → ZMod 5) => coeffPolyHash (finThreeToZModFive s) x) (2 / 3) ∧
+      (2 / 3 : ℝ≥0∞) < 1 := by
+  refine ⟨?_, by norm_num⟩
+  simpa using isUniversalHash_coeffPolyHash_of_embedding finThreeToZModFive 2
 
 /-- The empty coefficient vector evaluates to zero. -/
 example (k : ZMod 5) (x : Fin 0 → ZMod 5) : coeffPolyHash k x = 0 := by

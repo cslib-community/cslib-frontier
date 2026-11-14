@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Probability.HashFamily
+public import CslibFrontier.Probability.KWiseIndependent.Polynomial
 public import Mathlib.Algebra.Field.Defs
 public import Mathlib.LinearAlgebra.Pi
 import Mathlib.Algebra.Polynomial.Roots
@@ -31,7 +32,10 @@ Over a finite field `F`, a message `m = (a₁, …, a_v)` of length at most `ℓ
 
 The leading `k ^ v` lets messages of different lengths be compared: the message polynomials are
 monic of degree `v`, so distinct messages give distinct polynomials, and the difference of two of
-them has at most `ℓ` roots. Both functions are computed by Horner's rule.
+them has at most `ℓ` roots. Both functions are computed by Horner's rule. The existing
+`polynomialHash` instead exposes the standard ascending coefficient vector and a finite sum;
+`coeffPolyHash` retains FAEST Figure 4.4 order and an executable one-pass fold. Reversing the
+coefficient indices identifies the two APIs.
 
 ## Main definitions
 
@@ -45,6 +49,8 @@ them has at most `ℓ` roots. Both functions are computed by Horner's rule.
 * `Cslib.Probability.isUniversalHash_coeffPolyHash_of_embedding`: the evaluation point may be
   uniform in any finite set injected into the field.
 * `Cslib.Probability.isUniversalHash_coeffPolyHash`: the full-field specialization.
+* `Cslib.Probability.coeffPolyHash_eq_polynomialHash_rev`,
+  `Cslib.Probability.polyHash_ofFn_eq`: bridges to the existing fixed- and variable-length APIs.
 * `Cslib.Probability.isUniversalHash_polyHash`: `polyHash` is `ℓ / |F|`-universal.
 * `Cslib.Probability.isDeltaUniversalHash_xpolyHash`: `xpolyHash` is `(ℓ + 1) / |F|`-Δ-universal.
 
@@ -72,11 +78,13 @@ The evaluator reads each of the `n` coefficients once and performs exactly `n` f
 multiplications and `n` field additions. Besides the input and output, it keeps one field
 accumulator and loop/index state. For a field encoding of size `b`, its input has `n * b` bits,
 the evaluation point and output each have `b` bits, its running time is
-`O(n * (T_mul + T_add))`, and its field-valued working state has `O(b)` bits. The generic fold
+`O(n * (T_mul + T_add))`, and its generic auxiliary state has `b + O(log n)` bits for the field
+accumulator and loop index, before field-operation scratch space. Thus the number of retained
+field elements is constant, but the total workspace is not independent of `n`. The generic fold
 has a control description independent of `n`, apart from the supplied field-operation
-descriptions; unrolling it uses `O(n)` field-operation nodes. These operational counts alone do
-not establish polynomial time without encoded field operations and a family-level sampler
-certificate. -/
+descriptions. An unrolled specialization uses `O(n)` field-operation nodes and can omit the
+runtime index. These operational counts alone do not establish polynomial time without encoded
+field operations and a family-level sampler certificate. -/
 def coeffPolyHash (k : F) {n : ℕ} (x : Fin n → F) : F :=
   Fin.foldl n (fun acc i => acc * k + x i) 0
 
@@ -101,6 +109,17 @@ private theorem foldl_mul_add_smul (k c : F) {n : ℕ} (x : Fin n → F) (a : F)
     simpa only [Pi.smul_apply, smul_eq_mul, mul_add, mul_assoc, mul_left_comm] using
       ih (fun i => x i.succ) (a * k + x 0)
 
+private theorem foldl_mul_add_accumulate (k : F) {n : ℕ} (x : Fin n → F) (a : F) :
+    Fin.foldl n (fun acc i => acc * k + x i) a =
+      a * k ^ n + Fin.foldl n (fun acc i => acc * k + x i) 0 := by
+  induction n generalizing a with
+  | zero => simp
+  | succ n ih =>
+    rw [Fin.foldl_succ, Fin.foldl_succ]
+    conv_lhs => rw [ih]
+    conv_rhs => rw [ih]
+    ring
+
 @[simp]
 theorem coeffPolyHash_zero (k : F) (n : ℕ) : coeffPolyHash k (0 : Fin n → F) = 0 := by
   simpa only [coeffPolyHash, zero_add, zero_mul, zero_smul] using
@@ -123,6 +142,24 @@ def coeffPolyHashLinear (k : F) (n : ℕ) : (Fin n → F) →ₗ[F] F where
 @[simp]
 theorem coeffPolyHashLinear_apply (k : F) {n : ℕ} (x : Fin n → F) :
     coeffPolyHashLinear k n x = coeffPolyHash k x := rfl
+
+/-- Source-order Horner evaluation is the existing ascending-coefficient `polynomialHash` after
+reversing the coefficient indices. The Horner form remains separate because it follows FAEST
+Figure 4.4 order and evaluates in one pass without first reversing the input. -/
+theorem coeffPolyHash_eq_polynomialHash_rev (k : F) {n : ℕ} (x : Fin n → F) :
+    coeffPolyHash k x = polynomialHash (x ∘ Fin.rev) k := by
+  induction n with
+  | zero => simp [coeffPolyHash, polynomialHash]
+  | succ n ih =>
+    rw [coeffPolyHash, Fin.foldl_succ, foldl_mul_add_accumulate]
+    change x 0 * k ^ n + coeffPolyHash k (fun i => x i.succ) =
+      polynomialHash (x ∘ Fin.rev) k
+    rw [ih (fun i => x i.succ)]
+    unfold polynomialHash
+    conv_rhs => rw [Fin.sum_univ_castSucc]
+    simp only [Function.comp_apply, Fin.rev_castSucc, Fin.rev_last, Fin.val_castSucc,
+      Fin.val_last]
+    ac_rfl
 
 /-- Boneh and Shoup's `Hpoly` ([BonehShoup2023], Equation 7.3): hash the message
 `(a₁, …, a_v)` with the key `k` to `k ^ v + a₁ k ^ (v - 1) + ⋯ + a_v`, by Horner's rule. -/
@@ -149,18 +186,9 @@ private theorem eval_foldl (k : F) (p : F[X]) (m : List F) :
 private theorem eval_toPoly (k : F) (m : List F) : (toPoly m).eval k = polyHash k m := by
   rw [toPoly, eval_foldl, eval_one, polyHash]
 
-private theorem foldl_mul_add_accumulate (k : F) {n : ℕ} (x : Fin n → F) (a : F) :
-    Fin.foldl n (fun acc i => acc * k + x i) a =
-      a * k ^ n + Fin.foldl n (fun acc i => acc * k + x i) 0 := by
-  induction n generalizing a with
-  | zero => simp
-  | succ n ih =>
-    rw [Fin.foldl_succ, Fin.foldl_succ]
-    conv_lhs => rw [ih]
-    conv_rhs => rw [ih]
-    ring
-
-private theorem polyHash_ofFn_eq (k : F) {n : ℕ} (x : Fin n → F) :
+/-- The variable-length monic evaluator on a fixed-length vector is the coefficient evaluator
+plus the common leading term `k ^ n`. -/
+theorem polyHash_ofFn_eq (k : F) {n : ℕ} (x : Fin n → F) :
     polyHash k (List.ofFn x) = k ^ n + coeffPolyHash k x := by
   rw [polyHash, List.ofFn_eq_map, List.foldl_map, ← Fin.foldl_eq_foldl_finRange,
     foldl_mul_add_accumulate]
