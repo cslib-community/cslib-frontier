@@ -1679,7 +1679,7 @@ For the complete grammar run
 The boundary convention is Dvořák–Kupec's reverse outer port order, printed p. 436; the probe
 and finite surgery are original. Fulla–Živný's indexed positive-arity model and the original
 decision/nullary extension are distinguished from DK's constraint sets; no deduplication or
-geometric equivalence is assumed. OneHot3/CROSS macro expansion, normalization caps and
+geometric equivalence is assumed. OneHot3/CROSS macro expansion, the initial normalization twist and
 Figure-1 expanded ordered witnesses, geometric/source comparison
 and bare recognition remain open under [#3091](https://github.com/cslib-community/cslib-frontier/issues/3091).
 
@@ -1805,6 +1805,12 @@ width-guarded interpretations reject malformed scopes. [Crossover clients](../..
 check every standardized shape, both first-gadget outcomes, explicit witnesses and rejected
 boundary tuples, while retaining the existing CNF crossover tests.
 
+For canonical tuple semantics, use `Crossover.sem_relation`, `sem_disequality` and
+`nearSem_relation`; the triangle counterparts are `NonSelfDual.triangleSem_relation` and
+`triangleSem_nand`. These facts let an actual atom be retargeted without reconstructing
+finite vectors or list patterns. The [ordinary-import semantic clients](../../CslibFrontierTests/PlanarExpandedSemantics.lean)
+check literal atom bodies, complete finite rows and malformed-width rejection.
+
 These Figure 1 results concern finite relation semantics. Their expanded original-language
 ordered witnesses and planar hardness remain open. The general compiler above applies after
 those witness contracts are proved; it does not supply them. These gaps remain part of
@@ -1850,10 +1856,23 @@ families at arities 6, 8 and 12, repeated caps, a feasible-quartet finish, prope
 compression, rotation, wraparound deletion, actual auxiliary witnesses and empty/nullary guards.
 The guide composes the construction with its gadget and size bounds using ordinary imports.
 
-These are combinatorial and finite-semantic bounds. Relation decisions and a chosen construction
-are fixed-relation data; no uniform native runtime or binary encoded-size bound is asserted.
-Ordered realization of these normalization operations, their expanded original-language
-witnesses, hardness and completion of the full planar dichotomy remain open under [#3091](https://github.com/cslib-community/cslib-frontier/issues/3091).
+Import `CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.Normalization.Program` for
+`Program.orderedWitness`. Given an actual source `w : GadgetWitness g`,
+`p.orderedWitness w` constructs `GadgetWitness (p.gadget g)` for every normalization program.
+It realizes arbitrary positive cyclic starts, ordinary and wrap adjacent identifications,
+and the exact guarded cap. A cap hides old port 2 at auxiliary zero, before all previous
+auxiliaries; it retains free order `0,1,4,…`. The result needs no target witness, finite
+alphabet, distinct body occurrences, degree bound or connectedness assumption. The
+[ordered Program clients](../../CslibFrontierTests/PlanarNormalizationBoundaryProgram.lean)
+cover repeated scopes, unused ports, closed nullary components and previous auxiliaries;
+[the kernel clients](../../CslibFrontierTests/PlanarNormalizationBoundaryKernel.lean) check
+the ordinary and wrap quotient maps without importing graph infrastructure.
+
+The semantic construction and witness choices remain fixed-relation data; no uniform native
+preprocessing runtime or binary encoded-size bound is asserted here. Ordered realization of
+the initial twist and the complete `Normalization.Construction.gadget`, expanded
+original-language witnesses, hardness and completion of the full planar dichotomy remain
+open under [#3091](https://github.com/cslib-community/cslib-frontier/issues/3091).
 
 ## Original-language gadgets for the nonselfdual branch
 

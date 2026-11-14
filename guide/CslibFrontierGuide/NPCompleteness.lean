@@ -2295,8 +2295,8 @@ its templates permits nonuniform certificate preprocessing; it does not prove
 a preprocessing bound in the size of varying trees or languages. The next
 section supplies full target acceptance and framed native time for fixed trees.
 Figure 1/NAND boundary tables remain macro skeletons until their expanded
-original-language ordered witnesses are proved. OneHot3/CROSS macro expansion, normalization caps
-and Figure-1 expanded ordered witnesses, geometric/
+original-language ordered witnesses are proved. OneHot3/CROSS macro expansion,
+the initial normalization twist and Figure-1 expanded ordered witnesses, geometric/
 source comparison, recognition and full #3091 remain open.
 
 
@@ -2532,10 +2532,19 @@ one or two disequality spokes per original port; later steps relabel scopes.
 The bounds count constraints, scope occurrences and allocated auxiliaries, including
 unused labels. They assert neither native runtime nor binary encoded size.
 
-This is an original combinatorial reconstruction of the omitted argument behind
-Dvořák–Kupec Lemma 6, not its full planar-expressibility conclusion. Geometric
-realization and the full planar theorem remain open. Complete nonvacuous clients
-are in `CslibFrontierTests/PlanarNormalization.lean`.
+For ordered numerical witnesses of the reduction program, import
+`CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.Normalization.Program`.
+`p.orderedWitness w` constructs a witness for exactly `p.gadget g` from an actual
+`GadgetWitness g`. Rotation preserves positive cyclic order; ordinary and wrap
+identifications keep their specified survivor word. The cap inserts the newly
+hidden old port 2 before all old auxiliaries. No degree or connectedness restriction
+is imposed. See `CslibFrontierTests/PlanarNormalizationBoundaryProgram.lean` for
+checked repeated-scope, unused-port, previous-auxiliary and closed-nullary clients.
+
+This is an original reconstruction of the omitted argument behind Dvořák–Kupec
+Lemma 6. The initial twist and complete normalization-construction witness,
+expanded original-language witnesses and full planar theorem remain open.
+The combinatorial clients are in `CslibFrontierTests/PlanarNormalization.lean`.
 
 
 # Original-Language Nonselfdual Gadgets
