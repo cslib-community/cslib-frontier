@@ -416,6 +416,14 @@ advantage, query, machine-resource or program-size bounds.
 
 Falcon's current checked layer ([falcon2020][falcon2020]) is deliberately narrower than a security
 theorem. Import
+[`Falcon/BaseSampler.lean`](../../CslibFrontier/Crypto/Computational/Falcon/BaseSampler.lean) for
+Algorithm 12's exact nonnegative sampler. `Falcon.baseSampler` consumes 72 fair bits and performs
+the fixed full scan of Table 3.1's 18 reverse-cumulative thresholds;
+`Falcon.eval_baseSampler` proves mass `pdt[z] / 2^72` for every `z : Fin 19`. The source-level
+inventory is 72 random bits, 18 comparisons, 18 conditional increments, no oracle or handler, and
+1296 unframed threshold payload bits. It does not assign a native program encoding, installed-table
+framing, step/workspace bound or constant-time certificate, and it does not prove Falcon's Rényi
+discrepancy or the later sign-bit and `BerExp` rejection loop. Import
 [`Falcon/Verification.lean`](../../CslibFrontier/Crypto/Computational/Falcon/Verification.lean) for
 the NIST-selected Falcon Round 3 submission version 1.2's algebra after hashing and signature
 decoding: `Falcon.reconstructFirst` computes the centered representative of `c - s₂h`,
@@ -436,7 +444,8 @@ now checks the concrete 20-byte prefix used by that fixture.
 The Falcon frontend deliberately retains a finite XOF-prefix boundary: the concrete SHAKE function
 can supply any requested finite prefix, but the frontend does not choose a universally sufficient
 length for rejection sampling. Full KAT verification, public-key decoding, NTRU key generation,
-FFT/NTT correctness, the adaptive Gaussian trapdoor sampler and rejection law, average-case
+FFT/NTT correctness, `ApproxExp`, the adaptive Gaussian trapdoor sampler and rejection law beyond
+the exact `BaseSampler` leaf, average-case
 NTRU-SIS, ROM/QROM reductions, certified efficiency, and reconciliation with the still-developing
 FIPS 206 remain separate obligations.
 
