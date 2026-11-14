@@ -65,6 +65,8 @@ public section
 
 namespace Cslib.Crypto.Game
 
+open scoped NNReal
+
 /-- The role of one separately installed static artifact occurrence. A final program containing
 hardwired components is one `program` occurrence; those components are not additional occurrences.
 -/
