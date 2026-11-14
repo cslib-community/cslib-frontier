@@ -15,7 +15,8 @@ public section
 
 namespace CslibFrontierTests.Machines.Turing.MultiTape.Internal.NativeCompilerCodec
 
-open Turing.MultiTapeTM Turing.MultiTapeTM.Internal Turing.MultiTapeTM.Internal.NativeCompiler
+open Turing.MultiTapeTM Turing.MultiTapeTM.Internal Turing.MultiTapeTM.Internal.DecoderWords
+  Turing.MultiTapeTM.Internal.NativeCompiler Turing.MultiTapeTM.Universal
 
 /-- Encoding-equality retyping is a zero-runtime view of the same machine. -/
 example {Alpha : Type*} (enc : Alpha ↪ List Bool)
@@ -80,6 +81,37 @@ example :
 example (state : unaryDecoder.State) :
     unaryDecoder.stateEncoding state < unaryDecoder.stateBound :=
   unaryDecoder.stateEncoding_lt_stateBound state
+
+/-- The retained state is the full transducer-machine state followed by the rewind state. -/
+example : unaryDecoder.State = ((Unit × Option Bool × Bool) ⊕ RewindState) :=
+  rfl
+
+/-- The exact description encodes the full transducer-machine state rather than only its source
+state. -/
+example : unaryDecoder.stateEncoding =
+    sumStateEncoding (transducerMachineStateEncoding unitStateEncoding) rewindStateEncoding :=
+  rfl
+
+/-- Correcting the state encoding leaves the direct transducer-plus-rewind action schedule
+unchanged. -/
+example : unaryDecoder.machine = unaryLengthT.toTM.seq (rewindInput Bool) :=
+  rfl
+
+/-- The descriptor and its static charge are derived from the corrected machine state encoding. -/
+example : unaryDecoder.description =
+    @desc unaryDecoder.tapeCount Bool unaryDecoder.State unaryDecoder.stateFintype inferInstance
+      unaryDecoder.stateEncoding eBit unaryDecoder.machine :=
+  unaryDecoder.description_eq_desc
+
+example : unaryDecoder.staticBits =
+    descLen (@desc unaryDecoder.tapeCount Bool unaryDecoder.State unaryDecoder.stateFintype
+      inferInstance unaryDecoder.stateEncoding eBit unaryDecoder.machine) := by
+  rw [unaryDecoder.staticBits_eq_descLen, unaryDecoder.description_eq_desc]
+
+/-- Correcting the retained control state does not weaken the exact time or workspace formulas. -/
+example (input : List Bool) :
+    unaryDecoder.time input = 4 * input.length + 8 ∧ unaryDecoder.workspace input = 0 :=
+  ⟨rfl, rfl⟩
 
 /-- The retained unary-list decoder preserves the total incomplete-frame convention. -/
 example :
