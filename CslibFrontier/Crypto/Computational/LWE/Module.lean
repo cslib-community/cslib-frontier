@@ -31,9 +31,9 @@ module matrix over `ℤ_{q κ}[X] / (X^{n κ} + 1)`, a secret law `secret κ` an
 (`ModuleLWE.Distinguisher.IsPPT`) has negligible advantage between the real game for these laws and
 the random game. A distinguisher machine reads the unary security parameter and the encoded sample
 (`ModuleLWE.encInput_apply`). With short secret and error laws, this is the assumption of the
-CRYSTALS-Kyber and CRYSTALS-Dilithium submissions ([AvanziEtAl2021], §4.3; [BaiEtAl2021], §6.1).
-`DecisionModuleLWE m d n q noise` is the case of a uniform secret and independent polynomial errors
-from `noise κ` (`decisionModuleLWE_iff_decisionModuleLWEWith`).
+CRYSTALS-Kyber and CRYSTALS-Dilithium submissions ([AvanziEtAl2021], §4.3;
+[BaiEtAl2021Dilithium], §6.1). `DecisionModuleLWE m d n q noise` is the case of a uniform secret
+and independent polynomial errors from `noise κ` (`decisionModuleLWE_iff_decisionModuleLWEWith`).
 
 A distinguisher outputs a bit, so `DecisionModuleLWEWith` is the same assumption as the
 indistinguishability of the encoded samples `ModuleLWE.realEnsemble` and
@@ -87,7 +87,7 @@ uniform (see `DecisionModuleLWEWith`).
 * [R. Avanzi et al., *CRYSTALS-Kyber: Algorithm Specifications and Supporting Documentation
   (version 3.02)*][AvanziEtAl2021], 4 August 2021, §4.3 (p. 19) and §4.4 (pp. 21–22)
 * [S. Bai et al., *CRYSTALS-Dilithium: Algorithm Specifications and Supporting Documentation
-  (Version 3.1)*][BaiEtAl2021], 8 February 2021, §6.1 (p. 23) and §6.2 (p. 24)
+  (Version 3.1)*][BaiEtAl2021Dilithium], 8 February 2021, §6.1 (p. 23) and §6.2 (p. 24)
 -/
 
 @[expose] public section
@@ -439,11 +439,11 @@ distinguisher has negligible advantage between `ModuleLWE.realGame (secret κ) (
 With short laws this is the assumption of the CRYSTALS submissions, in asymptotic form. Kyber v3.02
 ([AvanziEtAl2021], §4.3, p. 19) defines `Adv^mlwe_{m,k,η}` with `(s, e) ← β_η^k × β_η^m` for the
 centered binomial law `β_η`, and its Module-LWER problem without compression (§4.4 and footnote 3,
-pp. 21–22) draws `s ← β_{η₁}^k` and `e ← β_{η₂}^m`. Dilithium v3.1 ([BaiEtAl2021], §6.1, p. 23)
-defines `MLWE_{m,k,D}` with `s₁ ← D^k` and `s₂ ← D^m`, and §6.2, eq. (6), p. 24 takes `D` uniform
-on `S_η`. The sources define concrete advantages and take them to be small at their parameter
-sets; here every uniform classical strict PPT distinguisher has negligible advantage over the
-family. This is a hypothesis, not a theorem of hardness for any laws, and makes no claim about
+pp. 21–22) draws `s ← β_{η₁}^k` and `e ← β_{η₂}^m`. Dilithium v3.1 ([BaiEtAl2021Dilithium], §6.1,
+p. 23) defines `MLWE_{m,k,D}` with `s₁ ← D^k` and `s₂ ← D^m`, and §6.2, eq. (6), p. 24 takes `D`
+uniform on `S_η`. The sources define concrete advantages and take them to be small at their
+parameter sets; here every uniform classical strict PPT distinguisher has negligible advantage over
+the family. This is a hypothesis, not a theorem of hardness for any laws, and makes no claim about
 quantum adversaries; with uniform errors it holds trivially.
 
 The assumption is meaningful only for a family whose parameters grow with `κ`. When `m`, `d`, `n`,
