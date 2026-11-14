@@ -15,6 +15,8 @@ import Mathlib.Logic.Relation
 
 /-! Adaptive closed programs, invariant-based resource proofs and independent saved blocks. -/
 
+set_option linter.privateModule false
+
 namespace CslibFrontierTests.AdaptivePPT
 
 open Cslib Cslib.Probability Turing.MultiTapeTM
