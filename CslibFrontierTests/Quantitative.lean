@@ -124,19 +124,19 @@ example {σ : Type} [Finite σ] (enc : σ ↪ List Bool) (step : σ → Bool →
     ComputableTidilyInO (List.foldl (fun state bit => state ^^ bit) false)
       encBits (encFramed encBool) (fun l => l.length) (fun _ => 0) ∧
     ComputableTidilyInO (fun l => l.foldl step init) encBits enc List.length (fun _ => 0) ∧
-    ComputableTidilyInTimeAndSpace (fun l : List Bool => l.map f) encBits encBits
+    ComputableInTimeAndSpace (fun l : List Bool => l.map f) encBits encBits
       (fun l => 4 * l.length + 8) (fun _ => 0) ∧
-    ComputableTidilyInTimeAndSpace (fun l : List Bool =>
+    ComputableInTimeAndSpace (fun l : List Bool =>
       l.foldl (fun acc b => acc ++ [f b]) []) encBits encBits
       (fun l => 4 * l.length + 8) (fun _ => 0) := by
   refine ⟨by fun_prop, by fun_prop, by fun_prop, by fun_prop, ?_⟩
   simpa only [List.foldl_append_eq_append, List.nil_append, ← List.flatMap_def,
-    ← List.map_eq_flatMap] using ComputableTidilyInTimeAndSpace.map_bits f
+    ← List.map_eq_flatMap] using ComputableInTimeAndSpace.map_bits f
 
 -- The numerical loop contract also handles a genuinely growing stored accumulator.
 -- Its invariant is one stored bit per consumed input bit. The cost at index i uses i, not the
 -- final input length; summing it accounts for the cumulative copying of growing prefixes.
-example : (∃ c, ComputableTidilyInTimeAndSpace (fun l : List Bool =>
+example : (∃ c, ComputableInTimeAndSpace (fun l : List Bool =>
       l.foldl (fun acc b => acc ++ [b]) []) encBits encBits
       (fun l => c * (l.length + 1) ^ 2) (fun l => c * (l.length + 1))) ∧
       ∀ l : List Bool, (l.foldl (fun acc b => acc ++ [b]) []).length = l.length := by
