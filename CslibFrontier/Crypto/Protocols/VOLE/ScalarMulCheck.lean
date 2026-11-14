@@ -26,11 +26,13 @@ linear coefficient second. The verifier checks `W = U + V * delta`.
 QuickSilver types wire values over a base field `F_p` and MAC masks, tags, and the global key over
 an extension field `F_{p^r}`. This API puts `x`, `y`, `z`, every mask and tag, and `delta` in one
 field `F`. It therefore formalizes the source equation after embedding the wire values into the
-extension field; it does not formalize that embedding, its image, or subfield-membership conditions.
+extension field; it does not formalize that embedding, its image, or subfield-membership
+conditions.
 
 The library's existing batched multiplication check instead samples one independent field element
-per gate and stores its reply in linear-then-constant order. This module is the convention-preserving
-bridge between those APIs. A single valid VOLE coordinate also supplies the source mask relation
+per gate and stores its reply in linear-then-constant order. This module is the
+convention-preserving bridge between those APIs. A single valid VOLE coordinate also supplies the
+source mask relation
 `Bstar = A0star + A1star * delta`: its `v` component masks the constant coefficient, its `u`
 component masks the linear coefficient, and its `w` component masks the verifier value.
 
@@ -157,7 +159,7 @@ section Soundness
 
 variable [Field F] [Fintype F] [DecidableEq F]
 
-private def quickSilverResidualPolynomial (residual : Fin t → F) : F[X] :=
+private def quickSilverResidualPolynomial (residual : Fin t → F) : Polynomial F :=
   Polynomial.ofFn (t + 1) (Fin.cons 0 residual)
 
 private theorem quickSilverResidualPolynomial_eval (residual : Fin t → F) (chi : F) :
@@ -189,11 +191,13 @@ private theorem quickSilverResidualPolynomial_natDegree_le (residual : Fin t →
 /-- If at least one fixed residual is nonzero, the scalar-power weighted sum vanishes for a
 uniform challenge with probability at most `t / |F|`. The residuals are fixed before `chi` is
 sampled. The bound includes the unavoidable cancellation at `chi = 0` for every nonempty batch. -/
+omit [DecidableEq F] in
 theorem toOuterMeasure_quickSilverWeight_sum_eq_zero_le (residual : Fin t → F)
     (hne : ∃ i, residual i ≠ 0) :
     (PMF.uniformOfFintype F).toOuterMeasure
       {chi | ∑ i, quickSilverWeight chi i * residual i = 0} ≤
       (t : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞) := by
+  classical
   refine PMF.toOuterMeasure_uniformOfFintype_le_of_eval_eq
     (quickSilverResidualPolynomial_ne_zero residual hne)
     (quickSilverResidualPolynomial_natDegree_le residual) (by simp) ?_
@@ -204,6 +208,7 @@ theorem toOuterMeasure_quickSilverWeight_sum_eq_zero_le (residual : Fin t → F)
 /-- Conditional on a nonzero scalar-weighted residual, an arbitrary source-order affine reply
 passes the multiplication check for an independent uniform hidden key with probability at most
 `2 / |F|`. -/
+omit [DecidableEq F] in
 theorem toOuterMeasure_quickSilverMulCheck_key_le (x y z v_x v_y v_z : Fin t → F)
     (chi : F) (reply : F × F)
     (hne : ∑ i, quickSilverWeight chi i * (x i * y i - z i) ≠ 0) :
@@ -279,8 +284,8 @@ theorem toOuterMeasure_quickSilverMulCheck_le (x y z v_x v_y v_z : Fin t → F)
         by_cases hchi : chi ∈ cancel <;> simp [hchi]
     _ ≤ (t : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞) +
         1 * (2 / (Fintype.card F : ℝ≥0∞)) :=
-      add_le_add hcancel <| mul_le_mul_right'
-        (PMF.toOuterMeasure_le_one (PMF.uniformOfFintype F) cancelᶜ) _
+      add_le_add hcancel <| mul_le_mul_of_nonneg_right
+        (PMF.toOuterMeasure_le_one (PMF.uniformOfFintype F) cancelᶜ) zero_le
     _ = _ := by
       rw [one_mul, div_eq_mul_inv, div_eq_mul_inv, div_eq_mul_inv, Nat.cast_add,
         Nat.cast_ofNat]
