@@ -95,14 +95,15 @@ def eQueryInput (r : ℕ) (encHandlerState : HandlerState ↪ List Bool) :
     (encPair (eOperation r)
       (encPair (encList encUnary) (encPair encUnary (encPair eICfg encHandlerState))))
 
-/-- The updated source loop state and updated installed-handler state. -/
+/-- The updated source loop state and installed-handler state, wrapped in the nonempty option used
+by the outer retained loop. -/
 abbrev QueryResult (HandlerState : Type) :=
-  NativeInterpreter.LoopState × HandlerState
+  Option (NativeInterpreter.LoopState × HandlerState)
 
 /-- Encoding of the complete result of one installed source query. -/
 def eQueryResult (encHandlerState : HandlerState ↪ List Bool) :
     QueryResult HandlerState ↪ List Bool :=
-  encPair eLoopState encHandlerState
+  encOption (encPair eLoopState encHandlerState)
 
 /-- Marshal the typed source request into the Boolean word consumed by a local handler. -/
 def handlerCall (input : QueryInput r HandlerState) : HandlerCall r HandlerState :=
@@ -116,7 +117,7 @@ def installReply (input : QueryInput r HandlerState)
   let reply := result.1.take input.1.replyBits
   let decoded := (frames reply).map List.length |>.take input.1.fuel
   let next := input.2.2.2.2.1.receive input.2.1 input.2.2.2.1 decoded
-  (input.1.advance next, result.2)
+  some (input.1.advance next, result.2)
 
 /-- The exact stateful semantics executed by the retained query branch. -/
 noncomputable def queryProgram
@@ -297,7 +298,9 @@ noncomputable def installReplyCompiler (r : ℕ)
     (source.pair received)
   let state := ClassifiedCompiler.inPhase .controller
     (postHandlerStateCompiler r encHandlerState)
-  exact advanced.pair state
+  let result := advanced.pair state
+  exact (ClassifiedCompiler.inPhase .controller
+    (NativeCompiler.optionSome (encPair eLoopState encHandlerState))).comp result
 
 /-- The deterministic retained continuation after a local handler returns. -/
 noncomputable def installReplyArtifact (external r : ℕ)
@@ -370,7 +373,7 @@ theorem queryProgram_apply
       let reply := result.1.take input.1.replyBits
       let decoded := (frames reply).map List.length |>.take input.1.fuel
       let next := input.2.2.2.2.1.receive input.2.1 input.2.2.2.1 decoded
-      pure (input.1.advance next, result.2) :=
+      pure (some (input.1.advance next, result.2)) :=
   rfl
 
 /-- The specialized branch exposes the literal capture append, supplied handler machine and
@@ -426,6 +429,32 @@ theorem time_queryBranch (r : ℕ)
         (preparedHandler r encHandlerState artifact).time input) +
           postOnline.totalTime input + 9 :=
   NativeOracleProgram.time_sequenceCaptured _ _ _ _ _
+
+/-- On every supported handler result, each reply-installer phase is charged by the final branch
+clock through the declared componentwise continuation ledger. -/
+theorem installReplyTime_le_queryBranch (r : ℕ)
+    (encHandlerState : HandlerState ↪ List Bool)
+    {handler : HandlerCall r HandlerState →
+      WordOracleComp (Fin external) (HandlerResult HandlerState)}
+    (artifact : NativeOracleProgram external handler
+      (eHandlerCall r encHandlerState) (eHandlerResult encHandlerState))
+    (postOnline : OnlineAccounting (QueryInput r HandlerState))
+    (hpost : PostBound r encHandlerState handler postOnline)
+    (input : QueryInput r HandlerState) (OracleState : Type)
+    (oracle : Fin external × List Bool → StateT OracleState PMF (List Bool))
+    (state : OracleState) (result : HandlerResult HandlerState) (state' : OracleState)
+    (hresult : (result, state') ∈
+      (ProbOracleComp.runWith oracle (handler (handlerCall input)) state).support)
+    (phase : OnlinePhase) :
+    (installReplyArtifact external r encHandlerState).online.time phase (input, result) ≤
+      (queryBranch r encHandlerState artifact postOnline hpost).time input := by
+  calc
+    _ ≤ postOnline.time phase input :=
+      (hpost input OracleState oracle state result state' hresult phase).1
+    _ ≤ postOnline.totalTime input := postOnline.time_le_totalTime phase input
+    _ ≤ (queryBranch r encHandlerState artifact postOnline hpost).time input := by
+      rw [time_queryBranch]
+      omega
 
 /-- On every supported handler result, each reply-installer phase fits the final branch's peak
 workspace. This retains the raw-prefix, codec, local-step and controller costs as separate ledger
