@@ -1706,6 +1706,7 @@ public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Controller.Refe
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Controller.Request
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Controller.Resources
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Density
+public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Generator
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Interaction
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.InteractionResources
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.RandomOracle
