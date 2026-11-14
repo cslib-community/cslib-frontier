@@ -12,6 +12,7 @@ public import Mathlib.Algebra.Field.Defs
 public import Mathlib.Algebra.Polynomial.Degree.Defs
 public import Mathlib.Algebra.Polynomial.Eval.Defs
 public import Mathlib.LinearAlgebra.Pi
+import CslibFrontier.Foundations.Data.List.FoldlIdx
 import Mathlib.Algebra.Polynomial.Roots
 import Mathlib.Algebra.Polynomial.Monic
 
@@ -171,7 +172,8 @@ theorem coeffPolyHash_smul (k c : F) {n : ℕ} (x : Fin n → F) :
 def coeffPolyHashLinear (k : F) (n : ℕ) : (Fin n → F) →ₗ[F] F where
   toFun := coeffPolyHash k
   map_add' := coeffPolyHash_add k
-  map_smul' := coeffPolyHash_smul k
+  map_smul' c x := by
+    simpa only [RingHom.id_apply] using coeffPolyHash_smul (n := n) k c x
 
 @[simp]
 theorem coeffPolyHashLinear_apply (k : F) {n : ℕ} (x : Fin n → F) :
@@ -186,6 +188,7 @@ theorem coeffPolyHash_eq_polynomialHash_rev (k : F) {n : ℕ} (x : Fin n → F) 
   | zero => simp [coeffPolyHash, polynomialHash]
   | succ n ih =>
     rw [coeffPolyHash, Fin.foldl_succ, foldl_mul_add_accumulate]
+    simp only [zero_mul, zero_add]
     change x 0 * k ^ n + coeffPolyHash k (fun i => x i.succ) =
       polynomialHash (x ∘ Fin.rev) k
     rw [ih (fun i => x i.succ)]
@@ -224,8 +227,7 @@ private theorem eval_toPoly (k : F) (m : List F) : (toPoly m).eval k = polyHash 
 plus the common leading term `k ^ n`. -/
 theorem polyHash_ofFn_eq (k : F) {n : ℕ} (x : Fin n → F) :
     polyHash k (List.ofFn x) = k ^ n + coeffPolyHash k x := by
-  rw [polyHash, List.ofFn_eq_map, List.foldl_map, ← Fin.foldl_eq_foldl_finRange,
-    foldl_mul_add_accumulate]
+  rw [polyHash, List.foldl_ofFn, foldl_mul_add_accumulate]
   simp [coeffPolyHash]
 
 /-- The coefficient polynomial is the existing monic message polynomial with its common leading
@@ -298,7 +300,7 @@ private theorem natDegree_coeffToPoly_le {n : ℕ} (x : Fin n → F) :
 the conservative degree bound `n / |S|` ([BaumEtAl2026FAEST], Section 4.2.1, printed pp. 22–23).
 The injection makes the sampled evaluation points distinct; no field-uniformity is required. -/
 theorem isUniversalHash_coeffPolyHash_of_embedding {S : Type*} [Fintype S] [Nonempty S]
-    [Fintype F] (point : S ↪ F) (n : ℕ) :
+    (point : S ↪ F) (n : ℕ) :
     IsUniversalHash (PMF.uniformOfFintype S)
       (fun s (x : Fin n → F) => coeffPolyHash (point s) x) (n / Fintype.card S) := by
   classical
