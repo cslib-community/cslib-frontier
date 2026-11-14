@@ -12,19 +12,12 @@ import CslibFrontier.Probability.PMF.Bind
 
 /-! Actual native word forgers, shared signing/hash caches, freshness, and off-support tapes. -/
 
-public section
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.Crypto.WordRandomOracle
 
 open Cslib Cslib.Probability Cslib.Crypto.Protocols.ROMSignature
 open Turing Turing.MultiTapeTM Turing.MultiTapePTM
-
-/-- The ordinary module can unfold the public signing-channel routing API. -/
-theorem wordQuery_sign_client {Digest : Type} (digestEncoding : Digest ↪ List Bool)
-    (word : List Bool) :
-    wordQuery digestEncoding false word =
-      OracleComp.query
-        (spec := ForgerSpec (List Bool) (List Bool) (List Bool) Digest) (.inl word) := rfl
 
 private def machine : MultiTapePTM 0 Bool Bool Bool where
   initial := false
@@ -185,7 +178,7 @@ private theorem sufCmaGame_nonUniqueScheme_sameMessageNewSignatureExplicitForger
     PMF.pure_bind]
   rw [eval_world_worldRealize_liftOracleForger]
   simp [sameMessageNewSignatureInteraction, wordQuery, runLoggedForger, liftOracleForger,
-    forgerWorldImpl, logSigning, StateT.run, OracleComp.sumHandler]
+    forgerWorldImpl, logSigning, StateT.run, OracleComp.sumHandler, runWith_norm, pmf_norm]
 
 private theorem sufCmaGame_nonUniqueScheme_exactReplayExplicitForger :
     sufCmaGame nonUniqueScheme exactReplayExplicitForger = PMF.pure false := by
@@ -193,7 +186,7 @@ private theorem sufCmaGame_nonUniqueScheme_exactReplayExplicitForger :
   simp only [nonUniqueScheme, exactReplayExplicitForger, PMF.monad_bind_eq_bind, PMF.pure_bind]
   rw [eval_world_worldRealize_liftOracleForger]
   simp [exactReplayInteraction, wordQuery, runLoggedForger, liftOracleForger,
-    forgerWorldImpl, logSigning, StateT.run, OracleComp.sumHandler]
+    forgerWorldImpl, logSigning, StateT.run, OracleComp.sumHandler, runWith_norm, pmf_norm]
 
 -- Signing and hashing share the cache, including after repeated signing and hash queries.
 -- The fresh forgery succeeds; replaying a signed message is rejected despite valid verification.
