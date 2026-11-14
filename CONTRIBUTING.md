@@ -420,7 +420,8 @@ findings without requiring a duplicate local run.
 
 Keep each fact in one maintained location. The README explains the purpose and points to useful
 entry points; module docstrings explain the mathematics and API; checked Lean examples show usage.
-ROADMAP lists accepted directions only, grouped by area.
+ROADMAP lists accepted directions only: `ROADMAP.md` holds the programs and an index, and each area
+has its own file under `roadmap/`, so that changes in different areas do not conflict.
 Each entry states one direction's scope in a few sentences, one sentence per line, with its issue
 linked inline as `[#N](https://github.com/cslib-community/cslib-frontier/issues/N)`.
 Status and progress live on issues and PRs, so a PR edits ROADMAP only when it opens or closes a
