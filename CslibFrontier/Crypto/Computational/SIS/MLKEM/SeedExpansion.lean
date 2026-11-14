@@ -59,7 +59,7 @@ def matrixXofInput (rho : Seed32) (row column : Byte) : FixedBytes 34 :=
   FixedBytes.append rho fun index : Fin 2 => if index.val = 0 then column else row
 
 /-- The matrix XOF input contains exactly 34 bytes. -/
-@[simp] theorem length_matrixXofInput (rho : Seed32) (row column : Byte) :
+theorem length_matrixXofInput (rho : Seed32) (row column : Byte) :
     (matrixXofInput rho row column).toList.length = 34 := by
   simp
 
@@ -99,7 +99,7 @@ def prfInput (seed : Seed32) (counter : Byte) : FixedBytes 33 :=
   FixedBytes.append seed fun _ : Fin 1 => counter
 
 /-- The PRF input contains exactly 33 bytes. -/
-@[simp] theorem length_prfInput (seed : Seed32) (counter : Byte) :
+theorem length_prfInput (seed : Seed32) (counter : Byte) :
     (prfInput seed counter).toList.length = 33 := by
   simp
 
