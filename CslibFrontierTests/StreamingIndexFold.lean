@@ -203,3 +203,84 @@ example {σ : Type} {enc : σ ↪ List Bool}
 example : ([] : List Bool).foldl (fun n b => 2 * n + if b then 1 else 0) 7 = 7 := rfl
 example : [true, false, true].foldl (fun n b => 2 * n + if b then 1 else 0) 0 = 5 := by
   decide
+
+-- Concrete paired callback: keep a captured bit and overwrite the last-seen bit. Overwrite
+-- is noncommutative. The projection/pair providers supply the machine and its constants;
+-- no exact clock for that composed machine is guessed here.
+private def remember (s : Bool × Bool) (b : Bool) : Bool × Bool := (s.1, b)
+
+private theorem remember_resources : ∃ K, ComputableInTimeAndSpace
+    (fun p : (Bool × Bool) × Bool => remember p.1 p.2)
+    (encPair (encPair encBool encBool) encBool) (encPair encBool encBool)
+    (fun _ => K) (fun _ => K) := by
+  have hc := ((ComputableInO.fst encBool encBool).comp_linear
+    (ComputableInO.fst (encPair encBool encBool) encBool)).prod
+    (ComputableInO.snd (encPair encBool encBool) encBool)
+  obtain ⟨c, h, _⟩ := hc
+  refine ⟨c * 32, h.mono ?_ ?_⟩ <;>
+    intro p <;> simp only [length_encPair, encBool_apply, List.length_singleton] <;> omega
+
+-- Discharge all resource and prefix premises, retaining the captured input at EVERY prefix.
+-- The resulting space is constant even for an arbitrarily long stream.
+example : ∃ K c, ComputableInTimeAndSpace
+    (fun p : (Bool × Bool) × List Bool => p.2.foldl remember p.1)
+    (encPair (encPair encBool encBool) encBits) (encPair encBool encBool)
+    (fun p => c * (p.2.length * (K + 9) + 5)) (fun _ => c * (K + 5)) ∧
+    ∀ p : (Bool × Bool) × List Bool, (p.2.foldl remember p.1).1 = p.1.1 := by
+  obtain ⟨K, hk⟩ := remember_resources
+  obtain ⟨⟨c, hc⟩, hs⟩ := hk.foldl_bits_pair_stream_sum_spec
+    (fun p _ s => s.1 = p.1.1)
+    (fun _ => rfl) (fun _ _ _ _ hs => hs)
+    (R := fun _ _ => K + 9) (Q := fun _ => K) (B := fun _ => 4)
+    (fun p i hi s hs => by
+      constructor
+      · simp [length_encPair, encBool_apply]
+      · exact le_rfl)
+    (fun p i hi s hs => by simp [length_encPair, encBool_apply])
+  refine ⟨K, c, ?_, hs⟩
+  simpa [Finset.sum_const, Finset.card_range, smul_eq_mul, Nat.add_assoc] using hc
+
+-- These evaluate the SAME callback certified above, including the empty-stream boundary.
+example (s : Bool × Bool) : ([] : List Bool).foldl remember s = s := rfl
+example : [true, false].foldl remember (true, true) = (true, false) := rfl
+example : [false, true].foldl remember (true, true) = (true, true) := rfl
+
+-- A canonical map transducer copies a captured word with ZERO callback workspace.
+-- Using the plain certificate exercises normalization in the streaming endpoint.
+private theorem copyWord : ComputableInTimeAndSpace (id : List Bool → List Bool)
+    encBits encBits (fun w => 4 * w.length + 8) (fun _ => 0) := by
+  simpa using ComputableInTimeAndSpace.map_bits id
+
+private def repeatedWord (x : List Bool × ℕ) : List Bool :=
+  ((List.range x.2).map fun i => (id : List Bool → List Bool)^[i] x.1).flatten ++
+    (id : List Bool → List Bool)^[x.2] x.1
+
+-- Each round emits the whole captured word and retains only that word. Neither the callback
+-- workspace nor the endpoint workspace bound contains the number of rounds or emitted length.
+example : ∃ c, ComputableInTimeAndSpace repeatedWord (encPair encBits encUnary) encBits
+    (fun x => c * (4 * x.1.length + 8 + x.2 * (10 * x.1.length + 17) + x.1.length + 1))
+    (fun x => c * (x.1.length + 1)) := by
+  obtain ⟨c, hc⟩ := copyWord.iterate_unary_stream_sum copyWord copyWord
+    (R := fun x _ => 10 * x.1.length + 17) (Q := fun _ => 0)
+    (B := fun x => x.1.length)
+    (fun x i hi => by simp [encBits_apply] <;> omega)
+    (fun x i hi => by omega)
+    (fun x i hi => by simp [encBits_apply])
+  refine ⟨c, ?_⟩
+  simpa [repeatedWord, Finset.sum_const, Finset.card_range, smul_eq_mul, Nat.add_assoc] using hc
+
+-- Output really grows: the final callback emits once even when there are zero rounds.
+example (w : List Bool) : repeatedWord (w, 0) = w := by simp [repeatedWord]
+private theorem repeatedWord_length (w : List Bool) (n : ℕ) :
+    (repeatedWord (w, n)).length = (n + 1) * w.length := by
+  induction n with
+  | zero => simp [repeatedWord]
+  | succ n ih =>
+    simp [repeatedWord, List.range_succ, List.map_append, List.flatten_append, Nat.add_mul] at ih ⊢
+    omega
+
+-- Zero-boundary controls use the provider's actual 8-step bound, never an invented zero clock.
+example : (4 * ([] : List Bool).length + 8 : ℕ) = 8 := rfl
+example (n : ℕ) : repeatedWord ([], n) = [] := by simp [repeatedWord]
+example (n : ℕ) : (repeatedWord ([true], n)).length = n + 1 := by
+  simpa using repeatedWord_length [true] n
