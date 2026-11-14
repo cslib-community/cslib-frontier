@@ -84,7 +84,7 @@ public section
 namespace Cslib.Crypto.Protocols.FujisakiOkamoto.Salted
 
 open Probability
-open scoped ENNReal NNReal
+open scoped Cslib ENNReal NNReal
 
 /-- Input of the salted joint random oracle: a public-key prefix, message and salt. HQC uses
 `H(ekKEM)` as the prefix. -/
