@@ -32,6 +32,8 @@ A security theorem says that every admitted adversary has negligible advantage, 
 
 A named assumption may concern the scheme's own components when the cited source assumes it. GSW's one-key circular security `Encryption.CircularSecure E.keyGen E.encrypt`, collision resistance of the Cramer–Shoup hash family `F.withKey.cramerShoupHashMod H` keyed by the hash key that key generation draws and publishes, and quadratic residuosity relative to the scheme's modulus sampler (`QuadraticResiduosityHard fun n => ProbComp.eval (gen n)`) are all allowed. What is ruled out is a premise that the scheme's algorithms behave like idealized ones, such as keys indistinguishable from an ideal key law, unless the cited source names that as an assumption.
 
+Each named assumption is listed in the [assumptions inventory](assumptions.md). A *standard* assumption's docstring cites the source definition, with a locator checked at the source, and names every deviation from it, such as an arbitrary setup law where Boneh–Shoup's group parameters come from an efficient algorithm. A *novel* assumption's docstring says that it is novel to this library, how it relates to standard assumptions and why it is plausible. A novel assumption may support an original result whose name mentions it, but not a theorem presented as a cited result. `GMW.AdvicePRG`, for example, is novel and follows from a non-uniform PRG; theorems that rest on it may land only as steps, and the GMW theorem `NonuniformOneWay.exists_zkProof_of_mem_NP` rests on `NonuniformOneWay`. `python3 scripts/check_hardness_assumptions.py` checks the inventory after a build, and `--list` prints the theorems that rest on each assumption.
+
 ElGamal bit encryption under DDH in [ElGamal.lean](../../CslibFrontier/Crypto/Computational/ElGamal.lean) is the reference pattern. It has four parts:
 
 1. **The reduction is a program.** [elGamalMsgToDDHDistinguisher](../../CslibFrontier/Crypto/Computational/ElGamal.lean#L380) turns an IND-CPA adversary into a DDH distinguisher, and `elGamalToDDHDistinguisher` specializes it to bit messages.
@@ -58,6 +60,7 @@ A lemma may still take a bound on a constructed reduction as a premise when that
 Before review, check a new security theorem against this list:
 
 - every premise is a named hardness assumption stated relative to the sampler or component it concerns, the adversary's class membership, or a property of a component that the cited result takes as given;
+- each named assumption is in the [assumptions inventory](assumptions.md), cites its source definition or says that it is novel to this library, and, under a cited result, is the source's assumption;
 - no premise concerns a reduction, distinguisher, simulator, extractor or hybrid that the proof constructs (from the adversary or not), and the caller does not supply an object whose existence or efficiency is what the theorem proves;
 - each reduction is a definition with an efficiency witness (`isPPT_…`, `isOraclePPT_…` or a circuit-size bound) that the asymptotic theorem uses;
 - the name and docstring state the model (standard, random-oracle, ideal, query-bounded or information-theoretic), the notion (single- or multi-challenge, one-time or many-time, honest-verifier or malicious zero knowledge, semi-honest, static) and any deviation from the cited source;

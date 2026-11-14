@@ -241,7 +241,11 @@ jobs:
       # differences as a notice; merge groups and pushes only report, so a queued pull request is
       # never ejected by a change elsewhere. Its compiled-fixture tests need Lean, so the Python
       # tests at the start skip them; they run here. The base is the first parent of the merge
-      # commit, as for the changed-file lints below.
+      # commit, as for the changed-file lints below. The same step checks named assumptions
+      # (AGENTS.md, "Security theorems"; #5578): scripts/check_hardness_assumptions.py compares
+      # the assumptions that Crypto theorems take with the inventory
+      # manual/programs-crypto-and-probability/assumptions.md and the gaps recorded in
+      # scripts/hardness_assumptions_baseline.json, on the whole library.
       - name: "Security premise ratchet (changed modules)"
         if: github.event_name == 'pull_request'
         env:
@@ -253,10 +257,14 @@ jobs:
           git fetch --no-tags --depth=1 origin "$BASE"
           python3 -B -m unittest scripts/test_check_security_premises.py
           python3 -B scripts/check_security_premises.py --base "$BASE"
+          python3 -B -m unittest scripts/test_check_hardness_assumptions.py
+          python3 -B scripts/check_hardness_assumptions.py
       - name: "Security premise report"
         if: github.event_name != 'pull_request'
         continue-on-error: true
-        run: python3 -B scripts/check_security_premises.py --report
+        run: |
+          python3 -B scripts/check_security_premises.py --report
+          python3 -B scripts/check_hardness_assumptions.py --report
       - name: "Result registry references"
         run: python3 -B scripts/results_registry.py --compiled
       # Lints for the files a pull request adds or changes: names in module docstrings' "Main …"
