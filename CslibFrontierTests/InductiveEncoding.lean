@@ -163,11 +163,13 @@ section DegreeTransitionProbe
 variable {α β : Type} {f : α → β} {encIn : α ↪ List Bool} {encOut : β ↪ List Bool}
   {d e : ℕ}
 
+set_option trace.profiler true in
 example (h : ComputableInDegree f encIn encOut d e) :
     ComputableInPolyTime f encIn encOut := h.computableInPolyTime
 
 attribute [local fun_prop] ComputableInDegree.computableInPolyTime
 
+set_option trace.profiler true in
 example (h : ComputableInDegree f encIn encOut d e) :
     ComputableInPolyTime f encIn encOut := by fun_prop
 
