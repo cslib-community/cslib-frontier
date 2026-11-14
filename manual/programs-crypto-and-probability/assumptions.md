@@ -45,7 +45,6 @@ Names are relative to `Cslib.Crypto`.
 | `FactoringHard` | standard | [KatzLindell2020] Section 9.2.3 (locator not verified) | Blum moduli only, drawn from any law on `BlumDesc` (`BlumGen`), which need not be efficiently samplable. | — |
 | `RabinOneWay` | standard | [KatzLindell2020] Section 15.5.2 (locator not verified) | Blum moduli from any law on `BlumDesc`, which need not be efficiently samplable. The input is a uniform bit string twice as long as `N`, reduced modulo `N`, not a uniform unit. | — |
 | `RSAOneWay` | standard | [BonehShoup2023] Attack Game 10.3 and Definition 10.5, pp. 404–405 | Keys from any law on `RSADesc` (`RSAGen`), which need not be efficiently samplable, in place of Boneh–Shoup's `RSAGen(ℓ, e)`. The challenge is uniform on `Fin N`, as `x ← Z_n` in the source. | [RSALeastSignificantBit.lean](../../CslibFrontierTests/Crypto/RSALeastSignificantBit.lean) `not_rsaOneWay_desc33` |
-| `RSAHardCoreLSB` | standard | [KatzLindell2020] Theorem 12.31 (locator not verified) | A theorem of the literature, proved from the RSA assumption, not a source definition. Stated here as an assumption, it has no user (#5578); as a premise under a cited headline it would be class (iv) of the [review gate](../../AGENTS.md#review-cycle), a step of the cited proof. | — |
 
 ## Lattice and code assumptions
 
