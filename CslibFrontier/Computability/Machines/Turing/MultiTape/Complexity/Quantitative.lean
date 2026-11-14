@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Streaming
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.EqualityPrimitives
 public import Mathlib.Tactic.FunProp
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DegreePrimitives
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Transducer.Copy
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OLoops
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.BinaryAddition
@@ -212,12 +213,6 @@ theorem foldlWith {γ α β π : Type} {encIn : γ ↪ List Bool}
       (Nat.le_mul_of_pos_left _ (lt_of_lt_of_le Nat.one_pos (le_max_left _ _)))))
   exact ⟨(h.mono (max_le le_rfl hY) le_rfl).1, hB.mono fun x => by simpa using hstates x _ le_rfl⟩
 
-/-- Adding an element in front of a framed list: the identity on encoded words. -/
-theorem cons {α : Type} (enc : α ↪ List Bool) :
-    ComputableInDegree (fun p : α × List α => p.1 :: p.2) (encPair enc (encList enc))
-      (encList enc) 1 1 :=
-  of_eq fun _ => rfl
-
 /-- Adding an element at the end of a framed list. -/
 theorem snoc {α : Type} (enc : α ↪ List Bool) :
     ComputableInDegree (fun p : List α × α => p.1 ++ [p.2]) (encPair (encList enc) enc)
@@ -380,18 +375,6 @@ attribute [fun_prop] ComputableInDegree.const ComputableInDegree.fst
   ComputableInDegree.int_succ ComputableInDegree.int_pred
 
 namespace ComputableInDegree
-
-/-- The result encoding fixes the element encoding, without reversing `ListEncoding` inference. -/
-@[fun_prop]
-theorem listTail {α : Type*} (enc : α ↪ List Bool) :
-    ComputableInDegree List.tail (encList enc) (encList enc) 1 1 :=
-  tail (enc₁ := enc)
-
-/-- The framed input list determines the encoding of its head, including a fixed fallback. -/
-@[fun_prop]
-theorem listHeadD {α : Type*} (enc : α ↪ List Bool) (fallback : α) :
-    ComputableInDegree (fun l => l.headD fallback) (encList enc) enc 1 1 :=
-  headD (enc₁ := enc) fallback
 
 /-- Testing a framed list for emptiness. -/
 @[fun_prop]
