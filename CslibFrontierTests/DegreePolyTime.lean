@@ -23,6 +23,9 @@ comparative timings are pending; profiler-enabled source alone establishes neith
 an improvement. Registration is local and makes no recommendation about the global rule set.
 -/
 
+-- Disposable test operations and timing clients are intentionally private.
+set_option linter.privateModule false
+
 namespace CslibFrontierTests.DegreePolyTime
 
 open Turing.MultiTapeTM
