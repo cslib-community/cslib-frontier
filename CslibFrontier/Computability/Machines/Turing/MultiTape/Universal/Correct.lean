@@ -252,7 +252,7 @@ variable {Symbol State : Type} (eS : State ↪ ℕ) (eY : Symbol ↪ ℕ)
 renamed run of the machine. -/
 public theorem toCfg_iterate_of_holds (tm : MultiTapeTM k Symbol State) (d : Desc)
     (htapes : d.tapes = k) (hq₀ : d.q₀ = eS tm.q₀)
-    (holds : ∀ q inp work,
+    (holds : ∀ (q : State) (inp : Option Symbol) (work : Fin k → Option Symbol),
       d.Holds (tm.map eS eY) (eS q) (inp.map eY) (Option.map eY ∘ work))
     (x : List Symbol) (t : ℕ) :
     (tm.runFrom (tm.initCfg x) t).map eS eY =
@@ -276,7 +276,7 @@ public theorem toCfg_iterate_of_holds (tm : MultiTapeTM k Symbol State) (d : Des
 it yields the renamed machine output and the same halting status. -/
 public theorem simulate_of_holds (tm : MultiTapeTM k Symbol State) (d : Desc)
     (htapes : d.tapes = k) (hq₀ : d.q₀ = eS tm.q₀)
-    (holds : ∀ q inp work,
+    (holds : ∀ (q : State) (inp : Option Symbol) (work : Fin k → Option Symbol),
       d.Holds (tm.map eS eY) (eS q) (inp.map eY) (Option.map eY ∘ work))
     (x : List Symbol) (t : ℕ) :
     simulate d (x.map eY) t =
