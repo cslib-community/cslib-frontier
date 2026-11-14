@@ -194,7 +194,7 @@ example (st : HalfState) :
 
 def halfRejectionInput : RejectionInput Unit Unit Bool Bool := ⟨(), (), halfCiphertext⟩
 
-/-- The post-secret-seed-guessing `J` fallback is executed by the concrete handler and cannot
+/-- The post-secret-seed-guessing `J` query is executed by the concrete handler and cannot
 create a local PKE correctness witness. -/
 theorem halfRejection_bad_probability :
     (halfErrorScheme.realHandler () () halfChallenge (Query.rejection halfRejectionInput)
@@ -246,7 +246,7 @@ example :
       (halfErrorScheme.randomizedRealHandlerGame halfChallengeSetup halfRandomizedAdversary)
       (halfErrorScheme.randomizedSimHandlerGame halfChallengeSetup halfRandomizedAdversary) : ℝ) ≤
       ((1 + 0 : ℕ) : ℝ) * (1 / 2 : ℝ) := by
-  exact halfErrorScheme.advantage_randomizedKeyedGame_realHandler_simHandler_le
+  exact halfErrorScheme.advantage_randomizedRealHandler_simHandler_le
     halfChallengeSetup halfRandomizedAdversary halfRandomizedAdversary_bounded
     halfErrorPKE_deltaCorrect_half
 

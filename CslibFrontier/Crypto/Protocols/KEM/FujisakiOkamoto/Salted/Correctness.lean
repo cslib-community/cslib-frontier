@@ -65,7 +65,7 @@ resources must be supplied by a later transform and HQC realization.
 
 * `Cslib.Crypto.Protocols.FujisakiOkamoto.Salted.Scheme.closeTo_run_realHandler_simHandler`:
   concrete real-to-keyless fixed-key hop.
-* `Cslib.Crypto.Protocols.FujisakiOkamoto.Salted.Scheme.advantage_randomizedKeyedGame_realHandler_simHandler_le`:
+* `Cslib.Crypto.Protocols.FujisakiOkamoto.Salted.Scheme.advantage_randomizedRealHandler_simHandler_le`:
   concrete challenge-aware randomized real-to-keyless advantage bound.
 
 ## References
@@ -1441,7 +1441,7 @@ receives the full public KEM challenge and has `qRO`/`qD` bounds for every tape 
 concrete real and keyless-handler games differ by at most `(qRO + qD) * δ` under
 `ExplicitCoinPKE.DeltaCorrect δ`. Both games sample the same challenge law after key generation;
 challenge construction is outside the counted handler queries and therefore adds no `+1`. -/
-theorem Scheme.advantage_randomizedKeyedGame_realHandler_simHandler_le
+theorem Scheme.advantage_randomizedRealHandler_simHandler_le
     [Fintype JointPrefix] [Fintype M] [Fintype Salt] [Fintype RejectPrefix]
     [Fintype Sigma] [Fintype CT] [Finite K] [Finite R]
     (S : Scheme PK SK M R CT JointPrefix Salt RejectPrefix Sigma K)
