@@ -616,9 +616,8 @@ without the graph layer.
 including fixed points and empty selections; its [standalone client](../../CslibFrontierTests/SelectedOrbitJoin.lean)
 also imports no graph module.
 These are original permutation/algebraic proofs, with no native runtime or geometric
-realization claim. The static construction grammar is realized below; expanded-language
-macros, recognition, Hanani–Tutte and the planar
-dichotomy remain open under [#3091](https://github.com/cslib-community/cslib-frontier/issues/3091).
+realization claim. The static grammar and expanded-language macro witnesses are supplied
+below; recognition, Hanani–Tutte and the full planar dichotomy remain open under [#3091](https://github.com/cslib-community/cslib-frontier/issues/3091).
 
 ## Polygonal geometry prerequisites
 
@@ -1622,8 +1621,8 @@ an outgoing successor swap and first-return restriction. Residual arity `n` is s
 is no uniform native runtime bound for arbitrary binary arity or language/template size.
 The [equality client](../../CslibFrontierTests/PlanarEqualityBoundary.lean) proves the complete
 NAE-derived table, executes both checkers, derives disequality with original symbols, and checks
-both OneHot-derived pins. Generic attachments are supplied below; expanded-language macro
-proofs remain separate. Empty alphabets/bodies, degree five, repeated constraints and false
+both OneHot-derived pins. Generic attachments and expanded-language macro proofs are supplied
+below. Empty alphabets/bodies, degree five, repeated constraints and false
 nullaries also have nonvacuous tests.
 
 `RelationMinor.Construction.orderedWitness c` supplies `GadgetWitness c.gadget` for every
@@ -1662,8 +1661,9 @@ These are static finite constructors. Some inverse occurrence maps use finite ch
 general projection and cyclic constructors are intentionally `noncomputable`. Fixing a language
 and its templates permits nonuniform certificate preprocessing. The compiler below supplies
 full target acceptance and framed native polynomial time for fixed trees and languages;
-it does not bound varying-language preprocessing or search for an embedding. The Figure 1 and NAND-triangle tables in `Embedding.Crossover`
-are macro skeletons, not yet expanded original-language substitution.
+it does not bound varying-language preprocessing or search for an embedding. The Figure 1
+and NAND-triangle tables in `Embedding.Crossover` feed the checked original-language
+expansions below.
 
 The lower APIs preserve existing access: import
 `CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.Darts` for
@@ -1679,9 +1679,8 @@ For the complete grammar run
 The boundary convention is Dvořák–Kupec's reverse outer port order, printed p. 436; the probe
 and finite surgery are original. Fulla–Živný's indexed positive-arity model and the original
 decision/nullary extension are distinguished from DK's constraint sets; no deduplication or
-geometric equivalence is assumed. OneHot3/CROSS macro expansion, normalization caps and
-Figure-1 expanded ordered witnesses, geometric/source comparison
-and bare recognition remain open under [#3091](https://github.com/cslib-community/cslib-frontier/issues/3091).
+geometric equivalence is assumed. Geometric/source-model comparison, native hardness
+reductions and bare recognition remain open under [#3091](https://github.com/cslib-community/cslib-frontier/issues/3091).
 
 
 ## Certified native ordered-gadget substitution
@@ -1741,10 +1740,41 @@ components, unused ports, duplicate degree-six rows and sparse `2^250` labels.
 
 Run `scripts/build.sh CslibFrontierTests.CSPGadgetGenus CslibFrontierTests.CSPConstructionCompiler CslibFrontierTests.CSPGadgetSubstitution CslibFrontierTests.PlanarConstructionBoundary --wfail --iofail`.
 This completes supplied-certificate substitution for fixed checked construction families.
-Expanded original-language OneHot3/CROSS and normalization/Figure-1 witnesses, source-model
-comparison, bare recognition, Hanani–Tutte and full dichotomy assembly remain open under
+Expanded original-language OneHot3/CROSS witnesses are supplied below. Source-model
+comparison, native hardness reductions, bare recognition, Hanani–Tutte and full dichotomy
+assembly remain open under
 [#3091](https://github.com/cslib-community/cslib-frontier/issues/3091). The finite PL equivalence
 is already proved; this compiler adds no coordinate-bit or drawing-runtime bound.
+
+
+## Static expansion of checked macro gadgets
+
+Import `CslibFrontier.Logics.Propositional.CSP.PrimitivePositive.Expansion` for the
+semantic `PPGadget.expandList` and `PPGadget.expand` constructors. Each macro occurrence
+gets a separate auxiliary block of its actual size, even when symbols and scopes repeat.
+The macro's original auxiliaries come first, followed by those per-occurrence blocks in
+body order. The existing pointwise `PPGadget.eval_instantiate` equation preserves fixed
+assignments as well as existential satisfiability, including total scope-lookup fallbacks.
+
+Import `CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.Expansion` for
+`GadgetWitness.expand`. An actual macro witness, actual witnesses for its replacement
+gadgets and a uniform replacement-auxiliary bound supply the ordered witness of exactly
+`g.expand gadgets`. The proof internally injects ragged finite names into the numeric
+compiler's padded even/odd names, applies its full checker theorem, and returns the original
+free-port order. Neither alphabet must be finite; no target witness, naming injection,
+genus, order or connectedness premise is supplied.
+
+The [executed expansion client](../../CslibFrontierTests/CSPGadgetExpansion.lean) compares
+the computed successor table with its explicit ten-entry list and runs full checkers and
+SAT/UNSAT rows. It includes repeated copies, used replacement auxiliaries, old macro
+auxiliaries, closed/nullary components, unused ports and empty boundaries. The accompanying
+[stored-declaration audit](../../CslibFrontierTests/CSPGadgetExpansionAudit.lean) also checks
+that the low imports do not expose the native compiler API.
+
+This is static finite expansion of supplied checked gadgets. It asserts no preprocessing
+runtime for varying languages or templates and no arbitrary primitive-positive planarity
+closure. The specialized original-language OneHot3/CROSS endpoints follow below. Source-model
+correspondence and native hardness reductions remain open under [#3091](https://github.com/cslib-community/cslib-frontier/issues/3091).
 
 
 ## Original-language ordered disequality
@@ -1784,9 +1814,8 @@ include `Graph.RotationSystem`. The [guide](../../guide/CslibFrontierGuide/NPCom
 provides complete ordinary-import examples for both APIs.
 
 Run `scripts/build.sh CslibFrontierTests.PlanarSelfDualEnabling CslibFrontierTests.CSPGadgetPolymorphism --wfail --iofail`.
-The existing static grammar now has ordered witnesses. NAND-triangle and OneHot3/CROSS
-macro expansion, normalization/Figure-1 and expanded original-language
-endpoints, geometry/source comparison and recognition
+The static grammar, normalization and expanded original-language endpoints now have ordered
+witnesses. Geometric/source-model comparison, native hardness reductions and recognition
 remain open under [#3091](https://github.com/cslib-community/cslib-frontier/issues/3091).
 
 ## Finite crossover gadget semantics
@@ -1805,9 +1834,34 @@ width-guarded interpretations reject malformed scopes. [Crossover clients](../..
 check every standardized shape, both first-gadget outcomes, explicit witnesses and rejected
 boundary tuples, while retaining the existing CNF crossover tests.
 
-These Figure 1 results concern finite relation semantics. Their expanded original-language
-ordered witnesses and planar hardness remain open. The general compiler above applies after
-those witness contracts are proved; it does not supply them. These gaps remain part of
+For canonical tuple semantics, use `Crossover.sem_relation`, `sem_disequality` and
+`nearSem_relation`; the triangle counterparts are `NonSelfDual.triangleSem_relation` and
+`triangleSem_nand`. These facts let an actual atom be retargeted without reconstructing
+finite vectors or list patterns. The [ordinary-import semantic clients](../../CslibFrontierTests/PlanarExpandedSemantics.lean)
+check literal atom bodies, complete finite rows and malformed-width rejection.
+
+Import `CslibFrontier.Logics.Propositional.CSP.PrimitivePositive.ExpansionCrossover` for
+`figureOneAExpanded` and `figureOneBExpanded`, and
+`CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.CrossoverExpansion` for their ordered
+witnesses. Each occurrence receives its own actual original-language body and fresh auxiliary
+block, including the two uses of the same four-port gadget in Figure 1(b).
+
+For the full common-NOT branch, import
+`CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.CrossoverOriginal`.
+`Crossover.exists_orderedCrossGadget` takes failure of the six Schaefer polymorphisms, a common
+unary NOT operation, and an actual nonempty original relation whose cyclic-difference image
+is not an even delta-matroid. It returns an original-language CROSS gadget and its checked
+ordered witness. Disequality, normalization, Figure 1(a), and Figure 1(b) when required are
+derived internally; no normalized-relation, enabling-gadget or target-boundary provider is
+an extra premise. The original alphabet need not be finite and arities are unrestricted.
+
+The [expanded macro clients](../../CslibFrontierTests/PlanarExpandedMacros.lean) execute source
+and target checkers, all standardized rows, the explicit 56-entry expanded target table,
+reflection rejection and SAT/UNSAT rows. The
+[full CROSS client](../../CslibFrontierTests/PlanarExpandedCrossover.lean) proves the actual
+original-language hypotheses and obtains SAT/UNSAT rows for the returned gadget.
+These are static ordered numerical witnesses. Geometric/source-model correspondence,
+native hardness reductions and the full dichotomy remain open under
 [#3091](https://github.com/cslib-community/cslib-frontier/issues/3091).
 
 ## Ordered normalization from a cyclic exchange failure
@@ -1850,10 +1904,41 @@ families at arities 6, 8 and 12, repeated caps, a feasible-quartet finish, prope
 compression, rotation, wraparound deletion, actual auxiliary witnesses and empty/nullary guards.
 The guide composes the construction with its gadget and size bounds using ordinary imports.
 
-These are combinatorial and finite-semantic bounds. Relation decisions and a chosen construction
-are fixed-relation data; no uniform native runtime or binary encoded-size bound is asserted.
-Ordered realization of these normalization operations, their expanded original-language
-witnesses, hardness and completion of the full planar dichotomy remain open under [#3091](https://github.com/cslib-community/cslib-frontier/issues/3091).
+Import `CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.Normalization.Program` for
+`Program.orderedWitness`. Given an actual source `w : GadgetWitness g`,
+`p.orderedWitness w` constructs `GadgetWitness (p.gadget g)` for every normalization program.
+It realizes arbitrary positive cyclic starts, ordinary and wrap adjacent identifications,
+and the exact guarded cap. A cap hides old port 2 at auxiliary zero, before all previous
+auxiliaries; it retains free order `0,1,4,…`. The result needs no target witness, finite
+alphabet, distinct body occurrences, degree bound or connectedness assumption. The
+[ordered Program clients](../../CslibFrontierTests/PlanarNormalizationBoundaryProgram.lean)
+cover repeated scopes, unused ports, closed nullary components and previous auxiliaries;
+[the kernel clients](../../CslibFrontierTests/PlanarNormalizationBoundaryKernel.lean) check
+the ordinary and wrap quotient maps without importing graph infrastructure.
+
+Import `CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.Normalization` for the
+complete `Normalization.Construction.orderedWitness`. For every `c : Construction R`,
+`c.orderedWitness` supplies `GadgetWitness c.gadget` without a witness premise. Its initial
+twist uses the original relation atom and the literal one- or two-disequality rows per port,
+in their existing order. All `2n` auxiliary labels remain allocated, including unused middle
+labels on flipped spokes. Subsequent instructions use the Program witness above, preserving
+the original semantics and size bounds.
+
+The [twist and Construction clients](../../CslibFrontierTests/PlanarNormalizationBoundaryTwist.lean)
+apply the full endpoint and the original existence/bounds theorems. The
+[literal-table clients](../../CslibFrontierTests/PlanarNormalizationBoundaryTables.lean)
+identify noncomputable witness tables by ordered-rotation uniqueness, then execute the
+displayed tables with kernel decision. This does not execute noncomputable preprocessing.
+The low [fresh-spoke client](../../CslibFrontierTests/PlanarNormalizationBoundarySpoke.lean)
+uses natural-number labels, repeated high-degree scopes and an unused boundary port without
+importing normalization. Its separate degree-two uniqueness tool guards only variable
+fibers when inspecting tables; it imposes no degree restriction on normalization and proves
+neither existence nor numerical genus zero by itself.
+
+The semantic construction and witness choices remain fixed-relation data; no uniform native
+preprocessing runtime or binary encoded-size bound is asserted here. Expanded original-language
+witnesses follow below. Geometric/source-model correspondence, native hardness reductions
+and completion of the full planar dichotomy remain open under [#3091](https://github.com/cslib-community/cslib-frontier/issues/3091).
 
 ## Original-language gadgets for the nonselfdual branch
 
@@ -1886,11 +1971,22 @@ relations are distinct from unary constant operations. The [minor and triangle t
 rejection, fresh auxiliaries, nullary atoms and malformed widths. In particular, the interpreter
 tests derive the gadgets from a single one-in-three symbol without primitive pins or disequality.
 
-These results prove finite primitive-positive semantics. The selected witnesses are fixed-language
-data; no uniform preprocessing cost is asserted. The recorded recipes and concrete bodies support
-the final expanded triangle, whose original-language ordered witness and planar hardness
-still need proofs. The general compiler does not supply those missing witnesses. These gaps
-and the full planar dichotomy remain open under
+Import `CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.OneHotExpansion` for
+`NonSelfDual.triangleGadgetOrderedWitness`, which certifies exactly the existing
+`triangleGadget r d hz hu`. The ternary body and the three independently fresh NAND copies
+retain their existing row order, free ports and auxiliary layout.
+`NonSelfDual.exists_orderedOneHotGadget` derives an actual original-language OneHot3 gadget
+and its checked ordered witness from only absence of the six Schaefer operations and of
+common NOT. All ternary/NAND construction trees, pins, disequality and ordered enabling
+witnesses are constructed internally. No finite alphabet or extra planar provider is needed.
+
+The [expanded OneHot3 clients](../../CslibFrontierTests/PlanarExpandedOneHot.lean) check the
+exact ten-row body, used and unused auxiliary labels, closed/nullary components, a full
+30-entry target table and all free truth rows. They also apply the original-language existence
+endpoint and prove SAT/UNSAT rows for its returned body without primitive pins or NAND.
+Witness selection remains fixed-language data, with no uniform preprocessing bound. Native
+original-language hardness reductions, geometric/source-model correspondence and the full
+planar dichotomy remain open under
 [#3091](https://github.com/cslib-community/cslib-frontier/issues/3091).
 
 ## Three resolution representations
