@@ -53,7 +53,7 @@ private theorem poly_flatten : ComputableInPolyTime (List.flatten (α := Bool))
     (encList (encList encBool)) (encList encBool)
   simpa only [List.flatten_eq_flatMap] using
     ComputableInPolyTime.flatMapWithInput
-      (f := fun (_ : List (List Bool)) (xs : List Bool) => xs)
+      (f := fun (_ : List (List Bool)) => (id : List Bool → List Bool))
       (ComputableInPolyTime.id' (encIn := encList (encList encBool)))
       (ComputableInPolyTime.snd _ _)
 
