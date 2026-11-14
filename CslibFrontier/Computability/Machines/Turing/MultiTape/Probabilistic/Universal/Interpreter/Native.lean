@@ -1225,9 +1225,9 @@ noncomputable def loopArtifact (r : ℕ) :=
     (invariant_last r) (state_length_bound r)
 
 private noncomputable def classifiedInitial (r : ℕ) :=
-  ClassifiedCompiler.inPhase .controller (initialCompiler r)
+  ClassifiedCompiler.inPhase .inputCopy (initialCompiler r)
 
-/-- Execute the retained runtime initializer before the fixed loop machine. -/
+/-- Copy and initialize the encoded runtime input before the fixed loop machine. -/
 noncomputable def initializedLoop (r : ℕ) :=
   NativeOracleProgram.preprocess (classifiedInitial r) (loopArtifact r)
 
