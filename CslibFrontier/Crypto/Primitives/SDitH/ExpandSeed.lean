@@ -13,14 +13,19 @@ public import CslibFrontier.Init
 /-!
 # SDitH seed expansion
 
-SDitH v3 expands one seed into its two GGM-tree children by encrypting two domain-separated
-plaintexts under that seed. The plaintexts use the even and odd 24-bit tweaks `2 * idx` and
-`2 * idx + 1`, respectively, with the seed-expansion tag set to `true`.
+For Categories I and V, SDitH v3 expands one seed into its two GGM-tree children by encrypting
+two domain-separated plaintexts under that seed. The plaintexts use the even and odd 24-bit
+tweaks `2 * idx` and `2 * idx + 1`, respectively, with the seed-expansion tag set to `true`.
 
 This module formalizes only the two-call `ExpandSeed` procedure. The modified block cipher
 `Enc*` is an explicit function parameter: this layer neither instantiates AES or Rijndael nor
 asserts a pseudorandomness or ideal-cipher property. It does not build the full GGM tree,
 `CommitSeed`, the one-tree BAVC, or the SDitH protocol.
+
+The specification passage attributes this procedure only to Categories I and V. The generalized
+primitive-parametric API also accommodates the reference implementation's 192-bit Category III
+path using truncated Rijndael-256-256, but that compatibility observation is not a Category III
+claim from the cited passage.
 
 At the function level, `expandSeed` makes exactly two calls to `encStar` and materializes exactly
 two tweaked salts. This is not a native implementation or resource certificate. Later consumers
@@ -43,7 +48,7 @@ size, and all time, space, randomness, query, output, and reduction resources.
 ## References
 
 * [*The Syndrome Decoding in the Head Signature Scheme*, v3.0, Section 3.2.2,
-  “Seed expansion (GGM tree),” p. 19][SDitH2026]
+  “Seed expansion (GGM tree),” p. 18][SDitH2026]
 -/
 
 public section
@@ -81,10 +86,13 @@ theorem expandSeedLeftTweak_ne_rightTweak (idx : Fin (2 ^ 23)) :
   simp only [expandSeedLeftTweak_val, expandSeedRightTweak_val] at hval
   omega
 
-/-- SDitH v3 Section 3.2.2, `ExpandSeed`.
+/-- SDitH v3 Section 3.2.2, `ExpandSeed`, stated by the source for Categories I and V.
 
 The first `encStar` argument is the key/seed and the second is the plaintext. The explicit
-grinding variant selects Algorithm 5's high-bit layout for the calling parameter set. -/
+grinding variant selects Algorithm 5's high-bit layout for the calling parameter set. The
+primitive-parametric definition also fits the reference implementation's 192-bit Category III
+path using truncated Rijndael-256-256; that is an implementation compatibility observation, not
+a Category III attribution to this source passage. -/
 @[expose]
 def expandSeed {securityBits : Nat}
     (encStar : BitString securityBits → BitString securityBits → BitString securityBits)

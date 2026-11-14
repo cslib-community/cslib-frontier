@@ -1157,7 +1157,7 @@ reduction-resource translations.
 ### SDitH two-child seed expansion
 
 Import [`ExpandSeed.lean`](../../CslibFrontier/Crypto/Primitives/SDitH/ExpandSeed.lean) for the
-five-line `ExpandSeed` procedure in SDitH v3.0 §3.2.2 (p. 19). A node
+five-line `ExpandSeed` procedure in SDitH v3.0 §3.2.2 (p. 18). A node
 `idx : Fin (2 ^ 23)` has exact 24-bit child tweaks `2 * idx` and `2 * idx + 1`, so neither wraps.
 `expandSeed encStar variant salt seed idx` applies the explicit modified-cipher parameter
 `encStar` under `seed` to the two `tweakSalt` plaintexts with tag `true`. Projection lemmas expose
@@ -1167,15 +1167,15 @@ both calls, while `expandSeed_plaintexts_ne` proves that their plaintexts differ
 tweaks and both outputs of a concrete 128-bit XOR toy cipher.
 
 The specification labels this procedure for Categories I and V. The current reference code also
-contains a Category III Rijndael-192 path, but that implementation observation is not silently
-promoted to a source claim here. The API is primitive-parametric and proves no AES/Rijndael,
-PRP/ICM, TreePRG, soundness, zero-knowledge, or signature theorem. At the function level it makes
-exactly two modified-cipher calls and materializes two full tweaked salts. Later work must retain
-those time, space, randomness/query and output costs together with the constructed program's
-description size and embedded parameters/advice; offline compiler construction is a separate
-resource. Algorithm 6, the full GGM/BAVC tree, `CommitSeed`, the protocol and transcript, abort and
-rejection analysis, Fiat–Shamir/QROM, SD/RSD hardness, and both asymptotic and finite concrete
-endpoints remain open.
+contains a 192-bit Category III path using truncated Rijndael-256-256, but that implementation
+observation is not silently promoted to a source claim here. The API is primitive-parametric and
+proves no AES/Rijndael, PRP/ICM, TreePRG, soundness, zero-knowledge, or signature theorem. At the
+function level it makes exactly two modified-cipher calls and materializes two full tweaked salts.
+Later work must retain those time, space, randomness/query and output costs together with the
+constructed program's description size and embedded parameters/advice; offline compiler
+construction is a separate resource. Algorithm 6, the full GGM/BAVC tree, `CommitSeed`, the
+protocol and transcript, abort and rejection analysis, Fiat–Shamir/QROM, SD/RSD hardness, and both
+asymptotic and finite concrete endpoints remain open.
 
 ## Encryption and chosen-message attacks
 
