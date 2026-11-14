@@ -141,7 +141,13 @@ theorem val_block_eval_supportCandidateCircuit {width bits n count : ℕ}
       ((supportCandidateCircuit width bits n count).eval interpretation x) j) : ℕ)) =
       fun j => j.val + (equivFin width (block x j) : ℕ) * (n - j.val) / 2 ^ width := by
   funext j
-  simp only [supportCandidateCircuit, block_apply, Circuit.eval_parallelFamily_apply]
+  have hblock :
+      block ((supportCandidateCircuit width bits n count).eval interpretation x) j =
+        (candidateCircuit width bits n j.val).eval interpretation (block x j) := by
+    funext i
+    exact Circuit.eval_parallelFamily_apply
+      (fun j => candidateCircuit width bits n j.val) interpretation x j i
+  rw [hblock]
   exact val_eval_candidateCircuit (j.isLt.trans_le hcount) hn (block x j)
 
 /-- The complete Boolean sampler: multiply-high candidates, descending collision correction, and
