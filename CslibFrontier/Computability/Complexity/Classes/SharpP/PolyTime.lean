@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Classes.SharpP.Closure
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Int.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
+import CslibFrontier.Computability.Complexity.Classes.SharpP.Oracle.Closure
 
 /-!
 # Polynomial-time functions and tests in counting classes

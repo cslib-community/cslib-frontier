@@ -8,10 +8,10 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Classes.SharpP
-public import CslibFrontier.Computability.Complexity.Classes.SharpP.Oracle.Closure
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Primitives
 public import Mathlib.Algebra.Ring.Subring.Defs
 import CslibFrontier.Computability.Complexity.Classes.SharpP.Combinators
+import CslibFrontier.Computability.Complexity.Classes.SharpP.Oracle.Closure
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import Mathlib.Algebra.Ring.Subsemiring.Basic
