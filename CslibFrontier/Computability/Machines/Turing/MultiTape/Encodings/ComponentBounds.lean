@@ -15,11 +15,17 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pi
 /-!
 # Component bounds without unfolding encodings
 
-Use `simp only [enc_component]` for pair projections, finite-table entries, list lengths
-and encoded suffixes.
+Use `simp only [enc_component]` for finite-table entries and syntactic pair projections.
 For a list element supply its membership proof, as in `simp only [enc_component, hm]`.
-The list rules use `SizedListEncoding`, so they also apply to readable encodings other than
+The element rule uses `SizedListEncoding`, so it also applies to readable encodings other than
 `encList`. The set is opt-in and does not expand words or replace nonlinear arithmetic.
+
+Simp matching does not in general recover a pair from a reduced concrete projection: use
+`length_le_encPair_left ea eb (a, b)` (or the right-hand provider) for concrete pairs.
+List counts and suffixes require an explicit element encoding, which is absent from their goals.
+Use `SizedListEncoding.length_le (encA := ea) (encL := el) xs` and
+`SizedListEncoding.length_drop_le (encA := ea) (encL := el) xs i` directly.
+These two class fields are deliberately not registered in the collection.
 
 The sparse CNF compiler uses these rules to obtain element bounds before transporting them
 through its enclosing pair and polynomial growth estimates.
@@ -27,8 +33,6 @@ through its enclosing pair and polynomial growth estimates.
 
 attribute [enc_component] Turing.MultiTapeTM.length_le_encPair_left
   Turing.MultiTapeTM.length_le_encPair_right
-  Turing.MultiTapeTM.SizedListEncoding.length_le
   Turing.MultiTapeTM.SizedListEncoding.length_elem_le
-  Turing.MultiTapeTM.SizedListEncoding.length_drop_le
 
 attribute [enc_component] Turing.MultiTapeTM.length_le_encPi

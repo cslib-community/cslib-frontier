@@ -9,7 +9,7 @@ module
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.ComponentBounds
 
-/-! Regression cases for opt-in component bounds, including membership discharge and transport. -/
+/-! Regression cases for collection membership/Pi bounds and explicit provider fallbacks. -/
 
 open Turing.MultiTapeTM
 
@@ -18,15 +18,16 @@ example {α β : Type} (ea : α ↪ List Bool) (eb : β ↪ List Bool)
     (ea a).length ≤ (encPair (encList ea) eb (xs, b)).length := by
   have he : (ea a).length ≤ (encList ea xs).length := by
     simp only [enc_component, ha]
-  exact he.trans (by simp only [enc_component])
+  exact he.trans (length_le_encPair_left (encList ea) eb (xs, b))
 
+-- The element encoding is absent from the suffix goal: select it explicitly.
 example (xs : List Bool) (i : ℕ) :
     (encBits (xs.drop i)).length ≤ (encBits xs).length := by
-  simp only [enc_component]
+  exact SizedListEncoding.length_drop_le (encA := encBool) (encL := encBits) xs i
 
 example {α : Type} (ea : α ↪ List Bool) (xs : List α) :
     xs.length ≤ (encList ea xs).length := by
-  simp only [enc_component]
+  exact SizedListEncoding.length_le (encA := ea) (encL := encList ea) xs
 
 example {Index Value : Type} [Fintype Index] (enc : Value ↪ List Bool)
     (values : Index → Value) (i : Index) :
