@@ -7,10 +7,11 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: candidate (Mathlib, `Mathlib/LinearAlgebra/Matrix/Permanent.lean`)
 
-public import Mathlib.Algebra.Polynomial.BigOperators
+public import CslibFrontier.Init
 public import Mathlib.Algebra.Polynomial.Degree.Defs
 public import Mathlib.Algebra.Polynomial.Eval.Defs
 public import Mathlib.LinearAlgebra.Matrix.Permanent
+import Mathlib.Algebra.Polynomial.BigOperators
 
 /-!
 # Permanent of a matrix along an affine line
@@ -30,12 +31,13 @@ interpolation.
 ## Main results
 
 * `Matrix.eval_permanentLinePoly`: `(permanentLinePoly A B).eval x = (A + x • B).permanent`.
+* `Matrix.eval_zero_permanentLinePoly`: `(permanentLinePoly A B).eval 0 = A.permanent`.
 * `Matrix.natDegree_permanentLinePoly_le`: `(permanentLinePoly A B).natDegree ≤ Fintype.card ι`.
 * `Matrix.exists_natDegree_le_eval_eq_permanent_add_smul`: `x ↦ (A + x • B).permanent` agrees with
   a polynomial of degree at most `Fintype.card ι`.
 -/
 
-@[expose] public section
+public section
 
 namespace Matrix
 
@@ -54,7 +56,6 @@ theorem eval_permanentLinePoly (A B : Matrix ι ι R) (x : R) :
   simp [permanentLinePoly, Matrix.permanent, eval_finsetSum, eval_prod, mul_comm x]
 
 /-- Evaluating `permanentLinePoly A B` at `0` recovers `A.permanent`. -/
-@[simp]
 theorem eval_zero_permanentLinePoly (A B : Matrix ι ι R) :
     (permanentLinePoly A B).eval 0 = A.permanent := by
   simp [eval_permanentLinePoly]

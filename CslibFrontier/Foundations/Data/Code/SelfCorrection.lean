@@ -26,10 +26,16 @@ with fixed directions.
 
 ## Main definitions
 
+* `Cslib.Code.affineLineEquiv`: the affine bijection `v ↦ x + c • v` on a module over `F` for
+  `c ≠ 0`.
 * `Cslib.Code.lagrangeWeight`, `Cslib.Code.lagrangeDecode`: interpolation along a line.
+* `Cslib.Code.nonzeroNodes`: canonical choice of `d + 1` distinct nonzero evaluation nodes in `F`
+  when `d + 2 ≤ Fintype.card F`.
 
 ## Main results
 
+* `Cslib.Code.exists_nonzero_nodes_of_le_card`, `Cslib.Code.nonzeroNodes_ne_zero`: `d + 1` distinct
+  nonzero evaluation nodes exist whenever `d + 2 ≤ Fintype.card F`.
 * `Cslib.Code.lagrangeDecode_eq_of_exists_natDegree_le`: interpolation along a line is exact
   whenever the line restriction has degree at most `d`.
 * `Cslib.Code.card_lagrangeDecode_ne_le_of_forall_eq`: at most `(d + 1) * Δ(w, p)` directions err
@@ -49,6 +55,45 @@ namespace Cslib.Code
 open Finset Polynomial
 
 variable {F : Type*} [Field F] [Fintype F] [DecidableEq F] {m d : ℕ}
+
+omit [Fintype F] [DecidableEq F] in
+/-- For a nonzero scalar `c : F` and base point `x : V` in a module over `F`, the affine map
+`v ↦ x + c • v` is a bijection on `V`. -/
+def affineLineEquiv {V : Type*} [AddCommGroup V] [Module F V] (x : V) {c : F} (hc : c ≠ 0) :
+    V ≃ V where
+  toFun v := x + c • v
+  invFun w := c⁻¹ • (w - x)
+  left_inv v := by simp [smul_smul, inv_mul_cancel₀ hc]
+  right_inv w := by simp [smul_smul, mul_inv_cancel₀ hc]
+
+omit [Fintype F] [DecidableEq F] in
+@[simp]
+theorem affineLineEquiv_apply {V : Type*} [AddCommGroup V] [Module F V] (x : V) {c : F}
+    (hc : c ≠ 0) (v : V) : affineLineEquiv x hc v = x + c • v := rfl
+
+omit [DecidableEq F] in
+/-- Whenever `d + 2 ≤ Fintype.card F`, there exist `d + 1` distinct nonzero elements in `F`. -/
+theorem exists_nonzero_nodes_of_le_card (hcard : d + 2 ≤ Fintype.card F) :
+    ∃ ν : Fin (d + 1) ↪ F, ∀ i, ν i ≠ 0 := by
+  classical
+  have hle : d + 1 ≤ #(univ.erase (0 : F)) := by
+    rw [card_erase_of_mem (mem_univ 0), card_univ]
+    omega
+  obtain ⟨s, hs, hscard⟩ := exists_subset_card_eq hle
+  let e : Fin (d + 1) ≃ s := (s.equivFinOfCardEq hscard).symm
+  refine ⟨⟨fun i => (e i).1, fun i j hij => e.injective (Subtype.ext hij)⟩, fun i => ?_⟩
+  exact ne_of_mem_erase (hs (e i).2)
+
+omit [DecidableEq F] in
+/-- Canonical choice of `d + 1` distinct nonzero evaluation nodes in `F` when
+`d + 2 ≤ Fintype.card F`. -/
+noncomputable def nonzeroNodes (hcard : d + 2 ≤ Fintype.card F) : Fin (d + 1) ↪ F :=
+  (exists_nonzero_nodes_of_le_card hcard).choose
+
+omit [DecidableEq F] in
+theorem nonzeroNodes_ne_zero (hcard : d + 2 ≤ Fintype.card F) (i : Fin (d + 1)) :
+    nonzeroNodes hcard i ≠ 0 :=
+  (exists_nonzero_nodes_of_le_card hcard).choose_spec i
 
 /-- The Lagrange weight of the node `ν i` at `0`. -/
 noncomputable def lagrangeWeight (ν : Fin (d + 1) ↪ F) (i : Fin (d + 1)) : F :=
@@ -105,9 +150,9 @@ theorem card_lagrangeDecode_ne_le_of_forall_eq {V : Type*} [AddCommGroup V] [Mod
     rw [hnot i]
   refine (card_le_card hsub).trans ((card_biUnion_le).trans ?_)
   calc ∑ i, #(univ.filter fun v => x + ν i • v ∈ E) ≤ ∑ _i : Fin (d + 1), #E :=
-        sum_le_sum fun i _ => card_le_card_of_injOn (fun v => x + ν i • v)
+        sum_le_sum fun i _ => card_le_card_of_injOn (affineLineEquiv x (hν i))
           (fun v hv => by simpa using hv)
-          (fun v _ v' _ h => smul_right_injective _ (hν i) (add_left_cancel h))
+          (affineLineEquiv x (hν i)).injective.injOn
     _ = (d + 1) * #E := by rw [sum_const, card_univ, Fintype.card_fin, smul_eq_mul]
 
 omit [Fintype F] [DecidableEq F] in
