@@ -8,9 +8,12 @@ module
 
 import CslibFrontier.Crypto.Computational.Signature.WordRandomOracle
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Crypto.Game.Experiment
 import CslibFrontier.Probability.PMF.Bind
 
 /-! Actual native word forgers, shared signing/hash caches, freshness, and off-support tapes. -/
+
+public section
 
 namespace CslibFrontierTests.Crypto.WordRandomOracle
 
@@ -172,7 +175,8 @@ private theorem eufCmaGame_nonUniqueScheme_sameMessageNewSignatureExplicitForger
 private theorem sufCmaGame_nonUniqueScheme_sameMessageNewSignatureExplicitForger :
     sufCmaGame nonUniqueScheme sameMessageNewSignatureExplicitForger = PMF.pure true := by
   unfold sufCmaGame
-  simp only [nonUniqueScheme, sameMessageNewSignatureExplicitForger, PMF.pure_bind]
+  simp only [nonUniqueScheme, sameMessageNewSignatureExplicitForger, PMF.monad_bind_eq_bind,
+    PMF.pure_bind]
   rw [eval_world_worldRealize_liftOracleForger]
   simp [sameMessageNewSignatureInteraction, wordQuery, runLoggedForger, liftOracleForger,
     forgerWorldImpl, logSigning, StateT.run, sumHandler]
@@ -180,7 +184,7 @@ private theorem sufCmaGame_nonUniqueScheme_sameMessageNewSignatureExplicitForger
 private theorem sufCmaGame_nonUniqueScheme_exactReplayExplicitForger :
     sufCmaGame nonUniqueScheme exactReplayExplicitForger = PMF.pure false := by
   unfold sufCmaGame
-  simp only [nonUniqueScheme, exactReplayExplicitForger, PMF.pure_bind]
+  simp only [nonUniqueScheme, exactReplayExplicitForger, PMF.monad_bind_eq_bind, PMF.pure_bind]
   rw [eval_world_worldRealize_liftOracleForger]
   simp [exactReplayInteraction, wordQuery, runLoggedForger, liftOracleForger,
     forgerWorldImpl, logSigning, StateT.run, sumHandler]
