@@ -72,6 +72,7 @@ theorem computableInPolyTime_sampleIntBoxCoins :
       (encPair encNat encBits) encNat :=
     ComputableInPolyTime.binary_add' (by fun_prop) (by fun_prop)
   apply computableInPolyTime_boxShift.comp
+    (g := fun p : ℕ × List Bool => (p.1, sampleModNatCoins (2 * p.1 + 1) p.2))
   apply ComputableInPolyTime.prod
   · fun_prop
   · exact computableInPolyTime_sampleModNatCoins.comp (hmodulus.prod (by fun_prop))
