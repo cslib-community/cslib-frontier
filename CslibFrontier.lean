@@ -4778,6 +4778,7 @@ public import CslibFrontier.Crypto.Protocols.FAEST.Challenge
 public import CslibFrontier.Crypto.Protocols.FAEST.Conversion
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Bot
+public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Correctness
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.NoCheck
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.NotBot
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.NotBot.Challenge

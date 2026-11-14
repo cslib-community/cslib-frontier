@@ -13,9 +13,8 @@ public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Salted.Correctn
 
 The fixtures below keep the direct joint-oracle witness and the decapsulation-only witness
 separate. Their exact query bounds detect counting the two projections of a joint reply twice or
-dropping the `qD` contribution. The underlying explicit-coin PKE always fails decryption and is
-therefore `1`-correct in the quantitative sense; this supplies a deliberately nonzero correctness
-parameter rather than testing the theorem only at `δ = 0`.
+dropping the `qD` contribution. The connected explicit-coin PKE has one good and one bad Boolean
+coin for every message, so its exact correctness error is `1 / 2` rather than a vacuous endpoint.
 -/
 
 namespace CslibFrontierTests.SaltedFOCorrectness
@@ -27,35 +26,48 @@ open Cslib.Crypto.Protocols.FujisakiOkamoto.Salted
 open Cslib.Probability
 open scoped ENNReal
 
-abbrev ToyQuery := Query Unit Unit Unit Unit Unit
-abbrev ToyResponse := Response (Prefix := Unit) (M := Unit) (Salt := Unit)
-  (JInput := Unit) (CT := Unit) Bool Unit
+abbrev ToyQuery := Query Unit Unit Unit Unit Unit Unit
+abbrev ToyResponse := Response (JointPrefix := Unit) (M := Unit) (Salt := Unit)
+  (RejectPrefix := Unit) (Sigma := Unit) (CT := Unit) Bool Unit
 
 def jointInput : JointInput Unit Unit Unit := ⟨(), (), ()⟩
 
 def ciphertext : Ciphertext Unit Unit := ⟨(), ()⟩
 
-/-- An explicit-coin PKE whose only honest encryption always fails to decrypt. -/
-def failingPKE : ExplicitCoinPKE Unit Unit Unit Unit Unit where
-  keyGen := pure ((), ())
-  sampleCoins := pure ()
-  encDet _ _ _ := ()
-  dec _ _ := none
+def rejectionInput : RejectionInput Unit Unit Unit Unit := ⟨(), (), ciphertext⟩
 
-/-- Every explicit-coin PKE is at most `1`-incorrect; for this fixture the nonzero bound is the
-intended one. -/
-theorem failingPKE_deltaCorrect_one : failingPKE.DeltaCorrect 1 := by
-  have hle : failingPKE.keyGen.expect (fun keys =>
-      ENNReal.ofReal (failingPKE.keyPairMaxFailProb keys.1 keys.2)) ≤ 1 := by
-    rw [ProbComp.expect]
-    calc ∑' keys, ProbComp.eval failingPKE.keyGen keys *
-          ENNReal.ofReal (failingPKE.keyPairMaxFailProb keys.1 keys.2)
-        ≤ ∑' keys, ProbComp.eval failingPKE.keyGen keys * 1 := by
-          gcongr with keys
-          exact ENNReal.ofReal_le_one.mpr
-            (failingPKE.keyPairMaxFailProb_le_one keys.1 keys.2)
-      _ = 1 := by rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
-  exact ENNReal.toReal_mono ENNReal.one_ne_top hle
+/-- Boolean explicit-coin PKE with failure exactly when the sampled coin is `true`. -/
+noncomputable def halfErrorPKE : ExplicitCoinPKE Unit Unit Bool Bool Bool where
+  keyGen := pure ((), ())
+  sampleCoins := ProbComp.uniform Bool
+  encDet _ message coins := message ^^ coins
+  dec _ ciphertext := some ciphertext
+
+/-- Each message has one failing coin among the two uniform Boolean coins. -/
+theorem halfErrorPKE_msgFailProb (message : Bool) :
+    halfErrorPKE.msgFailProb () () message = 1 / 2 := by
+  cases message <;>
+    simp [ExplicitCoinPKE.msgFailProb, halfErrorPKE, PMF.toOuterMeasure_apply,
+      Set.indicator, tsum_fintype, PMF.uniformOfFintype_apply, Fintype.card_bool]
+
+theorem halfErrorPKE_keyPairMaxFailProb :
+    halfErrorPKE.keyPairMaxFailProb () () = 1 / 2 := by
+  rw [ExplicitCoinPKE.keyPairMaxFailProb]
+  simp [halfErrorPKE_msgFailProb]
+
+/-- The fixture's expected worst-message failure is exactly `1 / 2`. -/
+theorem halfErrorPKE_deltaCorrect_half : halfErrorPKE.DeltaCorrect (1 / 2) := by
+  rw [ExplicitCoinPKE.DeltaCorrect, ProbComp.expect]
+  simp [halfErrorPKE, halfErrorPKE_keyPairMaxFailProb]
+
+/-- Concrete salted-FO handler fixture backed by `halfErrorPKE`. -/
+noncomputable def halfErrorScheme :
+    Scheme Unit Unit Bool Bool Bool Unit Bool Unit Unit Bool where
+  pke := halfErrorPKE
+  sampleKey := ProbComp.uniform Bool
+  jointPrefix _ := ()
+  rejectionPrefix _ := ()
+  rejectionSecret _ := ()
 
 /-- Synthetic identical-until-bad handler whose one joint query exposes the direct-query witness.
 The Boolean argument is the answer key; the joint transition latches `CORR`. -/
@@ -157,10 +169,78 @@ example :
 example :
     Query.dispatch (m := Id) (K := Bool) (R := Unit)
       (fun _ => ⟨false, ()⟩) (fun _ => true) (fun _ => some false) ciphertext
-      (Query.rejection ()) = true := rfl
+      (Query.rejection rejectionInput) = true := rfl
 
-example : Query.jointCost (Query.rejection () : ToyQuery) = 0 := rfl
+example : Query.jointCost (Query.rejection rejectionInput : ToyQuery) = 0 := rfl
 
-example : Query.decapsCost (Query.rejection () : ToyQuery) = 0 := rfl
+example : Query.decapsCost (Query.rejection rejectionInput : ToyQuery) = 0 := rfl
+
+/-! ### Connected nonzero-error handler clients -/
+
+abbrev HalfQuery := Query Unit Bool Bool Unit Unit Bool
+abbrev HalfResponse := Response (JointPrefix := Unit) (M := Bool) (Salt := Bool)
+  (RejectPrefix := Unit) (Sigma := Unit) (CT := Bool) Bool Bool
+abbrev HalfState := CacheState Unit Bool Bool Unit Unit Bool Bool Bool
+
+def halfJointInput : JointInput Unit Bool Bool := ⟨(), false, false⟩
+
+def halfCiphertext : Ciphertext Bool Bool := ⟨false, false⟩
+
+def halfChallenge : Ciphertext Bool Bool := ⟨true, true⟩
+
+/-- This client consumes both projections of one fused reply. -/
+def halfDirectProgram : OracleComp HalfResponse Bool := do
+  let reply ← OracleComp.query (Query.joint halfJointInput)
+  return reply.key == reply.coins
+
+/-- The decapsulation-only client exercises the concrete real decrypt/re-encrypt path and the
+keyless patched-cache path with no external joint query. -/
+def halfDecapsProgram : OracleComp HalfResponse Bool := do
+  let reply ← OracleComp.query (Query.decaps halfCiphertext)
+  return reply.getD false
+
+theorem halfDirectProgram_bounds : QueryBounds halfDirectProgram 1 0 := by
+  refine ⟨?_, ?_⟩ <;>
+    exact (OracleComp.IsCostBounded.query (Query.joint halfJointInput)).bind fun _ =>
+      OracleComp.IsCostBounded.pure _ 0
+
+theorem halfDecapsProgram_bounds : QueryBounds halfDecapsProgram 0 1 := by
+  refine ⟨?_, ?_⟩ <;>
+    exact (OracleComp.IsCostBounded.query (Query.decaps halfCiphertext)).bind fun _ =>
+      OracleComp.IsCostBounded.pure _ 0
+
+/-- Direct-query execution under the real concrete handler. -/
+noncomputable def halfDirectReal : PMF Bool :=
+  ((OracleComp.interpret (halfErrorScheme.realHandler () () halfChallenge)
+    halfDirectProgram).run ({} : HalfState)).map Prod.fst
+
+/-- Direct-query execution under the keyless concrete handler. -/
+noncomputable def halfDirectSimulated : PMF Bool :=
+  ((OracleComp.interpret (halfErrorScheme.simHandler () halfChallenge)
+    halfDirectProgram).run ({} : HalfState)).map Prod.fst
+
+/-- Decapsulation-only execution under the real concrete handler. -/
+noncomputable def halfDecapsReal : PMF Bool :=
+  ((OracleComp.interpret (halfErrorScheme.realHandler () () halfChallenge)
+    halfDecapsProgram).run ({} : HalfState)).map Prod.fst
+
+/-- Decapsulation-only execution under the keyless concrete handler. -/
+noncomputable def halfDecapsSimulated : PMF Bool :=
+  ((OracleComp.interpret (halfErrorScheme.simHandler () halfChallenge)
+    halfDecapsProgram).run ({} : HalfState)).map Prod.fst
+
+/-- Challenge decapsulation is rejected by the dispatcher before either concrete decapsulation
+implementation changes its caches. -/
+example (st : HalfState) :
+    halfErrorScheme.realHandler () () halfChallenge (Query.decaps halfChallenge) st =
+      PMF.pure (none, st) := by
+  simp [Scheme.realHandler, Query.dispatch]
+
+def halfRejectionInput : RejectionInput Unit Unit Bool Bool := ⟨(), (), halfCiphertext⟩
+
+/-- `J` remains a distinct source-shaped query and costs nothing in the correctness accounting. -/
+example : Query.jointCost (Query.rejection halfRejectionInput : HalfQuery) = 0 := rfl
+
+example : Query.decapsCost (Query.rejection halfRejectionInput : HalfQuery) = 0 := rfl
 
 end CslibFrontierTests.SaltedFOCorrectness
