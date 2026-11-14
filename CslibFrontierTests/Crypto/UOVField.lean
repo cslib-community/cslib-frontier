@@ -52,6 +52,6 @@ example :
 -- The first element is `X` in the low nibble; the second is `1` in the high nibble.
 example :
     (f16PairEquivByte (AdjoinRoot.root (leastIrreducible 4), 1)).val = 0x12 := by
-  rw [val_f16PairEquivByte, val_f16EquivNibble_root, val_f16EquivNibble_one] <;> norm_num
+  rw [val_f16PairEquivByte, val_f16EquivNibble_root, val_f16EquivNibble_one]
 
 end CslibFrontierTests.Crypto.UOVField
