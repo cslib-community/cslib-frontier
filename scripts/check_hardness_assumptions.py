@@ -46,9 +46,9 @@ an entry on purpose. The check covers the whole library, so pull requests and me
 enforce it: a merge group whose pull requests conflict only in meaning (two of them registering
 the same assumption, say) fails, and the queue ejects the pull request that broke it instead of
 landing it on `main`. Pushes to `main` run `--report`, which prints the differences and succeeds.
-`--list` prints the inventory with the theorems that rest on each assumption. `--update-baseline` rewrites the baseline for the
-current gaps, keeping existing justifications and leaving new ones empty; fill them in, or the
-check fails.
+`--list` prints the inventory with the theorems that rest on each assumption. `--update-baseline`
+rewrites the baseline for the current gaps, keeping existing justifications and leaving new ones
+empty; fill them in, or the check fails.
 
 This is a post-build check: it needs the outputs of `lake build CslibFrontier`, and refuses stale
 ones unless `--no-build-check` is given. It supplements review: it does not judge whether a

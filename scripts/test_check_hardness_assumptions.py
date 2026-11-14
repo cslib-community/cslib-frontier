@@ -123,7 +123,8 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(set(gaps["locators"]), {DDH})
 
     def test_docstrings_may_cite_with_locators_and_several_keys(self) -> None:
-        for doc in ("DDH ([BonehShoup2023, Definition 10.8]).", "DDH [Gentry2009; BonehShoup2023]."):
+        for doc in ("DDH ([BonehShoup2023, Definition 10.8]).",
+                    "DDH [Gentry2009; BonehShoup2023]."):
             self.assertEqual(run(INVENTORY, reading({}, {DDH: doc})).gaps["docstrings"], {}, doc)
 
     def test_locators_are_checked_for_every_status(self) -> None:

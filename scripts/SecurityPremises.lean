@@ -111,12 +111,12 @@ definition mentions negligibility, an advantage or indistinguishability (a const
 name component is `Negligible`, names an advantage as above, or contains `Indistinguishable`),
 directly or through other Prop-valued declarations, at most five deep. No declaration is excluded
 by its name: generic notions such as `Game.Indistinguishable` are reported too, and the inventory
-decides which of them are vocabulary. An input line `<dir>\t<module>` reads a *context* module, such as one of
-CSLib's, from another build directory: its declarations are followed and reported, but its
-theorems are not scanned. It prints `{"a": assumption, "m": module, "l": line, "doc": docstring}`
-for each named assumption, `{"t": theorem, "m": module, "l": line, "doc": docstring, "u":
-[assumptions]}` for each scanned theorem whose premises' claim atoms are headed by named
-assumptions, and the same summary line.
+decides which of them are vocabulary. An input line `<dir>\t<module>` reads a *context* module,
+such as one of CSLib's, from another build directory: its declarations are followed and reported,
+but its theorems are not scanned. It prints
+`{"a": assumption, "m": module, "l": line, "doc": docstring}` for each named assumption,
+`{"t": theorem, "m": module, "l": line, "doc": docstring, "u": [assumptions]}` for each scanned
+theorem whose premises' claim atoms are headed by named assumptions, and the same summary line.
 -/
 open Lean
 
