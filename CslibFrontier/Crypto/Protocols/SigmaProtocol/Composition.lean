@@ -20,7 +20,8 @@ Two Sigma protocols with a common challenge type combine into protocols proving 
 witnesses for both statements, or for at least one of them, without revealing which
 ([BonehShoup2023], Section 19.7). A single Sigma protocol also composes with itself in `k`-fold
 parallel repetition on the same statement with independent challenges `Fin k → C`
-([BonehShoup2023], Section 19.4).
+([BonehShoup2023], Exercise 19.6, pp. 810–811; our `parallelRepetition` allows `k = 0`, whereas
+Exercise 19.6 assumes `k ≥ 1`).
 
 The AND-proof runs both protocols in parallel and sends the same challenge to both. The OR-proof
 needs the challenges to form a finite additive group; Boneh and Shoup use `{0, 1}ⁿ` with
@@ -53,7 +54,7 @@ uses the first coordinate `j : Fin k` where the two challenge tuples differ.
 ## References
 
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*,
-  Version 0.6][BonehShoup2023], Sections 19.4 and 19.7.
+  Version 0.6][BonehShoup2023], Exercise 19.6 (pp. 810–811) and Section 19.7.
 * [R. Cramer, I. Damgård, B. Schoenmakers, *Proofs of Partial Knowledge and Simplified Design
   of Witness Hiding Protocols*][CramerDamgardSchoenmakers1994]
 -/
@@ -306,34 +307,9 @@ section Parallel
 
 variable {X Y T Z : Type u}
 
-/-- Coordinatewise mapping of `PMF.piFin`. -/
-theorem piFin_map_coord {α β : Type u} :
-    ∀ {k : ℕ} (p : Fin k → PMF α) (g : Fin k → α → β),
-      (PMF.piFin fun j => (p j).map (g j)) = (PMF.piFin p).map (fun v j => g j (v j))
-  | 0, _, _ => by
-    simp only [PMF.piFin, PMF.pure_map]
-    congr 1
-    funext j
-    exact j.elim0
-  | k + 1, p, g => by
-    simp only [PMF.piFin, PMF.map_bind, PMF.bind_map,
-      piFin_map_coord (fun j => p j.succ) (fun j => g j.succ)]
-    congr 1 with a : 1
-    simp only [Function.comp_apply, PMF.map_comp]
-    congr 1 with v : 1
-    funext j
-    cases j using Fin.cases <;> rfl
-
-/-- A tuple belongs to the support of `PMF.piFin p` iff each coordinate belongs to the support of
-`p j`. -/
-private theorem mem_support_piFin_iff {α : Type u} {k : ℕ} (p : Fin k → PMF α) (v : Fin k → α) :
-    v ∈ (PMF.piFin p).support ↔ ∀ j, v j ∈ (p j).support := by
-  simp only [PMF.mem_support_iff, PMF.piFin_apply, Finset.prod_ne_zero_iff, Finset.mem_univ,
-    forall_const]
-
 /-- `k`-fold parallel repetition of a Sigma protocol `P` on the same statement with independent
-challenges ([BonehShoup2023], Section 19.4): commit `k` independent times, answer each coordinate
-challenge `c j` independently, and verify all `k` coordinates. -/
+challenges ([BonehShoup2023], Exercise 19.6, pp. 810–811; allowing `k = 0`): commit `k` independent
+times, answer each coordinate challenge `c j` independently, and verify all `k` coordinates. -/
 noncomputable def parallelRepetition (P : SigmaProtocol X Y T C Z) (k : ℕ) :
     SigmaProtocol X Y (Fin k → T) (Fin k → C) (Fin k → Z) where
   State := Fin k → P.State
@@ -371,7 +347,7 @@ theorem parallelRepetition_transcript (k : ℕ) (x : X) (y : Y) (c : Fin k → C
     (P.parallelRepetition k).transcript x y c =
       (PMF.piFin fun j => P.transcript x y (c j)).map
         fun tz => (fun j => (tz j).1, fun j => (tz j).2) := by
-  simp only [transcript, parallelRepetition, piFin_map_coord, PMF.piFin_const, PMF.map_comp]
+  simp only [transcript, parallelRepetition, PMF.piFin_map, PMF.piFin_const, PMF.map_comp]
   rfl
 
 /-- Completeness is preserved under `k`-fold parallel repetition. -/
@@ -380,7 +356,7 @@ theorem parallelRepetition_complete {k : ℕ} (h : P.Complete R) :
   intro x y hxy c tz htz
   rw [parallelRepetition_transcript, PMF.mem_support_map_iff] at htz
   obtain ⟨v, hv, rfl⟩ := htz
-  rw [mem_support_piFin_iff] at hv
+  rw [PMF.mem_support_piFin_iff] at hv
   exact parallelRepetition_accepts_iff.mpr fun j => h x y hxy (c j) (v j) (hv j)
 
 /-- Special soundness is preserved under `k`-fold parallel repetition: two distinct challenge
@@ -412,7 +388,7 @@ theorem parallelRepetition_specialHVZK {k : ℕ} {simulate : Y → C → PMF (T 
     unfold parallelSimulate at htz
     rw [PMF.mem_support_map_iff] at htz
     obtain ⟨v, hv, rfl⟩ := htz
-    rw [mem_support_piFin_iff] at hv
+    rw [PMF.mem_support_piFin_iff] at hv
     exact parallelRepetition_accepts_iff.mpr fun j => h.accepts y (c j) (v j) (hv j)
   transcript_eq x y hxy c := by
     rw [parallelRepetition_transcript, parallelSimulate]

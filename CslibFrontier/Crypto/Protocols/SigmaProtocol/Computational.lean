@@ -88,10 +88,6 @@ Schnorr's simulator achieves in `PrimeOrderGroupFamily.computationalSpecialHVZK_
   `Cslib.Crypto.Protocols.SigmaProtocol.EfficientSpecialHVZK.exists_computationalSpecialHVZK`:
   statistical special HVZK with negligible realization error along `setup` implies computational
   special HVZK.
-* `Cslib.Crypto.Protocols.SigmaProtocol.ComputationalSpecialHVZK.andProof`,
-  `Cslib.Crypto.Protocols.SigmaProtocol.ComputationalSpecialHVZK.orProof`,
-  `Cslib.Crypto.Protocols.SigmaProtocol.ComputationalSpecialHVZK.parallelRepetition`:
-  computational special HVZK transfer through `andProof`, `orProof`, and `parallelRepetition`.
 
 ## References
 
@@ -349,100 +345,6 @@ theorem EfficientSpecialHVZK.exists_computationalSpecialHVZK
     ∃ sim, ComputationalSpecialHVZK P R enc encW setup sim δ := by
   obtain ⟨sim, hppt, hreal⟩ := h.realized
   exact ⟨sim, hreal.computationalSpecialHVZK h.specialHVZK hppt hnegl⟩
-
-/-- **Computational special HVZK of `andProof`** from statistical realization of the component
-simulators with negligible combined error along `setup`. -/
-theorem ComputationalSpecialHVZK.andProof
-    {X₀ Y₀ T₀ Z₀ X₁ Y₁ T₁ Z₁ : I → Type}
-    {P₀ : ∀ i, SigmaProtocol (X₀ i) (Y₀ i) (T₀ i) (C i) (Z₀ i)}
-    {P₁ : ∀ i, SigmaProtocol (X₁ i) (Y₁ i) (T₁ i) (C i) (Z₁ i)}
-    {R₀ : ∀ i, X₀ i → Y₀ i → Prop} {R₁ : ∀ i, X₁ i → Y₁ i → Prop}
-    {enc₀ : Encoding I Y₀ T₀ C Z₀} {enc₁ : Encoding I Y₁ T₁ C Z₁}
-    {encW₀ : ∀ i, X₀ i ↪ List Bool} {encW₁ : ∀ i, X₁ i ↪ List Bool}
-    {setup : ℕ → PMF I}
-    {simulate₀ : ∀ i, Y₀ i → C i → PMF (T₀ i × Z₀ i)}
-    {simulate₁ : ∀ i, Y₁ i → C i → PMF (T₁ i × Z₁ i)}
-    {sim₀ : Simulator I Y₀ T₀ C Z₀} {sim₁ : Simulator I Y₁ T₁ C Z₁}
-    {δ₀ δ₁ : I → ℝ≥0∞}
-    (hI : enc₀.index = enc₁.index) (hC : ∀ i, enc₀.challenge i = enc₁.challenge i)
-    (hS₀ : ∀ i, (P₀ i).SpecialHVZK (R₀ i) (simulate₀ i))
-    (hS₁ : ∀ i, (P₁ i).SpecialHVZK (R₁ i) (simulate₁ i))
-    (hppt₀ : Simulator.IsPPT enc₀ sim₀) (hppt₁ : Simulator.IsPPT enc₁ sim₁)
-    (hreal₀ : SimulatorRealizedBy simulate₀ sim₀ δ₀)
-    (hreal₁ : SimulatorRealizedBy simulate₁ sim₁ δ₁)
-    (hnegl : ∃ ε : ℕ → ℝ≥0, Negligible ε ∧
-      ∀ n, ∀ i ∈ (setup n).support, δ₀ i + δ₁ i ≤ ε n) :
-    ComputationalSpecialHVZK (fun i => (P₀ i).andProof (P₁ i))
-      (fun i x y => R₀ i x.1 y.1 ∧ R₁ i x.2 y.2)
-      (enc₀.andProof enc₁) (fun i => encPair (encW₀ i) (encW₁ i))
-      setup (andSimulator sim₀ sim₁) (fun i => δ₀ i + δ₁ i) :=
-  (simulatorRealizedBy_andSimulator hreal₀ hreal₁).computationalSpecialHVZK
-    (fun i => andProof_specialHVZK (hS₀ i) (hS₁ i))
-    (isPPT_andSimulator hI hC hppt₀ hppt₁) hnegl
-
-/-- **Computational special HVZK of `orProof`** from statistical realization of the challenge
-sampler and component simulators with negligible combined error along `setup`. -/
-theorem ComputationalSpecialHVZK.orProof
-    {X₀ Y₀ T₀ Z₀ X₁ Y₁ T₁ Z₁ : I → Type}
-    [∀ i, AddCommGroup (C i)]
-    {P₀ : ∀ i, SigmaProtocol (X₀ i) (Y₀ i) (T₀ i) (C i) (Z₀ i)}
-    {P₁ : ∀ i, SigmaProtocol (X₁ i) (Y₁ i) (T₁ i) (C i) (Z₁ i)}
-    {R₀ : ∀ i, X₀ i → Y₀ i → Prop} {R₁ : ∀ i, X₁ i → Y₁ i → Prop}
-    {enc₀ : Encoding I Y₀ T₀ C Z₀} {enc₁ : Encoding I Y₁ T₁ C Z₁}
-    {encW₀ : ∀ i, X₀ i ↪ List Bool} {encW₁ : ∀ i, X₁ i ↪ List Bool}
-    {setup : ℕ → PMF I}
-    {sampleChallenge : ∀ i, ProbComp (C i)}
-    {subWord : I × List Bool × List Bool → List Bool}
-    {simulate₀ : ∀ i, Y₀ i → C i → PMF (T₀ i × Z₀ i)}
-    {simulate₁ : ∀ i, Y₁ i → C i → PMF (T₁ i × Z₁ i)}
-    {sim₀ : Simulator I Y₀ T₀ C Z₀} {sim₁ : Simulator I Y₁ T₁ C Z₁}
-    {δC δ₀ δ₁ : I → ℝ≥0∞}
-    (hI : enc₀.index = enc₁.index) (hC : ∀ i, enc₀.challenge i = enc₁.challenge i)
-    (hsample_ppt : IsPPTOn enc₀.index encBits
-      (fun i => enc₀.challenge i <$> sampleChallenge i))
-    (hsample_close : ∀ i,
-      CloseTo (PMF.uniformOfFintype (C i)) (ProbComp.eval (sampleChallenge i)) (δC i))
-    (hsub : ComputableInPolyTime subWord
-      (encPair enc₀.index (encPair encBits encBits)) encBits)
-    (hsub_eq : ∀ i (c c₀ : C i),
-      subWord (i, enc₀.challenge i c, enc₀.challenge i c₀) = enc₀.challenge i (c - c₀))
-    (hS₀ : ∀ i, (P₀ i).SpecialHVZK (R₀ i) (simulate₀ i))
-    (hS₁ : ∀ i, (P₁ i).SpecialHVZK (R₁ i) (simulate₁ i))
-    (hppt₀ : Simulator.IsPPT enc₀ sim₀) (hppt₁ : Simulator.IsPPT enc₁ sim₁)
-    (hreal₀ : SimulatorRealizedBy simulate₀ sim₀ δ₀)
-    (hreal₁ : SimulatorRealizedBy simulate₁ sim₁ δ₁)
-    (hnegl : ∃ ε : ℕ → ℝ≥0, Negligible ε ∧
-      ∀ n, ∀ i ∈ (setup n).support, δC i + (δ₀ i + δ₁ i) ≤ ε n) :
-    ComputationalSpecialHVZK
-      (fun i => SigmaProtocol.orProof (P₀ i) (P₁ i) (simulate₀ i) (simulate₁ i))
-      (fun i => orRelation (R₀ i) (R₁ i))
-      (enc₀.orProof enc₁) (fun i => encSum (encW₀ i) (encW₁ i))
-      setup (orSimulator sampleChallenge sim₀ sim₁)
-      (fun i => δC i + (δ₀ i + δ₁ i)) :=
-  (simulatorRealizedBy_orSimulator hsample_close hreal₀ hreal₁).computationalSpecialHVZK
-    (fun i => orProof_specialHVZK (hS₀ i) (hS₁ i))
-    (isPPT_orSimulator hI hC hsample_ppt hsub hsub_eq hppt₀ hppt₁) hnegl
-
-/-- **Computational special HVZK of `parallelRepetition`** from statistical realization of the
-component simulator with negligible `(k i : ℝ≥0∞) * δ i` error along `setup`. -/
-theorem ComputationalSpecialHVZK.parallelRepetition
-    {P : ∀ i, SigmaProtocol (X i) (Y i) (T i) (C i) (Z i)}
-    {R : ∀ i, X i → Y i → Prop}
-    {enc : Encoding I Y T C Z} {encW : ∀ i, X i ↪ List Bool}
-    {setup : ℕ → PMF I}
-    {simulate : ∀ i, Y i → C i → PMF (T i × Z i)}
-    {sim : Simulator I Y T C Z} {δ : I → ℝ≥0∞} (k : I → ℕ)
-    (hS : ∀ i, (P i).SpecialHVZK (R i) (simulate i))
-    (hppt : Simulator.IsPPT enc sim)
-    (hreal : SimulatorRealizedBy simulate sim δ)
-    (hnegl : ∃ ε : ℕ → ℝ≥0, Negligible ε ∧
-      ∀ n, ∀ i ∈ (setup n).support, (k i : ℝ≥0∞) * δ i ≤ ε n) :
-    ComputationalSpecialHVZK (fun i => (P i).parallelRepetition (k i)) R
-      (enc.parallelRepetition k) encW setup (parallelSimulator sim k)
-      (fun i => (k i : ℝ≥0∞) * δ i) :=
-  (simulatorRealizedBy_parallelSimulator k hreal).computationalSpecialHVZK
-    (fun i => parallelRepetition_specialHVZK (hS i))
-    (isPPT_parallelSimulator k hppt) hnegl
 
 end StatisticalBridge
 

@@ -193,43 +193,67 @@ example (F : PrimeOrderGroupFamily) (setup : ℕ → PMF F.Desc) (hDL : F.Discre
   hDL.negligible_schnorrPoKGame hm0 hm hinv (isPPT_echoProver _)
 
 open scoped ENNReal in
-/-- Efficiency transfer for `andProof`, `orProof`, and `parallelRepetition` applied to
-`schnorrFamily`. -/
-example (F : PrimeOrderGroupFamily) (k : ℕ × F.Desc → ℕ) :
-    EfficientSpecialSoundness
-      (fun i => (F.schnorrFamily i).andProof (F.schnorrFamily i))
-      (fun i x y => x.1 • F.generator i.2 = y.1 ∧ x.2 • F.generator i.2 = y.2)
-      (F.schnorrEncoding.andProof F.schnorrEncoding)
-      (fun i => encPair (F.encScalar i.2) (F.encScalar i.2))
-      (fun i => andExtract (F.schnorrExtract i) (F.schnorrExtract i)) ∧
-    EfficientSpecialSoundness
-      (fun i => SigmaProtocol.orProof (F.schnorrFamily i) (F.schnorrFamily i)
-        (linearSimulate (fun _ => LinearMap.toSpanSingleton (ZMod (F.order i.2))
-          (F.Carrier i.2) (F.generator i.2)) id (Function.Embedding.refl _))
-        (linearSimulate (fun _ => LinearMap.toSpanSingleton (ZMod (F.order i.2))
-          (F.Carrier i.2) (F.generator i.2)) id (Function.Embedding.refl _)))
-      (fun i => orRelation (fun α u => α • F.generator i.2 = u)
-        (fun α u => α • F.generator i.2 = u))
-      (F.schnorrEncoding.orProof F.schnorrEncoding)
-      (fun i => encSum (F.encScalar i.2) (F.encScalar i.2))
-      (fun i => orExtract (F.schnorrExtract i) (F.schnorrExtract i)) ∧
-    EfficientSpecialSoundness
-      (fun i => (F.schnorrFamily i).parallelRepetition (k i))
-      (fun i α u => α • F.generator i.2 = u)
-      (F.schnorrEncoding.parallelRepetition k)
-      (fun i => F.encScalar i.2)
-      (fun i => parallelExtract (F.schnorrExtract i) (k i)) ∧
-    EfficientSpecialHVZK
-      (fun i => (F.schnorrFamily i).parallelRepetition (k i))
-      (fun i α u => α • F.generator i.2 = u)
-      (F.schnorrEncoding.parallelRepetition k)
-      (fun i => parallelSimulate
-        (linearSimulate (fun _ => LinearMap.toSpanSingleton (ZMod (F.order i.2))
-          (F.Carrier i.2) (F.generator i.2)) id (Function.Embedding.refl _)) (k i))
-      (fun i => (k i : ℝ≥0∞) * (1 / 2 ^ i.1)) :=
-  ⟨F.efficientSpecialSoundness_andProof_schnorr,
-   F.efficientSpecialSoundness_orProof_schnorr,
-   F.efficientSpecialSoundness_parallelRepetition_schnorr k,
-   F.efficientSpecialHVZK_parallelRepetition_schnorr k⟩
+/-- The rewinding knowledge extractor built from `efficientSpecialSoundness_andProof_schnorr` is
+uniform strict PPT on the echoing prover. -/
+example (F : PrimeOrderGroupFamily) :
+    IsPPTOn (encPair (F.schnorrEncoding.andProof F.schnorrEncoding).index encBits) encBits
+      (knowledgeExtractor (F.schnorrEncoding.andProof F.schnorrEncoding)
+        F.schnorrSampleChallenge
+        (andExtractWord F.schnorrExtractWord F.schnorrExtractWord)
+        (echoProver _)) :=
+  isPPTOn_knowledgeExtractor (enc := F.schnorrEncoding.andProof F.schnorrEncoding)
+    F.isPPTOn_schnorrSampleChallenge
+    (computableInPolyTime_andExtractWord (enc₀ := F.schnorrEncoding) (enc₁ := F.schnorrEncoding) rfl
+      F.computableInPolyTime_schnorrExtractWord F.computableInPolyTime_schnorrExtractWord)
+    (isPPT_echoProver _)
+
+/-- Concrete evaluation of `orExtractWord` via `extractorRealizedBy_orExtractWord`: when the first
+side's challenge words differ, it outputs `encSum encBool encBool (.inl true)`; when they agree, it
+outputs `encSum encBool encBool (.inr true)`. -/
+example :
+    orExtractWord (I := Unit) (fun (_, c, c₀) => List.zipWith xor c c₀)
+      xorExtractWord xorExtractWord
+      ((), (xorEncoding.orProof xorEncoding).statement () (true, false),
+       (xorEncoding.orProof xorEncoding).commitment () ((), ()),
+       (xorEncoding.orProof xorEncoding).challenge () true,
+       (xorEncoding.orProof xorEncoding).response () (false, true, false),
+       (xorEncoding.orProof xorEncoding).challenge () false,
+       (xorEncoding.orProof xorEncoding).response () (true, false, false)) =
+      encSum encBool encBool (.inl true) ∧
+    orExtractWord (I := Unit) (fun (_, c, c₀) => List.zipWith xor c c₀)
+      xorExtractWord xorExtractWord
+      ((), (xorEncoding.orProof xorEncoding).statement () (false, true),
+       (xorEncoding.orProof xorEncoding).commitment () ((), ()),
+       (xorEncoding.orProof xorEncoding).challenge () true,
+       (xorEncoding.orProof xorEncoding).response () (false, false, false),
+       (xorEncoding.orProof xorEncoding).challenge () false,
+       (xorEncoding.orProof xorEncoding).response () (false, false, true)) =
+      encSum encBool encBool (.inr true) := by
+  let : Sub Bool := ⟨xor⟩
+  have hor := extractorRealizedBy_orExtractWord (enc₀ := xorEncoding) (enc₁ := xorEncoding)
+    (fun _ => rfl)
+    (subWord := fun (_, c, c₀) => List.zipWith xor c c₀)
+    (fun _ c c₀ => by cases c <;> cases c₀ <;> rfl)
+    xorExtractorRealizedBy xorExtractorRealizedBy
+  rw [hor () (true, false) ((), ()) true (false, true, false) false (true, false, false),
+      hor () (false, true) ((), ()) true (false, false, false) false (false, false, true)]
+  decide
+
+/-- Concrete evaluation of `parallelExtractWord` via `extractorRealizedBy_parallelExtractWord`: it
+locates the first coordinate where the challenge tuple differs (`1 : Fin 2`) and extracts the
+witness word `encBool true`. -/
+example :
+    parallelExtractWord (I := Unit) (fun _ => [false]) xorExtractWord
+      ((), (xorEncoding.parallelRepetition (fun _ => 2)).statement () true,
+       (xorEncoding.parallelRepetition (fun _ => 2)).commitment () (fun _ => ()),
+       (xorEncoding.parallelRepetition (fun _ => 2)).challenge () ![false, true],
+       (xorEncoding.parallelRepetition (fun _ => 2)).response () ![false, false],
+       (xorEncoding.parallelRepetition (fun _ => 2)).challenge () ![false, false],
+       (xorEncoding.parallelRepetition (fun _ => 2)).response () ![false, true]) =
+      encBool true := by
+  have hpar := extractorRealizedBy_parallelExtractWord (enc := xorEncoding) (k := fun _ => 2)
+    (defaultWord := fun _ => [false]) (fun _ => rfl) xorExtractorRealizedBy
+  rw [hpar () true (fun _ => ()) ![false, true] ![false, false] ![false, false] ![false, true]]
+  decide
 
 end CslibFrontierTests.SigmaProofOfKnowledge

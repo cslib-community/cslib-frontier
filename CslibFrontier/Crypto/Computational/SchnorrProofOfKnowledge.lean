@@ -17,6 +17,7 @@ import CslibFrontier.Crypto.Game.CloseTo
 import CslibFrontier.Crypto.Game.Order
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Probability.Rewinding
 
 /-!
 # Schnorr's protocol is a proof of knowledge of discrete logarithms
@@ -40,9 +41,14 @@ words. It draws its two challenges with the fair-coin sampler `schnorrSampleChal
   The term `2 / 2 ^ n` comes from the challenge sampler, which is within statistical distance
   `1 / 2 ^ n` of uniform on `ZMod q`.
 
-Combined with a discrete-logarithm assumption, this is the extraction step behind the security of
-Schnorr identification; `CslibFrontier.Crypto.Computational.SchnorrIdentification` proves that
-security with `k`-bit challenges.
+Combined with a discrete-logarithm assumption, this yields the average-key proof-of-knowledge
+reduction `succProbability_schnorrPoKGame_le` / `DiscreteLog.negligible_schnorrPoKGame` (any
+uniform strict PPT prover succeeds in `schnorrPoKGame` with negligible probability under
+`DiscreteLog`) and is the extraction step behind the security of Schnorr identification;
+`CslibFrontier.Crypto.Computational.SchnorrIdentification` proves that security with `k`-bit
+challenges. This module also instantiates the `andProof`, `orProof`, and `parallelRepetition`
+efficiency transfer theorems of `CslibFrontier.Crypto.Protocols.SigmaProtocol.Efficient` for
+`schnorrFamily`.
 
 ## Main definitions
 
@@ -221,22 +227,12 @@ theorem succProbability_schnorrPoKGame_le (setup : ℕ → PMF F.Desc)
     intro d hd
     have hκ_d (c : ZMod (F.order d)) :
         (ProbComp.eval (F.schnorrSampleChallenge (n, d)) c).toReal ≤ κ := by
-      have h := (F.closeTo_schnorrSampleChallenge (n, d)).symm {c}
-      rw [PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_apply_singleton,
-        Probability.PMF.uniformOfFintype_apply, ZMod.card] at h
-      have hinv_ne : (F.order d : ℝ≥0∞)⁻¹ ≠ ⊤ :=
-        ENNReal.inv_ne_top.mpr (Nat.cast_ne_zero.mpr (NeZero.ne (F.order d)))
-      have hne : (F.order d : ℝ≥0∞)⁻¹ + (δ : ℝ≥0∞) ≠ ⊤ :=
-        ENNReal.add_ne_top.mpr ⟨hinv_ne, ENNReal.coe_ne_top⟩
-      calc (ProbComp.eval (F.schnorrSampleChallenge (n, d)) c).toReal
-          ≤ ((F.order d : ℝ≥0∞)⁻¹ + δ).toReal := ENNReal.toReal_mono hne h
-        _ = 1 / F.order d + δ := by
-          rw [ENNReal.toReal_add hinv_ne ENNReal.coe_ne_top,
-            ENNReal.toReal_inv, ENNReal.toReal_natCast, ENNReal.coe_toReal, one_div]
-        _ ≤ κ := by
-          rw [hκ_def]
-          gcongr
-          exact hm d hd
+      have h := (F.closeTo_schnorrSampleChallenge (n, d)).toReal_apply_le_of_uniformOfFintype c
+      rw [ZMod.card] at h
+      refine h.trans ?_
+      rw [hκ_def]
+      gcongr
+      exact hm d hd
     have hsq := sq_sub_mul_le_bind_extractionGame
       F.efficientSpecialSoundness_schnorr.specialSoundness
       F.extractorRealizedBy_schnorrExtractWord F.schnorrSampleChallenge A (n, d)
@@ -250,7 +246,7 @@ theorem succProbability_schnorrPoKGame_le (setup : ℕ → PMF F.Desc)
   have hsampled :
       (Game.succProbability ((setup n).bind G) : ℝ) ≤
         κ + √(Game.succProbability (F.discreteLogGame setup (F.schnorrPoKToDLogSolver A) n)) :=
-    le_add_sqrt_of_sq_sub_mul_le hκ0 (sq_sub_mul_le_bind (setup n) G H hGH)
+    Rewinding.le_add_sqrt_of_sq_sub_mul_le hκ0 (Game.sq_sub_mul_le_bind (setup n) G H hGH)
   have hclose_game : CloseTo (F.schnorrPoKGame setup A n) ((setup n).bind G) δ := by
     simp only [schnorrPoKGame, G, PMF.monad_bind_eq_bind]
     refine CloseTo.bind_right _ fun d _ => ?_
@@ -303,7 +299,7 @@ def schnorrSubChallengeWord : (ℕ × F.Desc) × List Bool × List Bool → List
 /-- `schnorrSubChallengeWord` is computable in polynomial time. -/
 theorem computableInPolyTime_schnorrSubChallengeWord :
     ComputableInPolyTime F.schnorrSubChallengeWord
-      (encPair F.schnorrEncoding.index (encPair encBits encBits)) encBits := by
+      (encSubChallengeWordInput F.schnorrEncoding.index) encBits := by
   let encIn := encPair (encPair encUnary F.encDesc) (encPair encBits encBits)
   have hd : ComputableInPolyTime
       (fun p : (ℕ × F.Desc) × List Bool × List Bool => p.1.2) encIn F.encDesc := by fun_prop

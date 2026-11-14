@@ -179,8 +179,7 @@ theorem isPPTOn_knowledgeExtractor {enc : Encoding I Y T C Z}
     {extractWord :
       I × List Bool × List Bool × List Bool × List Bool × List Bool × List Bool → List Bool}
     (hchallenge : IsPPTOn enc.index encBits fun i => enc.challenge i <$> sampleChallenge i)
-    (hextract : ComputableInPolyTime extractWord (encPair enc.index (encPair encBits
-      (encPair encBits (encPair encBits (encPair encBits (encPair encBits encBits)))))) encBits)
+    (hextract : ComputableInPolyTime extractWord (encExtractorWordInput enc.index) encBits)
     {A : MaliciousProver I} (hA : A.IsPPT enc.index) :
     IsPPTOn (encPair enc.index encBits) encBits (knowledgeExtractor enc sampleChallenge
       extractWord A) := by
@@ -411,17 +410,8 @@ theorem le_add_sqrt_bind_extractionGame (hsound : ∀ i, (P i).SpecialSoundness 
   classical
   set κ : ℝ := 1 / Fintype.card (C i) + δ with hκ_def
   -- Each challenge has probability at most `1 / |C i| + δ` under the sampler.
-  have hκ (c : C i) : (ProbComp.eval (sampleChallenge i) c).toReal ≤ κ := by
-    have h := hclose.symm {c}
-    rw [PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_apply_singleton,
-      Probability.PMF.uniformOfFintype_apply] at h
-    have hne : (Fintype.card (C i) : ℝ≥0∞)⁻¹ + (δ : ℝ≥0∞) ≠ ⊤ :=
-      ENNReal.add_ne_top.mpr ⟨ENNReal.inv_ne_top.mpr (by simp), ENNReal.coe_ne_top⟩
-    calc (ProbComp.eval (sampleChallenge i) c).toReal
-        ≤ ((Fintype.card (C i) : ℝ≥0∞)⁻¹ + δ).toReal := ENNReal.toReal_mono hne h
-      _ = κ := by
-        rw [ENNReal.toReal_add (ENNReal.inv_ne_top.mpr (by simp)) ENNReal.coe_ne_top,
-          ENNReal.toReal_inv, ENNReal.toReal_natCast, ENNReal.coe_toReal, hκ_def, one_div]
+  have hκ (c : C i) : (ProbComp.eval (sampleChallenge i) c).toReal ≤ κ :=
+    hclose.toReal_apply_le_of_uniformOfFintype c
   -- With challenges from the sampler, the prover succeeds with probability at most `κ + √ε'`.
   have hsampled : (Game.succProbability
       (μ.bind fun y => acceptanceGame P enc A i y (ProbComp.eval (sampleChallenge i))) : ℝ) ≤
@@ -457,55 +447,5 @@ theorem le_add_sqrt_extractionGame (hsound : ∀ i, (P i).SpecialSoundness (R i)
           (knowledgeExtractor enc sampleChallenge extractWord A) i y)) := by
   simpa only [PMF.pure_bind] using
     le_add_sqrt_bind_extractionGame hsound hreal A i (PMF.pure y) hclose
-
-/-- Pointwise quadratic extraction bounds `ε(a) ^ 2 - κ * ε(a) ≤ ε'(a)` survive averaging over
-`a ← ν` by Jensen's inequality (`Probability.PMF.sq_tsum_le_tsum_sq`). -/
-theorem sq_sub_mul_le_bind {α : Type*} (ν : PMF α) (G H : α → Game) {κ : ℝ}
-    (h : ∀ a ∈ ν.support,
-      (Game.succProbability (G a) : ℝ) ^ 2 - κ * Game.succProbability (G a) ≤
-        Game.succProbability (H a)) :
-    (Game.succProbability (ν.bind G) : ℝ) ^ 2 - κ * Game.succProbability (ν.bind G) ≤
-      Game.succProbability (ν.bind H) := by
-  simp only [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal] at h ⊢
-  set g : α → ℝ := fun a => (G a true).toReal
-  set f : α → ℝ := fun a => (H a true).toReal
-  have hg0 (a : α) : 0 ≤ g a := ENNReal.toReal_nonneg
-  have hg1 (a : α) : g a ≤ 1 := PMF.toReal_apply_le_one (G a) true
-  have hf0 (a : α) : 0 ≤ f a := ENNReal.toReal_nonneg
-  have hf1 (a : α) : f a ≤ 1 := PMF.toReal_apply_le_one (H a) true
-  have hm : Summable fun a => (ν a).toReal := Probability.PMF.summable_toReal ν
-  have hsum {k : α → ℝ} (k0 : ∀ a, 0 ≤ k a) (k1 : ∀ a, k a ≤ 1) :
-      Summable fun a => (ν a).toReal * k a :=
-    hm.of_nonneg_of_le (fun a => mul_nonneg ENNReal.toReal_nonneg (k0 a))
-      fun a => mul_le_of_le_one_right ENNReal.toReal_nonneg (k1 a)
-  have hsumg := hsum hg0 hg1
-  have hsumg2 := hsum (fun a => sq_nonneg (g a)) fun a => pow_le_one₀ (hg0 a) (hg1 a)
-  have hsumf := hsum hf0 hf1
-  have hpoint (a : α) :
-      (ν a).toReal * g a ^ 2 - κ * ((ν a).toReal * g a) ≤ (ν a).toReal * f a := by
-    by_cases ha : a ∈ ν.support
-    · calc _ = (ν a).toReal * (g a ^ 2 - κ * g a) := by ring
-           _ ≤ _ := mul_le_mul_of_nonneg_left (h a ha) ENNReal.toReal_nonneg
-    · simp [(PMF.apply_eq_zero_iff ν a).mpr ha]
-  rw [Probability.PMF.bind_apply_toReal_tsum, Probability.PMF.bind_apply_toReal_tsum]
-  calc (∑' a, (ν a).toReal * g a) ^ 2 - κ * (∑' a, (ν a).toReal * g a)
-      ≤ ∑' a, (ν a).toReal * g a ^ 2 - κ * (∑' a, (ν a).toReal * g a) := by
-        gcongr
-        exact Probability.PMF.sq_tsum_le_tsum_sq ν hg0 hg1
-    _ = ∑' a, ((ν a).toReal * g a ^ 2 - κ * ((ν a).toReal * g a)) := by
-        rw [hsumg2.tsum_sub (hsumg.mul_left κ), tsum_mul_left]
-    _ ≤ ∑' a, (ν a).toReal * f a :=
-        (hsumg2.sub (hsumg.mul_left κ)).tsum_le_tsum hpoint hsumf
-
-/-- Solving a quadratic extraction bound `ε ^ 2 - κ * ε ≤ ε'` for `ε` gives `ε ≤ κ + √ε'` when
-`0 ≤ κ`. -/
-theorem le_add_sqrt_of_sq_sub_mul_le {ε ε' κ : ℝ} (hκ0 : 0 ≤ κ) (h : ε ^ 2 - κ * ε ≤ ε') :
-    ε ≤ κ + √ε' := by
-  by_cases hε : ε ≤ κ
-  · exact hε.trans (le_add_of_nonneg_right (Real.sqrt_nonneg _))
-  · have hsq : (ε - κ) ^ 2 ≤ ε' := by
-      nlinarith [mul_nonneg hκ0 (sub_nonneg.mpr (le_of_not_ge hε))]
-    have := Real.abs_le_sqrt hsq
-    linarith [le_abs_self (ε - κ)]
 
 end Cslib.Crypto.Protocols.SigmaProtocol

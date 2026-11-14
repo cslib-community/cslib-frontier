@@ -10,9 +10,11 @@ module
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Composition
 public import CslibFrontier.Computability.Interactive.Security
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.DPi
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Sum
 public import CslibFrontier.Computability.Probabilistic.PPT
+public import CslibFrontier.Languages.Probabilistic.Vector
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Sum
@@ -20,7 +22,9 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair.Proj
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.PPT.Extension
 import CslibFrontier.Computability.Probabilistic.Traverse
+import CslibFrontier.Foundations.Data.List.Lookup
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Probability.StatisticalDistance.Product
 
 /-!
 # Efficient special soundness and special HVZK
@@ -78,8 +82,9 @@ negligible function, `EfficientSpecialHVZK.exists_computationalSpecialHVZK` deri
 * `SigmaProtocol.Encoding`: word encodings of an indexed family of Sigma protocols.
 * `SigmaProtocol.SimulatorInput`, `SigmaProtocol.encSimulatorInput`: a simulator's input
   `(index, statement, challenge)` and its encoding.
-* `SigmaProtocol.encSimulatorWordInput`: the encoding of a word simulator program's input
-  `(index, statement word, challenge word)`.
+* `SigmaProtocol.encSimulatorWordInput`, `SigmaProtocol.encExtractorWordInput`,
+  `SigmaProtocol.encSubChallengeWordInput`: encodings of the inputs to word simulator, word
+  extractor, and word challenge-subtraction programs.
 * `SigmaProtocol.Simulator`, `SigmaProtocol.Simulator.IsPPT`: typed simulator families and their
   uniform strict PPT admissibility.
 * `SigmaProtocol.ExtractorRealizedBy`: a word function computes an extractor family on encodings.
@@ -424,7 +429,7 @@ def andSimulator
 
 /-- Word-level simulator for `andProof`: unframe the paired statement word, run `prog₀` and `prog₁`
 at the shared challenge word, and pair their commitment and response words. -/
-def andSimulateWord
+private def andSimulateWord
     (prog₀ prog₁ : I × List Bool × List Bool → ProbComp (List Bool × List Bool))
     (input : I × List Bool × List Bool) : ProbComp (List Bool × List Bool) := do
   let (i, y, c) := input
@@ -651,7 +656,7 @@ def orSimulator [∀ i, Sub (C i)]
 
 /-- Word-level simulator for `orProof`: sample an encoded challenge word `c₀`, run `prog₀` at `c₀`
 and `prog₁` at `subWord (i, c, c₀)`, and frame the resulting commitment and response words. -/
-def orSimulateWord
+private def orSimulateWord
     (sampleChallengeWord : I → ProbComp (List Bool))
     (subWord : I × List Bool × List Bool → List Bool)
     (prog₀ prog₁ : I × List Bool × List Bool → ProbComp (List Bool × List Bool))
@@ -766,42 +771,17 @@ end Or
 
 section Parallel
 
-/-- Encode a `Fin k`-tuple as the framed list of its coordinate encodings (`List.ofFn`). -/
-def encFinTuple {k : ℕ} {α : Type} (enc : α ↪ List Bool) : (Fin k → α) ↪ List Bool where
-  toFun v := encList enc (List.ofFn v)
-  inj' _ _ h := List.ofFn_injective ((encList enc).injective h)
-
-@[simp] theorem encFinTuple_apply {k : ℕ} {α : Type} (enc : α ↪ List Bool) (v : Fin k → α) :
-    encFinTuple enc v = encList enc (List.ofFn v) := rfl
-
-/-- `encList enc l` is `encList encBits (l.map enc)`. -/
-theorem encList_eq_encList_bits_map {α : Type} (enc : α ↪ List Bool) (l : List α) :
-    encList enc l = encList encBits (l.map enc) := by
-  induction l with
-  | nil => rfl
-  | cons a l ih => simp [encList_cons, ih]
-
-/-- Splitting a word into its framed words is computable in polynomial time. -/
-@[fun_prop] theorem computableInPolyTime_frames :
-    ComputableInPolyTime frames encBits (encList encBits) :=
-  computableInDegree_frames.computableInPolyTime
-
-/-- Splitting a word into its framed words is tidily computable in polynomial time. -/
-@[fun_prop] theorem computableTidilyInPolyTime_frames :
-    ComputableTidilyInPolyTime frames encBits (encList encBits) :=
-  computableInPolyTime_frames.tidy
-
 /-- Encodings for `k`-fold parallel repetition `(P i).parallelRepetition (k i)`: statements and
 indices keep their encodings from `enc`, while commitment, challenge, and response tuples are
-encoded by `encFinTuple`. -/
+encoded by `encFinFn (k i)`. -/
 def Encoding.parallelRepetition (enc : Encoding I Y T C Z) (k : I → ℕ) :
     Encoding I Y (fun i => Fin (k i) → T i) (fun i => Fin (k i) → C i)
       (fun i => Fin (k i) → Z i) where
   index := enc.index
   statement := enc.statement
-  commitment i := encFinTuple (enc.commitment i)
-  challenge i := encFinTuple (enc.challenge i)
-  response i := encFinTuple (enc.response i)
+  commitment i := encFinFn (k i) (enc.commitment i)
+  challenge i := encFinFn (k i) (enc.challenge i)
+  response i := encFinFn (k i) (enc.response i)
 
 /-- Word-level extractor for `parallelRepetition`: split the tuple words into their framed
 coordinate words, find the first index where the two challenge words differ, and run `f` on that
@@ -832,6 +812,7 @@ theorem computableInPolyTime_parallelExtractWord
     ComputableInPolyTime (parallelExtractWord defaultWord f)
       (encExtractorWordInput (enc.parallelRepetition k).index) encBits := by
   let encIn := encExtractorWordInput enc.index
+  have hframes := computableInPolyTime_frames.tidy
   have hdef' := hdef.tidy
   have hf' := hf.tidy
   have hfind : ComputableInPolyTime
@@ -866,12 +847,6 @@ theorem computableInPolyTime_parallelExtractWord
   unfold parallelExtractWord Encoding.parallelRepetition
   exact hfind.optionElimWithInput hfallback hbody
 
-/-- Lookup in `(List.ofFn v).map g` at `j.val` returns `g (v j)`. -/
-private theorem getD_map_ofFn {n : ℕ} {α β : Type} (v : Fin n → α) (g : α → β) (d : β)
-    (j : Fin n) :
-    ((List.ofFn v).map g).getD j.val d = g (v j) := by
-  simp [List.getD_eq_getElem?_getD, j.isLt]
-
 /-- `parallelExtractWord` realizes `parallelExtract` on `enc.parallelRepetition k`. -/
 theorem extractorRealizedBy_parallelExtractWord
     [∀ i, DecidableEq (C i)] [∀ i, Inhabited (W i)]
@@ -886,21 +861,22 @@ theorem extractorRealizedBy_parallelExtractWord
   intro i y t c z c' z'
   have hrange : (List.finRange (k i)).map Fin.val = List.range (k i) :=
     List.ext_getElem (by simp) fun _ _ _ => by simp
-  simp only [parallelExtractWord, Encoding.parallelRepetition, encFinTuple_apply, frames_encList,
+  simp only [parallelExtractWord, Encoding.parallelRepetition, encFinFn_apply, frames_encList,
     List.length_map, List.length_ofFn, ← hrange, List.find?_map]
   have hpred :
       ((fun idx => ((List.ofFn c).map (enc.challenge i)).getD idx [] !=
         ((List.ofFn c').map (enc.challenge i)).getD idx []) ∘ Fin.val) =
       fun j : Fin (k i) => c j != c' j := by
     funext j
-    simp only [Function.comp_apply, getD_map_ofFn]
+    simp only [Function.comp_apply, List.map_ofFn, List.getD_ofFn]
     rw [Bool.eq_iff_iff, bne_iff_ne, bne_iff_ne, (enc.challenge i).injective.ne_iff]
   rw [hpred]
   unfold parallelExtract
   cases hfind : (List.finRange (k i)).find? (fun j => c j != c' j) with
   | none => exact hdef_eq i
   | some j =>
-    simp only [Option.map_some, Option.elim_some, getD_map_ofFn]
+    simp only [Option.map_some, Option.elim_some, List.map_ofFn, List.getD_ofFn,
+      Function.comp_apply]
     exact hf i y (t j) (c j) (z j) (c' j) (z' j)
 
 /-- **Efficient special soundness of `parallelRepetition`.** -/
@@ -922,67 +898,18 @@ theorem EfficientSpecialSoundness.parallelRepetition
       computableInPolyTime_parallelExtractWord hdefault hf,
       extractorRealizedBy_parallelExtractWord (fun _ => rfl) hreal⟩
 
-/-- Independent executions of a `Fin k`-indexed family of probabilistic programs, returning a tuple.
--/
-def piFinProbComp {α : Type} : {k : ℕ} → (Fin k → ProbComp α) → ProbComp (Fin k → α)
-  | 0, _ => pure Fin.elim0
-  | _ + 1, p => do
-      let a ← p 0
-      let rest ← piFinProbComp fun j => p j.succ
-      return Fin.cons a rest
-
-/-- Evaluating `piFinProbComp p` produces `PMF.piFin (fun j => ProbComp.eval (p j))`. -/
-@[simp] theorem eval_piFinProbComp {α : Type} :
-    ∀ {k : ℕ} (p : Fin k → ProbComp α),
-      ProbComp.eval (piFinProbComp p) = PMF.piFin fun j => ProbComp.eval (p j)
-  | 0, _ => rfl
-  | k + 1, p => by
-    simp only [piFinProbComp, PMF.piFin, ProbComp.eval_bind, ProbComp.eval_pure,
-      eval_piFinProbComp (fun j => p j.succ), PMF.map]
-    rfl
-
-/-- Mapping `List.ofFn` over `piFinProbComp p` has the same distribution as `(List.finRange k).mapM
-p`. -/
-theorem eval_piFinProbComp_map_ofFn {α : Type} :
-    ∀ {k : ℕ} (p : Fin k → ProbComp α),
-      (ProbComp.eval (piFinProbComp p)).map List.ofFn =
-        ProbComp.eval ((List.finRange k).mapM p)
-  | 0, _ => by simp [piFinProbComp, PMF.pure_map]
-  | k + 1, p => by
-    rw [List.finRange_succ, List.mapM_cons, List.mapM_map]
-    simp only [piFinProbComp, ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind,
-      PMF.pure_map, List.ofFn_succ, Fin.cons_zero, Fin.cons_succ, Function.comp_def]
-    congr 1 with a : 1
-    rw [← eval_piFinProbComp_map_ofFn (fun j => p j.succ), PMF.bind_map]
-    rfl
-
-/-- Statistical closeness of `PMF.piFin`: if each coordinate `p j` is `δ`-close to `q j`, then
-`PMF.piFin p` is `(k * δ)`-close to `PMF.piFin q`. -/
-theorem closeTo_piFin {α : Type} :
-    ∀ {k : ℕ} {p q : Fin k → PMF α} {δ : ℝ≥0∞},
-      (∀ j, CloseTo (p j) (q j) δ) → CloseTo (PMF.piFin p) (PMF.piFin q) (k * δ)
-  | 0, _, _, _, _ => by
-    simp only [PMF.piFin, Nat.cast_zero, zero_mul]
-    exact CloseTo.refl _
-  | k + 1, p, q, δ, h => by
-    rw [PMF.piFin, PMF.piFin]
-    have hstep := (h 0).bind fun a _ =>
-      (closeTo_piFin (fun j => h j.succ)).map (Fin.cons (α := fun _ => α) a)
-    refine hstep.mono ?_
-    rw [Nat.cast_succ, add_mul, one_mul, add_comm]
-
 /-- Typed simulator for `parallelRepetition`: run `sim i y (c j)` independently at each coordinate
 `j : Fin (k i)` and unzip the resulting commitments and responses. -/
 def parallelSimulator (sim : Simulator I Y T C Z) (k : I → ℕ) :
     Simulator I Y (fun i => Fin (k i) → T i) (fun i => Fin (k i) → C i)
       (fun i => Fin (k i) → Z i) :=
   fun i y c =>
-    (fun tz => (fun j => (tz j).1, fun j => (tz j).2)) <$> piFinProbComp (fun j => sim i y (c j))
+    (fun tz => (fun j => (tz j).1, fun j => (tz j).2)) <$> OracleComp.pi (fun j => sim i y (c j))
 
 /-- Word-level simulator for `parallelRepetition`: split the challenge word into its framed
 coordinate challenge words, traverse them with `prog`, and re-encode the resulting commitment and
 response word lists. -/
-def parallelSimulateWord
+private def parallelSimulateWord
     (prog : I × List Bool × List Bool → ProbComp (List Bool × List Bool))
     (input : I × List Bool × List Bool) : ProbComp (List Bool × List Bool) :=
   let (i, y, c) := input
@@ -1013,13 +940,13 @@ theorem isPPT_parallelSimulator
         prog (input.1, input.2.1, c_j)) hstep hlist).map hpost
   · intro i y c
     simp only [parallelSimulator, parallelSimulateWord, Encoding.parallelRepetition,
-      encFinTuple_apply, frames_encList, List.ofFn_eq_map, List.map_map, List.mapM_map,
-      Function.comp_def, ProbComp.eval_map, ← eval_piFinProbComp_map_ofFn, eval_piFinProbComp]
+      encFinFn_apply, frames_encList, List.ofFn_eq_map, List.map_map, List.mapM_map,
+      Function.comp_def, ProbComp.eval_map, ← ProbComp.eval_pi_map_ofFn, ProbComp.eval_pi_eq_piFin]
     have hcoord :
         (PMF.piFin fun j => ProbComp.eval (prog (i, enc.statement i y, enc.challenge i (c j)))) =
           (PMF.piFin fun j => ProbComp.eval (sim i y (c j))).map
             (fun tz j => (enc.commitment i (tz j).1, enc.response i (tz j).2)) := by
-      simp only [← hword, piFin_map_coord]
+      simp only [← hword, PMF.piFin_map]
       rfl
     rw [hcoord]
     simp only [PMF.map_comp]
@@ -1036,8 +963,8 @@ theorem simulatorRealizedBy_parallelSimulator
     SimulatorRealizedBy (fun i => parallelSimulate (simulate i) (k i))
       (parallelSimulator sim k) (fun i => (k i : ℝ≥0∞) * δ i) := by
   intro i y c
-  simp only [parallelSimulate, parallelSimulator, ProbComp.eval_map, eval_piFinProbComp]
-  exact (closeTo_piFin fun j => hreal i y (c j)).map _
+  simp only [parallelSimulate, parallelSimulator, ProbComp.eval_map, ProbComp.eval_pi_eq_piFin]
+  exact (CloseTo.piFin fun j => hreal i y (c j)).map _
 
 /-- **Efficient special HVZK of `parallelRepetition`.** -/
 theorem EfficientSpecialHVZK.parallelRepetition

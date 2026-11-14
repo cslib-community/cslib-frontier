@@ -654,10 +654,8 @@ def andCommit (sample₀ : X₀ → Y₀ → ProbComp (T₀ × P₀.State))
 
 /-- `ProbComp` simulator for `P₀.andProof P₁`. -/
 def andSimComp (sim₀ : Y₀ → C → ProbComp (T₀ × Z₀)) (sim₁ : Y₁ → C → ProbComp (T₁ × Z₁))
-    (y : Y₀ × Y₁) (c : C) : ProbComp ((T₀ × T₁) × (Z₀ × Z₁)) := do
-  let a ← sim₀ y.1 c
-  let b ← sim₁ y.2 c
-  return ((a.1, b.1), (a.2, b.2))
+    (y : Y₀ × Y₁) (c : C) : ProbComp ((T₀ × T₁) × (Z₀ × Z₁)) :=
+  andSimulator (I := Unit) (fun _ => sim₀) (fun _ => sim₁) () y c
 
 theorem commitRealizedBy_andProof {sample₀ : X₀ → Y₀ → ProbComp (T₀ × P₀.State)}
     {sample₁ : X₁ → Y₁ → ProbComp (T₁ × P₁.State)}
@@ -673,7 +671,7 @@ theorem eval_andSimComp {simulate₀ : Y₀ → C → PMF (T₀ × Z₀)}
     (h₁ : ∀ y c, ProbComp.eval (sim₁ y c) = simulate₁ y c)
     (y : Y₀ × Y₁) (c : C) :
     ProbComp.eval (andSimComp sim₀ sim₁ y c) = andSimulate simulate₀ simulate₁ y c := by
-  simp only [pmf_norm, andSimComp, andSimulate, h₀ y.1 c, h₁ y.2 c]
+  simp only [pmf_norm, andSimComp, andSimulator, andSimulate, h₀ y.1 c, h₁ y.2 c]
 
 variable [AddCommGroup C] [Fintype C] [Nonempty C]
 
@@ -697,11 +695,8 @@ noncomputable def orCommit (sample₀ : X₀ → Y₀ → ProbComp (T₀ × P₀
 /-- `ProbComp` simulator for `orProof P₀ P₁ simulate₀ simulate₁`. -/
 noncomputable def orSimComp (sim₀ : Y₀ → C → ProbComp (T₀ × Z₀))
     (sim₁ : Y₁ → C → ProbComp (T₁ × Z₁)) (y : Y₀ × Y₁) (c : C) :
-    ProbComp ((T₀ × T₁) × C × Z₀ × Z₁) := do
-  let c₀ ← ProbComp.uniform C
-  let a ← sim₀ y.1 c₀
-  let b ← sim₁ y.2 (c - c₀)
-  return ((a.1, b.1), c₀, a.2, b.2)
+    ProbComp ((T₀ × T₁) × C × Z₀ × Z₁) :=
+  orSimulator (I := Unit) (fun _ => ProbComp.uniform C) (fun _ => sim₀) (fun _ => sim₁) () y c
 
 theorem commitRealizedBy_orProof
     {simulate₀ : Y₀ → C → PMF (T₀ × Z₀)} {simulate₁ : Y₁ → C → PMF (T₁ × Z₁)}
@@ -724,7 +719,7 @@ theorem eval_orSimComp
     (hs₁ : ∀ y c, ProbComp.eval (sim₁ y c) = simulate₁ y c)
     (y : Y₀ × Y₁) (c : C) :
     ProbComp.eval (orSimComp sim₀ sim₁ y c) = orSimulate simulate₀ simulate₁ y c := by
-  simp only [pmf_norm, orSimComp, orSimulate, ProbComp.eval_uniform, hs₀, hs₁]
+  simp only [pmf_norm, orSimComp, orSimulator, orSimulate, ProbComp.eval_uniform, hs₀, hs₁]
 
 end Composition
 
