@@ -42,7 +42,9 @@ open Circuits Circuits.Boolean GateCode Turing.MultiTapeTM
 fresh qubit for every output. -/
 theorem samplerWidth_circuit {n m : ℕ} (C : Circuits.Circuit signature n m) :
     samplerWidth n C.code = n + C.size + 1 + m := by
-  simp [samplerWidth, samplerOutputStart, samplerZero]
+  unfold samplerWidth samplerOutputStart samplerZero
+  rw [Circuit.length_code_fst]
+  simp [Circuit.code]
 
 /-- The complete sampler uses at most one Hadamard per seed, three reversible gates per Boolean
 gate, and one CNOT per copied output. -/
