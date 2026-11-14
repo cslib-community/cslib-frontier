@@ -154,7 +154,10 @@ theorem IsPolynomial.add {r s : ℕ → GeneratorResources}
 theorem IsPolynomial.total {schedule : ℕ → GeneratorResources}
     (h : IsPolynomial schedule) :
     PolynomiallyBounded fun n => (schedule n).total := by
-  simpa only [total] using (((h.1.add h.2.1).add h.2.2.1).add h.2.2.2)
+  change PolynomiallyBounded fun n =>
+    (schedule n).codeBits + (schedule n).time + (schedule n).workspace +
+      (schedule n).outputBits
+  exact (((h.1.add h.2.1).add h.2.2.1).add h.2.2.2)
 
 end GeneratorResources
 

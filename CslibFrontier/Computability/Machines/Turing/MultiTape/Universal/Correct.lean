@@ -245,6 +245,8 @@ public theorem toCfg_init {d : Desc} (hk : d.tapes = k) :
     by simp [init], by simp [init]⟩ <;>
     simp [SCfg.toCfg, init, List.getD_eq_getElem?_getD, Tape.cellAt, Tape.blank]
 
+section LiteralDescriptions
+
 variable {Symbol State : Type} (eS : State ↪ ℕ) (eY : Symbol ↪ ℕ)
 
 -- vendored: added for construction-defined descriptions (`Quantum/Oracle/Generator.lean`)
@@ -288,9 +290,12 @@ public theorem simulate_of_holds (tm : MultiTapeTM k Symbol State) (d : Desc)
   simp only [Cfg.map_state, Cfg.map_output, SCfg.toCfg] at hs ho
   simp only [simulate, ← hs, ← ho, Option.isNone_map]
 
+end LiteralDescriptions
+
 /-! ### Descriptions of machines -/
 
-variable [Fintype State] [Fintype Symbol]
+variable {Symbol State : Type} [Fintype State] [Fintype Symbol]
+  (eS : State ↪ ℕ) (eY : Symbol ↪ ℕ)
 
 /-- The description of a machine with finitely many states and symbols, renamed into `ℕ` by `eS`
 and `eY`: a transition for every state and every choice of read symbols. -/
