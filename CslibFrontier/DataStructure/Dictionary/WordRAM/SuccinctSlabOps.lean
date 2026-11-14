@@ -949,9 +949,16 @@ private theorem pushBackSlotProg_effect_of_clientState {U V w n_max h_space base
         hbc_b1, hbc_other1, hq_new1, hv_new1, hold1⟩ :=
       pushBackTailWriteProg_effect (U := U) (V := V) (h_space := h_space)
         hw hb_pos s hinv hb htot hq_lt hv_lt
-    -- Remove the execution body from semantic facts before matching helper arguments.
+    -- Compose execution while the intermediate state is still syntactically identical.
+    -- Generalize the resulting equations together with the primitive semantic facts.
+    obtain ⟨hexec, hcharge⟩ := pushBackSlotProg_execution
+      (U := U) (V := V) (w := w) (n_max := n_max) (h_space := h_space)
+      (base := base) (b := b) (q_val := q_val) (v_val := v_val) s _ hb0 rfl
+      (gm₀ (gmRIdx b) + 1) hres1
     generalize hs₁ : (Memory.spec 0).clientState s
-      (pushBackTailWriteProg U V w n_max h_space d) = s₁ at *
+      (pushBackTailWriteProg U V w n_max h_space d) = s₁ at
+        hf1 hout1 hl1 hgm1_eq htail1 hslab1 htot1 hqb1 hrb1 hother1
+        hbc_b1 hbc_other1 hq_new1 hv_new1 hold1 hexec hcharge
     let gm₁ := gmAt base U V w n_max h_space s₁.mem
     change (Memory.spec 0).clientResult s (pushBackTailWriteProg U V w n_max h_space d) =
       gm₀ (gmRIdx b) + 1 at hres1
@@ -976,15 +983,11 @@ private theorem pushBackSlotProg_effect_of_clientState {U V w n_max h_space base
         valAt base U V w n_max h_space s.mem (slotOf n_max gm₀ b' j) at hold1
     have htot0_lt : gm₀ 0 * slabSize n_max + gm₀ 1 < n_max := by
       unfold totalSlots at htot; rw [ite_eq_right hb0] at htot; exact htot
-    obtain ⟨hexec, hcharge⟩ := pushBackSlotProg_execution
-      (U := U) (V := V) (w := w) (n_max := n_max) (h_space := h_space)
-      (base := base) (b := b) (q_val := q_val) (v_val := v_val) s s₁ hb0 hs₁
-      (gm₀ (gmRIdx b) + 1) hres1
-    rw [hrun] at hexec
+    have hexec' := hrun.symm.trans hexec
     by_cases hprom : gm₀ (gmRIdx b) + 1 = 2 * slabSize n_max
     · have hst : s' = (Memory.spec 0).clientState s₁
           (promoteSlabProg U V w n_max h_space (base, b)) := by
-        exact hexec.trans (by rw [ite_eq_left hprom])
+        exact hexec'.trans (by rw [ite_eq_left hprom])
       have hcost := hcharge
       rw [ite_eq_left hprom] at hcost
       have hpre_prom : PromoteSlabInv U V w n_max h_space base b s₁ := by
@@ -1049,7 +1052,7 @@ private theorem pushBackSlotProg_effect_of_clientState {U V w n_max h_space base
       · rw [hcost]
         omega
     · have hst : s' = s₁ := by
-        exact hexec.trans (by rw [ite_eq_right hprom])
+        exact hexec'.trans (by rw [ite_eq_right hprom])
       have hgm'_eq : gm' = gm₁ := by dsimp only [gm', gm₁]; rw [hst]
       have hcost : memoryCost (pushBackSlotProg U V w n_max h_space d) s = 30 := by
         simpa only [ite_eq_right hprom, Nat.add_zero] using hcharge
@@ -1258,7 +1261,7 @@ private theorem popBackSlotProg_execution {U V w n_max h_space base b : ℕ}
       memoryCost_bind, memoryCost_readGMProg, clientState_readGMProg, hr,
       memoryCost_bind, memoryCost_readGMProg, clientState_readGMProg, hq]
     by_cases hr0 : r = 0 <;> by_cases hq0 : 0 < q <;>
-      (simp [hr0, hq0, memoryCost_pure]; omega)
+      (simp [hr0, hq0, memoryCost_pure] <;> omega)
 
 -- Keep the final state abstract while proving its invariant and resource bound.
 private theorem popBackSlotProg_effect_of_clientState {U V w n_max h_space base b : ℕ}
@@ -1360,8 +1363,12 @@ private theorem popBackSlotProg_effect_of_clientState {U V w n_max h_space base 
     obtain ⟨hf1, hout1, hq1, hv1, hl1, hgm1_eq⟩ :=
       removeLastTailItemProg_effect (U := U) (V := V) (h_space := h_space)
         hw hb_pos hb s htail₀ hr0_pos
+    obtain ⟨hexec, hcharge⟩ := popBackSlotProg_execution
+      (U := U) (V := V) (w := w) (n_max := n_max) (h_space := h_space)
+      (base := base) (b := b) s _ hb0 rfl _ _ rfl rfl
     generalize hs₁ : (Memory.spec 0).clientState s
-      (removeLastTailItemProg U V w n_max h_space d) = s₁ at *
+      (removeLastTailItemProg U V w n_max h_space d) = s₁ at
+        hf1 hout1 hq1 hv1 hl1 hgm1_eq hexec hcharge
     let gm₁ := gmAt base U V w n_max h_space s₁.mem
     change gm₁ = gmRemoveTail n_max gm₀ b at hgm1_eq
     have hpres1 := gmRemoveTail_preserves_nonTail hb hr0_pos htail₀
@@ -1413,22 +1420,19 @@ private theorem popBackSlotProg_effect_of_clientState {U V w n_max h_space base 
     have hres_q : (Memory.spec 0).clientResult s₁
         (readGMProg U V w n_max h_space (base, 4 + 3 * b)) = gm₁ (gmQIdx b) :=
       clientResult_readGMProg s₁ hq_idx_lt
-    obtain ⟨hexec, hcharge⟩ := popBackSlotProg_execution
-      (U := U) (V := V) (w := w) (n_max := n_max) (h_space := h_space)
-      (base := base) (b := b) s s₁ hb0 hs₁
-      (gm₁ (gmRIdx b)) (gm₁ (gmQIdx b)) hres_r hres_q
-    rw [hrun] at hexec
+    rw [hres_r, hres_q] at hexec hcharge
+    have hexec' := hrun.symm.trans hexec
     have hguard : (gm₁ (gmRIdx b) = 0 ∧ 0 < gm₁ (gmQIdx b)) ↔
         (gm₀ (gmRIdx b) = 1 ∧ 0 < gm₀ (gmQIdx b)) := by
       rw [hrb1, hqb1]
       omega
-    simp only [hguard] at hexec hcharge
+    simp only [hguard] at hexec' hcharge
     by_cases hdem : gm₀ (gmRIdx b) = 1 ∧ 0 < gm₀ (gmQIdx b)
     · have hr1_eq0 : gm₁ (gmRIdx b) = 0 := by rw [hrb1, hdem.1]
       have hq1_pos : 0 < gm₁ (gmQIdx b) := by rw [hqb1]; exact hdem.2
       have hst : s' = (Memory.spec 0).clientState s₁
           (demoteSlabProg U V w n_max h_space (base, b)) := by
-        simpa only [hdem, ↓reduceIte] using hexec
+        simpa only [hdem, ↓reduceIte] using hexec'
       have hcost : memoryCost (popBackSlotProg U V w n_max h_space d) s =
           40 + memoryCost (demoteSlabProg U V w n_max h_space (base, b)) s₁ := by
         simpa only [hdem, ↓reduceIte, Nat.add_zero] using hcharge
@@ -1485,7 +1489,7 @@ private theorem popBackSlotProg_effect_of_clientState {U V w n_max h_space base 
       · rw [hcost]
         omega
     · have hst : s' = s₁ := by
-        simpa only [hdem, ↓reduceIte] using hexec
+        simpa only [hdem, ↓reduceIte] using hexec'
       have hcost : memoryCost (popBackSlotProg U V w n_max h_space d) s = 40 := by
         simpa only [hdem, ↓reduceIte, Nat.add_zero] using hcharge
       have hgm'_eq : gm' = gm₁ := by dsimp only [gm', gm₁]; rw [hst]
