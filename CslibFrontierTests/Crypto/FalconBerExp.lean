@@ -44,6 +44,7 @@ example : (ProbComp.eval (berExpThresholdCoin zeroThreshold) true).toReal = 0 :=
 example : (ProbComp.eval (berExpThresholdCoin oneThreshold) true).toReal =
     1 / (2 ^ 64 : ℝ) := by
   rw [eval_berExpThresholdCoin_true_toReal]
+  norm_num
 
 /-- The midpoint threshold is an exact fair coin. -/
 example : (ProbComp.eval (berExpThresholdCoin halfThreshold) true).toReal = 1 / 2 := by
