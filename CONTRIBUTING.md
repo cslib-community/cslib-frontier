@@ -228,6 +228,30 @@ parameters), a bound without an advantage-named constant, a caller-supplied obje
 the theorem should prove, and a realization stated other than as an equation (an inequality, a
 predicate of the library or a bundled program).
 
+**Named assumptions** ([#5578](https://github.com/cslib-community/cslib-frontier/issues/5578)).
+Each named assumption that a Crypto theorem takes is listed in the
+[assumptions inventory](manual/programs-crypto-and-probability/assumptions.md) as *standard*
+(its docstring cites the source definition with a checked locator and names every deviation),
+*novel* (its docstring says "novel to this library" and how it relates to standard assumptions)
+or *vocabulary* (a generic notion such as concrete security against a caller's adversary class)
+([AGENTS.md](AGENTS.md#security-theorems)). After a build,
+`python3 scripts/check_hardness_assumptions.py` finds every premise of a public Crypto theorem
+headed by a Prop-valued declaration whose definition mentions negligibility, an advantage or
+indistinguishability, other than that vocabulary itself, and checks it against the inventory. It
+fails on an unlisted assumption, a malformed row, a standard row without a `references.bib` key,
+and a missing nonvacuity test that a row links. It also fails on a standard assumption whose
+docstring cites none of its row's keys, a novel one whose docstring does not say "novel to this
+library", a row whose locator is "not verified", a theorem resting on a novel assumption whose
+name does not mention it or whose docstring cites a source without calling the theorem a step,
+and a results-inventory entry that lists such a theorem. The existing gaps of these kinds are
+recorded, each with a justification, in `scripts/hardness_assumptions_baseline.json`, which only
+shrinks: an entry that no longer matches fails as well. Pull requests run the check on the whole
+library and merge groups only report. To register a new assumption, add its row, cite its source
+in its docstring, and link a nonvacuity test where one is easy; `--list` prints the theorems that
+rest on each assumption. The check does not judge whether a definition matches its source,
+whether a locator is right, or whether a theorem that claims a cited result rests on the source's
+assumption; review does.
+
 ### Algorithms are programs
 
 Probabilistic algorithms, such as key generation, signing, provers, verifiers, simulators,
