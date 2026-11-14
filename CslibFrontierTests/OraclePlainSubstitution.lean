@@ -123,9 +123,9 @@ example :
         (twoLevel 3)).run 0 =
       PMF.pure (([false, false, false, true, true, true],
         [([true, true, true], [false, false, false]), ([], [true, true, true])]), 2) := by
-  simp only [twoLevel, client, OracleComp.interpret_bind, OracleComp.interpret_map,
-    ProbOracleComp.interpret_query, StateT.run_bind, StateT.run_map]
-  simp [cached, memoize, firstOnes, List.lookup]
+  change ProbOracleComp.runWith firstOnes (twoLevel 3) 0 = _
+  rw [twoLevel, ProbOracleComp.runWith_run_interpret]
+  simp [client, cached, memoize, StateT.run, firstOnes]
 
 -- No query is made at all, so a handler returning no bits and unchanged state has allowance 0.
 example : IsPPTOn encBits (encPair encBits encBits) (fun word =>
