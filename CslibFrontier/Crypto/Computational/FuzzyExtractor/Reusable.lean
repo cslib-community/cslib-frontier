@@ -166,7 +166,7 @@ theorem hammingNorm_clampShift_le {m q : ℕ} (t : ℕ) (δ : Fin m → ZMod q) 
   · simp
 
 /-- A shift whose Hamming weight is already at most `t` is unchanged by `clampShift`. -/
-@[simp] theorem clampShift_of_le {m q : ℕ} {t : ℕ} {δ : Fin m → ZMod q} (h : hammingNorm δ ≤ t) :
+theorem clampShift_of_le {m q : ℕ} {t : ℕ} {δ : Fin m → ZMod q} (h : hammingNorm δ ≤ t) :
     clampShift t δ = δ := by
   simp [clampShift, h]
 
@@ -443,7 +443,7 @@ private theorem eval_reuseQueryLoop_toStrong
 
 /-- Every weak-reusability adversary achieves the exact same advantage when embedded as a
 key-ignoring strong-reusability adversary. -/
-@[simp] theorem weakReuseAdvantage_eq_strongReuseAdvantage_toStrong [Fintype Key] [Nonempty Key]
+theorem weakReuseAdvantage_eq_strongReuseAdvantage_toStrong [Fintype Key] [Nonempty Key]
     (setup : PMF PP) (fe : PP → FuzzyExtractor (Fin m → ZMod q) Key Helper)
     (W : PMF (Fin m → ZMod q)) (t Q : ℕ)
     (adv : WeakReuseAdversary PP m q Key Helper St) :
@@ -745,22 +745,24 @@ theorem weakReuseAdvantage_commonMatrixFuzzyExtractor_le {St : Type}
   rw [weakReuseAdvantage_commonMatrixFuzzyExtractor_eq]
   exact securityAdvantage_lweFuzzyExtractor_le decode W (commonMatrixSimulator t Q adv)
 
-/-- Theorem 1 in predicate form: if `decode` is `t`-correct and `lweFuzzyExtractor` is
-`ε`-computationally secure for `sources` against all distinguishers, then
-`commonMatrixFuzzyExtractor` is `(t, Q, ε)`-weakly reusable for `sources` for every query count
+/-- Theorem 1 in predicate form: if `decode` is `t`-correct and decisional LWE in secret dimension
+`l` with error law `W ∈ sources` has advantage at most `ε` for every distinguisher, then
+`commonMatrixFuzzyExtractor` is `(t, Q, 2 * ε)`-weakly reusable for `sources` for every query count
 `Q`. -/
 theorem weaklyReusableFor_commonMatrixFuzzyExtractor
     {decode : Matrix (Fin m) (Fin (k + l)) (ZMod q) → (Fin m → ZMod q) →
       ProbComp (Option (Fin (k + l) → ZMod q))}
     {sources : Set (PMF (Fin m → ZMod q))} {t : ℕ} {ε : ℝ≥0}
     (hdec : DecoderCorrect decode t)
-    (hsec : (lweFuzzyExtractor m k l q decode).ComputationallySecureFor sources (fun _ => True) ε)
+    (hlwe : ∀ W ∈ sources, ∀ D,
+      LWE.advantage (PMF.uniformOfFintype (Fin l → ZMod q)) W D ≤ ε)
     (Q : ℕ) :
     WeaklyReusableFor (PMF.uniformOfFintype (Matrix (Fin m) (Fin (k + l)) (ZMod q)))
-      (commonMatrixFuzzyExtractor m k l q decode) sources t Q ε := by
+      (commonMatrixFuzzyExtractor m k l q decode) sources t Q (2 * ε) := by
   refine ⟨fun A _ => hdec.correctHamming_commonMatrixFuzzyExtractor A, fun W hW St adv => ?_⟩
-  rw [weakReuseAdvantage_commonMatrixFuzzyExtractor_eq]
-  exact hsec W hW (commonMatrixSimulator t Q adv) trivial
+  refine (weakReuseAdvantage_commonMatrixFuzzyExtractor_le decode W t Q adv).trans ?_
+  rw [two_mul]
+  exact add_le_add (hlwe W hW _) (hlwe W hW _)
 
 /-! ### Section 3.3 (lines 471–476): Non-strong-reusability of common-matrix FMR -/
 
