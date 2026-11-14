@@ -167,7 +167,8 @@ private theorem quickSilverResidualPolynomial_eval (residual : Fin t → F) (chi
       ∑ i, quickSilverWeight chi i * residual i := by
   rw [quickSilverResidualPolynomial, Polynomial.ofFn_eq_sum_monomial]
   change Polynomial.evalRingHom chi
-    (∑ i : Fin (t + 1), Polynomial.monomial i ((Fin.cons (0 : F) residual) i)) = _
+    (∑ i : Fin (t + 1),
+      Polynomial.monomial i ((Fin.cons (α := fun _ => F) (0 : F) residual) i)) = _
   rw [map_sum, Fin.sum_univ_succ]
   simp [quickSilverWeight, Polynomial.eval_monomial, mul_comm]
 
