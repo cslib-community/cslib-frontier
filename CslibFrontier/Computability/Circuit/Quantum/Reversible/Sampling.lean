@@ -311,11 +311,11 @@ theorem samplerDist_eq_outputDist {n m : ℕ} (C : Circuits.Circuit signature n 
     have hs : ‖s ^ n‖ ^ 2 = 1 / 2 ^ n := by
       rw [norm_pow, ← pow_mul, mul_comm, pow_mul, Complex.norm_real, Real.norm_eq_abs,
         sq_abs, inv_pow, Real.sq_sqrt (by norm_num), one_div, inv_pow]
-    simp only [hs, Finset.sum_const, nsmul_eq_mul, Finset.dens_eq_card_div_card,
-      Fintype.card_fun, Fintype.card_bool, Fintype.card_fin, Nat.cast_pow, Nat.cast_ofNat,
-      div_eq_mul_inv]
+    rw [Finset.dens_eq_card_div_card, NNRat.cast_div, NNRat.cast_natCast,
+      NNRat.cast_natCast]
+    simp only [hs, Finset.sum_const, nsmul_eq_mul, Fintype.card_fun, Fintype.card_bool,
+      Fintype.card_fin, Nat.cast_pow, Nat.cast_ofNat, div_eq_mul_inv]
     ring_nf
-    push_cast
   apply PMF.ext
   intro y
   rw [← ENNReal.toReal_eq_toReal_iff' (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _)]
