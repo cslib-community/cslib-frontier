@@ -96,6 +96,8 @@ theorem eval_berExpThresholdCoin_true (threshold : BerExpThreshold) :
       (threshold.val : ENNReal) / 2 ^ 64 := by
   simp only [berExpThresholdCoin, berExpThresholdAccepts, ProbComp.eval_bind, ProbComp.eval_pure,
     ProbComp.eval_sampleBinaryNat, PMF.bind_map]
+  change ((PMF.uniformOfFintype (Fin (2 ^ 64))).bind
+    (PMF.pure ∘ fun i => decide (i.val < threshold.val))) true = _
   rw [PMF.bind_pure_comp, Cslib.Probability.uniformFin_decide_lt,
     Nat.min_eq_right threshold.isLt.le]
 
