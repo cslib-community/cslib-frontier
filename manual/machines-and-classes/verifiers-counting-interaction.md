@@ -27,7 +27,7 @@ The modular-power certificate `ComputableInPolyTime.binary_powMod` composes plai
 fold-step certificates. Its square-and-multiply fold keeps every accumulator below the positive
 modulus, preserving the prefix encoding-size bound. For an unconstrained modulus, use
 `computableInPolyTime_powMod`: its total function `powMod` returns `1` when the modulus is zero.
-The same [ordinary-import client](../../CslibFrontierTests/JacobiPolyTime.lean) exercises both
+The [ordinary-module client](../../CslibFrontierTests/PowModPlain.lean) exercises both
 contracts and the zero, unit and positive modulus cases.
 
 
