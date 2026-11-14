@@ -992,8 +992,8 @@ private theorem computableInPolyTime_negVars :
 
 private theorem length_encNat_le_of_mem_clause {c : Clause ℕ} {v : ℕ} {b : Bool}
     (h : (v, b) ∈ c) : (encNat v).length ≤ (encList (encPair encNat encBool) c).length := by
-  have hpair : (encNat v).length ≤ (encPair encNat encBool (v, b)).length := by
-    simp only [enc_component]
+  have hpair : (encNat v).length ≤ (encPair encNat encBool (v, b)).length :=
+    length_le_encPair_left encNat encBool (v, b)
   exact hpair.trans (by simp only [enc_component, h])
 
 private theorem foldl_expand_bounds (l : List ℕ) (B : ℕ) (hl : ∀ u ∈ l, (encNat u).length ≤ B) :
