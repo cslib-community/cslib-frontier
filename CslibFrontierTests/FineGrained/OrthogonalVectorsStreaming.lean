@@ -7,9 +7,9 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-import CslibFrontier.Computability.Complexity.FineGrained.OrthogonalVectors
-import CslibFrontier.Computability.Complexity.Problems.SAT
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+public import CslibFrontier.Computability.Complexity.FineGrained.OrthogonalVectors
+public import CslibFrontier.Computability.Complexity.Problems.SAT
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 
 /-!
 # Ordinary-module clients of the orthogonal-vectors stream
