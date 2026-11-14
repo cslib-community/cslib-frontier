@@ -8,6 +8,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.Primitives
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DegreeClosure
 
 /-! # Direct degree bounds from encoding capabilities
@@ -37,5 +38,23 @@ theorem prod {α β₁ β₂ : Type u} {encIn : α ↪ List Bool}
     ComputableInDegree (fun x => (f x, g x)) encIn (encPair enc₁ enc₂) (max d₁ d₂)
       (max e₁ e₂) :=
   ⟨(hf.pair hg).1, (((hf.2.smul 2).add_const 1).add_max hg.2).mono fun x => by simp⟩
+
+/-- Adding an element in front of a framed list: the identity on encoded words. -/
+theorem cons {α : Type} (enc : α ↪ List Bool) :
+    ComputableInDegree (fun p : α × List α => p.1 :: p.2) (encPair enc (encList enc))
+      (encList enc) 1 1 :=
+  of_eq fun _ => rfl
+
+/-- The result encoding fixes the element encoding, without reversing `ListEncoding` inference. -/
+@[fun_prop]
+theorem listTail {α : Type*} (enc : α ↪ List Bool) :
+    ComputableInDegree List.tail (encList enc) (encList enc) 1 1 :=
+  ListEncoding.tail (enc₁ := enc)
+
+/-- The framed input list determines the encoding of its head, including a fixed fallback. -/
+@[fun_prop]
+theorem listHeadD {α : Type*} (enc : α ↪ List Bool) (fallback : α) :
+    ComputableInDegree (fun l => l.headD fallback) (encList enc) enc 1 1 :=
+  ListEncoding.headD (enc₁ := enc) fallback
 
 end Turing.MultiTapeTM.ComputableInDegree
