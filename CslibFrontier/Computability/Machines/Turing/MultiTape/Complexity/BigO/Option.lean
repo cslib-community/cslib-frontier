@@ -18,3 +18,7 @@ by the native option primitives, also used by polynomial-time option elimination
 point retains the quantitative `fun_prop` calculus for existing clients. The selected handler
 receives the original input and its payload; time and charged space remain independent.
 -/
+
+public section
+
+attribute [fun_prop] Turing.MultiTapeTM.ComputableInO.optionElimWithInput

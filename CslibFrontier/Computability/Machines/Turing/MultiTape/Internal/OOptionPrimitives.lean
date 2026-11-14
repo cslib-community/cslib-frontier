@@ -19,8 +19,8 @@ the tag and, on the `some` branch, computes the option again to extract its payl
 explicitly charge both computations, input retention, and the selected handler. Linear native
 tag extraction, payload extraction, and pairing costs are absorbed by the native calculus.
 The bounds are asymptotic expressions with existential machine constants, not exact step counts.
-No inhabitance assumption is imposed on the payload type. The rule is available to `fun_prop`, and
-`option_match_to_elim` brings a `match` on an option into its form.
+No inhabitance assumption is imposed on the payload type. The public `BigO.Option` entry point
+registers the rule for `fun_prop`; `option_match_to_elim` brings an option `match` into its form.
 
 ## Main results
 
@@ -29,8 +29,8 @@ No inhabitance assumption is imposed on the payload type. The rule is available 
 
 ## References
 
-Uses Christian Reitwiessner's native degree/resource calculus. Polynomial-time option elimination lifts this resource certificate, preserving independent
-time and space bounds.
+Uses Christian Reitwiessner's native degree/resource calculus. Polynomial-time option elimination
+lifts this resource certificate, preserving independent time and space bounds.
 -/
 
 public section
@@ -39,7 +39,6 @@ namespace Turing.MultiTapeTM.ComputableInO
 
 /-- Eliminate an option while retaining the input. The conservative bound charges two option
 computations even on the `none` branch; it charges only the selected handler. -/
-@[fun_prop]
 theorem optionElimWithInput {α β γ : Type}
     {encA : α ↪ List Bool} {encB : β ↪ List Bool} {encC : γ ↪ List Bool}
     {value : α → Option β} {fallback : α → γ} {body : α → β → γ}
