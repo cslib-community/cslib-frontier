@@ -53,7 +53,7 @@ The audit in [#5293](https://github.com/cslib-community/cslib-frontier/issues/52
 | Fujisaki–Okamoto: `∃ m₀ m₁, m₀ ≠ m₁ ∧ Adv(A) ≤ 2 Adv(romCpaReduction A m₀ m₁) + …` | The messages are chosen after the adversary, so there is no single reduction to certify | A reduction that samples its own messages, against two-stage IND-CPA |
 | Σ-protocol knowledge soundness (`SpecialSoundness.efficientKnowledgeSound`): a caller-supplied extractor with its correctness `hE` and its polynomial-time realization `hpoly` as hypotheses | The extractor's existence and efficiency are what a proof of knowledge proves, so supplying it with assumed properties assumes the result | A rewinding extractor built from special soundness, with a PPT certificate |
 
-A lemma may still take a bound on a constructed reduction as a premise when that is the point. [negligible_prediction_of_negligible_inversion](../../CslibFrontier/Crypto/Computational/GoldreichLevin/Parameters.lean#L175) assumes that the inverters built from a predictor have negligible success. Such a lemma is an algebraic helper: its name and docstring say that it is conditional (for example `…_of_reduction_le`), and a theorem that discharges the premise with the reduction's efficiency witness and the named assumption provides the security claim. Here [negligible_parityPrediction](../../CslibFrontier/Crypto/Computational/GoldreichLevin/WordReduction.lean#L195) does so from `OneWay f` through `isPPT_wordInverter`.
+A lemma may still take a bound on a constructed reduction as a premise when that is the point. [negligible_prediction_of_negligible_inversion](../../CslibFrontier/Crypto/Computational/GoldreichLevin/Parameters.lean#L175) assumes that the inverters built from a predictor have negligible success. Such a lemma is an algebraic helper: its name and docstring say that it is conditional (for example `…_of_reduction_le`), and a theorem that discharges the premise with the reduction's efficiency witness and the named assumption provides the security claim. Here [negligible_parityPrediction](../../CslibFrontier/Crypto/Computational/GoldreichLevin/WordReduction.lean#L194) does so from `OneWay f` through `isPPT_wordInverter`.
 
 Before review, check a new security theorem against this list:
 
@@ -378,11 +378,13 @@ The SLH-DSA address-domain layer from FIPS 205 ([fips205][fips205]) is in
 [`SLHDSA/Address.lean`](../../CslibFrontier/Crypto/Primitives/SLHDSA/Address.lean), with checked
 layouts in [`SLHDSAAddress.lean`](../../CslibFrontierTests/Crypto/SLHDSAAddress.lean).
 `Address.toBits` serializes the common layer and tree fields, the seven-valued address type and the
-three type-dependent words as the standard's canonical 32-byte big-endian address.
+three type-dependent words as the standard's canonical 32-byte big-endian address;
+`Address.toBytes` exposes the same layout as a typed `FixedBytes 32` value.
 `Address.setTypeAndClear` preserves the common fields while clearing all final 12 bytes, and the
 seven typed constructors satisfy the padding, fixed-layer and fixed-height requirements in
 Figures 3–9. `Address.toCompressedBits` is literally the byte-slice projection of Figure 18 used
-by the SHA2 parameter sets; it is injective under `Address.FitsCompressed`, which records that the
+by the SHA2 parameter sets, and `Address.toCompressedBytes` gives its typed 22-byte form. The
+compressed projection is injective under `Address.FitsCompressed`, which records that the
 one-byte layer and eight-byte tree fields do not overflow. The unrestricted compressed format is
 not injective, and the checked client exhibits the discarded high tree word. This module does not
 define the FIPS 205 hash instantiations, WOTS+, XMSS, FORS, the hypertree, signing or verification,
@@ -399,6 +401,18 @@ inverse, and `take_shake256` proves prefix consistency for every pair of request
 the inverse and prefix APIs, and the first Falcon-512 KAT's `salt || message` prefix. This is an
 executable specification, not a collision/preimage result, constant-time implementation or FIPS
 validation.
+
+The shared byte and SHA-2 boundary used by the FIPS 205 SHA2 parameter sets is in
+[`ByteString.lean`](../../CslibFrontier/Crypto/Primitives/ByteString.lean) and
+[`SHA2.lean`](../../CslibFrontier/Crypto/Primitives/Hash/SHA2.lean) [fips1804][fips1804].
+`FixedBytes n` records digest and truncation lengths in the type, while `sha256` and `sha512`
+implement FIPS 180-4's byte-aligned padding, message schedule, compression and digest conversion
+under the standard's input-length domains. The
+[ordinary-import client](../../CslibFrontierTests/Crypto/SHA2.lean) checks NIST's official
+one- and two-block SHA-256 and SHA-512 examples and both padding boundaries. This is reusable
+executable infrastructure: it does not yet package FIPS 205's `F`, `H`, `T_l`, `PRF`, `PRF_msg` or
+`H_msg` calls, and establishes neither asymptotic security nor concrete candidate-parameter
+advantage, query, machine-resource or program-size bounds.
 
 Falcon's current checked layer ([falcon2020][falcon2020]) is deliberately narrower than a security
 theorem. Import
@@ -432,7 +446,9 @@ edge checks in [`SLHDSAWOTSDigits.lean`](../../CslibFrontierTests/Crypto/SLHDSAW
 [fips205][fips205]. `base2b` is Algorithm 4's big-endian byte-to-base conversion. For the three
 standard values `n = 16, 24, 32`, `WOTS.digits` implements the common first seven lines of
 `wots_sign` and `wots_pkFromSig`: the `2n` base-16 message digits followed by the three complement
-checksum digits, including the specified four-bit left shift and two-byte encoding. This milestone
+checksum digits, including the specified four-bit left shift and two-byte encoding. The client now
+uses the same `Byte` and `bytesToBitsBE` boundary as SHA-2 rather than a parallel serialization.
+This milestone
 does not define the WOTS+ hash chain, key generation, signing, public-key reconstruction, concrete
 FIPS 205 hash instantiations, or any security reduction; those remain obligations under the NIST
 post-quantum portfolio roadmap item.
@@ -1116,6 +1132,30 @@ SD-to-RSD loss, and §5.3 defers a formal EUF-CMA proof to a future version. Tho
 the quantum-security endpoint remain open under the
 [post-quantum program](https://github.com/cslib-community/cslib-frontier/issues/4987).
 
+### SDitH tweakable salt domain separation
+
+Import [`TweakSalt.lean`](../../CslibFrontier/Crypto/Primitives/SDitH/TweakSalt.lean) for
+SDitH v3.0 Algorithm 5 (pp. 16–17). `tweakSalt variant salt tweak tag` copies a
+`securityBits`-bit salt, writes `tweak : Fin (2 ^ 24)` into the low 24 coordinates using
+the existing little-endian `BitString.equivFin` convention, and writes the high tag bits
+selected by hash- or cipher-based grinding. When `26 ≤ securityBits`, the 24 low tweak positions
+and the two possible high tag positions are disjoint. Under that hypothesis, the low-, middle-,
+and high-coordinate theorems expose the complete layout, and `tweakSalt_injective` shows that a
+fixed salt and variant retain the tweak/tag pair. The definition remains total below this bound
+with the source's assignment order: at width 25 the cipher tag overwrites tweak bit 23, so tweaks
+`5` and `5 + 2^23` collide for the same tag. The
+[ordinary-module client](../../CslibFrontierTests/Crypto/SDitH/TweakSalt.lean) checks overwritten
+low bits, preserved middle bits, both high layouts, distinct tweaks and tags, and injectivity at
+the 128-bit NIST width.
+
+Algorithm 6's counter-mode PRG and `ExpandSeed` are the first source consumers, but are not
+implemented here. This function-level layout also has no native machine or resource certificate:
+later work must account for materializing the full salt, the 24-bit conversion and tag updates,
+the number of calls made by PRG/tree expansion, and the resulting time, output-size, program-size,
+and reduction-resource translations. It proves neither an asymptotic machine-certified
+scheme-family reduction/negligibility endpoint nor finite instantiated candidate/parameter-set
+advantage bounds with exact constants, soundness/failure/query terms, and assumption parameters.
+
 ## Encryption and chosen-message attacks
 
 [AdversaryOf](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/Encryption/Basic.lean#L73) has a first stage choosing two messages and a saved word from the public key, and a second stage guessing from that saved state and the challenge ciphertext. Each stage has a native certificate. `INDCPAOn` explicitly constrains admissible message pairs. `WordINDCPA` requires equal lengths; the general `INDCPAOf` with all pairs is stronger for variable-length word messages. Invalid challenges are made independent of the hidden experiment bit. `Encryption.advantage (gameOn valid keyGen encrypt adversary) n` names the advantage between the two sides of the experiment at parameter `n`, and `INDCPAOn` asks that it be negligible for every admissible adversary; bounds on other two-sided encryption experiments, such as the DEM and CCA games, are stated with the same name.
@@ -1675,14 +1715,21 @@ bound, this statement is information-theoretic. Concrete checks are in
 For messages of varying length built from a fixed-length `MACScheme`, import
 [`Protocols/MAC/VariableLength.lean`](../../CslibFrontier/Crypto/Protocols/MAC/VariableLength.lean)
 (Katz–Lindell 3rd ed., §4.3.2, Construction 4.7 and Theorem 4.8). `MACScheme.blockwiseSign` tags
-every block together with a fresh uniform identifier, the message length and the block index.
-`MACScheme.blockwiseGame_le` bounds the fresh-message EUF-CMA success probability by the advantage
-of `blockwiseReduction` against the fixed-length scheme plus `(∑ i ∈ range Q, i) / 2 ^ w` for an
-adversary with at most `Q` signing queries, where `w` is a quarter of the fixed input length.
-`blockwiseGame_noIndex`, `blockwiseGame_noLength` and `blockwiseGame_noIdentifier` show that
-omitting any one of the three fields gives an adversary that wins with probability `1` once
-`w ≥ 3`, that is, once the fixed input length is at least `12`. No uniform PPT corollary is stated.
-Concrete checks are in
+every block together with a fresh uniform identifier, the message length and the block index;
+`isPPTOn_blockwiseSign`, `computableInPolyTime_blockwiseVerify` and `isPPT_blockwiseGame` certify
+the honest algorithms and experiment for any `IsPolyTimeEncoder` and strict oracle-PPT
+`BlockwiseMACForger`. `MACScheme.blockwiseGame_le` bounds the fresh-message EUF-CMA success
+probability by the advantage of `blockwiseReduction` against the fixed-length scheme plus
+`(∑ i ∈ range Q, i) / 2 ^ w` for an adversary with at most `Q` signing queries, where `w` is a
+quarter of the fixed input length. Truncating fixed-length oracle replies to a polynomial bound on
+honest tags yields the uniform strict oracle-PPT reduction `blockwiseBoundedReduction`
+(`isOraclePPT_blockwiseBoundedReduction`), and `MACScheme.EUFCMA.blockwiseEUFCMA` derives uniform
+asymptotic `BlockwiseEUFCMA fullEncoder` whenever `PolynomiallyLowerBounded M.msgLen`.
+`blockwiseGame_noIndex`, `blockwiseGame_noLength` and `blockwiseGame_noIdentifier` (together with
+`not_blockwiseEUFCMA_noIndexEncoder`, `not_blockwiseEUFCMA_noLengthEncoder` and
+`not_blockwiseEUFCMA_noIdentifierEncoder`) show that omitting any one of the three fields gives a
+strict oracle-PPT forger that wins with probability `1` once `w ≥ 3`, that is, once the fixed
+input length is at least `12`. Concrete checks are in
 [`CslibFrontierTests/Crypto/VariableLengthMAC.lean`](../../CslibFrontierTests/Crypto/VariableLengthMAC.lean).
 
 A weak pseudorandom function only has to look random on uniformly random inputs. In
@@ -1716,7 +1763,7 @@ is coded as zero. For `1 < ℓ` and `ε < 1`, the constant-term layout of Exerci
 `ZMod 5` and for the zero patch are in
 [`CslibFrontierTests/Crypto/WeakPRFAndPolyMAC.lean`](../../CslibFrontierTests/Crypto/WeakPRFAndPolyMAC.lean).
 
-[IndexedSignatureScheme](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/IndexedSignature.lean#L89) signs index/message pairs with polynomially bounded capacity; the oracle refuses repeated or out-of-range signing indices. The syntax is stateless but the game enforces single use. Counter wrappers and Merkle signature clients turn that contract into stateful signing, whereas [TreeSignature.scheme](../../CslibFrontier/Crypto/Computational/TreeSignature.lean#L576) and [TreeSignature/Security.lean](../../CslibFrontier/Crypto/Computational/TreeSignature/Security.lean#L4295) upgrade any indexed EUF-CMA scheme of capacity at least `2` plus a pseudorandom function (or one-way function) to a stateless `SignatureScheme` (`eufCMA_scheme`, `IndexedSignatureScheme.IndexedEUFCMA.exists_eufCMA_of_prf`, `exists_eufCMA_of_oneWay`) by sampling a uniform leaf and deriving internal node keys and signing coins from the PRF [bs23][bs23]; `TreeSignature.sign` returns `[]` outside the `n`-bit message domain. Composing Lamport, depth-`1` Merkle trees, PRFs from one-way functions, and stateless tree signatures gives [OneWay.exists_eufCMA_of_hashFamily](../../CslibFrontier/Crypto/Computational/TreeSignature/Security.lean#L4353) from a one-way function and a collision-resistant hash family. Without full collision resistance, [`TCRSignature.scheme`](../../CslibFrontier/Crypto/Computational/TCRSignature.lean) adapts Boneh–Shoup §13.2.1, construction `(13.2)` on p. 533 and Theorem 13.2 on p. 534 [bs23][bs23] to a capacity-`1` `IndexedSignatureScheme` over a one-time signature scheme `S` and an unrestricted target collision-resistant `KeyedHashFamily` `H` without storing a hash key in `pk` (`SignatureScheme.OneTimeEUFCMA.indexedEUFCMA_tcrSignature`; concrete checks and an explicit `1`-probability break against a constant hash family are in [`CslibFrontierTests/Crypto/TCRSignature.lean`](../../CslibFrontierTests/Crypto/TCRSignature.lean)), and [`IndexedSignatureScheme.double`](../../CslibFrontier/Crypto/Computational/IndexedSignature/Double.lean) doubles any indexed scheme of capacity at least `1` to constant capacity `2` with plug-and-pray loss `2` (Boneh–Shoup §14.6.1, construction `(14.4)` on p. 597, and Exercise 13.2 [bs23][bs23]; `IndexedSignatureScheme.IndexedEUFCMA.double`). Composing Lamport one-time signatures, `TCRSignature.scheme`, `IndexedSignatureScheme.double`, and `TreeSignature` yields `OneWay.exists_eufCMA_of_targetCollisionResistant`: instantiating `H` with `naorYungHash` proves `OneWayPermutation.exists_eufCMA` (Naor–Yung §4 / Theorem 2 [naoryung89][naoryung89]), while instantiating `H` with `rompelHash` in [`Rompel.lean`](../../CslibFrontier/Crypto/Computational/Rompel.lean) removes the permutation hypothesis to yield `OneWay.exists_indexedEUFCMA_two` and `OneWay.exists_counterEUFCMA_two` on arbitrary-length `List Bool` messages, `OneWay.exists_eufCMA` and `exists_oneWay_iff_exists_signature` on `SignatureScheme`'s `n`-bit message domain, and—after applying [`TCRSignature.wordScheme`](../../CslibFrontier/Crypto/Computational/TCRSignature/ManyTime.lean) (`SignatureScheme.EUFCMA.eufCMA_wordScheme`)—`OneWay.exists_wordEUFCMA` and `exists_oneWay_iff_exists_wordSignature` on unrestricted `List Bool` messages ([rompel90][rompel90]; client checks and message-space separation witnesses in [`CslibFrontierTests/Crypto/Rompel.lean`](../../CslibFrontierTests/Crypto/Rompel.lean)). Keep the indexed game's no-repeat invariant distinct from durable storage in a deployed stateful implementation: no filesystem or crash-recovery model is asserted here.
+[IndexedSignatureScheme](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/IndexedSignature.lean#L89) signs index/message pairs with polynomially bounded capacity; the oracle refuses repeated or out-of-range signing indices. The syntax is stateless but the game enforces single use. Counter wrappers and Merkle signature clients turn that contract into stateful signing, whereas [TreeSignature.scheme](../../CslibFrontier/Crypto/Computational/TreeSignature.lean#L576) and [TreeSignature/Security.lean](../../CslibFrontier/Crypto/Computational/TreeSignature/Security.lean#L4287) upgrade any indexed EUF-CMA scheme of capacity at least `2` plus a pseudorandom function (or one-way function) to a stateless `SignatureScheme` (`eufCMA_scheme`, `IndexedSignatureScheme.IndexedEUFCMA.exists_eufCMA_of_prf`, `exists_eufCMA_of_oneWay`) by sampling a uniform leaf and deriving internal node keys and signing coins from the PRF [bs23][bs23]; `TreeSignature.sign` returns `[]` outside the `n`-bit message domain. Composing Lamport, depth-`1` Merkle trees, PRFs from one-way functions, and stateless tree signatures gives [OneWay.exists_eufCMA_of_hashFamily](../../CslibFrontier/Crypto/Computational/TreeSignature/Security.lean#L4345) from a one-way function and a collision-resistant hash family. Without full collision resistance, [`TCRSignature.scheme`](../../CslibFrontier/Crypto/Computational/TCRSignature.lean) adapts Boneh–Shoup §13.2.1, construction `(13.2)` on p. 533 and Theorem 13.2 on p. 534 [bs23][bs23] to a capacity-`1` `IndexedSignatureScheme` over a one-time signature scheme `S` and an unrestricted target collision-resistant `KeyedHashFamily` `H` without storing a hash key in `pk` (`SignatureScheme.OneTimeEUFCMA.indexedEUFCMA_tcrSignature`; concrete checks and an explicit `1`-probability break against a constant hash family are in [`CslibFrontierTests/Crypto/TCRSignature.lean`](../../CslibFrontierTests/Crypto/TCRSignature.lean)), and [`IndexedSignatureScheme.double`](../../CslibFrontier/Crypto/Computational/IndexedSignature/Double.lean) doubles any indexed scheme of capacity at least `1` to constant capacity `2` with plug-and-pray loss `2` (Boneh–Shoup §14.6.1, construction `(14.4)` on p. 597, and Exercise 13.2 [bs23][bs23]; `IndexedSignatureScheme.IndexedEUFCMA.double`). Composing Lamport one-time signatures, `TCRSignature.scheme`, `IndexedSignatureScheme.double`, and `TreeSignature` yields `OneWay.exists_eufCMA_of_targetCollisionResistant`: instantiating `H` with `naorYungHash` proves `OneWayPermutation.exists_eufCMA` (Naor–Yung §4 / Theorem 2 [naoryung89][naoryung89]), while instantiating `H` with `rompelHash` in [`Rompel.lean`](../../CslibFrontier/Crypto/Computational/Rompel.lean) removes the permutation hypothesis to yield `OneWay.exists_indexedEUFCMA_two` and `OneWay.exists_counterEUFCMA_two` on arbitrary-length `List Bool` messages, `OneWay.exists_eufCMA` and `exists_oneWay_iff_exists_signature` on `SignatureScheme`'s `n`-bit message domain, and—after applying [`TCRSignature.wordScheme`](../../CslibFrontier/Crypto/Computational/TCRSignature/ManyTime.lean) (`SignatureScheme.EUFCMA.eufCMA_wordScheme`)—`OneWay.exists_wordEUFCMA` and `exists_oneWay_iff_exists_wordSignature` on unrestricted `List Bool` messages ([rompel90][rompel90]; client checks and message-space separation witnesses in [`CslibFrontierTests/Crypto/Rompel.lean`](../../CslibFrontierTests/Crypto/Rompel.lean)). Keep the indexed game's no-repeat invariant distinct from durable storage in a deployed stateful implementation: no filesystem or crash-recovery model is asserted here.
 
 Collision-resistant hashing alone gives these stateless signatures.
 [`HashFamily.oneWay_keyDigest`](../../CslibFrontier/Crypto/Computational/CollisionResistantToOneWay.lean)
@@ -1759,6 +1806,7 @@ The finite query-only PRG/cipher results, semantic commitment interfaces and uni
 [cs03]: ../sources.md#cs03
 [cslib]: ../sources.md#cslib
 [falcon2020]: ../sources.md#falcon2020
+[fips1804]: ../sources.md#fips1804
 [fips202]: ../sources.md#fips202
 [fips203]: ../sources.md#fips203
 [fips205]: ../sources.md#fips205
