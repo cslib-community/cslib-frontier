@@ -164,8 +164,9 @@ theorem memoryCost_writeLMHeadProg (U V w n_max h_space : ℕ) (d : ((ℕ × ℕ
 theorem clientResult_readLMHeadProg {U V w n_max h_space base b m : ℕ} (s : Memory.State)
     (hb : b < numBuckets n_max) (hm : m < numMicroPerBucket n_max) :
     (Memory.spec 0).clientResult s (readLMHeadProg U V w n_max h_space ((base, b), m)) =
-      lmHead n_max (lmAt base U V w n_max h_space s.mem) b m :=
-  clientResult_readLMProg s (by decide) (lmHeadIdx_lt hb hm)
+      lmHead n_max (lmAt base U V w n_max h_space s.mem) b m := by
+  simp only [readLMHeadProg, readLMHeadGenProg, p_numMicro_mk, readLMGenProg_mk]
+  exact clientResult_readLMProg s (by decide) (lmHeadIdx_lt hb hm)
 
 theorem realizes_readLMHeadGen :
     Realizes .exact readLMHeadGenProg
