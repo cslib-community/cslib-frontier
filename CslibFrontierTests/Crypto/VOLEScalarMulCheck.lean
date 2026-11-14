@@ -68,7 +68,7 @@ example (reply : ZMod 5 → PMF (ZMod 5 × ZMod 5)) :
       return decide (quickSilverMulCheckValue (fun _ : Fin 2 => 0) (fun _ => 0)
         falseOutput5 (fun _ => 0) (fun _ => 0) (fun _ => 0) chi delta =
           uv.1 + uv.2 * delta)).toOuterMeasure {true} ≤ 4 / (5 : ℝ≥0∞) := by
-  simpa only [ZMod.card, Nat.cast_ofNat] using
+  simpa only [ZMod.card, Nat.reduceAdd, Nat.cast_ofNat] using
     toOuterMeasure_quickSilverMulCheck_le (fun _ : Fin 2 => (0 : ZMod 5)) (fun _ => 0)
       falseOutput5 (fun _ => 0) (fun _ => 0) (fun _ => 0) reply ⟨0, by decide⟩
 
