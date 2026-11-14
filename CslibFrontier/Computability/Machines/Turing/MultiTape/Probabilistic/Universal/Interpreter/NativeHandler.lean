@@ -52,7 +52,7 @@ A handler with no external channels specializes the branch to a closed `MultiTap
 The retained handler installation and its resource accounting are original to this module.
 -/
 
-@[expose] public section
+public section
 
 namespace Turing.MultiTapePTM.Universal.NativeHandler
 
@@ -61,67 +61,99 @@ open Cslib Cslib.Probability Turing.MultiTapeMachine Turing.MultiTapeTM
 open Turing.MultiTapePTM.Universal
 open Turing.MultiTapePTM.Universal.NativeInterpreter
 
+variable {HandlerState : Type}
+
 /-! ### Typed handler boundary -/
 
-/-- A local stateful-handler call: source operation, Boolean request word and current handler
-state. The nested product order is the literal retained encoding order. -/
-abbrev HandlerCall (r : ℕ) (HandlerState : Type) :=
-  Fin r × (List Bool × HandlerState)
+/-- A local stateful-handler call. -/
+structure HandlerCall (r : ℕ) (HandlerState : Type) where
+  /-- Source operation requested from the handler. -/
+  operation : Fin r
+  /-- Boolean request word supplied to the handler. -/
+  request : List Bool
+  /-- Current private handler state. -/
+  state : HandlerState
 
-/-- Encoding of an installed stateful-handler call. -/
-def eHandlerCall (r : ℕ) (encHandlerState : HandlerState ↪ List Bool) :
-    HandlerCall r HandlerState ↪ List Bool :=
-  encPair (eOperation r) (encPair encBits encHandlerState)
+/-- Encode operation, request and state in that order. -/
+enc_structure eHandlerCall (r : ℕ) (encHandlerState : HandlerState ↪ List Bool) :
+    HandlerCall r HandlerState where
+  operation : (eOperation r), request : encBits, state : encHandlerState
 
 /-- A local handler's raw reply and updated private state. -/
-abbrev HandlerResult (HandlerState : Type) := List Bool × HandlerState
+structure HandlerResult (HandlerState : Type) where
+  /-- Raw Boolean reply word. -/
+  reply : List Bool
+  /-- Updated private handler state. -/
+  state : HandlerState
 
-/-- Encoding of a local handler's result. -/
-def eHandlerResult (encHandlerState : HandlerState ↪ List Bool) :
-    HandlerResult HandlerState ↪ List Bool :=
-  encPair encBits encHandlerState
+/-- Encode reply then updated handler state. -/
+enc_structure eHandlerResult (encHandlerState : HandlerState ↪ List Bool) :
+    HandlerResult HandlerState where
+  reply : encBits, state : encHandlerState
 
-/-- One validated source query together with the private state of the installed handler. The
-coordinates are source loop state, operation, unary source request, continuation tag, suspended
-source configuration and handler state. -/
-abbrev QueryInput (r : ℕ) (HandlerState : Type) :=
-  NativeInterpreter.LoopState ×
-    (Fin r × (List ℕ × (ℕ × (ICfg × HandlerState))))
+/-- One validated source query together with the private state of the installed handler. -/
+structure QueryInput (r : ℕ) (HandlerState : Type) where
+  /-- Suspended source interpreter state. -/
+  source : NativeInterpreter.LoopState
+  /-- Requested source operation. -/
+  operation : Fin r
+  /-- Unary source request. -/
+  request : List ℕ
+  /-- Source continuation tag. -/
+  next : ℕ
+  /-- Suspended source configuration. -/
+  pending : ICfg
+  /-- Current private handler state. -/
+  handlerState : HandlerState
 
-/-- Literal field-order encoding of a validated installed query. -/
-def eQueryInput (r : ℕ) (encHandlerState : HandlerState ↪ List Bool) :
-    QueryInput r HandlerState ↪ List Bool :=
-  encPair eLoopState
-    (encPair (eOperation r)
-      (encPair (encList encUnary) (encPair encUnary (encPair eICfg encHandlerState))))
+/-- Encode source, operation, request, continuation, configuration and handler state in order. -/
+enc_structure eQueryInput (r : ℕ) (encHandlerState : HandlerState ↪ List Bool) :
+    QueryInput r HandlerState where
+  source : eLoopState, operation : (eOperation r), request : (encList encUnary),
+  next : encUnary, pending : eICfg, handlerState : encHandlerState
+
+/-- State retained after one installed source query. -/
+structure RetainedState (HandlerState : Type) where
+  /-- Updated source interpreter state. -/
+  source : NativeInterpreter.LoopState
+  /-- Updated private handler state. -/
+  handlerState : HandlerState
+
+/-- Encode the source state then the handler state. -/
+enc_structure eRetainedState (encHandlerState : HandlerState ↪ List Bool) :
+    RetainedState HandlerState where
+  source : eLoopState, handlerState : encHandlerState
 
 /-- The updated source loop state and installed-handler state, wrapped in the nonempty option used
 by the outer retained loop. -/
 abbrev QueryResult (HandlerState : Type) :=
-  Option (NativeInterpreter.LoopState × HandlerState)
+  Option (RetainedState HandlerState)
 
 /-- Encoding of the complete result of one installed source query. -/
 def eQueryResult (encHandlerState : HandlerState ↪ List Bool) :
     QueryResult HandlerState ↪ List Bool :=
-  encOption (encPair eLoopState encHandlerState)
+  encOption (eRetainedState encHandlerState)
 
 /-- Marshal the typed source request into the Boolean word consumed by a local handler. -/
 def handlerCall (input : QueryInput r HandlerState) : HandlerCall r HandlerState :=
-  (input.2.1, encList encUnary input.2.2.1, input.2.2.2.2.2)
+  { operation := input.operation
+    request := encList encUnary input.request
+    state := input.handlerState }
 
 /-- Copy the permitted raw handler-reply prefix, decode it and install it in the suspended source
 configuration. This is definitionally the same order as the open interpreter: raw-bit prefix
 first, unary-frame decoding second, and source-fuel truncation last. -/
 def installReply (input : QueryInput r HandlerState)
     (result : HandlerResult HandlerState) : QueryResult HandlerState :=
-  let reply := result.1.take input.1.replyBits
-  let decoded := (frames reply).map List.length |>.take input.1.fuel
-  let next := input.2.2.2.2.1.receive input.2.1 input.2.2.2.1 decoded
-  some (input.1.advance next, result.2)
+  let reply := result.reply.take input.source.replyBits
+  let decoded := (frames reply).map List.length |>.take input.source.fuel
+  let next := input.pending.receive input.operation input.next decoded
+  some { source := input.source.advance next, handlerState := result.state }
 
 /-- The exact stateful semantics executed by the retained query branch. -/
 noncomputable def queryProgram
-    (handler : HandlerCall r HandlerState → WordOracleComp (Fin external) (HandlerResult HandlerState))
+    (handler : HandlerCall r HandlerState →
+      WordOracleComp (Fin external) (HandlerResult HandlerState))
     (input : QueryInput r HandlerState) :
     WordOracleComp (Fin external) (QueryResult HandlerState) :=
   NativeOracleProgram.capturedProgram
@@ -151,74 +183,98 @@ private def eQueryTail₄ (encHandlerState : HandlerState ↪ List Bool) :
     QueryTail₄ HandlerState ↪ List Bool :=
   encPair eICfg encHandlerState
 
+private def queryFields (input : QueryInput r HandlerState) :
+    NativeInterpreter.LoopState × QueryTail₁ r HandlerState :=
+  (input.source,
+    (input.operation, (input.request, (input.next, (input.pending, input.handlerState)))))
+
 private noncomputable def sourceCompiler (r : ℕ)
     (encHandlerState : HandlerState ↪ List Bool) :
-    NativeCompiler (fun input : QueryInput r HandlerState => input.1)
+    NativeCompiler (fun input : QueryInput r HandlerState => input.source)
       (eQueryInput r encHandlerState) eLoopState :=
-  NativeCompiler.first eLoopState (eQueryTail₁ r encHandlerState)
+  (NativeCompiler.first eLoopState (eQueryTail₁ r encHandlerState)).ofInputEq
+    queryFields fun _ => rfl
 
 private noncomputable def tail₁Compiler (r : ℕ)
     (encHandlerState : HandlerState ↪ List Bool) :
-    NativeCompiler (fun input : QueryInput r HandlerState => input.2)
+    NativeCompiler (fun input : QueryInput r HandlerState =>
+      (input.operation, (input.request, (input.next, (input.pending, input.handlerState)))))
       (eQueryInput r encHandlerState) (eQueryTail₁ r encHandlerState) :=
-  NativeCompiler.second eLoopState (eQueryTail₁ r encHandlerState)
+  (NativeCompiler.second eLoopState (eQueryTail₁ r encHandlerState)).ofInputEq
+    queryFields fun _ => rfl
 
 private noncomputable def operationCompiler (r : ℕ)
     (encHandlerState : HandlerState ↪ List Bool) :
-    NativeCompiler (fun input : QueryInput r HandlerState => input.2.1)
+    NativeCompiler (fun input : QueryInput r HandlerState => input.operation)
       (eQueryInput r encHandlerState) (eOperation r) :=
   (NativeCompiler.first (eOperation r) (eQueryTail₂ encHandlerState)).comp
     (tail₁Compiler r encHandlerState)
 
 private noncomputable def tail₂Compiler (r : ℕ)
     (encHandlerState : HandlerState ↪ List Bool) :
-    NativeCompiler (fun input : QueryInput r HandlerState => input.2.2)
+    NativeCompiler (fun input : QueryInput r HandlerState =>
+      (input.request, (input.next, (input.pending, input.handlerState))))
       (eQueryInput r encHandlerState) (eQueryTail₂ encHandlerState) :=
   (NativeCompiler.second (eOperation r) (eQueryTail₂ encHandlerState)).comp
     (tail₁Compiler r encHandlerState)
 
 private noncomputable def requestCompiler (r : ℕ)
     (encHandlerState : HandlerState ↪ List Bool) :
-    NativeCompiler (fun input : QueryInput r HandlerState => input.2.2.1)
+    NativeCompiler (fun input : QueryInput r HandlerState => input.request)
       (eQueryInput r encHandlerState) (encList encUnary) :=
   (NativeCompiler.first (encList encUnary) (eQueryTail₃ encHandlerState)).comp
     (tail₂Compiler r encHandlerState)
 
 private noncomputable def tail₃Compiler (r : ℕ)
     (encHandlerState : HandlerState ↪ List Bool) :
-    NativeCompiler (fun input : QueryInput r HandlerState => input.2.2.2)
+    NativeCompiler (fun input : QueryInput r HandlerState =>
+      (input.next, (input.pending, input.handlerState)))
       (eQueryInput r encHandlerState) (eQueryTail₃ encHandlerState) :=
   (NativeCompiler.second (encList encUnary) (eQueryTail₃ encHandlerState)).comp
     (tail₂Compiler r encHandlerState)
 
 private noncomputable def nextCompiler (r : ℕ)
     (encHandlerState : HandlerState ↪ List Bool) :
-    NativeCompiler (fun input : QueryInput r HandlerState => input.2.2.2.1)
+    NativeCompiler (fun input : QueryInput r HandlerState => input.next)
       (eQueryInput r encHandlerState) encUnary :=
   (NativeCompiler.first encUnary (eQueryTail₄ encHandlerState)).comp
     (tail₃Compiler r encHandlerState)
 
 private noncomputable def tail₄Compiler (r : ℕ)
     (encHandlerState : HandlerState ↪ List Bool) :
-    NativeCompiler (fun input : QueryInput r HandlerState => input.2.2.2.2)
+    NativeCompiler (fun input : QueryInput r HandlerState =>
+      (input.pending, input.handlerState))
       (eQueryInput r encHandlerState) (eQueryTail₄ encHandlerState) :=
   (NativeCompiler.second encUnary (eQueryTail₄ encHandlerState)).comp
     (tail₃Compiler r encHandlerState)
 
 private noncomputable def pendingCompiler (r : ℕ)
     (encHandlerState : HandlerState ↪ List Bool) :
-    NativeCompiler (fun input : QueryInput r HandlerState => input.2.2.2.2.1)
+    NativeCompiler (fun input : QueryInput r HandlerState => input.pending)
       (eQueryInput r encHandlerState) eICfg :=
   (NativeCompiler.first eICfg encHandlerState).comp (tail₄Compiler r encHandlerState)
 
 private noncomputable def handlerStateCompiler (r : ℕ)
     (encHandlerState : HandlerState ↪ List Bool) :
-    NativeCompiler (fun input : QueryInput r HandlerState => input.2.2.2.2.2)
+    NativeCompiler (fun input : QueryInput r HandlerState => input.handlerState)
       (eQueryInput r encHandlerState) encHandlerState :=
   (NativeCompiler.second eICfg encHandlerState).comp (tail₄Compiler r encHandlerState)
 
+private noncomputable def classifiedOfOutputEq {Alpha Beta Gamma : Type}
+    {f : Alpha → Beta} {g : Alpha → Gamma}
+    {encIn : Alpha ↪ List Bool} {encMid : Beta ↪ List Bool}
+    {encOut : Gamma ↪ List Bool}
+    (compiler : ClassifiedCompiler f encIn encMid)
+    (henc : ∀ input, encOut (g input) = encMid (f input)) :
+    ClassifiedCompiler g encIn encOut where
+  compiler := compiler.compiler.ofOutputEq henc
+  online := compiler.online
+  time_eq := compiler.time_eq
+  workspace_le := compiler.workspace_le
+  clockWorkspace_le := compiler.clockWorkspace_le
+
 /-- Retained operation/request/state marshalling for one local handler call. -/
-noncomputable def handlerCallCompiler (r : ℕ)
+private noncomputable def handlerCallCompiler (r : ℕ)
     (encHandlerState : HandlerState ↪ List Bool) :
     ClassifiedCompiler (handlerCall : QueryInput r HandlerState → HandlerCall r HandlerState)
       (eQueryInput r encHandlerState) (eHandlerCall r encHandlerState) := by
@@ -228,7 +284,7 @@ noncomputable def handlerCallCompiler (r : ℕ)
     ((requestCompiler r encHandlerState).ofOutputEq fun _ => rfl)
   let state := ClassifiedCompiler.inPhase .controller
     (handlerStateCompiler r encHandlerState)
-  exact operation.pair (request.pair state)
+  exact classifiedOfOutputEq (operation.pair (request.pair state)) fun _ => rfl
 
 /-! ### Retained reply installation -/
 
@@ -252,21 +308,23 @@ private noncomputable def postResultCompiler (r : ℕ)
 
 private noncomputable def postReplyCompiler (r : ℕ)
     (encHandlerState : HandlerState ↪ List Bool) :
-    NativeCompiler (fun input : PostInput r HandlerState => input.2.1)
+    NativeCompiler (fun input : PostInput r HandlerState => input.2.reply)
       (ePostInput r encHandlerState) encBits :=
-  (NativeCompiler.first encBits encHandlerState).comp
+  ((NativeCompiler.first encBits encHandlerState).ofInputEq
+      (fun result : HandlerResult HandlerState => (result.reply, result.state)) fun _ => rfl).comp
     (postResultCompiler r encHandlerState)
 
 private noncomputable def postHandlerStateCompiler (r : ℕ)
     (encHandlerState : HandlerState ↪ List Bool) :
-    NativeCompiler (fun input : PostInput r HandlerState => input.2.2)
+    NativeCompiler (fun input : PostInput r HandlerState => input.2.state)
       (ePostInput r encHandlerState) encHandlerState :=
-  (NativeCompiler.second encBits encHandlerState).comp
+  ((NativeCompiler.second encBits encHandlerState).ofInputEq
+      (fun result : HandlerResult HandlerState => (result.reply, result.state)) fun _ => rfl).comp
     (postResultCompiler r encHandlerState)
 
 /-- Retained raw-reply decoding, source-symbol truncation, source-state update and handler-state
 threading. -/
-noncomputable def installReplyCompiler (r : ℕ)
+private noncomputable def installReplyCompiler (r : ℕ)
     (encHandlerState : HandlerState ↪ List Bool) :
     ClassifiedCompiler
       (fun input : PostInput r HandlerState => installReply input.1 input.2)
@@ -299,8 +357,9 @@ noncomputable def installReplyCompiler (r : ℕ)
   let state := ClassifiedCompiler.inPhase .controller
     (postHandlerStateCompiler r encHandlerState)
   let result := advanced.pair state
-  exact (ClassifiedCompiler.inPhase .controller
+  let present := (ClassifiedCompiler.inPhase .controller
     (NativeCompiler.optionSome (encPair eLoopState encHandlerState))).comp result
+  exact classifiedOfOutputEq present fun _ => rfl
 
 /-- The deterministic retained continuation after a local handler returns. -/
 noncomputable def installReplyArtifact (external r : ℕ)
@@ -325,6 +384,7 @@ noncomputable def preparedHandler (r : ℕ)
 /-- A phasewise bound for the retained reply installer on every result supported by the supplied
 handler artifact. This is deliberately a support-local construction obligation: callers need not
 bound impossible handler states or replies. -/
+@[expose]
 def PostBound (r : ℕ) (encHandlerState : HandlerState ↪ List Bool)
     (handler : HandlerCall r HandlerState →
       WordOracleComp (Fin external) (HandlerResult HandlerState))
@@ -369,11 +429,13 @@ theorem queryProgram_apply
     (input : QueryInput r HandlerState) :
     queryProgram handler input = do
       let result ← handler
-        (input.2.1, encList encUnary input.2.2.1, input.2.2.2.2.2)
-      let reply := result.1.take input.1.replyBits
-      let decoded := (frames reply).map List.length |>.take input.1.fuel
-      let next := input.2.2.2.2.1.receive input.2.1 input.2.2.2.1 decoded
-      pure (some (input.1.advance next, result.2)) :=
+        { operation := input.operation
+          request := encList encUnary input.request
+          state := input.handlerState }
+      let reply := result.reply.take input.source.replyBits
+      let decoded := (frames reply).map List.length |>.take input.source.fuel
+      let next := input.pending.receive input.operation input.next decoded
+      pure (some { source := input.source.advance next, handlerState := result.state }) :=
   rfl
 
 /-- The specialized branch exposes the literal capture append, supplied handler machine and
