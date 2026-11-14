@@ -8,8 +8,9 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Probability.HashFamily
-public import CslibFrontier.Probability.KWiseIndependent.Polynomial
 public import Mathlib.Algebra.Field.Defs
+public import Mathlib.Algebra.Polynomial.Degree.Defs
+public import Mathlib.Algebra.Polynomial.Eval.Defs
 public import Mathlib.LinearAlgebra.Pi
 import Mathlib.Algebra.Polynomial.Roots
 import Mathlib.Algebra.Polynomial.Monic
@@ -20,6 +21,9 @@ import Mathlib.Algebra.Polynomial.Monic
 Over a finite field `F`, a message `m = (a₁, …, a_v)` of length at most `ℓ` is hashed with a key
 `k ∈ F` by evaluating a polynomial at `k` [WegmanCarter1981]:
 
+* `polynomialHash c k = ∑ i, c i * k ^ i` exposes the standard ascending fixed-length
+  coefficient vector. It is the shared evaluator used by the polynomial `k`-wise independent
+  family ([Vadhan2012], Section 3.5.5).
 * `coeffPolyHash k x = x₀ k ^ (n - 1) + ⋯ + x_(n - 1)` evaluates a fixed-length
   coefficient vector by `n` Horner multiply-add rounds from zero. If `k` is sampled uniformly
   from a finite set injected into `F`, this family is `n / |S|`-universal
@@ -39,6 +43,7 @@ coefficient indices identifies the two APIs.
 
 ## Main definitions
 
+* `Cslib.Probability.polynomialHash`: ascending fixed-length coefficient evaluation.
 * `Cslib.Probability.coeffPolyHash`: fixed-length coefficient evaluation by Horner's rule.
 * `Cslib.Probability.coeffPolyHashLinear`: coefficient evaluation as a linear map.
 * `Cslib.Probability.polyHash`, `Cslib.Probability.xpolyHash`: variable-length polynomial
@@ -46,6 +51,8 @@ coefficient indices identifies the two APIs.
 
 ## Main results
 
+* `Cslib.Probability.polynomialHash_add`, `Cslib.Probability.polynomialHash_eq_eval`: additive
+  coefficient evaluation and its agreement with bounded-degree polynomial evaluation.
 * `Cslib.Probability.isUniversalHash_coeffPolyHash_of_embedding`: the evaluation point may be
   uniform in any finite set injected into the field.
 * `Cslib.Probability.isUniversalHash_coeffPolyHash`: the full-field specialization.
@@ -61,6 +68,7 @@ coefficient indices identifies the two APIs.
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*,
   Version 0.6][BonehShoup2023], Sections 7.2.1 and 7.4.
 * [C. Baum et al., *FAEST v3: Algorithm Specifications*][BaumEtAl2026FAEST], Section 4.2.
+* [S. P. Vadhan, *Pseudorandomness*][Vadhan2012], Section 3.5.5.
 -/
 
 @[expose] public section
@@ -68,6 +76,32 @@ coefficient indices identifies the two APIs.
 namespace Cslib.Probability
 
 open scoped ENNReal
+
+section PolynomialHash
+
+open Finset Polynomial
+
+variable {R : Type*} [Semiring R]
+
+/-- The polynomial hash with coefficient vector `c : Fin k → R`: the value at `x` of the
+polynomial `∑ j < k, c j X ^ j`, of degree less than `k`. -/
+def polynomialHash {k : ℕ} (c : Fin k → R) (x : R) : R :=
+  ∑ j, c j * x ^ (j : ℕ)
+
+/-- The polynomial hash is additive in its coefficient vector. -/
+theorem polynomialHash_add {k : ℕ} (c d : Fin k → R) :
+    polynomialHash (c + d) = polynomialHash c + polynomialHash d := by
+  funext x
+  simp only [polynomialHash, Pi.add_apply, add_mul, sum_add_distrib]
+
+/-- The polynomial hash with coefficients `c` evaluates any polynomial of degree less than `k`
+whose coefficients are `c`. -/
+theorem polynomialHash_eq_eval {k : ℕ} (P : R[X]) (hP : P.natDegree < k) (x : R) :
+    polynomialHash (fun j : Fin k => P.coeff j) x = P.eval x := by
+  rw [eval_eq_sum_range' hP, polynomialHash]
+  exact Fin.sum_univ_eq_sum_range (fun j => P.coeff j * x ^ j) k
+
+end PolynomialHash
 
 variable {F : Type*} [Field F]
 
