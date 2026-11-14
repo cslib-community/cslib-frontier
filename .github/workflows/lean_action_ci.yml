@@ -397,7 +397,7 @@ jobs:
   # publisher consumes it unless this aggregator succeeds.
   ci-checks:
     needs: [source-checks, lean-checks]
-    if: always()
+    if: always() && github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions: {}
     outputs:
@@ -521,6 +521,8 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: hierarchy-evidence
-          path: ${{ runner.temp }}/hierarchy-evidence/
+          path: |
+            ${{ runner.temp }}/hierarchy-evidence/
+            !${{ runner.temp }}/hierarchy-evidence/*/lib/**
           if-no-files-found: error
           retention-days: 30
