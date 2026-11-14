@@ -414,6 +414,21 @@ executable infrastructure: it does not yet package FIPS 205's `F`, `H`, `T_l`, `
 `H_msg` calls, and establishes neither asymptotic security nor concrete candidate-parameter
 advantage, query, machine-resource or program-size bounds.
 
+The shared SHA-2 message-call prerequisites are in
+[`HMAC.lean`](../../CslibFrontier/Crypto/Primitives/Hash/HMAC.lean) and
+[`MGF1.lean`](../../CslibFrontier/Crypto/Primitives/Hash/MGF1.lean)
+[fips1981][fips1981] [rfc8017][rfc8017]. HMAC exposes the complete FIPS 198-1 key preprocessing:
+short keys are right-padded, exact-block keys are unchanged, and long keys are hashed before
+padding. MGF1 hashes `seed || I2OSP(counter, 4)` in increasing counter order, concatenates the
+typed digest blocks with `BitString.blocksEquiv.symm`, and uses `FixedBytes.take` for the requested
+leading bytes. Its source domain admits the inclusive `2^32 * hLen` output bound and avoids a
+spurious seed-length restriction for an empty mask. The
+[ordinary-import client](../../CslibFrontierTests/Crypto/HMACMGF1.lean) checks RFC 4231 short- and
+long-key vectors, exact-block keys, empty and digest-boundary masks, and the final four-byte
+counter [rfc4231][rfc4231]. These executable functions are not constant-time implementations,
+FIPS validations, security proofs, or machine/resource bounds; the FIPS 205 `PRF_msg` and `H_msg`
+wrappers remain separate.
+
 Falcon's current checked layer ([falcon2020][falcon2020]) is deliberately narrower than a security
 theorem. Import
 [`Falcon/Verification.lean`](../../CslibFrontier/Crypto/Computational/Falcon/Verification.lean) for
@@ -1807,6 +1822,7 @@ The finite query-only PRG/cipher results, semantic commitment interfaces and uni
 [cslib]: ../sources.md#cslib
 [falcon2020]: ../sources.md#falcon2020
 [fips1804]: ../sources.md#fips1804
+[fips1981]: ../sources.md#fips1981
 [fips202]: ../sources.md#fips202
 [fips203]: ../sources.md#fips203
 [fips205]: ../sources.md#fips205
@@ -1821,5 +1837,7 @@ The finite query-only PRG/cipher results, semantic commitment interfaces and uni
 [katzlindell20]: ../sources.md#katzlindell20
 [manin56]: ../sources.md#manin56
 [naoryung89]: ../sources.md#naoryung89
+[rfc4231]: ../sources.md#rfc4231
+[rfc8017]: ../sources.md#rfc8017
 [rompel90]: ../sources.md#rompel90
 [uov26]: ../sources.md#uov26
