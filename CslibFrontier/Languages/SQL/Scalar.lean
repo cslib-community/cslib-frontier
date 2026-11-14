@@ -756,7 +756,7 @@ theorem inList_eq_ok_true_iff {e : Datum} {vs : List Datum} {τ : SqlType} (he :
     have ih' := ih hvs.2
     rw [hu, Except.ok.injEq] at ih'
     rw [inList_cons, eval_eq_of_hasType he hvs.1, hu]
-    simp only [Except.ok_bind, pure, Except.pure, Except.ok.injEq, Truth.sup_eq_true_iff, ih',
+    simp only [Except.ok_bind, Except.pure_eq_ok, Except.ok.injEq, Truth.sup_eq_true_iff, ih',
       List.mem_cons]
     by_cases h₁ : e = none
     · simp [h₁]
@@ -777,7 +777,7 @@ theorem inList_eq_ok_false_iff {e : Datum} {vs : List Datum} {τ : SqlType} (he 
     have ih' := ih hvs.2
     rw [hu, Except.ok.injEq] at ih'
     rw [inList_cons, eval_eq_of_hasType he hvs.1, hu]
-    simp only [Except.ok_bind, pure, Except.pure, Except.ok.injEq, Truth.sup_eq_false_iff, ih',
+    simp only [Except.ok_bind, Except.pure_eq_ok, Except.ok.injEq, Truth.sup_eq_false_iff, ih',
       List.mem_cons]
     by_cases h₁ : e = none
     · simp [h₁]

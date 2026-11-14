@@ -164,7 +164,7 @@ theorem exists_eval_eq_error_of_evalRow_eq_error {es : Fin k → Expr n} {r : Ro
       · simp only [evalRow, h₀, hs, Except.ok_bind, Except.error_bind, Except.error.injEq] at h
         obtain ⟨i, hi⟩ := ih (h ▸ hs)
         exact ⟨i.succ, hi⟩
-      · simp [evalRow, h₀, hs, pure, Except.pure] at h
+      · simp [evalRow, h₀, hs] at h
 
 /-- `SELECT` lists whose expressions have the same observations on a row have the same
 observation on it. -/
@@ -216,7 +216,7 @@ theorem exists_evalTruth_eq_error_of_filterRows_eq_error {p : Expr n} {rs : List
   refine ⟨r, hr, ?_⟩
   rcases ht : p.evalTruth r with e' | t
   · simpa [ht] using he
-  · simp [ht, pure, Except.pure] at he
+  · simp [ht] at he
 
 /-- Type soundness for predicates: on a conforming row, a boolean predicate either has a truth
 value or divides by zero, which requires a division that is not `divSafe`. -/
@@ -515,7 +515,7 @@ theorem eval_ok_or_divisionByZero {D : Database S} (hD : D.Conforms) {q : Query 
     obtain ⟨h₁, h₂⟩ := typeOf_unionAll_eq_some.mp hq
     rcases ih₁ h₁ with ⟨rs, hrs, hconf₁⟩ | ⟨he, hs⟩
     · rcases ih₂ h₂ with ⟨ss, hss, hconf₂⟩ | ⟨he, hs⟩
-      · refine .inl ⟨rs ++ ss, by simp [eval_unionAll, hrs, hss, pure, Except.pure], ?_⟩
+      · refine .inl ⟨rs ++ ss, by simp [eval_unionAll, hrs, hss], ?_⟩
         intro r hr
         rcases List.mem_append.mp hr with hr | hr
         · exact hconf₁ r hr
@@ -524,7 +524,7 @@ theorem eval_ok_or_divisionByZero {D : Database S} (hD : D.Conforms) {q : Query 
     · exact .inr ⟨by simp [eval_unionAll, he], by simp [divSafe, hs]⟩
   | distinct q ih =>
     rcases ih hq with ⟨rs, hrs, hconf⟩ | ⟨he, hs⟩
-    · exact .inl ⟨rs.dedup, by simp [eval_distinct, hrs, pure, Except.pure],
+    · exact .inl ⟨rs.dedup, by simp [eval_distinct, hrs],
         fun r hr => hconf r (List.mem_dedup.mp hr)⟩
     · exact .inr ⟨by simp [eval_distinct, he], by simp [divSafe, hs]⟩
 

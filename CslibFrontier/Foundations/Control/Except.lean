@@ -52,6 +52,14 @@ variable {ε : Type u} {α β : Type v}
 
 @[simp] theorem error_bind (e : ε) (f : α → Except ε β) : (Except.error e >>= f) = .error e := rfl
 
+/-- `pure` is `Except.ok`. The simp normal form is `Except.ok`, the form statements use. -/
+@[simp] theorem pure_eq_ok (a : α) : (pure a : Except ε α) = .ok a := rfl
+
+/-- Continuing with `Except.ok` returns the computation: the right unit law in the normal form
+of `Except.pure_eq_ok`. -/
+@[simp] theorem bind_ok (x : Except ε α) : x >>= Except.ok = x := by
+  cases x <;> rfl
+
 theorem bind_eq_ok {x : Except ε α} {f : α → Except ε β} {b : β} :
     x >>= f = .ok b ↔ ∃ a, x = .ok a ∧ f a = .ok b := by
   cases x <;> simp
@@ -60,7 +68,7 @@ theorem bind_eq_ok {x : Except ε α} {f : α → Except ε β} {b : β} :
 
 @[simp] theorem toOption_error (e : ε) : (Except.error e : Except ε α).toOption = none := rfl
 
-@[simp] theorem toOption_pure (a : α) : (pure a : Except ε α).toOption = some a := rfl
+theorem toOption_pure (a : α) : (pure a : Except ε α).toOption = some a := rfl
 
 theorem toOption_bind (x : Except ε α) (f : α → Except ε β) :
     (x >>= f).toOption = x.toOption.bind fun a => (f a).toOption := by
@@ -85,7 +93,7 @@ theorem toOption_mapM (f : α → Except ε β) (l : List α) :
     rcases h : f a with e | b
     · simp [h]
     · simp only [List.mapM_cons, h, ok_bind, toOption_bind, ih]
-      split_ifs <;> simp_all [pure, Except.pure]
+      split_ifs <;> simp_all
 
 /-- `List.mapM` of steps that succeed returns their results. -/
 theorem mapM_eq_ok_map {f : α → Except ε β} {g : α → β} {l : List α}
@@ -117,7 +125,7 @@ theorem toOption_filterMapM (f : α → Except ε (Option β)) (l : List α) :
       rw [ih]
       split_ifs <;> simp_all
     · simp only [List.filterMapM_cons, h, ok_bind, toOption_bind, ih]
-      split_ifs <;> simp_all [pure, Except.pure]
+      split_ifs <;> simp_all
 
 /-- Every result of a successful `List.mapM` is the result of one of its steps. -/
 theorem exists_mem_eq_ok_of_mapM_eq_ok {f : α → Except ε β} {l : List α} {bs : List β}
@@ -134,7 +142,7 @@ theorem exists_mem_eq_ok_of_mapM_eq_ok {f : α → Except ε β} {l : List α} {
 theorem exists_mem_eq_error_of_mapM_eq_error {f : α → Except ε β} {l : List α} {e : ε}
     (h : l.mapM f = .error e) : ∃ a ∈ l, f a = .error e := by
   induction l with
-  | nil => simp [pure, Except.pure] at h
+  | nil => simp at h
   | cons a l ih =>
     rcases ha : f a with e' | b
     · simp only [List.mapM_cons, ha, error_bind, error.injEq] at h
@@ -142,13 +150,13 @@ theorem exists_mem_eq_error_of_mapM_eq_error {f : α → Except ε β} {l : List
     · rcases hl : l.mapM f with e' | bs
       · obtain ⟨a', ha', h'⟩ := ih (by simpa [ha, hl] using h)
         exact ⟨a', by simp [ha'], h'⟩
-      · simp [ha, hl, pure, Except.pure] at h
+      · simp [ha, hl] at h
 
 /-- When `List.filterMapM` fails, some step fails with that error. -/
 theorem exists_mem_eq_error_of_filterMapM_eq_error {f : α → Except ε (Option β)} {l : List α}
     {e : ε} (h : l.filterMapM f = .error e) : ∃ a ∈ l, f a = .error e := by
   induction l with
-  | nil => simp [pure, Except.pure] at h
+  | nil => simp at h
   | cons a l ih =>
     rcases ha : f a with e' | (_ | b)
     · simp only [List.filterMapM_cons, ha, error_bind, error.injEq] at h
@@ -158,6 +166,6 @@ theorem exists_mem_eq_error_of_filterMapM_eq_error {f : α → Except ε (Option
     · rcases hl : l.filterMapM f with e' | bs
       · obtain ⟨a', ha', h'⟩ := ih (by simpa [ha, hl] using h)
         exact ⟨a', by simp [ha'], h'⟩
-      · simp [ha, hl, pure, Except.pure] at h
+      · simp [ha, hl] at h
 
 end Except

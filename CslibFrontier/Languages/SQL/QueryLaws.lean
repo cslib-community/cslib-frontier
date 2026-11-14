@@ -128,7 +128,7 @@ theorem toOption_evalTruth_and (c p : Expr n) (r : Row n) :
   · simp [ha]
   · simp [ha]
   · simp [ha]
-  · rcases hb : b.toTruth with _ | t <;> simp [ha, hb, pure, Except.pure]
+  · rcases hb : b.toTruth with _ | t <;> simp [ha, hb]
 
 /-- `WHERE` on two lists one after the other is `WHERE` on their concatenation. -/
 theorem toOption_filterRows_append (p : Expr n) (rs ss : List (Row n)) :
@@ -458,7 +458,7 @@ theorem distinct_distinct (q : Query S n) : Equiv .ordered (distinct (distinct q
     simp only [eval_distinct]
     rcases q.eval D with e | rs
     · rfl
-    simp only [Except.ok_bind, pure, Except.pure, List.dedup_idem]
+    simp only [Except.ok_bind, Except.pure_eq_ok, List.dedup_idem]
 
 /-- `DISTINCT` ignores the duplicates that `UNION ALL` of a query with itself creates. -/
 theorem distinct_unionAll_self (q : Query S n) :
@@ -467,7 +467,7 @@ theorem distinct_unionAll_self (q : Query S n) :
     simp only [eval_distinct, eval_unionAll]
     rcases q.eval D with e | rs
     · rfl
-    simp only [Except.ok_bind, pure, Except.pure,
+    simp only [Except.ok_bind, Except.pure_eq_ok,
       List.Subset.dedup_append_right (List.Subset.refl rs)]
 
 /-- `WHERE` commutes with `DISTINCT`. The left side evaluates `p` on one copy of each row and the

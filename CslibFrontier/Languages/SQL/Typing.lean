@@ -116,7 +116,7 @@ theorem evalBinOp_ok_or_divisionByZero {op : BinOp} {τ₁ τ₂ τ : SqlType}
       · obtain ⟨rfl, hd, rfl⟩ := ArithOp.eval_eq_error hz
         exact .inr ⟨by simp [evalBinOp, hx, hy, hz], hd, Datum.asInt_eq_ok_some_iff.mp hy⟩
       · exact .inl ⟨some (.int z), by simp [evalBinOp, hx, hy, hz], rfl⟩
-    all_goals exact .inl ⟨none, by simp [evalBinOp, hx, hy, pure, Except.pure], trivial⟩
+    all_goals exact .inl ⟨none, by simp [evalBinOp, hx, hy], trivial⟩
   | .cmp op, τ₁, τ₂, h =>
     simp only [BinOp.typeOf, Option.ite_none_right_eq_some, Option.some.injEq] at h
     obtain ⟨rfl, rfl⟩ := h
@@ -139,8 +139,8 @@ theorem evalBinOp_ok_or_divisionByZero {op : BinOp} {τ₁ τ₂ τ : SqlType}
     rcases x with _ | x <;> rcases y with _ | y
     case some.some =>
       refine .inl ⟨some (.text (concatText x y)), ?_, rfl⟩
-      simp [evalBinOp, hx, hy, pure, Except.pure]
-    all_goals exact .inl ⟨none, by simp [evalBinOp, hx, hy, pure, Except.pure], trivial⟩
+      simp [evalBinOp, hx, hy]
+    all_goals exact .inl ⟨none, by simp [evalBinOp, hx, hy], trivial⟩
 
 namespace Expr
 
