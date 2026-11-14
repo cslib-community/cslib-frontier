@@ -47,31 +47,41 @@ and the loss-two public-key replacement bound `advantage_lorDistinguisher_le`.
 * `Cslib.Crypto.Encryption.LoRAdversaryOf.IsPPT`, `Cslib.Crypto.Encryption.LoRAdversary.IsPPT`,
   `Cslib.Crypto.Encryption.WordLoRAdversary.IsPPT`: uniform strict PPT admissibility of all three
   stages with polynomially bounded per-step state growth.
-* `Cslib.Crypto.Encryption.lorStep`, `Cslib.Crypto.Encryption.lorRun`: one adaptive query step and
-  the `q`-step adaptive query loop.
-* `Cslib.Crypto.Encryption.lorDistinguisher`, `Cslib.Crypto.Encryption.lorKeyDistinguisher`:
+* `Cslib.Crypto.Encryption.lorStepOn`, `Cslib.Crypto.Encryption.lorStep`,
+  `Cslib.Crypto.Encryption.lorRunOn`, `Cslib.Crypto.Encryption.lorRun`: one adaptive query step and
+  the `q`-step adaptive query loop, with and without a challenge-pair admissibility predicate.
+* `Cslib.Crypto.Encryption.lorDistinguisherOn`, `Cslib.Crypto.Encryption.lorDistinguisher`,
+  `Cslib.Crypto.Encryption.lorKeyDistinguisherOn`, `Cslib.Crypto.Encryption.lorKeyDistinguisher`:
   fixed-bit and hidden-bit `Q`-query public-key distinguishers.
-* `Cslib.Crypto.Encryption.lorGame`, `Cslib.Crypto.Encryption.LoRINDCPAOf`,
+* `Cslib.Crypto.Encryption.lorGameOn`, `Cslib.Crypto.Encryption.lorGame`,
+  `Cslib.Crypto.Encryption.LoRINDCPAOn`, `Cslib.Crypto.Encryption.LoRINDCPAOf`,
   `Cslib.Crypto.Encryption.LoRINDCPA`, `Cslib.Crypto.Encryption.WordLoRINDCPA`: the `Q`-query
   left-or-right chosen-plaintext experiment and asymptotic security definitions.
 
 ## Main results
 
-* `Cslib.Crypto.Encryption.eval_lorGame_eq_distinguishingGame`: `lorGame` depends only on the
-  public-key marginal via `lorDistinguisher`.
-* `Cslib.Crypto.Encryption.distinguishingGame_lorKeyDistinguisher`,
+* `Cslib.Crypto.Encryption.eval_lorGameOn_eq_distinguishingGame`,
+  `Cslib.Crypto.Encryption.eval_lorGame_eq_distinguishingGame`: `lorGameOn` and `lorGame` depend
+  only on the public-key marginal via `lorDistinguisherOn` / `lorDistinguisher`.
+* `Cslib.Crypto.Encryption.distinguishingGame_lorKeyDistinguisherOn`,
+  `Cslib.Crypto.Encryption.distinguishingGame_lorKeyDistinguisher`,
+  `Cslib.Crypto.Encryption.probability_lorKeyDistinguisherOn`,
   `Cslib.Crypto.Encryption.probability_lorKeyDistinguisher`,
+  `Cslib.Crypto.Encryption.advantage_lorDistinguisherOn_le`,
   `Cslib.Crypto.Encryption.advantage_lorDistinguisher_le`: hidden-bit identity and loss-two
   public-key replacement bound for `Q`-query left-or-right experiments.
-* `Cslib.Crypto.Encryption.isPPTOn_lorDistinguisher`,
+* `Cslib.Crypto.Encryption.isPPTOn_lorDistinguisherOn`,
+  `Cslib.Crypto.Encryption.isPPTOn_lorDistinguisher`,
+  `Cslib.Crypto.Encryption.isPPT_lorDistinguisherOn`,
   `Cslib.Crypto.Encryption.isPPT_lorDistinguisher`,
+  `Cslib.Crypto.Encryption.isPPT_lorKeyDistinguisherOn`,
   `Cslib.Crypto.Encryption.isPPT_lorKeyDistinguisher`: uniform strict PPT certificates via
   `IsPPTOn.iterateWith_of_bounded_growth`.
 
 ## References
 
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023],
-  Section 11.2 (Attack Game 11.1, pp. 436–437).
+  Section 11.2 (Attack Game 11.1, pp. 436–437) and Section 11.3.2.
 -/
 
 @[expose] public section
@@ -146,67 +156,133 @@ abbrev WordLoRAdversary : Type := LoRAdversaryOf (List Bool)
 abbrev WordLoRAdversary.IsPPT (adversary : WordLoRAdversary) : Prop :=
   LoRAdversaryOf.IsPPT encBits adversary
 
-/-- One adaptive left-or-right query step: ask `adversary.query` on the current state word and
-reverse ciphertext transcript, encrypt the challenge message selected by `bit` under `pk`, and
-return the updated state word paired with the extended ciphertext transcript. -/
-noncomputable def lorStep (encrypt : ℕ → List Bool → Msg → ProbComp (List Bool))
+/-- One adaptive left-or-right query step with challenge-pair admissibility predicate `valid`:
+ask `adversary.query` on the current state word and reverse ciphertext transcript; if
+`valid security pk msg₀ msg₁` holds, encrypt the challenge message selected by `bit` under `pk`,
+and otherwise record `[]` without calling `encrypt`; return the updated state word paired with the
+extended ciphertext transcript. -/
+noncomputable def lorStepOn (valid : ℕ → List Bool → Msg → Msg → Bool)
+    (encrypt : ℕ → List Bool → Msg → ProbComp (List Bool))
     (adversary : LoRAdversaryOf Msg) (security : ℕ) (pk : List Bool) (bit : Bool)
     (loopState : List Bool × List (List Bool)) : ProbComp (List Bool × List (List Bool)) := do
   let choice ← adversary.query security loopState.1 loopState.2
-  let c ← encrypt security pk (if bit then ChoiceOut.msg₁ choice else ChoiceOut.msg₀ choice)
+  let c ← (if valid security pk (ChoiceOut.msg₀ choice) (ChoiceOut.msg₁ choice) then
+      encrypt security pk (if bit then ChoiceOut.msg₁ choice else ChoiceOut.msg₀ choice)
+    else
+      pure [])
   return (ChoiceOut.state choice, c :: loopState.2)
 
-/-- Run `q` adaptive left-or-right query steps starting from `loopState = (state, transcript)`. -/
-noncomputable def lorRun (encrypt : ℕ → List Bool → Msg → ProbComp (List Bool))
+/-- One unrestricted adaptive left-or-right query step: `lorStepOn` with every challenge pair
+admissible. -/
+noncomputable abbrev lorStep (encrypt : ℕ → List Bool → Msg → ProbComp (List Bool))
+    (adversary : LoRAdversaryOf Msg) (security : ℕ) (pk : List Bool) (bit : Bool)
+    (loopState : List Bool × List (List Bool)) : ProbComp (List Bool × List (List Bool)) :=
+  lorStepOn (fun _ _ _ _ => true) encrypt adversary security pk bit loopState
+
+/-- Run `q` adaptive left-or-right query steps with admissibility predicate `valid` starting from
+`loopState = (state, transcript)`. -/
+noncomputable def lorRunOn (valid : ℕ → List Bool → Msg → Msg → Bool)
+    (encrypt : ℕ → List Bool → Msg → ProbComp (List Bool))
     (adversary : LoRAdversaryOf Msg) (security : ℕ) (pk : List Bool) (bit : Bool) (q : ℕ)
     (loopState : List Bool × List (List Bool)) : ProbComp (List Bool × List (List Bool)) :=
-  OracleComp.iterate q (lorStep encrypt adversary security pk bit) loopState
+  OracleComp.iterate q (lorStepOn valid encrypt adversary security pk bit) loopState
 
-/-- The `Q`-query left-or-right public-key distinguisher for a fixed challenge bit `bit`:
-initialize the adversary state on `pk`, answer `Q security` adaptive queries under `pk` and `bit`,
-and return the adversary's final guess. -/
-noncomputable def lorDistinguisher (encrypt : ℕ → List Bool → Msg → ProbComp (List Bool))
+/-- Run `q` unrestricted adaptive left-or-right query steps starting from
+`loopState = (state, transcript)`. -/
+noncomputable abbrev lorRun (encrypt : ℕ → List Bool → Msg → ProbComp (List Bool))
+    (adversary : LoRAdversaryOf Msg) (security : ℕ) (pk : List Bool) (bit : Bool) (q : ℕ)
+    (loopState : List Bool × List (List Bool)) : ProbComp (List Bool × List (List Bool)) :=
+  lorRunOn (fun _ _ _ _ => true) encrypt adversary security pk bit q loopState
+
+/-- The `Q`-query left-or-right public-key distinguisher with admissibility predicate `valid` for a
+fixed challenge bit `bit`: initialize the adversary state on `pk`, answer `Q security` adaptive
+queries under `pk` and `bit`, and return the adversary's final guess. -/
+noncomputable def lorDistinguisherOn (valid : ℕ → List Bool → Msg → Msg → Bool)
+    (encrypt : ℕ → List Bool → Msg → ProbComp (List Bool))
     (Q : ℕ → ℕ) (adversary : LoRAdversaryOf Msg) (bit : Bool) : Distinguisher :=
   fun security pk => do
     let st₀ ← adversary.start security pk
-    let final ← lorRun encrypt adversary security pk bit (Q security) (st₀, [])
+    let final ← lorRunOn valid encrypt adversary security pk bit (Q security) (st₀, [])
     adversary.guess security final.1 final.2
 
-/-- The single uniform hidden-bit public-key distinguisher for `Q`-query left-or-right security:
-sample a fair challenge bit `bit`, run `lorDistinguisher` with `bit`, and return `guess ^^ bit`. -/
-noncomputable def lorKeyDistinguisher (encrypt : ℕ → List Bool → Msg → ProbComp (List Bool))
+/-- The unrestricted `Q`-query left-or-right public-key distinguisher for a fixed challenge bit
+`bit`. -/
+noncomputable abbrev lorDistinguisher (encrypt : ℕ → List Bool → Msg → ProbComp (List Bool))
+    (Q : ℕ → ℕ) (adversary : LoRAdversaryOf Msg) (bit : Bool) : Distinguisher :=
+  lorDistinguisherOn (fun _ _ _ _ => true) encrypt Q adversary bit
+
+/-- The single uniform hidden-bit public-key distinguisher for `Q`-query left-or-right security
+with admissibility predicate `valid`: sample a fair challenge bit `bit`, run `lorDistinguisherOn`
+with `bit`, and return `guess ^^ bit`. -/
+noncomputable def lorKeyDistinguisherOn (valid : ℕ → List Bool → Msg → Msg → Bool)
+    (encrypt : ℕ → List Bool → Msg → ProbComp (List Bool))
     (Q : ℕ → ℕ) (adversary : LoRAdversaryOf Msg) : Distinguisher :=
   fun security pk => do
     let bit ← ProbComp.uniform Bool
-    let guess ← lorDistinguisher encrypt Q adversary bit security pk
+    let guess ← lorDistinguisherOn valid encrypt Q adversary bit security pk
     return guess ^^ bit
 
-/-- The `Q`-query left-or-right chosen-plaintext experiment with generated keys. -/
-noncomputable def lorGame (keyGen : ℕ → ProbComp (List Bool × List Bool))
+/-- The unrestricted single uniform hidden-bit public-key distinguisher for `Q`-query
+left-or-right security. -/
+noncomputable abbrev lorKeyDistinguisher (encrypt : ℕ → List Bool → Msg → ProbComp (List Bool))
+    (Q : ℕ → ℕ) (adversary : LoRAdversaryOf Msg) : Distinguisher :=
+  lorKeyDistinguisherOn (fun _ _ _ _ => true) encrypt Q adversary
+
+/-- The `Q`-query left-or-right chosen-plaintext experiment with admissibility predicate `valid`
+and generated keys. -/
+noncomputable def lorGameOn (valid : ℕ → List Bool → Msg → Msg → Bool)
+    (keyGen : ℕ → ProbComp (List Bool × List Bool))
     (encrypt : ℕ → List Bool → Msg → ProbComp (List Bool)) (Q : ℕ → ℕ)
     (adversary : LoRAdversaryOf Msg) (bit : Bool) (security : ℕ) : ProbComp Bool := do
   let keys ← keyGen security
-  lorDistinguisher encrypt Q adversary bit security keys.1
+  lorDistinguisherOn valid encrypt Q adversary bit security keys.1
 
-/-- Adaptive `Q`-query left-or-right IND-CPA security over message encoding `encMsg` against every
-uniform strict PPT `LoRAdversaryOf Msg`. -/
-def LoRINDCPAOf (encMsg : Msg ↪ List Bool)
+/-- The unrestricted `Q`-query left-or-right chosen-plaintext experiment with generated keys. -/
+noncomputable abbrev lorGame (keyGen : ℕ → ProbComp (List Bool × List Bool))
+    (encrypt : ℕ → List Bool → Msg → ProbComp (List Bool)) (Q : ℕ → ℕ)
+    (adversary : LoRAdversaryOf Msg) (bit : Bool) (security : ℕ) : ProbComp Bool :=
+  lorGameOn (fun _ _ _ _ => true) keyGen encrypt Q adversary bit security
+
+/-- Adaptive `Q`-query left-or-right IND-CPA security over message encoding `encMsg` with
+challenge-pair admissibility predicate `valid`, against every uniform strict PPT
+`LoRAdversaryOf Msg`. -/
+def LoRINDCPAOn (valid : ℕ → List Bool → Msg → Msg → Bool) (encMsg : Msg ↪ List Bool)
     (keyGen : ℕ → ProbComp (List Bool × List Bool))
     (encrypt : ℕ → List Bool → Msg → ProbComp (List Bool)) (Q : ℕ → ℕ) : Prop :=
   Game.Indistinguishable
-    (fun adversary n => ProbComp.eval (lorGame keyGen encrypt Q adversary false n))
-    (fun adversary n => ProbComp.eval (lorGame keyGen encrypt Q adversary true n))
+    (fun adversary n => ProbComp.eval (lorGameOn valid keyGen encrypt Q adversary false n))
+    (fun adversary n => ProbComp.eval (lorGameOn valid keyGen encrypt Q adversary true n))
     (LoRAdversaryOf.IsPPT encMsg)
+
+/-- Adaptive `Q`-query left-or-right IND-CPA security with every challenge pair admissible. For
+fixed-length message types such as `Bool`, this is the textbook notion; for `List Bool` it is
+stronger than the textbook equal-length notion, which `WordLoRINDCPA` states. -/
+abbrev LoRINDCPAOf (encMsg : Msg ↪ List Bool)
+    (keyGen : ℕ → ProbComp (List Bool × List Bool))
+    (encrypt : ℕ → List Bool → Msg → ProbComp (List Bool)) (Q : ℕ → ℕ) : Prop :=
+  LoRINDCPAOn (fun _ _ _ _ => true) encMsg keyGen encrypt Q
 
 /-- Adaptive `Q`-query left-or-right IND-CPA security for single-bit encryption (`Bool`). -/
 abbrev LoRINDCPA (keyGen : ℕ → ProbComp (List Bool × List Bool))
     (encrypt : ℕ → List Bool → Bool → ProbComp (List Bool)) (Q : ℕ → ℕ) : Prop :=
   LoRINDCPAOf encBool keyGen encrypt Q
 
-/-- Adaptive `Q`-query left-or-right IND-CPA security for bit-word encryption (`List Bool`). -/
+/-- Adaptive `Q`-query left-or-right IND-CPA security for bit-word encryption (`List Bool`) under
+Attack Game 11.1's equal-length rule ([BonehShoup2023], Section 11.2, p. 436): challenge pairs with
+`m₀.length ≠ m₁.length` are inadmissible. -/
 abbrev WordLoRINDCPA (keyGen : ℕ → ProbComp (List Bool × List Bool))
     (encrypt : ℕ → List Bool → List Bool → ProbComp (List Bool)) (Q : ℕ → ℕ) : Prop :=
-  LoRINDCPAOf encBits keyGen encrypt Q
+  LoRINDCPAOn (fun _ _ m₀ m₁ => m₀.length == m₁.length) encBits keyGen encrypt Q
+
+/-- An honest key generator contributes precisely its public-key marginal to `lorGameOn`. -/
+theorem eval_lorGameOn_eq_distinguishingGame (valid : ℕ → List Bool → Msg → Msg → Bool)
+    (keyGen : ℕ → ProbComp (List Bool × List Bool))
+    (encrypt : ℕ → List Bool → Msg → ProbComp (List Bool)) (Q : ℕ → ℕ)
+    (adversary : LoRAdversaryOf Msg) (bit : Bool) (security : ℕ) :
+    ProbComp.eval (lorGameOn valid keyGen encrypt Q adversary bit security) =
+      distinguishingGame ((ProbComp.eval (keyGen security)).map Prod.fst)
+        (lorDistinguisherOn valid encrypt Q adversary bit security) := by
+  simp [lorGameOn, distinguishingGame, Game.withSetup, PMF.bind_map, Function.comp_def]
 
 /-- An honest key generator contributes precisely its public-key marginal to `lorGame`. -/
 theorem eval_lorGame_eq_distinguishingGame (keyGen : ℕ → ProbComp (List Bool × List Bool))
@@ -214,8 +290,23 @@ theorem eval_lorGame_eq_distinguishingGame (keyGen : ℕ → ProbComp (List Bool
     (adversary : LoRAdversaryOf Msg) (bit : Bool) (security : ℕ) :
     ProbComp.eval (lorGame keyGen encrypt Q adversary bit security) =
       distinguishingGame ((ProbComp.eval (keyGen security)).map Prod.fst)
-        (lorDistinguisher encrypt Q adversary bit security) := by
-  simp [lorGame, distinguishingGame, Game.withSetup, PMF.bind_map, Function.comp_def]
+        (lorDistinguisher encrypt Q adversary bit security) :=
+  eval_lorGameOn_eq_distinguishingGame _ keyGen encrypt Q adversary bit security
+
+/-- The hidden-bit distinguisher `lorKeyDistinguisherOn` averages the two `lorDistinguisherOn`
+games, complementing the `true` experiment. -/
+theorem distinguishingGame_lorKeyDistinguisherOn (valid : ℕ → List Bool → Msg → Msg → Bool)
+    (keys : PMF (List Bool))
+    (encrypt : ℕ → List Bool → Msg → ProbComp (List Bool)) (Q : ℕ → ℕ)
+    (adversary : LoRAdversaryOf Msg) (security : ℕ) :
+    distinguishingGame keys (lorKeyDistinguisherOn valid encrypt Q adversary security) = (do
+      let bit ← PMF.uniformOfFintype Bool
+      (distinguishingGame keys (lorDistinguisherOn valid encrypt Q adversary bit security)).map
+        (fun guess => guess ^^ bit)) := by
+  unfold distinguishingGame Game.withSetup lorKeyDistinguisherOn
+  simp only [ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform, PMF.map_bind]
+  rw [PMF.bind_comm]
+  rfl
 
 /-- The hidden-bit distinguisher `lorKeyDistinguisher` averages the two `lorDistinguisher` games,
 complementing the `true` experiment. -/
@@ -225,11 +316,24 @@ theorem distinguishingGame_lorKeyDistinguisher (keys : PMF (List Bool))
     distinguishingGame keys (lorKeyDistinguisher encrypt Q adversary security) = (do
       let bit ← PMF.uniformOfFintype Bool
       (distinguishingGame keys (lorDistinguisher encrypt Q adversary bit security)).map
-        (fun guess => guess ^^ bit)) := by
-  unfold distinguishingGame Game.withSetup lorKeyDistinguisher
-  simp only [ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform, PMF.map_bind]
-  rw [PMF.bind_comm]
-  rfl
+        (fun guess => guess ^^ bit)) :=
+  distinguishingGame_lorKeyDistinguisherOn _ keys encrypt Q adversary security
+
+/-- Acceptance of `lorKeyDistinguisherOn` is one half plus half the signed `Q`-query gap. -/
+theorem probability_lorKeyDistinguisherOn (valid : ℕ → List Bool → Msg → Msg → Bool)
+    (keys : PMF (List Bool))
+    (encrypt : ℕ → List Bool → Msg → ProbComp (List Bool)) (Q : ℕ → ℕ)
+    (adversary : LoRAdversaryOf Msg) (security : ℕ) :
+    (Game.succProbability
+      (distinguishingGame keys (lorKeyDistinguisherOn valid encrypt Q adversary security)) : ℝ) =
+      (1 + (Game.succProbability
+          (distinguishingGame keys
+            (lorDistinguisherOn valid encrypt Q adversary false security)) : ℝ) -
+        Game.succProbability
+          (distinguishingGame keys
+            (lorDistinguisherOn valid encrypt Q adversary true security))) / 2 := by
+  rw [distinguishingGame_lorKeyDistinguisherOn]
+  exact Game.succProbability_uniform_bool_xor _
 
 /-- Acceptance of `lorKeyDistinguisher` is one half plus half the signed `Q`-query gap. -/
 theorem probability_lorKeyDistinguisher (keys : PMF (List Bool))
@@ -240,13 +344,36 @@ theorem probability_lorKeyDistinguisher (keys : PMF (List Bool))
       (1 + (Game.succProbability
           (distinguishingGame keys (lorDistinguisher encrypt Q adversary false security)) : ℝ) -
         Game.succProbability
-          (distinguishingGame keys (lorDistinguisher encrypt Q adversary true security))) / 2 := by
-  rw [distinguishingGame_lorKeyDistinguisher]
-  exact Game.succProbability_uniform_bool_xor _
+          (distinguishingGame keys (lorDistinguisher encrypt Q adversary true security))) / 2 :=
+  probability_lorKeyDistinguisherOn _ keys encrypt Q adversary security
 
 /-- Replacing the public-key law `real` with `ideal` in the `Q`-query left-or-right experiment
-costs at most twice the distinguishing advantage of `lorKeyDistinguisher`, plus the `Q`-query
-advantage under `ideal`. -/
+with admissibility predicate `valid` costs at most twice the distinguishing advantage of
+`lorKeyDistinguisherOn`, plus the `Q`-query advantage under `ideal`. -/
+theorem advantage_lorDistinguisherOn_le (valid : ℕ → List Bool → Msg → Msg → Bool)
+    (real ideal : PMF (List Bool))
+    (encrypt : ℕ → List Bool → Msg → ProbComp (List Bool)) (Q : ℕ → ℕ)
+    (adversary : LoRAdversaryOf Msg) (security : ℕ) :
+    Game.advantage
+      (distinguishingGame real (lorDistinguisherOn valid encrypt Q adversary false security))
+      (distinguishingGame real (lorDistinguisherOn valid encrypt Q adversary true security)) ≤
+        2 * Game.advantage
+          (distinguishingGame real (lorKeyDistinguisherOn valid encrypt Q adversary security))
+          (distinguishingGame ideal (lorKeyDistinguisherOn valid encrypt Q adversary security)) +
+            Game.advantage
+              (distinguishingGame ideal
+                (lorDistinguisherOn valid encrypt Q adversary false security))
+              (distinguishingGame ideal
+                (lorDistinguisherOn valid encrypt Q adversary true security)) := by
+  rw [distinguishingGame_lorKeyDistinguisherOn, distinguishingGame_lorKeyDistinguisherOn]
+  exact Game.advantage_le_two_mul_uniform_bool_xor
+    (fun bit => distinguishingGame real (lorDistinguisherOn valid encrypt Q adversary bit security))
+    (fun bit =>
+      distinguishingGame ideal (lorDistinguisherOn valid encrypt Q adversary bit security))
+
+/-- Replacing the public-key law `real` with `ideal` in the unrestricted `Q`-query left-or-right
+experiment costs at most twice the distinguishing advantage of `lorKeyDistinguisher`, plus the
+`Q`-query advantage under `ideal`. -/
 theorem advantage_lorDistinguisher_le (real ideal : PMF (List Bool))
     (encrypt : ℕ → List Bool → Msg → ProbComp (List Bool)) (Q : ℕ → ℕ)
     (adversary : LoRAdversaryOf Msg) (security : ℕ) :
@@ -258,21 +385,22 @@ theorem advantage_lorDistinguisher_le (real ideal : PMF (List Bool))
           (distinguishingGame ideal (lorKeyDistinguisher encrypt Q adversary security)) +
             Game.advantage
               (distinguishingGame ideal (lorDistinguisher encrypt Q adversary false security))
-              (distinguishingGame ideal (lorDistinguisher encrypt Q adversary true security)) := by
-  rw [distinguishingGame_lorKeyDistinguisher, distinguishingGame_lorKeyDistinguisher]
-  exact Game.advantage_le_two_mul_uniform_bool_xor
-    (fun bit => distinguishingGame real (lorDistinguisher encrypt Q adversary bit security))
-    (fun bit => distinguishingGame ideal (lorDistinguisher encrypt Q adversary bit security))
+              (distinguishingGame ideal (lorDistinguisher encrypt Q adversary true security)) :=
+  advantage_lorDistinguisherOn_le _ real ideal encrypt Q adversary security
 
-/-- Parameterized uniform strict PPT certificate for `lorDistinguisher` when encryption is strict
-PPT with polynomially bounded ciphertext length, `Q` is computable in polynomial time, and the
-adversary satisfies `LoRAdversaryOf.IsPPT`. -/
-theorem isPPTOn_lorDistinguisher {α : Type} {input : α ↪ List Bool}
+/-- Parameterized uniform strict PPT certificate for `lorDistinguisherOn` when `valid` is
+computable in polynomial time, encryption is strict PPT with polynomially bounded ciphertext
+length, `Q` is computable in polynomial time, and the adversary satisfies `LoRAdversaryOf.IsPPT`. -/
+theorem isPPTOn_lorDistinguisherOn {α : Type} {input : α ↪ List Bool}
     {encMsg : Msg ↪ List Bool}
+    {valid : ℕ → List Bool → Msg → Msg → Bool}
     {encrypt : ℕ → List Bool → Msg → ProbComp (List Bool)}
     {Q : ℕ → ℕ} {adversary : LoRAdversaryOf Msg}
     {security : α → ℕ} {pk : α → List Bool} {bit : α → Bool}
     {ctBound : ℕ → ℕ}
+    (hvalid : ComputableInPolyTime
+      (fun ⟨n, k, m₀, m₁⟩ => valid n k m₀ m₁)
+      (encChallengePairInput encMsg) encBool)
     (hencrypt : IsPPTOn (encKeyedInput encMsg) encBits
       (fun ⟨n, k, msg⟩ => encrypt n k msg))
     (hctBound : Cslib.PolynomiallyBounded ctBound)
@@ -284,7 +412,7 @@ theorem isPPTOn_lorDistinguisher {α : Type} {input : α ↪ List Bool}
     (hpk : ComputableInPolyTime pk input encBits)
     (hbit : ComputableInPolyTime bit input encBool) :
     IsPPTOn input encBool
-      (fun a => lorDistinguisher encrypt Q adversary (bit a) (security a) (pk a)) := by
+      (fun a => lorDistinguisherOn valid encrypt Q adversary (bit a) (security a) (pk a)) := by
   let captEnc := encPair input encBits
   have hstart : IsPPTOn input encBits (fun a => adversary.start (security a) (pk a)) :=
     hadversary.start.on.preprocess (hsecurity.prod hpk)
@@ -293,7 +421,7 @@ theorem isPPTOn_lorDistinguisher {α : Type} {input : α ↪ List Bool}
       (encPair captEnc encLoRLoopState) encLoRStageInput := by
     dsimp only [captEnc, encLoRLoopState, encLoRStageInput]; fun_prop
   have hstep : IsPPTOn (encPair captEnc encLoRLoopState) encLoRLoopState
-      (fun p => lorStep encrypt adversary (security p.1.1) (pk p.1.1) (bit p.1.1) p.2) := by
+      (fun p => lorStepOn valid encrypt adversary (security p.1.1) (pk p.1.1) (bit p.1.1) p.2) := by
     have hquery : IsPPTOn (encPair captEnc encLoRLoopState) (encChoiceOut encMsg)
         (fun p => adversary.query (security p.1.1) p.2.1 p.2.2) :=
       hadversary.query.preprocess hqArg
@@ -306,6 +434,11 @@ theorem isPPTOn_lorDistinguisher {α : Type} {input : α ↪ List Bool}
           (fst (encPair captEnc encLoRLoopState) (encChoiceOut encMsg)))
     have hchoice := snd (encPair captEnc encLoRLoopState) (encChoiceOut encMsg)
     have hmsgs := (fst (encPair encMsg encMsg) encBits).comp hchoice
+    have hvalid_q : ComputableInPolyTime
+        (fun q : ((α × List Bool) × (List Bool × List (List Bool))) × ChoiceOut Msg =>
+          valid (security q.1.1.1) (pk q.1.1.1) (ChoiceOut.msg₀ q.2) (ChoiceOut.msg₁ q.2))
+        stepMidEnc encBool :=
+      hvalid.comp ((hsecurity.comp ha).prod ((hpk.comp ha).prod hmsgs))
     have hsel : ComputableInPolyTime
         (fun q : ((α × List Bool) × (List Bool × List (List Bool))) × ChoiceOut Msg =>
           if bit q.1.1.1 then ChoiceOut.msg₁ q.2 else ChoiceOut.msg₀ q.2)
@@ -316,6 +449,13 @@ theorem isPPTOn_lorDistinguisher {α : Type} {input : α ↪ List Bool}
         (fun q => encrypt (security q.1.1.1) (pk q.1.1.1)
           (if bit q.1.1.1 then ChoiceOut.msg₁ q.2 else ChoiceOut.msg₀ q.2)) :=
       hencrypt.preprocess ((hsecurity.comp ha).prod ((hpk.comp ha).prod hsel))
+    have hencCond : IsPPTOn stepMidEnc encBits
+        (fun q => if valid (security q.1.1.1) (pk q.1.1.1)
+            (ChoiceOut.msg₀ q.2) (ChoiceOut.msg₁ q.2) then
+          encrypt (security q.1.1.1) (pk q.1.1.1)
+            (if bit q.1.1.1 then ChoiceOut.msg₁ q.2 else ChoiceOut.msg₀ q.2)
+        else pure []) :=
+      IsPPTOn.cond' hvalid_q henc (const []).tidy.isPPTOn
     have hstateOut : ComputableInPolyTime
         (fun r : (((α × List Bool) × (List Bool × List (List Bool))) × ChoiceOut Msg) × List Bool =>
           ChoiceOut.state r.1.2)
@@ -326,9 +466,9 @@ theorem isPPTOn_lorDistinguisher {α : Type} {input : α ↪ List Bool}
           r.2 :: r.1.1.2.2)
         (encPair stepMidEnc encBits) (encList encBits) := by
       dsimp only [stepMidEnc, captEnc, encLoRLoopState, encChoiceOut]; fun_prop
-    have hcons := henc.map_with (f := fun q c => (ChoiceOut.state q.2, c :: q.1.2.2))
+    have hcons := hencCond.map_with (f := fun q c => (ChoiceOut.state q.2, c :: q.1.2.2))
       (hstateOut.prod htrOut)
-    simpa only [lorStep, bind_pure_comp] using hquery.bind_with hcons
+    simpa only [lorStepOn, bind_pure_comp] using hquery.bind_with hcons
   have hcount : ComputableInPolyTime (fun p : α × List Bool => Q (security p.1))
       captEnc encUnary := by
     dsimp only [captEnc]; fun_prop
@@ -353,22 +493,70 @@ theorem isPPTOn_lorDistinguisher {α : Type} {input : α ↪ List Bool}
     (((PolyBounded.const 2).mul hstPoly).add ((PolyBounded.const 2).mul hctPoly)).add
       (PolyBounded.const 1)
   have hrun : IsPPTOn captEnc encLoRLoopState
-      (fun p => lorRun encrypt adversary (security p.1) (pk p.1) (bit p.1)
+      (fun p => lorRunOn valid encrypt adversary (security p.1) (pk p.1) (bit p.1)
         (Q (security p.1)) (p.2, [])) := by
     refine IsPPTOn.iterateWith_of_bounded_growth hcount.tidy hinitial.tidy hstep hgrowthPoly ?_
     intro p loopState next hnext
-    simp only [lorStep, ProbComp.eval_bind, ProbComp.eval_pure,
+    simp only [lorStepOn, apply_ite ProbComp.eval, ProbComp.eval_bind, ProbComp.eval_pure,
       PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hnext
     obtain ⟨choice, hchoice_supp, c, hc_supp, rfl⟩ := hnext
     have hst := hstLen (security p.1) loopState.1 loopState.2 choice hchoice_supp
-    have hct := hctLen (security p.1) (pk p.1) _ c hc_supp
+    have hct : c.length ≤ ctBound (security p.1) := by
+      cases hval : valid (security p.1) (pk p.1) (ChoiceOut.msg₀ choice) (ChoiceOut.msg₁ choice) <;>
+        simp only [hval, Bool.false_eq_true, ↓reduceIte, PMF.mem_support_pure_iff] at hc_supp
+      · subst hc_supp
+        exact Nat.zero_le _
+      · exact hctLen (security p.1) (pk p.1) _ c hc_supp
     simp only [encLoRLoopState, encPair_apply, encBits_apply, encList_cons,
       List.length_append, length_frame]
     omega
   have hguess : IsPPTOn (encPair captEnc encLoRLoopState) encBool
       (fun p => adversary.guess (security p.1.1) p.2.1 p.2.2) :=
     hadversary.guess.preprocess hqArg
-  simpa only [lorDistinguisher] using hstart.bind_with (hrun.bind_with hguess)
+  simpa only [lorDistinguisherOn] using hstart.bind_with (hrun.bind_with hguess)
+
+/-- Parameterized uniform strict PPT certificate for the unrestricted `lorDistinguisher`. -/
+theorem isPPTOn_lorDistinguisher {α : Type} {input : α ↪ List Bool}
+    {encMsg : Msg ↪ List Bool}
+    {encrypt : ℕ → List Bool → Msg → ProbComp (List Bool)}
+    {Q : ℕ → ℕ} {adversary : LoRAdversaryOf Msg}
+    {security : α → ℕ} {pk : α → List Bool} {bit : α → Bool}
+    {ctBound : ℕ → ℕ}
+    (hencrypt : IsPPTOn (encKeyedInput encMsg) encBits
+      (fun ⟨n, k, msg⟩ => encrypt n k msg))
+    (hctBound : Cslib.PolynomiallyBounded ctBound)
+    (hctLen : ∀ n k msg c,
+      c ∈ (ProbComp.eval (encrypt n k msg)).support → c.length ≤ ctBound n)
+    (hQ : ComputableInPolyTime Q encUnary encUnary)
+    (hadversary : adversary.IsPPT encMsg)
+    (hsecurity : ComputableInPolyTime security input encUnary)
+    (hpk : ComputableInPolyTime pk input encBits)
+    (hbit : ComputableInPolyTime bit input encBool) :
+    IsPPTOn input encBool
+      (fun a => lorDistinguisher encrypt Q adversary (bit a) (security a) (pk a)) :=
+  isPPTOn_lorDistinguisherOn (const true) hencrypt hctBound hctLen hQ hadversary
+    hsecurity hpk hbit
+
+/-- `lorDistinguisherOn` is one uniform strict PPT distinguisher when `valid` is computable in
+polynomial time, encryption is strict PPT with polynomially bounded ciphertext length, `Q` is
+computable in polynomial time, and the adversary satisfies `LoRAdversaryOf.IsPPT`. -/
+theorem isPPT_lorDistinguisherOn {encMsg : Msg ↪ List Bool}
+    {valid : ℕ → List Bool → Msg → Msg → Bool}
+    {encrypt : ℕ → List Bool → Msg → ProbComp (List Bool)}
+    {Q : ℕ → ℕ} {adversary : LoRAdversaryOf Msg} {ctBound : ℕ → ℕ}
+    (hvalid : ComputableInPolyTime
+      (fun ⟨n, k, m₀, m₁⟩ => valid n k m₀ m₁)
+      (encChallengePairInput encMsg) encBool)
+    (hencrypt : IsPPTOn (encKeyedInput encMsg) encBits
+      (fun ⟨n, k, msg⟩ => encrypt n k msg))
+    (hctBound : Cslib.PolynomiallyBounded ctBound)
+    (hctLen : ∀ n k msg c,
+      c ∈ (ProbComp.eval (encrypt n k msg)).support → c.length ≤ ctBound n)
+    (hQ : ComputableInPolyTime Q encUnary encUnary)
+    (hadversary : adversary.IsPPT encMsg) (bit : Bool) :
+    IsPPT encBool (lorDistinguisherOn valid encrypt Q adversary bit) :=
+  isPPTOn_lorDistinguisherOn hvalid hencrypt hctBound hctLen hQ hadversary
+    (fst encUnary encBits) (snd encUnary encBits) (const bit)
 
 /-- `lorDistinguisher` is one uniform strict PPT distinguisher when encryption is strict PPT with
 polynomially bounded ciphertext length, `Q` is computable in polynomial time, and the adversary
@@ -384,15 +572,19 @@ theorem isPPT_lorDistinguisher {encMsg : Msg ↪ List Bool}
     (hQ : ComputableInPolyTime Q encUnary encUnary)
     (hadversary : adversary.IsPPT encMsg) (bit : Bool) :
     IsPPT encBool (lorDistinguisher encrypt Q adversary bit) :=
-  isPPTOn_lorDistinguisher hencrypt hctBound hctLen hQ hadversary
-    (fst encUnary encBits) (snd encUnary encBits) (const bit)
+  isPPT_lorDistinguisherOn (const true) hencrypt hctBound hctLen hQ hadversary bit
 
-/-- The hidden-bit reduction `lorKeyDistinguisher` is one uniform strict PPT distinguisher when
-encryption is strict PPT with polynomially bounded ciphertext length, `Q` is computable in
-polynomial time, and the adversary satisfies `LoRAdversaryOf.IsPPT`. -/
-theorem isPPT_lorKeyDistinguisher {encMsg : Msg ↪ List Bool}
+/-- The hidden-bit reduction `lorKeyDistinguisherOn` is one uniform strict PPT distinguisher when
+`valid` is computable in polynomial time, encryption is strict PPT with polynomially bounded
+ciphertext length, `Q` is computable in polynomial time, and the adversary satisfies
+`LoRAdversaryOf.IsPPT`. -/
+theorem isPPT_lorKeyDistinguisherOn {encMsg : Msg ↪ List Bool}
+    {valid : ℕ → List Bool → Msg → Msg → Bool}
     {encrypt : ℕ → List Bool → Msg → ProbComp (List Bool)}
     {Q : ℕ → ℕ} {adversary : LoRAdversaryOf Msg} {ctBound : ℕ → ℕ}
+    (hvalid : ComputableInPolyTime
+      (fun ⟨n, k, m₀, m₁⟩ => valid n k m₀ m₁)
+      (encChallengePairInput encMsg) encBool)
     (hencrypt : IsPPTOn (encKeyedInput encMsg) encBits
       (fun ⟨n, k, msg⟩ => encrypt n k msg))
     (hctBound : Cslib.PolynomiallyBounded ctBound)
@@ -400,13 +592,13 @@ theorem isPPT_lorKeyDistinguisher {encMsg : Msg ↪ List Bool}
       c ∈ (ProbComp.eval (encrypt n k msg)).support → c.length ≤ ctBound n)
     (hQ : ComputableInPolyTime Q encUnary encUnary)
     (hadversary : adversary.IsPPT encMsg) :
-    IsPPT encBool (lorKeyDistinguisher encrypt Q adversary) := by
+    IsPPT encBool (lorKeyDistinguisherOn valid encrypt Q adversary) := by
   let baseEnc := encPair encUnary encBits
   let coinEnc := encPair baseEnc encBool
   have hcoin := isPPTOn_uniform_bool baseEnc
   have hdist : IsPPTOn coinEnc encBool
-      (fun p => lorDistinguisher encrypt Q adversary p.2 p.1.1 p.1.2) :=
-    isPPTOn_lorDistinguisher hencrypt hctBound hctLen hQ hadversary
+      (fun p => lorDistinguisherOn valid encrypt Q adversary p.2 p.1.1 p.1.2) :=
+    isPPTOn_lorDistinguisherOn hvalid hencrypt hctBound hctLen hQ hadversary
       (by dsimp only [coinEnc, baseEnc]; fun_prop)
       (by dsimp only [coinEnc, baseEnc]; fun_prop)
       (snd baseEnc encBool)
@@ -420,7 +612,23 @@ theorem isPPT_lorKeyDistinguisher {encMsg : Msg ↪ List Bool}
         (encPair coinEnc encBool) (encPair encBool encBool) := by
       dsimp only [coinEnc, baseEnc]; fun_prop
     simpa only [Function.comp_def] using hx.comp harg
-  simpa only [IsPPT, lorKeyDistinguisher, bind_pure_comp] using
+  simpa only [IsPPT, lorKeyDistinguisherOn, bind_pure_comp] using
     hcoin.bind_with (hdist.map_with (f := fun p guess => guess ^^ p.2) hxor)
+
+/-- The unrestricted hidden-bit reduction `lorKeyDistinguisher` is one uniform strict PPT
+distinguisher when encryption is strict PPT with polynomially bounded ciphertext length, `Q` is
+computable in polynomial time, and the adversary satisfies `LoRAdversaryOf.IsPPT`. -/
+theorem isPPT_lorKeyDistinguisher {encMsg : Msg ↪ List Bool}
+    {encrypt : ℕ → List Bool → Msg → ProbComp (List Bool)}
+    {Q : ℕ → ℕ} {adversary : LoRAdversaryOf Msg} {ctBound : ℕ → ℕ}
+    (hencrypt : IsPPTOn (encKeyedInput encMsg) encBits
+      (fun ⟨n, k, msg⟩ => encrypt n k msg))
+    (hctBound : Cslib.PolynomiallyBounded ctBound)
+    (hctLen : ∀ n k msg c,
+      c ∈ (ProbComp.eval (encrypt n k msg)).support → c.length ≤ ctBound n)
+    (hQ : ComputableInPolyTime Q encUnary encUnary)
+    (hadversary : adversary.IsPPT encMsg) :
+    IsPPT encBool (lorKeyDistinguisher encrypt Q adversary) :=
+  isPPT_lorKeyDistinguisherOn (const true) hencrypt hctBound hctLen hQ hadversary
 
 end Cslib.Crypto.Encryption

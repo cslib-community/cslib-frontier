@@ -498,13 +498,13 @@ theorem eval_lorRunSerialized_toBinary (n m w : ℕ → ℕ) (adversary : Encryp
         (typedLoRAdversary adversary security) bit q loopState := by
   induction q generalizing loopState with
   | zero =>
-    simp [lorRunSerialized, Encryption.lorRun, lorRun]
+    simp [lorRunSerialized, Encryption.lorRun, Encryption.lorRunOn, lorRun]
   | succ q ih =>
-    unfold lorRunSerialized Encryption.lorRun
+    unfold lorRunSerialized Encryption.lorRun Encryption.lorRunOn
     rw [OracleComp.iterate_succ_bind]
-    simp only [Encryption.lorStep, lorRun, typedLoRAdversary, bind_assoc, ProbComp.eval_bind,
-      ProbComp.eval_pure, PMF.monad_bind_eq_bind, PMF.bind_map, PMF.pure_bind,
-      Function.comp_def, eval_encryptSerialized_toBinary]
+    simp only [Encryption.lorStepOn, ↓reduceIte, lorRun, typedLoRAdversary,
+      bind_assoc, ProbComp.eval_bind, ProbComp.eval_pure, PMF.monad_bind_eq_bind, PMF.bind_map,
+      PMF.pure_bind, Function.comp_def, eval_encryptSerialized_toBinary]
     congr 1 with choice : 1
     have hsel :
         (⟨Encryption.ChoiceOut.msg₀ choice, Encryption.ChoiceOut.msg₁ choice⟩ :
@@ -523,7 +523,8 @@ theorem eval_lorDistinguisherSerialized_toBinary (n m w Q : ℕ → ℕ)
     ProbComp.eval (lorDistinguisherSerialized n m w Q adversary bit security
         (Cslib.Matrix.toBinary A)) =
       lorDistinguisher (Q security) (typedLoRAdversary adversary security) bit A := by
-  unfold lorDistinguisherSerialized Encryption.lorDistinguisher lorDistinguisher lorGame
+  unfold lorDistinguisherSerialized Encryption.lorDistinguisher Encryption.lorDistinguisherOn
+    lorDistinguisher lorGame
   simp only [ProbComp.eval_bind, PMF.monad_bind_eq_bind, PMF.pure_bind]
   rw [show (typedLoRAdversary adversary security).start A =
     (ProbComp.eval (adversary.start security (Cslib.Matrix.toBinary A))).map (fun st₀ => (st₀, []))
