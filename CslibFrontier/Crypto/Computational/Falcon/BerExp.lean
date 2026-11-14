@@ -100,6 +100,7 @@ theorem eval_berExpThresholdCoin_true (threshold : BerExpThreshold) :
     (PMF.pure ∘ fun i => decide (i.val < threshold.val))) true = _
   rw [PMF.bind_pure_comp, Cslib.Probability.uniformFin_decide_lt,
     Nat.min_eq_right threshold.isLt.le]
+  norm_num
 
 /-- Real-valued form of the exact `BerExp` threshold acceptance mass. -/
 theorem eval_berExpThresholdCoin_true_toReal (threshold : BerExpThreshold) :
