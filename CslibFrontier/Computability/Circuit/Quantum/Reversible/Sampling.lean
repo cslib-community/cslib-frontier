@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Circuit.OutputDistribution
 public import CslibFrontier.Computability.Circuit.Quantum.HadamardLayer
 public import CslibFrontier.Computability.Circuit.Quantum.Reversible
 public import CslibFrontier.Foundations.Quantum.Measurement.Readout
+import CslibFrontier.Computability.Circuit.Quantum.Input
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
@@ -165,12 +166,14 @@ theorem readBit_classicalRun_outputCopyCodes {W z base : ℕ} {outputs : List �
   have hlt : ∀ g ∈ outputCopyCodes z base outputs, g.2.1 < W := by
     intro g hg
     obtain ⟨b, t, cs⟩ := g
-    obtain ⟨_, hg'⟩ := hclass (b, t, cs) hg
+    obtain ⟨hb, hg'⟩ := hclass (b, t, cs) hg
+    change b = false at hb
+    subst b
     exact hg'.2.2 t (List.mem_cons_self ..)
   have hnd : ((outputCopyCodes z base outputs).map fun g => g.2.1).Nodup := by
     rw [outputCopyCodes, List.map_map]
-    change (outputs.zipIdx.map fun p => base + p.2).Nodup
-    simpa only [List.map_map, Function.comp_apply] using
+    change (outputs.zipIdx.map ((fun i => base + i) ∘ Prod.snd)).Nodup
+    simpa only [List.map_map] using
       (List.nodup_zipIdx_map_snd outputs).map fun i j h => by omega
   have hread : ∀ g ∈ outputCopyCodes z base outputs,
       ∀ g' ∈ outputCopyCodes z base outputs, g.2.1 ∉ g'.2.2 := by
@@ -239,7 +242,8 @@ theorem samplerReadout_classicalRun {n m : ℕ} (C : Circuits.Circuit signature 
   have houtz : (C.outputs j).toNat ≤ z := by
     dsimp only [z]
     unfold samplerZero
-    simpa only [Circuit.length_code_fst] using (C.outputs j).toNat_lt.le
+    rw [Circuit.length_code_fst]
+    exact (C.outputs j).toNat_lt.le
   rw [hout, outQubit, min_eq_right houtz, hcodes,
     Circuit.eval_eq_evalOutput]
   rfl
@@ -301,16 +305,16 @@ theorem samplerDist_eq_outputDist {n m : ℕ} (C : Circuits.Circuit signature n 
     rw [hstate]
     have key := measureProb_map_sum_orthonormal U hv (fun _ : BitString n => s ^ n)
       {a | samplerReadout C a = y} (fun r => C.eval interpretation r = y)
-      (fun r h => by rw [hyr y r, if_pos h])
-      (fun r h => by rw [hyr y r, if_neg h])
+      (fun r h => by rw [hyr y r, ite_eq_left h])
+      (fun r h => by rw [hyr y r, ite_eq_right h])
     rw [key]
     have hs : ‖s ^ n‖ ^ 2 = 1 / 2 ^ n := by
       rw [norm_pow, ← pow_mul, mul_comm, pow_mul, Complex.norm_real, Real.norm_eq_abs,
         sq_abs, inv_pow, Real.sq_sqrt (by norm_num), one_div, inv_pow]
     simp only [hs, Finset.sum_const, nsmul_eq_mul, Finset.dens_eq_card_div_card,
-      NNRat.cast_div, NNRat.cast_natCast, Fintype.card_fun, Fintype.card_bool, Nat.cast_pow,
-      Nat.cast_ofNat, div_eq_mul_inv]
-    ring
+      Fintype.card_fun, Fintype.card_bool, Fintype.card_fin, Nat.cast_pow, Nat.cast_ofNat,
+      div_eq_mul_inv]
+    ring_nf
   apply PMF.ext
   intro y
   rw [← ENNReal.toReal_eq_toReal_iff' (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _)]
