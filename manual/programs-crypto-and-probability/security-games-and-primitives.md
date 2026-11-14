@@ -418,11 +418,13 @@ ordinary-import byte-package and independently computed oracle clients in
 record the standardized `n = 16, 24, 32` byte lengths and the `n`, `2n`, and `l*n` input arities.
 For SHAKE, `PRF`, `F`, `H`, and `T_l` use the full address and request `8n` bits (`n` bytes). For
 SHA2, they use the compressed address and exact zero padding; `PRF` and `F` always use SHA-256,
-while `H` and `T_l` use SHA-256 at `n = 16` and SHA-512 at `n = 24, 32`. A shared fixed-block
-adapter lets WOTS+, FORS, and tree clients preserve block structure at this byte boundary. The
-arbitrary-`l` SHA2 input-domain obligation is explicit, and the standardized block counts are
-proved valid. This executable layer does not yet package `PRF_msg` or `H_msg` and establishes no
-asymptotic or concrete security, query, machine-resource, or program-size bound.
+while `H` and `T_l` use SHA-256 at `n = 16` and SHA-512 at `n = 24, 32`. General block
+concatenation reuses `BitString.blocksEquiv.symm`, while the two-block convenience wrapper is
+derived from `FixedBytes.append`; WOTS+, FORS, and tree clients therefore preserve block structure
+at this byte boundary. The arbitrary-`l` SHA2 input-domain obligation is explicit, and the
+standardized block counts are proved valid. This executable layer does not yet package `PRF_msg`
+or `H_msg` and establishes no asymptotic or concrete security, query, machine-resource, or
+program-size bound.
 
 Falcon's current checked layer ([falcon2020][falcon2020]) is deliberately narrower than a security
 theorem. Import

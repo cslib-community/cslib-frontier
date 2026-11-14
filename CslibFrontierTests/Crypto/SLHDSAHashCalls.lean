@@ -45,7 +45,7 @@ private def message3Blocks (p : SecurityBytes) : Fin 3 → NBytes p := fun block
   ⟨(0xd0 + p.count * block.val + offset.val) % 256, Nat.mod_lt _ (by decide)⟩
 
 private def message3 (p : SecurityBytes) : LBlocksBytes p 3 :=
-  FixedBytes.flattenBlocks (message3Blocks p)
+  Cslib.BitString.blocksEquiv.symm (message3Blocks p)
 
 private def prfAddress : Address :=
   Address.wotsPRF 0x00000003 0x0102030405060708 0x11223344 0x55667788

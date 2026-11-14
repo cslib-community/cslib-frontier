@@ -10,9 +10,9 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Languages.Probabilistic.Basic
 public import CslibFrontier.Computability.Communication.Rectangle
+import CslibFrontier.Foundations.Data.BitString.Block
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF.Support
-import Mathlib.Logic.Equiv.Fin.Basic
 
 /-!
 # Interactive single-server private information retrieval
@@ -357,16 +357,13 @@ theorem exists_iff (n c : ℕ) :
     exact ⟨Unit, Unit, download n, isCorrect_download n, isPrivate_download n,
       (depth_download n).trans_le h⟩
 
-private def flattenBlocks (n ℓ : ℕ) : (Fin n → BitString ℓ) ≃ BitString (n * ℓ) :=
-  (Equiv.curry (Fin n) (Fin ℓ) Bool).symm.trans (Equiv.arrowCongr finProdFinEquiv (Equiv.refl Bool))
-
 /-- Trivial interactive block download: the server sends all `n · ℓ` bits of the `n` blocks, and the
 user outputs block `i`. -/
 def blockDownload (n ℓ : ℕ) : InteractiveScheme (Fin n) Unit Unit (BitString ℓ) where
   userCoins _ := pure ()
   serverCoins := pure ()
-  protocol := Protocol.aliceSend (n * ℓ) (fun xd => flattenBlocks n ℓ xd.1)
-    fun m => Protocol.output fun ic => (flattenBlocks n ℓ).symm m ic.1
+  protocol := Protocol.aliceSend (n * ℓ) (fun xd => Cslib.BitString.blocksEquiv.symm xd.1)
+    fun m => Protocol.output fun ic => Cslib.BitString.blocksEquiv m ic.1
 
 theorem isCorrect_blockDownload (n ℓ : ℕ) : (blockDownload n ℓ).IsCorrect :=
   (blockDownload n ℓ).isCorrect_iff.mpr fun x i _ _ _ _ => by
@@ -377,7 +374,8 @@ theorem isPrivate_blockDownload (n ℓ : ℕ) : (blockDownload n ℓ).IsPrivate 
   (blockDownload n ℓ).isPrivate_iff.mpr fun x i i' => by
     simp only [pmf_norm, transcript, coins, blockDownload]
     exact congrArg PMF.pure (Protocol.leaf_aliceSend_output (n * ℓ) _
-      (fun (m : BitString (n * ℓ)) (ic : Fin n × Unit) => (flattenBlocks n ℓ).symm m ic.1) _ _ _)
+      (fun (m : BitString (n * ℓ)) (ic : Fin n × Unit) =>
+        Cslib.BitString.blocksEquiv m ic.1) _ _ _)
 
 theorem depth_blockDownload (n ℓ : ℕ) : (blockDownload n ℓ).protocol.depth = n * ℓ :=
   le_antisymm (Protocol.depth_aliceSend_le (d := 0) fun _ => le_rfl)

@@ -11,21 +11,18 @@ public import CslibFrontier.Crypto.Primitives.ByteString
 public import Mathlib.Logic.Equiv.Fin.Basic
 
 /-!
-# Fixed byte blocks
+# Fixed byte pairs
 
-This module supplies the typed bridge from an indexed family of equal-width byte blocks to their
-row-major concatenation. It lets cryptographic clients retain their block structure while passing
-an exact-length byte string to a primitive.
+This module supplies the two-block convenience wrapper used by hash functions with a `2n`-byte
+input. General indexed block concatenation is already provided, for every carrier, by
+`Cslib.BitString.blocksEquiv.symm`.
 
 ## Main definitions
 
-* `Cslib.Crypto.FixedBytes.flattenBlocks`: concatenate indexed fixed-width blocks.
 * `Cslib.Crypto.FixedBytes.pairBlocks`: concatenate two blocks of the same width.
 
 ## Main results
 
-* `Cslib.Crypto.FixedBytes.flattenBlocks_apply`: concatenation reads each source block at its
-  corresponding row-major coordinate.
 * `Cslib.Crypto.FixedBytes.pairBlocks_left`, `pairBlocks_right`: the two-block specialization
   agrees with its left and right inputs.
 
@@ -38,32 +35,22 @@ public section
 
 namespace Cslib.Crypto.FixedBytes
 
-/-- Concatenate `blocks` fixed byte strings of width `width` in increasing block order. -/
-def flattenBlocks {blocks width : ℕ} (X : Fin blocks → FixedBytes width) :
-    FixedBytes (blocks * width) := fun index =>
-  let coordinate := finProdFinEquiv.symm index
-  X coordinate.1 coordinate.2
-
-/-- Reading the row-major coordinate of a block and offset returns that source byte. -/
-@[simp] theorem flattenBlocks_apply {blocks width : ℕ} (X : Fin blocks → FixedBytes width)
-    (block : Fin blocks) (offset : Fin width) :
-    flattenBlocks X (finProdFinEquiv (block, offset)) = X block offset := by
-  simp [flattenBlocks]
-
-/-- Concatenate two equal-width byte strings as consecutive blocks. -/
+/-- Concatenate two equal-width byte strings as consecutive blocks, using `FixedBytes.append`. -/
 def pairBlocks {width : ℕ} (left right : FixedBytes width) : FixedBytes (2 * width) :=
-  flattenBlocks (blocks := 2) fun block => if block.val = 0 then left else right
+  fun i => FixedBytes.append left right ⟨i.val, by omega⟩
 
 /-- The first block of a two-block concatenation is its left input. -/
 @[simp] theorem pairBlocks_left {width : ℕ} (left right : FixedBytes width)
     (offset : Fin width) :
     pairBlocks left right (finProdFinEquiv (0, offset)) = left offset := by
-  simp [pairBlocks]
+  change FixedBytes.append left right (Fin.castAdd width offset) = left offset
+  exact FixedBytes.append_left left right offset
 
 /-- The second block of a two-block concatenation is its right input. -/
 @[simp] theorem pairBlocks_right {width : ℕ} (left right : FixedBytes width)
     (offset : Fin width) :
     pairBlocks left right (finProdFinEquiv (1, offset)) = right offset := by
-  simp [pairBlocks]
+  change FixedBytes.append left right (Fin.natAdd width offset) = right offset
+  exact FixedBytes.append_right left right offset
 
 end Cslib.Crypto.FixedBytes
