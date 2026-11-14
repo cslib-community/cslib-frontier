@@ -1302,7 +1302,8 @@ private theorem exec_opCode_query {U V w n_max base : ℕ}
       frontierReg srcQry tmpQry
       tmpQry_injective srcQry_ne_tmpQry
       tmpQry_ne_frontier srcQry_ne_frontier).2
-      w (dp, d_qry) x₃ hx₃_bdd hin_qry hpre_qry hv_qry
+      w (dp, d_qry) x₃ hx₃_bdd hin_qry
+        ((queryWithHashGenPre_mk U V w n_max w d_qry _).2 hpre_qry) hv_qry
   change ExecWithin w qryCode x₃ y _ at hex_qry
   rw [clientState_width, queryWithHashGenProg_mk, hst_qry] at hm_qry
   rw [clientResult_width, queryWithHashGenProg_mk, hres_qry] at hout_qry
@@ -1449,7 +1450,8 @@ private theorem exec_opCode_insert {U V w n_max base : ℕ}
       frontierReg srcIns tmpIns
       tmpIns_injective srcIns_ne_tmpIns
       tmpIns_ne_frontier srcIns_ne_frontier).2
-      w (dp, d_ins) x₄ hx₄_bdd hin_ins hpre_ins hv_ins
+      w (dp, d_ins) x₄ hx₄_bdd hin_ins
+        ((insertWithHashGenPre_mk U V w n_max w d_ins _).2 hpre_ins) hv_ins
   change ExecWithin w insCode x₄ y _ at hex_ins
   rw [clientState_width, insertWithHashGenProg_mk] at hm_ins
   have hyfr : y.regs frontierReg = base + space U V w n_max :=
@@ -1669,7 +1671,8 @@ private theorem exec_opCode_delete {U V w n_max base : ℕ}
       frontierReg srcDelPrep tmpDelPrep
       tmpDelPrep_injective srcDelPrep_ne_tmpDelPrep
       tmpDelPrep_ne_frontier srcDelPrep_ne_frontier).2
-      w (dp, d_prep) x₅ hx₅_bdd hin_prep hpre_prep hv_prep
+      w (dp, d_prep) x₅ hx₅_bdd hin_prep
+        ((queryWithHashGenPre_mk U V w n_max w d_prep _).2 hpre_prep) hv_prep
   change ExecWithin w delPrepCode x₅ x₆ _ at hex_prep
   rw [clientState_width, deletePrepWithHashGenProg_mk, hst_prep] at hm_prep
   rw [clientResult_width, deletePrepWithHashGenProg_mk, hprep_eq] at hout_prep
