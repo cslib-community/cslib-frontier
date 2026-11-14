@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Streaming
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.EqualityPrimitives
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DegreeOptionPrimitives
 public import Mathlib.Tactic.FunProp
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DegreePrimitives
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Transducer.Copy
@@ -380,12 +381,6 @@ namespace ComputableInDegree
 theorem listIsEmpty {α : Type*} (enc : α ↪ List Bool) :
     ComputableInDegree List.isEmpty (encList enc) encBool 1 1 :=
   isEmpty (enc₁ := enc)
-
-/-- The option encoding determines the encoding used for the payload and fallback. -/
-@[fun_prop]
-theorem optionGetD {α : Type*} (enc : α ↪ List Bool) (fallback : α) :
-    ComputableInDegree (fun o => o.getD fallback) (encOption enc) enc 1 1 :=
-  getD (enc₁ := enc) fallback
 
 /-- Copy an encoded value. This identity rule also lets `fun_prop` retain a shared let binding. -/
 @[fun_prop]

@@ -7,8 +7,8 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Pi
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Option
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Pi
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Option
 
 /-!
 # Native tuple and retained-input option clients
@@ -16,6 +16,12 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.B
 Tests include empty dimensions and payload types, repeated gathering indices, stored updates,
 arbitrary component bounds, and a concrete option client using both input and payload.
 -/
+
+-- Only the higher calculus is excluded; machine-level tidy normalization remains available.
+run_elab do
+  for name in #[`Turing.MultiTapeTM.ComputableTidilyInPolyTime,
+      `Turing.MultiTapeTM.ComputableTidilyInDegree, `Turing.MultiTapeTM.ComputableTidilyInO] do
+    if (← Lean.getEnv).contains name then throwError "unexpected higher tidy calculus: {name}"
 
 @[expose] public section
 
