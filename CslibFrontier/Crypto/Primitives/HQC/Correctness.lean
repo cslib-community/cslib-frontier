@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Primitives.HQC.PKE
+import CslibFrontier.Crypto.Protocols.PKE.ExplicitCoin.Correctness
 import CslibFrontier.Languages.Probabilistic.Expect
 import CslibFrontier.Languages.Probabilistic.Notation
 import CslibFrontier.Probability.PMF.ToReal
@@ -178,8 +179,8 @@ theorem pkeMsgFailProb_le_fullNoiseFailProb (P : PKEParams)
     (hcorrect : DecoderCorrects P encode decode) (h x y : RingWord P) (m : PKEMessage P) :
     (toExplicitCoinPKE P encode decode).msgFailProb (expandedPublicKey P h x y) y m ≤
       pkeFullNoiseFailProb P x y := by
-  rw [ExplicitCoinPKE.msgFailProb, pkeFullNoiseFailProb]
-  apply PMF.toOuterMeasure_toReal_mono
+  rw [pkeFullNoiseFailProb]
+  apply ExplicitCoinPKE.msgFailProb_le_event
   intro coins hfail
   apply pkeFullNoiseFailure_of_decrypt_ne P encode decode hcorrect h x y m coins
   intro hdecrypt
@@ -195,8 +196,8 @@ theorem pkeKeyPairMaxFailProb_le_fullNoiseFailProb (P : PKEParams)
     (hcorrect : DecoderCorrects P encode decode) (h x y : RingWord P) :
     (toExplicitCoinPKE P encode decode).keyPairMaxFailProb (expandedPublicKey P h x y) y ≤
       pkeFullNoiseFailProb P x y := by
-  rw [ExplicitCoinPKE.keyPairMaxFailProb, Finset.sup'_le_iff]
-  intro m _
+  apply ExplicitCoinPKE.keyPairMaxFailProb_le_of_msgFailProb_le
+  intro m
   exact pkeMsgFailProb_le_fullNoiseFailProb P encode decode hcorrect h x y m
 
 /-- Averaging the worst-message failure probability over ideal key generation is bounded by the
@@ -237,14 +238,11 @@ theorem pkeDeltaCorrect_fullNoiseFailureProbability (P : PKEParams)
     (encode : PKEMessage P → Codeword P) (decode : Codeword P → PKEMessage P)
     (hcorrect : DecoderCorrects P encode decode) :
     (toExplicitCoinPKE P encode decode).DeltaCorrect (pkeFullNoiseFailureProbability P) := by
-  unfold ExplicitCoinPKE.DeltaCorrect
-  change ((pkeKeyGen P).expect (fun keys => ENNReal.ofReal
-    ((toExplicitCoinPKE P encode decode).keyPairMaxFailProb keys.1 keys.2))).toReal ≤ _
   rw [pkeFullNoiseFailureProbability_eq_toReal_mass]
-  apply ENNReal.toReal_mono
+  apply ExplicitCoinPKE.deltaCorrect_of_keyGen_expect_le
+  · exact pkeKeyGen_expect_maxFail_le_fullNoiseMass P encode decode hcorrect
   · rw [← eval_pkeFullNoiseFailureExperiment_true]
     exact PMF.apply_ne_top _ _
-  · exact pkeKeyGen_expect_maxFail_le_fullNoiseMass P encode decode hcorrect
 
 /-- Any real upper bound on the source's full-noise Equation-(14) probability is a valid
 `δ`-correctness bound for the ideal expanded HQC-PKE core. -/

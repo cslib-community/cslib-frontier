@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.SIS.MLKEM.KPKE
+import CslibFrontier.Crypto.Protocols.PKE.ExplicitCoin.Correctness
 import CslibFrontier.Languages.Probabilistic.Expect
 import CslibFrontier.Languages.Probabilistic.Notation
 import CslibFrontier.Probability.PMF.ToReal
@@ -200,8 +201,8 @@ theorem msgFailProb_le_coreNoiseFailProb (P : Params) [NeZero P.q] {T B : ℕ}
     (s e : Fin P.k → Fin P.n → ZMod P.q) (m : Fin P.n → Bool) :
     (toExplicitCoinPKE P).msgFailProb (moduleLWEKeyGen A s e) s m ≤
       coreNoiseFailProb P T A s e := by
-  rw [ExplicitCoinPKE.msgFailProb, coreNoiseFailProb]
-  apply PMF.toOuterMeasure_toReal_mono
+  rw [coreNoiseFailProb]
+  apply ExplicitCoinPKE.msgFailProb_le_event
   intro coins hfail
   apply coreNoiseFailure_of_decrypt_ne P hTB hB A s e coins.1 coins.2.1 coins.2.2 m
   intro hdecrypt
@@ -217,8 +218,8 @@ theorem keyPairMaxFailProb_le_coreNoiseFailProb (P : Params) [NeZero P.q] {T B :
     (s e : Fin P.k → Fin P.n → ZMod P.q) :
     (toExplicitCoinPKE P).keyPairMaxFailProb (moduleLWEKeyGen A s e) s ≤
       coreNoiseFailProb P T A s e := by
-  rw [ExplicitCoinPKE.keyPairMaxFailProb, Finset.sup'_le_iff]
-  intro m _
+  apply ExplicitCoinPKE.keyPairMaxFailProb_le_of_msgFailProb_le
+  intro m
   exact msgFailProb_le_coreNoiseFailProb P hTB hB A s e m
 
 /-- Expands K-PKE key-generation expectation into the independent source draws `A, s, e`. -/
@@ -258,14 +259,11 @@ side retains the expectation over generated keys and maximum over all messages. 
 theorem deltaCorrect_coreNoiseFailureProbability (P : Params) [NeZero P.q] {T B : ℕ}
     (hTB : T + scalarCompressionAllowance P ≤ B) (hB : 4 * B + 2 < P.q) :
     (toExplicitCoinPKE P).DeltaCorrect (coreNoiseFailureProbability P T) := by
-  unfold ExplicitCoinPKE.DeltaCorrect
-  change ((keyGen P).expect (fun keys => ENNReal.ofReal
-    ((toExplicitCoinPKE P).keyPairMaxFailProb keys.1 keys.2))).toReal ≤ _
   rw [coreNoiseFailureProbability_eq_toReal_mass]
-  apply ENNReal.toReal_mono
+  apply ExplicitCoinPKE.deltaCorrect_of_keyGen_expect_le
+  · exact keyGen_expect_maxFail_le_coreNoiseMass P hTB hB
   · rw [← eval_coreNoiseFailureExperiment_true]
     exact PMF.apply_ne_top _ _
-  · exact keyGen_expect_maxFail_le_coreNoiseMass P hTB hB
 
 /-- Any real upper bound on the source-shaped core-noise failure probability is a valid
 `DeltaCorrect` bound for K-PKE. -/
