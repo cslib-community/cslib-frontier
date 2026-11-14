@@ -213,8 +213,6 @@ private theorem moveInputPos_lastCell_right (input : List Bool) :
       ⟨input.length + 1, by omega⟩ := by
   apply moveInputPos_pos_of_ne_right
   intro h
-  have hval := congrArg Fin.val h
-  simp only [Fin.val_last] at hval
   omega
 
 private theorem step_scan_boundary (input : List Bool) (hinput : 0 < input.length) :
