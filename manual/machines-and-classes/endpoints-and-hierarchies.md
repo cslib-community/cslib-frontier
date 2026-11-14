@@ -281,6 +281,13 @@ length-construction certificate and bound that composition. This keeps the cost 
 an exponentially long unary word explicit. The two hierarchy clients separately prove that
 their distinct acceptance bounds are polynomial before using the same search construction.
 
+`Diagonal.exists_computableInO_lazyTests` constructs the short-description test and both
+horizon comparisons together. Supply a unary certificate for `H (2 * |unframe x| + 1)`
+with time budget `C` and an independent space budget. Prove that `C` covers the encoded
+input length plus one and that the comparison square is bounded by a constant times `C`.
+The rule returns three independent existential space witnesses. Both hierarchy clients
+use it; their polynomial and exponential unary-clock estimates remain separate.
+
 `Diagonal.exists_computableInO_sizeLength_le` constructs either horizon comparison from
 a unary clock certificate and a certificate for the tested word. Bound the tested word by
 the input length plus one, its computation by twice the encoded input length, and the
@@ -291,6 +298,14 @@ The [polynomial](../../CslibFrontier/Computability/Complexity/Classes/Hierarchy/
 and [exponential](../../CslibFrontier/Computability/Complexity/Classes/Hierarchy/NondeterministicExponentialTime.lean)
 clients retain their distinct unary-clock constructions and arithmetic estimates, while this
 rule performs input decoding, branch composition and output negation once.
+
+`LazyDiagonal.verifier_branch_bound` combines certificate construction, test overhead,
+short-description simulation and endpoint search estimates into the final verifier bound.
+Supply the simulation estimate under the short-description guard and the search estimate
+under failure of the next-length comparison. Both hierarchy membership proofs use this rule;
+their polynomial and exponential clock estimates remain separate.
+`LazyDiagonal.acceptance_input_bound` shares the preceding estimate of the simulation input
+factor from the linear description bound and a certificate covering the input.
 
 ## Exponential-time completeness and separations
 
