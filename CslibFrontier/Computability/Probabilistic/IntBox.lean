@@ -83,11 +83,13 @@ theorem isPPTOn_sampleIntBox {α : Type} {input : α ↪ List Bool} {B width : �
     (hB : ComputableInPolyTime B input encNat)
     (hwidth : ComputableInPolyTime width input encUnary) :
     IsPPTOn input encIntBin (fun a => sampleIntBox (B a) (width a)) := by
-  have hmod : ComputableInPolyTime (fun a => 2 * B a + 1) input encNat := by
-    exact ComputableInPolyTime.binary_add' (by fun_prop) (by fun_prop)
+  have hmod : ComputableInPolyTime (fun a => 2 * B a + 1) input encNat :=
+    ComputableInPolyTime.binary_add'
+      (ComputableInPolyTime.binary_mul' (.const 2) hB) (.const 1)
   have hshift : ComputableInPolyTime (fun p : α × ℕ => boxShift (B p.1) p.2)
       (encPair input encNat) encIntBin :=
-    computableInPolyTime_boxShift.comp (by fun_prop)
+    computableInPolyTime_boxShift.comp (g := fun p : α × ℕ => (B p.1, p.2))
+      ((hB.comp (.fst input encNat)).prod (.snd input encNat))
   exact (isPPTOn_sampleModNat hwidth hmod).map_with hshift
 
 /-- `sampleIntBoxListCoins` is computable in polynomial time when `B` is in binary and `m, width`
@@ -99,8 +101,11 @@ theorem computableInPolyTime_sampleIntBoxListCoins :
       (encPair encNat (encPair encUnary (encPair encUnary encBits))) (encList encIntBin) := by
   unfold sampleIntBoxListCoins
   apply ComputableInPolyTime.mapWithInput
+    (list := fun p : ℕ × ℕ × ℕ × List Bool => BitString.listRows p.2.1 p.2.2.1 p.2.2.2)
+    (f := fun (p : ℕ × ℕ × ℕ × List Bool) row => sampleIntBoxCoins p.1 row)
   · exact ComputableInPolyTime.bitsRowsWithInput (by fun_prop) (by fun_prop) (by fun_prop)
-  · exact computableInPolyTime_sampleIntBoxCoins.comp (by fun_prop)
+  · exact computableInPolyTime_sampleIntBoxCoins.comp
+      (g := fun q : (ℕ × ℕ × ℕ × List Bool) × List Bool => (q.1.1, q.2)) (by fun_prop)
 
 /-- `sampleIntBoxList` is uniformly strict PPT when `B` is in binary and `m, width` are in unary. -/
 theorem isPPTOn_sampleIntBoxList {α : Type} {input : α ↪ List Bool} {B m width : α → ℕ}
