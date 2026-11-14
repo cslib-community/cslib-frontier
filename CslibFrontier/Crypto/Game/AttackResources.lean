@@ -21,9 +21,9 @@ asymptotic bound componentwise.
 
 Offline generation is not online time unless the attack executes it. A generated artifact is still
 an installed occurrence, whether its compiler ran online or offline. When compilation runs inside
-the experiment, its time, workspace and output length are recorded separately, and its work also
-contributes to the aggregate online time and peak workspace. Emitted output length stays explicit,
-and producing and copying it remain part of `onlineTime`.
+the experiment, its input, time, workspace, output and output-copy time are recorded separately,
+connected to a model-specific execution certificate, and included in the online time and peak
+workspace. Initial attack input, emitted output and output-copy time stay separate too.
 
 This module supplies no scalar total. A client that combines coordinates must state the intended
 units and prove its aggregation separately. It also supplies no program, circuit or controller:
@@ -32,11 +32,15 @@ callers provide exact retained artifacts and prove that their executions fit the
 ## Main definitions
 
 * `Cslib.Crypto.Game.InstalledArtifact`: one occurrence in the installed static inventory.
+* `Cslib.Crypto.Game.ExecutedCompilerResources`: executed compiler input, output and costs.
 * `Cslib.Crypto.Game.AttackExecutionResources`: online, compiler, oracle and communication costs.
 * `Cslib.Crypto.Game.AttackResources`: installed inventory plus execution resources.
+* `Cslib.Crypto.Game.CompilerInstallation`: separate or inlined representation of compiler logic.
 * `Cslib.Crypto.Game.AttackResources.Fits`: componentwise finite-budget comparison.
 * `Cslib.Crypto.Game.AttackResources.AccountsForExecutedCompiler`: an online compiler and its
-  emitted installed program are both charged.
+  emitted installed program are certified and charged without duplicating inlined code.
+* `Cslib.Crypto.Game.AttackResources.AccountsForOutput`: initial input, emitted output and copying
+  are connected to a model-specific execution certificate.
 * `Cslib.Crypto.Game.AttackResources.IsPolynomial`: componentwise polynomial resource families.
 
 ## Main results
@@ -58,6 +62,8 @@ inlined components is one `program` occurrence; those components are not additio
 inductive InstalledArtifactKind
   /-- A retained adversary, reduction program or circuit description. -/
   | program
+  /-- A retained program or circuit emitted by a compiler. -/
+  | generatedProgram
   /-- A retained uniform generator description. -/
   | generator
   /-- A retained compiler description. -/
@@ -98,22 +104,36 @@ theorem installedBits_append (first second : List InstalledArtifact)
 
 end InstalledArtifact
 
+/-- Componentwise resources of a compiler executed inside the attack experiment. `time` includes
+reading the compiler input and producing the emitted description; `outputCopyTime` separately
+charges retaining or copying that description after it is produced. All coordinates are zero when
+compilation is offline. -/
+structure ExecutedCompilerResources where
+  /-- Encoded compiler-input length, independent of the attack's initial input. -/
+  inputBits : ℕ
+  /-- Compiler execution steps, including emitted-description production. -/
+  time : ℕ
+  /-- Peak compiler workspace. -/
+  workspace : ℕ
+  /-- Encoded length emitted by the compiler. -/
+  outputBits : ℕ
+  /-- Online steps charged for retaining or copying the emitted description. -/
+  outputCopyTime : ℕ
+  deriving DecidableEq
+
 /-- Execution resources of an explicitly realized attack. Compiler coordinates are zero when
-compilation is offline. If compilation executes in the experiment, its time is included in
-`onlineTime`, its workspace is bounded by `onlineWorkspace`, and its emitted description length is
-recorded in `compilerOutputBits`; the generated artifact is also an installed occurrence. -/
+compilation is offline. Model-specific execution certificates separately justify that the declared
+input/output lengths and step/workspace bounds describe the actual programs. -/
 structure AttackExecutionResources where
+  /-- Encoded length of the attack's initial input, distinct from oracle requests. -/
+  inputBits : ℕ
   /-- Online steps, including marshalling, tags, dispatch, queries, interpreter/controller work,
-  and output production/copying, but excluding offline generation the attack does not execute. -/
+  compiler work, and output production/copying, but excluding offline generation. -/
   onlineTime : ℕ
   /-- Peak online workspace, rather than the sum of workspace across sequential phases. -/
   onlineWorkspace : ℕ
-  /-- Steps of a compiler executed inside the attack experiment; zero for offline compilation. -/
-  compilerTime : ℕ
-  /-- Peak workspace of a compiler executed inside the experiment; zero when it is offline. -/
-  compilerWorkspace : ℕ
-  /-- Encoded compiler output length when compilation executes in the experiment. -/
-  compilerOutputBits : ℕ
+  /-- Executed compiler coordinates; all zero when compilation is offline. -/
+  compiler : ExecutedCompilerResources
   /-- Fair random bits consumed online. -/
   randomBits : ℕ
   /-- Classical oracle calls. -/
@@ -130,6 +150,8 @@ structure AttackExecutionResources where
   replyBits : ℕ
   /-- Maximum encoded output length emitted by the attack. -/
   outputBits : ℕ
+  /-- Online steps charged specifically for retaining or copying the attack's emitted output. -/
+  outputCopyTime : ℕ
   deriving DecidableEq
 
 /-- Independent resources of an explicitly retained and executed attack. Static description sizes
@@ -140,6 +162,29 @@ structure AttackResources where
   /-- Online, compiler, oracle and communication coordinates. -/
   execution : AttackExecutionResources
   deriving DecidableEq
+
+/-- How compiler logic used online is represented in the installed inventory. A separate compiler
+is its own occurrence; an inlined compiler is part of one retained main-program occurrence and is
+not also charged under `compiler`. The payload is that occurrence's exact encoded length. -/
+inductive CompilerInstallation
+  | separatelyInstalled (bits : ℕ)
+  | inlinedIntoProgram (bits : ℕ)
+  deriving DecidableEq
+
+namespace CompilerInstallation
+
+/-- The installed occurrence selected by a compiler-installation mode. -/
+@[expose] def IsInInventory (installation : CompilerInstallation)
+    (inventory : List InstalledArtifact) : Prop :=
+  match installation with
+  | .separatelyInstalled bits => { kind := .compiler, bits := bits } ∈ inventory
+  | .inlinedIntoProgram bits => { kind := .program, bits := bits } ∈ inventory
+
+instance (installation : CompilerInstallation) (inventory : List InstalledArtifact) :
+    Decidable (installation.IsInInventory inventory) := by
+  cases installation <;> unfold IsInInventory <;> infer_instance
+
+end CompilerInstallation
 
 namespace AttackResources
 
@@ -157,6 +202,10 @@ namespace AttackResources
 @[expose] def programBits (resources : AttackResources) : ℕ :=
   resources.artifactBits .program
 
+/-- Installed compiler-emitted program or circuit bits, summed once per retained occurrence. -/
+@[expose] def generatedProgramBits (resources : AttackResources) : ℕ :=
+  resources.artifactBits .generatedProgram
+
 /-- Installed generator bits, summed once per retained occurrence. -/
 @[expose] def generatorBits (resources : AttackResources) : ℕ :=
   resources.artifactBits .generator
@@ -173,30 +222,50 @@ namespace AttackResources
 @[expose] def controllerBits (resources : AttackResources) : ℕ :=
   resources.artifactBits .controller
 
-/-- An executed compiler is fully represented when its own installed description and its emitted
-program occurrence are in the inventory, and its time and workspace are included in the overall
-online coordinates. Use zero compiler execution coordinates instead when compilation is offline;
-the offline-generated program occurrence still belongs in the inventory. -/
-@[expose] def AccountsForExecutedCompiler (resources : AttackResources) : Prop :=
-  (∃ bits, { kind := .compiler, bits := bits } ∈ resources.installedArtifacts) ∧
-    { kind := .program, bits := resources.execution.compilerOutputBits } ∈
+/-- An executed compiler is fully accounted for relative to a model-specific execution
+certificate. `Certifies certificate resources.execution.compiler` is the caller's explicit
+obligation connecting the declared compiler input/output, production time, workspace and copy time
+to an actual compiler execution. The installation mode charges either a separate compiler or the
+single main program containing inlined compiler logic. The emitted description is a distinct
+`generatedProgram` occurrence, and compiler execution plus copying fits the overall online costs. -/
+@[expose] def AccountsForExecutedCompiler {Certificate : Type*}
+    (Certifies : Certificate → ExecutedCompilerResources → Prop)
+    (certificate : Certificate) (installation : CompilerInstallation)
+    (resources : AttackResources) : Prop :=
+  installation.IsInInventory resources.installedArtifacts ∧
+    { kind := .generatedProgram, bits := resources.execution.compiler.outputBits } ∈
       resources.installedArtifacts ∧
-    resources.execution.compilerTime ≤ resources.execution.onlineTime ∧
-    resources.execution.compilerWorkspace ≤ resources.execution.onlineWorkspace
+    Certifies certificate resources.execution.compiler ∧
+    resources.execution.compiler.time + resources.execution.compiler.outputCopyTime ≤
+      resources.execution.onlineTime ∧
+    resources.execution.compiler.workspace ≤ resources.execution.onlineWorkspace
+
+/-- The attack's initial input, emitted output and copying are accounted for relative to a
+model-specific execution certificate. This proposition is intended as an explicit part of a
+concrete `Within` certificate; it does not manufacture an execution witness. -/
+@[expose] def AccountsForOutput {Certificate : Type*}
+    (Certifies : Certificate → AttackExecutionResources → Prop)
+    (certificate : Certificate) (resources : AttackResources) : Prop :=
+  Certifies certificate resources.execution ∧
+    resources.execution.outputCopyTime ≤ resources.execution.onlineTime
 
 /-- `used` fits `budget` when every named coordinate fits independently. This intentionally does
 not turn the coordinates into a scalar total. -/
 @[expose] def Fits (used budget : AttackResources) : Prop :=
   used.programBits ≤ budget.programBits ∧
+    used.generatedProgramBits ≤ budget.generatedProgramBits ∧
     used.generatorBits ≤ budget.generatorBits ∧
     used.compilerBits ≤ budget.compilerBits ∧
     used.interpreterBits ≤ budget.interpreterBits ∧
     used.controllerBits ≤ budget.controllerBits ∧
+    used.execution.inputBits ≤ budget.execution.inputBits ∧
     used.execution.onlineTime ≤ budget.execution.onlineTime ∧
     used.execution.onlineWorkspace ≤ budget.execution.onlineWorkspace ∧
-    used.execution.compilerTime ≤ budget.execution.compilerTime ∧
-    used.execution.compilerWorkspace ≤ budget.execution.compilerWorkspace ∧
-    used.execution.compilerOutputBits ≤ budget.execution.compilerOutputBits ∧
+    used.execution.compiler.inputBits ≤ budget.execution.compiler.inputBits ∧
+    used.execution.compiler.time ≤ budget.execution.compiler.time ∧
+    used.execution.compiler.workspace ≤ budget.execution.compiler.workspace ∧
+    used.execution.compiler.outputBits ≤ budget.execution.compiler.outputBits ∧
+    used.execution.compiler.outputCopyTime ≤ budget.execution.compiler.outputCopyTime ∧
     used.execution.randomBits ≤ budget.execution.randomBits ∧
     used.execution.classicalQueries ≤ budget.execution.classicalQueries ∧
     used.execution.quantumQueries ≤ budget.execution.quantumQueries ∧
@@ -204,7 +273,8 @@ not turn the coordinates into a scalar total. -/
     used.execution.gates ≤ budget.execution.gates ∧
     used.execution.requestBits ≤ budget.execution.requestBits ∧
     used.execution.replyBits ≤ budget.execution.replyBits ∧
-    used.execution.outputBits ≤ budget.execution.outputBits
+    used.execution.outputBits ≤ budget.execution.outputBits ∧
+    used.execution.outputCopyTime ≤ budget.execution.outputCopyTime
 
 instance (used budget : AttackResources) : Decidable (used.Fits budget) := by
   unfold Fits
@@ -217,15 +287,20 @@ theorem fits_refl (r : AttackResources) : r.Fits r := by
 /-- A resource schedule is polynomial when each coordinate is polynomially bounded independently. -/
 structure IsPolynomial (schedule : ℕ → AttackResources) : Prop where
   programBits : PolynomiallyBounded fun n => (schedule n).programBits
+  generatedProgramBits : PolynomiallyBounded fun n => (schedule n).generatedProgramBits
   generatorBits : PolynomiallyBounded fun n => (schedule n).generatorBits
   compilerBits : PolynomiallyBounded fun n => (schedule n).compilerBits
   interpreterBits : PolynomiallyBounded fun n => (schedule n).interpreterBits
   controllerBits : PolynomiallyBounded fun n => (schedule n).controllerBits
+  inputBits : PolynomiallyBounded fun n => (schedule n).execution.inputBits
   onlineTime : PolynomiallyBounded fun n => (schedule n).execution.onlineTime
   onlineWorkspace : PolynomiallyBounded fun n => (schedule n).execution.onlineWorkspace
-  compilerTime : PolynomiallyBounded fun n => (schedule n).execution.compilerTime
-  compilerWorkspace : PolynomiallyBounded fun n => (schedule n).execution.compilerWorkspace
-  compilerOutputBits : PolynomiallyBounded fun n => (schedule n).execution.compilerOutputBits
+  compilerInputBits : PolynomiallyBounded fun n => (schedule n).execution.compiler.inputBits
+  compilerTime : PolynomiallyBounded fun n => (schedule n).execution.compiler.time
+  compilerWorkspace : PolynomiallyBounded fun n => (schedule n).execution.compiler.workspace
+  compilerOutputBits : PolynomiallyBounded fun n => (schedule n).execution.compiler.outputBits
+  compilerOutputCopyTime :
+    PolynomiallyBounded fun n => (schedule n).execution.compiler.outputCopyTime
   randomBits : PolynomiallyBounded fun n => (schedule n).execution.randomBits
   classicalQueries : PolynomiallyBounded fun n => (schedule n).execution.classicalQueries
   quantumQueries : PolynomiallyBounded fun n => (schedule n).execution.quantumQueries
@@ -234,6 +309,7 @@ structure IsPolynomial (schedule : ℕ → AttackResources) : Prop where
   requestBits : PolynomiallyBounded fun n => (schedule n).execution.requestBits
   replyBits : PolynomiallyBounded fun n => (schedule n).execution.replyBits
   outputBits : PolynomiallyBounded fun n => (schedule n).execution.outputBits
+  outputCopyTime : PolynomiallyBounded fun n => (schedule n).execution.outputCopyTime
 
 end AttackResources
 
