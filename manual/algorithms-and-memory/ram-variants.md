@@ -52,7 +52,7 @@ records in order of creation. A `Pointer` is null or the position of a record in
 list. Positions are natural numbers, but no instruction takes or returns one: programs
 obtain pointers only by copying a register, loading a pointer field of a record that a
 register specifies, or creating a record. `Instr.effect_provenance` states this.
-There is no theorem yet that execution is invariant under reordering the heap.
+Heap placement cannot affect execution: the embedding theorem below makes this precise.
 
 `Instr.effect` gives each instruction's effect on registers and records, and
 `Instr.next` the label that follows. Both are total. A load or store through null does
@@ -80,6 +80,20 @@ closed under the operations is preserved by execution. `PointerMachine.Renaming`
 `Executes.rename_iff` shows that a permutation of the data commuting with the primitives commutes with execution,
 with the same cost.
 
+For address changes, import
+[`CslibFrontier.Computability.PointerMachine.Simulation`](../../CslibFrontier/Computability/PointerMachine/Simulation.lean).
+`State.Embeds f x y` requires valid states, identical control and data, and an injective
+map from the allocated source addresses into the target heap. Registers and record
+fields follow that map. The target may contain extra records, including incoming links
+to the embedded records; the map need only be injective on allocated source addresses.
+`Runs.embed` and `Runs.of_embed` transport runs in both directions with the exact same
+number of instructions. `Executes.embed` and `Executes.of_embed` include the halt charge.
+Their final embedding extends the initial map on every previously allocated source
+address: a creation maps the fresh source address to the fresh target address.
+`State.Embeds.halts_iff` gives equivalence of successful termination at any specified cost.
+These results allow reordering and extra memory, but do not yet state a separation
+theorem for independently evolving components or a correspondence with Tarjan's traps.
+
 For symbols, the carrier type alone does not establish opacity: an operation from
 symbols to integers would reveal an encoding. The protected-symbol instance
 is `Symbols.model` from `CslibFrontier.Computability.PointerMachine.Symbols`.
@@ -98,6 +112,10 @@ accounting, initialize integer fields from reset data registers, and chase paren
 loop using pointer equality and copying. They also cover null access, new records and invalid
 pointers. The clients
 are model examples, not a verified union-find implementation or lower bound.
+The [embedding client](../../CslibFrontierTests/PointerMachineEmbedding.lean), checked with
+`lake build CslibFrontierTests.PointerMachineEmbedding --wfail --iofail`, embeds a two-node
+chain into a reordered four-node heap with extra incoming links. It checks fresh allocation,
+preservation of old address images, and a loop whose exact cost remains 15 instructions.
 
 GenericRAM was assessed for reuse: its `evalOp` receives only register operands and
 fixed configuration, and `Data.mem` has no allocation state. Its `admissible` and

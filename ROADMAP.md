@@ -702,7 +702,7 @@ Social welfare and social choice functions on strict rankings, from Arrow's impo
 
 ## Machines, RAM and data structures
 
-- **Pointer machines and disjoint sets** ([#5441](https://github.com/cslib-community/cslib-frontier/issues/5441)): Prove injective heap simulation with allocation, separation/locality, and source-program correspondence accounting for undefined-value traps and invocation conventions.
+- **Pointer machines and disjoint sets** ([#5441](https://github.com/cslib-community/cslib-frontier/issues/5441)): Build on the injective heap simulation with allocation to prove separation/locality and source-program correspondence accounting for undefined-value traps and invocation conventions.
   Establish certified machine simulations and native union-find algorithms and lower bounds with explicit symbol-opacity and set-separation assumptions.
 
 - **Efficient universal simulation** ([#800](https://github.com/cslib-community/cslib-frontier/issues/800)): A universal function that runs in time `O(N + poly(D, M) · (t + 1) log(t + 2))`, for encoded input length `N`, description length `D` and largest input symbol `M`, with a storage bound in terms of the simulated machine's space rather than its time.

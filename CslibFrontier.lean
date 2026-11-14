@@ -3473,7 +3473,9 @@ public import CslibFrontier.Computability.Pebbling.Words
 public import CslibFrontier.Computability.PointerMachine.Basic
 public import CslibFrontier.Computability.PointerMachine.Data
 public import CslibFrontier.Computability.PointerMachine.Defs
+public import CslibFrontier.Computability.PointerMachine.Embedding
 public import CslibFrontier.Computability.PointerMachine.Renaming
+public import CslibFrontier.Computability.PointerMachine.Simulation
 public import CslibFrontier.Computability.PointerMachine.Symbols
 public import CslibFrontier.Computability.PolyTime.BitString.InitialTestsSearch
 public import CslibFrontier.Computability.PolyTime.BooleanAnalysis.BoundedIncidenceCounter
