@@ -59,25 +59,29 @@ The clients below follow this recipe.
 
 `DivideConquerBound` itself imposes no condition on `a`, `b` or `n₀`, and without further hypotheses the conclusions below can fail. For example, `T n = n` with `a = b = n₀ = T₀ = 1` and `c = d = 0` satisfies the contract, because `⌈n/1⌉ = n`, yet case 2 would give `T 2 ≤ 1`.
 
-`DivideConquerBound.le_sum` unrolls the recursion for `a ≥ 1` and monotone `f`. For `f n = c n ^ d` the three cases follow. All three statements in the table assume `a ≥ 1`, `b ≥ 2` and `n₀ ≥ 1`:
+`DivideConquerBound.le_sum` unrolls the recursion for `a ≥ 1` and monotone `f`. For `f n = c n ^ d` the three polynomial cases follow; `DivideConquerBound.le_mul_of_regular` covers case 3 for any monotone `f` with `0 < f (n₀ + 1)` and `q * (a * f ⌈m/b⌉) ≤ p * f m` (`p < q`) above `n₀`. All statements in the table assume `a ≥ 1`, `b ≥ 2` and `n₀ ≥ 1`:
 
 | Case | Lean statement | Bound |
 |---|---|---|
 | `a > b ^ d` | `sub_mul_le_pow_clog` | `(a - b ^ d) T n ≤ ((a - b ^ d) T₀ + c n₀ ^ d b ^ d) a ^ ⌈log_b n⌉` |
 | `a = b ^ d` | `le_mul_pow_mul_clog` | `T n ≤ (b n) ^ d (T₀ + c n₀ ^ d ⌈log_b n⌉)` for `n ≠ 0` |
 | `a < b ^ d` | `pow_sub_mul_le_mul_pow` | `(b ^ d - a) T n ≤ ((b ^ d - a) T₀ + c n₀ ^ d b ^ d) (b n) ^ d` for `n ≠ 0` |
+| `q a f ⌈m/b⌉ ≤ p f m` | `le_mul_of_regular` | `(q - p) T n ≤ q (a T₀ + 1) f n` for `n > n₀` |
 
-[MasterTheoremAsymptotics.lean](../../CslibFrontier/Foundations/Data/Nat/MasterTheoremAsymptotics.lean) turns these into `O(n ^ log_b a)`, `O(n ^ d log n)` and `O(n ^ d)` as Mathlib `IsBigO` statements (`isBigO_rpow`, `isBigO_pow_mul_log`, `isBigO_pow`). In case 1 it also gives an explicit real-power bound (`le_mul_rpow`). The conversions are the base-`b` lemmas `Nat.pow_clog_le_mul_rpow_logb` and `Nat.clog_le_two_mul_logb` in [LogTwoRpow.lean](../../CslibFrontier/Foundations/Data/Nat/LogTwoRpow.lean), whose base-`2` cases are used by Karatsuba. Mathlib's `Mathlib.Computability.AkraBazzi` proves the more general Akra–Bazzi `Θ` bound, but it needs an equality recurrence over `ℝ` with positive base values. The statements here give upper bounds only. Case 3 is proved for polynomial `f`, not under the general regularity condition. Applied to cslib's merge-sort count, case 2 gives `2 n ⌈log₂ n⌉`, which is weaker by the factor `b` than cslib's own `n ⌈log₂ n⌉`. The halving lemma `Nat.add_mul_two_pow_clog_le_of_halving` ([HalvingRecurrence.lean](../../CslibFrontier/Foundations/Data/Nat/HalvingRecurrence.lean)) remains the sharper tool for `b = 2`. It carries a subtracted lower-order term through the induction, which the Karatsuba addition count needs (`addCount_add_le_pow_clog`).
+`Nat.DivideConquerLowerBound T a b n₀ T₀ f` states the dual lower contract (`T₀ ≤ T n` on `[1, n₀]`, and `a S + f n ≤ T n` above `n₀` whenever `S` lower-bounds `T` on `[⌊n/b⌋, ⌈n/b⌉]`), yielding explicit lower bounds `sum_le`, `pow_log_mul_le`, `pow_pred_log_mul_le`, `pow_mul_le`, `mul_pow_mul_log_le`, and `driving_le`. In case 1, either `c ≥ 1` or `T₀ ≥ 1 ∧ b ≤ n₀ + 1` is needed so floor steps do not fall into `0`; cases 2 and 3 assume `c ≥ 1`. `Nat.DivideConquerRecurrence T a b n₀ T_lo T_hi f` packages equality recurrences `T n = ∑ i ∈ range a, T (sub i) + f n` with `sub i ∈ [⌊n/b⌋, ⌈n/b⌉]` (constructed directly via `of_ceil` and `of_floor`) and supplies `toBound` and `toLowerBound`.
 
-The checked client [MasterTheorem.lean](../../CslibFrontierTests/MasterTheorem.lean) applies the theorem to:
+[MasterTheoremAsymptotics.lean](../../CslibFrontier/Foundations/Data/Nat/MasterTheoremAsymptotics.lean) turns these into `O`, `Ω` and `Θ` statements over `ℝ` (`isBigO_rpow`, `isBigO_pow_mul_log`, `isBigO_pow`, `isBigO_of_regular`; `rpow_isBigO`, `pow_mul_log_isBigO`, `pow_isBigO`, `driving_isBigO`; and `DivideConquerRecurrence.isTheta_rpow`, `isTheta_pow_mul_log`, `isTheta_pow`, `isTheta_of_regular`), plus the explicit case-1 real-power bound `le_mul_rpow`. `isBigO_of_regular` and `isTheta_of_regular` accept a real regularity ratio `ρ < 1` eventually. The conversions are the base-`b` lemmas `Nat.pow_clog_le_mul_rpow_logb`, `Nat.rpow_logb_le_mul_pow_log`, and `Nat.clog_le_two_mul_logb` in [LogTwoRpow.lean](../../CslibFrontier/Foundations/Data/Nat/LogTwoRpow.lean), whose base-`2` cases are used by Karatsuba. Mathlib's `Mathlib.Computability.AkraBazzi` proves the more general Akra–Bazzi `Θ` bound, but it needs an equality recurrence over `ℝ` with positive base values; this module handles discrete `ℕ` inequality and equality recurrences (including `d = 0`, threshold-`1` recurrences, and general monotone case-3 regularity). Applied to cslib's merge-sort count, case 2 gives `2 n ⌈log₂ n⌉`, which is weaker by the factor `b` than cslib's own `n ⌈log₂ n⌉`. The halving lemma `Nat.add_mul_two_pow_clog_le_of_halving` ([HalvingRecurrence.lean](../../CslibFrontier/Foundations/Data/Nat/HalvingRecurrence.lean)) remains the sharper tool for `b = 2`. It carries a subtracted lower-order term through the induction, which the Karatsuba addition count needs (`addCount_add_le_pow_clog`).
+
+The checked client [MasterTheorem.lean](../../CslibFrontierTests/MasterTheorem.lean) proves `=Θ[Filter.atTop]` bounds for:
 
 - cslib's `timeMergeSortRec`;
-- Karatsuba's `mulCount`, recovering `mulCount_le_pow_clog`;
-- a Strassen-shaped `7 T(⌈n/2⌉) + n²`, giving `O(n ^ log₂ 7)`;
+- Karatsuba's `mulCount`, also recovering `mulCount_le_pow_clog`;
+- a Strassen-shaped `7 T(⌈n/2⌉) + n²`, giving `Θ(n ^ log₂ 7)`;
 - a binary-search recurrence;
-- a base-`3` case-3 recurrence.
+- a base-`3` case-3 recurrence;
+- a non-polynomial regularity recurrence `T(n) = 2 T(⌈n/2⌉) + n² (⌊log₂ n⌋ + 1)` with `ρ = 8 / 9`.
 
-It also refutes the hypothesis for `n²`. Build with
+It also refutes `DivideConquerBound` on `n²`, `DivideConquerLowerBound` on `n` and `0`, and regularity for linear `f`. Build with
 
 ```bash
 lake build CslibFrontier.Foundations.Data.Nat.MasterTheoremAsymptotics CslibFrontierTests.MasterTheorem
