@@ -2635,6 +2635,7 @@ public import CslibFrontier.Computability.Complexity.Problems.OneInThreeSAT.Redu
 public import CslibFrontier.Computability.Complexity.Problems.OneInThreeSAT.Signed
 public import CslibFrontier.Computability.Complexity.Problems.Partition
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.Basic
+public import CslibFrontier.Computability.Complexity.Problems.Permanent.Lipton
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.Matching
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.Membership
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.ThreeSAT
@@ -5850,6 +5851,7 @@ public import CslibFrontier.Foundations.Data.Matrix.PairChunks
 public import CslibFrontier.Foundations.Data.Matrix.Permanent
 public import CslibFrontier.Foundations.Data.Matrix.Permanent.Blocks
 public import CslibFrontier.Foundations.Data.Matrix.Permanent.BooleanSum
+public import CslibFrontier.Foundations.Data.Matrix.Permanent.Line
 public import CslibFrontier.Foundations.Data.Matrix.Permanent.Relay
 public import CslibFrontier.Foundations.Data.Matrix.Permanent.Split
 public import CslibFrontier.Foundations.Data.Matrix.Permanent.ZeroOne
