@@ -18,8 +18,9 @@ import Mathlib.Algebra.Field.ZMod
 
 The affine family over `ZMod 3` is universal and Δ-universal through pairwise independence; Boolean
 matrices and subset sums are Δ-universal; a constant family is not universal for any bound below
-`1`; and the bounds are exact for a two-element family. Carter–Wegman polynomial evaluation is
-evaluated over `ZMod 5`, and multiply-shift on `4`-bit words, where its collision bound is attained.
+`1`; and the bounds are exact for a two-element family. Fixed-length polynomial evaluation uses a
+two-point subset of `ZMod 5`; Carter–Wegman polynomial evaluation is evaluated over `ZMod 5`, and
+multiply-shift on `4`-bit words, where its collision bound is attained.
 -/
 
 namespace CslibFrontierTests.HashFamily
@@ -80,6 +81,43 @@ example :
 /-! ### Carter–Wegman polynomial evaluation over `ZMod 5` -/
 
 instance : Fact (Nat.Prime 5) := ⟨by decide⟩
+
+private def boolToZModFive : Bool ↪ ZMod 5 where
+  toFun b := if b then 1 else 0
+  inj' := by
+    intro a b h
+    cases a <;> cases b <;> simp_all
+
+private def restrictedX : Fin 2 → ZMod 5 := ![1, 0]
+
+private def restrictedY : Fin 2 → ZMod 5 := ![0, 0]
+
+/-- The two distinct messages `X` and `Y` collide at exactly the embedded point `0`, so the
+restricted two-point seed space has a nonempty collision set. -/
+example :
+    restrictedX ≠ restrictedY ∧
+    (Finset.univ.filter fun s : Bool =>
+      coeffPolyHash (boolToZModFive s) restrictedX =
+        coeffPolyHash (boolToZModFive s) restrictedY).card = 1 := by
+  decide
+
+/-- The restricted-domain theorem applies to the two-point embedding into `ZMod 5`. -/
+example :
+    IsUniversalHash (PMF.uniformOfFintype Bool)
+      (fun s (x : Fin 2 → ZMod 5) => coeffPolyHash (boolToZModFive s) x)
+      (2 / Fintype.card Bool) :=
+  isUniversalHash_coeffPolyHash_of_embedding boolToZModFive 2
+
+/-- The empty coefficient vector evaluates to zero. -/
+example (k : ZMod 5) (x : Fin 0 → ZMod 5) : coeffPolyHash k x = 0 := by
+  simp [coeffPolyHash]
+
+/-- Sampling the evaluation point from all of `ZMod 5` gives the full-field specialization. -/
+example :
+    IsUniversalHash (PMF.uniformOfFintype (ZMod 5))
+      (fun k (x : Fin 2 → ZMod 5) => coeffPolyHash k x)
+      (2 / Fintype.card (ZMod 5)) :=
+  isUniversalHash_coeffPolyHash 2
 
 /-- `Hpoly` of `(1, 2)` at key `3` is `4`, `Hxpoly` is `2`, and `()` and `(0)` collide at key `1`
 but not at key `2`. -/
