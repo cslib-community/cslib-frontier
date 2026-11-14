@@ -161,7 +161,8 @@ theorem RunsWords.iterateWhileRound {tm : MultiTapePTM k Bool State Operation} (
       (3 * vp.length + 6 * v.length + 16 + (t + l + 6)) program (fun v' => words v v')
       (fun _ => []) := by
   have h₁ := RunsWords.of_transformsTapes (Operation := Operation) (x := x) (out₀ := out₀)
-    (Turing.MultiTapePTM.IterateWhile.transformsTapes_prepareRound (k := k) mark vp v) rfl (ws' := words v []) (emitted := [])
+    (Turing.MultiTapePTM.IterateWhile.transformsTapes_prepareRound (k := k) mark vp v)
+    rfl (ws' := words v []) (emitted := [])
     (fun _ _ hQ => hQ)
   have h₂ : (tm.onWords mark).RunsWords x (words v []) (out₀ ++ []) (t + l + 6) program
       (fun v' => words v v') (fun _ => []) := by
