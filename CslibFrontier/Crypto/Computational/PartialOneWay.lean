@@ -10,9 +10,9 @@ module
 public import CslibFrontier.Computability.Probabilistic.UniformNat
 public import CslibFrontier.Crypto.Game
 public import CslibFrontier.Languages.Probabilistic.QueryCount.Expected
-public import CslibFrontier.Languages.Probabilistic.Expect
 public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
 public import CslibFrontier.Languages.Probabilistic.Oracle.RunState
+import CslibFrontier.Languages.Probabilistic.Expect
 
 /-!
 # Partial one-wayness games
@@ -264,9 +264,13 @@ theorem evalWith_partialGuessingLaw_apply_le_allFalsePotential {Prefix : Type}
       | inr candidate =>
           by_cases hcandidate : candidate = secret
           · subst candidate
-            simp [partialGuessingAllFalsePotential, partialGuessingLaw,
-              partialGuessingFalseLaw, partialGuessingCorrectCost,
-              partialGuessingReply, OracleComp.expectedCost_query_bind]
+            have hreply : partialGuessingReply secret secret = true :=
+              partialGuessingReply_eq_true_iff.mpr rfl
+            rw [partialGuessingAllFalsePotential_query_bind]
+            simp only [if_pos rfl, partialGuessingAllFalsePotential, partialGuessingLaw,
+              OracleComp.evalWith_bind, OracleComp.evalWith_query,
+              OracleComp.sumHandler_inr, hreply, PMF.pure_bind]
+            rw [← add_assoc]
             calc
               OracleComp.evalWith (partialGuessingLaw secret) (cont true) secret ≤ 1 :=
                 PMF.coe_le_one _ _
@@ -676,16 +680,6 @@ noncomputable def partialGuessingToDomainDyadic {Index Image Prefix : Type} (fal
   else
     pure fallback
 
-/-- Every paper slot `0,...,queryBound` lies in the executable sampler's range. -/
-theorem partialGuessing_sourceSlot_lt_dyadicSize (queryBound slot : Nat)
-    (hslot : slot ≤ queryBound) : slot < Probability.dyadicSize queryBound :=
-  hslot.trans_lt (Probability.lt_dyadicSize queryBound)
-
-/-- The exact executable loss is at most twice the paper's `queryBound + 1` loss. -/
-theorem partialGuessing_dyadicSize_le (queryBound : Nat) :
-    Probability.dyadicSize queryBound ≤ 2 * (queryBound + 1) :=
-  Probability.dyadicSize_le queryBound
-
 private noncomputable def partialGuessingDyadicTrialMass {Prefix : Type}
     [DecidableEq Prefix] (fallback secret : Prefix) (queryBound slot : Nat)
     (program : ProbOracleComp (PartialGuessingResponse Prefix) Prefix) : ℝ≥0∞ :=
@@ -834,6 +828,6 @@ theorem partialGuessingAdvantage_le_two_mul_partialDomainAdvantage
   (partialGuessingAdvantage_le_dyadicSize_mul_partialDomainAdvantage sample part fallback
     queryBound adversary hbound).trans <| by
       gcongr
-      exact_mod_cast partialGuessing_dyadicSize_le queryBound
+      exact_mod_cast Probability.dyadicSize_le queryBound
 
 end Cslib.Crypto
