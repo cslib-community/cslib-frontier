@@ -40,7 +40,7 @@ space `s`, evaluating the branching program yields the first output bit of the `
 Taking `T = (n + 2) * storageBound Bool State k s` (the configuration-counting halting bound of
 `Turing.MultiTapeTM.haltsAt_le_card`) yields **Arora and Barak, Theorem 13.15**: for every problem
 `A ∈ Cslib.Complexity.DSPACE enc S` with `S n ≥ Nat.log 2 n`, there is an explicit constant `c`
-(`Cslib.Complexity.spaceBranchingProgramBase`, depending on the machine's tape count `k`, state
+(`Turing.MultiTapeTM.spaceBranchingProgramBase`, depending on the machine's tape count `k`, state
 count `Fintype.card State`, binary work-tape alphabet `Bool`, and linear space constants `c₁, c₂`
 under `enc`) such that for every input length `n`, a branching program of size at most
 `c ^ max (S n) 1` (and at most `c ^ S n` whenever `1 ≤ S n`, in particular for all `n ≥ 2` or
@@ -68,7 +68,7 @@ Arora and Barak's draft counts ever-nonblank cells.
   machine.
 * `Turing.MultiTapeTM.toBranchingProgram`: the branching program simulating `T` steps of a
   machine within space `s` on inputs of length `n`.
-* `Cslib.Complexity.spaceBranchingProgramBase`: the explicit base `c` of the `c ^ S n` node-count
+* `Turing.MultiTapeTM.spaceBranchingProgramBase`: the explicit base `c` of the `c ^ S n` node-count
   bound.
 
 ## Main results
@@ -79,8 +79,10 @@ Arora and Barak's draft counts ever-nonblank cells.
   `[-s, s]`.
 * `Turing.MultiTapeTM.eval_toBranchingProgram`: the branching program computes the first output
   bit of the `T`-step run on every input within space `s`.
-* `Turing.MultiTapeTM.size_toBranchingProgram_le_pow`: the branching program for the
-  configuration-counting time bound has size at most `spaceBranchingProgramBase ^ max (S n) 1`.
+* `Turing.MultiTapeTM.size_toBranchingProgram_le_pow_max`,
+  `Turing.MultiTapeTM.size_toBranchingProgram_le_pow`: the branching program for the
+  configuration-counting time bound has size at most `spaceBranchingProgramBase ^ max (S n) 1`
+  (and `spaceBranchingProgramBase ^ S n` when `1 ≤ S n`).
 * `Cslib.Complexity.DSPACE.exists_branchingProgram_of_log_le`,
   `Cslib.Complexity.DSPACE.exists_branchingProgram_of_log_add_one_le`,
   `Cslib.Complexity.DSPACE.exists_branchingProgram_slice`: **Arora–Barak Theorem 13.15** for
