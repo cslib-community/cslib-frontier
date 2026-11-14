@@ -350,7 +350,7 @@ theorem isPPT_naorYungStepInverter
     (ComputableInPolyTime.beq (hf.comp hr.snd') hr.fst'.fst'.snd')
     hr.snd' (hw₀1.comp hr.fst')
   change IsPPTOn E0 encBits (fun p => naorYungStepInverter f adversary p.1 p.2)
-  exact IsPPTOn.ite (hm.unary_lt' (.const 2)) (ComputableInPolyTime.const []).isPPTOn
+  exact IsPPTOn.ite' (hm.unary_lt' (.const 2)) (ComputableInPolyTime.const []).isPPTOn
     ((ha.choose.preprocess hn0).bind_with
       ((ha.find.preprocess ((hn1.prod (hq.snd'.snd'.prod hδ1)))).bind_with hcb.isPPTOn))
 
@@ -820,7 +820,7 @@ theorem isPPT_naorYungCascadeAdversary
     have hi0 : ComputableInPolyTime (fun p : ℕ × List Bool × List Bool =>
         min p.1 (cascadeStateDecoder.decode p.2.1).slot)
         EF0 encUnary := by
-      simpa only [Nat.min_def] using
+      simpa only [Nat.min_def, Function.comp_apply] using
         ComputableInPolyTime.ite_decide (hp.fst'.unary_le' hslot) hp.fst' hslot
     have hback_len := ComputableInPolyTime.unary_mul.comp
       ((ComputableInPolyTime.unary_sub.comp (hp.fst'.prod hi0)).prod
