@@ -30,6 +30,7 @@ import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Languages.Probabilistic.Oracle.Support
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Tactic.SuppCases
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Tree signatures: from pseudorandom to random coins
@@ -530,8 +531,10 @@ theorem succProbability_treeGame_le_prf (adversary : Forger) (n : ℕ) :
 
 omit hinv in
 /-- The coin-game advantage of the coin adversary, read at `N n`, is negligible in `n` for a
-pseudorandom function, an oracle-PPT coin adversary and `n ≤ N n`. -/
-theorem negligible_advantage_treeCoinAdversary (hF : PseudorandomFunction family)
+pseudorandom function and `n ≤ N n`, *provided* that the coin adversary is oracle-PPT (`hB`).
+This is an algebraic helper: `exists_negligible_treeGame_le` discharges `hB` with
+`isOraclePPT_treeCoinAdversary`. -/
+theorem negligible_advantage_treeCoinAdversary_of_isOraclePPT (hF : PseudorandomFunction family)
     (hN : ∀ n, n ≤ N n) {adversary : Forger}
     (hB : IsOraclePPT encBool (treeCoinAdversary S T depth N inv adversary)) :
     Negligible (fun n => Game.advantage
@@ -764,8 +767,7 @@ private theorem isOraclePPTOn_chain :
     obtain ⟨h1, h2⟩ := hcerts e he; simp only [length_encPair, encBits_apply, K, B]; omega
   have hmul := Nat.mul_le_mul_right (2 * (2 * K a + 1 + B a) + 1) (hi.trans (Nat.sub_le _ _))
   dsimp only at hpath hlen
-  simp only [length_encPair, encBits_apply, hpath, hlen, K, B] at hpk hsk hlist hmul ⊢
-  omega
+  enc_len [hpath, hlen, K, B] at hpk hsk hlist hmul ⊢
 
 omit hkg hkb hsg hsb hdepth in
 /-- `sigBound` is monotone in both bounds. -/
@@ -1069,7 +1071,7 @@ theorem exists_negligible_treeGame_le {family : List Bool → List Bool → List
     ∃ ε : ℕ → ℝ≥0, Negligible ε ∧ ∀ n,
       Game.succProbability (ProbComp.eval (treeGame S T depth N (prfCoins family) adversary n)) ≤
         Game.succProbability (ProbComp.eval (treeIdealGame S T depth N adversary n)) + ε n :=
-  ⟨_, negligible_advantage_treeCoinAdversary family hF hNge
+  ⟨_, negligible_advantage_treeCoinAdversary_of_isOraclePPT family hF hNge
     (isOraclePPT_treeCoinAdversary hdepth hN hinvPoly hA),
     fun n => succProbability_treeGame_le family hinv adversary n⟩
 

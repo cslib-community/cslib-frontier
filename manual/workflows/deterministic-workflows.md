@@ -118,6 +118,15 @@ Supply three computation certificates: the iteration count in unary, the initial
 
 The result has two projections: polynomial-time computability of the iterated function, and the invariant at termination. [Ladner’s shrink-loop client](../../CslibFrontier/Computability/Complexity/Classes/Ladner.lean) obtains `hreduce` and `hinv` this way: its invariant preserves satisfiability and bounds the current formula's encoded length. That use is inside the theorem's stated reduction and growth hypotheses, not an unconditional SAT algorithm.
 
+The same separation applies to list folds: `ComputableInPolyTime.foldlWith_spec` accepts
+plain certificates for the input list, initial state and joint step, while a prefix invariant
+supplies the encoded accumulator bound. The denominator-product and Bareiss-column folds in
+[RationalElimination.lean](../../CslibFrontier/Computability/PolyTime/LinearAlgebra/RationalElimination.lean)
+are representative callers: their numerical invariants justify the size bound directly, without
+converting the surrounding proof to tidy certificates. For a fold with a direct bound on each
+reachable prefix state, the [binary square-root certificate](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/PolyTime/Nat/Sqrt.lean)
+uses `foldlWith` instead.
+
 For a step capturing a parameter, use `iterateWith_spec` and certify the joint `(parameter, state)` operation. `iterateWith_of_bounded_growth` handles additive encoded-state growth bounded polynomially in the original input. A separate efficient procedure for each fixed parameter does not provide the required uniform joint certificate. A polynomial number of efficient steps also does not bound a state that doubles each time. The [plain loop regression client](../../CslibFrontierTests/Machines/Turing/MultiTape/Internal/PolyTimeLoops.lean) exercises both positive contracts and a failed constant-state bound. When the size obligation fails, inspect the representation and growth argument before changing tactics.
 
 At the machine layer, [the sequential plumbing](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Plumbing/Sequential.lean) provides `MultiTapeTM.relabel` and `TransformsTapes.relabel` for changing control-state names along an equivalence. This retains each instruction and both resource bounds, including the visited cells; it adds no handoff step. [Iterate-while preparation](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/KernelIterateWhile.lean) uses this to share clear/copy/clear preparation with the probabilistic round while retaining the deterministic round's nested sum of states. Use this bridge when only the state association differs, rather than rebuilding the tape certificates.
