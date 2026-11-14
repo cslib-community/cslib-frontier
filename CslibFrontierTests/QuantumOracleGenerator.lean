@@ -106,9 +106,13 @@ def emptyGeneratorCode : Universal.Desc :=
       Universal.Act.ofAction
         ((emptyGeneratorTransition e.1 e.2).map encEmptyGeneratorState Universal.eBit))⟩
 
-private theorem emptyGeneratorCode_holds (q : EmptyGeneratorState) (input : Option Bool) :
+private theorem emptyGeneratorCode_holds (q : EmptyGeneratorState) (input : Option Bool)
+    (work : Fin 0 → Option Bool) :
     emptyGeneratorCode.Holds (emptyGenerator.map encEmptyGeneratorState Universal.eBit)
-      (encEmptyGeneratorState q) (input.map Universal.eBit) Fin.elim0 := by
+      (encEmptyGeneratorState q) (input.map Universal.eBit)
+        (Option.map Universal.eBit ∘ work) := by
+  rw [show (Option.map Universal.eBit ∘ work) = (Fin.elim0 : Fin 0 → Option ℕ) from
+    Subsingleton.elim _ _]
   rw [Universal.Desc.holds_iff]
   rw [show (emptyGenerator.map encEmptyGeneratorState Universal.eBit).tr
       (encEmptyGeneratorState q) (input.map Universal.eBit) Fin.elim0 =
@@ -185,7 +189,7 @@ private theorem runFrom_scan (input : List Bool) (n : ℕ) (hn : n ≤ input.len
     rw [step_scan input n hnlt, step_second input n hnlt]
 
 private def tailInnerCfg (input : List Bool) (q : EmptyGeneratorState) (zeros : ℕ)
-    (hinput : 0 < input.length) :
+    (_hinput : 0 < input.length) :
     Cfg 0 Bool EmptyGeneratorState input :=
   ⟨some q, ⟨input.length, by omega⟩, fun _ _ => none, fun _ => 0,
     List.replicate (2 * input.length) true ++ List.replicate zeros false⟩
@@ -195,6 +199,24 @@ private def tailBoundaryCfg (input : List Bool) (q : Option EmptyGeneratorState)
   ⟨q, ⟨input.length + 1, by omega⟩, fun _ _ => none, fun _ => 0,
     List.replicate (2 * input.length) true ++ List.replicate zeros false⟩
 
+private theorem moveInputPos_rightBoundary_left (input : List Bool) :
+    moveInputPos (⟨input.length + 1, by omega⟩ : Fin (input.length + 2)) (-1) =
+      ⟨input.length, by omega⟩ := by
+  apply moveInputPos_neg_of_ne_left
+  intro h
+  have hval := congrArg Fin.val h
+  simp only [Fin.val_zero] at hval
+  omega
+
+private theorem moveInputPos_lastCell_right (input : List Bool) :
+    moveInputPos (⟨input.length, by omega⟩ : Fin (input.length + 2)) 1 =
+      ⟨input.length + 1, by omega⟩ := by
+  apply moveInputPos_pos_of_ne_right
+  intro h
+  have hval := congrArg Fin.val h
+  simp only [Fin.val_last] at hval
+  omega
+
 private theorem step_scan_boundary (input : List Bool) (hinput : 0 < input.length) :
     emptyGenerator.step (scanCfg input input.length le_rfl) =
       tailInnerCfg input 2 1 hinput := by
@@ -203,11 +225,8 @@ private theorem step_scan_boundary (input : List Bool) (hinput : 0 < input.lengt
   rw [step_of_state rfl, hblank]
   apply Cfg.ext_zero_tapes
   · simp [emptyGenerator, emptyGeneratorTransition, Action.apply, scanCfg, tailInnerCfg]
-  · simp only [scanCfg, tailInnerCfg, Action.apply]
-    exact moveInputPos_neg_of_ne_left _ (by
-      intro h
-      have := congrArg Fin.val h
-      simp at this)
+  · simpa [emptyGenerator, emptyGeneratorTransition, Action.apply, scanCfg, tailInnerCfg] using
+      moveInputPos_rightBoundary_left input
   · simp [emptyGenerator, emptyGeneratorTransition, Action.apply, scanCfg, tailInnerCfg]
 
 private theorem step_tail_two (input : List Bool) (hinput : 0 < input.length) :
@@ -219,8 +238,8 @@ private theorem step_tail_two (input : List Bool) (hinput : 0 < input.length) :
   rw [step_of_state rfl, hsym]
   apply Cfg.ext_zero_tapes
   · simp [emptyGenerator, emptyGeneratorTransition, Action.apply, tailInnerCfg, tailBoundaryCfg]
-  · simp only [tailInnerCfg, tailBoundaryCfg, Action.apply]
-    exact moveInputPos_pos_of_ne_right _ (by simp only; omega)
+  · simpa [emptyGenerator, emptyGeneratorTransition, Action.apply, tailInnerCfg, tailBoundaryCfg]
+      using moveInputPos_lastCell_right input
   · simp [emptyGenerator, emptyGeneratorTransition, Action.apply, tailInnerCfg, tailBoundaryCfg]
 
 private theorem step_tail_three (input : List Bool) (hinput : 0 < input.length) :
@@ -231,11 +250,8 @@ private theorem step_tail_three (input : List Bool) (hinput : 0 < input.length) 
   rw [step_of_state rfl, hblank]
   apply Cfg.ext_zero_tapes
   · simp [emptyGenerator, emptyGeneratorTransition, Action.apply, tailInnerCfg, tailBoundaryCfg]
-  · simp only [tailInnerCfg, tailBoundaryCfg, Action.apply]
-    exact moveInputPos_neg_of_ne_left _ (by
-      intro h
-      have := congrArg Fin.val h
-      simp at this)
+  · simpa [emptyGenerator, emptyGeneratorTransition, Action.apply, tailInnerCfg, tailBoundaryCfg]
+      using moveInputPos_rightBoundary_left input
   · simp [emptyGenerator, emptyGeneratorTransition, Action.apply, tailInnerCfg, tailBoundaryCfg]
 
 private theorem step_tail_four (input : List Bool) (hinput : 0 < input.length) :
@@ -247,8 +263,8 @@ private theorem step_tail_four (input : List Bool) (hinput : 0 < input.length) :
   rw [step_of_state rfl, hsym]
   apply Cfg.ext_zero_tapes
   · simp [emptyGenerator, emptyGeneratorTransition, Action.apply, tailInnerCfg, tailBoundaryCfg]
-  · simp only [tailInnerCfg, tailBoundaryCfg, Action.apply]
-    exact moveInputPos_pos_of_ne_right _ (by simp only; omega)
+  · simpa [emptyGenerator, emptyGeneratorTransition, Action.apply, tailInnerCfg, tailBoundaryCfg]
+      using moveInputPos_lastCell_right input
   · simp [emptyGenerator, emptyGeneratorTransition, Action.apply, tailInnerCfg, tailBoundaryCfg]
 
 private theorem step_tail_five (input : List Bool) :
@@ -341,11 +357,13 @@ theorem emptyGeneratorResources_codeBits (input : OracleInputSize) :
 /-- The exact native time coordinate is two steps per input bit plus the five-bit suffix. -/
 theorem emptyGeneratorResources_time (input : OracleInputSize) :
     (emptyGeneratorCertificate.resources input).time =
-      2 * (encOracleInputSize input).length + 5 := rfl
+      2 * (encOracleInputSize input).length + 5 := by
+  simp only [GeneratorCertificate.resources, emptyGeneratorCertificate]
 
 /-- The zero-work-tape generator uses no visited workspace. -/
 theorem emptyGeneratorResources_workspace (input : OracleInputSize) :
-    (emptyGeneratorCertificate.resources input).workspace = 0 := rfl
+    (emptyGeneratorCertificate.resources input).workspace = 0 := by
+  simp only [GeneratorCertificate.resources, emptyGeneratorCertificate]
 
 /-- The exact generated description has two bits per input bit and five suffix bits. -/
 theorem emptyGeneratorResources_outputBits (input : OracleInputSize) :
