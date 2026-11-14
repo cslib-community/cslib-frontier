@@ -7,9 +7,9 @@ LOCAL = "attribute [local fun_prop] ComputableInPolyTime.fst' ComputableInPolyTi
 # Disposable declarations live in the source namespace, before its first LOCAL.
 # Mathlib FunProp/Theorems.lean appends (rather than deduplicates) both entry kinds.
 HELPER = """
-initialize hierarchyEvidence5530Baseline : IO.Ref (Array Nat) ← IO.mkRef #[]
+meta initialize hierarchyEvidence5530Baseline : IO.Ref (Array Nat) ← IO.mkRef #[]
 
-private def hierarchyEvidence5530Counts : Lean.MetaM (Array Nat) := do
+private meta def hierarchyEvidence5530Counts : Lean.MetaM (Array Nat) := do
   let mut counts := #[]
   for n in [``ComputableInPolyTime.fst', ``ComputableInPolyTime.snd'] do
     let count ← match (← Mathlib.Meta.FunProp.getTheoremFromConst n) with
