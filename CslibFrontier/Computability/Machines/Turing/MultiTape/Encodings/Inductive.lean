@@ -340,6 +340,12 @@ private def linearViews (fn encIn encOut : Term) (base : Name) : CommandElabM Un
       let projection := app name (if field == 0 then s!"_{cs[i]!.getId}_payload?"
         else s!"_{cs[i]!.getId}_field{field - 1}?")
       let out : Term := if field == 0 then payloads[i]! else (encss[i]!)[field - 1]!
+      let outTy ← if field == 0 then pure argTys[i]! else liftTermElabM do
+        let encoding ← Term.elabTerm out none
+        let ty ← whnfR (← instantiateMVars (← inferType encoding))
+        let some (α, _) := ty.app2? ``Function.Embedding |
+          throwError "enc_inductive: unexpected field encoding type{indentExpr ty}"
+        PrettyPrinter.delab α
       let mut pas : Array (TSyntax ``Lean.Parser.Term.matchAlt) := #[]
       for j in [0:n] do
         let xs := (Array.range encss[j]!.size).map fun k => mkIdent (Name.mkSimple s!"x{k}")
@@ -349,7 +355,8 @@ private def linearViews (fn encIn encOut : Term) (base : Name) : CommandElabM Un
         let rhs ← if i == j then `(some $value) else `(none)
         pas := pas.push (← `(Lean.Parser.Term.matchAltExpr| | $pat => $rhs))
       elabCommand (← `(/-- Extract this constructor's payload or field, returning `none` otherwise. -/
-        @[expose] public def $projection:ident (v : $T) : Option _ := match v with $pas:matchAlt*))
+        @[expose] public def $projection:ident (v : $T) : Option $outTy :=
+          match v with $pas:matchAlt*))
       elabCommand (← `(@[simp] public theorem $(app projection.getId "_isSome"):ident
         (v : $T) : ($projection v).isSome = $matcher v := by cases v <;> rfl))
       if field == 0 then
@@ -367,10 +374,13 @@ private def linearViews (fn encIn encOut : Term) (base : Name) : CommandElabM Un
             args := args.push rest
         let reconstructed := Syntax.mkApp ctor args
         let valueIff := app projection.getId "_eq_some_iff"
+        let valueProof ← if encss[i]!.size > 1 then
+          `(tactic| cases v <;> simp [$projection:ident, Prod.ext_iff])
+        else
+          `(tactic| cases v <;> simp [$projection:ident])
         elabCommand (← `(/-- The complete payload determines exactly this constructor value. -/
           public theorem $valueIff:ident (v : $T) ($a : $(argTys[i]!)) :
-            $projection v = some $a ↔ v = $reconstructed := by
-              cases v <;> simp [$projection:ident]))
+            $projection v = some $a ↔ v = $reconstructed := by $valueProof:tactic))
         elabCommand (← `(/-- The matcher recognizes precisely the range of this constructor. -/
           public theorem $(app matcher.getId "_iff"):ident (v : $T) :
             $matcher v = true ↔ ∃ ($a:ident : $(argTys[i]!)), v = $reconstructed := by
@@ -406,9 +416,11 @@ private def linearViews (fn encIn encOut : Term) (base : Name) : CommandElabM Un
             (ComputableInDegree.const (encMid := encBits) []).mono
           exact ((($(app matcher.getId "_deg")).ite
             (($someWord).restrict _) (hn.restrict _)).mono (d' := 1) (e' := 1)).of_enc_eq
-              (fun v => by cases v <;>
-                simp [$projection:ident, $matcher:ident, $applyName:ident, $toSum:ident,
-                  encBits, unframe_frame_append, dropFrame_frame_append])))
+              (fun v => by
+                cases v <;>
+                  simp [$projection:ident, $matcher:ident, $applyName:ident, $toSum:ident,
+                    encBits, unframe_frame_append, dropFrame_frame_append]
+                all_goals rfl)))
       linearViews projection eT (← `(encOption $out)) projection.getId
   -- case analysis on the payloads
   let elim := app name "_elim"
@@ -479,7 +491,6 @@ private def linearViews (fn encIn encOut : Term) (base : Name) : CommandElabM Un
         (fun $p => $nLit * (encPair $encP $eT $p).length + $sTerm) := by
     $unpack:tactic*
     exact ComputableInSpace.of_inO ($(app name "_elim_inO") $hs*)))
-
   -- Polynomial elimination reuses the arbitrary-resource case machine. Each branch clock is
   -- bounded in the full input size before the finitely many envelopes are added.
   let mut pb : TSyntaxArray ``Lean.Parser.Term.bracketedBinder := #[]
