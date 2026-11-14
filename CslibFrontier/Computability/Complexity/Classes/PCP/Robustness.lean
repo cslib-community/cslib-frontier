@@ -220,7 +220,6 @@ theorem isPCPVerifierWith_one_half_iff {r q : ℕ → ℕ} {V : PCPVerifier α} 
     · exact (V.acceptProb_le_half_iff a π).mpr (hsound a ha π)
 
 /-- `PCPWith 1 (1 / 2) r q enc` coincides with `PCP r q enc`. -/
-@[simp]
 theorem PCPWith_one_half (r q : ℕ → ℕ) : PCPWith 1 (1 / 2) r q enc = PCP r q enc := by
   ext A
   simp only [mem_PCPWith, mem_PCP, isPCPVerifierWith_one_half_iff]
