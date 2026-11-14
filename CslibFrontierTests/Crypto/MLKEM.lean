@@ -4,6 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Karn Seth
 -/
 
+module
+
 import CslibFrontier.Crypto.Computational.SIS.MLKEM.Security
 import CslibFrontierTests.Crypto.MLKEMFixture
 
@@ -22,6 +24,9 @@ import CslibFrontierTests.Crypto.MLKEMFixture
    on the public key, and the ciphertext-hop reduction running that adversary's first stage on
    the key it reads from its sample.
 -/
+
+-- This regression module checks ordinary imports and exports no test fixtures.
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.Crypto.MLKEM
 
@@ -51,7 +56,7 @@ example : compress 3329 1 832 = 0 ∧ compress 3329 1 833 = 1 ∧ compress 3329 
 example : decompress 3329 1 1 = 1665 := by decide
 
 example : compress 3329 4 (decompress 3329 4 11) = 11 :=
-  compress_decompress (by norm_num) 11
+  compress_decompress (by decide) 11
 
 /-- The rounding error bound `⌈3329 / 32⌋ = 104` for `d = 4` is attained at `x = 104`. -/
 example : roundDiv 3329 (2 ^ (4 + 1)) = 104 ∧
@@ -62,7 +67,7 @@ example : (decompress 3329 4 (compress 3329 4 2000) - 2000).valMinAbs.natAbs ≤
 
 /-- One-bit decoding tolerates the error `831`, the largest `B` with `4 * B + 2 < 3329` ... -/
 example : compress 3329 1 (decompress 3329 1 1 + 831) = 1 :=
-  compress_one_decompress_one_add (B := 831) (by norm_num) 1 (by decide)
+  compress_one_decompress_one_add (B := 831) (by decide) 1 (by decide)
 
 /-- ... and fails for the errors `832` and `-833`, so the hypothesis cannot be relaxed to
 `4 * B < q + 2` at `q = 3329`. -/
