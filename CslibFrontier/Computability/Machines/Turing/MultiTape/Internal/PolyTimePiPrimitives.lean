@@ -35,7 +35,8 @@ theorem ofFn {count : ℕ} {values : α → Fin count → Value}
   choose d e hd using fun i => (hvalues i).exists_degree
   have hbound : PolyBounded (fun a => (input a).length)
       (fun a => (input a).length + ∑ i, ((input a).length + 1) ^ d i) :=
-    .self.add (.sum Finset.univ fun i _ => (.self.add (.const 1)).pow (d i))
+    PolyBounded.self.add (.sum Finset.univ fun i _ =>
+      (PolyBounded.self.add (.const 1)).pow (d i))
   exact (ComputableInO.ofFn fun i => (hd i).inO).computableInPolyTime hbound hbound
 
 /-- Construct a table by computing each entry, retaining the original input in each computation. -/
