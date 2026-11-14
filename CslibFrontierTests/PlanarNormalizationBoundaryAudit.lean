@@ -4,7 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Erik Demaine
 -/
 
-import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.Normalization.Program
+import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.Normalization
+import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.DegreeTwo
 import Lean.Util.CollectAxioms
 import ImportGraph
 
@@ -19,6 +20,8 @@ run_cmd do
   let selected := fun n : Name =>
     (`CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.Normalization).isPrefixOf n ||
       n == `CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.BoundaryIdentifyAt ||
+      n == `CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.FreshSpoke ||
+      n == `CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.DegreeTwo ||
       n == `CslibFrontier.Foundations.Data.BitString.CyclicDifference.BoundaryKernel
   let allowed : List Name := [``propext, ``Classical.choice, ``Quot.sound]
   let mut publicImports : NameMap (Array Name) := {}
@@ -39,8 +42,8 @@ run_cmd do
         let disallowed := axioms.filter fun ax => !allowed.contains ax
         unless disallowed.isEmpty do
           throwError "normalization audit: {name} depends on {disallowed}"
-  unless modules.size == 6 && declarations > 0 do
-    throwError "normalization audit: expected six nonempty new modules, found {modules}"
+  unless modules.size == 10 && declarations > 0 do
+    throwError "normalization audit: expected ten nonempty new modules, found {modules}"
   let graph := publicImports.transitiveClosure
   for name in modules do
     unless ((graph.find? name).getD {}).contains `Cslib.Init do
