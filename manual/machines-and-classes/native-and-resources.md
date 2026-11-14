@@ -131,6 +131,14 @@ while last-bit extraction has constant output size. The
 [plain-import regression](../../CslibFrontierTests/WordTransducers.lean) exercises automation
 and the obstruction to charging arbitrary map output to constant space.
 
+For prefixes and suffixes of computed framed lists, import
+[`PolyTime.Captured`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/PolyTime/Captured.lean)
+and apply `ComputableInPolyTime.listTakeWithInput` or `listDropWithInput`
+to the list certificate and the unary count certificate.
+The list may use binary element encodings while its count uses `encUnary`.
+The [clique grouping reduction](../../CslibFrontier/Computability/Complexity/FineGrained/CliqueGrouping.lean)
+composes these rules directly to select a block of clauses, without local slicing wrappers.
+
 ## Fair-coin efficiency
 
 [IsPPTOn](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/Probabilistic/PPT.lean#L71) says that one fixed finite PTM, under one polynomial clock, has exactly the encoded output distribution of a program on every input. This is strict bounded time, rather than expected time or a nonuniform machine family. The initial clocked semantics can truncate at its budget, but [exists_halting_machine](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/Probabilistic/PPT/Clock.lean#L77) realizes the same semantics by an actually halting machine. Closed interpretation supplies fair Boolean draws; an open PTM's coin operation has no prescribed distribution until interpreted.
