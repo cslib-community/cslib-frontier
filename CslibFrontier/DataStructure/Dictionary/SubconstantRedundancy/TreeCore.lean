@@ -31,6 +31,8 @@ printed pp. 26–29 and 34–35).
 * `TreeSchedule.TreeState`: multi-level forest state with Section 5.6 `dfsSubtreeMeta` projection.
 * `TreeSchedule.TreeState.WellFormedPadded`, `TreeSchedule.TreeState.WellFormed`: multi-level seed,
   capacity, storage-level partition, and waiting-list invariants.
+* `TreeSchedule.ValidStoreLvl`: per-key storage-level partition validity across leaf and inner
+  node capacities.
 
 ## Main results
 

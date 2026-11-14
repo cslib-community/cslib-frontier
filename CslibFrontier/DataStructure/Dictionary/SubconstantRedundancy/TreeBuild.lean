@@ -25,8 +25,7 @@ printed pp. 26–29 and 33).
 ## Main definitions
 
 * `TreeSchedule.InSubtree`: subtree membership predicate `∃ h : ℓ₀ ≤ ℓ, ancestorAt h u = u₀`.
-* `TreeSchedule.ValidStoreLvl`, `TreeSchedule.canonicalStoreLvl`: valid per-key storage-level
-  partitions and canonical bottom-up storage-level selection.
+* `TreeSchedule.canonicalStoreLvl`: canonical bottom-up storage-level selection.
 * `TreeSchedule.buildTreeFromSeeds`: full-tree construction from a good `SeedAssignment`.
 
 ## Main results

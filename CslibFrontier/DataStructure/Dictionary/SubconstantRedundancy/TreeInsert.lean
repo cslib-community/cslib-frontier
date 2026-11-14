@@ -35,9 +35,21 @@ levels `2 ≤ ℓ ≤ depth`.
 
 * `TreeSchedule.TreeState.wellFormedPadded_normalInsertFresh`: preservation of `WellFormedPadded`
   with storage-level map `Function.update storeLvl x 1`.
-* `TreeSchedule.TreeState.wellFormedPadded_removeWaitAtNode`: preservation of `WellFormedPadded`
-  after removing a waiting entry during Algorithm 3.
-* `TreeSchedule.TreeState.wellFormedPadded_replaceAtNode`: preservation of `WellFormedPadded`
+* `TreeSchedule.TreeState.seeds_removeWaitAtNode`,
+  `TreeSchedule.TreeState.sentCount_removeWaitAtNode`,
+  `TreeSchedule.TreeState.nodeDom_removeWaitAtNode`,
+  `TreeSchedule.TreeState.nodeQuery_removeWaitAtNode`,
+  `TreeSchedule.TreeState.nodeWait_removeWaitAtNode_same`,
+  `TreeSchedule.TreeState.nodeWait_removeWaitAtNode_other`: node-component frame equations after
+  removing a waiting entry during Algorithm 3.
+* `TreeSchedule.TreeState.seeds_replaceAtNode`,
+  `TreeSchedule.TreeState.sentCount_replaceAtNode`,
+  `TreeSchedule.TreeState.nodeDom_replaceAtNode_same`,
+  `TreeSchedule.TreeState.nodeDom_replaceAtNode_other`,
+  `TreeSchedule.TreeState.nodeQuery_replaceAtNode_same`,
+  `TreeSchedule.TreeState.nodeQuery_replaceAtNode_other`,
+  `TreeSchedule.TreeState.nodeWait_replaceAtNode_same`,
+  `TreeSchedule.TreeState.nodeWait_replaceAtNode_other`: node-component update and frame equations
   after quotient replacement during Algorithm 3.
 
 ## References

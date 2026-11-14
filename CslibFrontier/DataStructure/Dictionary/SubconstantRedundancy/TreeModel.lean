@@ -9,7 +9,6 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.Params
-public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.StorageNode
 public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.TreeRehash
 
 /-!
@@ -22,11 +21,10 @@ Wasted Bits per Key* ([LiLiangYuZhou2024, Section 5, Sections 5.1–5.6];
 
 It publicly re-exports the parameter schedule and `infoBits + O(R)` bit budget (`Params.lean`),
 pure node-level storage structures and Section 5.6 metadata separation (`StorageNode.lean`),
-single-node survival (`Claim 5.4`, PDF p. 35 / printed p. 34) and multi-level expected rehashing
-work (`Lemma 5.3`, PDF pp. 34–35 / printed pp. 33–34) (`RehashBounds.lean`), sentinel-padded
-routing (`TreeRouting.lean`), tree invariants and Section 5.6 DFS subtree metadata
-(`TreeCore.lean`), root-to-leaf `query` and `rawOverwrite` (`TreeQuery.lean`), normal-path
-insertion (`TreeInsert.lean`), `Algorithm 3` (`deleteAndGetQuotient`, PDF p. 31 / printed p. 30,
+sentinel-padded routing (`TreeRouting.lean`), tree invariants and Section 5.6 DFS subtree metadata
+(`TreeCore.lean`), canonical tree construction and good-seed existence (`TreeBuild.lean`),
+root-to-leaf `query` and `rawOverwrite` (`TreeQuery.lean`), normal-path insertion
+(`TreeInsert.lean`), `Algorithm 3` (`deleteAndGetQuotient`, PDF p. 31 / printed p. 30,
 `TreeDelete.lean`), and `Algorithm 4` (`rehashSubtree`, PDF p. 34 / printed p. 33,
 `TreeRehash.lean`).
 
@@ -39,12 +37,6 @@ In addition, this file provides:
    Footnote 5`, PDF p. 12 / printed p. 11; `Section 5`, PDF p. 26 / printed p. 25) and satisfying
    the exact `Dictionary.State` `Function.update` laws (`query_initTree`, `query_insert`,
    `query_delete`).
-3. The trajectory bridge `primSetAt_validPrimIdSeq` connecting multi-step update trajectories
-   without strict-ancestor rehashes directly to `RehashBounds.ValidPrimIdSeq` and `Claim 5.4`
-   (`prob_survives_window_of_ancestorFree`). For the multi-level randomized `OracleComp` execution
-   model (`execHistory`) and the unconditional `Lemma 5.3` expected rehashing work bound over `M`
-   external `Dynamic.Op` operations (`canonicalSchedule_expectedCost_execHistory_le`), import
-   `CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.TreeExec`.
 
 ## Formalization adaptations and explicit scope boundaries
 
@@ -59,10 +51,12 @@ In addition, this file provides:
   `Cslib.Probability.trinomialPolyHash` (`m = FeistelPerm.childRouterHalfInd (P.nHigh ℓ) = O(1)`,
   adapting `[LiLiangYuZhou2024, Sections 5.1 & 5.4, Claim B.2]`, PDF pp. 27, 32–33, 41 /
   printed pp. 26, 31–32, 40).
-* **Out of scope**: Word-RAM `Memory.Prog` compilation and lookup-table realization, Section 4
-  small-parameter variable-length adapter trees (`R < n / log₂ ^ 0.1 n`), strong history
-  independence, dynamic capacity resizing in `|S|`, and super-polynomial key universes
-  (`U > n ^ (1 + α_max)`).
+* **Out of scope**: randomized seed sampling and multi-step expected rehashing work bounds (Stage 3
+  of `#5349`; `initTree`, `TreeState.insert`, and `TreeState.delete` here are pure mathematical
+  `noncomputable` specifications selecting good seeds via `Classical.choose`), Word-RAM
+  `Memory.Prog` compilation and lookup-table realization, Section 4 small-parameter variable-length
+  adapter trees (`R < n / log₂ ^ 0.1 n`), strong history independence, dynamic capacity resizing in
+  `|S|`, and super-polynomial key universes (`U > n ^ (1 + α_max)`).
 
 ## Main definitions
 
@@ -73,13 +67,13 @@ In addition, this file provides:
 
 ## Main results
 
+* `TreeSchedule.TreeState.wellFormedPadded_rawInsertFresh`,
+  `TreeSchedule.TreeState.wellFormedPadded_rawDeleteMem`: internal `WellFormedPadded` preservation
+  and localized subtree seed-preservation clauses.
 * `TreeSchedule.wellFormed_initTree`, `TreeSchedule.query_initTree`: initialization correctness.
 * `TreeSchedule.TreeState.wellFormed_insert`, `TreeSchedule.TreeState.query_insert`,
   `TreeSchedule.TreeState.wellFormed_delete`, `TreeSchedule.TreeState.query_delete`: invariant
   preservation and `Function.update` lookup specifications.
-* `TreeSchedule.SeedAssignment.primSetAt_validPrimIdSeq`,
-  `TreeSchedule.SeedAssignment.prob_survives_window_of_ancestorFree`: trajectory bridge to
-  `Claim 5.4` and `Lemma 5.3`.
 
 ## References
 
@@ -105,8 +99,7 @@ namespace TreeState
 variable {P : TreeSchedule}
 
 /-- Whether `seeds` has a failing node seed at level `ℓ` on `S'`. -/
-@[expose]
-def hasBadSeedOn (seeds : P.SeedAssignment) (S' : Finset (Fin P.paddedUniv))
+private def hasBadSeedOn (seeds : P.SeedAssignment) (S' : Finset (Fin P.paddedUniv))
     (ℓ : ℕ) : Prop :=
   ∃ hℓ : ℓ ≤ P.depth, ∃ w : Fin (P.numNodes ℓ),
     ¬ P.IsGoodNodeSeed ℓ (seeds.seed ℓ hℓ w) (seeds.primSetAt S' ℓ hℓ w)
@@ -200,8 +193,7 @@ open scoped Classical in
 `normalInsertFresh` when `st.seeds` stays good on `Insert.insert x S`, and otherwise invokes
 `st.rehashSubtree` (`Algorithm 4`) at the highest failing node `(ℓ₀, nodeAt ℓ₀ x)` using
 `Classical.choose` to non-constructively select good replacement seeds, followed by
-`normalInsertFresh`. See `TreeSchedule.TreeState.execRawInsertFresh` in `TreeExec.lean` for the
-randomized `OracleComp` execution with idealized good-seed oracle sampling. -/
+`normalInsertFresh`. -/
 noncomputable def rawInsertFresh (hcr : P.ConcentrationReady)
     (scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth))
     (st : P.TreeState) (x : Fin P.paddedUniv) (v : Fin P.valBound) : P.TreeState :=
@@ -280,9 +272,7 @@ open scoped Classical in
 /-- Internal member-key deletion on `st` (`z ∈ paddedDom d`, `#S' ∈ [nLow 0, nHigh 0]`): runs
 `normalDeleteMem` (`Algorithm 3`) when `st.seeds` stays good on `S.erase z`, and otherwise invokes
 `st.rehashSubtree` (`Algorithm 4`) at `(ℓ₀, nodeAt ℓ₀ z)` using `Classical.choose` to
-non-constructively select good replacement seeds, followed by `normalDeleteMem`. See
-`TreeSchedule.TreeState.execRawDeleteMem` in `TreeExec.lean` for the randomized `OracleComp`
-execution with idealized good-seed oracle sampling. -/
+non-constructively select good replacement seeds, followed by `normalDeleteMem`. -/
 noncomputable def rawDeleteMem (hcr : P.ConcentrationReady)
     (scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth))
     (st : P.TreeState) (z : Fin P.paddedUniv) : P.TreeState :=
