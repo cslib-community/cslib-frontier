@@ -18,12 +18,15 @@ A *deterministic branching program* over inputs `x : ι → α`, on a type `Node
 directed acyclic graph with a distinguished start node `start` in which every node is either a
 terminal sink returning a Boolean output (`.sink b`) or an internal query node reading an input
 coordinate `i : ι` and branching to `next (x i)` (`.branch i next`)
-[Arora and Barak, Definition 13.14][AroraBarak07]. Unlike read-once branching programs
+[Arora and Barak, Section 13.4.4][AroraBarak07]. Unlike read-once branching programs
 (`Cslib.BranchingPrograms.ReadOnceProgram`), any coordinate may be queried at any node and a
 coordinate may be queried multiple times along a path. Acyclicity is witnessed by a topological
 rank `rank : Node → ℕ` that strictly decreases along every outgoing edge of a query node. For a
 finite node type `Node`, the *size* of the program (`BranchingProgram.size`) is its number of
-nodes `Fintype.card Node`.
+nodes `Fintype.card Node`. Whereas Arora and Barak's Section 13.4.4 fixes two designated
+outdegree-zero nodes (`ACCEPT` and `REJECT`), `BranchingProgram` allows multiple `.sink b` nodes;
+coalescing equal-output sinks adds at most one node when only one output value appears, and never
+increases `size` when at least two sink nodes exist (as in `MultiTapeTM.toBranchingProgram`).
 
 Evaluation (`BranchingProgram.evalNode`, `BranchingProgram.eval`) is defined by structural
 recursion on an upper bound for `rank`, so it unfolds directly by `evalNode_sink` and
@@ -59,7 +62,7 @@ program of length `L` and state type `S` embeds as a layered general branching p
 ## References
 
 * [S. Arora, B. Barak, *Computational Complexity: A Modern Approach* (2007 draft),
-  Definition 13.14][AroraBarak07]
+  Section 13.4.4][AroraBarak07]
 * [S. Jukna, *Boolean Function Complexity: Advances and Frontiers*, Chapter 14][Jukna2012]
 -/
 
@@ -78,7 +81,7 @@ inductive BranchingProgram.Step (ι α Node : Type*) where
 
 /-- A *deterministic branching program* over inputs `ι → α` on the nodes `Node`: a directed acyclic
 graph with a start node `start`, where each node is either a terminal sink or a coordinate query
-whose outgoing edges strictly decrease `rank` [Arora and Barak, Definition 13.14][AroraBarak07].
+whose outgoing edges strictly decrease `rank` [Arora and Barak, Section 13.4.4][AroraBarak07].
 For finite `Node`, its size is the node count `Fintype.card Node` (`BranchingProgram.size`). -/
 structure BranchingProgram (ι α Node : Type*) where
   /-- The start node. -/
@@ -179,6 +182,18 @@ theorem eval_const (b : Bool) (x : ι → α) : (const ι α b).eval x = b :=
 @[simp]
 theorem size_const (b : Bool) : (const ι α b).size = 1 :=
   Fintype.card_unit
+
+/-- A branching program of size at most `1` cannot branch (since any outgoing edge would strictly
+decrease `rank` within a subsingleton), so its evaluation is constant across all inputs. -/
+theorem eval_eq_of_size_le_one [Fintype Node] (hsize : P.size ≤ 1) (x y : ι → α) :
+    P.eval x = P.eval y := by
+  have hsub : Subsingleton Node := Fintype.card_le_one_iff_subsingleton.mp hsize
+  cases hn : P.node P.start with
+  | sink b =>
+    rw [eval, evalNode_sink x hn, eval, evalNode_sink y hn]
+  | branch i next =>
+    exact absurd (Subsingleton.elim (next (x i)) P.start ▸ P.rank_lt P.start i next (x i) hn)
+      (Nat.lt_irrefl _)
 
 /-- The branching program that queries `f i` whenever `P` queries `i`. -/
 def rename (f : ι → κ) (P : BranchingProgram ι α Node) : BranchingProgram κ α Node where

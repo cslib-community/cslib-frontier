@@ -10,10 +10,9 @@ module
 public import CslibFrontier.Computability.BranchingProgram.Basic
 public import CslibFrontier.Computability.Complexity.Classes.Space.Basic
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace
-public import CslibFrontier.Computability.Circuit.Boolean.PolynomialTime
+public import CslibFrontier.Computability.Languages.Slice
 public import Mathlib.Data.Fintype.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.HaltsAt
-import CslibFrontier.Foundations.Data.Nat.Log
 import Mathlib.Data.Nat.Log
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
@@ -49,6 +48,12 @@ under the positive logarithmic convention `S n ≥ Nat.log 2 n + 1`) computes th
 of `A` (`Cslib.Complexity.DSPACE.exists_branchingProgram_of_log_le`,
 `Cslib.Complexity.DSPACE.exists_branchingProgram_of_log_add_one_le`,
 `Cslib.Complexity.DSPACE.exists_branchingProgram_slice`).
+
+**Boundary at `n = 1, S(1) = 0`.** The exponent `max (S n) 1` (or the positiveness condition
+`1 ≤ S n`) is necessary when `S n = 0`: at `n = 1`, `Nat.log 2 1 = 0`, so `S(n) = ⌈log₂ n⌉`
+satisfies `S(1) = 0 ≥ log₂ 1`, whereas `FirstBit = {x | x₁ = 1} ∈ DSPACE 0` is nonconstant on
+`{0, 1}¹` and requires at least `3 > 1 = c ^ S(1)` branching-program nodes (one query node and two
+distinct sinks) for every base `c > 1`.
 
 **Space-measure qualification.** Space in `Cslib.Complexity.DSPACE` counts distinct visited
 work-tape cells (`Turing.MultiTapeNTM.RunPath.space`), the library's native convention, whereas
@@ -386,7 +391,7 @@ theorem eval_toBranchingProgram {tm : MultiTapeTM k Bool State} {n s T : ℕ}
 /-! ### Explicit node-count bounds (`2 ^ O(S)`) -/
 
 /-- `n + 2 ≤ 3 * 2 ^ ⌊log₂ n⌋` for every natural number `n`. -/
-theorem add_two_le_three_mul_two_pow_log (n : ℕ) : n + 2 ≤ 3 * 2 ^ Nat.log 2 n := by
+private theorem add_two_le_three_mul_two_pow_log (n : ℕ) : n + 2 ≤ 3 * 2 ^ Nat.log 2 n := by
   have hlt : n < 2 ^ (Nat.log 2 n + 1) := Nat.lt_pow_succ_log_self Nat.one_lt_two n
   have hpos : 1 ≤ 2 ^ Nat.log 2 n := Nat.one_le_two_pow
   rw [Nat.pow_succ'] at hlt
@@ -402,10 +407,11 @@ def spaceBranchingProgramBase (k : ℕ) (State : Type*) [Fintype State] (c₁ c�
     2 ^ (2 * (storageBoundExp Bool k * (k + 1)) * c₂) *
     2 ^ (2 + 2 * (storageBoundExp Bool k * (k + 1)) * c₁)
 
-theorem one_le_storageBoundBase [Fintype State] : 1 ≤ storageBoundBase Bool State k := by
+private theorem one_le_storageBoundBase [Fintype State] : 1 ≤ storageBoundBase Bool State k := by
   unfold storageBoundBase
   exact Nat.mul_pos (Nat.succ_pos _) (Nat.two_pow_pos _)
 
+/-- The branching-program size base `spaceBranchingProgramBase k State c₁ c₂` is at least `2`. -/
 theorem two_le_spaceBranchingProgramBase [Fintype State] (c₁ c₂ : ℕ) :
     2 ≤ spaceBranchingProgramBase k State c₁ c₂ := by
   have hB : 1 ≤ (storageBoundBase Bool State k) ^ 2 :=
@@ -514,7 +520,7 @@ end Turing
 
 namespace Cslib.Complexity
 
-open Turing Turing.MultiTapeTM Cslib.BranchingPrograms Cslib.Circuits.Boolean
+open Language Turing Turing.MultiTapeTM Cslib.BranchingPrograms
 
 export Turing.MultiTapeTM (spaceBranchingProgramBase)
 
@@ -526,7 +532,9 @@ For every problem `A ∈ DSPACE enc S` with `∀ n, Nat.log 2 n ≤ S n`, there 
 linear space constants under `enc`) such that for every input length `n`, there is a finite node
 type `Node` and a deterministic branching program `P : BranchingProgram (Fin n) Bool Node` of size
 at most `c ^ max (S n) 1` (hence `≤ c ^ S n` whenever `1 ≤ S n`, and `≤ c ^ (S n + 1)` for all `n`)
-that computes `encodesMember enc A n` on all encoded instances of length `n`. -/
+that computes `encodesMember enc A n` on all encoded instances of length `n`. The `max (S n) 1`
+floor is needed at `n = 1, S 1 = 0`, where a nonconstant 1-bit language in `DSPACE 0` requires at
+least `3 > 1 = c ^ 0` nodes. -/
 theorem DSPACE.exists_branchingProgram_of_log_le (hA : A ∈ DSPACE enc S)
     (hS : ∀ n, Nat.log 2 n ≤ S n) :
     ∃ c ≥ 2, ∀ n, ∃ (Node : Type) (_ : Fintype Node) (P : BranchingProgram (Fin n) Bool Node),
@@ -541,9 +549,9 @@ theorem DSPACE.exists_branchingProgram_of_log_le (hA : A ∈ DSPACE enc S)
     fun n => ?_⟩
   set s := c₁ * S n + c₂
   set T := (n + 2) * storageBound Bool State k s
-  refine ⟨SpaceConfigNode k State n s T, inferInstance, tm.toBranchingProgram n s T,
-    tm.size_toBranchingProgram_le_pow_max le_rfl (hS n), ?_, ?_⟩
-  · rintro x ⟨a, ha⟩
+  have heval_eq : ∀ (x : Fin n → Bool) (a : α), enc a = List.ofFn x →
+      (tm.toBranchingProgram n s T).eval x = indicator A a := by
+    intro x a ha
     have hlen : (enc a).length = n := by rw [ha, List.length_ofFn]
     have hcard := (htm a).of_card
     have hs : tm.RunsInSpace (List.ofFn x) s := by
@@ -556,6 +564,11 @@ theorem DSPACE.exists_branchingProgram_of_log_le (hA : A ∈ DSPACE enc S)
       rw [← ha, ← hT, hu.runFrom_eq hu_le]
       exact output_haltsAt hcard.1 hu
     rw [tm.eval_toBranchingProgram hs, hout]
+    rfl
+  refine ⟨SpaceConfigNode k State n s T, inferInstance, tm.toBranchingProgram n s T,
+    tm.size_toBranchingProgram_le_pow_max le_rfl (hS n), ?_, ?_⟩
+  · rintro x ⟨a, ha⟩
+    rw [heval_eq x a ha]
     by_cases haA : a ∈ A
     · rw [(encodesMember_eq_true_iff ha).2 haA]
       simp [indicator, haA]
@@ -564,22 +577,9 @@ theorem DSPACE.exists_branchingProgram_of_log_le (hA : A ∈ DSPACE enc S)
       rw [hfalse]
       simp [indicator, haA]
   · intro a hlen
-    set x : Fin n → Bool := fun i => (enc a)[i.val]'(by omega)
-    have ha : enc a = List.ofFn x := by
-      refine List.ext_getElem (hlen.trans List.length_ofFn.symm) fun i h₁ h₂ => ?_
-      simp [x]
-    have hcard := (htm a).of_card
-    have hs : tm.RunsInSpace (List.ofFn x) s := by
-      simpa [← ha, s, hlen] using hcard.2.2
-    obtain ⟨u, hu_le, hu⟩ := exists_haltsAt_of_runsInTime hcard.2.1
-    have hout : (tm.runFrom (tm.initCfg (List.ofFn x)) T).output = [indicator A a] := by
-      have hT :
-          ((enc a).length + 2) * storageBound Bool State k (c₁ * S (enc a).length + c₂) = T := by
-        simp [T, s, hlen]
-      rw [← ha, ← hT, hu.runFrom_eq hu_le]
-      exact output_haltsAt hcard.1 hu
-    rw [tm.eval_toBranchingProgram hs, hout]
-    rfl
+    refine heval_eq _ a ?_
+    refine List.ext_getElem (hlen.trans List.length_ofFn.symm) fun i h₁ h₂ => ?_
+    simp
 
 /-- **Arora–Barak Theorem 13.15 (`c ^ S n` form for positive space bounds `S n ≥ 1`).**
 When `∀ n, Nat.log 2 n ≤ S n` and `∀ n, 1 ≤ S n` (in particular under the repository's standard
@@ -649,15 +649,14 @@ deterministic branching program of size at most `c ^ (Nat.log 2 n + 1)`. -/
 theorem L.exists_branchingProgram_slice {L₀ : Language Bool} (hL : L₀ ∈ L encBits) :
     ∃ c ≥ 2, ∀ n, ∃ (Node : Type) (_ : Fintype Node) (P : BranchingProgram (Fin n) Bool Node),
       P.size ≤ c ^ (Nat.log 2 n + 1) ∧ P.eval = L₀.slice n := by
-  have hDSPACE : L₀ ∈ DSPACE encBits (fun n => Nat.log 2 n + 1) := by
-    refine DSPACE_mono_of_le_mul_add (s₁ := Nat.log2) (C := 1) (fun n => ?_)
-      (mem_L_iff_mem_DSPACE.mp hL)
-    rw [Nat.log2_eq_log_two]
-    omega
-  obtain ⟨c, hc, hP⟩ := DSPACE.exists_branchingProgram_slice hDSPACE fun n => Nat.le_succ _
+  obtain ⟨c, hc, hP⟩ := L.exists_branchingProgram hL
   refine ⟨c, hc, fun n => ?_⟩
-  obtain ⟨Node, hfin, P, hsize, heval⟩ := hP n
-  rw [max_eq_left (Nat.le_add_left 1 _)] at hsize
-  exact ⟨Node, hfin, P, hsize, heval⟩
+  obtain ⟨Node, hfin, P, hsize, henc, -⟩ := hP n
+  refine ⟨Node, hfin, P, hsize, funext fun x => ?_⟩
+  have hmem :=
+    encodesMember_eq_true_iff (enc := encBits) (A := (L₀ : Set (List Bool)))
+      (x := x) (a := List.ofFn x) rfl
+  rw [henc x ⟨List.ofFn x, rfl⟩, Bool.eq_iff_iff, hmem, Language.slice_eq_true_iff]
+  rfl
 
 end Cslib.Complexity

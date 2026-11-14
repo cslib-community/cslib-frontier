@@ -7,6 +7,7 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 
 public import CslibFrontier.Computability.BranchingProgram.Space
+public import CslibFrontier.Computability.Complexity.Classes.LogSpace.USTCON
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Streaming
 import Mathlib.Tactic.FinCases
 
@@ -19,7 +20,7 @@ public section
 
 namespace CslibFrontierTests.SpaceBranchingProgram
 
-open Cslib Cslib.BranchingPrograms Cslib.Circuits.Boolean Cslib.Complexity Turing Turing.MultiTapeTM
+open Cslib Cslib.BranchingPrograms Cslib.Complexity Language Turing Turing.MultiTapeTM
 
 /-! ### 1. A concrete multi-read deterministic branching program -/
 
@@ -105,7 +106,52 @@ example (n S : ℕ) (hlog : Nat.log 2 n ≤ S) (hS : 1 ≤ S) :
       (spaceBranchingProgramBase 0 Bool 0 0) ^ S :=
   firstBitTM.size_toBranchingProgram_le_pow (Nat.zero_le _) hlog hS
 
-/-! ### 4. Arora–Barak Theorem 13.15 on a concrete language in `L` and `DSPACE` -/
+/-- On a 0-work-tape machine with state type `Bool` and space constants `c₁ = c₂ = 0`, the explicit
+base `spaceBranchingProgramBase 0 Bool 0 0` evaluates to `1944` (`54 * 3^2 * 1 * 4`). -/
+example : spaceBranchingProgramBase 0 Bool 0 0 = 1944 := by
+  decide
+
+example (n S : ℕ) (hlog : Nat.log 2 n ≤ S) (hS : 1 ≤ S) :
+    (firstBitTM.toBranchingProgram n 0 ((n + 2) * storageBound Bool Bool 0 0)).size ≤
+      1944 ^ S := by
+  simpa [show spaceBranchingProgramBase 0 Bool 0 0 = 1944 by decide] using
+    firstBitTM.size_toBranchingProgram_le_pow (c₁ := 0) (c₂ := 0) (Nat.zero_le _) hlog hS
+
+/-- The language of non-empty bit strings whose first bit is `true`, decided in space `0` by
+`firstBitTM`. -/
+def FirstBit : Language Bool := {w | w.head? = some true}
+
+/-- At `n = 1` and `S 1 = 0 ≥ Nat.log 2 1`, no branching program of size `≤ 1 = c ^ 0` can compute
+`FirstBit.slice 1`, witnessing that the `max (S n) 1` floor in Theorem 13.15 is necessary when
+`S 1 = 0`. -/
+theorem not_exists_size_le_one_eval_eq_firstBit_slice {Node : Type*} [Fintype Node]
+    (P : BranchingProgram (Fin 1) Bool Node) (hsize : P.size ≤ 1) :
+    P.eval ≠ FirstBit.slice 1 := by
+  intro heval
+  have hconst := P.eval_eq_of_size_le_one hsize (fun _ => false) (fun _ => true)
+  rw [heval] at hconst
+  have h0 : FirstBit.slice 1 (fun _ => false) = false := by
+    rw [Bool.eq_false_iff, Ne, Language.slice_eq_true_iff]
+    intro h
+    exact Bool.false_ne_true (Option.some.inj h)
+  have h1 : FirstBit.slice 1 (fun _ => true) = true := by
+    rw [Language.slice_eq_true_iff]
+    rfl
+  rw [h0, h1] at hconst
+  exact Bool.false_ne_true hconst
+
+/-! ### 4. Arora–Barak Theorem 13.15 on concrete problems in `L` and `DSPACE` -/
+
+/-- Arora–Barak Theorem 13.15 instantiated on Reingold's `USTCON_mem_L`: undirected `s`–`t`
+connectivity has polynomial-size deterministic branching programs of size at most
+`c ^ (Nat.log 2 n + 1)`. -/
+theorem ustcon_branchingPrograms :
+    ∃ c ≥ 2, ∀ n, ∃ (Node : Type) (_ : Fintype Node) (P : BranchingProgram (Fin n) Bool Node),
+      P.size ≤ c ^ (Nat.log 2 n + 1) ∧
+      (∀ x ∈ encodes encUSTCON n, P.eval x = encodesMember encUSTCON USTCON n x) ∧
+      (∀ a : USTCONInstance, (h : (encUSTCON a).length = n) →
+        P.eval (fun i : Fin n => (encUSTCON a)[i.val]'(by omega)) = indicator USTCON a) :=
+  L.exists_branchingProgram USTCON_mem_L
 
 /-- Whether a boolean word has an odd number of ones. -/
 private def oddOnes (word : List Bool) : Bool := word.foldl (fun b x => b ^^ x) false
