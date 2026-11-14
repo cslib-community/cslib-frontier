@@ -118,7 +118,7 @@ attribute [local fun_prop] orbitBool_polyTime
 /-- A unary-funded range can be enumerated with binary-encoded entries in polynomial time. -/
 theorem range_binary :
     ComputableInPolyTime List.range encUnary (encList encNat) := by
-  simpa only [Function.comp_def, List.map_id] using
+  simpa [Function.comp_def] using
     (ComputableInPolyTime.map ComputableInPolyTime.unary_to_binary).comp
       ComputableInPolyTime.range
 
@@ -129,7 +129,11 @@ private theorem fiberCheck_polyTime :
       (encPair (encPair encUnary (encList encNat)) (encList encNat)) encBool := by
   apply ComputableInPolyTime.allWithInput (encA := encNat) (range_binary.comp (by fun_prop))
   apply ComputableInPolyTime.allWithInput (encA := encNat) (range_binary.comp (by fun_prop))
-  fun_prop
+  apply ComputableInPolyTime.decide_eq'
+  · exact orbitBool_polyTime (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
+  · apply ComputableInPolyTime.decide_eq'
+    · exact ComputableInPolyTime.listGetD_binary 0 (by fun_prop) (by fun_prop)
+    · exact ComputableInPolyTime.listGetD_binary 0 (by fun_prop) (by fun_prop)
 
 /-- Every part of rotation validation runs natively in polynomial time in the graph and table
 encodings, without an assumed checker, recognizer, or well-formedness hypothesis. -/
