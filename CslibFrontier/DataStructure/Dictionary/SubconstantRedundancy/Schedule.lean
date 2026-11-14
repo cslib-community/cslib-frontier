@@ -8,10 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import CslibFrontier.DataStructure.Dictionary.Dynamic.Spec
 public import CslibFrontier.DataStructure.Dictionary.FeistelPerm
 public import CslibFrontier.DataStructure.Dictionary.Minimap
-public import CslibFrontier.DataStructure.Dictionary.SuccinctBucket
 public import CslibFrontier.Foundations.Data.Nat.IterLog
 public import Mathlib.Analysis.SpecialFunctions.Pow.NthRootLemmas
 import CslibFrontier.Foundations.Data.Nat.Log
@@ -69,21 +67,21 @@ In [LiLiangYuZhou2024] (`arXiv:2310.20536v1`):
   values in `Fin V` (with no upper bound on `log₂ V`), storing `⌈log₂ V⌉` bits inside every unused
   root slot would waste `Θ((n / log ^ 3 n) * log₂ V)` bits. Instead, the bit-budget layout in
   `BitBudget.lean` allocates a shared root value pool of exact capacity
-  `rootValPoolCap = n - numNodes 2 * nLow 2` (while the pure `TreeState` model stores `Fin V` values
-  directly in `RootNode` and satisfies `rootKeyCount ≤ rootValPoolCap`), so total value slots across
-  the entire tree equal `n` (`TreeSchedule.total_value_slots_eq_cap`). Note that `totalTreeBits`
-  is the bit budget of the intended Section 5 layout, not tied to `TreeState` by an encoding
-  (e.g. `RootNode` stores `(quot, val)` inline in the functional model, and `StorageTableMeta`
-  has ~`m · I` states without an explicit bit-packing encoding). Total bit usage in `Params.lean`
+  `rootValPoolCap = n - numNodes 2 * nLow 2`, so total value slots across leaves, inner storage
+  tables, and the shared root value pool equal `n` (`TreeSchedule.total_value_slots_eq_cap`).
+  Note that `totalTreeBits` in `BitBudget.lean` computes the arithmetic bit budget of the intended
+  Section 5 layout and is not tied to an operational state by an explicit bit-packing encoding
+  (pure node storage and tree operations follow in Stage 2, #5349). Total bit usage in `Params.lean`
   is bounded by `infoBits U V n + O(R)` unconditionally for **all** `1 ≤ V`.
 
 ## Scope and explicit out-of-scope gaps
 
 This module covers the integer-exact parameter schedule and value-slot conservation identities for
 the Section 5 large-parameter polynomial-`U` milestone (`n / log₂ ^ 0.1 n ≤ R ≤ n`,
-`n ^ (1 + α_min) ≤ U ≤ n ^ (1 + α_max)`). Bit-budget accounting (`BitBudget.lean`, `Params.lean`),
-node data structures (`StorageNode.lean`), pure tree operations and expected rehashing
-(`TreeModel.lean`), Word-RAM `Memory.Prog` compilation, Section 4 small-parameter adapter
+`n ^ (1 + α_min) ≤ U ≤ n ^ (1 + α_max)`). Bit-budget accounting (`BitBudget.lean`, `Params.lean`)
+and regime-switched node seeds (`NodeSeeds.lean`, `SeedBounds.lean`) build on this module in
+Stage 1; pure node storage structures, deterministic tree operations, and expected rehashing bounds
+(Stages 2–3, #5349), Word-RAM `Memory.Prog` compilation, Section 4 small-parameter adapter
 trees (`R < n / log₂ ^ 0.1 n`), strong history independence, dynamic resizing in `|S|`, and
 super-polynomial key universes (`U > n ^ (1 + α_max)`) are out of scope here.
 
@@ -138,8 +136,9 @@ def minRedundancyRatio : ℕ :=
   256
 
 /-- Clamped internal redundancy `R_eff = min R (max 1 (n / max 256 (2 ^ log* n)))`, ensuring
-`R_eff ≤ R`, `256 ≤ n / R_eff`, and `2 ^ log* n ≤ n / R_eff` when
-`R ≤ n / max 256 (2 ^ log* n)` ([LiLiangYuZhou2024, Section 5], PDF p. 26 / printed p. 25). -/
+`R_eff ≤ R` unconditionally, and `256 ≤ n / R_eff` and `2 ^ log* n ≤ n / R_eff` across all
+`1 ≤ R` whenever `max 256 (2 ^ log* n) ≤ n` ([LiLiangYuZhou2024, Section 5], PDF p. 26 /
+printed p. 25). -/
 @[expose]
 def effRedundancy (n R : ℕ) : ℕ :=
   min R (max 1 (n / max minRedundancyRatio (2 ^ Nat.logStar n)))

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
+public import CslibFrontier.DataStructure.Dictionary.SuccinctBucket
 public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.Schedule
 import CslibFrontier.Foundations.Data.Nat.Choose
 import CslibFrontier.Foundations.Data.Nat.Choose.Vandermonde
@@ -229,9 +230,9 @@ def sharedTablesBits : ℕ :=
     else 0
   matchBits + minimapTabBits + clmulBits + dfsBits
 
-/-- Bit budget for tree-level operational metadata: `Nat.clog 2 (P.cap + 1)` bits to store
-`sentCount` (`0 ≤ sentCount ≤ P.cap`) plus `1` bit for the occupancy flag distinguishing
-`cap - 1` from `cap` active elements. -/
+/-- Bit budget for tree-level operational metadata: `Nat.clog 2 (P.cap + 1)` bits to store the
+active sentinel count (ranging over `0 ≤ c ≤ P.cap`) plus `1` bit for the occupancy flag
+distinguishing `cap - 1` from `cap` active elements. -/
 @[expose]
 def treeMetaBits : ℕ :=
   Nat.clog 2 (P.cap + 1) + 1
@@ -389,7 +390,8 @@ theorem nonLeaf_infoBits_conservation {U_pad V n n_L : ℕ}
           omega
   exact (Nat.pow_le_pow_iff_right Nat.one_lt_two).mp hpow_tot
 
-/-- `V`-independent redundancy slack combining inner/root `SuccinctBucket` metadata, per-level
+/-- Redundancy slack (admitting a `V`-independent `O(R)` upper bound since `Minimap.headerUniv`
+bounds leaf spillover by `2 * n_leaf`) combining inner/root `SuccinctBucket` metadata, per-level
 quotient-bit excess above `⌈log₂ ⌈U_pad / cap⌉⌉`, unused root slot slack, root slab/tail directory,
 waiting lists, hash seeds, shared lookup tables, and tree-level operational metadata. -/
 @[expose]

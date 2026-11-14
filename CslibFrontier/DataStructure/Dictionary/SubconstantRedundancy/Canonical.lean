@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.BitBudget
+public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.Schedule
 import CslibFrontier.Foundations.Data.Nat.Log
 import CslibFrontier.Foundations.Data.Nat.LogStar
 import CslibFrontier.Foundations.Data.Nat.Power
@@ -19,10 +19,9 @@ import Mathlib.Tactic.Ring
 /-!
 # Canonical Large-Parameter Schedule and Probabilistic Concentration Readiness
 
-This module builds on `CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.Schedule` and
-`CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.BitBudget` to formalize the
-polynomial-universe large-parameter regime (`ValidRegime`), the canonical Section 5 parameter
-instantiation (`canonicalSchedule`), and its probabilistic concentration readiness
+This module builds on `CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.Schedule` to
+formalize the polynomial-universe large-parameter regime (`ValidRegime`), the canonical Section 5
+parameter instantiation (`canonicalSchedule`), and its probabilistic concentration readiness
 (`canonicalSchedule_concentrationReady`) ([LiLiangYuZhou2024, Sections 5.1–5.2 and 5.4–5.6];
 [arXiv:2310.20536v1](https://arxiv.org/abs/2310.20536v1), PDF pp. 25–36 / printed pp. 24–35).
 For the end-to-end pure bit-budget bound `totalTreeBits ≤ infoBits U V n + spaceConst * R`, see
@@ -47,6 +46,8 @@ For the end-to-end pure bit-budget bound `totalTreeBits ≤ infoBits U V n + spa
 
 ## Main results
 
+* `ValidRegime.treeDepth_le_logStar_add_four`,
+  `ValidRegime.treeDepth_add_one_le_three_mul_logStar`: stopping-depth bounds in terms of `log* n`.
 * `canonicalSchedule_concentrationReady`: `canonicalSchedule` satisfies `ConcentrationReady`.
 
 ## References
@@ -66,15 +67,19 @@ open Finset
 
 /-- Inverse space exponent `ε_inv = max 12 (2 * (p_max + 3))` for `DoubleTabulation` child
 routers across polynomial universes `U ≤ n ^ (1 + p_max / q_max)`. -/
-@[expose]
 def routerEpsInv (p_max : ℕ) : ℕ :=
   max 12 (2 * (p_max + 3))
 
+theorem routerEpsInv_eq (p_max : ℕ) :
+    routerEpsInv p_max = max 12 (2 * (p_max + 3)) := by rfl
+
 /-- Gap exponent `α_inv = max q_min 1 + 1` (`≥ 2`) for `DoubleTabulation` child routers across
 polynomial universes `n ^ (1 + p_min / q_min) ≤ U`. -/
-@[expose]
 def routerAlphaInv (q_min : ℕ) : ℕ :=
   max q_min 1 + 1
+
+theorem routerAlphaInv_eq (q_min : ℕ) :
+    routerAlphaInv q_min = max q_min 1 + 1 := by rfl
 
 /-- Base-2 logarithm threshold `L₀(q_min, p_max)` above which `2 ^ L₀ ≤ n` ensures all
 poly-logarithmic and polynomial-gap inequalities in Section 5. -/
@@ -345,6 +350,13 @@ theorem three_le_logStar (h : ValidRegime U V n R p_min q_min p_max q_max) :
       (Nat.pow_le_pow_right Nat.two_pos h3_le).trans h.n_ge_threshold
   omega
 
+theorem treeDepth_add_one_le_three_mul_logStar
+    (h : ValidRegime U V n R p_min q_min p_max q_max) :
+    treeDepth U (redundancyRatio n R) + 1 ≤ 3 * Nat.logStar n := by
+  have hk := h.treeDepth_le_logStar_add_four
+  have h3 := h.three_le_logStar
+  omega
+
 theorem treeDepth_le_redundancyRatio (h : ValidRegime U V n R p_min q_min p_max q_max) :
     treeDepth U (redundancyRatio n R) ≤ redundancyRatio n R := by
   obtain ⟨_, hr_ls, _⟩ := h.redundancyRatio_bounds
@@ -398,9 +410,42 @@ theorem four_mul_redundancyRatio_le_log_univ
 
 end ValidRegime
 
+theorem canonical_target_bounds {U V n R p_min q_min p_max q_max : ℕ}
+    (h : ValidRegime U V n R p_min q_min p_max q_max) :
+    (∀ j ≤ treeDepth U (redundancyRatio n R),
+        1 ≤ targetSize n U (redundancyRatio n R) (treeDepth U (redundancyRatio n R)) j) ∧
+      (∀ j ≤ treeDepth U (redundancyRatio n R),
+        targetSize n U (redundancyRatio n R) (treeDepth U (redundancyRatio n R)) j ≤ n) := by
+  have hr256 : minRedundancyRatio ≤ redundancyRatio n R := h.redundancyRatio_bounds.1
+  have h4r : 4 * redundancyRatio n R ≤ Nat.log 2 U := h.four_mul_redundancyRatio_le_log_univ
+  have hn18 : 2 ^ 18 * (Nat.log 2 U) ^ 9 ≤ n := h.two_pow_eighteen_mul_log_univ_pow_le
+  have hstep : ∀ i < treeDepth U (redundancyRatio n R),
+      2 ^ 18 * targetSize n U (redundancyRatio n R) (treeDepth U (redundancyRatio n R)) (i + 1) ≤
+        targetSize n U (redundancyRatio n R) (treeDepth U (redundancyRatio n R)) i :=
+    fun i hi => two_pow_eighteen_mul_targetSize_succ_le hr256 h4r hn18 hi
+  refine ⟨fun j hj => targetSize_pos (by have := h.two_le_n; omega)
+    (by dsimp [minRedundancyRatio] at hr256; omega) h4r hj rfl,
+    targetSize_le_of_step hstep⟩
+
+theorem canonical_nFloor_ge_pow_256 {U V n R p_min q_min p_max q_max : ℕ}
+    (h : ValidRegime U V n R p_min q_min p_max q_max) {ℓ : ℕ}
+    (hℓ : ℓ ≤ treeDepth U (redundancyRatio n R)) :
+    256 ^ 9 ≤ nFloor n U (redundancyRatio n R) (treeDepth U (redundancyRatio n R)) ℓ := by
+  obtain ⟨hT_pos, hT_le⟩ := canonical_target_bounds h
+  have hr256 : minRedundancyRatio ≤ redundancyRatio n R := h.redundancyRatio_bounds.1
+  have h4r : 4 * redundancyRatio n R ≤ Nat.log 2 U := h.four_mul_redundancyRatio_le_log_univ
+  have hn18 : 2 ^ 18 * (Nat.log 2 U) ^ 9 ≤ n := h.two_pow_eighteen_mul_log_univ_pow_le
+  obtain ⟨hlo, _⟩ := targetSize_le_nFloor_and_lt (hT_pos ℓ hℓ) (hT_le ℓ hℓ)
+  rcases Nat.eq_zero_or_pos ℓ with rfl | hpos
+  · have h0 : targetSize n U (redundancyRatio n R) (treeDepth U (redundancyRatio n R)) 0 = n := rfl
+    have hr_val : 256 ≤ Nat.log 2 U := by dsimp [minRedundancyRatio] at hr256; omega
+    exact (((Nat.pow_le_pow_left hr_val 9).trans
+      (Nat.le_mul_of_pos_left _ (by positivity))).trans hn18).trans (h0 ▸ hlo)
+  · rw [targetSize_eq_levelScale_pow hpos] at hlo
+    exact (Nat.pow_le_pow_left (hr256.trans (r_le_levelScale hpos h4r)) 9).trans hlo
+
 /-- **Canonical Section 5 parameter schedule** instantiated from `(U, V, n, R, q_min, p_max)`
 under `ValidRegime` ([LiLiangYuZhou2024, Sections 5.1–5.2]). -/
-@[expose]
 def canonicalSchedule {U V n R p_min q_min p_max q_max : ℕ}
     (h : ValidRegime U V n R p_min q_min p_max q_max) : TreeSchedule :=
   let r := redundancyRatio n R
@@ -410,26 +455,13 @@ def canonicalSchedule {U V n R p_min q_min p_max q_max : ℕ}
   have hn18 : 2 ^ 18 * (Nat.log 2 U) ^ 9 ≤ n := h.two_pow_eighteen_mul_log_univ_pow_le
   have hstep : ∀ ℓ < k, 2 ^ 18 * targetSize n U r k (ℓ + 1) ≤ targetSize n U r k ℓ :=
     fun ℓ hlt => two_pow_eighteen_mul_targetSize_succ_le hr256 h4r hn18 hlt
-  have hT_le : ∀ ℓ ≤ k, targetSize n U r k ℓ ≤ n := targetSize_le_of_step hstep
-  have hT_pos : ∀ ℓ ≤ k, 1 ≤ targetSize n U r k ℓ := fun ℓ hℓ =>
-    targetSize_pos (by have := h.two_le_n; omega) (by dsimp [minRedundancyRatio] at hr256; omega)
-      h4r hℓ rfl
+  have hT_pos : ∀ ℓ ≤ k, 1 ≤ targetSize n U r k ℓ := (canonical_target_bounds h).1
+  have hT_le : ∀ ℓ ≤ k, targetSize n U r k ℓ ≤ n := (canonical_target_bounds h).2
   have hS17 : ∀ ℓ < k, cumBranchBits n U r k ℓ + 17 ≤ cumBranchBits n U r k (ℓ + 1) :=
     fun ℓ hlt => cumBranchBits_add_seventeen_le (hT_pos ℓ hlt.le) (hT_pos (ℓ + 1) hlt)
       (hT_le ℓ hlt.le) (hstep ℓ hlt)
-  have hnF8 : ∀ ℓ ≤ k, 256 ^ 9 ≤ nFloor n U r k ℓ := by
-    intro ℓ hℓ
-    obtain ⟨hlo, _⟩ := targetSize_le_nFloor_and_lt (hT_pos ℓ hℓ) (hT_le ℓ hℓ)
-    rcases Nat.eq_zero_or_pos ℓ with rfl | hpos
-    · have : targetSize n U r k 0 = n := rfl
-      have h1 : 256 ^ 9 ≤ 2 ^ 18 * (Nat.log 2 U) ^ 9 := by
-        have hr_val : 256 ≤ Nat.log 2 U := by dsimp [minRedundancyRatio] at hr256; omega
-        calc 256 ^ 9 ≤ (Nat.log 2 U) ^ 9 := Nat.pow_le_pow_left hr_val 9
-          _ ≤ 2 ^ 18 * (Nat.log 2 U) ^ 9 := Nat.le_mul_of_pos_left _ (by positivity)
-      exact (h1.trans hn18).trans (this ▸ hlo)
-    · rw [targetSize_eq_levelScale_pow hpos] at hlo
-      have hs : 256 ≤ levelScale U r k ℓ := hr256.trans (r_le_levelScale hpos h4r)
-      exact (Nat.pow_le_pow_left hs 9).trans hlo
+  have hnF8 : ∀ ℓ ≤ k, 256 ^ 9 ≤ nFloor n U r k ℓ :=
+    fun ℓ hℓ => canonical_nFloor_ge_pow_256 h hℓ
   have h1_le_256 : 1 ≤ 256 ^ 9 := Nat.one_le_pow 9 256 (by decide)
   have h8_le_256 : 8 ≤ 256 ^ 9 := by decide
   { univ := U
@@ -516,46 +548,61 @@ def canonicalSchedule {U V n R p_min q_min p_max q_max : ℕ}
 @[simp]
 theorem canonicalSchedule_univ {U V n R p_min q_min p_max q_max : ℕ}
     (h : ValidRegime U V n R p_min q_min p_max q_max) :
-    (canonicalSchedule h).univ = U := rfl
+    (canonicalSchedule h).univ = U := by rfl
 
 @[simp]
 theorem canonicalSchedule_valBound {U V n R p_min q_min p_max q_max : ℕ}
     (h : ValidRegime U V n R p_min q_min p_max q_max) :
-    (canonicalSchedule h).valBound = V := rfl
+    (canonicalSchedule h).valBound = V := by rfl
 
 @[simp]
 theorem canonicalSchedule_cap {U V n R p_min q_min p_max q_max : ℕ}
     (h : ValidRegime U V n R p_min q_min p_max q_max) :
-    (canonicalSchedule h).cap = n := rfl
+    (canonicalSchedule h).cap = n := by rfl
 
 @[simp]
 theorem canonicalSchedule_depth {U V n R p_min q_min p_max q_max : ℕ}
     (h : ValidRegime U V n R p_min q_min p_max q_max) :
-    (canonicalSchedule h).depth = treeDepth U (redundancyRatio n R) := rfl
+    (canonicalSchedule h).depth = treeDepth U (redundancyRatio n R) := by rfl
+
+theorem canonicalSchedule_branchBits {U V n R p_min q_min p_max q_max : ℕ}
+    (h : ValidRegime U V n R p_min q_min p_max q_max) (ℓ : ℕ) :
+    (canonicalSchedule h).branchBits ℓ =
+      branchBits n U (redundancyRatio n R) (treeDepth U (redundancyRatio n R)) ℓ := by rfl
+
+@[simp]
+theorem canonicalSchedule_quotOne {U V n R p_min q_min p_max q_max : ℕ}
+    (h : ValidRegime U V n R p_min q_min p_max q_max) :
+    (canonicalSchedule h).quotOne =
+      quotUnivOne n U (redundancyRatio n R) (treeDepth U (redundancyRatio n R)) := by rfl
+
+@[simp]
+theorem canonicalSchedule_epsInv {U V n R p_min q_min p_max q_max : ℕ}
+    (h : ValidRegime U V n R p_min q_min p_max q_max) :
+    (canonicalSchedule h).epsInv = routerEpsInv p_max := by rfl
+
+@[simp]
+theorem canonicalSchedule_alphaInv {U V n R p_min q_min p_max q_max : ℕ}
+    (h : ValidRegime U V n R p_min q_min p_max q_max) :
+    (canonicalSchedule h).alphaInv = routerAlphaInv q_min := by rfl
 
 theorem canonicalSchedule_cumBranchBits_eq {U V n R p_min q_min p_max q_max : ℕ}
     (h : ValidRegime U V n R p_min q_min p_max q_max) :
     ∀ ℓ ≤ (canonicalSchedule h).depth,
       (canonicalSchedule h).cumBranchBits ℓ =
         cumBranchBits n U (redundancyRatio n R) (treeDepth U (redundancyRatio n R)) ℓ := by
+  obtain ⟨hT_pos, hT_le⟩ := canonical_target_bounds h
   set r := redundancyRatio n R
   set k := treeDepth U r
-  have hr256 : minRedundancyRatio ≤ r := h.redundancyRatio_bounds.1
-  have h4r : 4 * r ≤ Nat.log 2 U := h.four_mul_redundancyRatio_le_log_univ
-  have hn18 : 2 ^ 18 * (Nat.log 2 U) ^ 9 ≤ n := h.two_pow_eighteen_mul_log_univ_pow_le
-  have hstep : ∀ j < k, 2 ^ 18 * targetSize n U r k (j + 1) ≤ targetSize n U r k j :=
-    fun j hlt => two_pow_eighteen_mul_targetSize_succ_le hr256 h4r hn18 hlt
-  have hT_le : ∀ j ≤ k, targetSize n U r k j ≤ n := targetSize_le_of_step hstep
-  have hT_pos : ∀ j ≤ k, 1 ≤ targetSize n U r k j := fun j hj =>
-    targetSize_pos (by have := h.two_le_n; omega) (by dsimp [minRedundancyRatio] at hr256; omega)
-      h4r hj rfl
   intro ℓ hℓ
   induction ℓ with
   | zero => simp [TreeSchedule.cumBranchBits, cumBranchBits]
   | succ j ih =>
     have hj : j < k := Nat.lt_of_succ_le hℓ
+    have hstep := two_pow_eighteen_mul_targetSize_succ_le h.redundancyRatio_bounds.1
+      h.four_mul_redundancyRatio_le_log_univ h.two_pow_eighteen_mul_log_univ_pow_le hj
     have hS17 := cumBranchBits_add_seventeen_le (hT_pos j hj.le) (hT_pos (j + 1) hj)
-      (hT_le j hj.le) (hstep j hj)
+      (hT_le j hj.le) hstep
     change (canonicalSchedule h).cumBranchBits j + branchBits n U r k j =
       cumBranchBits n U r k (j + 1)
     rw [ih hj.le]
@@ -573,22 +620,22 @@ theorem canonicalSchedule_numNodes_eq {U V n R p_min q_min p_max q_max : ℕ}
 theorem canonicalSchedule_branchFactor_eq {U V n R p_min q_min p_max q_max : ℕ}
     (h : ValidRegime U V n R p_min q_min p_max q_max) (ℓ : ℕ) :
     (canonicalSchedule h).branchFactor ℓ =
-      branchFactor n U (redundancyRatio n R) (treeDepth U (redundancyRatio n R)) ℓ := rfl
+      branchFactor n U (redundancyRatio n R) (treeDepth U (redundancyRatio n R)) ℓ := by rfl
 
 theorem canonicalSchedule_nFloor_eq {U V n R p_min q_min p_max q_max : ℕ}
     (h : ValidRegime U V n R p_min q_min p_max q_max) (ℓ : ℕ) :
     (canonicalSchedule h).nFloor ℓ =
-      nFloor n U (redundancyRatio n R) (treeDepth U (redundancyRatio n R)) ℓ := rfl
+      nFloor n U (redundancyRatio n R) (treeDepth U (redundancyRatio n R)) ℓ := by rfl
 
 theorem canonicalSchedule_delta_eq {U V n R p_min q_min p_max q_max : ℕ}
     (h : ValidRegime U V n R p_min q_min p_max q_max) (ℓ : ℕ) :
     (canonicalSchedule h).delta ℓ =
-      delta n U (redundancyRatio n R) (treeDepth U (redundancyRatio n R)) ℓ := rfl
+      delta n U (redundancyRatio n R) (treeDepth U (redundancyRatio n R)) ℓ := by rfl
 
 theorem canonicalSchedule_idBits_eq {U V n R p_min q_min p_max q_max : ℕ}
     (h : ValidRegime U V n R p_min q_min p_max q_max) (ℓ : ℕ) :
     (canonicalSchedule h).idBits ℓ =
-      idBits n U (redundancyRatio n R) (treeDepth U (redundancyRatio n R)) ℓ := rfl
+      idBits n U (redundancyRatio n R) (treeDepth U (redundancyRatio n R)) ℓ := by rfl
 
 /-- **`canonicalSchedule` concentration readiness**: across the entire `ValidRegime`,
 `canonicalSchedule h` satisfies all six probabilistic concentration conditions in
@@ -596,6 +643,7 @@ theorem canonicalSchedule_idBits_eq {U V n R p_min q_min p_max q_max : ℕ}
 theorem canonicalSchedule_concentrationReady {U V n R p_min q_min p_max q_max : ℕ}
     (h : ValidRegime U V n R p_min q_min p_max q_max) :
     (canonicalSchedule h).ConcentrationReady := by
+  obtain ⟨hT_pos, hT_le⟩ := canonical_target_bounds h
   set P := canonicalSchedule h
   set r := redundancyRatio n R
   set k := treeDepth U r
@@ -604,24 +652,11 @@ theorem canonicalSchedule_concentrationReady {U V n R p_min q_min p_max q_max : 
   have hn18 : 2 ^ 18 * (Nat.log 2 U) ^ 9 ≤ n := h.two_pow_eighteen_mul_log_univ_pow_le
   have hstep : ∀ ℓ < k, 2 ^ 18 * targetSize n U r k (ℓ + 1) ≤ targetSize n U r k ℓ :=
     fun ℓ hlt => two_pow_eighteen_mul_targetSize_succ_le hr256 h4r hn18 hlt
-  have hT_le : ∀ ℓ ≤ k, targetSize n U r k ℓ ≤ n := targetSize_le_of_step hstep
-  have hT_pos : ∀ ℓ ≤ k, 1 ≤ targetSize n U r k ℓ := fun ℓ hℓ =>
-    targetSize_pos (by have := h.two_le_n; omega) (by dsimp [minRedundancyRatio] at hr256; omega)
-      h4r hℓ rfl
   have hS17 : ∀ ℓ < k, cumBranchBits n U r k ℓ + 17 ≤ cumBranchBits n U r k (ℓ + 1) :=
     fun ℓ hlt => cumBranchBits_add_seventeen_le (hT_pos ℓ hlt.le) (hT_pos (ℓ + 1) hlt)
       (hT_le ℓ hlt.le) (hstep ℓ hlt)
-  have hnF256 : ∀ ℓ ≤ k, 256 ^ 9 ≤ nFloor n U r k ℓ := by
-    intro ℓ hℓ
-    obtain ⟨hlo, _⟩ := targetSize_le_nFloor_and_lt (hT_pos ℓ hℓ) (hT_le ℓ hℓ)
-    rcases Nat.eq_zero_or_pos ℓ with rfl | hpos
-    · have h0 : targetSize n U r k 0 = n := rfl
-      have h1 : 256 ^ 9 ≤ 2 ^ 18 * (Nat.log 2 U) ^ 9 := by
-        have hr_val : 256 ≤ Nat.log 2 U := by dsimp [minRedundancyRatio] at hr256; omega
-        exact (Nat.pow_le_pow_left hr_val 9).trans (Nat.le_mul_of_pos_left _ (by positivity))
-      exact (h1.trans hn18).trans (h0 ▸ hlo)
-    · rw [targetSize_eq_levelScale_pow hpos] at hlo
-      exact (Nat.pow_le_pow_left (hr256.trans (r_le_levelScale hpos h4r)) 9).trans hlo
+  have hnF256 : ∀ ℓ ≤ k, 256 ^ 9 ≤ nFloor n U r k ℓ :=
+    fun ℓ hℓ => canonical_nFloor_ge_pow_256 h hℓ
   have h8_le : 8 ≤ 256 ^ 9 := by decide
   refine
     { six_le_nFloor := fun ℓ hℓ => (by decide : 6 ≤ 8).trans (h8_le.trans (hnF256 ℓ hℓ))

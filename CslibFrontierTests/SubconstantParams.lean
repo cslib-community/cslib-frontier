@@ -9,29 +9,27 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.Params
-public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.NodeSeeds
-public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.SeedBounds
-public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.NodeSlackBounds
 import Mathlib.Tactic.Positivity
 
 /-!
 # Multi-Level Subconstant-Redundancy Schedule and Bit Budget Tests
 
 Exercises:
-1. `SubconstantRedundancy.Params` (`Schedule`, `Canonical`, `BitBudget`):
+1. `SubconstantRedundancy.Params` (`Schedule`, `Canonical`, `BitBudget`, `NodeSeeds`, `SeedBounds`,
+   `NodeSlackBounds`):
    - concrete checks of clamped `effRedundancy`, `redundancyRatio`, `treeDepth`, and `infoBits`;
    - non-vacuous smaller-than-`n` `ValidRegime` instance (`R = n / 4 < n`, `U = n ^ 2`,
-     `V = 2 ^ 64`), `canonicalSchedule`, `ConcentrationReady`, the operational metadata bound
-     `treeMeta_slack_le`, and the `infoBits + O(R)` space bound `totalTreeBits_le_infoBits_add`;
+     `V = 2 ^ 64`), `canonicalSchedule`, `treeDepth_add_one_le_three_mul_logStar`,
+     `ConcentrationReady`, the operational metadata bound `treeMeta_slack_le`,
+     `redundancySlack_le_mul_effRedundancy`, and the `infoBits + O(R)` space bound
+     `totalTreeBits_le_infoBits_add`;
 2. `SubconstantRedundancy.BitBudget`:
    - `treeMetaBits`, `totalTreeBits`, and `redundancySlack` accounting on a depth-`3` schedule;
-3. `SubconstantRedundancy.NodeSeeds`:
+3. `SubconstantRedundancy.NodeSeeds` (re-exported through `Params`):
    - both child-router regimes (`RouterSeed.trinomial` below `childRouterThreshold` on a depth-`3`
      schedule and `RouterSeed.doubleTab` above `childRouterThreshold`), zero-padded degree
      compatibility (`routerRound_trinomial_eq_padded`), and good-seed existence
-     (`exists_isGoodNodeSeed`);
-4. `SubconstantRedundancy.NodeSlackBounds`:
-   - `spaceConst` and `redundancySlack_le_mul_effRedundancy`.
+     (`exists_isGoodNodeSeed`).
 -/
 
 public section
@@ -118,6 +116,11 @@ theorem sublinearRegime : ValidRegime testU testV testN testR 1 1 1 1 where
 theorem sublinearConcentrationReady : (canonicalSchedule sublinearRegime).ConcentrationReady :=
   canonicalSchedule_concentrationReady sublinearRegime
 
+/-- Concrete instantiation of the `3 * log* n` level-count bound. -/
+theorem sublinear_treeDepth_add_one_bound :
+    treeDepth testU (redundancyRatio testN testR) + 1 ≤ 3 * Nat.logStar testN :=
+  sublinearRegime.treeDepth_add_one_le_three_mul_logStar
+
 /-- Concrete instantiation of the operational metadata bit budget bound. -/
 theorem sublinear_treeMeta_slack_bound :
     (canonicalSchedule sublinearRegime).treeMetaBits * redundancyRatio testN testR ≤ testN :=
@@ -136,7 +139,7 @@ theorem sublinear_space_bound :
 
 /-! ## 2. Concrete Bit Budget Accounting -/
 
-/-- Concrete `depth = 3` schedule (`cap = 16`, `paddedUniv = 32`) exercising top, root, inner, and
+/-- Concrete `depth = 3` schedule (`cap = 16`, `paddedUniv = 64`) exercising top, root, inner, and
 leaf levels simultaneously in the small-node `trinomialPolyHash` router regime. -/
 @[expose]
 def smallDepth3Sched : TreeSchedule where
@@ -148,7 +151,7 @@ def smallDepth3Sched : TreeSchedule where
   nFloor := fun | 0 => 16 | 1 => 8 | 2 => 4 | _ => 2
   delta := fun _ => 1
   idBits := fun | 1 => 4 | 2 => 3 | _ => 2
-  quotOne := 1
+  quotOne := 2
   epsInv := 12
   alphaInv := 2
   val_pos := by decide
@@ -191,6 +194,19 @@ example : smallDepth3Sched.treeMetaBits = 6 := by decide
 
 -- Positive capacity on small schedule.
 example : 0 < smallDepth3Sched.cap := by decide
+
+-- Concrete bit-budget conservation across `totalTreeBits` and `redundancySlack`.
+theorem smallDepth3Sched_bitBudget_conservation :
+    smallDepth3Sched.totalTreeBits ≤
+      infoBits smallDepth3Sched.paddedUniv smallDepth3Sched.valBound smallDepth3Sched.cap +
+        smallDepth3Sched.redundancySlack :=
+  smallDepth3Sched.totalTreeBits_le_padded_infoBits_add
+    (fun ℓ h1 hlt => by
+      have hlt3 : ℓ < 3 := hlt
+      match ℓ with
+      | 0 => omega
+      | 1 | 2 => decide)
+    (by decide)
 
 /-! ## 3. Both Child-Router Regimes (`trinomial` and `doubleTab`) & Seed Concentration -/
 
@@ -310,7 +326,7 @@ theorem largeRouterSched_uses_doubleTab :
     largeRouterSched.usesDoubleTabRouter 0 ∧ largeRouterSched.usesDoubleTabRouter 1 := by
   dsimp only [TreeSchedule.usesDoubleTabRouter, largeRouterSched, TreeSchedule.nLow,
     largeRouterBase]
-  exact ⟨by simp; omega, by simp; omega⟩
+  simp only [Nat.succ_ne_zero, ↓reduceIte]; omega
 
 theorem both_router_regimes_exercised
     (sSmall : smallDepth3Sched.SmallRouterSeed 0)

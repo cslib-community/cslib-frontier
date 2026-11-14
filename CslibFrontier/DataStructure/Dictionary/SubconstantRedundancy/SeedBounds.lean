@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
+public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.BitBudget
 public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.Canonical
 import CslibFrontier.Foundations.Data.Nat.Choose
 import CslibFrontier.Foundations.Data.Nat.Log
@@ -175,7 +176,8 @@ private theorem paddedUniv_le_add_mul_log_pow {U V n R p_min q_min p_max q_max :
       _ ≤ n * (4096 * s1 ^ 27) := Nat.mul_le_mul_right _ (hT1_eq ▸ hNT1)
       _ = 4096 * n * s1 ^ 27 := by ring
   have hUpad_le : P.paddedUniv ≤ U + n + step := by
-    change branchFactor n U r k 0 * 2 ^ idBits n U r k 1 * quotUnivOne n U r k ≤ U + n + step
+    dsimp only [P, TreeSchedule.paddedUniv]
+    rw [canonicalSchedule_branchFactor_eq, canonicalSchedule_idBits_eq, canonicalSchedule_quotOne]
     dsimp only [quotUnivOne]
     have hmul : ((U + n + step - 1) / step) * step ≤ U + n + step - 1 :=
       Nat.div_mul_le_self _ step
@@ -200,8 +202,9 @@ theorem infoBits_paddedUniv_le {U V n R p_min q_min p_max q_max : ℕ}
   have hs1_ge : 256 ≤ s1 := by dsimp [minRedundancyRatio] at hr256; omega
   have hUpad_le : P.paddedUniv ≤ U + n + 4096 * n * s1 ^ 27 := paddedUniv_le_add_mul_log_pow h
   have hUpad_ge : U ≤ P.paddedUniv := by
-    have hp := P.univ_le_padded
-    change U + n ≤ P.paddedUniv at hp
+    have hp : P.univ + P.cap ≤ P.paddedUniv := P.univ_le_padded
+    have hu : P.univ = U := canonicalSchedule_univ h
+    have hc : P.cap = n := canonicalSchedule_cap h
     omega
   set E := P.paddedUniv - U
   have hUpad_eq : P.paddedUniv = U + E := (Nat.add_sub_of_le hUpad_ge).symm
@@ -436,26 +439,9 @@ theorem nFloor_ge_pow_256 {U V n R p_min q_min p_max q_max : ℕ}
     (h : ValidRegime U V n R p_min q_min p_max q_max) {j : ℕ}
     (hj : j ≤ (canonicalSchedule h).depth) :
     256 ^ 9 ≤ (canonicalSchedule h).nFloor j := by
-  set r := redundancyRatio n R
-  set k := treeDepth U r
-  have hr256 : minRedundancyRatio ≤ r := h.redundancyRatio_bounds.1
-  have h4r : 4 * r ≤ Nat.log 2 U := h.four_mul_redundancyRatio_le_log_univ
-  have hn18 : 2 ^ 18 * (Nat.log 2 U) ^ 9 ≤ n := h.two_pow_eighteen_mul_log_univ_pow_le
-  have hstep : ∀ i < k, 2 ^ 18 * targetSize n U r k (i + 1) ≤ targetSize n U r k i :=
-    fun i hi => two_pow_eighteen_mul_targetSize_succ_le hr256 h4r hn18 hi
-  have hT_le : targetSize n U r k j ≤ n := targetSize_le_of_step hstep j hj
-  have hT_pos : 1 ≤ targetSize n U r k j :=
-    targetSize_pos (by have := h.two_le_n; omega) (by dsimp [minRedundancyRatio] at hr256; omega)
-      h4r hj rfl
-  obtain ⟨hlo, _⟩ := targetSize_le_nFloor_and_lt hT_pos hT_le
-  rcases Nat.eq_zero_or_pos j with rfl | hpos
-  · have h0 : targetSize n U r k 0 = n := rfl
-    rw [h0] at hlo
-    have hr_val : 256 ≤ Nat.log 2 U := by dsimp [minRedundancyRatio] at hr256; omega
-    exact ((Nat.pow_le_pow_left hr_val 9).trans
-      ((Nat.le_mul_of_pos_left _ (by positivity)).trans hn18)).trans hlo
-  · rw [targetSize_eq_levelScale_pow hpos] at hlo
-    exact (Nat.pow_le_pow_left (hr256.trans (r_le_levelScale hpos h4r)) 9).trans hlo
+  rw [canonicalSchedule_depth] at hj
+  rw [canonicalSchedule_nFloor_eq]
+  exact canonical_nFloor_ge_pow_256 h hj
 
 private theorem routerSeedBits_sq_le_of_ge_threshold {U V n R p_min q_min p_max q_max : ℕ}
     (h : ValidRegime U V n R p_min q_min p_max q_max) {ℓ : ℕ}
@@ -485,21 +471,23 @@ private theorem routerSeedBits_sq_le_of_ge_threshold {U V n R p_min q_min p_max 
     have hnl_nf : P.nLow ℓ ≤ P.nFloor ℓ := by
       dsimp only [TreeSchedule.nLow]
       split_ifs with h0
-      · subst h0; have : P.nFloor 0 = n := P.nFloor_zero; have : P.cap = n := rfl; omega
+      · subst h0; rw [P.nFloor_zero]; omega
       · exact Nat.sub_le _ _
     exact (hc.trans hth).trans hnl_nf
   by_cases hB0_one : B_seed = 0
   · rw [hB0_one]; simp
   have hB_pos : 1 ≤ B_seed := Nat.pos_of_ne_zero hB0_one
   rcases Nat.eq_zero_or_pos ℓ with rfl | hpos
-  · have hE_ge : 2 * (p_max + 3) ≤ max P.epsInv 1 :=
-      (le_max_right 12 _).trans (le_max_left _ 1)
+  · have hE_ge : 2 * (p_max + 3) ≤ max P.epsInv 1 := by
+      dsimp only [P]
+      rw [canonicalSchedule_epsInv, routerEpsInv_eq]
+      exact (le_max_right 12 _).trans (le_max_left _ 1)
     have hdom_eq : 2 ^ P.branchBits 0 * P.routerRightUniv 0 = P.paddedUniv := by
       dsimp only [TreeSchedule.routerRightUniv, TreeSchedule.paddedUniv,
         TreeSchedule.branchFactor]
       rw [ite_eq_left rfl, ← Nat.mul_assoc]
     have hUpad_le2 := paddedUniv_le_two_mul_pow h
-    have hnf0 : P.nFloor 0 = n := P.nFloor_zero
+    have hnf0 : P.nFloor 0 = n := by rw [P.nFloor_zero]; exact canonicalSchedule_cap h
     rw [hnf0] at h256C ⊢
     have hpow0 : (B_seed ^ 2) ^ (p_max + 3) ≤ n ^ (p_max + 3) := by
       calc (B_seed ^ 2) ^ (p_max + 3)
@@ -514,7 +502,10 @@ private theorem routerSeedBits_sq_le_of_ge_threshold {U V n R p_min q_min p_max 
         _ ≤ n * n ^ (p_max + 2) := Nat.mul_le_mul_right _ (by omega)
         _ = n ^ (p_max + 3) := (pow_succ' n _).symm
     exact (Nat.pow_le_pow_iff_left (by omega : p_max + 3 ≠ 0)).mp hpow0
-  · have hE_ge12 : 12 ≤ max P.epsInv 1 := (le_max_left 12 _).trans (le_max_left _ 1)
+  · have hE_ge12 : 12 ≤ max P.epsInv 1 := by
+      dsimp only [P]
+      rw [canonicalSchedule_epsInv, routerEpsInv_eq]
+      exact (le_max_left 12 _).trans (le_max_left _ 1)
     set y := P.nFloor ℓ
     have hy1 : 1 ≤ y := (Nat.one_le_pow 9 256 (by decide)).trans (nFloor_ge_pow_256 h hlt.le)
     have hdom_ℓ : 2 ^ P.branchBits ℓ * P.routerRightUniv ℓ = 2 ^ P.idBits ℓ := by
@@ -527,7 +518,10 @@ private theorem routerSeedBits_sq_le_of_ge_threshold {U V n R p_min q_min p_max 
         rw [max_eq_left hy1]
         calc 2 ^ Nat.clog 2 (2 * y) ≤ 2 * (2 * y) := Nat.pow_clog_le_mul Nat.one_lt_two (by omega)
           _ = 4 * y := by ring
-      change 2 ^ (4 * Nat.clog 2 (2 * max y 1)) ≤ 256 * y ^ 4
+      have hid_y : P.idBits ℓ = 4 * Nat.clog 2 (2 * max y 1) := by
+        dsimp only [P, y]
+        rw [canonicalSchedule_idBits_eq, idBits, ← canonicalSchedule_nFloor_eq]
+      rw [hid_y]
       calc 2 ^ (4 * Nat.clog 2 (2 * max y 1))
           = (2 ^ Nat.clog 2 (2 * max y 1)) ^ 4 := by rw [Nat.mul_comm 4, Nat.pow_mul]
         _ ≤ (4 * y) ^ 4 := Nat.pow_le_pow_left hcl 4
@@ -559,7 +553,9 @@ private theorem routerSeedBits_sq_le_of_lt_threshold {U V n R p_min q_min p_max 
     have hbase_p : max q_min 1 + p_max + 4 ≤ (max q_min 1 + p_max + 4) ^ 4 :=
       Nat.le_self_pow (by decide) _
     have hm_le : FeistelPerm.childRouterHalfInd (P.nHigh 0) ≤ 4 * L := by
-      have hnh0 : P.nHigh 0 = n := rfl
+      have hnh0 : P.nHigh 0 = n := by
+        dsimp only [P, TreeSchedule.nHigh]
+        rw [ite_eq_left rfl, canonicalSchedule_cap]
       have hn_le : max n 2 ≤ 2 ^ (L + 1) := by
         rw [max_eq_left h.two_le_n]
         exact (Nat.lt_pow_succ_log_self Nat.one_lt_two n).le
@@ -583,9 +579,9 @@ private theorem routerSeedBits_sq_le_of_lt_threshold {U V n R p_min q_min p_max 
         Nat.clog_le_of_le_pow hUpad_pow
       have hs0_le : max (P.branchBits 0) 1 ≤ 2 * (p_max + 2) * L := by
         have hb0 : P.branchBits 0 ≤ L := by
-          change Nat.log 2 (n / max (targetSize n U (redundancyRatio n R)
-            (treeDepth U (redundancyRatio n R)) 1) 1) - 0 ≤ L
-          rw [Nat.sub_zero]
+          dsimp only [P]
+          simp only [canonicalSchedule_branchBits, branchBits, cumBranchBits,
+            Nat.succ_ne_zero, ↓reduceIte, Nat.sub_zero]
           exact Nat.log_mono_right (Nat.div_le_self n _)
         have h1_le : 1 ≤ 2 * (p_max + 2) := by omega
         calc max (P.branchBits 0) 1 ≤ L := max_le hb0 (by omega)
@@ -606,7 +602,7 @@ private theorem routerSeedBits_sq_le_of_lt_threshold {U V n R p_min q_min p_max 
         _ = (48 * (p_max + 2)) * L ^ 2 := by ring
         _ ≤ L * L ^ 2 := Nat.mul_le_mul_right _ h48
         _ = L ^ 3 := (pow_succ' L 2).symm
-    rw [P.nFloor_zero]
+    rw [P.nFloor_zero, show P.cap = n from canonicalSchedule_cap h]
     calc (2 * FeistelPerm.childRouterHalfInd (P.nHigh 0) *
           Cslib.Probability.trinomialDeg (P.routerRightUniv 0) (P.branchBits 0)) ^ 2
         ≤ (L ^ 3) ^ 2 := Nat.pow_le_pow_left hprod_L3 2
@@ -627,7 +623,7 @@ private theorem routerSeedBits_sq_le_of_lt_threshold {U V n R p_min q_min p_max 
       have hpow_le : 2 ^ ly ≤ 2 ^ 72 := Nat.pow_le_pow_right Nat.two_pos (by omega)
       omega
     have hhd : 2 * P.delta ℓ ≤ y :=
-      two_mul_delta_le_nFloor_of_eight_le ((by decide : 8 ≤ 256 ^ 9).trans hy_ge)
+      (canonicalSchedule_concentrationReady h).two_mul_delta_le_nFloor ℓ hpos hlt.le
     have hm_le : FeistelPerm.childRouterHalfInd (P.nHigh ℓ) ≤ 4 * ly := by
       have hnh_le : max (P.nHigh ℓ) 2 ≤ 2 * max y 1 := by
         have hnh_eq : P.nHigh ℓ = y + P.delta ℓ := by
@@ -642,7 +638,9 @@ private theorem routerSeedBits_sq_le_of_lt_threshold {U V n R p_min q_min p_max 
         12 * ly := by
       have htd := Cslib.Probability.trinomialDeg_le_three_mul
         (P.routerRightUniv ℓ) (P.branchBits ℓ)
-      have hid_eq : P.idBits ℓ = 4 * ly := rfl
+      have hid_eq : P.idBits ℓ = 4 * ly := by
+        dsimp only [P, ly, y]
+        rw [canonicalSchedule_idBits_eq, idBits, ← canonicalSchedule_nFloor_eq]
       have hT_le : max (P.routerRightUniv ℓ) 2 ≤ 2 ^ (4 * ly) := by
         dsimp only [TreeSchedule.routerRightUniv]
         rw [ite_eq_right hpos.ne']

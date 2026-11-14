@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.Schedule
 public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.BitBudget
 import CslibFrontier.Foundations.Data.Finset.Density
 import CslibFrontier.Foundations.Probability.TwoStage
@@ -21,7 +20,8 @@ hash-seed spaces (`NodeSeed`), and unified seed-failure concentration bounds for
 dictionary tree of Tianxiao Li, Jingxun Liang, Huacheng Yu, and Renfei Zhou, *Dynamic Dictionary
 with Subconstant Wasted Bits per Key* ([LiLiangYuZhou2024, Sections 5.4 and 5.5];
 [arXiv:2310.20536v1](https://arxiv.org/abs/2310.20536v1), PDF pp. 32–34 / printed pp. 31–33).
-Pure node storage structures and Section 5.6 metadata separation are defined in `StorageNode.lean`.
+Pure node storage structures, Section 5.6 metadata separation, and deterministic tree operations
+follow in Stage 2 (#5349).
 
 ## Regime-switched child routing (formalization adaptation)
 

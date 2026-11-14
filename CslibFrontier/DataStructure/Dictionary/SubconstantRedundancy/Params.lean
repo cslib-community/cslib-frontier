@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
+public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.NodeSeeds
 public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.NodeSlackBounds
 import CslibFrontier.Foundations.Data.Nat.Log
 import CslibFrontier.Foundations.Data.Nat.Power
@@ -21,9 +22,9 @@ import Mathlib.Tactic.Ring
 This module is the top-level parameter and space-accounting entry point for the Section 5
 multi-level dictionary tree of [LiLiangYuZhou2024] (`arXiv:2310.20536v1`, Sections 5.1–5.2 and
 5.4–5.6, PDF pp. 25–36 / printed pp. 24–35), publicly re-exporting `Schedule`, `BitBudget`,
-`Canonical`, `SeedBounds`, and `NodeSlackBounds` and proving the headline pure space theorem
-`totalTreeBits_le_infoBits_add` bounding the arithmetic bit budget of the intended Section 5
-layout (not tied to `TreeState` by an encoding):
+`Canonical`, `NodeSeeds`, `SeedBounds`, and `NodeSlackBounds` and proving the headline pure space
+theorem `totalTreeBits_le_infoBits_add` bounding the arithmetic bit budget of the intended
+Section 5 layout (not tied to an operational state by an explicit bit-packing encoding):
 
 ```text
 (canonicalSchedule h).totalTreeBits ≤ infoBits U V n + spaceConst * R
@@ -39,8 +40,8 @@ for an explicit universal constant `spaceConst` across all
 
 ## Main results
 
-* `redundancySlack_le_mul_effRedundancy`: all `V`-independent redundancy slack terms sum to at most
-  `150000 * effRedundancy n R`.
+* `redundancySlack_le_mul_effRedundancy`: `redundancySlack` is bounded uniformly across all `1 ≤ V`
+  by `150000 * effRedundancy n R`.
 * `totalTreeBits_le_infoBits_add`: total pure tree representation bit budget of the intended
   Section 5 layout is at most `infoBits U V n + spaceConst * R` (with `spaceConst = 160000`).
 
@@ -533,7 +534,7 @@ theorem sharedTables_slack_le {U V n R p_min q_min p_max q_max : ℕ}
     rw [canonicalSchedule_nFloor_eq h _, canonicalSchedule_depth]
     omega
   have h1 := leafAndClmul_of_schedule (canonicalSchedule h) h.two_le_n rfl (by omega) rfl ht_ge
-    hr10 rfl hnf_k_le
+    hr10 (canonicalSchedule_cap h) hnf_k_le
     (by rw [canonicalSchedule_idBits_eq h _, canonicalSchedule_nFloor_eq h _]; rfl) hpad_L2
   have hiter2_le : Nat.iterLog 2 U ≤ 3 * Nat.log 2 (Nat.log 2 n) := by
     set L := Nat.log 2 n
@@ -555,7 +556,8 @@ theorem sharedTables_slack_le {U V n R p_min q_min p_max q_max : ℕ}
         levelScale U (redundancyRatio n R) (treeDepth U (redundancyRatio n R)) j ≤
           3 * Nat.log 2 (Nat.log 2 n) := by
     intro h3 j hj3 hjk
-    have h2lt : 2 < treeDepth U (redundancyRatio n R) := h3
+    have h2lt : 2 < treeDepth U (redundancyRatio n R) := by
+      rw [canonicalSchedule_depth] at h3; omega
     have hr_3t : redundancyRatio n R ≤ 3 * Nat.log 2 (Nat.log 2 n) := by
       have := lt_iterLog_of_lt_treeDepth le_rfl h2lt
       omega
@@ -563,15 +565,18 @@ theorem sharedTables_slack_le {U V n R p_min q_min p_max q_max : ℕ}
     split_ifs
     · exact (Nat.iterLog_anti_left U (by omega : 2 ≤ j)).trans hiter2_le
     · exact hr_3t
-  have h2 := dfs_of_schedule (canonicalSchedule h) h.two_le_n rfl (by omega) rfl ht_ge hr_le_L
-    rfl h.treeDepth_le_redundancyRatio
+  have h2 := dfs_of_schedule (canonicalSchedule h) h.two_le_n rfl (by omega)
+    rfl ht_ge hr_le_L (canonicalSchedule_cap h)
+    ((canonicalSchedule_depth h).symm ▸ h.treeDepth_le_redundancyRatio)
     (fun h3 => by
-      have h2lt : 2 < treeDepth U (redundancyRatio n R) := h3
+      have h2lt : 2 < treeDepth U (redundancyRatio n R) := by
+        rw [canonicalSchedule_depth] at h3; omega
       have := lt_iterLog_of_lt_treeDepth le_rfl h2lt
       have hk := h.treeDepth_le_redundancyRatio
       rw [canonicalSchedule_depth]; omega)
     (fun h3 j hj3 hjk => by
-      have hjk' : j ≤ treeDepth U (redundancyRatio n R) := hjk
+      have hjk' : j ≤ treeDepth U (redundancyRatio n R) := by
+        rwa [← canonicalSchedule_depth h]
       have hpred : (canonicalSchedule h).idBits (j - 1) ≤ 444 * Nat.log 2 (Nat.log 2 n) := by
         rw [canonicalSchedule_idBits_eq h (j - 1)]
         calc idBits n U (redundancyRatio n R) (treeDepth U (redundancyRatio n R)) (j - 1)
@@ -585,7 +590,7 @@ theorem sharedTables_slack_le {U V n R p_min q_min p_max q_max : ℕ}
       rw [Nat.sub_add_cancel (by omega : 1 ≤ j)] at hstep
       exact ⟨hpred, (Nat.le_add_left _ _).trans (hstep.trans hpred)⟩)
     (fun h3 j hj3 hjk => by
-      have hjk' : j ≤ treeDepth U (redundancyRatio n R) := hjk
+      have hjk' : j ≤ treeDepth U (redundancyRatio n R) := by rwa [← canonicalSchedule_depth h]
       have hhi := (targetSize_le_nFloor_and_lt (hT_pos j hjk') (hT_le j hjk')).2
       rw [targetSize_eq_levelScale_pow (by omega)] at hhi
       have hls := hls_3t h3 j hj3 hjk'
@@ -601,8 +606,8 @@ theorem sharedTables_slack_le {U V n R p_min q_min p_max q_max : ℕ}
         _ ≤ t ^ 2 * t ^ 9 := Nat.mul_le_mul_right _ h2_3
         _ = t ^ 11 := (Nat.pow_add t 2 9).symm)
     (fun h3 j hj3 hjk => by
-      have hjk' : j ≤ treeDepth U (redundancyRatio n R) := hjk
-      have h3' : 3 ≤ treeDepth U (redundancyRatio n R) := h3
+      have hjk' : j ≤ treeDepth U (redundancyRatio n R) := by rwa [← canonicalSchedule_depth h]
+      have h3' : 3 ≤ treeDepth U (redundancyRatio n R) := by rwa [← canonicalSchedule_depth h]
       have hdiv_eq : ((canonicalSchedule h).numNodes j / (canonicalSchedule h).numNodes 3) *
           (canonicalSchedule h).numNodes 3 = (canonicalSchedule h).numNodes j := by
         have hcbb : (canonicalSchedule h).cumBranchBits 3 ≤
@@ -721,8 +726,8 @@ private theorem redundancySlack_sub_one_of_schedule (P : TreeSchedule) {n r : �
   rw [heq]
   nlinarith
 
-/-- Total `V`-independent redundancy slack `(canonicalSchedule h).redundancySlack` is at most
-`150000 * effRedundancy n R` across `ValidRegime`. -/
+/-- Total redundancy slack `(canonicalSchedule h).redundancySlack` is bounded uniformly across all
+`1 ≤ V` by `150000 * effRedundancy n R` across `ValidRegime`. -/
 theorem redundancySlack_le_mul_effRedundancy {U V n R p_min q_min p_max q_max : ℕ}
     (h : ValidRegime U V n R p_min q_min p_max q_max) :
     (canonicalSchedule h).redundancySlack ≤ 150000 * effRedundancy n R := by
@@ -745,7 +750,8 @@ across all `ValidRegime U V n R p_min q_min p_max q_max` (with no upper bound on
 the arithmetic bit budget `totalTreeBits` of the intended Section 5 layout satisfies
 `(canonicalSchedule h).totalTreeBits ≤ infoBits U V n + spaceConst * R`
 (with `spaceConst = 160000`). Note that `totalTreeBits` computes the arithmetic bit budget of
-the intended layout and is not tied to `TreeState` by an explicit Word-RAM bit-packing encoding. -/
+the intended layout and is not tied to an operational state by an explicit Word-RAM bit-packing
+encoding. -/
 theorem totalTreeBits_le_infoBits_add {U V n R p_min q_min p_max q_max : ℕ}
     (h : ValidRegime U V n R p_min q_min p_max q_max) :
     (canonicalSchedule h).totalTreeBits ≤ infoBits U V n + spaceConst * R := by
@@ -767,7 +773,9 @@ theorem totalTreeBits_le_infoBits_add {U V n R p_min q_min p_max q_max : ℕ}
   have htot := (canonicalSchedule h).totalTreeBits_le_padded_infoBits_add hdiv hU3
   have hpad_info : infoBits (canonicalSchedule h).paddedUniv
       (canonicalSchedule h).valBound (canonicalSchedule h).cap ≤
-      infoBits U V n + 2 * effRedundancy n R + 1 := infoBits_paddedUniv_le h
+      infoBits U V n + 2 * effRedundancy n R + 1 := by
+    rw [canonicalSchedule_valBound, canonicalSchedule_cap]
+    exact infoBits_paddedUniv_le h
   have hslack := redundancySlack_le_mul_effRedundancy h
   have hRe_pos : 1 ≤ effRedundancy n R := effRedundancy_pos h.redundancy_pos n
   have hRe_le : effRedundancy n R ≤ R := effRedundancy_le n R

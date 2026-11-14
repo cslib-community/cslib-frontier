@@ -40,23 +40,6 @@ namespace Cslib.DataStructure.Dictionary.SubconstantRedundancy
 open Cslib.DataStructure.Dictionary
 open Finset
 
-theorem canonical_target_bounds {U V n R p_min q_min p_max q_max : ℕ}
-    (h : ValidRegime U V n R p_min q_min p_max q_max) :
-    (∀ j ≤ treeDepth U (redundancyRatio n R),
-        1 ≤ targetSize n U (redundancyRatio n R) (treeDepth U (redundancyRatio n R)) j) ∧
-      (∀ j ≤ treeDepth U (redundancyRatio n R),
-        targetSize n U (redundancyRatio n R) (treeDepth U (redundancyRatio n R)) j ≤ n) := by
-  have hr256 : minRedundancyRatio ≤ redundancyRatio n R := h.redundancyRatio_bounds.1
-  have h4r : 4 * redundancyRatio n R ≤ Nat.log 2 U := h.four_mul_redundancyRatio_le_log_univ
-  have hn18 : 2 ^ 18 * (Nat.log 2 U) ^ 9 ≤ n := h.two_pow_eighteen_mul_log_univ_pow_le
-  have hstep : ∀ i < treeDepth U (redundancyRatio n R),
-      2 ^ 18 * targetSize n U (redundancyRatio n R) (treeDepth U (redundancyRatio n R)) (i + 1) ≤
-        targetSize n U (redundancyRatio n R) (treeDepth U (redundancyRatio n R)) i :=
-    fun i hi => two_pow_eighteen_mul_targetSize_succ_le hr256 h4r hn18 hi
-  refine ⟨fun j hj => targetSize_pos (by have := h.two_le_n; omega)
-    (by dsimp [minRedundancyRatio] at hr256; omega) h4r hj rfl,
-    targetSize_le_of_step hstep⟩
-
 /-- At any valid level `ℓ ≤ depth`, `canonicalSchedule` floor load equals integer division
 `n / N_ℓ`. -/
 theorem canonicalSchedule_nFloor_div_eq {U V n R p_min q_min p_max q_max : ℕ}
@@ -133,7 +116,7 @@ theorem numNodes_mul_tableCap_le {U V n R p_min q_min p_max q_max : ℕ}
     (h1 : 1 ≤ ℓ) (hlt : ℓ < (canonicalSchedule h).depth) :
     (canonicalSchedule h).numNodes ℓ * (canonicalSchedule h).tableCap ℓ ≤
       3 * (canonicalSchedule h).numNodes (ℓ + 1) * (canonicalSchedule h).delta (ℓ + 1) := by
-  have hlt_k : ℓ < treeDepth U (redundancyRatio n R) := hlt
+  have hlt_k : ℓ < treeDepth U (redundancyRatio n R) := by rwa [← canonicalSchedule_depth h]
   obtain ⟨hT_pos, hT_le⟩ := canonical_target_bounds h
   have hstep_t := two_pow_eighteen_mul_targetSize_succ_le h.redundancyRatio_bounds.1
     h.four_mul_redundancyRatio_le_log_univ h.two_pow_eighteen_mul_log_univ_pow_le hlt_k
@@ -203,7 +186,7 @@ theorem leaf_and_deficit_slack_le {U V n R p_min q_min p_max q_max : ℕ}
       (treeDepth U (redundancyRatio n R)) = (redundancyRatio n R) ^ 9 := by
     rw [targetSize_eq_levelScale_pow (by omega)]
     simp [levelScale]
-  refine leaf_and_deficit_of_schedule (canonicalSchedule h) rfl ?_
+  refine leaf_and_deficit_of_schedule (canonicalSchedule h) (canonicalSchedule_cap h) ?_
     (canonicalSchedule_nFloor_div_eq h le_rfl) (delta_pos_of_le_depth h le_rfl) ?_
   · rw [canonicalSchedule_numNodes_eq h le_rfl, canonicalSchedule_depth]
     exact (Nat.mul_le_mul_left _ (Nat.le_self_pow (by decide) _)).trans (hTk_eq ▸ hNTk)
@@ -346,7 +329,7 @@ private theorem nonLeaf_tables_of_schedule (P : TreeSchedule) {n r : ℕ}
   nlinarith
 
 /-- Total metadata and payload overhead of all non-leaf tables scaled by `r` is bounded
-by `218 * n`. -/
+by `72000 * n`. -/
 theorem nonLeaf_tables_slack_le {U V n R p_min q_min p_max q_max : ℕ}
     (h : ValidRegime U V n R p_min q_min p_max q_max) :
     ((∑ ℓ ∈ Finset.Ico 2 (canonicalSchedule h).depth,
@@ -365,9 +348,10 @@ theorem nonLeaf_tables_slack_le {U V n R p_min q_min p_max q_max : ℕ}
   have hr256 := h.redundancyRatio_bounds.1
   have hr1 : 1 ≤ redundancyRatio n R := by dsimp [minRedundancyRatio] at hr256; omega
   obtain ⟨hT_pos, hT_le⟩ := canonical_target_bounds h
-  refine nonLeaf_tables_of_schedule (canonicalSchedule h) hr1 h.treeDepth_le_redundancyRatio
+  refine nonLeaf_tables_of_schedule (canonicalSchedule h) hr1
+    ((canonicalSchedule_depth h).symm ▸ h.treeDepth_le_redundancyRatio)
     fun ℓ h1 hlt => ?_
-  have hlt_k : ℓ < treeDepth U (redundancyRatio n R) := hlt
+  have hlt_k : ℓ < treeDepth U (redundancyRatio n R) := by rwa [← canonicalSchedule_depth h]
   have hs_ge_r := r_le_levelScale (ℓ := ℓ + 1) (by omega) h.four_mul_redundancyRatio_le_log_univ
   refine single_nonLeaf_tableMeta_of_schedule (canonicalSchedule h) h1 hlt hs_ge_r
     (nFloor_ge_pow_256 h hlt.le) (by rw [canonicalSchedule_idBits_eq h ℓ,
@@ -538,19 +522,20 @@ theorem rootExtra_and_poolDir_slack_le {U V n R p_min q_min p_max q_max : ℕ}
     (poly_le_thresholdLogN q_min p_max).trans h.thresholdLogN_le_log
   have hbase_p : max q_min 1 + p_max + 4 ≤ (max q_min 1 + p_max + 4) ^ 4 :=
     Nat.le_self_pow (by decide) _
+  have h1_lt_d : 1 < (canonicalSchedule h).depth := by rwa [canonicalSchedule_depth]
   refine rootExtra_and_poolDir_of_schedule (canonicalSchedule h) h.two_le_n rfl (by omega)
-    (by omega) hL_s1 hr_le_L rfl (paddedUniv_le_two_pow_mul_log h) ?_ ?_
-    (numNodes_mul_tableCap_le h le_rfl h1_lt) ?_ ?_
-  · rw [canonicalSchedule_nFloor_div_eq h h1_lt.le]
+    (by omega) hL_s1 hr_le_L (canonicalSchedule_cap h) (paddedUniv_le_two_pow_mul_log h) ?_ ?_
+    (numNodes_mul_tableCap_le h le_rfl h1_lt_d) ?_ ?_
+  · rw [canonicalSchedule_nFloor_div_eq h h1_lt_d.le]
     exact Nat.mul_div_le n _
-  · rw [canonicalSchedule_numNodes_eq h h1_lt.le, canonicalSchedule_delta_eq h 1]
+  · rw [canonicalSchedule_numNodes_eq h h1_lt_d.le, canonicalSchedule_delta_eq h 1]
     have hc := numNodes_mul_delta_mul_levelScale_cubed_le le_rfl (hT_pos 1 h1_lt.le)
       (hT_le 1 h1_lt.le)
     have hls1 : levelScale U (redundancyRatio n R) (treeDepth U (redundancyRatio n R)) 1 =
         Nat.log 2 U := by
       dsimp only [levelScale]; rw [ite_eq_left h1_lt]; rfl
     rwa [hls1] at hc
-  · rw [canonicalSchedule_numNodes_eq h h1_lt, canonicalSchedule_delta_eq h 2]
+  · rw [canonicalSchedule_numNodes_eq h h1_lt_d, canonicalSchedule_delta_eq h 2]
     have hc := numNodes_mul_delta_mul_levelScale_cubed_le (by decide : 1 ≤ 2)
       (hT_pos 2 h1_lt) (hT_le 2 h1_lt)
     have hs2_pos : 1 ≤ (levelScale U (redundancyRatio n R)
@@ -560,7 +545,7 @@ theorem rootExtra_and_poolDir_slack_le {U V n R p_min q_min p_max q_max : ℕ}
       dsimp [minRedundancyRatio] at hr256
       omega
     exact (Nat.le_mul_of_pos_right _ hs2_pos).trans hc
-  · rw [canonicalSchedule_numNodes_eq h h1_lt.le]
+  · rw [canonicalSchedule_numNodes_eq h h1_lt_d.le]
     obtain ⟨hNT1, _⟩ := numNodes_mul_targetSize_bounds (hT_pos 1 h1_lt.le) (hT_le 1 h1_lt.le)
     have hT1_eq : targetSize n U (redundancyRatio n R)
         (treeDepth U (redundancyRatio n R)) 1 = (Nat.log 2 U) ^ 9 := by
@@ -802,7 +787,8 @@ theorem waitingLists_and_hashSeeds_slack_le {U V n R p_min q_min p_max q_max : �
       (Nat.pow_le_pow_left hL_s1 2)
   refine waitingLists_and_hashSeeds_of_schedule (canonicalSchedule h)
     (by dsimp [minRedundancyRatio] at hr256; exact hr256) hr2_n (hr_le_L.trans hL_s1) rfl
-    h.four_mul_redundancyRatio_le_log_univ rfl rfl h.treeDepth_le_redundancyRatio
+    h.four_mul_redundancyRatio_le_log_univ (canonicalSchedule_depth h) (canonicalSchedule_cap h)
+    ((canonicalSchedule_depth h).symm ▸ h.treeDepth_le_redundancyRatio)
     ((paddedUniv_le_two_pow_mul_log h).trans (Nat.pow_le_pow_right Nat.two_pos h2p_s1))
     (fun ℓ hlt => routerSeedBits_sq_le_nFloor h hlt)
     (fun j hj => delta_pos_of_le_depth h hj) ?_ ?_ ?_ ?_
@@ -812,17 +798,17 @@ theorem waitingLists_and_hashSeeds_slack_le {U V n R p_min q_min p_max q_max : �
     rw [canonicalSchedule_delta_eq h j, canonicalSchedule_nFloor_eq h j]
     exact two_mul_delta_le_nFloor_of_eight_le ((by decide : 8 ≤ 256 ^ 9).trans hg)
   · intro ℓ h2 hle
-    have hle_k : ℓ ≤ treeDepth U (redundancyRatio n R) := hle
+    have hle_k : ℓ ≤ treeDepth U (redundancyRatio n R) := by rwa [← canonicalSchedule_depth h]
     rw [canonicalSchedule_idBits_eq h (ℓ - 1), canonicalSchedule_depth]
     exact idBits_pred_le_mul_levelScale hr256 h2 hle_k
       (hT_pos (ℓ - 1) (by omega)) (hT_le (ℓ - 1) (by omega))
   · intro ℓ h1 hle
-    have hle_k : ℓ ≤ treeDepth U (redundancyRatio n R) := hle
+    have hle_k : ℓ ≤ treeDepth U (redundancyRatio n R) := by rwa [← canonicalSchedule_depth h]
     rw [canonicalSchedule_numNodes_eq h hle, canonicalSchedule_delta_eq h ℓ,
       canonicalSchedule_depth]
     exact numNodes_mul_delta_mul_levelScale_cubed_le h1 (hT_pos ℓ hle_k) (hT_le ℓ hle_k)
   · intro ℓ h1 hle
-    have hle_k : ℓ ≤ treeDepth U (redundancyRatio n R) := hle
+    have hle_k : ℓ ≤ treeDepth U (redundancyRatio n R) := by rwa [← canonicalSchedule_depth h]
     obtain ⟨hNT, _⟩ := numNodes_mul_targetSize_bounds (hT_pos ℓ hle_k) (hT_le ℓ hle_k)
     obtain ⟨hlo, _⟩ := targetSize_le_nFloor_and_lt (hT_pos ℓ hle_k) (hT_le ℓ hle_k)
     rw [targetSize_eq_levelScale_pow h1] at hNT hlo
