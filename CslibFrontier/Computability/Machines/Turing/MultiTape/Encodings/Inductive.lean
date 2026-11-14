@@ -33,7 +33,7 @@ The command declares:
 * for each constructor `c`, the rule `eT_c_inO`, which adds up the bounds of its arguments,
   `eT_c_inSpace`, retaining their independent workspace bounds, and `eT_c_polyTime`;
 * `eT_elim`, case analysis by constructor on the payloads, and its rule `eT_elim_inO`, which
-  charges only the case taken, together with `eT_elim_inSpace` at the same workspace bound.
+  charges only the case taken, together with `eT_elim_inSpace` at the same workspace bound and `eT_elim_polyTime`.
 
 The `toSum` and constructor rules are `scoped` `fun_prop` rules, as for `enc_structure`. The case
 rule is stated for an input paired with the value, as `ComputableInO.sumElimSnd` is.
@@ -349,5 +349,60 @@ private partial def summands (t : Expr) : Nat → MetaM (Array Expr)
         (fun $p => $nLit * (encPair $encP $eT $p).length + $sTerm) := by
     $unpack:tactic*
     exact ComputableInSpace.of_inO ($(app name "_elim_inO") $hs*)))
+
+  -- Polynomial elimination reuses the arbitrary-resource case machine. Each branch clock is
+  -- bounded in the full input size before the finitely many envelopes are added.
+  let mut pb : TSyntaxArray ``Lean.Parser.Term.bracketedBinder := #[]
+  let mut clocks : TSyntaxArray ``Lean.Parser.Tactic.tactic := #[]
+  let mut estimates : TSyntaxArray ``Lean.Parser.Tactic.tactic := #[]
+  let mut facts : TSyntaxArray ``Lean.Parser.Tactic.tactic := #[]
+  let mut proofs : Array Term := #[]
+  let dN (i : Nat) := mkIdent (Name.mkSimple s!"d{i}")
+  let eN (i : Nat) := mkIdent (Name.mkSimple s!"e{i}")
+  let bN (i : Nat) := mkIdent (Name.mkSimple s!"bound{i}")
+  let mut clockFs : Array Term := #[]
+  let mut envelope : Term ← `((PolyBounded.const $nLit).mul PolyBounded.self)
+  for i in [0:n] do
+    pb := pb.push (← `(bracketedBinder| {$(gN i) : π × $(argTys[i]!) → ε}))
+  for i in [0:n] do
+    pb := pb.push (← `(bracketedBinder|
+      ($(hN i) : ComputableInPolyTime $(gN i) (encPair $encP $(payloads[i]!)) $encE)))
+    clocks := clocks.push (← `(tactic|
+      obtain ⟨$(dN i), $(eN i), $(hN i)⟩ := $(hN i).exists_degree))
+    proofs := proofs.push (← `($(hN i).inO))
+    clockFs := clockFs.push (← `(fun $a =>
+      ((encPair $encP $(payloads[i]!) ($p.1, $a)).length + 1) ^ $(dN i)))
+    let selectors ← (Array.range n).mapM fun j => do
+      if i == j then
+        `(fun $a => ((encPair $encP $(payloads[j]!) ($p.1, $a)).length + 1) ^ $(dN i))
+      else `(fun _ => (0 : ℕ))
+    let selected := Syntax.mkApp elim (#[← `($p.2)] ++ selectors)
+    estimates := estimates.push (← `(tactic|
+      have $(bN i) : ∀ $p : π × $T, $selected ≤
+          ((encPair $encP $eT $p).length + 1) ^ $(dN i) := by
+        rintro ⟨q, v⟩
+        cases v <;>
+          simp only [$elim:ident, $toSum:ident, $applyName:ident, Sum.elim_inl,
+            Sum.elim_inr, length_encPair, encSum_inl, encSum_inr, List.length_cons] <;>
+          first | omega | (apply Nat.pow_le_pow_left; omega)))
+    facts := facts.push (← `(tactic| have := $(bN i) (q, v)))
+    envelope ← `(($envelope).add
+      ((PolyBounded.self.add (PolyBounded.const 1)).pow $(dN i)))
+  let selectedClock := Syntax.mkApp elim (#[← `($p.2)] ++ clockFs)
+  elabCommand (← `(public theorem $(app name "_elim_polyTime"):ident {π ε : Type}
+      {$encP : π ↪ List Bool} {$encE : ε ↪ List Bool} $pb* :
+      ComputableInPolyTime (fun $p : π × $T => $fnTerm) (encPair $encP $eT) $encE := by
+    $clocks:tactic*
+    $estimates:tactic*
+    have hb : PolyBounded (fun $p : π × $T => (encPair $encP $eT $p).length)
+        (fun $p => $nLit * (encPair $encP $eT $p).length + $selectedClock) :=
+      ($envelope).mono (by
+      rintro ⟨q, v⟩
+      $facts:tactic*
+      cases v <;>
+        simp only [$elim:ident, $toSum:ident, $applyName:ident, Sum.elim_inl,
+          Sum.elim_inr, length_encPair, encSum_inl, encSum_inr, List.length_cons] at * <;>
+        omega)
+    exact ($(app name "_elim_inO") $proofs*).computableInPolyTime hb hb))
 
 end Turing.MultiTapeTM

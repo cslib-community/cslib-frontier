@@ -136,6 +136,43 @@ example {ε π : Type} {encP : π ↪ List Bool} {encE : ε ↪ List Bool}
       (fun p => 1 * (encPair encP eWrap p).length + eWrap_elim p.2 fun a => S (p.1, a)) :=
   eWrap_elim_inSpace h
 
+/-! Polynomial elimination keeps captured inputs and permits unrelated branch degrees. -/
+
+example {π ε : Type} {encP : π ↪ List Bool} {encE : ε ↪ List Bool}
+    {f : π × Unit → ε} {g : π × ℕ → ε} {h : π × (ℕ × List Bool) → ε}
+    (hf : ComputableInPolyTime f (encPair encP encUnit) encE)
+    (hg : ComputableInPolyTime g (encPair encP encUnary) encE)
+    (hh : ComputableInPolyTime h (encPair encP (encPair encUnary encBits)) encE) :
+    ComputableInPolyTime (fun p : π × Label =>
+      eLabel_elim p.2 (fun a => f (p.1, a)) (fun a => g (p.1, a)) (fun a => h (p.1, a)))
+      (encPair encP eLabel) encE :=
+  eLabel_elim_polyTime hf hg hh
+
+example {π ε : Type} {encP : π ↪ List Bool} {encE : ε ↪ List Bool}
+    {g : π × (ℕ × Bool) → ε}
+    (h : ComputableInPolyTime g (encPair encP (encPair encUnary encBool)) encE) :
+    ComputableInPolyTime (fun p : π × Wrap => eWrap_elim p.2 fun a => g (p.1, a))
+      (encPair encP eWrap) encE := eWrap_elim_polyTime h
+
+/-! Hosted transition probe. Keep registration local: existential resource/output degrees
+must be found by automation before changing the global rule set. The explicit lift is the control.
+Both paths retain arbitrary, independent degrees, including degree zero. -/
+
+section DegreeTransitionProbe
+
+variable {α β : Type} {f : α → β} {encIn : α ↪ List Bool} {encOut : β ↪ List Bool}
+  {d e : ℕ}
+
+example (h : ComputableInDegree f encIn encOut d e) :
+    ComputableInPolyTime f encIn encOut := h.computableInPolyTime
+
+attribute [local fun_prop] ComputableInDegree.computableInPolyTime
+
+example (h : ComputableInDegree f encIn encOut d e) :
+    ComputableInPolyTime f encIn encOut := by fun_prop
+
+end DegreeTransitionProbe
+
 /-! Mistakes in the constructor list are reported before anything is declared. -/
 
 /--
