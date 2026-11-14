@@ -473,7 +473,7 @@ private def checkFlattenedParents (env : Environment) (s : Name)
       (h : ComputableInPolyTime $g encIn $encRef) :
       ComputableInPolyTime $compFn encIn $e :=
         ComputableInPolyTime.comp (f := $fn) (g := $g)
-          (ComputableInDegree.computableInPolyTime $degTerm) h))
+          $poly h))
     registerRule polyRule
   for f in fs, e in slots, i in Array.range n do
     -- The field read, as a function of the structure and applied to `g c`.
