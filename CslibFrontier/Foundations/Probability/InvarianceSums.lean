@@ -18,7 +18,10 @@ public import Mathlib.Probability.CDF
 public import Mathlib.Probability.Distributions.Gaussian.Real
 public import Mathlib.Probability.HasLaw
 public import Mathlib.Topology.EMetricSpace.Lipschitz
+import CslibFrontier.Foundations.MeasureTheory.Integral.CauchySchwarz
 import CslibFrontier.Foundations.MeasureTheory.Integral.PiUpdate
+import CslibFrontier.Foundations.Probability.Gaussian.Moments
+import CslibFrontier.Foundations.Probability.Gaussian.Multivariate
 import CslibFrontier.Foundations.Probability.Gaussian.Real
 import CslibFrontier.Foundations.Probability.LevyDistance
 import CslibFrontier.Foundations.Probability.SmoothTests
@@ -43,16 +46,20 @@ Smoothing Lipschitz tests by a three-fold moving average
 `(-∞, u]` the same way (`ProbabilityTheory.measureReal_le_le_add_of_forall_contDiff`) gives
 Corollary 11.61, a bound on the Lévy distance: `Pr[S_X ≤ u] ≤ Pr[S_Y ≤ u + ε] + ε` and
 `Pr[S_Y ≤ u - ε] - ε ≤ Pr[S_X ≤ u]` with `ε = 3 γ_XY^(1/4)`. When `S_Y` is a standard Gaussian,
-its anticoncentration gives Corollary 11.62 in the form with `γ_XY`,
-`|Pr[S_X ≤ u] - Φ(u)| ≤ 9/2 · γ_XY^(1/4)`.
+its anticoncentration gives `|Pr[S_X ≤ u] - Φ(u)| ≤ 9/2 · γ_XY^(1/4)`. Corollary 11.62 is the
+Berry–Esseen setting, where only `X` is given, with `E[Xᵢ] = 0` and `∑ Var[Xᵢ] = 1`: as in the
+book, take independent `Yᵢ ∼ N(0, Var[Xᵢ])`, so that `S_Y` is a standard Gaussian, and bound
+`γ_XY ≤ 3 γ` with `γ = ∑ E|Xᵢ|³` as in (11.28), giving `|Pr[S_X ≤ u] - Φ(u)| ≤ 6 γ^(1/4)`. The
+book's bound `E|Yᵢ|³ ≤ 2 √(2/π) E|Xᵢ|³` is replaced by `E|Yᵢ|³ ≤ 2 E|Xᵢ|³`, from
+`ProbabilityTheory.integral_abs_pow_three_gaussianReal_le` and Lyapunov's inequality
+`MeasureTheory.sqrt_integral_sq_pow_three_le`.
 
 The tools come from `CslibFrontier.Foundations.Probability.SmoothTests` and
 `CslibFrontier.Foundations.Probability.LevyDistance`.
 
 Not proved here: the Berry–Esseen Theorem of Section 11.5, with the error `O(∑ E|Xᵢ|³)` instead
-of `O(γ_XY^(1/4))`; and the Variant Berry–Esseen Theorem and the book's (`X`-only) form of
-Corollary 11.62, which need `Yᵢ ∼ N(0, Var[Xᵢ])` and the bound
-`γ_XY ≤ (1 + 2 √(2/π)) ∑ E|Xᵢ|³` of (11.28).
+of `O(γ^(1/4))`; and the Variant Berry–Esseen Theorem, which compares `E[ψ(S_X)]` with
+`E[ψ(Z)]` for `C³` tests.
 
 ## Main results
 
@@ -62,8 +69,9 @@ Corollary 11.62, which need `Yᵢ ∼ N(0, Var[Xᵢ])` and the bound
   `Pr[S_Y ≤ u + η] + 128 γ_XY / (3 η³)` for every `η > 0`.
 * `ProbabilityTheory.measureReal_sum_le_le_add`, `ProbabilityTheory.measureReal_sum_le_sub_le`:
   Corollary 11.61.
-* `ProbabilityTheory.abs_measureReal_sum_le_sub_cdf_le`: Corollary 11.62, in the form with
-  `γ_XY`.
+* `ProbabilityTheory.abs_measureReal_sum_le_sub_cdf_le_of_hasLaw`: `|Pr[S_X ≤ u] - Φ(u)|` is at
+  most `9/2 · γ_XY^(1/4)` when `S_Y` is a standard Gaussian.
+* `ProbabilityTheory.abs_measureReal_sum_le_sub_cdf_le`: Corollary 11.62.
 
 ## References
 
@@ -226,13 +234,11 @@ theorem measureReal_sum_le_sub_le (hμ : ∀ i, MemLp id 3 (μ i)) (hν : ∀ i,
 
 /-! ### Comparison with a Gaussian: Corollary 11.62 -/
 
-/-- **Corollary 11.62**, in the form with `γ_XY` [O'Donnell, Corollary 11.62][ODonnell2014]: in
-the setting of the Invariance Principle for sums, if `∑ Yᵢ` is a standard Gaussian, then
-`|Pr[∑ Xᵢ ≤ u] - Φ(u)| ≤ 9/2 · γ_XY^(1/4)` for every `u`, where `Φ = cdf (gaussianReal 0 1)` and
-`γ_XY = ∑ᵢ (E|Xᵢ|³ + E|Yᵢ|³)`. For instance, `Yᵢ` may be independent Gaussians with mean `E[Xᵢ]`
-and variance `Var[Xᵢ]` when `∑ E[Xᵢ] = 0` and `∑ Var[Xᵢ] = 1`. The book's form, with only `X`
-given and `γ = ∑ E|Xᵢ|³`, follows via (11.28), which is not formalized. -/
-theorem abs_measureReal_sum_le_sub_cdf_le (hμ : ∀ i, MemLp id 3 (μ i))
+/-- A step of [O'Donnell, Corollary 11.62][ODonnell2014], not the corollary itself (which is
+`abs_measureReal_sum_le_sub_cdf_le`): in the setting of the Invariance Principle for sums, if
+`∑ Yᵢ` is a standard Gaussian, then `|Pr[∑ Xᵢ ≤ u] - Φ(u)| ≤ 9/2 · γ_XY^(1/4)` for every `u`,
+where `Φ = cdf (gaussianReal 0 1)` and `γ_XY = ∑ᵢ (E|Xᵢ|³ + E|Yᵢ|³)`. -/
+theorem abs_measureReal_sum_le_sub_cdf_le_of_hasLaw (hμ : ∀ i, MemLp id 3 (μ i))
     (hν : ∀ i, MemLp id 3 (ν i)) (h₁ : ∀ i, ∫ s, s ∂μ i = ∫ s, s ∂ν i)
     (h₂ : ∀ i, ∫ s, s ^ 2 ∂μ i = ∫ s, s ^ 2 ∂ν i)
     (hG : HasLaw (fun z : ι → ℝ => ∑ i, z i) (gaussianReal 0 1) (Measure.pi ν)) (u : ℝ) :
@@ -261,5 +267,88 @@ theorem abs_measureReal_sum_le_sub_cdf_le (hμ : ∀ i, MemLp id 3 (μ i))
   rw [sub_add_cancel] at hb
   rw [abs_sub_le_iff]
   constructor <;> linarith
+
+/-! ### The Gaussian comparison family -/
+
+/-- The law of `σ g` for a standard Gaussian `g` is in `L³`. -/
+private theorem memLp_map_gaussianReal_const_mul (σ : ℝ) :
+    MemLp id 3 ((gaussianReal 0 1).map (σ * ·)) :=
+  (memLp_map_measure_iff aestronglyMeasurable_id (measurable_const_mul σ).aemeasurable).2
+    ((memLp_id_gaussianReal (μ := 0) (v := 1) 3).const_mul σ)
+
+/-- The integral of a continuous `g` against the law of `σ z` is the integral of `g (σ z)`. -/
+private theorem integral_map_gaussianReal_const_mul (σ : ℝ) {g : ℝ → ℝ} (hg : Continuous g) :
+    ∫ s, g s ∂(gaussianReal 0 1).map (σ * ·) = ∫ s, g (σ * s) ∂gaussianReal 0 1 :=
+  integral_map (measurable_const_mul σ).aemeasurable hg.aestronglyMeasurable
+
+/-- If the `σ i` have `∑ σᵢ² = 1`, then the sum of independent `Yᵢ ∼ σᵢ · N(0, 1)` is a standard
+Gaussian. -/
+private theorem hasLaw_sum_pi_map_gaussianReal {σ : ι → ℝ} (hσ : ∑ i, σ i ^ 2 = 1) :
+    HasLaw (fun z : ι → ℝ => ∑ i, z i) (gaussianReal 0 1)
+      (Measure.pi fun i => (gaussianReal 0 1).map (σ i * ·)) := by
+  refine ⟨by fun_prop, ?_⟩
+  rw [← Measure.pi_map_pi fun i => (measurable_const_mul (σ i)).aemeasurable,
+    Measure.map_map (by fun_prop) (by fun_prop)]
+  have he : ((fun z : ι → ℝ => ∑ i, z i) ∘ fun z i => σ i * z i) = (σ ⬝ᵥ ·) := by
+    funext z
+    simp [dotProduct]
+  have hσσ : σ ⬝ᵥ σ = 1 := by simpa [dotProduct, sq] using hσ
+  rw [he, pi_gaussianReal_map_dotProduct_eq_map_const_mul, hσσ, Real.sqrt_one]
+  simp only [one_mul]
+  exact Measure.map_id
+
+/-- `9/2 · a^(1/4) ≤ 6 γ^(1/4)` when `0 ≤ a ≤ 3 γ`, as `3^(1/4) ≤ 4/3`. -/
+private theorem nine_div_two_mul_rpow_le {a γ : ℝ} (ha : 0 ≤ a) (h : a ≤ 3 * γ) :
+    9 / 2 * a ^ (1 / 4 : ℝ) ≤ 6 * γ ^ (1 / 4 : ℝ) := by
+  have hγ : 0 ≤ γ := by linarith
+  have h3 : (3 : ℝ) ^ (1 / 4 : ℝ) ≤ 4 / 3 := by
+    rw [show (1 / 4 : ℝ) = ((4 : ℕ) : ℝ)⁻¹ by norm_num]
+    refine (Real.rpow_le_rpow (by norm_num) (show (3 : ℝ) ≤ (4 / 3) ^ 4 by norm_num)
+      (by norm_num)).trans_eq ?_
+    exact Real.pow_rpow_inv_natCast (by norm_num) (by norm_num)
+  have hr : 0 ≤ γ ^ (1 / 4 : ℝ) := by positivity
+  calc 9 / 2 * a ^ (1 / 4 : ℝ) ≤ 9 / 2 * (3 * γ) ^ (1 / 4 : ℝ) :=
+        mul_le_mul_of_nonneg_left (Real.rpow_le_rpow ha h (by norm_num)) (by norm_num)
+    _ = 9 / 2 * 3 ^ (1 / 4 : ℝ) * γ ^ (1 / 4 : ℝ) := by
+        rw [Real.mul_rpow (by norm_num) hγ, mul_assoc]
+    _ ≤ 9 / 2 * (4 / 3) * γ ^ (1 / 4 : ℝ) := by gcongr
+    _ = 6 * γ ^ (1 / 4 : ℝ) := by norm_num
+
+/-- **Corollary 11.62** [O'Donnell, Corollary 11.62][ODonnell2014]: in the setting of the
+Berry–Esseen Theorem, let `X₁, …, Xₙ` be independent real random variables with laws `μ i` in
+`L³`, with `E[Xᵢ] = 0` and `∑ᵢ Var[Xᵢ] = ∑ᵢ E[Xᵢ²] = 1`, and let `γ = ∑ᵢ E|Xᵢ|³`. Then
+`|Pr[∑ Xᵢ ≤ u] - Φ(u)| ≤ 6 γ^(1/4)` for every `u`, where `Φ = cdf (gaussianReal 0 1)`. The book
+hides the constant in `O(γ^(1/4))`.
+
+The proof follows the book: it compares `X` with independent `Yᵢ ∼ N(0, Var[Xᵢ])`, whose sum is
+a standard Gaussian (`abs_measureReal_sum_le_sub_cdf_le_of_hasLaw`), and bounds
+`γ_XY ≤ 3 γ` as in (11.28), using `E|Yᵢ|³ ≤ 2 Var[Xᵢ]^(3/2) ≤ 2 E|Xᵢ|³`. -/
+theorem abs_measureReal_sum_le_sub_cdf_le (hμ : ∀ i, MemLp id 3 (μ i))
+    (h₁ : ∀ i, ∫ s, s ∂μ i = 0) (h₂ : ∑ i, ∫ s, s ^ 2 ∂μ i = 1) (u : ℝ) :
+    |(Measure.pi μ).real {z | ∑ i, z i ≤ u} - cdf (gaussianReal 0 1) u| ≤
+      6 * (∑ i, ∫ s, |s| ^ 3 ∂μ i) ^ (1 / 4 : ℝ) := by
+  set σ : ι → ℝ := fun i => √(∫ s, s ^ 2 ∂μ i)
+  have hσ2 (i : ι) : σ i ^ 2 = ∫ s, s ^ 2 ∂μ i :=
+    Real.sq_sqrt (integral_nonneg fun s => sq_nonneg s)
+  have hY1 (i : ι) : ∫ s, s ∂(gaussianReal 0 1).map (σ i * ·) = 0 := by
+    rw [integral_map_gaussianReal_const_mul (g := fun s => s) _ continuous_id, integral_const_mul,
+      integral_id_gaussianReal, mul_zero]
+  have hY2 (i : ι) : ∫ s, s ^ 2 ∂(gaussianReal 0 1).map (σ i * ·) = ∫ s, s ^ 2 ∂μ i := by
+    rw [integral_map_gaussianReal_const_mul (g := fun s => s ^ 2) _ (continuous_pow 2)]
+    simp only [mul_pow]
+    rw [integral_const_mul, integral_sq_gaussianReal, mul_one, hσ2]
+  have hY3 (i : ι) : ∫ s, |s| ^ 3 ∂(gaussianReal 0 1).map (σ i * ·) ≤ 2 * ∫ s, |s| ^ 3 ∂μ i := by
+    rw [integral_map_gaussianReal_const_mul (g := fun s => |s| ^ 3) _ (continuous_abs.pow 3)]
+    simp only [abs_mul, mul_pow]
+    rw [integral_const_mul, abs_of_nonneg (Real.sqrt_nonneg _), mul_comm]
+    exact mul_le_mul integral_abs_pow_three_gaussianReal_le
+      (sqrt_integral_sq_pow_three_le (hμ i)) (by positivity) (by norm_num)
+  refine (abs_measureReal_sum_le_sub_cdf_le_of_hasLaw μ _ hμ
+    (fun i => memLp_map_gaussianReal_const_mul (σ i)) (fun i => (h₁ i).trans (hY1 i).symm)
+    (fun i => (hY2 i).symm) (hasLaw_sum_pi_map_gaussianReal ((sum_congr rfl
+      fun i _ => hσ2 i).trans h₂)) u).trans
+    (nine_div_two_mul_rpow_le (sum_integral_abs_pow_three_nonneg _ _) ?_)
+  rw [mul_sum]
+  exact sum_le_sum fun i _ => by linarith [hY3 i]
 
 end ProbabilityTheory

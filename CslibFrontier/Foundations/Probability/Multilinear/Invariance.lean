@@ -73,16 +73,8 @@ variable {μ ν : Measure ℝ} [IsProbabilityMeasure μ] [IsProbabilityMeasure �
 
 /-- Under Hypothesis 11.65, `E|z|³ ≤ √(E z² · E z⁴) ≤ 3`. -/
 theorem integral_abs_pow_three_le (hμ : HasInvarianceMoments μ) : ∫ s, |s| ^ 3 ∂μ ≤ 3 := by
-  have hm4 : MemLp id ((4 : ℕ) : ℝ≥0∞) μ := by exact_mod_cast hμ.memLp_four
-  have h := sq_integral_mul_le (P := μ) (f := fun s => |s|) (g := fun s => s ^ 2)
-    (by simpa using integrable_pow_of_memLp hm4 (j := 2) (by norm_num))
-    (by simpa only [← pow_mul] using integrable_pow_of_memLp hm4 (j := 4) le_rfl)
-    ((integrable_abs_pow_of_memLp hm4 (j := 3) (by norm_num)).congr (ae_of_all _ fun s => by
-      simp only; rw [← sq_abs s]; ring))
-  have h3 : ∫ s, |s| * s ^ 2 ∂μ = ∫ s, |s| ^ 3 ∂μ := by
-    congr 1 with s : 1; rw [← sq_abs s]; ring
-  simp only [sq_abs, ← pow_mul] at h
-  rw [h3, hμ.integral_sq, one_mul] at h
+  have h := sq_integral_abs_pow_three_le hμ.memLp_four
+  rw [hμ.integral_sq, one_mul] at h
   have h0 : 0 ≤ ∫ s, |s| ^ 3 ∂μ := integral_nonneg fun _ => by positivity
   nlinarith [hμ.integral_pow_four_le]
 

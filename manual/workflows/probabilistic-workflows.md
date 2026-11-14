@@ -3239,7 +3239,10 @@ and is derived from it. Cauchy–Schwarz for real integrals,
 `MeasureTheory.sq_integral_mul_le`, needs no sign condition. It is in
 [`Integral/CauchySchwarz`](../../CslibFrontier/Foundations/MeasureTheory/Integral/CauchySchwarz.lean)
 with `MeasureTheory.integrable_pow_of_memLp` and `MeasureTheory.integrable_abs_pow_of_memLp`, which
-give integrability of the moments of order `j ≤ n` of a variable in `Lⁿ`. The tools that do not
+give integrability of the moments of order `j ≤ n` of a variable in `Lⁿ`, and with two bounds on
+the third absolute moment: `MeasureTheory.sq_integral_abs_pow_three_le` (`(E|z|³)² ≤ E[z²] E[z⁴]`
+in `L⁴`) and Lyapunov's inequality `MeasureTheory.sqrt_integral_sq_pow_three_le`
+(`(√E[z²])³ ≤ E|z|³` in `L³`). The tools that do not
 involve polynomials are in
 [`SmoothTests.lean`](../../CslibFrontier/Foundations/Probability/SmoothTests.lean) (namespace
 `ProbabilityTheory`), which the invariance principle for sums below also uses. Its one-coordinate
@@ -3385,13 +3388,13 @@ of a ramp of width `h`. For `0 < h`, `stepSmoothing_mem_Icc` keeps it in `[0, 1]
 `measureReal_le_le_integral_comp` and `integral_comp_le_measureReal_le` compare
 `P.real {ω | X ω ≤ v}` with `∫ ω, φ (X ω) ∂P` for such `[0, 1]`-valued tests. Corollary 11.70 uses
 `m = 4`, `B = k * 9 ^ k * ε / 12` from Corollary 11.67, and `η = δ`, so the test has
-`|φ⁗| ≤ 5000 / δ⁴`. The second statement of Corollary 11.70, in the setting of Remark 11.66, is
+`|φ''''| ≤ 5000 / δ⁴`. The second statement of Corollary 11.70, in the setting of Remark 11.66, is
 not formalized, because the hypercontractive Invariance Principle of Remark 11.66 is not.
 
 The checked [`InvarianceSums.lean` clients](../../CslibFrontierTests/InvarianceSums.lean) apply
 both inequalities to `∑ xᵢ / √m`, as the linear form with coefficients `1 / √m`: it has degree
 `1`, variance `1` and influences `1 / m`. Signs and Gaussians then have Lévy distance at most
-`4 * 2 * (1 / m) ^ (1 / 5)`, which is `8 / 100` for `m = 100⁵`, below the trivial bound `1`.
+`4 * 2 * (1 / m) ^ (1 / 5)`, which is `8 / 100` for `m = 100 ^ 5`, below the trivial bound `1`.
 They also instantiate the cube pair for any function with small influences. Run
 `scripts/build.sh CslibFrontierTests.InvarianceSums` from the repository root to check them.
 
@@ -3438,8 +3441,7 @@ Is Stablest.
 Import
 [`CslibFrontier.Foundations.Probability.InvarianceSums`](../../CslibFrontier/Foundations/Probability/InvarianceSums.lean)
 and open `ProbabilityTheory`. It proves the Invariance Principle for Sums of Random Variables of
-[O'Donnell, §11.5][odonnell14], Corollaries 11.59 and 11.61, and Corollary 11.62 in the form with
-`γ_XY`. The variables are the coordinates under product laws: `X` has law `Measure.pi μ` and `Y`
+[O'Donnell, §11.5][odonnell14] and Corollaries 11.59, 11.61 and 11.62. The variables are the coordinates under product laws: `X` has law `Measure.pi μ` and `Y`
 has law `Measure.pi ν`, for `μ ν : ι → Measure ℝ` with `[Fintype ι]` and
 `[∀ i, IsProbabilityMeasure (μ i)]` (and likewise for `ν`). The two families need not live on one
 probability space. Take `hμ : ∀ i, MemLp id 3 (μ i)`, `hν : ∀ i, MemLp id 3 (ν i)`,
@@ -3461,14 +3463,25 @@ written out.
   `(Measure.pi ν).real {z | ∑ i, z i ≤ u - ε} - ε ≤ (Measure.pi μ).real {z | ∑ i, z i ≤ u}`. To
   choose the shift yourself, `measureReal_sum_le_le_add_div_pow μ ν hμ hν h₁ h₂ u hη` gives the
   error term `128 / 3 * γ / η ^ 3` for `0 < η`.
-- Corollary 11.62: if also
+- Comparison with a Gaussian: if also
   `hG : HasLaw (fun z : ι → ℝ => ∑ i, z i) (gaussianReal 0 1) (Measure.pi ν)`, then
-  `abs_measureReal_sum_le_sub_cdf_le μ ν hμ hν h₁ h₂ hG u` bounds
+  `abs_measureReal_sum_le_sub_cdf_le_of_hasLaw μ ν hμ hν h₁ h₂ hG u` bounds
   `|(Measure.pi μ).real {z | ∑ i, z i ≤ u} - cdf (gaussianReal 0 1) u|` by
   `9 / 2 * γ ^ (1 / 4 : ℝ)`. The Gaussian anticoncentration it uses,
   `gaussianReal_real_Iic_add_le μ x hv hε` (`Pr[Z ≤ x + ε] ≤ Pr[Z ≤ x] + ε / √(2πv)` for
   `Z ∼ N(μ, v)` with `v ≠ 0`), is in
   [`Gaussian/Real.lean`](../../CslibFrontier/Foundations/Probability/Gaussian/Real.lean).
+- Corollary 11.62, in the Berry–Esseen setting, needs only `X`: for `hμ`,
+  `h₁ : ∀ i, ∫ s, s ∂μ i = 0` and `h₂ : ∑ i, ∫ s, s ^ 2 ∂μ i = 1`,
+  `abs_measureReal_sum_le_sub_cdf_le μ hμ h₁ h₂ u` bounds
+  `|(Measure.pi μ).real {z | ∑ i, z i ≤ u} - cdf (gaussianReal 0 1) u|` by
+  `6 * (∑ i, ∫ s, |s| ^ 3 ∂μ i) ^ (1 / 4 : ℝ)`. As in the book, it compares `X` with
+  independent `Yᵢ ∼ N(0, Var[Xᵢ])` and bounds `γ_XY` by three times `∑ i, ∫ s, |s| ^ 3 ∂μ i`,
+  using `E|Yᵢ|³ ≤ 2 E|Xᵢ|³` (`integral_abs_pow_three_gaussianReal_le` in
+  [`Gaussian/Moments.lean`](../../CslibFrontier/Foundations/Probability/Gaussian/Moments.lean)
+  and Lyapunov's inequality `MeasureTheory.sqrt_integral_sq_pow_three_le` in
+  [`CauchySchwarz.lean`](../../CslibFrontier/Foundations/MeasureTheory/Integral/CauchySchwarz.lean)).
+  The book leaves the constant inside `O(γ ^ (1 / 4))`.
 
 For independent random variables `X i : Ω → ℝ` on one space, `iIndepFun_iff_map_fun_eq_pi_map`
 identifies the law of `fun ω i => X i ω` with `Measure.pi fun i => P.map (X i)`; take
@@ -3486,18 +3499,17 @@ The checked [`InvarianceSums.lean` clients](../../CslibFrontierTests/InvarianceS
 under the laws `rademacher.map ((√m)⁻¹ * ·)` and `(gaussianReal 0 1).map ((√m)⁻¹ * ·)`. From
 Hypothesis 11.65 they get `E|c z|³ ≤ 3 |c|³` and `γ ≤ 6 / √m`. With `ψ = cos` the bound is
 `1 / √m`. For `m = 10¹²`, the clamp `u ↦ min 1 (max 0 u)` gives `3 / 20`, and the distribution
-function at `u = 0` is within `9 / 20` of `Φ(0) = 1 / 2`, below the trivial bounds `1` and
-`1 / 2`. They also apply both Corollary 11.61 inequalities at `u = 0`. For `m = 10¹²` they bound
+function of the signs at `u = 0` is within `3 / 10` of `Φ(0) = 1 / 2` by Corollary 11.62 from the
+signs alone, below the trivial bounds `1` and `1 / 2`. They also apply both Corollary 11.61 inequalities at `u = 0`. For `m = 10¹²` they bound
 the Lévy distance by `3 / 10`, and the explicit-shift form with `η = 1 / 10` gives the error
 `1 / 2`. They check the values and the derivative bound of `Real.stepSmoothing 3 0 1`, and the
 `δ = 0` case of `measureReal_le_le_add_of_forall_contDiff`, which uses right-continuity. Run
 `scripts/build.sh CslibFrontierTests.InvarianceSums` from the repository root to check them.
 
 The Berry–Esseen Theorem of §11.5, with error `O(∑ E|Xᵢ|³)`, is not covered: these results lose a
-power, as in the book. The Variant Berry–Esseen Theorem and the book's form of Corollary 11.62,
-where only `X` is given, are not covered either: constructing the Gaussian comparison family
-`Yᵢ ∼ N(E[Xᵢ], Var[Xᵢ])` from `X` alone, and the bound (11.28)
-`γ ≤ (1 + 2 √(2/π)) ∑ E|Xᵢ|³`, are left to the user. `ROADMAP.md` tracks them.
+power, as in the book. The Variant Berry–Esseen Theorem, comparing `E[ψ(S)]` with `E[ψ(Z)]` for
+`C³` tests with the book's constant `(1 + 2 √(2/π)) / 6`, is not covered either. `ROADMAP.md`
+tracks them.
 
 [odonnell14]: ../sources.md#odonnell14
 

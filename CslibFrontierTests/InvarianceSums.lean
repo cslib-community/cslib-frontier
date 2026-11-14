@@ -7,7 +7,6 @@ Authors: Vincent Liew
 module
 
 public import CslibFrontier.Foundations.BooleanAnalysis.InvarianceLevy
-public import CslibFrontier.Foundations.Probability.Gaussian.Multivariate
 public import CslibFrontier.Foundations.Probability.InvarianceSums
 public import CslibFrontier.Foundations.Probability.LevyDistance
 public import CslibFrontier.Foundations.Probability.Multilinear.InvarianceLevy
@@ -23,9 +22,10 @@ standard Gaussians, as sums of coordinates under the product of the laws of `x�
 with `ψ = cos` (bound `1 / √m`), Corollary 11.59 with the clamp `u ↦ min 1 (max 0 u)` (bound
 `3 / 20` for `m = 10¹²`, below the trivial bound `1`), both inequalities of Corollary 11.61 at
 `u = 0` and numerically for `m = 10¹²` (Lévy distance at most `3 / 10`, and the explicit-shift
-form with `η = 1 / 10`), and Corollary 11.62 at `u = 0` (bound `9 / 20` for `m = 10¹²`, below the
-trivial bound `1 / 2`). They also check values and the derivative bound of a smoothed step, and
-the `δ = 0` (right-continuity) case of the general Lévy step.
+form with `η = 1 / 10`), and Corollary 11.62 at `u = 0` from the signs alone (with
+`γ = ∑ E|xᵢ / √m|³ ≤ 3 / √m`, bound `3 / 10` for `m = 10¹²`, below the trivial bound `1 / 2`).
+They also check values and the derivative bound of a smoothed step, and the `δ = 0`
+(right-continuity) case of the general Lévy step.
 
 For Corollary 11.70 they take the normalized linear form `∑ xᵢ / √m` of degree `1`, with variance
 `1` and influences `1 / m`: signs and Gaussians have Lévy distance at most
@@ -197,26 +197,6 @@ example (m : ℕ) :
 
 /-! ### Corollary 11.62 at `u = 0` -/
 
-/-- `∑ gᵢ / √m` is a standard Gaussian for `m ≥ 1`. -/
-theorem hasLaw_sum_gaussLaw (m : ℕ) (hm : 0 < m) :
-    HasLaw (fun z : Fin m → ℝ => ∑ i, z i) (gaussianReal 0 1)
-      (Measure.pi fun _ : Fin m => gaussLaw m) := by
-  have hpi : Measure.pi (fun _ : Fin m => gaussLaw m) =
-      (gaussians m).map (fun z i => (√(m : ℝ))⁻¹ * z i) :=
-    (Measure.pi_map_pi fun _ => (measurable_const_mul _).aemeasurable).symm
-  have hnorm : ‖WithLp.toLp 2 (fun _ : Fin m => (√(m : ℝ))⁻¹)‖₊ ^ 2 = 1 := by
-    refine NNReal.eq ?_
-    rw [NNReal.coe_pow, coe_nnnorm, EuclideanSpace.norm_eq, Real.sq_sqrt (by positivity)]
-    simp only [Real.norm_eq_abs, sq_abs, inv_pow, Real.sq_sqrt (Nat.cast_nonneg m), sum_const,
-      card_univ, Fintype.card_fin, nsmul_eq_mul, NNReal.coe_one]
-    exact mul_inv_cancel₀ (by exact_mod_cast hm.ne')
-  refine ⟨by fun_prop, ?_⟩
-  rw [hpi, Measure.map_map (by fun_prop) (by fun_prop)]
-  convert (pi_gaussianReal_map_dotProduct (fun _ : Fin m => (√(m : ℝ))⁻¹)).trans
-    (by rw [hnorm]) using 2
-  funext z
-  simp [dotProduct]
-
 /-- `(10⁻⁵)^(1/4) ≤ 1 / 10`. -/
 theorem rpow_quarter_le : (1 / 10 ^ 5 : ℝ) ^ (1 / 4 : ℝ) ≤ 1 / 10 := by
   rw [show (1 / 4 : ℝ) = ((4 : ℕ) : ℝ)⁻¹ by norm_num]
@@ -224,21 +204,47 @@ theorem rpow_quarter_le : (1 / 10 ^ 5 : ℝ) ^ (1 / 4 : ℝ) ≤ 1 / 10 := by
     (by norm_num)).trans_eq ?_
   exact Real.pow_rpow_inv_natCast (by norm_num) (by norm_num)
 
-/-- Corollary 11.62 for `m = 10¹²` at `u = 0`: `Pr[∑ xᵢ / √m ≤ 0]` is within
-`9/2 · (10⁻⁵)^(1/4) ≤ 9 / 20` of `Φ(0)`, below the trivial bound `1 / 2` (as `Φ(0) = 1 / 2`).
-The true distance is about `1 / √(2π m)`, half the probability `≈ √(2 / (π m))` that
-`∑ xᵢ = 0`. -/
+/-- The second moments of the normalized signs sum to `1`. -/
+theorem sum_integral_sq_signLaw (m : ℕ) (hm : 0 < m) :
+    ∑ _i : Fin m, ∫ s, s ^ 2 ∂signLaw m = 1 := by
+  rw [integral_map_const_mul_sq hasInvarianceMoments_rademacher, sum_const, card_univ,
+    Fintype.card_fin, nsmul_eq_mul, inv_pow, Real.sq_sqrt (Nat.cast_nonneg m),
+    mul_inv_cancel₀ (by exact_mod_cast hm.ne')]
+
+/-- `γ = ∑ᵢ E|xᵢ / √m|³ ≤ 3 / √m`. -/
+theorem gammaX_le (m : ℕ) (hm : 0 < m) : ∑ _i : Fin m, ∫ s, |s| ^ 3 ∂signLaw m ≤ 3 / √m := by
+  have hs : 0 < √(m : ℝ) := Real.sqrt_pos.2 (by exact_mod_cast hm)
+  have hsq : √(m : ℝ) ^ 2 = m := Real.sq_sqrt (Nat.cast_nonneg m)
+  calc _ ≤ ∑ _i : Fin m, 3 * |(√(m : ℝ))⁻¹| ^ 3 := sum_le_sum fun i _ =>
+        integral_map_const_mul_abs_pow_three_le hasInvarianceMoments_rademacher _
+    _ = 3 / √m := by
+        rw [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul, abs_of_pos (inv_pos.2 hs)]
+        field_simp
+        exact hsq.symm
+
+/-- For `m = 10¹²`, `γ^(1/4) ≤ (3 · 10⁻⁶)^(1/4) ≤ 1 / 20`. -/
+theorem gammaX_rpow_le :
+    (∑ _i : Fin (10 ^ 12), ∫ s, |s| ^ 3 ∂signLaw (10 ^ 12)) ^ (1 / 4 : ℝ) ≤ 1 / 20 := by
+  have hγ : ∑ _i : Fin (10 ^ 12), ∫ s, |s| ^ 3 ∂signLaw (10 ^ 12) ≤ (1 / 20) ^ 4 := by
+    refine (gammaX_le _ (by norm_num)).trans ?_
+    rw [show ((10 ^ 12 : ℕ) : ℝ) = (10 ^ 6) ^ 2 by norm_num, Real.sqrt_sq (by norm_num)]
+    norm_num
+  rw [show (1 / 4 : ℝ) = ((4 : ℕ) : ℝ)⁻¹ by norm_num]
+  refine (Real.rpow_le_rpow (sum_nonneg fun _ _ => integral_nonneg fun _ => by positivity) hγ
+    (by norm_num)).trans_eq ?_
+  exact Real.pow_rpow_inv_natCast (by norm_num) (by norm_num)
+
+/-- Corollary 11.62 for `m = 10¹²` at `u = 0`, from the signs alone: `Pr[∑ xᵢ / √m ≤ 0]` is
+within `6 γ^(1/4) ≤ 6 / 20 = 3 / 10` of `Φ(0)`, where `γ = ∑ E|xᵢ / √m|³`, below the trivial
+bound `1 / 2` (as `Φ(0) = 1 / 2`). The true distance is about `1 / √(2π m)`, half the probability
+`≈ √(2 / (π m))` that `∑ xᵢ = 0`. -/
 example : |(Measure.pi fun _ : Fin (10 ^ 12) => signLaw (10 ^ 12)).real {z | ∑ i, z i ≤ 0} -
-    cdf (gaussianReal 0 1) 0| ≤ 9 / 20 := by
+    cdf (gaussianReal 0 1) 0| ≤ 3 / 10 := by
   have h := abs_measureReal_sum_le_sub_cdf_le (fun _ : Fin (10 ^ 12) => signLaw (10 ^ 12))
-    (fun _ => gaussLaw (10 ^ 12)) (fun _ => memLp_signLaw _) (fun _ => memLp_gaussLaw _)
-    (fun _ => integral_signLaw _) (fun _ => integral_sq_signLaw _)
-    (hasLaw_sum_gaussLaw (10 ^ 12) (by norm_num)) 0
-  refine h.trans ?_
-  calc 9 / 2 * _ ≤ 9 / 2 * (1 / 10 ^ 5 : ℝ) ^ (1 / 4 : ℝ) := by
-        exact mul_le_mul_of_nonneg_left
-          (Real.rpow_le_rpow (gamma_nonneg _) gamma_le_big (by norm_num)) (by norm_num)
-    _ ≤ 9 / 20 := by linarith [rpow_quarter_le]
+    (fun _ => memLp_signLaw _)
+    (fun _ => integral_map_const_mul_id hasInvarianceMoments_rademacher _)
+    (sum_integral_sq_signLaw _ (by norm_num)) 0
+  linarith [gammaX_rpow_le]
 
 /-! ### Numeric Lévy bounds at `m = 10¹²` -/
 
