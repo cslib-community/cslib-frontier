@@ -542,6 +542,53 @@ private def ddhLevelInputEncoding (F : PrimeOrderGroupFamily) : DDHLevelInput F 
 private def ddhCallerEncoding (F : PrimeOrderGroupFamily) : DDHCaller F ↪ List Bool :=
   encPair (ddhLevelInputEncoding F) (encList encNat)
 
+/-- Certify the reduction allowance separately from its supported-cache growth argument. -/
+private theorem computableInPolyTime_naorReingoldResources {α : Type}
+    (encCaller : α ↪ List Bool) (cO eO cR eR cS eS : ℕ)
+    (polyB : ℕ → ℕ) (polyRes : ℕ × ℕ → ℕ)
+    (hpolyB_def : polyB = fun L =>
+      cR * (16 * L + 16 * (cO * (L + 1) ^ eO) + 16) ^ eR)
+    (hpolyRes_def : ∀ L Q, polyRes (L, Q) =
+      (4 * Q + 2 * polyB L + 3) + cS * (8 * L + 8 * polyB L + 8 * Q + 16) ^ eS) :
+    ComputableInPolyTime
+      (fun pair : α × List Bool => polyRes ((encCaller pair.1).length, pair.2.length))
+      (encPair encCaller encBits) encUnary := by
+  have hL : ComputableInPolyTime
+      (fun pair : α × List Bool => (encCaller pair.1).length)
+      (encPair encCaller encBits) encUnary :=
+    (ComputableInPolyTime.encoding_length encCaller).comp
+      (ComputableInPolyTime.fst encCaller encBits)
+  have hQ : ComputableInPolyTime
+      (fun pair : α × List Bool => pair.2.length)
+      (encPair encCaller encBits) encUnary := by fun_prop
+  have hpolyB : ComputableInPolyTime polyB encUnary encUnary := by
+    rw [hpolyB_def]
+    have hpO : ComputableInPolyTime (fun L : ℕ => (L + 1) ^ eO) encUnary encUnary :=
+      (ComputableInPolyTime.unary_pow eO).comp (by fun_prop)
+    have hbaseR : ComputableInPolyTime
+        (fun L : ℕ => 16 * L + 16 * (cO * (L + 1) ^ eO) + 16) encUnary encUnary := by
+      fun_prop
+    have hpR : ComputableInPolyTime
+        (fun L : ℕ => (16 * L + 16 * (cO * (L + 1) ^ eO) + 16) ^ eR) encUnary encUnary :=
+      (ComputableInPolyTime.unary_pow eR).comp hbaseR
+    fun_prop
+  have hpolyRes : ComputableInPolyTime polyRes (encPair encUnary encUnary) encUnary := by
+    change ComputableInPolyTime (fun lq : ℕ × ℕ => polyRes (lq.1, lq.2))
+      (encPair encUnary encUnary) encUnary
+    simp only [hpolyRes_def]
+    have hB : ComputableInPolyTime (fun lq : ℕ × ℕ => polyB lq.1)
+        (encPair encUnary encUnary) encUnary :=
+      hpolyB.comp (ComputableInPolyTime.fst encUnary encUnary)
+    have hbaseS : ComputableInPolyTime
+        (fun lq : ℕ × ℕ => 8 * lq.1 + 8 * polyB lq.1 + 8 * lq.2 + 16)
+        (encPair encUnary encUnary) encUnary := by fun_prop
+    have hpS : ComputableInPolyTime
+        (fun lq : ℕ × ℕ => (8 * lq.1 + 8 * polyB lq.1 + 8 * lq.2 + 16) ^ eS)
+        (encPair encUnary encUnary) encUnary :=
+      (ComputableInPolyTime.unary_pow eS).comp hbaseS
+    fun_prop
+  exact hpolyRes.comp' (hL.prod hQ)
+
 /-- **`naorReingoldDescToDDHDistinguisher` is uniform strict PPT** whenever `inLen` is computable
 in polynomial time in unary and `adv` is oracle PPT on the security parameter and group
 parameters. -/
@@ -614,42 +661,9 @@ theorem isPPT_naorReingoldDescToDDHDistinguisher
     polyRes ((ddhCallerEncoding F caller).length, query.length)
   have hresources : ComputableInPolyTime
       (fun pair : DDHCaller F × List Bool => resources pair.1 pair.2)
-      (encPair (ddhCallerEncoding F) encBits) encUnary := by
-    have hL : ComputableInPolyTime
-        (fun pair : DDHCaller F × List Bool => (ddhCallerEncoding F pair.1).length)
-        (encPair (ddhCallerEncoding F) encBits) encUnary :=
-      (ComputableInPolyTime.encoding_length (ddhCallerEncoding F)).comp
-        (ComputableInPolyTime.fst (ddhCallerEncoding F) encBits)
-    have hQ : ComputableInPolyTime
-        (fun pair : DDHCaller F × List Bool => pair.2.length)
-        (encPair (ddhCallerEncoding F) encBits) encUnary := by fun_prop
-    have hpolyB : ComputableInPolyTime polyB encUnary encUnary := by
-      rw [hpolyB_def]
-      have hpO : ComputableInPolyTime (fun L : ℕ => (L + 1) ^ eO) encUnary encUnary :=
-        (ComputableInPolyTime.unary_pow eO).comp (by fun_prop)
-      have hbaseR : ComputableInPolyTime
-          (fun L : ℕ => 16 * L + 16 * (cO * (L + 1) ^ eO) + 16) encUnary encUnary := by
-        fun_prop
-      have hpR : ComputableInPolyTime
-          (fun L : ℕ => (16 * L + 16 * (cO * (L + 1) ^ eO) + 16) ^ eR) encUnary encUnary :=
-        (ComputableInPolyTime.unary_pow eR).comp hbaseR
-      fun_prop
-    have hpolyRes : ComputableInPolyTime polyRes (encPair encUnary encUnary) encUnary := by
-      change ComputableInPolyTime (fun lq : ℕ × ℕ => polyRes (lq.1, lq.2))
-        (encPair encUnary encUnary) encUnary
-      simp only [hpolyRes_def]
-      have hB : ComputableInPolyTime (fun lq : ℕ × ℕ => polyB lq.1)
-          (encPair encUnary encUnary) encUnary :=
-        hpolyB.comp (ComputableInPolyTime.fst encUnary encUnary)
-      have hbaseS : ComputableInPolyTime
-          (fun lq : ℕ × ℕ => 8 * lq.1 + 8 * polyB lq.1 + 8 * lq.2 + 16)
-          (encPair encUnary encUnary) encUnary := by fun_prop
-      have hpS : ComputableInPolyTime
-          (fun lq : ℕ × ℕ => (8 * lq.1 + 8 * polyB lq.1 + 8 * lq.2 + 16) ^ eS)
-          (encPair encUnary encUnary) encUnary :=
-        (ComputableInPolyTime.unary_pow eS).comp hbaseS
-      fun_prop
-    exact hpolyRes.comp' (hL.prod hQ)
+      (encPair (ddhCallerEncoding F) encBits) encUnary :=
+    computableInPolyTime_naorReingoldResources (ddhCallerEncoding F)
+      cO eO cR eR cS eS polyB polyRes hpolyB_def hpolyRes_def
   have hprepare : ComputableInPolyTime
       (fun caller : DDHCaller F => (caller.1.1.secParam, caller.1.1.groupParameters))
       (ddhCallerEncoding F) (encPair encUnary F.encDesc) := by
