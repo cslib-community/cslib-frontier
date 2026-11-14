@@ -64,7 +64,8 @@ theorem length_signingAttemptCounters : signingAttemptCounters.length = 254 := b
 theorem getElem_signingAttemptCounters (i : ℕ) (hi : i < signingAttemptCounters.length) :
     signingAttemptCounters[i].val = i + 1 := by
   simp only [signingAttemptCounters, List.length_map, List.length_finRange] at hi
-  simp only [signingAttemptCounters, List.getElem_map, List.getElem_finRange, Fin.val_mk]
+  simp only [signingAttemptCounters, List.getElem_map, List.getElem_finRange, Fin.val_cast,
+    Fin.val_mk]
 
 /-- A byte occurs in SNOVA's signing-attempt schedule exactly when it is between `1` and `254`.
 This excludes both the initial counter `0` and the failure sentinel `255`. -/
@@ -74,13 +75,12 @@ theorem mem_signingAttemptCounters_iff (counter : Fin 256) :
   simp only [signingAttemptCounters, List.mem_map, List.mem_finRange, true_and]
   constructor
   · rintro ⟨i, rfl⟩
-    simp only [Fin.val_mk]
     omega
   · rintro ⟨hpos, hlt⟩
     let i : Fin 254 := ⟨counter.val - 1, by omega⟩
     refine ⟨i, ?_⟩
     apply Fin.ext
-    simp only [i, Fin.val_mk]
+    simp only [i]
     omega
 
 /-- SNOVA's attempted counter bytes occur in strictly increasing order. -/
