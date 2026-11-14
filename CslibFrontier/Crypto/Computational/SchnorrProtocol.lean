@@ -11,6 +11,7 @@ public import CslibFrontier.Crypto.Computational.DiffieHellman
 public import CslibFrontier.Crypto.Computational.SchnorrIdentification
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Computational
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Linear
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
@@ -206,7 +207,7 @@ theorem computableInPolyTime_schnorrExtractWord :
     (hword (k := fun p => p.2.2.2.2.1) (by fun_prop))
     (hword (k := fun p => p.2.2.2.2.2.1) (by fun_prop))
     (hword (k := fun p => p.2.2.2.2.2.2) (by fun_prop))
-  exact (ComputableInPolyTime.natBits.comp hext)
+  exact hext.encoding_comp
 
 /-- `schnorrExtractWord` computes Schnorr's extractor `schnorrExtract` on encodings. -/
 theorem extractorRealizedBy_schnorrExtractWord :
@@ -349,7 +350,7 @@ theorem isPPTOn_schnorrSimulateWord :
   have hz : ComputableInPolyTime
       (fun p : ((ℕ × F.Desc) × List Bool × List Bool) × ℕ =>
         (p.2 % F.order p.1.1.2).bits) encMid encBits :=
-    (ComputableInPolyTime.natBits.comp (.binary_mod' hs hq))
+    (ComputableInPolyTime.binary_mod' hs hq).encoding_comp
   exact (ht.prod hz).isPPTOn
 
 /-- `schnorrSimulator` is uniform strict PPT, certified by `schnorrSimulateWord`. -/
@@ -486,7 +487,7 @@ theorem isPPTOn_schnorrSigKeyGen :
   have hpk := F.computableInPolyTime_smul.comp (hd'.prod (hsk.prod hg))
   have hsk_bits : ComputableInPolyTime
       (fun p : (ℕ × F.Desc) × ℕ => (p.2 % F.order p.1.2).bits) encMid encBits :=
-    (ComputableInPolyTime.natBits.comp (.binary_mod' hsk hq))
+    (ComputableInPolyTime.binary_mod' hsk hq).encoding_comp
   exact (hpk.prod hsk_bits).isPPTOn
 
 /-- Bit-level Schnorr commitment: given `(d, r)` where `r` is the binary-encoded commitment
@@ -557,8 +558,8 @@ theorem computableInPolyTime_schnorrRespondBits :
   have hsk_nat := ComputableInPolyTime.bitsToNat.comp hsk
   have hr_nat := ComputableInPolyTime.bitsToNat.comp hr
   have hro_nat := ComputableInPolyTime.bitsToNat.comp hro
-  exact (ComputableInPolyTime.natBits.comp
-    (.binary_mod' (.binary_add' hr_nat (.binary_mul' hro_nat hsk_nat)) hq))
+  exact (ComputableInPolyTime.binary_mod'
+    (.binary_add' hr_nat (.binary_mul' hro_nat hsk_nat)) hq).encoding_comp
 
 /-- `schnorrRespondBits` lifted to `ProbComp` is uniform strict PPT. -/
 theorem isPPTOn_schnorrRespondBits :
