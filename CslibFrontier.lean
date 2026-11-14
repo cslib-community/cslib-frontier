@@ -2636,6 +2636,7 @@ public import CslibFrontier.Computability.Complexity.Problems.OneInThreeSAT.Redu
 public import CslibFrontier.Computability.Complexity.Problems.OneInThreeSAT.Signed
 public import CslibFrontier.Computability.Complexity.Problems.Partition
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.Basic
+public import CslibFrontier.Computability.Complexity.Problems.Permanent.Lipton
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.Matching
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.Membership
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.ThreeSAT
@@ -5880,6 +5881,7 @@ public import CslibFrontier.Foundations.Data.Matrix.PairChunks
 public import CslibFrontier.Foundations.Data.Matrix.Permanent
 public import CslibFrontier.Foundations.Data.Matrix.Permanent.Blocks
 public import CslibFrontier.Foundations.Data.Matrix.Permanent.BooleanSum
+public import CslibFrontier.Foundations.Data.Matrix.Permanent.Line
 public import CslibFrontier.Foundations.Data.Matrix.Permanent.Relay
 public import CslibFrontier.Foundations.Data.Matrix.Permanent.Split
 public import CslibFrontier.Foundations.Data.Matrix.Permanent.ZeroOne
@@ -6415,6 +6417,8 @@ public import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.RunWith
 public import CslibFrontier.Languages.Probabilistic.Oracle.Support
 public import CslibFrontier.Languages.Probabilistic.Oracle.Tabulate
 public import CslibFrontier.Languages.Probabilistic.Oracle.Transcript
+public import CslibFrontier.Languages.Probabilistic.Oracle.Vector
+public import CslibFrontier.Languages.Probabilistic.Plurality
 public import CslibFrontier.Languages.Probabilistic.Presample
 public import CslibFrontier.Languages.Probabilistic.QueriesWith
 public import CslibFrontier.Languages.Probabilistic.QueryCount
@@ -7291,6 +7295,7 @@ public import CslibFrontier.Probability.StochasticDomination.Stopping
 public import CslibFrontier.Probability.SubGaussian
 public import CslibFrontier.Probability.TupleSampler
 public import CslibFrontier.Probability.Uniform
+public import CslibFrontier.Probability.Uniform.AffineLine
 public import CslibFrontier.Probability.Uniform.Translate
 public import CslibFrontier.Probability.UniformEmbedding
 public import CslibFrontier.Probability.UniformNat
