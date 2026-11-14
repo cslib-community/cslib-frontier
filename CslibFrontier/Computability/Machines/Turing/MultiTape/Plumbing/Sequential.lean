@@ -62,7 +62,7 @@ theorem runFrom_relabel {State' : Type*} (tm : MultiTapeTM k Symbol State₀)
   | none => rw [step_of_halt hq, step_of_halt (by simp [hq])]
   | some q =>
     rw [step_of_state hq, step_of_state (q := e q) (by simp [hq])]
-    simp [relabel, Cfg.mapState, Action.apply]
+    simp [relabel, Cfg.mapState, Action.apply, Cfg.inputSymbol, Cfg.workTapeSymbols]
 
 /-- Renaming states preserves the time and visited-cell bounds independently. -/
 theorem TransformsTapes.relabel {State' : Type*}
