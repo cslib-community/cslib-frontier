@@ -40,9 +40,9 @@ open Circuits Circuits.Boolean GateCode Turing.MultiTapeTM
 
 /-- A typed circuit sampler retains every input and gate value, one fixed-zero qubit, and one
 fresh qubit for every output. -/
-theorem samplerWidth_circuit {n m : ℕ} (C : Circuit signature n m) :
+theorem samplerWidth_circuit {n m : ℕ} (C : Circuits.Circuit signature n m) :
     samplerWidth n C.code = n + C.size + 1 + m := by
-  simp [samplerWidth, samplerOutputStart, samplerZero, Circuit.code]
+  simp [samplerWidth, samplerOutputStart, samplerZero]
 
 /-- The complete sampler uses at most one Hadamard per seed, three reversible gates per Boolean
 gate, and one CNOT per copied output. -/
@@ -67,7 +67,15 @@ theorem within_samplerCodes (n : ℕ) (code : List (Op × List ℕ) × List ℕ)
     OracleCircuit.Within ((samplerCodes n code).map fun g => OracleGateCode.gate (false, g))
       (samplerWidth n code)
       ⟨samplerWidth n code, n + 3 * code.1.length + code.2.length, 0⟩ := by
-  simp [OracleCircuit.Within, OracleCircuit.gateCount, OracleCircuit.queryCount,
-    OracleGateCode.isQuery, List.countP_map, Function.comp_def, length_samplerCodes_le]
+  have hcounts :
+      OracleCircuit.gateCount
+          ((samplerCodes n code).map fun g => OracleGateCode.gate (false, g)) =
+          (samplerCodes n code).length ∧
+        OracleCircuit.queryCount
+          ((samplerCodes n code).map fun g => OracleGateCode.gate (false, g)) = 0 := by
+    simp [OracleCircuit.gateCount, OracleCircuit.queryCount, OracleGateCode.isQuery,
+      List.countP_map, Function.comp_def]
+  rw [OracleCircuit.Within, hcounts.1, hcounts.2]
+  exact ⟨le_rfl, length_samplerCodes_le n code, le_rfl⟩
 
 end Cslib.Quantum.Reversible
