@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.Nor
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.KernelComp
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.ConditionalMachine
 
+public import Mathlib.Tactic.FunProp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
@@ -75,6 +76,8 @@ theorem ComputableInBigO.comp {f : β → γ} {g : α → β} {T₁ S₁ : α �
 end Turing.MultiTapeTM
 
 namespace Turing.MultiTapeTM.ComputableInO
+
+attribute [fun_prop] ComputableInO
 
 variable {α β γ : Type*} {encIn : α ↪ List Bool} {encMid : β ↪ List Bool}
   {encOut : γ ↪ List Bool}
