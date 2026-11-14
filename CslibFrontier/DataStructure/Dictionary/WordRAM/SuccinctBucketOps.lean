@@ -536,8 +536,8 @@ theorem insertBodyProg_bucket_spec {U V w₀ n_max h_space w base b q_target v_n
     have hs' : s' = (Memory.spec 0).clientState s₁
         (prependIfIndexedProg U V w₀ n_max h_space (((base, b), m), j_new)) := by
       change (Memory.spec 0).clientState s (insertBodyProg U V w₀ n_max h_space d) = _
-      simp only [insertBodyProg, insertNewProg, insertBodyGenProg, searchBucketGenProg_mk,
-        writeValGenProg_mk, insertNewGenProg_mk, insertNewGenProg, readTotalSlotsGenProg_mk,
+      simp only [insertBodyProg, insertBodyGenProg, searchBucketGenProg_mk,
+        writeValGenProg_mk, insertNewGenProg, readTotalSlotsGenProg_mk,
         p_nMax_mk, readBucketCountGenProg_mk, pushBackSlotGenProg_mk, prependIfIndexedGenProg_mk]
       simp only [pure_bind, d]
       rw [StateTransitionSpec.clientState_bind, hsb.1, ite_eq_right hne1,
@@ -568,8 +568,8 @@ theorem insertBodyProg_bucket_spec {U V w₀ n_max h_space w base b q_target v_n
         memoryCost (searchBucketProg U V w₀ n_max h_space (((base, b), q_target), m)) s +
         26 +
         memoryCost (pushBackSlotProg U V w₀ n_max h_space (((base, b), q_target), v_new)) s := by
-      simp only [insertBodyProg, insertNewProg, insertBodyGenProg, searchBucketGenProg_mk,
-        writeValGenProg_mk, insertNewGenProg_mk, insertNewGenProg, readTotalSlotsGenProg_mk,
+      simp only [insertBodyProg, insertBodyGenProg, searchBucketGenProg_mk,
+        writeValGenProg_mk, insertNewGenProg, readTotalSlotsGenProg_mk,
         p_nMax_mk, readBucketCountGenProg_mk, pushBackSlotGenProg_mk, prependIfIndexedGenProg_mk]
       simp only [pure_bind, ← PFunctor.FreeM.bind_eq_bind, d]
       rw [memoryCost_bind, hsb.1, ite_eq_right hne1, memoryCost_bind,

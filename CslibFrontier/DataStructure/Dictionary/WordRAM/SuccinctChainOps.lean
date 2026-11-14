@@ -739,8 +739,8 @@ theorem copyLastPayloadProg_effect {U V w n_max h_space base b phys_del : ℕ}
   have hs' : s' = (Memory.spec 0).clientState s₁
       (writeValProg U V w n_max h_space ((base, phys_del), v_last)) := by
     dsimp only [s', s₁, q_last, v_last, phys_last, gm]
-    simp only [copyLastPayloadProg, copyLastPayloadGenProg, lastSlotOfGenProg_mk, readQuotGenProg_mk,
-      readValGenProg_mk, writeQuotGenProg_mk, writeValGenProg_mk]
+    simp only [copyLastPayloadProg, copyLastPayloadGenProg, lastSlotOfGenProg_mk,
+      readQuotGenProg_mk, readValGenProg_mk, writeQuotGenProg_mk, writeValGenProg_mk]
     rw [StateTransitionSpec.clientState_bind, clientState_lastSlotOfProg,
       clientResult_lastSlotOfProg (base, b) s hinv hb hbc,
       StateTransitionSpec.clientState_bind, clientState_readQuotProg,

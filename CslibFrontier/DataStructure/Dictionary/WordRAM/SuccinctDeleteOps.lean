@@ -226,8 +226,8 @@ theorem deleteSwapGenProg_mk (U V w n_max h_space : ℕ)
 theorem memoryCost_deleteSwapProg_le (U V w n_max h_space : ℕ)
     (d : (((ℕ × ℕ) × ℕ) × ℕ) × (ℕ × ℕ)) (s : Memory.State) :
     memoryCost (deleteSwapProg U V w n_max h_space d) s ≤ 50 := by
-  simp only [deleteSwapProg, deleteSwapGenProg, unlinkIfIndexedGenProg_mk, copyLastPayloadGenProg_mk,
-    prependIfIndexedGenProg_mk]
+  simp only [deleteSwapProg, deleteSwapGenProg, unlinkIfIndexedGenProg_mk,
+    copyLastPayloadGenProg_mk, prependIfIndexedGenProg_mk]
   simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind]
   have h1 := memoryCost_unlinkIfIndexedProg_le U V w n_max h_space ((d.1.1.1, d.2.1), d.2.2) s
   let s₁ := (Memory.spec 0).clientState s
@@ -592,6 +592,13 @@ theorem realizes_deleteFinishGen :
     deleteFoundGenPre_mk, DeleteFoundPre, deleteFoundGenProg_mk]
   · exact fits_const_of_dictEnv h.1 (by decide)
   · exact h.2 hc
+
+section
+
+-- All parameter projections in this proof are transported by the existing specialization
+-- lemmas. Keep the packed parameter constructor opaque to definitional equality: comparing
+-- intermediate client states must not expand its 36-way layout-parameter match.
+attribute [local irreducible] mkDictParams
 
 /-- Pure state effect, `BucketStateInv` preservation, and amortized `memoryCost` bound of
 `deleteFinishProg` following `deletePrepProg` under `BucketStateInv`. -/
@@ -1105,5 +1112,7 @@ theorem deleteFinishProg_bucket_spec {U V w₀ n_max h_space w base b q_target m
       ⟨L, by rw [hs'_eq, hB'_eq]; exact hinv⟩,
       by rw [hgm'_eq, ite_eq_right hnot_some],
       by rw [hcost0, hgm'_eq]; omega⟩
+
+end
 
 end Cslib.DataStructure.Dictionary.WordRAM.Succinct
