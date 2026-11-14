@@ -808,7 +808,7 @@ private theorem run_prefetchHandler_eq_simHandler
     program initial hinitial
   have hpout := congrArg (PMF.map Prod.fst) hp
   have hsout := congrArg (PMF.map Prod.fst) hs
-  simp only [PMF.map_comp, Function.comp_def, Prod.fst_map] at hpout hsout
+  simp only [PMF.map_comp, Function.comp_def] at hpout hsout
   calc
     _ = ((OracleComp.interpret lazyOracle prefetchBase).run (fun _ => none)).map Prod.fst := by
       rw [hpout, ← OracleComp.interpret_interpret, hempty]
