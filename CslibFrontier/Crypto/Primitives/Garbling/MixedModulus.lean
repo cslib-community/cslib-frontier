@@ -43,7 +43,7 @@ distinct `g` values and `a ≠ 0`". A simulation proof for a projection gate fro
 legality condition: along every run, no query uses `a = 0`, and two queries that agree on the
 tweak, the source sort, `X` and `a` are equal (`CCRAdversary.IsLegal`). Every adversary legal for
 Definition 1 is legal here, so `MixedModulusCCR` is a *stronger* assumption than Definition 1 as
-literally stated, and novel to this library. When some modulus is not prime, it fails for every
+literally stated, and novel to this library. When some modulus is composite, it fails for every
 hash once its bound is small enough and its class contains a two-query adversary described at
 `MixedModulusCCR`. A run answers every call, private coin or oracle query, independently with an
 arbitrary reply (`IsRun`).
@@ -350,7 +350,7 @@ prime, `s` is a unit, `s • δ_i` is uniform and this is `1 / μ i ^ ℓ i`. Su
 queries, and of a query and a hash evaluation, bounds the advantage. This heuristic is not
 formalized.
 
-*Composite moduli.* If `μ i` is not prime, the bound `1 / p ^ ℓ i` is attained for every `H`, up to
+*Composite moduli.* If `μ i` is composite, the bound `1 / p ^ ℓ i` is attained for every `H`, up to
 the probability that the ideal oracle repeats a label. Let `r = μ i / p`, so that `r • δ_i = 0`
 with probability `1 / p ^ ℓ i`. Fix a tweak `g`, a target sort `j`, a key `k` and a colour `c`.
 The queries with labels `(k, c)` and `(k, c - r)`, multipliers `a = 1` and `a' = 1 + r`, and
