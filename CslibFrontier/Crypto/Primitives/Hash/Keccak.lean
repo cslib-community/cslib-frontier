@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Primitives.Hash.Sponge
 public import CslibFrontier.Foundations.Data.BitString.Binary
 public import Mathlib.Algebra.Order.Floor.Div
+import CslibFrontier.Foundations.Data.List.Counting
 
 /-!
 # Keccak-p[1600, 24] and SHAKE256
@@ -317,23 +318,12 @@ byte stream. -/
     Sponge.length_squeeze _ _ _ _
   rw [squeezeBytes, hflat, hcount]
 
-private theorem take_flatMap_rateBytes (states : List (BitString 1088)) (count : ℕ) :
-    (states.flatMap rateBytes).take (136 * count) = (states.take count).flatMap rateBytes := by
-  induction states generalizing count with
-  | nil => simp
-  | cons state states ih =>
-    cases count with
-    | zero => rfl
-    | succ count =>
-      simp only [List.flatMap_cons, List.take_succ_cons]
-      rw [Nat.mul_succ,
-        show 136 * count + 136 = (rateBytes state).length + 136 * count by simp [Nat.add_comm],
-        List.take_length_add_append, ih]
-
 /-- Requesting more SHAKE256 squeezing blocks preserves every byte of the earlier blocks. -/
 theorem take_squeezeBytes (blocks : List (BitString 1088)) {m n : ℕ} (h : m ≤ n) :
     (squeezeBytes blocks n).take (136 * m) = squeezeBytes blocks m := by
-  rw [squeezeBytes, take_flatMap_rateBytes, Sponge.take_hashBlocks _ _ h, squeezeBytes]
+  rw [squeezeBytes,
+    List.take_flatMap_of_forall_length_eq m (fun state => length_rateBytes state),
+    Sponge.take_hashBlocks _ _ h, squeezeBytes]
 
 /-- Byte-aligned SHAKE256 from FIPS 202 Section 6.2.
 

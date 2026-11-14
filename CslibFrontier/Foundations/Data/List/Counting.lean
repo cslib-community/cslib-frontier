@@ -19,6 +19,8 @@ import Mathlib.Data.List.Nodup
 * `List.length_flatMap_le`: blocks of bounded length have bounded total length.
 * `List.length_flatMap_of_forall_length_eq`: blocks of a common length `k` have total length
   `|l| k`.
+* `List.take_flatMap_of_forall_length_eq`: taking a whole number of common-length blocks commutes
+  with flattening them.
 * `List.decide_mem_eq_any`: membership as a scan of the list.
 * `List.not_any_one_lt_countP_iff_nodup`: duplicate-freeness as a scan of the list.
 * `List.countP_and_not_add_countP_and`: members satisfying one predicate split by whether
@@ -27,7 +29,7 @@ import Mathlib.Data.List.Nodup
   predicate with `countP` equal to `1` holds at a unique list index and at a unique member.
 -/
 
-@[expose] public section
+public section
 
 /-- Blocks of at most `k` elements each, one for each element of `l`, have at most `|l| k`
 elements in total. -/
@@ -50,6 +52,22 @@ theorem List.length_flatMap_of_forall_length_eq {α β : Type*} {l : List α} {f
   | cons a l ih =>
     rw [List.flatMap_cons, List.length_append, List.length_cons, Nat.succ_mul,
       h a List.mem_cons_self, ih fun b hb => h b (List.mem_cons_of_mem _ hb), Nat.add_comm]
+
+/-- If every block has length `k`, taking `n` complete blocks from their concatenation is the
+concatenation of the first `n` blocks. -/
+theorem List.take_flatMap_of_forall_length_eq {α β : Type*} {l : List α} {f : α → List β}
+    {k : ℕ} (n : ℕ) (h : ∀ a, (f a).length = k) :
+    (l.flatMap f).take (k * n) = (l.take n).flatMap f := by
+  induction l generalizing n with
+  | nil => simp
+  | cons a l ih =>
+      cases n with
+      | zero => rfl
+      | succ n =>
+          simp only [List.flatMap_cons, List.take_succ_cons]
+          rw [Nat.mul_succ,
+            show k * n + k = (f a).length + k * n by rw [h a, Nat.add_comm],
+            List.take_length_add_append, ih]
 
 /-- Membership in a list as a scan of the list, the form in which polynomial-time membership tests
 are certified. -/

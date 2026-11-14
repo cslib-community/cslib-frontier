@@ -1148,13 +1148,61 @@ with the source's assignment order: at width 25 the cipher tag overwrites tweak 
 low bits, preserved middle bits, both high layouts, distinct tweaks and tags, and injectivity at
 the 128-bit NIST width.
 
-Algorithm 6's counter-mode PRG and `ExpandSeed` are the first source consumers, but are not
-implemented here. This function-level layout also has no native machine or resource certificate:
-later work must account for materializing the full salt, the 24-bit conversion and tag updates,
-the number of calls made by PRG/tree expansion, and the resulting time, output-size, program-size,
-and reduction-resource translations. It proves neither an asymptotic machine-certified
-scheme-family reduction/negligibility endpoint nor finite instantiated candidate/parameter-set
-advantage bounds with exact constants, soundness/failure/query terms, and assumption parameters.
+Algorithm 6's counter-mode PRG and `ExpandSeed` are the first source consumers. This
+function-level layout has no native machine or resource certificate: later work must account for
+materializing the full salt, the 24-bit conversion and tag updates, the number of calls made by
+PRG/tree expansion, and the resulting time, output-size, program-size, and reduction-resource
+translations. It proves neither an asymptotic machine-certified scheme-family
+reduction/negligibility endpoint nor finite instantiated candidate/parameter-set advantage bounds
+with exact constants, soundness/failure/query terms, and assumption parameters.
+
+### SDitH counter-mode byte generation
+
+Import [`PRG.lean`](../../CslibFrontier/Crypto/Primitives/SDitH/PRG.lean) for the deterministic
+functional core of SDitH v3.0 Algorithm 6 (p. 17). `prgInitialBlock` produces either the all-zero
+plaintext or `TweakSalt(salt, 2^16 * twk, 0)`. `prgCounterBlock` XORs that plaintext with the
+`securityBits`-bit little-endian counter, reduced modulo `2^securityBits`; it deliberately does
+not reuse the modular-addition schedule of generic CTR mode. `prgBlocks` applies the supplied
+cipher and explicit parser to each counter block, and `prg` concatenates the results and takes the
+requested byte prefix. The length and prefix theorems show exact block and byte counts, exact
+output length for a positive parsed block width, prefix consistency, and a discarded suffix
+shorter than one block.
+
+The parser is explicit because the specification is internally inconsistent: Algorithm 6 line 1
+names an undefined `nblock-bitsize`, while line 5 says each block has `lambda / 8` bytes. These
+cannot both describe Category III, where Section 3.2.1 gives the cipher a 256-bit output for a
+192-bit seed. The pinned reference implementation uses 16-byte AES blocks in Category I and the
+full 32-byte Rijndael-256 output in Categories III and V. The API therefore keeps
+`cipherBits` and `blockBytes` independent, and the
+[ordinary-module client](../../CslibFrontierTests/Crypto/SDitH/PRG.lean) checks a toy salted and
+unsalted stream, final-block truncation, zero output, prefix consistency, and those structural
+16/32-byte choices without claiming to implement either cipher.
+
+For `B = ceil(outputBytes / blockBytes)`, the function exposes exactly `B` cipher calls, parser
+calls and counter blocks, materializes `B * blockBytes` bytes, and returns exactly `outputBytes`.
+A streaming realization would take
+`B * (T_enc + T_parse + T_counter) + O(B * blockBytes)` online time and one counter/block of
+workspace in addition to the output. This module supplies no native/uniform certificate: a later
+instantiation must count cipher tables and key-schedule data. The generic loop's static control is
+independent of `B` and `outputBytes`, apart from encoded parameters and the supplied cipher/parser
+descriptions; an unrolled realization instead grows by
+`O(B * (desc(enc) + desc(parse) + desc(counter)))`. A later reduction must retain the static sizes
+of the adversary, reducer, generated program, handlers, codecs and tables as well as online time,
+with offline compiler/interpreter/controller construction counted separately. There is no oracle
+handler or table at this functional layer.
+
+For an asymptotic parameter schedule, polynomially bounded `B(k)` and uniform polynomial-time
+certificates for the cipher, parser and loop would make this generator polynomial time. That
+conditional resource observation is not a pseudorandomness theorem: it needs a concrete cipher
+family and assumption before it can support one.
+
+Algorithm 6 is deterministic and has no abort probability. `SampleIntegers` rejection sampling,
+the XOF-based Fiat--Shamir challenges, evaluation-challenge grinding, and the protocol's
+`Delta = bottom` rejection remain separate. The module proves no AES/Rijndael correctness or
+pseudorandomness, seed-tree/commitment/protocol theorem, native or asymptotic machine witness,
+soundness, zero knowledge, EUF-CMA, ROM or QROM claim. SDitH v3.0 Section 5.3 defers its formal
+ROM/ideal-cipher proof to a future version; the older Hypercube-SDitH QROM theorem is not a result
+about the current v3 VOLE-in-the-Head protocol.
 
 ## Encryption and chosen-message attacks
 
