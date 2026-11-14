@@ -1705,6 +1705,7 @@ public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Controller.Reso
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Density
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Interaction
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.InteractionResources
+public import CslibFrontier.Computability.Circuit.Quantum.Oracle.RandomOracle
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Resources
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Signature
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Uniform
@@ -3463,6 +3464,8 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Ba
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.BitString
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Bool
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Capabilities
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.ComponentBounds
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.ComponentBounds.Init
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Configuration
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.DPi
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder
@@ -3562,6 +3565,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.Nor
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OCombinators
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OCountedIteration
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OLoops
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OOptionPrimitives
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OPrimitives
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OnWords
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OneWorkTape
@@ -4396,6 +4400,7 @@ public import CslibFrontier.Crypto.Computational.Encryption.Scheme
 public import CslibFrontier.Crypto.Computational.Encryption.SymmetricCPA
 public import CslibFrontier.Crypto.Computational.EvenMansour
 public import CslibFrontier.Crypto.Computational.Factoring.PollardRho
+public import CslibFrontier.Crypto.Computational.Falcon.BerExp
 public import CslibFrontier.Crypto.Computational.Falcon.Verification
 public import CslibFrontier.Crypto.Computational.Falcon.VerificationFrontend
 public import CslibFrontier.Crypto.Computational.FuzzyExtractor.Basic
@@ -5406,6 +5411,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.LowDegree.OrTest
 public import CslibFrontier.Foundations.BooleanAnalysis.LowDegree.Polynomial
 public import CslibFrontier.Foundations.BooleanAnalysis.LowDegreeMoments
 public import CslibFrontier.Foundations.BooleanAnalysis.LowDegreeParity
+public import CslibFrontier.Foundations.BooleanAnalysis.LowDegreePhase
 public import CslibFrontier.Foundations.BooleanAnalysis.MaximalSupport
 public import CslibFrontier.Foundations.BooleanAnalysis.MirrorSets
 public import CslibFrontier.Foundations.BooleanAnalysis.Mobius
