@@ -65,6 +65,15 @@ The [import-side client](../../CslibFrontierTests/InductiveEncodingVisibilityCli
 uses these public facts without unfolding matches and checks scoped automation and all three
 fields of a constructor after importing a separate ordinary module. The [InductiveEncoding client](../../CslibFrontierTests/InductiveEncoding.lean) checks the encoded words, injectivity, a constructor composition, the case rule, an enumeration and each of these errors.
 
+The isolated [degree-transition experiment](../../CslibFrontierTests/DegreePolyTime.lean)
+compares named explicit lifts with a locally registered degree-to-polynomial `fun_prop`
+transition. Its irreducible test operations have only locally registered degree rules and no
+direct degree hypotheses in their clients. Separate cost/output indices, Boolean output degree
+zero, composition and negative controls before registration and after its scope are covered.
+Inspect the checked results and each named pair's profiler output before drawing a conclusion;
+elaboration and comparative timings remain pending. This experiment neither changes global
+automation nor supplies production-caller or shared-wrapper migration evidence.
+
 Binary and unary naturals are different contracts. A loop count computed into `encUnary` pays for writing its value; a short binary representation alone does not justify that many iterations. Framed lists charge both elements and delimiters. State bounds must include that representation overhead.
 
 An arbitrary embedding supplies neither a decoder nor a decision procedure for malformed strings. Native correctness on values encoded by `enc` is a statement about valid inputs. If the application accepts arbitrary bytes, supply the parser, its correctness and its resource bound. Inspect any malformed-input guarantee in the chosen model checker rather than inferring it from injectivity.
