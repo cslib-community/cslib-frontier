@@ -30,8 +30,6 @@ treating encoded tuple access as a semantic callback.
 
 ## Main definitions
 
-* `Turing.MultiTapeTM.Internal.NativeCompiler.transducerMachineStateEncoding`: constructively
-  encode the transducer state, pending output bit and end-of-input flag used by `Transducer.toTM`.
 * `Turing.MultiTapeTM.Internal.NativeCompiler.ofTransducer`: retain a finite transducer as a named
   tidy compiler.
 * `Turing.MultiTapeTM.Internal.NativeCompiler.prefixBit`: retain a raw-word prefix operation.
@@ -70,13 +68,6 @@ public section
 namespace Turing.MultiTapeTM.Internal.NativeCompiler
 
 open Encodings Internal.DecoderWords Internal.FrameMachines
-
-/-- Constructive encoding of the transducer machine's source state, pending output bit and
-end-of-input flag. -/
-@[expose] def transducerMachineStateEncoding {State : Type*}
-    (stateEncoding : State ↪ ℕ) : State × Option Bool × Bool ↪ ℕ :=
-  prodStateEncoding stateEncoding
-    (prodStateEncoding (optionStateEncoding Universal.eBit) Universal.eBit)
 
 /-- Retain a finite transducer followed by input rewind as a named tidy compiler. Every input bit
 is read by the transducer and by the rewind; emitted bits are included in the transducer clock. -/

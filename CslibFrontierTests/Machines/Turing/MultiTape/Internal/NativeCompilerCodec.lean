@@ -86,7 +86,7 @@ example (state : unaryDecoder.State) :
 example : unaryDecoder.State = ((Unit × Option Bool × Bool) ⊕ RewindState) :=
   rfl
 
-/-- The exact description encodes the full transducer-machine state rather than only its source
+/-- The exact state encoding covers the full transducer-machine state rather than only its source
 state. -/
 example : unaryDecoder.stateEncoding =
     sumStateEncoding (transducerMachineStateEncoding unitStateEncoding) rewindStateEncoding :=

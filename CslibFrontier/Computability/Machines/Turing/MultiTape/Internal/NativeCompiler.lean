@@ -64,6 +64,8 @@ existential computability proof can be extracted into a `NativeCompiler`.
   encoding, computed from its actual codes rather than from state cardinality.
 * `Turing.MultiTapeTM.Internal.NativeCompiler.fintypeStateEncoding`: canonical numeric enumeration
   for an inferred finite combinator-state type.
+* `Turing.MultiTapeTM.Internal.NativeCompiler.transducerMachineStateEncoding`: constructive
+  encoding of the full control state produced by `Transducer.toTM`.
 * `Turing.MultiTapeTM.Internal.NativeCompiler.inputBits`: exact encoded input length.
 * `Turing.MultiTapeTM.Internal.NativeCompiler.outputBits`: exact encoded output length.
 * `Turing.MultiTapeTM.Internal.NativeCompiler.identity`: the copy-and-rewind machine.
@@ -126,6 +128,13 @@ namespace NativeCompiler
 @[expose] def optionStateEncoding {S : Type} (state : S ↪ ℕ) : Option S ↪ ℕ :=
   (Equiv.optionEquivSumPUnit S).toEmbedding.trans
     (sumStateEncoding state (Function.Embedding.punit 0))
+
+/-- Constructive encoding of the transducer machine's source state, pending output bit and
+end-of-input flag. -/
+@[expose] def transducerMachineStateEncoding {State : Type*}
+    (stateEncoding : State ↪ ℕ) : State × Option Bool × Bool ↪ ℕ :=
+  prodStateEncoding stateEncoding
+    (prodStateEncoding (optionStateEncoding eBit) eBit)
 
 /-- The unique unit state is encoded as zero. -/
 @[expose] def unitStateEncoding : Unit ↪ ℕ :=
@@ -463,8 +472,7 @@ theorem machine_append {α : Type*} {left right : α → List Bool}
     State := FrameState
     machine := frameMachine
     stateEncoding := sumStateEncoding
-      (prodStateEncoding unitStateEncoding
-        (prodStateEncoding (optionStateEncoding eBit) eBit))
+      (transducerMachineStateEncoding unitStateEncoding)
       rewindStateEncoding
     time := fun b => 4 * (enc b).length + 8
     workspace := fun _ => 0
