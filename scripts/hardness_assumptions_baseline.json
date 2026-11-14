@@ -37,8 +37,6 @@
   "Cslib.Crypto.NonuniformPRG": "#5578: the declaration cites no source definition; at most its module docstring names a reference.",
   "Cslib.Crypto.OneWay": "#5578: the declaration cites no source definition; at most its module docstring names a reference.",
   "Cslib.Crypto.OneWayPermutation": "#5578: the declaration cites no source definition; at most its module docstring names a reference.",
-  "Cslib.Crypto.PRG.IsExponentiallySecure": "#5578: the declaration cites no source definition; at most its module docstring names a reference.",
-  "Cslib.Crypto.PRG.IsSubexponentiallySecure": "#5578: the declaration cites no source definition; at most its module docstring names a reference.",
   "Cslib.Crypto.PrimeOrderGroupFamily.CDH": "#5578 finding 2: the game docstring cites Boneh–Shoup; the assumption does not.",
   "Cslib.Crypto.PrimeOrderGroupFamily.DDH": "#5578 finding 2: the game docstrings cite Boneh–Shoup; the assumption does not.",
   "Cslib.Crypto.PrimeOrderGroupFamily.DiscreteLog": "#5578 finding 2: the game and module docstrings cite Boneh–Shoup; the assumption does not.",
@@ -78,6 +76,7 @@
   "Cslib.Crypto.Encryption.KEMINDCPA": "#5578: this Boneh–Shoup locator was not checked against the v0.6 PDF.",
   "Cslib.Crypto.FactoringHard": "#5578: Katz–Lindell locators are not checked at the source (manual/sources.md says the same).",
   "Cslib.Crypto.FuzzyExtractor.ComputationallySecureFor": "#5578: FullerMengReyzin2020 is not checked at the source.",
+  "Cslib.Crypto.Garbling.MixedModulus.MixedModulusCCR": "#5578 finding 3: the closest source, BallMalkinRosulek2016 Definition 1, is not checked at the source; the MixedModulusCCR fix checks it.",
   "Cslib.Crypto.GenerableZeroKnowledge": "#5578: Goldreich's Foundations, Volume 1 is not checked at the source.",
   "Cslib.Crypto.HQC.NativeQuantumThreeDQCSDPT": "#5578: HQC2026 is not checked at the source.",
   "Cslib.Crypto.HQC.NativeQuantumThreeDQCSDPTWithin": "#5578: HQC2026 is not checked at the source.",
@@ -120,13 +119,13 @@
  },
  "headlines": {
   "Cslib.Crypto.Garbling.BMR16.advantage_realGame_simGame_le_of_reduction_mem": "Algebraic helper (#5338), named `…_of_reduction_mem`; #5578 finding 3: state that MixedModulusCCR is stronger than BMR16 Definition 1.",
-  "Cslib.Crypto.PseudorandomGenerator.auxiliaryInputZeroKnowledge_levinSingleZKProof": "#5578 finding 1: a step towards GMW under the library-specific GMW.AdvicePRG, named under PseudorandomGenerator; rename it to mention AdvicePRG.",
-  "Cslib.Crypto.PseudorandomGenerator.auxiliaryInputZeroKnowledge_levinZKProof": "#5578 finding 1: a step towards GMW under the library-specific GMW.AdvicePRG, named under PseudorandomGenerator; rename it to mention AdvicePRG.",
-  "Cslib.Crypto.PseudorandomGenerator.auxiliaryInputZeroKnowledge_singleZKProofOfReduction": "#5578 finding 1: a step towards GMW under the library-specific GMW.AdvicePRG, named under PseudorandomGenerator; rename it to mention AdvicePRG.",
-  "Cslib.Crypto.PseudorandomGenerator.auxiliaryInputZeroKnowledge_singleZKProofThreeSAT": "#5578 finding 1: a step towards GMW under the library-specific GMW.AdvicePRG, named under PseudorandomGenerator; rename it to mention AdvicePRG.",
-  "Cslib.Crypto.PseudorandomGenerator.auxiliaryInputZeroKnowledge_zkProofOfReduction": "#5578 finding 1: a step towards GMW under the library-specific GMW.AdvicePRG, named under PseudorandomGenerator; rename it to mention AdvicePRG.",
-  "Cslib.Crypto.PseudorandomGenerator.auxiliaryInputZeroKnowledge_zkProofThreeSAT": "#5578 finding 1: a step towards GMW under the library-specific GMW.AdvicePRG, named under PseudorandomGenerator; rename it to mention AdvicePRG.",
-  "Cslib.Crypto.PseudorandomGenerator.exists_auxiliaryInputZKProof_of_mem_NP": "#5578 finding 1: a step towards GMW under the library-specific GMW.AdvicePRG, named under PseudorandomGenerator; rename it to mention AdvicePRG.",
-  "Cslib.Crypto.PseudorandomGenerator.exists_auxiliaryInputZKProof_of_npRelation": "#5578 finding 1: a step towards GMW under the library-specific GMW.AdvicePRG, named under PseudorandomGenerator; rename it to mention AdvicePRG."
+  "Cslib.Crypto.PseudorandomGenerator.auxiliaryInputZeroKnowledge_levinSingleZKProof": "#5578 finding 1: a step towards GMW under the library-specific GMW.AdvicePRG, named under PseudorandomGenerator; rename it to mention AdvicePRG and open its docstring as a step towards GMW.",
+  "Cslib.Crypto.PseudorandomGenerator.auxiliaryInputZeroKnowledge_levinZKProof": "#5578 finding 1: a step towards GMW under the library-specific GMW.AdvicePRG, named under PseudorandomGenerator; rename it to mention AdvicePRG and open its docstring as a step towards GMW.",
+  "Cslib.Crypto.PseudorandomGenerator.auxiliaryInputZeroKnowledge_singleZKProofOfReduction": "#5578 finding 1: a step towards GMW under the library-specific GMW.AdvicePRG, named under PseudorandomGenerator; rename it to mention AdvicePRG and open its docstring as a step towards GMW.",
+  "Cslib.Crypto.PseudorandomGenerator.auxiliaryInputZeroKnowledge_singleZKProofThreeSAT": "#5578 finding 1: a step towards GMW under the library-specific GMW.AdvicePRG, named under PseudorandomGenerator; rename it to mention AdvicePRG and open its docstring as a step towards GMW.",
+  "Cslib.Crypto.PseudorandomGenerator.auxiliaryInputZeroKnowledge_zkProofOfReduction": "#5578 finding 1: a step towards GMW under the library-specific GMW.AdvicePRG, named under PseudorandomGenerator; rename it to mention AdvicePRG and open its docstring as a step towards GMW.",
+  "Cslib.Crypto.PseudorandomGenerator.auxiliaryInputZeroKnowledge_zkProofThreeSAT": "#5578 finding 1: a step towards GMW under the library-specific GMW.AdvicePRG, named under PseudorandomGenerator; rename it to mention AdvicePRG and open its docstring as a step towards GMW.",
+  "Cslib.Crypto.PseudorandomGenerator.exists_auxiliaryInputZKProof_of_mem_NP": "#5578 finding 1: a step towards GMW under the library-specific GMW.AdvicePRG, named under PseudorandomGenerator; rename it to mention AdvicePRG and open its docstring as a step towards GMW.",
+  "Cslib.Crypto.PseudorandomGenerator.exists_auxiliaryInputZKProof_of_npRelation": "#5578 finding 1: a step towards GMW under the library-specific GMW.AdvicePRG, named under PseudorandomGenerator; rename it to mention AdvicePRG and open its docstring as a step towards GMW."
  }
 }

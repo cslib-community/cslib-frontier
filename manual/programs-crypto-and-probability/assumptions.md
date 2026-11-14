@@ -2,15 +2,17 @@
 
 A security theorem may assume named hardness assumptions: Prop-valued definitions documented as assumptions, such as `F.DDH setup`, `DecisionLWE …` or `OneWay f`, including a security notion of a component that the caller supplies ([AGENTS.md, Security theorems](../../AGENTS.md#security-theorems)). This page lists every such assumption that a theorem in `Cslib.Crypto` takes, and the hardness assumptions the library defines. For each it says where the definition comes from:
 
-- **standard**: the docstring cites the source definition. The row gives the bibliography key of [references.bib](../../references.bib) and the locator, and says "locator not verified" until someone has checked the locator at the source. *Deviations or relation* names every material difference from the source, such as an arbitrary setup law where the source has an efficient parameter generator.
+- **standard**: a cited source states the assumption, and the docstring cites that source definition. The row gives the bibliography key of [references.bib](../../references.bib) and the locator. *Deviations or relation* names every material difference from the source, such as an arbitrary setup law where the source has an efficient parameter generator. A deviation that strengthens the assumption (more adversaries, more information for them, a dropped restriction that the source relies on) makes it novel, unless a cited source states that form or the library proves it from the standard one.
 - **novel**: no cited source states the assumption. Its docstring says that it is novel to this library, and *Deviations or relation* says how it relates to standard assumptions (it follows from one, implies one, or neither) and why it is plausible. A novel assumption may support a result presented as original. A theorem that rests on it names it, and is never presented as a cited result: that would be a stand-in under [Faithful headlines](../../AGENTS.md#faithful-headlines) rule 2.
-- **vocabulary**: a generic notion that becomes an assumption only through the instance a theorem supplies, such as concrete security against a caller's adversary class.
+- **vocabulary**: a generic notion parameterized by the objects whose security it states (games, ensembles, an adversary predicate, a bound), such as `Game.Indistinguishable`, `ComputationallyIndistinguishable` or `PRG.Generator.Secure`. It becomes an assumption only through the instance that a theorem supplies, and review checks that instance under a cited headline. A primitive's or problem's own security notion is never vocabulary.
+
+A row of any status says "locator not verified" until someone has read its locator at the source. A pull request removes the phrase only when its body records that check (the source's version or URL and what was read there) and its reviewer confirms it at the source. A row that says "status pending" has an open question about its status, named in the row; until it is settled, the assumption does not count as the source's under a cited headline. The Boneh–Shoup locators without that phrase were read in Version 0.6 of the book (January 2023), and the Regev locator in the author's 2009 version of the paper, by the author of [#5585](https://github.com/cslib-community/cslib-frontier/pull/5585), and confirmed by its reviewers.
 
 *Nonvacuity* links a test that shows the assumption fails for an insecure instance (for example a fixed group, a zero noise law or a constant function), where the library has one.
 
-[check_hardness_assumptions.py](../../scripts/check_hardness_assumptions.py) reads the built library after `lake build CslibFrontier`. It finds every premise of a public Crypto theorem headed by a Prop-valued declaration whose definition mentions negligibility, an advantage or indistinguishability, and checks it against this page. An unregistered assumption fails. So does a standard assumption whose docstring cites none of its row's keys, a novel assumption whose docstring does not say "novel to this library", a "locator not verified", and a theorem resting on a novel assumption that does not name it, or that cites a source without saying that it is a step. The existing gaps are recorded, each with a justification, in [hardness_assumptions_baseline.json](../../scripts/hardness_assumptions_baseline.json), which may only shrink. `python3 scripts/check_hardness_assumptions.py --list` prints the theorems that rest on each assumption. The audit behind this page is [#5578](https://github.com/cslib-community/cslib-frontier/issues/5578).
+[check_hardness_assumptions.py](../../scripts/check_hardness_assumptions.py) reads the built library after `lake build CslibFrontier`. It finds every premise of a public Crypto theorem headed by a Prop-valued declaration whose definition mentions negligibility, an advantage or indistinguishability, whatever the declaration's own name, and checks it against this page. An unregistered assumption fails. So does a standard assumption whose docstring cites none of its row's keys, a novel assumption whose docstring does not say "novel to this library", a "locator not verified" in a row of any status, and a theorem resting on a novel assumption that does not name it, or whose docstring presents a cited result (it cites a key, or its first sentence says "theorem" or opens with a bold title) without its first sentence saying "step" or "helper". The existing gaps are recorded, each with a justification, in [hardness_assumptions_baseline.json](../../scripts/hardness_assumptions_baseline.json), which may only shrink. Pull requests and merge groups enforce the check. `python3 scripts/check_hardness_assumptions.py --list` prints the theorems that rest on each assumption. The audit behind this page is [#5578](https://github.com/cslib-community/cslib-frontier/issues/5578).
 
-The check does not judge whether a definition matches its source, whether a locator is right, or whether a theorem that claims a cited result rests on the assumption that the source uses. Review does ([Review cycle](../../AGENTS.md#review-cycle)).
+The check does not judge whether a definition matches its source, whether a locator is right, or whether a theorem that claims a cited result rests on the assumption that the source uses, with the source's instance. It does not see a cited result that a docstring names without a bibliography key, the word "theorem" or a bold title in its first sentence, nor one that only a theorem's name claims. Review does ([Review cycle](../../AGENTS.md#review-cycle)).
 
 Names are relative to `Cslib.Crypto`.
 
@@ -32,17 +34,17 @@ Names are relative to `Cslib.Crypto`.
 |---|---|---|---|---|
 | `QuadraticResiduosityHard` | standard | [KatzLindell2020] Section 15.4.3 (locator not verified) | Any law on the primes; the ideal game samples nonresidues with Jacobi symbol `+1`. | — |
 | `DCR` | standard | [KatzLindell2020] Definition 15.10 (locator not verified) | Balanced moduli from any law. | — |
-| `FactoringHard` | standard | [KatzLindell2020] Section 9.2.3 (locator not verified) | Blum moduli only (`BlumGen`). | — |
-| `RabinOneWay` | standard | [KatzLindell2020] Section 15.5.2 (locator not verified) | The input is a uniform bit string twice as long as `N`, reduced modulo `N`, not a uniform unit. | — |
-| `RSAOneWay` | standard | [BonehShoup2023] Attack Game 10.3 and Definition 10.5, pp. 404–405 | The library's generator and challenge domain (module docstring). | [RSALeastSignificantBit.lean](../../CslibFrontierTests/Crypto/RSALeastSignificantBit.lean) `not_rsaOneWay_desc33` |
-| `RSAHardCoreLSB` | standard | [KatzLindell2020] Theorem 12.31 (locator not verified) | A theorem of the literature, from the RSA assumption, stated here as an assumption; it has no user (#5578). | — |
+| `FactoringHard` | standard | [KatzLindell2020] Section 9.2.3 (locator not verified) | Blum moduli only, drawn from any law on `BlumDesc` (`BlumGen`), which need not be efficiently samplable. | — |
+| `RabinOneWay` | standard | [KatzLindell2020] Section 15.5.2 (locator not verified) | Blum moduli from any law on `BlumDesc`, which need not be efficiently samplable. The input is a uniform bit string twice as long as `N`, reduced modulo `N`, not a uniform unit. | — |
+| `RSAOneWay` | standard | [BonehShoup2023] Attack Game 10.3 and Definition 10.5, pp. 404–405 | Keys from any law on `RSADesc` (`RSAGen`), which need not be efficiently samplable, in place of Boneh–Shoup's `RSAGen(ℓ, e)`. The challenge is uniform on `Fin N`, as `x ← Z_n` in the source. | [RSALeastSignificantBit.lean](../../CslibFrontierTests/Crypto/RSALeastSignificantBit.lean) `not_rsaOneWay_desc33` |
+| `RSAHardCoreLSB` | standard | [KatzLindell2020] Theorem 12.31 (locator not verified) | A theorem of the literature, proved from the RSA assumption, not a source definition. Stated here as an assumption, it has no user (#5578); as a premise under a cited headline it would be class (iv) of the [review gate](../../AGENTS.md#review-cycle), a step of the cited proof. | — |
 
 ## Lattice and code assumptions
 
 | Assumption | Status | Source definition | Deviations or relation | Nonvacuity |
 |---|---|---|---|---|
 | `DecisionLWE` | standard | [Regev2009] Section 2 (`LWE_{p,χ}`) and Section 4 (decision variant) | Modulus `2 ^ w` only; any noise law; uniform classical distinguishers. | [SigmaLWECCANonvacuity.lean](../../CslibFrontierTests/Crypto/SigmaLWECCANonvacuity.lean) `not_decisionLWE_zeroNoise` |
-| `DecisionLWEWithErrors` | standard | [FullerMengReyzin2020] Section 4 (locator not verified) | A joint, possibly correlated, error law; `DecisionLWE` is the product case. #5578 asks whether the source assumes this form. | — |
+| `DecisionLWEWithErrors` | standard | [FullerMengReyzin2020] Section 4 (locator not verified) | Status pending ([#5578](https://github.com/cslib-community/cslib-frontier/issues/5578) finding 5): whether the source assumes this form is not yet checked. A joint, possibly correlated, error law; `DecisionLWE` is the product case. | — |
 | `DecisionModuleLWE` | standard | [DucasEtAl2018] (locator not verified) | Uniform secret; ML-KEM and ML-DSA need short secrets (#5293). | [ModuleSIS.lean](../../CslibFrontierTests/Crypto/ModuleSIS.lean) `not_decisionModuleLWE_zeroNoise` |
 | `SIS` | standard | [Ajtai1996] (locator not verified) | — | [ModuleSIS.lean](../../CslibFrontierTests/Crypto/ModuleSIS.lean) `not_sis_zeroRowSIS` |
 | `ModuleSIS` | standard | [Lyubashevsky2012], [DucasEtAl2018] (locator not verified) | — | — |
@@ -58,7 +60,7 @@ Names are relative to `Cslib.Crypto`.
 |---|---|---|---|---|
 | `Encryption.CircularSecure` | standard | [Gentry2009] Section 2 (locator not verified) | One-key circular security: the bitwise encryption of the secret key, jointly with the public key, against encryptions of zeros. | [FixedKeySecurity.lean](../../CslibFrontierTests/Crypto/FixedKeySecurity.lean) `not_circularSecure_leak` |
 | `GMW.AdvicePRG` | novel | — | Follows from `NonuniformPRG` (`NonuniformPRG.advicePRG`), hence from `NonuniformOneWay`; not known to follow from a uniform PRG. A generator at seed length `n + 7` against tests that also read polynomially bounded instance, witness and auxiliary-input families. | — |
-| `Garbling.MixedModulus.MixedModulusCCR` | novel | [BallMalkinRosulek2016] Definition 1 is the closest source. | Stronger than that definition: its relaxed legality condition admits every adversary legal there, and more (module docstring). | — |
+| `Garbling.MixedModulus.MixedModulusCCR` | novel | [BallMalkinRosulek2016] Definition 1 (locator not verified) is the closest source. | Stronger than that definition: its relaxed legality condition admits every adversary legal there, and more (module docstring). | — |
 | `PRG.IsSubexponentiallySecure` | standard | [RazborovRudich1997] Section 4 (locator not verified) | Exponents rounded to integers. | — |
 | `PRG.IsExponentiallySecure` | standard | [RazborovRudich1997] Section 4 (locator not verified) | — | — |
 | `NonuniformOneWay` | standard | [Goldreich2001] Section 2.2 (locator not verified) | Uniform strict PPT inverters with polynomially bounded advice, whose length is charged to their clock. | [Nonuniform.lean](../../CslibFrontierTests/Crypto/Nonuniform.lean) |
@@ -80,10 +82,7 @@ Names are relative to `Cslib.Crypto`.
 | `PseudorandomFunction` | standard | [BonehShoup2023] Attack Game 4.2 and Definition 4.2, pp. 132–133 | Adaptive uniform oracle tests; length-preserving families. | [AssumptionNonvacuity.lean](../../CslibFrontierTests/Crypto/AssumptionNonvacuity.lean) `not_pseudorandomFunction_zeroFamily` |
 | `WeakPseudorandomFunction` | standard | [KatzLindell2020] Exercise 3.28 (locator not verified) | — | — |
 | `BlockCipher.PRP` | standard | [BonehShoup2023] Definition 4.1, p. 98 | Read asymptotically, as in Section 4.1.5. | — |
-| `BlockCipher.StrongPRP` | standard | [BonehShoup2023] Section 4.1.3 and Exercise 4.9, p. 169 | — | — |
-| `PRG.Generator.Unpredictable` | vocabulary | [BonehShoup2023] Definition 3.3, p. 64 | Concrete unpredictability against a predictor class that the caller supplies. | — |
-| `PRG.Generator.Secure` | vocabulary | — | CSLib's concrete security against an adversary class that the caller supplies; it becomes an assumption through the class and bound a theorem names. | — |
-| `Game.SuccWithin` | vocabulary | — | Concrete one-sided security against a resource predicate that the caller supplies. | — |
+| `BlockCipher.StrongPRP` | standard | [BonehShoup2023] Section 4.1.3, pp. 101–102, and Exercise 4.9, p. 169 | — | — |
 
 ## Hashing
 
@@ -95,11 +94,11 @@ Names are relative to `Cslib.Crypto`.
 | `CollisionResistant` | standard | [BonehShoup2023] Attack Game 8.1 and Definitions 8.1–8.2, pp. 290–291 | On all bit strings. | [MerkleDamgard.lean](../../CslibFrontierTests/Crypto/MerkleDamgard.lean) `not_collisionResistant_constHash` |
 | `CompressionFamily` | standard | [BonehShoup2023] Section 8.2 (locator not verified) | `2n → n` compression under `n`-bit keys, evaluated in polynomial time. | — |
 | `HashFamily` | standard | [BonehShoup2023] Attack Game 8.1 and Definitions 8.1–8.2, pp. 290–291 | Arbitrary-length messages, `n`-bit keys and digests, evaluated in polynomial time. | — |
-| `TargetCollisionResistantOn` | standard | [BonehShoup2023] Attack Game 8.5 and Definition 8.7, pp. 337–338; [NaorYung1989] Section 2 | — | [NaorYungUOWHF.lean](../../CslibFrontierTests/Crypto/NaorYungUOWHF.lean) `not_targetCollisionResistantOn_naorYungStep_id` |
+| `TargetCollisionResistantOn` | standard | [BonehShoup2023] Attack Game 8.5 and Definition 8.7, pp. 337–338 | Uniform `keyLen n`-bit keys; inputs are restricted to `valid`. | [NaorYungUOWHF.lean](../../CslibFrontierTests/Crypto/NaorYungUOWHF.lean) `not_targetCollisionResistantOn_naorYungStep_id` |
 | `TargetCollisionResistant` | standard | [BonehShoup2023] Attack Game 8.5 and Definition 8.7, pp. 337–338 | On all bit strings. | — |
 | `KeyedHashFamily.TargetCollisionResistant` | standard | [BonehShoup2023] Attack Game 8.5 and Definition 8.7, pp. 337–338 | On all bit strings. | — |
 | `KeyedCompressionFamily.TargetCollisionResistant` | standard | [BonehShoup2023] Attack Game 8.5 and Definition 8.7, pp. 337–338 | On `2n`-bit inputs. | [TargetCollisionResistant.lean](../../CslibFrontierTests/Crypto/TargetCollisionResistant.lean) `not_targetCollisionResistant_xorKeyedCompression` |
-| `MerklePositionBinding` | standard | [BonehShoup2023] Definition 8.4, p. 324 | Positions written in unary. | — |
+| `MerklePositionBinding` | standard | [BonehShoup2023] Definition 8.4, p. 324 | Keyed by a uniform `n`-bit key, where the source's scheme (Attack Game 8.2) is unkeyed with a fixed number of leaves. The adversary chooses the depth: both openings are checked at the depth of the first path. Positions written in unary. | — |
 
 ## Encryption
 
@@ -124,7 +123,7 @@ Names are relative to `Cslib.Crypto`.
 | `Encryption.DEMOneTimeKeyWordINDCPA` | standard | [BonehShoup2023] Attack Game 2.1 and Definition 2.2, p. 16 | Equal-length messages. | — |
 | `Encryption.DEMOneTimeINDCPAOn` | standard | [BonehShoup2023] Attack Game 2.1 and Definition 2.2, p. 16 | `n`-bit keys; an admissibility predicate. | — |
 | `Encryption.DEMOneTimeINDCPAOf` | standard | [BonehShoup2023] Attack Game 2.1 and Definition 2.2, p. 16 | `n`-bit keys; every challenge pair admissible. | — |
-| `SymmetricCipher.INDCPA` | standard | [BonehShoup2023] Attack Game 5.2 and Definition 5.2, p. 182 | — | — |
+| `SymmetricCipher.INDCPA` | standard | [BonehShoup2023] Attack Game 5.2 and Definition 5.2, pp. 181–182 | Both messages of a query have exactly `n` bits; the oracle answers other queries with `[]`. | — |
 | `SymmetricCipher.OneTimeINDCPA` | standard | [BonehShoup2023] Definition 2.2, p. 16, and Definition 9.4, p. 360 | — | — |
 | `SymmetricCipher.CiphertextIntegrity` | standard | [BonehShoup2023] Attack Game 9.1 and Definition 9.1, pp. 358–359 | — | — |
 | `SymmetricCipher.OneTimeCiphertextIntegrity` | standard | [BonehShoup2023] Definition 9.3, p. 360 | — | — |
@@ -160,7 +159,7 @@ Names are relative to `Cslib.Crypto`.
 | Assumption | Status | Source definition | Deviations or relation | Nonvacuity |
 |---|---|---|---|---|
 | `StatefulHiding` | standard | [Naor1991] (locator not verified) | A stateful receiver that chooses both bits. | — |
-| `CommitmentScheme.StatisticalHiding` | standard | [BonehShoup2023] Section 8.12 and Definition 8.8, pp. 343–344 | — | — |
+| `CommitmentScheme.StatisticalHiding` | standard | [BonehShoup2023] Section 8.12: the hiding experiment, p. 344, and unconditional hiding, p. 346 | The source names unconditional hiding in prose (statistically indistinguishable commitments), not in a numbered definition; Definition 8.8 is a secure (hiding and binding) scheme. Read here as the p. 344 experiment against every adversary: an unbounded `Encryption.WordAdversary` that sees the public parameters, drawn from a setup law `keyDist` (the source's scheme has none), and chooses the two messages. | — |
 | `FuzzyExtractor.ComputationallySecureFor` | standard | [FullerMengReyzin2020] Definition 2.2, item 4 (locator not verified) | — | — |
 | `ZKProof.NegligibleSoundness` | standard | [Goldreich2001] Section 4.2 (locator not verified) | A finite soundness error at every parameter. | — |
 | `AuxiliaryInputZeroKnowledge` | standard | [Goldreich2001] Section 4.3.3, Definition 4.3.10 (locator not verified) | Uniform strict PPT verifiers and simulators; polynomially bounded families. | — |
@@ -174,3 +173,21 @@ Names are relative to `Cslib.Crypto`.
 | `Protocols.UC.Realizes` | standard | [Canetti2020] Section 4 (locator not verified) | — | — |
 | `Protocols.UC.EmulatesDummyWithin` | standard | [Canetti2020] Section 4 (locator not verified) | Against the dummy adversary. | — |
 | `Protocols.UC.EmulatesBlackBoxWithin` | standard | [Canetti2020] Section 4 (locator not verified) | One black-box simulator. | — |
+
+## Generic vocabulary
+
+These notions state the security of whatever the caller supplies: two games or ensembles, an adversary predicate, a resource budget or a bound. They are not assumptions by themselves, and a nonvacuity test belongs to an instance, not to the notion. Under a cited headline, review checks that the instance a theorem supplies is the source's assumption ([AGENTS.md, Security theorems](../../AGENTS.md#security-theorems)): `ComputationallyIndistinguishable` of a scheme's keys and an ideal key law, for example, is a premise about the scheme's own algorithms.
+
+| Assumption | Status | Source definition | Deviations or relation | Nonvacuity |
+|---|---|---|---|---|
+| `Game.Indistinguishable` | vocabulary | — | Negligible advantage between two caller-supplied game families for every adversary that a caller's predicate admits. | — |
+| `Game.IndistinguishableWithError` | vocabulary | — | A common concrete bound `ε n` on that advantage for every admitted adversary. | — |
+| `Game.IndistinguishableWithin` | vocabulary | — | Concrete `(Within, ε)`-indistinguishability against a resource predicate that the caller supplies. | — |
+| `Game.SuccWithin` | vocabulary | — | Concrete one-sided security against a resource predicate that the caller supplies. | — |
+| `ComputationallyIndistinguishable` | vocabulary | — | Two caller-supplied word ensembles against uniform strict PPT distinguishers; neither ensemble need be efficiently samplable or polynomially bounded in length. | — |
+| `IndistinguishableWithAdvice` | vocabulary | — | Two caller-supplied ensembles against uniform strict PPT tests that also read one fixed advice family; with empty advice it is `ComputationallyIndistinguishable`. | — |
+| `NonuniformlyIndistinguishable` | vocabulary | — | `IndistinguishableWithAdvice` for every polynomially bounded advice family: non-uniform indistinguishability of two caller-supplied ensembles, with the advice length charged to the test's clock. | — |
+| `NativeQuantum.ComputationallyIndistinguishable` | vocabulary | — | Two caller-supplied ensembles against native uniform quantum tests without advice or a useful oracle. | — |
+| `NativeQuantum.IndistinguishableWithin` | vocabulary | — | Concrete form of `NativeQuantum.ComputationallyIndistinguishable`, with separate circuit resource budgets. | — |
+| `PRG.Generator.Secure` | vocabulary | — | CSLib's concrete security against an adversary class that the caller supplies; it becomes an assumption through the class and bound a theorem names. | — |
+| `PRG.Generator.Unpredictable` | vocabulary | [BonehShoup2023] Definition 3.3, p. 64 | Concrete unpredictability against a predictor class that the caller supplies. | — |

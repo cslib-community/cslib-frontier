@@ -109,8 +109,9 @@ build outputs]}`.
 assumptions instead. A *named assumption* is a Prop-valued definition or `structure` whose
 definition mentions negligibility, an advantage or indistinguishability (a constant whose last
 name component is `Negligible`, names an advantage as above, or contains `Indistinguishable`),
-directly or through other Prop-valued declarations, at most five deep, and that is not itself
-such generic vocabulary. An input line `<dir>\t<module>` reads a *context* module, such as one of
+directly or through other Prop-valued declarations, at most five deep. No declaration is excluded
+by its name: generic notions such as `Game.Indistinguishable` are reported too, and the inventory
+decides which of them are vocabulary. An input line `<dir>\t<module>` reads a *context* module, such as one of
 CSLib's, from another build directory: its declarations are followed and reported, but its
 theorems are not scanned. It prints `{"a": assumption, "m": module, "l": line, "doc": docstring}`
 for each named assumption, `{"t": theorem, "m": module, "l": line, "doc": docstring, "u":
@@ -474,25 +475,27 @@ def propositionConstants? (env : Env) (c : Name) : Option (Array Name) :=
     | _ => none
   | _ => none
 
-/-- Whether a last name component names generic security vocabulary: negligibility, an
-advantage or indistinguishability. -/
-def vocabularyName (s : String) : Bool :=
+/-- Whether a last name component names a security atom: negligibility, an advantage or
+indistinguishability. This decides only what a definition must reach to be security-shaped. -/
+def securityAtomName (s : String) : Bool :=
   s == "Negligible" || advantageName s || s.contains "Indistinguishable"
 
 /-- Whether `c` is a proposition-valued declaration that states a security claim: its definition
-mentions generic security vocabulary, directly or through proposition-valued declarations of the
-environment at most `fuel` deep. -/
+mentions a security atom, directly or through proposition-valued declarations of the environment
+at most `fuel` deep. -/
 partial def securityShaped (env : Env) (fuel : Nat) (c : Name) : Bool :=
   match propositionConstants? env c with
   | some cs => cs.any fun d =>
-      vocabularyName (last d) || fuel > 0 && d != c && securityShaped env (fuel - 1) d
+      securityAtomName (last d) || fuel > 0 && d != c && securityShaped env (fuel - 1) d
   | none => false
 
-/-- Whether `c` is a *named assumption*: a security-shaped proposition-valued declaration that is
-not itself generic vocabulary, such as `Negligible` or `Game.Indistinguishable`, and not one Lean
-generates. -/
+/-- Whether `c` is a *named assumption*: a security-shaped proposition-valued declaration that
+Lean does not generate. Its name excludes nothing: a declaration named like a security atom, such
+as `Game.Indistinguishable` or a library-specific `KeysIndistinguishable`, is reported when its
+definition is security-shaped, and the assumptions inventory records which ones are generic
+vocabulary. -/
 def namedAssumption (env : Env) (c : Name) : Bool :=
-  !vocabularyName (last c) && !isGenerated c && !env.skip.contains c && securityShaped env 5 c
+  !isGenerated c && !env.skip.contains c && securityShaped env 5 c
 
 /-- The named assumptions that head the claim atoms of a hypothesis type. -/
 def assumptionHeads (env : Env) (ty : Expr) : Array Name :=

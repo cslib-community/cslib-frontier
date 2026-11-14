@@ -11,16 +11,17 @@ caller supplies. Each is registered in the assumptions inventory,
 `manual/programs-crypto-and-probability/assumptions.md`, as *standard* (its docstring cites the
 source definition, with a locator checked at the source), *novel* (its docstring says that it is
 novel to this library and how it relates to standard assumptions) or *vocabulary* (a generic notion
-that becomes an assumption only through the instance a theorem supplies, such as concrete security
-against a caller's adversary class). A theorem that rests on a novel assumption names it, and is
-not presented as a cited result.
+parameterized by the objects whose security it states, such as `Game.Indistinguishable` or
+`ComputationallyIndistinguishable`, which becomes an assumption only through the instance a theorem
+supplies; never a primitive's own security notion). A theorem that rests on a novel assumption
+names it, and is not presented as a cited result.
 
 `scripts/SecurityPremises.lean --assumptions` reads the built `.olean` files of the library, with
 CSLib's as context. A *named assumption* is a Prop-valued definition or `structure` whose
 definition mentions negligibility, an advantage or indistinguishability, directly or through
-other Prop-valued declarations, and that is not itself such generic vocabulary (`Negligible`,
-`Game.Indistinguishable`, `ComputationallyIndistinguishable`). The reader reports each one, and
-each public theorem under `CslibFrontier/Crypto` or in `Cslib.Crypto` whose premises, through
+other Prop-valued declarations. No declaration is excluded by its name: generic notions are named
+assumptions too, and their inventory rows mark them as vocabulary. The reader reports each one,
+and each public theorem under `CslibFrontier/Crypto` or in `Cslib.Crypto` whose premises, through
 their own `∀`s and premises, `∧`, `∃` and `∀ᶠ`, are headed by one.
 
 The check fails when
@@ -30,25 +31,31 @@ The check fails when
 * a named assumption that some scanned theorem assumes is not in the inventory;
 * a standard assumption's docstring cites none of its row's keys, or a novel assumption's docstring
   does not say "novel to this library";
-* a standard row says "locator not verified";
+* a row of any status says "locator not verified";
 * a theorem that rests on a novel assumption does not mention it in its name, or its docstring
-  cites a source without saying that the theorem is a step;
+  presents a cited result (it cites a `references.bib` key, or its first sentence says "theorem" or
+  opens with a bold title) without opening as a step or helper: its first sentence must contain
+  the word "step" or "helper";
 * a results-inventory entry (`CslibFrontierResults/Entries.lean`) lists a theorem that rests on a
   novel assumption.
 
 `scripts/hardness_assumptions_baseline.json` records the existing gaps of the third, fourth and
 fifth kinds, one per line with a justification, under `docstrings`, `locators` and `headlines`.
 An entry that no longer matches a gap fails too, so the baseline only shrinks unless a change adds
-an entry on purpose. Pull requests run the check on the whole library; merge groups and pushes to
-`main` run `--report`, which prints the differences and succeeds. `--list` prints the inventory
-with the theorems that rest on each assumption. `--update-baseline` rewrites the baseline for the
+an entry on purpose. The check covers the whole library, so pull requests and merge groups both
+enforce it: a merge group whose pull requests conflict only in meaning (two of them registering
+the same assumption, say) fails, and the queue ejects the pull request that broke it instead of
+landing it on `main`. Pushes to `main` run `--report`, which prints the differences and succeeds.
+`--list` prints the inventory with the theorems that rest on each assumption. `--update-baseline` rewrites the baseline for the
 current gaps, keeping existing justifications and leaving new ones empty; fill them in, or the
 check fails.
 
 This is a post-build check: it needs the outputs of `lake build CslibFrontier`, and refuses stale
 ones unless `--no-build-check` is given. It supplements review: it does not judge whether a
 definition matches its cited source, whether a locator is right, or whether a standard assumption
-under a headline is the one the cited result assumes.
+under a headline, with the instance the theorem supplies, is the one the cited result assumes. It
+does not see a cited result that a docstring names without a bibliography key, the word "theorem"
+or a bold title in its first sentence, nor one that only a theorem's name claims.
 """
 
 from __future__ import annotations
@@ -78,7 +85,10 @@ NOVEL = "novel to this library"
 UNVERIFIED = "locator not verified"
 UPDATE = "python3 scripts/check_hardness_assumptions.py --update-baseline"
 CODE = re.compile(r"`([^`]+)`")
-KEY = re.compile(r"\[([A-Za-z][A-Za-z0-9]*)(?:\]|,)")
+BRACKET = re.compile(r"\[([^\[\]]*)\]")
+STEP = re.compile(r"\b(?:step|helper)\b", re.I)
+THEOREM = re.compile(r"\btheorem\b", re.I)
+SENTENCE_END = re.compile(r"[.!?][*_)\"']*(?:\s|$)")
 LINK = re.compile(r"\]\(([^)\s]+)\)")
 BIB_KEY = re.compile(r"^@\w+\{\s*([^,\s]+)\s*,", re.M)
 RESULT_NAME = re.compile(r"\b(?:Cslib|Turing)\.[A-Za-z0-9_.'!?]+")
@@ -152,8 +162,40 @@ def bibliography_keys(text: str) -> set[str]:
 
 
 def cited_keys(text: str, keys: set[str]) -> list[str]:
-    """The bibliography keys that `text` cites as `[Key]`, including link references `][Key]`."""
-    return [k for k in dict.fromkeys(KEY.findall(text)) if k in keys]
+    """The bibliography keys that `text` cites, in the forms that `scripts/check_hygiene.py`
+    accepts: `[Key]`, `[Key, Theorem 2]`, `[Key; Other]` and the reference of `[text][Key]`."""
+    found: list[str] = []
+    for segment in BRACKET.findall(text):
+        for part in segment.split(";"):
+            key = part.split(",")[0].strip()
+            if key in keys and key not in found:
+                found.append(key)
+    return found
+
+
+def first_sentence(doc: str) -> str:
+    """A docstring's opening sentence: its text up to the first `.`, `!` or `?` outside code spans
+    that is followed, after closing emphasis, brackets or quotes, by whitespace or the end. An
+    abbreviation such as "Thm." can end it early, which only makes the step test stricter."""
+    text = " ".join(doc.split())
+    outside = re.sub(r"`[^`]*`", lambda m: "x" * len(m.group(0)), text)
+    m = SENTENCE_END.search(outside)
+    return text[:m.end()].strip() if m else text
+
+
+def presents_cited_result(doc: str, keys: set[str]) -> bool:
+    """Whether a theorem's docstring presents a cited result: it cites a bibliography key, or its
+    first sentence calls it a theorem or opens with a bold title, as named results do ("**The GMW
+    theorem**", "**Soundness-amplified GMW for NP relations.**"). An original result with a bold
+    title is caught too; its docstring says "step" or "helper", or the baseline records why not."""
+    opening = first_sentence(doc)
+    return bool(cited_keys(doc, keys) or THEOREM.search(opening) or opening.startswith("**"))
+
+
+def opens_as_step(doc: str) -> bool:
+    """Whether a docstring opens by saying that its theorem is a step or a helper: its first
+    sentence contains the word "step" or "helper" (not, say, "steps")."""
+    return bool(STEP.search(first_sentence(doc)))
 
 
 def read(output: str) -> Reading:
@@ -261,12 +303,12 @@ def check(rows: list[Row], format_errors: list[str], reading: Reading, keys: set
         if name not in reading.assumptions:
             continue
         doc = reading.assumptions[name][2]
+        if UNVERIFIED in row.source.lower():
+            gaps["locators"][name] = "locator not verified"
         if row.status == "standard":
             row_keys = cited_keys(row.source, keys)
-            if row_keys and not any(f"[{k}]" in doc for k in row_keys):
+            if row_keys and not set(row_keys) & set(cited_keys(doc, keys)):
                 gaps["docstrings"][name] = f"docstring cites none of {', '.join(row_keys)}"
-            if UNVERIFIED in row.source.lower():
-                gaps["locators"][name] = "locator not verified"
         elif row.status == "novel":
             if NOVEL not in " ".join(doc.split()).lower():
                 gaps["docstrings"][name] = f'docstring does not say "{NOVEL}"'
@@ -276,8 +318,9 @@ def check(rows: list[Row], format_errors: list[str], reading: Reading, keys: set
                 problems = []
                 if stem not in theorem.lower():
                     problems.append(f"name does not mention `{name.split('.')[-1]}`")
-                if cited_keys(tdoc, keys) and "step" not in tdoc.lower():
-                    problems.append("docstring cites a source but does not say it is a step")
+                if presents_cited_result(tdoc, keys) and not opens_as_step(tdoc):
+                    problems.append("docstring presents a cited result but does not open as a "
+                                    "step or helper")
                 if problems:
                     gaps["headlines"][theorem] = (f"rests on novel `{short(name)}`: "
                                                   + "; ".join(problems))

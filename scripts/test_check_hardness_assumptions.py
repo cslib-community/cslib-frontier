@@ -82,6 +82,13 @@ class ParseTests(unittest.TestCase):
     def test_cited_keys(self) -> None:
         text = "see [BonehShoup2023], [text][Gentry2009], [BonehShoup2023, Sec. 1] and [Unknown]"
         self.assertEqual(c.cited_keys(text, KEYS), ["BonehShoup2023", "Gentry2009"])
+        self.assertEqual(c.cited_keys("[Gentry2009; BonehShoup2023, Definition 10.8]", KEYS),
+                         ["Gentry2009", "BonehShoup2023"])
+
+    def test_first_sentence(self) -> None:
+        self.assertEqual(c.first_sentence("**The GMW theorem.** A step."), "**The GMW theorem.**")
+        self.assertEqual(c.first_sentence("Uses `a.b`  here.\nNext."), "Uses `a.b` here.")
+        self.assertEqual(c.first_sentence("No full stop"), "No full stop")
 
 
 class CheckTests(unittest.TestCase):
@@ -115,6 +122,26 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(set(gaps["docstrings"]), {DDH, ADVICE})
         self.assertEqual(set(gaps["locators"]), {DDH})
 
+    def test_docstrings_may_cite_with_locators_and_several_keys(self) -> None:
+        for doc in ("DDH ([BonehShoup2023, Definition 10.8]).", "DDH [Gentry2009; BonehShoup2023]."):
+            self.assertEqual(run(INVENTORY, reading({}, {DDH: doc})).gaps["docstrings"], {}, doc)
+
+    def test_locators_are_checked_for_every_status(self) -> None:
+        text = (INVENTORY.replace("| novel | — |", "| novel | [Gentry2009] Section 2 "
+                                  "(locator not verified) is the closest source. |")
+                .replace("| vocabulary | — |", "| vocabulary | [BonehShoup2023] Section 3 "
+                         "(locator not verified) |"))
+        self.assertEqual(set(run(text, reading({})).gaps["locators"]), {ADVICE, GENERIC})
+
+    def test_premises_named_like_vocabulary_need_rows(self) -> None:
+        keys = "Cslib.Crypto.KeysIndistinguishable"
+        r = reading({"Cslib.Crypto.scheme_secure": ("Secure.", (keys, GENERIC))},
+                    {keys: "The keys are indistinguishable from ideal ones."})
+        errors = run(INVENTORY, r).errors
+        self.assertEqual(len(errors), 1)
+        self.assertIn("`KeysIndistinguishable`", errors[0])
+        self.assertIn("not in the assumptions inventory", errors[0])
+
     def test_theorems_on_novel_assumptions_name_them_and_are_steps(self) -> None:
         r = reading({"Cslib.Crypto.PseudorandomGenerator.gmw": ("GMW [BonehShoup2023].",
                                                                (ADVICE,)),
@@ -122,8 +149,28 @@ class CheckTests(unittest.TestCase):
                      "Cslib.Crypto.AdvicePRG.helper": ("No citation.", (ADVICE,))})
         gaps = run(INVENTORY, r).gaps["headlines"]
         self.assertIn("name does not mention", gaps["Cslib.Crypto.PseudorandomGenerator.gmw"])
-        self.assertIn("does not say it is a step", gaps["Cslib.Crypto.gmw_of_advicePRG"])
+        self.assertIn("does not open as a step", gaps["Cslib.Crypto.gmw_of_advicePRG"])
         self.assertNotIn("Cslib.Crypto.AdvicePRG.helper", gaps)
+
+    def test_the_step_test_reads_the_first_sentence(self) -> None:
+        docs = {
+            # A later "steps" does not make a headline a step.
+            "zk_of_advicePRG": "**The GMW theorem** [BonehShoup2023]: the simulator's steps are "
+                               "polynomial.",
+            # A named theorem without a bibliography key is still a cited result.
+            "zk2_of_advicePRG": "**The GMW theorem**: every NP language has a proof.",
+            "zk3_of_advicePRG": "**Soundness-amplified GMW theorem under `AdvicePRG`.** A step.",
+            # A bold title names a result even without the word "theorem".
+            "zk4_of_advicePRG": "**Soundness-amplified GMW for NP relations.** Every relation.",
+            "step_of_advicePRG": "A step towards [BonehShoup2023], Section 20.1, not that result.",
+            "helper_of_advicePRG": "Algebraic helper, not a security theorem [BonehShoup2023].",
+            "original_of_advicePRG": "An original consequence of `AdvicePRG`.",
+        }
+        r = reading({f"Cslib.Crypto.{n}": (d, (ADVICE,)) for n, d in docs.items()})
+        gaps = run(INVENTORY, r).gaps["headlines"]
+        self.assertEqual({n.removeprefix("Cslib.Crypto.") for n in gaps},
+                         {"zk_of_advicePRG", "zk2_of_advicePRG", "zk3_of_advicePRG",
+                          "zk4_of_advicePRG"})
 
     def test_results_inventory_never_lists_a_novel_assumption(self) -> None:
         r = reading({"Cslib.Crypto.AdvicePRG.gmw": ("", (ADVICE,)),
@@ -180,6 +227,8 @@ def HardToo (k : Nat) : Prop := Hard ∧ k = k
 /-- A notion as a structure. -/
 structure Secure (k : Nat) : Prop where
   secure : Game.Indistinguishable fun A n => advantage (A + k) n
+/-- A library-specific premise named like generic vocabulary. -/
+def KeysIndistinguishable (k : Nat) : Prop := Game.Indistinguishable fun A n => advantage A (n + k)
 /-- Not a security claim. -/
 def Correct (k : Nat) : Prop := k = k
 
@@ -188,6 +237,7 @@ theorem fromHard (_h : Hard) (_h' : ∀ k, HardToo k ∧ Secure k) (_c : Correct
   trivial
 theorem fromVocabulary (_h : Negligible id) (_h' : Game.Indistinguishable fun _ n => n) :
     True := trivial
+theorem fromKeys (_h : KeysIndistinguishable 0) : True := trivial
 theorem fromCorrect (_c : Correct 0) : True := trivial
 private theorem privateHard (_h : Hard) : True := trivial
 
@@ -219,16 +269,22 @@ class CompiledFixtureTests(unittest.TestCase):
         cls.reading = c.read(out)
 
     def test_named_assumptions(self) -> None:
+        """No name is excluded: generic `Game.Indistinguishable` and a library-specific
+        `KeysIndistinguishable` are reported; `Negligible`, whose definition reaches no security
+        atom, and `Correct` are not."""
         names = {n.removeprefix("Cslib.Crypto.") for n in self.reading.assumptions}
-        self.assertEqual(names, {"Hard", "HardToo", "Secure"})
+        self.assertEqual(names, {"Hard", "HardToo", "Secure", "KeysIndistinguishable",
+                                 "Game.Indistinguishable"})
         self.assertEqual(self.reading.assumptions["Cslib.Crypto.Hard"][2], "A named assumption.")
 
     def test_theorems_and_their_assumptions(self) -> None:
         theorems = {n.removeprefix("Cslib.Crypto."): set(u)
                     for n, (_, _, _, u) in self.reading.theorems.items()}
-        self.assertEqual(theorems, {"fromHard": {"Cslib.Crypto.Hard", "Cslib.Crypto.HardToo",
-                                                 "Cslib.Crypto.Secure"}})
-        self.assertEqual(self.reading.summary["theorems"], 3)
+        self.assertEqual(theorems, {
+            "fromHard": {"Cslib.Crypto.Hard", "Cslib.Crypto.HardToo", "Cslib.Crypto.Secure"},
+            "fromVocabulary": {"Cslib.Crypto.Game.Indistinguishable"},
+            "fromKeys": {"Cslib.Crypto.KeysIndistinguishable"}})
+        self.assertEqual(self.reading.summary["theorems"], 4)
 
 
 class CommittedFilesTests(unittest.TestCase):
