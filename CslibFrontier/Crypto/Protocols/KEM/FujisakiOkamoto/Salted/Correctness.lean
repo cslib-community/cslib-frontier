@@ -705,7 +705,8 @@ private theorem Linked.of_prefetchHandler
         PMF.mem_support_pure_iff] at hz
       subst z
       exact hlinked
-    · exact hlinked.of_prefetchDecaps hz
+    · apply hlinked.of_prefetchDecaps
+      simpa only [prefetchHandler, Query.dispatch, hc, ↓reduceIte] using hz
 
 private theorem Linked.of_simHandler
     [DecidableEq (JointInput JointPrefix M Salt)]
@@ -1192,7 +1193,8 @@ private theorem realHandler_jointCache_subset
         PMF.mem_support_pure_iff] at hy
       subst y
       exact fun _ hentry => hentry
-    · exact S.realDecaps_jointCache_subset pk sk ciphertext hy
+    · apply S.realDecaps_jointCache_subset pk sk ciphertext
+      simpa only [realHandler, Query.dispatch, hc, ↓reduceIte] using hy
 
 private theorem prefetchHandler_jointCache_subset
     [DecidableEq (JointInput JointPrefix M Salt)]
@@ -1214,7 +1216,8 @@ private theorem prefetchHandler_jointCache_subset
         PMF.mem_support_pure_iff] at hy
       subst y
       exact fun _ hentry => hentry
-    · exact S.prefetchDecaps_jointCache_subset pk sk ciphertext hy
+    · apply S.prefetchDecaps_jointCache_subset pk sk ciphertext
+      simpa only [prefetchHandler, Query.dispatch, hc, ↓reduceIte] using hy
 
 private theorem identicalUntilBad_realHandler_prefetchHandler
     [DecidableEq (JointInput JointPrefix M Salt)]
@@ -1230,8 +1233,9 @@ private theorem identicalUntilBad_realHandler_prefetchHandler
     · rfl
     · by_cases hc : ciphertext = challenge
       · simp [realHandler, prefetchHandler, Query.dispatch, hc]
-      · exact S.realDecaps_apply_eq_prefetchDecaps pk sk ciphertext st (answer, st')
-          (of_not_not hst')
+      · simpa only [realHandler, prefetchHandler, Query.dispatch, hc, ↓reduceIte] using
+          S.realDecaps_apply_eq_prefetchDecaps pk sk ciphertext st (answer, st')
+            (of_not_not hst')
   absorb_first q st hbad y hy hgood :=
     hbad (hgood.of_subset (S.realHandler_jointCache_subset pk sk challenge q hy))
   absorb_second q st hbad y hy hgood :=
