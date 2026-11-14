@@ -7,8 +7,6 @@ LOCAL = "attribute [local fun_prop] ComputableInPolyTime.fst' ComputableInPolyTi
 # Disposable declarations live in the source namespace, before its first LOCAL.
 # Mathlib FunProp/Theorems.lean appends (rather than deduplicates) both entry kinds.
 HELPER = """
-meta initialize hierarchyEvidence5530Baseline : IO.Ref (Array Nat) ← IO.mkRef #[]
-
 private meta def hierarchyEvidence5530Counts : Lean.MetaM (Array Nat) := do
   let mut counts := #[]
   for n in [``ComputableInPolyTime.fst', ``ComputableInPolyTime.snd'] do
@@ -24,15 +22,25 @@ private meta def hierarchyEvidence5530Counts : Lean.MetaM (Array Nat) := do
   return counts
 
 """
-BASELINE = """run_cmd Lean.Elab.Command.liftTermElabM do
-  let counts ← hierarchyEvidence5530Counts
-  hierarchyEvidence5530Baseline.set counts
+# Use existing command-scope options, not a same-module initializer. Each site has
+# its own keys; liftTermElabM/runCore passes scope.opts to the theorem elaborator.
+BASELINE = """run_cmd do
+  let counts ← Lean.Elab.Command.liftTermElabM do
+    return ← hierarchyEvidence5530Counts
+  Lean.Elab.Command.modifyScope fun scope => { scope with
+    opts := (scope.opts.set `hierarchyEvidence5530.baseline{scope}.fst counts[0]!).set
+      `hierarchyEvidence5530.baseline{scope}.snd counts[1]! }
   IO.println s!"HIERARCHY_ATTRIBUTE_COUNTS {scope} baseline {counts[0]!} {counts[1]!}"
 
 """
 PROBE = """
   run_tac
-    let baseline ← hierarchyEvidence5530Baseline.get
+    let opts ← Lean.getOptions
+    let some fst := opts.get? (α := Nat) `hierarchyEvidence5530.baseline{scope}.fst
+      | throwError "HIERARCHY_ATTRIBUTE_BASELINE_MISSING"
+    let some snd := opts.get? (α := Nat) `hierarchyEvidence5530.baseline{scope}.snd
+      | throwError "HIERARCHY_ATTRIBUTE_BASELINE_MISSING"
+    let baseline := #[fst, snd]
     let counts ← hierarchyEvidence5530Counts
     IO.println s!"HIERARCHY_ATTRIBUTE_COUNTS {scope} inside {counts[0]!} {counts[1]!}"
     unless baseline.size == 2 && counts == baseline.map (· + 1) do

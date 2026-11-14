@@ -1,7 +1,8 @@
+import subprocess
 import tempfile
 from pathlib import Path
 import unittest
-from hierarchy_evidence_support import LOCAL, attribute_control_passed, instrument, restore_snapshot, scoped_control_passed, attribute_matrix_complete, registration_counts
+from hierarchy_evidence_support import BASELINE, HELPER, PROBE, LOCAL, attribute_control_passed, instrument, restore_snapshot, scoped_control_passed, attribute_matrix_complete, registration_counts
 
 
 class Controls(unittest.TestCase):
@@ -14,14 +15,59 @@ class Controls(unittest.TestCase):
         self.assertNotIn(LOCAL, negative)
         self.assertEqual(negative.count('run_tac'), 2)
         self.assertEqual(positive.count('run_cmd'), 2)
-        self.assertEqual(positive.count('meta initialize hierarchyEvidence5530Baseline'), 1)
+        self.assertNotIn('initialize', positive)
+        self.assertNotIn('IO.Ref', positive)
         self.assertIn('private meta def hierarchyEvidence5530Counts', positive)
         self.assertEqual(positive.replace(LOCAL, ''), negative)
-        self.assertEqual(positive.count('hierarchyEvidence5530Baseline.set counts'), 2)
+        self.assertEqual(positive.count('Lean.Elab.Command.modifyScope'), 2)
         self.assertIn('COUNTS 1 baseline', positive)
         self.assertIn('COUNTS 2 baseline', positive)
         self.assertIn('COUNTS 2 inside', positive)
         self.assertEqual(positive.count('(ts.filter (· == t)).size'), 2)
+
+    def test_original_clients_roundtrip_and_scope_options(self):
+        # Actual clients cover both independent NEXP sites at every measured revision.
+        root = Path(__file__).resolve().parents[2]
+        revisions = ('39b11c9de', '55c7e0dabb4fab4ecf9deb9373d502ba4dfb231f',
+                     'b50dee8e88b6b0d6154654d2e30e918d3a1acefd',
+                     '28c3dffb82a3102754689396c2b7609036ba60aa')
+        prefix = 'CslibFrontier/Computability/Complexity/Classes/Hierarchy/'
+        for revision in revisions:
+            for module, scopes in (('NondeterministicTime', 1),
+                                   ('NondeterministicExponentialTime', 2)):
+                with self.subTest(revision=revision, module=module):
+                    source = subprocess.check_output(
+                        ['git', 'show', f'{revision}:{prefix}{module}.lean'],
+                        cwd=root, text=True)
+                    positive, count = instrument(source)
+                    negative, neg_count = instrument(source, negative=True)
+                    self.assertEqual((count, neg_count), (scopes, scopes))
+                    self.assertEqual(positive.replace(LOCAL, ''), negative)
+                    self.assertNotIn('initialize', positive)
+                    self.assertNotIn('IO.Ref', positive)
+                    self.assertNotIn('registerEnvExtension', positive)
+                    self.assertEqual(positive.count(HELPER), 1)
+                    restored = positive.replace(HELPER, '', 1)
+                    for scope in range(1, scopes + 1):
+                        capture = BASELINE.replace('{scope}', str(scope))
+                        probe = PROBE.replace('{scope}', str(scope))
+                        self.assertEqual(restored.count(capture), 1)
+                        self.assertEqual(restored.count(probe), 1)
+                        self.assertLess(restored.index(capture), restored.index(probe))
+                        for field, index in (('fst', 0), ('snd', 1)):
+                            key = f'`hierarchyEvidence5530.baseline{scope}.{field}'
+                            self.assertIn(f'{key} counts[{index}]!', capture)
+                            self.assertIn(f'opts.get? (α := Nat) {key}', probe)
+                            self.assertEqual(positive.count(key), 2)
+                        # The write must affect Command state after the lifted count
+                        # returns; a withOptions around only that count cannot persist.
+                        self.assertIn('run_cmd do\n  let counts ← Lean.Elab.Command.liftTermElabM', capture)
+                        self.assertIn('Lean.Elab.Command.modifyScope fun scope => { scope with\n    opts := (scope.opts.set', capture)
+                        self.assertIn('let opts ← Lean.getOptions', probe)
+                        self.assertEqual(probe.count('HIERARCHY_ATTRIBUTE_BASELINE_MISSING'), 2)
+                        self.assertIn('counts == baseline.map (· + 1)', probe)
+                        restored = restored.replace(capture, '', 1).replace(probe, '', 1)
+                    self.assertEqual(restored, source)
 
     def test_unknown_or_uninstrumentable_attribute_fails(self):
         for text in ('@[simp] theorem x : True := by trivial', LOCAL + '\ndef x := 1'):
