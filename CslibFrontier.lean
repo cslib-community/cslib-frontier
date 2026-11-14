@@ -5003,6 +5003,7 @@ public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.SeedB
 public import CslibFrontier.DataStructure.Dictionary.SuccinctBucket
 public import CslibFrontier.DataStructure.Dictionary.UniformProbing
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.BitPackedArray
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.BitPackedArrayProg
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ChainedHash
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.CuckooHashing
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.CuckooHashing.Analysis
@@ -5078,6 +5079,7 @@ public import CslibFrontier.DataStructure.HashFamily.Memory
 public import CslibFrontier.DataStructure.HashFamily.Randomized
 public import CslibFrontier.DataStructure.HashFamily.Spec
 public import CslibFrontier.DataStructure.HashFamily.WordRAM.Basic
+public import CslibFrontier.DataStructure.HashFamily.WordRAM.BitPackedDoubleTabulation
 public import CslibFrontier.DataStructure.HashFamily.WordRAM.DoubleTabulation
 public import CslibFrontier.DataStructure.HashFamily.WordRAM.KWise
 public import CslibFrontier.DataStructure.HashFamily.WordRAM.MultiplyShift
@@ -5233,6 +5235,7 @@ public import CslibFrontier.DataStructure.VanEmdeBoas.WordRAM.Member
 public import CslibFrontier.DataStructure.VanEmdeBoas.WordRAM.Model
 public import CslibFrontier.DataStructure.VanEmdeBoas.WordRAM.Program
 public import CslibFrontier.DataStructure.VanEmdeBoas.WordRAM.Successor
+public import CslibFrontier.DataStructure.WordRAM.Randomized.HighProbability
 public import CslibFrontier.DataStructure.WordRAM.Randomized.ObliviousSequence
 public import CslibFrontier.DataStructure.WordRAM.Randomized.StateTransition
 public import CslibFrontier.DataStructure.WordRAM.Resizable.Randomized.ObliviousSequence
@@ -7150,6 +7153,7 @@ public import CslibFrontier.Probability.KWiseIndependent.SecondMoment
 public import CslibFrontier.Probability.KWiseIndependent.Trinomial
 public import CslibFrontier.Probability.KWiseIndependent.TugOfWar
 public import CslibFrontier.Probability.KWiseIndependent.TugOfWarProduct
+public import CslibFrontier.Probability.KWiseIndependent.VarianceTail
 public import CslibFrontier.Probability.LinearCombination
 public import CslibFrontier.Probability.LocalLemma
 public import CslibFrontier.Probability.LocalitySensitiveHash

@@ -229,6 +229,11 @@ Ward Beullens, Fabio Campos, Sofía Celi, Basil Hess and Matthias J. Kannwischer
 
 Olaf Beyersdorff, Nicola Galesi and Massimo Lauria. *A lower bound for the pigeonhole principle in tree-like Resolution by asymmetric Prover–Delayer games*. Information Processing Letters 110(23), 1074–1077, 2010. https://doi.org/10.1016/j.ipl.2010.09.007 ; author's copy https://massimolauria.net/documents/tree-like-php.pdf (6 pages). Read in the author's copy on 2026-11-08. Locators checked there: Theorem 1 on p. 3 (if `F` has a tree-like refutation of size at most `S`, Delayer gets at most `log S` points in every `(c₀, c₁)`-game with `1/c₀ + 1/c₁ = 1`); Theorem 2 on p. 4 (every tree-like refutation of `PHP^m_n` has size `2^Ω(n log n)`); the explicit `2^((n/2) log(n/2 + 1)) = (n/2 + 1)^(n/2)` for even `n` at the end of that proof on p. 5; and the closing remark on p. 5 that the bound also holds for the functional pigeonhole principle. The abstract and introduction present the result as a simpler proof of Dantchev and Riis's bound (CCC 2001). Journal pagination was taken from the Crossref record. The ECCC version (TR10-081) was not reachable from this environment and was not read.
 
+<a id="bfckk24"></a>
+## bfckk24
+
+Michael A. Bender, Martin Farach-Colton, John Kuszmaul and William Kuszmaul. "Modern Hashing Made Simple." *Proceedings of the 2024 SIAM Symposium on Simplicity in Algorithms (SOSA 2024)*, 363–373, 2024. https://doi.org/10.1137/1.9781611977936.33 (`BenderFarachColtonKuszmaulKuszmaul2024`). Bibliographic metadata and pagination come from `references.bib` and the DOI record; the article text was not inspected in this pass, and no numbered theorem from it is claimed in Milestones 1–2 (`HighProbability`, `VarianceTail`, and `BitPackedDoubleTabulation`), which cite it at paper level as the downstream dictionary target ([#5356](https://github.com/cslib-community/cslib-frontier/issues/5356)).
+
 <a id="bfckkl22"></a>
 ## bfckkl22
 
