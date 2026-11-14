@@ -9,7 +9,6 @@ module
 public import CslibFrontierTests.QuantumControllerFixture
 public import CslibFrontierTests.QuantumControllerState
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Controller.ProgramSemantics
-public import CslibFrontier.Computability.Circuit.Quantum.Oracle.RandomOracle
 
 /-! The actual native pointer controller under a fixed coherent oracle and an adaptive classical
 pointer service. The same finite function is passed outside the entire execution. The ghost
@@ -167,9 +166,10 @@ theorem run_program (H : (Fin 2 → Bool) → Fin 1 → Bool) (next : Bool → B
 
 /-- One complete experiment samples a finite table once, before all adaptive rounds. -/
 @[expose] noncomputable def sampledProgram (next : Bool → Bool) (count : ℕ)
-    (input : List Bool) : PMF Bool :=
-  (Quantum.RandomOracle.runWith (a := 2) (b := 1)
-    (fun _ => pointerService next) (PointerWalk.program count input)
+    (input : List Bool) : PMF Bool := do
+  let H ← Probability.PMF.uniformOfFintype ((Fin 2 → Bool) → Fin 1 → Bool)
+  (ProbOracleComp.runWith (deviceWordHandler H (pointerService next))
+    (PointerWalk.program count input)
     (pureDevice (ket ![false, false, false]) (norm_ket _))).map Prod.fst
 
 /-- The sampled execution is precisely the accumulated parity under that single table. -/
@@ -177,14 +177,8 @@ theorem sampledProgram_eq (next : Bool → Bool) (count : ℕ) (input : List Boo
     sampledProgram next count input =
       (Probability.PMF.uniformOfFintype ((Fin 2 → Bool) → Fin 1 → Bool)).map
         (fun H => ((advance H next)^[count] (false, false)).2) := by
-  simp only [sampledProgram, Quantum.RandomOracle.runWith_eq, PMF.map_bind, run_program,
-    PMF.pure_map]
+  simp only [sampledProgram, run_program, PMF.pure_map]
   rfl
-
--- The no-query edge is independent of the sampled table, including when both widths are zero.
-example : Quantum.RandomOracle.sample (a := 0) (b := 0) (fun _ => PMF.pure true) =
-    PMF.pure true := by
-  simp
 
 /-- The empty loop outputs false; preparation and terminal interference cancel on memory. -/
 theorem run_program_zero (H : (Fin 2 → Bool) → Fin 1 → Bool) (next : Bool → Bool)

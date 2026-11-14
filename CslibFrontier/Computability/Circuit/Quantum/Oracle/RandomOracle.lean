@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Controller.Handler
-public import CslibFrontier.Computability.Probabilistic.Oracle.Composition
+public import CslibFrontier.Probability.PMF.Uniform
 
 /-!
 # Finite random oracles for native quantum executions
