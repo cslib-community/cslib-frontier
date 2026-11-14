@@ -212,7 +212,7 @@ theorem take_prgStream {securityBits cipherBits blockBytes : Nat}
     (prgStream enc parseBlock seed variant context n).take (blockBytes * m) =
       prgStream enc parseBlock seed variant context m := by
   rw [prgStream,
-    List.take_flatMap_of_forall_length_eq m (fun block => FixedBytes.length_toList block),
+    List.take_flatMap_of_forall_length_eq m (fun block _ => FixedBytes.length_toList block),
     take_prgBlocks enc parseBlock seed variant context h, prgStream]
 
 /-- SDitH v3 Algorithm 6's requested byte output.

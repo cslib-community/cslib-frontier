@@ -322,7 +322,7 @@ byte stream. -/
 theorem take_squeezeBytes (blocks : List (BitString 1088)) {m n : ℕ} (h : m ≤ n) :
     (squeezeBytes blocks n).take (136 * m) = squeezeBytes blocks m := by
   rw [squeezeBytes,
-    List.take_flatMap_of_forall_length_eq m (fun state => length_rateBytes state),
+    List.take_flatMap_of_forall_length_eq m (fun state _ => length_rateBytes state),
     Sponge.take_hashBlocks _ _ h, squeezeBytes]
 
 /-- Byte-aligned SHAKE256 from FIPS 202 Section 6.2.

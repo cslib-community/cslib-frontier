@@ -56,7 +56,7 @@ theorem List.length_flatMap_of_forall_length_eq {α β : Type*} {l : List α} {f
 /-- If every block has length `k`, taking `n` complete blocks from their concatenation is the
 concatenation of the first `n` blocks. -/
 theorem List.take_flatMap_of_forall_length_eq {α β : Type*} {l : List α} {f : α → List β}
-    {k : ℕ} (n : ℕ) (h : ∀ a, (f a).length = k) :
+    {k : ℕ} (n : ℕ) (h : ∀ a ∈ l, (f a).length = k) :
     (l.flatMap f).take (k * n) = (l.take n).flatMap f := by
   induction l generalizing n with
   | nil => simp
@@ -66,8 +66,10 @@ theorem List.take_flatMap_of_forall_length_eq {α β : Type*} {l : List α} {f :
       | succ n =>
           simp only [List.flatMap_cons, List.take_succ_cons]
           rw [Nat.mul_succ,
-            show k * n + k = (f a).length + k * n by rw [h a, Nat.add_comm],
-            List.take_length_add_append, ih]
+            show k * n + k = (f a).length + k * n by
+              rw [h a List.mem_cons_self, Nat.add_comm],
+            List.take_length_add_append,
+            ih n (fun b hb => h b (List.mem_cons_of_mem _ hb))]
 
 /-- Membership in a list as a scan of the list, the form in which polynomial-time membership tests
 are certified. -/
