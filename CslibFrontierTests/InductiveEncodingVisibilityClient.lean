@@ -46,6 +46,13 @@ example : ComputableInPolyTime (fun p : Unit × Message => eMessage_triple_field
   eMessage_triple_field2?_polyTime.comp
     (ComputableInDegree.snd encUnit eMessage).computableInPolyTime
 
+-- Both output-degree zero matchers and optional projections use the shared linear lift.
+example : ComputableInSpace eMessage_triple_matches eMessage encBool
+    (fun v => (eMessage v).length) := by fun_prop
+example : ComputableInO eMessage_triple_field2? eMessage (encOption encBool)
+    (fun v => (eMessage v).length) (fun v => (eMessage v).length) := by fun_prop
+example : ComputableInPolyTime eMessage_triple_matches eMessage encBool := by fun_prop
+
 -- Unknown inputs use the semantic API, with no unfolding or constructor case split.
 example (v : Message) (n : ℕ) (bits : List Bool) (b : Bool) :
     eMessage_triple_payload? v = some (n, bits, b) ↔ v = .triple n bits b :=

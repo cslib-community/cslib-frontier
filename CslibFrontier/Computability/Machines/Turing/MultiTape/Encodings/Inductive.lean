@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.B
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.Bounds
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Bounds
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Plain
+public meta import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DegreeLifts
 public meta import Lean.Elab.Command
 
 /-!
@@ -147,14 +148,15 @@ private partial def summands (t : Expr) : Nat → MetaM (Array Expr)
 private def linearViews (fn encIn encOut : Term) (base : Name) : CommandElabM Unit := do
   let deg := app base "_deg"
   let rule := app base "_inO"
+  let (linear, space, polynomial) ← liftMacroM <| Internal.linearDegreeViews deg
   elabCommand (← `(@[scoped fun_prop] public theorem $rule:ident :
     ComputableInO $fn $encIn $encOut (fun x => ($encIn x).length)
-      (fun x => ($encIn x).length) := ($deg).inO_one))
+      (fun x => ($encIn x).length) := $linear))
   elabCommand (← `(@[scoped fun_prop] public theorem $(app base "_inSpace"):ident :
     ComputableInSpace $fn $encIn $encOut (fun x => ($encIn x).length) :=
-      ComputableInSpace.of_inO $rule))
+      $space))
   elabCommand (← `(@[scoped fun_prop] public theorem $(app base "_polyTime"):ident :
-    ComputableInPolyTime $fn $encIn $encOut := ($deg).computableInPolyTime))
+    ComputableInPolyTime $fn $encIn $encOut := $polynomial))
 
 /-- Elaborate `enc_inductive`. -/
 @[command_elab encInductive] def elabEncInductive : CommandElab := fun stx => do

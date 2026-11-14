@@ -74,6 +74,14 @@ Inspect the checked results and each named pair's profiler output before drawing
 elaboration and comparative timings remain pending. This experiment neither changes global
 automation nor supplies production-caller or shared-wrapper migration evidence.
 
+The two encoding commands share the degree-certificate proof terms in
+[`Internal.DegreeLifts`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/DegreeLifts.lean).
+This does not change their contracts: a structure field's `_budget` rule composes with a
+caller's workspace bound; an inductive matcher or optional projection's `_inSpace` rule
+uses encoded input length. Matcher output degree remains zero. Constructor and elimination
+rules with independent argument or branch bounds keep their separate constructions.
+The ordinary-module structure and inductive visibility clients exercise these distinctions.
+
 Binary and unary naturals are different contracts. A loop count computed into `encUnary` pays for writing its value; a short binary representation alone does not justify that many iterations. Framed lists charge both elements and delimiters. State bounds must include that representation overhead.
 
 An arbitrary embedding supplies neither a decoder nor a decision procedure for malformed strings. Native correctness on values encoded by `enc` is a statement about valid inputs. If the application accepts arbitrary bytes, supply the parser, its correctness and its resource bound. Inspect any malformed-input guarantee in the chosen model checker rather than inferring it from injectivity.
