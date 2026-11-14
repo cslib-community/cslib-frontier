@@ -339,7 +339,7 @@ private def linearViews (fn encIn encOut : Term) (base : Name) : CommandElabM Un
     for field in [0:encss[i]!.size + 1] do
       let projection := app name (if field == 0 then s!"_{cs[i]!.getId}_payload?"
         else s!"_{cs[i]!.getId}_field{field - 1}?")
-      let out : Term := if field == 0 then payloads[i]! else encss[i]![field - 1]!
+      let out : Term := if field == 0 then payloads[i]! else (encss[i]!)[field - 1]!
       let mut pas : Array (TSyntax ``Lean.Parser.Term.matchAlt) := #[]
       for j in [0:n] do
         let xs := (Array.range encss[j]!.size).map fun k => mkIdent (Name.mkSimple s!"x{k}")
