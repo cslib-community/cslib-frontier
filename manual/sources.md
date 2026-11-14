@@ -617,6 +617,11 @@ Amos Fiat, Richard M. Karp, Michael Luby, Lyle A. McGeoch, Daniel D. Sleator and
 
 National Institute of Standards and Technology. *Secure Hash Standard*, Federal Information Processing Standards Publication 180-4, 2015. https://doi.org/10.6028/NIST.FIPS.180-4 . Checked on 2026-11-14 against the official August 2015 PDF (SHA-256 `5b88d70308c95106e713221c7085cbb8e89dc2eb6214d75c885af2f07ffc6b8a`): Sections 4.1.2 and 4.1.3 define the SHA-256 and SHA-512 logical functions, Sections 4.2.2 and 4.2.3 give the round constants, Sections 5.1.1 and 5.1.2 give padding and length encoding, Sections 5.2 and 5.3 give parsing and initial states, and Sections 6.2 and 6.4 give the hash computations. `CslibFrontier.Crypto.Primitives.ByteString` supplies typed byte strings and big-endian conversion, and `CslibFrontier.Crypto.Primitives.Hash.SHA2` supplies byte-aligned SHA-256 and SHA-512 with the source input-length domains. The official [SHA-256 example PDF](https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Standards-and-Guidelines/documents/examples/SHA256.pdf) (SHA-256 `7006b6549dad2fc8c6f29417a921f2e48208157ef496a7e1e1d7d17c5cc1e7db`) supplies `abc` at input p. 1 and digest p. 3, and the two-block example at input p. 3 and digest p. 6. The official [SHA-512 example PDF](https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Standards-and-Guidelines/documents/examples/SHA512.pdf) (SHA-256 `84ce867c99bad5a7b05abc74bb1dfc9de8486f49a160653cc8b15272cc532115`) supplies `abc` at input p. 1 and digest p. 4, and the two-block example at input p. 4 and digest p. 11. These executable specifications are not constant-time or machine-costed implementations, security proofs, or NIST validations.
 
+<a id="fips1981"></a>
+## fips1981
+
+National Institute of Standards and Technology. *The Keyed-Hash Message Authentication Code (HMAC)*, Federal Information Processing Standards Publication 198-1, 2008. https://doi.org/10.6028/NIST.FIPS.198-1 . Checked on 2026-11-14 against the official PDF (SHA-256 `67661ba1407b391c799ff407471de18f36697af51d78a777e817c067ac30da23`): Section 2.3 defines the block size and `ipad`/`opad`, Section 3 states the preliminary hashing rule for keys longer than the block, and Section 4 with Table 1 defines all three block-sized `K0` branches and the nested equation `H((K0 xor opad) || H((K0 xor ipad) || text))`. `CslibFrontier.Crypto.Primitives.Hash.HMAC` instantiates the complete construction with SHA-256 and SHA-512, retaining the underlying SHA-2 input domains as erased proof preconditions. It returns full digests and does not claim truncation rules, pseudorandomness, MAC security, constant-time execution or NIST validation.
+
 <a id="fips202"></a>
 ## fips202
 
@@ -631,6 +636,8 @@ National Institute of Standards and Technology. *Module-Lattice-Based Key-Encaps
 ## fips205
 
 National Institute of Standards and Technology. *Stateless Hash-Based Digital Signature Standard*, Federal Information Processing Standards Publication 205, 2024. https://doi.org/10.6028/NIST.FIPS.205 . Checked on 2026-11-14 against the official PDF (SHA-256 `8ef34228276f3386d23cb0da8c14592b8cfb0db3358016bba64df7a004f8d13d`): Section 4.1 gives the `n`, `2n` and `l*n` byte arities of the addressed calls; Section 4.2 and Figures 2–9 define the canonical 32-byte address and its seven type-specific layouts; Section 4.3 and Table 1 define the address setters, including clearing the final 12 bytes on every type change; Section 4.4 defines the unsigned big-endian integer encoding and Algorithm 4 defines `base_2b`; Section 5, Equations (5.1)–(5.4) fixes `lg_w = 4`, `w = 16`, `len1 = 2n`, `len2 = 3` and `len = 2n + 3` for `n = 16, 24, 32`; Algorithms 7 and 8, lines 1–7 define the shared message conversion and complement checksum, including the four-bit left shift and two-byte big-endian encoding; Section 11.1 defines the SHAKE256 instantiations of `PRF`, `F`, `H`, and `T_l` with the full address and `8n` output bits (`n` bytes); Section 11.2, Figure 18 and Table 3 define the 22-byte compressed address used by SHA2; Section 11.2.1 defines the SHA-256 calls for `n = 16`; and Section 11.2.2 keeps `PRF` and `F` on SHA-256 while moving `H` and `T_l` to SHA-512 for `n = 24, 32`. `CslibFrontier.Crypto.Primitives.SLHDSA.Address` formalizes the address-domain layer, `CslibFrontier.Crypto.Primitives.SLHDSA.HashCalls` formalizes those four addressed calls with typed `n`, `2n`, and `l*n` inputs, and `CslibFrontier.Crypto.Primitives.SLHDSA.WOTS.Digits` formalizes the digit-preprocessing layer. The hash-call fixtures independently recompute the published byte equations; they are not NIST validation vectors. These modules do not formalize `H_msg`, `PRF_msg`, the Algorithm 5 chain, complete WOTS+, XMSS, FORS, the hypertree, signing, verification, security, constant-time execution, or machine/program-size/resource bounds.
+
+FIPS 205 Section 11.2 additionally incorporates FIPS 198-1 HMAC and RFC 8017 MGF1 into the SHA-2 definitions of `PRF_msg` and `H_msg`. `CslibFrontier.Crypto.Primitives.Hash.HMAC` and `CslibFrontier.Crypto.Primitives.Hash.MGF1` now supply those shared primitives, including the full HMAC key preprocessing and MGF1's inclusive counter domain. They are prerequisites only: the FIPS 205 `PRF_msg` and `H_msg` wrappers, their parameter-set truncation and message packaging remain unimplemented.
 
 <a id="fks84"></a>
 ## fks84
@@ -1528,6 +1535,16 @@ Omer Reingold. “Undirected Connectivity in Log-Space.” *Journal of the ACM* 
 ## reynolds02
 
 John C. Reynolds. “Separation Logic: A Logic for Shared Mutable Data Structures.” *LICS 2002*, 55–74. https://doi.org/10.1109/LICS.2002.1029817 ; author PDF https://www.cs.cmu.edu/~jcr/seplogic.pdf . The standard locality/separating-conjunction principle was consulted; the local finite-support model is an adaptation.
+
+<a id="rfc4231"></a>
+## rfc4231
+
+Magnus Nystrom. *Identifiers and Test Vectors for HMAC-SHA-224, HMAC-SHA-256, HMAC-SHA-384, and HMAC-SHA-512*, RFC 4231, 2005. https://doi.org/10.17487/RFC4231 . Checked on 2026-11-14 against the RFC Editor text: Section 4.2's test case 1 supplies the 20-byte `0x0b` key, `Hi There` data and full SHA-256/SHA-512 outputs; Section 4.7's test case 6 supplies the 131-byte `0xaa` key, long-key message and full outputs. `CslibFrontierTests/Crypto/HMACMGF1.lean` checks those four values against the executable HMAC functions. They cover short-key padding and long-key hashing, while an independently computed client covers exact-block keys; these are primitive regression vectors, not FIPS 205 message-call or validation vectors.
+
+<a id="rfc8017"></a>
+## rfc8017
+
+Kathleen Moriarty, Burt Kaliski, Jakob Jonsson and Andreas Rusch. *PKCS #1: RSA Cryptography Specifications Version 2.2*, RFC 8017, 2016. https://doi.org/10.17487/RFC8017 . Checked on 2026-11-14 against the RFC Editor text: Section 4.1 defines generic big-endian `I2OSP`, and Appendix B.2.1 defines MGF1 by encoding each consecutive counter with `I2OSP(counter, 4)`, hashing `mgfSeed || C`, concatenating the digests and taking the leading `maskLen` octets, with the inclusive `maskLen <= 2^32 hLen` bound. `CslibFrontier.Crypto.Primitives.Hash.MGF1` instantiates this algorithm with SHA-256 and SHA-512 and records its complete counter stream as typed digest blocks before truncation. The module does not claim pseudorandomness, constant-time execution, RSA functionality or validation.
 
 <a id="rompel90"></a>
 ## rompel90

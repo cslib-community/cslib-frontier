@@ -426,6 +426,21 @@ standardized block counts are proved valid. This executable layer does not yet p
 or `H_msg` and establishes no asymptotic or concrete security, query, machine-resource, or
 program-size bound.
 
+The shared SHA-2 message-call prerequisites are in
+[`HMAC.lean`](../../CslibFrontier/Crypto/Primitives/Hash/HMAC.lean) and
+[`MGF1.lean`](../../CslibFrontier/Crypto/Primitives/Hash/MGF1.lean)
+[fips1981][fips1981] [rfc8017][rfc8017]. HMAC exposes the complete FIPS 198-1 key preprocessing:
+short keys are right-padded, exact-block keys are unchanged, and long keys are hashed before
+padding. MGF1 hashes `seed || I2OSP(counter, 4)` in increasing counter order, concatenates the
+typed digest blocks with `BitString.blocksEquiv.symm`, and uses `FixedBytes.take` for the requested
+leading bytes. Its source domain admits the inclusive `2^32 * hLen` output bound and avoids a
+spurious seed-length restriction for an empty mask. The
+[ordinary-import client](../../CslibFrontierTests/Crypto/HMACMGF1.lean) checks RFC 4231 short- and
+long-key vectors, exact-block keys, empty and digest-boundary masks, and the final four-byte
+counter [rfc4231][rfc4231]. These executable functions are not constant-time implementations,
+FIPS validations, security proofs, or machine/resource bounds; the FIPS 205 `PRF_msg` and `H_msg`
+wrappers remain separate.
+
 Falcon's current checked layer ([falcon2020][falcon2020]) is deliberately narrower than a security
 theorem. Import
 [`Falcon/Verification.lean`](../../CslibFrontier/Crypto/Computational/Falcon/Verification.lean) for
