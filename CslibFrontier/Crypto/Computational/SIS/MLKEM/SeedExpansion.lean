@@ -70,7 +70,7 @@ def matrixXofBytes (rho : Seed32) (row column : Byte) (outputBytes : ℕ) : List
 /-- Matrix seed expansion returns exactly the requested finite prefix length. -/
 @[simp] theorem length_matrixXofBytes (rho : Seed32) (row column : Byte) (outputBytes : ℕ) :
     (matrixXofBytes rho row column outputBytes).length = outputBytes := by
-  simp [matrixXofBytes]
+  exact Keccak.length_shake128 _ _
 
 /-- Longer matrix XOF requests preserve every byte of a shorter request. -/
 theorem take_matrixXofBytes (rho : Seed32) (row column : Byte) {m n : ℕ} (h : m ≤ n) :
@@ -110,7 +110,7 @@ def prf (eta : NoiseWidth) (seed : Seed32) (counter : Byte) : List Byte :=
 /-- `PRF_eta` returns exactly `64 * eta` bytes. -/
 @[simp] theorem length_prf (eta : NoiseWidth) (seed : Seed32) (counter : Byte) :
     (prf eta seed counter).length = 64 * eta.val := by
-  simp [prf]
+  exact Keccak.length_shake256 _ _
 
 /-- Widths 2 and 3 absorb identical bytes; width 2 returns the first 128 bytes of width 3. -/
 theorem prf_two_eq_take_three (seed : Seed32) (counter : Byte) :
