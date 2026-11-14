@@ -151,7 +151,7 @@ theorem sampleCompiler_accounted (n : ℕ) :
       Game.AttackResources.ofInventory]
   · simp only [SampleCompilerCertifies, sampleResources, sampleExecution,
       sampleCompilerExecution, sampleOnlinePhases, Game.AttackResources.ofInventory]
-    omega
+    constructor <;> omega
   · change 18 * (n + 1) + 19 * (n + 1) ≤ 299 * n + 299
     omega
   · change 31 * (n + 1) ≤ 42 * n + 42
@@ -178,7 +178,7 @@ theorem inlinedCompiler_accounted (n : ℕ) :
       Game.AttackResources.ofInventory]
   · simp only [SampleCompilerCertifies, inlinedCompilerResources, sampleExecution,
       sampleCompilerExecution, sampleOnlinePhases, Game.AttackResources.ofInventory]
-    omega
+    constructor <;> omega
   · change 18 * (n + 1) + 19 * (n + 1) ≤ 299 * n + 299
     omega
   · change 31 * (n + 1) ≤ 42 * n + 42
@@ -204,7 +204,7 @@ theorem sampleOnlinePhases_accounted (n : ℕ) :
   refine ⟨?_, ?_, ?_⟩
   · simp only [SampleAttackCertifies, sampleResources, sampleExecution, sampleOnlinePhases,
       Game.AttackResources.ofInventory]
-    omega
+    constructor <;> omega
   · change (sampleOnlinePhases n).totalTime = 299 * n + 299
     simp [Game.OnlinePhaseLedger.totalTime, Game.OnlinePhaseLedger.asList,
       sampleOnlinePhases]
@@ -219,7 +219,7 @@ theorem sampleOutput_accounted (n : ℕ) :
   refine ⟨?_, ?_, ?_, ?_, ?_⟩
   · simp only [SampleAttackCertifies, sampleResources, sampleExecution, sampleOnlinePhases,
       Game.AttackResources.ofInventory]
-    omega
+    constructor <;> omega
   · change 17 * (n + 1) + 28 * (n + 1) + 29 * (n + 1) ≤ 299 * n + 299
     omega
   · change 30 * (n + 1) ≤ 42 * n + 42
@@ -289,8 +289,7 @@ theorem offlinePhaseAggregates (n : ℕ) :
 
 private theorem linearPhase_isPolynomial (timeCoeff workspaceCoeff : ℕ) :
     Game.OnlinePhaseResources.IsPolynomial
-      (fun n => ({ time := timeCoeff * (n + 1)
-        workspace := workspaceCoeff * (n + 1) } :
+      (fun n => (⟨timeCoeff * (n + 1), workspaceCoeff * (n + 1)⟩ :
         Game.OnlinePhaseResources)) where
   time := by fun_prop
   workspace := by fun_prop
@@ -327,10 +326,47 @@ theorem sampleOnlinePhases_isPolynomial :
 
 private theorem sampleArtifactBits_isPolynomial (kind : Game.InstalledArtifactKind) :
     PolynomiallyBounded fun n => (sampleResources n).artifactBits kind := by
-  cases kind <;>
-    simp [sampleResources, sampleInventory, Game.AttackResources.ofInventory,
-      Game.AttackResources.artifactBits, Game.InstalledArtifact.installedBits] <;>
-    fun_prop
+  cases kind with
+  | adversary =>
+      simpa [sampleResources, sampleInventory, Game.AttackResources.ofInventory,
+        Game.AttackResources.artifactBits, Game.InstalledArtifact.installedBits] using
+        (show PolynomiallyBounded (fun n => n + 1) by fun_prop)
+  | reducer =>
+      simpa [sampleResources, sampleInventory, Game.AttackResources.ofInventory,
+        Game.AttackResources.artifactBits, Game.InstalledArtifact.installedBits] using
+        (show PolynomiallyBounded (fun n => 2 * n + 1) by fun_prop)
+  | program =>
+      simpa [sampleResources, sampleInventory, Game.AttackResources.ofInventory,
+        Game.AttackResources.artifactBits, Game.InstalledArtifact.installedBits] using
+        (show PolynomiallyBounded (fun n => (3 * n + 1) + (4 * n + 1)) by fun_prop)
+  | generatedProgram =>
+      simpa [sampleResources, sampleInventory, Game.AttackResources.ofInventory,
+        Game.AttackResources.artifactBits, Game.InstalledArtifact.installedBits] using
+        (show PolynomiallyBounded (fun n => 5 * n + 1) by fun_prop)
+  | generator =>
+      simpa [sampleResources, sampleInventory, Game.AttackResources.ofInventory,
+        Game.AttackResources.artifactBits, Game.InstalledArtifact.installedBits] using
+        (show PolynomiallyBounded (fun n => 6 * n + 1) by fun_prop)
+  | compiler =>
+      simpa [sampleResources, sampleInventory, Game.AttackResources.ofInventory,
+        Game.AttackResources.artifactBits, Game.InstalledArtifact.installedBits] using
+        (show PolynomiallyBounded (fun n => 7 * n + 1) by fun_prop)
+  | interpreter =>
+      simpa [sampleResources, sampleInventory, Game.AttackResources.ofInventory,
+        Game.AttackResources.artifactBits, Game.InstalledArtifact.installedBits] using
+        (show PolynomiallyBounded (fun n => 8 * n + 1) by fun_prop)
+  | controller =>
+      simpa [sampleResources, sampleInventory, Game.AttackResources.ofInventory,
+        Game.AttackResources.artifactBits, Game.InstalledArtifact.installedBits] using
+        (show PolynomiallyBounded (fun n => 9 * n + 1) by fun_prop)
+  | handler =>
+      simpa [sampleResources, sampleInventory, Game.AttackResources.ofInventory,
+        Game.AttackResources.artifactBits, Game.InstalledArtifact.installedBits] using
+        (show PolynomiallyBounded (fun n => 10 * n + 1) by fun_prop)
+  | table =>
+      simpa [sampleResources, sampleInventory, Game.AttackResources.ofInventory,
+        Game.AttackResources.artifactBits, Game.InstalledArtifact.installedBits] using
+        (show PolynomiallyBounded (fun n => 11 * n + 1) by fun_prop)
 
 /-- The sample family is componentwise polynomial; no scalar resource sum is used. -/
 theorem sampleResources_isPolynomial :
