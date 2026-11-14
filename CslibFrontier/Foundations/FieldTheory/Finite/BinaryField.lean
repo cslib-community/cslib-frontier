@@ -166,9 +166,7 @@ theorem polyOfCode_ne_zero_and_natDegree {m : ℕ} (hm : m ≠ 0) :
   | _ m ih =>
     rcases lt_or_ge m 2 with h | h
     · obtain rfl : m = 1 := by omega
-      have h1 : polyOfCode 1 = 1 := by
-        simpa [polyOfCode_zero, ZMod.val_one] using polyOfCode_two_mul_add 0 1
-      rw [h1, Nat.log_one_right]
+      rw [polyOfCode_one, Nat.log_one_right]
       exact ⟨one_ne_zero, natDegree_one⟩
     · obtain ⟨hne, hdeg⟩ := ih (m / 2) (by omega) (by omega)
       have heq : polyOfCode m = X * polyOfCode (m / 2) + C (m : ZMod 2) := by

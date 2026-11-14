@@ -70,40 +70,40 @@ abbrev F256 := BinaryField 8
 
 private theorem polyOfCode_nineteen : polyOfCode 19 = X ^ 4 + X + 1 := by
   have h19 : polyOfCode 19 = 1 + X * polyOfCode 9 := by
-    convert polyOfCode_two_mul_add_one 9 using 1 <;> norm_num
+    exact polyOfCode_two_mul_add_one 9
   have h9 : polyOfCode 9 = 1 + X * polyOfCode 4 := by
-    convert polyOfCode_two_mul_add_one 4 using 1 <;> norm_num
+    exact polyOfCode_two_mul_add_one 4
   have h4 : polyOfCode 4 = X * polyOfCode 2 := by
-    convert polyOfCode_two_mul 2 using 1 <;> norm_num
+    exact polyOfCode_two_mul 2
   rw [h19, h9, h4, polyOfCode_two]
   ring
 
 private theorem polyOfCode_two_hundred_eighty_three :
     polyOfCode 283 = X ^ 8 + X ^ 4 + X ^ 3 + X + 1 := by
   have h283 : polyOfCode 283 = 1 + X * polyOfCode 141 := by
-    convert polyOfCode_two_mul_add_one 141 using 1 <;> norm_num
+    exact polyOfCode_two_mul_add_one 141
   have h141 : polyOfCode 141 = 1 + X * polyOfCode 70 := by
-    convert polyOfCode_two_mul_add_one 70 using 1 <;> norm_num
+    exact polyOfCode_two_mul_add_one 70
   have h70 : polyOfCode 70 = X * polyOfCode 35 := by
-    convert polyOfCode_two_mul 35 using 1 <;> norm_num
+    exact polyOfCode_two_mul 35
   have h35 : polyOfCode 35 = 1 + X * polyOfCode 17 := by
-    convert polyOfCode_two_mul_add_one 17 using 1 <;> norm_num
+    exact polyOfCode_two_mul_add_one 17
   have h17 : polyOfCode 17 = 1 + X * polyOfCode 8 := by
-    convert polyOfCode_two_mul_add_one 8 using 1 <;> norm_num
+    exact polyOfCode_two_mul_add_one 8
   have h8 : polyOfCode 8 = X * polyOfCode 4 := by
-    convert polyOfCode_two_mul 4 using 1 <;> norm_num
+    exact polyOfCode_two_mul 4
   have h4 : polyOfCode 4 = X * polyOfCode 2 := by
-    convert polyOfCode_two_mul 2 using 1 <;> norm_num
+    exact polyOfCode_two_mul 2
   rw [h283, h141, h70, h35, h17, h8, h4, polyOfCode_two]
   ring
 
 private theorem polyOfCode_twenty_seven : polyOfCode 0x1b = X ^ 4 + X ^ 3 + X + 1 := by
   have h27 : polyOfCode 0x1b = 1 + X * polyOfCode 13 := by
-    convert polyOfCode_two_mul_add_one 13 using 1 <;> norm_num
+    exact polyOfCode_two_mul_add_one 13
   have h13 : polyOfCode 13 = 1 + X * polyOfCode 6 := by
-    convert polyOfCode_two_mul_add_one 6 using 1 <;> norm_num
+    exact polyOfCode_two_mul_add_one 6
   have h6 : polyOfCode 6 = X * polyOfCode 3 := by
-    convert polyOfCode_two_mul 3 using 1 <;> norm_num
+    exact polyOfCode_two_mul 3
   rw [h27, h13, h6, polyOfCode_three]
   ring
 
@@ -116,6 +116,15 @@ theorem f16_modulus_code : leastIrreducible 4 = polyOfCode 19 := by
 theorem f16_modulus : leastIrreducible 4 = X ^ 4 + X + 1 := by
   rw [f16_modulus_code, polyOfCode_nineteen]
 
+private def codeRange (start count : ℕ) : List ℕ :=
+  (List.range count).map (start + ·)
+
+private theorem codeRange_add (start first second : ℕ) :
+    codeRange start (first + second) =
+      codeRange start first ++ codeRange (start + first) second := by
+  simp only [codeRange, List.range_add, List.map_append, List.map_map, Function.comp_apply,
+    Nat.add_assoc]
+
 private theorem leastIrreducibleCode_eight : leastIrreducibleCode 512 8 = 283 := by
   have hlow :
       (List.range 256).find? (fun m => Nat.log 2 m == 8 && isIrreducibleCode m) = none := by
@@ -126,21 +135,47 @@ private theorem leastIrreducibleCode_eight : leastIrreducibleCode 512 8 = 283 :=
       rcases eq_or_ne m 0 with rfl | hm0
       · norm_num
       · exact ne_of_lt (Nat.log_lt_of_lt_pow hm0 (by simpa using hm_lt))
-    exact hlog (beq_iff_eq.mp (Bool.and_eq_true.mp hpred).1)
-  have hwindow :
-      ((List.range 28).map (256 + ·)).find?
-          (fun m => Nat.log 2 m == 8 && isIrreducibleCode m) = some 283 := by
+    have hpred' : Nat.log 2 m = 8 ∧ isIrreducibleCode m = true := by
+      simpa only [Bool.and_eq_true, beq_iff_eq] using hpred
+    exact hlog hpred'.1
+  have h256 : (codeRange 256 4).find?
+      (fun m => Nat.log 2 m == 8 && isIrreducibleCode m) = none := by
     decide
-  have hhigh :
-      ((List.range 256).map (256 + ·)).find?
+  have h260 : (codeRange 260 4).find?
+      (fun m => Nat.log 2 m == 8 && isIrreducibleCode m) = none := by
+    decide
+  have h264 : (codeRange 264 4).find?
+      (fun m => Nat.log 2 m == 8 && isIrreducibleCode m) = none := by
+    decide
+  have h268 : (codeRange 268 4).find?
+      (fun m => Nat.log 2 m == 8 && isIrreducibleCode m) = none := by
+    decide
+  have h272 : (codeRange 272 4).find?
+      (fun m => Nat.log 2 m == 8 && isIrreducibleCode m) = none := by
+    decide
+  have h276 : (codeRange 276 4).find?
+      (fun m => Nat.log 2 m == 8 && isIrreducibleCode m) = none := by
+    decide
+  have h280 : (codeRange 280 4).find?
+      (fun m => Nat.log 2 m == 8 && isIrreducibleCode m) = some 283 := by
+    decide
+  have hwindow :
+      (codeRange 256 28).find?
           (fun m => Nat.log 2 m == 8 && isIrreducibleCode m) = some 283 := by
-    rw [show List.range 256 =
-        List.range 28 ++ (List.range 228).map (28 + ·) by
-          simpa using (List.range_add (n := 28) (m := 228)),
-      List.map_append, List.find?_append, hwindow, Option.some_or]
+    rw [codeRange_add 256 4 24, List.find?_append, h256, Option.none_or,
+      codeRange_add 260 4 20, List.find?_append, h260, Option.none_or,
+      codeRange_add 264 4 16, List.find?_append, h264, Option.none_or,
+      codeRange_add 268 4 12, List.find?_append, h268, Option.none_or,
+      codeRange_add 272 4 8, List.find?_append, h272, Option.none_or,
+      codeRange_add 276 4 4, List.find?_append, h276, Option.none_or, h280]
+  have hhigh :
+      (codeRange 256 256).find?
+          (fun m => Nat.log 2 m == 8 && isIrreducibleCode m) = some 283 := by
+    rw [codeRange_add 256 28 228, List.find?_append, hwindow, Option.some_or]
   unfold leastIrreducibleCode
   rw [show List.range 512 =
-      List.range 256 ++ (List.range 256).map (256 + ·) by
+      List.range 256 ++ codeRange 256 256 by
+        unfold codeRange
         simpa using (List.range_add (n := 256) (m := 256)),
     List.find?_append, hlow, Option.none_or, hhigh, Option.getD_some]
 
