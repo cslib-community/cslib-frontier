@@ -440,6 +440,27 @@ FFT/NTT correctness, the adaptive Gaussian trapdoor sampler and rejection law, a
 NTRU-SIS, ROM/QROM reductions, certified efficiency, and reconciliation with the still-developing
 FIPS 206 remain separate obligations.
 
+The [SNOVA v3.0 specification](https://csrc.nist.gov/csrc/media/Projects/pqc-dig-sig/documents/SNOVA_specifications.pdf)'s
+byte-level verification endpoint is in
+[`SNOVA/VerificationFrontend.lean`](../../CslibFrontier/Crypto/Computational/SNOVA/VerificationFrontend.lean),
+with its [complete ordinary-import client](../../CslibFrontierTests/Crypto/SNOVAVerificationFrontend.lean).
+`SNOVA.Encoding` fixes Table 4's eight `(q, Nq, Nb)` grouped encodings. `decodeExternal` checks the
+exact parameter-dependent length and rejects a group whose unused base-`q` quotient is nonzero,
+as required for externally supplied key/signature coefficients; `decodeCoefficients` deliberately
+omits that rejection when Algorithm 12 converts SHAKE256 output. `decodeSignature` checks the
+compressed matrix payload plus final 16-byte salt and exposes the source `U[i][i1][j1]` layout.
+The client covers shortened groups, legal and illegal encodings, salt splitting, malformed
+signatures and the non-square `l != r` hash reindexing.
+
+`SNOVA.verificationHashWithXof` uses a typed-length XOF interface for the 48-byte public-key digest,
+64-byte message digest and final hash expansion; `SNOVA.verificationHash` instantiates that interface
+with the concrete FIPS 202 `Keccak.shake256`. `SNOVA.verifyWithXof` passes the original public-key
+bytes and decoded matrices to a caller-supplied evaluator, which owns public-key validation,
+expansion and rejection, then accepts only when the evaluator result equals the complete
+verification hash. This is a serialization, hashing and equality shell, not public-key expansion,
+the twisted public map, signing or a correctness/security/resource theorem. It establishes no MBS,
+EUF-CMA, ROM/QROM, constant-time, asymptotic, retained-program or static-resource claim.
+
 The source-faithful SLH-DSA WOTS+ digit preprocessing from FIPS 205 is in
 [`SLHDSA/WOTS/Digits.lean`](../../CslibFrontier/Crypto/Primitives/SLHDSA/WOTS/Digits.lean), with
 edge checks in [`SLHDSAWOTSDigits.lean`](../../CslibFrontierTests/Crypto/SLHDSAWOTSDigits.lean)
