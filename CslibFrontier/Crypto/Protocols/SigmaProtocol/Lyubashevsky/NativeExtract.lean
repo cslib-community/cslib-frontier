@@ -196,9 +196,8 @@ for each fixed dimension. -/
 @[fun_prop]
 theorem computableInPolyTime_lyubashevskyExtractWord :
     ComputableInPolyTime lyubashevskyExtractWord encBits encBits := by
-  exact (ComputableInPolyTime.encode (encList encIntBin)).comp
-    (computableInPolyTime_lyubashevskyExtractList.comp
-      computableInPolyTime_decodeLyubashevskyExtractInput)
+  exact (computableInPolyTime_lyubashevskyExtractList.comp
+    computableInPolyTime_decodeLyubashevskyExtractInput).encoding_comp
 
 /-- The word program exactly implements the integer-list extractor on canonical encoded data. -/
 theorem lyubashevskyExtractWord_enc (input : LyubashevskyExtractInput) :

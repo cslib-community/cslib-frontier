@@ -255,7 +255,8 @@ private theorem isPPT_thresholdDistinguisher (γ d c : ℕ) {H : List Bool → P
       (fun v => decide (thresholdValue γ d c p.1 ≤ v)) <$>
         H (p.2.take (p.1 + γ * Nat.log 2 p.1 - c)))
   have hp1 := ComputableInPolyTime.fst encUnary encBits
-  have hlog := (ComputableInPolyTime.binary_log_two.comp ComputableInPolyTime.unary_to_binary).comp hp1
+  have hlog :=
+    (ComputableInPolyTime.binary_log_two.comp ComputableInPolyTime.unary_to_binary).comp hp1
   have hprep : ComputableInPolyTime
       (fun p : ℕ × List Bool => p.2.take (p.1 + γ * Nat.log 2 p.1 - c))
       (encPair encUnary encBits) encBits :=
