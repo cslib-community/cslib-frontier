@@ -100,7 +100,7 @@ example : ComputableInPolyTime
 example (empty : Empty ↪ List Bool) : ComputableInPolyTime
     (fun b : Bool => (none : Option Empty).elim b (fun e => Empty.elim e))
     encBool encBool := by
-  apply ComputableInPolyTime.optionElimWithInput
+  apply ComputableInPolyTime.optionElimWithInput (encB := empty)
     (ComputableInPolyTime.const none) ComputableInPolyTime.id'
   exact ComputableInPolyTime.of_finite _
 
