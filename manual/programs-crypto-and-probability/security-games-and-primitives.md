@@ -1822,6 +1822,7 @@ The finite query-only PRG/cipher results, semantic commitment interfaces and uni
 [cslib]: ../sources.md#cslib
 [falcon2020]: ../sources.md#falcon2020
 [fips1804]: ../sources.md#fips1804
+[fips1981]: ../sources.md#fips1981
 [fips202]: ../sources.md#fips202
 [fips203]: ../sources.md#fips203
 [fips205]: ../sources.md#fips205
@@ -1836,5 +1837,7 @@ The finite query-only PRG/cipher results, semantic commitment interfaces and uni
 [katzlindell20]: ../sources.md#katzlindell20
 [manin56]: ../sources.md#manin56
 [naoryung89]: ../sources.md#naoryung89
+[rfc4231]: ../sources.md#rfc4231
+[rfc8017]: ../sources.md#rfc8017
 [rompel90]: ../sources.md#rompel90
 [uov26]: ../sources.md#uov26
