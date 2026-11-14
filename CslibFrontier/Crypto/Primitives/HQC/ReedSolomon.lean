@@ -29,15 +29,18 @@ The reference decoder computes `2t` syndromes, obtains an error-locator polynomi
 constant-time Berlekamp update, performs a Chien search only on the final `k1` message positions,
 and evaluates the auxiliary polynomial `Z` and the odd part of the locator there.  A message byte
 is corrected only when the locator vanishes and the odd-part denominator is nonzero.  The
-definitions below pin every stage except the Berlekamp update: `hqcRSDecodeWithLocator` takes
-that stage as an explicit argument and implements the remaining total best-effort decoder.
+`HQCRSErrorLocator` is the source's fixed `t1 + 1` coefficient array, so the Chien test and both
+Forney inputs see the same capped polynomial.  `hqcRSBerlekampLocator` gives the mathematical
+state transition of the reference's constant-time Berlekamp update, and `hqcRSDecode` composes it
+with the remaining total best-effort decoder.  This functional model does not itself claim a
+constant-time machine implementation.
 
 The source coefficient arrays below are from the `RS_POLY_COEFS` macros in the HQC v5.1.0
 reference implementation, tag commit `06567ccbad10580d78dd7863b15d23f41076d57f`.  Coefficients
 and codeword coordinates are listed from constant term upward.  The implementation uses the
 modulus byte `0x11b` and primitive-element byte `0x03`; identifying an explicit Lean field model
-with that byte representation, implementing the Berlekamp stage, and proving bounded-error
-correction remain required before this is a complete source decoder.
+with that byte representation and proving the decoder's bounded-error behavior remain required
+before this is a complete source codec.
 
 In particular, this module does not compose the duplicated Reed–Muller code, prove a bit-error
 radius, establish the Model-2 distribution, evaluate Equation (9), or justify the numerical
@@ -55,8 +58,11 @@ failure probabilities in Table 16.
 * `Cslib.Crypto.HQC.hqcRSSyndromes`, `Cslib.Crypto.HQC.hqcRSMessagePoint`,
   `Cslib.Crypto.HQC.hqcRSAuxiliary`, `Cslib.Crypto.HQC.hqcRSOddLocator`: the source decoder
   stages after the locator update.
+* `Cslib.Crypto.HQC.HQCRSErrorLocator`, `Cslib.Crypto.HQC.hqcRSBerlekampLocator`: the fixed-size
+  locator representation and the reference Berlekamp state transition.
 * `Cslib.Crypto.HQC.hqcRSDecodeWithLocator`: the total message-only Chien/Forney decoder,
-  parameterized by the missing locator stage.
+  parameterized by a locator stage.
+* `Cslib.Crypto.HQC.hqcRSDecode`: the complete source-shaped best-effort decoder.
 * `Cslib.Crypto.HQC.HQCRSDecoderCorrects`: the exact bounded-symbol-error obligation for a
   completed encoder and decoder.
 
@@ -203,33 +209,68 @@ def hqcRSSyndromeCoeff {F : Type*} [Zero F] (p : HQCReedSolomonParameters)
     (syndromes : Fin (2 * p.capacity) → F) (i : ℕ) : F :=
   if h : i < 2 * p.capacity then syndromes ⟨i, h⟩ else 0
 
+/-- The source error-locator array, containing exactly the coefficients of degrees
+`0, ..., t1`.  Using this type prevents a coefficient invisible to the source evaluator from
+affecting the Chien root test. -/
+abbrev HQCRSErrorLocator (p : HQCReedSolomonParameters) (F : Type*) :=
+  Fin (p.capacity + 1) → F
+
+/-- A locator coefficient, extended by zero outside the source array. -/
+def hqcRSLocatorCoeff {F : Type*} [Zero F] (p : HQCReedSolomonParameters)
+    (locator : HQCRSErrorLocator p F) (i : ℕ) : F :=
+  if h : i < p.capacity + 1 then locator ⟨i, h⟩ else 0
+
+/-- The degree-at-most-`t1` polynomial represented by the source locator array. -/
+noncomputable def hqcRSLocatorPolynomial {F : Type*} [Semiring F]
+    (p : HQCReedSolomonParameters) (locator : HQCRSErrorLocator p F) : F[X] :=
+  ((degreeLTEquiv F (p.capacity + 1)).symm locator : degreeLT F (p.capacity + 1))
+
+/-- A locator reconstructed from the source array has no coefficient above `t1`. -/
+theorem hqcRSLocatorPolynomial_coeff_eq_zero {F : Type*} [Semiring F]
+    (p : HQCReedSolomonParameters) (locator : HQCRSErrorLocator p F) {i : ℕ}
+    (hi : p.capacity < i) : (hqcRSLocatorPolynomial p locator).coeff i = 0 := by
+  apply coeff_eq_zero_of_degree_lt
+  exact (mem_degreeLT.mp
+    (((degreeLTEquiv F (p.capacity + 1)).symm locator).property)).trans_le
+      (by exact_mod_cast (Nat.succ_le_iff.mpr hi))
+
+/-- Evaluation of the bounded locator reads exactly the `t1 + 1` source coefficients. -/
+theorem hqcRSLocatorPolynomial_eval {F : Type*} [Semiring F]
+    (p : HQCReedSolomonParameters) (locator : HQCRSErrorLocator p F) (x : F) :
+    (hqcRSLocatorPolynomial p locator).eval x =
+      ∑ i, locator i * x ^ (i : ℕ) := by
+  simpa only [hqcRSLocatorPolynomial, LinearEquiv.apply_symm_apply] using
+    eval_eq_sum_degreeLTEquiv
+      (((degreeLTEquiv F (p.capacity + 1)).symm locator).property) x
+
 /-- The coefficient of the source auxiliary polynomial `Z`.  At index `i + 1` this is
 `S_i + sum_(j < i) sigma_(j+1) S_(i-1-j) + sigma_(i+1)`; the constant coefficient is one. -/
 noncomputable def hqcRSAuxiliaryCoeff {F : Type*} [Field F]
     (p : HQCReedSolomonParameters) (syndromes : Fin (2 * p.capacity) → F)
-    (locator : F[X]) (i : ℕ) : F :=
+    (locator : HQCRSErrorLocator p F) (i : ℕ) : F :=
   if hzero : i = 0 then
     1
   else if hbound : i ≤ p.capacity then
     let sourceIndex := i - 1
     hqcRSSyndromeCoeff p syndromes sourceIndex +
       (∑ j ∈ range sourceIndex,
-        locator.coeff (j + 1) * hqcRSSyndromeCoeff p syndromes (sourceIndex - 1 - j)) +
-      locator.coeff i
+        hqcRSLocatorCoeff p locator (j + 1) *
+          hqcRSSyndromeCoeff p syndromes (sourceIndex - 1 - j)) +
+      hqcRSLocatorCoeff p locator i
   else
     0
 
 /-- The source auxiliary polynomial `Z`, truncated to its `t1 + 1` stored coefficients. -/
 noncomputable def hqcRSAuxiliary {F : Type*} [Field F] (p : HQCReedSolomonParameters)
-    (syndromes : Fin (2 * p.capacity) → F) (locator : F[X]) : F[X] :=
+    (syndromes : Fin (2 * p.capacity) → F) (locator : HQCRSErrorLocator p F) : F[X] :=
   ∑ i ∈ range (p.capacity + 1), monomial i (hqcRSAuxiliaryCoeff p syndromes locator i)
 
 /-- The source's `sigma_odd`: retain the odd-indexed locator coefficients at their original
 indices.  In characteristic two this is `X` times the formal derivative. -/
 noncomputable def hqcRSOddLocator {F : Type*} [Field F] (p : HQCReedSolomonParameters)
-    (locator : F[X]) : F[X] :=
+    (locator : HQCRSErrorLocator p F) : F[X] :=
   ∑ i ∈ range (p.capacity + 1),
-    if Odd i then monomial i (locator.coeff i) else 0
+    if Odd i then monomial i (hqcRSLocatorCoeff p locator i) else 0
 
 /-- The Chien/Forney evaluation point for message byte `i`.  If its codeword position is
 `pos = 2 * t1 + i`, the source table stores powers of `beta = alpha^(-pos mod 255)`. -/
@@ -237,11 +278,100 @@ def hqcRSMessagePoint {F : Type*} [Monoid F] (p : HQCReedSolomonParameters)
     (alpha : F) (i : Fin p.messageLength) : F :=
   alpha ^ ((255 - ((2 * p.capacity + (i : ℕ)) % 255)) % 255)
 
-/-- The missing source stage: compute the error-locator polynomial from the `2 * t1`
-syndromes.  The concrete HQC implementation must instantiate this with the printed/reference
-Berlekamp update. -/
+/-- A source locator stage computes the fixed `t1 + 1` coefficient array from the `2 * t1`
+syndromes. -/
 abbrev HQCRSErrorLocatorStage (p : HQCReedSolomonParameters) (F : Type*) :=
-  (Fin (2 * p.capacity) → F) → F[X]
+  (Fin (2 * p.capacity) → F) → HQCRSErrorLocator p F
+
+/-- The mathematical state of the reference Berlekamp update.  `rhoLocator` represents the
+source array `x_sigma_rho`; `rhoIndex = -1` in the initial state records the source's unsigned
+sentinel without relying on machine-word wraparound. -/
+structure HQCRSBerlekampState (p : HQCReedSolomonParameters) (F : Type*) where
+  /-- The current locator coefficient array `sigma`. -/
+  locator : HQCRSErrorLocator p F
+  /-- The tracked degree of `sigma`. -/
+  locatorDegree : ℕ
+  /-- The shifted comparison locator `x_sigma_rho`. -/
+  rhoLocator : HQCRSErrorLocator p F
+  /-- The tracked degree before the shift represented by `rhoLocator`. -/
+  rhoLocatorDegree : ℕ
+  /-- The index `rho` of the last promoted discrepancy, initially `-1`. -/
+  rhoIndex : ℤ
+  /-- The last promoted nonzero discrepancy `d_rho`. -/
+  rhoDiscrepancy : F
+  /-- The current discrepancy `d_mu`. -/
+  discrepancy : F
+
+/-- The source Berlekamp initial state: `sigma = 1`, `x_sigma_rho = X`, `rho = -1`,
+`d_rho = 1`, and `d_mu = S_0`. -/
+noncomputable def hqcRSBerlekampInitial {F : Type*} [Field F] [CharP F 2]
+    (p : HQCReedSolomonParameters) (syndromes : Fin (2 * p.capacity) → F) :
+    HQCRSBerlekampState p F where
+  locator := fun i => if (i : ℕ) = 0 then 1 else 0
+  locatorDegree := 0
+  rhoLocator := fun i => if (i : ℕ) = 1 then 1 else 0
+  rhoLocatorDegree := 0
+  rhoIndex := -1
+  rhoDiscrepancy := 1
+  discrepancy := hqcRSSyndromeCoeff p syndromes 0
+
+/-- The discrepancy following iteration `mu`, computed with the updated locator just as in the
+reference loop. -/
+noncomputable def hqcRSBerlekampNextDiscrepancy {F : Type*} [Field F] [CharP F 2]
+    (p : HQCReedSolomonParameters) (syndromes : Fin (2 * p.capacity) → F)
+    (locator : HQCRSErrorLocator p F) (mu : ℕ) : F :=
+  hqcRSSyndromeCoeff p syndromes (mu + 1) +
+    ∑ i ∈ range (p.capacity + 1),
+      if 0 < i ∧ i ≤ mu + 1 then
+        hqcRSLocatorCoeff p locator i * hqcRSSyndromeCoeff p syndromes (mu + 1 - i)
+      else
+        0
+
+/-- One mathematical iteration of the reference's masked Berlekamp update.  The branch on
+`promote` specifies the value selected by the C masks; this definition makes no timing claim. -/
+noncomputable def hqcRSBerlekampStep {F : Type*} [Field F] [CharP F 2] [DecidableEq F]
+    (p : HQCReedSolomonParameters) (syndromes : Fin (2 * p.capacity) → F) (mu : ℕ)
+    (state : HQCRSBerlekampState p F) : HQCRSBerlekampState p F :=
+  let quotient := state.discrepancy / state.rhoDiscrepancy
+  let locator : HQCRSErrorLocator p F := fun i =>
+    if 0 < (i : ℕ) ∧ (i : ℕ) ≤ mu + 1 then
+      state.locator i + quotient * state.rhoLocator i
+    else
+      state.locator i
+  let shiftedDegree := (Int.ofNat mu - state.rhoIndex).toNat + state.rhoLocatorDegree
+  let promote := state.discrepancy ≠ 0 ∧ state.locatorDegree < shiftedDegree
+  let rhoLocator : HQCRSErrorLocator p F := fun i =>
+    if 0 < (i : ℕ) then
+      if promote then
+        hqcRSLocatorCoeff p state.locator ((i : ℕ) - 1)
+      else
+        hqcRSLocatorCoeff p state.rhoLocator ((i : ℕ) - 1)
+    else
+      0
+  { locator := locator
+    locatorDegree := if promote then shiftedDegree else state.locatorDegree
+    rhoLocator := rhoLocator
+    rhoLocatorDegree := if promote then state.locatorDegree else state.rhoLocatorDegree
+    rhoIndex := if promote then mu else state.rhoIndex
+    rhoDiscrepancy := if promote then state.discrepancy else state.rhoDiscrepancy
+    discrepancy :=
+      if mu + 1 < 2 * p.capacity then
+        hqcRSBerlekampNextDiscrepancy p syndromes locator mu
+      else
+        state.discrepancy }
+
+/-- The reference Berlekamp state after `steps` iterations. -/
+noncomputable def hqcRSBerlekampStateAfter {F : Type*} [Field F] [CharP F 2] [DecidableEq F]
+    (p : HQCReedSolomonParameters) (syndromes : Fin (2 * p.capacity) → F) :
+    ℕ → HQCRSBerlekampState p F
+  | 0 => hqcRSBerlekampInitial p syndromes
+  | steps + 1 =>
+      hqcRSBerlekampStep p syndromes steps (hqcRSBerlekampStateAfter p syndromes steps)
+
+/-- The source error-locator array after all `2 * t1` Berlekamp iterations. -/
+noncomputable def hqcRSBerlekampLocator {F : Type*} [Field F] [CharP F 2] [DecidableEq F]
+    (p : HQCReedSolomonParameters) : HQCRSErrorLocatorStage p F := fun syndromes =>
+  (hqcRSBerlekampStateAfter p syndromes (2 * p.capacity)).locator
 
 /-- The source-shaped total decoder after supplying the error-locator stage.  Chien search and
 correction are restricted to message positions.  A correction is applied exactly when the
@@ -252,14 +382,22 @@ noncomputable def hqcRSDecodeWithLocator {F : Type*} [Field F] [CharP F 2] [Deci
     (received : HQCRSWord p F) : HQCRSMessage p F :=
   let syndromes := hqcRSSyndromes p alpha received
   let locator := errorLocator syndromes
+  let locatorPolynomial := hqcRSLocatorPolynomial p locator
   let auxiliary := hqcRSAuxiliary p syndromes locator
   let oddLocator := hqcRSOddLocator p locator
   fun i =>
     let beta := hqcRSMessagePoint p alpha i
-    if locator.eval beta = 0 ∧ oddLocator.eval beta ≠ 0 then
+    if locatorPolynomial.eval beta = 0 ∧ oddLocator.eval beta ≠ 0 then
       hqcRSMessagePart p received i + auxiliary.eval beta / oddLocator.eval beta
     else
       hqcRSMessagePart p received i
+
+/-- The complete source-shaped total best-effort decoder, using the reference Berlekamp update
+followed by message-only Chien search and denominator-guarded Forney correction. -/
+noncomputable def hqcRSDecode {F : Type*} [Field F] [CharP F 2] [DecidableEq F]
+    (p : HQCReedSolomonParameters) (alpha : F)
+    (received : HQCRSWord p F) : HQCRSMessage p F :=
+  hqcRSDecodeWithLocator p alpha (hqcRSBerlekampLocator p) received
 
 /-- The exact symbol-error obligation for a completed shortened Reed–Solomon codec: errors may
 occur in any mixture of parity and message positions. -/
