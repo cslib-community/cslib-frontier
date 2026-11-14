@@ -44,3 +44,13 @@ def restore_snapshot(source, destination):
             dst.parent.mkdir(parents=True, exist_ok=True)
             dst.unlink(missing_ok=True)
             shutil.copyfile(src, dst)
+
+
+def attribute_control_passed(returncode, log, count, negative=False):
+    """Count emitted messages, excluding source echoes in unrelated diagnostics."""
+    if negative:
+        missing = re.findall(
+            r"^.+:\d+:\d+: error: HIERARCHY_ATTRIBUTE_MISSING$", log, flags=re.M)
+        return returncode != 0 and len(missing) == count
+    present = sum(line.strip() == "HIERARCHY_ATTRIBUTE_PRESENT" for line in log.splitlines())
+    return returncode == 0 and present == count

@@ -1,7 +1,7 @@
 import tempfile
 from pathlib import Path
 import unittest
-from hierarchy_evidence_support import LOCAL, instrument, restore_snapshot
+from hierarchy_evidence_support import LOCAL, attribute_control_passed, instrument, restore_snapshot
 
 
 class Controls(unittest.TestCase):
@@ -18,6 +18,19 @@ class Controls(unittest.TestCase):
         for text in ('@[simp] theorem x : True := by trivial', LOCAL + '\ndef x := 1'):
             with self.assertRaises(AssertionError):
                 instrument(text)
+
+    def test_attribute_messages_exclude_warning_source_echoes(self):
+        echo = ('Client.lean:2:1: warning: unused tactic\n'
+                '  Lean.logInfo "HIERARCHY_ATTRIBUTE_PRESENT"\n'
+                '  unless found do throwError "HIERARCHY_ATTRIBUTE_MISSING"\n')
+        self.assertTrue(attribute_control_passed(0, echo + 'HIERARCHY_ATTRIBUTE_PRESENT\n', 1))
+        self.assertFalse(attribute_control_passed(0, echo, 1))
+        self.assertFalse(attribute_control_passed(1, 'HIERARCHY_ATTRIBUTE_PRESENT\n', 1))
+        self.assertFalse(attribute_control_passed(1, echo, 1, True))
+        missing = 'Client.lean:3:2: error: HIERARCHY_ATTRIBUTE_MISSING\n'
+        self.assertTrue(attribute_control_passed(1, echo + missing * 2, 2, True))
+        self.assertFalse(attribute_control_passed(0, missing, 1, True))
+        self.assertFalse(attribute_control_passed(1, missing, 2, True))
 
     def test_readonly_hardlink_and_symlink_destinations(self):
         with tempfile.TemporaryDirectory() as tmp:

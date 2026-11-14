@@ -7,7 +7,7 @@ import statistics
 import subprocess
 import time
 import tomllib
-from hierarchy_evidence_support import instrument, restore_snapshot
+from hierarchy_evidence_support import attribute_control_passed, instrument, restore_snapshot
 
 VARIANTS = {
     'before': '39b11c9de',
@@ -163,9 +163,7 @@ for label, sha in resolved.items():
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=900)
             log = result.stdout + result.stderr
             (dest / 'lean.log').write_text(log)
-            passed = ((result.returncode != 0 and log.count('HIERARCHY_ATTRIBUTE_MISSING') == count)
-                      if negative else (result.returncode == 0 and
-                                        log.count('HIERARCHY_ATTRIBUTE_PRESENT') == count))
+            passed = attribute_control_passed(result.returncode, log, count, negative)
             attribute_results.append(dict(variant=label, module=name, negative=negative,
                                           scopes=count, passed=passed, command=cmd))
             (OUT / 'compiled-attributes.json').write_text(json.dumps(attribute_results, indent=2))
