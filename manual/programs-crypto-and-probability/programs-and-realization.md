@@ -33,6 +33,8 @@ The adjacent modules supply different semantic tools, not alternative machines:
 | Coupled simulation and until-bad | [CslibFrontier/Languages/Probabilistic/UntilBad.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Languages/Probabilistic/UntilBad.lean) | Transfer probability bounds until a designated bad event |
 | Replay/forking | [CslibFrontier/Languages/Probabilistic/Forking.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Languages/Probabilistic/Forking.lean) | Explicit tapes and reply lists permit repeatable adversary runs |
 | Exact rational laws and Bernoulli coins | [CslibFrontier/Languages/Probabilistic/Rational.lean](../../CslibFrontier/Languages/Probabilistic/Rational.lean) | Exact rational output probabilities (`ProbComp.evalRat`, `ProbComp.eval_eq_iff_evalRat_eq`) and loop-free clamped rational coins (`ProbComp.bernoulliRat`) |
+| Tuple and repetition oracle laws | [Oracle/Vector.lean](../../CslibFrontier/Languages/Probabilistic/Oracle/Vector.lean) | `ProbOracleComp.run`, `IsQueryBounded`, and exact `withTranscript` lengths for `OracleComp.pi` and `OracleComp.replicate` (`run_pi_query`, `isQueryBounded_pi_query`, `run_replicate`, `isQueryBounded_replicate`) |
+| Plurality amplification | [Probabilistic/Plurality.lean](../../CslibFrontier/Languages/Probabilistic/Plurality.lean) | `ProbComp.plurality` and Hoeffding bounds `toOuterMeasure_plurality_replicate_ne_toReal_le`, `one_sub_two_rpow_le_eval_plurality_replicate_toReal` |
 
 An ideal full random function table and its lazy cache can have the same transcript distribution while radically different representation costs. Their semantic equivalence does not, by itself, prove efficient materialization of the full table. At the open `OracleComp` level, forward-only query deduplication wraps a program with `memoize OracleComp.query` ([Memoize.lean](../../CslibFrontier/Foundations/Control/Monad/Memoize.lean)), while bidirectional permutation reductions wrap `PermOracleSpec α` programs with `RandomPermutation.bidirDedupStep` / `RandomPermutation.bidirDedup` ([RandomPermutation.lean](../../CslibFrontier/Languages/Probabilistic/RandomPermutation.lean), checked in [RandomPermutationSwitching.lean](../../CslibFrontierTests/RandomPermutationSwitching.lean)) so both forward hits in `dom(cache)` and inverse hits in `ran(cache)` reuse cached answers without repeating underlying oracle calls, preserving `evalPerm π` output laws, pathwise query bounds, and pairwise-distinct domain/range cache invariants.
 
@@ -134,9 +136,12 @@ reduction built on it is in
 [`SchnorrSignature/Security.lean`](../../CslibFrontier/Crypto/Computational/SchnorrSignature/Security.lean).
 
 [`Oracle/ReplayParameter.lean`](../../CslibFrontier/Computability/Probabilistic/Oracle/ReplayParameter.lean)
-starts from a public-key length bound `keyC * (n + 1)^keyD`.
-`IsOraclePPT.exists_savedCoins_of_length_le` uses one uniform tape of length
-`c * (2*n + 2 + keyC*(n + 1)^keyD)^d`, independent of the key. Replay takes only the prefix
+starts from a public-key length bound `keyC * (n + 1)^keyD` and defines the shared polynomial
+budget `savedCoinBudget c d keyC keyD n = c * (2*n + 2 + keyC*(n + 1)^keyD)^d`
+(`polynomiallyBounded_savedCoinBudget`, `computableInPolyTime_savedCoinBudget`,
+`clock_le_savedCoinBudget`), reused by ROM signatures, tree signatures and the word-level
+Fujisaki–Okamoto bridge. `IsOraclePPT.exists_savedCoins_of_length_le` uses one uniform tape of
+length `savedCoinBudget c d keyC keyD n`, independent of the key. Replay takes only the prefix
 specified by the original full-input machine clock. Equality holds for every key within the
 bound and retains the complete external state; the handler's own randomness stays external.
 `IsOraclePPT.exists_savedCoins_of_keyGen` derives the bound from actual strict-PPT key generation.
