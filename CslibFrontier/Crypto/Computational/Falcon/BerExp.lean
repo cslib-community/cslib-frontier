@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Languages.Probabilistic.UniformNat
+import CslibFrontier.Probability.PMF.Bool
 
 /-!
 # Falcon v1.2 BerExp threshold distribution
@@ -95,8 +96,8 @@ theorem eval_berExpThresholdCoin_true (threshold : BerExpThreshold) :
       (threshold.val : ENNReal) / 2 ^ 64 := by
   simp only [berExpThresholdCoin, berExpThresholdAccepts, ProbComp.eval_bind, ProbComp.eval_pure,
     ProbComp.eval_sampleBinaryNat, PMF.bind_map]
-  rw [Cslib.Probability.uniformFin_decide_lt,
-    Nat.min_eq_right threshold.isLt.le]
+  simpa only [Nat.min_eq_right threshold.isLt.le] using
+    Cslib.Probability.uniformFin_decide_lt (2 ^ 64) threshold.val
 
 /-- Real-valued form of the exact `BerExp` threshold acceptance mass. -/
 theorem eval_berExpThresholdCoin_true_toReal (threshold : BerExpThreshold) :
