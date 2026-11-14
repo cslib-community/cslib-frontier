@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Primitives.ByteString
+public import CslibFrontier.Crypto.Primitives.SLHDSA.Parameters
 public import Mathlib.Algebra.BigOperators.Fin
 public import Mathlib.Algebra.Order.Floor.Div
 import CslibFrontier.Foundations.Data.BitString.List.BinaryOrder
@@ -33,7 +34,7 @@ instantiations, or a security theorem.
 ## Main definitions
 
 * `Cslib.Crypto.SLHDSA.base2b`: Algorithm 4 on byte strings.
-* `Cslib.Crypto.SLHDSA.WOTS.SecurityBytes`: the three standard values of `n`.
+* `Cslib.Crypto.SLHDSA.SecurityBytes`: the three standard values of `n`.
 * `Cslib.Crypto.SLHDSA.WOTS.Digit`: one base-16 WOTS+ digit.
 * `Cslib.Crypto.SLHDSA.WOTS.messageDigits`: the `len1` message digits.
 * `Cslib.Crypto.SLHDSA.WOTS.checksum`: the complement checksum.
@@ -102,27 +103,6 @@ theorem base2b_lt (X : List Byte) (b outLen : ℕ) (h : Base2bInput X b outLen)
   (base2b X b outLen h i).isLt
 
 namespace WOTS
-
-/-- The three byte lengths `n` used by the FIPS 205 parameter sets. -/
-inductive SecurityBytes where
-  | bytes16
-  | bytes24
-  | bytes32
-  deriving DecidableEq, Repr
-
-namespace SecurityBytes
-
-/-- The security-element and message length `n`, in bytes. -/
-def count : SecurityBytes → ℕ
-  | .bytes16 => 16
-  | .bytes24 => 24
-  | .bytes32 => 32
-
-/-- Every standardized value of `n` is at most 32 bytes. -/
-theorem count_le_32 (p : SecurityBytes) : p.count ≤ 32 := by
-  cases p <;> decide
-
-end SecurityBytes
 
 /-- The Winternitz digit width fixed by FIPS 205. -/
 abbrev lgW : ℕ := 4

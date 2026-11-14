@@ -4708,6 +4708,7 @@ public import CslibFrontier.Crypto.Primitives.BlockCipher.CBCMAC
 public import CslibFrontier.Crypto.Primitives.BlockCipher.LengthPrependedCBCMAC
 public import CslibFrontier.Crypto.Primitives.BlockCipher.Modes
 public import CslibFrontier.Crypto.Primitives.ByteString
+public import CslibFrontier.Crypto.Primitives.ByteString.Blocks
 public import CslibFrontier.Crypto.Primitives.CorrelationRobust
 public import CslibFrontier.Crypto.Primitives.Garbling.Adaptive
 public import CslibFrontier.Crypto.Primitives.Garbling.Arithmetic.AffineLabel
@@ -4765,6 +4766,8 @@ public import CslibFrontier.Crypto.Primitives.PRG.NisanWigderson.Sampling
 public import CslibFrontier.Crypto.Primitives.PRP.Finite
 public import CslibFrontier.Crypto.Primitives.SDitH.TweakSalt
 public import CslibFrontier.Crypto.Primitives.SLHDSA.Address
+public import CslibFrontier.Crypto.Primitives.SLHDSA.HashCalls
+public import CslibFrontier.Crypto.Primitives.SLHDSA.Parameters
 public import CslibFrontier.Crypto.Primitives.SLHDSA.WOTS.Digits
 public import CslibFrontier.Crypto.Protocols.BCS.Basic
 public import CslibFrontier.Crypto.Protocols.BCS.ROM
