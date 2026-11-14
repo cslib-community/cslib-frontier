@@ -6,9 +6,11 @@ Authors: Erik Demaine, OpenAI
 
 -- upstream: candidate
 
-import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.Expansion
+import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.OneHotExpansion
+import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.CrossoverOriginal
 import Lean.Util.CollectAxioms
 import Batteries.Tactic.Lint
+import ImportGraph
 
 /-! Adapt the existing construction audit to every stored declaration in the expansion delta,
 including private/generated declarations and the original pointwise instantiation equation.
@@ -26,7 +28,13 @@ run_cmd do
      `CslibFrontier.Logics.Propositional.CSP.PrimitivePositive.ExpansionNames,
      `CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.GadgetTransport,
      `CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.ExpansionProbe,
-     `CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.Expansion]
+     `CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.Expansion,
+     `CslibFrontier.Logics.Propositional.CSP.Planar.Crossover,
+     `CslibFrontier.Logics.Propositional.CSP.Planar.OneInThree,
+     `CslibFrontier.Logics.Propositional.CSP.PrimitivePositive.ExpansionCrossover,
+     `CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.CrossoverExpansion,
+     `CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.OneHotExpansion,
+     `CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.CrossoverOriginal]
   let allowed : List Name := [``propext, ``Classical.choice, ``Quot.sound]
   let mut modules := 0
   let mut decls : Array Name := #[]
@@ -48,26 +56,14 @@ run_cmd do
         decls := decls.push name
   unless modules == targets.length && !decls.isEmpty do
     throwError "expansion audit: expected {targets.length} owned modules; found {modules}"
-  -- Each visited module contributes its public outgoing edges once. The total number
-  -- of all loaded import edges bounds the worklist, including repeated queued names.
-  let edgeFuel := env.header.moduleData.foldl (fun n data => n + data.imports.size) 1
+  let graph := publicImports.transitiveClosure
   for target in targets do
-    let mut pending : List Name := [target]
-    let mut visited : NameSet := {}
-    let mut found := false
-    for _ in [:edgeFuel] do
-      match pending with
-      | [] => break
-      | name :: rest =>
-        pending := rest
-        if name == `Cslib.Init then
-          found := true
-          break
-        unless visited.contains name do
-          visited := visited.insert name
-          pending := ((publicImports.find? name).getD #[]).toList ++ pending
-    unless found do
+    unless ((graph.find? target).getD {}).contains `Cslib.Init do
       throwError "expansion audit: {target} does not publicly import Cslib.Init"
+  for name in env.header.moduleNames do
+    if (`CslibFrontier.Computability.PolyTime.CSP.Gadget.ConstructionCompiler).isPrefixOf name ||
+        (`CslibFrontier.Computability.Complexity.FineGrained.CountingCSP).isPrefixOf name then
+      throwError "expansion audit: mathematical endpoint imports runtime module {name}"
   let checks ← liftCoreM <| getChecks (slow := true) (runOnly := none) (runAlways := none)
   let results ← liftCoreM <| lintCore decls checks
   for (linter, failures) in results do
