@@ -321,6 +321,9 @@ private def linearViews (fn encIn encOut : Term) (base : Name) : CommandElabM Un
       test ← `((ComputableInDegree.of_finite (encIn := encPair encBool encBool)
         (encMid := encBool) (fun p : Bool × Bool => p.1 && p.2)).comp (($test).prod $wanted))
       raw ← `((ComputableInDegree.tail (enc₁ := encBool) (enc := encBits)).comp $raw)
+    if i == 0 && n > 1 then
+      test ← `((ComputableInO.isLeft_deg $(payloads[0]!) $(rests[1]!)).comp
+        $(app name "_toSum_deg"))
     elabCommand (← `(@[scoped fun_prop] public theorem
       $(app matcher.getId "_deg"):ident : ComputableInDegree $matcher $eT encBool 1 0 :=
       (($test).mono (d' := 1) (e' := 0)).of_enc_eq (fun v => by
@@ -354,16 +357,24 @@ private def linearViews (fn encIn encOut : Term) (base : Name) : CommandElabM Un
             (encIn := encBits) (encMid := encBits) (fun _ => rfl)).comp $word)
       let someWord ← `((ComputableInDegree.const (encIn := $eT) (encMid := encBool) true).append
         $word (fun _ => rfl))
-      elabCommand (← `(@[scoped fun_prop] public theorem
-        $(app projection.getId "_deg"):ident :
-        ComputableInDegree $projection $eT (encOption $out) 1 1 := by
-        have hn : ComputableInDegree (fun _ : $T => ([] : List Bool)) $eT encBits 1 1 :=
-          (ComputableInDegree.const (encMid := encBits) []).mono
-        exact ((($(app matcher.getId "_deg")).ite
-          (($someWord).restrict _) (hn.restrict _)).mono (d' := 1) (e' := 1)).of_enc_eq
-            (fun v => by cases v <;>
-              simp [$projection:ident, $matcher:ident, $applyName:ident, $toSum:ident,
-                encBits, unframe_frame_append, dropFrame_frame_append])))
+      if i == 0 && n > 1 && (field == 0 || encss[i]!.size == 1) then
+        elabCommand (← `(@[scoped fun_prop] public theorem
+          $(app projection.getId "_deg"):ident :
+          ComputableInDegree $projection $eT (encOption $out) 1 1 :=
+          ((ComputableInO.getLeft?_deg $(payloads[0]!) $(rests[1]!)).comp
+            $(app name "_toSum_deg")).of_enc_eq (fun v => by
+              cases v <;> rfl)))
+      else
+        elabCommand (← `(@[scoped fun_prop] public theorem
+          $(app projection.getId "_deg"):ident :
+          ComputableInDegree $projection $eT (encOption $out) 1 1 := by
+          have hn : ComputableInDegree (fun _ : $T => ([] : List Bool)) $eT encBits 1 1 :=
+            (ComputableInDegree.const (encMid := encBits) []).mono
+          exact ((($(app matcher.getId "_deg")).ite
+            (($someWord).restrict _) (hn.restrict _)).mono (d' := 1) (e' := 1)).of_enc_eq
+              (fun v => by cases v <;>
+                simp [$projection:ident, $matcher:ident, $applyName:ident, $toSum:ident,
+                  encBits, unframe_frame_append, dropFrame_frame_append])))
       linearViews projection eT (← `(encOption $out)) projection.getId
   -- case analysis on the payloads
   let elim := app name "_elim"
