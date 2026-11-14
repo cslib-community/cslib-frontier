@@ -21,11 +21,12 @@ import CslibFrontier.Tactic.PPT
 /-!
 # Adaptive multi-challenge left-or-right chosen-plaintext security
 
-In the `Q`-query left-or-right chosen-plaintext experiment ([Boneh and Shoup, Section 11.2,
-Attack Game 11.1, multi-message variant, p. 437][BonehShoup2023]), an adversary first initializes
-its saved state word from the security parameter and public key (`start`), then Adaptive-CPA
-interacts with a left-or-right encryption oracle for `Q n` queries (`query`), and finally outputs a
-distinguishing bit (`guess`). At each query step, `query` receives the unary security parameter,
+In the `Q`-query left-or-right chosen-plaintext experiment ([Boneh and Shoup, Section 11.3.2,
+Attack Game 11.2 and Definition 11.4, p. 439; cf. Attack Game 11.1, Section 11.2,
+p. 436][BonehShoup2023]), an adversary first initializes its saved state word from the security
+parameter and public key (`start`), then Adaptive-CPA interacts with a left-or-right encryption
+oracle for `Q n` queries (`query`), and finally outputs a distinguishing bit (`guess`). At each
+query step, `query` receives the unary security parameter,
 the current saved state word, and the reverse transcript of challenge ciphertexts seen so far, and
 returns a fresh challenge pair `(msg₀, msg₁)` together with an updated state word (`ChoiceOut Msg`).
 Because `query` updates the state word at every step, coins flipped or challenge messages chosen in
@@ -81,7 +82,8 @@ and the loss-two public-key replacement bound `advantage_lorDistinguisher_le`.
 ## References
 
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023],
-  Section 11.2 (Attack Game 11.1, pp. 436–437) and Section 11.3.2.
+  Section 11.3.2 (Attack Game 11.2 and Definition 11.4, p. 439; cf. Attack Game 11.1,
+  Section 11.2, p. 436).
 -/
 
 @[expose] public section
@@ -268,7 +270,8 @@ abbrev LoRINDCPA (keyGen : ℕ → ProbComp (List Bool × List Bool))
   LoRINDCPAOf encBool keyGen encrypt Q
 
 /-- Adaptive `Q`-query left-or-right IND-CPA security for bit-word encryption (`List Bool`) under
-Attack Game 11.1's equal-length rule ([BonehShoup2023], Section 11.2, p. 436): challenge pairs with
+Attack Game 11.2's equal-length rule ([BonehShoup2023], Section 11.3.2, Attack Game 11.2 and
+Definition 11.4, p. 439; cf. Attack Game 11.1, Section 11.2, p. 436): challenge pairs with
 `m₀.length ≠ m₁.length` are inadmissible. -/
 abbrev WordLoRINDCPA (keyGen : ℕ → ProbComp (List Bool × List Bool))
     (encrypt : ℕ → List Bool → List Bool → ProbComp (List Bool)) (Q : ℕ → ℕ) : Prop :=
