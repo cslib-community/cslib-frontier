@@ -364,7 +364,6 @@ theorem computableInDegree_mul :
     ComputableInDegree (fun p : ℕ × ℕ => p.1 * p.2) (encPair encNat encNat) encNat 3 1 :=
   ComputableInO.natMul.computableInDegree ⟨1, fun _ => by simp⟩ ⟨1, fun _ => by simp⟩ (by decide)
 
-attribute [fun_prop] ComputableInDegree
 attribute [fun_prop] ComputableInDegree.const ComputableInDegree.fst
   ComputableInDegree.snd ComputableInDegree.comp ComputableInDegree.prod
   ComputableInDegree.fst' ComputableInDegree.snd'

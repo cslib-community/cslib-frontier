@@ -35,7 +35,9 @@ for this plain API. Its computed-index rules use the captured-input dispatch the
 [PolyTimeFinitePrimitives.lean](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/PolyTimeFinitePrimitives.lean).
 The regression rejects imports of the higher tidy calculus; the tidy-facing
 `Complexity.PolyTime.Finite` module re-exports the same plain dispatch theorem and adds its tidy
-specialization.
+specialization. The plain `Complexity.Degree.Primitives` entry point registers
+`ComputableInDegree` for `fun_prop`; extracted list rules do not require `Quantitative`
+to enable automation.
 
 
 To encode a structure as the tuple of its fields, import `CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure` and, inside a namespace, write `enc_structure eS : S where f₁ : e₁, …, fₙ : eₙ`. List every field of `S` once, in declaration order, and parenthesize compound encodings such as `(encList encUnary)`. List a parent structure either as the single field `toParent`, as in `S`'s constructor, encoded as one word, or as its own fields in place of `toParent`, which flattens them into the tuple; listing both is an error. To make a flattened parent projection available to automation, declare its encoding before `where`: `enc_structure eChild : Child flattened toParent : eParent where …`. The command checks that `toParent` is a parent field and is actually flattened. The generated proof also requires `eParent` to have exactly the selected word layout, so the annotation cannot silently change the encoding. `S` must be a structure, not a class. The command checks the list before declaring anything: an unknown, repeated or misplaced field, or any missing ones, is an error that names them and lists the fields of `S` in declaration order. That order fixes the encoded words: the simp lemma `eS_apply` unfolds `eS a` to `eSFields (a.f₁, …, a.fₙ)`, where `eSFields` is the right-nested `encPair e₁ (encPair e₂ … eₙ)`, so every field but the last is framed.
