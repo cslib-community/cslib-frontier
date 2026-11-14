@@ -500,8 +500,9 @@ theorem indistinguishable_attackResources {Adversary : Type*}
     {Admissible : Adversary → Prop}
     (h : IndistinguishableWithin game1 game2 Within ε)
     (hsched : ∀ adversary, Admissible adversary →
-      ∃ r : ℕ → AttackResources, r.IsPolynomial ∧ ∀ n, Within n (r n) adversary)
-    (hneg : ∀ r : ℕ → AttackResources, r.IsPolynomial →
+      ∃ r : ℕ → AttackResources,
+        AttackResources.IsPolynomial r ∧ ∀ n, Within n (r n) adversary)
+    (hneg : ∀ r : ℕ → AttackResources, AttackResources.IsPolynomial r →
       Negligible (fun n => ε n (r n))) :
     Indistinguishable game1 game2 Admissible :=
   h.indistinguishable AttackResources.IsPolynomial hsched hneg
