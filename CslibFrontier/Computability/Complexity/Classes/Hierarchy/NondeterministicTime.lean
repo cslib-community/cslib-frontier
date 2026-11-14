@@ -343,12 +343,9 @@ theorem lazyDiagonal_mem_NTIME (d : ℕ) :
     have hD : ((unframe (unframe x)).length + 1) ^ D ≤ CD * n :=
       (hCD _).trans (Nat.mul_le_mul_left _ (hs.trans hu))
     have hb : ((unframe (unframe x)).length + 1) ^ D + (n + 1) + (n + 2) ^ (d + 2) + 1 ≤
-        (CD + 3) * (n + 2) ^ (d + 2) := by
-      have h₁ : n + 2 ≤ (n + 2) ^ (d + 2) := Nat.le_self_pow (Nat.succ_ne_zero _) _
-      have h₂ : CD * n ≤ CD * (n + 2) ^ (d + 2) := Nat.mul_le_mul_left _ (by omega)
-      have e : (CD + 3) * (n + 2) ^ (d + 2) = CD * (n + 2) ^ (d + 2) + 3 * (n + 2) ^ (d + 2) := by
-        ring
-      omega
+        (CD + 3) * (n + 2) ^ (d + 2) :=
+      LazyDiagonal.acceptance_input_bound hD
+        (Nat.le_self_pow (Nat.succ_ne_zero _) _)
     calc accBound d D (unframe (unframe x), x ++ [false], v) =
           (((unframe (unframe x)).length + 1) ^ D + (n + 1) + (n + 2) ^ (d + 2) + 1) ^ 4 *
             (n + 2) ^ (2 * d + 6) := by
@@ -389,20 +386,7 @@ theorem lazyDiagonal_mem_NTIME (d : ℕ) :
           _ = 3 * K * (P + 1) ^ (d + 2) := by ring
           _ ≤ B₀ := by rw [hB₀]; exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_left hK.le _)
       exact (Nat.pow_le_pow_right Nat.one_lt_two.le hle).trans (Nat.le_add_left _ _)
-  clear hB₀ hA₁ hA₂ hA₃ h2 hMk hCD
-  have e : (2 + A₃ + 4 * A₁ + A₂ + 2 ^ B₀) * M =
-      2 * M + A₃ * M + 4 * (A₁ * M) + A₂ * M + 2 ^ B₀ * M := by ring
-  have hB : 2 ^ B₀ ≤ 2 ^ B₀ * M :=
-    Nat.le_mul_of_pos_right _ (Nat.lt_of_lt_of_le (Nat.succ_pos _) hnM)
-  generalize 2 + A₃ + 4 * A₁ + A₂ + 2 ^ B₀ = C at *
-  generalize 2 ^ B₀ = P at *
-  split_ifs with h₀ h₁ h₂
-  · have := hacc h₀
-    omega
-  · have := hbrute h₁
-    omega
-  · omega
-  · omega
+  exact LazyDiagonal.verifier_branch_bound hnM hTℓ hcheap hacc hbrute
 
 /-! ### The hierarchy -/
 

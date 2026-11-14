@@ -299,6 +299,14 @@ and [exponential](../../CslibFrontier/Computability/Complexity/Classes/Hierarchy
 clients retain their distinct unary-clock constructions and arithmetic estimates, while this
 rule performs input decoding, branch composition and output negation once.
 
+`LazyDiagonal.verifier_branch_bound` combines certificate construction, test overhead,
+short-description simulation and endpoint search estimates into the final verifier bound.
+Supply the simulation estimate under the short-description guard and the search estimate
+under failure of the next-length comparison. Both hierarchy membership proofs use this rule;
+their polynomial and exponential clock estimates remain separate.
+`LazyDiagonal.acceptance_input_bound` shares the preceding estimate of the simulation input
+factor from the linear description bound and a certificate covering the input.
+
 ## Exponential-time completeness and separations
 
 [`TMSAT`](../../CslibFrontier/Computability/Complexity/Problems/TMSAT.lean) is the unary-clock, nondeterministic counterpart of bounded halting below. An instance is a `TMSATInstance` `⟨machine, input, witnessLength, steps⟩`, encoded by `encTMSATInstance` with the description in `eDesc`, the input as raw bits, and the last two fields in unary. It is a member when some witness `u` of exactly `witnessLength` bits makes the universal function, run for `steps` steps on `frame input ++ u` (the `NP` pairing `encPair encBits encBits`), report a halted run with output `[true]`; `TMSATInstance.accepts_desc_iff` relates this to `runFrom` on a real machine. `TMSAT.mem_NP` takes certificates as long as the encoded instance and reads their first `witnessLength` bits. `TMSAT.npHard` obtains, from `A ∈ NP enc`, a machine computing the verifier within `c (n + 1) ^ d` steps and maps `a` to that machine's description, `enc a`, the certificate length `p |enc a|` and the step bound `TMSAT.stepPoly p c d` evaluated at `|enc a|`. The [checked client](../../CslibFrontierTests/AroraBarakChapterTwo.lean) decides an accepted instance of a one-step machine and rejects every instance with step bound zero.

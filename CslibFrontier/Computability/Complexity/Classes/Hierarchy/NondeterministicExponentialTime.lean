@@ -444,10 +444,8 @@ theorem expLazyDiagonal_mem_NTIME (k : ℕ) :
     have hu := length_unframe_le x
     have hD : ((unframe (unframe x)).length + 1) ^ D ≤ CD * n :=
       (hCD _).trans (Nat.mul_le_mul_left _ (hs.trans hu))
-    have hb : ((unframe (unframe x)).length + 1) ^ D + (n + 1) + V + 1 ≤ (CD + 3) * V := by
-      have h₂ : CD * n ≤ CD * V := Nat.mul_le_mul_left _ (by omega)
-      have e : (CD + 3) * V = CD * V + 3 * V := by ring
-      omega
+    have hb : ((unframe (unframe x)).length + 1) ^ D + (n + 1) + V + 1 ≤ (CD + 3) * V :=
+      LazyDiagonal.acceptance_input_bound hD (by omega)
     have hw : (frame (x ++ [false]) ++ v).length + 1 ≤ 3 * V := by
       simp only [List.length_append, length_frame, List.length_singleton, hv', ← hn]; omega
     calc accBound D (unframe (unframe x), x ++ [false], v) =
@@ -497,20 +495,7 @@ theorem expLazyDiagonal_mem_NTIME (k : ℕ) :
               exact Nat.mul_le_mul_left _ (Nat.pow_le_pow_right Nat.one_lt_two.le
                 (Nat.mul_le_mul_left _ hP3))
       exact (Nat.pow_le_pow_right Nat.one_lt_two.le hle).trans (Nat.le_add_left _ _)
-  clear hB₀ hA₁ hA₂ hA₃ hM hVdef hCD
-  have e : (2 + A₃ + 4 * A₁ + A₂ + 2 ^ B₀) * M =
-      2 * M + A₃ * M + 4 * (A₁ * M) + A₂ * M + 2 ^ B₀ * M := by ring
-  have hB : 2 ^ B₀ ≤ 2 ^ B₀ * M :=
-    Nat.le_mul_of_pos_right _ (Nat.lt_of_lt_of_le (Nat.succ_pos _) hnM)
-  generalize 2 + A₃ + 4 * A₁ + A₂ + 2 ^ B₀ = C at *
-  generalize 2 ^ B₀ = Q at *
-  split_ifs with h₀ h₁ h₂
-  · have := hacc h₀
-    omega
-  · have := hbrute h₁
-    omega
-  · omega
-  · omega
+  exact LazyDiagonal.verifier_branch_bound hnM hTℓ hcheap hacc hbrute
 
 /-! ### The hierarchy -/
 
