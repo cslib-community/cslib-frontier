@@ -532,8 +532,8 @@ theorem validProg_demoteStep {U V w n_max h_space : ℕ} {x : (ℕ × ℕ) × �
   obtain ⟨-, htop_idx_lt, h0_idx_lt, -, hg_del_lt, hg_last_lt, ⟨htail, hb, hr_cap, -⟩, -,
       hg_tail_lt, -⟩ := demoteStep_bounds hw ⟨hpre, hb_pos⟩
   simp only [demoteStepProg, demoteStepGenProg, p_slabSizeSubOne_mk, p_slabSize_mk,
-    p_nMaxSubOne_mk,
-    readGMGenProg_mk, readQuotGenProg_mk, readValGenProg_mk, writeQuotGenProg_mk, writeValGenProg_mk,
+    p_nMaxSubOne_mk, readGMGenProg_mk, readQuotGenProg_mk, readValGenProg_mk,
+    writeQuotGenProg_mk, writeValGenProg_mk,
     appendTailItemGenProg_mk]
   refine validProg_bind (validProg_readGM hw htop_idx_lt) ?_
   refine validProg_bind (validProg_readGM hw h0_idx_lt) ?_
