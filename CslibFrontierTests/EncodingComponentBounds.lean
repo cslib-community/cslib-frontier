@@ -27,3 +27,8 @@ example (xs : List Bool) (i : ℕ) :
 example {α : Type} (ea : α ↪ List Bool) (xs : List α) :
     xs.length ≤ (encList ea xs).length := by
   simp only [enc_component]
+
+example {Index Value : Type} [Fintype Index] (enc : Value ↪ List Bool)
+    (values : Index → Value) (i : Index) :
+    (enc (values i)).length ≤ (encPi enc values).length := by
+  simp only [enc_component]

@@ -481,11 +481,14 @@ that case without bullets or `<;>`.
 
 For component bounds that should retain their encoding layout, import
 `CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.ComponentBounds`.
-The opt-in `simp only [enc_component]` collection handles pair projections and sized-list
-lengths and suffixes; add a membership proof for an encoded list element. The
+The opt-in `simp only [enc_component]` collection handles pair projections, finite-table entries
+(`encPi`) and sized-list lengths and suffixes; add a membership proof for an encoded list element. The
 [sparse CNF compiler](../../CslibFrontier/Computability/PolyTime/CNF/SparsePolyCompile.lean)
 uses this before composing component bounds with growth estimates. Keep the intermediate
-container explicit when a bound crosses both a list and a pair.
+container explicit when a bound crosses both a list and a pair. For a finite table,
+`length_le_encPi enc values i` bounds an entry directly; the
+[GMW configuration-space proof](../../CslibFrontier/Crypto/Computational/GMW/Sequential.lean)
+uses it without reconstructing the table’s list enumeration.
 
 Variable products remain atoms for `omega`. Supply a scaling fact, such as
 `Nat.mul_le_mul_left k h`, before the final call; expanding a product's factors does not prove
