@@ -38,6 +38,9 @@ The command declares:
 * for each constructor `c`, `eT_c_matches`, `eT_c_payload?`, and `eT_c_fieldJ?` for each
   zero-based field index `J`, with `_deg`, `_inO`, `_inSpace` and `_polyTime` certificates.
   Matchers have cost degree one and output degree zero; projections have degrees one/one.
+* `eT_c_matches_iff` characterizes the constructor range; `eT_c_payload?_eq_some_iff`
+  reconstructs the constructor from its payload, and `eT_c_payload?_range` characterizes
+  payload existence. These public facts apply to unknown input values without unfolding matches.
 
 The `toSum` and constructor rules are `scoped` `fun_prop` rules, as for `enc_structure`. The case
 rule is stated for an input paired with the value, as `ComputableInO.sumElimSnd` is.
@@ -347,6 +350,35 @@ private def linearViews (fn encIn encOut : Term) (base : Name) : CommandElabM Un
         @[expose] public def $projection:ident (v : $T) : Option _ := match v with $pas:matchAlt*))
       elabCommand (← `(@[simp] public theorem $(app projection.getId "_isSome"):ident
         (v : $T) : ($projection v).isSome = $matcher v := by cases v <;> rfl))
+      if field == 0 then
+        -- Reconstruct the constructor from its complete right-nested payload. Keep this
+        -- semantic interface independent of the encoded tag and frame layout.
+        let a := mkIdent `a
+        let ctor := mkIdent (T.getId ++ cs[i]!.getId)
+        let mut args : Array Term := #[]
+        let mut rest : Term := a
+        for j in [0:encss[i]!.size] do
+          if j + 1 < encss[i]!.size then
+            args := args.push (← `(($rest).1))
+            rest ← `(($rest).2)
+          else
+            args := args.push rest
+        let reconstructed := Syntax.mkApp ctor args
+        let valueIff := app projection.getId "_eq_some_iff"
+        elabCommand (← `(/-- The complete payload determines exactly this constructor value. -/
+          public theorem $valueIff:ident (v : $T) ($a : $(argTys[i]!)) :
+            $projection v = some $a ↔ v = $reconstructed := by
+              cases v <;> simp [$projection:ident]))
+        elabCommand (← `(/-- The matcher recognizes precisely the range of this constructor. -/
+          public theorem $(app matcher.getId "_iff"):ident (v : $T) :
+            $matcher v = true ↔ ∃ $a : $(argTys[i]!), v = $reconstructed := by
+              rw [← $(app projection.getId "_isSome")]
+              simp only [Option.isSome_iff_exists, $valueIff:ident]))
+        elabCommand (← `(/-- A payload exists precisely when this constructor matches. -/
+          public theorem $(app projection.getId "_range"):ident (v : $T) :
+            (∃ $a : $(argTys[i]!), $projection v = some $a) ↔ $matcher v = true := by
+              rw [← $(app projection.getId "_isSome")]
+              exact Option.isSome_iff_exists.symm))
       let mut word := raw
       if field > 0 then
         for _ in [0:field - 1] do
