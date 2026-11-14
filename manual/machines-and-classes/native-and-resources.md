@@ -205,6 +205,14 @@ clients can reuse them without importing either machine implementation.
 [openai-logspace26]: ../sources.md#openai-logspace26
 [sakszhou99]: ../sources.md#sakszhou99
 
+The [quantitative rules](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/Quantitative.lean)
+provide plain `ComputableInDegree.bitsReverse` and `bitsDropLast` at cost/output degrees
+`1/1`, and `bitsGetLast?ToList` and `bitsGetLast?` at `1/0`. These replace the four tidy
+degree rules and their automation leaves; use plain callback certificates when composing them.
+`ComputableInO.lengthUnary` retains linear time and output-charged linear space.
+The [composition regression](../../CslibFrontierTests/Quantitative.lean) checks the independent
+output degrees, including a high-degree consumer of a constant-size last-bit result.
+
 The [plain word-transducer facade](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/WordTransducers.lean)
 provides `ComputableInTimeAndSpace.map_bits`, `length_bits`, `dropLast_bits`,
 `getLast?_toList_bits` and `getLast?_bits` with time `4 * l.length + 8` and zero workspace.
