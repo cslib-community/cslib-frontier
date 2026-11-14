@@ -90,8 +90,9 @@ theorem retained_inO : ComputableInO retained inputEncoding (encPair encUnary en
   have hbody : ComputableInDegree
       (fun p : (ℕ × Option ℕ) × ℕ => (p.1.1, p.2))
       (encPair inputEncoding encUnary) (encPair encUnary encUnary) 1 1 := by
-    unfold inputEncoding
-    fun_prop (disch := first | apply le_refl | omega)
+    exact ((ComputableInDegree.fst encUnary (encOption encUnary)).comp
+      (ComputableInDegree.fst inputEncoding encUnary)).prod
+      (ComputableInDegree.snd inputEncoding encUnary)
   have h := ComputableInO.optionElimWithInput
     (body := fun q n => (q.1, n)) hvalue (hfst.prod hfst) hbody.inO_one
   convert h using 1 <;> first | rfl |
