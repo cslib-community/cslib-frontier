@@ -15,12 +15,14 @@ import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Uniform
 
 /-!
-# Strongly Reusable Fuzzy Extractor from LWE via Symmetric Encryption
+# Encryption-based reusable fuzzy extractor from LWE: construction and reduction step
 
 This file formalizes the encryption-based strongly reusable fuzzy extractor from
 Learning With Errors of Apon, Cho, Eldefrawy, and Katz ([AponChoEldefrawyKatz2017],
-Section 5), which achieves strong reusability in the standard model without random
-oracles.
+Section 5), which the paper proves strongly reusable in the standard model without random
+oracles. We formalize the construction, its correctness, and the reduction step of the Section 5
+security argument as a concrete advantage inequality; the security theorem itself is future work
+(see below).
 
 ## Construction (Section 5)
 
@@ -64,19 +66,19 @@ Given a public matrix `A : Matrix (Fin m) (Fin n) (ZMod q)`, an encryption error
   `Cslib.Crypto.FuzzyExtractor.symDecrypt_symEncrypt_eq`: deterministic decryption
   correctness whenever every coordinate `e i` of the encryption error satisfies
   `8 * (e i).valMinAbs.natAbs + 4 ≤ q`.
-* `Cslib.Crypto.FuzzyExtractor.lweEncryptFuzzyExtractor_correctHamming`: if
-  `DecoderCorrect decode t` holds and every error vector in `(ProbComp.eval E).support` has
-  centered coordinates bounded by `8 * (e i).valMinAbs.natAbs + 4 ≤ q`, then
-  `lweEncryptFuzzyExtractor` is `CorrectHamming t`.
+* `Cslib.Crypto.FuzzyExtractor.DecoderCorrectWithError.setupCorrect_lweEncryptFuzzyExtractor`:
+  if `decode` fails with probability at most `δ` over a uniform matrix
+  (`DecoderCorrectWithError decode t δ`) and every error vector in `(ProbComp.eval E).support`
+  has centered coordinates bounded by `8 * (e i).valMinAbs.natAbs + 4 ≤ q`, then
+  `lweEncryptFuzzyExtractor` reproduces with error at most `δ`, averaged over a uniform `A`.
 * `Cslib.Crypto.FuzzyExtractor.realGame_encryptRealReduction`,
   `Cslib.Crypto.FuzzyExtractor.realGame_encryptIdealReduction`,
   `Cslib.Crypto.FuzzyExtractor.randomGame_encryptRealReduction_eq_ideal`: exact game
   identities linking the real and random LWE games of `encryptRealReduction` and
   `encryptIdealReduction` to `strongReuseRealGame` and `strongReuseIdealGame`.
-* `Cslib.Crypto.FuzzyExtractor.strongReuseAdvantage_lweEncryptFuzzyExtractor_le`,
-  `Cslib.Crypto.FuzzyExtractor.stronglyReusableFor_lweEncryptFuzzyExtractor`: for every
-  biometric source `W`, encryption error sampler `E`, error bound `t`, query count `Q`, and
-  strong-reusability adversary `adv`,
+* `Cslib.Crypto.FuzzyExtractor.strongReuseAdvantage_lweEncryptFuzzyExtractor_le`: the reduction
+  step of the Section 5 argument. For every biometric source `W`, encryption error sampler `E`,
+  error bound `t`, query count `Q`, and strong-reusability adversary `adv`,
   `strongReuseAdvantage ≤ LWE.advantage uniform errs (encryptRealReduction t Q adv) +
     LWE.advantage uniform errs (encryptIdealReduction t Q adv)`,
   where the combined LWE instance has `m + (Q + 1) * l` rows and error law
@@ -84,13 +86,21 @@ Given a public matrix `A : Matrix (Fin m) (Fin n) (ZMod q)`, an encryption error
   this is `LWE_{n, (t + 2) m, q, χ}` for `Q = t` queries as in [AponChoEldefrawyKatz2017],
   Section 5.
 
+## What is not proved
+
+* The strong-reusability security theorem. The adversary in
+  `strongReuseAdvantage_lweEncryptFuzzyExtractor_le` is unrestricted. Concluding strong
+  reusability from `DecisionLWEWithErrors` needs an adversary class in the reuse experiments and
+  efficiency certificates for `encryptRealReduction` and `encryptIdealReduction`; this is future
+  work.
+
 ## References
 
 * [D. Apon, C. Cho, K. Eldefrawy, and J. Katz, *Efficient, Reusable Fuzzy Extractors from
   LWE*][AponChoEldefrawyKatz2017], Section 5.
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Crypto.FuzzyExtractor
 
@@ -103,22 +113,22 @@ variable {m n l q : ℕ} [NeZero q]
 
 /-- Half-modulus bit encoding in `ZMod q` ([AponChoEldefrawyKatz2017], Section 5):
 `false ↦ 0` and `true ↦ ⌊q / 2⌋`. -/
-def encodeHalfBit (q : ℕ) (b : Bool) : ZMod q :=
+@[expose] def encodeHalfBit (q : ℕ) (b : Bool) : ZMod q :=
   if b then ((q / 2 : ℕ) : ZMod q) else 0
 
 /-- Coordinatewise half-modulus encoding of an `l`-bit key `r : Fin l → Bool` in
 `Fin l → ZMod q`. -/
-def encodeHalfBits (q : ℕ) {l : ℕ} (r : Fin l → Bool) : Fin l → ZMod q :=
+@[expose] def encodeHalfBits (q : ℕ) {l : ℕ} (r : Fin l → Bool) : Fin l → ZMod q :=
   fun i => encodeHalfBit q (r i)
 
 /-- Per-coordinate threshold decoder in `ZMod q` ([AponChoEldefrawyKatz2017], Section 5):
 outputs `true` iff the canonical residue `x.val` lies in `[3q / 8, 5q / 8]`, i.e.,
 `3 * q ≤ 8 * x.val ∧ 8 * x.val ≤ 5 * q`. -/
-def decodeThresholdBit (q : ℕ) (x : ZMod q) : Bool :=
+@[expose] def decodeThresholdBit (q : ℕ) (x : ZMod q) : Bool :=
   decide (3 * q ≤ 8 * x.val ∧ 8 * x.val ≤ 5 * q)
 
 /-- Coordinatewise threshold decoding of a vector `v : Fin l → ZMod q` to `Fin l → Bool`. -/
-def decodeThresholdBits (q : ℕ) {l : ℕ} (v : Fin l → ZMod q) : Fin l → Bool :=
+@[expose] def decodeThresholdBits (q : ℕ) {l : ℕ} (v : Fin l → ZMod q) : Fin l → Bool :=
   fun i => decodeThresholdBit q (v i)
 
 /-- If an integer error `z : ℤ` satisfies `8 * z.natAbs + 4 ≤ q`, then adding `(z : ZMod q)`
@@ -178,7 +188,7 @@ theorem decodeThresholdBits_add_encodeHalfBits (r : Fin l → Bool) (e : Fin l �
 /-- Symmetric-key encryption `Enc_s(r)` of [AponChoEldefrawyKatz2017], Section 5:
 sample uniform `B : Matrix (Fin l) (Fin n) (ZMod q)` and error `e ← E`, and output
 `(B, B s + e + ⌊q / 2⌋ r)`. -/
-noncomputable def symEncrypt (E : ProbComp (Fin l → ZMod q))
+@[expose] noncomputable def symEncrypt (E : ProbComp (Fin l → ZMod q))
     (s : Fin n → ZMod q) (r : Fin l → Bool) :
     ProbComp (Matrix (Fin l) (Fin n) (ZMod q) × (Fin l → ZMod q)) := do
   let B ← ProbComp.uniform (Matrix (Fin l) (Fin n) (ZMod q))
@@ -187,7 +197,7 @@ noncomputable def symEncrypt (E : ProbComp (Fin l → ZMod q))
 
 /-- Symmetric-key decryption `Dec_s(B, h)` of [AponChoEldefrawyKatz2017], Section 5:
 compute `h - B s` and apply the `[3q / 8, 5q / 8]` threshold decoder coordinatewise. -/
-def symDecrypt (s : Fin n → ZMod q)
+@[expose] def symDecrypt (s : Fin n → ZMod q)
     (B : Matrix (Fin l) (Fin n) (ZMod q)) (h : Fin l → ZMod q) : Fin l → Bool :=
   decodeThresholdBits q (h - B.mulVec s)
 
@@ -226,7 +236,7 @@ and syndrome decoder `decode`:
   encrypt `(B, h) ← symEncrypt E s r`, and output `(r, ⟨A s + w, B, h⟩)`.
 * `rep w' ⟨c, B, h⟩`: decode `c - w'` using `decode A`; on `some s`, output
   `symDecrypt s B h` (defaulting to `fun _ => false` on `none`). -/
-noncomputable def lweEncryptFuzzyExtractor (m n l q : ℕ) [NeZero q]
+@[expose] noncomputable def lweEncryptFuzzyExtractor (m n l q : ℕ) [NeZero q]
     (E : ProbComp (Fin l → ZMod q))
     (decode : Matrix (Fin m) (Fin n) (ZMod q) → (Fin m → ZMod q) →
       ProbComp (Option (Fin n → ZMod q)))
@@ -245,32 +255,48 @@ noncomputable def lweEncryptFuzzyExtractor (m n l q : ℕ) [NeZero q]
 
 /-! ### Section 5 Correctness -/
 
-/-- If `decode` corrects all errors of Hamming weight at most `t` (`DecoderCorrect decode t`)
-and every error vector `e` in the support of `E` satisfies
+/-- If `decode` fails with probability at most `δ` over a uniform matrix
+(`DecoderCorrectWithError decode t δ`) and every error vector `e` in the support of `E` satisfies
 `8 * (e i).valMinAbs.natAbs + 4 ≤ q` for all `i : Fin l`, then
-`lweEncryptFuzzyExtractor m n l q E decode A` is `CorrectHamming t` for every public
-matrix `A` ([AponChoEldefrawyKatz2017], Section 5). -/
-theorem lweEncryptFuzzyExtractor_correctHamming
+`lweEncryptFuzzyExtractor m n l q E decode` reproduces with error at most `δ` for readings at
+Hamming distance at most `t`, averaged over a uniform public matrix `A`
+([AponChoEldefrawyKatz2017], Section 5). Decryption is exact once decoding succeeds, so the only
+failure is a decoding failure. -/
+theorem DecoderCorrectWithError.setupCorrect_lweEncryptFuzzyExtractor
     {E : ProbComp (Fin l → ZMod q)}
     {decode : Matrix (Fin m) (Fin n) (ZMod q) → (Fin m → ZMod q) →
       ProbComp (Option (Fin n → ZMod q))}
-    {t : ℕ} (hdec : DecoderCorrect decode t)
-    (herr : ∀ e ∈ (ProbComp.eval E).support, ∀ i : Fin l, 8 * (e i).valMinAbs.natAbs + 4 ≤ q)
-    (A : Matrix (Fin m) (Fin n) (ZMod q)) :
-    (lweEncryptFuzzyExtractor m n l q E decode A).CorrectHamming t := by
-  intro w w' hdis r helper hrc r' hr'
-  simp only [lweEncryptFuzzyExtractor, symEncrypt,
-    ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform,
-    PMF.bind_bind, PMF.pure_bind,
-    PMF.mem_support_bind_iff, PMF.mem_support_pure_iff, PMF.mem_support_uniformOfFintype,
-    true_and, Prod.mk.injEq] at hrc hr'
-  obtain ⟨s, r₀, B, e, he, rfl, rfl⟩ := hrc
-  obtain ⟨sOpt, hsOpt, hr'⟩ := hr'
-  rw [add_sub_assoc] at hsOpt
-  have hwt : hammingNorm (w - w') ≤ t := by
-    simpa [hammingNorm, hammingDist, sub_eq_zero] using hdis
-  rw [hdec A s (w - w') hwt sOpt hsOpt] at hr'
-  simpa [symDecrypt_symEncrypt_eq s B e r (herr e he)] using hr'
+    {t : ℕ} {δ : ℝ≥0} (hdec : DecoderCorrectWithError decode t δ)
+    (herr : ∀ e ∈ (ProbComp.eval E).support, ∀ i : Fin l, 8 * (e i).valMinAbs.natAbs + 4 ≤ q) :
+    SetupCorrectHammingWithError (ProbComp.uniform (Matrix (Fin m) (Fin n) (ZMod q)))
+      (lweEncryptFuzzyExtractor m n l q E decode) t δ := by
+  intro w w' hdis
+  rw [hammingDist_comm, hammingDist_eq_hammingNorm, neg_add_eq_sub] at hdis
+  rw [← ENNReal.coe_le_coe]
+  simp only [Game.failProbability, ENNReal.coe_toNNReal (PMF.apply_ne_top _ _)]
+  simp only [setupReproduceGame, FuzzyExtractor.reproduceGame, FuzzyExtractor.reproduceCheck,
+    lweEncryptFuzzyExtractor, symEncrypt, ProbComp.eval_bind, ProbComp.eval_pure,
+    ProbComp.eval_uniform, PMF.bind_bind, PMF.pure_bind]
+  rw [PMF.bind_comm (PMF.uniformOfFintype (Matrix (Fin m) (Fin n) (ZMod q)))
+    (PMF.uniformOfFintype (Fin n → ZMod q))]
+  refine PMF.bind_apply_le_on_support _ fun s _ => ?_
+  have hs : decodeGame decode s (w - w') false ≤ (δ : ℝ≥0∞) := by
+    have := ENNReal.coe_le_coe.mpr (hdec s (w - w') hdis)
+    rwa [Game.failProbability, ENNReal.coe_toNNReal (PMF.apply_ne_top _ _)] at this
+  refine le_trans ?_ hs
+  simp only [decodeGame, decodeCheck, ProbComp.eval_bind, ProbComp.eval_pure,
+    ProbComp.eval_uniform]
+  refine PMF.bind_apply_mono_on_support _ false fun A _ => ?_
+  refine PMF.bind_apply_le_on_support _ fun r _ => ?_
+  refine PMF.bind_apply_le_on_support _ fun B _ => ?_
+  refine PMF.bind_apply_le_on_support _ fun e he => ?_
+  rw [add_sub_assoc]
+  refine PMF.bind_apply_mono_on_support _ false fun sOpt _ => ?_
+  by_cases h : sOpt = some s
+  · subst h
+    simp [symDecrypt_symEncrypt_eq s B e r (herr e he)]
+  · rw [decide_eq_false h, PMF.pure_apply_self]
+    exact PMF.coe_le_one _ _
 
 /-! ### Row-Block Splitting for `(m + (Q + 1) * l)`-Row LWE Instances -/
 
@@ -279,7 +305,7 @@ theorem lweEncryptFuzzyExtractor_correctHamming
 * `Sum.inr (Sum.inl i)` (`i : Fin l`) for the `l` rows of the challenge encryption matrix `B`,
 * `Sum.inr (Sum.inr (k, i))` (`k : Fin Q`, `i : Fin l`) for row `i` of the `k`-th shift-query
   encryption matrix `B_k`. -/
-def rowIndexEquiv (m l Q : ℕ) :
+private def rowIndexEquiv (m l Q : ℕ) :
     Fin m ⊕ (Fin l ⊕ (Fin Q × Fin l)) ≃ Fin (m + (Q + 1) * l) :=
   (Equiv.sumCongr (Equiv.refl (Fin m))
     ((Equiv.sumCongr (Equiv.refl (Fin l)) finProdFinEquiv).trans
@@ -287,7 +313,7 @@ def rowIndexEquiv (m l Q : ℕ) :
 
 /-- Stack an `m`-row block, an `l`-row block, and `Q` blocks of `l` rows into a single
 `(m + (Q + 1) * l)`-row family. -/
-def joinRows {m l Q : ℕ} {α : Type}
+private def joinRows {m l Q : ℕ} {α : Type}
     (xA : Fin m → α) (xB : Fin l → α) (xQ : Fin Q → Fin l → α) :
     Fin (m + (Q + 1) * l) → α :=
   fun idx =>
@@ -297,29 +323,29 @@ def joinRows {m l Q : ℕ} {α : Type}
     | Sum.inr (Sum.inr (k, i)) => xQ k i
 
 /-- Extract the top `m`-row block from a `(m + (Q + 1) * l)`-row family. -/
-def headRows {m l Q : ℕ} {α : Type} (f : Fin (m + (Q + 1) * l) → α) : Fin m → α :=
+private def headRows {m l Q : ℕ} {α : Type} (f : Fin (m + (Q + 1) * l) → α) : Fin m → α :=
   fun i => f (rowIndexEquiv m l Q (Sum.inl i))
 
 /-- Extract the challenge `l`-row block from a `(m + (Q + 1) * l)`-row family. -/
-def challengeRows {m l Q : ℕ} {α : Type} (f : Fin (m + (Q + 1) * l) → α) : Fin l → α :=
+private def challengeRows {m l Q : ℕ} {α : Type} (f : Fin (m + (Q + 1) * l) → α) : Fin l → α :=
   fun i => f (rowIndexEquiv m l Q (Sum.inr (Sum.inl i)))
 
 /-- Extract the `Q` query blocks of `l` rows each from a `(m + (Q + 1) * l)`-row family. -/
-def queryRows {m l Q : ℕ} {α : Type} (f : Fin (m + (Q + 1) * l) → α) : Fin Q → Fin l → α :=
+private def queryRows {m l Q : ℕ} {α : Type} (f : Fin (m + (Q + 1) * l) → α) : Fin Q → Fin l → α :=
   fun k i => f (rowIndexEquiv m l Q (Sum.inr (Sum.inr (k, i))))
 
 /-- Extract the top `m × n` matrix block from an `(m + (Q + 1) * l) × n` matrix. -/
-def headMatrixRows {m n l Q : ℕ} {α : Type}
+private def headMatrixRows {m n l Q : ℕ} {α : Type}
     (M : Matrix (Fin (m + (Q + 1) * l)) (Fin n) α) : Matrix (Fin m) (Fin n) α :=
   headRows M
 
 /-- Extract the challenge `l × n` matrix block from an `(m + (Q + 1) * l) × n` matrix. -/
-def challengeMatrixRows {m n l Q : ℕ} {α : Type}
+private def challengeMatrixRows {m n l Q : ℕ} {α : Type}
     (M : Matrix (Fin (m + (Q + 1) * l)) (Fin n) α) : Matrix (Fin l) (Fin n) α :=
   challengeRows M
 
 /-- Extract the `Q` query matrix blocks of size `l × n` from an `(m + (Q + 1) * l) × n` matrix. -/
-def queryMatrixRows {m n l Q : ℕ} {α : Type}
+private def queryMatrixRows {m n l Q : ℕ} {α : Type}
     (M : Matrix (Fin (m + (Q + 1) * l)) (Fin n) α) : Fin Q → Matrix (Fin l) (Fin n) α :=
   queryRows M
 
@@ -744,7 +770,7 @@ theorem realGame_encryptRealReduction {St : Type}
       (encryptLWEErrorLaw W (ProbComp.eval E) Q)
       (encryptRealReduction t Q adv) =
       strongReuseRealGame
-        (PMF.uniformOfFintype (Matrix (Fin m) (Fin n) (ZMod q)))
+        (ProbComp.uniform (Matrix (Fin m) (Fin n) (ZMod q)))
         (lweEncryptFuzzyExtractor m n l q E decode) W t Q adv := by
   have h := realGame_encrypt_embed E decode W t Q adv fun st rStar =>
     ProbComp.eval (adv.guess st rStar)
@@ -770,7 +796,7 @@ theorem realGame_encryptIdealReduction {St : Type}
       (encryptLWEErrorLaw W (ProbComp.eval E) Q)
       (encryptIdealReduction t Q adv) =
       strongReuseIdealGame
-        (PMF.uniformOfFintype (Matrix (Fin m) (Fin n) (ZMod q)))
+        (ProbComp.uniform (Matrix (Fin m) (Fin n) (ZMod q)))
         (lweEncryptFuzzyExtractor m n l q E decode) W t Q adv := by
   have h := realGame_encrypt_embed E decode W t Q adv fun st _ =>
     (PMF.uniformOfFintype (Fin l → Bool)).bind fun u => ProbComp.eval (adv.guess st u)
@@ -869,7 +895,7 @@ theorem strongReuseAdvantage_lweEncryptFuzzyExtractor_le {St : Type}
     (adv : StrongReuseAdversary (Matrix (Fin m) (Fin n) (ZMod q)) m q
       (Fin l → Bool) (EncryptHelper m n l q) St) :
     strongReuseAdvantage
-      (PMF.uniformOfFintype (Matrix (Fin m) (Fin n) (ZMod q)))
+      (ProbComp.uniform (Matrix (Fin m) (Fin n) (ZMod q)))
       (lweEncryptFuzzyExtractor m n l q E decode) W t Q adv ≤
       LWE.advantage (PMF.uniformOfFintype (Fin n → ZMod q))
         (encryptLWEErrorLaw W (ProbComp.eval E) Q) (encryptRealReduction t Q adv) +
@@ -883,36 +909,5 @@ theorem strongReuseAdvantage_lweEncryptFuzzyExtractor_le {St : Type}
     (LWE.realGame (PMF.uniformOfFintype (Fin n → ZMod q))
       (encryptLWEErrorLaw W (ProbComp.eval E) Q) (encryptIdealReduction t Q adv))]
   exact Game.advantage_triangle _ _ _
-
-/-- Section 5 strong-reusability theorem in `StronglyReusableFor` predicate form: if `decode` is
-`t`-correct, every error vector in `(ProbComp.eval E).support` satisfies
-`8 * (e i).valMinAbs.natAbs + 4 ≤ q`, and for every `W ∈ sources` and every `(m + (Q + 1) * l)`-
-sample LWE distinguisher the decisional LWE advantage is at most `ε`, then
-`lweEncryptFuzzyExtractor` is `(t, Q, 2 * ε)`-strongly reusable for `sources`. -/
-theorem stronglyReusableFor_lweEncryptFuzzyExtractor
-    {E : ProbComp (Fin l → ZMod q)}
-    {decode : Matrix (Fin m) (Fin n) (ZMod q) → (Fin m → ZMod q) →
-      ProbComp (Option (Fin n → ZMod q))}
-    {sources : Set (PMF (Fin m → ZMod q))} {t Q : ℕ} {ε : ℝ≥0}
-    (hdec : DecoderCorrect decode t)
-    (herr : ∀ e ∈ (ProbComp.eval E).support, ∀ i : Fin l, 8 * (e i).valMinAbs.natAbs + 4 ≤ q)
-    (hlwe : ∀ W ∈ sources,
-      ∀ D : Matrix (Fin (m + (Q + 1) * l)) (Fin n) (ZMod q) →
-        (Fin (m + (Q + 1) * l) → ZMod q) → Experiment,
-      LWE.advantage (PMF.uniformOfFintype (Fin n → ZMod q))
-        (encryptLWEErrorLaw W (ProbComp.eval E) Q) D ≤ ε) :
-    StronglyReusableFor (PMF.uniformOfFintype (Matrix (Fin m) (Fin n) (ZMod q)))
-      (lweEncryptFuzzyExtractor m n l q E decode) sources t Q (2 * ε) := by
-  refine ⟨fun A _ => lweEncryptFuzzyExtractor_correctHamming hdec herr A, fun W hW St adv => ?_⟩
-  calc
-    strongReuseAdvantage (PMF.uniformOfFintype (Matrix (Fin m) (Fin n) (ZMod q)))
-        (lweEncryptFuzzyExtractor m n l q E decode) W t Q adv
-      ≤ LWE.advantage (PMF.uniformOfFintype (Fin n → ZMod q))
-          (encryptLWEErrorLaw W (ProbComp.eval E) Q) (encryptRealReduction t Q adv) +
-        LWE.advantage (PMF.uniformOfFintype (Fin n → ZMod q))
-          (encryptLWEErrorLaw W (ProbComp.eval E) Q) (encryptIdealReduction t Q adv) :=
-      strongReuseAdvantage_lweEncryptFuzzyExtractor_le E decode W t Q adv
-    _ ≤ ε + ε := add_le_add (hlwe W hW _) (hlwe W hW _)
-    _ = 2 * ε := (two_mul ε).symm
 
 end Cslib.Crypto.FuzzyExtractor

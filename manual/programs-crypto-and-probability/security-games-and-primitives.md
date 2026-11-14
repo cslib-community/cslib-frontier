@@ -81,7 +81,7 @@ The check supplements review; a clean run is not evidence that a security theore
 | Decisional composite residuosity and Paillier encryption | [CslibFrontier/Crypto/Computational/CompositeResiduosity.lean](../../CslibFrontier/Crypto/Computational/CompositeResiduosity.lean), [CslibFrontier/Crypto/Computational/Paillier.lean](../../CslibFrontier/Crypto/Computational/Paillier.lean), [CslibFrontier/Crypto/Computational/Paillier/Security.lean](../../CslibFrontier/Crypto/Computational/Paillier/Security.lean), [CslibFrontier/Crypto/Computational/Paillier/Finite.lean](../../CslibFrontier/Crypto/Computational/Paillier/Finite.lean) | Factor pairs `(p, q)` of balanced moduli with validity in the type; arbitrary setup law; Paillier encryption with perfect correctness and plaintext-addition preservation under decryption over an abstract strict-PPT modulus generator, which is not constructed; IND-CPA security under DCR with an explicit prime-growth hypothesis; at a fixed modulus, typed Paillier with exactly uniform randomness, full Definition 15.14 and an exact CPA-to-DCR bound |
 | Quadratic residuosity, Goldwasser–Micali, RSA, and Rabin factoring | [CslibFrontier/Crypto/Computational/QuadraticResiduosity.lean](../../CslibFrontier/Crypto/Computational/QuadraticResiduosity.lean), [CslibFrontier/Crypto/Computational/GoldwasserMicali.lean](../../CslibFrontier/Crypto/Computational/GoldwasserMicali.lean), [CslibFrontier/Crypto/Computational/RSATrapdoor.lean](../../CslibFrontier/Crypto/Computational/RSATrapdoor.lean), [CslibFrontier/Crypto/Computational/RSALeastSignificantBit.lean](../../CslibFrontier/Crypto/Computational/RSALeastSignificantBit.lean), [CslibFrontier/Crypto/Computational/RSAAttacks.lean](../../CslibFrontier/Crypto/Computational/RSAAttacks.lean), [CslibFrontier/Crypto/Computational/RabinFactoring.lean](../../CslibFrontier/Crypto/Computational/RabinFactoring.lean) | Composite Jacobi symbol `jacobiSymbol`, `QR_N` / `QNR_N^{+1}` split and `QuadraticResiduosityHard`; Goldwasser–Micali bit and bounded-word public-key encryption (`KeyDesc`, `blumKeyGen`, `encrypt`, `decrypt`, `mulCiphertexts`, ideal distributional XOR homomorphism, Blum-modulus `INDCPA` from `QuadraticResiduosityHard` and explicit prime growth, ideal-key-law bit and bounded-word bounds, and Jacobi `-1` attack); all-residue and unit-group RSA trapdoor bijection (`rsaEval`, `rsaInvert`, `RSAOneWay`); Blum-integer square roots (`blumSqrt`, `crtSqrt`), `FactoringHard`, `RabinOneWay`, and explicit PPT equivalence `rabinOneWay_iff_factoringHard` |
 | LWE, SIS, and module lattices | [CslibFrontier/Crypto/Computational/LWE/Basic.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/LWE/Basic.lean), [CslibFrontier/Crypto/Computational/LWE/Decoding.lean](../../CslibFrontier/Crypto/Computational/LWE/Decoding.lean), [CslibFrontier/Crypto/Computational/LWE/KeyGen.lean](../../CslibFrontier/Crypto/Computational/LWE/KeyGen.lean), [CslibFrontier/Crypto/Computational/LWE/Trapdoor/Gadget.lean](../../CslibFrontier/Crypto/Computational/LWE/Trapdoor/Gadget.lean), [CslibFrontier/Crypto/Computational/LWE/Trapdoor/Basic.lean](../../CslibFrontier/Crypto/Computational/LWE/Trapdoor/Basic.lean), [CslibFrontier/Crypto/Computational/SIS/Basic.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/SIS/Basic.lean), [CslibFrontier/Crypto/Computational/SIS/Ajtai.lean](../../CslibFrontier/Crypto/Computational/SIS/Ajtai.lean), [CslibFrontier/Crypto/Computational/SIS/Module.lean](../../CslibFrontier/Crypto/Computational/SIS/Module.lean), [CslibFrontier/Crypto/Computational/LWE/Module.lean](../../CslibFrontier/Crypto/Computational/LWE/Module.lean), [CslibFrontier/Crypto/Computational/SIS/ModuleEncryption.lean](../../CslibFrontier/Crypto/Computational/SIS/ModuleEncryption.lean), [CslibFrontier/Crypto/Computational/LWE/Regev.lean](../../CslibFrontier/Crypto/Computational/LWE/Regev.lean), [CslibFrontier/Crypto/Computational/LWE/Regev/Security.lean](../../CslibFrontier/Crypto/Computational/LWE/Regev/Security.lean), [CslibFrontier/Crypto/Computational/LWE/DualRegev.lean](../../CslibFrontier/Crypto/Computational/LWE/DualRegev.lean), [CslibFrontier/Crypto/Computational/LWE/DualRegev/Security.lean](../../CslibFrontier/Crypto/Computational/LWE/DualRegev/Security.lean) | Explicit dimensions, modulus and noise/norm parameters (typed decision-LWE experiments over a finite commutative ring and `2^w` binary matrix words in `LWE/Basic.lean`, shared LWE decoding/key-generation helpers in `LWE/Decoding.lean` and `LWE/KeyGen.lean`, Micciancio–Peikert power-of-two gadget matrices, short kernel matrices (kernel membership, `det S_w = 2^w`, and column norm bounds, without the lattice-basis generation proof), tagged `GenTrap` trapdoors, and deterministic trapdoor LWE inversion in `LWE/Trapdoor/*`, the typed fixed-instance experiment `sisExperiment` over arbitrary nonzero moduli and the family hypothesis `SIS` in `SIS/Basic.lean`, the Ajtai collision-to-SIS bound `ajtaiAdvantage_le_sisAdvantage` in `SIS/Ajtai.lean`, negacyclic `R_q = ℤ_q[X]/(X^n+1)` block-anticirculant expansion `expandModuleMatrix`, `moduleSISExperiment`, `ModuleSIS` and `RingSIS` in `SIS/Module.lean`, typed decision Module-LWE games for any secret and error laws and `DecisionModuleLWE` in `LWE/Module.lean`, Module-LWE public-key encryption in `SIS/ModuleEncryption.lean`, and plain-LWE Regev and GPV dual-Regev bit encryption and IND-CPA security at modulus `2^w` in `LWE/Regev*` and `LWE/DualRegev*`); classical uniform-PPT hardness hypotheses |
-| Computational fuzzy extractors | [CslibFrontier/Crypto/Computational/FuzzyExtractor/Basic.lean](../../CslibFrontier/Crypto/Computational/FuzzyExtractor/Basic.lean), [CslibFrontier/Crypto/Computational/FuzzyExtractor/DecodeThenExtract.lean](../../CslibFrontier/Crypto/Computational/FuzzyExtractor/DecodeThenExtract.lean), [CslibFrontier/Crypto/Computational/FuzzyExtractor/DecodeThenExtract/Security.lean](../../CslibFrontier/Crypto/Computational/FuzzyExtractor/DecodeThenExtract/Security.lean), [CslibFrontier/Crypto/Computational/FuzzyExtractor/Reusable.lean](../../CslibFrontier/Crypto/Computational/FuzzyExtractor/Reusable.lean), [CslibFrontier/Crypto/Computational/FuzzyExtractor/Reusable/Encrypt.lean](../../CslibFrontier/Crypto/Computational/FuzzyExtractor/Reusable/Encrypt.lean) | Fuller, Meng and Reyzin's `FuzzyExtractor` with correctness and computational security over an explicit source family [fmr20][fmr20]; the sketch-and-extract construction; the LWE construction `FuzzyExtractor.lweFuzzyExtractor` with an advantage bound by two LWE advantages and asymptotic security `FuzzyExtractor.computationallySecure_lweFuzzyExtractor` from decision LWE whose error law is the source; Apon, Cho, Eldefrawy and Katz's weak and strong reusability games (`WeakReuseAdversary`, `StrongReuseAdversary`, `weakReuseAdvantage`, `strongReuseAdvantage`), the common-matrix FMR construction `FuzzyExtractor.commonMatrixFuzzyExtractor` with Theorem 1 (`weakReuseAdvantage_commonMatrixFuzzyExtractor_eq`) and its 1-query strong-reusability break (`commonMatrixStrongAttack`), and the Section 5 encryption-based strongly reusable construction `FuzzyExtractor.lweEncryptFuzzyExtractor` (`strongReuseAdvantage_lweEncryptFuzzyExtractor_le`) [acek17][acek17] (details below) |
+| Computational fuzzy extractors | [CslibFrontier/Crypto/Computational/FuzzyExtractor/Basic.lean](../../CslibFrontier/Crypto/Computational/FuzzyExtractor/Basic.lean), [CslibFrontier/Crypto/Computational/FuzzyExtractor/DecodeThenExtract.lean](../../CslibFrontier/Crypto/Computational/FuzzyExtractor/DecodeThenExtract.lean), [CslibFrontier/Crypto/Computational/FuzzyExtractor/DecodeThenExtract/Security.lean](../../CslibFrontier/Crypto/Computational/FuzzyExtractor/DecodeThenExtract/Security.lean), [CslibFrontier/Crypto/Computational/FuzzyExtractor/Reusable.lean](../../CslibFrontier/Crypto/Computational/FuzzyExtractor/Reusable.lean), [CslibFrontier/Crypto/Computational/FuzzyExtractor/Reusable/Encrypt.lean](../../CslibFrontier/Crypto/Computational/FuzzyExtractor/Reusable/Encrypt.lean) | Fuller, Meng and Reyzin's `FuzzyExtractor` with correctness and computational security over an explicit source family [fmr20][fmr20]; the sketch-and-extract construction; the LWE construction `FuzzyExtractor.lweFuzzyExtractor` with an advantage bound by two LWE advantages and asymptotic security `FuzzyExtractor.computationallySecure_lweFuzzyExtractor` from decision LWE whose error law is the source; Apon, Cho, Eldefrawy and Katz's weak and strong reusability experiments (`WeakReuseAdversary`, `StrongReuseAdversary`, `weakReuseAdvantage`, `strongReuseAdvantage`), the common-matrix FMR construction `FuzzyExtractor.commonMatrixFuzzyExtractor` with the reduction step of Theorem 1 (`weakReuseAdvantage_commonMatrixFuzzyExtractor_eq`) and an advantage lower bound for its 1-query strong-reusability attack (`strongReuseAdvantage_commonMatrixStrongAttack_ge`), and the Section 5 encryption-based construction `FuzzyExtractor.lweEncryptFuzzyExtractor` with the reduction step of its security argument (`strongReuseAdvantage_lweEncryptFuzzyExtractor_le`); reduction lemmas only, no reusability security theorem [acek17][acek17] (details below) |
 
 For computational fuzzy extractors, `FuzzyExtractor` formalizes Fuller, Meng and Reyzin's
 definitions [fmr20][fmr20] (Definitions 2.1-2.4 of the full version) with `Correct`,
@@ -112,34 +112,43 @@ honest `Gen`/`Rep`, the Construction 4.9 decoder (Lemma 4.10), and Section 5; th
 `lake build CslibFrontier.Crypto.Computational.FuzzyExtractor.DecodeThenExtract.Security`.
 
 For reusable computational fuzzy extractors, [`FuzzyExtractor/Reusable.lean`](../../CslibFrontier/Crypto/Computational/FuzzyExtractor/Reusable.lean)
-formalizes Definitions 2 and 3 of Apon, Cho, Eldefrawy and Katz [acek17][acek17] in the
-public-parameters model (`setup : PMF PP`, `fe : PP → FuzzyExtractor (Fin m → ZMod q) Key Helper`).
-An adaptive `Q`-query adversary (`FuzzyExtractor.ReuseAdversary`, specialized to
-`WeakReuseAdversary` with helper-only leakage and `StrongReuseAdversary` with `(helper, key)`
-leakage) submits shifts `δ_i : Fin m → ZMod q` clamped to Hamming weight at most `t` by
-`FuzzyExtractor.clampShift` (`reuseQueryLoop`), and `weakReuseAdvantage` / `strongReuseAdvantage`
-are `Game.advantage` between the real and ideal experiments averaged with `Game.withSetup W`.
-`weakReuseAdvantage_eq_strongReuseAdvantage_toStrong` and `StronglyReusableFor.weaklyReusableFor`
-relate strong to weak reusability, and `weakReuseAdvantage_zero_eq_securityAdvantage` relates
-`0`-query weak reusability to `FuzzyExtractor.securityAdvantage`. Placing the matrix `A` in the
-public parameters gives `FuzzyExtractor.commonMatrixFuzzyExtractor` (Section 3.3); Theorem 1 is
-proved as the exact identity `FuzzyExtractor.weakReuseAdvantage_commonMatrixFuzzyExtractor_eq`
-against the explicit simulator `FuzzyExtractor.commonMatrixSimulator`, yielding the two-LWE bound
-`FuzzyExtractor.weakReuseAdvantage_commonMatrixFuzzyExtractor_le`, while the 1-query attacker
-`FuzzyExtractor.commonMatrixStrongAttack` recovers the key with probability `1` under
-`DecoderCorrect decode t` (`strongReuseRealGame_commonMatrixStrongAttack_eq_pure_true`).
+formalizes the experiments of Definitions 2 and 3 of Apon, Cho, Eldefrawy and Katz [acek17][acek17]
+in the public-parameters model (`setup : ProbComp PP`,
+`fe : PP → FuzzyExtractor (Fin m → ZMod q) Key Helper`). An adaptive `Q`-query adversary
+(`FuzzyExtractor.ReuseAdversary`, specialized to `WeakReuseAdversary` with helper-only leakage and
+`StrongReuseAdversary` with `(helper, key)` leakage) submits shifts `δ_i : Fin m → ZMod q` clamped
+to Hamming weight at most `t` by `FuzzyExtractor.clampShift` (`reuseQueryLoop`). It receives the
+real or uniform challenge key only after the queries. `weakReuseAdvantage` and
+`strongReuseAdvantage` are `Game.advantage` between the real and ideal experiments averaged with
+`Game.withSetup W`. `weakReuseAdvantage_eq_strongReuseAdvantage_toStrong` relates the two
+experiments, and `weakReuseAdvantage_zero_eq_securityAdvantage` relates the `0`-query experiment
+to `FuzzyExtractor.securityAdvantage`. There is no reusability security predicate: such a
+predicate needs a class of efficient adversaries, which is future work. Correctness is averaged
+over the public parameters (`FuzzyExtractor.SetupCorrectHammingWithError`) and follows from the
+average-case decoder hypothesis `DecoderCorrectWithError` over a uniform matrix. Placing the
+matrix `A` in the public parameters gives `FuzzyExtractor.commonMatrixFuzzyExtractor`
+(Section 3.3). The reduction step of the proof of Theorem 1 is the exact identity
+`FuzzyExtractor.weakReuseAdvantage_commonMatrixFuzzyExtractor_eq` against the explicit simulator
+`FuzzyExtractor.commonMatrixSimulator`, which gives the concrete bound
+`FuzzyExtractor.weakReuseAdvantage_commonMatrixFuzzyExtractor_le` by two LWE advantages of
+explicit reductions. If the decoder fails with probability at most `δ` on error `0`, the 1-query
+attacker `FuzzyExtractor.commonMatrixStrongAttack` has strong-reusability advantage at least
+`1 - δ - 1 / q ^ k` (`strongReuseAdvantage_commonMatrixStrongAttack_ge`).
 [`FuzzyExtractor/Reusable/Encrypt.lean`](../../CslibFrontier/Crypto/Computational/FuzzyExtractor/Reusable/Encrypt.lean)
-formalizes the standard-model strongly reusable construction of Section 5
+formalizes the standard-model construction of Section 5
 (`FuzzyExtractor.lweEncryptFuzzyExtractor`, with helper `EncryptHelper` `(c, B, h)` using
-`symEncrypt` and `[3q / 8, 5q / 8]` threshold decryption `symDecrypt`): deterministic correctness
-holds when encryption errors satisfy `8 * (e i).valMinAbs.natAbs + 4 ≤ q`
-(`lweEncryptFuzzyExtractor_correctHamming`), and
-`FuzzyExtractor.strongReuseAdvantage_lweEncryptFuzzyExtractor_le` bounds the `Q`-query
-strong-reusability advantage by two `(m + (Q + 1) * l)`-row decisional LWE advantages with combined
-error law `FuzzyExtractor.encryptLWEErrorLaw W (ProbComp.eval E) Q` via `encryptRealReduction` and
-`encryptIdealReduction` (`stronglyReusableFor_lweEncryptFuzzyExtractor`). The random-oracle generic
-transform of Section 4 (Theorem 2) and polynomial-time machine certificates for the reusability
-reductions are not part of these modules.
+`symEncrypt` and `[3q / 8, 5q / 8]` threshold decryption `symDecrypt`). Decryption is exact when
+encryption errors satisfy `8 * (e i).valMinAbs.natAbs + 4 ≤ q`, so the scheme reproduces with
+error at most `δ` under `DecoderCorrectWithError decode t δ`
+(`DecoderCorrectWithError.setupCorrect_lweEncryptFuzzyExtractor`).
+`FuzzyExtractor.strongReuseAdvantage_lweEncryptFuzzyExtractor_le` is the reduction step of the
+Section 5 argument: it bounds the `Q`-query strong-reusability advantage of each adversary by two
+`(m + (Q + 1) * l)`-row decisional LWE advantages with combined error law
+`FuzzyExtractor.encryptLWEErrorLaw W (ProbComp.eval E) Q`, via `encryptRealReduction` and
+`encryptIdealReduction`. Not part of these modules: the reusability security theorems themselves
+(an adversary class in the reuse experiments, efficiency certificates for the simulator and the
+reductions, and the conclusion from `DecisionLWEWithErrors`), and the random-oracle transform of
+Section 4 (Theorem 2).
 
 The pseudoentropy gap of
 [`Pseudoentropy/Basic.lean`](../../CslibFrontier/Crypto/Computational/Pseudoentropy/Basic.lean)

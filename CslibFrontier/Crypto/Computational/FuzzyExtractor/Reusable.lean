@@ -13,23 +13,24 @@ import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Uniform
 
 /-!
-# Reusable computational fuzzy extractors and the common-matrix LWE construction
+# Reusable fuzzy extractors: definitions and the reduction steps for the common-matrix scheme
 
 A fuzzy extractor `(Gen, Rep)` is *reusable* if its extracted key `r*` remains indistinguishable
 from uniform even when the adversary observes multiple enrollments `Gen(w* + δ_i)` on correlated
 readings derived from the same biometric source `w* ← W`. Following Apon, Cho, Eldefrawy, and Katz
-([AponChoEldefrawyKatz2017], Sections 2.1–2.2, Definitions 2 and 3), we formalize reusability in
-the public-parameters model over the Hamming space `Fin m → ZMod q`:
+([AponChoEldefrawyKatz2017], Sections 2.1–2.2, Definitions 2 and 3), we define the reusability
+experiments in the public-parameters model over the Hamming space `Fin m → ZMod q`:
 
 * A scheme is a family `fe : PP → FuzzyExtractor (Fin m → ZMod q) Key Helper` parameterized by
-  public parameters `pp : PP` drawn from a setup distribution `setup : PMF PP` and given to all
+  public parameters `pp : PP` drawn by a setup program `setup : ProbComp PP` and given to all
   parties.
 * An adaptive `Q`-query adversary (`ReuseAdversary`) with generic state `St` receives `(pp, p*)`
   from the challenge enrollment `(r*, p*) ← (fe pp).gen w*`, adaptively chooses `Q` shifts
   `δ_i : Fin m → ZMod q` (enforced to satisfy `hammingNorm δ_i ≤ t` via `clampShift t`, which
   replaces out-of-range shifts by `0`; adversaries making fewer than `Q` queries pad with dummy
   zero shifts), and receives a leakage value from a fresh enrollment `(r_i, p_i) ← (fe pp).gen
-  (w* + δ_i)` on each query.
+  (w* + δ_i)` on each query. The challenge key (real or uniform) is given only after the queries,
+  as in step 3 of Definitions 2 and 3.
 * In *weak reusability* (Definition 2), the leakage on each shift query is the helper `p_i` alone
   (`Leak = Helper`).
 * In *strong reusability* (Definition 3), the leakage on each shift query is both the helper and
@@ -38,19 +39,29 @@ the public-parameters model over the Hamming space `Fin m → ZMod q`:
   `Game.advantage realGame idealGame = |Pr[real] - Pr[ideal]|`, which is equivalent up to a factor
   of `2` to the paper's `1/2 + ε` guessing-game formulation.
 
+This file defines the experiments and advantages only. It does not define a security predicate
+"`fe` is reusable": such a predicate needs a class of efficient adversaries, which is future work.
+
 In Section 3.3 ([AponChoEldefrawyKatz2017], Theorem 1), Apon et al. modify the Fuller–Meng–Reyzin
 construction (`lweFuzzyExtractor`) by placing the random matrix `A ∈ Z_q^{m × (k + l)}` into the
 common public parameters so that `Gen` samples only the secret `s` and outputs `c = A s + w`. We
-formalize this construction as `commonMatrixFuzzyExtractor` and prove Theorem 1 as an exact
-identity: for every source `W`, threshold `t`, query count `Q`, and weak-reuse adversary `adv`,
-the `Q`-query weak-reuse advantage equals the single-enrollment `securityAdvantage` of
-`lweFuzzyExtractor` against an explicit simulator `commonMatrixSimulator t Q adv` that answers
-each shift `δ` with `c* + A s' + δ` for a fresh uniform secret `s'`. Combining this identity with
-`securityAdvantage_lweFuzzyExtractor_le` bounds the weak-reuse advantage by two decisional LWE
-advantages with no hypotheses. Finally, we formalize the observation of Section 3.3 (p. 10
-of ePrint 2017/755) that `commonMatrixFuzzyExtractor` is not strongly reusable: a 1-query strong
-reuse attacker (`commonMatrixStrongAttack`) querying `δ = 0` decodes `c* - c₁ = A (s* - s₁)` and
-adds `r₁` to recover `r*` with probability `1` whenever the decoder is correct.
+formalize this construction as `commonMatrixFuzzyExtractor` and prove the reduction step of the
+proof of Theorem 1 as an exact identity: for every source `W`, threshold `t`, query count `Q`, and
+weak-reuse adversary `adv`, the `Q`-query weak-reuse advantage equals the single-enrollment
+`securityAdvantage` of `lweFuzzyExtractor` against an explicit simulator
+`commonMatrixSimulator t Q adv` that answers each shift `δ` with `c* + A s' + δ` for a fresh
+uniform secret `s'`. Combining this identity with `securityAdvantage_lweFuzzyExtractor_le` bounds
+the weak-reuse advantage of each adversary by two decisional LWE advantages of explicit
+reductions. These are concrete reduction lemmas, not the security theorem itself.
+
+Correctness is stated averaged over the public parameters (`SetupCorrectHammingWithError`), and is
+derived from the average-case decoder hypothesis `DecoderCorrectWithError` over a uniform matrix.
+
+Finally, we formalize the observation of Section 3.3 (p. 10 of ePrint 2017/755) that
+`commonMatrixFuzzyExtractor` is not strongly reusable: a 1-query strong-reuse attacker
+(`commonMatrixStrongAttack`) querying `δ = 0` decodes `c* - c₁ = A (s* - s₁)` and adds `r₁` to
+recover `r*`. If the decoder fails with probability at most `δ` on error `0`, the attacker's
+strong-reuse advantage is at least `1 - δ - 1 / q ^ k`.
 
 ## Main definitions
 
@@ -60,50 +71,45 @@ adds `r₁` to recover `r*` with probability `1` whenever the decoder is correct
   with generic state `St`.
 * `Cslib.Crypto.FuzzyExtractor.clampShift`, `Cslib.Crypto.FuzzyExtractor.reuseQueryLoop`: Hamming
   weight enforcement (`hammingNorm δ ≤ t`) and the `Q`-step adaptive shift-query loop.
-* `Cslib.Crypto.FuzzyExtractor.weakReuseRealExperiment`,
-  `Cslib.Crypto.FuzzyExtractor.weakReuseIdealExperiment`,
-  `Cslib.Crypto.FuzzyExtractor.weakReuseRealGame`,
+* `Cslib.Crypto.FuzzyExtractor.weakReuseRealGame`,
   `Cslib.Crypto.FuzzyExtractor.weakReuseIdealGame`,
-  `Cslib.Crypto.FuzzyExtractor.weakReuseAdvantage`,
-  `Cslib.Crypto.FuzzyExtractor.WeakReuseSecureFor`,
-  `Cslib.Crypto.FuzzyExtractor.WeaklyReusableFor`: Definition 2 (weak reusability).
-* `Cslib.Crypto.FuzzyExtractor.strongReuseRealExperiment`,
-  `Cslib.Crypto.FuzzyExtractor.strongReuseIdealExperiment`,
-  `Cslib.Crypto.FuzzyExtractor.strongReuseRealGame`,
+  `Cslib.Crypto.FuzzyExtractor.weakReuseAdvantage`: the experiment of Definition 2.
+* `Cslib.Crypto.FuzzyExtractor.strongReuseRealGame`,
   `Cslib.Crypto.FuzzyExtractor.strongReuseIdealGame`,
-  `Cslib.Crypto.FuzzyExtractor.strongReuseAdvantage`,
-  `Cslib.Crypto.FuzzyExtractor.StrongReuseSecureFor`,
-  `Cslib.Crypto.FuzzyExtractor.StronglyReusableFor`: Definition 3 (strong reusability).
+  `Cslib.Crypto.FuzzyExtractor.strongReuseAdvantage`: the experiment of Definition 3.
+* `Cslib.Crypto.FuzzyExtractor.setupReproduceGame`,
+  `Cslib.Crypto.FuzzyExtractor.SetupCorrectHammingWithError`: reproduction correctness with error
+  `δ`, averaged over the public parameters.
 * `Cslib.Crypto.FuzzyExtractor.commonMatrixFuzzyExtractor`,
   `Cslib.Crypto.FuzzyExtractor.commonMatrixSimulator`: the common-matrix FMR construction of
-  Section 3.3 and its Theorem 1 simulator.
+  Section 3.3 and the simulator from the proof of Theorem 1.
 * `Cslib.Crypto.FuzzyExtractor.commonMatrixStrongAttack`: the 1-query strong-reusability attack on
   `commonMatrixFuzzyExtractor` (Section 3.3).
 
 ## Main results
 
-* `Cslib.Crypto.FuzzyExtractor.weakReuseAdvantage_eq_strongReuseAdvantage_toStrong`,
-  `Cslib.Crypto.FuzzyExtractor.StronglyReusableFor.weaklyReusableFor`: strong reusability bounds
-  weak reusability via the key-ignoring adapter `WeakReuseAdversary.toStrong`.
+* `Cslib.Crypto.FuzzyExtractor.weakReuseAdvantage_eq_strongReuseAdvantage_toStrong`: a weak-reuse
+  adversary has the same advantage as its key-ignoring strong-reuse embedding.
 * `Cslib.Crypto.FuzzyExtractor.weakReuseAdvantage_zero_eq_securityAdvantage`,
-  `Cslib.Crypto.FuzzyExtractor.weakReuseAdvantage_ofDistinguisher_eq_securityAdvantage`: weak
-  reusability with `Q = 0` queries coincides with basic fuzzy-extractor security (Section 2.2
-  remark).
-* `Cslib.Crypto.FuzzyExtractor.DecoderCorrect.correctHamming_commonMatrixFuzzyExtractor`: zero-error
-  Hamming reproduction correctness of `commonMatrixFuzzyExtractor`.
-* `Cslib.Crypto.FuzzyExtractor.weakReuseRealGame_commonMatrixFuzzyExtractor`,
-  `Cslib.Crypto.FuzzyExtractor.weakReuseIdealGame_commonMatrixFuzzyExtractor`,
-  `Cslib.Crypto.FuzzyExtractor.weakReuseAdvantage_commonMatrixFuzzyExtractor_eq`: Theorem 1 of
-  [AponChoEldefrawyKatz2017] as an exact game and advantage equality.
-* `Cslib.Crypto.FuzzyExtractor.weakReuseAdvantage_commonMatrixFuzzyExtractor_le`: corollary
-  bounding the `Q`-query weak-reuse advantage of `commonMatrixFuzzyExtractor` by two decisional
-  LWE advantages.
-* `Cslib.Crypto.FuzzyExtractor.commonMatrix_recover_key_of_zero_shift`,
-  `Cslib.Crypto.FuzzyExtractor.strongReuseRealGame_commonMatrixStrongAttack_eq_pure_true`: one
-  strong-reuse query with `δ = 0` recovers the challenge key `r*` with probability `1`.
+  `Cslib.Crypto.FuzzyExtractor.weakReuseAdvantage_ofDistinguisher_eq_securityAdvantage`: the weak
+  reuse experiment with `Q = 0` queries coincides with the basic fuzzy-extractor experiment
+  (Section 2.2 remark).
+* `Cslib.Crypto.FuzzyExtractor.DecoderCorrectWithError.setupCorrect_commonMatrixFuzzyExtractor`:
+  `δ`-error reproduction correctness of `commonMatrixFuzzyExtractor` over a uniform matrix.
+* `Cslib.Crypto.FuzzyExtractor.weakReuseAdvantage_commonMatrixFuzzyExtractor_eq`: the reduction
+  step of Theorem 1 as an exact advantage identity.
+* `Cslib.Crypto.FuzzyExtractor.weakReuseAdvantage_commonMatrixFuzzyExtractor_le`: the `Q`-query
+  weak-reuse advantage of each adversary is at most two decisional LWE advantages of explicit
+  reductions.
+* `Cslib.Crypto.FuzzyExtractor.strongReuseAdvantage_commonMatrixStrongAttack_ge`: the Section 3.3
+  attack has strong-reuse advantage at least `1 - δ - 1 / q ^ k`.
 
 ## What is not proved
 
+* A reusability security theorem. Here the adversary is any `ReuseAdversary`, with no efficiency
+  bound. Concluding reusability from `DecisionLWEWithErrors` needs an adversary class in the
+  reuse experiments and efficiency certificates for `commonMatrixSimulator` and the reductions;
+  this is future work.
 * The Section 3.2 attack on independent-matrix FMR (`lweFuzzyExtractor` with fresh `A_i` per
   enrollment), which relies on the concrete `Decode_t` algorithm analysis.
 * The Section 4 random-oracle transformation from weak to strong reusability (Theorem 2).
@@ -115,7 +121,7 @@ adds `r₁` to recover `r*` with probability `1` whenever the decoder is correct
   LWE*][AponChoEldefrawyKatz2017], Sections 2.1, 2.2, and 3.3 (Definitions 1–3, Theorem 1).
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Crypto.FuzzyExtractor
 
@@ -154,7 +160,7 @@ abbrev StrongReuseAdversary (PP : Type) (m q : ℕ) (Key Helper St : Type) : Typ
 
 /-- Enforce the Hamming weight bound `hammingNorm δ ≤ t` required by Definitions 2 and 3: a shift
 within the bound is kept unchanged, and an out-of-range shift is replaced by `0`. -/
-def clampShift {m q : ℕ} (t : ℕ) (δ : Fin m → ZMod q) : Fin m → ZMod q :=
+@[expose] def clampShift {m q : ℕ} (t : ℕ) (δ : Fin m → ZMod q) : Fin m → ZMod q :=
   if hammingNorm δ ≤ t then δ else 0
 
 /-- Every clamped shift has Hamming weight at most `t`. -/
@@ -178,7 +184,7 @@ theorem clampShift_of_le {m q : ℕ} {t : ℕ} {δ : Fin m → ZMod q} (h : hamm
 /-- Run `Q` adaptive shift queries of `adv` against `oracle`, clamping each queried shift `δ` to
 Hamming weight at most `t` via `clampShift t`. Adversaries that make fewer than `Q` queries can
 pad with dummy `0` shifts. -/
-def reuseQueryLoop {PP : Type} {m q : ℕ} {Key Helper Leak St : Type}
+@[expose] def reuseQueryLoop {PP : Type} {m q : ℕ} {Key Helper Leak St : Type}
     (t : ℕ) (oracle : (Fin m → ZMod q) → ProbComp Leak)
     (adv : ReuseAdversary PP m q Key Helper Leak St) : ℕ → St → ProbComp St
   | 0, st => return st
@@ -217,7 +223,7 @@ variable {PP : Type} {m q : ℕ} {Key Helper St : Type}
 ([AponChoEldefrawyKatz2017], Definition 2): sample `(r*, p*) ← (fe pp).gen w*`, answer `Q` shift
 queries `δ_i` with helper strings `p_i` from fresh runs of `(fe pp).gen (w* + clampShift t δ_i)`,
 and pass `r*` to `adv.guess`. -/
-def weakReuseRealExperiment (fe : PP → FuzzyExtractor (Fin m → ZMod q) Key Helper)
+@[expose] def weakReuseRealExperiment (fe : PP → FuzzyExtractor (Fin m → ZMod q) Key Helper)
     (t Q : ℕ) (pp : PP) (w : Fin m → ZMod q)
     (adv : WeakReuseAdversary PP m q Key Helper St) : Experiment := do
   let (rStar, pStar) ← (fe pp).gen w
@@ -230,7 +236,7 @@ def weakReuseRealExperiment (fe : PP → FuzzyExtractor (Fin m → ZMod q) Key H
 /-- The ideal weak-reusability experiment on fixed public parameter `pp` and source reading `w*`
 ([AponChoEldefrawyKatz2017], Definition 2): as `weakReuseRealExperiment`, except `adv.guess`
 receives an independent uniform key `u ← ProbComp.uniform Key` in place of `r*`. -/
-noncomputable def weakReuseIdealExperiment [Fintype Key] [Nonempty Key]
+@[expose] noncomputable def weakReuseIdealExperiment [Fintype Key] [Nonempty Key]
     (fe : PP → FuzzyExtractor (Fin m → ZMod q) Key Helper)
     (t Q : ℕ) (pp : PP) (w : Fin m → ZMod q)
     (adv : WeakReuseAdversary PP m q Key Helper St) : Experiment := do
@@ -244,46 +250,29 @@ noncomputable def weakReuseIdealExperiment [Fintype Key] [Nonempty Key]
 
 /-- The real weak-reusability game over setup law `setup` and source `W`, built with
 `Game.withSetup W` ([AponChoEldefrawyKatz2017], Definition 2). -/
-noncomputable def weakReuseRealGame (setup : PMF PP)
+@[expose] noncomputable def weakReuseRealGame (setup : ProbComp PP)
     (fe : PP → FuzzyExtractor (Fin m → ZMod q) Key Helper)
     (W : PMF (Fin m → ZMod q)) (t Q : ℕ)
     (adv : WeakReuseAdversary PP m q Key Helper St) : Game :=
-  setup.bind fun pp => Game.withSetup W fun w =>
+  (ProbComp.eval setup).bind fun pp => Game.withSetup W fun w =>
     weakReuseRealExperiment fe t Q pp w adv
 
 /-- The ideal weak-reusability game over setup law `setup` and source `W`, built with
 `Game.withSetup W` ([AponChoEldefrawyKatz2017], Definition 2). -/
-noncomputable def weakReuseIdealGame [Fintype Key] [Nonempty Key] (setup : PMF PP)
+@[expose] noncomputable def weakReuseIdealGame [Fintype Key] [Nonempty Key] (setup : ProbComp PP)
     (fe : PP → FuzzyExtractor (Fin m → ZMod q) Key Helper)
     (W : PMF (Fin m → ZMod q)) (t Q : ℕ)
     (adv : WeakReuseAdversary PP m q Key Helper St) : Game :=
-  setup.bind fun pp => Game.withSetup W fun w =>
+  (ProbComp.eval setup).bind fun pp => Game.withSetup W fun w =>
     weakReuseIdealExperiment fe t Q pp w adv
 
 /-- The weak-reusability distinguishing advantage of `adv` on source `W` with `Q` shift queries of
 Hamming weight at most `t` ([AponChoEldefrawyKatz2017], Definition 2). -/
-noncomputable abbrev weakReuseAdvantage [Fintype Key] [Nonempty Key] (setup : PMF PP)
+noncomputable abbrev weakReuseAdvantage [Fintype Key] [Nonempty Key] (setup : ProbComp PP)
     (fe : PP → FuzzyExtractor (Fin m → ZMod q) Key Helper)
     (W : PMF (Fin m → ZMod q)) (t Q : ℕ)
     (adv : WeakReuseAdversary PP m q Key Helper St) : ℝ≥0 :=
   Game.advantage (weakReuseRealGame setup fe W t Q adv) (weakReuseIdealGame setup fe W t Q adv)
-
-/-- Weak-reusability security of `(setup, fe)` for a source family `sources` at distance threshold
-`t`, query bound `Q`, and advantage bound `ε`. -/
-def WeakReuseSecureFor [Fintype Key] [Nonempty Key] (setup : PMF PP)
-    (fe : PP → FuzzyExtractor (Fin m → ZMod q) Key Helper)
-    (sources : Set (PMF (Fin m → ZMod q))) (t Q : ℕ) (ε : ℝ≥0) : Prop :=
-  ∀ W ∈ sources, ∀ (St : Type) (adv : WeakReuseAdversary PP m q Key Helper St),
-    weakReuseAdvantage setup fe W t Q adv ≤ ε
-
-/-- Full Definition 2 of [AponChoEldefrawyKatz2017]: `(setup, fe)` is `(t, Q, ε)`-weakly reusable
-for `sources` if `(fe pp)` is `t`-correct for the Hamming metric on the support of `setup` and
-satisfies `WeakReuseSecureFor setup fe sources t Q ε`. -/
-def WeaklyReusableFor [Fintype Key] [Nonempty Key] (setup : PMF PP)
-    (fe : PP → FuzzyExtractor (Fin m → ZMod q) Key Helper)
-    (sources : Set (PMF (Fin m → ZMod q))) (t Q : ℕ) (ε : ℝ≥0) : Prop :=
-  (∀ pp ∈ setup.support, (fe pp).CorrectHamming t) ∧
-    WeakReuseSecureFor setup fe sources t Q ε
 
 end WeakReuse
 
@@ -297,7 +286,7 @@ variable {PP : Type} {m q : ℕ} {Key Helper St : Type}
 ([AponChoEldefrawyKatz2017], Definition 3): sample `(r*, p*) ← (fe pp).gen w*`, answer `Q` shift
 queries `δ_i` with both `(p_i, r_i)` from fresh runs of `(fe pp).gen (w* + clampShift t δ_i)`,
 and pass `r*` to `adv.guess`. -/
-def strongReuseRealExperiment (fe : PP → FuzzyExtractor (Fin m → ZMod q) Key Helper)
+@[expose] def strongReuseRealExperiment (fe : PP → FuzzyExtractor (Fin m → ZMod q) Key Helper)
     (t Q : ℕ) (pp : PP) (w : Fin m → ZMod q)
     (adv : StrongReuseAdversary PP m q Key Helper St) : Experiment := do
   let (rStar, pStar) ← (fe pp).gen w
@@ -310,7 +299,7 @@ def strongReuseRealExperiment (fe : PP → FuzzyExtractor (Fin m → ZMod q) Key
 /-- The ideal strong-reusability experiment on fixed public parameter `pp` and source reading `w*`
 ([AponChoEldefrawyKatz2017], Definition 3): as `strongReuseRealExperiment`, except `adv.guess`
 receives an independent uniform key `u ← ProbComp.uniform Key` in place of `r*`. -/
-noncomputable def strongReuseIdealExperiment [Fintype Key] [Nonempty Key]
+@[expose] noncomputable def strongReuseIdealExperiment [Fintype Key] [Nonempty Key]
     (fe : PP → FuzzyExtractor (Fin m → ZMod q) Key Helper)
     (t Q : ℕ) (pp : PP) (w : Fin m → ZMod q)
     (adv : StrongReuseAdversary PP m q Key Helper St) : Experiment := do
@@ -324,47 +313,30 @@ noncomputable def strongReuseIdealExperiment [Fintype Key] [Nonempty Key]
 
 /-- The real strong-reusability game over setup law `setup` and source `W`, built with
 `Game.withSetup W` ([AponChoEldefrawyKatz2017], Definition 3). -/
-noncomputable def strongReuseRealGame (setup : PMF PP)
+@[expose] noncomputable def strongReuseRealGame (setup : ProbComp PP)
     (fe : PP → FuzzyExtractor (Fin m → ZMod q) Key Helper)
     (W : PMF (Fin m → ZMod q)) (t Q : ℕ)
     (adv : StrongReuseAdversary PP m q Key Helper St) : Game :=
-  setup.bind fun pp => Game.withSetup W fun w =>
+  (ProbComp.eval setup).bind fun pp => Game.withSetup W fun w =>
     strongReuseRealExperiment fe t Q pp w adv
 
 /-- The ideal strong-reusability game over setup law `setup` and source `W`, built with
 `Game.withSetup W` ([AponChoEldefrawyKatz2017], Definition 3). -/
-noncomputable def strongReuseIdealGame [Fintype Key] [Nonempty Key] (setup : PMF PP)
+@[expose] noncomputable def strongReuseIdealGame [Fintype Key] [Nonempty Key] (setup : ProbComp PP)
     (fe : PP → FuzzyExtractor (Fin m → ZMod q) Key Helper)
     (W : PMF (Fin m → ZMod q)) (t Q : ℕ)
     (adv : StrongReuseAdversary PP m q Key Helper St) : Game :=
-  setup.bind fun pp => Game.withSetup W fun w =>
+  (ProbComp.eval setup).bind fun pp => Game.withSetup W fun w =>
     strongReuseIdealExperiment fe t Q pp w adv
 
 /-- The strong-reusability distinguishing advantage of `adv` on source `W` with `Q` shift queries
 of Hamming weight at most `t` ([AponChoEldefrawyKatz2017], Definition 3). -/
-noncomputable abbrev strongReuseAdvantage [Fintype Key] [Nonempty Key] (setup : PMF PP)
+noncomputable abbrev strongReuseAdvantage [Fintype Key] [Nonempty Key] (setup : ProbComp PP)
     (fe : PP → FuzzyExtractor (Fin m → ZMod q) Key Helper)
     (W : PMF (Fin m → ZMod q)) (t Q : ℕ)
     (adv : StrongReuseAdversary PP m q Key Helper St) : ℝ≥0 :=
   Game.advantage (strongReuseRealGame setup fe W t Q adv)
     (strongReuseIdealGame setup fe W t Q adv)
-
-/-- Strong-reusability security of `(setup, fe)` for a source family `sources` at distance
-threshold `t`, query bound `Q`, and advantage bound `ε`. -/
-def StrongReuseSecureFor [Fintype Key] [Nonempty Key] (setup : PMF PP)
-    (fe : PP → FuzzyExtractor (Fin m → ZMod q) Key Helper)
-    (sources : Set (PMF (Fin m → ZMod q))) (t Q : ℕ) (ε : ℝ≥0) : Prop :=
-  ∀ W ∈ sources, ∀ (St : Type) (adv : StrongReuseAdversary PP m q Key Helper St),
-    strongReuseAdvantage setup fe W t Q adv ≤ ε
-
-/-- Full Definition 3 of [AponChoEldefrawyKatz2017]: `(setup, fe)` is `(t, Q, ε)`-strongly reusable
-for `sources` if `(fe pp)` is `t`-correct for the Hamming metric on the support of `setup` and
-satisfies `StrongReuseSecureFor setup fe sources t Q ε`. -/
-def StronglyReusableFor [Fintype Key] [Nonempty Key] (setup : PMF PP)
-    (fe : PP → FuzzyExtractor (Fin m → ZMod q) Key Helper)
-    (sources : Set (PMF (Fin m → ZMod q))) (t Q : ℕ) (ε : ℝ≥0) : Prop :=
-  (∀ pp ∈ setup.support, (fe pp).CorrectHamming t) ∧
-    StrongReuseSecureFor setup fe sources t Q ε
 
 end StrongReuse
 
@@ -407,7 +379,7 @@ private theorem eval_reuseQueryLoop_toStrong
 
 /-- The strong-reusability real game on `adv.toStrong` equals the weak-reusability real game on
 `adv`. -/
-@[simp] theorem strongReuseRealGame_toStrong (setup : PMF PP)
+@[simp] theorem strongReuseRealGame_toStrong (setup : ProbComp PP)
     (fe : PP → FuzzyExtractor (Fin m → ZMod q) Key Helper)
     (W : PMF (Fin m → ZMod q)) (t Q : ℕ)
     (adv : WeakReuseAdversary PP m q Key Helper St) :
@@ -425,7 +397,7 @@ private theorem eval_reuseQueryLoop_toStrong
 
 /-- The strong-reusability ideal game on `adv.toStrong` equals the weak-reusability ideal game on
 `adv`. -/
-@[simp] theorem strongReuseIdealGame_toStrong [Fintype Key] [Nonempty Key] (setup : PMF PP)
+@[simp] theorem strongReuseIdealGame_toStrong [Fintype Key] [Nonempty Key] (setup : ProbComp PP)
     (fe : PP → FuzzyExtractor (Fin m → ZMod q) Key Helper)
     (W : PMF (Fin m → ZMod q)) (t Q : ℕ)
     (adv : WeakReuseAdversary PP m q Key Helper St) :
@@ -444,30 +416,12 @@ private theorem eval_reuseQueryLoop_toStrong
 /-- Every weak-reusability adversary achieves the exact same advantage when embedded as a
 key-ignoring strong-reusability adversary. -/
 theorem weakReuseAdvantage_eq_strongReuseAdvantage_toStrong [Fintype Key] [Nonempty Key]
-    (setup : PMF PP) (fe : PP → FuzzyExtractor (Fin m → ZMod q) Key Helper)
+    (setup : ProbComp PP) (fe : PP → FuzzyExtractor (Fin m → ZMod q) Key Helper)
     (W : PMF (Fin m → ZMod q)) (t Q : ℕ)
     (adv : WeakReuseAdversary PP m q Key Helper St) :
     weakReuseAdvantage setup fe W t Q adv =
       strongReuseAdvantage setup fe W t Q adv.toStrong := by
   simp [weakReuseAdvantage, strongReuseAdvantage]
-
-/-- Strong-reusability security implies weak-reusability security with the same parameters. -/
-theorem StrongReuseSecureFor.weakReuseSecureFor [Fintype Key] [Nonempty Key]
-    {setup : PMF PP} {fe : PP → FuzzyExtractor (Fin m → ZMod q) Key Helper}
-    {sources : Set (PMF (Fin m → ZMod q))} {t Q : ℕ} {ε : ℝ≥0}
-    (h : StrongReuseSecureFor setup fe sources t Q ε) :
-    WeakReuseSecureFor setup fe sources t Q ε := by
-  intro W hW St adv
-  rw [weakReuseAdvantage_eq_strongReuseAdvantage_toStrong]
-  exact h W hW St adv.toStrong
-
-/-- Strong reusability (Definition 3) implies weak reusability (Definition 2). -/
-theorem StronglyReusableFor.weaklyReusableFor [Fintype Key] [Nonempty Key]
-    {setup : PMF PP} {fe : PP → FuzzyExtractor (Fin m → ZMod q) Key Helper}
-    {sources : Set (PMF (Fin m → ZMod q))} {t Q : ℕ} {ε : ℝ≥0}
-    (h : StronglyReusableFor setup fe sources t Q ε) :
-    WeaklyReusableFor setup fe sources t Q ε :=
-  ⟨h.1, h.2.weakReuseSecureFor⟩
 
 /-- Convert a weak-reusability adversary at a fixed public parameter `pp` into a single-enrollment
 fuzzy-extractor distinguisher (`Q = 0`). -/
@@ -485,24 +439,24 @@ def WeakReuseAdversary.ofDistinguisher (D : Key → Helper → Experiment) :
   observe st _ := return st
   guess pStar r := D r pStar
 
-/-- With `Q = 0` queries at a point setup law `PMF.pure pp`, the weak-reusability real game equals
+/-- With `Q = 0` queries at the point setup `pure pp`, the weak-reusability real game equals
 the basic fuzzy-extractor `realGame` for `adv.toDistinguisher pp`. -/
 theorem weakReuseRealGame_zero (fe : PP → FuzzyExtractor (Fin m → ZMod q) Key Helper)
     (W : PMF (Fin m → ZMod q)) (t : ℕ) (pp : PP)
     (adv : WeakReuseAdversary PP m q Key Helper St) :
-    weakReuseRealGame (PMF.pure pp) fe W t 0 adv =
+    weakReuseRealGame (pure pp) fe W t 0 adv =
       (fe pp).realGame W (adv.toDistinguisher pp) := by
   simp [weakReuseRealGame, FuzzyExtractor.realGame, Game.withSetup, weakReuseRealExperiment,
     FuzzyExtractor.realExperiment, reuseQueryLoop, WeakReuseAdversary.toDistinguisher,
-    ProbComp.eval_bind]
+    ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind]
 
-/-- With `Q = 0` queries at a point setup law `PMF.pure pp`, the weak-reusability ideal game equals
+/-- With `Q = 0` queries at the point setup `pure pp`, the weak-reusability ideal game equals
 the basic fuzzy-extractor `idealGame` for `adv.toDistinguisher pp`. -/
 theorem weakReuseIdealGame_zero [Fintype Key] [Nonempty Key]
     (fe : PP → FuzzyExtractor (Fin m → ZMod q) Key Helper)
     (W : PMF (Fin m → ZMod q)) (t : ℕ) (pp : PP)
     (adv : WeakReuseAdversary PP m q Key Helper St) :
-    weakReuseIdealGame (PMF.pure pp) fe W t 0 adv =
+    weakReuseIdealGame (pure pp) fe W t 0 adv =
       (fe pp).idealGame W (adv.toDistinguisher pp) := by
   simp only [weakReuseIdealGame, FuzzyExtractor.idealGame, Game.withSetup,
     weakReuseIdealExperiment, FuzzyExtractor.idealExperiment, reuseQueryLoop,
@@ -512,13 +466,13 @@ theorem weakReuseIdealGame_zero [Fintype Key] [Nonempty Key]
   congr 1 with ⟨rStar, pStar⟩ : 1
   rw [PMF.bind_comm]
 
-/-- Weak-reusability advantage with `Q = 0` queries at `PMF.pure pp` equals the basic
+/-- Weak-reusability advantage with `Q = 0` queries at the point setup `pure pp` equals the basic
 fuzzy-extractor `securityAdvantage` ([AponChoEldefrawyKatz2017], Section 2.2 remark). -/
 theorem weakReuseAdvantage_zero_eq_securityAdvantage [Fintype Key] [Nonempty Key]
     (fe : PP → FuzzyExtractor (Fin m → ZMod q) Key Helper)
     (W : PMF (Fin m → ZMod q)) (t : ℕ) (pp : PP)
     (adv : WeakReuseAdversary PP m q Key Helper St) :
-    weakReuseAdvantage (PMF.pure pp) fe W t 0 adv =
+    weakReuseAdvantage (pure pp) fe W t 0 adv =
       (fe pp).securityAdvantage W (adv.toDistinguisher pp) := by
   simp [weakReuseAdvantage, FuzzyExtractor.securityAdvantage, weakReuseRealGame_zero,
     weakReuseIdealGame_zero]
@@ -527,7 +481,7 @@ theorem weakReuseAdvantage_zero_eq_securityAdvantage [Fintype Key] [Nonempty Key
 `Q = 0` weak-reusability advantage of `WeakReuseAdversary.ofDistinguisher D` equals
 `fe₀.securityAdvantage W D`. -/
 @[simp] theorem weakReuseAdvantage_ofDistinguisher_eq_securityAdvantage
-    [Fintype Key] [Nonempty Key] (setup : PMF PP)
+    [Fintype Key] [Nonempty Key] (setup : ProbComp PP)
     (fe₀ : FuzzyExtractor (Fin m → ZMod q) Key Helper)
     (W : PMF (Fin m → ZMod q)) (t : ℕ) (D : Key → Helper → Experiment) :
     weakReuseAdvantage setup (fun _ => fe₀) W t 0 (WeakReuseAdversary.ofDistinguisher D) =
@@ -544,18 +498,31 @@ theorem weakReuseAdvantage_zero_eq_securityAdvantage [Fintype Key] [Nonempty Key
       ProbComp.eval_bind, PMF.bind_const]
   simp [weakReuseAdvantage, FuzzyExtractor.securityAdvantage, hreal, hideal]
 
-/-- Weak reusability at `Q = 0` implies basic computational fuzzy-extractor security
-([AponChoEldefrawyKatz2017], Section 2.2 remark after Definition 2). -/
-theorem WeakReuseSecureFor.computationallySecureFor_of_zero [Fintype Key] [Nonempty Key]
-    {setup : PMF PP} {fe₀ : FuzzyExtractor (Fin m → ZMod q) Key Helper}
-    {sources : Set (PMF (Fin m → ZMod q))} {t : ℕ} {ε : ℝ≥0}
-    (h : WeakReuseSecureFor setup (fun _ => fe₀) sources t 0 ε) :
-    fe₀.ComputationallySecureFor sources (fun _ => True) ε := by
-  intro W hW D _
-  rw [← weakReuseAdvantage_ofDistinguisher_eq_securityAdvantage setup fe₀ W t D]
-  exact h W hW Helper (WeakReuseAdversary.ofDistinguisher D)
-
 end Relations
+
+/-! ### Correctness averaged over the public parameters -/
+
+section SetupCorrectness
+
+variable {PP : Type} {m q : ℕ} {Key Helper : Type} [DecidableEq Key]
+
+/-- The reproduction game averaged over the public parameters: sample `pp ← setup`, enroll `w`
+with `(fe pp).gen`, reproduce from `w'` with `(fe pp).rep`, and test whether the keys agree. -/
+@[expose] noncomputable def setupReproduceGame (setup : ProbComp PP)
+    (fe : PP → FuzzyExtractor (Fin m → ZMod q) Key Helper) (w w' : Fin m → ZMod q) : Game :=
+  (ProbComp.eval setup).bind fun pp => (fe pp).reproduceGame w w'
+
+/-- Hamming reproduction correctness with error `δ`, averaged over the public parameters: for all
+readings `w, w'` with `hammingDist w w' ≤ t`, `setupReproduceGame setup fe w w'` fails with
+probability at most `δ`. This is the public-parameters form of `CorrectHammingWithError`; the
+average over `setup` matches how [FullerMengReyzin2020] and [AponChoEldefrawyKatz2017] use an
+average-case decoder over a uniform matrix. -/
+@[expose] def SetupCorrectHammingWithError (setup : ProbComp PP)
+    (fe : PP → FuzzyExtractor (Fin m → ZMod q) Key Helper) (t : ℕ) (δ : ℝ≥0) : Prop :=
+  ∀ w w' : Fin m → ZMod q, hammingDist w w' ≤ t →
+    Game.failProbability (setupReproduceGame setup fe w w') ≤ δ
+
+end SetupCorrectness
 
 /-! ### Section 3.3: Common-matrix FMR construction and Theorem 1 -/
 
@@ -569,7 +536,7 @@ the common public matrix `A : Matrix (Fin m) (Fin (k + l)) (ZMod q)`:
   coordinates of `s` as the key together with the code-offset helper `c = A s + w`;
 * `Rep(w', c)` runs `decode A (c - w')` and outputs the first `k` coordinates of the decoded
   secret (or `0` on `none`). -/
-noncomputable def commonMatrixFuzzyExtractor (m k l q : ℕ) [NeZero q]
+@[expose] noncomputable def commonMatrixFuzzyExtractor (m k l q : ℕ) [NeZero q]
     (decode : Matrix (Fin m) (Fin (k + l)) (ZMod q) → (Fin m → ZMod q) →
       ProbComp (Option (Fin (k + l) → ZMod q)))
     (A : Matrix (Fin m) (Fin (k + l)) (ZMod q)) :
@@ -583,33 +550,40 @@ noncomputable def commonMatrixFuzzyExtractor (m k l q : ℕ) [NeZero q]
     | some s' => return fun i => s' (Fin.castAdd l i)
     | none => return 0
 
-/-- Zero-error decoder correctness up to Hamming weight `t` implies zero-error Hamming reproduction
-correctness of `commonMatrixFuzzyExtractor` for every public matrix `A`. -/
-theorem DecoderCorrect.correctHamming_commonMatrixFuzzyExtractor
+/-- `δ`-error decoder correctness over a uniform matrix (`DecoderCorrectWithError decode t δ`)
+implies `δ`-error Hamming reproduction correctness of `commonMatrixFuzzyExtractor`, averaged over
+a uniform common matrix `A` ([AponChoEldefrawyKatz2017], Section 3.3, correctness inherited from
+[FullerMengReyzin2020], Theorem 4.11). -/
+theorem DecoderCorrectWithError.setupCorrect_commonMatrixFuzzyExtractor
     {decode : Matrix (Fin m) (Fin (k + l)) (ZMod q) → (Fin m → ZMod q) →
       ProbComp (Option (Fin (k + l) → ZMod q))}
-    {t : ℕ} (hdec : DecoderCorrect decode t)
-    (A : Matrix (Fin m) (Fin (k + l)) (ZMod q)) :
-    (commonMatrixFuzzyExtractor m k l q decode A).CorrectHamming t := by
-  intro w w' hdis r c hrc r' hr'
-  change (r, c) ∈ (ProbComp.eval (do
-    let s ← ProbComp.uniform (Fin (k + l) → ZMod q)
-    return (fun i => s (Fin.castAdd l i), A.mulVec s + w))).support at hrc
-  change r' ∈ (ProbComp.eval (do
-    let sOpt ← decode A (c - w')
-    match sOpt with
-    | some s' => return fun i => s' (Fin.castAdd l i)
-    | none => return 0)).support at hr'
-  simp only [ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform,
-    PMF.mem_support_bind_iff, PMF.mem_support_pure_iff, PMF.mem_support_uniformOfFintype,
-    true_and, Prod.mk.injEq] at hrc hr'
-  obtain ⟨s, rfl, rfl⟩ := hrc
-  obtain ⟨sOpt, hsOpt, hr'⟩ := hr'
-  rw [add_sub_assoc] at hsOpt
-  have hwt : hammingNorm (w - w') ≤ t := by
-    simpa [hammingNorm, hammingDist, sub_eq_zero] using hdis
-  rw [hdec A s (w - w') hwt sOpt hsOpt] at hr'
-  simpa using hr'
+    {t : ℕ} {δ : ℝ≥0} (hdec : DecoderCorrectWithError decode t δ) :
+    SetupCorrectHammingWithError (ProbComp.uniform (Matrix (Fin m) (Fin (k + l)) (ZMod q)))
+      (commonMatrixFuzzyExtractor m k l q decode) t δ := by
+  intro w w' hdis
+  rw [hammingDist_comm, hammingDist_eq_hammingNorm, neg_add_eq_sub] at hdis
+  rw [← ENNReal.coe_le_coe]
+  simp only [Game.failProbability, ENNReal.coe_toNNReal (PMF.apply_ne_top _ _)]
+  simp only [setupReproduceGame, FuzzyExtractor.reproduceGame, FuzzyExtractor.reproduceCheck,
+    commonMatrixFuzzyExtractor, ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform,
+    PMF.bind_bind, PMF.pure_bind]
+  rw [PMF.bind_comm (PMF.uniformOfFintype (Matrix (Fin m) (Fin (k + l)) (ZMod q)))
+    (PMF.uniformOfFintype (Fin (k + l) → ZMod q))]
+  refine PMF.bind_apply_le_on_support _ fun s _ => ?_
+  have hs : decodeGame decode s (w - w') false ≤ (δ : ℝ≥0∞) := by
+    have := ENNReal.coe_le_coe.mpr (hdec s (w - w') hdis)
+    rwa [Game.failProbability, ENNReal.coe_toNNReal (PMF.apply_ne_top _ _)] at this
+  refine le_trans ?_ hs
+  simp only [decodeGame, decodeCheck, ProbComp.eval_bind, ProbComp.eval_pure,
+    ProbComp.eval_uniform]
+  refine PMF.bind_apply_mono_on_support _ false fun A _ => ?_
+  rw [add_sub_assoc]
+  refine PMF.bind_apply_mono_on_support _ false fun sOpt _ => ?_
+  by_cases h : sOpt = some s
+  · subst h
+    simp
+  · rw [decide_eq_false h, PMF.pure_apply_self]
+    exact PMF.coe_le_one _ _
 
 /-- The simulator of [AponChoEldefrawyKatz2017], Theorem 1 (Section 3.3), as a single-enrollment
 distinguisher against `lweFuzzyExtractor m k l q decode`: given key candidate `r` and helper
@@ -655,14 +629,15 @@ private theorem uniformOfFintype_unit : PMF.uniformOfFintype Unit = PMF.pure () 
 
 /-- The `Q`-query weak-reusability real game of `commonMatrixFuzzyExtractor` (over a uniform public
 matrix `A`) equals the single-enrollment `realGame` of `lweFuzzyExtractor` against
-`commonMatrixSimulator t Q adv` ([AponChoEldefrawyKatz2017], Theorem 1). -/
+`commonMatrixSimulator t Q adv`. This is the real-game half of the reduction step in the proof of
+[AponChoEldefrawyKatz2017], Theorem 1. -/
 theorem weakReuseRealGame_commonMatrixFuzzyExtractor {St : Type}
     (decode : Matrix (Fin m) (Fin (k + l)) (ZMod q) → (Fin m → ZMod q) →
       ProbComp (Option (Fin (k + l) → ZMod q)))
     (W : PMF (Fin m → ZMod q)) (t Q : ℕ)
     (adv : WeakReuseAdversary (Matrix (Fin m) (Fin (k + l)) (ZMod q)) m q
       (Fin k → ZMod q) (Fin m → ZMod q) St) :
-    weakReuseRealGame (PMF.uniformOfFintype (Matrix (Fin m) (Fin (k + l)) (ZMod q)))
+    weakReuseRealGame (ProbComp.uniform (Matrix (Fin m) (Fin (k + l)) (ZMod q)))
       (commonMatrixFuzzyExtractor m k l q decode) W t Q adv =
       (lweFuzzyExtractor m k l q decode).realGame W (commonMatrixSimulator t Q adv) := by
   simp only [weakReuseRealGame, FuzzyExtractor.realGame, Game.withSetup,
@@ -682,14 +657,15 @@ theorem weakReuseRealGame_commonMatrixFuzzyExtractor {St : Type}
 
 /-- The `Q`-query weak-reusability ideal game of `commonMatrixFuzzyExtractor` (over a uniform
 public matrix `A`) equals the single-enrollment `idealGame` of `lweFuzzyExtractor` against
-`commonMatrixSimulator t Q adv` ([AponChoEldefrawyKatz2017], Theorem 1). -/
+`commonMatrixSimulator t Q adv`. This is the ideal-game half of the reduction step in the proof
+of [AponChoEldefrawyKatz2017], Theorem 1. -/
 theorem weakReuseIdealGame_commonMatrixFuzzyExtractor {St : Type}
     (decode : Matrix (Fin m) (Fin (k + l)) (ZMod q) → (Fin m → ZMod q) →
       ProbComp (Option (Fin (k + l) → ZMod q)))
     (W : PMF (Fin m → ZMod q)) (t Q : ℕ)
     (adv : WeakReuseAdversary (Matrix (Fin m) (Fin (k + l)) (ZMod q)) m q
       (Fin k → ZMod q) (Fin m → ZMod q) St) :
-    weakReuseIdealGame (PMF.uniformOfFintype (Matrix (Fin m) (Fin (k + l)) (ZMod q)))
+    weakReuseIdealGame (ProbComp.uniform (Matrix (Fin m) (Fin (k + l)) (ZMod q)))
       (commonMatrixFuzzyExtractor m k l q decode) W t Q adv =
       (lweFuzzyExtractor m k l q decode).idealGame W (commonMatrixSimulator t Q adv) := by
   simp only [weakReuseIdealGame, FuzzyExtractor.idealGame, Game.withSetup,
@@ -709,34 +685,40 @@ theorem weakReuseIdealGame_commonMatrixFuzzyExtractor {St : Type}
     (fun δ _ => eval_commonMatrix_query_eq decode A s w δ) Q st₀]
   rfl
 
-/-- **Theorem 1** of [AponChoEldefrawyKatz2017] (Section 3.3): for every source `W`, distance
-threshold `t`, query count `Q`, and weak-reusability adversary `adv`, the `Q`-query
-weak-reusability advantage against `commonMatrixFuzzyExtractor` (under a uniform common matrix `A`)
-equals the single-enrollment `securityAdvantage` of `lweFuzzyExtractor` against
-`commonMatrixSimulator t Q adv`. -/
+/-- The reduction step in the proof of [AponChoEldefrawyKatz2017], Theorem 1 (Section 3.3), as an
+exact identity: for every source `W`, distance threshold `t`, query count `Q`, and
+weak-reusability adversary `adv`, the `Q`-query weak-reusability advantage against
+`commonMatrixFuzzyExtractor` (under a uniform common matrix `A`) equals the single-enrollment
+`securityAdvantage` of `lweFuzzyExtractor` against `commonMatrixSimulator t Q adv`. This is a
+reduction lemma, not the security theorem: `adv` is unrestricted, and no efficiency certificate
+for `commonMatrixSimulator` is given. -/
 theorem weakReuseAdvantage_commonMatrixFuzzyExtractor_eq {St : Type}
     (decode : Matrix (Fin m) (Fin (k + l)) (ZMod q) → (Fin m → ZMod q) →
       ProbComp (Option (Fin (k + l) → ZMod q)))
     (W : PMF (Fin m → ZMod q)) (t Q : ℕ)
     (adv : WeakReuseAdversary (Matrix (Fin m) (Fin (k + l)) (ZMod q)) m q
       (Fin k → ZMod q) (Fin m → ZMod q) St) :
-    weakReuseAdvantage (PMF.uniformOfFintype (Matrix (Fin m) (Fin (k + l)) (ZMod q)))
+    weakReuseAdvantage (ProbComp.uniform (Matrix (Fin m) (Fin (k + l)) (ZMod q)))
       (commonMatrixFuzzyExtractor m k l q decode) W t Q adv =
       (lweFuzzyExtractor m k l q decode).securityAdvantage W (commonMatrixSimulator t Q adv) := by
   simp [weakReuseAdvantage, FuzzyExtractor.securityAdvantage,
     weakReuseRealGame_commonMatrixFuzzyExtractor, weakReuseIdealGame_commonMatrixFuzzyExtractor]
 
-/-- Corollary of Theorem 1 and `securityAdvantage_lweFuzzyExtractor_le`: for every source `W`,
-distance threshold `t`, query count `Q`, and weak-reusability adversary `adv`, the `Q`-query
-weak-reusability advantage against `commonMatrixFuzzyExtractor` is bounded by the sum of two
-decisional LWE advantages in secret dimension `l` with error law `W` (and no hypotheses). -/
+/-- Concrete reduction inequality for [AponChoEldefrawyKatz2017], Theorem 1, combining
+`weakReuseAdvantage_commonMatrixFuzzyExtractor_eq` with `securityAdvantage_lweFuzzyExtractor_le`:
+for every source `W`, distance threshold `t`, query count `Q`, and weak-reusability adversary
+`adv`, the `Q`-query weak-reusability advantage against `commonMatrixFuzzyExtractor` is at most the
+sum of the decisional LWE advantages (secret dimension `l`, error law `W`) of two explicit
+reductions built from `adv`. This is not the security theorem: concluding weak reusability from
+`DecisionLWEWithErrors` additionally needs an adversary class and efficiency certificates for
+the reductions, which are future work. -/
 theorem weakReuseAdvantage_commonMatrixFuzzyExtractor_le {St : Type}
     (decode : Matrix (Fin m) (Fin (k + l)) (ZMod q) → (Fin m → ZMod q) →
       ProbComp (Option (Fin (k + l) → ZMod q)))
     (W : PMF (Fin m → ZMod q)) (t Q : ℕ)
     (adv : WeakReuseAdversary (Matrix (Fin m) (Fin (k + l)) (ZMod q)) m q
       (Fin k → ZMod q) (Fin m → ZMod q) St) :
-    weakReuseAdvantage (PMF.uniformOfFintype (Matrix (Fin m) (Fin (k + l)) (ZMod q)))
+    weakReuseAdvantage (ProbComp.uniform (Matrix (Fin m) (Fin (k + l)) (ZMod q)))
       (commonMatrixFuzzyExtractor m k l q decode) W t Q adv ≤
       LWE.advantage (PMF.uniformOfFintype (Fin l → ZMod q)) W
         (hardcoreKeyReduction (commonMatrixSimulator t Q adv)) +
@@ -744,25 +726,6 @@ theorem weakReuseAdvantage_commonMatrixFuzzyExtractor_le {St : Type}
         (hardcoreUniformReduction (commonMatrixSimulator t Q adv)) := by
   rw [weakReuseAdvantage_commonMatrixFuzzyExtractor_eq]
   exact securityAdvantage_lweFuzzyExtractor_le decode W (commonMatrixSimulator t Q adv)
-
-/-- Theorem 1 in predicate form: if `decode` is `t`-correct and decisional LWE in secret dimension
-`l` with error law `W ∈ sources` has advantage at most `ε` for every distinguisher, then
-`commonMatrixFuzzyExtractor` is `(t, Q, 2 * ε)`-weakly reusable for `sources` for every query count
-`Q`. -/
-theorem weaklyReusableFor_commonMatrixFuzzyExtractor
-    {decode : Matrix (Fin m) (Fin (k + l)) (ZMod q) → (Fin m → ZMod q) →
-      ProbComp (Option (Fin (k + l) → ZMod q))}
-    {sources : Set (PMF (Fin m → ZMod q))} {t : ℕ} {ε : ℝ≥0}
-    (hdec : DecoderCorrect decode t)
-    (hlwe : ∀ W ∈ sources, ∀ D,
-      LWE.advantage (PMF.uniformOfFintype (Fin l → ZMod q)) W D ≤ ε)
-    (Q : ℕ) :
-    WeaklyReusableFor (PMF.uniformOfFintype (Matrix (Fin m) (Fin (k + l)) (ZMod q)))
-      (commonMatrixFuzzyExtractor m k l q decode) sources t Q (2 * ε) := by
-  refine ⟨fun A _ => hdec.correctHamming_commonMatrixFuzzyExtractor A, fun W hW St adv => ?_⟩
-  refine (weakReuseAdvantage_commonMatrixFuzzyExtractor_le decode W t Q adv).trans ?_
-  rw [two_mul]
-  exact add_le_add (hlwe W hW _) (hlwe W hW _)
 
 /-! ### Section 3.3 (p. 10): Non-strong-reusability of common-matrix FMR -/
 
@@ -814,39 +777,117 @@ noncomputable def commonMatrixStrongAttack
       return st
   guess st r := return decide (r = st.recoveredKey)
 
-/-- Under `DecoderCorrect decode t`, the 1-query strong-reusability real game of
-`commonMatrixStrongAttack decode` against `commonMatrixFuzzyExtractor` succeeds with probability
-`1` (`PMF.pure true`) for every setup distribution and every source `W`. -/
-theorem strongReuseRealGame_commonMatrixStrongAttack_eq_pure_true
+/-- If `decode` fails with probability at most `δ` on error `0` over a uniform matrix
+(`DecoderCorrectWithError decode 0 δ`), then the 1-query attack `commonMatrixStrongAttack decode`
+outputs `false` in the real strong-reusability game against `commonMatrixFuzzyExtractor` (uniform
+common matrix) with probability at most `δ`, for every source `W`. -/
+theorem failProbability_strongReuseRealGame_commonMatrixStrongAttack_le
     {decode : Matrix (Fin m) (Fin (k + l)) (ZMod q) → (Fin m → ZMod q) →
       ProbComp (Option (Fin (k + l) → ZMod q))}
-    {t : ℕ} (hdec : DecoderCorrect decode t)
-    (setup : PMF (Matrix (Fin m) (Fin (k + l)) (ZMod q)))
-    (W : PMF (Fin m → ZMod q)) :
-    strongReuseRealGame setup (commonMatrixFuzzyExtractor m k l q decode) W t 1
-      (commonMatrixStrongAttack decode) = PMF.pure true := by
+    {δ : ℝ≥0} (hdec : DecoderCorrectWithError decode 0 δ)
+    (W : PMF (Fin m → ZMod q)) (t : ℕ) :
+    Game.failProbability (strongReuseRealGame
+      (ProbComp.uniform (Matrix (Fin m) (Fin (k + l)) (ZMod q)))
+      (commonMatrixFuzzyExtractor m k l q decode) W t 1 (commonMatrixStrongAttack decode)) ≤ δ := by
+  rw [← ENNReal.coe_le_coe]
+  simp only [Game.failProbability, ENNReal.coe_toNNReal (PMF.apply_ne_top _ _)]
   simp only [strongReuseRealGame, Game.withSetup, strongReuseRealExperiment,
     commonMatrixFuzzyExtractor, commonMatrixStrongAttack, reuseQueryLoop, clampShift_zero,
     add_zero, ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform,
     PMF.bind_bind, PMF.pure_bind]
-  refine (PMF.bind_congr_on_support _ _ (fun _ => PMF.pure true) fun A _ => ?_).trans
-    (PMF.bind_const _ _)
-  refine (PMF.bind_congr_on_support _ _ (fun _ => PMF.pure true) fun w _ => ?_).trans
-    (PMF.bind_const _ _)
-  refine (PMF.bind_congr_on_support _ _ (fun _ => PMF.pure true) fun sStar _ => ?_).trans
-    (PMF.bind_const _ _)
-  refine (PMF.bind_congr_on_support _ _ (fun _ => PMF.pure true) fun s₁ _ => ?_).trans
-    (PMF.bind_const _ _)
+  rw [PMF.bind_comm (PMF.uniformOfFintype (Matrix (Fin m) (Fin (k + l)) (ZMod q))) W]
+  refine PMF.bind_apply_le_on_support _ fun w _ => ?_
+  rw [PMF.bind_comm (PMF.uniformOfFintype (Matrix (Fin m) (Fin (k + l)) (ZMod q)))
+    (PMF.uniformOfFintype (Fin (k + l) → ZMod q))]
+  refine PMF.bind_apply_le_on_support _ fun sStar _ => ?_
+  rw [PMF.bind_comm (PMF.uniformOfFintype (Matrix (Fin m) (Fin (k + l)) (ZMod q)))
+    (PMF.uniformOfFintype (Fin (k + l) → ZMod q))]
+  refine PMF.bind_apply_le_on_support _ fun s₁ _ => ?_
+  have hs : decodeGame decode (sStar - s₁) 0 false ≤ (δ : ℝ≥0∞) := by
+    have := ENNReal.coe_le_coe.mpr (hdec (sStar - s₁) 0 (by simp))
+    rwa [Game.failProbability, ENNReal.coe_toNNReal (PMF.apply_ne_top _ _)] at this
+  refine le_trans ?_ hs
+  simp only [decodeGame, decodeCheck, ProbComp.eval_bind, ProbComp.eval_pure,
+    ProbComp.eval_uniform]
+  refine PMF.bind_apply_mono_on_support _ false fun A _ => ?_
   have hsub : (A.mulVec sStar + w) - (A.mulVec s₁ + w) = A.mulVec (sStar - s₁) + 0 := by
     rw [add_zero, (commonMatrix_recover_key_of_zero_shift A sStar s₁ w).1]
   rw [hsub]
-  refine (PMF.bind_congr_on_support _ _ (fun _ => PMF.pure true) fun sOpt hsOpt => ?_).trans
-    (PMF.bind_const _ _)
-  have hs := hdec A (sStar - s₁) 0 (by simp) sOpt hsOpt
-  subst hs
-  simp only [ProbComp.eval_pure, PMF.pure_bind]
-  rw [(commonMatrix_recover_key_of_zero_shift A sStar s₁ w).2]
+  refine PMF.bind_apply_mono_on_support _ false fun sOpt _ => ?_
+  by_cases h : sOpt = some (sStar - s₁)
+  · subst h
+    simp only [ProbComp.eval_pure, PMF.pure_bind]
+    rw [(commonMatrix_recover_key_of_zero_shift A sStar s₁ w).2]
+    simp
+  · rw [decide_eq_false h, PMF.pure_apply_self]
+    exact PMF.coe_le_one _ _
+
+private theorem uniform_bind_decide_eq (x : Fin k → ZMod q) :
+    ((PMF.uniformOfFintype (Fin k → ZMod q)).bind fun u => PMF.pure (decide (u = x))) =
+      (PMF.uniformOfFintype (Fin k → ZMod q)).bind fun u => PMF.pure (decide (u = 0)) := by
+  rw [← Probability.PMF.uniformOfFintype_bind_equiv (Equiv.addRight x)
+    (fun u => PMF.pure (decide (u = x)))]
   simp
+
+private theorem uniform_bind_decide_zero_apply_true :
+    ((PMF.uniformOfFintype (Fin k → ZMod q)).bind fun u => PMF.pure (decide (u = 0))) true =
+      ((q : ℝ≥0∞) ^ k)⁻¹ := by
+  simp [PMF.bind_apply, PMF.uniformOfFintype_apply, PMF.pure_apply, tsum_fintype,
+    ZMod.card]
+
+/-- In the ideal strong-reusability game against `commonMatrixFuzzyExtractor`, the attack
+`commonMatrixStrongAttack decode` outputs `true` with probability exactly `1 / q ^ k`: the uniform
+key `u` is independent of the attacker's recovered key. This holds for every setup program and
+every source `W`. -/
+theorem strongReuseIdealGame_commonMatrixStrongAttack_apply_true
+    (decode : Matrix (Fin m) (Fin (k + l)) (ZMod q) → (Fin m → ZMod q) →
+      ProbComp (Option (Fin (k + l) → ZMod q)))
+    (setup : ProbComp (Matrix (Fin m) (Fin (k + l)) (ZMod q)))
+    (W : PMF (Fin m → ZMod q)) (t : ℕ) :
+    strongReuseIdealGame setup (commonMatrixFuzzyExtractor m k l q decode) W t 1
+      (commonMatrixStrongAttack decode) true = ((q : ℝ≥0∞) ^ k)⁻¹ := by
+  simp only [strongReuseIdealGame, Game.withSetup, strongReuseIdealExperiment,
+    commonMatrixFuzzyExtractor, commonMatrixStrongAttack, reuseQueryLoop,
+    ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform,
+    PMF.bind_bind, PMF.pure_bind, uniform_bind_decide_eq, PMF.bind_const]
+  exact uniform_bind_decide_zero_apply_true
+
+/-- The Section 3.3 attack as an advantage lower bound ([AponChoEldefrawyKatz2017], p. 10): if
+`decode` fails with probability at most `δ` on error `0` over a uniform matrix, then the 1-query
+attack `commonMatrixStrongAttack decode` has strong-reusability advantage at least
+`1 - δ - 1 / q ^ k` against `commonMatrixFuzzyExtractor`, for every source `W`. So the scheme is not
+strongly reusable whenever the decoder works and `q ^ k` is large. -/
+theorem strongReuseAdvantage_commonMatrixStrongAttack_ge
+    {decode : Matrix (Fin m) (Fin (k + l)) (ZMod q) → (Fin m → ZMod q) →
+      ProbComp (Option (Fin (k + l) → ZMod q))}
+    {δ : ℝ≥0} (hdec : DecoderCorrectWithError decode 0 δ)
+    (W : PMF (Fin m → ZMod q)) (t : ℕ) :
+    1 - (δ : ℝ) - 1 / (q : ℝ) ^ k ≤
+      strongReuseAdvantage (ProbComp.uniform (Matrix (Fin m) (Fin (k + l)) (ZMod q)))
+        (commonMatrixFuzzyExtractor m k l q decode) W t 1 (commonMatrixStrongAttack decode) := by
+  have hfail := failProbability_strongReuseRealGame_commonMatrixStrongAttack_le hdec W t
+  have hsum := Game.succProbability_add_failProbability (strongReuseRealGame
+    (ProbComp.uniform (Matrix (Fin m) (Fin (k + l)) (ZMod q)))
+    (commonMatrixFuzzyExtractor m k l q decode) W t 1 (commonMatrixStrongAttack decode))
+  have hideal : (Game.succProbability (strongReuseIdealGame
+      (ProbComp.uniform (Matrix (Fin m) (Fin (k + l)) (ZMod q)))
+      (commonMatrixFuzzyExtractor m k l q decode) W t 1 (commonMatrixStrongAttack decode)) : ℝ) =
+      1 / (q : ℝ) ^ k := by
+    rw [Game.coe_succProbability, strongReuseIdealGame_commonMatrixStrongAttack_apply_true]
+    simp [ENNReal.toReal_inv]
+  rw [strongReuseAdvantage, Game.coe_advantage, hideal]
+  have hsumR : (Game.succProbability (strongReuseRealGame
+      (ProbComp.uniform (Matrix (Fin m) (Fin (k + l)) (ZMod q)))
+      (commonMatrixFuzzyExtractor m k l q decode) W t 1 (commonMatrixStrongAttack decode)) : ℝ) +
+      (Game.failProbability (strongReuseRealGame
+      (ProbComp.uniform (Matrix (Fin m) (Fin (k + l)) (ZMod q)))
+      (commonMatrixFuzzyExtractor m k l q decode) W t 1 (commonMatrixStrongAttack decode)) : ℝ) =
+      1 := by exact_mod_cast hsum
+  have hfailR : (Game.failProbability (strongReuseRealGame
+      (ProbComp.uniform (Matrix (Fin m) (Fin (k + l)) (ZMod q)))
+      (commonMatrixFuzzyExtractor m k l q decode) W t 1 (commonMatrixStrongAttack decode)) : ℝ) ≤
+      δ := by exact_mod_cast hfail
+  exact le_trans (by linarith) (le_abs_self _)
 
 end CommonMatrix
 
