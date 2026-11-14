@@ -4567,6 +4567,7 @@ public import CslibFrontier.Crypto.Computational.Paillier
 public import CslibFrontier.Crypto.Computational.Paillier.Algebra
 public import CslibFrontier.Crypto.Computational.Paillier.Finite
 public import CslibFrontier.Crypto.Computational.Paillier.Security
+public import CslibFrontier.Crypto.Computational.PartialOneWay
 public import CslibFrontier.Crypto.Computational.PedersenCommitment
 public import CslibFrontier.Crypto.Computational.PedersenCommitment.ProbComp
 public import CslibFrontier.Crypto.Computational.PedersenCommitment.PublicOperations

@@ -1,0 +1,241 @@
+/-
+Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Samuel Schlesinger
+-/
+
+module
+-- upstream: candidate
+
+public import CslibFrontier.Computability.Probabilistic.UniformNat
+public import CslibFrontier.Crypto.Game
+public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
+public import CslibFrontier.Languages.Probabilistic.Oracle.RunState
+
+/-!
+# Partial one-wayness games
+
+Partial-guessing one-wayness (PGOW) gives an adversary a public function image and an adaptive
+classical oracle that recognizes one distinguished part of the sampled preimage. Partial-domain
+one-wayness (PDOW) gives the same public challenge without that oracle. In both games the
+challenger checks the adversary's final candidate separately; that check is not an adversary
+query.
+
+`partialGuessingToDomainAt` is the executable core of the classical reduction in
+[KosugeXagawa2026, Appendix C, Lemma C.1, pp. 33--34]. It runs the PGOW adversary once with false
+answers and returns either one selected query or the final output. `partialGuessingToDomain`
+samples the paper's exactly uniform slot in `Fin (queryBound + 1)`. This semantic finite-uniform
+sampler has no strict fair-coin runtime certificate in general.
+
+`partialGuessingToDomainDyadic` is the fixed-clock-compatible slot-sampling variant. It uses
+`ProbComp.sampleDyadicIndex queryBound`, so every source slot has mass
+`1 / dyadicSize queryBound`; padding slots return the fixed fallback. Its loss is therefore
+`dyadicSize queryBound`, not the paper's `queryBound + 1`. The checked bounds
+`queryBound < dyadicSize queryBound ≤ 2 * (queryBound + 1)` keep the asymptotic loss polynomial.
+
+This module defines the exact challenges, games and executable reductions. The adaptive coupling
+inequality and machine-resource compiler are deliberately not asserted here: the former must show
+that the all-false execution agrees through the first correct query, and the latter must charge
+request/reply marshalling and each installed finite table exactly once.
+
+## Main definitions
+
+* `Cslib.Crypto.PartialOneWayChallenge`, `.PartialOneWayDistributionValid`: the sampled triple
+  and its support-level relation to an indexed function family.
+* `Cslib.Crypto.PartialGuessingAdversary`, `.PartialDomainAdversary`: PGOW and PDOW adversaries.
+* `Cslib.Crypto.partialGuessingExperiment`, `.partialDomainExperiment`: the source games.
+* `Cslib.Crypto.partialGuessingToDomain`: the paper's semantic uniform-slot reduction.
+* `Cslib.Crypto.partialGuessingToDomainDyadic`: the strict fair-coin slot sampler variant.
+
+## References
+
+* [H. Kosuge, K. Xagawa, *Towards Formal Security Proofs of MQOM*][KosugeXagawa2026],
+  Appendix C, Definitions C.2--C.3 and Lemma C.1, pp. 33--34.
+-/
+
+@[expose] public section
+
+namespace Cslib.Crypto
+
+open Probability
+open scoped NNReal
+
+/-- A challenge sampled from the source distribution `D_F`: public index `index`, hidden
+preimage `secret`, and public image `image`. Distribution validity below states the source's
+requirement `image = family index secret` without putting proof data in the executable sample. -/
+structure PartialOneWayChallenge (Index Domain Image : Type) where
+  /-- Public index of the sampled function. -/
+  index : Index
+  /-- Hidden sampled preimage. -/
+  secret : Domain
+  /-- Public function image. -/
+  image : Image
+
+/-- Every supported challenge has the required public image. Keeping this predicate separate
+from the challenge makes the relation an auditable property of `D_F`, not runtime proof data. -/
+def PartialOneWayDistributionValid {Index Domain Image : Type}
+    (family : Index → Domain → Image)
+    (sample : ProbComp (PartialOneWayChallenge Index Domain Image)) : Prop :=
+  ∀ challenge ∈ (ProbComp.eval sample).support,
+    family challenge.index challenge.secret = challenge.image
+
+/-- The classical PGOW validation interface returns one Boolean for every candidate. -/
+abbrev PartialGuessingResponse (Prefix : Type) : Prefix → Type := fun _ => Bool
+
+/-- A classical PGOW adversary receives the public function index and image, makes adaptive
+validation queries, and finally returns a candidate prefix. -/
+abbrev PartialGuessingAdversary (Index Image Prefix : Type) :=
+  Index → Image → ProbOracleComp (PartialGuessingResponse Prefix) Prefix
+
+/-- A PDOW adversary receives the same public challenge without a validation oracle. -/
+abbrev PartialDomainAdversary (Index Image Prefix : Type) :=
+  Index → Image → ProbComp Prefix
+
+/-- The exact validation oracle: accept precisely the distinguished part of the sampled secret. -/
+def partialGuessingReply {Prefix : Type} [DecidableEq Prefix]
+    (secret candidate : Prefix) : Bool :=
+  decide (candidate = secret)
+
+theorem partialGuessingReply_eq_true_iff {Prefix : Type} [DecidableEq Prefix]
+    {secret candidate : Prefix} : partialGuessingReply secret candidate = true ↔
+      candidate = secret := by
+  simp only [partialGuessingReply, decide_eq_true_eq]
+
+/-- The source's classical PGOW experiment. The final equality is checked after the oracle run
+and is not included in its query count. -/
+noncomputable def partialGuessingExperiment {Index Domain Image Prefix : Type}
+    [DecidableEq Prefix] (sample : ProbComp (PartialOneWayChallenge Index Domain Image))
+    (part : Domain → Prefix)
+    (adversary : PartialGuessingAdversary Index Image Prefix) : ProbComp Bool := do
+  let challenge ← sample
+  let candidate ← (adversary challenge.index challenge.image).run fun guess =>
+    pure (partialGuessingReply (part challenge.secret) guess)
+  return partialGuessingReply (part challenge.secret) candidate
+
+/-- The source's PDOW experiment on exactly the same challenge distribution. -/
+noncomputable def partialDomainExperiment {Index Domain Image Prefix : Type}
+    [DecidableEq Prefix] (sample : ProbComp (PartialOneWayChallenge Index Domain Image))
+    (part : Domain → Prefix)
+    (adversary : PartialDomainAdversary Index Image Prefix) : ProbComp Bool := do
+  let challenge ← sample
+  let candidate ← adversary challenge.index challenge.image
+  return partialGuessingReply (part challenge.secret) candidate
+
+/-- Concrete PGOW success probability. -/
+noncomputable def partialGuessingAdvantage {Index Domain Image Prefix : Type}
+    [DecidableEq Prefix] (sample : ProbComp (PartialOneWayChallenge Index Domain Image))
+    (part : Domain → Prefix)
+    (adversary : PartialGuessingAdversary Index Image Prefix) : ℝ≥0 :=
+  Game.succProbability (ProbComp.eval (partialGuessingExperiment sample part adversary))
+
+/-- Concrete PDOW success probability. -/
+noncomputable def partialDomainAdvantage {Index Domain Image Prefix : Type}
+    [DecidableEq Prefix] (sample : ProbComp (PartialOneWayChallenge Index Domain Image))
+    (part : Domain → Prefix)
+    (adversary : PartialDomainAdversary Index Image Prefix) : ℝ≥0 :=
+  Game.succProbability (ProbComp.eval (partialDomainExperiment sample part adversary))
+
+namespace PartialGuessingAdversary
+
+/-- One bound applies to every public challenge supplied to an adversary. -/
+def IsQueryBounded {Index Image Prefix : Type}
+    (adversary : PartialGuessingAdversary Index Image Prefix) (queryBound : Nat) : Prop :=
+  ∀ index image, (adversary index image).IsQueryBounded queryBound
+
+end PartialGuessingAdversary
+
+/-! ### Executable query selection -/
+
+/-- Private state of the all-false validation handler. It retains only the selected candidate,
+not a transcript of all validation queries. -/
+structure PartialGuessingSelectionState (Prefix : Type) where
+  /-- Number of validation calls already answered. -/
+  count : Nat
+  /-- Candidate asked at the selected call, if that call occurred. -/
+  selected : Option Prefix
+
+namespace PartialGuessingSelectionState
+
+/-- No validation call has occurred and no candidate has been selected. -/
+def empty {Prefix : Type} : PartialGuessingSelectionState Prefix :=
+  { count := 0, selected := none }
+
+end PartialGuessingSelectionState
+
+/-- Answer every validation call with false while retaining the candidate at `slot`. Calls are
+numbered from zero. Continuing after the selected call costs at most one full adversary run and
+does not require storing later candidates. -/
+def selectFalseOracle {Prefix : Type} (slot : Nat) (candidate : Prefix) :
+    StateT (PartialGuessingSelectionState Prefix) ProbComp Bool := fun state =>
+  pure (false,
+    { count := state.count + 1
+      selected := if state.count = slot then some candidate else state.selected })
+
+@[simp] theorem selectFalseOracle_run {Prefix : Type} (slot : Nat) (candidate : Prefix)
+    (state : PartialGuessingSelectionState Prefix) :
+    (selectFalseOracle slot candidate).run state =
+      pure (false,
+        { count := state.count + 1
+          selected := if state.count = slot then some candidate else state.selected }) := rfl
+
+/-- Extract the selected query for slots below `queryBound`, or the adversary's separately
+checked final output for slot `queryBound`. A missing selected query yields `fallback`. -/
+def partialGuessingSelectedCandidate {Prefix : Type} (fallback : Prefix)
+    (queryBound slot : Nat) (result : Prefix × PartialGuessingSelectionState Prefix) : Prefix :=
+  if slot < queryBound then result.2.selected.getD fallback else result.1
+
+@[simp] theorem partialGuessingSelectedCandidate_of_lt {Prefix : Type} (fallback : Prefix)
+    (queryBound slot : Nat) (result : Prefix × PartialGuessingSelectionState Prefix)
+    (hslot : slot < queryBound) :
+    partialGuessingSelectedCandidate fallback queryBound slot result =
+      result.2.selected.getD fallback := by
+  simp only [partialGuessingSelectedCandidate, hslot, if_true]
+
+@[simp] theorem partialGuessingSelectedCandidate_of_not_lt {Prefix : Type} (fallback : Prefix)
+    (queryBound slot : Nat) (result : Prefix × PartialGuessingSelectionState Prefix)
+    (hslot : ¬ slot < queryBound) :
+    partialGuessingSelectedCandidate fallback queryBound slot result = result.1 := by
+  simp only [partialGuessingSelectedCandidate, hslot, if_false]
+
+/-- One deterministic slot of the PGOW-to-PDOW reduction. It runs the adversary once, answers
+all validation calls locally with false, and returns either the selected call or final output. -/
+def partialGuessingToDomainAt {Index Image Prefix : Type} (fallback : Prefix)
+    (queryBound slot : Nat) (adversary : PartialGuessingAdversary Index Image Prefix) :
+    PartialDomainAdversary Index Image Prefix := fun index image => do
+  let result ← ((adversary index image).runState (selectFalseOracle slot)).run
+    PartialGuessingSelectionState.empty
+  return partialGuessingSelectedCandidate fallback queryBound slot result
+
+/-- Lemma C.1's semantic reduction: choose exactly one of the `queryBound` validation positions
+or the final output, uniformly. `ProbComp.uniform` specifies the exact finite distribution but is
+not claimed to have a strict fair-coin clock for arbitrary `queryBound + 1`. -/
+noncomputable def partialGuessingToDomain {Index Image Prefix : Type} (fallback : Prefix)
+    (queryBound : Nat) (adversary : PartialGuessingAdversary Index Image Prefix) :
+    PartialDomainAdversary Index Image Prefix := fun index image => do
+  let slot ← ProbComp.uniform (Fin (queryBound + 1))
+  partialGuessingToDomainAt fallback queryBound slot adversary index image
+
+/-- Fixed-clock fair-coin slot-sampling variant. The power-of-two sampler covers source slots `0`
+through `queryBound`; any remaining padding slot returns `fallback` without running the adversary.
+An operational certificate for the composed reduction still has to account for the installed
+adversary, local handler and marshalling. -/
+noncomputable def partialGuessingToDomainDyadic {Index Image Prefix : Type} (fallback : Prefix)
+    (queryBound : Nat) (adversary : PartialGuessingAdversary Index Image Prefix) :
+    PartialDomainAdversary Index Image Prefix := fun index image => do
+  let slot ← ProbComp.sampleDyadicIndex queryBound
+  if slot ≤ queryBound then
+    partialGuessingToDomainAt fallback queryBound slot adversary index image
+  else
+    pure fallback
+
+/-- Every paper slot `0,...,queryBound` lies in the executable sampler's range. -/
+theorem partialGuessing_sourceSlot_lt_dyadicSize (queryBound slot : Nat)
+    (hslot : slot ≤ queryBound) : slot < Probability.dyadicSize queryBound :=
+  hslot.trans_lt (Probability.lt_dyadicSize queryBound)
+
+/-- The exact executable loss is at most twice the paper's `queryBound + 1` loss. -/
+theorem partialGuessing_dyadicSize_le (queryBound : Nat) :
+    Probability.dyadicSize queryBound ≤ 2 * (queryBound + 1) :=
+  Probability.dyadicSize_le queryBound
+
+end Cslib.Crypto
