@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-import Mathlib.Tactic.Omega
 
 /-!
 # SNOVA's bounded signing-attempt schedule
