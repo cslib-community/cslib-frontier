@@ -41,7 +41,7 @@ elements. For `k = 2` these are the affine maps `x ↦ c₀ + c₁ x` of
   equality*][WegmanCarter1981]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Probability
 
