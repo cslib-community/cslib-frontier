@@ -49,6 +49,11 @@ open scoped BigOperators _root_.Matrix
 def decryptResidue (n w : ℕ) (secret ciphertext : List Bool) : ℕ :=
   LWE.secretProductResidue n w (w - 1) secret ciphertext
 
+/-- At width zero, the selected residue is zero. -/
+@[simp] theorem decryptResidue_zero (n : ℕ) (secret ciphertext : List Bool) :
+    decryptResidue n 0 secret ciphertext = 0 := by
+  simp [decryptResidue]
+
 /-- Decode the selected residue. Width zero returns `false`; every positive width uses the
 same half-open middle-half test as the typed decoder, including width one. -/
 def decryptSerialized (n w : ℕ) (secret ciphertext : List Bool) : Bool :=

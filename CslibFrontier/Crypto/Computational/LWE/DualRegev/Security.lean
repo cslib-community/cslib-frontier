@@ -404,6 +404,11 @@ def decryptResidue (m w : ℕ) (secretWord ciphertextWord : List Bool) : ℕ :=
         Cslib.Matrix.binaryEntry (m + 1) w ciphertextWord 0 (i + 1)
       else 0).sum : ℕ)) % (2 ^ w : ℤ)).toNat
 
+/-- At width zero, the dual-Regev decryption residue is zero. -/
+@[simp] theorem decryptResidue_zero (m : ℕ) (secretWord ciphertextWord : List Bool) :
+    decryptResidue m 0 secretWord ciphertextWord = 0 := by
+  simp [decryptResidue]
+
 /-- Decrypt a serialized dual-Regev ciphertext word under a binary secret word by rounding
 `decryptResidue` via `LWE.decodeResidue`. -/
 def decryptSerialized (m w : ℕ) (secretWord ciphertextWord : List Bool) : Bool :=

@@ -194,6 +194,11 @@ words using signed binary subtraction. -/
 def decryptResidue (n w : ℕ) (secretWord ciphertextWord : List Bool) : ℕ :=
   LWE.secretProductResidue n w 0 secretWord ciphertextWord
 
+/-- At width zero, the Regev decryption residue is zero. -/
+@[simp] theorem decryptResidue_zero (n : ℕ) (secretWord ciphertextWord : List Bool) :
+    decryptResidue n 0 secretWord ciphertextWord = 0 := by
+  simp [decryptResidue]
+
 /-- Decrypt a serialized Regev ciphertext word under a serialized secret word by rounding
 `decryptResidue` via `LWE.decodeResidue`. -/
 def decryptSerialized (n w : ℕ) (secretWord ciphertextWord : List Bool) : Bool :=
