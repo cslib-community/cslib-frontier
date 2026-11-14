@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.Data.BitString.Binary
 public import CslibFrontier.Foundations.Data.Code.Concatenation
 public import CslibFrontier.Foundations.Data.Code.Hadamard
 public import CslibFrontier.Foundations.Data.Code.NearestDecoding
+import CslibFrontier.Foundations.Data.BitString.Sign
 import Mathlib.Data.Finset.Max
 
 /-!
@@ -198,10 +199,10 @@ private theorem walshSign_cons {n : ℕ} (b c : Bool) (a x : BitString n) :
   have hdot : (Fin.cons b a) ⬝ᵥ (Fin.cons c x) = ((b && c) ^^ (a ⬝ᵥ x)) := by
     simp only [dotProduct, Fin.sum_univ_succ, Fin.cons_zero, Fin.cons_succ,
       Bool.mul_eq_and, Bool.add_eq_xor]
-  simp only [walshSign, hdot]
-  cases hbc : b && c <;> cases hax : a ⬝ᵥ x <;>
-    simp_all only [Bool.false_xor, Bool.true_xor, Bool.not_false, Bool.not_true,
-      ite_true] <;> norm_num
+  have hpow (q : Bool) : (if q then (-1 : ℤ) else 1) = (-1 : ℤ) ^ q.toNat := by
+    cases q <;> rfl
+  simpa only [walshSign, hdot, hpow] using
+    (neg_one_pow_toNat_xor (R := ℤ) (b && c) (a ⬝ᵥ x))
 
 /-- The staged transform computes the direct Walsh correlation.  This pins the source's butterfly
 implementation to the mathematical transform used in the decoder proof. -/
@@ -396,13 +397,13 @@ private theorem drmEncode_true_eq_not (μ : ℕ) (a : RMPoint) :
 
 private theorem hammingDist_not_left_add {I : Type*} [Fintype I] (f g : I → Bool) :
     hammingDist (fun i => !f i) g + hammingDist f g = Fintype.card I := by
-  rw [hammingDist, hammingDist, card_filter, card_filter, ← sum_add_distrib]
-  calc
-    (∑ i : I, ((if (!f i) ≠ g i then 1 else 0) + (if f i ≠ g i then 1 else 0))) =
-        ∑ _i : I, 1 := by
-          refine sum_congr rfl fun i _ => ?_
-          cases f i <;> cases g i <;> decide
-    _ = Fintype.card I := by simp
+  rw [hammingDist_eq_weight_add, hammingDist_eq_weight_add]
+  have hcomplement : (fun i => !f i) + g = fun i => !((f + g) i) := by
+    funext i
+    simp only [Pi.add_apply, Bool.add_eq_xor]
+    cases f i <;> cases g i <;> decide
+  rw [hcomplement]
+  exact weight_not_add (f + g)
 
 private theorem hammingDist_drmEncode_true_add_false {μ : ℕ} (w : DRMWord μ) (a : RMPoint) :
     hammingDist (drmEncode μ ⟨true, a⟩) w +

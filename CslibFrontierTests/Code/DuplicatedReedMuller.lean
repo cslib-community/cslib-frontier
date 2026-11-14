@@ -4,6 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+
 import CslibFrontier.Foundations.Data.Code.DuplicatedReedMuller
 
 /-!
@@ -14,6 +16,8 @@ single nonzero error is corrected for each multiplicity.  At the strict half-dis
 two distinct codewords have a common word at distance `32`, so the theorem's strict inequality
 cannot be weakened.
 -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.Code.DuplicatedReedMuller
 
@@ -105,6 +109,30 @@ example : hammingDist (drmEncode 5 zeroMessage) (drmEncode 5 firstSlopeMessage) 
 /-- A word halfway between `zeroMessage` and `firstSlopeMessage`: `x₀ ∧ x₁`. -/
 private def boundaryWord : DRMWord 1 :=
   fun p => p.2 0 && p.2 1
+
+/-- A positive-multiplicity word whose largest-magnitude coefficients tie at slopes 4–7. -/
+private def positiveTieWord : DRMWord 3 :=
+  fun p => p.2 2 ^^ (p.2 0 && p.2 1)
+
+-- Evaluating the full 384-bit decoder exceeds Lean's default recursion depth.
+set_option maxRecDepth 10000 in
+/-- The source's strict scan picks slope 4, the smallest tied index, with a clear sign bit. -/
+example : drmDecode positiveTieWord =
+    ⟨false, ![false, false, true, false, false, false, false]⟩ := by
+  have hfind : drmFindPeak positiveTieWord =
+      ![false, false, true, false, false, false, false] := by
+    apply (BitString.equivFin 7).injective
+    unfold drmFindPeak
+    rw [Equiv.apply_symm_apply]
+    decide +kernel
+  have hcoeff : drmHadamardCoeff positiveTieWord
+      ![false, false, true, false, false, false, false] = -96 := by
+    decide +kernel
+  unfold drmDecode
+  rw [hfind]
+  dsimp only
+  rw [hcoeff]
+  rfl
 
 private def boundaryErrorZero : DRMWord 1 :=
   boundaryWord
