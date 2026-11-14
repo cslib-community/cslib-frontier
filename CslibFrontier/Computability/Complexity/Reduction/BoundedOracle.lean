@@ -341,7 +341,7 @@ theorem exists_computableInO_run_word [Finite Operation] {α : Type} {input : α
         clk a :=
     (machine.length_pendingRequest_le (hspace a hi)).trans hi
   let stepPoly (a : α) : ℕ := (B a + 1) ^ e + (B a + ansMax a + 1) ^ e
-  have hit := ComputableInO.iterate hn.inO.computableInO hinit.inO.computableInO hstep
+  have hit := ComputableInO.iterate hn.inO hinit.inO hstep
     (R := fun a => stepPoly a + wordMax Tg (clk a))
     (Q := fun a => stepPoly a + sgMax a) (B := B)
     (fun a i hi => by
@@ -1019,9 +1019,9 @@ theorem computableInPolySpace {oracle : List Bool → List Bool} {f : α → β}
     ComputableInPolySpace f encA encB := by
   obtain ⟨t, s, hs, hc, hl⟩ := horacle
   have hO : ComputableInO oracle encBits encBits t (fun w => s w.length) :=
-    ⟨1, hc.mono (fun a => by simp only [one_mul]; omega)
-      (fun a => by simp only [one_mul]; omega),
-      fun a => (hl a).trans (by simp only [one_mul]; omega)⟩
+    ⟨1, hc.mono (fun a => by simp only [one_mul, encBits_apply]; omega)
+      (fun a => by simp only [one_mul, encBits_apply]; omega),
+      fun a => (hl a).trans (by simp only [one_mul, encBits_apply]; omega)⟩
   have hsPoly : PolyBounded List.length (fun w : List Bool => s w.length) :=
     .of_polynomiallyBounded List.length hs
   obtain ⟨_, _, S, hSPoly, _, _, c, htm, hout⟩ := R.exists_computableInO_polySpace hO hsPoly
