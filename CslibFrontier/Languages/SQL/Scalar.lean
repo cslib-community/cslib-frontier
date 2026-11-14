@@ -210,6 +210,10 @@ theorem toTruth_eq_ok_iff {d : Datum} {t : Truth} : d.toTruth = .ok t ↔ d = t.
 theorem exists_toTruth_eq_ok_iff {d : Datum} : (∃ t, d.toTruth = .ok t) ↔ d.HasType .bool := by
   rcases d with _ | (_ | _ | _) <;> simp [toTruth]
 
+/-- A boolean-typed datum is a truth value: `TRUE`, `FALSE`, or `NULL` for `unknown`. -/
+theorem hasType_bool_iff {d : Datum} : d.HasType .bool ↔ ∃ t : Truth, d = t.toDatum := by
+  simp only [← toTruth_eq_ok_iff, exists_toTruth_eq_ok_iff]
+
 /-- A datum is an integer operand exactly when it is integer-typed. -/
 theorem exists_asInt_eq_ok_iff {d : Datum} : (∃ x, d.asInt = .ok x) ↔ d.HasType .int := by
   rcases d with _ | (_ | _ | _) <;> simp [asInt]
@@ -535,8 +539,7 @@ theorem evalBinOp_or_comm (a b : Datum) : evalBinOp .or a b = evalBinOp .or b a 
 /-- `NOT (NOT d)` is `d` on boolean datums. -/
 theorem evalUnOp_not_not {d : Datum} (hd : d.HasType .bool) :
     (evalUnOp .not d >>= evalUnOp .not) = .ok d := by
-  obtain ⟨t, ht⟩ := Datum.exists_toTruth_eq_ok_iff.mpr hd
-  rw [Datum.toTruth_eq_ok_iff.mp ht]
+  obtain ⟨t, rfl⟩ := Datum.hasType_bool_iff.mp hd
   simp [evalUnOp]
 
 /-- De Morgan: `NOT (a AND b)` is `NOT a OR NOT b`, also when an operand is not boolean. -/
@@ -566,29 +569,25 @@ theorem not_evalUnOp_isNotNull (d : Datum) :
 /-- `a AND TRUE` is `a` on boolean datums; on any other value it is a type error. -/
 theorem evalBinOp_and_true {a : Datum} (ha : a.HasType .bool) :
     evalBinOp .and a (some (.bool true)) = .ok a := by
-  obtain ⟨t, ht⟩ := Datum.exists_toTruth_eq_ok_iff.mpr ha
-  rw [Datum.toTruth_eq_ok_iff.mp ht]
+  obtain ⟨t, rfl⟩ := Datum.hasType_bool_iff.mp ha
   cases t <;> rfl
 
 /-- `a AND FALSE` is `FALSE` on boolean datums, also when `a` is `NULL`. -/
 theorem evalBinOp_and_false {a : Datum} (ha : a.HasType .bool) :
     evalBinOp .and a (some (.bool false)) = .ok (some (.bool false)) := by
-  obtain ⟨t, ht⟩ := Datum.exists_toTruth_eq_ok_iff.mpr ha
-  rw [Datum.toTruth_eq_ok_iff.mp ht]
+  obtain ⟨t, rfl⟩ := Datum.hasType_bool_iff.mp ha
   cases t <;> rfl
 
 /-- `a OR FALSE` is `a` on boolean datums. -/
 theorem evalBinOp_or_false {a : Datum} (ha : a.HasType .bool) :
     evalBinOp .or a (some (.bool false)) = .ok a := by
-  obtain ⟨t, ht⟩ := Datum.exists_toTruth_eq_ok_iff.mpr ha
-  rw [Datum.toTruth_eq_ok_iff.mp ht]
+  obtain ⟨t, rfl⟩ := Datum.hasType_bool_iff.mp ha
   cases t <;> rfl
 
 /-- `a OR TRUE` is `TRUE` on boolean datums, also when `a` is `NULL`. -/
 theorem evalBinOp_or_true {a : Datum} (ha : a.HasType .bool) :
     evalBinOp .or a (some (.bool true)) = .ok (some (.bool true)) := by
-  obtain ⟨t, ht⟩ := Datum.exists_toTruth_eq_ok_iff.mpr ha
-  rw [Datum.toTruth_eq_ok_iff.mp ht]
+  obtain ⟨t, rfl⟩ := Datum.hasType_bool_iff.mp ha
   cases t <;> rfl
 
 private theorem evalBinOp_arith_of_asInt {op : ArithOp} {a b : Datum} {x y : Option ℤ}
