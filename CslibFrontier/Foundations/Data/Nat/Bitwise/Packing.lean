@@ -62,9 +62,12 @@ theorem packWords_congr {f g : ℕ → Bool} {h B : ℕ}
     apply heq
     have hr : (r.val + 1) * h ≤ B * h :=
       Nat.mul_le_mul_right h (Nat.succ_le_iff.mpr r.isLt)
-    omega
-  · rw [packWords, packWords, Nat.testBit_ofBits_ge _ _ hb,
-      Nat.testBit_ofBits_ge _ _ hb]
+    exact (Nat.add_lt_add_left hb _).trans_le (by
+      rw [← Nat.succ_mul]
+      exact hr)
+  · have hb' := Nat.le_of_not_gt hb
+    rw [packWords, packWords, Nat.testBit_ofBits_ge _ _ hb',
+      Nat.testBit_ofBits_ge _ _ hb']
 
 /-- Read one bit of a fixed tuple; unused addresses are false. -/
 def readPackedBit {B : ℕ} (h : ℕ) (w : Fin B → ℕ) (a : ℕ) : Bool :=
@@ -79,9 +82,11 @@ theorem readPackedBit_eq_word {B h a : ℕ} (hh : 0 < h) (w : Fin B → ℕ) (ha
   constructor
   · rintro ⟨r, b, heq, hbit⟩
     have hdiv : a / h = r.val := by
-      rw [← heq, Nat.mul_add_div hh, Nat.div_eq_of_lt b.isLt, Nat.add_zero]
+      rw [← heq, Nat.mul_comm r.val h, Nat.mul_add_div hh, Nat.div_eq_of_lt b.isLt,
+        Nat.add_zero]
     have hmod : a % h = b.val := by
-      rw [← heq, Nat.mul_add_mod_self_left, Nat.mod_eq_of_lt b.isLt]
+      rw [← heq, Nat.mul_comm r.val h, Nat.mul_add_mod_self_left,
+        Nat.mod_eq_of_lt b.isLt]
     have hr : (⟨a / h, (Nat.div_lt_iff_lt_mul hh).mpr ha⟩ : Fin B) = r := Fin.ext hdiv
     rw [hr, hmod]
     exact hbit
@@ -163,17 +168,20 @@ theorem packWords_readPackedField {h B s : ℕ} (hh : 0 < h) (hs : 0 < s)
     have ha : r.val * h + b < B * h := by
       have hr : (r.val + 1) * h ≤ B * h :=
         Nat.mul_le_mul_right h (Nat.succ_le_iff.mpr r.isLt)
-      omega
+      exact (Nat.add_lt_add_left hb _).trans_le (by
+        rw [← Nat.succ_mul]
+        exact hr)
     rw [readPackedBit_eq_word hh w ha]
     have hdiv : (r.val * h + b) / h = r.val := by
-      rw [Nat.mul_add_div hh, Nat.div_eq_of_lt hb, Nat.add_zero]
+      rw [Nat.mul_comm r.val h, Nat.mul_add_div hh, Nat.div_eq_of_lt hb, Nat.add_zero]
     have hmod : (r.val * h + b) % h = b := by
-      rw [Nat.mul_add_mod_self_left, Nat.mod_eq_of_lt hb]
+      rw [Nat.mul_comm r.val h, Nat.mul_add_mod_self_left, Nat.mod_eq_of_lt hb]
     rw [show (⟨(r.val * h + b) / h, (Nat.div_lt_iff_lt_mul hh).mpr ha⟩ : Fin B) = r by
       exact Fin.ext hdiv, hmod]
-  · rw [packWords, Nat.testBit_ofBits_ge _ _ hb]
+  · have hb' := Nat.le_of_not_gt hb
+    rw [packWords, Nat.testBit_ofBits_ge _ _ hb']
     exact (Nat.testBit_lt_two_pow (lt_of_lt_of_le (hw r)
-      (Nat.pow_le_pow_right (by decide) (show h ≤ b by omega)))).symm
+      (Nat.pow_le_pow_right (by decide) hb'))).symm
 
 /-- Pack `n` radix-`base` fields, least significant field first. -/
 def packRadix (base n : ℕ) (f : ℕ → ℕ) : ℕ :=

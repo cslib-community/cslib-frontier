@@ -215,7 +215,6 @@ theorem get_ofSpongeView_capacity (layout : SpongeLayout) (state : SpongeView la
     (lane : Fin 25) (h : ¬lane.val < layout.rateLanes) :
     (ofSpongeView layout state).get lane =
       laneOfBits fun z => state.2 ⟨64 * (lane.val - layout.rateLanes) + z.val, by
-        have hlaneVal := lane.isLt
         have hlayout := layout.lane_count
         omega⟩ := by
   change (ofSpongeView layout state)[lane.val] = _
@@ -293,9 +292,11 @@ theorem ofSpongeView_toSpongeView (layout : SpongeLayout) (A : State) :
         (64 * (lane - layout.rateLanes) + z) / 64, by
           have hlayout := layout.lane_count
           omega⟩ : Fin 25) = ⟨lane, hlane⟩ := by
-      apply Fin.ext
-      rw [hdiv]
-      omega
+      have hval : layout.rateLanes +
+          (64 * (lane - layout.rateLanes) + z) / 64 = lane := by
+        rw [hdiv]
+        exact Nat.add_sub_of_le (Nat.le_of_not_gt hrate)
+      exact Fin.ext hval
     rw [hlaneEq, hmod]
 
 /-- Keccak-p[1600, 24] on a lane-aligned sponge view. -/
@@ -368,7 +369,7 @@ theorem ofSpongeView_toSpongeView (layout : SpongeLayout) (A : State) :
     | nil => simp
     | cons state states ih =>
       rw [List.flatMap_cons, List.length_append, length_rateBytesFor, ih, List.length_cons]
-      omega
+      simp [Nat.mul_succ, Nat.add_comm]
   have hcount :
       (Sponge.hashBlocks (keccakP1600Rounds24View layout) Prod.fst count blocks).length = count :=
     Sponge.length_squeeze _ _ _ _
@@ -450,14 +451,18 @@ theorem take_byteXof (layout : SpongeLayout) (input : List (Fin 256)) {m n : ℕ
 /-- A SHAKE256 rate lane reads the corresponding 64 rate coordinates. -/
 theorem get_ofSpongeState_rate (state : SpongeState) (lane : Fin 25) (h : lane.val < 17) :
     (ofSpongeState state).get lane =
-      laneOfBits fun z => state.1 ⟨64 * lane.val + z.val, by omega⟩ := by
+      laneOfBits fun z => state.1 ⟨64 * lane.val + z.val, by
+        change 64 * lane.val + z.val < 1088
+        omega⟩ := by
   simpa [ofSpongeState, shake256Layout] using
     get_ofSpongeView_rate shake256Layout state lane h
 
 /-- A SHAKE256 capacity lane reads the corresponding 64 capacity coordinates. -/
 theorem get_ofSpongeState_capacity (state : SpongeState) (lane : Fin 25) (h : ¬lane.val < 17) :
     (ofSpongeState state).get lane =
-      laneOfBits fun z => state.2 ⟨64 * (lane.val - 17) + z.val, by omega⟩ := by
+      laneOfBits fun z => state.2 ⟨64 * (lane.val - 17) + z.val, by
+        change 64 * (lane.val - 17) + z.val < 512
+        omega⟩ := by
   simpa [ofSpongeState, shake256Layout] using
     get_ofSpongeView_capacity shake256Layout state lane h
 
@@ -485,7 +490,7 @@ theorem ofSpongeState_toSpongeState (A : State) :
 
 /-- One SHAKE256 rate block contains exactly 136 output bytes. -/
 @[simp] theorem length_rateBytes (rate : BitString 1088) : (rateBytes rate).length = 136 := by
-  simpa [rateBytes, shake256Layout] using length_rateBytesFor shake256Layout rate
+  simp [rateBytes, shake256Layout]
 
 /-- Squeeze SHAKE256 rate states as bytes. -/
 @[expose] def squeezeBytes (blocks : List (BitString 1088)) (count : ℕ) : List (Fin 256) :=
@@ -494,8 +499,7 @@ theorem ofSpongeState_toSpongeState (A : State) :
 /-- `count` SHAKE256 squeezing blocks contain exactly `136 * count` bytes. -/
 @[simp] theorem length_squeezeBytes (blocks : List (BitString 1088)) (count : ℕ) :
     (squeezeBytes blocks count).length = 136 * count := by
-  simpa [squeezeBytes, shake256Layout] using
-    length_squeezeBytesFor shake256Layout blocks count
+  simp [squeezeBytes, shake256Layout]
 
 /-- Requesting more SHAKE256 squeezing blocks preserves every byte of the earlier blocks. -/
 theorem take_squeezeBytes (blocks : List (BitString 1088)) {m n : ℕ} (h : m ≤ n) :
@@ -509,7 +513,7 @@ theorem take_squeezeBytes (blocks : List (BitString 1088)) {m n : ℕ} (h : m �
 /-- SHAKE256 returns exactly the requested number of bytes. -/
 @[simp] theorem length_shake256 (input : List (Fin 256)) (outputBytes : ℕ) :
     (shake256 input outputBytes).length = outputBytes := by
-  simpa [shake256] using length_byteXof shake256Layout input outputBytes
+  simp [shake256]
 
 /-- SHAKE256 is prefix-consistent: requesting more output never changes preceding bytes. -/
 theorem take_shake256 (input : List (Fin 256)) {m n : ℕ} (h : m ≤ n) :

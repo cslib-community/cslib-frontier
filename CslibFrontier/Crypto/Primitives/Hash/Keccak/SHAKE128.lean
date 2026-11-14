@@ -59,7 +59,9 @@ abbrev Shake128SpongeState := SpongeView shake128Layout
 theorem get_ofShake128SpongeState_rate (state : Shake128SpongeState) (lane : Fin 25)
     (h : lane.val < 21) :
     (ofShake128SpongeState state).get lane =
-      laneOfBits fun z => state.1 ⟨64 * lane.val + z.val, by omega⟩ := by
+      laneOfBits fun z => state.1 ⟨64 * lane.val + z.val, by
+        change 64 * lane.val + z.val < 1344
+        omega⟩ := by
   simpa [ofShake128SpongeState, shake128Layout] using
     get_ofSpongeView_rate shake128Layout state lane h
 
@@ -67,7 +69,9 @@ theorem get_ofShake128SpongeState_rate (state : Shake128SpongeState) (lane : Fin
 theorem get_ofShake128SpongeState_capacity (state : Shake128SpongeState) (lane : Fin 25)
     (h : ¬lane.val < 21) :
     (ofShake128SpongeState state).get lane =
-      laneOfBits fun z => state.2 ⟨64 * (lane.val - 21) + z.val, by omega⟩ := by
+      laneOfBits fun z => state.2 ⟨64 * (lane.val - 21) + z.val, by
+        change 64 * (lane.val - 21) + z.val < 256
+        omega⟩ := by
   simpa [ofShake128SpongeState, shake128Layout] using
     get_ofSpongeView_capacity shake128Layout state lane h
 
@@ -99,7 +103,7 @@ theorem ofShake128SpongeState_toShake128SpongeState (A : State) :
 /-- One SHAKE128 rate block contains exactly 168 output bytes. -/
 @[simp] theorem length_shake128RateBytes (rate : BitString 1344) :
     (shake128RateBytes rate).length = 168 := by
-  simpa [shake128RateBytes, shake128Layout] using length_rateBytesFor shake128Layout rate
+  simp [shake128RateBytes, shake128Layout]
 
 /-- Absorb padded SHAKE128 blocks and expose `count` squeezed rate states as bytes. -/
 @[expose] def shake128SqueezeBytes (blocks : List (BitString 1344)) (count : ℕ) :
@@ -109,8 +113,7 @@ theorem ofShake128SpongeState_toShake128SpongeState (A : State) :
 /-- `count` SHAKE128 squeezing blocks contain exactly `168 * count` bytes. -/
 @[simp] theorem length_shake128SqueezeBytes (blocks : List (BitString 1344)) (count : ℕ) :
     (shake128SqueezeBytes blocks count).length = 168 * count := by
-  simpa [shake128SqueezeBytes, shake128Layout] using
-    length_squeezeBytesFor shake128Layout blocks count
+  simp [shake128SqueezeBytes, shake128Layout]
 
 /-- Requesting more SHAKE128 squeezing blocks preserves every byte of the earlier blocks. -/
 theorem take_shake128SqueezeBytes (blocks : List (BitString 1344)) {m n : ℕ} (h : m ≤ n) :
@@ -128,7 +131,7 @@ returned, not the preceding bytes. -/
 /-- SHAKE128 returns exactly the requested number of bytes. -/
 @[simp] theorem length_shake128 (input : List (Fin 256)) (outputBytes : ℕ) :
     (shake128 input outputBytes).length = outputBytes := by
-  simpa [shake128] using length_byteXof shake128Layout input outputBytes
+  simp [shake128]
 
 /-- SHAKE128 is prefix-consistent: requesting more output never changes preceding bytes. -/
 theorem take_shake128 (input : List (Fin 256)) {m n : ℕ} (h : m ≤ n) :
