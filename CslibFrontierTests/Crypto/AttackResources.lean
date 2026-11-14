@@ -11,10 +11,11 @@ import CslibFrontier.Tactic.PolyTime
 # Checked clients for componentwise attack resources
 
 The finite client uses a nonconstant explicit installed-artifact inventory and every execution
-coordinate. Two separate program occurrences verify per-copy charging. The family client proves
-all per-kind inventory sums and execution coordinates polynomial, then applies the reusable
-concrete-to-asymptotic bridge. Equal games isolate the resource API; this test asserts no
-cryptographic security endpoint.
+coordinate. Two separate program occurrences verify per-copy charging. Separate handler and
+table/advice occurrences contrast with a main program containing hardwired versions, which are not
+charged again. The family client proves all per-kind inventory sums and execution coordinates
+polynomial, then applies the reusable concrete-to-asymptotic bridge. Equal games isolate the
+resource API; this test asserts no cryptographic security endpoint.
 -/
 
 namespace Cslib.Tests.AttackResources
@@ -23,8 +24,8 @@ open Cslib Cslib.Crypto
 open scoped NNReal
 
 /-- A nonconstant installed inventory. The two `program` entries are distinct stored copies, so
-both contribute. The generated program, generator, compiler, interpreter and controller are
-separate occurrences. -/
+both contribute. The other entries, including the handler and static table/advice, are separately
+installed occurrences. -/
 def sampleInventory (n : ℕ) : List Game.InstalledArtifact :=
   [{ kind := .program, bits := n + 1 },
     { kind := .program, bits := 2 * n + 1 },
@@ -32,7 +33,9 @@ def sampleInventory (n : ℕ) : List Game.InstalledArtifact :=
     { kind := .generator, bits := 4 * n + 1 },
     { kind := .compiler, bits := 5 * n + 1 },
     { kind := .interpreter, bits := 6 * n + 1 },
-    { kind := .controller, bits := 7 * n + 1 }]
+    { kind := .controller, bits := 7 * n + 1 },
+    { kind := .handler, bits := 8 * n + 1 },
+    { kind := .table, bits := 9 * n + 1 }]
 
 /-- Executed compiler coordinates used by both separate and inlined installation clients. -/
 def sampleCompilerExecution (n : ℕ) : Game.ExecutedCompilerResources where
@@ -71,8 +74,23 @@ theorem sampleInstalledBits_at_two :
       (sampleResources 2).generatorBits = 9 ∧
       (sampleResources 2).compilerBits = 11 ∧
       (sampleResources 2).interpreterBits = 13 ∧
-      (sampleResources 2).controllerBits = 15 := by
+      (sampleResources 2).controllerBits = 15 ∧
+      (sampleResources 2).handlerBits = 17 ∧
+      (sampleResources 2).tableBits = 19 := by
   decide
+
+/-- A handler and table/advice hardwired into the retained main program are not separately
+installed occurrences and therefore are not charged again under their independent categories. -/
+def hardwiredStaticResources (n : ℕ) : Game.AttackResources :=
+  Game.AttackResources.ofInventory
+    [{ kind := .program, bits := 10 * n + 3 }]
+    (sampleExecution n)
+
+theorem hardwiredStatic_not_doubleCounted (n : ℕ) :
+    (hardwiredStaticResources n).programBits = 10 * n + 3 ∧
+      (hardwiredStaticResources n).handlerBits = 0 ∧
+      (hardwiredStaticResources n).tableBits = 0 := by
+  exact ⟨rfl, rfl, rfl⟩
 
 /-- A model-specific certificate predicate for the test compiler. Besides exact input, output,
 clock and workspace coordinates, it asserts that production and copying each pay for the emitted
@@ -196,6 +214,12 @@ theorem sampleResources_isPolynomial :
     fun_prop
   controllerBits := by
     change PolynomiallyBounded fun n => 7 * n + 1
+    fun_prop
+  handlerBits := by
+    change PolynomiallyBounded fun n => 8 * n + 1
+    fun_prop
+  tableBits := by
+    change PolynomiallyBounded fun n => 9 * n + 1
     fun_prop
   inputBits := by
     change PolynomiallyBounded fun n => 8 * n + 1

@@ -15,9 +15,11 @@ public import CslibFrontier.Crypto.Game.Concrete
 Concrete reductions need to retain static descriptions and charge online execution without
 identifying unrelated units. An explicit `InstalledArtifact` list records each stored occurrence.
 Per-kind description sizes are sums over that inventory, so distinct stored copies contribute
-separately, while components inlined into a final artifact are not charged again. `AttackResources`
-adds the common execution coordinates; `Fits` and `IsPolynomial` keep every comparison and
-asymptotic bound componentwise.
+separately, while components inlined into a final artifact are not charged again. In particular,
+`program` is reserved for adversary, reducer and main-program storage; separately installed
+handlers and static tables or advice use their own occurrences. `AttackResources` adds the common
+execution coordinates; `Fits` and `IsPolynomial` keep every comparison and asymptotic bound
+componentwise.
 
 Offline generation is not online time unless the attack executes it. A generated artifact is still
 an installed occurrence, whether its compiler ran online or offline. When compilation runs inside
@@ -31,6 +33,7 @@ callers provide exact retained artifacts and prove that their executions fit the
 
 ## Main definitions
 
+* `Cslib.Crypto.Game.InstalledArtifactKind`: roles for independently retained static artifacts.
 * `Cslib.Crypto.Game.InstalledArtifact`: one occurrence in the installed static inventory.
 * `Cslib.Crypto.Game.ExecutedCompilerResources`: executed compiler input, output and costs.
 * `Cslib.Crypto.Game.AttackExecutionResources`: online, compiler, oracle and communication costs.
@@ -57,10 +60,11 @@ public section
 
 namespace Cslib.Crypto.Game
 
-/-- The role of one separately installed static artifact occurrence. A final artifact containing
-inlined components is one `program` occurrence; those components are not additional occurrences. -/
+/-- The role of one separately installed static artifact occurrence. A final program containing
+hardwired components is one `program` occurrence; those components are not additional occurrences.
+-/
 inductive InstalledArtifactKind
-  /-- A retained adversary, reduction program or circuit description. -/
+  /-- A retained adversary, reducer, main program or circuit description. -/
   | program
   /-- A retained program or circuit emitted by a compiler. -/
   | generatedProgram
@@ -72,6 +76,10 @@ inductive InstalledArtifactKind
   | interpreter
   /-- A separately retained wrapper or controller description. -/
   | controller
+  /-- A separately retained oracle, query or operation-handler description. -/
+  | handler
+  /-- A separately retained transition, dispatch or lookup table, including static advice. -/
+  | table
   deriving DecidableEq
 
 /-- One occurrence in the installed static inventory. Repeating the same value in the inventory
@@ -222,6 +230,17 @@ namespace AttackResources
 @[expose] def controllerBits (resources : AttackResources) : ℕ :=
   resources.artifactBits .controller
 
+/-- Installed separately retained handler bits, summed once per occurrence. A handler hardwired
+into the main program contributes only to `programBits`. -/
+@[expose] def handlerBits (resources : AttackResources) : ℕ :=
+  resources.artifactBits .handler
+
+/-- Installed separately retained transition, dispatch, lookup-table or static-advice bits,
+summed once per occurrence. A table or advice string hardwired into the main program contributes
+only to `programBits`. -/
+@[expose] def tableBits (resources : AttackResources) : ℕ :=
+  resources.artifactBits .table
+
 /-- An executed compiler is fully accounted for relative to a model-specific execution
 certificate. `Certifies certificate resources.execution.compiler` is the caller's explicit
 obligation connecting the declared compiler input/output, production time, workspace and copy time
@@ -258,6 +277,8 @@ not turn the coordinates into a scalar total. -/
     used.compilerBits ≤ budget.compilerBits ∧
     used.interpreterBits ≤ budget.interpreterBits ∧
     used.controllerBits ≤ budget.controllerBits ∧
+    used.handlerBits ≤ budget.handlerBits ∧
+    used.tableBits ≤ budget.tableBits ∧
     used.execution.inputBits ≤ budget.execution.inputBits ∧
     used.execution.onlineTime ≤ budget.execution.onlineTime ∧
     used.execution.onlineWorkspace ≤ budget.execution.onlineWorkspace ∧
@@ -292,6 +313,8 @@ structure IsPolynomial (schedule : ℕ → AttackResources) : Prop where
   compilerBits : PolynomiallyBounded fun n => (schedule n).compilerBits
   interpreterBits : PolynomiallyBounded fun n => (schedule n).interpreterBits
   controllerBits : PolynomiallyBounded fun n => (schedule n).controllerBits
+  handlerBits : PolynomiallyBounded fun n => (schedule n).handlerBits
+  tableBits : PolynomiallyBounded fun n => (schedule n).tableBits
   inputBits : PolynomiallyBounded fun n => (schedule n).execution.inputBits
   onlineTime : PolynomiallyBounded fun n => (schedule n).execution.onlineTime
   onlineWorkspace : PolynomiallyBounded fun n => (schedule n).execution.onlineWorkspace
