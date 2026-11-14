@@ -55,7 +55,20 @@ ones unless `--no-build-check` is given. It supplements review: it does not judg
 definition matches its cited source, whether a locator is right, or whether a standard assumption
 under a headline, with the instance the theorem supplies, is the one the cited result assumes. It
 does not see a cited result that a docstring names without a bibliography key, the word "theorem"
-or a bold title in its first sentence, nor one that only a theorem's name claims.
+or a bold title in its first sentence, nor one that only a theorem's name claims. Conversely, an
+original result on a novel assumption, which the rule allows, is flagged when its docstring
+presents a cited result in that sense, and then passes only through a justified baseline entry.
+
+The inventory is not complete. The reader misses a premise written inline, such as a
+hypothesis `∀ A, Negligible (advantage A)`, which no named declaration heads. It also misses an
+assumption whose definition reaches no security atom through Prop-valued declarations within five
+levels: a bound on a quantity not named like an advantage (a success probability, an agreement
+fraction), an advantage behind a helper that is not Prop-valued, or an atom reached only through a
+longer chain of Prop-valued declarations. A row for such an assumption fails as naming no named
+assumption. The known cases (#5578 finding 9) are `Cslib.Complexity.MildlyHardOnAverage` and
+`MildlyHardOnAverageENat` (the Liu–Pass converse, `OneWay/LiuPassConverse.lean`),
+`Cslib.Crypto.Pseudoentropy.SamplablePair.HasGap` and `HasGapWithAdvice` (`Pseudoentropy/`), and
+`Cslib.Circuits.Boolean.IsAverageCaseHard` (the Nisan–Wigderson generator).
 """
 
 from __future__ import annotations

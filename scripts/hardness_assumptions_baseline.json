@@ -18,7 +18,6 @@
   "Cslib.Crypto.Encryption.WordINDCCA2": "#5578: the declaration cites no source definition; at most its module docstring names a reference.",
   "Cslib.Crypto.Encryption.WordINDCCA2Multi": "#5578: the declaration cites no source definition; at most its module docstring names a reference.",
   "Cslib.Crypto.FactoringHard": "#5578: the declaration cites no source definition; at most its module docstring names a reference.",
-  "Cslib.Crypto.GMW.AdvicePRG": "#5578 finding 1: library-specific; document it as novel to this library, with its relation to NonuniformPRG.",
   "Cslib.Crypto.Garbling.MixedModulus.MixedModulusCCR": "#5578 finding 3: the module docstring says it is stronger than BMR16 Definition 1; the declaration should say it is novel to this library.",
   "Cslib.Crypto.GenerableZeroKnowledge": "#5578: the declaration cites no source definition; at most its module docstring names a reference.",
   "Cslib.Crypto.HQC.NativeQuantumThreeDQCSDPT": "#5578: the declaration cites no source definition; at most its module docstring names a reference.",
@@ -37,6 +36,7 @@
   "Cslib.Crypto.NonuniformPRG": "#5578: the declaration cites no source definition; at most its module docstring names a reference.",
   "Cslib.Crypto.OneWay": "#5578: the declaration cites no source definition; at most its module docstring names a reference.",
   "Cslib.Crypto.OneWayPermutation": "#5578: the declaration cites no source definition; at most its module docstring names a reference.",
+  "Cslib.Crypto.PRG.Generator.Secure": "Defined in CSLib (Cslib/Crypto/Primitives/PRG/Defs.lean), whose module docstring cites [BonehShoup2023], Section 3.1 and Attack Game 3.1; the declaration's own docstring is upstream and gains its citation there.",
   "Cslib.Crypto.PrimeOrderGroupFamily.CDH": "#5578 finding 2: the game docstring cites Boneh–Shoup; the assumption does not.",
   "Cslib.Crypto.PrimeOrderGroupFamily.DDH": "#5578 finding 2: the game docstrings cite Boneh–Shoup; the assumption does not.",
   "Cslib.Crypto.PrimeOrderGroupFamily.DiscreteLog": "#5578 finding 2: the game and module docstrings cite Boneh–Shoup; the assumption does not.",
@@ -118,14 +118,6 @@
   "Cslib.Crypto.ZKProof.UnboundedAuxiliaryInputZeroKnowledge": "#5578: Goldreich's Foundations, Volume 1 is not checked at the source."
  },
  "headlines": {
-  "Cslib.Crypto.Garbling.BMR16.advantage_realGame_simGame_le_of_reduction_mem": "Algebraic helper (#5338), named `…_of_reduction_mem`; #5578 finding 3: state that MixedModulusCCR is stronger than BMR16 Definition 1.",
-  "Cslib.Crypto.PseudorandomGenerator.auxiliaryInputZeroKnowledge_levinSingleZKProof": "#5578 finding 1: a step towards GMW under the library-specific GMW.AdvicePRG, named under PseudorandomGenerator; rename it to mention AdvicePRG and open its docstring as a step towards GMW.",
-  "Cslib.Crypto.PseudorandomGenerator.auxiliaryInputZeroKnowledge_levinZKProof": "#5578 finding 1: a step towards GMW under the library-specific GMW.AdvicePRG, named under PseudorandomGenerator; rename it to mention AdvicePRG and open its docstring as a step towards GMW.",
-  "Cslib.Crypto.PseudorandomGenerator.auxiliaryInputZeroKnowledge_singleZKProofOfReduction": "#5578 finding 1: a step towards GMW under the library-specific GMW.AdvicePRG, named under PseudorandomGenerator; rename it to mention AdvicePRG and open its docstring as a step towards GMW.",
-  "Cslib.Crypto.PseudorandomGenerator.auxiliaryInputZeroKnowledge_singleZKProofThreeSAT": "#5578 finding 1: a step towards GMW under the library-specific GMW.AdvicePRG, named under PseudorandomGenerator; rename it to mention AdvicePRG and open its docstring as a step towards GMW.",
-  "Cslib.Crypto.PseudorandomGenerator.auxiliaryInputZeroKnowledge_zkProofOfReduction": "#5578 finding 1: a step towards GMW under the library-specific GMW.AdvicePRG, named under PseudorandomGenerator; rename it to mention AdvicePRG and open its docstring as a step towards GMW.",
-  "Cslib.Crypto.PseudorandomGenerator.auxiliaryInputZeroKnowledge_zkProofThreeSAT": "#5578 finding 1: a step towards GMW under the library-specific GMW.AdvicePRG, named under PseudorandomGenerator; rename it to mention AdvicePRG and open its docstring as a step towards GMW.",
-  "Cslib.Crypto.PseudorandomGenerator.exists_auxiliaryInputZKProof_of_mem_NP": "#5578 finding 1: a step towards GMW under the library-specific GMW.AdvicePRG, named under PseudorandomGenerator; rename it to mention AdvicePRG and open its docstring as a step towards GMW.",
-  "Cslib.Crypto.PseudorandomGenerator.exists_auxiliaryInputZKProof_of_npRelation": "#5578 finding 1: a step towards GMW under the library-specific GMW.AdvicePRG, named under PseudorandomGenerator; rename it to mention AdvicePRG and open its docstring as a step towards GMW."
+  "Cslib.Crypto.Garbling.BMR16.advantage_realGame_simGame_le_of_reduction_mem": "Algebraic helper (#5338), named `…_of_reduction_mem`; #5578 finding 3: state that MixedModulusCCR is stronger than BMR16 Definition 1."
  }
 }

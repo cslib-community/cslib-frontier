@@ -796,10 +796,11 @@ its presentation claims, so this is the part of a change that review exists to c
    efficiency is what the result proves. It is also a stand-in when it replaces the construction's
    algorithms with idealized ones, proves the claim for a fixed finite instance instead of a
    family, weakens the notion, model or adversary class (including parameters chosen after the
-   adversary), or rests on an assumption that the source's assumption is not known to imply, such
-   as a stronger or novel one ([Security theorems](#security-theorems)). A theorem the source
-   itself states conditionally, such as a hardness-magnification implication, is not a stand-in
-   when its hypothesis is the source's.
+   adversary), or rests on an assumption other than the source's that the source's assumption is
+   not proved in the library or cited to imply, such as a stronger or novel one
+   ([Security theorems](#security-theorems)). A theorem the source itself states conditionally,
+   such as a hardness-magnification implication, is not a stand-in when its hypothesis is the
+   source's.
    A useful, non-vacuous stand-in may land as an intermediate step, never as the headline for the
    cited result: its name states the condition (`…_of_reduction_le`, `…_of_realization`), its
    docstring opens by saying it is a step or helper and not the cited result, it cites the source
@@ -932,10 +933,10 @@ the [assumptions inventory](manual/programs-crypto-and-probability/assumptions.m
   and why it is plausible. Where an insecure instance is easy to give, a test shows that the
   assumption fails for it.
 - **Vocabulary.** A generic notion parameterized by the objects whose security it states (games,
-  ensembles, an adversary predicate, a bound), such as `Game.Indistinguishable`,
-  `ComputationallyIndistinguishable` or `PRG.Generator.Secure`. It becomes an assumption only
-  through the instance that a theorem supplies. A primitive's or problem's own security notion is
-  never vocabulary.
+  ensembles, an adversary predicate, a bound), such as `Game.Indistinguishable` or
+  `ComputationallyIndistinguishable`. It becomes an assumption only through the instance that a
+  theorem supplies. A primitive's or problem's own security notion is never vocabulary, even in a
+  concrete form against a caller's adversary class and bound.
 
 A row of any status says "locator not verified" until its locator has been read at the source.
 An author removes the phrase only in a pull request whose body records that check (the source's

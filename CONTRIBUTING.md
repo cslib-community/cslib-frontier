@@ -229,7 +229,7 @@ the theorem should prove, and a realization stated other than as an equation (an
 predicate of the library or a bundled program).
 
 **Named assumptions** ([#5578](https://github.com/cslib-community/cslib-frontier/issues/5578)). Each
-named assumption that a Crypto theorem takes is listed in the
+named assumption that a Crypto theorem takes belongs in the
 [assumptions inventory](manual/programs-crypto-and-probability/assumptions.md) as *standard* (its
 docstring cites the source definition with a checked locator and names every deviation), *novel*
 (its docstring says "novel to this library" and how it relates to standard assumptions) or
@@ -257,7 +257,17 @@ The check does not judge whether a definition matches its source, whether a loca
 whether a theorem that claims a cited result rests on the source's assumption with the source's
 instance; review does. Nor does it see a cited result named without a bibliography key, the word
 "theorem" or a bold title in the docstring's first sentence, or one claimed only by a theorem's
-name.
+name. Conversely, an original result on a novel assumption, which the rule allows, is flagged when
+its docstring cites a key, or says "theorem" or opens with a bold title in its first sentence; it
+then passes only through a justified baseline entry. The inventory is not complete, because the
+reader misses two kinds of assumption: a premise written inline (a hypothesis
+`∀ A, Negligible (advantage A)`), and an assumption whose definition reaches no security atom
+through Prop-valued declarations within five levels, such as a bound on a quantity not named like
+an advantage or an advantage behind a helper that is not Prop-valued. A row for one fails, so these
+are not listed. The known cases are `MildlyHardOnAverage` and `MildlyHardOnAverageENat` (the
+Liu–Pass converse), `Pseudoentropy.SamplablePair.HasGap` and `HasGapWithAdvice`, and
+`Circuits.Boolean.IsAverageCaseHard` (Nisan–Wigderson); the inventory page names them in full
+(#5578 finding 9).
 
 ### Algorithms are programs
 
