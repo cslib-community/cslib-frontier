@@ -4354,6 +4354,7 @@ public import CslibFrontier.Crypto.Computational.Encryption.Basic
 public import CslibFrontier.Crypto.Computational.Encryption.BlockModeWord
 public import CslibFrontier.Crypto.Computational.Encryption.CCA
 public import CslibFrontier.Crypto.Computational.Encryption.CCA.Interleaved
+public import CslibFrontier.Crypto.Computational.Encryption.CCA.Malleability
 public import CslibFrontier.Crypto.Computational.Encryption.CTRMode
 public import CslibFrontier.Crypto.Computational.Encryption.CTRMode.Uniform
 public import CslibFrontier.Crypto.Computational.Encryption.Cipher
@@ -4414,6 +4415,7 @@ public import CslibFrontier.Crypto.Computational.GoldreichLevin.Reduction
 public import CslibFrontier.Crypto.Computational.GoldreichLevin.WordDecoder
 public import CslibFrontier.Crypto.Computational.GoldreichLevin.WordReduction
 public import CslibFrontier.Crypto.Computational.GoldwasserMicali
+public import CslibFrontier.Crypto.Computational.GoldwasserMicali.Malleability
 public import CslibFrontier.Crypto.Computational.HQC.DQCSD
 public import CslibFrontier.Crypto.Computational.HQC.INDCPA
 public import CslibFrontier.Crypto.Computational.HardCore
@@ -4571,6 +4573,7 @@ public import CslibFrontier.Crypto.Computational.PRGToOneWay
 public import CslibFrontier.Crypto.Computational.Paillier
 public import CslibFrontier.Crypto.Computational.Paillier.Algebra
 public import CslibFrontier.Crypto.Computational.Paillier.Finite
+public import CslibFrontier.Crypto.Computational.Paillier.Malleability
 public import CslibFrontier.Crypto.Computational.Paillier.Security
 public import CslibFrontier.Crypto.Computational.PedersenCommitment
 public import CslibFrontier.Crypto.Computational.PedersenCommitment.ProbComp
