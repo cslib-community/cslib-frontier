@@ -8,7 +8,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListPrimitives
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pi
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Finite
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeFinitePrimitives
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Pi
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Bounds
 
