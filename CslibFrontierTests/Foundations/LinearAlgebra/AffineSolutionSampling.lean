@@ -78,12 +78,12 @@ def zeroSolver : AffineSolutionSolver (zeroMap (K := K)) where
     · intro _ hsurj
       obtain ⟨x, hx⟩ := hsurj fun _ ↦ 1
       have hx0 := congrFun hx 0
-      simpa [zeroMap] using hx0
+      simp [zeroMap] at hx0
     · intro _
       rfl
 
 /-- A nonzero shift for the underdetermined system. -/
-def shift : Input K := ![1, 1]
+def shift : Input K := fun _ ↦ 1
 
 /-- The target used by the successful attempt. -/
 def oneTarget : Output K := fun _ ↦ 1
@@ -119,7 +119,7 @@ def target : Attempt → Output K
 
 /-- Randomness remains explicit per attempt. -/
 def randomness : Attempt → Input K
-  | .rankDeficient => ![1, 0]
+  | .rankDeficient => fun i ↦ if i = 0 then 1 else 0
   | .fullRank => shift (K := K)
 
 /-- Retry skips the consistent but rank-deficient system, returns the next solution, and retains
