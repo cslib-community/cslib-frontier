@@ -328,8 +328,7 @@ theorem testBit_readPacked {arrBase k w : ℕ} (hw : 0 < w) (hkw : k ≤ w) (mem
     (idx : ℕ) {j : ℕ} (hj : j < k) :
     (readPacked arrBase k w mem idx).testBit j =
       (mem (arrBase + (idx * k + j) / w)).testBit ((idx * k + j) % w) := by
-  unfold readPacked
-  dsimp only
+  unfold readPacked readBitSlice
   set wOff := wordOffset k w idx
   set bOff := bitOffset k w idx
   set k₀ := lowWidth k w idx
@@ -341,6 +340,8 @@ theorem testBit_readPacked {arrBase k w : ℕ} (hw : 0 < w) (hkw : k ≤ w) (mem
   have hdecomp : idx * k = w * wOff + bOff := by
     rw [hwOff, hbOff]
     exact (Nat.div_add_mod (idx * k) w).symm
+  change ((mem (arrBase + wOff) >>> bOff &&& 2 ^ k₀ - 1) ^^^
+      ((mem (arrBase + wOff + 1) >>> 0 &&& 2 ^ k₁ - 1) <<< k₀)).testBit j = _
   rw [Nat.testBit_xor]
   by_cases hjk₀ : j < k₀
   · have hbj_lt : bOff + j < w := by
