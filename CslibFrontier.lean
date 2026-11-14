@@ -1451,6 +1451,8 @@ public import CslibFrontier.Computability.Circuit.Boolean.WeightedThreshold.Thre
 public import CslibFrontier.Computability.Circuit.Boolean.WeightedThreshold.TranscriptTree
 public import CslibFrontier.Computability.Circuit.Boolean.Word
 public import CslibFrontier.Computability.Circuit.Boolean.Word.Rewire
+public import CslibFrontier.Computability.Circuit.Boolean.WordConstant
+public import CslibFrontier.Computability.Circuit.Boolean.WordConstant.PolyTime
 public import CslibFrontier.Computability.Circuit.Boolean.XorLemma
 public import CslibFrontier.Computability.Circuit.Boolean.XorPowerListSize
 public import CslibFrontier.Computability.Circuit.Boolean.Yablonskii
@@ -4760,6 +4762,8 @@ public import CslibFrontier.Crypto.Primitives.Garbling.Switch.Garble
 public import CslibFrontier.Crypto.Primitives.Garbling.Switch.Oblivious
 public import CslibFrontier.Crypto.Primitives.HQC.Correctness
 public import CslibFrontier.Crypto.Primitives.HQC.PKE
+public import CslibFrontier.Crypto.Primitives.HQC.SupportCircuit
+public import CslibFrontier.Crypto.Primitives.HQC.SupportCircuit.PolyTime
 public import CslibFrontier.Crypto.Primitives.HQC.SupportDensity
 public import CslibFrontier.Crypto.Primitives.HQC.SupportProbability
 public import CslibFrontier.Crypto.Primitives.HQC.SupportSampling
