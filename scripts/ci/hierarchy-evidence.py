@@ -7,7 +7,8 @@ import statistics
 import subprocess
 import time
 import tomllib
-from hierarchy_evidence_support import attribute_control_passed, instrument, restore_snapshot
+from hierarchy_evidence_support import (attribute_matrix_complete, instrument, registration_counts,
+                                        restore_snapshot, scoped_control_passed)
 
 VARIANTS = {
     'before': '39b11c9de',
@@ -163,13 +164,15 @@ for label, sha in resolved.items():
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=900)
             log = result.stdout + result.stderr
             (dest / 'lean.log').write_text(log)
-            passed = attribute_control_passed(result.returncode, log, count, negative)
+            passed = scoped_control_passed(result.returncode, log, count, negative)
             attribute_results.append(dict(variant=label, module=name, negative=negative,
-                                          scopes=count, passed=passed, command=cmd))
+                                          scopes=count, passed=passed, command=cmd,
+                                          returncode=result.returncode, counts=registration_counts(log)))
             (OUT / 'compiled-attributes.json').write_text(json.dumps(attribute_results, indent=2))
             if not passed:
                 raise SystemExit(f'Attribute control failed: {tag}; inspect lean.log')
         path.write_text(original)
+assert attribute_matrix_complete(attribute_results, resolved, dict(zip(CLIENTS, [1, 2])))
 # Library snapshots are not evidence and are too large for an artifact. Keep all actual
 # measured outputs, declarations, sources, setup files and commands instead.
 import shutil
