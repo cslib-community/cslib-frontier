@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Languages.Probabilistic.Transcript
+import Mathlib.Data.Nat.Bitwise
 
 /-!
 # MQOM correlated-tree indices and validation transcripts
@@ -201,9 +202,12 @@ theorem siblingNode_ne_leafNode {height : Nat} (leaf : LeafIndex height)
     (level : Fin height) : siblingNode leaf level ≠ leafNode leaf := by
   by_cases hlevel : (level : Nat) = 0
   · intro heq
-    apply siblingNode_ne_hiddenNode leaf level
-    rw [heq]
-    simp only [hiddenNode, hlevel, ancestorNode_zero]
+    have hcast : (Fin.castSucc level : Nat) = 0 := by
+      simpa only [Fin.val_castSucc] using hlevel
+    have hhidden : hiddenNode leaf (Fin.castSucc level) = leafNode leaf := by
+      change ancestorNode (leafNode leaf) (Fin.castSucc level : Nat) = leafNode leaf
+      rw [hcast, ancestorNode_zero]
+    exact siblingNode_ne_hiddenNode leaf level (heq.trans hhidden.symm)
   · apply Nat.ne_of_lt
     have hhidden : hiddenNode leaf (Fin.castSucc level) ≤ leafNode leaf / 2 := by
       simp only [hiddenNode]
@@ -219,6 +223,7 @@ theorem siblingNode_ne_leafNode {height : Nat} (leaf : LeafIndex height)
     have hleaf : 4 ≤ leafNode leaf := by
       apply (show 4 ≤ leafCount height by
         simp only [leafCount]
+        change 2 ^ 2 ≤ 2 ^ height
         exact Nat.pow_le_pow_right (by decide) (by omega)).trans
       exact leafCount_le_leafNode leaf
     omega
@@ -296,7 +301,7 @@ theorem queries_validationTranscript {Coordinate : Type} [DecidableEq Coordinate
     (secret : ValidationPrefix Coordinate width)
     (queries : List (ValidationPrefix Coordinate width)) :
     (validationTranscript secret queries).map (fun entry => entry.1) = queries.reverse := by
-  simp [validationTranscript]
+  simp only [validationTranscript, List.map_map, Function.comp_def, List.map_id_fun', id_eq]
 
 theorem transcriptConsistent_validationTranscript {Coordinate : Type} [DecidableEq Coordinate]
     {width : Nat} (secret : ValidationPrefix Coordinate width)
