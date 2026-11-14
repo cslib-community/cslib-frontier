@@ -122,7 +122,7 @@ private def codeRange (start count : ℕ) : List ℕ :=
 private theorem codeRange_add (start first second : ℕ) :
     codeRange start (first + second) =
       codeRange start first ++ codeRange (start + first) second := by
-  simp only [codeRange, List.range_add, List.map_append, List.map_map, Function.comp_apply,
+  simp only [codeRange, List.range_add, List.map_append, List.map_map, Function.comp_def,
     Nat.add_assoc]
 
 private theorem leastIrreducibleCode_eight : leastIrreducibleCode 512 8 = 283 := by
@@ -156,7 +156,16 @@ private theorem leastIrreducibleCode_eight : leastIrreducibleCode 512 8 = 283 :=
   have h276 : (codeRange 276 4).find?
       (fun m => Nat.log 2 m == 8 && isIrreducibleCode m) = none := by
     decide
-  have h280 : (codeRange 280 4).find?
+  have h280 : (codeRange 280 1).find?
+      (fun m => Nat.log 2 m == 8 && isIrreducibleCode m) = none := by
+    decide
+  have h281 : (codeRange 281 1).find?
+      (fun m => Nat.log 2 m == 8 && isIrreducibleCode m) = none := by
+    decide
+  have h282 : (codeRange 282 1).find?
+      (fun m => Nat.log 2 m == 8 && isIrreducibleCode m) = none := by
+    decide
+  have h283 : (codeRange 283 1).find?
       (fun m => Nat.log 2 m == 8 && isIrreducibleCode m) = some 283 := by
     decide
   have hwindow :
@@ -167,7 +176,10 @@ private theorem leastIrreducibleCode_eight : leastIrreducibleCode 512 8 = 283 :=
       codeRange_add 264 4 16, List.find?_append, h264, Option.none_or,
       codeRange_add 268 4 12, List.find?_append, h268, Option.none_or,
       codeRange_add 272 4 8, List.find?_append, h272, Option.none_or,
-      codeRange_add 276 4 4, List.find?_append, h276, Option.none_or, h280]
+      codeRange_add 276 4 4, List.find?_append, h276, Option.none_or,
+      codeRange_add 280 1 3, List.find?_append, h280, Option.none_or,
+      codeRange_add 281 1 2, List.find?_append, h281, Option.none_or,
+      codeRange_add 282 1 1, List.find?_append, h282, Option.none_or, h283]
   have hhigh :
       (codeRange 256 256).find?
           (fun m => Nat.log 2 m == 8 && isIrreducibleCode m) = some 283 := by
