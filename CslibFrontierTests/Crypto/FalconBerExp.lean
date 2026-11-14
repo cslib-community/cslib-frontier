@@ -18,7 +18,7 @@ at thresholds zero, one, one half of the 64-bit range, and the maximal unsigned 
 
 namespace CslibFrontierTests.Crypto.FalconBerExp
 
-open Cslib.Crypto.Falcon
+open Cslib Cslib.Crypto.Falcon
 
 public section
 
