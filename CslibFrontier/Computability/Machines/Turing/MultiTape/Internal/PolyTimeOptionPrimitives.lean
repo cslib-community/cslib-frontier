@@ -72,11 +72,11 @@ theorem optionElimWithInput {γ : Type} {encC : γ ↪ List Bool}
     have hTbranch : PolyBounded (fun a => (encA a).length)
         (fun a => (value a).elim (Tn a) (fun b => Tb (a, b))) :=
       (hTn.add (hTb.comp hp)).mono fun a => by
-        cases h : value a <;> simp [h]
+        cases value a <;> simp
     have hSbranch : PolyBounded (fun a => (encA a).length)
         (fun a => (value a).elim (Sn a) (fun b => Sb (a, b))) :=
       (hSn.add (hSb.comp hp)).mono fun a => by
-        cases h : value a <;> simp [h]
+        cases value a <;> simp
     exact (ComputableInO.optionElimWithInput hv hn hb).computableInPolyTime
       ((((PolyBounded.const 2).mul hTv).add .self).add hTbranch)
       ((((PolyBounded.const 2).mul hSv).add .self).add hSbranch)
@@ -85,9 +85,13 @@ theorem optionElimWithInput {γ : Type} {encC : γ ↪ List Bool}
 @[fun_prop]
 theorem optionGetD (enc : α ↪ List Bool) :
     ComputableInPolyTime (fun p : Option α × α => p.1.getD p.2)
-      (encPair (encOption enc) enc) enc :=
-  optionElimWithInput (fst (encOption enc) enc) (snd (encOption enc) enc)
+      (encPair (encOption enc) enc) enc := by
+  have h := optionElimWithInput (body := fun (_ : Option α × α) (a : α) => a)
+    (fst (encOption enc) enc) (snd (encOption enc) enc)
     (snd (encPair (encOption enc) enc) enc)
+  convert h using 1
+  funext p
+  cases p.1 <;> rfl
 
 /-- Read a computed option with a computed fallback, using their shared value encoding. -/
 @[fun_prop]
