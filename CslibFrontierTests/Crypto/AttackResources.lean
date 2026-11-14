@@ -13,10 +13,11 @@ import CslibFrontier.Tactic.PolyTime
 The finite client uses a nonconstant explicit installed-artifact inventory and every execution
 coordinate. Adversary, reducer and generic programs stay independent; two generic-program
 occurrences verify per-copy charging. Separate handler and table/advice occurrences contrast with a
-main program containing hardwired versions, which are not charged again. Thirteen distinct phase
-times catch omissions or duplicate summands in the canonical online total. The family client proves
-all static, phase and execution coordinates polynomial, then applies the reusable bridge. Equal
-games isolate the resource API; this test asserts no cryptographic security endpoint.
+main program containing hardwired versions, which are not charged again. Ordered, pairwise-distinct
+time and workspace sentinels for all thirteen phases catch omissions, duplications and field
+substitutions. The family client proves all static, phase and execution coordinates polynomial,
+then applies the reusable bridge. Equal games isolate the resource API; this test asserts no
+cryptographic security endpoint.
 -/
 
 namespace Cslib.Tests.AttackResources
@@ -39,22 +40,22 @@ def sampleInventory (n : ℕ) : List Game.InstalledArtifact :=
     { kind := .handler, bits := 10 * n + 1 },
     { kind := .table, bits := 11 * n + 1 }]
 
-/-- Every online phase is nonconstant. Distinct time coefficients make the exact total sensitive
-to a missing or duplicated phase; the common workspace makes the expected peak transparent. -/
+/-- Every online phase has pairwise-distinct, nonconstant time and workspace sentinels. Their
+ordered vectors expose field substitutions; their aggregate exposes missing or duplicate time. -/
 def sampleOnlinePhases (n : ℕ) : Game.OnlinePhaseLedger where
-  inputRead := { time := n + 1, workspace := 13 * n + 1 }
-  compiler := { time := 10 * n + 3, workspace := 13 * n + 1 }
-  compilerOutputCopy := { time := 5 * n + 1, workspace := 13 * n + 1 }
-  marshalling := { time := 4 * n + 1, workspace := 13 * n + 1 }
-  tags := { time := 5 * n + 1, workspace := 13 * n + 1 }
-  dispatch := { time := 6 * n + 1, workspace := 13 * n + 1 }
-  queryRequest := { time := 7 * n + 1, workspace := 13 * n + 1 }
-  queryReply := { time := 8 * n + 1, workspace := 13 * n + 1 }
-  handler := { time := 9 * n + 1, workspace := 13 * n + 1 }
-  interpreter := { time := 10 * n + 1, workspace := 13 * n + 1 }
-  controller := { time := 11 * n + 1, workspace := 13 * n + 1 }
-  outputProduction := { time := 16 * n + 1, workspace := 13 * n + 1 }
-  outputCopy := { time := 16 * n + 1, workspace := 13 * n + 1 }
+  inputRead := { time := 17 * (n + 1), workspace := 30 * (n + 1) }
+  compiler := { time := 18 * (n + 1), workspace := 31 * (n + 1) }
+  compilerOutputCopy := { time := 19 * (n + 1), workspace := 32 * (n + 1) }
+  marshalling := { time := 20 * (n + 1), workspace := 33 * (n + 1) }
+  tags := { time := 21 * (n + 1), workspace := 34 * (n + 1) }
+  dispatch := { time := 22 * (n + 1), workspace := 35 * (n + 1) }
+  queryRequest := { time := 23 * (n + 1), workspace := 36 * (n + 1) }
+  queryReply := { time := 24 * (n + 1), workspace := 37 * (n + 1) }
+  handler := { time := 25 * (n + 1), workspace := 38 * (n + 1) }
+  interpreter := { time := 26 * (n + 1), workspace := 39 * (n + 1) }
+  controller := { time := 27 * (n + 1), workspace := 40 * (n + 1) }
+  outputProduction := { time := 28 * (n + 1), workspace := 41 * (n + 1) }
+  outputCopy := { time := 29 * (n + 1), workspace := 42 * (n + 1) }
 
 /-- Executed compiler coordinates used by both separate and inlined installation clients. -/
 def sampleCompilerExecution (n : ℕ) : Game.ExecutedCompilerResources where
@@ -64,8 +65,8 @@ def sampleCompilerExecution (n : ℕ) : Game.ExecutedCompilerResources where
 /-- Full execution coordinates, including initial input and final-output copying. -/
 def sampleExecution (n : ℕ) : Game.AttackExecutionResources where
   inputBits := 12 * n + 1
-  onlineTime := 108 * n + 15
-  onlineWorkspace := 13 * n + 1
+  onlineTime := 299 * n + 299
+  onlineWorkspace := 42 * n + 42
   phases := sampleOnlinePhases n
   compiler := sampleCompilerExecution n
   randomBits := 14 * n + 1
@@ -97,11 +98,16 @@ theorem sampleInstalledBits_at_two :
       (sampleResources 2).tableBits = 23 := by
   decide
 
-/-- Thirteen phases occur once in the total, while their common nonzero peak is not summed. -/
-theorem sampleOnlineAggregates_at_two :
+/-- The explicit ordered vectors catch substitutions as well as omissions. Their time sum uses
+every phase exactly once, while the workspace aggregate is the maximum rather than a sum. -/
+theorem sampleOnlineSentinels_at_two :
     (sampleOnlinePhases 2).asList.length = 13 ∧
-      (sampleOnlinePhases 2).totalTime = 231 ∧
-      (sampleOnlinePhases 2).peakWorkspace = 27 := by
+      (sampleOnlinePhases 2).asList.map (fun phase => phase.time) =
+        [51, 54, 57, 60, 63, 66, 69, 72, 75, 78, 81, 84, 87] ∧
+      (sampleOnlinePhases 2).asList.map (fun phase => phase.workspace) =
+        [90, 93, 96, 99, 102, 105, 108, 111, 114, 117, 120, 123, 126] ∧
+      (sampleOnlinePhases 2).totalTime = 897 ∧
+      (sampleOnlinePhases 2).peakWorkspace = 126 := by
   decide
 
 /-- A handler and table/advice hardwired into the retained main program are not separately
@@ -126,10 +132,10 @@ compiler-output-copy ledger phases. -/
     (compilerPhase outputCopyPhase : Game.OnlinePhaseResources) : Prop :=
   resources.inputBits = 2 * n + 1 ∧
     resources.outputBits = 5 * n + 1 ∧
-    compilerPhase.time = 10 * n + 3 ∧
-    compilerPhase.workspace = 13 * n + 1 ∧
-    outputCopyPhase.time = 5 * n + 1 ∧
-    outputCopyPhase.workspace = 13 * n + 1 ∧
+    compilerPhase.time = 18 * (n + 1) ∧
+    compilerPhase.workspace = 31 * (n + 1) ∧
+    outputCopyPhase.time = 19 * (n + 1) ∧
+    outputCopyPhase.workspace = 32 * (n + 1) ∧
     resources.outputBits ≤ compilerPhase.time ∧
     resources.outputBits ≤ outputCopyPhase.time
 
@@ -143,11 +149,13 @@ theorem sampleCompiler_accounted (n : ℕ) :
       Game.AttackResources.ofInventory]
   · simp [sampleResources, sampleInventory, sampleExecution, sampleCompilerExecution,
       Game.AttackResources.ofInventory]
-  · exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, by omega, le_rfl⟩
-  · change (10 * n + 3) + (5 * n + 1) ≤ 108 * n + 15
+  · exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, by omega, by omega⟩
+  · change 18 * (n + 1) + 19 * (n + 1) ≤ 299 * n + 299
     omega
-  · exact le_rfl
-  · exact le_rfl
+  · change 31 * (n + 1) ≤ 42 * n + 42
+    omega
+  · change 32 * (n + 1) ≤ 42 * n + 42
+    omega
 
 /-- The same executed compiler may be inlined into one installed main program. No separate
 compiler occurrence is present or charged; the emitted program remains a distinct occurrence. -/
@@ -166,11 +174,13 @@ theorem inlinedCompiler_accounted (n : ℕ) :
       Game.AttackResources.ofInventory]
   · simp [inlinedCompilerResources, sampleExecution, sampleCompilerExecution,
       Game.AttackResources.ofInventory]
-  · exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, by omega, le_rfl⟩
-  · change (10 * n + 3) + (5 * n + 1) ≤ 108 * n + 15
+  · exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, by omega, by omega⟩
+  · change 18 * (n + 1) + 19 * (n + 1) ≤ 299 * n + 299
     omega
-  · exact le_rfl
-  · exact le_rfl
+  · change 31 * (n + 1) ≤ 42 * n + 42
+    omega
+  · change 32 * (n + 1) ≤ 42 * n + 42
+    omega
 
 /-- A model-specific whole-attack certificate connects initial input, emitted output, production
 and output copying to the declared online execution. -/
@@ -187,23 +197,27 @@ exact ledger sum and peak rather than additional charges. -/
 theorem sampleOnlinePhases_accounted (n : ℕ) :
     Game.AttackResources.AccountsForOnlinePhases SampleAttackCertifies n
       (sampleResources n) := by
-  refine ⟨⟨rfl, rfl, rfl, le_rfl, le_rfl⟩, ?_, ?_⟩
-  · change (sampleOnlinePhases n).totalTime = 108 * n + 15
+  refine ⟨⟨rfl, rfl, rfl, by omega, by omega⟩, ?_, ?_⟩
+  · change (sampleOnlinePhases n).totalTime = 299 * n + 299
     simp [Game.OnlinePhaseLedger.totalTime, Game.OnlinePhaseLedger.asList,
       sampleOnlinePhases]
     omega
-  · change (sampleOnlinePhases n).peakWorkspace = 13 * n + 1
+  · change (sampleOnlinePhases n).peakWorkspace = 42 * n + 42
     simp [Game.OnlinePhaseLedger.peakWorkspace, Game.OnlinePhaseLedger.asList,
       sampleOnlinePhases]
+    omega
 
 theorem sampleOutput_accounted (n : ℕ) :
     Game.AttackResources.AccountsForOutput SampleAttackCertifies n (sampleResources n) := by
-  refine ⟨⟨rfl, rfl, rfl, le_rfl, le_rfl⟩, ?_, ?_, ?_, ?_⟩
-  · change (n + 1) + (16 * n + 1) + (16 * n + 1) ≤ 108 * n + 15
+  refine ⟨⟨rfl, rfl, rfl, by omega, by omega⟩, ?_, ?_, ?_, ?_⟩
+  · change 17 * (n + 1) + 28 * (n + 1) + 29 * (n + 1) ≤ 299 * n + 299
     omega
-  · exact le_rfl
-  · exact le_rfl
-  · exact le_rfl
+  · change 30 * (n + 1) ≤ 42 * n + 42
+    omega
+  · change 41 * (n + 1) ≤ 42 * n + 42
+    omega
+  · change 42 * (n + 1) ≤ 42 * n + 42
+    omega
 
 /-- Offline compilation contributes no compiler execution costs, while its generated program is
 still a nonconstant installed occurrence and the attack's own output remains explicit. -/
@@ -260,9 +274,10 @@ theorem offlinePhaseAggregates (n : ℕ) :
     omega
   · simp [Game.OnlinePhaseLedger.peakWorkspace, Game.OnlinePhaseLedger.asList, offlinePhases]
 
-private theorem linearPhase_isPolynomial (a b : ℕ) :
+private theorem linearPhase_isPolynomial (timeCoeff workspaceCoeff : ℕ) :
     Game.OnlinePhaseResources.IsPolynomial
-      (fun n => ({ time := a * n + b, workspace := 13 * n + 1 } :
+      (fun n => ({ time := timeCoeff * (n + 1),
+        workspace := workspaceCoeff * (n + 1) } :
         Game.OnlinePhaseResources)) where
   time := by fun_prop
   workspace := by fun_prop
@@ -271,31 +286,31 @@ private theorem linearPhase_isPolynomial (a b : ℕ) :
 theorem sampleOnlinePhases_isPolynomial :
     Game.OnlinePhaseLedger.IsPolynomial sampleOnlinePhases where
   inputRead := by
-    simpa [sampleOnlinePhases] using linearPhase_isPolynomial 1 1
+    simpa [sampleOnlinePhases] using linearPhase_isPolynomial 17 30
   compiler := by
-    simpa [sampleOnlinePhases] using linearPhase_isPolynomial 10 3
+    simpa [sampleOnlinePhases] using linearPhase_isPolynomial 18 31
   compilerOutputCopy := by
-    simpa [sampleOnlinePhases] using linearPhase_isPolynomial 5 1
+    simpa [sampleOnlinePhases] using linearPhase_isPolynomial 19 32
   marshalling := by
-    simpa [sampleOnlinePhases] using linearPhase_isPolynomial 4 1
+    simpa [sampleOnlinePhases] using linearPhase_isPolynomial 20 33
   tags := by
-    simpa [sampleOnlinePhases] using linearPhase_isPolynomial 5 1
+    simpa [sampleOnlinePhases] using linearPhase_isPolynomial 21 34
   dispatch := by
-    simpa [sampleOnlinePhases] using linearPhase_isPolynomial 6 1
+    simpa [sampleOnlinePhases] using linearPhase_isPolynomial 22 35
   queryRequest := by
-    simpa [sampleOnlinePhases] using linearPhase_isPolynomial 7 1
+    simpa [sampleOnlinePhases] using linearPhase_isPolynomial 23 36
   queryReply := by
-    simpa [sampleOnlinePhases] using linearPhase_isPolynomial 8 1
+    simpa [sampleOnlinePhases] using linearPhase_isPolynomial 24 37
   handler := by
-    simpa [sampleOnlinePhases] using linearPhase_isPolynomial 9 1
+    simpa [sampleOnlinePhases] using linearPhase_isPolynomial 25 38
   interpreter := by
-    simpa [sampleOnlinePhases] using linearPhase_isPolynomial 10 1
+    simpa [sampleOnlinePhases] using linearPhase_isPolynomial 26 39
   controller := by
-    simpa [sampleOnlinePhases] using linearPhase_isPolynomial 11 1
+    simpa [sampleOnlinePhases] using linearPhase_isPolynomial 27 40
   outputProduction := by
-    simpa [sampleOnlinePhases] using linearPhase_isPolynomial 16 1
+    simpa [sampleOnlinePhases] using linearPhase_isPolynomial 28 41
   outputCopy := by
-    simpa [sampleOnlinePhases] using linearPhase_isPolynomial 16 1
+    simpa [sampleOnlinePhases] using linearPhase_isPolynomial 29 42
 
 /-- The sample family is componentwise polynomial; no scalar resource sum is used. -/
 theorem sampleResources_isPolynomial :
@@ -334,10 +349,10 @@ theorem sampleResources_isPolynomial :
     change PolynomiallyBounded fun n => 12 * n + 1
     fun_prop
   onlineTime := by
-    change PolynomiallyBounded fun n => 108 * n + 15
+    change PolynomiallyBounded fun n => 299 * n + 299
     fun_prop
   onlineWorkspace := by
-    change PolynomiallyBounded fun n => 13 * n + 1
+    change PolynomiallyBounded fun n => 42 * n + 42
     fun_prop
   phases := sampleOnlinePhases_isPolynomial
   compilerInputBits := by
