@@ -143,6 +143,34 @@ example (fresh : Bool) (n : ℕ) :
   congr 2
   exact decide_eq_decide.mpr Iff.rfl
 
+-- The native strong game uses the same execution as the typed strong game and changes only the
+-- final freshness predicate from fresh message to fresh pair.
+example (fresh : Bool) (n : ℕ) :
+    wordSufCmaGame encBool scheme (nativeForger fresh n) =
+      sufCmaGame scheme (explicitForger fresh) := by
+  simp only [wordSufCmaGame, sufCmaGame, worldGame, scheme, explicitForger,
+    PMF.monad_bind_eq_bind, PMF.pure_bind]
+  congr 2 with verified msig pairs : 3
+  simp only [List.contains_eq_mem]
+  congr 2
+  exact decide_eq_decide.mpr Iff.rfl
+
+-- Message freshness implies pair freshness on the same transcript, hence the concrete native
+-- EUF-CMA probability never exceeds its SUF-CMA probability.
+example (fresh : Bool) (n : ℕ) :
+    Game.succProbability (wordEufCmaGame encBool scheme (nativeForger fresh n)) ≤
+      Game.succProbability (wordSufCmaGame encBool scheme (nativeForger fresh n)) :=
+  succProbability_wordEufCmaGame_le_wordSufCmaGame encBool scheme (nativeForger fresh n)
+
+-- A different signature on a signed message loses the EUF-CMA message check but wins the SUF-CMA
+-- pair check; exact replay loses the SUF-CMA pair check.
+example :
+    (true && !([(([] : List Bool), ([] : List Bool))].map Prod.fst).contains []) = false ∧
+      (true && ![(([] : List Bool), ([] : List Bool))].contains ([], [true])) = true := by decide
+
+example :
+    (true && ![(([] : List Bool), ([] : List Bool))].contains ([], [])) = false := by decide
+
 -- The final bridge applies to actual key generation and an actual efficient oracle forger. The
 -- strict-PPT key generator bounds its supported public keys through `IsPPTOn.length_le`.
 example (fresh : Bool) : ∃ (k : ℕ) (Control : Type) (_ : Finite Control)
@@ -160,6 +188,27 @@ example (fresh : Bool) : ∃ (k : ℕ) (Control : Type) (_ : Finite Control)
     exact (length_le_encPair_left encBits encBits keys).trans hk
   obtain ⟨k, Control, hfinite, replay, c, d, _, hgame⟩ :=
     exists_eufCmaGame_savedCoinForger (gen := fun _ => pure ([], [])) hbound
+      (nativeForger_ppt fresh)
+  exact ⟨k, Control, hfinite, replay, c, d, keyC, keyD, fun n =>
+    (hgame n Bool encBool scheme rfl).2⟩
+
+-- The same guarded, total-decoding adapter is exact for the fresh-pair game, with separate
+-- signing and hash bounds in `Forger.CallBounded`.
+example (fresh : Bool) : ∃ (k : ℕ) (Control : Type) (_ : Finite Control)
+    (replay : MultiTapePTM k Bool Control Bool) (c d keyC keyD : ℕ),
+    ∀ n, wordSufCmaGame encBool scheme (nativeForger fresh n) =
+      sufCmaGame scheme (savedCoinForger replay encBool c d keyC keyD n) := by
+  have hgen : IsPPTOn encUnary (encPair encBits encBits)
+      (fun _ => (pure ([], []) : ProbComp (List Bool × List Bool))) := by fun_prop
+  obtain ⟨keyC, keyD, hkeys⟩ := hgen.length_le
+  have hbound (n : ℕ) (keys : List Bool × List Bool)
+      (hmem : keys ∈ (ProbComp.eval (pure ([], []) : ProbComp (List Bool × List Bool))).support) :
+      keys.1.length ≤ keyC * (n + 1) ^ keyD := by
+    have hk := hkeys n keys hmem
+    simp only [encUnary_apply, List.length_replicate] at hk
+    exact (length_le_encPair_left encBits encBits keys).trans hk
+  obtain ⟨k, Control, hfinite, replay, c, d, _, hgame⟩ :=
+    exists_sufCmaGame_savedCoinForger (gen := fun _ => pure ([], [])) hbound
       (nativeForger_ppt fresh)
   exact ⟨k, Control, hfinite, replay, c, d, keyC, keyD, fun n =>
     (hgame n Bool encBool scheme rfl).2⟩
