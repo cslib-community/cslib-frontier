@@ -8,8 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Primitives.Hash.SHA2
+public import CslibFrontier.Foundations.Data.Nat.CeilDiv
 import CslibFrontier.Foundations.Data.BitString.Block
-import CslibFrontier.Foundations.Data.Nat.CeilDiv
 
 /-!
 # MGF1 with SHA-256 and SHA-512
@@ -38,7 +38,7 @@ efficient evaluation at enormous output lengths, FIPS validation, or machine/res
 
 * `Cslib.Crypto.MGF1.sha256Counter_lt_two_pow_32`, `sha512Counter_lt_two_pow_32`: every
   generated counter fits the four-byte encoding.
-* `Cslib.Crypto.MGF1.toList_sha256Stream`, `toList_sha512Stream`: the stream concatenates
+* `Cslib.Crypto.MGF1.ofFn_sha256Stream`, `ofFn_sha512Stream`: the stream concatenates
   counter digests in order.
 
 ## References
@@ -128,19 +128,19 @@ def sha512Stream (seed : List Byte) (maskLen : ℕ)
   Cslib.BitString.blocksEquiv.symm (sha512Blocks seed maskLen hinput)
 
 /-- The SHA-256 stream concatenates the counter digests in increasing counter order. -/
-theorem toList_sha256Stream (seed : List Byte) (maskLen : ℕ)
+theorem ofFn_sha256Stream (seed : List Byte) (maskLen : ℕ)
     (hinput : ValidMGF1SHA256Input seed maskLen) :
-    (sha256Stream seed maskLen hinput).toList =
-      (List.ofFn fun counter => (sha256Blocks seed maskLen hinput counter).toList).flatten := by
-  simpa only [sha256Stream, FixedBytes.toList] using
+    List.ofFn (sha256Stream seed maskLen hinput) =
+      (List.ofFn fun counter => List.ofFn (sha256Blocks seed maskLen hinput counter)).flatten := by
+  simpa only [sha256Stream] using
     (Cslib.BitString.ofFn_blocksEquiv_symm (sha256Blocks seed maskLen hinput))
 
 /-- The SHA-512 stream concatenates the counter digests in increasing counter order. -/
-theorem toList_sha512Stream (seed : List Byte) (maskLen : ℕ)
+theorem ofFn_sha512Stream (seed : List Byte) (maskLen : ℕ)
     (hinput : ValidMGF1SHA512Input seed maskLen) :
-    (sha512Stream seed maskLen hinput).toList =
-      (List.ofFn fun counter => (sha512Blocks seed maskLen hinput counter).toList).flatten := by
-  simpa only [sha512Stream, FixedBytes.toList] using
+    List.ofFn (sha512Stream seed maskLen hinput) =
+      (List.ofFn fun counter => List.ofFn (sha512Blocks seed maskLen hinput counter)).flatten := by
+  simpa only [sha512Stream] using
     (Cslib.BitString.ofFn_blocksEquiv_symm (sha512Blocks seed maskLen hinput))
 
 /-- RFC 8017 MGF1 instantiated with SHA-256, returning exactly `maskLen` leading bytes. -/
