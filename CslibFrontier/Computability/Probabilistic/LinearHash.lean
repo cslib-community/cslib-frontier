@@ -20,7 +20,8 @@ import CslibFrontier.Tactic.PPT
 /-!
 # Polynomial-time binary linear hashing
 
-Matrix hashing uses the shared row parser and inner-product certificate. Both certificates allow computed
+Matrix hashing uses the shared row parser and inner-product certificate. Both certificates allow
+computed
 input and output lengths, arbitrary input encodings, and short matrix seeds padded with zero.
 The full extractor charges sampling, hashing and copying its complete public seed and digest.
 
