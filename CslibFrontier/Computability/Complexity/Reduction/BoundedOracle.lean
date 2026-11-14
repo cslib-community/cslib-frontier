@@ -372,7 +372,7 @@ theorem exists_computableInO_run_word [Finite Operation] {α : Type} {input : α
       · dsimp only [step, stepPoly] at hl hr hp1 ⊢
         omega)
     (fun a _ hi => hlen a hi)
-  have hwhole := (hout.inO.computableInO.comp hit).of_enc_eq
+  have hwhole := (hout.inO.comp hit).of_enc_eq
     (g := fun a => OracleComp.interpret (m := Id) (fun q => oracle q.2)
       (machine.run (pure false) (fun op word => OracleComp.query (op, word))
         (clk a) (input a)))
@@ -1019,7 +1019,7 @@ theorem computableInPolySpace {oracle : List Bool → List Bool} {f : α → β}
     ComputableInPolySpace f encA encB := by
   obtain ⟨t, s, hs, hc, hl⟩ := horacle
   have hO : ComputableInO oracle encBits encBits t (fun w => s w.length) :=
-    ⟨1, hc.mono (fun a => by simp only [one_mul, encBits_apply]; omega)
+    ⟨1, hc.mono (fun a => by simp only [one_mul]; omega)
       (fun a => by simp only [one_mul, encBits_apply]; omega),
       fun a => (hl a).trans (by simp only [one_mul, encBits_apply]; omega)⟩
   have hsPoly : PolyBounded List.length (fun w : List Bool => s w.length) :=
