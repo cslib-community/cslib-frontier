@@ -8,6 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Bounds
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.Bits
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Bounds
