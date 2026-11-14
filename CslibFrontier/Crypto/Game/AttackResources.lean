@@ -15,33 +15,38 @@ public import CslibFrontier.Crypto.Game.Concrete
 Concrete reductions need to retain static descriptions and charge online execution without
 identifying unrelated units. An explicit `InstalledArtifact` list records each stored occurrence.
 Per-kind description sizes are sums over that inventory, so distinct stored copies contribute
-separately, while components inlined into a final artifact are not charged again. In particular,
-`program` is reserved for adversary, reducer and main-program storage; separately installed
-handlers and static tables or advice use their own occurrences. `AttackResources` adds the common
+separately, while components inlined into a final artifact are not charged again. Adversaries,
+reducers and generic or main programs have independent coordinates; separately installed handlers
+and static tables or advice use their own occurrences too. `AttackResources` adds the common
 execution coordinates; `Fits` and `IsPolynomial` keep every comparison and asymptotic bound
 componentwise.
 
 Offline generation is not online time unless the attack executes it. A generated artifact is still
-an installed occurrence, whether its compiler ran online or offline. When compilation runs inside
-the experiment, its input, time, workspace, output and output-copy time are recorded separately,
-connected to a model-specific execution certificate, and included in the online time and peak
-workspace. Initial attack input, emitted output and output-copy time stay separate too.
+an installed occurrence, whether its compiler ran online or offline. A canonical phase ledger
+records input reading, compilation and its output copy, marshalling, tags, dispatch, request/reply
+handling, handler/interpreter/controller work, and final-output production and copying. Its time sum
+and peak workspace are certified against the aggregate online coordinates. Compiler and final-
+output accounting refer to ledger phases rather than adding duplicate time or workspace fields.
 
-This module supplies no scalar total. A client that combines coordinates must state the intended
-units and prove its aggregation separately. It also supplies no program, circuit or controller:
-callers provide exact retained artifacts and prove that their executions fit the declared budget.
+This module sums only the times of the named online phases and takes their workspace maximum. It
+supplies no scalar total across unrelated units; any further aggregation must state its units and
+be proved separately. It also supplies no program, circuit or controller: callers provide exact
+retained artifacts and prove that their executions fit the declared budget.
 
 ## Main definitions
 
 * `Cslib.Crypto.Game.InstalledArtifactKind`: roles for independently retained static artifacts.
 * `Cslib.Crypto.Game.InstalledArtifact`: one occurrence in the installed static inventory.
-* `Cslib.Crypto.Game.ExecutedCompilerResources`: executed compiler input, output and costs.
+* `Cslib.Crypto.Game.OnlinePhaseLedger`: named online phases with exact aggregate operations.
+* `Cslib.Crypto.Game.ExecutedCompilerResources`: executed compiler input and output lengths.
 * `Cslib.Crypto.Game.AttackExecutionResources`: online, compiler, oracle and communication costs.
 * `Cslib.Crypto.Game.AttackResources`: installed inventory plus execution resources.
 * `Cslib.Crypto.Game.CompilerInstallation`: separate or inlined representation of compiler logic.
 * `Cslib.Crypto.Game.AttackResources.Fits`: componentwise finite-budget comparison.
 * `Cslib.Crypto.Game.AttackResources.AccountsForExecutedCompiler`: an online compiler and its
   emitted installed program are certified and charged without duplicating inlined code.
+* `Cslib.Crypto.Game.AttackResources.AccountsForOnlinePhases`: a model certificate connects the
+  ledger to execution and its exact time/workspace aggregates.
 * `Cslib.Crypto.Game.AttackResources.AccountsForOutput`: initial input, emitted output and copying
   are connected to a model-specific execution certificate.
 * `Cslib.Crypto.Game.AttackResources.IsPolynomial`: componentwise polynomial resource families.
@@ -64,7 +69,11 @@ namespace Cslib.Crypto.Game
 hardwired components is one `program` occurrence; those components are not additional occurrences.
 -/
 inductive InstalledArtifactKind
-  /-- A retained adversary, reducer, main program or circuit description. -/
+  /-- A retained adversary program or circuit description. -/
+  | adversary
+  /-- A retained reduction program or circuit description. -/
+  | reducer
+  /-- A retained generic or main program or circuit description. -/
   | program
   /-- A retained program or circuit emitted by a compiler. -/
   | generatedProgram
@@ -112,21 +121,135 @@ theorem installedBits_append (first second : List InstalledArtifact)
 
 end InstalledArtifact
 
-/-- Componentwise resources of a compiler executed inside the attack experiment. `time` includes
-reading the compiler input and producing the emitted description; `outputCopyTime` separately
-charges retaining or copying that description after it is produced. All coordinates are zero when
-compilation is offline. -/
+/-- Time and peak workspace charged to one named online phase. -/
+structure OnlinePhaseResources where
+  /-- Steps executed in this phase. -/
+  time : ℕ
+  /-- Peak workspace used during this phase. -/
+  workspace : ℕ
+  deriving DecidableEq
+
+namespace OnlinePhaseResources
+
+/-- Componentwise comparison of one online phase. -/
+@[expose] def Fits (used budget : OnlinePhaseResources) : Prop :=
+  used.time ≤ budget.time ∧ used.workspace ≤ budget.workspace
+
+instance (used budget : OnlinePhaseResources) : Decidable (used.Fits budget) := by
+  unfold Fits
+  infer_instance
+
+/-- A phase schedule has independently polynomial time and workspace. -/
+structure IsPolynomial (schedule : ℕ → OnlinePhaseResources) : Prop where
+  time : PolynomiallyBounded fun n => (schedule n).time
+  workspace : PolynomiallyBounded fun n => (schedule n).workspace
+
+end OnlinePhaseResources
+
+/-- Canonical ledger of online phases. Sequential phase times add; workspace is aggregated by
+maximum because phases need not retain each other's temporary storage. Compiler and output-copy
+costs occur here only, rather than in duplicate view fields. -/
+structure OnlinePhaseLedger where
+  /-- Reading and decoding the attack's initial input. -/
+  inputRead : OnlinePhaseResources
+  /-- Executing an online compiler, including production of its emitted description. -/
+  compiler : OnlinePhaseResources
+  /-- Retaining or copying the compiler's emitted description. -/
+  compilerOutputCopy : OnlinePhaseResources
+  /-- Marshalling values between representations. -/
+  marshalling : OnlinePhaseResources
+  /-- Producing, checking or routing tags. -/
+  tags : OnlinePhaseResources
+  /-- Dispatching operations or oracle calls. -/
+  dispatch : OnlinePhaseResources
+  /-- Producing and transferring query requests. -/
+  queryRequest : OnlinePhaseResources
+  /-- Receiving and decoding query replies. -/
+  queryReply : OnlinePhaseResources
+  /-- Executing separately identified handler logic. -/
+  handler : OnlinePhaseResources
+  /-- Executing interpreter logic. -/
+  interpreter : OnlinePhaseResources
+  /-- Executing wrapper or controller logic. -/
+  controller : OnlinePhaseResources
+  /-- Producing the attack's final encoded output. -/
+  outputProduction : OnlinePhaseResources
+  /-- Retaining or copying the final encoded output. -/
+  outputCopy : OnlinePhaseResources
+  deriving DecidableEq
+
+namespace OnlinePhaseLedger
+
+/-- The canonical phase order used for aggregation. -/
+@[expose] def asList (ledger : OnlinePhaseLedger) : List OnlinePhaseResources :=
+  [ledger.inputRead, ledger.compiler, ledger.compilerOutputCopy, ledger.marshalling,
+    ledger.tags, ledger.dispatch, ledger.queryRequest, ledger.queryReply, ledger.handler,
+    ledger.interpreter, ledger.controller, ledger.outputProduction, ledger.outputCopy]
+
+/-- Exact total online time: every named phase occurrence contributes once. -/
+@[expose] def totalTime (ledger : OnlinePhaseLedger) : ℕ :=
+  (ledger.asList.map fun phase => phase.time).sum
+
+/-- Exact peak online workspace: the maximum of the named phase peaks. -/
+@[expose] def peakWorkspace (ledger : OnlinePhaseLedger) : ℕ :=
+  (ledger.asList.map fun phase => phase.workspace).foldl max 0
+
+/-- The total-time accessor is the sum over the canonical phase order. -/
+theorem totalTime_eq_sum (ledger : OnlinePhaseLedger) :
+    ledger.totalTime = (ledger.asList.map fun phase => phase.time).sum := rfl
+
+/-- The workspace accessor is the fold maximum over the canonical phase order. -/
+theorem peakWorkspace_eq_foldl_max (ledger : OnlinePhaseLedger) :
+    ledger.peakWorkspace =
+      (ledger.asList.map fun phase => phase.workspace).foldl max 0 := rfl
+
+/-- Every phase coordinate of `used` fits the corresponding phase coordinate of `budget`. -/
+@[expose] def Fits (used budget : OnlinePhaseLedger) : Prop :=
+  used.inputRead.Fits budget.inputRead ∧
+    used.compiler.Fits budget.compiler ∧
+    used.compilerOutputCopy.Fits budget.compilerOutputCopy ∧
+    used.marshalling.Fits budget.marshalling ∧
+    used.tags.Fits budget.tags ∧
+    used.dispatch.Fits budget.dispatch ∧
+    used.queryRequest.Fits budget.queryRequest ∧
+    used.queryReply.Fits budget.queryReply ∧
+    used.handler.Fits budget.handler ∧
+    used.interpreter.Fits budget.interpreter ∧
+    used.controller.Fits budget.controller ∧
+    used.outputProduction.Fits budget.outputProduction ∧
+    used.outputCopy.Fits budget.outputCopy
+
+instance (used budget : OnlinePhaseLedger) : Decidable (used.Fits budget) := by
+  unfold Fits OnlinePhaseResources.Fits
+  infer_instance
+
+/-- A phase ledger is polynomial when every named phase coordinate is polynomial independently. -/
+structure IsPolynomial (schedule : ℕ → OnlinePhaseLedger) : Prop where
+  inputRead : OnlinePhaseResources.IsPolynomial fun n => (schedule n).inputRead
+  compiler : OnlinePhaseResources.IsPolynomial fun n => (schedule n).compiler
+  compilerOutputCopy :
+    OnlinePhaseResources.IsPolynomial fun n => (schedule n).compilerOutputCopy
+  marshalling : OnlinePhaseResources.IsPolynomial fun n => (schedule n).marshalling
+  tags : OnlinePhaseResources.IsPolynomial fun n => (schedule n).tags
+  dispatch : OnlinePhaseResources.IsPolynomial fun n => (schedule n).dispatch
+  queryRequest : OnlinePhaseResources.IsPolynomial fun n => (schedule n).queryRequest
+  queryReply : OnlinePhaseResources.IsPolynomial fun n => (schedule n).queryReply
+  handler : OnlinePhaseResources.IsPolynomial fun n => (schedule n).handler
+  interpreter : OnlinePhaseResources.IsPolynomial fun n => (schedule n).interpreter
+  controller : OnlinePhaseResources.IsPolynomial fun n => (schedule n).controller
+  outputProduction :
+    OnlinePhaseResources.IsPolynomial fun n => (schedule n).outputProduction
+  outputCopy : OnlinePhaseResources.IsPolynomial fun n => (schedule n).outputCopy
+
+end OnlinePhaseLedger
+
+/-- Input/output lengths of a compiler executed inside the attack experiment. Its execution and
+output-copy costs are the corresponding online ledger phases, so they cannot be charged twice. -/
 structure ExecutedCompilerResources where
   /-- Encoded compiler-input length, independent of the attack's initial input. -/
   inputBits : ℕ
-  /-- Compiler execution steps, including emitted-description production. -/
-  time : ℕ
-  /-- Peak compiler workspace. -/
-  workspace : ℕ
   /-- Encoded length emitted by the compiler. -/
   outputBits : ℕ
-  /-- Online steps charged for retaining or copying the emitted description. -/
-  outputCopyTime : ℕ
   deriving DecidableEq
 
 /-- Execution resources of an explicitly realized attack. Compiler coordinates are zero when
@@ -140,7 +263,9 @@ structure AttackExecutionResources where
   onlineTime : ℕ
   /-- Peak online workspace, rather than the sum of workspace across sequential phases. -/
   onlineWorkspace : ℕ
-  /-- Executed compiler coordinates; all zero when compilation is offline. -/
+  /-- Named online phase costs whose sum and maximum are certified against the aggregates above. -/
+  phases : OnlinePhaseLedger
+  /-- Executed compiler input/output lengths; both are zero when compilation is offline. -/
   compiler : ExecutedCompilerResources
   /-- Fair random bits consumed online. -/
   randomBits : ℕ
@@ -158,8 +283,6 @@ structure AttackExecutionResources where
   replyBits : ℕ
   /-- Maximum encoded output length emitted by the attack. -/
   outputBits : ℕ
-  /-- Online steps charged specifically for retaining or copying the attack's emitted output. -/
-  outputCopyTime : ℕ
   deriving DecidableEq
 
 /-- Independent resources of an explicitly retained and executed attack. Static description sizes
@@ -206,7 +329,15 @@ namespace AttackResources
     (kind : InstalledArtifactKind) : ℕ :=
   InstalledArtifact.installedBits resources.installedArtifacts kind
 
-/-- Installed main-program or circuit bits, summed once per retained occurrence. -/
+/-- Installed adversary-program or circuit bits, summed once per retained occurrence. -/
+@[expose] def adversaryBits (resources : AttackResources) : ℕ :=
+  resources.artifactBits .adversary
+
+/-- Installed reduction-program or circuit bits, summed once per retained occurrence. -/
+@[expose] def reducerBits (resources : AttackResources) : ℕ :=
+  resources.artifactBits .reducer
+
+/-- Installed generic or main-program bits, summed once per retained occurrence. -/
 @[expose] def programBits (resources : AttackResources) : ℕ :=
   resources.artifactBits .program
 
@@ -241,23 +372,38 @@ only to `programBits`. -/
 @[expose] def tableBits (resources : AttackResources) : ℕ :=
   resources.artifactBits .table
 
+/-- A model-specific certificate ties every named phase to the represented execution, while the
+two equalities require exact aggregation rather than loose independent upper bounds. Compiler and
+output views are not added here because their costs already occur in the ledger. -/
+@[expose] def AccountsForOnlinePhases {Certificate : Type*}
+    (Certifies : Certificate → AttackExecutionResources → Prop)
+    (certificate : Certificate) (resources : AttackResources) : Prop :=
+  Certifies certificate resources.execution ∧
+    resources.execution.phases.totalTime = resources.execution.onlineTime ∧
+    resources.execution.phases.peakWorkspace = resources.execution.onlineWorkspace
+
 /-- An executed compiler is fully accounted for relative to a model-specific execution
-certificate. `Certifies certificate resources.execution.compiler` is the caller's explicit
-obligation connecting the declared compiler input/output, production time, workspace and copy time
-to an actual compiler execution. The installation mode charges either a separate compiler or the
-single main program containing inlined compiler logic. The emitted description is a distinct
-`generatedProgram` occurrence, and compiler execution plus copying fits the overall online costs. -/
+certificate. The certificate connects compiler input/output and the ledger's compiler and
+compiler-output-copy phases to an actual execution. The installation mode charges either a
+separate compiler or the single main program containing inlined compiler logic. The emitted
+description is a distinct `generatedProgram` occurrence. Phase costs are bounded by, but never
+added again to, the overall online aggregates. -/
 @[expose] def AccountsForExecutedCompiler {Certificate : Type*}
-    (Certifies : Certificate → ExecutedCompilerResources → Prop)
+    (Certifies : Certificate → ExecutedCompilerResources →
+      OnlinePhaseResources → OnlinePhaseResources → Prop)
     (certificate : Certificate) (installation : CompilerInstallation)
     (resources : AttackResources) : Prop :=
   installation.IsInInventory resources.installedArtifacts ∧
     { kind := .generatedProgram, bits := resources.execution.compiler.outputBits } ∈
       resources.installedArtifacts ∧
-    Certifies certificate resources.execution.compiler ∧
-    resources.execution.compiler.time + resources.execution.compiler.outputCopyTime ≤
+    Certifies certificate resources.execution.compiler resources.execution.phases.compiler
+      resources.execution.phases.compilerOutputCopy ∧
+    resources.execution.phases.compiler.time +
+        resources.execution.phases.compilerOutputCopy.time ≤
       resources.execution.onlineTime ∧
-    resources.execution.compiler.workspace ≤ resources.execution.onlineWorkspace
+    resources.execution.phases.compiler.workspace ≤ resources.execution.onlineWorkspace ∧
+    resources.execution.phases.compilerOutputCopy.workspace ≤
+      resources.execution.onlineWorkspace
 
 /-- The attack's initial input, emitted output and copying are accounted for relative to a
 model-specific execution certificate. This proposition is intended as an explicit part of a
@@ -266,12 +412,20 @@ concrete `Within` certificate; it does not manufacture an execution witness. -/
     (Certifies : Certificate → AttackExecutionResources → Prop)
     (certificate : Certificate) (resources : AttackResources) : Prop :=
   Certifies certificate resources.execution ∧
-    resources.execution.outputCopyTime ≤ resources.execution.onlineTime
+    resources.execution.phases.inputRead.time +
+        resources.execution.phases.outputProduction.time +
+        resources.execution.phases.outputCopy.time ≤ resources.execution.onlineTime ∧
+    resources.execution.phases.inputRead.workspace ≤ resources.execution.onlineWorkspace ∧
+    resources.execution.phases.outputProduction.workspace ≤
+      resources.execution.onlineWorkspace ∧
+    resources.execution.phases.outputCopy.workspace ≤ resources.execution.onlineWorkspace
 
 /-- `used` fits `budget` when every named coordinate fits independently. This intentionally does
 not turn the coordinates into a scalar total. -/
 @[expose] def Fits (used budget : AttackResources) : Prop :=
-  used.programBits ≤ budget.programBits ∧
+  used.adversaryBits ≤ budget.adversaryBits ∧
+    used.reducerBits ≤ budget.reducerBits ∧
+    used.programBits ≤ budget.programBits ∧
     used.generatedProgramBits ≤ budget.generatedProgramBits ∧
     used.generatorBits ≤ budget.generatorBits ∧
     used.compilerBits ≤ budget.compilerBits ∧
@@ -282,11 +436,9 @@ not turn the coordinates into a scalar total. -/
     used.execution.inputBits ≤ budget.execution.inputBits ∧
     used.execution.onlineTime ≤ budget.execution.onlineTime ∧
     used.execution.onlineWorkspace ≤ budget.execution.onlineWorkspace ∧
+    used.execution.phases.Fits budget.execution.phases ∧
     used.execution.compiler.inputBits ≤ budget.execution.compiler.inputBits ∧
-    used.execution.compiler.time ≤ budget.execution.compiler.time ∧
-    used.execution.compiler.workspace ≤ budget.execution.compiler.workspace ∧
     used.execution.compiler.outputBits ≤ budget.execution.compiler.outputBits ∧
-    used.execution.compiler.outputCopyTime ≤ budget.execution.compiler.outputCopyTime ∧
     used.execution.randomBits ≤ budget.execution.randomBits ∧
     used.execution.classicalQueries ≤ budget.execution.classicalQueries ∧
     used.execution.quantumQueries ≤ budget.execution.quantumQueries ∧
@@ -294,8 +446,7 @@ not turn the coordinates into a scalar total. -/
     used.execution.gates ≤ budget.execution.gates ∧
     used.execution.requestBits ≤ budget.execution.requestBits ∧
     used.execution.replyBits ≤ budget.execution.replyBits ∧
-    used.execution.outputBits ≤ budget.execution.outputBits ∧
-    used.execution.outputCopyTime ≤ budget.execution.outputCopyTime
+    used.execution.outputBits ≤ budget.execution.outputBits
 
 instance (used budget : AttackResources) : Decidable (used.Fits budget) := by
   unfold Fits
@@ -303,10 +454,12 @@ instance (used budget : AttackResources) : Decidable (used.Fits budget) := by
 
 /-- Every exact resource profile fits itself. -/
 theorem fits_refl (r : AttackResources) : r.Fits r := by
-  simp [Fits]
+  simp [Fits, OnlinePhaseLedger.Fits, OnlinePhaseResources.Fits]
 
 /-- A resource schedule is polynomial when each coordinate is polynomially bounded independently. -/
 structure IsPolynomial (schedule : ℕ → AttackResources) : Prop where
+  adversaryBits : PolynomiallyBounded fun n => (schedule n).adversaryBits
+  reducerBits : PolynomiallyBounded fun n => (schedule n).reducerBits
   programBits : PolynomiallyBounded fun n => (schedule n).programBits
   generatedProgramBits : PolynomiallyBounded fun n => (schedule n).generatedProgramBits
   generatorBits : PolynomiallyBounded fun n => (schedule n).generatorBits
@@ -318,12 +471,9 @@ structure IsPolynomial (schedule : ℕ → AttackResources) : Prop where
   inputBits : PolynomiallyBounded fun n => (schedule n).execution.inputBits
   onlineTime : PolynomiallyBounded fun n => (schedule n).execution.onlineTime
   onlineWorkspace : PolynomiallyBounded fun n => (schedule n).execution.onlineWorkspace
+  phases : OnlinePhaseLedger.IsPolynomial fun n => (schedule n).execution.phases
   compilerInputBits : PolynomiallyBounded fun n => (schedule n).execution.compiler.inputBits
-  compilerTime : PolynomiallyBounded fun n => (schedule n).execution.compiler.time
-  compilerWorkspace : PolynomiallyBounded fun n => (schedule n).execution.compiler.workspace
   compilerOutputBits : PolynomiallyBounded fun n => (schedule n).execution.compiler.outputBits
-  compilerOutputCopyTime :
-    PolynomiallyBounded fun n => (schedule n).execution.compiler.outputCopyTime
   randomBits : PolynomiallyBounded fun n => (schedule n).execution.randomBits
   classicalQueries : PolynomiallyBounded fun n => (schedule n).execution.classicalQueries
   quantumQueries : PolynomiallyBounded fun n => (schedule n).execution.quantumQueries
@@ -332,7 +482,6 @@ structure IsPolynomial (schedule : ℕ → AttackResources) : Prop where
   requestBits : PolynomiallyBounded fun n => (schedule n).execution.requestBits
   replyBits : PolynomiallyBounded fun n => (schedule n).execution.replyBits
   outputBits : PolynomiallyBounded fun n => (schedule n).execution.outputBits
-  outputCopyTime : PolynomiallyBounded fun n => (schedule n).execution.outputCopyTime
 
 end AttackResources
 
