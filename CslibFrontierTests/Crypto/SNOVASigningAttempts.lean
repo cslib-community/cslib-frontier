@@ -23,11 +23,17 @@ example : signingAttemptCounters.length ≠ 255 := by simp
 
 example : (0 : Fin 256) ∉ signingAttemptCounters := by simp
 
-example : (255 : Fin 256) ∉ signingAttemptCounters := by simp
+example : (255 : Fin 256) ∉ signingAttemptCounters := by
+  rw [mem_signingAttemptCounters_iff]
+  change ¬(1 ≤ (255 : ℕ) ∧ (255 : ℕ) < 255)
+  omega
 
 example : (1 : Fin 256) ∈ signingAttemptCounters := by simp
 
-example : (254 : Fin 256) ∈ signingAttemptCounters := by simp
+example : (254 : Fin 256) ∈ signingAttemptCounters := by
+  rw [mem_signingAttemptCounters_iff]
+  change 1 ≤ (254 : ℕ) ∧ (254 : ℕ) < 255
+  omega
 
 example : signingAttemptCounters[0]'(by simp) = (1 : Fin 256) :=
   first_signingAttemptCounter
