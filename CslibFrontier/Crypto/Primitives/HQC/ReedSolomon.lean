@@ -47,11 +47,12 @@ obligations.  Proving the order of `hqcAlpha`, these equivalences, and the decod
 behavior remains required before this is a complete source codec.
 
 The final definitions expose the deterministic seam used by an HQC decoding-failure reduction:
-an arbitrary inner decoder first produces one byte per outer coordinate, and outer failure is
-exactly the event that more than `t1` of those bytes disagree with the source RS codeword.  This
-module does not identify that inner decoder with the duplicated Reed–Muller implementation, prove
-a bit-error radius, establish the Model-2 distribution, evaluate Equation (9), or justify the
-numerical failure probabilities in Table 16.
+an arbitrary inner decoder first produces one byte per outer coordinate, and the radius-exceeded
+bad event says that more than `t1` of those bytes disagree with the source RS codeword.  Under the
+outstanding concrete correction theorem, actual concatenated-decode failure is contained in this
+bad event; the converse is not claimed.  This module does not identify that inner decoder with the
+duplicated Reed–Muller implementation, prove a bit-error radius, establish the Model-2 distribution,
+evaluate Equation (9), or justify the numerical failure probabilities in Table 16.
 
 ## Main definitions
 
@@ -78,8 +79,9 @@ numerical failure probabilities in Table 16.
   `Cslib.Crypto.HQC.HQCReedSolomonCorrects`: the concrete source code and its outstanding exact
   distance and mixed-error correction obligations.
 * `Cslib.Crypto.HQC.hqcRSConcatenatedEncode`,
-  `Cslib.Crypto.HQC.hqcRSConcatenatedDecode`, `Cslib.Crypto.HQC.hqcRSOuterFailure`: the generic
-  inner-code composition and deterministic outer-failure seam.
+  `Cslib.Crypto.HQC.hqcRSConcatenatedDecode`,
+  `Cslib.Crypto.HQC.hqcRSOuterRadiusExceeded`: the generic inner-code composition and
+  deterministic radius-exceeded bad event.
 
 ## References
 
@@ -515,9 +517,10 @@ noncomputable def hqcRSSymbolError {K B : Type*} (p : HQCReedSolomonParameters)
     (message : HQCRSMessage p HQCByte) : HQCRSWord p HQCByte :=
   hqcRSInnerDecodedWord p innerDecode received - hqcRSLFSREncode p message
 
-/-- The deterministic outer-failure event: more than `t1` inner blocks decode to the wrong byte.
-No probability model or inner-code radius is built into this predicate. -/
-noncomputable def hqcRSOuterFailure {K B : Type*} (p : HQCReedSolomonParameters)
+/-- The deterministic outer radius-exceeded bad event: more than `t1` inner blocks decode to the
+wrong byte.  This is not definitionally the outer-decoder failure event, and no probability model
+or inner-code radius is built into it. -/
+noncomputable def hqcRSOuterRadiusExceeded {K B : Type*} (p : HQCReedSolomonParameters)
     (innerDecode : (K → B) → HQCByte) (received : Fin p.length × K → B)
     (message : HQCRSMessage p HQCByte) : Prop :=
   p.capacity < hammingNorm (hqcRSSymbolError p innerDecode received message)
@@ -539,17 +542,17 @@ theorem hqcRSConcatenatedDecode_eq_of_symbolWeight_le {K B : Type*}
   rw [hqcRSConcatenatedDecode, ← hword]
   exact hcorrect message (hqcRSSymbolError p innerDecode received message) hweight
 
-/-- Conditional deterministic failure reduction: if concatenated decoding fails, more than
-`t1` inner blocks decoded to the wrong byte. -/
-theorem hqcRSOuterFailure_of_decode_ne {K B : Type*} (p : HQCReedSolomonParameters)
+/-- Conditional deterministic failure containment: if concatenated decoding fails, the outer
+radius-exceeded bad event occurs.  No converse is asserted. -/
+theorem hqcRSOuterRadiusExceeded_of_decode_ne {K B : Type*} (p : HQCReedSolomonParameters)
     (innerDecode : (K → B) → HQCByte) (received : Fin p.length × K → B)
     (message : HQCRSMessage p HQCByte) (hcorrect : HQCReedSolomonCorrects p)
     (hfail : hqcRSConcatenatedDecode p innerDecode received ≠ message) :
-    hqcRSOuterFailure p innerDecode received message := by
+    hqcRSOuterRadiusExceeded p innerDecode received message := by
   by_contra hweight
   apply hfail
   apply hqcRSConcatenatedDecode_eq_of_symbolWeight_le p innerDecode received message hcorrect
-  rw [hqcRSOuterFailure] at hweight
+  rw [hqcRSOuterRadiusExceeded] at hweight
   omega
 
 end Cslib.Crypto.HQC

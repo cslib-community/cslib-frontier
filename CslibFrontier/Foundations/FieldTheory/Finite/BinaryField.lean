@@ -33,7 +33,7 @@ its elements by `w` bits via an additive equivalence (`Cslib.BinaryField.equivBi
 `b ≤ w` embed as the polynomials of degree less than `b` (`Cslib.BinaryField.embed`).
 
 The modulus is explicit: its code is the least code of an irreducible binary polynomial of degree
-`w`, which is computed by trial division (`Cslib.AffineDisperser.leastIrreducibleCode`), so the
+`w`, which is computed by trial division (`Cslib.leastIrreducibleCode`), so the
 field arithmetic is a computation on bit strings. This is why the field is the quotient
 `AdjoinRoot g` rather than Mathlib's `GaloisField 2 w`: the splitting field of `X ^ (2 ^ w) - X`
 comes with no basis. In `AdjoinRoot g` the power basis is the coefficient list itself, for every

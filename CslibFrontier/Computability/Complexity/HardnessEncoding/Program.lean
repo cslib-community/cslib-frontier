@@ -25,7 +25,7 @@ program on bit lists (`Cslib.HardnessEncoding.encodedProgram`) that makes `2 ^ (
 decider of `L` and otherwise only does arithmetic in the explicit binary field `Cslib.BinaryField`
 of degree `w = 4 b`, in coordinates:
 
-* the modulus is found by trial division (`Cslib.AffineDisperser.leastIrreducibleCode`), and the
+* the modulus is found by trial division (`Cslib.leastIrreducibleCode`), and the
   multiplication table of the power basis lists the remainders of `X ^ (u + v)`
   (`Cslib.HardnessEncoding.fieldTable`, `Cslib.HardnessEncoding.isMulTable_fieldTable`);
 * sums are `Cslib.BitString.listXor`, products `Cslib.AffineDisperser.fieldMul`, and inverses the

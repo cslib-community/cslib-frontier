@@ -7,8 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryField
-import CslibFrontier.Computability.Complexity.AffineDisperser.BinaryPolynomial
+public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryPolynomial
 
 /-!
 # The polynomial-basis byte field used by HQC
@@ -54,7 +53,7 @@ open Cslib.BitString
 
 /-- The least-code irreducible binary polynomial of degree eight is the HQC modulus `0x11b`. -/
 theorem hqcByteModulus_eq : Cslib.leastIrreducible 8 = Cslib.polyOfCode 0x11b := by
-  rw [← Cslib.AffineDisperser.polyOfCode_leastIrreducibleCode
+  rw [← Cslib.polyOfCode_leastIrreducibleCode
     (B := 512) (p := 8) (by decide) (by decide)]
   congr 1
   decide

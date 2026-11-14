@@ -29,7 +29,7 @@ import Mathlib.RingTheory.AdjoinRoot
 
 This module implements explicit coefficient-list arithmetic over `𝔽₂[X]`, Boolean Gaussian
 elimination (`kernelVecBits`), and deterministic Berlekamp factorization
-(`berlekampIrreducibleFactor`) matching the specifications of `Cslib.AffineDisperser.polyOfBits`
+(`berlekampIrreducibleFactor`) matching the specifications of `Cslib.polyOfBits`
 and `Cslib.LinearAlgebra.kernelVec`.
 
 ## Main definitions
