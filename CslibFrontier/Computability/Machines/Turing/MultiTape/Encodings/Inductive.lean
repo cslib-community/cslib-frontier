@@ -354,7 +354,7 @@ private def linearViews (fn encIn encOut : Term) (base : Name) : CommandElabM Un
           pure (xs[field - 1]?.getD (mkIdent `unused) : Term)
         let rhs ← if i == j then `(some $value) else `(none)
         pas := pas.push (← `(Lean.Parser.Term.matchAltExpr| | $pat => $rhs))
-      elabCommand (← `(/-- Extract this constructor's payload or field, returning `none` otherwise. -/
+      elabCommand (← `(/-- Extract the constructor payload or field; return `none` otherwise. -/
         @[expose] public def $projection:ident (v : $T) : Option $outTy :=
           match v with $pas:matchAlt*))
       elabCommand (← `(@[simp] public theorem $(app projection.getId "_isSome"):ident
