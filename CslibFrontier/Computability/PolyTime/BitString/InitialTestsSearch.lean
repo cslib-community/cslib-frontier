@@ -178,7 +178,7 @@ variable {α : Type} {e : α ↪ List Bool} {m B : α → ℕ}
   (hm : ComputableInPolyTime m e encUnary) (hB : ComputableInPolyTime B e encUnary)
 include hm
 private theorem mu_polyTime : ComputableInPolyTime (fun a => Nat.log 2 (m a) + 1) e encUnary :=
-  .unary_add' ((of_tidy ComputableTidilyInPolyTime.unary_log_two).comp hm) (.const 1)
+  .unary_add' ((ComputableInPolyTime.binary_log_two.comp ComputableInPolyTime.unary_to_binary).comp hm) (.const 1)
 include hB
 @[fun_prop] theorem greedyRowListLength_polyTime :
     ComputableInPolyTime (fun a => greedyRowListLength (B a) (m a)) e encUnary :=
@@ -188,9 +188,9 @@ include hB
     ComputableInPolyTime (fun a => initialRowWeightBound (B a) (m a)) e encUnary :=
   .unary_mul' (.unary_mul' (.const 320000) ((unary_pow 2).comp hB))
     ((unary_pow 3).comp (mu_polyTime hm))
-@[fun_prop] theorem dG_polyTime : ComputableInPolyTime (fun a => dG (m a) (B a)) e encUnary :=
-  (of_tidy ComputableTidilyInPolyTime.unary_min).comp
-    (hm.prod (initialRowWeightBound_polyTime hm hB))
+@[fun_prop] theorem dG_polyTime : ComputableInPolyTime (fun a => dG (m a) (B a)) e encUnary := by
+  have hweight := initialRowWeightBound_polyTime hm hB
+  simpa only [Nat.min_def] using ite_decide (unary_le' hm hweight) hm hweight
 @[fun_prop] theorem ellG_polyTime : ComputableInPolyTime (fun a => ellG (m a) (B a)) e encUnary :=
   have hd := dG_polyTime hm hB
   (unary_clog_const 2).comp (unary_div.comp ((unary_sub' (.unary_add' hm hd) (.const 1)).prod hd))

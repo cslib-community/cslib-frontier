@@ -649,9 +649,11 @@ theorem isPolyTime_minRep :
     ComputableInPolyTime.listAppend' (isPolyTime_blockWeights hsrcs)
       (isPolyTime_blockWeights hdsts)
   have hthreshold : ComputableInPolyTime (fun G : Graph (β → γ) => max (2 * G.edges.length) 1)
-      (Graph.encoding encC) encUnary :=
-    (ComputableInPolyTime.of_tidy ComputableTidilyInPolyTime.unary_max).comp
-      ((ComputableInPolyTime.unary_mul' (.const 2) hlen).prod (.const 1))
+      (Graph.encoding encC) encUnary := by
+    have htwice := ComputableInPolyTime.unary_mul' (.const 2) hlen
+    simpa only [Nat.max_def] using
+      ComputableInPolyTime.ite_decide (ComputableInPolyTime.unary_le' htwice (.const 1))
+        (.const 1) htwice
   have hformulas : ComputableInPolyTime (fun G : Graph (β → γ) => G.edges.map (formula eβ eγ G))
       (Graph.encoding encC) (encList (encDNFOver encNat)) :=
     ComputableInPolyTime.mapWithInput hedges

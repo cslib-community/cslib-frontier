@@ -173,13 +173,13 @@ theorem efficientSpecialSoundness_schnorr :
       have hword {k : (ℕ × F.Desc) × List Bool × List Bool × List Bool × List Bool × List Bool ×
           List Bool → List Bool} (hk : ComputableInPolyTime k encIn encBits) :
           ComputableInPolyTime (fun p => ofBits (k p)) encIn encNat :=
-        .of_tidy (ComputableTidilyInPolyTime.bitsToNat.comp hk.tidy)
+        (ComputableInPolyTime.bitsToNat.comp hk)
       have hext := computableInPolyTime_extractNat hd
         (hword (k := fun p => p.2.2.2.1) (by fun_prop))
         (hword (k := fun p => p.2.2.2.2.1) (by fun_prop))
         (hword (k := fun p => p.2.2.2.2.2.1) (by fun_prop))
         (hword (k := fun p => p.2.2.2.2.2.2) (by fun_prop))
-      exact .of_tidy (ComputableTidilyInPolyTime.natBits.comp hext.tidy)
+      exact (ComputableInPolyTime.natBits.comp hext)
     · intro i u t c z c' z'
       simp only [schnorrEncoding, encScalar, encodeEmbedding, Function.Embedding.coeFn_mk,
         encNat_apply, ofBits_bits, schnorrExtract, ZMod.val_natCast, extractNat,
@@ -252,14 +252,14 @@ theorem isPPTOn_schnorrSimulateWord :
   have hneg : ComputableInPolyTime
       (fun p : ((ℕ × F.Desc) × List Bool × List Bool) × ℕ =>
         F.order p.1.1.2 - ofBits p.1.2.2 % F.order p.1.1.2) encMid encNat :=
-    .of_tidy (.binary_sub' hq.tidy (.binary_mod'
-      (ComputableTidilyInPolyTime.bitsToNat.comp hc.tidy) hq.tidy))
+    (.binary_sub' hq (.binary_mod'
+      (ComputableInPolyTime.bitsToNat.comp hc) hq))
   have hcu := F.computableInPolyTime_smul.comp (hd'.prod (hneg.prod hu))
   have ht := F.computableInPolyTime_add.comp (hd'.prod (hsg.prod hcu))
   have hz : ComputableInPolyTime
       (fun p : ((ℕ × F.Desc) × List Bool × List Bool) × ℕ =>
         (p.2 % F.order p.1.1.2).bits) encMid encBits :=
-    .of_tidy (ComputableTidilyInPolyTime.natBits.comp (.binary_mod' hs.tidy hq.tidy))
+    (ComputableInPolyTime.natBits.comp (.binary_mod' hs hq))
   exact (ht.prod hz).isPPTOn
 
 /-- `schnorrSimulator` is uniform strict PPT, certified by `schnorrSimulateWord`. -/

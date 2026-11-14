@@ -1074,7 +1074,7 @@ private theorem er_pairBasisNat {a d x y : α → ℕ} (ha : CPT a input encNat)
     (hr : ComputableInPolyTime r input encNat)
     (hu : ComputableInPolyTime u input encAuxDigits) :
     ComputableInPolyTime (fun a => encodeAuxDigits (r a) (u a)) input encNat := by
-  have hlist := (of_tidy (.listReverse encNat)).comp' (hu.fst'.listAppend' hu.snd')
+  have hlist := listReverseWithInput (hu.fst'.listAppend' hu.snd')
   have hstep : CPT (fun q : (ℕ × ℕ) × ℕ => q.2 + q.1.1 * q.1.2)
       (encPair (encPair encNat encNat) encNat) encNat :=
     binary_add.comp ((snd _ _).prod
@@ -1264,7 +1264,9 @@ private theorem er_mismatchAnnihilatorCoeffsDigits {Q : α → ℕ}
   have hc0 := intBin_mul' (er_intBin_natCast (er_binary_factorial hQ))
     (er_intBin_sub (heq.ite'
       (er_intBin_natCast (er_binary_factorial (unary_sub' hR (.const 1)))) (.const 0)) hm0)
-  exact er_map (unary_range' ((of_tidy .unary_max).comp' (hR.prod (.const 1))))
+  have hmax : CPT (fun a => max (R a) 1) input encUnary := by
+    simpa only [Nat.max_def] using ite_decide (unary_le' hR (.const 1)) (.const 1) hR
+  exact er_map (unary_range' hmax)
     (er_intBin_add (ite_decide (hp2.decide_eq' (.const 0)) (hc0.comp' hp1) (.const 0))
       (intBin_mul' (hm0.comp' hp1) (listGetDWithInput (hphi.comp' hp1) hp2 0)))
 
