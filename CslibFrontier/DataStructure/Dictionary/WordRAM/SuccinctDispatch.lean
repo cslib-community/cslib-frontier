@@ -1241,6 +1241,11 @@ private theorem exec_opPrefix {U V w n_max base : ℕ}
 
 /-! ## Section 7: Per-operation deterministic execution of `opCode` -/
 
+section
+
+-- Register wiring uses the named parameter projections, not the packed layout body.
+attribute [local irreducible] mkDictParams
+
 private theorem exec_opCode_query {U V w n_max base : ℕ}
     (hwf : DictParamsWf U V w n_max)
     (hV_fit : Fits w V)
@@ -1891,5 +1896,7 @@ theorem exec_opCode {U V w n_max base : ℕ}
   | query u => exact exec_opCode_query hwf hV_fit hfit θ s_abs u hrep harg
   | insert u v => exact exec_opCode_insert hwf hV_fit hfit θ s_abs u v hval hrep harg
   | delete u => exact exec_opCode_delete hwf hV_fit hfit θ s_abs u hrep harg
+
+end
 
 end Cslib.DataStructure.Dictionary.WordRAM.Succinct
