@@ -68,8 +68,8 @@ example : ComputableInPolyTime LiuPassConverse.inputSchedule encUnary encUnary :
   LiuPassConverse.computableInPolyTime_inputSchedule
 
 -- Retain the public conditional construction and the native converse clock hypothesis.
-#check OneWay.exists_condEPPRG
-#check weakOneWay_reindex_liuPassCore
-#check exists_oneWay_of_exists_mildlyHardOnAverage_timeBoundedNat
+example := @OneWay.exists_condEPPRG
+example := @weakOneWay_reindex_liuPassCore
+example := @exists_oneWay_of_exists_mildlyHardOnAverage_timeBoundedNat
 
 end Cslib.Crypto.AutomationLiuPassTests
