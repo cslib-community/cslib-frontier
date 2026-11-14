@@ -373,12 +373,12 @@ private def linearViews (fn encIn encOut : Term) (base : Name) : CommandElabM Un
               cases v <;> simp [$projection:ident]))
         elabCommand (← `(/-- The matcher recognizes precisely the range of this constructor. -/
           public theorem $(app matcher.getId "_iff"):ident (v : $T) :
-            $matcher v = true ↔ ∃ $a : $(argTys[i]!), v = $reconstructed := by
+            $matcher v = true ↔ ∃ ($a:ident : $(argTys[i]!)), v = $reconstructed := by
               rw [← $(app projection.getId "_isSome")]
               simp only [Option.isSome_iff_exists, $valueIff:ident]))
         elabCommand (← `(/-- A payload exists precisely when this constructor matches. -/
           public theorem $(app projection.getId "_range"):ident (v : $T) :
-            (∃ $a : $(argTys[i]!), $projection v = some $a) ↔ $matcher v = true := by
+            (∃ ($a:ident : $(argTys[i]!)), $projection v = some $a) ↔ $matcher v = true := by
               rw [← $(app projection.getId "_isSome")]
               exact Option.isSome_iff_exists.symm))
       let mut word := raw
