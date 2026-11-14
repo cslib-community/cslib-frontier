@@ -440,7 +440,7 @@ Organize modules by subject, not chapter.
   Also asymptotic optimality for stationary ergodic sources through Ziv's inequality, and links to Kolmogorov complexity and finite-state compressibility.
   Machine-level or `TimeM` parser costs are a separate endpoint.
 - **Boolean analysis** ([#2131](https://github.com/cslib-community/cslib-frontier/issues/2131)): coverage of O'Donnell's *Analysis of Boolean Functions*, including the book-form statements of its Chapter 9 (the KKL edge-isoperimetric theorem, and Friedgut's junta theorem with its spectral concentration).
-  Also hypercontractivity beyond `p ≤ 2 ≤ q` and its applications, such as small-set expansion and the Level-k inequalities.
+  Also hypercontractivity beyond `p ≤ 2 ≤ q` and its applications, such as small-set expansion and the Level-k inequalities, and reverse hypercontractivity at the exponents `0` and `−∞` and for nonnegative functions with negative exponents (Exercise 10.6(a)).
 - **Invariance principles** ([#3242](https://github.com/cslib-community/cslib-frontier/issues/3242)): from Chapter 11 of O'Donnell's book, the Basic Invariance Principle under Hypothesis 11.65 with Corollary 11.67, the Invariance Principle for `(2, 3, ρ)`-hypercontractive ensembles (Remark 11.66), the Lévy-distance form (Corollary 11.70), and cdf-closeness to Gaussians through the Carbery–Wright theorem (Theorem 11.71).
   Also Majority Is Stablest through Borell's isoperimetric theorem.
 - **Resource-bounded measure and dimension** ([#3139](https://github.com/cslib-community/cslib-frontier/issues/3139)): Lutz's p-measure in `E` with the quantitative Measure Conservation bound and countable p-unions (Lutz's Lemma 3.10(c)), measure in `EXP` (`p₂`), p-randomness, gales and resource-bounded dimension.

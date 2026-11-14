@@ -5305,12 +5305,14 @@ public import CslibFrontier.Foundations.Analysis.MarkovBrothersInequality
 public import CslibFrontier.Foundations.Analysis.Normed.Ring.PowSub
 public import CslibFrontier.Foundations.Analysis.Normed.UnitSphere
 public import CslibFrontier.Foundations.Analysis.RateExponent
+public import CslibFrontier.Foundations.Analysis.ReverseHolder
 public import CslibFrontier.Foundations.Analysis.RootError
 public import CslibFrontier.Foundations.Analysis.SignedDigitStream.Basic
 public import CslibFrontier.Foundations.Analysis.SignedDigitStream.Elementary
 public import CslibFrontier.Foundations.Analysis.SignedDigitStream.Multiplication
 public import CslibFrontier.Foundations.Analysis.SignedDigitStream.Reciprocal
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.Arccos
+public import CslibFrontier.Foundations.Analysis.SpecialFunctions.BinomialSeries
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpBounds
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpExpect
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpLogQuadratic
@@ -5322,6 +5324,7 @@ public import CslibFrontier.Foundations.Analysis.SpecialFunctions.Hyperbolic
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.LogSum
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.LogTwoPow
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.Logb
+public import CslibFrontier.Foundations.Analysis.SpecialFunctions.OneAddRpow
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.PolynomialSwitch
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.RationalRamp
 public import CslibFrontier.Foundations.Analysis.SpecialFunctions.RpowAbsSum
@@ -5363,6 +5366,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.HarmonicTransform
 public import CslibFrontier.Foundations.BooleanAnalysis.Hypercontractivity
 public import CslibFrontier.Foundations.BooleanAnalysis.Hypercontractivity.Derivative
 public import CslibFrontier.Foundations.BooleanAnalysis.Hypercontractivity.LpNorm
+public import CslibFrontier.Foundations.BooleanAnalysis.Hypercontractivity.ReverseTwoPoint
 public import CslibFrontier.Foundations.BooleanAnalysis.Hypercontractivity.Tensorization
 public import CslibFrontier.Foundations.BooleanAnalysis.Hypercontractivity.TwoPoint
 public import CslibFrontier.Foundations.BooleanAnalysis.Hypercube
@@ -5397,6 +5401,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.PolynomialThreshold
 public import CslibFrontier.Foundations.BooleanAnalysis.PolynomialThresholdWeight
 public import CslibFrontier.Foundations.BooleanAnalysis.QuadraticForm
 public import CslibFrontier.Foundations.BooleanAnalysis.RelevantCoordinates
+public import CslibFrontier.Foundations.BooleanAnalysis.ReverseHypercontractivity
 public import CslibFrontier.Foundations.BooleanAnalysis.SignApproximation
 public import CslibFrontier.Foundations.BooleanAnalysis.SparseBranching
 public import CslibFrontier.Foundations.BooleanAnalysis.SparseClearedSpecialization

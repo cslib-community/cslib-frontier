@@ -57,6 +57,9 @@ over a mask of rate `p` (`BitString.bernoulliAverage_chi`).
 * `Cslib.BitString.noiseOp_eq_sum`, `Cslib.BitString.fourierCoeff_noiseOp`: the Fourier expansion
   of `T_ρ f` [O'Donnell, Proposition 2.47][ODonnell2014].
 * `Cslib.BitString.noiseOp_noiseOp`: the noise operators form a semigroup.
+* `Cslib.BitString.noiseOp_nonneg`, `Cslib.BitString.noiseOp_pos`,
+  `Cslib.BitString.noiseOp_pos_of_nonneg`: the noise operator preserves nonnegativity and
+  positivity, and for `|ρ| < 1` makes nonzero nonnegative functions positive.
 * `Cslib.BitString.noiseOp_comp_arrowCongr`, `Cslib.BitString.noiseOp_of_isEmpty`: the noise
   operator commutes with renaming the coordinates and is the identity on the cube over no
   coordinates.
@@ -155,6 +158,33 @@ theorem noiseOp_zero (f : (ι → Bool) → ℝ) (x : ι → Bool) : noiseOp 0 f
 /-- The noise operator fixes the constants. -/
 @[simp] theorem noiseOp_const (ρ c : ℝ) (x : ι → Bool) : noiseOp ρ (fun _ => c) x = c :=
   bernoulliAverage_const _ c
+
+/-- For `|ρ| ≤ 1`, the noise operator maps positive functions to positive functions. -/
+theorem noiseOp_pos {ρ : ℝ} (hρ : -1 ≤ ρ) (hρ' : ρ ≤ 1) {g : (ι → Bool) → ℝ}
+    (hg : ∀ x, 0 < g x) (x : ι → Bool) : 0 < noiseOp ρ g x := by
+  obtain ⟨y, -, hy⟩ := exists_min_image univ g univ_nonempty
+  calc 0 < g y := hg y
+    _ = bernoulliAverage ((1 - ρ) / 2) fun _ => g y := (bernoulliAverage_const _ _).symm
+    _ ≤ noiseOp ρ g x :=
+        bernoulliAverage_mono (by linarith) (by linarith) fun P => hy _ (mem_univ _)
+
+/-- For `|ρ| ≤ 1`, the noise operator maps nonnegative functions to nonnegative functions. -/
+theorem noiseOp_nonneg {ρ : ℝ} (hρ : -1 ≤ ρ) (hρ' : ρ ≤ 1) {g : (ι → Bool) → ℝ}
+    (hg : ∀ x, 0 ≤ g x) (x : ι → Bool) : 0 ≤ noiseOp ρ g x :=
+  calc (0 : ℝ) = bernoulliAverage ((1 - ρ) / 2) fun _ => 0 := (bernoulliAverage_const _ _).symm
+    _ ≤ noiseOp ρ g x := bernoulliAverage_mono (by linarith) (by linarith) fun _ => hg _
+
+/-- For `-1 < ρ < 1`, the noise operator maps a nonnegative function that is positive somewhere
+to a positive function: every point is reached with positive probability. -/
+theorem noiseOp_pos_of_nonneg {ρ : ℝ} (hρ : -1 < ρ) (hρ' : ρ < 1) {g : (ι → Bool) → ℝ}
+    (hg : ∀ x, 0 ≤ g x) {y : ι → Bool} (hy : 0 < g y) (x : ι → Bool) : 0 < noiseOp ρ g x := by
+  have hw (P : ι → Bool) : 0 < bernoulliWeight ((1 - ρ) / 2) P :=
+    prod_pos fun i _ => by split_ifs <;> linarith
+  refine sum_pos' (fun P _ => mul_nonneg (hw P).le (hg _)) ⟨x + y, mem_univ _, mul_pos (hw _) ?_⟩
+  have hxy : x + (x + y) = y := funext fun i => by
+    change x i + (x i + y i) = y i
+    cases x i <;> cases y i <;> decide
+  simpa only [hxy] using hy
 
 /-- The noise operator is additive. -/
 theorem noiseOp_add (ρ : ℝ) (f g : (ι → Bool) → ℝ) (x : ι → Bool) :

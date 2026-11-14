@@ -3364,6 +3364,112 @@ The following are not formalized: the Lévy-distance form
 (Corollary 11.70), cdf-closeness through the Carbery–Wright theorem (Theorem 11.71), the general
 Invariance Principle with hypercontractive ensembles, and Majority Is Stablest.
 
+## Bound correlated-pair probabilities from below by reverse hypercontractivity
+
+Import
+[`CslibFrontier.Foundations.BooleanAnalysis.ReverseHypercontractivity`](../../CslibFrontier/Foundations/BooleanAnalysis/ReverseHypercontractivity.lean)
+and open `Cslib` and `Cslib.BitString`. A `ρ`-correlated pair `(x, y)` on the cube `ι → Bool`
+appears through the noise operator: the expectation of `f x * g y` is
+`𝔼 x, f x * noiseOp ρ g x`, and for sets the probability that `x ∈ A` and `y ∈ B` is
+`𝔼 x, A.indicator 1 x * noiseOp ρ (B.indicator 1) x`. `lpNorm p f` is
+`(𝔼 x, |f x| ^ p) ^ p⁻¹`, so for `0 < p ≤ 1` it is O'Donnell's `‖f‖_p` of a nonnegative
+function, and for `p < 0` and positive `f` it is his negative-exponent "norm"
+`𝔼[f ^ p] ^ (1 / p)` (`lpNorm_of_nonneg` drops the absolute values). `lpNorm 0` is `1`, not the
+geometric mean, so the exponent `0` is never covered. The supporting lemmas in the last two
+items below live in the modules linked there, which the main module does not re-export: import
+them as well.
+
+- `lpNorm_mul_lpNorm_le_expect_mul_noiseOp hr hr' hs hs' hρ hρ' hf hg` is the Reverse
+  Two-Function Hypercontractivity Theorem (O'Donnell, Exercise 10.6) for `-1 < r, s ≤ 0`,
+  `0 ≤ ρ ≤ √(r * s)` and nonnegative `f`, `g`:
+  `lpNorm (1 + r) f * lpNorm (1 + s) g ≤ 𝔼 x, f x * noiseOp ρ g x`.
+  `lpNorm_mul_lpNorm_le_expect_mul_noiseOp_of_lt_neg_one hr hs hs' hrs hρ hρ' hf hg` is the same
+  inequality for `r < -1 < s ≤ 0` with `r * s ≤ 1`, `0 ≤ ρ ≤ √(r * s)`, positive `f` and
+  nonnegative `g`, and `lpNorm_mul_lpNorm_le_expect_mul_noiseOp_of_neg_one_lt_of_lt_neg_one hr hr'
+  hs hrs hρ hρ' hf hg` is the mirror case `s < -1 < r ≤ 0` for nonnegative `f` and positive `g`.
+- `sq_expect_abs_mul_sq_expect_abs_le hρ hρ' f g` is its case `r = s = -1/2` for any real `f`,
+  `g` and `0 ≤ ρ ≤ 1 / 2`, the statement of Exercise 10.8 on every cube, derived from the general
+  theorem:
+  `(𝔼 x, |f x|) ^ 2 * (𝔼 x, |g x|) ^ 2 ≤ 𝔼 x, f x ^ 2 * noiseOp ρ (fun y => g y ^ 2) x`.
+- `le_expect_mul_noiseOp_iff_lpNorm_le_lpNorm_noiseOp hr hr1 hρ hρ'` is Exercise 10.6(b): for
+  `r < 0`, `r ≠ -1` and `|ρ| ≤ 1`, the two-function inequality for all positive `f`, `g` is
+  equivalent to `lpNorm (1 + s) g ≤ lpNorm (1 + r⁻¹) (noiseOp ρ g)` for all positive `g`.
+  `lpNorm_le_lpNorm_noiseOp hq hqp hp hp' hρ hρ' hf` is the resulting one-function Reverse
+  Hypercontractivity Theorem `lpNorm p f ≤ lpNorm q (noiseOp ρ f)` for `q < p` with `q ≠ 0`,
+  `0 < p ≤ 1`, `0 ≤ ρ ≤ √((1 - p) / (1 - q))` and nonnegative `f` (the theorem of Exercise 10.6,
+  in the cases of Exercise 10.7(a), (b), (e), proved via Exercise 10.6(b)), and
+  `lpNorm_le_lpNorm_noiseOp_of_neg hqp hp hρ hρ' hf` is the same for `q < p < 0` and positive `f`
+  (Exercise 10.6, in the cases of Exercise 10.7(d)). `noiseOp_nonneg`, `noiseOp_pos` and
+  `noiseOp_pos_of_nonneg` give the signs of `noiseOp ρ f` that these arguments use.
+- `exp_le_expect_indicator_mul_noiseOp_indicator hρ hρ' ha hb hA hB` is the Reverse Small-Set
+  Expansion Theorem (Remark 10.3, Exercise 10.9). Its volume hypotheses are
+  `hA : 𝔼 x, A.indicator 1 x = Real.exp (-(a ^ 2 / 2))` and the same for `B` and `b`, with
+  `0 ≤ a`, `0 ≤ b` and `0 ≤ ρ < 1`, and it gives the lower bound
+  `Real.exp (-((a ^ 2 + 2 * ρ * a * b + b ^ 2) / (2 * (1 - ρ ^ 2))))`. The cases `a = 0` and
+  `b = 0`, where a set is the whole cube, are included.
+- The reverse Hölder inequality is in
+  [`CslibFrontier.Foundations.Analysis.ReverseHolder`](../../CslibFrontier/Foundations/Analysis/ReverseHolder.lean)
+  for any finite type: `lpNorm_mul_lpNorm_le_expect_mul hp hp1 hf hg` gives
+  `lpNorm p f * lpNorm (p / (p - 1)) g ≤ 𝔼 x, f x * g x` for `p < 1`, `p ≠ 0` and positive `f`,
+  `g`; `lpNorm_mul_lpNorm_le_expect_mul_of_pos hp hp1 hf hg` gives it for `0 < p < 1` with `f`
+  only nonnegative, and `lpNorm_mul_lpNorm_le_expect_mul_of_neg hp hf hg` for `p < 0` with `g`
+  only nonnegative; `expect_mul_rpow_sub_one` is its equality case at `g = f ^ (p - 1)`, and
+  `isLeast_expect_mul` states `lpNorm p f` as the minimum of `𝔼 x, f x * g x` over positive `g`
+  with `lpNorm (p / (p - 1)) g = 1`.
+- The one-bit ingredients are in
+  [`Hypercontractivity/ReverseTwoPoint`](../../CslibFrontier/Foundations/BooleanAnalysis/Hypercontractivity/ReverseTwoPoint.lean):
+  the reverse two-point inequality `rpow_add_rpow_le_sq_sub_sq_mul_sq_rpow` (Exercise 10.7(f)),
+  which compares the `L^p` norm of `a + b x` with the geometric mean of `a + ρ b x` for `0 < p`
+  and `ρ ^ 2 ≤ 1 - p`; the reverse two-point inequality for positive exponents
+  `rpow_add_rpow_le_rpow_add_rpow_rpow` (Exercise 10.7(a), (b)), which gives
+  `((a + b) ^ p + (a - b) ^ p) / 2 ≤ (((a + ρ * b) ^ q + (a - ρ * b) ^ q) / 2) ^ (p / q)` for
+  `0 < q ≤ p ≤ 1`, `ρ ^ 2 * (1 - q) ≤ 1 - p` and `|b| ≤ a` by comparing binomial series, and its
+  norm form `lpNorm_le_lpNorm_noiseOp_of_unit`; and the one-bit theorem
+  `lpNorm_mul_lpNorm_le_expect_mul_noiseOp_of_unit`. To extend another one-bit lower bound to
+  every cube, use `le_expect_mul_noiseOp_of_unit` for nonnegative `f` and `g`, or
+  `le_expect_mul_noiseOp_of_unit_of_pos` for positive `f` and nonnegative `g` (Exercise 10.6(c)),
+  in
+  [`Hypercontractivity/Tensorization`](../../CslibFrontier/Foundations/BooleanAnalysis/Hypercontractivity/Tensorization.lean).
+  In the `Cslib` namespace, `lpNorm_indicator_one` turns the norm of an indicator into a power of
+  its volume, `lpNorm_half_sq` says `lpNorm (1 / 2) (f ^ 2) = (𝔼 x, |f x|) ^ 2`, and
+  `lpNorm_pos` and `lpNorm_const_mul` give positivity and absolute homogeneity. The real-analysis
+  facts behind the two-point inequalities are general: `Real.hasSum_choose_mul_pow` in
+  [`Analysis/SpecialFunctions/BinomialSeries`](../../CslibFrontier/Foundations/Analysis/SpecialFunctions/BinomialSeries.lean)
+  is the binomial series `(1 + x) ^ a = ∑ n, Ring.choose a n * x ^ n` for `|x| < 1`, and
+  [`Analysis/SpecialFunctions/OneAddRpow`](../../CslibFrontier/Foundations/Analysis/SpecialFunctions/OneAddRpow.lean)
+  has the derivatives `Real.hasDerivAt_one_add_rpow` and `Real.hasDerivAt_one_sub_rpow` and the
+  rewriting `Real.abs_add_rpow_add_abs_sub_rpow` of `|a ± b| ^ p` for `|b| ≤ |a|`.
+
+The checked [`BooleanAnalysisReverseHypercontractivity.lean` clients](../../CslibFrontierTests/BooleanAnalysisReverseHypercontractivity.lean)
+apply the two-point inequality at `p = 1 / 2`, the one-bit and general theorems at
+`r = -1/3`, `s = -3/4` and `ρ = 1/2` for a function with a zero, the tensorization theorem to the
+one-bit case at `r = s = -1/2`, the case `r = s = ρ = 0`, and the `r = s = -1/2` corollary at
+`ρ = 1 / 2`. They compute `lpNorm (-1)` of a positive one-bit function (a harmonic mean), apply
+reverse Hölder and its minimum form at `p = 1 / 2`, the equivalence of the two forms with the
+two-function theorem at `r = -2`, `s = -1/2`, `ρ = 1`, and the one-function theorem
+at `p = 1 / 2`, `q = -1`, `ρ = 1 / 2`, also to a subcube indicator, and feed it back through the
+equivalence to get the two-function inequality at `r = s = -1/2`. For positive exponents they
+apply the reverse two-point inequality, its norm form and the one-function theorem at `p = 1 / 2`,
+`q = 1 / 4` and the largest correlation `ρ = √(2 / 3)`, also to a subcube indicator, the
+two-function theorem at `r = -2` with `s = -1/4`, `ρ = 1 / 2` and with `s = -1/2`, `ρ = 1`, its
+mirror case at `r = -1/4`, `s = -2`, `ρ = 1 / 2`, and reverse Hölder at `p = -1` with a
+nonnegative second function; for negative exponents, the one-function theorem at `p = -1`,
+`q = -2`, `ρ = √(2 / 3)`. For opposite one-bit subcubes of volume `1 / 2` they compute an
+indicator norm and the probability `1 / 8` at `ρ = 1 / 2`, and derive the bounds
+`1 / 16` there and `1 / 4` at `ρ = 0` from the Reverse Small-Set Expansion Theorem, which they
+also apply with either set equal to the whole cube. Run
+`scripts/build.sh CslibFrontierTests.BooleanAnalysisReverseHypercontractivity` from the repository
+root to check them.
+
+Not covered: the exponents `0` and `-∞` (Exercise 10.7(c), (f)), beyond the one-bit inequality
+for `q = 0` (`rpow_add_rpow_le_sq_sub_sq_mul_sq_rpow`). A function with a negative exponent is
+assumed positive, and so are both functions in the equivalence of the two forms: for a function
+with a zero the book's negative-exponent norm is `0`, while `lpNorm` ignores the zeros, and the
+reduction of Exercise 10.6(a) from nonnegative to positive functions is not formalized. The Small-Set Expansion bound needs `ρ < 1`: at `ρ = 1`
+the book's bound is `0` unless `a = b = 0`, while Lean's `x / 0 = 0` would make the stated bound
+`1`. The forward theorems are in
+[`CslibFrontier.Foundations.BooleanAnalysis.Hypercontractivity`](../../CslibFrontier/Foundations/BooleanAnalysis/Hypercontractivity.lean).
+
 ## Evaluate a multi-component conditional walk via validated words
 
 Import
