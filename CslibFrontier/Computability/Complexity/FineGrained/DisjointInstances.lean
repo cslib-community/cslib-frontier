@@ -1212,13 +1212,13 @@ theorem exists_computableInO_step (S : StackAccumulationSpec encA encK encS encB
     computableInPolyTime_stackSearchState_acc .id'
   have hdone : ComputableInPolyTime (fun st : StackSearchState κ σ δ => st.stack.isEmpty)
       encSt encBool :=
-    (listIsEmpty' encS).comp hstk
+    (listIsEmpty (encA := encS) (encL := encList encS)).comp hstk
   have hhead : ComputableInPolyTime
       (fun st : StackSearchState κ σ δ => st.stack.headD S.defaultNode) encSt encS :=
     (headD S.defaultNode).comp hstk
   have htail : ComputableInPolyTime (fun st : StackSearchState κ σ δ => st.stack.tail)
       encSt (encList encS) :=
-    (listTail encS).comp hstk
+    (tail (encA := encS) (encL := encList encS)).comp hstk
   have htopNode : ComputableInPolyTime S.topNode encSt (encStackNodeInput encK encS) :=
     computableInPolyTime_stackNodeInput_mk hctx hhead
   have hleaf : ComputableInPolyTime (fun st => S.isLeaf (S.topNode st)) encSt encBool :=
