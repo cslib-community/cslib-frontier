@@ -103,6 +103,33 @@ The definitions and the documented reason for the output charge are in [Resource
 
 `FTIME` is the corresponding function-time class with explicit input and output encodings and affine time `c₁ t(n) + c₂`; its workspace has an arbitrary length-dependent bound. It adds no output charge beyond the time required to write the output. [FTIME](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/Complexity/Classes/FunctionTime.lean#L46) `DTIME`, `NTIME`, `BPTIME`, `DSPACE` and `NSPACE` attach affine bounds to the relevant machine predicates; `P`, `NP`, `BPP`, `L`, `NL`, `PSPACE`, `NPSPACE`, `E`, `NE`, `EXP` and `NEXP` derive familiar bound families.
 
+The [quantitative rules](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/Quantitative.lean)
+provide plain `ComputableInDegree.bitsReverse` and `bitsDropLast` at cost/output degrees
+`1/1`, and `bitsGetLast?ToList` and `bitsGetLast?` at `1/0`. These replace the four tidy
+degree rules and their automation leaves; use plain callback certificates when composing them.
+`ComputableInO.lengthUnary` retains linear time and output-charged linear space.
+The [composition regression](../../CslibFrontierTests/Quantitative.lean) checks the independent
+output degrees, including a high-degree consumer of a constant-size last-bit result.
+
+The [streaming fold API](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/Streaming.lean)
+accepts plain `ComputableInTimeAndSpace` callbacks in `foldl_bits_stream_sum`, its uniform,
+invariant and paired variants, and `iterate_unary_stream_sum`. Supply the original exact callback
+costs: normalization is absorbed into the input-independent existential constant. Cumulative
+round costs still charge both adjacent encoded states and control; workspace depends on peak
+callback workspace and retained state, independently of time and emitted output. Prefix-state
+bounds include the initial and final state. The unary variant charges the final callback
+separately. `ComputableInO.unary_halvings` uses this interface and retains the geometric sum bound.
+
+The [plain word-transducer facade](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/WordTransducers.lean)
+provides `ComputableInTimeAndSpace.map_bits`, `length_bits`, `dropLast_bits`,
+`getLast?_toList_bits` and `getLast?_bits` with time `4 * l.length + 8` and zero workspace.
+`reverse_bits` keeps time `2 * l.length + 2` and zero workspace. These reuse the existing
+machines; the transducer witness includes input rewind. Workspace excludes emitted output:
+map and reverse therefore need a separate linear output bound for output-charged space,
+while last-bit extraction has constant output size. The
+[plain-import regression](../../CslibFrontierTests/WordTransducers.lean) exercises automation
+and the obstruction to charging arbitrary map output to constant space.
+
 ## Fair-coin efficiency
 
 [IsPPTOn](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/Probabilistic/PPT.lean#L71) says that one fixed finite PTM, under one polynomial clock, has exactly the encoded output distribution of a program on every input. This is strict bounded time, rather than expected time or a nonuniform machine family. The initial clocked semantics can truncate at its budget, but [exists_halting_machine](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/Probabilistic/PPT/Clock.lean#L77) realizes the same semantics by an actually halting machine. Closed interpretation supplies fair Boolean draws; an open PTM's coin operation has no prescribed distribution until interpreted.
@@ -204,22 +231,3 @@ clients can reuse them without importing either machine implementation.
 [hoza21]: ../sources.md#hoza21
 [openai-logspace26]: ../sources.md#openai-logspace26
 [sakszhou99]: ../sources.md#sakszhou99
-
-The [streaming fold API](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/Streaming.lean)
-accepts plain `ComputableInTimeAndSpace` callbacks in `foldl_bits_stream_sum`, its uniform,
-invariant and paired variants, and `iterate_unary_stream_sum`. Supply the original exact callback
-costs: normalization is absorbed into the input-independent existential constant. Cumulative
-round costs still charge both adjacent encoded states and control; workspace depends on peak
-callback workspace and retained state, independently of time and emitted output. Prefix-state
-bounds include the initial and final state. The unary variant charges the final callback
-separately. `ComputableInO.unary_halvings` uses this interface and retains the geometric sum bound.
-
-The [plain word-transducer facade](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/WordTransducers.lean)
-provides `ComputableInTimeAndSpace.map_bits`, `length_bits`, `dropLast_bits`,
-`getLast?_toList_bits` and `getLast?_bits` with time `4 * l.length + 8` and zero workspace.
-`reverse_bits` keeps time `2 * l.length + 2` and zero workspace. These reuse the existing
-machines; the transducer witness includes input rewind. Workspace excludes emitted output:
-map and reverse therefore need a separate linear output bound for output-charged space,
-while last-bit extraction has constant output size. The
-[plain-import regression](../../CslibFrontierTests/WordTransducers.lean) exercises automation
-and the obstruction to charging arbitrary map output to constant space.

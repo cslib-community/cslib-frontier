@@ -247,11 +247,11 @@ example :
       (encBits ((l.take i).foldl (fun state _ => state) [true])).length ≤ 0) ∧
     ¬ (∀ l : List Bool, ∀ i ≤ l.length,
       (encBits ((l.take i).foldl (fun state bit => state ++ [bit]) [])).length ≤ 0) ∧
-    ComputableTidilyInTimeAndSpace (List.reverse (α := Bool)) encBits encBits
+    ComputableInTimeAndSpace (List.reverse (α := Bool)) encBits encBits
       (fun l => 2 * l.length + 2) (fun _ => 0) ∧
-    ComputableTidilyInTimeAndSpace (List.dropLast (α := Bool)) encBits encBits
+    ComputableInTimeAndSpace (List.dropLast (α := Bool)) encBits encBits
       (fun l => 4 * l.length + 8) (fun _ => 0) ∧
-    ComputableTidilyInTimeAndSpace (fun l : List Bool => l.getLast?.toList) encBits encBits
+    ComputableInTimeAndSpace (fun l : List Bool => l.getLast?.toList) encBits encBits
       (fun l => 4 * l.length + 8) (fun _ => 0) := by
   refine ⟨fun h => ?_, fun h => ?_, by fun_prop, by fun_prop, by fun_prop⟩
   · have := h [] 0 (by simp)
@@ -259,19 +259,24 @@ example :
   · have := h [true] 1 (by simp)
     simp at this
 
-example (f : List Bool → List Bool) (hf : ComputableTidilyInDegree f encBits encBits 2 1) :
-    ComputableTidilyInDegree (fun x => (f x).dropLast.reverse) encBits encBits 2 1 := by
+example (f : List Bool → List Bool) (hf : ComputableInDegree f encBits encBits 2 1) :
+    ComputableInDegree (fun x => (f x).dropLast.reverse) encBits encBits 2 1 := by
   fail_if_success
-    have : ComputableTidilyInDegree (fun x => (f x).dropLast.reverse) encBits encBits 2 0 := by
+    have : ComputableInDegree (fun x => (f x).dropLast.reverse) encBits encBits 2 0 := by
       fun_prop (disch := lia)
   fun_prop (disch := lia)
 
 -- Because `getLast?.toList` has output degree 0, a high-degree consumer still runs in constant
 -- time on its 0-or-1-bit output.
 example (f g : List Bool → List Bool)
-    (hf : ComputableTidilyInDegree f encBits encBits 2 1)
-    (hg : ComputableTidilyInDegree g encBits encBits 5 1) :
-    ComputableTidilyInDegree (fun x => g (f x).getLast?.toList) encBits encBits 2 0 := by
+    (hf : ComputableInDegree f encBits encBits 2 1)
+    (hg : ComputableInDegree g encBits encBits 5 1) :
+    ComputableInDegree (fun x => g (f x).getLast?.toList) encBits encBits 2 0 := by
+  fun_prop (disch := lia)
+
+-- The Option encoding retains output degree zero independently of cost degree.
+example : ComputableInDegree (List.getLast? (α := Bool)) encBits
+    (encOption encBool) 1 0 := by
   fun_prop (disch := lia)
 
 -- Second quantitative client of `streamFold_pair_sum` (via `foldl_bits_pair_stream_sum_spec`):
