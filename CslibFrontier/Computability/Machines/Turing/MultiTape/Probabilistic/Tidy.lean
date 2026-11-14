@@ -36,6 +36,8 @@ state, and maintains clean query buffers at phase boundaries.
 ## Main results
 
 * `Turing.MultiTapePTM.ComputesTidily.comp`: tidy sequential composition.
+* `Turing.MultiTapePTM.ComputesTidily.comp_encoded_of_le` and `.comp_encoded`: tidy sequential
+  composition through an injective encoding, without an executed decoder.
 * `Turing.MultiTapePTM.ComputesTidily.append`: tidy output concatenation.
 * `Turing.MultiTapePTM.ComputesTidily.ite`: tidy conditional execution.
 
@@ -71,27 +73,38 @@ noncomputable def tidyComp (tm₂ : MultiTapePTM k₂ Bool State₂ Operation)
     (((tm₂.extendTapes (Fin.castLEEmb (le_max_right k₁ k₂))).inputFromWord mark).seq
       (ofDeterministic ((clearWork Bool).extendTapes (tapeEmb (Fin.natAdd (max k₁ k₂) 0)))))
 
-/-- If `tm₁` computes `prog₁` tidily on `x` in `t₁` steps with outputs of length at most `l`, and
-`tm₂` computes `prog₂ w` tidily on every supported output `w` of `prog₁` in `t₂` steps, then
-`tm₂.tidyComp tm₁ mark` computes `prog₁ >>= prog₂` tidily on `x` in `t₁ + t₂ + 4 * l + 9` steps. -/
-theorem ComputesTidily.comp_of_le {tm₁ : MultiTapePTM k₁ Bool State₁ Operation}
+/-- Typed tidy sequential composition through an injective word encoding and a supplied encoded
+length bound. The first machine emits `encode a`, the second consumes that same word, and the proof
+retains `a` through the run law; no decoder or inverse callback is executed. -/
+theorem ComputesTidily.comp_encoded_of_le {Alpha : Type}
+    (encode : Alpha ↪ List Bool)
+    {tm₁ : MultiTapePTM k₁ Bool State₁ Operation}
     {tm₂ : MultiTapePTM k₂ Bool State₂ Operation} {t₁ t₂ l : ℕ}
-    {prog₁ : ProbOracleComp (fun _ : Operation × List Bool => List Bool) (List Bool)}
-    {prog₂ : List Bool → ProbOracleComp (fun _ : Operation × List Bool => List Bool) (List Bool)}
-    (mark : Bool) (h₁ : tm₁.ComputesTidily x t₁ prog₁)
+    {prog₁ : ProbOracleComp (fun _ : Operation × List Bool => List Bool) Alpha}
+    {prog₂ : Alpha → ProbOracleComp (fun _ : Operation × List Bool => List Bool) (List Bool)}
+    (mark : Bool) (h₁ : tm₁.ComputesTidily x t₁ (encode <$> prog₁))
     (hl : ∀ (OracleState : Type)
       (oracle : Operation × List Bool → StateT OracleState PMF (List Bool))
-      (s : OracleState) (w : List Bool) (s' : OracleState),
-      (w, s') ∈ (ProbOracleComp.runWith oracle prog₁ s).support → w.length ≤ l)
-    (h₂ : ∀ w (OracleState : Type)
+      (s : OracleState) (a : Alpha) (s' : OracleState),
+      (a, s') ∈ (ProbOracleComp.runWith oracle prog₁ s).support → (encode a).length ≤ l)
+    (h₂ : ∀ a (OracleState : Type)
       (oracle : Operation × List Bool → StateT OracleState PMF (List Bool))
       (s s' : OracleState),
-      (w, s') ∈ (ProbOracleComp.runWith oracle prog₁
-          s).support → tm₂.ComputesTidily w t₂ (prog₂ w)) :
+      (a, s') ∈ (ProbOracleComp.runWith oracle prog₁ s).support →
+        tm₂.ComputesTidily (encode a) t₂ (prog₂ a)) :
     (tm₂.tidyComp tm₁ mark).ComputesTidily x (t₁ + t₂ + 4 * l + 9) (prog₁ >>= prog₂) := by
   rw [computesTidily_iff_nil_output]
   let K := max k₁ k₂
   let A : Fin (K + 2) := Fin.natAdd K 0
+  have hlEncoded (OracleState : Type)
+      (oracle : Operation × List Bool → StateT OracleState PMF (List Bool))
+      (s : OracleState) (w : List Bool) (s' : OracleState)
+      (hw : (w, s') ∈ (ProbOracleComp.runWith oracle (encode <$> prog₁) s).support) :
+      w.length ≤ l := by
+    rw [ProbOracleComp.runWith_map] at hw
+    obtain ⟨⟨a, aState⟩, ha, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hw
+    rcases Prod.mk.inj heq with ⟨rfl, rfl⟩
+    exact hl OracleState oracle s a aState ha
   have hQ₁ (w : List Bool) :
       (fun l : Fin (K + 1 + 1) =>
         (MultiTapeTM.partialInv Fin.castSuccEmb l).elim ([] : List Bool)
@@ -109,47 +122,50 @@ theorem ComputesTidily.comp_of_le {tm₁ : MultiTapePTM k₁ Bool State₁ Opera
       simp [A, Function.update_apply, Fin.ext_iff]
   have hp₁ : ((tm₁.extendTapes (Fin.castLEEmb (le_max_left k₁ k₂))).outputToWord.extendTapes
       Fin.castSuccEmb).RunsWords x (fun _ => []) [] (t₁ + (l + 2)) prog₁
-      (fun w => Function.update (fun _ => []) A w) (fun _ => []) := by
+      (fun a => Function.update (fun _ => []) A (encode a)) (fun _ => []) := by
     have h₀ :=
-      ((h₁.extendTapes (Fin.castLEEmb (le_max_left k₁ k₂))).outputToWord_of_le hl []).extendTapes
-        (ws₀ := fun _ => []) Fin.castSuccEmb
+      ((h₁.extendTapes
+        (Fin.castLEEmb (le_max_left k₁ k₂))).outputToWord_of_le hlEncoded []).extendTapes
+          (ws₀ := fun _ => []) Fin.castSuccEmb
+    have htyped := h₀.of_mapped_program encode
     rw [← funext hQ₁]
-    exact h₀
+    exact htyped
   have hinj₁ : Function.Injective
-      (fun w : List Bool => (Function.update (fun _ => []) A w, ([] : List Bool))) := by
-    intro w₁ w₂ heq
+      (fun a : Alpha =>
+        (Function.update (fun _ => []) A (encode a), ([] : List Bool))) := by
+    intro a₁ a₂ heq
     have hfun := congrFun (congrArg Prod.fst heq) A
-    simpa only [Function.update_self] using hfun
-  have hp₂₃ : ∀ w (OracleState : Type)
+    exact encode.injective (by simpa only [Function.update_self] using hfun)
+  have hp₂₃ : ∀ a (OracleState : Type)
       (oracle : Operation × List Bool → StateT OracleState PMF (List Bool))
       (s s' : OracleState),
-      (w, s') ∈ (ProbOracleComp.runWith oracle prog₁ s).support →
+      (a, s') ∈ (ProbOracleComp.runWith oracle prog₁ s).support →
       (((tm₂.extendTapes (Fin.castLEEmb (le_max_right k₁ k₂))).inputFromWord mark).seq
         (ofDeterministic ((clearWork Bool).extendTapes (tapeEmb A)))).RunsWords
-        x (Function.update (fun _ => []) A w) ([] ++ []) ((t₂ + 4) + 3 * (l + 1))
-        (prog₂ w) (fun _ _ => []) id := by
-    intro w OracleState oracle s s' hw
-    have hwlen := hl OracleState oracle s w s' hw
+        x (Function.update (fun _ => []) A (encode a)) ([] ++ []) ((t₂ + 4) + 3 * (l + 1))
+        (prog₂ a) (fun _ _ => []) id := by
+    intro a OracleState oracle s s' ha
+    have halen := hl OracleState oracle s a s' ha
     have hp₂ : ((tm₂.extendTapes (Fin.castLEEmb (le_max_right k₁ k₂))).inputFromWord mark).RunsWords
-        x (Function.update (fun _ => []) A w) [] (t₂ + 4) (prog₂ w)
-        (fun _ => Function.update (fun _ => []) A w) id := by
-      have h₀ := (((h₂ w OracleState oracle s s' hw).extendTapes
+        x (Function.update (fun _ => []) A (encode a)) [] (t₂ + 4) (prog₂ a)
+        (fun _ => Function.update (fun _ => []) A (encode a)) id := by
+      have h₀ := (((h₂ a OracleState oracle s s' ha).extendTapes
         (Fin.castLEEmb (le_max_right k₁ k₂))) []).inputFromWord (x := x) mark
       simpa only [append_nil_eq_update] using h₀
     have hinj₂ : Function.Injective
-        (fun y : List Bool => (Function.update (fun _ => []) A w, id y)) :=
+        (fun y : List Bool => (Function.update (fun _ => []) A (encode a), id y)) :=
       fun _ _ heq => congrArg Prod.snd heq
     have hp₃ : ∀ y (OracleState' : Type)
         (oracle' : Operation × List Bool → StateT OracleState' PMF (List Bool))
         (s₀ s₁ : OracleState'),
-        (y, s₁) ∈ (ProbOracleComp.runWith oracle' (prog₂ w) s₀).support →
+        (y, s₁) ∈ (ProbOracleComp.runWith oracle' (prog₂ a) s₀).support →
         (ofDeterministic (Oracle := Operation)
           ((clearWork Bool).extendTapes (tapeEmb A))).RunsWords
-          x (Function.update (fun _ => []) A w) ([] ++ id y) (3 * (l + 1)) (pure ())
+          x (Function.update (fun _ => []) A (encode a)) ([] ++ id y) (3 * (l + 1)) (pure ())
           (fun _ _ => []) (fun _ => []) := by
       intro y _ _ _ _ _
       exact (RunsWords.of_transformsTapes (Operation := Operation) (out₀ := [] ++ id y)
-        (transformsTapes_clearWork_only A w) rfl (fun _ _ hQ => hQ)).mono
+        (transformsTapes_clearWork_only A (encode a)) rfl (fun _ _ hQ => hQ)).mono
         (time' := 3 * (l + 1)) (by omega)
     have hseq := hp₂.seq_pure_right hinj₂ hp₃
     have happend : (fun a : List Bool => id a ++ []) = id := by
@@ -163,6 +179,32 @@ theorem ComputesTidily.comp_of_le {tm₁ : MultiTapePTM k₁ Bool State₁ Opera
     simp only [map_bind, Functor.map_map, hid, id_map]
   rw [hbind] at hseq
   exact hseq.mono (by omega)
+
+/-- If `tm₁` computes `prog₁` tidily on `x` in `t₁` steps with outputs of length at most `l`, and
+`tm₂` computes `prog₂ w` tidily on every supported output `w` of `prog₁` in `t₂` steps, then
+`tm₂.tidyComp tm₁ mark` computes `prog₁ >>= prog₂` tidily on `x` in `t₁ + t₂ + 4 * l + 9` steps. -/
+theorem ComputesTidily.comp_of_le {tm₁ : MultiTapePTM k₁ Bool State₁ Operation}
+    {tm₂ : MultiTapePTM k₂ Bool State₂ Operation} {t₁ t₂ l : ℕ}
+    {prog₁ : ProbOracleComp (fun _ : Operation × List Bool => List Bool) (List Bool)}
+    {prog₂ : List Bool → ProbOracleComp (fun _ : Operation × List Bool => List Bool) (List Bool)}
+    (mark : Bool) (h₁ : tm₁.ComputesTidily x t₁ prog₁)
+    (hl : ∀ (OracleState : Type)
+      (oracle : Operation × List Bool → StateT OracleState PMF (List Bool))
+      (s : OracleState) (w : List Bool) (s' : OracleState),
+      (w, s') ∈ (ProbOracleComp.runWith oracle prog₁ s).support → w.length ≤ l)
+    (h₂ : ∀ w (OracleState : Type)
+      (oracle : Operation × List Bool → StateT OracleState PMF (List Bool))
+      (s s' : OracleState),
+      (w, s') ∈ (ProbOracleComp.runWith oracle prog₁ s).support →
+        tm₂.ComputesTidily w t₂ (prog₂ w)) :
+    (tm₂.tidyComp tm₁ mark).ComputesTidily x (t₁ + t₂ + 4 * l + 9) (prog₁ >>= prog₂) := by
+  have h₁' : tm₁.ComputesTidily x t₁ (encBits <$> prog₁) := by
+    simpa only [encBits_apply, id_map] using h₁
+  exact ComputesTidily.comp_encoded_of_le encBits mark h₁'
+    (fun OracleState oracle s w s' hw => by
+      simpa only [encBits_apply] using hl OracleState oracle s w s' hw)
+    (fun w OracleState oracle s s' hw => by
+      simpa only [encBits_apply] using h₂ w OracleState oracle s s' hw)
 
 /-- Unconditional tidy sequential composition using `h₁.length_output_le`. -/
 theorem ComputesTidily.comp {tm₁ : MultiTapePTM k₁ Bool State₁ Operation}
@@ -178,6 +220,30 @@ theorem ComputesTidily.comp {tm₁ : MultiTapePTM k₁ Bool State₁ Operation}
     (tm₂.tidyComp tm₁ mark).ComputesTidily x (5 * t₁ + t₂ + 9) (prog₁ >>= prog₂) := by
   exact (h₁.comp_of_le mark (fun _ oracle s _ _ hw => h₁.length_output_le oracle s hw) h₂).mono
     (by omega)
+
+/-- Unconditional typed tidy sequential composition using `h₁.length_output_le`. -/
+theorem ComputesTidily.comp_encoded {Alpha : Type}
+    {tm₁ : MultiTapePTM k₁ Bool State₁ Operation}
+    {tm₂ : MultiTapePTM k₂ Bool State₂ Operation} {t₁ t₂ : ℕ}
+    (encode : Alpha ↪ List Bool)
+    {prog₁ : ProbOracleComp (fun _ : Operation × List Bool => List Bool) Alpha}
+    {prog₂ : Alpha → ProbOracleComp (fun _ : Operation × List Bool => List Bool) (List Bool)}
+    (mark : Bool) (h₁ : tm₁.ComputesTidily x t₁ (encode <$> prog₁))
+    (h₂ : ∀ a (OracleState : Type)
+      (oracle : Operation × List Bool → StateT OracleState PMF (List Bool))
+      (s s' : OracleState),
+      (a, s') ∈ (ProbOracleComp.runWith oracle prog₁ s).support →
+        tm₂.ComputesTidily (encode a) t₂ (prog₂ a)) :
+    (tm₂.tidyComp tm₁ mark).ComputesTidily x (5 * t₁ + t₂ + 9) (prog₁ >>= prog₂) := by
+  have hl (OracleState : Type)
+      (oracle : Operation × List Bool → StateT OracleState PMF (List Bool))
+      (s : OracleState) (a : Alpha) (s' : OracleState)
+      (ha : (a, s') ∈ (ProbOracleComp.runWith oracle prog₁ s).support) :
+      (encode a).length ≤ t₁ := by
+    apply h₁.length_output_le oracle s
+    rw [ProbOracleComp.runWith_map]
+    exact (PMF.mem_support_map_iff _ _ _).mpr ⟨(a, s'), ha, rfl⟩
+  exact (ComputesTidily.comp_encoded_of_le encode mark h₁ hl h₂).mono (by omega)
 
 /-- Run `tm₁` and then `tm₂` on the same input, both padded to `max k₁ k₂` work tapes. -/
 def appendPTM (tm₁ : MultiTapePTM k₁ Bool State₁ Operation)

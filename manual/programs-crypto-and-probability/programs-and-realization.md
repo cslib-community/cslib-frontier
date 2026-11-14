@@ -105,6 +105,62 @@ map, or a PPT/QROM certificate. The complete
 [`OracleDescription.lean` client](../../CslibFrontierTests/OracleDescription.lean) separately runs
 one fixed logging handler and checks adaptive queries, zero clock and malformed-tag boundaries.
 
+The internal
+[`NativeOracleProgram`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/NativeOracleProgram.lean)
+retains an actual Boolean `MultiTapePTM`, an explicit finite-control encoding and the resulting
+first-order `Desc`; its `staticBits` is exactly that artifact's `descLen`. Its explicit installed
+inventory is the singleton final composed description, so controls inlined by preprocessing,
+dispatch, sequencing or iteration are not charged again as component artifacts.
+[`NativeOracleProgram/Static`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/NativeOracleProgram/Static.lean)
+exposes the construction's tape and channel counts, finite-state cardinality and tag count, exact
+exhaustive observation-row count, and maximum encoded row length. The generated table has exactly
+`|State| * 3 * 3^k * 3^r` rows, and `staticBits_le_staticBitsBound` bounds the complete encoded
+description from those coordinates. Its family theorem requires the exhaustive row schedule and
+maximum row size themselves to be polynomially bounded. Polynomial `k` and `r` do not establish
+that premise because the table is exponential in `k + r`; the supplied corollary covers fixed tape
+and channel counts. Thus asymptotic applications with growing channels need a different succinct
+representation or a separate row-schedule proof, while concrete fixed-parameter instances use the
+exact finite coordinates directly.
+`staticBitsCopies n` is only conditional multiplication for a caller-supplied copy count; it does
+not discover an inventory or prove physical distinctness. A separately installed compiler or
+service needs its own inventory entry. The online clock is the sum of separate input/output-copy,
+parsing, codec, word-marshalling, operation-tag, finite-dispatch, table-lookup, local-step,
+query-issue, reply-copy and controller coordinates; ordinary workspace is their peak. The generic
+record certifies only this aggregate sum and peak, while each retained constructor derives its
+displayed split from its actual submachines and exact combinator overhead. Query buffers, answer
+words that remain in channels and the external handler's private state are not ordinary work-tape
+storage, but copying a reply prefix onto work storage must be charged. Exact encoded input and
+emitted-output lengths remain separate from both runtime and static size. Named deterministic
+pre/postprocessing, fair-bit,
+fixed-operation bounded-prefix query, finite dispatch, captured-input sequencing and bounded
+iteration retain their concrete composed machines and explicit control encodings. `encodedOutput`
+reinterprets an already encoded typed result as a raw word without changing the machine,
+accounting or installed description. `ofCompiler` retains a deterministic phase as an open artifact
+without adding a dummy coin or query. Classified deterministic composition and pairing preserve the
+child phase records, charge their exact wrapper clocks to marshalling and add only the composed
+compiler workspace formula and generic clock floor. Postprocessing, dispatch and captured-input
+sequencing accept arbitrary encoded result types; their machines pass the injective encodings
+directly while the proof retains the typed values, so no inverse decoder is executed. The typed
+input-indexed iteration certificate changes its semantics and clock with runtime fuel while its
+installed `iterateWhile` machine and description stay fixed. Its per-round accounting multiplies
+each phase time by the charged round count while preserving each nonzero body phase workspace as a
+peak; only actual loop scaffolding and the generic clock floor are added to the controller. Its
+supplied total decoder is used only in the proof that reachable raw words are encodings; no decoder
+callback is executed, and the body artifact must charge its own parsing and encoding. Runtime
+operation decoding and malformed-tag rejection belong to a concrete controller using those
+constructors, not to a free callback. An offline compiler is a separate
+`NativeCompiler`: its time and workspace are paid only if it runs, while its encoded result has a
+separate emitted-output size. Installing that result would create a distinct charged occurrence. The
+[`NativeOracleProgram` client](../../CslibFrontierTests/Machines/Turing/MultiTape/Internal/NativeOracleProgram.lean)
+builds an actual captured-input machine from two different fixed-operation artifacts, makes the
+second request depend on the first reply, and checks the joint result/final-state law against a
+nonconstant stateful handler. A zero phase entry means that the artifact does not perform that
+phase, not that a later client gets it for free: the fixed-operation primitive has no tag decoder,
+dispatcher or universal interpreter. The specialized fixed-`r` controller must retain and charge
+those components. Replacing the abstract handler by a concrete service likewise requires a
+separate certificate for that service's stored code, codecs, time and workspace; the open witness
+deliberately does not infer those costs from semantic handler calls.
+
 For explicit concrete step and query schedules on word-oracle programs, import [Computability/Probabilistic/Oracle/Time.lean](../../CslibFrontier/Computability/Probabilistic/Oracle/Time.lean). `ComputesOracleInTimeOn input output t program` (and parameterized `ComputesOracleInTime`) requires one finite-control oracle machine that matches the joint output and external-state law under `ProbOracleComp.runWith` across all shared stateful handlers within `t a` steps and has actually halted (`final.1.tapes.state = none`) on every supported execution at step `t a`. Actual halting gives unconditional step monotonicity (`ComputesOracleInTimeOn.mono`); `ComputesOracleInTimeOn.query_bounds` shows that every `t a`-step execution makes at most `t a` external queries of payload length at most `t a`, while `ComputesOracleInTimeAndQueriesOn` and `ComputesOracleInTimeAndQueries` track a separate query budget `q` alongside `t` when `q` is much smaller than the step count. Plain deterministic computations (`ComputableInTimeAndSpace.computesOracleInTimeOn`) and closed halting programs (`ComputesInTimeOn.computesOracleInTimeOn`, `ComputesOracleInTimeOn.computesInTimeOn`) lift without step overhead, `query_take_pair` and `query_take` give explicit linear step bounds for bounded-prefix oracle calls, and buffered closed/open compositions (`bind_sample_left`, `bind_sample_right`, `preprocess`, `map`) charge `2 * t₁ a + t₂' a + 4` steps while preserving external query budgets. `isOraclePPTOn_iff_exists_polyBounded_computesOracleInTimeOn` and `isOraclePPT_iff_exists_polyBounded_computesOracleInTime` connect these explicit-time predicates back to `IsOraclePPTOn` and `IsOraclePPT`, with stateful execution and round-trip checks in [CslibFrontierTests/Crypto/ConcreteSecurity.lean](../../CslibFrontierTests/Crypto/ConcreteSecurity.lean).
 
 [CslibFrontier/Computability/Probabilistic/Oracle/Substitution.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/Probabilistic/Oracle/Substitution.lean) closes an efficient open program under efficient stateful oracle replacement. The principal endpoint `IsOraclePPTOn.run_interpret_preprocess_open` includes an invariant and controlled growth of replies and encoded handler state. Merely saying that each call is polynomial time would permit iterated state doubling and does not imply a polynomial total run. The underlying [CslibFrontier/Computability/Probabilistic/Realization/OpenOracleSimulation.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/Probabilistic/Realization/OpenOracleSimulation.lean) supplies a machine-configuration simulation; the public theorem is supported by that realization.

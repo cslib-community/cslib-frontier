@@ -39,6 +39,8 @@ oracle state.
 * `Turing.MultiTapePTM.RunsWords.law_bind`: the law of a run composed of two phases, from the
   law of each phase, when the first phase's tapes determine its program value.
 * `Turing.MultiTapePTM.RunsWords.seq_bind`: sequence two `RunsWords` phases.
+* `Turing.MultiTapePTM.RunsWords.of_mapped_program`: retain a typed program result when its
+  encoding is already described by the output law.
 * `Turing.MultiTapePTM.RunsWords.of_nil_output`: an initial output prefix is retained automatically.
 * `Turing.MultiTapePTM.RunsWords.of_first_step_mapState`: lift a `RunsWords` specification across a
   deterministic first-step dispatch into a state-mapped submachine.
@@ -295,6 +297,17 @@ theorem congr (h : machine.RunsWords x ws₀ out₀ time program ws₁ emit)
 theorem of_map (f : α → β) (ws₁' : β → Fin k → List Bool) (emit' : β → List Bool)
     (h : machine.RunsWords x ws₀ out₀ time program (fun a => ws₁' (f a)) (fun a => emit' (f a))) :
     machine.RunsWords x ws₀ out₀ time (f <$> program) ws₁' emit' := by
+  intro OracleState oracle s cfg htapes hbuf
+  obtain ⟨hlaw, hclean⟩ := h OracleState oracle s cfg htapes hbuf
+  refine ⟨?_, hclean⟩
+  rw [hlaw, ProbOracleComp.runWith_map, PMF.map_comp]
+  rfl
+
+/-- Reinterpret a mapped program law as its typed source law, moving the result map into the tape
+and output maps. This is a semantic refactoring of the same run, not an executed decoder. -/
+theorem of_mapped_program (f : α → β)
+    (h : machine.RunsWords x ws₀ out₀ time (f <$> program) ws₁ emit) :
+    machine.RunsWords x ws₀ out₀ time program (fun a => ws₁ (f a)) (fun a => emit (f a)) := by
   intro OracleState oracle s cfg htapes hbuf
   obtain ⟨hlaw, hclean⟩ := h OracleState oracle s cfg htapes hbuf
   refine ⟨?_, hclean⟩
