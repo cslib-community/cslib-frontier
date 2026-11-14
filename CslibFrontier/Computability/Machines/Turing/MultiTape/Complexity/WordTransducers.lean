@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Unary
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Option
+public import Mathlib.Tactic.FunProp
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Transducer
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Reverse
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.WordMachines
@@ -23,6 +24,8 @@ arbitrarily long word with zero workspace. Last-bit outputs have independent con
 public section
 namespace Turing.MultiTapeTM
 open Internal.WordMachines
+
+attribute [fun_prop] ComputableInTimeAndSpace
 
 /-- Exact time and zero workspace for this word operation. -/
 @[fun_prop]
