@@ -2,6 +2,13 @@
 
 [Chapter index](index.md) · [Model map](../model-map.md)
 
+The deterministic and probabilistic iterate-while constructions share
+[`IterateWhileLayout`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Combinators/IterateWhileLayout.lean).
+Its `Turing.MultiTapeTM.IterateWhile` namespace provides the current, next and flag tapes,
+the copy and emit embeddings, and alphabet-polymorphic intermediate word layouts.
+Reuse these helpers when proving phase transitions; choice semantics and machine resource
+proofs remain in their respective constructions.
+
 ## Configuration and uniformity
 
 The underlying native configuration is cslib's [Turing.Cfg](https://github.com/leanprover/cslib/blob/254e30e6d4299c51323aaeaf5f51a4763b375d4a/Cslib/Computability/Machines/Turing/MultiTape/Configuration.lean#L97). Its input is a fixed list; the input head lies in `Fin (input.length + 2)`, with one blank boundary position on each side. Movement clamps at the boundaries. Each work tape is a function from integer positions to optional symbols, with an integer head. Output is a list to which a transition can append at most one symbol. Input is read-only and output is not readable. The action simultaneously chooses each work-tape write/move, input movement, optional output, and next optional control state. `none` in the control state denotes halting. [cslib][cslib]
@@ -95,6 +102,14 @@ The definitions and the documented reason for the output charge are in [Resource
 [Degree.BitString](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/Degree/BitString.lean) certifies linear conversion between raw words (`encBits`) and the existing framed Boolean-list encoding (`encList encBool`). Its [Cut module](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/Degree/BitString/Cut.lean) composes those streaming conversions with the existing unary list cutters. `ComputableInDegree.bitsTake` and `bitsDrop` charge the complete raw word and unary count, including empty words and counts beyond their length. Existing plain polynomial wrappers now reuse these stronger certificates. The [adaptive-game tape client](../../CslibFrontierTests/Crypto/LeveledTapePartition.lean) certifies its actual choose/encrypt/guess partition in time and output-charged workspace `O(tape.length + chooseCoins + encCoins + 1)`; callback execution and the complete reduction clock remain separate obligations.
 
 `FTIME` is the corresponding function-time class with explicit input and output encodings and affine time `c₁ t(n) + c₂`; its workspace has an arbitrary length-dependent bound. It adds no output charge beyond the time required to write the output. [FTIME](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/Complexity/Classes/FunctionTime.lean#L46) `DTIME`, `NTIME`, `BPTIME`, `DSPACE` and `NSPACE` attach affine bounds to the relevant machine predicates; `P`, `NP`, `BPP`, `L`, `NL`, `PSPACE`, `NPSPACE`, `E`, `NE`, `EXP` and `NEXP` derive familiar bound families.
+
+For prefixes and suffixes of computed framed lists, import
+[`PolyTime.Captured`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/PolyTime/Captured.lean)
+and apply `ComputableInPolyTime.listTakeWithInput` or `listDropWithInput`
+to the list certificate and the unary count certificate.
+The list may use binary element encodings while its count uses `encUnary`.
+The [clique grouping reduction](../../CslibFrontier/Computability/Complexity/FineGrained/CliqueGrouping.lean)
+composes these rules directly to select a block of clauses, without local slicing wrappers.
 
 ## Fair-coin efficiency
 

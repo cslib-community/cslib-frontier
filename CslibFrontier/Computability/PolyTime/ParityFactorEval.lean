@@ -16,9 +16,11 @@ public import CslibFrontier.Computability.PolyTime.JetArray
 public import CslibFrontier.Foundations.BooleanAnalysis.SparseEquations
 public import CslibFrontier.Foundations.Data.Polynomial.CoeffList
 public import Mathlib.Algebra.Field.Rat
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Iteration
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Max
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Foundations.Data.Int.Order
@@ -1042,8 +1044,7 @@ theorem polyNorm1_le_two_pow_encList (l : List ℤ) :
     (hq : ComputableInPolyTime q encIn (encList encIntBin)) :
     ComputableInPolyTime (fun x => polyAdd (p x) (q x)) encIn (encList encIntBin) := by
   have hp1 := fst encIn encUnary; have hi := snd encIn encUnary
-  exact mapWithInput (range.comp' ((of_tidy ComputableTidilyInPolyTime.unary_max).comp'
-      ((length_listIntBin hp).prod (length_listIntBin hq))))
+  exact mapWithInput (range.comp' (unary_max' (length_listIntBin hp) (length_listIntBin hq)))
     (intBin_add' (listGetDWithInput (hp.comp' hp1) hi 0) (listGetDWithInput (hq.comp' hp1) hi 0))
 
 /-- Polynomial-time certificate for `cauchyCoeff`. -/
@@ -1123,8 +1124,8 @@ private theorem taylorInvOneSubPow_polytime {ℓ : α → ℕ}
   have hstep : ComputableInPolyTime ParityFactorEval.prefixSumPoly
       (encList encIntBin) (encList encIntBin) :=
     mapWithInput (range.comp' (length_listIntBin id'))
-      (intBin_sum.comp (of_tidy (ComputableTidilyInPolyTime.listTakeWithInput (fst _ _).tidy
-        (unary_add' (snd _ _) (const 1)).tidy)))
+      (intBin_sum.comp (listTakeWithInput (fst _ _)
+        (unary_add' (snd _ _) (const 1))))
   let bound (k : ℕ) : ℕ := k * (4 * k + 5)
   have hpoly : PolyBounded (fun x => (encIn x).length) (fun x => bound (ℓ x)) := by growth_poly
   refine (iterate hcnt hinit hstep hpoly fun x i hi => ?_).of_enc_eq fun _ => rfl
