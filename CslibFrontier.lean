@@ -4782,6 +4782,7 @@ public import CslibFrontier.Crypto.Protocols.FAEST.Challenge
 public import CslibFrontier.Crypto.Protocols.FAEST.Conversion
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Bot
+public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Correctness
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.NoCheck
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.NotBot
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.NotBot.Challenge
@@ -4790,6 +4791,7 @@ public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.NotBot.Fallback
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.NotBot.Hybrids
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.NotBot.Lazy
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.NotBot.Pushforward
+public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Salted.Correctness
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Security
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.SpreadNecessity
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Word
