@@ -468,10 +468,21 @@ noncomputable def encryptLWEErrorLaw {m l q : ℕ} [NeZero q]
       (Probability.PMF.pi (fun _ : Fin Q => E)).bind fun eQ =>
         PMF.pure (joinRows w e₀ eQ)
 
+/-- With a uniform source and uniform encryption errors, the combined error law of
+`encryptLWEErrorLaw` is uniform on all `m + (Q + 1) * l` rows. Together with
+`LWE.advantage_uniform_error_eq_zero`, this shows that the right-hand side of
+`strongReuseAdvantage_lweEncryptFuzzyExtractor_le` can be `0`. -/
+theorem encryptLWEErrorLaw_uniform (Q : ℕ) :
+    encryptLWEErrorLaw (PMF.uniformOfFintype (Fin m → ZMod q))
+        (PMF.uniformOfFintype (Fin l → ZMod q)) Q =
+      PMF.uniformOfFintype (Fin (m + (Q + 1) * l) → ZMod q) := by
+  rw [encryptLWEErrorLaw, Probability.PMF.pi_uniformOfFintype,
+    ← uniform_bind_splitRows PMF.pure, PMF.bind_pure]
+
 /-- Simulate `qRem` shift queries of a strong-reusability adversary `adv` using pre-allocated
-`l`-row LWE blocks `(B_k, b_k)` ([AponChoEldefrawyKatz2017], Section 5, lines 601–607):
-on shift `δ`, clamp `δ` to weight `≤ t`, sample fresh uniform `s' : Fin n → ZMod q` and key
-`r_i : Fin l → Bool`, form `c_i = c* + A s' + clampShift t δ` and
+`l`-row LWE blocks `(B_k, b_k)` ([AponChoEldefrawyKatz2017], Section 5, step 2 of the
+simulation on p. 12): on shift `δ`, clamp `δ` to weight `≤ t`, sample fresh uniform
+`s' : Fin n → ZMod q` and key `r_i : Fin l → Bool`, form `c_i = c* + A s' + clampShift t δ` and
 `h_i = b_k + B_k s' + encodeHalfBits q r_i`, and pass `(⟨c_i, B_k, h_i⟩, r_i)` to
 `adv.observe`. The simulator never sees `s`, `w*`, or the LWE errors. -/
 noncomputable def encryptSimQueryLoop {m n l q : ℕ} [NeZero q] {St : Type}
@@ -495,7 +506,7 @@ noncomputable def encryptSimQueryLoop {m n l q : ℕ} [NeZero q] {St : Type}
     let st'' ← adv.observe st' (⟨c_i, B₀, h_i⟩, r_i)
     encryptSimQueryLoop t A cStar adv qRem (Fin.tail B_vec) (Fin.tail b_vec) st''
 
-/-- The real-key LWE reduction of [AponChoEldefrawyKatz2017], Section 5 (lines 594–608):
+/-- The real-key LWE reduction of [AponChoEldefrawyKatz2017], Section 5 (simulation on p. 12):
 given an `(m + (Q + 1) * l)`-row LWE instance `(M, b)`, extract:
 * `(A, c*) = (headMatrixRows M, headRows b)` for the public matrix and challenge code-offset vector,
 * `(B, b₁) = (challengeMatrixRows M, challengeRows b)` for the challenge encryption,
@@ -519,7 +530,7 @@ noncomputable def encryptRealReduction {m n l q : ℕ} [NeZero q] {St : Type}
   let st ← encryptSimQueryLoop t A cStar adv Q (queryMatrixRows M) (queryRows b) st₀
   adv.guess st rStar
 
-/-- The ideal-key LWE reduction of [AponChoEldefrawyKatz2017], Section 5 (lines 594–615):
+/-- The ideal-key LWE reduction of [AponChoEldefrawyKatz2017], Section 5 (simulation on p. 12):
 as `encryptRealReduction`, except `adv.guess` receives an independent uniform key
 `u ← ProbComp.uniform (Fin l → Bool)` in place of `r*`. -/
 noncomputable def encryptIdealReduction {m n l q : ℕ} [NeZero q] {St : Type}
@@ -813,7 +824,7 @@ private theorem uniform_mask_encodeHalfBits_eq {l q : ℕ} [NeZero q] {St α : T
 and independent of the rest of the challenge, so `h* = b₁ + encodeHalfBits q r*` information-
 theoretically hides `r*`. Consequently, `encryptRealReduction` and `encryptIdealReduction`
 induce the exact same random-world distribution ([AponChoEldefrawyKatz2017], Section 5,
-lines 597–605). -/
+p. 12). -/
 theorem randomGame_encryptRealReduction_eq_ideal {St : Type}
     (t Q : ℕ)
     (adv : StrongReuseAdversary (Matrix (Fin m) (Fin n) (ZMod q)) m q

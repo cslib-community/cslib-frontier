@@ -47,7 +47,7 @@ the `Q`-query weak-reuse advantage equals the single-enrollment `securityAdvanta
 `lweFuzzyExtractor` against an explicit simulator `commonMatrixSimulator t Q adv` that answers
 each shift `δ` with `c* + A s' + δ` for a fresh uniform secret `s'`. Combining this identity with
 `securityAdvantage_lweFuzzyExtractor_le` bounds the weak-reuse advantage by two decisional LWE
-advantages with no hypotheses. Finally, we formalize the observation of Section 3.3 (lines 471–476
+advantages with no hypotheses. Finally, we formalize the observation of Section 3.3 (p. 10
 of ePrint 2017/755) that `commonMatrixFuzzyExtractor` is not strongly reusable: a 1-query strong
 reuse attacker (`commonMatrixStrongAttack`) querying `δ = 0` decodes `c* - c₁ = A (s* - s₁)` and
 adds `r₁` to recover `r*` with probability `1` whenever the decoder is correct.
@@ -764,11 +764,11 @@ theorem weaklyReusableFor_commonMatrixFuzzyExtractor
   rw [two_mul]
   exact add_le_add (hlwe W hW _) (hlwe W hW _)
 
-/-! ### Section 3.3 (lines 471–476): Non-strong-reusability of common-matrix FMR -/
+/-! ### Section 3.3 (p. 10): Non-strong-reusability of common-matrix FMR -/
 
 omit [NeZero q] in
 /-- Deterministic key recovery from one zero-shift enrollment in `commonMatrixFuzzyExtractor`
-([AponChoEldefrawyKatz2017], Section 3.3, lines 471–476): if `c* = A s* + w*` and `c₁ = A s₁ + w*`
+([AponChoEldefrawyKatz2017], Section 3.3, p. 10): if `c* = A s* + w*` and `c₁ = A s₁ + w*`
 share the same matrix `A` and reading `w*`, then `c* - c₁ = A (s* - s₁)` has zero residual error,
 and adding `r₁ = (s₁)_{1..k}` to the first `k` coordinates of `s* - s₁` recovers the challenge key
 `r* = (s*)_{1..k}`. -/
@@ -794,7 +794,7 @@ structure CommonMatrixAttackState (m k l q : ℕ) where
   recoveredKey : Fin k → ZMod q
 
 /-- The 1-query strong-reusability attacker against `commonMatrixFuzzyExtractor`
-([AponChoEldefrawyKatz2017], Section 3.3, lines 471–476): it queries shift `δ = 0`, receives
+([AponChoEldefrawyKatz2017], Section 3.3, p. 10): it queries shift `δ = 0`, receives
 `(c₁, r₁)`, runs `decode A (c* - c₁)` to recover `Δs = s* - s₁`, sets its candidate key to
 `(Δs)_{1..k} + r₁`, and checks whether the challenge key equals this recovered key. -/
 noncomputable def commonMatrixStrongAttack

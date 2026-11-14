@@ -26,6 +26,9 @@ separating negative fixture
 has distinguishing advantage `1 / 2` on a uniform 1-bit source. The asymptotic theorem
 `computationallySecure_lweFuzzyExtractor` is applied to the uniform source, for which its LWE
 premise holds unconditionally, and to independent-coordinate sources under `DecisionLWE`.
+The reusable-extractor tests check the common-matrix scheme and its strong-reuse attack, that both
+correctness hypotheses of the Section 5 scheme are satisfiable, and that its strong-reuse bound is
+attained (advantage `0`) for a uniform source and uniform encryption errors.
 -/
 
 public section
@@ -278,5 +281,48 @@ example
       LWE.advantage (PMF.uniformOfFintype (Fin 2 → ZMod 16))
         (encryptLWEErrorLaw W (ProbComp.eval E) Q) (encryptIdealReduction t Q adv) :=
   strongReuseAdvantage_lweEncryptFuzzyExtractor_le E decode W t Q adv
+
+/-! ### Section 5: the hypotheses are satisfiable and the bound can be attained -/
+
+/-- A decoder in secret dimension `0`: it always returns the unique secret. -/
+def trivialDecode {m q : ℕ} (_ : Matrix (Fin m) (Fin 0) (ZMod q)) (_ : Fin m → ZMod q) :
+    ProbComp (Option (Fin 0 → ZMod q)) :=
+  return some 0
+
+/-- `trivialDecode` satisfies `DecoderCorrect` at every distance threshold `t`. -/
+theorem decoderCorrect_trivialDecode (m q t : ℕ) :
+    DecoderCorrect (trivialDecode (m := m) (q := q)) t := by
+  intro A s e _ sOpt hsOpt
+  simp only [trivialDecode, ProbComp.eval_pure, PMF.mem_support_pure_iff] at hsOpt
+  rw [hsOpt, Subsingleton.elim (0 : Fin 0 → ZMod q) s]
+
+/-- Both hypotheses of `lweEncryptFuzzyExtractor_correctHamming` hold for `trivialDecode` and the
+zero encryption error at `q = 16`, so the Section 5 scheme is `t`-correct for every `t`: the
+threshold decryption recovers the full 2-bit key. -/
+example (A : Matrix (Fin 4) (Fin 0) (ZMod 16)) (t : ℕ) :
+    (lweEncryptFuzzyExtractor 4 0 2 16 (return 0) trivialDecode A).CorrectHamming t := by
+  refine lweEncryptFuzzyExtractor_correctHamming (decoderCorrect_trivialDecode 4 16 t) ?_ A
+  intro e he i
+  simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at he
+  subst he
+  simp
+
+/-- With a uniform source and uniform encryption errors, both LWE advantages in
+`strongReuseAdvantage_lweEncryptFuzzyExtractor_le` vanish, so every strong-reusability adversary
+has advantage exactly `0`: the bound is attained, not vacuous. -/
+example
+    (decode : Matrix (Fin 4) (Fin 2) (ZMod 16) → (Fin 4 → ZMod 16) →
+      ProbComp (Option (Fin 2 → ZMod 16)))
+    (t Q : ℕ) (St : Type)
+    (adv : StrongReuseAdversary (Matrix (Fin 4) (Fin 2) (ZMod 16)) 4 16
+      (Fin 2 → Bool) (EncryptHelper 4 2 2 16) St) :
+    strongReuseAdvantage (PMF.uniformOfFintype (Matrix (Fin 4) (Fin 2) (ZMod 16)))
+      (lweEncryptFuzzyExtractor 4 2 2 16 (ProbComp.uniform (Fin 2 → ZMod 16)) decode)
+      (PMF.uniformOfFintype (Fin 4 → ZMod 16)) t Q adv = 0 := by
+  have h := strongReuseAdvantage_lweEncryptFuzzyExtractor_le
+    (ProbComp.uniform (Fin 2 → ZMod 16)) decode (PMF.uniformOfFintype (Fin 4 → ZMod 16)) t Q adv
+  rw [ProbComp.eval_uniform, encryptLWEErrorLaw_uniform, LWE.advantage_uniform_error_eq_zero,
+    LWE.advantage_uniform_error_eq_zero, add_zero] at h
+  exact le_antisymm h zero_le
 
 end CslibFrontierTests.Crypto.Computational.FuzzyExtractorTest
