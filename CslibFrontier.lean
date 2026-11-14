@@ -3535,6 +3535,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.Dec
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DecoderWordMachines
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DegreeClosure
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DegreeComposition
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DegreeLifts
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DegreeOptionPrimitives
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DegreePrimitives
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DegreeUnaryPrimitives
