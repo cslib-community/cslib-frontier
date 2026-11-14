@@ -128,8 +128,7 @@ def splitWordBatchReduction :
   offset := 0
   computableInPolyTime_toBatch := by
     have htake : ComputableInPolyTime (fun w : List Bool => w.take 1) encBits encBits :=
-      ComputableInPolyTime.bitsTake.comp
-        (ComputableInPolyTime.id'.prod (.const 1))
+      ComputableInPolyTime.bitsTakeWithInput .id' (.const 1)
     have hdrop : ComputableInPolyTime (fun w : List Bool => w.drop 1) encBits encBits :=
       ComputableInPolyTime.bitsDropWithInput .id' (.const 1)
     have hlist : ComputableInPolyTime (fun w : List Bool => [w.take 1, w.drop 1])
