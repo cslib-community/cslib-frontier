@@ -109,7 +109,8 @@ single table lookup, operation-tag validation and literal finite dispatch, reque
 fixed-operation query, bounded reply copy, unary-list codec, reply installation and output copy are
 named retained stages in the componentwise online ledger. The final composed description is the
 single installed occurrence; generated static bits, encoded runtime input, supplied-description
-size and emitted-output bits remain separate coordinates. Its structural bound exposes the exact
+size, the non-description fuel/input/reply-budget tail and emitted-output bits remain separately
+inspectable coordinates. Its structural bound exposes the exact
 exhaustive row factor, so the family theorem keeps that row schedule as an explicit premise and
 only claims an unconditional polynomial corollary for each fixed tape/channel interpreter.
 The complete [`OracleInterpreter.lean` client](../../CslibFrontierTests/OracleInterpreter.lean)
