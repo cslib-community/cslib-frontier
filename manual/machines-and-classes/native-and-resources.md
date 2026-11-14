@@ -205,6 +205,15 @@ clients can reuse them without importing either machine implementation.
 [openai-logspace26]: ../sources.md#openai-logspace26
 [sakszhou99]: ../sources.md#sakszhou99
 
+The [streaming fold API](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/Streaming.lean)
+accepts plain `ComputableInTimeAndSpace` callbacks in `foldl_bits_stream_sum`, its uniform,
+invariant and paired variants, and `iterate_unary_stream_sum`. Supply the original exact callback
+costs: normalization is absorbed into the input-independent existential constant. Cumulative
+round costs still charge both adjacent encoded states and control; workspace depends on peak
+callback workspace and retained state, independently of time and emitted output. Prefix-state
+bounds include the initial and final state. The unary variant charges the final callback
+separately. `ComputableInO.unary_halvings` uses this interface and retains the geometric sum bound.
+
 The [plain word-transducer facade](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/WordTransducers.lean)
 provides `ComputableInTimeAndSpace.map_bits`, `length_bits`, `dropLast_bits`,
 `getLast?_toList_bits` and `getLast?_bits` with time `4 * l.length + 8` and zero workspace.

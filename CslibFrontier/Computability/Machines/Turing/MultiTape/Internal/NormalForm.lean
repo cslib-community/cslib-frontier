@@ -109,6 +109,18 @@ private theorem independentBounds {f : α → β} {T S : α → ℕ}
         ring
       exact le_mul_succ (A := (2 + 6 * k) * c) (B := 2 * k * (2 * k + 3)) (by omega) (by omega)
 
+/-- Exact callback bounds normalize with independent multiplicative overheads. The positive
+constant absorbs control even when either original bound is zero. No output bound is required. -/
+theorem exactBounds {f : α → β} {t s : α → ℕ}
+    (h : ComputableInTimeAndSpace f encIn encMid t s) :
+    ∃ C, 1 ≤ C ∧ ∃ (k : ℕ) (State : Type) (_ : Finite State)
+      (tm : MultiTapeTM k Bool State), ∀ a,
+        tm.ComputesTidilyInTimeAndSpace (encIn a) (encMid (f a))
+          (C * (t a + 1)) (C * (s a + 1)) := by
+  apply independentBounds 1
+  simpa only [one_mul] using h.mono (fun a => Nat.le_succ (t a))
+    (fun a => Nat.le_succ (s a))
+
 /-- Independent asymptotic time/workspace bounds normalize without an output-length premise. -/
 theorem bigO {f : α → β} {T S : α → ℕ}
     (h : ComputableInBigO f encIn encMid T S) :

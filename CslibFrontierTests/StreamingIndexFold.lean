@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 
 import CslibFrontier.Computability.GenericRAM.Native.IndexFold
 import Mathlib.Data.Nat.Size
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Streaming
 
 /-! # Streaming binary-index fold controls
 
@@ -141,3 +142,64 @@ example : ∃ T S, ComputableInO
       (B := 1) (by simp [encBool_apply])
   · intro _ _ _
     simp [encBool_apply]
+
+-- Independent callback time/workspace, arbitrary encoding, and exact cumulative contract.
+example {σ : Type}
+    {enc : σ ↪ List Bool} {step : σ → Bool → σ} (init : σ) {t s : σ × Bool → ℕ}
+    (hstep : ComputableInTimeAndSpace (fun p => step p.1 p.2)
+      (encPair enc encBool) enc t s)
+    {R : List Bool → ℕ → ℕ} {Q B : List Bool → ℕ}
+    (hcost : ∀ l i (hi : i < l.length), t ((l.take i).foldl step init, l[i]) +
+      (enc ((l.take i).foldl step init)).length +
+      (enc ((l.take (i + 1)).foldl step init)).length + 1 ≤ R l i)
+    (hspace : ∀ l i (hi : i < l.length), s ((l.take i).foldl step init, l[i]) ≤ Q l)
+    (hstate : ∀ l i, i ≤ l.length → (enc ((l.take i).foldl step init)).length ≤ B l) :
+    ∃ c, ComputableInTimeAndSpace (fun l => l.foldl step init) encBits enc
+      (fun l => c * ((∑ i ∈ Finset.range l.length, R l i) + B l + 1))
+      (fun l => c * (Q l + B l + 1)) :=
+  hstep.foldl_bits_stream_sum init hcost hspace hstate
+
+-- Independent callback time/workspace, arbitrary encoding, and exact cumulative contract.
+example {σ : Type}
+    {enc : σ ↪ List Bool} {step : σ → Bool → σ} {t s : σ × Bool → ℕ}
+    (hstep : ComputableInTimeAndSpace (fun p => step p.1 p.2)
+      (encPair enc encBool) enc t s)
+    (invariant : σ × List Bool → ℕ → σ → Prop)
+    (hbase : ∀ p, invariant p 0 p.1)
+    (hpreserve : ∀ p i (hi : i < p.2.length) state, invariant p i state →
+      invariant p (i + 1) (step state p.2[i]))
+    {R : σ × List Bool → ℕ → ℕ} {Q B : σ × List Bool → ℕ}
+    (hcost : ∀ p i (hi : i < p.2.length) state, invariant p i state →
+      t (state, p.2[i]) + (enc state).length + (enc (step state p.2[i])).length + 1 ≤ R p i ∧
+        s (state, p.2[i]) ≤ Q p)
+    (hsize : ∀ p i, i ≤ p.2.length → ∀ state, invariant p i state → (enc state).length ≤ B p) :
+    (∃ c, ComputableInTimeAndSpace (fun p : σ × List Bool => p.2.foldl step p.1)
+      (encPair enc encBits) enc
+      (fun p => c * ((∑ i ∈ Finset.range p.2.length, R p i) + B p + 1))
+      (fun p => c * (Q p + B p + 1))) ∧
+      ∀ p, invariant p p.2.length (p.2.foldl step p.1) :=
+  hstep.foldl_bits_pair_stream_sum_spec invariant hbase hpreserve hcost hsize
+
+-- Independent callback time/workspace, arbitrary encoding, and exact cumulative contract.
+example {σ : Type} {enc : σ ↪ List Bool}
+    {f : σ → σ} {emit finish : σ → List Bool} {tN sN tE sE tF sF : σ → ℕ}
+    (hnext : ComputableInTimeAndSpace f enc enc tN sN)
+    (hemit : ComputableInTimeAndSpace emit enc encBits tE sE)
+    (hfinish : ComputableInTimeAndSpace finish enc encBits tF sF)
+    {R : σ × ℕ → ℕ → ℕ} {Q B : σ × ℕ → ℕ}
+    (hcost : ∀ x i, i < x.2 → tN (f^[i] x.1) + tE (f^[i] x.1) + (enc (f^[i] x.1)).length +
+      (enc (f^[i + 1] x.1)).length + 1 ≤ R x i)
+    (hspace : ∀ x i, i < x.2 → sN (f^[i] x.1) + sE (f^[i] x.1) ≤ Q x)
+    (hstate : ∀ x i, i ≤ x.2 → (enc (f^[i] x.1)).length ≤ B x) :
+    ∃ c, ComputableInTimeAndSpace
+      (fun x : σ × ℕ => ((List.range x.2).map fun i => emit (f^[i] x.1)).flatten ++
+        finish (f^[x.2] x.1))
+      (encPair enc encUnary) encBits
+      (fun x => c * (tF (f^[x.2] x.1) + (∑ i ∈ Finset.range x.2, R x i) + B x + 1))
+      (fun x => c * (sF (f^[x.2] x.1) + Q x + B x + 1)) :=
+  hnext.iterate_unary_stream_sum hemit hfinish hcost hspace hstate
+
+-- The empty stream retains the initial state; token order and state updates remain the pure fold.
+example : ([] : List Bool).foldl (fun n b => 2 * n + if b then 1 else 0) 7 = 7 := rfl
+example : [true, false, true].foldl (fun n b => 2 * n + if b then 1 else 0) 0 = 5 := by
+  decide
