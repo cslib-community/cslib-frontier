@@ -13,13 +13,14 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Primitives
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString.Dot
 import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Tactic.PPT
 
 /-!
 # Polynomial-time binary linear hashing
 
-Matrix hashing uses the shared row parser and Boolean folds. Both certificates allow computed
+Matrix hashing uses the shared row parser and inner-product certificate. Both certificates allow computed
 input and output lengths, arbitrary input encodings, and short matrix seeds padded with zero.
 The full extractor charges sampling, hashing and copying its complete public seed and digest.
 
@@ -32,7 +33,7 @@ The full extractor charges sampling, hashing and copying its complete public see
 
 Adapted from Computability/Probabilistic/LinearHash.lean on the cslib `crypto` branch at
 `5ff69ca93402e7c947208dc56396d6d86203ccd8`. The certificates compose the plain
-row, Boolean-fold and sampling APIs.
+row, inner-product and sampling APIs.
 -/
 
 public section
@@ -50,7 +51,7 @@ theorem computableInPolyTime_wordHash {α : Type} {encode : α ↪ List Bool}
     (hinput : ComputableInPolyTime input encode encBits) :
     ComputableInPolyTime (fun a => wordHash (count a) (seed a) (input a))
       encode encBits := by
-  unfold wordHash listDot
+  unfold wordHash
   fun_prop
 
 /-- The complete extractor is uniformly strict PPT, including the revealed matrix seed. -/
