@@ -289,14 +289,17 @@ Algorithm 2's external-input legality rejection, then transposed into public-map
   verificationHashWithXof P shake256XOF publicKey message salt
 
 /-- The separately supplied Algorithm 21 boundary for public-key expansion and public-map
-evaluation. Returning `none` rejects a malformed or unsupported public key. -/
+evaluation. The callback owns public-key validation; returning `none` rejects a malformed or
+unsupported public key. -/
 abbrev PublicMapEvaluator (P : VerificationParams) :=
   List Byte → SignatureMatrices P → Option (List (FieldElement P))
 
 /-- [SNOVA2026], Algorithm 21 with an explicit typed-length XOF and public-map evaluator.
 
-Malformed signatures and public keys are rejected. Otherwise this checks the complete source
-equation `P*(U) = Hash(SHAKE256(pk, 48) || SHAKE256(message, 64) || salt)`. -/
+Malformed signatures are rejected by this function. Public-key validation, expansion and any
+malformed-key rejection belong to `evaluatePublic`. When that callback succeeds, this checks the
+complete source equation
+`P*(U) = Hash(SHAKE256(pk, 48) || SHAKE256(message, 64) || salt)`. -/
 @[expose] def verifyWithXof (P : VerificationParams) (xof : XOF)
     (evaluatePublic : PublicMapEvaluator P)
     (publicKey message signature : List Byte) : Bool :=

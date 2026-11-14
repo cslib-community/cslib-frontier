@@ -106,6 +106,7 @@ private def illegalOddSignature : List Byte := [0x21, 0xF3] ++ List.replicate 16
 #guard (decodeSignature oddParams illegalOddSignature).isNone
 
 private def publicKey : List Byte := [0x31, 0x41]
+private def wrongPublicKey : List Byte := [0x31]
 private def message : List Byte := [0x59]
 
 private def matchingEvaluator : PublicMapEvaluator params := fun pk _ =>
@@ -115,6 +116,8 @@ private def matchingEvaluator : PublicMapEvaluator params := fun pk _ =>
     none
 
 #guard verifyWithXof params labelledXof matchingEvaluator publicKey message signature
+-- The original key bytes reach the callback, which owns key-specific validation and rejection.
+#guard !(verifyWithXof params labelledXof matchingEvaluator wrongPublicKey message signature)
 #guard !(verifyWithXof params labelledXof (fun _ _ => some []) publicKey message signature)
 #guard !(verifyWithXof params labelledXof (fun _ _ => none) publicKey message signature)
 #guard !(verifyWithXof params labelledXof matchingEvaluator publicKey message signature.dropLast)
