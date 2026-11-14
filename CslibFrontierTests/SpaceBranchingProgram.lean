@@ -142,7 +142,7 @@ theorem not_exists_size_le_one_eval_eq_firstBit_slice {Node : Type*} [Fintype No
   rw [h0, h1] at hconst
   exact Bool.false_ne_true hconst
 
-/-! ### 4. Native visited-space simulation (after Arora–Barak Theorem 13.15) on concrete problems in `L` and `DSPACE` -/
+/-! ### 4. Native visited-space simulation (after Theorem 13.15) on `L` and `DSPACE` -/
 
 /-- Native visited-space branching-program simulation (after Arora–Barak Theorem 13.15)
 instantiated on Reingold's `USTCON_mem_L`: undirected `s`–`t` connectivity has polynomial-size
