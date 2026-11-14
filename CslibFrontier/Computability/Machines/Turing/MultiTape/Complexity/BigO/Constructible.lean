@@ -161,10 +161,10 @@ theorem unary_halvings {emit finish : ℕ → List Bool}
       (fun x : ℕ × ℕ => ((List.range x.2).map fun i => emit (x.1 / 2 ^ i)).flatten ++
         finish (x.1 / 2 ^ x.2))
       (encPair encUnary encUnary) encBits (fun x => x.1 + x.2) fun x => x.1 + x.2 := by
-  obtain ⟨cE, hE, -⟩ := hemit.tidy
-  obtain ⟨cF, hF, -⟩ := hfinish.tidy
-  obtain ⟨c, h⟩ := ComputableTidilyInTimeAndSpace.iterate_unary_stream_sum
-    computableTidilyInTimeAndSpace_div_two hE hF
+  obtain ⟨cE, hE, -⟩ := hemit
+  obtain ⟨cF, hF, -⟩ := hfinish
+  obtain ⟨c, h⟩ := ComputableInTimeAndSpace.iterate_unary_stream_sum
+    computableTidilyInTimeAndSpace_div_two.computableInTimeAndSpace hE hF
     (R := fun x i => (cE + 9) * (x.1 / 2 ^ i + 1)) (Q := fun x => cE * (x.1 + 1))
     (B := fun x => x.1)
     (fun x i _ => by
@@ -192,7 +192,7 @@ theorem unary_halvings {emit finish : ℕ → List Bool}
     simp only [← Finset.mul_sum, Finset.sum_add_distrib, Finset.sum_const, Finset.card_range,
       smul_eq_mul, mul_one]
     nlinarith [Nat.mul_le_mul_left cF hq, Nat.mul_le_mul_left (cE + 9) hs]
-  refine of_bounds h.computableInTimeAndSpace (c * (cF + 2 * cE + 20)) (fun x => hM x)
+  refine of_bounds h (c * (cF + 2 * cE + 20)) (fun x => hM x)
     (fun x => ?_) fun x => (h.length_le x).trans (hM x)
   rw [Nat.mul_assoc]
   refine Nat.mul_le_mul_left c ?_
