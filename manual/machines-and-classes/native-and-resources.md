@@ -214,7 +214,8 @@ The [composition regression](../../CslibFrontierTests/Quantitative.lean) checks 
 output degrees, including a high-degree consumer of a constant-size last-bit result.
 
 The [plain word-transducer facade](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/WordTransducers.lean)
-provides `ComputableInTimeAndSpace.map_bits`, `length_bits`, `dropLast_bits`,
+registers `ComputableInTimeAndSpace` for `fun_prop` directly, without a mixed streaming import.
+It provides `ComputableInTimeAndSpace.map_bits`, `length_bits`, `dropLast_bits`,
 `getLast?_toList_bits` and `getLast?_bits` with time `4 * l.length + 8` and zero workspace.
 `reverse_bits` keeps time `2 * l.length + 2` and zero workspace. These reuse the existing
 machines; the transducer witness includes input rewind. Workspace excludes emitted output:

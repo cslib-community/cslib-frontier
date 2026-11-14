@@ -26,6 +26,15 @@ example : ComputableInTimeAndSpace List.reverse encBits encBits
 example : ComputableInTimeAndSpace (List.getLast? (α := Bool)) encBits (encOption encBool)
     (fun l => 4 * l.length + 8) (fun _ => 0) := by fun_prop
 
+example : ComputableInTimeAndSpace List.length encBits encUnary
+    (fun l => 4 * l.length + 8) (fun _ => 0) := by fun_prop
+
+example : ComputableInTimeAndSpace (List.dropLast (α := Bool)) encBits encBits
+    (fun l => 4 * l.length + 8) (fun _ => 0) := by fun_prop
+
+example : ComputableInTimeAndSpace (fun l : List Bool => l.getLast?.toList) encBits encBits
+    (fun l => 4 * l.length + 8) (fun _ => 0) := by fun_prop
+
 -- Mixed streaming leaves must not become prerequisites of this plain entry point.
 example : True := by
   fail_if_success have := ComputableTidilyInTimeAndSpace.map_bits
