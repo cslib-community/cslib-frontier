@@ -12,7 +12,9 @@ const replacement = `  globalThis.testAPI = {validate, bytes, bitrate, duration,
     }};
 })();`;
 if (!source.endsWith('  refresh();\n})();\n')) throw new Error('Unexpected script ending');
-const now = Date.parse('2026-11-14T12:00:00Z');
+// Freeze this run's wall clock so relative-age assertions stay deterministic
+// without treating later production snapshots as future data.
+const now = Date.now();
 class TestDate extends Date { static now() { return now; } }
 const nodes = new Map();
 function element() {
@@ -47,6 +49,7 @@ for (const mutate of [
   d=>{d.latest.revision='https://attacker.invalid/'},d=>{d.builds=[null]},
   d=>{d.series[0].body_bytes=Infinity},d=>{d.windows.hour.median_seconds='0'},
   d=>{d.gc.deleted_bytes=-1}, d=>{d.coverage.records=undefined},
+  d=>{d.generated_at=new Date(now + 600001).toISOString()},
 ]) {
   const data=JSON.parse(JSON.stringify(fixture));mutate(data);
   try {validate(data)} catch(_) {failures++;continue}
@@ -93,5 +96,12 @@ assert.match(nodes.get('notice').textContent, /statistics have not refreshed rec
 assert.match(nodes.get('freshness').textContent, /^Snapshot from /);
 renderState(staleInventory, true);
 assert.match(nodes.get('notice').textContent, /latest snapshot could not be loaded/);
+
+if (process.argv[2]) {
+  const live = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+  validate(live);
+  renderState(live);
+  console.log('Captured live snapshot validation and rendering passed.');
+}
 
 console.log(`Frontend validation passed: populated/empty snapshots, ${failures} malformed snapshots rejected, formatting and fresh/stale/unavailable/failed-export states.`);

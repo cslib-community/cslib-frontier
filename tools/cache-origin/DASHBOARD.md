@@ -117,7 +117,9 @@ node scripts/test_cache_dashboard_frontend.cjs
 ```
 
 The frontend check uses `dashboard/preview-data.json` as development data. Never install that
-fixture on the web server. For collector testing with actual journals, run the installed oneshot
+fixture on the web server. Pass a captured live JSON file as an optional argument to the Node
+check to validate and render-check that export without editing the fixture or test clock.
+For collector testing with actual journals, run the installed oneshot
 and inspect its JSON; preserve the existing store and lock. The HTTP origin CI job also exercises
 all four dashboard routes through nginx. Both manuals retain the same roles and handoffs;
 the Operator's Manual reaches this procedure through the origin runbook.
