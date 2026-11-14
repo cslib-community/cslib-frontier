@@ -18,12 +18,12 @@ import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
 /-!
-# Space-bounded computations as branching programs (Arora–Barak Theorem 13.15)
+# Native visited-space computations as branching programs (after Arora–Barak Theorem 13.15)
 
-Every deterministic multi-tape Turing machine running within space `s` on inputs of length `n`
-for `T` steps compiles into an acyclic deterministic branching program
-(`Turing.MultiTapeTM.toBranchingProgram`) over the `n` input bits whose nodes
-(`Turing.MultiTapeTM.SpaceConfigNode`) are input-independent timed configuration cores:
+Every deterministic multi-tape Turing machine running within visited work-tape space `s`
+(`Turing.MultiTapeTM.RunsInSpace`) on inputs of length `n` for `T` steps compiles into an acyclic
+deterministic branching program (`Turing.MultiTapeTM.toBranchingProgram`) over the `n` input bits
+whose nodes (`Turing.MultiTapeTM.SpaceConfigNode`) are input-independent timed configuration cores:
 * `step : Fin (T + 1)` — the step counter (witnessing acyclicity via `rank v = T - v.step.val`);
 * `inputPos : Fin (n + 2)` — the read-only input-head position;
 * `storage : BoundedStorage Bool State (fun _ : Fin k => s)` — the control state and work-tape
@@ -34,11 +34,12 @@ When the input head lies on the input word (`1 ≤ inputPos ≤ n`), the node qu
 `inputPos - 1` and transitions to the next timed configuration core on both outcomes; when the
 input head lies on the left or right boundary blank (`0` or `n + 1`), the transition reads `none`
 independently of the input bit. On any input `x : Fin n → Bool` on which the machine stays within
-space `s`, evaluating the branching program yields the first output bit of the `T`-step run
+visited space `s`, evaluating the branching program yields the first output bit of the `T`-step run
 (`Turing.MultiTapeTM.eval_toBranchingProgram`).
 
 Taking `T = (n + 2) * storageBound Bool State k s` (the configuration-counting halting bound of
-`Turing.MultiTapeTM.haltsAt_le_card`) yields **Arora and Barak, Theorem 13.15**: for every problem
+`Turing.MultiTapeTM.haltsAt_le_card`) yields the **native visited-space version of Arora and Barak,
+Theorem 13.15** (with the `max (S n) 1` zero-space boundary correction): for every problem
 `A ∈ Cslib.Complexity.DSPACE enc S` with `S n ≥ Nat.log 2 n`, there is an explicit constant `c`
 (`Turing.MultiTapeTM.spaceBranchingProgramBase`, depending on the machine's tape count `k`, state
 count `Fintype.card State`, binary work-tape alphabet `Bool`, and linear space constants `c₁, c₂`
@@ -57,7 +58,9 @@ distinct sinks) for every base `c > 1`.
 
 **Space-measure qualification.** Space in `Cslib.Complexity.DSPACE` counts distinct visited
 work-tape cells (`Turing.MultiTapeNTM.RunPath.space`), the library's native convention, whereas
-Arora and Barak's draft counts ever-nonblank cells.
+Arora and Barak's draft counts ever-nonblank cells (a weaker premise when a machine scans blank
+cells without writing, so the draft's ever-nonblank `SPACE(S(n))` convention remains an open
+model difference).
 
 ## Main definitions
 
@@ -67,7 +70,7 @@ Arora and Barak's draft counts ever-nonblank cells.
 * `Turing.MultiTapeTM.SpaceConfigNode`: a timed bounded configuration core of a space-bounded
   machine.
 * `Turing.MultiTapeTM.toBranchingProgram`: the branching program simulating `T` steps of a
-  machine within space `s` on inputs of length `n`.
+  machine within visited space `s` on inputs of length `n`.
 * `Turing.MultiTapeTM.spaceBranchingProgramBase`: the explicit base `c` of the `c ^ S n` node-count
   bound.
 
@@ -75,20 +78,22 @@ Arora and Barak's draft counts ever-nonblank cells.
 
 * `Turing.Storage.ofBounded_toBounded`: reconstructing a storage that fits in a window from its
   bounded restriction is the identity.
-* `Turing.MultiTapeTM.fitsIn_runFrom`: every step of a space-`s` run fits in the uniform window
-  `[-s, s]`.
+* `Turing.MultiTapeTM.fitsIn_runFrom`: every step of a visited-space-`s` run fits in the uniform
+  window `[-s, s]`.
 * `Turing.MultiTapeTM.eval_toBranchingProgram`: the branching program computes the first output
-  bit of the `T`-step run on every input within space `s`.
+  bit of the `T`-step run on every input within visited space `s`.
 * `Turing.MultiTapeTM.size_toBranchingProgram_le_pow_max`,
   `Turing.MultiTapeTM.size_toBranchingProgram_le_pow`: the branching program for the
   configuration-counting time bound has size at most `spaceBranchingProgramBase ^ max (S n) 1`
   (and `spaceBranchingProgramBase ^ S n` when `1 ≤ S n`).
 * `Cslib.Complexity.DSPACE.exists_branchingProgram_of_log_le`,
   `Cslib.Complexity.DSPACE.exists_branchingProgram_of_log_add_one_le`,
-  `Cslib.Complexity.DSPACE.exists_branchingProgram_slice`: **Arora–Barak Theorem 13.15** for
+  `Cslib.Complexity.DSPACE.exists_branchingProgram_slice`: native visited-space branching-program
+  simulation (after Arora–Barak Theorem 13.15, with the `max (S n) 1` boundary correction) for
   encoded problems in `DSPACE enc S` and languages in `DSPACE encBits S`.
-* `Cslib.Complexity.L.exists_branchingProgram`: specialization to deterministic logarithmic space
-  `L enc`.
+* `Cslib.Complexity.L.exists_branchingProgram`,
+  `Cslib.Complexity.L.exists_branchingProgram_slice`: specialization to native deterministic
+  logarithmic space `L enc` and `L encBits`.
 
 ## References
 
@@ -518,7 +523,7 @@ end MultiTapeTM
 
 end Turing
 
-/-! ### Arora–Barak Theorem 13.15 for `DSPACE` and `L` -/
+/-! ### Native visited-space branching-program simulation (after Arora–Barak Theorem 13.15) -/
 
 namespace Cslib.Complexity
 
@@ -528,15 +533,17 @@ export Turing.MultiTapeTM (spaceBranchingProgramBase)
 
 variable {α : Type} {enc : α ↪ List Bool} {A : Set α} {S : ℕ → ℕ}
 
-/-- **Arora–Barak Theorem 13.15 (general `S n ≥ Nat.log 2 n` form).**
-For every problem `A ∈ DSPACE enc S` with `∀ n, Nat.log 2 n ≤ S n`, there is a constant `c ≥ 2`
-(depending on the deciding machine's tape count, state count, binary work-tape alphabet `Bool`, and
-linear space constants under `enc`) such that for every input length `n`, there is a finite node
-type `Node` and a deterministic branching program `P : BranchingProgram (Fin n) Bool Node` of size
-at most `c ^ max (S n) 1` (hence `≤ c ^ S n` whenever `1 ≤ S n`, and `≤ c ^ (S n + 1)` for all `n`)
-that computes `encodesMember enc A n` on all encoded instances of length `n`. The `max (S n) 1`
-floor is needed at `n = 1, S 1 = 0`, where a nonconstant 1-bit language in `DSPACE 0` requires at
-least `3 > 1 = c ^ 0` nodes. -/
+/-- **Native visited-space branching-program simulation (after Arora–Barak Theorem 13.15, general
+`S n ≥ Nat.log 2 n` form).**
+For every problem `A ∈ DSPACE enc S` (where `DSPACE` measures distinct visited work-tape cells) with
+`∀ n, Nat.log 2 n ≤ S n`, there is a constant `c ≥ 2` (depending on the deciding machine's tape
+count, state count, binary work-tape alphabet `Bool`, and linear space constants under `enc`) such
+that for every input length `n`, there is a finite node type `Node` and a deterministic branching
+program `P : BranchingProgram (Fin n) Bool Node` of size at most `c ^ max (S n) 1` (hence
+`≤ c ^ S n` whenever `1 ≤ S n`, and `≤ c ^ (S n + 1)` for all `n`) that computes
+`encodesMember enc A n` on all encoded instances of length `n`. The `max (S n) 1` floor is needed at
+`n = 1, S 1 = 0`, where a nonconstant 1-bit language in `DSPACE 0` requires at least `3 > 1 = c ^ 0`
+nodes. -/
 theorem DSPACE.exists_branchingProgram_of_log_le (hA : A ∈ DSPACE enc S)
     (hS : ∀ n, Nat.log 2 n ≤ S n) :
     ∃ c ≥ 2, ∀ n, ∃ (Node : Type) (_ : Fintype Node) (P : BranchingProgram (Fin n) Bool Node),
@@ -583,7 +590,8 @@ theorem DSPACE.exists_branchingProgram_of_log_le (hA : A ∈ DSPACE enc S)
     refine List.ext_getElem (hlen.trans List.length_ofFn.symm) fun i h₁ h₂ => ?_
     simp
 
-/-- **Arora–Barak Theorem 13.15 (`c ^ S n` form for positive space bounds `S n ≥ 1`).**
+/-- **Native visited-space branching-program simulation (after Arora–Barak Theorem 13.15, `c ^ S n`
+form for positive space bounds `S n ≥ 1`).**
 When `∀ n, Nat.log 2 n ≤ S n` and `∀ n, 1 ≤ S n` (in particular under the repository's standard
 logarithmic convention `S n ≥ Nat.log 2 n + 1`), every length-`n` slice of `A ∈ DSPACE enc S` is
 computed on encoded instances by a branching program of size at most `c ^ S n`. -/
@@ -600,7 +608,8 @@ theorem DSPACE.exists_branchingProgram (hA : A ∈ DSPACE enc S)
   rw [max_eq_left (hpos n)] at hsize
   exact ⟨Node, hfin, P, hsize, henc, ha⟩
 
-/-- **Arora–Barak Theorem 13.15 under `S n ≥ Nat.log 2 n + 1`.** -/
+/-- **Native visited-space branching-program simulation (after Arora–Barak Theorem 13.15) under
+`S n ≥ Nat.log 2 n + 1`.** -/
 theorem DSPACE.exists_branchingProgram_of_log_add_one_le (hA : A ∈ DSPACE enc S)
     (hS : ∀ n, Nat.log 2 n + 1 ≤ S n) :
     ∃ c ≥ 2, ∀ n, ∃ (Node : Type) (_ : Fintype Node) (P : BranchingProgram (Fin n) Bool Node),
@@ -611,7 +620,8 @@ theorem DSPACE.exists_branchingProgram_of_log_add_one_le (hA : A ∈ DSPACE enc 
   DSPACE.exists_branchingProgram hA (fun n => (Nat.le_succ _).trans (hS n))
     (fun n => (Nat.le_add_left 1 _).trans (hS n))
 
-/-- **Arora–Barak Theorem 13.15 for boolean languages (`enc = encBits`).**
+/-- **Native visited-space branching-program simulation (after Arora–Barak Theorem 13.15) for
+boolean languages (`enc = encBits`).**
 For every language `L ∈ DSPACE encBits S` with `∀ n, Nat.log 2 n ≤ S n`, there is a constant
 `c ≥ 2` such that for every `n`, the slice `L.slice n : (Fin n → Bool) → Bool` is computed on all
 `2 ^ n` inputs by a deterministic branching program of size at most `c ^ max (S n) 1` (and at most
@@ -631,8 +641,9 @@ theorem DSPACE.exists_branchingProgram_slice {L : Language Bool} (hL : L ∈ DSP
   rw [henc x hx, Bool.eq_iff_iff, hmem, Language.slice_eq_true_iff]
   rfl
 
-/-- **Deterministic logarithmic space `L` has polynomial-size branching programs** of size at most
-`c ^ (Nat.log 2 n + 1)` at every input length `n`. -/
+/-- **Native deterministic logarithmic space `L` has polynomial-size branching programs** of size at
+most `c ^ (Nat.log 2 n + 1)` at every input length `n` (via the visited-space simulation after
+Arora–Barak Theorem 13.15). -/
 theorem L.exists_branchingProgram (hA : A ∈ L enc) :
     ∃ c ≥ 2, ∀ n, ∃ (Node : Type) (_ : Fintype Node) (P : BranchingProgram (Fin n) Bool Node),
       P.size ≤ c ^ (Nat.log 2 n + 1) ∧
@@ -647,7 +658,8 @@ theorem L.exists_branchingProgram (hA : A ∈ L enc) :
   exact DSPACE.exists_branchingProgram_of_log_add_one_le hDSPACE fun _ => le_rfl
 
 /-- For a boolean language `L₀ ∈ L encBits`, every length-`n` slice `L₀.slice n` has a
-deterministic branching program of size at most `c ^ (Nat.log 2 n + 1)`. -/
+deterministic branching program of size at most `c ^ (Nat.log 2 n + 1)` (under native visited
+logarithmic space). -/
 theorem L.exists_branchingProgram_slice {L₀ : Language Bool} (hL : L₀ ∈ L encBits) :
     ∃ c ≥ 2, ∀ n, ∃ (Node : Type) (_ : Fintype Node) (P : BranchingProgram (Fin n) Bool Node),
       P.size ≤ c ^ (Nat.log 2 n + 1) ∧ P.eval = L₀.slice n := by
