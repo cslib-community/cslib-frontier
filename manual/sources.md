@@ -49,6 +49,11 @@ Rudolf Ahlswede and Imre Csiszár. "On Oblivious Transfer Capacity." ISIT 2007, 
 
 Benny Applebaum, Yuval Ishai, Eyal Kushilevitz. "How to Garble Arithmetic Circuits." *52nd Annual IEEE Symposium on Foundations of Computer Science (FOCS 2011)*, 120–129, 2011. https://doi.org/10.1109/FOCS.2011.40 . Checked on 2026-11-10 against the author-hosted copy of the FOCS version, https://bennyapplebaum.sites.tau.ac.il/_files/ugd/f706bf_ccb157901f504e32a79d89a666f56de3.pdf , which has no printed page numbers: Definition 4.2 (affinization gadget), Definition 4.5 (perfect privacy of a gadget) and Section 5, Fact 5.1. Cited for the framework of affine key encodings over a ring (with per-wire keys) and for the notion of an affinization gadget; the four-value multiplication gadget formalized here is an explicit instance derived in the Lean source, not the general compiler of the paper.
 
+<a id="almeidaetal2024"></a>
+## almeidaetal2024
+
+José Bacelar Almeida, Santiago Arranz Olmos, Manuel Barbosa, Gilles Barthe, François Dupressoir, Benjamin Grégoire, Vincent Laporte, Jean-Christophe Léchenet, Cameron Low, Tiago Oliveira, Hugo Pacheco, Miguel Quaresma, Peter Schwabe and Pierre-Yves Strub. *Formally Verifying Kyber: Episode V: Machine-Checked IND-CCA Security and Correctness of ML-KEM in EasyCrypt*. Author version dated 29 May 2024, https://cryptojedi.org/papers/hakyberv-20240529.pdf . Checked against that version on 2026-11-14 (SHA-256 `a5ed0be5587f26b6849657bd571d364dffd2342972e6520056d79bf5e76fcddc`): Section 4.2, Figure 3 and the following paragraph (pp. 10–12) give the message-independent core-noise failure event and its inclusion of K-PKE decryption failure; Appendix A, Definition 1 and Figure 13 (p. 26) quantify correctness over every, possibly unbounded, adversary and give it the secret key. `CslibFrontier.Crypto.Computational.SIS.MLKEM.Correctness` formalizes the exact deterministic inclusion and probability bridge for the library's current uniform-matrix and centered-binomial samplers. It does not formalize the source's heuristic replacement of the vector-compression error by an independent uniform term, finite numerical failure estimates, the seeded FIPS matrix sampler, MLWE reductions, IND-CCA security, the quantum random-oracle model or resource bounds.
+
 <a id="alonbabaisuzuki1991"></a>
 ## alonbabaisuzuki1991
 

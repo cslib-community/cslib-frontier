@@ -4629,6 +4629,7 @@ public import CslibFrontier.Crypto.Computational.Rompel
 public import CslibFrontier.Crypto.Computational.SIS.Ajtai
 public import CslibFrontier.Crypto.Computational.SIS.Basic
 public import CslibFrontier.Crypto.Computational.SIS.MLKEM.Compress
+public import CslibFrontier.Crypto.Computational.SIS.MLKEM.Correctness
 public import CslibFrontier.Crypto.Computational.SIS.MLKEM.KPKE
 public import CslibFrontier.Crypto.Computational.SIS.MLKEM.Security
 public import CslibFrontier.Crypto.Computational.SIS.Module
@@ -4858,6 +4859,7 @@ public import CslibFrontier.Crypto.Protocols.PIR.SmoothCode
 public import CslibFrontier.Crypto.Protocols.PIR.SmoothConverse
 public import CslibFrontier.Crypto.Protocols.PIR.Statistical
 public import CslibFrontier.Crypto.Protocols.PKE.ExplicitCoin
+public import CslibFrontier.Crypto.Protocols.PKE.ExplicitCoin.Correctness
 public import CslibFrontier.Crypto.Protocols.PolynomialCommitment.Basic
 public import CslibFrontier.Crypto.Protocols.Quantum.OneTimePad
 public import CslibFrontier.Crypto.Protocols.SSP.Basic
