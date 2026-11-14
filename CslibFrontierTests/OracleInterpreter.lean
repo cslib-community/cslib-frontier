@@ -5,9 +5,10 @@ Authors: Samuel Schlesinger
 -/
 
 module
--- upstream: candidate
+-- upstream: local-only (tests of candidate modules)
 
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Universal.Interpreter
+public import
+  CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Universal.Interpreter.Native
 public import CslibFrontierTests.OracleDescription
 
 /-!
@@ -18,9 +19,9 @@ contains the first reply, so the interpreter exercises reply decoding, a non-hea
 finite-channel dispatch before returning the second reply. The encoded reply budget is large enough
 for either one-symbol unary answer.
 
-These tests check source semantics and the structural coin/call/request coordinates. They do not
-claim a native interpreter clock, workspace or static program size; those belong to the named
-machine witness that realizes this word program.
+These tests check source semantics, structural coin/call/request coordinates, and the retained
+native witness's exact installed inventory, static structural bound and componentwise online
+aggregation.
 
 The boundary checks cover a channel-count mismatch, a zero source clock and a malformed framed-list
 request. Each returns locally without changing the shared handler state.
@@ -31,6 +32,7 @@ request. Each returns locally without changing the shared handler state.
 namespace CslibFrontierTests.OracleInterpreter
 
 open Cslib Cslib.Probability Turing.MultiTapePTM.Universal
+open Turing.MultiTapePTM.Universal.NativeInterpreter
 
 namespace OD := CslibFrontierTests.OracleDescription
 
@@ -104,5 +106,59 @@ theorem malformed_request_no_call (log : List (List ℕ)) :
 /-- The adaptive fixture has four table rows, so successful execution does not reduce to a
 constant head-entry lookup. -/
 theorem description_table_length : OD.description.table.length = 4 := rfl
+
+/-! ### Retained native interpreter -/
+
+/-- The adaptive fixture is accepted by the actual named finite-control machine. -/
+theorem native_interpreter_computes :
+    (artifact 1).machine.ComputesTidily (eRunInput runInput) ((artifact 1).time runInput)
+      ((encList encUnary) <$> run 1 runInput) :=
+  artifact_computes 1 runInput
+
+/-- The actual machine certificate specializes to the adaptive shared-state fixture, not merely a
+closed output distribution. -/
+theorem native_interpreter_open :
+    ProbOracleComp.runWith ((wordCodec 1).wordOracle OD.handler)
+        ((artifact 1).machine.runOracle ((artifact 1).time runInput) (eRunInput runInput)) [] =
+      ProbOracleComp.runWith ((wordCodec 1).wordOracle OD.handler)
+        ((encList encUnary) <$> run 1 runInput) [] :=
+  runWith_artifact_machine 1 runInput (List (List ℕ))
+    ((wordCodec 1).wordOracle OD.handler) []
+
+/-- The complete composed interpreter is one installed occurrence, not the sum of its inlined
+controller, dispatcher, codec and query-primitive descriptions. -/
+theorem native_inventory :
+    (artifact 1).installedDescriptions = [(artifact 1).description] ∧
+      (artifact 1).installedBits = generatedStaticBits 1 :=
+  ⟨installedDescriptions_eq_singleton 1, installedBits_eq_generatedStaticBits 1⟩
+
+/-- Generated code, runtime input, supplied runtime description and emitted output remain
+separate inspectable coordinates. -/
+example (result : List ℕ) :
+    generatedStaticBits 1 = (artifact 1).staticBits ∧
+      runInputSize runInput = (eRunInput runInput).length ∧
+      suppliedDescSize runInput = descLen runInput.desc ∧
+      emittedOutputBits result = (encList encUnary result).length :=
+  ⟨rfl, rfl, rfl, rfl⟩
+
+/-- The exact generated size has both an honest structural bound and a fixed-channel polynomial
+family theorem. -/
+example : generatedStaticBits 1 ≤ structuralBound 1 ∧
+    PolynomiallyBounded (fun _ : ℕ => generatedStaticBits 1) :=
+  ⟨generatedStaticBits_le_structuralBound 1,
+    staticBits_polynomiallyBounded_fixed 1⟩
+
+/-- Scalar runtime and workspace are derived from the phase ledger. -/
+example :
+    (artifact 1).time runInput = ∑ phase, phaseTime 1 phase runInput ∧
+      (artifact 1).workspace runInput = Finset.univ.sup fun phase =>
+        phaseWorkspace 1 phase runInput :=
+  ⟨time_eq_sum_phaseTime 1 runInput, workspace_eq_sup_phaseWorkspace 1 runInput⟩
+
+/-- Zero channels construct an actual witness with an empty finite query-dispatch case list and no
+inhabited `Fin 0` fallback. -/
+example : (operations 0).isEmpty ∧
+    (artifact 0).installedDescriptions = [(artifact 0).description] := by
+  exact ⟨rfl, installedDescriptions_eq_singleton 0⟩
 
 end CslibFrontierTests.OracleInterpreter
