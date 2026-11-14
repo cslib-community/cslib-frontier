@@ -1258,8 +1258,9 @@ private theorem popBackSlotProg_execution {U V w n_max h_space base b : ℕ}
     rw [memoryCost_bind, memoryCost_removeLastTailItemProg, hs1,
       memoryCost_bind, memoryCost_readGMProg, clientState_readGMProg, hr,
       memoryCost_bind, memoryCost_readGMProg, clientState_readGMProg, hq]
-    by_cases hr0 : r = 0 <;> by_cases hq0 : 0 < q <;>
-      (simp [hr0, hq0, memoryCost_pure]; omega)
+    by_cases hr0 : r = 0 <;> by_cases hq0 : 0 < q
+    all_goals simp [hr0, hq0, memoryCost_pure]
+    all_goals omega
 
 -- Keep the final state abstract while proving its invariant and resource bound.
 private theorem popBackSlotProg_effect_of_clientState {U V w n_max h_space base b : ℕ}
@@ -1429,10 +1430,10 @@ private theorem popBackSlotProg_effect_of_clientState {U V w n_max h_space base 
       have hq1_pos : 0 < gm₁ (gmQIdx b) := by rw [hqb1]; exact hdem.2
       have hst : s' = (Memory.spec 0).clientState s₁
           (demoteSlabProg U V w n_max h_space (base, b)) := by
-        simpa only [hdem, ↓reduceIte] using hexec'
+        simpa only [hdem, and_self, ↓reduceIte] using hexec'
       have hcost : memoryCost (popBackSlotProg U V w n_max h_space d) s =
           40 + memoryCost (demoteSlabProg U V w n_max h_space (base, b)) s₁ := by
-        simpa only [hdem, ↓reduceIte, Nat.add_zero] using hcharge
+        simpa only [hdem, and_self, ↓reduceIte, Nat.add_zero] using hcharge
       have hpre_dem : DemoteSlabInv U V w n_max h_space base b s₁ := by
         refine ⟨hb, htail1, hslab1, hr1_eq0, hq1_pos, fun b' hb' hne => ?_, ?_⟩
         · change gm₁ (gmRIdx b') < tailCapPerBucket n_max ∧
@@ -1486,9 +1487,9 @@ private theorem popBackSlotProg_effect_of_clientState {U V w n_max h_space base 
       · rw [hcost]
         omega
     · have hst : s' = s₁ := by
-        simpa only [hdem, ↓reduceIte] using hexec'
+        simpa only [hdem, and_self, ↓reduceIte] using hexec'
       have hcost : memoryCost (popBackSlotProg U V w n_max h_space d) s = 40 := by
-        simpa only [hdem, ↓reduceIte, Nat.add_zero] using hcharge
+        simpa only [hdem, and_self, ↓reduceIte, Nat.add_zero] using hcharge
       have hgm'_eq : gm' = gm₁ := by dsimp only [gm', gm₁]; rw [hst]
       have hinv1 : SlotStoreInv n_max gm₁ := by
         refine ⟨fun h0 => by omega, fun _ => htail1, fun _ => hslab1, fun _ b' hb' => ?_,
