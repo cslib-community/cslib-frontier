@@ -67,6 +67,15 @@ theorem bind_eq_ok {x : Except ε α} {f : α → Except ε β} {b : β} :
     x >>= f = .ok b ↔ ∃ a, x = .ok a ∧ f a = .ok b := by
   cases x <;> simp
 
+/-- Computations that can fail only with the same error commute. -/
+theorem bind_comm_of_eq_error {γ : Type v} {x : Except ε α} {y : Except ε β} {e₀ : ε}
+    (hx : ∀ e, x = .error e → e = e₀) (hy : ∀ e, y = .error e → e = e₀)
+    (f : α → β → Except ε γ) :
+    (x >>= fun a => y >>= fun b => f a b) = (y >>= fun b => x >>= fun a => f a b) := by
+  rcases hx' : x with e | a <;> rcases hy' : y with e' | b
+  · rw [hx e hx', hy e' hy']; rfl
+  all_goals rfl
+
 @[simp] theorem toOption_ok (a : α) : (Except.ok a : Except ε α).toOption = some a := rfl
 
 @[simp] theorem toOption_error (e : ε) : (Except.error e : Except ε α).toOption = none := rfl

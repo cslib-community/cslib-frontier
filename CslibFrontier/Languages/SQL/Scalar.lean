@@ -517,23 +517,18 @@ theorem evalBinOp_cmp_swap (op : CmpOp) (a b : Datum) :
     evalBinOp (.cmp op.swap) b a = evalBinOp (.cmp op) a b := by
   simp only [evalBinOp, CmpOp.eval_swap]
 
-private theorem bind_toTruth_comm {β : Type} (a b : Datum) (f : Truth → Truth → β) :
-    (do let s ← a.toTruth; let t ← b.toTruth; return f s t : Except EvalError β) =
-      (do let t ← b.toTruth; let s ← a.toTruth; return f s t) := by
-  rcases ha : a.toTruth with e | s <;> rcases hb : b.toTruth with e' | t
-  · rw [Datum.toTruth_eq_error ha, Datum.toTruth_eq_error hb]; rfl
-  all_goals rfl
-
 /-- `a AND b` is `b AND a`, also when an operand is not boolean. -/
 theorem evalBinOp_and_comm (a b : Datum) : evalBinOp .and a b = evalBinOp .and b a := by
   simp only [evalBinOp]
-  rw [bind_toTruth_comm]
+  rw [Except.bind_comm_of_eq_error (fun _ => Datum.toTruth_eq_error)
+    (fun _ => Datum.toTruth_eq_error)]
   simp only [inf_comm]
 
 /-- `a OR b` is `b OR a`, also when an operand is not boolean. -/
 theorem evalBinOp_or_comm (a b : Datum) : evalBinOp .or a b = evalBinOp .or b a := by
   simp only [evalBinOp]
-  rw [bind_toTruth_comm]
+  rw [Except.bind_comm_of_eq_error (fun _ => Datum.toTruth_eq_error)
+    (fun _ => Datum.toTruth_eq_error)]
   simp only [sup_comm]
 
 /-- `NOT (NOT d)` is `d` on boolean datums. -/
@@ -613,18 +608,10 @@ theorem evalBinOp_arith_null_right (op : ArithOp) {a : Datum} (ha : a.HasType .i
   rw [evalBinOp_arith_of_asInt hx rfl]
   rcases x <;> rfl
 
-private theorem bind_asInt_comm {β : Type} (a b : Datum)
-    (f : Option ℤ → Option ℤ → Except EvalError β) :
-    (do let x ← a.asInt; let y ← b.asInt; f x y : Except EvalError β) =
-      (do let y ← b.asInt; let x ← a.asInt; f x y) := by
-  rcases ha : a.asInt with e | x <;> rcases hb : b.asInt with e' | y
-  · rw [Datum.asInt_eq_error ha, Datum.asInt_eq_error hb]; rfl
-  all_goals rfl
-
 private theorem evalBinOp_arith_comm {op : ArithOp} (hop : ∀ x y, op.eval x y = op.eval y x)
     (a b : Datum) : evalBinOp (.arith op) a b = evalBinOp (.arith op) b a := by
   simp only [evalBinOp]
-  rw [bind_asInt_comm]
+  rw [Except.bind_comm_of_eq_error (fun _ => Datum.asInt_eq_error) (fun _ => Datum.asInt_eq_error)]
   congr 1; funext y; congr 1; funext x
   rcases x with _ | x <;> rcases y with _ | y <;> simp only [hop]
 
