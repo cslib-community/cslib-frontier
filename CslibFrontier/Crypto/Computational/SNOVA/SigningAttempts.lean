@@ -75,6 +75,7 @@ theorem mem_signingAttemptCounters_iff (counter : Fin 256) :
   simp only [signingAttemptCounters, List.mem_map, List.mem_finRange, true_and]
   constructor
   · rintro ⟨i, rfl⟩
+    change 1 ≤ i.val + 1 ∧ i.val + 1 < 255
     omega
   · rintro ⟨hpos, hlt⟩
     let i : Fin 254 := ⟨counter.val - 1, by omega⟩
