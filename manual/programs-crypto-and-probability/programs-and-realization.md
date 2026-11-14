@@ -154,26 +154,39 @@ the full efficient Schnorr reduction is in `SchnorrSignature/Security.lean`.
 
 [`Signature/WordRandomOracle.lean`](../../CslibFrontier/Crypto/Computational/Signature/WordRandomOracle.lean)
 routes Boolean channel `false` to signing and `true` to hashing. All word hash payloads remain
-distinct, and digest replies use an injective encoding. `wordEufCmaGame` is the resulting EUF-CMA
-game of a native word forger in the shared world, and `ROMSignature.EUFCMA` asks that every
-uniform oracle-PPT word forger win it with negligible probability. `exists_eufCmaGame_savedCoinForger`
-starts from key generation with a polynomial bound on supported public keys (which strict-PPT key
-generation supplies through `IsPPTOn.length_le`) and an actual `IsOraclePPT` word forger, and proves
-equality of `wordEufCmaGame` and the explicit-coin EUF-CMA game. One native machine
-and clock work uniformly for all digest types and encodings, including parameter-dependent ones.
-Its native replay
+distinct, and digest replies use an injective encoding. `wordEufCmaGame` accepts a verified pair
+whose message was never signed; `wordSufCmaGame` uses the same key law, routed forger, signing log
+and lazy hash cache, but accepts whenever the complete pair was never returned by signing. Thus a
+different valid signature on a signed message may win the strong game, while exact replay cannot.
+`ROMSignature.EUFCMA` and `ROMSignature.SUFCMA` ask that every uniform oracle-PPT word forger win
+the corresponding game with negligible probability; their `negligible` and `of_negligible` lemmas
+eliminate and introduce those predicates through per-forger success bounds. Message freshness
+implies pair freshness, so
+`succProbability_wordEufCmaGame_le_wordSufCmaGame` and `SUFCMA.eufCma` give the finite and
+asymptotic EUF consequences of strong security.
+
+`exists_eufCmaGame_savedCoinForger` and `exists_sufCmaGame_savedCoinForger` start from key
+generation with a polynomial bound on supported public keys (which strict-PPT key generation
+supplies through `IsPPTOn.length_le`) and an actual `IsOraclePPT` word forger. They prove equality
+of each native game and its explicit-coin typed game, retaining the separate signing and hash call
+bounds. One native machine and clock work uniformly for all digest types and encodings, including
+parameter-dependent ones. Its native replay
 certificate charges the whole `(n, pk, coins)` input, the key-length guard, tape truncation, and
 the existing total pair decoder. Oversized keys return the empty pair without calls; every tape
 obeys the parameter-only call bounds, including tapes outside the sampling support. Plain
 `ComputableInPolyTime.encoding_comp` supplies the encoded machine input.
 
-This completes the generic word-forger adapter
-[#2636](https://github.com/cslib-community/cslib-frontier/issues/2636). The scheme's signer, hash
-handler and final verifier still run in the existing typed shared world. Native realizations of
-those components and Schnorr's concrete query encoding are separate obligations; the full efficient
-Schnorr forking reduction is in `SchnorrSignature/Security.lean`. Repeated signing/hash and
-fresh/replayed-message examples are checked in
+The EUF adapter completed
+[#2636](https://github.com/cslib-community/cslib-frontier/issues/2636); the SUF game, implication
+and bridge are [#5554](https://github.com/cslib-community/cslib-frontier/issues/5554). The scheme's
+signer, hash handler and final verifier still run in the existing typed shared world. Native
+realizations of those components and Schnorr's concrete query encoding are separate obligations;
+the full efficient Schnorr forking reduction is in `SchnorrSignature/Security.lean`. Repeated
+signing/hash and fresh-message, new-signature and exact-replay examples are checked in
 [`Crypto/WordRandomOracle.lean`](../../CslibFrontierTests/Crypto/WordRandomOracle.lean).
+This is a classical lazy-ROM adapter. It supplies no coherent QROM execution, quantum adversary,
+Fiat–Shamir-with-aborts or ML-DSA security theorem, executable scheme-level reduction, or static
+reducer/interpreter/program-size certificate.
 
 ## Exact versus approximate randomness
 

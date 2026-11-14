@@ -391,15 +391,27 @@ prerequisite is supplied by `IsOraclePPTOn.exists_savedCoins` in
 [`Oracle/Replay.lean`](../../CslibFrontier/Computability/Probabilistic/Oracle/Replay.lean), which charges
 full-input replay and retains external state.
 [`Signature/WordRandomOracle.lean`](../../CslibFrontier/Crypto/Computational/Signature/WordRandomOracle.lean)
-names the EUF-CMA game of an actual Boolean-channel word forger, `ROMSignature.wordEufCmaGame`,
-and the asymptotic notion `ROMSignature.EUFCMA`: every uniform oracle-PPT word forger wins with
-negligible probability. It also gives a key-independent saved-coin adapter for such forgers, with
-full-input native replay and equality of `wordEufCmaGame` and the explicit-coin EUF-CMA game. All
-word hash payloads stay distinct. `exists_closeTo_wordEufCmaGame_schnorrNativeROMScheme` (below)
-applies it to the native Schnorr scheme, and `SchnorrSignature/Security.lean` (below) certifies
-the forking reduction built on it. See the
+names the EUF-CMA and SUF-CMA games of an actual Boolean-channel word forger,
+`ROMSignature.wordEufCmaGame` and `ROMSignature.wordSufCmaGame`. Both use the same typed shared
+world; EUF requires a fresh message and SUF a fresh complete `(message, signature)` pair. The
+asymptotic notions `ROMSignature.EUFCMA` and `ROMSignature.SUFCMA` quantify over every uniform
+oracle-PPT word forger; each has `negligible` and `of_negligible` elimination/introduction lemmas.
+The finite comparison `succProbability_wordEufCmaGame_le_wordSufCmaGame` and `SUFCMA.eufCma`
+record that strong security implies ordinary security.
+
+The key-independent saved-coin adapter has full-input native replay, separate signing/hash call
+bounds, and exact equalities for both games (`exists_eufCmaGame_savedCoinForger` and
+`exists_sufCmaGame_savedCoinForger`). All word hash payloads stay distinct. This remains a
+classical lazy-ROM bridge: it does not supply coherent QROM access, quantum adversaries,
+Fiat–Shamir-with-aborts losses, an ML-DSA security theorem, an executable scheme-level reduction,
+or static reducer/controller/interpreter size bounds. The later
+`exists_closeTo_wordEufCmaGame_schnorrNativeROMScheme` applies only the EUF adapter to native
+Schnorr, and `SchnorrSignature/Security.lean` certifies the forking reduction built on it; no SUF
+claim for Schnorr follows from the generic bridge. See the
 checked algorithms and typed-ROM examples in
-[`CslibFrontierTests/Crypto/SchnorrSignature.lean`](../../CslibFrontierTests/Crypto/SchnorrSignature.lean).
+[`CslibFrontierTests/Crypto/SchnorrSignature.lean`](../../CslibFrontierTests/Crypto/SchnorrSignature.lean),
+and the generic fresh-message, new-signature, exact-replay and saved-coin clients in
+[`CslibFrontierTests/Crypto/WordRandomOracle.lean`](../../CslibFrontierTests/Crypto/WordRandomOracle.lean).
 
 [`SchnorrSignature/NativeROM.lean`](../../CslibFrontier/Crypto/Computational/SchnorrSignature/NativeROM.lean)
 provides the actual `schnorrROMSign` and `schnorrROMVerify` oracle programs. The signer samples
