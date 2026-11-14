@@ -64,7 +64,7 @@ theorem runFrom_relabel {State' : Type*} (tm : MultiTapeTM k Symbol State₀)
     rw [step_of_state hq, step_of_state (q := e q) (by simp [hq])]
     -- The observed tape symbols are definitionally unchanged by the control-state map.
     simp only [relabel, tr_ofTr, Equiv.symm_apply_apply, Cfg.mapState,
-      Action.apply, Cfg.inputSymbol, Cfg.mk.injEq] <;> repeat' constructor
+      Action.apply, Cfg.inputSymbol, Cfg.mk.injEq]; repeat' constructor
 
 /-- Renaming states preserves the time and visited-cell bounds independently. -/
 theorem TransformsTapes.relabel {State' : Type*}
