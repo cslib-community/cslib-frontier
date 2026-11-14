@@ -202,11 +202,6 @@ end Turing.MultiTapeTM.ComputableInPolyTime
 
 namespace Turing.MultiTapeTM.ComputableTidilyInPolyTime
 
-/-- Compatibility certificate for clients still requiring tidy binary summation. -/
-@[fun_prop]
-theorem binary_sum : ComputableTidilyInPolyTime List.sum (encList encNat) encNat :=
-  ComputableInPolyTime.binary_sum.tidy
-
 /-- `2 ^ k` in binary, from `k` in unary, by doubling. -/
 @[fun_prop]
 theorem binary_two_pow : ComputableTidilyInPolyTime (fun k : ℕ => 2 ^ k) encUnary encNat := by

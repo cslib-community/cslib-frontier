@@ -125,6 +125,9 @@ For sums of binary naturals, import
 and compose `ComputableInPolyTime.binary_sum` with the certificate producing the
 `encList encNat` input. Its plain fold proof bounds accumulator digit growth by the
 encoded input length plus one per element.
+The [weighted SetCover verifier](../../CslibFrontier/Computability/Complexity/Problems/SetCover.lean)
+and [approximation reduction](../../CslibFrontier/Computability/PCP/Approximation/SetCover/ApproxReduction.lean)
+compose this plain certificate directly with their weight-list certificates.
 [TruncatedSum](../../CslibFrontier/Computability/Complexity/Classes/CountingSimulation/TruncatedSum.lean)
 uses the same certificate for separate time and space envelopes.
 
