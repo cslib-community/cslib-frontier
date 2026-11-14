@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.De
 public import CslibFrontier.Crypto.Game
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.CoinTape.QueryBounds
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.CoinTape.Substitution
+import CslibFrontier.Crypto.Game.Forgery
 import CslibFrontier.Crypto.Game.Order
 import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Probability.PMF.Bind
@@ -151,7 +152,7 @@ noncomputable def wordEufCmaGame {SK : Type} [Fintype Digest] [Nonempty Digest]
 execution and shared random oracle as `wordEufCmaGame`, but the candidate wins exactly when it
 verifies and its complete `(message, signature)` pair was never returned by the signing oracle.
 Thus a different valid signature on a previously signed message can win, while exact replay
-cannot. -/
+cannot. This is the native-program form of the existing typed `sufCmaGame`. -/
 noncomputable def wordSufCmaGame {SK : Type} [Fintype Digest] [Nonempty Digest]
     (digestEncoding : Digest ↪ List Bool)
     (scheme : Scheme (List Bool) SK (List Bool) (List Bool) (List Bool) Digest)
@@ -256,13 +257,16 @@ theorem succProbability_wordEufCmaGame_le_wordSufCmaGame {SK : Type}
   by_cases hmsg : (pairs.map Prod.fst).contains msig.1 = true
   · simp [hmsg]
   · have hpair : pairs.contains msig = false := by
-      apply Bool.eq_false_iff.mpr
-      intro hcontains
-      have hmemPair : msig ∈ pairs := List.contains_iff_mem.mp hcontains
-      have hmemMsg : msig.1 ∈ pairs.map Prod.fst := List.mem_map_of_mem hmemPair
-      have hcontainsMsg : (pairs.map Prod.fst).contains msig.1 = true :=
-        List.contains_iff_mem.mpr hmemMsg
-      exact hmsg hcontainsMsg
+      have hnotmem : msig.1 ∉ pairs.map Prod.fst := fun hmem =>
+        hmsg (List.contains_iff_mem.mpr hmem)
+      have hfreshMessage : freshMessage msig.1 msig.2 pairs = true := by
+        simp only [freshMessage, decide_eq_true_eq]
+        exact hnotmem
+      have hfreshPair := freshPair_of_freshMessage hfreshMessage
+      have hnotPair : msig ∉ pairs := by
+        simpa only [freshPair, decide_eq_true_eq] using hfreshPair
+      exact Bool.eq_false_iff.mpr fun hcontains =>
+        hnotPair (List.contains_iff_mem.mp hcontains)
     simp [hmsg, hpair]
 
 /-- Native ROM SUF-CMA security implies native ROM EUF-CMA security for the same scheme family. -/
