@@ -7,6 +7,8 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Crypto.Primitives.HQC.ByteField
+public import CslibFrontier.Foundations.Data.Code.Concatenation
 public import CslibFrontier.Foundations.Data.Code.ReedSolomon
 public import Mathlib.RingTheory.Polynomial.Div
 
@@ -38,13 +40,18 @@ constant-time machine implementation.
 The source coefficient arrays below are from the `RS_POLY_COEFS` macros in the HQC v5.1.0
 reference implementation, tag commit `06567ccbad10580d78dd7863b15d23f41076d57f`.  Coefficients
 and codeword coordinates are listed from constant term upward.  The implementation uses the
-modulus byte `0x11b` and primitive-element byte `0x03`; identifying an explicit Lean field model
-with that byte representation and proving the decoder's bounded-error behavior remain required
-before this is a complete source codec.
+modulus byte `0x11b` and primitive-element byte `0x03`; `HQCByte` and `hqcAlpha` give that exact
+polynomial-basis representation.  The LFSR encoder below is the source loop, while
+`HQCRSGeneratorMatchesSource` and `HQCRSLFSRMatchesPolynomial` state the outstanding equivalence
+obligations.  Proving the order of `hqcAlpha`, these equivalences, and the decoder's bounded-error
+behavior remains required before this is a complete source codec.
 
-In particular, this module does not compose the duplicated Reed–Muller code, prove a bit-error
-radius, establish the Model-2 distribution, evaluate Equation (9), or justify the numerical
-failure probabilities in Table 16.
+The final definitions expose the deterministic seam used by an HQC decoding-failure reduction:
+an arbitrary inner decoder first produces one byte per outer coordinate, and outer failure is
+exactly the event that more than `t1` of those bytes disagree with the source RS codeword.  This
+module does not identify that inner decoder with the duplicated Reed–Muller implementation, prove
+a bit-error radius, establish the Model-2 distribution, evaluate Equation (9), or justify the
+numerical failure probabilities in Table 16.
 
 ## Main definitions
 
@@ -55,6 +62,8 @@ failure probabilities in Table 16.
   message-tail codeword layout.
 * `Cslib.Crypto.HQC.hqcRSGenerator`, `Cslib.Crypto.HQC.hqcRSEncode`: the polynomial generator
   and systematic encoding semantics.
+* `Cslib.Crypto.HQC.hqcRSSourceGenerator`, `Cslib.Crypto.HQC.hqcRSLFSREncode`: the pinned source
+  coefficient array and reverse-message LFSR implementation.
 * `Cslib.Crypto.HQC.hqcRSSyndromes`, `Cslib.Crypto.HQC.hqcRSMessagePoint`,
   `Cslib.Crypto.HQC.hqcRSAuxiliary`, `Cslib.Crypto.HQC.hqcRSOddLocator`: the source decoder
   stages after the locator update.
@@ -65,6 +74,12 @@ failure probabilities in Table 16.
 * `Cslib.Crypto.HQC.hqcRSDecode`: the complete source-shaped best-effort decoder.
 * `Cslib.Crypto.HQC.HQCRSDecoderCorrects`: the exact bounded-symbol-error obligation for a
   completed encoder and decoder.
+* `Cslib.Crypto.HQC.hqcRSSourceCode`, `Cslib.Crypto.HQC.HQCRSHasSourceDistance`,
+  `Cslib.Crypto.HQC.HQCReedSolomonCorrects`: the concrete source code and its outstanding exact
+  distance and mixed-error correction obligations.
+* `Cslib.Crypto.HQC.hqcRSConcatenatedEncode`,
+  `Cslib.Crypto.HQC.hqcRSConcatenatedDecode`, `Cslib.Crypto.HQC.hqcRSOuterFailure`: the generic
+  inner-code composition and deterministic outer-failure seam.
 
 ## References
 
@@ -133,6 +148,15 @@ def hqcReedSolomonParameters : HQCReedSolomonInstance → HQCReedSolomonParamete
             252, 85, 125, 59, 52, 215, 180, 34, 173, 208, 1]
         generatorCoefficients_length := by decide }
 
+/-- The source generator coefficient at index `i`, interpreted in the exact byte field.  Indices
+outside the stored array are zero. -/
+noncomputable def hqcRSSourceGeneratorCoeff (p : HQCReedSolomonParameters) (i : ℕ) : HQCByte :=
+  hqcByteOfNat (p.generatorCoefficients.getD i 0)
+
+/-- The generator polynomial transcribed from the parameter set's `RS_POLY_COEFS` array. -/
+noncomputable def hqcRSSourceGenerator (p : HQCReedSolomonParameters) : HQCByte[X] :=
+  ∑ i ∈ range (2 * p.capacity + 1), monomial i (hqcRSSourceGeneratorCoeff p i)
+
 /-- A shortened Reed–Solomon message: `k1` field symbols. -/
 abbrev HQCRSMessage (p : HQCReedSolomonParameters) (F : Type*) := Fin p.messageLength → F
 
@@ -174,6 +198,36 @@ def hqcRSMessagePart {F : Type*} (p : HQCReedSolomonParameters)
     (word : HQCRSWord p F) : HQCRSMessage p F :=
   fun i => word (hqcRSMessageIndex p i)
 
+/-- A parity-register coefficient, extended by zero outside the `2 * t1` stages. -/
+def hqcRSParityCoeff {F : Type*} [Zero F] (p : HQCReedSolomonParameters)
+    (parity : HQCRSParity p F) (i : ℕ) : F :=
+  if h : i < 2 * p.capacity then parity ⟨i, h⟩ else 0
+
+/-- One source LFSR step.  The gate is the next message byte plus the last parity stage;
+coefficient zero receives only the feedback product, while every later stage also shifts its
+predecessor. -/
+noncomputable def hqcRSLFSRStep (p : HQCReedSolomonParameters)
+    (parity : HQCRSParity p HQCByte) (input : HQCByte) : HQCRSParity p HQCByte :=
+  let gate := input + hqcRSParityCoeff p parity (2 * p.capacity - 1)
+  fun i =>
+    if (i : ℕ) = 0 then
+      gate * hqcRSSourceGeneratorCoeff p 0
+    else
+      hqcRSParityCoeff p parity ((i : ℕ) - 1) +
+        gate * hqcRSSourceGeneratorCoeff p i
+
+/-- The source encoder's parity register after processing message bytes from the last byte to the
+first byte. -/
+noncomputable def hqcRSLFSRParity (p : HQCReedSolomonParameters)
+    (message : HQCRSMessage p HQCByte) : HQCRSParity p HQCByte :=
+  (List.ofFn message).reverse.foldl (hqcRSLFSRStep p) 0
+
+/-- The reference `reed_solomon_encode`: reverse-message LFSR parity followed by the unchanged
+message bytes. -/
+noncomputable def hqcRSLFSREncode (p : HQCReedSolomonParameters)
+    (message : HQCRSMessage p HQCByte) : HQCRSWord p HQCByte :=
+  hqcRSAssemble p (hqcRSLFSRParity p message) message
+
 /-- The polynomial whose coefficient vector, from the constant term upward, is `message`. -/
 noncomputable def hqcRSMessagePolynomial {F : Type*} [Semiring F]
     (p : HQCReedSolomonParameters) (message : HQCRSMessage p F) : F[X] :=
@@ -197,6 +251,16 @@ noncomputable def hqcRSEncode {F : Type*} [Field F] [CharP F 2]
     (p : HQCReedSolomonParameters) (alpha : F)
     (message : HQCRSMessage p F) : HQCRSWord p F :=
   hqcRSAssemble p (fun i => (hqcRSParityPolynomial p alpha message).coeff i) message
+
+/-- The source coefficient array agrees with the root-product generator.  This is an explicit
+outstanding proof obligation for each HQC parameter set. -/
+def HQCRSGeneratorMatchesSource (p : HQCReedSolomonParameters) : Prop :=
+  hqcRSGenerator p hqcAlpha = hqcRSSourceGenerator p
+
+/-- The reference LFSR encoder agrees with the polynomial-remainder encoder.  This is an explicit
+outstanding proof obligation, not an assumption of either definition. -/
+def HQCRSLFSRMatchesPolynomial (p : HQCReedSolomonParameters) : Prop :=
+  hqcRSLFSREncode p = hqcRSEncode p hqcAlpha
 
 /-- The `2 * t1` source syndromes `r(alpha^(i+1))`, with codeword coordinates interpreted as
 polynomial coefficients from the constant term upward. -/
@@ -277,6 +341,13 @@ noncomputable def hqcRSOddLocator {F : Type*} [Field F] (p : HQCReedSolomonParam
 def hqcRSMessagePoint {F : Type*} [Monoid F] (p : HQCReedSolomonParameters)
     (alpha : F) (i : Fin p.messageLength) : F :=
   alpha ^ ((255 - ((2 * p.capacity + (i : ℕ)) % 255)) % 255)
+
+/-- The source message-only Chien flags: byte `i` is marked exactly when the bounded locator
+vanishes at `alpha^(-(2 * t1 + i))`. -/
+noncomputable def hqcRSErrorPositions {F : Type*} [Field F] [DecidableEq F]
+    (p : HQCReedSolomonParameters) (alpha : F) (locator : HQCRSErrorLocator p F) :
+    Fin p.messageLength → Bool := fun i =>
+  decide ((hqcRSLocatorPolynomial p locator).eval (hqcRSMessagePoint p alpha i) = 0)
 
 /-- A source locator stage computes the fixed `t1 + 1` coefficient array from the `2 * t1`
 syndromes. -/
@@ -382,12 +453,11 @@ noncomputable def hqcRSDecodeWithLocator {F : Type*} [Field F] [CharP F 2] [Deci
     (received : HQCRSWord p F) : HQCRSMessage p F :=
   let syndromes := hqcRSSyndromes p alpha received
   let locator := errorLocator syndromes
-  let locatorPolynomial := hqcRSLocatorPolynomial p locator
   let auxiliary := hqcRSAuxiliary p syndromes locator
   let oddLocator := hqcRSOddLocator p locator
   fun i =>
     let beta := hqcRSMessagePoint p alpha i
-    if locatorPolynomial.eval beta = 0 ∧ oddLocator.eval beta ≠ 0 then
+    if hqcRSErrorPositions p alpha locator i = true ∧ oddLocator.eval beta ≠ 0 then
       hqcRSMessagePart p received i + auxiliary.eval beta / oddLocator.eval beta
     else
       hqcRSMessagePart p received i
@@ -405,5 +475,81 @@ def HQCRSDecoderCorrects {F : Type*} [Field F] [DecidableEq F]
     (p : HQCReedSolomonParameters) (encode : HQCRSMessage p F → HQCRSWord p F)
     (decode : HQCRSWord p F → HQCRSMessage p F) : Prop :=
   ∀ message error, hammingNorm error ≤ p.capacity → decode (encode message + error) = message
+
+/-- The concrete shortened source code: the range of the pinned reverse-message LFSR encoder. -/
+noncomputable def hqcRSSourceCode (p : HQCReedSolomonParameters) :
+    Set (HQCRSWord p HQCByte) :=
+  Set.range (hqcRSLFSREncode p)
+
+/-- The outstanding exact-distance obligation for the shortened source code.  Its expected
+minimum distance is `2 * t1 + 1`, including after shortening. -/
+def HQCRSHasSourceDistance (p : HQCReedSolomonParameters) : Prop :=
+  Cslib.Code.minDist (hqcRSSourceCode p) = (2 * p.capacity + 1 : ℕ)
+
+/-- The outstanding concrete decoder theorem: the pinned source encoder and total decoder recover
+the message from every mixture of at most `t1` parity- and message-symbol errors. -/
+def HQCReedSolomonCorrects (p : HQCReedSolomonParameters) : Prop :=
+  HQCRSDecoderCorrects p (hqcRSLFSREncode p) (hqcRSDecode p hqcAlpha)
+
+/-- Decode each inner block to obtain the byte word presented to the outer RS decoder. -/
+def hqcRSInnerDecodedWord {K B : Type*} (p : HQCReedSolomonParameters)
+    (innerDecode : (K → B) → HQCByte) (received : Fin p.length × K → B) :
+    HQCRSWord p HQCByte :=
+  fun i => innerDecode fun j => received (i, j)
+
+/-- Encode with the source shortened RS layer and then an arbitrary inner byte encoder. -/
+noncomputable def hqcRSConcatenatedEncode {K B : Type*} (p : HQCReedSolomonParameters)
+    (innerEncode : HQCByte → K → B) (message : HQCRSMessage p HQCByte) :
+    Fin p.length × K → B :=
+  Cslib.Code.concat innerEncode (hqcRSLFSREncode p message)
+
+/-- Decode every inner block and pass the resulting byte word to the source RS decoder. -/
+noncomputable def hqcRSConcatenatedDecode {K B : Type*} (p : HQCReedSolomonParameters)
+    (innerDecode : (K → B) → HQCByte) (received : Fin p.length × K → B) :
+    HQCRSMessage p HQCByte :=
+  hqcRSDecode p hqcAlpha (hqcRSInnerDecodedWord p innerDecode received)
+
+/-- The outer-symbol error induced by an arbitrary received inner-code word. -/
+noncomputable def hqcRSSymbolError {K B : Type*} (p : HQCReedSolomonParameters)
+    (innerDecode : (K → B) → HQCByte) (received : Fin p.length × K → B)
+    (message : HQCRSMessage p HQCByte) : HQCRSWord p HQCByte :=
+  hqcRSInnerDecodedWord p innerDecode received - hqcRSLFSREncode p message
+
+/-- The deterministic outer-failure event: more than `t1` inner blocks decode to the wrong byte.
+No probability model or inner-code radius is built into this predicate. -/
+noncomputable def hqcRSOuterFailure {K B : Type*} (p : HQCReedSolomonParameters)
+    (innerDecode : (K → B) → HQCByte) (received : Fin p.length × K → B)
+    (message : HQCRSMessage p HQCByte) : Prop :=
+  p.capacity < hammingNorm (hqcRSSymbolError p innerDecode received message)
+
+/-- Conditional deterministic composition: the concrete outer correctness theorem reduces
+successful concatenated decoding to at most `t1` incorrectly decoded inner blocks. -/
+theorem hqcRSConcatenatedDecode_eq_of_symbolWeight_le {K B : Type*}
+    (p : HQCReedSolomonParameters) (innerDecode : (K → B) → HQCByte)
+    (received : Fin p.length × K → B) (message : HQCRSMessage p HQCByte)
+    (hcorrect : HQCReedSolomonCorrects p)
+    (hweight : hammingNorm (hqcRSSymbolError p innerDecode received message) ≤ p.capacity) :
+    hqcRSConcatenatedDecode p innerDecode received = message := by
+  have hword :
+      hqcRSLFSREncode p message + hqcRSSymbolError p innerDecode received message =
+        hqcRSInnerDecodedWord p innerDecode received := by
+    funext i
+    simp only [hqcRSSymbolError, Pi.add_apply, Pi.sub_apply]
+    abel
+  rw [hqcRSConcatenatedDecode, ← hword]
+  exact hcorrect message (hqcRSSymbolError p innerDecode received message) hweight
+
+/-- Conditional deterministic failure reduction: if concatenated decoding fails, more than
+`t1` inner blocks decoded to the wrong byte. -/
+theorem hqcRSOuterFailure_of_decode_ne {K B : Type*} (p : HQCReedSolomonParameters)
+    (innerDecode : (K → B) → HQCByte) (received : Fin p.length × K → B)
+    (message : HQCRSMessage p HQCByte) (hcorrect : HQCReedSolomonCorrects p)
+    (hfail : hqcRSConcatenatedDecode p innerDecode received ≠ message) :
+    hqcRSOuterFailure p innerDecode received message := by
+  by_contra hweight
+  apply hfail
+  apply hqcRSConcatenatedDecode_eq_of_symbolWeight_le p innerDecode received message hcorrect
+  rw [hqcRSOuterFailure] at hweight
+  omega
 
 end Cslib.Crypto.HQC
