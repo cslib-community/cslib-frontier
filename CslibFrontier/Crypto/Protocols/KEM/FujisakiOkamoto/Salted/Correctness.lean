@@ -23,11 +23,14 @@ projection. The rejection oracle is a separate channel and does not create a PKE
 witness. Decapsulation is punctured at the challenge ciphertext and has its own cost.
 
 `Scheme.realHandler` constructs the decrypt/re-encrypt path and `Scheme.simHandler` constructs the
-secret-key-free patched-cache path. The proof inserts a private prefetch handler: real and prefetch
-are identical until one cached encryption coin fails to decrypt, while prefetch and keyless have
-exactly the same output law after completing their joined coin, `LD` and `J` tables. The concrete
-fixed-key theorem therefore loses exactly `(qRO + qD) * ε`; the randomized theorem averages a
-public-key-only adversary over key generation using `ExplicitCoinPKE.DeltaCorrect δ`.
+secret-key-free patched-cache path. These handlers begin after the source proof's secret rejection
+seed has been guessed: the adversary-visible `J` table and the proof-only `LD` table are therefore
+independent here, rather than a model of the original pre-guessing HQC fallback oracle. The proof
+inserts a private prefetch handler: real and prefetch are identical until one cached encryption coin
+fails to decrypt, while prefetch and keyless have exactly the same output law after completing their
+joined coin, `LD` and `J` tables. The concrete fixed-key theorem therefore loses exactly
+`(qRO + qD) * ε`; the randomized theorem averages a challenge-aware public adversary over a common
+challenge law and key generation using `ExplicitCoinPKE.DeltaCorrect δ`.
 
 This is the single-user, single-challenge specialization of the `CORR` step in Theorem 11 and
 Figure 11 of [GlabushHoevelmannsStebila2025]. In HQC v5.1, Section 6.2.2, Theorem 6.4, the source
@@ -56,20 +59,14 @@ resources must be supplied by a later transform and HQC realization.
   keyless cached handlers.
 * `Cslib.Crypto.Protocols.FujisakiOkamoto.Salted.QueryBounds`: separate `qRO` and `qD` bounds.
 * `Cslib.Crypto.Protocols.FujisakiOkamoto.Salted.RandomizedAdversary`: randomized programs whose
-  external query bounds hold for each fixed coin value.
+  external query bounds hold for each fixed coin value and public challenge.
 
 ## Main results
 
-* `Cslib.Crypto.Protocols.FujisakiOkamoto.Salted.closeTo_run_corr`: exact fixed-key
-  `(qRO + qD) * ε` all-events bound.
 * `Cslib.Crypto.Protocols.FujisakiOkamoto.Salted.Scheme.closeTo_run_realHandler_simHandler`:
   concrete real-to-keyless fixed-key hop.
-* `Cslib.Crypto.Protocols.FujisakiOkamoto.Salted.advantage_randomizedKeyedGame_corr_le`: the same
-  bound for public-key-only randomized adversaries with per-random-tape bounds.
 * `Cslib.Crypto.Protocols.FujisakiOkamoto.Salted.Scheme.advantage_randomizedKeyedGame_realHandler_simHandler_le`:
-  concrete randomized real-to-keyless advantage bound.
-* `Cslib.Crypto.Protocols.FujisakiOkamoto.Salted.advantage_keyedGame_corr_le`: exact
-  `(qRO + qD) * δ` two-world advantage bound under `ExplicitCoinPKE.DeltaCorrect δ`.
+  concrete challenge-aware randomized real-to-keyless advantage bound.
 
 ## References
 
@@ -190,9 +187,9 @@ structure Scheme (PK SK M R CT JointPrefix Salt RejectPrefix Sigma K : Type) whe
   /-- Secret seed used only in the rejection `J` domain. -/
   rejectionSecret : SK → Sigma
 
-/-- Lazy state shared by the concrete salted-FO handlers. `jointCache` is the fused `G` table,
-`rejectionCache` is the adversary-visible `J` table, and `decapsCache` is Figure 11's patched
-decapsulation table `LD`. -/
+/-- Lazy state shared by the concrete salted-FO handlers after the secret-seed guessing hop.
+`jointCache` is the fused `G` table, `rejectionCache` is the now-independent adversary-visible `J`
+table, and `decapsCache` is Figure 11's patched decapsulation table `LD`. -/
 structure CacheState (JointPrefix M Salt RejectPrefix Sigma CT K R : Type) where
   /-- Lazy fused-oracle table. -/
   jointCache : List (JointInput JointPrefix M Salt × JointReply K R) := []
@@ -367,8 +364,8 @@ noncomputable def simJoint [DecidableEq (JointInput JointPrefix M Salt)]
     StateT (CacheState JointPrefix M Salt RejectPrefix Sigma CT K R) PMF (JointReply K R) :=
   S.cacheJoint pk (fun _ _ => True) input
 
-/-- Lazy adversary-visible rejection oracle. It is shared by both games and never changes the
-correctness cache. -/
+/-- Post-secret-seed-guessing adversary-visible rejection oracle. It is independent of `LD`, is
+shared by both games, and never changes the correctness cache. -/
 noncomputable def rejection [DecidableEq (RejectionInput RejectPrefix Sigma CT Salt)]
     (S : Scheme PK SK M R CT JointPrefix Salt RejectPrefix Sigma K)
     (input : RejectionInput RejectPrefix Sigma CT Salt) :
@@ -431,8 +428,8 @@ noncomputable def simDecaps [DecidableEq (Ciphertext CT Salt)]
     StateT (CacheState JointPrefix M Salt RejectPrefix Sigma CT K R) PMF (Option K) :=
   some <$> S.decapsKey ciphertext
 
-/-- Concrete punctured real handler. Challenge rejection happens in the common dispatcher before
-`realDecaps` can decrypt or query the joint oracle. -/
+/-- Concrete punctured post-secret-seed-guessing real handler. Challenge rejection happens in the
+common dispatcher before `realDecaps` can decrypt or query the joint oracle. -/
 noncomputable def realHandler [DecidableEq (JointInput JointPrefix M Salt)]
     [DecidableEq (RejectionInput RejectPrefix Sigma CT Salt)]
     [DecidableEq (Ciphertext CT Salt)]
@@ -455,8 +452,9 @@ private noncomputable def prefetchHandler [DecidableEq (JointInput JointPrefix M
       StateT (CacheState JointPrefix M Salt RejectPrefix Sigma CT K R) PMF (Response K R q) :=
   Query.dispatch (S.simJoint pk) S.rejection (S.prefetchDecaps pk sk) challenge
 
-/-- Concrete punctured keyless handler. Its type has no secret key; the `J` oracle remains an
-independent source-shaped adversary query, while decapsulation uses only `decapsCache`. -/
+/-- Concrete punctured post-secret-seed-guessing keyless handler. Its type has no secret key; the
+independent `J` table remains a source-shaped adversary query, while decapsulation uses only
+`decapsCache`. -/
 noncomputable def simHandler [DecidableEq (JointInput JointPrefix M Salt)]
     [DecidableEq (RejectionInput RejectPrefix Sigma CT Salt)]
     [DecidableEq (Ciphertext CT Salt)]
@@ -1309,17 +1307,18 @@ def QueryBounds {JointPrefix M Salt RejectPrefix Sigma CT K R α : Type}
   OracleComp.IsCostBounded Query.jointCost program qRO ∧
     OracleComp.IsCostBounded Query.decapsCost program qD
 
-/-- A randomized single-user adversary for the correctness hop. Its oracle program is selected by
-private coins and the public PKE key only; in particular, the program cannot depend on `sk`.
-Query bounds are stated separately and required for every value in `Coins`. -/
+/-- A randomized single-user, single-challenge adversary for the correctness hop. Its oracle
+program is selected by private coins and the full public KEM challenge; in particular, the program
+can depend on the public key, challenge ciphertext and challenge key, but not on `sk`. Query bounds
+are stated separately and required for every random tape and challenge. -/
 structure RandomizedAdversary
     (PK JointPrefix M Salt RejectPrefix Sigma CT K R : Type) where
   /-- Type of the adversary's private random tape. -/
   Coins : Type
   /-- Distribution of private random tapes. -/
   coins : ProbComp Coins
-  /-- Deterministic oracle program after fixing the private tape and public key. -/
-  run : Coins → PK → OracleComp
+  /-- Deterministic oracle program after fixing the private tape and public challenge. -/
+  run : Coins → KEM.Challenge PK (Ciphertext CT Salt) K → OracleComp
     (Response (JointPrefix := JointPrefix) (M := M) (Salt := Salt)
       (RejectPrefix := RejectPrefix) (Sigma := Sigma) (CT := CT) K R) Bool
 
@@ -1327,11 +1326,11 @@ namespace RandomizedAdversary
 
 variable {PK JointPrefix M Salt RejectPrefix Sigma CT K R : Type}
 
-/-- Per-random-tape joint-oracle and decapsulation bounds. -/
+/-- Per-random-tape and per-challenge joint-oracle and decapsulation bounds. -/
 def QueryBounded
     (A : RandomizedAdversary PK JointPrefix M Salt RejectPrefix Sigma CT K R)
     (qRO qD : ℕ) : Prop :=
-  ∀ coins pk, QueryBounds (A.run coins pk) qRO qD
+  ∀ coins challenge, QueryBounds (A.run coins challenge) qRO qD
 
 end RandomizedAdversary
 
@@ -1342,7 +1341,7 @@ then has output laws within `(qRO + qD) * ε`, after any shared randomized postp
 
 The cost of `Query.rejection` is zero in both channels, so a shared `J` fallback contributes no
 correctness term. `Query.joint` has cost one even though its reply has two projections. -/
-theorem closeTo_run_corr {JointPrefix M Salt RejectPrefix Sigma CT K R State α β : Type}
+private theorem closeTo_run_corr {JointPrefix M Salt RejectPrefix Sigma CT K R State α β : Type}
     {first second : (q : Query JointPrefix M Salt RejectPrefix Sigma CT) →
       StateT State PMF (Response K R q)} {bad : State → Prop} {ε : ℝ≥0∞}
     (hident : OracleComp.IdenticalUntilBad first second bad)
@@ -1407,166 +1406,85 @@ theorem Scheme.closeTo_run_realHandler_simHandler
   rw [← S.run_prefetchHandler_eq_simHandler pk sk challenge program]
   exact S.closeTo_run_realHandler_prefetchHandler pk sk challenge program hbounds
 
-/-- Run a randomized public-key-only adversary under a fixed family of handlers and average over
-PKE key generation. -/
-noncomputable def randomizedKeyedGame
-    {PK SK M R CT JointPrefix Salt RejectPrefix Sigma K State : Type}
-    (P : ExplicitCoinPKE PK SK M R CT)
-    (handler : PK → SK → (q : Query JointPrefix M Salt RejectPrefix Sigma CT) →
-      StateT State PMF (Response K R q))
-    (A : RandomizedAdversary PK JointPrefix M Salt RejectPrefix Sigma CT K R)
-    (initial : PK → SK → State) : PMF Bool :=
-  (ProbComp.eval P.keyGen).bind fun keys =>
+/-- Run a challenge-aware randomized adversary against the post-secret-seed-guessing real
+handler. The adversary's coins are sampled before the common public challenge. -/
+noncomputable def Scheme.randomizedRealHandlerGame
+    [DecidableEq (JointInput JointPrefix M Salt)]
+    [DecidableEq (RejectionInput RejectPrefix Sigma CT Salt)]
+    [DecidableEq (Ciphertext CT Salt)]
+    (S : Scheme PK SK M R CT JointPrefix Salt RejectPrefix Sigma K)
+    (challengeSetup : PK → ProbComp (Ciphertext CT Salt × K))
+    (A : RandomizedAdversary PK JointPrefix M Salt RejectPrefix Sigma CT K R) : PMF Bool :=
+  (ProbComp.eval S.pke.keyGen).bind fun keys =>
     (ProbComp.eval A.coins).bind fun coins =>
-      ((OracleComp.interpret (handler keys.1 keys.2) (A.run coins keys.1)).run
-        (initial keys.1 keys.2)).map Prod.fst
+      (ProbComp.eval (challengeSetup keys.1)).bind fun challenge =>
+        ((OracleComp.interpret (S.realHandler keys.1 keys.2 challenge.1)
+          (A.run coins ⟨keys.1, challenge.1, challenge.2⟩)).run {}).map Prod.fst
 
-/-- **Randomized-adversary salted-FO `CORR` hop.** The adversary's program depends on its random
-tape and the public key, never on the secret key, and its `qRO`/`qD` bounds hold for every fixed
-tape. Fixed-key handler identity and correctness-step bounds then average to
-`(qRO + qD) * δ` under `ExplicitCoinPKE.DeltaCorrect δ`. -/
-theorem advantage_randomizedKeyedGame_corr_le [Fintype M] [Nonempty M]
-    {PK SK M R CT JointPrefix Salt RejectPrefix Sigma K State : Type}
-    (P : ExplicitCoinPKE PK SK M R CT)
-    (first second : PK → SK →
-      (q : Query JointPrefix M Salt RejectPrefix Sigma CT) →
-      StateT State PMF (Response K R q))
-    (bad : PK → SK → State → Prop)
-    (hident : ∀ pk sk, OracleComp.IdenticalUntilBad
-      (first pk sk) (second pk sk) (bad pk sk))
-    (hstep : ∀ pk sk q s, ¬bad pk sk s →
-      (first pk sk q s).toOuterMeasure {x | bad pk sk x.2} ≤
-        (Query.jointCost q : ℝ≥0∞) * ENNReal.ofReal (P.keyPairMaxFailProb pk sk) +
-          (Query.decapsCost q : ℝ≥0∞) * ENNReal.ofReal (P.keyPairMaxFailProb pk sk))
-    (A : RandomizedAdversary PK JointPrefix M Salt RejectPrefix Sigma CT K R)
-    {qRO qD : ℕ} (hbounds : A.QueryBounded qRO qD)
-    (initial : PK → SK → State) (hinitial : ∀ pk sk, ¬bad pk sk (initial pk sk))
-    {δ : ℝ} (hδ : P.DeltaCorrect δ) :
-    (Game.advantage (randomizedKeyedGame P first A initial)
-        (randomizedKeyedGame P second A initial) : ℝ) ≤
-      ((qRO + qD : ℕ) : ℝ) * δ := by
-  change (Game.advantage
-      ((ProbComp.eval P.keyGen).bind fun keys =>
-        (ProbComp.eval A.coins).bind fun coins =>
-          ((OracleComp.interpret (first keys.1 keys.2) (A.run coins keys.1)).run
-            (initial keys.1 keys.2)).map Prod.fst)
-      ((ProbComp.eval P.keyGen).bind fun keys =>
-        (ProbComp.eval A.coins).bind fun coins =>
-          ((OracleComp.interpret (second keys.1 keys.2) (A.run coins keys.1)).run
-            (initial keys.1 keys.2)).map Prod.fst) : ℝ) ≤ _
-  refine P.advantage_bind_keyGen_le
-    (fun pk sk => (ProbComp.eval A.coins).bind fun coins =>
-      ((OracleComp.interpret (first pk sk) (A.run coins pk)).run (initial pk sk)).map Prod.fst)
-    (fun pk sk => (ProbComp.eval A.coins).bind fun coins =>
-      ((OracleComp.interpret (second pk sk) (A.run coins pk)).run (initial pk sk)).map Prod.fst)
-    (qRO + qD) ?_ hδ
-  intro pk sk
-  refine (CloseTo.bind_right_tsum (ProbComp.eval A.coins)
-    (err := fun _ => (((qRO + qD : ℕ) : ℝ≥0∞) *
-      ENNReal.ofReal (P.keyPairMaxFailProb pk sk))) fun coins _ => ?_).mono ?_
-  · simpa only [PMF.bind_pure_comp, PMF.map_id] using
-      (closeTo_run_corr (hident pk sk) (hstep pk sk) (A.run coins pk)
-        (hbounds coins pk) (hinitial pk sk) (fun out => PMF.pure out.1))
-  · rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
+/-- Run the same challenge-aware randomized adversary against the post-secret-seed-guessing
+keyless handler, using the identical key, coin and challenge setup laws. -/
+noncomputable def Scheme.randomizedSimHandlerGame
+    [DecidableEq (JointInput JointPrefix M Salt)]
+    [DecidableEq (RejectionInput RejectPrefix Sigma CT Salt)]
+    [DecidableEq (Ciphertext CT Salt)]
+    (S : Scheme PK SK M R CT JointPrefix Salt RejectPrefix Sigma K)
+    (challengeSetup : PK → ProbComp (Ciphertext CT Salt × K))
+    (A : RandomizedAdversary PK JointPrefix M Salt RejectPrefix Sigma CT K R) : PMF Bool :=
+  (ProbComp.eval S.pke.keyGen).bind fun keys =>
+    (ProbComp.eval A.coins).bind fun coins =>
+      (ProbComp.eval (challengeSetup keys.1)).bind fun challenge =>
+        ((OracleComp.interpret (S.simHandler keys.1 challenge.1)
+          (A.run coins ⟨keys.1, challenge.1, challenge.2⟩)).run {}).map Prod.fst
 
-/-- **Concrete randomized-adversary salted-FO `CORR` hop.** For a public-key-only randomized
-adversary with per-tape bounds, the concrete real and keyless-handler games differ by at most
-`(qRO + qD) * δ` under `ExplicitCoinPKE.DeltaCorrect δ`. The challenge ciphertext may depend on
-the public key but not the secret key. -/
+/-- **Concrete randomized-adversary salted-FO `CORR` hop.** For a randomized adversary that
+receives the full public KEM challenge and has `qRO`/`qD` bounds for every tape and challenge, the
+concrete real and keyless-handler games differ by at most `(qRO + qD) * δ` under
+`ExplicitCoinPKE.DeltaCorrect δ`. Both games sample the same challenge law after key generation;
+challenge construction is outside the counted handler queries and therefore adds no `+1`. -/
 theorem Scheme.advantage_randomizedKeyedGame_realHandler_simHandler_le
     [Fintype JointPrefix] [Fintype M] [Fintype Salt] [Fintype RejectPrefix]
     [Fintype Sigma] [Fintype CT] [Finite K] [Finite R]
     (S : Scheme PK SK M R CT JointPrefix Salt RejectPrefix Sigma K)
-    (challenge : PK → Ciphertext CT Salt)
+    (challengeSetup : PK → ProbComp (Ciphertext CT Salt × K))
     (A : RandomizedAdversary PK JointPrefix M Salt RejectPrefix Sigma CT K R)
     {qRO qD : ℕ} (hbounds : A.QueryBounded qRO qD)
     {δ : ℝ} (hδ : S.pke.DeltaCorrect δ) :
     (Game.advantage
-      (randomizedKeyedGame S.pke
-        (fun pk sk => S.realHandler pk sk (challenge pk)) A (fun _ _ => {}))
-      (randomizedKeyedGame S.pke
-        (fun pk _ => S.simHandler pk (challenge pk)) A (fun _ _ => {})) : ℝ) ≤
+      (S.randomizedRealHandlerGame challengeSetup A)
+      (S.randomizedSimHandlerGame challengeSetup A) : ℝ) ≤
       ((qRO + qD : ℕ) : ℝ) * δ := by
   change (Game.advantage
       ((ProbComp.eval S.pke.keyGen).bind fun keys =>
         (ProbComp.eval A.coins).bind fun coins =>
-          ((OracleComp.interpret (S.realHandler keys.1 keys.2 (challenge keys.1))
-            (A.run coins keys.1)).run {}).map Prod.fst)
+          (ProbComp.eval (challengeSetup keys.1)).bind fun challenge =>
+            ((OracleComp.interpret (S.realHandler keys.1 keys.2 challenge.1)
+              (A.run coins ⟨keys.1, challenge.1, challenge.2⟩)).run {}).map Prod.fst)
       ((ProbComp.eval S.pke.keyGen).bind fun keys =>
         (ProbComp.eval A.coins).bind fun coins =>
-          ((OracleComp.interpret (S.simHandler keys.1 (challenge keys.1))
-            (A.run coins keys.1)).run {}).map Prod.fst) : ℝ) ≤ _
+          (ProbComp.eval (challengeSetup keys.1)).bind fun challenge =>
+            ((OracleComp.interpret (S.simHandler keys.1 challenge.1)
+              (A.run coins ⟨keys.1, challenge.1, challenge.2⟩)).run {}).map Prod.fst) : ℝ) ≤ _
   refine S.pke.advantage_bind_keyGen_le
     (fun pk sk => (ProbComp.eval A.coins).bind fun coins =>
-      ((OracleComp.interpret (S.realHandler pk sk (challenge pk))
-        (A.run coins pk)).run {}).map Prod.fst)
+      (ProbComp.eval (challengeSetup pk)).bind fun challenge =>
+        ((OracleComp.interpret (S.realHandler pk sk challenge.1)
+          (A.run coins ⟨pk, challenge.1, challenge.2⟩)).run {}).map Prod.fst)
     (fun pk _ => (ProbComp.eval A.coins).bind fun coins =>
-      ((OracleComp.interpret (S.simHandler pk (challenge pk))
-        (A.run coins pk)).run {}).map Prod.fst)
+      (ProbComp.eval (challengeSetup pk)).bind fun challenge =>
+        ((OracleComp.interpret (S.simHandler pk challenge.1)
+          (A.run coins ⟨pk, challenge.1, challenge.2⟩)).run {}).map Prod.fst)
     (qRO + qD) ?_ hδ
   intro pk sk
   refine (CloseTo.bind_right_tsum (ProbComp.eval A.coins)
     (err := fun _ => (((qRO + qD : ℕ) : ℝ≥0∞) *
       ENNReal.ofReal (S.pke.keyPairMaxFailProb pk sk))) fun coins _ => ?_).mono ?_
-  · exact S.closeTo_run_realHandler_simHandler pk sk (challenge pk) (A.run coins pk)
-      (hbounds coins pk)
+  · refine (CloseTo.bind_right_tsum (ProbComp.eval (challengeSetup pk))
+      (err := fun _ => (((qRO + qD : ℕ) : ℝ≥0∞) *
+        ENNReal.ofReal (S.pke.keyPairMaxFailProb pk sk))) fun challenge _ => ?_).mono ?_
+    · exact S.closeTo_run_realHandler_simHandler pk sk challenge.1
+        (A.run coins ⟨pk, challenge.1, challenge.2⟩)
+        (hbounds coins ⟨pk, challenge.1, challenge.2⟩)
+    · rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
   · rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
-
-/-- Average a fixed-key stateful oracle game over the key generator of an explicit-coin PKE. The
-simulated handler may ignore its `sk` argument; retaining the common parameter lets the generic
-`IdenticalUntilBad` proof compare both handlers on one state space. -/
-noncomputable def keyedGame
-    {PK SK M R CT JointPrefix Salt RejectPrefix Sigma K State α : Type}
-    (P : ExplicitCoinPKE PK SK M R CT)
-    (handler : PK → SK → (q : Query JointPrefix M Salt RejectPrefix Sigma CT) →
-      StateT State PMF (Response K R q))
-    (program : PK → SK → OracleComp (Response (JointPrefix := JointPrefix) (M := M)
-      (Salt := Salt) (RejectPrefix := RejectPrefix) (Sigma := Sigma) (CT := CT) K R) α)
-    (initial : PK → SK → State) (next : PK → SK → α × State → PMF Bool) : PMF Bool :=
-  (ProbComp.eval P.keyGen).bind fun keys =>
-    ((OracleComp.interpret (handler keys.1 keys.2) (program keys.1 keys.2)).run
-      (initial keys.1 keys.2)).bind (next keys.1 keys.2)
-
-/-- **Key-averaged salted-FO `CORR` hop.** If the fixed-key real/simulated handlers satisfy
-`closeTo_run_corr` with error equal to the worst-message decryption-failure probability of their
-key pair, `ExplicitCoinPKE.DeltaCorrect δ` yields the exact two-world advantage loss
-`(qRO + qD) * δ`.
-
-There is no challenge `+1`: challenge construction is not one of the handler queries in this hop,
-and `Query.dispatch` rejects decapsulation of the challenge before the handler is invoked. -/
-theorem advantage_keyedGame_corr_le [Fintype M] [Nonempty M]
-    {PK SK M R CT JointPrefix Salt RejectPrefix Sigma K State α : Type}
-    (P : ExplicitCoinPKE PK SK M R CT)
-    (first second : PK → SK →
-      (q : Query JointPrefix M Salt RejectPrefix Sigma CT) →
-      StateT State PMF (Response K R q))
-    (bad : PK → SK → State → Prop)
-    (hident : ∀ pk sk, OracleComp.IdenticalUntilBad (first pk sk) (second pk sk) (bad pk sk))
-    (hstep : ∀ pk sk q s, ¬bad pk sk s →
-      (first pk sk q s).toOuterMeasure {x | bad pk sk x.2} ≤
-        (Query.jointCost q : ℝ≥0∞) * ENNReal.ofReal (P.keyPairMaxFailProb pk sk) +
-          (Query.decapsCost q : ℝ≥0∞) * ENNReal.ofReal (P.keyPairMaxFailProb pk sk))
-    (program : PK → SK → OracleComp (Response (JointPrefix := JointPrefix) (M := M)
-      (Salt := Salt) (RejectPrefix := RejectPrefix) (Sigma := Sigma) (CT := CT) K R) α)
-    {qRO qD : ℕ} (hbounds : ∀ pk sk, QueryBounds (program pk sk) qRO qD)
-    (initial : PK → SK → State) (hinitial : ∀ pk sk, ¬bad pk sk (initial pk sk))
-    (next : PK → SK → α × State → PMF Bool) {δ : ℝ} (hδ : P.DeltaCorrect δ) :
-    (Game.advantage (keyedGame P first program initial next)
-        (keyedGame P second program initial next) : ℝ) ≤
-      ((qRO + qD : ℕ) : ℝ) * δ := by
-  change (Game.advantage
-      ((ProbComp.eval P.keyGen).bind fun keys =>
-        (((OracleComp.interpret (first keys.1 keys.2) (program keys.1 keys.2)).run
-          (initial keys.1 keys.2)).bind (next keys.1 keys.2)))
-      ((ProbComp.eval P.keyGen).bind fun keys =>
-        (((OracleComp.interpret (second keys.1 keys.2) (program keys.1 keys.2)).run
-          (initial keys.1 keys.2)).bind (next keys.1 keys.2))) : ℝ) ≤ _
-  exact P.advantage_bind_keyGen_le
-    (fun pk sk => ((OracleComp.interpret (first pk sk) (program pk sk)).run
-      (initial pk sk)).bind (next pk sk))
-    (fun pk sk => ((OracleComp.interpret (second pk sk) (program pk sk)).run
-      (initial pk sk)).bind (next pk sk))
-    (qRO + qD) (fun pk sk => closeTo_run_corr (hident pk sk) (hstep pk sk)
-      (program pk sk) (hbounds pk sk) (hinitial pk sk) (next pk sk)) hδ
 
 end Cslib.Crypto.Protocols.FujisakiOkamoto.Salted

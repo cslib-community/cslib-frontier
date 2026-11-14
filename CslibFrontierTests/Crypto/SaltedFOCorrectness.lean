@@ -14,7 +14,9 @@ public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Salted.Correctn
 The fixtures below keep the direct joint-oracle witness and the decapsulation-only witness
 separate. Their exact query bounds detect counting the two projections of a joint reply twice or
 dropping the `qD` contribution. The connected explicit-coin PKE has one good and one bad Boolean
-coin for every message, so its exact correctness error is `1 / 2` rather than a vacuous endpoint.
+coin for every message, so both local bad-event probabilities and its global correctness error are
+exactly `1 / 2` rather than vacuous endpoints. Distinct key and coin types make projection order a
+type-level regression, and a randomized challenge-aware client checks the public averaged theorem.
 -/
 
 namespace CslibFrontierTests.SaltedFOCorrectness
@@ -25,16 +27,6 @@ open Cslib.Crypto.Protocols
 open Cslib.Crypto.Protocols.FujisakiOkamoto.Salted
 open Cslib.Probability
 open scoped ENNReal
-
-abbrev ToyQuery := Query Unit Unit Unit Unit Unit Unit
-abbrev ToyResponse := Response (JointPrefix := Unit) (M := Unit) (Salt := Unit)
-  (RejectPrefix := Unit) (Sigma := Unit) (CT := Unit) Bool Unit
-
-def jointInput : JointInput Unit Unit Unit := ⟨(), (), ()⟩
-
-def ciphertext : Ciphertext Unit Unit := ⟨(), ()⟩
-
-def rejectionInput : RejectionInput Unit Unit Unit Unit := ⟨(), (), ciphertext⟩
 
 /-- Boolean explicit-coin PKE with failure exactly when the sampled coin is `true`. -/
 noncomputable def halfErrorPKE : ExplicitCoinPKE Unit Unit Bool Bool Bool where
@@ -62,125 +54,19 @@ theorem halfErrorPKE_deltaCorrect_half : halfErrorPKE.DeltaCorrect (1 / 2) := by
 
 /-- Concrete salted-FO handler fixture backed by `halfErrorPKE`. -/
 noncomputable def halfErrorScheme :
-    Scheme Unit Unit Bool Bool Bool Unit Bool Unit Unit Bool where
+    Scheme Unit Unit Bool Bool Bool Unit Bool Unit Unit Unit where
   pke := halfErrorPKE
-  sampleKey := ProbComp.uniform Bool
+  sampleKey := pure ()
   jointPrefix _ := ()
   rejectionPrefix _ := ()
   rejectionSecret _ := ()
-
-/-- Synthetic identical-until-bad handler whose one joint query exposes the direct-query witness.
-The Boolean argument is the answer key; the joint transition latches `CORR`. -/
-def directHandler (answer : Bool) (q : ToyQuery) : StateT Bool PMF (ToyResponse q) :=
-  fun bad => match q with
-    | .joint _ => PMF.pure (⟨answer, ()⟩, true)
-    | .rejection _ => PMF.pure (false, bad)
-    | .decaps _ => PMF.pure (none, bad)
-
-/-- Synthetic handler whose one decapsulation query exposes the decapsulation-only witness. -/
-def decapsHandler (answer : Bool) (q : ToyQuery) : StateT Bool PMF (ToyResponse q) :=
-  fun bad => match q with
-    | .joint _ => PMF.pure (⟨false, ()⟩, bad)
-    | .rejection _ => PMF.pure (false, bad)
-    | .decaps _ => PMF.pure (some answer, true)
-
-theorem identicalUntilBad_direct :
-    OracleComp.IdenticalUntilBad (directHandler false) (directHandler true) (· = true) := by
-  refine ⟨?_, ?_, ?_⟩
-  · intro q s hs answer s' hs'
-    cases q <;> simp [directHandler, hs']
-  · intro q s hs x hx
-    subst s
-    cases q <;> simp only [directHandler, PMF.mem_support_pure_iff] at hx <;> subst x <;> rfl
-  · intro q s hs x hx
-    subst s
-    cases q <;> simp only [directHandler, PMF.mem_support_pure_iff] at hx <;> subst x <;> rfl
-
-theorem identicalUntilBad_decaps :
-    OracleComp.IdenticalUntilBad (decapsHandler false) (decapsHandler true) (· = true) := by
-  refine ⟨?_, ?_, ?_⟩
-  · intro q s hs answer s' hs'
-    cases q <;> simp [decapsHandler, hs']
-  · intro q s hs x hx
-    subst s
-    cases q <;> simp only [decapsHandler, PMF.mem_support_pure_iff] at hx <;> subst x <;> rfl
-  · intro q s hs x hx
-    subst s
-    cases q <;> simp only [decapsHandler, PMF.mem_support_pure_iff] at hx <;> subst x <;> rfl
-
-def directProgram : OracleComp ToyResponse Bool := do
-  let reply ← OracleComp.query (Query.joint jointInput)
-  return reply.key
-
-def decapsProgram : OracleComp ToyResponse Bool := do
-  let reply ← OracleComp.query (Query.decaps ciphertext)
-  return reply.getD false
-
-/-- The two projections in the direct reply still cost exactly one joint-oracle query. -/
-theorem directProgram_bounds : QueryBounds directProgram 1 0 := by
-  refine ⟨?_, ?_⟩ <;>
-    exact (OracleComp.IsCostBounded.query (Query.joint jointInput)).bind fun _ =>
-      OracleComp.IsCostBounded.pure _ 0
-
-/-- The decapsulation-only witness has `qRO = 0` and `qD = 1`. -/
-theorem decapsProgram_bounds : QueryBounds decapsProgram 0 1 := by
-  refine ⟨?_, ?_⟩ <;>
-    exact (OracleComp.IsCostBounded.query (Query.decaps ciphertext)).bind fun _ =>
-      OracleComp.IsCostBounded.pure _ 0
-
-/-- Direct-query regression: the exact fixed-key coefficient specializes to `(1 + 0) * 1`. -/
-theorem direct_closeTo :
-    CloseTo
-      (((OracleComp.interpret (directHandler false) directProgram).run false).map Prod.fst)
-      (((OracleComp.interpret (directHandler true) directProgram).run false).map Prod.fst)
-      (((1 + 0 : ℕ) : ℝ≥0∞) * 1) := by
-  have hstep : ∀ q s, s ≠ true →
-      (directHandler false q s).toOuterMeasure {x | x.2 = true} ≤
-        (Query.jointCost q : ℝ≥0∞) * 1 + (Query.decapsCost q : ℝ≥0∞) * 1 := by
-    intro q s hs
-    cases q <;> simp [directHandler, hs]
-  simpa only [PMF.bind_pure_comp, PMF.map_id] using
-    (closeTo_run_corr identicalUntilBad_direct hstep directProgram directProgram_bounds
-      (by simp) (fun out => PMF.pure out.1))
-
-/-- Decapsulation-only regression: omitting `qD` would incorrectly give a zero bound here. -/
-theorem decaps_closeTo :
-    CloseTo
-      (((OracleComp.interpret (decapsHandler false) decapsProgram).run false).map Prod.fst)
-      (((OracleComp.interpret (decapsHandler true) decapsProgram).run false).map Prod.fst)
-      (((0 + 1 : ℕ) : ℝ≥0∞) * 1) := by
-  have hstep : ∀ q s, s ≠ true →
-      (decapsHandler false q s).toOuterMeasure {x | x.2 = true} ≤
-        (Query.jointCost q : ℝ≥0∞) * 1 + (Query.decapsCost q : ℝ≥0∞) * 1 := by
-    intro q s hs
-    cases q <;> simp [decapsHandler, hs]
-  simpa only [PMF.bind_pure_comp, PMF.map_id] using
-    (closeTo_run_corr identicalUntilBad_decaps hstep decapsProgram decapsProgram_bounds
-      (by simp) (fun out => PMF.pure out.1))
-
-/-- Decapsulation of the challenge is rejected before the supplied handler runs. -/
-example :
-    Query.dispatch (m := Id) (K := Bool) (R := Unit)
-      (fun _ => ⟨false, ()⟩) (fun _ => true) (fun _ => some true) ciphertext
-      (Query.decaps ciphertext) = none := by
-  simp
-
-/-- The separate rejection fallback is preserved and has zero `CORR` cost. -/
-example :
-    Query.dispatch (m := Id) (K := Bool) (R := Unit)
-      (fun _ => ⟨false, ()⟩) (fun _ => true) (fun _ => some false) ciphertext
-      (Query.rejection rejectionInput) = true := rfl
-
-example : Query.jointCost (Query.rejection rejectionInput : ToyQuery) = 0 := rfl
-
-example : Query.decapsCost (Query.rejection rejectionInput : ToyQuery) = 0 := rfl
 
 /-! ### Connected nonzero-error handler clients -/
 
 abbrev HalfQuery := Query Unit Bool Bool Unit Unit Bool
 abbrev HalfResponse := Response (JointPrefix := Unit) (M := Bool) (Salt := Bool)
-  (RejectPrefix := Unit) (Sigma := Unit) (CT := Bool) Bool Bool
-abbrev HalfState := CacheState Unit Bool Bool Unit Unit Bool Bool Bool
+  (RejectPrefix := Unit) (Sigma := Unit) (CT := Bool) Unit Bool
+abbrev HalfState := CacheState Unit Bool Bool Unit Unit Bool Unit Bool
 
 def halfJointInput : JointInput Unit Bool Bool := ⟨(), false, false⟩
 
@@ -188,23 +74,24 @@ def halfCiphertext : Ciphertext Bool Bool := ⟨false, false⟩
 
 def halfChallenge : Ciphertext Bool Bool := ⟨true, true⟩
 
-/-- This client consumes both projections of one fused reply. -/
+/-- This client consumes both projections of one fused reply. The projections have distinct types,
+so reversing the source order is rejected rather than hidden by a symmetric Boolean predicate. -/
 def halfDirectProgram : OracleComp HalfResponse Bool := do
   let reply ← OracleComp.query (Query.joint halfJointInput)
-  return reply.key == reply.coins
+  return (reply.key == ()) && (reply.coins == false)
 
 /-- The decapsulation-only client exercises the concrete real decrypt/re-encrypt path and the
 keyless patched-cache path with no external joint query. -/
 def halfDecapsProgram : OracleComp HalfResponse Bool := do
   let reply ← OracleComp.query (Query.decaps halfCiphertext)
-  return reply.getD false
+  return reply.isSome
 
 /-- A nontrivial completion client: decapsulation prefetches the decoded joint coordinate in the
 proof-only world, then a direct query consumes both the cached key and coin. -/
 def halfDecapsThenJointProgram : OracleComp HalfResponse Bool := do
   let decapsReply ← OracleComp.query (Query.decaps halfCiphertext)
   let jointReply ← OracleComp.query (Query.joint halfJointInput)
-  return (decapsReply.getD false == jointReply.key) && (jointReply.key == jointReply.coins)
+  return (decapsReply == some jointReply.key) && (jointReply.coins == false)
 
 theorem halfDirectProgram_bounds : QueryBounds halfDirectProgram 1 0 := by
   refine ⟨?_, ?_⟩ <;>
@@ -221,6 +108,30 @@ theorem halfDecapsThenJointProgram_bounds : QueryBounds halfDecapsThenJointProgr
     exact (OracleComp.IsCostBounded.query (Query.decaps halfCiphertext)).bind fun _ =>
       (OracleComp.IsCostBounded.query (Query.joint halfJointInput)).bind fun _ =>
         OracleComp.IsCostBounded.pure _ 0
+
+/-- Local correctness-bad predicate for the connected fixture. -/
+def halfBad (st : HalfState) : Prop := ¬halfErrorScheme.GoodCache () () st
+
+/-- One direct joint query creates the concrete `CORR` witness with probability exactly `1 / 2`.
+This is the nonvacuous `(qRO,qD) = (1,0)` execution. -/
+theorem halfDirect_bad_probability :
+    (halfErrorScheme.realHandler () () halfChallenge (Query.joint halfJointInput)
+      ({} : HalfState)).toOuterMeasure {z | halfBad z.2} = 1 / 2 := by
+  simp [Scheme.realHandler, Query.dispatch, Scheme.realJoint, halfErrorScheme, halfErrorPKE,
+    halfJointInput, halfChallenge, halfBad, Scheme.GoodCache, Scheme.coinCache,
+    ExplicitCoinPKE.GoodCache, PMF.toOuterMeasure_apply, Set.indicator, tsum_fintype,
+    PMF.uniformOfFintype_apply, Fintype.card_bool]
+
+/-- One nonchallenge decapsulation performs the implicit joint lookup and creates the same
+concrete witness with probability exactly `1 / 2`. This is the nonvacuous `(0,1)` execution. -/
+theorem halfDecaps_bad_probability :
+    (halfErrorScheme.realHandler () () halfChallenge (Query.decaps halfCiphertext)
+      ({} : HalfState)).toOuterMeasure {z | halfBad z.2} = 1 / 2 := by
+  simp [Scheme.realHandler, Query.dispatch, Scheme.realDecaps, Scheme.realJoint,
+    Scheme.decapsKey, halfErrorScheme, halfErrorPKE, halfJointInput, halfCiphertext,
+    halfChallenge, halfBad, Scheme.GoodCache, Scheme.coinCache, ExplicitCoinPKE.GoodCache,
+    PMF.toOuterMeasure_apply, Set.indicator, tsum_fintype, PMF.uniformOfFintype_apply,
+    Fintype.card_bool]
 
 /-- Direct-query execution under the real concrete handler. -/
 noncomputable def halfDirectReal : PMF Bool :=
@@ -283,9 +194,60 @@ example (st : HalfState) :
 
 def halfRejectionInput : RejectionInput Unit Unit Bool Bool := ⟨(), (), halfCiphertext⟩
 
+/-- The post-secret-seed-guessing `J` fallback is executed by the concrete handler and cannot
+create a local PKE correctness witness. -/
+theorem halfRejection_bad_probability :
+    (halfErrorScheme.realHandler () () halfChallenge (Query.rejection halfRejectionInput)
+      ({} : HalfState)).toOuterMeasure {z | halfBad z.2} = 0 := by
+  simp [Scheme.realHandler, Query.dispatch, Scheme.rejection, halfErrorScheme,
+    halfRejectionInput, halfBad, Scheme.GoodCache, Scheme.coinCache,
+    ExplicitCoinPKE.GoodCache]
+
 /-- `J` remains a distinct source-shaped query and costs nothing in the correctness accounting. -/
 example : Query.jointCost (Query.rejection halfRejectionInput : HalfQuery) = 0 := rfl
 
 example : Query.decapsCost (Query.rejection halfRejectionInput : HalfQuery) = 0 := rfl
+
+/-! ### Challenge-aware randomized client -/
+
+/-- A genuinely randomized public challenge setup; both games sample this same law. -/
+noncomputable def halfChallengeSetup (_ : Unit) :
+    ProbComp (Ciphertext Bool Bool × Unit) := do
+  let salt ← ProbComp.uniform Bool
+  return (⟨true, salt⟩, ())
+
+/-- Fixed-tape program that inspects all three public challenge fields. -/
+def halfChallengeProgram (challenge : KEM.Challenge Unit (Ciphertext Bool Bool) Unit) :
+    OracleComp HalfResponse Bool := do
+  let reply ← OracleComp.query
+    (Query.joint (⟨(), false, challenge.ct.salt⟩ : JointInput Unit Bool Bool))
+  return (challenge.pk == ()) && (reply.key == challenge.key) &&
+    (reply.coins == challenge.ct.salt)
+
+/-- Explicit-coin adversary with a challenge-aware deterministic program on each tape. -/
+noncomputable def halfRandomizedAdversary :
+    RandomizedAdversary Unit Unit Bool Bool Unit Unit Bool Unit Bool where
+  Coins := Unit
+  coins := pure ()
+  run _ challenge := halfChallengeProgram challenge
+
+theorem halfRandomizedAdversary_bounded : halfRandomizedAdversary.QueryBounded 1 0 := by
+  intro _ challenge
+  change QueryBounds (halfChallengeProgram challenge) 1 0
+  refine ⟨?_, ?_⟩ <;>
+    exact (OracleComp.IsCostBounded.query
+      (Query.joint (⟨(), false, challenge.ct.salt⟩ : JointInput Unit Bool Bool))).bind fun _ =>
+        OracleComp.IsCostBounded.pure _ 0
+
+/-- The public randomized theorem accepts a full challenge-aware adversary and a common
+randomized challenge setup without charging challenge construction as an oracle query. -/
+example :
+    (Game.advantage
+      (halfErrorScheme.randomizedRealHandlerGame halfChallengeSetup halfRandomizedAdversary)
+      (halfErrorScheme.randomizedSimHandlerGame halfChallengeSetup halfRandomizedAdversary) : ℝ) ≤
+      ((1 + 0 : ℕ) : ℝ) * (1 / 2 : ℝ) := by
+  exact halfErrorScheme.advantage_randomizedKeyedGame_realHandler_simHandler_le
+    halfChallengeSetup halfRandomizedAdversary halfRandomizedAdversary_bounded
+    halfErrorPKE_deltaCorrect_half
 
 end CslibFrontierTests.SaltedFOCorrectness
