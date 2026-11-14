@@ -43,8 +43,8 @@ distinct `g` values and `a ≠ 0`". A simulation proof for a projection gate fro
 legality condition: along every run, no query uses `a = 0`, and two queries that agree on the
 tweak, the source sort, `X` and `a` are equal (`CCRAdversary.IsLegal`). Every adversary legal for
 Definition 1 is legal here, so `MixedModulusCCR` is a *stronger* assumption than Definition 1 as
-literally stated. A run answers every call, private coin or oracle query, independently with an
-arbitrary reply (`IsRun`).
+literally stated, and novel to this library. A run answers every call, private coin or oracle
+query, independently with an arbitrary reply (`IsRun`).
 
 ## Main definitions
 
@@ -58,7 +58,8 @@ arbitrary reply (`IsRun`).
   the mixed-modulus circular correlation robustness experiments.
 * `Cslib.Crypto.Garbling.MixedModulus.IsRun`: the runs of an oracle program.
 * `Cslib.Crypto.Garbling.MixedModulus.CCRAdversary.IsLegal`,
-  `Cslib.Crypto.Garbling.MixedModulus.MixedModulusCCR`: legal adversaries and the assumption.
+  `Cslib.Crypto.Garbling.MixedModulus.MixedModulusCCR`: legal adversaries and the assumption, which
+  is novel to this library and stronger than Definition 1 of [BallMalkinRosulek2016].
 
 ## References
 
@@ -314,9 +315,25 @@ noncomputable def ccrIdealGame (B : CCRAdversary T μ ℓ) : Game :=
 noncomputable abbrev ccrAdvantage (H : MixedModulusHash T μ ℓ) (B : CCRAdversary T μ ℓ) : ℝ≥0 :=
   Game.advantage (ccrRealGame H B) (ccrIdealGame B)
 
-/-- **Mixed-modulus circular correlation robustness** [BallMalkinRosulek2016, Definition 1], with
-the relaxed legality condition `CCRAdversary.IsLegal`: every legal adversary in the class `𝒟` has
-advantage at most `ε` against `H`. -/
+/-- **Mixed-modulus circular correlation robustness with relaxed legality**, a variant of
+[BallMalkinRosulek2016], Definition 1, that is novel to this library: every adversary in the class
+`𝒟` that is legal in the relaxed sense `CCRAdversary.IsLegal` has advantage at most `ε` against
+`H`.
+
+*Relation to the source.* Definition 1 admits only adversaries that query their oracle on distinct
+tweaks `g` and with `a ≠ 0`. `CCRAdversary.IsLegal` also admits adversaries that repeat a tweak,
+provided that no query has `a = 0` and that two queries agreeing on the tweak, the source sort, the
+label and `a` are equal. Every adversary legal for Definition 1 is legal here, so for the same class
+and bound this assumption implies the one of Definition 1; the converse is not known, so it is a
+stronger assumption. The relaxation is what the privacy proof uses: `BMR16.reduction` asks `m - 1`
+queries under the tweak of a projection gate from modulus `m`. Definition 1 is asymptotic, while
+this is a concrete bound `ε` for one class `𝒟`.
+
+*Why it is plausible.* If `H` is a random oracle, the real oracle answers different legal queries
+with independent uniform labels, as the ideal oracle does, unless two of them hash the same input
+`X + a • Δ_i` under the same tweak and sorts. For two different legal queries that requires
+`(a' - a) • δ_i = X - X'` on the key part, for the secret uniform `δ_i`. This heuristic is not
+formalized. -/
 def MixedModulusCCR (H : MixedModulusHash T μ ℓ) (𝒟 : Set (CCRAdversary T μ ℓ)) (ε : ℝ≥0) : Prop :=
   ∀ B ∈ 𝒟, B.IsLegal → ccrAdvantage H B ≤ ε
 
