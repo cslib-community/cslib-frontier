@@ -72,6 +72,8 @@ import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.GadgetCyclic
 import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.Equality
 import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.SelfDual
 import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.Construction
+import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.Normalization
+import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.Expansion
 import CslibFrontier.Computability.PolyTime.CSP.Gadget.ConstructionCompiler
 import CslibFrontier.Logics.Propositional.CSP.PrimitivePositive.Polymorphism
 import CslibFrontier.Computability.PolyTime.CSP.Table
@@ -2408,6 +2410,21 @@ claim for varying languages/templates or arbitrary PP planarity-closure claim.
 `CslibFrontierTests/CSPGadgetExpansion.lean` checks an explicit computed ten-entry
 table, full checkers and SAT/UNSAT rows.
 
+```lean
+open Cslib.Logic.PL Cslib.Logic.PL.CSP in
+open Cslib.Complexity.CSP.OrderedBoundary in
+example {Src Rel : Type} {srcArity : Src → ℕ}
+    {srcSem : Src → List Bool → Bool} {ar : Rel → ℕ}
+    {s : Rel → List Bool → Bool} {n : ℕ}
+    {R : Set (Fin n → Bool)} {g : PPGadget srcArity srcSem R}
+    (w : GadgetWitness g)
+    (gadgets : ∀ r, PPGadget ar s (booleanRelation srcArity srcSem r))
+    (witnesses : ∀ r, GadgetWitness (gadgets r)) (B : ℕ)
+    (hB : ∀ r, (gadgets r).numAux ≤ B) :
+    Nonempty (GadgetWitness (g.expand gadgets)) :=
+  ⟨w.expand gadgets witnesses B hB⟩
+```
+
 # Original-Language Ordered Disequality
 
 Import `CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.SelfDual` for a
@@ -2555,6 +2572,17 @@ hidden old port 2 before all old auxiliaries. No degree or connectedness restric
 is imposed. See `CslibFrontierTests/PlanarNormalizationBoundaryProgram.lean` for
 checked repeated-scope, unused-port, previous-auxiliary and closed-nullary clients.
 
+```lean
+open Cslib.Logic.PL Cslib.Logic.PL.CSP in
+open Cslib.Complexity.CSP.OrderedBoundary in
+example {Rel : Type} {ar : Rel → ℕ}
+    {s : Rel → List Bool → Bool} {n m : ℕ}
+    {R : Set (Fin n → Bool)} {g : PPGadget ar s R}
+    (p : Normalization.Program n m) (w : GadgetWitness g) :
+    Nonempty (GadgetWitness (p.gadget g)) :=
+  ⟨p.orderedWitness w⟩
+```
+
 For the complete construction, import
 `CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.Normalization`.
 Every `c : Normalization.Construction R` supplies `c.orderedWitness`, a witness
@@ -2564,6 +2592,18 @@ middle labels, including unused ones. Its checked clients are in
 `CslibFrontierTests/PlanarNormalizationBoundaryTwist.lean`; the separate table
 clients identify noncomputable certificates by uniqueness before checking
 explicit displayed tables with kernel decision.
+
+```lean
+open Cslib.BitString Cslib.Logic.PL Cslib.Logic.PL.CSP in
+open Cslib.Complexity.CSP.OrderedBoundary in
+example {n : ℕ} (R : Set (Fin n → Bool)) (hne : R.Nonempty)
+    (hself : IsSelfComplementary R)
+    (hfail : ¬IsEvenDeltaMatroid (cyclicDifferenceRelation R)) :
+    ∃ c : Normalization.Construction R,
+      Nonempty (GadgetWitness c.gadget) := by
+  obtain ⟨_, ⟨c⟩⟩ := Normalization.exists_construction R hne hself hfail
+  exact ⟨c, ⟨c.orderedWitness⟩⟩
+```
 
 This is an original numerical reconstruction of the omitted argument behind
 Dvořák–Kupec Lemma 6. Expanded original-language witnesses, geometric/source-model
