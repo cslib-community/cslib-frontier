@@ -33,7 +33,11 @@ The command declares:
 * for each constructor `c`, the rule `eT_c_inO`, which adds up the bounds of its arguments,
   `eT_c_inSpace`, retaining their independent workspace bounds, and `eT_c_polyTime`;
 * `eT_elim`, case analysis by constructor on the payloads, and its rule `eT_elim_inO`, which
-  charges only the case taken, together with `eT_elim_inSpace` at the same workspace bound and `eT_elim_polyTime`.
+  charges only the case taken, together with `eT_elim_inSpace` at the same workspace bound
+  and `eT_elim_polyTime`;
+* for each constructor `c`, `eT_c_matches`, `eT_c_payload?`, and `eT_c_fieldJ?` for each
+  zero-based field index `J`, with `_deg`, `_inO`, `_inSpace` and `_polyTime` certificates.
+  Matchers have cost degree one and output degree zero; projections have degrees one/one.
 
 The `toSum` and constructor rules are `scoped` `fun_prop` rules, as for `enc_structure`. The case
 rule is stated for an input paired with the value, as `ComputableInO.sumElimSnd` is.
@@ -135,6 +139,19 @@ private partial def summands (t : Expr) : Nat → MetaM (Array Expr)
     let some (a, b) := t.app2? ``Sum |
       throwError "enc_inductive: expected a sum type, got{indentExpr t}"
     return #[a] ++ (← summands b n)
+
+/-- Expose the three predicate views of a canonical linear degree certificate. -/
+private def linearViews (fn encIn encOut : Term) (base : Name) : CommandElabM Unit := do
+  let deg := app base "_deg"
+  let rule := app base "_inO"
+  elabCommand (← `(@[scoped fun_prop] public theorem $rule:ident :
+    ComputableInO $fn $encIn $encOut (fun x => ($encIn x).length)
+      (fun x => ($encIn x).length) := ($deg).inO_one))
+  elabCommand (← `(@[scoped fun_prop] public theorem $(app base "_inSpace"):ident :
+    ComputableInSpace $fn $encIn $encOut (fun x => ($encIn x).length) :=
+      ComputableInSpace.of_inO $rule))
+  elabCommand (← `(@[scoped fun_prop] public theorem $(app base "_polyTime"):ident :
+    ComputableInPolyTime $fn $encIn $encOut := ($deg).computableInPolyTime))
 
 /-- Elaborate `enc_inductive`. -/
 @[command_elab encInductive] def elabEncInductive : CommandElab := fun stx => do
@@ -279,6 +296,75 @@ private partial def summands (t : Expr) : Nat → MetaM (Array Expr)
       ComputableInPolyTime (fun $x => $appl) $encIn $eT := by
         $clocks:tactic*
         exact ($rule $proofs*).computableInPolyTime $polyBound $polyBound))
+  let applyName := app name "_apply"
+  -- Match tags using finite Boolean operations on the encoded prefix. Payload and field
+  -- projections use the same matcher and the existing tail/frame streaming certificates.
+  for i in [0:n] do
+    let matcher := app name s!"_{cs[i]!.getId}_matches"
+    let mut mas : Array (TSyntax ``Lean.Parser.Term.matchAlt) := #[]
+    for j in [0:n] do
+      let xs := (Array.range encss[j]!.size).map fun k => mkIdent (Name.mkSimple s!"x{k}")
+      let pat : Term := Syntax.mkApp (mkIdent (T.getId ++ cs[j]!.getId)) xs
+      let b : Term ← if i == j then `(true) else `(false)
+      mas := mas.push (← `(Lean.Parser.Term.matchAltExpr| | $pat => $b))
+    elabCommand (← `(/-- Test whether the value has this constructor. -/
+      @[expose] public def $matcher:ident (v : $T) : Bool := match v with $mas:matchAlt*))
+    let mut raw : Term ← `(ComputableInDegree.of_eq (f := fun v : $T => $eT v)
+      (encIn := $eT) (encMid := encBits) (fun _ => rfl))
+    let mut test : Term ← `(ComputableInDegree.const (encIn := $eT) (encMid := encBool) true)
+    let tags := i + (if i + 1 < n then 1 else 0)
+    for j in [0:tags] do
+      let bit : Term ← `((ComputableInDegree.headD (enc₁ := encBool)
+        (enc := encBits) false).comp $raw)
+      let wanted ← if j < i then pure bit else
+        `((ComputableInDegree.of_finite (encIn := encBool) (encMid := encBool) Bool.not).comp $bit)
+      test ← `((ComputableInDegree.of_finite (encIn := encPair encBool encBool)
+        (encMid := encBool) (fun p : Bool × Bool => p.1 && p.2)).comp (($test).prod $wanted))
+      raw ← `((ComputableInDegree.tail (enc₁ := encBool) (enc := encBits)).comp $raw)
+    elabCommand (← `(@[scoped fun_prop] public theorem
+      $(app matcher.getId "_deg"):ident : ComputableInDegree $matcher $eT encBool 1 0 :=
+      (($test).mono (d' := 1) (e' := 0)).of_enc_eq (fun v => by
+        cases v <;> simp [$matcher:ident, $applyName:ident, $toSum:ident, encBits,
+          encBool, List.headD])))
+    linearViews matcher eT (← `(encBool)) matcher.getId
+    -- Include the complete payload and every individual field, without default inhabitants.
+    for field in [0:encss[i]!.size + 1] do
+      let projection := app name (if field == 0 then s!"_{cs[i]!.getId}_payload?"
+        else s!"_{cs[i]!.getId}_field{field - 1}?")
+      let out ← if field == 0 then pure payloads[i]! else pure encss[i]![field - 1]!
+      let mut pas : Array (TSyntax ``Lean.Parser.Term.matchAlt) := #[]
+      for j in [0:n] do
+        let xs := (Array.range encss[j]!.size).map fun k => mkIdent (Name.mkSimple s!"x{k}")
+        let pat : Term := Syntax.mkApp (mkIdent (T.getId ++ cs[j]!.getId)) xs
+        let value ← if field == 0 then liftMacroM (tuple xs) else
+          pure (xs[field - 1]?.getD (mkIdent `unused) : Term)
+        let rhs ← if i == j then `(some $value) else `(none)
+        pas := pas.push (← `(Lean.Parser.Term.matchAltExpr| | $pat => $rhs))
+      elabCommand (← `(/-- Extract this constructor's payload or field, returning `none` otherwise. -/
+        @[expose] public def $projection:ident (v : $T) : Option _ := match v with $pas:matchAlt*))
+      elabCommand (← `(@[simp] public theorem $(app projection.getId "_isSome"):ident
+        (v : $T) : ($projection v).isSome = $matcher v := by cases v <;> rfl))
+      let mut word := raw
+      if field > 0 then
+        for _ in [0:field - 1] do
+          word ← `((ComputableInDegree.of_dropFrame (f := dropFrame)
+            (encIn := encBits) (encMid := encBits) (fun _ => rfl)).comp $word)
+        if field < encss[i]!.size then
+          word ← `((ComputableInDegree.of_unframe (f := unframe)
+            (encIn := encBits) (encMid := encBits) (fun _ => rfl)).comp $word)
+      let someWord ← `((ComputableInDegree.const (encIn := $eT) (encMid := encBool) true).append
+        $word (fun _ => rfl))
+      elabCommand (← `(@[scoped fun_prop] public theorem
+        $(app projection.getId "_deg"):ident :
+        ComputableInDegree $projection $eT (encOption $out) 1 1 := by
+        have hn : ComputableInDegree (fun _ : $T => ([] : List Bool)) $eT encBits 1 1 :=
+          (ComputableInDegree.const (encMid := encBits) []).mono
+        exact ((($(app matcher.getId "_deg")).ite
+          (($someWord).restrict _) (hn.restrict _)).mono (d' := 1) (e' := 1)).of_enc_eq
+            (fun v => by cases v <;>
+              simp [$projection:ident, $matcher:ident, $applyName:ident, $toSum:ident,
+                encBits, unframe_frame_append, dropFrame_frame_append])))
+      linearViews projection eT (← `(encOption $out)) projection.getId
   -- case analysis on the payloads
   let elim := app name "_elim"
   let fN (i : Nat) := mkIdent (Name.mkSimple s!"f{i}")
@@ -318,7 +404,6 @@ private partial def summands (t : Expr) : Nat → MetaM (Array Expr)
   let mut nested : Term := hN (n - 1)
   for i in (List.range (n - 1)).reverse do
     nested ← `(ComputableInO.sumElimSnd $(hN i) $nested)
-  let applyName := app name "_apply"
   elabCommand (← `(public theorem $(app name "_elim_inO"):ident {π ε : Type}
       {$encP : π ↪ List Bool} {$encE : ε ↪ List Bool} $rb* :
       ComputableInO (fun $p : π × $T => $fnTerm) (encPair $encP $eT) $encE

@@ -154,6 +154,24 @@ example {π ε : Type} {encP : π ↪ List Bool} {encE : ε ↪ List Bool}
     ComputableInPolyTime (fun p : π × Wrap => eWrap_elim p.2 fun a => g (p.1, a))
       (encPair encP eWrap) encE := eWrap_elim_polyTime h
 
+/-! Matcher and projection clients distinguish empty payloads from absent constructors. -/
+
+example : eLabel_resample_matches .resample = true := rfl
+example : eLabel_count_matches (.eval 0 []) = false := rfl
+example : eLabel_eval_payload? (.eval 0 []) = some (0, []) := rfl
+example : eLabel_eval_field1? (.eval 0 []) = some [] := rfl
+example : eLabel_eval_field1? .resample = none := rfl
+example : eColor_blue_payload? .blue = some () := rfl
+example : eWrap_wrap_field1? (.wrap 0 false) = some false := rfl
+
+example : ComputableInDegree eLabel_count_matches eLabel encBool 1 0 := by fun_prop
+example : ComputableInDegree eLabel_eval_field1? eLabel (encOption encBits) 1 1 := by fun_prop
+example : ComputableInSpace eLabel_eval_payload? eLabel
+    (encOption (encPair encUnary encBits)) (fun v => (eLabel v).length) := by fun_prop
+example : ComputableInPolyTime (fun p : Unit × Label => eLabel_eval_field1? p.2)
+    (encPair encUnit eLabel) (encOption encBits) :=
+  eLabel_eval_field1?_polyTime.comp (ComputableInDegree.snd encUnit eLabel).computableInPolyTime
+
 /-! Hosted transition probe. Keep registration local: existential resource/output degrees
 must be found by automation before changing the global rule set. The explicit lift is the control.
 Both paths retain arbitrary, independent degrees, including degree zero. -/
