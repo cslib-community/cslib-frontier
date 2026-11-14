@@ -722,8 +722,17 @@ theorem ComputableInTimeAndSpace.iterate_unary_stream_sum {σ : Type} {enc : σ 
   refine ⟨c * (3 * D + 3), h.computableInTimeAndSpace.mono (fun x => ?_) (fun x => ?_)⟩
   · rw [← Finset.mul_sum, Nat.mul_assoc]
     apply Nat.mul_le_mul_left c
-    dsimp only [D]
-    nlinarith
+    have hF : cF ≤ 3 * D + 3 := by dsimp [D]; omega
+    have hD : D + 1 ≤ 3 * D + 3 := by omega
+    have hK : 1 ≤ 3 * D + 3 := by omega
+    calc
+      _ ≤ (3 * D + 3) * (tF (f^[x.2] x.1) + 1) +
+          (3 * D + 3) * (∑ i ∈ Finset.range x.2, R x i) +
+          (3 * D + 3) * B x + (3 * D + 3) :=
+        Nat.add_le_add (Nat.add_le_add
+          (Nat.add_le_add (Nat.mul_le_mul_right _ hF) (Nat.mul_le_mul_right _ hD))
+          (by simpa only [one_mul] using Nat.mul_le_mul_right (B x) hK)) hK
+      _ = _ := by ring
   · rw [Nat.mul_assoc]
     apply Nat.mul_le_mul_left c
     dsimp only [D]
