@@ -270,7 +270,8 @@ of the actual fixed-layout controller. -/
 
 theorem sampledProgram_eq_sharedExperiment (n : ℕ) (input : List Bool) :
     sampledProgram n input = sharedExperiment := by
-  unfold sampledProgram sharedExperiment Quantum.RandomOracle.sample
+  rw [sharedExperiment_eq_uniform_bind]
+  unfold sampledProgram
   simp only [Quantum.RandomOracle.runWith_eq, PMF.bind_bind]
   congr 1
   funext H
@@ -289,7 +290,8 @@ noncomputable def redrawnProgram (n : ℕ) (input : List Bool) : PMF Bool := do
 
 theorem redrawnProgram_eq_redrawnExperiment (n : ℕ) (input : List Bool) :
     redrawnProgram n input = redrawnExperiment := by
-  unfold redrawnProgram redrawnExperiment
+  rw [redrawnExperiment_eq_uniform_bind_bind]
+  unfold redrawnProgram
   congr 1
   funext H
   congr 1

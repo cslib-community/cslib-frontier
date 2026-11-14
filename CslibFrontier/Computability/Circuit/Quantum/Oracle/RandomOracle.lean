@@ -36,6 +36,7 @@ equivalence with arbitrary QPPT adversaries or a protocol security theorem.
 
 ## Main results
 
+* `Cslib.Quantum.RandomOracle.sample_eq`: the sampler is exactly one outer uniform table draw.
 * `Cslib.Quantum.RandomOracle.sample_const`: an experiment that does not inspect the table is
   unchanged.
 * `Cslib.Quantum.RandomOracle.runWith_eq`: the controller wrapper is exactly one outer table draw
@@ -56,6 +57,14 @@ noncomputable def sample {a b : ℕ} {α : Type}
     (experiment : ((Fin a → Bool) → Fin b → Bool) → PMF α) : PMF α :=
   (Cslib.Probability.PMF.uniformOfFintype
     ((Fin a → Bool) → Fin b → Bool)).bind experiment
+
+/-- The finite sampler is exactly one outer uniform-table bind. -/
+theorem sample_eq {a b : ℕ} {α : Type}
+    (experiment : ((Fin a → Bool) → Fin b → Bool) → PMF α) :
+    sample experiment =
+      (Cslib.Probability.PMF.uniformOfFintype
+        ((Fin a → Bool) → Fin b → Bool)).bind experiment := by
+  rfl
 
 /-- Sampling is observationally irrelevant when an experiment never inspects the table. -/
 @[simp] theorem sample_const {a b : ℕ} {α : Type} (p : PMF α) :
