@@ -950,12 +950,8 @@ private theorem pushBackSlotProg_effect_of_clientState {U V w n_max h_space base
       pushBackTailWriteProg_effect (U := U) (V := V) (h_space := h_space)
         hw hb_pos s hinv hb htot hq_lt hv_lt
     -- Remove the execution body from semantic facts before matching helper arguments.
-    dsimp only at hf1 hout1 hl1 hgm1_eq htail1 hslab1 htot1 hqb1 hrb1 hother1
-      hbc_b1 hbc_other1 hq_new1 hv_new1 hold1
     generalize hs₁ : (Memory.spec 0).clientState s
-      (pushBackTailWriteProg U V w n_max h_space d) = s₁ at
-      hf1 hout1 hl1 hgm1_eq htail1 hslab1 htot1 hqb1 hrb1 hother1
-      hbc_b1 hbc_other1 hq_new1 hv_new1 hold1
+      (pushBackTailWriteProg U V w n_max h_space d) = s₁ at *
     let gm₁ := gmAt base U V w n_max h_space s₁.mem
     change (Memory.spec 0).clientResult s (pushBackTailWriteProg U V w n_max h_space d) =
       gm₀ (gmRIdx b) + 1 at hres1
@@ -1262,7 +1258,7 @@ private theorem popBackSlotProg_execution {U V w n_max h_space base b : ℕ}
       memoryCost_bind, memoryCost_readGMProg, clientState_readGMProg, hr,
       memoryCost_bind, memoryCost_readGMProg, clientState_readGMProg, hq]
     by_cases hr0 : r = 0 <;> by_cases hq0 : 0 < q <;>
-      simp [hr0, hq0, memoryCost_pure] <;> omega
+      (simp [hr0, hq0, memoryCost_pure]; omega)
 
 -- Keep the final state abstract while proving its invariant and resource bound.
 private theorem popBackSlotProg_effect_of_clientState {U V w n_max h_space base b : ℕ}
@@ -1364,10 +1360,8 @@ private theorem popBackSlotProg_effect_of_clientState {U V w n_max h_space base 
     obtain ⟨hf1, hout1, hq1, hv1, hl1, hgm1_eq⟩ :=
       removeLastTailItemProg_effect (U := U) (V := V) (h_space := h_space)
         hw hb_pos hb s htail₀ hr0_pos
-    dsimp only at hf1 hout1 hq1 hv1 hl1 hgm1_eq
     generalize hs₁ : (Memory.spec 0).clientState s
-      (removeLastTailItemProg U V w n_max h_space d) = s₁ at
-      hf1 hout1 hq1 hv1 hl1 hgm1_eq
+      (removeLastTailItemProg U V w n_max h_space d) = s₁ at *
     let gm₁ := gmAt base U V w n_max h_space s₁.mem
     change gm₁ = gmRemoveTail n_max gm₀ b at hgm1_eq
     have hpres1 := gmRemoveTail_preserves_nonTail hb hr0_pos htail₀
