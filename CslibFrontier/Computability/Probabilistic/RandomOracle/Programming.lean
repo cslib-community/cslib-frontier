@@ -54,6 +54,8 @@ queries and digests are words. The native `inactive` callback omits the semantic
   `Cslib.RandomOracle.runWith_overwriteProgramWordHandler`: exact adaptive whole-run laws.
 * `Cslib.RandomOracle.isPPTOn_lazyProgramWordHandler`,
   `Cslib.RandomOracle.isPPTOn_overwriteProgramWordHandler`: strict-PPT call certificates.
+* `Cslib.RandomOracle.lazyProgramWordHandler_support`: preservation and additive encoded-state
+  growth for every supported lazy-handler call.
 * `Cslib.RandomOracle.isPPTOn_run_lazyProgramWordHandler`,
   `Cslib.RandomOracle.isPPTOn_run_overwriteProgramWordHandler`: whole-program strict-PPT
   certificates derived from an adversary certificate and the additive state contract.
@@ -570,14 +572,27 @@ theorem isPPTOn_overwriteProgramWordHandler (input : Caller ↪ List Bool)
   obtain ⟨caller, ⟨op, request⟩, state⟩ := p
   cases op <;> simp [overwriteProgramWordHandler]
 
-/-! ### Local resource contract -/
+/-! ### Per-call resource contract -/
 
-private def ProgrammingInvariant (digestBound : Caller → ℕ)
+/-- State invariant used by the programmable-oracle resource contract: cached digests satisfy the
+caller bound and the caller-defined log invariant holds. The representation is kept opaque; use
+`ProgrammingInvariant.intro` to establish it. -/
+def ProgrammingInvariant (digestBound : Caller → ℕ)
     (logInvariant : Caller → Log → Prop) (caller : Caller) (state : ProgrammingState Log) : Prop :=
   (∀ entry ∈ state.cache, entry.2.length ≤ digestBound caller) ∧
     logInvariant caller state.log
 
-private def programmingResources (digestBound : Caller → ℕ)
+/-- Establish the programmable state invariant from its cache and log obligations. -/
+theorem ProgrammingInvariant.intro (digestBound : Caller → ℕ)
+    (logInvariant : Caller → Log → Prop) (caller : Caller) (state : ProgrammingState Log)
+    (hcache : ∀ entry ∈ state.cache, entry.2.length ≤ digestBound caller)
+    (hlog : logInvariant caller state.log) :
+    ProgrammingInvariant digestBound logInvariant caller state :=
+  ⟨hcache, hlog⟩
+
+/-- Additive allowance for one programmable-oracle call. It charges the reply and request words,
+the programmed point, the sampled digest, fixed framing overhead and caller log growth. -/
+def programmingResources (digestBound : Caller → ℕ)
     (pointBound replyBound logGrowth : Caller → List Bool → ℕ)
     (caller : Caller) (request : List Bool) : ℕ :=
   replyBound caller request + 8 * request.length + 8 * pointBound caller request +
@@ -591,7 +606,9 @@ private theorem length_encProgrammingState (encLog : Log ↪ List Bool)
   simp only [encProgrammingState_apply, encProgrammingStateFields, length_encPair]
   ring
 
-private theorem lazyProgramWordHandler_support
+/-- Every supported lazy programmable-oracle call preserves `ProgrammingInvariant`, bounds the
+reply word and grows the complete encoded cache/log state by at most `programmingResources`. -/
+theorem lazyProgramWordHandler_support
     (encLog : Log ↪ List Bool) (dist : Caller → ProbComp (List Bool))
     (active : Caller → List Bool → Bool)
     (inactive : Caller → List Bool → Log → ProbComp (List Bool × Log))

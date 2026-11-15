@@ -145,6 +145,25 @@ private theorem finish_support (caller request coins : List Bool)
   · trivial
   constructor <;> lia
 
+-- The per-call contract is usable through an ordinary module without exposing its definitions.
+example (caller : List Bool) (request : ProgrammingOp × List Bool)
+    (state : ProgrammingState Log)
+    (hcache : ∀ entry ∈ state.cache, entry.2.length ≤ 1)
+    (result : List Bool × ProgrammingState Log)
+    (hresult : result ∈ (ProbComp.eval (lazyProgramWordHandler dist active inactive samplePre
+      point finish caller request state)).support) :
+    ProgrammingInvariant (fun _ => 1) (fun _ _ => True) caller result.2 ∧
+      result.1.length ≤
+        programmingResources (fun _ => 1) pointBound replyBound logGrowth caller request.2 ∧
+      (encProgrammingState Log encLog result.2).length ≤
+        (encProgrammingState Log encLog state).length +
+          programmingResources (fun _ => 1) pointBound replyBound logGrowth caller request.2 :=
+  lazyProgramWordHandler_support encLog dist active inactive samplePre point finish (fun _ => 1)
+    pointBound replyBound logGrowth (fun _ _ => True) dist_support point_support inactive_support
+    finish_support caller request state
+      (ProgrammingInvariant.intro (fun _ => 1) (fun _ _ => True) caller state hcache True.intro)
+    result hresult
+
 theorem lazyRun_ppt : IsPPTOn encBits
     (encPair encBool (encProgrammingState Log encLog))
     (fun input => ((client input.length input).runState
