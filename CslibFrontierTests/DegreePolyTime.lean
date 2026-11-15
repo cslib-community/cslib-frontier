@@ -18,9 +18,9 @@ The degree parameters are arguments of the operations, so rule matching must rec
 cost/output indices rather than obtain them from a supplied certificate. These deliberately weak
 bounds are an automation experiment, not new complexity results or production migrations.
 
-Compare each named `explicit*`/`transition*` pair in hosted profiler output. Compilation and
-comparative timings are pending; profiler-enabled source alone establishes neither success nor
-an improvement. Registration is local and makes no recommendation about the global rule set.
+Compare each named `explicit*`/`transition*` pair with disposable hosted profiling. Normal tests
+remain silent under `--iofail`. Comparative timings are pending; successful elaboration alone
+establishes neither the measured search route nor an improvement. Registration is local and makes no recommendation about the global rule set.
 -/
 
 -- Disposable test operations and timing clients are intentionally private.
@@ -61,17 +61,14 @@ example (d e : ℕ) : ComputableInPolyTime (pack d e) encBits (encOption encBits
   fail_if_success fun_prop
   exact (pack_deg d e).computableInPolyTime
 
-set_option trace.profiler true in
 private theorem explicitPack (d e : ℕ) :
     ComputableInPolyTime (pack d e) encBits (encOption encBits) :=
   (pack_deg d e).computableInPolyTime
 
-set_option trace.profiler true in
 private theorem explicitFlag (d : ℕ) :
     ComputableInPolyTime (flag d) (encOption encBits) encBool :=
   (flag_deg d).computableInPolyTime
 
-set_option trace.profiler true in
 private theorem explicitComposition (d e k : ℕ) :
     ComputableInPolyTime (fun bits => flag k (pack d e bits)) encBits encBool :=
   ((flag_deg k).comp (pack_deg d e)).computableInPolyTime
@@ -80,17 +77,14 @@ section LocalTransition
 
 attribute [local fun_prop] ComputableInDegree.computableInPolyTime
 
-set_option trace.profiler true in
 private theorem transitionPack (d e : ℕ) :
     ComputableInPolyTime (pack d e) encBits (encOption encBits) := by
   fun_prop
 
-set_option trace.profiler true in
 private theorem transitionFlag (d : ℕ) :
     ComputableInPolyTime (flag d) (encOption encBits) encBool := by
   fun_prop
 
-set_option trace.profiler true in
 private theorem transitionComposition (d e k : ℕ) :
     ComputableInPolyTime (fun bits => flag k (pack d e bits)) encBits encBool := by
   fun_prop
