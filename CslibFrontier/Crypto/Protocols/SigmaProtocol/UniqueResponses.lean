@@ -121,8 +121,8 @@ theorem linear_uniqueResponsesAt {y : Y} (h : Function.Injective (ψ y)) :
 
 /-- **Exercise 19.14(c)** ([BonehShoup2023], p. 814): when `C` is nonempty, the linear protocol has
 unique responses at `y` exactly when `ψ y` is injective (its homogeneous system has only the trivial
-solution; the exercise asks for the sufficient direction and prints the unique solution as
-`α_j = 1`, whereas in this additive formalization the trivial solution is `0`). -/
+solution). The exercise asks for the sufficient direction; `linearSystem_uniqueResponsesAt_iff`
+states it for the book's systems. -/
 theorem linear_uniqueResponsesAt_iff [Nonempty C] {y : Y} :
     (linear ψ u ι).UniqueResponsesAt y ↔ Function.Injective (ψ y) := by
   refine ⟨fun h z z' hzz' => ?_, linear_uniqueResponsesAt ψ u ι⟩
@@ -170,9 +170,9 @@ theorem linearSystem_uniqueResponsesAt_iff [Nonempty C] {m n : ℕ}
   simp only [funext_iff, LinearMap.pi_apply, Fintype.linearCombination_apply, Pi.zero_apply]
 
 /-- Schnorr's protocol has strong special soundness ([BonehShoup2023], Exercises 19.14(a) and
-19.15(a), pp. 813–814) with `linearExtract`. These are the hypotheses of Exercise 19.17(a)
-([BonehShoup2023], p. 815) on strongly secure Fiat–Shamir signatures, which the library does not yet
-prove. -/
+19.15(a), pp. 813–814) with `linearExtract`. Exercise 19.17(a) ([BonehShoup2023], p. 815) derives
+strongly secure Fiat–Shamir signatures from special soundness and unique responses; the library
+does not yet prove it. -/
 theorem schnorr_strongSpecialSoundness [Fact q.Prime] (hg : g ≠ 0) :
     (schnorr ι g).StrongSpecialSoundness (fun α u => α • g = u) (linearExtract ι) :=
   schnorr_specialSoundness.strong (schnorr_uniqueResponses (smul_left_injective (ZMod q) hg))
