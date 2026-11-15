@@ -8,6 +8,7 @@ module
 
 public import CslibFrontier.Computability.Probabilistic.RandomOracle.Programming
 public import CslibFrontier.Tactic.PPT
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Max
 
 /-! An ordinary adaptive client of both native programmable-random-oracle worlds. -/
 
@@ -144,6 +145,32 @@ private theorem finish_support (caller request coins : List Bool)
   constructor
   · trivial
   constructor <;> lia
+
+-- A source adapter can take a finite maximum of the opaque shared allowance.
+example : ComputableInPolyTime (fun p : List Bool × List Bool =>
+    max
+      (programmingResources (fun _ => 1) pointBound replyBound logGrowth p.1 (false :: p.2))
+      (programmingResources (fun _ => 1) pointBound replyBound logGrowth p.1 (true :: p.2)))
+    (encPair encBits encBits) encUnary := by
+  have hshared : ComputableInPolyTime (fun p : List Bool × List Bool =>
+      programmingResources (fun _ => 1) pointBound replyBound logGrowth p.1 p.2)
+      (encPair encBits encBits) encUnary := by
+    apply computableInPolyTime_programmingResources encBits (fun _ => 1) pointBound replyBound
+      logGrowth
+    · fun_prop
+    · unfold pointBound
+      fun_prop
+    · unfold replyBound
+      fun_prop
+    · unfold logGrowth
+      fun_prop
+  have hfalse : ComputableInPolyTime
+      (fun p : List Bool × List Bool => (p.1, false :: p.2))
+      (encPair encBits encBits) (encPair encBits encBits) := by fun_prop
+  have htrue : ComputableInPolyTime
+      (fun p : List Bool × List Bool => (p.1, true :: p.2))
+      (encPair encBits encBits) (encPair encBits encBits) := by fun_prop
+  exact ComputableInPolyTime.unary_max' (hshared.comp hfalse) (hshared.comp htrue)
 
 -- The per-call contract is usable through an ordinary module without exposing its definitions.
 example (caller : List Bool) (request : ProgrammingOp × List Bool)

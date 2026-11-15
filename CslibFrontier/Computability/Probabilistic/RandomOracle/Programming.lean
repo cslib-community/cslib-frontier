@@ -598,6 +598,24 @@ def programmingResources (digestBound : Caller → ℕ)
   replyBound caller request + 8 * request.length + 8 * pointBound caller request +
     4 * digestBound caller + 6 + logGrowth caller request
 
+/-- The shared per-call allowance is polynomial-time computable from certificates for its four
+caller-supplied bounds. This lets finite source-operation adapters take maxima of the opaque
+allowance at their framed payloads without duplicating its formula. -/
+theorem computableInPolyTime_programmingResources (input : Caller ↪ List Bool)
+    (digestBound : Caller → ℕ) (pointBound replyBound logGrowth : Caller → List Bool → ℕ)
+    (hdigestBound : ComputableInPolyTime digestBound input encUnary)
+    (hpointBound : ComputableInPolyTime (fun p : Caller × List Bool => pointBound p.1 p.2)
+      (encPair input encBits) encUnary)
+    (hreplyBound : ComputableInPolyTime (fun p : Caller × List Bool => replyBound p.1 p.2)
+      (encPair input encBits) encUnary)
+    (hlogGrowth : ComputableInPolyTime (fun p : Caller × List Bool => logGrowth p.1 p.2)
+      (encPair input encBits) encUnary) :
+    ComputableInPolyTime (fun p : Caller × List Bool =>
+      programmingResources digestBound pointBound replyBound logGrowth p.1 p.2)
+      (encPair input encBits) encUnary := by
+  unfold programmingResources
+  fun_prop
+
 private theorem length_encProgrammingState (encLog : Log ↪ List Bool)
     (state : ProgrammingState Log) :
     (encProgrammingState Log encLog state).length =
@@ -859,8 +877,8 @@ theorem isPPTOn_run_lazyProgramWordHandler {β : Type} (input : Caller ↪ List 
     hprogram hprepare hhandler hinitial
     (ProgrammingInvariant digestBound logInvariant) (fun caller =>
       ⟨hinitCache caller, hinitLog caller⟩)
-  · unfold programmingResources
-    fun_prop
+  · exact computableInPolyTime_programmingResources input digestBound pointBound replyBound
+      logGrowth hdigestBound hpointBound hreplyBound hlogGrowth
   · exact fun caller request state hstate result hresult =>
       lazyProgramWordHandler_support encLog dist active inactive samplePre point finish
         digestBound pointBound replyBound logGrowth logInvariant hdist hpoint hinactive hfinish
@@ -924,8 +942,8 @@ theorem isPPTOn_run_overwriteProgramWordHandler {β : Type} (input : Caller ↪ 
     hprogram hprepare hhandler hinitial
     (ProgrammingInvariant digestBound logInvariant) (fun caller =>
       ⟨hinitCache caller, hinitLog caller⟩)
-  · unfold programmingResources
-    fun_prop
+  · exact computableInPolyTime_programmingResources input digestBound pointBound replyBound
+      logGrowth hdigestBound hpointBound hreplyBound hlogGrowth
   · exact fun caller request state hstate result hresult =>
       overwriteProgramWordHandler_support encLog dist active inactive samplePre point finish
         digestBound pointBound replyBound logGrowth logInvariant hdist hpoint hinactive hfinish
