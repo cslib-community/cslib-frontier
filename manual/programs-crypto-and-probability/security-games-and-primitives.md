@@ -2612,6 +2612,19 @@ one-bit-per-block instance `merkleDamgard`, not the length-strengthened one),
 `CompressionFamily.exists_oneWay` and `CompressionFamily.exists_wordEUFCMA` give the same
 conclusions for `2 n → n` compression families. No converse is claimed.
 
+For length-strengthened Merkle–Damgård padding (Boneh–Shoup v0.6, Section 8.4, Fig. 8.5,
+pp. 296–297 [bs23][bs23]), import
+[`MerkleDamgard/LengthPadding.lean`](../../CslibFrontier/Crypto/Computational/MerkleDamgard/LengthPadding.lean).
+`mdLengthBlocks` partitions `mdLengthPad` (`M ‖ 1 ‖ 0^k ‖ ⟨s⟩` with `n`-bit blocks and an
+`(n / 2)`-bit big-endian padded block count `s = mdLengthBlockCount n msg`) into `s` blocks;
+`mdLengthBlocks_suffix_iff` proves suffix-freeness whenever the longer message satisfies
+`mdLengthBlockCount n m₂ < 2 ^ (n / 2)`, and `computableInPolyTime_mdLengthBlocks` certifies
+polynomial-time computation. The
+[checked examples](../../CslibFrontierTests/Crypto/MerkleDamgardLengthPadding.lean) verify
+single-block and extra-block padding, an overflow suffix counterexample, and bounded-message
+collision resistance via `CompressionFamily.collisionResistantOn_merkleDamgardChain`; run
+`scripts/build.sh CslibFrontierTests.Crypto.MerkleDamgardLengthPadding`.
+
 Merkle–Damgård chains have many messages with one digest at little more than the cost of one
 collision (Joux's attack, [bs23][bs23], §8.4.1, pp. 298–299). Import
 [`MerkleDamgard/Multicollision.lean`](../../CslibFrontier/Crypto/Computational/MerkleDamgard/Multicollision.lean).
