@@ -140,12 +140,6 @@ theorem rsaNonUnitRoot_lt {N : ℕ} (hN : 0 < N) (e y : ℕ) : rsaNonUnitRoot N 
   · exact hN
   · exact Nat.mod_lt _ hN
 
-/-- The public exponent is positive, since `0` is not coprime to `φ(N) > 1`. -/
-theorem RSADesc.e_pos (desc : RSADesc) : 0 < desc.e := by
-  refine Nat.pos_of_ne_zero fun h => desc.totient_gt_one.ne' ?_
-  have := desc.he
-  rwa [h, Nat.coprime_zero_left] at this
-
 /-- RSA evaluation maps the residues coprime to `N` to residues coprime to `N`, and the others to
 others. -/
 theorem coprime_rsaEval_iff (desc : RSADesc) (x : ℕ) :
