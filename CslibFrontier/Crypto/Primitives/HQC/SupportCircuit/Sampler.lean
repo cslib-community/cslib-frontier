@@ -35,8 +35,6 @@ bounds below do not charge the offline generator program or replace the separate
 
 * `Cslib.Crypto.HQC.supportIndicatorCircuit`: membership bits of a corrected word array.
 * `Cslib.Crypto.HQC.supportSamplerCircuit`: candidates, collision correction, and indicator output.
-* `Cslib.Crypto.HQC.nonDyadicSupportCircuit`: the concrete `width = 1`, `n = 3`, `count = 2`
-  specialization used to expose a nonzero collision.
 
 ## Main results
 
@@ -49,8 +47,6 @@ The semantic and distributional results below assume `count ≤ n` and `n < 2 ^ 
 * `Cslib.Crypto.HQC.supportSamplerWidth`, `Cslib.Crypto.HQC.length_supportSamplerCodes_le`,
   `Cslib.Crypto.HQC.within_supportSamplerCodes`,
   `Cslib.Crypto.HQC.length_encoding_supportSamplerCodes_le`: instantiated online resources.
-* `Cslib.Crypto.HQC.eval_nonDyadicSupportCircuit_collision`: two raw candidates equal to `1` are
-  corrected to the support `{0, 1}`.
 
 ## References
 
@@ -262,96 +258,7 @@ theorem length_encoding_supportSamplerCodes_le (width bits n count : ℕ) :
   rw [samplerWidth_circuit, Circuit.length_code_fst] at h
   simpa only [Circuit.code, List.length_ofFn] using h
 
-/-! ### Non-dyadic collision and boundary cases -/
-
-/-- A small non-dyadic specialization: two one-bit words sample a support of size two in a
-three-element universe, using two-bit corrected positions. -/
-def nonDyadicSupportCircuit : Circuit signature 2 3 :=
-  supportSamplerCircuit 1 2 3 2
-
-/-- Words producing the duplicate nonzero raw candidate array `(1, 1)`. -/
-def nonDyadicCollisionWords : Fin 2 → Fin 2 := fun j => if j = 0 then 1 else 0
-
-/-- The corresponding two fair seed bits. -/
-def nonDyadicCollisionSeed : BitString 2 :=
-  blocksEquiv.symm fun j => (equivFin 1).symm (nonDyadicCollisionWords j)
-
-/-- Both source candidate formulas return the nonzero value `1`. -/
-theorem nonDyadicCollisionWords_candidates :
-    (fun j : Fin 2 => j.val + (nonDyadicCollisionWords j).val * (3 - j.val) / 2 ^ 1) =
-      fun _ => 1 := by
-  decide
-
-/-- The descending collision rule replaces the first duplicate `1` by its offset `0`. -/
-theorem supportFromWords_nonDyadicCollision :
-    supportFromWords 1 3 nonDyadicCollisionWords = {0, 1} := by
-  decide
-
-/-- The concrete circuit exposes a genuine nonzero collision correction, from raw candidates
-`(1, 1)` to the fixed-weight output support `{0, 1}`. -/
-theorem eval_nonDyadicSupportCircuit_collision :
-    nonDyadicSupportCircuit.eval interpretation nonDyadicCollisionSeed =
-      indicatorVector 3 {0, 1} := by
-  rw [nonDyadicSupportCircuit, eval_supportSamplerCircuit (by decide) (by decide)]
-  have hseed : (fun j => equivFin 1 (block nonDyadicCollisionSeed j)) =
-      nonDyadicCollisionWords := by
-    funext j
-    change equivFin 1
-      (block (blocksEquiv.symm fun j => (equivFin 1).symm (nonDyadicCollisionWords j)) j) = _
-    rw [congrFun (block_blocksEquiv_symm _) j, Equiv.apply_symm_apply]
-  rw [hseed, supportFromWords_nonDyadicCollision]
-
-/-- Exact measured law of the concrete non-dyadic client. -/
-theorem samplerDist_nonDyadicSupportCircuit :
-    samplerDist nonDyadicSupportCircuit =
-      (ProbComp.eval (sampleSupport2 1 3 2)).map (indicatorVector 3) := by
-  exact samplerDist_supportSamplerCircuit (by decide) (by decide)
-
-/-- The concrete client's discrepancy from the ideal three-point fixed-weight law is the existing
-finite-width density complement, with no abort term. -/
-theorem nonDyadicSupportCircuit_closeTo_ideal :
-    CloseTo (samplerDist nonDyadicSupportCircuit)
-      ((PMF.uniformOfFinset ((range 3).powersetCard 2)
-        (powersetCard_nonempty.mpr (by decide))).map (indicatorVector 3))
-      (ENNReal.ofReal (1 - (supportLowerDensity 1 3 0 2).toReal)) := by
-  simpa [nonDyadicSupportCircuit] using
-    supportSamplerDist_closeTo_ideal (width := 1) (bits := 2) (n := 3) (count := 2)
-      (by decide) (by decide)
-
-/-- The concrete non-dyadic client has fixed output weight two. -/
-theorem weight_eval_nonDyadicSupportCircuit (x : BitString 2) :
-    weight (nonDyadicSupportCircuit.eval interpretation x) = 2 := by
-  exact weight_eval_supportSamplerCircuit (width := 1) (bits := 2) (n := 3) (count := 2)
-    (by decide) (by decide) x
-
-/-- Exact active width of the concrete non-dyadic client. -/
-theorem nonDyadicSupportCircuit_width :
-    samplerWidth 2 nonDyadicSupportCircuit.code =
-      2 + nonDyadicSupportCircuit.size + 1 + 3 := by
-  simpa [nonDyadicSupportCircuit] using supportSamplerWidth 1 2 3 2
-
-/-- Construction-derived elementary-gate bound for the concrete non-dyadic client. -/
-theorem length_nonDyadicSupportCodes_le :
-    (samplerCodes 2 nonDyadicSupportCircuit.code).length ≤
-      2 + 3 * nonDyadicSupportCircuit.size + 3 := by
-  simpa [nonDyadicSupportCircuit] using length_supportSamplerCodes_le 1 2 3 2
-
-/-- The concrete non-dyadic client uses no coherent oracle queries. -/
-theorem within_nonDyadicSupportCodes :
-    OracleCircuit.Within
-      ((samplerCodes 2 nonDyadicSupportCircuit.code).map
-        fun g => OracleGateCode.gate (false, g))
-      (2 + nonDyadicSupportCircuit.size + 1 + 3)
-      ⟨2 + nonDyadicSupportCircuit.size + 1 + 3,
-        2 + 3 * nonDyadicSupportCircuit.size + 3, 0⟩ := by
-  simpa [nonDyadicSupportCircuit] using within_supportSamplerCodes 1 2 3 2
-
-/-- Encoded instruction-length bound for the concrete non-dyadic client. -/
-theorem length_encoding_nonDyadicSupportCodes_le :
-    (encList encGateCode (samplerCodes 2 nonDyadicSupportCircuit.code)).length ≤
-      (2 + 3 * nonDyadicSupportCircuit.size + 3) *
-        (12 * (2 + nonDyadicSupportCircuit.size + 1 + 3) + 1) := by
-  simpa [nonDyadicSupportCircuit] using length_encoding_supportSamplerCodes_le 1 2 3 2
+/-! ### Boundary cases -/
 
 /-- Zero requested positions produce the all-zero indicator, with no random or abort branch. -/
 theorem eval_supportSamplerCircuit_zero_count {width bits n : ℕ} (hn : n < 2 ^ bits)

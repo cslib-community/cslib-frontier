@@ -22,6 +22,7 @@ public section
 namespace CslibFrontierTests.HQCSupportCircuit
 
 open Cslib Cslib.Crypto.HQC Cslib.Circuits Cslib.Circuits.Boolean Cslib.Quantum
+open Finset Probability BitString
 open Turing.MultiTapeTM ComputableInPolyTime
 
 private def candidateBit (width : ℕ) : Circuits.Circuit signature width 1 :=
@@ -132,21 +133,73 @@ example : (supportScanCircuit 0 0 2).size = 6 := by
   rw [size_supportScanCircuit]
   decide
 
+-- A small non-dyadic specialization with two one-bit words and two-bit corrected positions.
+private def nonDyadicSupportCircuit : Circuits.Circuit signature 2 3 :=
+  supportSamplerCircuit 1 2 3 2
+
+-- Words producing the duplicate nonzero raw candidate array `(1, 1)`.
+private def nonDyadicCollisionWords : Fin 2 → Fin 2 := fun j => if j = 0 then 1 else 0
+
+-- The corresponding two fair seed bits.
+private def nonDyadicCollisionSeed : BitString 2 :=
+  blocksEquiv.symm fun j => (equivFin 1).symm (nonDyadicCollisionWords j)
+
+-- Both source candidate formulas return the nonzero value `1`.
+example :
+    (fun j : Fin 2 => j.val + (nonDyadicCollisionWords j).val * (3 - j.val) / 2 ^ 1) =
+      fun _ => 1 := by
+  decide
+
+-- The descending collision rule replaces the first duplicate `1` by its offset `0`.
+private theorem supportFromWords_nonDyadicCollision :
+    supportFromWords 1 3 nonDyadicCollisionWords = {0, 1} := by
+  decide
+
+-- The concrete circuit exposes that correction in its fixed-weight output support.
+example :
+    nonDyadicSupportCircuit.eval interpretation nonDyadicCollisionSeed =
+      indicatorVector 3 {0, 1} := by
+  rw [nonDyadicSupportCircuit, eval_supportSamplerCircuit (by decide) (by decide)]
+  have hseed : (fun j => equivFin 1 (block nonDyadicCollisionSeed j)) =
+      nonDyadicCollisionWords := by
+    funext j
+    change equivFin 1
+      (block (blocksEquiv.symm fun j => (equivFin 1).symm (nonDyadicCollisionWords j)) j) = _
+    rw [congrFun (block_blocksEquiv_symm _) j, Equiv.apply_symm_apply]
+  rw [hseed, supportFromWords_nonDyadicCollision]
+
 -- The complete native sampler has the implemented support law and its separate resource bounds.
 example :
     Reversible.samplerDist nonDyadicSupportCircuit =
-      (ProbComp.eval (sampleSupport2 1 3 2)).map (BitString.indicatorVector 3) :=
-  samplerDist_nonDyadicSupportCircuit
+      (ProbComp.eval (sampleSupport2 1 3 2)).map (indicatorVector 3) := by
+  simpa only [nonDyadicSupportCircuit] using
+    samplerDist_supportSamplerCircuit (width := 1) (bits := 2) (n := 3) (count := 2)
+      (by decide) (by decide)
+
+example :
+    CloseTo (Reversible.samplerDist nonDyadicSupportCircuit)
+      ((PMF.uniformOfFinset ((range 3).powersetCard 2)
+        (powersetCard_nonempty.mpr (by decide))).map (indicatorVector 3))
+      (ENNReal.ofReal (1 - (supportLowerDensity 1 3 0 2).toReal)) := by
+  simpa only [nonDyadicSupportCircuit] using
+    supportSamplerDist_closeTo_ideal (width := 1) (bits := 2) (n := 3) (count := 2)
+      (by decide) (by decide)
+
+example (x : BitString 2) :
+    weight (nonDyadicSupportCircuit.eval interpretation x) = 2 := by
+  simpa only [nonDyadicSupportCircuit] using
+    weight_eval_supportSamplerCircuit (width := 1) (bits := 2) (n := 3) (count := 2)
+      (by decide) (by decide) x
 
 example :
     Reversible.samplerWidth 2 nonDyadicSupportCircuit.code =
-      2 + nonDyadicSupportCircuit.size + 1 + 3 :=
-  nonDyadicSupportCircuit_width
+      2 + nonDyadicSupportCircuit.size + 1 + 3 := by
+  simpa only [nonDyadicSupportCircuit] using supportSamplerWidth 1 2 3 2
 
 example :
     (Reversible.samplerCodes 2 nonDyadicSupportCircuit.code).length ≤
-      2 + 3 * nonDyadicSupportCircuit.size + 3 :=
-  length_nonDyadicSupportCodes_le
+      2 + 3 * nonDyadicSupportCircuit.size + 3 := by
+  simpa only [nonDyadicSupportCircuit] using length_supportSamplerCodes_le 1 2 3 2
 
 example :
     OracleCircuit.Within
@@ -154,13 +207,13 @@ example :
         fun g => OracleGateCode.gate (false, g))
       (2 + nonDyadicSupportCircuit.size + 1 + 3)
       ⟨2 + nonDyadicSupportCircuit.size + 1 + 3,
-        2 + 3 * nonDyadicSupportCircuit.size + 3, 0⟩ :=
-  within_nonDyadicSupportCodes
+        2 + 3 * nonDyadicSupportCircuit.size + 3, 0⟩ := by
+  simpa only [nonDyadicSupportCircuit] using within_supportSamplerCodes 1 2 3 2
 
 example :
     (encList encGateCode (Reversible.samplerCodes 2 nonDyadicSupportCircuit.code)).length ≤
       (2 + 3 * nonDyadicSupportCircuit.size + 3) *
-        (12 * (2 + nonDyadicSupportCircuit.size + 1 + 3) + 1) :=
-  length_encoding_nonDyadicSupportCodes_le
+        (12 * (2 + nonDyadicSupportCircuit.size + 1 + 3) + 1) := by
+  simpa only [nonDyadicSupportCircuit] using length_encoding_supportSamplerCodes_le 1 2 3 2
 
 end CslibFrontierTests.HQCSupportCircuit
