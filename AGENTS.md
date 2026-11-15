@@ -207,8 +207,9 @@ review context, reaching its own verdict. Anyone who took part in the implementa
 design cannot supply that review. If a shared GitHub account prevents formal approval, use one
 brief PR comment naming the reviewer agent or session, revision and verdict. Agent review is
 never presented as human review. Before a published theorem enters the
-[results inventory](results/README.md), a human maintainer checks the statement against the
-source and records that in a comment the human writes.
+[results inventory](results/README.md), its statement is checked against the source by a human
+maintainer, or by a delegate the maintainer has named for that purpose, who records the check
+in a comment that says who made it.
 
 ### Approve and queue
 
