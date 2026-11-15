@@ -1606,6 +1606,56 @@ adversaries. Check it with:
 scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.BlindedCDH
 ```
 
+### The list form of CDH
+
+In the argument for protocol PAKE1 ([bs23][bs23], Section 21.11.4, p. 908) and in the proof of
+Theorem 11.4 ([bs23][bs23], Section 11.5.1, pp. 446–448), an adversary's random-oracle queries
+give a list of candidates for the Diffie–Hellman value, and the CDH adversary, which cannot
+recognize the right one, outputs one of them chosen at random. In Theorem 11.4 this is the source
+of the factor `Q`: equation (11.12) reads `CDHadv[Bcdh, G] ≥ Pr[Z] / Q`. The book names neither
+the problem nor the reduction; "list CDH" and the declaration names are this library's.
+[`DiffieHellman/ListCDH.lean`](../../CslibFrontier/Crypto/Computational/DiffieHellman/ListCDH.lean)
+states it in one group, like `cdhExperiment`, for a `ZMod q`-module `G` with `[NeZero q]` and
+`[DecidableEq G]`. In `listCDHExperiment q g Q A` the adversary `A : G → G → ProbComp (List G)`
+receives `a • g` and `b • g` and wins when `(a * b) • g` is among the first `Q` entries of the list
+it returns, which stands for the book's list of queries (at most `Q` of them in Theorem 11.4).
+The reduction `listCDHToCDH g index A` runs `A`, draws a position from the index sampler
+`index : ProbComp ℕ` and returns the entry there, or `g` when the position is past the end of the
+list. The book's algorithm instead chooses among the queries it collected and, in Theorem 11.4,
+reports failure when there are none. With `index = Fin.val <$> ProbComp.unifFin (Q - 1)`, exactly
+uniform below `Q` when `0 < Q`, `listCDHAdvantage_le_mul_cdhAdvantage` gives
+`listCDHAdvantage q g Q A ≤ Q * cdhAdvantage q g (listCDHToCDH g index A)` for every `Q`, every `A`
+and every such `q`, `G` and `g`, with no further hypothesis: at `Q = 0` the list experiment is
+never won (`listCDHAdvantage_zero`), a list shorter than `Q` counts in full, and repeated entries
+are allowed. `eval_listCDHExperiment_le_mul` gives the same bound with a factor `c : ℝ≥0∞` for any
+index sampler `index` under the hypothesis `hindex`: for every list `l` and every
+`x ∈ l.take Q`, `1 ≤ c * (ProbComp.eval index).map (fun i => l.getD i g) x`. The uniform case uses
+`PMF.inv_le_map_uniformOfFintype_getD` of
+[`Probability/PMF/UniformIndex.lean`](../../CslibFrontier/Probability/PMF/UniformIndex.lean): for
+`[NeZero Q]`, any list `l`, any default `d` and `hx : x ∈ l.take Q`, an index uniform on `Fin Q`
+read in `l` with default `d` equals `x` with probability at least `(Q : ℝ≥0∞)⁻¹`.
+[`DiffieHellman/ListCDHFamily.lean`](../../CslibFrontier/Crypto/Computational/DiffieHellman/ListCDHFamily.lean)
+gives the family game `listCDHGame setup Q adversary` for a bound `Q : ℕ → ℕ` and the reduction
+`listCDHToCDHAdversary Q adversary`. A machine with fair coins cannot draw an exactly uniform
+position below every `Q n`, so the reduction runs `listCDHToCDH` with the index
+`ProbComp.sampleDyadicIndex (Q n)`, uniform below the power of two `dyadicSize (Q n)`, which
+exceeds `Q n`. `ListCDHAdversary.IsPPT` asks for one uniform strict PPT machine from
+`encCDHInput` to the framed list of the words of the entries; the
+certificate `isPPT_listCDHToCDHAdversary` takes `hQ : ComputableInPolyTime Q encUnary encUnary` and
+`hA : adversary.IsPPT`. `succProbability_listCDHGame_le` bounds the success probability in the
+list game by `dyadicSize (Q n)` times that of the reduction in the CDH game, for every `setup`,
+`Q`, `adversary` and `n`, and `dyadicSize_le` gives `dyadicSize (Q n) ≤ 2 * (Q n + 1)`. The
+conclusion `CDH.negligible_listCDHGame` takes `h : F.CDH setup`, `hQ` and an adversary with
+`hA : adversary.IsPPT`, and shows that its success probability in the list game is negligible. The
+[list CDH client](../../CslibFrontierTests/Crypto/ListCDH.lean) checks the bound in `ZMod 7` at
+`Q = 0`, at `Q = 1`, at `Q = 3` beyond the length of the list and with a repeated solution, the
+reduction's output past the end of the list, and the certificate and the conclusion with
+`Q n = n`, also on Schnorr groups. Check it with:
+
+```bash
+scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.ListCDH
+```
+
 ## Encryption and chosen-message attacks
 
 [AdversaryOf](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/Encryption/Basic.lean#L73) has a first stage choosing two messages and a saved word from the public key, and a second stage guessing from that saved state and the challenge ciphertext. Each stage has a native certificate. `INDCPAOn` explicitly constrains admissible message pairs. `WordINDCPA` requires equal lengths; the general `INDCPAOf` with all pairs is stronger for variable-length word messages. Invalid challenges are made independent of the hidden experiment bit. `Encryption.advantage (gameOn valid keyGen encrypt adversary) n` names the advantage between the two sides of the experiment at parameter `n`, and `INDCPAOn` asks that it be negligible for every admissible adversary; bounds on other two-sided encryption experiments, such as the DEM and CCA games, are stated with the same name.
