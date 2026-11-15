@@ -212,12 +212,12 @@ theorem firstBitZero_isOraclePPT : IsOraclePPT encBool firstBitZero := by
   unfold firstBitZero
   exact ((IsOraclePPTOn.query_take' () hq hlim).bind_with hout.isOraclePPTOn).isOraclePPT
 
-theorem eval_prfRealGameOver_firstBitZero {outLen : ℕ → ℕ} (hout : ∀ n, 0 < outLen (n + 1))
+theorem eval_prfRealGame_firstBitZero {outLen : ℕ → ℕ} (hout : ∀ n, 0 < outLen (n + 1))
     (n : ℕ) :
-    ProbComp.eval (prfRealGameOver (fun n => n) (zeroFamily outLen) firstBitZero (n + 1)) =
+    ProbComp.eval (prfRealGame id (zeroFamily outLen) firstBitZero (n + 1)) =
       PMF.pure true := by
   obtain ⟨m, hm⟩ : ∃ m, outLen (n + 1) = m + 1 := ⟨outLen (n + 1) - 1, by have := hout n; omega⟩
-  simp only [prfRealGameOver, ProbOracleComp.run, firstBitZero, zeroFamily, prfOracle,
+  simp only [prfRealGame, id_eq, ProbOracleComp.run, firstBitZero, zeroFamily, prfOracle,
     List.length_cons, List.length_replicate, ↓reduceIte, hm, List.replicate_succ,
     List.headD_eq_head?_getD,
     bind_pure_comp, Functor.map_map, OracleComp.interpret_map, ProbOracleComp.interpret_query,
@@ -225,15 +225,15 @@ theorem eval_prfRealGameOver_firstBitZero {outLen : ℕ → ℕ} (hout : ∀ n, 
     BitString.eval_sampleList]
   exact PMF.map_const _ _
 
-theorem eval_prfIdealGameOver_firstBitZero {outLen : ℕ → ℕ} (hout : ∀ n, 0 < outLen (n + 1))
+theorem eval_prfIdealGame_firstBitZero {outLen : ℕ → ℕ} (hout : ∀ n, 0 < outLen (n + 1))
     (n : ℕ) :
-    ProbComp.eval (prfIdealGameOver (fun n => n) outLen firstBitZero (n + 1)) =
+    ProbComp.eval (prfIdealGame id outLen firstBitZero (n + 1)) =
       PMF.uniformOfFintype Bool := by
   have hhead (word : BitString (outLen (n + 1))) :
       (List.take (n + 1) (List.ofFn word)).headD true = word ⟨0, hout n⟩ := by
     rw [List.headD_eq_head?_getD, List.head?_take, List.head?_eq_getElem?, List.getElem?_ofFn]
     simp [hout n]
-  simp only [prfIdealGameOver, ProbOracleComp.run, firstBitZero, randomFunctionOracle,
+  simp only [prfIdealGame, id_eq, ProbOracleComp.run, firstBitZero, randomFunctionOracle,
     bind_pure_comp, Functor.map_map, OracleComp.interpret_map, ProbOracleComp.interpret_query,
     List.length_replicate, ↓reduceIte, map_pure, hhead, ProbComp.eval_map,
     ProbComp.eval_uniform]
@@ -255,14 +255,14 @@ length that is positive at positive parameters: at every positive parameter the 
 always accepts and the ideal one accepts with probability `1 / 2`. -/
 theorem not_pseudorandomFunctionOver_zeroFamily {outLen : ℕ → ℕ}
     (hout : ∀ n, 0 < outLen (n + 1)) :
-    ¬ PseudorandomFunctionOver (fun n => n) outLen (zeroFamily outLen) := by
+    ¬ PseudorandomFunctionOver id outLen (zeroFamily outLen) := by
   intro h
   have hneg := h.secure firstBitZero firstBitZero_isOraclePPT
   have hshift : Negligible fun n => Game.advantage
-      (ProbComp.eval (prfRealGameOver (fun n => n) (zeroFamily outLen) firstBitZero (n + 1)))
-      (ProbComp.eval (prfIdealGameOver (fun n => n) outLen firstBitZero (n + 1))) :=
+      (ProbComp.eval (prfRealGame id (zeroFamily outLen) firstBitZero (n + 1)))
+      (ProbComp.eval (prfIdealGame id outLen firstBitZero (n + 1))) :=
     hneg.shift 1
-  simp only [eval_prfRealGameOver_firstBitZero hout, eval_prfIdealGameOver_firstBitZero hout]
+  simp only [eval_prfRealGame_firstBitZero hout, eval_prfIdealGame_firstBitZero hout]
     at hshift
   refine not_negligible_const ?_ hshift
   norm_num [Game.advantage, Game.succProbability, PMF.uniformOfFintype_apply,
@@ -270,9 +270,8 @@ theorem not_pseudorandomFunctionOver_zeroFamily {outLen : ℕ → ℕ}
 
 /-- **The all-zero family is not a pseudorandom function.** `PseudorandomFunction` is the case
 `inLen = outLen = id` of `PseudorandomFunctionOver`, where the attack above applies. -/
-theorem not_pseudorandomFunction_zeroFamily : ¬ PseudorandomFunction (zeroFamily fun n => n) :=
-  fun h => not_pseudorandomFunctionOver_zeroFamily (outLen := fun n => n) Nat.succ_pos
-    ⟨h.polyTime, h.length_eq, h.secure⟩
+theorem not_pseudorandomFunction_zeroFamily : ¬ PseudorandomFunction (zeroFamily id) :=
+  not_pseudorandomFunctionOver_zeroFamily Nat.succ_pos
 
 /-! ### Factoring, Rabin, quadratic residuosity, composite residuosity, and RSA -/
 
