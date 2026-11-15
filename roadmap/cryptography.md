@@ -76,6 +76,7 @@ Information-theoretic private information retrieval, following Chor–Goldreich�
   The covering-code schemes of CGKS Section 3.3 include radius-`2` codes, the other dimensions of Figure 1, the asymptotic lower estimate and server time, and take variable-length answers so that unbalanced covers meet CGKS Theorem 1 exactly.
   Also `t`-private schemes against coalitions, block retrieval and the converse from schemes to smooth codes (Katz–Trevisan).
 - **PIR lower bounds** ([#3426](https://github.com/cslib-community/cslib-frontier/issues/3426)): the single-server bound with and without interaction, the two-server linear-summation bound with its tight even-set scheme (CGKS Section 5), and lower bounds for general two-server schemes.
+- **Client-preprocessing single-server PIR**: Prove Wang–Ren Theorem 4.1 (Construction 4.2 instantiated with small-domain PRPs and expected-time bounds) and the generalized `ST = Ω(nw)` space-time trade-off lower bounds (Theorems B.1 and B.2 following Yeo 2023 and Corrigan-Gibbs–Henzinger–Kogan 2022).
 
 ### Concurrent and quantum security
 
