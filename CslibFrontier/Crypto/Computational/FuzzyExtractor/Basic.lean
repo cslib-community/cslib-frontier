@@ -343,7 +343,8 @@ variable {M Key Helper : ℕ → Type} [∀ κ, Fintype (Key κ)] [∀ κ, Nonem
 
 /-- Asymptotic computational security of a family of fuzzy extractors `fe κ`, indexed by the
 security parameter `κ`, for a set `sources` of source ensembles and a class `Admissible` of
-distinguisher families: for every ensemble `source ∈ sources`, the real and ideal games of
+distinguisher families ([FullerMengReyzin2020], Definition 2.2, item 4, in asymptotic form;
+locator not verified): for every ensemble `source ∈ sources`, the real and ideal games of
 `fe κ` on `source κ` are indistinguishable to admissible distinguishers. Equivalently, every
 admissible `D` has negligible advantage `(fe κ).securityAdvantage (source κ) (D κ)`
 (`computationallySecure_iff`). This is the asymptotic form of `ComputationallySecureFor`, with the

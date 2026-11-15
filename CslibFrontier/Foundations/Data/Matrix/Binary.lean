@@ -95,6 +95,29 @@ theorem toBinary_eq {rows cols w : ℕ} (A : Matrix (Fin rows) (Fin cols) (ZMod 
       rfl]
   rw [h, ZMod.natCast_zmod_val]
 
+/-- Digit `k` of the natural read from `w` low-order-first digits is digit `k`. -/
+private theorem testBit_foldr_bit_ofFn {w : ℕ} (bits : Fin w → Bool) (k : Fin w) :
+    ((List.ofFn bits).foldr Nat.bit 0).testBit k.val = bits k := by
+  induction w with
+  | zero => exact k.elim0
+  | succ w ih =>
+    rw [List.ofFn_succ, List.foldr_cons]
+    cases k using Fin.cases with
+    | zero => simp only [Fin.val_zero, Nat.testBit_bit_zero]
+    | succ k => simp only [Fin.val_succ, Nat.testBit_bit_succ, ih]
+
+/-- A word of the declared length is the word of the matrix it decodes to. -/
+theorem toBinary_ofBinary {rows cols w : ℕ} {word : List Bool}
+    (h : word.length = rows * cols * w) : toBinary (ofBinary rows cols w word) = word := by
+  have hentry (i : Fin rows) (j : Fin cols) (k : Fin w) :
+      (ofBinary rows cols w word i j).val.testBit k.val =
+        block (block (ofList (rows * (cols * w)) word) i) j k := by
+    have hlt := Nat.foldr_bit_lt (List.ofFn (block (block (ofList (rows * (cols * w)) word) i) j))
+    rw [List.length_ofFn] at hlt
+    simp only [ofBinary, ZMod.val_natCast, Nat.mod_eq_of_lt hlt, testBit_foldr_bit_ofFn]
+  simp only [toBinary, hentry, blocksEquiv_symm_block]
+  exact ofFn_ofList (by rw [h, Nat.mul_assoc])
+
 /-- Reading an entry of a matrix's word recovers the entry. -/
 @[simp] theorem binaryEntry_toBinary {rows cols w : ℕ}
     (A : Matrix (Fin rows) (Fin cols) (ZMod (2 ^ w))) (i : Fin rows) (j : Fin cols) :
@@ -115,5 +138,11 @@ representing it. -/
 theorem lowBits_val_natCast (w x : ℕ) :
     lowBits w (x : ZMod (2 ^ w)).val = lowBits w x := by
   rw [ZMod.val_natCast, lowBits_mod_two_pow]
+
+/-- The `w` low-order digits of a natural number are the digits of the residue it represents
+modulo `2 ^ w`. -/
+theorem lowBits_eq_ofFn_val (w x : ℕ) :
+    lowBits w x = List.ofFn fun t : Fin w => (x : ZMod (2 ^ w)).val.testBit t.val := by
+  rw [← lowBits_val_natCast, lowBits_eq_ofFn]
 
 end Cslib.BitString
