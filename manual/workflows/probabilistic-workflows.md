@@ -39,6 +39,30 @@ The [checked clients](../../CslibFrontierTests/LeftoverHashDraft.lean) use an 8-
 uniform source and Boolean matrix hash, and check zero digest, large error and order.
 Run `scripts/build.sh CslibFrontierTests.LeftoverHashDraft` in a configured checkout.
 
+## Hash several independent samples
+
+To hash several independent samples `source : ι → PMF Input` under one shared public seed
+`seed : PMF Seed` into `ι → Output` via
+`seededHash seed (PMF.pi source) (fun s x i => hash s (x i))`, import
+[UniversalHash/MultiSample.lean](../../CslibFrontier/Probability/UniversalHash/MultiSample.lean)
+(`CslibFrontier.Probability.UniversalHash.MultiSample`). Assume `Seed`, `Output`, and `ι` are
+`Fintype`, `Input` is `Finite`, `ι` has `DecidableEq`, and `Output` is `Nonempty`. Apply
+`IsUniversalHash.leftover_hash_pi` (requiring `IsUniversalHash seed hash ε` and `ε ≠ ⊤`) or
+`IsTwoUniversal.leftover_hash_pi` (requiring `IsTwoUniversal seed hash`) to bound the statistical
+distance from `seed.bind (fun s => (PMF.uniformOfFintype (ι → Output)).map (s, ·))` by the sum
+of the single-sample collision-probability bounds. Under a pointwise guessing-probability bound
+`∀ i x, (source i x).toReal ≤ γ` and `0 ≤ 1 + α` for a `(1 + α) / |Output|`-universal family
+([bs23][bs23], §8.10.4, Theorem 8.11, p. 334), apply `IsUniversalHash.leftover_hash_pi_of_mass_le`,
+its uniform-seed specialization `IsUniversalHash.dist_seededHash_pi_uniformOfFintype_le` (which
+also requires `Nonempty Seed` and compares against `PMF.uniformOfFintype (Seed × (ι → Output))`),
+or `IsTwoUniversal.leftover_hash_pi_of_mass_le` (`α = 0`) to obtain the bound
+`|ι| * Real.sqrt (|Output| * γ + α) / 2`. The hypothesis `0 ≤ 1 + α` prevents
+`ENNReal.ofReal ((1 + α) / Fintype.card Output)` from clamping negative collision bounds to zero;
+the [checked instances and counterexamples](../../CslibFrontierTests/UniversalHashMultiSample.lean)
+exercise concrete bounds and show that `0 ≤ 1 + α`, sample independence, seed-sample
+independence, universality, and the guessing-probability bound are each needed
+(`scripts/build.sh CslibFrontierTests.UniversalHashMultiSample`).
+
 ## Transport a distribution bound through a map
 
 Import [TotalVariation/Map.lean](../../CslibFrontier/Foundations/MeasureTheory/Measure/TotalVariation/Map.lean).
@@ -190,7 +214,12 @@ through an injection. For a dependent function, `uniformOfFintype_map_comp_dep` 
 [Product/Split.lean](../../CslibFrontier/Probability/Product/Split.lean) needs only nonempty
 fibres. On any finite type, `uniformOfFintype_bind_bijective` in
 [PMF/Uniform.lean](../../CslibFrontier/Probability/PMF/Uniform.lean) changes variables in a uniform
-draw along a bijection. For a biased bit, use `coin p` from
+draw along a bijection. For finite types `ι`, `ι'` and `κ`, with decidable equality on `ι` and `ι'`
+and `κ` nonempty, and any map `e : ι' → ι`, `uniformOfFintype_bind_bind_extend` in
+[PMF/UniformExtend.lean](../../CslibFrontier/Probability/PMF/UniformExtend.lean) replaces the values
+of a uniform `f : ι → κ` on the range of `e` by an independent uniform table `t : ι' → κ`
+(`Function.extend e t f`) and shows that the result is again uniform; it replaces part of a random
+function or random oracle by fresh values. For a biased bit, use `coin p` from
 [PMF/Coin.lean](../../CslibFrontier/Probability/PMF/Coin.lean), with `p : unitInterval`; Mathlib's
 `PMF.bernoulli` is deprecated. `toMeasure_coin` identifies `(coin p).toMeasure` with Mathlib's
 `ProbabilityTheory.bernoulliMeasure true false p`, and `entropy_coin` in
@@ -1703,8 +1732,10 @@ each phase names only the oracle simulation it needs.
 To bound a substituted program's queries, import
 [Oracle/Substitution/QueryCount.lean](../../CslibFrontier/Languages/Probabilistic/Oracle/Substitution/QueryCount.lean).
 `hQ.simulate hhandler` keeps the adversary's budget `hQ` when every handler program makes at
-most one query, and `isCostBounded_simulate` does the same for general costs. Neither needs a case
-split on the private-sampling branch. The forward lift
+most one query, `isCostBounded_simulate` does the same for general costs, and
+`ProbOracleComp.queriesSatisfy_simulate` propagates a query predicate from every handler to the
+substituted program. Neither query-count rule needs a case split on the private-sampling branch. The
+forward lift
 [PRP.StrongAdversary.isQueryBounded_ofForward](../../CslibFrontier/Crypto/Primitives/PRP/Finite.lean)
 is a one-line client.
 
