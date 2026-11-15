@@ -189,8 +189,9 @@ private theorem sufCmaGame_nonUniqueScheme_sameMessageNewSignatureExplicitForger
   rw [eval_world_worldRealize_liftOracleForger]
   simp only [runLoggedForger, liftOracleForger, forgerWorldImpl, runWith_norm, pmf_norm]
   simp only [sameMessageNewSignatureInteraction, wordQuery, OracleComp.interpret_bind,
-    OracleComp.interpret_query, OracleComp.interpret_pure, run_logSigning_inl_nil,
-    runWith_norm, pmf_norm]
+    OracleComp.interpret_query, OracleComp.interpret_pure, runWith_norm, pmf_norm]
+  rw [run_logSigning_inl_nil]
+  simp only [runWith_norm, pmf_norm]
 
 private theorem sufCmaGame_nonUniqueScheme_exactReplayExplicitForger :
     sufCmaGame nonUniqueScheme exactReplayExplicitForger = PMF.pure false := by
@@ -199,8 +200,9 @@ private theorem sufCmaGame_nonUniqueScheme_exactReplayExplicitForger :
   rw [eval_world_worldRealize_liftOracleForger]
   simp only [runLoggedForger, liftOracleForger, forgerWorldImpl, runWith_norm, pmf_norm]
   simp only [exactReplayInteraction, wordQuery, OracleComp.interpret_bind,
-    OracleComp.interpret_query, OracleComp.interpret_pure, run_logSigning_inl_nil,
-    runWith_norm, pmf_norm]
+    OracleComp.interpret_query, OracleComp.interpret_pure, runWith_norm, pmf_norm]
+  rw [run_logSigning_inl_nil]
+  simp only [runWith_norm, pmf_norm]
 
 -- Signing and hashing share the cache, including after repeated signing and hash queries.
 -- The fresh forgery succeeds; replaying a signed message is rejected despite valid verification.
