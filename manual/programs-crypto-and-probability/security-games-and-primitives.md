@@ -1117,6 +1117,34 @@ cases `p = 2` and `e = 1`, and an instance showing that the branch for `y = 0` i
 [`AssumptionNonvacuity.lean`](../../CslibFrontierTests/Crypto/AssumptionNonvacuity.lean) shows
 that `RSAUnitOneWay` fails for a fixed key (`not_rsaUnitOneWay_const`).
 
+For the strong RSA assumption ([bs23][bs23], §10.9, pp. 420–421), import
+[`StrongRSA.lean`](../../CslibFrontier/Crypto/Computational/StrongRSA.lean). `GUOParams` holds the
+public parameters `(N, g)` of the group `(ZMod N)ˣ`, encoded by `encGUOParams`. In
+`strongRSAGame setup A n` the adversary receives `(N, g)` drawn from `setup n` and wins with a pair
+`(x, e)` when `isStrongRSASolution (N, g) (x, e)`: `x ^ e` and `g` agree modulo `N`, and `e ≠ 1`
+(`isStrongRSASolution_eq_true_iff` for `0 < N`). `StrongRSA setup` says that every PPT adversary
+(`StrongRSAAdversary.IsPPT`) wins with negligible probability; the
+[assumptions inventory](assumptions.md) lists it as standard. `rsaGUOSetup gen` is the book's
+`GGen`: an RSA modulus from the key law `gen` and a uniform unit `g`. The statement differs from the
+book's in two ways. The setup is any law on `GUOParams`, which need not be efficiently samplable or
+give a unit `g`, in place of a group of unknown order from an efficient `GGen`; class groups
+(p. 423) are not covered. The adversary outputs natural numbers `x` and `e ≠ 1` in place of `x ∈ G`
+and an integer `e ≠ ±1`. Every winning output gives one for the book's game, so the book's
+assumption implies `StrongRSA`; that implication is not formalized. `not_strongRSA_of_knownOrder`
+is the observation of p. 421 that the assumption is false when a multiple `u` of the order of `g`
+is known. If polynomial-time functions `u` and `v` of the security parameter and `(N, g)` give
+`g ^ u ≡ 1 [MOD N]` and `v ≠ 1` coprime to `u` on the support of every `setup n`, then
+`knownOrderAdversary u v` wins with probability `1` (`strongRSAGame_knownOrderAdversary`), and
+`isPPT_knownOrderAdversary` shows that it is PPT. The book takes `v > 1`. The adversary outputs
+`(knownOrderRoot N u v g, v)`, where `knownOrderRoot N u v g` is `g ^ (v⁻¹ mod u)` modulo `N`, a
+`v`-th root of `g` when `0 < u` (`powMod_knownOrderRoot`). The
+[checked examples](../../CslibFrontierTests/Crypto/StrongRSA.lean) cover `N = 15` and `g = 2`, an
+instance showing that `0 < u` is needed in `powMod_knownOrderRoot`, and the failure of the
+assumption for `rsaGUOSetup` with a fixed key (`not_strongRSA_rsaGUOSetup_const`).
+[`AssumptionNonvacuity.lean`](../../CslibFrontierTests/Crypto/AssumptionNonvacuity.lean) shows
+that `StrongRSA` fails for a fixed modulus and unit base (`not_strongRSA_const`), and the checked
+examples show that the unit condition is needed there (`strongRSA_const_four_two`).
+
 For Shamir's trick ([bs23][bs23], §10.6.2, Theorem 10.6, p. 416), import
 [`RSACommonRoot.lean`](../../CslibFrontier/Crypto/Computational/RSACommonRoot.lean); the group
 identity behind it is in

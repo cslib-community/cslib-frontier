@@ -4749,6 +4749,7 @@ public import CslibFrontier.Crypto.Computational.Signature.WordRandomOracle
 public import CslibFrontier.Crypto.Computational.Stretch
 public import CslibFrontier.Crypto.Computational.Stretch.Prefix
 public import CslibFrontier.Crypto.Computational.Stretch.Quantitative
+public import CslibFrontier.Crypto.Computational.StrongRSA
 public import CslibFrontier.Crypto.Computational.TCRSignature
 public import CslibFrontier.Crypto.Computational.TCRSignature.ManyTime
 public import CslibFrontier.Crypto.Computational.TargetCollisionResistant
