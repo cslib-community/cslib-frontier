@@ -11,10 +11,10 @@ public import CslibFrontier.Crypto.Primitives.Garbling.Conventional
 public import CslibFrontier.Crypto.Primitives.Garbling.Basic
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Label
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder.Basic
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.Words
 public import CslibFrontier.Foundations.Data.BitString.List.Binary
 public import Mathlib.Data.Nat.Size
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.OfBits
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Foundations.Data.BitString.List.Operations
 
 /-!
@@ -88,7 +88,7 @@ word `t` is the first `k + 1` bits of `family key (0 ‖ t)`, padded with `false
 first bit of `family key (1 ‖ t)`. On a `(k + 1)`-bit key and a `k`-bit tweak it is the label of
 `PRF.label (PRF.atLevel family (k + 1))` (`labelWord_ofFn`). -/
 @[expose] def labelWord (k : ℕ) (key t : List Bool) : List Bool :=
-  List.ofFn (BitString.ofList (k + 1) (family key (false :: t))) ++
+  (family key (false :: t) ++ List.replicate (k + 1) false).take (k + 1) ++
     [(family key (true :: t)).getD 0 false]
 
 /-- The permutation bit of wire `v`, numbered from `0`: bit `v` of the coins. -/
@@ -97,7 +97,7 @@ first bit of `family key (1 ‖ t)`. On a `(k + 1)`-bit key and a `k`-bit tweak 
 /-- The key of colour `c` of wire `v` among `wires` wires: key number `2 v + c` of `k + 1` bits,
 after the `wires` permutation bits. -/
 @[expose] def keyOf (k wires : ℕ) (coins : List Bool) (v : ℕ) (c : Bool) : List Bool :=
-  BitString.listRow (k + 1) (2 * v + c.toNat) (coins.drop wires)
+  BitString.listRow (k + 1) (if c then 2 * v + 1 else 2 * v) (coins.drop wires)
 
 /-- The label of colour `c` of wire `v`: its key followed by `c`. -/
 @[expose] def labelOf (k wires : ℕ) (coins : List Bool) (v : ℕ) (c : Bool) : List Bool :=
@@ -152,17 +152,18 @@ wires as `w`-bit numbers and its four rows. -/
 /-- `En(e, x)`: the label of each bit of `x`, read from `e` as two labels per input of
 `|e| / (2 |x|)` bits each. -/
 @[expose] def encodeWord (e x : List Bool) : List Bool :=
-  (x.zipIdx.map fun (b, i) =>
-    BitString.listRow (e.length / (2 * x.length)) (2 * i + b.toNat) e).flatten
+  ((List.range x.length).map fun i => BitString.listRow (e.length / (2 * x.length))
+    (if x.getD i false then 2 * i + 1 else 2 * i) e).flatten
 
 /-- One gate of `Ev`: read the gate's argument wires and their labels, select the row named by
 their colours, and remove the masks with their keys. -/
 @[expose] def evalGate (k w : ℕ) (body : List Bool) (labels : List (List Bool)) (g : ℕ) :
     List (List Bool) :=
   let gate := BitString.listRow (2 * w + 4 * (k + 2)) g body
-  let la := labels.getD (ofBits (gate.take w) - 1) []
-  let lb := labels.getD (ofBits ((gate.drop w).take w) - 1) []
-  let i := 2 * (la.getD (k + 1) false).toNat + (lb.getD (k + 1) false).toNat
+  let la := labels.getD (BitString.boundedBinaryValue labels.length (gate.take w).reverse - 1) []
+  let lb := labels.getD
+    (BitString.boundedBinaryValue labels.length ((gate.drop w).take w).reverse - 1) []
+  let i := (if la.getD (k + 1) false then 2 else 0) + (if lb.getD (k + 1) false then 1 else 0)
   labels ++ [List.zipWith xor (BitString.listRow (k + 2) i (gate.drop (2 * w)))
     (List.zipWith xor (labelWord family k (la.take (k + 1)) (tweak k g i 0))
       (labelWord family k (lb.take (k + 1)) (tweak k g i 1)))]
@@ -178,9 +179,9 @@ the gates in order, and return the labels of the last `m` wires. -/
 /-- `De(d, Y)`: when `Y` splits into `|d|` labels of equal width, output the colour bit of each
 plus its decoding bit; otherwise fail. -/
 @[expose] def decodeWord (d Y : List Bool) : Option (List Bool) :=
-  if d.length ∣ Y.length then
-    some (d.zipIdx.map fun (b, o) =>
-      (Y.getD ((o + 1) * (Y.length / d.length) - 1) false ^^ b))
+  if Y.length % d.length = 0 then
+    some ((List.range d.length).map fun o =>
+      Y.getD ((o + 1) * (Y.length / d.length) - 1) false ^^ d.getD o false)
   else none
 
 /-- **Point-and-permute garbling** as a garbling scheme over valid conventional circuits, with
@@ -223,7 +224,8 @@ theorem labelBits_add {k : ℕ} (x y : BitString (k + 1) × Bool) :
 theorem labelWord_ofFn (k : ℕ) (key : BitString (k + 1)) (t : BitString k) :
     labelWord family k (List.ofFn key) (List.ofFn t) =
       labelBits (PRF.label (PRF.atLevel family (k + 1)) key t) := by
-  simp [labelWord, labelBits, PRF.label, PRF.atLevel, List.ofFn_succ, BitString.ofList]
+  simp [labelWord, labelBits, PRF.label, PRF.atLevel, List.ofFn_succ, BitString.ofList,
+    ← BitString.ofFn_ofList_eq_take]
 
 variable {n m s : ℕ}
 
@@ -411,18 +413,19 @@ theorem encodeWord_encInfo {k : ℕ} (e : Fin n → Bool → BitString (k + 1) �
   congr 1
   apply List.ext_getElem (by simp)
   intro i h₁ h₂
-  simp only [List.length_map, List.length_zipIdx] at h₁
-  simp only [List.getElem_map, List.getElem_zipIdx, List.getElem_ofFn, zero_add]
-  rw [show 2 * i + x[i].toNat = (⟨2 * i + x[i].toNat, by cases x[i] <;> simp <;> omega⟩ :
-    Fin (2 * x.length)).val from rfl, listRow_flatten_ofFn _ fun _ => length_labelBits _]
-  simp only [BitString.ofList, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem h₁,
-    Option.getD_some]
-  congr 2
-  · ext
-    simp only
-    cases x[i] <;> simp
-    omega
-  · cases x[i] <;> simp [Nat.testBit_zero]
+  simp only [List.length_map, List.length_range] at h₁
+  simp only [List.getElem_map, List.getElem_range, List.getElem_ofFn, List.getD_eq_getElem?_getD,
+    List.getElem?_eq_getElem h₁, Option.getD_some, BitString.ofList]
+  cases hxi : x[i]
+  · rw [ite_eq_right (by simp), show 2 * i = (⟨2 * i, by omega⟩ : Fin (2 * x.length)).val from rfl,
+      listRow_flatten_ofFn _ fun _ => length_labelBits _]
+    simp [Nat.mul_div_cancel_left i (show 0 < 2 by omega)]
+  · rw [ite_eq_left rfl, show 2 * i + 1 = (⟨2 * i + 1, by omega⟩ : Fin (2 * x.length)).val from rfl,
+      listRow_flatten_ofFn _ fun _ => length_labelBits _]
+    simp only [Nat.testBit_zero]
+    congr 2
+    · ext; simp only; omega
+    · simp
 
 /-- `De` on the decoding bits and output labels of a typed garbling decodes them. -/
 theorem decodeWord_ofFn {k : ℕ} (d : Fin m → Bool) (Y : Fin m → BitString (k + 1) × Bool) :
@@ -433,16 +436,18 @@ theorem decodeWord_ofFn {k : ℕ} (d : Fin m → Bool) (Y : Fin m → BitString 
   congr 1
   apply List.ext_getElem (by simp)
   intro o h₁ h₂
-  simp only [List.length_map, List.length_zipIdx, List.length_ofFn] at h₁
-  simp only [List.getElem_map, List.getElem_zipIdx, List.getElem_ofFn, zero_add, decode, hlen,
-    List.length_ofFn, Nat.mul_div_cancel_left _ (show 0 < m by omega)]
+  simp only [List.length_map, List.length_range, List.length_ofFn] at h₁
+  simp only [List.getElem_map, List.getElem_range, List.getElem_ofFn, decode, hlen,
+    List.length_ofFn, Nat.mul_div_cancel_left _ (show 0 < m by omega), List.getD_eq_getElem?_getD,
+    List.getElem?_ofFn, h₁]
   have hrow := listRow_flatten_ofFn (fun o => labelBits (Y o)) (fun _ => length_labelBits _)
     ⟨o, h₁⟩
   have hbit := BitString.getD_listRow (width := k + 2) (row := o)
     (word := (List.ofFn fun o => labelBits (Y o)).flatten) (i := k + 1) (by omega)
   rw [hrow, getD_labelBits] at hbit
-  rw [show (o + 1) * (k + 2) - 1 = o * (k + 2) + (k + 1) by rw [Nat.add_mul]; omega, ← hbit,
-    Bool.add_eq_xor]
+  rw [show (o + 1) * (k + 2) - 1 = o * (k + 2) + (k + 1) by rw [Nat.add_mul]; omega,
+    ← List.getD_eq_getElem?_getD, ← hbit]
+  simp [Bool.add_eq_xor]
 
 /-! ### Evaluation -/
 
@@ -454,17 +459,23 @@ private theorem sum_fin_of_eq_two {M : Type*} [AddCommMonoid M] {r : ℕ} (hr : 
 
 /-- The number of a row of a binary gate. -/
 private theorem rowIndex_of_eq_two {r : ℕ} (hr : r = 2) (colours : Fin r → Bool) :
-    rowIndex colours = 2 * (colours ⟨0, by omega⟩).toNat + (colours ⟨1, by omega⟩).toNat := by
+    rowIndex colours =
+      (if colours ⟨0, by omega⟩ then 2 else 0) + (if colours ⟨1, by omega⟩ then 1 else 0) := by
   subst hr
-  simp [rowIndex, BitString.binaryValue, List.ofFn_succ]
+  have h (b₀ b₁ : Bool) :
+      2 * (2 * 0 + b₀.toNat) + b₁.toNat = (if b₀ then 2 else 0) + (if b₁ then 1 else 0) := by
+    cases b₀ <;> cases b₁ <;> rfl
+  simp only [rowIndex, BitString.binaryValue, List.ofFn_succ, List.ofFn_zero, List.foldl_cons,
+    List.foldl_nil]
+  exact h _ _
 
 /-- The row of a binary gate named by the number of its colours is the row of those colours. -/
 private theorem testBit_rowIndex_of_eq_two {r : ℕ} (hr : r = 2) (colours : Fin r → Bool) :
     (fun a : Fin r => (rowIndex colours).testBit (r - 1 - a)) = colours := by
   subst hr
-  have h₁ (b₀ b₁ : Bool) : (2 * b₀.toNat + b₁.toNat).testBit 1 = b₀ := by
+  have h₁ (b₀ b₁ : Bool) : ((if b₀ then 2 else 0) + (if b₁ then 1 else 0)).testBit 1 = b₀ := by
     cases b₀ <;> cases b₁ <;> rfl
-  have h₀ (b₀ b₁ : Bool) : (2 * b₀.toNat + b₁.toNat).testBit 0 = b₁ := by
+  have h₀ (b₀ b₁ : Bool) : ((if b₀ then 2 else 0) + (if b₁ then 1 else 0)).testBit 0 = b₁ := by
     cases b₀ <;> cases b₁ <;> rfl
   funext a
   rw [rowIndex_of_eq_two rfl]
@@ -557,7 +568,15 @@ private theorem evalGate_take (k : ℕ) (f : ValidCircuit)
   have hsize : (f.1.n + (toCircuit f).size) < 2 ^ wireWidth f.1.n (toCircuit f).size :=
     Nat.lt_size_self _
   have hgs := g.isLt
-  rw [hp₁, hp₂, hp₃, ofBits_lowBits (by omega), ofBits_lowBits (by omega),
+  have hval (a : ℕ) (ha : a ≤ f.1.n + g) (hw : a < 2 ^ wireWidth f.1.n (toCircuit f).size) :
+      BitString.boundedBinaryValue
+        ((List.ofFn fun v : Fin (f.1.n + (toCircuit f).size) =>
+          labelBits (A (Wire.ofNat v v.isLt))).take (f.1.n + g)).length
+        (BitString.lowBits (wireWidth f.1.n (toCircuit f).size) a).reverse = a := by
+    rw [BitString.boundedBinaryValue_eq, ← ofBits_reverse, List.reverse_reverse,
+      ofBits_lowBits hw, List.length_take, List.length_ofFn]
+    omega
+  rw [hp₁, hp₂, hp₃, hval _ (by omega) (by omega), hval _ (by omega) (by omega),
     getD_take_labels A (by omega) (by omega), getD_take_labels A (by omega) (by omega)]
   simp only [getD_labelBits, take_labelBits]
   have hwa : (toCircuit f).topology.wires g ⟨0, by omega⟩ =
@@ -567,8 +586,8 @@ private theorem evalGate_take (k : ℕ) (f : ValidCircuit)
       Wire.ofNat (f.1.B (g.cast (size_toCircuit f)) - 1) (by omega) :=
     Wire.toNat_injective (by rw [toNat_wires_toCircuit, Wire.toNat_ofNat]; rfl)
   have hindex : rowIndex (fun a => (A ((toCircuit f).topology.wires g a)).2) =
-      2 * (A (Wire.ofNat (f.1.A (g.cast (size_toCircuit f)) - 1) (by omega))).2.toNat +
-        (A (Wire.ofNat (f.1.B (g.cast (size_toCircuit f)) - 1) (by omega))).2.toNat := by
+      (if (A (Wire.ofNat (f.1.A (g.cast (size_toCircuit f)) - 1) (by omega))).2 then 2 else 0) +
+        (if (A (Wire.ofNat (f.1.B (g.cast (size_toCircuit f)) - 1) (by omega))).2 then 1 else 0) := by
     rw [rowIndex_of_eq_two harity, hwa, hwb]
   have hrowOf : rowOf (toCircuit f).topology g
       (rowIndex (fun a => (A ((toCircuit f).topology.wires g a)).2)) =
@@ -578,14 +597,14 @@ private theorem evalGate_take (k : ℕ) (f : ValidCircuit)
   simp only [Garbling.evalStep] at hgateA
   rw [sum_fin_of_eq_two harity, sub_eq_add_label] at hgateA
   simp only [slotTweak, hwa, hwb, hindex] at hgateA
-  have hi : 2 * (A (Wire.ofNat (f.1.A (g.cast (size_toCircuit f)) - 1) (by omega))).2.toNat +
-      (A (Wire.ofNat (f.1.B (g.cast (size_toCircuit f)) - 1) (by omega))).2.toNat <
+  have hi : (if (A (Wire.ofNat (f.1.A (g.cast (size_toCircuit f)) - 1) (by omega))).2 then 2 else 0) +
+      (if (A (Wire.ofNat (f.1.B (g.cast (size_toCircuit f)) - 1) (by omega))).2 then 1 else 0) <
         2 ^ (toCircuit f).topology.arity g := by
     rw [harity]
     cases (A (Wire.ofNat (f.1.A (g.cast (size_toCircuit f)) - 1) (by omega))).2 <;>
       cases (A (Wire.ofNat (f.1.B (g.cast (size_toCircuit f)) - 1) (by omega))).2 <;> simp
-  rw [show 2 * (A (Wire.ofNat (f.1.A (g.cast (size_toCircuit f)) - 1) (by omega))).2.toNat +
-      (A (Wire.ofNat (f.1.B (g.cast (size_toCircuit f)) - 1) (by omega))).2.toNat =
+  rw [show (if (A (Wire.ofNat (f.1.A (g.cast (size_toCircuit f)) - 1) (by omega))).2 then 2 else 0) +
+      (if (A (Wire.ofNat (f.1.B (g.cast (size_toCircuit f)) - 1) (by omega))).2 then 1 else 0) =
         (⟨_, hi⟩ : Fin (2 ^ (toCircuit f).topology.arity g)).val from rfl,
     listRow_flatten_ofFn _ fun _ => length_labelBits _]
   simp only
