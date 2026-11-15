@@ -29,15 +29,14 @@ retrieval (SPIR) with client preprocessing from
 * **Online query** (`toyScheme.query`, `toyScheme.answer`, `toyScheme.reconstruct`):
   on batch query tuple `Q : Fin k → Fin n`, the client uploads `τu = π ∘ Q : Fin k → Fin n`,
   the server answers with `τd = R ∘ τu : Fin k → Bool`, and the client reconstructs
-  `fun j => xor (st.1 (Q j)) (τd j)`.
+  `fun j => xor (st.maskedDB (Q j)) (τd j)`.
 
 ## Scope and nuances
 
 * **Client state size (`2 ^ n * n!`).** Although the paper's paragraph heading on p. 47 refers to
   "`n`-bit client storage", the online query `τu = π ∘ Q` uses the client's permutation `π`. In the
   syntax of Definition 6.1, all offline client state used by `Query` is part of `st : St`, so
-  `ToyState n := (Fin n → Bool) × Equiv.Perm (Fin n)` has cardinality `2 ^ n * n!`
-  (`card_toyState`).
+  `ToyState n` (fields `maskedDB` and `perm`) has cardinality `2 ^ n * n!` (`card_toyState`).
 * **Injective vs. repeated queries in a batch.** For every `n, k`, `toyScheme n k` is perfectly
   correct (`toyScheme_isCorrect`, `toyScheme_isCorrectWith_one`) and perfectly data private
   (`toyScheme_isPerfectlyDataPrivate`). For query privacy against the server, applying a uniform
@@ -58,8 +57,8 @@ retrieval (SPIR) with client preprocessing from
 
 ## Main definitions
 
-* `Cslib.Crypto.Protocols.PIR.Symmetric.Preprocessing.ToyState`: client state
-  `(Fin n → Bool) × Equiv.Perm (Fin n)`.
+* `Cslib.Crypto.Protocols.PIR.Symmetric.Preprocessing.ToyState`: client state with fields
+  `maskedDB` and `perm`.
 * `Cslib.Crypto.Protocols.PIR.Symmetric.Preprocessing.toyScheme`: the random-permutation toy
   `k`-batch SPIR scheme.
 * `Cslib.Crypto.Protocols.PIR.Symmetric.Preprocessing.ParallelToyState`,
@@ -99,16 +98,27 @@ namespace Cslib.Crypto.Protocols.PIR.Symmetric.Preprocessing
 open Cslib.Probability
 open scoped ENNReal
 
-/-- Client preprocessing state for the random-permutation toy SPIR scheme:
-the `n`-bit masked database `D ⊕ (R ∘ π)` together with the client's permutation
-`π : Equiv.Perm (Fin n)`. -/
-abbrev ToyState (n : ℕ) : Type :=
-  (Fin n → Bool) × Equiv.Perm (Fin n)
+/-- Client preprocessing state for the random-permutation toy SPIR scheme. -/
+structure ToyState (n : ℕ) where
+  /-- The masked database `i ↦ D i ⊕ R (π i)`. -/
+  maskedDB : Fin n → Bool
+  /-- The client's permutation `π`, used to hide the queried indices. -/
+  perm : Equiv.Perm (Fin n)
+
+/-- `ToyState n` is equivalent to the pair of its fields. -/
+def ToyState.equivProd (n : ℕ) : ToyState n ≃ (Fin n → Bool) × Equiv.Perm (Fin n) where
+  toFun st := (st.maskedDB, st.perm)
+  invFun p := ⟨p.1, p.2⟩
+  left_inv _ := rfl
+  right_inv _ := rfl
+
+instance (n : ℕ) : Fintype (ToyState n) := Fintype.ofEquiv _ (ToyState.equivProd n).symm
 
 /-- The client state of `toyScheme n k` has cardinality `2 ^ n * n!` (storing both the `n`-bit
 masked database and the permutation `π : Equiv.Perm (Fin n)`). -/
 theorem card_toyState (n : ℕ) : Fintype.card (ToyState n) = 2 ^ n * n.factorial := by
-  simp [ToyState, Fintype.card_perm]
+  rw [Fintype.card_congr (ToyState.equivProd n)]
+  simp [Fintype.card_perm]
 
 /-- The random-permutation toy `k`-batch SPIR scheme with ideal setup functionality
 [Hoover, Persiano and Yeo, Section 6.3, pp. 47–48][HooverPersianoYeo2026]. -/
@@ -117,10 +127,10 @@ theorem card_toyState (n : ℕ) : Fintype.card (ToyState n) = 2 ^ n * n.factoria
   rLaw := ProbComp.uniform (Fin n → Bool)
   setup D r := do
     let π ← ProbComp.uniform (Equiv.Perm (Fin n))
-    pure ((fun i => xor (D i) (r (π i)), π), ())
-  query st Q := st.2 ∘ Q
+    pure (⟨fun i => xor (D i) (r (π i)), π⟩, ())
+  query st Q := st.perm ∘ Q
   answer _D r τu := r ∘ τu
-  reconstruct st Q τd := fun j => xor (st.1 (Q j)) (τd j)
+  reconstruct st Q τd := fun j => xor (st.maskedDB (Q j)) (τd j)
 
 /-! ### Correctness -/
 
@@ -281,15 +291,30 @@ theorem toyScheme_not_isPerfectlyPrivate {n k : ℕ} (hn : 2 ≤ n) (hk : 2 ≤ 
 
 /-! ### Coordinate-wise toy scheme: privacy for every batch tuple (not from the source) -/
 
-/-- Client state of `parallelToyScheme n k`: for each batch coordinate `j : Fin k`, an `n`-bit
-masked database together with a permutation of `Fin n`. -/
-abbrev ParallelToyState (n k : ℕ) : Type :=
-  (Fin k → Fin n → Bool) × (Fin k → Equiv.Perm (Fin n))
+/-- Client state of `parallelToyScheme n k`: one masked database and one permutation per batch
+coordinate. -/
+structure ParallelToyState (n k : ℕ) where
+  /-- The masked databases `j ↦ (i ↦ D i ⊕ r j (π j i))`. -/
+  maskedDBs : Fin k → Fin n → Bool
+  /-- The client's permutations `π j`, one per batch coordinate. -/
+  perms : Fin k → Equiv.Perm (Fin n)
+
+/-- `ParallelToyState n k` is equivalent to the pair of its fields. -/
+def ParallelToyState.equivProd (n k : ℕ) :
+    ParallelToyState n k ≃ (Fin k → Fin n → Bool) × (Fin k → Equiv.Perm (Fin n)) where
+  toFun st := (st.maskedDBs, st.perms)
+  invFun p := ⟨p.1, p.2⟩
+  left_inv _ := rfl
+  right_inv _ := rfl
+
+instance (n k : ℕ) : Fintype (ParallelToyState n k) :=
+  Fintype.ofEquiv _ (ParallelToyState.equivProd n k).symm
 
 /-- The client state of `parallelToyScheme n k` has cardinality `(2 ^ n) ^ k * (n!) ^ k`. -/
 theorem card_parallelToyState (n k : ℕ) :
     Fintype.card (ParallelToyState n k) = (2 ^ n) ^ k * n.factorial ^ k := by
-  simp [ParallelToyState, Fintype.card_perm]
+  rw [Fintype.card_congr (ParallelToyState.equivProd n k)]
+  simp [Fintype.card_perm]
 
 /-- The coordinate-wise toy `k`-batch SPIR scheme: `k` independent copies of the one-query case
 of `toyScheme`, one per batch coordinate. The server randomness is a uniform family
@@ -306,10 +331,10 @@ for every `n` and `k`. -/
   rLaw := ProbComp.uniform (Fin k → Fin n → Bool)
   setup D r := do
     let π ← ProbComp.uniform (Fin k → Equiv.Perm (Fin n))
-    pure ((fun j i => xor (D i) (r j (π j i)), π), ())
-  query st Q := fun j => st.2 j (Q j)
+    pure (⟨fun j i => xor (D i) (r j (π j i)), π⟩, ())
+  query st Q := fun j => st.perms j (Q j)
   answer _D r τu := fun j => r j (τu j)
-  reconstruct st Q τd := fun j => xor (st.1 j (Q j)) (τd j)
+  reconstruct st Q τd := fun j => xor (st.maskedDBs j (Q j)) (τd j)
 
 private theorem parallel_xor_cancel_query {n k : ℕ} (D : Fin n → Bool) (Q : Fin k → Fin n)
     (r : Fin k → Fin n → Bool) (π : Fin k → Equiv.Perm (Fin n)) :

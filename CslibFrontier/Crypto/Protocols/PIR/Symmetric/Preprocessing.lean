@@ -8,18 +8,24 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Game.Experiment
-public import CslibFrontier.Crypto.Protocols.PIR.Basic
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF.Support
-import Mathlib.Analysis.SpecialFunctions.Pow.Real
 
 /-!
 # Symmetric private information retrieval with client preprocessing
 
-In the single-server symmetric private information retrieval (SPIR) with client preprocessing
-model of [Hoover, Persiano and Yeo, Section 6.1, Definition 6.1][HooverPersianoYeo2026],
-the server holds an `n`-bit database `D : Fin n → Bool` and a random value `r : R` drawn once
+This file models single-server symmetric private information retrieval (SPIR) with client
+preprocessing in a restricted form of the model of
+[Hoover, Persiano and Yeo, Section 6.1, Definition 6.1, pp. 44–45][HooverPersianoYeo2026], and
+proves an original information-theoretic storage lower bound for it. That bound is **not**
+Theorem 6.2 of the source: Theorem 6.2 is stated in the random oracle model and allows an
+interactive online phase in which the client uses randomness. The bound here is for the plain
+model, a one-round online phase and a deterministic online client. Its proof follows the counting
+argument in the proof of Theorem 6.2 (p. 46). Page numbers are the printed page numbers of the
+ePrint version.
+
+The server holds an `n`-bit database `D : Fin n → Bool` and a random value `r : R` drawn once
 from `rLaw` and shared between the offline setup and online query phases (with no per-client
 server storage):
 
@@ -37,7 +43,8 @@ a single batch, and requires **data privacy** against the client in addition to 
 against the server [Hoover, Persiano and Yeo, Definition 6.1, pp. 44–45][HooverPersianoYeo2026]:
 
 * `Scheme.IsCorrectWith ε` (`Scheme.IsCorrect` for `ε = 1`): for every database `D` and batch
-  tuple `Q`, `Scheme.run D Q` outputs `D ∘ Q` with probability at least `ε`.
+  tuple `Q`, `Scheme.run D Q` outputs `D ∘ Q` with probability at least `ε`. As in Definition 6.1,
+  `ε` is a success probability.
 * `Scheme.IsPerfectlyPrivate` (`Scheme.IsPrivateWith δ`, `Scheme.privacyAdvantage`): for every
   database `D` and query tuples `Q₀, Q₁`, the server's view `(r, τoff, τu, τd)` has the same
   distribution (`Scheme.serverView`).
@@ -50,42 +57,45 @@ The distinguishing games `Scheme.privacyGame` and `Scheme.dataPrivacyGame` are b
 
 ## Modelling choices and scope
 
-* **Plain model, one-round online phase, deterministic online client.** `Scheme` models the plain
-  model (without a random oracle or oracle-query bounds) and a single-round online phase in which
-  `query`, `answer`, and `reconstruct` are deterministic and all client randomness is sampled
-  during `setup` and stored in `st : St`. (In the source's proof of Theorem 6.2, client online
-  coins are placed in a common random string; conditioning on fixed client coins does not preserve
-  privacy in general. `RandomizedScheme` extends the syntax with online client coins `ω : Ω` not
-  included in the client view and proves the corresponding bound with an explicit `Fintype.card Ω`
-  factor, `RandomizedScheme.correct_le_card_mul_card_div_two_pow`.)
-* **Core batch lower bound and the `2 ≤ n` hypothesis.** When `2 ≤ n`, perfect privacy and perfect
-  data privacy make the online transcript `τon = (τu, τd)` independent of both `D` and `Q`
-  (`Scheme.eval_onlineTranscript_eq`). For `k ≤ n`, fixing an injective batch tuple `Q` and
-  counting the at most `Fintype.card St` possible outputs of `reconstruct · Q τd` for each `τd`
-  yields the core bound `ε ≤ Fintype.card St / 2 ^ k` (`Scheme.correct_le_card_div_two_pow`).
-  When `Fintype.card St ≤ 2 ^ s` and `s < k ≤ n`, this gives `ε ≤ 2 ^ (s - k) ≤ 1 / 2 ≤
-  1 - 2 ^ (s - k)`, which is strictly stronger than the paper's threshold `ε ≤ 1 - 2 ^ (s - k)`
-  and implies the paper-form impossibility `Scheme.batchSPIR_limitation` (the plain-model,
-  one-round, deterministic-online-client version of
-  [Hoover, Persiano and Yeo, Theorem 6.2, p. 46][HooverPersianoYeo2026]). The hypothesis `2 ≤ n`
-  is necessary: at `n = k = 1`, `D₀ ∘ Q = D₁ ∘ Q` forces `D₀ = D₁`, so a zero-storage scheme
-  (`Fintype.card St = 1 = 2 ^ 0`, `s = 0 < k = 1`) that sends `D 0` in `τd` is perfectly correct,
-  perfectly private, and vacuously perfectly data private.
-* **The hypotheses are jointly satisfiable.** For every `n` and `k`, the coordinate-wise toy scheme
-  `parallelToyScheme` (in `Cslib.Crypto.Protocols.PIR.Symmetric.Toy`; not from the source) is
-  perfectly correct, perfectly private for every batch tuple, and perfectly data private, so the
-  core bound is not vacuous for genuine batches `k ≥ 2`. All three notions are perfect
-  (information-theoretic): they quantify over every distinguisher without any computational
-  assumption, matching `δ = γ = 0` in Definition 6.1.
-* **Omitted results.** Random-oracle / relativized lower bounds (Sections 3–5 and the ROM
-  phrasing of Theorem 6.2), the informal shared-randomness correlation statements (Lemma 6.3 and
-  Theorem 6.4), the PRF inner-product toy scheme (Section 6.3, Toy 2), and the generic-2PC +
-  invertible-PRF construction (Sections 6.4–6.5, Theorem 6.5) are not formalized here.
+* **Restricted model.** `Scheme` is the plain model (no random oracle and no oracle-query
+  bounds), with a single-round online phase in which `query`, `answer` and `reconstruct` are
+  deterministic; all client randomness is sampled during `setup` and stored in `st : St`.
+  Definition 6.1 lets `Query` be an interactive two-party protocol, and the proof of Theorem 6.2
+  places the client's online coins in a common random string. Fixing those coins does not preserve
+  privacy in general, so randomized online clients are covered only by the weaker bound
+  `RandomizedScheme.correct_le_card_mul_card_div_two_pow`, which has an extra `Fintype.card Ω`
+  factor and is not stated in the source.
+* **Perfect, information-theoretic notions.** `Scheme.IsPerfectlyPrivate` and
+  `Scheme.IsPerfectlyDataPrivate` are exact equalities of view distributions. They hold against
+  every distinguisher, with no computational assumption. Definition 6.1 defines `δ`-privacy and
+  `γ`-data privacy against efficient adversaries and calls a scheme perfectly private and
+  perfectly data private when `δ = 0` and `γ = 0` (p. 45); we read `δ = γ = 0` as identical view
+  distributions.
+* **The bound.** When `2 ≤ n`, the two perfect notions make the online transcript
+  `τon = (τu, τd)` independent of both `D` and `Q` (`Scheme.eval_onlineTranscript_eq`, the first
+  step of the proof of Theorem 6.2). For `k ≤ n`, fixing an injective batch tuple `Q` and counting
+  the at most `Fintype.card St` possible outputs of `reconstruct · Q τd` for each `τd` gives
+  `ε ≤ Fintype.card St / 2 ^ k` (`Scheme.correct_le_card_div_two_pow`). With
+  `Fintype.card St ≤ 2 ^ s` and `s < k ≤ n` this gives `ε ≤ 2 ^ (s - k) ≤ 1 / 2 ≤ 1 - 2 ^ (s - k)`,
+  so in the restricted model no scheme is `ε`-correct for `ε > 1 - 2 ^ (s - k)`, the threshold in
+  the statement of Theorem 6.2 (`Scheme.batchSPIR_limitation`).
+* **The `2 ≤ n` hypothesis** is necessary: at `n = k = 1`, `D₀ ∘ Q = D₁ ∘ Q` forces `D₀ = D₁`, so
+  a zero-storage scheme (`Fintype.card St = 1 = 2 ^ 0`, `s = 0 < k = 1`) that sends `D 0` in `τd`
+  is perfectly correct, perfectly private, and vacuously perfectly data private. The statement of
+  Theorem 6.2, read literally (`s < k ≤ n`), also covers this case.
+* **The hypotheses are jointly satisfiable.** For every `n` and `k`, the coordinate-wise toy
+  scheme `parallelToyScheme` (in `Cslib.Crypto.Protocols.PIR.Symmetric.Toy`; not from the source)
+  is perfectly correct, perfectly private for every batch tuple, and perfectly data private, so
+  the bound is not vacuous for genuine batches `k ≥ 2`.
+* **Omitted results.** Theorem 6.2 itself (random oracle model, interactive online phase, online
+  client randomness), the random-oracle lower bounds of Sections 3–5, the shared-randomness
+  statements Lemma 6.3 and Theorem 6.4, the PRF inner-product toy scheme of Section 6.3, and the
+  generic-2PC construction of Sections 6.4–6.5 (Theorem 6.5) are not formalized here.
 
 ## Main definitions
 
 * `Cslib.Crypto.Protocols.PIR.Symmetric.Preprocessing.Scheme`: `k`-batch SPIR with client
-  preprocessing.
+  preprocessing in the restricted model.
 * `Cslib.Crypto.Protocols.PIR.Symmetric.Preprocessing.Scheme.run`,
   `Cslib.Crypto.Protocols.PIR.Symmetric.Preprocessing.Scheme.serverView`,
   `Cslib.Crypto.Protocols.PIR.Symmetric.Preprocessing.Scheme.clientView`,
@@ -112,22 +122,22 @@ The distinguishing games `Scheme.privacyGame` and `Scheme.dataPrivacyGame` are b
   perfect privacy and perfect data privacy imply zero distinguishing advantage.
 * `Cslib.Crypto.Protocols.PIR.Symmetric.Preprocessing.Scheme.eval_onlineTranscript_eq`:
   when `2 ≤ n`, perfect privacy and perfect data privacy make the online transcript distribution
-  independent of both `D` and `Q`.
+  independent of both `D` and `Q` (a step of the proof of Theorem 6.2).
 * `Cslib.Crypto.Protocols.PIR.Symmetric.Preprocessing.Scheme.correct_le_card_div_two_pow`:
-  core batch lower bound `ε ≤ Fintype.card St / 2 ^ k`.
+  the original restricted-model bound `ε ≤ Fintype.card St / 2 ^ k` (not Theorem 6.2).
 * `Cslib.Crypto.Protocols.PIR.Symmetric.Preprocessing.Scheme.batchSPIR_limitation`:
-  impossibility of `k`-batch SPIR with `Fintype.card St ≤ 2 ^ s`, `s < k ≤ n`, `2 ≤ n`, and
-  `ε > 1 - 2 ^ (s - k)` (Theorem 6.2 in the plain, one-round, deterministic-online-client model).
+  in the restricted model, no `k`-batch SPIR scheme with `Fintype.card St ≤ 2 ^ s`, `s < k ≤ n`
+  and `2 ≤ n` is `ε`-correct for `ε > 1 - 2 ^ (s - k)` (not Theorem 6.2).
 * `RandomizedScheme.correct_le_card_mul_card_div_two_pow`:
-  online-randomized client bound `ε ≤ Fintype.card St * Fintype.card Ω / 2 ^ k`.
+  online-randomized client bound `ε ≤ Fintype.card St * Fintype.card Ω / 2 ^ k` (not in the
+  source).
 
 ## References
 
 * [A. Hoover, G. Persiano, K. Yeo, *Lower Bounds for PIR with Preprocessing from Blackbox
   Cryptography*][HooverPersianoYeo2026], Section 6.1 (Definition 6.1, pp. 44–45) and Section 6.2
-  (Theorem 6.2, p. 46)
+  (the proof of Theorem 6.2, p. 46)
 -/
-
 public section
 
 namespace Cslib.Crypto.Protocols.PIR.Symmetric.Preprocessing
@@ -209,7 +219,7 @@ randomness `r` [Hoover, Persiano and Yeo, Definition 6.1, p. 45][HooverPersianoY
 
 /-- The online transcript `τon = (τu, τd)` on database `D` and query tuple `Q` for fixed server
 randomness `r`. -/
-@[expose] def onlineTranscriptAt (D : Fin n → Bool) (Q : Fin k → Fin n) (r : R) :
+def onlineTranscriptAt (D : Fin n → Bool) (Q : Fin k → Fin n) (r : R) :
     ProbComp (Tu × Td) := do
   let (st, _) ← P.setup D r
   let τu := P.query st Q
@@ -218,13 +228,13 @@ randomness `r`. -/
 
 /-- The online transcript `τon = (τu, τd)` on database `D` and query tuple `Q`
 [Hoover, Persiano and Yeo, Definition 6.1, p. 44][HooverPersianoYeo2026]. -/
-@[expose] def onlineTranscript (D : Fin n → Bool) (Q : Fin k → Fin n) :
+def onlineTranscript (D : Fin n → Bool) (Q : Fin k → Fin n) :
     ProbComp (Tu × Td) := do
   let r ← P.rLaw
   P.onlineTranscriptAt D Q r
 
 /-- The online download transcript `τd` on database `D` and query tuple `Q`. -/
-@[expose] def onlineDownload (D : Fin n → Bool) (Q : Fin k → Fin n) : ProbComp Td :=
+def onlineDownload (D : Fin n → Bool) (Q : Fin k → Fin n) : ProbComp Td :=
   Prod.snd <$> P.onlineTranscript D Q
 
 /-! ### Correctness, privacy, and data privacy predicates (Definition 6.1) -/
@@ -292,19 +302,19 @@ theorem IsPerfectlyPrivate.isPerfectlyPrivateOn {P : Scheme n k R St Toff Tu Td}
 /-! ### Distinguishing experiments, games, and advantages (Definition 6.1) -/
 
 /-- The server privacy distinguishing experiment for fixed server randomness `r : R`. -/
-@[expose] def privacyExperimentAt (D : Fin n → Bool) (Q : Fin k → Fin n)
+def privacyExperimentAt (D : Fin n → Bool) (Q : Fin k → Fin n)
     (adv : (R × Toff × Tu × Td) → Experiment) (r : R) : Experiment :=
   P.serverViewAt D Q r >>= adv
 
 /-- The server privacy distinguishing experiment on database `D`, query tuple `Q`, and
 distinguisher `adv`. -/
-@[expose] def privacyExperiment (D : Fin n → Bool) (Q : Fin k → Fin n)
+def privacyExperiment (D : Fin n → Bool) (Q : Fin k → Fin n)
     (adv : (R × Toff × Tu × Td) → Experiment) : Experiment :=
   P.rLaw >>= P.privacyExperimentAt D Q adv
 
 /-- The server privacy game built with `Game.withSetup` over the server randomness law
 `ProbComp.eval P.rLaw`. -/
-@[expose] noncomputable def privacyGame (D : Fin n → Bool) (Q : Fin k → Fin n)
+noncomputable def privacyGame (D : Fin n → Bool) (Q : Fin k → Fin n)
     (adv : (R × Toff × Tu × Td) → Experiment) : Game :=
   Game.withSetup (ProbComp.eval P.rLaw) (P.privacyExperimentAt D Q adv)
 
@@ -320,7 +330,7 @@ theorem privacyExperiment_eq_serverView_bind (D : Fin n → Bool) (Q : Fin k →
 
 /-- The distinguishing advantage of a server adversary `adv` between query tuples `Q₀` and `Q₁`
 on database `D` [Hoover, Persiano and Yeo, Definition 6.1, p. 45][HooverPersianoYeo2026]. -/
-@[expose] noncomputable def privacyAdvantage (D : Fin n → Bool) (Q₀ Q₁ : Fin k → Fin n)
+noncomputable def privacyAdvantage (D : Fin n → Bool) (Q₀ Q₁ : Fin k → Fin n)
     (adv : (R × Toff × Tu × Td) → Experiment) : ℝ≥0 :=
   Game.advantage (P.privacyGame D Q₀ adv) (P.privacyGame D Q₁ adv)
 
@@ -358,19 +368,19 @@ theorem IsPerfectlyPrivate.isPrivateWith_zero {P : Scheme n k R St Toff Tu Td}
   fun D Q₀ Q₁ adv => le_of_eq (h.privacyAdvantage_eq_zero D Q₀ Q₁ adv)
 
 /-- The client data-privacy distinguishing experiment for fixed server randomness `r : R`. -/
-@[expose] def dataPrivacyExperimentAt (D : Fin n → Bool) (Q : Fin k → Fin n)
+def dataPrivacyExperimentAt (D : Fin n → Bool) (Q : Fin k → Fin n)
     (adv : (St × Toff × Tu × Td) → Experiment) (r : R) : Experiment :=
   P.clientViewAt D Q r >>= adv
 
 /-- The client data-privacy distinguishing experiment on database `D`, query tuple `Q`, and
 distinguisher `adv`. -/
-@[expose] def dataPrivacyExperiment (D : Fin n → Bool) (Q : Fin k → Fin n)
+def dataPrivacyExperiment (D : Fin n → Bool) (Q : Fin k → Fin n)
     (adv : (St × Toff × Tu × Td) → Experiment) : Experiment :=
   P.rLaw >>= P.dataPrivacyExperimentAt D Q adv
 
 /-- The client data-privacy game built with `Game.withSetup` over the server randomness law
 `ProbComp.eval P.rLaw`. -/
-@[expose] noncomputable def dataPrivacyGame (D : Fin n → Bool) (Q : Fin k → Fin n)
+noncomputable def dataPrivacyGame (D : Fin n → Bool) (Q : Fin k → Fin n)
     (adv : (St × Toff × Tu × Td) → Experiment) : Game :=
   Game.withSetup (ProbComp.eval P.rLaw) (P.dataPrivacyExperimentAt D Q adv)
 
@@ -386,7 +396,7 @@ theorem dataPrivacyExperiment_eq_clientView_bind (D : Fin n → Bool) (Q : Fin k
 
 /-- The distinguishing advantage of a client adversary `adv` between databases `D₀` and `D₁`
 on query tuple `Q` [Hoover, Persiano and Yeo, Definition 6.1, p. 45][HooverPersianoYeo2026]. -/
-@[expose] noncomputable def dataPrivacyAdvantage (D₀ D₁ : Fin n → Bool) (Q : Fin k → Fin n)
+noncomputable def dataPrivacyAdvantage (D₀ D₁ : Fin n → Bool) (Q : Fin k → Fin n)
     (adv : (St × Toff × Tu × Td) → Experiment) : ℝ≥0 :=
   Game.advantage (P.dataPrivacyGame D₀ Q adv) (P.dataPrivacyGame D₁ Q adv)
 
@@ -453,112 +463,54 @@ theorem IsPerfectlyDataPrivate.eval_onlineTranscript_eq {P : Scheme n k R St Tof
   rw [P.eval_onlineTranscript_eq_map_clientView D₀ Q,
     P.eval_onlineTranscript_eq_map_clientView D₁ Q, hdpriv D₀ D₁ Q hD]
 
-/-- Helper: when `2 ≤ n`, every index `i : Fin n` has a distinct index `j ≠ i`. -/
-private theorem exists_ne_of_two_le (hn : 2 ≤ n) (i : Fin n) : ∃ j : Fin n, j ≠ i := by
-  by_cases hi : i.val = 0
-  · refine ⟨⟨1, by omega⟩, fun h => ?_⟩
-    simp only [Fin.ext_iff] at h
-    omega
-  · refine ⟨⟨0, by omega⟩, fun h => ?_⟩
-    simp only [Fin.ext_iff] at h
-    omega
-
-/-- General transcript-independence step from query-invariance and outside-`Q` database
-invariance of `onlineTranscript`. -/
-private theorem eval_onlineTranscript_update_eq_of_marginal {P : Scheme n k R St Toff Tu Td}
+/-- Direct transcript-independence chain from query invariance and invariance under changing the
+database outside the queried indices. For `j₀ ≠ j₁` and `Dm = Function.update D₁ j₀ (D₀ j₀)`, it
+goes `(D₀, Q₀) → (D₀, const j₀) → (Dm, const j₀) → (Dm, const j₁) → (D₁, const j₁) → (D₁, Q₁)`. -/
+private theorem eval_onlineTranscript_eq_of_marginal {P : Scheme n k R St Toff Tu Td}
     (hn : 2 ≤ n)
     (hpriv_on : ∀ D Q₀ Q₁,
       ProbComp.eval (P.onlineTranscript D Q₀) = ProbComp.eval (P.onlineTranscript D Q₁))
     (hdpriv_on : ∀ {D₀ D₁ : Fin n → Bool} {Q : Fin k → Fin n}, D₀ ∘ Q = D₁ ∘ Q →
       ProbComp.eval (P.onlineTranscript D₀ Q) = ProbComp.eval (P.onlineTranscript D₁ Q))
-    (D : Fin n → Bool) (i : Fin n) (b : Bool) (Q : Fin k → Fin n) :
-    ProbComp.eval (P.onlineTranscript (Function.update D i b) Q) =
-      ProbComp.eval (P.onlineTranscript D Q) := by
-  obtain ⟨j, hj⟩ := exists_ne_of_two_le hn i
-  let Q' : Fin k → Fin n := fun _ => j
-  have hagree : Function.update D i b ∘ Q' = D ∘ Q' := by
-    funext m
-    exact Function.update_of_ne hj b D
+    (D₀ D₁ : Fin n → Bool) (Q₀ Q₁ : Fin k → Fin n) :
+    ProbComp.eval (P.onlineTranscript D₀ Q₀) = ProbComp.eval (P.onlineTranscript D₁ Q₁) := by
+  have := Fin.nontrivial_iff_two_le.mpr hn
+  obtain ⟨j₀, j₁, hj⟩ := exists_pair_ne (Fin n)
+  have h₀ : D₀ ∘ (fun _ : Fin k => j₀) = Function.update D₁ j₀ (D₀ j₀) ∘ (fun _ => j₀) := by
+    funext _
+    simp
+  have h₁ : Function.update D₁ j₀ (D₀ j₀) ∘ (fun _ : Fin k => j₁) = D₁ ∘ (fun _ => j₁) := by
+    funext _
+    simp [hj.symm]
   calc
-    ProbComp.eval (P.onlineTranscript (Function.update D i b) Q)
-        = ProbComp.eval (P.onlineTranscript (Function.update D i b) Q') :=
-          hpriv_on _ Q Q'
-    _ = ProbComp.eval (P.onlineTranscript D Q') :=
-          hdpriv_on hagree
-    _ = ProbComp.eval (P.onlineTranscript D Q) :=
-          hpriv_on _ Q' Q
+    ProbComp.eval (P.onlineTranscript D₀ Q₀)
+        = ProbComp.eval (P.onlineTranscript D₀ fun _ => j₀) := hpriv_on _ _ _
+    _ = ProbComp.eval (P.onlineTranscript (Function.update D₁ j₀ (D₀ j₀)) fun _ => j₀) :=
+          hdpriv_on h₀
+    _ = ProbComp.eval (P.onlineTranscript (Function.update D₁ j₀ (D₀ j₀)) fun _ => j₁) :=
+          hpriv_on _ _ _
+    _ = ProbComp.eval (P.onlineTranscript D₁ fun _ => j₁) := hdpriv_on h₁
+    _ = ProbComp.eval (P.onlineTranscript D₁ Q₁) := hpriv_on _ _ _
 
-/-- Flipping or updating a single database entry `i` preserves the online transcript distribution
-when `2 ≤ n`: chain `(D', Q) → (D', const j) → (D, const j) → (D, Q)` for `j ≠ i`. -/
+/-- **Online transcript independence** (the first step of the proof of
+[Hoover, Persiano and Yeo, Theorem 6.2, p. 46][HooverPersianoYeo2026]): when `2 ≤ n`, perfect
+privacy and perfect data privacy imply that the online transcript `τon = (τu, τd)` has the same
+distribution for all databases `D₀, D₁` and all batch query tuples `Q₀, Q₁`. -/
+theorem eval_onlineTranscript_eq {P : Scheme n k R St Toff Tu Td} (hn : 2 ≤ n)
+    (hpriv : P.IsPerfectlyPrivate) (hdpriv : P.IsPerfectlyDataPrivate)
+    (D₀ D₁ : Fin n → Bool) (Q₀ Q₁ : Fin k → Fin n) :
+    ProbComp.eval (P.onlineTranscript D₀ Q₀) = ProbComp.eval (P.onlineTranscript D₁ Q₁) :=
+  eval_onlineTranscript_eq_of_marginal hn hpriv.eval_onlineTranscript_eq
+    hdpriv.eval_onlineTranscript_eq D₀ D₁ Q₀ Q₁
+
+/-- Updating a single database entry `i` preserves the online transcript distribution when
+`2 ≤ n`. -/
 theorem eval_onlineTranscript_update_eq {P : Scheme n k R St Toff Tu Td} (hn : 2 ≤ n)
     (hpriv : P.IsPerfectlyPrivate) (hdpriv : P.IsPerfectlyDataPrivate)
     (D : Fin n → Bool) (i : Fin n) (b : Bool) (Q : Fin k → Fin n) :
     ProbComp.eval (P.onlineTranscript (Function.update D i b) Q) =
       ProbComp.eval (P.onlineTranscript D Q) :=
-  eval_onlineTranscript_update_eq_of_marginal hn hpriv.eval_onlineTranscript_eq
-    hdpriv.eval_onlineTranscript_eq D i b Q
-
-/-- Auxiliary induction on the number of disagreeing coordinates between `D₀` and `D₁`. -/
-private theorem eval_onlineTranscript_eq_of_card_diff {P : Scheme n k R St Toff Tu Td}
-    (hn : 2 ≤ n)
-    (hpriv_on : ∀ D Q₀ Q₁,
-      ProbComp.eval (P.onlineTranscript D Q₀) = ProbComp.eval (P.onlineTranscript D Q₁))
-    (hdpriv_on : ∀ {D₀ D₁ : Fin n → Bool} {Q : Fin k → Fin n}, D₀ ∘ Q = D₁ ∘ Q →
-      ProbComp.eval (P.onlineTranscript D₀ Q) = ProbComp.eval (P.onlineTranscript D₁ Q))
-    (Q : Fin k → Fin n) :
-    ∀ (m : ℕ) (D₀ D₁ : Fin n → Bool),
-      (Finset.univ.filter (fun i => D₀ i ≠ D₁ i)).card = m →
-        ProbComp.eval (P.onlineTranscript D₀ Q) = ProbComp.eval (P.onlineTranscript D₁ Q)
-  | 0, D₀, D₁, hm => by
-    have hD : D₀ = D₁ := by
-      funext i
-      by_contra hne
-      have hmem : i ∈ Finset.univ.filter (fun j => D₀ j ≠ D₁ j) :=
-        Finset.mem_filter.mpr ⟨Finset.mem_univ i, hne⟩
-      rw [Finset.card_eq_zero.mp hm] at hmem
-      exact Finset.notMem_empty i hmem
-    rw [hD]
-  | m + 1, D₀, D₁, hm => by
-    have hne_empty : (Finset.univ.filter (fun i => D₀ i ≠ D₁ i)).Nonempty :=
-      Finset.card_pos.mp (by omega)
-    obtain ⟨i, hi⟩ := hne_empty
-    have hcard_erase :
-        (Finset.univ.filter (fun j => Function.update D₀ i (D₁ i) j ≠ D₁ j)).card = m := by
-      have hfilter :
-          Finset.univ.filter (fun j => Function.update D₀ i (D₁ i) j ≠ D₁ j) =
-            (Finset.univ.filter (fun j => D₀ j ≠ D₁ j)).erase i := by
-        ext j
-        simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_erase]
-        by_cases hji : j = i
-        · subst hji
-          simp
-        · simp [hji]
-      rw [hfilter, Finset.card_erase_of_mem hi, hm]
-      rfl
-    calc
-      ProbComp.eval (P.onlineTranscript D₀ Q)
-          = ProbComp.eval (P.onlineTranscript (Function.update D₀ i (D₁ i)) Q) :=
-            (eval_onlineTranscript_update_eq_of_marginal hn hpriv_on hdpriv_on
-              D₀ i (D₁ i) Q).symm
-      _ = ProbComp.eval (P.onlineTranscript D₁ Q) :=
-            eval_onlineTranscript_eq_of_card_diff hn hpriv_on hdpriv_on Q m
-              (Function.update D₀ i (D₁ i)) D₁ hcard_erase
-
-/-- **Online transcript independence** ([Hoover, Persiano and Yeo, Proof of Theorem 6.2,
-p. 46][HooverPersianoYeo2026]): when `2 ≤ n`, perfect privacy and perfect data privacy imply that
-the online transcript `τon = (τu, τd)` has the exact same distribution for all databases `D₀, D₁`
-and all batch query tuples `Q₀, Q₁`. -/
-theorem eval_onlineTranscript_eq {P : Scheme n k R St Toff Tu Td} (hn : 2 ≤ n)
-    (hpriv : P.IsPerfectlyPrivate) (hdpriv : P.IsPerfectlyDataPrivate)
-    (D₀ D₁ : Fin n → Bool) (Q₀ Q₁ : Fin k → Fin n) :
-    ProbComp.eval (P.onlineTranscript D₀ Q₀) = ProbComp.eval (P.onlineTranscript D₁ Q₁) := by
-  calc
-    ProbComp.eval (P.onlineTranscript D₀ Q₀)
-        = ProbComp.eval (P.onlineTranscript D₁ Q₀) :=
-          eval_onlineTranscript_eq_of_card_diff hn hpriv.eval_onlineTranscript_eq
-            hdpriv.eval_onlineTranscript_eq Q₀ _ D₀ D₁ rfl
-    _ = ProbComp.eval (P.onlineTranscript D₁ Q₁) :=
-          hpriv.eval_onlineTranscript_eq D₁ Q₀ Q₁
+  eval_onlineTranscript_eq hn hpriv hdpriv _ _ Q Q
 
 /-- Under `2 ≤ n`, perfect privacy, and perfect data privacy, the download transcript `τd` has the
 same distribution for all databases and query tuples. -/
@@ -569,7 +521,7 @@ theorem eval_onlineDownload_eq {P : Scheme n k R St Toff Tu Td} (hn : 2 ≤ n)
   simp only [onlineDownload, ProbComp.eval_map,
     eval_onlineTranscript_eq hn hpriv hdpriv D₀ D₁ Q₀ Q₁]
 
-/-! ### Core batch SPIR lower bound (Theorem 6.2) -/
+/-! ### Restricted-model batch bound (after the counting argument in the proof of Theorem 6.2) -/
 
 /-- Auxiliary joint draw of the client state `st` and online download `τd`. -/
 private def stateAndDownload (D : Fin n → Bool) (Q : Fin k → Fin n) : ProbComp (St × Td) := do
@@ -703,10 +655,13 @@ private theorem correct_le_card_div_two_pow_of_onlineDownload_eq [Fintype St] {�
   rw [le_div_iff₀ h2k_pos, mul_comm]
   exact h2k_mul
 
-/-- **Core batch SPIR lower bound** ([Hoover, Persiano and Yeo, Theorem 6.2,
-p. 46][HooverPersianoYeo2026], plain-model one-round deterministic-online-client core): if
-`2 ≤ n`, `k ≤ n`, and `P` is `ε`-correct, perfectly private, and perfectly data private with
-finite client state `St`, then `ε ≤ Fintype.card St / 2 ^ k`. -/
+/-- **Restricted-model batch storage bound.** This is not Theorem 6.2 of
+[Hoover, Persiano and Yeo][HooverPersianoYeo2026], which is stated in the random oracle model and
+allows an interactive online phase with online client randomness. It is an original
+information-theoretic bound for the plain model with a one-round online phase and a deterministic
+online client, proved by the counting argument in the proof of Theorem 6.2 (p. 46): if `2 ≤ n`,
+`k ≤ n`, and `P` is `ε`-correct, perfectly private, and perfectly data private with finite client
+state `St`, then `ε ≤ Fintype.card St / 2 ^ k`. -/
 theorem correct_le_card_div_two_pow [Fintype St] {ε : ℝ} (hn : 2 ≤ n) (hkn : k ≤ n)
     (hpriv : P.IsPerfectlyPrivate) (hdpriv : P.IsPerfectlyDataPrivate)
     (hcorr : P.IsCorrectWith ε) :
@@ -714,7 +669,8 @@ theorem correct_le_card_div_two_pow [Fintype St] {ε : ℝ} (hn : 2 ≤ n) (hkn 
   P.correct_le_card_div_two_pow_of_onlineDownload_eq hkn
     (fun D₁ D₂ => P.eval_onlineDownload_eq hn hpriv hdpriv D₁ D₂ _ _) hcorr
 
-/-- With `s`-bit client storage (`Fintype.card St ≤ 2 ^ s`), `ε ≤ 2 ^ (s - k)`. -/
+/-- In the restricted model of `correct_le_card_div_two_pow` (not Theorem 6.2), with `s`-bit
+client storage (`Fintype.card St ≤ 2 ^ s`), `ε ≤ 2 ^ (s - k)`. -/
 theorem correct_le_two_pow_sub [Fintype St] {s : ℕ} {ε : ℝ} (hn : 2 ≤ n) (hkn : k ≤ n)
     (hst : Fintype.card St ≤ 2 ^ s) (hpriv : P.IsPerfectlyPrivate)
     (hdpriv : P.IsPerfectlyDataPrivate) (hcorr : P.IsCorrectWith ε) :
@@ -725,8 +681,9 @@ theorem correct_le_two_pow_sub [Fintype St] {s : ℕ} {ε : ℝ} (hn : 2 ≤ n) 
     rw [zpow_sub₀ (by norm_num), zpow_natCast, zpow_natCast]
   linarith [div_le_div_of_nonneg_right hcard (by positivity : (0 : ℝ) ≤ (2 : ℝ) ^ k)]
 
-/-- A perfectly correct, perfectly private, and perfectly data-private `k`-batch SPIR scheme
-with `2 ≤ n` and `k ≤ n` requires client state size at least `2 ^ k`. -/
+/-- In the restricted model of `correct_le_card_div_two_pow` (not Theorem 6.2), a perfectly
+correct, perfectly private, and perfectly data-private `k`-batch SPIR scheme with `2 ≤ n` and
+`k ≤ n` requires client state size at least `2 ^ k`. -/
 theorem two_pow_le_card_state [Fintype St] (hn : 2 ≤ n) (hkn : k ≤ n)
     (hpriv : P.IsPerfectlyPrivate) (hdpriv : P.IsPerfectlyDataPrivate) (hcorr : P.IsCorrect) :
     2 ^ k ≤ Fintype.card St := by
@@ -736,9 +693,12 @@ theorem two_pow_le_card_state [Fintype St] (hn : 2 ≤ n) (hkn : k ≤ n)
     rwa [le_div_iff₀ h2k_pos, one_mul] at hle
   exact_mod_cast hmul
 
-/-- **Batch SPIR limitation** ([Hoover, Persiano and Yeo, Theorem 6.2,
-p. 46][HooverPersianoYeo2026], plain-model one-round deterministic-online-client corollary):
-when `2 ≤ n`, `s < k ≤ n`, `Fintype.card St ≤ 2 ^ s`, and `ε > 1 - 2 ^ (s - k)`, no `k`-batch
+/-- **Restricted-model batch limitation.** This is not Theorem 6.2 of
+[Hoover, Persiano and Yeo][HooverPersianoYeo2026], which is stated in the random oracle model and
+allows an interactive online phase with online client randomness. In the restricted model of
+`correct_le_card_div_two_pow` (plain model, one online round, deterministic online client), when
+`2 ≤ n`, `s < k ≤ n`, `Fintype.card St ≤ 2 ^ s`, and `ε > 1 - 2 ^ (s - k)` (the threshold in the
+statement of Theorem 6.2, p. 46, with `ε` a success probability as in Definition 6.1), no `k`-batch
 SPIR scheme can be simultaneously `ε`-correct, perfectly private, and perfectly data private. -/
 theorem batchSPIR_limitation [Fintype St] {s : ℕ} {ε : ℝ} (hn : 2 ≤ n) (hsk : s < k)
     (hkn : k ≤ n) (hst : Fintype.card St ≤ 2 ^ s)
@@ -756,10 +716,12 @@ theorem batchSPIR_limitation [Fintype St] {s : ℕ} {ε : ℝ} (hn : 2 ≤ n) (h
 
 end Scheme
 
-/-- Existential form of `Scheme.batchSPIR_limitation` ([Hoover, Persiano and Yeo, Theorem 6.2,
-p. 46][HooverPersianoYeo2026]): for `2 ≤ n`, `s < k ≤ n`, and `ε > 1 - 2 ^ (s - k)`, there does
-not exist a `k`-batch SPIR scheme with `Fintype.card St ≤ 2 ^ s` that is `ε`-correct, perfectly
-private, and perfectly data private. -/
+/-- Existential form of `Scheme.batchSPIR_limitation`. This is not Theorem 6.2 of
+[Hoover, Persiano and Yeo][HooverPersianoYeo2026] (random oracle model, online client
+randomness): in the restricted model of `Scheme` (plain model, one online round, deterministic
+online client), for `2 ≤ n`, `s < k ≤ n`, and `ε > 1 - 2 ^ (s - k)`, there does not exist a
+`k`-batch SPIR scheme with `Fintype.card St ≤ 2 ^ s` that is `ε`-correct, perfectly private, and
+perfectly data private. -/
 theorem not_exists_scheme_of_lt {n k s : ℕ} {R St Toff Tu Td : Type} [Fintype St] {ε : ℝ}
     (hn : 2 ≤ n) (hsk : s < k) (hkn : k ≤ n) (hst : Fintype.card St ≤ 2 ^ s)
     (hε : 1 - (2 : ℝ) ^ ((s : ℤ) - (k : ℤ)) < ε) :
@@ -807,7 +769,7 @@ variable (P : RandomizedScheme n k R St Ω Toff Tu Td)
   pure (P.reconstruct st ω Q τd)
 
 /-- Server view `(r, τoff, τu, τd)` on database `D` and query tuple `Q`. -/
-@[expose] def serverView (D : Fin n → Bool) (Q : Fin k → Fin n) :
+def serverView (D : Fin n → Bool) (Q : Fin k → Fin n) :
     ProbComp (R × Toff × Tu × Td) := do
   let r ← P.rLaw
   let (st, τoff) ← P.setup D r
@@ -818,7 +780,7 @@ variable (P : RandomizedScheme n k R St Ω Toff Tu Td)
 
 /-- Client view `(st, τoff, τu, τd)` on database `D` and query tuple `Q` (without ephemeral
 online coins `ω`, matching Definition 6.1). -/
-@[expose] def clientView (D : Fin n → Bool) (Q : Fin k → Fin n) :
+def clientView (D : Fin n → Bool) (Q : Fin k → Fin n) :
     ProbComp (St × Toff × Tu × Td) := do
   let r ← P.rLaw
   let (st, τoff) ← P.setup D r
@@ -828,7 +790,7 @@ online coins `ω`, matching Definition 6.1). -/
   pure (st, τoff, τu, τd)
 
 /-- Online transcript `τon = (τu, τd)` on database `D` and query tuple `Q`. -/
-@[expose] def onlineTranscript (D : Fin n → Bool) (Q : Fin k → Fin n) :
+def onlineTranscript (D : Fin n → Bool) (Q : Fin k → Fin n) :
     ProbComp (Tu × Td) := do
   let r ← P.rLaw
   let (st, _) ← P.setup D r
@@ -880,7 +842,8 @@ private theorem onlineTranscript_toProductScheme (D : Fin n → Bool) (Q : Fin k
   simp only [toProductScheme, Scheme.onlineTranscript, Scheme.onlineTranscriptAt, clientView,
     bind_assoc, pure_bind, map_bind, map_pure]
 
-/-- **Online-randomized client batch SPIR lower bound**: if `2 ≤ n`, `k ≤ n`, and `P` is
+/-- **Online-randomized client batch bound** (an original extension, not stated in the source,
+and not Theorem 6.2): if `2 ≤ n`, `k ≤ n`, and `P` is
 `ε`-correct, perfectly private, and perfectly data private with finite client state `St` and
 finite online coin space `Ω`, then `ε ≤ Fintype.card St * Fintype.card Ω / 2 ^ k`. -/
 theorem correct_le_card_mul_card_div_two_pow [Fintype St] [Fintype Ω] {ε : ℝ}
@@ -899,8 +862,8 @@ theorem correct_le_card_mul_card_div_two_pow [Fintype St] [Fintype Ω] {ε : ℝ
         ProbComp.eval (P.toProductScheme.onlineDownload D₂ (Fin.castLE hkn)) := by
     intro D₁ D₂
     simp only [Scheme.onlineDownload, ProbComp.eval_map,
-      Scheme.eval_onlineTranscript_eq_of_card_diff hn hpriv_prod.eval_onlineTranscript_eq
-        hdpriv_on (Fin.castLE hkn) _ D₁ D₂ rfl]
+      Scheme.eval_onlineTranscript_eq_of_marginal hn hpriv_prod.eval_onlineTranscript_eq
+        hdpriv_on D₁ D₂ (Fin.castLE hkn) (Fin.castLE hkn)]
   have hcorr_prod : P.toProductScheme.IsCorrectWith ε := fun D Q => by
     rw [P.run_toProductScheme]
     exact hcorr D Q
