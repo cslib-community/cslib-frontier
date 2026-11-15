@@ -13,6 +13,7 @@ import CslibFrontier.Probability.BitString.List
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Foundations.Data.BitString.List.LowBits
 import CslibFrontier.Probability.PMF.Uniform
+import CslibFrontier.Crypto.Game.Hybrid
 
 /-!
 # The real view of point-and-permute garbling as a typed view
@@ -615,5 +616,74 @@ private theorem eval_prvSimExperiment_false {σ : Type} (B : ℕ → PrvSimAdver
     rw [eval_simWord, hy, PMF.bind_map]
     rfl
   · rfl
+
+/-- Against the keyed label function, the reduction plays a uniform global hybrid below
+`dyadicSize (P k)`. -/
+private theorem eval_realExperiment_prvSimReduction {σ : Type}
+    (B : ℕ → PrvSimAdversary ValidCircuit σ) (P : ℕ → ℕ) (k : ℕ) :
+    ProbComp.eval (PRF.realExperiment (PRF.label (PRF.atLevel family (k + 1)))
+        ((labelCodec k).adapt (prvSimReduction family B P k []))) =
+      (PMF.uniformOfFintype (Fin (Probability.dyadicSize (P k)))).bind fun j =>
+        prvSimHybrid family B k j := by
+  simp only [PRF.realExperiment, ProbComp.eval_bind, ProbComp.eval_uniform,
+    eval_run_prvSimReduction, prvSimHybrid]
+  rw [PMF.bind_comm, PMF.bind_comm (PMF.uniformOfFintype (Fin _))]
+  refine congrArg _ (funext fun ⟨query, state⟩ => ?_)
+  dsimp only
+  split_ifs with hx
+  · rw [PMF.bind_comm]
+    refine congrArg _ (funext fun j => ?_)
+    rw [← eval_realExperiment_reduction]
+    simp only [PRF.realExperiment, ProbComp.eval_bind, ProbComp.eval_uniform]
+  · rw [PMF.bind_const, PMF.bind_const]
+
+/-- Against a uniform random function, the reduction plays the next global hybrid, when every
+valid query `B k` can choose has at most `P k` wires and `8 P k ≤ 2 ^ k`. -/
+private theorem eval_idealExperiment_prvSimReduction {σ : Type}
+    (B : ℕ → PrvSimAdversary ValidCircuit σ) (P : ℕ → ℕ) (k : ℕ)
+    (hP : ∀ query state, (query, state) ∈ (ProbComp.eval ((B k).choose ())).support →
+      query.input.length = query.fn.1.n → query.fn.1.n + query.fn.1.q ≤ P k)
+    (hk : 8 * P k ≤ 2 ^ k) :
+    ProbComp.eval (PRF.idealExperiment ((labelCodec k).adapt (prvSimReduction family B P k []))) =
+      (PMF.uniformOfFintype (Fin (Probability.dyadicSize (P k)))).bind fun j =>
+        prvSimHybrid family B k (j + 1) := by
+  simp only [PRF.idealExperiment, ProbComp.eval_bind, ProbComp.eval_uniform,
+    eval_run_prvSimReduction, prvSimHybrid]
+  rw [PMF.bind_comm, PMF.bind_comm (PMF.uniformOfFintype (Fin _))]
+  refine Probability.PMF.bind_congr_on_support _ _ _ fun ⟨query, state⟩ hmem => ?_
+  dsimp only
+  split_ifs with hx
+  · have htw := slotTweak_injective k query.fn (by
+      have := hP query state hmem hx
+      omega)
+    rw [PMF.bind_comm]
+    refine congrArg _ (funext fun j => ?_)
+    rw [← eval_idealExperiment_reduction _ _ _ _ htw]
+    simp only [PRF.idealExperiment, ProbComp.eval_bind, ProbComp.eval_uniform]
+  · rw [PMF.bind_const, PMF.bind_const]
+
+/-- **The `prv.sim` advantage against the simulator is the reduction's label advantage, times the
+step range.** At parameter `k`, if every valid query `B k` can choose has at most `P k` wires and
+`8 P k ≤ 2 ^ k`, the `prv.sim` advantage of `B k` against `simWord` is `dyadicSize (P k)` times
+the finite PRF advantage of `prvSimReduction family B P` at label parameter `k`, read through
+`labelCodec k`, against the label function of `family` at parameter `k + 1`. -/
+theorem prvSimAdvantage_simWord_eq {σ : Type} (B : ℕ → PrvSimAdversary ValidCircuit σ)
+    (P : ℕ → ℕ) (k : ℕ)
+    (hP : ∀ query state, (query, state) ∈ (ProbComp.eval ((B k).choose ())).support →
+      query.input.length = query.fn.1.n → query.fn.1.n + query.fn.1.q ≤ P k)
+    (hk : 8 * P k ≤ 2 ^ k) :
+    prvSimAdvantage (scheme family) phiTopo k (simWord family k) (B k) =
+      Probability.dyadicSize (P k) * PRF.advantage (PRF.label (PRF.atLevel family (k + 1)))
+        ((labelCodec k).adapt (prvSimReduction family B P k [])) := by
+  haveI : NeZero (Probability.dyadicSize (P k)) := ⟨(Probability.dyadicSize_pos _).ne'⟩
+  have hc : ∀ query state, (query, state) ∈ (ProbComp.eval ((B k).choose ())).support →
+      query.input.length = query.fn.1.n →
+        query.fn.1.n + query.fn.1.q ≤ Probability.dyadicSize (P k) :=
+    fun query state hmem hx => (hP query state hmem hx).trans (Probability.lt_dyadicSize _).le
+  rw [prvSimAdvantage, Experiment.advantage, eval_prvSimExperiment_false family B k _ hc,
+    eval_prvSimExperiment_true, Game.advantage_comm,
+    Game.advantage_hybrid_average (prvSimHybrid family B k) _ _ le_rfl, PRF.advantage,
+    eval_realExperiment_prvSimReduction, eval_idealExperiment_prvSimReduction family B P k hP hk]
+  simp only [Fin.is_lt, ↓reduceIte]
 
 end Cslib.Crypto.Garbling.PointPermute
