@@ -174,10 +174,10 @@ theorem sum_filter_le_sub_choose_mul_pow_le (Q : ℕ) {p t : ℝ} (hp₀ : 0 ≤
   let count : (Fin ps.length → Bool) → ℕ := fun f => ∑ i, if f i then 1 else 0
   have hmean : (∑ i : Fin ps.length, ∑ b : Bool,
       (Probability.PMF.coin ps[i] b).toReal * (if b then (1 : ℝ) else 0)) = Q * p := by
-    simp [ps, Probability.PMF.coin_apply_toReal, Fintype.sum_bool]
+    simp [ps, q, Probability.PMF.coin_apply_toReal]
   have hcount (f : Fin ps.length → Bool) :
       (count f : ℝ) = ∑ i, if f i then (1 : ℝ) else 0 := by
-    simp [count, Nat.cast_sum, Nat.cast_ite]
+    simp [count]
   have h := Probability.PMF.pi_sum_ge_mean_add
     (fun i : Fin ps.length => Probability.PMF.coin ps[i])
     (fun _ b => if b then (1 : ℝ) else 0) (bound := 1) (by norm_num)
@@ -187,7 +187,7 @@ theorem sum_filter_le_sub_choose_mul_pow_le (Q : ℕ) {p t : ℝ} (hp₀ : 0 ≤
   have hevent : {f : Fin ps.length → Bool | Q * p + t ≤ ∑ i, if f i then (1 : ℝ) else 0} =
       count ⁻¹' {k | t ≤ (k : ℝ) - Q * p} := by
     ext f
-    simp only [Set.mem_setOf_eq, Set.mem_preimage, hcount]
+    simp only [Set.mem_ofPred_eq, Set.mem_preimage, hcount]
     constructor <;> intro h <;> linarith
   rw [hevent, ← _root_.PMF.toOuterMeasure_map_apply] at h
   have hlaw : trials.map count = Probability.PMF.poissonBinomial ps :=
