@@ -16,16 +16,18 @@ Concrete checks for `CslibFrontier/Crypto/Computational/RSACRT.lean`:
 
 * For the key `p = 61`, `q = 53`, `e = 17`, `d = 2753` with `q_inv = 38`, RSA-CRT inversion
   agrees with `rsaInvert 3233 2753` on several inputs, including multiples of `p` and of `q`, and
-  `invert_crtKeyWith` and `invert_crtKey` apply to every input.
+  `invert_crtKeyWith` and `invert_crtKey` apply to every input. `crtQInv_eq_zmod_inv_val` gives
+  `crtQInv = 38`.
 * Recombining the correct `x_q` with the faulty `x_p' = 40` (the correct value is `39`) for
   `h = 65` gives `σ = 2602` and `gcd(σ ^ 17 − 65 mod 3233, 3233) = 53 = q`, both by evaluation and
-  by `gcd_val_pow_sub_combine_eq_q`. With the correct `x_p` the gcd is `3233`, so the
-  hypothesis that `x_p'` is wrong is needed.
+  by `gcd_val_pow_sub_combine_eq_q`, which `crtKey_eq_crtKeyWith` also transfers to `crtKey`.
+  With the correct `x_p` the gcd is `3233`, so the hypothesis that `x_p'` is wrong is needed.
 * The hypotheses `p ≠ 2` and `q ≠ 2` of `invert_crtKeyWith` are needed: for `p = 2`, `q = 5`,
   `e = d = 3` and `y = 2`, RSA-CRT returns `3` while `y ^ d mod n = 8`.
 * The polynomial-time certificates `computableInPolyTime_crtInvert`,
-  `computableInPolyTime_crtKeyWith_invert` and `computableInPolyTime_gcd_val_pow_sub` apply to
-  fixed keys and moduli, with the remaining argument read from `encNat`.
+  `computableInPolyTime_crtKeyWith_invert`, `computableInPolyTime_crtQInv`,
+  `computableInPolyTime_crtKey_invert` and `computableInPolyTime_gcd_val_pow_sub` apply to fixed
+  keys and moduli, with the remaining argument read from `encNat`.
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
@@ -48,8 +50,9 @@ theorem qInv_3233 : 38 * rsa3233.q ≡ 1 [MOD rsa3233.p] := by decide
 /-- The key derived from `rsa3233`: `d_p = 2753 mod 60 = 53` and `d_q = 2753 mod 52 = 49`. -/
 example : rsa3233.crtKeyWith 38 = ⟨61, 53, 53, 49, 38⟩ := rfl
 
-/-- `crtQInv` is `38` for this key. -/
+/-- `crtQInv` is `38` for this key, computed through `crtQInv_eq_zmod_inv_val`. -/
 example : rsa3233.crtQInv = 38 := by
+  rw [RSADesc.crtQInv_eq_zmod_inv_val]
   change ((53 : ℕ) : ZMod 61)⁻¹.val = 38
   rw [ZMod.inv_eq_of_mul_eq_one 61 _ 38 (by decide)]
   rfl
@@ -91,6 +94,15 @@ example :
     Nat.gcd ((((rsa3233.crtKeyWith 38).combine 40 5 : ℕ) : ZMod 3233) ^ 17 -
       ((65 : ℕ) : ZMod 3233)).val 3233 = 53 :=
   rsa3233.gcd_val_pow_sub_combine_eq_q qInv_3233 (by decide +kernel) (by decide +kernel)
+
+/-- `crtKey_eq_crtKeyWith` transfers `gcd_val_pow_sub_combine_eq_q` to `crtKey`: recombining the
+faulty `x_p' = 40` with the correct `x_q = 5` under `rsa3233.crtKey` also gives the gcd `q = 53`. -/
+example :
+    Nat.gcd (((rsa3233.crtKey.combine 40 5 : ℕ) : ZMod 3233) ^ 17 - ((65 : ℕ) : ZMod 3233)).val
+      3233 = 53 := by
+  rw [RSADesc.crtKey_eq_crtKeyWith]
+  exact rsa3233.gcd_val_pow_sub_combine_eq_q rsa3233.crtQInv_mul_modEq_one (by decide +kernel)
+    (by decide +kernel)
 
 /-- `gcd_val_pow_sub_eq_q` on `σ = 2602` and `h = 65`. -/
 example : Nat.gcd (((2602 : ℕ) : ZMod 3233) ^ 17 - ((65 : ℕ) : ZMod 3233)).val 3233 = 53 :=
@@ -138,6 +150,17 @@ input read from `encNat`. -/
 example : ComputableInPolyTime (fun y => (rsa3233.crtKeyWith 38).invert y) encNat encNat :=
   computableInPolyTime_crtKeyWith_invert (desc := fun _ => rsa3233) (qInv := fun _ => 38)
     (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
+
+/-- `computableInPolyTime_crtQInv` for the fixed key `rsa3233`, with the input read from
+`encNat`. -/
+example : ComputableInPolyTime (fun _ : ℕ => rsa3233.crtQInv) encNat encNat :=
+  computableInPolyTime_crtQInv (desc := fun _ => rsa3233) (by fun_prop) (by fun_prop)
+
+/-- `computableInPolyTime_crtKey_invert` for the fixed key `rsa3233.crtKey`, with the input read
+from `encNat`. -/
+example : ComputableInPolyTime (fun y => rsa3233.crtKey.invert y) encNat encNat :=
+  computableInPolyTime_crtKey_invert (desc := fun _ => rsa3233) (by fun_prop) (by fun_prop)
+    (by fun_prop) (by fun_prop)
 
 /-- `computableInPolyTime_gcd_val_pow_sub` for `n = 3233`, `e = 17` and `h = 65`, with `σ` read
 from `encNat`. -/
