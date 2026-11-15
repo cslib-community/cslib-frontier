@@ -46,8 +46,8 @@ standard arithmetic and bitwise word operations (`+`, `-`, `*`, `/`, `%`, `&&&`,
   `wordInsertAt`, `wordDeleteAt`, `wordUpdateAt`, `swarOnes`, `ltMask`, `swarRank`:
   pure `O(1)` SWAR lane operations.
 * `Cslib.DataStructure.Dictionary.SuccinctWhp.BTreeNode`, `NodeSplit`, `BTreeSlice`,
-  `splitFullNode`, `btreeLookup`, `btreeInsert`, `btreeDelete`, `btreeUpdate`, `hMaxBTree`:
-  pure bounded-depth top-down split-only SWAR B+-tree operations.
+  `splitFullNode`, `finishLeafInsert`, `btreeLookup`, `btreeInsert`, `btreeDelete`, `btreeUpdate`,
+  `hMaxBTree`: pure bounded-depth top-down split-only SWAR B+-tree operations.
 
 ## Main results
 
@@ -114,39 +114,46 @@ open scoped BigOperators
   let W := fpBits + 2
   ((ltMask fpBits m q keysWord * swarOnes W capLanes) >>> ((capLanes - 1) * W)) &&& (2 ^ W - 1)
 
+/-- Division-and-modulus characterization of `laneGet`. -/
 theorem laneGet_eq_div_mod (W word j : ℕ) :
     laneGet W word j = (word / 2 ^ (j * W)) % 2 ^ W := by
   unfold laneGet
   rw [Nat.shiftRight_eq_div_pow, Nat.and_two_pow_sub_one_eq_mod]
 
+/-- Every extracted `W`-bit lane is strictly less than `2 ^ W`. -/
 theorem laneGet_lt (W word j : ℕ) : laneGet W word j < 2 ^ W := by
   rw [laneGet_eq_div_mod]
   exact Nat.mod_lt _ (Nat.two_pow_pos W)
 
+/-- Modulus characterization of `wordTakeLow`. -/
 theorem wordTakeLow_eq_mod (W j word : ℕ) :
     wordTakeLow W j word = word % 2 ^ (j * W) :=
   Nat.and_two_pow_sub_one_eq_mod word (j * W)
 
+/-- Retaining the low `j` lanes produces a word `< 2 ^ (j * W)`. -/
 theorem wordTakeLow_lt (W j word : ℕ) : wordTakeLow W j word < 2 ^ (j * W) := by
   rw [wordTakeLow_eq_mod]
   exact Nat.mod_lt _ (Nat.two_pow_pos _)
 
+/-- Division characterization of `wordDropLow`. -/
 theorem wordDropLow_eq_div (W j word : ℕ) :
     wordDropLow W j word = word / 2 ^ (j * W) :=
   Nat.shiftRight_eq_div_pow word (j * W)
 
+/-- Dropping the low `a` lanes of a word `< 2 ^ ((a + b) * W)` produces a word `< 2 ^ (b * W)`. -/
 theorem wordDropLow_lt {W a b word : ℕ} (hw : word < 2 ^ ((a + b) * W)) :
     wordDropLow W a word < 2 ^ (b * W) := by
   rw [wordDropLow_eq_div]
   refine Nat.div_lt_of_lt_mul ?_
   rwa [← Nat.pow_add, ← Nat.add_mul]
 
-theorem testBit_laneGet (W word j b : ℕ) :
+private theorem testBit_laneGet (W word j b : ℕ) :
     (laneGet W word j).testBit b = (decide (b < W) && word.testBit (j * W + b)) := by
   unfold laneGet
   rw [Nat.testBit_and, Nat.testBit_two_pow_sub_one, Nat.testBit_shiftRight, Bool.and_comm,
     Nat.add_comm (j * W) b]
 
+/-- Lane extraction from `wordTakeLow` returns `laneGet W word i` for `i < j` and `0` otherwise. -/
 theorem laneGet_wordTakeLow (W j word i : ℕ) :
     laneGet W (wordTakeLow W j word) i = if i < j then laneGet W word i else 0 := by
   apply Nat.eq_of_testBit_eq
@@ -170,6 +177,7 @@ theorem laneGet_wordTakeLow (W j word i : ℕ) :
       simp [hb, hge]
     · simp [hb]
 
+/-- Lane `i` of `wordDropLow W j word` equals lane `j + i` of `word`. -/
 theorem laneGet_wordDropLow (W j word i : ℕ) :
     laneGet W (wordDropLow W j word) i = laneGet W word (j + i) := by
   apply Nat.eq_of_testBit_eq
@@ -221,6 +229,7 @@ private theorem add_shiftLeft_eq_or {a b k : ℕ} (ha : a < 2 ^ k) :
     rw [hrew, Nat.add_mul_div_right _ _ (Nat.two_pow_pos i),
       show (2 ^ 1 : ℕ) = 2 from rfl, Nat.add_mul_mod_self_right]
 
+/-- Lane extraction after inserting `v < 2 ^ W` at lane `j`. -/
 theorem laneGet_wordInsertAt {W j v word : ℕ} (hv : v < 2 ^ W) (i : ℕ) :
     laneGet W (wordInsertAt W j v word) i =
       if i < j then laneGet W word i
@@ -280,6 +289,7 @@ theorem laneGet_wordInsertAt {W j v word : ℕ} (hv : v < 2 ^ W) (i : ℕ) :
       exact Nat.testBit_lt_two_pow (hv.trans_le (Nat.pow_le_pow_right (by decide) (by omega)))
     · simp [testBit_laneGet, hb]
 
+/-- Lane extraction after deleting lane `j`. -/
 theorem laneGet_wordDeleteAt (W j word i : ℕ) :
     laneGet W (wordDeleteAt W j word) i =
       if i < j then laneGet W word i else laneGet W word (i + 1) := by
@@ -313,7 +323,7 @@ theorem laneGet_wordDeleteAt (W j word i : ℕ) :
   · simp only [hb, decide_false, Bool.false_and]
     split_ifs <;> simp [testBit_laneGet, hb]
 
-theorem wordUpdateAt_eq_wordInsertAt_wordDeleteAt (W j v word : ℕ) :
+private theorem wordUpdateAt_eq_wordInsertAt_wordDeleteAt (W j v word : ℕ) :
     wordUpdateAt W j v word = wordInsertAt W j v (wordDeleteAt W j word) := by
   unfold wordUpdateAt wordInsertAt wordDeleteAt
   have hlow : wordTakeLow W j (wordTakeLow W j word +
@@ -327,6 +337,7 @@ theorem wordUpdateAt_eq_wordInsertAt_wordDeleteAt (W j v word : ℕ) :
       Nat.div_eq_of_lt (wordTakeLow_lt W j word), Nat.zero_add]
   rw [hlow, hdrop]
 
+/-- Lane extraction after overwriting lane `j` with `v < 2 ^ W`. -/
 theorem laneGet_wordUpdateAt {W j v word : ℕ} (hv : v < 2 ^ W) (i : ℕ) :
     laneGet W (wordUpdateAt W j v word) i =
       if i = j then v else laneGet W word i := by
@@ -341,6 +352,8 @@ theorem laneGet_wordUpdateAt {W j v word : ℕ} (hv : v < 2 ^ W) (i : ℕ) :
     have h4 : i - 1 + 1 = i := by omega
     simp [h1, h2, laneGet_wordDeleteAt, h3, h4]
 
+/-- Inserting `v < 2 ^ W` at lane `j ≤ m` of a word `< 2 ^ (m * W)` produces a word
+`< 2 ^ ((m + 1) * W)`. -/
 theorem wordInsertAt_lt {W j m v word : ℕ} (hj : j ≤ m) (hv : v < 2 ^ W)
     (hw : word < 2 ^ (m * W)) :
     wordInsertAt W j v word < 2 ^ ((m + 1) * W) := by
@@ -369,6 +382,7 @@ theorem wordInsertAt_lt {W j m v word : ℕ} (hj : j ≤ m) (hv : v < 2 ^ W)
     _ ≤ 2 ^ ((m - j + 1) * W) * 2 ^ (j * W) := Nat.mul_le_mul_right _ hle
     _ = 2 ^ (j * W) * 2 ^ ((m - j + 1) * W) := Nat.mul_comm _ _
 
+/-- Deleting lane `j ≤ m` of a word `< 2 ^ ((m + 1) * W)` produces a word `< 2 ^ (m * W)`. -/
 theorem wordDeleteAt_lt {W j m word : ℕ} (hj : j ≤ m) (hw : word < 2 ^ ((m + 1) * W)) :
     wordDeleteAt W j word < 2 ^ (m * W) := by
   unfold wordDeleteAt
@@ -395,6 +409,7 @@ theorem wordDeleteAt_lt {W j m word : ℕ} (hj : j ≤ m) (hw : word < 2 ^ ((m +
     _ ≤ 2 ^ ((m - j) * W) * 2 ^ (j * W) := Nat.mul_le_mul_right _ hle
     _ = 2 ^ (j * W) * 2 ^ ((m - j) * W) := Nat.mul_comm _ _
 
+/-- Overwriting lane `j < m` with `v < 2 ^ W` preserves the `< 2 ^ (m * W)` bound. -/
 theorem wordUpdateAt_lt {W j m v word : ℕ} (hj : j < m) (hv : v < 2 ^ W)
     (hw : word < 2 ^ (m * W)) :
     wordUpdateAt W j v word < 2 ^ (m * W) := by
@@ -403,6 +418,7 @@ theorem wordUpdateAt_lt {W j m v word : ℕ} (hj : j < m) (hv : v < 2 ^ W)
   exact wordInsertAt_lt (by omega) hv (wordDeleteAt_lt (by omega) hw)
 /-! ### Exact digit expansion, `swarOnes`, `ltMask`, and `swarRank_eq_count_lt` -/
 
+/-- Two words are equal when all of their `W`-bit lanes (`0 < W`) agree. -/
 theorem eq_of_forall_laneGet_eq {W a b : ℕ} (hW : 0 < W)
     (h : ∀ k, laneGet W a k = laneGet W b k) : a = b := by
   apply Nat.eq_of_testBit_eq
@@ -416,7 +432,7 @@ theorem eq_of_forall_laneGet_eq {W a b : ℕ} (hW : 0 < W)
   simp only [hmod, decide_true, Bool.true_and, ← ht] at ha hb
   exact ha.symm.trans hb
 
-theorem sum_mul_pow_lt {W n : ℕ} {f : ℕ → ℕ} (hf : ∀ j < n, f j < 2 ^ W) :
+private theorem sum_mul_pow_lt {W n : ℕ} {f : ℕ → ℕ} (hf : ∀ j < n, f j < 2 ^ W) :
     ∑ j ∈ range n, f j * 2 ^ (j * W) < 2 ^ (n * W) := by
   induction n with
   | zero => simp
@@ -430,7 +446,7 @@ theorem sum_mul_pow_lt {W n : ℕ} {f : ℕ → ℕ} (hf : ∀ j < n, f j < 2 ^ 
       _ ≤ 2 ^ W * 2 ^ (m * W) := Nat.mul_le_mul_right _ hfm
       _ = 2 ^ ((m + 1) * W) := by rw [← Nat.pow_add, Nat.add_mul, one_mul, Nat.add_comm]
 
-theorem laneGet_sum_mul_pow {W n : ℕ} {f : ℕ → ℕ} (hf : ∀ j < n, f j < 2 ^ W) (k : ℕ) :
+private theorem laneGet_sum_mul_pow {W n : ℕ} {f : ℕ → ℕ} (hf : ∀ j < n, f j < 2 ^ W) (k : ℕ) :
     laneGet W (∑ j ∈ range n, f j * 2 ^ (j * W)) k = if k < n then f k else 0 := by
   induction n with
   | zero =>
@@ -485,6 +501,7 @@ theorem laneGet_sum_mul_pow {W n : ℕ} {f : ℕ → ℕ} (hf : ∀ j < n, f j <
           (Nat.pow_le_pow_right (by decide) (Nat.le_of_not_lt hb)))
       · simp
 
+/-- Base-`2 ^ W` expansion of any word `< 2 ^ (n * W)` into its first `n` lanes. -/
 theorem word_eq_sum_laneGet {W n word : ℕ} (hW : 0 < W) (hw : word < 2 ^ (n * W)) :
     word = ∑ j ∈ range n, laneGet W word j * 2 ^ (j * W) := by
   refine eq_of_forall_laneGet_eq hW fun k => ?_
@@ -501,7 +518,7 @@ theorem word_eq_sum_laneGet {W n word : ℕ} (hW : 0 < W) (hw : word < 2 ^ (n * 
       omega
     · simp [hb]
 
-theorem swarOnes_eq_sum {W : ℕ} (hW : 1 ≤ W) (n : ℕ) :
+private theorem swarOnes_eq_sum {W : ℕ} (hW : 1 ≤ W) (n : ℕ) :
     swarOnes W n = ∑ j ∈ range n, 2 ^ (j * W) := by
   have hpos : 0 < 2 ^ W - 1 := by
     have : 2 ^ 1 ≤ 2 ^ W := Nat.pow_le_pow_right (by decide) hW
@@ -521,7 +538,7 @@ theorem swarOnes_eq_sum {W : ℕ} (hW : 1 ≤ W) (n : ℕ) :
   unfold swarOnes
   rw [← hgeom n, Nat.mul_div_cancel _ hpos]
 
-theorem swarOnes_lt (W n : ℕ) : swarOnes W n < 2 ^ (n * W) := by
+private theorem swarOnes_lt (W n : ℕ) : swarOnes W n < 2 ^ (n * W) := by
   rcases Nat.eq_zero_or_pos W with rfl | hW
   · simp [swarOnes]
   · rw [swarOnes_eq_sum hW]
@@ -530,18 +547,7 @@ theorem swarOnes_lt (W n : ℕ) : swarOnes W n < 2 ^ (n * W) := by
         _ ≤ 2 ^ W := Nat.pow_le_pow_right (by decide) hW
     simpa only [one_mul] using sum_mul_pow_lt (f := fun _ => 1) (n := n) (fun _ _ => h2)
 
-theorem wordTakeLow_swarOnes {W m capLanes : ℕ} (hW : 1 ≤ W) (hm : m ≤ capLanes) :
-    wordTakeLow W m (swarOnes W capLanes) = swarOnes W m := by
-  refine eq_of_forall_laneGet_eq hW fun k => ?_
-  have h2 : 1 < 2 ^ W := Nat.one_lt_two_pow (by omega)
-  rw [laneGet_wordTakeLow, swarOnes_eq_sum hW, swarOnes_eq_sum hW]
-  have hf1 : ∀ s, ∑ j ∈ range s, 2 ^ (j * W) = ∑ j ∈ range s, 1 * 2 ^ (j * W) :=
-    fun s => sum_congr rfl fun _ _ => (one_mul _).symm
-  rw [hf1 capLanes, hf1 m, laneGet_sum_mul_pow (fun _ _ => h2),
-    laneGet_sum_mul_pow (fun _ _ => h2)]
-  split_ifs with hkm hkc <;> omega
-
-theorem ltMask_eq_sum (fpBits m q keysWord : ℕ)
+private theorem ltMask_eq_sum (fpBits m q keysWord : ℕ)
     (hq : q < 2 ^ fpBits) (hkw : keysWord < 2 ^ (m * (fpBits + 2)))
     (hlanes : ∀ j < m, laneGet (fpBits + 2) keysWord j < 2 ^ fpBits) :
     ltMask fpBits m q keysWord =
@@ -713,33 +719,15 @@ theorem swarRank_eq_count_lt {fpBits capLanes m q keysWord : ℕ}
   dsimp only [b]
   rw [← sum_filter, sum_const, smul_eq_mul, mul_one]
 
-/-- Intermediate fit bound for `ltMask * swarOnes`: when `m < capLanes`,
-`ltMask fpBits m q keysWord * swarOnes (fpBits + 2) capLanes <
-2 ^ ((2 * capLanes - 1) * (fpBits + 2))`. -/
-theorem ltMask_mul_swarOnes_lt {fpBits capLanes m q keysWord : ℕ} (hm : m < capLanes) :
-    ltMask fpBits m q keysWord * swarOnes (fpBits + 2) capLanes <
-      2 ^ ((2 * capLanes - 1) * (fpBits + 2)) := by
-  set W := fpBits + 2
-  have hlt_m : ltMask fpBits m q keysWord ≤ swarOnes W m := Nat.and_le_right
-  have hm_lt : swarOnes W m < 2 ^ ((capLanes - 1) * W) :=
-    (swarOnes_lt W m).trans_le (Nat.pow_le_pow_right (by decide)
-      (Nat.mul_le_mul_right W (by omega)))
-  have hc_lt : swarOnes W capLanes < 2 ^ (capLanes * W) := swarOnes_lt W capLanes
-  calc ltMask fpBits m q keysWord * swarOnes W capLanes
-      < 2 ^ ((capLanes - 1) * W) * 2 ^ (capLanes * W) :=
-        Nat.mul_lt_mul'' (hlt_m.trans_lt hm_lt) hc_lt
-    _ = 2 ^ ((2 * capLanes - 1) * W) := by
-        rw [← Nat.pow_add, ← Nat.add_mul]
-        congr 2
-        omega
 /-! ## Section 2: Iterative Top-Down Split-Only SWAR B+-Tree -/
 
 /-- Worst-case height bound `42` for any SWAR B+-tree slice at `whpThreshold c ≤ n_max` with at
-most `8 * (scaleWhp n_max) ^ 12` insertions (`2 * tMin ^ 41 > nSliceWhp n_max` since
-`scaleWhp ≤ tMin ^ 3`). Kept opaque across module boundaries (with `hMaxBTree_eq`) so symbolic
+most `8 * (slabScale n_max) ^ 12` insertions (`2 * tMin ^ 41 > nSliceWhp n_max` since
+`slabScale ≤ tMin ^ 3`). Kept opaque across module boundaries (with `hMaxBTree_eq`) so symbolic
 proofs do not unfold 42 recursion steps in the kernel. -/
 def hMaxBTree : ℕ := 42
 
+/-- Explicit numerical value `hMaxBTree = 42`. -/
 theorem hMaxBTree_eq : hMaxBTree = 42 := by rfl
 
 /-- Packed representation of a single SWAR B+-tree node (`metaWord = isLeafBit + 2 * keyCount`,
@@ -765,11 +753,13 @@ structure BTreeNode where
 @[expose] def metaCount (metaWord : ℕ) : ℕ :=
   metaWord / 2
 
+/-- `metaIsLeaf` recovers the `isLeaf` flag packed by `mkNodeMeta`. -/
 @[simp]
 theorem metaIsLeaf_mkNodeMeta (b : Bool) (cnt : ℕ) :
     metaIsLeaf (mkNodeMeta b cnt) = b := by
   cases b <;> simp [metaIsLeaf, mkNodeMeta, Nat.add_mul_mod_self_left]
 
+/-- `metaCount` recovers the key count packed by `mkNodeMeta`. -/
 @[simp]
 theorem metaCount_mkNodeMeta (b : Bool) (cnt : ℕ) :
     metaCount (mkNodeMeta b cnt) = cnt := by
@@ -947,28 +937,32 @@ leaf for `q`. -/
       else
         descendSplitToLeaf fpBits W_val tMin fuel sl childIdx q
 
-/-- Pure top-down split-only SWAR B+-tree insertion (or in-place value overwrite if `q` is already
-present). -/
-@[expose] def btreeInsert (fpBits W_val tMin : ℕ) (sl : BTreeSlice) (q val : ℕ) : BTreeSlice :=
+/-- Leaf insertion/overwrite post-step of `btreeInsert`. -/
+@[expose] def finishLeafInsert (fpBits W_val tMin : ℕ) (sl : BTreeSlice) (leafIdx q val : ℕ) :
+    BTreeSlice :=
   let W_key := fpBits + 2
-  let sl0 := ensureRootSlice sl
-  let sl1 := splitRootIfFull fpBits W_val tMin sl0
-  let p := descendSplitToLeaf fpBits W_val tMin hMaxBTree sl1 sl1.root q
-  let sl2 := p.1
-  let leafIdx := p.2
-  let leafNd := sl2.nodes leafIdx
+  let leafNd := sl.nodes leafIdx
   let cnt := metaCount leafNd.metaWord
   let r := swarRank fpBits (2 * tMin) cnt q leafNd.keysWord
   if r < cnt && laneGet W_key leafNd.keysWord r == q then
     let leafNd' : BTreeNode :=
       ⟨leafNd.metaWord, leafNd.keysWord, wordUpdateAt W_val r val leafNd.valsWord⟩
-    { sl2 with nodes := Function.update sl2.nodes leafIdx leafNd' }
+    { sl with nodes := Function.update sl.nodes leafIdx leafNd' }
   else
     let leafNd' : BTreeNode :=
       ⟨mkNodeMeta true (cnt + 1),
         wordInsertAt W_key r q leafNd.keysWord,
         wordInsertAt W_val r val leafNd.valsWord⟩
-    { sl2 with nodes := Function.update sl2.nodes leafIdx leafNd' }
+    { sl with nodes := Function.update sl.nodes leafIdx leafNd' }
+
+/-- Pure top-down split-only SWAR B+-tree insertion (or in-place value overwrite if `q` is already
+present). -/
+@[expose] def btreeInsert (fpBits W_val tMin : ℕ) (sl : BTreeSlice) (q val : ℕ) : BTreeSlice :=
+  let sl0 := ensureRootSlice sl
+  let sl1 := splitRootIfFull fpBits W_val tMin sl0
+  let p := descendSplitToLeaf fpBits W_val tMin hMaxBTree sl1 sl1.root q
+  finishLeafInsert fpBits W_val tMin p.1 p.2 q val
+
 /-! ## Section 3: Algebraic spine `BTreeTree`, `ValidSubtree`, and excess-key split potential -/
 
 /-- Pure inductive spine witnessing the tree structure of a `BTreeSlice`. -/
@@ -992,7 +986,7 @@ inductive BTreeTree : Type
   | .branch idx _ cs => insert idx (univ.biUnion fun i => (cs i).nodeSet)
 
 /-- Number of leaves in `T`. -/
-@[expose] def BTreeTree.leafCount : BTreeTree → ℕ
+def BTreeTree.leafCount : BTreeTree → ℕ
   | .leaf _ _ => 1
   | .branch _ _ cs => ∑ i, (cs i).leafCount
 
@@ -1001,6 +995,7 @@ inductive BTreeTree : Type
   | .leaf _ cnt => cnt - (tMin - 1)
   | .branch _ cnt cs => (cnt - (tMin - 1)) + ∑ i, (cs i).potential tMin
 
+/-- The root index of `T` belongs to `T.nodeSet`. -/
 theorem BTreeTree.rootIdx_mem_nodeSet (T : BTreeTree) : T.rootIdx ∈ T.nodeSet := by
   cases T <;> simp [rootIdx, nodeSet]
 
@@ -1012,6 +1007,32 @@ theorem BTreeTree.rootIdx_mem_nodeSet (T : BTreeTree) : T.rootIdx ∈ T.nodeSet 
 `[lo, hi]`. -/
 @[expose] def childHi (W_key hi cnt keysWord r : ℕ) : ℕ :=
   if r < cnt then laneGet W_key keysWord r else hi
+
+/-- When the sorted separator keys in `keysWord` start at `≥ lo`, every child `r ≤ cnt` has
+`lo ≤ childLo W_key lo keysWord r`. -/
+theorem le_childLo {W_key lo cnt keysWord r : ℕ}
+    (hr : r ≤ cnt) (hlo0 : lo ≤ laneGet W_key keysWord 0)
+    (hmono : ∀ i j, i < j → j < cnt → laneGet W_key keysWord i < laneGet W_key keysWord j) :
+    lo ≤ childLo W_key lo keysWord r := by
+  unfold childLo
+  split_ifs with hr0
+  · exact le_rfl
+  · rcases eq_or_lt_of_le (Nat.zero_le (r - 1)) with heq0 | hpos
+    · rw [← heq0]; exact hlo0.trans (Nat.le_succ _)
+    · exact (hlo0.trans (hmono 0 (r - 1) hpos (by omega)).le).trans (Nat.le_succ _)
+
+/-- When the sorted separator keys in `keysWord` end at `≤ hi`, every index `r` has
+`childHi W_key hi cnt keysWord r ≤ hi`. -/
+theorem childHi_le {W_key hi cnt keysWord r : ℕ}
+    (hhi_last : laneGet W_key keysWord (cnt - 1) ≤ hi)
+    (hmono : ∀ i j, i < j → j < cnt → laneGet W_key keysWord i < laneGet W_key keysWord j) :
+    childHi W_key hi cnt keysWord r ≤ hi := by
+  unfold childHi
+  split_ifs with hrc
+  · rcases eq_or_lt_of_le (by omega : r ≤ cnt - 1) with heq | hlt
+    · rwa [heq]
+    · exact (hmono r (cnt - 1) hlt (by omega)).le.trans hhi_last
+  · exact le_rfl
 
 /-- Structural, ordering, disjointness, equal-depth, and map-refinement invariant for a subtree `T`
 covering keys in `[lo, hi]`. -/
@@ -1076,25 +1097,6 @@ theorem ValidSubtree.frame {isRoot : Bool} {fpBits W_val tMin alloc alloc' : ℕ
   | branch idx cnt cs ih =>
     have hidx : nodes' idx = nodes idx := hnodes idx (by simp [BTreeTree.nodeSet])
     obtain ⟨h1, h2, h4, h5, h6, h7, h8, h9, h10, h11, h12, hht, h13⟩ := hv
-    have hsep_lo : ∀ i : Fin (cnt + 1),
-        lo ≤ childLo (fpBits + 2) lo (nodes idx).keysWord i.val := by
-      intro i
-      unfold childLo
-      split_ifs with hi0
-      · exact le_rfl
-      · have h0lt : 0 < i.val - 1 ∨ i.val - 1 = 0 := by omega
-        rcases h0lt with hpos | heq0
-        · exact (h8.trans (h10 0 (i.val - 1) hpos (by omega)).le).trans (Nat.le_succ _)
-        · rw [heq0]; exact h8.trans (Nat.le_succ _)
-    have hsep_hi : ∀ i : Fin (cnt + 1),
-        childHi (fpBits + 2) hi cnt (nodes idx).keysWord i.val ≤ hi := by
-      intro i
-      unfold childHi
-      split_ifs with hlt
-      · rcases eq_or_lt_of_le (by omega : i.val ≤ cnt - 1) with heq | hlt'
-        · rw [heq]; exact h9.le
-        · exact (h10 i.val (cnt - 1) hlt' (by omega)).le.trans h9.le
-      · exact le_rfl
     refine ⟨h1.trans_le halloc, ?_, h4, h5, ?_, ?_, ?_, ?_, ?_, h11, h12, hht, ?_⟩
     · simpa only [hidx] using h2
     · simpa only [hidx] using h6
@@ -1108,7 +1110,8 @@ theorem ValidSubtree.frame {isRoot : Bool} {fpBits W_val tMin alloc alloc' : ℕ
       · intro v hv_in
         exact hnodes v (mem_insert_of_mem (mem_biUnion.mpr ⟨i, mem_univ i, hv_in⟩))
       · intro q hqlo hqhi
-        exact hmap q ((hsep_lo i).trans hqlo) (hqhi.trans (hsep_hi i))
+        exact hmap q ((le_childLo (Nat.le_of_lt_succ i.isLt) h8 h10).trans hqlo)
+          (hqhi.trans (childHi_le h9.le h10))
 
 /-- Every node in `T.nodeSet` is strictly below `alloc`, and `T.leafCount ≤ #T.nodeSet ≤ alloc`. -/
 theorem ValidSubtree.leafCount_le_card_nodeSet {isRoot : Bool} {fpBits W_val tMin alloc : ℕ}
@@ -1139,6 +1142,7 @@ theorem ValidSubtree.leafCount_le_card_nodeSet {isRoot : Bool} {fpBits W_val tMi
       rw [BTreeTree.leafCount, hcard_eq]
       exact (sum_le_sum fun i _ => (hrec i).2).trans (Nat.le_add_left _ 1)
 
+/-- A valid subtree occupies at most `alloc` physical slice nodes. -/
 theorem ValidSubtree.card_nodeSet_le_alloc {isRoot : Bool} {fpBits W_val tMin alloc : ℕ}
     {nodes : ℕ → BTreeNode} {lo hi : ℕ} {mapFn : ℕ → Option ℕ} {T : BTreeTree}
     (hv : ValidSubtree isRoot fpBits W_val tMin alloc nodes lo hi mapFn T) :
@@ -1159,7 +1163,7 @@ theorem BTreeTree.height_branch_of_eq {idx cnt : ℕ} {cs : Fin (cnt + 1) → BT
   · exact Finset.le_sup (f := fun i => (cs i).height) (mem_univ i0)
 
 /-- Non-root valid subtrees (`isRoot = false`) have `tMin ^ T.height ≤ T.leafCount`. -/
-theorem ValidSubtree.pow_height_le_leafCount_nonroot {fpBits W_val tMin alloc : ℕ}
+private theorem ValidSubtree.pow_height_le_leafCount_nonroot {fpBits W_val tMin alloc : ℕ}
     {nodes : ℕ → BTreeNode} {lo hi : ℕ} {mapFn : ℕ → Option ℕ} {T : BTreeTree}
     (ht1 : 1 ≤ tMin)
     (hv : ValidSubtree false fpBits W_val tMin alloc nodes lo hi mapFn T) :

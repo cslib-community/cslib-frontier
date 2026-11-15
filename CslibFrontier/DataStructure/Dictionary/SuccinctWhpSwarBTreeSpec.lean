@@ -23,11 +23,6 @@ subtree lookup, deletion, and in-place value update (`btreeLookup_eq_of_subtree`
 for the top-down split-only SWAR B+-tree defined in
 `CslibFrontier.DataStructure.Dictionary.SuccinctWhpSwarBTree`.
 
-## Main definitions
-
-* `Cslib.DataStructure.Dictionary.SuccinctWhp.finishLeafInsert`:
-  leaf insertion/overwrite post-step of `btreeInsert`.
-
 ## Main results
 
 * `Cslib.DataStructure.Dictionary.SuccinctWhp.btreeLookup_eq_of_subtree`:
@@ -161,7 +156,8 @@ theorem branch_child_routing {isRoot : Bool} {fpBits W_val tMin alloc idx cnt lo
 /-- Generic root-to-leaf structural lemma for `descendToLeaf`: reaches the unique leaf covering `q`,
 and any valid in-place replacement of that leaf lifts back to the whole subtree `T` with identical
 `rootIdx`, `nodeSet`, `height`, and bounded `potential`. -/
-theorem descendToLeaf_reaches_leaf {isRoot : Bool} {fpBits W_val tMin alloc lo hi q fuel : ℕ}
+private theorem descendToLeaf_reaches_leaf {isRoot : Bool}
+    {fpBits W_val tMin alloc lo hi q fuel : ℕ}
     {nodes : ℕ → BTreeNode} {mapFn : ℕ → Option ℕ} {T : BTreeTree}
     (ht2 : 2 ≤ tMin) (hcap : 2 * tMin < 2 ^ (fpBits + 2))
     (hv : ValidSubtree isRoot fpBits W_val tMin alloc nodes lo hi mapFn T)
@@ -218,20 +214,8 @@ theorem descendToLeaf_reaches_leaf {isRoot : Bool} {fpBits W_val tMin alloc lo h
       rw [hmeta, metaIsLeaf_mkNodeMeta, metaCount_mkNodeMeta]
       simp only [Bool.false_eq_true, ↓reduceIte]
       rw [(hcs r_fin).1]
-    have hclo_ge : lo ≤ childLo W_key lo nd.keysWord r := by
-      unfold childLo
-      split_ifs with hr0
-      · exact le_rfl
-      · rcases eq_or_lt_of_le (Nat.zero_le (r - 1)) with heq0 | hpos
-        · rw [← heq0]; exact hlo0.trans (Nat.le_succ _)
-        · exact (hlo0.trans (hmono 0 (r - 1) hpos (by omega)).le).trans (Nat.le_succ _)
-    have hchi_le : childHi W_key hi cnt nd.keysWord r ≤ hi := by
-      unfold childHi
-      split_ifs with hrc
-      · rcases eq_or_lt_of_le (by omega : r ≤ cnt - 1) with heq | hlt
-        · rw [heq]; exact hhi_last.le
-        · exact (hmono r (cnt - 1) hlt (by omega)).le.trans hhi_last.le
-      · exact le_rfl
+    have hclo_ge : lo ≤ childLo W_key lo nd.keysWord r := le_childLo hr_le hlo0 hmono
+    have hchi_le : childHi W_key hi cnt nd.keysWord r ≤ hi := childHi_le hhi_last.le hmono
     have hfuel_c : (cs r_fin).height ≤ fuel' := by
       rw [BTreeTree.height_branch_of_eq hht] at hfuel
       rw [hht r_fin]
@@ -300,7 +284,7 @@ theorem descendToLeaf_reaches_leaf {isRoot : Bool} {fpBits W_val tMin alloc lo h
 
 /-- Exact leaf lookup lemma: on any valid `.leaf leafIdx cnt` covering `[loL, hiL]` with
 `loL ≤ q ≤ hiL < 2 ^ fpBits`, SWAR rank lookup returns `mapFn q`. -/
-theorem leaf_lookup_eq {fpBits W_val tMin alloc leafIdx cnt loL hiL q : ℕ}
+private theorem leaf_lookup_eq {fpBits W_val tMin alloc leafIdx cnt loL hiL q : ℕ}
     {nodes : ℕ → BTreeNode} {mapFn : ℕ → Option ℕ}
     (ht1 : 1 ≤ tMin) (hcap : 2 * tMin < 2 ^ (fpBits + 2))
     (hv : ValidSubtree false fpBits W_val tMin alloc nodes loL hiL mapFn (.leaf leafIdx cnt))
@@ -1076,24 +1060,6 @@ theorem splitRootIfFull_spec {fpBits W_val tMin : ℕ} {sl : BTreeSlice}
     rw [hcond]
     simp only [Bool.false_eq_true, ↓reduceIte]
     exact ⟨halloc_pos, by omega, trivial, T, hroot, by omega, by omega, le_rfl, hv⟩
-
-/-- Leaf insertion/overwrite post-step of `btreeInsert`. -/
-@[expose] def finishLeafInsert (fpBits W_val tMin : ℕ) (sl : BTreeSlice) (leafIdx q val : ℕ) :
-    BTreeSlice :=
-  let W_key := fpBits + 2
-  let leafNd := sl.nodes leafIdx
-  let cnt := metaCount leafNd.metaWord
-  let r := swarRank fpBits (2 * tMin) cnt q leafNd.keysWord
-  if r < cnt && laneGet W_key leafNd.keysWord r == q then
-    let leafNd' : BTreeNode :=
-      ⟨leafNd.metaWord, leafNd.keysWord, wordUpdateAt W_val r val leafNd.valsWord⟩
-    { sl with nodes := Function.update sl.nodes leafIdx leafNd' }
-  else
-    let leafNd' : BTreeNode :=
-      ⟨mkNodeMeta true (cnt + 1),
-        wordInsertAt W_key r q leafNd.keysWord,
-        wordInsertAt W_val r val leafNd.valsWord⟩
-    { sl with nodes := Function.update sl.nodes leafIdx leafNd' }
 
 /-- Exact specification of `finishLeafInsert` on a non-full (`cnt < 2 * tMin - 1`) valid leaf. -/
 theorem finishLeafInsert_leaf_spec {isRoot : Bool} {fpBits W_val tMin leafIdx cnt lo hi q val : ℕ}

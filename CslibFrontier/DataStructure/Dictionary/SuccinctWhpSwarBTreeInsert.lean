@@ -31,13 +31,18 @@ specializes all bounds to `SuccinctWhp` parameters (`ValidWhpSlice`).
 
 * `Cslib.DataStructure.Dictionary.SuccinctWhp.btreeInsert_subtree_spec`:
   top-level subtree specification of `btreeInsert`.
-* `Cslib.DataStructure.Dictionary.SuccinctWhp.ValidWhpSlice.lookup_eq`,
+* `Cslib.DataStructure.Dictionary.SuccinctWhp.ValidSubtree.node_bits_lt`:
+  packed single-word bit-width bounds on `metaWord`, `keysWord`, and `valsWord` for every node of a
+  valid subtree.
+* `Cslib.DataStructure.Dictionary.SuccinctWhp.validWhpSlice_zero`,
+  `Cslib.DataStructure.Dictionary.SuccinctWhp.ValidWhpSlice.lookup_eq`,
   `Cslib.DataStructure.Dictionary.SuccinctWhp.ValidWhpSlice.delete_spec`,
   `Cslib.DataStructure.Dictionary.SuccinctWhp.ValidWhpSlice.update_spec`,
   `Cslib.DataStructure.Dictionary.SuccinctWhp.ValidWhpSlice.insert_spec`:
-  exact ordered-map refinement and preservation of `ValidWhpSlice` across all four operations.
+  exact ordered-map refinement and preservation of `ValidWhpSlice` across initialization and all
+  four operations.
 * `Cslib.DataStructure.Dictionary.SuccinctWhp.ValidWhpSlice.alloc_and_height_lt`:
-  every `ValidWhpSlice` with `insCount ≤ 8 * (scaleWhp n_max) ^ 12` at `whpThreshold c ≤ n_max`
+  every `ValidWhpSlice` with `insCount ≤ 8 * (slabScale n_max) ^ 12` at `whpThreshold c ≤ n_max`
   satisfies `sl.alloc + hMaxBTree + 4 < nSliceWhp n_max` and tree height `< hMaxBTree`.
 
 ## References
@@ -50,6 +55,7 @@ public section
 
 namespace Cslib.DataStructure.Dictionary.SuccinctWhp
 
+open Cslib.DataStructure.Dictionary.FeistelQuotient
 open Finset
 open scoped BigOperators
 
@@ -184,7 +190,7 @@ private theorem lift_branch_child_insert {isRoot : Bool} {fpBits W_val tMin idx 
 
 /-- Full inductive specification of `descendSplitToLeaf` followed by `finishLeafInsert` on any
 non-full valid subtree `T`. -/
-theorem finishLeafInsert_descendSplitToLeaf_spec {isRoot : Bool}
+private theorem finishLeafInsert_descendSplitToLeaf_spec {isRoot : Bool}
     {fpBits W_val tMin lo hi q val fuel : ℕ} {sl : BTreeSlice} {mapFn : ℕ → Option ℕ}
     {T : BTreeTree}
     (ht3 : 3 ≤ tMin) (hcap : 2 * tMin < 2 ^ (fpBits + 2)) (hval : val < 2 ^ W_val)
@@ -267,13 +273,8 @@ theorem finishLeafInsert_descendSplitToLeaf_spec {isRoot : Bool}
     let r_fin : Fin (cnt + 1) := ⟨r, Nat.lt_succ_of_le hr_le⟩
     set childIdx := (cs r_fin).rootIdx
     have hval_r : laneGet W_val nd.valsWord r = childIdx := (hcs r_fin).1
-    have hchi_le : childHi W_key hi cnt nd.keysWord r ≤ hi := by
-      unfold childHi
-      split_ifs with hrc
-      · rcases eq_or_lt_of_le (by omega : r ≤ cnt - 1) with heq | hlt
-        · rw [heq]; exact hhi_last.le
-        · exact (hmono r (cnt - 1) hlt (by omega)).le.trans hhi_last.le
-      · exact le_rfl
+    have hchi_le : childHi W_key hi cnt nd.keysWord r ≤ hi :=
+      childHi_le hhi_last.le hmono
     have hht_c : (cs r_fin).height + 1 = (BTreeTree.branch idx cnt cs).height := by
       rw [BTreeTree.height_branch_of_eq hht, hht r_fin, Nat.add_comm]
     have hcnt_c_le : metaCount (sl.nodes childIdx).metaWord ≤ 2 * tMin - 1 := by
@@ -610,17 +611,18 @@ theorem finishLeafInsert_descendSplitToLeaf_spec {isRoot : Bool}
           intro i
           dsimp only [parentNd']
           rw [laneGet_wordInsertAt hright_lt_val]
+          have hclo_le : ∀ k ≤ r,
+              childLo W_key lo (wordInsertAt W_key r sep nd.keysWord) k =
+                childLo W_key lo nd.keysWord k := fun k hk => by
+            unfold childLo
+            split_ifs with hk0
+            · rfl
+            · rw [laneGet_wordInsertAt hsep_lt_W]; simp [show k - 1 < r by omega]
           by_cases hi1 : i.val < r
           · rw [hcs_lt i hi1]
             have hir1 : i.val < r + 1 := by omega
             simp only [hir1, ↓reduceIte]
             refine ⟨(hcs ⟨i.val, by omega⟩).1, ?_⟩
-            have hclo_eq : childLo W_key lo (wordInsertAt W_key r sep nd.keysWord) i.val =
-                childLo W_key lo nd.keysWord i.val := by
-              unfold childLo
-              split_ifs with hi0
-              · rfl
-              · rw [laneGet_wordInsertAt hsep_lt_W]; simp [show i.val - 1 < r by omega]
             have hchi_eq : childHi W_key hi (cnt + 1)
                 (wordInsertAt W_key r sep nd.keysWord) i.val =
                 childHi W_key hi cnt nd.keysWord i.val := by
@@ -628,7 +630,7 @@ theorem finishLeafInsert_descendSplitToLeaf_spec {isRoot : Bool}
               have h1 : i.val < cnt + 1 := by omega
               have h2 : i.val < cnt := by omega
               simp only [h1, h2, ↓reduceIte, laneGet_wordInsertAt hsep_lt_W, hi1]
-            rw [hclo_eq, hchi_eq]
+            rw [hclo_le i.val hi1.le, hchi_eq]
             exact ((hcs ⟨i.val, by omega⟩).2).frame (by dsimp [sl_mid]; omega)
               (hsibling_frame ⟨i.val, by omega⟩ (Fin.ne_of_val_ne (by dsimp [r_fin]; omega)))
               (fun _ _ _ => rfl)
@@ -636,18 +638,12 @@ theorem finishLeafInsert_descendSplitToLeaf_spec {isRoot : Bool}
             · rw [hcs_eq_r i hi2, hi2]
               have hr1_lt : r < r + 1 := Nat.lt_succ_self r
               refine ⟨by simp [hr1_lt, hval_r, hrtL], ?_⟩
-              have hclo_eq : childLo W_key lo (wordInsertAt W_key r sep nd.keysWord) r =
-                  childLo W_key lo nd.keysWord r := by
-                unfold childLo
-                split_ifs with hr0
-                · rfl
-                · rw [laneGet_wordInsertAt hsep_lt_W]; simp [show r - 1 < r by omega]
               have hchi_eq : childHi W_key hi (cnt + 1)
                   (wordInsertAt W_key r sep nd.keysWord) r = sep := by
                 unfold childHi
                 have h1 : r < cnt + 1 := by omega
                 simp only [h1, ↓reduceIte, laneGet_wordInsertAt hsep_lt_W, lt_irrefl]
-              rw [hclo_eq, hchi_eq]
+              rw [hclo_le r le_rfl, hchi_eq]
               exact hvL
             · by_cases hi3 : i.val = r + 1
               · rw [hcs_eq_r1 i hi3, hi3]
@@ -806,13 +802,8 @@ theorem finishLeafInsert_descendSplitToLeaf_spec {isRoot : Bool}
           rw [hcs_eq_r r_next hr_next_val, hhtL]
       have hchi_mid_le :
           childHi W_key hi (cnt + 1) (sl_mid.nodes idx).keysWord r_next.val ≤ hi := by
-        obtain ⟨_, _, _, _, _, _, _, hhi_m, hmono_m, _, _, _, _⟩ := hv_mid
-        unfold childHi
-        split_ifs with hlt_m
-        · rcases eq_or_lt_of_le (by omega : r_next.val ≤ cnt) with heq | hlt'
-          · rw [heq]; exact hhi_m.le
-          · exact (hmono_m r_next.val cnt hlt' (by omega)).le.trans hhi_m.le
-        · exact le_rfl
+        obtain ⟨_, _, _, _, _, _, _, hhi_m, hmono_m, _⟩ := hv_mid
+        exact childHi_le hhi_m.le hmono_m
       rw [hnext_rt]
       obtain ⟨halloc_rec, hrt_rec, hfr_rec, T_c', hrt_Tc', hht_Tc', hns_Tc', hpot_Tc', hv_Tc'⟩ :=
         ih (hchi_mid_le.trans_lt hhi) hclo_mid_q hq_chi_mid
@@ -926,16 +917,6 @@ theorem finishLeafInsert_descendSplitToLeaf_spec {isRoot : Bool}
 
 /-! ## Section 2: Full `btreeInsert` specification and `ValidSlice` invariant -/
 
-/-- `btreeInsert` factors into `ensureRootSlice`, `splitRootIfFull`, `descendSplitToLeaf`, and
-`finishLeafInsert`. -/
-theorem btreeInsert_eq_finishLeafInsert (fpBits W_val tMin : ℕ) (sl : BTreeSlice) (q val : ℕ) :
-    btreeInsert fpBits W_val tMin sl q val =
-      let sl0 := ensureRootSlice sl
-      let sl1 := splitRootIfFull fpBits W_val tMin sl0
-      let p := descendSplitToLeaf fpBits W_val tMin hMaxBTree sl1 sl1.root q
-      finishLeafInsert fpBits W_val tMin p.1 p.2 q val :=
-  rfl
-
 /-- Top-level subtree specification of `btreeInsert` on an already-initialized slice (`1 ≤ alloc`):
 increases height by at most `1` and excess-key split potential `(tMin - 2) * (alloc - 1) + 2 * pot`
 by at most `2`. -/
@@ -1032,7 +1013,7 @@ theorem btreeInsert_subtree_spec {fpBits W_val tMin : ℕ} {sl : BTreeSlice}
 
 /-- Self-contained slice validity predicate coupling `BTreeSlice` (`alloc = 0` empty or `1 ≤ alloc`
 rooted tree) with insertion count `insCount`. -/
-@[expose] def ValidSlice (fpBits W_val tMin insCount : ℕ) (sl : BTreeSlice)
+def ValidSlice (fpBits W_val tMin insCount : ℕ) (sl : BTreeSlice)
     (mapFn : ℕ → Option ℕ) : Prop :=
   (sl.alloc = 0 ∧ mapFn = fun _ => none) ∨
   (1 ≤ sl.alloc ∧
@@ -1076,50 +1057,37 @@ theorem ValidSubtree.node_bits_lt {isRoot : Bool} {metaBits fpBits W_val tMin al
           (Nat.pow_le_pow_right (by decide) (Nat.mul_le_mul_right _ (by omega)))
     · exact ih i (hcs i).2 v hvi
 
-/-- Unallocated slice (`alloc = 0`) satisfies `ValidSlice` for the empty map. -/
-theorem validSlice_zero (fpBits W_val tMin insCount : ℕ) (nodes : ℕ → BTreeNode) :
-    ValidSlice fpBits W_val tMin insCount ⟨0, 0, nodes⟩ (fun _ => none) :=
-  Or.inl ⟨rfl, rfl⟩
-
 /-! ## Section 3: Concrete `SuccinctWhpParams` instantiation (`ValidWhpSlice`) -/
 
 /-- Concrete `SuccinctWhp` slice invariant at capacity `n_max` and insertion count `insCount`. -/
-@[expose] def ValidWhpSlice (n_max insCount : ℕ) (sl : BTreeSlice)
+def ValidWhpSlice (n_max insCount : ℕ) (sl : BTreeSlice)
     (mapFn : ℕ → Option ℕ) : Prop :=
   ValidSlice (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max) insCount sl mapFn
 
+/-- Unallocated slice (`alloc = 0`) satisfies `ValidWhpSlice` for the empty map. -/
+theorem validWhpSlice_zero (n_max insCount : ℕ) (nodes : ℕ → BTreeNode) :
+    ValidWhpSlice n_max insCount ⟨0, 0, nodes⟩ (fun _ => none) :=
+  Or.inl ⟨rfl, rfl⟩
+
 /-- Parameter fit bounds for `ValidWhpSlice` when `whpThreshold c ≤ n_max`. -/
-theorem whpSlice_param_bounds {c n_max : ℕ} (hth : whpThreshold c ≤ n_max) :
+private theorem whpSlice_param_bounds {c n_max : ℕ} (hth : whpThreshold c ≤ n_max) :
     3 ≤ tMinWhp n_max ∧
     4 * tMinWhp n_max ≤ 2 ^ nodeMetaBitsWhp n_max ∧
     2 * tMinWhp n_max < 2 ^ keyLaneBitsWhp n_max ∧
     nSliceWhp n_max < 2 ^ valLaneBitsWhp n_max := by
   have h8 := eight_le_tMinWhp hth
-  have hm := bMinWhp_le_log hth
-  have hbm := le_bMinWhp c
-  have hell := one_le_ellWhp n_max
-  have hn0 : n_max ≠ 0 := by have := whpThreshold_pos c; omega
-  have hn4 : 4 ≤ n_max := by
-    calc 4 = 2 ^ 2 := by decide
-      _ ≤ 2 ^ Nat.log 2 n_max := Nat.pow_le_pow_right (by decide) (by omega)
-      _ ≤ n_max := Nat.pow_log_le_self 2 hn0
-  have ht_le_L : tMinWhp n_max ≤ scaleWhp n_max := by
-    have ht_log : tMinWhp n_max ≤ Nat.log 2 n_max := by
-      unfold tMinWhp
-      exact max_le (by omega) (Nat.div_le_self _ _)
-    have h1 : Nat.log 2 n_max ≤ Nat.clog 2 (max n_max 4) :=
-      (Nat.log_mono_right (le_max_left n_max 4)).trans (Nat.log_le_clog 2 _)
-    exact (ht_log.trans h1).trans (Nat.le_pow_clog Nat.one_lt_two _)
+  have hell := Dynamic.one_le_logLogFactor n_max
+  have ht_le_L := tMinWhp_le_slabScale n_max
   have hmeta_lt : 4 * tMinWhp n_max ≤ 2 ^ nodeMetaBitsWhp n_max := by
-    calc 4 * tMinWhp n_max ≤ 4 * scaleWhp n_max := Nat.mul_le_mul_left 4 ht_le_L
-      _ = 2 ^ 2 * 2 ^ ellWhp n_max := rfl
-      _ = 2 ^ (ellWhp n_max + 2) := by rw [← Nat.pow_add, add_comm]
+    calc 4 * tMinWhp n_max ≤ 4 * slabScale n_max := Nat.mul_le_mul_left 4 ht_le_L
+      _ = 2 ^ 2 * 2 ^ Dynamic.logLogFactor n_max := rfl
+      _ = 2 ^ (Dynamic.logLogFactor n_max + 2) := by rw [← Nat.pow_add, add_comm]
       _ ≤ 2 ^ nodeMetaBitsWhp n_max := by
           unfold nodeMetaBitsWhp
           exact Nat.pow_le_pow_right (by decide) (by omega)
   have hkey_lt : 2 * tMinWhp n_max < 2 ^ keyLaneBitsWhp n_max := by
-    have hpow : scaleWhp n_max ≤ 2 ^ fpBitsWhp n_max := by
-      calc scaleWhp n_max = 2 ^ ellWhp n_max := rfl
+    have hpow : slabScale n_max ≤ 2 ^ fpBitsWhp n_max := by
+      calc slabScale n_max = 2 ^ Dynamic.logLogFactor n_max := rfl
         _ ≤ 2 ^ fpBitsWhp n_max := by
             unfold fpBitsWhp
             exact Nat.pow_le_pow_right (by decide) (by omega)
@@ -1132,19 +1100,14 @@ theorem whpSlice_param_bounds {c n_max : ℕ} (hth : whpThreshold c ≤ n_max) :
           rw [Nat.pow_add]
           ring
   have hnslice_lt : nSliceWhp n_max < 2 ^ valLaneBitsWhp n_max := by
-    have hL2 := two_le_scaleWhp n_max
-    have hL12_ge : 4096 ≤ (scaleWhp n_max) ^ 12 := by
+    have hL2 := two_le_slabScale n_max
+    have hL12_ge : 4096 ≤ (slabScale n_max) ^ 12 := by
       calc 4096 = 2 ^ 12 := by decide
-        _ ≤ (scaleWhp n_max) ^ 12 := Nat.pow_le_pow_left hL2 12
-    have hdiv_le : 32 * (scaleWhp n_max) ^ 12 / (tMinWhp n_max - 1) ≤
-        32 * (scaleWhp n_max) ^ 12 := Nat.div_le_self _ _
-    have hval_pow : 2 ^ valLaneBitsWhp n_max = 256 * (scaleWhp n_max) ^ 12 := by
-      have hsc : scaleWhp n_max = 2 ^ ellWhp n_max := rfl
-      unfold valLaneBitsWhp
-      rw [hsc, Nat.pow_add, ← Nat.pow_mul, Nat.mul_comm _ 12]
-      ring
+        _ ≤ (slabScale n_max) ^ 12 := Nat.pow_le_pow_left hL2 12
+    have hdiv_le : 32 * (slabScale n_max) ^ 12 / (tMinWhp n_max - 1) ≤
+        32 * (slabScale n_max) ^ 12 := Nat.div_le_self _ _
     unfold nSliceWhp
-    rw [hval_pow]
+    rw [two_pow_valLaneBitsWhp]
     omega
   exact ⟨by omega, hmeta_lt, hkey_lt, hnslice_lt⟩
 
@@ -1154,12 +1117,12 @@ theorem sixty_four_le_nSliceWhp (n_max : ℕ) : 64 ≤ nSliceWhp n_max := by
   exact Nat.le_add_left 64 _
 
 /-- **Bounded allocation and height theorem (`ValidWhpSlice.alloc_and_height_lt`)**:
-Whenever `whpThreshold c ≤ n_max` and `insCount ≤ 8 * (scaleWhp n_max) ^ 12`, any
+Whenever `whpThreshold c ≤ n_max` and `insCount ≤ 8 * (slabScale n_max) ^ 12`, any
 `ValidWhpSlice n_max insCount sl mapFn` has `sl.alloc + hMaxBTree + 4 < nSliceWhp n_max`, and any
 tree spine `T` witnessing it has `T.height < hMaxBTree`. -/
 theorem ValidWhpSlice.alloc_and_height_lt {c n_max insCount : ℕ} {sl : BTreeSlice}
     {mapFn : ℕ → Option ℕ} (hth : whpThreshold c ≤ n_max)
-    (hins : insCount ≤ 8 * (scaleWhp n_max) ^ 12)
+    (hins : insCount ≤ 8 * (slabScale n_max) ^ 12)
     (hv : ValidWhpSlice n_max insCount sl mapFn) :
     sl.alloc + hMaxBTree + 4 < nSliceWhp n_max ∧
     ∀ T : BTreeTree,
@@ -1167,22 +1130,22 @@ theorem ValidWhpSlice.alloc_and_height_lt {c n_max insCount : ℕ} {sl : BTreeSl
         sl.alloc sl.nodes 0 (2 ^ fpBitsWhp n_max - 1) mapFn T →
       T.height < hMaxBTree := by
   have h8 := eight_le_tMinWhp hth
-  have hcube := scaleWhp_le_tMinWhp_cubed hth
+  have hcube := slabScale_le_tMinWhp_cubed hth
   have h64 := sixty_four_le_nSliceWhp n_max
   have halloc_lt : sl.alloc + hMaxBTree + 4 < nSliceWhp n_max := by
     rcases hv with ⟨h0, _⟩ | ⟨_, T, _, hpot, _⟩
     · rw [hMaxBTree_eq]
       omega
     · have h2t : tMinWhp n_max - 1 ≤ 2 * (tMinWhp n_max - 2) := by omega
-      have hmul : (sl.alloc - 1) * (tMinWhp n_max - 1) ≤ 32 * (scaleWhp n_max) ^ 12 := by
+      have hmul : (sl.alloc - 1) * (tMinWhp n_max - 1) ≤ 32 * (slabScale n_max) ^ 12 := by
         calc (sl.alloc - 1) * (tMinWhp n_max - 1)
             ≤ (sl.alloc - 1) * (2 * (tMinWhp n_max - 2)) := Nat.mul_le_mul_left _ h2t
           _ = 2 * ((tMinWhp n_max - 2) * (sl.alloc - 1)) := by ring
           _ ≤ 2 * (2 * insCount) := by omega
-          _ ≤ 32 * (scaleWhp n_max) ^ 12 := by omega
-      have hdiv : sl.alloc - 1 ≤ 32 * (scaleWhp n_max) ^ 12 / (tMinWhp n_max - 1) :=
+          _ ≤ 32 * (slabScale n_max) ^ 12 := by omega
+      have hdiv : sl.alloc - 1 ≤ 32 * (slabScale n_max) ^ 12 / (tMinWhp n_max - 1) :=
         (Nat.le_div_iff_mul_le (by omega)).mpr hmul
-      set q_div := 32 * (scaleWhp n_max) ^ 12 / (tMinWhp n_max - 1)
+      set q_div := 32 * (slabScale n_max) ^ 12 / (tMinWhp n_max - 1)
       have hns_def : nSliceWhp n_max = q_div + 64 := rfl
       rw [hMaxBTree_eq]
       omega
@@ -1197,21 +1160,16 @@ theorem ValidWhpSlice.alloc_and_height_lt {c n_max insCount : ℕ} {sl : BTreeSl
   have hleaf_le : T.leafCount ≤ sl.alloc :=
     (hT.leafCount_le_card_nodeSet).2.trans hT.card_nodeSet_le_alloc
   have hns_lt := (whpSlice_param_bounds hth).2.2.2
-  have hval_pow : 2 ^ valLaneBitsWhp n_max = 256 * (scaleWhp n_max) ^ 12 := by
-    have hsc : scaleWhp n_max = 2 ^ ellWhp n_max := rfl
-    unfold valLaneBitsWhp
-    rw [hsc, Nat.pow_add, ← Nat.pow_mul, Nat.mul_comm _ 12]
-    ring
   have h256_le : 256 ≤ 2 * (tMinWhp n_max) ^ 3 := by
     calc 256 ≤ 2 * 8 ^ 3 := by decide
       _ ≤ 2 * (tMinWhp n_max) ^ 3 := Nat.mul_le_mul_left 2 (Nat.pow_le_pow_left h8 3)
-  have hL12_le : (scaleWhp n_max) ^ 12 ≤ (tMinWhp n_max) ^ 36 := by
-    calc (scaleWhp n_max) ^ 12 ≤ ((tMinWhp n_max) ^ 3) ^ 12 := Nat.pow_le_pow_left hcube 12
+  have hL12_le : (slabScale n_max) ^ 12 ≤ (tMinWhp n_max) ^ 36 := by
+    calc (slabScale n_max) ^ 12 ≤ ((tMinWhp n_max) ^ 3) ^ 12 := Nat.pow_le_pow_left hcube 12
       _ = (tMinWhp n_max) ^ 36 := by rw [← Nat.pow_mul]
   have halloc_lt_pow : sl.alloc < 2 * (tMinWhp n_max) ^ 39 := by
     calc sl.alloc < nSliceWhp n_max := by omega
       _ < 2 ^ valLaneBitsWhp n_max := hns_lt
-      _ = 256 * (scaleWhp n_max) ^ 12 := hval_pow
+      _ = 256 * (slabScale n_max) ^ 12 := two_pow_valLaneBitsWhp n_max
       _ ≤ (2 * (tMinWhp n_max) ^ 3) * (tMinWhp n_max) ^ 36 := Nat.mul_le_mul h256_le hL12_le
       _ = 2 * (tMinWhp n_max) ^ 39 := by rw [mul_assoc, ← Nat.pow_add]
   have h39_le_41 : 2 * (tMinWhp n_max) ^ 39 ≤ 2 * (tMinWhp n_max) ^ 41 :=
@@ -1221,7 +1179,7 @@ theorem ValidWhpSlice.alloc_and_height_lt {c n_max insCount : ℕ} {sl : BTreeSl
 /-- Lookup on a `ValidWhpSlice` returns `mapFn q` for every `q < 2 ^ fpBitsWhp n_max`. -/
 theorem ValidWhpSlice.lookup_eq {c n_max insCount q : ℕ} {sl : BTreeSlice}
     {mapFn : ℕ → Option ℕ} (hth : whpThreshold c ≤ n_max)
-    (hins : insCount ≤ 8 * (scaleWhp n_max) ^ 12)
+    (hins : insCount ≤ 8 * (slabScale n_max) ^ 12)
     (hv : ValidWhpSlice n_max insCount sl mapFn)
     (hq : q < 2 ^ fpBitsWhp n_max) :
     btreeLookup (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max) sl q = mapFn q := by
@@ -1234,7 +1192,7 @@ theorem ValidWhpSlice.lookup_eq {c n_max insCount q : ℕ} {sl : BTreeSlice}
 /-- Deletion on a `ValidWhpSlice` preserves `ValidWhpSlice` at the same `insCount`. -/
 theorem ValidWhpSlice.delete_spec {c n_max insCount q : ℕ} {sl : BTreeSlice}
     {mapFn : ℕ → Option ℕ} (hth : whpThreshold c ≤ n_max)
-    (hins : insCount ≤ 8 * (scaleWhp n_max) ^ 12)
+    (hins : insCount ≤ 8 * (slabScale n_max) ^ 12)
     (hv : ValidWhpSlice n_max insCount sl mapFn)
     (hq : q < 2 ^ fpBitsWhp n_max) :
     ValidWhpSlice n_max insCount
@@ -1258,7 +1216,7 @@ theorem ValidWhpSlice.delete_spec {c n_max insCount q : ℕ} {sl : BTreeSlice}
 /-- In-place value update on a `ValidWhpSlice` preserves `ValidWhpSlice` at the same `insCount`. -/
 theorem ValidWhpSlice.update_spec {c n_max insCount q newVal : ℕ} {sl : BTreeSlice}
     {mapFn : ℕ → Option ℕ} (hth : whpThreshold c ≤ n_max)
-    (hins : insCount ≤ 8 * (scaleWhp n_max) ^ 12)
+    (hins : insCount ≤ 8 * (slabScale n_max) ^ 12)
     (hv : ValidWhpSlice n_max insCount sl mapFn)
     (hq : q < 2 ^ fpBitsWhp n_max) (hval : newVal < 2 ^ valLaneBitsWhp n_max) :
     ValidWhpSlice n_max insCount
@@ -1283,7 +1241,7 @@ theorem ValidWhpSlice.update_spec {c n_max insCount q newVal : ℕ} {sl : BTreeS
 nSliceWhp n_max`. -/
 theorem ValidWhpSlice.insert_spec {c n_max insCount q val : ℕ} {sl : BTreeSlice}
     {mapFn : ℕ → Option ℕ} (hth : whpThreshold c ≤ n_max)
-    (hins : insCount ≤ 8 * (scaleWhp n_max) ^ 12)
+    (hins : insCount ≤ 8 * (slabScale n_max) ^ 12)
     (hv : ValidWhpSlice n_max insCount sl mapFn)
     (hq : q < 2 ^ fpBitsWhp n_max) (hval : val < 2 ^ valLaneBitsWhp n_max) :
     let sl' := btreeInsert (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max) sl q val

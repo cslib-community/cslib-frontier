@@ -46,6 +46,7 @@ public section
 namespace CslibFrontierTests.DataStructure.SuccinctWhpSwarBTree
 
 open Cslib.DataStructure.Dictionary
+open Cslib.DataStructure.Dictionary.FeistelQuotient
 open Cslib.DataStructure.Dictionary.SuccinctWhp
 open Finset
 open scoped BigOperators
@@ -53,7 +54,7 @@ open scoped BigOperators
 /-! ## 1. `SuccinctWhpParams`: Small/Large Regimes and Conservation Non-Vacuity -/
 
 example : cEff 0 = 1 ∧ cEff 3 = 3 := by decide
-example : ellWhp 16 = 2 ∧ scaleWhp 16 = 4 := by decide
+example : Dynamic.logLogFactor 16 = 2 ∧ slabScale 16 = 4 := by decide
 example : 64 ≤ nSliceWhp 16 := sixty_four_le_nSliceWhp 16
 
 /-- Concrete small-regime instantiation of `whpSpace_le_succinctWords` at
@@ -68,6 +69,8 @@ all hypotheses of `sum_sub_capFront_le_poolSize` at every `n_max ≥ whpThreshol
 def uniformOverflowLoad (n_max : ℕ) : Fin (numBucketsWhp n_max) → ℕ :=
   fun _ => capFrontWhp n_max + deltaWhp n_max
 
+/-- Verifies that `uniformOverflowLoad` satisfies all hypotheses and conclusions of
+`sum_sub_capFront_le_poolSize` at `n_max = whpThreshold c`. -/
 theorem sum_sub_capFront_nonvacuous (c : ℕ) :
     let n_max := whpThreshold c
     let X := uniformOverflowLoad n_max
@@ -80,13 +83,13 @@ theorem sum_sub_capFront_nonvacuous (c : ℕ) :
   set M := numBucketsWhp n_max
   have hM_pos : 0 < M := by dsimp [M, numBucketsWhp]; positivity
   have hM_L12 := numBucketsWhp_mul_scale_pow12_le hth
-  have hL2 := two_le_scaleWhp n_max
+  have hL2 := two_le_slabScale n_max
   have h4δ_le : 4 * deltaWhp n_max ≤ n_max / M := by
     have h1 : 4 * deltaWhp n_max * M ≤ n_max := by
       calc 4 * deltaWhp n_max * M
-          ≤ deltaWhp n_max * (M * (8 * scaleWhp n_max)) := by
-            have : 4 * deltaWhp n_max * M * (2 * scaleWhp n_max) =
-                deltaWhp n_max * (M * (8 * scaleWhp n_max)) := by ring
+          ≤ deltaWhp n_max * (M * (8 * slabScale n_max)) := by
+            have : 4 * deltaWhp n_max * M * (2 * slabScale n_max) =
+                deltaWhp n_max * (M * (8 * slabScale n_max)) := by ring
             rw [← this]
             exact Nat.le_mul_of_pos_right _ (by omega)
         _ ≤ n_max := Nat.div_mul_le_self n_max _
@@ -118,20 +121,24 @@ theorem sum_sub_capFront_nonvacuous (c : ℕ) :
   exact ⟨hsum_le, sum_sub_capFront_le_poolSize hth _ hsum_le hupper hlower⟩
 
 /-- Concrete large-regime witness at `n_max = U = whpThreshold c` exercising all major parameter
-bounds simultaneously. -/
+bounds (including single-word SWAR B+-tree node bit-widths) simultaneously. -/
 theorem large_regime_threshold_witness (c w : ℕ) :
     let n_max := whpThreshold c
-    codeExpWhp c * ellWhp n_max ≤ bCharWhp n_max ∧
+    codeExpWhp c * Dynamic.logLogFactor n_max ≤ bCharWhp n_max ∧
     2 * Cslib.Probability.doubleTabCodeBound (cTabWhp c + 1) (dTabWhp c) (qTabWhp c)
         (kIndepWhp c n_max) ≤ 2 ^ bCharWhp n_max ∧
     8 ≤ tMinWhp n_max ∧
-    scaleWhp n_max ≤ (tMinWhp n_max) ^ 3 ∧
+    slabScale n_max ≤ (tMinWhp n_max) ^ 3 ∧
+    keysWordBitsWhp n_max + keyLaneBitsWhp n_max < Nat.log 2 n_max ∧
+    valsWordBitsWhp n_max + valLaneBitsWhp n_max < Nat.log 2 n_max ∧
     whpSpace c n_max 16 w n_max ≤
       Dynamic.succinctWords (whpSpaceFactor c) whpSpaceConst n_max 16 w n_max :=
   ⟨codeExpWhp_mul_ell_le_bCharWhp le_rfl,
    two_mul_doubleTabCodeBound_le_pow_bCharWhp le_rfl,
    eight_le_tMinWhp le_rfl,
-   scaleWhp_le_tMinWhp_cubed le_rfl,
+   slabScale_le_tMinWhp_cubed le_rfl,
+   keysWordBitsWhp_lt_log le_rfl,
+   valsWordBitsWhp_lt_log le_rfl,
    whpSpace_le_succinctWords le_rfl⟩
 
 /-! ## 2. SWAR Word-Lane Primitives and Parallel Rank -/
@@ -220,7 +227,7 @@ example :
 
 /-- Direct specification check for `btreeInsert`, `btreeUpdate`, `btreeDelete`, and `btreeLookup`
 on a `(fpBits = 4, W_val = 8, tMin = 3)` slice via `btreeInsert_subtree_spec`,
-`btreeUpdate_subtree_spec`, `btreeDelete_subtree_spec`, and `btreeLookup_eq`. -/
+`btreeUpdate_subtree_spec`, `btreeDelete_subtree_spec`, and `btreeLookup_eq_of_subtree`. -/
 theorem btree_fixed_params_roundtrip :
     let s0 := emptyBTreeSlice
     let s1 := btreeInsert 4 8 3 s0 8 80
@@ -376,11 +383,15 @@ def sampleTrace3 : List SliceOp :=
     .insert 8 88, .update 13 133, .update 1 99, .delete 8, .delete 2 ]
 
 /-- End-to-end verification of `sampleTrace3` proving that the resulting root is an internal node
-(`metaIsLeaf = false`, since `8 > 5` live keys exceed single-leaf capacity `2 * 3 - 1 = 5`) and all
-present/overwritten/deleted keys return exact `btreeLookup` answers. -/
+(`metaIsLeaf = false`, since `8 > 5` live keys exceed single-leaf capacity `2 * 3 - 1 = 5`), meets
+packed word-width bounds (`ValidSubtree.node_bits_lt`), and returns exact `btreeLookup` answers on
+all present/overwritten/deleted keys. -/
 theorem btree_multi_split_overwrite_delete_separator :
     let slFinal := sampleTrace3.foldl stepSlice3 emptyBTreeSlice
     metaIsLeaf (slFinal.nodes slFinal.root).metaWord = false ∧
+    (slFinal.nodes slFinal.root).metaWord < 2 ^ 4 ∧
+    (slFinal.nodes slFinal.root).keysWord < 2 ^ 36 ∧
+    (slFinal.nodes slFinal.root).valsWord < 2 ^ 48 ∧
     btreeLookup 4 8 3 slFinal 8 = none ∧
     btreeLookup 4 8 3 slFinal 2 = none ∧
     btreeLookup 4 8 3 slFinal 1 = none ∧
@@ -401,6 +412,8 @@ theorem btree_multi_split_overwrite_delete_separator :
   have hops : ∀ op ∈ sampleTrace3, ValidSliceOp3 op := by simp [sampleTrace3, ValidSliceOp3]
   have hins : 0 + countInserts sampleTrace3 ≤ 40 := by decide
   obtain ⟨ha_pos, T, hrt, hht_le, _, hv⟩ := validSubtree3_foldl sampleTrace3 hv0 hins hops
+  obtain ⟨hmeta_lt, hkeys_lt, hvals_lt⟩ :=
+    hv.node_bits_lt (metaBits := 4) (by decide) (by decide) _ (hrt ▸ T.rootIdx_mem_nodeSet)
   have hfuel : T.height ≤ hMaxBTree := by
     have : 0 + countInserts sampleTrace3 = 11 := by decide
     rw [hMaxBTree_eq]; omega
@@ -447,14 +460,15 @@ theorem btree_multi_split_overwrite_delete_separator :
       have h34 : j3 < j4 := hlt_idx hj3 hj4 (by omega)
       have h45 : j4 < j5 := hlt_idx hj4 hj5 (by omega)
       omega
-  refine ⟨hnot_leaf, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
+  refine ⟨hnot_leaf, hmeta_lt, hkeys_lt, hvals_lt,
+    ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;>
     (rw [hlk _ (by decide)]; decide)
 
 /-- Folding any valid `SliceOp` sequence preserves `ValidWhpSlice`. -/
 theorem validWhpSlice_foldl {c n_max ins₀ : ℕ} {sl₀ : BTreeSlice} {map₀ : ℕ → Option ℕ}
     (hth : whpThreshold c ≤ n_max) (ops : List SliceOp)
     (hv₀ : ValidWhpSlice n_max ins₀ sl₀ map₀)
-    (hins : ins₀ + countInserts ops ≤ 8 * (scaleWhp n_max) ^ 12)
+    (hins : ins₀ + countInserts ops ≤ 8 * (slabScale n_max) ^ 12)
     (hops : ∀ op ∈ ops, ValidSliceOp n_max op) :
     ValidWhpSlice n_max (ins₀ + countInserts ops)
       (ops.foldl (stepWhpSlice n_max) sl₀) (ops.foldl stepMapFn map₀) := by
@@ -490,20 +504,20 @@ theorem validWhpSlice_sequence_lookup (c : ℕ) :
     btreeLookup (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max) slFinal 5 = none := by
   set n_max := whpThreshold c
   have hth : whpThreshold c ≤ n_max := le_rfl
-  have hell := one_le_ellWhp n_max
-  have hL2 := two_le_scaleWhp n_max
+  have hell := Dynamic.one_le_logLogFactor n_max
+  have hL2 := two_le_slabScale n_max
   have hfp_ge : 16 ≤ 2 ^ fpBitsWhp n_max := by
     calc 16 = 2 ^ 4 := by decide
-      _ ≤ 2 ^ (36 * ellWhp n_max) := Nat.pow_le_pow_right (by decide) (by omega)
+      _ ≤ 2 ^ (36 * Dynamic.logLogFactor n_max) := Nat.pow_le_pow_right (by decide) (by omega)
   have hval_ge : 128 ≤ 2 ^ valLaneBitsWhp n_max := by
     calc 128 = 2 ^ 7 := by decide
-      _ ≤ 2 ^ (12 * ellWhp n_max + 8) := Nat.pow_le_pow_right (by decide) (by omega)
-  have hL12_ge : 2 ≤ 8 * (scaleWhp n_max) ^ 12 := by
-    have : 1 ≤ (scaleWhp n_max) ^ 12 := Nat.one_le_pow 12 _ (by omega)
+      _ ≤ 2 ^ (12 * Dynamic.logLogFactor n_max + 8) := Nat.pow_le_pow_right (by decide) (by omega)
+  have hL12_ge : 2 ≤ 8 * (slabScale n_max) ^ 12 := by
+    have : 1 ≤ (slabScale n_max) ^ 12 := Nat.one_le_pow 12 _ (by omega)
     omega
   let ops : List SliceOp := [.insert 3 30, .insert 9 90, .update 3 33, .delete 9]
   have hv₀ : ValidWhpSlice n_max 0 uninitSlice (fun _ => none) :=
-    validSlice_zero _ _ _ 0 _
+    validWhpSlice_zero n_max 0 uninitSlice.nodes
   have hops : ∀ op ∈ ops, ValidSliceOp n_max op := by
     intro op hop
     simp only [ops, List.mem_cons, List.not_mem_nil, or_false] at hop
@@ -511,7 +525,7 @@ theorem validWhpSlice_sequence_lookup (c : ℕ) :
       dsimp only [ValidSliceOp] <;> omega
   have hvFinal := validWhpSlice_foldl hth ops hv₀
     (by dsimp [ops, countInserts]; omega) hops
-  have hins_final : 0 + countInserts ops ≤ 8 * (scaleWhp n_max) ^ 12 := by
+  have hins_final : 0 + countInserts ops ≤ 8 * (slabScale n_max) ^ 12 := by
     dsimp [ops, countInserts]; omega
   refine ⟨?_, ?_, ?_⟩
   · rw [hvFinal.lookup_eq hth hins_final (by omega)]; decide

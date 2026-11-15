@@ -8,9 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpParams
 public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpSwarBTree
-import Mathlib.Tactic.Ring
 
 /-!
 # Bounded-Depth Character Trie Buffer (`BufTrie`) for Deamortized Salt Collisions
@@ -22,7 +20,7 @@ W. Kuszmaul, SOSA 2024, Section 2.2 Lemma 2.2 and Section 5, pp. 363–373; auth
 pp. 3 and 6][BenderFarachColtonKuszmaulKuszmaul2024]).
 
 Each Stage-1 reduced key `rKey < 2 ^ (cTab * bChar)` is decomposed into `cTab` digits in base
-`2 ^ bChar` (`trieDigit`). Augmenting SOSA 2024's `k`-trie for deterministic `O(1)`-per-step
+`2 ^ bChar` (`laneGet`). Augmenting SOSA 2024's `k`-trie for deterministic `O(1)`-per-step
 background draining and cleanup without scanning all `2 ^ bChar` child slots, a `BufTrie` stores:
 * A rooted `2 ^ bChar`-ary trie (root at node `0`, allocated non-root nodes `1 .. nodeAlloc - 1`)
   recording `(nodeParent u, nodeChar u)` for each `1 ≤ u < nodeAlloc` so all dirty child entries can
@@ -38,7 +36,6 @@ background draining and cleanup without scanning all `2 ^ bChar` child slots, a 
 
 ## Main definitions
 
-* `Cslib.DataStructure.Dictionary.SuccinctWhp.trieDigit`: base-`2 ^ bChar` digit extraction.
 * `Cslib.DataStructure.Dictionary.SuccinctWhp.BufTrie`, `emptyBufTrie`: pure buffer-trie state.
 * `Cslib.DataStructure.Dictionary.SuccinctWhp.bufLookup`, `bufInsert`, `bufDelete`,
   `bufCheckSlot`, `bufClearOne`, `bufClearSteps`: constant-time (`O(cTab)`) buffer operations.
@@ -47,12 +44,13 @@ background draining and cleanup without scanning all `2 ^ bChar` child slots, a 
 
 ## Main results
 
-* `Cslib.DataStructure.Dictionary.SuccinctWhp.eq_of_forall_trieDigit_eq`: digit tuple injectivity on
-  `< 2 ^ (cTab * bChar)`.
+* `Cslib.DataStructure.Dictionary.SuccinctWhp.eq_of_forall_laneGet_eq_of_lt`: digit tuple
+  injectivity on `< 2 ^ (cTab * bChar)`.
 * `Cslib.DataStructure.Dictionary.SuccinctWhp.validBufTrie_empty`,
   `ValidBufTrie.lookup_eq`, `ValidBufTrie.delete_spec`, `ValidBufTrie.insert_spec`,
-  `ValidBufTrie.checkSlot_some`, `ValidBufTrie.exists_checkSlot_of_map_some`,
-  `ClearableBufTrie.clearSteps_spec`: exact map, active-slot scan, and cleanup specifications.
+  `ValidBufTrie.insert_nodeAlloc_le`, `ValidBufTrie.checkSlot_some`,
+  `ValidBufTrie.exists_checkSlot_of_map_some`, `ClearableBufTrie.clearSteps_spec`,
+  `ValidBufTrie.clearSteps_spec`: exact map, active-slot scan, and cleanup specifications.
 
 ## References
 
@@ -64,35 +62,18 @@ public section
 
 namespace Cslib.DataStructure.Dictionary.SuccinctWhp
 
-/-! ## Section 1: Base-`2 ^ bChar` digit extraction and injectivity -/
-
-/-- Extract the `d`-th base-`2 ^ bChar` digit `laneGet bChar rKey d = (rKey / 2 ^ (d * bChar)) %
-2 ^ bChar`. -/
-abbrev trieDigit (bChar d rKey : ℕ) : ℕ :=
-  laneGet bChar rKey d
-
-theorem trieDigit_lt (bChar d rKey : ℕ) : trieDigit bChar d rKey < 2 ^ bChar :=
-  laneGet_lt bChar rKey d
-
-theorem trieDigit_zero (bChar rKey : ℕ) : trieDigit bChar 0 rKey = rKey % 2 ^ bChar := by
-  rw [trieDigit, laneGet_eq_div_mod]
-  simp
-
-theorem trieDigit_succ (bChar d rKey : ℕ) :
-    trieDigit bChar (d + 1) rKey = trieDigit bChar d (rKey / 2 ^ bChar) := by
-  simp only [trieDigit, laneGet_eq_div_mod, Nat.div_div_eq_div_mul, ← Nat.pow_add]
-  congr 2
-  ring
+/-! ## Section 1: Bounded-word base-`2 ^ bChar` lane injectivity -/
 
 /-- Keys `< 2 ^ (cTab * bChar)` are uniquely determined by their first `cTab` base-`2 ^ bChar`
-digits (derived from `Cslib.Probability.charDigits_injective`). -/
-theorem eq_of_forall_trieDigit_eq {cTab bChar k₁ k₂ : ℕ}
+lanes. -/
+theorem eq_of_forall_laneGet_eq_of_lt {cTab bChar k₁ k₂ : ℕ}
     (hk₁ : k₁ < 2 ^ (cTab * bChar)) (hk₂ : k₂ < 2 ^ (cTab * bChar))
-    (hd : ∀ d < cTab, trieDigit bChar d k₁ = trieDigit bChar d k₂) :
+    (hd : ∀ d < cTab, laneGet bChar k₁ d = laneGet bChar k₂ d) :
     k₁ = k₂ := by
-  have hinj := Cslib.Probability.charDigits_injective (c := cTab) (b := bChar)
-    (U := 2 ^ (cTab * bChar)) le_rfl
-  exact congrArg Fin.val (@hinj ⟨k₁, hk₁⟩ ⟨k₂, hk₂⟩ (funext fun i => Fin.ext (hd i.val i.isLt)))
+  rcases Nat.eq_zero_or_pos bChar with rfl | hb
+  · simp at hk₁ hk₂; omega
+  · rw [word_eq_sum_laneGet hb hk₁, word_eq_sum_laneGet hb hk₂]
+    exact Finset.sum_congr rfl fun d hd_mem => by rw [hd d (Finset.mem_range.mp hd_mem)]
 
 /-! ## Section 2: Pure `BufTrie` state and `O(cTab)` operations -/
 
@@ -138,7 +119,7 @@ structure BufTrie where
 @[expose] def bufWalk (bChar : ℕ) (child : ℕ → ℕ → ℕ) (rKey : ℕ) : ℕ → ℕ → ℕ → Option ℕ
   | 0, _, cur => some cur
   | rem + 1, off, cur =>
-    let ch := trieDigit bChar off rKey
+    let ch := laneGet bChar rKey off
     let nxt := child cur ch
     if nxt = 0 then none
     else bufWalk bChar child rKey rem (off + 1) nxt
@@ -163,7 +144,7 @@ structure BufTrie where
 @[expose] def bufEnsurePath (bChar rKey : ℕ) : ℕ → ℕ → BufTrie → ℕ → BufTrie × ℕ
   | 0, _, tr, cur => (tr, cur)
   | rem + 1, off, tr, cur =>
-    let ch := trieDigit bChar off rKey
+    let ch := laneGet bChar rKey off
     let nxt := tr.trieChild cur ch
     if nxt = 0 then
       let u := tr.nodeAlloc
@@ -252,9 +233,9 @@ non-root node `u = nodeAlloc - 1` and re-zeroes `trieChild (nodeParent u) (nodeC
 
 /-! ## Section 3: Exact structural and map invariant (`ValidBufTrie`) -/
 
-/-- Structural, parent-log, and map-refinement invariant for `BufTrie` at character count `cTab ≥ 1`
+/-- Structural, parent-log, and map-refinement invariant for `BufTrie` at character count `cTab`
 and character bit-width `bChar`. -/
-@[expose] def ValidBufTrie (cTab bChar : ℕ) (tr : BufTrie)
+def ValidBufTrie (cTab bChar : ℕ) (tr : BufTrie)
     (mapFn : ℕ → Option (ℕ × ℕ)) : Prop :=
   1 ≤ tr.nodeAlloc ∧
   (∀ u, tr.nodeAlloc ≤ u → tr.nodeLeafItem u = 0) ∧
@@ -313,7 +294,7 @@ private theorem bufWalk_props {bChar nodeAlloc : ℕ} {child : ℕ → ℕ → �
       leaf < nodeAlloc ∧ depth leaf = off + rem ∧
       ∀ (cur₂ k₂ : ℕ), cur₂ < nodeAlloc → depth cur₂ = off →
         bufWalk bChar child k₂ rem off cur₂ = some leaf →
-        cur = cur₂ ∧ (∀ j < rem, trieDigit bChar (off + j) k = trieDigit bChar (off + j) k₂) := by
+        cur = cur₂ ∧ (∀ j < rem, laneGet bChar k (off + j) = laneGet bChar k₂ (off + j)) := by
   intro rem
   induction rem with
   | zero =>
@@ -326,7 +307,7 @@ private theorem bufWalk_props {bChar nodeAlloc : ℕ} {child : ℕ → ℕ → �
   | succ rem ih =>
     intro off cur leaf k hcur hdep hw
     dsimp only [bufWalk] at hw
-    set ch₁ := trieDigit bChar off k
+    set ch₁ := laneGet bChar k off
     set nxt₁ := child cur ch₁
     by_cases h0 : nxt₁ = 0
     · simp [h0] at hw
@@ -336,7 +317,7 @@ private theorem bufWalk_props {bChar nodeAlloc : ℕ} {child : ℕ → ℕ → �
       obtain ⟨hleaf_lt, hleaf_dep, huniq⟩ := ih (off + 1) nxt₁ leaf k h1_lt hd1 hw
       refine ⟨hleaf_lt, by omega, fun cur₂ k₂ hcur₂ hdep₂ hw₂ => ?_⟩
       dsimp only [bufWalk] at hw₂
-      set ch₂ := trieDigit bChar off k₂
+      set ch₂ := laneGet bChar k₂ off
       set nxt₂ := child cur₂ ch₂
       by_cases h0₂ : nxt₂ = 0
       · simp [h0₂] at hw₂
@@ -371,9 +352,8 @@ private theorem bufWalk_root_ne_of_ne {cTab bChar nodeAlloc : ℕ} {child : ℕ 
   subst hl_eq
   have hwp := bufWalk_props hp_edge hiff cTab 0 0 leaf₁ k₂ halloc hd0 hw₂
   have hdig := (hwp.2.2 0 k₁ halloc hd0 hw₁).2
-  exact hne (eq_of_forall_trieDigit_eq hk₁ hk₂ fun d hd => by
+  exact hne (eq_of_forall_laneGet_eq_of_lt hk₁ hk₂ fun d hd => by
     simpa only [Nat.zero_add] using (hdig d hd).symm)
-
 
 /-- Monotonicity of `bufWalk`: adding new edges (without changing non-zero child pointers) preserves
 every successful walk. -/
@@ -390,7 +370,7 @@ private theorem bufWalk_mono {bChar : ℕ} {child₁ child₂ : ℕ → ℕ → 
   | succ rem ih =>
     intro off cur leaf k hw
     dsimp only [bufWalk] at hw ⊢
-    set ch := trieDigit bChar off k
+    set ch := laneGet bChar k off
     by_cases h0 : child₁ cur ch = 0
     · simp [h0] at hw
     · simp only [h0, ↓reduceIte] at hw
@@ -415,7 +395,7 @@ private theorem bufWalk_le_leaf {bChar : ℕ} {child : ℕ → ℕ → ℕ}
   | succ rem ih =>
     intro off cur leaf k hw
     dsimp only [bufWalk] at hw
-    set ch := trieDigit bChar off k
+    set ch := laneGet bChar k off
     by_cases h0 : child cur ch = 0
     · simp [h0] at hw
     · simp only [h0, ↓reduceIte] at hw
@@ -441,7 +421,7 @@ private theorem bufWalk_ge_of_none {bChar bound : ℕ} {child₁ child₂ : ℕ 
   | succ rem ih =>
     intro off cur leaf k hw₁ hw₂
     dsimp only [bufWalk] at hw₁ hw₂
-    set ch := trieDigit bChar off k
+    set ch := laneGet bChar k off
     by_cases h0₂ : child₂ cur ch = 0
     · simp [h0₂] at hw₂
     · simp only [h0₂, ↓reduceIte] at hw₂
@@ -565,7 +545,6 @@ private theorem bufEnsurePath_props {cTab bChar rKey : ℕ} :
       tr1.itemBucket = tr.itemBucket ∧
       tr1.itemLoc = tr.itemLoc ∧
       tr1.nodeActive = tr.nodeActive ∧
-      (∀ u, tr1.nodeAlloc ≤ u → tr1.nodeLeafItem u = 0) ∧
       (∀ u < tr.nodeAlloc, tr1.nodeLeafItem u = tr.nodeLeafItem u) ∧
       (∀ u, tr.nodeAlloc ≤ u → tr1.nodeLeafItem u = 0) ∧
       (∀ v ch, tr.trieChild v ch ≠ 0 → tr1.trieChild v ch = tr.trieChild v ch) ∧
@@ -598,14 +577,14 @@ private theorem bufEnsurePath_props {cTab bChar rKey : ℕ} :
   | zero =>
     intro off tr cur depth hsum halloc hzero hd0 hedge hiff hleaf hcur hdep
     dsimp only [bufEnsurePath]
-    refine ⟨le_rfl, by omega, rfl, rfl, rfl, rfl, rfl, hzero, fun _ _ => rfl, hzero,
+    refine ⟨le_rfl, by omega, rfl, rfl, rfl, rfl, rfl, fun _ _ => rfl, hzero,
       fun _ _ _ => rfl, fun _ _ hne => absurd rfl hne,
       Or.inl ⟨by simp [bufWalk], rfl⟩, hcur, by simp [bufWalk],
       depth, hd0, by omega, hedge, hiff, hleaf⟩
   | succ rem ih =>
     intro off tr cur depth hsum halloc hzero hd0 hedge hiff hleaf hcur hdep
     dsimp only [bufEnsurePath]
-    set ch := trieDigit bChar off rKey
+    set ch := laneGet bChar rKey off
     set nxt := tr.trieChild cur ch
     by_cases h0 : nxt = 0
     · simp only [h0, ↓reduceIte]
@@ -620,7 +599,7 @@ private theorem bufEnsurePath_props {cTab bChar rKey : ℕ} :
           nodeLeafItem := Function.update tr.nodeLeafItem u 0 }
       set depth_step := Function.update depth u (off + 1)
       have hu_ge1 : 1 ≤ u := halloc
-      have hch_lt : ch < 2 ^ bChar := trieDigit_lt bChar off rKey
+      have hch_lt : ch < 2 ^ bChar := laneGet_lt bChar rKey off
       have hmono_step : ∀ v c, tr.trieChild v c ≠ 0 → tr_step.trieChild v c = tr.trieChild v c := by
         intro v c hnz
         dsimp only [tr_step, child']
@@ -725,12 +704,12 @@ private theorem bufEnsurePath_props {cTab bChar rKey : ℕ} :
         (by dsimp only [depth_step]; simp)
       change (let p := bufEnsurePath bChar rKey rem (off + 1) tr_step u; _)
       dsimp only
-      rcases hih with ⟨ha_le, ha_ub, hia, hil, hib, hiloc, hact, hz1, hpres1, hz_ge1,
+      rcases hih with ⟨ha_le, ha_ub, hia, hil, hib, hiloc, hact, hpres1, hz_ge1,
         hmono1, hnew1, hwalk_or, hleaf_lt, hw_rem, depth1, hd1_0, hd1_leaf,
         hedge1, hiff1, hleaf1⟩
       rw [hna_step] at ha_le ha_ub
       refine ⟨by omega, by omega,
-        hia, hil, hib, hiloc, hact, hz1, ?_, ?_, ?_, ?_, ?_, hleaf_lt, ?_,
+        hia, hil, hib, hiloc, hact, ?_, ?_, ?_, ?_, ?_, hleaf_lt, ?_,
         depth1, hd1_0, hd1_leaf, hedge1, hiff1, hleaf1⟩
       · intro w hw_lt
         have hwu : w ≠ u := by omega
@@ -785,10 +764,10 @@ private theorem bufEnsurePath_props {cTab bChar rKey : ℕ} :
         rw [(hedge nxt h1_ge h1_lt).2.2.1, hp1, hdep]
       have hih := ih (off + 1) tr nxt depth (by omega) halloc hzero hd0 hedge hiff hleaf
         h1_lt hd_nxt
-      rcases hih with ⟨ha_le, ha_ub, hia, hil, hib, hiloc, hact, hz1, hpres1, hz_ge1,
+      rcases hih with ⟨ha_le, ha_ub, hia, hil, hib, hiloc, hact, hpres1, hz_ge1,
         hmono1, hnew1, hwalk_or, hleaf_lt, hw_rem, depth1, hd1_0, hd1_leaf,
         hedge1, hiff1, hleaf1⟩
-      refine ⟨ha_le, by omega, hia, hil, hib, hiloc, hact, hz1, hpres1, hz_ge1, hmono1, hnew1, ?_,
+      refine ⟨ha_le, by omega, hia, hil, hib, hiloc, hact, hpres1, hz_ge1, hmono1, hnew1, ?_,
         hleaf_lt, ?_, depth1, hd1_0, hd1_leaf, hedge1, hiff1, hleaf1⟩
       · rcases hwalk_or with ⟨hw_ok, htr_eq⟩ | ⟨hw_none, hge_leaf⟩
         · exact Or.inl ⟨by simp [bufWalk, ch, nxt, h0, hw_ok], htr_eq⟩
@@ -835,9 +814,11 @@ theorem ValidBufTrie.insert_spec {cTab bChar rKey b loc : ℕ} {tr : BufTrie}
   generalize bufEnsurePath bChar rKey cTab 0 tr 0 = p at hens ⊢
   rcases p with ⟨tr1, leaf⟩
   dsimp only at hens ⊢
-  rcases hens with ⟨ha_le, ha_ub, hia, hil, hib, hiloc, hact1, hz1, hpres1, hz_ge1,
+  rcases hens with ⟨ha_le, ha_ub, hia, hil, hib, hiloc, hact1, hpres1, hz_ge1,
     hmono1, hnew1, hwalk_or, hleaf_lt, hw_rKey, depth1, hd1_0, hd1_leaf,
     hedge1, hiff1, hleaf1⟩
+  have hz1 : ∀ u, tr1.nodeAlloc ≤ u → tr1.nodeLeafItem u = 0 :=
+    fun u hu => hz_ge1 u (ha_le.trans hu)
   have hp_edge1 : ∀ u, 1 ≤ u → u < tr1.nodeAlloc → depth1 u = depth1 (tr1.nodeParent u) + 1 :=
     fun u h1 h2 => (hedge1 u h1 h2).2.2.1
   have hinc1 : ∀ v c, tr1.trieChild v c ≠ 0 → v < tr1.trieChild v c := by
@@ -862,6 +843,7 @@ theorem ValidBufTrie.insert_spec {cTab bChar rKey b loc : ℕ} {tr : BufTrie}
         ((∃ leaf_k, bufWalk bChar tr.trieChild k cTab 0 0 = some leaf_k ∧
             bufWalk bChar tr1.trieChild k cTab 0 0 = some leaf_k ∧
             leaf_k < tr.nodeAlloc ∧
+            leaf_k ≠ leaf ∧
             Function.update tr1.nodeLeafItem leaf (tr1.itemAlloc + 1) leaf_k =
               tr.nodeLeafItem leaf_k) ∨
           (bufWalk bChar tr.trieChild k cTab 0 0 = none ∧
@@ -876,7 +858,7 @@ theorem ValidBufTrie.insert_spec {cTab bChar rKey b loc : ℕ} {tr : BufTrie}
         have hlk_lt_old : leaf_k < tr.nodeAlloc :=
           (bufWalk_props (fun u h1 h2 => (hedge u h1 h2).2.2.1) hiff
             cTab 0 0 leaf_k k halloc hd0 hwk_old).1
-        refine Or.inl ⟨leaf_k, rfl, hwk1, hlk_lt_old, ?_⟩
+        refine Or.inl ⟨leaf_k, rfl, hwk1, hlk_lt_old, hne_leaf, ?_⟩
         rw [Function.update_of_ne hne_leaf, hpres1 leaf_k hlk_lt_old]
       | none =>
         refine Or.inr ⟨rfl, fun leaf_k hwk1 => ?_⟩
@@ -902,14 +884,8 @@ theorem ValidBufTrie.insert_spec {cTab bChar rKey b loc : ℕ} {tr : BufTrie}
         · rw [Function.update_of_ne heq, hmap k hk_lt]
           dsimp only [bufLookup]
           rcases hother_walk k hk_lt heq with
-            ⟨leaf_k, hwk_old, hwk1, hlk_lt_old, hli_eq⟩ | ⟨hwk_old, hwk1_zero⟩
-          · have hne_leaf : leaf_k ≠ leaf := by
-              intro h; subst h
-              exact heq (eq_of_forall_trieDigit_eq hk_lt hk fun d hd => by
-                have := bufWalk_root_ne_of_ne (by omega) hd1_0 hp_edge1 hiff1
-                  hk_lt hk heq hwk1 hw_rKey
-                exact absurd rfl this)
-            rw [hwk_old, hwk1]
+            ⟨leaf_k, hwk_old, hwk1, hlk_lt_old, hne_leaf, hli_eq⟩ | ⟨hwk_old, hwk1_zero⟩
+          · rw [hwk_old, hwk1]
             simp only [hli_eq, Function.update_of_ne hne_leaf, hact1]
             by_cases hcond_k : tr.nodeLeafItem leaf_k = 0 ∨ tr.nodeActive leaf_k = 0
             · simp [hcond_k]
@@ -941,7 +917,7 @@ theorem ValidBufTrie.insert_spec {cTab bChar rKey b loc : ℕ} {tr : BufTrie}
       · simp only [heq, ↓reduceIte]
         dsimp only [bufEverPresent]
         rcases hother_walk k hk_lt heq with
-          ⟨leaf_k, hwk_old, hwk1, _, hli_eq⟩ | ⟨hwk_old, hwk1_zero⟩
+          ⟨leaf_k, hwk_old, hwk1, _, _, hli_eq⟩ | ⟨hwk_old, hwk1_zero⟩
         · rw [hwk_old, hwk1]
           simp [hli_eq]
         · rw [hwk_old]
@@ -1093,7 +1069,7 @@ theorem ValidBufTrie.exists_checkSlot_of_map_some {cTab bChar k b loc : ℕ} {tr
 
 /-- Structural parent-log invariant maintained across intermediate `bufClearOne` steps while
 re-zeroing `BufOld` in the second half of an epoch. -/
-@[expose] def ClearableBufTrie (tr : BufTrie) : Prop :=
+def ClearableBufTrie (tr : BufTrie) : Prop :=
   1 ≤ tr.nodeAlloc ∧
   (∀ u, tr.nodeAlloc ≤ u → tr.nodeLeafItem u = 0) ∧
   (∀ u, 1 ≤ u → u < tr.nodeAlloc →
@@ -1103,7 +1079,7 @@ re-zeroing `BufOld` in the second half of an epoch. -/
     tr.nodeParent (tr.trieChild v ch) = v ∧ tr.nodeChar (tr.trieChild v ch) = ch)
 
 /-- Every `ValidBufTrie` satisfies `ClearableBufTrie`. -/
-theorem ValidBufTrie.toClearable {cTab bChar : ℕ} {tr : BufTrie}
+private theorem ValidBufTrie.toClearable {cTab bChar : ℕ} {tr : BufTrie}
     {mapFn : ℕ → Option (ℕ × ℕ)} (hv : ValidBufTrie cTab bChar tr mapFn) :
     ClearableBufTrie tr := by
   obtain ⟨halloc, hzero, _, _, _, _, hedge, hiff, _⟩ := hv
@@ -1111,7 +1087,7 @@ theorem ValidBufTrie.toClearable {cTab bChar : ℕ} {tr : BufTrie}
   exact ⟨(hedge u h1 h2).1, (hedge u h1 h2).2.2.2.2⟩
 
 /-- One step of `bufClearOne` preserves `ClearableBufTrie` and decrements `nodeAlloc` toward `1`. -/
-theorem ClearableBufTrie.clearOne_step {tr : BufTrie} (hc : ClearableBufTrie tr) :
+private theorem ClearableBufTrie.clearOne_step {tr : BufTrie} (hc : ClearableBufTrie tr) :
     ClearableBufTrie (bufClearOne tr) ∧
     (bufClearOne tr).nodeAlloc = max 1 (tr.nodeAlloc - 1) := by
   obtain ⟨halloc, hzero, hedge, hchild⟩ := hc
@@ -1175,7 +1151,7 @@ theorem ClearableBufTrie.clearOne_step {tr : BufTrie} (hc : ClearableBufTrie tr)
 /-- When `ClearableBufTrie tr` holds with `tr.nodeAlloc = 1`, one final `bufClearOne` step yields a
 completely clean `ValidBufTrie cTab bChar _ (fun _ => none)` with `nodeAlloc = 1` and
 `itemAlloc = 0`. -/
-theorem ClearableBufTrie.clearOne_of_one (cTab bChar : ℕ) {tr : BufTrie}
+private theorem ClearableBufTrie.clearOne_of_one (cTab bChar : ℕ) {tr : BufTrie}
     (hc : ClearableBufTrie tr) (ha1 : tr.nodeAlloc = 1) :
     let tr' := bufClearOne tr
     ValidBufTrie cTab bChar tr' (fun _ => none) ∧
@@ -1250,25 +1226,6 @@ theorem ValidBufTrie.clearSteps_spec {cTab bChar k : ℕ} {tr : BufTrie}
     tr'.itemAlloc = 0 :=
   hv.toClearable.clearSteps_spec cTab bChar k hle
 
-/-- Whenever `ValidBufTrie` holds with `tr.itemAlloc = 0`, `bufEverPresent` is identically
-`false`. -/
-theorem ValidBufTrie.everPresent_eq_false_of_itemAlloc_zero {cTab bChar : ℕ} {tr : BufTrie}
-    {mapFn : ℕ → Option (ℕ × ℕ)} (hv : ValidBufTrie cTab bChar tr mapFn)
-    (hia0 : tr.itemAlloc = 0) (k : ℕ) :
-    bufEverPresent cTab bChar tr k = false := by
-  obtain ⟨_, hzero, _, _, _, _, _, _, hleaf⟩ := hv
-  dsimp only [bufEverPresent]
-  cases hw : bufWalk bChar tr.trieChild k cTab 0 0 with
-  | none => rfl
-  | some leaf =>
-    have hli0 : tr.nodeLeafItem leaf = 0 := by
-      by_cases hlt : leaf < tr.nodeAlloc
-      · by_contra hnz
-        have hle := (hleaf leaf hlt hnz).2.1
-        omega
-      · exact hzero leaf (Nat.not_lt.mp hlt)
-    simp [hli0]
-
 /-- `bufInsert` preserves the linear bound `nodeAlloc ≤ 1 + cTab * itemAlloc` across all
 insertions, overwrites, and reactivations. -/
 theorem ValidBufTrie.insert_nodeAlloc_le {cTab bChar rKey b loc : ℕ} {tr : BufTrie}
@@ -1288,7 +1245,7 @@ theorem ValidBufTrie.insert_nodeAlloc_le {cTab bChar rKey b loc : ℕ} {tr : Buf
     generalize bufEnsurePath bChar rKey cTab 0 tr 0 = p at hens ⊢
     rcases p with ⟨tr1, leaf⟩
     dsimp only at hens ⊢
-    rcases hens with ⟨_, ha_ub, hia, _, _, _, _, _, _, hz_ge1, _, _, hwalk_or, _, _, _⟩
+    rcases hens with ⟨_, ha_ub, hia, _, _, _, _, _, hz_ge1, _, _, hwalk_or, _, _, _⟩
     by_cases hid1 : tr1.nodeLeafItem leaf = 0
     · simp only [hid1, ↓reduceIte]
       rw [hia, Nat.mul_add, Nat.mul_one]
@@ -1301,81 +1258,6 @@ theorem ValidBufTrie.insert_nodeAlloc_le {cTab bChar rKey b loc : ℕ} {tr : Buf
         subst htr_eq'
         simp [bufEverPresent, hw_old, hid1]
       · exact absurd (hz_ge1 leaf hge_leaf) hid1
-
-/-- Any slot active after `bufDelete` was already active at the exact same `(b', loc')` before
-`bufDelete`. -/
-theorem bufDelete_checkSlot_some {cTab bChar rKey id b' loc' : ℕ} {tr : BufTrie}
-    (h : bufCheckSlot (bufDelete cTab bChar tr rKey) id = some (b', loc')) :
-    bufCheckSlot tr id = some (b', loc') := by
-  dsimp only [bufDelete] at h
-  cases hw : bufWalk bChar tr.trieChild rKey cTab 0 0 with
-  | none => rw [hw] at h; exact h
-  | some leaf =>
-    rw [hw] at h
-    dsimp only at h
-    split_ifs at h with hc
-    · exact h
-    · dsimp only [bufCheckSlot] at h ⊢
-      by_cases hid : id < tr.itemAlloc
-      · simp only [hid, ↓reduceIte] at h ⊢
-        by_cases hleaf : tr.itemLeaf id = leaf
-        · simp [hleaf] at h
-        · simp only [Function.update_of_ne hleaf] at h
-          exact h
-      · simp [hid] at h
-
-/-- Relocating an already-active key `rKey` (`mapFn rKey = some (b, loc_old)`) within the same
-bucket `b` (`bufInsert cTab bChar tr rKey b loc_new`) preserves active bucket membership at every
-scan slot `id`. -/
-theorem ValidBufTrie.insert_same_bucket_checkSlot_some {cTab bChar rKey b loc_old loc_new id b'
-    loc' : ℕ} {tr : BufTrie} {mapFn : ℕ → Option (ℕ × ℕ)}
-    (hv : ValidBufTrie cTab bChar tr mapFn) (hk : rKey < 2 ^ (cTab * bChar))
-    (hm : mapFn rKey = some (b, loc_old))
-    (hchk : bufCheckSlot (bufInsert cTab bChar tr rKey b loc_new) id = some (b', loc')) :
-    ∃ loc₀, bufCheckSlot tr id = some (b', loc₀) := by
-  obtain ⟨halloc, hzero, _, hmap, depth, hd0, hedge, hiff, hleaf⟩ := hv
-  have hens := bufEnsurePath_props (cTab := cTab) (bChar := bChar) (rKey := rKey)
-    cTab 0 tr 0 depth (Nat.zero_add cTab) halloc hzero hd0 hedge hiff hleaf halloc hd0
-  dsimp only [bufInsert] at hchk
-  generalize bufEnsurePath bChar rKey cTab 0 tr 0 = p at hens hchk
-  rcases p with ⟨tr1, leaf⟩
-  dsimp only at hens hchk
-  rcases hens with ⟨_, _, _, _, _, _, _, _, _, _, _, _, hwalk_or, hleaf_lt, _, _, _, _, _, _, _⟩
-  have hlk := (hmap rKey hk).symm.trans hm
-  dsimp only [bufLookup] at hlk
-  rcases hwalk_or with ⟨hw_old, rfl⟩ | ⟨hw_none, _⟩
-  · rw [hw_old] at hlk
-    dsimp only at hlk
-    by_cases hcond : tr1.nodeLeafItem leaf = 0 ∨ tr1.nodeActive leaf = 0
-    · simp [hcond] at hlk
-    · simp only [hcond, ↓reduceIte, Option.some.injEq, Prod.mk.injEq] at hlk
-      push Not at hcond
-      obtain ⟨hli_nz, hact_nz⟩ := hcond
-      simp only [hli_nz, ↓reduceIte] at hchk
-      obtain ⟨_, hle_ia, hil_leaf, _⟩ := hleaf leaf hleaf_lt hli_nz
-      dsimp only [bufCheckSlot] at hchk ⊢
-      by_cases hid : id < tr1.itemAlloc
-      · simp only [hid, ↓reduceIte] at hchk ⊢
-        by_cases hid_eq : id = tr1.nodeLeafItem leaf - 1
-        · subst hid_eq
-          have hb_eq : b = b' := by
-            simp only [hil_leaf, Function.update_self,
-              show tr1.nodeLeafItem leaf - 1 + 1 = tr1.nodeLeafItem leaf by omega] at hchk
-            simp only [ne_eq, one_ne_zero, not_false_eq_true, and_self, ↓reduceIte,
-              Option.some.injEq, Prod.mk.injEq] at hchk
-            exact hchk.1
-          subst hb_eq
-          refine ⟨loc_old, ?_⟩
-          simp [hil_leaf, show tr1.nodeLeafItem leaf - 1 + 1 = tr1.nodeLeafItem leaf by omega,
-            hact_nz, hlk.1, hlk.2]
-        · simp only [Function.update_of_ne hid_eq] at hchk
-          by_cases hleaf_id : tr1.itemLeaf id = leaf
-          · have hne1 : tr1.nodeLeafItem leaf ≠ id + 1 := by omega
-            simp [hleaf_id, hne1] at hchk
-          · simp only [Function.update_of_ne hleaf_id] at hchk
-            exact ⟨loc', hchk⟩
-      · simp [hid] at hchk
-  · rw [hw_none] at hlk; simp at hlk
 
 end Cslib.DataStructure.Dictionary.SuccinctWhp
 
