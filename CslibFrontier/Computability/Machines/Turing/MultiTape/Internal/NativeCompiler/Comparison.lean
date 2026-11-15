@@ -30,7 +30,6 @@ public section
 namespace Turing.MultiTapeTM.Internal.NativeCompiler
 
 /-- Record whether the right unary word extends beyond the left unary word. -/
-@[simps q₀ step final]
 def unaryLtT : ZipTransducer Bool where
   q₀ := false
   step _ symbols := (symbols.1.isNone && symbols.2.isSome, [])
@@ -39,16 +38,20 @@ def unaryLtT : ZipTransducer Bool where
   length_final_le _ := by simp
 
 private theorem unaryLtT_run_nil_right (n : ℕ) :
-    unaryLtT.run true [] (List.replicate n false) = [true] := by
+    unaryLtT.run true [] (List.replicate n true) = [true] := by
   induction n with
-  | zero => rfl
-  | succ n ih => simpa [unaryLtT] using ih
+  | zero => simp only [List.replicate_zero, ZipTransducer.run_nil_nil, unaryLtT]
+  | succ n ih =>
+      simpa only [List.replicate_succ, ZipTransducer.run_nil_cons, unaryLtT,
+        Option.isNone_none, Option.isSome_some, Bool.true_and, List.nil_append] using ih
 
 private theorem unaryLtT_run_left_nil (n : ℕ) :
-    unaryLtT.run false (List.replicate n false) [] = [false] := by
+    unaryLtT.run false (List.replicate n true) [] = [false] := by
   induction n with
-  | zero => rfl
-  | succ n ih => simpa [unaryLtT] using ih
+  | zero => simp only [List.replicate_zero, ZipTransducer.run_nil_nil, unaryLtT]
+  | succ n ih =>
+      simpa only [List.replicate_succ, ZipTransducer.run_cons_nil, unaryLtT,
+        Option.isNone_some, Bool.false_and, List.nil_append] using ih
 
 /-- The comparison transducer returns the strict order of the two unary lengths. -/
 theorem unaryLtT_run (left right : ℕ) :
@@ -57,10 +60,12 @@ theorem unaryLtT_run (left right : ℕ) :
   induction left generalizing right with
   | zero =>
       cases right with
-      | zero => rfl
+      | zero =>
+          simp only [encUnary_apply, List.replicate_zero, ZipTransducer.run_nil_nil,
+            unaryLtT, Nat.lt_irrefl, decide_false, encBool_apply]
       | succ right =>
           simp only [encUnary_apply, List.replicate_zero, List.replicate_succ,
-            ZipTransducer.run_nil_cons, unaryLtT_step, Option.isNone_none,
+            ZipTransducer.run_nil_cons, unaryLtT, Option.isNone_none,
             Option.isSome_some, Bool.true_and, List.nil_append, Nat.zero_lt_succ,
             decide_true, encBool_apply]
           exact unaryLtT_run_nil_right right
@@ -68,12 +73,12 @@ theorem unaryLtT_run (left right : ℕ) :
       cases right with
       | zero =>
           simp only [encUnary_apply, List.replicate_succ, List.replicate_zero,
-            ZipTransducer.run_cons_nil, unaryLtT_step, Option.isNone_some,
+            ZipTransducer.run_cons_nil, unaryLtT, Option.isNone_some,
             Bool.false_and, List.nil_append, Nat.not_lt_zero, decide_false, encBool_apply]
           exact unaryLtT_run_left_nil left
       | succ right =>
           simp only [encUnary_apply, List.replicate_succ, ZipTransducer.run_cons_cons,
-            unaryLtT_step, Option.isNone_some, Bool.false_and, List.nil_append,
+            unaryLtT, Option.isNone_some, Bool.false_and, List.nil_append,
             Nat.succ_lt_succ_iff, encBool_apply]
           exact ih right
 

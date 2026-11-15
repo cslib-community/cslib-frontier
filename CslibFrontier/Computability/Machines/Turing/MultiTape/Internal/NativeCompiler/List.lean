@@ -46,7 +46,7 @@ public section
 
 namespace Turing.MultiTapeTM.Internal.NativeCompiler
 
-universe u
+universe u v w
 
 variable {Value : Type u}
 
@@ -54,7 +54,7 @@ variable {Value : Type u}
 @[expose] noncomputable def listTailCompiler (encValue : Value ↪ List Bool) :
     NativeCompiler List.tail (encList encValue) (encList encValue) :=
   (dropFrameDecoder.ofInputEq (fun list => encList encValue list) fun _ => rfl).ofOutputEq
-    fun list => by cases list <;> simp [encList_cons, dropFrame_frame_append]
+    fun list => by cases list <;> simp [dropFrame, encList_cons, dropFrame_frame_append]
 
 /-- Retained standard-list constructor, framing the new head and appending the encoded tail. -/
 @[expose] noncomputable def listConsCompiler (encValue : Value ↪ List Bool) :
@@ -63,21 +63,28 @@ variable {Value : Type u}
   let head := first encValue (encList encValue)
   let tail := second encValue (encList encValue)
   let framedHead := (encodeFrame encValue).comp head
-  let rawTail := tail.ofOutputEq (g := fun input => encList encValue input.2) fun _ => rfl
+  let rawTail : NativeCompiler (fun input : Value × List Value => encList encValue input.2)
+      (encPair encValue (encList encValue)) encBits :=
+    tail.ofOutputEq (g := fun input => encList encValue input.2) fun _ => by
+      simp only [encBits_apply]
   exact (append framedHead rawTail).ofOutputEq fun input => by
-    simp only [encList_cons]
+    simp only [encList_cons, encBits_apply]
 
 /-- Retained standard-list append. Both encoded lists are emitted once, without another framing
 layer around either list. -/
 @[expose] noncomputable def listAppendCompiler (encValue : Value ↪ List Bool) :
     NativeCompiler (fun input : List Value × List Value => input.1 ++ input.2)
       (encPair (encList encValue) (encList encValue)) (encList encValue) := by
-  let left := (first (encList encValue) (encList encValue)).ofOutputEq
-    (g := fun input : List Value × List Value => encList encValue input.1) fun _ => rfl
-  let right := (second (encList encValue) (encList encValue)).ofOutputEq
-    (g := fun input : List Value × List Value => encList encValue input.2) fun _ => rfl
+  let left : NativeCompiler (fun input : List Value × List Value => encList encValue input.1)
+      (encPair (encList encValue) (encList encValue)) encBits :=
+    (first (encList encValue) (encList encValue)).ofOutputEq
+      (g := fun input => encList encValue input.1) fun _ => by simp only [encBits_apply]
+  let right : NativeCompiler (fun input : List Value × List Value => encList encValue input.2)
+      (encPair (encList encValue) (encList encValue)) encBits :=
+    (second (encList encValue) (encList encValue)).ofOutputEq
+      (g := fun input => encList encValue input.2) fun _ => by simp only [encBits_apply]
   exact (append left right).ofOutputEq fun input => by
-    simp only [encList_append]
+    simp only [encList_append, encBits_apply]
 
 /-- Retained conversion of an option to its zero-or-one-element standard list. -/
 @[expose] noncomputable def optionToListCompiler (encValue : Value ↪ List Bool) :
@@ -85,7 +92,8 @@ layer around either list. -/
   let present := optionIsSomeTest encValue
   let singleton := (encodeFrame encBits).comp (optionPayload encValue)
   let empty := const (encOption encValue) encBits []
-  exact (ite present singleton empty).ofOutputEq fun value => by cases value <;> rfl
+  exact (ite present singleton empty).ofOutputEq fun value => by
+    cases value <;> simp [encList_cons, encBits_apply]
 
 /-- State for binary-indexed access: the remaining index and an optional prior selection. -/
 abbrev ListGetNatState (Value : Type u) := ℕ × Option Value
@@ -106,7 +114,11 @@ private theorem foldl_listGetNatNext_found (remaining : ℕ) (value : Value)
       (remaining, some value) = (remaining, some value) := by
   induction list with
   | nil => rfl
-  | cons element list ih => simp [listGetNatNext, ih]
+  | cons element list ih =>
+      rw [List.foldl_cons]
+      rw [show listGetNatNext ((remaining, some value), element) =
+        (remaining, some value) by simp [listGetNatNext]]
+      exact ih
 
 private theorem listGetNatFinish_foldl (default : Value) (index : ℕ) : ∀ list : List Value,
     listGetNatFinish default
@@ -115,7 +127,12 @@ private theorem listGetNatFinish_foldl (default : Value) (index : ℕ) : ∀ lis
   | [] => by simp [listGetNatFinish]
   | element :: list => by
       cases index with
-      | zero => simp [listGetNatNext, listGetNatFinish, foldl_listGetNatNext_found]
+      | zero =>
+          rw [List.foldl_cons]
+          rw [show listGetNatNext ((0, none), element) = (0, some element) by
+            simp [listGetNatNext]]
+          rw [foldl_listGetNatNext_found]
+          rfl
       | succ index =>
           simpa [listGetNatNext, listGetNatFinish] using
             listGetNatFinish_foldl default index list
@@ -133,7 +150,12 @@ private theorem listGetNatOption_foldl (index : ℕ) : ∀ list : List Value,
   | [] => rfl
   | element :: list => by
       cases index with
-      | zero => simp [listGetNatNext, foldl_listGetNatNext_found]
+      | zero =>
+          rw [List.foldl_cons]
+          rw [show listGetNatNext ((0, none), element) = (0, some element) by
+            simp [listGetNatNext]]
+          rw [foldl_listGetNatNext_found]
+          rfl
       | succ index => simpa [listGetNatNext] using listGetNatOption_foldl index list
 
 /-- The completed countdown scan also implements optional list access without a sentinel. -/
@@ -159,7 +181,7 @@ theorem listGetNatOption_streamState (list : List Value) (index : ℕ) :
     (const encInput (encOption encValue) none)
   refine (ite alreadySelected state (ite atIndex select decrement)).ofOutputEq ?_
   rintro ⟨⟨remaining, selected⟩, element⟩
-  cases selected <;> cases remaining <;> simp [listGetNatNext]
+  cases selected <;> cases remaining <;> simp [listGetNatNext, encState]
 
 /-- A list scan emits no per-occurrence output; selection remains in the stream state. -/
 @[expose] noncomputable def listGetNatEmitCompiler (encValue : Value ↪ List Bool) :
@@ -256,14 +278,16 @@ theorem listGetNatOption_streamState (list : List Value) (index : ℕ) :
         ((encPair encNat (encOption encValue))
           (streamState input.1 listGetNatNext input.2 j)).length else 0)
       (Finset.mem_range.mpr (by omega : j < input.2.length + 1))
-    exact (by simpa only [hj, dite_true] using hsup).trans (Nat.le_max_left _ _)
+    refine Nat.le_trans ?_ (Nat.le_max_left _ _)
+    simpa only [hj, dite_true] using hsup
   · intro input j hj
     have hsup := Finset.le_sup
       (s := Finset.range input.2.length)
       (f := fun j => if hj : j < input.2.length then
         (encValue input.2[j]).length else 0)
       (Finset.mem_range.mpr hj)
-    exact (by simpa only [hj, dite_true] using hsup).trans (Nat.le_max_right _ _)
+    refine Nat.le_trans ?_ (Nat.le_max_right _ _)
+    simpa only [hj, dite_true] using hsup
 
 /-- Retained binary-countdown scan returning `none` exactly for an out-of-range index. -/
 @[expose] noncomputable def listGetNatOptionStreamCompiler
@@ -302,14 +326,16 @@ theorem listGetNatOption_streamState (list : List Value) (index : ℕ) :
         ((encPair encNat (encOption encValue))
           (streamState input.1 listGetNatNext input.2 j)).length else 0)
       (Finset.mem_range.mpr (by omega : j < input.2.length + 1))
-    exact (by simpa only [hj, dite_true] using hsup).trans (Nat.le_max_left _ _)
+    refine Nat.le_trans ?_ (Nat.le_max_left _ _)
+    simpa only [hj, dite_true] using hsup
   · intro input j hj
     have hsup := Finset.le_sup
       (s := Finset.range input.2.length)
       (f := fun j => if hj : j < input.2.length then
         (encValue input.2[j]).length else 0)
       (Finset.mem_range.mpr hj)
-    exact (by simpa only [hj, dite_true] using hsup).trans (Nat.le_max_right _ _)
+    refine Nat.le_trans ?_ (Nat.le_max_right _ _)
+    simpa only [hj, dite_true] using hsup
 
 /-- Retained marshalling from `(list, binary index)` to countdown stream state. -/
 @[expose] noncomputable def listGetNatMarshalCompiler (encValue : Value ↪ List Bool) :
@@ -354,7 +380,9 @@ theorem listBits_le_time_listGetNatStreamCompiler (default : Value)
     (encValue : Value ↪ List Bool) (input : ListGetNatState Value × List Value) :
     (encList encValue input.2).length ≤
       (listGetNatStreamCompiler default encValue).time input := by
-  rw [time_streamFoldPair]
+  change (encList encValue input.2).length ≤
+    streamFoldPairTime (listGetNatNextCompiler encValue) (listGetNatEmitCompiler encValue)
+      (listGetNatFinishCompiler default encValue) input
   simp only [streamFoldPairTime]
   omega
 
@@ -363,13 +391,15 @@ theorem listBits_le_time_listGetDNatCompiler (default : Value)
     (encValue : Value ↪ List Bool) (input : List Value × ℕ) :
     (encList encValue input.1).length ≤ (listGetDNatCompiler default encValue).time input := by
   rw [time_listGetDNatCompiler]
-  have h := listBits_le_time_listGetNatStreamCompiler default encValue
-    ((input.2, none), input.1)
+  have h : (encList encValue input.1).length ≤
+      (listGetNatStreamCompiler default encValue).time ((input.2, none), input.1) := by
+    simpa only using listBits_le_time_listGetNatStreamCompiler default encValue
+      ((input.2, none), input.1)
   omega
 
 /-! ### Standard-list map -/
 
-variable {Input Output : Type u} {mapValue : Input → Output}
+variable {Input : Type u} {Output : Type v} {mapValue : Input → Output}
 
 /-- Map keeps no semantic state between framed list elements. -/
 @[expose] noncomputable def listMapNextCompiler (encInput : Input ↪ List Bool) :
@@ -449,14 +479,16 @@ variable {Input Output : Type u} {mapValue : Input → Output}
       (s := Finset.range (input.2.length + 1))
       (f := fun j => if _hj : j ≤ input.2.length then (encUnit ()).length else 0)
       (Finset.mem_range.mpr (by omega : j < input.2.length + 1))
-    exact (by simpa only [hj, dite_true] using hsup).trans (Nat.le_max_left _ _)
+    refine Nat.le_trans ?_ (Nat.le_max_left _ _)
+    simpa only [hj, dite_true] using hsup
   · intro input j hj
     have hsup := Finset.le_sup
       (s := Finset.range input.2.length)
       (f := fun j => if hj : j < input.2.length then
         (encInput input.2[j]).length else 0)
       (Finset.mem_range.mpr hj)
-    exact (by simpa only [hj, dite_true] using hsup).trans (Nat.le_max_right _ _)
+    refine Nat.le_trans ?_ (Nat.le_max_right _ _)
+    simpa only [hj, dite_true] using hsup
 
 /-- Retained marshalling from a standard list to the unit-state stream layout. -/
 @[expose] noncomputable def listMapMarshalCompiler (encInput : Input ↪ List Bool) :
@@ -478,13 +510,16 @@ theorem listBits_le_time_listMapStreamCompiler (encInput : Input ↪ List Bool)
     (compiler : NativeCompiler mapValue encInput encOutput) (input : Unit × List Input) :
     (encList encInput input.2).length ≤
       (listMapStreamCompiler encInput encOutput compiler).time input := by
-  rw [time_streamFoldPair]
+  change (encList encInput input.2).length ≤
+    streamFoldPairTime (listMapNextCompiler encInput)
+      (listMapEmitCompiler encInput encOutput compiler) listMapFinishCompiler input
   simp only [streamFoldPairTime]
   omega
 
 /-! ### Left-length zip -/
 
-variable {Left Right Zipped : Type u} {zipValue : Left × Right → Zipped}
+variable {Left : Type u} {Right : Type v} {Zipped : Type w}
+  {zipValue : Left × Right → Zipped}
 
 /-- Zip to the left list's length, using `default` after the right list is exhausted. -/
 @[expose] def listZipWithLeft (default : Right) (f : Left × Right → Zipped) :
@@ -562,11 +597,11 @@ variable {Left Right Zipped : Type u} {zipValue : Left × Right → Zipped}
   apply streamFoldPair nextCompiler emitCompiler finishCompiler
     (sMax := listZipWithLeftSMax default encLeft encRight encZipped compiler)
     (lMax := listZipWithLeftLMax encLeft encRight)
-  · intro input
-    induction input.2 generalizing input.1 with
+  · rintro ⟨rights, lefts⟩
+    induction lefts generalizing rights with
     | nil => rfl
     | cons left lefts ih =>
-        cases input.1 <;>
+        cases rights <;>
           simp [streamEmit, listZipWithLeft, encFramed_apply, encList_cons, ih]
   · intro input j hj
     have hsup := Finset.le_sup
@@ -593,14 +628,16 @@ variable {Left Right Zipped : Type u} {zipValue : Left × Right → Zipped}
           (streamState input.1 (fun pair : List Right × Left => pair.1.tail) input.2 j)).length
         else 0)
       (Finset.mem_range.mpr (by omega : j < input.2.length + 1))
-    exact (by simpa only [hj, dite_true] using hsup).trans (Nat.le_max_left _ _)
+    refine Nat.le_trans ?_ (Nat.le_max_left _ _)
+    simpa only [hj, dite_true] using hsup
   · intro input j hj
     have hsup := Finset.le_sup
       (s := Finset.range input.2.length)
       (f := fun j => if hj : j < input.2.length then
         (encLeft input.2[j]).length else 0)
       (Finset.mem_range.mpr hj)
-    exact (by simpa only [hj, dite_true] using hsup).trans (Nat.le_max_right _ _)
+    refine Nat.le_trans ?_ (Nat.le_max_right _ _)
+    simpa only [hj, dite_true] using hsup
 
 /-- Retained left-length zip, including the charged input reordering pass. -/
 @[expose] noncomputable def listZipWithLeftCompiler (default : Right)
@@ -631,28 +668,51 @@ abbrev ListReplaceState (Value : Type u) := ℕ × (Bool × Value)
   | ((remaining, done, replacement), value) =>
       if done then value else if remaining = 0 then replacement else value
 
-private theorem streamEmit_listReplace_done (encValue : Value ↪ List Bool)
-    (remaining : ℕ) (replacement : Value) : ∀ list : List Value,
+/-- Once replacement is complete, the stream emits each remaining element unchanged. -/
+theorem streamEmit_listReplace_done (encValue : Value ↪ List Bool)
+    (remaining : ℕ) (replacement : Value) (list : List Value) :
     streamEmit listReplaceNext (fun input => frame (encValue (listReplaceEmit input)))
-      (remaining, true, replacement) list = encList encValue list
-  | [] => rfl
-  | element :: list => by
-      simp [streamEmit, listReplaceEmit, listReplaceNext, encList_cons,
-        streamEmit_listReplace_done encValue remaining replacement list]
+      (remaining, true, replacement) list = encList encValue list := by
+  induction list with
+  | nil => rfl
+  | cons element list ih =>
+      have hemit : listReplaceEmit ((remaining, true, replacement), element) = element := by
+        simp [listReplaceEmit]
+      have hnext : listReplaceNext ((remaining, true, replacement), element) =
+          (remaining, true, replacement) := by
+        simp [listReplaceNext]
+      rw [streamEmit, hemit, hnext, ih, encList_cons]
 
 /-- The replacement stream agrees with `List.modify`; an out-of-range index changes nothing. -/
 theorem streamEmit_listReplace (encValue : Value ↪ List Bool) (replacement : Value) :
     ∀ (index : ℕ) (list : List Value),
       streamEmit listReplaceNext (fun input => frame (encValue (listReplaceEmit input)))
           (index, false, replacement) list =
-        encList encValue (list.modify index fun _ => replacement)
-  | _, [] => rfl
-  | 0, element :: list => by
-      simp [streamEmit, listReplaceEmit, listReplaceNext, encList_cons,
-        streamEmit_listReplace_done encValue 0 replacement list]
-  | index + 1, element :: list => by
-      simp [streamEmit, listReplaceEmit, listReplaceNext, encList_cons,
-        streamEmit_listReplace encValue replacement index list]
+        encList encValue (list.modify index fun _ => replacement) := by
+  intro index list
+  induction list generalizing index with
+  | nil => simp only [streamEmit, List.modify_nil, encList_nil]
+  | cons element list ih =>
+      cases index with
+      | zero =>
+          have hemit : listReplaceEmit ((0, false, replacement), element) = replacement := by
+            simp [listReplaceEmit]
+          have hnext : listReplaceNext ((0, false, replacement), element) =
+              (0, true, replacement) := by
+            simp [listReplaceNext]
+          have hmodify : (element :: list).modify 0 (fun _ => replacement) =
+              replacement :: list := rfl
+          rw [streamEmit, hemit, hnext,
+            streamEmit_listReplace_done encValue 0 replacement list, hmodify, encList_cons]
+      | succ index =>
+          have hemit : listReplaceEmit ((index + 1, false, replacement), element) = element := by
+            simp [listReplaceEmit]
+          have hnext : listReplaceNext ((index + 1, false, replacement), element) =
+              (index, false, replacement) := by
+            simp [listReplaceNext]
+          have hmodify : (element :: list).modify (index + 1) (fun _ => replacement) =
+              element :: list.modify index (fun _ => replacement) := rfl
+          rw [streamEmit, hemit, hnext, ih index, hmodify, encList_cons]
 
 /-- Retained per-occurrence state update for unary-indexed replacement. -/
 @[expose] noncomputable def listReplaceNextCompiler (encValue : Value ↪ List Bool) :
@@ -674,7 +734,7 @@ theorem streamEmit_listReplace (encValue : Value ↪ List Bool) (replacement : V
     ((const encInput encBool false).pair replacement)
   refine (ite doneTest state (ite atIndex completed countdown)).ofOutputEq ?_
   rintro ⟨⟨remaining, done, replacement⟩, element⟩
-  cases done <;> cases remaining <;> simp [listReplaceNext]
+  cases done <;> cases remaining <;> simp [listReplaceNext, encState]
 
 /-- Retained per-occurrence emitter for unary-indexed replacement. -/
 @[expose] noncomputable def listReplaceEmitCompiler (encValue : Value ↪ List Bool) :
@@ -727,8 +787,8 @@ theorem streamEmit_listReplace (encValue : Value ↪ List Bool) (replacement : V
 /-- Retained unary-indexed replacement scan before input marshalling. -/
 @[expose] noncomputable def listReplaceStreamCompiler (encValue : Value ↪ List Bool) :
     NativeCompiler
-      (fun ((index, _done, replacement), list) : ListReplaceState Value × List Value =>
-        list.modify index fun _ => replacement)
+      (fun ((index, done, replacement), list) =>
+        if done then list else list.modify index fun _ => replacement)
       (encPair (encPair encUnary (encPair encBool encValue)) (encList encValue))
       (encList encValue) := by
   let nextCompiler := listReplaceNextCompiler encValue
@@ -736,9 +796,18 @@ theorem streamEmit_listReplace (encValue : Value ↪ List Bool) (replacement : V
   let finishCompiler := listReplaceFinishCompiler encValue
   apply streamFoldPair nextCompiler emitCompiler finishCompiler
     (sMax := listReplaceSMax encValue) (lMax := listReplaceLMax encValue)
-  · intro input
-    rw [streamEmit_listReplace encValue input.1.2.2 input.1.1 input.2]
-    rfl
+  · rintro ⟨⟨index, done, replacement⟩, list⟩
+    cases done with
+    | false =>
+        change encList encValue (list.modify index fun _ => replacement) =
+          streamEmit listReplaceNext (fun input => frame (encValue (listReplaceEmit input)))
+            (index, false, replacement) list ++ []
+        rw [streamEmit_listReplace, List.append_nil]
+    | true =>
+        change encList encValue list =
+          streamEmit listReplaceNext (fun input => frame (encValue (listReplaceEmit input)))
+            (index, true, replacement) list ++ []
+        rw [streamEmit_listReplace_done, List.append_nil]
   · intro input j hj
     have hsup := Finset.le_sup
       (s := Finset.range input.2.length)
@@ -761,20 +830,21 @@ theorem streamEmit_listReplace (encValue : Value ↪ List Bool) (replacement : V
         ((encPair encUnary (encPair encBool encValue))
           (streamState input.1 listReplaceNext input.2 j)).length else 0)
       (Finset.mem_range.mpr (by omega : j < input.2.length + 1))
-    exact (by simpa only [hj, dite_true] using hsup).trans (Nat.le_max_left _ _)
+    refine Nat.le_trans ?_ (Nat.le_max_left _ _)
+    simpa only [hj, dite_true] using hsup
   · intro input j hj
     have hsup := Finset.le_sup
       (s := Finset.range input.2.length)
       (f := fun j => if hj : j < input.2.length then
         (encValue input.2[j]).length else 0)
       (Finset.mem_range.mpr hj)
-    exact (by simpa only [hj, dite_true] using hsup).trans (Nat.le_max_right _ _)
+    refine Nat.le_trans ?_ (Nat.le_max_right _ _)
+    simpa only [hj, dite_true] using hsup
 
 /-- Retained marshalling from `(list, unary index, replacement)` to replacement stream state. -/
 @[expose] noncomputable def listReplaceMarshalCompiler (encValue : Value ↪ List Bool) :
     NativeCompiler
-      (fun (list, index, replacement) : List Value × (ℕ × Value) =>
-        ((index, false, replacement), list))
+      (fun (list, index, replacement) => ((index, false, replacement), list))
       (encPair (encList encValue) (encPair encUnary encValue))
       (encPair (encPair encUnary (encPair encBool encValue)) (encList encValue)) := by
   let encInput := encPair (encList encValue) (encPair encUnary encValue)
@@ -788,8 +858,7 @@ theorem streamEmit_listReplace (encValue : Value ↪ List Bool) (replacement : V
 /-- Unary-indexed replacement, including marshalling and a full charged list scan. -/
 @[expose] noncomputable def listReplaceUnaryCompiler (encValue : Value ↪ List Bool) :
     NativeCompiler
-      (fun (list, index, replacement) : List Value × (ℕ × Value) =>
-        list.modify index fun _ => replacement)
+      (fun (list, index, replacement) => list.modify index fun _ => replacement)
       (encPair (encList encValue) (encPair encUnary encValue)) (encList encValue) :=
   ((listReplaceStreamCompiler encValue).comp
     (listReplaceMarshalCompiler encValue)).ofOutputEq fun _ => rfl
@@ -799,7 +868,10 @@ theorem listBits_le_time_listReplaceStreamCompiler (encValue : Value ↪ List Bo
     (input : ListReplaceState Value × List Value) :
     (encList encValue input.2).length ≤
       (listReplaceStreamCompiler encValue).time input := by
-  rw [time_streamFoldPair]
+  change (encList encValue input.2).length ≤
+    streamFoldPairTime (listReplaceNextCompiler encValue)
+      ((framedValue encValue).comp (listReplaceEmitCompiler encValue))
+      (listReplaceFinishCompiler encValue) input
   simp only [streamFoldPairTime]
   omega
 

@@ -50,16 +50,14 @@ namespace Turing.MultiTapeTM.Internal.NativeCompiler
     NativeCompiler List.isEmpty (encList enc) encTest :=
   (boolToTest.comp
     (isEmpty.ofInputEq (fun list => encList enc list) fun _ => rfl)).ofOutputEq fun list => by
-      cases list <;> rfl
+      cases list <;> simp [encList_cons]
 
 /-- Emit the first framed list element as a raw payload word. On the empty list this emits the
 frame parser's total empty-word result, which is replaced by `listHeadD`. -/
 @[expose] noncomputable def listHeadPayload {Alpha : Type*} (enc : Alpha ↪ List Bool) :
     NativeCompiler (fun list : List Alpha => unframe (encList enc list))
-      (encList enc) encBits := by
-  letI : Fintype FrameState := Fintype.ofFinite FrameState
-  exact (ofTransducer (readFrameT true) frameStateEncoding readFrameT_run_true).ofInputEq
-    (fun list => encList enc list) fun _ => rfl
+      (encList enc) encBits :=
+  unframeDecoder.ofInputEq (fun list => encList enc list) fun _ => rfl
 
 /-- First list element, or the explicit default on the empty list. -/
 @[expose] noncomputable def listHeadD {Alpha : Type*} (default : Alpha)
@@ -67,7 +65,7 @@ frame parser's total empty-word result, which is replaced by `listHeadD`. -/
     NativeCompiler (fun list : List Alpha => list.headD default) (encList enc) enc := by
   let fallback := const (encList enc) encBits (enc default)
   exact (ite (listIsEmpty enc) fallback (listHeadPayload enc)).ofOutputEq fun list => by
-    cases list <;> simp [listHeadPayload, unframe_frame_append]
+    cases list <;> simp [encList_cons, unframe_frame_append]
 
 /-- Unary-indexed list access, including the direct suffix scan and total head default. -/
 @[expose] noncomputable def listGetDUnary {Alpha : Type*} (default : Alpha)

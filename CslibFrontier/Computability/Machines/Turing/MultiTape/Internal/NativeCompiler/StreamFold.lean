@@ -93,7 +93,7 @@ tape in a `K`-tape stream machine. -/
 @[expose] def inputFromWordWorkspace {Alpha Beta : Type*} {f : Alpha → Beta}
     {encIn : Alpha ↪ List Bool} {encOut : Beta ↪ List Bool}
     (K : ℕ) (compiler : NativeCompiler f encIn encOut) (input : Alpha) : ℕ :=
-  compiler.workspace input + 2 * (encIn input).length + 2 * compiler.tapeCount + 8 +
+  compiler.workspace input + 2 * ((encIn input).length + 2) + 2 * compiler.tapeCount + 8 +
     (K - (compiler.tapeCount + 2))
 
 /-- Exact clock of a tidy callback lifted to write its output between selected work tapes. -/
@@ -108,7 +108,7 @@ selected work tapes in a `K`-tape stream machine. -/
     {encIn : Alpha ↪ List Bool} {encOut : Beta ↪ List Bool}
     (K : ℕ) (compiler : NativeCompiler f encIn encOut) (input : Alpha) : ℕ :=
   compiler.workspace input + 2 * (encIn input).length + 2 * (encOut (f input)).length +
-    3 * compiler.tapeCount + 18 + (K - (compiler.tapeCount + 3))
+    3 * compiler.tapeCount + 18 + (K - (compiler.tapeCount + 1 + 2))
 
 /-- The exact number of tapes in the retained pair-stream assembly. -/
 @[expose] noncomputable def streamFoldPairTapeCount {Alpha Sigma Epsilon Phi : Type*}
@@ -134,7 +134,7 @@ selected work tapes in a `K`-tape stream machine. -/
 /-- Explicit embedding into a larger tape set sending two distinct sources to two distinct
 targets. -/
 @[expose] def embeddingAt₂ {m K : ℕ} (h : m ≤ K) {input output : Fin m}
-    (hio : input ≠ output) {source target : Fin K} (hst : source ≠ target) : Fin m ↪ Fin K :=
+    (_hio : input ≠ output) {source target : Fin K} (_hst : source ≠ target) : Fin m ↪ Fin K :=
   let first := embeddingAt h input source
   first.trans (Equiv.swap (first output) target).toEmbedding
 
@@ -145,7 +145,9 @@ targets. -/
   let first := embeddingAt h input source
   have hout : first output ≠ source := fun heq =>
     hio (first.injective (heq.trans (embeddingAt_source h input source).symm)).symm
-  simp [embeddingAt₂, first, hout, hst]
+  simp only [embeddingAt₂, Function.Embedding.trans_apply]
+  rw [embeddingAt_source]
+  exact Equiv.swap_apply_of_ne_of_ne hout.symm hst
 
 /-- The second endpoint of the explicit two-point embedding. -/
 @[simp] theorem embeddingAt₂_output {m K : ℕ} (h : m ≤ K) {input output : Fin m}
@@ -208,10 +210,13 @@ budget. These choices select tape positions, not erased callback machines. -/
   let framedNext := streamFramedNext nextCompiler
   let unframedFinish := streamUnframedFinish finishCompiler
   let M := emitCompiler.tapeCount + framedNext.tapeCount + unframedFinish.tapeCount + 8
-  let K := M + 3
-  let V : Fin K := ⟨M, by simp only [K]; omega⟩
-  let N : Fin K := ⟨M + 1, by simp only [K]; omega⟩
-  let F : Fin K := ⟨M + 2, by simp only [K]; omega⟩
+  let K := streamFoldPairTapeCount nextCompiler emitCompiler finishCompiler
+  let V : Fin K := ⟨M, by
+    simp only [K, streamFoldPairTapeCount, M, framedNext, unframedFinish]; omega⟩
+  let N : Fin K := ⟨M + 1, by
+    simp only [K, streamFoldPairTapeCount, M, framedNext, unframedFinish]; omega⟩
+  let F : Fin K := ⟨M + 2, by
+    simp only [K, streamFoldPairTapeCount, M, framedNext, unframedFinish]; omega⟩
   have hVN : V ≠ N := by simp [V, N, Fin.ext_iff]
   have hVF : V ≠ F := by simp [V, F, Fin.ext_iff]
   have hNF : N ≠ F := by simp [N, F, Fin.ext_iff]
@@ -220,9 +225,15 @@ budget. These choices select tape positions, not erased callback machines. -/
   let nextTarget := (Fin.last framedNext.tapeCount).castAdd 2
   have hNextSourceTarget : nextSource ≠ nextTarget := by simp [nextSource, nextTarget, Fin.ext_iff]
   let finishSource := Fin.natAdd unframedFinish.tapeCount (0 : Fin 2)
-  let eE := embeddingAt (K := K) (by simp [K, M]) emitSource V
-  let eN := embeddingAt₂ (K := K) (by simp [K, M]) hNextSourceTarget hVN
-  let eF := embeddingAt (K := K) (by simp [K, M]) finishSource V
+  have hEmit : emitCompiler.tapeCount + 2 ≤ K := by
+    simp only [K, streamFoldPairTapeCount]; omega
+  have hNext : framedNext.tapeCount + 1 + 2 ≤ K := by
+    simp only [K, streamFoldPairTapeCount, framedNext]; omega
+  have hFinish : unframedFinish.tapeCount + 2 ≤ K := by
+    simp only [K, streamFoldPairTapeCount, unframedFinish]; omega
+  let eE := embeddingAt hEmit emitSource V
+  let eN := embeddingAt₂ hNext hNextSourceTarget hVN
+  let eF := embeddingAt hFinish finishSource V
   exact {
     V := V
     N := N
@@ -231,12 +242,19 @@ budget. These choices select tape positions, not erased callback machines. -/
     hVF := hVF
     hNF := hNF
     emitEmbedding := eE
-    emitInput := by simp [eE, emitSource]
+    emitInput := by
+      simpa only [eE, emitSource, K] using embeddingAt_source hEmit emitSource V
     nextEmbedding := eN
-    nextInput := by simp [eN, nextSource]
-    nextOutput := by simp [eN, nextTarget]
+    nextInput := by
+      simpa only [eN, nextSource, framedNext, K] using
+        embeddingAt₂_input hNext hNextSourceTarget hVN
+    nextOutput := by
+      simpa only [eN, nextTarget, framedNext, K] using
+        embeddingAt₂_output hNext hNextSourceTarget hVN
     finishEmbedding := eF
-    finishInput := by simp [eF, finishSource]
+    finishInput := by
+      simpa only [eF, finishSource, unframedFinish, K] using
+        embeddingAt_source hFinish finishSource V
   }
 
 /-- Concrete `streamTM` assembled from the three named callback machines. -/
@@ -349,6 +367,9 @@ callback workspaces in each round; `lMax` bounds every encoded stream state and 
   let finalizer :=
     (unframedFinish.machine.inputFromWord true).extendTapes layout.finishEmbedding
   let machine := streamFoldPairMachine nextCompiler emitCompiler finishCompiler
+  letI := emitCompiler.stateFintype
+  letI := framedNext.stateFintype
+  letI := unframedFinish.stateFintype
   let retain {State : Type} [Fintype State] (tm : MultiTapeTM K Bool State)
       (hcompute : ∀ input, tm.ComputesTidilyInTimeAndSpace
         (encPair encS (encList encA) input) (encOut (result input))
@@ -374,8 +395,14 @@ callback workspaces in each round; `lMax` bounds every encoded stream state and 
     (encPair encS (encList encA) input) 1 (by simp) []
   simp only [Fin.val_one, Nat.sub_self, hreadInit, List.length_nil, List.nil_append] at hinit
   have hinit' := hinit.imp
+    (P' := fun input' p ws => input' = encPair encS (encList encA) input ∧
+      p.val = 1 ∧ ws = fun _ => [])
+    (Q' := fun _ _ _ p' ws' e => p'.val = 1 + (frame (encS input.1)).length ∧
+      ws' = Function.update (fun _ => []) layout.V (frame (encS input.1)) ∧ e = [])
     (fun _ _ ws ⟨hin, hp, hws⟩ => ⟨hin, hp, by simp [hws]⟩)
-    (fun _ _ ws _ _ _ ⟨_, _, rfl⟩ ⟨hp, hws, hem⟩ => ⟨hp, hws, hem⟩)
+    (by
+      rintro _ _ ws _ _ _ ⟨_, _, rfl⟩ ⟨hp, hws, hem⟩
+      exact ⟨hp, hws, hem⟩)
     le_rfl le_rfl
   have hE := fun pair => (emitCompiler.computes pair).inputFromWord_extendTapes true
     layout.emitInput
@@ -390,9 +417,13 @@ callback workspaces in each round; `lMax` bounds every encoded stream state and 
     (sMax := sMax input) (lMax := lMax input) (by
       intro j hj
       simp only [streamFoldPairRoundCost, hj, dite_true, inputFromWordTime, onWordsTime,
-        framedNext, streamFramedNext, encBits_apply, encFramed_apply]
+        framedNext, streamFramedNext, encBits_apply]
       rw [streamState_succ input.1 next input.2 hj])
-    (hspace input) (hstate input) (helem input)
+    (by
+      intro j hj
+      simpa only [inputFromWordWorkspace, onWordsWorkspace, framedNext] using
+        hspace input j hj)
+    (hstate input) (helem input)
   have hF := (unframedFinish.computes finalState).inputFromWord_extendTapes true
     layout.finishInput
   have h := computesTidily_streamTM_after (r := frameValueReader)
@@ -402,9 +433,14 @@ callback workspaces in each round; `lMax` bounds every encoded stream state and 
     (streamEmit next (fun pair => encE (emit pair)) input.1 input.2)
     (encF (finish finalState)) hinit' hloop hF
   rw [hresult input]
-  simpa only [machine, streamFoldPairMachine, emitter, nextMachine, finalizer, framedNext,
-    unframedFinish, K, streamFoldPairTime, streamFoldPairWorkspace, inputFromWordTime,
-    inputFromWordWorkspace, finalState] using h
+  have hencList :
+      encList encA input.2 =
+        List.flatMap (fun value => frame (encA value)) input.2 := rfl
+  refine h.mono ?_ ?_
+  · simp only [streamFoldPairTime, inputFromWordTime, finalState, hencList, unframedFinish]
+    omega
+  · simp only [streamFoldPairWorkspace, inputFromWordWorkspace, finalState, unframedFinish]
+    exact le_rfl
 
 /-- The retained pair-stream compiler contains the exposed concrete `streamTM` assembly. -/
 theorem machine_streamFoldPair
@@ -447,7 +483,20 @@ theorem time_streamFoldPair
     (nextCompiler : NativeCompiler next (encPair encS encA) encS)
     (emitCompiler : NativeCompiler emit (encPair encS encA) encE)
     (finishCompiler : NativeCompiler finish encS encF)
-    (hresult sMax lMax hspace hstate helem) (input : Sigma × List Alpha) :
+    (hresult : ∀ input, encOut (result input) =
+      streamEmit next (fun pair => encE (emit pair)) input.1 input.2 ++
+        encF (finish (streamState input.1 next input.2 input.2.length)))
+    (sMax lMax : Sigma × List Alpha → ℕ)
+    (hspace : ∀ input j (hj : j < input.2.length),
+      let pair := (streamState input.1 next input.2 j, input.2[j])
+      inputFromWordWorkspace (streamFoldPairTapeCount nextCompiler emitCompiler finishCompiler)
+          emitCompiler pair +
+        onWordsWorkspace (streamFoldPairTapeCount nextCompiler emitCompiler finishCompiler)
+          (streamFramedNext nextCompiler) pair ≤ sMax input)
+    (hstate : ∀ input j, j ≤ input.2.length →
+      (encS (streamState input.1 next input.2 j)).length ≤ lMax input)
+    (helem : ∀ input j (hj : j < input.2.length),
+      (encA input.2[j]).length ≤ lMax input) (input : Sigma × List Alpha) :
     (streamFoldPair nextCompiler emitCompiler finishCompiler hresult sMax lMax
       hspace hstate helem).time input =
       streamFoldPairTime nextCompiler emitCompiler finishCompiler input :=
@@ -464,7 +513,20 @@ theorem workspace_streamFoldPair
     (nextCompiler : NativeCompiler next (encPair encS encA) encS)
     (emitCompiler : NativeCompiler emit (encPair encS encA) encE)
     (finishCompiler : NativeCompiler finish encS encF)
-    (hresult sMax lMax hspace hstate helem) (input : Sigma × List Alpha) :
+    (hresult : ∀ input, encOut (result input) =
+      streamEmit next (fun pair => encE (emit pair)) input.1 input.2 ++
+        encF (finish (streamState input.1 next input.2 input.2.length)))
+    (sMax lMax : Sigma × List Alpha → ℕ)
+    (hspace : ∀ input j (hj : j < input.2.length),
+      let pair := (streamState input.1 next input.2 j, input.2[j])
+      inputFromWordWorkspace (streamFoldPairTapeCount nextCompiler emitCompiler finishCompiler)
+          emitCompiler pair +
+        onWordsWorkspace (streamFoldPairTapeCount nextCompiler emitCompiler finishCompiler)
+          (streamFramedNext nextCompiler) pair ≤ sMax input)
+    (hstate : ∀ input j, j ≤ input.2.length →
+      (encS (streamState input.1 next input.2 j)).length ≤ lMax input)
+    (helem : ∀ input j (hj : j < input.2.length),
+      (encA input.2[j]).length ≤ lMax input) (input : Sigma × List Alpha) :
     (streamFoldPair nextCompiler emitCompiler finishCompiler hresult sMax lMax
       hspace hstate helem).workspace input =
       streamFoldPairWorkspace nextCompiler emitCompiler finishCompiler sMax lMax input :=

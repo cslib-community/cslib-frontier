@@ -9,7 +9,10 @@ module
 
 public import
   CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Universal.Description
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Complexity
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Correct
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Bound
+import Mathlib.Data.List.GetD
 
 /-!
 # First-order storage for universal oracle-machine steps
@@ -295,7 +298,9 @@ theorem ICfg.toConfig_step {d : Desc} {input : List ℕ} {cfg : ICfg}
     · apply Fin.ext
       simp only [ICfg.toConfig, ICfg.step, Config.step, Action.apply_inputPos, localAction]
       simp only [min_eq_left h.inputPos]
-      have hip : cfg.inputPos < input.length + 2 := by omega
+      have hip : cfg.inputPos < input.length + 2 := by
+        have hpos := h.inputPos
+        omega
       change min (moveInput cfg.inputPos
           (Turing.MultiTapeTM.Universal.inputSymbol input cfg.inputPos) ordinary.inputTape)
         (input.length + 1) = _

@@ -77,7 +77,7 @@ emits `encTest`; no semantic Boolean callback is hidden behind the assembled mac
             (y := encOut (ifFalse input))
             (t₁ := trueCompiler.time input) (s₁ := trueCompiler.workspace input)
             (t₂ := falseCompiler.time input) (s₂ := falseCompiler.workspace input)
-            (fun hne => by simp only [hcondition, encTest_false] at hne)
+            (fun hne => (hne (by simp only [hcondition, encTest_false])).elim)
             (fun _ => falseCompiler.computes input)
           simpa only [hcondition, Bool.false_eq_true, ↓reduceIte, encTest_false,
             List.length_nil, Nat.mul_zero, Nat.add_zero] using h
@@ -88,8 +88,10 @@ emits `encTest`; no semantic Boolean callback is hidden behind the assembled mac
             (t₁ := trueCompiler.time input) (s₁ := trueCompiler.workspace input)
             (t₂ := falseCompiler.time input) (s₂ := falseCompiler.workspace input)
             (fun _ => trueCompiler.computes input)
-            (fun heq => by simp only [hcondition, encTest_true] at heq)
-          simpa only [hcondition, ↓reduceIte, encTest_true, List.length_singleton] using h
+            (fun heq => by
+              simp only [hcondition, encTest_true, List.cons_ne_nil] at heq)
+          simpa only [hcondition, ↓reduceIte, encTest_true, List.cons_ne_nil,
+            List.length_singleton] using h
   }
 
 /-- Conditional composition retains the actual kernel conditional. -/

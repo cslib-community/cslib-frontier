@@ -66,6 +66,13 @@ public lemma run_succTransducer (c : Bool) (l : List Bool) :
     rw [Transducer.run_cons, ih]
     cases c <;> cases b <;> simp [succTransducer, incr]
 
+/-- The successor transducer, started in its designated initial state, computes binary
+successor. -/
+public lemma run_succTransducer_q₀ (n : ℕ) :
+    succTransducer.run succTransducer.q₀ n.bits = (n + 1).bits := by
+  change succTransducer.run true n.bits = (n + 1).bits
+  rw [NatSucc.bits_succ, ← run_succTransducer]
+
 end NatSucc
 
 namespace NatPred
@@ -110,6 +117,13 @@ public lemma run_predTransducer (n : ℕ) : predTransducer.run none n.bits = (n 
       · rw [Nat.bit0_bits m hm.ne']
         simp [Nat.bits_eq_nil_iff, hm.ne']
 
+/-- The predecessor transducer, started in its designated initial state, computes saturating
+binary predecessor. -/
+public lemma run_predTransducer_q₀ (n : ℕ) :
+    predTransducer.run predTransducer.q₀ n.bits = (n - 1).bits := by
+  change predTransducer.run none n.bits = (n - 1).bits
+  exact run_predTransducer n
+
 /-- The zero test as a transducer: the state records that no digit has been read yet. -/
 public def isZeroTransducer : Transducer Bool Bool where
   q₀ := true
@@ -125,6 +139,16 @@ public lemma run_isZeroTransducer (q : Bool) (l : List Bool) :
   | cons b l ih =>
     change [] ++ isZeroTransducer.run false l = _
     simp [ih]
+
+/-- The zero-test transducer, started in its designated initial state, emits the Boolean zero
+test. -/
+public lemma run_isZeroTransducer_q₀ (n : ℕ) :
+    isZeroTransducer.run isZeroTransducer.q₀ n.bits = [decide (n = 0)] := by
+  change isZeroTransducer.run true n.bits = [decide (n = 0)]
+  rw [run_isZeroTransducer]
+  congr 1
+  rw [Bool.true_and, Bool.eq_iff_iff, List.isEmpty_iff, Nat.bits_eq_nil_iff,
+    decide_eq_true_iff]
 
 end NatPred
 

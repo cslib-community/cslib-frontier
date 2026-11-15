@@ -32,8 +32,10 @@ public section
 
 namespace Turing.MultiTapeTM.Internal.NativeCompiler
 
+universe u v
+
 /-- A constructor view of the direct zip-machine control states. -/
-def zipStateToSum {State : Type*} : ZipTransducer.State State →
+def zipStateToSum {State : Type} : ZipTransducer.State State →
     Fin 3 ⊕ (State × Option Bool) ⊕ Bool
   | .copy => .inl 0
   | .copyBit => .inl 1
@@ -42,16 +44,17 @@ def zipStateToSum {State : Type*} : ZipTransducer.State State →
   | .flush bit => .inr (.inr bit)
 
 /-- The constructor view of zip-machine states is injective. -/
-theorem zipStateToSum_injective {State : Type*} :
+theorem zipStateToSum_injective {State : Type} :
     Function.Injective (zipStateToSum : ZipTransducer.State State →
       Fin 3 ⊕ (State × Option Bool) ⊕ Bool) := by
   intro left right h
   cases left <;> cases right <;> simp_all [zipStateToSum]
 
 /-- Constructive encoding of the direct zip-machine control states. -/
-@[expose] def zipStateEncoding {State : Type*} (stateEncoding : State ↪ ℕ) :
+@[expose] def zipStateEncoding {State : Type} (stateEncoding : State ↪ ℕ) :
     ZipTransducer.State State ↪ ℕ :=
-  ⟨zipStateToSum, zipStateToSum_injective⟩ |>.trans
+  (⟨zipStateToSum, zipStateToSum_injective⟩ :
+      ZipTransducer.State State ↪ Fin 3 ⊕ (State × Option Bool) ⊕ Bool) |>.trans
     (sumStateEncoding Fin.valEmbedding
       (sumStateEncoding
         (prodStateEncoding stateEncoding (optionStateEncoding Universal.eBit))
@@ -59,7 +62,9 @@ theorem zipStateToSum_injective {State : Type*} :
 
 /-- Retain a zip transducer through the direct machine and the existing tidy normal form. The
 clock and workspace expose the kernel bound and every cleanup term. -/
-@[expose] noncomputable def ofZipTransducer {Alpha Beta Gamma State : Type*} [Fintype State]
+@[expose] noncomputable def ofZipTransducer {Alpha : Type u} {Beta : Type v}
+    {Gamma : Type*} {State : Type}
+    [Fintype State]
     {f : Alpha × Beta → Gamma} (encFirst : Alpha ↪ List Bool) (encSecond : Beta ↪ List Bool)
     (encOut : Gamma ↪ List Bool) (transducer : ZipTransducer State)
     (stateEncoding : State ↪ ℕ)
@@ -95,7 +100,9 @@ clock and workspace expose the kernel bound and every cleanup term. -/
   }
 
 /-- The retained zip compiler uses the direct zip machine under the tidy wrapper. -/
-theorem machine_ofZipTransducer {Alpha Beta Gamma State : Type*} [Fintype State]
+theorem machine_ofZipTransducer {Alpha : Type u} {Beta : Type v}
+    {Gamma : Type*} {State : Type}
+    [Fintype State]
     {f : Alpha × Beta → Gamma} (encFirst : Alpha ↪ List Bool) (encSecond : Beta ↪ List Bool)
     (encOut : Gamma ↪ List Bool) (transducer : ZipTransducer State)
     (stateEncoding : State ↪ ℕ)
@@ -106,7 +113,6 @@ theorem machine_ofZipTransducer {Alpha Beta Gamma State : Type*} [Fintype State]
   rfl
 
 /-- Compare two words, remembering whether their lengths and every symbol agree. -/
-@[simps q₀ step final]
 def wordEqT : ZipTransducer Bool where
   q₀ := true
   step equal symbols := (equal && decide (symbols.1 = symbols.2), [])
@@ -117,7 +123,10 @@ def wordEqT : ZipTransducer Bool where
 /-- The word-equality zip transducer emits the one-bit Boolean equality result. -/
 theorem wordEqT_run (equal : Bool) : ∀ first second : List Bool,
     wordEqT.run equal first second = [equal && decide (first = second)]
-  | [], [] => by cases equal <;> rfl
+  | [], [] => by
+      cases equal <;>
+        simp only [ZipTransducer.run_nil_nil, wordEqT, Bool.false_and,
+          Bool.true_and, decide_true]
   | bit :: first, [] => by
       rw [ZipTransducer.run_cons_nil, wordEqT_run]
       cases equal <;> simp [wordEqT]
@@ -128,17 +137,25 @@ theorem wordEqT_run (equal : Bool) : ∀ first second : List Bool,
       rw [ZipTransducer.run_cons_cons, wordEqT_run]
       cases equal <;> cases firstBit <;> cases secondBit <;> simp [wordEqT]
 
+/-- The word-equality transducer, started in its designated initial state, decides equality of
+its two input words. -/
+theorem wordEqT_run_q₀ (first second : List Bool) :
+    wordEqT.run wordEqT.q₀ first second = [decide (first = second)] := by
+  change wordEqT.run true first second = [decide (first = second)]
+  simpa only [Bool.true_and] using wordEqT_run true first second
+
 /-- Equality of two values under a shared injective encoding, with one-bit Boolean output. -/
 @[expose] noncomputable def wordEqBool {Alpha : Type*} (enc : Alpha ↪ List Bool) :
-    NativeCompiler (fun input : Alpha × Alpha => decide (input.1 = input.2))
+    NativeCompiler (fun input : Alpha × Alpha => decide (enc input.1 = enc input.2))
       (encPair enc enc) encBool :=
   ofZipTransducer enc enc encBool wordEqT Universal.eBit fun input => by
-    rw [wordEqT_run]
-    simp only [Bool.true_and, encBool_apply, enc.injective.eq_iff]
+    change wordEqT.run wordEqT.q₀ (enc input.1) (enc input.2) =
+      [decide (enc input.1 = enc input.2)]
+    exact wordEqT_run_q₀ (enc input.1) (enc input.2)
 
 /-- Equality in the empty/nonempty branch-test encoding, with the conversion explicitly retained. -/
 @[expose] noncomputable def wordEqTest {Alpha : Type*} (enc : Alpha ↪ List Bool) :
-    NativeCompiler (fun input : Alpha × Alpha => decide (input.1 = input.2))
+    NativeCompiler (fun input : Alpha × Alpha => decide (enc input.1 = enc input.2))
       (encPair enc enc) encTest :=
   boolToTest.comp (wordEqBool enc)
 

@@ -33,21 +33,19 @@ namespace Turing.MultiTapeTM.Internal.NativeCompiler
 @[expose] noncomputable def natSucc :
     NativeCompiler (fun n : ℕ => n + 1) encNat encNat :=
   ofTransducer NatSucc.succTransducer Universal.eBit fun n => by
-    rw [encNat_apply, encNat_apply, NatSucc.bits_succ, ← NatSucc.run_succTransducer]
+    simpa only [encNat_apply] using NatSucc.run_succTransducer_q₀ n
 
 /-- Saturating binary predecessor through the public borrow transducer. -/
 @[expose] noncomputable def natPred :
     NativeCompiler (fun n : ℕ => n - 1) encNat encNat :=
   ofTransducer NatPred.predTransducer (optionStateEncoding Universal.eBit) fun n => by
-    rw [encNat_apply, encNat_apply, NatPred.run_predTransducer]
+    simpa only [encNat_apply] using NatPred.run_predTransducer_q₀ n
 
 /-- Binary zero test with one-bit Boolean output. -/
 @[expose] noncomputable def natIsZeroBool :
     NativeCompiler (fun n : ℕ => decide (n = 0)) encNat encBool :=
   ofTransducer NatPred.isZeroTransducer Universal.eBit fun n => by
-    rw [encNat_apply, encBool_apply, show decide (n = 0) = (true && n.bits.isEmpty) by
-      rw [Bool.true_and, Bool.eq_iff_iff, List.isEmpty_iff, Nat.bits_eq_nil_iff,
-        decide_eq_true_iff], ← NatPred.run_isZeroTransducer]
+    simpa only [encNat_apply, encBool_apply] using NatPred.run_isZeroTransducer_q₀ n
 
 /-- Binary zero test in the empty/nonempty branch encoding, including the retained conversion. -/
 @[expose] noncomputable def natIsZeroTest :

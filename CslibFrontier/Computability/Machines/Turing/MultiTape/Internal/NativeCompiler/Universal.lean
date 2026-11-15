@@ -39,39 +39,29 @@ namespace Turing.MultiTapeTM.Internal.NativeCompiler
 
 open Turing.MultiTapeTM.Universal
 
-private abbrev MoveInput := ℕ × (Option ℕ × SignType)
-private abbrev eMoveInput : MoveInput ↪ List Bool := encPair encNat (encPair eSym encSign)
-private abbrev TapeTail := List (Option ℕ) × List (Option ℕ)
-private abbrev eTapeTail : TapeTail ↪ List Bool := encPair (encList eSym) (encList eSym)
-private abbrev ActTail₃ := List TapeAct × (Option ℕ × Option ℕ)
-private abbrev ActTail₂ := Option ℕ × Option ℕ
-private abbrev eActTail₃ : ActTail₃ ↪ List Bool :=
-  encPair (encList eTA) (encPair eSym eSym)
-private abbrev eActTail₂ : ActTail₂ ↪ List Bool := encPair eSym eSym
-
 /-- Retained projection of the ordinary input-head movement. -/
 noncomputable def actInputMove : NativeCompiler Act.inputTape eAct encSign :=
-  (first encSign eActTail₃).ofInputEq
+  (first encSign (encPair (encList eTA) (encPair eSym eSym))).ofInputEq
     (fun action : Act => (action.inputTape, action.workTapes, action.output, action.state))
     fun _ => rfl
 
 /-- Retained projection of the ordinary-action tail after input movement. -/
 noncomputable def actTail₃ :
     NativeCompiler (fun action : Act => (action.workTapes, action.output, action.state))
-      eAct eActTail₃ :=
-  (second encSign eActTail₃).ofInputEq
+      eAct (encPair (encList eTA) (encPair eSym eSym)) :=
+  (second encSign (encPair (encList eTA) (encPair eSym eSym))).ofInputEq
     (fun action : Act => (action.inputTape, action.workTapes, action.output, action.state))
     fun _ => rfl
 
 /-- Retained projection of work-tape actions. -/
 noncomputable def actWorkActions :
     NativeCompiler Act.workTapes eAct (encList eTA) :=
-  (first (encList eTA) eActTail₂).comp actTail₃
+  (first (encList eTA) (encPair eSym eSym)).comp actTail₃
 
 /-- Retained ordinary-action output and successor tail. -/
 noncomputable def actTail₂ :
-    NativeCompiler (fun action : Act => (action.output, action.state)) eAct eActTail₂ :=
-  (second (encList eTA) eActTail₂).comp actTail₃
+    NativeCompiler (fun action : Act => (action.output, action.state)) eAct (encPair eSym eSym) :=
+  (second (encList eTA) (encPair eSym eSym)).comp actTail₃
 
 /-- Retained projection of the optional ordinary output symbol. -/
 noncomputable def actOutput : NativeCompiler Act.output eAct eSym :=
@@ -91,12 +81,15 @@ explicitly accept that constructor. -/
 @[expose] noncomputable def intUnaryPayloadCompiler :
     NativeCompiler intUnaryPayload encIntUnary encUnary :=
   (tailDecoder.ofInputEq (fun value => encIntUnary value) fun _ => rfl).ofOutputEq
-    fun value => by cases value <;> rfl
+    fun value => by cases value <;> simp [intUnaryPayload, encBits_apply, encUnary_apply]
 
 /-- Retained nonnegative signed-unary constructor test. -/
 @[expose] noncomputable def intUnaryNonnegativeTest :
     NativeCompiler (fun value : ℤ => decide (0 ≤ value)) encIntUnary encTest := by
-  let sign := boolDecoder.ofInputEq (fun value => encIntUnary value) fun _ => rfl
+  let sign : NativeCompiler (fun value : ℤ => (encIntUnary value).headD false)
+      encIntUnary encBool :=
+    boolDecoder.ofInputEq (fun value : ℤ => encIntUnary value) fun _ => by
+      simp only [encBits_apply]
   let negative := boolToTest.comp sign
   let yes := const encIntUnary encTest true
   let no := const encIntUnary encTest false
@@ -106,24 +99,13 @@ explicitly accept that constructor. -/
 @[expose] noncomputable def intSucc :
     NativeCompiler (fun value : ℤ => value + 1) encIntUnary encIntUnary :=
   ofTransducer EncIntUnary.succT Fin.valEmbedding fun value => by
-    have copy := Transducer.run_eq_self EncIntUnary.succT 2
-      (fun bit => by cases bit <;> rfl) rfl
-    rcases value with n | _ | n
-    · simp [copy]
-    · rfl
-    · change encIntUnary (Int.negSucc n) = _
-      simp [copy, List.replicate_succ]
+    exact (EncIntUnary.run_succT value).symm
 
 /-- Retained signed-unary predecessor through the existing concrete transducer. -/
 @[expose] noncomputable def intPred :
     NativeCompiler (fun value : ℤ => value - 1) encIntUnary encIntUnary :=
   ofTransducer EncIntUnary.predT Fin.valEmbedding fun value => by
-    have copy := Transducer.run_eq_self EncIntUnary.predT 2
-      (fun bit => by cases bit <;> rfl) rfl
-    rcases value with (_ | n) | n
-    · rfl
-    · simp [copy]
-    · simp [copy, List.replicate_succ]
+    exact (EncIntUnary.run_predT value).symm
 
 /-- Retained sign-directed integer movement. -/
 @[expose] noncomputable def intMove :
@@ -138,17 +120,18 @@ explicitly accept that constructor. -/
   let negative := intPred.comp value
   refine (ite (signIs .zero) stay (ite (signIs .neg) negative positive)).ofOutputEq ?_
   rintro ⟨value, movement⟩
-  cases movement <;> rfl
+  cases movement <;> simp [sub_eq_add_neg]
 
 /-- Retained projection of a zipper's two cell lists. -/
 noncomputable def tapeTail :
-    NativeCompiler (fun tape : Tape => (tape.left, tape.right)) eTape eTapeTail :=
-  (second encIntUnary eTapeTail).ofInputEq
+    NativeCompiler (fun tape : Tape => (tape.left, tape.right)) eTape
+      (encPair (encList eSym) (encList eSym)) :=
+  (second encIntUnary (encPair (encList eSym) (encList eSym))).ofInputEq
     (fun tape : Tape => (tape.head, tape.left, tape.right)) fun _ => rfl
 
 /-- Retained projection of a zipper's signed head position. -/
 noncomputable def tapeHead : NativeCompiler Tape.head eTape encIntUnary :=
-  (first encIntUnary eTapeTail).ofInputEq
+  (first encIntUnary (encPair (encList eSym) (encList eSym))).ofInputEq
     (fun tape : Tape => (tape.head, tape.left, tape.right)) fun _ => rfl
 
 /-- Retained projection of cells left of the work-tape head. -/
@@ -236,10 +219,25 @@ extra actions are ignored exactly as in the source interpreter. -/
   refine zipped.ofOutputEq ?_
   intro input
   apply congrArg (encList eTape)
-  induction input.1 generalizing input.2 with
+  obtain ⟨tapes, actions⟩ := input
+  induction tapes generalizing actions with
   | nil => rfl
   | cons tape tapes ih =>
-      cases input.2 <;> simp [listZipWithLeft, Turing.MultiTapeTM.Universal.applyTapes, ih]
+      cases actions with
+      | nil =>
+          have htail : tapes = listZipWithLeft (none, .zero)
+              (fun input => input.1.apply input.2) tapes [] := by
+            simpa only [Turing.MultiTapeTM.Universal.applyTapes_nil_right] using ih []
+          change tape :: tapes =
+            tape.apply (none, .zero) ::
+              listZipWithLeft (none, .zero) (fun input => input.1.apply input.2) tapes []
+          have hdefault : tape.apply (none, .zero) = tape := rfl
+          rw [hdefault, ← htail]
+      | cons action actions =>
+          change tape.apply action :: Turing.MultiTapeTM.Universal.applyTapes tapes actions =
+            tape.apply action ::
+              listZipWithLeft (none, .zero) (fun input => input.1.apply input.2) tapes actions
+          rw [ih actions]
 
 /-- Retained work-head reads, executing the named tape-read callback once per zipper. -/
 @[expose] noncomputable def reads :
@@ -266,15 +264,15 @@ binary predecessor followed by the charged binary-indexed list scan. -/
 /-- Retained boundary-aware input-head movement. The positive branch tests binary zero and the
 standard option tag explicitly before selecting the concrete successor or identity machines. -/
 @[expose] noncomputable def moveInput :
-    NativeCompiler (fun (position, symbol, movement) : MoveInput =>
+    NativeCompiler (fun (position, symbol, movement) =>
       Turing.MultiTapeTM.Universal.moveInput position symbol movement)
-      eMoveInput encNat := by
+      (encPair encNat (encPair eSym encSign)) encNat := by
   let position := first encNat (encPair eSym encSign)
   let tail := second encNat (encPair eSym encSign)
   let symbol := (first eSym encSign).comp tail
   let movement := (second eSym encSign).comp tail
   let signIs (sign : SignType) := (wordEqTest encSign).comp
-    (movement.pair (const eMoveInput encSign sign))
+    (movement.pair (const (encPair encNat (encPair eSym encSign)) encSign sign))
   let stay := position
   let predecessor := natPred.comp position
   let successor := natSucc.comp position
@@ -285,6 +283,6 @@ standard option tag explicitly before selecting the concrete successor or identi
   refine assembled.ofOutputEq ?_
   rintro ⟨position, symbol, movement⟩
   cases movement <;> cases position <;> cases symbol <;>
-    simp [assembled, positive, signIs, Turing.MultiTapeTM.Universal.moveInput]
+    simp [Turing.MultiTapeTM.Universal.moveInput]
 
 end Turing.MultiTapeTM.Internal.NativeCompiler

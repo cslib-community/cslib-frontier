@@ -29,10 +29,7 @@ public section
 
 namespace Turing.MultiTapeTM.Internal.NativeCompiler
 
-universe u
-
 /-- First expansion pass: every unary symbol becomes the two-bit seed `[true, false]`. -/
-@[simps q₀ step final]
 def unaryFrameSeedT : Transducer Bool Unit where
   q₀ := ()
   step _ _ := ((), [true, false])
@@ -40,14 +37,27 @@ def unaryFrameSeedT : Transducer Bool Unit where
   length_step_le _ _ := by simp
   length_final_le _ := by simp
 
+private lemma unaryFrameSeedT_q₀ : unaryFrameSeedT.q₀ = () := rfl
+
+private lemma unaryFrameSeedT_step (bit : Bool) :
+    unaryFrameSeedT.step () bit = ((), [true, false]) := by
+  cases bit <;> rfl
+
+private lemma unaryFrameSeedT_final : unaryFrameSeedT.final () = [] := rfl
+
 /-- Second expansion pass: seed `true` doubles and seed `false` closes the frame. -/
-@[simps q₀ step final]
 def unaryFrameExpandT : Transducer Bool Unit where
   q₀ := ()
   step _ bit := ((), if bit then [true, true] else [false])
   final _ := []
   length_step_le _ bit := by cases bit <;> simp
   length_final_le _ := by simp
+
+private lemma unaryFrameExpandT_q₀ : unaryFrameExpandT.q₀ = () := rfl
+
+private lemma unaryFrameExpandT_step (bit : Bool) :
+    unaryFrameExpandT.step () bit = ((), if bit then [true, true] else [false]) := by
+  cases bit <;> rfl
 
 /-- Semantic word produced by the seed expansion. -/
 def unaryFrameSeed (count : ℕ) : List Bool :=
@@ -60,29 +70,53 @@ def unaryFrameExpand (word : List Bool) : List Bool :=
 theorem unaryFrameSeedT_run (count : ℕ) :
     unaryFrameSeedT.run unaryFrameSeedT.q₀ (encUnary count) = unaryFrameSeed count := by
   induction count with
-  | zero => rfl
-  | succ count ih => simpa [unaryFrameSeed, encUnary_apply, ih]
+  | zero =>
+      simp only [unaryFrameSeedT_q₀, encUnary_apply, List.replicate_zero,
+        Transducer.run_nil, unaryFrameSeedT_final, unaryFrameSeed, List.flatten_nil]
+  | succ count ih =>
+      rw [unaryFrameSeedT_q₀, encUnary_apply, List.replicate_succ, Transducer.run_cons,
+        unaryFrameSeedT_step]
+      rw [show unaryFrameSeedT.run () (List.replicate count true) = unaryFrameSeed count by
+        simpa only [unaryFrameSeedT_q₀, encUnary_apply] using ih]
+      simp [unaryFrameSeed, List.replicate_succ]
 
 theorem unaryFrameExpandT_run (word : List Bool) :
     unaryFrameExpandT.run unaryFrameExpandT.q₀ word = unaryFrameExpand word := by
+  rw [unaryFrameExpandT_q₀]
   induction word with
   | nil => rfl
-  | cons bit word ih => cases bit <;> simp [unaryFrameExpand, ih]
+  | cons bit word ih =>
+      rw [Transducer.run_cons, unaryFrameExpandT_step]
+      cases bit <;> simp [unaryFrameExpand, ih]
 
 /-- Expanding the seeds yields exactly the standard encoded list of `count` true bits. -/
 theorem unaryFrameExpand_seed (count : ℕ) :
     unaryFrameExpand (unaryFrameSeed count) = encList encBool (List.replicate count true) := by
   induction count with
-  | zero => rfl
+  | zero => simp [unaryFrameExpand, unaryFrameSeed]
   | succ count ih =>
-      simp [unaryFrameExpand, unaryFrameSeed, encList_cons, frame, ih]
+      have hseed :
+          unaryFrameSeed (count + 1) = [true, false] ++ unaryFrameSeed count := by
+        simp only [unaryFrameSeed, List.replicate_succ, List.flatten_cons]
+      have hexpand :
+          unaryFrameExpand ([true, false] ++ unaryFrameSeed count) =
+            frame (encBool true) ++ unaryFrameExpand (unaryFrameSeed count) := by
+        simp [unaryFrameExpand, frame]
+      rw [hseed, hexpand, ih, List.replicate_succ, encList_cons]
 
 /-- Retained conversion from unary count to a standard framed list of true tokens. -/
 @[expose] noncomputable def unaryTrueListCompiler :
-    NativeCompiler (fun count => List.replicate count true) encUnary (encList encBool) :=
-  ((ofTransducer unaryFrameExpandT unitStateEncoding unaryFrameExpandT_run).comp
-    (ofTransducer unaryFrameSeedT unitStateEncoding unaryFrameSeedT_run)).ofOutputEq
-      unaryFrameExpand_seed
+    NativeCompiler (fun count => List.replicate count true) encUnary (encList encBool) := by
+  let seedCompiler : NativeCompiler unaryFrameSeed encUnary encBits :=
+    ofTransducer unaryFrameSeedT unitStateEncoding fun count => by
+      simpa only [encBits_apply] using unaryFrameSeedT_run count
+  let expandCompiler : NativeCompiler unaryFrameExpand encBits encBits :=
+    ofTransducer unaryFrameExpandT unitStateEncoding fun word => by
+      simpa only [encBits_apply] using unaryFrameExpandT_run word
+  exact (expandCompiler.comp seedCompiler).ofOutputEq fun count => by
+    simpa only [encBits_apply] using (unaryFrameExpand_seed count).symm
+
+universe u
 
 variable {Value : Type u}
 
@@ -134,11 +168,11 @@ variable {Value : Type u}
   let finishCompiler := replicateFinishCompiler encValue
   apply streamFoldPair nextCompiler emitCompiler finishCompiler
     (sMax := replicateSMax encValue) (lMax := replicateLMax encValue)
-  · intro input
-    induction input.2 generalizing input.1 with
+  · rintro ⟨value, bits⟩
+    induction bits generalizing value with
     | nil => rfl
     | cons bit bits ih =>
-        simpa [streamEmit, encFramed_apply, encList_cons] using ih input.1
+        simpa [List.replicate_succ, streamEmit, encFramed_apply, encList_cons] using ih value
   · intro input j hj
     have hsup := Finset.le_sup
       (s := Finset.range input.2.length)
@@ -160,14 +194,25 @@ variable {Value : Type u}
       (f := fun j => if hj : j ≤ input.2.length then
         (encValue (streamState input.1 Prod.fst input.2 j)).length else 0)
       (Finset.mem_range.mpr (by omega : j < input.2.length + 1))
-    exact (by simpa only [hj, dite_true] using hsup).trans (Nat.le_max_left _ _)
+    have hbound :
+        (encValue (streamState input.1 Prod.fst input.2 j)).length ≤
+          (Finset.range (input.2.length + 1)).sup fun j =>
+            if hj : j ≤ input.2.length then
+              (encValue (streamState input.1 Prod.fst input.2 j)).length else 0 := by
+      simpa only [hj, dite_true] using hsup
+    exact hbound.trans (Nat.le_max_left _ _)
   · intro input j hj
     have hsup := Finset.le_sup
       (s := Finset.range input.2.length)
       (f := fun j => if hj : j < input.2.length then
         (encBool input.2[j]).length else 0)
       (Finset.mem_range.mpr hj)
-    exact (by simpa only [hj, dite_true] using hsup).trans (Nat.le_max_right _ _)
+    have hbound :
+        (encBool input.2[j]).length ≤
+          (Finset.range input.2.length).sup fun j =>
+            if hj : j < input.2.length then (encBool input.2[j]).length else 0 := by
+      simpa only [hj, dite_true] using hsup
+    exact hbound.trans (Nat.le_max_right _ _)
 
 /-- Retained marshalling from a unary count to the stream's standard framed-token list. -/
 @[expose] noncomputable def replicateMarshalCompiler (encValue : Value ↪ List Bool) :
@@ -180,6 +225,6 @@ variable {Value : Type u}
     NativeCompiler (fun input : Value × ℕ => List.replicate input.2 input.1)
       (encPair encValue encUnary) (encList encValue) :=
   ((replicateStreamCompiler encValue).comp (replicateMarshalCompiler encValue)).ofOutputEq
-    fun _ => rfl
+    fun input => by simp
 
 end Turing.MultiTapeTM.Internal.NativeCompiler

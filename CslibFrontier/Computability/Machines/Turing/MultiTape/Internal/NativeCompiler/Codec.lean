@@ -69,9 +69,11 @@ namespace Turing.MultiTapeTM.Internal.NativeCompiler
 
 open Encodings Internal.DecoderWords Internal.FrameMachines
 
+universe u v
+
 /-- Retain a finite transducer followed by input rewind as a named tidy compiler. Every input bit
 is read by the transducer and by the rewind; emitted bits are included in the transducer clock. -/
-@[expose] noncomputable def ofTransducer {Alpha Beta State : Type*} [Fintype State]
+@[expose] noncomputable def ofTransducer {Alpha Beta : Type*} {State : Type} [Fintype State]
     {f : Alpha → Beta} {encIn : Alpha ↪ List Bool} {encOut : Beta ↪ List Bool}
     (transducer : Transducer Bool State) (stateEncoding : State ↪ ℕ)
     (run_eq : ∀ input, transducer.run transducer.q₀ (encIn input) = encOut (f input)) :
@@ -89,7 +91,7 @@ is read by the transducer and by the rewind; emitted bits are included in the tr
   }
 
 /-- The transducer constructor retains its exact transducer-plus-rewind machine. -/
-theorem machine_ofTransducer {Alpha Beta State : Type*} [Fintype State]
+theorem machine_ofTransducer {Alpha Beta : Type*} {State : Type} [Fintype State]
     {f : Alpha → Beta} {encIn : Alpha ↪ List Bool} {encOut : Beta ↪ List Bool}
     (transducer : Transducer Bool State) (stateEncoding : State ↪ ℕ)
     (run_eq : ∀ input, transducer.run transducer.q₀ (encIn input) = encOut (f input)) :
@@ -98,7 +100,6 @@ theorem machine_ofTransducer {Alpha Beta State : Type*} [Fintype State]
   rfl
 
 /-- Prefix a fixed tag bit, streaming the input unchanged after the first transition. -/
-@[simps q₀ step final]
 def prefixBitT (tag : Bool) : Transducer Bool Bool where
   q₀ := false
   step
@@ -110,6 +111,12 @@ def prefixBitT (tag : Bool) : Transducer Bool Bool where
   length_step_le state bit := by cases state <;> cases bit <;> simp
   length_final_le state := by cases state <;> simp
 
+private lemma prefixBitT_step_false (tag bit : Bool) :
+    (prefixBitT tag).step false bit = (true, [tag, bit]) := rfl
+
+private lemma prefixBitT_step_true (tag bit : Bool) :
+    (prefixBitT tag).step true bit = (true, [bit]) := rfl
+
 /-- The prefix transducer emits exactly the fixed tag followed by the input. -/
 theorem prefixBitT_run (tag : Bool) (input : List Bool) :
     (prefixBitT tag).run (prefixBitT tag).q₀ input = tag :: input := by
@@ -117,10 +124,15 @@ theorem prefixBitT_run (tag : Bool) (input : List Bool) :
     intro word
     induction word with
     | nil => rfl
-    | cons bit word ih => simp [prefixBitT, ih]
+    | cons bit word ih =>
+        rw [Transducer.run_cons, prefixBitT_step_true, ih]
+        rfl
   cases input with
   | nil => rfl
-  | cons bit input => simp [prefixBitT, copy]
+  | cons bit input =>
+      change (prefixBitT tag).run false (bit :: input) = _
+      rw [Transducer.run_cons, prefixBitT_step_false, copy]
+      rfl
 
 /-- Retained raw-word prefix operation. -/
 @[expose] noncomputable def prefixBit (tag : Bool) :
@@ -131,19 +143,19 @@ theorem prefixBitT_run (tag : Bool) (input : List Bool) :
 @[expose] noncomputable def optionSome {Alpha : Type*} (enc : Alpha ↪ List Bool) :
     NativeCompiler some enc (encOption enc) :=
   ofTransducer (prefixBitT true) Universal.eBit fun input => by
-    simpa only [encOption_apply, prefixBitT_run]
+    simp only [encOption_some, prefixBitT_run]
 
 /-- Retained constructor for the standard left-sum tag. -/
 @[expose] noncomputable def sumInl {Alpha Beta : Type*} (encLeft : Alpha ↪ List Bool)
     (encRight : Beta ↪ List Bool) : NativeCompiler Sum.inl encLeft (encSum encLeft encRight) :=
   ofTransducer (prefixBitT false) Universal.eBit fun input => by
-    simpa only [encSum_apply, prefixBitT_run]
+    simp only [encSum_inl, prefixBitT_run]
 
 /-- Retained constructor for the standard right-sum tag. -/
 @[expose] noncomputable def sumInr {Alpha Beta : Type*} (encLeft : Alpha ↪ List Bool)
     (encRight : Beta ↪ List Bool) : NativeCompiler Sum.inr encRight (encSum encLeft encRight) :=
   ofTransducer (prefixBitT true) Universal.eBit fun input => by
-    simpa only [encSum_apply, prefixBitT_run]
+    simp only [encSum_inr, prefixBitT_run]
 
 /-- Retained standard framing with the semantic value type unchanged. -/
 @[expose] noncomputable def framedValue {Alpha : Type*} (enc : Alpha ↪ List Bool) :
@@ -153,6 +165,12 @@ theorem prefixBitT_run (tag : Bool) (input : List Bool) :
 /-- Drop the first bit of a raw word. -/
 @[expose] noncomputable def tailDecoder : NativeCompiler List.tail encBits encBits :=
   ofTransducer (headT (some false)) Universal.eBit headT_some_false_run
+
+/-- Total Boolean decoder, returning `false` on empty input and the first symbol otherwise. -/
+@[expose] noncomputable def boolDecoder :
+    NativeCompiler (fun input : List Bool => input.headD false) encBits encBool :=
+  ofTransducer (headDefaultT false) Universal.eBit fun input =>
+    headDefaultT_run false input
 
 /-- Read the constructor tag of a standard sum encoding. -/
 @[expose] noncomputable def sumTag {Alpha Beta : Type*} (encLeft : Alpha ↪ List Bool)
@@ -190,7 +208,7 @@ theorem prefixBitT_run (tag : Bool) (input : List Bool) :
     | .marker true => 5
     | .symbol false => 6
     | .symbol true => 7,
-    by intro a b h; cases a <;> cases b <;> simp_all⟩
+    by intro a b h; grind⟩
 
 /-- Explicit encoding of the four control states used to clear a work tape and its shadow. -/
 @[expose] def clearShadowedStateEncoding : ClearShadowedState ↪ ℕ :=
@@ -205,7 +223,6 @@ theorem prefixBitT_run (tag : Bool) (input : List Bool) :
 
 /-- Decode a framed list of words to their unary lengths in one streaming pass. This uses the
 same total convention as `frames`: a final incomplete frame is closed. -/
-@[simps q₀ step final]
 def unaryListT : Transducer Bool FramesState where
   q₀ := .between
   step
@@ -220,6 +237,22 @@ def unaryListT : Transducer Bool FramesState where
   length_step_le state bit := by cases state <;> cases bit <;> simp
   length_final_le state := by cases state <;> simp
 
+private lemma unaryListT_step_between_false :
+    unaryListT.step .between false = (.between, [false]) := rfl
+
+private lemma unaryListT_step_between_true :
+    unaryListT.step .between true = (.marker, []) := rfl
+
+private lemma unaryListT_step_marker (bit : Bool) :
+    unaryListT.step .marker bit = (.symbol, [true, true]) := by
+  cases bit <;> rfl
+
+private lemma unaryListT_step_symbol_false :
+    unaryListT.step .symbol false = (.between, [false]) := rfl
+
+private lemma unaryListT_step_symbol_true :
+    unaryListT.step .symbol true = (.marker, []) := rfl
+
 /-- While inside a frame, `unaryListT` emits the unary length of that frame and continues with
 the remaining framed word. -/
 theorem unaryListT_run_symbol : ∀ word : List Bool,
@@ -227,11 +260,14 @@ theorem unaryListT_run_symbol : ∀ word : List Bool,
       frame (encUnary (unframe word).length) ++ unaryListT.run .between (dropFrame word)
   | [] => rfl
   | [true] => rfl
-  | false :: word => by simp [unframe, dropFrame, frame]
+  | false :: word => by
+      rw [Transducer.run_cons, unaryListT_step_symbol_false]
+      simp [unframe, dropFrame, frame]
   | true :: bit :: word => by
-    simp only [Transducer.run_cons, unaryListT_step, List.nil_append, unframe, dropFrame,
-      List.length_cons, encUnary_apply, List.replicate_succ, frame_cons, List.cons_append,
-      unaryListT_run_symbol word]
+    rw [Transducer.run_cons, unaryListT_step_symbol_true, Transducer.run_cons,
+      unaryListT_step_marker, unaryListT_run_symbol word]
+    simp only [List.nil_append, unframe, dropFrame, List.length_cons, encUnary_apply,
+      List.replicate_succ, frame_cons, List.cons_append]
 
 /-- The streaming decoder emits the standard encoded list of all decoded unary lengths. -/
 theorem unaryListT_run (word : List Bool) :
@@ -243,28 +279,34 @@ theorem unaryListT_run (word : List Bool) :
     rw [frames_of_ne_nil hword, List.map_cons, encList_cons, ← ih]
     rcases word with _ | ⟨_ | _, rest⟩
     · exact absurd rfl hword
-    · simp [unframe, dropFrame, frame, encUnary_apply]
+    · rw [Transducer.run_cons, unaryListT_step_between_false]
+      simp [unframe, dropFrame, frame, encUnary_apply]
     · rcases rest with _ | ⟨bit, rest⟩
       · rfl
-      · simp only [Transducer.run_cons, unaryListT_step, List.nil_append,
-          unaryListT_run_symbol rest, unframe, dropFrame, List.length_cons, encUnary_apply,
+      · rw [Transducer.run_cons, unaryListT_step_between_true, Transducer.run_cons,
+          unaryListT_step_marker, unaryListT_run_symbol rest]
+        simp only [List.nil_append, unframe, dropFrame, List.length_cons, encUnary_apply,
           List.replicate_succ, frame_cons, List.cons_append]
 
 /-- The first projection of the standard framed pair encoding, using the frame parser directly. -/
-@[expose] noncomputable def first {Alpha Beta : Type*} (encFirst : Alpha ↪ List Bool)
+@[expose] noncomputable def first {Alpha : Type u} {Beta : Type v}
+    (encFirst : Alpha ↪ List Bool)
     (encSecond : Beta ↪ List Bool) :
     NativeCompiler Prod.fst (encPair encFirst encSecond) encFirst := by
   letI : Fintype FrameState := Fintype.ofFinite FrameState
   exact ofTransducer (readFrameT true) frameStateEncoding fun input => by
+    change (readFrameT true).run .marker (encPair encFirst encSecond input) = encFirst input.1
     rw [readFrameT_run_true]
     exact unframe_encPair encFirst encSecond input.1 input.2
 
 /-- The second projection of the standard framed pair encoding, using the frame parser directly. -/
-@[expose] noncomputable def second {Alpha Beta : Type*} (encFirst : Alpha ↪ List Bool)
+@[expose] noncomputable def second {Alpha : Type u} {Beta : Type v}
+    (encFirst : Alpha ↪ List Bool)
     (encSecond : Beta ↪ List Bool) :
     NativeCompiler Prod.snd (encPair encFirst encSecond) encSecond := by
   letI : Fintype FrameState := Fintype.ofFinite FrameState
   exact ofTransducer (readFrameT false) frameStateEncoding fun input => by
+    change (readFrameT false).run .marker (encPair encFirst encSecond input) = encSecond input.2
     rw [readFrameT_run_false]
     exact dropFrame_encPair encFirst encSecond input.1 input.2
 
@@ -272,13 +314,8 @@ theorem unaryListT_run (word : List Bool) :
 @[expose] noncomputable def unaryDecoder :
     NativeCompiler List.length encBits encUnary :=
   ofTransducer unaryLengthT unitStateEncoding fun input => by
-    simpa only [encUnary_apply] using unaryLengthT_run input
-
-/-- Total Boolean decoder, returning `false` on empty input and the first symbol otherwise. -/
-@[expose] noncomputable def boolDecoder :
-    NativeCompiler (fun input : List Bool => input.headD false) encBits encBool :=
-  ofTransducer (headDefaultT false) Universal.eBit fun input =>
-    headDefaultT_run false input
+    change unaryLengthT.run () input = List.replicate input.length true
+    exact unaryLengthT_run input
 
 /-- Read the standard option constructor tag with one-bit Boolean output. -/
 @[expose] noncomputable def optionIsSomeBool {Alpha : Type*} (enc : Alpha ↪ List Bool) :
@@ -295,7 +332,6 @@ Boolean encoding and rewinds; malformedness is irrelevant because every raw word
 /-- Convert the one-bit Boolean encoding to the branch-test encoding: false becomes the empty
 word and true becomes `[true]`. Branching consumers must charge this retained conversion rather
 than interpreting `encBool` as `encTest`. -/
-@[simps q₀ step final]
 def boolToTestT : Transducer Bool Unit where
   q₀ := ()
   step _ bit := ((), if bit then [true] else [])
@@ -348,6 +384,7 @@ machine, not the private proof-local predecessor transducer from the degree calc
     NativeCompiler id (encFramed enc) enc := by
   letI : Fintype FrameState := Fintype.ofFinite FrameState
   exact ofTransducer (readFrameT true) frameStateEncoding fun input => by
+    change (readFrameT true).run .marker (encFramed enc input) = enc input
     rw [readFrameT_run_true]
     exact unframe_frame (enc input)
 
@@ -367,7 +404,9 @@ by `frames`; no semantic list-map callback is hidden behind this compiler. -/
 @[expose] noncomputable def unaryListDecoder :
     NativeCompiler (fun word => (frames word).map List.length) encBits (encList encUnary) := by
   letI : Fintype FramesState := Fintype.ofFinite FramesState
-  exact ofTransducer unaryListT framesStateEncoding unaryListT_run
+  exact ofTransducer unaryListT framesStateEncoding fun input => by
+    change unaryListT.run .between input = encList encUnary ((frames input).map List.length)
+    exact unaryListT_run input
 
 /-- Retain the direct encoded-list take/drop kernel through its existing tidy normal form. The
 clock and workspace expose both the kernel bound and the exact normal-form overhead. -/

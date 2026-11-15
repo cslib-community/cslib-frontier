@@ -217,7 +217,7 @@ theorem stateEncoding_lt_stateBound {α β : Type*} {f : α → β}
     {encIn : α ↪ List Bool} {encOut : β ↪ List Bool}
     (compiler : NativeCompiler f encIn encOut) (state : compiler.State) :
     compiler.stateEncoding state < compiler.stateBound := by
-  letI := compiler.stateFintype
+  let := compiler.stateFintype
   have h := Finset.le_sup (s := Finset.univ)
     (f := fun state => compiler.stateEncoding state) (Finset.mem_univ state)
   simp only [stateBound]
@@ -485,11 +485,12 @@ theorem machine_encodeFrame {β : Type*} (enc : β ↪ List Bool) :
     (encodeFrame enc).machine = Encodings.frameT.toTM.seq (rewindInput Bool) :=
   rfl
 
-universe u
+universe u v w
 
 /-- Direct standard-pair construction from two named machines on a common input. The left encoded
 output is framed by `encodeFrame`, then the right output is appended. -/
-@[expose] noncomputable def pair {α β γ : Type u} {f : α → β} {g : α → γ}
+@[expose] noncomputable def pair {α : Type u} {β : Type v} {γ : Type w}
+    {f : α → β} {g : α → γ}
     {encIn : α ↪ List Bool} {encLeft : β ↪ List Bool} {encRight : γ ↪ List Bool}
     (left : NativeCompiler f encIn encLeft) (right : NativeCompiler g encIn encRight) :
     NativeCompiler (fun a => (f a, g a)) encIn (encPair encLeft encRight) := by
@@ -511,7 +512,8 @@ output is framed by `encodeFrame`, then the right output is appended. -/
   }
 
 /-- Pairing retains the actual framing, composition and append machine terms. -/
-theorem machine_pair {α β γ : Type u} {f : α → β} {g : α → γ}
+theorem machine_pair {α : Type u} {β : Type v} {γ : Type w}
+    {f : α → β} {g : α → γ}
     {encIn : α ↪ List Bool} {encLeft : β ↪ List Bool} {encRight : γ ↪ List Bool}
     (left : NativeCompiler f encIn encLeft) (right : NativeCompiler g encIn encRight) :
     (left.pair right).machine =
