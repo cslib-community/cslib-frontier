@@ -48,7 +48,7 @@ example : (∑ i ∈ Finset.range 0, i) = 0 := by decide
 
 /-- Binary modular exponentiation accepts a binary exponent without constructing the full power. -/
 example (a : ℕ) :
-    (fun (p, g, e) => powMod p g e) ∈ CountingFunction a encModularLog encNat :=
+    (fun (p, g, e) => powMod p g e) ∈ CountingFunction a encNat3 encNat :=
   CountingFunction.powMod (CountingFunction.of_polyTime (by fun_prop))
     (CountingFunction.of_polyTime (by fun_prop)) (CountingFunction.of_polyTime (by fun_prop))
 
