@@ -72,12 +72,16 @@ Section 2.1, pp. 3–4, and Definition 1, p. 4, define `n`-way KDM security with
 of functions. The adversary receives `pk₁, …, pk_n` and asks queries `(i, f)` with `f ∈ C`; it
 receives `E(pkᵢ, f(sk₁, …, sk_n))` in one world and `E(pkᵢ, 0^{|f(…)|})` in the other, and
 Definition 1 asks that its advantage be negligible. This is the case `n = 1` with `C` the functions
-that select one bit of the secret key, for an adversary that asks for every bit once, in one batch,
-so Definition 1 for that class implies it. It differs from the source as follows.
+that select one bit of the secret key, for an adversary that asks for every bit once, in one batch.
+So, when `keyGen` is efficient, its secret keys at each security parameter have one length, and
+ciphertexts are polynomially long, as for an efficient scheme with fixed-width keys, Definition 1
+for that class implies it. It differs from the source as follows.
 * Distinguishers are uniform strict PPT programs, where Definition 1 admits adversaries running in
   expected polynomial time.
-* Secret keys may have different lengths, which the vector then reveals in both worlds; the
-  functions in the source's `C` each have one output length.
+* `keyGen` and `encrypt` are arbitrary programs, where Definition 1 is about a public-key scheme.
+  When secret keys vary in length, the vector reveals the length in both worlds, information that
+  Definition 1's adversary does not get (each `f ∈ C` has one output length, p. 3); for such key
+  generators the assumption is not the source's.
 
 [Gentry2009Thesis], Section 4.3, p. 52, assumes this kind of self-encryption to obtain fully
 homomorphic encryption from bootstrappable encryption (Theorem 4.3.2). Its KDM-security game, on

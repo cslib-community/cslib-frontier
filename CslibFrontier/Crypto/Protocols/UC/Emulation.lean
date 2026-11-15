@@ -39,9 +39,9 @@ the corrupted parties and the auxiliary input. `UC.EmulatesWithin π φ g ε` im
 every error `ε pA pZ` is negligible (`UC.EmulatesWithin.emulates`). It is reflexive and transitive,
 and its transitivity needs no monotonicity, because the negligible bound for the second step is
 chosen after the intermediate simulator. Since all participants are only call-bounded, these are
-notions of security against interaction-bounded, computationally unbounded participants; UC
-security against polynomial-time machines would additionally restrict them by machine
-realizability.
+notions of security against interaction-bounded, computationally unbounded participants, and they
+are incomparable with UC security against polynomial-time machines, which restricts the simulator
+as well as the adversary and the environment.
 
 ## Main definitions
 
@@ -162,7 +162,9 @@ read in the statistical setting of Section 4.4, p. 50, and differs from the sour
 `EmulatesWithin` does: participants are bounded by their calls per activation rather than by
 polynomial running time and are otherwise computationally unbounded, the simulator included;
 corruptions are static; environments are not identity-bounded; and one negligible function bounds
-every environment with budget `pZ`, at every `κ` and for every auxiliary input. -/
+every environment with budget `pZ`, at every `κ` and for every auxiliary input. It is therefore
+incomparable with Definition 9: it admits more adversaries and environments, and also more
+simulators. -/
 @[expose] def Emulates (π : Protocol n In Out NetQ₁ NetR₁) (φ : Protocol n In Out NetQ₂ NetR₂) :
     Prop :=
   ∀ (AdvQ AdvR : Type) (A : ExecAdversary n In Out NetQ₁ NetR₁ AdvQ AdvR)
