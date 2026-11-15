@@ -10,6 +10,8 @@ module
 public import
   CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NativeCompiler.Conditional
 
+set_option linter.privateModule false
+
 /-! Checked clients for the named native conditional. -/
 
 public section

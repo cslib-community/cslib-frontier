@@ -16,7 +16,7 @@ public section
 
 namespace CslibFrontierTests.Machines.Turing.MultiTape.Probabilistic.Universal.FirstOrder
 
-open Turing MultiTapeTM MultiTapePTM.Universal
+open _root_.Turing MultiTapeTM MultiTapePTM.Universal
 
 /-- Halted first-order storage remains local and unchanged. -/
 example (r : ℕ) (d : Desc) (input : List ℕ) (cfg : ICfg) (coin : Bool)

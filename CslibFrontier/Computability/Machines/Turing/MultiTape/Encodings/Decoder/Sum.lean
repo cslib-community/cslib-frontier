@@ -8,7 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder.Basic
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Sum
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Sum
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.Sum
 
 /-!
 # Total decoding of tagged sums
@@ -36,12 +37,14 @@ def sum {β₁ β₂ : Type} {enc₁ : β₁ ↪ List Bool} {enc₂ : β₂ ↪ 
   decode w := if w.headD false then .inr (D₂.decode w.tail) else .inl (D₁.decode w.tail)
   decode_enc s := by cases s <;> simp [D₁.decode_enc, D₂.decode_enc]
   computable := by
-    have htail := Internal.DecoderWords.tail_degree.computableInPolyTime
-    have hleft := (ComputableInPolyTime.sumInl enc₁ enc₂).comp
-      (D₁.computableInPolyTime.comp htail)
-    have hright := (ComputableInPolyTime.sumInr enc₁ enc₂).comp
-      (D₂.computableInPolyTime.comp htail)
-    exact (ComputableInPolyTime.ite Internal.DecoderWords.bool_degree.computableInPolyTime
-      hright hleft).exists_degree
+    obtain ⟨d₁, e₁, h₁⟩ := D₁.computable
+    obtain ⟨d₂, e₂, h₂⟩ := D₂.computable
+    have hleft := (ComputableInDegree.inl enc₁ enc₂).comp
+      (h₁.comp Internal.DecoderWords.tail_degree)
+    have hright := (ComputableInDegree.inr enc₁ enc₂).comp
+      (h₂.comp Internal.DecoderWords.tail_degree)
+    have hdecode := Internal.DecoderWords.bool_degree.ite
+      (hright.restrict _) (hleft.restrict _)
+    exact ⟨_, _, by simpa only [Function.comp_apply] using hdecode⟩
 
 end Turing.MultiTapeTM.Decoder

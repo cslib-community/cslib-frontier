@@ -19,7 +19,7 @@ open Turing.MultiTapeTM Turing.MultiTapeTM.Internal Turing.MultiTapeTM.Internal.
 
 /-- Lookup preserves the first match and distinguishes missing keys. -/
 example :
-    firstMatch ([], 1) = none ∧
+    firstMatch (([] : List (ℕ × ℕ)), 1) = none ∧
       firstMatch ([(1, 7), (2, 8), (1, 9)], 1) = some 7 ∧
       firstMatch ([(1, 7), (2, 8), (1, 9)], 2) = some 8 ∧
       firstMatch ([(1, 7), (2, 8), (1, 9)], 3) = none := by
@@ -36,16 +36,17 @@ example :
 example :
     (encList (encPair encUnary encUnary) [(1, 7), (2, 8), (1, 9)]).length ≤
       (firstMatchCompiler encUnary encUnary).time ([(1, 7), (2, 8), (1, 9)], 1) :=
-  tableBits_le_time_firstMatchCompiler encUnary encUnary _
+  tableBits_le_time_firstMatchCompiler encUnary encUnary
+    ([(1, 7), (2, 8), (1, 9)], 1)
 
 /-- The streaming phase exposes concrete finite-supremum peak formulas. -/
-example (input : FirstMatchState × List (ℕ × ℕ)) :
+example (input : FirstMatchState ℕ × List (ℕ × ℕ)) :
     (firstMatchStreamCompiler encUnary encUnary).workspace input =
       streamFoldPairWorkspace
         (firstMatchNextCompiler encUnary encUnary)
         (firstMatchEmitCompiler encUnary encUnary)
         (firstMatchFinishCompiler encUnary encUnary)
         (firstMatchSMax encUnary encUnary) (firstMatchLMax encUnary encUnary) input :=
-  workspace_streamFoldPair _ _ _ _ _ _ _ _ _ input
+  rfl
 
 end CslibFrontierTests.Machines.Turing.MultiTape.Internal.NativeCompilerFirstMatch

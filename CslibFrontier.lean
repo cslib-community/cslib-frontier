@@ -3290,6 +3290,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.D
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.Bounds
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.Option
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.Primitives
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.Sum
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Doubled
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Fold
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace

@@ -26,7 +26,8 @@ example :
 /-- Callback lifting exposes the exact kernel constants used by the stream construction. -/
 example (input : List Bool) :
     inputFromWordTime unaryDecoder input = unaryDecoder.time input + 4 ∧
-      onWordsTime unaryDecoder input = unaryDecoder.time input + input.length + 6 :=
+      onWordsTime unaryDecoder input =
+        unaryDecoder.time input + unaryDecoder.outputBits input + 6 :=
   ⟨rfl, rfl⟩
 
 end CslibFrontierTests.Machines.Turing.MultiTape.Internal.NativeCompilerStreamFold

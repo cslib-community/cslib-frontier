@@ -113,11 +113,20 @@ example (input : List Bool) :
     unaryDecoder.time input = 4 * input.length + 8 ∧ unaryDecoder.workspace input = 0 :=
   ⟨rfl, rfl⟩
 
-/-- The retained unary-list decoder preserves the total incomplete-frame convention. -/
+/-- The retained unary-list decoder preserves the total incomplete-frame convention: a dangling
+final marker is discarded rather than becoming an additional empty frame. -/
 example :
-    (frames [true, false, true]).map List.length = [1, 0] ∧
-      unaryListDecoder.outputBits [true, false, true] = 4 := by
-  decide
+    (frames [true, false, true]).map List.length = [1] ∧
+      unaryListDecoder.outputBits [true, false, true] = 3 := by
+  have hframes : frames [true, false, true] = [[false]] := by
+    rw [frames_of_ne_nil (by decide)]
+    simp only [unframe, dropFrame, frames_nil]
+  constructor
+  · rw [hframes]
+    rfl
+  · simp only [NativeCompiler.outputBits, hframes, List.map_cons, List.map_nil, encList_cons,
+      encList_nil, encUnary_apply, length_frame, List.length_append, List.length_replicate,
+      List.length_cons, List.length_nil]
 
 /-- Bounded reply decoding can use the retained direct list-prefix kernel. -/
 example :
