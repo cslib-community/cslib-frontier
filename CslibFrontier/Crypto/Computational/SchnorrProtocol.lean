@@ -11,11 +11,13 @@ public import CslibFrontier.Crypto.Computational.DiffieHellman
 public import CslibFrontier.Crypto.Computational.SchnorrIdentification
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Computational
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Linear
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Crypto.Negligible.Basic
+import CslibFrontier.Foundations.Data.ZMod.NatCast
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Tactic.PPT
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.WordsRoundTrip
@@ -200,13 +202,13 @@ theorem computableInPolyTime_schnorrExtractWord :
   have hword {k : (ℕ × F.Desc) × List Bool × List Bool × List Bool × List Bool × List Bool ×
       List Bool → List Bool} (hk : ComputableInPolyTime k encIn encBits) :
       ComputableInPolyTime (fun p => ofBits (k p)) encIn encNat :=
-    .of_tidy (ComputableTidilyInPolyTime.bitsToNat.comp hk.tidy)
+    (ComputableInPolyTime.bitsToNat.comp hk)
   have hext := computableInPolyTime_extractNat hd
     (hword (k := fun p => p.2.2.2.1) (by fun_prop))
     (hword (k := fun p => p.2.2.2.2.1) (by fun_prop))
     (hword (k := fun p => p.2.2.2.2.2.1) (by fun_prop))
     (hword (k := fun p => p.2.2.2.2.2.2) (by fun_prop))
-  exact .of_tidy (ComputableTidilyInPolyTime.natBits.comp hext.tidy)
+  exact hext.encoding_comp
 
 /-- `schnorrExtractWord` computes Schnorr's extractor `schnorrExtract` on encodings. -/
 theorem extractorRealizedBy_schnorrExtractWord :
@@ -299,8 +301,7 @@ theorem eval_schnorrSimulateWord (i : ℕ × F.Desc) (u : F.Carrier i.2) (c : ZM
         (Prod.map (F.schnorrEncoding.commitment i) (F.schnorrEncoding.response i)) := by
   obtain ⟨n, d⟩ := i
   have hneg : ((F.order d - c.val % F.order d : ℕ) : ZMod (F.order d)) = -c := by
-    rw [Nat.mod_eq_of_lt (ZMod.val_lt c), Nat.cast_sub (ZMod.val_lt c).le, ZMod.natCast_self,
-      ZMod.natCast_zmod_val, zero_sub]
+    rw [ZMod.natCast_sub_mod_eq_neg, ZMod.natCast_zmod_val]
   rw [show (F.schnorrEncoding.statement (n, d)) u = F.encode d u from rfl,
     show (F.schnorrEncoding.challenge (n, d)) c = encNat c.val from rfl,
     schnorrSimulateWord, ProbComp.eval_bind, schnorrSimulator, ProbComp.eval_map,
@@ -342,14 +343,14 @@ theorem isPPTOn_schnorrSimulateWord :
   have hneg : ComputableInPolyTime
       (fun p : ((ℕ × F.Desc) × List Bool × List Bool) × ℕ =>
         F.order p.1.1.2 - ofBits p.1.2.2 % F.order p.1.1.2) encMid encNat :=
-    .of_tidy (.binary_sub' hq.tidy (.binary_mod'
-      (ComputableTidilyInPolyTime.bitsToNat.comp hc.tidy) hq.tidy))
+    (.binary_sub' hq (.binary_mod'
+      (ComputableInPolyTime.bitsToNat.comp hc) hq))
   have hcu := F.computableInPolyTime_smul.comp (hd'.prod (hneg.prod hu))
   have ht := F.computableInPolyTime_add.comp (hd'.prod (hsg.prod hcu))
   have hz : ComputableInPolyTime
       (fun p : ((ℕ × F.Desc) × List Bool × List Bool) × ℕ =>
         (p.2 % F.order p.1.1.2).bits) encMid encBits :=
-    .of_tidy (ComputableTidilyInPolyTime.natBits.comp (.binary_mod' hs.tidy hq.tidy))
+    (ComputableInPolyTime.binary_mod' hs hq).encoding_comp
   exact (ht.prod hz).isPPTOn
 
 /-- `schnorrSimulator` is uniform strict PPT, certified by `schnorrSimulateWord`. -/
@@ -486,7 +487,7 @@ theorem isPPTOn_schnorrSigKeyGen :
   have hpk := F.computableInPolyTime_smul.comp (hd'.prod (hsk.prod hg))
   have hsk_bits : ComputableInPolyTime
       (fun p : (ℕ × F.Desc) × ℕ => (p.2 % F.order p.1.2).bits) encMid encBits :=
-    .of_tidy (ComputableTidilyInPolyTime.natBits.comp (.binary_mod' hsk.tidy hq.tidy))
+    (ComputableInPolyTime.binary_mod' hsk hq).encoding_comp
   exact (hpk.prod hsk_bits).isPPTOn
 
 /-- Bit-level Schnorr commitment: given `(d, r)` where `r` is the binary-encoded commitment
@@ -509,7 +510,7 @@ theorem computableInPolyTime_schnorrCommitBits :
   have hd : ComputableInPolyTime (fun p : F.Desc × List Bool => p.1) encIn F.encDesc := by fun_prop
   have hr : ComputableInPolyTime (fun p : F.Desc × List Bool => p.2) encIn encBits := by fun_prop
   have hr_nat : ComputableInPolyTime (fun p : F.Desc × List Bool => ofBits p.2) encIn encNat :=
-    .of_tidy (ComputableTidilyInPolyTime.bitsToNat.comp hr.tidy)
+    (ComputableInPolyTime.bitsToNat.comp hr)
   have hg := F.computableInPolyTime_generator.comp hd
   exact F.computableInPolyTime_smul.comp (hd.prod (hr_nat.prod hg))
 
@@ -553,12 +554,12 @@ theorem computableInPolyTime_schnorrRespondBits :
       (fun p : F.Desc × List Bool × List Bool × List Bool => p.2.2.1) encIn encBits := by fun_prop
   have hro : ComputableInPolyTime
       (fun p : F.Desc × List Bool × List Bool × List Bool => p.2.2.2) encIn encBits := by fun_prop
-  have hq := (F.computableInPolyTime_order.comp hd).tidy
-  have hsk_nat := ComputableTidilyInPolyTime.bitsToNat.comp hsk.tidy
-  have hr_nat := ComputableTidilyInPolyTime.bitsToNat.comp hr.tidy
-  have hro_nat := ComputableTidilyInPolyTime.bitsToNat.comp hro.tidy
-  exact .of_tidy (ComputableTidilyInPolyTime.natBits.comp
-    (.binary_mod' (.binary_add' hr_nat (.binary_mul' hro_nat hsk_nat)) hq))
+  have hq := (F.computableInPolyTime_order.comp hd)
+  have hsk_nat := ComputableInPolyTime.bitsToNat.comp hsk
+  have hr_nat := ComputableInPolyTime.bitsToNat.comp hr
+  have hro_nat := ComputableInPolyTime.bitsToNat.comp hro
+  exact (ComputableInPolyTime.binary_mod'
+    (.binary_add' hr_nat (.binary_mul' hro_nat hsk_nat)) hq).encoding_comp
 
 /-- `schnorrRespondBits` lifted to `ProbComp` is uniform strict PPT. -/
 theorem isPPTOn_schnorrRespondBits :
@@ -588,13 +589,13 @@ theorem computableInPolyTime_schnorrRecoverCommitBits :
   have hg := F.computableInPolyTime_generator.comp hd
   have hz_nat : ComputableInPolyTime
       (fun p : F.Desc × List Bool × List Bool × List Bool => ofBits p.2.2.2) encIn encNat :=
-    .of_tidy (ComputableTidilyInPolyTime.bitsToNat.comp hz.tidy)
+    (ComputableInPolyTime.bitsToNat.comp hz)
   have hzg := F.computableInPolyTime_smul.comp (hd.prod (hz_nat.prod hg))
   have hneg : ComputableInPolyTime
       (fun p : F.Desc × List Bool × List Bool × List Bool =>
         F.order p.1 - ofBits p.2.2.1 % F.order p.1) encIn encNat :=
-    .of_tidy (.binary_sub' hq.tidy
-      (.binary_mod' (ComputableTidilyInPolyTime.bitsToNat.comp hro.tidy) hq.tidy))
+    (.binary_sub' hq
+      (.binary_mod' (ComputableInPolyTime.bitsToNat.comp hro) hq))
   have hcpk := F.computableInPolyTime_smul.comp (hd.prod (hneg.prod hpk))
   exact F.computableInPolyTime_add.comp (hd.prod (hzg.prod hcpk))
 
@@ -605,12 +606,8 @@ of `z • g - roOut • u`. -/
     F.schnorrRecoverCommitBits (d, F.encode d u, roOut, z) =
       F.encode d ((ofBits z : ZMod (F.order d)) • F.generator d -
         (ofBits roOut : ZMod (F.order d)) • u) := by
-  have hneg : ((F.order d - ofBits roOut % F.order d : ℕ) : ZMod (F.order d)) =
-      -(ofBits roOut : ZMod (F.order d)) := by
-    rw [Nat.cast_sub (Nat.mod_lt _ (F.prime_order d).pos).le, ZMod.natCast_self,
-      ZMod.natCast_mod, zero_sub]
-  simp only [schnorrRecoverCommitBits, F.smul_encode, F.add_encode, hneg, neg_smul,
-    ← sub_eq_add_neg]
+  simp only [schnorrRecoverCommitBits, F.smul_encode, F.add_encode, ZMod.natCast_sub_mod_eq_neg,
+    neg_smul, ← sub_eq_add_neg]
 
 /-- Polynomial-time Schnorr verification on an encoded public key `pk`, commitment word `t`,
 challenge word `c`, and response word `z`: compares `t` with the canonical commitment recovery

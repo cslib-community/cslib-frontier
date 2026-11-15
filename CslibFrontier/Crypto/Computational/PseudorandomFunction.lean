@@ -38,8 +38,7 @@ with one machine and polynomial for all parameters and auxiliary inputs.
 
 ## Main results
 
-* `Cslib.Crypto.interpret_randomFunctionQuery`, `Cslib.Crypto.isQueryBounded_randomFunctionQuery`:
-  correctness and query cost of the finite-domain adapter.
+* `Cslib.Crypto.interpret_randomFunctionQuery`: correctness of the finite-domain adapter.
 * `Cslib.Crypto.prfIdealGame_eq_lazy`: an exact lazy implementation of the ideal experiment.
 
 ## References
@@ -81,16 +80,6 @@ theorem interpret_randomFunctionQuery {m : Type → Type*} [Monad m] [LawfulMona
     OracleComp.interpret (OracleComp.sumHandler random (fun bits => pure (table bits)))
       (randomFunctionQuery n query) = pure (randomFunctionOracle n table query) := by
   by_cases h : query.length = n <;> simp [randomFunctionQuery, randomFunctionOracle, h]
-
-/-- The finite-domain adapter makes at most one external query. -/
-theorem isQueryBounded_randomFunctionQuery (n : ℕ) (query : List Bool) :
-    (randomFunctionQuery n query).IsQueryBounded 1 := by
-  unfold randomFunctionQuery
-  split_ifs
-  · simpa only [map_eq_bind_pure_comp, Function.comp_def, Nat.add_zero] using
-      (ProbOracleComp.IsQueryBounded.query (BitString.ofList n query)).bind fun _ =>
-        OracleComp.IsCostBounded.pure _ 0
-  · exact OracleComp.IsCostBounded.pure [] 1
 
 open Classical in
 /-- A semantic random-function cache, retaining only the finite-domain answers already used. -/
@@ -137,7 +126,10 @@ theorem prfIdealGame_eq_lazy (adversary : OracleDistinguisher) (n : ℕ) :
     lazyRandomFunctionOracle, PMF.monad_bind_eq_bind] using h
 
 /-- A keyed family evaluated in plain polynomial time, secure against every uniform adaptive
-oracle test. -/
+oracle test: [BonehShoup2023], Attack Game 4.2 and Definition 4.2, pp. 132–133, read
+asymptotically, with keys, queries and answers of `n` bits. A query of another length is answered
+by the empty word in both games, and deterministic polynomial-time evaluation is part of the
+notion. -/
 structure PseudorandomFunction (family : List Bool → List Bool → List Bool) : Prop where
   /-- One deterministic machine evaluates the family from the encoded key and query. -/
   polyTime : ComputableInPolyTime (fun pair => family pair.1 pair.2)
