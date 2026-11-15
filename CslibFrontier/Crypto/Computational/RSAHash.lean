@@ -48,7 +48,7 @@ Here `rsaHash` is an instance of `Cslib.Crypto.collisionGameFor`, as
 
 ## Main results
 
-* `Cslib.Crypto.rsaEval_rsaHashRoot`: for `0 < e` coprime to `b.dist b'`, `rsaHashRoot` turns
+* `Cslib.Crypto.rsaEval_rsaHashRoot`: for `e` coprime to `b.dist b'`, `rsaHashRoot` turns
   pairs `(a, b)`, `(a', b')` with equal hashes into an `e`-th root of `y`.
 * `Cslib.Crypto.isPPT_rsaHashToRSA`, `Cslib.Crypto.computableInPolyTime_rsaHash`,
   `Cslib.Crypto.computableInPolyTime_validRSAHashInput`: the reduction is PPT, and the hash and
@@ -74,10 +74,10 @@ The statements differ from the book's in four ways.
 * Digests are natural numbers below `N`, not units modulo `N`.
 * The book fixes a prime `e`. Here keys come from any law on `RSADesc` (`RSAGen`), and the bounds
   assume that `e` is prime for every key in its support, eventually in the security parameter.
-  `rsaEval_rsaHashRoot` needs only that `e` is positive and coprime to `b.dist b'`, as a prime `e`
-  is when `b ≠ b'` are below it. Coprimality with `(p - 1) * (q - 1)` is not enough: for `N = 15`
-  and `e = 9`, the pairs `(1, 0)` and `(2, 3)` collide at `y = 2`, `9` is not coprime to their
-  distance `3`, and the pair gives no ninth root of `2`. There is no condition on the length
+  `rsaEval_rsaHashRoot` needs only that `e` is coprime to `b.dist b'`, as a prime `e` greater than
+  both `b` and `b'`, with `b ≠ b'`, is. Coprimality with `(p - 1) * (q - 1)` is not enough: for
+  `N = 15` and `e = 9`, the pairs `(1, 0)` and `(2, 3)` collide at `y = 2`, `9` is not coprime to
+  their distance `3`, and the pair gives no ninth root of `2`. There is no condition on the length
   parameter `ℓ`.
 
 The book's proof applies Theorem 10.6 with `f = b' - b`, which may be negative. `rsaHashRoot`
@@ -150,12 +150,13 @@ theorem rsaHashRoot_lt {N : ℕ} (hN : 0 < N) (e y a b a' b' : ℕ) :
   unfold rsaHashRoot
   split <;> exact commonRoot_lt hN _ _ _ _
 
-/-- One case of `rsaEval_rsaHashRoot`: for `b ≤ b'` and `0 < e` coprime to `b' - b`, Shamir's trick
+/-- One case of `rsaEval_rsaHashRoot`: for `b ≤ b'` and `e` coprime to `b' - b`, Shamir's trick
 with `f = b' - b` and `w = a * a'⁻¹ mod N` returns an `e`-th root of `y`. -/
-private theorem rsaEval_commonRoot_of_modEq {N e y a b a' b' : ℕ} (hN : 0 < N) (he : 0 < e)
-    (hy : y < N) (hyN : Nat.Coprime y N) (ha' : Nat.Coprime a' N) (hbb' : b ≤ b')
+private theorem rsaEval_commonRoot_of_modEq {N e y a b a' b' : ℕ} (hy : y < N)
+    (hyN : Nat.Coprime y N) (ha : Nat.Coprime a N) (ha' : Nat.Coprime a' N) (hbb' : b ≤ b')
     (hef : Nat.Coprime e (b' - b)) (h : a ^ e * y ^ b ≡ a' ^ e * y ^ b' [MOD N]) :
     rsaEval N e (commonRoot N e (b' - b) (a * BinaryGcd.modInv a' N % N) y) = y := by
+  have hN : 0 < N := Nat.zero_lt_of_lt hy
   set f := b' - b with hf_def
   set w := a * BinaryGcd.modInv a' N % N with hw_def
   have hcancel : a ^ e ≡ a' ^ e * y ^ f [MOD N] := by
@@ -171,26 +172,28 @@ private theorem rsaEval_commonRoot_of_modEq {N e y a b a' b' : ℕ} (hN : 0 < N)
       _ = (a' * BinaryGcd.modInv a' N) ^ e * y ^ f := by ring
       _ ≡ 1 ^ e * y ^ f [MOD N] := (hinv.pow e).mul_right _
       _ = y ^ f := by rw [one_pow, one_mul]
-  have hw : Nat.Coprime w N := coprime_of_pow_modEq_pow he.ne' hyN hwe.symm
+  have hw : Nat.Coprime w N :=
+    (ZMod.coprime_mod_iff_coprime _ _).mpr
+      (ha.mul_left (Nat.coprime_of_mul_modEq_one a' (by rwa [mul_comm])))
   have hroot := commonRoot_pow_modEq_right hN hef hw hwe
   rw [rsaEval]
   exact Eq.trans hroot (Nat.mod_eq_of_lt hy)
 
-/-- **The root from a collision** ([BonehShoup2023], proof of Theorem 10.7, p. 417). For `0 < e`
+/-- **The root from a collision** ([BonehShoup2023], proof of Theorem 10.7, p. 417). For `e`
 coprime to `b.dist b'` (`b' - b` if `b ≤ b'`, else `b - b'`), units `y`, `a` and `a'` modulo `N`
 with `y < N` and `a ^ e * y ^ b ≡ a' ^ e * y ^ b' [MOD N]`, `rsaHashRoot` returns an `e`-th root
-of `y`. The book's prime `e` above `b ≠ b'` is coprime to `b.dist b'`; `b = b'` is allowed and
-forces `e = 1`. -/
-theorem rsaEval_rsaHashRoot {N e y a b a' b' : ℕ} (hN : 0 < N) (he : 0 < e) (hy : y < N)
-    (hyN : Nat.Coprime y N) (ha : Nat.Coprime a N) (ha' : Nat.Coprime a' N)
-    (hef : Nat.Coprime e (b.dist b')) (h : a ^ e * y ^ b ≡ a' ^ e * y ^ b' [MOD N]) :
+of `y`. As in the book, a prime `e` greater than both `b` and `b'`, with `b ≠ b'`, is coprime to
+`b.dist b'`; `b = b'` is allowed and forces `e = 1`. -/
+theorem rsaEval_rsaHashRoot {N e y a b a' b' : ℕ} (hy : y < N) (hyN : Nat.Coprime y N)
+    (ha : Nat.Coprime a N) (ha' : Nat.Coprime a' N) (hef : Nat.Coprime e (b.dist b'))
+    (h : a ^ e * y ^ b ≡ a' ^ e * y ^ b' [MOD N]) :
     rsaEval N e (rsaHashRoot N e y a b a' b') = y := by
   unfold rsaHashRoot
   split_ifs with hbb'
-  · exact rsaEval_commonRoot_of_modEq hN he hy hyN ha' hbb'.le
+  · exact rsaEval_commonRoot_of_modEq hy hyN ha ha' hbb'.le
       (Nat.dist_eq_sub_of_le hbb'.le ▸ hef) h
   · have hb'b : b' ≤ b := Nat.le_of_not_lt hbb'
-    exact rsaEval_commonRoot_of_modEq hN he hy hyN ha hb'b
+    exact rsaEval_commonRoot_of_modEq hy hyN ha' ha hb'b
       (Nat.dist_eq_sub_of_le_right hb'b ▸ hef) h.symm
 
 /-- The adversary `B'` of the proof of [BonehShoup2023], Theorem 10.7 (p. 417): on a public key
@@ -328,7 +331,7 @@ private theorem rsaEval_rsaHashRoot_of_isCollisionFor (desc : RSADesc) (he : des
   have hef : Nat.Coprime desc.e (b.dist b') :=
     (Nat.Prime.coprime_iff_not_dvd he).mpr
       (Nat.not_dvd_of_pos_of_lt (Nat.dist_pos_of_ne hbb') (by unfold Nat.dist; omega))
-  exact rsaEval_rsaHashRoot desc.modulus_pos he.pos hy hyN hu₁ hu₂ hef hmod
+  exact rsaEval_rsaHashRoot hy hyN hu₁ hu₂ hef hmod
 
 /-- **The reduction of Theorem 10.7** ([BonehShoup2023], p. 417): at every security parameter `n`
 where `e` is prime for every key in the support of `gen n`, the success probability of a collision

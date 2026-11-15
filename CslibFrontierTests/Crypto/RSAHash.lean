@@ -75,8 +75,7 @@ example : rsaHashRoot 15 3 2 1 0 2 1 = 8 := by
 example : rsaEval 15 3 8 = 2 := by decide
 
 example : rsaEval 15 3 (rsaHashRoot 15 3 2 1 0 2 1) = 2 :=
-  rsaEval_rsaHashRoot (by norm_num) (by norm_num) (by norm_num) (by decide) (by decide)
-    (by decide) (by decide) (by decide)
+  rsaEval_rsaHashRoot (by norm_num) (by decide) (by decide) (by decide) (by decide) (by decide)
 
 /-! ### The canonical-encoding check -/
 
@@ -106,8 +105,7 @@ example : rsaEval 15 9 (rsaHashRoot 15 9 2 1 0 2 3) ≠ 2 := by
 /-- At the composite `e = 9`, `(4, 0)` and `(1, 2)` collide at `y = 2`:
 `4 ^ 9 * 2 ^ 0 ≡ 4 ≡ 1 ^ 9 * 2 ^ 2 [MOD 15]`, and `9` is coprime to the distance `2`. -/
 example : rsaEval 15 9 (rsaHashRoot 15 9 2 4 0 1 2) = 2 :=
-  rsaEval_rsaHashRoot (by norm_num) (by norm_num) (by norm_num) (by decide) (by decide)
-    (by decide) (by decide) (by decide)
+  rsaEval_rsaHashRoot (by norm_num) (by decide) (by decide) (by decide) (by decide) (by decide)
 
 /-! ### Certificates -/
 

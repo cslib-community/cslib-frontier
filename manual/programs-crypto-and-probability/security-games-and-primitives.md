@@ -1137,12 +1137,12 @@ the word `m` as a pair `(a, b)` of binary numbers (`rsaHashDecoder`) and returns
 is. `rsaHashRoot N e y a b a' b'` is Shamir's trick on the pair
 ordered by exponent: `commonRoot N e (b' - b) w y` with `w = a * BinaryGcd.modInv a' N % N` when
 `b < b'`, and `commonRoot N e (b - b') w y` with `w = a' * BinaryGcd.modInv a N % N` otherwise, so
-`commonRoot` keeps natural exponents where the book's proof takes `f = b' - b`. For `0 < N`,
-`0 < e`, `y < N`, `Nat.Coprime y N`, `Nat.Coprime a N`, `Nat.Coprime a' N`,
-`Nat.Coprime e (b.dist b')` and `a ^ e * y ^ b ≡ a' ^ e * y ^ b' [MOD N]`, `rsaEval_rsaHashRoot`
-says that `rsaEval N e (rsaHashRoot N e y a b a' b') = y`. Here `b.dist b'` is `b' - b` or
-`b - b'`; a prime `e` above `b ≠ b'` is coprime to it, and `b = b'` forces `e = 1`.
-`rsaHashToRSA A`, the book's adversary `B'`, runs
+`commonRoot` keeps natural exponents where the book's proof takes `f = b' - b`. For `y < N`,
+`Nat.Coprime y N`, `Nat.Coprime a N`, `Nat.Coprime a' N`, `Nat.Coprime e (b.dist b')` and
+`a ^ e * y ^ b ≡ a' ^ e * y ^ b' [MOD N]`, `rsaEval_rsaHashRoot` says that
+`rsaEval N e (rsaHashRoot N e y a b a' b') = y`. Here `b.dist b'` is `b' - b` or `b - b'`; a
+prime `e` greater than both `b` and `b'`, with `b ≠ b'`, is coprime to it, and `b = b'` forces
+`e = 1`. `rsaHashToRSA A`, the book's adversary `B'`, runs
 the collision finder `A` on the key `(N, e, y)` and returns `rsaHashRoot` of the two decoded pairs
 without checking that they collide. `isPPT_rsaHashToRSA` shows that `rsaHashToRSA A` is PPT
 whenever `A` is PPT on `(1ⁿ, k)`; `computableInPolyTime_rsaHash` and
