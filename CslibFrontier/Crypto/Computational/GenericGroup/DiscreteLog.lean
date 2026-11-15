@@ -51,7 +51,9 @@ point in `q`. That proof reduces to labels in `ZMod q` with a uniform permutatio
 (`Cslib.Crypto.GenericGroup.relabel`), samples the permutation lazily, and replaces it by a table
 on linear forms that is identical until two distinct forms agree at `α`. The sharp form
 `succProbability_dlogGame_le_choose` is what the proof gives before the book rounds the number of
-pairs of forms, `(3T + 2).choose 2`, up to `(3T + 2)² / 2`.
+pairs of forms, `(3T + 2).choose 2`, up to `(3T + 2)² / 2`. An adversary that wins with probability
+at least one half has `q ≤ (3T + 2)² + 2` (`le_of_half_le_succProbability_dlogGame`), so `T` is at
+least about `√q / 3`, as the book remarks after the theorem (p. 695).
 
 ## Main definitions
 
@@ -63,6 +65,8 @@ pairs of forms, `(3T + 2).choose 2`, up to `(3T + 2)² / 2`.
   `((3T + 2)² / 2 + 1) / q`.
 * `Cslib.Crypto.GenericGroup.succProbability_dlogGame_le_choose`: the sharp form
   `((3T + 2).choose 2 + 1) / q`.
+* `Cslib.Crypto.GenericGroup.le_of_half_le_succProbability_dlogGame`: success probability one half
+  needs `q ≤ (3T + 2)² + 2`.
 
 ## References
 
@@ -144,5 +148,19 @@ theorem succProbability_dlogGame_le [NeZero q] [Fintype S] [Nonempty (ZMod q ↪
   rw [Nat.factorial_two] at h
   push_cast at h ⊢
   gcongr
+
+/-- **Success probability one half** (the remark after Theorem 16.3, [BonehShoup2023], p. 695).
+For prime `q`, an adversary that makes at most `T` queries to the group oracle on every path and
+wins the discrete-logarithm game with probability at least `1 / 2` has `q ≤ (3T + 2)² + 2`: `T`
+is at least about `√q / 3`. -/
+theorem le_of_half_le_succProbability_dlogGame [NeZero q] [Fintype S] [Nonempty (ZMod q ↪ S)]
+    (hq : q.Prime) {T : ℕ} {A : S → S → ProbOracleComp (GroupOracleSpec q S) (ZMod q)}
+    (hA : ∀ g u, (A g u).IsQueryBounded T) (h : 1 / 2 ≤ (dlogGame A).succProbability) :
+    q ≤ (3 * T + 2) ^ 2 + 2 := by
+  have h' := h.trans (succProbability_dlogGame_le hq hA)
+  rw [le_div_iff₀ (Nat.cast_pos.mpr hq.pos)] at h'
+  have h'' : ((1 / 2 * q : ℝ≥0) : ℝ) ≤ (((3 * T + 2 : ℝ≥0) ^ 2 / 2 + 1 : ℝ≥0) : ℝ) := h'
+  push_cast at h''
+  exact_mod_cast (by push_cast; linarith : (q : ℝ) ≤ ((3 * T + 2) ^ 2 + 2 : ℕ))
 
 end Cslib.Crypto.GenericGroup
