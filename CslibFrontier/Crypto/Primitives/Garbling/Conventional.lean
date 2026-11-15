@@ -34,14 +34,12 @@ gate list (`ConventionalCircuit.code_toCircuit`), so the garbling and privacy re
 
 ## Main results
 
-* `Cslib.Crypto.Garbling.ConventionalCircuit.code_toCircuit`: its code is the gate list.
-* `Cslib.Crypto.Garbling.ConventionalCircuit.size_toCircuit`,
-  `Cslib.Crypto.Garbling.ConventionalCircuit.lines_toCircuit`,
-  `Cslib.Crypto.Garbling.ConventionalCircuit.arity_topology_toCircuit`,
-  `Cslib.Crypto.Garbling.ConventionalCircuit.ofFn_toNat_wires_toCircuit`,
-  `Cslib.Crypto.Garbling.ConventionalCircuit.toNat_outputs_toCircuit`: its gates, their binary
-  operations and argument wires, and its output wires.
 * `Cslib.Crypto.Garbling.ConventionalCircuit.eval_toCircuit`: it computes `evalCirc`.
+
+Since `toCircuit` is not exposed, its gates, their binary operations and argument wires, and its
+output wires are read through interface lemmas (`ConventionalCircuit.size_toCircuit`,
+`ConventionalCircuit.lines_toCircuit`, `ConventionalCircuit.arity_topology_toCircuit`,
+`ConventionalCircuit.ofFn_toNat_wires_toCircuit`, `ConventionalCircuit.toNat_outputs_toCircuit`).
 
 ## References
 
@@ -67,7 +65,7 @@ applies its truth table to the 0-indexed wires `A i - 1` and `B i - 1`. -/
   List.ofFn fun o : Fin f.m => f.n + f.q - f.m + o
 
 /-- The code of a valid conventional circuit decodes. -/
-theorem isSome_ofCode (f : ValidCircuit) :
+private theorem isSome_ofCode (f : ValidCircuit) :
     (Circuit.ofCode f.1.n f.1.m (gateCode f.1, outputCode f.1) :
       Option (Circuit (fullSignature 2 Bool) f.1.n f.1.m)).isSome := by
   obtain ⟨f, hf⟩ := f
@@ -105,7 +103,7 @@ theorem size_toCircuit (f : ValidCircuit) : (toCircuit f).size = f.1.q := by
 
 /-- The code of line `g` of `toCircuit f`: the truth table `G g` on the 0-indexed wires `A g - 1`
 and `B g - 1`. -/
-theorem code_lines_toCircuit (f : ValidCircuit) (g : Fin (toCircuit f).size) :
+private theorem code_lines_toCircuit (f : ValidCircuit) (g : Fin (toCircuit f).size) :
     ((toCircuit f).program.lines g).code =
       (.fn fun a => f.1.G (g.cast (size_toCircuit f)) (a 0) (a 1),
         [f.1.A (g.cast (size_toCircuit f)) - 1, f.1.B (g.cast (size_toCircuit f)) - 1]) := by
