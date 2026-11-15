@@ -22,9 +22,9 @@ import CslibFrontier.Foundations.Data.BitString.List.Operations
 
 The point-and-permute garbling of `CslibFrontier.Crypto.Primitives.Garbling.Basic` as a garbling
 scheme in the sense of Bellare, Hoang and Rogaway [BellareHoangRogaway2012] (`Garbling.Scheme`),
-over valid conventional circuits (`ValidCircuit`): `PointPermute.scheme family`, whose masks are keyed
-by a word family `family`. This module gives the definitions and their correctness only; running
-times and privacy are not treated here.
+over valid conventional circuits (`ValidCircuit`): `PointPermute.scheme family`, whose masks are
+keyed by a word family `family`. This module gives the definitions and their correctness only;
+running times and privacy are not treated here.
 
 At security parameter `k`, a wire key has `k + 1` bits and a label is the `(k + 2)`-bit word of a
 key followed by its colour bit. The masks come from the keyed function
