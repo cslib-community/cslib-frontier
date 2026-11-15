@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Computable.Defs
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.KernelNormalForm
+import Mathlib.Data.Fintype.Option
 
 /-!
 # Internal normalized witnesses for total computability
@@ -32,7 +33,7 @@ theorem normalizedMachine {α β : Type*} {f : α → β}
       (tm : MultiTapeTM k Bool State),
       ∀ a, tm.ComputesTidilyInTimeAndSpace (encIn a) (encOut (f a)) (t a) (s a) := by
   obtain ⟨t, s, k, State, hfin, tm, htm⟩ := h
-  letI : Finite State := hfin
+  let : Finite State := hfin
   exact ⟨fun a => 2 * t a + 3 * s a + 2 * k + 4,
     fun a => 2 * s a + 2 * k * (3 * s a + 2 * k + 3),
     k + k, _, inferInstance, tidy false true tm,
