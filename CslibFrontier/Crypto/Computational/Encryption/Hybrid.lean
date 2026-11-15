@@ -466,9 +466,10 @@ def DEMOneTimeKeyINDCPAOn {Msg : Type} (valid : ℕ → List Bool → Msg → Ms
 
 /-- One-time symmetric IND-CPA at key-length function `keyLen` with every challenge pair
 admissible: semantic security, [BonehShoup2023], Attack Game 2.1 and Definition 2.2 (p. 16), with
-a uniform `keyLen n`-bit key and every pair of messages admitted as a challenge. For `List Bool`
-messages this is stronger than the source's equal-length rule, which `DEMOneTimeKeyWordINDCPA`
-states. -/
+a uniform `keyLen n`-bit key and every pair of messages admitted as a challenge in place of the
+source's rule that the two messages have the same length. The notion is generic in the message type
+`Msg`. It is exactly the source's notion when all messages of `Msg` have one length. At `List Bool`
+it is strictly stronger, so it is not the source's notion there; `DEMOneTimeKeyWordINDCPA` is. -/
 abbrev DEMOneTimeKeyINDCPAOf {Msg : Type} (encMsg : Msg ↪ List Bool) (keyLen : ℕ → ℕ)
     (encryptSym : ℕ → List Bool → Msg → ProbComp (List Bool)) : Prop :=
   DEMOneTimeKeyINDCPAOn (fun _ _ _ _ => true) encMsg keyLen encryptSym
@@ -508,8 +509,10 @@ abbrev DEMOneTimeINDCPAOn {Msg : Type} (valid : ℕ → List Bool → Msg → Ms
 
 /-- Normalized (`n`-bit key) one-time symmetric IND-CPA with every challenge pair admissible:
 semantic security, [BonehShoup2023], Attack Game 2.1 and Definition 2.2 (p. 16), with a uniform
-`n`-bit key and every pair of messages admitted as a challenge. For `List Bool` messages this is
-stronger than the textbook notion, which `DEMOneTimeWordINDCPA` states. -/
+`n`-bit key and every pair of messages admitted as a challenge in place of the source's rule that
+the two messages have the same length. The notion is generic in the message type `Msg`. It is
+exactly the source's notion when all messages of `Msg` have one length. At `List Bool` it is
+strictly stronger, so it is not the source's notion there; `DEMOneTimeWordINDCPA` is. -/
 abbrev DEMOneTimeINDCPAOf {Msg : Type} (encMsg : Msg ↪ List Bool)
     (encryptSym : ℕ → List Bool → Msg → ProbComp (List Bool)) : Prop :=
   DEMOneTimeINDCPAOn (fun _ _ _ _ => true) encMsg encryptSym

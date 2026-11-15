@@ -210,9 +210,11 @@ def INDCPAOn {Msg : Type} (valid : ℕ → List Bool → Msg → Msg → Bool) (
     (AdversaryOf.IsPPT encMsg)
 
 /-- Single-challenge IND-CPA with every challenge pair admissible: [BonehShoup2023], Attack
-Game 11.1 and Definition 11.2 (pp. 436–437), with every pair of messages admitted as a challenge.
-For message types whose messages all have one length, such as `Bool`, this is the textbook notion;
-for `List Bool` it is stronger than the textbook notion, which `WordINDCPA` states. -/
+Game 11.1 and Definition 11.2 (pp. 436–437), with every pair of messages admitted as a challenge in
+place of the source's rule that the two messages have the same length. The notion is generic in the
+message type `Msg`. It is exactly the source's notion when all messages of `Msg` have one length,
+as for `Bool`. At `List Bool` it is strictly stronger, so it is not the source's notion there;
+`WordINDCPA` is. -/
 abbrev INDCPAOf {Msg : Type} (encMsg : Msg ↪ List Bool)
     (keyGen : ℕ → ProbComp (List Bool × List Bool))
     (encrypt : ℕ → List Bool → Msg → ProbComp (List Bool)) : Prop :=
