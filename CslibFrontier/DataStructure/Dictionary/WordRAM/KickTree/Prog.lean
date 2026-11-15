@@ -7,9 +7,10 @@ Authors: Renfei Zhou
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.WordRAM.Realization.Loop
 public import CslibFrontier.Computability.WordRAM.Realization.WordEncoding.Equiv
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.BitPackedArrayProg
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.KickTree.Layout
-public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctProg
 import CslibFrontier.Tactic.Realize
 
 /-!
@@ -129,7 +130,6 @@ open Cslib.DataStructure.Dictionary
 open Cslib.DataStructure.Dictionary.FeistelQuotient
 open Cslib.DataStructure.Dictionary.KickTree
 open Cslib.DataStructure.Dictionary.WordRAM.BitPackedArray
-open Cslib.DataStructure.Dictionary.WordRAM.Succinct
 
 /-! ### 1. Runtime layout parameter record and safety envelope -/
 
@@ -507,7 +507,7 @@ private theorem validHistory_writePackedProg_bind {α : Type} {base off len k w 
       ((Memory.spec w).clientHistory s (writePackedProg base off k w idx val >>= f)) := by
   rw [validHistory_bind']
   exact ⟨validHistory_writePackedProg hw hkw hidx hwf ha,
-    hk _ (wellFormed_clientState_writePackedProg hw hkw hwf) rfl⟩
+    hk _ (BitPackedArray.wellFormed_clientState_writePackedProg hw hkw hwf) rfl⟩
 
 /-- Admissible memory history for `querySlotProg` when `[base, base + totalSpace p)` lies below
 `s.frontier`. -/

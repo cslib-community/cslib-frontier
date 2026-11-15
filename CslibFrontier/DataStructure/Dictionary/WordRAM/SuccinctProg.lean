@@ -993,15 +993,6 @@ theorem memoryCost_writeLMProg (U V w n_max h_space c : ℕ) (d : (ℕ × ℕ) �
 theorem memoryCost_writeGMProg (U V w n_max h_space : ℕ) (d : (ℕ × ℕ) × ℕ) (s : Memory.State) :
     memoryCost (writeGMProg U V w n_max h_space d) s = 4 := rfl
 
-/-- `writePackedProg` preserves `Memory.WellFormed w` at every interpreter width `w'` whenever
-`0 < w` and `k ≤ w`. -/
-theorem wellFormed_clientState_writePackedProg {w w' base offset k idx val : ℕ}
-    {s : Memory.State} (hw : 0 < w) (hkw : k ≤ w) (hwf : Memory.WellFormed w s) :
-    Memory.WellFormed w
-      ((Memory.spec w').clientState s (writePackedProg base offset k w idx val)) := by
-  rw [clientState_width, clientState_writePackedProg]
-  exact ⟨hwf.1, writePacked_lt_two_pow hw hkw hwf.2 idx val⟩
-
 /-- Pure state effect of `writeQuotProg`. -/
 theorem writeQuotProg_effect {U V w n_max h_space base idx val : ℕ}
     (hw : 0 < w) (hidx_lt : idx < n_max) (hval_lt : val < 2 ^ quotientBits U n_max)
