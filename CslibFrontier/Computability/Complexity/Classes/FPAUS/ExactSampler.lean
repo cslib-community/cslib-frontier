@@ -1246,6 +1246,7 @@ theorem isOraclePPTOn_boundedConditionalOracleSample (R : SelfReducible enc W)
     intro y res hres
     obtain ⟨State, oracle, s, s', hrun⟩ :=
       (ProbOracleComp.mem_support_iff_exists (hne := fun _ => ⟨[]⟩)).mp hres
+    rw [← ProbOracleComp.runWith_eq_run_interpret] at hrun
     exact hlen_run y State oracle s s' res hrun
   obtain ⟨tL, _, htL, _, hmL⟩ := R.len_polytime
   obtain ⟨cL, dL, hlenL⟩ := polynomiallyBounded_iff_le.mp htL
