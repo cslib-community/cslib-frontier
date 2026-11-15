@@ -4,12 +4,16 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+
 import CslibFrontier.Crypto.Computational.PseudorandomPermutation
 import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Crypto.Primitives.PRP.Finite
 import CslibFrontier.Foundations.Data.BitString.List.Operations
 import CslibFrontier.Languages.Probabilistic.Oracle.CoinFixing
+import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Tactic.PolyTime
+import Mathlib.Data.Nat.Choose.Cast
 
 /-!
 # Tests for block ciphers and pseudorandom permutations
@@ -27,6 +31,8 @@ oracle's reply. The switching lemma gives it no advantage between a uniform perm
 uniform function, so its PRF and PRP advantages coincide up to zero. Lifted to the bidirectional
 interface it asks the forward direction.
 -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.Crypto.PseudorandomPermutation
 

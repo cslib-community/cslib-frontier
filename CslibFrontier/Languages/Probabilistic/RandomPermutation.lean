@@ -45,7 +45,8 @@ with polymorphic bidirectional query deduplication over arbitrary `[DecidableEq 
    `π ← PMF.uniformOfFintype (Equiv.Perm α)` and `forgetfulAnswer`
    (`abs_sub_uniformPerm_forgetful_le`). On forward-only programs (`liftForward`),
    `forgetfulAnswer` coincides with `memoize (fun _ => PMF.uniformOfFintype α)` and therefore with
-   yielding the classical **ideal-experiment PRP/PRF switching lemma**
+   a uniformly random function `f ← PMF.uniformOfFintype (α → α)`, yielding the classical
+   **ideal-experiment PRP/PRF switching lemma**
    (`abs_sub_uniformPerm_uniformFunc_le`, [BonehShoup2023], Section 4.4.3, Attack Game 4.3 and
    Theorem 4.6).
 3. **Bidirectional query deduplication (`RandomPermutation.bidirDedupStep`,
@@ -99,8 +100,8 @@ with polymorphic bidirectional query deduplication over arbitrary `[DecidableEq 
 ## References
 
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*,
-  Version 0.6][BonehShoup2023], Sections 4.4.3 (Attack Game 4.3 and Theorem 4.6) and 4.7
-  (Theorem 4.7).
+  Version 0.6][BonehShoup2023], Section 4.4.3 (Attack Game 4.3, Theorem 4.6, and Theorem 4.7,
+  printed pp. 135–136) and Section 4.7.
 -/
 
 @[expose] public section

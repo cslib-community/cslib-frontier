@@ -121,22 +121,6 @@ theorem advantage_idealExperiment_prfIdealExperiment_le {A : PRF.Adversary D D} 
     Probability.PMF.monad_bind_eq_bind, PMF.bind_pure] using abs_sub_uniformPerm_uniformFunc_le
       (ProbOracleComp.isQueryBounded_fixCoins hQ ω) PMF.pure true
 
-/-- **A PRP is a PRF** ([BonehShoup2023], half of Theorem 4.4): against an adversary making at
-most `Q` queries, the PRF advantage of a block cipher is at most its PRP advantage plus
-`Q.choose 2 / |D|`. -/
-theorem prfAdvantage_le_advantage_add [Fintype Key] [Nonempty Key] (E : Key → Equiv.Perm D)
-    {A : PRF.Adversary D D} {Q : ℕ} (hQ : A.IsQueryBounded Q) :
-    (PRF.advantage (fun key => ⇑(E key)) A : ℝ) ≤
-      advantage E A + Q.choose 2 / Fintype.card D := by
-  have h := Game.advantage_triangle (ProbComp.eval (realExperiment E A))
-    (ProbComp.eval (idealExperiment A)) (ProbComp.eval (PRF.idealExperiment A))
-  have hswitch := advantage_idealExperiment_prfIdealExperiment_le hQ
-  have h' : (PRF.advantage (fun key => ⇑(E key)) A : ℝ) ≤
-      advantage E A + Game.advantage (ProbComp.eval (idealExperiment A))
-        (ProbComp.eval (PRF.idealExperiment A)) := by
-    exact_mod_cast h
-  linarith
-
 /-- **PRF switching lemma** ([BonehShoup2023], Theorem 4.4): for any keyed permutation `E` and any
 adversary `A` making at most `Q` queries, the block-cipher (PRP) and PRF distinguishing advantages
 differ by at most `Q.choose 2 / |D|`. -/
@@ -144,30 +128,28 @@ theorem abs_advantage_sub_prfAdvantage_le [Fintype Key] [Nonempty Key]
     (E : Key → Equiv.Perm D) {A : PRF.Adversary D D} {Q : ℕ} (hQ : A.IsQueryBounded Q) :
     |(advantage E A : ℝ) - PRF.advantage (fun key => ⇑(E key)) A| ≤
       Q.choose 2 / Fintype.card D := by
-  have htri₁ :
-      (advantage E A : ℝ) ≤
-        PRF.advantage (fun key => ⇑(E key)) A + Q.choose 2 / Fintype.card D := by
-    have hswitch := advantage_idealExperiment_prfIdealExperiment_le hQ
-    have h := Game.advantage_triangle
-      (ProbComp.eval (realExperiment E A))
-      (ProbComp.eval (PRF.idealExperiment A))
-      (ProbComp.eval (idealExperiment A))
-    have hcoe :
-        (Game.advantage (ProbComp.eval (realExperiment E A))
-          (ProbComp.eval (idealExperiment A)) : ℝ) ≤
-        Game.advantage (ProbComp.eval (realExperiment E A))
-          (ProbComp.eval (PRF.idealExperiment A)) +
-        Game.advantage (ProbComp.eval (PRF.idealExperiment A))
-          (ProbComp.eval (idealExperiment A)) := by
-      exact_mod_cast h
-    rw [Game.advantage_comm (ProbComp.eval (PRF.idealExperiment A))] at hcoe
-    simp only [advantage, realExperiment, PRF.advantage] at hcoe ⊢
-    linarith
-  have htri₂ :
-      (PRF.advantage (fun key => ⇑(E key)) A : ℝ) ≤
-        advantage E A + Q.choose 2 / Fintype.card D :=
-    prfAdvantage_le_advantage_add E hQ
-  exact abs_sub_le_iff.mpr ⟨by linarith, by linarith⟩
+  have h :
+      |(advantage E A : ℝ) - PRF.advantage (fun key => ⇑(E key)) A| ≤
+        Game.advantage (ProbComp.eval (idealExperiment A))
+          (ProbComp.eval (PRF.idealExperiment A)) := by
+    simp only [advantage, realExperiment, PRF.advantage, Game.advantage, coe_nndist]
+    rw [dist_comm
+        (Game.succProbability (ProbComp.eval (PRF.realExperiment (fun key => ⇑(E key)) A)))
+        (Game.succProbability (ProbComp.eval (idealExperiment A))),
+      dist_comm
+        (Game.succProbability (ProbComp.eval (PRF.realExperiment (fun key => ⇑(E key)) A)))
+        (Game.succProbability (ProbComp.eval (PRF.idealExperiment A)))]
+    exact abs_dist_sub_le _ _ _
+  exact h.trans (advantage_idealExperiment_prfIdealExperiment_le hQ)
+
+/-- **A PRP is a PRF** ([BonehShoup2023], half of Theorem 4.4): against an adversary making at
+most `Q` queries, the PRF advantage of a block cipher is at most its PRP advantage plus
+`Q.choose 2 / |D|`. -/
+theorem prfAdvantage_le_advantage_add [Fintype Key] [Nonempty Key] (E : Key → Equiv.Perm D)
+    {A : PRF.Adversary D D} {Q : ℕ} (hQ : A.IsQueryBounded Q) :
+    (PRF.advantage (fun key => ⇑(E key)) A : ℝ) ≤
+      advantage E A + Q.choose 2 / Fintype.card D :=
+  sub_le_iff_le_add'.mp (abs_sub_le_iff.mp (abs_advantage_sub_prfAdvantage_le E hQ)).2
 
 end Ideal
 
