@@ -11,7 +11,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.D
 public import Mathlib.Tactic.FunProp
 import Cslib.Computability.Machines.Turing.MultiTape.Combinators.AlmostConstant
 import Cslib.Computability.Machines.Turing.MultiTape.Combinators.Id
-import Mathlib.Data.Fintype.Lattice
+import Mathlib.Tactic.TypeStar
 
 /-!
 # Direct primitives for plain degree bounds
