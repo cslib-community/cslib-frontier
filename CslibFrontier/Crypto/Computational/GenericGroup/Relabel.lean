@@ -58,7 +58,7 @@ variable {q : ℕ} {S : Type}
 
 /-- Run a program with private coins against the group oracle of the labeling `L`: coins are
 uniform and group queries are answered by `answer L`. -/
-noncomputable def runLabeled {α : Type} (L : ZMod q → S)
+@[expose] noncomputable def runLabeled {α : Type} (L : ZMod q → S)
     (program : ProbOracleComp (GroupOracleSpec q S) α) : PMF α :=
   OracleComp.interpret
     (OracleComp.sumHandler ProbComp.unifOracle fun query => PMF.pure (answer L query)) program
