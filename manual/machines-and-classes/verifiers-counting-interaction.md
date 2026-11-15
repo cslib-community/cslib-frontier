@@ -328,8 +328,9 @@ residue component. They assert no characteristic-coefficient computation or ETR 
 Run `LEAN_NUM_THREADS=2 scripts/build.sh CslibFrontierTests.ResidueSign --wfail --iofail`.
 
 Parameter preparation reuses the binary minimum/maximum certificates in
-`PolyTime.Nat.BinaryOrder`, extracted from the existing IP/PSPACE caller. That caller retains
-its local automation registration; the rules are explicit for other clients.
+`PolyTime.Nat.BinaryOrder`, shared by the existing IP/PSPACE and PacketPacking callers. The
+IP/PSPACE caller retains its local automation registration; PacketPacking invokes the rules
+explicitly without repeating the binary case and encoding-conversion proofs.
 
 ## Efficient oracle programs
 
