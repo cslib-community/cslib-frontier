@@ -66,7 +66,7 @@ Names are relative to `Cslib.Crypto`.
 
 | Assumption | Status | Source definition | Deviations or relation | Nonvacuity |
 |---|---|---|---|---|
-| `Encryption.CircularSecure` | standard | [Gentry2009] Section 2 (locator not verified) | One-key circular security: the bitwise encryption of the secret key, jointly with the public key, against encryptions of zeros. | [FixedKeySecurity.lean](../../CslibFrontierTests/Crypto/FixedKeySecurity.lean) `not_circularSecure_leak` |
+| `Encryption.CircularSecure` | standard | [BonehHaleviHamburgOstrovsky2008] Section 2.1, pp. 3–4, and Definition 1, p. 4, in the authors' version of September 24, 2008; the self-encryption assumed in [Gentry2009Thesis] Section 4.3, p. 52 | One-key circular security: the bitwise encryption of the secret key, jointly with the public key, against encryptions of zeros. Definition 1 with `n = 1` and the functions selecting one key bit, every bit asked once in one batch; uniform strict PPT tests in place of expected polynomial-time adversaries. Gentry's game encrypts fresh random keys, not zeros, in the ideal world. | [FixedKeySecurity.lean](../../CslibFrontierTests/Crypto/FixedKeySecurity.lean) `not_circularSecure_leak` |
 | `GMW.AdvicePRG` | novel | — | Follows from `NonuniformPRG` (`NonuniformPRG.advicePRG`), hence from `NonuniformOneWay`; not known to follow from a uniform PRG. A generator at seed length `n + 7` against tests that also read polynomially bounded instance, witness and auxiliary-input families. | — |
 | `Garbling.MixedModulus.MixedModulusCCR` | novel | [BallMalkinRosulek2016] Definition 1 (locator not verified) is the closest source. | Stronger than that definition: its relaxed legality condition admits every adversary legal there, and more (module docstring). | — |
 | `PRG.IsSubexponentiallySecure` | standard | [RazborovRudich1997] Section 4 (locator not verified) | Exponents rounded to integers. | — |
@@ -178,11 +178,11 @@ Names are relative to `Cslib.Crypto`.
 | `ZKProof.UnboundedAuxiliaryInputZeroKnowledge` | standard | [Goldreich2001] Section 4.3.3, Definition 4.3.10 (locator not verified) | As above, for a bundled proof system. | — |
 | `GenerableZeroKnowledge` | standard | [Goldreich2001] Section 4.3 (locator not verified) | Polynomial-time generable families. | — |
 | `Protocols.SigmaProtocol.ComputationalSpecialHVZK` | standard | [BonehShoup2023] Section 20.4.2 and Definition 20.6, p. 840 | An acceptance error `δ`. | — |
-| `Protocols.UC.EmulatesWithin` | standard | [Canetti2020] Section 4 (locator not verified) | Concrete budgets and error. | — |
-| `Protocols.UC.Emulates` | standard | [Canetti2020] Section 4 (locator not verified) | — | — |
-| `Protocols.UC.Realizes` | standard | [Canetti2020] Section 4 (locator not verified) | — | — |
-| `Protocols.UC.EmulatesDummyWithin` | standard | [Canetti2020] Section 4 (locator not verified) | Against the dummy adversary. | — |
-| `Protocols.UC.EmulatesBlackBoxWithin` | standard | [Canetti2020] Section 4 (locator not verified) | One black-box simulator. | — |
+| `Protocols.UC.EmulatesWithin` | standard | [Canetti2020] Definition 15, p. 51, in the statistical setting of Section 4.4, p. 50, in the ePrint revision of February 11, 2020 | Concrete budgets and error. Call budgets per activation in place of running time, with computation otherwise unbounded, the simulator's included (the variant that Section 4.4 says gives a weaker guarantee); static corruptions (Section 7.1.1, p. 74); no identity bound on environments; a bound at every `κ` and for every auxiliary input. | — |
+| `Protocols.UC.Emulates` | standard | [Canetti2020] Definition 9, p. 43, in the statistical setting of Section 4.4, p. 50, in the ePrint revision of February 11, 2020 | As for `Protocols.UC.EmulatesWithin`, with negligible error: one negligible bound for all environments with a given budget. | — |
+| `Protocols.UC.Realizes` | standard | [Canetti2020] Definition 20, p. 58, in the ePrint revision of February 11, 2020 | `Protocols.UC.Emulates` of the ideal protocol, without Definition 20's requirement that the protocol be subroutine-respecting. | — |
+| `Protocols.UC.EmulatesDummyWithin` | standard | [Canetti2020] Definition 10 and Claim 11, p. 44, in the ePrint revision of February 11, 2020 | Against the dummy adversary, with a budget and error as in Definition 15; otherwise as for `Protocols.UC.EmulatesWithin`. | — |
+| `Protocols.UC.EmulatesBlackBoxWithin` | standard | [Canetti2020] Definition 12, p. 48, and Claim 13, p. 49, in the ePrint revision of February 11, 2020 | One black-box simulator, with a budget and error as in Definition 15; otherwise as for `Protocols.UC.EmulatesWithin`. | — |
 
 ## Generic vocabulary
 

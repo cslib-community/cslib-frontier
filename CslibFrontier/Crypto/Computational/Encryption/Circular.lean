@@ -39,7 +39,7 @@ assuming independent copies of its contents.
 * [D. Boneh, S. Halevi, M. Hamburg, R. Ostrovsky,
   *Circular-Secure Encryption from Decision Diffie-Hellman*][BonehHaleviHamburgOstrovsky2008],
   Section 2.1.
-* [C. Gentry, *Fully homomorphic encryption using ideal lattices*][Gentry2009], Section 2.
+* [C. Gentry, *A Fully Homomorphic Encryption Scheme*][Gentry2009Thesis], Section 4.3.
 -/
 
 @[expose] public section
@@ -65,7 +65,23 @@ def circularPublicKey (keyGen : ℕ → ProbComp (List Bool × List Bool))
 
 /-- The complete self-encryption vector is indistinguishable from equal-length zero
 encryptions, jointly with its public key. This is an explicit additional assumption, not a
-consequence of ordinary IND-CPA and not a security claim about a constructed output scheme. -/
+consequence of ordinary IND-CPA and not a security claim about a constructed output scheme.
+
+*Source.* [BonehHaleviHamburgOstrovsky2008] (the authors' version of September 24, 2008),
+Section 2.1, pp. 3–4, and Definition 1, p. 4, define `n`-way KDM security with respect to a set `C`
+of functions. The adversary receives `pk₁, …, pk_n` and asks queries `(i, f)` with `f ∈ C`; it
+receives `E(pkᵢ, f(sk₁, …, sk_n))` in one world and `E(pkᵢ, 0^{|f(…)|})` in the other, and
+Definition 1 asks that its advantage be negligible. This is the case `n = 1` with `C` the functions
+that select one bit of the secret key, for an adversary that asks for every bit once, in one batch,
+so Definition 1 for that class implies it. It differs from the source as follows.
+* Distinguishers are uniform strict PPT programs, where Definition 1 admits adversaries running in
+  expected polynomial time.
+* Secret keys may have different lengths, which the vector then reveals in both worlds; the
+  functions in the source's `C` each have one output length.
+
+[Gentry2009Thesis], Section 4.3, p. 52, assumes this kind of self-encryption to obtain fully
+homomorphic encryption from bootstrappable encryption (Theorem 4.3.2). Its KDM-security game, on
+the same page, encrypts fresh random secret keys rather than zeros in the ideal world. -/
 def CircularSecure (keyGen : ℕ → ProbComp (List Bool × List Bool))
     (encrypt : ℕ → List Bool → Bool → ProbComp (List Bool)) : Prop :=
   ComputationallyIndistinguishable
