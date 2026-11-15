@@ -120,7 +120,7 @@ uniform PPT distinguishers instead of size-bounded ones. `LWEFamily.isPPT_keyRed
 `LWEFamily.isPPT_uniformReduction` certify the
 reductions. The modulus is `2 ^ w κ`, the modulus of the typed decision LWE.
 
-Not established in FMR20: hardness of LWE with error `W` (Theorems 4.6 and 4.8), efficiency of the
+Not established here: hardness of LWE with error `W` (Theorems 4.6 and 4.8), efficiency of the
 honest `Gen`/`Rep`, the Construction 4.9 decoder (Lemma 4.10), and Section 5; the generic
 `FuzzyExtractor.decodeThenExtract` carries no security claim. Build with
 `lake build CslibFrontier.Crypto.Computational.FuzzyExtractor.DecodeThenExtract.Security`.
