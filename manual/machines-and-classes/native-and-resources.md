@@ -2,6 +2,13 @@
 
 [Chapter index](index.md) · [Model map](../model-map.md)
 
+The deterministic and probabilistic iterate-while constructions share
+[`IterateWhileLayout`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Combinators/IterateWhileLayout.lean).
+Its `Turing.MultiTapeTM.IterateWhile` namespace provides the current, next and flag tapes,
+the copy and emit embeddings, and alphabet-polymorphic intermediate word layouts.
+Reuse these helpers when proving phase transitions; choice semantics and machine resource
+proofs remain in their respective constructions.
+
 ## Configuration and uniformity
 
 The underlying native configuration is cslib's [Turing.Cfg](https://github.com/leanprover/cslib/blob/254e30e6d4299c51323aaeaf5f51a4763b375d4a/Cslib/Computability/Machines/Turing/MultiTape/Configuration.lean#L97). Its input is a fixed list; the input head lies in `Fin (input.length + 2)`, with one blank boundary position on each side. Movement clamps at the boundaries. Each work tape is a function from integer positions to optional symbols, with an integer head. Output is a list to which a transition can append at most one symbol. Input is read-only and output is not readable. The action simultaneously chooses each work-tape write/move, input movement, optional output, and next optional control state. `none` in the control state denotes halting. [cslib][cslib]
@@ -96,6 +103,14 @@ The definitions and the documented reason for the output charge are in [Resource
 
 `FTIME` is the corresponding function-time class with explicit input and output encodings and affine time `c₁ t(n) + c₂`; its workspace has an arbitrary length-dependent bound. It adds no output charge beyond the time required to write the output. [FTIME](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/Complexity/Classes/FunctionTime.lean#L46) `DTIME`, `NTIME`, `BPTIME`, `DSPACE` and `NSPACE` attach affine bounds to the relevant machine predicates; `P`, `NP`, `BPP`, `L`, `NL`, `PSPACE`, `NPSPACE`, `E`, `NE`, `EXP` and `NEXP` derive familiar bound families.
 
+For prefixes and suffixes of computed framed lists, import
+[`PolyTime.Captured`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/PolyTime/Captured.lean)
+and apply `ComputableInPolyTime.listTakeWithInput` or `listDropWithInput`
+to the list certificate and the unary count certificate.
+The list may use binary element encodings while its count uses `encUnary`.
+The [clique grouping reduction](../../CslibFrontier/Computability/Complexity/FineGrained/CliqueGrouping.lean)
+composes these rules directly to select a block of clauses, without local slicing wrappers.
+
 ## Fair-coin efficiency
 
 [IsPPTOn](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/Probabilistic/PPT.lean#L71) says that one fixed finite PTM, under one polynomial clock, has exactly the encoded output distribution of a program on every input. This is strict bounded time, rather than expected time or a nonuniform machine family. The initial clocked semantics can truncate at its budget, but [exists_halting_machine](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/Probabilistic/PPT/Clock.lean#L77) realizes the same semantics by an actually halting machine. Closed interpretation supplies fair Boolean draws; an open PTM's coin operation has no prescribed distribution until interpreted.
@@ -120,6 +135,17 @@ The source of [MachinePrograms.lean](https://github.com/cslib-community/cslib-fr
 
 ## Composing polynomial resource envelopes
 
+For sums of binary naturals, import
+[`PolyTime.Nat.Binary`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/PolyTime/Nat/Binary.lean)
+and compose `ComputableInPolyTime.binary_sum` with the certificate producing the
+`encList encNat` input. Its plain fold proof bounds accumulator digit growth by the
+encoded input length plus one per element.
+The [weighted SetCover verifier](../../CslibFrontier/Computability/Complexity/Problems/SetCover.lean)
+and [approximation reduction](../../CslibFrontier/Computability/PCP/Approximation/SetCover/ApproxReduction.lean)
+compose this plain certificate directly with their weight-list certificates.
+[TruncatedSum](../../CslibFrontier/Computability/Complexity/Classes/CountingSimulation/TruncatedSum.lean)
+uses the same certificate for separate time and space envelopes.
+
 For a polynomial-time map on pairs, import
 [`CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Families`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/PolyTime/Families.lean).
 Given `hg : ComputableInPolyTime g (encPair encA encB) encC` and polynomial bounds `ha`, `hb`
@@ -128,6 +154,17 @@ bounds the encoded output family. The families themselves need not be computable
 [Levin](../../CslibFrontier/Crypto/Computational/ZeroKnowledge/Levin.lean) and
 [amplification](../../CslibFrontier/Crypto/Computational/ZeroKnowledge/Amplification.lean)
 proofs use this rule to transport witness families through the same deterministic reduction.
+
+For binary-natural preprocessing, import
+[`BigO.NatPolynomial`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/BigO/NatPolynomial.lean).
+`hf.nat_inO` and `hf.natPair_inO` turn plain polynomial-time certificates into
+output-charged bounds linear in the numeric value or sum, for arbitrary output encodings.
+Their proofs use the realizing machine's cost degree; the independent output degree need not
+coincide with it. The [padding certificates](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/BigO/PolynomialPadding.lean)
+compose these bounds with plain framing, unframing and unary writing. The polynomial writer
+retains time exponent `2 * k` and space exponent `k` for `k ≥ 1`; the guard retains quadratic
+time and linear space in the full input length, including insufficient or malformed padding.
+The [regression source](../../CslibFrontierTests/PolynomialPadding.lean) includes the guard certificate and empty-input controls.
 
 A reduction closure proof that runs a certificate or counting bound `q(|f a|)` of the target on
 the reduced instance needs one polynomial in the source length. For

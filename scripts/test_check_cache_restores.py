@@ -55,6 +55,72 @@ class ProcessAssertions:
             time.sleep(0.01)
 
 
+class InterruptReadiness:
+    """Signal this test's audit after two live Lean children, or abort with timeout evidence."""
+
+    def __init__(self, root: Path, sig: signal.Signals, timeout: float = 60.0) -> None:
+        self.root = root
+        self.sig = sig
+        self.timeout = timeout
+        self.cancelled = threading.Event()
+        self.thread = threading.Thread(target=self.run, daemon=True)
+        self.pids: set[int] = set()
+        self.observations: dict[str, object] = {}
+        self.ready = False
+        self.timed_out = False
+        self.signal_at: float | None = None
+
+    def observe(self) -> bool:
+        live: set[int] = set()
+        for name in ("slowa.pid", "slowb.pid"):
+            observation: dict[str, object] = {}
+            try:
+                raw = (self.root / name).read_text(errors="replace")
+                observation["contents"] = raw
+                pid = int(raw.strip())
+                if pid <= 0:
+                    raise ValueError("PID must be positive")
+                self.pids.add(pid)
+                state = c._process_state(pid)
+                observation.update(pid=pid, state=state)
+                if state not in (None, "Z", "X"):
+                    live.add(pid)
+            except (ValueError, OSError) as error:
+                observation["error"] = repr(error)
+            self.observations[name] = observation
+        return len(live) == 2
+
+    def run(self) -> None:
+        deadline = time.monotonic() + self.timeout
+        while not self.cancelled.is_set():
+            ready = self.observe()
+            now = time.monotonic()
+            self.timed_out = now >= deadline
+            if ready or self.timed_out:
+                self.ready = ready and not self.timed_out
+                if not self.cancelled.is_set():
+                    # On timeout this interrupts only our audit so it can clean up its workers.
+                    # The caller must fail readiness, not count this as a successful signal test.
+                    self.signal_at = time.monotonic()
+                    # SIGTERM may still have its default handler if startup never reached
+                    # the audit's handler installation. Use Python's interrupt on that path.
+                    os.kill(os.getpid(), signal.SIGINT if self.timed_out else self.sig)
+                return
+            self.cancelled.wait(0.02)
+
+    def stop(self) -> None:
+        self.cancelled.set()
+        if self.thread.ident is not None:
+            self.thread.join(timeout=1)
+
+    def cleanup_elapsed(self, finished: float) -> float:
+        assert self.signal_at is not None, "no signal was sent"
+        return finished - self.signal_at
+
+    def diagnostics(self) -> str:
+        return f"ready={self.ready}, timeout={self.timed_out}, PID observations={self.observations!r}"
+
+
 class Fixture(unittest.TestCase):
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
@@ -442,6 +508,148 @@ class MainTests(Fixture):
         self.assertEqual(run.call_args.args, (self.root, "DemoTests/Client.lean"))
 
 
+class InterruptReadinessTests(ProcessAssertions, Fixture):
+    def test_delayed_second_child_does_not_use_up_cleanup_budget(self) -> None:
+        self.write("slowa.pid", "101")
+        self.write("slowb.pid", "partial")
+        watcher = InterruptReadiness(self.root, signal.SIGTERM)
+        clock = [0.0]
+
+        def delayed_child(_timeout):
+            self.assertIn("ValueError", watcher.diagnostics())
+            self.assertEqual(watcher.pids, {101})
+            clock[0] = 12.0  # A cold start longer than the old ten-second watchdog.
+            self.write("slowb.pid", "102")
+
+        with patch.object(time, "monotonic", side_effect=lambda: clock[0]), \
+             patch.object(watcher.cancelled, "wait", side_effect=delayed_child), \
+             patch.object(c, "_process_state", return_value="S"), \
+             patch.object(os, "kill") as kill:
+            watcher.run()
+        self.assertTrue(watcher.ready)
+        self.assertFalse(watcher.timed_out)
+        self.assertEqual(watcher.cleanup_elapsed(12.5), 0.5)
+        kill.assert_called_once_with(os.getpid(), signal.SIGTERM)
+
+    def test_never_ready_retains_partial_pid_errors_and_process_state(self) -> None:
+        self.write("slowa.pid", "101")
+        self.write("slowb.pid", "partial")
+        watcher = InterruptReadiness(self.root, signal.SIGTERM)
+        clock = [0.0]
+
+        def expire(_timeout):
+            clock[0] = 61.0
+
+        with patch.object(time, "monotonic", side_effect=lambda: clock[0]), \
+             patch.object(watcher.cancelled, "wait", side_effect=expire), \
+             patch.object(c, "_process_state", return_value="S"), \
+             patch.object(os, "kill") as kill:
+            watcher.run()
+        self.assertTrue(watcher.timed_out)
+        self.assertFalse(watcher.ready)
+        self.assertEqual(watcher.pids, {101})
+        for evidence in ("partial", "ValueError", "'state': 'S'"):
+            self.assertIn(evidence, watcher.diagnostics())
+        kill.assert_called_once_with(os.getpid(), signal.SIGINT)
+
+    def test_dead_child_does_not_satisfy_readiness(self) -> None:
+        self.write("slowa.pid", "101")
+        self.write("slowb.pid", "102")
+        watcher = InterruptReadiness(self.root, signal.SIGTERM)
+        with patch.object(c, "_process_state", side_effect=["S", "Z"]):
+            self.assertFalse(watcher.observe())
+        self.assertEqual(watcher.observations["slowb.pid"]["state"], "Z")
+
+    def test_same_pid_in_both_files_is_not_two_ready_children(self) -> None:
+        self.write("slowa.pid", "101")
+        self.write("slowb.pid", "101")
+        watcher = InterruptReadiness(self.root, signal.SIGTERM)
+        with patch.object(c, "_process_state", return_value="S"):
+            self.assertFalse(watcher.observe())
+
+    def test_cancelled_watcher_joins_without_signalling(self) -> None:
+        watcher = InterruptReadiness(self.root, signal.SIGTERM)
+        with patch.object(os, "kill") as kill:
+            watcher.thread.start()
+            watcher.stop()
+        self.assertFalse(watcher.thread.is_alive())
+        kill.assert_not_called()
+
+    def test_early_audit_return_keeps_output_and_cancels_watcher(self) -> None:
+        def fail_early(*_args):
+            result = subprocess.run([sys.executable, "-c", "print('launcher diagnostic')"],
+                                    capture_output=True, text=True, check=True)
+            print(result.stdout)
+            print("launcher failed before PID handshake")
+            return 1
+
+        with patch.object(c, "main", side_effect=fail_early), \
+             patch.object(os, "kill") as kill, \
+             self.assertRaisesRegex(AssertionError, "audit returned 1.*launcher failed") as error:
+            RealLakeTests._assert_interrupt_cleans_up_descendants(self, signal.SIGTERM)
+        kill.assert_not_called()
+        self.assertIn("'returncode': 0", str(error.exception))
+        self.assertIn("launcher diagnostic", str(error.exception))
+
+    def test_early_audit_failure_reaps_its_live_owned_launcher(self) -> None:
+        for mode in ("return", "raise"):
+            with self.subTest(mode=mode):
+                children = []
+
+                def fail_early(*_args):
+                    child = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(120)"])
+                    children.append(child)
+                    self.assertIsNone(child.poll(), "the control must leave a live owned child")
+                    print("intentional live-launcher failure")
+                    if mode == "raise":
+                        raise RuntimeError("intentional audit exception")
+                    return 1
+
+                error_type = RuntimeError if mode == "raise" else AssertionError
+                message = "intentional audit exception" if mode == "raise" else "audit returned 1"
+                try:
+                    with patch.object(c, "main", side_effect=fail_early), \
+                         self.assertRaisesRegex(error_type, message) as error:
+                        RealLakeTests._assert_interrupt_cleans_up_descendants(self, signal.SIGTERM)
+                    self.assertIsNotNone(children[0].returncode, "fixture must reap its launcher")
+                    self.assert_processes_stopped([children[0].pid])
+                    # The diagnostic records the pre-rescue failure, not the cleaned-up state.
+                    notes = "\n".join(getattr(error.exception, "__notes__", []))
+                    self.assertIn("'returncode': None", str(error.exception) + notes)
+                finally:
+                    # Protect the test runner even when the regression is reintroduced.
+                    for child in children:
+                        if child.poll() is None:
+                            child.kill()
+                        child.wait(timeout=2)
+
+    def test_timeout_fails_with_partial_diagnostics_and_joins_watcher(self) -> None:
+        self.write("slowa.pid", "101")
+        self.write("slowb.pid", "partial")
+        interrupted = threading.Event()
+        watchers = []
+        watcher_class = InterruptReadiness
+
+        def make_watcher(root, sig):
+            watcher = watcher_class(root, sig, timeout=0.02)
+            watchers.append(watcher)
+            return watcher
+
+        def audit(*_args):
+            print("worker startup diagnostics")
+            self.assertTrue(interrupted.wait(1), "watchdog failed to interrupt the owned audit")
+            raise KeyboardInterrupt
+
+        with patch.object(sys.modules[__name__], "InterruptReadiness", side_effect=make_watcher), \
+             patch.object(c, "main", side_effect=audit), \
+             patch.object(c, "_process_state", side_effect=lambda _pid:
+                          None if interrupted.is_set() else "S"), \
+             patch.object(os, "kill", side_effect=lambda *_args: interrupted.set()), \
+             self.assertRaisesRegex(AssertionError, "readiness timeout.*partial.*worker startup"):
+            RealLakeTests._assert_interrupt_cleans_up_descendants(self, signal.SIGTERM)
+        self.assertFalse(watchers[0].thread.is_alive())
+
+
 class IsolatedLakeFixture(Fixture):
     """A dependency-free project using the installed toolchain and a private artifact cache.
 
@@ -463,18 +671,73 @@ class IsolatedLakeFixture(Fixture):
             self.skipTest("repository Lean toolchain not installed")
         super().setUp()
         self.write("lean-toolchain", toolchain + "\n")
-        self.commit()
-        self.git("update-ref", "refs/remotes/origin/main", "HEAD")
         # A private artifact cache, so the test neither reads nor fills the machine's shared one.
         cache = tempfile.TemporaryDirectory()
         self.addCleanup(cache.cleanup)
         environment = patch.dict(os.environ, {"LAKE_CACHE_DIR": cache.name})
         environment.start()
         self.addCleanup(environment.stop)
+        # Finish Lake's first workspace load before concurrent `lake lean` launchers.
+        # Otherwise one can read the manifest while another is creating it.
+        initialized = self.lake("update")
+        self.assertEqual(initialized.returncode, 0, initialized.stdout + initialized.stderr)
+        self.commit()
+        self.git("update-ref", "refs/remotes/origin/main", "HEAD")
 
     def lake(self, *args: str) -> subprocess.CompletedProcess:
         return subprocess.run(["lake", *args], cwd=self.root, capture_output=True, text=True,
                               timeout=120)
+
+
+class LakeFixtureInitializationTests(unittest.TestCase):
+    def test_manifest_is_initialized_serially_in_private_cache(self) -> None:
+        self.check_initialization(0)
+
+    def test_initialization_error_fails_before_committing_fixture(self) -> None:
+        self.check_initialization(1)
+
+    def check_initialization(self, returncode: int) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            toolchain = "leanprover/lean4:v4.30.0"
+            (root / "lean-toolchain").write_text(toolchain + "\n")
+            fixture = IsolatedLakeFixture()
+            fixture.root = root
+            self.addCleanup(fixture.doCleanups)
+            commands = []
+
+            def run(command, **kwargs):
+                commands.append(command)
+                if command == ["lake", "--version"]:
+                    return subprocess.CompletedProcess(command, 0, "Lean version 4.30.0)", "")
+                self.assertEqual(command, ["lake", "update"])
+                self.assertEqual(kwargs["cwd"], root)
+                self.assertTrue(Path(os.environ["LAKE_CACHE_DIR"]).is_dir())
+                self.assertEqual((root / "lean-toolchain").read_text(), toolchain + "\n")
+                if returncode == 0:
+                    (root / "lake-manifest.json").write_text('{"packages": []}')
+                return subprocess.CompletedProcess(command, returncode, "", "init failed")
+
+            def commit():
+                self.assertEqual(json.loads((root / "lake-manifest.json").read_text()),
+                                 {"packages": []})
+
+            with patch.object(sys.modules[__name__], "REPO", root), \
+                 patch.object(shutil, "which", side_effect=lambda name: name if name == "lake" else None), \
+                 patch.object(Fixture, "setUp"), \
+                 patch.object(fixture, "commit", side_effect=commit) as committed, \
+                 patch.object(fixture, "git") as git, \
+                 patch.object(subprocess, "run", side_effect=run):
+                if returncode:
+                    with self.assertRaisesRegex(AssertionError, "init failed"):
+                        fixture.setUp()
+                    committed.assert_not_called()
+                    git.assert_not_called()
+                else:
+                    fixture.setUp()
+                    committed.assert_called_once_with()
+                    git.assert_called_once_with("update-ref", "refs/remotes/origin/main", "HEAD")
+            self.assertEqual(commands, [["lake", "--version"], ["lake", "update"]])
 
 
 class RealLakeTests(ProcessAssertions, IsolatedLakeFixture):
@@ -623,52 +886,88 @@ theorem warnA : 1 = 2 := by sorry
 #eval show Lean.Elab.Command.CommandElabM Unit from do
   let pid ← IO.Process.getPID
   IO.FS.writeFile "{name.lower()}.pid" (toString pid)
-  IO.sleep 30000
+  IO.sleep 120000
 """)
             self.trace(f"Demo/{name}", synthetic=True, log=[])
         scope = self.root / "slow_scope.json"
         scope.write_text(json.dumps(["Demo/SlowA.lean", "Demo/SlowB.lean"]))
 
-        captured_pids: list[int] = []
-        cancelled = threading.Event()
+        watcher = InterruptReadiness(self.root, sig)
+        worker_results: dict[str, dict[str, object]] = {}
+        launchers: list[subprocess.Popen] = []
+        original_elaborate = c.elaborate
+        original_popen = c.subprocess.Popen
 
-        def trigger_interrupt() -> None:
-            deadline = time.monotonic() + 10.0
-            pid_files = [self.root / "slowa.pid", self.root / "slowb.pid"]
-            while time.monotonic() < deadline and not cancelled.is_set():
-                pids = []
-                for pf in pid_files:
-                    if pf.is_file():
-                        try:
-                            pids.append(int(pf.read_text().strip()))
-                        except (ValueError, OSError):
-                            pass
-                if len(pids) == 2:
-                    captured_pids.extend(pids)
-                    if not cancelled.is_set():
-                        os.kill(os.getpid(), sig)
-                    return
-                cancelled.wait(0.02)
-            if not cancelled.is_set():
-                os.kill(os.getpid(), sig)
+        def record_launcher(*args, **kwargs):
+            proc = original_popen(*args, **kwargs)
+            launchers.append(proc)
+            return proc
 
-        watcher = threading.Thread(target=trigger_interrupt, daemon=True)
-        watcher.start()
+        def record_elaboration(root, rel, **kwargs):
+            started = time.monotonic()
+            worker_results[rel] = {"started_at": started}
+            try:
+                result = original_elaborate(root, rel, **kwargs)
+            except BaseException as error:
+                worker_results[rel].update(exception=repr(error),
+                                           elapsed=time.monotonic() - started)
+                raise
+            worker_results[rel].update(returncode=result.returncode, output=result.stdout,
+                                       elapsed=time.monotonic() - started)
+            return result
 
-        started = time.monotonic()
+        output = io.StringIO()
+        failure: BaseException | None = None
+        audit_result = None
         try:
-            with self.assertRaises(KeyboardInterrupt):
-                c.main(["--files-from", str(scope), "--jobs", "2", "--quiet"], self.root)
-            elapsed = time.monotonic() - started
+            try:
+                watcher.thread.start()
+                with patch.object(c, "elaborate", side_effect=record_elaboration), \
+                     patch.object(c.subprocess, "Popen", side_effect=record_launcher), \
+                     redirect_stdout(output), redirect_stderr(output):
+                    try:
+                        audit_result = c.main(
+                            ["--files-from", str(scope), "--jobs", "2", "--quiet"], self.root)
+                    except BaseException as error:
+                        failure = error
+                finished = time.monotonic()
+            finally:
+                watcher.stop()
+            launcher_states = {proc.pid: {"command": proc.args, "state": c._process_state(proc.pid),
+                                         "returncode": proc.poll()} for proc in launchers}
+            diagnostics = (f"{watcher.diagnostics()}; launchers={launcher_states!r}; "
+                           f"worker results={worker_results!r}; "
+                           f"audit output={output.getvalue()!r}")
+            self.assertFalse(watcher.thread.is_alive(), diagnostics)
+            if failure is not None and not isinstance(failure, KeyboardInterrupt):
+                failure.add_note(diagnostics)
+                raise failure
+            self.assertIsInstance(failure, KeyboardInterrupt,
+                                  f"audit returned {audit_result!r} before signal: {diagnostics}")
+            self.assert_processes_stopped(sorted(watcher.pids | set(launcher_states)))
+            self.assertTrue(watcher.ready,
+                            f"readiness timeout before two live Lean children: {diagnostics}")
+            elapsed = watcher.cleanup_elapsed(finished)
+            self.assertLess(elapsed, 6.0, f"post-signal cleanup took {elapsed:.2f}s: {diagnostics}")
         finally:
-            cancelled.set()
-            watcher.join(timeout=1)
-        self.assertFalse(watcher.is_alive(), "interrupt watcher should stop before the test exits")
-
-        self.assertEqual(len(captured_pids), 2, "both lean child processes should have recorded PIDs")
-        self.assertLess(elapsed, 6.0, f"interrupt cleanup took too long: {elapsed:.2f}s")
-
-        self.assert_processes_stopped(captured_pids)
+            # Assess the audit before rescuing it: a production cleanup failure must still fail.
+            # Only retained launcher handles (and their descendants) are cleanup targets, never
+            # arbitrary integers read from PID files.
+            original_error = sys.exc_info()[1]
+            rescue_errors = []
+            for proc in launchers:
+                try:
+                    if proc.poll() is None:
+                        c.terminate_process(proc)
+                    proc.wait(timeout=2)
+                except Exception as error:
+                    rescue_errors.append(f"launcher {proc.pid}: {error!r}")
+            if rescue_errors:
+                message = f"fixture-owned launcher rescue failed: {rescue_errors!r}"
+                if original_error is not None:
+                    original_error.add_note(message)
+                else:
+                    self.fail(message)
 
     def test_interrupt_watcher_is_cancelled_after_early_failure(self) -> None:
         with patch.object(c, "main", side_effect=RuntimeError("early failure")), \

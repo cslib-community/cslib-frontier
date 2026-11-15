@@ -102,10 +102,9 @@ For each scheme, prove chosen-plaintext security for the actual algorithms and p
 - **Lattice signatures from SIS**: Prove random-oracle EUF-CMA security of Lyubashevsky's signatures (2009, 2012) from SIS by a native reduction that receives only `A`, with an efficient secret-free simulator and a security parameter family.
   The route covers forking ([#2620](https://github.com/cslib-community/cslib-frontier/issues/2620)), witness invariance ([#2642](https://github.com/cslib-community/cslib-frontier/issues/2642)), the ROM bridge ([#2661](https://github.com/cslib-community/cslib-frontier/issues/2661)), cache-hit bounds ([#2712](https://github.com/cslib-community/cslib-frontier/issues/2712)), oracle programming ([#2750](https://github.com/cslib-community/cslib-frontier/issues/2750)) and visible signing simulation ([#2788](https://github.com/cslib-community/cslib-frontier/issues/2788), [#2798](https://github.com/cslib-community/cslib-frontier/issues/2798)).
 - **Lattice identification and Dilithium-style signatures**: Prove identification security under SIS, and the security of Dilithium-style signature schemes over module SIS and module LWE, as theory.
-- **Hybrid encryption** ([#2725](https://github.com/cslib-community/cslib-frontier/issues/2725)): Prove adaptive CCA security of KEM–DEM hybrid encryption, with the factor-two bound of Boneh–Shoup Exercise 12.5(a) for `n`-bit messages, by native reductions to the KEM and one-time symmetric CCA games ([#2692](https://github.com/cslib-community/cslib-frontier/issues/2692), [#2694](https://github.com/cslib-community/cslib-frontier/issues/2694)).
-  Then extend it to arbitrary message spaces, prechallenge KEM queries and multiple encapsulation challenges.
-- **Paillier encryption and composite residuosity**: Prove IND-CPA security of Paillier encryption under Decisional Composite Residuosity (Katz–Lindell Theorem 15.13) for the actual word algorithms, with approximate unit sampling and native balanced-modulus generation.
-  The homomorphic property of Definition 15.14 needs an exact or statistical-closeness formulation, since its exact distributional condition fails for the implemented sampler.
+- **Hybrid encryption** ([#2749](https://github.com/cslib-community/cslib-frontier/issues/2749)): Extend adaptive CCA security of KEM–DEM hybrid encryption beyond the `n`-bit-message bound of Boneh–Shoup Exercise 12.5(a) ([#2725](https://github.com/cslib-community/cslib-frontier/issues/2725)) to arbitrary message spaces (unrestricted `WordINDCCA2`), prechallenge KEM queries and multiple encapsulation challenges.
+- **Paillier encryption and composite residuosity**: Construct native balanced-modulus generation for Paillier encryption and instantiate its IND-CPA security under Decisional Composite Residuosity (Katz–Lindell Theorem 15.13) with that generator.
+  The homomorphic property of Definition 15.14 for the word algorithms needs an exact or statistical-closeness formulation, since its exact distributional condition fails for the implemented sampler.
 - **Goldwasser–Micali encryption** ([#5293](https://github.com/cslib-community/cslib-frontier/issues/5293)): Prove IND-CPA security of bitwise multi-bit Goldwasser–Micali encryption over Blum moduli from quadratic residuosity alone, for the actual word algorithms.
   Do the same for the textbook key generator, which samples the public nonresidue uniformly from `QNR_N^{+1}` using the factorization, without assuming its keys indistinguishable from an ideal law.
 - **Garbled circuits and Yao's protocol** ([#3236](https://github.com/cslib-community/cslib-frontier/issues/3236)): Prove exact correctness and concrete simulation privacy of point-and-permute garbling for arbitrary-basis circuits, with privacy bounded by the sum of `n + size` PRF advantages.
@@ -117,7 +116,6 @@ For each scheme, prove chosen-plaintext security for the actual algorithms and p
 ### Zero-knowledge proof systems toward libzk ([#643](https://github.com/cslib-community/cslib-frontier/issues/643))
 
 The libzk components are listed in build order, ending with libzk's compositional structure.
-General auxiliary-input zero knowledge, the last entry, is independent of that order.
 
 - **Public-coin to IP bridge**: Map public-coin protocols into IP with a uniform word verifier and adversarial message decoding.
 - **Composition and round-by-round knowledge soundness**: Parallel and AND/OR composition of protocols and relations, with round-by-round knowledge soundness preserved under sequential, parallel and OR composition.
@@ -128,7 +126,6 @@ General auxiliary-input zero knowledge, the last entry, is independent of that o
 - **VOLE constraint reductions and VOLE-in-the-head**: Prove full zero-knowledge security of VOLE-based proofs for the arithmetic-circuit relation `∃ w, C.eval (x ++ w) = y`, with fresh-session amplification, scalar-challenge batching, growing fields, adversarial setup and scheduling, then VOLE-in-the-head.
   This includes a native circuit prover/verifier certificate with honest-sender realization ([#2765](https://github.com/cslib-community/cslib-frontier/issues/2765)) and raw-bit adversarial transport ([#2744](https://github.com/cslib-community/cslib-frontier/issues/2744)).
 - **libzk composition**: Express libzk's compositional structure as a composition of these components, without ciphersuites.
-- **General auxiliary-input zero knowledge** ([#324](https://github.com/cslib-community/cslib-frontier/issues/324)): If one-way functions secure against non-uniform adversaries exist, every language in NP has an interactive computational zero-knowledge proof system secure against PPT verifiers with arbitrary auxiliary input, following Goldreich–Micali–Wigderson with Naor's bit commitments.
 
 ### Private information retrieval ([#3251](https://github.com/cslib-community/cslib-frontier/issues/3251))
 
@@ -149,7 +146,7 @@ Information-theoretic private information retrieval, following Chor–Goldreich�
   Then complete the sampler/seed model, numerical DFR, the published Theorem 6.4 salted Fujisaki–Okamoto/ROM and KEM endpoint ([#5279](https://github.com/cslib-community/cslib-frontier/issues/5279)), and the separate QROM upgrade ([#5280](https://github.com/cslib-community/cslib-frontier/issues/5280)).
 - **SQIsign foundations** ([#4987](https://github.com/cslib-community/cslib-frontier/issues/4987)): Extend its `B_{p,∞}` presentation with maximal orders and ideals, finite-field and elliptic-curve arithmetic, isogenies and Deuring, protocol algorithms, failure analysis, distribution switches, assumptions and security reductions.
 
-- **SDitH foundations**: [#5212](https://github.com/cslib-community/cslib-frontier/issues/5212) is the completed bounded binary-RSD milestone. Seed expansion, the PIOP, commitments, grinding, signing and verification, SD/RSD hardness, and EUF-CMA/QROM security remain under [#4987](https://github.com/cslib-community/cslib-frontier/issues/4987).
+- **SDitH foundations**: [#5212](https://github.com/cslib-community/cslib-frontier/issues/5212), [#5263](https://github.com/cslib-community/cslib-frontier/issues/5263) and [#5542](https://github.com/cslib-community/cslib-frontier/issues/5542) are bounded binary-RSD, `TweakSalt` and two-child `ExpandSeed` milestones. Algorithm 6's byte PRG, the full GGM/BAVC tree, the PIOP, commitments, grinding, signing/verification, hardness, machine costs, asymptotic family security and finite instantiated exact-constant bounds remain under [#4987](https://github.com/cslib-community/cslib-frontier/issues/4987).
 
 - **Concurrent composition**: Extend the protocol semantics with environments, scheduling, session identifiers and concurrent executions, and prove a composition theorem with efficient simulators and explicit setup, corruption and communication assumptions.
   Then develop selected adaptive-corruption and non-malleability applications, alongside the static-malicious OT target.
@@ -731,6 +728,9 @@ Social welfare and social choice functions on strict rankings, from Arrow's impo
 
 ## Machines, RAM and data structures
 
+- **Pointer machines and disjoint sets** ([#5441](https://github.com/cslib-community/cslib-frontier/issues/5441)): Build on the injective heap simulation with allocation to prove separation/locality and source-program correspondence accounting for undefined-value traps and invocation conventions.
+  Establish certified machine simulations and native union-find algorithms and lower bounds with explicit symbol-opacity and set-separation assumptions.
+
 - **Efficient universal simulation** ([#800](https://github.com/cslib-community/cslib-frontier/issues/800)): A universal function that runs in time `O(N + poly(D, M) · (t + 1) log(t + 2))`, for encoded input length `N`, description length `D` and largest input symbol `M`, with a storage bound in terms of the simulated machine's space rather than its time.
   Both a clocked form and an unclocked form that runs until the simulated machine halts are in scope.
 - **Plain computability** ([#862](https://github.com/cslib-community/cslib-frontier/issues/862)): Complete the plain calculus ([#608](https://github.com/cslib-community/cslib-frontier/issues/608)) and delete the tidy calculus, keeping only a machine-level kernel inside the Machines layer.
@@ -759,6 +759,8 @@ Social welfare and social choice functions on strict rankings, from Arrow's impo
 - **Stateful Word-RAM algorithms:** Word-RAM controllers for larger adaptive and iterative clients, including the two-stack queue and timeline-editing controllers, with reusable allocation and deallocation, shrinking, and live and peak space accounting.
   Ownership and recursive procedures, and model realizations for cell probes, caches and randomness.
 - **Data-structure extensions:** Present and historical queries for the retroactive interface, balancing and heap or RAM representations of search trees, uniform preprocessing and dynamic updates for fusion trees, deletion and predecessor for van Emde Boas sets, and deallocation, shrinking and compiled client controllers for the doubling array.
+- **Resizable Word RAM and dynamic succinct dictionary** ([#3167](https://github.com/cslib-community/cslib-frontier/issues/3167)): In-epoch execution with wired leaf operation dispatchers (`inEpoch{Query,Insert,Delete}Code`, `inEpochOpCode`), stepwise dynamic space bounds and peak frontier tracking (`PeakFrontierLe ≤ base + compactedEpochWords`, M3b), single-tape (in-place) streaming epoch migration with strict `1 · OPT` space preservation (M4), end-to-end expected-amortized dynamic dictionary on Resizable Word RAM (M5), and deamortized worst-case operations with high-probability space bounds.
+- **With-high-probability succinct dictionary** ([#5356](https://github.com/cslib-community/cslib-frontier/issues/5356)): SOSA 2024 succinct dynamic dictionary with worst-case operational bounds with high probability (Bender, Farach-Colton, J. Kuszmaul, W. Kuszmaul). Verified foundations include reusable with-high-probability Word-RAM state-transition certificates, variance-aware $2m$-th moment tail bounds for $k$-wise independence, and Word-RAM bit-packed double tabulation.
 - **Typed-call evaluator:** An evaluator for fixed-program Word-RAM clients that returns the typed observation, final state and halt-inclusive instruction cost, so that the prefix-sum clients no longer assemble preparation, evaluation and halt accounting by hand.
 - **Priority-queue and shortest-path consolidation** ([#949](https://github.com/cslib-community/cslib-frontier/issues/949)): Lift the operation-count helpers to `IndexedMinPQ`, and parameterize flat-program operation-sequence execution (`RunsOps`) over `PQCode` so that `BinaryHeap` and `FibonacciHeap` share one generic `run_ops_exact` theorem.
   Factor a common `ShortestPathSpec p bound` predicate across `LogLinearSpec`, `FibonacciSpec` and `FibonacciLinearSpec`.
@@ -771,6 +773,8 @@ Social welfare and social choice functions on strict rankings, from Arrow's impo
 - **B-trees** ([#3674](https://github.com/cslib-community/cslib-frontier/issues/3674)): comparison bounds for B-tree operations in CSLib's query model, with linear and binary in-node search, and the `⌈log₂(n + 1)⌉` comparison lower bound for search.
   Read-only operations behind a node-access oracle, whose query counts equal the node-visit counts.
   B+-trees, with only separator keys in interior nodes and every entry in a leaf: structure, queries, updates, bulk loading and the same cost bounds.
+- **Subconstant-redundancy dynamic dictionary** ([#5349](https://github.com/cslib-community/cslib-frontier/issues/5349)): dynamic succinct dictionaries with subconstant redundancy `R` following Li, Liang, Yu, and Zhou (SODA 2024, arXiv:2310.20536).
+  Word-RAM bit-packed realization with `O(1)` expected query time, `infoBits + O(R)` bits for `R ≤ n` (including Section 4 small-`R` adapter trees), Las Vegas sentinel/resizing wrappers, and localized subtree rehashing with `O((n + M) log* n)` expected work.
 
 ### Parallel, external-memory and distributed models
 
