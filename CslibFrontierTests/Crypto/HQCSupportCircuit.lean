@@ -9,6 +9,7 @@ module
 import CslibFrontier.Crypto.Primitives.HQC.SupportCircuit.PolyTime
 import CslibFrontier.Crypto.Primitives.HQC.SupportCircuit.Collision.PolyTime
 import CslibFrontier.Crypto.Primitives.HQC.SupportCircuit.Resolve
+import CslibFrontier.Crypto.Primitives.HQC.SupportCircuit.Sampler
 public import CslibFrontier.Computability.Circuit.Quantum.Reversible.Resources
 import CslibFrontier.Foundations.Data.BitString.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
@@ -130,5 +131,36 @@ example (bits offset : ℕ) : (supportScanCircuit bits offset 0).size = 0 := by
 example : (supportScanCircuit 0 0 2).size = 6 := by
   rw [size_supportScanCircuit]
   decide
+
+-- The complete native sampler has the implemented support law and its separate resource bounds.
+example :
+    Reversible.samplerDist nonDyadicSupportCircuit =
+      (ProbComp.eval (sampleSupport2 1 3 2)).map (BitString.indicatorVector 3) :=
+  samplerDist_nonDyadicSupportCircuit
+
+example :
+    Reversible.samplerWidth 2 nonDyadicSupportCircuit.code =
+      2 + nonDyadicSupportCircuit.size + 1 + 3 :=
+  nonDyadicSupportCircuit_width
+
+example :
+    (Reversible.samplerCodes 2 nonDyadicSupportCircuit.code).length ≤
+      2 + 3 * nonDyadicSupportCircuit.size + 3 :=
+  length_nonDyadicSupportCodes_le
+
+example :
+    OracleCircuit.Within
+      ((Reversible.samplerCodes 2 nonDyadicSupportCircuit.code).map
+        fun g => OracleGateCode.gate (false, g))
+      (2 + nonDyadicSupportCircuit.size + 1 + 3)
+      ⟨2 + nonDyadicSupportCircuit.size + 1 + 3,
+        2 + 3 * nonDyadicSupportCircuit.size + 3, 0⟩ :=
+  within_nonDyadicSupportCodes
+
+example :
+    (encList encGateCode (Reversible.samplerCodes 2 nonDyadicSupportCircuit.code)).length ≤
+      (2 + 3 * nonDyadicSupportCircuit.size + 3) *
+        (12 * (2 + nonDyadicSupportCircuit.size + 1 + 3) + 1) :=
+  length_encoding_nonDyadicSupportCodes_le
 
 end CslibFrontierTests.HQCSupportCircuit
