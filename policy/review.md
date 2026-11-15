@@ -31,7 +31,12 @@ compare the name, docstring, PR title and any inventory entry with what the stat
 a theorem that claims a cited result, classify each hypothesis as one of:
 
 - (i) an assumption the cited source names, stated relative to the problem, sampler or component
-  it concerns;
+  it concerns. In cryptography it is listed in the
+  [assumptions inventory](../manual/programs-crypto-and-probability/assumptions.md) with that source
+  and a checked locator: when its row says "locator not verified" or "status pending", the
+  reviewer checks the source before classifying the hypothesis as (i). For a parametric
+  assumption or a vocabulary notion, the instance the theorem supplies must be the source's
+  ([Security theorems](statements.md#security-theorems));
 - (ii) membership of the adversary or input in the admitted class;
 - (iii) a property of a generic component that the source takes as given;
 - (iv) anything else: a step of the cited proof, a property of an object the proof builds, a

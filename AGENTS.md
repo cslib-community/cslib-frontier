@@ -10,7 +10,7 @@ marker.
 Follow the mathematical, API and style conventions of the pinned cslib (`AGENTS.md`,
 `CONTRIBUTING.md` and `CODESTYLE.md` in `.lake/packages/cslib`). This repository's workflow,
 validation and test layout are defined here, in `policy/` and in `CONTRIBUTING.md`. `ROADMAP.md`
-records outstanding directions.
+and the per-area files under `roadmap/` record outstanding directions.
 
 ## How to read these instructions
 
@@ -83,8 +83,9 @@ documentation, manual page, PR title or [results inventory](results/README.md) e
    step of the cited proof, something about an object its own proof builds (a reduction,
    simulator, extractor, hybrid, decoder), or a caller-supplied object whose existence or
    efficiency is what the result proves; when it idealizes the construction's algorithms; when it
-   proves a fixed finite instance instead of a family; or when it weakens the notion, model or
-   adversary class. A useful stand-in may land only as a named step (`…_of_reduction_le`,
+   proves a fixed finite instance instead of a family; when it weakens the notion, model or
+   adversary class; or when it rests on an assumption other than the source's that the source's
+   is not proved or cited to imply, such as a stronger or novel one. A useful stand-in may land only as a named step (`…_of_reduction_le`,
    `…_of_realization`) whose docstring opens by saying it is not the cited result, with the cited
    objective left open. Listing the gap under "Limitations" does not meet this rule.
 3. **No vacuous headlines.** Hypotheses that cannot hold together, or a conclusion that follows
@@ -134,7 +135,19 @@ adversary. Write each reduction as an explicit program with an efficiency witnes
 adversary's certificate, and prove the asymptotic theorem by applying the assumption through that
 witness. Asymptotic statements come first; a concrete bound `Adv(A) ≤ f(Adv(B_A))` is a lemma.
 Names and docstrings state the model, the notion and any deviation from the source.
-`scripts/check_security_premises.py` supplements this rule; it does not replace semantic review.
+
+Every named assumption is listed in the
+[assumptions inventory](manual/programs-crypto-and-probability/assumptions.md) as *standard* (a
+cited source states it; the docstring cites the definition with a checked locator and names every
+material difference), *novel* (no source states it, or it strengthens its source; the docstring
+says so, relates it to standard assumptions and says why it is plausible) or *vocabulary* (a
+generic notion that becomes an assumption only through the instance a theorem supplies). A row
+says "locator not verified" until a reviewer has confirmed the locator at the source. A theorem
+claiming a cited result rests on the source's assumption, on one review accepts as the same in
+another formal setting, or on one the source's implies; otherwise it is a stand-in. A novel
+assumption may support a result presented as original and named for it.
+`scripts/check_security_premises.py` and `scripts/check_hardness_assumptions.py` supplement these
+rules; they do not replace semantic review.
 
 ## Review cycle
 
@@ -144,7 +157,9 @@ to reach a count. A review does the following, in this order.
 
 1. **Check every new or changed headline first.** Quote its statement (abridged) and compare the
    name, docstring, PR title and inventory entry with what it proves. For a cited result, classify
-   each hypothesis: (i) an assumption the source names; (ii) membership of the adversary or input
+   each hypothesis: (i) an assumption the source names (in cryptography, listed in the
+   [assumptions inventory](manual/programs-crypto-and-probability/assumptions.md) with a checked
+   locator, and for a parametric or vocabulary notion the instance supplied is the source's); (ii) membership of the adversary or input
    in the admitted class; (iii) a property of a generic component the source takes as given; (iv)
    anything else. Any vacuous hypothesis blocks approval. For a statement presented as the cited
    endpoint, or one advertising a headline property that its premises assume rather than
@@ -276,7 +291,7 @@ requesting approval. Optimize for trustworthy, reusable results, not the number 
 or merged PRs. When narrowing a task, keep its original objective visible and record the bounded
 deliverable and the remaining gap; a restricted model, conditional result or partial theorem does
 not complete a broader objective. Distinguish **completed**, **milestone completed** (link what
-remains) and **not planned** (remove it from `ROADMAP.md`, which has no deferred tier).
+remains) and **not planned** (remove it from the roadmap, which has no deferred tier).
 
 ### Durable records
 
