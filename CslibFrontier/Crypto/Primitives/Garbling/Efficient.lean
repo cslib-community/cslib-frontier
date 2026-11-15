@@ -148,17 +148,8 @@ def encValidCircuit : ValidCircuit ↪ List Bool :=
 gate. -/
 theorem n_add_q_le_length_encValidCircuit (f : ValidCircuit) :
     f.1.n + f.1.q ≤ (encValidCircuit f).length := by
-  have hsum : ∀ l : List (ℕ × ℕ × List Bool), l.length ≤
-      (encList (encPair encNat (encPair encNat encBits)) l).length := by
-    intro l
-    rw [length_encList]
-    induction l with
-    | nil => simp
-    | cons a l ih =>
-      simp only [List.length_cons, List.map_cons, List.sum_cons]
-      omega
   change f.1.n + f.1.q ≤ (encCircuitData (f.1.n, f.1.m, f.1.gateList)).length
-  have h := hsum f.1.gateList
+  have h := length_le_length_encList (encPair encNat (encPair encNat encBits)) f.1.gateList
   simp only [ConventionalCircuit.length_gateList] at h
   simp only [encCircuitData, length_encPair, encUnary_apply, List.length_replicate]
   omega

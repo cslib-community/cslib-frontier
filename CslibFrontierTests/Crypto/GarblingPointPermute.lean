@@ -10,6 +10,7 @@ import CslibFrontier.Crypto.Primitives.Garbling.PointPermute
 import CslibFrontier.Crypto.Primitives.Garbling.PointPermute.Efficient
 import CslibFrontier.Crypto.Primitives.Garbling.PointPermute.Simulator
 import CslibFrontier.Crypto.Primitives.Garbling.PointPermute.Privacy
+import CslibFrontier.Tactic.PolyTime
 
 /-!
 # Tests for point-and-permute garbling
@@ -29,7 +30,9 @@ encoding `encPair encBits (encPair encBits encBits)` of `(F, e, d)`. `Scheme.IsE
 instance: point-and-permute garbling keyed by the family that returns its input word, which is
 computed in polynomial time. For the same family, the simulator `PointPermute.simWord` of
 `CslibFrontier.Crypto.Primitives.Garbling.PointPermute.Simulator` is PPT, and its views decode to
-the output, and a pseudorandom family makes the scheme `prv.sim` secure.
+the output, and a pseudorandom family makes the scheme `prv.sim` secure: a concrete adversary that
+chooses the AND gate and saves a bit is certified PPT, and the theorem gives it a PPT simulator
+with negligible advantage.
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
@@ -132,5 +135,31 @@ example {family : List Bool → List Bool → List Bool}
     (h : Cslib.Crypto.PseudorandomFunction family) :
     (PointPermute.scheme family).PrvSimSecure phiTopo encValidCircuit encValidTopo :=
   h.prvSim_pointPermute
+
+/-- A concrete `prv.sim` adversary with a saved state: it chooses the AND gate on the input
+`(true, false)`, saves the bit `true`, and guesses whether it saved `true` and received a view. -/
+def andAdversary : ℕ → PrvSimAdversary ValidCircuit Bool :=
+  fun _ => ⟨fun _ => pure (⟨validAndGate, [true, false]⟩, true),
+    fun state view => pure (state && view.isSome)⟩
+
+open Turing.MultiTapeTM in
+/-- The adversary is uniform strict PPT, with its saved bit encoded by `encBool`. -/
+theorem isPPT_andAdversary : TwoStage.IsPPT encUnit (encQuery ValidCircuit encValidCircuit)
+    (encOption encPrvView) encBool encBool andAdversary where
+  choose := ComputableInPolyTime.isPPTOn (ComputableInPolyTime.const _)
+  guess := ComputableInPolyTime.isPPTOn
+    (f := fun p : ℕ × Bool × Option PrvView => p.2.1 && p.2.2.isSome) (by polytime)
+
+open Turing.MultiTapeTM in
+/-- For a pseudorandom family, `prv.sim` security gives this adversary a PPT simulator whose
+advantage is negligible. -/
+example {family : List Bool → List Bool → List Bool}
+    (h : Cslib.Crypto.PseudorandomFunction family) :
+    ∃ S : ℕ → PrvSimulator ValidTopo,
+      Cslib.Probability.IsPPTOn (encPair encUnary (encPair encBits encValidTopo)) encPrvView
+        (fun (k, y, t) => S k y t) ∧
+      Negligible fun k => prvSimAdvantage (PointPermute.scheme family) phiTopo k (S k)
+        (andAdversary k) :=
+  h.prvSim_pointPermute Bool encBool andAdversary isPPT_andAdversary
 
 end CslibFrontierTests.Crypto.GarblingPointPermute
