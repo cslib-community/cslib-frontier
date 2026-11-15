@@ -114,19 +114,15 @@ theorem bytesToBitsBE_lt_iff_lt {X Y : List Byte} (hlength : X.length = Y.length
         exact iff_of_true (by simpa [bytesToBitsBE] using happend)
           (by exact List.Lex.rel hlt)
       · subst y
-        have hprefix : byteBitsBE x ++ bytesToBitsBE X <
-            byteBitsBE x ++ bytesToBitsBE Y ↔
+        have hprefix (prefix : List Bool) :
+            prefix ++ bytesToBitsBE X < prefix ++ bytesToBitsBE Y ↔
               bytesToBitsBE X < bytesToBitsBE Y := by
-          induction byteBitsBE x with
+          induction prefix with
           | nil => rfl
           | cons bit prefix ihprefix =>
-              change (bit :: (prefix ++ bytesToBitsBE X)) <
-                (bit :: (prefix ++ bytesToBitsBE Y)) ↔
-                  bytesToBitsBE X < bytesToBitsBE Y
-              rw [List.lex_cons_iff]
-              exact ihprefix
+              exact List.lex_cons_iff.trans ihprefix
         simp only [bytesToBitsBE]
-        rw [hprefix, List.lex_cons_iff, ih hlength]
+        rw [hprefix (byteBitsBE x), List.lex_cons_iff, ih hlength]
       · have hbits := (byteBitsBE_lt_iff_lt y x).2 hgt
         have happend := List.append_lt_append_of_lt_of_length_eq hbits
           ((byteBitsLength y).trans (byteBitsLength x).symm)
