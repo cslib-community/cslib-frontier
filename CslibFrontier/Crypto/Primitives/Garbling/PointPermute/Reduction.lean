@@ -14,6 +14,17 @@ import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Foundations.Data.BitString.List.LowBits
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Crypto.Game.Hybrid
+import CslibFrontier.Computability.Probabilistic.Sampling
+import CslibFrontier.Computability.Probabilistic.PPT.Capture
+import CslibFrontier.Computability.Probabilistic.UniformNat
+import CslibFrontier.Computability.Probabilistic.Oracle.Composition
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
+import CslibFrontier.Tactic.PolyTime
 
 /-!
 # The real view of point-and-permute garbling as a typed view
@@ -685,5 +696,100 @@ theorem prvSimAdvantage_simWord_eq {σ : Type} (B : ℕ → PrvSimAdversary Vali
     Game.advantage_hybrid_average (prvSimHybrid family B k) _ _ le_rfl, PRF.advantage,
     eval_realExperiment_prvSimReduction, eval_idealExperiment_prvSimReduction family B P k hP hk]
   simp only [Fin.is_lt, ↓reduceIte]
+
+/-! ### Efficiency -/
+
+section Efficiency
+
+open Turing.MultiTapeTM
+
+variable {family}
+
+/-- Row `i` of gate `g` of hybrid view `j`, from the plaintext wire values `ws`, the 0-indexed
+argument wires `a` and `b` and the truth table `t` of the gate. -/
+private def hybRowData (k n q j : ℕ) (ws kc sc : List Bool) (rs : List (List Bool)) (a b : ℕ)
+    (t : List Bool) (g i : ℕ) : List Bool :=
+  if (i.testBit 1 != (permOf ws a ^^ permOf kc a) && decide (a < j)) ||
+      (i.testBit 0 != (permOf ws b ^^ permOf kc b) && decide (b < j)) then
+    simLabel k sc (n + q + 4 * g + i)
+  else
+    List.zipWith xor (labelOf k (n + q) kc (n + g)
+        (t.getD ((if i.testBit 1 ^^ permOf kc a then 2 else 0) +
+          (if i.testBit 0 ^^ permOf kc b then 1 else 0)) false ^^ permOf kc (n + g)))
+      (List.zipWith xor
+        (if i.testBit 1 != (permOf ws a ^^ permOf kc a) && decide (a = j) then
+          rs.getD (8 * g + 2 * i) [] else
+          labelWord family k (keyOf k (n + q) kc a (i.testBit 1)) (tweak k g i 0))
+        (if i.testBit 0 != (permOf ws b ^^ permOf kc b) && decide (b = j) then
+          rs.getD (8 * g + 2 * i + 1) [] else
+          labelWord family k (keyOf k (n + q) kc b (i.testBit 0)) (tweak k g i 1)))
+
+/-- The four rows of gate `g` of hybrid view `j`. -/
+private def hybRowsBlock (k n q j : ℕ) (ws kc sc : List Bool) (rs : List (List Bool)) (a b : ℕ)
+    (t : List Bool) (g : ℕ) : List Bool :=
+  hybRowData (family := family) k n q j ws kc sc rs a b t g 0 ++
+    (hybRowData (family := family) k n q j ws kc sc rs a b t g 1 ++
+      (hybRowData (family := family) k n q j ws kc sc rs a b t g 2 ++
+        hybRowData (family := family) k n q j ws kc sc rs a b t g 3))
+
+/-- The body of hybrid view `j` from the gate list, with the wire numbers capped at the number of
+wire values. -/
+private def hybBodyData (k n q j : ℕ) (ws kc sc : List Bool) (rs : List (List Bool))
+    (gates : List (ℕ × ℕ × List Bool)) : List Bool :=
+  ((List.range q).map fun g =>
+    BitString.lowBits (wireWidth n q) (gates.getD g (0, 0, [])).1 ++
+      BitString.lowBits (wireWidth n q) (gates.getD g (0, 0, [])).2.1 ++
+      hybRowsBlock (family := family) k n q j ws kc sc rs
+        (min (ws.length + 1) (gates.getD g (0, 0, [])).1 - 1)
+        (min (ws.length + 1) (gates.getD g (0, 0, [])).2.1 - 1)
+        (gates.getD g (0, 0, [])).2.2 g).flatten
+
+private theorem ofFn_eq_map_range'' {α : Type*} {c : ℕ} (h : ℕ → α) :
+    List.ofFn (fun i : Fin c => h i) = (List.range c).map h := by
+  apply List.ext_getElem (by simp)
+  intro i h₁ h₂
+  simp
+
+/-- Hybrid view `j` on words from the data of the circuit and its plaintext wire values. -/
+private theorem hybViewWord_eq_data (k : ℕ) (f : ValidCircuit) (x : List Bool) (j : ℕ)
+    (kc sc : List Bool) (rs : List (List Bool)) :
+    hybViewWord family k f.1 x j kc sc rs =
+      ⟨encFn ((k, f.1.n, f.1.m, f.1.gateList.length),
+          hybBodyData (family := family) k f.1.n f.1.gateList.length j (f.1.wires x f.1.q) kc sc rs
+            f.1.gateList),
+        ((List.range f.1.n).map fun i =>
+          labelOf k (f.1.n + f.1.gateList.length) kc i (permOf x i ^^ permOf kc i)).flatten,
+        (List.range f.1.m).map fun o => permOf kc (f.1.n + f.1.gateList.length - f.1.m + o)⟩ := by
+  have hws : (f.1.wires x f.1.q).length = f.1.n + f.1.q := f.1.length_wires x le_rfl
+  simp only [hybViewWord, ConventionalCircuit.length_gateList, PrvView.mk.injEq]
+  refine ⟨?_, congrArg List.flatten (ofFn_eq_map_range'' (fun i =>
+      labelOf k (f.1.n + f.1.q) kc i (x.getD i false ^^ permOf kc i))),
+    ofFn_eq_map_range'' (fun o => permOf kc (f.1.n + f.1.q - f.1.m + o))⟩
+  congr 3
+  apply List.ext_getElem (by simp)
+  intro g h₁ h₂
+  have hg : g < f.1.q := by simpa using h₁
+  have hA := f.2.one_le_A ⟨g, hg⟩
+  have hAB := f.2.A_lt_B ⟨g, hg⟩
+  have hBg := f.2.B_lt_gate ⟨g, hg⟩
+  simp only [topo] at hA hAB hBg
+  have hgate : f.1.gateList.getD g (0, 0, []) = (f.1.A ⟨g, hg⟩, f.1.B ⟨g, hg⟩,
+      [f.1.G ⟨g, hg⟩ false false, f.1.G ⟨g, hg⟩ false true, f.1.G ⟨g, hg⟩ true false,
+        f.1.G ⟨g, hg⟩ true true]) := by
+    simp [ConventionalCircuit.gateList, List.getD_eq_getElem?_getD, hg]
+  have hcapA : min ((f.1.wires x f.1.q).length + 1) (f.1.A ⟨g, hg⟩) - 1 = f.1.A ⟨g, hg⟩ - 1 := by
+    rw [hws]; omega
+  have hcapB : min ((f.1.wires x f.1.q).length + 1) (f.1.B ⟨g, hg⟩) - 1 = f.1.B ⟨g, hg⟩ - 1 := by
+    rw [hws]; omega
+  simp only [List.getElem_ofFn, List.getElem_map, List.getElem_range, hgate, hcapA, hcapB]
+  congr 1
+  simp only [List.ofFn_succ, List.ofFn_zero, List.flatten_cons, List.flatten_nil, List.append_nil,
+    hybRowsBlock, hybRow, hybRowData, Fin.val_zero, Fin.val_succ, zero_add, Nat.reduceAdd,
+    getD_table]
+  simp only [wireBit, permOf, Bool.or_eq_true, Bool.and_eq_true, bne_iff_ne, ne_eq,
+    decide_eq_true_eq]
+  rfl
+
+end Efficiency
 
 end Cslib.Crypto.Garbling.PointPermute
