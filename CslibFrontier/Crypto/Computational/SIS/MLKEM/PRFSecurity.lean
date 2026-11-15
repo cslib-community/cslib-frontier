@@ -59,8 +59,8 @@ At each `κ` and challenge bit `b` there are three games:
 
 The key-generation hop `keyPRFReduction P F A b` is a PRF distinguisher that runs G0, reading the
 noise bits of key generation from its oracle at the counters `0, …, 2k − 1`. Against `F` under a
-uniform key it plays G0 (`eval_prfRealGameOver_keyPRFReduction`), and against a uniform random
-function G1 (`eval_prfIdealGameOver_keyPRFReduction`): a uniform function read at the distinct
+uniform key it plays G0 (`eval_prfRealGame_keyPRFReduction`), and against a uniform random
+function G1 (`eval_prfIdealGame_keyPRFReduction`): a uniform function read at the distinct
 counter words gives fair coins (`BitString.uniformOfFintype_map_readPrefixes`). The encryption hop
 `encPRFReduction P A b` likewise reads the encryption coins at the counters `0, …, 2k` and plays
 G1 against `F` and G2 against a random function. Both reductions are oracle PPT whenever `A` is
@@ -465,12 +465,12 @@ private theorem eval_gameOn_kpkePRF (keyGen : ℕ → ProbComp (List Bool × Lis
 
 /-- **The key-generation hop against `F` is G0**: the real PRF game of `keyPRFReduction P F A b`
 is the IND-CPA game of `kpkePRF P F` with challenge bit `b`. -/
-theorem eval_prfRealGameOver_keyPRFReduction (κ : ℕ) :
-    ProbComp.eval (prfRealGameOver (fun κ => nonceLen (P κ)) F (keyPRFReduction P F A b) κ) =
+theorem eval_prfRealGame_keyPRFReduction (κ : ℕ) :
+    ProbComp.eval (prfRealGame (fun κ => nonceLen (P κ)) F (keyPRFReduction P F A b) κ) =
       ProbComp.eval (gameOn (kpkePRF P F).IsMessagePair (kpkePRF P F).keyGen
         (kpkePRF P F).encrypt A b κ) := by
   rw [eval_gameOn_kpkePRF]
-  simp only [prfRealGameOver, keyPRFReduction, ProbOracleComp.run_bind,
+  simp only [prfRealGame, keyPRFReduction, ProbOracleComp.run_bind,
     ProbOracleComp.run_sample, run_queryNoise_prfOracle, pure_bind, kpkePRF, keyGenPRFWord,
     keyNoise, ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind,
     BitString.eval_sampleList]
@@ -479,8 +479,8 @@ theorem eval_prfRealGameOver_keyPRFReduction (κ : ℕ) :
 /-- **The key-generation hop against a random function is G1**: the ideal PRF game of
 `keyPRFReduction P F A b` is the IND-CPA game of `kpkePRF P F` with challenge bit `b` and the key
 generation of `kpke P`. -/
-theorem eval_prfIdealGameOver_keyPRFReduction (κ : ℕ) :
-    ProbComp.eval (prfIdealGameOver (fun κ => nonceLen (P κ)) (fun κ => prfLen (P κ))
+theorem eval_prfIdealGame_keyPRFReduction (κ : ℕ) :
+    ProbComp.eval (prfIdealGame (fun κ => nonceLen (P κ)) (fun κ => prfLen (P κ))
         (keyPRFReduction P F A b) κ) =
       ProbComp.eval (gameOn (kpkePRF P F).IsMessagePair (kpke P).keyGen
         (kpkePRF P F).encrypt A b κ) := by
@@ -491,7 +491,7 @@ theorem eval_prfIdealGameOver_keyPRFReduction (κ : ℕ) :
       Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ (le_max_left _ _))
   rw [Finset.sum_const, Finset.card_range, smul_eq_mul,
     show 2 * (P κ).k * ((P κ).n * (2 * (P κ).η₁)) = L + L by simp only [L]; ring] at hread
-  simp only [prfIdealGameOver, keyPRFReduction, ProbOracleComp.run_bind,
+  simp only [prfIdealGame, keyPRFReduction, ProbOracleComp.run_bind,
     ProbOracleComp.run_sample, run_queryNoise, pure_bind, ProbComp.eval_bind,
     ProbComp.eval_uniform]
   rw [PMF.bind_comm]
@@ -504,12 +504,12 @@ theorem eval_prfIdealGameOver_keyPRFReduction (κ : ℕ) :
 
 /-- **The encryption hop against `F` is G1**: the real PRF game of `encPRFReduction P A b` is the
 IND-CPA game of `kpkePRF P F` with challenge bit `b` and the key generation of `kpke P`. -/
-theorem eval_prfRealGameOver_encPRFReduction (κ : ℕ) :
-    ProbComp.eval (prfRealGameOver (fun κ => nonceLen (P κ)) F (encPRFReduction P A b) κ) =
+theorem eval_prfRealGame_encPRFReduction (κ : ℕ) :
+    ProbComp.eval (prfRealGame (fun κ => nonceLen (P κ)) F (encPRFReduction P A b) κ) =
       ProbComp.eval (gameOn (kpkePRF P F).IsMessagePair (kpke P).keyGen
         (kpkePRF P F).encrypt A b κ) := by
   rw [eval_gameOn_kpkePRF, show (kpke P).keyGen κ = keyGenWord (P κ) κ from rfl]
-  simp only [prfRealGameOver, encPRFReduction, ProbOracleComp.run_bind, ProbOracleComp.run_sample,
+  simp only [prfRealGame, encPRFReduction, ProbOracleComp.run_bind, ProbOracleComp.run_sample,
     ProbComp.eval_bind, BitString.eval_sampleList]
   rw [PMF.bind_comm]
   refine congrArg _ (funext fun keys => ?_)
@@ -524,8 +524,8 @@ theorem eval_prfRealGameOver_encPRFReduction (κ : ℕ) :
 
 /-- **The encryption hop against a random function is G2**: the ideal PRF game of
 `encPRFReduction P A b` is the IND-CPA game of `kpke P` with challenge bit `b`. -/
-theorem eval_prfIdealGameOver_encPRFReduction (κ : ℕ) :
-    ProbComp.eval (prfIdealGameOver (fun κ => nonceLen (P κ)) (fun κ => prfLen (P κ))
+theorem eval_prfIdealGame_encPRFReduction (κ : ℕ) :
+    ProbComp.eval (prfIdealGame (fun κ => nonceLen (P κ)) (fun κ => prfLen (P κ))
         (encPRFReduction P A b) κ) =
       ProbComp.eval (gameOn (kpke P).IsMessagePair (kpke P).keyGen (kpke P).encrypt A b κ) := by
   have hread := uniformOfFintype_map_counterWords (P κ) (w := prfLen (P κ)) le_rfl (encWidth (P κ))
@@ -554,7 +554,7 @@ theorem eval_prfIdealGameOver_encPRFReduction (κ : ℕ) :
       Finset.sum_const, Finset.card_range, smul_eq_mul, smul_eq_mul]
     rfl
   rw [hsum] at hread
-  simp only [prfIdealGameOver, encPRFReduction, gameOn, ProbOracleComp.run_bind,
+  simp only [prfIdealGame, encPRFReduction, gameOn, ProbOracleComp.run_bind,
     ProbOracleComp.run_sample, ProbComp.eval_bind, ProbComp.eval_uniform]
   rw [PMF.bind_comm]
   refine congrArg _ (funext fun keys => ?_)
@@ -582,30 +582,30 @@ theorem advantage_gameOn_kpkePRF_le (P : ℕ → Params) (F : List Bool → List
     Encryption.advantage
         (gameOn (kpkePRF P F).IsMessagePair (kpkePRF P F).keyGen (kpkePRF P F).encrypt A) κ ≤
       Game.advantage
-          (ProbComp.eval (prfRealGameOver (fun κ => nonceLen (P κ)) F
+          (ProbComp.eval (prfRealGame (fun κ => nonceLen (P κ)) F
             (keyPRFReduction P F A false) κ))
-          (ProbComp.eval (prfIdealGameOver (fun κ => nonceLen (P κ)) (fun κ => prfLen (P κ))
+          (ProbComp.eval (prfIdealGame (fun κ => nonceLen (P κ)) (fun κ => prfLen (P κ))
             (keyPRFReduction P F A false) κ)) +
         (Game.advantage
-          (ProbComp.eval (prfRealGameOver (fun κ => nonceLen (P κ)) F
+          (ProbComp.eval (prfRealGame (fun κ => nonceLen (P κ)) F
             (encPRFReduction P A false) κ))
-          (ProbComp.eval (prfIdealGameOver (fun κ => nonceLen (P κ)) (fun κ => prfLen (P κ))
+          (ProbComp.eval (prfIdealGame (fun κ => nonceLen (P κ)) (fun κ => prfLen (P κ))
             (encPRFReduction P A false) κ)) +
         (Encryption.advantage (gameOn (kpke P).IsMessagePair (kpke P).keyGen (kpke P).encrypt A)
             κ +
         (Game.advantage
-          (ProbComp.eval (prfRealGameOver (fun κ => nonceLen (P κ)) F
+          (ProbComp.eval (prfRealGame (fun κ => nonceLen (P κ)) F
             (encPRFReduction P A true) κ))
-          (ProbComp.eval (prfIdealGameOver (fun κ => nonceLen (P κ)) (fun κ => prfLen (P κ))
+          (ProbComp.eval (prfIdealGame (fun κ => nonceLen (P κ)) (fun κ => prfLen (P κ))
             (encPRFReduction P A true) κ)) +
         Game.advantage
-          (ProbComp.eval (prfRealGameOver (fun κ => nonceLen (P κ)) F
+          (ProbComp.eval (prfRealGame (fun κ => nonceLen (P κ)) F
             (keyPRFReduction P F A true) κ))
-          (ProbComp.eval (prfIdealGameOver (fun κ => nonceLen (P κ)) (fun κ => prfLen (P κ))
+          (ProbComp.eval (prfIdealGame (fun κ => nonceLen (P κ)) (fun κ => prfLen (P κ))
             (keyPRFReduction P F A true) κ))))) := by
-  simp only [Encryption.advantage, eval_prfRealGameOver_keyPRFReduction,
-    eval_prfIdealGameOver_keyPRFReduction, eval_prfRealGameOver_encPRFReduction,
-    eval_prfIdealGameOver_encPRFReduction]
+  simp only [Encryption.advantage, eval_prfRealGame_keyPRFReduction,
+    eval_prfIdealGame_keyPRFReduction, eval_prfRealGame_encPRFReduction,
+    eval_prfIdealGame_encPRFReduction]
   rw [Game.advantage_comm (ProbComp.eval (gameOn (kpkePRF P F).IsMessagePair (kpkePRF P F).keyGen
       (kpkePRF P F).encrypt A true κ)),
     Game.advantage_comm (ProbComp.eval (gameOn (kpkePRF P F).IsMessagePair (kpke P).keyGen
