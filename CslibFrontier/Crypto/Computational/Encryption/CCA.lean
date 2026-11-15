@@ -31,6 +31,7 @@ import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.PPT
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Chosen-ciphertext security for public-key encryption (1CCA and multi-challenge CCA / IND-CCA2)
@@ -318,19 +319,16 @@ theorem CCA2AdversaryOf.IsPPT.query_bounds {Msg : Type} {encMsg : Msg ↪ List B
     fun n state ct => ?_, fun n pk State oracle s s' choice hmem => ?_⟩
   · have hsize : (encPair encUnary (encPair encBits encBits) (n, state, ct)).length + 1 ≤
         4 * (n + state.length + ct.length + 2) := by
-      simp only [length_encPair, encUnary_apply, List.length_replicate, encBits_apply]
-      lia
+      enc_len
     have hpoly := Nat.mul_le_mul_left c₂ (Nat.pow_le_pow_left hsize d₂)
     rw [Nat.mul_pow, ← Nat.mul_assoc] at hpoly
     exact (hguess (n, state, ct)).1.mono hpoly
   · have hbound := hlen (n, pk) State oracle s s' choice hmem
     have hstate : choice.2.length ≤ (encPair (encPair encMsg encMsg) encBits choice).length := by
-      simp only [length_encPair, encBits_apply]
-      lia
+      enc_len
     have hsize : (encPair encUnary encBits (n, pk)).length + 1 ≤
         2 * (n + pk.length + 2) := by
-      simp only [length_encPair, encUnary_apply, List.length_replicate, encBits_apply]
-      lia
+      enc_len
     have hpoly := Nat.mul_le_mul_left cs (Nat.pow_le_pow_left hsize ds)
     rw [Nat.mul_pow, ← Nat.mul_assoc] at hpoly
     exact (hstate.trans hbound).trans hpoly
@@ -436,14 +434,19 @@ abbrev INDCCA2Of {Msg Out : Type} (encMsg : Msg ↪ List Bool) (encOut : Out ↪
     (decrypt : ℕ → List Bool → List Bool → Option Out) : Prop :=
   INDCCA2On (fun _ _ _ _ => true) encMsg encOut keyGen encrypt decrypt
 
-/-- Single-challenge 1CCA security for bit encryption (`Msg = Bool`, `Out = Bool`). -/
+/-- Single-challenge 1CCA security for bit encryption (`Msg = Bool`, `Out = Bool`):
+[BonehShoup2023], Definition 12.2 (p. 468), that is, Attack Game 12.1 (pp. 467–468) with one
+encryption query, for the message space of single bits. A Phase 2 decryption query on the
+challenge ciphertext is answered with rejection, where the source forbids it. -/
 abbrev INDCCA2 (keyGen : ℕ → ProbComp (List Bool × List Bool))
     (encrypt : ℕ → List Bool → Bool → ProbComp (List Bool))
     (decrypt : ℕ → List Bool → List Bool → Option Bool) : Prop :=
   INDCCA2Of encBool encBool keyGen encrypt decrypt
 
 /-- Single-challenge 1CCA security for bit-string encryption (`Msg = List Bool`, `Out = List Bool`)
-under Attack Game 12.1's equal-length challenge rule `m₀.length == m₁.length`. -/
+under Attack Game 12.1's equal-length challenge rule `m₀.length == m₁.length`: [BonehShoup2023],
+Definition 12.2 (p. 468), with every bit string a message. A Phase 2 decryption query on the
+challenge ciphertext is answered with rejection, where the source forbids it. -/
 abbrev WordINDCCA2 (keyGen : ℕ → ProbComp (List Bool × List Bool))
     (encrypt : ℕ → List Bool → List Bool → ProbComp (List Bool))
     (decrypt : ℕ → List Bool → List Bool → Option (List Bool)) : Prop :=
@@ -487,7 +490,7 @@ private theorem isPPTOn_run_cca2Phase1Oracle_of_choose {Choice Out : Type}
           (pair.1.1, pair.1.2.2, pair.2))
         (encPair ECaller encBits) (encPair encUnary (encPair encBits encBits)) := by fun_prop
     exact ComputableInPolyTime.length_bits.comp (hdec.comp harg).encoding_comp
-  exact hchoose.run_interpret_preprocess'
+  exact hchoose.run_interpret_preprocess
     (prepare := fun caller : ℕ × List Bool × List Bool => (caller.1, caller.2.1))
     (initial := fun _ => ())
     (resources := fun caller req => (encOption encOut (decrypt caller.1 caller.2.2 req)).length)
@@ -595,12 +598,12 @@ private theorem isPPTOn_run_cca2Phase2Oracle_of_guess {Challenge Out : Type}
       (caller.1, caller.2.2.1, caller.2.2.2))
     (initial := fun _ => ())
     (resources := fun caller req => (encOption encOut (decrypt caller.1 caller.2.1 req)).length)
-    hprep.tidy
+    hprep
     hhandler
-    (ComputableInPolyTime.const ()).tidy
+    (ComputableInPolyTime.const ())
     (fun _ _ => True)
     (fun _ => trivial)
-    hres.tidy
+    hres
     (fun caller request state _ result hresult => by
       split_ifs at hresult with hct
       · have hresEq : result = ([], state) := by simpa using hresult
@@ -1049,8 +1052,7 @@ theorem MultiCCA2AdversaryOf.IsPPT.query_bounds {Msg : Type} {encMsg : Msg ↪ L
     fun n state cts => ?_, fun n pk State oracle s s' choice hmem => ?_⟩
   · have hsize : (encPair encUnary (encPair encBits (encList encBits)) (n, state, cts)).length + 1 ≤
         4 * (n + state.length + (encList encBits cts).length + 2) := by
-      simp only [length_encPair, encUnary_apply, List.length_replicate, encBits_apply]
-      lia
+      enc_len
     have hpoly := Nat.mul_le_mul_left c₂ (Nat.pow_le_pow_left hsize d₂)
     rw [Nat.mul_pow, ← Nat.mul_assoc] at hpoly
     exact (hguess (n, state, cts)).1.mono hpoly
@@ -1058,16 +1060,13 @@ theorem MultiCCA2AdversaryOf.IsPPT.query_bounds {Msg : Type} {encMsg : Msg ↪ L
     have hchallenges :
         choice.1.length ≤ (encPair (encList (encPair encMsg encMsg)) encBits choice).length := by
       have hlist := length_le_length_encList (encPair encMsg encMsg) choice.1
-      simp only [length_encPair, encBits_apply]
-      lia
+      enc_len
     have hstate :
         choice.2.length ≤ (encPair (encList (encPair encMsg encMsg)) encBits choice).length := by
-      simp only [length_encPair, encBits_apply]
-      lia
+      enc_len
     have hsize : (encPair encUnary encBits (n, pk)).length + 1 ≤
         2 * (n + pk.length + 2) := by
-      simp only [length_encPair, encUnary_apply, List.length_replicate, encBits_apply]
-      lia
+      enc_len
     have hpoly := Nat.mul_le_mul_left cs (Nat.pow_le_pow_left hsize ds)
     rw [Nat.mul_pow, ← Nat.mul_assoc] at hpoly
     exact ⟨(hchallenges.trans hbound).trans hpoly, (hstate.trans hbound).trans hpoly⟩
@@ -1178,7 +1177,12 @@ abbrev INDCCA2MultiOf {Msg Out : Type} (encMsg : Msg ↪ List Bool) (encOut : Ou
     (decrypt : ℕ → List Bool → List Bool → Option Out) : Prop :=
   INDCCA2MultiOn (fun _ _ _ _ => true) encMsg encOut keyGen encrypt decrypt
 
-/-- Batch-challenge multi-challenge CCA security for bit encryption (`Msg = Bool`, `Out = Bool`). -/
+/-- Batch-challenge multi-challenge CCA security for bit encryption (`Msg = Bool`, `Out = Bool`).
+It restricts the adversaries of [BonehShoup2023], Attack Game 12.1 and Definition 12.1
+(pp. 467–468): all encryption queries come in one batch between the two phases of decryption
+queries, instead of being interleaved with them. For efficient algorithms it is equivalent to
+`INDCCA2` (`indcca2Multi_iff_indcca2`), as CCA security is to 1CCA security by Theorem 12.1
+(p. 468). -/
 abbrev INDCCA2Multi (keyGen : ℕ → ProbComp (List Bool × List Bool))
     (encrypt : ℕ → List Bool → Bool → ProbComp (List Bool))
     (decrypt : ℕ → List Bool → List Bool → Option Bool) : Prop :=
@@ -1186,7 +1190,9 @@ abbrev INDCCA2Multi (keyGen : ℕ → ProbComp (List Bool × List Bool))
 
 /-- Batch-challenge multi-challenge CCA security for bit-string encryption (`Msg = List Bool`,
 `Out = List Bool`) under Attack Game 12.1's equal-length challenge rule
-`m₀.length == m₁.length`. -/
+`m₀.length == m₁.length`. It restricts the adversaries of [BonehShoup2023], Attack Game 12.1 and
+Definition 12.1 (pp. 467–468): all encryption queries come in one batch between the two phases of
+decryption queries, instead of being interleaved with them. -/
 abbrev WordINDCCA2Multi (keyGen : ℕ → ProbComp (List Bool × List Bool))
     (encrypt : ℕ → List Bool → List Bool → ProbComp (List Bool))
     (decrypt : ℕ → List Bool → List Bool → Option (List Bool)) : Prop :=
@@ -2170,7 +2176,7 @@ theorem isOraclePPTOn_cca2MultiToSingleAt_guess {Msg : Type} [Inhabited Msg]
           (adversary.guess p.1 (multiCCA2StateDecoder.decode p.2.1).stateA
             ((multiCCA2StateDecoder.decode p.2.1).ctsFront ++
               p.2.2 :: (multiCCA2StateDecoder.decode p.2.1).ctsBack))).run ()) := by
-    apply hA.guess.run_interpret_preprocess_open'
+    apply hA.guess.run_interpret_preprocess_open
       (prepare := fun p : ℕ × List Bool × List Bool =>
         (p.1, (multiCCA2StateDecoder.decode p.2.1).stateA,
           (multiCCA2StateDecoder.decode p.2.1).ctsFront ++

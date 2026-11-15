@@ -31,6 +31,7 @@ import CslibFrontier.Tactic.GameHop
 import CslibFrontier.Tactic.Negligible
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.PPT
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Authenticated Encryption and Adaptive Chosen-Ciphertext Security
@@ -407,7 +408,7 @@ theorem isPPTOn_run_cpaEncryptionOracle (E : SymmetricCipher) {adversary : Oracl
         E.cpaEncryptionOracle pair.1.1 pair.1.2 bit pair.2.1 pair.2.2) := by
     unfold cpaEncryptionOracle
     exact IsPPTOn.cond' hcond hyes hno
-  apply hadversary.run_interpret_preprocess'
+  apply hadversary.run_interpret_preprocess
     (prepare := fun caller : ℕ × List Bool => (caller.1, ([] : List Bool)))
     (initial := fun _ => ())
     (resources := fun caller _ =>
@@ -579,7 +580,7 @@ theorem isPPTOn_run_oneTimeCPAEncryptionOracle (E : SymmetricCipher)
         E.oneTimeCPAEncryptionOracle pair.1.1 pair.1.2 bit pair.2.1 pair.2.2) := by
     unfold oneTimeCPAEncryptionOracle
     exact IsPPTOn.cond' hcond hyes hno
-  apply hadversary.run_interpret_preprocess'
+  apply hadversary.run_interpret_preprocess
     (prepare := fun caller : ℕ × List Bool => (caller.1, ([] : List Bool)))
     (initial := fun _ => false)
     (resources := fun caller _ =>
@@ -709,7 +710,7 @@ theorem isOraclePPT_cpaLimitToOneQuery {ctBound : ℕ → ℕ}
             (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
             (cpaOneTimeFilterHandler caller.1 (ctBound caller.1)))
           (adversary caller.1 [])).run false) := by
-    apply hadversary.run_interpret_preprocess_open'
+    apply hadversary.run_interpret_preprocess_open
       (prepare := fun caller : ℕ × List Bool => (caller.1, ([] : List Bool)))
       (initial := fun _ => false)
       (resources := fun caller _ => ctBound caller.1 + 1)
@@ -1031,7 +1032,7 @@ theorem isPPTOn_run_ciEncryptionOracle (E : SymmetricCipher) {adversary : CIAdve
         E.ciEncryptionOracle pair.1.1 pair.1.2 pair.2.1 pair.2.2) := by
     unfold ciEncryptionOracle
     exact IsPPTOn.cond' hcond hyes hno
-  apply hadversary.run_interpret_preprocess'
+  apply hadversary.run_interpret_preprocess
     (prepare := fun caller : ℕ × List Bool => (caller.1, ([] : List Bool)))
     (initial := fun _ => ([] : List (List Bool)))
     (resources := fun caller query =>
@@ -1198,7 +1199,7 @@ theorem isPPTOn_run_oneTimeCIEncryptionOracle (E : SymmetricCipher) {adversary :
         E.oneTimeCIEncryptionOracle pair.1.1 pair.1.2 pair.2.1 pair.2.2) := by
     unfold oneTimeCIEncryptionOracle
     exact IsPPTOn.cond' hcond hyes hno
-  apply hadversary.run_interpret_preprocess'
+  apply hadversary.run_interpret_preprocess
     (prepare := fun caller : ℕ × List Bool => (caller.1, ([] : List Bool)))
     (initial := fun _ => ([] : List (List Bool)))
     (resources := fun caller query =>
@@ -1325,7 +1326,7 @@ theorem isOraclePPT_ciLimitToOneQuery {ctBound : ℕ → ℕ}
             (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
             (ciOneTimeFilterHandler caller.1 (ctBound caller.1)))
           (adversary caller.1 [])).run false) := by
-    apply hadversary.run_interpret_preprocess_open'
+    apply hadversary.run_interpret_preprocess_open
       (prepare := fun caller : ℕ × List Bool => (caller.1, ([] : List Bool)))
       (initial := fun _ => false)
       (resources := fun caller _ => ctBound caller.1 + 1)
@@ -1558,7 +1559,7 @@ theorem isPPTOn_run_ccaOracle (E : SymmetricCipher) {adversary : CCAAdversary}
         E.ccaOracle pair.1.1 pair.1.2 bit pair.2.1 pair.2.2) := by
     unfold ccaOracle
     exact IsPPTOn.cond' hop (isPPTOn_ccaDecryptBranch E) hencBranch
-  apply hadversary.run_interpret_preprocess'
+  apply hadversary.run_interpret_preprocess
     (prepare := fun caller : ℕ × List Bool => (caller.1, ([] : List Bool)))
     (initial := fun _ => ([] : List (List Bool)))
     (resources := fun caller query =>
@@ -1754,7 +1755,7 @@ theorem isPPTOn_run_oneTimeCCAOracle (E : SymmetricCipher) {adversary : CCAAdver
         E.oneTimeCCAOracle pair.1.1 pair.1.2 bit pair.2.1 pair.2.2) := by
     unfold oneTimeCCAOracle
     exact IsPPTOn.cond' hop (isPPTOn_ccaDecryptBranch E) hencBranch
-  apply hadversary.run_interpret_preprocess'
+  apply hadversary.run_interpret_preprocess
     (prepare := fun caller : ℕ × List Bool => (caller.1, ([] : List Bool)))
     (initial := fun _ => ([] : List (List Bool)))
     (resources := fun caller query =>
@@ -1931,7 +1932,7 @@ theorem isOraclePPT_ccaLimitToOneEncryptionQuery {ctBound : ℕ → ℕ}
             (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
             (ccaOneTimeFilterHandler caller.1 (ctBound caller.1) decBound))
           (adversary caller.1 [])).run false) := by
-    apply hadversary.run_interpret_preprocess_open'
+    apply hadversary.run_interpret_preprocess_open
       (prepare := fun caller : ℕ × List Bool => (caller.1, ([] : List Bool)))
       (initial := fun _ => false)
       (resources := fun caller query => ctBound caller.1 + decBound caller.1 query + 1)
@@ -2107,7 +2108,7 @@ theorem isOraclePPT_ccaToCPAAdversary {ctBound : ℕ → ℕ}
             (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
             (ccaToCPAHandler caller.1 (ctBound caller.1)))
           (adversary caller.1 [])).run ()) := by
-    apply hadversary.run_interpret_preprocess_open'
+    apply hadversary.run_interpret_preprocess_open
       (prepare := fun caller : ℕ × List Bool => (caller.1, ([] : List Bool)))
       (initial := fun _ => ())
       (resources := fun caller _ => ctBound caller.1 + 1)
@@ -2410,7 +2411,7 @@ theorem isOraclePPT_ccaToCIAdversary {ctBound Q : ℕ → ℕ}
             (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
             (ccaToCIHandler caller.1.1 (ctBound caller.1.1) bit))
           (adversary caller.1.1 [])).run (caller.2, (false, []))) := by
-    apply hadversary.run_interpret_preprocess_open'
+    apply hadversary.run_interpret_preprocess_open
       (prepare := fun caller : (ℕ × List Bool) × ℕ => (caller.1.1, ([] : List Bool)))
       (initial := fun caller : (ℕ × List Bool) × ℕ => (caller.2, (false, ([] : List Bool))))
       (resources := fun caller query => ctBound caller.1.1 + query.length + 4)
@@ -2423,9 +2424,7 @@ theorem isOraclePPT_ccaToCIAdversary {ctBound Q : ℕ → ℕ}
     · simp only [hcap, ↓reduceIte] at hresult
       cases OracleComp.eq_of_mem_supportWith_pure hresult
       refine ⟨trivial, by simp, ?_⟩
-      simp only [EState, length_encPair, encUnary_apply, List.length_replicate,
-        encBool_apply, List.length_singleton, encBits_apply]
-      lia
+      enc_len [EState, List.length_singleton]
     · simp only [hcap, Bool.false_eq_true, ↓reduceIte] at hresult
       by_cases hzero : (state.1 == 0) = true
       · simp only [hzero, ↓reduceIte] at hresult
@@ -2445,21 +2444,15 @@ theorem isOraclePPT_ccaToCIAdversary {ctBound Q : ℕ → ℕ}
             obtain ⟨ct, hct, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hresult
             obtain ⟨rawCt, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hct
             refine ⟨trivial, (List.length_take_le _ _).trans (by lia), ?_⟩
-            simp only [EState, length_encPair, encUnary_apply, List.length_replicate,
-              encBool_apply, List.length_singleton, encBits_apply, List.length_nil]
-            lia
+            enc_len [EState, List.length_singleton]
           · simp only [hlenEq, Bool.false_eq_true, ↓reduceIte] at hresult
             cases OracleComp.eq_of_mem_supportWith_pure hresult
             refine ⟨trivial, by simp, ?_⟩
-            simp only [EState, length_encPair, encUnary_apply, List.length_replicate,
-              encBool_apply, List.length_singleton, encBits_apply, List.length_nil]
-            lia
+            enc_len [EState, List.length_singleton]
         · simp only [hreq, ↓reduceIte] at hresult
           cases OracleComp.eq_of_mem_supportWith_pure hresult
           refine ⟨trivial, by simp, ?_⟩
-          simp only [EState, length_encPair, encUnary_apply, List.length_replicate,
-            encBool_apply, List.length_singleton, encBits_apply, List.length_nil]
-          lia
+          enc_len [EState, List.length_singleton]
   have hsample : IsOraclePPTOn (encPair encUnary encBits) encUnary
       (fun caller : ℕ × List Bool =>
         ProbOracleComp.sample (ProbComp.sampleDyadicIndex (Q caller.1))) :=

@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.InteractionResources
+public import CslibFrontier.Computability.Circuit.Quantum.Oracle.RandomOracle
 public import CslibFrontierTests.QuantumOracleDecapsulation
 public import CslibFrontierTests.QuantumOracleShared
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
@@ -133,6 +134,8 @@ example : ∃ B : ℕ → ℕ, ComputableInPolyTime B encUnary encUnary ∧ Poly
       first.width + next.width ≤ B n ∧
       first.instructions.gateCount + next.instructions.gateCount ≤ B n ∧
       first.instructions.queryCount + next.instructions.queryCount ≤ B n ∧
+      (encOracleCircuitDescription first).length +
+        (encOracleCircuitDescription next).length ≤ B n ∧
       ℓ + first.outputWidth + 2 ≤ B n ∧ 1 ≤ B n :=
   firstFamily.exists_classicalQuery_resource_bound nextFamily
     PolynomiallyBounded.id (PolynomiallyBounded.const 2)
@@ -492,9 +495,16 @@ theorem fullMeasurementRead_eq (H Hservice : QuantumOracleDecapsulation.Hash) :
     measure_ket, PMF.pure_map, answerWord_memory, PMF.bind_pure]
 
 /-- One ideal table is sampled outside both native stages and the decapsulation service. -/
-noncomputable def sharedExperiment : PMF Bool := do
-  let H ← Probability.PMF.uniformOfFintype QuantumOracleDecapsulation.Hash
-  nativeRead H H 1
+noncomputable def sharedExperiment : PMF Bool :=
+  Quantum.RandomOracle.sample fun H => nativeRead H H 1
+
+/-- The one-table experiment is one outer uniform draw, reused by both native stages and the
+classical service. This is the cross-module characterization of the imported sampler. -/
+theorem sharedExperiment_eq_uniform_bind :
+    sharedExperiment =
+      (Probability.PMF.uniformOfFintype QuantumOracleDecapsulation.Hash).bind fun H =>
+        nativeRead H H 1 := by
+  rw [sharedExperiment, Quantum.RandomOracle.sample_eq]
 
 theorem sharedExperiment_eq : sharedExperiment = PMF.pure false := by
   simp [sharedExperiment, nativeRead_shared]
@@ -504,6 +514,15 @@ noncomputable def redrawnExperiment : PMF Bool := do
   let H ← Probability.PMF.uniformOfFintype QuantumOracleDecapsulation.Hash
   let Hservice ← Probability.PMF.uniformOfFintype QuantumOracleDecapsulation.Hash
   nativeRead H Hservice 1
+
+/-- The negative experiment has two independent outer table draws: one for coherent queries and
+one for the classical service. -/
+theorem redrawnExperiment_eq_uniform_bind_bind :
+    redrawnExperiment =
+      (Probability.PMF.uniformOfFintype QuantumOracleDecapsulation.Hash).bind fun H =>
+        (Probability.PMF.uniformOfFintype QuantumOracleDecapsulation.Hash).bind fun Hservice =>
+          nativeRead H Hservice 1 := by
+  rfl
 
 /-- Independent tables destroy the exact shared-oracle comparison through the native boundary. -/
 theorem redrawnExperiment_eq : redrawnExperiment = Probability.PMF.uniformOfFintype Bool := by

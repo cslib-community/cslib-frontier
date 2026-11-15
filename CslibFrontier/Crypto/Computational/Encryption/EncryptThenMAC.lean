@@ -27,6 +27,7 @@ import CslibFrontier.Tactic.GameHop
 import CslibFrontier.Tactic.Negligible
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.PPT
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Encrypt-then-MAC Authenticated Encryption and PRF-Based Instantiation
@@ -428,7 +429,7 @@ theorem isOraclePPT_etmToMACForger (E : SymmetricCipher) (M : MACScheme) {tagBou
             (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
             (etmToMACHandler E caller.1.1 (tagBound caller.1.1) caller.2))
           (adversary caller.1.1 [])).run ()) := by
-    apply hadversary.run_interpret_preprocess_open'
+    apply hadversary.run_interpret_preprocess_open
       (input := ECaller)
       (handler := fun caller : (ℕ × List Bool) × List Bool =>
         etmToMACHandler E caller.1.1 (tagBound caller.1.1) caller.2)
@@ -456,8 +457,7 @@ theorem isOraclePPT_etmToMACForger (E : SymmetricCipher) (M : MACScheme) {tagBou
       have htagTake : (List.take (tagBound caller.1.1) rawTag).length ≤ tagBound caller.1.1 :=
         List.length_take_le _ _
       refine ⟨trivial, ?_, by lia⟩
-      simp only [length_encPair, encBits_apply]
-      lia
+      enc_len
     · have hresEq := OracleComp.eq_of_mem_supportWith_pure hresult
       subst hresEq
       exact ⟨trivial, by simp, by lia⟩
@@ -706,7 +706,7 @@ theorem isOraclePPT_etmToOneTimeMACForger (E : SymmetricCipher) (M : MACScheme)
             (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
             (etmToOneTimeMACHandler E caller.1.1 (tagBound caller.1.1) caller.2))
           (adversary caller.1.1 [])).run false) := by
-    apply hadversary.run_interpret_preprocess_open'
+    apply hadversary.run_interpret_preprocess_open
       (input := ECaller)
       (handler := fun caller : (ℕ × List Bool) × List Bool =>
         etmToOneTimeMACHandler E caller.1.1 (tagBound caller.1.1) caller.2)
@@ -734,8 +734,7 @@ theorem isOraclePPT_etmToOneTimeMACForger (E : SymmetricCipher) (M : MACScheme)
       have htagTake : (List.take (tagBound caller.1.1) rawTag).length ≤ tagBound caller.1.1 :=
         List.length_take_le _ _
       refine ⟨trivial, ?_, by simp [encBool_apply]⟩
-      simp only [length_encPair, encBits_apply]
-      lia
+      enc_len
     · have hresEq := OracleComp.eq_of_mem_supportWith_pure hresult
       subst hresEq
       exact ⟨trivial, by simp, by simp [encBool_apply]⟩
@@ -976,7 +975,7 @@ theorem isOraclePPT_etmToCPAAdversary (M : MACScheme) {adversary : OracleDisting
             (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
             (etmToCPAHandler M caller.1.1 caller.2))
           (adversary caller.1.1 [])).run ()) := by
-    apply hadversary.run_interpret_preprocess_open'
+    apply hadversary.run_interpret_preprocess_open
       (input := ECaller)
       (handler := fun caller : (ℕ × List Bool) × List Bool =>
         etmToCPAHandler M caller.1.1 caller.2)
@@ -1002,8 +1001,7 @@ theorem isOraclePPT_etmToCPAAdversary (M : MACScheme) {adversary : OracleDisting
       have htagBound : tag.length ≤ cs * (2 * caller.2.length + M.msgLen caller.1.1 + 2) ^ ds :=
         htagLen.trans (Nat.mul_le_mul_left cs (Nat.pow_le_pow_left (by lia) ds))
       refine ⟨trivial, ?_, by lia⟩
-      simp only [length_encPair, encBits_apply]
-      lia
+      enc_len
     · have hresEq := OracleComp.eq_of_mem_supportWith_pure hresult
       subst hresEq
       exact ⟨trivial, by simp, by lia⟩
@@ -1191,7 +1189,7 @@ theorem isOraclePPT_etmToOneTimeCPAAdversary (M : MACScheme) {adversary : Oracle
             (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
             (etmToOneTimeCPAHandler M caller.1.1 caller.2))
           (adversary caller.1.1 [])).run false) := by
-    apply hadversary.run_interpret_preprocess_open'
+    apply hadversary.run_interpret_preprocess_open
       (input := ECaller)
       (handler := fun caller : (ℕ × List Bool) × List Bool =>
         etmToOneTimeCPAHandler M caller.1.1 caller.2)
@@ -1217,8 +1215,7 @@ theorem isOraclePPT_etmToOneTimeCPAAdversary (M : MACScheme) {adversary : Oracle
       have htagBound : tag.length ≤ cs * (2 * caller.2.length + M.msgLen caller.1.1 + 2) ^ ds :=
         htagLen.trans (Nat.mul_le_mul_left cs (Nat.pow_le_pow_left (by lia) ds))
       refine ⟨trivial, ?_, by simp [encBool_apply]⟩
-      simp only [length_encPair, encBits_apply]
-      lia
+      enc_len
     · have hresEq := OracleComp.eq_of_mem_supportWith_pure hresult
       subst hresEq
       exact ⟨trivial, by simp, by simp [encBool_apply]⟩
@@ -1689,7 +1686,7 @@ theorem isOraclePPT_cpaToPrfDistinguisher {adversary : OracleDistinguisher}
             (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
             (cpaToPrfHandler caller.1 bit))
           (adversary caller.1 [])).run ()) := by
-    apply hadversary.run_interpret_preprocess_open'
+    apply hadversary.run_interpret_preprocess_open
       (input := ECaller)
       (handler := fun caller : ℕ × List Bool => cpaToPrfHandler caller.1 bit)
       (prepare := fun caller : ℕ × List Bool => (caller.1, ([] : List Bool)))
