@@ -33,8 +33,9 @@ reads a label as its `k + 2` bits (`CCR.codec k`).
 every uniform strict oracle-PPT word distinguisher that never repeats a tweak, at any level, have
 negligible advantage. Its level-`k` advantage is, by definition, the finite advantage
 `CCR.advantage (CCR.atLevel hash k) CCR.offset CCR.offset ((CCR.codec k).adapt (W k []))`, so the
-finite theorems about `CCR.advantage` apply at every level without a bridge
-(`CircularCorrelationRobust.negligible_advantage`). Legality is required at every level, as in the
+finite theorems about `CCR.advantage` apply at every level without a bridge. The lemma
+`CircularCorrelationRobust.negligible_advantage` is this finite-advantage reading of the assumption,
+not a separate result. Legality is required at every level, as in the
 source; a reduction that would need more than the `2 ^ k` tweaks of level `k` stays legal by making
 no queries there.
 
@@ -72,11 +73,6 @@ half-gates garbling, assumes only that weaker notion.
 * `Cslib.Crypto.Garbling.CCR.atLevel`: the hash of a word family at level `k`.
 * `Cslib.Crypto.Garbling.CCR.codec`: circular-oracle queries and labels on the word channel.
 * `Cslib.Crypto.CircularCorrelationRobust`: the asymptotic assumption.
-
-## Main results
-
-* `Cslib.Crypto.CircularCorrelationRobust.negligible_advantage`: under the assumption, the finite
-  advantage `CCR.advantage` of every admissible word distinguisher is negligible in the level.
 
 ## References
 
