@@ -231,6 +231,16 @@ modulus product. The [checked client](../../CslibFrontierTests/ResidueAccess.lea
 minus one, excluded moduli, first-event ordering, an empty interval and a concrete dyadic sum.
 These operations alone do not certify the complete sign-recovery procedure.
 
+`CountingHierarchy.DyadicSummation` certifies `dyadicRangeSum` in F_(a+1) from uniform F_a
+natural numerators and denominators. The precision is polynomial-time unary, paying for the
+binary scale `2^B`; the interval endpoint is polynomial-time binary. A zero denominator
+contributes zero. The finite-restriction bridge masks excluded numerators by zero and matches
+the mathematical CRT numerator exactly. `CountingHierarchy.FirstEventSign` returns `1`, `-1`
+or `0` using three F_a event/test evaluators in F_(a+2). Positive has priority if both tests
+hold; its name alone implies no integer-sign correctness. The
+[ordinary-module client](../../CslibFrontierTests/DyadicFirstEvent.lean) checks these defaults,
+masking, precision zero, empty ranges, ordering and priority.
+
 ## Mathematical sign recovery from residues
 
 Import [`Foundations.NumberTheory.CRTSign`](../../CslibFrontier/Foundations/NumberTheory/CRTSign.lean)
@@ -261,6 +271,17 @@ The ordinary-module [checked client](../../CslibFrontierTests/CRTSign.lean) disc
 hypotheses for both signs of one with moduli `5, 7`, precision `B = 8`, and cutoff `K = 3`.
 It also checks zero, negative summands, the strict precision boundary, and wraparound at zero.
 Run `LEAN_NUM_THREADS=2 scripts/build.sh CslibFrontierTests.CRTSign --wfail --iofail`.
+
+For the exact manuscript parameters, import `Foundations.NumberTheory.PrimeWindowSign`.
+`PrimeWindowSign.firstCircleFlag_sign_of_coefficients` takes `|X| ≤ 2^m`, `X ≠ 0` and the
+local weighted-coefficient congruences. It proves all positivity, coprimality, prime-product,
+precision and doubling-limit conditions for primes `L < p ≤ Y`, where
+`Y = 2 * max(16,m,L)^4`. Precision is `Y.size + 10` and the limit is `Y * Y.size + 1`.
+`not_flag_zero_of_coefficients` handles zero. The
+[checked client](../../CslibFrontierTests/PrimeWindowSign.lean) uses supplied coefficient
+congruences for both signs of one, an unconditional zero instance and excluded-prime endpoints.
+Computing those
+coefficients and certifying a counting-level sign procedure remain separate obligations.
 
 ## Efficient oracle programs
 
