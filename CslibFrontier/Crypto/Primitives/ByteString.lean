@@ -9,7 +9,9 @@ module
 
 public import CslibFrontier.Foundations.Data.BitString.List.Binary
 public import CslibFrontier.Init
-public import Mathlib.Data.Fin.Tuple.Basic
+public import Mathlib.Data.Fin.Tuple.Take
+import CslibFrontier.Foundations.Data.BitString.List.BinaryOrder
+import CslibFrontier.Foundations.Data.List.Lex
 import Mathlib.Data.List.OfFn
 
 /-!
@@ -29,13 +31,15 @@ with a different within-byte convention, such as FIPS 202's Keccak, keep that co
 
 ## Main results
 
-* `Cslib.Crypto.FixedBytes.append_left`, `Cslib.Crypto.FixedBytes.append_right`: concatenation
-  agrees with its left and right inputs.
 * `Cslib.Crypto.length_bytesToBitsBE`: byte serialization has eight bits per byte.
 * `Cslib.Crypto.byteOfBitsBE_byteBitsBE`, `Cslib.Crypto.byteBitsBE_byteOfBitsBE`: converting one
   byte to bits and back is exact in either direction.
 * `Cslib.Crypto.bytesToBitsBE_bitsToFixedBytesBE`: an exact-length bit string round-trips through
   typed bytes.
+* `Cslib.Crypto.bytesToBitsBE_natToFixedBytesBE`: natural-number serialization retains exactly
+  its low `8n` bits.
+* `Cslib.Crypto.bytesToBitsBE_lt_iff_lt`: equal-length byte strings and their big-endian bit
+  serializations have the same lexicographic order.
 -/
 
 public section
@@ -59,24 +63,6 @@ def toList {n : ℕ} (X : FixedBytes n) : List Byte := List.ofFn X
 @[simp] theorem length_toList {n : ℕ} (X : FixedBytes n) : X.toList.length = n := by
   simp [toList]
 
-/-- The first `m` bytes of a fixed byte string, with the bound checked at the type boundary. -/
-def take {n : ℕ} (m : ℕ) (h : m ≤ n) (X : FixedBytes n) : FixedBytes m := fun i =>
-  X ⟨i.val, Nat.lt_of_lt_of_le i.isLt h⟩
-
-/-- Concatenate two fixed-length byte strings. -/
-def append {m n : ℕ} (X : FixedBytes m) (Y : FixedBytes n) : FixedBytes (m + n) :=
-  Fin.append X Y
-
-/-- Concatenation agrees with its left input on left indices. -/
-@[simp] theorem append_left {m n : ℕ} (X : FixedBytes m) (Y : FixedBytes n) (i : Fin m) :
-    append X Y (Fin.castAdd n i) = X i :=
-  Fin.append_left X Y i
-
-/-- Concatenation agrees with its right input on right indices. -/
-@[simp] theorem append_right {m n : ℕ} (X : FixedBytes m) (Y : FixedBytes n) (i : Fin n) :
-    append X Y (Fin.natAdd m i) = Y i :=
-  Fin.append_right X Y i
-
 end FixedBytes
 
 /-- The eight big-endian bits of a byte. -/
@@ -98,6 +84,58 @@ def bytesToBitsBE : List Byte → List Bool
     simp only [bytesToBitsBE, byteBitsBE, List.length_append, ih, List.length_cons]
     rw [length_binaryWord x.isLt]
     omega
+
+/-- One byte and its eight-bit big-endian serialization have the same strict order. -/
+private theorem byteBitsBE_lt_iff_lt (x y : Byte) :
+    byteBitsBE x < byteBitsBE y ↔ x < y := by
+  have hlength : (byteBitsBE x).length = (byteBitsBE y).length := by
+    change (binaryWord 8 x).length = (binaryWord 8 y).length
+    rw [length_binaryWord x.isLt, length_binaryWord y.isLt]
+  rw [← BitString.binaryValue_lt_iff_lt hlength]
+  simp [byteBitsBE]
+
+/-- Equal-length byte strings and their big-endian bit serializations have the same strict
+lexicographic order. -/
+theorem bytesToBitsBE_lt_iff_lt {X Y : List Byte} (hlength : X.length = Y.length) :
+    bytesToBitsBE X < bytesToBitsBE Y ↔ X < Y := by
+  induction X generalizing Y with
+  | nil =>
+      obtain rfl : Y = [] := List.length_eq_zero_iff.mp hlength.symm
+      simp [bytesToBitsBE]
+  | cons x X ih =>
+      obtain ⟨y, Y, rfl⟩ := List.exists_cons_of_length_eq_add_one hlength.symm
+      simp only [List.length_cons, Nat.add_right_cancel_iff] at hlength
+      have byteBitsLength (z : Byte) : (byteBitsBE z).length = 8 := by
+        change (binaryWord 8 z).length = 8
+        exact length_binaryWord z.isLt
+      rcases lt_trichotomy x y with hlt | heq | hgt
+      · have hbits := (byteBitsBE_lt_iff_lt x y).2 hlt
+        have happend := List.append_lt_append_of_lt_of_length_eq hbits
+          ((byteBitsLength x).trans (byteBitsLength y).symm)
+          (bytesToBitsBE X) (bytesToBitsBE Y)
+        exact iff_of_true (by simpa [bytesToBitsBE] using happend)
+          (by exact List.Lex.rel hlt)
+      · subst y
+        have prefixCancel : ∀ s : List Bool,
+            s ++ bytesToBitsBE X < s ++ bytesToBitsBE Y ↔
+              bytesToBitsBE X < bytesToBitsBE Y := by
+          intro s
+          induction s with
+          | nil => rfl
+          | cons bit tail ihprefix =>
+              exact List.lex_cons_iff.trans ihprefix
+        simp only [bytesToBitsBE]
+        rw [prefixCancel (byteBitsBE x), ih hlength]
+        exact List.lex_cons_iff.symm
+      · have hbits := (byteBitsBE_lt_iff_lt y x).2 hgt
+        have happend := List.append_lt_append_of_lt_of_length_eq hbits
+          ((byteBitsLength y).trans (byteBitsLength x).symm)
+          (bytesToBitsBE Y) (bytesToBitsBE X)
+        have hnotBits : ¬ (bytesToBitsBE (x :: X) < bytesToBitsBE (y :: Y)) :=
+          not_lt_of_gt (by simpa [bytesToBitsBE] using happend)
+        have hnotBytes : ¬ (x :: X < y :: Y) :=
+          not_lt_of_gt (show y :: Y < x :: X from List.Lex.rel hgt)
+        exact iff_of_false hnotBits hnotBytes
 
 /-- Read at most eight big-endian bits as one byte. Missing low-order bits are not added; callers
 that require a full byte should supply an eight-bit chunk. -/
@@ -154,5 +192,51 @@ def bitsToFixedBytesBE (n : ℕ) (bits : List Bool) : FixedBytes n := fun i =>
 /-- Encode a natural number as exactly `n` big-endian bytes, retaining its low `8n` bits. -/
 def natToFixedBytesBE (n value : ℕ) : FixedBytes n := fun i =>
   ⟨value / 2 ^ (8 * (n - 1 - i.val)) % 256, Nat.mod_lt _ (by decide)⟩
+
+private theorem natToFixedBytesBE_toList_succ (n value : ℕ) :
+    (natToFixedBytesBE (n + 1) value).toList =
+      ⟨value / 2 ^ (8 * n) % 256, Nat.mod_lt _ (by decide)⟩ ::
+        (natToFixedBytesBE n value).toList := by
+  simp only [natToFixedBytesBE, FixedBytes.toList, List.ofFn_succ]
+  congr 1
+  apply List.ofFn_inj.mpr
+  funext i
+  apply Fin.ext
+  dsimp only
+  rw [Fin.val_succ]
+  congr 3
+  omega
+
+/-- Serializing a natural number as `n` bytes produces its low `8n` bits in big-endian order. -/
+theorem bytesToBitsBE_natToFixedBytesBE (n value : ℕ) :
+    bytesToBitsBE (natToFixedBytesBE n value).toList =
+      binaryWord (8 * n) (value % 2 ^ (8 * n)) := by
+  induction n with
+  | zero =>
+      change [] = binaryWord 0 (value % 1)
+      rw [Nat.mod_one]
+      rfl
+  | succ n ih =>
+      rw [natToFixedBytesBE_toList_succ]
+      simp only [bytesToBitsBE, byteBitsBE, ih]
+      apply binaryValue_injective_of_length_eq
+      · rw [List.length_append,
+          length_binaryWord (Nat.mod_lt _ (by decide)),
+          length_binaryWord (Nat.mod_lt _ (Nat.two_pow_pos _)),
+          length_binaryWord (Nat.mod_lt _ (Nat.two_pow_pos _))]
+        omega
+      · rw [binaryValue_append, binaryValue_binaryWord, binaryValue_binaryWord,
+          binaryValue_binaryWord, length_binaryWord (Nat.mod_lt _ (Nat.two_pow_pos _))]
+        rw [show 2 ^ (8 * (n + 1)) = 2 ^ (8 * n) * 256 by
+          rw [show 8 * (n + 1) = 8 * n + 8 by omega]
+          simp only [Nat.pow_succ]
+          omega]
+        calc
+          _ = value % (2 ^ (8 * n) * 256) / 2 ^ (8 * n) * 2 ^ (8 * n) +
+              value % 2 ^ (8 * n) := by rw [Nat.mod_mul_right_div_self]
+          _ = value % (2 ^ (8 * n) * 256) / 2 ^ (8 * n) * 2 ^ (8 * n) +
+              value % (2 ^ (8 * n) * 256) % 2 ^ (8 * n) := by
+                rw [Nat.mod_mul_right_mod]
+          _ = _ := Nat.div_add_mod' _ _
 
 end Cslib.Crypto
