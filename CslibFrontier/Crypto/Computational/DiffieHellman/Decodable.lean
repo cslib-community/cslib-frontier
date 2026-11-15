@@ -69,14 +69,15 @@ namespace PrimeOrderGroupFamily
 
 variable (F : PrimeOrderGroupFamily)
 
-/-- Encoding of word-level CDH inputs `(n, d, u, v)`. -/
+/-- Encoding of word-level CDH inputs `(n, d, u, v)`, with `n` in unary (`encUnary`) and every
+component except the last framed by `encPair`; `d` uses `F.encDesc` and `u`, `v` use `encBits`. -/
 abbrev encWordCDHInput : (ℕ × F.Desc × List Bool × List Bool) ↪ List Bool :=
   encPair encUnary (encPair F.encDesc (encPair encBits encBits))
 
 /-- The word-level Computational Diffie–Hellman game: draw `d ← setup n` and uniform exponents
 `a, b : ZMod (F.order d)`, give `(d, encode (a • g), encode (b • g))` to `adversary n`, and accept
 when it outputs `encode ((a * b) • g)`. -/
-noncomputable def cdhWordGame (setup : ℕ → PMF F.Desc)
+@[expose] noncomputable def cdhWordGame (setup : ℕ → PMF F.Desc)
     (adversary : ℕ → F.Desc × List Bool × List Bool → ProbComp (List Bool)) (n : ℕ) : Game :=
   Game.withSetup (setup n) fun d => do
     let a ← $ᵗ ZMod (F.order d)
@@ -86,7 +87,7 @@ noncomputable def cdhWordGame (setup : ℕ → PMF F.Desc)
 
 /-- The word-level Computational Diffie–Hellman assumption: every uniform strict PPT adversary on
 encoded CDH instances `encWordCDHInput` wins `cdhWordGame` with negligible probability. -/
-def WordCDH (setup : ℕ → PMF F.Desc) : Prop :=
+@[expose] def WordCDH (setup : ℕ → PMF F.Desc) : Prop :=
   ∀ adversary : ℕ → F.Desc × List Bool × List Bool → ProbComp (List Bool),
     IsPPTOn F.encWordCDHInput encBits (fun x => adversary x.1 x.2) →
       Negligible fun n => Game.succProbability (F.cdhWordGame setup adversary n)
@@ -172,7 +173,7 @@ variable (F : DecodablePrimeOrderGroupFamily)
 
 /-- Turn a word-level CDH adversary into a typed CDH adversary using `F.decode`, falling back to
 `0 : F.Carrier d` on invalid words. -/
-noncomputable def wordToTypedCDHAdversary
+@[expose] noncomputable def wordToTypedCDHAdversary
     (adversary : ℕ → F.Desc × List Bool × List Bool → ProbComp (List Bool)) :
     F.toPrimeOrderGroupFamily.CDHAdversary :=
   fun n d u v =>

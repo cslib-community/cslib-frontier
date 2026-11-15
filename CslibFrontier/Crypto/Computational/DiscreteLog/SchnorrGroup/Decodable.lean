@@ -46,6 +46,9 @@ decoder `SchnorrGroup.decode`.
 * `Cslib.Crypto.SchnorrGroup.decode_encode`,
   `Cslib.Crypto.SchnorrGroup.encode_eq_of_decode_eq_some`: canonical round-trip laws for
   `SchnorrGroup.decode`.
+* `Cslib.Crypto.schnorrDecodableGroups_isElem`, `Cslib.Crypto.SchnorrGroup.isElem_eq_true_iff`:
+  membership in `schnorrDecodableGroups` is `SchnorrGroup.isElem`, which accepts exactly the
+  encodings of group elements.
 -/
 
 public section
@@ -193,7 +196,7 @@ theorem decode_encode (d : Desc) (x : Carrier d) : decode d (encode d x) = some 
     exact congrArg some ((encode_injective d) (encode_eq_of_decode_eq_some h).symm)
 
 /-- `(decode d w).isSome` agrees with `isElem (d, w)`. -/
-theorem isSome_decode_eq_isElem (p : Desc × List Bool) :
+@[simp] theorem isSome_decode_eq_isElem (p : Desc × List Bool) :
     (decode p.1 p.2).isSome = isElem p := by
   by_cases h : isElem p = true <;> simp [decode, h]
 
@@ -251,5 +254,19 @@ open SchnorrGroup in
   computableInPolyTime_isElem :=
     computableInPolyTime_isElem.of_enc_eq fun p =>
       congrArg encBool (isSome_decode_eq_isElem p)
+
+/-- Membership in `schnorrDecodableGroups` is `SchnorrGroup.isElem`. The argument has type
+`schnorrDecodableGroups.Desc × List Bool`, the type the `DecodablePrimeOrderGroupFamily` API
+produces, so that `rw` and `simp` find it in goals stated through that API. -/
+@[simp] theorem schnorrDecodableGroups_isElem (p : schnorrDecodableGroups.Desc × List Bool) :
+    schnorrDecodableGroups.isElem p = SchnorrGroup.isElem p :=
+  SchnorrGroup.isSome_decode_eq_isElem p
+
+/-- `SchnorrGroup.isElem` accepts exactly the encodings of Schnorr group elements. -/
+theorem SchnorrGroup.isElem_eq_true_iff (d : SchnorrGroup.Desc) (w : List Bool) :
+    SchnorrGroup.isElem (d, w) = true ↔ w ∈ Set.range (SchnorrGroup.encode d) := by
+  have h := schnorrDecodableGroups.isElem_eq_true_iff d w
+  rw [schnorrDecodableGroups_isElem] at h
+  exact h
 
 end Cslib.Crypto

@@ -352,7 +352,8 @@ theorem computableInPolyTime_decodeElGamal :
 
 /-! ### Shared typed-message ElGamal IND-CPA reduction ([BonehShoup2023], Exercise 11.5(a)) -/
 
-/-- Encoding of the five-argument challenge guard input `(n, d, pk, m₀, m₁)` used to share the
+/-- Encoding of the five-argument challenge guard input `(n, d, pk, m₀, m₁)`, with `n` in unary
+(`encUnary`) and every component except the last framed by `encPair`. It is used to share the
 typed-message ElGamal reduction between external `valid` predicates and decodable-group membership
 checks. -/
 abbrev encElGamalMsgGuardInput {Msg : Type} (encMsg : Msg ↪ List Bool) :

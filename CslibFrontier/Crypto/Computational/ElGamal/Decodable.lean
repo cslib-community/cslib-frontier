@@ -146,7 +146,7 @@ theorem DDH.negligible_elGamalGroupCPAGame {F : DecodablePrimeOrderGroupFamily}
 /-- Challenge-pair admissibility predicate for native `Encryption.INDCPAOn` of multiplicative
 ElGamal over a parameterized group description family `d : ℕ → F.Desc`, testing whether both
 candidate words represent group elements in `F.Carrier (d n)`. -/
-def elGamalGroupValid (d : ℕ → F.Desc) (n : ℕ) (_pk m₀ m₁ : List Bool) : Bool :=
+abbrev elGamalGroupValid (d : ℕ → F.Desc) (n : ℕ) (_pk m₀ m₁ : List Bool) : Bool :=
   F.isElem (d n, m₀) && F.isElem (d n, m₁)
 
 /-- `elGamalGroupValid d` is computable in polynomial time whenever `d` is. -/

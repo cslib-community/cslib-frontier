@@ -4,6 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+
 import CslibFrontier.Crypto.Computational.DiffieHellman.Decodable
 import CslibFrontier.Crypto.Computational.DiscreteLog.SchnorrGroup.Decodable
 import CslibFrontier.Crypto.Computational.ElGamal.Decodable
@@ -20,6 +22,9 @@ trailing-`false` encoding `(2 : ℕ).bits ++ [false]`), the `WordCDH ↔ CDH` eq
 (`cdh_iff_encoded`) and `DDH.wordCDH` corollary, and decodable group-element ElGamal CPA /
 `INDCPAOn` without external `valid` stand-ins.
 -/
+
+-- This regression module checks ordinary imports and exports no test fixtures.
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.Crypto.DecodableGroupFamily
 
@@ -43,9 +48,8 @@ private theorem decode_map_encode_of_isElem (w : List Bool)
     (h : SchnorrGroup.isElem (d23, w) = true) :
     (schnorrDecodableGroups.decode d23 w).map (schnorrDecodableGroups.encode d23) = some w := by
   rw [schnorrDecodableGroups.map_encode_decode]
-  have his : schnorrDecodableGroups.isElem (d23, w) = true := by
-    change (SchnorrGroup.decode d23 w).isSome = true
-    exact (SchnorrGroup.isSome_decode_eq_isElem (d23, w)).trans h
+  have his : schnorrDecodableGroups.isElem (d23, w) = true :=
+    (schnorrDecodableGroups_isElem _).trans h
   simp only [his, ↓reduceIte]
 
 private theorem decode_none_of_isElem_false (w : List Bool)
@@ -53,8 +57,7 @@ private theorem decode_none_of_isElem_false (w : List Bool)
     schnorrDecodableGroups.decode d23 w = none := by
   rw [DecodablePrimeOrderGroupFamily.decode_eq_none_iff,
     ← schnorrDecodableGroups.isElem_eq_false_iff]
-  change (SchnorrGroup.decode d23 w).isSome = false
-  exact (SchnorrGroup.isSome_decode_eq_isElem (d23, w)).trans h
+  exact (schnorrDecodableGroups_isElem _).trans h
 
 example :
     (schnorrDecodableGroups.decode d23 (1 : ℕ).bits).map (schnorrDecodableGroups.encode d23) =
@@ -110,9 +113,8 @@ example (s : List Bool) (x : schnorrDecodableGroups.withSeed.Carrier (d23, s)) :
         (schnorrDecodableGroups.withSeed.encode (d23, s) x) = some x ∧
     schnorrDecodableGroups.withSeed.isElem ((d23, s), (5 : ℕ).bits) = false := by
   refine ⟨schnorrDecodableGroups.withSeed.decode_encode (d23, s) x, ?_⟩
-  rw [DecodablePrimeOrderGroupFamily.isElem_withSeed]
-  change (SchnorrGroup.decode d23 (5 : ℕ).bits).isSome = false
-  exact (SchnorrGroup.isSome_decode_eq_isElem (d23, (5 : ℕ).bits)).trans (by decide)
+  rw [DecodablePrimeOrderGroupFamily.isElem_withSeed, schnorrDecodableGroups_isElem]
+  decide
 
 /-! ### Word-level CDH equivalence and `DDH.wordCDH` -/
 
@@ -133,8 +135,7 @@ theorem isPPT_toyWordCDHAdversary :
   have hzero : ComputableInPolyTime
       (fun x : ℕ × schnorrDecodableGroups.Desc × List Bool × List Bool => decide (x.1 = 0))
       schnorrDecodableGroups.toPrimeOrderGroupFamily.encWordCDHInput encBool :=
-    (ComputableTidilyInPolyTime.decide_eq encUnary).computableInPolyTime.comp
-      (hp.fst'.prod (ComputableInPolyTime.const 0))
+    hp.fst'.decide_eq' (ComputableInPolyTime.const 0)
   have hv : ComputableInPolyTime
       (fun x : ℕ × schnorrDecodableGroups.Desc × List Bool × List Bool => x.2.2.2)
       schnorrDecodableGroups.toPrimeOrderGroupFamily.encWordCDHInput encBits :=
@@ -151,6 +152,14 @@ theorem isPPT_toyWordCDHAdversary :
     rcases x with ⟨n, d, u, v⟩
     cases n <;> rfl
   exact ⟨hW, schnorrDecodableGroups.isPPT_wordToTypedCDHAdversary hW⟩
+
+/-- A `WordCDH` hypothesis applies directly to the PPT word-level adversary
+`toyWordCDHAdversary` through ordinary imports. -/
+example {setup : ℕ → PMF schnorrDecodableGroups.Desc}
+    (hWord : schnorrDecodableGroups.toPrimeOrderGroupFamily.WordCDH setup) :
+    Negligible fun n => Game.succProbability
+      (schnorrDecodableGroups.toPrimeOrderGroupFamily.cdhWordGame setup toyWordCDHAdversary n) :=
+  hWord toyWordCDHAdversary isPPT_toyWordCDHAdversary.1
 
 /-- Under `DDH` (plus negligible inverse group order), `schnorrDecodableGroups` and its seeded
 variant `schnorrDecodableGroups.withSeed` enjoy word-level `WordCDH`, equivalent to `CDH`. -/
@@ -181,11 +190,9 @@ example {setup : ℕ → PMF schnorrDecodableGroups.Desc}
 private theorem elGamalGroupValid_eq (w₁ w₂ : List Bool) :
     schnorrDecodableGroups.elGamalGroupValid (fun _ => d23) 0 [] w₁ w₂ =
       (SchnorrGroup.isElem (d23, w₁) && SchnorrGroup.isElem (d23, w₂)) := by
-  simp only [DecodablePrimeOrderGroupFamily.elGamalGroupValid,
-    DecodablePrimeOrderGroupFamily.isElem]
-  exact congrArg₂ (· && ·)
-    (SchnorrGroup.isSome_decode_eq_isElem (d23, w₁))
-    (SchnorrGroup.isSome_decode_eq_isElem (d23, w₂))
+  simp only [DecodablePrimeOrderGroupFamily.elGamalGroupValid, schnorrDecodableGroups_isElem]
+  -- The two sides differ only in the implicit type `schnorrDecodableGroups.Desc` of the pairs.
+  rfl
 
 example :
     schnorrDecodableGroups.elGamalGroupValid (fun _ => d23) 0 [] (1 : ℕ).bits (2 : ℕ).bits =

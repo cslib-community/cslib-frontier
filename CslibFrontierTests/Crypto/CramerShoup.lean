@@ -47,12 +47,6 @@ def testKeyedHash : schnorrGroups.withKey.Desc × List Bool → List Bool :=
 abbrev isSchnorrElem : schnorrGroups.Desc × List Bool → Bool :=
   SchnorrGroup.isElem
 
-private theorem hmem_isSchnorrElem (d : schnorrGroups.Desc) (x : List Bool) :
-    isSchnorrElem (d, x) = true ↔ x ∈ Set.range (schnorrGroups.encode d) := by
-  change SchnorrGroup.isElem (d, x) = true ↔ x ∈ Set.range (schnorrDecodableGroups.encode d)
-  rw [← SchnorrGroup.isSome_decode_eq_isElem]
-  exact schnorrDecodableGroups.isElem_eq_true_iff d x
-
 /-- Concrete algebraic encryption/decryption roundtrip on `d23` (with and without associated data):
 decrypting an honest encryption of `m = 3 • g` under `α = 2`, `sk = ((1, 2), ((3, 4), (5, 6)))`,
 associated data `ad`, and randomness `β = 7` recovers `some m`. -/
@@ -293,11 +287,11 @@ example (adversary : Encryption.WordADCCA2Adversary (List Bool)) (bit : Bool) (n
     decide
   refine ⟨?_, ?_, schnorrGroups.cramerShoupGame5_false_eq_true _ _ _ _ _ _ _ _⟩
   · exact schnorrGroups.advantage_cramerShoupGame3_game4_le true (fun p => p.2) (fun p => p.2)
-      (fun _ => PMF.pure d23) testHash isSchnorrElem hmem_isSchnorrElem adversary bit n Q₁ Q₂ 11
-      (by decide) hm hq1 hq2
+      (fun _ => PMF.pure d23) testHash isSchnorrElem SchnorrGroup.isElem_eq_true_iff adversary bit n
+      Q₁ Q₂ 11 (by decide) hm hq1 hq2
   · exact schnorrGroups.advantage_cramerShoupGame4_game5_le true (fun p => p.2) (fun p => p.2)
-      (fun _ => PMF.pure d23) testHash isSchnorrElem hmem_isSchnorrElem adversary bit n 11
-      (by decide) hm
+      (fun _ => PMF.pure d23) testHash isSchnorrElem SchnorrGroup.isElem_eq_true_iff adversary bit n
+      11 (by decide) hm
 
 /-- Concrete `decodeCramerShoupSK` round-trip test. -/
 example :
@@ -421,7 +415,7 @@ example (adversary : Encryption.WordADCCA2Adversary (List Bool)) (Q₁ Q₂ : �
     subst hd
     decide
   exact schnorrGroups.advantage_cramerShoupADGroupCCA2Game_le encBits (fun _ => PMF.pure d23)
-    testHash isSchnorrElem hmem_isSchnorrElem adversary Q₁ Q₂ hQ n 11 (by decide) hm
+    testHash isSchnorrElem SchnorrGroup.isElem_eq_true_iff adversary Q₁ Q₂ hQ n 11 (by decide) hm
 
 /-- Concrete instantiation of Theorem 12.9 / Exercise 12.27
 (`advantage_cramerShoupGroupCCA2Game_le`) on `schnorrGroups` at `d23` (`q = 11`). -/
@@ -458,7 +452,7 @@ example (adversary : Encryption.WordCCA2Adversary) (Q₁ Q₂ : ℕ → ℕ)
     subst hd
     decide
   exact schnorrGroups.advantage_cramerShoupGroupCCA2Game_le (fun _ => PMF.pure d23)
-    testHash isSchnorrElem hmem_isSchnorrElem adversary Q₁ Q₂ hQ n 11 (by decide) hm
+    testHash isSchnorrElem SchnorrGroup.isElem_eq_true_iff adversary Q₁ Q₂ hQ n 11 (by decide) hm
 
 /-- Conditional API client over `schnorrDecodableGroups` (`INDCCA2ADOn` with associated data,
 `INDCCA2On` without associated data, `INDCCA2MultiOn`, and `INDCCA2InterleavedOn`) without

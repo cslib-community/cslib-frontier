@@ -43,6 +43,29 @@ theorems without `isElem`, `hisElem`, or `hmem` parameters.
   multi-challenge `Encryption.INDCCA2MultiOn` security without external `isElem` premises.
 * `Cslib.Crypto.DecodablePrimeOrderGroupFamily.DDH.indcca2InterleavedOn_cramerShoup`: interleaved
   multi-challenge `Encryption.INDCCA2InterleavedOn` security without external `isElem` premises.
+
+## Scope
+
+* **Fixed group family, standard model**: as in `CramerShoup` and `CramerShoup.Interleaved`, the
+  theorems fix a polynomial-time computable group family `d : ℕ → F.Desc`; the group at parameter
+  `n` is `d n` and is not sampled. DDH is assumed for the point-mass setup
+  `fun n => PMF.pure (d n)`. The hash key is a uniform `keyLen n`-bit word drawn at key generation
+  and published in the public key ([CramerShoup2003], Section 6.1, Figure 1), and collision
+  resistance is assumed for `F.withKey.cramerShoupHashMod H` under
+  `F.withKeySetup (fun n => PMF.pure (d n)) keyLen`.
+* **Hash assumption**: following [BonehShoup2023], Theorem 12.9, the theorems assume collision
+  resistance of the keyed hash. [CramerShoup2003], Theorem 1 (Section 6.2), needs only target
+  collision resistance, which is weaker, so these theorems use a stronger hash assumption than the
+  original paper.
+
+## References
+
+* [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*,
+  Version 0.6][BonehShoup2023], Section 12.1 (Attack Game 12.1 and Theorem 12.1, printed
+  pp. 467–469), Section 12.5 (Theorem 12.9, printed pp. 490–491) and Exercise 12.27 (printed
+  pp. 521–522).
+* [R. Cramer, V. Shoup, *Design and Analysis of Practical Public-Key Encryption Schemes Secure
+  against Adaptive Chosen Ciphertext Attack*][CramerShoup2003], Sections 6.1–6.2.
 -/
 
 public section
