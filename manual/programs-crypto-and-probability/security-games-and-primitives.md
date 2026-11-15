@@ -1919,6 +1919,35 @@ one-bit-per-block instance `merkleDamgard`, not the length-strengthened one),
 `CompressionFamily.exists_oneWay` and `CompressionFamily.exists_wordEUFCMA` give the same
 conclusions for `2 n → n` compression families. No converse is claimed.
 
+Merkle–Damgård chains have many messages with one digest at little more than the cost of one
+collision (Joux's attack, [bs23][bs23], §8.4.1, pp. 298–299). Import
+[`MerkleDamgard/Multicollision.lean`](../../CslibFrontier/Crypto/Computational/MerkleDamgard/Multicollision.lean).
+Its finders reach the compression function only as an oracle. Their certificates
+(`ProbOracleComp.IsQueryBounded`) bound the number of compression calls on every path, the cost
+measure of §8.3; they are not running times, since sampling and the search for a colliding pair
+are not counted, and they are worst-case counts, not expected costs. Let `h k` map `n + ℓ`-bit
+inputs to `n`-bit outputs (`hlen`), let `iv` have `n` bits (`hiv`), let `n + 7 ≤ ℓ`, and let
+`s = ⌈2 √(2 ^ n)⌉₊ + 1`. Then `merkleDamgardJouxFinder ℓ s (3 * b) b iv` makes at most
+`3 * b * s` calls (`isQueryBounded_merkleDamgardJouxFinder`) and, with probability at least `1/2`,
+returns `b` pairs of blocks whose `2 ^ b` selections, followed by any common list of blocks, have
+one `merkleDamgardChain` value from `iv` (`merkleDamgardJouxFinder_success_half`);
+`merkleDamgardJouxFinder_success` gives the bound for any `s` and budget. For the library's
+one-bit-per-block `merkleDamgard`, let `h k` map `2 * k.length`-bit inputs to `k.length`-bit
+outputs, let groups have `g` bits with `k.length + 7 ≤ g`, and let `s = ⌈2 √(2 ^ k.length)⌉₊ + 1`.
+Then `merkleDamgardBitJouxFinder k.length g s (3 * b) b` makes at most `1 + 3 * b * (s * g)` calls
+and returns a `2 ^ b`-collision of `merkleDamgard h k` with probability at least `1/2`
+(`merkleDamgardBitJouxFinder_success_half`). One call per message bit puts a factor `g` in this
+count that the book's count does not have. Each attempt runs the birthday finder of
+[`CollisionResistant/Birthday.lean`](../../CslibFrontier/Crypto/Computational/CollisionResistant/Birthday.lean).
+Let every value of `f : M → T` lie in a finite set `D` (`hf`), let `digest m` return `f m` when run
+against the oracle (`hdigest`), and let `100 * D.card ≤ Fintype.card M`. Then
+`⌈2 √|D|⌉₊ + 1` uniform messages give two different messages with one value of `f` with
+probability at least `1/2` (`birthdayFinder_success_book`; [bs23][bs23], §8.3, Lemma 8.2,
+p. 294). The collision for `H₁ ‖ H₂` at the end of §8.4.1 is not stated. The checks in
+[`CslibFrontierTests/Crypto/MerkleDamgardMulticollision.lean`](../../CslibFrontierTests/Crypto/MerkleDamgardMulticollision.lean)
+show that 45 calls give an 8-collision with probability at least `3/4` for every compression
+function with one-bit chaining values and eight-bit blocks.
+
 ## Commitments and ideal distributions
 
 To state a commitment scheme and its games as programs, import [Commitment/Scheme.lean](../../CslibFrontier/Crypto/Computational/Commitment/Scheme.lean). `Commitment.Scheme K M C O` has typed key, message, commitment and opening spaces, with key generation and commitment as `ProbComp` programs and a Boolean `verify`. `hidingExperiment` draws a key and runs `lrExperiment` on the commitment component. `bindingExperiment` asks for a `BindingCollision`, two distinct messages opened against one commitment. `PerfectlyHidingAt S k` makes every message's commitment law equal at key `k`. At such a key, the left-or-right advantage is zero (`Scheme.advantage_lrExperiment_eq_zero`). `Scheme.advantage_hidingExperiment_le` bounds the hiding advantage by the probability that key generation lands outside a perfectly hiding set. The Pedersen instance `pedersen d` at a fixed group description is correct (`pedersen_correct`) and perfectly hiding at every key `h ≠ 0` (`pedersen_perfectlyHidingAt`). The zero key, drawn with probability `1 / q`, is the only loss, so `advantage_pedersen_hidingExperiment_le` gives at most `1 / q`. `succProbability_pedersen_bindingExperiment_le` bounds binding by the discrete-logarithm advantage of the explicit reduction `pedersenToDL`, which reads off `α = (r₁ - r₀)⁻¹ * (m₀ - m₁)` from two openings. These are fixed-parameter statements and make no efficiency claim. The [checked clients](../../CslibFrontierTests/Crypto/CommitmentScheme.lean) cover a perfectly hiding scheme whose binding success is one; the [Pedersen clients](../../CslibFrontierTests/Crypto/PedersenCommitment.lean) instantiate both bounds on a group of order `11`.

@@ -160,7 +160,12 @@ box `{u | ∀ i, u i ∈ E i}`. For `Fin k`-indexed tuples with different factor
 probability that `k` samples of `iid μ k` contain two equal values, for any law `μ` on a set of size
 `n`: at least `1 - exp (-k (k - 1) / (2 n))` (`one_sub_exp_neg_le_iid_not_injective`) and at least
 `min (k (k - 1) / (4 n)) 0.63` (`min_le_iid_not_injective`), as in
-[bs23][bs23], Theorem B.1 and Corollary B.2. The union-bound upper bounds are
+[bs23][bs23], Theorem B.1 and Corollary B.2. For a function `f` whose values lie in a finite set
+`D`, [IID/FunctionCollision.lean](../../CslibFrontier/Probability/IID/FunctionCollision.lean)
+bounds from below the probability that `s` uniform samples contain two different points with one
+value of `f`: at least `1 - exp (-s (s - 1) / (2 |D|)) - C(s, 2) / |M|`
+(`one_sub_exp_neg_sub_choose_le_iid_uniformOfFintype_exists_collision`), the probabilistic part of
+[bs23][bs23], Lemma 8.2. The union-bound upper bounds are
 in [IID/Distinct.lean](../../CslibFrontier/Probability/IID/Distinct.lean). To move a finite
 statistic of i.i.d. samples from a measure into this setting, import
 [Product/MapMeasure.lean](../../CslibFrontier/Probability/Product/MapMeasure.lean):
