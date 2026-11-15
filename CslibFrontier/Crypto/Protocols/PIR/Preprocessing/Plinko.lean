@@ -61,9 +61,11 @@ indexed by `Fin (nReg + nBackup)`, together with one invertible PRF key `keys α
 * **Database and hint updates** (`updateDB`, `updateHint`, `updateState`,
   `PlinkoState.valid_updateHint_delta`, `PlinkoState.valid_updateHint`,
   `PlinkoState.valid_updateState`, `PlinkoState.canAnswer_updateHint_iff`):
-  updating entry `i = (α, β)` to `d` via summary `δ = ⟨i, db i + d⟩` touches only the candidate
-  slots in `iF.inv (keys α) β` and the cache entry `cache i`, preserving `PlinkoState.Valid`
-  against `Function.update db i d` as well as `PlinkoState.CanAnswer`.
+  updating entry `i = (α, β)` to `d` via summary `δ = ⟨i, db i + d⟩` touches three things: the
+  candidate slots in `iF.inv (keys α) β`, the active promoted hint linked to the cached entry
+  (its stored entry is `i`, and its slot need not be a candidate), and the cache entry `cache i`.
+  It preserves `PlinkoState.Valid` against `Function.update db i d` as well as
+  `PlinkoState.CanAnswer`.
 
 ## Main definitions
 
