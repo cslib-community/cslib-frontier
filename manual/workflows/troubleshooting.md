@@ -168,4 +168,14 @@ them. Include Actions restore/save bytes and time and handoff transfer costs whe
 whole cycle. Larger snapshots can evict older caches, and cancellation before the late save loses
 that run's snapshot; a failed check remains failed even when its reusable build outputs are saved.
 
+When a merge-queue build compiles far more modules than its pull requests change, check which
+build it started from. The caches that `main` builds publish lag the queue, so a merge group also
+restores the build handoff of its nearest first-parent ancestor that has one. Its step *Restore
+nearest ancestor merge-group build outputs* logs `Build handoff restored from ancestor <sha> (<n>
+first-parent commits back)`, or a `Build handoff unavailable` warning naming the reason (no
+handoff among the 20 nearest ancestors, a changed toolchain or dependency manifest, a new runner
+image, an expired artifact). The
+[cache guide](../../scripts/cache/README.md#later-merge-groups) describes the search and its
+checks.
+
 [complexitylib]: ../sources.md#complexitylib

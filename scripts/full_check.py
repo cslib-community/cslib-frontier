@@ -140,13 +140,17 @@ CI_ONLY = {
         "CI cache; check.sh runs scripts/cache/ensure.sh",
     "Restore validated merge-group build outputs":
         "main pushes only; downloads a merge-group artifact through the GitHub API",
+    "Restore nearest ancestor merge-group build outputs":
+        "merge groups only; downloads an ancestor's merge-group artifact through the GitHub API",
     "Save .lake to the Actions cache": "main pushes only; CI cache",
     "Parallel-definition and duplicate-statement notices (advisory)":
         "advisory; never fails the job. Run `scripts/parallel_defs.py [--theorems]` to see it",
     "PR description names (advisory)":
         "advisory; reads the pull request event. Run `scripts/check_pr_names.py --pr N`",
-    "Stage merge-group build outputs": "merge groups only; build handoff to main",
-    "Upload merge-group build outputs": "merge groups only; build handoff to main",
+    "Stage merge-group build outputs":
+        "merge groups only; build handoff to main and to later merge groups",
+    "Upload merge-group build outputs":
+        "merge groups only; build handoff to main and to later merge groups",
     "Stage cache publication": "main pushes only; cache publication",
     "Hand off staged files to the enabled publishers": "main pushes only; cache publication",
 }

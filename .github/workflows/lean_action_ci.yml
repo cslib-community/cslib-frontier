@@ -147,7 +147,8 @@ jobs:
       publication: ${{ steps.upload-publication.outputs.artifact-id }}
     permissions:
       contents: read
-      # Main may download the exact landed revision's successful merge-group build artifact.
+      # Main may download the exact landed revision's successful merge-group build artifact, and
+      # a merge group that of its nearest first-parent ancestor.
       actions: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -215,6 +216,28 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           DISABLE_BUILD_HANDOFF: ${{ vars.DISABLE_BUILD_HANDOFF }}
         run: python3 -B scripts/cache_handoff.py restore
+      # The caches restored above are published only when a build of `main` completes, one at a
+      # time, so they lag the queue: merge groups have started from snapshots 20 and 32 commits
+      # behind. Every commit that lands through the queue has a build handoff from its own
+      # merge-group run, so a merge group instead starts from the handoff of its nearest
+      # first-parent ancestor that has one, among at most 20 (scripts/cache/README.md). Only that
+      # ancestor's latest successful merge-group run of this workflow is accepted, with the checks
+      # of the step above, and its toolchain, manifest and lakefile must equal this checkout's.
+      # Lake reuses an output only where a module's input hash matches, so the build below still
+      # compiles everything the newer commits and this group change. Pull requests never run this
+      # step. A miss is a workflow warning and leaves the ordinary build below unchanged; the
+      # variables that disable the step above disable this one. It needs no cloud credential.
+      - name: Restore nearest ancestor merge-group build outputs
+        if: >-
+          github.event_name == 'merge_group' &&
+          vars.DISABLE_CACHE_RESTORE != 'true' && vars.DISABLE_CACHE_RESTORE != '1' &&
+          vars.DISABLE_BUILD_HANDOFF != '1' && vars.DISABLE_BUILD_HANDOFF != 'true'
+        continue-on-error: true
+        timeout-minutes: 10
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DISABLE_BUILD_HANDOFF: ${{ vars.DISABLE_BUILD_HANDOFF }}
+        run: python3 -B scripts/cache_handoff.py restore --ancestor
       - name: "lake build"
         id: build
         run: lake build --wfail --iofail @cslib-frontier @/mk_all @/checkInitImports @mathlib/lint-style
