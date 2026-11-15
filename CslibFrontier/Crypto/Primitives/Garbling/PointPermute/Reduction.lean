@@ -559,19 +559,61 @@ theorem eval_run_prvSimReduction {σ : Type} (B : ℕ → PrvSimAdversary ValidC
         simp only [PMF.bind_bind, PMF.bind_map, Function.comp_def]
         rfl
 
-/-- **The `prv.sim` advantage against the simulator is the reduction's label advantage, times the
-step range.** At parameter `k`, if every valid query `B k` can choose has at most `P k` wires and
-`8 P k ≤ 2 ^ k`, the `prv.sim` advantage of `B k` against `simWord` is `Probability.dyadicSize (P k)` times the
-finite PRF advantage of `prvSimReduction family B P` at label parameter `k`, read through
-`labelCodec k`, against the label function of `family` at parameter `k + 1`. -/
-theorem prvSimAdvantage_simWord_eq {σ : Type} (B : ℕ → PrvSimAdversary ValidCircuit σ)
-    (P : ℕ → ℕ) (k : ℕ)
-    (hP : ∀ query state, (query, state) ∈ (ProbComp.eval ((B k).choose ())).support →
-      query.input.length = query.fn.1.n → query.fn.1.n + query.fn.1.q ≤ P k)
-    (hk : 8 * P k ≤ 2 ^ k) :
-    prvSimAdvantage (scheme family) phiTopo k (simWord family k) (B k) =
-      Probability.dyadicSize (P k) * PRF.advantage (PRF.label (PRF.atLevel family (k + 1)))
-        ((labelCodec k).adapt (prvSimReduction family B P k [])) := by
-  sorry
+/-! ### The exact bound -/
+
+/-- Global hybrid `i` for `B` at parameter `k`: `B`'s choice of `(f, x)`, then, when `x` has `f.n`
+bits, hybrid experiment `i` of `toCircuit f` with `B`'s guess on the words of the view; otherwise
+`B`'s guess on `⊥`. -/
+private noncomputable def prvSimHybrid {σ : Type} (B : ℕ → PrvSimAdversary ValidCircuit σ)
+    (k i : ℕ) : Game :=
+  (ProbComp.eval ((B k).choose ())).bind fun (query, state) =>
+    if query.input.length = query.fn.1.n then
+      hybridGame (toCircuit query.fn) fullInterpretation (PRF.label (PRF.atLevel family (k + 1)))
+        (slotTweak _ k) (BitString.ofList query.fn.1.n query.input)
+        (viewGuess (B k) k state _) i
+    else ProbComp.eval ((B k).guess state none)
+
+/-- The real `prv.sim` experiment is global hybrid `0`. -/
+private theorem eval_prvSimExperiment_true {σ : Type} (B : ℕ → PrvSimAdversary ValidCircuit σ)
+    (k : ℕ) (S : PrvSimulator ValidTopo) :
+    ProbComp.eval (prvSimExperiment (scheme family) phiTopo k S (B k) true) =
+      prvSimHybrid family B k 0 := by
+  simp only [prvSimExperiment, prvSimHybrid, ProbComp.eval_bind]
+  refine congrArg _ (funext fun ⟨query, state⟩ => ?_)
+  have hin : (scheme family).inLen query.fn = query.fn.1.n := rfl
+  dsimp only
+  rw [hin]
+  split_ifs with hx
+  · rw [hybridGame_zero]
+    simp only [if_true, ProbComp.eval_bind, realGame]
+    rw [eval_prvView family k query.fn hx, PMF.bind_map]
+    rfl
+  · rfl
+
+/-- The simulated `prv.sim` experiment is every global hybrid from the largest number of wires
+on. -/
+private theorem eval_prvSimExperiment_false {σ : Type} (B : ℕ → PrvSimAdversary ValidCircuit σ)
+    (k c : ℕ)
+    (hc : ∀ query state, (query, state) ∈ (ProbComp.eval ((B k).choose ())).support →
+      query.input.length = query.fn.1.n → query.fn.1.n + query.fn.1.q ≤ c) :
+    ProbComp.eval (prvSimExperiment (scheme family) phiTopo k (simWord family k) (B k) false) =
+      prvSimHybrid family B k c := by
+  simp only [prvSimExperiment, prvSimHybrid, ProbComp.eval_bind]
+  refine Probability.PMF.bind_congr_on_support _ _ _ fun ⟨query, state⟩ hmem => ?_
+  have hin : (scheme family).inLen query.fn = query.fn.1.n := rfl
+  have hev : (scheme family).ev query.fn query.input = query.fn.1.evalCirc query.input := rfl
+  dsimp only
+  simp only [hin, hev, Bool.false_eq_true, ↓reduceIte]
+  split_ifs with hx
+  · rw [hybridGame_of_le _ _ _ _ _ _ (by rw [size_toCircuit]; exact hc query state hmem hx)]
+    simp only [ProbComp.eval_bind, simGame]
+    have hy : BitString.ofList query.fn.1.m (query.fn.1.evalCirc query.input) =
+        (toCircuit query.fn).eval fullInterpretation (BitString.ofList query.fn.1.n query.input) := by
+      have h := eval_toCircuit query.fn (BitString.ofList query.fn.1.n query.input)
+      rw [BitString.ofFn_ofList hx] at h
+      rw [← h, BitString.ofList_ofFn]
+    rw [eval_simWord, hy, PMF.bind_map]
+    rfl
+  · rfl
 
 end Cslib.Crypto.Garbling.PointPermute
