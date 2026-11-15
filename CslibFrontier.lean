@@ -4428,6 +4428,8 @@ public import CslibFrontier.Crypto.Computational.GMW.Soundness
 public import CslibFrontier.Crypto.Computational.GeneratorPadding
 public import CslibFrontier.Crypto.Computational.GeneratorReindex
 public import CslibFrontier.Crypto.Computational.GeneratorXor
+public import CslibFrontier.Crypto.Computational.GenericGroup.BabyStepGiantStep
+public import CslibFrontier.Crypto.Computational.GenericGroup.Basic
 public import CslibFrontier.Crypto.Computational.GoldreichLevin.Decoding
 public import CslibFrontier.Crypto.Computational.GoldreichLevin.HardCore
 public import CslibFrontier.Crypto.Computational.GoldreichLevin.Nonuniform
