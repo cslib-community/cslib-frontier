@@ -20,6 +20,7 @@ import CslibFrontier.Probability.Divergence
 import CslibFrontier.Probability.MinEntropy
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Map
+import Mathlib.GroupTheory.Perm.ViaEmbedding
 import Mathlib.Logic.Equiv.Fin.Basic
 
 /-!
@@ -297,40 +298,16 @@ private theorem conditionalEntropy_endMem_le (withQueries : Bool) {U V n cells w
     rw [PMF.conditionalEntropy, hinj_mem, hkv_ent]; linarith
   exact hce_step.trans hrhs
 
-private def actInsKeyFun {n : ℕ} (t_st N : ℕ) (h : t_st + N ≤ n)
-    (γ : Equiv.Perm (Fin N)) (j : Fin (2 * n)) : Fin (2 * n) :=
-  if hj : n + t_st ≤ j.val ∧ j.val < n + t_st + N then
-    ⟨n + t_st + (γ ⟨j.val - (n + t_st), by omega⟩).val,
-      by have := (γ ⟨j.val - (n + t_st), by omega⟩).isLt; omega⟩
-  else j
+private def insKeyOffsetEmb {n : ℕ} (t_st N : ℕ) (h : t_st + N ≤ n) :
+    Fin N ↪ Fin (2 * n) where
+  toFun r := ⟨n + t_st + r.val, by have := r.isLt; omega⟩
+  inj' _ _ heq := Fin.ext (by have := congrArg Fin.val heq; dsimp only at this; omega)
 
-private theorem actInsKeyFun_symm {n : ℕ} (t_st N : ℕ) (h : t_st + N ≤ n)
-    (γ : Equiv.Perm (Fin N)) (j : Fin (2 * n)) :
-    actInsKeyFun t_st N h γ (actInsKeyFun t_st N h γ.symm j) = j := by
-  by_cases hj : n + t_st ≤ j.val ∧ j.val < n + t_st + N
-  · have hstep : actInsKeyFun t_st N h γ.symm j =
-        ⟨n + t_st + (γ.symm ⟨j.val - (n + t_st), by omega⟩).val,
-          by have := (γ.symm ⟨j.val - (n + t_st), by omega⟩).isLt; omega⟩ := by
-      dsimp only [actInsKeyFun]; exact dite_eq_left hj
-    rw [hstep]
-    have hj' : n + t_st ≤ n + t_st + (γ.symm ⟨j.val - (n + t_st), by omega⟩).val ∧
-        n + t_st + (γ.symm ⟨j.val - (n + t_st), by omega⟩).val < n + t_st + N := by
-      have := (γ.symm ⟨j.val - (n + t_st), by omega⟩).isLt; omega
-    dsimp only [actInsKeyFun]; rw [dite_eq_left hj']
-    apply Fin.ext; dsimp
-    have heq : (⟨n + t_st + (γ.symm ⟨j.val - (n + t_st), by omega⟩).val - (n + t_st), by omega⟩ :
-        Fin N) = γ.symm ⟨j.val - (n + t_st), by omega⟩ := Fin.ext (by dsimp; omega)
-    rw [heq, γ.apply_symm_apply]; dsimp; omega
-  · dsimp only [actInsKeyFun]; rw [dite_eq_right hj, dite_eq_right hj]
+private noncomputable def actInsKeyPerm {n : ℕ} (t_st N : ℕ) (h : t_st + N ≤ n)
+    (γ : Equiv.Perm (Fin N)) : Equiv.Perm (Fin (2 * n)) :=
+  γ.viaEmbedding (insKeyOffsetEmb t_st N h)
 
-private def actInsKeyPerm {n : ℕ} (t_st N : ℕ) (h : t_st + N ≤ n)
-    (γ : Equiv.Perm (Fin N)) : Equiv.Perm (Fin (2 * n)) where
-  toFun := actInsKeyFun t_st N h γ
-  invFun := actInsKeyFun t_st N h γ.symm
-  left_inv j := by simpa using actInsKeyFun_symm t_st N h γ.symm j
-  right_inv j := actInsKeyFun_symm t_st N h γ j
-
-private def actInsSeed {U V n : ℕ} (t_st N : ℕ) (h : t_st + N ≤ n)
+private noncomputable def actInsSeed {U V n : ℕ} (t_st N : ℕ) (h : t_st + N ≤ n)
     (γ : Equiv.Perm (Fin N)) : HardKeyValSeed U V n ≃ HardKeyValSeed U V n where
   toFun s := ⟨(actInsKeyPerm t_st N h γ).toEmbedding.trans s.keys, s.kv, s.delPerm⟩
   invFun s := ⟨(actInsKeyPerm t_st N h γ).symm.toEmbedding.trans s.keys, s.kv, s.delPerm⟩
@@ -342,20 +319,16 @@ private def actInsSeed {U V n : ℕ} (t_st N : ℕ) (h : t_st + N ≤ n)
 private theorem actInsKeyPerm_lt {n t_st N : ℕ} (h : t_st + N ≤ n)
     (γ : Equiv.Perm (Fin N)) {j : Fin (2 * n)} (hj : j.val < n + t_st) :
     actInsKeyPerm t_st N h γ j = j := by
-  change actInsKeyFun t_st N h γ j = j
-  have hnot : ¬ (n + t_st ≤ j.val ∧ j.val < n + t_st + N) := by omega
-  dsimp only [actInsKeyFun]; exact dite_eq_right hnot
+  refine Equiv.Perm.viaEmbedding_apply_of_notMem γ (insKeyOffsetEmb t_st N h) j ?_
+  rintro ⟨r, hr⟩
+  have hval : n + t_st + r.val = j.val := congrArg Fin.val hr
+  omega
 
 private theorem actInsKeyPerm_ins {n t_st N : ℕ} (h : t_st + N ≤ n)
     (γ : Equiv.Perm (Fin N)) (r : Fin N) :
     actInsKeyPerm t_st N h γ ⟨n + t_st + r.val, by have := r.isLt; omega⟩ =
-      ⟨n + t_st + (γ r).val, by have := (γ r).isLt; omega⟩ := by
-  change actInsKeyFun t_st N h γ ⟨n + t_st + r.val, by have := r.isLt; omega⟩ = _
-  have hmem : n + t_st ≤ n + t_st + r.val ∧ n + t_st + r.val < n + t_st + N := by
-    have := r.isLt; omega
-  dsimp only [actInsKeyFun]; rw [dite_eq_left hmem]
-  apply Fin.ext; dsimp
-  exact congrArg (n + t_st + ·) (congrArg Fin.val (congrArg γ (Fin.ext (by dsimp; omega))))
+      ⟨n + t_st + (γ r).val, by have := (γ r).isLt; omega⟩ :=
+  Equiv.Perm.viaEmbedding_apply γ (insKeyOffsetEmb t_st N h) r
 
 private def blockProdPerm {F : ℕ} {m : ℕ} (δ : Fin F → Equiv.Perm (Fin m)) :
     Equiv.Perm (Fin F × Fin m) where
@@ -398,25 +371,10 @@ private theorem sum_logb_choose_le_conditionalEntropy_outerTarget (withQueries :
   have hM_pos : (0 : ℝ) < (M_nat : ℝ) := Nat.cast_pos.mpr hM_pos_nat
   have hlog_M : Real.logb 2 (M_nat : ℝ) =
       ∑ i : Fin F, Real.logb 2 (((F - i.val) * m).choose m) := by
-    dsimp only [M_nat]; induction F with
-    | zero => simp
-    | succ k ih =>
-      -- prove logb of positive product via Finset induction
-      clear ih
-      rw [Nat.cast_prod]
-      have : ∀ (S : Finset (Fin (k + 1))),
-          (∀ i ∈ S, (0 : ℝ) < (((k + 1 - i.val) * m).choose m : ℝ)) →
-          Real.logb 2 (∏ i ∈ S, (((k + 1 - i.val) * m).choose m : ℝ)) =
-            ∑ i ∈ S, Real.logb 2 (((k + 1 - i.val) * m).choose m : ℝ) := by
-        intro S hS; induction S using Finset.induction_on with
-        | empty => simp
-        | @insert a s ha ihs =>
-          rw [Finset.prod_insert ha, Finset.sum_insert ha,
-            Real.logb_mul (hS a (Finset.mem_insert_self a s)).ne'
-              (Finset.prod_pos fun x hx => hS x (Finset.mem_insert_of_mem hx)).ne',
-            ihs (fun x hx => hS x (Finset.mem_insert_of_mem hx))]
-      exact this Finset.univ fun i _ => by
-        exact_mod_cast Nat.choose_pos (Nat.le_mul_of_pos_left m (by have := i.isLt; omega))
+    dsimp only [M_nat]
+    rw [Nat.cast_prod]
+    exact Real.logb_prod Finset.univ _ fun i _ => by
+      exact_mod_cast (Nat.choose_pos (Nat.le_mul_of_pos_left m (by have := i.isLt; omega))).ne'
   rw [← hlog_M]
   refine logb_le_conditionalEntropy_of_fiber_le μ obs tgt hM_pos fun o P => ?_
   let G := Equiv.Perm (Fin (F * m))

@@ -250,30 +250,8 @@ theorem twoCellDictScheme_all_histories {U V n w : ℕ}
     (hfit : Fintype.card (BoundedDict U V n) ≤ 2 ^ (2 * w)) (M : ℕ) :
     ∀ ops ∈ validHistoriesUpTo U V n M,
       ((twoCellDictScheme hfit).toIndexed.runSeq ops).1 =
-        ((Dynamic.spec U V n).run (Dictionary.empty U) ops).2 := by
-  have hind : ∀ (ops : List (Dynamic.Op U)) (t₀ : ℕ) (s : Dictionary.State U)
-      (hcard : (Dictionary.dom s).card ≤ n) (hbnd : Dictionary.ValuesBounded V s),
-      (Dynamic.spec U V n).ValidHistory s ops →
-      ((twoCellDictScheme hfit).toIndexed.runInterval t₀
-        (boundedDictEmb hfit (mkBoundedDict s hcard hbnd)) ops).1 =
-        ((Dynamic.spec U V n).run s ops).2 := by
-    intro ops; induction ops with
-    | nil => intros; rfl
-    | cons o rest ih =>
-      intro t₀ s hcard hbnd ⟨hvalid, hvh⟩
-      obtain ⟨hrun, _⟩ := twoCellDictScheme_step_run hfit hcard hbnd hvalid
-      have hcons : ((twoCellDictScheme hfit).toIndexed.runInterval t₀
-          (boundedDictEmb hfit (mkBoundedDict s hcard hbnd)) (o :: rest)).1 =
-          ⟨o, (Dynamic.step s o).2⟩ ::
-            ((twoCellDictScheme hfit).toIndexed.runInterval (t₀ + 1)
-              (boundedDictEmb hfit (mkBoundedDict (Dynamic.step s o).1
-                (Dynamic.card_dom_step_le_of_valid hcard hvalid)
-                (Dynamic.valuesBounded_step_of_valid hbnd hvalid))) rest).1 := by
-        simp [IndexedScheme.runInterval_cons, Scheme.toIndexed, hrun]
-      rw [hcons, StateTransitionSpec.run_cons]; dsimp only
-      rw [ih (t₀ + 1) _ _ _ hvh]
-  intro ops hops
-  exact hind ops 0 (Dictionary.empty U) (by simp) (Dictionary.valuesBounded_empty U V) hops.1
+        ((Dynamic.spec U V n).run (Dictionary.empty U) ops).2 :=
+  fun ops hops => ((twoCellDictImpl hfit).runSeq_ofFn ops hops.1).1
 
 /-- Zero-error oblivious sequence contract for `Randomized.Scheme.ofDeterministic` on
 `twoCellDictScheme`. -/

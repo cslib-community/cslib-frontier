@@ -19,6 +19,7 @@ import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Map
 import Mathlib.Algebra.Group.Fin.Basic
 import Mathlib.GroupTheory.Perm.Support
+import Mathlib.Logic.Equiv.Fintype
 
 /-!
 # Multi-Level Cell-Probe Lower Bounds for Dynamic Succinct Dictionaries
@@ -563,34 +564,9 @@ private theorem prob_gt_cap_stateFiber_le {U V n t₀ m g P_size cells w : ℕ} 
   have hunif_pair : ∀ p₁ p₂ : ValidDictPair U V n,
       ((μ_g.map (pairBOf t₀ m ht₀)) p₁).toReal = ((μ_g.map (pairBOf t₀ m ht₀)) p₂).toReal := by
     intro ⟨⟨K₁, hK₁⟩, f₁⟩ ⟨⟨K₂, hK₂⟩, f₂⟩
-    have e_in : ↥K₁ ≃ ↥K₂ := Fintype.equivOfCardEq (by simp [hK₁, hK₂])
-    have e_out : ↥(Finset.univ \ K₁) ≃ ↥(Finset.univ \ K₂) := Fintype.equivOfCardEq (by
-      rw [Fintype.card_coe, Fintype.card_coe, Finset.card_sdiff, Finset.card_sdiff,
-        Finset.inter_eq_left.mpr (Finset.subset_univ _),
-        Finset.inter_eq_left.mpr (Finset.subset_univ _), hK₁, hK₂])
-    let τ : Equiv.Perm (Fin U) :=
-      { toFun := fun x => if hx : x ∈ K₁ then (e_in ⟨x, hx⟩).1
-          else (e_out ⟨x, Finset.mem_sdiff.mpr ⟨Finset.mem_univ x, hx⟩⟩).1
-        invFun := fun y => if hy : y ∈ K₂ then (e_in.symm ⟨y, hy⟩).1
-          else (e_out.symm ⟨y, Finset.mem_sdiff.mpr ⟨Finset.mem_univ y, hy⟩⟩).1
-        left_inv := fun x => by
-          by_cases hx : x ∈ K₁
-          · simp [hx, (e_in ⟨x, hx⟩).2]
-          · have hnot : (e_out ⟨x, Finset.mem_sdiff.mpr ⟨Finset.mem_univ x, hx⟩⟩).1 ∉ K₂ :=
-              (Finset.mem_sdiff.mp (e_out ⟨x, _⟩).2).2
-            simp [hx, hnot]
-        right_inv := fun y => by
-          by_cases hy : y ∈ K₂
-          · simp [hy, (e_in.symm ⟨y, hy⟩).2]
-          · have hnot : (e_out.symm ⟨y, Finset.mem_sdiff.mpr ⟨Finset.mem_univ y, hy⟩⟩).1 ∉ K₁ :=
-              (Finset.mem_sdiff.mp (e_out.symm ⟨y, _⟩).2).2
-            simp [hy, hnot] }
+    obtain ⟨τ, hτ_map⟩ := Equiv.Perm.exists_map_finset_eq K₁ K₂ (hK₁.trans hK₂.symm)
     have hτ_mem : ∀ x : Fin U, x ∈ K₁ ↔ τ x ∈ K₂ := fun x => by
-      by_cases hx : x ∈ K₁
-      · simp [τ, hx, (e_in ⟨x, hx⟩).2]
-      · have hnot : (e_out ⟨x, Finset.mem_sdiff.mpr ⟨Finset.mem_univ x, hx⟩⟩).1 ∉ K₂ :=
-          (Finset.mem_sdiff.mp (e_out ⟨x, _⟩).2).2
-        simp [τ, hx, hnot]
+      rw [← hτ_map]; exact (Finset.mem_map' τ.toEmbedding).symm
     have hτ_symm_mem : ∀ y : Fin U, y ∈ K₂ → τ.symm y ∈ K₁ := fun y hy =>
       (hτ_mem (τ.symm y)).mpr (by simpa using hy)
     let δ : Fin U → Fin V := fun u =>
@@ -1071,31 +1047,8 @@ private theorem fiber_le_queryFreePoolDist {U V n t₀ m g P_size : ℕ}
               refine Finset.card_bij (fun x _ => x.1) (fun x hx => (Finset.mem_filter.mp hx).2)
                 (fun _ _ _ _ h => Subtype.ext h) fun y hy =>
                   ⟨⟨y, hK'_sub hy⟩, Finset.mem_filter.mpr ⟨Finset.mem_univ _, hy⟩, rfl⟩
-            have e1 : ↥Kr_s ≃ ↥K'_s := Fintype.equivOfCardEq (by simp [hcard_Krs, hcard_K's])
-            have e2 : ↥(Finset.univ \ Kr_s) ≃ ↥(Finset.univ \ K'_s) :=
-              Fintype.equivOfCardEq (by
-                rw [Fintype.card_coe, Fintype.card_coe, Finset.card_sdiff, Finset.card_sdiff,
-                  Finset.inter_eq_left.mpr (Finset.subset_univ _),
-                  Finset.inter_eq_left.mpr (Finset.subset_univ _), hcard_Krs, hcard_K's])
-            let σ_sub : Equiv.Perm ↥S_comp :=
-              { toFun := fun x => if hx : x ∈ Kr_s then (e1 ⟨x, hx⟩).1
-                  else (e2 ⟨x, Finset.mem_sdiff.mpr ⟨Finset.mem_univ x, hx⟩⟩).1
-                invFun := fun y => if hy : y ∈ K'_s then (e1.symm ⟨y, hy⟩).1
-                  else (e2.symm ⟨y, Finset.mem_sdiff.mpr ⟨Finset.mem_univ y, hy⟩⟩).1
-                left_inv := fun x => by
-                  dsimp only
-                  by_cases hx : x ∈ Kr_s
-                  · rw [dite_eq_left hx, dite_eq_left (e1 ⟨x, hx⟩).2, Equiv.symm_apply_apply]
-                  · have hnot : (e2 ⟨x, Finset.mem_sdiff.mpr ⟨Finset.mem_univ x, hx⟩⟩).1 ∉ K'_s :=
-                      (Finset.mem_sdiff.mp (e2 ⟨x, _⟩).2).2
-                    rw [dite_eq_right hx, dite_eq_right hnot, Equiv.symm_apply_apply]
-                right_inv := fun y => by
-                  dsimp only
-                  by_cases hy : y ∈ K'_s
-                  · rw [dite_eq_left hy, dite_eq_left (e1.symm ⟨y, hy⟩).2, Equiv.apply_symm_apply]
-                  · have hnot : (e2.symm ⟨y, Finset.mem_sdiff.mpr ⟨Finset.mem_univ y, hy⟩⟩).1 ∉
-                        Kr_s := (Finset.mem_sdiff.mp (e2.symm ⟨y, _⟩).2).2
-                    rw [dite_eq_right hy, dite_eq_right hnot, Equiv.apply_symm_apply] }
+            obtain ⟨σ_sub, hσ_sub_map⟩ :=
+              Equiv.Perm.exists_map_finset_eq Kr_s K'_s (hcard_Krs.trans hcard_K's.symm)
             have hσ_map : K_rem.map (Equiv.Perm.ofSubtype σ_sub).toEmbedding = K' := by
               ext y; simp only [Finset.mem_map, Equiv.coe_toEmbedding]
               constructor
@@ -1104,17 +1057,19 @@ private theorem fiber_le_queryFreePoolDist {U V n t₀ m g P_size : ℕ}
                 have hxKr : (⟨x, hxS⟩ : ↥S_comp) ∈ Kr_s :=
                   Finset.mem_filter.mpr ⟨Finset.mem_univ _, hx⟩
                 rw [Equiv.Perm.ofSubtype_apply_of_mem σ_sub hxS]
-                have hmem : σ_sub ⟨x, hxS⟩ ∈ K'_s := by simp [σ_sub, hxKr, (e1 _).2]
+                have hmem : σ_sub ⟨x, hxS⟩ ∈ K'_s := by
+                  rw [← hσ_sub_map]
+                  exact Finset.mem_map.mpr ⟨⟨x, hxS⟩, hxKr, rfl⟩
                 exact (Finset.mem_filter.mp hmem).2
               · intro hy
                 have hyS : y ∈ S_comp := hK'_sub hy
                 have hyK' : (⟨y, hyS⟩ : ↥S_comp) ∈ K'_s :=
                   Finset.mem_filter.mpr ⟨Finset.mem_univ _, hy⟩
-                refine ⟨(σ_sub.symm ⟨y, hyS⟩).1, ?_, ?_⟩
-                · have hmem : σ_sub.symm ⟨y, hyS⟩ ∈ Kr_s := by simp [σ_sub, hyK', (e1.symm _).2]
-                  exact (Finset.mem_filter.mp hmem).2
-                · rw [Equiv.Perm.ofSubtype_apply_of_mem σ_sub (σ_sub.symm ⟨y, hyS⟩).2]
-                  simp
+                rw [← hσ_sub_map] at hyK'
+                obtain ⟨x_sub, hxKr, hx_eq⟩ := Finset.mem_map.mp hyK'
+                refine ⟨x_sub.1, (Finset.mem_filter.mp hxKr).2, ?_⟩
+                rw [Equiv.Perm.ofSubtype_apply_of_mem σ_sub x_sub.2]
+                exact congrArg Subtype.val hx_eq
             refine Finset.card_bij (fun π_sub _ => π_sub.trans σ_sub) (fun π_sub hπ => ?_)
               (fun _ _ _ _ h => Equiv.Perm.ext fun x => σ_sub.injective (Equiv.Perm.ext_iff.mp h x))
               (fun π' hπ' => ⟨π'.trans σ_sub.symm, ?_, by ext x; simp⟩)
@@ -2498,18 +2453,12 @@ theorem det_expectedSeqProbes_ge_of_outer_tree (withQueries : Bool) {U V n cells
       linarith
   have hlevel_cover (ℓ : ℕ) (hℓ : ℓ ∈ Finset.Ico 1 H) :
       ((n : ℝ) / 2) ≤ ((T.nodeCount (ℓ + 1) * T.blockSize (ℓ + 1) : ℕ) : ℝ) := by
-    let m := T.blockSize (ℓ + 1)
-    have hm_pos : 0 < m := lt_of_lt_of_le Nat.zero_lt_one
-      ((Nat.one_le_pow _ _ Nat.two_pos).trans (T.two_pow_le_blockSize (ℓ + 1)))
-    have hm_half : m ≤ n / 2 := hblock_half ℓ hℓ
-    have hnc : T.nodeCount (ℓ + 1) = n / m := by simp [MetaTree.nodeCount, hT_hor, m]
-    rw [hnc]
-    set k := (n / m) * m
-    set r := n % m
-    have hdiv : k + r = n := by dsimp [k, r]; rw [mul_comm]; exact Nat.div_add_mod n m
-    have hlt : r < m := Nat.mod_lt n hm_pos
-    have hn_le : n ≤ 2 * k := by omega
-    have hn_r : (n : ℝ) ≤ 2 * (k : ℝ) := by exact_mod_cast hn_le
+    have hbh : T.blockSize (ℓ + 1) ≤ T.horizon :=
+      (hblock_half ℓ hℓ).trans ((Nat.div_le_self n 2).trans_eq hT_hor.symm)
+    have hn_le : n ≤ 2 * (T.nodeCount (ℓ + 1) * T.blockSize (ℓ + 1)) :=
+      hT_hor ▸ T.horizon_le_two_mul_nodeCount_mul_blockSize hbh
+    have hn_r : (n : ℝ) ≤ 2 * ((T.nodeCount (ℓ + 1) * T.blockSize (ℓ + 1) : ℕ) : ℝ) := by
+      exact_mod_cast hn_le
     linarith
   have hlhs_le : h1_real * (γ / 200) * (n : ℝ) ≤
       ∑ ℓ ∈ Finset.Ico 1 H, ∑ b ∈ Finset.range (T.nodeCount (ℓ + 1)),
@@ -2587,20 +2536,13 @@ theorem det_expectedSeqProbes_ge_of_outer_tree (withQueries : Bool) {U V n cells
 
 /-! ### Part C: Multi-Level Cell-Probe Lower Bounds (Theorems 1.1, 1.2, and 1.3) -/
 
-private theorem nat_log_two_le_logb {n : ℕ} (hn : 1 ≤ n) :
-    (Nat.log 2 n : ℝ) ≤ Real.logb 2 n := by
-  have hp : (2 : ℝ) ^ Nat.log 2 n ≤ (n : ℝ) := by
-    exact_mod_cast Nat.pow_log_le_self 2 (by omega)
-  have hl := Real.logb_le_logb_of_le (by norm_num : (1 : ℝ) < 2) (by positivity) hp
-  rwa [Real.logb_pow, Real.logb_self_eq_one (by norm_num : (1 : ℝ) < 2), mul_one] at hl
-
 private theorem floorLogStar_sub_one_le_logb {n U : ℕ} (hn : 2 ≤ n) (hnU : n ≤ U) :
     ((Nat.floorLogStar n - 1 : ℕ) : ℝ) ≤ Real.logb 2 U := by
   have hf : Nat.floorLogStar n = Nat.floorLogStar (Nat.log 2 n) + 1 :=
     Nat.floorLogStar_of_gt_one (by omega)
   have hle1 : Nat.floorLogStar n - 1 ≤ Nat.log 2 n := by
     rw [hf, Nat.add_sub_cancel]; exact Nat.floorLogStar_le_self _
-  have hle2 : (Nat.log 2 n : ℝ) ≤ Real.logb 2 n := nat_log_two_le_logb (by omega)
+  have hle2 : (Nat.log 2 n : ℝ) ≤ Real.logb 2 n := Real.natLog_le_logb n 2
   have hle3 : Real.logb 2 n ≤ Real.logb 2 U :=
     Real.logb_le_logb_of_le (by norm_num) (by exact_mod_cast (show 0 < n by omega))
       (by exact_mod_cast hnU)
@@ -2746,7 +2688,7 @@ private theorem iterLog_tree_bounds {γ c_R : ℝ} (hγ : 0 < γ) (hγ1 : γ ≤
     have h2 : (n : ℝ) ≤ (T.blockSize 1 : ℝ) * (Nat.log 2 n : ℝ) := by
       simpa only [Nat.iterLog_succ, Nat.iterLog_zero, Nat.cast_mul] using
         (show (n : ℝ) ≤ ((T.blockSize 1 * Nat.iterLog 1 n : ℕ) : ℝ) by exact_mod_cast h1)
-    exact h2.trans (mul_le_mul_of_nonneg_left (nat_log_two_le_logb (by omega)) (Nat.cast_nonneg _))
+    exact h2.trans (mul_le_mul_of_nonneg_left (Real.natLog_le_logb n 2) (Nat.cast_nonneg _))
   refine ⟨hH_ge, hk_r, hH1_logU, by exact_mod_cast hmax_le, hn_le_b1, fun ℓ hℓ => ?_⟩
   have hℓ_ge : 1 ≤ ℓ := (Finset.mem_Ico.mp hℓ).1
   have hℓ1_le_H : ℓ + 1 ≤ k' - s_off := (Finset.mem_Ico.mp hℓ).2
@@ -2778,8 +2720,8 @@ private theorem iterLog_tree_bounds {γ c_R : ℝ} (hγ : 0 < γ) (hγ1 : γ ≤
         (Nat.le_mul_of_pos_right _ (by clear hF_lo; omega))
     exact (h1.trans (_root_.le_max_right 71 _)).trans hx_ge_M
   have hlog1_logU : (Nat.iterLog 1 n : ℝ) ≤ Real.logb 2 U := by
-    simpa only [Nat.iterLog_succ, Nat.iterLog_zero] using
-      (nat_log_two_le_logb (by clear hF_lo; omega)).trans
+    simpa only [Nat.iterLog_succ, Nat.iterLog_zero, Nat.cast_ofNat] using
+      (Real.natLog_le_logb n 2).trans
         (Real.logb_le_logb_of_le (by norm_num)
           (by exact_mod_cast (show 0 < n by clear hF_lo; omega))
           (by exact_mod_cast hnU))
@@ -3226,12 +3168,8 @@ private theorem det_expectedSeqProbes_mode_ge_iterLog (withQueries : Bool)
         have hℓ_ge : 1 ≤ ℓ := (Finset.mem_Ico.mp hℓ).1
         have hm_lo : (n : ℝ) ^ (1 - γ / 2) ≤ (T.blockSize ℓ : ℝ) :=
           hm_lo_1.trans (by exact_mod_cast T.blockSize_strictMono.monotone hℓ_ge)
-        have ht_stop : T.nodeStop (ℓ + 1) b ≤ n := by
-          dsimp [MetaTree.nodeStop]
-          have hnc : T.nodeCount (ℓ + 1) = n / T.blockSize (ℓ + 1) := by
-            dsimp [MetaTree.nodeCount]; rw [iterLogMetaTree_horizon]
-          exact (Nat.mul_le_mul_right _ (Nat.succ_le_of_lt hb)).trans
-            (hnc ▸ Nat.div_mul_le_self n _)
+        have ht_stop : T.nodeStop (ℓ + 1) b ≤ n :=
+          (T.nodeStop_le_horizon hb).trans_eq (iterLogMetaTree_horizon n k' c_tree)
         exact hnode hspace_R T ht_pos hℓ_ge ht_stop hF_lo h11_logU ht_hi hm_lo hF_hi hR_out hR_in
     refine (?_ : c * (n : ℝ) * (k : ℝ) ≤ ((H - 1 : ℕ) : ℝ) * (γ / 400) * (n : ℝ)).trans htree
     calc c * (n : ℝ) * (k : ℝ)
@@ -3480,12 +3418,8 @@ private theorem det_expectedSeqProbes_mode_ge_sublinear (withQueries : Bool)
             _ ≤ ((γ / 2) * Real.logb 2 U) * (T.blockSize ℓ : ℝ) :=
               mul_le_mul hγU hmR (by positivity) (by positivity)
             _ = (γ / 2) * (T.blockSize ℓ : ℝ) * Real.logb 2 U := by ring
-        have ht_stop : T.nodeStop (ℓ + 1) b ≤ n := by
-          dsimp [MetaTree.nodeStop]
-          have hnc : T.nodeCount (ℓ + 1) = n / T.blockSize (ℓ + 1) := by
-            dsimp [MetaTree.nodeCount]; rw [geomMetaTree_horizon]
-          exact (Nat.mul_le_mul_right _ (Nat.succ_le_of_lt hb)).trans
-            (hnc ▸ Nat.div_mul_le_self n _)
+        have ht_stop : T.nodeStop (ℓ + 1) b ≤ n :=
+          (T.nodeStop_le_horizon hb).trans_eq (geomMetaTree_horizon n m₁_half)
         exact hnode hspace_R1 T ht_pos hℓ_ge ht_stop hF_lo h11_logU ht_hi hm_lo hF_hi hR_outer
           hR_in
     refine (?_ : c * (n : ℝ) * Real.logb 2 ((n : ℝ) / R₁) ≤
