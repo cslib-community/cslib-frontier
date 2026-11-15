@@ -4,10 +4,14 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.Computability.Probabilistic.RandomOracle.Programming
-import CslibFrontier.Tactic.PPT
+module
+
+public import CslibFrontier.Computability.Probabilistic.RandomOracle.Programming
+public import CslibFrontier.Tactic.PPT
 
 /-! An ordinary adaptive client of both native programmable-random-oracle worlds. -/
+
+public section
 
 namespace CslibFrontierTests.ProgrammableRandomOraclePPT
 
