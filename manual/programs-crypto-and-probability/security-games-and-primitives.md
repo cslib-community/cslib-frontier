@@ -1905,6 +1905,26 @@ key in the clear with the one-bit one-time pad, and show that the pad has one-ti
 They also rewrite the word-level hybrid game into the typed experiment. Run
 `scripts/build.sh CslibFrontierTests.Crypto.KEMDEM`.
 
+For general equal-ciphertext-law and one-time-pad semantic security without efficiency bounds
+([bs23][bs23], Example 2.9, p. 17; Exercise 2.7, p. 39), import
+[`Encryption/Cipher/Perfect.lean`](../../CslibFrontier/Crypto/Computational/Encryption/Cipher/Perfect.lean).
+`Cipher.eval_oneTimeExperiment_eq` and `Cipher.advantage_oneTimeExperiment_eq_zero` show that any
+cipher `E` (probabilistic or deterministic) whose key-averaged law `E.ciphertextDist sampleKey` is
+invariant across `valid` message pairs has semantic-security advantage zero against every
+`TwoStage` adversary. `Cipher.ofPure` builds deterministic ciphers, `Cipher.ciphertextDist_eq_encScheme`
+and `Cipher.advantage_oneTimeExperiment_eq_zero_of_perfectlySecret` bridge `EncScheme.PerfectlySecret`
+(and `EncScheme.CiphertextIndist`, via `Cipher.advantage_oneTimeExperiment_eq_zero`) whenever the
+key-sampler and encryption distributions match, and `Cipher.advantage_oneTimeExperiment_otpCipher`
+and `Cipher.advantage_oneTimeExperiment_variableLengthOTPCipher` (with equal-length admissibility
+`fun m₀ m₁ => decide (m₀.1.length = m₁.1.length)`) instantiate fixed-length and variable-length
+one-time pads (`Cipher.otpCipher` and `Cipher.variableLengthOTPCipher`). For the bit-guessing form
+([bs23][bs23], Theorem 2.10, p. 26), apply `Experiment.advantage_eq_two_mul_guessingAdvantage_guessBit`
+directly to `E.oneTimeExperiment sampleKey valid A`. The
+[checked clients](../../CslibFrontierTests/Crypto/CipherPerfect.lean) verify fixed-length,
+variable-length (including the zero-length bound), `CiphertextIndist`, and bit-guessing examples
+alongside counterexamples when equal-length admissibility or the key/encryption distribution
+hypotheses are dropped. Run `scripts/build.sh CslibFrontierTests.Crypto.CipherPerfect`.
+
 Starting with the imports and local context in [`CslibFrontierTests/Crypto/HybridEncryption.lean`](../../CslibFrontierTests/Crypto/HybridEncryption.lean), `indcpaOf_hybridEncrypt_doubleKey_otp` shows the doubled-key composition; adjacent examples check native sampling, supported key lengths, correct decryption and the zero-width boundary. The unconditional security fixture discards its key and is explicitly not decryptable; decryption correctness is checked separately on a leaking KEM. Security does not bundle correctness, and the zero-width pad recovers only the empty message. For an actual cryptographic client, [`DDH.wordINDCPA_hybrid_hashedElGamal`](../../CslibFrontier/Crypto/Computational/ElGamal/ProbComp.lean) now accepts a `SecureKDF` and a standalone DEM at arbitrary `keyLen`; [`CslibFrontierTests/Crypto/DiffieHellman.lean`](../../CslibFrontierTests/Crypto/DiffieHellman.lean) instantiates the bridge with doubled key length. The security parameter controlling its modular-sampling error remains `n`, independently of the key length.
 
 [`encryptKeyEncaps keyLen encrypt`](../../CslibFrontier/Crypto/Computational/Encryption/KEMFromPKE.lean) constructs a KEM from word public-key encryption by sampling a key and encrypting it (Boneh–Shoup v0.6, Exercise 11.9(e), p. 461 [bs23][bs23]). Apply `WordINDCPA.kemINDCPA_encryptKeyEncaps` with a native unary polynomial-time certificate for `keyLen`; the reduction chooses two equal-length keys, saves the public key and the first key, and preserves advantage exactly. The separate `isPPTOn_encryptKeyEncaps` certificate also needs native encryption, while `decrypt_encryptKeyEncaps` reuses the original total decryptor and its supported-ciphertext correctness. [`CslibFrontierTests/Crypto/KEMFromPKE.lean`](../../CslibFrontierTests/Crypto/KEMFromPKE.lean) provides complete checked clients, including composition of this constructor with the existing doubled-width one-time pad DEM, exact zero-width sampling, and a correctly decryptable but insecure key-revealing encryptor. No new failure/rejection behavior is added.
