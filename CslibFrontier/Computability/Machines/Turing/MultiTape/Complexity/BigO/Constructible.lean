@@ -8,22 +8,15 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Transducer
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Streaming
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OCountedIteration
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.IterateWhile
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Bound
-import CslibFrontier.Foundations.Data.Nat.Bits
 import CslibFrontier.Foundations.Data.Nat.Bits.Halving
 import CslibFrontier.Foundations.Data.Nat.Doubling
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Exponential
 import CslibFrontier.Foundations.Data.Nat.RecursionTree
 import Mathlib.Algebra.Order.Ring.GeomSum
-import Mathlib.Data.Nat.Size
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Ring
 import CslibFrontier.Tactic.EncLen
+import Mathlib.Tactic.Lemma
 
 /-!
 # Lengths, comparisons and unary conversion within given bounds

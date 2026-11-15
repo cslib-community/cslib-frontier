@@ -11,7 +11,6 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.B
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Reverse
 import CslibFrontier.Foundations.Data.List.Fold
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.StreamFold
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.WordTransducers
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.WordMachines
 import Mathlib.Tactic.TypeStar
