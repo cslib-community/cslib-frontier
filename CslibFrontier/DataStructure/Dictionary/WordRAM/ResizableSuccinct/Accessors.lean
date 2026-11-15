@@ -909,4 +909,161 @@ theorem realizesBounded_writeCompValGen :
   all_goals try (dsimp only [CompVOffsetPre]; exact ⟨hw, rfl, hq, hv, by omega⟩)
   all_goals (dsimp only [WriteBitSlicePre]; exact ⟨hw, rfl, hv, bOffV_lt hw, by omega⟩)
 
+/-! ## Section 4: `Memory.ValidHistory` Admissibility for Leaf Accessors -/
+
+private theorem validHistory_pureProg {α β : Type} {w : ℕ} {s : Memory.State}
+    {p : Memory.Prog α} {q : α → Memory.Prog β}
+    (hp_v : (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s p))
+    (hp_s : (Memory.spec 0).clientState s p = s)
+    (hq : (Memory.spec w).ValidHistory s
+      ((Memory.spec w).clientHistory s (q ((Memory.spec 0).clientResult s p)))) :
+    (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (p >>= q)) := by
+  change (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (p.bind q))
+  rw [validHistory_bind, clientResult_width, clientState_width, hp_s]
+  exact ⟨hp_v, hq⟩
+
+theorem validHistory_readBitSliceGen {w : ℕ} {d : (ℕ × (ℕ × ℕ)) × (ℕ × ℕ)} {s : Memory.State}
+    (h : ReadBitSlicePre w d s) :
+    (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (readBitSliceGenProg d)) := by
+  rcases d with ⟨⟨base, ⟨wOff, bOff⟩⟩, ⟨k, wVal⟩⟩
+  obtain ⟨_hw, rfl, _hkw, _hbOff, hfr⟩ := h
+  unfold readBitSliceGenProg; simp only [pure_bind]
+  refine validHistory_pureProg (by dsimp only [minWidthProg]; split_ifs <;> trivial)
+    (clientState_minWidthProg _ _) ?_
+  refine validHistory_pureProg (by dsimp only [maskOfWidthProg]; split_ifs <;> trivial)
+    (clientState_maskOfWidthProg _ _) ?_
+  change base + wOff < s.frontier ∧ base + wOff + 1 < s.frontier ∧ True
+  exact ⟨by omega, hfr, trivial⟩
+
+theorem validHistory_writeBitSliceGen {w : ℕ} {d : ((ℕ × (ℕ × ℕ)) × (ℕ × ℕ)) × ℕ}
+    {s : Memory.State} (hwf : Memory.WellFormed w s) (h : WriteBitSlicePre w d s) :
+    (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (writeBitSliceGenProg d)) := by
+  rcases d with ⟨⟨⟨base, ⟨wOff, bOff⟩⟩, ⟨k, wVal⟩⟩, val⟩
+  obtain ⟨_hw, rfl, hkw, hbOff, hfr⟩ := h
+  unfold writeBitSliceGenProg; simp only [pure_bind]
+  refine validHistory_pureProg (by dsimp only [minWidthProg]; split_ifs <;> trivial)
+    (clientState_minWidthProg _ _) ?_
+  rw [clientResult_minWidthProg]
+  refine validHistory_pureProg (by dsimp only [maskOfWidthProg]; split_ifs <;> trivial)
+    (clientState_maskOfWidthProg _ _) ?_
+  rw [clientResult_maskOfWidthProg]
+  set k₀ := min k (w - bOff)
+  have hk0_le : k₀ ≤ k := Nat.min_le_left _ _
+  have hbk0 : bOff + k₀ ≤ w := by have := Nat.min_le_right k (w - bOff); omega
+  have hk1_lt : k - k₀ < w := by
+    by_cases hlt : k ≤ w - bOff
+    · dsimp only [k₀]; rw [Nat.min_eq_left hlt]; omega
+    · dsimp only [k₀]; rw [Nat.min_eq_right (by omega)]; omega
+  have hv_low : (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s
+      (writeBitSliceLowProg (((base, wOff), (bOff, 2 ^ k₀ - 1)), val))) := by
+    have hδ : (((s.mem (base + wOff) >>> bOff) &&& (2 ^ k₀ - 1)) ^^^
+        (val &&& (2 ^ k₀ - 1))) < 2 ^ k₀ := by
+      refine Nat.xor_lt_two_pow ?_ ?_ <;>
+        (rw [Nat.and_two_pow_sub_one_eq_mod]; exact Nat.mod_lt _ (Nat.two_pow_pos _))
+    have hsh : (((s.mem (base + wOff) >>> bOff) &&& (2 ^ k₀ - 1)) ^^^
+        (val &&& (2 ^ k₀ - 1))) <<< bOff < 2 ^ w := by
+      rw [Nat.shiftLeft_eq]
+      calc _ < 2 ^ k₀ * 2 ^ bOff := Nat.mul_lt_mul_of_pos_right hδ (Nat.two_pow_pos _)
+        _ = 2 ^ (k₀ + bOff) := (Nat.pow_add 2 k₀ bOff).symm
+        _ ≤ 2 ^ w := Nat.pow_le_pow_right two_pos (by omega)
+    change base + wOff < s.frontier ∧ (base + wOff < s.frontier ∧ Fits w _) ∧ True
+    exact ⟨by omega, ⟨by omega, Nat.xor_lt_two_pow (hwf.2 _) hsh⟩, trivial⟩
+  change (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s
+    ((writeBitSliceLowProg (((base, wOff), (bOff, 2 ^ k₀ - 1)), val)).bind fun _ =>
+      writeBitSliceHighProg (((base, wOff), (k₀, k - k₀)), val)))
+  rw [validHistory_bind]
+  refine ⟨hv_low, ?_⟩
+  set s₁ := (Memory.spec w).clientState s
+    (writeBitSliceLowProg (((base, wOff), (bOff, 2 ^ k₀ - 1)), val))
+  have hwf₁ : Memory.WellFormed w s₁ := by
+    dsimp only [s₁]; rw [← (Memory.spec w).run_runClient]; exact hwf.run hv_low
+  have hfr₁ : s₁.frontier = s.frontier := by
+    dsimp only [s₁]; rw [clientState_width]; rfl
+  have hδ₁ : ((s₁.mem (base + wOff + 1) &&& ((1 <<< (k - k₀)) - 1)) ^^^
+      ((val >>> k₀) &&& ((1 <<< (k - k₀)) - 1))) < 2 ^ w := by
+    rw [Nat.shiftLeft_eq, one_mul]
+    refine (Nat.xor_lt_two_pow ?_ ?_).trans_le (Nat.pow_le_pow_right two_pos hk1_lt.le) <;>
+      (rw [Nat.and_two_pow_sub_one_eq_mod]; exact Nat.mod_lt _ (Nat.two_pow_pos _))
+  change base + wOff + 1 < s₁.frontier ∧ (base + wOff + 1 < s₁.frontier ∧ Fits w _) ∧ True
+  exact ⟨by omega, ⟨by omega, Nat.xor_lt_two_pow (hwf₁.2 _) hδ₁⟩, trivial⟩
+
+theorem validHistory_readPackedCompGen {w : ℕ} {d : ((ℕ × ℕ) × (ℕ × ℕ)) × ℕ} {s : Memory.State}
+    (h : ReadPackedCompPre w d s) :
+    (Memory.spec w).ValidHistory s
+      ((Memory.spec w).clientHistory s (readPackedCompGenProg d)) := by
+  rcases d with ⟨⟨⟨base, offset⟩, ⟨k, wVal⟩⟩, idx⟩
+  obtain ⟨len, hw, rfl, hkw, hidx, hfr⟩ := h
+  unfold readPackedCompGenProg
+  refine validHistory_pureProg trivial (clientState_packedOffsetProg _ _) ?_
+  rw [clientResult_packedOffsetProg]; simp only [pure_bind]
+  have hlt := wordOffset_add_one_lt_packedWords (k := k) hw hidx
+  exact validHistory_readBitSliceGen ⟨hw, rfl, hkw, bitOffset_lt hw, by omega⟩
+
+theorem validHistory_writePackedCompGen {w : ℕ} {d : (((ℕ × ℕ) × (ℕ × ℕ)) × ℕ) × ℕ}
+    {s : Memory.State} (hwf : Memory.WellFormed w s) (h : WritePackedCompPre w d s) :
+    (Memory.spec w).ValidHistory s
+      ((Memory.spec w).clientHistory s (writePackedCompGenProg d)) := by
+  rcases d with ⟨⟨⟨⟨base, offset⟩, ⟨k, wVal⟩⟩, idx⟩, val⟩
+  obtain ⟨len, hw, rfl, hkw, hidx, hfr⟩ := h
+  unfold writePackedCompGenProg
+  refine validHistory_pureProg trivial (clientState_packedOffsetProg _ _) ?_
+  rw [clientResult_packedOffsetProg]; simp only [pure_bind]
+  have hlt := wordOffset_add_one_lt_packedWords (k := k) hw hidx
+  exact validHistory_writeBitSliceGen hwf ⟨hw, rfl, hkw, bitOffset_lt hw, by omega⟩
+
+private theorem validHistory_compQOffset (w : ℕ) (d : ((ℕ × ℕ) × ℕ) × ℕ) (s : Memory.State) :
+    (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (compQOffsetProg d)) := by
+  rcases d with ⟨⟨⟨q_bits, v_bits⟩, wVal⟩, idx⟩; trivial
+
+private theorem validHistory_compVOffset (w : ℕ) (d : ((ℕ × ℕ) × ℕ) × ℕ) (s : Memory.State) :
+    (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (compVOffsetProg d)) := by
+  rcases d with ⟨⟨⟨q_bits, v_bits⟩, wVal⟩, idx⟩; trivial
+
+theorem validHistory_readCompQuotGen {w : ℕ} {d : (CompParams × ℕ) × ℕ} {s : Memory.State}
+    (h : ReadCompQuotPre w d s) :
+    (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (readCompQuotGenProg d)) := by
+  rcases d with ⟨⟨cp, itemBase⟩, idx⟩
+  obtain ⟨m_items, ⟨U, V, N, hw, _hN, _hnU, hU, _hV, rfl, hfr⟩, hidx⟩ := h
+  unfold readCompQuotGenProg; simp only [pure_bind, cpQuotBits_mk, cpValBits_mk, cpW_mk]
+  refine validHistory_pureProg (validHistory_compQOffset _ _ _) (clientState_compQOffsetProg _ _) ?_
+  rw [clientResult_compQOffsetProg]
+  have hlt := wOffQ_add_one_lt_compactedItemWords (U := U) (V := V) (N := N) hw hidx
+  exact validHistory_readBitSliceGen ⟨hw, rfl, quotientBits_le_of_le_pow hU.le, bOffQ_lt hw,
+    by omega⟩
+
+theorem validHistory_writeCompQuotGen {w : ℕ} {d : ((CompParams × ℕ) × ℕ) × ℕ} {s : Memory.State}
+    (hwf : Memory.WellFormed w s) (h : WriteCompQuotPre w d s) :
+    (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (writeCompQuotGenProg d)) := by
+  rcases d with ⟨⟨⟨cp, itemBase⟩, idx⟩, q⟩
+  obtain ⟨m_items, ⟨U, V, N, hw, _hN, _hnU, hU, _hV, rfl, hfr⟩, hidx⟩ := h
+  unfold writeCompQuotGenProg; simp only [pure_bind, cpQuotBits_mk, cpValBits_mk, cpW_mk]
+  refine validHistory_pureProg (validHistory_compQOffset _ _ _) (clientState_compQOffsetProg _ _) ?_
+  rw [clientResult_compQOffsetProg]
+  have hlt := wOffQ_add_one_lt_compactedItemWords (U := U) (V := V) (N := N) hw hidx
+  exact validHistory_writeBitSliceGen hwf ⟨hw, rfl, quotientBits_le_of_le_pow hU.le, bOffQ_lt hw,
+    by omega⟩
+
+theorem validHistory_readCompValGen {w : ℕ} {d : (CompParams × ℕ) × ℕ} {s : Memory.State}
+    (h : ReadCompValPre w d s) :
+    (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (readCompValGenProg d)) := by
+  rcases d with ⟨⟨cp, itemBase⟩, idx⟩
+  obtain ⟨m_items, ⟨U, V, N, hw, _hN, _hnU, _hU, hV, rfl, hfr⟩, hidx⟩ := h
+  unfold readCompValGenProg; simp only [pure_bind, cpQuotBits_mk, cpValBits_mk, cpW_mk]
+  refine validHistory_pureProg (validHistory_compVOffset _ _ _) (clientState_compVOffsetProg _ _) ?_
+  rw [clientResult_compVOffsetProg]
+  have hlt := wOffV_add_one_lt_compactedItemWords (U := U) (V := V) (N := N) hw hidx
+  exact validHistory_readBitSliceGen ⟨hw, rfl, Nat.clog_le_of_le_pow hV, bOffV_lt hw, by omega⟩
+
+theorem validHistory_writeCompValGen {w : ℕ} {d : ((CompParams × ℕ) × ℕ) × ℕ} {s : Memory.State}
+    (hwf : Memory.WellFormed w s) (h : WriteCompValPre w d s) :
+    (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (writeCompValGenProg d)) := by
+  rcases d with ⟨⟨⟨cp, itemBase⟩, idx⟩, v⟩
+  obtain ⟨m_items, ⟨U, V, N, hw, _hN, _hnU, _hU, hV, rfl, hfr⟩, hidx⟩ := h
+  unfold writeCompValGenProg; simp only [pure_bind, cpQuotBits_mk, cpValBits_mk, cpW_mk]
+  refine validHistory_pureProg (validHistory_compVOffset _ _ _) (clientState_compVOffsetProg _ _) ?_
+  rw [clientResult_compVOffsetProg]
+  have hlt := wOffV_add_one_lt_compactedItemWords (U := U) (V := V) (N := N) hw hidx
+  exact validHistory_writeBitSliceGen hwf ⟨hw, rfl, Nat.clog_le_of_le_pow hV, bOffV_lt hw,
+    by omega⟩
+
 end Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct
