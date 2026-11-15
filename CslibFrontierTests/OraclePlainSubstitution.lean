@@ -126,7 +126,7 @@ example :
         [([true, true, true], [false, false, false]), ([], [true, true, true])]), 2) := by
   change ProbOracleComp.runWith firstOnes (twoLevel 3) 0 = _
   rw [twoLevel, ProbOracleComp.runWith_run_interpret]
-  simp [client, cached, memoize, StateT.run, firstOnes]
+  simp [client, cached, memoize, StateT.run, firstOnes, List.lookup]
 
 -- No query is made at all, so a handler returning no bits and unchanged state has allowance 0.
 example : IsPPTOn encBits (encPair encBits encBits) (fun word =>
