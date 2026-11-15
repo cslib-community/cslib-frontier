@@ -25,8 +25,8 @@ import Mathlib.Algebra.Field.ZMod
 /-!
 # Generic-group games with linear inputs
 
-A bound for a family of games in the generic group model of [BonehShoup2023], Section 16.3. The
-bound of Theorem 16.3 for discrete logarithm
+A bound, not stated in the book, for a family of games in the generic group model of
+[BonehShoup2023], Section 16.3. The bound of Theorem 16.3 for discrete logarithm
 (`Cslib.Crypto.GenericGroup.succProbability_dlogGame_le_choose`) is one instance; a bound for
 another game of this form is another.
 

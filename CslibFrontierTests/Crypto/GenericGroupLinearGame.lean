@@ -21,7 +21,10 @@ ordinary import:
   of `x²`. An adversary that makes at most `T` queries wins with probability at most
   `C(3T + 3, 2) / q + 2 / q`, because a quadratic equation has at most two roots in `ZMod q`;
 * primality is needed for two unknowns as for one: in `ZMod 4` the distinct linear forms
-  `2 X + 2 Y` and `0` agree at `8` of the `16` points.
+  `2 X + 2 Y` and `0` agree at `8` of the `16` points;
+* the hypothesis on `W` cannot be dropped: with `W` constantly true, no unknowns and no output
+  labels, the adversary that returns at once without a query wins with probability `1`, where the
+  conclusion with `ε = 0` would give `0`.
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
@@ -89,5 +92,25 @@ more than `4`. -/
 example : (Finset.univ.filter fun p : ZMod 4 × ZMod 4 =>
     2 * p.1 + 2 * p.2 + 0 = 0 * p.1 + 0 * p.2 + 0).card = 8 := by
   decide
+
+/-! ### The hypothesis on `W` cannot be dropped -/
+
+/-- With `W` constantly true, no unknowns and no output labels, the adversary that returns at once
+always wins. -/
+private theorem succProbability_trivial [NeZero q] [Fintype S] [DecidableEq S]
+    [Nonempty (ZMod q ↪ S)] :
+    (linearGame (q := q) (S := S) (ι := Empty) (κ := Empty) (γ := Unit) (fun _ _ _ => true)
+      fun _ _ => pure ((), Empty.elim)).succProbability = 1 := by
+  simp [linearGame, runLabeled, Probability.PMF.monad_bind_eq_bind,
+    Probability.PMF.monad_pure_eq_pure, Game.succProbability]
+
+/-- That adversary makes no query, and the conclusion of `succProbability_linearGame_le` with
+`ε = 0` would bound its success probability by `C(1, 2) / q = 0`. -/
+example [NeZero q] [Fintype S] [DecidableEq S] [Nonempty (ZMod q ↪ S)] :
+    ¬ (linearGame (q := q) (S := S) (ι := Empty) (κ := Empty) (γ := Unit) (fun _ _ _ => true)
+      fun _ _ => pure ((), Empty.elim)).succProbability ≤
+      (((3 * 0 + Fintype.card Empty + 1 + Fintype.card Empty).choose 2 : ℕ) : ℝ≥0) / q + 0 := by
+  rw [succProbability_trivial]
+  simp
 
 end CslibFrontierTests.Crypto.GenericGroupLinearGame

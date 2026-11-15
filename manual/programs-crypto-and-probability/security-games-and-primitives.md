@@ -426,13 +426,15 @@ behaves against a permutation `σ` as `A` against `j ∘ σ` (`runLabeled_relabe
 examples, including where the proof uses primality, are in
 [`GenericGroupDiscreteLog.lean`](../../CslibFrontierTests/Crypto/GenericGroupDiscreteLog.lean).
 
-The same argument bounds every game whose inputs are labels of linear forms in uniform unknowns.
-In [`GenericGroup/LinearGame.lean`](../../CslibFrontier/Crypto/Computational/GenericGroup/LinearGame.lean),
-`linearGame W A` draws `L` and a uniform point `x : ι → ZMod q`, gives the adversary `L 1` and
-the labels `L (x i)`, and lets it output a value `o : γ` and an element `w k` of `S` for each
-`k : κ`. It wins when every `w k` is a label `L (v k)` and `W x o v` holds. Suppose that for every
-`o` and every family of linear forms `F k = ∑ i, a k i X i + b k`, the test `W x o (F · (x))`
-holds at no more than `ε * q ^ |ι|` points `x`. Then, under the hypotheses of Theorem 16.3,
+The same argument bounds a family of games in which the adversary is given the labels of `1` and
+of uniform unknowns; the general statement is not in the book. In
+[`GenericGroup/LinearGame.lean`](../../CslibFrontier/Crypto/Computational/GenericGroup/LinearGame.lean),
+for finite `ι` and `κ`, `linearGame W A` draws `L` and a uniform point `x : ι → ZMod q`, gives the
+adversary `L 1` and the labels `L (x i)`, and lets it output a value `o : γ` and an element `w k`
+of `S` for each `k : κ`. It wins when every `w k` is a label `L (v k)` and `W x o v` holds. Suppose
+that for every `o` and every family of linear forms `F k = ∑ i, a k i X i + b k`, the test
+`W x o (F · (x))` holds at no more than `ε * q ^ |ι|` points `x`. Then, under the hypotheses of
+Theorem 16.3 above and with decidable equality on `ι`, `κ` and `S`,
 `succProbability_linearGame_le` bounds the success probability by
 `C(3T + |ι| + 1 + |κ|, 2) / q + ε`. Discrete logarithm is the instance with one unknown, no output
 labels and `ε = 1 / q`. To bound another game, state it as a `linearGame` and count the points at
