@@ -7,14 +7,13 @@ Authors: Erik Demaine
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.Aggregation
+public import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.Primality
 public import Mathlib.FieldTheory.Finite.Basic
 public import Mathlib.RingTheory.RootsOfUnity.PrimitiveRoots
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.PowMod
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Foundations.Data.BitString.List.Binary
-import Mathlib.Data.Nat.Prime.Basic
 
 /-!
 # Testing generators of prime fields at the first counting function level
@@ -35,12 +34,11 @@ namespace Cslib.Complexity
 open Turing.MultiTapeTM
 
 private abbrev generatorChecks (p g d : ℕ) : Prop :=
-  2 ≤ p ∧ 0 < g ∧ g < p ∧
-    (d < 2 ∨ p ≤ d ∨ p % d ≠ 0) ∧
-    (d = 0 ∨ p - 1 ≤ d ∨ powMod p g d ≠ 1)
+  0 < g ∧ g < p ∧ (d = 0 ∨ p - 1 ≤ d ∨ powMod p g d ≠ 1)
 
 private def generatorIndexTest : (ℕ × ℕ) × List Bool → Bool
-  | ((p, g), w) => decide (generatorChecks p g (BitString.binaryValue w))
+  | ((p, g), w) => divisorIndexTest (p, w) &&
+      decide (generatorChecks p g (BitString.binaryValue w))
 
 open Classical in
 /-- Test prime-field primitive roots on binary modulus/base pairs. Every malformed pair,
@@ -51,6 +49,9 @@ noncomputable def generatorTest (x : ℕ × ℕ) : Bool :=
 private theorem computableInPolyTime_generatorIndexTest :
     ComputableInPolyTime generatorIndexTest
       (encPair (encPair encNat encNat) encBits) encBool := by
+  have hdiv := divisorIndexTest_polyTime.comp
+    (show ComputableInPolyTime (fun x : (ℕ × ℕ) × List Bool => (x.1.1, x.2))
+      (encPair (encPair encNat encNat) encBits) (encPair encNat encBits) by fun_prop)
   have hpow : ComputableInPolyTime
       (fun x : (ℕ × ℕ) × List Bool => powMod x.1.1 x.1.2 (BitString.binaryValue x.2))
       (encPair (encPair encNat encNat) encBits) encNat :=
@@ -59,8 +60,7 @@ private theorem computableInPolyTime_generatorIndexTest :
       (fun pair : ((ℕ × ℕ) × List Bool) × ℕ =>
         let ((p, g), word) := pair.1
         let d := BitString.binaryValue word
-        decide (2 ≤ p ∧ 0 < g ∧ g < p ∧
-          (d < 2 ∨ p ≤ d ∨ p % d ≠ 0) ∧ (d = 0 ∨ p - 1 ≤ d ∨ pair.2 ≠ 1)))
+        decide (0 < g ∧ g < p ∧ (d = 0 ∨ p - 1 ≤ d ∨ pair.2 ≠ 1)))
       (encPair (encPair (encPair encNat encNat) encBits) encNat) encBool := by
     have hp : ComputableInPolyTime (fun x : ((ℕ × ℕ) × List Bool) × ℕ => x.1.1.1)
         (encPair (encPair (encPair encNat encNat) encBits) encNat) encNat := by fun_prop
@@ -69,21 +69,15 @@ private theorem computableInPolyTime_generatorIndexTest :
     have hd : ComputableInPolyTime
         (fun x : ((ℕ × ℕ) × List Bool) × ℕ => BitString.binaryValue x.1.2)
         (encPair (encPair (encPair encNat encNat) encBits) encNat) encNat := by fun_prop
-    have hrem := ComputableInPolyTime.binary_mod.comp (hp.prod hd)
     have hpred := ComputableInPolyTime.binary_sub' hp (ComputableInPolyTime.const 1)
-    exact ComputableInPolyTime.decide_and
-      (ComputableInPolyTime.binary_le' (.const 2) hp)
-      (ComputableInPolyTime.decide_and (ComputableInPolyTime.binary_lt' (.const 0) hg)
-        (ComputableInPolyTime.decide_and (ComputableInPolyTime.binary_lt' hg hp)
-          (ComputableInPolyTime.decide_and
-            (ComputableInPolyTime.decide_or (ComputableInPolyTime.binary_lt' hd (.const 2))
-              (ComputableInPolyTime.decide_or (ComputableInPolyTime.binary_le' hp hd)
-                (ComputableInPolyTime.decide_ne hrem (.const 0))))
-            (ComputableInPolyTime.decide_or
-              (ComputableInPolyTime.of_tidy (hd.tidy.decide_eq' (.const 0)))
-              (ComputableInPolyTime.decide_or (ComputableInPolyTime.binary_le' hpred hd)
-                (ComputableInPolyTime.decide_ne (ComputableInPolyTime.snd _ _) (.const 1)))))))
-  exact hpost.comp (ComputableInPolyTime.id'.prod hpow)
+    exact ComputableInPolyTime.decide_and (ComputableInPolyTime.binary_lt' (.const 0) hg)
+      (ComputableInPolyTime.decide_and (ComputableInPolyTime.binary_lt' hg hp)
+        (ComputableInPolyTime.decide_or
+          (ComputableInPolyTime.of_tidy (hd.tidy.decide_eq' (.const 0)))
+          (ComputableInPolyTime.decide_or (ComputableInPolyTime.binary_le' hpred hd)
+            (ComputableInPolyTime.decide_ne (ComputableInPolyTime.snd _ _) (.const 1)))))
+  exact ComputableInPolyTime.bool_and.comp
+    (hdiv.prod (hpost.comp (ComputableInPolyTime.id'.prod hpow)))
 
 /-- A single universal short-index check puts the complete generator test in F_1.
 All arithmetic and prime-divisor tests are performed by its one polynomial-time evaluator. -/
@@ -97,40 +91,32 @@ theorem generatorTest_mem_CountingFunction :
 
 private theorem generatorTest_iff_checks (p g : ℕ) :
     generatorTest (p, g) = true ↔
-      2 ≤ p ∧ 0 < g ∧ g < p ∧
-        (∀ d, 2 ≤ d → d < p → p % d ≠ 0) ∧
+      p.Prime ∧ 0 < g ∧ g < p ∧
         (∀ d, 0 < d → d < p - 1 → powMod p g d ≠ 1) := by
   classical
   change decide (∀ w : Fin (Nat.size p) → Bool,
-    decide (generatorChecks p g (BitString.binaryValue (List.ofFn w))) = true) = true ↔ _
-  simp only [decide_eq_true_eq]
+    (divisorIndexTest (p, List.ofFn w) &&
+      decide (generatorChecks p g (BitString.binaryValue (List.ofFn w)))) = true) = true ↔ _
+  simp only [decide_eq_true_eq, Bool.and_eq_true]
   constructor
   · intro h
+    have hp := (prime_iff_divisorIndices p).mpr (fun w => (h w).1)
     have hcheck (d : ℕ) (hd : d < 2 ^ Nat.size p) : generatorChecks p g d := by
       obtain ⟨w, hw⟩ := BitString.exists_binaryValue_eq hd
-      simpa only [hw] using h w
-    have hzero := hcheck 0 (by positivity)
-    obtain ⟨hp, hg, hgp, _, _⟩ := hzero
-    refine ⟨hp, hg, hgp, ?_, ?_⟩
-    · intro d hd hdp
-      have hc := (hcheck d (hdp.trans (Nat.lt_size_self p))).2.2.2.1
-      exact hc.resolve_left (by omega) |>.resolve_left (by omega)
-    · intro d hd hdp
-      have hc := (hcheck d ((by omega : d < p).trans (Nat.lt_size_self p))).2.2.2.2
-      exact hc.resolve_left (by omega) |>.resolve_left (by omega)
-  · rintro ⟨hp, hg, hgp, hdiv, hexp⟩ w
+      simpa only [hw] using (h w).2
+    obtain ⟨hg, hgp, _⟩ := hcheck 0 (by positivity)
+    refine ⟨hp, hg, hgp, ?_⟩
+    intro d hd hdp
+    have hc := (hcheck d ((by omega : d < p).trans (Nat.lt_size_self p))).2.2
+    exact hc.resolve_left (by omega) |>.resolve_left (by omega)
+  · rintro ⟨hp, hg, hgp, hexp⟩ w
     let d := BitString.binaryValue (List.ofFn w)
-    refine ⟨hp, hg, hgp, ?_, ?_⟩
-    · by_cases hd : d < 2
-      · exact Or.inl hd
-      · by_cases hdp : p ≤ d
-        · exact Or.inr (Or.inl hdp)
-        · exact Or.inr (Or.inr (hdiv d (by omega) (by omega)))
-    · by_cases hd : d = 0
-      · exact Or.inl hd
-      · by_cases hdp : p - 1 ≤ d
-        · exact Or.inr (Or.inl hdp)
-        · exact Or.inr (Or.inr (hexp d (by omega) (by omega)))
+    refine ⟨(prime_iff_divisorIndices p).mp hp w, hg, hgp, ?_⟩
+    by_cases hd : d = 0
+    · exact Or.inl hd
+    · by_cases hdp : p - 1 ≤ d
+      · exact Or.inr (Or.inl hdp)
+      · exact Or.inr (Or.inr (hexp d (by omega) (by omega)))
 
 private theorem powMod_eq_one_iff {p : ℕ} (hp : p.Prime) (g e : ℕ) :
     powMod p g e = 1 ↔ (g : ZMod p) ^ e = 1 := by
@@ -146,9 +132,7 @@ theorem generatorTest_eq_true_iff (p g : ℕ) :
       p.Prime ∧ 0 < g ∧ g < p ∧ IsPrimitiveRoot (g : ZMod p) (p - 1) := by
   rw [generatorTest_iff_checks]
   constructor
-  · rintro ⟨hp2, hg, hgp, hdiv, hexp⟩
-    have hp : p.Prime := Nat.prime_def_lt'.mpr ⟨hp2, fun d hd hdp hdvd =>
-      hdiv d hd hdp (Nat.mod_eq_zero_of_dvd hdvd)⟩
+  · rintro ⟨hp, hg, hgp, hexp⟩
     let : Fact p.Prime := ⟨hp⟩
     have hg0 : (g : ZMod p) ≠ 0 := by
       rw [ne_eq, ZMod.natCast_eq_zero_iff]
@@ -158,12 +142,10 @@ theorem generatorTest_eq_true_iff (p g : ℕ) :
     intro e he hep heq
     exact hexp e he hep ((powMod_eq_one_iff hp g e).mpr heq)
   · rintro ⟨hp, hg, hgp, hroot⟩
-    refine ⟨hp.two_le, hg, hgp, ?_, ?_⟩
-    · intro d hd hdp hzero
-      exact (Nat.prime_def_lt'.mp hp).2 d hd hdp (Nat.dvd_of_mod_eq_zero hzero)
-    · intro e he hep heq
-      exact hroot.pow_ne_one_of_pos_of_lt (by omega) hep
-        ((powMod_eq_one_iff hp g e).mp heq)
+    refine ⟨hp, hg, hgp, ?_⟩
+    intro e he hep heq
+    exact hroot.pow_ne_one_of_pos_of_lt (by omega) hep
+      ((powMod_eq_one_iff hp g e).mp heq)
 
 /-- On canonical representatives of a prime field, the total test is exactly membership in
 the finite set of multiplicative generators. -/

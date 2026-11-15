@@ -30,12 +30,15 @@ open Turing.MultiTapeTM
 /-- The total Boolean primality predicate on binary naturals. -/
 @[expose] def primeTest (p : ℕ) : Bool := decide p.Prime
 
-private def divisorIndexTest (x : ℕ × List Bool) : Bool :=
+/-- Check one bounded-divisor candidate, rejecting moduli below two and ignoring candidates
+outside the proper-divisor interval. The index is a binary word. -/
+def divisorIndexTest (x : ℕ × List Bool) : Bool :=
   let (p, word) := x
   let d := BitString.binaryValue word
   decide (2 ≤ p ∧ (d < 2 ∨ p ≤ d ∨ p % d ≠ 0))
 
-private theorem divisorIndexTest_polyTime :
+/-- The shared divisor check has an ordinary polynomial-time binary certificate. -/
+theorem divisorIndexTest_polyTime :
     ComputableInPolyTime divisorIndexTest (encPair encNat encBits) encBool := by
   have hp := ComputableInPolyTime.fst encNat encBits
   have hd : ComputableInPolyTime (fun x : ℕ × List Bool => BitString.binaryValue x.2)
@@ -46,7 +49,8 @@ private theorem divisorIndexTest_polyTime :
       (ComputableInPolyTime.decide_or (ComputableInPolyTime.binary_le' hp hd)
         (ComputableInPolyTime.decide_ne hrem (.const 0))))
 
-private theorem prime_iff_divisorIndices (p : ℕ) :
+/-- One fixed-width universal pass of the shared divisor check characterizes primality. -/
+theorem prime_iff_divisorIndices (p : ℕ) :
     p.Prime ↔ ∀ w : Fin p.size → Bool, divisorIndexTest (p, List.ofFn w) = true := by
   simp only [divisorIndexTest, decide_eq_true_eq]
   constructor
