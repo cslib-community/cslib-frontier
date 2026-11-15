@@ -409,12 +409,27 @@ path; private coins are free), `succProbability_dlogGame_le` bounds the success 
 sharper `((3T + 2).choose 2 + 1) / q`. The bound takes no hardness assumption and applies to
 adversaries that are otherwise unbounded, but it is about the model only: it says nothing about
 discrete logarithm in any specific group (p. 695). As in the book, `q` is prime; the bound is not
-claimed for composite `q`. The proof reduces labels in `S` to a uniform permutation of `ZMod q` with
+claimed for composite `q`. Both bounds are instances of the bound for games with linear inputs
+below. Its proof reduces labels in `S` to a uniform permutation of `ZMod q` with
 [`GenericGroup/Relabel.lean`](../../CslibFrontier/Crypto/Computational/GenericGroup/Relabel.lean):
 `relabel j A` answers each query of `A` with at most one query (`isQueryBounded_relabel`) and
 behaves against a permutation `σ` as `A` against `j ∘ σ` (`runLabeled_relabel`). Checked
 examples, including where the proof uses primality, are in
 [`GenericGroupDiscreteLog.lean`](../../CslibFrontierTests/Crypto/GenericGroupDiscreteLog.lean).
+
+The same argument bounds every game whose inputs are labels of linear forms in uniform unknowns.
+In [`GenericGroup/LinearGame.lean`](../../CslibFrontier/Crypto/Computational/GenericGroup/LinearGame.lean),
+`linearGame W A` draws `L` and a uniform point `x : ι → ZMod q`, gives the adversary `L 1` and
+the labels `L (x i)`, and lets it output a value `o : γ` and an element `w k` of `S` for each
+`k : κ`. It wins when every `w k` is a label `L (v k)` and `W x o v` holds. Suppose that for every
+`o` and every family of linear forms `F k = ∑ i, a k i X i + b k`, the test `W x o (F · (x))`
+holds at no more than `ε * q ^ |ι|` points `x`. Then, under the hypotheses of Theorem 16.3,
+`succProbability_linearGame_le` bounds the success probability by
+`C(3T + |ι| + 1 + |κ|, 2) / q + ε`. Discrete logarithm is the instance with one unknown, no output
+labels and `ε = 1 / q`. To bound another game, state it as a `linearGame` and count the points at
+which `W` can hold;
+[`GenericGroupLinearGame.lean`](../../CslibFrontierTests/Crypto/GenericGroupLinearGame.lean) does
+this for square Diffie–Hellman, with `ε = 2 / q`.
 
 For a fixed keyed function or block cipher over finite types, import [`Primitives/PRF/Finite.lean`](../../CslibFrontier/Crypto/Primitives/PRF/Finite.lean) and [`Primitives/PRP/Finite.lean`](../../CslibFrontier/Crypto/Primitives/PRP/Finite.lean) (Boneh–Shoup §4.1–§4.4 [bs23][bs23]). A `PRF.Adversary D R` is an adaptive oracle program with private coins. `PRF.realExperiment F A` and `PRF.idealExperiment A` are `ProbComp Bool` programs answering its queries with `F key` for a uniform key or with a uniform function `D → R`, and `PRF.advantage` is the distance between their laws. For a block cipher `E : Key → Equiv.Perm D`, `PRP.realExperiment E` is the PRF experiment of `E` and `PRP.idealExperiment` samples a uniform permutation. The switching lemma `PRP.advantage_idealExperiment_prfIdealExperiment_le` bounds the distance between the two ideal experiments by `Q.choose 2 / |D|` for a `Q`-query adversary (Theorem 4.4), and `PRP.prfAdvantage_le_advantage_add` is Corollary 4.5. `PRP.strongRealExperiment` and `PRP.strongIdealExperiment` also answer inverse queries through `RandomPermutation.PermOracleSpec D`; `PRP.StrongAdversary.ofForward` runs a forward adversary there with the same advantage (`PRP.strongAdvantage_ofForward`). These statements are single-instance and track no running time. The word-level `BlockCipher.PRP` switching lemma `advantage_prpIdealGame_randomFunctionIdealGame_le` is derived from the finite one. [`Computational/PseudorandomFunction/Finite.lean`](../../CslibFrontier/Crypto/Computational/PseudorandomFunction/Finite.lean) connects the two levels: `PRF.atLevel family n` is a word family read as a keyed function on `n`-bit strings, and `PRF.advantage_atLevel_adapt` shows that, for a length-preserving family, the finite advantage against it of a word distinguisher `A` read through `OracleCodec.bitString n` is the advantage of `A` between `prfRealGame family A n` and `prfIdealGame A n`. A finite argument therefore transfers to `PseudorandomFunction` once its adversary is exhibited as an adapted oracle-PPT word program. Checked examples of the finite experiments and the switching lemma are in [`CslibFrontierTests/Crypto/PseudorandomPermutation.lean`](../../CslibFrontierTests/Crypto/PseudorandomPermutation.lean); the bridge, `PRF.label` and `labelCodec` are checked on concrete families and tables in [`CslibFrontierTests/Crypto/PRFLabel.lean`](../../CslibFrontierTests/Crypto/PRFLabel.lean).
 

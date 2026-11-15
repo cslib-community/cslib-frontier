@@ -18,7 +18,6 @@ import CslibFrontier.Languages.Probabilistic.UntilBad.Flag
 import CslibFrontier.Probability.LinearCombination
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.EmbeddingPerm
-import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.PMF.UniformSubset
 import CslibFrontier.Probability.Product
 import Mathlib.Algebra.Field.ZMod
@@ -911,6 +910,8 @@ private theorem interpret_evalPerm_toPerm (σ : Equiv.Perm (ZMod q))
     obtain ⟨β₂, rfl⟩ := σ.surjective ℓ₂
     simp [toPerm, answer_op_label σ.injective, Probability.PMF.monad_bind_eq_bind]
 
+/-- Against a permutation `σ`, `permGame x D` runs `D` on the labels `σ 1` and `σ (x i)` against
+the group oracle of `σ` and reads its outputs through `σ.symm`. -/
 private theorem interpret_evalPerm_permGame (σ : Equiv.Perm (ZMod q)) (x : ι → ZMod q)
     (D : ZMod q → (ι → ZMod q) → OracleComp (GroupOracleSpec q (ZMod q)) (γ × (κ → ZMod q))) :
     OracleComp.interpret (fun p => PMF.pure (RandomPermutation.evalPerm σ p)) (permGame x D) =
@@ -1089,6 +1090,8 @@ private noncomputable def detGame (W : (ι → ZMod q) → γ → (κ → ZMod q
       (OracleComp.interpret (fun query => PMF.pure (answer σ query))
         (D (σ 1) fun i => σ (x i))).bind fun out => PMF.pure (W x out.1 fun k => σ.symm (out.2 k))
 
+/-- The game against a deterministic adversary is the real handler on `primGame D`, averaged over
+`x`. -/
 private theorem detGame_eq (W : (ι → ZMod q) → γ → (κ → ZMod q) → Bool)
     (D : ZMod q → (ι → ZMod q) → OracleComp (GroupOracleSpec q (ZMod q)) (γ × (κ → ZMod q))) :
     detGame W D = (PMF.uniformOfFintype (ι → ZMod q)).bind fun x =>
@@ -1197,7 +1200,10 @@ private theorem uniform_bind_apply_true_le [NeZero q] {E : (ι → ZMod q) → B
   exact_mod_cast h
 
 omit [DecidableEq κ] in
-/-- **The core bound for deterministic adversaries.** -/
+/-- **The core bound for deterministic adversaries.** The symbolic table ends with at most
+`3T + |ι| + 1 + |κ|` keys, so two distinct keys agree at `x` with probability at most
+`C(3T + |ι| + 1 + |κ|, 2) / q`; the keys of the outputs do not depend on `x`, so the hypothesis on
+`W` bounds the symbolic game by `ε`. -/
 private theorem detGame_apply_le [NeZero q] (hq : q.Prime) {T : ℕ}
     (W : (ι → ZMod q) → γ → (κ → ZMod q) → Bool)
     {D : ZMod q → (ι → ZMod q) → OracleComp (GroupOracleSpec q (ZMod q)) (γ × (κ → ZMod q))}
