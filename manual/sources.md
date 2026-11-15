@@ -1478,8 +1478,14 @@ source revision `adc7f1241b42e322a6451854ab7e4b4c146bf78a`.
 [Section 2 TeX](https://github.com/openai/math/blob/adc7f1241b42e322a6451854ab7e4b4c146bf78a/preprints/Existential-universal-real-sentences-in-the-counting-hierarchy-October-4-2026/build/sections/02-counting.tex)
 and Appendix A (`08-existential-bound.tex`) were read on 2026-11-14 for the CRT circle identity,
 dyadic error, first-flag sign argument, and its use in the appendix. The mathematical layer
-allows arbitrary pairwise coprime positive moduli and explicit numerical bounds; the manuscript's
-prime-window estimate and computational complexity claims are separate obligations.
+allows arbitrary pairwise coprime positive moduli and explicit numerical bounds. The numerical
+prime-window corollary uses the existing elementary prime-count estimate, and the product
+algorithm averages over generators instead of selecting one. `CountingHierarchy.ResidueSign`
+formalizes Proposition 2.6's computational sign conclusion for one uniform residue evaluator,
+binary magnitude/exclusion bounds and the disclosed strict oracle/majority-verifier levels.
+Its checked clients illustrate 8 → 13 → 21 arithmetic bookkeeping and the
+21 → 24 → 25 → 26 sign/choice/language compatibility chain;
+characteristic coefficients, real geometry and the ETR theorem remain outside this development.
 
 <a id="openai-logspace26"></a>
 ## openai-logspace26
