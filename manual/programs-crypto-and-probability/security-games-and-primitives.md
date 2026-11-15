@@ -247,6 +247,33 @@ encoded elements, each framed except the last. Setup remains an arbitrary PMF an
 certificate. Reductions that need exponents use `F.sampleExp n d`, with its `1 / 2 ^ n` statistical
 error and separate PPT theorem `isPPTOn_sampleExp`.
 
+For key derivation from an arbitrary secret distribution ([bs23][bs23], Section 8.10.1, pp. 325–326,
+and Section 11.5.2, Attack Game 11.3 and Definition 11.5, pp. 448–449), import
+[`KeyDerivation.lean`](../../CslibFrontier/Crypto/Computational/KeyDerivation.lean) and open
+`Cslib.Crypto.KeyDerivation`. At one parameter, `realOutput sample info derive D` draws a secret
+`s ← sample` and gives `(info s, derive s)` to a distinguisher output law `D : X → Z → PMF Bool`,
+while `idealOutput sample info key D` draws an independent candidate key `z ← key`; `advantage` is
+their `Game.advantage`, which is `0` when `D` ignores the key (`advantage_of_forall_eq`). Over a
+parameter family, `realGame` and `idealGame` run `D : Distinguisher X Z` through `ProbComp.eval`,
+and `Secure encX encZ sample info derive key` is `Game.Indistinguishable` against uniform strict PPT
+distinguishers reading `(1ⁿ, encPair encX encZ (x, z))` (`Distinguisher.IsPPT encX encZ`), with
+projection `Secure.negligible` and polynomial-time side-information postprocessing
+`Secure.comp_info`. By `secure_iff_computationallyIndistinguishable`, `Secure` is equivalent to
+`ComputationallyIndistinguishable` of the encoded word ensembles `realEnsemble` and `idealEnsemble`
+(`distinguishingGame_realEnsemble`, `distinguishingGame_idealEnsemble`). Importing
+[`ElGamal/KeyDerivation.lean`](../../CslibFrontier/Crypto/Computational/ElGamal/KeyDerivation.lean)
+connects the prime-order group notion: `F.secureKDF_iff_keyDerivation` proves `F.SecureKDF setup H
+msgLen` equivalent to `KeyDerivation.Secure` for the secret `F.kdfSecret setup` (`F.KDFSecret`),
+side information `Sigma.fst` (`F.encCDHInput`), derived key
+`fun s => H (s.1.groupParameters, F.encode s.1.groupParameters s.2)`, and ideal key law
+`fun n => Cslib.BitString.uniformList (msgLen n)`. The
+[key-derivation client](../../CslibFrontierTests/Crypto/KeyDerivation.lean) checks the printed
+`X × Y → Z` form of Attack Game 11.3, proves `Secure` for the identity derivation without side
+information, refutes a constant derivation (`not_secure_const`) and an identity derivation whose
+key is also published as side information, and transports `F.secureKDF_linearHashKDF` through
+`F.secureKDF_iff_keyDerivation`; run `scripts/build.sh --wfail --iofail
+CslibFrontierTests.Crypto.KeyDerivation`.
+
 `dlToCDHAdversary` and `cdhToDDHDistinguisher` are the elementary reductions behind
 `CDH.discreteLog` and `DDH.cdh`. In one group they are `dlToCDH` and `cdhToDDH`, with the bounds
 `dlAdvantage_le_cdhAdvantage_dlToCDH` and `cdhAdvantage_le_ddhAdvantage_cdhToDDH_add`. The
