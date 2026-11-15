@@ -48,6 +48,8 @@ and the computational RSA inversion game and assumption.
 
 ## Main results
 
+* `Cslib.Crypto.pow_mod_prime_of_modEq`, `Cslib.Crypto.rsa_pow_mul_modEq`: `x ^ k ≡ x` modulo a
+  prime `p` for positive `k ≡ 1 [MOD p - 1]`, and `x ^ (e * d) ≡ x [MOD N]`.
 * `Cslib.Crypto.rsaInvert_rsaEval`, `Cslib.Crypto.rsaEval_rsaInvert`: `rsaInvert N d` and
   `rsaEval N e` are mutual inverses on `{x // x < N}`.
 * `Cslib.Crypto.rsaEval_bijective_fin`, `Cslib.Crypto.rsaEval_bijective_units`: RSA evaluation is
@@ -195,7 +197,9 @@ abbrev publicKey (desc : RSADesc) : RSAPublicKey :=
 
 end RSADesc
 
-private theorem pow_mod_prime_of_modEq {p k x : ℕ} (hp : p.Prime)
+/-- Fermat's little theorem in the form RSA needs: for a prime `p` and a positive exponent
+`k ≡ 1 [MOD p - 1]`, `x ^ k ≡ x [MOD p]` for every natural `x`, multiples of `p` included. -/
+theorem pow_mod_prime_of_modEq {p k x : ℕ} (hp : p.Prime)
     (hk : k ≡ 1 [MOD p - 1]) (hkpos : 0 < k) :
     x ^ k ≡ x [MOD p] := by
   by_cases hdiv : p ∣ x
