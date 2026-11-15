@@ -75,7 +75,7 @@ open Cslib.Circuits Probability ConventionalCircuit
   right_inv label := by simp
 
 /-- The word of the label of a bit string is the bit string. -/
-theorem labelBits_labelEquiv {k : ℕ} (bits : BitString (k + 2)) :
+private theorem labelBits_labelEquiv {k : ℕ} (bits : BitString (k + 2)) :
     labelBits (labelEquiv k bits) = List.ofFn bits := by
   simp only [labelBits_apply, labelEquiv, Equiv.coe_fn_mk]
   rw [List.ofFn_succ' bits, List.concat_eq_append]

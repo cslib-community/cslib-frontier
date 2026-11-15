@@ -174,14 +174,14 @@ instance {τ : Circuit.Topology n m s} (a : Wire n s → Bool) (j : ℕ) (r : Ro
     Decidable (IsHidden a j r) := by
   unfold IsHidden; infer_instance
 
-/-- A slot is a target of step `j` when it reads the inactive colour, for the active colours `a`,
-of wire `j`. -/
-@[expose] def IsTarget {τ : Circuit.Topology n m s} (a : Wire n s → Bool) (j : ℕ) (p : Slot τ) :
-    Prop :=
-  p.1.2 p.2 ≠ a (τ.wires p.1.1 p.2) ∧ (τ.wires p.1.1 p.2).toNat = j
+/-- Argument slot `k` of row `r` is a target of step `j` when it reads the inactive colour, for
+the active colours `a`, of wire `j`. -/
+@[expose] def IsTarget {τ : Circuit.Topology n m s} (a : Wire n s → Bool) (j : ℕ) (r : Row τ)
+    (k : Fin (τ.arity r.1)) : Prop :=
+  r.2 k ≠ a (τ.wires r.1 k) ∧ (τ.wires r.1 k).toNat = j
 
-instance {τ : Circuit.Topology n m s} (a : Wire n s → Bool) (j : ℕ) (p : Slot τ) :
-    Decidable (IsTarget a j p) := by
+instance {τ : Circuit.Topology n m s} (a : Wire n s → Bool) (j : ℕ) (r : Row τ)
+    (k : Fin (τ.arity r.1)) : Decidable (IsTarget a j r k) := by
   unfold IsTarget; infer_instance
 
 /-- Hybrid view `j` with oracle `O`: rows hidden below wire `j` are taken from `R`; in the other
@@ -191,7 +191,7 @@ rows, the mask term of each target slot of step `j` is the oracle's answer. -/
     (perm : Wire n C.size → Bool) (R : Row C.topology → K × Bool)
     (O : Slot C.topology → K × Bool) : View C.topology K where
   table r := if IsHidden (activeColour C I x perm) j r then R r else
-    plainRow C I key perm r + ∑ k, if IsTarget (activeColour C I x perm) j ⟨r, k⟩ then O ⟨r, k⟩
+    plainRow C I key perm r + ∑ k, if IsTarget (activeColour C I x perm) j r k then O ⟨r, k⟩
       else F (key (C.topology.wires r.1 k, r.2 k)) (tw ⟨r, k⟩)
   input := encode (inputEncoding key perm) x
   decoding := outputDecoding C perm
@@ -202,8 +202,8 @@ theorem hybridView_eq_of_le (C : Circuit σ n m) (I : Interpretation σ Bool)
     (hj : n + C.size ≤ j) (key : Wire n C.size × Bool → K) (perm : Wire n C.size → Bool)
     (R : Row C.topology → K × Bool) (O O' : Slot C.topology → K × Bool) :
     hybridView C I F tw x j key perm R O = hybridView C I F tw x j key perm R O' := by
-  have hno : ∀ p : Slot C.topology, ¬ IsTarget (activeColour C I x perm) j p := fun p h => by
-    have := Wire.toNat_lt (C.topology.wires p.1.1 p.2)
+  have hno : ∀ r k, ¬ IsTarget (activeColour C I x perm) j r k := fun r k h => by
+    have := Wire.toNat_lt (C.topology.wires r.1 k)
     have := h.2
     omega
   ext1
@@ -569,7 +569,7 @@ theorem eval_idealExperiment_reduction (C : Circuit σ n m) (I : Interpretation 
   have hmono : ∀ r : Row C.topology, IsHidden a j r → IsHidden a (j + 1) r := by
     rintro r ⟨k, hk, hlt⟩
     exact ⟨k, hk, Nat.lt_succ_of_lt hlt⟩
-  have htarget : ∀ r : Row C.topology, ∀ k, IsTarget a j ⟨r, k⟩ → IsHidden a (j + 1) r := by
+  have htarget : ∀ r : Row C.topology, ∀ k, IsTarget a j r k → IsHidden a (j + 1) r := by
     rintro r k ⟨hk, heq⟩
     exact ⟨k, hk, heq ▸ Nat.lt_succ_self _⟩
   let z : Row C.topology → K × Bool := garbleTable C I F tw key perm
@@ -596,7 +596,7 @@ theorem eval_idealExperiment_reduction (C : Circuit σ n m) (I : Interpretation 
     intro c
     -- Shift the oracle at the tweak of the first target slot of each row by that row's shift.
     let First : Slot C.topology → Prop := fun p =>
-      IsTarget a j p ∧ ∀ k, IsTarget a j ⟨p.1, k⟩ → p.2 ≤ k
+      IsTarget a j p.1 p.2 ∧ ∀ k, IsTarget a j p.1 k → p.2 ≤ k
     let δ : T → K × Bool := fun t =>
       ∑ p : Slot C.topology, if tw p = t ∧ First p then c p.1 else 0
     refine ⟨Equiv.addRight (δ, c), fun ω r hr => ?_⟩
@@ -621,12 +621,11 @@ theorem eval_idealExperiment_reduction (C : Circuit σ n m) (I : Interpretation 
         · intro hmem
           exact absurd (Finset.mem_univ _) hmem
       obtain ⟨k₁, hk₁, hlt₁⟩ := hr
-      have htk₁ : IsTarget a j ⟨r, k₁⟩ := by
+      have htk₁ : IsTarget a j r k₁ := by
         refine ⟨hk₁, ?_⟩
-        change (C.topology.wires r.1 k₁).toNat = j
         by_contra hne
         exact h ⟨k₁, hk₁, by omega⟩
-      let S := Finset.univ.filter fun k => IsTarget a j ⟨r, k⟩
+      let S := Finset.univ.filter fun k => IsTarget a j r k
       have hS : S.Nonempty := ⟨k₁, by simp [S, htk₁]⟩
       let k₀ := S.min' hS
       have hk₀ : First ⟨r, k₀⟩ := by
@@ -634,15 +633,15 @@ theorem eval_idealExperiment_reduction (C : Circuit σ n m) (I : Interpretation 
         exact S.min'_le k (by simp [S, hk])
       have hk₀u : ∀ k, First ⟨r, k⟩ → k = k₀ :=
         fun k hk => le_antisymm (hk.2 k₀ hk₀.1) (hk₀.2 k hk.1)
-      have hsplit : (∑ k, if IsTarget a j ⟨r, k⟩ then ω.1 (tw ⟨r, k⟩) + δ (tw ⟨r, k⟩) else
+      have hsplit : (∑ k, if IsTarget a j r k then ω.1 (tw ⟨r, k⟩) + δ (tw ⟨r, k⟩) else
             F (key (C.topology.wires r.1 k, r.2 k)) (tw ⟨r, k⟩)) =
-          (∑ k, if IsTarget a j ⟨r, k⟩ then ω.1 (tw ⟨r, k⟩) else
+          (∑ k, if IsTarget a j r k then ω.1 (tw ⟨r, k⟩) else
             F (key (C.topology.wires r.1 k, r.2 k)) (tw ⟨r, k⟩)) +
-          ∑ k, if IsTarget a j ⟨r, k⟩ then δ (tw ⟨r, k⟩) else 0 := by
+          ∑ k, if IsTarget a j r k then δ (tw ⟨r, k⟩) else 0 := by
         rw [← Finset.sum_add_distrib]
         refine Finset.sum_congr rfl fun k _ => ?_
         split_ifs <;> simp
-      have hδsum : (∑ k, if IsTarget a j ⟨r, k⟩ then δ (tw ⟨r, k⟩) else 0) = c r := by
+      have hδsum : (∑ k, if IsTarget a j r k then δ (tw ⟨r, k⟩) else 0) = c r := by
         rw [Finset.sum_eq_single k₀]
         · rw [ite_eq_left hk₀.1, hδ, ite_eq_left hk₀]
         · intro k _ hk
