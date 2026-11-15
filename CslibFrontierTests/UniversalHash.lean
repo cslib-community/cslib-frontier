@@ -4,8 +4,10 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+import CslibFrontier.Probability.HashFamily.Collisions
 import CslibFrontier.Probability.HashFamily.Polynomial
 import CslibFrontier.Probability.HashIsolation
+import CslibFrontier.Probability.PMF.UniformPoint
 import Mathlib.Algebra.Field.ZMod
 
 /-! Public-seed extraction, nonuniform seeds, empty digests and preimage isolation. -/
@@ -114,5 +116,34 @@ example (source : PMF (ZMod 5 × ZMod 5)) :
         exact Prod.ext h'.1 h'.2)
   have hne : (2 / 5 : ℝ≥0∞) ≠ ⊤ := ENNReal.div_ne_top (by norm_num) (by norm_num)
   simpa [ENNReal.toReal_div] using hpoly.leftover_hash hne source
+
+/-- Union bound over pairs on two points equals the pairwise collision bound `ε`. -/
+example {ι X Y : Type} [DecidableEq X] {seed : PMF ι} {hash : ι → X → Y} {ε : ℝ≥0∞}
+    (hh : IsUniversalHash seed hash ε) {x x' : X} (hx : x ≠ x') :
+    seed.toOuterMeasure {i | ¬ Set.InjOn (hash i) ({x, x'} : Finset X)} ≤ ε := by
+  have h := hh.toOuterMeasure_not_injOn_le {x, x'}
+  rwa [Finset.card_pair hx, Nat.choose_self, Nat.cast_one, one_mul] at h
+
+/-- Union bound over pairs on at most one point vanishes. -/
+example {ι X Y : Type} {seed : PMF ι} {hash : ι → X → Y} {ε : ℝ≥0∞}
+    (hh : IsUniversalHash seed hash ε) (S : Finset X) (hS : S.card ≤ 1) :
+    seed.toOuterMeasure {i | ¬ Set.InjOn (hash i) S} = 0 := by
+  have h := hh.toOuterMeasure_not_injOn_le S
+  rw [Nat.choose_eq_zero_of_lt (by omega), Nat.cast_zero, zero_mul] at h
+  exact le_antisymm h zero_le
+
+/-- Concrete `2`-universal union bound on two points of `coord_twoUniversal` (here `n² > |Y|`, so
+`IsTwoUniversal.toOuterMeasure_not_injOn_le` does not apply, while `C(2, 2) / 2 = 1 / 2`). -/
+example : (PMF.uniformOfFintype Bool).toOuterMeasure
+    {key | ¬ Set.InjOn (fun (input : Bool × Bool) => if key then input.1 else input.2)
+      ({(false, false), (true, false)} : Finset (Bool × Bool))} ≤ (2 : ℝ≥0∞)⁻¹ := by
+  refine (IsUniversalHash.toOuterMeasure_not_injOn_le coord_twoUniversal
+    ({(false, false), (true, false)} : Finset (Bool × Bool))).trans ?_
+  simp [Fintype.card_bool]
+
+/-- Predicate acceptance probability equals outer measure of the predicate set. -/
+example {β : Type} (p : PMF β) (P : β → Prop) [DecidablePred P] :
+    (p.bind fun x => PMF.pure (decide (P x))) true = p.toOuterMeasure {x | P x} :=
+  bind_pure_decide_apply_true p P
 
 end CslibFrontierTests.UniversalHash

@@ -26,9 +26,10 @@ adversary whose view is independent of a uniform secret guesses it with probabil
 
 ## Main results
 
-* `Cslib.Probability.PMF.bind_pure_decide_eq_apply_true`,
-  `Cslib.Probability.PMF.map_decide_eq_apply_true`: an equality test against a fixed point accepts
-  with the point's probability.
+* `Cslib.Probability.PMF.bind_pure_decide_apply_true`,
+  `Cslib.Probability.PMF.bind_pure_decide_eq_apply_true`,
+  `Cslib.Probability.PMF.map_decide_eq_apply_true`: predicate and point-equality acceptance
+  probabilities.
 * `Cslib.Probability.PMF.uniformOfFintype_bind_decide_eq_apply_true`: a uniform draw equals a
   fixed point with probability `(Fintype.card α)⁻¹`.
 * `Cslib.Probability.PMF.uniformOfFintype_bind_pure_apply_true_le`: a test accepting at most one
@@ -42,6 +43,13 @@ public section
 namespace Cslib.Probability.PMF
 
 open scoped ENNReal
+
+/-- The probability that `decide (P x)` is `true` is the measure of `{x | P x}`. -/
+theorem bind_pure_decide_apply_true {β : Type*} (p : PMF β) (P : β → Prop) [DecidablePred P] :
+    (p.bind fun x => PMF.pure (decide (P x))) true = p.toOuterMeasure {x | P x} := by
+  rw [PMF.bind_apply, PMF.toOuterMeasure_apply]
+  refine tsum_congr fun x => ?_
+  by_cases hx : P x <;> simp [hx]
 
 section Point
 
