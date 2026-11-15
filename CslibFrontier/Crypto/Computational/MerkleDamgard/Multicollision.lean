@@ -37,8 +37,9 @@ success probability that holds for every compression function meeting a length c
   attempt finds no collision (`jouxFinder_success`).
 * `merkleDamgardJouxFinder` is the book's setting: a chain `merkleDamgardChain` with `ℓ`-bit blocks
   and `n`-bit chaining values. With `ℓ ≥ n + 7`, `s = ⌈2 √(2 ^ n)⌉ + 1` samples per attempt and
-  `3 b` attempts, it makes at most `3 b s` compression calls and outputs `b` pairs whose `2 ^ b`
-  selections are a `2 ^ b`-collision with probability at least `1/2`
+  `3 b` attempts, it makes at most `3 b s` compression calls, and for every common list of blocks
+  `tail`, with probability at least `1/2` it outputs `b` pairs whose `2 ^ b` selections, each
+  followed by `tail`, are a `2 ^ b`-collision
   (`isQueryBounded_merkleDamgardJouxFinder`, `merkleDamgardJouxFinder_success_half`).
 * `merkleDamgardBitJouxFinder` does the same for the library's `merkleDamgard`, which spends one
   compression call per message bit. It treats `g` consecutive bits as one candidate, so its count
@@ -475,11 +476,11 @@ private theorem jouxSuccess_subset_multicollisionOutputs (ℓ b : ℕ) (iv : Lis
 
 /-- **Joux's attack on a chain, with its cost.** Let `h k` map `n + ℓ`-bit inputs to `n`-bit
 outputs and let `iv` have `n` bits. With at most `f * s` compression evaluations
-(`isQueryBounded_merkleDamgardJouxFinder`), `merkleDamgardJouxFinder` outputs `b` pairs whose
-`2 ^ b` selections are a `2 ^ b`-collision of the chain except with probability at most
-`2 ^ b * ((1 + ε) / 2) ^ f / 2`, where `ε` bounds
-`exp (-s (s - 1) / 2 ^ (n + 1)) + C(s, 2) / 2 ^ ℓ`, the bound of Lemma 8.2 on the probability that
-one attempt finds no collision. -/
+(`isQueryBounded_merkleDamgardJouxFinder`), `merkleDamgardJouxFinder` outputs `b` pairs. For every
+common list of blocks `tail`, their `2 ^ b` selections, each followed by `tail`, are a
+`2 ^ b`-collision of the chain except with probability at most `2 ^ b * ((1 + ε) / 2) ^ f / 2`,
+where `ε` bounds `exp (-s (s - 1) / 2 ^ (n + 1)) + C(s, 2) / 2 ^ ℓ`, the bound of Lemma 8.2 on the
+probability that one attempt finds no collision. -/
 theorem merkleDamgardJouxFinder_success {n ℓ : ℕ}
     (hlen : ∀ x, x.length = n + ℓ → (h k x).length = n)
     {iv : List Bool} (hiv : iv.length = n) (s : ℕ) {ε : ℝ}
@@ -503,9 +504,10 @@ theorem merkleDamgardJouxFinder_success {n ℓ : ℕ}
 let `iv` have `n` bits, and let blocks be at least seven bits longer than chaining values
 (`n + 7 ≤ ℓ`). With the sample count `s = ⌈2 √(2 ^ n)⌉ + 1` of Lemma 8.2 per attempt and a budget
 of `3 b` attempts, `merkleDamgardJouxFinder` makes at most `3 b s` compression evaluations
-(`isQueryBounded_merkleDamgardJouxFinder`) and outputs a `2 ^ b`-collision with probability at
-least `1/2`. The book states "time `O(b 2 ^ (n/2))`" and no success probability; the count here is
-of compression evaluations only, not a running time. -/
+(`isQueryBounded_merkleDamgardJouxFinder`), and for every common list of blocks `tail`, with
+probability at least `1/2` it outputs `b` pairs whose `2 ^ b` selections, each followed by `tail`,
+are a `2 ^ b`-collision. The book states "time `O(b 2 ^ (n/2))`" and no success probability; the
+count here is of compression evaluations only, not a running time. -/
 theorem merkleDamgardJouxFinder_success_half {n ℓ : ℕ}
     (hlen : ∀ x, x.length = n + ℓ → (h k x).length = n)
     {iv : List Bool} (hiv : iv.length = n) (hℓ : n + 7 ≤ ℓ) (b : ℕ) (tail : List (List Bool)) :

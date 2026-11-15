@@ -1928,9 +1928,10 @@ measure of §8.3; they are not running times, since sampling and the search for 
 are not counted, and they are worst-case counts, not expected costs. Let `h k` map `n + ℓ`-bit
 inputs to `n`-bit outputs (`hlen`), let `iv` have `n` bits (`hiv`), let `n + 7 ≤ ℓ`, and let
 `s = ⌈2 √(2 ^ n)⌉₊ + 1`. Then `merkleDamgardJouxFinder ℓ s (3 * b) b iv` makes at most
-`3 * b * s` calls (`isQueryBounded_merkleDamgardJouxFinder`) and, with probability at least `1/2`,
-returns `b` pairs of blocks whose `2 ^ b` selections, followed by any common list of blocks, have
-one `merkleDamgardChain` value from `iv` (`merkleDamgardJouxFinder_success_half`);
+`3 * b * s` calls (`isQueryBounded_merkleDamgardJouxFinder`), and for every common list of blocks
+`tail`, with probability at least `1/2` it returns `b` pairs of blocks whose `2 ^ b` selections,
+each followed by `tail`, have one `merkleDamgardChain` value from `iv`
+(`merkleDamgardJouxFinder_success_half`);
 `merkleDamgardJouxFinder_success` gives the bound for any `s` and budget. For the library's
 one-bit-per-block `merkleDamgard`, let `h k` map `2 * k.length`-bit inputs to `k.length`-bit
 outputs, let groups have `g` bits with `k.length + 7 ≤ g`, and let `s = ⌈2 √(2 ^ k.length)⌉₊ + 1`.
