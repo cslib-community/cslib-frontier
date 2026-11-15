@@ -266,7 +266,7 @@ one-time encryption and hash-then-MAC/EtM remain open in [#2749](https://github.
 
 The Ideal Cipher Model models a block cipher as a key-indexed family of independent random permutation oracles supporting forward and inverse queries. [`IdealCipher.lean`](../../CslibFrontier/Languages/Probabilistic/IdealCipher.lean) formalizes lazy exact and forgetful ideal-cipher caches, proves partial bijection preservation (`uniform_interpret_eq_lazy`), and bounds the distinguishing advantage between a uniform ideal cipher and the forgetful sampler by `(Q.choose 2) * |Block|⁻¹` (`abs_sub_uniformPerm_forgetful_le`). Built upon this, [`Compression.lean`](../../CslibFrontier/Crypto/Primitives/IdealCipher/Compression.lean) models collision resistance (`collisionGame`), records the probability-`1` inverse-query attack on `cipherOutput` (`cipherOutputAdversary_wins`, [katzlindell20][katzlindell20] Exercise 7.23(a)), and proves the Davies–Meyer Ideal-Cipher collision-resistance upper bound of `2 * ((Q + 2).choose 2) * |Block|⁻¹ = ((Q + 2) * (Q + 1)) * |Block|⁻¹` for every `Q`-query adaptive adversary (`daviesMeyer_collisionGame_le`, `daviesMeyer_collisionGame_mul_le`; [katzlindell20][katzlindell20] Theorem 7.5), checked nonvacuously in [`CslibFrontierTests/Crypto/IdealCipherCompression.lean`](../../CslibFrontierTests/Crypto/IdealCipherCompression.lean).
 
-For the generic group model of Boneh–Shoup §16.3 [bs23][bs23], import
+For the generic group model of Boneh–Shoup ([bs23][bs23], §16.3), import
 [`GenericGroup/Basic.lean`](../../CslibFrontier/Crypto/Computational/GenericGroup/Basic.lean).
 `answer L` is the group oracle of a labeling `L : ZMod q → S`: it answers labeling queries
 and group operations `(ℓ₁, ℓ₂, κ₁, κ₂)`, and rejects with `none` when `ℓ₁` or `ℓ₂` is not a
@@ -274,8 +274,8 @@ label. `groupAnswer q g` is the oracle of a `ZMod q`-module with base point `g`;
 for the labeling `β ↦ β • g` when every element is a multiple of `g` (`groupAnswer_eq_answer`).
 [`GenericGroup/BabyStepGiantStep.lean`](../../CslibFrontier/Crypto/Computational/GenericGroup/BabyStepGiantStep.lean)
 states the baby-step/giant-step algorithm of §16.1.1 as a program over this oracle, with `m`
-baby and `n` giant labels, and proves that it outputs the discrete logarithm when `q ≤ m * n`
-and the labeling is injective (`evalPure_babyStepGiantStep`,
+baby and `n` giant labels, and proves that, for `q ≠ 0`, it outputs the discrete logarithm when
+`q ≤ m * n` and the labeling is injective (`evalPure_babyStepGiantStep`,
 `evalPure_groupAnswer_babyStepGiantStep`). Its efficiency certificate in the generic group
 model is a query bound on the program: every call is a product of two labels
 (`queriesSatisfy_babyStepGiantStep`), and every run makes at most `(m - 1) + (n - 1)` calls
