@@ -443,7 +443,7 @@ variable (hf : ComputableInPolyTime (fun p : List Bool × List Bool => family p.
 attribute [local fun_prop] labelWord_polyTime tweak_polyTime wireWidth_polyTime permOf_polyTime
 
 /-- Labels of the simulator's coins are read in polynomial time. -/
-private theorem simLabel_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k v : γ → ℕ}
+theorem simLabel_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k v : γ → ℕ}
     {coins : γ → List Bool} (hk : ComputableInPolyTime k encIn encUnary)
     (hcoins : ComputableInPolyTime coins encIn encBits)
     (hv : ComputableInPolyTime v encIn encUnary) :

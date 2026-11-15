@@ -790,6 +790,269 @@ private theorem hybViewWord_eq_data (k : ℕ) (f : ValidCircuit) (x : List Bool)
     decide_eq_true_eq]
   rfl
 
+variable (hf : ComputableInPolyTime (fun p : List Bool × List Bool => family p.1 p.2)
+  (encPair encBits encBits) encBits)
+
+attribute [local fun_prop] labelWord_polyTime tweak_polyTime wireWidth_polyTime permOf_polyTime
+  keyOf_polyTime labelOf_polyTime simLabel_polyTime
+
+/-- The active colour of wire `v`: its plaintext value plus its permutation bit. -/
+private def actBit (ws kc : List Bool) (v : ℕ) : Bool := permOf ws v ^^ permOf kc v
+
+private theorem actBit_polyTime {γ : Type} {encIn : γ ↪ List Bool} {ws kc : γ → List Bool}
+    {v : γ → ℕ} (hws : ComputableInPolyTime ws encIn encBits)
+    (hkc : ComputableInPolyTime kc encIn encBits) (hv : ComputableInPolyTime v encIn encUnary) :
+    ComputableInPolyTime (fun x => actBit (ws x) (kc x) (v x)) encIn encBool := by
+  unfold actBit
+  polytime
+
+attribute [local fun_prop] actBit_polyTime
+
+/-- Whether the colour `c` of wire `v` is inactive and the wire is numbered below `j`. -/
+private def hiddenBit (ws kc : List Bool) (j v : ℕ) (c : Bool) : Bool :=
+  c != actBit ws kc v && decide (v < j)
+
+/-- Whether the colour `c` of wire `v` is inactive and the wire is wire `j`. -/
+private def targetBit (ws kc : List Bool) (j v : ℕ) (c : Bool) : Bool :=
+  c != actBit ws kc v && decide (v = j)
+
+private theorem hiddenBit_polyTime {γ : Type} {encIn : γ ↪ List Bool} {ws kc : γ → List Bool}
+    {j v : γ → ℕ} {c : γ → Bool} (hws : ComputableInPolyTime ws encIn encBits)
+    (hkc : ComputableInPolyTime kc encIn encBits) (hj : ComputableInPolyTime j encIn encUnary)
+    (hv : ComputableInPolyTime v encIn encUnary) (hc : ComputableInPolyTime c encIn encBool) :
+    ComputableInPolyTime (fun x => hiddenBit (ws x) (kc x) (j x) (v x) (c x)) encIn encBool := by
+  unfold hiddenBit
+  polytime
+
+private theorem targetBit_polyTime {γ : Type} {encIn : γ ↪ List Bool} {ws kc : γ → List Bool}
+    {j v : γ → ℕ} {c : γ → Bool} (hws : ComputableInPolyTime ws encIn encBits)
+    (hkc : ComputableInPolyTime kc encIn encBits) (hj : ComputableInPolyTime j encIn encUnary)
+    (hv : ComputableInPolyTime v encIn encUnary) (hc : ComputableInPolyTime c encIn encBool) :
+    ComputableInPolyTime (fun x => targetBit (ws x) (kc x) (j x) (v x) (c x)) encIn encBool := by
+  unfold targetBit
+  polytime
+
+attribute [local fun_prop] hiddenBit_polyTime targetBit_polyTime
+
+/-- The mask term of slot `slot` of row `i` of gate `g` reading wire `v` with colour `c`: the
+answer to its tweak when it is a target, the keyed function at its key otherwise. -/
+private def maskWord (k n q j : ℕ) (ws kc : List Bool) (rs : List (List Bool)) (v : ℕ) (c : Bool)
+    (g i slot : ℕ) : List Bool :=
+  if targetBit ws kc j v c then rs.getD (8 * g + 2 * i + slot) [] else
+    labelWord family k (keyOf k (n + q) kc v c) (tweak k g i slot)
+
+include hf in
+private theorem maskWord_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k n q j v g i slot : γ → ℕ}
+    {ws kc : γ → List Bool} {rs : γ → List (List Bool)} {c : γ → Bool}
+    (hk : ComputableInPolyTime k encIn encUnary) (hn : ComputableInPolyTime n encIn encUnary)
+    (hq : ComputableInPolyTime q encIn encUnary) (hj : ComputableInPolyTime j encIn encUnary)
+    (hws : ComputableInPolyTime ws encIn encBits) (hkc : ComputableInPolyTime kc encIn encBits)
+    (hrs : ComputableInPolyTime rs encIn (encList encBits))
+    (hv : ComputableInPolyTime v encIn encUnary) (hc : ComputableInPolyTime c encIn encBool)
+    (hg : ComputableInPolyTime g encIn encUnary) (hi : ComputableInPolyTime i encIn encUnary)
+    (hslot : ComputableInPolyTime slot encIn encUnary) :
+    ComputableInPolyTime (fun x => maskWord (family := family) (k x) (n x) (q x) (j x) (ws x)
+      (kc x) (rs x) (v x) (c x) (g x) (i x) (slot x)) encIn encBits := by
+  unfold maskWord
+  polytime
+
+attribute [local fun_prop] maskWord_polyTime
+
+/-- The plaintext word of row `i` of gate `g`, from its 0-indexed argument wires and truth table. -/
+private def plainWord (k n q : ℕ) (kc : List Bool) (a b : ℕ) (t : List Bool) (g i : ℕ) :
+    List Bool :=
+  labelOf k (n + q) kc (n + g)
+    (t.getD ((if i.testBit 1 ^^ permOf kc a then 2 else 0) +
+      (if i.testBit 0 ^^ permOf kc b then 1 else 0)) false ^^ permOf kc (n + g))
+
+private theorem plainWord_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k n q a b g i : γ → ℕ}
+    {kc t : γ → List Bool}
+    (hk : ComputableInPolyTime k encIn encUnary) (hn : ComputableInPolyTime n encIn encUnary)
+    (hq : ComputableInPolyTime q encIn encUnary) (hkc : ComputableInPolyTime kc encIn encBits)
+    (ha : ComputableInPolyTime a encIn encUnary) (hb : ComputableInPolyTime b encIn encUnary)
+    (ht : ComputableInPolyTime t encIn encBits) (hg : ComputableInPolyTime g encIn encUnary)
+    (hi : ComputableInPolyTime i encIn encUnary) :
+    ComputableInPolyTime (fun x => plainWord (k x) (n x) (q x) (kc x) (a x) (b x) (t x) (g x)
+      (i x)) encIn encBits := by
+  unfold plainWord
+  polytime
+
+attribute [local fun_prop] plainWord_polyTime
+
+private theorem hybRowData_eq (k n q j : ℕ) (ws kc sc : List Bool) (rs : List (List Bool))
+    (a b : ℕ) (t : List Bool) (g i : ℕ) :
+    hybRowData (family := family) k n q j ws kc sc rs a b t g i =
+      if hiddenBit ws kc j a (i.testBit 1) || hiddenBit ws kc j b (i.testBit 0) then
+        simLabel k sc (n + q + 4 * g + i)
+      else List.zipWith xor (plainWord k n q kc a b t g i)
+        (List.zipWith xor (maskWord (family := family) k n q j ws kc rs a (i.testBit 1) g i 0)
+          (maskWord (family := family) k n q j ws kc rs b (i.testBit 0) g i 1)) := rfl
+
+include hf in
+private theorem hybRowData_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k n q j a b g i : γ → ℕ}
+    {ws kc sc t : γ → List Bool} {rs : γ → List (List Bool)}
+    (hk : ComputableInPolyTime k encIn encUnary) (hn : ComputableInPolyTime n encIn encUnary)
+    (hq : ComputableInPolyTime q encIn encUnary) (hj : ComputableInPolyTime j encIn encUnary)
+    (hws : ComputableInPolyTime ws encIn encBits) (hkc : ComputableInPolyTime kc encIn encBits)
+    (hsc : ComputableInPolyTime sc encIn encBits)
+    (hrs : ComputableInPolyTime rs encIn (encList encBits))
+    (ha : ComputableInPolyTime a encIn encUnary) (hb : ComputableInPolyTime b encIn encUnary)
+    (ht : ComputableInPolyTime t encIn encBits) (hg : ComputableInPolyTime g encIn encUnary)
+    (hi : ComputableInPolyTime i encIn encUnary) :
+    ComputableInPolyTime (fun x => hybRowData (family := family) (k x) (n x) (q x) (j x) (ws x)
+      (kc x) (sc x) (rs x) (a x) (b x) (t x) (g x) (i x)) encIn encBits := by
+  simp only [hybRowData_eq]
+  polytime
+
+attribute [local fun_prop] hybRowData_polyTime
+
+include hf in
+private theorem hybRowsBlock_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k n q j a b g : γ → ℕ}
+    {ws kc sc t : γ → List Bool} {rs : γ → List (List Bool)}
+    (hk : ComputableInPolyTime k encIn encUnary) (hn : ComputableInPolyTime n encIn encUnary)
+    (hq : ComputableInPolyTime q encIn encUnary) (hj : ComputableInPolyTime j encIn encUnary)
+    (hws : ComputableInPolyTime ws encIn encBits) (hkc : ComputableInPolyTime kc encIn encBits)
+    (hsc : ComputableInPolyTime sc encIn encBits)
+    (hrs : ComputableInPolyTime rs encIn (encList encBits))
+    (ha : ComputableInPolyTime a encIn encUnary) (hb : ComputableInPolyTime b encIn encUnary)
+    (ht : ComputableInPolyTime t encIn encBits) (hg : ComputableInPolyTime g encIn encUnary) :
+    ComputableInPolyTime (fun x => hybRowsBlock (family := family) (k x) (n x) (q x) (j x) (ws x)
+      (kc x) (sc x) (rs x) (a x) (b x) (t x) (g x)) encIn encBits := by
+  have hrow (i : ℕ) := hybRowData_polyTime hf hk hn hq hj hws hkc hsc hrs ha hb ht hg
+    (ComputableInPolyTime.const (encIn := encIn) (encOut := encUnary) i)
+  exact .bitsAppend (hrow 0) (.bitsAppend (hrow 1) (.bitsAppend (hrow 2) (hrow 3)))
+
+/-- The input `(k, n, q, j, ws, kc, sc, rs, gates)` of the hybrid view's body. -/
+private abbrev encHybBodyInput :
+    (ℕ × ℕ × ℕ × ℕ × List Bool × List Bool × List Bool × List (List Bool) ×
+      List (ℕ × ℕ × List Bool)) ↪ List Bool :=
+  encPair encUnary (encPair encUnary (encPair encUnary (encPair encUnary (encPair encBits
+    (encPair encBits (encPair encBits (encPair (encList encBits)
+      (encList (encPair encNat (encPair encNat encBits))))))))))
+
+/-- Gate `g` of the hybrid view's body, with capped wire numbers. -/
+private def hybGateBlock (x : ℕ × ℕ × ℕ × ℕ × List Bool × List Bool × List Bool ×
+    List (List Bool) × List (ℕ × ℕ × List Bool)) (g : ℕ) : List Bool :=
+  BitString.lowBits (wireWidth x.2.1 x.2.2.1) (x.2.2.2.2.2.2.2.2.getD g (0, 0, [])).1 ++
+    BitString.lowBits (wireWidth x.2.1 x.2.2.1) (x.2.2.2.2.2.2.2.2.getD g (0, 0, [])).2.1 ++
+    hybRowsBlock (family := family) x.1 x.2.1 x.2.2.1 x.2.2.2.1 x.2.2.2.2.1 x.2.2.2.2.2.1
+      x.2.2.2.2.2.2.1 x.2.2.2.2.2.2.2.1
+      (min (x.2.2.2.2.1.length + 1) (x.2.2.2.2.2.2.2.2.getD g (0, 0, [])).1 - 1)
+      (min (x.2.2.2.2.1.length + 1) (x.2.2.2.2.2.2.2.2.getD g (0, 0, [])).2.1 - 1)
+      (x.2.2.2.2.2.2.2.2.getD g (0, 0, [])).2.2 g
+
+include hf in
+private theorem hybGateBlock_polyTime :
+    ComputableInPolyTime (fun p => hybGateBlock (family := family) p.1 p.2)
+      (encPair encHybBodyInput encUnary) encBits := by
+  have hgate : ComputableInPolyTime
+      (fun p : (ℕ × ℕ × ℕ × ℕ × List Bool × List Bool × List Bool × List (List Bool) ×
+          List (ℕ × ℕ × List Bool)) × ℕ => p.1.2.2.2.2.2.2.2.2.getD p.2 (0, 0, []))
+      (encPair encHybBodyInput encUnary) (encPair encNat (encPair encNat encBits)) := by
+    polytime
+  have hA := hgate.fst'
+  have hB := hgate.snd'.fst'
+  have ht := hgate.snd'.snd'
+  have hcap (V : (ℕ × ℕ × ℕ × ℕ × List Bool × List Bool × List Bool × List (List Bool) ×
+        List (ℕ × ℕ × List Bool)) × ℕ → ℕ)
+      (hV : ComputableInPolyTime V (encPair encHybBodyInput encUnary) encNat) :
+      ComputableInPolyTime (fun p => min (p.1.2.2.2.2.1.length + 1) (V p) - 1)
+        (encPair encHybBodyInput encUnary) encUnary := by
+    polytime
+  unfold hybGateBlock
+  refine ComputableInPolyTime.bitsAppend (ComputableInPolyTime.bitsAppend ?_ ?_)
+    (hybRowsBlock_polyTime hf (by polytime) (by polytime) (by polytime) (by polytime)
+      (by polytime) (by polytime) (by polytime) (by polytime) (hcap _ hA) (hcap _ hB) ht
+      (by polytime))
+  · polytime
+  · polytime
+
+include hf in
+private theorem hybBodyData_polyTime :
+    ComputableInPolyTime (fun (x : ℕ × ℕ × ℕ × ℕ × List Bool × List Bool × List Bool ×
+        List (List Bool) × List (ℕ × ℕ × List Bool)) =>
+      hybBodyData (family := family) x.1 x.2.1 x.2.2.1 x.2.2.2.1 x.2.2.2.2.1 x.2.2.2.2.2.1
+        x.2.2.2.2.2.2.1 x.2.2.2.2.2.2.2.1 x.2.2.2.2.2.2.2.2) encHybBodyInput encBits := by
+  have hblock := hybGateBlock_polyTime hf
+  have heq : (fun (x : ℕ × ℕ × ℕ × ℕ × List Bool × List Bool × List Bool ×
+        List (List Bool) × List (ℕ × ℕ × List Bool)) =>
+      hybBodyData (family := family) x.1 x.2.1 x.2.2.1 x.2.2.2.1 x.2.2.2.2.1 x.2.2.2.2.2.1
+        x.2.2.2.2.2.2.1 x.2.2.2.2.2.2.2.1 x.2.2.2.2.2.2.2.2) =
+      fun x => ((List.range x.2.2.1).map (hybGateBlock (family := family) x)).flatten := by
+    funext x
+    rfl
+  rw [heq]
+  polytime
+
+private theorem hybInput_polyTime : ComputableInPolyTime (fun p : ℕ × ℕ × ℕ × List Bool × List Bool =>
+      ((List.range p.2.1).map fun i =>
+        labelOf p.1 (p.2.1 + p.2.2.1) p.2.2.2.2 i (permOf p.2.2.2.1 i ^^ permOf p.2.2.2.2 i)).flatten)
+      (encPair encUnary (encPair encUnary (encPair encUnary (encPair encBits encBits)))) encBits := by
+  polytime
+
+private theorem hybDecInfo_polyTime : ComputableInPolyTime (fun p : ℕ × ℕ × ℕ × List Bool =>
+      (List.range p.2.1).map fun o => permOf p.2.2.2 (p.1 + p.2.2.1 - p.2.1 + o))
+      (encPair encUnary (encPair encUnary (encPair encUnary encBits))) encBits := by
+  polytime
+
+/-- The input `(1^k, f, x, j, kc, sc, rs)` of the hybrid view. -/
+private abbrev encHybInput :
+    (ℕ × ValidCircuit × List Bool × ℕ × List Bool × List Bool × List (List Bool)) ↪ List Bool :=
+  encPair encUnary (encPair encValidCircuit (encPair encBits (encPair encUnary (encPair encBits
+    (encPair encBits (encList encBits))))))
+
+include hf in
+/-- Hybrid view `j` on words is computed in polynomial time. -/
+private theorem hybViewWord_polyTime :
+    ComputableInPolyTime (fun p : ℕ × ValidCircuit × List Bool × ℕ × List Bool × List Bool ×
+        List (List Bool) =>
+      hybViewWord family p.1 p.2.1.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2.1 p.2.2.2.2.2.1 p.2.2.2.2.2.2)
+      encHybInput encPrvView := by
+  let E := encHybInput
+  have hk : ComputableInPolyTime (fun p : ℕ × ValidCircuit × List Bool × ℕ × List Bool ×
+      List Bool × List (List Bool) => p.1) E encUnary := ComputableInPolyTime.fst _ _
+  have hf' : ComputableInPolyTime (fun p : ℕ × ValidCircuit × List Bool × ℕ × List Bool ×
+      List Bool × List (List Bool) => p.2.1) E encValidCircuit :=
+    (ComputableInPolyTime.snd _ _).fst'
+  have hx : ComputableInPolyTime (fun p : ℕ × ValidCircuit × List Bool × ℕ × List Bool ×
+      List Bool × List (List Bool) => p.2.2.1) E encBits :=
+    (ComputableInPolyTime.snd _ _).snd'.fst'
+  have hj : ComputableInPolyTime (fun p : ℕ × ValidCircuit × List Bool × ℕ × List Bool ×
+      List Bool × List (List Bool) => p.2.2.2.1) E encUnary :=
+    (ComputableInPolyTime.snd _ _).snd'.snd'.fst'
+  have hkc : ComputableInPolyTime (fun p : ℕ × ValidCircuit × List Bool × ℕ × List Bool ×
+      List Bool × List (List Bool) => p.2.2.2.2.1) E encBits :=
+    (ComputableInPolyTime.snd _ _).snd'.snd'.snd'.fst'
+  have hsc : ComputableInPolyTime (fun p : ℕ × ValidCircuit × List Bool × ℕ × List Bool ×
+      List Bool × List (List Bool) => p.2.2.2.2.2.1) E encBits :=
+    (ComputableInPolyTime.snd _ _).snd'.snd'.snd'.snd'.fst'
+  have hrs : ComputableInPolyTime (fun p : ℕ × ValidCircuit × List Bool × ℕ × List Bool ×
+      List Bool × List (List Bool) => p.2.2.2.2.2.2) E (encList encBits) :=
+    (ComputableInPolyTime.snd _ _).snd'.snd'.snd'.snd'.snd'
+  have hd := circuitData_polyTime.comp hf'
+  have hn : ComputableInPolyTime (fun p : ℕ × ValidCircuit × List Bool × ℕ × List Bool ×
+      List Bool × List (List Bool) => p.2.1.1.n) E encUnary := hd.fst'
+  have hm : ComputableInPolyTime (fun p : ℕ × ValidCircuit × List Bool × ℕ × List Bool ×
+      List Bool × List (List Bool) => p.2.1.1.m) E encUnary := hd.snd'.fst'
+  have hg : ComputableInPolyTime (fun p : ℕ × ValidCircuit × List Bool × ℕ × List Bool ×
+      List Bool × List (List Bool) => p.2.1.1.gateList) E
+      (encList (encPair encNat (encPair encNat encBits))) := hd.snd'.snd'
+  have hq : ComputableInPolyTime (fun p : ℕ × ValidCircuit × List Bool × ℕ × List Bool ×
+      List Bool × List (List Bool) => p.2.1.1.gateList.length) E encUnary :=
+    (ComputableTidilyInPolyTime.length_list _).computableInPolyTime.comp hg
+  have hws : ComputableInPolyTime (fun p : ℕ × ValidCircuit × List Bool × ℕ × List Bool ×
+      List Bool × List (List Bool) => p.2.1.1.wires p.2.2.1 p.2.1.1.q) E encBits :=
+    wires_polyTime.comp (hf'.prod hx)
+  have hbody := (hybBodyData_polyTime hf).comp (hk.prod (hn.prod (hq.prod (hj.prod (hws.prod
+    (hkc.prod (hsc.prod (hrs.prod hg))))))))
+  have henc : ComputableInPolyTime (fun z : (ℕ × ℕ × ℕ × ℕ) × List Bool => encFn z) encFn
+      encBits := .of_eq fun _ => rfl
+  have hfn := henc.comp ((hk.prod (hn.prod (hm.prod hq))).prod hbody)
+  have hinput := hybInput_polyTime.comp (hk.prod (hn.prod (hq.prod (hx.prod hkc))))
+  have hdec := hybDecInfo_polyTime.comp (hn.prod (hm.prod (hq.prod hkc)))
+  simp only [hybViewWord_eq_data]
+  exact encPrvView_mk_polyTime hfn hinput hdec
+
 end Efficiency
 
 end Cslib.Crypto.Garbling.PointPermute
