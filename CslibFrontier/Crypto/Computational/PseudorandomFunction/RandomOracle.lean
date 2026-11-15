@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction
 public import CslibFrontier.Computability.Probabilistic.Parameter
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 import CslibFrontier.Computability.Probabilistic.Memoize
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
 import CslibFrontier.Languages.Probabilistic.Oracle.Substitution
