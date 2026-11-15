@@ -34,7 +34,8 @@ greater than `1`). They check the reduction bounds of the common-matrix scheme a
 scheme, the advantage lower bound of the Section 3.3 attack (end to end with `unitDecoder`, giving
 advantage at least `3 / 5`), that the setup-averaged correctness theorems apply with `δ = 1 / 5`,
 and that both reduction bounds are attained (advantage `0`) for a uniform source (and uniform
-encryption errors).
+encryption errors). The Section 5 strong-reusability theorem is applied to uniform noise, for which
+its `DecisionLWE` premise holds unconditionally.
 -/
 
 public section
@@ -419,5 +420,27 @@ example
   rw [ProbComp.eval_uniform, encryptLWEErrorLaw_uniform, LWE.advantage_uniform_error_eq_zero,
     LWE.advantage_uniform_error_eq_zero, add_zero] at h
   exact le_antisymm h zero_le
+
+open Turing.MultiTapeTM in
+/-- The Section 5 theorem applies to the family with `κ` samples, secret coordinates and key bits,
+modulus `2` and uniform noise, for which its `DecisionLWE` premise holds unconditionally, against
+adversaries making at most `κ` shift queries of weight at most `1`. -/
+example (decode : (κ : ℕ) → Matrix (Fin κ) (Fin κ) (ZMod (2 ^ 1)) → (Fin κ → ZMod (2 ^ 1)) →
+      ProbComp (Option (Fin κ → ZMod (2 ^ 1)))) :
+    StronglyReusable (fun κ => ProbComp.uniform (Matrix (Fin κ) (Fin κ) (ZMod (2 ^ 1))))
+      (fun κ => lweEncryptFuzzyExtractor κ κ κ (2 ^ 1) (ProbComp.uniform (Fin κ → ZMod (2 ^ 1)))
+        (decode κ)) (fun _ => 1)
+      {fun κ => Probability.PMF.pi fun _ : Fin κ => PMF.uniformOfFintype (ZMod (2 ^ 1))}
+      (fun κ => encPair (Cslib.Matrix.encBinary κ κ 1) (encEncryptHelper κ κ κ 1))
+      (fun κ => encEncryptHelper κ κ κ 1) (fun κ => encBitString κ)
+      (fun A => A.IsPPT ∧ ∀ κ view, (A.query κ view).IsQueryBounded κ) :=
+  stronglyReusable_lweEncryptFuzzyExtractor (m := id) (n := id) (l := id) (w := fun _ => 1)
+    ComputableInPolyTime.id' ComputableInPolyTime.id' ComputableInPolyTime.id'
+    (ComputableInPolyTime.const 1) (ComputableInPolyTime.const 1) id
+    (fun _ => PMF.uniformOfFintype (ZMod (2 ^ 1)))
+    (fun κ => ProbComp.uniform (Fin κ → ZMod (2 ^ 1)))
+    (fun _ => by rw [Probability.PMF.pi_uniformOfFintype]; exact ProbComp.eval_uniform _) decode (by
+      have h := decisionLWEWithErrors_uniform id (fun κ => id κ + (id κ + 1) * id κ) fun _ => 1
+      rwa [DecisionLWE, funext fun κ => Probability.PMF.pi_uniformOfFintype])
 
 end CslibFrontierTests.Crypto.Computational.FuzzyExtractorTest

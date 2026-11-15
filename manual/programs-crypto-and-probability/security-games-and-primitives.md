@@ -158,15 +158,22 @@ formalizes the standard-model construction of Section 5
 encryption errors satisfy `8 * (e i).valMinAbs.natAbs + 4 ≤ q`, so the scheme reproduces with
 error at most `δ` under `DecoderCorrectWithError decode t δ`
 (`DecoderCorrectWithError.setupCorrect_lweEncryptFuzzyExtractor`).
-`FuzzyExtractor.strongReuseAdvantage_lweEncryptFuzzyExtractor_le` is the reduction step of the
-Section 5 argument: it bounds the strong-reusability advantage of each adversary making at most
-`Q` shift queries by two `(m + (Q + 1) * l)`-row decisional LWE advantages with combined error law
+`FuzzyExtractor.strongReuseAdvantage_lweEncryptFuzzyExtractor_le`, a step of the Section 5
+argument, bounds the strong-reusability advantage of each adversary making at most `Q` shift
+queries by two `(m + (Q + 1) * l)`-row decisional LWE advantages with combined error law
 `FuzzyExtractor.encryptLWEErrorLaw W (ProbComp.eval E) Q`, via `encryptRealReduction` and
 `encryptIdealReduction`, which answer the `k`-th query from the `k`-th `l`-row block of the LWE
 instance; the presampling theorem `ProbOracleComp.IsQueryBounded.eval_presample` equates this with
-fresh blocks. Not part of these modules: the strong-reusability security theorem (efficiency
-certificates for the reductions of Section 5, and the conclusion from `DecisionLWE`; tracked in
-#5293), and the random-oracle transform of Section 4 (Theorem 2).
+fresh blocks. `FuzzyExtractor.StronglyReusable` is the strong-reusability experiment against word
+adversaries, with each leakage `(p, r)` written as the pair of its helper and key words, and
+`FuzzyExtractor.stronglyReusable_lweEncryptFuzzyExtractor` is the Section 5 claim in that form: if
+`DecisionLWE` holds with `m + (Q + 1) * l` samples and error law `χ`, and the encryption errors
+have independent coordinates drawn from `χ`, the Section 5 family is `StronglyReusable` for the
+source `χ ^ m` against uniform strict oracle PPT adversaries that make at most `Q κ` shift
+queries. Its reductions `LWEFamily.encryptRealReduction` and `LWEFamily.encryptIdealReduction`
+are PPT by `LWEFamily.isPPT_encryptRealReduction` and `LWEFamily.isPPT_encryptIdealReduction`,
+and `encryptLWEErrorLaw_pi` shows that their LWE instance has plain LWE errors. Not part of these
+modules: the random-oracle transform of Section 4 (Theorem 2).
 
 The pseudoentropy gap of
 [`Pseudoentropy/Basic.lean`](../../CslibFrontier/Crypto/Computational/Pseudoentropy/Basic.lean)

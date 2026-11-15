@@ -236,15 +236,8 @@ private theorem helperWord_reductionInput (x : LWE.Input l m w) (a : List (List 
       helperWordOf (m x.secParam) (k x.secParam) (l x.secParam) (w x.secParam)
         (Cslib.Matrix.toBinary (LWE.augmentedMatrix x.matrix x.target)) a b := by
   obtain ⟨κ, A₂, c₂⟩ := x
-  have hc (i : Fin (m κ)) : (Cslib.Matrix.binaryEntry (l κ + 1) (w κ)
-      (Cslib.Matrix.toBinary (LWE.augmentedMatrix A₂ c₂)) i.val 0 : ZMod (2 ^ w κ)) = c₂ i := by
-    simpa [LWE.augmentedMatrix] using
-      Cslib.Matrix.binaryEntry_toBinary (LWE.augmentedMatrix A₂ c₂) i 0
-  have hA (i : Fin (m κ)) (j : Fin (l κ)) : (Cslib.Matrix.binaryEntry (l κ + 1) (w κ)
-      (Cslib.Matrix.toBinary (LWE.augmentedMatrix A₂ c₂)) i.val (j.val + 1) : ZMod (2 ^ w κ)) =
-        A₂ i j := by
-    simpa [LWE.augmentedMatrix] using
-      Cslib.Matrix.binaryEntry_toBinary (LWE.augmentedMatrix A₂ c₂) i j.succ
+  have hc := LWE.binaryEntry_toBinary_augmentedMatrix_zero A₂ c₂
+  have hA := LWE.binaryEntry_toBinary_augmentedMatrix_succ A₂ c₂
   generalize Cslib.Matrix.toBinary (LWE.augmentedMatrix A₂ c₂) = word at hc hA ⊢
   simp only [helperWord, helperWordOf, reductionInput, Cslib.Matrix.toBinary_eq,
     List.flatMap_def, List.map_range_eq_ofFn]

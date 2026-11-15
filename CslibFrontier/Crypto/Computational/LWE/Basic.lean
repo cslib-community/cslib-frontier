@@ -253,6 +253,21 @@ theorem publicMatrix_eq_augmentedMatrix {n m w : ℕ} (B : Matrix (Fin m) (Fin n
     publicMatrix B t e = augmentedMatrix B (B *ᵥ t + e) :=
   rfl
 
+/-- Column `0` of row `i` of the word of `[b | A]` is `b i`. -/
+theorem binaryEntry_toBinary_augmentedMatrix_zero {n m w : ℕ}
+    (A : Matrix (Fin m) (Fin n) (ZMod (2 ^ w))) (b : Fin m → ZMod (2 ^ w)) (i : Fin m) :
+    (Matrix.binaryEntry (n + 1) w (Matrix.toBinary (augmentedMatrix A b)) i.val 0 :
+      ZMod (2 ^ w)) = b i := by
+  simpa [augmentedMatrix] using Matrix.binaryEntry_toBinary (augmentedMatrix A b) i 0
+
+/-- Column `j + 1` of row `i` of the word of `[b | A]` is `A i j`. -/
+theorem binaryEntry_toBinary_augmentedMatrix_succ {n m w : ℕ}
+    (A : Matrix (Fin m) (Fin n) (ZMod (2 ^ w))) (b : Fin m → ZMod (2 ^ w)) (i : Fin m)
+    (j : Fin n) :
+    (Matrix.binaryEntry (n + 1) w (Matrix.toBinary (augmentedMatrix A b)) i.val (j.val + 1) :
+      ZMod (2 ^ w)) = A i j := by
+  simpa [augmentedMatrix] using Matrix.binaryEntry_toBinary (augmentedMatrix A b) i j.succ
+
 /-! ### Distinguishers at modulus `2 ^ w` -/
 
 variable (n m w : ℕ → ℕ)
