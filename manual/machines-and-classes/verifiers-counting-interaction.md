@@ -106,6 +106,162 @@ For strict native PPT and oracle-PPT execution (where coin budgets are worst-cas
 
 Counting arguments for matchings and permanents can use the deterministic upper bound [Bregman.lean](../../CslibFrontier/Foundations/Combinatorics/Bregman.lean) (`import CslibFrontier.Foundations.Combinatorics.Bregman`), which proves Brégman's theorem (Minc's conjecture) [bregman73][bregman73]. For a 0/1 matrix `A : Matrix n n ℕ` (every entry at most `1`) with row sums `r i`, `Matrix.permanent_le_prod_factorial_rpow` gives `per A ≤ ∏ i, (r i)! ^ (1 / r i)` in `ℝ`. `Matrix.permanent_le_factorial_rpow_card_div` is the `d`-regular form `per A ≤ d! ^ (n / d)`. A zero row contributes `0! ^ (1 / 0) = 1` under Mathlib's `Real.rpow` convention, and the permanent is then `0`, so there are no positivity hypotheses. The underlying statement `Equiv.card_filter_forall_rel_le_prod_factorial_rpow` counts the bijections `e : α ≃ β` with `R a (e a)` for all `a`. These are the perfect matchings of the bipartite graph `R` (the witnesses of `Cslib.Circuits.BipartiteMatching.HasPerfectMatching` when `α = β`), and `d a = #{b | R a b}` is the left degree. Equality holds for disjoint unions of complete bipartite graphs `K_{d,d}` (`Equiv.card_filter_forall_eq_eq_prod_factorial_rpow`, `Matrix.permanent_eq_prod_factorial_rpow_of_eq_ite`). The proof follows Schrijver's induction on `n` [schrijver78][schrijver78]. It uses the convexity inequality `Real.sum_mul_log_div_card_le` from [LogSum.lean](../../CslibFrontier/Foundations/Analysis/SpecialFunctions/LogSum.lean), not the entropy proof of [radhakrishnan97][radhakrishnan97]. `Matrix.permanent_eq_card_filter_of_le_one`, in [Permanent/ZeroOne.lean](../../CslibFrontier/Foundations/Data/Matrix/Permanent/ZeroOne.lean), identifies the permanent of a 0/1 matrix with this count. Only 0/1 matrices are covered. Extensions of the bound to nonnegative real matrices, the van der Waerden lower bound and the Kahn–Lovász bound for general graphs are not formalized. The [checked examples](../../CslibFrontierTests/Bregman.lean) evaluate `per J₃ = 6` (equality), a `2 × 2` matrix with `1 < √2`, a zero row, the block matrix `K_{2,2} ⊕ K_{1,1}` (equality) and a `2`-regular `4 × 4` instance.
 
+## Counting-hierarchy function levels
+
+Import `CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.Aggregation` for
+`CountingLevel a enc` (C_a P) and `CountingFunction a input output` (F_a).
+The zero levels are P and ordinary polynomial-time computation; the first decision level is PP.
+Successor decision levels use the existing fixed-length relativized majority verifier model.
+Equivalence with probabilistic oracle machines is not asserted here.
+
+A function witness contains one fixed raw-word oracle in C_a P and one uniform strict
+polynomial-time oracle program. Its certificate charges input preparation, adaptive requests,
+reply access and encoded output. Polynomial output length follows from the certificate.
+Use `CountingFunction.comp` and `CountingFunction.prod` to combine functions at the same level;
+`exists_common_oracle` supplies one oracle for a fixed finite family. These results use finite
+tagged unions, without assuming adaptive PP access collapses to PP.
+
+For a uniform evaluator on `(instance, index)`, `CountingFunction.count_bits`, `sum_bits` and
+`sum_bits_int` compute counts, nonnegative sums and signed sums in F_(a+1). The width function
+must be polynomial-time with **unary** output: its value bounds the number of index bits,
+while the domain can contain exponentially many indices. Summands use binary natural or signed
+integer encodings. `sum_bits_restrict` masks a same-level predicate by zero, and `sum_bits_mod`
+reduces a sum modulo a uniformly accessible short modulus. `exists_bits` and `forall_bits`
+also cost one level; `CountingFunction.decision` then turns an F_a Boolean function into a
+C_(a+1) P language.
+
+These aggregation rules take a `Decoder enc`, such as `Decoder.bits` for words or
+`Decoder.pair` for pairs. The decoder gives a total polynomial-time interpretation of raw
+threshold requests, including malformed words. An arbitrary encoding image is not assumed
+efficiently recognizable. Binary search uses one more bit than the witness bound, so it covers
+the maximum count and width-zero indices. The ordinary-module
+[checked clients](../../CslibFrontierTests/CountingHierarchy.lean) exercise those cases,
+binary interval restrictions, signed cancellation and the decision conversion.
+
+For the numerical prime-product estimates used by sign recovery, import
+[`PrimeWindowBounds`](../../CslibFrontier/Foundations/NumberTheory/PrimeWindowBounds.lean).
+The window is `Nat.primesLE Y \ Nat.primesLE L`, so it excludes `L` and includes `Y`.
+For `16 ≤ Z` and `L ≤ Z`, the cutoff `Y = 2 * Z ^ 4` leaves at least `3 * Z` primes;
+their product lies between `2 ^ (3 * Z)` and `2 ^ (Y * Y.size)` and exceeds
+`6 * 2 ^ m` whenever `m ≤ Z`. These are mathematical bounds, without a computational
+certificate for the prime product. The same module bounds `Y.size` by `4 * Z.size + 3`,
+the width of every `k ≤ Y * Y.size + 1` by `8 * Z.size + 8`, and the precision exponent
+`Y.size + 10` by `4 * Z.size + 13`. The
+[ordinary-import client](../../CslibFrontierTests/PrimeWindowBounds.lean) combines the bounds
+at `Z = max 16 (max m L)` and checks open/closed and empty-window endpoints.
+
+The [development issue](https://github.com/cslib-community/cslib-frontier/issues/5619) retains
+the remaining CRT sign-recovery objectives. The product step is certified below;
+the downstream real-feasibility theorem is outside these components.
+
+For binary interval endpoints, import `CountingHierarchy.Range`: `CountingFunction.sum_range`
+and `sum_range_int` sum over `0 ≤ i < r(w)` in one level. The endpoint is computed in binary;
+its value may be exponential. `CountingHierarchy.Arithmetic` supplies same-level multiplication,
+remainder, comparison and modular exponentiation. The last uses a binary exponent and the
+existing total `powMod` operation; modulus zero returns one.
+
+`CountingHierarchy.Generator` certifies a total prime-field generator test in F_1. One uniform
+universal pass checks prime divisors and smaller powers, rejecting composite moduli and
+noncanonical representatives. The standalone primality test and generator test share the
+bounded-divisor evaluator, its polynomial-time certificate and its primality characterization. `CountingHierarchy.DiscreteLog` certifies the sum of matching
+exponents below `p - 1` in F_1. Its logarithm specification requires a primitive base and a
+nonzero target; its total behavior is defined on every binary triple. The
+[checked clients](../../CslibFrontierTests/CountingNumberTheory.lean) cover these domain limits,
+binary interval sums and modular powering.
+
+Import [`CountingHierarchy.Products`](../../CslibFrontier/Computability/Complexity/Classes/CountingHierarchy/Products.lean)
+for `CountingFunction.prod_primeField_bits`: a uniform F_a factor evaluator, a polynomial-time
+binary modulus, and a polynomial-time **unary** width give the total product in F_(a+4).
+`primeFieldProduct_spec` identifies its prime-modulus output with the product in `ZMod p`,
+and `primeFieldProduct_eq_val` gives the canonical natural representative. Every nonprime
+modulus, including zero and one, returns zero. `prod_primeField_bits_restrict` replaces
+excluded factors by one, including an empty allowed domain. No factor need already be a
+canonical residue. A `Decoder enc` supports arbitrary primary input encodings; a modulus
+supplied as an extra input is covered by the same rule.
+
+The evaluator averages modular logarithm formulas over all generators, using the existing
+finite-field product identity. It uses no generator selection: generator counting costs F_2,
+logarithm summation over the factor indices F_(a+2), and the generator-masked outer sum
+F_(a+3). Modular inverse, remainder and the F_(a+1) zero-factor flag fit F_(a+3), the stronger
+bound exposed by `CountingFunction.primeFieldProduct_mem`. Every operation is composed through
+strict certificates charging queries, replies, intermediate values and encoded output; no full
+integer product or unreduced power is passed as program data. The ordinary-module
+[checked client](../../CslibFrontierTests/CountingFieldProducts.lean) covers variable binary
+moduli and unary widths, polynomial output length, prime two, zero factors, noncanonical
+factors, restrictions and nonprime defaults. Its one certified variable-input product takes
+different values at the words representing five and two, including a nonzero prime-field value. Run
+`LEAN_NUM_THREADS=2 scripts/build.sh CslibFrontierTests.CountingFieldProducts --wfail --iofail`.
+
+## Finite-field product identities
+
+Import `CslibFrontier.Foundations.NumberTheory.FiniteField.GeneratorProducts` for the algebraic
+identity `ZMod.prod_eq_generator_average`. For a prime modulus, it writes a finite product as
+the average of its logarithm formula over all multiplicative generators. The generator count
+is positive and smaller than the prime, so its image in the field is invertible, including
+at the prime two. An explicit zero test handles zero factors; empty products are covered too.
+The matching-exponent sum `ZMod.generatorLogSum` is total even for nongenerators, but its
+bounded-logarithm specification requires a primitive root and a nonzero target.
+
+`FiniteField.Enumeration` translates sums over canonical natural representatives into sums
+over residues or a finite subset. `BitString.WeightedEnumeration` translates sums over wider
+bitstrings, restricted by their binary value, into ordinary interval sums. The existing
+word-count theorem uses the weighted rule with constant weight one. These are mathematical
+identities; they assert no computational cost or efficient discrete-logarithm algorithm.
+The [checked examples](../../CslibFrontierTests/PrimeFieldProducts.lean) cover a product modulo
+five, the prime two, residue enumeration, signed weights and a zero-width interval.
+
+## Implicit integer access and bounded first events
+
+Import `CountingHierarchy.ResidueAccess` for `IntegerResidueAccess X`. The integer family `X`
+is a specification parameter. The access record supplies a logarithmic magnitude bound,
+admissible positive moduli and one total canonical-residue evaluator. Its `InCountingFunction`
+certificate requires the exponent in polynomial-time binary and the residue evaluator in F_a
+on every input pair, including off-domain inputs. It requires no encoding or computation of X.
+Admissibility is a correctness domain, not an extra oracle: an algorithm must justify that its
+queries belong to the domain and certify its own modulus-selection procedure.
+
+`CountingHierarchy.Primality` certifies the standalone `primeTest` in F_1 by a uniform divisor
+test. `CountingHierarchy.BoundedSearch` supplies existential/universal interval quantification
+at one additional level and `firstEventTest` at two. Its Boolean answer tests a property of
+the first event below a binary endpoint; a later matching event cannot replace the first one.
+All nested indices share fixed evaluators. `Foundations.NumberTheory.DyadicResidues` expresses
+the rational CRT approximation using a natural numerator built by multiplication, quotient,
+sum and remainder, with an exact correctness bridge. It constructs neither X nor the full
+modulus product. The [checked client](../../CslibFrontierTests/ResidueAccess.lean) includes
+minus one, excluded moduli, first-event ordering, an empty interval and a concrete dyadic sum.
+These operations alone do not certify the complete sign-recovery procedure.
+
+## Mathematical sign recovery from residues
+
+Import [`Foundations.NumberTheory.CRTSign`](../../CslibFrontier/Foundations/NumberTheory/CRTSign.lean)
+for the mathematical sign step of [the manuscript][OpenAI2026CountingHierarchy], Section 2.
+For positive pairwise coprime integer moduli `m i`, let `Π = ∏ i, m i`.
+[`crt_circle_identity`](../../CslibFrontier/Foundations/NumberTheory/CRTCircle.lean) proves that
+weighted residues satisfying `c i * (Π / m i) ≡ X (mod m i)` have
+`∑ i, c i / m i ≡ X / Π (mod 1)`. Its cofactor is defined as the product omitting `i`,
+so the congruences do not require integer division. `crtCoefficient_modEq` supplies each
+congruence from a modular inverse. The moduli need not be prime.
+
+`crtCircleApprox m B c` rounds the normalized residues down to multiples of `2⁻ᴮ`, sums
+the numerators, and reduces modulo `2ᴮ`. It takes neither `X` nor `Π` as data.
+[`dyadicCircleApprox_close`](../../CslibFrontier/Foundations/NumberTheory/DyadicCircle.lean)
+bounds the circular error by any `ε` with `card ι / 2ᴮ < ε`, including for negative targets.
+
+For the successive weighted residues of `2ᵏX`, `crt_firstCircleFlag_sign` assumes
+`|X| < aΠ`, `aΠ ≤ 2ᴷ`, `0 < t`, `ε < t`, `t + ε ≤ a`, and `2a + ε ≤ 1/2`.
+A nonzero integer then has a first index `k ≤ K` with approximation in `[t, 1-t]`;
+it is positive exactly when that approximation is below `1/2`, and negative exactly when
+it is above `1/2`. `crtCircleApprox_not_flag_zero` excludes every flag for zero.
+The underlying [`DoublingSign`](../../CslibFrontier/Foundations/NumberTheory/DoublingSign.lean)
+lemmas apply directly to any rational target and circle approximations.
+These are mathematical correctness results; computing the weighted residues, obtaining a
+large enough modulus product, and proving counting-hierarchy bounds are separate obligations.
+
+The ordinary-module [checked client](../../CslibFrontierTests/CRTSign.lean) discharges the
+hypotheses for both signs of one with moduli `5, 7`, precision `B = 8`, and cutoff `K = 3`.
+It also checks zero, negative summands, the strict precision boundary, and wraparound at zero.
+Run `LEAN_NUM_THREADS=2 scripts/build.sh CslibFrontierTests.CRTSign --wfail --iofail`.
+
 ## Efficient oracle programs
 
 [IsOraclePPTOn](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/Probabilistic/Oracle.lean#L63) realizes an open probabilistic word-query program by one finite native oracle PTM under one polynomial clock. The semantic equality quantifies over every state type, stateful oracle handler and initial oracle state, and preserves the joint output and final oracle state. Checking only the output marginal would permit a program to erase externally visible query effects; the joint contract rules this out.
@@ -250,3 +406,5 @@ Satisfiable unique games are easy, which is why the Unique Games Conjecture asks
 [complexitylib]: ../sources.md#complexitylib
 [radhakrishnan97]: ../sources.md#radhakrishnan97
 [schrijver78]: ../sources.md#schrijver78
+
+[OpenAI2026CountingHierarchy]: ../sources.md#openaich26
