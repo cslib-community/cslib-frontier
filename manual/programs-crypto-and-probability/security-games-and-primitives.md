@@ -1154,6 +1154,41 @@ algorithm to the common-modulus attack on plain RSA: for `Nat.Coprime e₁ e₂`
 `e = 3`, `f = 2`, the case `f = 1`, and instances showing that coprime exponents, a unit `w` and
 commutativity are needed.
 
+For the accumulator in a group of unknown order ([bs23][bs23], §10.9, pp. 421–423), import
+[`GUOAccumulator.lean`](../../CslibFrontier/Crypto/Computational/GUOAccumulator.lean). The group
+is `(ℤ/Nℤ)ˣ` with a base `g`, its elements are natural numbers, and the hash is any `H : X → ℕ`.
+`guoCommit N g H S` is `g ^ guoExponent H S mod N`, with the product of the hashes of the finite
+set `S` in the exponent, and `guoCommit_insert` raises it to the power `H x` when `x ∉ S` is added.
+`guoSubsetWitness N g H S T` is `g` to the product of the hashes over `S \ T`: the membership proof
+for `T = {x}`, the book's `π_xy` for `T = {x, y}` and `π_T` in general. Bob's check `b ^ e = c` is
+`guoVerifySubset N c e b`, and these proofs pass it (`guoVerifySubset_subsetWitness`,
+`guoVerifySubset_singleton`, `guoVerifySubset_pair`). An aggregate splits into proofs by raising
+it to a power (`guoVerifySubset_split`), and two proofs for coprime exponents, the first a unit,
+aggregate by Shamir's trick (`guoVerifySubset_commonRoot`). A non-membership proof is a pair
+`(b, γ)` with `γ : ℤ`, and `guoVerifyNonMem N g c h b γ` checks that `c` is a unit and that
+`b ^ h * c ^ γ = g`, comparing `b ^ h` with `g * c ^ |γ|` when `γ < 0`, so no inverse is computed.
+Alice's proof `(guoNonMemWitness N g h E, -guoNonMemCoeff h E)` verifies whenever `g` is a unit,
+`0 < h` and `Nat.Coprime h E` (`guoVerifyNonMem_witness`), so against `guoCommit` for a prime
+`H x` distinct from the prime hashes of `S` (`coprime_guoExponent`, `guoVerifyNonMem_guoCommit`).
+The book's remark that correctness relies on the collision resistance of `H` is stated as an
+explicit collision (`exists_collision_of_not_coprime_guoExponent`), not as a game against a hash
+family. From a membership proof `a` and a non-membership proof `(b, γ)` for one hash `h`,
+`guoForgeryRoot N a b γ` computes `b * a ^ γ mod N`, and `powMod_guoForgeryRoot` shows that it is
+an `h`-th root of `g` modulo `N`, with no hypothesis on `N`, `g` or `h`: this is the algebra of the
+book's security argument (p. 422). Both checks, Alice's non-membership proof and the root are
+computable in polynomial time, with `γ` on `encIntBin` and the other inputs on `encNat`
+(`computableInPolyTime_guoVerifySubset`, `computableInPolyTime_guoVerifyNonMem`,
+`computableInPolyTime_guoNonMemCoeff`, `computableInPolyTime_guoNonMemWitness`,
+`computableInPolyTime_guoForgeryRoot`). The statements differ from the book's in two places: the
+book's `π_T = g ^ (E / ∏ x ∈ T, H x)` equals `guoSubsetWitness` when `T ⊆ S` and no hash is `0`,
+and Alice's `γ` satisfies `|γ| < H x` where the book has `|γ| ≤ H(x)` (`guoNonMemCoeff_lt`). The
+module also proves `powMod_powMod` and `coprime_powMod` about `powMod`. Security under strong
+RSA, a certificate for computing `E` from a list of elements, aggregated non-membership proofs and
+class groups are not formalized in this module. The
+[checked examples](../../CslibFrontierTests/Crypto/GUOAccumulator.lean) work modulo `35` with
+`g = 2` and the hashes `3`, `5` and `7`, and include instances showing that the unit proof, the
+unit base, `0 < h`, prime hashes and the unit check on `c` are needed.
+
 For weak RSA moduli ([bs23][bs23], §16.4.2, pp. 698–699), import
 [`Factoring/WeakModuli.lean`](../../CslibFrontier/Crypto/Computational/Factoring/WeakModuli.lean).
 Moduli sharing a prime are factored by their gcd (`gcd_mul_mul_of_prime_ne`,
