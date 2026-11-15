@@ -37,11 +37,10 @@ hardness assumption and is not a statement about any specific group: as the book
 the bound says nothing about the difficulty of discrete logarithm in any specific group. It applies
 to adversaries that are otherwise unbounded.
 
-Primality of `q` is needed for the theorem, not only for its proof: for `q = 512 = 2⁹` an
-adversary that recovers `α` bit by bit makes `9` queries and always succeeds, where the bound would
-be `407 / 512`. This attack is a numerical check, not proved here; it follows the book's reduction
-for groups of prime-power order (Section 16.1.2, p. 684). The proof uses primality only in the fact
-that two distinct linear forms `c X + d` agree at no more than one point of `ZMod q`.
+As in the book, `q` is prime; the bound is not claimed for composite `q`. For groups of
+prime-power order the book reduces discrete logarithm to the prime case (Section 16.1.2, p. 684).
+The proof uses primality only in the fact that two distinct linear forms `c X + d` agree at no more
+than one point of `ZMod q`.
 
 It differs from the book's setting as follows.
 
@@ -270,14 +269,10 @@ private theorem mem_of_mem_support_draw {s : Finset (ZMod q)} (h : s.Nonempty) {
 
 /-- A list shorter than `q` misses some element of `ZMod q`. -/
 private theorem exists_notMem_of_length_lt {l : List (ZMod q)} (h : l.length < q) :
-    ∃ x, x ∉ l := by
-  by_contra hall
-  simp only [not_exists, not_not] at hall
-  have hsub : (Finset.univ : Finset (ZMod q)) ⊆ l.toFinset := fun x _ =>
-    List.mem_toFinset.mpr (hall x)
-  have := (Finset.card_le_card hsub).trans (List.toFinset_card_le l)
-  rw [Finset.card_univ, ZMod.card] at this
-  omega
+    ∃ x, x ∉ l :=
+  let ⟨x, _, hx⟩ := Finset.exists_mem_notMem_of_card_lt_card (s := l.toFinset)
+    (t := Finset.univ) ((List.toFinset_card_le l).trans_lt (by rwa [Finset.card_univ, ZMod.card]))
+  ⟨x, fun hmem => hx (List.mem_toFinset.mpr hmem)⟩
 
 private theorem length_lt_of_notMem {l : List (ZMod q)} (hl : l.Nodup) {x : ZMod q}
     (hx : x ∉ l) : l.length < q := by

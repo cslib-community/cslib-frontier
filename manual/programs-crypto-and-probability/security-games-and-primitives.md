@@ -337,9 +337,8 @@ path; private coins are free), `succProbability_dlogGame_le` bounds the success 
 `((3T + 2)² / 2 + 1) / q`, the book's (16.6), and `succProbability_dlogGame_le_choose` by the
 sharper `((3T + 2).choose 2 + 1) / q`. The bound takes no hardness assumption and applies to
 adversaries that are otherwise unbounded, but it is about the model only: it says nothing about
-discrete logarithm in any specific group (p. 695). Primality of `q` is needed; the module
-documentation gives a composite-order example. The proof reduces labels in `S` to a uniform
-permutation of `ZMod q` with
+discrete logarithm in any specific group (p. 695). As in the book, `q` is prime; the bound is not
+claimed for composite `q`. The proof reduces labels in `S` to a uniform permutation of `ZMod q` with
 [`GenericGroup/Relabel.lean`](../../CslibFrontier/Crypto/Computational/GenericGroup/Relabel.lean):
 `relabel j A` answers each query of `A` with at most one query (`isQueryBounded_relabel`) and
 behaves against a permutation `σ` as `A` against `j ∘ σ` (`runLabeled_relabel`). Checked
