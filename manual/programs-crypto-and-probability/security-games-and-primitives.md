@@ -216,7 +216,18 @@ uniform real triple when `w` is the Diffie–Hellman element and to a uniform tr
 efficient form, so `ddh_of_worstCase` derives `F.DDH setup` from worst-case indistinguishability of
 fixed triple families with loss `6 / 2 ^ n`; and `ddhAmplifiedDecider` turns a distinguisher with
 inverse-polynomial fixed-group advantage into one that decides every triple except with
-negligible error (`negligible_ddhAmplifiedDecider_error`). Fixed-first-coordinate rerandomization, single-exponent shifting, and Multi-DDH (I) ([bs23][bs23],
+negligible error (`negligible_ddhAmplifiedDecider_error`). For the discrete logarithm and CDH,
+[`DiffieHellman/SelfReduction.lean`](../../CslibFrontier/Crypto/Computational/DiffieHellman/SelfReduction.lean)
+gives the success probabilities of the self-reductions of [bs23][bs23], Theorem 10.2 and
+Exercise 10.6, in one fixed group: one attempt of `dlSelfReduce q g A` on `α • g` returns `α` with
+probability exactly `dlAdvantage q g A` (`eval_dlSelfReduce_one_smul_some`), `n ⌈1 / ε⌉` attempts
+all fail with probability at most `exp (-n)` (`eval_dlSelfReduce_smul_none_le_exp`), and
+`cdhSelfReduce`, which masks both inputs, returns `(α * β) • g` with probability equal to the CDH
+advantage (`eval_cdhSelfReduce_smul_apply`). These programs carry no PPT certificate, and nothing
+there derives hardness over a group family. The
+[self-reduction client](../../CslibFrontierTests/Crypto/DiffieHellmanSelfReduction.lean) shows
+where `0 < ε`, injectivity of `c ↦ c • g` and masking both CDH inputs are needed.
+Fixed-first-coordinate rerandomization, single-exponent shifting, and Multi-DDH (I) ([bs23][bs23],
 Exercises 10.8, 10.9, and 10.11) live in
 [`DiffieHellman/MultiDDH.lean`](../../CslibFrontier/Crypto/Computational/DiffieHellman/MultiDDH.lean),
 providing both the finite-index and block distributional laws (`ddhFixedURerandomizeLaw`,
