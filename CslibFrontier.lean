@@ -7473,6 +7473,7 @@ public import CslibFrontier.Probability.UniformEmbedding
 public import CslibFrontier.Probability.UniformNat
 public import CslibFrontier.Probability.UniformOrder
 public import CslibFrontier.Probability.UniversalHash
+public import CslibFrontier.Probability.UniversalHash.MultiSample
 public import CslibFrontier.Tactic.Degree
 public import CslibFrontier.Tactic.EncLen
 public import CslibFrontier.Tactic.FOOperator
