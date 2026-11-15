@@ -146,6 +146,12 @@ compose this plain certificate directly with their weight-list certificates.
 [TruncatedSum](../../CslibFrontier/Computability/Complexity/Classes/CountingSimulation/TruncatedSum.lean)
 uses the same certificate for separate time and space envelopes.
 
+For products, import
+[`PolyTime.Nat.ListProd`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/PolyTime/Nat/ListProd.lean):
+`ComputableInPolyTime.binary_prod` certifies the product of a list on `encList encNat`, and
+`ComputableInPolyTime.binary_prod_map` certifies `(l.map H).prod` on `encList enc` for a
+polynomial-time `H` with binary values.
+
 For a polynomial-time map on pairs, import
 [`CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Families`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/PolyTime/Families.lean).
 Given `hg : ComputableInPolyTime g (encPair encA encB) encC` and polynomial bounds `ha`, `hb`
