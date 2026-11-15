@@ -62,7 +62,7 @@ theorems without `isElem`, `hisElem`, or `hmem` parameters.
 
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*,
   Version 0.6][BonehShoup2023], Section 12.1 (Attack Game 12.1 and Theorem 12.1, printed
-  pp. 467–469), Section 12.5 (Theorem 12.9, printed pp. 490–491) and Exercise 12.27 (printed
+  pp. 467–469), Section 12.5 (Theorem 12.9, printed pp. 489–490) and Exercise 12.27 (printed
   pp. 521–522).
 * [R. Cramer, V. Shoup, *Design and Analysis of Practical Public-Key Encryption Schemes Secure
   against Adaptive Chosen Ciphertext Attack*][CramerShoup2003], Sections 6.1–6.2.
