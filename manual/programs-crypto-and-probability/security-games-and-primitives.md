@@ -253,26 +253,26 @@ and Section 11.5.2, Attack Game 11.3 and Definition 11.5, pp. 448–449), import
 `Cslib.Crypto.KeyDerivation`. At one parameter, `realOutput sample info derive D` draws a secret
 `s ← sample` and gives `(info s, derive s)` to a distinguisher output law `D : X → Z → PMF Bool`,
 while `idealOutput sample info key D` draws an independent candidate key `z ← key`; `advantage` is
-their `Game.advantage`, which is `0` when `D` ignores the key (`advantage_of_forall_eq`). Over a
-parameter family, `realGame` and `idealGame` run `D : Distinguisher X Z` through `ProbComp.eval`,
-and `Secure encX encZ sample info derive key` is `Game.Indistinguishable` against uniform strict PPT
-distinguishers reading `(1ⁿ, encPair encX encZ (x, z))` (`Distinguisher.IsPPT encX encZ`), with
-projection `Secure.negligible` and polynomial-time side-information postprocessing
-`Secure.comp_info`. By `secure_iff_computationallyIndistinguishable`, `Secure` is equivalent to
+their `Game.advantage`. Over a parameter family, `realGame` and `idealGame` run
+`D : Distinguisher X Z` through `ProbComp.eval`, and `Secure encX encZ sample info derive key` is
+`Game.Indistinguishable` against uniform strict PPT distinguishers reading
+`(1ⁿ, encPair encX encZ (x, z))` (`Distinguisher.IsPPT encX encZ`), with projection
+`Secure.negligible` and polynomial-time side-information postprocessing `Secure.comp_info`. By `secure_iff_computationallyIndistinguishable`, `Secure` is equivalent to
 `ComputationallyIndistinguishable` of the encoded word ensembles `realEnsemble` and `idealEnsemble`
 (`distinguishingGame_realEnsemble`, `distinguishingGame_idealEnsemble`). Importing
 [`ElGamal/KeyDerivation.lean`](../../CslibFrontier/Crypto/Computational/ElGamal/KeyDerivation.lean)
 connects the prime-order group notion: `F.secureKDF_iff_keyDerivation` proves `F.SecureKDF setup H
-msgLen` equivalent to `KeyDerivation.Secure` for the secret `F.kdfSecret setup` (`F.KDFSecret`),
-side information `Sigma.fst` (`F.encCDHInput`), derived key
-`fun s => H (s.1.groupParameters, F.encode s.1.groupParameters s.2)`, and ideal key law
+msgLen` equivalent to `KeyDerivation.Secure` for the secret `F.kdfSecret setup` (a random
+`F.DDHInput`), side information `DDHInput.toCDHInput` (`F.encCDHInput`), derived key
+`fun x => H (x.groupParameters, F.encode x.groupParameters x.candidateShared)`, and ideal key law
 `fun n => Cslib.BitString.uniformList (msgLen n)`. The
 [key-derivation client](../../CslibFrontierTests/Crypto/KeyDerivation.lean) checks the printed
 `X × Y → Z` form of Attack Game 11.3, proves `Secure` for the identity derivation without side
-information, refutes a constant derivation (`not_secure_const`) and an identity derivation whose
-key is also published as side information, and transports `F.secureKDF_linearHashKDF` through
-`F.secureKDF_iff_keyDerivation`; run `scripts/build.sh --wfail --iofail
-CslibFrontierTests.Crypto.KeyDerivation`.
+information and for `F (x, y) = x + y` on `ZMod 3` with side information (exercising
+`Secure.comp_info`, `Secure.negligible`, and `secure_iff_computationallyIndistinguishable`), refutes
+a constant derivation (`not_secure_const`) and an identity derivation whose key is also published as
+side information, and transports `F.secureKDF_linearHashKDF` through `F.secureKDF_iff_keyDerivation`;
+run `scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.KeyDerivation`.
 
 `dlToCDHAdversary` and `cdhToDDHDistinguisher` are the elementary reductions behind
 `CDH.discreteLog` and `DDH.cdh`. In one group they are `dlToCDH` and `cdhToDDH`, with the bounds

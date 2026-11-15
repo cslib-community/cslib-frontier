@@ -10,10 +10,7 @@ module
 public import CslibFrontier.Crypto.Computational.Basic
 public import CslibFrontier.Crypto.Encoding
 import CslibFrontier.Computability.Probabilistic.PPT.Extension
-import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Languages.Probabilistic.Norm
-import CslibFrontier.Tactic.PPT
-import CslibFrontier.Tactic.PolyTime
 
 /-!
 # Key-derivation security game
@@ -35,8 +32,9 @@ relative to the printed definitions:
    depends on the security parameter) is an instance via
    `PrimeOrderGroupFamily.secureKDF_iff_keyDerivation`.
 2. **Arbitrary secret and ideal key laws** `sample : ℕ → PMF S` and `key : ℕ → PMF Z` in place of
-   efficient samplers or fixed uniform finite-type distributions, so `Z` needs no `Fintype`
-   instance and both `BitString.uniformList (msgLen n)` and `PMF.uniformOfFintype Z` are instances.
+   efficient samplers or fixed uniform finite-type distributions, and arbitrary `info` and `derive`
+   with no computability or finiteness hypotheses, so `Z` needs no `Fintype` instance and both
+   `BitString.uniformList (msgLen n)` and `PMF.uniformOfFintype Z` are instances.
 3. **One-parameter outputs parameterized by the distinguisher's output law** `X → Z → PMF Bool`
    (`realOutput`, `idealOutput`, `advantage`), so both program distinguishers (`ProbComp.eval`) and
    oracle distinguishers interpreted against a fixed table are instances.
@@ -66,16 +64,8 @@ relative to the printed definitions:
 
 ## Main results
 
-* `Cslib.Crypto.KeyDerivation.advantage_of_forall_eq`: a distinguisher that ignores the candidate
-  key has advantage zero.
-* `Cslib.Crypto.KeyDerivation.distinguishingGame_realEnsemble`: running a word distinguisher on
-  `realEnsemble` equals `realGame`.
-* `Cslib.Crypto.KeyDerivation.distinguishingGame_idealEnsemble`: running a word distinguisher on
-  `idealEnsemble` equals `idealGame`.
 * `Cslib.Crypto.KeyDerivation.secure_iff_computationallyIndistinguishable`: `Secure` is equivalent
   to `ComputationallyIndistinguishable` of `realEnsemble` and `idealEnsemble`.
-* `Cslib.Crypto.KeyDerivation.Secure.negligible`: every uniform strict PPT distinguisher has
-  negligible advantage under `Secure`.
 * `Cslib.Crypto.KeyDerivation.Secure.comp_info`: postprocessing the side information by a
   polynomial-time function preserves `Secure`.
 
@@ -115,19 +105,9 @@ drawn from `key`. -/
 
 /-- `KDFadv[A, F]` of Attack Game 11.3 ([BonehShoup2023], Section 11.5.2, pp. 448–449), which is
 `Distadv[A, P, I, H]` of Section 8.10.1 (p. 326) with `P = sample`, `I = info`, `H = derive`. -/
-noncomputable def advantage (sample : PMF S) (info : S → X) (derive : S → Z) (key : PMF Z)
-    (D : X → Z → PMF Bool) : ℝ≥0 :=
+@[expose] noncomputable def advantage (sample : PMF S) (info : S → X) (derive : S → Z)
+    (key : PMF Z) (D : X → Z → PMF Bool) : ℝ≥0 :=
   Game.advantage (realOutput sample info derive D) (idealOutput sample info key D)
-
-/-- A distinguisher that ignores the candidate key has advantage zero. -/
-theorem advantage_of_forall_eq (sample : PMF S) (info : S → X) (derive : S → Z) (key : PMF Z)
-    {D : X → Z → PMF Bool} (hD : ∀ x z z', D x z = D x z') :
-    advantage sample info derive key D = 0 := by
-  have h : idealOutput sample info key D = realOutput sample info derive D := by
-    unfold idealOutput realOutput
-    refine congrArg _ (funext fun s => ?_)
-    simp only [hD (info s) _ (derive s), PMF.bind_const]
-  rw [advantage, h, Game.advantage_self]
 
 /-! ### Families -/
 
@@ -157,20 +137,22 @@ Definition 11.5, p. 449; Section 8.10.1, p. 326): every uniform strict PPT disti
 Phrased in the form of Section 8.10.1 (secret `s` with law `sample n`, side information `info s`,
 derived key `derive s`) with an arbitrary ideal key law `key : ℕ → PMF Z` in place of the uniform
 distribution on a finite key space; Attack Game 11.3 as printed is the instance where `sample n` is
-uniform on `X × Y`, `info = Prod.fst`, `derive = F`, and `key n` is uniform on `Z`. -/
+uniform on `X × Y`, `info = Prod.fst`, `derive = F`, and `key n` is uniform on `Z`. Neither
+efficient computability of `info` and `derive` nor finiteness of the secret and key spaces is part
+of the notion; it is the source's notion only when `key n` is uniform on a finite key space. -/
 @[expose] def Secure (encX : X ↪ List Bool) (encZ : Z ↪ List Bool) (sample : ℕ → PMF S)
     (info : S → X) (derive : S → Z) (key : ℕ → PMF Z) : Prop :=
   Game.Indistinguishable (realGame sample info derive) (idealGame sample info key)
     (Distinguisher.IsPPT encX encZ)
 
 /-- The word ensemble `(I(s), H(s))` of [BonehShoup2023], Section 8.10.1 (p. 326). -/
-noncomputable def realEnsemble (encX : X ↪ List Bool) (encZ : Z ↪ List Bool)
+@[expose] noncomputable def realEnsemble (encX : X ↪ List Bool) (encZ : Z ↪ List Bool)
     (sample : ℕ → PMF S) (info : S → X) (derive : S → Z) (n : ℕ) : PMF (List Bool) := do
   let s ← sample n
   return encPair encX encZ (info s, derive s)
 
 /-- The word ensemble `(I(s), t)` of [BonehShoup2023], Section 8.10.1 (p. 326). -/
-noncomputable def idealEnsemble (encX : X ↪ List Bool) (encZ : Z ↪ List Bool)
+@[expose] noncomputable def idealEnsemble (encX : X ↪ List Bool) (encZ : Z ↪ List Bool)
     (sample : ℕ → PMF S) (info : S → X) (key : ℕ → PMF Z) (n : ℕ) : PMF (List Bool) := do
   let s ← sample n
   let z ← key n

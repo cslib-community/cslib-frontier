@@ -23,19 +23,20 @@ Definition 11.5, p. 449) is the group-specialized key-derivation assumption used
 word.
 
 This module shows (`secureKDF_iff_keyDerivation`) that `F.SecureKDF setup H msgLen` is an instance
-of `KeyDerivation.Secure`: the secret `F.kdfSecret setup n` packages the CDH input
-`⟨n, d, a • g, b • g⟩` together with `c • g`, the public side information is `Sigma.fst`, the
-derived key is `H (d, F.encode d (c • g))`, and the ideal key law is
-`BitString.uniformList (msgLen n)`. Combined with `PrimeOrderGroupFamily.secureKDF_linearHashKDF`
-(`CslibFrontier/Crypto/Computational/ElGamal/KDF.lean`), this gives an unconditional instance of
-`KeyDerivation.Secure` via the leftover hash lemma.
+of `KeyDerivation.Secure`: the secret `F.kdfSecret setup n` packages a random `F.DDHInput` drawing
+`d ← setup n` and independent uniform `a, b, c` (via `F.ddhRandomTupleLaw`), the public side
+information is `DDHInput.toCDHInput`, the derived key is
+`fun x => H (x.groupParameters, F.encode x.groupParameters x.candidateShared)`, and the ideal key
+law is `BitString.uniformList (msgLen n)`. Combined with
+`PrimeOrderGroupFamily.secureKDF_linearHashKDF`
+(`CslibFrontier/Crypto/Computational/ElGamal/KDF.lean`), this gives an instance of
+`KeyDerivation.Secure` with no hardness assumption under `F.LinearHashKDFConditions`, via the
+leftover hash lemma.
 
 ## Main definitions
 
-* `Cslib.Crypto.PrimeOrderGroupFamily.KDFSecret`: dependent pair of a `CDHInput` and the group
-  element that is hashed.
 * `Cslib.Crypto.PrimeOrderGroupFamily.kdfSecret`: the secret distribution drawing `d ← setup n` and
-  independent uniform exponents `a, b, c`.
+  a random DDH triple via `F.ddhRandomTupleLaw d` as an `F.DDHInput`.
 
 ## Main results
 
@@ -56,24 +57,19 @@ namespace Cslib.Crypto.PrimeOrderGroupFamily
 
 variable (F : PrimeOrderGroupFamily)
 
-/-- The secret of the group key-derivation game: a CDH input and the element that is hashed. -/
-abbrev KDFSecret : Type := (x : F.CDHInput) × F.Carrier x.groupParameters
-
-/-- The law of the secret: `d ← setup n` and independent uniform `a, b, c`. -/
-noncomputable def kdfSecret (setup : ℕ → PMF F.Desc) (n : ℕ) : PMF F.KDFSecret := do
+/-- The law of the secret: `d ← setup n` and a random DDH triple via `F.ddhRandomTupleLaw d`. -/
+noncomputable def kdfSecret (setup : ℕ → PMF F.Desc) (n : ℕ) : PMF F.DDHInput := do
   let d ← setup n
-  let a ← PMF.uniformOfFintype (ZMod (F.order d))
-  let b ← PMF.uniformOfFintype (ZMod (F.order d))
-  let c ← PMF.uniformOfFintype (ZMod (F.order d))
-  return ⟨⟨n, d, a • F.generator d, b • F.generator d⟩, c • F.generator d⟩
+  let (u, v, w) ← F.ddhRandomTupleLaw d
+  return ⟨⟨n, d, u, v⟩, w⟩
 
 /-- `SecureKDF` is `KeyDerivation.Secure` for the secret `kdfSecret`, the CDH input as public
 information, and the key `H (d, encode w)`. -/
 theorem secureKDF_iff_keyDerivation (setup : ℕ → PMF F.Desc)
     (H : F.Desc × List Bool → List Bool) (msgLen : ℕ → ℕ) :
     F.SecureKDF setup H msgLen ↔
-      KeyDerivation.Secure F.encCDHInput encBits (F.kdfSecret setup) Sigma.fst
-        (fun s => H (s.1.groupParameters, F.encode s.1.groupParameters s.2))
+      KeyDerivation.Secure F.encCDHInput encBits (F.kdfSecret setup) DDHInput.toCDHInput
+        (fun x => H (x.groupParameters, F.encode x.groupParameters x.candidateShared))
         (fun n => Cslib.BitString.uniformList (msgLen n)) := by
   constructor
   · intro h D hD
@@ -82,7 +78,8 @@ theorem secureKDF_iff_keyDerivation (setup : ℕ → PMF F.Desc)
         (prepare := fun x : F.KDFInput => (x.secParam, x.toCDHInput, x.key)) (by fun_prop)
     refine (h _ hD').congr fun n => ?_
     simp only [kdfRealGame, kdfIdealGame, KeyDerivation.realGame, KeyDerivation.idealGame,
-      KeyDerivation.realOutput, KeyDerivation.idealOutput, kdfSecret, pmf_norm, PMF.bind_const]
+      KeyDerivation.realOutput, KeyDerivation.idealOutput, kdfSecret, ddhRandomTupleLaw,
+      pmf_norm, PMF.bind_const]
   · intro h D hD
     have hD' : KeyDerivation.Distinguisher.IsPPT F.encCDHInput encBits
         (fun _ x key => D x.secParam x.groupParameters x.leftPublic x.rightPublic key) :=
@@ -91,6 +88,7 @@ theorem secureKDF_iff_keyDerivation (setup : ℕ → PMF F.Desc)
         (by fun_prop)
     refine (h _ hD').congr fun n => ?_
     simp only [kdfRealGame, kdfIdealGame, KeyDerivation.realGame, KeyDerivation.idealGame,
-      KeyDerivation.realOutput, KeyDerivation.idealOutput, kdfSecret, pmf_norm, PMF.bind_const]
+      KeyDerivation.realOutput, KeyDerivation.idealOutput, kdfSecret, ddhRandomTupleLaw,
+      pmf_norm, PMF.bind_const]
 
 end Cslib.Crypto.PrimeOrderGroupFamily
