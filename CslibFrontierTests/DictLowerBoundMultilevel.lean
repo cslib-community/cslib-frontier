@@ -288,7 +288,7 @@ discharging every space, budget, and correctness premise. -/
 theorem lemma8_1_queryFreeInnerDist_concrete :
     let D := (twoCellDictScheme hfit_16_40_4).toIndexed
     (((queryFreeInnerDist (V := 2 ^ 40) 0 2 0 (by decide : 3 * 4 ≤ 16) Nat.one_le_two_pow
-        (by decide : 2 * 2 ≤ 4) (by decide : 0 ≤ 2) (by decide : 0 + 2 ≤ 4)).map fun sb =>
+        (by decide : 0 ≤ 2) (by decide : 0 + 2 ≤ 4)).map fun sb =>
           decide (IsModeSeedConsistent false D 0 2 (by decide) (1 / 100) 1 sb.1 sb.2))
         true).toReal ≤ (16 : ℝ) ^ (-(1 / 100 : ℝ) * (2 : ℝ)) ∧
     (haveI : Nonempty (HardKeyValSeed 16 (2 ^ 40) 4) :=
@@ -324,9 +324,9 @@ theorem lemma8_1_queryFreeInnerDist_concrete :
     rw [hlog16, hlogV, hlog4]; norm_num
   have hcorr := twoCellDictScheme_all_histories hfit_16_40_4 13
   exact ⟨prob_isModeSeedConsistent_queryFreeInnerDist_le false (by decide) Nat.one_le_two_pow
-      le_rfl (by decide) (by decide) (by decide) (by norm_num) hspace hbudget hcorr,
+      le_rfl (by decide) (by decide) (by decide) hspace hbudget hcorr,
     expected_card_modeConsistent_segmentRest_lt_half_le false (by decide) Nat.one_le_two_pow
-      le_rfl (by decide) (by decide) (by decide) (by norm_num) hspace hbudget hcorr⟩
+      le_rfl (by decide) (by decide) (by decide) hspace hbudget hcorr⟩
 
 /-! ### 3. Concrete Instantiations for Theorems 1.1 & 1.2
 (`U = 9, V = 2, n = 2, cells = 2, w = 4`) -/

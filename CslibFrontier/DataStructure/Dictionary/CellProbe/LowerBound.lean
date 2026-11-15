@@ -137,46 +137,6 @@ open Finset (orderSubset orderSubset_apply image_orderSubset embSetPermEquiv)
 
 /-! #### Candidate segment replay and dictionary-state multiplicity fibers -/
 
-private abbrev ValidDictPair (U V n : ℕ) : Type :=
-  Σ K₀ : { K : Finset (Fin U) // K.card = n }, (↥K₀.1 → Fin V)
-
-private def toDictState {U V n : ℕ} (p : ValidDictPair U V n) : Dictionary.State U :=
-  fun u => if h : u ∈ p.1.1 then some (p.2 ⟨u, h⟩).val else none
-
-private theorem toDictState_injective {U V n : ℕ} :
-    Function.Injective (toDictState (U := U) (V := V) (n := n)) := by
-  rintro ⟨⟨K₁, hK₁⟩, f₁⟩ ⟨⟨K₂, hK₂⟩, f₂⟩ heq
-  have hK : K₁ = K₂ := by
-    ext u
-    have hu := congrFun heq u
-    dsimp only [toDictState] at hu
-    by_cases h1 : u ∈ K₁ <;> by_cases h2 : u ∈ K₂ <;> simp [h1, h2] at hu
-    all_goals tauto
-  subst hK
-  refine Sigma.ext rfl (heq_of_eq (funext fun ⟨u, hu⟩ => ?_))
-  have hval := congrFun heq u
-  dsimp only [toDictState] at hval
-  simp only [hu, ↓reduceDIte, Option.some.injEq] at hval
-  exact Fin.ext hval
-
-private theorem card_validDictPair (U V n : ℕ) :
-    Fintype.card (ValidDictPair U V n) = U.choose n * V ^ n := by
-  have hsub : Fintype.card { K : Finset (Fin U) // K.card = n } = U.choose n := by
-    have heq : { K : Finset (Fin U) // K.card = n } ≃
-        ↥((Finset.univ : Finset (Fin U)).powersetCard n) :=
-      { toFun := fun ⟨K, hK⟩ => ⟨K, Finset.mem_powersetCard.mpr ⟨Finset.subset_univ K, hK⟩⟩
-        invFun := fun ⟨K, hK⟩ => ⟨K, (Finset.mem_powersetCard.mp hK).2⟩
-        left_inv := fun ⟨_, _⟩ => rfl
-        right_inv := fun ⟨_, _⟩ => rfl }
-    rw [Fintype.card_congr heq, Fintype.card_coe, Finset.card_powersetCard,
-      Finset.card_univ, Fintype.card_fin]
-  dsimp only [ValidDictPair]
-  rw [Fintype.card_sigma]
-  have hconst : ∀ K₀ : { K : Finset (Fin U) // K.card = n },
-      Fintype.card (↥K₀.1 → Fin V) = V ^ n := fun K₀ => by
-    rw [Fintype.card_fun, Fintype.card_fin, Fintype.card_coe, K₀.2]
-  simp_rw [hconst, Finset.sum_const, Finset.card_univ, smul_eq_mul, hsub]
-
 open Classical in
 private noncomputable def stateFiber {U cells w : ℕ}
     (D_det : IndexedScheme (Dynamic.Op U) Dynamic.Op.Result cells w) (stepIdx : ℕ)
@@ -186,19 +146,19 @@ private noncomputable def stateFiber {U cells w : ℕ}
 open Classical in
 private theorem sum_card_stateFiber_le {U V n cells w : ℕ}
     (D_det : IndexedScheme (Dynamic.Op U) Dynamic.Op.Result cells w) (stepIdx : ℕ) :
-    (∑ p : ValidDictPair U V n, (stateFiber D_det stepIdx (toDictState p)).card) ≤
+    (∑ p : SizedDict U V n, (stateFiber D_det stepIdx p.val).card) ≤
       2 ^ (cells * w) := by
-  have hdisj : ((Finset.univ : Finset (ValidDictPair U V n)) :
-      Set (ValidDictPair U V n)).PairwiseDisjoint
-      (fun p => stateFiber D_det stepIdx (toDictState p)) := by
+  have hdisj : ((Finset.univ : Finset (SizedDict U V n)) :
+      Set (SizedDict U V n)).PairwiseDisjoint
+      (fun p => stateFiber D_det stepIdx p.val) := by
     intro p₁ _ p₂ _ hne
-    refine Finset.disjoint_left.mpr fun C h₁ h₂ => hne (toDictState_injective ?_)
+    refine Finset.disjoint_left.mpr fun C h₁ h₂ => hne (Subtype.ext ?_)
     dsimp only [stateFiber] at h₁ h₂
     rw [Finset.mem_filter] at h₁ h₂
     exact h₁.2.symm.trans h₂.2
-  calc (∑ p : ValidDictPair U V n, (stateFiber D_det stepIdx (toDictState p)).card)
-      = ((Finset.univ : Finset (ValidDictPair U V n)).biUnion
-          (fun p => stateFiber D_det stepIdx (toDictState p))).card :=
+  calc (∑ p : SizedDict U V n, (stateFiber D_det stepIdx p.val).card)
+      = ((Finset.univ : Finset (SizedDict U V n)).biUnion
+          (fun p => stateFiber D_det stepIdx p.val)).card :=
         (Finset.card_biUnion hdisj).symm
     _ ≤ (Finset.univ : Finset (Mem cells w)).card := Finset.card_le_univ _
     _ = 2 ^ (cells * w) := by
@@ -480,15 +440,29 @@ private theorem actSeed8Equiv_deletedSet {U V n : ℕ} [NeZero V] (τ : Equiv.Pe
   exact ⟨fun ⟨j, hj⟩ => ⟨_, ⟨j, rfl⟩, hj⟩, fun ⟨_, ⟨j, rfl⟩, hj⟩ => ⟨j, hj⟩⟩
 
 open Classical in
+private noncomputable def sizedDictOfFinset {U V n : ℕ} (S : Finset (Fin U)) (hS : S.card = n)
+    (kv : Fin U → Fin V) : SizedDict U V n :=
+  ⟨fun u => if u ∈ S then some (kv u).val else none,
+   by
+     have hdom : Dictionary.dom (fun u => if u ∈ S then some (kv u).val else none) = S := by
+       ext u; by_cases hu : u ∈ S <;> simp [Dictionary.dom, hu]
+     rw [hdom]; exact hS,
+   fun u w hw => by
+     by_cases hu : u ∈ S
+     · simp only [hu, ↓reduceIte, Option.some.injEq] at hw
+       exact hw ▸ (kv u).isLt
+     · simp [hu] at hw⟩
+
+open Classical in
 private noncomputable def pairBOf {U V n : ℕ} (t₀ m : ℕ) (ht₀ : t₀ + m ≤ n)
-    (sb : HardKeyValSeed U V n × Finset (Fin U)) : ValidDictPair U V n :=
+    (sb : HardKeyValSeed U V n × Finset (Fin U)) : SizedDict U V n :=
   let K_cand := (sb.1.activeKeys t₀ (Nat.le_of_add_right_le ht₀) \
     Finset.univ.image (segDeletedKeys sb.1.keys sb.1.delPerm t₀ m ht₀)) ∪ sb.2
   if hK : K_cand.card = n then
-    ⟨⟨K_cand, hK⟩, fun u => sb.1.kv u.val⟩
+    sizedDictOfFinset K_cand hK sb.1.kv
   else
-    ⟨⟨sb.1.activeKeys t₀ (Nat.le_of_add_right_le ht₀),
-      by simp [HardKeyValSeed.activeKeys]⟩, fun u => sb.1.kv u.val⟩
+    sizedDictOfFinset (sb.1.activeKeys t₀ (Nat.le_of_add_right_le ht₀))
+      (by simp [HardKeyValSeed.activeKeys]) sb.1.kv
 
 private theorem card_sdiff_deleted_union_eq {U V n t₀ m : ℕ} (s : HardKeyValSeed U V n)
     (ht₀ : t₀ + m ≤ n) {B : Finset (Fin U)} (hB : B.card = m)
@@ -518,20 +492,17 @@ private theorem card_sdiff_deleted_union_eq {U V n t₀ m : ℕ} (s : HardKeyVal
   omega
 
 open Classical in
-private theorem toDictState_pairBOf_eq {U V n t₀ m : ℕ} (s : HardKeyValSeed U V n)
+private theorem val_pairBOf_eq {U V n t₀ m : ℕ} (s : HardKeyValSeed U V n)
     (ht₀ : t₀ + m ≤ n) {B : Finset (Fin U)} (hB : B.card = m)
     (hdisj : Disjoint B (s.activeKeys t₀ (Nat.le_of_add_right_le ht₀))) :
-    toDictState (pairBOf t₀ m ht₀ (s, B)) =
+    (pairBOf t₀ m ht₀ (s, B)).val =
       fun u => if u ∈ (s.activeKeys t₀ (Nat.le_of_add_right_le ht₀) \
           Finset.univ.image (segDeletedKeys s.keys s.delPerm t₀ m ht₀)) ∪ B
         then some (s.kv u).val else none := by
   have hK := card_sdiff_deleted_union_eq s ht₀ hB hdisj
   dsimp only [pairBOf]
   rw [dite_eq_left hK]
-  funext u
-  dsimp only [toDictState]
-  by_cases hu : u ∈ (s.activeKeys t₀ (Nat.le_of_add_right_le ht₀) \
-      Finset.univ.image (segDeletedKeys s.keys s.delPerm t₀ m ht₀)) ∪ B <;> simp [hu]
+  rfl
 
 open Classical in
 private theorem prob_gt_cap_stateFiber_le {U V n t₀ m g P_size cells w : ℕ} {γ R : ℝ}
@@ -550,10 +521,11 @@ private theorem prob_gt_cap_stateFiber_le {U V n t₀ m g P_size cells w : ℕ} 
     let μ_g := innerPoolDist hU hV Fg hne
     let M_cap := (2 : ℝ) ^ (R + 1) * (U : ℝ) ^ (γ * (m : ℝ))
     (((μ_g.map fun sb => decide (M_cap <
-      ((stateFiber D_det stepIdx (toDictState (pairBOf t₀ m ht₀ sb))).card : ℝ))) true).toReal) ≤
+      ((stateFiber D_det stepIdx (pairBOf t₀ m ht₀ sb).val).card : ℝ))) true).toReal) ≤
       (1 / 2) * (U : ℝ) ^ (-γ * (m : ℝ)) := by
   let _ : NeZero V := ⟨by omega⟩
   let _ : Nonempty (HardKeyValSeed U V n) := ⟨⟨Fin.castLEEmb hU, fun _ => ⟨0, hV⟩, 1⟩⟩
+  let _ : DecidableEq (SizedDict U V n) := Classical.decEq _
   let μ_g := innerPoolDist hU hV Fg hne
   let M_cap := (2 : ℝ) ^ (R + 1) * (U : ℝ) ^ (γ * (m : ℝ))
   have hFg_card : ∀ s, (Fg s).card = m.choose g * (P_size - m).choose (m - g) := fun s => by
@@ -561,9 +533,31 @@ private theorem prob_gt_cap_stateFiber_le {U V n t₀ m g P_size cells w : ℕ} 
       ((Finset.card_image_of_injective _
         (segInsertedKeys s.keys t₀ m ht₀).injective).trans (by simp)),
       hcard_pool s]
-  have hunif_pair : ∀ p₁ p₂ : ValidDictPair U V n,
+  have hunif_pair : ∀ p₁ p₂ : SizedDict U V n,
       ((μ_g.map (pairBOf t₀ m ht₀)) p₁).toReal = ((μ_g.map (pairBOf t₀ m ht₀)) p₂).toReal := by
-    intro ⟨⟨K₁, hK₁⟩, f₁⟩ ⟨⟨K₂, hK₂⟩, f₂⟩
+    intro p₁ p₂
+    let K₁ : Finset (Fin U) := Dictionary.dom p₁.val
+    have hK₁ : K₁.card = n := p₁.2.1
+    let K₂ : Finset (Fin U) := Dictionary.dom p₂.val
+    have hK₂ : K₂.card = n := p₂.2.1
+    let f₁ (u : ↥K₁) : Fin V :=
+      let his : (p₁.val u.1).isSome := Dictionary.mem_dom_iff_isSome.mp u.2
+      ⟨(p₁.val u.1).get his, p₁.2.2 u.1 _ (Option.some_get his).symm⟩
+    let f₂ (u : ↥K₂) : Fin V :=
+      let his : (p₂.val u.1).isSome := Dictionary.mem_dom_iff_isSome.mp u.2
+      ⟨(p₂.val u.1).get his, p₂.2.2 u.1 _ (Option.some_get his).symm⟩
+    have hp₁ (u : Fin U) : p₁.val u = if hu : u ∈ K₁ then some (f₁ ⟨u, hu⟩).val else none := by
+      by_cases hu : u ∈ K₁
+      · rw [dite_eq_left hu]
+        exact (Option.some_get (Dictionary.mem_dom_iff_isSome.mp hu)).symm
+      · rw [dite_eq_right hu]
+        exact Dictionary.notMem_dom_iff.mp hu
+    have hp₂ (u : Fin U) : p₂.val u = if hu : u ∈ K₂ then some (f₂ ⟨u, hu⟩).val else none := by
+      by_cases hu : u ∈ K₂
+      · rw [dite_eq_left hu]
+        exact (Option.some_get (Dictionary.mem_dom_iff_isSome.mp hu)).symm
+      · rw [dite_eq_right hu]
+        exact Dictionary.notMem_dom_iff.mp hu
     obtain ⟨τ, hτ_map⟩ := Equiv.Perm.exists_map_finset_eq K₁ K₂ (hK₁.trans hK₂.symm)
     have hτ_mem : ∀ x : Fin U, x ∈ K₁ ↔ τ x ∈ K₂ := fun x => by
       rw [← hτ_map]; exact (Finset.mem_map' τ.toEmbedding).symm
@@ -602,30 +596,25 @@ private theorem prob_gt_cap_stateFiber_le {U V n t₀ m g P_size cells w : ℕ} 
       · rw [ite_eq_left (hmem_iff.mpr hB), ite_eq_left hB]
       · rw [ite_eq_right (mt hmem_iff.mp hB), ite_eq_right hB]
     have hpair_act (sb : HardKeyValSeed U V n × Finset (Fin U)) :
-        pairBOf t₀ m ht₀ (e_sb sb) = ⟨⟨K₂, hK₂⟩, f₂⟩ ↔
-          pairBOf t₀ m ht₀ sb = ⟨⟨K₁, hK₁⟩, f₁⟩ := by
+        pairBOf t₀ m ht₀ (e_sb sb) = p₂ ↔
+          pairBOf t₀ m ht₀ sb = p₁ := by
       rcases sb with ⟨s, B⟩
-      rw [← toDictState_injective.eq_iff, ← toDictState_injective.eq_iff]
+      rw [← Subtype.val_injective.eq_iff, ← Subtype.val_injective.eq_iff]
       let S₀ := (s.activeKeys t₀ (Nat.le_of_add_right_le ht₀) \
         Finset.univ.image (segDeletedKeys s.keys s.delPerm t₀ m ht₀)) ∪ B
       let S_def := if S₀.card = n then S₀ else s.activeKeys t₀ (Nat.le_of_add_right_le ht₀)
       have hst1 (u : Fin U) :
-          toDictState (pairBOf t₀ m ht₀ (s, B)) u =
+          (pairBOf t₀ m ht₀ (s, B)).val u =
             if u ∈ S_def then some (s.kv u).val else none := by
         by_cases hc : S₀.card = n
         · have hSd : S_def = S₀ := ite_eq_left hc
-          simp only [hSd]; dsimp only [pairBOf, S₀]; rw [dite_eq_left hc]
-          by_cases hu : u ∈ (s.activeKeys t₀ (Nat.le_of_add_right_le ht₀) \
-              Finset.univ.image (segDeletedKeys s.keys s.delPerm t₀ m ht₀)) ∪ B <;>
-            simp [toDictState, hu]
+          simp only [hSd]; dsimp only [pairBOf, S₀]; rw [dite_eq_left hc]; rfl
         · have hSd : S_def = s.activeKeys t₀ (Nat.le_of_add_right_le ht₀) := ite_eq_right hc
-          simp only [hSd]; dsimp only [pairBOf, S₀]; rw [dite_eq_right hc]
-          by_cases hu : u ∈ s.activeKeys t₀ (Nat.le_of_add_right_le ht₀) <;>
-            simp [toDictState, hu]
+          simp only [hSd]; dsimp only [pairBOf, S₀]; rw [dite_eq_right hc]; rfl
       have hst2 (u : Fin U) :
-          toDictState (pairBOf t₀ m ht₀ (e_sb (s, B))) u =
+          (pairBOf t₀ m ht₀ (e_sb (s, B))).val u =
             if u ∈ S_def.map τ.toEmbedding then some (s.kv (τ.symm u) + δ u).val else none := by
-        change toDictState (pairBOf t₀ m ht₀ (actSeed8Equiv τ δ s, B.map τ.toEmbedding)) u = _
+        change (pairBOf t₀ m ht₀ (actSeed8Equiv τ δ s, B.map τ.toEmbedding)).val u = _
         have hmap_S₀ : (((actSeed8Equiv τ δ s).activeKeys t₀ (Nat.le_of_add_right_le ht₀) \
               Finset.univ.image (segDeletedKeys (actSeed8Equiv τ δ s).keys
                 (actSeed8Equiv τ δ s).delPerm t₀ m ht₀)) ∪ B.map τ.toEmbedding) =
@@ -640,36 +629,37 @@ private theorem prob_gt_cap_stateFiber_le {U V n t₀ m g P_size cells w : ℕ} 
               Finset.univ.image (segDeletedKeys (actSeed8Equiv τ δ s).keys
                 (actSeed8Equiv τ δ s).delPerm t₀ m ht₀)) ∪ B.map τ.toEmbedding).card = n := by
             rw [hmap_S₀, Finset.card_map]; exact hc
-          dsimp only [pairBOf, toDictState]; rw [dite_eq_left hc']
+          dsimp only [pairBOf]; rw [dite_eq_left hc']
+          dsimp only [sizedDictOfFinset]
           by_cases hu : u ∈ (((actSeed8Equiv τ δ s).activeKeys t₀ (Nat.le_of_add_right_le ht₀) \
               Finset.univ.image (segDeletedKeys (actSeed8Equiv τ δ s).keys
                 (actSeed8Equiv τ δ s).delPerm t₀ m ht₀)) ∪ B.map τ.toEmbedding)
           · have hu' : u ∈ S₀.map τ.toEmbedding := hmap_S₀ ▸ hu
-            rw [dite_eq_left hu, ite_eq_left hu']; rfl
+            rw [ite_eq_left hu, ite_eq_left hu']; rfl
           · have hu' : u ∉ S₀.map τ.toEmbedding := hmap_S₀ ▸ hu
-            rw [dite_eq_right hu, ite_eq_right hu']
+            rw [ite_eq_right hu, ite_eq_right hu']
         · have hSd : S_def = s.activeKeys t₀ (Nat.le_of_add_right_le ht₀) := ite_eq_right hc
           simp only [hSd]
           have hc' : (((actSeed8Equiv τ δ s).activeKeys t₀ (Nat.le_of_add_right_le ht₀) \
               Finset.univ.image (segDeletedKeys (actSeed8Equiv τ δ s).keys
                 (actSeed8Equiv τ δ s).delPerm t₀ m ht₀)) ∪ B.map τ.toEmbedding).card ≠ n := by
             rw [hmap_S₀, Finset.card_map]; exact hc
-          dsimp only [pairBOf, toDictState]; rw [dite_eq_right hc']
+          dsimp only [pairBOf]; rw [dite_eq_right hc']
+          dsimp only [sizedDictOfFinset]
           by_cases hu : u ∈ (actSeed8Equiv τ δ s).activeKeys t₀ (Nat.le_of_add_right_le ht₀)
           · have hu' : u ∈ (s.activeKeys t₀ (Nat.le_of_add_right_le ht₀)).map τ.toEmbedding :=
               actSeed8Equiv_activeKeys τ δ s _ _ ▸ hu
-            rw [dite_eq_left hu, ite_eq_left hu']; rfl
+            rw [ite_eq_left hu, ite_eq_left hu']; rfl
           · have hu' : u ∉ (s.activeKeys t₀ (Nat.le_of_add_right_le ht₀)).map τ.toEmbedding :=
               actSeed8Equiv_activeKeys τ δ s _ _ ▸ hu
-            rw [dite_eq_right hu, ite_eq_right hu']
+            rw [ite_eq_right hu, ite_eq_right hu']
       rw [funext_iff, funext_iff]
-      simp_rw [hst1, hst2]
+      simp_rw [hst1, hst2, hp₁, hp₂]
       constructor
       · intro h2 x
         have hy := h2 (τ x)
         have hmem_map : τ x ∈ S_def.map τ.toEmbedding ↔ x ∈ S_def := by simp
         simp only [hmem_map, Equiv.symm_apply_apply] at hy
-        dsimp only [toDictState] at hy ⊢
         by_cases hxS : x ∈ S_def
         · rw [ite_eq_left hxS] at hy ⊢
           by_cases hxK : x ∈ K₁
@@ -702,7 +692,6 @@ private theorem prob_gt_cap_stateFiber_le {U V n t₀ m g P_size cells w : ℕ} 
           exact ⟨fun ⟨z, hz, hzy⟩ => by rwa [← hzy, τ.symm_apply_apply],
             fun h => ⟨τ.symm y, h, τ.apply_symm_apply y⟩⟩
         simp only [hmem_map]
-        dsimp only [toDictState] at hx ⊢
         by_cases hxS : τ.symm y ∈ S_def
         · rw [ite_eq_left hxS] at hx ⊢
           by_cases hyK : y ∈ K₂
@@ -722,21 +711,21 @@ private theorem prob_gt_cap_stateFiber_le {U V n t₀ m g P_size cells w : ℕ} 
     rw [PMF.map_apply_toReal, PMF.map_apply_toReal]
     conv_rhs => rw [← e_sb.sum_comp]
     refine Finset.sum_congr rfl fun sb _ => ?_
-    by_cases h1 : ⟨⟨K₁, hK₁⟩, f₁⟩ = pairBOf t₀ m ht₀ sb
-    · have h2 : ⟨⟨K₂, hK₂⟩, f₂⟩ = pairBOf t₀ m ht₀ (e_sb sb) :=
+    by_cases h1 : p₁ = pairBOf t₀ m ht₀ sb
+    · have h2 : p₂ = pairBOf t₀ m ht₀ (e_sb sb) :=
         ((hpair_act sb).mpr h1.symm).symm
       rw [ite_eq_left h1, ite_eq_left h2, hμ_inv sb]
-    · have h2 : ⟨⟨K₂, hK₂⟩, f₂⟩ ≠ pairBOf t₀ m ht₀ (e_sb sb) :=
+    · have h2 : p₂ ≠ pairBOf t₀ m ht₀ (e_sb sb) :=
         fun h => h1 ((hpair_act sb).mp h.symm).symm
       rw [ite_eq_right h1, ite_eq_right h2]
-  let N_tot := Fintype.card (ValidDictPair U V n)
-  have hN_eq : N_tot = U.choose n * V ^ n := card_validDictPair U V n
+  let N_tot := Fintype.card (SizedDict U V n)
+  have hN_eq : N_tot = U.choose n * V ^ n := card_sizedDict U V n
   have hN_pos : (0 : ℝ) < (N_tot : ℝ) := by
     rw [hN_eq]; exact_mod_cast Nat.mul_pos (Nat.choose_pos (by omega)) (Nat.pow_pos hV)
-  have hpair_prob (p : ValidDictPair U V n) :
+  have hpair_prob (p : SizedDict U V n) :
       ((μ_g.map (pairBOf t₀ m ht₀)) p).toReal = (N_tot : ℝ)⁻¹ := by
     have hsum := PMF.sum_toReal (μ_g.map (pairBOf t₀ m ht₀))
-    have hconst : (∑ q : ValidDictPair U V n, ((μ_g.map (pairBOf t₀ m ht₀)) q).toReal) =
+    have hconst : (∑ q : SizedDict U V n, ((μ_g.map (pairBOf t₀ m ht₀)) q).toReal) =
         (N_tot : ℝ) * ((μ_g.map (pairBOf t₀ m ht₀)) p).toReal := by
       rw [Finset.sum_congr rfl fun q _ => hunif_pair q p, Finset.sum_const,
         Finset.card_univ, nsmul_eq_mul]
@@ -744,28 +733,28 @@ private theorem prob_gt_cap_stateFiber_le {U V n t₀ m g P_size cells w : ℕ} 
     exact eq_inv_of_mul_eq_one_right hsum
   have hexp_fiber : (∑ sb : HardKeyValSeed U V n × Finset (Fin U),
       (μ_g sb).toReal *
-        ((stateFiber D_det stepIdx (toDictState (pairBOf t₀ m ht₀ sb))).card : ℝ)) ≤
+        ((stateFiber D_det stepIdx (pairBOf t₀ m ht₀ sb).val).card : ℝ)) ≤
       (2 : ℝ) ^ R := by
     have hpush : (∑ sb, (μ_g sb).toReal *
-          ((stateFiber D_det stepIdx (toDictState (pairBOf t₀ m ht₀ sb))).card : ℝ)) =
-        ∑ p : ValidDictPair U V n, ((μ_g.map (pairBOf t₀ m ht₀)) p).toReal *
-          ((stateFiber D_det stepIdx (toDictState p)).card : ℝ) := by
+          ((stateFiber D_det stepIdx (pairBOf t₀ m ht₀ sb).val).card : ℝ)) =
+        ∑ p : SizedDict U V n, ((μ_g.map (pairBOf t₀ m ht₀)) p).toReal *
+          ((stateFiber D_det stepIdx p.val).card : ℝ) := by
       simp_rw [PMF.map_apply_toReal, Finset.sum_mul]
       rw [Finset.sum_comm]
       refine Finset.sum_congr rfl fun sb _ => ?_
-      have h1 (p : ValidDictPair U V n) :
+      have h1 (p : SizedDict U V n) :
           (if p = pairBOf t₀ m ht₀ sb then (μ_g sb).toReal else 0) *
-            ((stateFiber D_det stepIdx (toDictState p)).card : ℝ) =
+            ((stateFiber D_det stepIdx p.val).card : ℝ) =
           if p = pairBOf t₀ m ht₀ sb then
-            (μ_g sb).toReal * ((stateFiber D_det stepIdx (toDictState p)).card : ℝ)
+            (μ_g sb).toReal * ((stateFiber D_det stepIdx p.val).card : ℝ)
           else 0 := by
         split_ifs <;> ring
       simp_rw [h1]
       rw [Finset.sum_ite_eq', ite_eq_left (Finset.mem_univ _)]
     rw [hpush]
     simp_rw [hpair_prob, ← Finset.mul_sum]
-    have hsum_le : (∑ p : ValidDictPair U V n,
-        ((stateFiber D_det stepIdx (toDictState p)).card : ℝ)) ≤ (2 : ℝ) ^ (cells * w) := by
+    have hsum_le : (∑ p : SizedDict U V n,
+        ((stateFiber D_det stepIdx p.val).card : ℝ)) ≤ (2 : ℝ) ^ (cells * w) := by
       exact_mod_cast sum_card_stateFiber_le D_det stepIdx
     have h2cw : (2 : ℝ) ^ (cells * w) ≤ (N_tot : ℝ) * (2 : ℝ) ^ R := by
       have hc_ne : ((U.choose n : ℕ) : ℝ) ≠ 0 := by
@@ -779,7 +768,7 @@ private theorem prob_gt_cap_stateFiber_le {U V n t₀ m g P_size cells w : ℕ} 
       rw [← hlogN, Real.rpow_add (by norm_num : (0 : ℝ) < 2),
         Real.rpow_logb (by norm_num : (0 : ℝ) < 2) (by norm_num : (2 : ℝ) ≠ 1) hN_pos] at hrpow
       exact hrpow
-    calc (N_tot : ℝ)⁻¹ * ∑ p, ((stateFiber D_det stepIdx (toDictState p)).card : ℝ)
+    calc (N_tot : ℝ)⁻¹ * ∑ p : SizedDict U V n, ((stateFiber D_det stepIdx p.val).card : ℝ)
         ≤ (N_tot : ℝ)⁻¹ * (2 : ℝ) ^ (cells * w) :=
           mul_le_mul_of_nonneg_left hsum_le (inv_nonneg.mpr hN_pos.le)
       _ ≤ (N_tot : ℝ)⁻¹ * ((N_tot : ℝ) * (2 : ℝ) ^ R) :=
@@ -789,13 +778,13 @@ private theorem prob_gt_cap_stateFiber_le {U V n t₀ m g P_size cells w : ℕ} 
   have hM_pos : 0 < M_cap := mul_pos (Real.rpow_pos_of_pos (by norm_num) _)
     (Real.rpow_pos_of_pos hU_pos _)
   have hmarkov : (((μ_g.map fun sb => decide (M_cap <
-      ((stateFiber D_det stepIdx (toDictState (pairBOf t₀ m ht₀ sb))).card : ℝ))) true).toReal) *
+      ((stateFiber D_det stepIdx (pairBOf t₀ m ht₀ sb).val).card : ℝ))) true).toReal) *
         M_cap ≤
       ∑ sb, (μ_g sb).toReal *
-        ((stateFiber D_det stepIdx (toDictState (pairBOf t₀ m ht₀ sb))).card : ℝ) := by
+        ((stateFiber D_det stepIdx (pairBOf t₀ m ht₀ sb).val).card : ℝ) := by
     rw [PMF.map_apply_toReal, Finset.sum_mul]
     refine Finset.sum_le_sum fun sb _ => ?_
-    by_cases hgt : M_cap < ((stateFiber D_det stepIdx (toDictState (pairBOf t₀ m ht₀ sb))).card : ℝ)
+    by_cases hgt : M_cap < ((stateFiber D_det stepIdx (pairBOf t₀ m ht₀ sb).val).card : ℝ)
     · simp only [hgt, decide_true, ↓reduceIte]
       exact mul_le_mul_of_nonneg_left hgt.le ENNReal.toReal_nonneg
     · simp only [hgt, decide_false, Bool.true_eq_false, ↓reduceIte, zero_mul]
@@ -1406,7 +1395,7 @@ private theorem decodeDict_modeCandidateOps_eq (withQueries : Bool) {U V n t₀ 
 open Classical in
 private theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cells w : ℕ}
     {γ R t : ℝ} (hU : 3 * n ≤ U) (hV : 1 ≤ V) (hm : 2 ≤ m) (hm_n : 2 * m ≤ n)
-    (hg : g < m / 2) (ht₀ : t₀ + m ≤ n) (_hγ : 0 < γ)
+    (hg : g < m / 2) (ht₀ : t₀ + m ≤ n)
     (hspace : ((cells * w : ℕ) : ℝ) ≤ benchmarkBits U V n + R)
     (hbudget : 2 * R + 7 * (m : ℝ) + 2 * (m : ℝ) * t + γ * (m : ℝ) * (w : ℝ) +
       2 * γ * (m : ℝ) * Real.logb 2 U ≤
@@ -1444,10 +1433,10 @@ private theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_
   let W_cons (sb : Ω) : Bool :=
     decide (IsModeSeedConsistent withQueries D_det t₀ m ht₀ γ t sb.1 sb.2)
   let W_bad (sb : Ω) : Bool :=
-    decide (M_cap < ((stateFiber D_det step_end (toDictState (pairBOf t₀ m ht₀ sb))).card : ℝ))
+    decide (M_cap < ((stateFiber D_det step_end (pairBOf t₀ m ht₀ sb).val).card : ℝ))
   let W (sb : Ω) : Bool :=
     decide (IsModeSeedConsistent withQueries D_det t₀ m ht₀ γ t sb.1 sb.2 ∧
-      ((stateFiber D_det step_end (toDictState (pairBOf t₀ m ht₀ sb))).card : ℝ) ≤ M_cap)
+      ((stateFiber D_det step_end (pairBOf t₀ m ht₀ sb).val).card : ℝ) ≤ M_cap)
   have hbad_le : ((μ_g.map W_bad) true).toReal ≤ (1 / 2) * (U : ℝ) ^ (-γ * (m : ℝ)) :=
     prob_gt_cap_stateFiber_le (by omega) hU_pos_nat hV ht₀ hspace pool hcard_pool hA_pool
       hpool_act Fg hFg hne D_det step_end
@@ -1458,17 +1447,17 @@ private theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_
     dsimp only [W_cons, W, W_bad]
     by_cases hc : IsModeSeedConsistent withQueries D_det t₀ m ht₀ γ t sb.1 sb.2
     · by_cases hle :
-          ((stateFiber D_det step_end (toDictState (pairBOf t₀ m ht₀ sb))).card : ℝ) ≤ M_cap
+          ((stateFiber D_det step_end (pairBOf t₀ m ht₀ sb).val).card : ℝ) ≤ M_cap
       · have hnot : ¬ M_cap <
-            ((stateFiber D_det step_end (toDictState (pairBOf t₀ m ht₀ sb))).card : ℝ) :=
+            ((stateFiber D_det step_end (pairBOf t₀ m ht₀ sb).val).card : ℝ) :=
           not_lt.mpr hle
         simp [hc, hle, hnot]
       · have hlt : M_cap <
-            ((stateFiber D_det step_end (toDictState (pairBOf t₀ m ht₀ sb))).card : ℝ) :=
+            ((stateFiber D_det step_end (pairBOf t₀ m ht₀ sb).val).card : ℝ) :=
           lt_of_not_ge hle
         simp [hc, hle, hlt]
     · by_cases hlt :
-          M_cap < ((stateFiber D_det step_end (toDictState (pairBOf t₀ m ht₀ sb))).card : ℝ) <;>
+          M_cap < ((stateFiber D_det step_end (pairBOf t₀ m ht₀ sb).val).card : ℝ) <;>
         simp [hc, hlt, ENNReal.toReal_nonneg]
   have hpW_gt : (1 / 2) * (U : ℝ) ^ (-γ * (m : ℝ)) < ((μ_g.map W) true).toReal := by
     change (U : ℝ) ^ (-γ * (m : ℝ)) < ((μ_g.map W_cons) true).toReal at hgt
@@ -1486,7 +1475,7 @@ private theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_
   let p : PMF Ω := PMF.conditionalSnd (μ_g.map fun sb => (W sb, sb)) true
   have hp_supp (sb : Ω) (hsb : sb ∈ p.support) :
       sb.2 ∈ Fg sb.1 ∧ IsModeSeedConsistent withQueries D_det t₀ m ht₀ γ t sb.1 sb.2 ∧
-        ((stateFiber D_det step_end (toDictState (pairBOf t₀ m ht₀ sb))).card : ℝ) ≤ M_cap := by
+        ((stateFiber D_det step_end (pairBOf t₀ m ht₀ sb).val).card : ℝ) ≤ M_cap := by
     have hW_mem : true ∈ ((μ_g.map fun x => (W x, x)).map Prod.fst).support := by
       rw [_root_.PMF.map_comp]; exact (_root_.PMF.mem_support_iff _ _).mpr hW0
     have hp_ne : p sb ≠ 0 := (_root_.PMF.mem_support_iff p sb).mp hsb
@@ -1498,7 +1487,7 @@ private theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_
     obtain ⟨hWx, hxsb⟩ := Prod.mk.inj hx_eq
     subst hxsb
     have hW_true : IsModeSeedConsistent withQueries D_det t₀ m ht₀ γ t x.1 x.2 ∧
-        ((stateFiber D_det step_end (toDictState (pairBOf t₀ m ht₀ x))).card : ℝ) ≤ M_cap :=
+        ((stateFiber D_det step_end (pairBOf t₀ m ht₀ x).val).card : ℝ) ≤ M_cap :=
       of_decide_eq_true hWx
     have hx_Fg : x.2 ∈ Fg x.1 := by
       have hμ_ne : μ_g x ≠ 0 := (_root_.PMF.mem_support_iff μ_g x).mp hx_supp
@@ -1523,7 +1512,7 @@ private theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_
   let CB_sim (sb : Ω) := (D_det.runInterval step₀ (C_mix sb) (ops_B sb)).2
   let I_AB (sb : Ω) := S_A sb ∩ SB_sim sb
   let Δ_set (sb : Ω) := (I_AB sb).filter fun j => C_A sb j ≠ CB_sim sb j
-  let dict_B (sb : Ω) := toDictState (pairBOf t₀ m ht₀ sb)
+  let dict_B (sb : Ω) := (pairBOf t₀ m ht₀ sb).val
   let m₁ (sb : Ω) := encodeRestr sb.2 sb.1.kv
   let m₂ (sb : Ω) := encodeFintype (C_mix sb)
   let m₃ (sb : Ω) := encodeRestr (SB_sim sb) (fun j => decide (j ∈ I_AB sb))
@@ -1592,7 +1581,7 @@ private theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_
       rw [stateFiber, Finset.mem_filter]
       refine ⟨Finset.mem_univ _, ?_⟩
       dsimp only [C_B, dict_B]
-      rw [hopsB_eq, toDictState_pairBOf_eq sb.1 ht₀ hB_card hdisj_B]
+      rw [hopsB_eq, val_pairBOf_eq sb.1 ht₀ hB_card hdisj_B]
       exact decodeDict_modeCandidateOps_eq withQueries hcorr sb.1 ht₀ hB_card hdisj_B
     exact ⟨hB_card, hdisj_B, hdisj_A, hdec_bef, hdec_A, hCB_mem⟩
   -- Prefix-freeness and target8 injectivity on each obs8 fiber of p.support
@@ -1699,8 +1688,8 @@ private theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_
     -- Recover dict_B, C_B, and C_bef
     have hdictB : dict_B sb₁ = dict_B sb₂ := by
       dsimp only [dict_B]
-      rw [toDictState_pairBOf_eq sb₁.1 ht₀ hBc₁ hdisjB₁,
-        toDictState_pairBOf_eq sb₂.1 ht₀ hBc₂ hdisjB₂]
+      rw [val_pairBOf_eq sb₁.1 ht₀ hBc₁ hdisjB₁,
+        val_pairBOf_eq sb₂.1 ht₀ hBc₂ hdisjB₂]
       funext u
       change (if u ∈ KD₁ ∪ sb₁.2 then some (sb₁.1.kv u).val else none) =
         (if u ∈ KD₂ ∪ sb₂.2 then some (sb₂.1.kv u).val else none)
@@ -1910,7 +1899,7 @@ open Classical in
 uniformly among `m`-subsets with `(A ∩ B).card = g` under `3 * n ≤ U` ([LiLiangYuZhou2023],
 Section 8.1, Lemma 8.1, p. 28 / PDF p. 29). -/
 noncomputable def queryFreeInnerDist {U V n : ℕ} (t₀ m g : ℕ) (hU : 3 * n ≤ U) (hV : 1 ≤ V)
-    (_hm_n : 2 * m ≤ n) (hg : g ≤ m) (ht₀ : t₀ + m ≤ n) :
+    (hg : g ≤ m) (ht₀ : t₀ + m ≤ n) :
     PMF (HardKeyValSeed U V n × Finset (Fin U)) :=
   innerPoolDist (by omega) hV
     (fun s => (((Finset.univ \ s.activeKeys t₀ (Nat.le_of_add_right_le ht₀)).powersetCard m).filter
@@ -1936,7 +1925,7 @@ deterministic `c = 1` probe cap and Step 6 internal Markov sub-conditioning): un
 theorem prob_isModeSeedConsistent_queryFreeInnerDist_le (withQueries : Bool)
     {U V n t₀ m g cells w : ℕ} {γ R t : ℝ}
     (hU : 3 * n ≤ U) (hV : 1 ≤ V) (hm : 2 ≤ m) (hm_n : 2 * m ≤ n)
-    (hg : g < m / 2) (ht₀ : t₀ + m ≤ n) (hγ : 0 < γ)
+    (hg : g < m / 2) (ht₀ : t₀ + m ≤ n)
     (hspace : ((cells * w : ℕ) : ℝ) ≤ benchmarkBits U V n + R)
     (hbudget : 2 * R + 7 * (m : ℝ) + 2 * (m : ℝ) * t + γ * (m : ℝ) * (w : ℝ) +
       2 * γ * (m : ℝ) * Real.logb 2 U ≤
@@ -1944,7 +1933,7 @@ theorem prob_isModeSeedConsistent_queryFreeInnerDist_le (withQueries : Bool)
     {D_det : IndexedScheme (Dynamic.Op U) Dynamic.Op.Result cells w}
     (hcorr : ∀ ops ∈ validHistoriesUpTo U V n (modeHorizon withQueries n + 1),
       (D_det.runSeq ops).1 = ((Dynamic.spec U V n).run (Dictionary.empty U) ops).2) :
-    (((queryFreeInnerDist t₀ m g hU hV hm_n (by omega) ht₀).map fun sb =>
+    (((queryFreeInnerDist t₀ m g hU hV (by omega) ht₀).map fun sb =>
       decide (IsModeSeedConsistent withQueries D_det t₀ m ht₀ γ t sb.1 sb.2)) true).toReal ≤
       (U : ℝ) ^ (-γ * (m : ℝ)) := by
   let ht₀_n : t₀ ≤ n := Nat.le_of_add_right_le ht₀
@@ -1962,7 +1951,7 @@ theorem prob_isModeSeedConsistent_queryFreeInnerDist_le (withQueries : Bool)
     rw [actSeed8Equiv_activeKeys, Finset.map_sdiff]
     congr 1; ext x; simp only [Finset.mem_univ, Finset.mem_map, Equiv.coe_toEmbedding, true_iff]
     exact ⟨τ.symm x, trivial, τ.apply_symm_apply x⟩
-  exact prob_queryFreePool_eq_le withQueries hU hV hm hm_n hg ht₀ hγ hspace hbudget hcorr pool
+  exact prob_queryFreePool_eq_le withQueries hU hV hm hm_n hg ht₀ hspace hbudget hcorr pool
     hcard_pool hA_pool (fun _ => Finset.sdiff_disjoint) hpool_act _ (fun _ => rfl) _
 
 open Classical in
@@ -1972,7 +1961,7 @@ p. 17 / PDF p. 18 and Section 8.1, Lemma 8.1, p. 28 / PDF p. 29). -/
 theorem expected_card_modeConsistent_segmentRest_lt_half_le (withQueries : Bool)
     {U V n t₀ m r_rest cells w : ℕ} {γ R t : ℝ}
     (hU : 3 * n ≤ U) (hV : 1 ≤ V) (hm : 2 ≤ m) (hm_n : 2 * m ≤ n)
-    (hrest_ge : 2 * m ≤ r_rest) (hrest : t₀ + r_rest ≤ n) (hγ : 0 < γ)
+    (hrest_ge : 2 * m ≤ r_rest) (hrest : t₀ + r_rest ≤ n)
     (hspace : ((cells * w : ℕ) : ℝ) ≤ benchmarkBits U V n + R)
     (hbudget : 2 * R + 7 * (m : ℝ) + 2 * (m : ℝ) * t + γ * (m : ℝ) * (w : ℝ) +
       2 * γ * (m : ℝ) * Real.logb 2 U ≤
@@ -2017,10 +2006,10 @@ theorem expected_card_modeConsistent_segmentRest_lt_half_le (withQueries : Bool)
     obtain ⟨B, hB⟩ := h0
     exact ⟨B, Finset.mem_filter.mpr ⟨(Finset.mem_filter.mp hB).1,
       by rw [(Finset.mem_filter.mp hB).2]; omega⟩⟩
-  exact (prob_and_expect_innerPoolDist_lt_half_le (by omega) hV hm ht₀ hrest_ge
+  exact (prob_and_expect_innerPoolDist_lt_half_le (by omega) hV ht₀ hrest_ge
     (Real.rpow_nonneg (Nat.cast_nonneg U) _) pool hcard_pool hA_pool
     (IsModeSeedConsistent withQueries D_det t₀ m ht₀ γ t)
-    (fun g hg hne_g => prob_queryFreePool_eq_le withQueries hU hV hm hm_n hg ht₀ hγ hspace
+    (fun g hg hne_g => prob_queryFreePool_eq_le withQueries hU hV hm hm_n hg ht₀ hspace
       hbudget hcorr pool hcard_pool hA_pool hdisj_pool hpool_act _ (fun _ => rfl) hne_g) hne).2
 
 private theorem outer_lemma_of_val_budget (withQueries : Bool) {U V n cells w : ℕ}
@@ -2065,7 +2054,7 @@ private theorem outer_lemma_of_val_budget (withQueries : Bool) {U V n cells w : 
       have hFh : 2 ≤ T.fanout (ℓ + 1) - i.val := by omega
       exact expected_card_modeConsistent_segmentRest_lt_half_le withQueries hU hV hm_ge2 hm_n
         (Nat.mul_le_mul_right _ hFh) (nodeStart_add_rest_le T ht_stop i.val i.isLt.le)
-        hγ hspace_inner hbudget_inner hcorr
+        hspace_inner hbudget_inner hcorr
 
 /-- Update-only **Outer Lemma** on `insertDeleteDist` ([LiLiangYuZhou2023], Section 8.1, pp. 27–30 /
 PDF pp. 28–31, combining Protocol 1 `outer_node_lower_bound false` with Lemma 8.1). -/
@@ -3687,7 +3676,7 @@ theorem expectedSeqProbes_ge_iterLogStar_add_log_div {α c_R c_w : ℝ}
 `U ^ (2 + α_V) ≤ V * n ^ 2` and `w ≤ c_w * (log₂ U + log₂ V)` ([LiLiangYuZhou2023], Section 8,
 pp. 27–30 / PDF pp. 28–31). -/
 private theorem outer_lemma_update_of_val_ge {U V n cells w : ℕ} {α_V c_w γ R t : ℝ}
-    (hα_V : 0 < α_V) (_hcw : 0 ≤ c_w) (hγ : 0 < γ)
+    (hα_V : 0 < α_V) (hγ : 0 < γ)
     (hγ_le : (5 + c_w) * γ ≤ min (1 / 4) (α_V / 16))
     (hn : 2 ≤ n) (hU : 3 * n ≤ U) (hV : 1 ≤ V)
     (hV_lo : (U : ℝ) ^ (2 + α_V) ≤ (V : ℝ) * (n : ℝ) ^ 2)
@@ -3823,7 +3812,7 @@ theorem det_expectedSeqProbes_update_ge_iterLog {α_V c_R c_w : ℝ}
       (by simpa only [modeHorizon, modeStride, Bool.false_eq_true, ↓reduceIte,
         show n + 2 * n = 3 * n by ring] using hcorr)
       fun {_R _t} hspace_R T ht {_ℓ _b} hℓ ht_stop hF_lo h11 ht_hi _hm_lo hF_hi hR_out hR_in =>
-        outer_lemma_update_of_val_ge hα_V hcw hγ hγ_le hn hU hV hV_lo hw hspace_R T hcorr ht hℓ
+        outer_lemma_update_of_val_ge hα_V hγ hγ_le hn hU hV hV_lo hw hspace_R T hcorr ht hℓ
           ht_stop hF_lo h11 ht_hi hF_hi hR_out hR_in
 
 /-- Zero-error randomized **Theorem 1.3(1)** ([LiLiangYuZhou2023], Section 1, p. 2 / PDF p. 3 and
@@ -3920,7 +3909,7 @@ theorem det_expectedSeqProbes_update_ge_sublinear {α_V c_w : ℝ}
       (by simpa only [modeHorizon, modeStride, Bool.false_eq_true, ↓reduceIte,
         show n + 2 * n = 3 * n by ring] using hcorr)
       fun {_R _t} hspace_R T ht {_ℓ _b} hℓ ht_stop hF_lo h11 ht_hi _hm_lo hF_hi hR_out hR_in =>
-        outer_lemma_update_of_val_ge hα_V hcw hγ hγ_le hn hU hV hV_lo hw hspace_R T hcorr ht hℓ
+        outer_lemma_update_of_val_ge hα_V hγ hγ_le hn hU hV hV_lo hw hspace_R T hcorr ht hℓ
           ht_stop hF_lo h11 ht_hi hF_hi hR_out hR_in
 
 /-- Zero-error randomized **Theorem 1.3(2)** ([LiLiangYuZhou2023], Section 1, p. 2 / PDF p. 3 and

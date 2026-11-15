@@ -694,7 +694,7 @@ private theorem sum_logb_choose_le_conditionalEntropy_outerTarget (withQueries :
       _ = ((μ.map obs) o).toReal * (Fintype.card G : ℝ) := havg_obs.symm
   exact le_of_mul_le_mul_right hmul_le hG_pos
 
-/-! ### Section 4: Protocol 1, Claims 4.1–4.5, and transcript compression -/
+/-! ### Protocol 1 candidate sets, message encoding, and Claims 4.1–4.2 -/
 
 /-- Mode-parametric inner-game seed consistency (`withQueries = true` recovers `IsSeedConsistent`;
 `withQueries = false` gives the update-only consistency predicate of Section 8, p. 28 / PDF p. 29,
@@ -958,7 +958,7 @@ private theorem prob_not_qualSubsetNbr_and_isGoodSeg_le_one_eighth (withQueries 
     _ ≤ (2 : ℝ) ^ (-3 : ℝ) := Real.rpow_le_rpow_of_exponent_le (by norm_num) hexp_le
     _ = 1 / 8 := by norm_num
 
-/-! ### Section 5: Protocol 1 decodability, Eq. (3), and Lemma 3.2 (`OuterLemma`) -/
+/-! ### Protocol 1 decodability, Eq. (3), and Lemma 3.2 (`OuterLemma`) -/
 
 private theorem nodeStart_add_fanout_mul_eq_nodeStop (T : MetaTree) (ℓ b : ℕ) :
     T.nodeStart (ℓ + 1) b + T.fanout (ℓ + 1) * T.blockSize ℓ = T.nodeStop (ℓ + 1) b := by

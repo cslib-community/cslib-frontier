@@ -1623,7 +1623,7 @@ probability at most `Bnd` on every fixed-intersection slice `|A ∩ B| = g` (`g 
 `(pool s).powersetCard m` (`(pool s).card = P_size ≥ 2 * m`, `A ⊆ pool s`), then `ev` has
 probability at most `Bnd` on the `< m / 2` pool and expected count at most `C(P_size, m) * Bnd`. -/
 theorem prob_and_expect_innerPoolDist_lt_half_le {U V n t₀ m P_size : ℕ} {Bnd : ℝ}
-    (hU : 2 * n ≤ U) (hV : 1 ≤ V) (_hm : 2 ≤ m) (ht₀ : t₀ + m ≤ n)
+    (hU : 2 * n ≤ U) (hV : 1 ≤ V) (ht₀ : t₀ + m ≤ n)
     (hP_ge : 2 * m ≤ P_size) (hBnd_nn : 0 ≤ Bnd)
     (pool : HardKeyValSeed U V n → Finset (Fin U))
     (hcard_pool : ∀ s, (pool s).card = P_size)
@@ -1709,7 +1709,7 @@ theorem prob_and_expect_innerPoolDist_lt_half_le {U V n t₀ m P_size : ℕ} {Bn
 
 open Classical in
 private theorem prob_and_expect_innerPool_lt_half_le {U V n t₀ m cells w : ℕ} {γ R t : ℝ}
-    (hU : 4 * n ≤ U) (hV : 1 ≤ V) (hm : 2 ≤ m) (hm_n : 2 * m ≤ n) (ht₀ : t₀ + m ≤ n)
+    (hU : 4 * n ≤ U) (hV : 1 ≤ V) (hm_n : 2 * m ≤ n) (ht₀ : t₀ + m ≤ n)
     (hγ : 0 < γ) (hm_lo : (n : ℝ) ^ (1 - γ / 2) ≤ (m : ℝ))
     (hspace : ((cells * w : ℕ) : ℝ) ≤ Real.logb 2 (U.choose n) + (n : ℝ) * Real.logb 2 V + R)
     (hbudget : R + 11 * (m : ℝ) + 6 * (m : ℝ) * t + γ * (m : ℝ) * (w : ℝ) +
@@ -1736,7 +1736,7 @@ private theorem prob_and_expect_innerPool_lt_half_le {U V n t₀ m cells w : ℕ
         (∑ s : HardKeyValSeed U V n, ((PMF.uniformOfFintype (HardKeyValSeed U V n)) s).toReal *
           (((F_lt s).filter (IsSeedConsistent D_det t₀ m ht₀ γ t s)).card : ℝ)) ≤
           (P.choose m : ℝ) * (U : ℝ) ^ (-γ * (m : ℝ)) :=
-  prob_and_expect_innerPoolDist_lt_half_le (by omega) hV hm ht₀ hP_ge
+  prob_and_expect_innerPoolDist_lt_half_le (by omega) hV ht₀ hP_ge
     (Real.rpow_nonneg (Nat.cast_nonneg U) _)
     (fun s => poolPk s.permKeyEmb) (fun s => hcard_pool s.permKeyEmb)
     (fun s => by rw [insertedSet_eq_pkeyInsEmb]; exact hA_pool s.permKeyEmb)
@@ -2023,7 +2023,7 @@ theorem prob_isCappedConsistent_section5_lt_half_le (hm : 2 ≤ m) (ht₀ : t₀
       nonempty_pool_lt ht₀ hm (by omega) _ hp.1 hp.2.1 s.permKeyEmb
   rw [section5LtHalfDist, toReal_map_innerPoolDist_congr (by omega) hV
     (funext fun s => by simp only [sdiffPoolPk, activeKeys_eq_pkeyActive]) _ hne]
-  exact (prob_and_expect_innerPool_lt_half_le hU hV hm hm_n ht₀ hγ hm_lo hspace hbudget hcorr
+  exact (prob_and_expect_innerPool_lt_half_le hU hV hm_n ht₀ hγ hm_lo hspace hbudget hcorr
     (sdiffPoolPk t₀ (by omega)) hp.1 hp.2.1 hp.2.2.1 hp.2.2.2.1 hp.2.2.2.2 (by omega) hne).1
 
 open Classical in
@@ -2066,7 +2066,7 @@ theorem prob_isCappedConsistent_segmentRest_lt_half_le {r_rest : ℕ} (hm : 2 �
       nonempty_pool_lt ht₀ hm hrest_ge _ hp.1 hp.2.1 s.permKeyEmb
   rw [segmentRestLtHalfDist, toReal_map_innerPoolDist_congr (by omega) hV
     (funext fun s => by simp only [segRestPoolPk, insertedSet_eq_pkeyInsEmb]) _ hne]
-  exact (prob_and_expect_innerPool_lt_half_le hU hV hm hm_n ht₀ hγ hm_lo hspace hbudget hcorr
+  exact (prob_and_expect_innerPool_lt_half_le hU hV hm_n ht₀ hγ hm_lo hspace hbudget hcorr
     (segRestPoolPk t₀ r_rest hrest) hp.1 hp.2.1 hp.2.2.1 hp.2.2.2.1 hp.2.2.2.2 hrest_ge hne).1
 
 open Classical in
@@ -2089,7 +2089,7 @@ theorem expected_card_cappedConsistent_segmentRest_lt_half_le {r_rest : ℕ} (hm
         (s.insertedSet t₀ m ht₀ ∩ B).card < m / 2).Nonempty := fun s => by
     simpa only [insertedSet_eq_pkeyInsEmb] using
       nonempty_pool_lt ht₀ hm hrest_ge _ hp.1 hp.2.1 s.permKeyEmb
-  have h2 := (prob_and_expect_innerPool_lt_half_le hU hV hm hm_n ht₀ hγ hm_lo hspace hbudget
+  have h2 := (prob_and_expect_innerPool_lt_half_le hU hV hm_n ht₀ hγ hm_lo hspace hbudget
     hcorr (segRestPoolPk t₀ r_rest hrest) hp.1 hp.2.1 hp.2.2.1 hp.2.2.2.1 hp.2.2.2.2 hrest_ge hne).2
   simpa only [segRestPoolPk, insertedSet_eq_pkeyInsEmb] using h2
 
