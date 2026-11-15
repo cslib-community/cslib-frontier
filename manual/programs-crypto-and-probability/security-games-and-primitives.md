@@ -1310,20 +1310,24 @@ problems, which the book uses in its informal argument for protocol PAKE2, are h
 proof turns an adversary for the problem into a CDH adversary. The book names neither
 problem; "blinded CDH" and "two-point blinded CDH" are this library's names.
 [`DiffieHellman/Blinded.lean`](../../CslibFrontier/Crypto/Computational/DiffieHellman/Blinded.lean)
-states both in one group, like `cdhExperiment`. `blindedCDHExperiment` asks for an exponent `γ` and
+states both in one group, like `cdhExperiment`, for a `ZMod q`-module `G` with `[NeZero q]` and
+`[DecidableEq G]`. `blindedCDHExperiment` asks for an exponent `γ` and
 the value `blindedDH α x γ b v = (x - γ * α) • (v - γ • b)`, which is the book's
 `[u / a^γ, v / b^γ]` written through the exponents of `u` and `a`. `blindedCDHPairExperiment` asks
 for two distinct exponents, any `v` and both values. With exactly uniform blinding exponents,
-Lemma 21.7 is the equality `cdhAdvantage_blindedCDHToCDH` for every nonzero modulus, module and
-`g`; Lemma 21.8 is the inequality `blindedCDHPairAdvantage_le_cdhAdvantage` and needs `q` prime.
+Lemma 21.7 is the equality `cdhAdvantage_blindedCDHToCDH` for every such `q`, `G` and `g`, with no
+further hypothesis; Lemma 21.8 is the inequality `blindedCDHPairAdvantage_le_cdhAdvantage`, which
+also takes `[Fact q.Prime]`.
 [`DiffieHellman/BlindedFamily.lean`](../../CslibFrontier/Crypto/Computational/DiffieHellman/BlindedFamily.lean)
 gives the family games `blindedCDHGame` and `blindedCDHPairGame`, the reductions
 `blindedCDHToCDHAdversary` and `blindedCDHPairToCDHAdversary` with their certificates
-`isPPT_blindedCDHToCDHAdversary` and `isPPT_blindedCDHPairToCDHAdversary`, their `sampleExp` losses
-`2 / 2 ^ n` and `1 / 2 ^ n`, and the conclusions `CDH.negligible_blindedCDHGame` and
-`CDH.negligible_blindedCDHPairGame` from `F.CDH setup`. The
+`isPPT_blindedCDHToCDHAdversary` and `isPPT_blindedCDHPairToCDHAdversary` (each reduction is PPT
+when its adversary is), their `sampleExp` losses `2 / 2 ^ n` and `1 / 2 ^ n`, and the conclusions
+`CDH.negligible_blindedCDHGame` and `CDH.negligible_blindedCDHPairGame`: from `F.CDH setup` and an
+adversary with `IsPPT`, its success probability in the game is negligible. The
 [blinded CDH client](../../CslibFrontierTests/Crypto/BlindedCDH.lean) checks the algebra in
-`ZMod 7`, a `ZMod 4` instance showing that Lemma 21.8 needs a prime order, and both theorems on PPT
+`ZMod 7`, a `ZMod 4` instance showing that `BlindedCDHPairAnswer.solve_eq`, the step of the
+Lemma 21.8 reduction that recovers the CDH value, needs a prime order, and both theorems on PPT
 adversaries. Check it with:
 
 ```bash
