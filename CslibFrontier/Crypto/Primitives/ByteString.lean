@@ -120,16 +120,20 @@ theorem bytesToBitsBE_lt_iff_lt {X Y : List Byte} (hlength : X.length = Y.length
           induction byteBitsBE x with
           | nil => rfl
           | cons bit prefix ihprefix =>
-              simpa only [List.cons_append, List.lex_cons_iff] using ihprefix
+              change (bit :: (prefix ++ bytesToBitsBE X)) <
+                (bit :: (prefix ++ bytesToBitsBE Y)) ↔
+                  bytesToBitsBE X < bytesToBitsBE Y
+              rw [List.lex_cons_iff]
+              exact ihprefix
         simp only [bytesToBitsBE]
         rw [hprefix, List.lex_cons_iff, ih hlength]
       · have hbits := (byteBitsBE_lt_iff_lt y x).2 hgt
         have happend := List.append_lt_append_of_lt_of_length_eq hbits
           ((byteBitsLength y).trans (byteBitsLength x).symm)
           (bytesToBitsBE Y) (bytesToBitsBE X)
-        have hnotBits : ¬ bytesToBitsBE (x :: X) < bytesToBitsBE (y :: Y) :=
+        have hnotBits : ¬ (bytesToBitsBE (x :: X) < bytesToBitsBE (y :: Y)) :=
           not_lt_of_gt (by simpa [bytesToBitsBE] using happend)
-        have hnotBytes : ¬ x :: X < y :: Y :=
+        have hnotBytes : ¬ (x :: X < y :: Y) :=
           not_lt_of_gt (show y :: Y < x :: X from List.Lex.rel hgt)
         exact iff_of_false hnotBits hnotBytes
 
