@@ -1252,6 +1252,32 @@ construction is a separate resource. Algorithm 6, the full GGM/BAVC tree, `Commi
 protocol and transcript, abort and rejection analysis, Fiat–Shamir/QROM, SD/RSD hardness, and both
 asymptotic and finite concrete endpoints remain open.
 
+### Blinded Diffie–Hellman problems
+
+Boneh–Shoup Lemmas 21.7 and 21.8 ([bs23][bs23], Section 21.11.5, pp. 910–911) reduce to CDH two
+problems that the book uses in its informal argument for protocol PAKE2. The book names neither
+problem; "blinded CDH" and "two-point blinded CDH" are this library's names.
+[`DiffieHellman/Blinded.lean`](../../CslibFrontier/Crypto/Computational/DiffieHellman/Blinded.lean)
+states both in one group, like `cdhExperiment`. `blindedCDHExperiment` asks for an exponent `γ` and
+the value `blindedDH α x γ b v = (x - γ * α) • (v - γ • b)`, which is the book's
+`[u / a^γ, v / b^γ]` written through the exponents of `u` and `a`. `blindedCDHPairExperiment` asks
+for two distinct exponents, any `v` and both values. With exactly uniform blinding exponents,
+Lemma 21.7 is the equality `cdhAdvantage_blindedCDHToCDH` for every nonzero modulus, module and
+`g`; Lemma 21.8 is the inequality `blindedCDHPairAdvantage_le_cdhAdvantage` and needs `q` prime.
+[`DiffieHellman/BlindedFamily.lean`](../../CslibFrontier/Crypto/Computational/DiffieHellman/BlindedFamily.lean)
+gives the family games `blindedCDHGame` and `blindedCDHPairGame`, the reductions
+`blindedCDHToCDHAdversary` and `blindedCDHPairToCDHAdversary` with their certificates
+`isPPT_blindedCDHToCDHAdversary` and `isPPT_blindedCDHPairToCDHAdversary`, their `sampleExp` losses
+`2 / 2 ^ n` and `1 / 2 ^ n`, and the conclusions `CDH.negligible_blindedCDHGame` and
+`CDH.negligible_blindedCDHPairGame` from `F.CDH setup`. The
+[blinded CDH client](../../CslibFrontierTests/Crypto/BlindedCDH.lean) checks the algebra in
+`ZMod 7`, a `ZMod 4` instance showing that Lemma 21.8 needs a prime order, and both theorems on PPT
+adversaries. Check it with:
+
+```bash
+scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.BlindedCDH
+```
+
 ## Encryption and chosen-message attacks
 
 [AdversaryOf](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/Encryption/Basic.lean#L73) has a first stage choosing two messages and a saved word from the public key, and a second stage guessing from that saved state and the challenge ciphertext. Each stage has a native certificate. `INDCPAOn` explicitly constrains admissible message pairs. `WordINDCPA` requires equal lengths; the general `INDCPAOf` with all pairs is stronger for variable-length word messages. Invalid challenges are made independent of the hidden experiment bit. `Encryption.advantage (gameOn valid keyGen encrypt adversary) n` names the advantage between the two sides of the experiment at parameter `n`, and `INDCPAOn` asks that it be negligible for every admissible adversary; bounds on other two-sided encryption experiments, such as the DEM and CCA games, are stated with the same name.
