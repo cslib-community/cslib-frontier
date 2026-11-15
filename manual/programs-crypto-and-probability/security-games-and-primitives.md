@@ -2481,31 +2481,25 @@ one-bit-per-block instance `merkleDamgard`, not the length-strengthened one),
 `CompressionFamily.exists_oneWay` and `CompressionFamily.exists_wordEUFCMA` give the same
 conclusions for `2 n → n` compression families. No converse is claimed.
 
-Second-preimage resistance ([bs23][bs23], §8.11.1, Definition 8.6, p. 336, and Exercise 8.23(a)–(c),
-pp. 352–353) lives in
+Second-preimage resistance ([bs23][bs23], §8.11.1, Definition 8.6, p. 336, and Exercise 8.23(a)–(b),
+pp. 352–353) splits into finite games in
+[`Game/SecondPreimage.lean`](../../CslibFrontier/Crypto/Game/SecondPreimage.lean) and the asymptotic
+bit-string definition in
 [`SecondPreimageResistant.lean`](../../CslibFrontier/Crypto/Computational/SecondPreimageResistant.lean).
-In any monad, `secondPreimageExperiment sample f finder` draws `x ← sample`, runs `x' ← finder x`,
-and accepts when `x' ≠ x` and `f x' = f x`. On a finite domain `M` and codomain `T`,
-`HasSecondPreimage H m` says that some `m' ≠ m` has `H m' = H m`; at most `|T|` inputs lack a
-second preimage (`card_not_hasSecondPreimage_le`), so at most a `1 / s` fraction when
-`|M| ≥ s · |T|` (`card_not_hasSecondPreimage_div_le`, Exercise 8.23(a)). Wrapping an inverter `A`
-into the finder `m ↦ A (H m)` satisfies
-`OWadv[A, H] ≤ 2 · SPRadv[B, H] + |{m | ¬ HasSecondPreimage H m}| / |M|`
-(`succProbability_inversionExperiment_uniform_le_card_not_hasSecondPreimage`), hence
-`≤ 2 · SPRadv[B, H] + |T| / |M|` (`succProbability_inversionExperiment_uniform_le`) and
-`≤ 2 · SPRadv[B, H] + 1 / s` (`succProbability_inversionExperiment_uniform_le_of_compression`,
-Exercise 8.23(b), equation (8.22)). `succProbability_secondPreimageExperiment_le_of_eq_imp` bounds
-`secondPreimageExperiment` under any digest map that refines equality on distinct inputs. On bit
-strings, `secondPreimageGame f adversary n` runs the experiment on a uniform `n`-bit input with the
-finder told `n` in unary (`isPPTOn_secondPreimageGame`, `isPPT_secondPreimageGame`), and
-`SecondPreimageResistant f` pairs deterministic polynomial-time evaluation with negligible success
-for every uniform strict PPT `SecondPreimageFinder` (`SecondPreimageResistant.of_injective`,
-`not_secondPreimageResistant_of_le_succProbability`, `not_secondPreimageResistant_const`). The
-[checked clients](../../CslibFrontierTests/Crypto/SecondPreimageResistant.lean) verify that the
-additive `|T| / |M|` term and factor of `2` in Exercise 8.23(b) are tight on `Bool`, instantiate
-the `T × Fin (2 * s) → T × Bool` construction `revealAtZero` of Exercise 8.23(c) with compression
-ratio `s` and inversion probability `1 / (2 * s)` (`1 / 4` at `s = 2`), and check
-`secondPreimageResistant_id` and `not_secondPreimageResistant_const_empty`.
+Given a uniform input `m ← M` from a nonempty finite domain `M` to `T`, at most `|T|` inputs lack a
+second preimage (`card_not_hasSecondPreimage_le`), so at most a `1 / s` fraction when `|M| ≥ s · |T|`
+and `0 < s` (`card_not_hasSecondPreimage_div_le`); wrapping an inverter `A` into the finder
+`B := fun m => A (H m)` satisfies `OWadv[A, H] ≤ SPRadv[B, H] + |T| / |M|`
+(`succProbability_inversionExperiment_uniform_le_add_card_div`), which weakens to (8.22)
+(`OWadv[A, H] ≤ 2 · SPRadv[B, H] + 1 / s` when `|M| ≥ s · |T|` and `0 < s`,
+`succProbability_inversionExperiment_uniform_le_two_mul_add_div`). On bit strings,
+`SecondPreimageResistant f` requires polynomial-time evaluation and negligible success in
+`secondPreimageGame` against every uniform strict PPT `SecondPreimageFinder`; unlike Definition 8.6
+(`m' ∈ M`), any answer `x' ≠ x` of arbitrary length wins, matching `OneWay`. The certified
+asymptotic reduction of Exercise 8.23(b), the bit-string separation of Exercise 8.23(c), and
+Exercise 8.23(d) are not yet proved here; the [tests](../../CslibFrontierTests/Crypto/SecondPreimageResistant.lean)
+verify the factor-one equality on `Bool → Unit`, probe `0 < s`, instantiate the finite `revealAtZero`
+construction of Exercise 8.23(c), and refute constant functions.
 
 Merkle–Damgård chains have many messages with one digest at little more than the cost of one
 collision (Joux's attack, [bs23][bs23], §8.4.1, pp. 298–299). Import

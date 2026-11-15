@@ -10,23 +10,24 @@ import CslibFrontier.Crypto.Computational.SecondPreimageResistant
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Uniform
 import Mathlib.Tactic.NormNum
-import Mathlib.Tactic.Ring
 
 /-!
 # Tests for second-preimage resistance
 
-Checks for `CslibFrontier/Crypto/Computational/SecondPreimageResistant.lean` as a `module` client
-with ordinary imports:
+Checks for `CslibFrontier/Crypto/Game/SecondPreimage.lean` and
+`CslibFrontier/Crypto/Computational/SecondPreimageResistant.lean` as a `module` client with
+ordinary imports:
 
-* Concrete evaluation of `HasSecondPreimage` on `Bool`, showing that the additive `|T| / |M|` (or
-  `1 / s`) term in Exercise 8.23(b) cannot be dropped when `M = T = Bool` and `H = id`, and that
-  the factor of `2` in `succProbability_inversionExperiment_uniform_le_card_not_hasSecondPreimage`
-  is tight on `H : Bool → Unit`.
-* The finite-domain construction `revealAtZero : T × Fin (2 * s) → T × Bool` of [BonehShoup2023],
-  Exercise 8.23(c), p. 353, checked with `succProbability_secondPreimageExperiment_le_of_eq_imp`:
-  compression ratio `s`, second-preimage preservation
-  (`succProbability_secondPreimageExperiment_revealAtZero_le`), and exact inversion probability
-  `1 / (2 * s)` (`1 / 4` at `s = 2`, `T = Bool`).
+* Concrete evaluation of `HasSecondPreimage` on `Bool`, applying `card_not_hasSecondPreimage_le`
+  and `card_not_hasSecondPreimage_div_le` (with a counterexample showing `0 < s` is needed at
+  `s = 0`), and instantiating both `succProbability_inversionExperiment_uniform_le_add_card_div`
+  and `succProbability_inversionExperiment_uniform_le_two_mul_add_div` (`1 = 1 / 2 + 1 / 2` on
+  `H : Bool → Unit`, showing the factor-one bound is tight).
+* The finite-domain construction `revealAtZero : T × Fin (2 * s) → T × Bool` (compression ratio
+  `s`, since `|T × Fin (2 * s)| = s · |T × Bool|`) of [BonehShoup2023], Exercise 8.23(c), p. 353,
+  checked with `succProbability_secondPreimageExperiment_le_of_eq_imp`: second-preimage
+  preservation (`succProbability_secondPreimageExperiment_revealAtZero_le`) and exact inversion
+  probability `1 / (2 * s)` (`1 / 4` at `s = 2`, `T = Bool`).
 * Unconditional `SecondPreimageResistant id` and the nonvacuity witness
   `not_secondPreimageResistant_const_empty` for the `SecondPreimageResistant` row of
   `assumptions.md`.
@@ -40,13 +41,31 @@ open Cslib Cslib.Crypto Cslib.ProbComp Cslib.Probability Cslib.Probability.PMF
 open Turing.MultiTapeTM
 open scoped NNReal ENNReal
 
-/-- On `Bool`, the identity map has no inputs with a second preimage: all `2` elements lack one. -/
-example : (Finset.univ.filter (fun m : Bool => ¬ HasSecondPreimage id m)).card = 2 := by
+/-- On `Bool`, `id` has no inputs with a second preimage (`2` elements lack one, matching
+`card_not_hasSecondPreimage_le` and `card_not_hasSecondPreimage_div_le` at `s = 1`). -/
+theorem card_not_hasSecondPreimage_id_bool :
+    (Finset.univ.filter (fun m : Bool => ¬ HasSecondPreimage id m)).card = 2 := by
   decide
 
+example :
+    ((Finset.univ.filter (fun m : Bool => ¬ HasSecondPreimage id m)).card : ℝ) /
+      Fintype.card Bool ≤ 1 / (1 : ℝ) :=
+  card_not_hasSecondPreimage_div_le (id : Bool → Bool) one_pos (by simp)
+
+/-- Probe: `0 < s` is needed in `card_not_hasSecondPreimage_div_le`; at `s = 0` with `id` on
+`Bool`, `0 * |Bool| ≤ |Bool|` holds while the `1 / 0` conclusion (`1 ≤ 0`) fails. -/
+example :
+    (0 : ℝ) * Fintype.card Bool ≤ Fintype.card Bool ∧
+      ¬ ((Finset.univ.filter (fun m : Bool => ¬ HasSecondPreimage id m)).card : ℝ) /
+          Fintype.card Bool ≤ 1 / (0 : ℝ) := by
+  refine ⟨by simp, ?_⟩
+  rw [card_not_hasSecondPreimage_id_bool, Fintype.card_bool]
+  norm_num
+
 /-- Without compression (`M = T = Bool`, `H = id`), `OWadv[pure, id] = 1` while
-`SPRadv[pure ∘ id, id] = 0`: the additive `|T| / |M|` (or `1 / s`) term in (8.22) cannot be
-dropped, and `s = 2` does not apply when `|M| = |T|`. -/
+`SPRadv[pure ∘ id, id] = 0`: both `succProbability_inversionExperiment_uniform_le_add_card_div`
+and `succProbability_inversionExperiment_uniform_le_two_mul_add_div` (at `s = 1`) apply and give
+`1 ≤ 0 + 1`. -/
 theorem succProbability_inversionExperiment_id_bool :
     (Game.succProbability (inversionExperiment (uniformOfFintype Bool) id PMF.pure) : ℝ) = 1 := by
   have heval : inversionExperiment (uniformOfFintype Bool) id PMF.pure = PMF.pure true := by
@@ -60,14 +79,26 @@ theorem succProbability_secondPreimageExperiment_id_bool :
   rw [secondPreimageExperiment_eq_pure_false_of_injective _ Function.injective_id]
   simp [Game.succProbability]
 
-/-- When `H : Bool → Unit` is constant and `A () = pure false`, every input has a second preimage
-(`{m | ¬ HasSecondPreimage H m}` is empty), `OWadv[A, H] = 1`, and `SPRadv[A ∘ H, H] = 1 / 2`:
-the factor of `2` in `succProbability_inversionExperiment_uniform_le_card_not_hasSecondPreimage`
-is tight (`1 = 2 * (1 / 2) + 0`). -/
-theorem card_not_hasSecondPreimage_const_bool :
-    (Finset.univ.filter (fun m : Bool => ¬ HasSecondPreimage (fun _ : Bool => ()) m)).card = 0 := by
-  decide
+example :
+    (Game.succProbability (inversionExperiment (uniformOfFintype Bool) id PMF.pure) : ℝ) ≤
+      (Game.succProbability
+        (secondPreimageExperiment (uniformOfFintype Bool) id
+          (fun m => PMF.pure (id m))) : ℝ) +
+        (Fintype.card Bool : ℝ) / Fintype.card Bool :=
+  succProbability_inversionExperiment_uniform_le_add_card_div id PMF.pure
 
+example :
+    (Game.succProbability (inversionExperiment (uniformOfFintype Bool) id PMF.pure) : ℝ) ≤
+      2 * (Game.succProbability
+        (secondPreimageExperiment (uniformOfFintype Bool) id
+          (fun m => PMF.pure (id m))) : ℝ) +
+        1 / (1 : ℝ) :=
+  succProbability_inversionExperiment_uniform_le_two_mul_add_div id PMF.pure one_pos (by simp)
+
+/-- When `H : Bool → Unit` is constant and `A () = pure false`, `OWadv[A, H] = 1` and
+`SPRadv[A ∘ H, H] = 1 / 2`: the factor-one bound
+`succProbability_inversionExperiment_uniform_le_add_card_div` is an equality (`1 = 1 / 2 + 1 / 2`),
+and `succProbability_inversionExperiment_uniform_le_two_mul_add_div` applies at `s = 2`. -/
 theorem succProbability_inversionExperiment_const_bool :
     (Game.succProbability
       (inversionExperiment (uniformOfFintype Bool) (fun _ : Bool => ())
@@ -97,20 +128,36 @@ theorem succProbability_secondPreimageExperiment_const_bool :
     Cslib.Probability.PMF.toOuterMeasure_uniformOfFintype_toReal, hcard, Fintype.card_bool]
   norm_num
 
+example :
+    (Game.succProbability
+      (inversionExperiment (uniformOfFintype Bool) (fun _ : Bool => ())
+        (fun _ => PMF.pure false)) : ℝ) ≤
+      (Game.succProbability
+        (secondPreimageExperiment (uniformOfFintype Bool) (fun _ : Bool => ())
+          (fun _ => PMF.pure false)) : ℝ) +
+        (Fintype.card Unit : ℝ) / Fintype.card Bool :=
+  succProbability_inversionExperiment_uniform_le_add_card_div (fun _ : Bool => ())
+    (fun _ => PMF.pure false)
+
+example :
+    (Game.succProbability
+      (inversionExperiment (uniformOfFintype Bool) (fun _ : Bool => ())
+        (fun _ => PMF.pure false)) : ℝ) ≤
+      2 * (Game.succProbability
+        (secondPreimageExperiment (uniformOfFintype Bool) (fun _ : Bool => ())
+          (fun _ => PMF.pure false)) : ℝ) +
+        1 / (2 : ℝ) :=
+  succProbability_inversionExperiment_uniform_le_two_mul_add_div (fun _ : Bool => ())
+    (fun _ => PMF.pure false) (by norm_num) (by simp)
+
 /-! ### Checked instance of Exercise 8.23(c) (`revealAtZero : T × Fin (2 * s) → T × Bool`) -/
 
 /-- The finite-domain construction `H' : T × Fin (2 * s) → T × Bool` of [BonehShoup2023],
-Exercise 8.23(c), p. 353: reveal `m.1` tagged with `true` when `m.2.val = 0`, and output
-`(H m, false)` otherwise. -/
+Exercise 8.23(c), p. 353 (compression ratio `s`, since `|T × Fin (2 * s)| = s · |T × Bool|`):
+reveal `m.1` tagged with `true` when `m.2.val = 0`, and output `(H m, false)` otherwise. -/
 def revealAtZero {T : Type*} {s : ℕ} (H : T × Fin (2 * s) → T)
     (m : T × Fin (2 * s)) : T × Bool :=
   if m.2.val == 0 then (m.1, true) else (H m, false)
-
-/-- The domain `T × Fin (2 * s)` has size `s · |T × Bool|` (compression ratio `s`). -/
-theorem card_prod_fin_two_mul (T : Type*) [Fintype T] (s : ℕ) :
-    Fintype.card (T × Fin (2 * s)) = s * Fintype.card (T × Bool) := by
-  simp only [Fintype.card_prod, Fintype.card_fin, Fintype.card_bool]
-  ring
 
 /-- Every second preimage of `m` under `revealAtZero H` is a second preimage of `m` under `H`:
 inputs with `m.2.val = 0` have no second preimage under `revealAtZero H`. -/
@@ -146,7 +193,7 @@ theorem succProbability_secondPreimageExperiment_revealAtZero_le
 whatever `H` is. -/
 theorem succProbability_inversionExperiment_revealAtZero
     {T : Type} [Fintype T] [Nonempty T] [DecidableEq T] {s : ℕ} [NeZero s]
-    [Nonempty (Fin (2 * s))] (H : T × Fin (2 * s) → T) :
+    (H : T × Fin (2 * s) → T) :
     (Game.succProbability
       (inversionExperiment (uniformOfFintype (T × Fin (2 * s))) (revealAtZero H)
         (fun y => PMF.pure (y.1, ⟨0, Nat.mul_pos two_pos (NeZero.pos s)⟩))) : ℝ) =
@@ -187,11 +234,7 @@ theorem succProbability_inversionExperiment_revealAtZero
     Cslib.Probability.PMF.toOuterMeasure_uniformOfFintype_toReal, hcard, Fintype.card_prod,
     Fintype.card_fin, Nat.cast_mul, Nat.cast_mul, Nat.cast_ofNat, ← div_div, div_self hT_ne]
 
-/-- Exercise 8.23(c) at `s = 2` and `T = Bool`: compression ratio `2` and inversion success
-`1 / 4`. -/
-example : Fintype.card (Bool × Fin 4) = 2 * Fintype.card (Bool × Bool) :=
-  card_prod_fin_two_mul Bool 2
-
+/-- Exercise 8.23(c) at `s = 2` and `T = Bool`: inversion success `1 / 4`. -/
 example (H : Bool × Fin 4 → Bool) :
     (Game.succProbability
       (inversionExperiment (uniformOfFintype (Bool × Fin 4)) (revealAtZero (s := 2) H)
