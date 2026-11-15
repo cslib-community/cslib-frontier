@@ -7,7 +7,9 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Configuration
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Finite
 public import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
