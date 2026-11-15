@@ -7,8 +7,10 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Sqrt
 public import CslibFrontier.Crypto.Computational.RSAAttacks
 public import Mathlib.Analysis.SpecialFunctions.Pow.Real
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
 import Mathlib.Data.Nat.Sqrt
 
 /-!
@@ -20,7 +22,8 @@ problem, after [BonehShoup2023], Section 16.4.2, pp. 698–699.
 * **Shared prime.** Two moduli `p * q₁` and `p * q₂` with a common prime `p` and distinct
   primes `q₁ ≠ q₂` reveal `p` as their gcd (`gcd_mul_mul_of_prime_ne`,
   `RSADesc.gcd_modulus_eq_of_p_eq`). The book observes this for keys generated on devices that
-  have little entropy when they choose `p`.
+  have little entropy when they choose `p`. The attack is `Nat.gcd`, which
+  `Turing.MultiTapeTM.ComputableInPolyTime.binary_gcd` computes in polynomial time.
 * **Close primes** (Section 16.4.2.1). If `|p - q| < 2 * n ^ (1 / 4)`, the bound in which the
   chain (16.11) ends, then `A = (p + q) / 2` satisfies `|A - √n| < 1 / 2` (Lemma 16.4,
   `abs_add_div_two_sub_sqrt_mul_lt_half`). Since also `√n ≤ A`, when `p + q` is even `A` is an
@@ -29,7 +32,9 @@ problem, after [BonehShoup2023], Section 16.4.2, pp. 698–699.
   from `RSAAttacks.lean` does given `n + 1 - (p + q) = (p - 1) * (q - 1)`. `fermatFactor n`
   composes the two steps, and `fermatFactor_mul_eq` shows that it returns `(p, q)`. The book
   does not name this algorithm; the name `fermatFactor` is ours. It is the first step of Fermat's
-  factoring method only: it tries `A = ⌈√n⌉` and does not search over larger `A`.
+  factoring method only: it tries `A = ⌈√n⌉` and does not search over larger `A`. It is
+  computable in polynomial time (`computableInPolyTime_fermatFactor`), so moduli with close
+  factors are factored by a polynomial-time function.
 
 ## Main definitions
 
@@ -45,18 +50,22 @@ problem, after [BonehShoup2023], Section 16.4.2, pp. 698–699.
 * `Cslib.Crypto.ceilSqrt_mul_eq_add_div_two`: step 1 of the attack, `⌈√(p * q)⌉ = (p + q) / 2`.
 * `Cslib.Crypto.fermatFactor_mul_eq`, `Cslib.Crypto.RSADesc.fermatFactor_eq`: `fermatFactor`
   recovers the factors of a modulus with close factors.
+* `Cslib.Crypto.computableInPolyTime_fermatFactor`: `fermatFactor` is computable in polynomial
+  time on binary naturals.
 
 ## Implementation notes
 
 `⌈√n⌉` is written as `if n = 0 then 0 else (n - 1).sqrt + 1`, the function on naturals that
-`Turing.MultiTapeTM.ComputableInPolyTime.binary_ceilSqrt` certifies in polynomial time, so that
-a certificate for `fermatFactor` can be composed from it and one for `factorOfTotient`; that
-certificate is not part of this module. The book assumes that `p` and `q` are odd primes. The
-statements on naturals need only that `p + q` is even: positivity of `p` and `q` follows from
-the closeness bound, and primality is not used. `RSADesc.fermatFactor_eq` replaces evenness of
-`p + q` by `p ≠ 2` and `q ≠ 2`. The closeness hypothesis and the conclusion of Lemma 16.4 are
-stated over `ℝ` exactly as in the book; the book leaves the
-proof of Lemma 16.4 as an exercise, and the proof here uses
+`Turing.MultiTapeTM.ComputableInPolyTime.binary_ceilSqrt` certifies in polynomial time.
+`computableInPolyTime_fermatFactor` certifies the whole of `fermatFactor`, with `factorOfTotient`
+unfolded, from the polynomial-time certificates for arithmetic, the test `n = 0` and `Nat.sqrt` on
+binary naturals; it does not need a separate certificate for `factorOfTotient`.
+
+The book assumes that `p` and `q` are odd primes. The statements on naturals need only that
+`p + q` is even: positivity of `p` and `q` follows from the closeness bound, and primality is not
+used. `RSADesc.fermatFactor_eq` replaces evenness of `p + q` by `p ≠ 2` and `q ≠ 2`. The closeness
+hypothesis and the conclusion of Lemma 16.4 are stated over `ℝ` exactly as in the book; the book
+leaves the proof of Lemma 16.4 as an exercise, and the proof here uses
 `(p + q) / 2 - √n = ((p - q) / 2) ^ 2 / ((p + q) / 2 + √n)` and `(p + q) / 2 ≥ √n`.
 
 ## References
@@ -73,13 +82,16 @@ namespace Cslib.Crypto
 /-! ### Shared primes -/
 
 /-- **Shared prime factor** ([BonehShoup2023], Section 16.4.2, p. 698): moduli `p * q₁` and
-`p * q₂` with distinct primes `q₁ ≠ q₂` have gcd `p`. The common factor `p` need not be prime. -/
+`p * q₂` with distinct primes `q₁ ≠ q₂` have gcd `p`. The common factor `p` need not be prime.
+The attack is `Nat.gcd`, which `Turing.MultiTapeTM.ComputableInPolyTime.binary_gcd` computes in
+polynomial time on binary naturals. -/
 theorem gcd_mul_mul_of_prime_ne {p q₁ q₂ : ℕ} (hq₁ : q₁.Prime) (hq₂ : q₂.Prime) (hne : q₁ ≠ q₂) :
     Nat.gcd (p * q₁) (p * q₂) = p := by
   rw [Nat.gcd_mul_left, (Nat.coprime_primes hq₁ hq₂).2 hne, mul_one]
 
 /-- Two RSA moduli with the same first prime and different second primes are both factored by
-their gcd ([BonehShoup2023], Section 16.4.2, p. 698). -/
+their gcd ([BonehShoup2023], Section 16.4.2, p. 698), which
+`Turing.MultiTapeTM.ComputableInPolyTime.binary_gcd` computes in polynomial time. -/
 theorem RSADesc.gcd_modulus_eq_of_p_eq (desc₁ desc₂ : RSADesc) (hp : desc₁.p = desc₂.p)
     (hq : desc₁.q ≠ desc₂.q) : Nat.gcd desc₁.modulus desc₂.modulus = desc₁.p := by
   rw [RSADesc.modulus, RSADesc.modulus, ← hp]
@@ -206,5 +218,17 @@ theorem RSADesc.fermatFactor_eq (desc : RSADesc) (hp : desc.p ≠ 2) (hq : desc.
   · rw [max_eq_right h, min_eq_left h, RSADesc.modulus, mul_comm]
     rw [abs_sub_comm, mul_comm (desc.p : ℝ)] at hclose
     exact fermatFactor_mul_eq h (add_comm desc.p desc.q ▸ hpq) hclose
+
+/-! ### Efficiency -/
+
+open Turing.MultiTapeTM in
+/-- The single Fermat step `fermatFactor` is computable in polynomial time on binary naturals.
+Together with `fermatFactor_mul_eq`, a modulus with close factors is factored by a polynomial-time
+function. The proof unfolds `fermatFactor` and `factorOfTotient`, and `fun_prop` composes the
+certificates for arithmetic, the test `n = 0` and `Nat.sqrt` on binary naturals. -/
+theorem computableInPolyTime_fermatFactor :
+    ComputableInPolyTime fermatFactor encNat (encPair encNat encNat) := by
+  unfold fermatFactor factorOfTotient
+  fun_prop
 
 end Cslib.Crypto
