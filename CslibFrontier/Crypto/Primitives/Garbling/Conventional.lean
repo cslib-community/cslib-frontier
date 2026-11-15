@@ -16,7 +16,7 @@ import CslibFrontier.Computability.Circuit.Encoding.Evaluation
 # Conventional circuits as circuits
 
 A conventional circuit `f = (n, m, q, A, B, G)` of Bellare, Hoang and Rogaway
-[BellareHoangRogaway2012], Section 2.3 (`ConventionalCircuit`), numbers its wires from `1`, reads
+[BellareHoangRogaway2012] (`ConventionalCircuit`), numbers its wires from `1`, reads
 its gates' arguments from the 1-indexed wires `A g` and `B g`, and outputs its last `m` wires. A
 valid one is a circuit `ConventionalCircuit.toCircuit f : Circuit (fullSignature 2 Bool) n m` over
 the full binary basis: gate `g` applies the truth table `G g` to the 0-indexed wires `A g - 1` and

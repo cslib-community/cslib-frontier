@@ -21,8 +21,8 @@ import CslibFrontier.Foundations.Data.BitString.List.Operations
 # Point-and-permute garbling as a garbling scheme
 
 The point-and-permute garbling of `CslibFrontier.Crypto.Primitives.Garbling.Basic` as a garbling
-scheme in the sense of Bellare, Hoang and Rogaway [BellareHoangRogaway2012], Section 3.1, over
-valid conventional circuits (`ValidCircuit`): `PointPermute.scheme family`, whose masks are keyed
+scheme in the sense of Bellare, Hoang and Rogaway [BellareHoangRogaway2012] (`Garbling.Scheme`),
+over valid conventional circuits (`ValidCircuit`): `PointPermute.scheme family`, whose masks are keyed
 by a word family `family`. This module gives the definitions and their correctness only; running
 times and privacy are not treated here.
 
@@ -754,7 +754,7 @@ theorem scheme_nonDegenerate : (scheme family).NonDegenerate := by
   exact ⟨rfl, rfl⟩
 
 /-- **Point-and-permute garbling is a valid garbling scheme**: the length condition,
-non-degeneracy and correctness of [BellareHoangRogaway2012], Section 3.1, for every family. -/
+non-degeneracy and correctness of `Scheme.IsValid`, for every family. -/
 theorem scheme_isValid : (scheme family).IsValid :=
   ⟨scheme_lengthCondition family, scheme_nonDegenerate family, scheme_correct family⟩
 
