@@ -93,9 +93,9 @@ Given a public matrix `A : Matrix (Fin m) (Fin n) (ZMod q)`, an encryption error
   `strongReuseAdvantage_lweEncryptFuzzyExtractor_le` is unrestricted. Concluding strong
   reusability from `DecisionLWEWithErrors` needs an adversary class in the reuse experiments and
   efficiency certificates for `encryptRealReduction` and `encryptIdealReduction`; this is future
-  work, recorded under "Reusable fuzzy extractors from LWE" in the Cryptography section of
-  `ROADMAP.md`. For i.i.d. errors, `decisionLWE_iff_decisionLWEWithErrors` connects that
-  conclusion to `DecisionLWE`.
+  work, recorded under "Reusable fuzzy extractors from LWE" in `roadmap/cryptography.md`. For
+  i.i.d. errors, `decisionLWE_iff_decisionLWEWithErrors` connects that conclusion to
+  `DecisionLWE`.
 
 ## References
 

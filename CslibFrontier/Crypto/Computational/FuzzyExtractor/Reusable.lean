@@ -109,8 +109,8 @@ strong-reuse advantage is at least `1 - δ - 1 / q ^ k`.
 * A reusability security theorem. Here the adversary is any `ReuseAdversary`, with no efficiency
   bound. Concluding reusability from `DecisionLWEWithErrors` needs an adversary class in the
   reuse experiments and efficiency certificates for `commonMatrixSimulator` and the reductions;
-  this is future work, recorded under "Reusable fuzzy extractors from LWE" in the Cryptography
-  section of `ROADMAP.md`.
+  this is future work, recorded under "Reusable fuzzy extractors from LWE" in
+  `roadmap/cryptography.md`.
 * The Section 3.2 attack on independent-matrix FMR (`lweFuzzyExtractor` with fresh `A_i` per
   enrollment), which relies on the concrete `Decode_t` algorithm analysis.
 * The Section 4 random-oracle transformation from weak to strong reusability (Theorem 2).
