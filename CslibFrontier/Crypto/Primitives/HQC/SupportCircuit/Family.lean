@@ -263,16 +263,21 @@ input, run the reversible sampler, then move its three-bit output block to the m
     prefixSwapCodes
       (samplerOutputStart (2 * (s + 1)) (growingSupportCircuit (s + 1)).code) 3
 
+private theorem computableInPolyTime_growingSupportSeed :
+    ComputableInPolyTime (fun s : ℕ => 2 * (s + 1)) encUnary encUnary := by
+  fun_prop
+
+private theorem computableInPolyTime_growingSupportCircuitCode :
+    ComputableInPolyTime (fun s => (growingSupportCircuit (s + 1)).code)
+      encUnary encCode := by
+  exact computableInPolyTime_growingSupportCircuit.comp (by fun_prop)
+
 /-- The complete family gate list is generated in polynomial time from the unary security
 parameter. -/
 @[fun_prop] theorem computableInPolyTime_growingSupportSamplerGateCodes :
     ComputableInPolyTime growingSupportSamplerGateCodes encUnary (encList encGateCode) := by
-  have hword : ComputableInPolyTime (fun s : ℕ => s + 1) encUnary encUnary := by fun_prop
-  have hseed : ComputableInPolyTime (fun s : ℕ => 2 * (s + 1)) encUnary encUnary := by
-    fun_prop
-  have hcode : ComputableInPolyTime
-      (fun s => (growingSupportCircuit (s + 1)).code) encUnary encCode :=
-    computableInPolyTime_growingSupportCircuit.comp hword
+  have hseed := computableInPolyTime_growingSupportSeed
+  have hcode := computableInPolyTime_growingSupportCircuitCode
   have hsampler := computableInPolyTime_samplerCodes hseed hcode
   have hsource : ComputableInPolyTime
       (fun s => samplerOutputStart (2 * (s + 1))
@@ -381,12 +386,8 @@ private theorem computableInPolyTime_growingSupportSamplerDescription :
   have hℓ : ComputableInPolyTime
       (fun input : OracleInputSize => input.classicalInputLength) encOracleInputSize encUnary := by
     fun_prop
-  have hword : ComputableInPolyTime (fun s : ℕ => s + 1) encUnary encUnary := by fun_prop
-  have hseed : ComputableInPolyTime (fun s : ℕ => 2 * (s + 1)) encUnary encUnary := by
-    fun_prop
-  have hcode : ComputableInPolyTime
-      (fun s => (growingSupportCircuit (s + 1)).code) encUnary encCode :=
-    computableInPolyTime_growingSupportCircuit.comp hword
+  have hseed := computableInPolyTime_growingSupportSeed
+  have hcode := computableInPolyTime_growingSupportCircuitCode
   have hwidth : ComputableInPolyTime growingSupportSamplerWidth encUnary encUnary :=
     computableInPolyTime_samplerWidth hseed hcode
   have hphase : ComputableInPolyTime (fun g : GateCode => (false, g))
