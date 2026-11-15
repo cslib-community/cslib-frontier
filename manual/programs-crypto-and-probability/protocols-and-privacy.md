@@ -978,6 +978,42 @@ Perfect secrecy, zero knowledge and semi-honest MPC privacy do not substitute fo
 
 Model boundaries: `AccessScheme` expresses information-theoretic correctness (deterministic for all ambient keys `k : Key`) and security (exact `PMF` equality or `δ`-statistical distance on unauthorized views) rather than PPT execution or interactive MPC protocols. For finite fields `F` (resp. finite groups `G`), `shamirSources` (resp. `additiveSources`) is the singleton `{uniformOfFintype}`; for infinite `F` or `G` with `params.threshold ≥ 1` (`m ≥ 1`), no translation-invariant `PMF` exists (`sources = ∅`), so privacy of `shamirAccessScheme` and `additiveAccessScheme` over infinite types is vacuous and only correctness holds nontrivially. `shamirPaddedAccessScheme` and `additivePaddedAccessScheme` use `comapKey Prod.fst` and ignore the auxiliary key component, so they are auxiliary-key padding of the uniform/translation-invariant schemes rather than imperfect-randomness schemes in the sense of [aggarwal26][aggarwal26]; instantiation with extractor-based imperfect-randomness schemes from cslib-frontier PR #2525 awaits that PR landing on `main`. Checked instances in [CslibFrontierTests/SecretSharingAccessStructure.lean](../../CslibFrontierTests/SecretSharingAccessStructure.lean) exercise `ZMod 5` Shamir `(2, 3)` and `(3, 4)` schemes, mutual information, posterior privacy, `PerfectlyCorrect`, `shareDist`, `IsNontrivial`, `inter`, `union`, `SourceClass.map`/`flat`, `restrictSecret`/`mapShare`/`relabelParty`, auxiliary-key-padded sources, `ZMod 4` additive `3`-out-of-`3` sharing, `(2, 2)` compositions, non-existence of `(2, 3, 2, 2)`, `(3, 3, 2, 2)`, `(4, 4, 2, 2)`, and `(3, 5, 2, 2)` designs, a finite `ZMod 3` `2`-out-of-`2` source-dependent scheme whose unauthorized view distribution genuinely varies with the chosen tag source, `δ`-statistical privacy under design composition, and a leaky counterexample with `0 < mutualInfo`.
 
+### Shamir shares as fixed linear combinations
+
+Boneh–Shoup Section 22.5.2 ([bs23][bs23], pp. 977–978) lists two properties of Shamir sharing
+that its threshold schemes use, and derives both from Lemma 22.1. Import
+[`Shamir/Interpolation.lean`](../../CslibFrontier/Crypto/Protocols/SecretSharing/Shamir/Interpolation.lean)
+for them. Each statement takes Shamir parameters `params : Params F Party` over a field `F` with
+`[Fintype Party]`, randomness `r` and a secret `a`; the forms acting on a module `M` take
+`[AddCommMonoid M] [Module F M]` and an element `h : M`.
+
+- **Linearity of the shares.** `share_eq_eval_basis_mul_add_sum` also takes `[DecidableEq Party]`,
+  a set `L` with `hL : params.threshold ≤ #L` (the book's `t - 1` parties) and any party `i`. It
+  writes the share of `i` as a combination of `a` and the shares of `L`, with weights that depend
+  only on `params`, `L` and `i`: the values at `params.point i` of the Lagrange basis polynomials of
+  the nodes `L ∪ {0}` (`Params.pointOrZero`). `share_smul_eq_eval_basis_smul_add_sum`, with the
+  same hypotheses, applies this identity to `h`; it is the additive form of the book's
+  interpolation in the exponent with these nodes.
+- **Linearity of the secret, acting on a module.** `sum_lagrangeWeightAtZero_smul_share_smul`
+  takes `hs : authorized params s` and combines the elements `share params r a i • h` of the parties
+  in `s` with the weights at `0`, giving `a • h`. This is how a threshold scheme combines signature
+  or decryption shares. Over the field it is `reconstruct_share_eq_secret`.
+
+`Polynomial.lagrangeWeightAtZero_eq_eval_basis` (for `[Field F] [Fintype ι] [DecidableEq ι]`,
+with no hypothesis on the points) identifies the weights at `0` of `Shamir/Linear.lean` with
+values of Lagrange basis polynomials, whose product formula is `Lagrange.eval_basis` in
+[`Polynomial/LagrangeEval.lean`](../../CslibFrontier/Foundations/Data/Polynomial/LagrangeEval.lean).
+These identities define no algorithm and carry no cost statement; the polynomial-time forms of
+Lemma 22.1 and Corollary 22.2 are described in
+[Lagrange interpolation in the exponent](security-games-and-primitives.md#lagrange-interpolation-in-the-exponent).
+The [Shamir interpolation client](../../CslibFrontierTests/Crypto/ShamirInterpolation.lean) checks
+both properties for two-out-of-three sharing over `ZMod 5`, including that the bound on `#L` is
+needed. Check it with:
+
+```bash
+scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.ShamirInterpolation
+```
+
 ## Differential privacy
 
 [DifferentialPrivacy/Basic.lean](../../CslibFrontier/Privacy/DifferentialPrivacy/Basic.lean) defines `DifferentiallyPrivate Adj M ε δ` for a mechanism `M : D → PMF R`: for all `Adj`-adjacent datasets `x`, `y` and every set `S` of outputs, `Pr[M x ∈ S] ≤ exp ε · Pr[M y ∈ S] + δ`, with `ε : ℝ`, `δ : ℝ≥0∞` and events measured by `PMF.toOuterMeasure` [DworkRoth2014, Definition 2.4][dworkroth14]. The adjacency relation is an explicit parameter; [DifferentialPrivacy/Hamming.lean](../../CslibFrontier/Privacy/DifferentialPrivacy/Hamming.lean) supplies `HammingAdjacent` (datasets `ι → X` differing in at most one row), the neighbor relation of Ghosh–Roughgarden–Sundararajan [grs12][grs12]. Dwork–Roth's own adjacency is `ℓ₁` distance one between histograms, which is another instance of the parameter, not something these files define. The definition quantifies over ordered pairs, so a symmetric guarantee needs a symmetric relation.

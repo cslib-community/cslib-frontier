@@ -958,6 +958,55 @@ counts the points of `y² = x³ + 3x + 3` over `ZMod 7` (Example 9.69 of
 that attain both ends of the bound, and applies each form of the theorem to them. Build it with
 `lake build CslibFrontierTests.Foundations.AlgebraicGeometry.EllipticCurveHasse`.
 
+### Lagrange interpolation in the exponent
+
+Boneh–Shoup Lemma 22.1 and Corollary 22.2 ([bs23][bs23], Section 22.1.1, pp. 928–929) say that
+the value at any point of a polynomial of degree less than `t` over `Z_q` is a fixed combination of
+its values at `t` distinct nodes, with efficiently computable coefficients, and that in a group of
+prime order `q` the same combination works in the exponent. Over an arbitrary field, without cost
+statements, `Lagrange.eval_eq_sum_eval_basis_mul_eval` and
+`Lagrange.eval_smul_eq_sum_eval_basis_smul` in
+[`Polynomial/LagrangeEval.lean`](../../CslibFrontier/Foundations/Data/Polynomial/LagrangeEval.lean)
+state the identities. Each takes `[Field F] [DecidableEq ι]`, nodes `v` with
+`hv : Set.InjOn v s` and a polynomial with `hf : f.degree < #s`; the module form also takes
+`[AddCommMonoid M] [Module F M]`. `Lagrange.eval_basis` gives the product formula of the weights,
+with no hypothesis.
+
+Import
+[`DiscreteLog/Interpolation.lean`](../../CslibFrontier/Crypto/Computational/DiscreteLog/Interpolation.lean)
+for the polynomial-time forms. The nodes are a list `nodes : List ℕ` and the point is any `x : ℕ`.
+
+- `lagrangeWeightNat q nodes j x` computes the coefficient of `j` modulo `q` on natural numbers.
+  For `[Fact q.Prime]`, `lagrangeWeightNat_cast_eq_eval_basis` takes nodes distinct modulo `q`
+  (`hnodes : (nodes.map (Nat.cast : ℕ → ZMod q)).Nodup`) and `hj : j ∈ nodes`, and identifies the
+  coefficient with the value at `x` of the Lagrange basis polynomial of `j`. With the same `hnodes`
+  and a polynomial `f` over `ZMod q` with `hf : f.degree < nodes.length`,
+  `eval_eq_sum_lagrangeWeightNat_mul_eval` is Lemma 22.1 with these coefficients.
+  `computableInPolyTime_lagrangeWeightNat` (`@[fun_prop]`) computes the coefficient in polynomial
+  time when `q` is the order `F.order d` of a group of a `PrimeOrderGroupFamily` `F`, from a
+  description, nodes, node and point computed in polynomial time; it takes no hypothesis on the
+  nodes.
+- `lagrangeCombine d x shares` combines the group elements of the pairs `(j, h_j)` with those
+  coefficients. `lagrangeCombine_eval_smul` is Corollary 22.2 written additively: for a group
+  description `d`, nodes distinct modulo `F.order d`, a polynomial `f` with `hf` as above and
+  `h : F.Carrier d`, combining the elements `f(j) • h` gives `f(x) • h`.
+  `computableInPolyTime_encode_lagrangeCombine` computes the encoding of the combination in
+  polynomial time from the description, the point and the list of pairs `(j, F.encode d h_j)`, all
+  computed in polynomial time. Its input is the encodings of group elements, not arbitrary words.
+  It is not `@[fun_prop]`: when the shares are themselves a `List.map`, fuse the two maps in its
+  hypothesis `hshares` with `List.map_map` before calling `fun_prop`, as the client does.
+
+The [interpolation client](../../CslibFrontierTests/Crypto/DiscreteLogInterpolation.lean) computes
+coefficients modulo `7`, shows that both hypotheses of `lagrangeWeightNat_cast_eq_eval_basis` are
+needed, recovers a constant term in the exponent in every group of every family and applies both
+certificates. Check it and the field-level
+[Lagrange client](../../CslibFrontierTests/Foundations/Data/Polynomial/LagrangeEval.lean) with:
+
+```bash
+scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.DiscreteLogInterpolation \
+  CslibFrontierTests.Foundations.Data.Polynomial.LagrangeEval
+```
+
 ### Faithful block-matrix embeddings
 
 Import [`Matrix/BlockEmbedding.lean`](../../CslibFrontier/Foundations/LinearAlgebra/Matrix/BlockEmbedding.lean)
