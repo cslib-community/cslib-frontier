@@ -38,10 +38,10 @@ Each named assumption belongs in the [assumptions inventory](assumptions.md), wh
 
 ElGamal bit encryption under DDH in [ElGamal.lean](../../CslibFrontier/Crypto/Computational/ElGamal.lean) is the reference pattern. It has four parts:
 
-1. **The reduction is a program.** [elGamalMsgToDDHDistinguisher](../../CslibFrontier/Crypto/Computational/ElGamal.lean#L380) turns an IND-CPA adversary into a DDH distinguisher, and `elGamalToDDHDistinguisher` specializes it to bit messages.
-2. **A concrete bound.** [advantage_elGamalCPAGame_le](../../CslibFrontier/Crypto/Computational/ElGamal.lean#L663) bounds the IND-CPA advantage of `adversary` by the DDH advantages of `elGamalToDDHDistinguisher adversary false` and `… true`. It holds for every adversary, efficient or not.
-3. **An efficiency witness.** [isPPT_elGamalToDDHDistinguisher](../../CslibFrontier/Crypto/Computational/ElGamal.lean#L679) proves that the distinguisher is uniform strict PPT whenever the adversary is.
-4. **The asymptotic theorem.** [DDH.elGamalINDCPA](../../CslibFrontier/Crypto/Computational/ElGamal.lean#L686) assumes only `hDDH : F.DDH setup`. For a PPT adversary it applies `hDDH` to both distinguishers through the witness of step 3, and concludes with the bound of step 2.
+1. **The reduction is a program.** [elGamalMsgToDDHDistinguisher](../../CslibFrontier/Crypto/Computational/ElGamal.lean#L378) turns an IND-CPA adversary into a DDH distinguisher, and `elGamalToDDHDistinguisher` specializes it to bit messages.
+2. **A concrete bound.** [advantage_elGamalCPAGame_le](../../CslibFrontier/Crypto/Computational/ElGamal.lean#L661) bounds the IND-CPA advantage of `adversary` by the DDH advantages of `elGamalToDDHDistinguisher adversary false` and `… true`. It holds for every adversary, efficient or not.
+3. **An efficiency witness.** [isPPT_elGamalToDDHDistinguisher](../../CslibFrontier/Crypto/Computational/ElGamal.lean#L677) proves that the distinguisher is uniform strict PPT whenever the adversary is.
+4. **The asymptotic theorem.** [DDH.elGamalINDCPA](../../CslibFrontier/Crypto/Computational/ElGamal.lean#L684) assumes only `hDDH : F.DDH setup`. For a PPT adversary it applies `hDDH` to both distinguishers through the witness of step 3, and concludes with the bound of step 2.
 
 In the non-uniform circuit model the efficiency witness is a circuit-size bound instead. `secure_truthTableGenerator_booleanFamily` in [GGM/Circuit.lean](../../CslibFrontier/Crypto/Computational/GGM/Circuit.lean) assumes that the generator is secure against tests with `t + 2 ^ n (n C + 1)` gates, a size that the file proves for its reduction.
 

@@ -39,6 +39,8 @@ not, the recombined output `σ` satisfies `gcd(σ ^ e − h, n) = q`, where `h` 
 * `Cslib.Crypto.RSADesc.crtQInv_eq_zmod_inv_val`, `Cslib.Crypto.RSADesc.crtQInv_mul_modEq_one`:
   `crtQInv` is the representative `((q : ZMod p)⁻¹).val` of `q⁻¹` in `ZMod p`, and an inverse
   of `q` modulo `p`.
+* `Cslib.Crypto.RSADesc.crtKey_eq_crtKeyWith`: `crtKey` is `crtKeyWith` with `q_inv = crtQInv`,
+  so the results about `crtKeyWith` apply to it.
 * `Cslib.Crypto.RSACRTKey.combine_mod_mod`, `Cslib.Crypto.RSACRTKey.combine_modEq_p`,
   `Cslib.Crypto.RSACRTKey.combine_modEq_q`: recombination returns `x < p * q` from its residues,
   and its output is congruent to `x_p` modulo `p` and to `x_q` modulo `q`.
@@ -199,6 +201,11 @@ theorem crtQInv_mul_modEq_one (desc : RSADesc) : desc.crtQInv * desc.q ≡ 1 [MO
 /-- The RSA-CRT key of `desc` ([BonehShoup2023], §16.4.3, p. 701), with `q_inv = crtQInv`. -/
 def crtKey (desc : RSADesc) : RSACRTKey :=
   desc.crtKeyWith desc.crtQInv
+
+/-- `crtKey` is `crtKeyWith` with `q_inv = crtQInv`. The definition of `crtKey` is not exposed;
+this equation lets clients apply the results about `crtKeyWith` to it. -/
+theorem crtKey_eq_crtKeyWith (desc : RSADesc) : desc.crtKey = desc.crtKeyWith desc.crtQInv := by
+  rw [crtKey]
 
 /-- `x ^ (a mod (p - 1)) ≡ x ^ a [MOD p]` for a prime `p` when `a mod (p - 1)` is positive. -/
 private theorem pow_mod_sub_one_modEq {p a : ℕ} (hp : p.Prime) (ha : 0 < a % (p - 1)) (x : ℕ) :
