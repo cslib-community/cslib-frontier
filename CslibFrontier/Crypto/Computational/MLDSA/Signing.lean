@@ -100,7 +100,9 @@ theorem signAttempt_eq_some_of_compressedSignAttempt_eq_some (d ω : ℕ) (H : H
   split_ifs at hout with hshort hfinal
   cases hout
   unfold signAttempt
-  rw [if_pos hshort]
+  split
+  · rfl
+  · contradiction
 
 /-- **Correctness of one compressed attempt.** Under the secret-key and hash-to-ball bounds,
 every signature returned by `compressedSignAttempt` passes `compressedVerify` under the matching
