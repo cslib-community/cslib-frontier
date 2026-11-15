@@ -2507,6 +2507,30 @@ the `T × Fin (2 * s) → T × Bool` construction `revealAtZero` of Exercise 8.2
 ratio `s` and inversion probability `1 / (2 * s)` (`1 / 4` at `s = 2`), and check
 `secondPreimageResistant_id` and `not_secondPreimageResistant_const_empty`.
 
+The implications and separations of [bs23][bs23], §8.11.1, equation (8.17), p. 337, and
+Exercise 8.23(b)–(d), p. 353, on bit strings live in
+[`SecondPreimageResistant/Relations.lean`](../../CslibFrontier/Crypto/Computational/SecondPreimageResistant/Relations.lean).
+Wrapping an `Inverter` via `inverterToSecondPreimage f adversary` (`isPPT_inverterToSecondPreimage`)
+gives `succProbability_inversionGame_le_secondPreimageGame_add` and
+`succProbability_inversionGame_le_two_mul_secondPreimageGame_add` (`OWadv[A, f] ≤ 2 · SPRadv[B, f] + 2 ^ d / 2 ^ n`
+when `n`-bit inputs have `d`-bit digests), so `SecondPreimageResistant.oneWay_of_outputLength`
+derives `OneWay f` when `2 ^ outLen n / 2 ^ n` is negligible. Conversely,
+`secondPreimageToCollisionFinder adversary r` (`isPPT_secondPreimageToCollisionFinder`) turns a
+second-preimage finder for `CollisionResistantToOneWay.keyDigest H` at length `3 * n + r` (`r < 3`)
+into a `CollisionFinder` for `H` at parameter `n` with zero loss
+(`succProbability_secondPreimageGame_keyDigest_le`), proving
+`HashFamily.secondPreimageResistant_keyDigest` (Exercise 8.23(d)). Both arrows of (8.17) are strict:
+`ignoreHeadBit f w = f w.tail` preserves `OneWay` (`OneWay.ignoreHeadBit`, via
+`ignoreHeadBitInverter` and `isPPT_ignoreHeadBitInverter`) while `flipHeadBit` breaks
+`SecondPreimageResistant` with probability `1` (`not_secondPreimageResistant_ignoreHeadBit`); and
+`plantEasyBranch k H` preserves `SecondPreimageResistant` (`SecondPreimageResistant.plantEasyBranch`)
+while `plantEasyBranchInverter k` (`isPPT_plantEasyBranchInverter`) breaks `OneWay` with success at
+least `(1 / 2) ^ k` (`not_oneWay_plantEasyBranch`, Exercise 8.23(c) on bit strings). The
+[checked clients](../../CslibFrontierTests/Crypto/SecondPreimageResistantRelations.lean) verify that
+`plantEasyBranch 2 id` is unconditionally `SecondPreimageResistant` and `¬ OneWay`, that
+`ignoreHeadBit id` is `¬ SecondPreimageResistant`, and that `id` is `SecondPreimageResistant` and
+`¬ OneWay` without compression.
+
 Merkle–Damgård chains have many messages with one digest at little more than the cost of one
 collision (Joux's attack, [bs23][bs23], §8.4.1, pp. 298–299). Import
 [`MerkleDamgard/Multicollision.lean`](../../CslibFrontier/Crypto/Computational/MerkleDamgard/Multicollision.lean).
