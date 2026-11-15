@@ -372,10 +372,11 @@ integer `p ≥ 2` and any distribution `χ` on `ℤ_p`, the distribution `A_{s,�
 Section 4, Lemma 4.1, p. 30, concerns the decision variant: distinguishing `A_{s,χ}` from the
 uniform distribution for a non-negligible fraction of the secrets `s`. Here the secret is uniform
 and the advantage is averaged over it. This definition differs from the source as follows.
-* The modulus is `2 ^ w κ`, a restriction of Regev's range of integers `p ≥ 2`; at `w κ = 0` it is
-  `1`, and the assumption holds trivially. Regev's main theorem allows any integer `p` (p. 15), but
-  his decision-to-search reduction, Lemma 4.2, p. 31, needs a prime `p ≤ poly(n)`, so of these
-  moduli his hardness results for the decision variant cover only `2`.
+* The modulus is `2 ^ w κ`, a restriction of Regev's range of integers `p ≥ 2` (Section 2, p. 15);
+  at `w κ = 0` it is `1`, where the real and random games coincide. Regev's worst-case hardness for
+  the decision variant covers none of these moduli: his decision-to-search reduction, Lemma 4.2,
+  p. 31, needs a prime `p ≤ poly(n)`, which leaves only `2`, and his main theorem, Theorem 3.1,
+  p. 18, needs `αp > 2√n` with `α < 1`, which fails at `p = 2`.
 * The distinguisher receives exactly `m κ` samples, as the rows of `A` and `b`, where Regev's
   algorithms draw samples from `A_{s,χ}` as they need them.
 * The noise law is arbitrary; Regev's hardness results are for Gaussian noise (`Ψ_α`, and its

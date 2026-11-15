@@ -468,10 +468,13 @@ p. 249, states it over `R_q = ℤ_q[X]/(X^n + 1)` (Section 2.1, p. 242) with the
   work over the ring of integers `R` of a cyclotomic field with the Euclidean norm of the canonical
   embedding (Section 2.1).
 * The matrix is uniform, as in Langlois and Stehlé; Ducas et al. take it in Hermite normal form
-  `[I | A]` with `A` uniform.
+  `[I | A]` with `A` uniform. The two forms are equivalent up to the probability that a uniform
+  square block over `R_q` is invertible, which is close to 1 for Ducas et al.'s `q` but not for
+  every `q` (for example `q = 2`).
 * The ring is `ℤ_q[X]/(X^n + 1)` for any `n` and `q`, where Ducas et al. fix `n = 256` and
-  `q = 8380417`; the solvers are uniform classical strict PPT programs, and their success
-  probability must be negligible in `κ`. -/
+  `q = 8380417`; for `n` not a power of two, `X^n + 1` is not cyclotomic, so the ring is outside
+  Langlois and Stehlé's setting too. The solvers are uniform classical strict PPT programs, and
+  their success probability must be negligible in `κ`. -/
 def ModuleSIS (M : ModuleSISParams) : Prop :=
   ∀ S : M.Solver, S.IsPPT → Negligible fun κ => moduleSISAdvantage (M.q κ) (M.β κ) (S κ)
 
