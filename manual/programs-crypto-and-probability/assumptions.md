@@ -57,10 +57,10 @@ Names are relative to `Cslib.Crypto`.
 | `SIS` | standard | [Ajtai1996] (locator not verified) | — | [ModuleSIS.lean](../../CslibFrontierTests/Crypto/ModuleSIS.lean) `not_sis_zeroRowSIS` |
 | `ModuleSIS` | standard | [Lyubashevsky2012], [DucasEtAl2018] (locator not verified) | — | — |
 | `RingSIS` | standard | [Lyubashevsky2012] (locator not verified) | `ModuleSIS` at rank 1. | — |
-| `HQC.NativeQuantumTwoDQCSDP` | standard | [HQC2026] Definitions 2.3.6–2.3.9, pp. 12–13 (locator not verified) | Native quantum tests without advice or a useful oracle. | — |
-| `HQC.NativeQuantumTwoDQCSDPWithin` | standard | [HQC2026] Definitions 2.3.6–2.3.9, pp. 12–13 (locator not verified) | Concrete form, with separate circuit resource budgets. | — |
-| `HQC.NativeQuantumThreeDQCSDPT` | standard | [HQC2026] Definitions 2.3.6–2.3.9, pp. 12–13 (locator not verified) | Native quantum tests without advice or a useful oracle. | — |
-| `HQC.NativeQuantumThreeDQCSDPTWithin` | standard | [HQC2026] Definitions 2.3.6–2.3.9, pp. 12–13 (locator not verified) | Concrete form, with separate circuit resource budgets. | — |
+| `HQC.NativeQuantumTwoDQCSDP` | standard | [HQC2026] Definition 2.3.6, p. 12, and Definition 2.3.7, pp. 12–13, in version 5.1 | Native quantum tests without advice or a useful oracle, a narrower class than the source's, which fixes no model. Any parameter schedule, where the specification takes `n` to be a primitive prime (p. 13). | — |
+| `HQC.NativeQuantumTwoDQCSDPWithin` | standard | [HQC2026] Definition 2.3.6, p. 12, and Definition 2.3.7, pp. 12–13, in version 5.1 | Concrete form, with separate circuit resource budgets; the source asks only for non-negligible advantage. | — |
+| `HQC.NativeQuantumThreeDQCSDPT` | standard | [HQC2026] Definitions 2.3.8 and 2.3.9, p. 13, in version 5.1 | Native quantum tests without advice or a useful oracle, as for `HQC.NativeQuantumTwoDQCSDP`. Any parameter schedule with `0 < ℓ < n`, where the specification takes `n` to be a primitive prime. | — |
+| `HQC.NativeQuantumThreeDQCSDPTWithin` | standard | [HQC2026] Definitions 2.3.8 and 2.3.9, p. 13, in version 5.1 | Concrete form, with separate circuit resource budgets; the source asks only for non-negligible advantage. | — |
 
 ## Other assumptions
 
