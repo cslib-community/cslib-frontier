@@ -1359,14 +1359,31 @@ block once at the end; the final measurement is separate from `OracleCircuit.Res
 encoded-code bound charges framed unary wire indices for the emitted gates. It does not charge
 the static generator description or offline generation time as online attack execution.
 
+[`HQC/SupportCircuit/Family.lean`](../../CslibFrontier/Crypto/Primitives/HQC/SupportCircuit/Family.lean)
+builds a native uniform family from arbitrary polynomial-time word-width, value-bit, universe and
+support-weight schedules. At every parameter its output has exactly the finite implemented law
+above. Negligibility is a separate growing-width property; in particular, the published fixed
+word width `32` does not satisfy it. The module records exact online resources and separate
+polynomial offline-generator and static-occurrence accounting.
+
+The generic family does not bind schedules to named HQC parameter sets or compose the multiple
+support draws used by key generation and encryption. HQC v5.1 §6.2.3 also composes the
+upper-density factors for three encryption support vectors multiplicatively; that integration is
+tracked by [#5279](https://github.com/cslib-community/cslib-frontier/issues/5279), and the reduction
+remains [#5281](https://github.com/cslib-community/cslib-frontier/issues/5281). The family module
+makes no HQC security or QROM claim.
+
 The complete ordinary clients in
 [`HQCSupportCircuit.lean`](../../CslibFrontierTests/Crypto/HQCSupportCircuit.lean) and
 [`HQCSupportProbability.lean`](../../CslibFrontierTests/Crypto/HQCSupportProbability.lean) check
-the non-dyadic sampler law, each resource coordinate, finite discrepancy, and the growing-width
-qualification. From the repository root, build them with:
+the non-dyadic sampler law, finite discrepancy, and the growing-width qualification.
+[`HQCSupportSamplerFamily.lean`](../../CslibFrontierTests/Crypto/HQCSupportSamplerFamily.lean)
+checks an inhabited fixed-weight output for one generic schedule, the negligible growing-width
+condition, each resource coordinate, and offline occurrence accounting. From the repository root,
+build them with:
 
 ```bash
-scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.HQCSupportCircuit CslibFrontierTests.Crypto.HQCSupportProbability
+scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.HQCSupportCircuit CslibFrontierTests.Crypto.HQCSupportProbability CslibFrontierTests.Crypto.HQCSupportSamplerFamily
 ```
 
 Import [`HQC/Syndrome.lean`](../../CslibFrontier/Crypto/Primitives/HQC/Syndrome.lean) for the
@@ -1634,23 +1651,77 @@ index sampler `index` under the hypothesis `hindex`: for every list `l` and ever
 [`Probability/PMF/UniformIndex.lean`](../../CslibFrontier/Probability/PMF/UniformIndex.lean): for
 `[NeZero Q]`, any list `l`, any default `d` and `hx : x ∈ l.take Q`, an index uniform on `Fin Q`
 read in `l` with default `d` equals `x` with probability at least `(Q : ℝ≥0∞)⁻¹`.
+A machine with fair coins cannot draw an exactly uniform position below every `Q`. The capped
+residue sampler `ProbComp.sampleModIndex width bound` of
+[`Languages/Probabilistic/UniformNat/ModIndex.lean`](../../CslibFrontier/Languages/Probabilistic/UniformNat/ModIndex.lean)
+draws `ProbComp.sampleModNat width bound`, the residue modulo `bound` of a number written with
+`width` fair coins, and caps it at `bound`. At `bound = 0` it returns `0`;
+`ProbComp.sampleModIndex_eq_sampleModNat` takes `hbound : 0 < bound` and shows that the cap then
+changes nothing. `Probability.isPPTOn_sampleModIndex`, in the
+[certificate module](../../CslibFrontier/Computability/Probabilistic/UniformNat/ModIndex.lean),
+takes an input encoding `input : α ↪ List Bool`, `hwidth : ComputableInPolyTime width input encUnary`
+and `hbound : ComputableInPolyTime bound input encUnary`, and shows that the sampler is uniformly
+strict PPT with unary output. The modular key-chain and leveled reductions of
+[`Leveled/ExactSecurity.lean`](../../CslibFrontier/Crypto/Computational/Homomorphic/Leveled/ExactSecurity.lean)
+draw their indices with the same sampler. `eval_listCDHExperiment_le_mul_add` takes this index in
+one group: for a `ZMod q`-module `G` with `[NeZero q]` and `[DecidableEq G]`, and every `g`,
+`width`, `Q` and `A`, with no further hypothesis, it shows in `ℝ≥0∞`
+
+```lean
+ProbComp.eval (listCDHExperiment q g Q A) true ≤
+  Q * ProbComp.eval
+      (cdhExperiment q g (listCDHToCDH g (ProbComp.sampleModIndex width Q) A)) true +
+    Q ^ 2 / 2 ^ width
+```
+
+The factor is exactly `Q`. The uniform index gives it, and replacing that index by
+`sampleModIndex width Q` costs at most `Q / 2 ^ width` in the CDH experiment, which the factor `Q`
+turns into `Q ^ 2 / 2 ^ width`. For fixed exponents and a fixed list, the swap of the index comes
+from `Game.advantage_bind_sampleModNat_fin_le`, which takes `[NeZero Q]`; the case `Q = 0` is
+separate. The average over the exponents and the list keeps the constant as it is:
+`PMF.bind_apply_le_add_const_on_support` of
+[`Probability/PMF/Bind.lean`](../../CslibFrontier/Probability/PMF/Bind.lean), for `μ : PMF α`,
+`f g : α → PMF β`, an outcome `b` and `c : ℝ≥0∞`, takes `h : ∀ a ∈ μ.support, f a b ≤ g a b + c`
+and shows `μ.bind f b ≤ μ.bind g b + c`.
+
 [`DiffieHellman/ListCDHFamily.lean`](../../CslibFrontier/Crypto/Computational/DiffieHellman/ListCDHFamily.lean)
 gives the family game `listCDHGame setup Q adversary` for a bound `Q : ℕ → ℕ` and the reduction
-`listCDHToCDHAdversary Q adversary`. A machine with fair coins cannot draw an exactly uniform
-position below every `Q n`, so the reduction runs `listCDHToCDH` with the index
-`ProbComp.sampleDyadicIndex (Q n)`, uniform below the power of two `dyadicSize (Q n)`, which
-exceeds `Q n`. `ListCDHAdversary.IsPPT` asks for one uniform strict PPT machine from
-`encCDHInput` to the framed list of the words of the entries; the
-certificate `isPPT_listCDHToCDHAdversary` takes `hQ : ComputableInPolyTime Q encUnary encUnary` and
-`hA : adversary.IsPPT`. `succProbability_listCDHGame_le` bounds the success probability in the
-list game by `dyadicSize (Q n)` times that of the reduction in the CDH game, for every `setup`,
-`Q`, `adversary` and `n`, and `dyadicSize_le` gives `dyadicSize (Q n) ≤ 2 * (Q n + 1)`. The
-conclusion `CDH.negligible_listCDHGame` takes `h : F.CDH setup`, `hQ` and an adversary with
-`hA : adversary.IsPPT`, and shows that its success probability in the list game is negligible. The
-[list CDH client](../../CslibFrontierTests/Crypto/ListCDH.lean) checks the bound in `ZMod 7` at
-`Q = 0`, at `Q = 1`, at `Q = 3` beyond the length of the list and with a repeated solution, the
-reduction's output past the end of the list, and the certificate and the conclusion with
-`Q n = n`, also on Schnorr groups. Check it with:
+`listCDHToCDHAdversary width Q adversary`, which runs `listCDHToCDH` with the index
+`ProbComp.sampleModIndex (width n) (Q n)` for a coin count `width : ℕ → ℕ`.
+`ListCDHAdversary.IsPPT` asks for one uniform strict PPT machine from `encCDHInput` to the framed
+list of the words of the entries. `isPPT_listCDHToCDHAdversary` certifies the reduction: it takes
+`hwidth : ComputableInPolyTime width encUnary encUnary`,
+`hQ : ComputableInPolyTime Q encUnary encUnary` and `hA : adversary.IsPPT`, and shows
+`(F.listCDHToCDHAdversary width Q adversary).IsPPT`. `succProbability_listCDHGame_le` bounds the
+loss for every `setup`, `width`, `Q`, `adversary` and `n`, with no further hypothesis, in `ℝ≥0`:
+
+```lean
+Game.succProbability (F.listCDHGame setup Q adversary n) ≤
+  Q n * Game.succProbability
+      (F.cdhGame setup (F.listCDHToCDHAdversary width Q adversary) n) +
+    Q n ^ 2 / 2 ^ width n
+```
+
+The lift over `setup` averages the one-group bound over the drawn group description with
+`PMF.bind_apply_le_mul_bind_apply_add` of
+[`Probability/PMF/DensityBounds.lean`](../../CslibFrontier/Probability/PMF/DensityBounds.lean): for
+`p : PMF α`, `f g : α → PMF β`, `c ε : ℝ≥0∞` and an outcome `b`, it takes
+`h : ∀ a, f a b ≤ c * g a b + ε` and shows `p.bind f b ≤ c * p.bind g b + ε`, so the constant `ε`
+is averaged, not multiplied; `PMF.bind_apply_le_mul_bind_apply` is its case `ε = 0`. The certified
+loss is the book's factor `Q n` and the additive term `ε = Q n ^ 2 / 2 ^ width n`, which is not
+zero for any `width n` when `Q n ≠ 0`. `succProbability_listCDHGame_mono` takes
+`hle : Q n ≤ Q' n` and shows that the success probability at `n` with the bound `Q'` is at least
+that with the bound `Q`. The conclusion `CDH.negligible_listCDHGame` takes `h : F.CDH setup`, `hQ`
+and an adversary with `hA : adversary.IsPPT`, and shows that its success probability in the list
+game is negligible; its proof takes `width n = n`, and `ε = Q n ^ 2 / 2 ^ n` is negligible because
+`hQ` bounds `Q` polynomially. The
+[list CDH client](../../CslibFrontierTests/Crypto/ListCDH.lean) checks the uniform bound in
+`ZMod 7` at `Q = 0`, at `Q = 1`, at `Q = 3` beyond the length of the list and with a repeated
+solution, the reduction's output past the end of the list, the fair-coin bound at `Q = 0` and at
+`Q = 3`, and the sampler at the bounds `0` and `3` with its certificate. Over any family it checks
+the certificate, the loss bound and the conclusion with `width n = n` and `Q n = n`, the loss bound
+with `Q n = 0` and with `Q n = 3`, and monotonicity in `Q`; the conclusion also on Schnorr groups.
+Check it with:
 
 ```bash
 scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.ListCDH
@@ -2397,7 +2468,7 @@ Because `CommitmentScheme.commitDist` does not take the accuracy parameter `n : 
 
 [Garbling/Scheme.lean](../../CslibFrontier/Crypto/Primitives/Garbling/Scheme.lean) is the abstract garbling-scheme syntax of Bellare, Hoang and Rogaway, Sections 3 and 4 [bhr12][bhr12]: `Scheme Fn` is `(Gb, En, De, Ev, ev)` over an abstract type of function descriptions with length readers, `Scheme.Garbled` is the output triple `(F, e, d)`, and `Query Fn` is a query `(f, x)`. `Gb` carries its coins explicitly (`coinLen` and a deterministic `gb`), and `Scheme.garble` samples them via `BitString.sampleList`, so non-degeneracy can quantify over the coins (`Scheme.eval_garble`, `Scheme.mem_support_eval_garble_iff`). `Scheme.IsValid` bundles `Scheme.LengthCondition`, `Scheme.NonDegenerate` and `Scheme.Correct`; `Scheme.WellTyped` fixes the output length of `ev` and of every successful decoding of an arbitrary string. A `SideInfo Fn Λ` is a side-information function `Φ` with length readers (`SideInfo.circ` is the identity side information `Φ_circ`), and `SideInfo.Compatible`, `SideInfo.IsEvInverter` and `SideInfo.IsInverter` are the compatibility condition of Section 3.3 and the inversion hypotheses of Section 4.1 (`SideInfo.Compatible.inLen_eq`, `SideInfo.circ_compatible`, `SideInfo.circ_isInverter`). For a concrete point-and-permute circuit garbling construction over `Cslib.Circuits.Circuit`, see [Protocols and privacy](protocols-and-privacy.md#garbled-circuits); `PointPermute.scheme` there is that construction as a valid `Scheme ValidCircuit`.
 
-[Garbling/Games.lean](../../CslibFrontier/Crypto/Primitives/Garbling/Games.lean) states the single-query games of Sections 3.4–3.6 as experiments at a fixed security parameter `k`: `prvIndExperiment`, `prvSimExperiment`, `obvIndExperiment`, `obvSimExperiment` and `autExperiment`. Their adversaries are `TwoStage` adversaries (`PrvIndAdversary`, `PrvSimAdversary`, `ObvIndAdversary`, `ObvSimAdversary`, `AutAdversary`) that choose a `Query` or a `MessagePair` of queries and keep a state; the views are the records `PrvView` `(F, X, d)` and `ObvView` `(F, X)`, the real views are `Scheme.prvView` and `Scheme.obvView`, and the simulators `PrvSimulator` and `ObvSimulator` work at the fixed parameter. The advantages (`prvIndAdvantage`, `prvSimAdvantage`, `obvIndAdvantage`, `obvSimAdvantage`, `autAdvantage`) are `Experiment.advantage` and `Experiment.succProbability`. An invalid pair (`prvIndValid`, `obvIndValid`) or query is answered by `⊥`, so these are not `lrExperiment` instances; `prvIndAdvantage_eq_zero_of_invalid` records that an always-invalid adversary has advantage `0`, and `prvIndAdvantage_eq_two_mul_guessingAdvantage` identifies the `prv.ind` advantage with twice the bias of `Experiment.guessBit (prvIndExperiment G Φ k A)`. [Garbling/Foundations.lean](../../CslibFrontier/Crypto/Primitives/Garbling/Foundations.lean) proves Propositions 2 and 3 (Section 4) as exact per-adversary identities: `prvIndAdvantage_eq_two_mul_prvSimAdvantage_prvIndToSim` for every simulator (`prvIndToSim`, state `IndToSimState`) and `prvSimAdvantage_prvSimFromInverter_eq` against the inverter simulator `prvSimFromInverter` (`prvSimToInd`, `eval_prvSimExperiment_prvSimFromInverter`) under an `ev`-inverter, together with the obliviousness analogues (`obvIndToSim`, `obvSimFromInverter`, `obvInverterQuery`, `obvSimToInd`, `obvIndAdvantage_eq_two_mul_obvSimAdvantage_obvIndToSim`, `obvSimAdvantage_obvSimFromInverter_eq`, `eval_obvSimExperiment_obvSimFromInverter`) under an inverter and `≤` corollaries (`prvIndAdvantage_le_two_mul_prvSimAdvantage_prvIndToSim`, `prvSimAdvantage_prvSimFromInverter_le`, `obvIndAdvantage_le_two_mul_obvSimAdvantage_obvIndToSim`, `obvSimAdvantage_obvSimFromInverter_le`). [Garbling/CircuitInverters.lean](../../CslibFrontier/Crypto/Primitives/Garbling/CircuitInverters.lean) specialises this framework to conventional Boolean circuits (`ConventionalCircuit`, `ValidCircuit`, `Topo`, the well-formedness structure `Topo.IsValid`, `ValidTopo` and the shape record `ValidShape` of Section 2.3; `Scheme.IsCircuitScheme`) and the three standard side-information functions `phiTopo`, `phiSize` and `phiCirc` (`phiTopo_compatible`, `phiSize_compatible`, `phiCirc_compatible`). It constructs the explicit deterministic `(Φ, ev)`-inverters `mTopo` and `mSize` (`mTopoGates`, `sizeTopo`) and `Φ`-inverters `mTopoInv` and `mSizeInv` of Section 4.1, Proposition 1 (`phiTopo_isEvInverter`, `phiSize_isEvInverter`, `phiTopo_isInverter`, `phiSize_isInverter`, `phiCirc_isInverter`), and derives Corollaries 1 and 2 of Sections 4.2–4.3 (`prvIndAdvantage_phiTopo_eq_two_mul_prvSimAdvantage`, `prvSimAdvantage_phiTopo_mTopo_eq`, `prvIndAdvantage_phiSize_eq_two_mul_prvSimAdvantage`, `prvSimAdvantage_phiSize_mSize_eq`, and the obliviousness analogues for `phiTopo`, `phiSize` and `phiCirc`). [Garbling/Adaptive.lean](../../CslibFrontier/Crypto/Primitives/Garbling/Adaptive.lean) adds the coarse-grained adaptive privacy game `Prv1` of Bellare, Hoang and Rogaway, Section 3.1, Figure 2 [bhr12b][bhr12b] (`GarbledFn`, `Prv1Adversary`, `Prv1Simulator`, `prv1Experiment`, `prv1Advantage`, `prv1Advantage_eq_two_mul_guessingAdvantage`); its adversary has three stages, so it is not a `TwoStage` adversary. The embedding `prvSimToPrv1` and induced simulator `prv1SimulatorToPrv` (`PrvSimToPrv1State`) show that adaptive `prv1` simulation security implies selective `prv.sim` security with exact advantage equality (`eval_prv1Experiment_prvSimToPrv1`, `prvSimAdvantage_prv1SimulatorToPrv_eq`) and selective `prv.ind` security with a factor of two (`prvIndAdvantage_eq_two_mul_prv1Advantage`). No polynomial-time or negligible-advantage statement is made, and projective schemes (`Π` of Section 3.2) and the authenticity relations of Section 4 are not part of these modules. [Garbling-scheme clients](../../CslibFrontierTests/Crypto/GarblingScheme.lean) and [inverter/adaptive clients](../../CslibFrontierTests/Crypto/GarblingInverters.lean) check valid schemes (`identityScheme`, `plainCircuitScheme`), verify zero advantage for an invalid-query adversary, separate `phiSize`, `phiTopo` and `phiCirc` on concrete valid circuits, execute `mTopo` and `mSize` by `decide`, and instantiate the `prv.sim`, `obv.sim` and `prv1` reductions.
+[Garbling/Games.lean](../../CslibFrontier/Crypto/Primitives/Garbling/Games.lean) states the single-query games of Sections 3.4–3.6 as experiments at a fixed security parameter `k`: `prvIndExperiment`, `prvSimExperiment`, `obvIndExperiment`, `obvSimExperiment` and `autExperiment`. Their adversaries are `TwoStage` adversaries (`PrvIndAdversary`, `PrvSimAdversary`, `ObvIndAdversary`, `ObvSimAdversary`, `AutAdversary`) that choose a `Query` or a `MessagePair` of queries and keep a state; the views are the records `PrvView` `(F, X, d)` and `ObvView` `(F, X)`, the real views are `Scheme.prvView` and `Scheme.obvView`, and the simulators `PrvSimulator` and `ObvSimulator` work at the fixed parameter. The advantages (`prvIndAdvantage`, `prvSimAdvantage`, `obvIndAdvantage`, `obvSimAdvantage`, `autAdvantage`) are `Experiment.advantage` and `Experiment.succProbability`. An invalid pair (`prvIndValid`, `obvIndValid`) or query is answered by `⊥`, so these are not `lrExperiment` instances; `prvIndAdvantage_eq_zero_of_invalid` records that an always-invalid adversary has advantage `0`, and `prvIndAdvantage_eq_two_mul_guessingAdvantage` identifies the `prv.ind` advantage with twice the bias of `Experiment.guessBit (prvIndExperiment G Φ k A)`. [Garbling/Foundations.lean](../../CslibFrontier/Crypto/Primitives/Garbling/Foundations.lean) proves Propositions 2 and 3 (Section 4) as exact per-adversary identities: `prvIndAdvantage_eq_two_mul_prvSimAdvantage_prvIndToSim` for every simulator (`prvIndToSim`, state `IndToSimState`) and `prvSimAdvantage_prvSimFromInverter_eq` against the inverter simulator `prvSimFromInverter` (`prvSimToInd`, `eval_prvSimExperiment_prvSimFromInverter`) under an `ev`-inverter, together with the obliviousness analogues (`obvIndToSim`, `obvSimFromInverter`, `obvInverterQuery`, `obvSimToInd`, `obvIndAdvantage_eq_two_mul_obvSimAdvantage_obvIndToSim`, `obvSimAdvantage_obvSimFromInverter_eq`, `eval_obvSimExperiment_obvSimFromInverter`) under an inverter and `≤` corollaries (`prvIndAdvantage_le_two_mul_prvSimAdvantage_prvIndToSim`, `prvSimAdvantage_prvSimFromInverter_le`, `obvIndAdvantage_le_two_mul_obvSimAdvantage_obvIndToSim`, `obvSimAdvantage_obvSimFromInverter_le`). [Garbling/CircuitInverters.lean](../../CslibFrontier/Crypto/Primitives/Garbling/CircuitInverters.lean) specialises this framework to conventional Boolean circuits (`ConventionalCircuit`, `ValidCircuit`, `Topo`, the well-formedness structure `Topo.IsValid`, `ValidTopo` and the shape record `ValidShape` of Section 2.3; `Scheme.IsCircuitScheme`) and the three standard side-information functions `phiTopo`, `phiSize` and `phiCirc` (`phiTopo_compatible`, `phiSize_compatible`, `phiCirc_compatible`). It constructs the explicit deterministic `(Φ, ev)`-inverters `mTopo` and `mSize` (`mTopoGates`, `sizeTopo`) and `Φ`-inverters `mTopoInv` and `mSizeInv` of Section 4.1, Proposition 1 (`phiTopo_isEvInverter`, `phiSize_isEvInverter`, `phiTopo_isInverter`, `phiSize_isInverter`, `phiCirc_isInverter`), and derives Corollaries 1 and 2 of Sections 4.2–4.3 (`prvIndAdvantage_phiTopo_eq_two_mul_prvSimAdvantage`, `prvSimAdvantage_phiTopo_mTopo_eq`, `prvIndAdvantage_phiSize_eq_two_mul_prvSimAdvantage`, `prvSimAdvantage_phiSize_mSize_eq`, and the obliviousness analogues for `phiTopo`, `phiSize` and `phiCirc`). [Garbling/Adaptive.lean](../../CslibFrontier/Crypto/Primitives/Garbling/Adaptive.lean) adds the coarse-grained adaptive privacy game `Prv1` of Bellare, Hoang and Rogaway, Section 3.1, Figure 2 [bhr12b][bhr12b] (`GarbledFn`, `Prv1Adversary`, `Prv1Simulator`, `prv1Experiment`, `prv1Advantage`, `prv1Advantage_eq_two_mul_guessingAdvantage`); its adversary has three stages, so it is not a `TwoStage` adversary. The embedding `prvSimToPrv1` and induced simulator `prv1SimulatorToPrv` (`PrvSimToPrv1State`) show that adaptive `prv1` simulation security implies selective `prv.sim` security with exact advantage equality (`eval_prv1Experiment_prvSimToPrv1`, `prvSimAdvantage_prv1SimulatorToPrv_eq`) and selective `prv.ind` security with a factor of two (`prvIndAdvantage_eq_two_mul_prv1Advantage`). [Garbling/Efficient.lean](../../CslibFrontier/Crypto/Primitives/Garbling/Efficient.lean) defines `Scheme.IsEfficient G encFn` (polynomial-time length readers, coin count, `gb`, `En`, `Ev`, `De` and `ev` on encoded arguments; Section 3.1 asks for linear-time length readers) and the circuit encodings `encConventionalCircuit` and `encValidCircuit` (`n`, `m` in unary, wire numbers in binary, truth tables as four bits); `PointPermute.scheme_isEfficient` in [Garbling/PointPermute/Efficient.lean](../../CslibFrontier/Crypto/Primitives/Garbling/PointPermute/Efficient.lean) proves it for point-and-permute garbling over any polynomial-time family. No negligible-advantage statement is made, and projective schemes (`Π` of Section 3.2) and the authenticity relations of Section 4 are not part of these modules. [Garbling-scheme clients](../../CslibFrontierTests/Crypto/GarblingScheme.lean) and [inverter/adaptive clients](../../CslibFrontierTests/Crypto/GarblingInverters.lean) check valid schemes (`identityScheme`, `plainCircuitScheme`), verify zero advantage for an invalid-query adversary, separate `phiSize`, `phiTopo` and `phiCirc` on concrete valid circuits, execute `mTopo` and `mSize` by `decide`, and instantiate the `prv.sim`, `obv.sim` and `prv1` reductions.
 
 ## Known Limitations
 
