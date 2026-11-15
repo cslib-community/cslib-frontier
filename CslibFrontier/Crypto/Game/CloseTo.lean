@@ -54,6 +54,11 @@ ensembles `PMF (List Bool)` and protocol transcripts.
   `CloseTo` via deterministic and randomized Boolean distinguishers.
 * `Cslib.Probability.CloseTo.bind_right_tsum`: input-dependent error bounds on mixtures
   under `CloseTo`.
+
+## References
+
+* [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023],
+  Section 3.11 (Theorem 3.10, p. 83).
 -/
 
 public section
