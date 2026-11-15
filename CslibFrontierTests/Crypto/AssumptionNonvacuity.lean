@@ -10,6 +10,8 @@ import CslibFrontier.Crypto.Computational.Encryption.CCA
 import CslibFrontier.Crypto.Computational.PseudorandomFunction
 import CslibFrontier.Crypto.Computational.RabinFactoring
 import CslibFrontier.Crypto.Computational.RSAAttacks
+import CslibFrontier.Crypto.Computational.RSAUnitInversion
+import CslibFrontier.Crypto.Computational.StrongRSA
 import CslibFrontier.Probability.PMF.UniformPoint
 import CslibFrontier.Probability.Product
 import CslibFrontier.Crypto.Negligible.Basic
@@ -41,6 +43,11 @@ pseudorandom generators and hard-core predicates are elsewhere.
   `fun _ => PMF.pure (p * q)`. By the factoring-hierarchy reductions, `FactoringHard`,
   `RabinOneWay`, `QuadraticResiduosityHard`, `DCR`, `TotientHard`, `RSAKeyRecoveryHard`, and
   `RSAOneWay` all fail for a fixed modulus or key descriptor `fun _ => PMF.pure d`.
+  `RSAUnitOneWay` fails for a fixed key descriptor too: decrypting with its private exponent
+  always wins.
+* **Strong RSA.** For a fixed modulus `N` and a fixed unit base `g`, `StrongRSA` fails for
+  `fun _ => PMF.pure ⟨N, g⟩`: Euler's theorem gives the order multiple `φ(N)`, and the adversary
+  of `not_strongRSA_of_orderMultiple` wins with probability `1`.
 -/
 
 namespace CslibFrontierTests.Crypto.AssumptionNonvacuity
@@ -338,5 +345,38 @@ theorem not_rsaKeyRecoveryHard_const (desc : RSADesc) :
 /-- **`RSAOneWay` fails for a fixed RSA descriptor**, since it implies `RSAKeyRecoveryHard`. -/
 theorem not_rsaOneWay_const (desc : RSADesc) : ¬ RSAOneWay (fun _ => PMF.pure desc) :=
   fun h => not_rsaKeyRecoveryHard_const desc h.rsaKeyRecoveryHard
+
+/-- **`RSAUnitOneWay` fails for a fixed RSA descriptor**: decrypting every challenge with the fixed
+private exponent `desc.d` recovers the unit with probability `1`. -/
+theorem not_rsaUnitOneWay_const (desc : RSADesc) : ¬ RSAUnitOneWay (fun _ => PMF.pure desc) := by
+  intro h
+  have hneg := h (keyRecoveryToRSA fun _ _ => pure desc.d)
+    (isPPT_keyRecoveryToRSA (ComputableInPolyTime.const desc.d).isPPTOn)
+  have hwin (x : (ZMod desc.modulus)ˣ) :
+      (⟨rsaInvert desc.modulus desc.d (rsaEval desc.modulus desc.e (desc.unitResidue x)),
+        Nat.mod_lt _ desc.modulus_pos⟩ : Fin desc.modulus) = desc.unitResidue x :=
+    Fin.ext (rsaInvert_rsaEval desc (desc.unitResidue x).isLt)
+  have hone (n : ℕ) : Game.succProbability (rsaUnitInversionGame (fun _ => PMF.pure desc)
+      (keyRecoveryToRSA fun _ _ => pure desc.d) n) = 1 := by
+    rw [rsaUnitInversionGame_eq]
+    simp [keyRecoveryToRSA, hwin, Game.succProbability]
+  simp only [hone] at hneg
+  exact not_negligible_const one_ne_zero hneg
+
+/-- **`StrongRSA` fails for a fixed modulus and a fixed unit base**: by Euler's theorem
+`g ^ φ(N) ≡ 1 [MOD N]`, so the order-multiple adversary with `u = max 1 φ(N)` wins with
+probability `1`. For `N = 0` the only unit is `g = 1`. The unit condition is needed
+(`strongRSA_const_four_two` in `CslibFrontierTests/Crypto/StrongRSA.lean`). -/
+theorem not_strongRSA_const {N g : ℕ} (hg : Nat.Coprime g N) :
+    ¬ StrongRSA fun _ => PMF.pure ⟨N, g⟩ := by
+  refine not_strongRSA_of_orderMultiple (u := fun _ _ => max 1 N.totient)
+    (ComputableInPolyTime.const _) fun n p hp => ?_
+  obtain rfl : p = ⟨N, g⟩ := by simpa using hp
+  refine ⟨by simp, ?_⟩
+  rcases Nat.eq_zero_or_pos N with rfl | hN
+  · obtain rfl : g = 1 := Nat.coprime_zero_right _ |>.mp hg
+    simp [Nat.ModEq.refl]
+  · rw [max_eq_right (Nat.totient_pos.mpr hN)]
+    exact Nat.ModEq.pow_totient hg
 
 end CslibFrontierTests.Crypto.AssumptionNonvacuity
