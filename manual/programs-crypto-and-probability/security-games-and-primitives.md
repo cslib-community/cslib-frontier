@@ -209,7 +209,13 @@ also specialize group-element ElGamal CPA (`elGamalGroupCPAGame`, `elGamalGroupV
 `DDH.indcpaOn_elGamalGroupEncryptProb`) and Cramer–Shoup CCA2 without external `isElem` or
 group-membership `valid` stand-ins (the underlying `elGamalMsgCPAGameOn` /
 `hashedElGamalCipherCPAGameOn` and generic `CramerShoup` interfaces retain explicit predicates for
-arbitrary message encoders, extra constraints such as equal length, and non-decodable families). A DDH distinguisher outputs only a bit, so
+arbitrary message encoders, extra constraints such as equal length, and non-decodable families).
+The native `DDH.indcpaOn_elGamalGroupEncryptProb`, like the generic
+`DDH.indcpaOn_elGamalEncryptProb`, assumes DDH for the point-mass setup `fun n => PMF.pure (d n)`;
+in place of `valid`, `hvalid` and `hsound` it takes a polynomial-time description family `d`
+(`hd : ComputableInPolyTime d encUnary F.encDesc`). The Cramer–Shoup wrappers drop only `isElem`,
+`hisElem` and `hmem`; `hd` and the point-mass setup are already premises of the generic theorems.
+A DDH distinguisher outputs only a bit, so
 `F.DDH setup` is equivalent to the word-level assumption over distinguishers reading the encoded
 tuple (`ddh_iff_encoded`), and likewise for `SecureKDF` (`secureKDF_iff_encoded`). To prove such
 an equivalence for a new typed adversary, obtain the word adversary with
