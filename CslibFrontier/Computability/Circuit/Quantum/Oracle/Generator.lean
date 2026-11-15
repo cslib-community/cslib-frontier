@@ -173,13 +173,6 @@ variable {F : UniformOracleCircuitFamily} (certificate : F.GeneratorCertificate)
     (encOracleCircuitDescription
       (F.description input.securityParameter input.classicalInputLength)).length⟩
 
-/-- The certificate's output-size coordinate is exactly the circuit-description encoding charged
-by `OracleCircuit.Resources.descriptionBits`. -/
-theorem resources_outputBits (input : OracleInputSize) :
-    (certificate.resources input).outputBits =
-      (encOracleCircuitDescription
-        (F.description input.securityParameter input.classicalInputLength)).length := rfl
-
 /-- A polynomial schedule of encoded generator inputs induces polynomial bounds for every
 generator coordinate, without collapsing any coordinate into another. -/
 theorem resources_isPolynomial {input : ℕ → OracleInputSize}

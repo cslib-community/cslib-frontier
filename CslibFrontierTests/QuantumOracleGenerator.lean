@@ -368,7 +368,7 @@ theorem emptyGeneratorResources_workspace (input : OracleInputSize) :
 theorem emptyGeneratorResources_outputBits (input : OracleInputSize) :
     (emptyGeneratorCertificate.resources input).outputBits =
       2 * (encOracleInputSize input).length + 5 := by
-  rw [emptyGeneratorCertificate.resources_outputBits]
+  simp only [GeneratorCertificate.resources]
   change (encOracleCircuitDescription
     (emptyDescription input.securityParameter input.classicalInputLength)).length = _
   rw [enc_emptyDescription]
@@ -380,7 +380,7 @@ theorem emptyGeneratorResources_time_eq_outputBits (input : OracleInputSize) :
       (emptyGeneratorCertificate.resources input).outputBits := by
   rw [show (emptyGeneratorCertificate.resources input).time =
       2 * (encOracleInputSize input).length + 5 from rfl]
-  rw [emptyGeneratorCertificate.resources_outputBits]
+  simp only [GeneratorCertificate.resources]
   change 2 * (encOracleInputSize input).length + 5 =
     (encOracleCircuitDescription
       (emptyDescription input.securityParameter input.classicalInputLength)).length
