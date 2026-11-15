@@ -20,10 +20,11 @@ with ordinary imports.
   ciphertext, and rejects the identity cipher with one key.
 * The criterion `N_c = 1` proves the one-time pad `otp` perfectly secure, as the book proves
   Theorem 2.2.
-* Theorem 2.3 in both directions. Forward: every event has the same probability under any two
-  messages of the one-time pad, and, used contrapositively, the event `{true}` separating the two
-  messages of the identity cipher shows it is not perfectly secure. Converse: equal event
-  probabilities, read off the uniform ciphertext law, show the one-time pad perfectly secure.
+* Theorem 2.3, forward half (`.mp`): every event has the same probability under any two messages
+  of the one-time pad. Used contrapositively, the event `{true}`, which separates the two messages
+  of the identity cipher, shows that cipher is not perfectly secure.
+* Theorem 2.3, converse half (`.mpr`): equal event probabilities, read off the uniform ciphertext
+  law, show the one-time pad perfectly secure.
 * Full support is needed in the converse of Theorem 2.4: the identity cipher with a point-mass
   message law has independent message and ciphertext, and is not perfectly secure. With the
   uniform message law, the theorem shows that its message and ciphertext are dependent.
