@@ -5,7 +5,7 @@ Authors: Samuel Schlesinger
 -/
 
 module
--- upstream: candidate
+-- upstream: candidate (Lean core, beside `List.findSomeM?_cons` in `Init/Data/List/Control.lean`)
 
 public import CslibFrontier.Init
 import all Init.Data.List.Control
@@ -17,13 +17,9 @@ Core `List.findM? p xs` runs the effectful test `p` on each element of `xs` from
 returns the first element for which `p` returns `true`, or `none`. Core defines `List.findM?`
 without exposing its body and has no `nil` or `cons` equations for a general monad, so this module
 imports `Init.Data.List.Control` with `import all`, as
-`CslibFrontier.Foundations.Control.Monad.FilterM` does. Both equations are general list lemmas
-destined for Lean core or Batteries.
-
-## Main results
-
-* `List.findM?_nil`: `findM?` on the empty list returns `pure none`.
-* `List.findM?_cons`: one-step unfolding of `findM?` on a cons cell.
+`CslibFrontier.Foundations.Control.Monad.FilterM` does, and provides those two equations,
+`List.findM?_nil` and `List.findM?_cons`, and nothing else. Both are general list lemmas destined
+for Lean core or Batteries.
 -/
 
 public section

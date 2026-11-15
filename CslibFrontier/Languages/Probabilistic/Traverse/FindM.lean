@@ -36,10 +36,11 @@ namespace Cslib.OracleComp
 
 variable {ι : Type} {spec : OracleSpec ι} {α : Type}
 
-/-- Against a deterministic oracle, `findM?` is `find?` on the tests' values. Derived from core's
-`List.idRun_findM?` through `IsMonadHom.map_listFindM?` of the pinned cslib. -/
-theorem evalPure_findM? (h : (q : ι) → spec q) (p : α → OracleComp spec Bool) (xs : List α) :
-    evalPure h (xs.findM? p) = xs.find? fun x => evalPure h (p x) := by
+/-- Against a deterministic oracle, `findM?` is `find?` on the tests' values: the search returns
+the first element whose test evaluates to `true`. -/
+@[simp]
+theorem evalPure_findM? (h : (q : ι) → spec q) (test : α → OracleComp spec Bool) (xs : List α) :
+    evalPure h (xs.findM? test) = xs.find? fun x => evalPure h (test x) := by
   have hom : IsMonadHom (OracleComp spec) Id
       (fun {γ} => interpret (m := Id) (fun q => pure (h q)) (α := γ)) :=
     PFunctor.FreeM.isMonadHom_liftM (P := ⟨ι, spec⟩) (m := Id) fun q => pure (h q)
@@ -47,10 +48,12 @@ theorem evalPure_findM? (h : (q : ι) → spec q) (p : α → OracleComp spec Bo
   rw [hom.map_listFindM?, List.idRun_findM?]
   rfl
 
-/-- A search whose tests each cost at most `n` costs at most `xs.length * n`. -/
-theorem IsCostBounded.findM? {cost : ι → ℕ} {p : α → OracleComp spec Bool} {n : ℕ}
-    {xs : List α} (h : ∀ a ∈ xs, IsCostBounded cost (p a) n) :
-    IsCostBounded cost (xs.findM? p) (xs.length * n) := by
+/-- A search whose tests each cost at most `n` costs at most `xs.length * n` on every path. The
+bound is attained when no test accepts; it does not use that the search stops at the first
+accepted element. -/
+theorem IsCostBounded.findM? {cost : ι → ℕ} {test : α → OracleComp spec Bool} {n : ℕ}
+    {xs : List α} (h : ∀ a ∈ xs, IsCostBounded cost (test a) n) :
+    IsCostBounded cost (xs.findM? test) (xs.length * n) := by
   induction xs with
   | nil => rw [List.findM?_nil]; exact .pure _ _
   | cons a xs ih =>

@@ -21,15 +21,19 @@ open Cslib
 example : OracleComp.evalPure (spec := fun _ : ℕ => ℕ) (fun n => n * n)
     ([1, 2, 3, 4].findM? fun x =>
       (fun y => decide (y = 9)) <$> OracleComp.query (spec := fun _ : ℕ => ℕ) x) = some 3 := by
-  rw [OracleComp.evalPure_findM?]
-  simp [OracleComp.evalPure_map, OracleComp.evalPure_query]
+  simp
 
 /-- No element passes: the search returns `none`. -/
 example : OracleComp.evalPure (spec := fun _ : ℕ => ℕ) (fun n => n * n)
     ([1, 2, 4].findM? fun x =>
       (fun y => decide (y = 9)) <$> OracleComp.query (spec := fun _ : ℕ => ℕ) x) = none := by
-  rw [OracleComp.evalPure_findM?]
-  simp [OracleComp.evalPure_map, OracleComp.evalPure_query]
+  simp
+
+/-- Two elements pass (`6` and `9` are `0` modulo `3`): the search returns the first. -/
+example : OracleComp.evalPure (spec := fun _ : ℕ => ℕ) (fun n => n % 3)
+    ([4, 6, 5, 9].findM? fun x =>
+      (fun y => decide (y = 0)) <$> OracleComp.query (spec := fun _ : ℕ => ℕ) x) = some 6 := by
+  simp
 
 /-- A test that makes two calls: the search costs at most `xs.length * 2`. -/
 example (xs : List ℕ) :
@@ -52,15 +56,50 @@ example (xs : List ℕ) (h : ∀ x ∈ xs, x % 2 = 0) :
     have := OracleComp.IsCostBounded.query (spec := fun _ : ℕ => Bool) (cost := fun q => q % 2) x
     simpa [h x hx] using this
 
+/-- The search stops at the first accepted element: a test that accepts every reply makes one
+call, whatever the list. -/
+example (a : ℕ) (as : List ℕ) :
+    OracleComp.IsQueryBounded (spec := fun _ : ℕ => Bool)
+      ((a :: as).findM? fun x => (fun _ => true) <$> OracleComp.query x) 1 := by
+  rw [List.findM?_cons, bind_map_left]
+  exact OracleComp.IsCostBounded.liftBind_iff.mpr ⟨le_rfl, fun _ => .pure _ _⟩
+
+/-- The budget `xs.length * n` cannot be lowered in general: two candidates and a test that may
+reject need two calls. -/
+example : ¬ OracleComp.IsQueryBounded (spec := fun _ : ℕ => Bool)
+    ([0, 1].findM? fun x => OracleComp.query x) 1 := by
+  intro h
+  simp only [List.findM?_cons] at h
+  have h1 := (OracleComp.IsCostBounded.liftBind_iff.mp h).2 false
+  exact absurd (OracleComp.IsCostBounded.liftBind_iff.mp h1).1 (by decide)
+
 /-- The search calls the oracle only where its tests do. -/
 example (xs : List ℕ) :
     OracleComp.QueriesSatisfy (spec := fun _ : ℕ => Bool) (fun q => q ∈ xs)
       (xs.findM? fun x => OracleComp.query (spec := fun _ : ℕ => Bool) x) :=
   OracleComp.QueriesSatisfy.findM? fun _ hx => OracleComp.QueriesSatisfy.query hx
 
-/-- The unfolding step in any monad. -/
-example (p : ℕ → Option Bool) (a : ℕ) (as : List ℕ) :
-    (a :: as).findM? p = p a >>= fun b => if b then pure (some a) else as.findM? p :=
-  List.findM?_cons p a as
+/-- A predicate that one candidate's call violates does not hold of the search. -/
+example : ¬ OracleComp.QueriesSatisfy (spec := fun _ : ℕ => Bool) (fun q => q ≠ 1)
+    ([0, 1].findM? fun x => OracleComp.query x) := by
+  intro h
+  simp only [List.findM?_cons] at h
+  have h1 := (OracleComp.QueriesSatisfy.liftBind_iff.mp h).2 false
+  exact (OracleComp.QueriesSatisfy.liftBind_iff.mp h1).1 rfl
+
+/-- The empty search returns `none` and makes no call, whatever the test. -/
+example (h : ℕ → ℕ) (test : ℕ → OracleComp (fun _ : ℕ => ℕ) Bool) :
+    OracleComp.evalPure h (([] : List ℕ).findM? test) = none ∧
+      OracleComp.IsQueryBounded (([] : List ℕ).findM? test) 0 :=
+  ⟨by simp, OracleComp.IsCostBounded.findM? (n := 0) (by simp)⟩
+
+/-- The step equations in a monad that is not an oracle program: in `Option`, a failing test
+aborts the search. -/
+example : [1, 2, 3].findM? (fun x : ℕ => if x = 2 then none else some false) = none := by
+  simp [List.findM?_cons]
+
+/-- A failing test after the first accepted element is not run. -/
+example : [1, 2, 3].findM? (fun x : ℕ => if x = 2 then none else some true) = some (some 1) := by
+  simp [List.findM?_cons]
 
 end CslibFrontierTests.OracleFindM
