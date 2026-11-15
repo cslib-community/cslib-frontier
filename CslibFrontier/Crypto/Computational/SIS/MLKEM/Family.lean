@@ -53,7 +53,10 @@ ciphertexts fit the ciphertext space `ctLength` (`kpke_ciphertextFits`).
 
 This is the family of `indCPA_kpkeIdealCoins_of_decisionModuleLWEWith`
 (`CslibFrontier.Crypto.Computational.SIS.MLKEM.Asymptotic`), IND-CPA of K-PKE with ideal coin
-expansion. This module makes no security claim.
+expansion. K-PKE itself expands its noise from seeds with a `PRF`; that family is `kpkePRF`
+(`CslibFrontier.Crypto.Computational.SIS.MLKEM.PRFExpansion`), which shares the matrix sampler
+`sampleMatrixResidues` and the key words `keyWords` with `keyGenWord`. This module makes no
+security claim.
 
 ## Model differences from FIPS 203
 
