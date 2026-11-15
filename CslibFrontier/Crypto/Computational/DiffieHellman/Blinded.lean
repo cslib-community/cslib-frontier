@@ -25,9 +25,9 @@ random `a, b, u`, Lemma 21.8's adversary must find `γ₁ ≠ γ₂`, any `v` an
 "two-point blinded CDH", and the names of all declarations here, are this library's names.
 
 This module states both problems in one group, as `Cslib.Crypto.cdhExperiment` does for CDH, and
-proves the book's reductions to CDH exactly. The efficient reductions over a prime-order group
-family, and the conclusions under the CDH assumption, are in
-`CslibFrontier/Crypto/Computational/DiffieHellman/BlindedFamily.lean`.
+analyses exactly the book's reductions, which turn an adversary for each problem into a CDH
+adversary. The efficient reductions over a prime-order group family, and the conclusions under the
+CDH assumption, are in `CslibFrontier/Crypto/Computational/DiffieHellman/BlindedFamily.lean`.
 
 Differences from the book:
 
@@ -53,9 +53,10 @@ Differences from the book:
   Lemma 21.7 and its success probability.
 * `Cslib.Crypto.blindedCDHPairExperiment`, `Cslib.Crypto.blindedCDHPairAdvantage`: the problem of
   Lemma 21.8 and its success probability.
-* `Cslib.Crypto.blindedCDHToCDH`, `Cslib.Crypto.blindedCDHPairToCDH`: the book's reductions to
-  CDH, with the blinding exponents drawn uniformly; `Cslib.Crypto.blindedCDHToCDHWith` and
-  `Cslib.Crypto.blindedCDHPairToCDHWith` fix them.
+* `Cslib.Crypto.blindedCDHToCDH`, `Cslib.Crypto.blindedCDHPairToCDH`: the book's reductions, which
+  turn an adversary for each problem into a CDH adversary, with the blinding exponents drawn
+  uniformly; `Cslib.Crypto.blindedCDHToCDHWith` and `Cslib.Crypto.blindedCDHPairToCDHWith` fix
+  them.
 
 ## Main results
 

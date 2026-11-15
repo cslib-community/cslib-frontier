@@ -24,14 +24,15 @@ import Mathlib.Tactic.Module
 # The blinded Diffie–Hellman problems over a group family
 
 Over a `PrimeOrderGroupFamily`, this module states the two problems of [BonehShoup2023],
-Section 21.11.5, Lemmas 21.7 and 21.8 (pp. 910–911), as games, gives the book's reductions to CDH
-as CDH adversaries with PPT certificates, and proves that under the CDH assumption every PPT
-adversary wins either game with negligible probability. The fixed-group problems
-(`Cslib.Crypto.blindedCDHExperiment`, `Cslib.Crypto.blindedCDHPairExperiment`), the reductions with
-fixed blinding exponents and their exact analysis are in
-`CslibFrontier/Crypto/Computational/DiffieHellman/Blinded.lean`, whose module docstring lists the
-differences from the book in one group. The book names neither problem: "blinded CDH" and
-"two-point blinded CDH", and the names of all declarations here, are this library's names.
+Section 21.11.5, Lemmas 21.7 and 21.8 (pp. 910–911), as games. It gives the book's reductions,
+which turn an adversary for each problem into a CDH adversary, with PPT certificates, and proves
+that under the CDH assumption every PPT adversary wins either game with negligible probability.
+The fixed-group problems (`Cslib.Crypto.blindedCDHExperiment`,
+`Cslib.Crypto.blindedCDHPairExperiment`), the reductions with fixed blinding exponents and their
+exact analysis are in `CslibFrontier/Crypto/Computational/DiffieHellman/Blinded.lean`, whose module
+docstring lists the differences from the book in one group. The book names neither problem:
+"blinded CDH" and "two-point blinded CDH", and the names of all declarations here, are this
+library's names.
 
 Adversaries receive and return group elements and exponents. Their efficiency is stated on
 encodings, as for `CDHAdversary.IsPPT`: one uniform strict PPT machine reads the encoded input

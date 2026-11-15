@@ -1254,8 +1254,9 @@ asymptotic and finite concrete endpoints remain open.
 
 ### Blinded Diffie–Hellman problems
 
-Boneh–Shoup Lemmas 21.7 and 21.8 ([bs23][bs23], Section 21.11.5, pp. 910–911) reduce to CDH two
-problems that the book uses in its informal argument for protocol PAKE2. The book names neither
+Boneh–Shoup Lemmas 21.7 and 21.8 ([bs23][bs23], Section 21.11.5, pp. 910–911) show that two
+problems, which the book uses in its informal argument for protocol PAKE2, are hard under CDH: each
+proof turns an adversary for the problem into a CDH adversary. The book names neither
 problem; "blinded CDH" and "two-point blinded CDH" are this library's names.
 [`DiffieHellman/Blinded.lean`](../../CslibFrontier/Crypto/Computational/DiffieHellman/Blinded.lean)
 states both in one group, like `cdhExperiment`. `blindedCDHExperiment` asks for an exponent `γ` and
