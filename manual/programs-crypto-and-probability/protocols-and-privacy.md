@@ -1022,6 +1022,43 @@ needed. Check it with:
 scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.ShamirInterpolation
 ```
 
+### Monotone span programs and linear secret sharing
+
+Boneh–Shoup Section 22.5.2 ([bs23][bs23], pp. 978–982, Definition 22.21, Construction 22.2,
+Theorem 22.13, Definition 22.22, and Remark 22.15) derives linear secret sharing for any
+monotone access structure from a monotone span program over a field `F`.
+
+- **Monotone span programs:**
+  [`SpanProgram/Basic.lean`](../../CslibFrontier/Computability/Circuit/SpanProgram/Basic.lean)
+  defines `MonotoneSpanProgram F Party` over a field `F` and arbitrary party type `Party`, storing
+  `tailDim` (the book's column dimension `d` is `tailDim + 1 ≥ 1`), per-party row counts `rowDim`,
+  and matrices `matrix i : Matrix (Fin (rowDim i)) (Fin (tailDim + 1)) F`. A coalition `s` satisfies
+  `P.Accepts s` iff `P.target = Pi.single 0 1` lies in `P.rowSpan s` (`accepts_mono`,
+  `not_accepts_empty`, `accepts_iff_exists_vecMul`, `exists_nullVector_of_not_accepts`).
+- **Linear secret-sharing scheme:**
+  [`AccessStructure/Linear.lean`](../../CslibFrontier/Crypto/Protocols/SecretSharing/AccessStructure/Linear.lean)
+  defines the recognized access structure `P.accessStructure` (`P` recognizes `A` iff
+  `P.accessStructure = A`), sharing `linearShare P k secret i = P.matrix i *ᵥ Fin.cons secret k`,
+  the explicit reconstruction identity `sum_dotProduct_linearShare_eq_secret` for any row-weight
+  witness `w` with `∑ i : s, vecMul (w i) (P.matrix i.1) = P.target`, additive and scalar
+  homomorphisms `linearShare_add`, `linearShare_smul`, and `linearReconstruct_linearShare_add`,
+  and the scheme constructors `linearAccessSchemeOf`, `linearAccessScheme` (over translation-invariant
+  key distributions `linearSources P`), and `linearUniformAccessScheme` (for finite fields).
+
+Model boundaries: `linearReconstruct` chooses a valid weight family `w` via `Classical.choose` when
+`P.Accepts s` (returning `0` otherwise) to populate `AccessScheme.reconstruct` and carries no
+efficiency or algorithmic claim. Over an infinite field `F` with `P.tailDim ≥ 1`, `linearSources P` is
+empty, so `linearAccessScheme P` proves universal correctness while privacy is vacuous; nontrivial
+privacy uses finite fields (`linearUniformAccessScheme`). The
+[linear secret-sharing client](../../CslibFrontierTests/Crypto/LinearSecretSharing.lean) exercises
+Boneh–Shoup Example 22.3 over `ZMod 5`, explicit row-weight recombination, Remark 22.15 linearity,
+and necessity of all theorem hypotheses (including failure over `ZMod 4` where `2` has no inverse).
+Check it with:
+
+```bash
+scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.LinearSecretSharing
+```
+
 ## Differential privacy
 
 [DifferentialPrivacy/Basic.lean](../../CslibFrontier/Privacy/DifferentialPrivacy/Basic.lean) defines `DifferentiallyPrivate Adj M ε δ` for a mechanism `M : D → PMF R`: for all `Adj`-adjacent datasets `x`, `y` and every set `S` of outputs, `Pr[M x ∈ S] ≤ exp ε · Pr[M y ∈ S] + δ`, with `ε : ℝ`, `δ : ℝ≥0∞` and events measured by `PMF.toOuterMeasure` [DworkRoth2014, Definition 2.4][dworkroth14]. The adjacency relation is an explicit parameter; [DifferentialPrivacy/Hamming.lean](../../CslibFrontier/Privacy/DifferentialPrivacy/Hamming.lean) supplies `HammingAdjacent` (datasets `ι → X` differing in at most one row), the neighbor relation of Ghosh–Roughgarden–Sundararajan [grs12][grs12]. Dwork–Roth's own adjacency is `ℓ₁` distance one between histograms, which is another instance of the parameter, not something these files define. The definition quantifies over ordered pairs, so a symmetric guarantee needs a symmetric relation.

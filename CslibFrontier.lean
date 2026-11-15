@@ -1776,6 +1776,7 @@ public import CslibFrontier.Computability.Circuit.Simulation
 public import CslibFrontier.Computability.Circuit.SimulationContext
 public import CslibFrontier.Computability.Circuit.SimulationDepth
 public import CslibFrontier.Computability.Circuit.SourceComplexity
+public import CslibFrontier.Computability.Circuit.SpanProgram.Basic
 public import CslibFrontier.Computability.Circuit.StraightLine
 public import CslibFrontier.Computability.Circuit.SumOfTerms
 public import CslibFrontier.Computability.Circuit.SumOfTerms.Basic
@@ -4998,6 +4999,7 @@ public import CslibFrontier.Crypto.Protocols.SSP.Hybrid
 public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Additive
 public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Basic
 public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Designs
+public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Linear
 public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Privacy
 public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Shamir
 public import CslibFrontier.Crypto.Protocols.SecretSharing.Shamir.Interpolation
