@@ -9,7 +9,9 @@ module
 
 public import CslibFrontier.Probability.IID
 public import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Foundations.Analysis.BernoulliInequality
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.DescFactorialExp
+import Mathlib.Analysis.Complex.ExponentialBounds
 
 /-!
 # Lower bounds on the birthday collision probability
@@ -35,7 +37,7 @@ uniform law that bound is `k (k - 1) / (2 n)`, which is below Theorem B.1(ii)'s 
 The first item is the work. The mass of the injective `k`-tuples with entries in a finite set,
 for nonnegative point weights with a given sum, is largest for equal weights; this is a weak form
 of Maclaurin's inequality. The proof adds one point of the set at a time, and the step is
-Bernoulli's inequality `one_add_mul_le_pow`.
+the tangent-line form of Bernoulli's inequality, `Real.pow_add_mul_sub_le_pow`.
 
 ## Differences from [BonehShoup2023]
 
@@ -57,8 +59,6 @@ Bernoulli's inequality `one_add_mul_le_pow`.
   Corollary B.2, for every law.
 * `Cslib.Probability.PMF.iid_uniformOfFintype_not_injective_le_one_sub_exp_neg`: the upper bound of
   Theorem B.1(ii).
-* `Cslib.Probability.PMF.one_sub_exp_neg_le_iid_not_injective_of_le`: the first lower bound with
-  any smaller exponent, the form in which clients apply it.
 
 ## References
 
@@ -70,22 +70,17 @@ public section
 
 namespace Cslib.Probability.PMF
 
-/-- Bernoulli's inequality in homogeneous form: the tangent line of `x ↦ x ^ (k + 1)` at `t` lies
-below the curve at `u`. -/
-private theorem pow_mul_tangent_le (k : ℕ) {t u : ℝ} (ht : 0 ≤ t) (hu : 0 ≤ u) :
-    t ^ k * ((k + 1) * u - k * t) ≤ u ^ (k + 1) := by
-  rcases ht.eq_or_lt with rfl | ht
-  · rcases k with _ | k
-    · simp
-    · simp only [ne_eq, Nat.add_eq_zero_iff, one_ne_zero, and_false, not_false_eq_true, zero_pow,
-        zero_mul]
-      positivity
-  · have h := one_add_mul_le_pow (a := u / t - 1) (by linarith [div_nonneg hu ht.le]) (k + 1)
-    rw [add_sub_cancel, div_pow, le_div_iff₀ (pow_pos ht _)] at h
-    refine le_trans (le_of_eq ?_) h
-    push_cast
-    field_simp
-    ring
+/-- `min (x / 2) 0.63 ≤ 1 - exp (-x)` for `0 ≤ x`. The constant `0.63` is below
+`1 - exp (-1) = 0.632…`. -/
+private theorem min_div_two_le_one_sub_exp_neg {x : ℝ} (h0 : 0 ≤ x) :
+    min (x / 2) 0.63 ≤ 1 - Real.exp (-x) := by
+  rcases le_total x 1 with h1 | h1
+  · exact (min_le_left _ _).trans (by linarith [Real.exp_neg_le_one_sub_div_two h0 h1])
+  · refine (min_le_right _ _).trans ?_
+    have h2 : Real.exp (-x) ≤ Real.exp (-1) := Real.exp_le_exp.2 (by linarith)
+    have h3 := Real.exp_neg_one_lt_d9
+    norm_num at h3 ⊢
+    linarith
 
 /-! ### Mass of injective tuples -/
 
@@ -160,10 +155,10 @@ private theorem distinctMass_le_step (k m : ℕ) {S px A B : ℝ} (hS : 0 ≤ S)
   calc A + (k + 1) * (px * B)
       ≤ ((m : ℝ) - k) * m.descFactorial k * t ^ (k + 1) +
           (k + 1) * (px * (m.descFactorial k * t ^ k)) := add_le_add hA h1
-    _ = ((m + 1 : ℕ) : ℝ) * m.descFactorial k * (t ^ k * ((k + 1) * u - k * t)) := by
+    _ = ((m + 1 : ℕ) : ℝ) * m.descFactorial k * (t ^ (k + 1) + (k + 1) * t ^ k * (u - t)) := by
         rw [hpxu]; push_cast; ring
     _ ≤ ((m + 1 : ℕ) : ℝ) * m.descFactorial k * u ^ (k + 1) := by
-        gcongr; exact pow_mul_tangent_le k ht0 hu0
+        gcongr; exact Real.pow_add_mul_sub_le_pow hu0 ht0 k
 
 /-- Among nonnegative weights on `s` with a given sum, equal weights maximize the mass of injective
 `k`-tuples: a weak form of Maclaurin's inequality. -/
@@ -286,15 +281,6 @@ theorem one_sub_exp_neg_le_iid_not_injective [Fintype α] (μ : PMF α) (k : ℕ
     (Nat.descFactorial_div_pow_le_exp _ k)
   linarith
 
-/-- The first lower bound with any smaller exponent: if `x ≤ k (k - 1) / (2 n)`, then `k`
-independent samples of any law on a finite type with `n` elements contain two equal samples with
-probability at least `1 - exp (-x)`. -/
-theorem one_sub_exp_neg_le_iid_not_injective_of_le [Fintype α] (μ : PMF α) {k : ℕ} {x : ℝ}
-    (hx : x ≤ k * (k - 1) / (2 * Fintype.card α)) :
-    1 - Real.exp (-x) ≤ ((iid μ k).toOuterMeasure {x | ¬ Function.Injective x}).toReal :=
-  le_trans (by linarith [Real.exp_le_exp.2 (neg_le_neg hx)])
-    (one_sub_exp_neg_le_iid_not_injective μ k)
-
 /-- [BonehShoup2023], Theorem B.1(i) and Corollary B.2, second inequality: `k` independent samples
 of any law on a finite type with `n` elements contain two equal samples with probability at least
 `min (k (k - 1) / (4 n)) 0.63`. As in `one_sub_exp_neg_le_iid_not_injective`, Corollary B.2's
@@ -311,7 +297,7 @@ theorem min_le_iid_not_injective [Fintype α] (μ : PMF α) (k : ℕ) :
   have e : (k : ℝ) * (k - 1) / (4 * Fintype.card α) = k * (k - 1) / (2 * Fintype.card α) / 2 := by
     ring
   rw [e]
-  exact Real.min_div_two_le_one_sub_exp_neg h0
+  exact min_div_two_le_one_sub_exp_neg h0
 
 /-- [BonehShoup2023], Theorem B.1(ii): `k` independent uniform samples from a finite type with `n`
 elements contain two equal samples with probability at most `1 - exp (-k (k - 1) / n)` when

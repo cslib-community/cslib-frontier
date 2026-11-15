@@ -13,7 +13,7 @@ public import Mathlib.Data.Nat.Factorial.Basic
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpBounds
 import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Algebra.Order.BigOperators.GroupWithZero.Finset
-import Mathlib.Analysis.Complex.ExponentialBounds
+import Mathlib.Data.Nat.Choose.Cast
 import Mathlib.Data.Nat.Factorial.BigOperators
 
 /-!
@@ -23,8 +23,8 @@ Bounds on the ratio `(n)_k / n ^ k = n.descFactorial k / n ^ k`, which is the pr
 independent uniform samples from a set of size `n` are distinct. Writing the ratio as the product
 `∏_{i < k} (n - i) / n` (`Nat.cast_descFactorial_div_pow`) and comparing factor by factor with
 `exp (-i / n)` gives an upper bound valid for all `n` and `k`, and comparing with `exp (-2 i / n)`
-gives a lower bound when `0 < n` and `2 k ≤ n + 2`. Two scalar inequalities on the exponential
-support the lower bound and its use.
+gives a lower bound when `0 < n` and `2 k ≤ n + 2`, using the scalar inequality
+`exp (-x) ≤ 1 - x / 2` on `[0, 1]`.
 
 `CslibFrontier.Probability.IID.Birthday` turns these into bounds on the collision probability of
 independent samples.
@@ -32,8 +32,7 @@ independent samples.
 ## Main results
 
 * `Real.exp_neg_le_one_sub_div_two`: `exp (-x) ≤ 1 - x / 2` for `x ∈ [0, 1]`.
-* `Real.min_div_two_le_one_sub_exp_neg`: `min (x / 2) 0.63 ≤ 1 - exp (-x)` for `0 ≤ x`.
-* `Nat.cast_descFactorial_div_pow`: `(n)_k / n ^ k = ∏_{i < k} (n - i) / n`.
+* `Nat.cast_descFactorial_div_pow`: `(n)_k / n ^ k = ∏_{i < k} (n - i) / n` in any semifield.
 * `Nat.descFactorial_div_pow_le_exp`: `(n)_k / n ^ k ≤ exp (-k (k - 1) / (2 n))`.
 * `Nat.exp_le_descFactorial_div_pow`: `exp (-k (k - 1) / n) ≤ (n)_k / n ^ k` for `0 < n` and
   `2 k ≤ n + 2`.
@@ -49,36 +48,19 @@ namespace Real
 theorem exp_neg_le_one_sub_div_two {x : ℝ} (h0 : 0 ≤ x) (h1 : x ≤ 1) : exp (-x) ≤ 1 - x / 2 :=
   (exp_neg_le_one_sub_add_sq_div_two h0).trans (by nlinarith)
 
-/-- `min (x / 2) 0.63 ≤ 1 - exp (-x)` for `0 ≤ x`. The constant `0.63` is below
-`1 - exp (-1) = 0.632…`. -/
-theorem min_div_two_le_one_sub_exp_neg {x : ℝ} (h0 : 0 ≤ x) :
-    min (x / 2) 0.63 ≤ 1 - exp (-x) := by
-  rcases le_total x 1 with h1 | h1
-  · exact (min_le_left _ _).trans (by linarith [exp_neg_le_one_sub_div_two h0 h1])
-  · refine (min_le_right _ _).trans ?_
-    have h2 : exp (-x) ≤ exp (-1) := exp_le_exp.2 (by linarith)
-    have h3 := exp_neg_one_lt_d9
-    norm_num at h3 ⊢
-    linarith
-
 end Real
 
 namespace Nat
 
-/-- `(n)_k / n ^ k = ∏_{i < k} (n - i) / n`, with truncated subtraction. -/
-theorem cast_descFactorial_div_pow (n k : ℕ) :
-    (n.descFactorial k : ℝ) / (n : ℝ) ^ k = ∏ i ∈ range k, (((n - i : ℕ) : ℝ) / n) := by
+/-- `(n)_k / n ^ k = ∏_{i < k} (n - i) / n` in any semifield, with truncated subtraction. -/
+theorem cast_descFactorial_div_pow {K : Type*} [Semifield K] (n k : ℕ) :
+    (n.descFactorial k : K) / (n : K) ^ k = ∏ i ∈ range k, (((n - i : ℕ) : K) / n) := by
   rw [descFactorial_eq_prod_range, cast_prod, Finset.prod_div_distrib, Finset.prod_const,
     Finset.card_range]
 
 /-- Gauss's summation formula `∑_{i < k} i = k (k - 1) / 2`, cast to `ℝ`. -/
 private theorem sum_range_cast (k : ℕ) : ∑ i ∈ range k, (i : ℝ) = k * (k - 1) / 2 := by
-  rcases k with _ | k
-  · simp
-  · have h := congrArg (Nat.cast : ℕ → ℝ) (Finset.sum_range_id_mul_two (k + 1))
-    rw [Nat.add_sub_cancel] at h
-    push_cast at h ⊢
-    linarith
+  rw [← Nat.cast_sum, Finset.sum_range_id, ← Nat.choose_two_right, Nat.cast_choose_two]
 
 /-- `(n)_k / n ^ k ≤ exp (-k (k - 1) / (2 n))`, for all `n` and `k`: at `n = 0` both sides are `1`
 for `k = 0` and the left side is `0` otherwise, and for `k > n` the left side is `0`. -/
