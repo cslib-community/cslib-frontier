@@ -1952,7 +1952,28 @@ additionally checks support of the postprocessed real key. Tests expose the fail
 KEM premise, and show that a perfect zero-width KEM with the insecure echo DEM remains insecure.
 Arbitrary message-space extension and stronger KEM query schedules remain separate.
 
-For `n`-way nested symmetric encryption ([bs23][bs23], Section 2.4, Theorem 2.12, p. 37), import [`Encryption/Nested.lean`](../../CslibFrontier/Crypto/Computational/Encryption/Nested.lean). For a cipher `E : Cipher K M M` whose ciphertexts lie in its message space, `E.nested n` (`Cipher.nested`) applies `n` keys `0, ..., n - 1` sequentially (`Cipher.nested_correct` derives correctness from `E.Correct`), and `E.nestedExperiment sampleKey valid n A b` gives `A` (`NestedRequest` / `NestedChallenge`) every key drawn via `OracleComp.replicateFin` except the `0`-based index `req.withheld` (`revealKeys`; `n = 0` is vacuous because `Fin 0` is empty). When `E.PreservesValid sampleKey valid` holds (a condition the book leaves implicit), `eval_oneTimeExperiment_nestedToSingleAdversary` and `advantage_nestedExperiment_eq` show that `nestedToSingleAdversary` matches the nested experiment's exact distribution and advantage against `E.oneTimeExperiment`; asymptotic polynomial-time certificates for this reduction are not yet included. Checked positive one-time-pad examples, the `n = 0` check, and counterexamples for `Cipher.PreservesValid` and the admissibility guard in `nestedToSingleAdversary.guess` are in [`CslibFrontierTests/Crypto/NestedEncryption.lean`](../../CslibFrontierTests/Crypto/NestedEncryption.lean); run `scripts/build.sh CslibFrontierTests.Crypto.NestedEncryption`.
+For `n`-way nested symmetric encryption ([bs23][bs23], Section 2.4, Theorem 2.12, p. 37), import
+[`Encryption/Nested.lean`](../../CslibFrontier/Crypto/Computational/Encryption/Nested.lean). For a
+cipher `E : Cipher K M M` whose ciphertexts lie in its message space, `E.nested n`
+(`Cipher.nested`) applies `n` keys `k 0, ..., k (n - 1)` sequentially with `k 0` innermost and
+`k (n - 1)` outermost (`Cipher.nested_correct` derives correctness from `E.Correct`), and
+`E.nestedExperiment sampleKey valid n A b` gives `A` (`NestedRequest` / `NestedChallenge`) every
+key drawn via `OracleComp.replicateFin` except the `0`-based index `req.withheld` (`revealKeys`;
+`n = 0` is vacuous because `Fin 0` is empty). When `E.PreservesValid sampleKey valid` holds—under
+every key in the support of `sampleKey`, encryptions of a `valid` pair form a `valid` pair (a
+condition the book leaves implicit)—for each bit `b`, `E.oneTimeExperiment` against
+`nestedToSingleAdversary E sampleKey valid n A` has the same output distribution as
+`E.nestedExperiment` against `A` (`eval_oneTimeExperiment_nestedToSingleAdversary`), hence equal
+advantages (`advantage_nestedExperiment_eq`). `isPPT_nestedToSingleAdversary` proves uniform strict
+polynomial-time efficiency of this reduction over computable `encFinFn` key tables, and
+`indistinguishable_nestedExperiment_of_oneTimeExperiment` derives `Game.Indistinguishable` for
+`n`-way nesting from single-key semantic security against `E.oneTimeExperiment`. Checked
+one-time-pad examples (`advantage_otp_nested_eq_zero`, `otp_nested_indistinguishable`), the `n = 0`
+check, a nontrivial `PreservesValid` witness (`firstBitCipher_preservesValid`), and counterexamples
+for `Cipher.PreservesValid` (`tagCipher_no_wrapper`) and the admissibility guard in
+`nestedToSingleAdversary.guess` (`padLeak_unguarded_oneTime_adv_eq_one`) are in
+[`CslibFrontierTests/Crypto/NestedEncryption.lean`](../../CslibFrontierTests/Crypto/NestedEncryption.lean);
+run `scripts/build.sh CslibFrontierTests.Crypto.NestedEncryption`.
 
 For the Diffie–Hellman random-oracle KEM of [katzlindell20][katzlindell20] (Construction 12.19,
 Theorem 12.22), import
