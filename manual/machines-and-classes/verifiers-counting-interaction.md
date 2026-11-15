@@ -173,6 +173,7 @@ word-count theorem uses the weighted rule with constant weight one. These are ma
 identities; they assert no computational cost or efficient discrete-logarithm algorithm.
 The [checked examples](../../CslibFrontierTests/PrimeFieldProducts.lean) cover a product modulo
 five, the prime two, residue enumeration, signed weights and a zero-width interval.
+
 ## Mathematical sign recovery from residues
 
 Import [`Foundations.NumberTheory.CRTSign`](../../CslibFrontier/Foundations/NumberTheory/CRTSign.lean)
