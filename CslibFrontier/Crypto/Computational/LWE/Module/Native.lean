@@ -41,7 +41,7 @@ claim.
   `Turing.MultiTapeTM.ComputableInPolyTime.chunkResidues`: their certificates.
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Crypto
 

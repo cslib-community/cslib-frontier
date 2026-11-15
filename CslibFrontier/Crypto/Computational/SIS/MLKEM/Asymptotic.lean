@@ -63,7 +63,9 @@ the two assumptions to these reductions through their certificates.
   is no `PRF` term and no random oracle.
 * The ciphertext hop is decision Module-LWE on the uncompressed sample with secret `CBD_{η₁}` and
   error `CBD_{η₂}`, the Module-LWER problem of eq. (6) without compression; the reduction adds the
-  message and compresses the ciphertext itself.
+  message and compresses the ciphertext itself. This assumption implies eq. (6)'s
+  `Adv^mlwer_{k+1,k,η₁,η₂,d_u}` term, since compressing a sample maps the Module-LWE games to the
+  Module-LWER ones, and at `η₁ = η₂` it is Theorem 1's `Adv^mlwe_{k+1,k,η}` term.
 * The statement is asymptotic over a parameter family, against uniform classical strict PPT
   adversaries; the source states concrete bounds at fixed parameter sets with adversaries of
   roughly the same running time. The assumptions are meaningful only when the parameters grow
@@ -98,7 +100,7 @@ This is IND-CPA security of K-PKE (Kyber.CPAPKE); it is not a statement about ML
 * [NIST, *Module-Lattice-Based Key-Encapsulation Mechanism Standard*][NISTFIPS203]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Crypto.MLKEM
 
@@ -617,7 +619,9 @@ the word-level family `kpke P` is IND-CPA secure (`WordPKE.INDCPA`): every unifo
 adversary has negligible advantage.
 
 This is the asymptotic form of Kyber v3.02 ([AvanziEtAl2021], §4.3.1, Theorem 1, p. 20) in the
-form of §4.4, eq. (6), p. 22, in this library's model; see the module documentation for the
+form of §4.4, eq. (6), p. 22, with a uniform matrix in place of `XOF` (Theorem 1's random oracle;
+the word family samples it within a negligible distance) and fair coins in place of `PRF` (so no
+`Adv^prf` term), and with an uncompressed ciphertext hop; the module documentation lists all
 deviations. -/
 theorem indCPA_kpke_of_decisionModuleLWEWith {P : ℕ → Params} [∀ κ, NeZero (P κ).q]
     (hP : ComputableInPolyTime P encUnary encParams)
