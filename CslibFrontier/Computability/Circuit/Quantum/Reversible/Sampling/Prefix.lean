@@ -27,6 +27,8 @@ randomness, run a sampler or change the distribution read from the source block.
 
 ## Main results
 
+* `Cslib.Quantum.listOfFn_castLEEmb_eq_blockReadout`: reading a well-formed output prefix agrees
+  with the block readout at zero.
 * `Cslib.Quantum.GateCode.readBit_classicalRun_prefixSwapCodes`: each prefix bit after the
   adapter is exactly the former source block.
 * `Cslib.Quantum.measureOut_eval_prefixSwapCodes`: terminal measurement preserves that exact
@@ -45,6 +47,20 @@ open Turing.MultiTapeTM
 @[expose] def blockReadout {width : ℕ} (source count : ℕ)
     (x : Fin width → Bool) : Fin count → Bool :=
   fun j => readBit x (source + j)
+
+/-- Reading a prefix through its inclusion into a larger register agrees with the block readout
+beginning at zero. -/
+theorem listOfFn_castLEEmb_eq_blockReadout {count width : ℕ} (h : count ≤ width) :
+    (fun y : Fin width → Bool =>
+      List.ofFn fun i : Fin count => y (Fin.castLEEmb h i)) =
+      fun y => List.ofFn (blockReadout 0 count y) := by
+  funext y
+  congr 1
+  funext i
+  rw [blockReadout, readBit_of_lt y (by omega)]
+  apply congrArg y
+  apply Fin.ext
+  simp
 
 namespace GateCode
 

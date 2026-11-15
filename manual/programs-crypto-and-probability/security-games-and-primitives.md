@@ -1322,14 +1322,26 @@ block once at the end; the final measurement is separate from `OracleCircuit.Res
 encoded-code bound charges framed unary wire indices for the emitted gates. It does not charge
 the static generator description or offline generation time as online attack execution.
 
+[`HQC/SupportCircuit/Family.lean`](../../CslibFrontier/Crypto/Primitives/HQC/SupportCircuit/Family.lean)
+checks the complete composition on the deliberately small schedule `(n, count, width) =
+(3, 2, s + 1)`. Its native uniform family has the exact finite implemented law above, negligible
+finite-width discrepancy on this growing schedule, exact online circuit resources, and separate
+polynomial offline-generator and static-occurrence accounting. This is a checked client of the
+generic sampler, not an HQC parameter schedule: HQC v5.1 §6.2.3 composes the upper-density
+factors for three encryption support vectors multiplicatively. Instantiating that actual schedule
+and its reduction remains [#5281](https://github.com/cslib-community/cslib-frontier/issues/5281).
+The family module makes no HQC security or QROM claim.
+
 The complete ordinary clients in
 [`HQCSupportCircuit.lean`](../../CslibFrontierTests/Crypto/HQCSupportCircuit.lean) and
 [`HQCSupportProbability.lean`](../../CslibFrontierTests/Crypto/HQCSupportProbability.lean) check
-the non-dyadic sampler law, each resource coordinate, finite discrepancy, and the growing-width
-qualification. From the repository root, build them with:
+the non-dyadic sampler law, finite discrepancy, and the growing-width qualification.
+[`HQCSupportSamplerFamily.lean`](../../CslibFrontierTests/Crypto/HQCSupportSamplerFamily.lean)
+checks the generated family's inhabited fixed-weight output, each resource coordinate, and its
+offline occurrence accounting. From the repository root, build them with:
 
 ```bash
-scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.HQCSupportCircuit CslibFrontierTests.Crypto.HQCSupportProbability
+scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.HQCSupportCircuit CslibFrontierTests.Crypto.HQCSupportProbability CslibFrontierTests.Crypto.HQCSupportSamplerFamily
 ```
 
 Import [`HQC/Syndrome.lean`](../../CslibFrontier/Crypto/Primitives/HQC/Syndrome.lean) for the
