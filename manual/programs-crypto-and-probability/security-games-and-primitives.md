@@ -1767,6 +1767,69 @@ Check it with:
 scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.ListCDH
 ```
 
+### Static Diffie–Hellman and ElGamal key recovery
+
+In the static Diffie–Hellman (SDH) attack game ([bs23][bs23], Section 16.1.4, Attack Game 16.1,
+p. 688), the challenger samples a uniform secret $\alpha \in \mathbb{Z}_q$, answers each query
+$v \in \mathbb{G}$ with $v^\alpha$, and accepts when the adversary outputs $\alpha$. As §16.1.4
+observes, any SDH adversary also yields a chosen-ciphertext key-recovery attack on multiplicative
+ElGamal ([bs23][bs23], Exercise 11.5, p. 459): decrypting $c = (1/v, 1)$ under secret key $\alpha$
+returns $1 / (1/v)^\alpha = v^\alpha$, answering the SDH query.
+[`DiffieHellman/Static.lean`](../../CslibFrontier/Crypto/Computational/DiffieHellman/Static.lean)
+formalizes both games and the reductions between them, first in one fixed additive `ZMod q`-module
+`G` with `[AddCommGroup G] [NeZero q] [Module (ZMod q) G]` (where $1$ is `0`, $v^\alpha$ is
+`α • v`, and $(1/v, 1)$ is `(-v, 0)`), and then over a `PrimeOrderGroupFamily`. Neither primality of
+`q` nor that `g` generates `G` is assumed in the fixed-group section:
+
+* `sdhExperiment q A` runs `A : SDHAdversary G q` (`ProbOracleComp (SDHSpec G) (ZMod q)`) against
+  `sdhOracle q α` (`v ↦ pure (α • v)`, shared with the one-more Diffie–Hellman game of §11.6.3),
+  with success probability `sdhAdvantage q A`. `dlToSDH g A` turns a discrete-logarithm adversary
+  `A` into a 1-query SDH adversary querying `g`, with `sdhExperiment_dlToSDH`,
+  `sdhAdvantage_dlToSDH`, `isQueryBounded_dlToSDH` (budget `1`) and `queriesSatisfy_dlToSDH`
+  (`· = g`).
+* `elGamalKeyRecoveryExperiment q g B` draws $\alpha \leftarrow \text{ZMod } q$, passes the public
+  key `α • g` to `B : ElGamalKeyRecoveryAdversary G q`
+  (`G → ProbOracleComp (ElGamalDecryptionSpec G) (ZMod q)`) with access to `elGamalDecryptOracle q α`
+  (`ct ↦ pure (elGamalDecryptValue q α ct)`, where `elGamalDecryptValue q α (v, e) = e - α • v`),
+  and accepts when `B` outputs `α` (`elGamalKeyRecoveryAdvantage q g B`). Without decryption
+  queries, `dlToElGamalKeyRecovery A` embeds a discrete-logarithm adversary with budget `0`
+  (`elGamalKeyRecoveryExperiment_dlToElGamalKeyRecovery`, `isQueryBounded_dlToElGamalKeyRecovery`).
+* By `elGamalDecryptValue_neg_zero` (`elGamalDecryptValue q α (-v, 0) = α • v`),
+  `sdhToElGamalKeyRecovery A` answers each SDH query `v` by querying the decryption oracle on
+  `(-v, 0)` via `ProbOracleComp.simulate`. It has the exact experiment and advantage of `A`
+  (`elGamalKeyRecoveryExperiment_sdhToElGamalKeyRecovery`,
+  `elGamalKeyRecoveryAdvantage_sdhToElGamalKeyRecovery`), preserves any query budget `Q`
+  (`isQueryBounded_sdhToElGamalKeyRecovery`), and submits only ciphertexts with second component `0`
+  (`queriesSatisfy_sdhToElGamalKeyRecovery`). Conversely, `elGamalKeyRecoveryToSDH g B` queries `g`
+  once for the public key `α • g` and answers each decryption query `(v, e)` with one SDH query at
+  `v`, preserving the experiment and advantage with budget `Q + 1`
+  (`sdhExperiment_elGamalKeyRecoveryToSDH`, `sdhAdvantage_elGamalKeyRecoveryToSDH`,
+  `isQueryBounded_elGamalKeyRecoveryToSDH`).
+* Over `F : PrimeOrderGroupFamily`, `F.sdhGame` and `F.elGamalKeyRecoveryGame` average these
+  experiments over `setup n` (`elGamalKeyRecoveryGame_sdhToElGamalKeyRecovery`,
+  `sdhGame_elGamalKeyRecoveryToSDH`), and `F.elGamalSDHCiphertext d w` constructs the encoded
+  ciphertext `encPair encBits encBits (F.smul (d, F.order d - 1, w), F.smul (d, 0, F.encode d (F.generator d)))`
+  in polynomial time (`computableInPolyTime_elGamalSDHCiphertext`). On every encoded group element
+  `w = F.encode d v`, `elGamalSDHCiphertext_encode`, `decodeElGamal_elGamalSDHCiphertext` and
+  `elGamalDecryptDet_elGamalSDHCiphertext` show that `elGamalDecryptDet` recovers
+  `F.encode (d n) ((ofBits sk : ZMod (F.order (d n))) • v)`. The efficiency evidence proved here is
+  the per-reduction query bounds together with `computableInPolyTime_elGamalSDHCiphertext`. Stating
+  an asymptotic `SDH` assumption (`Prop`) and a family-level `IsOraclePPT` / `IsOraclePPTOf`
+  adversary reduction certificate requires rejecting out-of-subgroup query words (via a decodable
+  group family or typed oracle codec), and is not formalized here; the one-more Diffie–Hellman
+  bridge and the Brown–Gallant–Cheon attack (Exercise 16.3) are also separate.
+
+The [static DH client](../../CslibFrontierTests/Crypto/StaticDH.lean) checks 0-query and 1-query
+adversaries in `ZMod 5`, verifies that omitting the negation in `(-v, 0)` drops the advantage from
+`1` to `1 / 5` and that `elGamalKeyRecoveryToSDH` needs the `+ 1` public-key query, and runs
+`elGamalSDHCiphertext` and `elGamalDecryptDet` on the Schnorr group `d23` (`p = 23, q = 11, g = 2`),
+including a counterexample on the quadratic non-residue `5` outside the order-`11` subgroup where
+`elGamalDecryptDet` (`13`) and `schnorrGroups.smul` (`10`) disagree. Check it with:
+
+```bash
+scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.StaticDH
+```
+
 ## Encryption and chosen-message attacks
 
 [AdversaryOf](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/Encryption/Basic.lean#L73) has a first stage choosing two messages and a saved word from the public key, and a second stage guessing from that saved state and the challenge ciphertext. Each stage has a native certificate. `INDCPAOn` explicitly constrains admissible message pairs. `WordINDCPA` requires equal lengths; the general `INDCPAOf` with all pairs is stronger for variable-length word messages. Invalid challenges are made independent of the hidden experiment bit. `Encryption.advantage (gameOn valid keyGen encrypt adversary) n` names the advantage between the two sides of the experiment at parameter `n`, and `INDCPAOn` asks that it be negligible for every admissible adversary; bounds on other two-sided encryption experiments, such as the DEM and CCA games, are stated with the same name.
