@@ -223,10 +223,31 @@ Exercise 10.6, in one fixed group: one attempt of `dlSelfReduce q g A` on `α �
 probability exactly `dlAdvantage q g A` (`eval_dlSelfReduce_one_smul_some`), `n ⌈1 / ε⌉` attempts
 all fail with probability at most `exp (-n)` (`eval_dlSelfReduce_smul_none_le_exp`), and
 `cdhSelfReduce`, which masks both inputs, returns `(α * β) • g` with probability equal to the CDH
-advantage (`eval_cdhSelfReduce_smul_apply`). These programs carry no PPT certificate, and nothing
-there derives hardness over a group family. The
+advantage (`eval_cdhSelfReduce_smul_apply`).
+[`DiffieHellman/SelfReduction/Family.lean`](../../CslibFrontier/Crypto/Computational/DiffieHellman/SelfReduction/Family.lean)
+states them over a `PrimeOrderGroupFamily`, for word-level adversaries and with masks drawn by
+`sampleExp`. If the adversary is uniform strict PPT, so are the masked call
+(`isPPTOn_dlSelfReduceAdversary`) and the CDH reduction (`isPPT_cdhSelfReduceAdversary`), and so is
+the checked loop when its number of attempts `k n` is computable in polynomial time in unary
+(`isPPTOn_dlSelfReduceRetryAdversary`). One checked attempt on `α • g` returns `α` with
+probability at least `ε - 1 / 2 ^ n`, where `ε` is the adversary's success in that group
+(`le_eval_discreteLogAdversary_dlSelfReduceRetryAdversary_one`). This is an inequality, because of
+the sampling loss and because the empty word that stands for `fail` reads as the exponent `0`.
+Let `invEps` be computable in polynomial time in unary, and suppose that for all large `n`,
+`0 < invEps n` and the adversary wins in the group `d n` with probability at least
+`1 / invEps n`. Then the loop with `n * (2 * invEps n)` attempts errs with negligible probability
+on every sequence of instances `α n • g` in `d n` (`negligible_dlSelfReduceRetryAdversary_error`).
+For every setup law, the masked call's success against fixed instances `α d • g` is within
+`1 / 2 ^ n` of the adversary's average-case success
+(`advantage_dlWorstCaseGame_discreteLogGame_le`), and the CDH reduction's against fixed pairs
+`(α d • g, β d • g)` within `2 / 2 ^ n` (`advantage_cdhWorstCaseGame_cdhGame_le`). So
+`discreteLog_of_worstCase` and `cdh_of_worstCase` derive `F.DiscreteLog setup` and `F.CDH setup`
+when every uniform strict PPT adversary wins against those fixed instances with negligible
+probability. The
 [self-reduction client](../../CslibFrontierTests/Crypto/DiffieHellmanSelfReduction.lean) shows
-where `0 < ε`, injectivity of `c ↦ c • g` and masking both CDH inputs are needed.
+where `0 < ε`, injectivity of `c ↦ c • g` and masking both CDH inputs are needed; the
+[family client](../../CslibFrontierTests/Crypto/DiffieHellmanSelfReductionFamily.lean) applies the
+family results to the adversary that always guesses `0`.
 Fixed-first-coordinate rerandomization, single-exponent shifting, and Multi-DDH (I) ([bs23][bs23],
 Exercises 10.8, 10.9, and 10.11) live in
 [`DiffieHellman/MultiDDH.lean`](../../CslibFrontier/Crypto/Computational/DiffieHellman/MultiDDH.lean),

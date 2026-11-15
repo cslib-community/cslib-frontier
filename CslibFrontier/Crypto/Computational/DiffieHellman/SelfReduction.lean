@@ -23,9 +23,11 @@ Fix an additive commutative group `G` that is a `ZMod q`-module and an element `
 random group element with probability `ε` into an algorithm `B` that finds the discrete logarithm
 of every element with probability `ε` (Theorem 10.2), and Exercise 10.6 asks for the same for CDH.
 This module writes these algorithms as programs that call `A` once per attempt, and computes their
-exact output probabilities in one fixed group. It does not state that `B` is efficient, which
-Theorem 10.2 also claims: this layer has no cost model. Nor does it state the consequence over a
-group family, that worst-case hardness of the discrete logarithm implies average-case hardness.
+exact output probabilities in one fixed group. This layer has no cost model, so it does not state
+that `B` is efficient, which Theorem 10.2 also claims, nor the consequence over a group family,
+that worst-case hardness of the discrete logarithm implies average-case hardness. Both are in
+`CslibFrontier/Crypto/Computational/DiffieHellman/SelfReduction/Family.lean`, for word-level
+adversaries over a `PrimeOrderGroupFamily`.
 
 Write `ε = dlAdvantage q g A`, the success probability of `A` in the discrete-logarithm experiment
 for `g`. Footnote 1 of the book (p. 411) fixes the group and generator in the same way. The book
@@ -123,7 +125,7 @@ answer. When `u = α • g` and `v = β • g`, the correct answer for the maske
 [BonehShoup2023], Exercise 10.6 (p. 425) asks for such an algorithm without giving one; this
 construction is ours. It has no `fail` output: as the remark after the exercise notes, under DDH
 there is no way to recognize a correct answer. -/
-noncomputable def cdhSelfReduce (A : G → G → ProbComp G) (u v : G) : ProbComp G := do
+@[expose] noncomputable def cdhSelfReduce (A : G → G → ProbComp G) (u v : G) : ProbComp G := do
   let ρ ← $ᵗ ZMod q
   let τ ← $ᵗ ZMod q
   let w ← A (u + ρ • g) (v + τ • g)
@@ -171,9 +173,11 @@ theorem smul_eq_of_mem_support_dlSelfReduce [DecidableEq G] {A : G → ProbComp 
 
 /-- **The probability in [BonehShoup2023], Theorem 10.2** (pp. 411–412), in a fixed group: on input
 `α • g`, one attempt returns `α` with probability exactly `ε = dlAdvantage q g A`. The theorem's
-claim that `B` is efficient is not stated. The book takes `G` cyclic of prime order `q` with
-generator `g`, where every input is `α • g` for its discrete logarithm `α`; this needs neither
-hypothesis. -/
+claim that `B` is efficient is not stated here; the family-level form is
+`Cslib.Crypto.PrimeOrderGroupFamily.le_eval_discreteLogAdversary_dlSelfReduceRetryAdversary_one`,
+and `Cslib.Crypto.PrimeOrderGroupFamily.isPPTOn_dlSelfReduceRetryAdversary` certifies its program.
+The book takes `G` cyclic of prime order `q` with generator `g`, where every input is `α • g` for
+its discrete logarithm `α`; this needs neither hypothesis. -/
 theorem eval_dlSelfReduce_one_smul_some [DecidableEq G] (A : G → ProbComp (ZMod q))
     (α : ZMod q) :
     ProbComp.eval (dlSelfReduce q g A 1 (α • g)) (some α) = dlAdvantage q g A := by
@@ -310,8 +314,10 @@ theorem one_sub_exp_le_eval_dlSelfReduce_smul_some [DecidableEq G]
 /-- **The success probability asked for in [BonehShoup2023], Exercise 10.6** (p. 425), in a fixed
 group: on every input `(α • g, β • g)`, `cdhSelfReduce` returns the Diffie–Hellman element
 `(α * β) • g` with probability exactly the CDH advantage of `A`. The construction is ours, since
-the exercise gives none, and its efficiency is not stated. The book takes `G` cyclic of prime order
-`q` with generator `g`; this needs neither hypothesis. -/
+the exercise gives none, and its efficiency is not stated here; the family-level form is
+`Cslib.Crypto.PrimeOrderGroupFamily.advantage_cdhSelfReduceAdversary_le`, and
+`Cslib.Crypto.PrimeOrderGroupFamily.isPPT_cdhSelfReduceAdversary` certifies its program. The book
+takes `G` cyclic of prime order `q` with generator `g`; this needs neither hypothesis. -/
 theorem eval_cdhSelfReduce_smul_apply [DecidableEq G] (A : G → G → ProbComp G) (α β : ZMod q) :
     ProbComp.eval (cdhSelfReduce q g A (α • g) (β • g)) ((α * β) • g) =
       ProbComp.eval (cdhExperiment q g A) true := by
