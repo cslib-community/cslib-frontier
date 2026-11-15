@@ -8,11 +8,9 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import CslibFrontier.Foundations.Data.Nat.Log
 public import CslibFrontier.DataStructure.Dictionary.Spec
 public import Mathlib.Data.Nat.Choose.Basic
 public import Mathlib.Data.Nat.Log
-import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
 /-!

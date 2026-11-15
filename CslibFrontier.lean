@@ -4995,6 +4995,8 @@ public import CslibFrontier.DataStructure.Dictionary.WordRAM.LinearProbing
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.LinearProbing.FiveWise
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Accessors
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Compaction
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Dispatch.SlotOps
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.InEpoch
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.MetaSync
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Params

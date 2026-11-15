@@ -19,9 +19,10 @@ metadata and circular-window invariants in `Compaction.lean` and `SuccinctHash.l
   `compDTAt`, `compQuotAt`, and `compValAt`;
 * state-transition specifications for `winGrowRightGenProg`, `winGrowLeftGenProg`,
   `winShrinkRightGenProg`, and `winShrinkLeftGenProg`;
-* register-width bounds `fits_mkCompParams` and `fits_const_of_compMetaEnv`;
+* register-width bounds `fits_mkCompParams` and `fits_const_of_offCompItems`;
 * compacted slot-resolution and owner-bucket recovery operations (`readCompBucketCountGenProg`,
-  `recoverOwnerBucketGenProg`) and bijection `reconstructKeyAt_spec`.
+  `recoverOwnerBucketGenProg`) and mathematical key reconstruction `reconstructKeyAt` (whose
+  bijection `reconstructKeyAt_spec` is proved in `InEpoch.lean`).
 
 ## Main definitions
 
@@ -35,7 +36,6 @@ metadata and circular-window invariants in `Compaction.lean` and `SuccinctHash.l
 * `winGrowRightGenProg_effect`, `winGrowLeftGenProg_effect`, `winShrinkRightGenProg_effect`,
   `winShrinkLeftGenProg_effect`: circular-window effect laws on `Memory.State`.
 * `fits_mkCompParams`: all 36 words of `mkCompParams U V w N` fit in `w` bits.
-* `reconstructKeyAt_spec`: dense slots `[0, n)` reconstruct `s_abs` bijectively.
 
 ## References
 

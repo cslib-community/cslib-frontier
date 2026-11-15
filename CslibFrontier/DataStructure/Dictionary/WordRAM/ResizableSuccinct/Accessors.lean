@@ -17,15 +17,15 @@ and certifies every primitive with `RealizesBounded .exact` (`¬ReadsWidth`) via
 * overflow-free bit-slice and packed-array accessors (`readBitSliceGenProg`, `writeBitSliceGenProg`,
   `readPackedCompGenProg`, `writePackedCompGenProg`);
 * dense `(quotient, value)` pair-stream accessors (`readCompQuotGenProg`, `writeCompQuotGenProg`,
-  `readCompValGenProg`, `writeCompValGenProg`, `copyCompItemGenProg`, `clearCompItemGenProg`).
+  `readCompValGenProg`, `writeCompValGenProg`).
 
 ## Main definitions
 
 * `Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct.readBitSliceGenProg`,
   `writeBitSliceGenProg`, `readPackedCompGenProg`, `writePackedCompGenProg`: bit-slice primitives.
 * `Cslib.DataStructure.Dictionary.WordRAM.ResizableSuccinct.readCompQuotGenProg`,
-  `writeCompQuotGenProg`, `readCompValGenProg`, `writeCompValGenProg`, `copyCompItemGenProg`,
-  `clearCompItemGenProg`: dense item stream `Memory.Prog` primitives.
+  `writeCompQuotGenProg`, `readCompValGenProg`, `writeCompValGenProg`: dense item stream
+  `Memory.Prog` primitives.
 
 ## Main results
 
@@ -435,8 +435,8 @@ private theorem clientState_packedOffsetProg (d : (ℕ × ℕ) × ℕ) (s : Memo
 
 /-- Precondition for `packedOffsetProg`. -/
 private def PackedOffsetPre (w : ℕ) : (ℕ × ℕ) × ℕ → Memory.State → Prop
-  | ((k, wVal), idx), s =>
-    0 < w ∧ w = wVal ∧ k ≤ w ∧ wordOffset k w idx < s.frontier
+  | ((k, wVal), idx), _s =>
+    0 < w ∧ w = wVal ∧ k ≤ w ∧ Fits w (wordOffset k w idx)
 
 private theorem realizesBounded_packedOffset :
     RealizesBounded .exact packedOffsetProg
@@ -448,10 +448,10 @@ private theorem realizesBounded_packedOffset :
     obtain ⟨hw, hwVal, hkw, hwo⟩ := h
     subst hwVal
     dsimp only at *
-    have hwo_def : (idx / w) * k + ((idx % w) * k) / w < s.frontier := hwo)
+    have hwo_def : (idx / w) * k + ((idx % w) * k) / w < 2 ^ w := hwo)
   all_goals try exact hw.ne'
   all_goals try exact mod_mul_lt_two_pow hw hkw idx
-  all_goals (refine lt_of_le_of_lt ?_ hmem.1; omega)
+  all_goals (change _ < 2 ^ w; omega)
 
 /-- Read `readPacked (base + offset) k w s.mem idx` in `Memory.Prog` with `RealizesBounded`. -/
 def readPackedCompGenProg : ((ℕ × ℕ) × (ℕ × ℕ)) × ℕ → Memory.Prog ℕ
@@ -504,7 +504,7 @@ theorem realizesBounded_readPackedCompGen :
       runClient_state_packedOffsetProg] at *
     have hlt := wordOffset_add_one_lt_packedWords (k := k) hw hidx)
   all_goals try (refine lt_of_le_of_lt ?_ hmem.1; omega)
-  all_goals try exact ⟨hw, rfl, hkw, by omega⟩
+  all_goals try exact ⟨hw, rfl, hkw, lt_of_le_of_lt (by omega) hmem.1⟩
   all_goals exact ⟨hw, rfl, hkw, bitOffset_lt hw, by omega⟩
 
 /-- Write `writePacked (base + offset) k w s.mem idx val` in `Memory.Prog` with
@@ -563,7 +563,7 @@ theorem realizesBounded_writePackedCompGen :
       runClient_state_packedOffsetProg] at *
     have hlt := wordOffset_add_one_lt_packedWords (k := k) hw hidx)
   all_goals try (refine lt_of_le_of_lt ?_ hmem.1; omega)
-  all_goals try exact ⟨hw, rfl, hkw, by omega⟩
+  all_goals try exact ⟨hw, rfl, hkw, lt_of_le_of_lt (by omega) hmem.1⟩
   all_goals exact ⟨hw, rfl, hkw, bitOffset_lt hw, by omega⟩
 
 /-! ## Section 3: Dense `(quotient, value)` Pair-Stream `Memory.Prog` Primitives -/
@@ -581,40 +581,40 @@ private theorem sub_one_add_self_lt_two_pow {w : ℕ} (hw : 0 < w) :
       omega
 
 /-- Compute `(wOffQ q_bits v_bits wVal d, bOffQ q_bits v_bits wVal d)` overflow-free. -/
-private def compQOffsetProg : ((ℕ × ℕ) × ℕ) × ℕ → Memory.Prog (ℕ × ℕ)
+def compQOffsetProg : ((ℕ × ℕ) × ℕ) × ℕ → Memory.Prog (ℕ × ℕ)
   | (((q_bits, v_bits), wVal), d) => do
     let wbQ ← packedOffsetProg ((q_bits, wVal), d)
     let wbV ← packedOffsetProg ((v_bits, wVal), d)
     let bsum := wbQ.2 + wbV.2
     pure (wbQ.1 + wbV.1 + bsum / wVal, bsum % wVal)
 
-@[simp] private theorem clientResult_compQOffsetProg (q_bits v_bits w d : ℕ) (s : Memory.State) :
+@[simp] theorem clientResult_compQOffsetProg (q_bits v_bits w d : ℕ) (s : Memory.State) :
     (Memory.spec 0).clientResult s (compQOffsetProg (((q_bits, v_bits), w), d)) =
       (wOffQ q_bits v_bits w d, bOffQ q_bits v_bits w d) := by
   simp [compQOffsetProg, wOffQ, bOffQ]
 
-private theorem clientState_compQOffsetProg (d : ((ℕ × ℕ) × ℕ) × ℕ) (s : Memory.State) :
+theorem clientState_compQOffsetProg (d : ((ℕ × ℕ) × ℕ) × ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s (compQOffsetProg d) = s := by
   rcases d with ⟨⟨⟨q_bits, v_bits⟩, wVal⟩, idx⟩
   unfold StateTransitionSpec.clientState
   simp [compQOffsetProg]
 
-@[simp] private theorem runClient_state_compQOffsetProg
+@[simp] theorem runClient_state_compQOffsetProg
     (d : ((ℕ × ℕ) × ℕ) × ℕ) (s : Memory.State) :
     Prod.fst (Prod.snd ((Memory.spec 0).runClient s (compQOffsetProg d))) = s :=
   clientState_compQOffsetProg d s
 
-@[simp] private theorem memoryCost_compQOffsetProg (d : ((ℕ × ℕ) × ℕ) × ℕ) (s : Memory.State) :
+@[simp] theorem memoryCost_compQOffsetProg (d : ((ℕ × ℕ) × ℕ) × ℕ) (s : Memory.State) :
     memoryCost (compQOffsetProg d) s = 0 := by
   rcases d with ⟨⟨⟨q_bits, v_bits⟩, wVal⟩, idx⟩
   simp [compQOffsetProg]
 
 /-- Precondition for `compQOffsetProg`. -/
-private def CompQOffsetPre (w : ℕ) : ((ℕ × ℕ) × ℕ) × ℕ → Memory.State → Prop
-  | (((q_bits, v_bits), wVal), d), s =>
-    0 < w ∧ w = wVal ∧ q_bits ≤ w ∧ v_bits ≤ w ∧ wOffQ q_bits v_bits w d < s.frontier
+@[expose] def CompQOffsetPre (w : ℕ) : ((ℕ × ℕ) × ℕ) × ℕ → Memory.State → Prop
+  | (((q_bits, v_bits), wVal), d), _s =>
+    0 < w ∧ w = wVal ∧ q_bits ≤ w ∧ v_bits ≤ w ∧ Fits w (wOffQ q_bits v_bits w d)
 
-private theorem realizesBounded_compQOffset :
+theorem realizesBounded_compQOffset :
     RealizesBounded .exact compQOffsetProg
       (WordEncoding.encode (α := ((ℕ × ℕ) × ℕ) × ℕ)) (WordEncoding.encode (α := ℕ × ℕ))
       CompQOffsetPre (fun _ _ => 0) := by
@@ -628,17 +628,17 @@ private theorem realizesBounded_compQOffset :
     try simp only [StateTransitionSpec.clientState, clientResult_packedOffsetProg,
       runClient_state_packedOffsetProg] at *
     have hwo_def : wordOffset q_bits w idx + wordOffset v_bits w idx +
-        (bitOffset q_bits w idx + bitOffset v_bits w idx) / w < s.frontier := hwo
+        (bitOffset q_bits w idx + bitOffset v_bits w idx) / w < 2 ^ w := hwo
     have hdiv_ge := Nat.zero_le ((bitOffset q_bits w idx + bitOffset v_bits w idx) / w)
     have hbq : bitOffset q_bits w idx < w := bitOffset_lt hw
     have hbv : bitOffset v_bits w idx < w := bitOffset_lt hw
     have hbsum : bitOffset q_bits w idx + bitOffset v_bits w idx < 2 ^ w :=
       lt_of_le_of_lt (by omega) (sub_one_add_self_lt_two_pow hw))
-  · unfold PackedOffsetPre; exact ⟨hw, rfl, hq, by omega⟩
-  · unfold PackedOffsetPre; exact ⟨hw, rfl, hv, by omega⟩
+  · unfold PackedOffsetPre; exact ⟨hw, rfl, hq, hwo.of_le (by unfold wOffQ; omega)⟩
+  · unfold PackedOffsetPre; exact ⟨hw, rfl, hv, hwo.of_le (by unfold wOffQ; omega)⟩
   all_goals try exact hw.ne'
   all_goals try exact hbsum
-  all_goals (refine lt_of_le_of_lt ?_ hmem.1; omega)
+  all_goals (change _ < 2 ^ w; omega)
 
 /-- Compute `(wOffV q_bits v_bits wVal d, bOffV q_bits v_bits wVal d)` overflow-free. -/
 private def compVOffsetProg : ((ℕ × ℕ) × ℕ) × ℕ → Memory.Prog (ℕ × ℕ)
@@ -691,7 +691,7 @@ private theorem realizesBounded_compVOffset :
     have hbQ : bOffQ q_bits v_bits w idx < w := bOffQ_lt hw
     have hbsum : bOffQ q_bits v_bits w idx + q_bits < 2 ^ w :=
       lt_of_le_of_lt (by omega) (sub_one_add_self_lt_two_pow hw))
-  · unfold CompQOffsetPre; exact ⟨hw, rfl, hq, hv, by omega⟩
+  · unfold CompQOffsetPre; exact ⟨hw, rfl, hq, hv, lt_of_le_of_lt (by omega) hmem.1⟩
   all_goals try exact hw.ne'
   all_goals try exact hbsum
   all_goals (refine lt_of_le_of_lt ?_ hmem.1; omega)
@@ -755,7 +755,7 @@ theorem realizesBounded_readCompQuotGen :
     have hq : quotientBits U N ≤ w := quotientBits_le_of_le_pow hU.le
     have hv : valBits V ≤ w := Nat.clog_le_of_le_pow hV
     have hlt := wOffQ_add_one_lt_compactedItemWords (U := U) (V := V) (N := N) hw hidx)
-  all_goals try exact ⟨hw, rfl, hq, hv, by omega⟩
+  all_goals try exact ⟨hw, rfl, hq, hv, lt_of_le_of_lt (by omega) hmem.1⟩
   all_goals exact ⟨hw, rfl, hq, bOffQ_lt hw, by omega⟩
 
 /-- Write `q` into `compQuotAt` at dense index `d` in `Memory.Prog`. -/
@@ -806,7 +806,7 @@ theorem realizesBounded_writeCompQuotGen :
     have hq : quotientBits U N ≤ w := quotientBits_le_of_le_pow hU.le
     have hv : valBits V ≤ w := Nat.clog_le_of_le_pow hV
     have hlt := wOffQ_add_one_lt_compactedItemWords (U := U) (V := V) (N := N) hw hidx)
-  all_goals try exact ⟨hw, rfl, hq, hv, by omega⟩
+  all_goals try exact ⟨hw, rfl, hq, hv, lt_of_le_of_lt (by omega) hmem.1⟩
   all_goals exact ⟨hw, rfl, hq, bOffQ_lt hw, by omega⟩
 
 /-- Read `compValAt itemBase U V w N m_items s.mem d` in `Memory.Prog`. -/
