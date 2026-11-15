@@ -41,9 +41,10 @@ indexed by `Fin (nReg + nBackup)`, together with one invertible PRF key `keys α
   cache validity invariant `PlinkoState.Valid`.
 * **Online query, answer, reconstruction, and backup promotion** (`buildQuery`, `plinkoAnswer`,
   `plinkoReconstruct`, `plinkoScheme`, `PlinkoState.eval_step_plinkoScheme`,
-  `PlinkoState.isCorrectFrom_plinkoScheme_of_canAnswerSeq`): on an uncached query `x = (α, β)`, the client removes
-  `α` from the matched `(c / 2 + 1)`-block set `P` to obtain `P' = P.erase α`, randomly sends either
-  `P'` or `Finset.univ \ P'` according to a fair coin `b : Bool`, replaces `α`'s offset with a
+  `PlinkoState.isCorrectFrom_plinkoScheme_of_canAnswerSeq`): on an uncached query `x = (α, β)`,
+  the client removes `α` from the matched `(c / 2 + 1)`-block set `P` to obtain
+  `P' = P.erase α`, randomly sends either `P'` or `Finset.univ \ P'` according to a fair coin
+  `b : Bool`, replaces `α`'s offset with a
   random offset `r : Fin w`, reconstructs `db x = p + r_b`, consumes the matched hint, promotes the
   next backup hint `T[j']` into `H[j']`, and caches `(db x, j')` in `cache x`. Under `Valid` and
   `CanAnswerSeq`, `plinkoScheme` satisfies `Scheme.IsCorrectFrom` and preserves `Valid` across both
@@ -296,7 +297,8 @@ structure PlinkoState (c w nReg nBackup : ℕ) (Key : Type) where
 index, as returned by `extractActiveHint`. -/
 @[ext]
 structure ExtractedHint (c w : ℕ) where
-  /-- Effective block set of the hint (for a promoted hint, its base set plus the promoted block). -/
+  /-- Effective block set of the hint (for a promoted hint, its base set plus the promoted
+  block). -/
   blocks : Finset (Fin c)
   /-- Stored parity of the hint. -/
   parity : Bool
@@ -749,14 +751,16 @@ theorem Valid.getHint_spec {iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w
       | regular P₀ p₀ =>
         dsimp only [extractActiveHint] at hget
         by_cases hxP₀ : x.1 ∈ P₀
-        · simp only [hxP₀, ↓reduceIte, Option.map_some, Option.some.injEq, MatchedHint.mk.injEq] at hget
+        · simp only [hxP₀, ↓reduceIte, Option.map_some, Option.some.injEq,
+            MatchedHint.mk.injEq] at hget
           obtain ⟨rfl, rfl, rfl, rfl⟩ := hget
           exact ⟨by simp [hH], hxP₀, hj₀_eval, hvalid.valid_regular j₀ P₀ p₀ hH⟩
         · simp [hxP₀] at hget
       | promoted P₀ y p₀ =>
         dsimp only [extractActiveHint] at hget
         by_cases hcond : (x.1 = y.1 ∧ x.2 = y.2) ∨ (x.1 ≠ y.1 ∧ x.1 ∈ P₀)
-        · simp only [hcond, ↓reduceIte, Option.map_some, Option.some.injEq, MatchedHint.mk.injEq] at hget
+        · simp only [hcond, ↓reduceIte, Option.map_some, Option.some.injEq,
+            MatchedHint.mk.injEq] at hget
           obtain ⟨rfl, rfl, rfl, rfl⟩ := hget
           obtain ⟨hyP₀, hp₀, -⟩ := hvalid.valid_promoted j₀ P₀ y p₀ hH
           have hpar : p₀ = blockParity db (insert y.1 P₀)
@@ -1076,7 +1080,8 @@ theorem eval_step_plinkoScheme {iF : InvertiblePRF Key (Fin (nReg + nBackup)) (F
 if `st.Valid iF db`, `∀ α, iF.IsCorrectKey (st.keys α)`, and `st.CanAnswerSeq iF db xs` hold, then
 `(plinkoScheme c w nReg nBackup iF).IsCorrectFrom db st xs` holds, and every hint state reached
 after `xs` satisfies `Valid iF db`. -/
-theorem isCorrectFrom_plinkoScheme_of_canAnswerSeq {iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w)}
+theorem isCorrectFrom_plinkoScheme_of_canAnswerSeq
+    {iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w)}
     {db : Fin c × Fin w → Bool} {st : PlinkoState c w nReg nBackup Key}
     {xs : List (Fin c × Fin w)} (hvalid : st.Valid iF db)
     (hcorr : ∀ α : Fin c, iF.IsCorrectKey (st.keys α))
@@ -1235,7 +1240,8 @@ theorem eval_buildQuery_conditioned_eq_plinkoSim {c w : ℕ} [Fact (Even c)] [Ne
 
 /-- **An idealized stand-in for Plinko (`plinkoHybridScheme`)**. It idealizes the construction of
 [Hoover, Patel, Persiano and Yeo, Section 5.2][HooverPatelPersianoYeo2025] and is not an
-implementation of it: it has no iPRF, no keys and no hint table. At each online query for `x = (α, β)`, it samples a fresh conditioned
+implementation of it: it has no iPRF, no keys and no hint table. At each online query for
+`x = (α, β)`, it samples a fresh conditioned
 regular hint `(P, o) ← RegBlocksContaining c x.1 × OffsetsContaining c w x`, computes the exact hint
 parity `p = blockParity db P.1 o.1` from the database stored in its state, sends
 `buildQuery x P.1 o.1 b r`, and reconstructs `db x = plinkoReconstruct p b ans`.

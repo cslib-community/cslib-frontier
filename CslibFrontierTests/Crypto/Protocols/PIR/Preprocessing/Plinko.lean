@@ -20,7 +20,8 @@ Concrete smoke tests exercising:
 3. Hint lookup (`findHintSlotScan`, `findHintSlot_eq_findHintSlotScan`, `getHintScan`),
    state transition (`PlinkoState.nextState`, `PlinkoState.valid_nextState`), and single/multi-query
    correctness (`PlinkoState.eval_step_plinkoScheme`,
-   `PlinkoState.isCorrectFrom_plinkoScheme_of_canAnswerSeq`), including regular hint consumption, backup hint promotion, and cache hits.
+   `PlinkoState.isCorrectFrom_plinkoScheme_of_canAnswerSeq`), including regular hint consumption,
+   backup hint promotion, and cache hits.
 4. The query map on a conditioned uniform hint (`eval_buildQuery_conditioned_eq_plinkoSim`) and
    perfect privacy of the idealized stand-in `plinkoHybridScheme`
    (`isPerfectlyPrivateWith_plinkoHybridScheme`, `privacyAdvantage_plinkoHybridScheme_eq_zero`,
