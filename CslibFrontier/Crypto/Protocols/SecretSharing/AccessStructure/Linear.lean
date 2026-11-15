@@ -10,7 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Circuit.SpanProgram.Basic
 public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Basic
-public import CslibFrontier.Probability.Uniform
+public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Sources
 
 /-!
 # Linear Secret Sharing from Monotone Span Programs
@@ -32,9 +32,10 @@ The total function `linearReconstruct` selects one such `w` via `Classical.choos
 not formalized here).
 
 Privacy (`linearView_eq_of_not_accepts`) holds for every translation-invariant key distribution
-`Q ∈ linearSources P`. Note that when `F` is infinite and `P.tailDim ≥ 1`, no translation-invariant
-`PMF` on `Fin P.tailDim → F` exists (`linearSources P = ∅`), so `linearAccessScheme P` has
-vacuous privacy over infinite fields while correctness still holds for every key; use
+`Q ∈ SourceClass.translationInvariant (LinearKey P)`. Note that when `F` is infinite and
+`P.tailDim ≥ 1`, no translation-invariant `PMF` on `Fin P.tailDim → F` exists
+(`SourceClass.translationInvariant (LinearKey P) = ∅`), so `linearAccessScheme P` has vacuous
+privacy over infinite fields while correctness still holds for every key; use
 `linearUniformAccessScheme P` over finite fields.
 
 ## Main definitions
@@ -44,9 +45,7 @@ vacuous privacy over infinite fields while correctness still holds for every key
 * `Cslib.Crypto.Protocols.SecretSharing.linearShare`,
   `Cslib.Crypto.Protocols.SecretSharing.linearReconstruct`: sharing and (choice-based)
   reconstruction of Construction 22.2.
-* `Cslib.Crypto.Protocols.SecretSharing.linearSources`: translation-invariant key distributions.
-* `Cslib.Crypto.Protocols.SecretSharing.linearAccessSchemeOf`,
-  `Cslib.Crypto.Protocols.SecretSharing.linearAccessScheme`,
+* `Cslib.Crypto.Protocols.SecretSharing.linearAccessScheme`,
   `Cslib.Crypto.Protocols.SecretSharing.linearUniformAccessScheme`: `AccessScheme` instances
   (Definition 22.22, Theorem 22.13).
 
@@ -188,21 +187,11 @@ theorem linearReconstruct_linearShare_add (P : MonotoneSpanProgram F Party)
   rw [hcongr]
   exact linearReconstruct_linearShare P (k₁ + k₂) (secret₁ + secret₂) hs
 
-/-- The class of translation-invariant key distributions on `LinearKey P`. -/
-@[expose] def linearSources (P : MonotoneSpanProgram F Party) : SourceClass (LinearKey P) :=
-  { Q | ∀ δ : LinearKey P, Q.map (· + δ) = Q }
-
-/-- The uniform distribution on `LinearKey P` belongs to `linearSources P` when `F` is finite. -/
-theorem uniformOfFintype_mem_linearSources [Fintype F] [Nonempty F]
-    (P : MonotoneSpanProgram F Party) :
-    uniformOfFintype (LinearKey P) ∈ linearSources P := fun δ =>
-  uniformOfFintype_map_add_right δ
-
 /-- Privacy of Construction 22.2 ([BonehShoup2023], Theorem 22.13, p. 980): under any
-translation-invariant key distribution `Q ∈ linearSources P`, every unauthorized coalition's view
-distribution is independent of the secret. -/
+translation-invariant key distribution `Q ∈ SourceClass.translationInvariant (LinearKey P)`, every
+unauthorized coalition's view distribution is independent of the secret. -/
 theorem linearView_eq_of_not_accepts (P : MonotoneSpanProgram F Party)
-    {Q : PMF (LinearKey P)} (hQ : Q ∈ linearSources P)
+    {Q : PMF (LinearKey P)} (hQ : Q ∈ SourceClass.translationInvariant (LinearKey P))
     {s : Finset Party} (hs : ¬ P.Accepts s) (secret₀ secret₁ : F) :
     AccessStructure.viewDistOf Q (linearShare P) s secret₀ =
       AccessStructure.viewDistOf Q (linearShare P) s secret₁ := by
@@ -233,32 +222,19 @@ theorem linearView_eq_of_not_accepts (P : MonotoneSpanProgram F Party)
     exact hshift r
   rw [hcongr, hQ δ]
 
-/-- **Construction 22.2 and Theorem 22.13** ([BonehShoup2023], pp. 979–980): the linear
-secret-sharing scheme derived from `P` (Definition 22.22), over any subclass of
-`linearSources P`. -/
-@[expose] noncomputable def linearAccessSchemeOf (P : MonotoneSpanProgram F Party)
-    (sources : SourceClass (LinearKey P)) (hsources : sources ⊆ linearSources P) :
+/-- **Construction 22.2, Theorem 22.13, and Definition 22.22** ([BonehShoup2023], pp. 979–980):
+the linear secret-sharing scheme derived from a monotone span program `P` over
+`SourceClass.translationInvariant (LinearKey P)`. When `F` is infinite and `P.tailDim ≥ 1`,
+`SourceClass.translationInvariant (LinearKey P) = ∅` so privacy is vacuous (only universal
+correctness holds nontrivially); use `linearUniformAccessScheme` for finite fields. -/
+@[expose] noncomputable def linearAccessScheme (P : MonotoneSpanProgram F Party) :
     AccessScheme F (LinearKey P) Party (LinearShare P) where
   access := P.accessStructure
-  sources := sources
+  sources := SourceClass.translationInvariant (LinearKey P)
   share := linearShare P
   reconstruct := linearReconstruct P
   correct r secret _ hs := linearReconstruct_linearShare P r secret hs
-  view_indist _ hQ _ hs := linearView_eq_of_not_accepts P (hsources hQ) hs
-
-@[simp]
-theorem linearAccessSchemeOf_access (P : MonotoneSpanProgram F Party)
-    (sources : SourceClass (LinearKey P)) (hsources : sources ⊆ linearSources P) :
-    (linearAccessSchemeOf P sources hsources).access = P.accessStructure :=
-  rfl
-
-/-- **Theorem 22.13 and Definition 22.22** ([BonehShoup2023], pp. 979–980): the linear
-secret-sharing scheme derived from a monotone span program `P` over `linearSources P`. When `F` is
-infinite and `P.tailDim ≥ 1`, `linearSources P = ∅` so privacy is vacuous (only universal
-correctness holds nontrivially); use `linearUniformAccessScheme` for finite fields. -/
-@[expose] noncomputable def linearAccessScheme (P : MonotoneSpanProgram F Party) :
-    AccessScheme F (LinearKey P) Party (LinearShare P) :=
-  linearAccessSchemeOf P (linearSources P) Set.Subset.rfl
+  view_indist _ hQ _ hs := linearView_eq_of_not_accepts P hQ hs
 
 @[simp]
 theorem linearAccessScheme_access (P : MonotoneSpanProgram F Party) :
@@ -267,14 +243,14 @@ theorem linearAccessScheme_access (P : MonotoneSpanProgram F Party) :
 
 /-- Canonical finite-field linear secret-sharing scheme derived from `P` with uniform randomness. -/
 @[expose] noncomputable def linearUniformAccessScheme (P : MonotoneSpanProgram F Party)
-    [Fintype F] [Nonempty F] :
+    [Fintype F] :
     AccessScheme F (LinearKey P) Party (LinearShare P) :=
-  linearAccessSchemeOf P (SourceClass.singleton (uniformOfFintype (LinearKey P)))
-    (Set.singleton_subset_iff.mpr (uniformOfFintype_mem_linearSources P))
+  (linearAccessScheme P).monoSources
+    (Set.singleton_subset_iff.mpr (SourceClass.uniformOfFintype_mem_translationInvariant _))
 
 @[simp]
 theorem linearUniformAccessScheme_access (P : MonotoneSpanProgram F Party)
-    [Fintype F] [Nonempty F] :
+    [Fintype F] :
     (linearUniformAccessScheme P).access = P.accessStructure :=
   rfl
 

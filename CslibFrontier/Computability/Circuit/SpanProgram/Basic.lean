@@ -122,12 +122,6 @@ theorem not_accepts_empty (P : MonotoneSpanProgram F Party) : ¬ P.Accepts ∅ :
   simp only [Accepts, rowSpan, hrange, Submodule.span_empty, Submodule.mem_bot] at h
   exact P.target_ne_zero h
 
-private theorem vecMul_eq_sum_smul_row (P : MonotoneSpanProgram F Party) (i : Party)
-    (w : Fin (P.rowDim i) → F) :
-    Matrix.vecMul w (P.matrix i) = ∑ r : Fin (P.rowDim i), w r • P.matrix i r := by
-  ext j
-  simp [Matrix.vecMul, dotProduct]
-
 /-- A coalition `s` is accepted iff there exist per-party row coefficient vectors `w i` whose
 weighted sum of rows equals `P.target = e₁` ([BonehShoup2023], Construction 22.2, p. 980). -/
 theorem accepts_iff_exists_vecMul (P : MonotoneSpanProgram F Party) (s : Finset Party) :
@@ -139,12 +133,12 @@ theorem accepts_iff_exists_vecMul (P : MonotoneSpanProgram F Party) (s : Finset 
   · rintro ⟨c, hc⟩
     refine ⟨fun i r => c ⟨i, r⟩, ?_⟩
     rw [Fintype.sum_sigma] at hc
-    simp_rw [vecMul_eq_sum_smul_row]
+    simp_rw [Matrix.vecMul_eq_sum]
     exact hc
   · rintro ⟨w, hw⟩
     refine ⟨fun p => w p.1 p.2, ?_⟩
     rw [Fintype.sum_sigma]
-    simp_rw [← vecMul_eq_sum_smul_row]
+    simp_rw [← Matrix.vecMul_eq_sum]
     exact hw
 
 /-- Sufficient certificate of non-acceptance: any column vector `v` with `v 0 = 1` in the right

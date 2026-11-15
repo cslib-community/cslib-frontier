@@ -22,8 +22,9 @@ An ordinary `module` client of `CslibFrontier.Computability.Circuit.SpanProgram.
   its explicit row-weight witness (`sum_dotProduct_linearShare_eq_secret`), `PerfectlyCorrect`,
   `ViewIndist`, and additive/scalar linearity.
 * Necessity and boundary probes for every added or weakened hypothesis: `P.Accepts s` for
-  reconstruction and additive reconstruction, `¬ P.Accepts s` and `Q ∈ linearSources P` for
-  privacy, non-uniformity of unauthorized views when `P.matrix` has duplicate rows, `tailDim = 0`,
+  reconstruction and additive reconstruction, `¬ P.Accepts s` and
+  `Q ∈ SourceClass.translationInvariant (LinearKey P)` for privacy, non-uniformity of
+  unauthorized views when `P.matrix` has duplicate rows, `tailDim = 0`,
   `Party = Fin 0`, and a `ZMod 4` counterexample showing `[Field F]` cannot be relaxed to
   `[CommRing F]`.
 -/
@@ -195,9 +196,11 @@ example :
   have h01 := congrArg (fun p : PMF (ZMod 5) => p 0) hmap
   simp [PMF.pure_apply] at h01
 
-/-- Probe 4 (`hQ : Q ∈ linearSources P` in `linearView_eq_of_not_accepts`): for `P` with
-`M₀ = !![1, 1]` (`tailDim = 1`), `{0}` is unauthorized, yet under
-`Q = PMF.pure 0 ∉ linearSources P`, the views of `0` and `1` differ. -/
+/-- Probe 4 (`hQ : Q ∈ SourceClass.translationInvariant (LinearKey P)` in
+`linearView_eq_of_not_accepts`): for `P` with `M₀ = !![1, 1]` (`tailDim = 1`), `{0}` is
+unauthorized, yet under
+`Q = PMF.pure 0 ∉ SourceClass.translationInvariant (LinearKey probe4Program)`,
+the views of `0` and `1` differ. -/
 def probe4Program : MonotoneSpanProgram (ZMod 5) (Fin 1) where
   tailDim := 1
   rowDim := ![1]
@@ -249,7 +252,7 @@ example :
       (linearUniformAccessScheme probe5DupProgram).viewDist
           (uniformOfFintype (LinearKey probe5DupProgram)) {0} 0 bad = 0 := by
     simp only [AccessScheme.viewDist, AccessStructure.viewDistOf, linearUniformAccessScheme,
-      linearAccessSchemeOf, PMF.map_apply, tsum_eq_zero_iff]
+      AccessScheme.monoSources, linearAccessScheme, PMF.map_apply, tsum_eq_zero_iff]
     intro r
     by_cases hbad : (fun i : ({0} : Finset (Fin 1)) => linearShare probe5DupProgram r 0 i.1) = bad
     · have h0' := congrFun (congrFun hbad ⟨0, by simp⟩) ⟨0, by simp [probe5DupProgram]⟩
