@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Crypto.Computational.GenericGroup.Relabel
 public import CslibFrontier.Crypto.Game
+import CslibFrontier.Foundations.Data.List.SortedAssoc
 import CslibFrontier.Languages.Probabilistic.Oracle.CoinFixing
 import CslibFrontier.Languages.Probabilistic.QueryCount.Scale
 import CslibFrontier.Languages.Probabilistic.RandomPermutation
@@ -192,11 +193,6 @@ private def Consistent (α : ZMod q) (tab : Tab q) : Prop :=
 private theorem ev_zero_left (α b : ZMod q) : ev α (0, b) = b := by
   simp [ev]
 
-private theorem mem_of_lookup_eq_some {β γ : Type} [BEq β] [LawfulBEq β] {l : List (β × γ)}
-    {k : β} {b : γ} (h : l.lookup k = some b) : (k, b) ∈ l := by
-  obtain ⟨_, _, rfl, -⟩ := List.lookup_eq_some_iff.mp h
-  simp
-
 private theorem lookup_eq_none_iff' {β γ : Type} [BEq β] [LawfulBEq β] {l : List (β × γ)}
     {k : β} : l.lookup k = none ↔ ∀ e ∈ l, e.1 ≠ k := by
   simp only [List.lookup_eq_none_iff, bne_iff_ne, ne_comm]
@@ -234,7 +230,7 @@ private theorem lookup_rep_of_lookup {α : ZMod q} {tab : Tab q}
       simp [h]
     · rw [beq_false_of_ne hK] at h
       have hmem : ev α K ∈ tab.map fun e => ev α e.1 :=
-        List.mem_map.mpr ⟨(K, ℓ), mem_of_lookup_eq_some h, rfl⟩
+        List.mem_map.mpr ⟨(K, ℓ), List.mem_of_lookup_eq_some h, rfl⟩
       have hne : ev α K ≠ ev α K' := fun heq => hval.1 (heq ▸ hmem)
       rw [beq_false_of_ne hne]
       exact ih hval.2 h
@@ -562,7 +558,7 @@ private theorem symStep_support {α : ZMod q} {tab : Tab q} (p : Prim q)
       obtain ⟨ℓ, -, rfl⟩ := hx
       refine ⟨fun e he => List.mem_cons_of_mem _ he, fun hflag => ?_⟩
       obtain ⟨m, hm⟩ := Option.isSome_iff_exists.mp hflag
-      obtain ⟨e, he, heq⟩ := List.mem_map.mp (mem_of_lookup_eq_some hm)
+      obtain ⟨e, he, heq⟩ := List.mem_map.mp (List.mem_of_lookup_eq_some hm)
       simp only [Prod.mk.injEq] at heq
       exact ⟨e, List.mem_cons_of_mem _ he, (K, ℓ), List.mem_cons_self,
         lookup_eq_none_iff'.mp h₁ e he, heq.1⟩

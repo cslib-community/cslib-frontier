@@ -66,7 +66,7 @@ uniform and group queries are answered by `answer L`. -/
 /-- Answer a query for labels in `S` with at most one query for labels in `ZMod q`, translating
 labels through `j`. A group operation on a label outside the image of `j` is rejected without a
 query. -/
-noncomputable def relabelHandler (j : ZMod q ↪ S) :
+private noncomputable def relabelHandler (j : ZMod q ↪ S) :
     (query : GroupQuery q S) →
       ProbOracleComp (GroupOracleSpec q (ZMod q)) (GroupOracleSpec q S query)
   | .label β =>

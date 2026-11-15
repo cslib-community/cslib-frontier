@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 
 import CslibFrontier.Crypto.Computational.GenericGroup.DiscreteLog
+import Mathlib.Tactic.NormNum.Prime
 
 /-!
 # The generic-group bound for discrete logarithm: an ordinary client
@@ -16,7 +17,10 @@ Uses the public API of `CslibFrontier.Crypto.Computational.GenericGroup.Relabel`
 
 * the sharp bound for the adversary of `ZMod 5` that makes no query and guesses `1` when its two
   labels agree: success probability at most `2 / 5`;
-* the book's form for any query-bounded adversary, and the query bound of a relabelled program;
+* both forms of the bound for an adversary that makes one query, with labels in `Fin 128` for a
+  group of order `101`: at most `11 / 101` and at most `27 / 202`;
+* relabelling a one-query program through `ZMod 5 ↪ Fin 8`: its query bound, and its run against a
+  permutation `σ`;
 * `Nonempty (ZMod q ↪ S)` is the book's `|S| ≥ q`;
 * primality is needed where the proof uses it: in `ZMod 4` the distinct linear forms `2 X` and `0`
   agree at two points.
@@ -43,18 +47,43 @@ example : (dlogGame guess).succProbability ≤ 2 / 5 := by
     fun g u => OracleComp.IsCostBounded.pure _ 0).trans_eq ?_
   norm_num [Nat.choose_self]
 
-/-! ### The book's form and relabelling -/
+/-! ### A querying adversary with more labels than group elements -/
 
-example {q : ℕ} [NeZero q] {S : Type} [Fintype S] [Nonempty (ZMod q ↪ S)] (hq : q.Prime)
-    {T : ℕ} {A : S → S → ProbOracleComp (GroupOracleSpec q S) (ZMod q)}
-    (hA : ∀ g u, (A g u).IsQueryBounded T) :
-    (dlogGame A).succProbability ≤ ((3 * T + 2 : ℝ≥0) ^ 2 / 2 + 1) / q :=
-  succProbability_dlogGame_le hq hA
+/-- With labels in `Fin 128` for a group of order `101`, ask for the label of `u ^ 2 * g ^ 3` and
+guess `100`, the solution of `2 * α + 3 = 1`, when the answer is the generator's label; one
+query. -/
+private def adv (g u : Fin 128) : ProbOracleComp (GroupOracleSpec 101 (Fin 128)) (ZMod 101) := do
+  let r ← ProbOracleComp.query (spec := GroupOracleSpec 101 (Fin 128)) (.op u g 2 3)
+  pure (if r = some g then 100 else 0)
 
-example {q : ℕ} {S : Type} (j : ZMod q ↪ S) {T : ℕ}
-    {A : ProbOracleComp (GroupOracleSpec q S) (ZMod q)} (hA : A.IsQueryBounded T) :
-    (relabel j A).IsQueryBounded T :=
-  isQueryBounded_relabel j hA
+private theorem adv_bounded (g u : Fin 128) : (adv g u).IsQueryBounded 1 :=
+  ((ProbOracleComp.IsQueryBounded.query _).bind fun _ => OracleComp.IsCostBounded.pure _ 0).mono
+    (by norm_num)
+
+private instance : Nonempty (ZMod 101 ↪ Fin 128) :=
+  Function.Embedding.nonempty_iff_card_le.mpr (by simp [ZMod.card])
+
+example : (dlogGame adv).succProbability ≤ 11 / 101 := by
+  refine (succProbability_dlogGame_le_choose (T := 1) (by norm_num) adv_bounded).trans_eq ?_
+  norm_num [Nat.choose]
+
+example : (dlogGame adv).succProbability ≤ 27 / 202 := by
+  refine (succProbability_dlogGame_le (T := 1) (by norm_num) adv_bounded).trans_eq ?_
+  norm_num
+
+/-! ### Relabelling a concrete program -/
+
+example (j : ZMod 5 ↪ Fin 8) :
+    (relabel j
+      (ProbOracleComp.query (spec := GroupOracleSpec 5 (Fin 8)) (.label 2))).IsQueryBounded 1 :=
+  isQueryBounded_relabel j (ProbOracleComp.IsQueryBounded.query _)
+
+example (j : ZMod 5 ↪ Fin 8) (σ : Equiv.Perm (ZMod 5)) :
+    runLabeled (σ : ZMod 5 → ZMod 5)
+        (relabel j (ProbOracleComp.query (spec := GroupOracleSpec 5 (Fin 8)) (.label 2))) =
+      runLabeled (fun β => j (σ β))
+        (ProbOracleComp.query (spec := GroupOracleSpec 5 (Fin 8)) (.label 2)) :=
+  runLabeled_relabel j σ _
 
 /-! ### Hypotheses -/
 
