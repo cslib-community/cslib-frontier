@@ -4842,6 +4842,7 @@ public import CslibFrontier.Crypto.Primitives.Garbling.MixedModulus
 public import CslibFrontier.Crypto.Primitives.Garbling.OneHot
 public import CslibFrontier.Crypto.Primitives.Garbling.PointPermute
 public import CslibFrontier.Crypto.Primitives.Garbling.PointPermute.Efficient
+public import CslibFrontier.Crypto.Primitives.Garbling.PointPermute.LabelWord
 public import CslibFrontier.Crypto.Primitives.Garbling.PointPermute.Simulator
 public import CslibFrontier.Crypto.Primitives.Garbling.Privacy
 public import CslibFrontier.Crypto.Primitives.Garbling.Rerandomizable
@@ -5995,6 +5996,7 @@ public import CslibFrontier.Foundations.Data.List.EraseDupsBy
 public import CslibFrontier.Foundations.Data.List.Filter
 public import CslibFrontier.Foundations.Data.List.FilterMap
 public import CslibFrontier.Foundations.Data.List.FlatMapRange
+public import CslibFrontier.Foundations.Data.List.Flatten
 public import CslibFrontier.Foundations.Data.List.Fold
 public import CslibFrontier.Foundations.Data.List.FoldlIdx
 public import CslibFrontier.Foundations.Data.List.FoldrForall

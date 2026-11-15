@@ -9,9 +9,10 @@ module
 
 public import CslibFrontier.Crypto.Computational.CircularCorrelationRobust
 public import CslibFrontier.Crypto.Primitives.Garbling.HalfGates.Conventional
-public import CslibFrontier.Crypto.Primitives.Garbling.PointPermute.Simulator
+public import CslibFrontier.Crypto.Primitives.Garbling.PointPermute.LabelWord
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.OfBits
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
+import CslibFrontier.Foundations.Data.List.Flatten
 
 /-!
 # Half-gates garbling as a garbling scheme
@@ -28,8 +29,12 @@ At security parameter `k`, a label is a `(k + 1)`-bit key followed by its colour
 of a label and a `k`-bit tweak is `CCR.atLevel hash k` (`HalfGates.hashWord` on words). Slot `s` of
 gate `g`, `false` for the generator half and `true` for the evaluator half, has the tweak `2 g + s`,
 reduced modulo `2 ^ k` (`HalfGates.tweakWord`). The coins are the `k + 1` bits of the offset key
-`R`, then the `n` input zero labels; the offset is `CCR.offset R = (R, true)`. Correctness holds
-for every hash family and every tweak.
+`R`, then the `n` input zero labels; the offset is `CCR.offset R = (R, true)`.
+
+The tweaks of different slots need not differ: at `k = 0` every tweak is empty, and at `k = 1` the
+generator halves of gates `0` and `1` both get the tweak `[false]`. For a circuit with `q` gates
+they are all distinct when `2 q ≤ 2 ^ k`. Correctness does not use distinct tweaks, and
+`HalfGates.scheme_correct` holds for every hash family.
 
 `Gb` writes the garbled function `F` as the header `(k, n, m, q)`, in unary, followed for each gate
 by its two argument wires `A g` and `B g` as `w`-bit numbers, `w` the bit length of `n + q`, a bit
@@ -83,7 +88,8 @@ open Cslib.Circuits Turing.MultiTapeTM
 /-! ### Words -/
 
 /-- The tweak of slot `s` of gate `g` at parameter `k`, `s = false` for the generator half: the
-`k` low bits of `2 g + s`, least significant first. -/
+`k` low bits of `2 g + s`, least significant first. Different slots get the same tweak when
+`2 g + s` agree modulo `2 ^ k`; correctness does not need distinct tweaks. -/
 @[expose] def tweakWord (k g : ℕ) (s : Bool) : List Bool :=
   BitString.lowBits k (2 * g + s.toNat)
 
@@ -567,23 +573,6 @@ private theorem block_parts {w : ℕ} {a b cts more : List Bool} (d : Bool) (ha 
       List.drop_left]
     rfl
 
-/-- The body of a garbled function, after the blocks of the gates below `g`, starts with the block
-of gate `g`. -/
-private theorem drop_flatten_ofFn {c : ℕ} (blocks : Fin c → List Bool) (g : Fin c) :
-    (List.ofFn blocks).flatten.drop ((List.ofFn blocks).take g).flatten.length =
-      blocks g ++ ((List.ofFn blocks).drop (g + 1)).flatten := by
-  rw [show (List.ofFn blocks).flatten =
-      ((List.ofFn blocks).take g).flatten ++ ((List.ofFn blocks).drop g).flatten by
-    rw [← List.flatten_append, List.take_append_drop], List.drop_left,
-    List.drop_eq_getElem_cons (by simp), List.flatten_cons, List.getElem_ofFn]
-
-/-- The blocks below `g + 1` are those below `g` and the block of gate `g`. -/
-private theorem length_flatten_take_succ {c : ℕ} (blocks : Fin c → List Bool) (g : Fin c) :
-    ((List.ofFn blocks).take (g + 1)).flatten.length =
-      ((List.ofFn blocks).take g).flatten.length + (blocks g).length := by
-  rw [List.take_add_one, List.flatten_append, List.length_append, List.getElem?_ofFn]
-  simp
-
 /-- One gate of `Ev` on the labels of the earlier wires of a fixed point of an evaluation round, at
 the position of the gate's block, appends the label of the gate and moves past the block. -/
 private theorem evalGate_take (k : ℕ) (f : XorAndCircuit)
@@ -617,7 +606,9 @@ private theorem evalGate_take (k : ℕ) (f : XorAndCircuit)
     rw [BitString.boundedBinaryValue_eq, ← ofBits_reverse, List.reverse_reverse,
       ofBits_lowBits (by omega), List.length_take, List.length_ofFn]
     omega
-  rw [evalGate, drop_flatten_ofFn blocks g, length_flatten_take_succ blocks g]
+  have hg : (g : ℕ) < (List.ofFn blocks).length := by simp
+  rw [evalGate, List.drop_flatten_take _ hg, List.length_flatten_take_succ _ hg,
+    List.getElem_ofFn]
   obtain ⟨hp₁, hp₂, hp₃, hp₄⟩ := block_parts (decide (op (toCircuit f) g = .and))
     (cts := if h : op (toCircuit f) g = .and then
       PointPermute.labelBits (table (⟨g, h⟩, false)) ++
