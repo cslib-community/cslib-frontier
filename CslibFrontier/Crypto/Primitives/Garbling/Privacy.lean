@@ -197,7 +197,7 @@ rows, the mask term of each target slot of step `j` is the oracle's answer. -/
   decoding := outputDecoding C perm
 
 /-- From wire `n + C.size` on, no slot is a target, so the oracle is not read. -/
-theorem hybridView_eq_of_le (C : Circuit σ n m) (I : Interpretation σ Bool)
+private theorem hybridView_eq_of_le (C : Circuit σ n m) (I : Interpretation σ Bool)
     (F : K → T → K × Bool) (tw : Slot C.topology → T) (x : Fin n → Bool) {j : ℕ}
     (hj : n + C.size ≤ j) (key : Wire n C.size × Bool → K) (perm : Wire n C.size → Bool)
     (R : Row C.topology → K × Bool) (O O' : Slot C.topology → K × Bool) :
