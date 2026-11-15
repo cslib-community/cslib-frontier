@@ -364,7 +364,24 @@ and error law `noise κ` for each coordinate: every PPT distinguisher has neglig
 between `LWE.realGame`, with a uniform secret and independent errors, and `LWE.randomGame`. It is
 `DecisionLWEWithErrors` for the product error law (`decisionLWE_iff_decisionLWEWithErrors`). This
 is a hypothesis against uniform classical strict PPT distinguishers, not a theorem of hardness or a
-claim about quantum adversaries. -/
+claim about quantum adversaries.
+
+*Source.* [Regev2009] (the author's version of May 2, 2009), Section 2, p. 15, defines, for any
+integer `p ≥ 2` and any distribution `χ` on `ℤ_p`, the distribution `A_{s,χ}` of pairs
+`(a, ⟨a, s⟩ + e)` with `a` uniform on `ℤ_pⁿ` and `e ← χ`, and the search problem `LWE_{p,χ}`.
+Section 4, Lemma 4.1, p. 30, concerns the decision variant: distinguishing `A_{s,χ}` from the
+uniform distribution for a non-negligible fraction of the secrets `s`. Here the secret is uniform
+and the advantage is averaged over it. This definition differs from the source as follows.
+* The modulus is `2 ^ w κ`, a restriction of Regev's range of integers `p ≥ 2`; at `w κ = 0` it is
+  `1`, and the assumption holds trivially. Regev's main theorem allows any integer `p` (p. 15), but
+  his decision-to-search reduction, Lemma 4.2, p. 31, needs a prime `p ≤ poly(n)`, so of these
+  moduli his hardness results for the decision variant cover only `2`.
+* The distinguisher receives exactly `m κ` samples, as the rows of `A` and `b`, where Regev's
+  algorithms draw samples from `A_{s,χ}` as they need them.
+* The noise law is arbitrary; Regev's hardness results are for Gaussian noise (`Ψ_α`, and its
+  discretization `Ψ̄_α` for the decision variant).
+* Distinguishers are uniform classical strict PPT programs in the security parameter `κ`, where
+  Regev's efficient algorithms run in time polynomial in `n`. -/
 def DecisionLWE (n m w : ℕ → ℕ) (noise : (κ : ℕ) → PMF (ZMod (2 ^ w κ))) : Prop :=
   DecisionLWEWithErrors n m w fun κ => PMF.pi fun _ : Fin (m κ) => noise κ
 
