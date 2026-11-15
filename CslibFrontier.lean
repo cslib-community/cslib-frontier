@@ -7309,6 +7309,7 @@ public import CslibFrontier.Probability.IID.Event
 public import CslibFrontier.Probability.IID.FirstAccepted
 public import CslibFrontier.Probability.IID.FirstSome
 public import CslibFrontier.Probability.IID.FunctionCollision
+public import CslibFrontier.Probability.IID.Marked
 public import CslibFrontier.Probability.IID.Occurrence
 public import CslibFrontier.Probability.Isolation
 public import CslibFrontier.Probability.JohnsonLindenstrauss

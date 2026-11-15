@@ -156,6 +156,11 @@ box `{u | ∀ i, u i ∈ E i}`. For `Fin k`-indexed tuples with different factor
 [IID.lean](../../CslibFrontier/Probability/IID.lean) generalizes `iid`, and
 [IID/Event.lean](../../CslibFrontier/Probability/IID/Event.lean) gives its box and union bounds
 `toOuterMeasure_piFin_forall` and `toOuterMeasure_toReal_piFin_exists_le`.
+[IID/Marked.lean](../../CslibFrontier/Probability/IID/Marked.lean) specializes the box bound to
+independent coin flips (`toOuterMeasure_iid_marked`) and bounds from below the probability that one
+designated index is marked and a set `R` of at most `a - 1` other indices are unmarked when each
+index is marked with probability `a⁻¹` (`exp_neg_one_div_le_toOuterMeasure_iid_marked`,
+`one_div_le_toOuterMeasure_iid_marked`).
 [IID/Birthday.lean](../../CslibFrontier/Probability/IID/Birthday.lean) bounds from below the
 probability that `k` samples of `iid μ k` contain two equal values, for any law `μ` on a set of size
 `n`: at least `1 - exp (-k (k - 1) / (2 n))` (`one_sub_exp_neg_le_iid_not_injective`) and at least
