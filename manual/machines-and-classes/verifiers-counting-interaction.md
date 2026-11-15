@@ -258,8 +258,9 @@ local weighted-coefficient congruences. It proves all positivity, coprimality, p
 precision and doubling-limit conditions for primes `L < p ≤ Y`, where
 `Y = 2 * max(16,m,L)^4`. Precision is `Y.size + 10` and the limit is `Y * Y.size + 1`.
 `not_flag_zero_of_coefficients` handles zero. The
-[checked client](../../CslibFrontierTests/PrimeWindowSign.lean) uses actual inverse coefficients
-for both signs of one and checks the numerical error and cutoff guarantees. Computing those
+[checked client](../../CslibFrontierTests/PrimeWindowSign.lean) uses supplied coefficient
+congruences for both signs of one, an unconditional zero instance and excluded-prime endpoints.
+Computing those
 coefficients and certifying a counting-level sign procedure remain separate obligations.
 
 ## Efficient oracle programs
