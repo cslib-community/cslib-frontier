@@ -229,7 +229,7 @@ words of its input labels in order, and its decoding bits. -/
 /-! ### The simulated view is the typed simulator's -/
 
 /-- Row `i < 4` of a binary gate has number `i`. -/
-private theorem rowIndex_testBit_of_eq_two {r i : ℕ} (hr : r = 2) (hi : i < 4) :
+theorem rowIndex_testBit_of_eq_two {r i : ℕ} (hr : r = 2) (hi : i < 4) :
     rowIndex (fun a : Fin r => i.testBit (r - 1 - a)) = i := by
   subst hr
   exact rowIndex_testBit hi
