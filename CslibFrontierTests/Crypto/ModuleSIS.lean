@@ -19,7 +19,7 @@ Concrete evaluations and nonvacuity checks for:
 2. Negacyclic convolution `negacyclicMul` and `rotMatrix` in `R[X] / (X^n + 1)`.
 3. `ModuleSIS.IsSolution`, `expandModuleMatrix`, `flattenPolyVec`,
    `ModuleSIS.isSolution_expandModuleMatrix_iff`, `ModuleLWE.flattenPolyVec_sample`, and
-   nonvacuity of `ModuleSIS`.
+   nonvacuity of `ModuleSIS`, `RingSIS` and `DecisionModuleLWE`.
 -/
 
 namespace CslibFrontierTests.Crypto.ModuleSIS
@@ -132,6 +132,33 @@ theorem not_moduleSIS_zeroRankModuleSIS : ¬ModuleSIS zeroRankModuleSIS := fun h
     simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind, hsol, decide_true,
       PMF.bind_const, Game.succProbability, PMF.pure_apply_self, ENNReal.toNNReal_one]
   refine not_negligible_const one_ne_zero ((h onesModuleSolver ?_).congr hwin)
+  exact (ComputableInPolyTime.const
+    (ModuleSIS.encodeVec (1 : Fin 1 → Fin 1 → ℤ))).isPPTOn.congr fun _ => rfl
+
+/-- Degenerate `RingSISParams` with modulus `q = 1`, `n = 1`, `k = 1` and bound `1`. -/
+def unitModulusRingSIS : RingSISParams where
+  n _ := 1
+  k _ := 1
+  q _ := 1
+  β _ := 1
+  hq _ := inferInstance
+
+/-- Over `ℤ₁` every vector is in the kernel, so the Ring-SIS solver that always answers the
+all-ones polynomial vector wins `moduleSISExperiment` with probability `1`. It is a constant PPT
+machine, so `RingSIS` is not vacuous. -/
+theorem not_ringSIS_unitModulus : ¬RingSIS unitModulusRingSIS := fun h => by
+  let S : unitModulusRingSIS.toModuleSISParams.Solver := fun _ _ => pure 1
+  have hwin (κ : ℕ) :
+      moduleSISAdvantage (unitModulusRingSIS.q κ) (unitModulusRingSIS.β κ) (S κ) = 1 := by
+    have hsol (A : Matrix (Fin 1) (Fin 1) (Fin 1 → ZMod 1)) : ModuleSIS.IsSolution A 1 1 :=
+      ⟨by decide, by decide, Subsingleton.elim _ _⟩
+    change Game.succProbability (ProbComp.eval (do
+      let A ← ProbComp.uniform (Matrix (Fin 1) (Fin 1) (Fin 1 → ZMod 1))
+      let z ← pure (1 : Fin 1 → Fin 1 → ℤ)
+      return decide (ModuleSIS.IsSolution A 1 z))) = 1
+    simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind, hsol, decide_true,
+      PMF.bind_const, Game.succProbability, PMF.pure_apply_self, ENNReal.toNNReal_one]
+  refine not_negligible_const one_ne_zero ((h S ?_).congr hwin)
   exact (ComputableInPolyTime.const
     (ModuleSIS.encodeVec (1 : Fin 1 → Fin 1 → ℤ))).isPPTOn.congr fun _ => rfl
 
