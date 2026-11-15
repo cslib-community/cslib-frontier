@@ -17,7 +17,7 @@ import CslibFrontier.Probability.PMF.Uniform
 
 This file formalizes the first toy construction of single-server symmetric private information
 retrieval (SPIR) with client preprocessing from
-[Hoover, Persiano and Yeo, Section 6.3, pp. 47–48][HooverPersianoYeo2026]
+[Hoover, Persiano and Yeo, Section 6.3, pp. 54–55][HooverPersianoYeo2026]
 ("*`n`-bit client storage, `O(k log n)`-bit communication*"):
 
 * **Shared server randomness**: an `n`-bit string `R : Fin n → Bool` sampled uniformly from
@@ -33,7 +33,7 @@ retrieval (SPIR) with client preprocessing from
 
 ## Scope and nuances
 
-* **Client state size (`2 ^ n * n!`).** Although the paper's paragraph heading on p. 47 refers to
+* **Client state size (`2 ^ n * n!`).** Although the paper's paragraph heading on p. 54 refers to
   "`n`-bit client storage", the online query `τu = π ∘ Q` uses the client's permutation `π`. In the
   syntax of Definition 6.1, all offline client state used by `Query` is part of `st : St`, so
   `ToyState n` (fields `maskedDB` and `perm`) has cardinality `2 ^ n * n!` (`card_toyState`).
@@ -88,7 +88,8 @@ retrieval (SPIR) with client preprocessing from
 ## References
 
 * [A. Hoover, G. Persiano, K. Yeo, *Lower Bounds for PIR with Preprocessing from Blackbox
-  Cryptography*][HooverPersianoYeo2026], Section 6.3, pp. 47–48
+  Cryptography*][HooverPersianoYeo2026], Section 6.3, pp. 54–55. FOCS 2026; page numbers from
+  arXiv:2607.06451v3.
 -/
 
 public section
@@ -121,7 +122,7 @@ theorem card_toyState (n : ℕ) : Fintype.card (ToyState n) = 2 ^ n * n.factoria
   simp [Fintype.card_perm]
 
 /-- The random-permutation toy `k`-batch SPIR scheme with ideal setup functionality
-[Hoover, Persiano and Yeo, Section 6.3, pp. 47–48][HooverPersianoYeo2026]. -/
+[Hoover, Persiano and Yeo, Section 6.3, pp. 54–55][HooverPersianoYeo2026]. -/
 @[expose] noncomputable def toyScheme (n k : ℕ) :
     Scheme n k (Fin n → Bool) (ToyState n) Unit (Fin k → Fin n) (Fin k → Bool) where
   rLaw := ProbComp.uniform (Fin n → Bool)
