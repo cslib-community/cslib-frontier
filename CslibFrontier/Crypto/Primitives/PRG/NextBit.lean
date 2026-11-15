@@ -80,7 +80,9 @@ and `Cslib.Crypto.PRG.predictionTest`.
 
 Both are algebraic helpers over abstract admissibility classes: they assume that the class contains
 the objects that the proof builds. The uniform next-bit theorem for strict-PPT adversaries is
-open (#5293).
+`Cslib.Crypto.pseudorandomGenerator_iff_nextBitUnpredictable`, with the random-position form
+`Cslib.Crypto.pseudorandomGenerator_iff_nextBitUnpredictableRandomIndex`, in
+`CslibFrontier.Crypto.Computational.PseudorandomGenerator.NextBit`.
 
 ## References
 
