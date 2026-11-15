@@ -6276,6 +6276,7 @@ public import CslibFrontier.Foundations.NumberTheory.PrimeCounting
 public import CslibFrontier.Foundations.NumberTheory.PrimeDensity
 public import CslibFrontier.Foundations.NumberTheory.PrimeWindow
 public import CslibFrontier.Foundations.NumberTheory.PrimeWindowBounds
+public import CslibFrontier.Foundations.NumberTheory.PrimeWindowSign
 public import CslibFrontier.Foundations.NumberTheory.SqrtPrimeWindow
 public import CslibFrontier.Foundations.Order.AntitoneSwap
 public import CslibFrontier.Foundations.Order.BooleanSubalgebra
