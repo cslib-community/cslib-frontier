@@ -138,9 +138,129 @@ the maximum count and width-zero indices. The ordinary-module
 [checked clients](../../CslibFrontierTests/CountingHierarchy.lean) exercise those cases,
 binary interval restrictions, signed cancellation and the decision conversion.
 
+For the numerical prime-product estimates used by sign recovery, import
+[`PrimeWindowBounds`](../../CslibFrontier/Foundations/NumberTheory/PrimeWindowBounds.lean).
+The window is `Nat.primesLE Y \ Nat.primesLE L`, so it excludes `L` and includes `Y`.
+For `16 ≤ Z` and `L ≤ Z`, the cutoff `Y = 2 * Z ^ 4` leaves at least `3 * Z` primes;
+their product lies between `2 ^ (3 * Z)` and `2 ^ (Y * Y.size)` and exceeds
+`6 * 2 ^ m` whenever `m ≤ Z`. These are mathematical bounds, without a computational
+certificate for the prime product. The same module bounds `Y.size` by `4 * Z.size + 3`,
+the width of every `k ≤ Y * Y.size + 1` by `8 * Z.size + 8`, and the precision exponent
+`Y.size + 10` by `4 * Z.size + 13`. The
+[ordinary-import client](../../CslibFrontierTests/PrimeWindowBounds.lean) combines the bounds
+at `Z = max 16 (max m L)` and checks open/closed and empty-window endpoints.
+
 The [development issue](https://github.com/cslib-community/cslib-frontier/issues/5619) retains
-the remaining finite-field product and CRT sign-recovery objectives. This foundation alone does
-not certify those bounds or the downstream real-feasibility theorem.
+the remaining CRT sign-recovery objectives. The product step is certified below;
+the downstream real-feasibility theorem is outside these components.
+
+For binary interval endpoints, import `CountingHierarchy.Range`: `CountingFunction.sum_range`
+and `sum_range_int` sum over `0 ≤ i < r(w)` in one level. The endpoint is computed in binary;
+its value may be exponential. `CountingHierarchy.Arithmetic` supplies same-level multiplication,
+remainder, comparison and modular exponentiation. The last uses a binary exponent and the
+existing total `powMod` operation; modulus zero returns one.
+
+`CountingHierarchy.Generator` certifies a total prime-field generator test in F_1. One uniform
+universal pass checks prime divisors and smaller powers, rejecting composite moduli and
+noncanonical representatives. The standalone primality test and generator test share the
+bounded-divisor evaluator, its polynomial-time certificate and its primality characterization. `CountingHierarchy.DiscreteLog` certifies the sum of matching
+exponents below `p - 1` in F_1. Its logarithm specification requires a primitive base and a
+nonzero target; its total behavior is defined on every binary triple. The
+[checked clients](../../CslibFrontierTests/CountingNumberTheory.lean) cover these domain limits,
+binary interval sums and modular powering.
+
+Import [`CountingHierarchy.Products`](../../CslibFrontier/Computability/Complexity/Classes/CountingHierarchy/Products.lean)
+for `CountingFunction.prod_primeField_bits`: a uniform F_a factor evaluator, a polynomial-time
+binary modulus, and a polynomial-time **unary** width give the total product in F_(a+4).
+`primeFieldProduct_spec` identifies its prime-modulus output with the product in `ZMod p`,
+and `primeFieldProduct_eq_val` gives the canonical natural representative. Every nonprime
+modulus, including zero and one, returns zero. `prod_primeField_bits_restrict` replaces
+excluded factors by one, including an empty allowed domain. No factor need already be a
+canonical residue. A `Decoder enc` supports arbitrary primary input encodings; a modulus
+supplied as an extra input is covered by the same rule.
+
+The evaluator averages modular logarithm formulas over all generators, using the existing
+finite-field product identity. It uses no generator selection: generator counting costs F_2,
+logarithm summation over the factor indices F_(a+2), and the generator-masked outer sum
+F_(a+3). Modular inverse, remainder and the F_(a+1) zero-factor flag fit F_(a+3), the stronger
+bound exposed by `CountingFunction.primeFieldProduct_mem`. Every operation is composed through
+strict certificates charging queries, replies, intermediate values and encoded output; no full
+integer product or unreduced power is passed as program data. The ordinary-module
+[checked client](../../CslibFrontierTests/CountingFieldProducts.lean) covers variable binary
+moduli and unary widths, polynomial output length, prime two, zero factors, noncanonical
+factors, restrictions and nonprime defaults. Its one certified variable-input product takes
+different values at the words representing five and two, including a nonzero prime-field value. Run
+`LEAN_NUM_THREADS=2 scripts/build.sh CslibFrontierTests.CountingFieldProducts --wfail --iofail`.
+
+## Finite-field product identities
+
+Import `CslibFrontier.Foundations.NumberTheory.FiniteField.GeneratorProducts` for the algebraic
+identity `ZMod.prod_eq_generator_average`. For a prime modulus, it writes a finite product as
+the average of its logarithm formula over all multiplicative generators. The generator count
+is positive and smaller than the prime, so its image in the field is invertible, including
+at the prime two. An explicit zero test handles zero factors; empty products are covered too.
+The matching-exponent sum `ZMod.generatorLogSum` is total even for nongenerators, but its
+bounded-logarithm specification requires a primitive root and a nonzero target.
+
+`FiniteField.Enumeration` translates sums over canonical natural representatives into sums
+over residues or a finite subset. `BitString.WeightedEnumeration` translates sums over wider
+bitstrings, restricted by their binary value, into ordinary interval sums. The existing
+word-count theorem uses the weighted rule with constant weight one. These are mathematical
+identities; they assert no computational cost or efficient discrete-logarithm algorithm.
+The [checked examples](../../CslibFrontierTests/PrimeFieldProducts.lean) cover a product modulo
+five, the prime two, residue enumeration, signed weights and a zero-width interval.
+
+## Implicit integer access and bounded first events
+
+Import `CountingHierarchy.ResidueAccess` for `IntegerResidueAccess X`. The integer family `X`
+is a specification parameter. The access record supplies a logarithmic magnitude bound,
+admissible positive moduli and one total canonical-residue evaluator. Its `InCountingFunction`
+certificate requires the exponent in polynomial-time binary and the residue evaluator in F_a
+on every input pair, including off-domain inputs. It requires no encoding or computation of X.
+Admissibility is a correctness domain, not an extra oracle: an algorithm must justify that its
+queries belong to the domain and certify its own modulus-selection procedure.
+
+`CountingHierarchy.Primality` certifies the standalone `primeTest` in F_1 by a uniform divisor
+test. `CountingHierarchy.BoundedSearch` supplies existential/universal interval quantification
+at one additional level and `firstEventTest` at two. Its Boolean answer tests a property of
+the first event below a binary endpoint; a later matching event cannot replace the first one.
+All nested indices share fixed evaluators. `Foundations.NumberTheory.DyadicResidues` expresses
+the rational CRT approximation using a natural numerator built by multiplication, quotient,
+sum and remainder, with an exact correctness bridge. It constructs neither X nor the full
+modulus product. The [checked client](../../CslibFrontierTests/ResidueAccess.lean) includes
+minus one, excluded moduli, first-event ordering, an empty interval and a concrete dyadic sum.
+These operations alone do not certify the complete sign-recovery procedure.
+
+## Mathematical sign recovery from residues
+
+Import [`Foundations.NumberTheory.CRTSign`](../../CslibFrontier/Foundations/NumberTheory/CRTSign.lean)
+for the mathematical sign step of [the manuscript][OpenAI2026CountingHierarchy], Section 2.
+For positive pairwise coprime integer moduli `m i`, let `Π = ∏ i, m i`.
+[`crt_circle_identity`](../../CslibFrontier/Foundations/NumberTheory/CRTCircle.lean) proves that
+weighted residues satisfying `c i * (Π / m i) ≡ X (mod m i)` have
+`∑ i, c i / m i ≡ X / Π (mod 1)`. Its cofactor is defined as the product omitting `i`,
+so the congruences do not require integer division. `crtCoefficient_modEq` supplies each
+congruence from a modular inverse. The moduli need not be prime.
+
+`crtCircleApprox m B c` rounds the normalized residues down to multiples of `2⁻ᴮ`, sums
+the numerators, and reduces modulo `2ᴮ`. It takes neither `X` nor `Π` as data.
+[`dyadicCircleApprox_close`](../../CslibFrontier/Foundations/NumberTheory/DyadicCircle.lean)
+bounds the circular error by any `ε` with `card ι / 2ᴮ < ε`, including for negative targets.
+
+For the successive weighted residues of `2ᵏX`, `crt_firstCircleFlag_sign` assumes
+`|X| < aΠ`, `aΠ ≤ 2ᴷ`, `0 < t`, `ε < t`, `t + ε ≤ a`, and `2a + ε ≤ 1/2`.
+A nonzero integer then has a first index `k ≤ K` with approximation in `[t, 1-t]`;
+it is positive exactly when that approximation is below `1/2`, and negative exactly when
+it is above `1/2`. `crtCircleApprox_not_flag_zero` excludes every flag for zero.
+The underlying [`DoublingSign`](../../CslibFrontier/Foundations/NumberTheory/DoublingSign.lean)
+lemmas apply directly to any rational target and circle approximations.
+These are mathematical correctness results; computing the weighted residues, obtaining a
+large enough modulus product, and proving counting-hierarchy bounds are separate obligations.
+
+The ordinary-module [checked client](../../CslibFrontierTests/CRTSign.lean) discharges the
+hypotheses for both signs of one with moduli `5, 7`, precision `B = 8`, and cutoff `K = 3`.
+It also checks zero, negative summands, the strict precision boundary, and wraparound at zero.
+Run `LEAN_NUM_THREADS=2 scripts/build.sh CslibFrontierTests.CRTSign --wfail --iofail`.
 
 ## Efficient oracle programs
 
@@ -286,3 +406,5 @@ Satisfiable unique games are easy, which is why the Unique Games Conjecture asks
 [complexitylib]: ../sources.md#complexitylib
 [radhakrishnan97]: ../sources.md#radhakrishnan97
 [schrijver78]: ../sources.md#schrijver78
+
+[OpenAI2026CountingHierarchy]: ../sources.md#openaich26
