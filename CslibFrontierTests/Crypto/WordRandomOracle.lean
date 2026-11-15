@@ -168,11 +168,11 @@ private theorem logSigning_inl_nil :
     logSigning
         (M := List Bool) (Query := List Bool) (Sig := List Bool) (Digest := Bool)
         (.inl ([] : List Bool)) =
-      fun pairs => do
+      (fun pairs => do
         let sig ← ProbOracleComp.query
           (spec := ForgerSpec (List Bool) (List Bool) (List Bool) Bool)
           (.inl ([] : List Bool))
-        pure (sig, (([] : List Bool), sig) :: pairs) :=
+        pure (sig, (([] : List Bool), sig) :: pairs)) :=
   rfl
 
 private theorem eufCmaGame_nonUniqueScheme_sameMessageNewSignatureExplicitForger :
