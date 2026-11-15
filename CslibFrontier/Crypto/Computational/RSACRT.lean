@@ -9,6 +9,9 @@ module
 
 public import CslibFrontier.Crypto.Computational.RSATrapdoor
 public import CslibFrontier.Foundations.Data.Nat.ChineseRemainder
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Gcd
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeBinaryPrimitives
 import Mathlib.FieldTheory.Finite.Basic
 
 /-!
@@ -45,6 +48,14 @@ not, the recombined output `σ` satisfies `gcd(σ ^ e − h, n) = q`, where `h` 
 * `Cslib.Crypto.RSADesc.gcd_val_pow_sub_combine_eq_q`: the gcd identity behind the fault attack:
   recombining a correct `x_q` with an `x_p'` that is not congruent to `h ^ d` modulo `p` gives an
   output `σ` with `gcd(σ ^ e − h, n) = q`.
+* `Cslib.Crypto.computableInPolyTime_crtInvert`: RSA-CRT inversion is computable in polynomial
+  time from polynomial-time key components and input, as natural numbers on `encNat`, when
+  `p` and `q` are positive.
+* `Cslib.Crypto.computableInPolyTime_crtKeyWith_invert`: the same for the key
+  `RSADesc.crtKeyWith desc qInv`, from polynomial-time `p`, `q`, `d`, `q_inv` and input.
+* `Cslib.Crypto.computableInPolyTime_gcd_val_pow_sub`: the gcd step of the fault attack,
+  `gcd(σ ^ e − h, n)` with `σ ^ e − h` read in `[0, n)`, is computable in polynomial time when
+  `n` is positive.
 
 ## Implementation notes
 
@@ -64,8 +75,15 @@ check the counterexample `p = 2`, `q = 5`, `e = d = 3`, `y = 2`, where RSA-CRT r
 `y ^ d mod n = 8`. The fault-attack identity does not need oddness: its hypothesis is that `x_q`
 is congruent to the correct value `h ^ d` modulo `q`.
 
-Not formalized: the book's estimate that RSA-CRT is about four times faster, and FDH-RSA signing;
-nothing is proved about an attacker or its running time.
+The polynomial-time certificates take their arguments as component functions `α → ℕ` on a
+common input encoding, each computable in polynomial time to `encNat`, in the style of
+`computableInPolyTime_rsaInvert`. The key component `q_inv` is such an argument: in the book it is
+part of the precomputed key.
+
+Not formalized: the book's estimate that RSA-CRT is about four times faster, FDH-RSA signing, and
+a polynomial-time computation of `q_inv` from `p` and `q`, which needs a polynomial-time modular
+inverse. The certificates cover the computations; nothing is proved about an attacker as an
+adversary in a security game.
 
 ## References
 
@@ -278,5 +296,92 @@ theorem gcd_val_pow_sub_combine_eq_q (desc : RSADesc) {qInv : ℕ}
     fun h' => hxp (((desc.crtKeyWith qInv).combine_modEq_p desc.hp.pos hinv xp xq).symm.trans h')
 
 end RSADesc
+
+/-! ### Polynomial-time certificates -/
+
+section PolyTime
+
+open Turing.MultiTapeTM
+
+/-- RSA-CRT inversion ([BonehShoup2023], §16.4.3, p. 701) is computable in polynomial time
+whenever the key components `p`, `q`, `d_p`, `d_q`, `q_inv` and the input `y` are computable in
+polynomial time as natural numbers on `encNat`, and `0 < p a` and `0 < q a`. The positivity
+hypotheses are those of `binary_powMod`: for `p a = 0`, step 1 would compute
+`y ^ d_p % 0 = y ^ d_p`, whose length is exponential in that of `d_p`. -/
+theorem computableInPolyTime_crtInvert {α : Type} {enc : α ↪ List Bool}
+    {p q dp dq qInv y : α → ℕ}
+    (hp : ComputableInPolyTime p enc encNat) (hq : ComputableInPolyTime q enc encNat)
+    (hdp : ComputableInPolyTime dp enc encNat) (hdq : ComputableInPolyTime dq enc encNat)
+    (hqInv : ComputableInPolyTime qInv enc encNat) (hy : ComputableInPolyTime y enc encNat)
+    (hp_pos : ∀ a, 0 < p a) (hq_pos : ∀ a, 0 < q a) :
+    ComputableInPolyTime
+      (fun a => ({ p := p a, q := q a, dp := dp a, dq := dq a, qInv := qInv a } :
+        RSACRTKey).invert (y a)) enc encNat := by
+  have hxp := ComputableInPolyTime.binary_powMod hy hdp hp hp_pos
+  have hxq := ComputableInPolyTime.binary_powMod hy hdq hq hq_pos
+  simp only [RSACRTKey.invert, RSACRTKey.combine, RSACRTKey.powP, RSACRTKey.powQ, crtCombine]
+  exact ComputableInPolyTime.binary_add' hxq
+    (ComputableInPolyTime.binary_mul' hq
+      (ComputableInPolyTime.binary_mod'
+        (ComputableInPolyTime.binary_mul'
+          (ComputableInPolyTime.binary_add' hxp
+            (ComputableInPolyTime.binary_sub' hp (ComputableInPolyTime.binary_mod' hxq hp)))
+          hqInv) hp))
+
+/-- RSA-CRT inversion with the key `RSADesc.crtKeyWith desc qInv` is computable in polynomial
+time whenever `p`, `q`, `d`, `q_inv` and the input are computable in polynomial time as natural
+numbers on `encNat`; `p` and `q` are positive because they are prime. Here `q_inv` is an input,
+as in the book, where it is part of the precomputed key. Computing it from `p` and `q` needs a
+polynomial-time modular inverse, which this file does not provide. -/
+theorem computableInPolyTime_crtKeyWith_invert {α : Type} {enc : α ↪ List Bool}
+    {desc : α → RSADesc} {qInv y : α → ℕ}
+    (hp : ComputableInPolyTime (fun a => (desc a).p) enc encNat)
+    (hq : ComputableInPolyTime (fun a => (desc a).q) enc encNat)
+    (hd : ComputableInPolyTime (fun a => (desc a).d) enc encNat)
+    (hqInv : ComputableInPolyTime qInv enc encNat) (hy : ComputableInPolyTime y enc encNat) :
+    ComputableInPolyTime (fun a => ((desc a).crtKeyWith (qInv a)).invert (y a)) enc encNat := by
+  have := computableInPolyTime_crtInvert hp hq
+    (ComputableInPolyTime.binary_mod' hd
+      (ComputableInPolyTime.binary_sub' hp (ComputableInPolyTime.const 1)))
+    (ComputableInPolyTime.binary_mod' hd
+      (ComputableInPolyTime.binary_sub' hq (ComputableInPolyTime.const 1)))
+    hqInv hy (fun a => (desc a).hp.pos) (fun a => (desc a).hq.pos)
+  simpa only [RSADesc.crtKeyWith] using this
+
+/-- `σ ^ e − h ∈ ℤ_n`, read in `[0, n)`, in natural-number operations. -/
+private theorem val_natCast_pow_sub_natCast {n : ℕ} [NeZero n] (σ e h : ℕ) :
+    ((σ : ZMod n) ^ e - (h : ZMod n)).val = (σ ^ e % n + (n - h % n)) % n := by
+  rw [← ZMod.val_natCast (n := n) (σ ^ e % n + (n - h % n))]
+  congr 1
+  rw [Nat.cast_add, Nat.cast_sub (Nat.mod_lt h (NeZero.pos n)).le, ZMod.natCast_mod,
+    ZMod.natCast_mod, ZMod.natCast_self, Nat.cast_pow]
+  ring
+
+/-- The gcd step of the fault attack on RSA-CRT ([BonehShoup2023], §16.4.3, p. 702),
+`(n, e, σ, h) ↦ gcd(σ ^ e − h, n)` with `σ ^ e − h ∈ ℤ_n` read in `[0, n)` as in
+`RSADesc.gcd_val_pow_sub_combine_eq_q`, is computable in polynomial time whenever `n`, `e`, `σ`
+and `h` are computable in polynomial time as natural numbers on `encNat`, and `0 < n a`. The
+positivity hypothesis is that of `binary_powMod`: `ZMod 0` is `ℤ`, where `σ ^ e − h` is not
+reduced. This certifies the computation; nothing is proved about an attacker. -/
+theorem computableInPolyTime_gcd_val_pow_sub {α : Type} {enc : α ↪ List Bool}
+    {n e σ h : α → ℕ}
+    (hn : ComputableInPolyTime n enc encNat) (he : ComputableInPolyTime e enc encNat)
+    (hσ : ComputableInPolyTime σ enc encNat) (hh : ComputableInPolyTime h enc encNat)
+    (hn_pos : ∀ a, 0 < n a) :
+    ComputableInPolyTime
+      (fun a => Nat.gcd (((σ a : ZMod (n a)) ^ e a - (h a : ZMod (n a))).val) (n a))
+      enc encNat := by
+  have hfun : (fun a => Nat.gcd (((σ a : ZMod (n a)) ^ e a - (h a : ZMod (n a))).val) (n a)) =
+      fun a => Nat.gcd ((σ a ^ e a % n a + (n a - h a % n a)) % n a) (n a) := by
+    funext a
+    have : NeZero (n a) := ⟨(hn_pos a).ne'⟩
+    rw [val_natCast_pow_sub_natCast]
+  rw [hfun]
+  exact ComputableInPolyTime.binary_gcd'
+    (ComputableInPolyTime.binary_mod'
+      (ComputableInPolyTime.binary_add' (ComputableInPolyTime.binary_powMod hσ he hn hn_pos)
+        (ComputableInPolyTime.binary_sub' hn (ComputableInPolyTime.binary_mod' hh hn))) hn) hn
+
+end PolyTime
 
 end Cslib.Crypto

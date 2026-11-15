@@ -23,6 +23,9 @@ Concrete checks for `CslibFrontier/Crypto/Computational/RSACRT.lean`:
   hypothesis that `x_p'` is wrong is needed.
 * The hypotheses `p ≠ 2` and `q ≠ 2` of `invert_crtKeyWith` are needed: for `p = 2`, `q = 5`,
   `e = d = 3` and `y = 2`, RSA-CRT returns `3` while `y ^ d mod n = 8`.
+* The polynomial-time certificates `computableInPolyTime_crtInvert`,
+  `computableInPolyTime_crtKeyWith_invert` and `computableInPolyTime_gcd_val_pow_sub` apply to
+  fixed keys and moduli, with the remaining argument read from `encNat`.
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
@@ -115,5 +118,36 @@ example : 1 * rsa10.q ≡ 1 [MOD rsa10.p] ∧ (rsa10.crtKeyWith 1).dp = 0 ∧
 /-- The conclusion of `invert_crtKeyWith` fails without `p ≠ 2`. -/
 example : ¬ ∀ y, (rsa10.crtKeyWith 1).invert y = rsaInvert rsa10.modulus rsa10.d y :=
   fun h => absurd (h 2) (by decide)
+
+/-! ### Polynomial-time certificates -/
+
+section PolyTime
+
+open Turing.MultiTapeTM
+
+/-- `computableInPolyTime_crtInvert` for the fixed key `(61, 53, 53, 49, 38)`, with the input
+read from `encNat`. -/
+example : ComputableInPolyTime
+    (fun y => ({ p := 61, q := 53, dp := 53, dq := 49, qInv := 38 } : RSACRTKey).invert y)
+    encNat encNat :=
+  computableInPolyTime_crtInvert (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
+    (by fun_prop) (by fun_prop) (fun _ => by norm_num) (fun _ => by norm_num)
+
+/-- `computableInPolyTime_crtKeyWith_invert` for the fixed key `rsa3233.crtKeyWith 38`, with the
+input read from `encNat`. -/
+example : ComputableInPolyTime (fun y => (rsa3233.crtKeyWith 38).invert y) encNat encNat :=
+  computableInPolyTime_crtKeyWith_invert (desc := fun _ => rsa3233) (qInv := fun _ => 38)
+    (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
+
+/-- `computableInPolyTime_gcd_val_pow_sub` for `n = 3233`, `e = 17` and `h = 65`, with `σ` read
+from `encNat`. -/
+example : ComputableInPolyTime
+    (fun σ : ℕ => Nat.gcd (((σ : ZMod 3233) ^ 17 - ((65 : ℕ) : ZMod 3233)).val) 3233)
+    encNat encNat :=
+  computableInPolyTime_gcd_val_pow_sub (n := fun _ => 3233) (e := fun _ => 17)
+    (h := fun _ => 65) (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
+    fun _ => by norm_num
+
+end PolyTime
 
 end CslibFrontierTests.Crypto.RSACRT
