@@ -24,7 +24,7 @@ import CslibFrontier.Foundations.Data.List.UnaryCode
 support-weight schedules. The resulting oracle-free circuit family has exactly the finite
 `sampleSupport2` law at every security parameter; it does not replace that non-dyadic law by the
 ideal fixed-weight distribution. `SupportSamplerSchedule.HasNegligibleError` records the separate
-growing-width condition under which the exact finite discrepancy is negligible.
+growing-width condition under which the finite discrepancy bound is negligible.
 
 `PKESupportSamplerSchedules` connects three such schedules to the actual HQC-PKE parameters. Its
 derived `PKESupportSamplerFamilies` names the five support draws in source order: key-generation
@@ -98,7 +98,7 @@ variable (S : SupportSamplerSchedule)
 /-- Active register width of the reversible sampler, before auxiliary-input allowance. -/
 @[expose] def activeWidth (s : ℕ) : ℕ := samplerWidth (S.seedBits s) (S.circuit s).code
 
-/-- The exact finite discrepancy inherited from the multiply-high support sampler. -/
+/-- The finite discrepancy bound inherited from the multiply-high support sampler. -/
 @[expose] noncomputable def finiteError (s : ℕ) : NNReal := Real.toNNReal
   (1 - (supportLowerDensity (S.wordWidth s) (S.universeSize s) 0
     (S.supportWeight s)).toReal)
@@ -114,7 +114,8 @@ theorem samplerDist_circuit (s : ℕ) :
   samplerDist_supportSamplerCircuit (S.supportWeight_le_universeSize s)
     (S.universeSize_lt_two_pow_valueBits s)
 
-/-- The scheduled finite law is close to the ideal fixed-weight law by the exact density error. -/
+/-- The scheduled finite law is close to the ideal fixed-weight law by the density-derived error
+bound. -/
 theorem samplerDist_closeTo_ideal (s : ℕ) :
     CloseTo (samplerDist (S.circuit s))
       ((PMF.uniformOfFinset ((Finset.range (S.universeSize s)).powersetCard
