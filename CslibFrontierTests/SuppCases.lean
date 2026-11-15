@@ -11,6 +11,8 @@ namespace CslibFrontierTests.SuppCases
 
 open Cslib
 
+universe u v w
+
 /-! ### `PMF` -/
 
 -- A bind followed by a map: one witness per bind, and the map's equation is substituted.
@@ -120,6 +122,27 @@ example (p : ProbComp ℕ) (x : ℕ) (hp : ∀ a ∈ (ProbComp.eval p).support, 
   supp_cases h with ⟨a, ha, rfl⟩
   have := hp a ha
   omega
+
+-- Explicit heterogeneous bind and map have the same support decomposition.
+example {α : Type u} {β : Type v} {γ : Type w} (p : ProbComp α)
+    (next : α → ProbComp β) (f : β → γ) (x : γ)
+    (h : x ∈ (ProbComp.eval
+      (PFunctor.FreeM.bind p fun a => PFunctor.FreeM.map f (next a))).support) :
+    ∃ a ∈ (ProbComp.eval p).support,
+      ∃ b ∈ (ProbComp.eval (next a)).support, f b = x := by
+  supp_cases h with ⟨a, ha, b, hb, hbx⟩
+  exact ⟨a, ha, b, hb, hbx⟩
+
+-- The oracle-program support normalizer also follows explicit heterogeneous bind and map.
+example {ι : Type} {spec : OracleSpec ι} {α : Type u} {β : Type v} {γ : Type w}
+    (possible : (q : ι) → Set (spec q)) (p : OracleComp spec α)
+    (next : α → OracleComp spec β) (f : β → γ) (x : γ)
+    (h : x ∈ OracleComp.supportWith possible
+      (PFunctor.FreeM.bind p fun a => PFunctor.FreeM.map f (next a))) :
+    ∃ a ∈ OracleComp.supportWith possible p,
+      ∃ b ∈ OracleComp.supportWith possible (next a), f b = x := by
+  supp_cases h with ⟨a, ha, b, hb, hbx⟩
+  exact ⟨a, ha, b, hb, hbx⟩
 
 -- A decided condition selects its branch even under `ProbComp.eval`, which does not split `if`.
 example (p : ProbComp ℕ) (n x : ℕ) (hn : n = 3) (hp : ∀ a ∈ (ProbComp.eval p).support, a < 4)
