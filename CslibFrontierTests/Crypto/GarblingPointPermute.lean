@@ -8,6 +8,7 @@ module
 
 import CslibFrontier.Crypto.Primitives.Garbling.PointPermute.Efficient
 import CslibFrontier.Crypto.Primitives.Garbling.PointPermute.Simulator
+import CslibFrontier.Crypto.Primitives.Garbling.PointPermute.Privacy
 
 /-!
 # Tests for efficient point-and-permute garbling
@@ -20,7 +21,7 @@ encoding `encPair encBits (encPair encBits encBits)` of `(F, e, d)`. `Scheme.IsE
 instance: point-and-permute garbling keyed by the family that returns its input word, which is
 computed in polynomial time. For the same family, the simulator `PointPermute.simWord` of
 `CslibFrontier.Crypto.Primitives.Garbling.PointPermute.Simulator` is PPT, and its views decode to
-the output.
+the output, and a pseudorandom family makes the scheme `prv.sim` secure.
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
@@ -50,5 +51,11 @@ example (k : ℕ) (t : ValidTopo) (y coins : List Bool) (hy : y.length = t.1.m) 
     PointPermute.decodeWord V.decInfo (PointPermute.evalWord (fun _ x => x) V.fn V.input) =
       some y :=
   PointPermute.decodeWord_evalWord_simViewWord _ k t hy coins
+
+/-- A client applies the privacy theorem through the module interface. -/
+example {family : List Bool → List Bool → List Bool}
+    (h : Cslib.Crypto.PseudorandomFunction family) :
+    (PointPermute.scheme family).PrvSimSecure phiTopo encValidCircuit encValidTopo :=
+  h.prvSim_pointPermute
 
 end CslibFrontierTests.Crypto.GarblingPointPermute
