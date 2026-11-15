@@ -14,6 +14,11 @@ Scott Aaronson. *The Busy Beaver Frontier*. ACM SIGACT News 51(3), 32–54, 2020
 
 Faisal N. Abu-Khzam, Michael R. Fellows, Michael A. Langston and W. Henry Suters. "Crown Structures for Vertex Cover Kernelization." *Theory of Computing Systems* 41(3), 411–430, 2007. https://doi.org/10.1007/s00224-007-1328-0 . Bibliographic data and the abstract (crown structures; a crown-based kernelization compared with the LP-based one) were checked against secondary search summaries on 2026-11-08 UTC. The full text was not inspected, and the crown definition used in [Crown](../CslibFrontier/Foundations/Combinatorics/SimpleGraph/Crown.lean) is not attributed to a numbered statement there. Chor, Fellows and Juedes, "Linear Kernels in Linear Time, or How to Save k Colors in O(n²) Steps", WG 2004, LNCS 3353, 257–269, https://doi.org/10.1007/978-3-540-30559-0_22, is cited in the module docstring on the same basis.
 
+<a id="acek17"></a>
+## acek17
+
+Daniel Apon, Chongwon Cho, Karim Eldefrawy and Jonathan Katz. "Efficient, Reusable Fuzzy Extractors from LWE." *Cyber Security Cryptography and Machine Learning (CSCML 2017)*, LNCS 10332, 1–18, Springer, 2017. https://doi.org/10.1007/978-3-319-60080-2_1 ; IACR Cryptology ePrint Archive Report 2017/755, https://eprint.iacr.org/2017/755 . Checked against the ePrint 2017/755 PDF on 2026-11-14: Definitions 2 and 3 (weak and strong reusability, Section 2.2, p. 6; the public-parameters model is described in Section 2.1, p. 4), the common-matrix FMR construction, Theorem 1 and the 1-query strong-reusability attack (Section 3.3, pp. 9–10), and the encryption-based strongly reusable fuzzy extractor from LWE without random oracles (Section 5, pp. 11–12).
+
 <a id="achlioptas03"></a>
 ## achlioptas03
 
@@ -1403,6 +1408,11 @@ Hiroshi Nagamochi and Toshihide Ibaraki. "Computing Edge-Connectivity in Multigr
 ## nagy1972
 
 Zsigmond Nagy. “A Constructive Estimation of the Ramsey Numbers” (in Hungarian). *Matematikai Lapok* 23, 301–302, 1972 (the volume is dated 1972 but reportedly appeared in 1975). The original was not inspected; the construction and its bound follow Jukna, *Extremal Combinatorics*, 2nd ed., §13.7 and the Chapter 13 exercises, as cited in the Lean documentation.
+
+<a id="naor91"></a>
+## naor91
+
+Moni Naor. “Bit Commitment Using Pseudorandomness.” *Journal of Cryptology* 4(2), 151–158, 1991. https://doi.org/10.1007/BF00196774 . The journal version was not inspected. Read on 2026-11-15 in the author's copy, https://www.wisdom.weizmann.ac.il/~naor/PAPERS/bit.pdf (“Bit Commitment Using Pseudo-Randomness”, 10 pages, dated February 25, 2001; SHA-256 `938b32039291411c682ca457c8c040dba7f0dc264de91182e6cb8cdaaba633b6`), whose section and page numbers the library cites: Section 2 (pp. 3–4), the secrecy and binding conditions of a bit commitment, the remark on auxiliary input, and the conditions for commitments to many bits, in which the receiver selects the two sequences.
 
 <a id="naoryung89"></a>
 ## naoryung89
