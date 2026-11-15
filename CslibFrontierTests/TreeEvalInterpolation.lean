@@ -78,6 +78,6 @@ theorem executable_extension_agrees (h : Fin 3 ↪ ZMod 7)
       Cslib.Code.lowDegreeExtension h
         (fun a : Fin 2 → Fin 3 => (values (finFunctionFinEquiv a) : ZMod 7))
         (fun i => (x.getD i 0 : ZMod 7)) :=
-  cast_interpolateGrid (by decide) (by decide) h hh values x
+  cast_interpolateGrid (by decide) h hh values x
 
 end CslibFrontierTests.TreeEvalInterpolation

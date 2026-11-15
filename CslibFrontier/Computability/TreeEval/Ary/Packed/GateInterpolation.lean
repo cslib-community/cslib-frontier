@@ -135,7 +135,7 @@ private theorem cast_gridSum_range (s n : ℕ) (table : ℕ → ℕ) (x : List �
 
 /-- The streamed modular sum is exactly the finite-grid low-degree extension. The table is
 indexed by Mathlib's existing base-`s` numbering of tuples; no additional gate model is used. -/
-theorem cast_interpolateGrid {s n : ℕ} (hs : 0 < s) (_hsp : s ≤ p)
+theorem cast_interpolateGrid {s n : ℕ} (hs : 0 < s)
     (h : Fin s ↪ ZMod p) (hh : ∀ a, h a = (a.val : ZMod p))
     (table : ℕ → ℕ) (x : List ℕ) :
     ((interpolateGrid p s n table x : ℕ) : ZMod p) =
