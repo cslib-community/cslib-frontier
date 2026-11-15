@@ -43,6 +43,9 @@ The command declares:
   reconstructs the constructor from its payload, and `eT_c_payload?_range` characterizes
   payload existence. These public facts apply to unknown input values without unfolding matches.
 
+The generated matcher and projection definitions retain the encoding/constructor prefix naming
+convention above, with a declaration-specific `defsWithUnderscore` exemption.
+
 The `toSum` and constructor rules are `scoped` `fun_prop` rules, as for `enc_structure`. The case
 rule is stated for an input paired with the value, as `ComputableInO.sumElimSnd` is.
 
@@ -313,7 +316,7 @@ private def linearViews (fn encIn encOut : Term) (base : Name) : CommandElabM Un
       let b : Term ← if i == j then `(true) else `(false)
       mas := mas.push (← `(Lean.Parser.Term.matchAltExpr| | $pat => $b))
     elabCommand (← `(/-- Test whether the value has this constructor. -/
-      @[expose] public def $matcher:ident (v : $T) : Bool := match v with $mas:matchAlt*))
+      @[expose, nolint defsWithUnderscore] public def $matcher:ident (v : $T) : Bool := match v with $mas:matchAlt*))
     let mut raw : Term ← `(ComputableInDegree.of_eq (f := fun v : $T => $eT v)
       (encIn := $eT) (encMid := encBits) (fun _ => rfl))
     let mut test : Term ← `(ComputableInDegree.const (encIn := $eT) (encMid := encBool) true)
@@ -355,7 +358,7 @@ private def linearViews (fn encIn encOut : Term) (base : Name) : CommandElabM Un
         let rhs ← if i == j then `(some $value) else `(none)
         pas := pas.push (← `(Lean.Parser.Term.matchAltExpr| | $pat => $rhs))
       elabCommand (← `(/-- Extract the constructor payload or field; return `none` otherwise. -/
-        @[expose] public def $projection:ident (v : $T) : Option $outTy :=
+        @[expose, nolint defsWithUnderscore] public def $projection:ident (v : $T) : Option $outTy :=
           match v with $pas:matchAlt*))
       elabCommand (← `(@[simp] public theorem $(app projection.getId "_isSome"):ident
         (v : $T) : ($projection v).isSome = $matcher v := by cases v <;> rfl))
