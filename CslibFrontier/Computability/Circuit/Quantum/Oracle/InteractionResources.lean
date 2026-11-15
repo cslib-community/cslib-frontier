@@ -18,11 +18,13 @@ the original input and on the declared fixed width `t` give one native-computabl
 for their combined active widths, elementary gates, coherent queries, exact encoded descriptions
 and continuation-input length. This theorem does not implement or certify `nextInput`: its
 execution time and workspace, program or generator, and static description size are all outside
-the budget. Those costs belong to the deferred native compiler tracked by #5281.
+the budget. The theorem also has no service reply-width bound. Those costs and the reply width
+belong to the deferred native compiler tracked by #5281.
 
-The external service is charged as one classical call. Its implementation, the preparation of the
-quantum auxiliary state, and generation of an ideal random-oracle table are not included. The
-inaccessible reference contributes no active qubits.
+The external service is charged as one abstract classical call, not by its computation or reply
+size. Its implementation, the preparation of the quantum auxiliary state, and generation of an
+ideal random-oracle table are not included. The inaccessible reference contributes no active
+qubits.
 
 The width bound is deliberately an upper bound on the sum of the stage widths, hence also on
 their peak. The retained memory is part of stage two's quantum input, not an uncharged register.
@@ -42,7 +44,8 @@ open Turing.MultiTapeTM
 
 /-- Native generation bounds both stage descriptions and the declared continuation-input length.
 It does not compute `nextInput` or charge its execution, program, generator or static size. The
-service is called once; the last bound charges only that abstract classical call. -/
+theorem has no service reply-width bound and does not charge service computation. The service is
+called once; the last bound charges only that abstract classical call. -/
 theorem exists_classicalQuery_resource_bound (F G : UniformOracleCircuitFamily)
     {L t : ℕ → ℕ} (hL : PolynomiallyBounded L) (ht : PolynomiallyBounded t) :
     ∃ B : ℕ → ℕ, ComputableInPolyTime B encUnary encUnary ∧ PolynomiallyBounded B ∧

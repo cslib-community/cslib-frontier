@@ -149,15 +149,24 @@ abbrev transcriptInput (request reply : Fin 2 → Bool) : Fin 4 → Bool :=
 bit. This is the transcript-hiding policy used by the noninterference client below. -/
 abbrev ciphertextInput (_request reply : Fin 2 → Bool) : Fin 1 → Bool := ![reply 0]
 
-/-- The actual native continuation is identical for either value of the service's hidden bit
-when its fixed-width adapter exposes only the ciphertext coordinate. -/
-theorem resumeRun_ciphertextInput_independent (H : QuantumOracleDecapsulation.Hash)
-    (request : Fin 2 → Bool) (ciphertext hidden hidden' : Bool) :
-    nextFamily.resumeRun (q := 3) (t := 1) (nextSignature (fun _ => 1)) 0 (by decide)
-        (by decide) H (ciphertextInput request ![ciphertext, hidden]) =
-      nextFamily.resumeRun (q := 3) (t := 1) (nextSignature (fun _ => 1)) 0 (by decide)
-        (by decide) H (ciphertextInput request ![ciphertext, hidden']) := by
-  congr 1
+/-- Across the complete measured boundary, changing only a service reply's discarded hidden bit
+leaves the final density identical. The bit is generated after the first stage, so it is absent
+from the retained first-stage register as well as from `ciphertextInput`. -/
+theorem runClassicalQuery_ciphertextInput_independent (H : QuantumOracleDecapsulation.Hash)
+    (ciphertext hidden hidden' : Bool)
+    (ρ : Matrix ((Fin 0 → Bool) × Unit) ((Fin 0 → Bool) × Unit) ℂ) :
+    nextFamily.runClassicalQuery (nextSignature (fun _ => 1)) 0 [] H Unit
+        firstFamily (firstSignature (fun _ => 0)) (by decide) 2 1 (by decide) (by decide)
+        ciphertextInput (fun _ _ => PMF.pure ![ciphertext, hidden]) ρ =
+      nextFamily.runClassicalQuery (nextSignature (fun _ => 1)) 0 [] H Unit
+        firstFamily (firstSignature (fun _ => 0)) (by decide) 2 1 (by decide) (by decide)
+        ciphertextInput (fun _ _ => PMF.pure ![ciphertext, hidden']) ρ := by
+  rw [UniformOracleCircuitFamily.runClassicalQuery_apply,
+    UniformOracleCircuitFamily.runClassicalQuery_apply]
+  apply sum_congr rfl
+  intro request _
+  rw [nextFamily.resumeDensity_pure, nextFamily.resumeDensity_pure]
+  rfl
 
 /-- Use the existing native decapsulation caller and its fixed two-bit replies. -/
 noncomputable def fixedService (H : QuantumOracleDecapsulation.Hash)
