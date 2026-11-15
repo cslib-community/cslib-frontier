@@ -734,7 +734,9 @@ theorem runs_stackLoop
             (encList encG (round (zIn s i)).1 ++ encList encG (s i).2.tail) 0
             (-((encList encG (s i).2.tail).length : ℤ) -
               (encList encG (round (zIn s i)).1).length) 0 0 [] := by
-        rw [cfgL, hs i, encList_append]
+        rw [cfgL, hs i]
+        dsimp only
+        rw [encList_append]
         congr 1
         simp only [List.length_append, Nat.cast_add]
         ring
