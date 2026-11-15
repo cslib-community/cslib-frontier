@@ -17,10 +17,11 @@ import CslibFrontier.Foundations.Data.List.Flatten
 /-!
 # Half-gates garbling as a garbling scheme
 
-Definitions and correctness only. Two later steps of
-[#5293](https://github.com/cslib-community/cslib-frontier/issues/5293) (B4) build on it: H2, the
-efficiency certificates of the scheme and a word simulator, and H3, simulation privacy (`prv.sim`)
-by a reduction to `CircularCorrelationRobust` with a certified efficiency witness.
+Definitions and correctness only. The efficiency certificates of the scheme
+(`CslibFrontier.Crypto.Primitives.Garbling.HalfGates.Efficient`) and its word simulator
+(`CslibFrontier.Crypto.Primitives.Garbling.HalfGates.Simulator`) build on it. Simulation privacy
+(`prv.sim`) by a reduction to `CircularCorrelationRobust` with a certified efficiency witness is
+the next step of [#5293](https://github.com/cslib-community/cslib-frontier/issues/5293) (B4, H3).
 
 The half-gates garbling of `CslibFrontier.Crypto.Primitives.Garbling.HalfGates`, after Zahur,
 Rosulek and Evans [ZahurRosulekEvans2015] (Figure 2, p. 9), as a garbling scheme in the sense of

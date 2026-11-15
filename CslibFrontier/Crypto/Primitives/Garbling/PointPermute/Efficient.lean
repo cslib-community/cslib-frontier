@@ -36,7 +36,10 @@ the coins reads the all-zero key and permutation bit either way. The evaluator i
 gates whose state grows by one label per gate, and the semantics `ev` a fold over the gates whose
 state grows by one bit per gate. The certificates for the keyed function on words, tweaks, keys,
 permutation bits and labels are stated compositionally for reuse, and so are those for the plaintext
-wire values (`wires_polyTime`) and the decoding information (`decInfoWord_polyTime`).
+wire values (`wires_polyTime`) and the decoding information (`decInfoWord_polyTime`). The
+certificates for `En`, `De` and the semantics of valid circuits (`encodeWord_polyTime`,
+`decodeWord_polyTime`, `evalCirc_polyTime`) are public too: half-gates garbling has the same `En`,
+`De` and semantics.
 
 The body of a garbled function is written from gate data by `bodyWith`, which takes the rows as a
 parameter and is certified once (`bodyWith_polyTime`); the garbler, the simulator and the hybrid
