@@ -56,9 +56,9 @@ probability.
 
 ## Comparison with [Lindell2017], Definition 4.1
 
-For two parties, [Lindell2017], Section 4.2, Definition 4.1 (p. 7) is the requirement of
-`SemiHonestSecure` for each corrupted party, so `DDH.ddhOTSemiHonestSecure` has the shape of that
-definition, with the differences of the notion listed in
+For two parties, [Lindell2017], Section 4.2, Definition 4.1 (p. 7) corresponds to the requirement
+of `SemiHonestSecure` for each corrupted party, so `DDH.ddhOTSemiHonestSecure` has the shape of
+that definition, up to the differences of the notion listed in
 `CslibFrontier/Crypto/Protocols/MPC/Asymptotic.lean` (uniform environments that choose the inputs
 after seeing the group parameters, a public setup law). It is still not that definition for DDH
 oblivious transfer: in the source the parties run in polynomial time (p. 3) and a party's view

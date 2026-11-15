@@ -51,8 +51,9 @@ static semi-honest adversaries: there are PPT simulators `S₁, S₂` such that 
 paired with the functionality's output `f(x)` is computationally indistinguishable from party
 `i`'s view paired with both parties' outputs. [Goldreich2004], Definition 7.5.1 (general case,
 Eq. 7.40) is the `m`-party form, with a coalition `I` in place of one party.
-`SemiHonestSecure P setup I E` is that requirement for the coalition `I`; for two parties,
-Definition 4.1 is `∀ i, SemiHonestSecure P setup {i} E`. The differences:
+`SemiHonestSecure P setup I E` is the corresponding requirement for the coalition `I`; for two
+parties, Definition 4.1 corresponds to `∀ i, SemiHonestSecure P setup {i} E`, with these
+differences:
 
 * **Uniform environments that choose the inputs.** In the sources the ensembles are indexed by the
   inputs and the security parameter, and indistinguishability is against non-uniform
