@@ -13,6 +13,7 @@ public import CslibFrontier.Foundations.Data.BitString.Basic
 import CslibFrontier.Foundations.Data.BitString.ShortWords
 import CslibFrontier.Probability.IID.FunctionCollision
 import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Probability.PMF.TotalProbability
 
 /-!
 # Joux multicollisions of Merkle–Damgård chains, with their cost
@@ -37,9 +38,9 @@ success probability that holds for every compression function meeting a length c
   attempt finds no collision (`jouxFinder_success`).
 * `merkleDamgardJouxFinder` is the book's setting: a chain `merkleDamgardChain` with `ℓ`-bit blocks
   and `n`-bit chaining values. With `ℓ ≥ n + 7`, `s = ⌈2 √(2 ^ n)⌉ + 1` samples per attempt and
-  `3 b` attempts, it makes at most `3 b s` compression calls, and for every common list of blocks
-  `tail`, with probability at least `1/2` it outputs `b` pairs whose `2 ^ b` selections, each
-  followed by `tail`, are a `2 ^ b`-collision
+  `3 b` attempts, it makes at most `3 b s` compression calls, and with probability at least `1/2`
+  it outputs `b` pairs such that, for every common list of blocks `tail`, their `2 ^ b` selections,
+  each followed by `tail`, are a `2 ^ b`-collision
   (`isQueryBounded_merkleDamgardJouxFinder`, `merkleDamgardJouxFinder_success_half`).
 * `merkleDamgardBitJouxFinder` does the same for the library's `merkleDamgard`, which spends one
   compression call per message bit. It treats `g` consecutive bits as one candidate, so its count
@@ -85,6 +86,9 @@ compression function only through the oracle, and the success theorems run them 
 * `Cslib.Crypto.IsMulticollision`: `s` distinct points with one value.
 * `Cslib.Crypto.jouxFinder`, `Cslib.Crypto.merkleDamgardJouxFinder`,
   `Cslib.Crypto.merkleDamgardBitJouxFinder`: the finders.
+* `Cslib.Crypto.multicollisionOutputs`, `Cslib.Crypto.bitMulticollisionOutputs`: the success
+  events of the last two, unfolded by `Cslib.Crypto.mem_multicollisionOutputs` and
+  `Cslib.Crypto.mem_bitMulticollisionOutputs`.
 
 ## Main results
 
@@ -239,50 +243,6 @@ from `t`. -/
 @[expose] def jouxSuccess (step : T → M → T) (b : ℕ) (t : T) : Set (Option (List (M × M))) :=
   {o | ∃ pairs, o = some pairs ∧ pairs.length = b ∧ IsCollisionChain step t pairs}
 
-/-- Total probability with two cases: if the continuation lands in `failure` with probability at
-most `a₁` after an outcome in `pre` and at most `a₂` after any other outcome, then the bind lands
-in `failure` with probability at most `P(pre) * a₁ + P(preᶜ) * a₂`. -/
-private theorem toOuterMeasure_bind_toReal_le_mul_add_mul {α β : Type*} (p : PMF α)
-    (kernel : α → PMF β) (pre : Set α) (failure : Set β) {a₁ a₂ : ℝ} (h₁ : 0 ≤ a₁) (h₂ : 0 ≤ a₂)
-    (hpre : ∀ a ∈ p.support, a ∈ pre → ((kernel a).toOuterMeasure failure).toReal ≤ a₁)
-    (hnot : ∀ a ∈ p.support, a ∉ pre → ((kernel a).toOuterMeasure failure).toReal ≤ a₂) :
-    ((p.bind kernel).toOuterMeasure failure).toReal ≤
-      (p.toOuterMeasure pre).toReal * a₁ + (p.toOuterMeasure preᶜ).toReal * a₂ := by
-  classical
-  have e₁ : p.toOuterMeasure pre * ENNReal.ofReal a₁ =
-      ∑' a, pre.indicator p a * ENNReal.ofReal a₁ := by
-    rw [PMF.toOuterMeasure_apply, ENNReal.tsum_mul_right]
-  have e₂ : p.toOuterMeasure preᶜ * ENNReal.ofReal a₂ =
-      ∑' a, preᶜ.indicator p a * ENNReal.ofReal a₂ := by
-    rw [PMF.toOuterMeasure_apply, ENNReal.tsum_mul_right]
-  have ht₁ : p.toOuterMeasure pre * ENNReal.ofReal a₁ ≠ ⊤ :=
-    ENNReal.mul_ne_top (Probability.PMF.toOuterMeasure_ne_top _ _) ENNReal.ofReal_ne_top
-  have ht₂ : p.toOuterMeasure preᶜ * ENNReal.ofReal a₂ ≠ ⊤ :=
-    ENNReal.mul_ne_top (Probability.PMF.toOuterMeasure_ne_top _ _) ENNReal.ofReal_ne_top
-  have hle : (p.bind kernel).toOuterMeasure failure ≤
-      p.toOuterMeasure pre * ENNReal.ofReal a₁ + p.toOuterMeasure preᶜ * ENNReal.ofReal a₂ := by
-    rw [e₁, e₂, ← tsum_add, PMF.toOuterMeasure_bind_apply]
-    refine tsum_le_tsum fun a => ?_
-    by_cases hs : a ∈ p.support
-    · by_cases ha : a ∈ pre
-      · have hb : (kernel a).toOuterMeasure failure ≤ ENNReal.ofReal a₁ :=
-          (ENNReal.le_ofReal_iff_toReal_le (Probability.PMF.toOuterMeasure_ne_top _ _) h₁).mpr
-            (hpre a hs ha)
-        simp only [Set.indicator_of_mem ha, Set.indicator_of_notMem (Set.notMem_compl_iff.mpr ha),
-          zero_mul, add_zero]
-        exact mul_le_mul_of_nonneg_left hb zero_le
-      · have hb : (kernel a).toOuterMeasure failure ≤ ENNReal.ofReal a₂ :=
-          (ENNReal.le_ofReal_iff_toReal_le (Probability.PMF.toOuterMeasure_ne_top _ _) h₂).mpr
-            (hnot a hs ha)
-        simp only [Set.indicator_of_notMem ha, Set.indicator_of_mem (Set.mem_compl ha),
-          zero_mul, zero_add]
-        exact mul_le_mul_of_nonneg_left hb zero_le
-    · have hz : p a = 0 := by simpa only [PMF.mem_support_iff, not_not] using hs
-      simp [hz]
-  have h := ENNReal.toReal_mono (ENNReal.add_ne_top.mpr ⟨ht₁, ht₂⟩) hle
-  rwa [ENNReal.toReal_add ht₁ ht₂, ENNReal.toReal_mul, ENNReal.toReal_mul,
-    ENNReal.toReal_ofReal h₁, ENNReal.toReal_ofReal h₂] at h
-
 /-- The arithmetic of one step of the budget induction: `x B + y (2 B) ≤ (1 + ε) B` when
 `x + y = 1` and `x ≥ 1 - ε`. -/
 private theorem budget_step {x y ε B : ℝ} (hadd : x + y = 1) (hx : 1 - ε ≤ x) (hB : 0 ≤ B) :
@@ -331,7 +291,8 @@ private theorem jouxFinder_failure_le {stage : T → M → ProbOracleComp spec T
     have e : (2 : ℝ) ^ (b + 1) * ((1 + ε) / 2) ^ (f + 1) / 2 =
         (1 + ε) * (2 ^ b * ((1 + ε) / 2) ^ f / 2) := by ring
     rw [jouxFinder, ProbOracleComp.run_bind, ProbComp.eval_bind, e]
-    refine (toOuterMeasure_bind_toReal_le_mul_add_mul _ _ (collisionOutputs (step t)) _
+    refine (Probability.PMF.toOuterMeasure_bind_toReal_le_mul_add_mul _ _
+      (collisionOutputs (step t)) _
       (a₁ := 2 ^ b * ((1 + ε) / 2) ^ f / 2) (a₂ := 2 * (2 ^ b * ((1 + ε) / 2) ^ f / 2))
       hB0 (by positivity) ?_ ?_).trans (budget_step hadd (by linarith) hB0)
     · rintro _ - ⟨m, m', hne, hcol, rfl⟩
@@ -458,38 +419,47 @@ theorem isMulticollision_merkleDamgardChain {ℓ : ℕ} {iv : List Bool}
     obtain ⟨τ, -, rfl⟩ := Finset.mem_image.mp hy'
     simp only [merkleDamgardChain_append, ← foldl_blockStep, hc.foldl_jouxMessage]
 
-/-- The outputs of `merkleDamgardJouxFinder` whose `2 ^ b` selections are a `2 ^ b`-collision of
-the chain from `iv` followed by `tail`. -/
+/-- The outputs of `merkleDamgardJouxFinder` that are `b` pairs whose `2 ^ b` selections, each
+followed by any common list of blocks `tail`, are a `2 ^ b`-collision of the chain from `iv`. One
+output serves every `tail`. `mem_multicollisionOutputs` unfolds membership. -/
 def multicollisionOutputs (h : List Bool → List Bool → List Bool) (k : List Bool) (ℓ b : ℕ)
-    (iv : List Bool) (tail : List (List Bool)) :
-    Set (Option (List (BitString ℓ × BitString ℓ))) :=
-  {o | ∃ pairs, o = some pairs ∧
+    (iv : List Bool) : Set (Option (List (BitString ℓ × BitString ℓ))) :=
+  {o | ∃ pairs, o = some pairs ∧ pairs.length = b ∧ ∀ tail : List (List Bool),
     IsMulticollision (fun bs => merkleDamgardChain h k iv (bs ++ tail)) (2 ^ b)
       ((Finset.univ.image (jouxMessage pairs)).image (List.map List.ofFn))}
 
-private theorem jouxSuccess_subset_multicollisionOutputs (ℓ b : ℕ) (iv : List Bool)
-    (tail : List (List Bool)) :
+/-- Membership in `multicollisionOutputs`: `b` pairs whose selections, each followed by any common
+list of blocks, are a `2 ^ b`-collision of the chain from `iv`. -/
+theorem mem_multicollisionOutputs {ℓ b : ℕ} {iv : List Bool}
+    {o : Option (List (BitString ℓ × BitString ℓ))} :
+    o ∈ multicollisionOutputs h k ℓ b iv ↔
+      ∃ pairs, o = some pairs ∧ pairs.length = b ∧ ∀ tail : List (List Bool),
+        IsMulticollision (fun bs => merkleDamgardChain h k iv (bs ++ tail)) (2 ^ b)
+          ((Finset.univ.image (jouxMessage pairs)).image (List.map List.ofFn)) :=
+  Iff.rfl
+
+private theorem jouxSuccess_subset_multicollisionOutputs (ℓ b : ℕ) (iv : List Bool) :
     jouxSuccess (fun t (m : BitString ℓ) => h k (t ++ List.ofFn m)) b iv ⊆
-      multicollisionOutputs h k ℓ b iv tail := by
+      multicollisionOutputs h k ℓ b iv := by
   rintro _ ⟨pairs, rfl, rfl, hc⟩
-  exact ⟨pairs, rfl, isMulticollision_merkleDamgardChain hc tail⟩
+  exact ⟨pairs, rfl, rfl, isMulticollision_merkleDamgardChain hc⟩
 
 /-- **Joux's attack on a chain, with its cost.** Let `h k` map `n + ℓ`-bit inputs to `n`-bit
 outputs and let `iv` have `n` bits. With at most `f * s` compression evaluations
-(`isQueryBounded_merkleDamgardJouxFinder`), `merkleDamgardJouxFinder` outputs `b` pairs. For every
-common list of blocks `tail`, their `2 ^ b` selections, each followed by `tail`, are a
-`2 ^ b`-collision of the chain except with probability at most `2 ^ b * ((1 + ε) / 2) ^ f / 2`,
+(`isQueryBounded_merkleDamgardJouxFinder`), `merkleDamgardJouxFinder` outputs `b` pairs such that,
+for every common list of blocks `tail`, their `2 ^ b` selections, each followed by `tail`, are a
+`2 ^ b`-collision of the chain, except with probability at most `2 ^ b * ((1 + ε) / 2) ^ f / 2`,
 where `ε` bounds `exp (-s (s - 1) / 2 ^ (n + 1)) + C(s, 2) / 2 ^ ℓ`, the bound of Lemma 8.2 on the
 probability that one attempt finds no collision. -/
 theorem merkleDamgardJouxFinder_success {n ℓ : ℕ}
     (hlen : ∀ x, x.length = n + ℓ → (h k x).length = n)
     {iv : List Bool} (hiv : iv.length = n) (s : ℕ) {ε : ℝ}
     (hε : Real.exp (-(s * (s - 1) / (2 * 2 ^ n))) + s.choose 2 * ((2 : ℝ) ^ ℓ)⁻¹ ≤ ε)
-    (f b : ℕ) (tail : List (List Bool)) :
+    (f b : ℕ) :
     1 - 2 ^ b * ((1 + ε) / 2) ^ f / 2 ≤
       ((ProbComp.eval ((merkleDamgardJouxFinder ℓ s f b iv).run
         fun x => pure (h k x))).toOuterMeasure
-          (multicollisionOutputs h k ℓ b iv tail)).toReal := by
+          (multicollisionOutputs h k ℓ b iv)).toReal := by
   have key := jouxFinder_success (spec := fun _ : List Bool => List Bool)
     (stage := fun t (m : BitString ℓ) => ProbOracleComp.query (t ++ List.ofFn m))
     (h k) (fun t (m : BitString ℓ) => h k (t ++ List.ofFn m))
@@ -497,26 +467,26 @@ theorem merkleDamgardJouxFinder_success {n ℓ : ℕ}
     (fun t ht m => mem_digests.mpr (hlen _ (by simp [mem_digests.mp ht]))) s (ε := ε)
     (by rw [card_digests, BitString.card]; push_cast; exact hε) f b (mem_digests.mpr hiv)
   exact key.trans (ENNReal.toReal_mono (Probability.PMF.toOuterMeasure_ne_top _ _)
-    (MeasureTheory.measure_mono (jouxSuccess_subset_multicollisionOutputs ℓ b iv tail)))
+    (MeasureTheory.measure_mono (jouxSuccess_subset_multicollisionOutputs ℓ b iv)))
 
 /-- **Joux's attack on a chain with `O(b 2 ^ (n/2))` compression evaluations**
 ([BonehShoup2023], §8.4.1, printed p. 299). Let `h k` map `n + ℓ`-bit inputs to `n`-bit outputs,
 let `iv` have `n` bits, and let blocks be at least seven bits longer than chaining values
 (`n + 7 ≤ ℓ`). With the sample count `s = ⌈2 √(2 ^ n)⌉ + 1` of Lemma 8.2 per attempt and a budget
 of `3 b` attempts, `merkleDamgardJouxFinder` makes at most `3 b s` compression evaluations
-(`isQueryBounded_merkleDamgardJouxFinder`), and for every common list of blocks `tail`, with
-probability at least `1/2` it outputs `b` pairs whose `2 ^ b` selections, each followed by `tail`,
-are a `2 ^ b`-collision. The book states "time `O(b 2 ^ (n/2))`" and no success probability; the
-count here is of compression evaluations only, not a running time. -/
+(`isQueryBounded_merkleDamgardJouxFinder`), and with probability at least `1/2` it outputs `b`
+pairs such that, for every common list of blocks `tail`, their `2 ^ b` selections, each followed by
+`tail`, are a `2 ^ b`-collision. The book states "time `O(b 2 ^ (n/2))`" and no success
+probability; the count here is of compression evaluations only, not a running time. -/
 theorem merkleDamgardJouxFinder_success_half {n ℓ : ℕ}
     (hlen : ∀ x, x.length = n + ℓ → (h k x).length = n)
-    {iv : List Bool} (hiv : iv.length = n) (hℓ : n + 7 ≤ ℓ) (b : ℕ) (tail : List (List Bool)) :
+    {iv : List Bool} (hiv : iv.length = n) (hℓ : n + 7 ≤ ℓ) (b : ℕ) :
     (1 / 2 : ℝ) ≤
       ((ProbComp.eval ((merkleDamgardJouxFinder ℓ (⌈2 * Real.sqrt ((2 ^ n : ℕ) : ℝ)⌉₊ + 1)
         (3 * b) b iv).run fun x => pure (h k x))).toOuterMeasure
-          (multicollisionOutputs h k ℓ b iv tail)).toReal :=
+          (multicollisionOutputs h k ℓ b iv)).toReal :=
   (half_le_one_sub_budget_bound b).trans
-    (merkleDamgardJouxFinder_success hlen hiv _ (birthday_failure_le_half hℓ) (3 * b) b tail)
+    (merkleDamgardJouxFinder_success hlen hiv _ (birthday_failure_le_half hℓ) (3 * b) b)
 
 end MerkleDamgard
 
@@ -613,13 +583,22 @@ theorem isQueryBounded_merkleDamgardBitJouxFinder (n g s f b : ℕ) :
         simpa using isQueryBounded_absorbBits n t (List.ofFn m))
       (ProbComp.uniform (BitString g)) s f b t₀
 
-/-- The outputs of `merkleDamgardBitJouxFinder` whose `2 ^ b` selections are a `2 ^ b`-collision
-of `merkleDamgard h k`. -/
+/-- The outputs of `merkleDamgardBitJouxFinder` that are `b` pairs whose `2 ^ b` selections are a
+`2 ^ b`-collision of `merkleDamgard h k`. `mem_bitMulticollisionOutputs` unfolds membership. -/
 def bitMulticollisionOutputs (h : List Bool → List Bool → List Bool) (k : List Bool) (g b : ℕ) :
     Set (Option (List (BitString g × BitString g))) :=
-  {o | ∃ pairs, o = some pairs ∧
+  {o | ∃ pairs, o = some pairs ∧ pairs.length = b ∧
     IsMulticollision (merkleDamgard h k) (2 ^ b)
       (Finset.univ.image fun σ => (jouxMessage pairs σ).flatMap List.ofFn)}
+
+/-- Membership in `bitMulticollisionOutputs`: `b` pairs of `g`-bit groups whose selections are a
+`2 ^ b`-collision of `merkleDamgard h k`. -/
+theorem mem_bitMulticollisionOutputs {g b : ℕ} {o : Option (List (BitString g × BitString g))} :
+    o ∈ bitMulticollisionOutputs h k g b ↔
+      ∃ pairs, o = some pairs ∧ pairs.length = b ∧
+        IsMulticollision (merkleDamgard h k) (2 ^ b)
+          (Finset.univ.image fun σ => (jouxMessage pairs σ).flatMap List.ofFn) :=
+  Iff.rfl
 
 /-- **Joux's attack on `merkleDamgard`, with its cost.** Let `h k` map `2 n`-bit inputs to `n`-bit
 outputs, where `n = k.length`. With at most `1 + f * (s * g)` compression evaluations
@@ -650,7 +629,7 @@ theorem merkleDamgardBitJouxFinder_success
   refine key.trans (ENNReal.toReal_mono (Probability.PMF.toOuterMeasure_ne_top _ _)
     (MeasureTheory.measure_mono ?_))
   rintro _ ⟨pairs, rfl, rfl, hc⟩
-  exact ⟨pairs, rfl, isMulticollision_merkleDamgard_of_chain hc⟩
+  exact ⟨pairs, rfl, rfl, isMulticollision_merkleDamgard_of_chain hc⟩
 
 /-- **Joux's attack on `merkleDamgard` with the sample count of Lemma 8.2.** Let `h k` map
 `2 n`-bit inputs to `n`-bit outputs, where `n = k.length`, and let groups have `g` bits, at least

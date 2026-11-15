@@ -2091,20 +2091,22 @@ measure of §8.3; they are not running times, since sampling and the search for 
 are not counted, and they are worst-case counts, not expected costs. Let `h k` map `n + ℓ`-bit
 inputs to `n`-bit outputs (`hlen`), let `iv` have `n` bits (`hiv`), let `n + 7 ≤ ℓ`, and let
 `s = ⌈2 √(2 ^ n)⌉₊ + 1`. Then `merkleDamgardJouxFinder ℓ s (3 * b) b iv` makes at most
-`3 * b * s` calls (`isQueryBounded_merkleDamgardJouxFinder`), and for every common list of blocks
-`tail`, with probability at least `1/2` it returns `b` pairs of blocks whose `2 ^ b` selections,
-each followed by `tail`, have one `merkleDamgardChain` value from `iv`
-(`merkleDamgardJouxFinder_success_half`);
+`3 * b * s` calls (`isQueryBounded_merkleDamgardJouxFinder`), and with probability at least `1/2`
+it returns `b` pairs of blocks such that, for every common list of blocks `tail`, their `2 ^ b`
+selections, each followed by `tail`, have one `merkleDamgardChain` value from `iv`
+(`merkleDamgardJouxFinder_success_half`; `mem_multicollisionOutputs` unfolds the event);
 `merkleDamgardJouxFinder_success` gives the bound for any `s` and budget. For the library's
 one-bit-per-block `merkleDamgard`, let `h k` map `2 * k.length`-bit inputs to `k.length`-bit
 outputs, let groups have `g` bits with `k.length + 7 ≤ g`, and let `s = ⌈2 √(2 ^ k.length)⌉₊ + 1`.
 Then `merkleDamgardBitJouxFinder k.length g s (3 * b) b` makes at most `1 + 3 * b * (s * g)` calls
-and returns a `2 ^ b`-collision of `merkleDamgard h k` with probability at least `1/2`
-(`merkleDamgardBitJouxFinder_success_half`). One call per message bit puts a factor `g` in this
+and with probability at least `1/2` returns `b` pairs of groups whose `2 ^ b` selections are a
+`2 ^ b`-collision of `merkleDamgard h k` (`merkleDamgardBitJouxFinder_success_half`;
+`mem_bitMulticollisionOutputs` unfolds the event). One call per message bit puts a factor `g` in this
 count that the book's count does not have. Each attempt runs the birthday finder of
 [`CollisionResistant/Birthday.lean`](../../CslibFrontier/Crypto/Computational/CollisionResistant/Birthday.lean).
-Let every value of `f : M → T` lie in a finite set `D` (`hf`), let `digest m` return `f m` when run
-against the oracle (`hdigest`), and let `100 * D.card ≤ Fintype.card M`. Then
+Let `M` be a finite nonempty type, let `M` and `T` have decidable equality, let `O` be a
+deterministic oracle, let every value of `f : M → T` lie in a finite set `D` (`hf`), let `digest m`
+return `f m` when run against `O` (`hdigest`), and let `100 * D.card ≤ Fintype.card M`. Then
 `⌈2 √|D|⌉₊ + 1` uniform messages give two different messages with one value of `f` with
 probability at least `1/2` (`birthdayFinder_success_book`; [bs23][bs23], §8.3, Lemma 8.2,
 p. 294). The collision for `H₁ ‖ H₂` at the end of §8.4.1 is not stated. The checks in

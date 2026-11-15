@@ -160,10 +160,11 @@ box `{u | ∀ i, u i ∈ E i}`. For `Fin k`-indexed tuples with different factor
 probability that `k` samples of `iid μ k` contain two equal values, for any law `μ` on a set of size
 `n`: at least `1 - exp (-k (k - 1) / (2 n))` (`one_sub_exp_neg_le_iid_not_injective`) and at least
 `min (k (k - 1) / (4 n)) 0.63` (`min_le_iid_not_injective`), as in
-[bs23][bs23], Theorem B.1 and Corollary B.2. For a function `f` whose values lie in a finite set
-`D`, [IID/FunctionCollision.lean](../../CslibFrontier/Probability/IID/FunctionCollision.lean)
-bounds from below the probability that `s` uniform samples contain two different points with one
-value of `f`: at least `1 - exp (-s (s - 1) / (2 |D|)) - C(s, 2) / |M|`
+[bs23][bs23], Theorem B.1 and Corollary B.2. For uniform samples from a finite nonempty type `M`
+and a function `f : M → β` whose values lie in a finite set `D`,
+[IID/FunctionCollision.lean](../../CslibFrontier/Probability/IID/FunctionCollision.lean) bounds
+from below the probability that `s` samples contain two different points with one value of `f`:
+at least `1 - exp (-s (s - 1) / (2 |D|)) - C(s, 2) / |M|`
 (`one_sub_exp_neg_sub_choose_le_iid_uniformOfFintype_exists_collision`), the probabilistic part of
 [bs23][bs23], Lemma 8.2. The union-bound upper bounds are
 in [IID/Distinct.lean](../../CslibFrontier/Probability/IID/Distinct.lean). To move a finite
@@ -239,7 +240,12 @@ and `PMF.tsum_coe` by hand. Its real forms are `PMF.toReal_true_add_toReal_false
 indicator of `E`), and `PMF.map_not_true` for complements. A two-stage experiment
 `p.bind fun a => PMF.pure (E a)` is `p.map E` by definition, so these lemmas apply to it directly.
 To compose an event bound through `PMF.bind`, use the `PMF.toOuterMeasure_bind_*` lemmas in
-[PMF/EventBind.lean](../../CslibFrontier/Probability/PMF/EventBind.lean). The
+[PMF/EventBind.lean](../../CslibFrontier/Probability/PMF/EventBind.lean). When the bound on the
+continuation depends on whether the first stage landed in a set `pre`, at most `a₁` from supported
+outcomes in `pre` and at most `a₂` from the others,
+[PMF/TotalProbability.lean](../../CslibFrontier/Probability/PMF/TotalProbability.lean) bounds the
+bind by `P(pre) * a₁ + P(preᶜ) * a₂` (`PMF.toOuterMeasure_bind_le_mul_add_mul`, and
+`PMF.toOuterMeasure_bind_toReal_le_mul_add_mul` in `ℝ` for nonnegative `a₁` and `a₂`). The
 [checked examples](../../CslibFrontierTests/PMFBool.lean) recover the mass of `false` from the mass of
 `true` and apply the finite union bound; run `scripts/build.sh CslibFrontierTests.PMFBool`.
 

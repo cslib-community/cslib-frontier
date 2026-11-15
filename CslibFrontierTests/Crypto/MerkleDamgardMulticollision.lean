@@ -21,6 +21,9 @@ client with ordinary imports:
   that is injective in the message has no collision chain.
 * A collision chain gives a collision of the collision-resistance game, for any step on bits and
   for `merkleDamgard` with a compression function that ignores its block.
+* The success events of the Merkle–Damgård theorems, opened through `mem_multicollisionOutputs`
+  and `mem_bitMulticollisionOutputs`: `b` pairs whose selections are a multicollision, after every
+  common suffix for chains; for `b = 1`, a collision of the collision-resistance game.
 * Certificates on numbers: `merkleDamgardJouxFinder 8 5 9 3 [false]` makes at most 45 calls and
   `merkleDamgardBitJouxFinder 1 8 5 9 3` at most 361; with no budget the finder is `pure none`.
 * The success bounds are not vacuous: for every compression function with one-bit chaining values
@@ -112,6 +115,46 @@ example : IsMulticollision (fun bs => merkleDamgardChain (fun _ x => x.take 1) [
   isMulticollision_merkleDamgardChain (h := fun _ x => x.take 1) (k := [false]) (iv := [false])
     (pairs := [(![false], ![true])]) ⟨by decide, by decide, trivial⟩ []
 
+/-! ## Opening the success events -/
+
+/-- An output in the success event of `merkleDamgardJouxFinder` is `b` pairs whose `2 ^ b`
+selections, each followed by any common list of blocks, are a `2 ^ b`-collision of the chain. -/
+example (h : List Bool → List Bool → List Bool) (k iv : List Bool) (ℓ b : ℕ)
+    (pairs : List (BitString ℓ × BitString ℓ))
+    (ho : some pairs ∈ multicollisionOutputs h k ℓ b iv) (tail : List (List Bool)) :
+    pairs.length = b ∧
+      IsMulticollision (fun bs => merkleDamgardChain h k iv (bs ++ tail)) (2 ^ b)
+        ((Finset.univ.image (jouxMessage pairs)).image (List.map List.ofFn)) := by
+  obtain ⟨p, hp, hlen, hm⟩ := mem_multicollisionOutputs.mp ho
+  obtain rfl := Option.some.inj hp
+  exact ⟨hlen, hm tail⟩
+
+/-- The event does not hold for `none`, the output when the budget runs out. -/
+example (h : List Bool → List Bool → List Bool) (k iv : List Bool) (ℓ b : ℕ) :
+    none ∉ multicollisionOutputs h k ℓ b iv := by
+  intro hn
+  obtain ⟨_, hn, -⟩ := mem_multicollisionOutputs.mp hn
+  cases hn
+
+/-- An output in the success event of `merkleDamgardBitJouxFinder` with `b = 1` gives a collision
+of `merkleDamgard h k` in the sense of the collision-resistance game. -/
+example (h : List Bool → List Bool → List Bool) (k : List Bool) (g : ℕ)
+    (pairs : List (BitString g × BitString g))
+    (ho : some pairs ∈ bitMulticollisionOutputs h k g 1) :
+    ∃ m₁ m₂, isCollision (merkleDamgard h) (fun _ _ => true) 0 k m₁ m₂ = true := by
+  obtain ⟨p, hp, -, hm⟩ := mem_bitMulticollisionOutputs.mp ho
+  obtain rfl := Option.some.inj hp
+  obtain ⟨m₁, h₁, m₂, h₂, hne⟩ := Finset.one_lt_card.mp (lt_of_lt_of_eq (by norm_num) hm.1.symm)
+  exact ⟨m₁, m₂, isCollision_of_isMulticollision hm h₁ h₂ hne rfl rfl⟩
+
+/-- The event fixes the number of pairs: `b` pairs, not more. -/
+example (h : List Bool → List Bool → List Bool) (k : List Bool) (g b : ℕ)
+    (pairs : List (BitString g × BitString g))
+    (ho : some pairs ∈ bitMulticollisionOutputs h k g b) : pairs.length = b := by
+  obtain ⟨p, hp, hlen, -⟩ := mem_bitMulticollisionOutputs.mp ho
+  obtain rfl := Option.some.inj hp
+  exact hlen
+
 /-! ## Absorbing message bits -/
 
 /-- Absorbing two bits continues the chain over their two data blocks. -/
@@ -198,9 +241,9 @@ example (h : List Bool → List Bool → List Bool) (k : List Bool)
     (3 / 4 : ℝ) ≤
       ((ProbComp.eval ((merkleDamgardJouxFinder 8 5 9 3 [false]).run
         fun x => pure (h k x))).toOuterMeasure
-          (multicollisionOutputs h k 8 3 [false] [])).toReal :=
+          (multicollisionOutputs h k 8 3 [false])).toReal :=
   three_quarters_le_test_bound.trans
-    (merkleDamgardJouxFinder_success hlen rfl 5 test_attempt_failure_le 9 3 [])
+    (merkleDamgardJouxFinder_success hlen rfl 5 test_attempt_failure_le 9 3)
 
 /-- The book's parameters on the same sizes: eight-bit blocks are seven bits longer than one-bit
 chaining values. -/
@@ -209,8 +252,8 @@ example (h : List Bool → List Bool → List Bool) (k : List Bool)
     (1 / 2 : ℝ) ≤
       ((ProbComp.eval ((merkleDamgardJouxFinder 8 (⌈2 * Real.sqrt ((2 ^ 1 : ℕ) : ℝ)⌉₊ + 1)
         (3 * 3) 3 [false]).run fun x => pure (h k x))).toOuterMeasure
-          (multicollisionOutputs h k 8 3 [false] [])).toReal :=
-  merkleDamgardJouxFinder_success_half hlen rfl (by norm_num) 3 []
+          (multicollisionOutputs h k 8 3 [false])).toReal :=
+  merkleDamgardJouxFinder_success_half hlen rfl (by norm_num) 3
 
 /-- The same for the library's `merkleDamgard` with a one-bit key: 361 evaluations give eight
 24-bit messages with one digest, with probability at least `3/4`, whatever `h` is. -/

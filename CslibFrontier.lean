@@ -7290,6 +7290,7 @@ public import CslibFrontier.Probability.PMF.SupportTsum
 public import CslibFrontier.Probability.PMF.TailQuantile
 public import CslibFrontier.Probability.PMF.ToMeasure
 public import CslibFrontier.Probability.PMF.ToReal
+public import CslibFrontier.Probability.PMF.TotalProbability
 public import CslibFrontier.Probability.PMF.TwoBranch
 public import CslibFrontier.Probability.PMF.Uniform
 public import CslibFrontier.Probability.PMF.UniformBound
