@@ -1956,6 +1956,7 @@ public import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.A
 public import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.Arithmetic
 public import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.DiscreteLog
 public import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.Generator
+public import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.Primality
 public import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.Range
 public import CslibFrontier.Computability.Complexity.Classes.CountingSimulation.Accumulate
 public import CslibFrontier.Computability.Complexity.Classes.CountingSimulation.Admissible
