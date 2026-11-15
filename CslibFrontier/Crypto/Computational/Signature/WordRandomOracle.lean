@@ -175,14 +175,19 @@ def EUFCMA {Digest : ℕ → Type} [∀ n, Fintype (Digest n)] [∀ n, Nonempty 
 
 /-- **Strong existential unforgeability under adaptive chosen-message attack in the random-oracle
 model** (SUF-CMA) of a family of word-interface schemes. The fresh-pair condition and negligible
-success requirement are [BonehShoup2023, Attack Game 13.2 and Definition 13.3, pp. 529–530]; this
-definition specializes them to the shared classical lazy random-oracle execution described in
-[BonehShoup2023, Section 8.10.2, pp. 327–329]. Every uniform oracle-PPT word forger wins
+success requirement are [BonehShoup2023, Attack Game 13.2 and Definition 13.3, p. 529]; this
+definition specializes them to the shared classical random function described in
+[BonehShoup2023, Section 8.10.2, pp. 327–329], implemented here by one lazy oracle state. Every
+uniform oracle-PPT word forger wins
 `wordSufCmaGame` with negligible probability. The digest type, its encoding and the scheme may
 depend on the security parameter. Only the forger carries an efficiency requirement:
-`ROMSignature.Scheme` does not certify efficient key generation, signing or verification, so this
-is an unforgeability property of a supplied scheme family rather than a complete efficient-scheme
-package. This is not a QROM notion. -/
+neither `ROMSignature.Scheme` nor `digestEncoding` certifies efficient key generation, signing,
+verification or digest encoding, so this is an unforgeability property of a supplied scheme family
+rather than a complete efficient-scheme package. Unlike the source's signature-scheme definition,
+it also does not bundle correctness or finite message and signature spaces: public keys, messages,
+signatures and query points are arbitrary-length words. Callers must establish correctness and
+nonvacuity separately. In particular, an always-rejecting scheme can satisfy this predicate
+vacuously. This is not a QROM notion. -/
 def SUFCMA {Digest : ℕ → Type} [∀ n, Fintype (Digest n)] [∀ n, Nonempty (Digest n)] {SK : Type}
     (digestEncoding : (n : ℕ) → Digest n ↪ List Bool)
     (scheme : (n : ℕ) → Scheme (List Bool) SK (List Bool) (List Bool) (List Bool) (Digest n)) :
