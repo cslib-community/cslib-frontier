@@ -430,44 +430,12 @@ theorem seeds_rehashSubtree
             · rw [← seeds_inner st (by omega) hlt hj v, houtside j hj v hsub]
         · have hd : j = P.depth := by omega
           subst hd
-          have hlvs : (if h1 : ℓ₀ = 1 then
-              ({ topSeed := st.topSeed
-                 roots := fun u₁ => if P.InSubtree ℓ₀ u₀ 1 u₁ then
-                   (P.buildTreeFromSeeds scheme d st.sentCount seeds' hgood').roots u₁
-                 else st.roots u₁
-                 inner := fun ℓ h2 hlt v => if P.InSubtree ℓ₀ u₀ ℓ v then
-                   (P.buildTreeFromSeeds scheme d st.sentCount seeds' hgood').inner ℓ h2 hlt v
-                 else st.inner ℓ h2 hlt v
-                 leaves := fun v => if P.InSubtree ℓ₀ u₀ P.depth v then
-                   (P.buildTreeFromSeeds scheme d st.sentCount seeds' hgood').leaves v
-                 else st.leaves v
-                 sentCount := st.sentCount } : P.TreeState)
-            else
-              have h2₀ : 2 ≤ ℓ₀ := by omega
-              have h1lt₀ : 1 < ℓ₀ := by omega
-              let storeLvl' := rehashStoreLvlTwo hwf h2₀ hℓ₀ u₀ houtside hgood'
-              let hvsl' := validStoreLvl_rehashStoreLvlTwo hwf h2₀ hℓ₀ u₀ houtside hgood'
-              { topSeed := st.topSeed
-                roots := fun u₁ => if u₁ = P.ancestorAt h1lt₀.le u₀ then
-                  buildRootOfStoreLvl d seeds' storeLvl' u₁ else st.roots u₁
-                inner := fun ℓ h2 hlt v => if P.InSubtree ℓ₀ u₀ ℓ v then
-                  (P.buildTreeFromSeeds scheme d st.sentCount seeds' hgood').inner ℓ h2 hlt v
-                else if hlt₀ : ℓ < ℓ₀ then
-                  if v = P.ancestorAt hlt₀.le u₀ then
-                    buildInnerOfStoreLvl d seeds' hgood' hvsl' ℓ h2 hlt v
-                  else st.inner ℓ h2 hlt v
-                else st.inner ℓ h2 hlt v
-                leaves := fun v => if P.InSubtree ℓ₀ u₀ P.depth v then
-                  (P.buildTreeFromSeeds scheme d st.sentCount seeds' hgood').leaves v
-                else st.leaves v
-                sentCount := st.sentCount }).leaves v =
-            if P.InSubtree ℓ₀ u₀ P.depth v then
-              (P.buildTreeFromSeeds scheme d st.sentCount seeds' hgood').leaves v
-            else st.leaves v := by by_cases h1 : ℓ₀ = 1 <;> simp [h1]
-          rw [seeds_depth, hlvs]
-          split_ifs with hsub
-          · rw [← seeds_depth (P.buildTreeFromSeeds scheme d st.sentCount seeds' hgood') hj v, hsc]
-          · rw [← seeds_depth st hj v, houtside P.depth hj v hsub]
+          by_cases h1 : ℓ₀ = 1 <;>
+          · simp only [h1, ↓reduceDIte, seeds_depth]
+            split_ifs with hsub
+            · rw [← seeds_depth (P.buildTreeFromSeeds scheme d st.sentCount seeds' hgood')
+                hj v, hsc]
+            · rw [← seeds_depth st hj v, houtside P.depth hj v hsub]
 
 /-- Non-ancestor root trees (`u₁ ≠ ancestorAt u₀`, `1 ≤ ℓ₀`) are untouched by `rehashSubtree`. -/
 theorem rehashSubtree_untouched_roots
