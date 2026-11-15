@@ -23,6 +23,14 @@ A worked one-sided-error client is the Miller–Rabin test in [MillerRabin.lean]
 
 The Solovay–Strassen test compares `a ^ ((n - 1) / 2)` with the Jacobi symbol `J(a | n)` modulo `n`; its Euler-liar bound is [two_mul_card_eulerLiars_le](../../CslibFrontier/Foundations/NumberTheory/Primality/EulerLiars.lean#L147). The symbol itself is certified by [binary_jacobiSym](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/PolyTime/Nat/Jacobi.lean#L287): Mathlib's `jacobiSym` on binary naturals, with a binary signed result, for every `a` and `n` (even `n` and `n = 0` included). The proof runs the reciprocity reductions as a counted loop of `2 * Nat.size n` steps, each of which at least halves `a * n` ([jacobiReadout_iterate_jacobiStep](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/PolyTime/Nat/Jacobi.lean#L244)), and `intBin_jacobiSym` extends it to a signed numerator. [JacobiPolyTime](../../CslibFrontierTests/JacobiPolyTime.lean) composes it into the Solovay–Strassen comparison and runs the loop on concrete inputs. The Solovay–Strassen `coRP` verifier is not yet stated ([#2958](https://github.com/cslib-community/cslib-frontier/issues/2958)).
 
+The modular-power certificate `ComputableInPolyTime.binary_powMod` composes plain input and
+fold-step certificates. Its square-and-multiply fold keeps every accumulator below the positive
+modulus, preserving the prefix encoding-size bound. For an unconstrained modulus, use
+`computableInPolyTime_powMod`: its total function `powMod` returns `1` when the modulus is zero.
+The [ordinary-module client](../../CslibFrontierTests/PowModPlain.lean) exercises both
+contracts and the zero, unit and positive modulus cases.
+
+
 [ZPP](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/Complexity/Classes/ZPP.lean#L19) changes the result type to `Option Bool`. A returned Boolean is always correct; at least half of all seeds yield an answer. The remaining seeds return `none`. The source proves `ZPP = RP ∩ coRP`. Expected polynomial running time is not modeled by this definition, and no equivalence with an expected-time operational semantics is claimed here.
 
 ## Counting and acceptance variants
@@ -97,6 +105,42 @@ When an exact witness counter `count z = |W z|` (on instances with `|enc z| ≤ 
 For strict native PPT and oracle-PPT execution (where coin budgets are worst-case polynomial rather than unbounded Las Vegas), `sampleUniformIntervalRetry c fuel` caps binary rejection sampling at `fuel` trials of `sampleBinaryNat c.size`. It has the law of `sampleUniformInterval c fuel` (`eval_sampleUniformIntervalRetry`) and consumes at most `2 * c.size` expected fair coins (`expectedCost_sampleUniformIntervalRetry_le`). Running `R.len x` steps with `fuel = q + R.len x` (`SelfReducible.boundedConditionalSample`) keeps the counter budget at `1 + R.len x` (independent of `q`), achieves total-variation distance at most `(1 / 2) ^ q` (`closeTo_boundedConditionalSample`), certifies `IsPPTOn` and `IsFPAUS` when `count` is polynomial-time (`isPPTOn_boundedConditionalSample`, `isFPAUS_boundedConditionalSample`), and lifts to `IsOraclePPTOn` when `count` is `ComputableInPolyTimeWithOracle` (`isOraclePPTOn_boundedConditionalOracleSample`, `exists_oraclePPTSampler_of_oracle_count`). [Checked examples](../../CslibFrontierTests/ThresholdSearchAndExactSampler.lean) cover a non-dyadic (`|W| = 3`) witness family, dead branches, zero-length witnesses, `IsFPAUS`, and the oracle lift.
 
 Counting arguments for matchings and permanents can use the deterministic upper bound [Bregman.lean](../../CslibFrontier/Foundations/Combinatorics/Bregman.lean) (`import CslibFrontier.Foundations.Combinatorics.Bregman`), which proves Brégman's theorem (Minc's conjecture) [bregman73][bregman73]. For a 0/1 matrix `A : Matrix n n ℕ` (every entry at most `1`) with row sums `r i`, `Matrix.permanent_le_prod_factorial_rpow` gives `per A ≤ ∏ i, (r i)! ^ (1 / r i)` in `ℝ`. `Matrix.permanent_le_factorial_rpow_card_div` is the `d`-regular form `per A ≤ d! ^ (n / d)`. A zero row contributes `0! ^ (1 / 0) = 1` under Mathlib's `Real.rpow` convention, and the permanent is then `0`, so there are no positivity hypotheses. The underlying statement `Equiv.card_filter_forall_rel_le_prod_factorial_rpow` counts the bijections `e : α ≃ β` with `R a (e a)` for all `a`. These are the perfect matchings of the bipartite graph `R` (the witnesses of `Cslib.Circuits.BipartiteMatching.HasPerfectMatching` when `α = β`), and `d a = #{b | R a b}` is the left degree. Equality holds for disjoint unions of complete bipartite graphs `K_{d,d}` (`Equiv.card_filter_forall_eq_eq_prod_factorial_rpow`, `Matrix.permanent_eq_prod_factorial_rpow_of_eq_ite`). The proof follows Schrijver's induction on `n` [schrijver78][schrijver78]. It uses the convexity inequality `Real.sum_mul_log_div_card_le` from [LogSum.lean](../../CslibFrontier/Foundations/Analysis/SpecialFunctions/LogSum.lean), not the entropy proof of [radhakrishnan97][radhakrishnan97]. `Matrix.permanent_eq_card_filter_of_le_one`, in [Permanent/ZeroOne.lean](../../CslibFrontier/Foundations/Data/Matrix/Permanent/ZeroOne.lean), identifies the permanent of a 0/1 matrix with this count. Only 0/1 matrices are covered. Extensions of the bound to nonnegative real matrices, the van der Waerden lower bound and the Kahn–Lovász bound for general graphs are not formalized. The [checked examples](../../CslibFrontierTests/Bregman.lean) evaluate `per J₃ = 6` (equality), a `2 × 2` matrix with `1 < √2`, a zero row, the block matrix `K_{2,2} ⊕ K_{1,1}` (equality) and a `2`-regular `4 × 4` instance.
+
+## Counting-hierarchy function levels
+
+Import `CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.Aggregation` for
+`CountingLevel a enc` (C_a P) and `CountingFunction a input output` (F_a).
+The zero levels are P and ordinary polynomial-time computation; the first decision level is PP.
+Successor decision levels use the existing fixed-length relativized majority verifier model.
+Equivalence with probabilistic oracle machines is not asserted here.
+
+A function witness contains one fixed raw-word oracle in C_a P and one uniform strict
+polynomial-time oracle program. Its certificate charges input preparation, adaptive requests,
+reply access and encoded output. Polynomial output length follows from the certificate.
+Use `CountingFunction.comp` and `CountingFunction.prod` to combine functions at the same level;
+`exists_common_oracle` supplies one oracle for a fixed finite family. These results use finite
+tagged unions, without assuming adaptive PP access collapses to PP.
+
+For a uniform evaluator on `(instance, index)`, `CountingFunction.count_bits`, `sum_bits` and
+`sum_bits_int` compute counts, nonnegative sums and signed sums in F_(a+1). The width function
+must be polynomial-time with **unary** output: its value bounds the number of index bits,
+while the domain can contain exponentially many indices. Summands use binary natural or signed
+integer encodings. `sum_bits_restrict` masks a same-level predicate by zero, and `sum_bits_mod`
+reduces a sum modulo a uniformly accessible short modulus. `exists_bits` and `forall_bits`
+also cost one level; `CountingFunction.decision` then turns an F_a Boolean function into a
+C_(a+1) P language.
+
+These aggregation rules take a `Decoder enc`, such as `Decoder.bits` for words or
+`Decoder.pair` for pairs. The decoder gives a total polynomial-time interpretation of raw
+threshold requests, including malformed words. An arbitrary encoding image is not assumed
+efficiently recognizable. Binary search uses one more bit than the witness bound, so it covers
+the maximum count and width-zero indices. The ordinary-module
+[checked clients](../../CslibFrontierTests/CountingHierarchy.lean) exercise those cases,
+binary interval restrictions, signed cancellation and the decision conversion.
+
+The [development issue](https://github.com/cslib-community/cslib-frontier/issues/5619) retains
+the remaining finite-field product and CRT sign-recovery objectives. This foundation alone does
+not certify those bounds or the downstream real-feasibility theorem.
 
 ## Efficient oracle programs
 
@@ -220,6 +264,8 @@ The [2007 draft Chapters 18–19 audit](../../results/arora-barak-2007.md#chapte
 [PCPVerifier](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/Complexity/Classes/PCP.lean#L70) consists of three polynomial-time functions: a computable coin count, a list of queried natural-number addresses, and a verdict based on the answers. Queries are nonadaptive. A proof is a finite bit string, with `false` beyond its end; address encodings are binary. The class charges random bits and number of proof queries, with constant factors, while the three functions have native polynomial-time certificates.
 
 The verifier computes its own coin count. The external function `r(n)` only bounds that count; the verifier is not handed a potentially uncomputable amount of random tape. Completeness is perfect and every false instance is accepted with probability at most one half under every proof. The full theorem is `NP = PCP(log₂ n + 1, 1)`. [NP_eq_PCP_log](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/PCP/Completeness.lean#L80)
+
+[PCP/ZeroRandomness.lean](../../CslibFrontier/Computability/Complexity/Classes/PCP/ZeroRandomness.lean) covers deterministic PCP verification (`r ≡ 0`): `PCP_zero_zero` (`PCP(0, 0) = P`), `PCP_zero_log` (`PCP(0, log₂ n + 1) = P` by enumerating all `2 ^ O(log n)` consistent bit tables for `PCPVerifier.tableVerifier` via `PCPVerifier.exhaustiveTableDecider`, Arora–Barak Ch. 18 Problem 4(i)), and `mem_NP_iff_exists_PCP_zero` (`NP = PCP(0, poly)`). [PCP/Robustness.lean](../../CslibFrontier/Computability/Complexity/Classes/PCP/Robustness.lean) defines `IsPCPVerifierWith` and `PCPWith c s r q enc` for arbitrary real completeness `c` and soundness `s`, leaving `PCP r q enc` unchanged (`PCPWith_one_half : PCPWith 1 (1 / 2) r q enc = PCP r q enc`). Independent `k`-fold repetition (`PCPVerifier.repeatAll`, `PCPVerifier.polyTime_repeatAll`) caps per-round coin width at `min ρ.length (V.coins a)` (`PCPVerifier.repeatRowWidth`) so malformed short random strings never pad beyond the input length, resolves duplicate queries across trials via first-occurrence lookup (`PCPVerifier.getD_answers_idxOf`), and raises acceptance probability to the `k`-th power (`PCPVerifier.acceptProb_repeatAll`), giving `PCPWith_one : PCPWith 1 s r q enc = PCP r q enc` for every `0 < s < 1` (Arora–Barak Ch. 18 Problem 1). For logarithmic randomness `r(n) = log₂ n + 1`, counting accepted random words on a first-occurrence query table (`PCPVerifier.tableAcceptCount`, `PCPVerifier.majorityTableVerifier`) puts `PCPWith c (1 / 2) (log₂ n + 1) q` in `NP` for every `c > 1 / 2` (`PCPWith_log_subset_NP`), and combining with `NP_eq_PCP_log` yields `PCPWith_log_const : PCPWith c (1 / 2) (fun n => Nat.log 2 n + 1) (fun _ => q) enc = PCP (fun n => Nat.log 2 n + 1) (fun _ => q) enc` for `1 / 2 < c ≤ 1` and `1 ≤ q` (Arora–Barak Ch. 18 Problem 2, corrected from the unproved general `(r, q)` statement, which at `q ≡ 0` and polynomial `r` would imply `BPP = coRP`). [PCPRobustness.lean](../../CslibFrontierTests/PCPRobustness.lean) checks these constructions and class equalities on concrete verifiers.
 
 The intermediate proof representations are useful models in their own right:
 
