@@ -404,9 +404,11 @@ theorem hybViewWord_eq (k : ℕ) (f : ValidCircuit) {x : List Bool} (hx : x.leng
 /-- One step of collecting the oracle's answers at label parameter `k`: ask the tweak numbered by
 the answers collected so far, `lowBits k` of that number, and keep the first `k + 2` bits of the
 reply. Answer `8 g + 2 i + a` is then the answer to the tweak of slot `a` of row `i` of gate `g`. -/
-@[expose] def replyStep (k : ℕ) (rs : List (List Bool)) : WordOracleComp Unit (List (List Bool)) := do
-  let reply ← ProbOracleComp.query ((), BitString.lowBits k rs.length)
-  return rs ++ [reply.take (k + 2)]
+@[expose] def replyStep (k : ℕ) (rs : List (List Bool)) :
+    WordOracleComp Unit (List (List Bool)) :=
+  (fun reply => rs ++ [reply]) <$> (List.take (k + 2) <$>
+    ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool)
+      ((), BitString.lowBits k rs.length))
 
 /-- **The PRF reduction** for a `prv.sim` adversary `B`, at label parameter `k`, with step range
 `Probability.dyadicSize (P k)`: run `B`'s choice of a query `(f, x)`; when `x` has `f.n` bits, draw a step `j`,
@@ -448,9 +450,9 @@ private theorem run_iterate_replyStep (k : ℕ) (T : BitString k → BitString (
   | zero => simp
   | succ c ih =>
     rw [OracleComp.iterate_succ, ProbOracleComp.run_bind, ih, pure_bind]
-    simp only [replyStep, ProbOracleComp.run_bind, ProbOracleComp.run_query, wordOracle_labelCodec,
-      BitString.length_lowBits, if_true, pure_bind, ProbOracleComp.run_pure, List.length_map,
-      List.length_range, List.range_succ, List.map_append, List.map_cons, List.map_nil,
+    simp only [replyStep, ProbOracleComp.run_map, ProbOracleComp.run_query, wordOracle_labelCodec,
+      BitString.length_lowBits, if_true, map_pure, List.length_map, List.length_range,
+      List.range_succ, List.map_append, List.map_cons, List.map_nil,
       List.take_of_length_le (le_of_eq (length_labelBits _))]
 
 /-- The answers collected from a label table, read as an oracle on the slots of `toCircuit f`,
@@ -1053,6 +1055,96 @@ private theorem hybViewWord_polyTime :
   simp only [hybViewWord_eq_data]
   exact encPrvView_mk_polyTime hfn hinput hdec
 
+/-- One reply step is strict oracle PPT, for a parameter computed in unary from the input. -/
+private theorem isOraclePPTOn_replyStep {γ : Type} {encIn : γ ↪ List Bool} {k : γ → ℕ}
+    (hk : ComputableInPolyTime k encIn encUnary) :
+    IsOraclePPTOn (encPair encIn (encList encBits)) (encList encBits)
+      (fun p : γ × List (List Bool) => replyStep (k p.1) p.2) := by
+  unfold replyStep
+  exact IsOraclePPTOn.map_with' (IsOraclePPTOn.query_take' () (by polytime) (by polytime))
+    (by polytime)
+
+/-- A reply step appends one word of at most `k + 2` bits. -/
+private theorem length_le_of_mem_support_replyStep {k : ℕ} {rs next : List (List Bool)}
+    (hnext : next ∈ OracleComp.support (replyStep k rs)) :
+    (encList encBits next).length ≤ (encList encBits rs).length + (2 * (k + 2) + 2) := by
+  unfold replyStep at hnext
+  obtain ⟨reply, hreply, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hnext
+  obtain ⟨reply, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hreply
+  simp only [length_encList, List.map_append, List.sum_append, List.map_cons, List.map_nil,
+    List.sum_cons, List.sum_nil, encBits_apply, List.length_take]
+  omega
+
+variable {σ : Type} {encσ : σ ↪ List Bool} {B : ℕ → PrvSimAdversary ValidCircuit σ}
+
+/-- The state after `B`'s choice: the caller's input `(k, aux)` and the query and state. -/
+private abbrev encChosen (encσ : σ ↪ List Bool) :
+    ((ℕ × List Bool) × (Query ValidCircuit × σ)) ↪ List Bool :=
+  encPair (encPair encUnary encBits) (encPair (encQuery ValidCircuit encValidCircuit) encσ)
+
+/-- The state before the replies: the chosen state, the step, the garbler's coins and the filler
+labels. -/
+private abbrev encDrawn (encσ : σ ↪ List Bool) :
+    ((((ℕ × List Bool) × (Query ValidCircuit × σ)) × ℕ) × List Bool) × List Bool ↪ List Bool :=
+  encPair (encPair (encPair (encChosen encσ) encUnary) encBits) encBits
+
+include hf in
+/-- The valid branch of the reduction after the draws: collect the answers and run `B`'s guess on
+the hybrid view. -/
+private theorem isOraclePPTOn_prvSimGuess
+    (hB : TwoStage.IsPPT encUnit (encQuery ValidCircuit encValidCircuit) (encOption encPrvView)
+      encBool encσ B) :
+    IsOraclePPTOn (encDrawn encσ) encBool
+      (fun p : ((((ℕ × List Bool) × (Query ValidCircuit × σ)) × ℕ) × List Bool) × List Bool => do
+        let rs ← OracleComp.iterate (8 * p.1.1.1.2.1.fn.1.q) (replyStep p.1.1.1.1.1) []
+        ProbOracleComp.sample ((B p.1.1.1.1.1).guess p.1.1.1.2.2
+          (some (hybViewWord family p.1.1.1.1.1 p.1.1.1.2.1.fn.1 p.1.1.1.2.1.input p.1.1.2 p.1.2
+            p.2 rs)))) := by
+  let E := encDrawn encσ
+  have hk : ComputableInPolyTime (fun p : ((((ℕ × List Bool) × (Query ValidCircuit × σ)) × ℕ) ×
+      List Bool) × List Bool => p.1.1.1.1.1) E encUnary := by polytime
+  have hquery : ComputableInPolyTime (fun p : ((((ℕ × List Bool) × (Query ValidCircuit × σ)) ×
+      ℕ) × List Bool) × List Bool => p.1.1.1.2.1) E (encQuery ValidCircuit encValidCircuit) := by
+    polytime
+  have hfn := encQuery_fn_polyTime _ _ hquery
+  have hgates := (circuitData_polyTime.comp hfn).snd'.snd'
+  have hq : ComputableInPolyTime (fun p : ((((ℕ × List Bool) × (Query ValidCircuit × σ)) × ℕ) ×
+      List Bool) × List Bool => p.1.1.1.2.1.fn.1.q) E encUnary := by
+    simpa only [Function.comp_def, ConventionalCircuit.length_gateList] using
+      (ComputableTidilyInPolyTime.length_list _).computableInPolyTime.comp hgates
+  have hcount : ComputableInPolyTime (fun p : ((((ℕ × List Bool) × (Query ValidCircuit × σ)) ×
+      ℕ) × List Bool) × List Bool => 8 * p.1.1.1.2.1.fn.1.q) E encUnary := by polytime
+  have hrs := IsOraclePPTOn.iterateWith_of_bounded_growth' (Operation := Unit)
+    (stateEncoding := encList encBits) hcount (ComputableInPolyTime.const (encIn := E) [])
+    (isOraclePPTOn_replyStep hk) (growth := fun p => 2 * (p.1.1.1.1.1 + 2) + 2)
+    (by
+      refine ((hk.polyBounded_length.add hk.polyBounded_length).add (PolyBounded.const 6)).mono
+        fun p => ?_
+      simp only [encUnary_apply, List.length_replicate]
+      omega)
+    (fun p rs next hnext => length_le_of_mem_support_replyStep hnext)
+  have hfst := ComputableInPolyTime.fst E (encList encBits)
+  have hk' := hk.comp hfst
+  have hquery' := hquery.comp hfst
+  have hstate : ComputableInPolyTime (fun p : ((((ℕ × List Bool) × (Query ValidCircuit × σ)) ×
+      ℕ) × List Bool) × List Bool => p.1.1.1.2.2) E encσ :=
+    (((ComputableInPolyTime.fst _ _).comp ((ComputableInPolyTime.fst _ _).comp
+      (ComputableInPolyTime.fst _ _))).snd').snd'
+  have hj : ComputableInPolyTime (fun p : ((((ℕ × List Bool) × (Query ValidCircuit × σ)) ×
+      ℕ) × List Bool) × List Bool => p.1.1.2) E encUnary :=
+    ((ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.fst _ _)).snd'
+  have hkc : ComputableInPolyTime (fun p : ((((ℕ × List Bool) × (Query ValidCircuit × σ)) ×
+      ℕ) × List Bool) × List Bool => p.1.2) E encBits := (ComputableInPolyTime.fst _ _).snd'
+  have hsc : ComputableInPolyTime (fun p : ((((ℕ × List Bool) × (Query ValidCircuit × σ)) ×
+      ℕ) × List Bool) × List Bool => p.2) E encBits := ComputableInPolyTime.snd _ _
+  have hview := (hybViewWord_polyTime hf).comp (hk'.prod ((encQuery_fn_polyTime _ _ hquery').prod
+    ((encQuery_input_polyTime _ _ hquery').prod ((hj.comp hfst).prod ((hkc.comp hfst).prod
+      ((hsc.comp hfst).prod (ComputableInPolyTime.snd E (encList encBits))))))))
+  have hprep := hk'.prod ((hstate.comp hfst).prod
+    ((ComputableInPolyTime.optionSome encPrvView).comp hview))
+  exact hrs.bind_with (hB.guess.preprocess hprep).isOraclePPTOn
+
 end Efficiency
+
 
 end Cslib.Crypto.Garbling.PointPermute
