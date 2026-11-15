@@ -2204,7 +2204,8 @@ private theorem map_run_idealRoundHandler4_bidirDedupStep {α : Type} (f₁ f₄
   | pure a =>
     simp [PMF.pure_map, hst.bad_eq]
   | query_bind q cont ih =>
-    simp only [OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind]
+    simp only [PFunctor.FreeM.bind_eq_bind, OracleComp.interpret_bind,
+      OracleComp.interpret_query, StateT.run_bind]
     change ((((OracleComp.interpret (idealRoundHandler4 f₁ f₄)
       (RandomPermutation.bidirDedupStep q qc)).run st).bind
       fun p_1 =>
