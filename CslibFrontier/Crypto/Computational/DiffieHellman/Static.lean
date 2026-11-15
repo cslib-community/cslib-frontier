@@ -44,7 +44,7 @@ All definitions and reductions here are stated for one fixed group with per-redu
 (`isQueryBounded_dlToSDH`, `isQueryBounded_sdhToElGamalKeyRecovery`,
 `isQueryBounded_elGamalKeyRecoveryToSDH`) and query predicates (`queriesSatisfy_dlToSDH`,
 `queriesSatisfy_sdhToElGamalKeyRecovery`), with no PPT efficiency certificate over a group family
-(such as `IsOraclePPT` / `IsOraclePPTOn`), no asymptotic SDH assumption (`Prop`), no one-more
+(such as `IsOraclePPT` / `IsOraclePPTOn`), no asymptotic SDH assumption, no one-more
 Diffie–Hellman reduction, and no Brown–Gallant–Cheon attack ([BonehShoup2023], Exercise 16.3).
 
 ## Differences from the book
@@ -54,9 +54,9 @@ Diffie–Hellman reduction, and no Brown–Gallant–Cheon attack ([BonehShoup20
 * The fixed-group definitions and theorems assume only `[AddCommGroup G]`, `[NeZero q]` and
   `[Module (ZMod q) G]`; neither primality of `q` nor that `g` generates `G` is required.
 * [BonehShoup2023], Section 16.1.4 (p. 688) states Attack Game 16.1 and the reduction
-  `sdhToElGamalKeyRecovery` from static DH to ElGamal key recovery. Both `dlToSDH` (formalizing
-  the informal remark that winning Attack Game 16.1 should be at least as hard as discrete log) and
-  the converse `elGamalKeyRecoveryToSDH` are additions of this library.
+  `sdhToElGamalKeyRecovery`. `dlToSDH` and the converse `elGamalKeyRecoveryToSDH` are additions of
+  this library. `dlToSDH` shows that the game is no harder than discrete logarithm; the book's
+  expectation that it is no easier, which it qualifies on the same page, is not formalized.
 * `elGamalKeyRecoveryExperiment` is a stand-alone key-recovery oracle game backed by the algebraic
   decryption oracle `elGamalDecryptOracle` (computing `pure (ct.2 - α • ct.1)`, matching
   `PrimeOrderGroupFamily.elGamalDecrypt`), rather than the `cca2GameOn` indistinguishability game
@@ -123,7 +123,7 @@ abbrev SDHAdversary (G : Type) (q : ℕ) : Type :=
 
 /-- The static Diffie–Hellman solve oracle ([BonehShoup2023], Section 16.1.4, Attack Game 16.1,
 p. 688, and Section 11.6.3, p. 455): on query `v : G`, return `α • v` (the textbook `v ^ α`). This
-is also the oracle of the book's CDH-solve query in Section 11.6.3 (the one-more Diffie–Hellman
+is also the oracle of the book's CDH solve query in Section 11.6.3 (the one-more Diffie–Hellman
 game is not formalized here). -/
 @[expose] def sdhOracle (α : ZMod q) (v : G) : ProbComp G :=
   pure (α • v)

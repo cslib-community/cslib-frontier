@@ -1779,7 +1779,7 @@ decryption oracle: decrypting `(-v, 0)` (the additive form of `(1 / v, 1)`) retu
 formalizes both games and the reductions between them in one fixed additive `ZMod q`-module `G`
 with `[AddCommGroup G] [NeZero q] [Module (ZMod q) G]` (neither primality of `q` nor that `g`
 generates `G` is assumed). `sdhExperiment q A` runs `A : SDHAdversary G q` against
-`sdhOracle q α` (`v ↦ pure (α • v)`, the oracle of §11.6.3's CDH-solve query; the one-more
+`sdhOracle q α` (`v ↦ pure (α • v)`, the oracle of §11.6.3's CDH solve query; the one-more
 Diffie–Hellman game is not formalized), with success probability `sdhAdvantage q A`.
 `elGamalKeyRecoveryExperiment q g B` is a stand-alone key-recovery oracle game (not `cca2GameOn`):
 it draws `α`, passes `α • g` to `B : ElGamalKeyRecoveryAdversary G q` with oracle
