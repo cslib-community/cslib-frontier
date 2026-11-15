@@ -16,6 +16,7 @@ import CslibFrontier.Computability.Probabilistic.PPT.Composition
 import CslibFrontier.Computability.Probabilistic.Retry
 import CslibFrontier.Crypto.Computational.DiffieHellman.SampleExp
 import CslibFrontier.Crypto.Computational.DiffieHellman.SelfReduction
+import CslibFrontier.Crypto.Game.CloseTo
 import CslibFrontier.Crypto.Game.Order
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpBounds
 import CslibFrontier.Languages.Probabilistic.Retry
@@ -528,8 +529,7 @@ private theorem toOuterMeasure_eval_dlSelfReduceAttempt_not_le
   have h := F.advantage_dlSelfReduceAdversary_le adversary n d α
   rw [Experiment.advantage, Game.advantage, NNReal.nndist_eq] at h
   have h' := tsub_le_iff_right.mpr (tsub_le_iff_left.mp ((le_max_right _ _).trans h))
-  refine (ENNReal.coe_le_coe.mpr h').trans_eq ?_
-  exact ENNReal.coe_toNNReal (PMF.apply_ne_top _ true)
+  exact (ENNReal.coe_le_coe.mpr h').trans_eq (Game.coe_succProbability_ennreal _)
 
 /-- **The loop on every instance**: on `α • g`, `k n` checked attempts return `α` with probability
 at least `1 - (1 - (ε - 1 / 2 ^ n)) ^ k n`, where `ε` is the adversary's success in the group `d`.
