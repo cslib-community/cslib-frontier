@@ -979,6 +979,7 @@ public import CslibFrontier.Computability.BlumComplexity.Speedup
 public import CslibFrontier.Computability.BlumComplexity.Union
 public import CslibFrontier.Computability.BranchingProgram.Basic
 public import CslibFrontier.Computability.BranchingProgram.MonoidProgram
+public import CslibFrontier.Computability.BranchingProgram.Nondeterministic
 public import CslibFrontier.Computability.BranchingProgram.PolyLength
 public import CslibFrontier.Computability.BranchingProgram.ReadOnce
 public import CslibFrontier.Computability.BranchingProgram.Space

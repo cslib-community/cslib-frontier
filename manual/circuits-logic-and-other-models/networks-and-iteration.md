@@ -71,6 +71,12 @@ In [BranchingProgram/Space.lean](../../CslibFrontier/Computability/BranchingProg
 
 Check the [branching-program and space-simulation examples](../../CslibFrontierTests/SpaceBranchingProgram.lean) with `scripts/build.sh CslibFrontierTests.SpaceBranchingProgram --wfail --iofail`.
 
+## Nondeterministic branching programs
+
+[BranchingProgram/Nondeterministic.lean](../../CslibFrontier/Computability/BranchingProgram/Nondeterministic.lean) defines nondeterministic branching programs (`NBP ι α n`) in the same topological-order style, following Jukna's Section 1.3. The first node is the target, each later node has a list of wires to earlier nodes (`NBP.Wire`), and the last node is the source. A wire is a rectifier, which every input switches on, or a contact testing `x i = a`; `NBP.size` counts the contacts. `NBP.pathCount` counts, by structural recursion, the source-to-target paths that an input switches on. `NBP.Accepts` asks for a nonzero count and `NBP.AcceptsParity` for an odd one, so one program can be read in either mode. `BranchingProgram.toNBP` turns a deterministic program over a finite alphabet into a nondeterministic one that switches on one path on the accepted inputs and none on the others (`BranchingProgram.pathCount_toNBP`), with at most `Fintype.card α` contacts for each node (`BranchingProgram.size_toNBP_le`).
+
+Check the [nondeterministic examples](../../CslibFrontierTests/NondeterministicBranchingProgram.lean) with `scripts/build.sh CslibFrontierTests.NondeterministicBranchingProgram --wfail --iofail`.
+
 ## Tensor networks and their explicit representations
 
 [TensorNetwork](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/Circuit/Frontier/TensorNetwork.lean#L128) assigns a semiring-valued tensor to each vertex. Its contraction sums, over edge-label assignments, the product of all local entries. With Boolean labels, each edge has two choices, but the coefficient semiring is independent of this label domain. Semiring homomorphisms and graph transformations support correctness arguments.
