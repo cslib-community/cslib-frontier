@@ -263,7 +263,7 @@ example : ∃ c, ComputableInTimeAndSpace repeatedWord (encPair encBits encUnary
   obtain ⟨c, hc⟩ := copyWord.iterate_unary_stream_sum copyWord copyWord
     (R := fun x _ => 10 * x.1.length + 17) (Q := fun _ => 0)
     (B := fun x => x.1.length)
-    (fun x i hi => by simp [encBits_apply] <;> omega)
+    (fun x i hi => by simp [encBits_apply]; omega)
     (fun x i hi => by omega)
     (fun x i hi => by simp [encBits_apply])
   refine ⟨c, ?_⟩
