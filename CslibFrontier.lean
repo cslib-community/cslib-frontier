@@ -5580,6 +5580,7 @@ public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.Li.Somewhe
 public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.Threshold
 public import CslibFrontier.Foundations.Combinatorics.ApproximateMajority
 public import CslibFrontier.Foundations.Combinatorics.BalancedSchedules
+public import CslibFrontier.Foundations.Combinatorics.BinaryTreeCover
 public import CslibFrontier.Foundations.Combinatorics.BinomialTail
 public import CslibFrontier.Foundations.Combinatorics.Bregman
 public import CslibFrontier.Foundations.Combinatorics.BudgetTuples
