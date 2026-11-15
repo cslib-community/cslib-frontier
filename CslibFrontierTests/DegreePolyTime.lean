@@ -20,7 +20,8 @@ bounds are an automation experiment, not new complexity results or production mi
 
 Compare each named `explicit*`/`transition*` pair with disposable hosted profiling. Normal tests
 remain silent under `--iofail`. Comparative timings are pending; successful elaboration alone
-establishes neither the measured search route nor an improvement. Registration is local and makes no recommendation about the global rule set.
+establishes neither the measured search route nor an improvement. Registration is local and makes
+no recommendation about the global rule set.
 -/
 
 -- Disposable test operations and timing clients are intentionally private.
