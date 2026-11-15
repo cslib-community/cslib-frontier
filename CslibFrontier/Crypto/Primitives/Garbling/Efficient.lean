@@ -21,10 +21,10 @@ public import CslibFrontier.Crypto.Primitives.Garbling.Games
 
 The algorithms of a garbling scheme in the sense of Bellare, Hoang and Rogaway
 [BellareHoangRogaway2012] are meant to be efficient. `Scheme.IsEfficient G encFn` states this for
-a scheme `G` whose function descriptions are encoded by `encFn`: the number of coins, the
-deterministic core `gb` of the garbling algorithm, encoding, evaluation, decoding and the
-semantics `ev` are computed in polynomial time, on the security parameter in unary and the encoded
-arguments.
+a scheme `G` whose function descriptions are encoded by `encFn`: the length readers `f.n` and
+`f.m`, the number of coins, the deterministic core `gb` of the garbling algorithm, encoding,
+evaluation, decoding and the semantics `ev` are computed in polynomial time, on the security
+parameter in unary and the encoded arguments.
 
 For circuit garbling, `encConventionalCircuit` encodes a conventional circuit by `n` and `m` in
 unary followed by its gates, each the binary numbers of its two argument wires and its truth table
@@ -56,24 +56,24 @@ open Turing.MultiTapeTM
 
 namespace Scheme
 
-/-- The encoding of a garbled triple `(F, e, d)`: `F` and `e` framed, then `d`. -/
-@[expose] def encGarbled : Garbled ↪ List Bool :=
-  ⟨fun g => encPair encBits (encPair encBits encBits) (g.fn, g.encInfo, g.decInfo), by
-    rintro ⟨F, e, d⟩ ⟨F', e', d'⟩ h
-    simp only [Prod.mk.injEq, (encPair encBits (encPair encBits encBits)).injective.eq_iff] at h
-    obtain ⟨rfl, rfl, rfl⟩ := h
-    rfl⟩
-
-@[simp] theorem encGarbled_apply (g : Garbled) :
-    encGarbled g = encPair encBits (encPair encBits encBits) (g.fn, g.encInfo, g.decInfo) := rfl
+/-- The encoding of a garbled triple `(F, e, d)`: `F` and `e` framed, then `d`
+(`encGarbled_apply`). -/
+enc_structure encGarbled : Garbled where
+  fn : encBits, encInfo : encBits, decInfo : encBits
 
 variable {Fn : Type}
 
 /-- A garbling scheme is **efficient** for the encoding `encFn` of its function descriptions when
-its algorithms run in polynomial time: the number of
-coins and the deterministic core `gb` of `Gb` on the parameter in unary and the encoded function
-(and coins), and `En`, `Ev`, `De` and `ev` on their encoded arguments. -/
+its algorithms run in polynomial time: the length readers `f.n` and `f.m` on the encoded function,
+the number of coins and the deterministic core `gb` of `Gb` on the parameter in unary and the
+encoded function (and coins), and `En`, `Ev`, `De` and `ev` on their encoded arguments.
+[BellareHoangRogaway2012], §3.1, fixes linear-time algorithms for `f.n` and `f.m`; here they are
+only required to run in polynomial time. -/
 structure IsEfficient (G : Scheme Fn) (encFn : Fn ↪ List Bool) : Prop where
+  /-- The input length `f.n` is read from `f` in polynomial time, in unary. -/
+  inLen : ComputableInPolyTime G.inLen encFn encUnary
+  /-- The output length `f.m` is read from `f` in polynomial time, in unary. -/
+  outLen : ComputableInPolyTime G.outLen encFn encUnary
   /-- The number of coins is polynomial-time computable in unary. -/
   coins : ComputableInPolyTime (fun (k, f) => G.coins k f) (encPair encUnary encFn) encUnary
   /-- The deterministic core of garbling is polynomial-time on `(1^k, f, r)`. -/
