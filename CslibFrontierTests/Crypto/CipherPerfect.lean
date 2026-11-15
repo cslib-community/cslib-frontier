@@ -6,7 +6,6 @@ Authors: Samuel Schlesinger
 
 module
 
-public import Cslib.Crypto.Protocols.PerfectSecrecy.OneTimePad
 public import CslibFrontier.Crypto.Computational.Encryption.Cipher.Perfect
 public import CslibFrontier.Crypto.Game.HiddenBit
 

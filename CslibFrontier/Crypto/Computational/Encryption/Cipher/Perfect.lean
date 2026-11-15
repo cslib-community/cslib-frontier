@@ -22,8 +22,8 @@ ciphers whose key-averaged ciphertext distribution is invariant across admissibl
 ciphers.
 
 Connecting an information-theoretic `EncScheme` to a computational `Cipher` and key sampler via
-distribution equality yields semantic security for every `EncScheme.PerfectlySecret` cipher (and
-clients holding `EncScheme.CiphertextIndist` directly apply
+distribution equality yields zero semantic-security advantage for every cipher matching an
+`EncScheme.PerfectlySecret` scheme (and clients holding `EncScheme.CiphertextIndist` directly apply
 `advantage_oneTimeExperiment_eq_zero_of_ciphertextDist_eq` with `ciphertextDist_eq_encScheme`).
 Instantiations cover both the fixed-length one-time pad over `BitVec l` and the variable-length
 one-time pad `variableLengthOTPCipher L` on equal-length messages.
