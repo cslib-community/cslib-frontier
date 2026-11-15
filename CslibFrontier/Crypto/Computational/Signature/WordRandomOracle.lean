@@ -144,7 +144,13 @@ noncomputable def wordEufCmaGame {SK : Type} [Fintype Digest] [Nonempty Digest]
 /-- **Existential unforgeability under adaptive chosen-message attack in the random-oracle
 model** (EUF-CMA) of a family of word-interface schemes: every uniform oracle-PPT word forger, run
 on the unary security parameter and the public key, wins `wordEufCmaGame` with negligible
-probability. The digest type, its encoding and the scheme may depend on the security parameter. -/
+probability. The digest type, its encoding and the scheme may depend on the security parameter.
+This is the random oracle version of [BonehShoup2023], Attack Game 13.1 and Definition 13.2
+(pp. 529–530), formed as in Section 8.10.2 (p. 328) and used for full domain hash in Section 13.3
+(p. 535): the challenger and the forger share one random function from words to `Digest n`,
+sampled lazily, and every word is a message. Neither `ROMSignature.Scheme` nor `digestEncoding`
+carries an efficiency or correctness requirement, where Definition 13.1 (pp. 528–529) asks for
+efficient algorithms whose signatures verify. -/
 def EUFCMA {Digest : ℕ → Type} [∀ n, Fintype (Digest n)] [∀ n, Nonempty (Digest n)] {SK : Type}
     (digestEncoding : (n : ℕ) → Digest n ↪ List Bool)
     (scheme : (n : ℕ) → Scheme (List Bool) SK (List Bool) (List Bool) (List Bool) (Digest n)) :
@@ -180,16 +186,6 @@ theorem EUFCMA.of_negligible
 end EUFCMA
 
 /-! ### Saved-coin replay -/
-
-/-- One polynomial budget for the source clock on every admitted public key. -/
-def savedCoinBudget (c d keyC keyD n : ℕ) : ℕ :=
-  c * (2 * n + 2 + keyC * (n + 1) ^ keyD) ^ d
-
-/-- The saved-coin budget is polynomial in the security parameter. -/
-theorem polynomiallyBounded_savedCoinBudget (c d keyC keyD : ℕ) :
-    PolynomiallyBounded (savedCoinBudget c d keyC keyD) := by
-  unfold savedCoinBudget
-  fun_prop
 
 /-- Input `(1ⁿ, pk, tape)` of a saved-coin replay (`savedWordReplay`): the security parameter `n`
 in unary, then the public key and the saved coin tape as bit words. The parameter and the public
@@ -277,12 +273,7 @@ theorem isQueryBounded_savedWordReplay {k : ℕ} {Control Query : Type} {spec : 
       (encPair encUnary encBits (n, pk))
     apply h.mono
     simp only [List.length_take, Nat.mul_one]
-    apply (Nat.min_le_left _ _).trans
-    apply Nat.mul_le_mul_left c
-    apply Nat.pow_le_pow_left
-    simp only [length_encPair, encUnary_apply,
-      List.length_replicate, encBits_apply] at *
-    omega
+    exact (Nat.min_le_left _ _).trans (clock_le_savedCoinBudget c d keyC keyD n hpk)
   · exact .pure _ _
 
 /-- Use the existing total pair decoder after native replay. Oversized keys make no calls; all

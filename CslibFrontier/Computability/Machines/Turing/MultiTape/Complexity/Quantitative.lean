@@ -13,13 +13,10 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.Deg
 public import Mathlib.Tactic.FunProp
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DegreePrimitives
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Transducer.Copy
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OLoops
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.BinaryAddition
 import CslibFrontier.Foundations.Data.Nat.Doubling
-import Mathlib.Tactic.FinCases
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Ring
 import CslibFrontier.Tactic.EncLen
+import Mathlib.Tactic.TypeStar
 
 /-!
 # Quantitative computability rules

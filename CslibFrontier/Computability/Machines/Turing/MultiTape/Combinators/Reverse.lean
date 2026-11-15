@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.KernelReverse
+import Mathlib.Tactic.TypeStar
 
 /-! # Encoded input reversal
 

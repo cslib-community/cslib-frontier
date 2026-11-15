@@ -10,6 +10,8 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Deterministic
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Defs
+import Mathlib.Tactic.TypeStar
+import Mathlib.Tactic.Lemma
 
 /-!
 # The input-reversal machine
