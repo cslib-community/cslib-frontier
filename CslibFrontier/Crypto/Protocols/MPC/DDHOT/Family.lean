@@ -484,12 +484,9 @@ theorem isPPT_ddhOTReceiverToDDHDistinguisher {Z : Environment F.ddhOTFamily {1}
   refine congrArg ProbComp.eval (Eq.trans (congrArg W ?_)
     (hWeq ⟨x.secParam, x.groupParameters, state, _, _⟩).symm)
   refine Prod.ext rfl (Prod.ext rfl (Prod.ext rfl (Prod.ext ?_ ?_)))
-  · simp only [ddhOTReceiverGuessWords, PartyEncoding.encCoalition, Function.Embedding.coeFn_mk,
-      encDPi_apply]
-    congr 1
-    funext ⟨i, hi⟩
-    obtain rfl := Finset.mem_singleton.mp hi
-    refine congrArg encDDHOTReceiverViewWords ?_
+  · refine Eq.trans ?_
+      (F.ddhOTEncoding.view.encCoalition_singleton x.secParam x.groupParameters 1 _).symm
+    refine congrArg (encPi encBits) (funext fun _ => congrArg encDDHOTReceiverViewWords ?_)
     let q := F.order x.groupParameters
     let e := (r : ZMod q) • F.generator x.groupParameters + (s : ZMod q) • x.leftPublic
     cases σ

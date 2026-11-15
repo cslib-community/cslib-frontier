@@ -30,7 +30,9 @@ on six exponents drawn with `sampleExp n d`, the technique of [BonehShoup2023], 
 `6 / 2 ^ n` of the exact-sampling simulators. Under `F.DDH setup`, DDH oblivious transfer is
 therefore semi-honest secure against the corruption of either party
 (`DDH.ddhOTSemiHonestSecure`), in the sense of
-`Cslib.Crypto.Protocols.MPC.ProtocolFamily.SemiHonestSecure`.
+`Cslib.Crypto.Protocols.MPC.ProtocolFamily.SemiHonestSecure`. Against a corrupted sender the
+security is statistical: every environment, efficient or not, has advantage at most `6 / 2 ^ n`
+(`advantage_ddhOTSenderGame_le`).
 
 ## Comparison with [BonehShoup2023], Theorem 23.7
 
@@ -80,6 +82,8 @@ algorithms, as the comparison with Theorem 23.7 above also notes.
 * `Cslib.Crypto.PrimeOrderGroupFamily.advantage_bind_ddhOTSenderSimSampleExp_le`,
   `Cslib.Crypto.PrimeOrderGroupFamily.advantage_bind_ddhOTReceiverSimSampleExp_le`: on every input,
   they are within statistical distance `6 / 2 ^ n` of the exact-sampling simulators.
+* `Cslib.Crypto.PrimeOrderGroupFamily.advantage_ddhOTSenderGame_le`: against a corrupted sender,
+  every environment, efficient or not, has advantage at most `6 / 2 ^ n`.
 * `Cslib.Crypto.PrimeOrderGroupFamily.DDH.ddhOTSemiHonestSecure`: a step towards
   [BonehShoup2023], Theorem 23.7, not the cited result: `F.DDH setup` implies that DDH oblivious
   transfer is semi-honest secure against the corruption of either party.
@@ -255,11 +259,9 @@ theorem isPPT_ddhOTSenderSimSampleExp : F.ddhOTSenderSimSampleExp.IsPPT F.ddhOTE
       congrArg (PMF.bind _) (funext fun s₀ => congrArg (PMF.bind _) (funext fun r₁ =>
         congrArg (PMF.bind _) (funext fun s₁ => congrArg (PMF.bind _) (funext fun b =>
           congrArg PMF.pure ?_))))))
-    simp only [encDPi_apply]
-    congr 1
-    funext ⟨i, hi⟩
-    obtain rfl := Finset.mem_singleton.mp hi
-    refine congrArg encDDHOTSenderViewWords ?_
+    refine Eq.trans ?_
+      (F.ddhOTEncoding.view.encCoalition_singleton x.secParam x.desc 0 _).symm
+    refine congrArg (encPi encBits) (funext fun _ => congrArg encDDHOTSenderViewWords ?_)
     obtain ⟨n, d, xs, ys⟩ := x
     let q := F.order d
     let g := F.generator d
@@ -332,11 +334,9 @@ theorem isPPT_ddhOTReceiverSimSampleExp : F.ddhOTReceiverSimSampleExp.IsPPT F.dd
       congrArg (PMF.bind _) (funext fun r => congrArg (PMF.bind _) (funext fun s =>
         congrArg (PMF.bind _) (funext fun k => congrArg (PMF.bind _) (funext fun c =>
           congrArg PMF.pure ?_))))))
-    simp only [encDPi_apply]
-    congr 1
-    funext ⟨i, hi⟩
-    obtain rfl := Finset.mem_singleton.mp hi
-    refine congrArg encDDHOTReceiverViewWords ?_
+    refine Eq.trans ?_
+      (F.ddhOTEncoding.view.encCoalition_singleton x.secParam x.desc 1 _).symm
+    refine congrArg (encPi encBits) (funext fun _ => congrArg encDDHOTReceiverViewWords ?_)
     obtain ⟨n, d, xs, ys⟩ := x
     let q := F.order d
     let g := F.generator d
@@ -354,6 +354,19 @@ theorem isPPT_ddhOTReceiverSimSampleExp : F.ddhOTReceiverSimSampleExp.IsPPT F.dd
 
 /-! ### Security -/
 
+/-- **Statistical security against a corrupted sender**: for every environment, with no efficiency
+requirement, the advantage between the real game and the ideal game with
+`ddhOTSenderSimSampleExp` is at most `6 / 2 ^ n`. The real game is the ideal game with the
+exact-sampling simulator `ddhOTSenderSim` (`idealJoint_ddhOT_sender`). -/
+theorem advantage_ddhOTSenderGame_le (setup : ℕ → PMF F.Desc) (Z : Environment F.ddhOTFamily {0})
+    (n : ℕ) :
+    Game.advantage (F.ddhOTFamily.realGame setup {0} Z n)
+      (F.ddhOTFamily.idealGame setup {0} F.ddhOTSenderSimSampleExp Z n) ≤ 6 / 2 ^ n := by
+  rw [ProtocolFamily.realGame_eq_idealGame
+    (S := fun _ d => ddhOTSenderSim (F.generator d) (F.order d))
+    (fun _ d => idealJoint_ddhOT_sender _ _)]
+  exact ProtocolFamily.advantage_idealGame_le (F.advantage_bind_ddhOTSenderSimSampleExp_le n) Z
+
 /-- A step towards [BonehShoup2023], Theorem 23.7, not the cited result: `F.DDH setup` implies
 that DDH oblivious transfer is semi-honest secure against a corrupted sender (`{0}`) and against a
 corrupted receiver (`{1}`), for the encoding `ddhOTEncoding` (`ProtocolFamily.SemiHonestSecure`).
@@ -369,13 +382,7 @@ theorem DDH.ddhOTSemiHonestSecure {F : PrimeOrderGroupFamily} {setup : ℕ → P
       F.ddhOTFamily.SemiHonestSecure setup {1} F.ddhOTEncoding := by
   refine ⟨⟨F.ddhOTSenderSimSampleExp, F.isPPT_ddhOTSenderSimSampleExp, fun Z _ => ?_⟩,
     ⟨F.ddhOTReceiverSimSampleExp, F.isPPT_ddhOTReceiverSimSampleExp, fun Z hZ => ?_⟩⟩
-  · have h (n : ℕ) : Game.advantage (F.ddhOTFamily.realGame setup {0} Z n)
-        (F.ddhOTFamily.idealGame setup {0} F.ddhOTSenderSimSampleExp Z n) ≤ 6 / 2 ^ n := by
-      rw [ProtocolFamily.realGame_eq_idealGame
-        (S := fun _ d => ddhOTSenderSim (F.generator d) (F.order d))
-        (fun _ d => idealJoint_ddhOT_sender _ _)]
-      exact ProtocolFamily.advantage_idealGame_le (F.advantage_bind_ddhOTSenderSimSampleExp_le n) Z
-    negligible using h
+  · negligible using F.advantage_ddhOTSenderGame_le setup Z
   · have hB := hDDH _ (F.isPPT_ddhOTReceiverToDDHDistinguisher hZ)
     have h (n : ℕ) : Game.advantage (F.ddhOTFamily.realGame setup {1} Z n)
         (F.ddhOTFamily.idealGame setup {1} F.ddhOTReceiverSimSampleExp Z n) ≤

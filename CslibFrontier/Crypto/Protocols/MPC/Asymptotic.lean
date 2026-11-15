@@ -72,8 +72,11 @@ differences:
 * **Typed inputs and the stand-alone model.** Inputs, outputs and views are typed values written
   as words by `E`, not strings of equal length; review checks that a protocol's encoding is the
   natural one. The run is stand-alone: one execution, without other protocols running beside it.
-* **Strict PPT.** Environments and simulators are uniform strict PPT machines (`IsPPTOn`): every
-  run halts within a polynomial bound.
+* **Strict PPT in the input length.** Environments and simulators are uniform strict PPT machines
+  (`IsPPTOn`): every run halts within a polynomial in the length of the machine's whole encoded
+  input, which includes `1ⁿ` and, for a simulator, the coalition's inputs and outputs, as in
+  [Goldreich2004]. [Lindell2017] (p. 3) bounds a party's running time in the security parameter
+  alone. The inputs here come from a PPT environment, so their length is polynomial in `n`.
 * The notion constrains only the simulator and the environment. The efficiency and correctness of
   the honest parties' algorithms, which the sources assume, are separate properties of a
   protocol family.
@@ -102,9 +105,14 @@ differences:
   PPT simulator family gives security.
 * `Cslib.Crypto.Protocols.MPC.ProtocolFamily.advantage_idealGame_le`: statistically close
   simulator families give close ideal games.
+* `Cslib.Crypto.Protocols.MPC.PartyEncoding.encCoalition_singleton`: the word of a single party's
+  values, as two-party certificates use it.
 
 `CslibFrontier/Crypto/Protocols/MPC/DDHOT/Simulators.lean` proves the notion for DDH oblivious
 transfer from the DDH assumption (`Cslib.Crypto.PrimeOrderGroupFamily.DDH.ddhOTSemiHonestSecure`).
+The test module `CslibFrontierTests.Crypto.MPCAsymptotic` refutes it for a protocol that leaks a
+party's input bit, with a PPT environment, and proves it without assumptions for the protocol that
+delivers the bit as the functionality's output, through `SemiHonestSecure.of_perfect`.
 
 ## References
 
@@ -231,6 +239,17 @@ representations. -/
   toFun x := encDPi (fun i : I => e.enc i) fun i => e.rep n d i (x i)
   inj' _ _ h := funext fun i =>
     (e.rep n d i).injective (congrFun ((encDPi fun i : I => e.enc i).injective h) i)
+
+/-- The word of the values of a single party `i`: the one-entry table of its representation. -/
+theorem encCoalition_singleton (n : ℕ) (d : Desc) (i : Fin m)
+    (x : (j : ({i} : Finset (Fin m))) → X n d j) :
+    e.encCoalition n d {i} x = encPi encBits fun _ : ({i} : Finset (Fin m)) =>
+      e.enc i (e.rep n d i (x ⟨i, Finset.mem_singleton_self i⟩)) := by
+  simp only [encCoalition, Function.Embedding.coeFn_mk, encDPi_apply]
+  congr 1
+  funext ⟨j, hj⟩
+  obtain rfl := Finset.mem_singleton.mp hj
+  rfl
 
 end PartyEncoding
 
