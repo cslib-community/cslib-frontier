@@ -18,14 +18,14 @@ import CslibFrontier.Probability.Uniform
 # The example Shannon ciphers of Boneh–Shoup §2.1
 
 The example ciphers of [BonehShoup2023], v0.6, §2.1 (printed pp. 6–10) other than the one-time pad,
-as information-theoretic encryption schemes of pinned cslib, with the book's verdicts on their
-perfect security. Each is `EncScheme.ofPure (uniformOfFintype K) enc dec h`, the book's Shannon
-cipher with a uniformly random key; its `CiphertextIndist` is the book's Definition 2.1, and
-upstream `perfectlySecret_iff_ciphertextIndist` converts it to the library's `PerfectlySecret` (the
+as information-theoretic encryption schemes `EncScheme`, with the book's verdicts on their perfect
+security. Each is `EncScheme.ofPure (uniformOfFintype K) enc dec h`, the book's Shannon cipher with
+a uniformly random key; its `CiphertextIndist` is the book's Definition 2.1, and
+`perfectlySecret_iff_ciphertextIndist` converts it to the library's `PerfectlySecret` (the
 posterior form of [KatzLindell2020], Definition 2.3). The one-time pad itself (Example 2.1,
-Theorem 2.2) is upstream `otp` with `otp_perfectlySecret`.
+Theorem 2.2) is `otp` with `otp_perfectlySecret`.
 
-The cipher definitions are exposed, as upstream `otp` is, so that the criteria of
+The cipher definitions are exposed, as `otp` is, so that the criteria of
 `CslibFrontier.Crypto.Protocols.PerfectSecrecy.Characterization`, which are stated for `ofPure`,
 apply to them directly.
 
