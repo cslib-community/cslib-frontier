@@ -4,6 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+
 import CslibFrontier.Crypto.Computational.CircularCorrelationRobust
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Probability.PMF.Uniform
@@ -20,6 +22,9 @@ a random function answers it with a uniform label. The distinguisher `firstBitZe
 query and accepts when the first bit of the reply is `false`. It is oracle PPT and asks one query,
 so it is tweak-unique at every level, and its advantage is `1 / 2` at every level.
 -/
+
+-- This regression module checks ordinary imports and exports no test fixtures.
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.Crypto.CircularCorrelationRobust
 

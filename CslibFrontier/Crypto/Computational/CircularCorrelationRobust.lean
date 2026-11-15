@@ -40,29 +40,32 @@ no queries there.
 
 ## Relation to the sources
 
-The assumption is Definition 1 of [ZahurRosulekEvans2015] with these differences, each of which
-admits fewer adversaries or fixes a parametrization, so Definition 1 implies it:
+The assumption has two parts. Its security condition `secure` is Definition 1 of
+[ZahurRosulekEvans2015] with the differences below, each of which admits fewer adversaries or fixes
+a parametrization. So for a hash family that is evaluated in polynomial time, Definition 1 implies
+`secure`. The evaluation premise `polyTime` is separate: Definition 1 does not supply it.
 
 * **Legality.** An adversary must ask at most one query per tweak on every run
   (`CCR.IsTweakUnique`), at every level. Definition 1 forbids only asking one `(x, i)` with both
-  bits. Guo, Katz, Wang and Yu [GuoKatzWangYu2020] (p. 8) name non-repeating tweaks as a weaker
-  notion that may suffice.
+  bits. Guo, Katz, Wang and Yu [GuoKatzWangYu2020] name non-repeating tweaks as a weaker notion
+  that may suffice (locator not verified).
 * **Tweaks** are `k`-bit strings at level `k`; Definition 1 takes them from `ℤ`
   (`H : {0, 1}^k × ℤ → {0, 1}^k`, p. 8).
 * **Lengths.** Labels have `k + 2` bits at level `k`, where Definition 1 has `k`.
 * **Adversaries** are uniform strict oracle-PPT word programs; Definition 1 says "polynomial-time
   adversaries", and Choi, Katz, Kumaresan and Zhou [ChoiKatzKumaresanZhou2012] admit non-uniform
   ones.
-* **Evaluation.** Deterministic polynomial-time evaluation of the hash is part of the notion.
-  Definition 1 gives the adversary unrestricted access to `H`, which a uniform adversary has
-  through this certificate.
+* **Evaluation.** `polyTime` asks that one deterministic machine evaluate the hash in polynomial
+  time on all words. Definition 1 gives the adversary unrestricted access to `H` but asks nothing
+  of its running time. The premise is kept because the garbling schemes built on the hash must be
+  efficient.
 
-Definition 3 of [GuoKatzWangYu2020] (tccr, p. 8) is the concrete form of the same notion, with
-repeatable tweaks and every key law of min-entropy at least `ρ`. Definition 4 of
-[ChoiKatzKumaresanZhou2012] (p. 10) is the dual-key notion from which circular correlation
-robustness originates. Definition 3 of [ZahurRosulekEvans2015] (p. 11), robustness for naturally
-derived keys, restricts the adversary further; Theorem 1 there (p. 12), privacy of half-gates
-garbling, assumes only that weaker notion.
+Definition 3 of [GuoKatzWangYu2020] (tccr; locator not verified) is the concrete form of the same
+notion, with repeatable tweaks and every key law of min-entropy at least `ρ`. Definition 4 of
+[ChoiKatzKumaresanZhou2012] (locator not verified) is the dual-key notion from which circular
+correlation robustness originates. Definition 3 of [ZahurRosulekEvans2015] (p. 11), robustness for
+naturally derived keys, restricts the adversary further; Theorem 1 there (p. 12), privacy of
+half-gates garbling, assumes only that weaker notion.
 
 ## Main definitions
 
@@ -158,13 +161,13 @@ bits. A label reply is the bits of its key followed by its colour, the reply of 
 
 end Garbling.CCR
 
-/-- **Circular correlation robustness** of a hash family on words, [ZahurRosulekEvans2015]
-Definition 1 (§4.1, p. 10) read with `k`-bit tweaks, `(k + 2)`-bit labels and tweak-unique uniform
-adversaries (module documentation): the hash is evaluated in polynomial time, and at every level
-`k` no uniform strict oracle-PPT word distinguisher that asks each tweak at most once, at every
-level, tells the circular oracle `(x, t, b) ↦ H(x + Δ, t) + bΔ` with `H = CCR.atLevel hash k` and
-`Δ = CCR.offset R` for a uniform `(k + 1)`-bit `R` from a uniform random function, except with
-negligible advantage. -/
+/-- **Circular correlation robustness** of a hash family on words: the hash is evaluated in
+polynomial time, a premise that the source does not impose, and its security condition is
+[ZahurRosulekEvans2015] Definition 1 (§4.1, p. 10) read with `k`-bit tweaks, `(k + 2)`-bit labels
+and tweak-unique uniform adversaries (module documentation). At every level `k` no uniform strict
+oracle-PPT word distinguisher that asks each tweak at most once, at every level, tells the circular
+oracle `(x, t, b) ↦ H(x + Δ, t) + bΔ` with `H = CCR.atLevel hash k` and `Δ = CCR.offset R` for a
+uniform `(k + 1)`-bit `R` from a uniform random function, except with negligible advantage. -/
 structure CircularCorrelationRobust (hash : List Bool → List Bool → List Bool) : Prop where
   /-- One deterministic machine evaluates the hash on the encoded label and tweak words. -/
   polyTime : ComputableInPolyTime (fun (label, tweak) => hash label tweak)
