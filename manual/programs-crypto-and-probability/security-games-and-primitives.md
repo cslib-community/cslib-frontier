@@ -2495,9 +2495,7 @@ and `0 < s` (`card_not_hasSecondPreimage_div_le`); wrapping an inverter `A` into
 `succProbability_inversionExperiment_uniform_le_two_mul_add_div`). On bit strings,
 `SecondPreimageResistant f` requires polynomial-time evaluation and negligible success in
 `secondPreimageGame` against every uniform strict PPT `SecondPreimageFinder`; unlike Definition 8.6
-(`m' ∈ M`), any answer `x' ≠ x` of arbitrary length wins, matching `OneWay`. The certified
-asymptotic reduction of Exercise 8.23(b), the bit-string separation of Exercise 8.23(c), and
-Exercise 8.23(d) are not yet proved here; the [tests](../../CslibFrontierTests/Crypto/SecondPreimageResistant.lean)
+(`m' ∈ M`), any answer `x' ≠ x` of arbitrary length wins, matching `OneWay`. The [tests](../../CslibFrontierTests/Crypto/SecondPreimageResistant.lean)
 verify the factor-one equality on `Bool → Unit`, probe `0 < s`, instantiate the finite `revealAtZero`
 construction of Exercise 8.23(c), and refute constant functions.
 
@@ -2505,10 +2503,11 @@ The implications and separations of [bs23][bs23], §8.11.1, equation (8.17), p. 
 Exercise 8.23(b)–(d), p. 353, on bit strings live in
 [`SecondPreimageResistant/Relations.lean`](../../CslibFrontier/Crypto/Computational/SecondPreimageResistant/Relations.lean).
 Wrapping an `Inverter` via `inverterToSecondPreimage f adversary` (`isPPT_inverterToSecondPreimage`)
-gives `succProbability_inversionGame_le_secondPreimageGame_add` and
-`succProbability_inversionGame_le_two_mul_secondPreimageGame_add` (`OWadv[A, f] ≤ 2 · SPRadv[B, f] + 2 ^ d / 2 ^ n`
-when `n`-bit inputs have `d`-bit digests), so `SecondPreimageResistant.oneWay_of_outputLength`
-derives `OneWay f` when `2 ^ outLen n / 2 ^ n` is negligible. Conversely,
+gives `OWadv[A, f] ≤ SPRadv[B, f] + 2 ^ d / 2 ^ n`
+(`succProbability_inversionGame_le_secondPreimageGame_add`) and hence (8.22)'s factor-two form
+(`succProbability_inversionGame_le_two_mul_secondPreimageGame_add`) when `n`-bit inputs have `d`-bit
+digests, so `SecondPreimageResistant.oneWay_of_outputLength` derives `OneWay f` when
+`2 ^ outLen n / 2 ^ n` is negligible. Conversely,
 `secondPreimageToCollisionFinder adversary r` (`isPPT_secondPreimageToCollisionFinder`) turns a
 second-preimage finder for `CollisionResistantToOneWay.keyDigest H` at length `3 * n + r` (`r < 3`)
 into a `CollisionFinder` for `H` at parameter `n` with zero loss

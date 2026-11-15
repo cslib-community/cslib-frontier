@@ -132,23 +132,27 @@ theorem succProbability_inversionGame_le_secondPreimageGame_add
         (ProbComp.eval (secondPreimageGame f (inverterToSecondPreimage f adversary) n)) +
         (2 : ℝ≥0) ^ d / (2 : ℝ≥0) ^ n := by
   let f' (m : List Bool) : List Bool := if m.length = n then f m else List.replicate d false
+  have hsplit :
+      ProbComp.eval (inversionGame f adversary n) true ≤
+        ProbComp.eval (secondPreimageGame f (inverterToSecondPreimage f adversary) n) true +
+          ∑' m, BitString.uniformList n m * ProbComp.eval (adversary n (f m)) m := by
+    simpa only [inversionGame, secondPreimageGame, inverterToSecondPreimage,
+      ProbComp.eval_inversionExperiment, ProbComp.eval_secondPreimageExperiment,
+      BitString.eval_sampleList] using
+      inversionExperiment_le_secondPreimageExperiment_add (BitString.uniformList n) f
+        fun y => ProbComp.eval (adversary n y)
+  have hsum :
+      ∑' m, BitString.uniformList n m * ProbComp.eval (adversary n (f m)) m =
+        ∑' m, BitString.uniformList n m * ProbComp.eval (adversary n (f' m)) m := by
+    refine tsum_congr fun m => ?_
+    by_cases hm : BitString.uniformList n m = 0
+    · simp [hm]
+    · have hmem : m ∈ (BitString.uniformList n).support := hm
+      simp only [f', BitString.length_of_mem_support_uniformList hmem, ↓reduceIte]
   have hguess :
-      ((BitString.uniformList n).bind fun m =>
-        (ProbComp.eval (adversary n (f m))).bind fun c => PMF.pure (c == m)) true ≤
+      ∑' m, BitString.uniformList n m * ProbComp.eval (adversary n (f m)) m ≤
         (((2 : ℝ≥0) ^ d / (2 : ℝ≥0) ^ n : ℝ≥0) : ℝ≥0∞) := by
-    have hcongr :
-        ((BitString.uniformList n).bind fun m =>
-          (ProbComp.eval (adversary n (f m))).bind fun c => PMF.pure (c == m)) =
-        ((BitString.uniformList n).bind fun m =>
-          (ProbComp.eval (adversary n (f' m))).bind fun c => PMF.pure (c == m)) := by
-      refine PMF.bind_congr_on_support _ _ _ fun m hm => ?_
-      simp only [f', BitString.length_of_mem_support_uniformList hm, ↓reduceIte]
-    rw [hcongr, PMF.bind_apply]
-    have hbeq (m : List Bool) :
-        ((ProbComp.eval (adversary n (f' m))).bind fun c => PMF.pure (c == m)) true =
-          (ProbComp.eval (adversary n (f' m))) m := by
-      simp only [Bool.beq_eq_decide_eq, PMF.bind_pure_decide_eq_apply_true']
-    simp only [hbeq]
+    rw [hsum]
     refine (PMF.tsum_mul_apply_le_card_mul (BitString.uniformList n)
       (BitString.uniformList_apply_le n) f'
       ((Finset.univ : Finset (Fin d → Bool)).image List.ofFn)
@@ -171,18 +175,8 @@ theorem succProbability_inversionGame_le_secondPreimageGame_add
   have hkey :
       ProbComp.eval (inversionGame f adversary n) true ≤
         ProbComp.eval (secondPreimageGame f (inverterToSecondPreimage f adversary) n) true +
-          (((2 : ℝ≥0) ^ d / (2 : ℝ≥0) ^ n : ℝ≥0) : ℝ≥0∞) := by
-    simp only [inversionGame, inversionExperiment, secondPreimageGame, secondPreimageExperiment,
-      inverterToSecondPreimage, ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList]
-    refine (PMF.bind_apply_le_add_on_support _ true fun m _ => ?_).trans
-      (add_le_add le_rfl hguess)
-    refine PMF.bind_apply_le_add_on_support _ true fun c _ => ?_
-    by_cases hcm : c = m
-    · subst hcm
-      simp
-    · have hbne : (c != m) = true := bne_iff_ne.mpr hcm
-      have hbeq_f : (c == m) = false := beq_eq_false_iff_ne.mpr hcm
-      simp [hbne, hbeq_f]
+          (((2 : ℝ≥0) ^ d / (2 : ℝ≥0) ^ n : ℝ≥0) : ℝ≥0∞) :=
+    hsplit.trans (add_le_add le_rfl hguess)
   unfold Game.succProbability
   refine (ENNReal.toNNReal_mono (by finiteness) hkey).trans_eq ?_
   rw [ENNReal.toNNReal_add (PMF.apply_ne_top _ _) ENNReal.coe_ne_top, ENNReal.toNNReal_coe]
@@ -469,13 +463,10 @@ theorem succProbability_secondPreimageGame_plantEasyBranch_le
     Game.succProbability
       (ProbComp.eval (secondPreimageGame (plantEasyBranch k H) adversary n)) ≤
       Game.succProbability (ProbComp.eval (secondPreimageGame H adversary n)) := by
-  apply Game.succProbability_mono
-  simp only [secondPreimageGame, eval_secondPreimageExperiment,
-    secondPreimageExperiment_eq_bind_map]
-  refine PMF.bind_apply_mono_on_support _ _ fun w _ =>
-    PMF.map_true_mono _ fun w' _ h => ?_
-  rw [Bool.and_eq_true, bne_iff_ne, beq_iff_eq] at h ⊢
-  exact ⟨h.1, eq_of_plantEasyBranch_eq k H h.1 h.2⟩
+  simpa only [secondPreimageGame, ProbComp.eval_secondPreimageExperiment] using
+    succProbability_secondPreimageExperiment_le_of_eq_imp (ProbComp.eval (BitString.sampleList n))
+      (fun x x' hne heq => eq_of_plantEasyBranch_eq k H hne heq)
+      (fun w => ProbComp.eval (adversary n w))
 
 /-- **Exercise 8.23(c) on bit strings, positive half** ([BonehShoup2023], p. 353): if `H` is
 second-preimage resistant, then `plantEasyBranch k H` is also second-preimage resistant. -/
