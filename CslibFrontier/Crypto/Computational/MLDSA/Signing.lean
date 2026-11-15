@@ -99,7 +99,8 @@ theorem signAttempt_eq_some_of_compressedSignAttempt_eq_some (d ω : ℕ) (H : H
   simp only [compressedSignAttempt] at hout
   split_ifs at hout with hshort hfinal
   cases hout
-  simp only [signAttempt, hshort, ite_true]
+  unfold signAttempt
+  rw [if_pos hshort]
 
 /-- **Correctness of one compressed attempt.** Under the secret-key and hash-to-ball bounds,
 every signature returned by `compressedSignAttempt` passes `compressedVerify` under the matching
@@ -128,18 +129,20 @@ theorem compressedVerify_compressedSignAttempt (hP : P.Valid) (hγq : 4 * P.γ�
   refine ⟨⟨hz', hc⟩, ?_⟩
   conv_rhs => rw [← hhash]
   congr 1
-  funext i
-  rw [compressedVerifierCommitment_eq_verifierCommitment_add_lowPart,
-    verifierCommitment_publicKey]
-  simp only [Pi.add_apply]
-  rw [useHintVec_makeHintVec hP.γ₂_pos hP.two_mul_γ₂_dvd hγq (z := -ct₀ i)
-    (r := r₀ i + ct₀ i) (fun j => by
-      simpa only [Pi.neg_apply, Int.abs_eq_natAbs, ZMod.natAbs_valMinAbs_neg] using
-        (hct₀ i j).le)]
-  funext j
-  simp only [highBitsVec, Pi.add_apply, Pi.neg_apply]
-  congr 1
-  ring
+  apply Prod.ext
+  · funext i
+    rw [compressedVerifierCommitment_eq_verifierCommitment_add_lowPart,
+      verifierCommitment_publicKey]
+    simp only [Pi.add_apply]
+    rw [useHintVec_makeHintVec hP.γ₂_pos hP.two_mul_γ₂_dvd hγq (z := -ct₀ i)
+      (r := r₀ i + ct₀ i) (fun j => by
+        simpa only [Pi.neg_apply, Int.abs_eq_natAbs, ZMod.natAbs_valMinAbs_neg] using
+          (hct₀ i j).le)]
+    funext j
+    simp only [highBitsVec, Pi.add_apply, Pi.neg_apply]
+    congr 1
+    ring
+  · rfl
 
 /-- Counter supplied to the `i`-th scheduled attempt. Algorithm 7 starts at `κ` and advances it
 by `ℓ` after every rejection. -/
@@ -179,7 +182,7 @@ theorem compressedVerify_compressedSignBoundedFrom (hP : P.Valid)
     (Fin.findSome?_eq_some_iff
       (f := compressedSignAttempts P d ω H sk msg maskAt κ K) (a := σ)).mp
       (by simpa only [compressedSignBoundedFrom] using hout)
-  apply compressedVerify_compressedSignAttempt hP hγq hH hs₂
+  apply compressedVerify_compressedSignAttempt P hP hγq hH hs₂
   simpa only [compressedSignAttempts] using hi
 
 /-- Every signature returned by bounded signing from Algorithm 7's initial counter passes
@@ -190,7 +193,7 @@ theorem compressedVerify_compressedSignBounded (hP : P.Valid) (hγq : 4 * P.γ�
     {maskAt : ℕ → Fin P.ℓ → Fin P.n → ZMod P.q} {K : ℕ} {σ : CompressedSignature P}
     (hout : compressedSignBounded P d ω H sk msg maskAt K = some σ) :
     compressedVerify P d H sk.publicKey msg σ = true := by
-  apply compressedVerify_compressedSignBoundedFrom hP hγq hH hs₂
+  apply compressedVerify_compressedSignBoundedFrom P hP hγq hH hs₂
   simpa only [compressedSignBounded] using hout
 
 end Cslib.Crypto.MLDSA
