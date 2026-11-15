@@ -30,11 +30,17 @@ The keyed evaluator has a uniform deterministic TM certificate on the encoded ke
 Admissible adversaries satisfy `IsOraclePPT`, charging ordinary computation and request writing,
 with one machine and polynomial for all parameters and auxiliary inputs.
 
+`PseudorandomFunctionOver inLen outLen` is the same notion for families whose inputs have
+`inLen n` bits and whose outputs have `outLen n` bits, with `n`-bit keys, as for a PRF whose
+input, output and key spaces differ. `PseudorandomFunction` is its length-preserving case.
+
 ## Main definitions
 
 * `Cslib.Crypto.OracleDistinguisher`: a parameterized randomized adaptive oracle test.
 * `Cslib.Crypto.prfRealGame`, `.prfIdealGame`: the keyed and random-function experiments.
 * `Cslib.Crypto.PseudorandomFunction`: efficient evaluation, length and adaptive security.
+* `Cslib.Crypto.prfRealGameOver`, `.prfIdealGameOver`, `.PseudorandomFunctionOver`: the same with
+  separate input and output lengths.
 
 ## Main results
 
@@ -64,9 +70,11 @@ abbrev OracleDistinguisher := ℕ → List Bool → WordOracleComp Unit Bool
 def prfOracle (family : List Bool → List Bool → List Bool) (n : ℕ) (key query : List Bool) :
     List Bool := if query.length = n then family key query else []
 
-/-- Read a fixed random table, rejecting malformed words before interpreting their bits. -/
-def randomFunctionOracle (n : ℕ) (table : BitString n → BitString n) (query : List Bool) :
-    List Bool := if query.length = n then List.ofFn (table (BitString.ofList n query)) else []
+/-- Read a fixed random table on `n`-bit inputs, rejecting malformed words before interpreting
+their bits. -/
+def randomFunctionOracle (n : ℕ) {w : ℕ} (table : BitString n → BitString w)
+    (query : List Bool) : List Bool :=
+  if query.length = n then List.ofFn (table (BitString.ofList n query)) else []
 
 /-- Adapt a valid word to the finite domain. Malformed words make no external call. -/
 def randomFunctionQuery (n : ℕ) (query : List Bool) :
@@ -151,5 +159,46 @@ structure PseudorandomFunction (family : List Bool → List Bool → List Bool) 
   secure : Game.Indistinguishable
     (fun adversary n => ProbComp.eval (prfRealGame family adversary n))
     (fun adversary n => ProbComp.eval (prfIdealGame adversary n)) (IsOraclePPT encBool)
+
+/-! ### Separate input and output lengths -/
+
+/-- The real experiment of a keyed family with `inLen n`-bit inputs: sample one `n`-bit key and
+answer every query of `inLen n` bits with the family under that key, and any other query with the
+empty word. -/
+noncomputable def prfRealGameOver (inLen : ℕ → ℕ) (family : List Bool → List Bool → List Bool)
+    (adversary : OracleDistinguisher) (n : ℕ) : ProbComp Bool := do
+  let key ← BitString.sampleList n
+  (adversary n []).run fun request => pure (prfOracle family (inLen n) key request.2)
+
+/-- The ideal experiment with `inLen n`-bit inputs and `outLen n`-bit outputs: sample one uniform
+function between them and answer every query of `inLen n` bits with its value, and any other query
+with the empty word. -/
+noncomputable def prfIdealGameOver (inLen outLen : ℕ → ℕ) (adversary : OracleDistinguisher)
+    (n : ℕ) : ProbComp Bool := do
+  let table ← ProbComp.uniform (BitString (inLen n) → BitString (outLen n))
+  (adversary n []).run fun request => pure (randomFunctionOracle (inLen n) table request.2)
+
+/-- A keyed family with `n`-bit keys, `inLen n`-bit inputs and `outLen n`-bit outputs, evaluated in
+plain polynomial time and secure against every uniform adaptive oracle test: [BonehShoup2023],
+Attack Game 4.2 and Definition 4.2, pp. 132–133, for a PRF defined over `(K, X, Y)`, read
+asymptotically with `K`, `X` and `Y` the words of `n`, `inLen n` and `outLen n` bits. As for
+`PseudorandomFunction`, a query of another length is answered by the empty word in both games,
+and deterministic polynomial-time evaluation is part of the notion.
+
+`PseudorandomFunction` is the length-preserving case: at `inLen = outLen = id` the two games are
+`prfRealGame` and `prfIdealGame`. -/
+structure PseudorandomFunctionOver (inLen outLen : ℕ → ℕ)
+    (family : List Bool → List Bool → List Bool) : Prop where
+  /-- One deterministic machine evaluates the family from the encoded key and query. -/
+  polyTime : ComputableInPolyTime (fun pair => family pair.1 pair.2)
+    (encPair encBits encBits) encBits
+  /-- Valid queries receive answers of the declared width. -/
+  length_eq : ∀ key query, query.length = inLen key.length →
+    (family key query).length = outLen key.length
+  /-- The real and ideal experiments use the common game-security calculus. -/
+  secure : Game.Indistinguishable
+    (fun adversary n => ProbComp.eval (prfRealGameOver inLen family adversary n))
+    (fun adversary n => ProbComp.eval (prfIdealGameOver inLen outLen adversary n))
+    (IsOraclePPT encBool)
 
 end Cslib.Crypto

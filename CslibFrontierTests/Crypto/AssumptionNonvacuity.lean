@@ -32,7 +32,8 @@ pseudorandom generators and hard-core predicates are elsewhere.
   `INDCCA2`: copying the ciphertext guesses the challenge bit with advantage `1`.
 * **Pseudorandom functions.** The family answering every query with zeros has answers of the
   declared width but is not a `PseudorandomFunction`: asking for the first answer bit at the zero
-  word has advantage `1 / 2` at every positive parameter.
+  word has advantage `1 / 2` at every positive parameter. For the same reason it is not a
+  `PseudorandomFunctionOver` with equal input and output lengths.
 * **Factoring, Rabin, quadratic residuosity, composite residuosity, and RSA.** For every fixed
   composite modulus `N = p * q` (`1 < p`, `1 < q`), outputting `(p, q)` solves
   `modulusFactoringGame` with probability `1`, so `ModulusFactoringHard` fails for
@@ -251,6 +252,13 @@ theorem not_pseudorandomFunction_zeroFamily : ¬ PseudorandomFunction zeroFamily
   refine not_negligible_const ?_ hshift
   norm_num [Game.advantage, Game.succProbability, PMF.uniformOfFintype_apply,
     ENNReal.toNNReal_ofNat]
+
+/-- **The all-zero family is not a pseudorandom function over equal input and output lengths.**
+At `inLen = outLen = id` the games of `PseudorandomFunctionOver` are those of
+`PseudorandomFunction`, so the attack above applies. -/
+theorem not_pseudorandomFunctionOver_zeroFamily :
+    ¬ PseudorandomFunctionOver (fun n => n) (fun n => n) zeroFamily :=
+  fun h => not_pseudorandomFunction_zeroFamily ⟨h.polyTime, h.length_eq, h.secure⟩
 
 /-! ### Factoring, Rabin, quadratic residuosity, composite residuosity, and RSA -/
 
