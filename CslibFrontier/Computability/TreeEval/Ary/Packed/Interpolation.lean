@@ -105,38 +105,29 @@ private theorem cast_unitInv_residue {v : ℕ} (hv : 0 < v) (hvp : v < p) :
   rw [unitInv, cast_powMod, Nat.sub_add_cancel hv]
   exact ZMod.pow_card_sub_two_eq_inv hne
 
-private theorem cast_basisFactor_of_ne {a j : ℕ} (hne : (a : ZMod p) ≠ (j : ZMod p)) (x : ℕ) :
-    ((basisFactor p a j x : ℕ) : ZMod p) = ((x : ZMod p) - j) * ((a : ZMod p) - j)⁻¹ := by
-  have hja : j ≠ a := fun h => hne (congrArg Nat.cast h.symm)
-  have hdlt : addMod p a (negMod p j) < p := Nat.mod_lt _ (Fact.out : p.Prime).pos
-  have hdpos : 0 < addMod p a (negMod p j) := by
-    by_contra hn
-    have hz : addMod p a (negMod p j) = 0 := by omega
-    have hcast := congrArg (fun n : ℕ => (n : ZMod p)) hz
-    simp only [cast_addMod, cast_negMod, Nat.cast_zero] at hcast
-    exact hne (eq_of_sub_eq_zero (by simpa only [sub_eq_add_neg] using hcast))
-  rw [basisFactor, ite_eq_right hja, cast_mulMod, cast_addMod, cast_negMod,
-    cast_unitInv_residue hdpos hdlt, cast_addMod, cast_negMod]
-  simp only [sub_eq_add_neg]
-
-private theorem cast_basisFactor_eq_zero {a j x : ℕ} (hja : j ≠ a)
-    (hxj : (x : ZMod p) = (j : ZMod p)) :
-    ((basisFactor p a j x : ℕ) : ZMod p) = 0 := by
-  have : NeZero p := ⟨(Fact.out : p.Prime).ne_zero⟩
-  simp [basisFactor, hja, hxj]
-
-/-- A scalar factor agrees with the corresponding field quotient on the alphabet. -/
-theorem cast_basisFactor {a j : ℕ} (ha : a < p) (hj : j < p) (x : ℕ) :
+/-- A scalar factor agrees with the corresponding field quotient, unless `j` is another symbol
+with the residue of `a`. -/
+theorem cast_basisFactor {a j : ℕ} (h : j ≠ a → (a : ZMod p) ≠ (j : ZMod p)) (x : ℕ) :
     ((basisFactor p a j x : ℕ) : ZMod p) =
       if j = a then 1 else ((x : ZMod p) - j) * ((a : ZMod p) - j)⁻¹ := by
   by_cases hja : j = a
   · simp [basisFactor, hja]
-  · have hne : (a : ZMod p) ≠ (j : ZMod p) := by
-      intro heq
-      have heq' := congrArg ZMod.val heq
-      simp only [ZMod.val_natCast, Nat.mod_eq_of_lt ha, Nat.mod_eq_of_lt hj] at heq'
-      exact hja heq'.symm
-    rw [cast_basisFactor_of_ne hne, ite_eq_right hja]
+  · have hdlt : addMod p a (negMod p j) < p := Nat.mod_lt _ (Fact.out : p.Prime).pos
+    have hdpos : 0 < addMod p a (negMod p j) := by
+      by_contra hn
+      have hz : addMod p a (negMod p j) = 0 := by omega
+      have hcast := congrArg (fun n : ℕ => (n : ZMod p)) hz
+      simp only [cast_addMod, cast_negMod, Nat.cast_zero] at hcast
+      exact h hja (eq_of_sub_eq_zero (by simpa only [sub_eq_add_neg] using hcast))
+    rw [basisFactor, ite_eq_right hja, cast_mulMod, cast_addMod, cast_negMod,
+      cast_unitInv_residue hdpos hdlt, cast_addMod, cast_negMod, ite_eq_right hja]
+    simp only [sub_eq_add_neg]
+
+private theorem cast_basisFactor_eq_zero {a j x : ℕ} (hja : j ≠ a)
+    (hxj : (x : ZMod p) = (j : ZMod p)) :
+    ((basisFactor p a j x : ℕ) : ZMod p) = 0 := by
+  rw [basisFactor, ite_eq_right hja, cast_mulMod, cast_addMod, cast_negMod, hxj, add_neg_cancel,
+    zero_mul]
 
 private theorem cast_basisWeight_eq_prod (s a x : ℕ) :
     ((basisWeight p s a x : ℕ) : ZMod p) =
@@ -158,27 +149,21 @@ private theorem cast_basisWeight_prod {s a : ℕ} (ha : a < s) (x : ℕ) :
         if j = a then 1 else ((x : ZMod p) - j) * ((a : ZMod p) - j)⁻¹ := by
   rw [cast_basisWeight_eq_prod]
   by_cases h : ∃ j ∈ Finset.range s, j ≠ a ∧ (a : ZMod p) = (j : ZMod p)
-  · rcases h with ⟨j₁, hj₁, hja₁, heq₁⟩
-    have hj₁lt : j₁ < s := Finset.mem_range.mp hj₁
-    have hmod : a % p = j₁ % p := (ZMod.natCast_eq_natCast_iff' a j₁ p).mp heq₁
+  · obtain ⟨j₁, hj₁, hja₁, heq₁⟩ := h
     have hps : p < s := by
       by_contra! hle
-      rw [Nat.mod_eq_of_lt (ha.trans_le hle), Nat.mod_eq_of_lt (hj₁lt.trans_le hle)] at hmod
-      exact hja₁ hmod.symm
-    have hxp : x % p < p := Nat.mod_lt x (Fact.out : p.Prime).pos
-    have hcast : ((x % p : ℕ) : ZMod p) = (x : ZMod p) := ZMod.natCast_mod x p
+      exact hja₁ (Nat.ModEq.eq_of_lt_of_lt ((ZMod.natCast_eq_natCast_iff a j₁ p).mp heq₁)
+        (ha.trans_le hle) ((Finset.mem_range.mp hj₁).trans_le hle)).symm
     obtain ⟨j₂, hj₂, hja₂, hxj₂⟩ :
         ∃ j₂ ∈ Finset.range s, j₂ ≠ a ∧ (x : ZMod p) = (j₂ : ZMod p) := by
       by_cases hxa : x % p = a
-      · exact ⟨j₁, hj₁, hja₁, hcast.symm.trans ((congrArg Nat.cast hxa).trans heq₁)⟩
-      · exact ⟨x % p, Finset.mem_range.mpr (hxp.trans hps), hxa, hcast.symm⟩
+      · exact ⟨j₁, hj₁, hja₁, by rw [← heq₁, ← hxa, ZMod.natCast_mod]⟩
+      · exact ⟨x % p, Finset.mem_range.mpr ((Nat.mod_lt x (Fact.out : p.Prime).pos).trans hps),
+          hxa, (ZMod.natCast_mod x p).symm⟩
     exact (Finset.prod_eq_zero hj₂ (cast_basisFactor_eq_zero hja₂ hxj₂)).trans
       (Finset.prod_eq_zero hj₁ (by simp [hja₁, heq₁])).symm
-  · refine Finset.prod_congr rfl fun j hj => ?_
-    by_cases hja : j = a
-    · simp [basisFactor, hja]
-    · have hne : (a : ZMod p) ≠ (j : ZMod p) := fun heq => h ⟨j, hj, hja, heq⟩
-      rw [cast_basisFactor_of_ne hne, ite_eq_right hja]
+  · exact Finset.prod_congr rfl fun j hj =>
+      cast_basisFactor (fun hja heq => h ⟨j, hj, hja, heq⟩) x
 
 /-- The counter procedure evaluates the finite-grid Lagrange basis polynomial for any alphabet size
 `s`: when another symbol in `0, …, s - 1` collides with `a` modulo `p`, both the basis polynomial
