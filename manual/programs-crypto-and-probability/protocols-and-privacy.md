@@ -335,6 +335,21 @@ verification and commitment recovery, with polynomial-time certificates. The sup
 must come from hashing `(message, commitment)` in the surrounding signature protocol; these
 arithmetic operations alone do not enforce random-oracle consistency.
 
+[CslibFrontier/Crypto/Protocols/SigmaProtocol/RelatedNonce.lean](../../CslibFrontier/Crypto/Protocols/SigmaProtocol/RelatedNonce.lean)
+covers Boneh–Shoup Exercise 19.1 for Schnorr signatures signed under affine-related nonces `r` and
+`a * r + b` [bs23][bs23]: `relatedNonceExtract_smul` recovers a witness from two accepting
+transcripts whenever `a * ι c₀ ≠ ι c₁`, and
+`one_sub_inv_card_le_succProbability_relatedNonceGame` shows that a two-query random-oracle
+attacker recovers the signing key with probability at least `1 - 1 / |C|` when the two signed
+messages are distinct (`m₀ ≠ m₁`).
+[CslibFrontier/Crypto/Computational/SchnorrRelatedNonce.lean](../../CslibFrontier/Crypto/Computational/SchnorrRelatedNonce.lean)
+computes the same recovery on binary words in polynomial time
+(`schnorrRelatedNonceExtractWord`, `computableInPolyTime_schnorrRelatedNonceExtractWord`,
+`ofBits_schnorrRelatedNonceExtractWord`), with no word-level attack game or PPT reduction;
+[CslibFrontierTests/Crypto/SchnorrRelatedNonce.lean](../../CslibFrontierTests/Crypto/SchnorrRelatedNonce.lean)
+exercises extraction over `ZMod 7`, probes `m₀ = m₁` over `ZMod 5`, and evaluates word recovery
+in `schnorrGroups`.
+
 The word verifier compares the supplied commitment with canonical public commitment recovery.
 For a canonical public key, acceptance forces the commitment into the encoding range, for arbitrary
 response and challenge words; no group-membership decoder is assumed. This rejects aliases such as
