@@ -25,7 +25,7 @@ These statements include `Q = 0`, with Lean's division-by-zero convention giving
 The Bernoulli MGF estimate specializes Mathlib's `hasSubgaussianMGF_of_mem_Icc`.
 The tail proof uses the finite-PMF concentration API and the existing replicated
 Poisson-binomial law to express event probabilities as binomial-coefficient sums.
-For a caller using the MGF bound directly, see
+For a caller using the binomial normalization identity, see
 [`BinaryKL.lean`](../../CslibFrontier/Probability/BinaryKL.lean).
 
 ## Prime modulus collisions
