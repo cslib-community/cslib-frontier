@@ -20,13 +20,13 @@ length of the encoded list. The fold rule
 `Turing.MultiTapeTM.ComputableInPolyTime.foldlWith_of_bounded_growth` takes exactly this additive
 growth bound. This is the product counterpart of
 `Turing.MultiTapeTM.ComputableInPolyTime.binary_sum` and the natural-number counterpart of
-`Turing.MultiTapeTM.ComputableInPolyTime.intBin_prod`.
+`Turing.MultiTapeTM.ComputableInPolyTime.intBin_prod`. For a product `(l.map H).prod` of the binary
+values of a polynomial-time `H`, compose with `Turing.MultiTapeTM.ComputableInPolyTime.map`, as in
+`binary_prod.comp (.map hH)`; `fun_prop` finds this composition too.
 
 ## Main results
 
 * `Turing.MultiTapeTM.ComputableInPolyTime.binary_prod`: the product of a list of binary naturals.
-* `Turing.MultiTapeTM.ComputableInPolyTime.binary_prod_map`: the product of the values of a
-  polynomial-time function with binary values over a list.
 -/
 
 public section
@@ -47,13 +47,5 @@ theorem binary_prod : ComputableInPolyTime List.prod (encList encNat) encNat := 
       have := Nat.size_mul_le s a
       lia)
   simpa only [← List.prod_eq_foldl] using h
-
-/-- The product `(l.map H).prod` of the values of `H` over a list, for `H` polynomial-time with
-binary values. `fun_prop` also finds this composition of `binary_prod` with
-`Turing.MultiTapeTM.ComputableInPolyTime.map`; the name serves term-mode clients. -/
-theorem binary_prod_map {α : Type} {enc : α ↪ List Bool} {H : α → ℕ}
-    (hH : ComputableInPolyTime H enc encNat) :
-    ComputableInPolyTime (fun l : List α => (l.map H).prod) (encList enc) encNat :=
-  binary_prod.comp (map hH)
 
 end Turing.MultiTapeTM.ComputableInPolyTime

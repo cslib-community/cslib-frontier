@@ -148,9 +148,9 @@ uses the same certificate for separate time and space envelopes.
 
 For products, import
 [`PolyTime.Nat.ListProd`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/PolyTime/Nat/ListProd.lean):
-`ComputableInPolyTime.binary_prod` certifies the product of a list on `encList encNat`, and
-`ComputableInPolyTime.binary_prod_map` certifies `(l.map H).prod` on `encList enc` for a
-polynomial-time `H` with binary values.
+`ComputableInPolyTime.binary_prod` certifies the product of a list on `encList encNat`; for
+`(l.map H).prod` with `H` polynomial-time with binary values, compose it with
+`ComputableInPolyTime.map`, as in `binary_prod.comp (.map hH)`.
 
 For a polynomial-time map on pairs, import
 [`CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Families`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/PolyTime/Families.lean).
