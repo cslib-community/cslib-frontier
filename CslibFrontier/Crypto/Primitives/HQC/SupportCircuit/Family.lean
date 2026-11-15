@@ -11,7 +11,6 @@ public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Generator
 public import CslibFrontier.Computability.Circuit.Quantum.Output
 public import CslibFrontier.Computability.Circuit.Quantum.Reversible.Sampling.Prefix
 public import CslibFrontier.Crypto.Game.AttackResources
-public import CslibFrontier.Crypto.Primitives.HQC.PKE
 public import CslibFrontier.Crypto.Primitives.HQC.SupportCircuit.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
@@ -25,13 +24,6 @@ support-weight schedules. The resulting oracle-free circuit family has exactly t
 `sampleSupport2` law at every security parameter; it does not replace that non-dyadic law by the
 ideal fixed-weight distribution. `SupportSamplerSchedule.HasNegligibleError` records the separate
 growing-width condition under which the finite discrepancy bound is negligible.
-
-`PKESupportSamplerSchedules` matches three such schedules to the roles and weights of a
-`PKEParams` family. Its derived `PKESupportSamplerFamilies` names five sampler variants in source
-order: key-generation `y, x` at weight `omega`, then encryption `r2, e, r1` at weights
-`omegaR, omegaE, omegaR`. This structure does not impose HQC v5.1's fixed 32-bit source-word
-width; connecting the variants to the named parameter records is separate work. This is sampler
-infrastructure for the reductions; it makes no HQC security or QROM claim.
 
 The schedule carries two layout facts needed by the existing unshifted reversible realization:
 the framed unary family input fits its active register, and the copied output block is disjoint
@@ -462,55 +454,5 @@ theorem exists_generator :
       (((PolynomiallyBounded.const 2).mul .id).add (.const 1))
 
 end SupportSamplerSchedule
-
-/-- Three support-sampler schedules matched to the roles and weights of a `PKEParams` family. The
-secret schedule is used twice in key generation, the random schedule twice in encryption, and the
-error schedule once. The word-width schedules remain unconstrained by `PKEParams`. -/
-structure PKESupportSamplerSchedules (P : ℕ → PKEParams) where
-  /-- Schedule for key-generation supports `y` and `x`. -/
-  secret : SupportSamplerSchedule
-  /-- Schedule for encryption supports `r2` and `r1`. -/
-  encryptionRandom : SupportSamplerSchedule
-  /-- Schedule for the encryption-error support `e`. -/
-  encryptionError : SupportSamplerSchedule
-  /-- Secret draws use the HQC ring size. -/
-  secret_universeSize : ∀ s, secret.universeSize s = (P s).n
-  /-- Secret draws use weight `omega`. -/
-  secret_supportWeight : ∀ s, secret.supportWeight s = (P s).omega
-  /-- Encryption-random draws use the HQC ring size. -/
-  encryptionRandom_universeSize : ∀ s, encryptionRandom.universeSize s = (P s).n
-  /-- Encryption-random draws use weight `omegaR`. -/
-  encryptionRandom_supportWeight : ∀ s, encryptionRandom.supportWeight s = (P s).omegaR
-  /-- Encryption-error draws use the HQC ring size. -/
-  encryptionError_universeSize : ∀ s, encryptionError.universeSize s = (P s).n
-  /-- Encryption-error draws use weight `omegaE`. -/
-  encryptionError_supportWeight : ∀ s, encryptionError.supportWeight s = (P s).omegaE
-
-/-- Five role- and parameter-matched support-sampler variants, named in HQC-PKE source order.
-Their schedules need not use the source's fixed 32-bit word width. -/
-structure PKESupportSamplerFamilies where
-  /-- Key-generation draw `y` of weight `omega`. -/
-  keyGenY : UniformOracleCircuitFamily
-  /-- Key-generation draw `x` of weight `omega`. -/
-  keyGenX : UniformOracleCircuitFamily
-  /-- Encryption draw `r2` of weight `omegaR`. -/
-  encryptionR2 : UniformOracleCircuitFamily
-  /-- Encryption draw `e` of weight `omegaE`. -/
-  encryptionError : UniformOracleCircuitFamily
-  /-- Encryption draw `r1` of weight `omegaR`. -/
-  encryptionR1 : UniformOracleCircuitFamily
-
-namespace PKESupportSamplerSchedules
-
-/-- Instantiate five role- and parameter-matched sampler variants from three schedules. -/
-@[expose] def families {P : ℕ → PKEParams} (S : PKESupportSamplerSchedules P) :
-    PKESupportSamplerFamilies where
-  keyGenY := S.secret.family
-  keyGenX := S.secret.family
-  encryptionR2 := S.encryptionRandom.family
-  encryptionError := S.encryptionError.family
-  encryptionR1 := S.encryptionRandom.family
-
-end PKESupportSamplerSchedules
 
 end Cslib.Crypto.HQC

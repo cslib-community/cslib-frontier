@@ -1329,27 +1329,21 @@ above. Negligibility is a separate growing-width property; in particular, the pu
 word width `32` does not satisfy it. The module records exact online resources and separate
 polynomial offline-generator and static-occurrence accounting.
 
-`PKESupportSamplerSchedules` binds three schedules to the roles and weights of a `PKEParams`
-family, and `PKESupportSamplerFamilies` names five source-order sampler variants: key generation
-`y, x` at weight `omega`, then encryption `r2, e, r1` at weights `omegaR, omegaE, omegaR`.
-`PKEParams` does not constrain their word-width schedules, so this binding alone does not give the
-fixed 32-bit source sampler. The checked client uses a small fixture with distinct secret/random
-and error weights; it is not a published HQC parameter-set consumer. The named `hqc1PKEParams`,
-`hqc3PKEParams` and `hqc5PKEParams` records are currently supplied only by the unmerged
-[#5279](https://github.com/cslib-community/cslib-frontier/issues/5279) work. Connecting this family
-to those records and the source's fixed width depends on that work landing. HQC v5.1 §6.2.3 also
-composes the upper-density factors for three encryption support vectors multiplicatively; the
-reduction remains [#5281](https://github.com/cslib-community/cslib-frontier/issues/5281). The family
-module makes no HQC security or QROM claim.
+The generic family does not bind schedules to named HQC parameter sets or compose the multiple
+support draws used by key generation and encryption. HQC v5.1 §6.2.3 also composes the
+upper-density factors for three encryption support vectors multiplicatively; that integration is
+tracked by [#5279](https://github.com/cslib-community/cslib-frontier/issues/5279), and the reduction
+remains [#5281](https://github.com/cslib-community/cslib-frontier/issues/5281). The family module
+makes no HQC security or QROM claim.
 
 The complete ordinary clients in
 [`HQCSupportCircuit.lean`](../../CslibFrontierTests/Crypto/HQCSupportCircuit.lean) and
 [`HQCSupportProbability.lean`](../../CslibFrontierTests/Crypto/HQCSupportProbability.lean) check
 the non-dyadic sampler law, finite discrepancy, and the growing-width qualification.
 [`HQCSupportSamplerFamily.lean`](../../CslibFrontierTests/Crypto/HQCSupportSamplerFamily.lean)
-checks inhabited fixed-weight outputs for two distinct PKE fixture weights, the negligible
-growing-width condition, each resource coordinate, and offline occurrence accounting. From the
-repository root, build them with:
+checks an inhabited fixed-weight output for one generic schedule, the negligible growing-width
+condition, each resource coordinate, and offline occurrence accounting. From the repository root,
+build them with:
 
 ```bash
 scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.HQCSupportCircuit CslibFrontierTests.Crypto.HQCSupportProbability CslibFrontierTests.Crypto.HQCSupportSamplerFamily

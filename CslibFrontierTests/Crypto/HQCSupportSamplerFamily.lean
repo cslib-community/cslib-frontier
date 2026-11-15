@@ -13,10 +13,9 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 /-!
 # Checked clients for scheduled HQC support-sampler families
 
-These examples instantiate the generic family with growing widths and bind three schedules to a
-small `PKEParams` fixture. They check exact fixed-weight output laws for both the secret weight and
-the distinct encryption-error weight, the oracle-free resource record, negligible finite-width
-error, and separate offline artifact accounting. They do not state an HQC security claim.
+These examples instantiate the generic family with growing widths. They check its exact
+fixed-weight output law, oracle-free resource record, negligible finite-width error, and separate
+offline artifact accounting. They do not state an HQC security claim.
 -/
 
 public section
@@ -48,51 +47,6 @@ private def secretSchedule : SupportSamplerSchedule where
     unfold samplerOutputStart samplerZero
     omega
 
-private def errorSchedule : SupportSamplerSchedule where
-  wordWidth := fun s => 2 * s + 3
-  valueBits := fun _ => 2
-  universeSize := fun _ => 3
-  supportWeight := fun _ => 1
-  computableInPolyTime_wordWidth :=
-    unary_add' (unary_mul' (const 2) id') (const 3)
-  computableInPolyTime_valueBits := const 2
-  computableInPolyTime_universeSize := const 3
-  computableInPolyTime_supportWeight := const 1
-  supportWeight_le_universeSize := by intro; omega
-  universeSize_lt_two_pow_valueBits := by intro; norm_num
-  framedInput_le_activeWidth := by
-    intro s
-    unfold samplerWidth samplerOutputStart samplerZero
-    omega
-  outputPrefix_disjoint := by
-    intro s
-    unfold samplerOutputStart samplerZero
-    omega
-
-private def testPKEParams (_ : ℕ) : PKEParams where
-  n := 3
-  k := 1
-  ell := 1
-  omega := 2
-  omegaR := 2
-  omegaE := 1
-  delta := 1
-  ell_le_n := by decide
-  omega_le_n := by decide
-  omegaR_le_n := by decide
-  omegaE_le_n := by decide
-
-private def pkeSchedules : PKESupportSamplerSchedules testPKEParams where
-  secret := secretSchedule
-  encryptionRandom := secretSchedule
-  encryptionError := errorSchedule
-  secret_universeSize := by intro; rfl
-  secret_supportWeight := by intro; rfl
-  encryptionRandom_universeSize := by intro; rfl
-  encryptionRandom_supportWeight := by intro; rfl
-  encryptionError_universeSize := by intro; rfl
-  encryptionError_supportWeight := by intro; rfl
-
 theorem output_shape (S : SupportSamplerSchedule) (s : ℕ) {out : List Bool}
     (hout : out ∈ (S.family.output s [] (fun _ _ => false)
       (ket (fun _ => false)) (norm_ket _)).support) :
@@ -104,26 +58,15 @@ theorem output_shape (S : SupportSamplerSchedule) (s : ℕ) {out : List Bool}
     (sampleSupport2_mem_powersetCard (S.supportWeight_le_universeSize s) hA)
   exact ⟨List.length_ofFn, by rw [count_true_ofFn, weight_indicatorVector hsub, hcard]⟩
 
--- The PKE API bundle maps key-generation `y` to weight two and encryption error `e` to the
--- distinct weight one; both output constraints are inhabited.
+-- The generic single-draw family has an inhabited exact fixed-weight output law.
 example (s : ℕ) :
-    (∃ out ∈ (pkeSchedules.families.keyGenY.output s [] (fun _ _ => false)
+    ∃ out ∈ (secretSchedule.family.output s [] (fun _ _ => false)
       (ket (fun _ => false)) (norm_ket _)).support,
-        out.length = 3 ∧ out.count true = 2) ∧
-      (∃ out ∈ (pkeSchedules.families.encryptionError.output s [] (fun _ _ => false)
-        (ket (fun _ => false)) (norm_ket _)).support,
-          out.length = 3 ∧ out.count true = 1) := by
-  constructor
-  · obtain ⟨out, hout⟩ := (pkeSchedules.families.keyGenY.output s [] (fun _ _ => false)
-      (ket (fun _ => false)) (norm_ket _)).support_nonempty
-    refine ⟨out, hout, ?_⟩
-    simpa [PKESupportSamplerSchedules.families, pkeSchedules, secretSchedule] using
-      output_shape secretSchedule s hout
-  · obtain ⟨out, hout⟩ := (pkeSchedules.families.encryptionError.output s []
-      (fun _ _ => false) (ket (fun _ => false)) (norm_ket _)).support_nonempty
-    refine ⟨out, hout, ?_⟩
-    simpa [PKESupportSamplerSchedules.families, pkeSchedules, errorSchedule] using
-      output_shape errorSchedule s hout
+        out.length = 3 ∧ out.count true = 2 := by
+  obtain ⟨out, hout⟩ := (secretSchedule.family.output s [] (fun _ _ => false)
+    (ket (fun _ => false)) (norm_ket _)).support_nonempty
+  refine ⟨out, hout, ?_⟩
+  simpa [secretSchedule] using output_shape secretSchedule s hout
 
 -- Growing word width establishes the explicit asymptotic premise; fixed width 32 would not.
 example : secretSchedule.HasNegligibleError := by
