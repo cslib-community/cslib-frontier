@@ -234,6 +234,16 @@ repository root, check these clients with:
 scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.DiffieHellman CslibFrontierTests.Crypto.MultiDDH CslibFrontierTests.Crypto.AssumptionNonvacuity
 ```
 
+DDH fails when the group order is even ([bs23][bs23], Section 16.1.3 and Exercise 10.24). Import
+[`DiffieHellman/EvenOrder.lean`](../../CslibFrontier/Crypto/Computational/DiffieHellman/EvenOrder.lean).
+For `Even q` and `c ↦ c • g` injective, `div_two_nsmul_smul_eq_zero_iff` (Lemma 16.1) and
+`even_val_mul_iff` (Lemma 16.2) read the parity of `a.val` and `(a * b).val` from `(q / 2) • _`,
+and `ddhAdvantage_ddhParityDistinguisher` proves that the parity test `ddhParityDistinguisher q`
+has fixed-group advantage exactly `1 / 2`. `ddhAdvantage_units_ddhParityDistinguisher` instantiates
+this for `(ZMod p)ˣ`, `p` an odd prime, under the local module structure `zmodUnitsModule p`. The
+operation count is not stated. The [even-order client](../../CslibFrontierTests/Crypto/DiffieHellmanEvenOrder.lean)
+checks `ZMod 6`, `(ZMod 7)ˣ` and the odd-order failure of Lemma 16.1 in `ZMod 5`.
+
 Inversion and prediction are each stated once, for a fixed function and input distribution, in
 [`Crypto/Game/Inversion.lean`](../../CslibFrontier/Crypto/Game/Inversion.lean):
 `inversionExperiment sample f A` draws `x`, gives `A` the image `f x` and accepts any preimage,
