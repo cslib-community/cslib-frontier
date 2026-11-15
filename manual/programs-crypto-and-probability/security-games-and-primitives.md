@@ -1658,14 +1658,14 @@ ProbComp.eval (listCDHExperiment q g Q A) true ≤
 ```
 
 The factor is exactly `Q`. The uniform index gives it, and replacing that index by
-`sampleModIndex width Q` costs at most `Q / 2 ^ width` in the CDH experiment
-(`Game.advantage_bind_sampleModNat_fin_le`, which takes `[NeZero Q]`; the case `Q = 0` is separate),
-which the factor `Q` turns into `Q ^ 2 / 2 ^ width`. The step from one instance to the experiment is
-`PMF.bind_apply_le_mul_bind_apply_add` of
-[`Probability/PMF/DensityBounds.lean`](../../CslibFrontier/Probability/PMF/DensityBounds.lean): for
-`p : PMF α`, `f g : α → PMF β`, `c ε : ℝ≥0∞` and an outcome `b`, it takes
-`h : ∀ a, f a b ≤ c * g a b + ε` and shows `p.bind f b ≤ c * p.bind g b + ε`, so the constant `ε`
-is averaged, not multiplied.
+`sampleModIndex width Q` costs at most `Q / 2 ^ width` in the CDH experiment, which the factor `Q`
+turns into `Q ^ 2 / 2 ^ width`. For fixed exponents and a fixed list, the swap of the index comes
+from `Game.advantage_bind_sampleModNat_fin_le`, which takes `[NeZero Q]`; the case `Q = 0` is
+separate. The average over the exponents and the list keeps the constant as it is:
+`PMF.bind_apply_le_add_const_on_support` of
+[`Probability/PMF/Bind.lean`](../../CslibFrontier/Probability/PMF/Bind.lean), for `μ : PMF α`,
+`f g : α → PMF β`, an outcome `b` and `c : ℝ≥0∞`, takes `h : ∀ a ∈ μ.support, f a b ≤ g a b + c`
+and shows `μ.bind f b ≤ μ.bind g b + c`.
 
 [`DiffieHellman/ListCDHFamily.lean`](../../CslibFrontier/Crypto/Computational/DiffieHellman/ListCDHFamily.lean)
 gives the family game `listCDHGame setup Q adversary` for a bound `Q : ℕ → ℕ` and the reduction
@@ -1685,8 +1685,14 @@ Game.succProbability (F.listCDHGame setup Q adversary n) ≤
     Q n ^ 2 / 2 ^ width n
 ```
 
-The certified loss is the book's factor `Q n` and the additive term `ε = Q n ^ 2 / 2 ^ width n`,
-which is not zero for any `width n` when `Q n ≠ 0`. `succProbability_listCDHGame_mono` takes
+The lift over `setup` averages the one-group bound over the drawn group description with
+`PMF.bind_apply_le_mul_bind_apply_add` of
+[`Probability/PMF/DensityBounds.lean`](../../CslibFrontier/Probability/PMF/DensityBounds.lean): for
+`p : PMF α`, `f g : α → PMF β`, `c ε : ℝ≥0∞` and an outcome `b`, it takes
+`h : ∀ a, f a b ≤ c * g a b + ε` and shows `p.bind f b ≤ c * p.bind g b + ε`, so the constant `ε`
+is averaged, not multiplied; `PMF.bind_apply_le_mul_bind_apply` is its case `ε = 0`. The certified
+loss is the book's factor `Q n` and the additive term `ε = Q n ^ 2 / 2 ^ width n`, which is not
+zero for any `width n` when `Q n ≠ 0`. `succProbability_listCDHGame_mono` takes
 `hle : Q n ≤ Q' n` and shows that the success probability at `n` with the bound `Q'` is at least
 that with the bound `Q`. The conclusion `CDH.negligible_listCDHGame` takes `h : F.CDH setup`, `hQ`
 and an adversary with `hA : adversary.IsPPT`, and shows that its success probability in the list

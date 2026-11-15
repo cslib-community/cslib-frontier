@@ -12,7 +12,6 @@ public import CslibFrontier.Crypto.Computational.Homomorphic.Leveled.Size
 public import CslibFrontier.Crypto.Game.Statistical
 public import CslibFrontier.Languages.Probabilistic.UniformNat.ModIndex
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List.Size
 import CslibFrontier.Computability.Probabilistic.CoinTape.Bounds
