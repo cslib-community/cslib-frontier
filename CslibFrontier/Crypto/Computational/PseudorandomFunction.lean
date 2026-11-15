@@ -32,7 +32,8 @@ with one machine and polynomial for all parameters and auxiliary inputs.
 
 `PseudorandomFunctionOver inLen outLen` is the same notion for families whose inputs have
 `inLen n` bits and whose outputs have `outLen n` bits, with `n`-bit keys, as for a PRF whose
-input, output and key spaces differ. `PseudorandomFunction` is its length-preserving case.
+input, output and key spaces differ. `PseudorandomFunction` is its length-preserving case; the
+migration of `PseudorandomFunction` and its clients onto it is #5720.
 
 ## Main definitions
 
@@ -175,7 +176,8 @@ asymptotically with `K`, `X` and `Y` the words of `n`, `inLen n` and `outLen n` 
 and deterministic polynomial-time evaluation is part of the notion.
 
 `PseudorandomFunction` is the length-preserving case: at `inLen = outLen = id` the two games are
-`prfRealGame` and `prfIdealGame`. -/
+`prfRealGame` and `prfIdealGame`. Making `PseudorandomFunction` this case and migrating its clients
+is tracked in [#5720](https://github.com/cslib-community/cslib-frontier/issues/5720). -/
 structure PseudorandomFunctionOver (inLen outLen : ℕ → ℕ)
     (family : List Bool → List Bool → List Bool) : Prop where
   /-- One deterministic machine evaluates the family from the encoded key and query. -/
