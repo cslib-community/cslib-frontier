@@ -12,6 +12,7 @@ public import CslibFrontier.Foundations.Data.Nat.ChineseRemainder
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Gcd
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeBinaryPrimitives
+import CslibFrontier.Foundations.Data.ZMod.NatCast
 import Mathlib.FieldTheory.Finite.Basic
 
 /-!
@@ -32,15 +33,14 @@ not, the recombined output `σ` satisfies `gcd(σ ^ e − h, n) = q`, where `h` 
   `d_p = d mod (p - 1)`, `d_q = d mod (q - 1)` and a given `q_inv`.
 * `Cslib.Crypto.RSADesc.crtQInv`, `Cslib.Crypto.RSADesc.crtKey`: the inverse of `q` modulo `p`
   computed by the extended Euclidean algorithm `Turing.MultiTapeTM.BinaryGcd.modInv`, and the key
-  that uses it.
+  that uses it. `crtKey` is not exposed; `Cslib.Crypto.RSADesc.crtKey_eq_crtKeyWith` rewrites it
+  to `crtKeyWith` with `q_inv = crtQInv`.
 
 ## Main results
 
 * `Cslib.Crypto.RSADesc.crtQInv_eq_zmod_inv_val`, `Cslib.Crypto.RSADesc.crtQInv_mul_modEq_one`:
   `crtQInv` is the representative `((q : ZMod p)⁻¹).val` of `q⁻¹` in `ZMod p`, and an inverse
   of `q` modulo `p`.
-* `Cslib.Crypto.RSADesc.crtKey_eq_crtKeyWith`: `crtKey` is `crtKeyWith` with `q_inv = crtQInv`,
-  so the results about `crtKeyWith` apply to it.
 * `Cslib.Crypto.RSACRTKey.combine_mod_mod`, `Cslib.Crypto.RSACRTKey.combine_modEq_p`,
   `Cslib.Crypto.RSACRTKey.combine_modEq_q`: recombination returns `x < p * q` from its residues,
   and its output is congruent to `x_p` modulo `p` and to `x_q` modulo `q`.
@@ -394,8 +394,7 @@ private theorem val_natCast_pow_sub_natCast {n : ℕ} [NeZero n] (σ e h : ℕ) 
     ((σ : ZMod n) ^ e - (h : ZMod n)).val = (σ ^ e % n + (n - h % n)) % n := by
   rw [← ZMod.val_natCast (n := n) (σ ^ e % n + (n - h % n))]
   congr 1
-  rw [Nat.cast_add, Nat.cast_sub (Nat.mod_lt h (NeZero.pos n)).le, ZMod.natCast_mod,
-    ZMod.natCast_mod, ZMod.natCast_self, Nat.cast_pow]
+  rw [Nat.cast_add, ZMod.natCast_sub_mod_eq_neg, ZMod.natCast_mod, Nat.cast_pow]
   ring
 
 /-- The gcd step of the fault attack on RSA-CRT ([BonehShoup2023], §16.4.3, p. 702),
