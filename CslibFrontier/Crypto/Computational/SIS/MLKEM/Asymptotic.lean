@@ -140,12 +140,14 @@ private def extendedSampleCiphertext (sample m : List Bool) : List Bool :=
 
 variable [NeZero P.q]
 
+omit [NeZero P.q] in
 private theorem keySamplePublicKey_encodeSample (pk : PublicKey P) :
     keySamplePublicKey P (ModuleLWE.encodeSample pk) = encodePublicKey pk := by
   simp only [keySamplePublicKey, ModuleLWE.encodeSample, ModuleLWE.sampleDecoder.decode_enc,
     ModuleLWE.entryResidues_encodeMatrix, ModuleLWE.chunkResidues_flattenPolyVec, encodePublicKey,
     matrixResidues]
 
+omit [NeZero P.q] in
 private theorem extendedSamplePublicKey_encodeSample
     (M : Matrix (Fin (P.k + 1)) (Fin P.k) (Fin P.n → ZMod P.q))
     (w : Fin (P.k + 1) → Fin P.n → ZMod P.q) :

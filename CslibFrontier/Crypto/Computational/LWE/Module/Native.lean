@@ -68,7 +68,7 @@ def sampleDecoder : Decoder (encPair encBits (encList encNat)) :=
 
 /-- Reading the entries of the expanded rows of an encoded module matrix gives the residue lists of
 its entries. -/
-theorem entryResidues_encodeMatrix {d k n q : ℕ} [NeZero q]
+theorem entryResidues_encodeMatrix {d k n q : ℕ}
     (A : Matrix (Fin d) (Fin k) (Fin n → ZMod q)) :
     entryResidues d k n ((Decoder.list (Decoder.list Decoder.nat)).decode
       (ModuleSIS.encodeMatrix A)) = List.ofFn fun i => polyVecResidues (A i) := by
