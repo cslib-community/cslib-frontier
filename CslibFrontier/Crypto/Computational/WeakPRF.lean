@@ -10,7 +10,6 @@ module
 public import CslibFrontier.Crypto.Computational.MAC
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
-import CslibFrontier.Computability.Probabilistic.Oracle.Tidy
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Probability.BitString.List
 import CslibFrontier.Probability.PMF.Bind

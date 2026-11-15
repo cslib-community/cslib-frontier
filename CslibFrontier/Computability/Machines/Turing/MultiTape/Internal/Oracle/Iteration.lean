@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Probabilistic.Oracle.Tidy
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.Oracle.Phase
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.IterateWhile
 public import CslibFrontier.Languages.Probabilistic.Iteration
 public import CslibFrontier.Languages.Probabilistic.Oracle.Support
@@ -30,9 +30,9 @@ every shared oracle. Storage growth is controlled by the client's size bound, no
 
 ## Main results
 
-* `Cslib.Probability.IsTidyOraclePPTOn.iterate_spec`: certify a bounded loop and its final
+* `IsTidyOraclePPTOn.iterate_spec`: certify a bounded loop and its final
   supported invariant.
-* `Cslib.Probability.IsTidyOraclePPTOn.iterateWith_spec`: the step may capture the input.
+* `IsTidyOraclePPTOn.iterateWith_spec`: the step may capture the input.
 
 ## References
 
@@ -43,7 +43,9 @@ version of the tidy `iterateWhile` loop instead of presampled coins.
 
 public section
 
-namespace Cslib.Probability
+namespace Turing.MultiTapePTM.Internal.Oracle
+
+open Cslib Cslib.Probability
 
 open _root_.Turing _root_.Turing.MultiTapeTM _root_.Turing.MultiTapePTM
 
@@ -255,4 +257,4 @@ theorem iterateWith_of_bounded_growth {initial : α → σ} {count : α → ℕ}
 
 end IsTidyOraclePPTOn
 
-end Cslib.Probability
+end Turing.MultiTapePTM.Internal.Oracle
