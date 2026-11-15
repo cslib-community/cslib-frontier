@@ -83,6 +83,12 @@ law of the typed simulator.
   its computational form for "computationally bounded" ones (Section 2.1).
 * A shift of Hamming weight above `t κ` is answered as the shift `0` (`clampShift`), where
   Definition 2 admits only shifts of weight at most `t`.
+* Theorem 1 assumes that the FMR scheme "is an (M, ℓ, t, ϵ)-fuzzy extractor", which comprises
+  correctness and security (Definition 1, p. 4), and Definition 2 defines weak reusability for a
+  fuzzy extractor. The theorem here assumes and concludes only the security halves, since the
+  weak-reusability experiment never runs reproduction (`Rec`). Correctness of the common-matrix
+  scheme, averaged over the uniform matrix, is
+  `DecoderCorrectWithError.setupCorrect_commonMatrixFuzzyExtractor`.
 
 ## References
 
@@ -246,12 +252,6 @@ private noncomputable def simulatorWords (t : ℕ → ℕ) (A : WordReuseAdversa
 
 /-! ### The word program has the simulator's law -/
 
-/-- An entry read from `w` digits is below `2 ^ w`. -/
-private theorem binaryEntry_lt (cols w : ℕ) (word : List Bool) (i j : ℕ) :
-    Cslib.Matrix.binaryEntry cols w word i j < 2 ^ w := by
-  have h := Nat.foldr_bit_lt (BitString.listRow w (i * cols + j) word)
-  rwa [BitString.length_listRow] at h
-
 /-- `lightShift` decides the Hamming bound for the decoded shift. -/
 private theorem lightShift_eq (m w t : ℕ) (request : List Bool) :
     lightShift m w t request =
@@ -263,7 +263,8 @@ private theorem lightShift_eq (m w t : ℕ) (request : List Bool) :
         decide (Cslib.Matrix.binaryEntry m w request 0 j.val ≠ 0) = true := by
       rw [Cslib.Matrix.ofBinary_apply, Fin.val_zero, decide_eq_true_iff, Ne, Ne,
         ZMod.natCast_eq_zero_iff]
-      exact not_congr ⟨fun h => Nat.eq_zero_of_dvd_of_lt h (binaryEntry_lt m w request 0 j),
+      exact not_congr ⟨fun h => Nat.eq_zero_of_dvd_of_lt h
+        (Cslib.Matrix.binaryEntry_lt m w request 0 j),
         fun h => by rw [h]; exact dvd_zero _⟩
     rw [List.countP_range_eq_card_filter, hammingNorm]
     simp only [hzero]
