@@ -44,6 +44,9 @@ queries and digests are words. The native `inactive` callback omits the semantic
 * `Cslib.RandomOracle.lazyProgramWordHandler`,
   `Cslib.RandomOracle.overwriteProgramWordHandler`: executable closed handlers for the lazy and
   freshly programmed worlds.
+* `Cslib.RandomOracle.ProgrammingInvariant`,
+  `Cslib.RandomOracle.programmingResources`: the opaque state invariant and shared additive
+  allowance used by source-operation adapters and whole-program certificates.
 
 ## Main results
 
@@ -54,8 +57,10 @@ queries and digests are words. The native `inactive` callback omits the semantic
   `Cslib.RandomOracle.runWith_overwriteProgramWordHandler`: exact adaptive whole-run laws.
 * `Cslib.RandomOracle.isPPTOn_lazyProgramWordHandler`,
   `Cslib.RandomOracle.isPPTOn_overwriteProgramWordHandler`: strict-PPT call certificates.
-* `Cslib.RandomOracle.lazyProgramWordHandler_support`: preservation and additive encoded-state
-  growth for every supported lazy-handler call.
+* `Cslib.RandomOracle.computableInPolyTime_programmingResources`,
+  `Cslib.RandomOracle.lazyProgramWordHandler_support`: polynomial-time computation of the shared
+  allowance, invariant preservation and additive encoded-state growth for supported lazy-handler
+  calls.
 * `Cslib.RandomOracle.isPPTOn_run_lazyProgramWordHandler`,
   `Cslib.RandomOracle.isPPTOn_run_overwriteProgramWordHandler`: whole-program strict-PPT
   certificates derived from an adversary certificate and the additive state contract.
