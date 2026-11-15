@@ -20,12 +20,12 @@ Concrete `module`-boundary tests and hypothesis counterexamples for
    yields `Experiment.advantage = 1`.
 2. Matching the key sampler's law (`hgen`) is required: running `otpCipher 1` with `pure 0` yields
    `Experiment.advantage = 1`.
-3. Matching the encryption law (`henc`) is required: pairing the identity cipher with `otp 1`
-   yields `Experiment.advantage = 1`.
-4. Positive concrete checks for `otpCipher 4`, `variableLengthOTPCipher 4`, the `L = 0` boundary,
-   a `CiphertextIndist` client using `advantage_oneTimeExperiment_eq_zero` with
-   `ciphertextDist_eq_encScheme`, and `Experiment.advantage_eq_two_mul_guessingAdvantage_guessBit`
-   (Boneh–Shoup Theorem 2.10).
+3. Equal ciphertext laws (or `henc`) are required: the identity cipher `idCipherBool` under a
+   uniform key yields `Experiment.advantage = 1`.
+4. Positive concrete checks for a randomized cipher `nonceCipher` (unfolding `ciphertextDist`), a
+   generic `CiphertextIndist` client over arbitrary `K M C` using
+   `advantage_oneTimeExperiment_eq_zero_of_ciphertextDist_eq` with `ciphertextDist_eq_encScheme`,
+   and `Experiment.advantage_eq_two_mul_guessingAdvantage_guessBit` (Boneh–Shoup Theorem 2.10).
 -/
 
 public section
@@ -86,8 +86,9 @@ theorem bitVecZeroDistinguisher_advantage :
   rw [Experiment.advantage, heval false, heval true]
   simp [Game.advantage, Game.succProbability]
 
-/-- Probe 3: pairing the identity cipher with `otp 1` (which is `PerfectlySecret`) breaks
-`advantage = 0` when `henc` fails, giving `Experiment.advantage = 1`. -/
+/-- Probe 3: the identity cipher under a uniform key has `Experiment.advantage = 1`, showing that
+equal-ciphertext-law security (and `henc` when compared to a perfectly secret scheme) fails without
+matching ciphertext distributions. -/
 def idCipherBool : Cipher Bool Bool Bool :=
   ofPure (fun _ m => m) (fun _ c => c)
 
@@ -114,52 +115,43 @@ theorem idCipherBool_advantage :
   rw [Experiment.advantage, heval false, heval true]
   simp [Game.advantage, Game.succProbability]
 
-/-- Concrete correctness and semantic security for `otpCipher 4`, and for a client holding
-`EncScheme.CiphertextIndist` directly via `advantage_oneTimeExperiment_eq_zero` and
-`ciphertextDist_eq_encScheme`. -/
-example {σ : Type} (A : TwoStage Unit (MessagePair (BitVec 4)) (BitVec 4) Bool σ) :
-    (otpCipher 4).Correct ∧
-    Experiment.advantage
-        ((otpCipher 4).oneTimeExperiment (ProbComp.uniform (BitVec 4)) (fun _ _ => true) A false)
-        ((otpCipher 4).oneTimeExperiment (ProbComp.uniform (BitVec 4)) (fun _ _ => true) A true) =
-      0 :=
-  ⟨otpCipher_correct 4, advantage_oneTimeExperiment_otpCipher 4 _ A⟩
+/-- A randomized cipher: a fresh uniform bit beside the padded message bit. -/
+noncomputable def nonceCipher : Cipher Bool Bool (Bool × Bool) where
+  encrypt k m := do
+    let r ← ProbComp.uniform Bool
+    pure (r, m ^^ k)
+  decrypt k c := some (c.2 ^^ k)
 
-example {σ : Type} (S : EncScheme (BitVec 4) (BitVec 4) (BitVec 4)) (hS : S.CiphertextIndist)
-    (E : Cipher (BitVec 4) (BitVec 4) (BitVec 4)) (sampleKey : ProbComp (BitVec 4))
+theorem nonceCipher_ciphertextDist_eq (m₀ m₁ : Bool) :
+    nonceCipher.ciphertextDist (ProbComp.uniform Bool) m₀ =
+      nonceCipher.ciphertextDist (ProbComp.uniform Bool) m₁ := by
+  ext ⟨r, c⟩
+  simp only [ciphertextDist, nonceCipher, ProbComp.eval_bind, ProbComp.eval_uniform,
+    ProbComp.eval_pure, PMF.bind_apply, PMF.uniformOfFintype_apply, Fintype.card_bool,
+    tsum_bool, PMF.pure_apply]
+  cases m₀ <;> cases m₁ <;> cases r <;> cases c <;> simp [add_comm]
+
+example {σ : Type} (A : TwoStage Unit (MessagePair Bool) (Bool × Bool) Bool σ) :
+    Experiment.advantage
+      (nonceCipher.oneTimeExperiment (ProbComp.uniform Bool) (fun _ _ => true) A false)
+      (nonceCipher.oneTimeExperiment (ProbComp.uniform Bool) (fun _ _ => true) A true) = 0 :=
+  advantage_oneTimeExperiment_eq_zero_of_ciphertextDist_eq _ _ _
+    (fun m₀ m₁ _ => nonceCipher_ciphertextDist_eq m₀ m₁) A
+
+/-- Client holding `EncScheme.CiphertextIndist` directly via
+`advantage_oneTimeExperiment_eq_zero_of_ciphertextDist_eq` and `ciphertextDist_eq_encScheme`. -/
+example {K M C σ : Type} (S : EncScheme M K C) (hS : S.CiphertextIndist)
+    (E : Cipher K M C) (sampleKey : ProbComp K)
     (hgen : S.gen = ProbComp.eval sampleKey)
     (henc : ∀ k m, ProbComp.eval (E.encrypt k m) = S.enc k m)
-    (A : TwoStage Unit (MessagePair (BitVec 4)) (BitVec 4) Bool σ) :
+    (A : TwoStage Unit (MessagePair M) C Bool σ) :
     Experiment.advantage (E.oneTimeExperiment sampleKey (fun _ _ => true) A false)
       (E.oneTimeExperiment sampleKey (fun _ _ => true) A true) = 0 := by
-  refine advantage_oneTimeExperiment_eq_zero E sampleKey _ (fun m₀ m₁ _ => ?_) A
+  refine advantage_oneTimeExperiment_eq_zero_of_ciphertextDist_eq E sampleKey _
+    (fun m₀ m₁ _ => ?_) A
   rw [ciphertextDist_eq_encScheme E sampleKey S hgen henc m₀,
     ciphertextDist_eq_encScheme E sampleKey S hgen henc m₁]
   exact hS m₀ m₁
-
-/-- Concrete correctness and semantic security for `variableLengthOTPCipher` at `L = 4` and at
-the `L = 0` boundary. -/
-example {σ : Type}
-    (A : TwoStage Unit (MessagePair {w : List Bool // w.length ≤ 4})
-      {w : List Bool // w.length ≤ 4} Bool σ) :
-    (variableLengthOTPCipher 4).Correct ∧
-    Experiment.advantage
-        ((variableLengthOTPCipher 4).oneTimeExperiment (ProbComp.uniform (BitString 4))
-          (fun m₀ m₁ => decide (m₀.1.length = m₁.1.length)) A false)
-        ((variableLengthOTPCipher 4).oneTimeExperiment (ProbComp.uniform (BitString 4))
-          (fun m₀ m₁ => decide (m₀.1.length = m₁.1.length)) A true) = 0 :=
-  ⟨variableLengthOTPCipher_correct 4, advantage_oneTimeExperiment_variableLengthOTPCipher 4 A⟩
-
-example {σ : Type}
-    (A : TwoStage Unit (MessagePair {w : List Bool // w.length ≤ 0})
-      {w : List Bool // w.length ≤ 0} Bool σ) :
-    (variableLengthOTPCipher 0).Correct ∧
-    Experiment.advantage
-        ((variableLengthOTPCipher 0).oneTimeExperiment (ProbComp.uniform (BitString 0))
-          (fun m₀ m₁ => decide (m₀.1.length = m₁.1.length)) A false)
-        ((variableLengthOTPCipher 0).oneTimeExperiment (ProbComp.uniform (BitString 0))
-          (fun m₀ m₁ => decide (m₀.1.length = m₁.1.length)) A true) = 0 :=
-  ⟨variableLengthOTPCipher_correct 0, advantage_oneTimeExperiment_variableLengthOTPCipher 0 A⟩
 
 /-- Theorem 2.10 instance for `Cipher.oneTimeExperiment` via
 `Experiment.advantage_eq_two_mul_guessingAdvantage_guessBit`: for `idCipherBool` and

@@ -23,10 +23,10 @@ ciphers.
 
 Connecting an information-theoretic `EncScheme` to a computational `Cipher` and key sampler via
 distribution equality yields semantic security for every `EncScheme.PerfectlySecret` cipher (and
-clients holding `EncScheme.CiphertextIndist` directly apply `advantage_oneTimeExperiment_eq_zero`
-with `ciphertextDist_eq_encScheme`). Instantiations cover both the fixed-length one-time pad over
-`BitVec l` and the variable-length one-time pad `variableLengthOTPCipher L` on equal-length
-messages.
+clients holding `EncScheme.CiphertextIndist` directly apply
+`advantage_oneTimeExperiment_eq_zero_of_ciphertextDist_eq` with `ciphertextDist_eq_encScheme`).
+Instantiations cover both the fixed-length one-time pad over `BitVec l` and the variable-length
+one-time pad `variableLengthOTPCipher L` on equal-length messages.
 
 For the bit-guessing identity `SSadv[A, E] = 2 * SSadv*[A, E]` ([BonehShoup2023], Theorem 2.10,
 p. 26) applied to `E.oneTimeExperiment sampleKey valid A`, apply
@@ -44,12 +44,11 @@ p. 26) applied to `E.oneTimeExperiment sampleKey valid A`, apply
 
 ## Main results
 
-- `Cslib.Crypto.Cipher.eval_oneTimeExperiment_eq`: equal ciphertext laws on admissible message
-  pairs induce identical experiment distributions for both challenge bits against every adversary
-- `Cslib.Crypto.Cipher.advantage_oneTimeExperiment_eq_zero`: equal ciphertext laws on admissible
-  pairs give semantic-security advantage `0` against every adversary
-- `Cslib.Crypto.Cipher.ciphertextDist_eq_encScheme`: ciphertext distribution equality between a
-  `Cipher` and a matching `EncScheme`
+- `Cslib.Crypto.Cipher.eval_oneTimeExperiment_eq_of_ciphertextDist_eq`: equal ciphertext laws on
+  admissible message pairs induce identical experiment distributions for both challenge bits against
+  every adversary
+- `Cslib.Crypto.Cipher.advantage_oneTimeExperiment_eq_zero_of_ciphertextDist_eq`: equal ciphertext
+  laws on admissible pairs give semantic-security advantage `0` against every adversary
 - `Cslib.Crypto.Cipher.advantage_oneTimeExperiment_eq_zero_of_perfectlySecret`: any cipher matching
   a `PerfectlySecret` scheme has semantic-security advantage `0` against every adversary
 - `Cslib.Crypto.Cipher.advantage_oneTimeExperiment_otpCipher`: semantic-security advantage `0` for
@@ -93,6 +92,7 @@ theorem ofPure_correct (enc : K → M → C) (dec : K → C → M)
   subst hc
   exact congrArg some (h k m)
 
+/-- Key-averaged ciphertext distribution of a deterministic cipher `ofPure enc dec`. -/
 @[simp]
 theorem ciphertextDist_ofPure (enc : K → M → C) (dec : K → C → M)
     (sampleKey : ProbComp K) (m : M) :
@@ -103,8 +103,8 @@ theorem ciphertextDist_ofPure (enc : K → M → C) (dec : K → C → M)
 /-- **Equal ciphertext laws hide the challenge bit**: if the key-averaged ciphertext law of `m₀`
 equals that of `m₁` for every admissible pair `(m₀, m₁)`, then `oneTimeExperiment` has the same
 output distribution for both challenge bits against every adversary. -/
-theorem eval_oneTimeExperiment_eq {σ : Type} (E : Cipher K M C) (sampleKey : ProbComp K)
-    (valid : M → M → Bool)
+theorem eval_oneTimeExperiment_eq_of_ciphertextDist_eq {σ : Type} (E : Cipher K M C)
+    (sampleKey : ProbComp K) (valid : M → M → Bool)
     (h : ∀ m₀ m₁, valid m₀ m₁ = true →
       E.ciphertextDist sampleKey m₀ = E.ciphertextDist sampleKey m₁)
     (A : TwoStage Unit (MessagePair M) C Bool σ) (b₀ b₁ : Bool) :
@@ -126,14 +126,15 @@ theorem eval_oneTimeExperiment_eq {σ : Type} (E : Cipher K M C) (sampleKey : Pr
 
 /-- **Equal ciphertext laws give zero semantic-security advantage** ([BonehShoup2023],
 Example 2.9, p. 17; Exercise 2.7, p. 39). -/
-theorem advantage_oneTimeExperiment_eq_zero {σ : Type} (E : Cipher K M C)
+theorem advantage_oneTimeExperiment_eq_zero_of_ciphertextDist_eq {σ : Type} (E : Cipher K M C)
     (sampleKey : ProbComp K) (valid : M → M → Bool)
     (h : ∀ m₀ m₁, valid m₀ m₁ = true →
       E.ciphertextDist sampleKey m₀ = E.ciphertextDist sampleKey m₁)
     (A : TwoStage Unit (MessagePair M) C Bool σ) :
     Experiment.advantage (E.oneTimeExperiment sampleKey valid A false)
       (E.oneTimeExperiment sampleKey valid A true) = 0 := by
-  rw [Experiment.advantage, eval_oneTimeExperiment_eq E sampleKey valid h A false true,
+  rw [Experiment.advantage,
+    eval_oneTimeExperiment_eq_of_ciphertextDist_eq E sampleKey valid h A false true,
     Game.advantage_self]
 
 /-- A cipher whose key sampler and encryption laws match an information-theoretic `EncScheme`
@@ -148,8 +149,10 @@ theorem ciphertextDist_eq_encScheme (E : Cipher K M C) (sampleKey : ProbComp K)
   funext k
   exact henc k m
 
-/-- **Perfectly secret ciphers have zero semantic-security advantage** ([BonehShoup2023],
-Example 2.9, p. 17). -/
+/-- **Ciphers matching a perfectly secret `EncScheme` have zero semantic-security advantage**:
+any `Cipher` matching an `EncScheme.PerfectlySecret` scheme through `hgen` and `henc` has
+advantage `0` in `oneTimeExperiment` against every adversary ([BonehShoup2023], Example 2.9,
+p. 17). -/
 theorem advantage_oneTimeExperiment_eq_zero_of_perfectlySecret {σ : Type} (E : Cipher K M C)
     (sampleKey : ProbComp K) (S : EncScheme M K C)
     (hgen : S.gen = ProbComp.eval sampleKey)
@@ -158,7 +161,8 @@ theorem advantage_oneTimeExperiment_eq_zero_of_perfectlySecret {σ : Type} (E : 
     (A : TwoStage Unit (MessagePair M) C Bool σ) :
     Experiment.advantage (E.oneTimeExperiment sampleKey valid A false)
       (E.oneTimeExperiment sampleKey valid A true) = 0 := by
-  refine advantage_oneTimeExperiment_eq_zero E sampleKey valid (fun m₀ m₁ _ => ?_) A
+  refine advantage_oneTimeExperiment_eq_zero_of_ciphertextDist_eq E sampleKey valid
+    (fun m₀ m₁ _ => ?_) A
   rw [ciphertextDist_eq_encScheme E sampleKey S hgen henc m₀,
     ciphertextDist_eq_encScheme E sampleKey S hgen henc m₁]
   exact (EncScheme.perfectlySecret_iff_ciphertextIndist S).mp hS m₀ m₁
@@ -168,11 +172,13 @@ theorem advantage_oneTimeExperiment_eq_zero_of_perfectlySecret {σ : Type} (E : 
 def otpCipher (l : ℕ) : Cipher (BitVec l) (BitVec l) (BitVec l) :=
   ofPure (fun k m => k ^^^ m) (fun k c => k ^^^ c)
 
+/-- Correctness of the fixed-length one-time pad cipher `otpCipher l`. -/
 theorem otpCipher_correct (l : ℕ) : (otpCipher l).Correct :=
   ofPure_correct _ _ fun k m => by
     rw [← BitVec.xor_assoc, BitVec.xor_self, BitVec.zero_xor]
 
-/-- **The one-time pad is semantically secure** ([BonehShoup2023], Example 2.9, p. 17). -/
+/-- **The one-time pad has zero semantic-security advantage** under a uniform key against every
+adversary ([BonehShoup2023], Example 2.9, p. 17). -/
 theorem advantage_oneTimeExperiment_otpCipher {σ : Type} (l : ℕ)
     (valid : BitVec l → BitVec l → Bool)
     (A : TwoStage Unit (MessagePair (BitVec l)) (BitVec l) Bool σ) :
@@ -190,18 +196,13 @@ def variableLengthOTPCipher (L : ℕ) :
     Cipher (BitString L) {w : List Bool // w.length ≤ L} {w : List Bool // w.length ≤ L} :=
   ofPure (varXor L) (varXor L)
 
+/-- Correctness of the variable-length one-time pad cipher `variableLengthOTPCipher L`. -/
 theorem variableLengthOTPCipher_correct (L : ℕ) : (variableLengthOTPCipher L).Correct :=
   ofPure_correct _ _ (varXor_varXor L)
 
-theorem variableLengthOTPCipher_ciphertextDist_eq (L : ℕ)
-    (m : {w : List Bool // w.length ≤ L}) :
-    (variableLengthOTPCipher L).ciphertextDist (ProbComp.uniform (BitString L)) m =
-      (variableLengthOTP L).ciphertextDist m := by
-  rw [variableLengthOTPCipher, ciphertextDist_ofPure, ProbComp.eval_uniform]
-  rfl
-
-/-- **The variable-length one-time pad is semantically secure on equal-length messages**
-([BonehShoup2023], Example 2.9, p. 17; Exercise 2.7, p. 39). -/
+/-- **The variable-length one-time pad has zero semantic-security advantage on equal-length
+messages** under a uniform key against every adversary ([BonehShoup2023], Example 2.9, p. 17;
+Exercise 2.7, p. 39). -/
 theorem advantage_oneTimeExperiment_variableLengthOTPCipher {σ : Type} (L : ℕ)
     (A : TwoStage Unit (MessagePair {w : List Bool // w.length ≤ L})
       {w : List Bool // w.length ≤ L} Bool σ) :
@@ -210,9 +211,11 @@ theorem advantage_oneTimeExperiment_variableLengthOTPCipher {σ : Type} (L : ℕ
           (fun m₀ m₁ => decide (m₀.1.length = m₁.1.length)) A false)
         ((variableLengthOTPCipher L).oneTimeExperiment (ProbComp.uniform (BitString L))
           (fun m₀ m₁ => decide (m₀.1.length = m₁.1.length)) A true) = 0 := by
-  refine advantage_oneTimeExperiment_eq_zero _ _ _ (fun m₀ m₁ hm => ?_) A
-  rw [variableLengthOTPCipher_ciphertextDist_eq, variableLengthOTPCipher_ciphertextDist_eq,
-    variableLengthOTP_ciphertextDist_eq_iff]
+  refine advantage_oneTimeExperiment_eq_zero_of_ciphertextDist_eq _ _ _ (fun m₀ m₁ hm => ?_) A
+  have hb := ciphertextDist_eq_encScheme (variableLengthOTPCipher L)
+    (ProbComp.uniform (BitString L)) (variableLengthOTP L)
+    (ProbComp.eval_uniform (BitString L)).symm (fun _ _ => ProbComp.eval_pure _)
+  rw [hb, hb, variableLengthOTP_ciphertextDist_eq_iff]
   exact decide_eq_true_eq.mp hm
 
 end Cslib.Crypto.Cipher
