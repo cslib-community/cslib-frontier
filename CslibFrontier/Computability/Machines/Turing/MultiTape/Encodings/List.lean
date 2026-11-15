@@ -50,7 +50,7 @@ public lemma encList_cons (a : α) (l : List α) :
 
 /-- Concatenation of lists is concatenation of their framed encodings. -/
 @[simp]
-public lemma encList_append {α : Type} (enc : α ↪ List Bool) (l₁ l₂ : List α) :
+public lemma encList_append {α : Type*} (enc : α ↪ List Bool) (l₁ l₂ : List α) :
     encList enc (l₁ ++ l₂) = encList enc l₁ ++ encList enc l₂ := by
   induction l₁ <;> simp [*]
 
