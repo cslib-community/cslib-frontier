@@ -367,9 +367,14 @@ Lemma 4.7 (p. 14) assumes Definition 4.5 in dimension `n - k` for any `χ`, and 
 *Relation to standard assumptions.* `DecisionLWE` is the case of independent coordinates
 (`decisionLWE_iff_decisionLWEWithErrors`). For other laws, neither this assumption nor FMR's
 prime-modulus form is proved or cited to imply the other, and hardness can differ between the two
-moduli for the same law. An error law supported on even residues is easy modulo `2 ^ w κ` once
-`m κ > n κ`, by reducing modulo 2, while at an odd prime `q`, multiplying by `2⁻¹` turns errors
-`2 e'` into `e'`.
+moduli for the same law. Take an error law supported on even residues. At each `κ` with
+`w κ > 0` and `m κ > n κ`, reducing `A` and `b` modulo 2 and testing whether `A s ≡ b (mod 2)`
+has a solution separates the games: in the real game it always has one, and in the random game
+with probability at most `2 ^ (n κ - m κ) ≤ 1/2`. At `w κ = 0` the modulus is 1 and the two games
+coincide. The test needs `n κ`, `m κ` and `w κ` to locate the entries in its input, so it is PPT
+when `n`, `m` and `w` are computable in polynomial time in unary, and the assumption then fails if
+`w κ > 0` and `m κ > n κ` for infinitely many `κ`. At an odd prime `q`, multiplying by `2⁻¹`
+turns errors `2 e'` into `e'`.
 
 *Deviations from Definition 4.5.*
 * The modulus `2 ^ w κ` replaces the prime `q = poly(n)`, which FMR need for decoding
@@ -384,10 +389,14 @@ moduli for the same law. An error law supported on even residues is easy modulo 
   dimension `l = n - k`, following Lemma 4.7, where Theorem 4.11 writes `dist-LWE(n,m,q,𝒵^m)` in
   dimension `n`; hardness in dimension `n - k` implies hardness in dimension `n`.
 * `n`, `m` and `w` are arbitrary functions of a separate security parameter `κ`, where
-  Definition 4.5 takes `n` as the security parameter and `m, q = poly(n)`. Distinguishers run in
-  time polynomial in `κ`, so a family whose dimension grows slowly in `κ`, such as
-  `n κ = ⌊log κ⌋`, asks for hardness against adversaries superpolynomial in the dimension, which is
-  more than standard LWE asks.
+  Definition 4.5 takes `n` as the security parameter and `m, q = poly(n)`. A distinguisher's
+  clock is polynomial in the length of its encoded input (`LWE.Distinguisher.IsPPT`), which is
+  framed unary `κ` followed by the `m κ * (n κ + 1) * w κ` bits of `[b | A]` (`LWE.encInput`).
+  For arbitrary `n`, `m` and `w` that length need not be polynomial in `κ`. When they are
+  computable in polynomial time in unary, as the theorem that assumes it requires, the length is
+  at least `κ` and polynomial in `κ`, so the clock is polynomial in `κ`. A family whose dimension
+  grows slowly in `κ`, such as `n κ = ⌊log κ⌋`, then asks for hardness against adversaries
+  superpolynomial in the dimension, which is more than standard LWE asks.
 
 *Plausibility.* It is the problem that FMR study, moved to the modulus of the library's
 `DecisionLWE`, its case of independent coordinates. At prime modulus, FMR derive it from LWE with
