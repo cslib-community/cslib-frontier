@@ -1705,6 +1705,7 @@ public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Controller.Reso
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Density
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Interaction
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.InteractionResources
+public import CslibFrontier.Computability.Circuit.Quantum.Oracle.RandomOracle
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Resources
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Signature
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Uniform
@@ -4421,6 +4422,7 @@ public import CslibFrontier.Crypto.Computational.Encryption.Scheme
 public import CslibFrontier.Crypto.Computational.Encryption.SymmetricCPA
 public import CslibFrontier.Crypto.Computational.EvenMansour
 public import CslibFrontier.Crypto.Computational.Factoring.PollardRho
+public import CslibFrontier.Crypto.Computational.Falcon.BerExp
 public import CslibFrontier.Crypto.Computational.Falcon.Verification
 public import CslibFrontier.Crypto.Computational.Falcon.VerificationFrontend
 public import CslibFrontier.Crypto.Computational.FuzzyExtractor.Basic
@@ -4691,6 +4693,7 @@ public import CslibFrontier.Crypto.Computational.SIS.ModulusSwitch.Native
 public import CslibFrontier.Crypto.Computational.SIS.Native
 public import CslibFrontier.Crypto.Computational.SIS.Polynomial
 public import CslibFrontier.Crypto.Computational.SIS.Polynomial.Coefficients
+public import CslibFrontier.Crypto.Computational.SNOVA.SigningAttempts
 public import CslibFrontier.Crypto.Computational.SchnorrEavesdrop
 public import CslibFrontier.Crypto.Computational.SchnorrIdentification
 public import CslibFrontier.Crypto.Computational.SchnorrProofOfKnowledge
@@ -5431,6 +5434,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.LowDegree.OrTest
 public import CslibFrontier.Foundations.BooleanAnalysis.LowDegree.Polynomial
 public import CslibFrontier.Foundations.BooleanAnalysis.LowDegreeMoments
 public import CslibFrontier.Foundations.BooleanAnalysis.LowDegreeParity
+public import CslibFrontier.Foundations.BooleanAnalysis.LowDegreePhase
 public import CslibFrontier.Foundations.BooleanAnalysis.MaximalSupport
 public import CslibFrontier.Foundations.BooleanAnalysis.MirrorSets
 public import CslibFrontier.Foundations.BooleanAnalysis.Mobius
@@ -5782,6 +5786,7 @@ public import CslibFrontier.Foundations.Data.Code.Basic
 public import CslibFrontier.Foundations.Data.Code.BerlekampWelch
 public import CslibFrontier.Foundations.Data.Code.BinaryJohnson
 public import CslibFrontier.Foundations.Data.Code.Concatenation
+public import CslibFrontier.Foundations.Data.Code.DuplicatedReedMuller
 public import CslibFrontier.Foundations.Data.Code.EliasBassalygo
 public import CslibFrontier.Foundations.Data.Code.ExpanderCode
 public import CslibFrontier.Foundations.Data.Code.FlipDecoding
