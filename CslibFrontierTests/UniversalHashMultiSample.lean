@@ -31,10 +31,10 @@ Checked instances and counterexamples for `CslibFrontier/Probability/UniversalHa
 * Probe 4 (universality of `hash`): a constant hash fails `IsTwoUniversal` and has distance `1 / 2`
   on a uniform 2-bit input, exceeding the two-universal bound `√(2 * (1 / 4)) / 2`.
 * Probe 5 (guessing-probability bound `hmass`): a point-mass input under the two-universal family
-  `coordHash` has distance `1 / 2 > 0`.
+  `coordHash` has distance `1 / 2`, exceeding the bound `1 / 4` at `γ = 1 / 8`.
 * Concrete positive instances: a `(1 + 1) / 5`-universal polynomial hash (`α = 1 > 0`) on `Fin 3`
-  over `ZMod 5`, non-identically distributed independent samples under `coordHash`, uniform 2-bit
-  samples on `Fin 3`, and the book's AES key-derivation numerical example.
+  over `ZMod 5`, non-identically distributed independent samples under `coordHash`, and uniform
+  2-bit samples on `Fin 3`.
 -/
 
 set_option linter.privateModule false
@@ -244,6 +244,20 @@ theorem dist_seededHash_pi_coordHash_pure :
   simpa [seededHash, coordHash] using
     dist_bind_pure_uniformOfFintype_unit_bool (fun _ => false)
 
+theorem not_dist_le_of_not_mass_le :
+    ¬ (dist (seededHash (PMF.uniformOfFintype Bool)
+        (PMF.pi (fun _ : Unit => PMF.pure (false, false)))
+        (fun s x i => coordHash s (x i)))
+      ((PMF.uniformOfFintype Bool).bind
+        (fun s => (PMF.uniformOfFintype (Unit → Bool)).map (s, ·))) ≤
+      Fintype.card Unit * Real.sqrt (Fintype.card Bool * (1 / 8 : ℝ)) / 2) := by
+  rw [PMF.uniformOfFintype_prod, dist_seededHash_pi_coordHash_pure]
+  have hsqrt : Real.sqrt (2 * (1 / 8 : ℝ)) = 1 / 2 := by
+    have h : (2 : ℝ) * (1 / 8 : ℝ) = (1 / 2 : ℝ) ^ 2 := by norm_num
+    rw [h, Real.sqrt_sq (by norm_num)]
+  simp only [Fintype.card_unit, Fintype.card_bool, Nat.cast_one, Nat.cast_ofNat, one_mul, hsqrt]
+  norm_num
+
 /-! ### Concrete positive instances -/
 
 instance : Fact (Nat.Prime 5) := ⟨by decide⟩
@@ -305,14 +319,5 @@ example :
   simpa using coord_twoUniversal.leftover_hash_pi_of_mass_le
     (fun _ : Fin 3 => PMF.uniformOfFintype (Bool × Bool))
     (γ := 1 / 4) (fun _ x => by norm_num [PMF.uniformOfFintype_apply])
-
--- Instance 4: The book's numerical example (§8.10.4, p. 334):
--- `N = 2^128`, `α = 0`, `γ = 2^(-256)`, `m = 1` gives `δ ≤ 2^(-65) ≤ 2^(-64)`.
-example :
-    (1 : ℝ) * Real.sqrt ((2 : ℝ) ^ 128 * (2 : ℝ) ^ (-256 : ℤ) + 0) / 2 = (2 : ℝ) ^ (-65 : ℤ) := by
-  have h1 : (2 : ℝ) ^ 128 * (2 : ℝ) ^ (-256 : ℤ) + 0 = ((2 : ℝ) ^ (-64 : ℤ)) ^ 2 := by
-    norm_num
-  rw [h1, Real.sqrt_sq (by positivity)]
-  norm_num
 
 end CslibFrontierTests.UniversalHashMultiSample

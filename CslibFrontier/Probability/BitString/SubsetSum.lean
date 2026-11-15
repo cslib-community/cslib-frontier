@@ -9,7 +9,6 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Probability.UniversalHash
-public import CslibFrontier.Probability.StatisticalDistance.Product
 public import CslibFrontier.Foundations.Data.BitString.Basic
 import CslibFrontier.Probability.UniversalHash.MultiSample
 import CslibFrontier.Probability.Uniform

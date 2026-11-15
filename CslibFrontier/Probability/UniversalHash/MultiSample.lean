@@ -9,7 +9,8 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Probability.UniversalHash
-public import CslibFrontier.Probability.StatisticalDistance.Product
+public import CslibFrontier.Probability.Product
+import CslibFrontier.Probability.StatisticalDistance.Product
 
 /-!
 # The leftover hash lemma for several independent samples
@@ -20,7 +21,9 @@ jointly close to independent uniform outputs even with `k` revealed. Conditioned
 the coordinate digests `(source i).map (hash k)` are independent, so the hybrid bound for
 conditionally independent products (`Cslib.Probability.PMF.dist_bind_pair_pi_le_sum`) sums the
 single-sample leftover-hash bounds (`Cslib.Probability.IsUniversalHash.leftover_hash`) across
-`i : ι`.
+`i : ι`. Unlike `Cslib.Probability.IsTwoUniversal.leftover_hash_pi_conditional` in
+`EntropyExtraction.lean`, which hashes a single joint tuple once, these theorems hash each
+coordinate separately under one shared seed.
 
 For a `(1 + α) / |Output|`-universal hash family and independent samples each of guessing
 probability at most `γ`, the statistical distance to uniform is at most
@@ -78,6 +81,20 @@ open scoped BigOperators ENNReal
 variable {Seed Input Output ι : Type*} [Fintype Seed] [Finite Input] [Fintype Output]
   [Fintype ι] [DecidableEq ι]
 
+/-- Hybrid step for coordinatewise hashing under one shared seed, for any `hash`: the distance of
+the digest tuple from a uniform tuple is at most the sum of the single-sample distances. -/
+private theorem dist_seededHash_pi_le_sum [Nonempty Output] (seed : PMF Seed)
+    (hash : Seed → Input → Output) (source : ι → PMF Input) :
+    dist (seededHash seed (PMF.pi source) (fun s x i => hash s (x i)))
+        (seed.bind (fun s => (PMF.uniformOfFintype (ι → Output)).map (s, ·))) ≤
+      ∑ i, dist (seededHash seed (source i) hash)
+        (seed.bind (fun s => (PMF.uniformOfFintype Output).map (s, ·))) := by
+  have hsum := dist_bind_pair_pi_le_sum seed
+    (fun s i => (source i).map (hash s))
+    (fun _ _ => PMF.uniformOfFintype Output)
+  simp only [PMF.pi_map source (fun _ => hash _), PMF.pi_uniformOfFintype] at hsum
+  simpa only [seededHash, PMF.map_comp, Function.comp_def] using hsum
+
 /-- **Multi-sample leftover hash lemma** for `ε`-universal families: hashing independent samples
 under one shared public seed is within the sum of the single-sample leftover-hash bounds of the
 seed paired with an independent uniform tuple. -/
@@ -87,24 +104,9 @@ theorem IsUniversalHash.leftover_hash_pi [Nonempty Output] {seed : PMF Seed}
     dist (seededHash seed (PMF.pi source) (fun s x i => hash s (x i)))
         (seed.bind (fun s => (PMF.uniformOfFintype (ι → Output)).map (s, ·))) ≤
       ∑ i, Real.sqrt
-        (Fintype.card Output * (collisionProbability (source i) + ε.toReal) - 1) / 2 := by
-  have hsum := dist_bind_pair_pi_le_sum seed
-    (fun s i => (source i).map (hash s))
-    (fun _ _ => PMF.uniformOfFintype Output)
-  have hreal (s : Seed) :
-      PMF.pi (fun i => (source i).map (hash s)) =
-        (PMF.pi source).map (fun x i => hash s (x i)) :=
-    PMF.pi_map source (fun _ => hash s)
-  simp only [hreal, PMF.pi_uniformOfFintype] at hsum
-  calc
-    dist (seededHash seed (PMF.pi source) (fun s x i => hash s (x i)))
-        (seed.bind (fun s => (PMF.uniformOfFintype (ι → Output)).map (s, ·)))
-      ≤ ∑ i, dist (seededHash seed (source i) hash)
-          (seed.bind (fun s => (PMF.uniformOfFintype Output).map (s, ·))) := by
-        simpa only [seededHash, PMF.map_comp, Function.comp_def] using hsum
-    _ ≤ ∑ i, Real.sqrt
-          (Fintype.card Output * (collisionProbability (source i) + ε.toReal) - 1) / 2 :=
-        Finset.sum_le_sum fun i _ => hhash.leftover_hash hε (source i)
+        (Fintype.card Output * (collisionProbability (source i) + ε.toReal) - 1) / 2 :=
+  (dist_seededHash_pi_le_sum seed hash source).trans
+    (Finset.sum_le_sum fun i _ => hhash.leftover_hash hε (source i))
 
 /-- **Theorem 8.11 (Leftover Hash Lemma for several samples)** ([BonehShoup2023], §8.10.4,
 p. 334), for any seed distribution: if `hash` is `(1 + α) / |Output|`-universal with `0 ≤ 1 + α`
@@ -165,12 +167,9 @@ theorem IsTwoUniversal.leftover_hash_pi [Nonempty Output] {seed : PMF Seed}
     (source : ι → PMF Input) :
     dist (seededHash seed (PMF.pi source) (fun s x i => hash s (x i)))
         (seed.bind (fun s => (PMF.uniformOfFintype (ι → Output)).map (s, ·))) ≤
-      ∑ i, Real.sqrt (Fintype.card Output * collisionProbability (source i)) / 2 := by
-  have hcard : (Fintype.card Output : ℝ) ≠ 0 := by exact_mod_cast Fintype.card_ne_zero
-  have hne : (Fintype.card Output : ℝ≥0∞)⁻¹ ≠ ⊤ :=
-    ENNReal.inv_ne_top.mpr (by exact_mod_cast Fintype.card_ne_zero)
-  simpa only [ENNReal.toReal_inv, ENNReal.toReal_natCast, mul_add, mul_inv_cancel₀ hcard,
-    add_sub_cancel_right] using IsUniversalHash.leftover_hash_pi hhash hne source
+      ∑ i, Real.sqrt (Fintype.card Output * collisionProbability (source i)) / 2 :=
+  (dist_seededHash_pi_le_sum seed hash source).trans
+    (Finset.sum_le_sum fun i _ => hhash.leftover_hash (source i))
 
 /-- **Multi-sample leftover hash lemma** for universal families (`α = 0`) under a pointwise
 guessing-probability bound `γ` on each sample. -/
@@ -180,17 +179,8 @@ theorem IsTwoUniversal.leftover_hash_pi_of_mass_le [Nonempty Output] {seed : PMF
     dist (seededHash seed (PMF.pi source) (fun s x i => hash s (x i)))
         (seed.bind (fun s => (PMF.uniformOfFintype (ι → Output)).map (s, ·))) ≤
       Fintype.card ι * Real.sqrt (Fintype.card Output * γ) / 2 := by
-  calc
-    dist (seededHash seed (PMF.pi source) (fun s x i => hash s (x i)))
-        (seed.bind (fun s => (PMF.uniformOfFintype (ι → Output)).map (s, ·)))
-      ≤ ∑ i, Real.sqrt (Fintype.card Output * collisionProbability (source i)) / 2 :=
-        hhash.leftover_hash_pi source
-    _ ≤ ∑ _i : ι, Real.sqrt (Fintype.card Output * γ) / 2 := by
-        refine Finset.sum_le_sum fun i _ => div_le_div_of_nonneg_right
-          (Real.sqrt_le_sqrt (mul_le_mul_of_nonneg_left
-            (collisionProbability_le_of_mass_le (source i) (hmass i)) (Nat.cast_nonneg _)))
-          (by norm_num)
-    _ = Fintype.card ι * Real.sqrt (Fintype.card Output * γ) / 2 := by
-        simp [mul_div_assoc]
+  refine (dist_seededHash_pi_le_sum seed hash source).trans
+    ((Finset.sum_le_sum fun i _ => hhash.leftover_hash_of_mass_le (source i) (hmass i)).trans_eq ?_)
+  simp [mul_div_assoc]
 
 end Cslib.Probability
