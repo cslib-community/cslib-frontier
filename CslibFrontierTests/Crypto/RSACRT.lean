@@ -10,7 +10,7 @@ import CslibFrontier.Crypto.Computational.RSACRT
 import Mathlib.Tactic.NormNum.Prime
 
 /-!
-# RSA-CRT inversion and the fault attack: checked instances
+# RSA-CRT inversion and the fault-attack gcd identity: checked instances
 
 Concrete checks for `CslibFrontier/Crypto/Computational/RSACRT.lean`:
 
@@ -73,7 +73,7 @@ example (y : ℕ) : (rsa3233.crtKeyWith 38).invert y = rsaInvert 3233 2753 y :=
 example (y : ℕ) : rsa3233.crtKey.invert y = rsaInvert 3233 2753 y :=
   rsa3233.invert_crtKey (by decide) (by decide) y
 
-/-! ### The fault attack -/
+/-! ### The fault-attack gcd identity -/
 
 /-- A faulty `x_p' = 40` recombined with the correct `x_q = 5` gives `σ = 2602`, and
 `σ ^ 17 − 65` in `[0, 3233)` is `1431 = 27 * 53`, whose gcd with `3233` is `q = 53`. -/
@@ -82,22 +82,19 @@ example : (rsa3233.crtKeyWith 38).combine 40 5 = 2602 ∧
     Nat.gcd 1431 3233 = 53 := by
   decide
 
-/-- `gcd_val_pow_sub_combine_eq_q` on the faulty value `x_p' = 40`, for `h = 65`, where the
-correct `x_q` is `65 ^ 2753 mod 53 = 5`. -/
+/-- `gcd_val_pow_sub_combine_eq_q` on the faulty value `x_p' = 40` and the correct
+`x_q = 5 ≡ 65 ^ 2753 (mod 53)`, for `h = 65`. -/
 example :
     Nat.gcd ((((rsa3233.crtKeyWith 38).combine 40 5 : ℕ) : ZMod 3233) ^ 17 -
-      ((65 : ℕ) : ZMod 3233)).val 3233 = 53 := by
-  have hxq : 65 ^ rsa3233.d % rsa3233.q = 5 := by decide +kernel
-  have h := rsa3233.gcd_val_pow_sub_combine_eq_q qInv_3233 65 40 (by decide +kernel)
-  rw [hxq] at h
-  exact h
+      ((65 : ℕ) : ZMod 3233)).val 3233 = 53 :=
+  rsa3233.gcd_val_pow_sub_combine_eq_q qInv_3233 (by decide +kernel) (by decide +kernel)
 
 /-- `gcd_val_pow_sub_eq_q` on `σ = 2602` and `h = 65`. -/
 example : Nat.gcd (((2602 : ℕ) : ZMod 3233) ^ 17 - ((65 : ℕ) : ZMod 3233)).val 3233 = 53 :=
   rsa3233.gcd_val_pow_sub_eq_q (by decide +kernel) (by decide +kernel)
 
-/-- With the correct `x_p = 39` the output is the true signature `588`, `σ ^ 17 − 65` is `0`
-and the gcd is `n`: the fault on `x_p` is needed. -/
+/-- With the correct `x_p = 39` the output is the correct value `rsaInvert 3233 2753 65 = 588`,
+`σ ^ 17 − 65` is `0` and the gcd is `n`: the fault on `x_p` is needed. -/
 example : Nat.gcd ((((rsa3233.crtKeyWith 38).combine 39 5 : ℕ) : ZMod 3233) ^ 17 -
     ((65 : ℕ) : ZMod 3233)).val 3233 = 3233 := by
   decide
