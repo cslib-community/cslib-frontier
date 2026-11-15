@@ -74,7 +74,13 @@ noncomputable abbrev predictionAdvantage (f : List Bool → List Bool)
   Game.guessingAdvantage (ProbComp.eval (predictionGame f predicate adversary n))
 
 /-- A plain polynomial-time predicate whose value is computationally hidden by the image
-function. -/
+function: [Goldreich1998Fragments], Definition 2.5.1, p. 54, except that the predictor here also
+receives the seed length `n` in unary, as the inverter of `OneWay` does, while the source's
+predictor receives only `f x`. The extra input can only help the predictor, so this notion implies
+the source's. The two agree when `n` in unary can be computed from `f x` in time polynomial in
+`|f x|`, as for length-preserving `f`. Security bounds the absolute bias `|Pr[correct] - 1/2|`;
+since the admitted predictors are closed under negating their output, this is equivalent to the
+source's one-sided bound `Pr[correct] < 1/2 + 1/p(n)`. -/
 structure HardCore (f : List Bool → List Bool) (predicate : List Bool → Bool) : Prop where
   /-- Computing the predicate from the seed uses a fixed polynomial-time machine. -/
   polyTime : ComputableInPolyTime predicate encBits encBool

@@ -144,7 +144,14 @@ there exists a single uniform strict PPT witness-free simulator `S` (chosen befo
 charged for `(1^n, (a, z))`) whose output ensemble is computationally indistinguishable from the
 real interaction output across all deterministic polynomial-time-generable families of instances
 `a : ℕ → α`, valid witnesses `w : ℕ → List Bool` (`∀ n, isWitness (a n) (w n) = true`), and
-auxiliary inputs `z : ℕ → List Bool` (`ComputableInPolyTime · encUnary _`). -/
+auxiliary inputs `z : ℕ → List Bool` (`ComputableInPolyTime · encUnary _`).
+
+This restricts [Goldreich1998Fragments], Definition 4.3.8, pp. 151–152, taken in the
+security-parameter form described at `AuxiliaryInputZeroKnowledge`, to families generated from
+`1^n` in deterministic polynomial time; the distinguisher receives only `n` and a sample, from
+which it can compute those families itself. The source quantifies over all instances, witnesses
+and auxiliary inputs. `AuxiliaryInputZeroKnowledge` implies this notion
+(`AuxiliaryInputZeroKnowledge.generableZeroKnowledge`). -/
 def GenerableZeroKnowledge {α : Type} (enc : α ↪ List Bool)
     (prover : ℕ → α → List Bool → Prover Unit)
     (isWitness : α → List Bool → Bool) : Prop :=
@@ -171,7 +178,20 @@ arbitrary polynomially bounded families of instances `a : ℕ → α`, valid wit
 `z : ℕ → List Bool`, and distinguisher auxiliary inputs `z' : ℕ → List Bool`, and for every
 uniform strict PPT distinguisher `adversary` (charged for its complete encoded input
 `((1^n, (a, z')), view)`), the distinguishing advantage between the real interaction view and the
-simulated view is negligible. -/
+simulated view is negligible.
+
+This is [Goldreich1998Fragments], Definition 4.3.8, pp. 151–152, which compares, as here, the
+malicious verifier's output with the simulator's, restated with a security parameter. The source
+indexes its ensembles by the instance `x`, measures the distinguishing gap as a function of `|x|`,
+admits auxiliary inputs of every length and clocks the verifier, simulator and distinguisher in
+`|x|` alone. Here every party also receives `n` in unary, the instances, witnesses and auxiliary
+inputs are polynomially bounded families indexed by `n` and clocked as part of the input, and the
+gap is negligible in `n`. The source gives the distinguisher the verifier's auxiliary input `z`;
+here its auxiliary input `z'` is chosen independently, so taking `z' = z` gives the source's
+case. The prover's private input ranges over valid witnesses (`isWitness`), where the source's
+ranges over every string with which the prover meets the completeness condition. This notion
+implies the library's instance-indexed form, which follows the source's indexing
+(`AuxiliaryInputZeroKnowledge.instanceAuxiliaryInputZeroKnowledge`). -/
 def AuxiliaryInputZeroKnowledge {α : Type} (enc : α ↪ List Bool)
     (prover : ℕ → α → List Bool → Prover Unit)
     (isWitness : α → List Bool → Bool) : Prop :=
@@ -332,7 +352,10 @@ theorem generableZeroKnowledge (zk : ZKProof enc A soundness) :
   zk.zero_knowledge
 
 /-- General auxiliary-input computational zero-knowledge for a bundled `ZKProof` system, ranging
-over arbitrary polynomially bounded instance, valid-witness, and auxiliary-input families. -/
+over arbitrary polynomially bounded instance, valid-witness, and auxiliary-input families:
+`Cslib.Crypto.AuxiliaryInputZeroKnowledge`, the security-parameter form of
+[Goldreich1998Fragments], Definition 4.3.8, pp. 151–152, for the bundled prover and witness
+predicate. -/
 def AuxiliaryInputZeroKnowledge (zk : ZKProof enc A soundness) : Prop :=
   Cslib.Crypto.AuxiliaryInputZeroKnowledge enc zk.prover zk.isWitness
 

@@ -171,7 +171,14 @@ together with a polynomial prefix bound `c, d` in `(1^n, a)` such that:
    witness families `w : ℕ → List Bool`, and **arbitrary, unbounded** auxiliary-input families
    `z : ℕ → List Bool`, every distinguisher clocked in `((1^n, a), view)` (`IsPPTWithAux`)
    receiving the full untruncated `z n` has negligible distinguishing advantage between the real
-   interaction view and the simulated view. -/
+   interaction view and the simulated view.
+
+This is [Goldreich1998Fragments], Definition 4.3.8, pp. 151–152, in the security-parameter form
+described at `AuxiliaryInputZeroKnowledge`, but with the source's treatment of auxiliary input:
+it may have any length, the verifier, simulator and distinguisher are clocked in the primary input
+(and the view), so they read only a polynomial prefix of it, and the distinguisher receives the
+verifier's `z`. This notion implies the library's instance-indexed form
+(`UnboundedAuxiliaryInputZeroKnowledge.instanceAuxiliaryInputZeroKnowledge`). -/
 def UnboundedAuxiliaryInputZeroKnowledge {α : Type} (enc : α ↪ List Bool)
     (prover : ℕ → α → List Bool → Prover Unit)
     (isWitness : α → List Bool → Bool) : Prop :=
@@ -495,7 +502,9 @@ namespace ZKProof
 
 variable {A : Set α} {soundness : ℕ → ENNReal}
 
-/-- Unbounded-`z` family auxiliary-input zero knowledge for a bundled `ZKProof`. -/
+/-- Unbounded-`z` family auxiliary-input zero knowledge for a bundled `ZKProof`:
+`Cslib.Crypto.UnboundedAuxiliaryInputZeroKnowledge`, a form of [Goldreich1998Fragments],
+Definition 4.3.8, pp. 151–152, for the bundled prover and witness predicate. -/
 def UnboundedAuxiliaryInputZeroKnowledge (zk : ZKProof enc A soundness) : Prop :=
   Cslib.Crypto.UnboundedAuxiliaryInputZeroKnowledge enc zk.prover zk.isWitness
 

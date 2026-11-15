@@ -60,7 +60,12 @@ variable {soundness soundness' : ℕ → ENNReal}
 
 /-- **Negligible soundness** for a `ZKProof`: the soundness bound is finite at every security
 parameter (`∀ n, soundness n ≠ ⊤`, ruling out the degenerate `ENNReal.toNNReal ⊤ = 0` case) and
-its nonnegative real value `fun n => (soundness n).toNNReal` is `Negligible`. -/
+its nonnegative real value `fun n => (soundness n).toNNReal` is `Negligible`.
+
+This is the soundness condition of [Goldreich1998Fragments], Definition 4.2.6, p. 136, with a
+negligible soundness bound. The bound is indexed by the security parameter `n`, where the
+source's is a function of the input length `|x|`; as there, it bounds the acceptance probability
+of every prover on false instances, with no resource bound on the prover (`ZKProof.sound`). -/
 def NegligibleSoundness (_zk : ZKProof enc A soundness) : Prop :=
   (∀ n, soundness n ≠ ⊤) ∧ Negligible (fun n => (soundness n).toNNReal)
 
