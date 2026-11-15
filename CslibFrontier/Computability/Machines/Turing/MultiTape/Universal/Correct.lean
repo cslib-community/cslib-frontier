@@ -223,7 +223,8 @@ public theorem toCfg_step {tm : MultiTapeTM k ℕ ℕ} {d : Desc} {s : SCfg} {ou
         Tape.cellAt_move, Action.apply_workTapes]
       cases (a.workTapes i).1 <;>
         simp [Tape.cellAt_write, Function.update_apply, c, SCfg.toCfg]
-    · simp [SCfg.toCfg, Act.apply, Act.ofAction, applyTapes_ofFn, Tape.apply, Tape.head_move, c]
+    · simp only [SCfg.toCfg, Act.apply, Act.ofAction, applyTapes_ofFn, List.getD_ofFn,
+        Tape.apply, Tape.head_move, c]
       cases (a.workTapes i).1 <;> simp [Tape.write]
     · simp [SCfg.toCfg, Act.ofAction, c]
 
