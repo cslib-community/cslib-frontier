@@ -155,17 +155,17 @@ private def blindedCDHCorrection (d : F.Desc) (μ ν γ : ℕ) (s t : F.Carrier 
   ((γ * ν : ℕ) : ZMod (F.order d)) • s + ((γ * μ : ℕ) : ZMod (F.order d)) • t +
     (((F.order d - 1) * (γ * γ * μ * ν) : ℕ) : ZMod (F.order d)) • F.generator d
 
-/-- `F.order d - 1` is `-1` modulo the order. -/
-private theorem natCast_order_sub_one (d : F.Desc) :
-    ((F.order d - 1 : ℕ) : ZMod (F.order d)) = -1 := by
-  rw [Nat.cast_sub (F.prime_order d).one_le, ZMod.natCast_self, Nat.cast_one, zero_sub]
+/-- `q - 1` is `-1` modulo `q` when `1 ≤ q`. -/
+private theorem natCast_sub_one_eq_neg_one {q : ℕ} (hq : 1 ≤ q) :
+    ((q - 1 : ℕ) : ZMod q) = -1 := by
+  rw [Nat.cast_sub hq, ZMod.natCast_self, Nat.cast_one, zero_sub]
 
 private theorem solve_eq_add_blindedCDHCorrection (d : F.Desc)
     (out : BlindedCDHAnswer (F.order d) (F.Carrier d)) (μ ν : ℕ) (s t : F.Carrier d) :
     out.solve (F.generator d) (μ : ZMod (F.order d)) (ν : ZMod (F.order d)) s t =
       out.value + F.blindedCDHCorrection d μ ν out.exponent.val s t := by
   simp only [BlindedCDHAnswer.solve, blindedCDHCorrection, Nat.cast_mul, ZMod.natCast_zmod_val,
-    natCast_order_sub_one]
+    natCast_sub_one_eq_neg_one (F.prime_order d).one_le]
   module
 
 variable {F} in
@@ -372,10 +372,8 @@ private def invSubNat (q c c' : ℕ) : ℕ :=
 
 private theorem invSubNat_cast {q : ℕ} [Fact q.Prime] (c c' : ℕ) :
     (invSubNat q c c' : ZMod q) = ((c : ZMod q) - c')⁻¹ := by
-  have hq : ((q - 1 : ℕ) : ZMod q) = -1 := by
-    rw [Nat.cast_sub (Fact.out : q.Prime).one_le, ZMod.natCast_self, Nat.cast_one, zero_sub]
   have hsub : ((c + (q - 1) * c' : ℕ) : ZMod q) = (c : ZMod q) - c' := by
-    rw [Nat.cast_add, Nat.cast_mul, hq]
+    rw [Nat.cast_add, Nat.cast_mul, natCast_sub_one_eq_neg_one (Fact.out : q.Prime).one_le]
     ring
   rw [invSubNat, Nat.cast_mul, Nat.cast_mul, hsub]
   by_cases h : (c : ZMod q) = c'
@@ -393,7 +391,7 @@ private theorem pairSolve_eq (d : F.Desc) (out : BlindedCDHPairAnswer (F.order d
         (((F.order d - 1) * μ : ℕ) : ZMod (F.order d)) • out.right +
         (((out.exponent₁.val + out.exponent₂.val) * μ : ℕ) : ZMod (F.order d)) • s := by
   simp only [BlindedCDHPairAnswer.solve, Nat.cast_mul, Nat.cast_add, invSubNat_cast,
-    ZMod.natCast_zmod_val, natCast_order_sub_one]
+    ZMod.natCast_zmod_val, natCast_sub_one_eq_neg_one (F.prime_order d).one_le]
   module
 
 variable {F} in

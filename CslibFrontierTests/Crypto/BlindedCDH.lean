@@ -18,14 +18,18 @@ An ordinary `module` client of `CslibFrontier.Crypto.Computational.DiffieHellman
 `CslibFrontier.Crypto.Computational.DiffieHellman.BlindedFamily` ([BonehShoup2023], Lemmas 21.7
 and 21.8).
 
-* In `ZMod 7` with `g = 1`, the reductions' `solve` recovers the Diffie–Hellman value from right
-  answers and not from a wrong one. Both hypotheses of `BlindedCDHPairAnswer.solve_eq` are needed:
-  with equal exponents, and in `ZMod 4`, the right values do not determine the target.
+* In `ZMod 7` with `g = 1`, the blinded value has the closed form of `blindedDH_smul_smul`, and the
+  reductions' `solve` recovers the Diffie–Hellman value from right answers (through
+  `BlindedCDHAnswer.solve_eq_iff` and `BlindedCDHPairAnswer.solve_eq`) and not from a wrong one.
+  Both hypotheses of `BlindedCDHPairAnswer.solve_eq` are needed: with equal exponents `solve`
+  returns `0`, and in `ZMod 4`, for every blinding exponent, no scalar multiple of
+  `value₂ - value₁` in place of the inverse gives the target.
 * In `ZMod 5` with `g = 1`, adversaries that always win the two problems are turned into CDH
   solvers that always win.
 * Over any prime-order group family, the two games unfold to the fixed-group experiments, the two
   PPT predicates are satisfied by adversaries that copy an input element, the two certificates
-  apply to them, and the two theorems are used as a client would, including on Schnorr groups.
+  and the two loss bounds apply to them, and the two theorems are used as a client would,
+  including on Schnorr groups.
 -/
 
 public section
@@ -42,10 +46,15 @@ example :
     blindedDH (q := 7) (2 : ZMod 7) 4 6 ((3 : ZMod 7) • (1 : ZMod 7)) ((5 : ZMod 7) • 1) = 6 := by
   decide
 
-/-- From the right value the reduction returns `x * y = 6`. -/
+/-- The same value in the form `((x - γ * μ) * (y - γ * ν)) • g` of `blindedDH_smul_smul`. -/
+example : blindedDH (q := 7) (2 : ZMod 7) 4 6 ((3 : ZMod 7) • (1 : ZMod 7)) ((5 : ZMod 7) • 1) =
+    (((4 : ZMod 7) - 6 * 2) * (5 - 6 * 3)) • 1 :=
+  blindedDH_smul_smul 1 2 3 4 5 6
+
+/-- From the right value the reduction returns `x * y = 6`, by `BlindedCDHAnswer.solve_eq_iff`. -/
 example : (⟨6, 6⟩ : BlindedCDHAnswer 7 (ZMod 7)).solve 1 2 3 ((4 : ZMod 7) • 1) ((5 : ZMod 7) • 1) =
-    ((4 * 5 : ZMod 7)) • 1 := by
-  decide
+    ((4 * 5 : ZMod 7)) • 1 :=
+  (BlindedCDHAnswer.solve_eq_iff _ 1 2 3 4 5).mpr (by decide)
 
 /-- From a wrong value it does not. -/
 example : (⟨6, 0⟩ : BlindedCDHAnswer 7 (ZMod 7)).solve 1 2 3 ((4 : ZMod 7) • 1) ((5 : ZMod 7) • 1) ≠
@@ -75,13 +84,15 @@ example :
       out.solve 2 ((3 : ZMod 7) • (1 : ZMod 7)) = 0 ∧ ((3 * 4 : ZMod 7)) • (1 : ZMod 7) ≠ 0 := by
   decide
 
-/-- Primality is needed: in `ZMod 4` with `μ = 0`, `β = 1`, `x = 1`, `v = 0` and exponents `0`,
-`2`, the two blinded values are `0` and `2`, the target is `1`, and no scalar multiple of
-`value₂ - value₁ = 2` is `1`, so no output computed by scaling that difference is right. -/
+/-- Primality is needed: in `ZMod 4` with `β = 1`, `x = 1`, `v = 0` and exponents `0`, `2`, for
+every blinding exponent `μ` the two blinded values are `0` and `2` and the target is `1`, and the
+formula of `solve` with any scalar `c` in place of `(γ₁ - γ₂)⁻¹` never gives `1`. -/
 example :
-    blindedDH (q := 4) (0 : ZMod 4) 1 0 ((1 : ZMod 4) • (1 : ZMod 4)) 0 = 0 ∧
-      blindedDH (q := 4) (0 : ZMod 4) 1 2 ((1 : ZMod 4) • (1 : ZMod 4)) 0 = 2 ∧
-      ∀ c : ZMod 4, c • ((2 : ZMod 4) - 0) ≠ ((1 * 1 : ZMod 4)) • 1 := by
+    ∀ μ c : ZMod 4,
+      blindedDH (q := 4) μ 1 0 ((1 : ZMod 4) • (1 : ZMod 4)) 0 = 0 ∧
+      blindedDH (q := 4) μ 1 2 ((1 : ZMod 4) • (1 : ZMod 4)) 0 = 2 ∧
+      c • ((2 : ZMod 4) - 0) - μ • (0 : ZMod 4) + ((0 + 2) * μ) • ((1 : ZMod 4) • (1 : ZMod 4)) ≠
+        ((1 * 1 : ZMod 4)) • 1 := by
   decide
 
 /-! ### The experiments in `ZMod 5` with `g = 1` -/
@@ -158,6 +169,12 @@ theorem copyBlindedAdversary_isPPT : (copyBlindedAdversary F).IsPPT := by
 example : (F.blindedCDHToCDHAdversary (copyBlindedAdversary F)).IsPPT :=
   isPPT_blindedCDHToCDHAdversary (copyBlindedAdversary_isPPT F)
 
+/-- The sampling loss of Lemma 21.7 at this adversary. -/
+example (setup : ℕ → PMF F.Desc) (n : ℕ) :
+    Game.advantage (F.blindedCDHGame setup (copyBlindedAdversary F) n)
+      (F.cdhGame setup (F.blindedCDHToCDHAdversary (copyBlindedAdversary F)) n) ≤ 2 / 2 ^ n :=
+  F.advantage_blindedCDHGame_cdhGame_le setup _ n
+
 /-- Lemma 21.7 applied as a client would. -/
 example (setup : ℕ → PMF F.Desc) (h : F.CDH setup) :
     Negligible fun n => Game.succProbability (F.blindedCDHGame setup (copyBlindedAdversary F) n) :=
@@ -179,6 +196,14 @@ theorem copyBlindedPairAdversary_isPPT : (copyBlindedPairAdversary F).IsPPT := b
 /-- The certified reduction of Lemma 21.8 at this adversary. -/
 example : (F.blindedCDHPairToCDHAdversary (copyBlindedPairAdversary F)).IsPPT :=
   isPPT_blindedCDHPairToCDHAdversary (copyBlindedPairAdversary_isPPT F)
+
+/-- The sampling loss of Lemma 21.8 at this adversary. -/
+example (setup : ℕ → PMF F.Desc) (n : ℕ) :
+    Game.succProbability (F.blindedCDHPairGame setup (copyBlindedPairAdversary F) n) ≤
+      Game.succProbability
+          (F.cdhGame setup (F.blindedCDHPairToCDHAdversary (copyBlindedPairAdversary F)) n) +
+        1 / 2 ^ n :=
+  F.succProbability_blindedCDHPairGame_le setup _ n
 
 /-- Lemma 21.8 applied as a client would. -/
 example (setup : ℕ → PMF F.Desc) (h : F.CDH setup) :
