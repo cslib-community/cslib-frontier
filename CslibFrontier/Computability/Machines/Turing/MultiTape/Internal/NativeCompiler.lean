@@ -131,7 +131,7 @@ namespace NativeCompiler
 
 /-- Constructive encoding of the transducer machine's source state, pending output bit and
 end-of-input flag. -/
-@[expose] def transducerMachineStateEncoding {State : Type*}
+@[expose] def transducerMachineStateEncoding {State : Type}
     (stateEncoding : State ↪ ℕ) : State × Option Bool × Bool ↪ ℕ :=
   prodStateEncoding stateEncoding
     (prodStateEncoding (optionStateEncoding eBit) eBit)
