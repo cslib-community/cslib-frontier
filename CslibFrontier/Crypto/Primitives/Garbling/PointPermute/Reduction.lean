@@ -27,18 +27,48 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Tactic.PolyTime
 
 /-!
-# The real view of point-and-permute garbling as a typed view
+# The PRF reduction for the privacy of point-and-permute garbling
 
-Steps toward the privacy theorem for `PointPermute.scheme family`. The garbler's coins give uniform
-keys and permutation bits (`uniformList_map_keyFn_permFn`), so the real view `(F, X, d)` of a
-query is the typed view of the typed garbling of `toCircuit f`, written as words
-(`eval_prvView`). Distinct argument slots get distinct tweaks while the table has at most
-`2 ^ k / 8` gates (`slotTweak_injective`).
+The `prv.sim` advantage of an adversary `B` against the simulator `simWord` of
+`PointPermute.scheme family`, with topology side information, is exactly a step range times the
+label advantage of an explicit, certified reduction (`prvSimAdvantage_simWord_eq`).
+
+The proof is a hybrid over the wires. The real view of a query `(f, x)` is the typed real view of
+`toCircuit f` written as words (`eval_prvView`), because the garbler's coins give uniform keys and
+permutation bits (`uniformList_map_keyFn_permFn`); the simulated view is the typed simulated view
+(`eval_simWord`). Hybrid view `j` on words (`hybViewWord`) is the typed hybrid view `j` of
+`Privacy.lean` (`hybViewWord_eq`), and global hybrid `i` runs `B`'s choice and then hybrid `i` of
+its circuit.
+
+The reduction `prvSimReduction family B P` runs `B`'s choice of `(f, x)`, draws a step `j` below
+`dyadicSize (P k)`, the garbler's coins and filler labels, asks its label oracle at the tweaks of
+all `8 q` argument slots (`replyStep`), and runs `B`'s guess on hybrid view `j` with the answers in
+the target slots. Against any table it runs the typed reductions of `Privacy.lean`
+(`eval_run_prvSimReduction`), so against the keyed label function it plays a uniform global hybrid
+`j` and against a random function global hybrid `j + 1`, when distinct slots have distinct tweaks
+(`slotTweak_injective`, while `8 q ≤ 2 ^ k`). When `P k` bounds the wires of every circuit `B`
+chooses, the hybrids telescope (`Game.advantage_hybrid_average`). The reduction is uniform strict
+oracle PPT for every adversary certified by `TwoStage.IsPPT` and every polynomial-time family
+(`isOraclePPT_prvSimReduction`).
+
+## Main definitions
+
+* `Cslib.Crypto.Garbling.PointPermute.hybViewWord`: hybrid view `j` on words.
+* `Cslib.Crypto.Garbling.PointPermute.prvSimReduction`: the PRF reduction.
 
 ## Main results
 
 * `Cslib.Crypto.Garbling.PointPermute.eval_prvView`: the real view is the typed real view.
-* `Cslib.Crypto.Garbling.PointPermute.slotTweak_injective`: tweaks of distinct slots differ.
+* `Cslib.Crypto.Garbling.PointPermute.hybViewWord_eq`: the hybrid view on words is the typed one.
+* `Cslib.Crypto.Garbling.PointPermute.eval_run_prvSimReduction`: the reduction runs the typed
+  reductions.
+* `Cslib.Crypto.Garbling.PointPermute.prvSimAdvantage_simWord_eq`: the `prv.sim` advantage is the
+  step range times the reduction's label advantage.
+* `Cslib.Crypto.Garbling.PointPermute.isOraclePPT_prvSimReduction`: the reduction is oracle PPT.
+
+## References
+
+* [M. Bellare, V. T. Hoang, P. Rogaway, *Foundations of Garbled Circuits*][BellareHoangRogaway2012]
 -/
 
 public section
