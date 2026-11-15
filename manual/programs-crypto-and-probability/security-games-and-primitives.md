@@ -268,7 +268,7 @@ The Ideal Cipher Model models a block cipher as a key-indexed family of independ
 
 For the generic group model of Boneh–Shoup §16.3 [bs23][bs23], import
 [`GenericGroup/Basic.lean`](../../CslibFrontier/Crypto/Computational/GenericGroup/Basic.lean).
-`answer q S L` is the group oracle of a labeling `L : ZMod q → S`: it answers labeling queries
+`answer L` is the group oracle of a labeling `L : ZMod q → S`: it answers labeling queries
 and group operations `(ℓ₁, ℓ₂, κ₁, κ₂)`, and rejects with `none` when `ℓ₁` or `ℓ₂` is not a
 label. `groupAnswer q g` is the oracle of a `ZMod q`-module with base point `g`; it is `answer`
 for the labeling `β ↦ β • g` when every element is a multiple of `g` (`groupAnswer_eq_answer`).
