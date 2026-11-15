@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Computational.SchnorrSignature.ForkPass
 public import CslibFrontier.Crypto.Computational.SchnorrSignature.StatisticalROM
 public import CslibFrontier.Crypto.Computational.SchnorrEavesdrop
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Computability.Probabilistic.Repeat
 import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Tactic.PPT
@@ -214,9 +215,8 @@ theorem isPPTOn_schnorrForkingAdversary {k : ℕ} {Control : Type} [Finite Contr
     fun_prop
   have hpk : ComputableInPolyTime (fun a : ℕ × F.Desc × List Bool => a.2.2) E encBits := by
     fun_prop
-  have hB : ComputableInPolyTime (fun n => savedCoinBudget c e keyC keyD n) encUnary encUnary := by
-    unfold savedCoinBudget
-    fun_prop
+  have hB : ComputableInPolyTime (fun n => savedCoinBudget c e keyC keyD n) encUnary encUnary :=
+    computableInPolyTime_savedCoinBudget c e keyC keyD
   have hbudget : ComputableInPolyTime
       (fun a : ℕ × F.Desc × List Bool => savedCoinBudget c e keyC keyD a.1) E encUnary :=
     hB.comp hn
@@ -284,12 +284,12 @@ theorem isPPTOn_schnorrForkingAdversary {k : ℕ} {Control : Type} [Finite Contr
       (fun p : (((((ℕ × F.Desc × List Bool) × List Bool) ×
         List (List Bool × List Bool × List Bool)) × List (List Bool)) × List (List Bool)) ×
           (ℕ × List Bool × List Bool) => p.1.1.2.take (p.2.1 - 1)) E₅ (encList encBits) :=
-    .of_tidy (ComputableTidilyInPolyTime.listTakeWithInput (by fun_prop) hindex.tidy)
+    ComputableInPolyTime.listTakeWithInput (by fun_prop) hindex
   have hdrop : ComputableInPolyTime
       (fun p : (((((ℕ × F.Desc × List Bool) × List Bool) ×
         List (List Bool × List Bool × List Bool)) × List (List Bool)) × List (List Bool)) ×
           (ℕ × List Bool × List Bool) => p.1.2.drop (p.2.1 - 1)) E₅ (encList encBits) :=
-    .of_tidy (ComputableTidilyInPolyTime.listDropWithInput (by fun_prop) hindex.tidy)
+    ComputableInPolyTime.listDropWithInput (by fun_prop) hindex
   have hprep₂ : ComputableInPolyTime
       (fun p : (((((ℕ × F.Desc × List Bool) × List Bool) ×
         List (List Bool × List Bool × List Bool)) × List (List Bool)) × List (List Bool)) ×

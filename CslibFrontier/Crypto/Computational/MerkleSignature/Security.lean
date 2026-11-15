@@ -30,6 +30,7 @@ import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Probability.UniformNat
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Security of Merkle signatures
@@ -894,9 +895,7 @@ private theorem plantedHandler_bound (hlen : ∀ k m, (H k m).length = k.length)
     refine ⟨?_, ?_⟩
     · simp only [encodeSignature, encPair_apply, encBits_apply, List.length_append, length_frame]
       omega
-    · simp only [hdecode, encList_cons, encPair_apply, encUnary_apply,
-        encBits_apply, List.length_append, length_frame, List.length_replicate]
-      omega
+    · enc_len [hdecode, encPair_apply]
   unfold plantedHandler at hres
   dsimp only at hres
   split_ifs at hres with hguard hi
@@ -945,7 +944,7 @@ theorem isOraclePPT_oneTimeForger {bound : ℕ → ℕ}
         (computableInPolyTime_publicKey hH hlen))
   have hres := computableInPolyTime_handlerBound cs ds (hfst.fst'.fst'.trans hboundPoly)
   have hrun :=
-    hadversary.run_interpret_preprocess_open'
+    hadversary.run_interpret_preprocess_open
       (prepare := fun c => (c.1.1.1, publicKey H c.2.1 c.2.2))
       (initial := fun _ => ([] : List (ℕ × List Bool)))
       (resources := fun c w => handlerBound cs ds bound c w)

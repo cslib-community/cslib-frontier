@@ -31,6 +31,7 @@ import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.PPT
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Chosen-ciphertext security for public-key encryption (1CCA and multi-challenge CCA / IND-CCA2)
@@ -318,19 +319,16 @@ theorem CCA2AdversaryOf.IsPPT.query_bounds {Msg : Type} {encMsg : Msg ↪ List B
     fun n state ct => ?_, fun n pk State oracle s s' choice hmem => ?_⟩
   · have hsize : (encPair encUnary (encPair encBits encBits) (n, state, ct)).length + 1 ≤
         4 * (n + state.length + ct.length + 2) := by
-      simp only [length_encPair, encUnary_apply, List.length_replicate, encBits_apply]
-      lia
+      enc_len
     have hpoly := Nat.mul_le_mul_left c₂ (Nat.pow_le_pow_left hsize d₂)
     rw [Nat.mul_pow, ← Nat.mul_assoc] at hpoly
     exact (hguess (n, state, ct)).1.mono hpoly
   · have hbound := hlen (n, pk) State oracle s s' choice hmem
     have hstate : choice.2.length ≤ (encPair (encPair encMsg encMsg) encBits choice).length := by
-      simp only [length_encPair, encBits_apply]
-      lia
+      enc_len
     have hsize : (encPair encUnary encBits (n, pk)).length + 1 ≤
         2 * (n + pk.length + 2) := by
-      simp only [length_encPair, encUnary_apply, List.length_replicate, encBits_apply]
-      lia
+      enc_len
     have hpoly := Nat.mul_le_mul_left cs (Nat.pow_le_pow_left hsize ds)
     rw [Nat.mul_pow, ← Nat.mul_assoc] at hpoly
     exact (hstate.trans hbound).trans hpoly
@@ -487,7 +485,7 @@ private theorem isPPTOn_run_cca2Phase1Oracle_of_choose {Choice Out : Type}
           (pair.1.1, pair.1.2.2, pair.2))
         (encPair ECaller encBits) (encPair encUnary (encPair encBits encBits)) := by fun_prop
     exact ComputableInPolyTime.length_bits.comp (hdec.comp harg).encoding_comp
-  exact hchoose.run_interpret_preprocess'
+  exact hchoose.run_interpret_preprocess
     (prepare := fun caller : ℕ × List Bool × List Bool => (caller.1, caller.2.1))
     (initial := fun _ => ())
     (resources := fun caller req => (encOption encOut (decrypt caller.1 caller.2.2 req)).length)
@@ -595,12 +593,12 @@ private theorem isPPTOn_run_cca2Phase2Oracle_of_guess {Challenge Out : Type}
       (caller.1, caller.2.2.1, caller.2.2.2))
     (initial := fun _ => ())
     (resources := fun caller req => (encOption encOut (decrypt caller.1 caller.2.1 req)).length)
-    hprep.tidy
+    hprep
     hhandler
-    (ComputableInPolyTime.const ()).tidy
+    (ComputableInPolyTime.const ())
     (fun _ _ => True)
     (fun _ => trivial)
-    hres.tidy
+    hres
     (fun caller request state _ result hresult => by
       split_ifs at hresult with hct
       · have hresEq : result = ([], state) := by simpa using hresult
@@ -1049,8 +1047,7 @@ theorem MultiCCA2AdversaryOf.IsPPT.query_bounds {Msg : Type} {encMsg : Msg ↪ L
     fun n state cts => ?_, fun n pk State oracle s s' choice hmem => ?_⟩
   · have hsize : (encPair encUnary (encPair encBits (encList encBits)) (n, state, cts)).length + 1 ≤
         4 * (n + state.length + (encList encBits cts).length + 2) := by
-      simp only [length_encPair, encUnary_apply, List.length_replicate, encBits_apply]
-      lia
+      enc_len
     have hpoly := Nat.mul_le_mul_left c₂ (Nat.pow_le_pow_left hsize d₂)
     rw [Nat.mul_pow, ← Nat.mul_assoc] at hpoly
     exact (hguess (n, state, cts)).1.mono hpoly
@@ -1058,16 +1055,13 @@ theorem MultiCCA2AdversaryOf.IsPPT.query_bounds {Msg : Type} {encMsg : Msg ↪ L
     have hchallenges :
         choice.1.length ≤ (encPair (encList (encPair encMsg encMsg)) encBits choice).length := by
       have hlist := length_le_length_encList (encPair encMsg encMsg) choice.1
-      simp only [length_encPair, encBits_apply]
-      lia
+      enc_len
     have hstate :
         choice.2.length ≤ (encPair (encList (encPair encMsg encMsg)) encBits choice).length := by
-      simp only [length_encPair, encBits_apply]
-      lia
+      enc_len
     have hsize : (encPair encUnary encBits (n, pk)).length + 1 ≤
         2 * (n + pk.length + 2) := by
-      simp only [length_encPair, encUnary_apply, List.length_replicate, encBits_apply]
-      lia
+      enc_len
     have hpoly := Nat.mul_le_mul_left cs (Nat.pow_le_pow_left hsize ds)
     rw [Nat.mul_pow, ← Nat.mul_assoc] at hpoly
     exact ⟨(hchallenges.trans hbound).trans hpoly, (hstate.trans hbound).trans hpoly⟩
@@ -2170,7 +2164,7 @@ theorem isOraclePPTOn_cca2MultiToSingleAt_guess {Msg : Type} [Inhabited Msg]
           (adversary.guess p.1 (multiCCA2StateDecoder.decode p.2.1).stateA
             ((multiCCA2StateDecoder.decode p.2.1).ctsFront ++
               p.2.2 :: (multiCCA2StateDecoder.decode p.2.1).ctsBack))).run ()) := by
-    apply hA.guess.run_interpret_preprocess_open'
+    apply hA.guess.run_interpret_preprocess_open
       (prepare := fun p : ℕ × List Bool × List Bool =>
         (p.1, (multiCCA2StateDecoder.decode p.2.1).stateA,
           (multiCCA2StateDecoder.decode p.2.1).ctsFront ++
