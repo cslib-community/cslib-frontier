@@ -39,11 +39,11 @@ not a negligible function"), `PolynomiallyBoundedNNReal.not_negligible_inv` and
 `PolynomiallyBounded.not_negligible_inv` show that the reciprocal of any frequently positive
 polynomially bounded function is not negligible, and `negligible_inv_iff` shows that under total
 division (`(0 : ℝ≥0)⁻¹ = 0`) the reciprocal is negligible if and only if the function is eventually
-zero. This yields `not_negligible_inv_pow` and `not_negligible_one_div_pow` for `1 / n ^ k`, and
-`PolynomiallyBoundedNNReal.toNNReal_log` closes polynomial bounds involving `Real.log`. Concrete
-instances from Examples 2.10 and 2.11 (including `1 / (1000 n ^ 4 + n ^ 2 log n)` and the piecewise
-function equal to `1 / n` on even `n` and `2 ^ (-n)` on odd `n`) are checked in the test module
-`CslibFrontierTests.Crypto.NegligibleInversePolynomial`.
+zero. This yields `not_negligible_inv_pow` for `((n : ℝ≥0) ^ k)⁻¹`, and
+`PolynomiallyBoundedNNReal.toNNReal_log` bounds `Real.toNNReal (Real.log (p n : ℝ))` for
+polynomially bounded `p : ℕ → ℕ`. Concrete instances from Examples 2.10 and 2.11 (including
+`1 / (1000 n ^ 4 + n ^ 2 log n)` and the piecewise function equal to `1 / n` on even `n` and
+`2 ^ (-n)` on odd `n`) are checked in `CslibFrontierTests.Crypto.NegligibleInversePolynomial`.
 
 ## Main results
 
@@ -57,29 +57,25 @@ function equal to `1 / n` on even `n` and `2 ^ (-n)` on odd `n`) are checked in 
   (Definition 2.5 and Theorem 2.11).
 * `Cslib.Crypto.PolynomiallyLowerBounded.sqrt`,
   `Cslib.Crypto.negligible_inv_two_pow_of_polynomiallyLowerBounded`,
-  `Cslib.Crypto.negligible_one_div_two_pow_of_polynomiallyLowerBounded`,
-  `Cslib.Crypto.negligible_inv_two_pow_sqrt`, `Cslib.Crypto.negligible_one_div_two_pow_sqrt`,
-  `Cslib.Crypto.negligible_inv_two_rpow_sqrt`, `Cslib.Crypto.negligible_two_rpow_neg_sqrt`:
-  square-root schedule closure and `2 ^ (-√n)` (Example 2.10).
-* `Cslib.Crypto.negligible_inv_pow_of_tendsto_atTop`,
-  `Cslib.Crypto.negligible_one_div_pow_of_tendsto_atTop`,
-  `Cslib.Crypto.negligible_inv_rpow_of_tendsto_atTop`,
+  `Cslib.Crypto.negligible_inv_two_pow_sqrt`, `Cslib.Crypto.negligible_inv_two_rpow_sqrt`,
+  `Cslib.Crypto.negligible_two_rpow_neg_sqrt`: square-root schedule closure and `2 ^ (-√n)`
+  (Example 2.10).
+* `Cslib.Crypto.negligible_inv_rpow_of_tendsto_atTop`,
   `Cslib.Crypto.negligible_rpow_neg_of_tendsto_atTop`,
-  `Cslib.Crypto.negligible_inv_pow_log`, `Cslib.Crypto.negligible_one_div_pow_log`,
-  `Cslib.Crypto.negligible_inv_rpow_log`, `Cslib.Crypto.negligible_rpow_neg_log`: superpolynomial
-  decay of `n ^ (-f n)` when `f n → ∞`, and `n ^ (-log n)` (Example 2.10).
+  `Cslib.Crypto.negligible_inv_pow_of_tendsto_atTop`,
+  `Cslib.Crypto.negligible_inv_pow_log`, `Cslib.Crypto.negligible_inv_rpow_log`,
+  `Cslib.Crypto.negligible_rpow_neg_log`: superpolynomial decay of `n ^ (-f n)` when `f n → ∞`,
+  and `n ^ (-log n)` (Example 2.10).
 * `Cslib.Crypto.PolynomiallyBoundedNNReal.toNNReal_log`,
   `Cslib.Crypto.not_negligible_of_frequently_ge`, `Cslib.Crypto.not_negligible_of_eventually_ge`,
   `Cslib.Crypto.not_negligible_of_eventually_eq_one`,
   `Cslib.Crypto.not_negligible_of_frequently_inv_le`,
   `Cslib.Crypto.PolynomiallyBoundedNNReal.not_negligible_inv`,
-  `Cslib.Crypto.PolynomiallyBoundedNNReal.not_negligible_one_div`,
   `Cslib.Crypto.PolynomiallyBoundedNNReal.negligible_inv_iff`,
   `Cslib.PolynomiallyBounded.not_negligible_inv`,
-  `Cslib.PolynomiallyBounded.not_negligible_one_div`,
   `Cslib.PolynomiallyBounded.negligible_inv_iff`,
-  `Cslib.Crypto.not_negligible_inv_pow`, `Cslib.Crypto.not_negligible_one_div_pow`:
-  non-negligibility of inverse polynomials (Remark after Definition 2.7 and Example 2.10).
+  `Cslib.Crypto.not_negligible_inv_pow`: non-negligibility of inverse polynomials (Remark after
+  Definition 2.7 and Example 2.10).
 
 ## Deviations from [BonehShoup2023]
 
@@ -248,22 +244,10 @@ theorem negligible_inv_two_pow_of_polynomiallyLowerBounded {g : ℕ → ℕ}
     Negligible (fun n => ((2 : ℝ≥0) ^ g n)⁻¹) :=
   negligible_inv_two_pow.comp_polynomiallyLowerBounded hg
 
-/-- Unit-fraction form of `negligible_inv_two_pow_of_polynomiallyLowerBounded`. -/
-@[fun_prop]
-theorem negligible_one_div_two_pow_of_polynomiallyLowerBounded {g : ℕ → ℕ}
-    (hg : PolynomiallyLowerBounded g) :
-    Negligible (fun n => (1 : ℝ≥0) / 2 ^ g n) :=
-  negligible_one_div_two_pow.comp_polynomiallyLowerBounded hg
-
 /-- **Example 2.10** ([BonehShoup2023], p. 28), natural square root: `((2 : ℝ≥0) ^ Nat.sqrt n)⁻¹`
 is negligible. -/
 theorem negligible_inv_two_pow_sqrt : Negligible (fun n => ((2 : ℝ≥0) ^ Nat.sqrt n)⁻¹) :=
   negligible_inv_two_pow_of_polynomiallyLowerBounded (.sqrt .id)
-
-/-- **Example 2.10** ([BonehShoup2023], p. 28), natural square root unit fraction:
-`(1 : ℝ≥0) / 2 ^ Nat.sqrt n` is negligible. -/
-theorem negligible_one_div_two_pow_sqrt : Negligible (fun n => (1 : ℝ≥0) / 2 ^ Nat.sqrt n) := by
-  simpa only [one_div] using negligible_inv_two_pow_sqrt
 
 /-- **Example 2.10** ([BonehShoup2023], p. 28), real square root: `((2 : ℝ≥0) ^ Real.sqrt n)⁻¹`
 is negligible. -/
@@ -285,21 +269,6 @@ theorem negligible_two_rpow_neg_sqrt :
     Negligible (fun n => (2 : ℝ≥0) ^ (-Real.sqrt (n : ℝ))) := by
   simpa only [NNReal.rpow_neg] using negligible_inv_two_rpow_sqrt
 
-/-- For any natural exponent `f : ℕ → ℕ` tending to infinity, `((n : ℝ≥0) ^ f n)⁻¹` is
-negligible. -/
-theorem negligible_inv_pow_of_tendsto_atTop {f : ℕ → ℕ} (hf : Tendsto f atTop atTop) :
-    Negligible (fun n => ((n : ℝ≥0) ^ f n)⁻¹) := by
-  refine negligible_iff_eventually_le_inv_pow.mpr fun k => ?_
-  filter_upwards [hf.eventually_ge_atTop k, eventually_ge_atTop 1] with n hfn hn1
-  rw [one_div]
-  exact inv_anti₀ (pow_pos (by exact_mod_cast hn1) k)
-    (pow_le_pow_right₀ (by exact_mod_cast hn1) hfn)
-
-/-- Unit-fraction form of `negligible_inv_pow_of_tendsto_atTop`. -/
-theorem negligible_one_div_pow_of_tendsto_atTop {f : ℕ → ℕ} (hf : Tendsto f atTop atTop) :
-    Negligible (fun n => (1 : ℝ≥0) / (n : ℝ≥0) ^ f n) := by
-  simpa only [one_div] using negligible_inv_pow_of_tendsto_atTop hf
-
 /-- For any real exponent `f : ℕ → ℝ` tending to infinity, `((n : ℝ≥0) ^ f n)⁻¹` is negligible. -/
 theorem negligible_inv_rpow_of_tendsto_atTop {f : ℕ → ℝ} (hf : Tendsto f atTop atTop) :
     Negligible (fun n => ((n : ℝ≥0) ^ f n)⁻¹) := by
@@ -315,18 +284,19 @@ theorem negligible_rpow_neg_of_tendsto_atTop {f : ℕ → ℝ} (hf : Tendsto f a
     Negligible (fun n => (n : ℝ≥0) ^ (-f n)) := by
   simpa only [NNReal.rpow_neg] using negligible_inv_rpow_of_tendsto_atTop hf
 
+/-- For any natural exponent `f : ℕ → ℕ` tending to infinity, `((n : ℝ≥0) ^ f n)⁻¹` is
+negligible. -/
+theorem negligible_inv_pow_of_tendsto_atTop {f : ℕ → ℕ} (hf : Tendsto f atTop atTop) :
+    Negligible (fun n => ((n : ℝ≥0) ^ f n)⁻¹) := by
+  simpa only [Function.comp_apply, NNReal.rpow_natCast] using
+    negligible_inv_rpow_of_tendsto_atTop (tendsto_natCast_atTop_atTop.comp hf)
+
 /-- **Example 2.10** ([BonehShoup2023], p. 28), natural logarithm: for `1 < b`,
 `((n : ℝ≥0) ^ Nat.log b n)⁻¹` is negligible. -/
 @[fun_prop]
 theorem negligible_inv_pow_log {b : ℕ} (hb : 1 < b) :
     Negligible (fun n => ((n : ℝ≥0) ^ Nat.log b n)⁻¹) :=
   negligible_inv_pow_of_tendsto_atTop (Nat.tendsto_log_atTop hb)
-
-/-- Unit-fraction form of `negligible_inv_pow_log`. -/
-@[fun_prop]
-theorem negligible_one_div_pow_log {b : ℕ} (hb : 1 < b) :
-    Negligible (fun n => (1 : ℝ≥0) / (n : ℝ≥0) ^ Nat.log b n) :=
-  negligible_one_div_pow_of_tendsto_atTop (Nat.tendsto_log_atTop hb)
 
 /-- **Example 2.10** ([BonehShoup2023], p. 28), real logarithm: `((n : ℝ≥0) ^ Real.log n)⁻¹`
 is negligible. -/
@@ -391,12 +361,6 @@ theorem PolynomiallyBoundedNNReal.not_negligible_inv {P : ℕ → ℝ≥0}
     ¬ Negligible (fun n => (P n)⁻¹) :=
   not_negligible_of_frequently_inv_le hP (hpos.mono fun _ hn => ⟨hn, le_rfl⟩)
 
-/-- Unit-fraction form of `PolynomiallyBoundedNNReal.not_negligible_inv`. -/
-theorem PolynomiallyBoundedNNReal.not_negligible_one_div {P : ℕ → ℝ≥0}
-    (hP : PolynomiallyBoundedNNReal P) (hpos : ∃ᶠ n in atTop, 0 < P n) :
-    ¬ Negligible (fun n => 1 / P n) := by
-  simpa only [one_div] using hP.not_negligible_inv hpos
-
 /-- Under Lean's total division `(0 : ℝ≥0)⁻¹ = 0`, the reciprocal of a polynomially bounded
 `ℝ≥0` function `P` is negligible if and only if `P` is eventually zero. -/
 theorem PolynomiallyBoundedNNReal.negligible_inv_iff {P : ℕ → ℝ≥0}
@@ -419,11 +383,6 @@ theorem not_negligible_inv_pow (k : ℕ) : ¬ Negligible (fun n => ((n : ℝ≥0
   refine hP.not_negligible_inv ((eventually_ge_atTop 1).frequently.mono fun n hn => ?_)
   exact pow_pos (by exact_mod_cast hn) k
 
-/-- Unit-fraction form of `not_negligible_inv_pow`: `(1 : ℝ≥0) / n ^ k` is not negligible
-(covering `(1 : ℝ≥0) / n ^ 100` in [BonehShoup2023], Example 2.10, p. 28). -/
-theorem not_negligible_one_div_pow (k : ℕ) : ¬ Negligible (fun n => (1 : ℝ≥0) / n ^ k) := by
-  simpa only [one_div] using not_negligible_inv_pow k
-
 end Cslib.Crypto
 
 namespace Cslib.PolynomiallyBounded
@@ -437,11 +396,6 @@ theorem not_negligible_inv {p : ℕ → ℕ} (hp : PolynomiallyBounded p)
     (hpos : ∃ᶠ n in atTop, 0 < p n) : ¬ Negligible (fun n => (p n : ℝ≥0)⁻¹) :=
   (PolynomiallyBoundedNNReal.natCast hp).not_negligible_inv
     (hpos.mono fun _ hn => by exact_mod_cast hn)
-
-/-- Unit-fraction form of `PolynomiallyBounded.not_negligible_inv`. -/
-theorem not_negligible_one_div {p : ℕ → ℕ} (hp : PolynomiallyBounded p)
-    (hpos : ∃ᶠ n in atTop, 0 < p n) : ¬ Negligible (fun n => (1 : ℝ≥0) / p n) := by
-  simpa only [one_div] using hp.not_negligible_inv hpos
 
 /-- For a polynomially bounded `p : ℕ → ℕ`, `(p n : ℝ≥0)⁻¹` is negligible if and only if `p` is
 eventually zero. -/

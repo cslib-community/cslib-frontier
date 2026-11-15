@@ -564,36 +564,25 @@ displays the normalized residual `Negligible` goal; supply the missing `Negligib
 `Negligible.sum_range_of_le`. The tactic discharges asymptotic decay from a proved quantitative
 bound; it does not perform game hops or probability rewrites itself.
 
-For inverse-polynomial characterizations, square-root and logarithmic decay, and non-negligibility
-criteria ([bs23][bs23], §2.3.1, Definitions 2.5–2.7, Theorem 2.11, and Examples 2.10–2.11,
-pp. 28–29), import
-[Crypto/Negligible/InversePolynomial.lean](../../CslibFrontier/Crypto/Negligible/InversePolynomial.lean).
-`negligible_iff_eventually_lt_inv_pow`, `negligible_iff_eventually_le_inv_pow`, and
-`negligible_iff_eventually_le_inv_polynomial` equate `Negligible` with eventual bounds below
-`1 / n ^ k` and `1 / p n` for positive `PolynomiallyBounded` `p : ℕ → ℕ`;
-`negligible_iff_eventually_lt_inv_rpow` and `negligible_iff_tendsto_mul_rpow` give Definition 2.5
-and Theorem 2.11 over real exponents `c > 0`, and `eventually_abs_lt_inv_rpow_iff_tendsto_mul_rpow`
-states Theorem 2.11 directly for signed `f : ℕ → ℝ`. `PolynomiallyLowerBounded.sqrt`,
-`negligible_inv_two_pow_of_polynomiallyLowerBounded`, and
-`negligible_one_div_two_pow_of_polynomiallyLowerBounded` register square-root parameter schedules
-with `fun_prop`, covering `2 ^ (-√n)` (`negligible_inv_two_pow_sqrt`,
-`negligible_one_div_two_pow_sqrt`, `negligible_inv_two_rpow_sqrt`, `negligible_two_rpow_neg_sqrt`),
-while `negligible_inv_pow_of_tendsto_atTop` and `negligible_inv_rpow_of_tendsto_atTop` give
-`n ^ (-log n)` (`negligible_inv_pow_log`, `negligible_one_div_pow_log` for `1 < b`;
-`negligible_inv_rpow_log`, `negligible_rpow_neg_log`). Definition 2.6 ("super-poly") is written
-inline as `Negligible (fun n => (f n)⁻¹)` or `Negligible (fun n => 1 / f n)`. Because
-`(0 : ℝ≥0)⁻¹ = 0` in Lean, a polynomially bounded function (`PolynomiallyBounded` or
-`PolynomiallyBoundedNNReal`, closed under `Real.toNNReal ∘ Real.log` by
-`PolynomiallyBoundedNNReal.toNNReal_log`) has a non-negligible reciprocal if and only if it is
-frequently positive (`PolynomiallyBounded.not_negligible_inv`,
-`PolynomiallyBounded.not_negligible_one_div`, `PolynomiallyBounded.negligible_inv_iff`,
-`PolynomiallyBoundedNNReal.not_negligible_inv`, `PolynomiallyBoundedNNReal.negligible_inv_iff`,
-`not_negligible_of_frequently_inv_le`, `not_negligible_of_frequently_ge`,
-`not_negligible_of_eventually_ge`, `not_negligible_of_eventually_eq_one`, `not_negligible_inv_pow`,
-`not_negligible_one_div_pow`). The [checked clients](../../CslibFrontierTests/Crypto/NegligibleInversePolynomial.lean)
-cover all equivalences, `1 / (1000 n ^ 4 + n ^ 2 log n)`, `1 / n ^ 100`, the hypothesis probes, and
-the piecewise function of Example 2.11 (`evenInvOddTwoPow` and `evenIdOddTwoPow`); run
-`scripts/build.sh CslibFrontierTests.Crypto.NegligibleInversePolynomial`.
+For inverse-polynomial characterizations, subexponential and logarithmic decay, and
+non-negligibility proofs ([bs23][bs23], §2.3.1, pp. 28–29), import
+`CslibFrontier.Crypto.Negligible.InversePolynomial` (the
+[module source](../../CslibFrontier/Crypto/Negligible/InversePolynomial.lean)). It registers `fun_prop`
+closure for `((2 : ℝ≥0) ^ g n)⁻¹` when `g` is a `Nat.sqrt`-composed `PolynomiallyLowerBounded`
+schedule (`PolynomiallyLowerBounded.sqrt`), `((2 : ℝ≥0) ^ Real.sqrt (n : ℝ))⁻¹`,
+`(2 : ℝ≥0) ^ (-Real.sqrt (n : ℝ))`, `((n : ℝ≥0) ^ Nat.log b n)⁻¹` for `1 < b`,
+`((n : ℝ≥0) ^ Real.log (n : ℝ))⁻¹`, `(n : ℝ≥0) ^ (-Real.log (n : ℝ))`, and
+`PolynomiallyBoundedNNReal` bounds on `Real.toNNReal (Real.log (p n : ℝ))` for natural-valued
+`PolynomiallyBounded p` (`PolynomiallyBoundedNNReal.toNNReal_log`). The main entry points are
+`negligible_iff_eventually_lt_inv_rpow`, `negligible_iff_tendsto_mul_rpow`, and
+`eventually_abs_lt_inv_rpow_iff_tendsto_mul_rpow` for real-exponent characterizations;
+`negligible_inv_rpow_of_tendsto_atTop` for `((n : ℝ≥0) ^ f n)⁻¹` with `f → atTop`;
+`PolynomiallyBounded.not_negligible_inv` and `PolynomiallyBoundedNNReal.not_negligible_inv` for
+reciprocals of frequently positive polynomially bounded functions (`negligible_inv_iff` under
+`(0 : ℝ≥0)⁻¹ = 0`); and `not_negligible_of_frequently_ge` (`c ≠ 0`) for constant lower bounds. The
+[checked clients](../../CslibFrontierTests/Crypto/NegligibleInversePolynomial.lean) cover these
+equivalences, `2 ^ (-√n)`, `n ^ (-log n)`, `1 / (1000 n ^ 4 + n ^ 2 log n)`, `1 / n ^ 100`, and
+Example 2.11; run `scripts/build.sh CslibFrontierTests.Crypto.NegligibleInversePolynomial`.
 
 ## Close word-size bounds
 

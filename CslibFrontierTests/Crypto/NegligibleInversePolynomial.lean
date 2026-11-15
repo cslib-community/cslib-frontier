@@ -80,9 +80,8 @@ example : PolynomiallyLowerBounded (fun n => Nat.sqrt (2 * n + 1)) := by
   fun_prop (disch := positivity)
 
 example : Negligible (fun n =>
-    ((n + 1 : ℕ) : ℝ≥0) * ((2 : ℝ≥0) ^ Nat.sqrt n)⁻¹ + (1 : ℝ≥0) / 2 ^ Nat.sqrt n) :=
-  (negligible_inv_two_pow_sqrt.polynomiallyBounded_mul (by fun_prop)).add
-    negligible_one_div_two_pow_sqrt
+    ((n + 1 : ℕ) : ℝ≥0) * ((2 : ℝ≥0) ^ Nat.sqrt n)⁻¹ + (1 : ℝ≥0) / 2 ^ Nat.sqrt n) := by
+  fun_prop
 
 example : Negligible (fun n =>
     (n : ℝ≥0) ^ 2 * ((2 : ℝ≥0) ^ Real.sqrt (n : ℝ))⁻¹ +
@@ -92,8 +91,8 @@ example : Negligible (fun n =>
 example : Negligible (fun n => ((2 : ℝ≥0) ^ Nat.sqrt (2 * n + 1))⁻¹) := by
   fun_prop (disch := positivity)
 
-example : Negligible (fun n => (1 : ℝ≥0) / 2 ^ Nat.sqrt (2 * n + 1)) :=
-  negligible_one_div_two_pow_of_polynomiallyLowerBounded (by fun_prop (disch := positivity))
+example : Negligible (fun n => (1 : ℝ≥0) / 2 ^ Nat.sqrt (2 * n + 1)) := by
+  fun_prop (disch := positivity)
 
 example : Negligible (fun n =>
     ((n ^ 3 + 5 : ℕ) : ℝ≥0) / 2 ^ Nat.sqrt (2 * n + 1) +
@@ -103,8 +102,8 @@ example : Negligible (fun n =>
 example : Negligible (fun n => ((n : ℝ≥0) ^ n)⁻¹) :=
   negligible_inv_pow_of_tendsto_atTop tendsto_id
 
-example : Negligible (fun n => (1 : ℝ≥0) / (n : ℝ≥0) ^ n) :=
-  negligible_one_div_pow_of_tendsto_atTop tendsto_id
+example : Negligible (fun n => (1 : ℝ≥0) / (n : ℝ≥0) ^ n) := by
+  simpa only [one_div] using negligible_inv_pow_of_tendsto_atTop (f := fun n : ℕ => n) tendsto_id
 
 example : Negligible (fun n => ((n : ℝ≥0) ^ (n : ℝ))⁻¹) :=
   negligible_inv_rpow_of_tendsto_atTop tendsto_natCast_atTop_atTop
@@ -126,21 +125,22 @@ example : Negligible (fun n =>
 
 example : ¬ Negligible (fun n => ((n : ℝ≥0) ^ 100)⁻¹) := not_negligible_inv_pow 100
 
-example : ¬ Negligible (fun n => (1 : ℝ≥0) / n ^ 100) := not_negligible_one_div_pow 100
+example : ¬ Negligible (fun n => (1 : ℝ≥0) / n ^ 100) := by
+  simpa only [one_div] using not_negligible_inv_pow 100
 
 /-- **Example 2.10** ([BonehShoup2023], p. 28), natural logarithm base `b`:
 `1 / (1000 * n ^ 4 + n ^ 2 * Nat.log b n)` is not negligible. -/
 theorem not_negligible_one_div_quartic_add_sq_mul_log (b : ℕ) :
-    ¬ Negligible (fun n => (1 : ℝ≥0) / (1000 * n ^ 4 + n ^ 2 * Nat.log b n : ℕ)) :=
-  PolynomiallyBounded.not_negligible_one_div (by fun_prop)
+    ¬ Negligible (fun n => (1 : ℝ≥0) / (1000 * n ^ 4 + n ^ 2 * Nat.log b n : ℕ)) := by
+  simpa only [one_div] using PolynomiallyBounded.not_negligible_inv (by fun_prop)
     ((eventually_ge_atTop 1).frequently.mono fun n hn => by positivity)
 
 /-- **Example 2.10** ([BonehShoup2023], p. 28), real logarithm:
 `1 / (1000 * n ^ 4 + n ^ 2 * Real.toNNReal (Real.log n))` is not negligible. -/
 theorem not_negligible_one_div_quartic_add_sq_mul_realLog :
     ¬ Negligible (fun n => (1 : ℝ≥0) /
-      (1000 * (n : ℝ≥0) ^ 4 + (n : ℝ≥0) ^ 2 * Real.toNNReal (Real.log (n : ℝ)))) :=
-  PolynomiallyBoundedNNReal.not_negligible_one_div (by fun_prop)
+      (1000 * (n : ℝ≥0) ^ 4 + (n : ℝ≥0) ^ 2 * Real.toNNReal (Real.log (n : ℝ)))) := by
+  simpa only [one_div] using PolynomiallyBoundedNNReal.not_negligible_inv (by fun_prop)
     ((eventually_ge_atTop 1).frequently.mono fun n hn => by
       have : (0 : ℝ≥0) < n := by exact_mod_cast hn
       positivity)
@@ -187,7 +187,7 @@ example : ¬ Negligible (fun n : ℕ => ((n : ℝ≥0) ^ Nat.log 1 n)⁻¹) := b
 -- does not make `1 / n` negligible; universal quantification over all `c > 0` is required.
 example : (∀ᶠ n : ℕ in atTop, (((1 : ℝ≥0) / n : ℝ≥0) : ℝ) < 1 / (n : ℝ) ^ (1 / 2 : ℝ)) ∧
     ¬ Negligible (fun n : ℕ => (1 : ℝ≥0) / n) := by
-  refine ⟨?_, by simpa only [pow_one] using not_negligible_one_div_pow 1⟩
+  refine ⟨?_, by simpa only [one_div, pow_one] using not_negligible_inv_pow 1⟩
   filter_upwards [eventually_ge_atTop 2] with n hn2
   have hn0 : (0 : ℝ) < n := by exact_mod_cast (by omega : 0 < n)
   have hn1 : (1 : ℝ) < n := by exact_mod_cast hn2

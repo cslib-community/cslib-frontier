@@ -1696,7 +1696,7 @@ theorem EUFCMA.blockwiseEUFCMA (h : M.EUFCMA)
   have hw : PolynomiallyLowerBounded (fun n => fieldWidth (M.msgLen n)) :=
     hmsgLen.div_const (by decide)
   have hpow : Negligible (fun n => ((2 : ℝ≥0) ^ fieldWidth (M.msgLen n))⁻¹) :=
-    negligible_inv_two_pow.comp_polynomiallyLowerBounded hw
+    negligible_inv_two_pow_of_polynomiallyLowerBounded hw
   have hcol : Negligible (fun n =>
       ((∑ i ∈ Finset.range (Q n), i : ℕ) : ℝ≥0) / 2 ^ fieldWidth (M.msgLen n)) := by
     refine negligible_of_le (Negligible.polynomiallyBounded_div (hQpoly.mul hQpoly) hpow)
