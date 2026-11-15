@@ -36,10 +36,10 @@ on words, in place of fair coins. At security parameter `κ`:
 * the encryption coins are a `κ`-bit seed `r`, expanded to `encNoise (P κ) F r`: for each counter
   `N ≤ 2k`, the first `n · 2η` bits of `F r (nonceWord N)`, with `η = η₁` for `N < k` and
   `η = η₂` otherwise (`encWidth`). These are exactly the bits from which `encDetWord` decodes the
-  `N`-th noise polynomial by `SamplePolyCBD_η`;
+  `N`-th noise polynomial by `SamplePolyCBD_η`, so it decodes `CBD_η(F(r, N))` (`cbd_encNoise`);
 * key generation draws the matrix as `keyGenWord` does, and a uniform `κ`-bit seed `σ`, and decodes
   `s` and `e` from `keyNoise (P κ) F σ`, the first `n · 2η₁` bits of `F σ (nonceWord N)` for
-  `N < 2k`;
+  `N < 2k`, so it decodes `CBD_η₁(F(σ, N))` (`cbd_keyNoise`);
 * decryption is `decWord`.
 
 The counter `N` is written in binary in `nonceLen = (2k).size` bits, so the `2k + 1` counters have
@@ -76,6 +76,8 @@ evaluated in polynomial time (`kpkePRF_isEfficient`), and its ciphertexts fit th
 
 * `Cslib.Crypto.MLKEM.nonceWord_injOn`: the counters of key generation and encryption have
   distinct words.
+* `Cslib.Crypto.MLKEM.cbd_keyNoise`, `Cslib.Crypto.MLKEM.cbd_encNoise`: key generation and
+  encryption decode `CBD_η(F(σ, N))` and `CBD_η(F(r, N))`.
 * `Cslib.Crypto.MLKEM.kpkePRF_isEfficient`: the family is efficient for a polynomial-time
   parameter family and a polynomial-time `F`.
 * `Cslib.Crypto.MLKEM.kpkePRF_ciphertextFits`: ciphertexts fit their ciphertext space.
@@ -136,6 +138,153 @@ theorem nonceWord_injOn (P : Params) : Set.InjOn (nonceWord P) (Set.Iic (2 * P.k
   have hlt (x : ℕ) (hx : x ≤ 2 * P.k) : x < 2 ^ nonceLen P :=
     lt_of_le_of_lt hx (Nat.lt_size_self _)
   exact BitString.lowBits_injective_of_lt (hlt N hN) (hlt M hM) h
+
+/-! ### The noise that encryption decodes -/
+
+/-- The rows of a concatenation of words of one width are those words. -/
+private theorem listRows_flatten {width : ℕ} (blocks : List (List Bool))
+    (hblocks : ∀ block ∈ blocks, block.length = width) :
+    BitString.listRows blocks.length width blocks.flatten = blocks := by
+  induction blocks with
+  | nil => simp [BitString.listRows]
+  | cons block rest ih =>
+    rw [List.length_cons, List.flatten_cons,
+      BitString.listRows_succ_append _ _ (hblocks block List.mem_cons_self),
+      ih fun b hb => hblocks b (List.mem_cons_of_mem _ hb)]
+
+/-- `SamplePolyCBD_η` reads only the first `n · 2η` bits of its input. -/
+private theorem cbdResidues_take (n q η : ℕ) (bits : List Bool) :
+    cbdResidues n q η (bits.take (n * (2 * η))) = cbdResidues n q η bits := by
+  unfold cbdResidues BitString.listRows
+  refine congrArg _ (List.map_congr_left fun row hrow => ?_)
+  have hrow := List.mem_range.mp hrow
+  apply List.ext_getElem (by simp)
+  intro i h₁ _
+  simp only [BitString.length_listRow] at h₁
+  rw [BitString.getElem_listRow h₁, BitString.getElem_listRow h₁]
+  have hle := Nat.mul_le_mul_right (2 * η) (Nat.succ_le_of_lt hrow)
+  rw [Nat.succ_mul] at hle
+  have hlt : row * (2 * η) + i < n * (2 * η) := by omega
+  simp [List.getD_eq_getElem?_getD, hlt]
+
+/-- Prefixes of one width `w` of the words `blocks`, concatenated, have `blocks.length * w` bits
+when every word has at least `w` bits. -/
+private theorem length_flatten_map_take {w : ℕ} (blocks : List (List Bool))
+    (hblocks : ∀ block ∈ blocks, w ≤ block.length) :
+    (blocks.map (List.take w)).flatten.length = blocks.length * w := by
+  induction blocks with
+  | nil => simp
+  | cons block rest ih =>
+    simp only [List.map_cons, List.flatten_cons, List.length_append, List.length_take,
+      List.length_cons, ih fun b hb => hblocks b (List.mem_cons_of_mem _ hb),
+      Nat.min_eq_left (hblocks block List.mem_cons_self)]
+    ring
+
+/-- `SamplePolyCBD_η` of each of `k` prefixes of `n · 2η` bits, from their concatenation. -/
+private theorem cbdVecResidues_flatten_map_take {k n q η : ℕ} (blocks : List (List Bool))
+    (hk : blocks.length = k) (hblocks : ∀ block ∈ blocks, n * (2 * η) ≤ block.length) :
+    cbdVecResidues k n q η (blocks.map (List.take (n * (2 * η)))).flatten =
+      blocks.map (cbdResidues n q η) := by
+  unfold cbdVecResidues
+  subst hk
+  rw [show blocks.length = (blocks.map (List.take (n * (2 * η)))).length by simp,
+    listRows_flatten _ fun block hblock => ?_]
+  · simp only [List.map_map, Function.comp_def, cbdResidues_take]
+  · obtain ⟨b, hb, rfl⟩ := List.mem_map.mp hblock
+    simpa using hblocks b hb
+
+/-- **Key generation decodes `CBD_η₁(F(σ, N))`.** If `F σ` has at least `prfLen P` bits at the
+word of each counter `N < 2k`, the polynomials that key generation decodes from `keyNoise P F σ`
+are `SamplePolyCBD` of `F σ` at the counters, as in Kyber v3.02 Algorithm 4 (p. 8): `s` from the
+counters `0, …, k − 1` and `e` from `k, …, 2k − 1`, at width `η₁`. -/
+theorem cbd_keyNoise (P : Params) (F : List Bool → List Bool → List Bool) (σ : List Bool)
+    (hF : ∀ N < 2 * P.k, prfLen P ≤ (F σ (nonceWord P N)).length) :
+    cbdVecResidues P.k P.n P.q P.η₁ ((keyNoise P F σ).take (P.k * (P.n * (2 * P.η₁)))) =
+        (List.range P.k).map (fun N => cbdResidues P.n P.q P.η₁ (F σ (nonceWord P N))) ∧
+      cbdVecResidues P.k P.n P.q P.η₁ ((keyNoise P F σ).drop (P.k * (P.n * (2 * P.η₁)))) =
+        (List.range P.k).map (fun i => cbdResidues P.n P.q P.η₁ (F σ (nonceWord P (P.k + i)))) := by
+  set w := P.n * (2 * P.η₁)
+  set S := (List.range P.k).map fun N => F σ (nonceWord P N)
+  set E := (List.range P.k).map fun i => F σ (nonceWord P (P.k + i))
+  have hw : w ≤ prfLen P := Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ (le_max_left _ _))
+  have hS : ∀ block ∈ S, w ≤ block.length := by
+    intro block hblock
+    obtain ⟨N, hN, rfl⟩ := List.mem_map.mp hblock
+    exact hw.trans (hF N (by have := List.mem_range.mp hN; omega))
+  have hE : ∀ block ∈ E, w ≤ block.length := by
+    intro block hblock
+    obtain ⟨i, hi, rfl⟩ := List.mem_map.mp hblock
+    exact hw.trans (hF _ (by have := List.mem_range.mp hi; omega))
+  have hsplit :
+      keyNoise P F σ = (S.map (List.take w)).flatten ++ (E.map (List.take w)).flatten := by
+    unfold keyNoise expandNoise
+    rw [show 2 * P.k = P.k + P.k by omega, List.range_add, List.flatMap_append, List.flatMap_def,
+      List.flatMap_def]
+    simp only [S, E, List.map_map, Function.comp_def, w]
+  have hlen : (S.map (List.take w)).flatten.length = P.k * w := by
+    rw [length_flatten_map_take _ hS]
+    simp [S]
+  refine ⟨?_, ?_⟩
+  · rw [hsplit, List.take_left' hlen, cbdVecResidues_flatten_map_take _ (by simp [S]) hS]
+    simp [S]
+  · rw [hsplit, List.drop_left' hlen, cbdVecResidues_flatten_map_take _ (by simp [E]) hE]
+    simp [E]
+
+/-- **Encryption decodes `CBD_η(F(r, N))`.** If `F r` has at least `prfLen P` bits at the word of
+each counter `N ≤ 2k`, the polynomials that `encDetWord` decodes from the coins `encNoise P F r`
+are `SamplePolyCBD` of `F r` at the counters, as in Kyber v3.02 Algorithm 5 (p. 9): `r` from the
+counters `0, …, k − 1` at width `η₁`, `e₁` from `k, …, 2k − 1` and `e₂` from `2k` at width `η₂`. -/
+theorem cbd_encNoise (P : Params) (F : List Bool → List Bool → List Bool) (r : List Bool)
+    (hF : ∀ N ≤ 2 * P.k, prfLen P ≤ (F r (nonceWord P N)).length) :
+    cbdVecResidues P.k P.n P.q P.η₁ ((encNoise P F r).take (P.k * (P.n * (2 * P.η₁)))) =
+        (List.range P.k).map (fun N => cbdResidues P.n P.q P.η₁ (F r (nonceWord P N))) ∧
+      cbdVecResidues P.k P.n P.q P.η₂ (((encNoise P F r).drop (P.k * (P.n * (2 * P.η₁)))).take
+          (P.k * (P.n * (2 * P.η₂)))) =
+        (List.range P.k).map (fun i => cbdResidues P.n P.q P.η₂ (F r (nonceWord P (P.k + i)))) ∧
+      cbdResidues P.n P.q P.η₂ ((encNoise P F r).drop
+          (P.k * (P.n * (2 * P.η₁)) + P.k * (P.n * (2 * P.η₂)))) =
+        cbdResidues P.n P.q P.η₂ (F r (nonceWord P (2 * P.k))) := by
+  set w₁ := P.n * (2 * P.η₁)
+  set w₂ := P.n * (2 * P.η₂)
+  set B₁ := (List.range P.k).map fun N => F r (nonceWord P N)
+  set B₂ := (List.range P.k).map fun i => F r (nonceWord P (P.k + i))
+  have h₁ : ∀ block ∈ B₁, w₁ ≤ block.length := by
+    intro block hblock
+    obtain ⟨N, hN, rfl⟩ := List.mem_map.mp hblock
+    exact (Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ (le_max_left _ _))).trans
+      (hF N (by have := List.mem_range.mp hN; omega))
+  have h₂ : ∀ block ∈ B₂, w₂ ≤ block.length := by
+    intro block hblock
+    obtain ⟨i, hi, rfl⟩ := List.mem_map.mp hblock
+    exact (Nat.mul_le_mul_left _ (Nat.mul_le_mul_left _ (le_max_right _ _))).trans
+      (hF _ (by have := List.mem_range.mp hi; omega))
+  have hsplit : encNoise P F r = (B₁.map (List.take w₁)).flatten ++
+      ((B₂.map (List.take w₂)).flatten ++ (F r (nonceWord P (2 * P.k))).take w₂) := by
+    unfold encNoise expandNoise
+    rw [show 2 * P.k + 1 = P.k + P.k + 1 by omega, List.range_succ, List.range_add,
+      List.flatMap_append, List.flatMap_append, List.append_assoc, List.flatMap_singleton]
+    refine congrArg₂ (· ++ ·) ?_ (congrArg₂ (· ++ ·) ?_ ?_)
+    · rw [List.flatMap_def]
+      simp only [B₁, List.map_map]
+      exact congrArg _ (List.map_congr_left fun N hN => by
+        simp [encWidth, List.mem_range.mp hN, w₁])
+    · rw [List.flatMap_def]
+      simp only [B₂, List.map_map]
+      exact congrArg _ (List.map_congr_left fun i _ => by simp [encWidth, w₂])
+    · simp [encWidth, w₂, two_mul]
+  have hlen₁ : (B₁.map (List.take w₁)).flatten.length = P.k * w₁ := by
+    rw [length_flatten_map_take _ h₁]
+    simp [B₁]
+  have hlen₂ : (B₂.map (List.take w₂)).flatten.length = P.k * w₂ := by
+    rw [length_flatten_map_take _ h₂]
+    simp [B₂]
+  refine ⟨?_, ?_, ?_⟩
+  · rw [hsplit, List.take_left' hlen₁, cbdVecResidues_flatten_map_take _ (by simp [B₁]) h₁]
+    simp [B₁]
+  · rw [hsplit, List.drop_left' hlen₁, List.take_left' hlen₂,
+      cbdVecResidues_flatten_map_take _ (by simp [B₂]) h₂]
+    simp [B₂]
+  · rw [hsplit, ← List.drop_drop, List.drop_left' hlen₁, List.drop_left' hlen₂, cbdResidues_take]
 
 /-! ### Key generation and the family -/
 
