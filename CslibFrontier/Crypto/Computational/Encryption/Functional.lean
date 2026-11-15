@@ -29,8 +29,8 @@ any honest encryption of `m` under any key generated for `f` yields `some y`. `F
 for `f` and `F.eval f m = some y'`, the two outputs `y` and `y'` agree.
 
 `FE.ssExperiment` is experiment `b` of the single-challenge semantic-security game for one fixed
-scheme ([BonehShoup2023], Section 15.7, Attack Game 15.9, p. 660): draw `(mpk, msk)`, generate a
-null key `skNull ← E.keyGen msk F.null`, run both stages of an `FE.Adversary` against the logging
+scheme ([BonehShoup2023], Section 15.7, Attack Game 15.9, pp. 660–661): draw `(mpk, msk)`, generate
+a null key `skNull ← E.keyGen msk F.null`, run both stages of an `FE.Adversary` against the logging
 key-generation oracle `E.keyGen msk` flanking a single challenge encryption of `pair.select b`, and
 accept the adversary's guess only when `F.admissible` holds on the logged function identifiers and
 `F.null`.
@@ -115,8 +115,6 @@ queries.
 
 ## Main results
 
-* `Cslib.Crypto.FE.Functionality.admissible_eq_false_of_null`: a challenge pair on which `F.null`
-  takes distinct values is inadmissible for every query log.
 * `Cslib.Crypto.FE.eval_ssExperiment_eq_of_injective_null`,
   `Cslib.Crypto.FE.advantage_ssExperiment_eq_zero_of_injective_null`: when `F.eval F.null` is
   injective, the two semantic-security experiments have identical output distributions and
@@ -138,7 +136,7 @@ queries.
   pp. 658–661).
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Crypto
 
@@ -178,6 +176,7 @@ structure Functionality (Fn M Y : Type) where
 Section 15.7, Definition 15.13, p. 659): for every supported master key pair, every function
 identifier `f`, every message `m` and every output `y` with `F.eval f m = some y`, decrypting any
 supported encryption of `m` under any supported key for `f` yields `some y`. -/
+@[expose]
 def Correct (E : FE MPK MSK Fn SK M C Y) (F : Functionality Fn M Y) : Prop :=
   ∀ keys ∈ (ProbComp.eval E.setup).support, ∀ f m y, F.eval f m = some y →
     ∀ sk ∈ (ProbComp.eval (E.keyGen keys.2 f)).support,
@@ -191,16 +190,17 @@ key `sk` for `f`, if `E.decrypt sk c = some y` and `F.eval f m = some y'`, then 
 Because `E.decrypt` uses `none` for both `⊥` and `reject`, the book's robustness implies
 `FE.Robust`; the converse fails for a scheme whose decryption outputs `⊥` where the functionality
 has a value (a scheme whose decryption never outputs `⊥` loses nothing). -/
+@[expose]
 def Robust (E : FE MPK MSK Fn SK M C Y) (F : Functionality Fn M Y) : Prop :=
   ∀ keys ∈ (ProbComp.eval E.setup).support, ∀ c : C, ∃ m : M, ∀ f,
     ∀ sk ∈ (ProbComp.eval (E.keyGen keys.2 f)).support, ∀ y, E.decrypt sk c = some y →
       ∀ y', F.eval f m = some y' → y = y'
 
 /-- An adversary in the single-challenge semantic-security game for functional encryption
-([BonehShoup2023], Section 15.7, Attack Game 15.9, p. 660). Both stages are oracle programs over the
-key-generation oracle `Fn → SK`: `choose` receives the master public key and a null key `sk_ε` and
-outputs a challenge message pair together with state `σ`; `guess` receives that state and the
-challenge ciphertext and outputs a Boolean guess. -/
+([BonehShoup2023], Section 15.7, Attack Game 15.9, pp. 660–661). Both stages are oracle programs
+over the key-generation oracle `Fn → SK`: `choose` receives the master public key and a null key
+`sk_ε` and outputs a challenge message pair together with state `σ`; `guess` receives that state
+and the challenge ciphertext and outputs a Boolean guess. -/
 structure Adversary (MPK Fn SK M C σ : Type) where
   /-- Stage 1: given `mpk` and `sk_ε`, query the key-generation oracle and output a challenge
   message pair and saved state. -/
@@ -212,15 +212,17 @@ structure Adversary (MPK Fn SK M C σ : Type) where
 /-- The query restriction of Attack Game 15.9 ([BonehShoup2023], Section 15.7, p. 660): the null
 identifier `F.null` (`ε`) and every queried function identifier in `queried` agree on `pair.msg₀`
 and `pair.msg₁`. -/
+@[expose]
 def Functionality.admissible [DecidableEq Y] (F : Functionality Fn M Y) (queried : List Fn)
     (pair : MessagePair M) : Bool :=
   (F.null :: queried).all fun f => decide (F.eval f pair.msg₀ = F.eval f pair.msg₁)
 
-/-- Experiment `b` of Attack Game 15.9 ([BonehShoup2023], Section 15.7, p. 660) for a single
+/-- Experiment `b` of Attack Game 15.9 ([BonehShoup2023], Section 15.7, pp. 660–661) for a single
 encryption query: generate `(mpk, msk)` and the null key `skNull ← E.keyGen msk F.null`, run
 `A.choose mpk skNull` and `A.guess state challenge` against the logged key-generation oracle
 `E.keyGen msk` around the challenge encryption of `pair.select b`, and return `guess` gated by
 `F.admissible` on all queried function identifiers and `F.null`. -/
+@[expose]
 def ssExperiment [DecidableEq Y] (E : FE MPK MSK Fn SK M C Y) (F : Functionality Fn M Y)
     (A : Adversary MPK Fn SK M C σ) (b : Bool) : Experiment := do
   let (mpk, msk) ← E.setup
@@ -271,6 +273,7 @@ theorem advantage_ssExperiment_eq_zero_of_injective_null [DecidableEq Y]
 /-- The cleartext functional encryption scheme of [BonehShoup2023], Section 15.7, Remark 15.13,
 p. 661: encryption outputs the message `m` in the clear, a secret key for `f` is `f` itself, and
 decryption evaluates `F.eval f` on the ciphertext. -/
+@[expose]
 def cleartext (F : Functionality Fn M Y) : FE Unit Unit Fn Fn M M Y where
   setup := pure ((), ())
   keyGen _ f := pure f
@@ -296,16 +299,17 @@ theorem cleartext_robust (F : Functionality Fn M Y) : (cleartext F).Robust F := 
 
 /-! ### Example 15.1: public-key encryption -/
 
-variable {L PK : Type}
+variable {L : Type}
 
 /-- The public-key encryption functionality of [BonehShoup2023], Section 15.7, Example 15.1,
 equation (15.33), p. 659, extended with the null identifier of p. 660: `some ()` is the identity
 identifier `I` returning `Sum.inl m`, and `none` is the null identifier `ε` returning the message
-leakage `Sum.inr (leak m)`. -/
-def Functionality.pke (leak : M → L) : Functionality (Option Unit) M (M ⊕ L) where
+leakage `Sum.inr (len m)`. -/
+@[expose]
+def Functionality.pke (len : M → L) : Functionality (Option Unit) M (M ⊕ L) where
   eval f m := match f with
     | some _ => some (Sum.inl m)
-    | none => some (Sum.inr (leak m))
+    | none => some (Sum.inr (len m))
   null := none
 
 /-- When the null leakage `π` in `Functionality.pke π` is injective, every adversary has
@@ -321,8 +325,9 @@ theorem advantage_ssExperiment_pke_eq_zero [DecidableEq M] [DecidableEq L]
 
 /-- Lift a `TwoStage` chosen-plaintext adversary to an `FE.Adversary` that ignores the null key and
 makes no key-generation queries ([BonehShoup2023], Section 15.7, Example 15.1 and Attack Game 15.9,
-pp. 659–660). This checks the new game against the chosen-plaintext experiment already in the
+pp. 659–661). This checks the new game against the chosen-plaintext experiment already in the
 library; it is not a reduction, carries no efficiency claim, and closes no security item. -/
+@[expose]
 def Adversary.ofTwoStage (A : TwoStage MPK (MessagePair M) C Bool σ) :
     Adversary MPK Fn SK M C σ where
   choose mpk _ := ProbOracleComp.sample (A.choose mpk)
@@ -338,6 +343,7 @@ variable {PK SK M C L σ : Type}
 Section 15.7, Example 15.1, p. 659, and p. 660): the full key for `some ()` is `some sk`, which
 decrypts with `E.decrypt sk`, and the null key for `none` is `none`, which reads `leak c` off the
 ciphertext. -/
+@[expose]
 def toFE (E : PKE PK SK M C) (leak : C → L) :
     FE PK SK (Option Unit) (Option SK) M C (M ⊕ L) where
   setup := E.keyGen
@@ -374,7 +380,7 @@ theorem toFE_correct_iff (E : PKE PK SK M C) (len : M → L) (leak : C → L) :
 /-- Played against an adversary `FE.Adversary.ofTwoStage A` that makes no key-generation queries,
 Attack Game 15.9 for `E.toFE leak` and `FE.Functionality.pke len` has the same output distribution
 as Attack Game 11.1 (`E.cpaExperiment`) with admissibility rule `len m₀ = len m₁`
-([BonehShoup2023], Section 15.7, Example 15.1 and Attack Game 15.9, pp. 659–660, and Section 11.2,
+([BonehShoup2023], Section 15.7, Example 15.1 and Attack Game 15.9, pp. 659–661, and Section 11.2,
 Attack Game 11.1, p. 436). This checks the new game against the chosen-plaintext experiment already
 in the library; it is not a reduction, carries no efficiency claim, and closes no security item. -/
 theorem eval_ssExperiment_toFE_ofTwoStage [DecidableEq M] [DecidableEq L] (E : PKE PK SK M C)

@@ -17,6 +17,10 @@ Concrete checks for `Cslib.Crypto.FE`, `FE.Correct`, `FE.Robust`, `FE.ssExperime
   adversary that reads the challenge ciphertext in the clear wins `FE.ssExperiment` with advantage
   `1` when the null function is constant, whereas an injective null function forces advantage `0`
   for every adversary (Remark 15.13).
+- Pre- and post-challenge key queries (`askFirst`, `askLast`) are logged and checked by
+  `Functionality.admissible`: an admissible query (`blind`) leaves the experiment law `PMF.pure b`,
+  whereas a query that distinguishes the challenge messages (`reveal`) forces `PMF.pure false` in
+  both stages.
 - A scheme whose full key and null key disagree on a ciphertext is not `FE.Robust`.
 - For the identity public-key scheme on bits, `idPKE.toFE id` is correct for `Functionality.pke id`,
   is not correct for `Functionality.pke not`, and has the same semantic-security experiment law
@@ -111,5 +115,77 @@ example (A : TwoStage Unit (MessagePair Bool) Bool Bool Unit) (b : Bool) :
         (Adversary.ofTwoStage A) b) =
       ProbComp.eval (idPKE.cpaExperiment (fun _ m₀ m₁ => decide (id m₀ = id m₁)) A b) :=
   idPKE.eval_ssExperiment_toFE_ofTwoStage id id A b
+
+/-- Null function `⊥` everywhere; the other identifier reveals nothing. -/
+def blind : Functionality (Option Unit) Bool Bool where
+  eval f _ := f.map fun _ => true
+  null := none
+
+/-- Null function `⊥` everywhere; the other identifier reveals the message. -/
+def reveal : Functionality (Option Unit) Bool Bool where
+  eval f m := f.map fun _ => m
+  null := none
+
+/-- Asks for the key of `some ()` before the challenge, submits `(false, true)`, and outputs the
+challenge. -/
+def askFirst : Adversary Unit (Option Unit) (Option Unit) Bool Bool Unit where
+  choose _ _ := do
+    let _ ← ProbOracleComp.query (spec := fun _ : Option Unit => Option Unit) (some ())
+    return (⟨false, true⟩, ())
+  guess _ c := pure c
+
+/-- Submits `(false, true)`, asks for the key of `some ()` after the challenge, and outputs the
+challenge. -/
+def askLast : Adversary Unit (Option Unit) (Option Unit) Bool Bool Unit where
+  choose _ _ := pure (⟨false, true⟩, ())
+  guess _ c := do
+    let _ ← ProbOracleComp.query (spec := fun _ : Option Unit => Option Unit) (some ())
+    return c
+
+-- An admissible key query before the challenge succeeds with law `PMF.pure b`.
+example (b : Bool) :
+    ProbComp.eval ((cleartext blind).ssExperiment blind askFirst b) = PMF.pure b := by
+  simp only [ssExperiment, cleartext, blind, ProbOracleComp.runLog, askFirst, bind_pure_comp,
+    map_pure, ProbOracleComp.runState_map, ProbOracleComp.runState_query, StateT.run_map,
+    MessagePair.select, cond_eq_ite, ProbOracleComp.runState_pure, StateT.run_pure,
+    Functionality.admissible, List.map_append, decide_true, List.all_cons, List.all_append,
+    List.all_map, Function.true_comp, Bool.true_and, List.all_nil, Bool.and_true, Functor.map_map,
+    Bool.ite_false_right, Bool.decide_eq_true, pure_bind, ProbComp.eval_map]
+  cases b <;> simp [StateT.run]
+
+-- An admissible key query after the challenge succeeds with law `PMF.pure b`.
+example (b : Bool) :
+    ProbComp.eval ((cleartext blind).ssExperiment blind askLast b) = PMF.pure b := by
+  simp only [ssExperiment, cleartext, blind, ProbOracleComp.runLog, askLast, bind_pure_comp,
+    map_pure, ProbOracleComp.runState_pure, StateT.run_pure, MessagePair.select, cond_eq_ite,
+    ProbOracleComp.runState_map, ProbOracleComp.runState_query, StateT.run_map,
+    Functionality.admissible, List.map_append, decide_true, List.all_cons, List.all_append,
+    List.all_map, Function.true_comp, Bool.true_and, Functor.map_map, pure_bind,
+    Bool.ite_false_right, Bool.decide_eq_true, Bool.and_true, List.all_nil, ProbComp.eval_map]
+  cases b <;> simp [StateT.run]
+
+-- A key query before the challenge that distinguishes the messages makes the experiment output
+-- `false`.
+example (b : Bool) :
+    ProbComp.eval ((cleartext reveal).ssExperiment reveal askFirst b) = PMF.pure false := by
+  simp only [ssExperiment, cleartext, reveal, ProbOracleComp.runLog, askFirst, bind_pure_comp,
+    map_pure, ProbOracleComp.runState_map, ProbOracleComp.runState_query, StateT.run_map,
+    MessagePair.select, cond_eq_ite, ProbOracleComp.runState_pure, StateT.run_pure,
+    Functionality.admissible, List.map_append, List.all_cons, Option.map_none, decide_true,
+    List.all_append, List.all_map, Bool.true_and, List.all_nil, Bool.and_true, Functor.map_map,
+    Bool.ite_false_right, Bool.decide_eq_true, pure_bind, ProbComp.eval_map]
+  cases b <;> simp [StateT.run]
+
+-- A key query after the challenge that distinguishes the messages makes the experiment output
+-- `false`.
+example (b : Bool) :
+    ProbComp.eval ((cleartext reveal).ssExperiment reveal askLast b) = PMF.pure false := by
+  simp only [ssExperiment, cleartext, reveal, ProbOracleComp.runLog, askLast, bind_pure_comp,
+    map_pure, ProbOracleComp.runState_pure, StateT.run_pure, MessagePair.select, cond_eq_ite,
+    ProbOracleComp.runState_map, ProbOracleComp.runState_query, StateT.run_map,
+    Functionality.admissible, List.map_append, List.all_cons, Option.map_none, decide_true,
+    List.all_append, List.all_map, Bool.true_and, Functor.map_map, pure_bind, Bool.ite_false_right,
+    Bool.decide_eq_true, Bool.and_true, List.all_nil, ProbComp.eval_map]
+  cases b <;> simp [StateT.run]
 
 end CslibFrontierTests.Crypto.FunctionalEncryption
