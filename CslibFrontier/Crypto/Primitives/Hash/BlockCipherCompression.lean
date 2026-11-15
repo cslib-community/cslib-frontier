@@ -24,7 +24,7 @@ Here we record the explicit attacks that rule out other natural choices, using o
   ([KatzLindell2020], Exercise 7.23(c); equivalently `h₄` of [BonehShoup2023], Section 8.5.2,
   p. 301, with its two arguments swapped), and `h₅(k, x) = F_k(k ⊕ x) ⊕ k` ([BonehShoup2023],
   Section 8.5.2, p. 301) have preimages computable with one inverse query, so any two distinct
-  keys give a collision ([BonehShoup2023], Exercise 8.11, p. 349);
+  keys give a collision (for `h₄` and `h₅`, [BonehShoup2023], Exercise 8.11, p. 349);
 * Davies–Meyer sends every fixed point `F_k(x) = x` to `0`, so two distinct fixed points collide
   ([KatzLindell2020], Exercise 7.24).
 
@@ -116,16 +116,17 @@ theorem keyMasked_symm [AddGroup B] (F : B → Equiv.Perm B) (k y : B) :
     keyMasked F (k, (F k).symm (y - k)) = y := by
   simp [keyMasked]
 
-/-- **Exercise 7.23(c)** ([KatzLindell2020], Section 7.3.1): for distinct keys `k ≠ k'` and any
-target `y`, the inputs `(k, F_k⁻¹(y - k))` and `(k', F_{k'}⁻¹(y - k'))` are distinct and collide
-under `h(k, x) = F_k(x) + k`. -/
+/-- **Exercise 7.23(c)** ([KatzLindell2020], Section 7.3.1; also the `h₄` part of
+[BonehShoup2023], Exercise 8.11, p. 349): for distinct keys `k ≠ k'` and any target `y`, the
+inputs `(k, F_k⁻¹(y - k))` and `(k', F_{k'}⁻¹(y - k'))` are distinct and collide under
+`h(k, x) = F_k(x) + k`. -/
 theorem keyMasked_collision [AddGroup B] (F : B → Equiv.Perm B) {k k' : B} (hk : k ≠ k')
     (y : B) :
     (k, (F k).symm (y - k)) ≠ (k', (F k').symm (y - k')) ∧
       keyMasked F (k, (F k).symm (y - k)) = keyMasked F (k', (F k').symm (y - k')) :=
   ⟨fun h => hk (Prod.ext_iff.1 h).1, by simp⟩
 
-/-- `keyMaskedInput` is `keyMasked` composed with the involution `(k, x) ↦ (k, k + x)`. -/
+/-- `keyMaskedInput` is `keyMasked` composed with the map `(k, x) ↦ (k, k + x)`. -/
 theorem keyMaskedInput_eq_keyMasked [Add B] (F : B → Equiv.Perm B) (k x : B) :
     keyMaskedInput F (k, x) = keyMasked F (k, k + x) := rfl
 
@@ -134,11 +135,12 @@ theorem keyMaskedInput_eq_keyMasked [Add B] (F : B → Equiv.Perm B) (k x : B) :
 @[simp]
 theorem keyMaskedInput_symm [AddGroup B] (F : B → Equiv.Perm B) (k y : B) :
     keyMaskedInput F (k, -k + (F k).symm (y - k)) = y := by
-  simp [keyMaskedInput]
+  rw [keyMaskedInput_eq_keyMasked, add_neg_cancel_left, keyMasked_symm]
 
-/-- **Exercise 8.11** ([BonehShoup2023], Section 8.5.2, p. 301 and p. 349): for distinct keys
-`k ≠ k'` and any target `y`, the inputs `(k, -k + F_k⁻¹(y - k))` and
-`(k', -k' + F_{k'}⁻¹(y - k'))` are distinct and collide under `keyMaskedInput` (`h₅`). -/
+/-- **Exercise 8.11** ([BonehShoup2023], Exercise 8.11, p. 349; `h₅` is defined in
+Section 8.5.2, p. 301): for distinct keys `k ≠ k'` and any target `y`, the inputs
+`(k, -k + F_k⁻¹(y - k))` and `(k', -k' + F_{k'}⁻¹(y - k'))` are distinct and collide under
+`keyMaskedInput` (`h₅`). -/
 theorem keyMaskedInput_collision [AddGroup B] (F : B → Equiv.Perm B) {k k' : B} (hk : k ≠ k')
     (y : B) :
     (k, -k + (F k).symm (y - k)) ≠ (k', -k' + (F k').symm (y - k')) ∧

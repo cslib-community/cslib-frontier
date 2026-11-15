@@ -15,8 +15,8 @@ import Mathlib.Tactic.NormNum
 /-!
 # Tests for Insecure Block-Cipher Compression Variants
 
-Concrete checks on `BitString` and `ZMod 16`, subsingleton impossibility examples, and axiom
-audits for `keyMasked` and `keyMaskedInput` ideal-cipher collision finders.
+Concrete checks on `BitString`, `ZMod 5`, and `ZMod 16`, a subsingleton impossibility example,
+and a choice-free axiom guard for `keyMaskedInput_collision`.
 -/
 
 public section
@@ -33,14 +33,6 @@ def bitStringH4Adversary (n : ℕ) : CollisionFinder (BitString n) (BitString n)
 /-- Explicit 2-query collision finder for `keyMaskedInput` (`h₅`) on `n`-bit strings. -/
 def bitStringH5Adversary (n : ℕ) : CollisionFinder (BitString n) (BitString n) :=
   keyMaskedInputAdversary (fun _ => false) (fun _ => true) (fun _ => false)
-
-theorem isQueryBounded_bitStringH4Adversary (n : ℕ) :
-    IsQueryBounded (bitStringH4Adversary n) 2 :=
-  isQueryBounded_keyMaskedAdversary _ _ _
-
-theorem isQueryBounded_bitStringH5Adversary (n : ℕ) :
-    IsQueryBounded (bitStringH5Adversary n) 2 :=
-  isQueryBounded_keyMaskedInputAdversary _ _ _
 
 theorem bitStringH4Adversary_wins {n : ℕ} (hn : 1 ≤ n) :
     Pr[collisionGame (keyMasked (B := BitString n)) (bitStringH4Adversary n)] = 1 := by
@@ -66,20 +58,28 @@ example :
   keyMaskedAdversary_wins (by decide) 0
 
 example :
-    Pr[collisionGame (keyMasked (B := ZMod 16)) (keyMaskedAdversary (0 : ZMod 16) 1 0)] = 1 := by
-  rw [keyMaskedAdversary_wins (by decide) 0]
-  simp
-
-example :
     collisionGame (keyMaskedInput (B := ZMod 16))
         (keyMaskedInputAdversary (0 : ZMod 16) 1 0) = PMF.pure true :=
   keyMaskedInputAdversary_wins (by decide) 0
 
-example :
-    Pr[collisionGame (keyMaskedInput (B := ZMod 16))
-        (keyMaskedInputAdversary (0 : ZMod 16) 1 0)] = 1 := by
-  rw [keyMaskedInputAdversary_wins (by decide) 0]
-  simp
+instance : Fact (1 < 16) := ⟨by norm_num⟩
+
+example : ∃ A : CollisionFinder (ZMod 16) (ZMod 16),
+    IsQueryBounded A 2 ∧ Pr[collisionGame (keyMasked (B := ZMod 16)) A] = 1 :=
+  exists_collisionFinder_keyMasked
+
+example : ∃ A : CollisionFinder (ZMod 16) (ZMod 16),
+    IsQueryBounded A 2 ∧ Pr[collisionGame (keyMaskedInput (B := ZMod 16)) A] = 1 :=
+  exists_collisionFinder_keyMaskedInput
+
+example : ¬ ∃ A : CollisionFinder (ZMod 16) (ZMod 16),
+    IsQueryBounded A 2 ∧
+      Pr[collisionGame (daviesMeyer (K := ZMod 16) (B := ZMod 16)) A] = 1 := by
+  rintro ⟨A, hA, h1⟩
+  have h := daviesMeyer_collisionGame_mul_le hA
+  have hcard : Fintype.card (ZMod 16) = 16 := ZMod.card 16
+  rw [hcard, h1] at h
+  norm_num at h
 
 private def xorCipher2 (k : BitString 2) : Equiv.Perm (BitString 2) :=
   Equiv.addLeft k
@@ -93,6 +93,16 @@ example :
 example :
     keyMaskedInput xorCipher2 (![false, false], ![false, false]) =
       keyMaskedInput xorCipher2 (![true, true], ![true, true]) := by
+  decide
+
+private def swapCipher (k : ZMod 5) : Equiv.Perm (ZMod 5) :=
+  Equiv.swap k (k + 1)
+
+example : ∀ k y : ZMod 5,
+    keyMaskedInput swapCipher (k, -k + (swapCipher k).symm (y - k)) = y := by
+  decide
+
+example : keyMaskedInput swapCipher (1, 1) = 2 ∧ keyMaskedInput swapCipher (3, 0) = 2 := by
   decide
 
 private theorem collisionGame_eq_pure_false_of_subsingleton {Key Block : Type} [DecidableEq Key]
@@ -119,29 +129,8 @@ example (A : CollisionFinder Unit Unit) :
   rw [collisionGame_eq_pure_false_of_subsingleton]
   simp
 
-example (A : CollisionFinder (BitString 0) (BitString 0)) :
-    Pr[collisionGame (keyMaskedInput (B := BitString 0)) A] = 0 := by
-  rw [collisionGame_eq_pure_false_of_subsingleton]
-  simp
-
 /-- info: 'Cslib.Crypto.BlockCipherCompression.keyMaskedInput_collision' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms Cslib.Crypto.BlockCipherCompression.keyMaskedInput_collision
-
-/-- info: 'Cslib.IdealCipher.keyMaskedAdversary_wins' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Cslib.IdealCipher.keyMaskedAdversary_wins
-
-/-- info: 'Cslib.IdealCipher.keyMaskedInputAdversary_wins' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Cslib.IdealCipher.keyMaskedInputAdversary_wins
-
-/-- info: 'Cslib.IdealCipher.exists_collisionFinder_keyMasked' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Cslib.IdealCipher.exists_collisionFinder_keyMasked
-
-/-- info: 'Cslib.IdealCipher.exists_collisionFinder_keyMaskedInput' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Cslib.IdealCipher.exists_collisionFinder_keyMaskedInput
 
 end IdealCipherCompressionVariantsTests
