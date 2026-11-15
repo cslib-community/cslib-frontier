@@ -155,7 +155,13 @@ indexed by `ι × κ` into independent blocks, and `toOuterMeasure_pi_forall` in
 box `{u | ∀ i, u i ∈ E i}`. For `Fin k`-indexed tuples with different factors, `PMF.piFin` in
 [IID.lean](../../CslibFrontier/Probability/IID.lean) generalizes `iid`, and
 [IID/Event.lean](../../CslibFrontier/Probability/IID/Event.lean) gives its box and union bounds
-`toOuterMeasure_piFin_forall` and `toOuterMeasure_toReal_piFin_exists_le`. To move a finite
+`toOuterMeasure_piFin_forall` and `toOuterMeasure_toReal_piFin_exists_le`.
+[IID/Birthday.lean](../../CslibFrontier/Probability/IID/Birthday.lean) bounds from below the
+probability that `k` samples of `iid μ k` contain two equal values, for any law `μ` on a set of size
+`n`: at least `1 - exp (-k (k - 1) / (2 n))` (`one_sub_exp_neg_le_iid_not_injective`) and at least
+`min (k (k - 1) / (4 n)) 0.63` (`min_le_iid_not_injective`), as in
+[Boneh–Shoup, Theorem B.1 and Corollary B.2](../sources.md#bs23). The union-bound upper bounds are
+in [IID/Distinct.lean](../../CslibFrontier/Probability/IID/Distinct.lean). To move a finite
 statistic of i.i.d. samples from a measure into this setting, import
 [Product/MapMeasure.lean](../../CslibFrontier/Probability/Product/MapMeasure.lean):
 `map_measurePi_eq_toMeasure_pi` identifies the image of `Measure.pi μ` under coordinatewise
