@@ -121,12 +121,12 @@ noncomputable def example22_3Scheme :
     AccessScheme (ZMod 5) (LinearKey example22_3) (Fin 4) (LinearShare example22_3) :=
   linearUniformAccessScheme example22_3
 
-theorem example22_3_perfectlyCorrect :
+example :
     PerfectlyCorrect example22_3Scheme.access example22_3Scheme.share
       example22_3Scheme.reconstruct :=
   example22_3Scheme.perfectlyCorrect
 
-theorem example22_3_viewIndist :
+example :
     ViewIndist example22_3Scheme.access example22_3Scheme.sources example22_3Scheme.share :=
   example22_3Scheme.viewIndist
 
@@ -143,7 +143,8 @@ example (k : LinearKey example22_3) (secret : ZMod 5) :
   ext j
   fin_cases j <;> decide
 
-/-- End-to-end sharing/reconstruction and Remark 22.15 additive/scalar checks on `example22_3`. -/
+/-- End-to-end sharing/reconstruction, Remark 22.15 additive homomorphism, and scalar
+multiplication checks on `example22_3` (`linearShare_smul` is not in the book). -/
 example (k₁ k₂ : LinearKey example22_3) (secret₁ secret₂ c : ZMod 5) :
     example22_3Scheme.reconstruct {0, 1, 2}
         (example22_3Scheme.view {0, 1, 2} k₁ secret₁) = secret₁ ∧

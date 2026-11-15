@@ -1025,37 +1025,22 @@ scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.ShamirInterpolation
 ### Monotone span programs and linear secret sharing
 
 Boneh–Shoup Section 22.5.2 ([bs23][bs23], pp. 978–982, Definition 22.21, Construction 22.2,
-Theorem 22.13, Definition 22.22, and Remark 22.15) derives linear secret sharing for any
-monotone access structure from a monotone span program over a field `F`.
-
-- **Monotone span programs:**
-  [`SpanProgram/Basic.lean`](../../CslibFrontier/Computability/Circuit/SpanProgram/Basic.lean)
-  defines `MonotoneSpanProgram F Party` over a field `F` and arbitrary party type `Party`, storing
-  `tailDim` (the book's column dimension `d` is `tailDim + 1 ≥ 1`), per-party row counts `rowDim`,
-  and matrices `matrix i : Matrix (Fin (rowDim i)) (Fin (tailDim + 1)) F`. A coalition `s` satisfies
-  `P.Accepts s` iff `P.target = Pi.single 0 1` lies in `P.rowSpan s` (`accepts_mono`,
-  `not_accepts_empty`, `accepts_iff_exists_vecMul`, `exists_nullVector_of_not_accepts`).
-- **Linear secret-sharing scheme:**
-  [`AccessStructure/Linear.lean`](../../CslibFrontier/Crypto/Protocols/SecretSharing/AccessStructure/Linear.lean)
-  defines the recognized access structure `P.accessStructure` (`P` recognizes `A` iff
-  `P.accessStructure = A`), sharing `linearShare P k secret i = P.matrix i *ᵥ Fin.cons secret k`,
-  the explicit reconstruction identity `sum_dotProduct_linearShare_eq_secret` for any row-weight
-  witness `w` with `∑ i : s, vecMul (w i) (P.matrix i.1) = P.target`, additive and scalar
-  homomorphisms `linearShare_add`, `linearShare_smul`, and `linearReconstruct_linearShare_add`,
-  and the scheme constructors `linearAccessScheme` (over `SourceClass.translationInvariant
-  (LinearKey P)` in [AccessStructure/Sources.lean](../../CslibFrontier/Crypto/Protocols/SecretSharing/AccessStructure/Sources.lean))
-  and `linearUniformAccessScheme` (for finite fields, via `AccessScheme.monoSources`).
-
-Model boundaries: `linearReconstruct` chooses a valid weight family `w` via `Classical.choose` when
-`P.Accepts s` (returning `0` otherwise) to populate `AccessScheme.reconstruct` and carries no
-efficiency or algorithmic claim. Over an infinite field `F` with `P.tailDim ≥ 1`,
-`SourceClass.translationInvariant (LinearKey P)` is empty, so `linearAccessScheme P` proves
-universal correctness while privacy is vacuous; nontrivial privacy uses finite fields
-(`linearUniformAccessScheme`). The
+Theorem 22.13, Definition 22.22, and Remark 22.15) derives linear secret sharing for the access
+structure that a monotone span program `MonotoneSpanProgram F Party` recognizes over a field `F`
+([`SpanProgram/Basic.lean`](../../CslibFrontier/Computability/Circuit/SpanProgram/Basic.lean),
+[`AccessStructure/Linear.lean`](../../CslibFrontier/Crypto/Protocols/SecretSharing/AccessStructure/Linear.lean),
+and [`AccessStructure/Sources.lean`](../../CslibFrontier/Crypto/Protocols/SecretSharing/AccessStructure/Sources.lean)).
+`linearAccessScheme` uses `SourceClass.translationInvariant (LinearKey P)` (empty over infinite
+fields when `P.tailDim ≥ 1`, making privacy there vacuous), `linearUniformAccessScheme` targets
+finite fields via `AccessScheme.monoSources`, `linearReconstruct` picks row weights via
+`Classical.choose` with no efficiency claim, `linearShare_add` and
+`linearReconstruct_linearShare_add` capture Remark 22.15 (`linearShare_smul` is a scalar
+corollary not stated in the book), and the Example 22.3 generalization that every monotone access
+structure has a monotone span program (together with Theorem 22.14 and Lemma 22.15) is not yet
+formalized. The
 [linear secret-sharing client](../../CslibFrontierTests/Crypto/LinearSecretSharing.lean) exercises
-Boneh–Shoup Example 22.3 over `ZMod 5`, explicit row-weight recombination, Remark 22.15 linearity,
-and necessity of all theorem hypotheses (including failure over `ZMod 4` where `2` has no inverse).
-Check it with:
+Example 22.3 over `ZMod 5`, explicit row-weight recombination, additive and scalar linearity, and
+boundary probes including `ZMod 4`. Check it with:
 
 ```bash
 scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.LinearSecretSharing

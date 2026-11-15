@@ -56,9 +56,10 @@ privacy over infinite fields while correctness still holds for every key; use
 * `Cslib.Crypto.Protocols.SecretSharing.linearReconstruct_linearShare`: correctness of
   `linearReconstruct`.
 * `Cslib.Crypto.Protocols.SecretSharing.linearShare_add`,
-  `Cslib.Crypto.Protocols.SecretSharing.linearShare_smul`,
-  `Cslib.Crypto.Protocols.SecretSharing.linearReconstruct_linearShare_add`: additive and scalar
+  `Cslib.Crypto.Protocols.SecretSharing.linearReconstruct_linearShare_add`: additive
   homomorphisms (Remark 22.15).
+* `Cslib.Crypto.Protocols.SecretSharing.linearShare_smul`: scalar multiplication homomorphism
+  (not in [BonehShoup2023], Remark 22.15 states sums only).
 * `Cslib.Crypto.Protocols.SecretSharing.linearView_eq_of_not_accepts`: secret-independence of
   unauthorized views under translation-invariant key sources (Theorem 22.13).
 
@@ -124,7 +125,7 @@ theorem sum_dotProduct_linearShare_eq_secret (P : MonotoneSpanProgram F Party)
           rw [sum_dotProduct]
     _ = dotProduct P.target (Fin.cons secret k) := by rw [hw]
     _ = secret := by
-          simp [MonotoneSpanProgram.target, dotProduct, Fin.sum_univ_succ]
+          rw [MonotoneSpanProgram.target, single_one_dotProduct, Fin.cons_zero]
 
 /-- Deterministic reconstruction map `C(J, {α_j}_{j ∈ J})` of Construction 22.2
 ([BonehShoup2023], pp. 979–980). When `P.Accepts s`, it selects a valid row-weight family via
@@ -155,23 +156,16 @@ theorem linearShare_add (P : MonotoneSpanProgram F Party) (k₁ k₂ : LinearKey
     (secret₁ secret₂ : F) (i : Party) :
     linearShare P (k₁ + k₂) (secret₁ + secret₂) i =
       linearShare P k₁ secret₁ i + linearShare P k₂ secret₂ i := by
-  have hcons :
-      @Fin.cons _ (fun _ => F) (secret₁ + secret₂) (k₁ + k₂) =
-        @Fin.cons _ (fun _ => F) secret₁ k₁ + @Fin.cons _ (fun _ => F) secret₂ k₂ := by
-    ext j
-    induction j using Fin.cases <;> simp
-  simp only [linearShare, hcons, Matrix.mulVec_add]
+  simp only [linearShare, ← Matrix.mulVec_add]
+  exact congrArg _ (Matrix.cons_add_cons secret₁ k₁ secret₂ k₂).symm
 
-/-- Scalar multiplication homomorphism of Construction 22.2 sharing. -/
+/-- Scalar multiplication homomorphism of Construction 22.2 sharing (not in [BonehShoup2023];
+Remark 22.15 states sums only). -/
 theorem linearShare_smul (P : MonotoneSpanProgram F Party) (c : F) (k : LinearKey P)
     (secret : F) (i : Party) :
     linearShare P (c • k) (c * secret) i = c • linearShare P k secret i := by
-  have hcons :
-      @Fin.cons _ (fun _ => F) (c * secret) (c • k) =
-        c • @Fin.cons _ (fun _ => F) secret k := by
-    ext j
-    induction j using Fin.cases <;> simp
-  simp only [linearShare, hcons, Matrix.mulVec_smul]
+  simp only [linearShare, ← Matrix.mulVec_smul]
+  exact congrArg _ (Matrix.smul_cons c secret k).symm
 
 /-- Reconstructing the pointwise sum of two Construction 22.2 sharings over an accepted
 coalition `s` recovers `secret₁ + secret₂` (Remark 22.15, [BonehShoup2023], p. 982). -/
@@ -197,30 +191,15 @@ theorem linearView_eq_of_not_accepts (P : MonotoneSpanProgram F Party)
       AccessStructure.viewDistOf Q (linearShare P) s secret₁ := by
   obtain ⟨v, hv0, hv_null⟩ := P.exists_nullVector_of_not_accepts hs
   let δ : LinearKey P := fun k => (secret₁ - secret₀) * v k.succ
-  have hshift : ∀ r : LinearKey P,
-      (fun i : s => linearShare P r secret₀ i.1) =
-        fun i : s => linearShare P (r + δ) secret₁ i.1 := by
-    intro r
-    ext i row
-    have hcons : Fin.cons secret₀ r + (secret₁ - secret₀) • v = Fin.cons secret₁ (r + δ) := by
-      ext j
-      induction j using Fin.cases with
-      | zero => simp [hv0]
-      | succ k => simp [δ, smul_eq_mul]
-    have hmul : Matrix.mulVec (P.matrix i.1) (Fin.cons secret₀ r + (secret₁ - secret₀) • v) =
-        Matrix.mulVec (P.matrix i.1) (Fin.cons secret₀ r) := by
-      rw [Matrix.mulVec_add, Matrix.mulVec_smul, hv_null i.1 i.2, smul_zero, add_zero]
-    simp only [linearShare]
-    rw [← hcons]
-    exact congrFun hmul.symm row
-  have hcongr :
-      AccessStructure.viewDistOf Q (linearShare P) s secret₀ =
-        AccessStructure.viewDistOf (Q.map (· + δ)) (linearShare P) s secret₁ := by
-    simp only [AccessStructure.viewDistOf, PMF.map_comp]
-    congr 1
-    funext r
-    exact hshift r
-  rw [hcongr, hQ δ]
+  refine AccessStructure.viewDistOf_eq_of_map_add_eq (hQ δ) fun r => ?_
+  ext i row
+  have hcons : Fin.cons secret₀ r + (secret₁ - secret₀) • v = Fin.cons secret₁ (r + δ) := by
+    ext j
+    induction j using Fin.cases with
+    | zero => simp [hv0]
+    | succ k => simp [δ, smul_eq_mul]
+  simp only [linearShare]
+  rw [← hcons, Matrix.mulVec_add, Matrix.mulVec_smul, hv_null i.1 i.2, smul_zero, add_zero]
 
 /-- **Construction 22.2, Theorem 22.13, and Definition 22.22** ([BonehShoup2023], pp. 979–980):
 the linear secret-sharing scheme derived from a monotone span program `P` over

@@ -78,28 +78,18 @@ variable {F Party : Type*} [Field F]
 theorem target_zero (P : MonotoneSpanProgram F Party) : P.target 0 = 1 :=
   Pi.single_eq_same 0 1
 
-@[simp]
-theorem target_succ (P : MonotoneSpanProgram F Party) (k : Fin P.tailDim) :
-    P.target k.succ = 0 :=
-  Pi.single_eq_of_ne (Fin.succ_ne_zero k) 1
-
-theorem target_ne_zero (P : MonotoneSpanProgram F Party) : P.target ≠ 0 := by
-  intro h
-  have h0 : P.target 0 = 0 := congrFun h 0
-  simp at h0
+theorem target_ne_zero (P : MonotoneSpanProgram F Party) : P.target ≠ 0 :=
+  Pi.single_ne_zero_iff.mpr one_ne_zero
 
 /-- The `F`-linear span of all rows of `{P.matrix i}_{i ∈ s}` for coalition `s`
 ([BonehShoup2023], Definition 22.21, p. 978). -/
-@[expose] def rowSpan (P : MonotoneSpanProgram F Party) (s : Finset Party) :
+def rowSpan (P : MonotoneSpanProgram F Party) (s : Finset Party) :
     Submodule F (Fin (P.tailDim + 1) → F) :=
-  Submodule.span F
-    (Set.range
-      (fun ⟨⟨i, _⟩, r⟩ => P.matrix i r :
-        (i : s) × Fin (P.rowDim i.1) → Fin (P.tailDim + 1) → F))
+  Submodule.span F (Set.range fun p : (i : s) × Fin (P.rowDim i.1) => P.matrix p.1.val p.2)
 
 /-- A monotone span program `P` accepts coalition `s` iff `P.target ∈ P.rowSpan s`
 ([BonehShoup2023], Definition 22.21, p. 978). -/
-@[expose] def Accepts (P : MonotoneSpanProgram F Party) (s : Finset Party) : Prop :=
+def Accepts (P : MonotoneSpanProgram F Party) (s : Finset Party) : Prop :=
   P.target ∈ P.rowSpan s
 
 /-- Acceptance by a monotone span program is monotone under coalition inclusion
@@ -112,15 +102,7 @@ theorem accepts_mono (P : MonotoneSpanProgram F Party) : Monotone P.Accepts := b
 
 /-- The empty coalition is never accepted by a monotone span program over a field. -/
 theorem not_accepts_empty (P : MonotoneSpanProgram F Party) : ¬ P.Accepts ∅ := by
-  intro h
-  have hrange :
-      (Set.range
-        (fun ⟨⟨i, _⟩, r⟩ => P.matrix i r :
-          (i : (∅ : Finset Party)) × Fin (P.rowDim i.1) → Fin (P.tailDim + 1) → F)) = ∅ := by
-    ext v
-    simp
-  simp only [Accepts, rowSpan, hrange, Submodule.span_empty, Submodule.mem_bot] at h
-  exact P.target_ne_zero h
+  simp [Accepts, rowSpan, Set.range_eq_empty, P.target_ne_zero]
 
 /-- A coalition `s` is accepted iff there exist per-party row coefficient vectors `w i` whose
 weighted sum of rows equals `P.target = e₁` ([BonehShoup2023], Construction 22.2, p. 980). -/
@@ -147,19 +129,13 @@ theorem not_accepts_of_exists_nullVector (P : MonotoneSpanProgram F Party) {s : 
     (v : Fin (P.tailDim + 1) → F) (hv0 : v 0 = 1)
     (hv_null : ∀ i ∈ s, Matrix.mulVec (P.matrix i) v = 0) : ¬ P.Accepts s := by
   intro hs
-  rw [accepts_iff_exists_vecMul] at hs
-  obtain ⟨w, hw⟩ := hs
-  have h1 : dotProduct P.target v = 1 := by
-    rw [target, dotProduct, Finset.sum_eq_single 0]
-    · simp [hv0]
-    · intro j _ hj
-      simp [hj]
-    · simp
+  obtain ⟨w, hw⟩ := (P.accepts_iff_exists_vecMul s).mp hs
   have h0 : dotProduct P.target v = 0 := by
     rw [← hw, sum_dotProduct]
     refine Finset.sum_eq_zero fun i _ => ?_
     rw [← Matrix.dotProduct_mulVec, hv_null i.1 i.2, dotProduct_zero]
-  exact one_ne_zero (h1.symm.trans h0)
+  rw [target, single_one_dotProduct, hv0] at h0
+  exact one_ne_zero h0
 
 /-- For every unauthorized coalition `s`, there exists a column vector `v : Fin (P.tailDim + 1) → F`
 with `v 0 = 1` that lies in the right kernel of `P.matrix i` for every `i ∈ s`. -/
@@ -168,27 +144,15 @@ theorem exists_nullVector_of_not_accepts (P : MonotoneSpanProgram F Party) {s : 
     ∃ v : Fin (P.tailDim + 1) → F, v 0 = 1 ∧ ∀ i ∈ s, Matrix.mulVec (P.matrix i) v = 0 := by
   obtain ⟨φ, hφ_target, hφ_span⟩ :=
     Submodule.exists_dual_map_eq_bot_of_notMem hs (inferInstance : Module.Projective F _)
-  let v : Fin (P.tailDim + 1) → F := fun j => φ (Pi.single j 1) / φ P.target
-  refine ⟨v, ?_, ?_⟩
-  · change φ (Pi.single 0 1) / φ P.target = 1
-    exact div_self hφ_target
-  · intro i hi
-    ext r
-    have hrow_mem : P.matrix i r ∈ P.rowSpan s :=
-      Submodule.subset_span ⟨⟨⟨i, hi⟩, r⟩, rfl⟩
-    have hφ_row : φ (P.matrix i r) = 0 := by
-      rw [← Submodule.mem_bot F, ← hφ_span, Submodule.mem_map]
-      exact ⟨P.matrix i r, hrow_mem, rfl⟩
-    have hdecomp : P.matrix i r = ∑ j : Fin (P.tailDim + 1), P.matrix i r j • Pi.single j 1 := by
-      ext k
-      simp [Pi.single_apply]
-    have hsum :
-        φ (P.matrix i r) = ∑ j : Fin (P.tailDim + 1), P.matrix i r j * φ (Pi.single j 1) := by
-      conv_lhs => rw [hdecomp]
-      simp [map_sum, map_smul, smul_eq_mul]
-    change ∑ j : Fin (P.tailDim + 1), P.matrix i r j * (φ (Pi.single j 1) / φ P.target) = 0
-    simp_rw [div_eq_mul_inv, ← mul_assoc]
-    rw [← Finset.sum_mul, ← hsum, hφ_row, zero_mul]
+  refine ⟨fun j => φ (Pi.single j 1) / φ P.target, div_self hφ_target, fun i hi => ?_⟩
+  ext r
+  have hφ_row : φ (P.matrix i r) = 0 := by
+    rw [← Submodule.mem_bot F, ← hφ_span]
+    exact Submodule.mem_map_of_mem (Submodule.subset_span ⟨⟨⟨i, hi⟩, r⟩, rfl⟩)
+  rw [pi_eq_sum_univ' (P.matrix i r), map_sum] at hφ_row
+  simp only [map_smul, smul_eq_mul] at hφ_row
+  simp only [Matrix.mulVec, dotProduct, Pi.zero_apply, div_eq_mul_inv, ← mul_assoc,
+    ← Finset.sum_mul, hφ_row, zero_mul]
 
 end Span
 

@@ -159,14 +159,7 @@ private theorem additiveView_eq_of_not_authorized {m : ℕ} {G : Type*} [AddComm
         have hcast : i.castSucc = Fin.castLE (Nat.sub_le (m + 1) 1) i := rfl
         simp only [additiveShare, hcast, Cslib.ProbComp.completeShares_castLE, Pi.add_apply, δ,
           Pi.single_eq_of_ne hi, add_zero]
-    have hcongr :
-        AccessStructure.viewDistOf P additiveShare s m₀ =
-          AccessStructure.viewDistOf (P.map (· + δ)) additiveShare s m₁ := by
-      simp only [AccessStructure.viewDistOf, PMF.map_comp]
-      congr 1
-      funext r
-      exact hshift r
-    rw [hcongr, hP δ]
+    exact AccessStructure.viewDistOf_eq_of_map_add_eq (hP δ) hshift
 
 /-- `(m + 1)`-out-of-`(m + 1)` additive secret sharing over
 `SourceClass.translationInvariant (Fin m → G)`. For infinite `G` with `m ≥ 1`,
