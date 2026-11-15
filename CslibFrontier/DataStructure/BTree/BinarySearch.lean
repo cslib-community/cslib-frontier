@@ -60,19 +60,6 @@ universe w
 
 namespace Cslib.DataStructure.BTree
 
-/-- A child of a node is smaller than the node: the measure of the recursions below. -/
-private theorem sizeOf_lt_of_mem_children {α β : Type} {first c : BTree α β}
-    {rest : List (Triple α β)} (hc : c ∈ (node first rest).children) :
-    sizeOf c < sizeOf (node first rest) := by
-  simp only [children_node, List.mem_cons, List.mem_map] at hc
-  rcases hc with rfl | ⟨⟨a, b, c⟩, he, rfl⟩
-  · simp only [node.sizeOf_spec]
-    omega
-  · have := List.sizeOf_lt_of_mem he
-    simp only [Prod.mk.sizeOf_spec] at this
-    simp only [node.sizeOf_spec, Triple.child_mk]
-    omega
-
 /-- Induction on B-trees with one hypothesis for all children of a node. -/
 private theorem induction_children {α β : Type} {motive : BTree α β → Prop} (leaf : motive .leaf)
     (node : ∀ (first : BTree α β) (rest : List (Triple α β)),

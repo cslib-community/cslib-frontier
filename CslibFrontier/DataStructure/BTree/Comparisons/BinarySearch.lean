@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.DataStructure.BTree.BinarySearch
 public import CslibFrontier.DataStructure.BTree.Comparisons.Query
+import CslibFrontier.Foundations.Data.Nat.HalvingRecurrence
 
 /-!
 # Comparison costs of B-tree queries with binary in-node search
@@ -105,24 +106,28 @@ theorem countQueries_slotBinM_le (k : α) (rest : List (Triple α β)) :
         ((e :: l).drop ((l.length + 1) / 2 + 1)) rfl
       simp only [slotBinM_cons, bind_pure_comp, FreeM.countQueries_bind, FreeM.countQueries_lift,
         ↓FreeM.countQueries_ite, FreeM.eval_lift, FreeM.countQueries_map]
-      have hc : Nat.clog 2 (n + 1) = Nat.clog 2 ((l.length + 1) / 2 + 1) + 1 := by
-        rw [Nat.clog_of_two_le (by omega) (by omega)]
-        congr 2
-        omega
-      have hm := Nat.clog_mono_right 2
-        (show ((e :: l).drop ((l.length + 1) / 2 + 1)).length + 1 ≤ (l.length + 1) / 2 + 1 by
-          simp only [List.length_drop, List.length_cons]; omega)
-      rw [List.length_take, List.length_cons, min_eq_left (by omega)] at h₁
+      have ht := Nat.clog_two_lt_clog_two_of_le_half (m := n + 1)
+        (k := ((e :: l).take ((l.length + 1) / 2)).length + 1) (by omega)
+        (by simp only [List.length_take, List.length_cons]; omega)
+      have hd := Nat.clog_two_lt_clog_two_of_le_half (m := n + 1)
+        (k := ((e :: l).drop ((l.length + 1) / 2 + 1)).length + 1) (by omega)
+        (by simp only [List.length_drop, List.length_cons]; omega)
       split <;> omega
+
+/-- The within-node binary search of a node with at most `2 * t - 1` keys makes at most
+`⌈log₂ (2 * t)⌉` comparisons. -/
+private theorem countQueries_slotBinM_le_of_length_le (ht : 0 < t) (k : α)
+    {rest : List (Triple α β)} (hl : rest.length ≤ 2 * t - 1) :
+    (slotBinM LEQuery.ask k rest).countQueries oracle ≤ Nat.clog 2 (2 * t) :=
+  (countQueries_slotBinM_le oracle k rest).trans (Nat.clog_mono_right 2 (by omega))
 
 /-- Lookup by binary in-node search at a node makes one comparison beyond the within-node search
 and what it makes in the child it descends into. -/
-private theorem countQueries_lookupBinQ_node_le (k : α) (first : BTree α β)
-    (rest : List (Triple α β)) {B : ℕ}
+private theorem countQueries_lookupBinQ_node_le (ht : 0 < t) (k : α) (first : BTree α β)
+    {rest : List (Triple α β)} (hl : rest.length ≤ 2 * t - 1) {B : ℕ}
     (hB : ∀ c ∈ (node first rest).children, (lookupBinQ k c).countQueries oracle ≤ B) :
-    (lookupBinQ k (node first rest)).countQueries oracle ≤
-      Nat.clog 2 (rest.length + 1) + 1 + B := by
-  have hs := countQueries_slotBinM_le oracle k rest
+    (lookupBinQ k (node first rest)).countQueries oracle ≤ Nat.clog 2 (2 * t) + 1 + B := by
+  have hs := countQueries_slotBinM_le_of_length_le oracle ht k hl
   simp only [lookupBinQ] at hB ⊢
   rw [lookupBinM_node]
   simp only [FreeM.countQueries_bind, FreeM.countQueries_pure, zero_add]
@@ -134,11 +139,11 @@ private theorem countQueries_lookupBinQ_node_le (k : α) (first : BTree α β)
 
 /-- Rank by binary in-node search at a node makes no comparison beyond the within-node search
 and what it makes in the child it descends into. -/
-private theorem countQueries_rankBinQ_node_le (k : α) (first : BTree α β)
-    (rest : List (Triple α β)) {B : ℕ}
+private theorem countQueries_rankBinQ_node_le (ht : 0 < t) (k : α) (first : BTree α β)
+    {rest : List (Triple α β)} (hl : rest.length ≤ 2 * t - 1) {B : ℕ}
     (hB : ∀ c ∈ (node first rest).children, (rankBinQ k c).countQueries oracle ≤ B) :
-    (rankBinQ k (node first rest)).countQueries oracle ≤ Nat.clog 2 (rest.length + 1) + B := by
-  have hs := countQueries_slotBinM_le oracle k rest
+    (rankBinQ k (node first rest)).countQueries oracle ≤ Nat.clog 2 (2 * t) + B := by
+  have hs := countQueries_slotBinM_le_of_length_le oracle ht k hl
   simp only [rankBinQ] at hB ⊢
   rw [rankBinM_node]
   simp only [FreeM.countQueries_bind, FreeM.countQueries_pure, zero_add]
@@ -157,10 +162,8 @@ comparisons per level, under every oracle. -/
 theorem countQueries_lookupBinQ_le (h : IsWF t tr) (k : α) :
     (lookupBinQ k tr).countQueries oracle ≤ (Nat.clog 2 (2 * t) + 1) * tr.height :=
   le_mul_height_of_node_le (by simp [lookupBinQ, lookupBinM_leaf])
-    (fun first rest _ hl hB =>
-      (countQueries_lookupBinQ_node_le oracle k first rest hB).trans (by
-        have := Nat.clog_mono_right 2 (show rest.length + 1 ≤ 2 * t by have := h.two_le; omega)
-        omega))
+    (fun first _ _ hl hB =>
+      countQueries_lookupBinQ_node_le oracle (by have := h.two_le; omega) k first hl hB)
     h.rootKeys_le h.occupied_of_mem_children
 
 /-- Rank by binary in-node search in a well-formed tree makes at most `⌈log₂ (2 * t)⌉`
@@ -168,10 +171,8 @@ comparisons per level, under every oracle. -/
 theorem countQueries_rankBinQ_le (h : IsWF t tr) (k : α) :
     (rankBinQ k tr).countQueries oracle ≤ Nat.clog 2 (2 * t) * tr.height :=
   le_mul_height_of_node_le (by simp [rankBinQ, rankBinM_leaf])
-    (fun first rest _ hl hB =>
-      (countQueries_rankBinQ_node_le oracle k first rest hB).trans (by
-        have := Nat.clog_mono_right 2 (show rest.length + 1 ≤ 2 * t by have := h.two_le; omega)
-        omega))
+    (fun first _ _ hl hB =>
+      countQueries_rankBinQ_node_le oracle (by have := h.two_le; omega) k first hl hB)
     h.rootKeys_le h.occupied_of_mem_children
 
 end Comparisons
