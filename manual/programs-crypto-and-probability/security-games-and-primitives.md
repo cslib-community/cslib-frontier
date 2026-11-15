@@ -1203,11 +1203,33 @@ by `decide` and build the instance as `⟨isUnit_iff_ne_zero.2 h⟩`.
   [katzlindell20][katzlindell20]); for `p = 2` it uses the direct count
   `WeierstrassCurve.natCard_point_zmod_two` (`1 ≤ #E ≤ 5`). Other fields of characteristic two are
   not covered.
+- **Quadratic twist.** Import [`EllipticCurve/QuadraticTwist.lean`](../../CslibFrontier/Foundations/AlgebraicGeometry/EllipticCurve/QuadraticTwist.lean)
+  (`CslibFrontier.Foundations.AlgebraicGeometry.EllipticCurve.QuadraticTwist`). For a curve `W` in
+  `WeierstrassCurve.IsCharNeTwoNF` form `Y² = X³ + a₂ X² + a₄ X + a₆` (including
+  `WeierstrassCurve.ofCubic α β γ` and short Weierstrass curves `[W.IsShortNF]`) and `c : R`,
+  `W.quadraticTwist c` is `ofCubic (c * W.a₂) (c ^ 2 * W.a₄) (c ^ 3 * W.a₆)`, with discriminant
+  `c ^ 6 * W.Δ` (`WeierstrassCurve.quadraticTwist_Δ`). Over a field with `c ≠ 0`, scaling by
+  `(x, y) ↦ (c x, c² y)` identifies its points with the point at infinity plus the solutions of
+  `c y² = x³ + a₂ x² + a₄ x + a₆` (`WeierstrassCurve.quadraticTwistPointEquiv`,
+  `WeierstrassCurve.quadraticTwistShortPointEquiv`,
+  `WeierstrassCurve.natCard_point_quadraticTwist_eq_one_add`,
+  `WeierstrassCurve.natCard_point_quadraticTwist_eq_one_add_of_isShortNF`). Over a finite field
+  `F`, twisting by `c ≠ 0` multiplies `cubicCharSum` by `quadraticChar F c`
+  (`WeierstrassCurve.cubicCharSum_mul`); for a quadratic non-residue `hc : ¬ IsSquare c`,
+  `WeierstrassCurve.natCard_point_add_quadraticTwist` (and
+  `WeierstrassCurve.natCard_point_add_quadraticTwist_zmod` over `ZMod p`) proves
+  `#E(F) + #Ẽ(F) = 2 #F + 2` ([bs23][bs23], §15.3.2, p. 623), and
+  `WeierstrassCurve.natCard_point_quadraticTwist_eq_of_eq_sub` gives `#Ẽ(F) = #F + 1 + t` when
+  `#E(F) = #F + 1 - t`. (`WeierstrassCurve.Manin.twist` in `ManinTwist.lean` is the function-field
+  twist over `RatFunc k` by the cubic polynomial itself, used internally in Manin's proof.)
 
 The [checked client](../../CslibFrontierTests/Foundations/AlgebraicGeometry/EllipticCurveHasse.lean)
 counts the points of `y² = x³ + 3x + 3` over `ZMod 7` (Example 9.69 of
-[katzlindell20][katzlindell20]), of `y² + y = x³` over `ZMod 2`, and of two curves over `ZMod 5`
-that attain both ends of the bound, and applies each form of the theorem to them. Build it with
+[katzlindell20][katzlindell20]), of `y² + y = x³` over `ZMod 2`, of two curves over `ZMod 5`
+that attain both ends of the bound, and of the 12-point curve `y² = x³ + 1` over `ZMod 11`
+([bs23][bs23], §15.2, Equation (15.4), p. 618), and checks quadratic twists over `ZMod 11`,
+`ZMod 7`, `ZMod 5` and `ZMod 3` together with counterexamples when `¬ IsSquare c`, `c ≠ 0`,
+`IsElliptic`, `IsCharNeTwoNF` or odd characteristic is dropped. Build it with
 `lake build CslibFrontierTests.Foundations.AlgebraicGeometry.EllipticCurveHasse`.
 
 ### Lagrange interpolation in the exponent
