@@ -44,8 +44,7 @@ input, output and key spaces differ. `PseudorandomFunction` is its length-preser
 
 ## Main results
 
-* `Cslib.Crypto.interpret_randomFunctionQuery`, `Cslib.Crypto.isQueryBounded_randomFunctionQuery`:
-  correctness and query cost of the finite-domain adapter.
+* `Cslib.Crypto.interpret_randomFunctionQuery`: correctness of the finite-domain adapter.
 * `Cslib.Crypto.prfIdealGame_eq_lazy`: an exact lazy implementation of the ideal experiment.
 
 ## References
@@ -89,16 +88,6 @@ theorem interpret_randomFunctionQuery {m : Type → Type*} [Monad m] [LawfulMona
     OracleComp.interpret (OracleComp.sumHandler random (fun bits => pure (table bits)))
       (randomFunctionQuery n query) = pure (randomFunctionOracle n table query) := by
   by_cases h : query.length = n <;> simp [randomFunctionQuery, randomFunctionOracle, h]
-
-/-- The finite-domain adapter makes at most one external query. -/
-theorem isQueryBounded_randomFunctionQuery (n : ℕ) (query : List Bool) :
-    (randomFunctionQuery n query).IsQueryBounded 1 := by
-  unfold randomFunctionQuery
-  split_ifs
-  · simpa only [map_eq_bind_pure_comp, Function.comp_def, Nat.add_zero] using
-      (ProbOracleComp.IsQueryBounded.query (BitString.ofList n query)).bind fun _ =>
-        OracleComp.IsCostBounded.pure _ 0
-  · exact OracleComp.IsCostBounded.pure [] 1
 
 open Classical in
 /-- A semantic random-function cache, retaining only the finite-domain answers already used. -/
