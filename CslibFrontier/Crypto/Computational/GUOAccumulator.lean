@@ -70,7 +70,7 @@ The source's claims map to Lean as follows.
 * `Cslib.Crypto.guoVerifySubset_subsetWitness`, `Cslib.Crypto.guoVerifySubset_singleton`,
   `Cslib.Crypto.guoVerifySubset_pair`: Alice's proofs for a subset, an element and a pair verify.
 * `Cslib.Crypto.guoVerifySubset_split`, `Cslib.Crypto.guoVerifySubset_commonRoot`: an aggregate
-  splits into proofs, and two proofs for coprime exponents, the first a unit, aggregate.
+  splits into proofs, and two proofs for coprime exponents against a unit commitment aggregate.
 * `Cslib.Crypto.guoNonMemCoeff_lt`, `Cslib.Crypto.guoVerifyNonMem_witness`,
   `Cslib.Crypto.guoVerifyNonMem_guoCommit`: Alice's non-membership proofs verify.
 * `Cslib.Crypto.coprime_guoExponent`, `Cslib.Crypto.exists_collision_of_not_coprime_guoExponent`:
@@ -80,6 +80,7 @@ The source's claims map to Lean as follows.
 * `Cslib.Crypto.computableInPolyTime_guoVerifySubset`,
   `Cslib.Crypto.computableInPolyTime_guoVerifyNonMem`,
   `Cslib.Crypto.computableInPolyTime_guoNonMemCoeff`,
+  `Cslib.Crypto.computableInPolyTime_neg_guoNonMemCoeff`,
   `Cslib.Crypto.computableInPolyTime_guoNonMemWitness`,
   `Cslib.Crypto.computableInPolyTime_guoForgeryRoot`: both checks, Alice's non-membership proof
   and the root are computable in polynomial time from polynomial-time inputs, the integer `γ` on
@@ -104,9 +105,8 @@ The statements differ from the book's as follows.
 * "Correctness relies on the collision resistance of `H`" (p. 422) is stated by the explicit
   collision of `exists_collision_of_not_coprime_guoExponent`, not as a game against a hash family.
 
-`Turing.MultiTapeTM.powMod_powMod` and `Turing.MultiTapeTM.coprime_powMod` are facts about
-`powMod` that this module is the first to need. They keep the namespace of `powMod`, so that they
-can move to its module when a second client appears.
+Alice's computing `E` from a list of elements is not certified: `guoCommit` and `guoSubsetWitness`
+take a `Finset`, and the certificates for her non-membership proof take `E` as an input.
 
 ## References
 
@@ -116,24 +116,6 @@ can move to its module when a second client appears.
 
 public section
 
-namespace Turing.MultiTapeTM
-
-/-- Raising `powMod N g a` to the power `b` modulo `N` is `powMod N g (a * b)`. -/
-theorem powMod_powMod (N g a b : ℕ) : powMod N (powMod N g a) b = powMod N g (a * b) := by
-  by_cases hN : N = 0
-  · simp [powMod, hN]
-  · simp [powMod_of_ne_zero hN, Nat.pow_mod, pow_mul]
-
-/-- A power of a unit modulo `N` is a unit modulo `N`. -/
-theorem coprime_powMod {N g : ℕ} (hg : Nat.Coprime g N) (e : ℕ) :
-    Nat.Coprime (powMod N g e) N := by
-  rcases Nat.eq_zero_or_pos N with rfl | hN
-  · simp [powMod]
-  · rw [powMod_of_ne_zero hN.ne', Nat.Coprime, (Nat.mod_modEq (g ^ e) N).gcd_eq]
-    exact hg.pow_left e
-
-end Turing.MultiTapeTM
-
 namespace Cslib.Crypto
 
 open Turing.MultiTapeTM
@@ -142,6 +124,13 @@ open Turing.MultiTapeTM
 private theorem natCast_powMod {N : ℕ} (hN : N ≠ 0) (x e : ℕ) :
     ((powMod N x e : ℕ) : ZMod N) = (x : ZMod N) ^ e := by
   rw [powMod_of_ne_zero hN, ZMod.natCast_mod, Nat.cast_pow]
+
+/-- For `0 < N` and `0 < e`, if `b ^ e mod N` is a unit modulo `N`, then so is `b`. -/
+private theorem coprime_of_coprime_powMod {N b e : ℕ} (hN : 0 < N) (he : 0 < e)
+    (h : Nat.Coprime (powMod N b e) N) : Nat.Coprime b N := by
+  refine (Nat.coprime_pow_left_iff he b N).mp ?_
+  rw [Nat.Coprime, ← (Nat.mod_modEq (b ^ e) N).gcd_eq, ← powMod_of_ne_zero hN.ne']
+  exact h
 
 section Accumulator
 
@@ -210,18 +199,22 @@ theorem guoVerifySubset_split {N c e f b : ℕ} (h : guoVerifySubset N c (e * f)
   exact h
 
 /-- Anyone can aggregate two membership proofs ([BonehShoup2023], §10.9, pp. 422–423): if `b₁`
-and `b₂` pass Bob's check against `c` with coprime exponents `e` and `f`, and `b₁` is a unit,
-then Shamir's trick `commonRoot` (Theorem 10.6) yields a proof that passes it with the exponent
-`e * f`. -/
+and `b₂` pass Bob's check against a unit `c` with coprime exponents `e` and `f`, then Shamir's
+trick `commonRoot` (Theorem 10.6) yields a proof that passes it with the exponent `e * f`. -/
 theorem guoVerifySubset_commonRoot {N c e f b₁ b₂ : ℕ} (hef : Nat.Coprime e f)
-    (hb : Nat.Coprime b₁ N) (h₁ : guoVerifySubset N c e b₁ = true)
+    (hc : Nat.Coprime c N) (h₁ : guoVerifySubset N c e b₁ = true)
     (h₂ : guoVerifySubset N c f b₂ = true) :
     guoVerifySubset N c (e * f) (commonRoot N e f b₁ b₂) = true := by
   rcases Nat.eq_zero_or_pos N with rfl | hN
   · simpa [guoVerifySubset, powMod] using h₁
-  · simp only [guoVerifySubset, beq_iff_eq, powMod_of_ne_zero hN.ne'] at h₁ h₂ ⊢
-    rw [pow_mul, ← h₂]
-    exact (commonRoot_pow_modEq_right hN hef hb (h₁.trans h₂.symm)).pow f
+  rcases Nat.eq_zero_or_pos e with rfl | he
+  · obtain rfl : f = 1 := (Nat.coprime_zero_left f).mp hef
+    simpa [guoVerifySubset, powMod_of_ne_zero hN.ne'] using h₁
+  simp only [guoVerifySubset, beq_iff_eq] at h₁ h₂ ⊢
+  have hb : Nat.Coprime b₁ N := coprime_of_coprime_powMod hN he (h₁ ▸ hc)
+  rw [powMod_of_ne_zero hN.ne'] at h₁ h₂ ⊢
+  rw [pow_mul, ← h₂]
+  exact (commonRoot_pow_modEq_right hN hef hb (h₁.trans h₂.symm)).pow f
 
 /-- Bob's check of a non-membership proof `(b, γ)` for an element with hash `h` against the
 commitment `c` ([BonehShoup2023], §10.9, pp. 421–422): `c` is a unit modulo `N`, the book's
@@ -352,10 +345,7 @@ theorem powMod_guoForgeryRoot {N g c h a b : ℕ} {γ : ℤ}
       simpa [natCast_powMod hN', ZMod.natCast_mod] using hcast hbranch
     rcases Nat.eq_zero_or_pos h with rfl | hh
     · simpa [hc] using hb
-    have ha : Nat.Coprime a N := by
-      refine (Nat.coprime_pow_left_iff hh a N).mp ?_
-      rw [Nat.Coprime, ← (Nat.mod_modEq (a ^ h) N).gcd_eq, ← powMod_of_ne_zero hN', hmem]
-      exact hcN
+    have ha : Nat.Coprime a N := coprime_of_coprime_powMod hN hh (hmem ▸ hcN)
     have hinv : (a : ZMod N) * (BinaryGcd.modInv a N : ZMod N) = 1 := by
       simpa using (ZMod.natCast_eq_natCast_iff _ _ _).mpr (BinaryGcd.mul_modInv_modEq_one hN ha)
     rw [hb, hc, ← pow_mul, mul_assoc, ← mul_pow, hinv, one_pow, mul_one]
@@ -399,13 +389,22 @@ theorem computableInPolyTime_guoVerifyNonMem {N g c h b : α → ℕ} {γ : α �
         (ComputableInPolyTime.binary_mod' (ComputableInPolyTime.binary_mul' hbh hcγ) hN)
         (ComputableInPolyTime.binary_mod' hg hN)))
 
-/-- Alice's non-membership coefficient is computable in polynomial time whenever `h` and `E` are,
-as natural numbers on `encNat`. -/
+/-- Alice's non-membership coefficient `guoNonMemCoeff h E`, the natural number `-γ` on `encNat`,
+is computable in polynomial time whenever `h` and `E` are, as natural numbers on `encNat`. -/
 theorem computableInPolyTime_guoNonMemCoeff {h E : α → ℕ}
     (hh : ComputableInPolyTime h enc encNat) (hE : ComputableInPolyTime E enc encNat) :
     ComputableInPolyTime (fun a => guoNonMemCoeff (h a) (E a)) enc encNat :=
   ComputableInPolyTime.binary_modInv'
     (ComputableInPolyTime.binary_sub' hh (ComputableInPolyTime.binary_mod' hE hh)) hh
+
+/-- Alice's coefficient `γ = -guoNonMemCoeff h E`, as an integer on `encIntBin`, is computable in
+polynomial time whenever `h` and `E` are, as natural numbers on `encNat`. This is the form of `γ`
+in `guoVerifyNonMem_witness` and `computableInPolyTime_guoVerifyNonMem`. -/
+theorem computableInPolyTime_neg_guoNonMemCoeff {h E : α → ℕ}
+    (hh : ComputableInPolyTime h enc encNat) (hE : ComputableInPolyTime E enc encNat) :
+    ComputableInPolyTime (fun a => -(guoNonMemCoeff (h a) (E a) : ℤ)) enc encIntBin :=
+  ComputableInPolyTime.intBin_neg.comp
+    (ComputableInPolyTime.intBin_natCast.comp (computableInPolyTime_guoNonMemCoeff hh hE))
 
 /-- Alice's non-membership group element is computable in polynomial time whenever `N`, `g`, `h`
 and `E` are, as natural numbers on `encNat`. -/

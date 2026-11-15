@@ -21,13 +21,14 @@ Checks for `CslibFrontier/Crypto/Computational/GUOAccumulator.lean`, modulo `N =
 * For the commitment `22` to all three elements, the membership proofs of `0` and `1` are `18` and
   `22`; Shamir's trick combines them into `23 = 2 ^ 7`, the aggregate proof, and `23 ^ 5 ≡ 18`
   splits it again.
-* The hypotheses are needed: aggregation fails for a proof that is not a unit, Alice's
+* The hypotheses are needed: aggregation fails against a commitment that is not a unit, Alice's
   non-membership proof fails for a base that is not a unit and for a hash that divides `E`, and
   composite hashes can be distinct without being coprime. Without the unit check on `c`, the
   values `(c, a, b, γ) = (0, 0, 0, -1)` would pass both checks.
 * `guoForgeryRoot` turns a membership and a non-membership proof for one element into a root of
   `g`, for `γ = 0` and for `γ < 0`.
-* The polynomial-time certificates apply to inputs read from `encNat` and `encIntBin`.
+* The polynomial-time certificates apply to inputs read from `encNat` and `encIntBin`, and Alice's
+  coefficient is certified both as the natural number `-γ` and as the integer `γ`.
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
@@ -118,8 +119,9 @@ example : powMod 35 23 5 = 18 ∧ guoVerifySubset 35 22 3 (powMod 35 23 5) = tru
 
 /-! ### The hypotheses are needed -/
 
-/-- Aggregation needs the first proof to be a unit: modulo `6`, `2` passes Bob's check against
-`c = 2` with the exponents `3` and `5`, but Shamir's trick returns `4`, which fails with `15`. -/
+/-- Aggregation needs a unit commitment: modulo `6`, `2` passes Bob's check against `c = 2`, which
+is not a unit, with the exponents `3` and `5`, but Shamir's trick returns `4`, which fails with
+`15`. -/
 example : guoVerifySubset 6 2 3 2 = true ∧ guoVerifySubset 6 2 5 2 = true ∧
     commonRoot 6 3 5 2 2 = 4 ∧ guoVerifySubset 6 2 15 (commonRoot 6 3 5 2 2) = false := by
   unfold commonRoot BinaryGcd.modInv
@@ -195,6 +197,17 @@ example : ComputableInPolyTime (fun p : ℕ × ℤ => guoVerifyNonMem 35 2 8 7 p
     (encPair encNat encIntBin) encBool :=
   computableInPolyTime_guoVerifyNonMem (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
     (by fun_prop) (by fun_prop)
+
+/-- `computableInPolyTime_guoNonMemCoeff` on `(h, E)`, read as a pair on `encNat`: the natural
+number `-γ`. -/
+example : ComputableInPolyTime (fun p : ℕ × ℕ => guoNonMemCoeff p.1 p.2) (encPair encNat encNat)
+    encNat :=
+  computableInPolyTime_guoNonMemCoeff (by fun_prop) (by fun_prop)
+
+/-- `computableInPolyTime_neg_guoNonMemCoeff` for `h = 7`, with `E` read from `encNat`: Alice's `γ`
+on `encIntBin`, the encoding in which `computableInPolyTime_guoVerifyNonMem` reads it. -/
+example : ComputableInPolyTime (fun E : ℕ => -(guoNonMemCoeff 7 E : ℤ)) encNat encIntBin :=
+  computableInPolyTime_neg_guoNonMemCoeff (by fun_prop) (by fun_prop)
 
 /-- `computableInPolyTime_guoNonMemWitness` on `(N, g, h, E)`, read as nested pairs on `encNat`. -/
 example : ComputableInPolyTime
