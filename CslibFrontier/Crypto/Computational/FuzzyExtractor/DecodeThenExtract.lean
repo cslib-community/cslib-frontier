@@ -55,6 +55,9 @@ recover `s`, and derives the key from `s`.
   `δ`-error average-case decoder correctness over uniform `A` implies `δ`-error Hamming
   fuzzy-extractor correctness (the correctness part of Theorem 4.11, with the decoder of
   Lemma 4.10 taken as a hypothesis).
+* `Cslib.Crypto.FuzzyExtractor.uniform_bind_decode_bind_apply_false_le`: the decode-failure step
+  shared with the correctness proofs of the reusable extractors in
+  `CslibFrontier.Crypto.Computational.FuzzyExtractor.Reusable`.
 * `Cslib.Crypto.FuzzyExtractor.securityAdvantage_lweFuzzyExtractor_le`: for every source `W` and
   every distinguisher `D`, the security advantage of `lweFuzzyExtractor` is at most the sum of two
   decisional LWE advantages `Cslib.Crypto.LWE.advantage`, with a uniform secret in dimension `l`
@@ -68,15 +71,17 @@ recover `s`, and derives the key from `s`.
 
 ## What is not proved
 
-* Hardness of LWE with error distribution `W` (Theorems 4.6 and 4.8 of the paper, which rest on
-  Döttling and Müller-Quade and on Regev); the security theorem is a reduction to that
-  assumption, stated as an inequality between advantages.
+* Hardness of LWE with error distribution `W`. Theorems 4.6 and 4.8 of the paper, due to
+  Döttling and Müller-Quade [DottlingMullerQuade2013] and to Bai et al.
+  [BaiLepointRouxLangloisSakzadStehleSteinfeld2018], derive it for uniform-interval `W` and prime
+  `q` from LWE with Gaussian errors. The security theorem is a reduction to that assumption,
+  stated as an inequality between advantages.
 * Running time of the reductions and asymptotic security, here. The parameters `m, k, l, q` are
   fixed, so `securityAdvantage_lweFuzzyExtractor_le` is a concrete reduction inequality, not a
   security theorem on its own. The module
   `CslibFrontier.Crypto.Computational.FuzzyExtractor.DecodeThenExtract.Security` certifies the
-  reductions as strict PPT and proves the asymptotic theorem
-  `computationallySecure_lweFuzzyExtractor`.
+  reductions as strict PPT and proves the asymptotic step at modulus `2 ^ w κ`,
+  `computationallySecure_lweFuzzyExtractor_of_decisionLWEWithErrors`.
 * Correctness of the decoder of Construction 4.9 (Lemma 4.10); it is a hypothesis.
 * The symbol-fixing and block-source results of Section 5.
 * No security claim is made for `decodeThenExtract` with a general `ext`: with a public seed and
@@ -87,6 +92,10 @@ recover `s`, and derives the key from `s`.
 
 * [B. Fuller, X. Meng, and L. Reyzin, *Computational Fuzzy Extractors*][FullerMengReyzin2020],
   Section 4 (Construction 4.1, Definition 4.5, Lemma 4.7, Theorem 4.11).
+* [N. Döttling and J. Müller-Quade, *Lossy Codes and a New Variant of the
+  Learning-With-Errors Problem*][DottlingMullerQuade2013]
+* [S. Bai, T. Lepoint, A. Roux-Langlois, A. Sakzad, D. Stehlé and R. Steinfeld, *Improved Security
+  Proofs in Lattice-Based Cryptography*][BaiLepointRouxLangloisSakzadStehleSteinfeld2018]
 -/
 
 @[expose] public section
@@ -171,6 +180,44 @@ def DecoderCorrectWithError {m n q : ℕ} [NeZero q]
   ∀ (s : Fin n → ZMod q) (e : Fin m → ZMod q),
     hammingNorm e ≤ t → Game.failProbability (decodeGame decode s e) ≤ δ
 
+/-- The decode-failure step shared by the correctness proofs of the decode-based fuzzy
+extractors: run `decode A (A s + e)` on a uniform matrix `A`, then a continuation `k A` that
+returns `true` with certainty when the decoder outputs `some s`. The result is `false` with
+probability at most the decoding failure probability `decodeGame decode s e false`. -/
+theorem uniform_bind_decode_bind_apply_false_le {m n q : ℕ} [NeZero q]
+    (decode : Matrix (Fin m) (Fin n) (ZMod q) → (Fin m → ZMod q) →
+      ProbComp (Option (Fin n → ZMod q)))
+    (s : Fin n → ZMod q) (e : Fin m → ZMod q)
+    (k : Matrix (Fin m) (Fin n) (ZMod q) → Option (Fin n → ZMod q) → PMF Bool)
+    (hk : ∀ A, k A (some s) = PMF.pure true) :
+    ((PMF.uniformOfFintype (Matrix (Fin m) (Fin n) (ZMod q))).bind fun A =>
+      (ProbComp.eval (decode A (A.mulVec s + e))).bind (k A)) false ≤
+      decodeGame decode s e false := by
+  simp only [decodeGame, decodeCheck, ProbComp.eval_bind, ProbComp.eval_pure,
+    ProbComp.eval_uniform]
+  refine PMF.bind_apply_mono_on_support _ false fun A _ => ?_
+  refine PMF.bind_apply_mono_on_support _ false fun sOpt _ => ?_
+  by_cases h : sOpt = some s
+  · subst h
+    simp [hk]
+  · rw [decide_eq_false h, PMF.pure_apply_self]
+    exact PMF.coe_le_one _ _
+
+/-- `uniform_bind_decode_bind_apply_false_le` with the decoding failure probability bounded by
+`δ`. -/
+theorem uniform_bind_decode_bind_apply_false_le_of_failProbability_le {m n q : ℕ} [NeZero q]
+    (decode : Matrix (Fin m) (Fin n) (ZMod q) → (Fin m → ZMod q) →
+      ProbComp (Option (Fin n → ZMod q)))
+    (s : Fin n → ZMod q) (e : Fin m → ZMod q)
+    (k : Matrix (Fin m) (Fin n) (ZMod q) → Option (Fin n → ZMod q) → PMF Bool)
+    (hk : ∀ A, k A (some s) = PMF.pure true) {δ : ℝ≥0}
+    (hδ : Game.failProbability (decodeGame decode s e) ≤ δ) :
+    ((PMF.uniformOfFintype (Matrix (Fin m) (Fin n) (ZMod q))).bind fun A =>
+      (ProbComp.eval (decode A (A.mulVec s + e))).bind (k A)) false ≤ δ := by
+  refine (uniform_bind_decode_bind_apply_false_le decode s e k hk).trans ?_
+  have := ENNReal.coe_le_coe.mpr hδ
+  rwa [Game.failProbability, ENNReal.coe_toNNReal (PMF.apply_ne_top _ _)] at this
+
 /-- Pointwise bound on the reproduction failure probability of `decodeThenExtract`:
 whenever `decodeGame decode s (w - w')` fails with probability at most `δ` for every secret `s`,
 `reproduceGame w w'` also fails with probability at most `δ`. -/
@@ -190,21 +237,12 @@ theorem failProbability_reproduceGame_decodeThenExtract_le {m n q : ℕ} [NeZero
   rw [PMF.bind_comm (PMF.uniformOfFintype (Matrix (Fin m) (Fin n) (ZMod q)))
     (PMF.uniformOfFintype (Fin n → ZMod q))]
   refine PMF.bind_apply_le_on_support _ fun s _ => ?_
-  have hs : decodeGame decode s (w - w') false ≤ (δ : ℝ≥0∞) := by
-    have := ENNReal.coe_le_coe.mpr (hδ s)
-    rwa [Game.failProbability, ENNReal.coe_toNNReal (PMF.apply_ne_top _ _)] at this
-  refine le_trans ?_ hs
-  simp only [decodeGame, decodeCheck, ProbComp.eval_bind, ProbComp.eval_pure,
-    ProbComp.eval_uniform]
-  refine PMF.bind_apply_mono_on_support _ false fun A _ => ?_
+  rw [PMF.bind_comm (PMF.uniformOfFintype (Matrix (Fin m) (Fin n) (ZMod q)))
+    (PMF.uniformOfFintype Seed)]
   refine PMF.bind_apply_le_on_support _ fun x _ => ?_
-  rw [add_sub_assoc]
-  refine PMF.bind_apply_mono_on_support _ false fun sOpt _ => ?_
-  by_cases h : sOpt = some s
-  · subst h
-    simp
-  · rw [decide_eq_false h, PMF.pure_apply_self]
-    exact PMF.coe_le_one _ _
+  simp only [add_sub_assoc]
+  exact uniform_bind_decode_bind_apply_false_le_of_failProbability_le decode s (w - w') _
+    (fun A => by simp) (hδ s)
 
 /-- Average-case decoder correctness with error `δ` implies `δ`-error Hamming reproduction
 correctness of `decodeThenExtract` (the correctness part of [FullerMengReyzin2020],
@@ -315,16 +353,6 @@ private theorem joinCols_mulVec_append (A₁ : Matrix (Fin m) (Fin k) (ZMod q))
   ext i
   simp [joinCols, Matrix.mulVec, dotProduct, Fin.sum_univ_add]
 
-/-- Two independent uniform draws pushed through an equivalence `e : α × β ≃ γ` are one uniform
-draw from `γ`. -/
-private theorem uniform_bind_bind_equiv {α β γ δ : Type} [Fintype α] [Nonempty α] [Fintype β]
-    [Nonempty β] [Fintype γ] [Nonempty γ] (e : α × β ≃ γ) (f : γ → PMF δ) :
-    ((PMF.uniformOfFintype α).bind fun a =>
-      (PMF.uniformOfFintype β).bind fun b => f (e (a, b))) =
-      (PMF.uniformOfFintype γ).bind f :=
-  Probability.PMF.uniformOfFintype_bind_bind_fst_equiv
-    (e.trans (Equiv.prodPUnit γ : γ × Unit ≃ γ).symm) f
-
 /-- Construction 4.1 of [FullerMengReyzin2020] as stated in the paper: the secret is
 `x : Fin (k + l) → ZMod q` (the paper takes `k = n/2`), and the key is the first `k` coordinates
 `r = x₁, …, x_k`. There is no extractor seed (`Seed = Unit`). -/
@@ -373,22 +401,18 @@ private theorem realGame_embed (W : PMF (Fin m → ZMod q))
   rw [PMF.bind_comm (PMF.uniformOfFintype (Fin l → ZMod q)) W]
   congr 1 with w : 1
   rw [PMF.bind_comm (PMF.uniformOfFintype (Fin l → ZMod q))]
-  conv_rhs => rw [← uniform_bind_bind_equiv joinColsEquiv,
+  conv_rhs => rw [← Probability.PMF.uniformOfFintype_bind_bind_equiv joinColsEquiv,
     PMF.bind_comm (PMF.uniformOfFintype (Matrix (Fin m) (Fin k) (ZMod q)))]
   congr 1 with A₂ : 1
   rw [PMF.bind_comm (PMF.uniformOfFintype (Fin l → ZMod q))]
   congr 1 with A₁ : 1
-  conv_rhs => rw [← uniform_bind_bind_equiv (Fin.appendEquiv k l)]
+  conv_rhs => rw [← Probability.PMF.uniformOfFintype_bind_bind_equiv (Fin.appendEquiv k l)]
   rw [PMF.bind_comm (PMF.uniformOfFintype (Fin l → ZMod q))]
   congr 1 with x₁ : 1
   congr 1 with x₂ : 1
   change F x₁ _ _ = F (fun i => Fin.append x₁ x₂ (Fin.castAdd l i)) (joinCols A₁ A₂)
     ((joinCols A₁ A₂).mulVec (Fin.append x₁ x₂) + w)
   rw [joinCols_mulVec_append, add_assoc]
-  simp
-
-private theorem uniformOfFintype_unit : PMF.uniformOfFintype Unit = PMF.pure () := by
-  ext u
   simp
 
 /-- The LWE real game of `hardcoreKeyReduction D` (uniform secret, error law `W`) is the real
@@ -405,8 +429,8 @@ private theorem realGame_hardcoreKeyReduction
     ProbComp.eval_uniform, PMF.monad_bind_eq_bind]
   refine h.trans ?_
   simp only [lweFuzzyExtractor, decodeThenExtract, realGame, Game.withSetup, realExperiment,
-    ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform, uniformOfFintype_unit,
-    PMF.bind_bind, PMF.pure_bind]
+    ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform,
+    Probability.PMF.uniformOfFintype_unit, PMF.bind_bind, PMF.pure_bind]
 
 /-- The LWE real game of `hardcoreUniformReduction D` (uniform secret, error law `W`) is the
 ideal fuzzy-extractor game of `lweFuzzyExtractor`. -/
@@ -423,8 +447,8 @@ private theorem realGame_hardcoreUniformReduction
     ProbComp.eval_bind, ProbComp.eval_uniform, PMF.monad_bind_eq_bind]
   refine h.trans ?_
   simp only [lweFuzzyExtractor, decodeThenExtract, idealGame, Game.withSetup, idealExperiment,
-    ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform, uniformOfFintype_unit,
-    PMF.bind_bind, PMF.pure_bind]
+    ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform,
+    Probability.PMF.uniformOfFintype_unit, PMF.bind_bind, PMF.pure_bind]
 
 /-- On uniform dimension-`l` samples the two reductions agree: `A₁ x₁ + u` is uniform and
 independent of `x₁`, so the key `x₁` is distributed exactly like a fresh uniform key. -/
@@ -451,8 +475,9 @@ uniform secret in dimension `l` and error distribution `W`, of the two explicit 
 
 This is an exact statement with no hypotheses; it does not bound the running time of the
 reductions, and it does not prove that LWE with error distribution `W` is hard (the paper obtains
-this from Theorem 4.6 for uniform-interval errors). The asymptotic theorem built on it is
-`computationallySecure_lweFuzzyExtractor`, whose reductions are certified strict PPT. -/
+this from Theorem 4.6 for uniform-interval errors). The asymptotic step built on it, at modulus
+`2 ^ w κ`, is `computationallySecure_lweFuzzyExtractor_of_decisionLWEWithErrors`, whose
+reductions are certified strict PPT. -/
 theorem securityAdvantage_lweFuzzyExtractor_le
     (decode : Matrix (Fin m) (Fin (k + l)) (ZMod q) → (Fin m → ZMod q) →
       ProbComp (Option (Fin (k + l) → ZMod q)))

@@ -33,10 +33,12 @@ The adjacent modules supply different semantic tools, not alternative machines:
 | Coupled simulation and until-bad | [CslibFrontier/Languages/Probabilistic/UntilBad.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Languages/Probabilistic/UntilBad.lean) | Transfer probability bounds until a designated bad event |
 | Replay/forking | [CslibFrontier/Languages/Probabilistic/Forking.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Languages/Probabilistic/Forking.lean) | Explicit tapes and reply lists permit repeatable adversary runs |
 | Exact rational laws and Bernoulli coins | [CslibFrontier/Languages/Probabilistic/Rational.lean](../../CslibFrontier/Languages/Probabilistic/Rational.lean) | Exact rational output probabilities (`ProbComp.evalRat`, `ProbComp.eval_eq_iff_evalRat_eq`) and loop-free clamped rational coins (`ProbComp.bernoulliRat`) |
-| Tuple and repetition oracle laws | [Oracle/Vector.lean](../../CslibFrontier/Languages/Probabilistic/Oracle/Vector.lean) | `ProbOracleComp.run`, `IsQueryBounded`, and exact `withTranscript` lengths for `OracleComp.pi` and `OracleComp.replicate` (`run_pi_query`, `isQueryBounded_pi_query`, `run_replicate`, `isQueryBounded_replicate`) |
+| Tuple and repetition oracle laws | [Oracle/Vector.lean](../../CslibFrontier/Languages/Probabilistic/Oracle/Vector.lean) | `ProbOracleComp.run`, `IsQueryBounded`, and exact `withTranscript` lengths for `OracleComp.pi` and `OracleComp.replicate` (`run_pi_query`, `isQueryBounded_pi_query`, `run_replicate`, `isQueryBounded_replicate`), and the budget `m * c` for `OracleComp.pi` of `m` programs of cost at most `c` each (`OracleComp.isCostBounded_pi`) |
 | Plurality amplification | [Probabilistic/Plurality.lean](../../CslibFrontier/Languages/Probabilistic/Plurality.lean) | `ProbComp.plurality` and Hoeffding bounds `toOuterMeasure_plurality_replicate_ne_toReal_le`, `one_sub_two_rpow_le_eval_plurality_replicate_toReal` |
 
 An ideal full random function table and its lazy cache can have the same transcript distribution while radically different representation costs. Their semantic equivalence does not, by itself, prove efficient materialization of the full table. At the open `OracleComp` level, forward-only query deduplication wraps a program with `memoize OracleComp.query` ([Memoize.lean](../../CslibFrontier/Foundations/Control/Monad/Memoize.lean)), while bidirectional permutation reductions wrap `PermOracleSpec α` programs with `RandomPermutation.bidirDedupStep` / `RandomPermutation.bidirDedup` ([RandomPermutation.lean](../../CslibFrontier/Languages/Probabilistic/RandomPermutation.lean), checked in [RandomPermutationSwitching.lean](../../CslibFrontierTests/RandomPermutationSwitching.lean)) so both forward hits in `dom(cache)` and inverse hits in `ran(cache)` reuse cached answers without repeating underlying oracle calls, preserving `evalPerm π` output laws, pathwise query bounds, and pairwise-distinct domain/range cache invariants.
+
+To search a list with an oracle test, write `xs.findM? test` and import [Traverse/FindM.lean](../../CslibFrontier/Languages/Probabilistic/Traverse/FindM.lean) (`CslibFrontier.Languages.Probabilistic.Traverse.FindM`). Against a deterministic oracle the search evaluates as `List.find?` on the tests' values, so it returns the first accepted element (`OracleComp.evalPure_findM?`). If the test of each element costs at most `n`, the search costs at most `xs.length * n` (`OracleComp.IsCostBounded.findM?`); this is the worst case, reached when no test accepts, and the rule does not use that the search stops at the first accepted element. If every call of each test satisfies a predicate, so does every call of the search (`OracleComp.QueriesSatisfy.findM?`). `OracleComp.IsCostBounded.mapM` and `OracleComp.QueriesSatisfy.mapM` in [Traverse/SupportWith.lean](../../CslibFrontier/Languages/Probabilistic/Traverse/SupportWith.lean) are the same two counting rules for `List.mapM`. [OracleFindM.lean](../../CslibFrontierTests/OracleFindM.lean) checks each rule on a concrete oracle.
 
 ## Closed strict polynomial time
 
@@ -96,14 +98,16 @@ user-state count, unary operation count, unary initial-state tag, then the trans
 `encList`. The first four fields are framed in turn; the final `encList` tail has one frame per entry.
 Each entry frames its key before the branch-pair tail. Keys put ordinary state/input/work-head
 fields before answer heads, and branches are ordered `false`, then `true`. Consequently `descLen`
-is a rigorous unary model-code length, not an implementation byte size. Invalid initial, successor
-or operation tags halt locally, and an
+is a rigorous unary model-code length, not an implementation byte size; the public component
+bounds put the declared tape, state and operation counts, the initial-state tag and the table
+length below it. Invalid initial, successor or operation tags halt locally, and an
 invalid operation tag makes no external call. `Desc.toMachine` leaves operation dispatch inside a
-finite machine (`Fin operations`), while `Desc.runWith_toMachine` identifies the full output and
-shared-state law for every stateful handler. The supplied fuel remains an external clock and the
-handler's own computation remains outside it. This layer provides syntax and denotation only: it
-does not yet provide a fixed universal interpreter, its controller/copying/marshalling resource
-map, or a PPT/QROM certificate. The complete
+finite machine (`Fin operations`), and `Desc.runOracle` is definitionally the common open-machine
+interpreter applied to that denotation. Its behavior under an arbitrary handler therefore follows
+by unfolding; the supplied fuel remains an external clock and the handler's own computation
+remains outside it. This layer provides syntax and denotation only: it does not yet provide a
+fixed universal interpreter, its controller/copying/marshalling resource map, or a PPT/QROM
+certificate. The complete
 [`OracleDescription.lean` client](../../CslibFrontierTests/OracleDescription.lean) separately runs
 one fixed logging handler and checks adaptive queries, zero clock and malformed-tag boundaries.
 
