@@ -16,12 +16,12 @@ An ordinary `module` client of `CslibFrontier.Crypto.Protocols.OPRF.DiffieHellma
 ([BonehShoup2023], Section 11.6.3, pp. 454–456):
 
 * In `ZMod 3` with generator `1`, the nonzero hashed inputs `2` and `1` induce the same `OPRF1`
-  message distribution (`uniformOfFintype_bind_blind_of_ne_zero`).
+  message distribution (`uniformOfFintype_bind_units_smul_of_ne_zero`).
 * In `ZMod 5` with generator `1`, `uniformOfFintype_bind_maskedUnblind_add_of_ne_zero` applies with
   `d v = 2`.
-* `h ≠ 0` is required in `uniformOfFintype_bind_blind_of_ne_zero`: in `ZMod 3`, `ρ • 0` is always
-  `0`, which `ρ • 1` never is.
-* Primality of `q` is required in `uniformOfFintype_bind_blind_of_ne_zero`: in `ZMod 4` with
+* `h ≠ 0` is required in `uniformOfFintype_bind_units_smul_of_ne_zero`: in `ZMod 3`, `ρ • 0` is
+  always `0`, which `ρ • 1` never is.
+* Primality of `q` is required in `uniformOfFintype_bind_units_smul_of_ne_zero`: in `ZMod 4` with
   generator `1`, the input `2` is nonzero yet `ρ • 2 = 2` for every unit `ρ`, whereas `ρ • 1` can
   be `1`.
 * `g` generating the group is required in `uniformOfFintype_bind_maskedBlind`: in `ZMod 2` with
@@ -39,12 +39,12 @@ namespace CslibFrontierTests.Crypto.OPRF
 
 open Cslib Cslib.Probability Cslib.Crypto.Protocols.OPRF
 
-/-- The hypotheses of `uniformOfFintype_bind_blind_of_ne_zero` hold in `ZMod 3` with generator `1`:
-the nonzero inputs `2` and `1` give the sender of `OPRF1` the same view. -/
+/-- The hypotheses of `uniformOfFintype_bind_units_smul_of_ne_zero` hold in `ZMod 3` with generator
+`1`: the nonzero inputs `2` and `1` give the sender of `OPRF1` the same view. -/
 example (f : ZMod 3 → PMF Bool) :
     ((PMF.uniformOfFintype (ZMod 3)ˣ).bind fun ρ => f (ρ • (2 : ZMod 3))) =
       (PMF.uniformOfFintype (ZMod 3)ˣ).bind fun ρ => f (ρ • (1 : ZMod 3)) :=
-  uniformOfFintype_bind_blind_of_ne_zero (g := (1 : ZMod 3)) (h := (2 : ZMod 3))
+  uniformOfFintype_bind_units_smul_of_ne_zero (g := (1 : ZMod 3)) (h := (2 : ZMod 3))
     (fun c => ⟨c, by simp⟩) (by decide) f
 
 /-- The hypotheses of `uniformOfFintype_bind_maskedUnblind_add_of_ne_zero` hold in `ZMod 5` with
@@ -61,8 +61,8 @@ example (f : ZMod 5 → ZMod 5 → PMF Bool) :
   exact uniformOfFintype_bind_maskedUnblind_add_of_ne_zero (g := (1 : ZMod 5))
     (fun c => ⟨c, by simp⟩) 2 3 (fun _ => 2) (fun _ => h2) f
 
-/-- `h ≠ 0` is needed in `uniformOfFintype_bind_blind_of_ne_zero`: the hashed input `0` is always
-sent as `0`, which no nonzero input in `ZMod 3` is. -/
+/-- `h ≠ 0` is needed in `uniformOfFintype_bind_units_smul_of_ne_zero`: the hashed input `0` is
+always sent as `0`, which no nonzero input in `ZMod 3` is. -/
 example :
     ((PMF.uniformOfFintype (ZMod 3)ˣ).bind fun ρ => PMF.pure (ρ • (0 : ZMod 3))) ≠
       (PMF.uniformOfFintype (ZMod 3)ˣ).bind fun ρ => PMF.pure (ρ • (1 : ZMod 3)) := by
@@ -73,7 +73,7 @@ example :
   rw [h] at hmem
   simp [Units.smul_def] at hmem
 
-/-- Primality of `q` is needed in `uniformOfFintype_bind_blind_of_ne_zero`: in `ZMod 4` with
+/-- Primality of `q` is needed in `uniformOfFintype_bind_units_smul_of_ne_zero`: in `ZMod 4` with
 generator `1`, the input `2` is nonzero and is always sent as `2`, which the input `1` never is. -/
 example : (2 : ZMod 4) ≠ 0 ∧ (Function.Surjective fun c : ZMod 4 => c • (1 : ZMod 4)) ∧
     ((PMF.uniformOfFintype (ZMod 4)ˣ).bind fun ρ => PMF.pure (ρ • (2 : ZMod 4))) ≠
@@ -115,7 +115,7 @@ example :
       ((PMF.uniformOfFintype (ZMod 3)ˣ).bind fun ρ => (PMF.uniformOfFintype (ZMod 3)).bind fun τ =>
         PMF.pure (maskedUnblind ((2 : ZMod 3) • (1 : ZMod 3)) ρ τ
           ((2 : ZMod 3) • maskedBlind (1 : ZMod 3) ρ τ (1 : ZMod 3) + 0))).support := by
-    simp only [add_zero, maskedUnblind_respond_maskedBlind]
+    simp only [add_zero, maskedUnblind_smul_maskedBlind]
     simp
   rw [h] at hmem
   simp [Units.smul_def] at hmem
