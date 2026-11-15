@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import Mathlib.Probability.ProbabilityMassFunction.Basic
-public import Mathlib.Data.ENNReal.Basic
+public import Mathlib.Basic.ENNReal.Basic
 
 /-!
 # Expected-amortized composition with distribution invariants

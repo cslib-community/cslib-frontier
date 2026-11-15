@@ -1562,7 +1562,6 @@ theorem steps_expected_amortized (C : StateTransitionImpl P D w base params s₀
     · rw [hstep_split, ← hcharge_split, ← hpot_prep]
       exact hamort₁
     · intro ν_final T_rest C_rest hex_rest
-
       refine ExecSteps.cons (μ_step := μ_op) (T_step := T_op) (fun t ht => ?_) hex_rest
       have ht' : prepMap t ∈ ν_prep.support :=
         (PMF.mem_support_map_iff _ _ _).mpr ⟨t, ht, rfl⟩
