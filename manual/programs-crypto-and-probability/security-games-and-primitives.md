@@ -2612,6 +2612,24 @@ one-bit-per-block instance `merkleDamgard`, not the length-strengthened one),
 `CompressionFamily.exists_oneWay` and `CompressionFamily.exists_wordEUFCMA` give the same
 conclusions for `2 n → n` compression families. No converse is claimed.
 
+For domination-free encodings and the Winternitz checksum encoding ([bs23][bs23], §14.3,
+Definition 14.4, §14.3.1, and Lemma 14.5), import
+[`OneTimeSignature/DominationFree.lean`](../../CslibFrontier/Crypto/Computational/OneTimeSignature/DominationFree.lean).
+`DominationFree P` asks that no distinct `m ≠ m'` satisfy `P m ≤ P m'` coordinatewise, proved
+for any injective `P0` and anti-monotone checksum digits by `dominationFree_of_append_checksum`.
+`radixDigits d width x` and `winternitzDigits d n0 n1 m` give little-endian base-`(d + 1)`
+message digits together with the `n1`-digit complement checksum
+`∑ i : Fin n0, (d - (radixDigits d n0 m i).val)`; when `f : M → ℕ` is injective below
+`(d + 1) ^ n0` and `d * n0 < (d + 1) ^ n1`, `winternitzDigits_dominationFree` proves
+`DominationFree`. The executable list counterpart `winternitzDigitList` agrees entrywise with
+`winternitzDigits` (`winternitzDigitList_length`, `getElem_winternitzDigitList`) and is
+certified `ComputableInPolyTime` in binary `(d, m)` and unary `(n0, n1)`
+(`winternitzDigitList_polyTime`). This module defines the combinatorial encoding only:
+one-time hash-chain signatures, the `d = 1` subset-encoding bridge, the `d = 15` WOTS+
+bridge, and the asymptotic `n_min` approximation are not part of it. Positive checks, p. 592
+parameter-table checks, and capacity counterexamples are in
+[`CslibFrontierTests/Crypto/DominationFree.lean`](../../CslibFrontierTests/Crypto/DominationFree.lean).
+
 Merkle–Damgård chains have many messages with one digest at little more than the cost of one
 collision (Joux's attack, [bs23][bs23], §8.4.1, pp. 298–299). Import
 [`MerkleDamgard/Multicollision.lean`](../../CslibFrontier/Crypto/Computational/MerkleDamgard/Multicollision.lean).
