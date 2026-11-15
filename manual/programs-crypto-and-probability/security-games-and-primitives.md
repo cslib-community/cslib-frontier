@@ -257,7 +257,8 @@ their `Game.advantage`. Over a parameter family, `realGame` and `idealGame` run
 `D : Distinguisher X Z` through `ProbComp.eval`, and `Secure encX encZ sample info derive key` is
 `Game.Indistinguishable` against uniform strict PPT distinguishers reading
 `(1ⁿ, encPair encX encZ (x, z))` (`Distinguisher.IsPPT encX encZ`), with projection
-`Secure.negligible` and polynomial-time side-information postprocessing `Secure.comp_info`. By `secure_iff_computationallyIndistinguishable`, `Secure` is equivalent to
+`Secure.negligible` and polynomial-time side-information postprocessing `Secure.comp_info`. By
+`secure_iff_computationallyIndistinguishable`, `Secure` is equivalent to
 `ComputationallyIndistinguishable` of the encoded word ensembles `realEnsemble` and `idealEnsemble`
 (`distinguishingGame_realEnsemble`, `distinguishingGame_idealEnsemble`). Importing
 [`ElGamal/KeyDerivation.lean`](../../CslibFrontier/Crypto/Computational/ElGamal/KeyDerivation.lean)
@@ -269,7 +270,7 @@ msgLen` equivalent to `KeyDerivation.Secure` for the secret `F.kdfSecret setup` 
 [key-derivation client](../../CslibFrontierTests/Crypto/KeyDerivation.lean) checks the printed
 `X × Y → Z` form of Attack Game 11.3, proves `Secure` for the identity derivation without side
 information and for `F (x, y) = x + y` on `ZMod 3` with side information (exercising
-`Secure.comp_info`, `Secure.negligible`, and `secure_iff_computationallyIndistinguishable`), refutes
+`Secure.comp_info` and `secure_iff_computationallyIndistinguishable`), refutes
 a constant derivation (`not_secure_const`) and an identity derivation whose key is also published as
 side information, and transports `F.secureKDF_linearHashKDF` through `F.secureKDF_iff_keyDerivation`;
 run `scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.KeyDerivation`.
