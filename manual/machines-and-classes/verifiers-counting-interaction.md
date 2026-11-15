@@ -221,6 +221,16 @@ modulus product. The [checked client](../../CslibFrontierTests/ResidueAccess.lea
 minus one, excluded moduli, first-event ordering, an empty interval and a concrete dyadic sum.
 These operations alone do not certify the complete sign-recovery procedure.
 
+`CountingHierarchy.DyadicSummation` certifies `dyadicRangeSum` in F_(a+1) from uniform F_a
+natural numerators and denominators. The precision is polynomial-time unary, paying for the
+binary scale `2^B`; the interval endpoint is polynomial-time binary. A zero denominator
+contributes zero. The finite-restriction bridge masks excluded numerators by zero and matches
+the mathematical CRT numerator exactly. `CountingHierarchy.FirstEventSign` returns `1`, `-1`
+or `0` using three F_a event/test evaluators in F_(a+2). Positive has priority if both tests
+hold; its name alone implies no integer-sign correctness. The
+[ordinary-module client](../../CslibFrontierTests/DyadicFirstEvent.lean) checks these defaults,
+masking, precision zero, empty ranges, ordering and priority.
+
 ## Mathematical sign recovery from residues
 
 Import [`Foundations.NumberTheory.CRTSign`](../../CslibFrontier/Foundations/NumberTheory/CRTSign.lean)
