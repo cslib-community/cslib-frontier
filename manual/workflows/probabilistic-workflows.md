@@ -155,7 +155,19 @@ indexed by `ι × κ` into independent blocks, and `toOuterMeasure_pi_forall` in
 box `{u | ∀ i, u i ∈ E i}`. For `Fin k`-indexed tuples with different factors, `PMF.piFin` in
 [IID.lean](../../CslibFrontier/Probability/IID.lean) generalizes `iid`, and
 [IID/Event.lean](../../CslibFrontier/Probability/IID/Event.lean) gives its box and union bounds
-`toOuterMeasure_piFin_forall` and `toOuterMeasure_toReal_piFin_exists_le`. To move a finite
+`toOuterMeasure_piFin_forall` and `toOuterMeasure_toReal_piFin_exists_le`.
+[IID/Birthday.lean](../../CslibFrontier/Probability/IID/Birthday.lean) bounds from below the
+probability that `k` samples of `iid μ k` contain two equal values, for any law `μ` on a set of size
+`n`: at least `1 - exp (-k (k - 1) / (2 n))` (`one_sub_exp_neg_le_iid_not_injective`) and at least
+`min (k (k - 1) / (4 n)) 0.63` (`min_le_iid_not_injective`), as in
+[bs23][bs23], Theorem B.1 and Corollary B.2. For uniform samples from a finite nonempty type `M`
+and a function `f : M → β` whose values lie in a finite set `D`,
+[IID/FunctionCollision.lean](../../CslibFrontier/Probability/IID/FunctionCollision.lean) bounds
+from below the probability that `s` samples contain two different points with one value of `f`:
+at least `1 - exp (-s (s - 1) / (2 |D|)) - C(s, 2) / |M|`
+(`one_sub_exp_neg_sub_choose_le_iid_uniformOfFintype_exists_collision`), the probabilistic part of
+[bs23][bs23], Lemma 8.2. The union-bound upper bounds are
+in [IID/Distinct.lean](../../CslibFrontier/Probability/IID/Distinct.lean). To move a finite
 statistic of i.i.d. samples from a measure into this setting, import
 [Product/MapMeasure.lean](../../CslibFrontier/Probability/Product/MapMeasure.lean):
 `map_measurePi_eq_toMeasure_pi` identifies the image of `Measure.pi μ` under coordinatewise
@@ -228,7 +240,12 @@ and `PMF.tsum_coe` by hand. Its real forms are `PMF.toReal_true_add_toReal_false
 indicator of `E`), and `PMF.map_not_true` for complements. A two-stage experiment
 `p.bind fun a => PMF.pure (E a)` is `p.map E` by definition, so these lemmas apply to it directly.
 To compose an event bound through `PMF.bind`, use the `PMF.toOuterMeasure_bind_*` lemmas in
-[PMF/EventBind.lean](../../CslibFrontier/Probability/PMF/EventBind.lean). The
+[PMF/EventBind.lean](../../CslibFrontier/Probability/PMF/EventBind.lean). When the bound on the
+continuation depends on whether the first stage landed in a set `pre`, at most `a₁` from supported
+outcomes in `pre` and at most `a₂` from the others,
+[PMF/TotalProbability.lean](../../CslibFrontier/Probability/PMF/TotalProbability.lean) bounds the
+bind by `P(pre) * a₁ + P(preᶜ) * a₂` (`PMF.toOuterMeasure_bind_le_mul_add_mul`, and
+`PMF.toOuterMeasure_bind_toReal_le_mul_add_mul` in `ℝ` for nonnegative `a₁` and `a₂`). The
 [checked examples](../../CslibFrontierTests/PMFBool.lean) recover the mass of `false` from the mass of
 `true` and apply the finite union bound; run `scripts/build.sh CslibFrontierTests.PMFBool`.
 
@@ -1912,6 +1929,23 @@ When two stateful oracle handlers agree until an internal collision or guessing 
 - **Random-oracle min-entropy programming and birthday collisions.** Import [RandomOracle/Programming.lean](../../CslibFrontier/Languages/Probabilistic/RandomOracle/Programming.lean) (and [CloseTo/RandomOracle.lean](../../CslibFrontier/Crypto/Game/CloseTo/RandomOracle.lean) for `Game.advantage` wrappers):
   - `RandomOracle.toOuterMeasure_exists_mem_fst_eq_le` bounds `μ.toOuterMeasure {a | ∃ e ∈ cache, e.1 = f a}` by `cache.length * δ` whenever `∀ q, (μ.map f) q ≤ δ`, and `RandomOracle.map_comp_apply_le_of_injective` transports that guessing bound through an injective key embedding.
   - `RandomOracle.lazyProgramHandler` and `RandomOracle.overwriteProgramHandler` (with flagged counterparts `flaggedLazyProgramHandler` and `flaggedOverwriteProgramHandler` used in [FiatShamir.lean](../../CslibFrontier/Crypto/Protocols/SigmaProtocol/FiatShamir.lean) and [FiatShamirNIZK.lean](../../CslibFrontier/Crypto/Protocols/SigmaProtocol/FiatShamirNIZK.lean)) model a two-channel experiment (`Req ⊕ Query`) whose active `.inl req` calls sample `ts ← samplePre req` with guessing bound `δ` at `point req ts` and either query `memoize (fun _ => dist)` lazily or overwrite `(point req ts, c)` with a fresh `c ← dist`. `closeTo_run_lazyProgramHandler_overwriteProgramHandler_choose_two` and `closeTo_runWith_lazyProgramHandler_overwriteProgramHandler_choose_two` (plus `advantage_runWith_lazyProgramHandler_overwriteProgramHandler_choose_two_le`) bound the programming-collision error by `(q_S * cache.length + q_S * q_H + q_S.choose 2) * δ`, with rectangular corollaries `q_S * (cache.length + q_S + q_H) * δ`.
+  - For native word execution, import
+    [Computability/Probabilistic/RandomOracle/Programming.lean](../../CslibFrontier/Computability/Probabilistic/RandomOracle/Programming.lean).
+    `lazyProgramWordHandler` and `overwriteProgramWordHandler` use one encoded `ProgrammingState`
+    containing the memoized table and caller log. `eval_lazyProgramWordHandler`,
+    `eval_overwriteProgramWordHandler`, `runWith_lazyProgramWordHandler` and
+    `runWith_overwriteProgramWordHandler` identify the complete reply/cache/log law with the
+    semantic handlers above; `isPPTOn_lazyProgramWordHandler` and
+    `isPPTOn_overwriteProgramWordHandler` certify individual calls. The whole-run
+    `isPPTOn_run_lazyProgramWordHandler` and `isPPTOn_run_overwriteProgramWordHandler`
+    additionally require an additive `programmingResources` contract: `ProgrammingInvariant`
+    bounds cached digests and caller logs, `lazyProgramWordHandler_support` preserves it and
+    bounds reply and encoded-state growth, and `computableInPolyTime_programmingResources`
+    certifies the shared unary allowance. The
+    [ordinary-module client](../../CslibFrontierTests/ProgrammableRandomOraclePPT.lean) checks both
+    worlds and an answer-dependent follow-up query. These certificates charge runtime caller data
+    and final state, but not a parameter-dependent installed program or machine description; such
+    a family still needs an `OracleTM`-level description-size argument.
   - `RandomOracle.toOuterMeasure_collision_memoize_uniform_le` and `RandomOracle.toOuterMeasure_hasOutputCollision_memoize_uniform_le` (with `runWith` variants for `ProbOracleComp`) prove the `q`-query random-oracle output-collision birthday bound `q.choose 2 / Fintype.card Digest` starting from `[]`.
 - **Two independent random oracles as two lists.** When a protocol calls two random oracles, such as a Merkle hash and a Fiat–Shamir challenge oracle, import [RandomOracle/Sum.lean](../../CslibFrontier/Languages/Probabilistic/RandomOracle/Sum.lean) and run it under `RandomOracle.memoizeSum dist₁ dist₂`, which keeps one association list per oracle. `RandomOracle.run_interpret_memoizeSum` shows that the two lists implement the lazy random oracle `RandomOracle.answer (sumHandler dist₁ dist₂)` on their joined cache `Cache.sum (ofList tr₁) (ofList tr₂)`, and `map_fst_run_interpret_memoizeSum_nil` gives the output distribution from empty lists. One call unfolds with `memoizeSum_inl`/`_inr` and inverts with `mem_support_memoizeSum_inl`/`_inr`; `run_interpret_memoizeSum_liftLeft`/`_liftRight` reduce a one-sided subprogram to ordinary `memoize`, and `mem_support_run_interpret_memoizeSum` carries per-list invariants (for example `mem_support_memoize_nodup`). Per-oracle query budgets of embedded subprograms come from `IsCostBounded.liftLeft`/`liftRight` and `liftLeft_of_cost_inl_eq_zero`/`liftRight_of_cost_inr_eq_zero` in [QueryCount/Sum.lean](../../CslibFrontier/Languages/Probabilistic/QueryCount/Sum.lean). `micaliMemoize` and `bcsMemoize` are the two instances.
 
@@ -2438,6 +2472,7 @@ Keep efficiency and security as separate goals. In [Crypto/Computational/Basic.l
 
 Specify the experiment, admissible adversaries, success event and assumption; prove the reduction's efficiency using the routines above; then prove the probability or advantage inequality. Semantic rewrites and native certificates discharge different obligations. If a proposed reduction only has a query bound, return to the realization step before calling it a computational security reduction. Use the [security-game reference](../programs-crypto-and-probability/security-games-and-primitives.md) to choose the correct primitive and adversary model. The final theorem keeps only the premises that [Security theorems and efficiency witnesses](../programs-crypto-and-probability/security-games-and-primitives.md#security-theorems-and-efficiency-witnesses) allows: named hardness assumptions, the adversary's class and properties of components that the cited result takes as given, never a bound on the reduction it builds.
 
+[bs23]: ../sources.md#bs23
 [complexitylib]: ../sources.md#complexitylib
 [holenstein09]: ../sources.md#holenstein09
 
@@ -3156,9 +3191,10 @@ argument. They also apply the book's form, the comparison with independence, the
 bounds and the halfspace formula. Run `scripts/build.sh CslibFrontierTests.GaussianQuadrant`
 from the repository root to check them.
 
-The comparison in (c) is non-strict, and the derivative formula of Exercise 11.19 (d) is not
-proved. Borell's Isoperimetric Theorem, that halfspaces maximize `Stab_ρ` among sets of volume
-`α`, is not part of this module; for its reduction to one dimension, see
+The comparison in (c) is non-strict. The derivative formula of Exercise 11.19 (d) is in
+[Differentiate the Gaussian quadrant probability](#differentiate-the-gaussian-quadrant-probability).
+Borell's Isoperimetric Theorem, that halfspaces maximize `Stab_ρ` among sets of volume `α`, is not
+part of this module; for its reduction to one dimension, see
 [Reduce Borell's Isoperimetric Theorem to one dimension](#reduce-borells-isoperimetric-theorem-to-one-dimension).
 
 ## Reduce Borell's Isoperimetric Theorem to one dimension
@@ -3218,12 +3254,95 @@ bounds at `ρ = 0` and `ρ = 1`; at `ρ = 1`, through `twoSetBorellInequality_if
 `1 / 3 > 1 / 6`. Run
 `scripts/build.sh CslibFrontierTests.GaussianBorell` from the repository root to check them.
 
-The one-dimensional two-function inequality (Exercises 11.28 and 11.29) is not proved, so
-Borell's Isoperimetric Theorem itself remains a conditional result here. The book's
-`[-1, 1]`-valued volume-`1 / 2` form, `Stab_ρ[f] ≤ 1 - 2 / π * arccos ρ` for `E_γ f = 0`, is not
-stated; it follows from `_of_integral_eq_half` applied to `fun z => (1 + f z) / 2`.
-Exercise 11.25 (sets suffice) is not needed, since the two-function route handles
-`[0, 1]`-valued `f` directly.
+The one-dimensional two-function inequality is not proved, so Borell's Isoperimetric Theorem
+itself remains a conditional result here. Of its two ingredients, Exercise 11.28, the
+`ρ`-concavity of the smooth function `Λ_ρ`, is proved in
+[Differentiate the Gaussian quadrant probability](#differentiate-the-gaussian-quadrant-probability);
+the heat-flow argument of Exercise 11.29 is not proved. The book's `[-1, 1]`-valued volume-`1 / 2` form, `Stab_ρ[f] ≤ 1 - 2 / π * arccos ρ` for
+`E_γ f = 0`, is not stated; it follows from `_of_integral_eq_half` applied to
+`fun z => (1 + f z) / 2`. Exercise 11.25 (sets suffice) is not needed, since the two-function
+route handles `[0, 1]`-valued `f` directly.
+
+## Differentiate the Gaussian quadrant probability
+
+Import
+[`CslibFrontier.Foundations.Probability.Gaussian.QuadrantDeriv`](../../CslibFrontier/Foundations/Probability/Gaussian/QuadrantDeriv.lean)
+and open the `ProbabilityTheory` namespace. Write `Φ` for `cdf (gaussianReal 0 1)`, `φ` for
+`gaussianPDFReal 0 1`, `s` for `√(1 - ρ ^ 2)`, `t` for `gaussianQuantile α` and `t'` for
+`gaussianQuantile β`. The results about `Λ_ρ` and the bivariate cdf assume `hρ : |ρ| < 1`, and
+the `α`, `β` forms assume `hα : α ∈ Ioo 0 1` and `hβ : β ∈ Ioo 0 1`; the negativity and
+semidefiniteness results assume `0 < ρ < 1` instead.
+
+- The quantile.
+  [`Gaussian/Quantile.lean`](../../CslibFrontier/Foundations/Probability/Gaussian/Quantile.lean)
+  defines `gaussianQuantile`, the inverse `Φ⁻¹` of `Φ : ℝ → (0, 1)`. Its values outside
+  `(0, 1)` are unspecified. `cdf_gaussianQuantile hα` and `gaussianQuantile_cdf x` are the two
+  inverse laws, and `gaussianQuantile_half` is `gaussianQuantile 2⁻¹ = 0`. On `(0, 1)` it is
+  strictly increasing and continuous (`strictMonoOn_gaussianQuantile`,
+  `continuousAt_gaussianQuantile`, `continuousOn_gaussianQuantile`),
+  `hasDerivAt_gaussianQuantile hα` gives the derivative `(φ t)⁻¹`, and
+  `contDiffOn_gaussianQuantile` says it is `C^∞` there. For a Gaussian `gaussianReal μ v` with
+  `hv : v ≠ 0`, `cdf_gaussianReal_eq_integral μ hv x` writes its cdf as
+  `∫ y in Iic x, gaussianPDFReal μ v y`, `hasDerivAt_cdf_gaussianReal μ hv x` says that the cdf
+  has derivative `gaussianPDFReal μ v x`, and `contDiff_cdf_gaussianReal μ hv` that it is `C^∞`.
+  In [`Gaussian/Real.lean`](../../CslibFrontier/Foundations/Probability/Gaussian/Real.lean),
+  `continuous_gaussianPDFReal μ v` and `contDiff_gaussianPDFReal μ v` say that the density is
+  continuous and smooth; both are `fun_prop` lemmas. The general
+  `MeasureTheory.hasDerivAt_integral_Iic hint hf`, in
+  [`MeasureTheory/Integral/IntegralEqImproper.lean`](../../CslibFrontier/Foundations/MeasureTheory/Integral/IntegralEqImproper.lean),
+  differentiates `y ↦ ∫ t in Iic y, f t` at `x` for integrable `f` continuous at `x`.
+- The book's coordinates. `measureReal_correlatedGaussian_setOf_le_and_le hρ t t'` writes
+  `P[z ≤ t, z' ≤ t']` as `∫ x in Iic t, φ x * Φ ((t' - ρ * x) / s)`.
+  `hasDerivAt_measureReal_correlatedGaussian_setOf_le_and_le_left` and `_right` give its partial
+  derivatives `φ t * Φ ((t' - ρ * t) / s)` and `φ t' * Φ ((t - ρ * t') / s)`.
+- First derivatives (Exercise 11.19 (d)). `hasDerivAt_gaussianQuadrant_left hρ hα hβ` gives
+  `HasDerivAt (fun α => gaussianQuadrant ρ α β) (Φ ((t' - ρ * t) / s)) α`, and
+  `hasDerivAt_gaussianQuadrant_right` gives `Φ ((t - ρ * t') / s)` in `β`. The `deriv_` forms
+  rewrite `deriv`.
+- Second derivatives (Exercise 11.28 (a), (b)). In `hasDerivAt_gaussianQuadrant_X_Y`, `X` names
+  the inner and `Y` the outer variable, with `left` for `α` and `right` for `β`. Thus
+  `_left_left` is `-(ρ / s) * (φ t)⁻¹ * φ ((t' - ρ * t) / s)`, and `_left_right`, the `β`
+  derivative of `∂Λ_ρ / ∂α`, is `s⁻¹ * (φ t')⁻¹ * φ ((t' - ρ * t) / s)`. The mixed derivatives
+  agree by `gaussianPDFReal_mul_gaussianPDFReal_comm hρ t t'`.
+- Joint smoothness. `hasFDerivAt_gaussianQuadrant hρ hα hβ` gives the Fréchet derivative of
+  `Function.uncurry (gaussianQuadrant ρ)` at `(α, β)`, the sum of
+  `Φ ((t' - ρ * t) / s) • ContinuousLinearMap.fst ℝ ℝ ℝ` and
+  `Φ ((t - ρ * t') / s) • ContinuousLinearMap.snd ℝ ℝ ℝ`.
+  `hasFDerivAt_deriv_gaussianQuadrant_left` and `_right` give the Fréchet derivatives of the
+  first partials `fun p : ℝ × ℝ => deriv (fun α => gaussianQuadrant ρ α p.2) p.1` and its `β`
+  analogue, whose components are the second derivatives below.
+  `contDiffOn_gaussianQuadrant hρ` says that `Function.uncurry (gaussianQuadrant ρ)` is `C^∞` on
+  the open square `(0, 1)²`. These rest on `hasStrictFDerivAt_uncurry_of_hasDerivAt`, in
+  [`Analysis/Calculus/FDeriv/Partial.lean`](../../CslibFrontier/Foundations/Analysis/Calculus/FDeriv/Partial.lean):
+  partial derivatives `f₁`, `f₂` of `f : ℝ → ℝ → ℝ` near `u`, continuous at `u`, give the strict
+  derivative `f₁ u.1 u.2 • fst + f₂ u.1 u.2 • snd` of `fun v => f v.1 v.2`.
+- The `ρ`-Hessian (Exercise 11.28 (c), (d)). `rhoHessian ρ F x y` is the Hessian of
+  `F : ℝ → ℝ → ℝ` built from iterated `deriv`s, with off-diagonal entries multiplied by `ρ`;
+  unfold it with `rhoHessian_def`. `rhoHessian_gaussianQuadrant` evaluates all four entries for
+  `Λ_ρ`, and `det_rhoHessian_gaussianQuadrant` shows the determinant is `0`. For `0 < ρ < 1`,
+  `deriv_gaussianQuadrant_left_left_neg` and `_right_right_neg` give negative diagonal entries,
+  `negSemidef_rhoHessian_gaussianQuadrant` proves that `-rhoHessian ρ (gaussianQuadrant ρ) α β`
+  is `PosSemidef`, and `dotProduct_mulVec_rhoHessian_gaussianQuadrant_nonpos` gives
+  `v ⬝ᵥ (rhoHessian ρ (gaussianQuadrant ρ) α β *ᵥ v) ≤ 0`. The `2 × 2` criterion behind the
+  semidefiniteness is `Matrix.posSemidef_fin_two`, in
+  [`LinearAlgebra/Matrix/PosDef.lean`](../../CslibFrontier/Foundations/LinearAlgebra/Matrix/PosDef.lean).
+
+The checked
+[`GaussianQuadrantDeriv.lean` clients](../../CslibFrontierTests/GaussianQuadrantDeriv.lean)
+exercise the quantile (`(Φ⁻¹)' (1 / 2) = √(2π)`, monotonicity and continuity) and the bivariate
+formula at `ρ = 0`. They evaluate `∂Λ_ρ / ∂α = 1 / 2` and the second and mixed derivatives at
+`α = β = 1 / 2`, check the `ρ = 0` formula against the derivative of `Λ_0(α, β) = αβ`, evaluate
+the Fréchet derivative at `(1 / 2, 1 / 2)`, derive `C²` from `contDiffOn_gaussianQuadrant`, and
+apply the density symmetry, a `ρ`-Hessian entry, the determinant and the semidefiniteness at
+`ρ = 1 / 2`. The test file is a `module` that publicly imports the tested API. Run `scripts/build.sh CslibFrontierTests.GaussianQuadrantDeriv` from the repository
+root to check them.
+
+Together these give the book's `ρ`-concavity of `Λ_ρ` on the open square `(0, 1)²`, for
+`0 < ρ < 1`: `Λ_ρ` is `C^∞` there, so its `ρ`-Hessian is that of a `C²` function, and it is
+negative semidefinite at every point. The Mossel–Neeman argument of Exercise 11.29, which turns
+`ρ`-concavity into the one-dimensional two-function Borell inequality, is not proved; that
+inequality stays the hypothesis of
+[Reduce Borell's Isoperimetric Theorem to one dimension](#reduce-borells-isoperimetric-theorem-to-one-dimension).
 
 ## Compare bits with Gaussians by the invariance principle
 
