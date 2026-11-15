@@ -9,7 +9,6 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.EqualityPrimitives
 import CslibFrontier.Foundations.Data.List.Fold
-import Mathlib.Data.Fintype.Basic
 
 /-!
 # Plain polynomial-time finite case analysis

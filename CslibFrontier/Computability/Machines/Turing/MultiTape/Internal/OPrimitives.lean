@@ -13,8 +13,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.Ker
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.ConditionalMachine
 
 public import Mathlib.Tactic.FunProp
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Ring
+import Mathlib.Tactic.TypeStar
 
 /-!
 # Asymptotic composition with explicit intermediate storage
