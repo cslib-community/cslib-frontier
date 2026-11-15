@@ -12,6 +12,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Basic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.MultiPass
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.StreamFold
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Comp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 

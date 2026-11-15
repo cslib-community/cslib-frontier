@@ -145,7 +145,7 @@ public theorem length_le_time {f : α → β} (h : ComputableTidilyInO f encIn e
 public theorem of_linear {f : α → β} {e : ℕ} (h : ComputableInDegree f encIn encMid 1 e) :
     ComputableTidilyInO f encIn encMid (fun a => (encIn a).length) fun a => (encIn a).length :=
   let ⟨c, hc⟩ := Internal.NormalForm.linear h
-  ⟨c, hc, hc.length_le⟩
+  ⟨c, hc, ComputableTidilyInTimeAndSpace.length_le hc⟩
 
 public theorem comp {f : β → γ} {g : α → β} {T₂ S₂ : β → ℕ}
     (hf : ComputableTidilyInO f encMid encOut T₂ S₂)
