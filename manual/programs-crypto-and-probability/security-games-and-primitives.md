@@ -1163,8 +1163,8 @@ accepts. Digests are natural numbers below `N`, not units modulo `N`. The book f
 whereas keys here come from any law on `RSADesc`, with no condition on `ℓ`, and the results assume
 that `e` is prime on its support; `e` coprime to `(p - 1) * (q - 1)` is not enough. Exercise 10.26
 (p. 431) and the use of `H_rsa` as a compression function in the Merkle–Damgård construction
-(p. 416) are not formalized. The accumulator of §10.9 is in `GUOAccumulator.lean` (below), without
-its security theorem. The
+(p. 416) are not formalized. The accumulator of §10.9 is in `GUOAccumulator.lean` (below), and its
+security under strong RSA in `GUOAccumulator/Security.lean`. The
 [checked examples](../../CslibFrontierTests/Crypto/RSAHash.lean) cover a collision at `N = 15`,
 `e = 3` and `y = 2` with its root `8`, a word that decodes to a valid pair but is not valid, and, at
 `e = 9`, which is coprime to `(3 - 1) * (5 - 1) = 8`, a collision that gives no ninth root of `2`.
@@ -1234,7 +1234,8 @@ congruence is the one §10.9 uses to recover each proof from an aggregate ([bs23
 p. 422). The book takes units `w` and `y` modulo `n`, whereas here `w` and `y` are natural numbers,
 not necessarily below `n`, and the two congruences assume only `Nat.Coprime w n`: for `f ≠ 0` it
 makes `y` coprime to `n`, and for `f = 0` they do not need it. The accumulator of §10.9 is in
-`GUOAccumulator.lean` (below), without its security theorem. In `RSAAttacks.lean`,
+`GUOAccumulator.lean` (below), and its security under strong RSA in
+`GUOAccumulator/Security.lean`. In `RSAAttacks.lean`,
 `commonRoot_rsaEval` applies the
 algorithm to the common-modulus attack on plain RSA: for `Nat.Coprime e₁ e₂` and
 `Nat.Coprime m N`, `commonRoot N e₂ e₁ (rsaEval N e₁ m) (rsaEval N e₂ m) = m % N`, so
@@ -1279,11 +1280,32 @@ numbers on `encNat` (`computableInPolyTime_guoVerifySubset`,
 statements differ from the book's in two further places: the book's
 `π_T = g ^ (E / ∏ x ∈ T, H x)` equals `guoSubsetWitness` when `T ⊆ S` and no hash is `0`, and for
 `0 < H x` Alice's `γ` satisfies `|γ| < H x` where the book has `|γ| ≤ H(x)` (`guoNonMemCoeff_lt`).
-Security under strong RSA, a certificate for computing `E` from a list of elements, aggregated
-non-membership proofs and class groups are not formalized in this module. The
+Security under strong RSA is in the next paragraph. A certificate for computing `E` from a list of
+elements, aggregated non-membership proofs and class groups are not formalized. The
 [checked examples](../../CslibFrontierTests/Crypto/GUOAccumulator.lean) work modulo `35` with
 `g = 2` and the hashes `3`, `5` and `7`, and include instances showing that the unit commitment,
 the unit base, `0 < h`, prime hashes and the unit check on `c` are needed.
+
+For the accumulator's security under strong RSA ([bs23][bs23], §10.9, p. 422), import
+[`GUOAccumulator/Security.lean`](../../CslibFrontier/Crypto/Computational/GUOAccumulator/Security.lean).
+The elements are words, and the hash is any `H : List Bool → ℕ`. A `GUOForger` outputs a
+`GUOForgery`, encoded by `encGUOForgery`: a commitment `c`, an element `x`, a membership proof `a`
+and a non-membership proof `(b, γ)`. `GUOForger.IsPPT` states its efficiency.
+`guoAccumulatorGame setup H` draws `(N, g)` from `setup n` and accepts when the forgery passes both
+of Bob's checks for `H x` (`GUOForgery.isValid`). `StrongRSA.negligible_guoAccumulatorGame` is the
+book's security theorem: if `StrongRSA setup` holds and `H` is computable in polynomial time
+(`ComputableInPolyTime H encBits encNat`) with `H x ≠ 1` for every `x`, then every PPT adversary
+wins `guoAccumulatorGame setup H` with negligible probability. Its reduction `guoToStrongRSA H A`
+outputs `(guoForgeryRoot N a b γ, H x)`. `succProbability_guoAccumulatorGame_le` bounds the success
+probability of every adversary `A` by that of `guoToStrongRSA H A` in the strong RSA game, and
+`isPPT_guoToStrongRSA` certifies that the reduction is PPT when `A` is. The book's hash takes prime
+values and is collision resistant; the proof needs only `H x ≠ 1`, because the strong RSA game
+rejects the exponent `1`. The book calls a correct accumulator secure; the theorem concerns the
+security game alone, and correctness is in the paragraph above. The group comes from any law on
+`GUOParams`, as in `StrongRSA`, in place of the book's efficient `GGen`. The
+[checked examples](../../CslibFrontierTests/Crypto/GUOAccumulatorSecurity.lean) give a forgery
+modulo `15`, where the order of `2` is known, apply the theorem to it, and show that `H x ≠ 1` is
+needed.
 
 For weak RSA moduli ([bs23][bs23], §16.4.2, pp. 698–699), import
 [`Factoring/WeakModuli.lean`](../../CslibFrontier/Crypto/Computational/Factoring/WeakModuli.lean).
