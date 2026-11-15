@@ -6,6 +6,7 @@ Authors: Karn Seth
 module
 
 import CslibFrontier.Crypto.Protocols.PIR.Preprocessing.Relocation
+import Mathlib.Probability.ProbabilityMassFunction.Monad
 
 /-! # Tests for the Wang–Ren Relocation Data Structure
 
@@ -17,7 +18,7 @@ set_option linter.privateModule false
 
 namespace CslibTests.Crypto.Protocols.PIR.Preprocessing.Relocation
 
-open Cslib.Crypto.Protocols.PIR.Preprocessing.Relocation
+open Cslib Cslib.Crypto.Protocols.PIR.Preprocessing.Relocation
 
 /-! ### Axiom Footprint Checks -/
 
@@ -135,5 +136,34 @@ example : (realExperiment 2 4 2 testQueries).eval = (idealExperiment 2 4 2 testQ
 
 /-- Concrete instantiation of Theorem 3.3 (`correctAndSecure`) for `m = 2, m' = 4`. -/
 example : CorrectAndSecure 2 4 := correctAndSecure 2 4
+
+/-- Concrete output produced by `realExperiment 2 4 2 testQueries` when the sampled permutation is
+`testPerm`; both relocation steps take the occupied (`some _`) branch. -/
+def testOutput : RelocationOutput 2 4 :=
+  ⟨fun e => locate s₀ e, [some 3, some 2]⟩
+
+/-- The support of `realExperiment 2 4 2 testQueries` (and hence of `idealExperiment`, by
+Lemma 3.16) contains `testOutput`, witnessing that the non-empty relocation branch is exercised. -/
+theorem testOutput_mem_support_realExperiment :
+    testOutput ∈ (realExperiment 2 4 2 testQueries).eval.support := by
+  simp only [realExperiment, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure,
+    PMF.mem_support_bind_iff, PMF.mem_support_pure_iff]
+  exact ⟨testPerm, Cslib.Probability.PMF.mem_support_uniformOfFintype testPerm, rfl⟩
+
+/-! ### Necessity of Distinct Relocated Positions (`history.Nodup`) -/
+
+/-- State obtained by relocating position `1` twice (`history = [1, 1]`), violating
+`RelocationState.Valid`. -/
+def s₁_dup : RelocationState 2 4 := relocate s₁ 1
+
+theorem not_valid_s₁_dup : ¬ s₁_dup.Valid := by
+  simp [RelocationState.Valid, s₁_dup, s₁, s₀, init, relocate]
+
+-- Without `history.Nodup`, both unconsumed positions `2` and `3` trace back to `1` via `inEdge?`,
+-- so element `0` appears at two distinct unconsumed positions and `locate`/`access` invertibility
+-- (Lemmas 3.13 and 3.14) fails:
+example : (2 : Fin 4) ∉ s₁_dup.history ∧ (3 : Fin 4) ∉ s₁_dup.history := by decide
+example : access s₁_dup 2 = some 0 ∧ access s₁_dup 3 = some 0 := ⟨rfl, rfl⟩
+example : locate s₁_dup 0 = 3 ∧ access s₁_dup 2 = some 0 ∧ locate s₁_dup 0 ≠ 2 := by decide
 
 end CslibTests.Crypto.Protocols.PIR.Preprocessing.Relocation
