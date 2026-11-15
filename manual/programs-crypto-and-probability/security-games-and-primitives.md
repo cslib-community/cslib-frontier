@@ -1057,6 +1057,37 @@ is essential: the source's Lemma 6.5 omits it, and a constant payoff of `-1` ref
 collision replacement, and `n=5`, `count=2`, `width=3`, where `{2,4}` has actual probability
 `1/16` and ideal probability `1/10`. They also distinguish multiply-high from modulo reduction.
 
+For the finite statistical comparison, import
+[`HQC/SupportProbability.lean`](../../CslibFrontier/Crypto/Primitives/HQC/SupportProbability.lean);
+for the native circuit, import
+[`HQC/SupportCircuit/Sampler.lean`](../../CslibFrontier/Crypto/Primitives/HQC/SupportCircuit/Sampler.lean).
+Under `count ≤ n` and `n < 2 ^ bits`, the circuit's measured law is exactly `sampleSupport2`
+mapped through `BitString.indicatorVector`, every output has weight `count`, and
+`supportSamplerDist_closeTo_ideal` bounds its finite discrepancy by
+`1 - (supportLowerDensity width n 0 count).toReal`. This is not exact ideal uniformity.
+`negligible_one_sub_supportLowerDensity` makes the error negligible only along schedules whose
+word width grows sufficiently; it gives no negligibility claim for a fixed width such as `32`.
+
+The construction uses the shared reversible sampler in
+[`Quantum/Reversible/Sampling.lean`](../../CslibFrontier/Computability/Circuit/Quantum/Reversible/Sampling.lean)
+and its [resource API](../../CslibFrontier/Computability/Circuit/Quantum/Reversible/Sampling/Resources.lean).
+For `s = count * width` seed bits, `G` Boolean gates, and `m = n` outputs, it uses exactly
+`s + G + 1 + m` active qubits, at most `s + 3 * G + m` elementary gates, and zero coherent
+queries. It retains the seed and gate garbage, copies a fresh output block, and measures that
+block once at the end; the final measurement is separate from `OracleCircuit.Resources`. The
+encoded-code bound charges framed unary wire indices for the emitted gates. It does not charge
+the static generator description or offline generation time as online attack execution.
+
+The complete ordinary clients in
+[`HQCSupportCircuit.lean`](../../CslibFrontierTests/Crypto/HQCSupportCircuit.lean) and
+[`HQCSupportProbability.lean`](../../CslibFrontierTests/Crypto/HQCSupportProbability.lean) check
+the non-dyadic sampler law, each resource coordinate, finite discrepancy, and the growing-width
+qualification. From the repository root, build them with:
+
+```bash
+scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.HQCSupportCircuit CslibFrontierTests.Crypto.HQCSupportProbability
+```
+
 Import [`HQC/Syndrome.lean`](../../CslibFrontier/Crypto/Primitives/HQC/Syndrome.lean) for the
 finite 2-QCSD-P/2-DQCSD-P and 3-QCSD-PT/3-DQCSD-PT distributions from Definitions 2.3.6–2.3.9,
 pp. 12–13. `realSyndromeLaw` draws the public circulant generator uniformly at its prescribed
