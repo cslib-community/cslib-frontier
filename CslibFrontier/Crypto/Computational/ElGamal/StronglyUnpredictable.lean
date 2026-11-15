@@ -31,10 +31,8 @@ bound `(F.order (d n) : ℝ≥0)⁻¹ + 1 / 2 ^ n`. Whenever the deterministic g
 
 ## Main results
 
-* `Cslib.Crypto.PrimeOrderGroupFamily.elGamalEncrypt_injective`: injectivity of `elGamalEncrypt`
-  in the ephemeral exponent `β`.
-* `Cslib.Crypto.PrimeOrderGroupFamily.eval_bind_sampleExp_hit_le`: shared ciphertext-hit bound
-  for any `sampleExp`-based encryption whose non-error ciphertext uniquely determines `b mod q`.
+* `Cslib.Crypto.PrimeOrderGroupFamily.eval_bind_sampleExp_apply_le`: shared ciphertext-hit bound
+  for any `sampleExp`-based computation whose output uniquely determines `b mod q`.
 * `Cslib.Crypto.PrimeOrderGroupFamily.ciphertextHitBound_elGamalEncryptProb`: single-parameter hit
   bound `(F.order (d n) : ℝ≥0)⁻¹ + 1 / 2 ^ n` for multiplicative ElGamal.
 * `Cslib.Crypto.PrimeOrderGroupFamily.stronglyUnpredictable_elGamalEncryptProb`: strong
@@ -58,26 +56,19 @@ namespace Cslib.Crypto.PrimeOrderGroupFamily
 open Cslib.Crypto.Encryption Cslib.Probability Turing.MultiTapeTM
 open scoped NNReal ENNReal
 
-/-- Multiplicative ElGamal encryption `β ↦ (β • g, β • u + m)` is injective in `β` for every
-public key `u` and message `m`. -/
-theorem elGamalEncrypt_injective (F : PrimeOrderGroupFamily) (d : F.Desc) (u m : F.Carrier d) :
-    Function.Injective (F.elGamalEncrypt d u m) := by
-  intro _β₁ _β₂ h
-  exact F.smul_generator_injective d (congrArg Prod.fst h)
-
-/-- Shared hit-bound lemma for any encryption step that binds `b ← F.sampleExp n d` and whose
-non-error ciphertext `c` uniquely determines `(b : ZMod (F.order d))`. -/
-theorem eval_bind_sampleExp_hit_le (F : PrimeOrderGroupFamily)
-    {C : Type} (n : ℕ) (d : F.Desc)
-    (body : ℕ → ProbComp (Option C))
-    (c : C)
+/-- Shared hit-bound lemma for any computation that binds `b ← F.sampleExp n d` and whose
+output `x` uniquely determines `(b : ZMod (F.order d))`. -/
+theorem eval_bind_sampleExp_apply_le (F : PrimeOrderGroupFamily)
+    {α : Type} (n : ℕ) (d : F.Desc)
+    (body : ℕ → ProbComp α)
+    (x : α)
     (hdet : ∀ b₁ b₂ : ℕ,
-      ProbComp.eval (body b₁) (some c) ≠ 0 →
-      ProbComp.eval (body b₂) (some c) ≠ 0 →
+      ProbComp.eval (body b₁) x ≠ 0 →
+      ProbComp.eval (body b₂) x ≠ 0 →
       (b₁ : ZMod (F.order d)) = (b₂ : ZMod (F.order d))) :
-    ((ProbComp.eval (do let b ← F.sampleExp n d; body b)) (some c)).toNNReal ≤
+    ((ProbComp.eval (do let b ← F.sampleExp n d; body b)) x).toNNReal ≤
       (F.order d : ℝ≥0)⁻¹ + 1 / 2 ^ n := by
-  by_cases hex : ∃ b₀ : ℕ, ProbComp.eval (body b₀) (some c) ≠ 0
+  by_cases hex : ∃ b₀ : ℕ, ProbComp.eval (body b₀) x ≠ 0
   · rcases hex with ⟨b₀, hb₀⟩
     let β₀ : ZMod (F.order d) := (b₀ : ZMod (F.order d))
     let gReal : Game := (ProbComp.eval (F.sampleExp n d)).bind fun b =>
@@ -85,12 +76,12 @@ theorem eval_bind_sampleExp_hit_le (F : PrimeOrderGroupFamily)
     let gIdeal : Game := (PMF.uniformOfFintype (ZMod (F.order d))).bind
       fun β => PMF.pure (decide (β = β₀))
     have hle_ind :
-        (ProbComp.eval (do let b ← F.sampleExp n d; body b)) (some c) ≤ gReal true := by
+        (ProbComp.eval (do let b ← F.sampleExp n d; body b)) x ≤ gReal true := by
       rw [ProbComp.eval_bind, PMF.bind_apply]
       dsimp only [gReal]
       rw [PMF.bind_apply]
       refine tsum_le_tsum fun b => ?_
-      by_cases hb : ProbComp.eval (body b) (some c) = 0
+      by_cases hb : ProbComp.eval (body b) x = 0
       · simp [hb]
       · have hβ : (b : ZMod (F.order d)) = β₀ := hdet b b₀ hb hb₀
         simp only [hβ, PMF.pure_apply, decide_true, ↓reduceIte, mul_one]
@@ -115,7 +106,7 @@ theorem eval_bind_sampleExp_hit_le (F : PrimeOrderGroupFamily)
       linarith [le_abs_self ((gReal.succProbability : ℝ) - gIdeal.succProbability)]
     exact (ENNReal.toNNReal_mono (PMF.apply_ne_top _ _) hle_ind).trans hreal_le
   · push Not at hex
-    have hzero : (ProbComp.eval (do let b ← F.sampleExp n d; body b)) (some c) = 0 := by
+    have hzero : (ProbComp.eval (do let b ← F.sampleExp n d; body b)) x = 0 := by
       rw [ProbComp.eval_bind, PMF.bind_apply]
       simp [hex]
     rw [hzero]
@@ -130,16 +121,14 @@ theorem ciphertextHitBound_elGamalEncryptProb (F : PrimeOrderGroupFamily)
     CiphertextHitBound
       (fun pk m => some <$> F.elGamalEncryptProb encodeMsg d n pk m)
       ((F.order (d n) : ℝ≥0)⁻¹ + 1 / 2 ^ n) := by
-  intro pk m c
-  dsimp only
+  refine (ciphertextHitBound_map_some_iff _ _).mpr fun pk m c => ?_
   unfold elGamalEncryptProb
-  rw [map_bind]
-  refine F.eval_bind_sampleExp_hit_le n (d n)
-    (fun b => pure (some (encPair encBits encBits
-      (F.encodeElGamalEncrypt (d n, dropFrame pk, encodeMsg (d n) m, b))))) c ?_
+  refine F.eval_bind_sampleExp_apply_le n (d n)
+    (fun b => pure (encPair encBits encBits
+      (F.encodeElGamalEncrypt (d n, dropFrame pk, encodeMsg (d n) m, b)))) c ?_
   intro b₁ b₂ h₁ h₂
   simp only [ProbComp.eval_pure, PMF.pure_apply, ne_eq, ite_eq_right_iff, one_ne_zero, imp_false,
-    not_not, Option.some.injEq] at h₁ h₂
+    not_not] at h₁ h₂
   have hu₁ := (congrArg unframe h₁).trans (unframe_encPair_encBits _ _ _)
   have hu₂ := (congrArg unframe h₂).trans (unframe_encPair_encBits _ _ _)
   have hsmul : F.smul (d n, b₁, F.encode (d n) (F.generator (d n))) =
@@ -173,24 +162,22 @@ theorem ciphertextHitBound_hybrid_hashedElGamal (F : PrimeOrderGroupFamily)
       (fun pk m =>
         some <$> Encryption.hybridEncrypt (F.hashedElGamalEncapsProb H d) encryptSym n pk m)
       ((F.order (d n) : ℝ≥0)⁻¹ + 1 / 2 ^ n) := by
-  intro pk m c
-  dsimp only
+  refine (ciphertextHitBound_map_some_iff _ _).mpr fun pk m c => ?_
   unfold Encryption.hybridEncrypt hashedElGamalEncapsProb
-  rw [bind_assoc, map_bind]
-  refine F.eval_bind_sampleExp_hit_le n (d n)
-    (fun b => some <$> (do
+  rw [bind_assoc]
+  refine F.eval_bind_sampleExp_apply_le n (d n)
+    (fun b => do
       let ctDem ← encryptSym n (H (d n, F.smul (d n, b, dropFrame pk))) m
       return encPair encBits encBits
-        (F.smul (d n, b, F.encode (d n) (F.generator (d n))), ctDem))) c ?_
+        (F.smul (d n, b, F.encode (d n) (F.generator (d n))), ctDem)) c ?_
   intro b₁ b₂ h₁ h₂
   have extract (b : ℕ)
-      (hb : ProbComp.eval (some <$> (do
+      (hb : ProbComp.eval (do
         let ctDem ← encryptSym n (H (d n, F.smul (d n, b, dropFrame pk))) m
         return encPair encBits encBits
-          (F.smul (d n, b, F.encode (d n) (F.generator (d n))), ctDem))) (some c) ≠ 0) :
+          (F.smul (d n, b, F.encode (d n) (F.generator (d n))), ctDem)) c ≠ 0) :
       unframe c = F.encode (d n) ((b : ZMod (F.order (d n))) • F.generator (d n)) := by
-    rw [ProbComp.eval_map, Cslib.Probability.PMF.map_apply_of_injective _ (Option.some_injective _),
-      ProbComp.eval_bind, PMF.bind_apply] at hb
+    rw [ProbComp.eval_bind, PMF.bind_apply] at hb
     have hex : ∃ ctDem,
         ProbComp.eval (encryptSym n (H (d n, F.smul (d n, b, dropFrame pk))) m) ctDem *
           ProbComp.eval (pure (encPair encBits encBits
@@ -206,18 +193,8 @@ theorem ciphertextHitBound_hybrid_hashedElGamal (F : PrimeOrderGroupFamily)
       not_not] at hp
     have hu := (congrArg unframe hp).trans (unframe_encPair_encBits _ _ _)
     simpa [F.smul_encode] using hu
-  have h1' : ProbComp.eval (some <$> (do
-      let ctDem ← encryptSym n (H (d n, F.smul (d n, b₁, dropFrame pk))) m
-      return encPair encBits encBits
-        (F.smul (d n, b₁, F.encode (d n) (F.generator (d n))), ctDem))) (some c) ≠ 0 := by
-    simpa [bind_pure_comp, pure_bind] using h₁
-  have h2' : ProbComp.eval (some <$> (do
-      let ctDem ← encryptSym n (H (d n, F.smul (d n, b₂, dropFrame pk))) m
-      return encPair encBits encBits
-        (F.smul (d n, b₂, F.encode (d n) (F.generator (d n))), ctDem))) (some c) ≠ 0 := by
-    simpa [bind_pure_comp, pure_bind] using h₂
   exact F.smul_generator_injective (d n)
-    (F.encode_injective (d n) ((extract b₁ h1').symm.trans (extract b₂ h2')))
+    (F.encode_injective (d n) ((extract b₁ h₁).symm.trans (extract b₂ h₂)))
 
 /-- Hybrid Hashed ElGamal encryption has strongly unpredictable ciphertexts ([BonehShoup2023],
 §21.4.1, p. 872) whenever `(F.order (d n) : ℝ≥0)⁻¹` is negligible. In particular, `hord` follows

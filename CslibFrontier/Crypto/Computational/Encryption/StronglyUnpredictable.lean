@@ -36,14 +36,11 @@ constant type families `fun _ => PK`, `fun _ => Msg`, `fun _ => C`.
 
 ## Main results
 
-* `Cslib.Crypto.Encryption.CiphertextHitBound.mono`: monotonicity in the hit bound.
 * `Cslib.Crypto.Encryption.ciphertextHitBound_map_some_iff`: characterization for total encryption
   algorithms `some <$> encrypt pk m`.
 * `Cslib.Crypto.Encryption.CiphertextHitBound.collision_le`: two independent invocations (even under
   distinct adversarially chosen keys and messages) output the same non-error ciphertext with
   probability at most `ε` ([BonehShoup2023], §21.9.6, p. 897).
-* `Cslib.Crypto.Encryption.StronglyUnpredictable.of_bound`: constructor from an explicit negligible
-  hit bound.
 * `Cslib.Crypto.Encryption.stronglyUnpredictable_iff_forall`: equivalence with sequential
   negligibility over arbitrary sequences `(pk, m, c)` under `Nonempty` key, message, and ciphertext
   types.
@@ -71,13 +68,6 @@ probability at most `ε` if for every public key `pk`, message `m`, and non-erro
     (encrypt : PK → Msg → ProbComp (Option C)) (ε : ℝ≥0) : Prop :=
   ∀ (pk : PK) (m : Msg) (c : C),
     ((ProbComp.eval (encrypt pk m)) (some c)).toNNReal ≤ ε
-
-/-- Increasing the upper bound preserves `CiphertextHitBound`. -/
-theorem CiphertextHitBound.mono {PK Msg C : Type}
-    {encrypt : PK → Msg → ProbComp (Option C)} {ε ε' : ℝ≥0}
-    (h : CiphertextHitBound encrypt ε) (hle : ε ≤ ε') :
-    CiphertextHitBound encrypt ε' :=
-  fun pk m c => (h pk m c).trans hle
 
 /-- For an infallible encryption algorithm lifted by `some <$> ·`, `CiphertextHitBound` reduces
 directly to bounding `Pr[encrypt pk m = c] ≤ ε`. -/
