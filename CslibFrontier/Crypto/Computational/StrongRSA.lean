@@ -49,7 +49,10 @@ RSA modulus `n` from `RSAGen(ℓ, e)` and a uniform `g ∈ ℤₙ*`.
   polynomial-time function `u` of the security parameter and `(N, g)` gives `0 < u` and
   `g ^ u ≡ 1 [MOD N]` for every supported `(N, g)`, then `StrongRSA setup` does not hold:
   `orderMultipleAdversary u` is PPT (`isPPT_orderMultipleAdversary`) and wins with probability
-  `1`.
+  `1` (`strongRSAGame_orderMultipleAdversary`).
+* `Cslib.Crypto.strongRSAGame_orderMultipleAdversary`: `orderMultipleAdversary u` wins with
+  probability `1` at every security parameter where `0 < u` and `g ^ u ≡ 1 [MOD N]` for every
+  supported `(N, g)`.
 * `Cslib.Crypto.exists_of_mem_support_rsaGUOSetup`: every `(N, g)` drawn by `rsaGUOSetup` has the
   modulus of a supported key and a base `g` coprime to `N`.
 * `Cslib.Crypto.powMod_knownOrderRoot`: for `0 < u`, `g ^ u ≡ 1 [MOD N]` and `v` coprime to `u`,
@@ -266,11 +269,21 @@ theorem isPPT_orderMultipleAdversary {u : ℕ → GUOParams → ℕ}
     (orderMultipleAdversary u).IsPPT :=
   isPPT_knownOrderAdversary hu (by fun_prop)
 
+/-- The order-multiple adversary wins `strongRSAGame` with probability `1` at a security parameter
+`n` where, for every `(N, g)` in the support of `setup n`, `0 < u` and `g ^ u ≡ 1 [MOD N]`
+([BonehShoup2023], §10.9, p. 421). -/
+theorem strongRSAGame_orderMultipleAdversary (setup : ℕ → PMF GUOParams) (u : ℕ → GUOParams → ℕ)
+    (n : ℕ) (h : ∀ p ∈ (setup n).support, 0 < u n p ∧ p.base ^ u n p ≡ 1 [MOD p.modulus]) :
+    strongRSAGame setup (orderMultipleAdversary u) n = PMF.pure true :=
+  strongRSAGame_knownOrderAdversary setup u _ n fun p hp =>
+    ⟨(h p hp).2, by simp, by have := (h p hp).1; omega⟩
+
 /-- **The strong RSA assumption does not hold when a multiple of the order is known**
 ([BonehShoup2023], §10.9, p. 421). If a polynomial-time function `u` of the security parameter and
 `(N, g)` gives, for every `(N, g)` in the support of every `setup n`, a positive multiple of the
 order of `g` modulo `N` (`0 < u` and `g ^ u ≡ 1 [MOD N]`), then `orderMultipleAdversary u` is PPT
-(`isPPT_orderMultipleAdversary`) and wins with probability `1`, so `StrongRSA setup` is false. -/
+(`isPPT_orderMultipleAdversary`) and wins with probability `1`
+(`strongRSAGame_orderMultipleAdversary`), so `StrongRSA setup` is false. -/
 theorem not_strongRSA_of_orderMultiple {setup : ℕ → PMF GUOParams} {u : ℕ → GUOParams → ℕ}
     (hu : ComputableInPolyTime (fun p : ℕ × GUOParams => u p.1 p.2)
       (encPair encUnary encGUOParams) encNat)
@@ -278,10 +291,7 @@ theorem not_strongRSA_of_orderMultiple {setup : ℕ → PMF GUOParams} {u : ℕ 
     ¬ StrongRSA setup := by
   intro hS
   have hneg := hS _ (isPPT_orderMultipleAdversary hu)
-  have hwin (n : ℕ) : strongRSAGame setup (orderMultipleAdversary u) n = PMF.pure true :=
-    strongRSAGame_knownOrderAdversary setup u _ n fun p hp =>
-      ⟨(h n p hp).2, by simp, by have := (h n p hp).1; omega⟩
-  simp only [hwin] at hneg
+  simp only [strongRSAGame_orderMultipleAdversary setup u _ (h _)] at hneg
   exact not_negligible_const (by simp [Game.succProbability]) hneg
 
 end Cslib.Crypto

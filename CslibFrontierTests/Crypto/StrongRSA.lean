@@ -20,6 +20,9 @@ Checks for `CslibFrontier/Crypto/Computational/StrongRSA.lean`:
   `knownOrderRoot 15 4 3 2 = 8`, the solution above, as `powMod_knownOrderRoot` says.
 * `0 < u` is needed in `powMod_knownOrderRoot`: `2 ^ 0 ≡ 1 [MOD 5]` and `1` is coprime to `0`, but
   `knownOrderRoot 5 0 1 2 = 1`, and `1 ^ 1` is not `2` modulo `5`.
+* `strongRSAGame_orderMultipleAdversary`: the order of `2` modulo `15` is `4`, so
+  `orderMultipleAdversary` with `u = 4` wins with probability `1` against the constant setup
+  `(15, 2)`.
 * `not_strongRSA_rsaGUOSetup_const`: the book's `GGen` with a fixed RSA key does not satisfy the
   assumption. Every drawn base is a unit (`exists_of_mem_support_rsaGUOSetup`), so
   `not_strongRSA_of_orderMultiple` applies with the constant multiple `u = φ(N)` of the order.
@@ -56,6 +59,17 @@ example : 2 ^ 0 ≡ 1 [MOD 5] ∧ Nat.Coprime 1 0 ∧ knownOrderRoot 5 0 1 2 = 1
   refine ⟨rfl, by decide, ?_, ?_⟩ <;>
   · unfold knownOrderRoot BinaryGcd.modInv
     decide
+
+/-! ### The order-multiple adversary -/
+
+/-- The order of `2` modulo `15` is `4`, so `orderMultipleAdversary` with `u = 4` wins with
+probability `1` against the constant setup `(N, g) = (15, 2)`. -/
+example (n : ℕ) :
+    strongRSAGame (fun _ => PMF.pure ⟨15, 2⟩) (orderMultipleAdversary fun _ _ => 4) n =
+      PMF.pure true :=
+  strongRSAGame_orderMultipleAdversary _ _ n fun p hp => by
+    obtain rfl := (PMF.mem_support_pure_iff _ _).mp hp
+    exact ⟨by norm_num, by decide⟩
 
 /-! ### The book's `GGen` with a fixed key -/
 
