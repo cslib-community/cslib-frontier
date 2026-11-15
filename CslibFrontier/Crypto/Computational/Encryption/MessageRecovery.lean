@@ -13,6 +13,7 @@ public import CslibFrontier.Crypto.Computational.Encryption.PolyTime
 import CslibFrontier.Probability.BitString
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Uniform
+import CslibFrontier.Probability.PMF.UniformPoint
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Tactic.PMFSwap
 import CslibFrontier.Tactic.PPT
@@ -31,14 +32,15 @@ Relative to [BonehShoup2023], §2.2.3, pp. 18–19, this formalization makes two
 * On a concrete `Cipher K M C`, `messageRecoveryAdvantage_eq_advantage_messageRecoveryReduction`
   requires `hvalid : ∀ m₀ m₁ : M, valid m₀ m₁ = true` so `Cipher.oneTimeExperiment` admits every
   pair sampled independently from the finite nonempty type `M` by `messageRecoveryReduction`.
-  (The book restricts to equal-length messages where every pair in `M` is admissible.)
+  (Theorem 2.7 as printed has no such hypothesis. It is needed here because Attack Game 2.1
+  admits only pairs of equal length, and the reduction submits two independent uniform messages.)
 * On word messages `{0, 1}^{msgLen n}`, an adversary `A : ℕ → List Bool → ProbComp (List Bool)` can
   output lists of arbitrary length, whereas Attack Game 2.2 requires `mHat ∈ M`.
   `messageRecoveryWordAdvantage_eq_demKeyGameOn` and
   `DEMOneTimeKeyWordINDCPA.negligible_messageRecoveryWordAdvantage` therefore require
   `hA_len : ∀ n ct mHat, mHat ∈ (ProbComp.eval (A n ct)).support → mHat.length = msgLen n`, plus
   `ComputableInPolyTime msgLen encUnary encUnary` for PPT message sampling. Checked counterexamples
-  in `CslibFrontierTests.Crypto.MessageRecovery` show both hypotheses are necessary.
+  in `CslibFrontierTests.Crypto.MessageRecovery` show that `hvalid` and `hA_len` are needed.
 
 ## Main definitions
 
@@ -54,8 +56,8 @@ Relative to [BonehShoup2023], §2.2.3, pp. 18–19, this formalization makes two
 ## Main results
 
 * `Cslib.Crypto.Encryption.messageRecoveryAdvantage_eq_advantage_messageRecoveryReduction`: exact
-  equality `MRadv[A, E] = SSadv[messageRecoveryReduction A, E]` (Theorem 2.7; inequality (2.5) is
-  its `.le`).
+  equality `MRadv[A, E] = SSadv[messageRecoveryReduction (ProbComp.uniform M) A, E]`
+  (Theorem 2.7; inequality (2.5) is its `.le`).
 * `Cslib.Crypto.Encryption.isPPT_messageRecoveryWordToDEMAdversary`: uniform strict PPT
   certificate `AdversaryOf.IsPPT encBits (messageRecoveryWordToDEMAdversary msgLen A)`.
 * `Cslib.Crypto.Encryption.messageRecoveryWordAdvantage_eq_demKeyGameOn`: exact word-level
@@ -156,16 +158,7 @@ private theorem succProbability_oneTimeExperiment_messageRecoveryReduction_false
     apply Probability.PMF.bind_apply_of_forall; intro m₀
     apply Probability.PMF.bind_apply_of_forall; intro c
     apply Probability.PMF.bind_apply_of_forall; intro mHat
-    rw [PMF.map_apply, tsum_fintype]
-    simp only [PMF.uniformOfFintype_apply]
-    have hsum : (∑ a : M, if true = (mHat == a) then (Fintype.card M : ℝ≥0∞)⁻¹ else 0) =
-        ∑ a : M, if a = mHat then (Fintype.card M : ℝ≥0∞)⁻¹ else 0 :=
-      Finset.sum_congr rfl fun a _ => by
-        by_cases h : a = mHat
-        · subst h; simp
-        · simp [h, Ne.symm h]
-    rw [hsum, Finset.sum_ite_eq' Finset.univ mHat]
-    simp [Finset.mem_univ]
+    exact Probability.PMF.uniformOfFintype_bind_decide_eq_apply_true mHat
   apply NNReal.coe_injective
   rw [Game.coe_succProbability, htrue, ENNReal.toReal_inv, ENNReal.toReal_natCast,
     NNReal.coe_inv, NNReal.coe_natCast]
@@ -229,28 +222,9 @@ theorem isPPT_messageRecoveryWordToDEMAdversary {msgLen : ℕ → ℕ}
     AdversaryOf.IsPPT encBits (messageRecoveryWordToDEMAdversary msgLen A) := by
   refine ⟨?_, ?_⟩
   · dsimp only [messageRecoveryWordToDEMAdversary, messageRecoveryReduction]
-    simp only [bind_assoc, pure_bind]
     ppt
   · dsimp only [messageRecoveryWordToDEMAdversary, messageRecoveryReduction]
     ppt
-
-private theorem beq_bitString_iff_list {L : ℕ} {mHat : List Bool} (hm : mHat.length = L)
-    (m : BitString L) :
-    (((fun i : Fin L => mHat[i.1]'(Nat.lt_of_lt_of_eq i.2 hm.symm)) : BitString L) == m) =
-      (mHat == List.ofFn m) := by
-  rw [Bool.eq_iff_iff]
-  simp only [beq_iff_eq]
-  constructor
-  · intro h
-    subst h
-    exact (List.ext_getElem (by simp [hm]) fun i hi _ => by simp).symm
-  · intro h
-    funext i
-    have hm' : i.1 < mHat.length := Nat.lt_of_lt_of_eq i.2 hm.symm
-    have hget := congrArg (fun l : List Bool => l[i.1]?) h
-    simp only [List.getElem?_eq_getElem hm', List.getElem?_ofFn, i.2, ↓reduceDIte,
-      Option.some.injEq] at hget
-    exact hget
 
 /-- Exact word-level advantage equality for Theorem 2.7, derived from the concrete equality
 `messageRecoveryAdvantage_eq_advantage_messageRecoveryReduction` over `BitString (msgLen n)`. The
@@ -269,23 +243,20 @@ theorem messageRecoveryWordAdvantage_eq_demKeyGameOn (msgLen keyLen : ℕ → �
   let E : Cipher (List Bool) (BitString (msgLen n)) (List Bool) :=
     ⟨fun k m => encryptSym n k (List.ofFn m), fun _ _ => pure (fun _ => false)⟩
   let sampleKey : ProbComp (List Bool) := BitString.sampleList (keyLen n)
-  let decode : List Bool → BitString (msgLen n) := fun mHat =>
-    if h : mHat.length = msgLen n then
-      fun i => mHat[i.1]'(Nat.lt_of_lt_of_eq i.2 h.symm)
-    else
-      fun _ => false
   let A' : List Bool → ProbComp (BitString (msgLen n)) := fun c => do
     let mHat ← A n c
-    return decode mHat
+    return BitString.ofList (msgLen n) mHat
   have hdecode : ∀ c (m₁ : BitString (msgLen n)),
-      (ProbComp.eval (A n c)).bind (fun mHat => PMF.pure (decode mHat == m₁)) =
+      (ProbComp.eval (A n c)).bind
+          (fun mHat => PMF.pure (BitString.ofList (msgLen n) mHat == m₁)) =
         (ProbComp.eval (A n c)).bind (fun mHat => PMF.pure (mHat == List.ofFn m₁)) := by
     intro c m₁
     refine Probability.PMF.bind_congr_on_support _ _ _ fun mHat hmHat => ?_
     have hm := hA_len n c mHat hmHat
-    dsimp only [decode]
-    split_ifs
-    exact congrArg PMF.pure (beq_bitString_iff_list hm m₁)
+    congr 1
+    rw [Bool.eq_iff_iff, beq_iff_eq, beq_iff_eq]
+    exact ⟨fun h => by rw [← h, BitString.ofFn_ofList hm],
+      fun h => by rw [h, BitString.ofList_ofFn]⟩
   have hmr : ProbComp.eval (messageRecoveryExperiment E sampleKey A') =
       ProbComp.eval (messageRecoveryWordExperiment msgLen keyLen encryptSym A n) := by
     simp only [messageRecoveryExperiment, messageRecoveryWordExperiment, E, sampleKey, A',

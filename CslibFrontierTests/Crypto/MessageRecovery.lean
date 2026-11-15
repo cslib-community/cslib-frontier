@@ -151,6 +151,50 @@ theorem cex_messageRecoveryWord_bad_length :
         BitString.eval_sampleList, PMF.bind_bind, PMF.pure_bind]
     rw [heq, Game.advantage_self]
 
+/-- Dropping `hA_len` also falsifies the conclusion of
+`DEMOneTimeKeyWordINDCPA.negligible_messageRecoveryWordAdvantage`: `A = fun _ _ => pure []`
+against `otpKeyWordEncrypt keyLen` has constant message-recovery advantage `1/2` at every `n`. -/
+theorem cex_messageRecoveryWord_not_negligible (keyLen : ℕ → ℕ) :
+    let msgLen : ℕ → ℕ := fun _ => 1
+    let A : ℕ → List Bool → ProbComp (List Bool) := fun _ _ => pure []
+    DEMOneTimeKeyWordINDCPA keyLen (otpKeyWordEncrypt keyLen) ∧
+      ComputableInPolyTime msgLen encUnary encUnary ∧
+      IsPPTOn (encPair encUnary encBits) encBits (fun ⟨n, ct⟩ => A n ct) ∧
+      ¬ Negligible (messageRecoveryWordAdvantage msgLen keyLen (otpKeyWordEncrypt keyLen) A) := by
+  intro msgLen A
+  refine ⟨demOneTimeKeyWordINDCPA_otpKeyWordEncrypt keyLen, ?_, ?_, ?_⟩
+  · ppt
+  · ppt
+  · have hadv : ∀ n, messageRecoveryWordAdvantage msgLen keyLen
+        (otpKeyWordEncrypt keyLen) A n = (1 : ℝ≥0) / 2 := by
+      intro n
+      have hfalse : ProbComp.eval (messageRecoveryWordExperiment msgLen keyLen
+          (otpKeyWordEncrypt keyLen) A n) = PMF.pure false := by
+        simp only [messageRecoveryWordExperiment, msgLen, A, ProbComp.eval_bind,
+          ProbComp.eval_pure, BitString.eval_sampleList, PMF.pure_bind, PMF.bind_const]
+        trans (BitString.uniformList 1).bind fun _ => PMF.pure false
+        · refine Probability.PMF.bind_congr_on_support _ _ _ fun m hm => ?_
+          have hlen : m.length = 1 := BitString.length_of_mem_support_uniformList hm
+          have hne : ([] == m) = false := by
+            simp only [beq_eq_false_iff_ne]
+            intro heq
+            have := congrArg List.length heq
+            simp [hlen] at this
+          simp [hne]
+        · simp [PMF.bind_const]
+      have hsucc : Game.succProbability (ProbComp.eval
+          (messageRecoveryWordExperiment msgLen keyLen (otpKeyWordEncrypt keyLen) A n)) = 0 := by
+        rw [hfalse]
+        apply NNReal.coe_injective
+        simp [Game.coe_succProbability]
+      rw [messageRecoveryWordAdvantage, hsucc]
+      apply NNReal.coe_injective
+      rw [coe_nndist, NNReal.dist_eq]
+      norm_num [msgLen, abs_of_neg]
+    intro hneg
+    exact not_negligible_const (by norm_num : (1 : ℝ≥0) / 2 ≠ 0)
+      (hneg.congr fun n => hadv n)
+
 end Counterexamples
 
 end CslibFrontierTests.Crypto.MessageRecovery
