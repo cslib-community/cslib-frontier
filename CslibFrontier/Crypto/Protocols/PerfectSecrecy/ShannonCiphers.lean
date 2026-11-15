@@ -34,7 +34,8 @@ apply to them directly.
 * `additiveOTP`: the additive one-time pad over a finite additive group `G` (Example 2.4).
 * `variableLengthOTP`: the variable-length one-time pad with `L` key bits (Example 2.2), built from
   `varXor`.
-* `substitutionCipher`: the substitution cipher on words of `L` symbols of `α` (Example 2.3).
+* `substitutionCipher`: the substitution cipher on words of `L` symbols of a finite alphabet `α`
+  with decidable equality (Example 2.3).
 
 ## Main results
 
@@ -234,9 +235,9 @@ section Substitution
 variable (α : Type u) [Fintype α] [DecidableEq α] (L : ℕ)
 
 /-- The **substitution cipher** of [BonehShoup2023], Example 2.3 (p. 7), over a finite alphabet
-`α` (the book's `Σ`): messages and ciphertexts are words `Fin L → α` of `L` symbols, the key is a
-uniformly random permutation of `α`, encryption applies it to each symbol and decryption applies
-its inverse. -/
+`α` with decidable equality (the book's `Σ`): messages and ciphertexts are words `Fin L → α` of
+`L` symbols, the key is a uniformly random permutation of `α`, encryption applies it to each symbol
+and decryption applies its inverse. -/
 @[expose] noncomputable def substitutionCipher : EncScheme (Fin L → α) (Equiv.Perm α) (Fin L → α) :=
   .ofPure (uniformOfFintype (Equiv.Perm α)) (fun k m => k ∘ m) (fun k c => k.symm ∘ c)
     fun k m => by funext i; simp
