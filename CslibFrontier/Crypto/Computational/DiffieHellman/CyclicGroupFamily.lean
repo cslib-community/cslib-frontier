@@ -137,8 +137,8 @@ law, then run `Cslib.Crypto.ddhRandomExperiment` in `F.Carrier d`. -/
     ddhRandomExperiment (F.order d) (F.generator d) (distinguisher n d)
 
 /-- The Decisional Diffie–Hellman assumption for a cyclic group family and a setup law
-([BonehShoup2023], Attack Game 10.6, p. 410, with the order not required to be prime, as in
-Exercise 10.24, p. 431): every PPT DDH distinguisher has negligible advantage between
+([BonehShoup2023], Attack Game 10.6, printed p. 410, with the order not required to be prime, as
+in Exercise 10.24, printed p. 431): every PPT DDH distinguisher has negligible advantage between
 `ddhRealGame` and `ddhRandomGame`. This is a hypothesis, not a theorem; on a prime-order family it
 is `PrimeOrderGroupFamily.DDH` (`PrimeOrderGroupFamily.ddh_toCyclicGroupFamily_iff`). -/
 @[expose] def DDH (setup : ℕ → PMF F.Desc) : Prop :=
