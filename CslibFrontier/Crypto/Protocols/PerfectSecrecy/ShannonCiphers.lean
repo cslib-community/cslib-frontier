@@ -27,13 +27,14 @@ Theorem 2.2) is `otp` with `otp_perfectlySecret`.
 
 The cipher definitions are exposed, as `otp` is, so that the criteria of
 `CslibFrontier.Crypto.Protocols.PerfectSecrecy.Characterization`, which are stated for `ofPure`,
-apply to them directly.
+apply to them directly. The variable-length pad's encryption `varXor` is evaluated through its
+public equation `coe_varXor`.
 
 ## Main definitions
 
 * `additiveOTP`: the additive one-time pad over a finite additive group `G` (Example 2.4).
 * `variableLengthOTP`: the variable-length one-time pad with `L` key bits (Example 2.2), built from
-  `varXor`.
+  `varXor`, which `coe_varXor` evaluates.
 * `substitutionCipher`: the substitution cipher on words of `L` symbols of a finite alphabet `α`
   with decidable equality (Example 2.3).
 
@@ -45,7 +46,7 @@ apply to them directly.
   and only if `L = 0`; `not_perfectlySecret_variableLengthOTP` is Example 2.5 for `0 < L`.
 * `variableLengthOTP_ciphertextDist_map_val`, `variableLengthOTP_ciphertextDist_eq_iff`: the
   ciphertext is a uniform word of the message's length, so two messages have the same ciphertext
-  law exactly when they have the same length. This is the exact form of Example 2.5's remark that
+  law exactly when they have the same length. This is a precise form of Example 2.5's remark that
   the ciphertext leaks the length of the message and, informally, nothing else.
 * `substitutionCipher_apply_eq_iff`, `not_ciphertextIndist_substitutionCipher`,
   `not_perfectlySecret_substitutionCipher`: Example 2.6, first paragraph. A ciphertext repeats a
@@ -66,14 +67,15 @@ apply to them directly.
   lengths 1 and 2, so it assumes `L ≥ 2` implicitly. `variableLengthOTP_ciphertextIndist_iff` is
   exact: lengths 0 and 1 already separate for `L ≥ 1`, and for `L = 0` there is one message and the
   cipher is perfectly secure. Of the book's two masses, the `0` is
-  `variableLengthOTP_ciphertextDist_apply_of_length_ne`. The `1/2` is checked only for `L = 2` in
-  the test file: a general statement needs an exact-mass lemma for `BitString.uniformList`, which
-  the library does not have.
+  `variableLengthOTP_ciphertextDist_apply_of_length_ne`, and the test file checks the `1/2` of a
+  1-bit ciphertext under a 1-bit message for every `L ≥ 1`. The mass `(2 ^ ℓ)⁻¹` of a word of any
+  length `ℓ`, which the book does not state, needs an exact-mass lemma for `BitString.uniformList`
+  that the library does not have, and is not stated here.
 * Example 2.6 leaves `L ≥ 2` and `|Σ| ≥ 2` implicit; here they are the hypotheses `2 ≤ L` and
-  `Nontrivial α`. Neither can be dropped: with one symbol there is only one message, and the test
-  file checks that the cipher on words of one symbol of `Bool` is perfectly secure. The book makes
-  no positive claim for these cases, and none is stated here in general. The second paragraph of
-  Example 2.6 is an informal discussion with no statement and is not formalized.
+  `Nontrivial α`. Neither can be dropped: the test file checks that the cipher is perfectly secure
+  on words of one symbol of `Bool`, and on words over `Unit`, where there is only one message. The
+  book makes no positive claim for these cases, and none is stated here in general. The second
+  paragraph of Example 2.6 is an informal discussion with no statement and is not formalized.
 
 ## References
 
@@ -135,12 +137,17 @@ def varXor (k : BitString L) (w : {w : List Bool // w.length ≤ L}) :
     simp only [List.length_zipWith, List.length_take, List.length_ofFn]
     omega⟩
 
+/-- The underlying word of `varXor`: the word XORed with as many leading key bits as it has. -/
+theorem coe_varXor (k : BitString L) (w : {w : List Bool // w.length ≤ L}) :
+    (varXor L k w).1 = List.zipWith Bool.xor ((List.ofFn k).take w.1.length) w.1 := by
+  simp only [varXor]
+
 /-- `varXor` preserves the length of a word. -/
 @[simp]
 theorem length_varXor (k : BitString L) (w : {w : List Bool // w.length ≤ L}) :
     (varXor L k w).1.length = w.1.length := by
   have := w.2
-  simp only [varXor, List.length_zipWith, List.length_take, List.length_ofFn]
+  simp only [coe_varXor, List.length_zipWith, List.length_take, List.length_ofFn]
   omega
 
 /-- `varXor` with a fixed key is an involution: decryption inverts encryption. -/
@@ -175,7 +182,7 @@ theorem variableLengthOTP_ciphertextDist_map_val (m : {w : List Bool // w.length
   rw [BitString.uniformList_take m.2, BitString.uniformList_map_zipWith_xor]
 
 /-- Two messages have the same ciphertext law under the variable-length one-time pad exactly when
-they have the same length: the exact form of the remark in [BonehShoup2023], Example 2.5 (p. 9),
+they have the same length: a precise form of the remark in [BonehShoup2023], Example 2.5 (p. 9),
 that the ciphertext leaks the length of the message and nothing else. -/
 theorem variableLengthOTP_ciphertextDist_eq_iff (m₀ m₁ : {w : List Bool // w.length ≤ L}) :
     (variableLengthOTP L).ciphertextDist m₀ = (variableLengthOTP L).ciphertextDist m₁ ↔
@@ -193,7 +200,7 @@ theorem variableLengthOTP_ciphertextDist_eq_iff (m₀ m₁ : {w : List Bool // w
 /-- Under the variable-length one-time pad a ciphertext whose length differs from the message's
 has probability `0`: the mass `Pr[E(k, m₁) = c] = 0` for a 2-bit `m₁` and a 1-bit `c` in
 [BonehShoup2023], Example 2.5 (p. 9). -/
-theorem variableLengthOTP_ciphertextDist_apply_of_length_ne
+theorem variableLengthOTP_ciphertextDist_apply_of_length_ne {L : ℕ}
     {m c : {w : List Bool // w.length ≤ L}} (h : c.1.length ≠ m.1.length) :
     (variableLengthOTP L).ciphertextDist m c = 0 := by
   rw [← map_apply_of_injective _ Subtype.val_injective, variableLengthOTP_ciphertextDist_map_val,
