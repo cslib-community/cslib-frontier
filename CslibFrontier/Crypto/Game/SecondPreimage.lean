@@ -112,7 +112,7 @@ theorem secondPreimageExperiment_eq_pure_false_of_injective [BEq α] [LawfulBEq 
 /-- If every collision under `g` is a collision under `f`, then every second-preimage finder
 succeeds at least as often against `f` as against `g`. -/
 theorem succProbability_secondPreimageExperiment_le_of_eq_imp {α : Type} {β γ : Type*}
-    [DecidableEq α] [DecidableEq β] [DecidableEq γ]
+    [BEq α] [LawfulBEq α] [BEq β] [LawfulBEq β] [BEq γ] [LawfulBEq γ]
     (sample : PMF α) {f : α → β} {g : α → γ}
     (himp : ∀ x x', x' ≠ x → g x' = g x → f x' = f x) (finder : α → PMF α) :
     Game.succProbability (secondPreimageExperiment sample g finder) ≤
@@ -167,7 +167,7 @@ theorem card_not_hasSecondPreimage_div_le {M T : Type*} [Fintype M] [Nonempty M]
 /-- Distributional split behind (8.22): for any input law `sample`, an inverter `A` either finds
 a second preimage when invoked as `x ↦ A (f x)` or hits the challenge `x` itself. -/
 theorem inversionExperiment_le_secondPreimageExperiment_add {α : Type} {β : Type*}
-    [DecidableEq α] [DecidableEq β] (sample : PMF α) (f : α → β) (A : β → PMF α) :
+    [BEq α] [LawfulBEq α] [BEq β] [LawfulBEq β] (sample : PMF α) (f : α → β) (A : β → PMF α) :
     inversionExperiment sample f A true ≤
       secondPreimageExperiment sample f (fun x => A (f x)) true + ∑' x, sample x * A (f x) x := by
   rw [inversionExperiment_eq_bind_map, secondPreimageExperiment_eq_bind_map, PMF.bind_apply,
@@ -176,7 +176,7 @@ theorem inversionExperiment_le_secondPreimageExperiment_add {α : Type} {β : Ty
   rw [← mul_add]
   gcongr
   refine (PMF.map_true_le_add (A (f x)) (A := fun x' => x' != x && f x' == f x)
-    (B := fun x' => decide (x' = x)) fun x' _ h => ?_).trans ?_
+    (B := fun x' => x' == x) fun x' _ h => ?_).trans ?_
   · by_cases hx : x' = x
     · exact Or.inr (by simp [hx])
     · exact Or.inl (by simpa [hx] using h)
