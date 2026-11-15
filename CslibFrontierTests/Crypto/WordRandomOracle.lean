@@ -164,6 +164,19 @@ private noncomputable def exactReplayExplicitForger :
   coins := PMF.pure ()
   forge _ _ := OracleComp.interpret (fun q => wordQuery encBool q.1 q.2) exactReplayInteraction
 
+private theorem runWith_logSigning_nil :
+    ProbOracleComp.runWith
+        (OracleComp.sumHandler
+          (fun _ (cache : List (List Bool × Bool)) =>
+            (pure ([] : List Bool) : StateT (List (List Bool × Bool)) PMF (List Bool)) cache)
+          (oracle Bool))
+        ((logSigning
+          (M := List Bool) (Query := List Bool) (Sig := List Bool) (Digest := Bool)
+          (.inl ([] : List Bool))).run []) [] =
+      PMF.pure ((([] : List Bool), [(([] : List Bool), ([] : List Bool))]),
+        ([] : List (List Bool × Bool))) := by
+  simp only [logSigning, StateT.run, runWith_norm, pmf_norm]
+
 private theorem eufCmaGame_nonUniqueScheme_sameMessageNewSignatureExplicitForger :
     eufCmaGame nonUniqueScheme sameMessageNewSignatureExplicitForger = PMF.pure false := by
   simp only [eufCmaGame, nonUniqueScheme, sameMessageNewSignatureExplicitForger,
@@ -180,7 +193,8 @@ private theorem sufCmaGame_nonUniqueScheme_sameMessageNewSignatureExplicitForger
   rw [eval_world_worldRealize_liftOracleForger]
   simp only [runLoggedForger, liftOracleForger, forgerWorldImpl, runWith_norm, pmf_norm]
   simp only [sameMessageNewSignatureInteraction, wordQuery, OracleComp.interpret_bind,
-    OracleComp.interpret_query, OracleComp.interpret_pure, logSigning, runWith_norm, pmf_norm]
+    OracleComp.interpret_query, OracleComp.interpret_pure, runWith_logSigning_nil,
+    runWith_norm, pmf_norm]
 
 private theorem sufCmaGame_nonUniqueScheme_exactReplayExplicitForger :
     sufCmaGame nonUniqueScheme exactReplayExplicitForger = PMF.pure false := by
@@ -189,7 +203,8 @@ private theorem sufCmaGame_nonUniqueScheme_exactReplayExplicitForger :
   rw [eval_world_worldRealize_liftOracleForger]
   simp only [runLoggedForger, liftOracleForger, forgerWorldImpl, runWith_norm, pmf_norm]
   simp only [exactReplayInteraction, wordQuery, OracleComp.interpret_bind,
-    OracleComp.interpret_query, OracleComp.interpret_pure, logSigning, runWith_norm, pmf_norm]
+    OracleComp.interpret_query, OracleComp.interpret_pure, runWith_logSigning_nil,
+    runWith_norm, pmf_norm]
 
 -- Signing and hashing share the cache, including after repeated signing and hash queries.
 -- The fresh forgery succeeds; replaying a signed message is rejected despite valid verification.
