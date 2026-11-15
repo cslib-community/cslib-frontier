@@ -33,8 +33,6 @@ adapted word program.
 
 ## Main results
 
-* `Cslib.Crypto.wordOracle_bitString`: a table on `n`-bit strings presents `randomFunctionOracle`
-  on the word channel.
 * `Cslib.Crypto.PRF.advantage_atLevel_adapt`: the finite PRF advantage of an adapted word
   distinguisher is its word-level PRF advantage.
 -/
