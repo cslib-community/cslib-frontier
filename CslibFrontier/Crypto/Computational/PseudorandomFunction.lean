@@ -32,7 +32,8 @@ with one machine and polynomial for all parameters and auxiliary inputs.
 
 `PseudorandomFunctionOver inLen outLen` is the same notion for families whose inputs have
 `inLen n` bits and whose outputs have `outLen n` bits, with `n`-bit keys, as for a PRF whose
-input, output and key spaces differ. `PseudorandomFunction` is its length-preserving case.
+input, output and key spaces differ. `PseudorandomFunction` is its length-preserving case; the
+migration of `PseudorandomFunction` and its clients onto it is #5720.
 
 ## Main definitions
 
@@ -44,8 +45,7 @@ input, output and key spaces differ. `PseudorandomFunction` is its length-preser
 
 ## Main results
 
-* `Cslib.Crypto.interpret_randomFunctionQuery`, `Cslib.Crypto.isQueryBounded_randomFunctionQuery`:
-  correctness and query cost of the finite-domain adapter.
+* `Cslib.Crypto.interpret_randomFunctionQuery`: correctness of the finite-domain adapter.
 * `Cslib.Crypto.prfIdealGame_eq_lazy`: an exact lazy implementation of the ideal experiment.
 
 ## References
@@ -89,16 +89,6 @@ theorem interpret_randomFunctionQuery {m : Type → Type*} [Monad m] [LawfulMona
     OracleComp.interpret (OracleComp.sumHandler random (fun bits => pure (table bits)))
       (randomFunctionQuery n query) = pure (randomFunctionOracle n table query) := by
   by_cases h : query.length = n <;> simp [randomFunctionQuery, randomFunctionOracle, h]
-
-/-- The finite-domain adapter makes at most one external query. -/
-theorem isQueryBounded_randomFunctionQuery (n : ℕ) (query : List Bool) :
-    (randomFunctionQuery n query).IsQueryBounded 1 := by
-  unfold randomFunctionQuery
-  split_ifs
-  · simpa only [map_eq_bind_pure_comp, Function.comp_def, Nat.add_zero] using
-      (ProbOracleComp.IsQueryBounded.query (BitString.ofList n query)).bind fun _ =>
-        OracleComp.IsCostBounded.pure _ 0
-  · exact OracleComp.IsCostBounded.pure [] 1
 
 open Classical in
 /-- A semantic random-function cache, retaining only the finite-domain answers already used. -/
@@ -186,7 +176,8 @@ asymptotically with `K`, `X` and `Y` the words of `n`, `inLen n` and `outLen n` 
 and deterministic polynomial-time evaluation is part of the notion.
 
 `PseudorandomFunction` is the length-preserving case: at `inLen = outLen = id` the two games are
-`prfRealGame` and `prfIdealGame`. -/
+`prfRealGame` and `prfIdealGame`. Making `PseudorandomFunction` this case and migrating its clients
+is tracked in [#5720](https://github.com/cslib-community/cslib-frontier/issues/5720). -/
 structure PseudorandomFunctionOver (inLen outLen : ℕ → ℕ)
     (family : List Bool → List Bool → List Bool) : Prop where
   /-- One deterministic machine evaluates the family from the encoded key and query. -/

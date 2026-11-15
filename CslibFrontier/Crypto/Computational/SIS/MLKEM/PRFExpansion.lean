@@ -52,9 +52,11 @@ evaluated in polynomial time (`kpkePRF_isEfficient`), and its ciphertexts fit th
 
 ## Model differences from Kyber v3.02 and FIPS 203
 
-* The matrix is drawn coefficientwise, approximately uniformly, rather than expanded from `ρ` by
-  `XOF`, and the seed `σ` is uniform rather than half of `G(d)`. This is how Kyber v3.02
-  Theorem 1 (§4.3.1, p. 20) treats `XOF` and `G`, as random oracles.
+* The public key carries an approximately uniform matrix, drawn coefficientwise, in place of the
+  seed `ρ` from which Kyber re-derives it with `XOF`, and the seed `σ` is sampled directly rather
+  than taken from `G(d)`. Neither the scheme nor the adversary has an `XOF` or `G` oracle, so the
+  random-oracle model of Kyber v3.02 Theorem 1 (§4.3.1, p. 20) is not formalized here; relating
+  this full-matrix family to it is open under #5293.
 * Seeds have `κ` bits rather than 32 bytes, and counters `(2k).size` bits rather than one byte,
   since an asymptotic family scales the rank `k`.
 * `F` is any keyed function on words. Kyber's `PRF` has outputs of any length and FIPS 203 fixes
@@ -141,44 +143,20 @@ theorem nonceWord_injOn (P : Params) : Set.InjOn (nonceWord P) (Set.Iic (2 * P.k
 
 /-! ### The noise that encryption decodes -/
 
-/-- The rows of a concatenation of words of one width are those words. -/
-private theorem listRows_flatten {width : ℕ} (blocks : List (List Bool))
-    (hblocks : ∀ block ∈ blocks, block.length = width) :
-    BitString.listRows blocks.length width blocks.flatten = blocks := by
-  induction blocks with
-  | nil => simp [BitString.listRows]
-  | cons block rest ih =>
-    rw [List.length_cons, List.flatten_cons,
-      BitString.listRows_succ_append _ _ (hblocks block List.mem_cons_self),
-      ih fun b hb => hblocks b (List.mem_cons_of_mem _ hb)]
-
 /-- `SamplePolyCBD_η` reads only the first `n · 2η` bits of its input. -/
 private theorem cbdResidues_take (n q η : ℕ) (bits : List Bool) :
     cbdResidues n q η (bits.take (n * (2 * η))) = cbdResidues n q η bits := by
-  unfold cbdResidues BitString.listRows
-  refine congrArg _ (List.map_congr_left fun row hrow => ?_)
-  have hrow := List.mem_range.mp hrow
-  apply List.ext_getElem (by simp)
-  intro i h₁ _
-  simp only [BitString.length_listRow] at h₁
-  rw [BitString.getElem_listRow h₁, BitString.getElem_listRow h₁]
-  have hle := Nat.mul_le_mul_right (2 * η) (Nat.succ_le_of_lt hrow)
-  rw [Nat.succ_mul] at hle
-  have hlt : row * (2 * η) + i < n * (2 * η) := by omega
-  simp [List.getD_eq_getElem?_getD, hlt]
+  rw [cbdResidues, cbdResidues, BitString.listRows_eq_ofFn, BitString.listRows_eq_ofFn,
+    BitString.ofList_take]
 
 /-- Prefixes of one width `w` of the words `blocks`, concatenated, have `blocks.length * w` bits
 when every word has at least `w` bits. -/
 private theorem length_flatten_map_take {w : ℕ} (blocks : List (List Bool))
     (hblocks : ∀ block ∈ blocks, w ≤ block.length) :
     (blocks.map (List.take w)).flatten.length = blocks.length * w := by
-  induction blocks with
-  | nil => simp
-  | cons block rest ih =>
-    simp only [List.map_cons, List.flatten_cons, List.length_append, List.length_take,
-      List.length_cons, ih fun b hb => hblocks b (List.mem_cons_of_mem _ hb),
-      Nat.min_eq_left (hblocks block List.mem_cons_self)]
-    ring
+  rw [List.length_flatten, List.map_map,
+    List.map_congr_left (g := fun _ => w) fun b hb => by simp [hblocks b hb]]
+  simp
 
 /-- `SamplePolyCBD_η` of each of `k` prefixes of `n · 2η` bits, from their concatenation. -/
 private theorem cbdVecResidues_flatten_map_take {k n q η : ℕ} (blocks : List (List Bool))
@@ -188,7 +166,7 @@ private theorem cbdVecResidues_flatten_map_take {k n q η : ℕ} (blocks : List 
   unfold cbdVecResidues
   subst hk
   rw [show blocks.length = (blocks.map (List.take (n * (2 * η)))).length by simp,
-    listRows_flatten _ fun block hblock => ?_]
+    BitString.listRows_flatten _ fun block hblock => ?_]
   · simp only [List.map_map, Function.comp_def, cbdResidues_take]
   · obtain ⟨b, hb, rfl⟩ := List.mem_map.mp hblock
     simpa using hblocks b hb
@@ -297,10 +275,11 @@ noncomputable def keyGenPRFWord (P : Params) (F : List Bool → List Bool → Li
   return keyWords P A ((keyNoise P F σ).take (P.k * (P.n * (2 * P.η₁))))
     ((keyNoise P F σ).drop (P.k * (P.n * (2 * P.η₁))))
 
-/-- **K-PKE with PRF seed expansion as a word-level public-key encryption family.** At security
-parameter `κ`, the scheme uses the parameters `P κ` and the keyed function `F`: key generation is
-`keyGenPRFWord`, encryption coins are `κ`-bit seeds expanded by `encNoise`, and messages,
-ciphertexts and decryption are those of `kpke P`. -/
+/-- **The full-matrix K-PKE family with PRF seed expansion, as a word-level public-key encryption
+family.** At security parameter `κ`, the scheme uses the parameters `P κ` and the keyed function
+`F`: key generation is `keyGenPRFWord`, whose public key carries the sampled matrix in place of the
+seed `ρ`, encryption coins are `κ`-bit seeds expanded by `encNoise`, and messages, ciphertexts and
+decryption are those of `kpke P`. No algorithm calls `XOF` or `G`. -/
 noncomputable def kpkePRF (P : ℕ → Params) (F : List Bool → List Bool → List Bool) : WordPKE where
   msgLen κ := (P κ).n
   coinLen κ := κ
