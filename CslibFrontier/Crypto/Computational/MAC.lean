@@ -946,6 +946,7 @@ private theorem run_limitToOneQuery_eq_oneTimeSigningPairOracle (M : MACScheme)
     (represent := fun queriedPairs => (!queriedPairs.isEmpty, queriedPairs))
     (step := by
       intro ⟨⟨⟩, msg⟩ queriedPairs
+      rw [ProbOracleComp.runWith_eq_run_interpret]
       change _ = ((OracleComp.interpret (m := StateT (List (List Bool × List Bool)) PMF) _
         (SignatureScheme.oneTimeFilterHandler bound (n, []) ((), msg)
           (!queriedPairs.isEmpty))).run queriedPairs).map _
@@ -1380,11 +1381,12 @@ private theorem run_macLogHandler_eq_signingOracle
         (macLogHandler n))
       prog).run []) ()
   have hfst := congrArg (PMF.map Prod.fst) hread
-  simp only [PMF.map_comp, Function.comp_def, OracleComp.evalWith] at hfst
+  simp only [PMF.map_comp, Function.comp_def] at hfst
   rw [show (fun x : (List Bool × List Bool) × List (List Bool) => x) = id from rfl,
     PMF.map_id] at hfst
   simp only [ProbOracleComp.eval_interpret, ProbComp.eval_pure]
-  rw [← hfst, ProbOracleComp.runWith_run_interpret, ProbOracleComp.eval_run_interpret_eq_runWith]
+  rw [← OracleComp.evalWith_eq_interpret, ← hfst, ProbOracleComp.runWith_run_interpret,
+    ProbOracleComp.eval_run_interpret_eq_runWith]
   have hsim := ProbOracleComp.runWith_map_state
     (oracle := fun q (state : List (List Bool) × Unit) =>
       (ProbOracleComp.runWith
@@ -1504,6 +1506,8 @@ theorem succProbability_prfIdealGame_macToPrfDistinguisher_le (adversary : Forge
       (result, state) ∈ phase1.support →
       ∀ x : BitString n, state.2 x ≠ none → List.ofFn x ∈ state.1 := by
     intro result state hmem
+    dsimp only [phase1] at hmem
+    rw [← ProbOracleComp.runWith_eq_run_interpret] at hmem
     refine ProbOracleComp.runWith_invariant combinedOracle
       (fun s => ∀ x : BitString n, s.2 x ≠ none → List.ofFn x ∈ s.1)
       ?_ (adversary n []) ([], fun _ => none) (by simp) result state hmem
