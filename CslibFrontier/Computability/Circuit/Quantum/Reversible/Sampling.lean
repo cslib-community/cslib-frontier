@@ -103,21 +103,11 @@ copying every declared output to a fresh block. -/
 /-- The measured output distribution of the reversible realization, started with every qubit
 zero. The construction performs one final computational-basis measurement and reads only the
 fresh copied output block. -/
-noncomputable def samplerDist {n m : ℕ} (C : Circuits.Circuit signature n m) :
+@[expose] noncomputable def samplerDist {n m : ℕ} (C : Circuits.Circuit signature n m) :
     PMF (BitString m) :=
   let Q := Circuit.ofCodes (samplerWidth n C.code) (samplerCodes n C.code)
   measureOut (Circuit.run Q (inputState (samplerWidth n C.code) []))
     (Circuit.norm_run Q _) (samplerReadout C)
-
-/-- The finite circuit, zero input, final measurement and suffix readout used by `samplerDist`.
-This equation exposes the construction without exposing the definition body. -/
-theorem samplerDist_eq_measureOut {n m : ℕ} (C : Circuits.Circuit signature n m) :
-    samplerDist C =
-      measureOut
-        (Circuit.run (Circuit.ofCodes (samplerWidth n C.code) (samplerCodes n C.code))
-          (inputState (samplerWidth n C.code) []))
-        (Circuit.norm_run _ _) (samplerReadout C) := by
-  rfl
 
 @[simp] theorem length_outputCopyCodes (z base : ℕ) (outputs : List ℕ) :
     (outputCopyCodes z base outputs).length = outputs.length := by

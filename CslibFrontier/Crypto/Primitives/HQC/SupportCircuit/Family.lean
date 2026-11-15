@@ -63,12 +63,12 @@ open Quantum Quantum.GateCode Quantum.Reversible
 open Turing.MultiTapeTM ComputableInPolyTime
 
 /-- The two fixed multiply-high candidates, each reading its own `width`-bit source word. -/
-@[expose] def growingSupportCandidates (width : ℕ) : Circuit signature (2 * width) (2 * 2) :=
+private def growingSupportCandidates (width : ℕ) : Circuit signature (2 * width) (2 * 2) :=
   ((candidateCircuit width 2 3 0).parallel (candidateCircuit width 2 3 1)).comp
     (Circuit.wiring signature (Fin.cast (Nat.two_mul width).symm))
 
 /-- Raw native code for `growingSupportCandidates`, including its input-block wiring. -/
-@[expose] def growingSupportCandidatesCode (width : ℕ) :
+private def growingSupportCandidatesCode (width : ℕ) :
     List (Op × List ℕ) × List ℕ :=
   compCode (2 * width)
     (parallelCode width width (candidateCircuit width 2 3 0).code
@@ -76,7 +76,7 @@ open Turing.MultiTapeTM ComputableInPolyTime
     ([], List.range (2 * width))
 
 /-- The native two-candidate code agrees with every gate and output wire of the typed circuit. -/
-theorem growingSupportCandidatesCode_eq_code (width : ℕ) :
+private theorem growingSupportCandidatesCode_eq_code (width : ℕ) :
     growingSupportCandidatesCode width = (growingSupportCandidates width).code := by
   rw [growingSupportCandidatesCode, growingSupportCandidates]
   rw [show ([], List.range (2 * width)) =
@@ -88,7 +88,7 @@ theorem growingSupportCandidatesCode_eq_code (width : ℕ) :
 
 /-- The complete two-candidate circuit has a native polynomial-time generator in the unary word
 width. -/
-@[fun_prop] theorem computableInPolyTime_growingSupportCandidates :
+@[fun_prop] private theorem computableInPolyTime_growingSupportCandidates :
     ComputableInPolyTime (fun width => (growingSupportCandidates width).code)
       encUnary encCode := by
   have hparallel := computableInPolyTime_parallelCode id' id'
@@ -113,7 +113,7 @@ width. -/
 
 /-- The natively generated pair has exactly the semantics of the existing two-element candidate
 family. -/
-theorem eval_growingSupportCandidates (width : ℕ) (x : BitString (2 * width)) :
+private theorem eval_growingSupportCandidates (width : ℕ) (x : BitString (2 * width)) :
     (growingSupportCandidates width).eval interpretation x =
       (supportCandidateCircuit width 2 3 2).eval interpretation x := by
   funext i
@@ -150,7 +150,7 @@ theorem eval_growingSupportCandidates (width : ℕ) (x : BitString (2 * width)) 
 
 /-- The concrete Boolean sampler: two multiply-high candidates, exact descending collision
 correction, and a three-bit support indicator. -/
-@[expose] def growingSupportCircuit (width : ℕ) : Circuit signature (2 * width) 3 :=
+def growingSupportCircuit (width : ℕ) : Circuit signature (2 * width) 3 :=
   (supportIndicatorCircuit 2 3 2).comp
     ((supportScanCircuit 2 0 2).comp (growingSupportCandidates width))
 
@@ -217,17 +217,9 @@ theorem negligible_growingSupportSamplerError :
   · intro s
     omega
 
-private lemma frame_replicate_true (n : ℕ) :
-    frame (List.replicate n true) = List.replicate (2 * n) true ++ [false] := by
-  induction n with
-  | zero => rfl
-  | succ n ih =>
-    rw [List.replicate_succ, frame_cons, ih, show 2 * (n + 1) = 2 * n + 1 + 1 by omega]
-    rfl
-
 /-- Flipping the framed unary security parameter clears the initialized basis word for empty
 auxiliary input.  No deterministic input bit is used as a fair sampler seed. -/
-theorem classicalRun_clearGrowingSupportInput {s width : ℕ}
+private theorem classicalRun_clearGrowingSupportInput {s width : ℕ}
     (hwidth : 2 * s + 1 ≤ width) :
     classicalRun (flipCodes (List.range (2 * s)))
       (inputState width (encPair encUnary encBits (s, []))) = inputState width [] := by
@@ -361,8 +353,7 @@ theorem measureOut_growingSupportSamplerGateCodes (s : ℕ) :
         funext X j
         rw [blockReadout, samplerReadout]
       rw [hout]
-      simpa only [ψ, width, seed] using
-        (samplerDist_eq_measureOut C).symm
+      simp only [ψ, width, seed, samplerDist]
 
 /-- The exact finite description generated for a security parameter and auxiliary-input length.
 The extra `ℓ` qubits only ensure that every declared classical input fits. -/

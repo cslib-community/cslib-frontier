@@ -39,7 +39,7 @@ open Turing.MultiTapeTM ComputableInPolyTime
 
 /-- Run raw code `left` on the first `leftInputs` inputs and `right` on the following
 `rightInputs` inputs, concatenating their outputs. -/
-@[expose] def parallelCode (leftInputs rightInputs : ℕ)
+def parallelCode (leftInputs rightInputs : ℕ)
     (left right : List (Op × List ℕ) × List ℕ) : List (Op × List ℕ) × List ℕ :=
   appendCode (leftInputs + rightInputs)
     (compCode (leftInputs + rightInputs) left ([], List.range leftInputs))

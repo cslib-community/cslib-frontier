@@ -5,6 +5,7 @@ Authors: Samuel Schlesinger
 -/
 
 module
+-- upstream: local-only (test client)
 
 public import CslibFrontier.Crypto.Primitives.HQC.SupportCircuit.Family
 
