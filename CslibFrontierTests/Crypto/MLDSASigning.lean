@@ -80,16 +80,17 @@ private def correctnessSchedule (_ : ℕ) :
 /-- This mask is rejected by the first-stage response check for `hintSk`. -/
 private def firstStageRejectMask : Fin toy.ℓ → Fin toy.n → ZMod toy.q := fun _ => ![8]
 
-private theorem correctnessToy_valid : correctnessToy.Valid := by decide +kernel
+private theorem correctnessToy_valid : correctnessToy.Valid :=
+  ⟨by decide, by decide, by decide, by decide, by decide⟩
 
 private theorem correctnessHash_inBall : ∀ x, InBall correctnessToy.τ (correctnessHash x) := by
   intro _
-  decide +kernel
+  decide +kernel +revert
 
 private theorem correctnessSk_short :
     ∀ i j, |(correctnessSk.s₂ i j).valMinAbs| ≤ correctnessToy.η := by
   intro i j
-  fin_cases i <;> fin_cases j
+  fin_cases i; fin_cases j
   decide +kernel
 
 example : hintWeight toy (fun _ => ![true]) = 1 := by decide +kernel
@@ -126,7 +127,7 @@ example {σ : CompressedSignature correctnessToy}
     (hout : compressedSignAttempt correctnessToy 2 1 correctnessHash correctnessSk []
       correctnessMask = some σ) :
     compressedVerify correctnessToy 2 correctnessHash correctnessSk.publicKey [] σ = true :=
-  compressedVerify_compressedSignAttempt correctnessToy_valid (by decide)
+  compressedVerify_compressedSignAttempt correctnessToy correctnessToy_valid (by decide)
     correctnessHash_inBall correctnessSk_short hout
 
 private def acceptImmediately (_ : ℕ) : Fin toy.ℓ → Fin toy.n → ZMod toy.q :=
@@ -161,7 +162,7 @@ example {σ : CompressedSignature correctnessToy}
     (hout : compressedSignBounded correctnessToy 2 1 correctnessHash correctnessSk []
       correctnessSchedule 1 = some σ) :
     compressedVerify correctnessToy 2 correctnessHash correctnessSk.publicKey [] σ = true :=
-  compressedVerify_compressedSignBounded correctnessToy_valid (by decide)
+  compressedVerify_compressedSignBounded correctnessToy correctnessToy_valid (by decide)
     correctnessHash_inBall correctnessSk_short hout
 
 end MLDSASigningTests
