@@ -471,7 +471,7 @@ private theorem simTopoData_polyTime :
 private theorem simGateCount_polyTime :
     ComputableInPolyTime (fun x : ℕ × List Bool × ValidTopo => x.2.2.1.gateList.length)
       encSimInput encUnary :=
-  (ComputableTidilyInPolyTime.length_list _).computableInPolyTime.comp
+  (ComputableInPolyTime.length_list _).comp
     simTopoData_polyTime.snd'.snd'
 
 private theorem simCoinLen_polyTime :
