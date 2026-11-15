@@ -39,8 +39,8 @@ labels, and `d` makes the output wires' colours decode to `y`.
 The words written are those of the typed simulator `simulateWith` on `toCircuit f`, for every
 valid circuit `f` of topology `t`, with the labels read from the coins (`simViewWord_eq`), and the
 coins give uniform wire labels and filler rows (`uniformList_map_simCoins`). So the simulator's
-output law is the typed simulator's (`eval_simWord`). Every simulated view decodes to the output
-(`decodeWord_evalWord_simViewWord`).
+output law is the typed simulator's (`eval_simWord`). Every view it writes for an output of `m`
+bits, `m` the topology's output count, decodes to that output (`decodeWord_evalWord_simViewWord`).
 
 ## Main definitions
 
@@ -52,8 +52,8 @@ output law is the typed simulator's (`eval_simWord`). Every simulated view decod
 
 * `Cslib.Crypto.Garbling.PointPermute.eval_simWord`: the simulator samples the words of the
   typed simulator's view.
-* `Cslib.Crypto.Garbling.PointPermute.decodeWord_evalWord_simViewWord`: simulated views decode to
-  the output.
+* `Cslib.Crypto.Garbling.PointPermute.decodeWord_evalWord_simViewWord`: every view the simulator
+  writes for an output of `m` bits, `m` the topology's output count, decodes to that output.
 * `Cslib.Crypto.Garbling.PointPermute.isPPTOn_simWord`: the simulator is PPT.
 
 ## References
