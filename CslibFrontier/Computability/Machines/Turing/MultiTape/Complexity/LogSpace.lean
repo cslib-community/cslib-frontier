@@ -16,8 +16,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.TidyNor
 import CslibFrontier.Computability.Machines.Turing.MultiTape.HaltsAt
 import CslibFrontier.Foundations.Data.Nat.Log
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Log
-import Cslib.Computability.Machines.Turing.MultiTape.Combinators.AlmostConstant
 import Cslib.Computability.Machines.Turing.MultiTape.Combinators.Id
+import Mathlib.Tactic.TypeStar
 
 /-!
 # Logarithmic space on deterministic machines

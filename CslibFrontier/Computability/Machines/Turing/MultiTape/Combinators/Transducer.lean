@@ -12,7 +12,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.Ker
 public import Mathlib.Basic.Finite.Prod
 public import Mathlib.Data.Fintype.Option
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.TidyZeroSpace
-import Mathlib.Basic.Finite.Sum
+import Mathlib.Tactic.TypeStar
 
 /-!
 # Finite-state transducers

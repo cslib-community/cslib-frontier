@@ -12,6 +12,8 @@ public import Mathlib.Data.Fintype.Option
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.KernelZeroSpace
 
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.KernelFacts
+import Mathlib.Tactic.TypeStar
+import Mathlib.Tactic.Lemma
 
 /-! # Finite-state transducers and their machine semantics
 
