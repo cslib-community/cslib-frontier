@@ -4425,6 +4425,7 @@ public import CslibFrontier.Crypto.Computational.ElGamal.GeneralCipher
 public import CslibFrontier.Crypto.Computational.ElGamal.KDF
 public import CslibFrontier.Crypto.Computational.ElGamal.Malleability
 public import CslibFrontier.Crypto.Computational.ElGamal.ProbComp
+public import CslibFrontier.Crypto.Computational.ElGamal.StronglyUnpredictable
 public import CslibFrontier.Crypto.Computational.Encryption.Authenticated
 public import CslibFrontier.Crypto.Computational.Encryption.Basic
 public import CslibFrontier.Crypto.Computational.Encryption.BlockModeWord
@@ -4460,6 +4461,7 @@ public import CslibFrontier.Crypto.Computational.Encryption.PublicKeyReplacement
 public import CslibFrontier.Crypto.Computational.Encryption.RandomFunctionHybrid
 public import CslibFrontier.Crypto.Computational.Encryption.RealIdealAE
 public import CslibFrontier.Crypto.Computational.Encryption.Scheme
+public import CslibFrontier.Crypto.Computational.Encryption.StronglyUnpredictable
 public import CslibFrontier.Crypto.Computational.Encryption.SymmetricCPA
 public import CslibFrontier.Crypto.Computational.EvenMansour
 public import CslibFrontier.Crypto.Computational.Factoring

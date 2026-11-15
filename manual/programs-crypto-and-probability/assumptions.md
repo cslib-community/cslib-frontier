@@ -161,6 +161,7 @@ It is plausible as the problem that FMR study, at the modulus of `DecisionLWE`, 
 | `SymmetricCipher.EncForge` | standard | [BonehShoup2023] Exercise 9.15, p. 395 (plaintext integrity: Attack Game 9.1, pp. 358–359, won by a ciphertext that decrypts to a message never queried) | Encryption queries other than `n`-bit messages are answered with `[]`. | — |
 | `SymmetricCipher.RealIdealAE` | standard | [KatzLindell2020] Definition 5.4 (locator not verified) | — | — |
 | `Protocols.FujisakiOkamoto.WordPKE.INDCPA` | standard | [HofheinzHoevelmannsKiltz2017] Definition 2.2 and Figure 4, pp. 9–10 (ePrint 2017/604, version of 2 November 2021) | Challenge messages in the scheme's message space. Asymptotic, against uniform strict PPT adversaries, where the source defines the concrete advantage `|Pr[b' = b] - 1/2|`, half the two-experiment advantage used here. | — |
+| `Encryption.StronglyUnpredictable` | standard | [BonehShoup2023] Section 21.4.1, p. 872 | Uniform negligible ciphertext-hit bound over all `pk : PK n`, `m : Msg n`, and non-error `c : C n` (equivalent to sequential negligibility under `Nonempty` types); `none` models `error` and is excluded, and no efficient key-generation or encryption certificate is bundled. | [StronglyUnpredictable.lean](../../CslibFrontierTests/Crypto/StronglyUnpredictable.lean) `not_stronglyUnpredictable_det`, `not_stronglyUnpredictable_schnorr_d23` |
 
 ## Authentication and signatures
 

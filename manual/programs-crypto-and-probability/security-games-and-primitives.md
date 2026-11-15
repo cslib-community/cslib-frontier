@@ -1952,6 +1952,23 @@ additionally checks support of the postprocessed real key. Tests expose the fail
 KEM premise, and show that a perfect zero-width KEM with the insecure echo DEM remains insecure.
 Arbitrary message-space extension and stronger KEM query schedules remain separate.
 
+For strongly unpredictable ciphertexts ([bs23][bs23], Section 21.4.1, p. 872), import
+[`Encryption/StronglyUnpredictable.lean`](../../CslibFrontier/Crypto/Computational/Encryption/StronglyUnpredictable.lean)
+(`CiphertextHitBound`, `StronglyUnpredictable`). A family `encrypt : ∀ n, PK n → Msg n → ProbComp (Option (C n))`
+(`none` representing encryption failure) satisfies `StronglyUnpredictable` when a negligible sequence
+`ε : ℕ → ℝ≥0` bounds `Pr[encrypt n pk m = some c]` uniformly over all public keys `pk` (including
+adversarially chosen ones), messages `m`, and non-error ciphertexts `c`; `stronglyUnpredictable_iff_forall`
+equates this to sequential negligibility when the three types are nonempty at every `n`, and
+`StronglyUnpredictable.negligible_collision` bounds the non-error collision probability across two
+independent invocations ([bs23][bs23], Section 21.9.6, p. 897). Over any `PrimeOrderGroupFamily`,
+[`ElGamal/StronglyUnpredictable.lean`](../../CslibFrontier/Crypto/Computational/ElGamal/StronglyUnpredictable.lean)
+proves `ciphertextHitBound_elGamalEncryptProb` and `ciphertextHitBound_hybrid_hashedElGamal` with hit
+bound `(F.order (d n) : ℝ≥0)⁻¹ + 1 / 2 ^ n` via `eval_bind_sampleExp_hit_le`, yielding
+`stronglyUnpredictable_elGamalEncryptProb` and `stronglyUnpredictable_hybrid_hashedElGamal` whenever
+`(F.order (d n) : ℝ≥0)⁻¹` is negligible (which follows from `F.DDH (fun n => PMF.pure (d n))` by
+`DDH.negligible_expected_inv_order`). Checked examples and hypothesis-necessity counterexamples are
+in [`CslibFrontierTests/Crypto/StronglyUnpredictable.lean`](../../CslibFrontierTests/Crypto/StronglyUnpredictable.lean).
+
 For the Diffie–Hellman random-oracle KEM of [katzlindell20][katzlindell20] (Construction 12.19,
 Theorem 12.22), import
 [`DiffieHellman/GapCDH.lean`](../../CslibFrontier/Crypto/Computational/DiffieHellman/GapCDH.lean).
