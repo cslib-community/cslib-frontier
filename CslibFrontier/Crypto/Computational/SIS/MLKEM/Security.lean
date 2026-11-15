@@ -56,6 +56,12 @@ bound for one parameter set in this library's model, which differs from the sour
 * No running time is charged. The bound holds for every adversary, efficient or not; it is not an
   asymptotic security theorem.
 
+The asymptotic theorem is `indCPA_kpke_of_decisionModuleLWEWith`
+(`CslibFrontier.Crypto.Computational.SIS.MLKEM.Asymptotic`): for a parameter family computable in
+polynomial time, the word-level family `kpke` is IND-CPA secure under `DecisionModuleLWEWith` with
+these laws. It applies this bound to the reductions as families of distinguishers whose efficiency
+it proves from the adversary's certificate.
+
 ## Main definitions
 
 * `Cslib.Crypto.MLKEM.mlweKeyReduction`, `Cslib.Crypto.MLKEM.mlweReduction`: the two reductions.
@@ -205,7 +211,8 @@ Module-LWE advantages of `mlweKeyReduction A b` (`k × k`, `CBD_{η₁}` secret 
 argument behind Kyber v3.02 ([AvanziEtAl2021], §4.3.1, Theorem 1, p. 20), with the hops of §4.4,
 eq. (6), p. 22, in the model and with the deviations listed in the module documentation: a uniform
 matrix and sampled coins instead of `XOF` and `PRF`, an uncompressed ciphertext hop, and no running
-time. It is a concrete lemma for one parameter set, not an asymptotic security theorem. -/
+time. It is a concrete lemma for one parameter set, not an asymptotic security theorem; the
+asymptotic theorem is `indCPA_kpke_of_decisionModuleLWEWith`. -/
 theorem cpaAdvantage_le [NeZero P.q] (A : CpaAdversary P σ) :
     (toExplicitCoinPKE P).cpaAdvantage A ≤
       (ModuleLWE.advantage (ProbComp.eval (sampleVecCBD P.k P.n P.q P.η₁))

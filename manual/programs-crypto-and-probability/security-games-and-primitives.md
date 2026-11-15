@@ -1656,7 +1656,14 @@ as the word-level family `kpke P : WordPKE` for a parameter family `P`, efficien
 computable in polynomial time (`kpke_isEfficient`) and with ciphertexts that fit
 (`kpke_ciphertextFits`). Its key generation draws the matrix coefficientwise at precision `κ`,
 within `k * k * n / 2 ^ κ` of uniform (`closeTo_keyGenWord`).
-`MLKEMTransform.decapsWith` is the FIPS 203 implicit-rejection wrapper over any
+[`MLKEM/Asymptotic.lean`](../../CslibFrontier/Crypto/Computational/SIS/MLKEM/Asymptotic.lean)
+proves the asymptotic theorem `indCPA_kpke_of_decisionModuleLWEWith`: `kpke P` is IND-CPA secure
+under `DecisionModuleLWEWith` with the centered-binomial laws `cbdLaw`: width `η₁` for both laws at
+the `k × k` key shape, and `η₁` secrets with `η₂` errors at the `(k + 1) × k` ciphertext shape. It
+applies the assumption to the hops as families `keyReduction` and `ciphertextReduction` through
+`isPPT_keyReduction` and `isPPT_ciphertextReduction`, proved from the adversary's certificate, and
+bounds the rest with `cpaAdvantage_le` and the matrix sampler's distance. It is K-PKE IND-CPA with
+the model differences above, not a statement about ML-KEM. `MLKEMTransform.decapsWith` is the FIPS 203 implicit-rejection wrapper over any
 `ExplicitCoinPKE`, defined through `FujisakiOkamoto.decT` and proved equal to the standard's
 decapsulation algorithm (`decapsWith_eq`). [`CslibFrontierTests/Crypto/MLKEM.lean`](../../CslibFrontierTests/Crypto/MLKEM.lean)
 checks the three parameter sets, sharpness of the compression and decoding bounds at `q = 3329`,
