@@ -210,6 +210,27 @@ identities; they assert no computational cost or efficient discrete-logarithm al
 The [checked examples](../../CslibFrontierTests/PrimeFieldProducts.lean) cover a product modulo
 five, the prime two, residue enumeration, signed weights and a zero-width interval.
 
+## Implicit integer access and bounded first events
+
+Import `CountingHierarchy.ResidueAccess` for `IntegerResidueAccess X`. The integer family `X`
+is a specification parameter. The access record supplies a logarithmic magnitude bound,
+admissible positive moduli and one total canonical-residue evaluator. Its `InCountingFunction`
+certificate requires the exponent in polynomial-time binary and the residue evaluator in F_a
+on every input pair, including off-domain inputs. It requires no encoding or computation of X.
+Admissibility is a correctness domain, not an extra oracle: an algorithm must justify that its
+queries belong to the domain and certify its own modulus-selection procedure.
+
+`CountingHierarchy.Primality` certifies the standalone `primeTest` in F_1 by a uniform divisor
+test. `CountingHierarchy.BoundedSearch` supplies existential/universal interval quantification
+at one additional level and `firstEventTest` at two. Its Boolean answer tests a property of
+the first event below a binary endpoint; a later matching event cannot replace the first one.
+All nested indices share fixed evaluators. `Foundations.NumberTheory.DyadicResidues` expresses
+the rational CRT approximation using a natural numerator built by multiplication, quotient,
+sum and remainder, with an exact correctness bridge. It constructs neither X nor the full
+modulus product. The [checked client](../../CslibFrontierTests/ResidueAccess.lean) includes
+minus one, excluded moduli, first-event ordering, an empty interval and a concrete dyadic sum.
+These operations alone do not certify the complete sign-recovery procedure.
+
 ## Mathematical sign recovery from residues
 
 Import [`Foundations.NumberTheory.CRTSign`](../../CslibFrontier/Foundations/NumberTheory/CRTSign.lean)
@@ -240,6 +261,17 @@ The ordinary-module [checked client](../../CslibFrontierTests/CRTSign.lean) disc
 hypotheses for both signs of one with moduli `5, 7`, precision `B = 8`, and cutoff `K = 3`.
 It also checks zero, negative summands, the strict precision boundary, and wraparound at zero.
 Run `LEAN_NUM_THREADS=2 scripts/build.sh CslibFrontierTests.CRTSign --wfail --iofail`.
+
+For the exact manuscript parameters, import `Foundations.NumberTheory.PrimeWindowSign`.
+`PrimeWindowSign.firstCircleFlag_sign_of_coefficients` takes `|X| ≤ 2^m`, `X ≠ 0` and the
+local weighted-coefficient congruences. It proves all positivity, coprimality, prime-product,
+precision and doubling-limit conditions for primes `L < p ≤ Y`, where
+`Y = 2 * max(16,m,L)^4`. Precision is `Y.size + 10` and the limit is `Y * Y.size + 1`.
+`not_flag_zero_of_coefficients` handles zero. The
+[checked client](../../CslibFrontierTests/PrimeWindowSign.lean) uses supplied coefficient
+congruences for both signs of one, an unconditional zero instance and excluded-prime endpoints.
+Computing those
+coefficients and certifying a counting-level sign procedure remain separate obligations.
 
 ## Efficient oracle programs
 
