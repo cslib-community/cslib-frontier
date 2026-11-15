@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Unary
 public import CslibFrontier.Computability.Probabilistic.Oracle
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.Oracle.Normalization
 
