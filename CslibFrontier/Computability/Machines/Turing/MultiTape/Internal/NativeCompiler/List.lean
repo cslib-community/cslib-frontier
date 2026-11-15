@@ -654,6 +654,7 @@ variable {Left : Type u} {Right : Type v} {Zipped : Type w}
 
 /-! ### Unary-indexed replacement -/
 
+/-- Control state for unary-indexed list replacement. -/
 abbrev ListReplaceState (Value : Type u) := ℕ × (Bool × Value)
 
 /-- Update the unary countdown after emitting one list element. -/
