@@ -26,6 +26,8 @@ For a simulator that retries until an independent coin succeeds, import [Game/Re
 
 [ComputationallyIndistinguishable](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/Basic.lean#L94) specializes admissibility to a uniform native strict-PPT test on `(1^n, sample)`. Its ensembles are arbitrary PMFs on bit strings: sampleability and polynomial output length are not bundled. `IsPPTTest` admits semantic tests whose laws have a native program witness. Efficient postprocessing and hybrid results use those certificates, not the mere presence of a Lean function.
 
+For statistical indistinguishability of ensembles ([bs23][bs23], Definition 3.6 and Corollary 3.12, p. 85), import [`Game/StatisticalIndistinguishability.lean`](../../CslibFrontier/Crypto/Game/StatisticalIndistinguishability.lean). `StatisticallyIndistinguishable X Y` for two ensembles `X Y : ∀ n, PMF (α n)` asks for one negligible function `ε : ℕ → ℝ≥0` such that `CloseTo (X n) (Y n) (ε n)` for every `n`, with no finiteness, efficiency, or sampleability requirement. Prove it on finite types from a negligible bound on `dist (X n) (Y n)` via `StatisticallyIndistinguishable.of_dist_le`, or on arbitrary types with the anonymous constructor from `CloseTo` bounds; it is an equivalence relation (`StatisticallyIndistinguishable.refl`, `.symm`, `.trans`) closed under deterministic postprocessing (`.map`, Boneh–Shoup Theorem 3.13) and randomized Markov-kernel postprocessing (`.bind`). Use `.indistinguishable` against every family of randomized tests, or import [`Computational/StatisticalIndistinguishability.lean`](../../CslibFrontier/Crypto/Computational/StatisticalIndistinguishability.lean) and apply `StatisticallyIndistinguishable.computationallyIndistinguishable` on word ensembles. `statisticallyIndistinguishable_iff_negligible_nndist` equates `StatisticallyIndistinguishable X Y` on finite types with `Negligible fun n => nndist (X n) (Y n)`, and `statisticallyIndistinguishable_iff_indistinguishable` equates it in general (via `Game.closeTo_advantage_map_decide_lt` in [`Game/CloseTo.lean`](../../CslibFrontier/Crypto/Game/CloseTo.lean)) with `Game.Indistinguishable` against every family of randomized tests, so an existing `Game.Indistinguishable … (fun _ => True)` conclusion for `(X n).bind (test n)` yields `StatisticallyIndistinguishable X Y`. Game-specific statistical notions such as `CommitmentScheme.StatisticalHiding` are not instances and are not changed. See [checked clients](../../CslibFrontierTests/Crypto/StatisticalIndistinguishability.lean) for finite-type instances, postprocessing and constructor examples, and separating constant ensembles.
+
 Pinned cslib also has the finite [Generator](https://github.com/leanprover/cslib/blob/254e30e6d4299c51323aaeaf5f51a4763b375d4a/Cslib/Crypto/Primitives/PRG/Defs.lean#L38) interface, whose `Secure` accepts any chosen predicate on randomized tests, while expansion is a separate cardinality property. cslib-frontier adds circuit-bounded tests and uniform machine tests on top. These are intentionally different quantifiers; the circuit version can select a new bounded circuit at each input length [cslib][cslib].
 
 ### Security theorems and efficiency witnesses
@@ -2028,6 +2030,31 @@ bits of a key-leaking scheme, with and without the oracle, and rewrite `gameOn` 
 `scripts/build.sh CslibFrontierTests.Crypto.PKEScheme`. The PPT transfer is checked in
 [`CslibFrontierTests/Crypto/Experiment.lean`](../../CslibFrontierTests/Crypto/Experiment.lean).
 
+A public-key scheme whose encryption is deterministic is not semantically secure (Boneh–Shoup v0.6,
+Section 11.3.1, pp. 438–439 [bs23][bs23]); import
+[`Encryption/Deterministic.lean`](../../CslibFrontier/Crypto/Computational/Encryption/Deterministic.lean).
+For one scheme `E` whose ciphertext type has `[BEq C] [LawfulBEq C]`, `PKE.detAdversary E m₀ m₁`
+challenges with `(m₀, m₁)`, saves the public key, re-encrypts `m₀`, and outputs `c != c₀`. It
+outputs `false` in experiment `false` when `E.encrypt pk m₀` is a point mass under every supported
+key pair (`PKE.eval_cpaExperiment_detAdversary_false`), and `true` in experiment `true` when, under
+every supported key pair, `(m₀, m₁)` is admissible and no ciphertext of `m₁` is a ciphertext of
+`m₀` (`PKE.eval_cpaExperiment_detAdversary_true`); under all three conditions its `cpaExperiment`
+advantage is `1` (`PKE.advantage_cpaExperiment_detAdversary`). `PKE.Correct.notMem_support_encrypt`
+derives the third condition from `PKE.Correct` and `m₀ ≠ m₁`. Over encoded families,
+`Encryption.detAdversary encrypt m₀ m₁` is PPT (`Encryption.isPPT_detAdversary`) when `encrypt` is
+PPT on `encKeyedInput encMsg` and `m₀ m₁ : ℕ → Msg` are polynomial-time in the unary parameter, and
+it has `gameOn` advantage `1` at each parameter where the three conditions hold
+(`Encryption.advantage_gameOn_detAdversary`). Under the same two efficiency hypotheses,
+`Encryption.not_indcpaOn_of_deterministic decrypt n₀` refutes
+`INDCPAOn valid encMsg keyGen encrypt` when, for every `n ≥ n₀`,
+`PKE.mk (keyGen n) (encrypt n) (decrypt n)` is `PKE.Correct` for the `decrypt` the caller passes,
+`m₀ n ≠ m₁ n`, the pair is admissible, and `encrypt n pk (m₀ n)` is a point mass under every
+supported key. Correctness is part of the book's definition of a scheme (Definition 11.1, p. 436)
+and a separate predicate here. The
+[checked examples](../../CslibFrontierTests/Crypto/DeterministicPKE.lean) apply the refutation to
+the plaintext cipher and show that correctness, admissibility, distinct messages and determinism
+are each needed; run `scripts/build.sh CslibFrontierTests.Crypto.DeterministicPKE`.
+
 For functional encryption at one fixed scheme (Boneh–Shoup v0.6, Section 15.7, Definitions 15.13 and 15.15, Attack Game 15.9, Example 15.1 and Remark 15.13, pp. 658–661 [bs23][bs23]), import [`Encryption/Functional.lean`](../../CslibFrontier/Crypto/Computational/Encryption/Functional.lean). `FE MPK MSK Fn SK M C Y` packages `setup`, `keyGen`, `encrypt` and deterministic `decrypt`, and `FE.Functionality Fn M Y` bundles `eval : Fn → M → Option Y` with the null identifier `null : Fn` (`ε`); `FE.Correct` and `FE.Robust` state correctness and ciphertext robustness. Both `eval` and `decrypt` return `Option Y`, using `none` for `⊥` in `eval` and for both `⊥` and rejection in `decrypt`, so the book's robustness implies `FE.Robust` while the converse can fail for a scheme that outputs `⊥` where the functionality has a value. In `E.ssExperiment F A b`, the challenger generates `(mpk, msk)` and `skNull ← E.keyGen msk F.null`, runs the two stages of `A : FE.Adversary MPK Fn SK M C σ` against the logged key-generation oracle `E.keyGen msk` (`ProbOracleComp.runLog`, with `ProbOracleComp.runLog_sample` in [`Oracle/RunState.lean`](../../CslibFrontier/Languages/Probabilistic/Oracle/RunState.lean)) around a single challenge encryption, and enforces the query restriction at the end by returning `guess && F.admissible ((log₁ ++ log₂).map Prod.fst) pair`, so any run in which `F.null` or a pre- or post-challenge key query distinguishes the challenge messages outputs `false` in both experiments. When `F.eval F.null` is injective, `FE.eval_ssExperiment_eq_of_injective_null` and `FE.advantage_ssExperiment_eq_zero_of_injective_null` (specialized to `FE.Functionality.pke` in `FE.advantage_ssExperiment_pke_eq_zero`) show that every scheme—including the cleartext scheme `FE.cleartext F` (`FE.cleartext_correct`, `FE.cleartext_robust`)—has semantic-security advantage `0` against every adversary (Remark 15.13). For a public-key scheme `E : PKE PK SK M C`, `E.toFE leak` implements Example 15.1 over `FE.Functionality.pke len`, with correctness characterized by `PKE.toFE_correct_iff`, and `PKE.eval_ssExperiment_toFE_ofTwoStage` shows that against `FE.Adversary.ofTwoStage A` (which makes no key queries; this compares the two experiments and is not a reduction or efficiency claim) the game coincides with `E.cpaExperiment` with admissibility rule `len m₀ = len m₁`. Asymptotic security over scheme families and efficient typed oracle adversaries (Definition 15.14), identity-based encryption (Example 15.2), and Exercises 15.21–15.22 are not formalized here. The [checked examples](../../CslibFrontierTests/Crypto/FunctionalEncryption.lean) exercise `FE.cleartext`, `FE.Robust`, pre- and post-challenge key queries, Remark 15.13 and `PKE.toFE`; run `scripts/build.sh CslibFrontierTests.Crypto.FunctionalEncryption`.
 
 To replace the honest public-key distribution by another law, such as lossy or uniform keys, import
@@ -2122,6 +2149,20 @@ native certificate charges the framing test and both callbacks. This repairs the
 boundary needed by CCA composition, without changing `hybridEncrypt` or its CPA security
 theorems.
 
+[`Encryption/MessageRecovery.lean`](../../CslibFrontier/Crypto/Computational/Encryption/MessageRecovery.lean)
+proves that semantic security gives security against message recovery ([bs23][bs23], Attack
+Game 2.2, p. 18; Theorem 2.7, p. 19). For `E : Cipher K M C` with `M` finite and nonempty,
+`messageRecoveryAdvantage E sampleKey A` is `|Pr[W] - 1 / |M||`, and
+`messageRecoveryAdvantage_eq_advantage_messageRecoveryReduction` equates it with the one-time
+advantage of `messageRecoveryReduction` when `valid` admits every pair. For a
+`DEMOneTimeKeyWordINDCPA` cipher with messages in `{0, 1}^{msgLen n}`,
+`DEMOneTimeKeyWordINDCPA.negligible_messageRecoveryWordAdvantage` shows that
+`messageRecoveryWordAdvantage` is negligible for every PPT `A` whose outputs have length
+`msgLen n`, when `msgLen` is polynomial-time computable in unary;
+`isPPT_messageRecoveryWordToDEMAdversary` certifies the reduction. The
+[tests](../../CslibFrontierTests/Crypto/MessageRecovery.lean) show that the conditions on
+`valid` and on the output length are needed.
+
 [`Hybrid/DEMCCA.lean`](../../CslibFrontier/Crypto/Computational/Encryption/Hybrid/DEMCCA.lean)
 proves the exact DEM leg of Boneh–Shoup Exercise 12.5(a), p. 513 [bs23][bs23]. Its middle game
 retains the original KEM key/encapsulation correlation and independently samples the actual
@@ -2153,6 +2194,20 @@ Supported KEM correctness justifies the real-hop sampling commutation; perfect h
 additionally checks support of the postprocessed real key. Tests expose the failure without that
 KEM premise, and show that a perfect zero-width KEM with the insecure echo DEM remains insecure.
 Arbitrary message-space extension and stronger KEM query schedules remain separate.
+
+For strongly unpredictable ciphertexts ([bs23][bs23], Section 21.4.1, p. 872), import
+[`Encryption/StronglyUnpredictable.lean`](../../CslibFrontier/Crypto/Computational/Encryption/StronglyUnpredictable.lean).
+`StronglyUnpredictable encrypt` asks for one negligible `ε` with `Pr[encrypt n pk m = some c] ≤ ε n`
+for every public key (adversarially chosen ones included), message and non-error ciphertext; `none`
+is the book's `error`. `stronglyUnpredictable_iff_forall` shows this is the book's pointwise
+sentence when the key, message and ciphertext types are nonempty at every `n`, and
+`StronglyUnpredictable.negligible_collision` is the two-invocation collision bound of Section 21.9.6
+(p. 897).
+[`ElGamal/StronglyUnpredictable.lean`](../../CslibFrontier/Crypto/Computational/ElGamal/StronglyUnpredictable.lean)
+proves the property for `elGamalEncryptProb` and hybrid Hashed ElGamal when `(F.order (d n))⁻¹` is
+negligible, as DDH implies (`DDH.negligible_expected_inv_order`); the
+[tests](../../CslibFrontierTests/Crypto/StronglyUnpredictable.lean) show that a group of constant
+order fails.
 
 For the Diffie–Hellman random-oracle KEM of [katzlindell20][katzlindell20] (Construction 12.19,
 Theorem 12.22), import
@@ -2736,6 +2791,33 @@ probability at most `(1 / 2) ^ n`. Composed with `OneWay.exists_eufCMA` and
 one-bit-per-block instance `merkleDamgard`, not the length-strengthened one),
 `CompressionFamily.exists_oneWay` and `CompressionFamily.exists_wordEUFCMA` give the same
 conclusions for `2 n → n` compression families. No converse is claimed.
+
+Second-preimage resistance ([bs23][bs23], §8.11.1, Definition 8.6, p. 336, and Exercise 8.23(a)–(b),
+pp. 352–353) is split between the experiment with its finite bounds in
+[`Game/SecondPreimage.lean`](../../CslibFrontier/Crypto/Game/SecondPreimage.lean) and the
+bit-string notion in
+[`SecondPreimageResistant.lean`](../../CslibFrontier/Crypto/Computational/SecondPreimageResistant.lean).
+`secondPreimageExperiment sample f finder` draws `x ← sample`, runs `x' ← finder x`, and accepts
+when `x' ≠ x` and `f x' = f x`. For `H : M → T` between finite types, at most `|T|` inputs lack a
+second preimage (`card_not_hasSecondPreimage_le`), so at most a `1 / s` fraction when
+`|M| ≥ s · |T|` and `0 < s` (`card_not_hasSecondPreimage_div_le`). For any input distribution, an
+inverter `A` succeeds at most as often as the finder `B := fun m => A (H m)` succeeds plus the
+probability that `A (H m)` returns `m` itself
+(`inversionExperiment_le_secondPreimageExperiment_add`). On a uniform input from a nonempty finite
+`M` this gives `OWadv[A, H] ≤ SPRadv[B, H] + |T| / |M|`
+(`succProbability_inversionExperiment_uniform_le_add_card_div`), writing `OWadv` and `SPRadv` for
+the success probabilities of `inversionExperiment` and `secondPreimageExperiment`; it weakens to
+(8.22), `OWadv[A, H] ≤ 2 · SPRadv[B, H] + 1 / s` when `|M| ≥ s · |T|` and `0 < s`
+(`succProbability_inversionExperiment_uniform_le_two_mul_add_div`). On bit strings,
+`SecondPreimageResistant f` requires polynomial-time evaluation and negligible success in
+`secondPreimageGame` for every uniform strict PPT `SecondPreimageFinder`: the finder receives a
+uniform `n`-bit `x` and `n` in unary, and wins with any `x' ≠ x` such that `f x' = f x`. Unlike
+Definition 8.6 (`m' ∈ M`), `x'` may have any length, as in `OneWay`. The certified reduction of
+Exercise 8.23(b) on bit strings, the separation of Exercise 8.23(c) on bit strings and
+Exercise 8.23(d) are not proved here; the
+[tests](../../CslibFrontierTests/Crypto/SecondPreimageResistant.lean) check that the factor-one
+bound is an equality on `Bool → Unit`, probe `0 < s`, instantiate the finite `revealAtZero`
+construction of Exercise 8.23(c), and refute constant functions.
 
 Merkle–Damgård chains have many messages with one digest at little more than the cost of one
 collision (Joux's attack, [bs23][bs23], §8.4.1, pp. 298–299). Import
