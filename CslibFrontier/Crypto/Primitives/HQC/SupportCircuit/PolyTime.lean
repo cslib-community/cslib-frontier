@@ -329,132 +329,20 @@ The separate gate bound is `size_candidateCircuit_le`. -/
     enc encCode at h
   simpa only [candidateCode_eq_code] using h
 
-private abbrev CandidateFamilyParameters := ℕ × ℕ
-
-private abbrev CandidateFamilyState := ℕ × Code
-
-private def supportCandidateFoldStep (par : CandidateFamilyParameters)
-    (state : CandidateFamilyState) (code : Code) : CandidateFamilyState :=
-  let k := state.1
-  let inputCount := (k + 1) * par.1
-  let outputCount := (k + 1) * par.2
-  let combined := appendCode (k * par.1 + par.1)
-    (compCode (k * par.1 + par.1) state.2 ([], List.range (k * par.1)))
-    (compCode (k * par.1 + par.1) code
-      ([], (List.range par.1).map (k * par.1 + ·)))
-  (k + 1,
-    compCode inputCount ([], List.range outputCount)
-      (compCode inputCount combined ([], List.range inputCount)))
-
-private theorem computableInPolyTime_supportCandidateFoldStep :
-    ComputableInPolyTime
-      (fun p : (CandidateFamilyParameters × CandidateFamilyState) × Code =>
-        supportCandidateFoldStep p.1.1 p.1.2 p.2)
-      (encFoldStep (encPair encUnary encUnary) (encPair encUnary encCode) encCode)
-      (encPair encUnary encCode) := by
-  let stepEnc := encFoldStep (encPair encUnary encUnary)
-    (encPair encUnary encCode) encCode
-  have hwidth : ComputableInPolyTime
-      (fun p : (CandidateFamilyParameters × CandidateFamilyState) × Code => p.1.1.1)
-      stepEnc encUnary := by fun_prop
-  have hbits : ComputableInPolyTime
-      (fun p : (CandidateFamilyParameters × CandidateFamilyState) × Code => p.1.1.2)
-      stepEnc encUnary := by fun_prop
-  have hk : ComputableInPolyTime
-      (fun p : (CandidateFamilyParameters × CandidateFamilyState) × Code => p.1.2.1)
-      stepEnc encUnary := by fun_prop
-  have hstate : ComputableInPolyTime
-      (fun p : (CandidateFamilyParameters × CandidateFamilyState) × Code => p.1.2.2)
-      stepEnc encCode := by fun_prop
-  have hcode : ComputableInPolyTime
-      (fun p : (CandidateFamilyParameters × CandidateFamilyState) × Code => p.2)
-      stepEnc encCode := by fun_prop
-  have hk1 : ComputableInPolyTime
-      (fun p : (CandidateFamilyParameters × CandidateFamilyState) × Code => p.1.2.1 + 1)
-      stepEnc encUnary := by fun_prop
-  have hprefixInputs : ComputableInPolyTime
-      (fun p : (CandidateFamilyParameters × CandidateFamilyState) × Code =>
-        p.1.2.1 * p.1.1.1) stepEnc encUnary := by fun_prop
-  have hblockInputs : ComputableInPolyTime
-      (fun p : (CandidateFamilyParameters × CandidateFamilyState) × Code =>
-        p.1.2.1 * p.1.1.1 + p.1.1.1) stepEnc encUnary := by fun_prop
-  have hinputCount : ComputableInPolyTime
-      (fun p : (CandidateFamilyParameters × CandidateFamilyState) × Code =>
-        (p.1.2.1 + 1) * p.1.1.1) stepEnc encUnary := by fun_prop
-  have houtputCount : ComputableInPolyTime
-      (fun p : (CandidateFamilyParameters × CandidateFamilyState) × Code =>
-        (p.1.2.1 + 1) * p.1.1.2) stepEnc encUnary := by fun_prop
-  have hprefixRange : ComputableInPolyTime
-      (fun p : (CandidateFamilyParameters × CandidateFamilyState) × Code =>
-        ([], List.range (p.1.2.1 * p.1.1.1))) stepEnc encCode :=
-    (const (encOut := encList encGate) []).prod (by
-      simpa only [Function.comp_def, List.map_id_fun', id_eq] using
-        unary_to_binary.map.comp (range.comp hprefixInputs))
-  have hinputRange : ComputableInPolyTime
-      (fun p : (CandidateFamilyParameters × CandidateFamilyState) × Code =>
-        ([], List.range ((p.1.2.1 + 1) * p.1.1.1))) stepEnc encCode :=
-    (const (encOut := encList encGate) []).prod (by
-      simpa only [Function.comp_def, List.map_id_fun', id_eq] using
-        unary_to_binary.map.comp (range.comp hinputCount))
-  have houtputRange : ComputableInPolyTime
-      (fun p : (CandidateFamilyParameters × CandidateFamilyState) × Code =>
-        ([], List.range ((p.1.2.1 + 1) * p.1.1.2))) stepEnc encCode :=
-    (const (encOut := encList encGate) []).prod (by
-      simpa only [Function.comp_def, List.map_id_fun', id_eq] using
-        unary_to_binary.map.comp (range.comp houtputCount))
-  have hshiftedRange : ComputableInPolyTime
-      (fun p : (CandidateFamilyParameters × CandidateFamilyState) × Code =>
-        ([], (List.range p.1.1.1).map (p.1.2.1 * p.1.1.1 + ·))) stepEnc encCode := by
-    have hwire : ComputableInPolyTime
-        (fun q : ((CandidateFamilyParameters × CandidateFamilyState) × Code) × ℕ =>
-          q.1.1.2.1 * q.1.1.1.1 + q.2) (encPair stepEnc encUnary) encNat :=
-      unary_to_binary.comp (by fun_prop)
-    exact (const (encOut := encList encGate) []).prod
-      (mapWithInput (range.comp hwidth) hwire)
-  have hleft := computableInPolyTime_compCode (unary_to_binary.comp hblockInputs)
-    hstate hprefixRange
-  have hright := computableInPolyTime_compCode (unary_to_binary.comp hblockInputs)
-    hcode hshiftedRange
-  have hcombined := computableInPolyTime_appendCode (unary_to_binary.comp hblockInputs)
-    hleft hright
-  have hinner := computableInPolyTime_compCode (unary_to_binary.comp hinputCount)
-    hcombined hinputRange
-  have hfinal := computableInPolyTime_compCode (unary_to_binary.comp hinputCount)
-    houtputRange hinner
-  change ComputableInPolyTime
-    (fun p : (CandidateFamilyParameters × CandidateFamilyState) × Code =>
-      supportCandidateFoldStep p.1.1 p.1.2 p.2) stepEnc (encPair encUnary encCode)
-  exact hk1.prod hfinal
-
-private theorem fst_fold_supportCandidateFoldStep (par : CandidateFamilyParameters)
-    (codes : List Code) :
-    (codes.foldl (supportCandidateFoldStep par) (0, ([], []))).1 = codes.length := by
-  induction codes using List.reverseRecOn with
-  | nil => rfl
-  | append_singleton codes code ih =>
-    rw [List.foldl_append, List.foldl_cons, List.foldl_nil]
-    simp only [supportCandidateFoldStep, ih, List.length_append, List.length_singleton]
-
 private theorem supportCandidateFold_prefix (width bits n count i : ℕ)
     (hi : i ≤ ((List.range count).map fun j => candidateCode width bits n j).length) :
     ((((List.range count).map fun j => candidateCode width bits n j).take i).foldl
-      (supportCandidateFoldStep (width, bits)) (0, ([], []))) =
+      (parallelFamilyCodeStep (width, bits)) (0, ([], []))) =
         (i, (supportCandidateCircuit width bits n i).code) := by
   have hi' : i ≤ count := by simpa only [List.length_map, List.length_range] using hi
   rw [← List.map_take, List.take_range, Nat.min_eq_left hi']
-  apply Prod.ext
-  · simpa only [List.length_map, List.length_range] using
-      fst_fold_supportCandidateFoldStep (width, bits)
-        ((List.range i).map fun j => candidateCode width bits n j)
-  · have hcodes :
-        (List.range i).map (fun j => candidateCode width bits n j) =
-          List.ofFn (fun j : Fin i => (candidateCircuit width bits n j.val).code) := by
-      rw [List.map_range_eq_ofFn]
-      simp only [candidateCode_eq_code]
-    rw [hcodes]
-    change parallelFamilyCode width bits
-      (List.ofFn fun j : Fin i => (candidateCircuit width bits n j.val).code) = _
-    exact parallelFamilyCode_code _
+  have hcodes :
+      (List.range i).map (fun j => candidateCode width bits n j) =
+        List.ofFn (fun j : Fin i => (candidateCircuit width bits n j.val).code) := by
+    rw [List.map_range_eq_ofFn]
+    simp only [candidateCode_eq_code]
+  rw [hcodes]
+  exact foldl_parallelFamilyCodeStep_code _
 
 private def supportCandidateGateBound (width bits count : ℕ) : ℕ :=
   count * (63 * (width + bits + 1) ^ 2 + 21 * (bits + 1) ^ 2 + 6)
@@ -497,7 +385,7 @@ private theorem length_supportCandidateFold_le (width bits n count i : ℕ)
     (hi : i ≤ ((List.range count).map fun j => candidateCode width bits n j).length) :
     (encPair encUnary encCode
       ((((List.range count).map fun j => candidateCode width bits n j).take i).foldl
-        (supportCandidateFoldStep (width, bits)) (0, ([], [])))).length ≤
+        (parallelFamilyCodeStep (width, bits)) (0, ([], [])))).length ≤
       supportCandidateStateBound width bits count := by
   have hi' : i ≤ count := by simpa only [List.length_map, List.length_range] using hi
   rw [supportCandidateFold_prefix width bits n count i hi]
@@ -540,10 +428,10 @@ unary dimensions. The bounded fold charges the complete encoded prefix circuit. 
     have hcandidate := computableInPolyTime_candidateCircuit
       (hwidth.comp hpar) (hbits.comp hpar) (hn.comp hpar) (snd enc encUnary)
     simpa only [candidateCode_eq_code, Function.comp_def] using hcandidate
-  have hfold := foldlWith (step := supportCandidateFoldStep)
+  have hfold := foldlWith (step := parallelFamilyCodeStep)
     (hwidth.prod hbits) hlist
-    (const (encOut := stateEnc) ((0, ([], [])) : CandidateFamilyState))
-    (by simpa only [parEnc, stateEnc] using computableInPolyTime_supportCandidateFoldStep)
+    (const (encOut := stateEnc) ((0, ([], [])) : ℕ × Code))
+    (by simpa only [parEnc, stateEnc] using computableInPolyTime_parallelFamilyCodeStep)
     (polyBounded_supportCandidateStateBound hwidth hbits hcount) fun a i hi =>
       length_supportCandidateFold_le (width a) (bits a) (n a) (count a) i hi
   have hcode := hfold.snd'

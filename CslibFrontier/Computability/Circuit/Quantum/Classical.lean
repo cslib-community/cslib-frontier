@@ -334,7 +334,7 @@ theorem readBit_classicalRun_swapWireCodes_of_ne {left right q width : ℕ}
 
 /-- For `a ≠ 0`, swap qubit `a` into qubit `0`. -/
 def swapCodes (a : ℕ) : List GateCode :=
-  [(false, 0, [a]), (false, a, [0]), (false, 0, [a])]
+  swapWireCodes 0 a
 
 theorem isClassical_swapCodes {N a : ℕ} (ha : 0 < a) (hN : a < N) :
     IsClassical N (swapCodes a) := by

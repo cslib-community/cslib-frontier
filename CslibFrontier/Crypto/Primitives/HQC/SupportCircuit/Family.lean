@@ -26,11 +26,12 @@ support-weight schedules. The resulting oracle-free circuit family has exactly t
 ideal fixed-weight distribution. `SupportSamplerSchedule.HasNegligibleError` records the separate
 growing-width condition under which the finite discrepancy bound is negligible.
 
-`PKESupportSamplerSchedules` connects three such schedules to the actual HQC-PKE parameters. Its
-derived `PKESupportSamplerFamilies` names the five support draws in source order: key-generation
-`y, x` at weight `omega`, then encryption `r2, e, r1` at weights
-`omegaR, omegaE, omegaR`. This is sampler infrastructure for the reductions; it makes no HQC
-security or QROM claim.
+`PKESupportSamplerSchedules` matches three such schedules to the roles and weights of a
+`PKEParams` family. Its derived `PKESupportSamplerFamilies` names five sampler variants in source
+order: key-generation `y, x` at weight `omega`, then encryption `r2, e, r1` at weights
+`omegaR, omegaE, omegaR`. This structure does not impose HQC v5.1's fixed 32-bit source-word
+width; connecting the variants to the named parameter records is separate work. This is sampler
+infrastructure for the reductions; it makes no HQC security or QROM claim.
 
 The schedule carries two layout facts needed by the existing unshifted reversible realization:
 the framed unary family input fits its active register, and the copied output block is disjoint
@@ -103,7 +104,7 @@ variable (S : SupportSamplerSchedule)
   (1 - (supportLowerDensity (S.wordWidth s) (S.universeSize s) 0
     (S.supportWeight s)).toReal)
 
-/-- The schedule grows sufficiently when its exact finite-width discrepancy is negligible. -/
+/-- The schedule grows sufficiently when its density-derived discrepancy bound is negligible. -/
 @[expose] def HasNegligibleError : Prop := Negligible S.finiteError
 
 /-- The scheduled Boolean circuit retains the exact finite `sampleSupport2` law. -/
@@ -462,9 +463,9 @@ theorem exists_generator :
 
 end SupportSamplerSchedule
 
-/-- Three support-sampler schedules matched to a parameterized HQC-PKE instance. The secret
-schedule is used twice in key generation, the random schedule twice in encryption, and the error
-schedule once. -/
+/-- Three support-sampler schedules matched to the roles and weights of a `PKEParams` family. The
+secret schedule is used twice in key generation, the random schedule twice in encryption, and the
+error schedule once. The word-width schedules remain unconstrained by `PKEParams`. -/
 structure PKESupportSamplerSchedules (P : ℕ → PKEParams) where
   /-- Schedule for key-generation supports `y` and `x`. -/
   secret : SupportSamplerSchedule
@@ -485,7 +486,8 @@ structure PKESupportSamplerSchedules (P : ℕ → PKEParams) where
   /-- Encryption-error draws use weight `omegaE`. -/
   encryptionError_supportWeight : ∀ s, encryptionError.supportWeight s = (P s).omegaE
 
-/-- The five actual HQC-PKE support-sampler families, named in the source sampling order. -/
+/-- Five role- and parameter-matched support-sampler variants, named in HQC-PKE source order.
+Their schedules need not use the source's fixed 32-bit word width. -/
 structure PKESupportSamplerFamilies where
   /-- Key-generation draw `y` of weight `omega`. -/
   keyGenY : UniformOracleCircuitFamily
@@ -500,7 +502,7 @@ structure PKESupportSamplerFamilies where
 
 namespace PKESupportSamplerSchedules
 
-/-- Instantiate the five HQC-PKE support draws from their three parameter-matched schedules. -/
+/-- Instantiate five role- and parameter-matched sampler variants from three schedules. -/
 @[expose] def families {P : ℕ → PKEParams} (S : PKESupportSamplerSchedules P) :
     PKESupportSamplerFamilies where
   keyGenY := S.secret.family

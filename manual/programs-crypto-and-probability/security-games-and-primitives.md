@@ -1329,13 +1329,15 @@ above. Negligibility is a separate growing-width property; in particular, the pu
 word width `32` does not satisfy it. The module records exact online resources and separate
 polynomial offline-generator and static-occurrence accounting.
 
-`PKESupportSamplerSchedules` binds three schedules to a `PKEParams` family and
-`PKESupportSamplerFamilies` names the five source-order draws: key generation `y, x` at weight
-`omega`, then encryption `r2, e, r1` at weights `omegaR, omegaE, omegaR`. The checked client uses a
-small `PKEParams` fixture with distinct secret/random and error weights; it is not a published HQC
-parameter-set consumer. The named `hqc1PKEParams`, `hqc3PKEParams` and `hqc5PKEParams` records are
-currently supplied only by the unmerged [#5279](https://github.com/cslib-community/cslib-frontier/issues/5279)
-work. Connecting this family to those records depends on that work landing. HQC v5.1 §6.2.3 also
+`PKESupportSamplerSchedules` binds three schedules to the roles and weights of a `PKEParams`
+family, and `PKESupportSamplerFamilies` names five source-order sampler variants: key generation
+`y, x` at weight `omega`, then encryption `r2, e, r1` at weights `omegaR, omegaE, omegaR`.
+`PKEParams` does not constrain their word-width schedules, so this binding alone does not give the
+fixed 32-bit source sampler. The checked client uses a small fixture with distinct secret/random
+and error weights; it is not a published HQC parameter-set consumer. The named `hqc1PKEParams`,
+`hqc3PKEParams` and `hqc5PKEParams` records are currently supplied only by the unmerged
+[#5279](https://github.com/cslib-community/cslib-frontier/issues/5279) work. Connecting this family
+to those records and the source's fixed width depends on that work landing. HQC v5.1 §6.2.3 also
 composes the upper-density factors for three encryption support vectors multiplicatively; the
 reduction remains [#5281](https://github.com/cslib-community/cslib-frontier/issues/5281). The family
 module makes no HQC security or QROM claim.
