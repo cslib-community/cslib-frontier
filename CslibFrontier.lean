@@ -5793,6 +5793,7 @@ public import CslibFrontier.Foundations.Computability.RecursiveInCode
 public import CslibFrontier.Foundations.Computability.RecursiveInEvalnPrimrec
 public import CslibFrontier.Foundations.Control.Except
 public import CslibFrontier.Foundations.Control.Monad.FilterM
+public import CslibFrontier.Foundations.Control.Monad.FindM
 public import CslibFrontier.Foundations.Control.Monad.IsMonadHom.StateT
 public import CslibFrontier.Foundations.Control.Monad.Memoize
 public import CslibFrontier.Foundations.Data.BiTape
@@ -6616,6 +6617,7 @@ public import CslibFrontier.Languages.Probabilistic.Sum.Lift
 public import CslibFrontier.Languages.Probabilistic.Transcript
 public import CslibFrontier.Languages.Probabilistic.Traverse
 public import CslibFrontier.Languages.Probabilistic.Traverse.CoinTape
+public import CslibFrontier.Languages.Probabilistic.Traverse.FindM
 public import CslibFrontier.Languages.Probabilistic.Traverse.SupportWith
 public import CslibFrontier.Languages.Probabilistic.UniformNat
 public import CslibFrontier.Languages.Probabilistic.UniformNat.LowerBound
