@@ -168,7 +168,7 @@ private theorem runWith_logSigning_nil :
     ProbOracleComp.runWith
         (OracleComp.sumHandler
           (fun _ (cache : List (List Bool × Bool)) =>
-            (pure ([] : List Bool) : StateT (List (List Bool × Bool)) PMF (List Bool)) cache)
+            (pure ([] : List Bool) : StateT (List (List Bool × Bool)) PMF (List Bool)).run cache)
           (oracle Bool))
         ((logSigning
           (M := List Bool) (Query := List Bool) (Sig := List Bool) (Digest := Bool)
