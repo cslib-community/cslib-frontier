@@ -1930,8 +1930,9 @@ feeds the scheme to the FO layer. `cpaAdvantage_le` bounds its two-stage IND-CPA
 four `ModuleLWE.advantage` terms: the public-key hop `mlweKeyReduction A b` and the ciphertext hop
 `mlweReduction A b` for each challenge bit `b`, with centered-binomial secret and error laws. Both
 reductions are explicit programs that run the adversary's first stage themselves, as in the hops of
-Kyber v3.02 ([kyber302][kyber302], §4.4, eq. (6)), with a uniform matrix instead of `XOF` and a
-ciphertext hop on the uncompressed sample. The bound is concrete and charges no running time.
+Kyber v3.02 ([kyber302][kyber302], §4.4, eq. (6)), with a uniform matrix in the public key in
+place of the seed `ρ` and `XOF`, no random oracles, and a ciphertext hop on the uncompressed sample.
+The bound is concrete and charges no running time.
 [`MLKEM/Native.lean`](../../CslibFrontier/Crypto/Computational/SIS/MLKEM/Native.lean) gives K-PKE
 on residue lists, with `SamplePolyCBD` from fair bits (`uniformList_map_cbdResidues`) and native
 encryption and decryption proved to compute `encrypt` and `decrypt`, and
@@ -1942,18 +1943,22 @@ computable in polynomial time (`kpke_isEfficient`) and with ciphertexts that fit
 within `k * k * n / 2 ^ κ` of uniform (`closeTo_keyGenWord`).
 [`MLKEM/Asymptotic.lean`](../../CslibFrontier/Crypto/Computational/SIS/MLKEM/Asymptotic.lean)
 proves `indCPA_kpkeIdealCoins_of_decisionModuleLWEWith`, IND-CPA of K-PKE with ideal coin
-expansion: key generation and encryption draw their centered-binomial noise from fair coins, where
-Kyber v3.02 and FIPS 203 expand a seed with `PRF`. It is a step towards Kyber v3.02 Theorem 1
-([kyber302][kyber302], §4.3.1), not that theorem, whose bound has an `Adv^prf` term; the faithful
-theorem, with the `PRF` hop, is open under
-[#5293](https://github.com/cslib-community/cslib-frontier/issues/5293). It shows that `kpke P` is
-IND-CPA secure under `DecisionModuleLWEWith` with the centered-binomial laws `cbdLaw`: width `η₁`
-for both laws at the `k × k` key shape, and `η₁` secrets with `η₂` errors at the `(k + 1) × k`
-ciphertext shape. It applies the assumption to the hops as families `keyReduction` and
-`ciphertextReduction` through `isPPT_keyReduction` and `isPPT_ciphertextReduction`, proved from the
-adversary's certificate, and bounds the rest with `cpaAdvantage_le` and the matrix sampler's
-distance. Its other deviations are those of `cpaAdvantage_le` above, a uniform matrix in place of
-`XOF` and an uncompressed ciphertext hop, and it is not a statement about ML-KEM.
+expansion and the matrix in the public key. It is a step towards Kyber v3.02 Theorem 1
+([kyber302][kyber302], §4.3.1), not that theorem, for two reasons. Key generation and encryption
+draw their centered-binomial noise from fair coins, where Kyber v3.02 and FIPS 203 expand a seed
+with `PRF`, so the bound has no `Adv^prf` term. And the public key carries the sampled matrix in
+place of the seed `ρ` from which Kyber's encryption re-derives it with `XOF`, while the adversary
+has no `XOF` or `G` oracle: Theorem 1 assumes that both are random oracles, and the step that
+answers the adversary's `XOF` queries at `ρ` with the Module-LWE matrix is not formalized. The
+`PRF` hop and this random-oracle lift are open under
+[#5293](https://github.com/cslib-community/cslib-frontier/issues/5293#issuecomment-6893099765).
+The theorem shows that `kpke P` is IND-CPA secure under `DecisionModuleLWEWith` with the
+centered-binomial laws `cbdLaw`: width `η₁` for both laws at the `k × k` key shape, and `η₁`
+secrets with `η₂` errors at the `(k + 1) × k` ciphertext shape. It applies the assumption to the
+hops as families `keyReduction` and `ciphertextReduction` through `isPPT_keyReduction` and
+`isPPT_ciphertextReduction`, proved from the adversary's certificate, and bounds the rest with
+`cpaAdvantage_le` and the matrix sampler's distance. Its other deviation is the uncompressed
+ciphertext hop of `cpaAdvantage_le` above, and it is not a statement about ML-KEM.
 `MLKEMTransform.decapsWith` is the FIPS 203 implicit-rejection wrapper over any
 `ExplicitCoinPKE`, defined through `FujisakiOkamoto.decT` and proved equal to the standard's
 decapsulation algorithm (`decapsWith_eq`). [`CslibFrontierTests/Crypto/MLKEM.lean`](../../CslibFrontierTests/Crypto/MLKEM.lean)
