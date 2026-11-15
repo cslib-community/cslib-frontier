@@ -117,14 +117,14 @@ example (source : PMF (ZMod 5 × ZMod 5)) :
   have hne : (2 / 5 : ℝ≥0∞) ≠ ⊤ := ENNReal.div_ne_top (by norm_num) (by norm_num)
   simpa [ENNReal.toReal_div] using hpoly.leftover_hash hne source
 
-/-- Union bound over pairs on two points equals the pairwise collision bound `ε`. -/
+-- Union bound over pairs on two points equals the pairwise collision bound `ε`.
 example {ι X Y : Type} [DecidableEq X] {seed : PMF ι} {hash : ι → X → Y} {ε : ℝ≥0∞}
     (hh : IsUniversalHash seed hash ε) {x x' : X} (hx : x ≠ x') :
     seed.toOuterMeasure {i | ¬ Set.InjOn (hash i) ({x, x'} : Finset X)} ≤ ε := by
   have h := hh.toOuterMeasure_not_injOn_le {x, x'}
   rwa [Finset.card_pair hx, Nat.choose_self, Nat.cast_one, one_mul] at h
 
-/-- Union bound over pairs on at most one point vanishes. -/
+-- Union bound over pairs on at most one point vanishes.
 example {ι X Y : Type} {seed : PMF ι} {hash : ι → X → Y} {ε : ℝ≥0∞}
     (hh : IsUniversalHash seed hash ε) (S : Finset X) (hS : S.card ≤ 1) :
     seed.toOuterMeasure {i | ¬ Set.InjOn (hash i) S} = 0 := by
@@ -132,18 +132,26 @@ example {ι X Y : Type} {seed : PMF ι} {hash : ι → X → Y} {ε : ℝ≥0∞
   rw [Nat.choose_eq_zero_of_lt (by omega), Nat.cast_zero, zero_mul] at h
   exact le_antisymm h zero_le
 
-/-- Concrete `2`-universal union bound on two points of `coord_twoUniversal` (here `n² > |Y|`, so
-`IsTwoUniversal.toOuterMeasure_not_injOn_le` does not apply, while `C(2, 2) / 2 = 1 / 2`). -/
+-- Concrete `2`-universal union bound attained on two points of `coord_twoUniversal`
+-- (here `n² > |Y|`, so `IsTwoUniversal.toOuterMeasure_not_injOn_le` does not apply,
+-- while `C(2, 2) / 2 = 1 / 2`).
 example : (PMF.uniformOfFintype Bool).toOuterMeasure
     {key | ¬ Set.InjOn (fun (input : Bool × Bool) => if key then input.1 else input.2)
-      ({(false, false), (true, false)} : Finset (Bool × Bool))} ≤ (2 : ℝ≥0∞)⁻¹ := by
-  refine (IsUniversalHash.toOuterMeasure_not_injOn_le coord_twoUniversal
-    ({(false, false), (true, false)} : Finset (Bool × Bool))).trans ?_
-  simp [Fintype.card_bool]
+      ({(false, false), (true, false)} : Finset (Bool × Bool))} = (2 : ℝ≥0∞)⁻¹ := by
+  refine le_antisymm ((IsUniversalHash.toOuterMeasure_not_injOn_le coord_twoUniversal
+    ({(false, false), (true, false)} : Finset (Bool × Bool))).trans
+      (by simp [Fintype.card_bool])) ?_
+  have h : ({false} : Set Bool) ⊆ {key : Bool | ¬ Set.InjOn
+      (fun (input : Bool × Bool) => if key then input.1 else input.2)
+      ({(false, false), (true, false)} : Finset (Bool × Bool))} := by
+    rintro key rfl
+    simp [Set.InjOn]
+  refine le_trans ?_ ((PMF.uniformOfFintype Bool).toOuterMeasure.mono h)
+  simp [PMF.uniformOfFintype_apply]
 
-/-- Predicate acceptance probability equals outer measure of the predicate set. -/
-example {β : Type} (p : PMF β) (P : β → Prop) [DecidablePred P] :
-    (p.bind fun x => PMF.pure (decide (P x))) true = p.toOuterMeasure {x | P x} :=
-  bind_pure_decide_apply_true p P
+-- Predicate acceptance probability for `PMF.map`, which unfolds to `bind_pure_decide_apply_true`.
+example {α : Type} (p : PMF α) (E : Set α) [DecidablePred (· ∈ E)] :
+    (p.map fun a => decide (a ∈ E)) true = p.toOuterMeasure E :=
+  bind_pure_decide_apply_true p (· ∈ E)
 
 end CslibFrontierTests.UniversalHash

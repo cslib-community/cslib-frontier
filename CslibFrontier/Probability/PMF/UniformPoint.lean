@@ -13,7 +13,9 @@ import CslibFrontier.Probability.PMF.Bool
 /-!
 # Hitting a point with a draw
 
-Testing a draw from `μ` for equality with a fixed point `a` accepts with probability `μ a`
+Testing a draw from `p` with an arbitrary decidable predicate `P` accepts with probability
+`p.toOuterMeasure {x | P x}` (`bind_pure_decide_apply_true`). Testing a draw from `μ` for
+equality with a fixed point `a` accepts with probability `μ a`
 (`bind_pure_decide_eq_apply_true`, `map_decide_eq_apply_true`). The unprimed bind form and the
 uniform form test `a = x`; `bind_pure_decide_eq_apply_true'` and the map form test `x = a`. For a
 uniform draw from a nonempty finite type `α` this is `(Fintype.card α)⁻¹`
