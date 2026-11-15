@@ -1647,8 +1647,16 @@ four `ModuleLWE.advantage` terms: the public-key hop `mlweKeyReduction A b` and 
 `mlweReduction A b` for each challenge bit `b`, with centered-binomial secret and error laws. Both
 reductions are explicit programs that run the adversary's first stage themselves, as in the hops of
 Kyber v3.02 ([kyber302][kyber302], §4.4, eq. (6)), with a uniform matrix instead of `XOF` and a
-ciphertext hop on the uncompressed sample. The bound is concrete and charges no running time; `DecisionModuleLWE`
-fixes a uniform secret, so it does not bound these terms. `MLKEMTransform.decapsWith` is the FIPS 203 implicit-rejection wrapper over any
+ciphertext hop on the uncompressed sample. The bound is concrete and charges no running time.
+[`MLKEM/Native.lean`](../../CslibFrontier/Crypto/Computational/SIS/MLKEM/Native.lean) gives K-PKE
+on residue lists, with `SamplePolyCBD` from fair bits (`uniformList_map_cbdResidues`) and native
+encryption and decryption proved to compute `encrypt` and `decrypt`, and
+[`MLKEM/Family.lean`](../../CslibFrontier/Crypto/Computational/SIS/MLKEM/Family.lean) packages them
+as the word-level family `kpke P : WordPKE` for a parameter family `P`, efficient when `P` is
+computable in polynomial time (`kpke_isEfficient`) and with ciphertexts that fit
+(`kpke_ciphertextFits`). Its key generation draws the matrix coefficientwise at precision `κ`,
+within `k * k * n / 2 ^ κ` of uniform (`closeTo_keyGenWord`).
+`MLKEMTransform.decapsWith` is the FIPS 203 implicit-rejection wrapper over any
 `ExplicitCoinPKE`, defined through `FujisakiOkamoto.decT` and proved equal to the standard's
 decapsulation algorithm (`decapsWith_eq`). [`CslibFrontierTests/Crypto/MLKEM.lean`](../../CslibFrontierTests/Crypto/MLKEM.lean)
 checks the three parameter sets, sharpness of the compression and decoding bounds at `q = 3329`,
