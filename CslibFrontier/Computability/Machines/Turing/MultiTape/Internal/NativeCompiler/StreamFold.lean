@@ -370,20 +370,14 @@ callback workspaces in each round; `lMax` bounds every encoded stream state and 
   letI := emitCompiler.stateFintype
   letI := framedNext.stateFintype
   letI := unframedFinish.stateFintype
-  let retain {State : Type} [Fintype State] (tm : MultiTapeTM K Bool State)
-      (hcompute : ∀ input, tm.ComputesTidilyInTimeAndSpace
-        (encPair encS (encList encA) input) (encOut (result input))
-        (streamFoldPairTime nextCompiler emitCompiler finishCompiler input)
-        (streamFoldPairWorkspace nextCompiler emitCompiler finishCompiler sMax lMax input)) :
-      NativeCompiler result (encPair encS (encList encA)) encOut :=
+  refine
     { tapeCount := K
-      State := State
-      machine := tm
-      stateEncoding := fintypeStateEncoding State
+      State := _
+      machine := machine
+      stateEncoding := fintypeStateEncoding _
       time := streamFoldPairTime nextCompiler emitCompiler finishCompiler
       workspace := streamFoldPairWorkspace nextCompiler emitCompiler finishCompiler sMax lMax
-      computes := hcompute }
-  apply retain machine
+      computes := ?_ }
   intro input
   let finalState := streamState input.1 next input.2 input.2.length
   have hreadInit : rawFrameReader.read rawFrameReader.q₀
