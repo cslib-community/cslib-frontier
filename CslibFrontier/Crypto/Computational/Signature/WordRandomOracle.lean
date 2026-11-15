@@ -174,10 +174,15 @@ def EUFCMA {Digest : ℕ → Type} [∀ n, Fintype (Digest n)] [∀ n, Nonempty 
     (IsOraclePPT (encPair encBits encBits))
 
 /-- **Strong existential unforgeability under adaptive chosen-message attack in the random-oracle
-model** (SUF-CMA) of a family of word-interface schemes ([BonehShoup2023], Section 13.1.1, in the
-random-oracle setting of Section 13.2.1): every uniform oracle-PPT word forger wins
+model** (SUF-CMA) of a family of word-interface schemes. The fresh-pair condition and negligible
+success requirement are [BonehShoup2023, Attack Game 13.2 and Definition 13.3, pp. 529–530]; this
+definition specializes them to the shared classical lazy random-oracle execution described in
+[BonehShoup2023, Section 8.10.2, pp. 327–329]. Every uniform oracle-PPT word forger wins
 `wordSufCmaGame` with negligible probability. The digest type, its encoding and the scheme may
-depend on the security parameter. The model is a classical shared lazy random oracle, not a QROM. -/
+depend on the security parameter. Only the forger carries an efficiency requirement:
+`ROMSignature.Scheme` does not certify efficient key generation, signing or verification, so this
+is an unforgeability property of a supplied scheme family rather than a complete efficient-scheme
+package. This is not a QROM notion. -/
 def SUFCMA {Digest : ℕ → Type} [∀ n, Fintype (Digest n)] [∀ n, Nonempty (Digest n)] {SK : Type}
     (digestEncoding : (n : ℕ) → Digest n ↪ List Bool)
     (scheme : (n : ℕ) → Scheme (List Bool) SK (List Bool) (List Bool) (List Bool) (Digest n)) :

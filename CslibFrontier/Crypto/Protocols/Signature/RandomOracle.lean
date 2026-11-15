@@ -106,7 +106,7 @@ its forgery experiments are instances of `worldGame`.
 ## References
 
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*,
-  Version 0.6][BonehShoup2023], Sections 13.1 and 13.2.1.
+  Version 0.6][BonehShoup2023], Section 8.10.2, Attack Games 13.1–13.2 and Definitions 13.2–13.3.
 -/
 
 @[expose] public section

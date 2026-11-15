@@ -164,17 +164,6 @@ private noncomputable def exactReplayExplicitForger :
   coins := PMF.pure ()
   forge _ _ := OracleComp.interpret (fun q => wordQuery encBool q.1 q.2) exactReplayInteraction
 
-private theorem logSigning_inl_nil :
-    logSigning
-        (M := List Bool) (Query := List Bool) (Sig := List Bool) (Digest := Bool)
-        (.inl ([] : List Bool)) =
-      (fun pairs => do
-        let sig ← ProbOracleComp.query
-          (spec := ForgerSpec (List Bool) (List Bool) (List Bool) Bool)
-          (.inl ([] : List Bool))
-        pure (sig, (([] : List Bool), sig) :: pairs)) :=
-  rfl
-
 private theorem eufCmaGame_nonUniqueScheme_sameMessageNewSignatureExplicitForger :
     eufCmaGame nonUniqueScheme sameMessageNewSignatureExplicitForger = PMF.pure false := by
   simp only [eufCmaGame, nonUniqueScheme, sameMessageNewSignatureExplicitForger,
@@ -189,24 +178,16 @@ private theorem sufCmaGame_nonUniqueScheme_sameMessageNewSignatureExplicitForger
   simp only [nonUniqueScheme, sameMessageNewSignatureExplicitForger, PMF.monad_bind_eq_bind,
     PMF.pure_bind]
   rw [eval_world_worldRealize_liftOracleForger]
-  simp [sameMessageNewSignatureInteraction, wordQuery, runLoggedForger, liftOracleForger,
-    forgerWorldImpl, StateT.run, runWith_norm, pmf_norm]
-  rw [logSigning_inl_nil]
-  rw [ProbOracleComp.runWith_map, ProbOracleComp.runWith_map,
-    ProbOracleComp.runWith_query]
-  simp [pmf_norm]
+  simp only [sameMessageNewSignatureInteraction, wordQuery, runLoggedForger, liftOracleForger,
+    forgerWorldImpl, logSigning, StateT.run, runWith_norm, pmf_norm]
 
 private theorem sufCmaGame_nonUniqueScheme_exactReplayExplicitForger :
     sufCmaGame nonUniqueScheme exactReplayExplicitForger = PMF.pure false := by
   unfold sufCmaGame
   simp only [nonUniqueScheme, exactReplayExplicitForger, PMF.monad_bind_eq_bind, PMF.pure_bind]
   rw [eval_world_worldRealize_liftOracleForger]
-  simp [exactReplayInteraction, wordQuery, runLoggedForger, liftOracleForger,
-    forgerWorldImpl, StateT.run, runWith_norm, pmf_norm]
-  rw [logSigning_inl_nil]
-  rw [ProbOracleComp.runWith_map, ProbOracleComp.runWith_map,
-    ProbOracleComp.runWith_query]
-  simp [pmf_norm]
+  simp only [exactReplayInteraction, wordQuery, runLoggedForger, liftOracleForger,
+    forgerWorldImpl, logSigning, StateT.run, runWith_norm, pmf_norm]
 
 -- Signing and hashing share the cache, including after repeated signing and hash queries.
 -- The fresh forgery succeeds; replaying a signed message is rejected despite valid verification.
