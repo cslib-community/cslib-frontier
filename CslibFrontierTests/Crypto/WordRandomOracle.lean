@@ -175,7 +175,7 @@ private theorem runWith_logSigning_nil :
           (.inl ([] : List Bool))).run []) [] =
       PMF.pure ((([] : List Bool), [(([] : List Bool), ([] : List Bool))]),
         ([] : List (List Bool × Bool))) := by
-  simp only [logSigning, StateT.run, runWith_norm, pmf_norm]
+  simp only [logSigning, StateT.run, runWith_norm, OracleComp.sumHandler_inl, pmf_norm]
 
 private theorem eufCmaGame_nonUniqueScheme_sameMessageNewSignatureExplicitForger :
     eufCmaGame nonUniqueScheme sameMessageNewSignatureExplicitForger = PMF.pure false := by
