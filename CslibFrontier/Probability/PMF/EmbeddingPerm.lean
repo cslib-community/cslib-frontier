@@ -7,56 +7,38 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate (addition to `Cslib/Probability/PMF.lean`)
 
-public import CslibFrontier.Init
-public import Cslib.Probability.PMF
-public import Mathlib.Logic.Equiv.Fintype
-import Mathlib.Logic.Equiv.Embedding
+public import CslibFrontier.Probability.PMF.Uniform
+public import Mathlib.Data.Fintype.Perm
 
 /-!
-# Domain-permutation invariance of uniform embeddings
+# Precomposing a uniform embedding with a uniform permutation of its domain
 
-Precomposing a uniform embedding `T ↪ α` between finite types with a permutation `σ` of its domain
-`T` leaves its distribution uniform (`uniformOfFintype_embedding_map_perm_trans`), so a uniform
-embedding has the same law as a uniform embedding precomposed with an independent uniform
-permutation of `T` (`uniformOfFintype_embedding_bind_perm_trans`).
+Precomposing a uniformly chosen embedding `T ↪ α` with an independent uniform permutation
+`σ : Equiv.Perm T` of its domain leaves the distribution of a two-stage experiment unchanged
+(`uniformOfFintype_embedding_bind_perm_trans`).
 
 ## Main results
 
-* `Cslib.Probability.PMF.uniformOfFintype_embedding_map_perm_trans`: precomposing a uniform
-  embedding with a permutation of its domain leaves it uniform.
 * `Cslib.Probability.PMF.uniformOfFintype_embedding_bind_perm_trans`: binding a uniform embedding
-  is binding a uniform embedding precomposed with an independent uniform permutation of its domain.
+  `T ↪ α` equals binding after precomposing with an independent uniform permutation of `T`.
 -/
 
 public section
 
 namespace Cslib.Probability.PMF
 
-universe u
-
-/-- Precomposing a uniform embedding with a permutation of its domain leaves it uniform. -/
-theorem uniformOfFintype_embedding_map_perm_trans {T α : Type u} [Fintype T] [Fintype α]
-    [Nonempty (T ↪ α)] (σ : Equiv.Perm T) :
-    (PMF.uniformOfFintype (T ↪ α)).map (fun j => σ.toEmbedding.trans j) =
-      PMF.uniformOfFintype (T ↪ α) := by
-  have h := PMF.uniformOfFintype_map_equiv (Equiv.embeddingCongr σ.symm (Equiv.refl α))
-  convert h using 2
-  ext j x
-  simp
-
-/-- Binding a uniform embedding `T ↪ α` is equivalent to binding a uniform embedding precomposed
-with an independent uniform permutation of `T`. -/
-theorem uniformOfFintype_embedding_bind_perm_trans {T α β : Type u} [Fintype T] [DecidableEq T]
-    [Fintype α] [Nonempty (T ↪ α)] (f : (T ↪ α) → PMF β) :
+/-- Binding a uniform embedding `T ↪ α` equals binding after precomposing with an independent
+uniform permutation of `T`. -/
+theorem uniformOfFintype_embedding_bind_perm_trans {T α β : Type*} [Fintype (T ↪ α)]
+    [Nonempty (T ↪ α)] [Fintype (Equiv.Perm T)] (f : (T ↪ α) → PMF β) :
     (PMF.uniformOfFintype (T ↪ α)).bind f =
       (PMF.uniformOfFintype (T ↪ α)).bind fun j =>
         (PMF.uniformOfFintype (Equiv.Perm T)).bind fun σ => f (σ.toEmbedding.trans j) := by
   rw [PMF.bind_comm]
   have key (σ : Equiv.Perm T) :
       (PMF.uniformOfFintype (T ↪ α)).bind (fun j => f (σ.toEmbedding.trans j)) =
-        (PMF.uniformOfFintype (T ↪ α)).bind f := by
-    conv_rhs => rw [← uniformOfFintype_embedding_map_perm_trans σ, PMF.bind_map]
-    rfl
+        (PMF.uniformOfFintype (T ↪ α)).bind f :=
+    uniformOfFintype_bind_equiv (σ.symm.embeddingCongr (Equiv.refl α)) f
   simp_rw [key]
   rw [PMF.bind_const]
 

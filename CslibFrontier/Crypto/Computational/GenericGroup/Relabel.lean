@@ -9,8 +9,6 @@ module
 
 public import CslibFrontier.Crypto.Computational.GenericGroup.Basic
 public import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.QueryCount
-public import Cslib.Probability.PMF
-public import Mathlib.Logic.Equiv.Fintype
 
 /-!
 # Running and relabelling generic group programs
@@ -24,7 +22,8 @@ injection `j : ZMod q ↪ S`: it answers each query of `A` with at most one quer
 translates labels by `j`. Against a permutation `σ` of `ZMod q`, the relabelled program behaves as
 `A` against the labeling `j ∘ σ` (`runLabeled_relabel`), and it makes no more queries than `A`
 (`isQueryBounded_relabel`). Since a uniform injection `ZMod q ↪ S` is a uniform injection after a
-uniform permutation, a statement about generic groups with labels in
+uniform permutation (`Cslib.Probability.PMF.uniformOfFintype_embedding_bind_perm_trans`), a
+statement about generic groups with labels in
 `S` reduces to one with labels in `ZMod q` and a uniform permutation as labeling, in which no group
 operation is ever rejected. This replaces the set `S′` and the resampling of the book's Game 1 in
 the proof of Theorem 16.3. The names in this file are this library's.

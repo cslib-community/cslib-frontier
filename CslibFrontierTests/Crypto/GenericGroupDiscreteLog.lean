@@ -13,8 +13,10 @@ import Mathlib.Tactic.NormNum.Prime
 /-!
 # The generic-group bound for discrete logarithm: an ordinary client
 
-Uses the public API of `CslibFrontier.Crypto.Computational.GenericGroup.Relabel` and
-`CslibFrontier.Crypto.Computational.GenericGroup.DiscreteLog` through ordinary imports:
+Uses the public API of `CslibFrontier.Crypto.Computational.GenericGroup.Basic`,
+`CslibFrontier.Crypto.Computational.GenericGroup.Relabel`,
+`CslibFrontier.Crypto.Computational.GenericGroup.DiscreteLog` and
+`CslibFrontier.Probability.PMF.EmbeddingPerm` through ordinary imports:
 
 * the sharp bound for the adversary of `ZMod 5` that makes no query and guesses `1` when its two
   labels agree: success probability at most `2 / 5`;
@@ -22,6 +24,10 @@ Uses the public API of `CslibFrontier.Crypto.Computational.GenericGroup.Relabel`
   group of order `101`: at most `11 / 101` and at most `27 / 202`;
 * relabelling a one-query program through `ZMod 5 ↪ Fin 8`: its query bound, and its run against a
   permutation `σ`;
+* precomposing a uniform embedding `ZMod 2 ↪ Fin 3` with an independent uniform permutation of
+  `ZMod 2` (`uniformOfFintype_embedding_bind_perm_trans`);
+* `answer_op` on `L₂ : ZMod 2 → Fin 3`, rejecting non-labels in either argument and computing
+  both preimages when both arguments are labels;
 * `Nonempty (ZMod q ↪ S)` is the book's `|S| ≥ q`;
 * primality is needed where the proof uses it: in `ZMod 4` the distinct linear forms `2 X` and `0`
   agree at two points.
