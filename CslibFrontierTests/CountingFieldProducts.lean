@@ -14,7 +14,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 # Certified total prime-field products through ordinary imports
 
 The factor evaluator reads its index as a binary natural and adds one. The modulus is
-also read in binary, while the number of index bits is the primary word's length.
+also read in binary, while the number of index bits is one less than the primary word's
+length (with saturated subtraction). The same certified function has nonzero and zero outputs.
 Concrete examples cover prime and nonprime moduli, zero factors, a width-zero domain,
 noncanonical factors, restrictions, and an empty allowed domain.
 -/
@@ -35,7 +36,7 @@ private theorem factor_polyTime :
 
 /-- A variable binary modulus and a unary polynomial width supply an F_4 product. -/
 noncomputable def exampleProduct (w : List Bool) : ℕ :=
-  primeFieldProduct (BitString.binaryValue w) w.length (fun i => factor (w, i))
+  primeFieldProduct (BitString.binaryValue w) (w.length - 1) (fun i => factor (w, i))
 
 /-- One fixed total function and strict certificate handle every primary word and modulus. -/
 theorem exampleProduct_level : exampleProduct ∈ CountingFunction 4 encBits encNat :=
@@ -50,8 +51,16 @@ example : PolyBounded (fun w => (encBits w).length)
 instance : Fact (Nat.Prime 5) := ⟨by decide⟩
 instance : Fact (Nat.Prime 2) := ⟨by decide⟩
 
--- Four factors 1,2,3,4 have product 4 modulo 5.
-example : primeFieldProduct 5 2 (fun w => BitString.binaryValue w + 1) = 4 := by
+-- These are two values of the same certified function, not separate constant instances.
+-- Input five has width two: factors 1,2,3,4 have product 4 modulo 5.
+example : exampleProduct [true, false, true] = 4 := by
+  change primeFieldProduct 5 2 (fun w => BitString.binaryValue w + 1) = 4
+  rw [primeFieldProduct_eq_val]
+  decide
+
+-- Input two has width one, so its factor two gives zero in the two-element field.
+example : exampleProduct [false, true] = 0 := by
+  change primeFieldProduct 2 1 (fun w => BitString.binaryValue w + 1) = 0
   rw [primeFieldProduct_eq_val]
   decide
 

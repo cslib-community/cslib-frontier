@@ -162,7 +162,8 @@ existing total `powMod` operation; modulus zero returns one.
 
 `CountingHierarchy.Generator` certifies a total prime-field generator test in F_1. One uniform
 universal pass checks prime divisors and smaller powers, rejecting composite moduli and
-noncanonical representatives. `CountingHierarchy.DiscreteLog` certifies the sum of matching
+noncanonical representatives. The standalone primality test and generator test share the
+bounded-divisor evaluator, its polynomial-time certificate and its primality characterization. `CountingHierarchy.DiscreteLog` certifies the sum of matching
 exponents below `p - 1` in F_1. Its logarithm specification requires a primitive base and a
 nonzero target; its total behavior is defined on every binary triple. The
 [checked clients](../../CslibFrontierTests/CountingNumberTheory.lean) cover these domain limits,
@@ -187,7 +188,8 @@ strict certificates charging queries, replies, intermediate values and encoded o
 integer product or unreduced power is passed as program data. The ordinary-module
 [checked client](../../CslibFrontierTests/CountingFieldProducts.lean) covers variable binary
 moduli and unary widths, polynomial output length, prime two, zero factors, noncanonical
-factors, restrictions and nonprime defaults. Run
+factors, restrictions and nonprime defaults. Its one certified variable-input product takes
+different values at the words representing five and two, including a nonzero prime-field value. Run
 `LEAN_NUM_THREADS=2 scripts/build.sh CslibFrontierTests.CountingFieldProducts --wfail --iofail`.
 
 ## Finite-field product identities
