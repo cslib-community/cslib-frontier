@@ -9,10 +9,12 @@ module
 
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.LanguageReduction.Sound
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.LanguageReduction.Efficient
+public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Lyubashevsky.Efficient
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Composition
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Linear
 public import CslibFrontier.Crypto.Computational.SchnorrProtocol
 import CslibFrontier.Computability.Complexity.Reduction.Levin
+import CslibFrontier.Computability.Interactive.StatementMap
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair.Projections
 
 /-!
@@ -189,12 +191,7 @@ theorem constProtocol_specialSoundness (X : Type) (extract : Bool → Unit → B
   fun _ _ _ _ _ _ _ hz _ => hz
 
 /-- Condition (ii) fails: `()` has no witness and is sent to the true statement `true`.
-Condition (i) holds. The derived verifier accepts every conversation on the false statement. -/
-example : (¬ ∃ x : Unit, (fun (_ : Unit) (_ : Unit) => False) x ()) ∧
-    ∀ t c z, ((constProtocol Unit).comap (fun x (_ : Unit) => x) fun _ => true).Accepts () t c z :=
-  ⟨fun ⟨_, h⟩ => h, fun _ _ _ => rfl⟩
-
-/-- In the same case the derived verifier is not sound with any error below `1`: the honest prover
+Condition (i) holds. The derived verifier is not sound with any error below `1`: the honest prover
 of the derived protocol is accepted with probability `1` on the false statement. -/
 example {ε : ℝ≥0∞} (hε : ε < 1) :
     ¬ ((constProtocol Unit).comap (fun x (_ : Unit) => x)
@@ -362,3 +359,21 @@ example {α β : Type} {encA : α ↪ List Bool} {encB : β ↪ List Bool}
       (fun w b => S.IsWitness b w) (fun w a => r.forwardWitness (a, w)) r.toFun :=
   .of_witnessMap (fun w a h => r.isWitness_forwardWitness a w h)
     (fun w a => r.backwardWitness (a, w)) fun w a h => r.isWitness_backwardWitness a w h
+
+/-! ### E. Efficient verification under a non-identity statement map -/
+
+section
+
+open Cslib.Crypto.Protocols.SigmaProtocol Turing.MultiTapeTM
+
+/-- Forgetting an auxiliary tag attached to a Lyubashevsky statement yields a polynomial-time
+verifier for the derived protocol (`EfficientVerifier.comap` with non-identity `gw`). -/
+example :
+    EfficientVerifier
+      (fun p => (lyubashevskyFamily p).comap (fun x _ => x) (fun y : _ × List Bool => y.1))
+      (lyubashevskyEncoding.withStatement fun p =>
+        encPair (lyubashevskyEncoding.statement p) encBits) :=
+  efficientVerifier_lyubashevsky.comap (fun _ x _ => x) (gw := fun p => unframe p.2)
+    (by fun_prop) fun _ y => unframe_encPair _ _ y.1 y.2
+
+end

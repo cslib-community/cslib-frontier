@@ -18,10 +18,10 @@ runs `P'` on `(f x y, g y)` for the prover and on `g y` for the verifier, keepin
 challenges and responses unchanged.
 
 A `LanguageReduction R R' f g` requires:
-1. `(f x y, g y)` is in `R'` whenever `(x, y)` is in `R` (`map_rel`);
-2. `y` has some witness in `R` whenever `g y` has one in `R'` (`exists_of_exists_map`).
+(i) `(f x y, g y)` is in `R'` whenever `(x, y)` is in `R` (`map_rel`);
+(ii) `y` has some witness in `R` whenever `g y` has one in `R'` (`exists_of_exists_map`).
 
-`Complete.comap` and `SpecialHVZK.comap` depend only on condition (1). `SpecialSoundness.comap`
+`Complete.comap` and `SpecialHVZK.comap` depend only on condition (i). `SpecialSoundness.comap`
 transfers special soundness to the relation "`w` is a witness of `g y`" without hypotheses on the
 maps; `SpecialSoundness.mapWitness` maps the extracted witness back to `R` when a witness map
 `k : W → Y → W'` is given.
@@ -57,17 +57,19 @@ public section
 
 namespace Cslib.Crypto.Protocols.SigmaProtocol
 
-open Probability
-
 universe u
 
 section LanguageReduction
 
 variable {X : Type*} {Y : Type*} {X' : Type*} {Y' : Type*}
 
-/-- A **language reduction** from `R` to `R'` ([BonehShoup2023], Section 20.2): a witness map `f`
-and a statement map `g` such that (i) `f` sends a witness of `y` to a witness of `g y`, and
-(ii) `g y` is a true statement of `R'` only if `y` is a true statement of `R`. -/
+/-- A **language reduction** from `R` to `R'` ([BonehShoup2023], Section 20.2): a curried
+witness map `f : X → Y → X'` (taking `x` and `y` separately rather than as a pair `(x, y)`) and a
+statement map `g : Y → Y'` such that (i) `f` sends a witness of `y` to a witness of `g y`, and
+(ii) `g y` is a true statement of `R'` only if `y` is a true statement of `R`. Unlike the book's
+maps, the predicate does not ask for `f` or `g` to be efficiently computable; word representations
+appear as hypotheses on the transfers in
+`CslibFrontier/Crypto/Protocols/SigmaProtocol/LanguageReduction/Efficient.lean`. -/
 structure LanguageReduction (R : X → Y → Prop) (R' : X' → Y' → Prop) (f : X → Y → X')
     (g : Y → Y') : Prop where
   /-- Condition (i). -/
@@ -78,11 +80,6 @@ structure LanguageReduction (R : X → Y → Prop) (R' : X' → Y' → Prop) (f 
 namespace LanguageReduction
 
 variable {R : X → Y → Prop} {R' : X' → Y' → Prop} {f : X → Y → X'} {g : Y → Y'}
-
-/-- Under a language reduction, `y` is a true statement of `R` iff `g y` is one of `R'`. -/
-theorem exists_iff (h : LanguageReduction R R' f g) (y : Y) :
-    (∃ x, R x y) ↔ ∃ x', R' x' (g y) :=
-  ⟨fun ⟨x, hx⟩ => ⟨f x y, h.map_rel x y hx⟩, h.exists_of_exists_map y⟩
 
 /-- A witness map back gives condition (ii). -/
 theorem of_witnessMap (hf : ∀ x y, R x y → R' (f x y) (g y)) (k : X' → Y → X)

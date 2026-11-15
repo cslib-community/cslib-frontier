@@ -8,20 +8,21 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Efficient
+public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Efficient.Verifier
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.LanguageReduction
 import CslibFrontier.Computability.Probabilistic.PPT.Composition
 
 /-!
-# Efficient simulation and extraction under statement maps
+# Efficient simulation, extraction and verification under statement maps
 
-Transfers `EfficientSpecialHVZK` and `EfficientSpecialSoundness` along a statement map `g` whose
-word representation `gw : I × List Bool → List Bool` is deterministic polynomial time
-([BonehShoup2023], Section 20.2, p. 829). Also provides `EfficientSpecialSoundness.mapWitness` to
-post-process an efficient extractor by a polynomial-time witness map back.
+Transfers `EfficientSpecialHVZK`, `EfficientSpecialSoundness` and `EfficientVerifier` along a
+statement map `g` whose word representation `gw : I × List Bool → List Bool` is deterministic
+polynomial time ([BonehShoup2023], Section 20.2, p. 829). Also provides
+`EfficientSpecialSoundness.mapWitness` to post-process an efficient extractor by a polynomial-time
+witness map back.
 
-Efficiency of the derived honest prover (which applies `f`) and of the derived verifier (which
-applies `g`) is not formalized here, because the library has no efficiency predicate for Sigma
-protocol honest provers or verifiers.
+Efficiency of the derived honest prover (which applies `f`) is not formalized here, because the
+library has no efficiency predicate for Sigma-protocol honest provers.
 
 ## Main definitions
 
@@ -36,6 +37,8 @@ protocol honest provers or verifiers.
   special-soundness extraction for "`w` is a witness of `g y`".
 * `Cslib.Crypto.Protocols.SigmaProtocol.EfficientSpecialSoundness.mapWitness`: post-process an
   efficient extractor with a polynomial-time witness map back.
+* `Cslib.Crypto.Protocols.SigmaProtocol.EfficientVerifier.comap`: transfer polynomial-time
+  verification along a polynomial-time word map `gw` realizing `g`.
 -/
 
 public section
@@ -81,13 +84,7 @@ theorem EfficientSpecialHVZK.comap {R' : ∀ i, X' i → Y' i → Prop}
     have hprep : ComputableInPolyTime
         (fun p : I × List Bool × List Bool => (p.1, gw (p.1, p.2.1), p.2.2))
         (encSimulatorWordInput enc'.index) (encSimulatorWordInput enc'.index) := by
-      have h1 : ComputableInPolyTime (fun p : I × List Bool × List Bool => p.1)
-          (encSimulatorWordInput enc'.index) enc'.index := by fun_prop
-      have h2 : ComputableInPolyTime (fun p : I × List Bool × List Bool => p.2.1)
-          (encSimulatorWordInput enc'.index) encBits := by fun_prop
-      have h3 : ComputableInPolyTime (fun p : I × List Bool × List Bool => p.2.2)
-          (encSimulatorWordInput enc'.index) encBits := by fun_prop
-      exact h1.prod ((hgw.comp (h1.prod h2)).prod h3)
+      fun_prop
     refine Simulator.IsPPT.of_word (enc := enc'.withStatement encY)
       (program := fun p => program (p.1, gw (p.1, p.2.1), p.2.2))
       (hprogram.preprocess hprep) fun i y c => ?_
@@ -108,24 +105,10 @@ theorem EfficientSpecialSoundness.comap {R' : ∀ i, W i → Y' i → Prop}
   specialSoundness i := (h.specialSoundness i).comap (f i) (g i)
   polyTime := by
     obtain ⟨e, he, hreal⟩ := h.polyTime
-    refine ⟨fun p => e (p.1, gw (p.1, p.2.1), p.2.2), ?_, fun i y t c z c' z' => ?_⟩
-    · have h1 : ComputableInPolyTime (fun p : I × List Bool × List Bool × List Bool × List Bool ×
-          List Bool × List Bool => p.1) (encPair enc'.index (encPair encBits (encPair encBits
-          (encPair encBits (encPair encBits (encPair encBits encBits)))))) enc'.index := by
-        fun_prop
-      have h2 : ComputableInPolyTime (fun p : I × List Bool × List Bool × List Bool × List Bool ×
-          List Bool × List Bool => p.2.1) (encPair enc'.index (encPair encBits (encPair encBits
-          (encPair encBits (encPair encBits (encPair encBits encBits)))))) encBits := by
-        fun_prop
-      have h3 : ComputableInPolyTime (fun p : I × List Bool × List Bool × List Bool × List Bool ×
-          List Bool × List Bool => p.2.2) (encPair enc'.index (encPair encBits (encPair encBits
-          (encPair encBits (encPair encBits (encPair encBits encBits)))))) (encPair encBits
-          (encPair encBits (encPair encBits (encPair encBits encBits)))) := by
-        fun_prop
-      exact he.comp (h1.prod ((hgw.comp (h1.prod h2)).prod h3))
-    · change e (i, gw (i, encY i y), _) = _
-      rw [hg i y]
-      exact hreal i (g i y) t c z c' z'
+    refine ⟨fun p => e (p.1, gw (p.1, p.2.1), p.2.2), by fun_prop, fun i y t c z c' z' => ?_⟩
+    change e (i, gw (i, encY i y), _) = _
+    rw [hg i y]
+    exact hreal i (g i y) t c z c' z'
 
 /-- Post-process an efficient extractor by a witness map that is polynomial time on encodings. -/
 theorem EfficientSpecialSoundness.mapWitness
@@ -142,19 +125,22 @@ theorem EfficientSpecialSoundness.mapWitness
   specialSoundness i := (h.specialSoundness i).mapWitness (k i) (hk i)
   polyTime := by
     obtain ⟨e, he, hreal⟩ := h.polyTime
-    refine ⟨fun p => kw (p.1, e p, p.2.1), ?_, fun i y t c z c' z' => ?_⟩
-    · have h1 : ComputableInPolyTime (fun p : I × List Bool × List Bool × List Bool × List Bool ×
-          List Bool × List Bool => p.1) (encPair enc.index (encPair encBits (encPair encBits
-          (encPair encBits (encPair encBits (encPair encBits encBits)))))) enc.index := by
-        fun_prop
-      have h2 : ComputableInPolyTime (fun p : I × List Bool × List Bool × List Bool × List Bool ×
-          List Bool × List Bool => p.2.1) (encPair enc.index (encPair encBits (encPair encBits
-          (encPair encBits (encPair encBits (encPair encBits encBits)))))) encBits := by
-        fun_prop
-      exact hkw.comp (h1.prod (he.prod h2))
-    · change kw (i, e _, enc.statement i y) = _
-      rw [hreal i y t c z c' z']
-      exact hkreal i _ y
+    refine ⟨fun p => kw (p.1, e p, p.2.1), by fun_prop, fun i y t c z c' z' => ?_⟩
+    change kw (i, e _, enc.statement i y) = _
+    rw [hreal i y t c z c' z']
+    exact hkreal i _ y
+
+/-- Efficient verification is inherited when the statement map is polynomial time on encodings:
+the derived verifier computes `g` and runs the verifier of `P'`. -/
+theorem EfficientVerifier.comap (h : EfficientVerifier P' enc') (f : ∀ i, X i → Y i → X' i)
+    (hgw : ComputableInPolyTime gw (encPair enc'.index encBits) encBits)
+    (hg : ∀ i y, gw (i, encY i y) = enc'.statement i (g i y)) :
+    EfficientVerifier (fun i => (P' i).comap (f i) (g i)) (enc'.withStatement encY) := by
+  obtain ⟨v, hv, hreal⟩ := h
+  refine ⟨fun p => v (p.1, gw (p.1, p.2.1), p.2.2), by fun_prop, fun i y t c z => ?_⟩
+  change v (i, gw (i, encY i y), _) = _
+  rw [hg i y]
+  exact hreal i (g i y) t c z
 
 end Efficient
 

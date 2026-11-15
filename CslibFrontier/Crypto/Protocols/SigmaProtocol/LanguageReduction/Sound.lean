@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Interactive
-public import CslibFrontier.Computability.Interactive.StatementMap
+import CslibFrontier.Computability.Interactive.StatementMap
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.LanguageReduction
 
 /-!
