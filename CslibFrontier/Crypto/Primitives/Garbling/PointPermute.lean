@@ -587,7 +587,8 @@ private theorem evalGate_take (k : ℕ) (f : ValidCircuit)
     Wire.toNat_injective (by rw [toNat_wires_toCircuit, Wire.toNat_ofNat]; rfl)
   have hindex : rowIndex (fun a => (A ((toCircuit f).topology.wires g a)).2) =
       (if (A (Wire.ofNat (f.1.A (g.cast (size_toCircuit f)) - 1) (by omega))).2 then 2 else 0) +
-        (if (A (Wire.ofNat (f.1.B (g.cast (size_toCircuit f)) - 1) (by omega))).2 then 1 else 0) := by
+        (if (A (Wire.ofNat (f.1.B (g.cast (size_toCircuit f)) - 1)
+            (by omega))).2 then 1 else 0) := by
     rw [rowIndex_of_eq_two harity, hwa, hwb]
   have hrowOf : rowOf (toCircuit f).topology g
       (rowIndex (fun a => (A ((toCircuit f).topology.wires g a)).2)) =
@@ -597,13 +598,15 @@ private theorem evalGate_take (k : ℕ) (f : ValidCircuit)
   simp only [Garbling.evalStep] at hgateA
   rw [sum_fin_of_eq_two harity, sub_eq_add_label] at hgateA
   simp only [slotTweak, hwa, hwb, hindex] at hgateA
-  have hi : (if (A (Wire.ofNat (f.1.A (g.cast (size_toCircuit f)) - 1) (by omega))).2 then 2 else 0) +
+  have hi : (if (A (Wire.ofNat (f.1.A (g.cast (size_toCircuit f)) - 1)
+      (by omega))).2 then 2 else 0) +
       (if (A (Wire.ofNat (f.1.B (g.cast (size_toCircuit f)) - 1) (by omega))).2 then 1 else 0) <
         2 ^ (toCircuit f).topology.arity g := by
     rw [harity]
     cases (A (Wire.ofNat (f.1.A (g.cast (size_toCircuit f)) - 1) (by omega))).2 <;>
       cases (A (Wire.ofNat (f.1.B (g.cast (size_toCircuit f)) - 1) (by omega))).2 <;> simp
-  rw [show (if (A (Wire.ofNat (f.1.A (g.cast (size_toCircuit f)) - 1) (by omega))).2 then 2 else 0) +
+  rw [show (if (A (Wire.ofNat (f.1.A (g.cast (size_toCircuit f)) - 1)
+      (by omega))).2 then 2 else 0) +
       (if (A (Wire.ofNat (f.1.B (g.cast (size_toCircuit f)) - 1) (by omega))).2 then 1 else 0) =
         (⟨_, hi⟩ : Fin (2 ^ (toCircuit f).topology.arity g)).val from rfl,
     listRow_flatten_ofFn _ fun _ => length_labelBits _]
