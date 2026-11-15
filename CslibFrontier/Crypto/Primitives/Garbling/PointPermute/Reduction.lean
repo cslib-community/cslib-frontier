@@ -25,6 +25,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Tactic.PolyTime
+import CslibFrontier.Foundations.Data.List.Lookup
 
 /-!
 # The PRF reduction for the privacy of point-and-permute garbling
@@ -33,35 +34,30 @@ The `prv.sim` advantage of an adversary `B` against the simulator `simWord` of
 `PointPermute.scheme family`, with topology side information, is exactly a step range times the
 label advantage of an explicit, certified reduction (`prvSimAdvantage_simWord_eq`).
 
-The proof is a hybrid over the wires. The real view of a query `(f, x)` is the typed real view of
-`toCircuit f` written as words (`eval_prvView`), because the garbler's coins give uniform keys and
-permutation bits (`uniformList_map_keyFn_permFn`); the simulated view is the typed simulated view
-(`eval_simWord`). Hybrid view `j` on words (`hybViewWord`) is the typed hybrid view `j` of
-`Privacy.lean` (`hybViewWord_eq`), and global hybrid `i` runs `B`'s choice and then hybrid `i` of
+The proof is a hybrid over the wires. The garbler's coins give uniform keys and permutation bits,
+so the real view of a query `(f, x)` is the typed real view of `toCircuit f` written as words; the
+simulated view is the typed simulated view (`eval_simWord`). Hybrid view `j` on words is the typed
+hybrid view `j` of `Privacy.lean`, and global hybrid `i` runs `B`'s choice and then hybrid `i` of
 its circuit.
 
 The reduction `prvSimReduction family B P` runs `B`'s choice of `(f, x)`, draws a step `j` below
 `dyadicSize (P k)`, the garbler's coins and filler labels, asks its label oracle at the tweaks of
-all `8 q` argument slots (`replyStep`), and runs `B`'s guess on hybrid view `j` with the answers in
-the target slots. Against any table it runs the typed reductions of `Privacy.lean`
+all `8 q` argument slots, and runs `B`'s guess on hybrid view `j` with the answers in the target
+slots. Against any table it runs the typed reductions of `Privacy.lean`
 (`eval_run_prvSimReduction`), so against the keyed label function it plays a uniform global hybrid
-`j` and against a random function global hybrid `j + 1`, when distinct slots have distinct tweaks
-(`slotTweak_injective`, while `8 q ≤ 2 ^ k`). When `P k` bounds the wires of every circuit `B`
-chooses, the hybrids telescope (`Game.advantage_hybrid_average`). The reduction is uniform strict
-oracle PPT for every adversary certified by `TwoStage.IsPPT` and every polynomial-time family
-(`isOraclePPT_prvSimReduction`).
+`j`, and against a random function global hybrid `j + 1` when distinct slots have distinct tweaks,
+which holds while `8 q ≤ 2 ^ k`. When `P k` bounds the wires of every circuit `B` chooses, the
+hybrids telescope (`Game.advantage_hybrid_average`). The reduction is uniform strict oracle PPT for
+every adversary certified by `TwoStage.IsPPT` and every polynomial-time family
+(`isOraclePPT_prvSimReduction`); the body of its hybrid view is written by `bodyWith`, whose
+certificate it shares with the garbler and the simulator.
 
 ## Main definitions
 
-* `Cslib.Crypto.Garbling.PointPermute.hybViewWord`: hybrid view `j` on words.
 * `Cslib.Crypto.Garbling.PointPermute.prvSimReduction`: the PRF reduction.
 
 ## Main results
 
-* `Cslib.Crypto.Garbling.PointPermute.eval_prvView`: the real view is the typed real view.
-* `Cslib.Crypto.Garbling.PointPermute.hybViewWord_eq`: the hybrid view on words is the typed one.
-* `Cslib.Crypto.Garbling.PointPermute.eval_run_prvSimReduction`: the reduction runs the typed
-  reductions.
 * `Cslib.Crypto.Garbling.PointPermute.prvSimAdvantage_simWord_eq`: the `prv.sim` advantage is the
   step range times the reduction's label advantage.
 * `Cslib.Crypto.Garbling.PointPermute.isOraclePPT_prvSimReduction`: the reduction is oracle PPT.
@@ -101,7 +97,7 @@ private theorem keyIndex_bijective :
 /-- **The garbler's coins are uniform keys and permutation bits.** Reading the permutation bit of
 each wire and the key of each colour of each wire from uniform coins of the scheme's length gives
 uniform and independent keys and permutation bits. -/
-theorem uniformList_map_keyFn_permFn (k n s : ℕ) :
+private theorem uniformList_map_keyFn_permFn (k n s : ℕ) :
     (BitString.uniformList ((n + s) * (2 * (k + 1) + 1))).map
         (fun coins => ((keyFn k coins : Wire n s × Bool → BitString (k + 1)),
           (permFn coins : Wire n s → Bool))) =
@@ -178,7 +174,7 @@ private theorem prvViewWord_gb (k : ℕ) (f : ValidCircuit) {x : List Bool}
 bits, the real view `(F, X, d)` of the query `(f, x)` at parameter `k` is the typed view of the
 typed garbling of `toCircuit f`, with the keyed function and tweaks of the scheme, written as
 words. -/
-theorem eval_prvView (k : ℕ) (f : ValidCircuit) {x : List Bool} (hx : x.length = f.1.n) :
+private theorem eval_prvView (k : ℕ) (f : ValidCircuit) {x : List Bool} (hx : x.length = f.1.n) :
     ProbComp.eval ((scheme family).prvView k ⟨f, x⟩) =
       (ProbComp.eval (garble (toCircuit f) fullInterpretation
         (PRF.label (PRF.atLevel family (k + 1))) (slotTweak _ k))).map
@@ -186,10 +182,8 @@ theorem eval_prvView (k : ℕ) (f : ValidCircuit) {x : List Bool} (hx : x.length
   have hcoins : (scheme family).coins k f = (f.1.n + (toCircuit f).size) * (2 * (k + 1) + 1) := by
     rw [size_toCircuit]
     rfl
-  have hmap : ∀ {α β : Type} (p : PMF α) (g : α → β), p.bind (fun a => PMF.pure (g a)) = p.map g :=
-    fun p g => PMF.bind_pure_comp g p
-  simp only [Scheme.prvView, ProbComp.eval_bind, Scheme.eval_garble, ProbComp.eval_pure, garble,
-    ProbComp.eval_uniform, hmap, hcoins, PMF.map_comp]
+  simp only [Scheme.prvView, garble, bind_pure_comp, ProbComp.eval_map, ProbComp.eval_bind,
+    Scheme.eval_garble, ProbComp.eval_uniform, hcoins, PMF.map_comp]
   have hfun : ((fun a : Scheme.Garbled => (⟨a.fn, (scheme family).encode a.encInfo x, a.decInfo⟩ :
       PrvView)) ∘ (scheme family).gb k f) =
       (fun p : (Wire f.1.n (toCircuit f).size × Bool → BitString (k + 1)) ×
@@ -207,17 +201,14 @@ theorem eval_prvView (k : ℕ) (f : ValidCircuit) {x : List Bool} (hx : x.length
 
 /-- **Distinct slots have distinct tweaks** while `8 q ≤ 2 ^ k`: slot `a` of row `ρ` of gate `g`
 has the tweak `8 g + 2 rowIndex ρ + a`, which is below `2 ^ k`. -/
-theorem slotTweak_injective (k : ℕ) (f : ValidCircuit) (hk : 8 * f.1.q ≤ 2 ^ k) :
+private theorem slotTweak_injective (k : ℕ) (f : ValidCircuit) (hk : 8 * f.1.q ≤ 2 ^ k) :
     Function.Injective (slotTweak (toCircuit f).topology k) := by
   have hbound : ∀ p : Slot (toCircuit f).topology,
       8 * p.1.1 + 2 * rowIndex p.1.2 + p.2 < 2 ^ k := by
     rintro ⟨⟨g, ρ⟩, a⟩
     have hg : g.val < f.1.q := size_toCircuit f ▸ g.isLt
     have hρ := rowIndex_lt_four (arity_topology_toCircuit f g) ρ
-    have ha : a.val < 2 := by
-      have := a.isLt
-      simp only [arity_topology_toCircuit] at this
-      exact this
+    have ha : a.val < 2 := a.isLt.trans_eq (arity_topology_toCircuit f g)
     dsimp only
     omega
   rintro ⟨⟨g, ρ⟩, a⟩ ⟨⟨g', ρ'⟩, a'⟩ h
@@ -229,14 +220,8 @@ theorem slotTweak_injective (k : ℕ) (f : ValidCircuit) (hk : 8 * f.1.q ≤ 2 ^
   dsimp only at heq
   have hρ := rowIndex_lt_four (arity_topology_toCircuit f g) ρ
   have hρ' := rowIndex_lt_four (arity_topology_toCircuit f g') ρ'
-  have ha : a.val < 2 := by
-    have := a.isLt
-    simp only [arity_topology_toCircuit] at this
-    exact this
-  have ha' : a'.val < 2 := by
-    have := a'.isLt
-    simp only [arity_topology_toCircuit] at this
-    exact this
+  have ha : a.val < 2 := a.isLt.trans_eq (arity_topology_toCircuit f g)
+  have ha' : a'.val < 2 := a'.isLt.trans_eq (arity_topology_toCircuit f g')
   have hgv : g.val = g'.val := by omega
   have hg : g = g' := Fin.ext hgv
   subst hg
@@ -252,7 +237,7 @@ theorem slotTweak_injective (k : ℕ) (f : ValidCircuit) (hk : 8 * f.1.q ≤ 2 ^
 /-! ### Hybrid views on words -/
 
 /-- The value of wire `v`, numbered from `0`, in the plaintext evaluation of `f` on `x`. -/
-@[expose] def wireBit (f : ConventionalCircuit) (x : List Bool) (v : ℕ) : Bool :=
+private def wireBit (f : ConventionalCircuit) (x : List Bool) (v : ℕ) : Bool :=
   (f.wires x f.q).getD v false
 
 /-- Row `i` of gate `g` of hybrid view `j` on words, at parameter `k`, from the garbler's coins
@@ -261,7 +246,7 @@ a wire numbered below `j` holds its filler label; any other row holds the gate's
 bits its colours encode, masked by the keyed function at its argument keys, except that the mask
 of an argument slot reading the inactive colour of wire `j` is the answer to that slot's tweak,
 the answer numbered `8 g + 2 i + a` for slot `a`. -/
-@[expose] def hybRow (k : ℕ) (f : ConventionalCircuit) (x : List Bool) (j : ℕ)
+private def hybRow (k : ℕ) (f : ConventionalCircuit) (x : List Bool) (j : ℕ)
     (kc sc : List Bool) (rs : List (List Bool)) (g : Fin f.q) (i : ℕ) : List Bool :=
   let a := f.A g - 1
   let b := f.B g - 1
@@ -280,7 +265,7 @@ the answer numbered `8 g + 2 i + a` for slot `a`. -/
 
 /-- Hybrid view `j` on words: the garbled function of the rows `hybRow`, the labels encoding `x`
 and the permutation bits of the output wires. -/
-@[expose] def hybViewWord (k : ℕ) (f : ConventionalCircuit) (x : List Bool) (j : ℕ)
+private def hybViewWord (k : ℕ) (f : ConventionalCircuit) (x : List Bool) (j : ℕ)
     (kc sc : List Bool) (rs : List (List Bool)) : PrvView where
   fn := encFn ((k, f.n, f.m, f.q), (List.ofFn fun g : Fin f.q =>
     BitString.lowBits (wireWidth f.n f.q) (f.A g) ++
@@ -292,7 +277,7 @@ and the permutation bits of the output wires. -/
 
 /-- The answers `rs` to the tweaks of the slots, as an oracle on slots: slot `a` of row `ρ` of gate
 `g` reads answer number `8 g + 2 rowIndex ρ + a`, the number of its tweak. -/
-@[expose] def replyOracle (k : ℕ) {τ : Circuit.Topology n m s} (rs : List (List Bool)) :
+private def replyOracle (k : ℕ) {τ : Circuit.Topology n m s} (rs : List (List Bool)) :
     Slot τ → BitString (k + 1) × Bool
   | ⟨⟨g, ρ⟩, a⟩ => labelOfWord k (rs.getD (8 * g + 2 * rowIndex ρ + a) [])
 
@@ -300,14 +285,7 @@ and the permutation bits of the output wires. -/
 private theorem exists_fin_of_eq_two {r : ℕ} (hr : r = 2) (P : Fin r → Prop) :
     (∃ a, P a) ↔ P ⟨0, by omega⟩ ∨ P ⟨1, by omega⟩ := by
   subst hr
-  constructor
-  · rintro ⟨a, ha⟩
-    match a with
-    | ⟨0, _⟩ => exact Or.inl ha
-    | ⟨1, _⟩ => exact Or.inr ha
-  · rintro (h | h)
-    · exact ⟨_, h⟩
-    · exact ⟨_, h⟩
+  exact Fin.exists_fin_two
 
 /-- The plaintext of row `i < 4` of gate `g` of `toCircuit f`, with keys and permutation bits
 read from the coins, as a word. -/
@@ -402,7 +380,7 @@ private theorem labelBits_hybridView (k : ℕ) (f : ValidCircuit) {x : List Bool
 of `f.n` bits and answers `rs` of `k + 2` bits to the tweaks of all slots, hybrid view `j` on words
 is the words of the typed hybrid view `j` of `toCircuit f`, with the keys, permutation bits and
 filler labels read from the coins and the answers in the target slots. -/
-theorem hybViewWord_eq (k : ℕ) (f : ValidCircuit) {x : List Bool} (hx : x.length = f.1.n)
+private theorem hybViewWord_eq (k : ℕ) (f : ValidCircuit) {x : List Bool} (hx : x.length = f.1.n)
     (j : ℕ) (kc sc : List Bool) {rs : List (List Bool)} (hrs : ∀ w ∈ rs, w.length = k + 2)
     (hlen : 8 * f.1.q ≤ rs.length) :
     hybViewWord family k f.1 x j kc sc rs = viewWord k (toCircuit f).topology
@@ -434,7 +412,7 @@ theorem hybViewWord_eq (k : ℕ) (f : ValidCircuit) {x : List Bool} (hx : x.leng
 /-- One step of collecting the oracle's answers at label parameter `k`: ask the tweak numbered by
 the answers collected so far, `lowBits k` of that number, and keep the first `k + 2` bits of the
 reply. Answer `8 g + 2 i + a` is then the answer to the tweak of slot `a` of row `i` of gate `g`. -/
-@[expose] def replyStep (k : ℕ) (rs : List (List Bool)) :
+private def replyStep (k : ℕ) (rs : List (List Bool)) :
     WordOracleComp Unit (List (List Bool)) :=
   (fun reply => rs ++ [reply]) <$> (List.take (k + 2) <$>
     ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool)
@@ -495,23 +473,13 @@ private theorem replyOracle_table (k : ℕ) (f : ValidCircuit)
   obtain ⟨⟨g, ρ⟩, a⟩ := p
   have hg : g.val < f.1.q := size_toCircuit f ▸ g.isLt
   have hρ := rowIndex_lt_four (arity_topology_toCircuit f g) ρ
-  have ha : a.val < 2 := by
-    have := a.isLt
-    simp only [arity_topology_toCircuit] at this
-    exact this
+  have ha : a.val < 2 := a.isLt.trans_eq (arity_topology_toCircuit f g)
   have hlt : 8 * g + 2 * rowIndex ρ + a < 8 * f.1.q := by omega
   simp only [replyOracle, slotTweak, tweak, List.getD_eq_getElem?_getD, List.getElem?_map,
     List.getElem?_range hlt, Option.map_some, Option.getD_some]
   apply ((labelCodec k).encodeReply 0).injective
   change labelBits _ = labelBits _
   rw [labelBits_labelOfWord (length_labelBits _)]
-
-/-- The distinguisher of the typed reduction for `B` after its choice: `B`'s guess from `state` on
-the words of a typed view. -/
-@[expose] noncomputable def viewGuess {σ : Type} (B : PrvSimAdversary ValidCircuit σ) (k : ℕ)
-    (state : σ) {n m s : ℕ} (τ : Circuit.Topology n m s) (V : View τ (BitString (k + 1))) :
-    ProbComp Bool :=
-  B.guess state (some (viewWord k τ V))
 
 /-- **The word reduction runs the typed reductions.** Against every label table `T`, the reduction
 for `B` at label parameter `k` runs `B`'s choice of `(f, x)` and, when `x` has `f.n` bits, the
@@ -526,11 +494,10 @@ theorem eval_run_prvSimReduction {σ : Type} (B : ℕ → PrvSimAdversary ValidC
           (PMF.uniformOfFintype (Fin (Probability.dyadicSize (P k)))).bind fun j =>
             ProbComp.eval ((reduction (toCircuit query.fn) fullInterpretation
               (PRF.label (PRF.atLevel family (k + 1))) (slotTweak _ k)
-              (BitString.ofList query.fn.1.n query.input) (viewGuess (B k) k state _) j).run
+              (BitString.ofList query.fn.1.n query.input)
+              (fun V => (B k).guess state (some (viewWord k _ V))) j).run
                 fun t => pure (T t))
         else ProbComp.eval ((B k).guess state none) := by
-  have hmap : ∀ {α β : Type} (p : PMF α) (g : α → β), p.bind (fun a => PMF.pure (g a)) = p.map g :=
-    fun p g => PMF.bind_pure_comp g p
   simp only [prvSimReduction, OracleCodec.run_adapt, ProbOracleComp.run_bind,
     ProbOracleComp.run_sample, ProbComp.eval_bind]
   refine congrArg _ (funext fun ⟨query, state⟩ => ?_)
@@ -560,7 +527,6 @@ theorem eval_run_prvSimReduction {σ : Type} (B : ℕ → PrvSimAdversary ValidC
     BitString.eval_sampleList, PMF.bind_map, Function.comp_def,
     hybViewWord_eq family k f hx _ _ _ hrs hlen, eval_run_reduction]
   refine congrArg _ (funext fun j => ?_)
-  simp only [viewGuess]
   rw [show simCoinLen k f.1.n f.1.q = simCoinLen k f.1.n (toCircuit f).size by rw [size_toCircuit],
     show (f.1.n + f.1.q) * (2 * (k + 1) + 1) = (f.1.n + (toCircuit f).size) * (2 * (k + 1) + 1) by
       rw [size_toCircuit]]
@@ -614,7 +580,7 @@ private noncomputable def prvSimHybrid {σ : Type} (B : ℕ → PrvSimAdversary 
     if query.input.length = query.fn.1.n then
       hybridGame (toCircuit query.fn) fullInterpretation (PRF.label (PRF.atLevel family (k + 1)))
         (slotTweak _ k) (BitString.ofList query.fn.1.n query.input)
-        (viewGuess (B k) k state _) i
+        (fun V => (B k).guess state (some (viewWord k _ V))) i
     else ProbComp.eval ((B k).guess state none)
 
 /-- The real `prv.sim` experiment is global hybrid `0`. -/
@@ -719,7 +685,6 @@ theorem prvSimAdvantage_simWord_eq {σ : Type} (B : ℕ → PrvSimAdversary Vali
     prvSimAdvantage (scheme family) phiTopo k (simWord family k) (B k) =
       Probability.dyadicSize (P k) * PRF.advantage (PRF.label (PRF.atLevel family (k + 1)))
         ((labelCodec k).adapt (prvSimReduction family B P k [])) := by
-  have : NeZero (Probability.dyadicSize (P k)) := ⟨(Probability.dyadicSize_pos _).ne'⟩
   have hc : ∀ query state, (query, state) ∈ (ProbComp.eval ((B k).choose ())).support →
       query.input.length = query.fn.1.n →
         query.fn.1.n + query.fn.1.q ≤ Probability.dyadicSize (P k) :=
@@ -738,89 +703,81 @@ open Turing.MultiTapeTM
 
 variable {family}
 
+/-- The active colour of wire `v`: its plaintext value plus its permutation bit. -/
+private def actBit (ws kc : List Bool) (v : ℕ) : Bool := permOf ws v ^^ permOf kc v
+
+/-- Whether the colour `c` of wire `v` is inactive and the wire is numbered below `j`. -/
+private def hiddenBit (ws kc : List Bool) (j v : ℕ) (c : Bool) : Bool :=
+  c != actBit ws kc v && decide (v < j)
+
+/-- Whether the colour `c` of wire `v` is inactive and the wire is wire `j`. -/
+private def targetBit (ws kc : List Bool) (j v : ℕ) (c : Bool) : Bool :=
+  c != actBit ws kc v && decide (v = j)
+
+/-- The mask term of slot `slot` of row `i` of gate `g` reading wire `v` with colour `c`: the
+answer to its tweak when it is a target, the keyed function at its key otherwise. -/
+private def maskWord (k n q j : ℕ) (ws kc : List Bool) (rs : List (List Bool)) (v : ℕ) (c : Bool)
+    (g i slot : ℕ) : List Bool :=
+  if targetBit ws kc j v c then rs.getD (8 * g + 2 * i + slot) [] else
+    labelWord family k (keyOf k (n + q) kc v c) (tweak k g i slot)
+
+/-- The plaintext word of row `i` of gate `g`, from its 0-indexed argument wires and truth table. -/
+private def plainWord (k n q : ℕ) (kc : List Bool) (a b : ℕ) (t : List Bool) (g i : ℕ) :
+    List Bool :=
+  labelOf k (n + q) kc (n + g)
+    (t.getD ((if i.testBit 1 ^^ permOf kc a then 2 else 0) +
+      (if i.testBit 0 ^^ permOf kc b then 1 else 0)) false ^^ permOf kc (n + g))
+
 /-- Row `i` of gate `g` of hybrid view `j`, from the plaintext wire values `ws`, the 0-indexed
 argument wires `a` and `b` and the truth table `t` of the gate. -/
 private def hybRowData (k n q j : ℕ) (ws kc sc : List Bool) (rs : List (List Bool)) (a b : ℕ)
     (t : List Bool) (g i : ℕ) : List Bool :=
-  if (i.testBit 1 != (permOf ws a ^^ permOf kc a) && decide (a < j)) ||
-      (i.testBit 0 != (permOf ws b ^^ permOf kc b) && decide (b < j)) then
+  if hiddenBit ws kc j a (i.testBit 1) || hiddenBit ws kc j b (i.testBit 0) then
     simLabel k sc (n + q + 4 * g + i)
-  else
-    List.zipWith xor (labelOf k (n + q) kc (n + g)
-        (t.getD ((if i.testBit 1 ^^ permOf kc a then 2 else 0) +
-          (if i.testBit 0 ^^ permOf kc b then 1 else 0)) false ^^ permOf kc (n + g)))
-      (List.zipWith xor
-        (if i.testBit 1 != (permOf ws a ^^ permOf kc a) && decide (a = j) then
-          rs.getD (8 * g + 2 * i) [] else
-          labelWord family k (keyOf k (n + q) kc a (i.testBit 1)) (tweak k g i 0))
-        (if i.testBit 0 != (permOf ws b ^^ permOf kc b) && decide (b = j) then
-          rs.getD (8 * g + 2 * i + 1) [] else
-          labelWord family k (keyOf k (n + q) kc b (i.testBit 0)) (tweak k g i 1)))
+  else List.zipWith xor (plainWord k n q kc a b t g i)
+    (List.zipWith xor (maskWord (family := family) k n q j ws kc rs a (i.testBit 1) g i 0)
+      (maskWord (family := family) k n q j ws kc rs b (i.testBit 0) g i 1))
 
-/-- The four rows of gate `g` of hybrid view `j`. -/
-private def hybRowsBlock (k n q j : ℕ) (ws kc sc : List Bool) (rs : List (List Bool)) (a b : ℕ)
-    (t : List Bool) (g : ℕ) : List Bool :=
-  hybRowData (family := family) k n q j ws kc sc rs a b t g 0 ++
-    (hybRowData (family := family) k n q j ws kc sc rs a b t g 1 ++
-      (hybRowData (family := family) k n q j ws kc sc rs a b t g 2 ++
-        hybRowData (family := family) k n q j ws kc sc rs a b t g 3))
-
-/-- The body of hybrid view `j` from the gate list, with the wire numbers capped at the number of
+/-- Hybrid view `j` on words from the data of the circuit and its plaintext wire values: the body
+is `bodyWith` of the gate list, with the rows `hybRowData` on argument wires capped at the number of
 wire values. -/
-private def hybBodyData (k n q j : ℕ) (ws kc sc : List Bool) (rs : List (List Bool))
-    (gates : List (ℕ × ℕ × List Bool)) : List Bool :=
-  ((List.range q).map fun g =>
-    BitString.lowBits (wireWidth n q) (gates.getD g (0, 0, [])).1 ++
-      BitString.lowBits (wireWidth n q) (gates.getD g (0, 0, [])).2.1 ++
-      hybRowsBlock (family := family) k n q j ws kc sc rs
-        (min (ws.length + 1) (gates.getD g (0, 0, [])).1 - 1)
-        (min (ws.length + 1) (gates.getD g (0, 0, [])).2.1 - 1)
-        (gates.getD g (0, 0, [])).2.2 g).flatten
-
-private theorem ofFn_eq_map_range'' {α : Type*} {c : ℕ} (h : ℕ → α) :
-    List.ofFn (fun i : Fin c => h i) = (List.range c).map h := by
-  apply List.ext_getElem (by simp)
-  intro i h₁ h₂
-  simp
-
-/-- Hybrid view `j` on words from the data of the circuit and its plaintext wire values. -/
 private theorem hybViewWord_eq_data (k : ℕ) (f : ValidCircuit) (x : List Bool) (j : ℕ)
     (kc sc : List Bool) (rs : List (List Bool)) :
     hybViewWord family k f.1 x j kc sc rs =
       ⟨encFn ((k, f.1.n, f.1.m, f.1.gateList.length),
-          hybBodyData (family := family) k f.1.n f.1.gateList.length j (f.1.wires x f.1.q) kc sc rs
-            f.1.gateList),
+          bodyWith f.1.n f.1.gateList.length ((f.1.wires x f.1.q).length + 1)
+            (fun g => (f.1.gateList.getD g (0, 0, [])).1)
+            (fun g => (f.1.gateList.getD g (0, 0, [])).2.1)
+            (fun g a b i => hybRowData (family := family) k f.1.n f.1.gateList.length j
+              (f.1.wires x f.1.q) kc sc rs a b (f.1.gateList.getD g (0, 0, [])).2.2 g i)),
         ((List.range f.1.n).map fun i =>
           labelOf k (f.1.n + f.1.gateList.length) kc i (permOf x i ^^ permOf kc i)).flatten,
-        (List.range f.1.m).map fun o => permOf kc (f.1.n + f.1.gateList.length - f.1.m + o)⟩ := by
+        decInfoWord f.1 kc⟩ := by
   have hws : (f.1.wires x f.1.q).length = f.1.n + f.1.q := f.1.length_wires x le_rfl
-  simp only [hybViewWord, ConventionalCircuit.length_gateList, PrvView.mk.injEq]
-  refine ⟨?_, congrArg List.flatten (ofFn_eq_map_range'' (fun i =>
-      labelOf k (f.1.n + f.1.q) kc i (x.getD i false ^^ permOf kc i))),
-    ofFn_eq_map_range'' (fun o => permOf kc (f.1.n + f.1.q - f.1.m + o))⟩
-  congr 3
-  apply List.ext_getElem (by simp)
-  intro g h₁ h₂
-  have hg : g < f.1.q := by simpa using h₁
-  have hA := f.2.one_le_A ⟨g, hg⟩
-  have hAB := f.2.A_lt_B ⟨g, hg⟩
-  have hBg := f.2.B_lt_gate ⟨g, hg⟩
-  simp only [topo] at hA hAB hBg
-  have hgate : f.1.gateList.getD g (0, 0, []) = (f.1.A ⟨g, hg⟩, f.1.B ⟨g, hg⟩,
-      [f.1.G ⟨g, hg⟩ false false, f.1.G ⟨g, hg⟩ false true, f.1.G ⟨g, hg⟩ true false,
-        f.1.G ⟨g, hg⟩ true true]) := by
-    simp [ConventionalCircuit.gateList, List.getD_eq_getElem?_getD, hg]
-  have hcapA : min ((f.1.wires x f.1.q).length + 1) (f.1.A ⟨g, hg⟩) - 1 = f.1.A ⟨g, hg⟩ - 1 := by
-    rw [hws]; omega
-  have hcapB : min ((f.1.wires x f.1.q).length + 1) (f.1.B ⟨g, hg⟩) - 1 = f.1.B ⟨g, hg⟩ - 1 := by
-    rw [hws]; omega
-  simp only [List.getElem_ofFn, List.getElem_map, List.getElem_range, hgate, hcapA, hcapB]
-  congr 1
-  simp only [List.ofFn_succ, List.ofFn_zero, List.flatten_cons, List.flatten_nil, List.append_nil,
-    hybRowsBlock, hybRow, hybRowData, Fin.val_zero, Fin.val_succ, zero_add, Nat.reduceAdd,
-    getD_table]
-  simp only [wireBit, permOf, Bool.or_eq_true, Bool.and_eq_true, bne_iff_ne, ne_eq,
-    decide_eq_true_eq]
+  have hgate (g : Fin f.1.q) : f.1.gateList.getD g (0, 0, []) = (f.1.A g, f.1.B g,
+      [f.1.G g false false, f.1.G g false true, f.1.G g true false, f.1.G g true true]) := by
+    simp [ConventionalCircuit.gateList, List.getD_eq_getElem?_getD]
+  have hrow (g : Fin f.1.q) (i : Fin 4) :
+      hybRowData (family := family) k f.1.n f.1.q j (f.1.wires x f.1.q) kc sc rs
+        (min ((f.1.wires x f.1.q).length + 1) (f.1.A g) - 1)
+        (min ((f.1.wires x f.1.q).length + 1) (f.1.B g) - 1)
+        (f.1.gateList.getD g (0, 0, [])).2.2 g i = hybRow family k f.1 x j kc sc rs g i := by
+    have hA := f.2.one_le_A g
+    have hAB := f.2.A_lt_B g
+    have hBg := f.2.B_lt_gate g
+    simp only [topo] at hA hAB hBg
+    have hcapA : min ((f.1.wires x f.1.q).length + 1) (f.1.A g) - 1 = f.1.A g - 1 := by
+      rw [hws]; omega
+    have hcapB : min ((f.1.wires x f.1.q).length + 1) (f.1.B g) - 1 = f.1.B g - 1 := by
+      rw [hws]; omega
+    simp only [hcapA, hcapB, hgate, hybRowData, hybRow, hiddenBit, targetBit, actBit, maskWord,
+      plainWord, getD_table, add_zero]
+    simp only [wireBit, permOf, Bool.or_eq_true, Bool.and_eq_true, bne_iff_ne, ne_eq,
+      decide_eq_true_eq]
+    rfl
+  simp only [hybViewWord, ConventionalCircuit.length_gateList, List.map_range_eq_ofFn]
+  rw [bodyWith_eq_ofFn f.1.A f.1.B (hybRow family k f.1 x j kc sc rs) (fun g => by rw [hgate])
+    (fun g => by rw [hgate]) hrow]
   rfl
 
 variable (hf : ComputableInPolyTime (fun p : List Bool × List Bool => family p.1 p.2)
@@ -828,9 +785,6 @@ variable (hf : ComputableInPolyTime (fun p : List Bool × List Bool => family p.
 
 attribute [local fun_prop] labelWord_polyTime tweak_polyTime wireWidth_polyTime permOf_polyTime
   keyOf_polyTime labelOf_polyTime simLabel_polyTime
-
-/-- The active colour of wire `v`: its plaintext value plus its permutation bit. -/
-private def actBit (ws kc : List Bool) (v : ℕ) : Bool := permOf ws v ^^ permOf kc v
 
 private theorem actBit_polyTime {γ : Type} {encIn : γ ↪ List Bool} {ws kc : γ → List Bool}
     {v : γ → ℕ} (hws : ComputableInPolyTime ws encIn encBits)
@@ -840,14 +794,6 @@ private theorem actBit_polyTime {γ : Type} {encIn : γ ↪ List Bool} {ws kc : 
   polytime
 
 attribute [local fun_prop] actBit_polyTime
-
-/-- Whether the colour `c` of wire `v` is inactive and the wire is numbered below `j`. -/
-private def hiddenBit (ws kc : List Bool) (j v : ℕ) (c : Bool) : Bool :=
-  c != actBit ws kc v && decide (v < j)
-
-/-- Whether the colour `c` of wire `v` is inactive and the wire is wire `j`. -/
-private def targetBit (ws kc : List Bool) (j v : ℕ) (c : Bool) : Bool :=
-  c != actBit ws kc v && decide (v = j)
 
 private theorem hiddenBit_polyTime {γ : Type} {encIn : γ ↪ List Bool} {ws kc : γ → List Bool}
     {j v : γ → ℕ} {c : γ → Bool} (hws : ComputableInPolyTime ws encIn encBits)
@@ -867,13 +813,6 @@ private theorem targetBit_polyTime {γ : Type} {encIn : γ ↪ List Bool} {ws kc
 
 attribute [local fun_prop] hiddenBit_polyTime targetBit_polyTime
 
-/-- The mask term of slot `slot` of row `i` of gate `g` reading wire `v` with colour `c`: the
-answer to its tweak when it is a target, the keyed function at its key otherwise. -/
-private def maskWord (k n q j : ℕ) (ws kc : List Bool) (rs : List (List Bool)) (v : ℕ) (c : Bool)
-    (g i slot : ℕ) : List Bool :=
-  if targetBit ws kc j v c then rs.getD (8 * g + 2 * i + slot) [] else
-    labelWord family k (keyOf k (n + q) kc v c) (tweak k g i slot)
-
 include hf in
 private theorem maskWord_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k n q j v g i slot : γ → ℕ}
     {ws kc : γ → List Bool} {rs : γ → List (List Bool)} {c : γ → Bool}
@@ -891,13 +830,6 @@ private theorem maskWord_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k n q 
 
 attribute [local fun_prop] maskWord_polyTime
 
-/-- The plaintext word of row `i` of gate `g`, from its 0-indexed argument wires and truth table. -/
-private def plainWord (k n q : ℕ) (kc : List Bool) (a b : ℕ) (t : List Bool) (g i : ℕ) :
-    List Bool :=
-  labelOf k (n + q) kc (n + g)
-    (t.getD ((if i.testBit 1 ^^ permOf kc a then 2 else 0) +
-      (if i.testBit 0 ^^ permOf kc b then 1 else 0)) false ^^ permOf kc (n + g))
-
 private theorem plainWord_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k n q a b g i : γ → ℕ}
     {kc t : γ → List Bool}
     (hk : ComputableInPolyTime k encIn encUnary) (hn : ComputableInPolyTime n encIn encUnary)
@@ -912,15 +844,6 @@ private theorem plainWord_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k n q
 
 attribute [local fun_prop] plainWord_polyTime
 
-private theorem hybRowData_eq (k n q j : ℕ) (ws kc sc : List Bool) (rs : List (List Bool))
-    (a b : ℕ) (t : List Bool) (g i : ℕ) :
-    hybRowData (family := family) k n q j ws kc sc rs a b t g i =
-      if hiddenBit ws kc j a (i.testBit 1) || hiddenBit ws kc j b (i.testBit 0) then
-        simLabel k sc (n + q + 4 * g + i)
-      else List.zipWith xor (plainWord k n q kc a b t g i)
-        (List.zipWith xor (maskWord (family := family) k n q j ws kc rs a (i.testBit 1) g i 0)
-          (maskWord (family := family) k n q j ws kc rs b (i.testBit 0) g i 1)) := rfl
-
 include hf in
 private theorem hybRowData_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k n q j a b g i : γ → ℕ}
     {ws kc sc t : γ → List Bool} {rs : γ → List (List Bool)}
@@ -934,87 +857,7 @@ private theorem hybRowData_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k n 
     (hi : ComputableInPolyTime i encIn encUnary) :
     ComputableInPolyTime (fun x => hybRowData (family := family) (k x) (n x) (q x) (j x) (ws x)
       (kc x) (sc x) (rs x) (a x) (b x) (t x) (g x) (i x)) encIn encBits := by
-  simp only [hybRowData_eq]
-  polytime
-
-attribute [local fun_prop] hybRowData_polyTime
-
-include hf in
-private theorem hybRowsBlock_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k n q j a b g : γ → ℕ}
-    {ws kc sc t : γ → List Bool} {rs : γ → List (List Bool)}
-    (hk : ComputableInPolyTime k encIn encUnary) (hn : ComputableInPolyTime n encIn encUnary)
-    (hq : ComputableInPolyTime q encIn encUnary) (hj : ComputableInPolyTime j encIn encUnary)
-    (hws : ComputableInPolyTime ws encIn encBits) (hkc : ComputableInPolyTime kc encIn encBits)
-    (hsc : ComputableInPolyTime sc encIn encBits)
-    (hrs : ComputableInPolyTime rs encIn (encList encBits))
-    (ha : ComputableInPolyTime a encIn encUnary) (hb : ComputableInPolyTime b encIn encUnary)
-    (ht : ComputableInPolyTime t encIn encBits) (hg : ComputableInPolyTime g encIn encUnary) :
-    ComputableInPolyTime (fun x => hybRowsBlock (family := family) (k x) (n x) (q x) (j x) (ws x)
-      (kc x) (sc x) (rs x) (a x) (b x) (t x) (g x)) encIn encBits := by
-  have hrow (i : ℕ) := hybRowData_polyTime hf hk hn hq hj hws hkc hsc hrs ha hb ht hg
-    (ComputableInPolyTime.const (encIn := encIn) (encOut := encUnary) i)
-  exact .bitsAppend (hrow 0) (.bitsAppend (hrow 1) (.bitsAppend (hrow 2) (hrow 3)))
-
-/-- The input `(k, n, q, j, ws, kc, sc, rs, gates)` of the hybrid view's body. -/
-private abbrev encHybBodyInput :
-    (ℕ × ℕ × ℕ × ℕ × List Bool × List Bool × List Bool × List (List Bool) ×
-      List (ℕ × ℕ × List Bool)) ↪ List Bool :=
-  encPair encUnary (encPair encUnary (encPair encUnary (encPair encUnary (encPair encBits
-    (encPair encBits (encPair encBits (encPair (encList encBits)
-      (encList (encPair encNat (encPair encNat encBits))))))))))
-
-/-- Gate `g` of the hybrid view's body, with capped wire numbers. -/
-private def hybGateBlock (x : ℕ × ℕ × ℕ × ℕ × List Bool × List Bool × List Bool ×
-    List (List Bool) × List (ℕ × ℕ × List Bool)) (g : ℕ) : List Bool :=
-  BitString.lowBits (wireWidth x.2.1 x.2.2.1) (x.2.2.2.2.2.2.2.2.getD g (0, 0, [])).1 ++
-    BitString.lowBits (wireWidth x.2.1 x.2.2.1) (x.2.2.2.2.2.2.2.2.getD g (0, 0, [])).2.1 ++
-    hybRowsBlock (family := family) x.1 x.2.1 x.2.2.1 x.2.2.2.1 x.2.2.2.2.1 x.2.2.2.2.2.1
-      x.2.2.2.2.2.2.1 x.2.2.2.2.2.2.2.1
-      (min (x.2.2.2.2.1.length + 1) (x.2.2.2.2.2.2.2.2.getD g (0, 0, [])).1 - 1)
-      (min (x.2.2.2.2.1.length + 1) (x.2.2.2.2.2.2.2.2.getD g (0, 0, [])).2.1 - 1)
-      (x.2.2.2.2.2.2.2.2.getD g (0, 0, [])).2.2 g
-
-include hf in
-private theorem hybGateBlock_polyTime :
-    ComputableInPolyTime (fun p => hybGateBlock (family := family) p.1 p.2)
-      (encPair encHybBodyInput encUnary) encBits := by
-  have hgate : ComputableInPolyTime
-      (fun p : (ℕ × ℕ × ℕ × ℕ × List Bool × List Bool × List Bool × List (List Bool) ×
-          List (ℕ × ℕ × List Bool)) × ℕ => p.1.2.2.2.2.2.2.2.2.getD p.2 (0, 0, []))
-      (encPair encHybBodyInput encUnary) (encPair encNat (encPair encNat encBits)) := by
-    polytime
-  have hA := hgate.fst'
-  have hB := hgate.snd'.fst'
-  have ht := hgate.snd'.snd'
-  have hcap (V : (ℕ × ℕ × ℕ × ℕ × List Bool × List Bool × List Bool × List (List Bool) ×
-        List (ℕ × ℕ × List Bool)) × ℕ → ℕ)
-      (hV : ComputableInPolyTime V (encPair encHybBodyInput encUnary) encNat) :
-      ComputableInPolyTime (fun p => min (p.1.2.2.2.2.1.length + 1) (V p) - 1)
-        (encPair encHybBodyInput encUnary) encUnary := by
-    polytime
-  unfold hybGateBlock
-  refine ComputableInPolyTime.bitsAppend (ComputableInPolyTime.bitsAppend ?_ ?_)
-    (hybRowsBlock_polyTime hf (by polytime) (by polytime) (by polytime) (by polytime)
-      (by polytime) (by polytime) (by polytime) (by polytime) (hcap _ hA) (hcap _ hB) ht
-      (by polytime))
-  · polytime
-  · polytime
-
-include hf in
-private theorem hybBodyData_polyTime :
-    ComputableInPolyTime (fun (x : ℕ × ℕ × ℕ × ℕ × List Bool × List Bool × List Bool ×
-        List (List Bool) × List (ℕ × ℕ × List Bool)) =>
-      hybBodyData (family := family) x.1 x.2.1 x.2.2.1 x.2.2.2.1 x.2.2.2.2.1 x.2.2.2.2.2.1
-        x.2.2.2.2.2.2.1 x.2.2.2.2.2.2.2.1 x.2.2.2.2.2.2.2.2) encHybBodyInput encBits := by
-  have hblock := hybGateBlock_polyTime hf
-  have heq : (fun (x : ℕ × ℕ × ℕ × ℕ × List Bool × List Bool × List Bool ×
-        List (List Bool) × List (ℕ × ℕ × List Bool)) =>
-      hybBodyData (family := family) x.1 x.2.1 x.2.2.1 x.2.2.2.1 x.2.2.2.2.1 x.2.2.2.2.2.1
-        x.2.2.2.2.2.2.1 x.2.2.2.2.2.2.2.1 x.2.2.2.2.2.2.2.2) =
-      fun x => ((List.range x.2.2.1).map (hybGateBlock (family := family) x)).flatten := by
-    funext x
-    rfl
-  rw [heq]
+  unfold hybRowData
   polytime
 
 private theorem hybInput_polyTime :
@@ -1023,11 +866,6 @@ private theorem hybInput_polyTime :
         (permOf p.2.2.2.1 i ^^ permOf p.2.2.2.2 i)).flatten)
       (encPair encUnary (encPair encUnary (encPair encUnary (encPair encBits encBits))))
       encBits := by
-  polytime
-
-private theorem hybDecInfo_polyTime : ComputableInPolyTime (fun p : ℕ × ℕ × ℕ × List Bool =>
-      (List.range p.2.1).map fun o => permOf p.2.2.2 (p.1 + p.2.2.1 - p.2.1 + o))
-      (encPair encUnary (encPair encUnary (encPair encUnary encBits))) encBits := by
   polytime
 
 /-- The input `(1^k, f, x, j, kc, sc, rs)` of the hybrid view. -/
@@ -1072,19 +910,35 @@ private theorem hybViewWord_polyTime :
   have hg : ComputableInPolyTime (fun p : ℕ × ValidCircuit × List Bool × ℕ × List Bool ×
       List Bool × List (List Bool) => p.2.1.1.gateList) E
       (encList (encPair encNat (encPair encNat encBits))) := hd.snd'.snd'
-  have hq : ComputableInPolyTime (fun p : ℕ × ValidCircuit × List Bool × ℕ × List Bool ×
-      List Bool × List (List Bool) => p.2.1.1.gateList.length) E encUnary :=
-    (ComputableTidilyInPolyTime.length_list _).computableInPolyTime.comp hg
+  have hq := (ComputableInPolyTime.length_list _).comp hg
   have hws : ComputableInPolyTime (fun p : ℕ × ValidCircuit × List Bool × ℕ × List Bool ×
       List Bool × List (List Bool) => p.2.1.1.wires p.2.2.1 p.2.1.1.q) E encBits :=
     wires_polyTime.comp (hf'.prod hx)
-  have hbody := (hybBodyData_polyTime hf).comp (hk.prod (hn.prod (hq.prod (hj.prod (hws.prod
-    (hkc.prod (hsc.prod (hrs.prod hg))))))))
+  have hp := ComputableInPolyTime.fst E (encPair encUnary (encPair encUnary
+    (encPair encUnary encUnary)))
+  have hr := ComputableInPolyTime.snd E (encPair encUnary (encPair encUnary
+    (encPair encUnary encUnary)))
+  have ht := (ComputableInPolyTime.listGetDWithInput (hg.comp hp) hr.fst' (0, 0, [])).snd'.snd'
+  have hrow := hybRowData_polyTime hf (hk.comp hp) (hn.comp hp) (hq.comp hp) (hj.comp hp)
+    (hws.comp hp) (hkc.comp hp) (hsc.comp hp) (hrs.comp hp) hr.snd'.fst' hr.snd'.snd'.fst' ht
+    hr.fst' hr.snd'.snd'.snd'
+  have hgate := ComputableInPolyTime.listGetDWithInput
+    (hg.comp (ComputableInPolyTime.fst E encUnary)) (ComputableInPolyTime.snd _ _) (0, 0, [])
+  have hbody := bodyWith_polyTime
+    (n := fun p : ℕ × ValidCircuit × List Bool × ℕ × List Bool × List Bool × List (List Bool) =>
+      p.2.1.1.n)
+    (cap := fun p => (p.2.1.1.wires p.2.2.1 p.2.1.1.q).length + 1)
+    (A := fun p g => (p.2.1.1.gateList.getD g (0, 0, [])).1)
+    (B := fun p g => (p.2.1.1.gateList.getD g (0, 0, [])).2.1)
+    (row := fun p g a b i => hybRowData (family := family) p.1 p.2.1.1.n p.2.1.1.gateList.length
+      p.2.2.2.1 (p.2.1.1.wires p.2.2.1 p.2.1.1.q) p.2.2.2.2.1 p.2.2.2.2.2.1 p.2.2.2.2.2.2 a b
+      (p.2.1.1.gateList.getD g (0, 0, [])).2.2 g i)
+    hn hq (by polytime) hgate.fst' hgate.snd'.fst' hrow
   have henc : ComputableInPolyTime (fun z : (ℕ × ℕ × ℕ × ℕ) × List Bool => encFn z) encFn
       encBits := .of_eq fun _ => rfl
   have hfn := henc.comp ((hk.prod (hn.prod (hm.prod hq))).prod hbody)
   have hinput := hybInput_polyTime.comp (hk.prod (hn.prod (hq.prod (hx.prod hkc))))
-  have hdec := hybDecInfo_polyTime.comp (hn.prod (hm.prod (hq.prod hkc)))
+  have hdec := decInfoWord_polyTime.comp (hf'.prod hkc)
   simp only [hybViewWord_eq_data]
   exact encPrvView_mk_polyTime hfn hinput hdec
 
@@ -1109,6 +963,8 @@ private theorem length_le_of_mem_support_replyStep {k : ℕ} {rs next : List (Li
   omega
 
 variable {σ : Type} {encσ : σ ↪ List Bool} {B : ℕ → PrvSimAdversary ValidCircuit σ}
+  (hB : TwoStage.IsPPT encUnit (encQuery ValidCircuit encValidCircuit) (encOption encPrvView)
+    encBool encσ B)
 
 /-- The state after `B`'s choice: the caller's input `(k, aux)` and the query and state. -/
 private abbrev encChosen (encσ : σ ↪ List Bool) :
@@ -1121,12 +977,10 @@ private abbrev encDrawn (encσ : σ ↪ List Bool) :
     ((((ℕ × List Bool) × (Query ValidCircuit × σ)) × ℕ) × List Bool) × List Bool ↪ List Bool :=
   encPair (encPair (encPair (encChosen encσ) encUnary) encBits) encBits
 
-include hf in
+include hf hB in
 /-- The valid branch of the reduction after the draws: collect the answers and run `B`'s guess on
 the hybrid view. -/
-private theorem isOraclePPTOn_prvSimGuess
-    (hB : TwoStage.IsPPT encUnit (encQuery ValidCircuit encValidCircuit) (encOption encPrvView)
-      encBool encσ B) :
+private theorem isOraclePPTOn_prvSimGuess :
     IsOraclePPTOn (encDrawn encσ) encBool
       (fun p : ((((ℕ × List Bool) × (Query ValidCircuit × σ)) × ℕ) × List Bool) × List Bool => do
         let rs ← OracleComp.iterate (8 * p.1.1.1.2.1.fn.1.q) (replyStep p.1.1.1.1.1) []
@@ -1144,7 +998,7 @@ private theorem isOraclePPTOn_prvSimGuess
   have hq : ComputableInPolyTime (fun p : ((((ℕ × List Bool) × (Query ValidCircuit × σ)) × ℕ) ×
       List Bool) × List Bool => p.1.1.1.2.1.fn.1.q) E encUnary := by
     simpa only [Function.comp_def, ConventionalCircuit.length_gateList] using
-      (ComputableTidilyInPolyTime.length_list _).computableInPolyTime.comp hgates
+      (ComputableInPolyTime.length_list _).comp hgates
   have hcount : ComputableInPolyTime (fun p : ((((ℕ × List Bool) × (Query ValidCircuit × σ)) ×
       ℕ) × List Bool) × List Bool => 8 * p.1.1.1.2.1.fn.1.q) E encUnary := by polytime
   have hrs := IsOraclePPTOn.iterateWith_of_bounded_growth' (Operation := Unit)
@@ -1177,13 +1031,12 @@ private theorem isOraclePPTOn_prvSimGuess
     ((ComputableInPolyTime.optionSome encPrvView).comp hview))
   exact hrs.bind_with (hB.guess.preprocess hprep).isOraclePPTOn
 
-include hf in
+include hf hB in
 /-- The reduction after `B`'s choice: on a valid query draw the step, the garbler's coins and the
 filler labels, collect the answers and run the guess on the hybrid view; otherwise run the guess
 on `⊥`. -/
-private theorem isOraclePPTOn_prvSimBranch
-    (hB : TwoStage.IsPPT encUnit (encQuery ValidCircuit encValidCircuit) (encOption encPrvView)
-      encBool encσ B) {P : ℕ → ℕ} (hP : ComputableInPolyTime P encUnary encUnary) :
+private theorem isOraclePPTOn_prvSimBranch {P : ℕ → ℕ}
+    (hP : ComputableInPolyTime P encUnary encUnary) :
     IsOraclePPTOn (encChosen encσ) encBool
       (fun p : (ℕ × List Bool) × (Query ValidCircuit × σ) =>
         if p.2.1.input.length = p.2.1.fn.1.n then do
@@ -1211,7 +1064,7 @@ private theorem isOraclePPTOn_prvSimBranch
   have hq : ComputableInPolyTime (fun p : (ℕ × List Bool) × (Query ValidCircuit × σ) =>
       p.2.1.fn.1.q) E encUnary := by
     simpa only [Function.comp_def, ConventionalCircuit.length_gateList] using
-      (ComputableTidilyInPolyTime.length_list _).computableInPolyTime.comp hd.snd'.snd'
+      (ComputableInPolyTime.length_list _).comp hd.snd'.snd'
   have hcond : ComputableInPolyTime (fun p : (ℕ × List Bool) × (Query ValidCircuit × σ) =>
       decide (p.2.1.input.length = p.2.1.fn.1.n)) E encBool :=
     (ComputableTidilyInPolyTime.decide_eq' (ComputableInPolyTime.length_bits_comp hx).tidy
@@ -1245,13 +1098,12 @@ private theorem isOraclePPTOn_prvSimBranch
   refine hsc.bind_with ?_
   exact isOraclePPTOn_prvSimGuess hf hB
 
-include hf in
+include hf hB in
 /-- **Efficiency of the reduction.** For every family computed in polynomial time, every uniform
 strict PPT `prv.sim` adversary `B` and every step range `P` computed in polynomial time in unary,
 `prvSimReduction family B P` is uniform strict oracle PPT. -/
-theorem isOraclePPT_prvSimReduction
-    (hB : TwoStage.IsPPT encUnit (encQuery ValidCircuit encValidCircuit) (encOption encPrvView)
-      encBool encσ B) {P : ℕ → ℕ} (hP : ComputableInPolyTime P encUnary encUnary) :
+theorem isOraclePPT_prvSimReduction {P : ℕ → ℕ}
+    (hP : ComputableInPolyTime P encUnary encUnary) :
     IsOraclePPT encBool (prvSimReduction family B P) := by
   have hchoose := (hB.choose.preprocess (prepare := fun a : ℕ × List Bool => (a.1, ()))
     ((ComputableInPolyTime.fst encUnary encBits).prod
@@ -1259,6 +1111,5 @@ theorem isOraclePPT_prvSimReduction
   exact hchoose.bind_with (isOraclePPTOn_prvSimBranch hf hB hP)
 
 end Efficiency
-
 
 end Cslib.Crypto.Garbling.PointPermute
