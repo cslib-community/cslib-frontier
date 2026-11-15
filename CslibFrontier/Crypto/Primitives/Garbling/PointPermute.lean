@@ -292,7 +292,7 @@ theorem labelBits_keyFn (k : ℕ) (coins : List Bool) (w : Wire n s) (c : Bool) 
   BitString.ofFn_ofList (by simp [tweak])
 
 /-- The colours of row `i < 4` of a binary gate read back as `i`. -/
-private theorem rowIndex_testBit {i : ℕ} (hi : i < 4) :
+theorem rowIndex_testBit {i : ℕ} (hi : i < 4) :
     rowIndex (fun a : Fin 2 => i.testBit (2 - 1 - a)) = i := by
   interval_cases i <;> rfl
 
@@ -458,7 +458,7 @@ private theorem sum_fin_of_eq_two {M : Type*} [AddCommMonoid M] {r : ℕ} (hr : 
   exact Fin.sum_univ_two h
 
 /-- The number of a row of a binary gate. -/
-private theorem rowIndex_of_eq_two {r : ℕ} (hr : r = 2) (colours : Fin r → Bool) :
+theorem rowIndex_of_eq_two {r : ℕ} (hr : r = 2) (colours : Fin r → Bool) :
     rowIndex colours =
       (if colours ⟨0, by omega⟩ then 2 else 0) + (if colours ⟨1, by omega⟩ then 1 else 0) := by
   subst hr
@@ -470,7 +470,7 @@ private theorem rowIndex_of_eq_two {r : ℕ} (hr : r = 2) (colours : Fin r → B
   exact h _ _
 
 /-- The row of a binary gate named by the number of its colours is the row of those colours. -/
-private theorem testBit_rowIndex_of_eq_two {r : ℕ} (hr : r = 2) (colours : Fin r → Bool) :
+theorem testBit_rowIndex_of_eq_two {r : ℕ} (hr : r = 2) (colours : Fin r → Bool) :
     (fun a : Fin r => (rowIndex colours).testBit (r - 1 - a)) = colours := by
   subst hr
   have h₁ (b₀ b₁ : Bool) : ((if b₀ then 2 else 0) + (if b₁ then 1 else 0)).testBit 1 = b₀ := by
@@ -492,7 +492,8 @@ private theorem sub_eq_add_label {k : ℕ} (x y : BitString (k + 1) × Bool) : x
     cases x.2 <;> cases y.2 <;> rfl)
 
 open ConventionalCircuit in
-private theorem toNat_wires_toCircuit (f : ValidCircuit) (g : Fin (toCircuit f).size)
+/-- The argument wires of gate `g` of `toCircuit f`, one at a time: `A g - 1`, then `B g - 1`. -/
+theorem toNat_wires_toCircuit (f : ValidCircuit) (g : Fin (toCircuit f).size)
     (a : Fin ((toCircuit f).topology.arity g)) :
     ((toCircuit f).topology.wires g a).toNat =
       [f.1.A (g.cast (size_toCircuit f)) - 1, f.1.B (g.cast (size_toCircuit f)) - 1].getD a 0 := by
