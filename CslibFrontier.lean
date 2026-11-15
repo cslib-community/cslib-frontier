@@ -4671,6 +4671,7 @@ public import CslibFrontier.Crypto.Computational.SIS.ModulusSwitch.Native
 public import CslibFrontier.Crypto.Computational.SIS.Native
 public import CslibFrontier.Crypto.Computational.SIS.Polynomial
 public import CslibFrontier.Crypto.Computational.SIS.Polynomial.Coefficients
+public import CslibFrontier.Crypto.Computational.SNOVA.SigningAttempts
 public import CslibFrontier.Crypto.Computational.SchnorrEavesdrop
 public import CslibFrontier.Crypto.Computational.SchnorrIdentification
 public import CslibFrontier.Crypto.Computational.SchnorrProofOfKnowledge
@@ -4709,6 +4710,7 @@ public import CslibFrontier.Crypto.Computational.ZeroKnowledge.Soundness
 public import CslibFrontier.Crypto.Computational.ZeroKnowledge.View
 public import CslibFrontier.Crypto.Encoding
 public import CslibFrontier.Crypto.Game
+public import CslibFrontier.Crypto.Game.AttackResources
 public import CslibFrontier.Crypto.Game.CloseTo
 public import CslibFrontier.Crypto.Game.CloseTo.IntBox
 public import CslibFrontier.Crypto.Game.CloseTo.RandomOracle
@@ -5761,6 +5763,7 @@ public import CslibFrontier.Foundations.Data.Code.Basic
 public import CslibFrontier.Foundations.Data.Code.BerlekampWelch
 public import CslibFrontier.Foundations.Data.Code.BinaryJohnson
 public import CslibFrontier.Foundations.Data.Code.Concatenation
+public import CslibFrontier.Foundations.Data.Code.DuplicatedReedMuller
 public import CslibFrontier.Foundations.Data.Code.EliasBassalygo
 public import CslibFrontier.Foundations.Data.Code.ExpanderCode
 public import CslibFrontier.Foundations.Data.Code.FlipDecoding
