@@ -142,15 +142,16 @@ end PRF
 /-- The reduction's answer to one request of a label distinguisher run at parameter `m - 1`: an
 `(m - 1)`-bit tweak `t` is answered by the first `m` bits of the reply to `0 ‖ t` followed by the
 first bit of the reply to `1 ‖ t`; any other request by the empty word, without a query. -/
-def labelHandler (m : ℕ) (request : Unit × List Bool) : WordOracleComp Unit (List Bool) :=
+private def labelHandler (m : ℕ) (request : Unit × List Bool) : WordOracleComp Unit (List Bool) :=
   if request.2.length + 1 = m then do
     let value ← List.take m <$> ProbOracleComp.query ((), false :: request.2)
     (value ++ ·) <$> (List.take 1 <$> ProbOracleComp.query ((), true :: request.2))
   else pure []
 
 /-- The PRF distinguisher built from a label distinguisher `W`: at parameter `m` it runs `W` at
-parameter `m - 1` and answers each of its tweaks with two calls to its own oracle
-(`labelHandler`). -/
+parameter `m - 1` and answers each `(m - 1)`-bit tweak `t` with two calls to its own oracle, the
+first `m` bits of the reply to `0 ‖ t` followed by the first bit of the reply to `1 ‖ t`. Any other
+request of `W` is answered by the empty word, without a query. -/
 def labelReduction (W : OracleDistinguisher) : OracleDistinguisher :=
   fun m _ => ProbOracleComp.simulate (labelHandler m) (W (m - 1) [])
 
