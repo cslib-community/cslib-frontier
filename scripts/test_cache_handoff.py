@@ -7,9 +7,12 @@ import json
 import os
 from pathlib import Path
 import shutil
+import signal
 import subprocess
+import sys
 import tarfile
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 
@@ -886,6 +889,100 @@ class AncestorHandoffTests(unittest.TestCase):
         self.git("fetch", "-q", "--depth=1", str(self.base / "checkout"), self.chain[0])
         (self.build / self.olean).write_bytes(b"stale snapshot")
         self.assert_miss("No first-parent ancestor")
+
+    def stalled_fetch(self):
+        """Make `git fetch origin` hang in a transport helper that has a child of its own."""
+        self.history(3)
+        self.handoff(1)
+        self.shallow_consumer(depth=2)
+        tools = self.base / "tools"
+        tools.mkdir()
+        helper = tools / "git-remote-stall"
+        helper.write_text('#!/bin/sh\nsleep 300 &\necho $! > "$STALL_PIDS/child"\n'
+                          'echo $$ > "$STALL_PIDS/helper"\nwait\n')
+        helper.chmod(0o755)
+        self.git("remote", "set-url", "origin", "stall::unreachable")
+        def stop_fixture():  # only after a failure; a passing test has already stopped both
+            for name in ("child", "helper"):
+                with contextlib.suppress(OSError, ValueError):
+                    os.kill(int((tools / name).read_text()), signal.SIGKILL)
+        self.addCleanup(stop_fixture)
+        return {"PATH": f"{tools}{os.pathsep}{os.environ['PATH']}", "STALL_PIDS": str(tools)}
+
+    def assert_fetch_processes_stopped(self):
+        def running(pid):
+            try:
+                return Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0] != "Z"
+            except OSError:
+                return False
+        pids = [int((self.base / "tools" / name).read_text()) for name in ("helper", "child")]
+        deadline = time.monotonic() + 5
+        while any(running(pid) for pid in pids) and time.monotonic() < deadline:
+            time.sleep(.05)
+        self.assertEqual([pid for pid in pids if running(pid)], [])
+
+    @unittest.skipUnless(sys.platform.startswith("linux"), "inspects /proc")
+    def test_timed_out_deepening_stops_git_helpers_before_using_available_history(self):
+        environment = self.stalled_fetch()
+        stop_group = handoff.bounded_run.__globals__["stop_group"]
+        def checked_stop(*args):
+            self.assertTrue((self.base / "tools/child").exists(), "helper did not start")
+            return stop_group(*args)
+        with patch.dict(os.environ, environment), patch.object(handoff, "DEEPEN_SECONDS", 2), \
+                patch.dict(handoff.bounded_run.__globals__, {"stop_group": checked_stop}), \
+                contextlib.redirect_stderr(io.StringIO()):
+            report = self.restore(lambda *args: (self.assert_fetch_processes_stopped(),
+                                                 self.download(*args)))
+        self.assertIn("could not deepen the checkout; using available history: timed out", report)
+        self.assertEqual(self.downloads, [201])
+        self.assert_fetch_processes_stopped()
+
+    @unittest.skipUnless(sys.platform.startswith("linux"), "inspects /proc")
+    def test_cancelled_deepening_stops_git_helpers_and_does_not_continue(self):
+        environment = self.stalled_fetch()
+        source = ("import sys; sys.path.insert(0, sys.argv[1]); import cache_handoff as handoff\n"
+                  "from pathlib import Path\n"
+                  "handoff.deepen_history(Path(sys.argv[2]), sys.argv[3])\n"
+                  "print('continued after cancellation')\n")
+        process = subprocess.Popen(
+            [sys.executable, "-B", "-c", source, str(Path(handoff.__file__).parent),
+             str(self.root), self.chain[0]], env={**os.environ, **environment},
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        try:
+            deadline = time.monotonic() + 10
+            while not (self.base / "tools/helper").exists():
+                self.assertIsNone(process.poll(), "deepening exited before the helper started")
+                self.assertLess(time.monotonic(), deadline)
+                time.sleep(.025)
+            process.send_signal(signal.SIGTERM)
+            stdout, stderr = process.communicate(timeout=20)
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.communicate()
+        self.assertNotEqual(process.returncode, 0)
+        self.assertIn("KeyboardInterrupt", stderr)
+        self.assertNotIn("continued after cancellation", stdout)
+        self.assert_fetch_processes_stopped()
+
+    def test_unconfirmed_fetch_shutdown_is_an_error_not_a_miss(self):
+        self.history(3)
+        self.handoff(1)
+        self.shallow_consumer(depth=2)
+        def unsafe(*args, **kwargs):
+            raise handoff.UnsafeShutdown("cache process group shutdown unconfirmed")
+        with patch.object(handoff, "bounded_run", unsafe), \
+                self.assertRaises(handoff.UnsafeShutdown):
+            self.restore(lambda *args: self.fail("Downloaded after an unconfirmed shutdown"))
+        self.assertEqual(self.api.calls, [])
+        self.assertEqual((self.build / self.olean).read_bytes(), b"stale snapshot")
+        with patch("sys.argv", ["cache_handoff.py", "restore", "--ancestor"]), \
+                patch.object(handoff, "restore_ancestor", side_effect=unsafe), \
+                contextlib.redirect_stdout(io.StringIO()) as output, \
+                contextlib.redirect_stderr(io.StringIO()) as errors:
+            self.assertEqual(handoff.main(), 125)
+        self.assertEqual(output.getvalue(), "")
+        self.assertIn("error: cache process group shutdown unconfirmed", errors.getvalue())
 
     def test_cli_selects_the_ancestor_path_only_when_asked(self):
         for arguments, called, idle in ((["restore", "--ancestor"], "restore_ancestor", "restore"),

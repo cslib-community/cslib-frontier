@@ -155,10 +155,13 @@ following builds while preserving the public cache's authorization boundary.
 
 ### Later merge groups
 
-A merge-group build also restores a handoff, after the Actions and remote caches and before
-`lake build`: that of its **nearest first-parent ancestor that has one**
-(`scripts/cache_handoff.py restore --ancestor`, step *Restore nearest ancestor merge-group build
-outputs*). The other caches are published only when a build of `main` completes, one at a time,
+A merge-group build also restores a handoff: that of its **nearest first-parent ancestor that has
+one** (`scripts/cache_handoff.py restore --ancestor`, step *Restore nearest ancestor merge-group
+build outputs*). The step runs after the Actions `.lake` snapshot is restored and before the
+remote cache. It replaces `.lake/build` as a unit, so in this order `scripts/cache/get-missing.sh`
+compares its mapping with the installed build's traces and downloads only what that build still
+lacks, instead of outputs the handoff would replace; after a miss the remote cache and the build
+run as before. The other caches are published only when a build of `main` completes, one at a time,
 so they lag the queue; two merge groups inspected on November 14, 2026 started 20 and 32 commits
 behind and recompiled 908 and 2,292 modules. Every commit that lands through the queue has a
 handoff from its own merge-group run, so the nearest one is normally the tip of `main` when the
@@ -166,10 +169,16 @@ group was formed, or a queue entry ahead of it whose run has already succeeded.
 
 - **Search.** The script reads the first-parent chain of the checked-out commit, deepening the
   depth-1 checkout only when it holds fewer commits than it needs, and considers at most 20
-  ancestors (`ANCESTOR_LIMIT`), nearest first. An ancestor with no merge-group run, a failed,
-  cancelled or unfinished latest run, or a missing or expired artifact is skipped at the cost of
-  one run listing, so a complete miss takes well under a minute. A build further back than 20
-  commits is no better than the caches already restored.
+  ancestors (`ANCESTOR_LIMIT`), nearest first. The fetch runs under the cache scripts' process
+  supervisor (`scripts/cache/bounded.py`) with a 60-second limit: a timeout or failure, once the
+  fetch's processes are confirmed stopped, only leaves fewer ancestors to consider, and an
+  unconfirmed shutdown ends the step with an error before anything is downloaded. An ancestor
+  with no merge-group run, a failed, cancelled or unfinished latest run, or a missing or expired
+  artifact is skipped at the cost of one run listing. The bound of 20 and the cost of a miss are
+  operational assumptions, not guarantees: a listing usually returns in about a second, each is
+  limited to 60 seconds, and only the step's 10-minute timeout bounds the whole search; a usable
+  build more than 20 commits back is not found, on the expectation, not yet measured, that the
+  `.lake` snapshot and the remote cache are then about as good.
 - **Validation.** Each candidate is checked exactly as the `main` restoration checks its own
   commit, with the ancestor's SHA in place of the current one: the run must be the latest
   successful `merge_group` attempt of `lean_action_ci.yml` in this repository for that ancestor,
@@ -188,10 +197,10 @@ group was formed, or a queue entry ahead of it whose run has already succeeded.
   unavailable` workflow warning and the ordinary build runs. A failure after the ancestor is
   chosen (download, archive, metadata, a rerun in progress) is a miss; the script does not then
   try an older build, since the step has one download budget.
-- **Limits.** If the nearest ancestor's pack or upload failed, the build restored can be older
-  than the snapshot already in `.lake`, and replaces it; Lake's artifact cache, which is outside
-  `.lake/build`, is not replaced. After two days without a landed commit every handoff has
-  expired and the step is a miss.
+- **Limits.** If the nearest ancestor's pack or upload failed, the build restored can be older than
+  the snapshot already in `.lake`, and replaces it; the remote cache then fills what it can, and
+  Lake's artifact cache, which is outside `.lake/build`, is not replaced. After two days without a
+  landed commit every handoff has expired and the step is a miss.
 
 - **Payload.** The archive keeps compiled outputs (including private/server OLeans, IR and native
   code), hashes and traces. It omits only `ir/**/*.setup.json` and `ir/**/*.irsetup.json`: Lake's

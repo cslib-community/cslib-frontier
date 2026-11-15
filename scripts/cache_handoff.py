@@ -24,9 +24,13 @@ import re
 import shutil
 import stat
 import subprocess
+import sys
 import tarfile
 import tempfile
 from urllib.parse import urlencode
+
+sys.path.insert(0, str(Path(__file__).resolve().parent / "cache"))
+from bounded import UnsafeShutdown, interruptible, run as bounded_run  # noqa: E402
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -46,9 +50,10 @@ DOWNLOAD_SECONDS = 420
 # First-parent ancestors that `restore --ancestor` considers, nearest first. Every commit that
 # lands through the queue has a handoff for two days, so the nearest one is normally one or two
 # commits back: the tip of `main` when the group was formed, behind any queue entries ahead of it
-# that are still building. Twenty covers a long stacked queue and a run of failed packs. Each
-# ancestor without a handoff costs one run listing, so a complete miss stays under a minute of the
-# step's ten, and a build further back than this is no better than the caches already restored.
+# that are still building. Twenty is an operational choice, not a guarantee: it is meant to cover
+# a long stacked queue and a run of failed packs, and it bounds a complete miss at one run listing
+# per ancestor. Each listing is a `gh api` call with a 60-second limit, usually about a second, and
+# the step's ten minutes bound the whole search whatever the API's latency.
 ANCESTOR_LIMIT = 20
 # Budget for deepening the depth-1 checkout far enough to see ANCESTOR_LIMIT ancestors.
 DEEPEN_SECONDS = 60
@@ -141,20 +146,28 @@ def first_parents(root: Path) -> list[str]:
 def deepen_history(root: Path, sha: str) -> None:
     """Fetch the history that ANCESTOR_LIMIT first-parent ancestors need, when it is missing.
 
-    CI checks out one commit. As in scripts/cache/restore.py, a failed fetch only leaves fewer
-    ancestors to consider. The fetch runs only while the checkout holds too few commits, so it
-    cannot shorten history that an earlier step fetched.
+    CI checks out one commit. As in scripts/cache/restore.py, a failed or timed-out fetch only
+    leaves fewer ancestors to consider. The fetch runs only while the checkout holds too few
+    commits, so it cannot shorten history that is already there.
+
+    Git's transport helpers are separate processes that a timeout on `git` alone would leave
+    running, so the fetch runs under the cache scripts' supervisor (scripts/cache/bounded.py): on
+    a timeout, or when the step is cancelled, its whole process group is stopped before this
+    returns. `UnsafeShutdown` means that could not be confirmed; it is not a miss, and the caller
+    must not go on to download or install.
     """
     shallow = subprocess.check_output(["git", "rev-parse", "--is-shallow-repository"],
                                       cwd=root, text=True).strip()
     if shallow != "true" or len(first_parents(root)) > ANCESTOR_LIMIT:
         return
-    try:
-        subprocess.run(["git", "fetch", "--quiet", "--no-tags", f"--depth={ANCESTOR_LIMIT + 1}",
-                        "origin", sha], cwd=root, check=True, capture_output=True, text=True,
-                       timeout=DEEPEN_SECONDS)
-    except (OSError, subprocess.SubprocessError) as error:
-        print(f"Build handoff could not deepen the checkout; using available history: {error}")
+    with interruptible():
+        result = bounded_run(["git", "fetch", "--quiet", "--no-tags",
+                              f"--depth={ANCESTOR_LIMIT + 1}", "origin", sha],
+                             timeout=DEEPEN_SECONDS, cwd=root, capture_output=True)
+    if result.returncode:
+        outcome = ("timed out" if result.returncode == 124
+                   else f"failed (exit {result.returncode}): {(result.stderr or '').strip()}")
+        print(f"Build handoff could not deepen the checkout; using available history: {outcome}")
 
 
 def ancestor_contexts(root: Path, env: dict) -> list[dict]:
@@ -491,6 +504,11 @@ def main() -> int:
             restore_ancestor(ROOT, os.environ)
         else:
             restore(ROOT, os.environ)
+    except UnsafeShutdown as error:
+        # As in scripts/cache/restore.py: a fetch whose processes could not be stopped is an
+        # error, not a miss. Nothing has been downloaded or installed.
+        print(f"error: {error}", file=sys.stderr)
+        return 125
     except (Rejected, OSError, ValueError, TypeError, KeyError, subprocess.SubprocessError,
             tarfile.TarError, EOFError) as error:
         message = f"Build handoff unavailable: {error}; continuing without this optional cache"
