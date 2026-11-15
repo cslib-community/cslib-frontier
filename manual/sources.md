@@ -782,6 +782,11 @@ Oded Goldreich. *On the Cook–Mertz Tree Evaluation procedure*. ECCC TR24-109, 
 
 Oded Goldreich. *Foundations of Cryptography, Volume 2: Basic Applications*. Cambridge University Press, 2004. https://doi.org/10.1017/CBO9780511721656 . Author's chapter listing and draft availability: https://www.wisdom.weizmann.ac.il/~oded/foc-vol2.html . Author page checked; the full published chapter was not independently audited here.
 
+<a id="goldreich98frag"></a>
+## goldreich98frag
+
+Oded Goldreich. *Foundations of Cryptography (Fragments of a Book – Version 2.03)*. Working draft dated February 27, 1998 (bibliography key `Goldreich1998Fragments`). The author's page https://www.wisdom.weizmann.ac.il/~oded/foc-drafts.html posts it as early drafts of Chapters 1–4 of *Foundations of Cryptography, Volume 1* (Cambridge University Press, 2001), in the files https://www.wisdom.weizmann.ac.il/~oded/PSBookFrag/part1N.pdf (title page, preface and Chapter 1; SHA-256 `8bb9b1749e92a76af10ded00ef440de04bfcd5de128e68022205c8e84037b3d7`), `part2N.pdf` (Chapter 2; `e0c0a64cc14321effaccbcb26e845254f08d8dc14b2358529687430a869aa45d`), `part3N.pdf` (Chapter 3; `773f69ff14873f66bbe241179dcf5c90c2389c81cd8a3b1b8f8f6aad365e46c3`) and `part4N.pdf` (Chapter 4; `97e67c3cae68701705839386a31f462803c6c9e6d1984638442010df99b6f977`). Printed page numbers run continuously across the four files. Read on 2026-11-15: Definitions 2.2.1 (strong one-way functions, p. 29), 2.2.6 (non-uniformly one-way functions, with the remark that follows it, p. 36) and 2.5.1 (hard-core predicates, p. 54); Definitions 3.2.2 (polynomial-time indistinguishability, p. 78) and 3.3.2 (pseudorandom generators, p. 85), the description of one-way permutations as length-preserving one-to-one one-way functions in Section 3.4.1 (p. 91), and the definition of indistinguishability by polynomial-size circuits in Exercise 8 of Chapter 3 (p. 121); Definition 4.2.6 (generalized interactive proofs with a soundness bound, p. 136), the remark that probabilistic polynomial time means a strict bound on the running time (p. 145), and Definition 4.3.8 (auxiliary-input zero knowledge, with the discussion of its clocks that follows it, pp. 151–152). The published volume was not inspected, so its numbering is not claimed to match the draft's.
+
 <a id="gomoryhu61"></a>
 ## gomoryhu61
 
@@ -1403,6 +1408,11 @@ Hiroshi Nagamochi and Toshihide Ibaraki. "Computing Edge-Connectivity in Multigr
 ## nagy1972
 
 Zsigmond Nagy. “A Constructive Estimation of the Ramsey Numbers” (in Hungarian). *Matematikai Lapok* 23, 301–302, 1972 (the volume is dated 1972 but reportedly appeared in 1975). The original was not inspected; the construction and its bound follow Jukna, *Extremal Combinatorics*, 2nd ed., §13.7 and the Chapter 13 exercises, as cited in the Lean documentation.
+
+<a id="naor91"></a>
+## naor91
+
+Moni Naor. “Bit Commitment Using Pseudorandomness.” *Journal of Cryptology* 4(2), 151–158, 1991. https://doi.org/10.1007/BF00196774 . The journal version was not inspected. Read on 2026-11-15 in the author's copy, https://www.wisdom.weizmann.ac.il/~naor/PAPERS/bit.pdf (“Bit Commitment Using Pseudo-Randomness”, 10 pages, dated February 25, 2001; SHA-256 `938b32039291411c682ca457c8c040dba7f0dc264de91182e6cb8cdaaba633b6`), whose section and page numbers the library cites: Section 2 (pp. 3–4), the secrecy and binding conditions of a bit commitment, the remark on auxiliary input, and the conditions for commitments to many bits, in which the receiver selects the two sequences.
 
 <a id="naoryung89"></a>
 ## naoryung89
