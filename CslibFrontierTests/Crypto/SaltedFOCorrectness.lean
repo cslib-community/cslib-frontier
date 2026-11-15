@@ -6,7 +6,9 @@ Authors: Samuel Schlesinger
 
 module
 
+import all CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Salted.Correctness
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Salted.Correctness
+import CslibFrontier.Probability.PMF.Bind
 
 /-!
 # Tests for the salted joint-oracle FO correctness hop
@@ -16,7 +18,9 @@ separate. Their exact query bounds detect counting the two projections of a join
 dropping the `qD` contribution. The connected explicit-coin PKE has one good and one bad Boolean
 coin for every message, so both local bad-event probabilities and its global correctness error are
 exactly `1 / 2` rather than vacuous endpoints. Distinct key and coin types make projection order a
-type-level regression, and a randomized challenge-aware client checks the public averaged theorem.
+type-level regression. A Bool-prefix execution regression checks that an off-target joint query
+leaves `LD` unchanged and has an independent key from a subsequent target query. A randomized
+challenge-aware client checks the public averaged theorem.
 -/
 
 public section
@@ -70,7 +74,8 @@ abbrev HalfResponse := Response (JointPrefix := Unit) (M := Bool) (Salt := Bool)
   (RejectPrefix := Unit) (Sigma := Unit) (CT := Bool) Unit Bool
 abbrev HalfState := CacheState Unit Bool Bool Unit Unit Bool Unit Bool
 
-def halfJointInput : JointInput Unit Bool Bool := ⟨(), false, false⟩
+noncomputable def halfJointInput : JointInput Unit Bool Bool :=
+  halfErrorScheme.jointInput () false false
 
 def halfCiphertext : Ciphertext Bool Bool := ⟨false, false⟩
 
@@ -78,7 +83,7 @@ def halfChallenge : Ciphertext Bool Bool := ⟨true, true⟩
 
 /-- This client consumes both projections of one fused reply. The projections have distinct types,
 so reversing the source order is rejected rather than hidden by a symmetric Boolean predicate. -/
-def halfDirectProgram : OracleComp HalfResponse Bool := do
+noncomputable def halfDirectProgram : OracleComp HalfResponse Bool := do
   let reply ← OracleComp.query (Query.joint halfJointInput)
   return (reply.key == ()) && (reply.coins == false)
 
@@ -90,7 +95,7 @@ def halfDecapsProgram : OracleComp HalfResponse Bool := do
 
 /-- A nontrivial completion client: decapsulation prefetches the decoded joint coordinate in the
 proof-only world, then a direct query consumes both the cached key and coin. -/
-def halfDecapsThenJointProgram : OracleComp HalfResponse Bool := do
+noncomputable def halfDecapsThenJointProgram : OracleComp HalfResponse Bool := do
   let decapsReply ← OracleComp.query (Query.decaps halfCiphertext)
   let jointReply ← OracleComp.query (Query.joint halfJointInput)
   return (decapsReply == some jointReply.key) && (jointReply.coins == false)
@@ -121,7 +126,7 @@ theorem halfDirect_bad_probability :
       ({} : HalfState)).toOuterMeasure {z | halfBad z.2} = ENNReal.ofReal (1 / 2 : ℝ) := by
   simpa only [halfBad, halfErrorScheme, halfJointInput, halfErrorPKE_msgFailProb] using
     (halfErrorScheme.realHandler_joint_bad_eq_msgFailProb () () halfChallenge halfJointInput
-      (st := ({} : HalfState)) (by simp) rfl)
+      (st := ({} : HalfState)) (by simp) rfl (by simp [halfJointInput, Scheme.jointInput]))
 
 /-- One nonchallenge decapsulation performs the implicit joint lookup and creates the same
 concrete witness with probability exactly `1 / 2`. This is the nonvacuous `(0,1)` execution. -/
@@ -208,6 +213,115 @@ theorem halfRejection_bad_probability :
 example : Query.jointCost (Query.rejection halfRejectionInput : HalfQuery) = 0 := rfl
 
 example : Query.decapsCost (Query.rejection halfRejectionInput : HalfQuery) = 0 := rfl
+
+/-! The private fixture below guards the distinction between the target `LD` coordinate and an
+off-target fused-oracle key. Both queries use the same message, salt and derived ciphertext. -/
+
+private noncomputable def boolPrefixPKE : ExplicitCoinPKE Unit Unit Unit Unit Unit where
+  keyGen := pure ((), ())
+  sampleCoins := pure ()
+  encDet _ _ _ := ()
+  dec _ _ := some ()
+
+private noncomputable def boolPrefixScheme :
+    Scheme Unit Unit Unit Unit Unit Bool Unit Unit Unit Bool where
+  pke := boolPrefixPKE
+  sampleKey := ProbComp.uniform Bool
+  jointPrefix _ := false
+  rejectionPrefix _ := ()
+  rejectionSecret _ := ()
+
+private abbrev BoolPrefixState := CacheState Bool Unit Unit Unit Unit Unit Bool Unit
+
+private noncomputable def boolTargetInput : JointInput Bool Unit Unit :=
+  boolPrefixScheme.jointInput () () ()
+
+private noncomputable def boolOffTargetInput : JointInput Bool Unit Unit :=
+  { boolTargetInput with keyPrefix := !boolTargetInput.keyPrefix }
+
+private noncomputable def boolOffTargetThenTargetRun : PMF (Bool × BoolPrefixState) :=
+  (boolPrefixScheme.cacheJoint () (fun _ _ => True) boolOffTargetInput {}).bind fun offTarget =>
+    (boolPrefixScheme.cacheJoint () (fun _ _ => True) boolTargetInput offTarget.2).map fun target =>
+      (offTarget.1.key == target.1.key, target.2)
+
+private noncomputable def boolOffTargetState (key : Bool) : BoolPrefixState :=
+  { jointCache := [(boolOffTargetInput, ⟨key, ()⟩)] }
+
+private noncomputable def boolTargetState (offTarget target : Bool) : BoolPrefixState :=
+  { jointCache :=
+      [(boolTargetInput, ⟨target, ()⟩), (boolOffTargetInput, ⟨offTarget, ()⟩)]
+    decapsCache := [(⟨(), ()⟩, target)] }
+
+private theorem boolOffTarget_run :
+    (boolPrefixScheme.cacheJoint () (fun _ _ => True) boolOffTargetInput)
+        ({} : BoolPrefixState) =
+      (PMF.uniformOfFintype Bool).map fun key =>
+        (⟨key, ()⟩, boolOffTargetState key) := by
+  have hoff : boolOffTargetInput ≠
+      boolPrefixScheme.jointInput () boolOffTargetInput.message boolOffTargetInput.salt := by
+    rw [show boolOffTargetInput.message = () from Subsingleton.elim _ _]
+    rw [show boolOffTargetInput.salt = () from Subsingleton.elim _ _]
+    change boolOffTargetInput ≠ boolTargetInput
+    unfold boolOffTargetInput
+    intro h
+    have hprefix := congrArg JointInput.keyPrefix h
+    apply Bool.not_ne_self boolTargetInput.keyPrefix
+    simpa only using hprefix
+  unfold Scheme.cacheJoint
+  simp only [List.lookup_nil]
+  simp only [ite_eq_right hoff]
+  simp [boolPrefixScheme, boolPrefixPKE, boolOffTargetState]
+
+private theorem boolTarget_run (offTarget : Bool) :
+    (boolPrefixScheme.cacheJoint () (fun _ _ => True) boolTargetInput)
+        (boolOffTargetState offTarget) =
+      (PMF.uniformOfFintype Bool).map fun target =>
+        (⟨target, ()⟩, boolTargetState offTarget target) := by
+  have htarget : boolTargetInput =
+      boolPrefixScheme.jointInput () boolTargetInput.message boolTargetInput.salt := by
+    rw [show boolTargetInput.message = () from Subsingleton.elim _ _]
+    rw [show boolTargetInput.salt = () from Subsingleton.elim _ _]
+    rfl
+  have hne : boolTargetInput ≠ boolOffTargetInput := by
+    unfold boolOffTargetInput
+    intro h
+    have hprefix := congrArg JointInput.keyPrefix h
+    apply Bool.not_ne_self boolTargetInput.keyPrefix
+    simpa only using hprefix.symm
+  unfold Scheme.cacheJoint
+  simp only [boolOffTargetState, List.lookup_cons, beq_eq_false_iff_ne.mpr hne,
+    List.lookup_nil]
+  simp only [ite_eq_left htarget]
+  simp [boolPrefixScheme, boolPrefixPKE, boolTargetState]
+
+private theorem boolOffTarget_ld_unchanged :
+    ((boolPrefixScheme.cacheJoint () (fun _ _ => True) boolOffTargetInput)
+      ({} : BoolPrefixState)).map
+        (fun z => z.2.decapsCache) = PMF.pure [] := by
+  rw [boolOffTarget_run]
+  rw [PMF.map_comp]
+  exact PMF.map_const _ _
+
+private theorem boolOffTargetThenTarget_law :
+    boolOffTargetThenTargetRun.map Prod.fst =
+      (PMF.uniformOfFintype Bool).bind fun offTarget =>
+        (PMF.uniformOfFintype Bool).map fun target => offTarget == target := by
+  rw [boolOffTargetThenTargetRun]
+  rw [boolOffTarget_run, PMF.map_bind, PMF.bind_map]
+  simp only [PMF.map, PMF.bind_bind, PMF.pure_bind, Function.comp_def]
+  apply PMF.bind_congr_on_support
+  intro offTarget _
+  rw [boolTarget_run]
+  simp only [PMF.map, PMF.bind_bind, PMF.pure_bind, Function.comp_def]
+
+private theorem boolOffTargetThenTarget_probability :
+    (boolOffTargetThenTargetRun.map Prod.fst) true = 1 / 2 := by
+  rw [boolOffTargetThenTarget_law, PMF.bind_apply, tsum_bool]
+  simp only [PMF.uniformOfFintype_apply, Fintype.card_bool, Nat.cast_ofNat, Bool.false_beq,
+    PMF.map_apply, Bool.true_eq, Bool.not_eq_eq_eq_not, Bool.not_true, tsum_fintype,
+    Fintype.univ_bool, Finset.sum_ite_eq', Finset.mem_insert, Bool.false_eq_true,
+    Finset.mem_singleton, or_true, ↓reduceIte, Bool.true_beq, or_false, one_div]
+  rw [← mul_add, ENNReal.inv_two_add_inv_two, mul_one]
 
 /-! ### Challenge-aware randomized client -/
 

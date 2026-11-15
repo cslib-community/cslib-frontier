@@ -1388,16 +1388,20 @@ test only inside the one-wayness run, with the `δ`-correctness bad event of
 For the post-secret-seed-guessing salted CORR hop used toward HQC, import
 [`FujisakiOkamoto/Salted/Correctness.lean`](../../CslibFrontier/Crypto/Protocols/KEM/FujisakiOkamoto/Salted/Correctness.lean).
 Its source-shaped query family keeps one fused joint query returning both the KEM key and PKE
-coins, an independent rejection channel, and punctured decapsulation. `QueryBounds` counts direct
-joint and decapsulation queries separately as `(qRO, qD)`; rejection queries have zero CORR cost.
+coins, an independent rejection channel, and punctured decapsulation. At a fixed public key,
+target-prefix joint queries take their key from the ciphertext-indexed `LD` table; an off-target
+query instead has an independent key indexed by its full `(prefix, message, salt)` input and does
+not inspect or change `LD`. `QueryBounds` counts direct joint and decapsulation queries separately
+as `(qRO, qD)`; rejection queries have zero CORR cost.
 `Scheme.closeTo_run_realHandler_simHandler` gives the fixed-key output-law bound
 `(qRO + qD) * keyPairMaxFailProb`, and
 `Scheme.advantage_randomizedRealHandler_simHandler_le` averages it over key generation using
-`ExplicitCoinPKE.DeltaCorrect`. The checked client
+`ExplicitCoinPKE.DeltaCorrect` (Glabush–Hövelmanns–Stebila, Definition 1, printed p. 6). The checked client
 [`SaltedFOCorrectness.lean`](../../CslibFrontierTests/Crypto/SaltedFOCorrectness.lean) supplies
-tight nonzero correctness and `(1,0)`, `(0,1)`, and `(1,1)` query-bound witnesses. This is a
-classical-ROM probability hop only: it does not model the pre-guessing HQC fallback oracle or
-prove the full HQC Theorem 6.4/KEM endpoint.
+tight nonzero correctness and `(1,0)`, `(0,1)`, and `(1,1)` query-bound witnesses. Its exact Bool
+regression checks that an off-target query leaves `LD` unchanged and that its key agrees with a
+subsequent target key with probability `1 / 2`. This is a classical-ROM probability hop only: it
+does not model the pre-guessing HQC fallback oracle or prove the full HQC Theorem 6.4/KEM endpoint.
 
 To see why the re-encryption check of `T` cannot be omitted in `FO-notbot`, import [`FujisakiOkamoto/NoCheck.lean`](../../CslibFrontier/Crypto/Protocols/KEM/FujisakiOkamoto/NoCheck.lean): for any explicit-coin PKE `P` over `Fin n → Bool`, `leakyPKE P` appends an `Option (Fin n)` tag to ciphertexts while preserving two-stage `cpaAdvantage` (`leakyPKE_cpaAdvantage`), `DeltaCorrect` (`leakyPKE_deltaCorrect`), and `GammaSpread` (`leakyPKE_gammaSpread`) and making `Scheme.decapsNotBot` reject tagged ciphertexts `(c, some i)` via the re-encryption check (`decapsNotBot_leakyPKE_some`), whereas dropping the re-encryption check (`Scheme.decapsNoCheck`, `Scheme.eagerNoCheckGame`) lets the bit-recovery adversary `leakAdv` (`roQueryBounds_leakAdv`, `0` `G`-queries and `n + 1` `H`-queries) achieve advantage at least `1 - (n + 1) / |K|` for a perfectly correct `P` and uniform keys (`advantage_eagerNoCheckGame_leakAdv`; checked client in [`CslibFrontierTests/Crypto/FujisakiOkamotoNoCheck.lean`](../../CslibFrontierTests/Crypto/FujisakiOkamotoNoCheck.lean)). For explicit-rejection `FO^⊥ = U^⊥ ∘ T` (§3.2.1, Fig. 9), import [`FujisakiOkamoto/Bot.lean`](../../CslibFrontier/Crypto/Protocols/KEM/FujisakiOkamoto/Bot.lean) (`ROFullQueryBounds`, `Scheme.roIndCcaBotGame`, `Scheme.eagerIndCcaBotGame`, `Scheme.eval_roIndCcaBotGame_eq_eagerIndCcaBotGame`, `Scheme.simBotGame`, `Scheme.romBotCpaReduction`, `Scheme.indCcaBotAdvantage_le`, which removes the `2 qH / |M|` fallback seed-guessing term and adds the spreadness term `2 (qG + qH + qD) 2^{-γ}`, including the ciphertext-validity term over `qD` decapsulation queries, with `roIndCcaBotGame` and `eagerIndCcaBotGame` likewise drawing both real `H` replies and the independent ideal challenge key from `S.sampleKey` so uniform `S.sampleKey` recovers the standard uniform-ideal-key experiment) and [`FujisakiOkamoto/SpreadNecessity.lean`](../../CslibFrontier/Crypto/Protocols/KEM/FujisakiOkamoto/SpreadNecessity.lean) (`unspreadPointPKE`, `unspreadScheme`, `probeDecapsAdv`, `advantage_eagerIndCcaBotGame_simBotGame_probeDecapsAdv`, showing that a single decapsulation query `qD = 1` with `qG = qH = 0` achieves distinguishing advantage `1 - 1 / |M|` against `simBotGame` when `γ`-spreadness fails at one message); standalone OW-PCA / OW-PCVA security definitions for `T` are not formalized separately. Checked clients in
 [`CslibFrontierTests/Crypto/FujisakiOkamoto.lean`](../../CslibFrontierTests/Crypto/FujisakiOkamoto.lean)
