@@ -7,33 +7,24 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Crypto.Game
 public import CslibFrontier.Crypto.Game.Inversion
-public import CslibFrontier.Crypto.Game.Order
 public import CslibFrontier.Probability.PMF.Uniform
+import CslibFrontier.Crypto.Game.Order
 import CslibFrontier.Probability.Guessing.Leakage
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Bool
 import Mathlib.Tactic.GCongr
 import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.NormNum
 
 /-!
 # Second-preimage experiments and finite bounds
 
-The finite second-preimage experiment for a function and input distribution, together with the
-finite-domain counting and inversion bounds of [BonehShoup2023], Exercise 8.23(a)–(b), pp. 352–353.
-
-* `secondPreimageExperiment sample f finder`: draw `x ← sample`, run `x' ← finder x`, and accept
-  when `x' ≠ x` and `f x' = f x`.
-* `HasSecondPreimage H m`: `m` has a distinct preimage partner `m' ≠ m` with `H m' = H m`.
-* `inversionExperiment_le_secondPreimageExperiment_add`: for any input distribution `sample`,
-  wrapping an inverter `A` as `x ↦ A (f x)` satisfies
-  `OWadv[A, f] ≤ SPRadv[A ∘ f, f] + ∑' x, sample x * A (f x) x`.
-* `succProbability_inversionExperiment_uniform_le_add_card_div`: on a finite nonempty domain `M`
-  and finite codomain `T`, the factor-one bound `OWadv[A, H] ≤ SPRadv[A ∘ H, H] + |T| / |M|`.
-* `succProbability_inversionExperiment_uniform_le_two_mul_add_div`: the book's (8.22) bound
-  `OWadv[A, H] ≤ 2 · SPRadv[A ∘ H, H] + 1 / s` when `s * |T| ≤ |M|` and `0 < s`; the constant `2`
-  in (8.22) is an artefact of the book's proof and is not needed here.
+The second-preimage experiment for a function and an input distribution, with the finite-domain
+counting and inversion bounds of [BonehShoup2023], Exercise 8.23(a)–(b), pp. 352–353. Below,
+`OWadv[A, H]` and `SPRadv[B, H]` are the success probabilities of `inversionExperiment` and
+`secondPreimageExperiment`, and `B := fun m => A (H m)` is the finder that runs the inverter `A`
+on the digest.
 
 The asymptotic bit-string notion `SecondPreimageResistant` lives in
 `CslibFrontier.Crypto.Computational.SecondPreimageResistant`.
@@ -46,19 +37,18 @@ The asymptotic bit-string notion `SecondPreimageResistant` lives in
 
 ## Main results
 
-* `Cslib.ProbComp.eval_secondPreimageExperiment`: evaluating a program experiment gives the
-  experiment on distributions.
-* `Cslib.Crypto.succProbability_secondPreimageExperiment_le_of_eq_imp`: monotonicity of
-  `secondPreimageExperiment` under digest maps that refine equality on distinct inputs.
 * `Cslib.Crypto.card_not_hasSecondPreimage_le`,
   `Cslib.Crypto.card_not_hasSecondPreimage_div_le`: at most `|T|` inputs lack a second preimage,
   which is at most a `1 / s` fraction when `s * |T| ≤ |M|` and `0 < s` (Exercise 8.23(a)).
-* `Cslib.Crypto.inversionExperiment_le_secondPreimageExperiment_add`: distributional split between
-  inversion and second-preimage search.
-* `Cslib.Crypto.succProbability_inversionExperiment_uniform_le_add_card_div`: factor-one uniform
-  inversion bound `OWadv[A, H] ≤ SPRadv[A ∘ H, H] + |T| / |M|`.
+* `Cslib.Crypto.inversionExperiment_le_secondPreimageExperiment_add`: for any input distribution
+  `sample`, `OWadv[A, H] ≤ SPRadv[B, H] + ∑' x, sample x * A (H x) x`.
+* `Cslib.Crypto.succProbability_inversionExperiment_uniform_le_add_card_div`: on a uniform input
+  from a nonempty finite `M`, `OWadv[A, H] ≤ SPRadv[B, H] + |T| / |M|`.
 * `Cslib.Crypto.succProbability_inversionExperiment_uniform_le_two_mul_add_div`: equation (8.22)
-  of Exercise 8.23(b).
+  of Exercise 8.23(b), `OWadv[A, H] ≤ 2 · SPRadv[B, H] + 1 / s` when `s * |T| ≤ |M|` and `0 < s`.
+  It follows from the previous bound, which shows that the factor `2` is not needed.
+* `Cslib.Crypto.succProbability_secondPreimageExperiment_le_of_eq_imp`: a finder succeeds against
+  `g` at most as often as against `f` when every collision of `g` on distinct inputs is one of `f`.
 
 ## References
 
@@ -103,11 +93,8 @@ theorem secondPreimageExperiment_eq_pure_false_of_injective [BEq α] [LawfulBEq 
     · simp [h]
     · have hne : f x' ≠ f x := fun hfx => h (hf hfx)
       simp [h, hne]
-  have hmap (x : α) : ((finder x).map fun x' => x' != x && f x' == f x) = PMF.pure false := by
-    simp only [heq]
-    ext b
-    cases b <;> simp [PMF.map_apply, PMF.tsum_coe]
-  simp only [secondPreimageExperiment_eq_bind_map, hmap, PMF.bind_const]
+  simp only [secondPreimageExperiment, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, heq,
+    PMF.bind_const]
 
 /-- If every collision under `g` is a collision under `f`, then every second-preimage finder
 succeeds at least as often against `f` as against `g`. -/
@@ -152,16 +139,16 @@ theorem card_not_hasSecondPreimage_le {M T : Type*} [Fintype M] [Fintype T] (H :
 /-- **Exercise 8.23(a), fraction form** ([BonehShoup2023], p. 352): if `|M| ≥ s · |T|` with
 `0 < s` (the book assumes `s > 1`, and `0 < s` suffices), then at most a `1 / s` fraction of
 inputs in `M` lack a second preimage. -/
-theorem card_not_hasSecondPreimage_div_le {M T : Type*} [Fintype M] [Nonempty M] [Fintype T]
+theorem card_not_hasSecondPreimage_div_le {M T : Type*} [Fintype M] [Fintype T]
     (H : M → T) [DecidablePred fun m : M => ¬ HasSecondPreimage H m]
     {s : ℝ} (hs : 0 < s) (hM : s * Fintype.card T ≤ Fintype.card M) :
     ((Finset.univ.filter fun m : M => ¬ HasSecondPreimage H m).card : ℝ) / Fintype.card M ≤
       1 / s := by
-  have hM' : (0 : ℝ) < Fintype.card M := Nat.cast_pos.mpr Fintype.card_pos
   have hcard : ((Finset.univ.filter fun m : M => ¬ HasSecondPreimage H m).card : ℝ) ≤
       Fintype.card T := by
     exact_mod_cast card_not_hasSecondPreimage_le H
-  rw [div_le_div_iff₀ hM' hs]
+  refine div_le_of_le_mul₀ (Nat.cast_nonneg _) (by positivity) ?_
+  rw [one_div, inv_mul_eq_div, le_div_iff₀ hs]
   nlinarith
 
 /-- Distributional split behind (8.22): for any input law `sample`, an inverter `A` either finds
@@ -184,10 +171,11 @@ theorem inversionExperiment_le_secondPreimageExperiment_add {α : Type} {β : Ty
     rw [PMF.map_apply_true, tsum_eq_single x (fun a ha => by simp [ha])]
     simp
 
-/-- Factor-one uniform inversion bound: wrapping an inverter `A` into the second-preimage finder
-`m ↦ A (H m)` satisfies `OWadv[A, H] ≤ SPRadv[B, H] + |T| / |M|`, without the book's factor `2`. -/
+/-- Factor-one uniform inversion bound: the second-preimage finder `B := fun m => A (H m)` built
+from an inverter `A` satisfies `OWadv[A, H] ≤ SPRadv[B, H] + |T| / |M|`, without the factor `2` of
+(8.22). -/
 theorem succProbability_inversionExperiment_uniform_le_add_card_div
-    {M T : Type} [Fintype M] [Nonempty M] [DecidableEq M] [Fintype T] [DecidableEq T]
+    {M : Type} {T : Type*} [Fintype M] [Nonempty M] [DecidableEq M] [Fintype T] [DecidableEq T]
     (H : M → T) (A : T → PMF M) :
     (Game.succProbability (inversionExperiment (uniformOfFintype M) H A) : ℝ) ≤
       (Game.succProbability
@@ -211,12 +199,12 @@ theorem succProbability_inversionExperiment_uniform_le_add_card_div
     ENNReal.toReal_inv, div_eq_mul_inv] using hreal
 
 /-- **Exercise 8.23(b), equation (8.22)** ([BonehShoup2023], p. 353): when `|M| ≥ s · |T|` with
-`0 < s`, wrapping a one-way inverter `A` into the second-preimage finder `m ↦ A (H m)` satisfies
+`0 < s`, the second-preimage finder `B := fun m => A (H m)` built from an inverter `A` satisfies
 `OWadv[A, H] ≤ 2 · SPRadv[B, H] + 1 / s`. This weakens
-`succProbability_inversionExperiment_uniform_le_add_card_div`; the constant `2` is an artefact of
-the book's proof and is not needed. -/
+`succProbability_inversionExperiment_uniform_le_add_card_div`, which shows that the factor `2` is
+not needed. -/
 theorem succProbability_inversionExperiment_uniform_le_two_mul_add_div
-    {M T : Type} [Fintype M] [Nonempty M] [DecidableEq M] [Fintype T] [DecidableEq T]
+    {M : Type} {T : Type*} [Fintype M] [Nonempty M] [DecidableEq M] [Fintype T] [DecidableEq T]
     (H : M → T) (A : T → PMF M) {s : ℝ} (hs : 0 < s)
     (hM : s * Fintype.card T ≤ Fintype.card M) :
     (Game.succProbability (inversionExperiment (uniformOfFintype M) H A) : ℝ) ≤

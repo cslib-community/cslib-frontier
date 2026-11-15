@@ -2482,23 +2482,30 @@ one-bit-per-block instance `merkleDamgard`, not the length-strengthened one),
 conclusions for `2 n → n` compression families. No converse is claimed.
 
 Second-preimage resistance ([bs23][bs23], §8.11.1, Definition 8.6, p. 336, and Exercise 8.23(a)–(b),
-pp. 352–353) splits into finite games in
-[`Game/SecondPreimage.lean`](../../CslibFrontier/Crypto/Game/SecondPreimage.lean) and the asymptotic
-bit-string definition in
+pp. 352–353) is split between the experiment with its finite bounds in
+[`Game/SecondPreimage.lean`](../../CslibFrontier/Crypto/Game/SecondPreimage.lean) and the
+bit-string notion in
 [`SecondPreimageResistant.lean`](../../CslibFrontier/Crypto/Computational/SecondPreimageResistant.lean).
-Given a uniform input `m ← M` from a nonempty finite domain `M` to `T`, at most `|T|` inputs lack a
-second preimage (`card_not_hasSecondPreimage_le`), so at most a `1 / s` fraction when `|M| ≥ s · |T|`
-and `0 < s` (`card_not_hasSecondPreimage_div_le`); wrapping an inverter `A` into the finder
-`B := fun m => A (H m)` satisfies `OWadv[A, H] ≤ SPRadv[B, H] + |T| / |M|`
-(`succProbability_inversionExperiment_uniform_le_add_card_div`), which weakens to (8.22)
-(`OWadv[A, H] ≤ 2 · SPRadv[B, H] + 1 / s` when `|M| ≥ s · |T|` and `0 < s`,
-`succProbability_inversionExperiment_uniform_le_two_mul_add_div`). On bit strings,
+`secondPreimageExperiment sample f finder` draws `x ← sample`, runs `x' ← finder x`, and accepts
+when `x' ≠ x` and `f x' = f x`. For `H : M → T` between finite types, at most `|T|` inputs lack a
+second preimage (`card_not_hasSecondPreimage_le`), so at most a `1 / s` fraction when
+`|M| ≥ s · |T|` and `0 < s` (`card_not_hasSecondPreimage_div_le`). For any input distribution, an
+inverter `A` succeeds at most as often as the finder `B := fun m => A (H m)` succeeds plus the
+probability that `A (H m)` returns `m` itself
+(`inversionExperiment_le_secondPreimageExperiment_add`). On a uniform input from a nonempty finite
+`M` this gives `OWadv[A, H] ≤ SPRadv[B, H] + |T| / |M|`
+(`succProbability_inversionExperiment_uniform_le_add_card_div`), writing `OWadv` and `SPRadv` for
+the success probabilities of `inversionExperiment` and `secondPreimageExperiment`; it weakens to
+(8.22), `OWadv[A, H] ≤ 2 · SPRadv[B, H] + 1 / s` when `|M| ≥ s · |T|` and `0 < s`
+(`succProbability_inversionExperiment_uniform_le_two_mul_add_div`). On bit strings,
 `SecondPreimageResistant f` requires polynomial-time evaluation and negligible success in
-`secondPreimageGame` against every uniform strict PPT `SecondPreimageFinder`; unlike Definition 8.6
-(`m' ∈ M`), any answer `x' ≠ x` of arbitrary length wins, matching `OneWay`. The certified
-asymptotic reduction of Exercise 8.23(b), the bit-string separation of Exercise 8.23(c), and
-Exercise 8.23(d) are not yet proved here; the [tests](../../CslibFrontierTests/Crypto/SecondPreimageResistant.lean)
-verify the factor-one equality on `Bool → Unit`, probe `0 < s`, instantiate the finite `revealAtZero`
+`secondPreimageGame` for every uniform strict PPT `SecondPreimageFinder`: the finder receives a
+uniform `n`-bit `x` and `n` in unary, and wins with any `x' ≠ x` such that `f x' = f x`. Unlike
+Definition 8.6 (`m' ∈ M`), `x'` may have any length, as in `OneWay`. The certified reduction of
+Exercise 8.23(b) on bit strings, the separation of Exercise 8.23(c) on bit strings and
+Exercise 8.23(d) are not proved here; the
+[tests](../../CslibFrontierTests/Crypto/SecondPreimageResistant.lean) check that the factor-one
+bound is an equality on `Bool → Unit`, probe `0 < s`, instantiate the finite `revealAtZero`
 construction of Exercise 8.23(c), and refute constant functions.
 
 Merkle–Damgård chains have many messages with one digest at little more than the cost of one

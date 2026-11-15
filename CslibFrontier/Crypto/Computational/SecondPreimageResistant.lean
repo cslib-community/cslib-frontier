@@ -34,7 +34,7 @@ PPT certificates, and `SecondPreimageResistant f` on `List Bool → List Bool`, 
 `SecondPreimageResistant.of_injective` and `not_secondPreimageResistant_const`. The monad-generic
 finite experiment and distributional bounds of Exercise 8.23(a)–(b) live in
 `CslibFrontier.Crypto.Game.SecondPreimage`; the certified bit-string reductions of (8.17),
-Exercise 8.23(b)–(d), and Theorem 8.12 live in follow-on modules.
+Exercise 8.23(b)–(d), and Theorem 8.12 are not proved here.
 
 ## Main definitions
 
