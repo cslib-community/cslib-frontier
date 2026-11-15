@@ -4964,7 +4964,9 @@ public import CslibFrontier.DataStructure.CountMin.Program
 public import CslibFrontier.DataStructure.Dictionary.CellProbe.Consistency
 public import CslibFrontier.DataStructure.Dictionary.CellProbe.HardDist
 public import CslibFrontier.DataStructure.Dictionary.CellProbe.InnerGame
+public import CslibFrontier.DataStructure.Dictionary.CellProbe.LowerBound
 public import CslibFrontier.DataStructure.Dictionary.CellProbe.MetaTree
+public import CslibFrontier.DataStructure.Dictionary.CellProbe.OuterGame
 public import CslibFrontier.DataStructure.Dictionary.CuckooHashing
 public import CslibFrontier.DataStructure.Dictionary.CuckooHashing.Basic
 public import CslibFrontier.DataStructure.Dictionary.CuckooHashing.HashFamily
