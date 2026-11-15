@@ -10,7 +10,6 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pi
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OCombinators
 public import Mathlib.Tactic.FunProp
-import Mathlib.Tactic.Linarith
 
 /-!
 # Parameterized resource bounds for finite tuples
