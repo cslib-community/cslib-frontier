@@ -13,6 +13,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Crypto.Computational.DiffieHellman.SampleExp
+import CslibFrontier.Foundations.Data.ZMod.NatCast
 import CslibFrontier.Tactic.Negligible
 
 /-!
@@ -208,12 +209,6 @@ private theorem isPPTOn_sampleExp_six {α β : Type} {enc : α ↪ List Bool}
     (a₄ := fun p => p.1.1.2) (a₅ := fun p => p.1.2) (a₆ := fun p => p.2) (by fun_prop)
     (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)).isPPTOn
 
-/-- `-(b : ZMod q)` is the cast of `q - b % q`. -/
-private theorem natCast_sub_mod_eq_neg (d : F.Desc) (b : ℕ) :
-    ((F.order d - b % F.order d : ℕ) : ZMod (F.order d)) = -(b : ZMod (F.order d)) := by
-  rw [Nat.cast_sub (Nat.le_of_lt (Nat.mod_lt _ (F.prime_order _).pos)), ZMod.natCast_self,
-    ZMod.natCast_mod, zero_sub]
-
 /-- The view words that `ddhOTSenderSimSampleExp` writes at group parameters `d` on the sender's
 messages `m = (m₀, m₁)` and exponents `a, r₀, s₀, r₁, s₁, b`: the exponents reduced modulo
 `q = F.order d`, and the branch keys `b • g` and `a • g + (q - b % q) • g`. -/
@@ -268,8 +263,8 @@ theorem isPPT_ddhOTSenderSimSampleExp : F.ddhOTSenderSimSampleExp.IsPPT F.ddhOTE
     change _ = F.ddhOTSenderViewWords d (ddhOTSenderView (xs sender)
       ((a : ZMod q), (r₀ : ZMod q), (s₀ : ZMod q), (r₁ : ZMod q), (s₁ : ZMod q))
       ((b : ZMod q) • g, (a : ZMod q) • g - (b : ZMod q) • g))
-    simp only [ddhOTSenderSimWords, ddhOTSenderViewWords, ddhOTSenderView, natCast_sub_mod_eq_neg,
-      neg_smul, ← sub_eq_add_neg, ZMod.val_natCast]
+    simp only [ddhOTSenderSimWords, ddhOTSenderViewWords, ddhOTSenderView,
+      ZMod.natCast_sub_mod_eq_neg, neg_smul, ← sub_eq_add_neg, ZMod.val_natCast]
     rfl
 
 /-- The view words that `ddhOTReceiverSimSampleExp` writes at group parameters `d` on the choice
