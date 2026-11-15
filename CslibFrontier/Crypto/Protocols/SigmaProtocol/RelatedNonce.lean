@@ -83,17 +83,9 @@ theorem schnorr_accepts_affine {u t : G} {c : C} {z : ZMod q}
 
 /-- The key computed from two Schnorr signatures whose nonces are `r` and `a * r + b`
 ([BonehShoup2023], Exercise 19.1): from the challenges `c₀, c₁` and the responses `z₀, z₁`. It is
-`linearExtract` at the conversation transformed by `schnorr_accepts_affine`
-(`relatedNonceExtract_eq_linearExtract`). -/
+`linearExtract` at the conversation transformed by `schnorr_accepts_affine`. -/
 @[expose] def relatedNonceExtract (a b c₀ z₀ c₁ z₁ : ZMod q) : ZMod q :=
   (a * c₀ - c₁)⁻¹ * (a * z₀ + b - z₁)
-
-omit [NeZero q] [DecidableEq G] [AddCommGroup G] [Module (ZMod q) G] in
-/-- `relatedNonceExtract` is `linearExtract` at the first conversation transformed by
-`schnorr_accepts_affine`. -/
-theorem relatedNonceExtract_eq_linearExtract (u t : G) (a b c₀ z₀ c₁ z₁ : ZMod q) :
-    relatedNonceExtract a b c₀ z₀ c₁ z₁ =
-      linearExtract (Function.Embedding.refl (ZMod q)) u t (a * c₀) (a * z₀ + b) c₁ z₁ := rfl
 
 /-- **Related nonces reveal a witness** ([BonehShoup2023], Exercise 19.1): from two accepting
 conversations for `u` whose commitments satisfy `t₁ = a • t₀ + b • g`, with `a * ι c₀ ≠ ι c₁`. -/

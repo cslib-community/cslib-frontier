@@ -55,11 +55,6 @@ example : relatedNonceExtract (2 : ZMod 7) 5 1 (2 + 1 * 3) 1 (2 * 2 + 5 + 1 * 3)
 example : relatedNonceExtract (2 : ZMod 7) 5 1 (2 + 1 * 3) 2 (2 * 2 + 5 + 2 * 3) = 0 := by
   simp [relatedNonceExtract]
 
-example {q : ℕ} (c₀ z₀ c₁ z₁ : ZMod q) :
-    relatedNonceExtract 1 0 c₀ z₀ c₁ z₁ =
-      linearExtract (Function.Embedding.refl (ZMod q)) (0 : ZMod q) (0 : ZMod q) c₀ z₀ c₁ z₁ := by
-  simpa using relatedNonceExtract_eq_linearExtract (0 : ZMod q) 0 1 0 c₀ z₀ c₁ z₁
-
 example : relatedNonceExtract (2 : ZMod 7) 5 1 (2 + 1 * 3) 4 (2 * 2 + 5 + 4 * 3) = 3 :=
   relatedNonceExtract_respond (ι := Function.Embedding.refl (ZMod 7)) (g := (1 : ZMod 7))
     3 3 2 2 5 (c₀ := 1) (c₁ := 4) (by decide)
