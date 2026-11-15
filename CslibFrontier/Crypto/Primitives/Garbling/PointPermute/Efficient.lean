@@ -17,6 +17,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Foundations.Data.List.Lookup
+import CslibFrontier.Foundations.Data.List.GetD
 
 /-!
 # Point-and-permute garbling is efficient
@@ -122,13 +123,13 @@ attribute [local fun_prop] labelWord_polyTime tweak_polyTime wireWidth_polyTime 
   keyOf_polyTime labelOf_polyTime
 
 /-- `De` runs in polynomial time. -/
-private theorem decodeWord_polyTime :
+theorem decodeWord_polyTime :
     ComputableInPolyTime (fun (d, Y) => decodeWord d Y) (encPair encBits encBits)
       (encOption encBits) := by
   polytime [decodeWord]
 
 /-- `En` runs in polynomial time. -/
-private theorem encodeWord_polyTime :
+theorem encodeWord_polyTime :
     ComputableInPolyTime (fun (e, x) => encodeWord e x) (encPair encBits encBits) encBits := by
   polytime [encodeWord, BitString.listRow]
 
@@ -497,13 +498,6 @@ private def wireStep (ws : List Bool) (gate : ℕ × ℕ × List Bool) : List Bo
   ws ++ [gate.2.2.getD ((if ws.getD (min (ws.length + 1) gate.1 - 1) false then 2 else 0) +
     (if ws.getD (min (ws.length + 1) gate.2.1 - 1) false then 1 else 0)) false]
 
-private theorem getD_min (ws : List Bool) (V : ℕ) :
-    ws.getD (min (ws.length + 1) V - 1) false = ws.getD (V - 1) false := by
-  rcases le_total (ws.length + 1) V with h | h
-  · rw [min_eq_left h, Nat.add_sub_cancel]
-    simp [List.getD_eq_getElem?_getD, List.getElem?_eq_none (show ws.length ≤ V - 1 by omega)]
-  · rw [min_eq_right h]
-
 private theorem wires_eq_foldl (f : ConventionalCircuit) (x : List Bool) {s : ℕ} (hs : s ≤ f.q) :
     f.wires x s = (f.gateList.take s).foldl wireStep
       (x.take f.n ++ List.replicate (f.n - x.length) false) := by
@@ -518,7 +512,8 @@ private theorem wires_eq_foldl (f : ConventionalCircuit) (x : List Bool) {s : �
           f.G ⟨s, hsq⟩ true true]) := by
       simp [ConventionalCircuit.gateList, hsq]
     rw [hget]
-    simp only [Option.toList_some, List.foldl_cons, List.foldl_nil, wireStep, getD_min,
+    simp only [Option.toList_some, List.foldl_cons, List.foldl_nil, wireStep,
+      List.getD_min_length_succ_sub_one,
       getD_table, ConventionalCircuit.wireVal, ← List.getD_eq_getElem?_getD]
 
 private theorem wireStep_polyTime :
@@ -560,9 +555,10 @@ theorem wires_polyTime :
   rw [heq]
   exact hfold
 
-/-- The semantics `ev` is computed in polynomial time. -/
-private theorem ev_polyTime :
-    ComputableInPolyTime (fun (f, x) => (scheme family).ev f x) (encPair encValidCircuit encBits)
+/-- **The semantics** `evalCirc` of a valid circuit on an input, the semantics `ev` of the
+garbling schemes over conventional circuits, is computed in polynomial time. -/
+theorem evalCirc_polyTime :
+    ComputableInPolyTime (fun (f, x) => f.1.evalCirc x) (encPair encValidCircuit encBits)
       encBits := by
   have hd : ComputableInPolyTime (fun p : ValidCircuit × List Bool =>
       (p.1.1.n, p.1.1.m, p.1.1.gateList)) (encPair encValidCircuit encBits) encCircuitData :=
@@ -581,11 +577,11 @@ private theorem ev_polyTime :
   have hdrop : ComputableInPolyTime (fun p : List Bool × ℕ => p.1.drop p.2)
       (encPair encBits encUnary) encBits := by
     polytime
-  have heq : (fun (f, x) => (scheme family).ev f x) = fun p : ValidCircuit × List Bool =>
+  have heq : (fun (f, x) => f.1.evalCirc x) = fun p : ValidCircuit × List Bool =>
       (p.1.1.wires p.2 p.1.1.q).drop (p.1.1.n + p.1.1.gateList.length - p.1.1.m) := by
     funext p
     obtain ⟨f, x⟩ := p
-    simp only [scheme, ConventionalCircuit.evalCirc, ConventionalCircuit.length_gateList]
+    simp only [ConventionalCircuit.evalCirc, ConventionalCircuit.length_gateList]
   rw [heq]
   exact hdrop.comp (wires_polyTime.prod hc)
 
@@ -602,6 +598,6 @@ theorem scheme_isEfficient : (scheme family).IsEfficient encValidCircuit where
   encode := encodeWord_polyTime
   evalGarbled := evalWord_polyTime hf
   decode := decodeWord_polyTime
-  ev := ev_polyTime
+  ev := evalCirc_polyTime
 
 end Cslib.Crypto.Garbling.PointPermute

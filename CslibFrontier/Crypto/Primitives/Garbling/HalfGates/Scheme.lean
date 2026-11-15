@@ -292,16 +292,11 @@ theorem ofFn_slotTweak {n m : ℕ} (C : Circuit signature n m) (k : ℕ) (g : Fi
 theorem labelBits_atLevel (k : ℕ) (x : BitString (k + 1) × Bool) (t : BitString k) :
     PointPermute.labelBits (CCR.atLevel hash k x t) =
       hashWord hash k (PointPermute.labelBits x) (List.ofFn t) := by
-  obtain ⟨key, colour⟩ := x
-  have hpad (w : List Bool) : BitString.ofList (k + 2)
-      ((w ++ List.replicate (k + 2) false).take (k + 2)) = BitString.ofList (k + 2) w := by
-    rw [← BitString.ofFn_ofList_eq_take, BitString.ofList_ofFn]
-  have hlabel : CCR.atLevel hash k (key, colour) t = PointPermute.labelOfWord k
-      (hashWord hash k (PointPermute.labelBits (key, colour)) (List.ofFn t)) := by
-    simp only [CCR.atLevel, PointPermute.labelOfWord, PointPermute.labelEquiv, hashWord,
-      PointPermute.labelBits_apply, Equiv.coe_fn_mk, hpad]
-    rfl
-  rw [hlabel, PointPermute.labelBits_labelOfWord (length_hashWord hash k _ _)]
+  have hpad : PointPermute.labelOfWord k (hash (PointPermute.labelBits x) (List.ofFn t)) =
+      PointPermute.labelOfWord k (hashWord hash k (PointPermute.labelBits x) (List.ofFn t)) := by
+    rw [PointPermute.labelOfWord, PointPermute.labelOfWord, hashWord,
+      ← BitString.ofFn_ofList_eq_take, BitString.ofList_ofFn]
+  rw [CCR.atLevel, hpad, PointPermute.labelBits_labelOfWord (length_hashWord hash k _ _)]
 
 /-- The zero label as a word. -/
 private theorem labelBits_zero (k : ℕ) :
