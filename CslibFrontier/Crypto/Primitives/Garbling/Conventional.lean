@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Boolean.Encoding
 public import CslibFrontier.Crypto.Primitives.Garbling.CircuitInverters
+public import CslibFrontier.Computability.Circuit.Topology
 import CslibFrontier.Computability.Circuit.Encoding.Evaluation
 
 /-!
@@ -34,6 +35,12 @@ gate list (`ConventionalCircuit.code_toCircuit`), so the garbling and privacy re
 ## Main results
 
 * `Cslib.Crypto.Garbling.ConventionalCircuit.code_toCircuit`: its code is the gate list.
+* `Cslib.Crypto.Garbling.ConventionalCircuit.size_toCircuit`,
+  `Cslib.Crypto.Garbling.ConventionalCircuit.lines_toCircuit`,
+  `Cslib.Crypto.Garbling.ConventionalCircuit.arity_topology_toCircuit`,
+  `Cslib.Crypto.Garbling.ConventionalCircuit.ofFn_toNat_wires_toCircuit`,
+  `Cslib.Crypto.Garbling.ConventionalCircuit.toNat_outputs_toCircuit`: its gates, their binary
+  operations and argument wires, and its output wires.
 * `Cslib.Crypto.Garbling.ConventionalCircuit.eval_toCircuit`: it computes `evalCirc`.
 
 ## References
@@ -91,6 +98,76 @@ theorem code_toCircuit (f : ValidCircuit) :
     (toCircuit f).code = (gateCode f.1, outputCode f.1) :=
   Circuit.code_of_ofCode_eq_some (Option.some_get _).symm
 
+/-- `toCircuit f` has the `q` gates of `f`. -/
+theorem size_toCircuit (f : ValidCircuit) : (toCircuit f).size = f.1.q := by
+  have h := congrArg (fun code => code.1.length) (code_toCircuit f)
+  simpa [Circuit.code, gateCode] using h
+
+/-- The code of line `g` of `toCircuit f`: the truth table `G g` on the 0-indexed wires `A g - 1`
+and `B g - 1`. -/
+theorem code_lines_toCircuit (f : ValidCircuit) (g : Fin (toCircuit f).size) :
+    ((toCircuit f).program.lines g).code =
+      (.fn fun a => f.1.G (g.cast (size_toCircuit f)) (a 0) (a 1),
+        [f.1.A (g.cast (size_toCircuit f)) - 1, f.1.B (g.cast (size_toCircuit f)) - 1]) := by
+  rw [← Program.getD_code _ _ (FullOp.con false, [])]
+  have h := congrArg Prod.fst (code_toCircuit f)
+  simp only [Circuit.code] at h
+  have hg : g.val < f.1.q := size_toCircuit f ▸ g.isLt
+  rw [h, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (by simpa [gateCode] using hg)]
+  simp only [gateCode, List.getElem_ofFn, Option.getD_some]
+  rfl
+
+/-- Every gate of `toCircuit f` is binary. -/
+theorem arity_topology_toCircuit (f : ValidCircuit) (g : Fin (toCircuit f).size) :
+    (toCircuit f).topology.arity g = 2 := by
+  have h := congrArg (fun code => code.2.length) (code_lines_toCircuit f g)
+  simp only [Line.length_code_snd, List.length_cons, List.length_nil] at h
+  exact h
+
+/-- The argument wires of gate `g` of `toCircuit f` are the 0-indexed wires `A g - 1` and
+`B g - 1`. -/
+theorem ofFn_toNat_wires_toCircuit (f : ValidCircuit) (g : Fin (toCircuit f).size) :
+    List.ofFn (fun a => ((toCircuit f).topology.wires g a).toNat) =
+      [f.1.A (g.cast (size_toCircuit f)) - 1, f.1.B (g.cast (size_toCircuit f)) - 1] :=
+  congrArg Prod.snd (code_lines_toCircuit f g)
+
+/-- The lines of `toCircuit f`: gate `g` applies the truth table `G g` to the 0-indexed wires
+`A g - 1` and `B g - 1`. -/
+theorem lines_toCircuit (f : ValidCircuit) (g : Fin (toCircuit f).size) :
+    (toCircuit f).program.lines g =
+      ⟨.fn fun a => f.1.G (g.cast (size_toCircuit f)) (a 0) (a 1),
+        ![Wire.ofNat (f.1.A (g.cast (size_toCircuit f)) - 1) (by
+            have := f.2.A_lt_B (g.cast (size_toCircuit f))
+            have := f.2.B_lt_gate (g.cast (size_toCircuit f))
+            simp only [topo, Fin.val_cast] at *
+            omega),
+          Wire.ofNat (f.1.B (g.cast (size_toCircuit f)) - 1) (by
+            have := f.2.B_lt_gate (g.cast (size_toCircuit f))
+            simp only [topo, Fin.val_cast] at *
+            omega)]⟩ := by
+  have h := Line.ofCode_code ((toCircuit f).program.lines g)
+  rw [code_lines_toCircuit f g] at h
+  rw [Line.ofCode, dite_eq_left (by
+    refine ⟨rfl, ?_⟩
+    have hA := f.2.A_lt_B (g.cast (size_toCircuit f))
+    have hB := f.2.B_lt_gate (g.cast (size_toCircuit f))
+    simp only [topo, Fin.val_cast] at hA hB
+    intro i hi
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at hi
+    rcases hi with rfl | rfl <;> omega)] at h
+  rw [← Option.some_inj.mp h]
+  congr 1
+  funext a
+  match a with
+  | ⟨0, _⟩ => rfl
+  | ⟨1, _⟩ => rfl
+
+/-- Output `o` of `toCircuit f` is the 0-indexed wire `n + q - m + o`. -/
+theorem toNat_outputs_toCircuit (f : ValidCircuit) (o : Fin f.1.m) :
+    ((toCircuit f).outputs o).toNat = f.1.n + f.1.q - f.1.m + o := by
+  have h := congrArg (fun code => code.2[o.val]?) (code_toCircuit f)
+  simpa [Circuit.code, outputCode] using h
+
 /-- Evaluating the first `s` gates of the code on an `n`-bit input lists the first `n + s` wire
 values of the conventional evaluation. -/
 private theorem evalCode_take_gateCode (f : ConventionalCircuit) {x : List Bool}
@@ -122,10 +199,8 @@ theorem eval_toCircuit (f : ValidCircuit) (x : Fin f.1.n → Bool) :
   have hom : o < f.1.m := by simpa using ho
   simp only [List.getElem_ofFn, evalCirc, List.getElem_drop]
   rw [Circuit.eval_eq_getD _ _ false, code_toCircuit, hwires]
-  have hout : ((toCircuit f).outputs ⟨o, hom⟩).toNat = f.1.n + f.1.q - f.1.m + o := by
-    have h := congrArg (fun code => code.2[o]?) (code_toCircuit f)
-    simpa [Circuit.code, outputCode, hom] using h
-  rw [hout, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (by omega)]
+  rw [toNat_outputs_toCircuit f ⟨o, hom⟩, List.getD_eq_getElem?_getD,
+    List.getElem?_eq_getElem (by omega)]
   rfl
 
 end ConventionalCircuit
