@@ -10,12 +10,14 @@ import CslibFrontier.Crypto.Computational.StatisticalIndistinguishability
 import CslibFrontier.Crypto.Computational.Pseudoentropy.SeedExtraction
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Crypto.Negligible.Dyadic
+import CslibFrontier.Probability.StatisticalDistance.TotalVariation
 import CslibFrontier.Probability.StatisticalDistance.UniformMod
 
 /-!
 # Statistical indistinguishability: client tests
 
-Finite-type and unbounded-test instances, separating constant ensembles, and a client converting
+Finite-type, postprocessing (`symm`/`trans`/`bind`), non-finite constructor, and unbounded-test
+instances, separating constant ensembles, and a client converting
 `SeedRealization.remainingSeed_word_extraction` into `StatisticallyIndistinguishable`.
 -/
 
@@ -26,19 +28,40 @@ namespace CslibFrontierTests.Crypto.StatisticalIndistinguishability
 open Cslib Cslib.Crypto Cslib.Probability Turing.MultiTapeTM
 open scoped NNReal Cslib.Probability.PMF
 
-/-- Negligibility used by the instances below. -/
-theorem negligible_three_div_two_pow : Negligible fun n => (3 : ℝ≥0) / 2 ^ n := by
-  have h := (negligible_geometric (ratio := 2⁻¹) (by norm_num)).const_mul 3
-  simpa only [div_eq_mul_inv, inv_pow] using h
-
 /-- Definition 3.6 holds for a pair of distinct ensembles on a finite type: a uniform value below
 `2 ^ n` read in `ZMod 3`, and the uniform law on `ZMod 3` (Example 3.2 with `dist`). -/
 theorem statisticallyIndistinguishable_natCast_zmod_three :
     StatisticallyIndistinguishable
       (fun n => (PMF.uniformOfFintype (Fin (2 ^ n))).map fun x => (x.val : ZMod 3))
       (fun _ => PMF.uniformOfFintype (ZMod 3)) :=
-  .of_dist_le negligible_three_div_two_pow fun n => by
+  .of_dist_le (negligible_const_div_two_pow 3) fun n => by
     simpa using PMF.dist_map_natCast_uniformOfFintype_le_div (2 ^ n) 3
+
+/-- The same residue from one more bit. -/
+theorem statisticallyIndistinguishable_natCast_zmod_three_succ :
+    StatisticallyIndistinguishable
+      (fun n => (PMF.uniformOfFintype (Fin (2 ^ (n + 1)))).map fun x => (x.val : ZMod 3))
+      (fun _ => PMF.uniformOfFintype (ZMod 3)) :=
+  .of_dist_le ((negligible_const_div_two_pow 3).shift 1) fun n => by
+    simpa using PMF.dist_map_natCast_uniformOfFintype_le_div (2 ^ (n + 1)) 3
+
+/-- `symm` and `trans`: a hybrid through the uniform law compares the two biased ensembles, and
+`bind` carries the comparison through any randomized map. -/
+example (f : ℕ → ZMod 3 → PMF ℕ) : StatisticallyIndistinguishable
+    (fun n => ((PMF.uniformOfFintype (Fin (2 ^ n))).map fun x => (x.val : ZMod 3)).bind (f n))
+    (fun n => ((PMF.uniformOfFintype (Fin (2 ^ (n + 1)))).map
+      fun x => (x.val : ZMod 3)).bind (f n)) :=
+  (statisticallyIndistinguishable_natCast_zmod_three.trans
+    statisticallyIndistinguishable_natCast_zmod_three_succ.symm).bind f
+
+/-- The definitional introduction from `CloseTo` bounds, on a carrier with no `Fintype` instance,
+where `of_dist_le` does not apply. -/
+example : StatisticallyIndistinguishable
+    (fun n => ((PMF.uniformOfFintype (Fin (2 ^ n))).map fun x => (x.val : ZMod 3)).map ZMod.val)
+    (fun _ => (PMF.uniformOfFintype (ZMod 3)).map ZMod.val) :=
+  ⟨fun n => 3 / 2 ^ n, mod_cast negligible_const_div_two_pow 3, fun n =>
+    (closeTo_of_dist_le (by
+      simpa using PMF.dist_map_natCast_uniformOfFintype_le_div (2 ^ n) 3)).map ZMod.val⟩
 
 /-- Definition 3.6 as printed: the statistical distance of that pair is negligible. -/
 example : Negligible fun n => nndist
@@ -69,6 +92,13 @@ theorem not_statisticallyIndistinguishable_pure :
   refine not_negligible_const one_ne_zero (negligible_of_le hε fun n => ?_)
   have hn := h n {false}
   simpa using hn
+
+/-- The negative instance via `StatisticallyIndistinguishable.indistinguishable`. -/
+example : ¬ StatisticallyIndistinguishable (fun _ : ℕ => PMF.pure false)
+    (fun _ : ℕ => PMF.pure true) := fun h =>
+  not_negligible_const one_ne_zero <|
+    negligible_of_le (h.indistinguishable (fun _ b => PMF.pure b) trivial) fun n => by
+      simp [Game.advantage, Game.succProbability]
 
 /-- So, by the equivalence with unbounded tests, some family of tests tells them apart. -/
 example : ¬ Game.Indistinguishable

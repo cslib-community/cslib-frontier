@@ -37,9 +37,7 @@ namespace Cslib.Crypto
 ([BonehShoup2023], Corollary 3.12, p. 85). -/
 theorem StatisticallyIndistinguishable.computationallyIndistinguishable
     {X Y : ℕ → PMF (List Bool)} (h : StatisticallyIndistinguishable X Y) :
-    ComputationallyIndistinguishable X Y := by
-  obtain ⟨ε, hε, h⟩ := h
-  exact fun adversary _ => negligible_of_le hε fun n =>
-    Game.advantage_bind_le_of_closeTo (h n) fun word => ProbComp.eval (adversary n word)
+    ComputationallyIndistinguishable X Y :=
+  fun adversary _ => h.indistinguishable (fun n word => ProbComp.eval (adversary n word)) trivial
 
 end Cslib.Crypto

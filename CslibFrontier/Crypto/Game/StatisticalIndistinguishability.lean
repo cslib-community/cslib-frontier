@@ -9,7 +9,6 @@ module
 
 public import CslibFrontier.Crypto.Game.CloseTo
 public import Cslib.Probability.StatisticalDistance
-import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.StatisticalDistance.TotalVariation
 
 /-!
@@ -27,9 +26,8 @@ This development differs from the book's presentation as follows:
    `Negligible fun n => nndist (X n) (Y n)` on finite types
    (`statisticallyIndistinguishable_iff_negligible_nndist`).
 2. **Characterization by unbounded tests.** `statisticallyIndistinguishable_iff_indistinguishable`
-   equates statistical indistinguishability with `Game.Indistinguishable` against every family of
-   randomized tests (`fun _ => True`), proved via the attainment lemma
-   `Game.closeTo_advantage_map_decide_lt` without finiteness.
+   equates statistical indistinguishability with `Game.Indistinguishable` with admissibility
+   `fun _ => True`, proved via `Game.closeTo_advantage_map_decide_lt` without finiteness.
 3. **Scope.** Theorem 3.10 in `max = Δ` form, Remark 3.1, and Exercises 3.10–3.14 are omitted.
    Game-specific statistical notions such as `CommitmentScheme.StatisticalHiding` are not instances
    and are not changed.
@@ -44,15 +42,14 @@ This development differs from the book's presentation as follows:
 * `Cslib.Crypto.StatisticallyIndistinguishable.refl`,
   `Cslib.Crypto.StatisticallyIndistinguishable.symm`,
   `Cslib.Crypto.StatisticallyIndistinguishable.trans`: equivalence relation on ensembles.
-* `Cslib.Crypto.StatisticallyIndistinguishable.map`,
-  `Cslib.Crypto.StatisticallyIndistinguishable.bind`: closure under arbitrary deterministic and
-  randomized postprocessing ([BonehShoup2023], Theorem 3.13, p. 85).
+* `Cslib.Crypto.StatisticallyIndistinguishable.map`: closure under arbitrary deterministic
+  postprocessing ([BonehShoup2023], Theorem 3.13, p. 85, extended beyond finite types).
+* `Cslib.Crypto.StatisticallyIndistinguishable.bind`: Markov-kernel postprocessing under
+  arbitrary randomized maps, via `CloseTo.bind_left`.
 * `Cslib.Crypto.StatisticallyIndistinguishable.indistinguishable`: negligible advantage against
   every family of randomized tests ([BonehShoup2023], Theorem 3.11, p. 84).
 * `Cslib.Crypto.StatisticallyIndistinguishable.of_dist_le`: finite-type entry point from a
   negligible bound on `dist`.
-* `Cslib.Crypto.Game.closeTo_advantage_map_decide_lt`: the deterministic likelihood test attains
-  `CloseTo` without finiteness ([BonehShoup2023], Theorem 3.10, p. 83).
 * `Cslib.Crypto.statisticallyIndistinguishable_iff_indistinguishable`: equivalence with
   `Game.Indistinguishable` against all randomized tests.
 * `Cslib.Crypto.statisticallyIndistinguishable_iff_negligible_nndist`: equivalence with
@@ -129,28 +126,6 @@ theorem of_dist_le [∀ n, Fintype (α n)] {ε : ℕ → ℝ≥0} (hε : Negligi
 
 end StatisticallyIndistinguishable
 
-open Classical in
-/-- **A best test.** The deterministic test asking whether a point is more likely under `μ` than
-under `ν` has advantage equal to the statistical distance: `μ` and `ν` are exactly that close
-([BonehShoup2023], Theorem 3.10, p. 83: the maximum is attained). No finiteness is assumed. -/
-theorem Game.closeTo_advantage_map_decide_lt {α : Type} (μ ν : PMF α) :
-    CloseTo μ ν (Game.advantage (μ.map fun a => decide (ν a < μ a))
-      (ν.map fun a => decide (ν a < μ a))) := by
-  have hmap (p : PMF α) :
-      (p.map fun a => decide (ν a < μ a)) true = p.toOuterMeasure {a | ν a < μ a} := by
-    rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
-    congr 1
-    ext a
-    simp
-  have hclose := (Game.closeTo_iff_coe_advantage_le
-    (game1 := μ.map fun a => decide (ν a < μ a))
-    (game2 := ν.map fun a => decide (ν a < μ a))).mpr le_rfl {true}
-  rw [PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_apply_singleton, hmap, hmap,
-    PMF.toOuterMeasure_eq_add_tsum_tsub μ ν (fun _ ha => le_of_lt ha) fun _ ha => not_lt.1 ha]
-    at hclose
-  exact closeTo_iff_tsum_tsub_le.2
-    ((ENNReal.add_le_add_iff_left (PMF.toOuterMeasure_ne_top ν _)).1 hclose)
-
 /-- Statistical indistinguishability is indistinguishability by every family of randomized tests,
 with no efficiency condition: the distance is negligible exactly when every test family has
 negligible advantage. -/
@@ -159,7 +134,6 @@ theorem statisticallyIndistinguishable_iff_indistinguishable {α : ℕ → Type}
     StatisticallyIndistinguishable X Y ↔
       Game.Indistinguishable (fun (test : ∀ n, α n → Game) n => (X n).bind (test n))
         (fun test n => (Y n).bind (test n)) (fun _ => True) := by
-  classical
   refine ⟨fun h => h.indistinguishable, fun h => ?_⟩
   refine ⟨_, h (fun n a => PMF.pure (decide (Y n a < X n a))) trivial, fun n => ?_⟩
   exact Game.closeTo_advantage_map_decide_lt (X n) (Y n)
