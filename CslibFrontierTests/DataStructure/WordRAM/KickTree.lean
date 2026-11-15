@@ -17,21 +17,24 @@ This module tests the parameterized bit-packed Word-RAM layout, pure array extra
 sequential `Memory.Prog` execution, and uniform width-free `Realizes .exact` (`¬ReadsWidth`)
 certificates for `k`-kick tree slot tables ([BenderFarachColtonKuszmaulKuszmaulLiu2022]):
 
-1. **Layout & Space Bounds**: verifies concrete layout constants (`metaBits`, `defaultKickLimit`,
+1. **Layout & Space Bounds**: verifies concrete layout constants (`metaBits`, `kickLimit`,
    `totalSpace`), `totalSpace_le_kickTreeWords`, and `kickTreeWords_le_succinctWords` at `k = 1`.
 2. **Pure Extraction & Range Bounds**: verifies zero-initialization and bit-width bounds for all
    five bit-packed arrays (`quotAt`, `valAt`, `occAt`, `elevAt`, `metaAt`).
-3. **Sequential `_spec` Caller Tests**: allocates separate hashed (`base = 0`) and unindexed
-   tail-cubby (`tailBase`) tables via `allocKickTableProg_spec`, exercises sparse `SlotMeta` via
-   `writeMetaProg_spec`/`readMetaProg_spec`, runs `kickLoopProg` (`p.kickLimit`-bounded `iterate`)
-   preserving 1-bit `elevAt` under displacement, vacates hashed slot `3` via `clearSlotProg_spec`,
+3. **Sequential `_spec`, `ValidHistory`, & `memoryCost` Caller Tests**: allocates separate hashed
+   (`base = 0`) and unindexed tail-cubby (`tailBase`) tables via `allocKickTableProg_spec`,
+   exercises sparse `SlotMeta` via `writeMetaProg_spec`/`readMetaProg_spec`, runs `kickLoopProg`
+   via the parametric `kickLoopProg_spec` (`Realization.iterate_spec`) preserving the local
+   adaptation's 1-bit `elevAt` under displacement, vacates hashed slot `3` via `clearSlotProg_spec`,
    compacts contiguous `[0, 2)` tail slots (`0` from `1` and self-pop `0` from `0`) via
-   `popUnindexedSlotProg_spec`, and re-inserts the popped item into `base = 0` via `kickLoopProg`.
+   `popUnindexedSlotProg_spec`, re-inserts the popped item into `base = 0` via `kickLoopProg_spec`,
+   and checks `ValidHistory` and `memoryCost` bounds across all eight subroutines.
 4. **Width-Freedom, Safety Satisfiability, & Non-Vacuous Native Execution**:
    extracts concrete emitted `WordRAM.Code` for all eight `Realizes .exact` certificates, checks
-   `¬ReadsWidth`, instantiates `KickEnvGen`, `KickStepSafe`, and `iterationSafe` at `w = 64`, and
-   proves non-trivial native `ExecWithin 64` execution for `allocKickTableGenProg`,
-   `querySlotGenProg` (`some 42`), and `clearSlotGenProg` (`y ≠ x`, rejecting `.halt`).
+   `¬ReadsWidth`, instantiates `KickEnvGen`, `KickStepSafe`, and `iterationSafe` at `w = 64` via
+   `validHistory_kickLoopProg`, and proves non-trivial native `ExecWithin 64` execution for
+   `allocKickTableGenProg`, `querySlotGenProg` (`some 42`), and `clearSlotGenProg` (`y ≠ x`,
+   rejecting `.halt`) using `BitPackedArray.writePacked_lt_two_pow` and `fits_encode_*`.
 
 ## References
 
@@ -50,6 +53,7 @@ open Cslib.DataStructure
 open Cslib.DataStructure.Dictionary
 open Cslib.DataStructure.Dictionary.KickTree
 open Cslib.DataStructure.Dictionary.FeistelQuotient
+open Cslib.DataStructure.Dictionary.WordRAM
 open Cslib.DataStructure.Dictionary.WordRAM.KickTree
 
 /-! ### 1. Concrete Layout and Space Bound Tests -/
@@ -71,7 +75,7 @@ multiplicity `cMeta = 2`. -/
 /-- Word width of `testParams` is positive. -/
 theorem test_hw : 0 < testParams.w := by decide
 
-/-- Concrete computational checks on layout offsets, `defaultKickLimit`, `metaBits`, and word
+/-- Concrete computational checks on layout offsets, `kickLimit`, `metaBits`, and word
 footprints. -/
 theorem test_concrete_layout_values :
     testParams.kickLimit = 3 ∧
@@ -86,7 +90,7 @@ theorem test_concrete_layout_values :
       kickTreeWords 9 30 testParams.U testParams.V testParams.w 1 testParams.nMax ≤
         Dynamic.succinctWords 9 30 testParams.U testParams.V testParams.w testParams.nMax := by
   refine ⟨by decide, by decide, by decide, by decide, by decide, by decide,
-    totalSpace_le_kickTreeWords testParams,
+    totalSpace_le_kickTreeWords testParams (by decide),
     kickTreeWords_le_succinctWords 9 30 testParams.U testParams.V testParams.w testParams.nMax⟩
 
 /-! ### 2. Pure Extraction and Range Tests -/
@@ -123,11 +127,12 @@ theorem test_range_bounds (mem : ℕ → ℕ) (idx : ℕ) :
 /-! ### 3. End-to-End Sequential `_spec` Caller Tests -/
 
 /-- Representative caller chaining `allocKickTableProg_spec`, `writeMetaProg_spec`,
-`readMetaProg_spec`, `kickLoopProg` (`p.kickLimit`-bounded `iterate`), `querySlotProg_spec`,
+`readMetaProg_spec`, `kickLoopProg_spec` (`Realization.iterate_spec`), `querySlotProg_spec`,
 `clearSlotProg_spec`, and `popUnindexedSlotProg_spec`:
 1. Allocates hashed kick-tree table at `base = 0` (`smallParams`, `p.kickLimit = 2`) and separate
    unindexed tail-cubby table at `tailBase = totalSpace smallParams` (`tailParams`, `cMeta = 0`),
-   using `allocKickTableProg_spec` alone to frame switching-path words `[200..205]`.
+   then dirty-allocates `[totalSpace smallParams + totalSpace tailParams, ... + 200)` so switching-
+   path words `[200..205]` lie below `frontier` while remaining framed across allocations.
 2. Writes and reads sparse `SlotMeta[7] = 1` in `base = 0` (`writeMetaProg` / `readMetaProg`).
 3. Populates contiguous unindexed slots `0` (`(quot = 4, val = 11)`) and `1` (`(quot = 6,
    val = 13)`) in `tailBase`.
@@ -138,7 +143,7 @@ theorem test_range_bounds (mem : ℕ → ℕ) (idx : ℕ) :
 5. Vacates hashed slot `3` via `clearSlotProg`, pops contiguous unindexed slot `0` compacted from
    `lastSlot = 1` in `tailBase` via `popUnindexedSlotProg` (yielding `((4, 11), 0)` and moving
    `(6, 13)` into `tailBase` slot `0`), re-inserts `(4, 11)` into `base = 0` along `[202, 203] =
-   [3, 6]` via `kickLoopProg`, and self-pops `slot = 0, lastSlot = 0` in `tailBase`. -/
+   [3, 6]` via `kickLoopProg_spec`, and self-pops `slot = 0, lastSlot = 0` in `tailBase`. -/
 theorem test_sequential_caller_specs :
     let mInit : ℕ → ℕ := fun a =>
       if a = 200 then 3 else if a = 201 then 5
@@ -148,7 +153,8 @@ theorem test_sequential_caller_specs :
     let s₁ := (Memory.spec 0).clientState s₀ (allocKickTableProg smallParams)
     let tailBase := (Memory.spec 0).clientResult s₁ (allocKickTableProg tailParams)
     let s₁' := (Memory.spec 0).clientState s₁ (allocKickTableProg tailParams)
-    let sM := (Memory.spec 0).clientState s₁' (writeMetaProg smallParams 0 7 1)
+    let s₁'' := (Memory.spec 0).clientState s₁' (Memory.allocDirty 200)
+    let sM := (Memory.spec 0).clientState s₁'' (writeMetaProg smallParams 0 7 1)
     let sT₁ :=
       (Memory.spec 0).clientState sM (kickStepProg tailParams tailBase 204 ⟨0, 4, 11, 0, 1⟩)
     let sT₂ :=
@@ -178,43 +184,76 @@ theorem test_sequential_caller_specs :
       (Memory.spec 0).clientResult sReins (querySlotProg smallParams 0 3 4) = some 11 ∧
       (Memory.spec 0).clientResult sReins (querySlotProg smallParams 0 5 0) = some 0 ∧
       (Memory.spec 0).clientResult sSelf (querySlotProg tailParams tailBase 0 6) = none := by
-  intro mInit s₀ s₁ tailBase s₁' sM sT₁ sT₂ r₂ s₂ r₄ s₄ s₅ popped sPop sReins sSelf
+  intro mInit s₀ s₁ tailBase s₁' s₁'' sM sT₁ sT₂ r₂ s₂ r₄ s₄ s₅ popped sPop sReins sSelf
   have shw : 0 < smallParams.w := by decide
   have thw : 0 < tailParams.w := by decide
+  have henvS : KickEnv smallParams 16 0 :=
+    ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩
   have htot1 : totalSpace smallParams ≤ 50 := by decide
   have htot2 : totalSpace smallParams + totalSpace tailParams ≤ 100 := by decide
+  have hpos1 : 10 ≤ totalSpace smallParams := by decide
+  have hwf_of {α : Type} {s : Memory.State} {p : Memory.Prog α}
+      (hwf : Memory.WellFormed 16 s)
+      (hv : (Memory.spec 16).ValidHistory s ((Memory.spec 16).clientHistory s p)) :
+      Memory.WellFormed 16 ((Memory.spec 0).clientState s p) := by
+    rw [← clientState_width 16, ← StateTransitionSpec.run_runClient]
+    exact hwf.run hv
+  have hwf0 : Memory.WellFormed 16 s₀ :=
+    ⟨by decide, fun a => by dsimp only [s₀, mInit]; split_ifs <;> decide⟩
   obtain ⟨hb0, hfr1, _, hout_a1, hq_a1, hv_a1, ho_a1, he_a1, hm_a1⟩ :=
     allocKickTableProg_spec smallParams shw s₀
+  have hwf1 : Memory.WellFormed 16 s₁ :=
+    hwf_of hwf0 (validHistory_allocKickTableProg smallParams (by decide))
   have hbase0 : (Memory.spec 0).clientResult s₀ (allocKickTableProg smallParams) = 0 := hb0
   rw [hbase0] at hout_a1 hq_a1 hv_a1 ho_a1 he_a1 hm_a1
-  obtain ⟨htb, _, _, hout_a2, hq_t0, hv_t0, ho_t0, he_t0, _⟩ :=
+  obtain ⟨htb, hfr1', _, hout_a2, hq_t0, hv_t0, ho_t0, he_t0, _⟩ :=
     allocKickTableProg_spec tailParams thw s₁
   have htb_eq : tailBase = totalSpace smallParams := htb.trans hfr1
+  have henvT : KickEnv tailParams 16 tailBase := by
+    rw [htb_eq]; exact ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩
+  have hwf1' : Memory.WellFormed 16 s₁' :=
+    hwf_of hwf1 (validHistory_allocKickTableProg tailParams (by rw [hfr1]; decide))
+  have hfr1'' : s₁''.frontier = totalSpace smallParams + totalSpace tailParams + 200 := by
+    change s₁'.frontier + 200 = _; rw [hfr1', hfr1, zero_add]
+  have hmem1'' : s₁''.mem = s₁'.mem := rfl
+  have hwf1'' : Memory.WellFormed 16 s₁'' :=
+    ⟨by rw [hfr1'']; decide, by rw [hmem1'']; exact hwf1'.2⟩
   have h1'_eq_on : ∀ a, 0 + smallParams.hSpace ≤ a → a < 0 + totalSpace smallParams →
-      s₁'.mem a = s₁.mem a := fun a _ ha2 =>
-    hout_a2 a (by rw [htb, hfr1]; omega)
+      s₁''.mem a = s₁.mem a := fun a _ ha2 => by
+    rw [hmem1'']; exact hout_a2 a (by rw [htb, hfr1]; omega)
   obtain ⟨hq_1', hv_1', ho_1', he_1', hm_1'⟩ := arrays_congr_of_eq_on smallParams shw h1'_eq_on
   rw [hq_a1] at hq_1'; rw [hv_a1] at hv_1'; rw [ho_a1] at ho_1'
   rw [he_a1] at he_1'; rw [hm_a1] at hm_1'
-  obtain ⟨_, hout_m, hq_m, hv_m, ho_m, he_m, hm_m⟩ :=
+  obtain ⟨hfrM, hout_m, hq_m, hv_m, ho_m, he_m, hm_m⟩ :=
     writeMetaProg_spec smallParams shw (base := 0) (by decide : 7 < metaLen smallParams)
-      (by decide : 1 < 2 ^ metaBits smallParams) s₁'
+      (by decide : 1 < 2 ^ metaBits smallParams) s₁''
+  change sM.frontier = s₁''.frontier at hfrM
+  have hwfM : Memory.WellFormed 16 sM :=
+    hwf_of hwf1'' (validHistory_writeMetaProg smallParams henvS (by decide) hwf1''
+      (by rw [hfr1'']; omega))
   rw [hq_1'] at hq_m; rw [hv_1'] at hv_m; rw [ho_1'] at ho_m
   rw [he_1'] at he_m; rw [hm_1'] at hm_m
   have hm_eq_t : ∀ a, tailBase + tailParams.hSpace ≤ a → a < tailBase + totalSpace tailParams →
-      sM.mem a = s₁'.mem a := fun a ha1 _ =>
-    hout_m a (by rw [htb_eq] at ha1; omega)
+      sM.mem a = s₁'.mem a := fun a ha1 _ => by
+    rw [← hmem1'']; exact hout_m a (by rw [htb_eq] at ha1; omega)
   obtain ⟨hq_tm, hv_tm, ho_tm, he_tm, _⟩ := arrays_congr_of_eq_on tailParams thw hm_eq_t
   rw [hq_t0] at hq_tm; rw [hv_t0] at hv_tm; rw [ho_t0] at ho_tm; rw [he_t0] at he_tm
   have hpath_sM : ∀ a, 200 ≤ a → sM.mem a = mInit a := fun a ha => by
-    refine (hout_m a (by omega)).trans ((hout_a2 a ?_).trans (hout_a1 a (by omega)))
+    refine (hout_m a (by omega)).trans ?_
+    rw [hmem1'']
+    refine (hout_a2 a ?_).trans (hout_a1 a (by omega))
     rw [htb, hfr1]; omega
   have hp204 : sM.mem (204 + 0) = 0 := hpath_sM 204 (by omega)
   have ht1_spec := kickStepProg_vacant_spec tailParams thw (base := tailBase) (pathBase := 204)
     (st := ⟨0, 4, 11, 0, 1⟩) (s := sM) (by decide) (by rw [hp204]; decide)
     (by decide) (by decide) (by decide) (by rw [ho_tm])
   dsimp only at ht1_spec; rw [hp204] at ht1_spec
-  obtain ⟨_, _, hout_t1, hq_t1, hv_t1, he_t1, ho_t1, _⟩ := ht1_spec
+  obtain ⟨_, hfr_t1, hout_t1, hq_t1, hv_t1, he_t1, ho_t1, _⟩ := ht1_spec
+  change sT₁.frontier = sM.frontier at hfr_t1
+  have hwfT1 : Memory.WellFormed 16 sT₁ :=
+    hwf_of hwfM (validHistory_kickStepProg tailParams henvT hwfM
+      (by rw [hfrM, hfr1'', htb_eq]; omega)
+      (fun _ => ⟨by dsimp only; rw [hfrM, hfr1'']; omega, by rw [hp204]; decide⟩))
   have hp205 : sT₁.mem (205 + 0) = 1 :=
     (hout_t1 205 (by rw [htb_eq]; omega)).trans (hpath_sM 205 (by omega))
   have ht2_spec := kickStepProg_vacant_spec tailParams thw (base := tailBase) (pathBase := 205)
@@ -222,7 +261,14 @@ theorem test_sequential_caller_specs :
     (by decide) (by decide) (by decide)
     (by rw [hp205, ho_t1, ho_tm, Function.update_of_ne (by decide)])
   dsimp only at ht2_spec; rw [hp205] at ht2_spec
-  obtain ⟨_, _, hout_t2, hq_t2, hv_t2, he_t2, ho_t2, _⟩ := ht2_spec
+  obtain ⟨_, hfr_t2, hout_t2, hq_t2, hv_t2, he_t2, ho_t2, _⟩ := ht2_spec
+  change sT₂.frontier = sT₁.frontier at hfr_t2
+  have hwfT2 : Memory.WellFormed 16 sT₂ :=
+    hwf_of hwfT1 (validHistory_kickStepProg tailParams henvT hwfT1
+      (by rw [hfr_t1, hfrM, hfr1'', htb_eq]; omega)
+      (fun _ => ⟨by dsimp only; rw [hfr_t1, hfrM, hfr1'']; omega, by rw [hp205]; decide⟩))
+  have hfrT2 : sT₂.frontier = totalSpace smallParams + totalSpace tailParams + 200 := by
+    rw [hfr_t2, hfr_t1, hfrM, hfr1'']
   have ht2_eq_0 : ∀ a, 0 + smallParams.hSpace ≤ a → a < 0 + totalSpace smallParams →
       sT₂.mem a = sM.mem a := fun a _ ha2 =>
     (hout_t2 a (by rw [htb_eq]; omega)).trans (hout_t1 a (by rw [htb_eq]; omega))
@@ -232,41 +278,39 @@ theorem test_sequential_caller_specs :
   have hpath_sT2 : ∀ a, 200 ≤ a → sT₂.mem a = mInit a := fun a ha =>
     (hout_t2 a (by rw [htb_eq]; omega)).trans
       ((hout_t1 a (by rw [htb_eq]; omega)).trans (hpath_sM a ha))
-  have hkl : smallParams.kickLimit = 2 := rfl
-  have hloop_unfold (sIn : Memory.State) (pb q v el : ℕ) :
-      (Memory.spec 0).clientResult sIn (kickLoopProg smallParams 0 pb q v el) =
-        (Memory.spec 0).clientResult
-          ((Memory.spec 0).clientState sIn (kickStepProg smallParams 0 pb ⟨0, q, v, el, 1⟩))
-          (kickStepProg smallParams 0 pb
-            ((Memory.spec 0).clientResult sIn
-              (kickStepProg smallParams 0 pb ⟨0, q, v, el, 1⟩))) ∧
-      (Memory.spec 0).clientState sIn (kickLoopProg smallParams 0 pb q v el) =
-        (Memory.spec 0).clientState
-          ((Memory.spec 0).clientState sIn (kickStepProg smallParams 0 pb ⟨0, q, v, el, 1⟩))
-          (kickStepProg smallParams 0 pb
-            ((Memory.spec 0).clientResult sIn
-              (kickStepProg smallParams 0 pb ⟨0, q, v, el, 1⟩))) := by
-    unfold kickLoopProg kickLoopIterGenProg
-    rw [hkl]; unfold iterate
-    rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_bind]
-    unfold iterate
-    rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_bind]
-    exact ⟨rfl, rfl⟩
   have hp200_t2 : sT₂.mem (200 + 0) = 3 := hpath_sT2 200 (by omega)
+  have hp201_t2 : sT₂.mem (200 + 1) = 5 := hpath_sT2 201 (by omega)
   have hs1a := kickStepProg_vacant_spec smallParams shw (base := 0) (pathBase := 200)
     (st := ⟨0, 0, 0, 0, 1⟩) (s := sT₂) (by decide) (by rw [hp200_t2]; decide)
     (by decide) (by decide) (by decide) (by rw [ho_0])
   dsimp only at hs1a; rw [hp200_t2] at hs1a
   obtain ⟨hr1a, _, hout1a, hq2, hv2, he2, ho2, hm2⟩ := hs1a
-  have hinact1 := kickStepProg_inactive_spec smallParams (base := 0) (pathBase := 200)
-    (st := ⟨1, 0, 0, 0, 0⟩) rfl
-    ((Memory.spec 0).clientState sT₂ (kickStepProg smallParams 0 200 ⟨0, 0, 0, 0, 1⟩))
-  obtain ⟨hl1_r, hl1_s⟩ := hloop_unfold sT₂ 200 0 0 0
-  have hr2_eq : r₂ = ⟨1, 0, 0, 0, 0⟩ := by
-    change (Memory.spec 0).clientResult sT₂ _ = _; rw [hl1_r, hr1a]; exact hinact1.1
-  have hs2_eq : s₂ =
-      (Memory.spec 0).clientState sT₂ (kickStepProg smallParams 0 200 ⟨0, 0, 0, 0, 1⟩) := by
-    change (Memory.spec 0).clientState sT₂ _ = _; rw [hl1_s, hr1a]; exact hinact1.2
+  set s₁_step := (Memory.spec 0).clientState sT₂ (kickStepProg smallParams 0 200 ⟨0, 0, 0, 0, 1⟩)
+  have hloop1 := kickLoopProg_spec smallParams henvS
+    (st₀ := ⟨0, 0, 0, 0, 1⟩) (fuel := smallParams.kickLimit)
+    (fun i st s => if i = 0 then st = ⟨0, 0, 0, 0, 1⟩ ∧ s = sT₂
+      else st = ⟨1, 0, 0, 0, 0⟩ ∧ s = s₁_step)
+    hwfT2 (by rw [hfrT2]; omega)
+    (by
+      change 200 + 0 + smallParams.kickLimit ≤ _
+      rw [hfrT2]; have : smallParams.kickLimit = 2 := rfl; omega)
+    (fun i hi => by
+      have : smallParams.kickLimit = 2 := rfl
+      change ¬(_ ≤ 200 + (0 + i) ∧ _); omega)
+    (fun i hi => by
+      have : smallParams.kickLimit = 2 := rfl
+      have hi2 : i = 0 ∨ i = 1 := by omega
+      rcases hi2 with rfl | rfl
+      · change sT₂.mem (200 + 0) < _; rw [hp200_t2]; decide
+      · change sT₂.mem (200 + 1) < _; rw [hp201_t2]; decide)
+    ⟨rfl, rfl⟩
+    (fun i _ st s _ _ hinv => by
+      rcases i with _ | i
+      · rcases hinv with ⟨rfl, rfl⟩; exact ⟨hr1a, rfl⟩
+      · rcases hinv with ⟨rfl, rfl⟩
+        exact kickStepProg_inactive_spec smallParams rfl s₁_step)
+  obtain ⟨_, hv_l1, _, hfr2, _, hr2_eq, hs2_eq⟩ := hloop1
+  have hwf2 : Memory.WellFormed 16 s₂ := hwf_of hwfT2 hv_l1
   rw [← hs2_eq] at hout1a hq2 hv2 he2 ho2 hm2
   have hp200_s2 : s₂.mem (200 + 0) = 3 := (hout1a 200 (by omega)).trans hp200_t2
   have hp201_s2 : s₂.mem 201 = 5 := (hout1a 201 (by omega)).trans (hpath_sT2 201 (by omega))
@@ -289,20 +333,40 @@ theorem test_sequential_caller_specs :
     (by rw [hp201_s3, ho3, ho2, ho_0, Function.update_of_ne (by decide)])
   dsimp only at hs4_spec; rw [hp201_s3, hst3_eq] at hs4_spec; dsimp only at hs4_spec
   obtain ⟨hr4a, _, hout4, hq4, hv4, he4, ho4, hm4⟩ := hs4_spec
-  obtain ⟨hl2_r, hl2_s⟩ := hloop_unfold s₂ 200 7 9 1
-  have hr4_eq : r₄ = ⟨2, 0, 0, 0, 0⟩ := by
-    change (Memory.spec 0).clientResult s₂ _ = _
-    change _ = _ at hl2_r; rw [hl2_r]
-    change (Memory.spec 0).clientResult s₃ (kickStepProg smallParams 0 200 st₃) = _
-    rw [hst3_eq]; exact hr4a
-  have hs4_eq : s₄ =
-      (Memory.spec 0).clientState s₃ (kickStepProg smallParams 0 200 ⟨1, 0, 0, 0, 1⟩) := by
-    change (Memory.spec 0).clientState s₂ _ = _; rw [hl2_s]
-    change (Memory.spec 0).clientState s₃ (kickStepProg smallParams 0 200 st₃) = _
-    rw [hst3_eq]
+  set s₄_step := (Memory.spec 0).clientState s₃ (kickStepProg smallParams 0 200 ⟨1, 0, 0, 0, 1⟩)
+  have hloop2 := kickLoopProg_spec smallParams henvS
+    (st₀ := ⟨0, 7, 9, 1, 1⟩) (fuel := smallParams.kickLimit)
+    (fun i st s => if i = 0 then st = ⟨0, 7, 9, 1, 1⟩ ∧ s = s₂
+      else if i = 1 then st = ⟨1, 0, 0, 0, 1⟩ ∧ s = s₃
+      else st = ⟨2, 0, 0, 0, 0⟩ ∧ s = s₄_step)
+    hwf2 (by rw [hfr2, hfrT2]; omega)
+    (by
+      change 200 + 0 + smallParams.kickLimit ≤ _
+      rw [hfr2, hfrT2]; have : smallParams.kickLimit = 2 := rfl; omega)
+    (fun i hi => by
+      have : smallParams.kickLimit = 2 := rfl
+      change ¬(_ ≤ 200 + (0 + i) ∧ _); omega)
+    (fun i hi => by
+      have : smallParams.kickLimit = 2 := rfl
+      have hi2 : i = 0 ∨ i = 1 := by omega
+      rcases hi2 with rfl | rfl
+      · change s₂.mem (200 + 0) < _; rw [hp200_s2]; decide
+      · change s₂.mem 201 < _; rw [hp201_s2]; decide)
+    ⟨rfl, rfl⟩
+    (fun i _ st s _ _ hinv => by
+      rcases i with _ | _ | i
+      · rcases hinv with ⟨rfl, rfl⟩; exact ⟨hst3_eq, rfl⟩
+      · rcases hinv with ⟨rfl, rfl⟩; exact ⟨hr4a, rfl⟩
+      · rcases hinv with ⟨rfl, rfl⟩
+        exact kickStepProg_inactive_spec smallParams rfl s₄_step)
+  obtain ⟨_, hv_l2, _, hfr4, _, hr4_eq, hs4_eq⟩ := hloop2
+  have hwf4 : Memory.WellFormed 16 s₄ := hwf_of hwf2 hv_l2
   rw [← hs4_eq] at hout4 hq4 hv4 he4 ho4 hm4
-  obtain ⟨_, hout5, hq5, hv5, he5, ho5, _⟩ :=
+  obtain ⟨hfr5, hout5, hq5, hv5, he5, ho5, _⟩ :=
     clearSlotProg_spec smallParams shw (base := 0) (by decide : 3 < smallParams.nMax) s₄
+  have hwf5 : Memory.WellFormed 16 s₅ :=
+    hwf_of hwf4 (validHistory_clearSlotProg smallParams henvS (by decide) hwf4
+      (by rw [hfr4, hfr2, hfrT2]; omega))
   have hs5_eq_tail : ∀ a, tailBase + tailParams.hSpace ≤ a → a < tailBase + totalSpace tailParams →
       s₅.mem a = sT₂.mem a := fun a ha1 _ => by
     have hnot : ¬(0 + smallParams.hSpace ≤ a ∧ a < 0 + totalSpace smallParams) := by
@@ -313,9 +377,12 @@ theorem test_sequential_caller_specs :
   rw [hv_t2, hv_t1, hv_tm] at hv_t5
   rw [ho_t2, ho_t1, ho_tm] at ho_t5
   rw [he_t2, he_t1, he_tm] at he_t5
-  obtain ⟨hpop_res, _, houtP, hqP, hvP, heP, hoP, _⟩ :=
+  obtain ⟨hpop_res, hfrP, houtP, hqP, hvP, heP, hoP, _⟩ :=
     popUnindexedSlotProg_spec tailParams thw (base := tailBase)
       (by decide : 0 < tailParams.nMax) (by decide : 1 < tailParams.nMax) s₅
+  have hwfPop : Memory.WellFormed 16 sPop :=
+    hwf_of hwf5 (validHistory_popUnindexedSlotProg tailParams henvT (by decide) (by decide) hwf5
+      (by rw [hfr5, hfr4, hfr2, hfrT2, htb_eq]; omega))
   have hsPop_eq_0 : ∀ a, 0 + smallParams.hSpace ≤ a → a < 0 + totalSpace smallParams →
       sPop.mem a = s₅.mem a := fun a _ ha2 =>
     houtP a (by rw [htb_eq]; omega)
@@ -325,19 +392,42 @@ theorem test_sequential_caller_specs :
     refine (houtP 202 (by rw [htb_eq]; omega)).trans ?_
     exact (hout5 202 hnot0).trans ((hout4 202 hnot0).trans
       ((hout3 202 hnot0).trans ((hout1a 202 hnot0).trans (hpath_sT2 202 (by omega)))))
+  have hp203_pop : sPop.mem (202 + 1) = 6 := by
+    have hnot0 : ¬(0 + smallParams.hSpace ≤ 203 ∧ 203 < 0 + totalSpace smallParams) := by omega
+    refine (houtP 203 (by rw [htb_eq]; omega)).trans ?_
+    exact (hout5 203 hnot0).trans ((hout4 203 hnot0).trans
+      ((hout3 203 hnot0).trans ((hout1a 203 hnot0).trans (hpath_sT2 203 (by omega)))))
   have hreins1 := kickStepProg_vacant_spec smallParams shw (base := 0) (pathBase := 202)
     (st := ⟨0, 4, 11, 0, 1⟩) (s := sPop) (by decide) (by rw [hp202_pop]; decide)
     (by decide) (by decide) (by decide)
     (by rw [hp202_pop, ho_p0, ho5, Function.update_self])
   dsimp only at hreins1; rw [hp202_pop] at hreins1
   obtain ⟨hrr1, _, houtR1, hqR, hvR, _, hoR, _⟩ := hreins1
-  have hinactR := kickStepProg_inactive_spec smallParams (base := 0) (pathBase := 202)
-    (st := ⟨1, 0, 0, 0, 0⟩) rfl
-    ((Memory.spec 0).clientState sPop (kickStepProg smallParams 0 202 ⟨0, 4, 11, 0, 1⟩))
-  obtain ⟨_, hlR_s⟩ := hloop_unfold sPop 202 4 11 0
-  have hsReins_eq : sReins =
-      (Memory.spec 0).clientState sPop (kickStepProg smallParams 0 202 ⟨0, 4, 11, 0, 1⟩) := by
-    change (Memory.spec 0).clientState sPop _ = _; rw [hlR_s, hrr1]; exact hinactR.2
+  set sR_step := (Memory.spec 0).clientState sPop (kickStepProg smallParams 0 202 ⟨0, 4, 11, 0, 1⟩)
+  have hloop3 := kickLoopProg_spec smallParams henvS
+    (st₀ := ⟨0, 4, 11, 0, 1⟩) (fuel := smallParams.kickLimit)
+    (fun i st s => if i = 0 then st = ⟨0, 4, 11, 0, 1⟩ ∧ s = sPop
+      else st = ⟨1, 0, 0, 0, 0⟩ ∧ s = sR_step)
+    hwfPop (by rw [hfrP, hfr5, hfr4, hfr2, hfrT2]; omega)
+    (by
+      change 202 + 0 + smallParams.kickLimit ≤ _
+      rw [hfrP, hfr5, hfr4, hfr2, hfrT2]; have : smallParams.kickLimit = 2 := rfl; omega)
+    (fun i hi => by
+      have : smallParams.kickLimit = 2 := rfl
+      change ¬(_ ≤ 202 + (0 + i) ∧ _); omega)
+    (fun i hi => by
+      have : smallParams.kickLimit = 2 := rfl
+      have hi2 : i = 0 ∨ i = 1 := by omega
+      rcases hi2 with rfl | rfl
+      · change sPop.mem (202 + 0) < _; rw [hp202_pop]; decide
+      · change sPop.mem (202 + 1) < _; rw [hp203_pop]; decide)
+    ⟨rfl, rfl⟩
+    (fun i _ st s _ _ hinv => by
+      rcases i with _ | i
+      · rcases hinv with ⟨rfl, rfl⟩; exact ⟨hrr1, rfl⟩
+      · rcases hinv with ⟨rfl, rfl⟩
+        exact kickStepProg_inactive_spec smallParams rfl sR_step)
+  obtain ⟨_, _, _, _, _, _, hsReins_eq⟩ := hloop3
   rw [← hsReins_eq] at houtR1 hqR hvR hoR
   obtain ⟨_, _, _, _, _, _, hoS, _⟩ :=
     popUnindexedSlotProg_spec tailParams thw (base := tailBase)
@@ -471,42 +561,57 @@ theorem test_kickEnvGen_64 :
     ⟨rfl, by decide, by decide, by decide, by decide, by decide⟩
   exact ⟨henv, ⟨testParams, rfl, henv⟩⟩
 
-/-- Concrete 64-bit satisfiability of `KickStepSafe` and `iterationSafe` across `kickLimit = 3`
-steps on `testParams` (placing `(7, 42)` into vacant slot `0` on step 0 and idling on steps 1–2). -/
+/-- Concrete check of `memoryCost` bounds and `ValidHistory` certificates across all eight
+subroutines. -/
+theorem test_memoryCost_and_validHistory :
+    let s : Memory.State := ⟨zeroMem, 3000⟩
+    memoryCost (allocKickTableProg testParams) s = totalSpace testParams + 1 ∧
+      memoryCost (querySlotProg testParams 0 0 7) s ≤ 6 ∧
+      memoryCost (readMetaProg testParams 0 0) s = 2 ∧
+      memoryCost (writeMetaProg testParams 0 0 1) s = 4 ∧
+      memoryCost (kickStepProg testParams 0 2000 ⟨0, 7, 42, 0, 1⟩) s ≤ 21 ∧
+      memoryCost (kickLoopProg testParams 0 2000 7 42 0) s ≤ 21 * testParams.kickLimit ∧
+      memoryCost (clearSlotProg testParams 0 0) s = 16 ∧
+      memoryCost (popUnindexedSlotProg testParams 0 0 1) s = 46 ∧
+      (Memory.spec 64).ValidHistory s
+        ((Memory.spec 64).clientHistory s (readMetaProg testParams 0 0)) ∧
+      (Memory.spec 64).ValidHistory s
+        ((Memory.spec 64).clientHistory s (writeMetaProg testParams 0 0 1)) := by
+  intro s
+  have henv := test_kickEnvGen_64.1
+  have hwf : Memory.WellFormed 64 s := ⟨by decide, fun _ => Nat.two_pow_pos 64⟩
+  exact ⟨memoryCost_allocKickTableProg testParams s,
+    memoryCost_querySlotProg_le testParams 0 0 7 s,
+    memoryCost_readMetaProg testParams 0 0 s,
+    memoryCost_writeMetaProg testParams 0 0 1 s,
+    memoryCost_kickStepProg_le testParams 0 2000 ⟨0, 7, 42, 0, 1⟩ s,
+    memoryCost_kickLoopProg_le testParams 0 2000 ⟨0, 7, 42, 0, 1⟩ testParams.kickLimit s,
+    memoryCost_clearSlotProg testParams 0 0 s,
+    memoryCost_popUnindexedSlotProg testParams 0 0 1 s,
+    validHistory_readMetaProg testParams rfl test_hw (by decide) (by dsimp [s]; decide),
+    validHistory_writeMetaProg testParams henv (by decide) hwf (by dsimp [s]; decide)⟩
+
+/-- Concrete 64-bit satisfiability of `KickStepSafe`, `iterationSafe`, and `ValidHistory` across
+`kickLimit = 3` steps on `testParams` via `validHistory_kickLoopProg`. -/
 theorem test_kickLoop_safe_nonvacuous :
     let rp := mkKickRuntimeParams testParams
     let env : KickStepEnv := ⟨rp, 0, 2000⟩
     let s₀ : Memory.State := ⟨fun _ => 0, 3000⟩
     KickStepSafe 64 (env, ⟨0, 7, 42, 0, 1⟩) s₀ ∧
       iterationSafe kickStepGenProg KickStepSafe 64 env testParams.kickLimit
-        ⟨0, 7, 42, 0, 1⟩ s₀ := by
+        ⟨0, 7, 42, 0, 1⟩ s₀ ∧
+      (Memory.spec 64).ValidHistory s₀
+        ((Memory.spec 64).clientHistory s₀ (kickLoopProg testParams 0 2000 7 42 0)) := by
   intro rp env s₀
+  have henv := test_kickEnvGen_64.1
   have henvG := test_kickEnvGen_64.2
   have hs0 : KickStepSafe 64 (env, ⟨0, 7, 42, 0, 1⟩) s₀ :=
     ⟨henvG, fun _ => ⟨by decide, by decide, by decide⟩⟩
-  refine ⟨hs0, ?_⟩
+  have hwf : Memory.WellFormed 64 s₀ := ⟨by decide, fun _ => show 0 < 2 ^ 64 by decide⟩
+  have htot : totalSpace testParams ≤ 1500 := by decide
   have hkl : testParams.kickLimit = 3 := rfl
-  rw [hkl]
-  have hs1 := kickStepProg_vacant_spec testParams test_hw (base := 0) (pathBase := 2000)
-    (st := ⟨0, 7, 42, 0, 1⟩) (s := s₀) (by decide) (by decide) (by decide) (by decide)
-    (by decide) (by rw [occAt_zero_of_init testParams test_hw (fun _ _ _ => rfl)])
-  dsimp only at hs1
-  have hr1 : (Memory.spec 64).clientResult s₀ (kickStepGenProg (env, ⟨0, 7, 42, 0, 1⟩)) =
-      ⟨1, 0, 0, 0, 0⟩ := by rw [clientResult_width]; exact hs1.1
-  set s₁ := (Memory.spec 64).clientState s₀ (kickStepGenProg (env, ⟨0, 7, 42, 0, 1⟩))
-  have hin1 := kickStepProg_inactive_spec testParams (base := 0) (pathBase := 2000)
-    (st := ⟨1, 0, 0, 0, 0⟩) rfl s₁
-  have hr2 : (Memory.spec 64).clientResult s₁ (kickStepGenProg (env, ⟨1, 0, 0, 0, 0⟩)) =
-      ⟨1, 0, 0, 0, 0⟩ := by rw [clientResult_width]; exact hin1.1
-  have hst2 : (Memory.spec 64).clientState s₁ (kickStepGenProg (env, ⟨1, 0, 0, 0, 0⟩)) = s₁ := by
-    rw [clientState_width]; exact hin1.2
-  unfold iterationSafe
-  refine ⟨hs0, ?_⟩
-  rw [← clientResult_width 64, ← clientState_width 64, hr1]
-  unfold iterationSafe
-  refine ⟨⟨henvG, fun h => nomatch h⟩, ?_⟩
-  rw [← clientResult_width 64, ← clientState_width 64, hr2, hst2]
-  exact ⟨⟨henvG, fun h => nomatch h⟩, trivial⟩
+  exact ⟨hs0, validHistory_kickLoopProg testParams henv hwf (by dsimp [s₀]; omega)
+    (by dsimp [s₀]; omega) (fun i hi => by omega) (fun _ _ => by dsimp [s₀]; decide)⟩
 
 /-- Non-vacuous native execution and `.halt`-rejection test for `realizes_allocKickTableGen` at
 `w = 64`: executes `allocKickTableGenProg` on an emitted width-free code to
@@ -530,7 +635,8 @@ theorem test_native_alloc_nonvacuous :
   }
   have hxf : x.regs frontier = 0 := dite_eq_right (by omega)
   have hms : memoryState frontier x = ⟨fun _ => 0, 0⟩ := Memory.State.ext rfl hxf
-  have hfit_rp : ∀ i : Fin 12, Fits 64 (WordEncoding.encode rp i) := by decide
+  have hfit_rp : ∀ i : Fin 12, Fits 64 (WordEncoding.encode rp i) :=
+    fits_encode_mkKickRuntimeParams testParams test_kickEnvGen_64.1 (by decide) (by decide)
   have hxb : x.Bounded 64 := ⟨fun reg => by
     dsimp [x]; split_ifs with h
     · exact hfit_rp ⟨reg.1, h⟩
@@ -540,10 +646,14 @@ theorem test_native_alloc_nonvacuous :
     exact congrArg (WordEncoding.encode rp) (Fin.ext (hsrc i))
   have hv : (Memory.spec 64).ValidHistory (memoryState frontier x)
       ((Memory.spec 64).clientHistory (memoryState frontier x) (allocKickTableGenProg rp)) := by
-    rw [hms]; decide
+    rw [hms]
+    exact validHistory_allocKickTableProg testParams (by decide)
   obtain ⟨y, hex, hm, _⟩ := hrun 64 rp x hxb hin trivial hv
   have hyf : y.regs frontier = totalSpace testParams := by
-    have hm_fr := congrArg Memory.State.frontier hm; rw [hms] at hm_fr; exact hm_fr
+    have hm_fr := congrArg Memory.State.frontier hm
+    rw [hms, clientState_width, (allocKickTableProg_spec testParams test_hw _).2.1, zero_add]
+      at hm_fr
+    exact hm_fr
   have hpos : 0 < totalSpace testParams := by decide
   exact ⟨r, C, frontier, c, x, y, hnw, hex, hm, hxf, hyf,
     fun heq => by rw [heq, hxf] at hyf; omega⟩
@@ -578,27 +688,18 @@ theorem test_native_query_nonvacuous :
   have hxf : x.regs frontier = totalSpace testParams := by
     dsimp [x]; rw [dite_eq_right (by omega), ite_eq_left rfl]
   have hms : memoryState frontier x = ⟨mQ, totalSpace testParams⟩ := Memory.State.ext rfl hxf
-  have hfit_d : ∀ i : Fin 15, Fits 64 (WordEncoding.encode d i) := by decide
+  have hfit_d : ∀ i : Fin 15, Fits 64 (WordEncoding.encode d i) :=
+    fits_encode_kickQueryInput
+      (fits_encode_mkKickRuntimeParams testParams test_kickEnvGen_64.1 (by decide) (by decide))
+      (by decide) (by decide) (by decide)
   have hmQ_fit : ∀ a, Fits 64 (mQ a) := by
-    intro a
-    by_cases ha : a = offQuot testParams ∨ a = offQuot testParams + 1 ∨
-        a = offVal testParams ∨ a = offVal testParams + 1 ∨
-        a = offOcc testParams ∨ a = offOcc testParams + 1
-    · rcases ha with rfl | rfl | rfl | rfl | rfl | rfl <;> decide
-    · -- Outside the two modified words of each writePacked, mQ a = 0 < 2^64
-      have hword0 : ∀ k w,
-          Cslib.DataStructure.Dictionary.WordRAM.BitPackedArray.wordOffset k w 0 = 0 :=
-        fun k w => by
-          unfold Cslib.DataStructure.Dictionary.WordRAM.BitPackedArray.wordOffset
-          simp
-      have hmQ_zero : mQ a = 0 := by
-        dsimp [mQ, writeOccMem, writeValMem, writeQuotMem,
-          Cslib.DataStructure.Dictionary.WordRAM.BitPackedArray.writePacked]
-        rw [hword0, hword0, hword0]
-        simp only [zero_add]
-        repeat rw [Function.update_of_ne (by omega)]
-        rfl
-      rw [hmQ_zero]; decide
+    have h0 : ∀ a, zeroMem a < 2 ^ 64 := fun _ => Nat.two_pow_pos 64
+    have h1 : ∀ a, writeQuotMem 0 testParams zeroMem 0 7 a < 2 ^ 64 :=
+      BitPackedArray.writePacked_lt_two_pow (w := 64) (by decide) (by decide) h0 0 7
+    have h2 : ∀ a, writeValMem 0 testParams (writeQuotMem 0 testParams zeroMem 0 7) 0 42 a <
+        2 ^ 64 :=
+      BitPackedArray.writePacked_lt_two_pow (w := 64) (by decide) (by decide) h1 0 42
+    exact BitPackedArray.writePacked_lt_two_pow (w := 64) (by decide) (by decide) h2 0 1
   have hxb : x.Bounded 64 := ⟨fun reg => by
     dsimp [x]; split_ifs with h1 h2
     · exact hfit_d ⟨reg.1, h1⟩
@@ -664,20 +765,13 @@ theorem test_native_clear_nonvacuous :
   have hxf : x.regs frontier = totalSpace testParams := by
     dsimp [x]; rw [dite_eq_right (by omega), ite_eq_left rfl]
   have hms : memoryState frontier x = ⟨mC, totalSpace testParams⟩ := Memory.State.ext rfl hxf
-  have hfit_d : ∀ i : Fin 14, Fits 64 (WordEncoding.encode d i) := by decide
-  have hmC_fit : ∀ a, Fits 64 (mC a) := by
-    intro a
-    by_cases ha : a = offOcc testParams ∨ a = offOcc testParams + 1
-    · rcases ha with rfl | rfl <;> decide
-    · have hmC_zero : mC a = 0 := by
-        dsimp [mC, writeOccMem,
-          Cslib.DataStructure.Dictionary.WordRAM.BitPackedArray.writePacked]
-        change Function.update (Function.update zeroMem (0 + offOcc testParams + 0) _)
-          (0 + offOcc testParams + 0 + 1) _ a = 0
-        simp only [zero_add]
-        repeat rw [Function.update_of_ne (by omega)]
-        rfl
-      rw [hmC_zero]; decide
+  have hfit_d : ∀ i : Fin 14, Fits 64 (WordEncoding.encode d i) :=
+    fits_encode_kickClearInput
+      (fits_encode_mkKickRuntimeParams testParams test_kickEnvGen_64.1 (by decide) (by decide))
+      (by decide) (by decide)
+  have hmC_fit : ∀ a, Fits 64 (mC a) :=
+    BitPackedArray.writePacked_lt_two_pow (w := 64) (by decide) (by decide)
+      (fun _ => Nat.two_pow_pos 64) 0 1
   have hxb : x.Bounded 64 := ⟨fun reg => by
     dsimp [x]; split_ifs with h1 h2
     · exact hfit_d ⟨reg.1, h1⟩

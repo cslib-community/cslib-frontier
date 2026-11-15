@@ -36,26 +36,37 @@ and proves exact pure array-level specifications:
    `kickLoopProg`)**: steps along a caller-supplied switching-path buffer `[pathBase, pathBase +
    p.kickLimit)` using `Realization.iterate` (`p.kickLimit = k + 1` per Section 3.1 / Theorem 2),
    checking vacancy via 1-bit `Occupancy` (so zero quotients are preserved) and displacing
-   `(quot, val, elevated)` atomically using the 1-bit per-slot `Elevated` indicator (`elevated <
-   2 ^ 1`, preserving priority-depth status under kicks without multi-bit tag truncation;
-   `kickStepProg_vacant_spec`, `kickStepProg_displace_spec`, `kickStepProg_inactive_spec`).
+   `(quot, val, elevated)` atomically using the local formalization adaptation's 1-bit per-slot
+   `Elevated` indicator (`elevated < 2 ^ 1`, preserving priority-depth status under kicks without
+   multi-bit tag truncation; `kickStepProg_vacant_spec`, `kickStepProg_displace_spec`,
+   `kickStepProg_inactive_spec`, `kickLoopProg_spec`, `validHistory_kickStepProg`,
+   `validHistory_kickLoopProg`).
 5. **Bit-Packed Slot Vacating & Unindexed Tail-Cubby Compaction (`clearSlotGenProg`,
    `clearSlotProg`, `popUnindexedSlotGenProg`, `popUnindexedSlotProg`)**: for Section 5.2 deletion,
    `clearSlotProg` vacates a deleted slot in a hashed kick-tree without overwriting hashed bins in
-   place (`clearSlotProg_spec`), while `popUnindexedSlotProg` pops and swap-compacts an item from
-   an unindexed tail-cubby slot array (`Facility.TailCubby`, reusing `clearSlotGenProg` to clear
-   `lastSlot` and handling both `slot ≠ lastSlot` and `slot = lastSlot`) and returns its
-   `((quot, val), elevated)` payload for subsequent `kickLoopProg` re-insertion
-   (`popUnindexedSlotProg_spec`).
+   place (`clearSlotProg_spec`), while `popUnindexedSlotProg` is a local formalization adaptation
+   that pops and swap-compacts an item from an unindexed `[0, len)` tail-cubby slot array
+   (`Facility.TailCubby`, reusing `clearSlotGenProg` to clear `lastSlot` and handling both
+   `slot ≠ lastSlot` and `slot = lastSlot`) and returns its `((quot, val), elevated)` payload for
+   subsequent `kickLoopProg` re-insertion (`popUnindexedSlotProg_spec`).
 
-## Source attribution
+## Source attribution and formalization adaptations
 
-* [BenderFarachColtonKuszmaulKuszmaulLiu2022] (`arXiv:2111.00602v2`):
-  - Section 3.1 (printed pp. 8–10 / PDF pp. 9–11) and Theorem 2 (printed p. 11 / PDF p. 12):
+* **Primary source** — [BenderFarachColtonKuszmaulKuszmaulLiu2022] (`arXiv:2111.00602v2`):
+  - Section 3.1 (printed pp. 8–12 / PDF pp. 9–13) and Theorem 2 (printed p. 12 / PDF p. 13):
     `k`-kick tree priority displacement chains of length at most `k + 1` and kick-depth invariance.
-  - Section 5.1–5.3 (printed pp. 27–35 / PDF pp. 28–36): occupancy/free-slot bitmaps, 1-bit
-    per-slot elevated indicators paired with sparse `SlotMeta`, full-cubby deletion paired with
-    unindexed tail-cubby pop and re-insertion, and bit-packed quotiented slots.
+  - Section 5.1–5.2 (printed pp. 27–32 / PDF pp. 28–33): occupancy/free-slot bitmaps, sparse
+    `SlotMeta` (`O(n_max log^(k + 1) n_max)` bits), and full-cubby deletion refilled by popping an
+    item from a tail cubby.
+  - Section 5.3 and Theorem 21 (printed pp. 33–35 / PDF pp. 34–36): bit-packed quotiented slot
+    payloads (`quotAt`, `valAt`, `querySlotGenProg`).
+* **Local formalization adaptations**:
+  - Dedicated 1-bit per-slot `Elevated` (`depth ≥ 1`) bitmap (`elevAt`, `KickStepState.elevated`)
+    carried across displacements to track elevated priority status per primary slot alongside
+    sparse `SlotMeta`.
+  - Unindexed `[0, len)` swap-compacted tail-cubby array (`popUnindexedSlotGenProg`,
+    `popUnindexedSlotProg`), pairing `Facility.TailCubby` with `clearSlotProg` and `kickLoopProg`
+    re-insertion.
 
 ## Main definitions
 
@@ -77,19 +88,27 @@ and proves exact pure array-level specifications:
 
 ## Main results
 
-* `allocKickTableProg_spec`, `realizes_allocKickTableGen`: zero-initialized array and frame
-  specification and `Realizes .exact` certificate for `allocKickTableGenProg`.
-* `querySlotProg_spec`, `validHistory_querySlotProg`, `realizes_querySlotGen`: `Option ℕ` lookup
-  specification, admissible-history lemma, and `Realizes .exact` certificate for
-  `querySlotGenProg`.
-* `readMetaProg_spec`, `realizes_readMetaGen`, `writeMetaProg_spec`, `realizes_writeMetaGen`:
-  `SlotMeta` accessor specifications and `Realizes .exact` certificates.
+* `allocKickTableProg_spec`, `validHistory_allocKickTableProg`, `memoryCost_allocKickTableProg`,
+  `realizes_allocKickTableGen`: zero-initialized array and frame specification, admissibility,
+  memory charge, and `Realizes .exact` certificate for `allocKickTableGenProg`.
+* `querySlotProg_spec`, `validHistory_querySlotProg`, `memoryCost_querySlotProg_le`,
+  `realizes_querySlotGen`: `Option ℕ` lookup specification, admissibility, memory-charge bound, and
+  `Realizes .exact` certificate for `querySlotGenProg`.
+* `readMetaProg_spec`, `validHistory_readMetaProg`, `memoryCost_readMetaProg`,
+  `realizes_readMetaGen`, `writeMetaProg_spec`, `validHistory_writeMetaProg`,
+  `memoryCost_writeMetaProg`, `realizes_writeMetaGen`: `SlotMeta` accessor specifications,
+  admissibility, memory charges, and `Realizes .exact` certificates.
 * `kickStepProg_inactive_spec`, `kickStepProg_vacant_spec`, `kickStepProg_displace_spec`,
-  `realizes_kickStepGen`, `realizes_kickLoopGen`: pure array-update specifications and
-  `Realizes .exact` certificates for `kickStepGenProg` and `kickLoopIterGenProg`.
-* `clearSlotProg_spec`, `validHistory_clearSlotProg`, `realizes_clearSlotGen`,
-  `popUnindexedSlotProg_spec`, `realizes_popUnindexedSlotGen`: pure array-update specifications and
-  `Realizes .exact` certificates for `clearSlotGenProg` and `popUnindexedSlotGenProg`.
+  `validHistory_kickStepProg`, `memoryCost_kickStepProg_le`, `kickLoopProg_spec`,
+  `validHistory_kickLoopProg`, `memoryCost_kickLoopProg_le`, `realizes_kickStepGen`,
+  `realizes_kickLoopGen`: pure array-update and parametric bounded-loop specifications,
+  admissibility, memory-charge bounds, and `Realizes .exact` certificates for `kickStepGenProg` and
+  `kickLoopIterGenProg`.
+* `clearSlotProg_spec`, `validHistory_clearSlotProg`, `memoryCost_clearSlotProg`,
+  `realizes_clearSlotGen`, `popUnindexedSlotProg_spec`, `validHistory_popUnindexedSlotProg`,
+  `memoryCost_popUnindexedSlotProg`, `realizes_popUnindexedSlotGen`: pure array-update
+  specifications, admissibility, memory charges, and `Realizes .exact` certificates for
+  `clearSlotGenProg` and `popUnindexedSlotGenProg`.
 
 ## References
 
@@ -143,7 +162,7 @@ structure KickRuntimeParams where
 deriving Repr, DecidableEq
 
 /-- Tuple equivalence for `KickRuntimeParams` used by `WordEncoding.ofEquiv`. -/
-@[expose] def KickRuntimeParams.equiv :
+def KickRuntimeParams.equiv :
     KickRuntimeParams ≃
       ((((((((((ℕ × ℕ) × ℕ) × ℕ) × ℕ) × ℕ) × ℕ) × ℕ) × ℕ) × ℕ) × ℕ) × ℕ where
   toFun r :=
@@ -155,6 +174,25 @@ deriving Repr, DecidableEq
   right_inv _ := rfl
 
 instance : WordEncoding KickRuntimeParams := .ofEquiv KickRuntimeParams.equiv
+
+private theorem fits_encode_nat {w x : ℕ} (hx : Fits w x) :
+    ∀ i, Fits w (WordEncoding.encode x i) :=
+  fun _ => hx
+
+private theorem fits_encode_prod {α β : Type} [WordEncoding α] [WordEncoding β]
+    {w : ℕ} {a : α} {b : β}
+    (ha : ∀ i, Fits w (WordEncoding.encode a i))
+    (hb : ∀ j, Fits w (WordEncoding.encode b j)) :
+    ∀ k, Fits w (WordEncoding.encode (a, b) k) :=
+  Fin.addCases
+    (fun i => by
+      change Fits w
+        (Fin.append (WordEncoding.encode a) (WordEncoding.encode b) (Fin.castAdd _ i))
+      simpa only [Fin.append_left] using ha i)
+    (fun j => by
+      change Fits w
+        (Fin.append (WordEncoding.encode a) (WordEncoding.encode b) (Fin.natAdd _ j))
+      simpa only [Fin.append_right] using hb j)
 
 /-- Populate `KickRuntimeParams` from a layout configuration `p : KickTreeParams`. -/
 @[expose] def mkKickRuntimeParams (p : KickTreeParams) : KickRuntimeParams where
@@ -183,6 +221,35 @@ instance : WordEncoding KickRuntimeParams := .ofEquiv KickRuntimeParams.equiv
 /-- Parameter-free runtime envelope pairing `rp : KickRuntimeParams` with `KickTreeParams`. -/
 @[expose] def KickEnvGen (w' : ℕ) (rp : KickRuntimeParams) (base : ℕ) : Prop :=
   ∃ p : KickTreeParams, rp = mkKickRuntimeParams p ∧ KickEnv p w' base
+
+/-- Every encoded word of `mkKickRuntimeParams p` fits in `w` bits under `KickEnv p w base`,
+`Fits w p.nMax`, and `Fits w (metaLen p)`. -/
+theorem fits_encode_mkKickRuntimeParams {w base : ℕ} (p : KickTreeParams)
+    (henv : KickEnv p w base) (hn : Fits w p.nMax) (hm : Fits w (metaLen p)) :
+    ∀ i, Fits w (WordEncoding.encode (mkKickRuntimeParams p) i) := by
+  obtain ⟨rfl, _, hq, hv, hmb, hfit⟩ := henv
+  have hw_fit : Fits p.w p.w := Nat.lt_two_pow_self
+  have hQ := quot_end_le_totalSpace p
+  have hV := val_end_le_totalSpace p
+  have hO := occ_end_le_totalSpace p
+  have hE := elev_end_le_totalSpace p
+  have hM := meta_end_le_totalSpace p
+  change ∀ i, Fits p.w (WordEncoding.encode (KickRuntimeParams.equiv (mkKickRuntimeParams p)) i)
+  dsimp [KickRuntimeParams.equiv, mkKickRuntimeParams]
+  refine fits_encode_prod (fits_encode_prod (fits_encode_prod (fits_encode_prod
+    (fits_encode_prod (fits_encode_prod (fits_encode_prod (fits_encode_prod
+      (fits_encode_prod (fits_encode_prod (fits_encode_prod
+        (fits_encode_nat hw_fit) (fits_encode_nat hn))
+        (fits_encode_nat (hfit.of_le (by omega))))
+        (fits_encode_nat (hw_fit.of_le hq)))
+        (fits_encode_nat (hfit.of_le (by omega))))
+        (fits_encode_nat (hw_fit.of_le hv)))
+        (fits_encode_nat (hfit.of_le (by omega))))
+        (fits_encode_nat (hfit.of_le (by omega))))
+        (fits_encode_nat (hfit.of_le (by omega))))
+        (fits_encode_nat (hw_fit.of_le hmb)))
+        (fits_encode_nat hm))
+        (fits_encode_nat (hfit.of_le (by omega)))
 
 private theorem fits_one_of_pos {w : ℕ} (hw : 0 < w) : Fits w 1 :=
   Nat.one_lt_two_pow (by omega)
@@ -279,11 +346,11 @@ private theorem not_in_meta_of_outside {p : KickTreeParams} {base a : ℕ}
 /-! ### 2. Zeroed Table Allocation Subroutine -/
 
 /-- Parameter-free `Memory.Prog` subroutine allocating `rp.totalSpace` zeroed words. -/
-@[expose] def allocKickTableGenProg (rp : KickRuntimeParams) : Memory.Prog ℕ :=
+def allocKickTableGenProg (rp : KickRuntimeParams) : Memory.Prog ℕ :=
   Memory.alloc rp.totalSpace
 
 /-- Allocate `totalSpace p` zeroed words for `p : KickTreeParams`. -/
-@[expose] def allocKickTableProg (p : KickTreeParams) : Memory.Prog ℕ :=
+abbrev allocKickTableProg (p : KickTreeParams) : Memory.Prog ℕ :=
   allocKickTableGenProg (mkKickRuntimeParams p)
 
 /-- Uniform `Realizes .exact` (`¬ReadsWidth`) certificate for `allocKickTableGenProg`. -/
@@ -293,7 +360,22 @@ theorem realizes_allocKickTableGen :
       (WordEncoding.encode (α := ℕ))
       (fun _ _ _ => True)
       (fun _ _ => 0) := by
+  unfold allocKickTableGenProg
   realize
+
+/-- Admissible memory history for `allocKickTableProg` when `s.frontier + totalSpace p` fits in
+`w` bits. -/
+theorem validHistory_allocKickTableProg {w : ℕ} (p : KickTreeParams) {s : Memory.State}
+    (hfit : Fits w (s.frontier + totalSpace p)) :
+    (Memory.spec w).ValidHistory s
+      ((Memory.spec w).clientHistory s (allocKickTableProg p)) :=
+  ⟨hfit, trivial⟩
+
+/-- Exact memory charge of `allocKickTableProg` (`totalSpace p + 1`). -/
+theorem memoryCost_allocKickTableProg (p : KickTreeParams) (s : Memory.State) :
+    memoryCost (allocKickTableProg p) s = totalSpace p + 1 := by
+  unfold allocKickTableProg allocKickTableGenProg
+  exact Nat.add_zero _
 
 /-- Allocating a kick-tree table returns `base = s.frontier`, advances the frontier by
 `totalSpace p`, zeroes `[base, base + totalSpace p)`, frames memory outside `[base, base +
@@ -341,7 +423,7 @@ structure KickQueryInput where
   q : ℕ
 
 /-- Tuple equivalence for `KickQueryInput` used by `WordEncoding.ofEquiv`. -/
-@[expose] def KickQueryInput.equiv :
+def KickQueryInput.equiv :
     KickQueryInput ≃ ((KickRuntimeParams × ℕ) × ℕ) × ℕ where
   toFun d := (((d.rp, d.base), d.slot), d.q)
   invFun := fun (((rp, base), slot), q) => ⟨rp, base, slot, q⟩
@@ -350,9 +432,19 @@ structure KickQueryInput where
 
 instance : WordEncoding KickQueryInput := .ofEquiv KickQueryInput.equiv
 
+/-- Every encoded word of `d : KickQueryInput` fits in `w` bits when its fields do. -/
+theorem fits_encode_kickQueryInput {w : ℕ} {d : KickQueryInput}
+    (hrp : ∀ i, Fits w (WordEncoding.encode d.rp i))
+    (hbase : Fits w d.base) (hslot : Fits w d.slot) (hq : Fits w d.q) :
+    ∀ i, Fits w (WordEncoding.encode d i) := by
+  change ∀ i, Fits w (WordEncoding.encode (KickQueryInput.equiv d) i)
+  dsimp only [KickQueryInput.equiv]
+  exact fits_encode_prod (fits_encode_prod (fits_encode_prod hrp
+    (fits_encode_nat hbase)) (fits_encode_nat hslot)) (fits_encode_nat hq)
+
 /-- Parameter-free bit-packed slot lookup returning `Option ℕ`. Checks `Occupancy[slot]` first so
 that an empty slot (`none`) and a stored value `0` (`some 0`, even at quotient `0`) are distinct. -/
-@[expose] def querySlotGenProg (d : KickQueryInput) : Memory.Prog (Option ℕ) := do
+def querySlotGenProg (d : KickQueryInput) : Memory.Prog (Option ℕ) := do
   let occ ← readPackedGenProg (((d.base, d.rp.offOcc), (1, d.rp.w)), d.slot)
   if occ = 0 then
     pure none
@@ -365,7 +457,7 @@ that an empty slot (`none`) and a stored value `0` (`some 0`, even at quotient `
       pure none
 
 /-- Bit-packed slot lookup for `p : KickTreeParams` at `base`. -/
-@[expose] def querySlotProg (p : KickTreeParams) (base slot q : ℕ) : Memory.Prog (Option ℕ) :=
+abbrev querySlotProg (p : KickTreeParams) (base slot q : ℕ) : Memory.Prog (Option ℕ) :=
   querySlotGenProg ⟨mkKickRuntimeParams p, base, slot, q⟩
 
 /-- Uniform `Realizes .exact` (`¬ReadsWidth`) certificate for `querySlotGenProg`. -/
@@ -375,6 +467,7 @@ theorem realizes_querySlotGen :
       (WordEncoding.encode (α := Option ℕ))
       (fun w d _ => KickEnvGen w d.rp d.base ∧ d.slot < d.rp.nMax)
       (fun _ _ => 0) := by
+  unfold querySlotGenProg
   realize [realizes_readPackedGen]
   · exact fits_one_of_env h.1
   · exact readPacked_occ_safe h.1 h.2
@@ -382,15 +475,39 @@ theorem realizes_querySlotGen :
   · exact readPacked_val_safe h.1 h.2
   · exact fits_one_of_env h.1
 
-private theorem validHistory_bind_do (w : ℕ) {α β : Type} (p : Memory.Prog α)
-    (q : α → Memory.Prog β) (s : Memory.State) :
-    (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (p >>= q)) ↔
-      (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s p) ∧
-      (Memory.spec w).ValidHistory ((Memory.spec w).clientState s p)
-        ((Memory.spec w).clientHistory ((Memory.spec w).clientState s p)
-          (q ((Memory.spec w).clientResult s p))) := by
-  change (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (p.bind q)) ↔ _
-  exact validHistory_bind w p q s
+private theorem array_ends_le_frontier {base frontier : ℕ} (p : KickTreeParams)
+    (ha : base + totalSpace p ≤ frontier) :
+    base + offQuot p + packedWords p.nMax (quotBits p) p.w ≤ frontier ∧
+      base + offVal p + packedWords p.nMax (valBits p.V) p.w ≤ frontier ∧
+      base + offElev p + packedWords p.nMax 1 p.w ≤ frontier ∧
+      base + offOcc p + packedWords (occLen p) 1 p.w ≤ frontier := by
+  have hq := quot_end_le_totalSpace p; dsimp [quotWords] at hq
+  have hv := val_end_le_totalSpace p; dsimp [valWords] at hv
+  have he := elev_end_le_totalSpace p; dsimp [elevWords] at he
+  have ho := occ_end_le_totalSpace p; dsimp [occWords] at ho
+  omega
+
+private theorem validHistory_readPackedProg_bind {α : Type} {base off len k w idx : ℕ}
+    {f : ℕ → Memory.Prog α} {s : Memory.State} (hw : 0 < w) (hidx : idx < len)
+    (ha : base + off + packedWords len k w ≤ s.frontier)
+    (hk : ∀ r, (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (f r))) :
+    (Memory.spec w).ValidHistory s
+      ((Memory.spec w).clientHistory s (readPackedProg base off k w idx >>= f)) := by
+  rw [validHistory_bind']
+  refine ⟨validHistory_readPackedProg hw hidx ha, ?_⟩
+  rw [clientState_readPackedProg]
+  exact hk _
+
+private theorem validHistory_writePackedProg_bind {α : Type} {base off len k w idx val : ℕ}
+    {f : Unit → Memory.Prog α} {s : Memory.State} (hw : 0 < w) (hkw : k ≤ w) (hidx : idx < len)
+    (hwf : Memory.WellFormed w s) (ha : base + off + packedWords len k w ≤ s.frontier)
+    (hk : ∀ s' : Memory.State, Memory.WellFormed w s' → s'.frontier = s.frontier →
+      (Memory.spec w).ValidHistory s' ((Memory.spec w).clientHistory s' (f ()))) :
+    (Memory.spec w).ValidHistory s
+      ((Memory.spec w).clientHistory s (writePackedProg base off k w idx val >>= f)) := by
+  rw [validHistory_bind']
+  exact ⟨validHistory_writePackedProg hw hkw hidx hwf ha,
+    hk _ (wellFormed_clientState_writePackedProg hw hkw hwf) rfl⟩
 
 /-- Admissible memory history for `querySlotProg` when `[base, base + totalSpace p)` lies below
 `s.frontier`. -/
@@ -400,29 +517,29 @@ theorem validHistory_querySlotProg {w base slot q : ℕ} (p : KickTreeParams)
     (Memory.spec w).ValidHistory s
       ((Memory.spec w).clientHistory s (querySlotProg p base slot q)) := by
   subst hw_eq
-  have hocc_lt : slot < occLen p := slot_lt_occLen hslot
-  have hO : base + offOcc p + packedWords (occLen p) 1 p.w ≤ s.frontier := by
-    have := occ_end_le_totalSpace p; dsimp [occWords] at this; omega
-  have hQ : base + offQuot p + packedWords p.nMax (quotBits p) p.w ≤ s.frontier := by
-    have := quot_end_le_totalSpace p; dsimp [quotWords] at this; omega
-  have hV : base + offVal p + packedWords p.nMax (valBits p.V) p.w ≤ s.frontier := by
-    have := val_end_le_totalSpace p; dsimp [valWords] at this; omega
+  obtain ⟨hQ, hV, _, hO⟩ := array_ends_le_frontier p ha
   unfold querySlotProg querySlotGenProg readPackedGenProg
   dsimp only [mkKickRuntimeParams]
-  rw [validHistory_bind_do]
-  refine ⟨validHistory_readPackedProg hw hocc_lt hO, ?_⟩
-  rw [clientState_width, clientState_readPackedProg]
+  refine validHistory_readPackedProg_bind hw (slot_lt_occLen hslot) hO fun _ => ?_
   split_ifs
   · trivial
-  · rw [validHistory_bind_do]
-    refine ⟨validHistory_readPackedProg hw hslot hQ, ?_⟩
-    rw [clientState_width, clientState_readPackedProg]
+  · refine validHistory_readPackedProg_bind hw hslot hQ fun _ => ?_
     split_ifs
-    · rw [validHistory_bind_do]
-      refine ⟨validHistory_readPackedProg hw hslot hV, ?_⟩
-      rw [clientState_width, clientState_readPackedProg]
-      trivial
+    · exact validHistory_readPackedProg_bind hw hslot hV fun _ => trivial
     · trivial
+
+/-- `querySlotProg` issues at most three bit-packed reads (`memoryCost ≤ 6`). -/
+theorem memoryCost_querySlotProg_le (p : KickTreeParams) (base slot q : ℕ) (s : Memory.State) :
+    memoryCost (querySlotProg p base slot q) s ≤ 6 := by
+  unfold querySlotProg querySlotGenProg readPackedGenProg
+  dsimp only [mkKickRuntimeParams]
+  rw [memoryCost_bind', memoryCost_readPackedProg, clientState_readPackedProg]
+  split_ifs
+  · simp only [memoryCost_pure]; omega
+  · rw [memoryCost_bind', memoryCost_readPackedProg, clientState_readPackedProg]
+    split_ifs
+    · rw [memoryCost_bind', memoryCost_readPackedProg, memoryCost_pure]
+    · simp only [memoryCost_pure]; omega
 
 /-- Pure array-level specification for `querySlotProg`: preserves memory state and returns
 `some (valAt base p s.mem slot)` iff `occAt base p s.mem slot ≠ 0` and
@@ -476,7 +593,7 @@ structure KickMetaReadInput where
   idx : ℕ
 
 /-- Tuple equivalence for `KickMetaReadInput` used by `WordEncoding.ofEquiv`. -/
-@[expose] def KickMetaReadInput.equiv :
+def KickMetaReadInput.equiv :
     KickMetaReadInput ≃ (KickRuntimeParams × ℕ) × ℕ where
   toFun d := ((d.rp, d.base), d.idx)
   invFun := fun ((rp, base), idx) => ⟨rp, base, idx⟩
@@ -485,12 +602,21 @@ structure KickMetaReadInput where
 
 instance : WordEncoding KickMetaReadInput := .ofEquiv KickMetaReadInput.equiv
 
+/-- Every encoded word of `d : KickMetaReadInput` fits in `w` bits when its fields do. -/
+theorem fits_encode_kickMetaReadInput {w : ℕ} {d : KickMetaReadInput}
+    (hrp : ∀ i, Fits w (WordEncoding.encode d.rp i))
+    (hbase : Fits w d.base) (hidx : Fits w d.idx) :
+    ∀ i, Fits w (WordEncoding.encode d i) := by
+  change ∀ i, Fits w (WordEncoding.encode (KickMetaReadInput.equiv d) i)
+  dsimp only [KickMetaReadInput.equiv]
+  exact fits_encode_prod (fits_encode_prod hrp (fits_encode_nat hbase)) (fits_encode_nat hidx)
+
 /-- Parameter-free bit-packed read from `SlotMeta[d.idx]`. -/
-@[expose] def readMetaGenProg (d : KickMetaReadInput) : Memory.Prog ℕ :=
+def readMetaGenProg (d : KickMetaReadInput) : Memory.Prog ℕ :=
   readPackedGenProg (((d.base, d.rp.offMeta), (d.rp.metaBits, d.rp.w)), d.idx)
 
 /-- Typed wrapper reading `SlotMeta[idx]` for `p : KickTreeParams` at `base`. -/
-@[expose] def readMetaProg (p : KickTreeParams) (base idx : ℕ) : Memory.Prog ℕ :=
+abbrev readMetaProg (p : KickTreeParams) (base idx : ℕ) : Memory.Prog ℕ :=
   readMetaGenProg ⟨mkKickRuntimeParams p, base, idx⟩
 
 /-- Uniform `Realizes .exact` (`¬ReadsWidth`) certificate for `readMetaGenProg`. -/
@@ -503,6 +629,24 @@ theorem realizes_readMetaGen :
   unfold readMetaGenProg
   realize [realizes_readPackedGen]
   exact readPacked_meta_safe h.1 h.2
+
+/-- Admissible memory history for `readMetaProg` when `[base, base + totalSpace p)` lies below
+`s.frontier`. -/
+theorem validHistory_readMetaProg {w base idx : ℕ} (p : KickTreeParams)
+    (hw_eq : w = p.w) (hw : 0 < p.w) (hidx : idx < metaLen p) {s : Memory.State}
+    (ha : base + totalSpace p ≤ s.frontier) :
+    (Memory.spec w).ValidHistory s
+      ((Memory.spec w).clientHistory s (readMetaProg p base idx)) := by
+  subst hw_eq
+  have hM : base + offMeta p + packedWords (metaLen p) (metaBits p) p.w ≤ s.frontier := by
+    have := meta_end_le_totalSpace p; dsimp [metaWords] at this; omega
+  exact validHistory_readPackedProg hw hidx hM
+
+/-- Exact memory charge of `readMetaProg` (`2` word reads). -/
+theorem memoryCost_readMetaProg (p : KickTreeParams) (base idx : ℕ) (s : Memory.State) :
+    memoryCost (readMetaProg p base idx) s = 2 := by
+  unfold readMetaProg readMetaGenProg readPackedGenProg
+  exact memoryCost_readPackedProg _ _ _ _ _ _
 
 /-- Pure array-level specification for `readMetaProg`. -/
 theorem readMetaProg_spec (p : KickTreeParams) {base idx : ℕ} (hidx : idx < metaLen p)
@@ -526,7 +670,7 @@ structure KickMetaWriteInput where
   val : ℕ
 
 /-- Tuple equivalence for `KickMetaWriteInput` used by `WordEncoding.ofEquiv`. -/
-@[expose] def KickMetaWriteInput.equiv :
+def KickMetaWriteInput.equiv :
     KickMetaWriteInput ≃ ((KickRuntimeParams × ℕ) × ℕ) × ℕ where
   toFun d := (((d.rp, d.base), d.idx), d.val)
   invFun := fun (((rp, base), idx), val) => ⟨rp, base, idx, val⟩
@@ -535,12 +679,22 @@ structure KickMetaWriteInput where
 
 instance : WordEncoding KickMetaWriteInput := .ofEquiv KickMetaWriteInput.equiv
 
+/-- Every encoded word of `d : KickMetaWriteInput` fits in `w` bits when its fields do. -/
+theorem fits_encode_kickMetaWriteInput {w : ℕ} {d : KickMetaWriteInput}
+    (hrp : ∀ i, Fits w (WordEncoding.encode d.rp i))
+    (hbase : Fits w d.base) (hidx : Fits w d.idx) (hval : Fits w d.val) :
+    ∀ i, Fits w (WordEncoding.encode d i) := by
+  change ∀ i, Fits w (WordEncoding.encode (KickMetaWriteInput.equiv d) i)
+  dsimp only [KickMetaWriteInput.equiv]
+  exact fits_encode_prod (fits_encode_prod (fits_encode_prod hrp
+    (fits_encode_nat hbase)) (fits_encode_nat hidx)) (fits_encode_nat hval)
+
 /-- Parameter-free bit-packed write to `SlotMeta[d.idx]`. -/
-@[expose] def writeMetaGenProg (d : KickMetaWriteInput) : Memory.Prog Unit :=
+def writeMetaGenProg (d : KickMetaWriteInput) : Memory.Prog Unit :=
   writePackedGenProg ((((d.base, d.rp.offMeta), (d.rp.metaBits, d.rp.w)), d.idx), d.val)
 
 /-- Typed wrapper writing `val` into `SlotMeta[idx]` for `p : KickTreeParams` at `base`. -/
-@[expose] def writeMetaProg (p : KickTreeParams) (base idx val : ℕ) : Memory.Prog Unit :=
+abbrev writeMetaProg (p : KickTreeParams) (base idx val : ℕ) : Memory.Prog Unit :=
   writeMetaGenProg ⟨mkKickRuntimeParams p, base, idx, val⟩
 
 /-- Uniform `Realizes .exact` (`¬ReadsWidth`) certificate for `writeMetaGenProg`. -/
@@ -553,6 +707,25 @@ theorem realizes_writeMetaGen :
   unfold writeMetaGenProg
   realize [realizes_writePackedGen]
   exact readPacked_meta_safe h.1 h.2
+
+/-- Admissible memory history for `writeMetaProg` on a well-formed machine state with
+`[base, base + totalSpace p)` below `s.frontier`. -/
+theorem validHistory_writeMetaProg {w base idx val : ℕ} (p : KickTreeParams)
+    (henv : KickEnv p w base) (hidx : idx < metaLen p) {s : Memory.State}
+    (hwf : Memory.WellFormed w s) (ha : base + totalSpace p ≤ s.frontier) :
+    (Memory.spec w).ValidHistory s
+      ((Memory.spec w).clientHistory s (writeMetaProg p base idx val)) := by
+  obtain ⟨rfl, hw, _, _, hm, _⟩ := henv
+  have hM : base + offMeta p + packedWords (metaLen p) (metaBits p) p.w ≤ s.frontier := by
+    have := meta_end_le_totalSpace p; dsimp [metaWords] at this; omega
+  exact validHistory_writePackedProg hw hm hidx hwf hM
+
+/-- Exact memory charge of `writeMetaProg` (`2` reads and `2` writes). -/
+theorem memoryCost_writeMetaProg (p : KickTreeParams) (base idx val : ℕ)
+    (s : Memory.State) :
+    memoryCost (writeMetaProg p base idx val) s = 4 := by
+  unfold writeMetaProg writeMetaGenProg writePackedGenProg
+  exact memoryCost_writePackedProg _ _ _ _ _ _ _
 
 /-- Pure array-update specification for `writeMetaProg`. -/
 theorem writeMetaProg_spec (p : KickTreeParams) (hw : 0 < p.w) {base idx val : ℕ}
@@ -589,7 +762,7 @@ structure KickStepEnv where
   pathBase : ℕ
 
 /-- Tuple equivalence for `KickStepEnv` used by `WordEncoding.ofEquiv`. -/
-@[expose] def KickStepEnv.equiv :
+def KickStepEnv.equiv :
     KickStepEnv ≃ (KickRuntimeParams × ℕ) × ℕ where
   toFun e := ((e.rp, e.base), e.pathBase)
   invFun := fun ((rp, base), pathBase) => ⟨rp, base, pathBase⟩
@@ -597,6 +770,15 @@ structure KickStepEnv where
   right_inv _ := rfl
 
 instance : WordEncoding KickStepEnv := .ofEquiv KickStepEnv.equiv
+
+/-- Every encoded word of `e : KickStepEnv` fits in `w` bits when its fields do. -/
+theorem fits_encode_kickStepEnv {w : ℕ} {e : KickStepEnv}
+    (hrp : ∀ i, Fits w (WordEncoding.encode e.rp i))
+    (hbase : Fits w e.base) (hpath : Fits w e.pathBase) :
+    ∀ i, Fits w (WordEncoding.encode e i) := by
+  change ∀ i, Fits w (WordEncoding.encode (KickStepEnv.equiv e) i)
+  dsimp only [KickStepEnv.equiv]
+  exact fits_encode_prod (fits_encode_prod hrp (fits_encode_nat hbase)) (fits_encode_nat hpath)
 
 /-- Loop state carried across bounded kick displacement steps (`active > 0` while an item remains
 in flight; `active = 0` once placed into a vacant slot). -/
@@ -608,14 +790,14 @@ structure KickStepState where
   /-- Value of the item currently being placed. -/
   val : ℕ
   /-- 1-bit per-slot priority-depth indicator (`0` = priority depth `0`, `1` = elevated priority
-  depth `≥ 1`), preserved on displacement by kick-depth invariance. -/
+  depth `≥ 1`; local formalization adaptation), preserved by kick-depth invariance. -/
   elevated : ℕ
   /-- Activity flag (`1` = active displacement in progress, `0` = item placed). -/
   active : ℕ
 deriving Repr, DecidableEq
 
 /-- Tuple equivalence for `KickStepState` used by `WordEncoding.ofEquiv`. -/
-@[expose] def KickStepState.equiv :
+def KickStepState.equiv :
     KickStepState ≃ (((ℕ × ℕ) × ℕ) × ℕ) × ℕ where
   toFun st := ((((st.stepIdx, st.quot), st.val), st.elevated), st.active)
   invFun := fun ((((stepIdx, quot), val), elevated), active) =>
@@ -624,6 +806,17 @@ deriving Repr, DecidableEq
   right_inv _ := rfl
 
 instance : WordEncoding KickStepState := .ofEquiv KickStepState.equiv
+
+/-- Every encoded word of `st : KickStepState` fits in `w` bits when its fields do. -/
+theorem fits_encode_kickStepState {w : ℕ} {st : KickStepState}
+    (hs : Fits w st.stepIdx) (hq : Fits w st.quot) (hv : Fits w st.val)
+    (he : Fits w st.elevated) (ha : Fits w st.active) :
+    ∀ i, Fits w (WordEncoding.encode st i) := by
+  change ∀ i, Fits w (WordEncoding.encode (KickStepState.equiv st) i)
+  dsimp only [KickStepState.equiv]
+  exact fits_encode_prod (fits_encode_prod (fits_encode_prod (fits_encode_prod
+    (fits_encode_nat hs) (fits_encode_nat hq)) (fits_encode_nat hv))
+    (fits_encode_nat he)) (fits_encode_nat ha)
 
 /-- Precondition for one step of `kickStepGenProg`. -/
 @[expose] def KickStepSafe (w : ℕ) (d : KickStepEnv × KickStepState) (s : Memory.State) : Prop :=
@@ -641,7 +834,7 @@ checks 1-bit `Occupancy[slot]` (never confusing zero quotients with empty slots)
 `Occupancy[slot] := 1`, terminating (`active := 0`). If occupied, atomically reads incumbent
 `(oldQuot, oldVal, oldElev)`, writes `(quot, val, elevated)` into `slot`, and advances to
 `stepIdx + 1` carrying `(oldQuot, oldVal, oldElev)`. -/
-@[expose] def kickStepGenProg (d : KickStepEnv × KickStepState) : Memory.Prog KickStepState := do
+def kickStepGenProg (d : KickStepEnv × KickStepState) : Memory.Prog KickStepState := do
   let env := d.1
   let st := d.2
   if 0 < st.active then do
@@ -673,7 +866,7 @@ checks 1-bit `Occupancy[slot]` (never confusing zero quotients with empty slots)
     pure st
 
 /-- Typed wrapper for `kickStepGenProg`. -/
-@[expose] def kickStepProg (p : KickTreeParams) (base pathBase : ℕ) (st : KickStepState) :
+abbrev kickStepProg (p : KickTreeParams) (base pathBase : ℕ) (st : KickStepState) :
     Memory.Prog KickStepState :=
   kickStepGenProg (⟨mkKickRuntimeParams p, base, pathBase⟩, st)
 
@@ -684,6 +877,7 @@ theorem realizes_kickStepGen :
       (WordEncoding.encode (α := KickStepState))
       KickStepSafe
       (fun _ _ => 0) := by
+  unfold kickStepGenProg
   realize [realizes_readPackedGen, realizes_writePackedGen]
   all_goals
     obtain ⟨henv, hact⟩ := h
@@ -698,7 +892,7 @@ theorem realizes_kickStepGen :
 
 /-- Bounded bit-packed kick displacement loop executing `fuel` steps via `Realization.iterate`
 (`fuel ≤ k + 1` per Section 3.1 / Theorem 2). -/
-@[expose] def kickLoopIterGenProg : (KickStepEnv × KickStepState) × ℕ → Memory.Prog KickStepState
+def kickLoopIterGenProg : (KickStepEnv × KickStepState) × ℕ → Memory.Prog KickStepState
   | ((env, st), fuel) => iterate kickStepGenProg env fuel st
 
 /-- Uniform `Realizes .exact` (`¬ReadsWidth`) certificate for `kickLoopIterGenProg`. -/
@@ -715,10 +909,30 @@ theorem realizes_kickLoopGen :
 
 /-- Bounded bit-packed kick loop executing `p.kickLimit` steps starting from step `0` with active
 item `(quot, val, elevated)`. -/
-@[expose] def kickLoopProg (p : KickTreeParams) (base pathBase quot val elevated : ℕ) :
+abbrev kickLoopProg (p : KickTreeParams) (base pathBase quot val elevated : ℕ) :
     Memory.Prog KickStepState :=
   kickLoopIterGenProg
     ((⟨mkKickRuntimeParams p, base, pathBase⟩, ⟨0, quot, val, elevated, 1⟩), p.kickLimit)
+
+/-- `kickStepProg` issues at most one path-word read, four bit-packed reads, and three bit-packed
+writes (`memoryCost ≤ 21`; the vacant branch costs `19` and the inactive branch costs `0`). -/
+theorem memoryCost_kickStepProg_le (p : KickTreeParams) (base pathBase : ℕ)
+    (st : KickStepState) (s : Memory.State) :
+    memoryCost (kickStepProg p base pathBase st) s ≤ 21 := by
+  unfold kickStepProg kickStepGenProg readPackedGenProg writePackedGenProg
+  dsimp only [mkKickRuntimeParams]
+  split_ifs with hact
+  · have hread_cost : ∀ addr s', memoryCost (Memory.read addr) s' = 1 := fun _ _ => rfl
+    rw [memoryCost_bind', hread_cost,
+      show (Memory.spec 0).clientState s (Memory.read (pathBase + st.stepIdx)) = s from rfl,
+      memoryCost_bind', memoryCost_readPackedProg, clientState_readPackedProg]
+    split_ifs
+    · iterate 4 rw [memoryCost_bind', memoryCost_writePackedProg]
+      rw [memoryCost_pure]; omega
+    · iterate 3 rw [memoryCost_bind', memoryCost_readPackedProg, clientState_readPackedProg]
+      iterate 3 rw [memoryCost_bind', memoryCost_writePackedProg]
+      rw [memoryCost_pure]
+  · rw [memoryCost_pure]; omega
 
 /-- When `st.active = 0`, `kickStepProg` is a no-op returning `st` and preserving `s`. -/
 theorem kickStepProg_inactive_spec (p : KickTreeParams) {base pathBase : ℕ} {st : KickStepState}
@@ -729,6 +943,244 @@ theorem kickStepProg_inactive_spec (p : KickTreeParams) {base pathBase : ℕ} {s
   dsimp only
   rw [ite_eq_right (by omega)]
   exact ⟨rfl, rfl⟩
+
+/-- Admissible memory history for `kickStepProg` on a well-formed machine state when
+`[base, base + totalSpace p)` lies below `s.frontier` and, if `0 < st.active`, the path entry
+`pathBase + st.stepIdx` is allocated and holds a slot `< p.nMax`. -/
+theorem validHistory_kickStepProg {w base pathBase : ℕ} (p : KickTreeParams)
+    (henv : KickEnv p w base) {st : KickStepState} {s : Memory.State}
+    (hwf : Memory.WellFormed w s) (ha : base + totalSpace p ≤ s.frontier)
+    (hact : 0 < st.active →
+      pathBase + st.stepIdx < s.frontier ∧ s.mem (pathBase + st.stepIdx) < p.nMax) :
+    (Memory.spec w).ValidHistory s
+      ((Memory.spec w).clientHistory s (kickStepProg p base pathBase st)) := by
+  obtain ⟨rfl, hw, hq, hv, _, _⟩ := henv
+  obtain ⟨hQ, hV, hE, hO⟩ := array_ends_le_frontier p ha
+  unfold kickStepProg kickStepGenProg readPackedGenProg writePackedGenProg
+  dsimp only [mkKickRuntimeParams]
+  split_ifs with ha_pos
+  · obtain ⟨hp_lt, hslot⟩ := hact ha_pos
+    have hocc_lt : s.mem (pathBase + st.stepIdx) < occLen p := slot_lt_occLen hslot
+    have hr_st : (Memory.spec 0).clientState s (Memory.read (pathBase + st.stepIdx)) = s := rfl
+    have hr_res : (Memory.spec 0).clientResult s (Memory.read (pathBase + st.stepIdx)) =
+        s.mem (pathBase + st.stepIdx) := rfl
+    rw [validHistory_bind']
+    refine ⟨⟨hp_lt, trivial⟩, ?_⟩
+    rw [hr_st, hr_res]
+    refine validHistory_readPackedProg_bind hw hocc_lt hO fun _ => ?_
+    split_ifs
+    · refine validHistory_writePackedProg_bind hw hq hslot hwf hQ fun s1 hwf1 hfr1 => ?_
+      refine validHistory_writePackedProg_bind hw hv hslot hwf1 (hfr1 ▸ hV) fun s2 hwf2 hfr2 => ?_
+      refine validHistory_writePackedProg_bind hw hw hslot hwf2 (hfr2 ▸ hfr1 ▸ hE)
+        fun s3 hwf3 hfr3 => ?_
+      exact validHistory_writePackedProg_bind hw hw hocc_lt hwf3 (hfr3 ▸ hfr2 ▸ hfr1 ▸ hO)
+        fun _ _ _ => trivial
+    · refine validHistory_readPackedProg_bind hw hslot hQ fun _ => ?_
+      refine validHistory_readPackedProg_bind hw hslot hV fun _ => ?_
+      refine validHistory_readPackedProg_bind hw hslot hE fun _ => ?_
+      refine validHistory_writePackedProg_bind hw hq hslot hwf hQ fun s1 hwf1 hfr1 => ?_
+      refine validHistory_writePackedProg_bind hw hv hslot hwf1 (hfr1 ▸ hV) fun s2 hwf2 hfr2 => ?_
+      exact validHistory_writePackedProg_bind hw hw hslot hwf2 (hfr2 ▸ hfr1 ▸ hE)
+        fun _ _ _ => trivial
+  · trivial
+
+private theorem kickStepProg_step_frame (p : KickTreeParams) (hw : 0 < p.w)
+    {base pathBase : ℕ} {st : KickStepState} {s : Memory.State}
+    (hslot : 0 < st.active → s.mem (pathBase + st.stepIdx) < p.nMax) :
+    let st' := (Memory.spec 0).clientResult s (kickStepProg p base pathBase st)
+    let s' := (Memory.spec 0).clientState s (kickStepProg p base pathBase st)
+    s'.frontier = s.frontier ∧
+      (∀ a, ¬(base + p.hSpace ≤ a ∧ a < base + totalSpace p) → s'.mem a = s.mem a) ∧
+      (0 < st'.active → 0 < st.active ∧ st'.stepIdx = st.stepIdx + 1) := by
+  intro st' s'
+  by_cases ha_pos : 0 < st.active
+  · have hs := hslot ha_pos
+    have hsO : s.mem (pathBase + st.stepIdx) < occLen p := slot_lt_occLen hs
+    set slot := s.mem (pathBase + st.stepIdx)
+    have hr_mem : (Memory.spec 0).clientState s (Memory.read (pathBase + st.stepIdx)) = s := rfl
+    have hr_res : (Memory.spec 0).clientResult s (Memory.read (pathBase + st.stepIdx)) = slot := rfl
+    by_cases hocc : readPacked (base + offOcc p) 1 p.w s.mem slot = 0
+    · have hres : st' = ⟨st.stepIdx + 1, 0, 0, 0, 0⟩ := by
+        change (Memory.spec 0).clientResult s _ = _
+        unfold kickStepProg kickStepGenProg readPackedGenProg writePackedGenProg
+        dsimp only [mkKickRuntimeParams]
+        rw [ite_eq_left ha_pos, StateTransitionSpec.clientResult_bind, hr_mem, hr_res,
+          StateTransitionSpec.clientResult_bind, clientState_readPackedProg,
+          clientResult_readPackedProg, hocc, ite_eq_left rfl]
+        iterate 4 rw [StateTransitionSpec.clientResult_bind, clientState_writePackedProg]
+        rfl
+      have hst : s' = {
+          mem := writeOccMem base p
+            (writeElevMem base p
+              (writeValMem base p (writeQuotMem base p s.mem slot st.quot) slot st.val)
+              slot st.elevated)
+            slot 1
+          frontier := s.frontier } := by
+        change (Memory.spec 0).clientState s _ = _
+        unfold kickStepProg kickStepGenProg readPackedGenProg writePackedGenProg
+        dsimp only [mkKickRuntimeParams]
+        rw [ite_eq_left ha_pos, StateTransitionSpec.clientState_bind, hr_mem, hr_res,
+          StateTransitionSpec.clientState_bind, clientState_readPackedProg,
+          clientResult_readPackedProg, hocc, ite_eq_left rfl]
+        iterate 4 rw [StateTransitionSpec.clientState_bind, clientState_writePackedProg]
+        rfl
+      rw [hres, hst]
+      refine ⟨rfl, fun a ha => ?_, fun h => nomatch h⟩
+      exact (writePacked_outside hw _ hsO 1 (not_in_occ_of_outside ha)).trans
+        ((writePacked_outside hw _ hs st.elevated (not_in_elev_of_outside ha)).trans
+          ((writePacked_outside hw _ hs st.val (not_in_val_of_outside ha)).trans
+            (writePacked_outside hw _ hs st.quot (not_in_quot_of_outside ha))))
+    · have hres_step : st'.stepIdx = st.stepIdx + 1 := by
+        change KickStepState.stepIdx
+          ((Memory.spec 0).clientResult s (kickStepProg p base pathBase st)) = _
+        unfold kickStepProg kickStepGenProg readPackedGenProg writePackedGenProg
+        dsimp only [mkKickRuntimeParams]
+        rw [ite_eq_left ha_pos, StateTransitionSpec.clientResult_bind, hr_mem, hr_res,
+          StateTransitionSpec.clientResult_bind, clientState_readPackedProg,
+          clientResult_readPackedProg, ite_eq_right hocc]
+        iterate 3 rw [StateTransitionSpec.clientResult_bind,
+          clientState_readPackedProg, clientResult_readPackedProg]
+        iterate 3 rw [StateTransitionSpec.clientResult_bind, clientState_writePackedProg]
+        rfl
+      have hst : s' = {
+          mem := writeElevMem base p
+            (writeValMem base p (writeQuotMem base p s.mem slot st.quot) slot st.val)
+            slot st.elevated
+          frontier := s.frontier } := by
+        change (Memory.spec 0).clientState s _ = _
+        unfold kickStepProg kickStepGenProg readPackedGenProg writePackedGenProg
+        dsimp only [mkKickRuntimeParams]
+        rw [ite_eq_left ha_pos, StateTransitionSpec.clientState_bind, hr_mem, hr_res,
+          StateTransitionSpec.clientState_bind, clientState_readPackedProg,
+          clientResult_readPackedProg, ite_eq_right hocc]
+        iterate 3 rw [StateTransitionSpec.clientState_bind,
+          clientState_readPackedProg, clientResult_readPackedProg]
+        iterate 3 rw [StateTransitionSpec.clientState_bind, clientState_writePackedProg]
+        rfl
+      rw [hst]
+      refine ⟨rfl, fun a ha => ?_, fun _ => ⟨ha_pos, hres_step⟩⟩
+      exact (writePacked_outside hw _ hs st.elevated (not_in_elev_of_outside ha)).trans
+        ((writePacked_outside hw _ hs st.val (not_in_val_of_outside ha)).trans
+          (writePacked_outside hw _ hs st.quot (not_in_quot_of_outside ha)))
+  · have hinact := kickStepProg_inactive_spec p (base := base) (pathBase := pathBase)
+      (st := st) (by omega) s
+    change st' = st ∧ s' = s at hinact
+    rw [hinact.1, hinact.2]
+    exact ⟨rfl, fun _ _ => rfl, fun h => (ha_pos h).elim⟩
+
+/-- Parametric bounded-loop specification for `kickLoopIterGenProg` / `kickLoopProg` across
+arbitrary `fuel` (including `fuel = p.kickLimit` at `st₀ = ⟨0, quot, val, elevated, 1⟩`), proved
+via `Realization.iterate_spec`. Establishes `iterationSafe`, `ValidHistory`, `memoryCost ≤
+21 * fuel`, frontier preservation, memory frame outside `[base + p.hSpace, base + totalSpace p)`,
+and any step invariant `inv` along `[pathBase + st₀.stepIdx, pathBase + st₀.stepIdx + fuel)`. -/
+theorem kickLoopProg_spec {w base pathBase fuel : ℕ} (p : KickTreeParams)
+    (henv : KickEnv p w base) {st₀ : KickStepState}
+    (inv : ℕ → KickStepState → Memory.State → Prop)
+    {s₀ : Memory.State} (hwf : Memory.WellFormed w s₀)
+    (ha : base + totalSpace p ≤ s₀.frontier)
+    (hpath_lt : pathBase + st₀.stepIdx + fuel ≤ s₀.frontier)
+    (hpath_disj : ∀ i < fuel,
+      ¬(base + p.hSpace ≤ pathBase + (st₀.stepIdx + i) ∧
+        pathBase + (st₀.stepIdx + i) < base + totalSpace p))
+    (hpath_slots : ∀ i < fuel, s₀.mem (pathBase + (st₀.stepIdx + i)) < p.nMax)
+    (h₀ : inv 0 st₀ s₀)
+    (hstep : ∀ i < fuel, ∀ st s,
+      (0 < st.active → st.stepIdx = st₀.stepIdx + i) →
+      (∀ a, ¬(base + p.hSpace ≤ a ∧ a < base + totalSpace p) → s.mem a = s₀.mem a) →
+      inv i st s →
+      inv (i + 1)
+        ((Memory.spec 0).clientResult s (kickStepProg p base pathBase st))
+        ((Memory.spec 0).clientState s (kickStepProg p base pathBase st))) :
+    let prog := kickLoopIterGenProg ((⟨mkKickRuntimeParams p, base, pathBase⟩, st₀), fuel)
+    let s' := (Memory.spec 0).clientState s₀ prog
+    iterationSafe kickStepGenProg KickStepSafe w
+      ⟨mkKickRuntimeParams p, base, pathBase⟩ fuel st₀ s₀ ∧
+    (Memory.spec w).ValidHistory s₀ ((Memory.spec w).clientHistory s₀ prog) ∧
+    memoryCost prog s₀ ≤ 21 * fuel ∧
+    s'.frontier = s₀.frontier ∧
+    (∀ a, ¬(base + p.hSpace ≤ a ∧ a < base + totalSpace p) → s'.mem a = s₀.mem a) ∧
+    inv fuel ((Memory.spec 0).clientResult s₀ prog) s' := by
+  have hw : 0 < p.w := henv.2.1
+  let env : KickStepEnv := ⟨mkKickRuntimeParams p, base, pathBase⟩
+  let fullInv (i : ℕ) (st : KickStepState) (s : Memory.State) : Prop :=
+    Memory.WellFormed w s ∧
+      s.frontier = s₀.frontier ∧
+      (∀ a, ¬(base + p.hSpace ≤ a ∧ a < base + totalSpace p) → s.mem a = s₀.mem a) ∧
+      (0 < st.active → st.stepIdx = st₀.stepIdx + i) ∧
+      inv i st s
+  obtain ⟨hsafe, hv, hcost, hfr, hmod, _, _, _, _, hinv_f⟩ :=
+    iterate_spec kickStepGenProg KickStepSafe w env 21 fuel fullInv
+      (fun a => base + p.hSpace ≤ a ∧ a < base + totalSpace p)
+      (fun i hi st s ⟨hwf_s, hfr_s, hout_s, hidx_s, hinv_s⟩ => by
+        have hp_info : 0 < st.active →
+            pathBase + st.stepIdx < s.frontier ∧ s.mem (pathBase + st.stepIdx) < p.nMax := by
+          intro ha_pos
+          have hidx := hidx_s ha_pos
+          have hmem_eq := hout_s (pathBase + (st₀.stepIdx + i)) (hpath_disj i hi)
+          have hsl := hpath_slots i hi
+          exact ⟨by omega, by rw [hidx]; omega⟩
+        have hsafe_step : KickStepSafe w (env, st) s := by
+          refine ⟨⟨p, rfl, henv⟩, fun ha_pos => ?_⟩
+          dsimp only [env]
+          have hidx := hidx_s ha_pos
+          obtain ⟨hp_lt, hsl⟩ := hp_info ha_pos
+          exact ⟨hwf_s.fits_of_lt_frontier hp_lt, hwf_s.1.of_le (by omega), hsl⟩
+        have hv_step := validHistory_kickStepProg p henv hwf_s (by rw [hfr_s]; exact ha) hp_info
+        have hcost_step := memoryCost_kickStepProg_le p base pathBase st s
+        obtain ⟨hfr_step, hout_step, hact_step⟩ :=
+          kickStepProg_step_frame p hw (base := base) (pathBase := pathBase)
+            (fun ha_pos => (hp_info ha_pos).2)
+        have hwf_next :
+            Memory.WellFormed w ((Memory.spec 0).clientState s (kickStepGenProg (env, st))) := by
+          rw [← clientState_width w, ← StateTransitionSpec.run_runClient]
+          exact hwf_s.run hv_step
+        refine ⟨hsafe_step, hv_step, hcost_step, hfr_step, hout_step,
+          hwf_next, hfr_step.trans hfr_s,
+          fun a ha_out => (hout_step a ha_out).trans (hout_s a ha_out),
+          fun ha_next => by
+            obtain ⟨ha_prev, hstep_eq⟩ := hact_step ha_next
+            rw [hstep_eq, hidx_s ha_prev, Nat.add_assoc],
+          hstep i hi st s hidx_s hout_s hinv_s⟩)
+      st₀ s₀ ⟨hwf, rfl, fun _ _ => rfl, fun _ => (Nat.add_zero _).symm, h₀⟩
+  exact ⟨hsafe, hv, hcost, hfr, hmod, hinv_f⟩
+
+/-- Admissibility and `iterationSafe` certificate for `kickLoopProg` from static entry bounds on
+`s₀`. -/
+theorem validHistory_kickLoopProg {w base pathBase quot val elevated : ℕ} (p : KickTreeParams)
+    (henv : KickEnv p w base) {s₀ : Memory.State} (hwf : Memory.WellFormed w s₀)
+    (ha : base + totalSpace p ≤ s₀.frontier)
+    (hpath_lt : pathBase + p.kickLimit ≤ s₀.frontier)
+    (hpath_disj : ∀ i < p.kickLimit,
+      ¬(base + p.hSpace ≤ pathBase + i ∧ pathBase + i < base + totalSpace p))
+    (hpath_slots : ∀ i < p.kickLimit, s₀.mem (pathBase + i) < p.nMax) :
+    iterationSafe kickStepGenProg KickStepSafe w ⟨mkKickRuntimeParams p, base, pathBase⟩
+      p.kickLimit ⟨0, quot, val, elevated, 1⟩ s₀ ∧
+      (Memory.spec w).ValidHistory s₀
+        ((Memory.spec w).clientHistory s₀ (kickLoopProg p base pathBase quot val elevated)) := by
+  obtain ⟨hsafe, hv, _⟩ := kickLoopProg_spec p henv (st₀ := ⟨0, quot, val, elevated, 1⟩)
+    (fuel := p.kickLimit) (fun _ _ _ => True) hwf ha
+    (by simpa only [Nat.add_zero] using hpath_lt)
+    (fun i hi => by simpa only [Nat.zero_add] using hpath_disj i hi)
+    (fun i hi => by simpa only [Nat.zero_add] using hpath_slots i hi)
+    trivial (fun _ _ _ _ _ _ _ => trivial)
+  exact ⟨hsafe, hv⟩
+
+/-- Unconditional memory-charge bound for `kickLoopIterGenProg` / `kickLoopProg` (`≤ 21 * fuel`). -/
+theorem memoryCost_kickLoopProg_le (p : KickTreeParams) (base pathBase : ℕ)
+    (st₀ : KickStepState) (fuel : ℕ) (s : Memory.State) :
+    memoryCost (kickLoopIterGenProg ((⟨mkKickRuntimeParams p, base, pathBase⟩, st₀), fuel)) s ≤
+      21 * fuel := by
+  unfold kickLoopIterGenProg; dsimp only
+  induction fuel generalizing st₀ s with
+  | zero => simp [iterate]
+  | succ n ih =>
+    change memoryCost (kickStepProg p base pathBase st₀ >>=
+      iterate kickStepGenProg ⟨mkKickRuntimeParams p, base, pathBase⟩ n) s ≤ 21 * (n + 1)
+    rw [memoryCost_bind']
+    have h1 := memoryCost_kickStepProg_le p base pathBase st₀ s
+    have h2 := ih ((Memory.spec 0).clientResult s (kickStepProg p base pathBase st₀))
+      ((Memory.spec 0).clientState s (kickStepProg p base pathBase st₀))
+    omega
 
 /-- Pure array-update specification for `kickStepProg` when the candidate slot `slot` is vacant
 (`occAt base p s.mem slot = 0`): places `(quot, val, elevated)` into `slot`, sets
@@ -884,7 +1336,7 @@ structure KickClearInput where
   slot : ℕ
 
 /-- Tuple equivalence for `KickClearInput` used by `WordEncoding.ofEquiv`. -/
-@[expose] def KickClearInput.equiv :
+def KickClearInput.equiv :
     KickClearInput ≃ (KickRuntimeParams × ℕ) × ℕ where
   toFun d := ((d.rp, d.base), d.slot)
   invFun := fun ((rp, base), slot) => ⟨rp, base, slot⟩
@@ -893,19 +1345,28 @@ structure KickClearInput where
 
 instance : WordEncoding KickClearInput := .ofEquiv KickClearInput.equiv
 
+/-- Every encoded word of `d : KickClearInput` fits in `w` bits when its fields do. -/
+theorem fits_encode_kickClearInput {w : ℕ} {d : KickClearInput}
+    (hrp : ∀ i, Fits w (WordEncoding.encode d.rp i))
+    (hbase : Fits w d.base) (hslot : Fits w d.slot) :
+    ∀ i, Fits w (WordEncoding.encode d i) := by
+  change ∀ i, Fits w (WordEncoding.encode (KickClearInput.equiv d) i)
+  dsimp only [KickClearInput.equiv]
+  exact fits_encode_prod (fits_encode_prod hrp (fits_encode_nat hbase)) (fits_encode_nat hslot)
+
 /-- Parameter-free bit-packed slot-vacating subroutine: zeroes `Quotients[slot]`, `Values[slot]`,
 `Elevated[slot]`, and `Occupancy[slot]` at `slot` without moving other hashed items out of their
 assigned bins. For Section 5.2 full-cubby deletion, callers pair `clearSlotProg` on the hashed
-cubby with `popUnindexedSlotProg` on the unindexed tail cubby followed by `kickLoopProg`
-re-insertion along the popped item's own hashed switching path. -/
-@[expose] def clearSlotGenProg (d : KickClearInput) : Memory.Prog Unit := do
+cubby with the local formalization adaptation `popUnindexedSlotProg` on the unindexed tail cubby
+followed by `kickLoopProg` re-insertion along the popped item's own hashed switching path. -/
+def clearSlotGenProg (d : KickClearInput) : Memory.Prog Unit := do
   writePackedGenProg ((((d.base, d.rp.offQuot), (d.rp.quotBits, d.rp.w)), d.slot), 0)
   writePackedGenProg ((((d.base, d.rp.offVal), (d.rp.valBits, d.rp.w)), d.slot), 0)
   writePackedGenProg ((((d.base, d.rp.offElev), (1, d.rp.w)), d.slot), 0)
   writePackedGenProg ((((d.base, d.rp.offOcc), (1, d.rp.w)), d.slot), 0)
 
 /-- Typed wrapper for `clearSlotGenProg`. -/
-@[expose] def clearSlotProg (p : KickTreeParams) (base slot : ℕ) : Memory.Prog Unit :=
+abbrev clearSlotProg (p : KickTreeParams) (base slot : ℕ) : Memory.Prog Unit :=
   clearSlotGenProg ⟨mkKickRuntimeParams p, base, slot⟩
 
 /-- Uniform `Realizes .exact` (`¬ReadsWidth`) certificate for `clearSlotGenProg`. -/
@@ -915,6 +1376,7 @@ theorem realizes_clearSlotGen :
       (WordEncoding.encode (α := Unit))
       (fun w d _ => KickEnvGen w d.rp d.base ∧ d.slot < d.rp.nMax)
       (fun _ _ => 0) := by
+  unfold clearSlotGenProg
   realize [realizes_writePackedGen]
   all_goals first
     | exact readPacked_quot_safe h.1 h.2
@@ -922,18 +1384,6 @@ theorem realizes_clearSlotGen :
     | exact readPacked_elev_safe h.1 h.2
     | exact readPacked_occ_safe h.1 h.2
     | exact fits_one_of_env h.1
-
-private theorem wellFormed_clientState_writePackedProg {w base offset N k idx val : ℕ}
-    {s : Memory.State} (hw : 0 < w) (hkw : k ≤ w) (hidx : idx < N)
-    (hwf : Memory.WellFormed w s)
-    (ha : base + offset + packedWords N k w ≤ s.frontier) :
-    Memory.WellFormed w
-      ((Memory.spec w).clientState s (writePackedProg base offset k w idx val)) := by
-  have hv := validHistory_writePackedProg (val := val) hw hkw hidx hwf ha
-  have hrun := hwf.run
-    (os := (Memory.spec w).clientHistory s (writePackedProg base offset k w idx val)) hv
-  rw [StateTransitionSpec.run_runClient] at hrun
-  exact hrun
 
 /-- Admissible memory history for `clearSlotProg` on a well-formed machine state with
 `[base, base + totalSpace p)` below `s.frontier`. -/
@@ -943,42 +1393,22 @@ theorem validHistory_clearSlotProg {w base slot : ℕ} (p : KickTreeParams)
     (Memory.spec w).ValidHistory s
       ((Memory.spec w).clientHistory s (clearSlotProg p base slot)) := by
   obtain ⟨rfl, hw, hq, hv, _, _⟩ := henv
-  have hocc_lt : slot < occLen p := slot_lt_occLen hslot
-  have hQ : base + offQuot p + packedWords p.nMax (quotBits p) p.w ≤ s.frontier := by
-    have := quot_end_le_totalSpace p; dsimp [quotWords] at this; omega
-  have hV : base + offVal p + packedWords p.nMax (valBits p.V) p.w ≤ s.frontier := by
-    have := val_end_le_totalSpace p; dsimp [valWords] at this; omega
-  have hE : base + offElev p + packedWords p.nMax 1 p.w ≤ s.frontier := by
-    have := elev_end_le_totalSpace p; dsimp [elevWords] at this; omega
-  have hO : base + offOcc p + packedWords (occLen p) 1 p.w ≤ s.frontier := by
-    have := occ_end_le_totalSpace p; dsimp [occWords] at this; omega
+  obtain ⟨hQ, hV, hE, hO⟩ := array_ends_le_frontier p ha
   unfold clearSlotProg clearSlotGenProg writePackedGenProg
   dsimp only [mkKickRuntimeParams]
-  rw [validHistory_bind_do]
-  refine ⟨validHistory_writePackedProg hw hq hslot hwf hQ, ?_⟩
-  set s1 := (Memory.spec p.w).clientState s
-    (writePackedProg base (offQuot p) (quotBits p) p.w slot 0)
-  have hwf1 := wellFormed_clientState_writePackedProg (base := base) (offset := offQuot p)
-    (N := p.nMax) (val := 0) hw hq hslot hwf hQ
-  have hfr1 : s1.frontier = s.frontier := by
-    dsimp [s1]; rw [clientState_width, clientState_writePackedProg]
-  rw [validHistory_bind_do]
-  refine ⟨validHistory_writePackedProg hw hv hslot hwf1 (by rw [hfr1]; exact hV), ?_⟩
-  set s2 := (Memory.spec p.w).clientState s1
-    (writePackedProg base (offVal p) (valBits p.V) p.w slot 0)
-  have hwf2 := wellFormed_clientState_writePackedProg (base := base) (offset := offVal p)
-    (N := p.nMax) (val := 0) hw hv hslot hwf1 (by rw [hfr1]; exact hV)
-  have hfr2 : s2.frontier = s.frontier := by
-    dsimp [s2]; rw [clientState_width, clientState_writePackedProg, hfr1]
-  rw [validHistory_bind_do]
-  refine ⟨validHistory_writePackedProg hw hw hslot hwf2 (by rw [hfr2]; exact hE), ?_⟩
-  set s3 := (Memory.spec p.w).clientState s2
-    (writePackedProg base (offElev p) 1 p.w slot 0)
-  have hwf3 := wellFormed_clientState_writePackedProg (base := base) (offset := offElev p)
-    (N := p.nMax) (val := 0) hw hw hslot hwf2 (by rw [hfr2]; exact hE)
-  have hfr3 : s3.frontier = s.frontier := by
-    dsimp [s3]; rw [clientState_width, clientState_writePackedProg, hfr2]
-  exact validHistory_writePackedProg hw hw hocc_lt hwf3 (by rw [hfr3]; exact hO)
+  refine validHistory_writePackedProg_bind hw hq hslot hwf hQ fun s1 hwf1 hfr1 => ?_
+  refine validHistory_writePackedProg_bind hw hv hslot hwf1 (hfr1 ▸ hV) fun s2 hwf2 hfr2 => ?_
+  refine validHistory_writePackedProg_bind hw hw hslot hwf2 (hfr2 ▸ hfr1 ▸ hE)
+    fun s3 hwf3 hfr3 => ?_
+  exact validHistory_writePackedProg hw hw (slot_lt_occLen hslot) hwf3 (hfr3 ▸ hfr2 ▸ hfr1 ▸ hO)
+
+/-- Exact memory charge of `clearSlotProg` (`4` bit-packed writes = `16`). -/
+theorem memoryCost_clearSlotProg (p : KickTreeParams) (base slot : ℕ) (s : Memory.State) :
+    memoryCost (clearSlotProg p base slot) s = 16 := by
+  unfold clearSlotProg clearSlotGenProg writePackedGenProg
+  dsimp only [mkKickRuntimeParams]
+  iterate 3 rw [memoryCost_bind', memoryCost_writePackedProg]
+  rw [memoryCost_writePackedProg]
 
 /-- Exact pure array-update specification for `clearSlotProg`: clears all four per-slot bit-packed
 fields at `slot` (`quotAt`, `valAt`, `elevAt`, and `occAt`, so `querySlotProg` returns `none` at
@@ -1023,8 +1453,8 @@ theorem clearSlotProg_spec (p : KickTreeParams) (hw : 0 < p.w)
   · rw [he4.2.2.1, he3.2.2.1, he2.2.2.1, he1.2.2.1]
   · rw [he4.2.2.2.2.1, he3.2.2.2.2.1, he2.2.2.2.2.1, he1.2.2.2.2.1]
 
-/-- Input record for `popUnindexedSlotGenProg` (swap-removing an entry from an unindexed
-`TailCubby` slot array). -/
+/-- Input record for `popUnindexedSlotGenProg` (local formalization adaptation swap-removing an
+entry from an unindexed `[0, len)` `TailCubby` slot array). -/
 structure KickPopInput where
   /-- Runtime layout parameters of the unindexed tail-cubby array. -/
   rp : KickRuntimeParams
@@ -1036,7 +1466,7 @@ structure KickPopInput where
   lastSlot : ℕ
 
 /-- Tuple equivalence for `KickPopInput` used by `WordEncoding.ofEquiv`. -/
-@[expose] def KickPopInput.equiv :
+def KickPopInput.equiv :
     KickPopInput ≃ ((KickRuntimeParams × ℕ) × ℕ) × ℕ where
   toFun d := (((d.rp, d.base), d.slot), d.lastSlot)
   invFun := fun (((rp, base), slot), lastSlot) => ⟨rp, base, slot, lastSlot⟩
@@ -1045,13 +1475,24 @@ structure KickPopInput where
 
 instance : WordEncoding KickPopInput := .ofEquiv KickPopInput.equiv
 
-/-- Parameter-free bit-packed pop-and-compact subroutine strictly for an **unindexed** slot array
-(such as `Facility.TailCubby`, where entries occupy `[0, len)` sequentially without hash-bin or
-bucket-prefix placement invariants): reads `((quot, val), elevated)` at `d.slot`, compacts
-`d.lastSlot`'s `(quot, val, elevated, occ)` into `d.slot`, delegates clearing of `d.lastSlot` to
-`clearSlotGenProg` (handling both `slot ≠ lastSlot` and `slot = lastSlot`), and returns the popped
-item's `((quot, val), elevated)` for subsequent re-hashing and `kickLoopProg` re-insertion. -/
-@[expose] def popUnindexedSlotGenProg (d : KickPopInput) : Memory.Prog ((ℕ × ℕ) × ℕ) := do
+/-- Every encoded word of `d : KickPopInput` fits in `w` bits when its fields do. -/
+theorem fits_encode_kickPopInput {w : ℕ} {d : KickPopInput}
+    (hrp : ∀ i, Fits w (WordEncoding.encode d.rp i))
+    (hbase : Fits w d.base) (hslot : Fits w d.slot) (hlast : Fits w d.lastSlot) :
+    ∀ i, Fits w (WordEncoding.encode d i) := by
+  change ∀ i, Fits w (WordEncoding.encode (KickPopInput.equiv d) i)
+  dsimp only [KickPopInput.equiv]
+  exact fits_encode_prod (fits_encode_prod (fits_encode_prod hrp
+    (fits_encode_nat hbase)) (fits_encode_nat hslot)) (fits_encode_nat hlast)
+
+/-- Local formalization adaptation: parameter-free bit-packed pop-and-compact subroutine strictly
+for an **unindexed** `[0, len)` slot array (`Facility.TailCubby`, where entries occupy `[0, len)`
+sequentially without hash-bin or bucket-prefix placement invariants): reads
+`((quot, val), elevated)` at `d.slot`, compacts `d.lastSlot`'s `(quot, val, elevated, occ)` into
+`d.slot`, delegates clearing of `d.lastSlot` to `clearSlotGenProg` (handling both
+`slot ≠ lastSlot` and `slot = lastSlot`), and returns the popped item's `((quot, val), elevated)`
+for subsequent re-hashing and `kickLoopProg` re-insertion. -/
+def popUnindexedSlotGenProg (d : KickPopInput) : Memory.Prog ((ℕ × ℕ) × ℕ) := do
   let poppedQuot ← readPackedGenProg (((d.base, d.rp.offQuot), (d.rp.quotBits, d.rp.w)), d.slot)
   let poppedVal ← readPackedGenProg (((d.base, d.rp.offVal), (d.rp.valBits, d.rp.w)), d.slot)
   let poppedElev ← readPackedGenProg (((d.base, d.rp.offElev), (1, d.rp.w)), d.slot)
@@ -1067,7 +1508,7 @@ item's `((quot, val), elevated)` for subsequent re-hashing and `kickLoopProg` re
   pure ((poppedQuot, poppedVal), poppedElev)
 
 /-- Typed wrapper for `popUnindexedSlotGenProg`. -/
-@[expose] def popUnindexedSlotProg (p : KickTreeParams) (base slot lastSlot : ℕ) :
+abbrev popUnindexedSlotProg (p : KickTreeParams) (base slot lastSlot : ℕ) :
     Memory.Prog ((ℕ × ℕ) × ℕ) :=
   popUnindexedSlotGenProg ⟨mkKickRuntimeParams p, base, slot, lastSlot⟩
 
@@ -1078,6 +1519,7 @@ theorem realizes_popUnindexedSlotGen :
       (WordEncoding.encode (α := (ℕ × ℕ) × ℕ))
       (fun w d _ => KickEnvGen w d.rp d.base ∧ d.slot < d.rp.nMax ∧ d.lastSlot < d.rp.nMax)
       (fun _ _ => 0) := by
+  unfold popUnindexedSlotGenProg
   realize [realizes_readPackedGen, realizes_writePackedGen, realizes_clearSlotGen]
   all_goals first
     | exact h.1
@@ -1091,6 +1533,46 @@ theorem realizes_popUnindexedSlotGen :
     | exact readPacked_elev_safe h.1 h.2.2
     | exact readPacked_occ_safe h.1 h.2.2
     | exact fits_one_of_env h.1
+
+/-- Admissible memory history for `popUnindexedSlotProg` on a well-formed machine state with
+`[base, base + totalSpace p)` below `s.frontier`. -/
+theorem validHistory_popUnindexedSlotProg {w base slot lastSlot : ℕ} (p : KickTreeParams)
+    (henv : KickEnv p w base) (hslot : slot < p.nMax) (hlast : lastSlot < p.nMax)
+    {s : Memory.State} (hwf : Memory.WellFormed w s) (ha : base + totalSpace p ≤ s.frontier) :
+    (Memory.spec w).ValidHistory s
+      ((Memory.spec w).clientHistory s (popUnindexedSlotProg p base slot lastSlot)) := by
+  have henv' := henv
+  obtain ⟨rfl, hw, hq, hv, _, _⟩ := henv
+  obtain ⟨hQ, hV, hE, hO⟩ := array_ends_le_frontier p ha
+  unfold popUnindexedSlotProg popUnindexedSlotGenProg readPackedGenProg writePackedGenProg
+  dsimp only [mkKickRuntimeParams]
+  refine validHistory_readPackedProg_bind hw hslot hQ fun _ => ?_
+  refine validHistory_readPackedProg_bind hw hslot hV fun _ => ?_
+  refine validHistory_readPackedProg_bind hw hslot hE fun _ => ?_
+  refine validHistory_readPackedProg_bind hw hlast hQ fun _ => ?_
+  refine validHistory_readPackedProg_bind hw hlast hV fun _ => ?_
+  refine validHistory_readPackedProg_bind hw hlast hE fun _ => ?_
+  refine validHistory_readPackedProg_bind hw (slot_lt_occLen hlast) hO fun _ => ?_
+  refine validHistory_writePackedProg_bind hw hq hslot hwf hQ fun s1 hwf1 hfr1 => ?_
+  refine validHistory_writePackedProg_bind hw hv hslot hwf1 (hfr1 ▸ hV) fun s2 hwf2 hfr2 => ?_
+  refine validHistory_writePackedProg_bind hw hw hslot hwf2 (hfr2 ▸ hfr1 ▸ hE)
+    fun s3 hwf3 hfr3 => ?_
+  refine validHistory_writePackedProg_bind hw hw (slot_lt_occLen hslot) hwf3
+    (hfr3 ▸ hfr2 ▸ hfr1 ▸ hO) fun s4 hwf4 hfr4 => ?_
+  rw [validHistory_bind']
+  exact ⟨validHistory_clearSlotProg p henv' hlast hwf4 (hfr4 ▸ hfr3 ▸ hfr2 ▸ hfr1 ▸ ha), trivial⟩
+
+/-- Exact memory charge of `popUnindexedSlotProg` (`7` bit-packed reads + `8` bit-packed writes =
+`46`). -/
+theorem memoryCost_popUnindexedSlotProg (p : KickTreeParams) (base slot lastSlot : ℕ)
+    (s : Memory.State) :
+    memoryCost (popUnindexedSlotProg p base slot lastSlot) s = 46 := by
+  have hc : ∀ s', memoryCost (clearSlotGenProg ⟨mkKickRuntimeParams p, base, lastSlot⟩) s' = 16 :=
+    memoryCost_clearSlotProg p base lastSlot
+  unfold popUnindexedSlotProg popUnindexedSlotGenProg readPackedGenProg writePackedGenProg
+  iterate 7 rw [memoryCost_bind', memoryCost_readPackedProg, clientState_readPackedProg]
+  iterate 4 rw [memoryCost_bind', memoryCost_writePackedProg]
+  rw [memoryCost_bind', hc, memoryCost_pure]
 
 /-- Exact pure array-update specification for `popUnindexedSlotProg` (valid for both
 `slot ≠ lastSlot` and `slot = lastSlot`): returns `((quotAt ... slot, valAt ... slot),

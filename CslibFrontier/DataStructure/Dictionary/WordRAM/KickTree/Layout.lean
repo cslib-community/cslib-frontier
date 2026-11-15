@@ -30,40 +30,50 @@ Farach-Colton, J. Kuszmaul, W. Kuszmaul, and Liu ([BenderFarachColtonKuszmaulKus
    `SuccinctLayout`'s `h_space` convention rather than hardcoding seed or table sizes).
 2. `Quotients` (`offQuot p`): `packedWords p.nMax (quotBits p) p.w` words storing
    `p.nMax` quotients of `quotBits p` bits (`fullQuotBits p.U p.nMax` when quotiented,
-   or `keyBits p.U` for unindexed tail-cubby tables).
+   or `keyBits p.U` under the local adaptation `p.quotiented = false` for unindexed `[0, len)`
+   tail-cubby arrays).
 3. `Values` (`offVal p`): `packedWords p.nMax (valBits p.V) p.w` words storing `p.nMax` values of
    `valBits p.V` bits.
 4. `Occupancy` (`offOcc p`): `packedWords (4 * p.nMax) 1 p.w` words storing `4 * p.nMax` 1-bit
    flags (`0 .. p.nMax - 1` for primary slot occupancy independent of zero quotients, plus up to
    `3 * p.nMax` free-slot bitmap bits).
-5. `Elevated` (`offElev p`): `packedWords p.nMax 1 p.w` words storing `p.nMax` 1-bit per-slot
-   flags (`0` = occupant has priority depth `0`, `1` = occupant has elevated priority depth `≥ 1`),
-   avoiding dense multi-bit depth storage per primary slot as in Section 5.1.
+5. `Elevated` (`offElev p`, local formalization adaptation): `packedWords p.nMax 1 p.w` words
+   storing `p.nMax` 1-bit per-slot flags (`0` = occupant has priority depth `0`, `1` = occupant has
+   elevated priority depth `≥ 1`), tracking whether a primary slot holds a non-depth-0 item so
+   elevated status is preserved during kicks without dense multi-bit per-slot depth tags.
 6. `SlotMeta` (`offMeta p`): `packedWords (p.cMeta * p.nMax) (metaBits p) p.w` words storing
    `p.cMeta * p.nMax` entries of `metaBits p = max (Nat.iterLog (p.k + 1) p.nMax) 1` bits for
    sparse auxiliary bin/router/cubby metadata (including elevated kick depths; parameterized by
    multiplicity `p.cMeta`). Under the 0-indexed `k`-kick tree convention of Section 3.1 / Theorem 2
-   (`defaultKickLimit k = k + 1`), a `k`-kick tree incurs `O(n_max log^(k + 1) n_max)` metadata
-   bits (corresponding to Theorem 20's `(k' - 1)`-kick tree with `O(k')` time and
-   `O(n_max log^(k') n_max)` bits for `k' = k + 1`).
+   (switching-cost budget `k + 1`), a `k`-kick tree incurs `O(n_max log^(k + 1) n_max)` metadata
+   bits (corresponding to Section 5.3 / Theorem 21's quotiented `(k' - 1)`-kick tree with `O(k')`
+   time and `OPT + O(n_max log^(k') n_max)` bits for `k' = k + 1`).
 
-## Source attribution
+## Source attribution and formalization adaptations
 
-* [BenderFarachColtonKuszmaulKuszmaulLiu2022] (`arXiv:2111.00602v2`):
-  - Section 3.1 (printed pp. 8–10 / PDF pp. 9–11) and Theorem 2 (printed p. 11 / PDF p. 12):
+* **Primary source** — [BenderFarachColtonKuszmaulKuszmaulLiu2022] (`arXiv:2111.00602v2`):
+  - Section 3.1 (printed pp. 8–12 / PDF pp. 9–13) and Theorem 2 (printed p. 12 / PDF p. 13):
     0-indexed `k`-kick tree slot hierarchy (`k ≥ 0`), priority depths, and worst-case switching
     cost `k + 1`.
-  - Section 5.1–5.3 (printed pp. 27–35 / PDF pp. 28–36): free-slot bitmaps, 1-bit per-slot
-    elevated indicators paired with sparse `O(n_max log^(k + 1) n_max)` bin/router/cubby metadata,
-    and quotiented payload bit accounting (Theorem 20).
-  - Explicit layout adaptation: header/table word count `p.hSpace` and metadata array multiplicity
-    `p.cMeta` are kept as explicit parameters in `KickTreeParams`, yielding the exact deterministic
-    word bound `totalSpace p ≤ kickTreeWords (p.cMeta + 7) (p.hSpace + 14) p.U p.V p.w p.k p.nMax`
-    via `BitPackedArray` ceiling-division subadditivity.
+  - Section 5.1–5.2 (printed pp. 27–32 / PDF pp. 28–33): free-slot bitmaps and sparse
+    `O(n_max log^(k + 1) n_max)` bin/router/cubby metadata (`occAt`, `metaAt`).
+  - Section 5.3 and Theorem 21 (printed pp. 33–35 / PDF pp. 34–36): quotiented payload bit
+    accounting (`OPT(U, V, n_max) + O(n_max log^(k + 1) n_max)` bits; `quotAt`, `valAt`,
+    `totalSpace_le_kickTreeWords`).
+* **Local formalization adaptations**:
+  - Dedicated 1-bit per-slot `Elevated` (`depth ≥ 1`) bitmap (`offElev`, `elevAt`, `p.nMax` bits)
+    tracking elevated priority status directly per primary slot rather than only through §§5.1–5.2's
+    sparse bin/router metadata.
+  - Unindexed `[0, len)` tail-cubby slot mode (`p.quotiented = false`, allocating full `keyBits p.U`
+    keys in `Quotients` for swap-compacted `Facility.TailCubby` arrays).
+  - Header/table word count `p.hSpace` and metadata array multiplicity `p.cMeta` are kept as
+    explicit parameters in `KickTreeParams`, yielding the exact deterministic word bound
+    `totalSpace p ≤ kickTreeWords (p.cMeta + 7) (p.hSpace + 14) p.U p.V p.w p.k p.nMax` via
+    `BitPackedArray` ceiling-division subadditivity.
 
 ## Main definitions
 
-* `Cslib.DataStructure.Dictionary.WordRAM.KickTree.KickTreeParams`, `defaultKickLimit`,
+* `Cslib.DataStructure.Dictionary.WordRAM.KickTree.KickTreeParams`,
   `mkKickTreeParams`: layout configuration record and canonical constructor.
 * `Cslib.DataStructure.Dictionary.WordRAM.KickTree.quotBits`, `offQuot`, `quotWords`, `offVal`,
   `valWords`, `occLen`, `offOcc`, `occWords`, `offElev`, `elevWords`, `metaBits`, `metaLen`,
@@ -130,14 +140,12 @@ structure KickTreeParams where
   /-- Multiplicity of `metaBits`-wide entries per slot in `SlotMeta` (`cMeta * nMax` entries). -/
   cMeta : ℕ
   /-- Whether slots store quotiented keys (`fullQuotBits p.U p.nMax`) or full keys
-  (`keyBits p.U`) for an unindexed tail cubby. -/
+  (`keyBits p.U`, a local adaptation for unindexed `[0, len)` tail-cubby arrays). -/
   quotiented : Bool := true
 deriving Repr, DecidableEq
 
-/-- Default kick step limit `k + 1` from Section 3.1 / Theorem 2 switching cost. -/
-@[expose] def defaultKickLimit (k : ℕ) : ℕ := k + 1
-
-/-- Canonical constructor for `KickTreeParams` setting `kickLimit := defaultKickLimit k`. -/
+/-- Canonical constructor for `KickTreeParams` setting `kickLimit := k + 1` (Section 3.1 /
+Theorem 2 switching cost). -/
 @[expose] def mkKickTreeParams (w nMax U V k hSpace cMeta : ℕ) (quotiented : Bool := true) :
     KickTreeParams where
   w := w
@@ -145,13 +153,14 @@ deriving Repr, DecidableEq
   U := U
   V := V
   k := k
-  kickLimit := defaultKickLimit k
+  kickLimit := k + 1
   hSpace := hSpace
   cMeta := cMeta
   quotiented := quotiented
 
 /-- Number of bits allocated per quotient entry: `fullQuotBits p.U p.nMax` when quotiented,
-or full key size `keyBits p.U` for unindexed tail-cubby tables (`p.quotiented = false`). -/
+or full key size `keyBits p.U` under the local adaptation `p.quotiented = false` for unindexed
+tail-cubby arrays. -/
 @[expose] def quotBits (p : KickTreeParams) : ℕ :=
   if p.quotiented then fullQuotBits p.U p.nMax else keyBits p.U
 
@@ -249,7 +258,7 @@ theorem meta_end_le_totalSpace (p : KickTreeParams) :
 @[expose] def kickTreeWords (C C₀ U V w k n_max : ℕ) : ℕ :=
   (Dynamic.optBits U V n_max + C * n_max * max (Nat.iterLog (k + 1) n_max) 1 + w - 1) / w + C₀
 
-/-- Specialization: for a `1`-kick tree (`k = 1`, `defaultKickLimit 1 = 2`, `iterLog 2`),
+/-- Specialization: for a `1`-kick tree (`k = 1`, `kickLimit = 2`, `iterLog 2`),
 `kickTreeWords` is bounded by `Dynamic.succinctWords`. -/
 theorem kickTreeWords_le_succinctWords (C C₀ U V w n_max : ℕ) :
     kickTreeWords C C₀ U V w 1 n_max ≤ Dynamic.succinctWords C C₀ U V w n_max := by
@@ -266,7 +275,7 @@ theorem kickTreeWords_le_succinctWords (C C₀ U V w n_max : ℕ) :
 
 /-- Master deterministic word-space bound: `totalSpace p` is bounded by
 `kickTreeWords (p.cMeta + 7) (p.hSpace + 14) p.U p.V p.w p.k p.nMax` when quotiented. -/
-theorem totalSpace_le_kickTreeWords (p : KickTreeParams) (hq : p.quotiented := by decide) :
+theorem totalSpace_le_kickTreeWords (p : KickTreeParams) (hq : p.quotiented) :
     totalSpace p ≤
       kickTreeWords (p.cMeta + 7) (p.hSpace + 14) p.U p.V p.w p.k p.nMax := by
   have hq_eq : quotBits p = fullQuotBits p.U p.nMax := by
@@ -503,17 +512,6 @@ theorem arrays_congr_of_eq_on {base : ℕ} (p : KickTreeParams) (hw : 0 < p.w) {
       have hoff : p.hSpace ≤ offMeta p := by unfold offMeta offElev offOcc offVal offQuot; omega
       exact readPacked_congr (N := metaLen p) hw (fun a ⟨ha1, ha2⟩ =>
         heq a (by omega) (by dsimp [metaWords] at hbound; omega)) hidx
-    · rfl
-
-/-- A packed write updates the bounded logical array and preserves its zero padding. -/
-private theorem readPacked_writePacked_bounded {base N k w idx val : ℕ}
-    (hw : 0 < w) (hidx : idx < N) (hval : val < 2 ^ k) (mem : ℕ → ℕ) :
-    (fun j => if j < N then readPacked base k w (writePacked base k w mem idx val) j else 0) =
-      Function.update (fun j => if j < N then readPacked base k w mem j else 0) idx val := by
-  refine Function.eq_update_iff.mpr ⟨?_, fun j hj => ?_⟩
-  · simpa only [hidx, ↓reduceIte] using readPacked_writePacked_self base k w mem idx hval
-  · split_ifs
-    · exact readPacked_writePacked_of_ne hw mem hj val
     · rfl
 
 /-- Congruence for bounded logical arrays agreeing on their allocated word range. -/
