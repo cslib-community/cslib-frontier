@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Basic
 public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Privacy
+import CslibFrontier.Probability.PMF.UniformPoint
 
 /-!
 # Coalition Recognition and Unauthorized Guessing Bounds for Secret Sharing
@@ -84,7 +85,7 @@ variable {Secret Key Party : Type*} {Share : Party → Type*}
 /-- The coalition-recognition experiment of [BonehShoup2023], Section 22.5 (pp. 975–976): sample a
 uniform secret `secret ← uniformOfFintype Secret`, generate coalition `s`'s view under key source
 `P`, and accept (`true`) iff `scheme.reconstruct s v = secret`. -/
-@[expose] noncomputable def recognizeCoalitionDist [Fintype Secret] [Nonempty Secret]
+noncomputable def recognizeCoalitionDist [Fintype Secret] [Nonempty Secret]
     [DecidableEq Secret] (scheme : AccessScheme Secret Key Party Share)
     (P : PMF Key) (s : Finset Party) : PMF Bool :=
   (uniformOfFintype Secret).bind fun secret =>
@@ -123,24 +124,8 @@ theorem bind_viewDist_map_decide_eq_true_of_not_authorized [Fintype Secret] [Non
   have hind (secret : Secret) : scheme.viewDist P s secret = scheme.viewDist P s m₀ :=
     scheme.viewDist_eq_of_not_authorized hP hs secret m₀
   simp only [hind, ← PMF.bind_pure_comp, Function.comp_def]
-  rw [PMF.bind_comm]
-  have hinner (v : (i : s) → Share i.1) :
-      ((uniformOfFintype Secret).bind fun secret => PMF.pure (decide (guess v = secret))) true =
-        (Fintype.card Secret : ℝ≥0∞)⁻¹ := by
-    rw [PMF.bind_apply]
-    have hterm (secret : Secret) :
-        uniformOfFintype Secret secret * (PMF.pure (decide (guess v = secret)) : PMF Bool) true =
-          if secret = guess v then (Fintype.card Secret : ℝ≥0∞)⁻¹ else 0 := by
-      rw [uniformOfFintype_apply, PMF.pure_apply]
-      by_cases h : secret = guess v
-      · subst h
-        simp
-      · have hne : ¬ (true = decide (guess v = secret)) := by simp [Ne.symm h]
-        simp [h, hne]
-    simp_rw [hterm]
-    exact tsum_ite_eq (guess v) (fun _ => (Fintype.card Secret : ℝ≥0∞)⁻¹)
-  rw [PMF.bind_apply]
-  simp_rw [hinner]
+  rw [PMF.bind_comm, PMF.bind_apply]
+  simp_rw [uniformOfFintype_bind_decide_eq_apply_true]
   rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
 
 /-- On an unauthorized coalition `s` under any allowed key source `P ∈ scheme.sources`,

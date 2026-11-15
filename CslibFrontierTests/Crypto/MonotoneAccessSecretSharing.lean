@@ -21,11 +21,14 @@ Concrete checks and counterexample probes for
 `CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Generic` ([BonehShoup2023],
 Sections 22.5 and 22.5.1, pp. 975–977):
 
-1. **Example 22.1 (`example22_1Access` on `Fin 4` over `ZMod 5`):**
+1. **Construction 22.1 on the access structure of Example 22.1 (`example22_1Access` on `Fin 4` over
+   `ZMod 5`):**
    - `example22_1Access.authorizedSets = {{0, 1, 2}, {0, 2, 3}, Finset.univ}` and share dimensions
-     `|A^(i)|` equal to `3, 2, 3, 2` for `i = 0, 1, 2, 3`;
-   - reconstruction and `recognizeCoalitionDist = PMF.pure true` on all three authorized
-     coalitions;
+     `|A^(i)|` equal to `3, 2, 3, 2` for `i = 0, 1, 2, 3` (the minimal-set scheme of Example 22.1
+     itself, which shares only over the two 3-element sets and has dimensions `2, 1, 2, 1`, is not
+     formalized);
+   - reconstruction on all three authorized coalitions and `recognizeCoalitionDist = PMF.pure true`
+     on `{0, 1, 2}`;
    - uniform unauthorized views (`genericUniform_viewDist_eq`), acceptance probability `1 / 5` on
      unauthorized `{1, 2, 3}`, and `recognizeCoalitionDist_true_eq_one_iff`.
 2. **Hypothesis probes:**
@@ -64,26 +67,26 @@ example :
     example22_1Access.authorizedSets = {{0, 1, 2}, {0, 2, 3}, Finset.univ} := by
   decide
 
-/-- Share dimensions `|A^(i)|` in Construction 22.1 on Example 22.1: parties `0` and `2` belong to
-all `3` authorized coalitions; parties `1` and `3` belong to `2`. -/
+/-- Share dimensions `|A^(i)|` in Construction 22.1 on the access structure of Example 22.1: parties
+`0` and `2` belong to all `3` authorized coalitions; parties `1` and `3` belong to `2`. -/
 example : (example22_1Access.authorizedContaining 0).card = 3 := by decide
 example : (example22_1Access.authorizedContaining 1).card = 2 := by decide
 example : (example22_1Access.authorizedContaining 2).card = 3 := by decide
 example : (example22_1Access.authorizedContaining 3).card = 2 := by decide
 
-/-- Unauthorized coalitions in Example 22.1 include `{0, 2}` (`{1, 3}`) and the 3-party coalition
-`{1, 2, 3}` (`{2, 3, 4}`). -/
+/-- Unauthorized coalitions in the access structure of Example 22.1 include `{0, 2}` (`{1, 3}`)
+and the 3-party coalition `{1, 2, 3}` (`{2, 3, 4}`). -/
 example : ¬ example22_1Access.authorized {0, 2} := by decide
 example : ¬ example22_1Access.authorized {1, 2, 3} := by decide
 
-/-- Construction 22.1 instantiated on Example 22.1 over `ZMod 5`. -/
+/-- Construction 22.1 instantiated on the access structure of Example 22.1 over `ZMod 5`. -/
 noncomputable abbrev example22_1Scheme :
     AccessScheme (ZMod 5) (GenericKey example22_1Access (ZMod 5)) (Fin 4)
       (GenericShare example22_1Access (ZMod 5)) :=
   genericUniformAccessScheme example22_1Access (ZMod 5) example22_1Access_not_authorized_empty
 
-/-- All three authorized coalitions in Example 22.1 reconstruct every secret `m : ZMod 5` and are
-accepted with probability `1` by `recognizeCoalitionDist`. -/
+/-- All three authorized coalitions in Example 22.1's access structure reconstruct every secret
+`m : ZMod 5`, and `{0, 1, 2}` is accepted with probability `1` by `recognizeCoalitionDist`. -/
 example (r : GenericKey example22_1Access (ZMod 5)) (m : ZMod 5) :
     example22_1Scheme.reconstruct {0, 1, 2} (example22_1Scheme.view {0, 1, 2} r m) = m ∧
     example22_1Scheme.reconstruct {0, 2, 3} (example22_1Scheme.view {0, 2, 3} r m) = m ∧
@@ -101,7 +104,7 @@ example :
   example22_1Scheme.recognizeCoalitionDist_eq_pure_true_of_authorized _
     (by decide : example22_1Access.authorized {0, 1, 2})
 
-/-- Unauthorized coalitions `{0, 2}` and `{1, 2, 3}` in Example 22.1 have uniform views and
+/-- Unauthorized coalition `{1, 2, 3}` in Example 22.1's access structure has uniform views and
 acceptance probability `1 / 5` under `recognizeCoalitionDist`. -/
 example (m : ZMod 5) :
     example22_1Scheme.viewDist
