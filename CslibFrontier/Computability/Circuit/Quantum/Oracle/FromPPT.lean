@@ -42,8 +42,8 @@ The construction and results are original formalization infrastructure.
 
 ## Main results
 
-* `Cslib.Quantum.UniformOracleCircuitFamily.within_resources_ofCircuitFamily`: the generated
-  description meets those four coordinates componentwise.
+* `Cslib.Quantum.UniformOracleCircuitFamily.decisionLaw_ofCircuitFamily`: the wrapper's exact
+  Boolean decision law.
 * `Cslib.Probability.IsPPTOn.exists_uniformOracleCircuitFamily`: a strict PPT Boolean word program
   has a zero-query native realization with exactly the same decision law and an offline generator
   certificate.
@@ -144,15 +144,6 @@ theorem within_resources_ofCircuitFamily (F : UniformCircuitFamily) (n ℓ : ℕ
   rw [OracleCircuit.Within, hcounts.1, hcounts.2]
   exact ⟨le_rfl, le_rfl, le_rfl, le_rfl⟩
 
-private theorem bool_pmf_ext {p q : PMF Bool} (h : p true = q true) : p = q := by
-  apply PMF.ext
-  intro b
-  cases b
-  · apply (ENNReal.toReal_eq_toReal_iff' (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _)).mp
-    rw [Cslib.Probability.PMF.toReal_false_eq_one_sub,
-      Cslib.Probability.PMF.toReal_false_eq_one_sub, h]
-  · exact h
-
 private theorem decisionLaw_ofCircuitFamily_apply_true (F : UniformCircuitFamily) (n : ℕ)
     (x : List Bool)
     (H : (Fin ((ofCircuitFamily F).description n x.length).queryWidth → Bool) →
@@ -228,7 +219,7 @@ theorem decisionLaw_ofCircuitFamily (F : UniformCircuitFamily) (n : ℕ) (x : Li
       Cslib.Probability.PMF.coin
         ⟨F.acceptProb (encPair encUnary encBits (n, x)),
           F.acceptProb_nonneg _, F.acceptProb_le_one _⟩ := by
-  apply bool_pmf_ext
+  apply Cslib.Probability.PMF.ext_bool
   rw [decisionLaw_ofCircuitFamily_apply_true, Cslib.Probability.PMF.coin_apply]
   rfl
 
@@ -269,19 +260,12 @@ theorem IsPPTOn.exists_uniformOracleCircuitFamily {program : List Bool → ProbC
   have haccept (word : List Bool) : ordinary.acceptProb word =
       (univ.filter fun r : Fin (p.eval word.length) → Bool =>
         evaluate word (List.ofFn r)).card / 2 ^ p.eval word.length := by
-    have hzero := verifier.acceptProb_ket_of_witnessLength_eq_zero word
-      (Polynomial.eval_zero) default
-    have hseed := UniformVerifierFamily.acceptProb_ofMA_ket F 0 p word (evaluate word)
-      (fun w _ => by
-        simpa only [encPair_apply, encBits_apply] using hF (word, w)) default
-    rw [List.eq_nil_of_length_eq_zero (by simp : (List.ofFn
-      (default : Fin ((0 : Polynomial ℕ).eval word.length) → Bool)).length = 0)] at hseed
-    simp only [List.nil_append] at hseed
-    exact hzero.symm.trans hseed
+    exact UniformVerifierFamily.acceptProb_ofMA_zeroWitness F p word (evaluate word)
+      fun w _ => by simpa only [encPair_apply, encBits_apply] using hF (word, w)
   refine ⟨family, certificate, ?_, ?_⟩
   · intro n x
     rw [UniformOracleCircuitFamily.decisionLaw_ofCircuitFamily]
-    apply UniformOracleCircuitFamily.bool_pmf_ext
+    apply Cslib.Probability.PMF.ext_bool
     rw [Cslib.Probability.PMF.coin_apply]
     simp only [ite_true]
     rw [hlaw, BitString.uniformList_map_apply, haccept, hp_eval]
