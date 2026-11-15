@@ -332,30 +332,30 @@ private theorem labelBits_garbleTable (k : ℕ) (f : ValidCircuit) (coins : List
     Wire.toNat_ofNat, permFn, rowIndex_testBit hi, hq, Bool.add_eq_xor, rowWord, Fin.val_cast]
 
 open ConventionalCircuit in
-/-- Gate `g` of the typed garbled function, as a word: its argument wires and its four rows. -/
-private theorem gateWord_garbleTable (k : ℕ) (f : ValidCircuit) (coins : List Bool)
-    (g : Fin (toCircuit f).size) :
+/-- Gate `g` of the garbled function of a table `T` over `toCircuit f`, as a word: the numbers of
+its argument wires `A g` and `B g` and its four rows. -/
+theorem gateWord_toCircuit (k : ℕ) (f : ValidCircuit)
+    (T : Row (toCircuit f).topology → BitString (k + 1) × Bool) (g : Fin (toCircuit f).size) :
     ((List.ofFn fun a => BitString.lowBits (wireWidth f.1.n (toCircuit f).size)
         (((toCircuit f).topology.wires g a).toNat + 1)).flatten ++
       (List.ofFn fun i : Fin (2 ^ (toCircuit f).topology.arity g) =>
-        labelBits (garbleTable (toCircuit f) fullInterpretation
-          (PRF.label (PRF.atLevel family (k + 1))) (slotTweak _ k) (keyFn k coins) (permFn coins)
-          (rowOf _ g i))).flatten) =
+        labelBits (T (rowOf _ g i))).flatten) =
       BitString.lowBits (wireWidth f.1.n f.1.q) (f.1.A (g.cast (size_toCircuit f))) ++
         BitString.lowBits (wireWidth f.1.n f.1.q) (f.1.B (g.cast (size_toCircuit f))) ++
-        (List.ofFn fun i : Fin 4 =>
-          rowWord family k f.1 coins (g.cast (size_toCircuit f)) i).flatten := by
-  have hrow (i : Fin (2 ^ (toCircuit f).topology.arity g)) := labelBits_garbleTable family k f coins
-    g (i := i) (by simpa only [arity_topology_toCircuit f g, Nat.reducePow] using i.isLt)
-  simp only [hrow]
+        (List.ofFn fun i : Fin 4 => labelBits (T (rowOf _ g i))).flatten := by
   have hA := f.2.one_le_A (g.cast (size_toCircuit f))
   have hB := f.2.A_lt_B (g.cast (size_toCircuit f))
   simp only [topo] at hA hB
-  simp only [Circuit.topology, size_toCircuit]
-  rw [lines_toCircuit f g]
-  simp only [fullSignature, List.ofFn_succ, List.ofFn_zero, List.flatten_cons, List.flatten_nil,
-    List.append_nil, Matrix.cons_val_zero, Matrix.cons_val_one, Fin.succ_zero_eq_one,
-    Wire.toNat_ofNat, Nat.sub_add_cancel hA, Nat.sub_add_cancel (hA.trans hB.le), List.append_assoc]
+  have hw : wireWidth f.1.n (toCircuit f).size = wireWidth f.1.n f.1.q := by rw [size_toCircuit]
+  have hwires : (List.ofFn fun a => BitString.lowBits (wireWidth f.1.n f.1.q)
+      (((toCircuit f).topology.wires g a).toNat + 1)) =
+      (List.ofFn fun a => ((toCircuit f).topology.wires g a).toNat).map
+        (fun v => BitString.lowBits (wireWidth f.1.n f.1.q) (v + 1)) := by
+    rw [List.map_ofFn]; rfl
+  have hrows := List.ofFn_congr (show 2 ^ (toCircuit f).topology.arity g = 4 by
+    rw [arity_topology_toCircuit]; rfl) (fun i => labelBits (T (rowOf _ g i)))
+  rw [hw, hwires, ofFn_toNat_wires_toCircuit, hrows]
+  simp [Nat.sub_add_cancel hA, Nat.sub_add_cancel (hA.trans hB.le)]
 
 open ConventionalCircuit in
 /-- **The garbler computes the typed garbling.** At parameter `k`, `Gb` on any coins writes the
@@ -367,9 +367,14 @@ theorem gb_eq_encodeGarbled (k : ℕ) (f : ValidCircuit) (coins : List Bool) :
       (garbleWith (toCircuit f) fullInterpretation (PRF.label (PRF.atLevel family (k + 1)))
         (slotTweak _ k) (keyFn k coins) (permFn coins)) := by
   have hq : f.1.n + (toCircuit f).size = f.1.n + f.1.q := by rw [size_toCircuit]
+  have hrow : ∀ (g : Fin (toCircuit f).size) (i : Fin 4),
+      labelBits (garbleTable (toCircuit f) fullInterpretation
+        (PRF.label (PRF.atLevel family (k + 1))) (slotTweak _ k) (keyFn k coins) (permFn coins)
+        (rowOf _ g i)) = rowWord family k f.1 coins (g.cast (size_toCircuit f)) i :=
+    fun g i => labelBits_garbleTable family k f coins g i.isLt
   simp only [scheme, encodeGarbled, garbleWith, Scheme.Garbled.mk.injEq]
   refine ⟨?_, ?_, ?_⟩
-  · simp only [fnWord, encodeFn, encodeBody, gateWord_garbleTable]
+  · simp only [fnWord, encodeFn, encodeBody, gateWord_toCircuit, hrow]
     congr 2
     · rw [size_toCircuit]
     · rw [List.ofFn_congr (size_toCircuit f)]

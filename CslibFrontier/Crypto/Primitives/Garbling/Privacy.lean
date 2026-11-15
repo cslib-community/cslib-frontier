@@ -38,7 +38,10 @@ key as the inactive key of wire `j`: with the keyed oracle it produces hybrid `j
 (`PRF.realExperiment` side), and with a random function hybrid `j + 1` exactly
 (`PRF.idealExperiment` side).
 Each reduction reads the oracle up front at the tweaks of all argument slots, with at most one
-query per slot (`isQueryBounded_reduction`), and runs `D` once.
+query per slot (`isQueryBounded_reduction`), and runs `D` once. Both laws hold for every `j`
+(`eval_realExperiment_reduction`, `eval_idealExperiment_reduction`): from wire `n + C.size` on no
+slot is a target and every hybrid is the simulated experiment (`hybridGame_of_le`), so a reduction
+may draw its step from a range larger than the number of wires.
 
 Tweak injectivity is needed. Take a row that reads one wire twice with the same colour. If its
 two argument slots had equal tweaks, their mask terms would be equal and cancel in the `Bool`
@@ -63,12 +66,17 @@ simulator or the reductions.
 * `Cslib.Crypto.Garbling.View`: what the evaluator sees.
 * `Cslib.Crypto.Garbling.simulateWith`, `Cslib.Crypto.Garbling.simulate`: the simulator.
 * `Cslib.Crypto.Garbling.realGame`, `Cslib.Crypto.Garbling.simGame`: the privacy experiments.
+* `Cslib.Crypto.Garbling.hybridView`, `Cslib.Crypto.Garbling.hybridGame`: the hybrid views and
+  experiments.
 * `Cslib.Crypto.Garbling.reduction`: the PRF adversary for one hybrid step.
 
 ## Main results
 
 * `Cslib.Crypto.Garbling.View.run_simulateWith`: simulated views decode to the output.
 * `Cslib.Crypto.Garbling.isQueryBounded_reduction`: at most one query per slot.
+* `Cslib.Crypto.Garbling.eval_realExperiment_reduction`,
+  `Cslib.Crypto.Garbling.eval_idealExperiment_reduction`: reduction `j` plays hybrid `j` against
+  the keyed function and hybrid `j + 1` against a random function.
 * `Cslib.Crypto.Garbling.advantage_realGame_simGame_le`: privacy, as a sum of PRF advantages.
 
 ## References
