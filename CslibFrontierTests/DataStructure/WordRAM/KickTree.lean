@@ -64,9 +64,9 @@ multiplicity `cMeta = 2`. -/
 @[expose] def smallParams : KickTreeParams :=
   mkKickTreeParams 16 8 64 64 1 2 2
 
-/-- Unindexed tail-cubby test parameters with `cMeta = 0` (`metaLen = 0`). -/
+/-- Unindexed tail-cubby test parameters with full `keyBits 64 = 6`-bit keys and `cMeta = 0`. -/
 @[expose] def tailParams : KickTreeParams :=
-  mkKickTreeParams 16 8 64 64 1 2 0
+  mkKickTreeParams 16 8 64 64 1 2 0 (quotiented := false)
 
 /-- Word width of `testParams` is positive. -/
 theorem test_hw : 0 < testParams.w := by decide
@@ -339,10 +339,6 @@ theorem test_sequential_caller_specs :
       (Memory.spec 0).clientState sPop (kickStepProg smallParams 0 202 ⟨0, 4, 11, 0, 1⟩) := by
     change (Memory.spec 0).clientState sPop _ = _; rw [hlR_s, hrr1]; exact hinactR.2
   rw [← hsReins_eq] at houtR1 hqR hvR hoR
-  have hsReins_eq_tail : ∀ a, tailBase + tailParams.hSpace ≤ a →
-      a < tailBase + totalSpace tailParams → sReins.mem a = sPop.mem a := fun a ha1 _ =>
-    houtR1 a (by rw [htb_eq] at ha1; omega)
-  obtain ⟨_, _, ho_rt, _, _⟩ := arrays_congr_of_eq_on tailParams thw hsReins_eq_tail
   obtain ⟨_, _, _, _, _, _, hoS, _⟩ :=
     popUnindexedSlotProg_spec tailParams thw (base := tailBase)
       (by decide : 0 < tailParams.nMax) (by decide : 0 < tailParams.nMax) sReins
@@ -369,24 +365,30 @@ theorem test_sequential_caller_specs :
 
 /-! ### 4. Width-Freedom (`¬ReadsWidth`), Envelope Satisfiability, and Native Execution Tests -/
 
+/-- Simulation and width-freedom contract for an emitted native `Code` realizing `prog`. -/
+def EmittedSubroutine (B : Basis) {k l : ℕ} {δ α : Type}
+    (prog : δ → Memory.Prog α) (input : δ ↪ (Fin k → ℕ)) (output : α ↪ (Fin l → ℕ))
+    (safe : ℕ → δ → Memory.State → Prop) (work : δ → Memory.State → ℕ) : Prop :=
+  ∃ (r C : ℕ) (frontier : Fin r) (src : Fin k → Fin r) (res : Fin l → Fin r) (c : Code B r),
+    ¬c.ReadsWidth ∧ k ≤ frontier.1 ∧ (∀ i : Fin k, (src i).1 = i.1) ∧
+    ∀ (w : ℕ) (d : δ) (x : Data r), x.Bounded w → x.regs ∘ src = input d →
+      safe w d (memoryState frontier x) →
+      (Memory.spec w).ValidHistory (memoryState frontier x)
+        ((Memory.spec w).clientHistory (memoryState frontier x) (prog d)) →
+      ∃ y, ExecWithin w c x y
+          (C * (memoryCost (prog d) (memoryState frontier x) +
+            work d (memoryState frontier x) + 1)) ∧
+        memoryState frontier y = (Memory.spec w).clientState (memoryState frontier x) (prog d) ∧
+        ∀ i : Fin l, y.regs (res i) =
+          output ((Memory.spec w).clientResult (memoryState frontier x) (prog d)) i
+
 /-- Instantiate any `Realizes` certificate on a concrete disjoint register bank to witness emitted
 `WordRAM.Code` satisfying `¬ReadsWidth` alongside its native `ExecWithin` contract. -/
 theorem exists_emitted_not_readsWidth {B : Basis} {k l : ℕ} {δ α : Type}
     {prog : δ → Memory.Prog α} {input : δ ↪ (Fin k → ℕ)} {output : α ↪ (Fin l → ℕ)}
     {safe : ℕ → δ → Memory.State → Prop} {work : δ → Memory.State → ℕ}
     (h : Realizes B prog input output safe work) :
-    ∃ (r C : ℕ) (frontier : Fin r) (src : Fin k → Fin r) (res : Fin l → Fin r) (c : Code B r),
-      ¬c.ReadsWidth ∧ k ≤ frontier.1 ∧ (∀ i : Fin k, (src i).1 = i.1) ∧
-      ∀ (w : ℕ) (d : δ) (x : Data r), x.Bounded w → x.regs ∘ src = input d →
-        safe w d (memoryState frontier x) →
-        (Memory.spec w).ValidHistory (memoryState frontier x)
-          ((Memory.spec w).clientHistory (memoryState frontier x) (prog d)) →
-        ∃ y, ExecWithin w c x y
-            (C * (memoryCost (prog d) (memoryState frontier x) +
-              work d (memoryState frontier x) + 1)) ∧
-          memoryState frontier y = (Memory.spec w).clientState (memoryState frontier x) (prog d) ∧
-          ∀ i : Fin l, y.regs (res i) =
-            output ((Memory.spec w).clientResult (memoryState frontier x) (prog d)) i := by
+    EmittedSubroutine B prog input output safe work := by
   obtain ⟨n, C, emit, hspec⟩ := h
   let r := k + (l + n + 1) + 1
   let frontier : Fin r := ⟨k + (l + n + 1), by omega⟩
@@ -407,26 +409,60 @@ theorem exists_emitted_not_readsWidth {B : Basis} {k l : ℕ} {δ α : Type}
   obtain ⟨y, hy, hm, hout, _⟩ := hrun w d x hx hin hs hv
   exact ⟨y, hy, hm, hout⟩
 
-/-- Emitted `Code` for all eight `Realizes .exact` certificates satisfies `¬ReadsWidth`. -/
+/-- Emitted `Code` for all eight `Realizes .exact` certificates satisfies `¬ReadsWidth` and
+preserves the native subroutine execution contracts. -/
 theorem test_all_eight_not_readsWidth :
-    (∃ (r : ℕ) (c : Code .exact r), ¬c.ReadsWidth) ∧
-    (∃ (r : ℕ) (c : Code .exact r), ¬c.ReadsWidth) ∧
-    (∃ (r : ℕ) (c : Code .exact r), ¬c.ReadsWidth) ∧
-    (∃ (r : ℕ) (c : Code .exact r), ¬c.ReadsWidth) ∧
-    (∃ (r : ℕ) (c : Code .exact r), ¬c.ReadsWidth) ∧
-    (∃ (r : ℕ) (c : Code .exact r), ¬c.ReadsWidth) ∧
-    (∃ (r : ℕ) (c : Code .exact r), ¬c.ReadsWidth) ∧
-    (∃ (r : ℕ) (c : Code .exact r), ¬c.ReadsWidth) := by
-  obtain ⟨r1, _, _, _, _, c1, h1, _⟩ := exists_emitted_not_readsWidth realizes_allocKickTableGen
-  obtain ⟨r2, _, _, _, _, c2, h2, _⟩ := exists_emitted_not_readsWidth realizes_querySlotGen
-  obtain ⟨r3, _, _, _, _, c3, h3, _⟩ := exists_emitted_not_readsWidth realizes_readMetaGen
-  obtain ⟨r4, _, _, _, _, c4, h4, _⟩ := exists_emitted_not_readsWidth realizes_writeMetaGen
-  obtain ⟨r5, _, _, _, _, c5, h5, _⟩ := exists_emitted_not_readsWidth realizes_kickStepGen
-  obtain ⟨r6, _, _, _, _, c6, h6, _⟩ := exists_emitted_not_readsWidth realizes_kickLoopGen
-  obtain ⟨r7, _, _, _, _, c7, h7, _⟩ := exists_emitted_not_readsWidth realizes_clearSlotGen
-  obtain ⟨r8, _, _, _, _, c8, h8, _⟩ := exists_emitted_not_readsWidth realizes_popUnindexedSlotGen
-  exact ⟨⟨r1, c1, h1⟩, ⟨r2, c2, h2⟩, ⟨r3, c3, h3⟩, ⟨r4, c4, h4⟩,
-    ⟨r5, c5, h5⟩, ⟨r6, c6, h6⟩, ⟨r7, c7, h7⟩, ⟨r8, c8, h8⟩⟩
+    EmittedSubroutine .exact allocKickTableGenProg
+      (WordEncoding.encode (α := KickRuntimeParams))
+      (WordEncoding.encode (α := ℕ))
+      (fun _ _ _ => True)
+      (fun _ _ => 0) ∧
+    EmittedSubroutine .exact querySlotGenProg
+      (WordEncoding.encode (α := KickQueryInput))
+      (WordEncoding.encode (α := Option ℕ))
+      (fun w d _ => KickEnvGen w d.rp d.base ∧ d.slot < d.rp.nMax)
+      (fun _ _ => 0) ∧
+    EmittedSubroutine .exact readMetaGenProg
+      (WordEncoding.encode (α := KickMetaReadInput))
+      (WordEncoding.encode (α := ℕ))
+      (fun w d _ => KickEnvGen w d.rp d.base ∧ d.idx < d.rp.metaLen)
+      (fun _ _ => 0) ∧
+    EmittedSubroutine .exact writeMetaGenProg
+      (WordEncoding.encode (α := KickMetaWriteInput))
+      (WordEncoding.encode (α := Unit))
+      (fun w d _ => KickEnvGen w d.rp d.base ∧ d.idx < d.rp.metaLen)
+      (fun _ _ => 0) ∧
+    EmittedSubroutine .exact kickStepGenProg
+      (WordEncoding.encode (α := KickStepEnv × KickStepState))
+      (WordEncoding.encode (α := KickStepState))
+      KickStepSafe
+      (fun _ _ => 0) ∧
+    EmittedSubroutine .exact kickLoopIterGenProg
+      (WordEncoding.encode (α := (KickStepEnv × KickStepState) × ℕ))
+      (WordEncoding.encode (α := KickStepState))
+      (fun w ((env, st), fuel) s =>
+        iterationSafe kickStepGenProg KickStepSafe w env fuel st s)
+      (fun ((env, st), fuel) s =>
+        iterationWork kickStepGenProg (fun _ _ => 0) env fuel st s) ∧
+    EmittedSubroutine .exact clearSlotGenProg
+      (WordEncoding.encode (α := KickClearInput))
+      (WordEncoding.encode (α := Unit))
+      (fun w d _ => KickEnvGen w d.rp d.base ∧ d.slot < d.rp.nMax)
+      (fun _ _ => 0) ∧
+    EmittedSubroutine .exact popUnindexedSlotGenProg
+      (WordEncoding.encode (α := KickPopInput))
+      (WordEncoding.encode (α := (ℕ × ℕ) × ℕ))
+      (fun w d _ => KickEnvGen w d.rp d.base ∧ d.slot < d.rp.nMax ∧ d.lastSlot < d.rp.nMax)
+      (fun _ _ => 0) := ⟨
+  exists_emitted_not_readsWidth realizes_allocKickTableGen,
+  exists_emitted_not_readsWidth realizes_querySlotGen,
+  exists_emitted_not_readsWidth realizes_readMetaGen,
+  exists_emitted_not_readsWidth realizes_writeMetaGen,
+  exists_emitted_not_readsWidth realizes_kickStepGen,
+  exists_emitted_not_readsWidth realizes_kickLoopGen,
+  exists_emitted_not_readsWidth realizes_clearSlotGen,
+  exists_emitted_not_readsWidth realizes_popUnindexedSlotGen
+⟩
 
 /-- Concrete 64-bit `KickEnv` and `KickEnvGen` witness on `testParams` at `base = 0`. -/
 theorem test_kickEnvGen_64 :
@@ -473,11 +509,17 @@ theorem test_kickLoop_safe_nonvacuous :
   exact ⟨⟨henvG, fun h => nomatch h⟩, trivial⟩
 
 /-- Non-vacuous native execution and `.halt`-rejection test for `realizes_allocKickTableGen` at
-`w = 64`: executes to `y.regs frontier = totalSpace testParams > 0`, hence `y ≠ x`. -/
+`w = 64`: executes `allocKickTableGenProg` on an emitted width-free code to
+`y.regs frontier = totalSpace testParams > 0`, hence `y ≠ x`. -/
 theorem test_native_alloc_nonvacuous :
-    ∃ (r T : ℕ) (frontier : Fin r) (c : Code .exact r) (x y : Data r),
-      ¬c.ReadsWidth ∧ ExecWithin 64 c x y T ∧
-        x.regs frontier = 0 ∧ y.regs frontier = totalSpace testParams ∧ y ≠ x := by
+    ∃ (r C : ℕ) (frontier : Fin r) (c : Code .exact r) (x y : Data r),
+      let rp := mkKickRuntimeParams testParams
+      ¬c.ReadsWidth ∧
+      ExecWithin 64 c x y (C * (memoryCost (allocKickTableGenProg rp)
+        (memoryState frontier x) + 1)) ∧
+      memoryState frontier y = (Memory.spec 64).clientState (memoryState frontier x)
+        (allocKickTableGenProg rp) ∧
+      x.regs frontier = 0 ∧ y.regs frontier = totalSpace testParams ∧ y ≠ x := by
   obtain ⟨r, C, frontier, src, _, c, hnw, hk_le, hsrc, hrun⟩ :=
     exists_emitted_not_readsWidth realizes_allocKickTableGen
   have : 12 ≤ frontier.1 := hk_le
@@ -503,16 +545,22 @@ theorem test_native_alloc_nonvacuous :
   have hyf : y.regs frontier = totalSpace testParams := by
     have hm_fr := congrArg Memory.State.frontier hm; rw [hms] at hm_fr; exact hm_fr
   have hpos : 0 < totalSpace testParams := by decide
-  exact ⟨r, _, frontier, c, x, y, hnw, hex, hxf, hyf,
+  exact ⟨r, C, frontier, c, x, y, hnw, hex, hm, hxf, hyf,
     fun heq => by rw [heq, hxf] at hyf; omega⟩
 
 /-- Non-vacuous native execution test for `realizes_querySlotGen` at `w = 64` instantiating
 `KickEnvGen` and `ValidHistory`: queries occupied slot `0` (`quot = 7, val = 42`) and verifies the
 emitted width-free `Code` writes `WordEncoding.encode (some 42)` into `res`. -/
 theorem test_native_query_nonvacuous :
-    ∃ (r T : ℕ) (res : Fin 2 → Fin r) (c : Code .exact r) (x y : Data r),
-      ¬c.ReadsWidth ∧ ExecWithin 64 c x y T ∧
-        (∀ i : Fin 2, y.regs (res i) = WordEncoding.encode (some (42 : ℕ)) i) := by
+    ∃ (r C : ℕ) (res : Fin 2 → Fin r) (frontier : Fin r) (c : Code .exact r) (x y : Data r),
+      let rp := mkKickRuntimeParams testParams
+      let d : KickQueryInput := ⟨rp, 0, 0, 7⟩
+      ¬c.ReadsWidth ∧
+      ExecWithin 64 c x y (C * (memoryCost (querySlotGenProg d)
+        (memoryState frontier x) + 1)) ∧
+      memoryState frontier y = (Memory.spec 64).clientState (memoryState frontier x)
+        (querySlotGenProg d) ∧
+      (∀ i : Fin 2, y.regs (res i) = WordEncoding.encode (some (42 : ℕ)) i) := by
   obtain ⟨r, C, frontier, src, res, c, hnw, hk_le, hsrc, hrun⟩ :=
     exists_emitted_not_readsWidth realizes_querySlotGen
   have : 15 ≤ frontier.1 := hk_le
@@ -565,7 +613,7 @@ theorem test_native_query_nonvacuous :
       ((Memory.spec 64).clientHistory (memoryState frontier x) (querySlotGenProg d)) := by
     rw [hms]
     exact validHistory_querySlotProg testParams rfl test_hw (by decide) (by dsimp only; omega)
-  obtain ⟨y, hex, _, hout⟩ := hrun 64 d x hxb hin hs hv
+  obtain ⟨y, hex, hm, hout⟩ := hrun 64 d x hxb hin hs hv
   have hres_eq : (Memory.spec 64).clientResult (memoryState frontier x) (querySlotGenProg d) =
       some 42 := by
     rw [clientResult_width, hms]
@@ -576,7 +624,7 @@ theorem test_native_query_nonvacuous :
     rw [hq_spec]
     have heQ := writeQuotMem_effects (base := 0) testParams test_hw zeroMem
       (by decide : 0 < testParams.nMax)
-      (by decide : 7 < 2 ^ fullQuotBits testParams.U testParams.nMax)
+      (by decide : 7 < 2 ^ quotBits testParams)
     have heV := writeValMem_effects (base := 0) testParams test_hw
       (writeQuotMem 0 testParams zeroMem 0 7)
       (by decide : 0 < testParams.nMax) (by decide : 42 < 2 ^ valBits testParams.V)
@@ -587,14 +635,20 @@ theorem test_native_query_nonvacuous :
     rw [heO.2.2.1, heO.1, heV.1, heQ.1, heO.2.1, heV.2.1]
     decide
   rw [hres_eq] at hout
-  exact ⟨r, _, res, c, x, y, hnw, hex, hout⟩
+  exact ⟨r, C, res, frontier, c, x, y, hnw, hex, hm, hout⟩
 
 /-- Non-vacuous native execution and `.halt`-rejection test for `realizes_clearSlotGen` at `w = 64`
 instantiating `KickEnvGen` and `validHistory_clearSlotProg`: clears occupied slot (`occ = 1 ↦ 0`),
 hence `y ≠ x`. -/
 theorem test_native_clear_nonvacuous :
-    ∃ (r T : ℕ) (c : Code .exact r) (x y : Data r),
-      ¬c.ReadsWidth ∧ ExecWithin 64 c x y T ∧ y ≠ x := by
+    ∃ (r T : ℕ) (frontier : Fin r) (c : Code .exact r) (x y : Data r),
+      let rp := mkKickRuntimeParams testParams
+      let d : KickClearInput := ⟨rp, 0, 0⟩
+      ¬c.ReadsWidth ∧
+      ExecWithin 64 c x y T ∧
+      memoryState frontier y = (Memory.spec 64).clientState (memoryState frontier x)
+        (clearSlotGenProg d) ∧
+      y ≠ x := by
   obtain ⟨r, C, frontier, src, _, c, hnw, hk_le, hsrc, hrun⟩ :=
     exists_emitted_not_readsWidth realizes_clearSlotGen
   have : 14 ≤ frontier.1 := hk_le
@@ -646,14 +700,15 @@ theorem test_native_clear_nonvacuous :
     have heO := writeOccMem_effects (base := 0) testParams test_hw zeroMem
       (by decide : 0 < occLen testParams) (by decide : 1 < 2 ^ 1)
     have hocc_before : occAt 0 testParams mC 0 = 1 := by rw [heO.2.2.1]; decide
-    have hc_spec := (clearSlotProg_spec testParams test_hw (base := 0) (slot := 0)
-      (by decide) ⟨mC, totalSpace testParams⟩).2.2.2.2.2.1
+    obtain ⟨_, _, _, _, _, ho_clear, _⟩ :=
+      clearSlotProg_spec testParams test_hw (base := 0) (slot := 0) (by decide)
+        ⟨mC, totalSpace testParams⟩
     have hmem_eq : mC = ((Memory.spec 0).clientState ⟨mC, totalSpace testParams⟩
         (clearSlotProg testParams 0 0)).mem := congrArg Memory.State.mem hm
     have hocc_after : occAt 0 testParams mC 0 = 0 := by
       conv_lhs => rw [hmem_eq]
-      rw [hc_spec]; decide
+      rw [ho_clear]; decide
     omega
-  exact ⟨r, _, c, x, y, hnw, hex, hne⟩
+  exact ⟨r, _, frontier, c, x, y, hnw, hex, hm, hne⟩
 
 end CslibFrontierTests.DataStructure.WordRAM.KickTree

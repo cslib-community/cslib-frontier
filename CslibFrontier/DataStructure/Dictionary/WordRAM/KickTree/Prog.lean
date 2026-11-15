@@ -122,7 +122,7 @@ structure KickRuntimeParams where
   nMax : ℕ
   /-- Word offset `offQuot p`. -/
   offQuot : ℕ
-  /-- Quotient bit width `fullQuotBits p.U p.nMax`. -/
+  /-- Quotient bit width `quotBits p`. -/
   quotBits : ℕ
   /-- Word offset `offVal p`. -/
   offVal : ℕ
@@ -161,7 +161,7 @@ instance : WordEncoding KickRuntimeParams := .ofEquiv KickRuntimeParams.equiv
   w := p.w
   nMax := p.nMax
   offQuot := offQuot p
-  quotBits := fullQuotBits p.U p.nMax
+  quotBits := quotBits p
   offVal := offVal p
   valBits := valBits p.V
   offOcc := offOcc p
@@ -175,7 +175,7 @@ instance : WordEncoding KickRuntimeParams := .ofEquiv KickRuntimeParams.equiv
 @[expose] def KickEnv (p : KickTreeParams) (w' base : ℕ) : Prop :=
   w' = p.w ∧
     0 < p.w ∧
-    fullQuotBits p.U p.nMax ≤ p.w ∧
+    quotBits p ≤ p.w ∧
     valBits p.V ≤ p.w ∧
     metaBits p ≤ p.w ∧
     Fits p.w (base + totalSpace p)
@@ -403,7 +403,7 @@ theorem validHistory_querySlotProg {w base slot q : ℕ} (p : KickTreeParams)
   have hocc_lt : slot < occLen p := slot_lt_occLen hslot
   have hO : base + offOcc p + packedWords (occLen p) 1 p.w ≤ s.frontier := by
     have := occ_end_le_totalSpace p; dsimp [occWords] at this; omega
-  have hQ : base + offQuot p + packedWords p.nMax (fullQuotBits p.U p.nMax) p.w ≤ s.frontier := by
+  have hQ : base + offQuot p + packedWords p.nMax (quotBits p) p.w ≤ s.frontier := by
     have := quot_end_le_totalSpace p; dsimp [quotWords] at this; omega
   have hV : base + offVal p + packedWords p.nMax (valBits p.V) p.w ≤ s.frontier := by
     have := val_end_le_totalSpace p; dsimp [valWords] at this; omega
@@ -448,7 +448,7 @@ theorem querySlotProg_spec (p : KickTreeParams) {base slot q : ℕ} (hslot : slo
   · rw [ite_eq_right ho, ite_eq_right ho,
       StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
       clientState_readPackedProg, clientResult_readPackedProg]
-    have hq : readPacked (base + offQuot p) (fullQuotBits p.U p.nMax) p.w s.mem slot =
+    have hq : readPacked (base + offQuot p) (quotBits p) p.w s.mem slot =
         quotAt base p s.mem slot := by
       simp [quotAt, hslot]
     rw [hq]
@@ -738,7 +738,7 @@ theorem kickStepProg_vacant_spec (p : KickTreeParams) (hw : 0 < p.w)
     {base pathBase : ℕ} {st : KickStepState} {s : Memory.State}
     (hact : 0 < st.active)
     (hslot : s.mem (pathBase + st.stepIdx) < p.nMax)
-    (hq : st.quot < 2 ^ fullQuotBits p.U p.nMax)
+    (hq : st.quot < 2 ^ quotBits p)
     (hv : st.val < 2 ^ valBits p.V)
     (he : st.elevated < 2 ^ 1)
     (hvac : occAt base p s.mem (s.mem (pathBase + st.stepIdx)) = 0) :
@@ -807,7 +807,7 @@ theorem kickStepProg_displace_spec (p : KickTreeParams) (hw : 0 < p.w)
     {base pathBase : ℕ} {st : KickStepState} {s : Memory.State}
     (hact : 0 < st.active)
     (hslot : s.mem (pathBase + st.stepIdx) < p.nMax)
-    (hq : st.quot < 2 ^ fullQuotBits p.U p.nMax)
+    (hq : st.quot < 2 ^ quotBits p)
     (hv : st.val < 2 ^ valBits p.V)
     (he : st.elevated < 2 ^ 1)
     (hocc_ne : occAt base p s.mem (s.mem (pathBase + st.stepIdx)) ≠ 0) :
@@ -944,7 +944,7 @@ theorem validHistory_clearSlotProg {w base slot : ℕ} (p : KickTreeParams)
       ((Memory.spec w).clientHistory s (clearSlotProg p base slot)) := by
   obtain ⟨rfl, hw, hq, hv, _, _⟩ := henv
   have hocc_lt : slot < occLen p := slot_lt_occLen hslot
-  have hQ : base + offQuot p + packedWords p.nMax (fullQuotBits p.U p.nMax) p.w ≤ s.frontier := by
+  have hQ : base + offQuot p + packedWords p.nMax (quotBits p) p.w ≤ s.frontier := by
     have := quot_end_le_totalSpace p; dsimp [quotWords] at this; omega
   have hV : base + offVal p + packedWords p.nMax (valBits p.V) p.w ≤ s.frontier := by
     have := val_end_le_totalSpace p; dsimp [valWords] at this; omega
@@ -957,7 +957,7 @@ theorem validHistory_clearSlotProg {w base slot : ℕ} (p : KickTreeParams)
   rw [validHistory_bind_do]
   refine ⟨validHistory_writePackedProg hw hq hslot hwf hQ, ?_⟩
   set s1 := (Memory.spec p.w).clientState s
-    (writePackedProg base (offQuot p) (fullQuotBits p.U p.nMax) p.w slot 0)
+    (writePackedProg base (offQuot p) (quotBits p) p.w slot 0)
   have hwf1 := wellFormed_clientState_writePackedProg (base := base) (offset := offQuot p)
     (N := p.nMax) (val := 0) hw hq hslot hwf hQ
   have hfr1 : s1.frontier = s.frontier := by
@@ -1124,13 +1124,13 @@ theorem popUnindexedSlotProg_spec (p : KickTreeParams) (hw : 0 < p.w)
   intro s'
   have hsO : slot < occLen p := slot_lt_occLen hslot
   have hlO : lastSlot < occLen p := slot_lt_occLen hlast
-  have hpsQ : readPacked (base + offQuot p) (fullQuotBits p.U p.nMax) p.w s.mem slot =
+  have hpsQ : readPacked (base + offQuot p) (quotBits p) p.w s.mem slot =
       quotAt base p s.mem slot := by simp [quotAt, hslot]
   have hpsV : readPacked (base + offVal p) (valBits p.V) p.w s.mem slot =
       valAt base p s.mem slot := by simp [valAt, hslot]
   have hpsE : readPacked (base + offElev p) 1 p.w s.mem slot =
       elevAt base p s.mem slot := by simp [elevAt, hslot]
-  have hq_eq : readPacked (base + offQuot p) (fullQuotBits p.U p.nMax) p.w s.mem lastSlot =
+  have hq_eq : readPacked (base + offQuot p) (quotBits p) p.w s.mem lastSlot =
       quotAt base p s.mem lastSlot := by simp [quotAt, hlast]
   have hv_eq : readPacked (base + offVal p) (valBits p.V) p.w s.mem lastSlot =
       valAt base p s.mem lastSlot := by simp [valAt, hlast]
