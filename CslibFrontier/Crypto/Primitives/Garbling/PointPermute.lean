@@ -16,6 +16,7 @@ public import Mathlib.Data.Nat.Size
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.OfBits
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Foundations.Data.BitString.List.Operations
+import CslibFrontier.Foundations.Data.BitString.Neg
 
 /-!
 # Point-and-permute garbling as a garbling scheme
@@ -23,8 +24,17 @@ import CslibFrontier.Foundations.Data.BitString.List.Operations
 The point-and-permute garbling of `CslibFrontier.Crypto.Primitives.Garbling.Basic` as a garbling
 scheme in the sense of Bellare, Hoang and Rogaway [BellareHoangRogaway2012] (`Garbling.Scheme`),
 over valid conventional circuits (`ValidCircuit`): `PointPermute.scheme family`, whose masks are
-keyed by a word family `family`. This module gives the definitions and their correctness only;
-running times and privacy are not treated here.
+keyed by a word family `family`. This module gives the definitions and their correctness only.
+Polynomial running times are proved in
+[#5703](https://github.com/cslib-community/cslib-frontier/pull/5703). Privacy (`prv.sim` with the
+topology as side information) is open under
+[#5293](https://github.com/cslib-community/cslib-frontier/issues/5293).
+
+The scheme is a variant of `Garble1` of [BellareHoangRogaway2012] (§5.1, Fig. 7) with the
+PRF-based dual-key cipher of §5.5, not `Garble1` itself. In `Garble1` the type of an output wire's
+token is its semantics and `d` is empty, and both keys of a row are used at the one tweak
+`g ‖ a ‖ b`. Here output wires are permuted too, `d` holds their permutation bits, and each
+argument slot of a row has its own tweak.
 
 At security parameter `k`, a wire key has `k + 1` bits and a label is the `(k + 2)`-bit word of a
 key followed by its colour bit. The masks come from the keyed function
@@ -59,8 +69,7 @@ correctness follows from `Garbled.run_garbleWith` and `ConventionalCircuit.eval_
 * `Cslib.Crypto.Garbling.PointPermute.gb_eq_encodeGarbled`: the garbler computes `garbleWith`.
 * `Cslib.Crypto.Garbling.PointPermute.evalWord_encodeFn`: the evaluator computes the typed
   evaluation.
-* `Cslib.Crypto.Garbling.PointPermute.scheme_isCircuitScheme`,
-  `Cslib.Crypto.Garbling.PointPermute.scheme_isValid`: it is a valid circuit garbling scheme.
+* `Cslib.Crypto.Garbling.PointPermute.scheme_isValid`: it is a valid garbling scheme.
 
 ## References
 
@@ -203,19 +212,26 @@ theorem scheme_isCircuitScheme : (scheme family).IsCircuitScheme :=
 
 /-! ### The typed garbling -/
 
-/-- The word of a label: the bits of its key, then its colour. -/
+/-- The word of a label: the bits of its key, then its colour. It is the reply of `labelCodec k`,
+through which a label oracle answers on words; that reply does not depend on the tweak, so
+`labelBits label = (labelCodec k).encodeReply t label` by `rfl` for every tweak `t`. -/
 @[expose] def labelBits {k : ℕ} (label : BitString (k + 1) × Bool) : List Bool :=
-  List.ofFn label.1 ++ [label.2]
+  (labelCodec k).encodeReply 0 label
+
+/-- A label word is the bits of its key followed by its colour. -/
+theorem labelBits_apply {k : ℕ} (label : BitString (k + 1) × Bool) :
+    labelBits label = List.ofFn label.1 ++ [label.2] :=
+  rfl
 
 /-- A label word has `k + 2` bits. -/
 @[simp] theorem length_labelBits {k : ℕ} (label : BitString (k + 1) × Bool) :
     (labelBits label).length = k + 2 := by
-  simp [labelBits]
+  simp [labelBits_apply]
 
 /-- The word of a sum of labels is the XOR of their words. -/
 theorem labelBits_add {k : ℕ} (x y : BitString (k + 1) × Bool) :
     labelBits (x + y) = List.zipWith xor (labelBits x) (labelBits y) := by
-  simp only [labelBits, Prod.fst_add, Prod.snd_add, BitString.ofFn_add]
+  simp only [labelBits_apply, Prod.fst_add, Prod.snd_add, BitString.ofFn_add]
   rw [List.zipWith_append (by simp)]
   simp [Bool.add_eq_xor]
 
@@ -224,7 +240,7 @@ theorem labelBits_add {k : ℕ} (x y : BitString (k + 1) × Bool) :
 theorem labelWord_ofFn (k : ℕ) (key : BitString (k + 1)) (t : BitString k) :
     labelWord family k (List.ofFn key) (List.ofFn t) =
       labelBits (PRF.label (PRF.atLevel family (k + 1)) key t) := by
-  simp [labelWord, labelBits, PRF.label, PRF.atLevel, List.ofFn_succ, BitString.ofList,
+  simp [labelWord, labelBits_apply, PRF.label, PRF.atLevel, List.ofFn_succ, BitString.ofList,
     ← BitString.ofFn_ofList_eq_take]
 
 variable {n m s : ℕ}
@@ -284,7 +300,7 @@ theorem ofFn_keyFn (k : ℕ) (coins : List Bool) (w : Wire n s) (c : Bool) :
 /-- The word of a label read from the coins is `labelOf`. -/
 theorem labelBits_keyFn (k : ℕ) (coins : List Bool) (w : Wire n s) (c : Bool) :
     labelBits (keyFn k coins (w, c), c) = labelOf k (n + s) coins w.toNat c := by
-  rw [labelBits, ofFn_keyFn, labelOf]
+  rw [labelBits_apply, ofFn_keyFn, labelOf]
 
 /-- A tweak word has `k` bits. -/
 @[simp] theorem ofFn_ofList_tweak (k g i a : ℕ) :
@@ -330,12 +346,7 @@ private theorem gateWord_garbleTable (k : ℕ) (f : ValidCircuit) (coins : List 
         (List.ofFn fun i : Fin 4 =>
           rowWord family k f.1 coins (g.cast (size_toCircuit f)) i).flatten := by
   have hrow (i : Fin (2 ^ (toCircuit f).topology.arity g)) := labelBits_garbleTable family k f coins
-    g (i := i) (by
-      have : (toCircuit f).topology.arity g = 2 := by
-        simp only [Circuit.topology]; rw [lines_toCircuit f g]; rfl
-      have h : i.val < 2 ^ (toCircuit f).topology.arity g := i.isLt
-      simp only [this] at h
-      exact h)
+    g (i := i) (by simpa only [arity_topology_toCircuit f g, Nat.reducePow] using i.isLt)
   simp only [hrow]
   have hA := f.2.one_le_A (g.cast (size_toCircuit f))
   have hB := f.2.A_lt_B (g.cast (size_toCircuit f))
@@ -377,22 +388,15 @@ private theorem length_flatten_ofFn {c L : ℕ} (word : Fin c → List Bool)
     (hword : ∀ j, (word j).length = L) : (List.ofFn word).flatten.length = c * L := by
   simp [List.length_flatten, List.sum_ofFn, hword]
 
-/-- Row `j` of a flattened list of words of width `L` is word `j`. -/
-private theorem listRow_flatten_ofFn {c L : ℕ} (word : Fin c → List Bool)
-    (hword : ∀ j, (word j).length = L) (j : Fin c) :
-    BitString.listRow L j (List.ofFn word).flatten = word j := by
-  rw [BitString.listRow_flatten (by simpa [List.mem_ofFn] using fun _ => hword _) (by simp)]
-  simp [List.getD_eq_getElem?_getD]
-
 /-- The colour of a label word is its last bit. -/
-@[simp] theorem getD_labelBits {k : ℕ} (label : BitString (k + 1) × Bool) :
+theorem getD_labelBits {k : ℕ} (label : BitString (k + 1) × Bool) :
     (labelBits label).getD (k + 1) false = label.2 := by
-  simp [labelBits, List.getD_eq_getElem?_getD]
+  simp [labelBits_apply, List.getD_eq_getElem?_getD]
 
 /-- The key of a label word is its first `k + 1` bits. -/
 @[simp] theorem take_labelBits {k : ℕ} (label : BitString (k + 1) × Bool) :
     (labelBits label).take (k + 1) = List.ofFn label.1 := by
-  simp [labelBits]
+  simp [labelBits_apply]
 
 /-- `En` on the words of a typed input encoding writes the label of each bit. -/
 theorem encodeWord_encInfo {k : ℕ} (e : Fin n → Bool → BitString (k + 1) × Bool)
@@ -418,10 +422,10 @@ theorem encodeWord_encInfo {k : ℕ} (e : Fin n → Bool → BitString (k + 1) �
     List.getElem?_eq_getElem h₁, Option.getD_some, BitString.ofList]
   cases hxi : x[i]
   · rw [ite_eq_right (by simp), show 2 * i = (⟨2 * i, by omega⟩ : Fin (2 * x.length)).val from rfl,
-      listRow_flatten_ofFn _ fun _ => length_labelBits _]
+      BitString.listRow_flatten_ofFn _ fun _ => length_labelBits _]
     simp [Nat.mul_div_cancel_left i (show 0 < 2 by omega)]
   · rw [ite_eq_left rfl, show 2 * i + 1 = (⟨2 * i + 1, by omega⟩ : Fin (2 * x.length)).val from rfl,
-      listRow_flatten_ofFn _ fun _ => length_labelBits _]
+      BitString.listRow_flatten_ofFn _ fun _ => length_labelBits _]
     simp only [Nat.testBit_zero]
     congr 2
     · ext; simp only; omega
@@ -440,8 +444,8 @@ theorem decodeWord_ofFn {k : ℕ} (d : Fin m → Bool) (Y : Fin m → BitString 
   simp only [List.getElem_map, List.getElem_range, List.getElem_ofFn, decode, hlen,
     List.length_ofFn, Nat.mul_div_cancel_left _ (show 0 < m by omega), List.getD_eq_getElem?_getD,
     List.getElem?_ofFn, h₁]
-  have hrow := listRow_flatten_ofFn (fun o => labelBits (Y o)) (fun _ => length_labelBits _)
-    ⟨o, h₁⟩
+  have hrow := BitString.listRow_flatten_ofFn (fun o => labelBits (Y o))
+    (fun _ => length_labelBits _) ⟨o, h₁⟩
   have hbit := BitString.getD_listRow (width := k + 2) (row := o)
     (word := (List.ofFn fun o => labelBits (Y o)).flatten) (i := k + 1) (by omega)
   rw [hrow, getD_labelBits] at hbit
@@ -482,14 +486,6 @@ theorem testBit_rowIndex_of_eq_two {r : ℕ} (hr : r = 2) (colours : Fin r → B
   match a with
   | ⟨0, _⟩ => exact h₁ _ _
   | ⟨1, _⟩ => exact h₀ _ _
-
-/-- Labels form a group of characteristic two. -/
-private theorem sub_eq_add_label {k : ℕ} (x y : BitString (k + 1) × Bool) : x - y = x + y :=
-  Prod.ext (funext fun i => by
-    change x.1 i - y.1 i = x.1 i + y.1 i
-    cases x.1 i <;> cases y.1 i <;> rfl) (by
-    change x.2 - y.2 = x.2 + y.2
-    cases x.2 <;> cases y.2 <;> rfl)
 
 open ConventionalCircuit in
 /-- The argument wires of gate `g` of `toCircuit f`, one at a time: `A g - 1`, then `B g - 1`. -/
@@ -547,7 +543,7 @@ private theorem evalGate_take (k : ℕ) (f : ValidCircuit)
     rw [List.length_append, length_flatten_ofFn _ fun _ => BitString.length_lowBits _ _,
       length_flatten_ofFn _ fun _ => length_labelBits _, arity_topology_toCircuit f g₀]
     norm_num
-  have hgate := listRow_flatten_ofFn _ hblock g
+  have hgate := BitString.listRow_flatten_ofFn _ hblock g
   have hwires : (List.ofFn fun a => BitString.lowBits (wireWidth f.1.n (toCircuit f).size)
       (((toCircuit f).topology.wires g a).toNat + 1)).flatten =
       BitString.lowBits (wireWidth f.1.n (toCircuit f).size) (f.1.A (g.cast (size_toCircuit f))) ++
@@ -597,7 +593,8 @@ private theorem evalGate_take (k : ℕ) (f : ValidCircuit)
     Sigma.ext rfl (heq_of_eq (testBit_rowIndex_of_eq_two harity _))
   have hgateA := hA (.gate g)
   simp only [Garbling.evalStep] at hgateA
-  rw [sum_fin_of_eq_two harity, sub_eq_add_label] at hgateA
+  rw [sum_fin_of_eq_two harity, show ∀ x y : BitString (k + 1) × Bool, x - y = x + y from
+    fun x y => Prod.ext (BitString.sub_eq_add _ _) (BooleanRing.sub_eq_add _ _)] at hgateA
   simp only [slotTweak, hwa, hwb, hindex] at hgateA
   have hi : (if (A (Wire.ofNat (f.1.A (g.cast (size_toCircuit f)) - 1)
       (by omega))).2 then 2 else 0) +
@@ -610,7 +607,7 @@ private theorem evalGate_take (k : ℕ) (f : ValidCircuit)
       (by omega))).2 then 2 else 0) +
       (if (A (Wire.ofNat (f.1.B (g.cast (size_toCircuit f)) - 1) (by omega))).2 then 1 else 0) =
         (⟨_, hi⟩ : Fin (2 ^ (toCircuit f).topology.arity g)).val from rfl,
-    listRow_flatten_ofFn _ fun _ => length_labelBits _]
+    BitString.listRow_flatten_ofFn _ fun _ => length_labelBits _]
   simp only
   rw [← hindex, hrowOf, ← ofFn_ofList_tweak k g _ 0, ← ofFn_ofList_tweak k g _ 1,
     labelWord_ofFn, labelWord_ofFn, ← labelBits_add, ← labelBits_add, hindex, hgateA,
@@ -643,7 +640,8 @@ theorem evalWord_encodeFn (k : ℕ) (f : ValidCircuit)
       Wire.toNat_injective (by simp)
     simp only [BitString.listRows, List.getElem_map, List.getElem_range, List.getElem_take,
       List.getElem_ofFn, hin, ← hA (.input ⟨i, h₁⟩), Garbling.evalStep]
-    exact listRow_flatten_ofFn (fun i => labelBits (X i)) (fun _ => length_labelBits _) ⟨i, h₁⟩
+    exact BitString.listRow_flatten_ofFn (fun i => labelBits (X i)) (fun _ => length_labelBits _)
+      ⟨i, h₁⟩
   have hfold : ∀ g ≤ (toCircuit f).size,
       (List.range g).foldl (evalGate family k (wireWidth f.1.n (toCircuit f).size)
           (encodeBody k (toCircuit f).topology table))
@@ -678,7 +676,7 @@ theorem evalWord_encodeFn (k : ℕ) (f : ValidCircuit)
 open ConventionalCircuit in
 /-- **Correctness**: decoding the evaluation of an encoded input gives the circuit's output, for
 every family. -/
-theorem scheme_correct : (scheme family).Correct := by
+private theorem scheme_correct : (scheme family).Correct := by
   intro k _ f x hx g hg
   obtain ⟨coins, -, rfl⟩ := (scheme family).mem_support_eval_garble_iff.mp hg
   have hev := evaluate_eq_of_evalStep (toCircuit f).isOrdered_topology
@@ -736,7 +734,7 @@ theorem length_encInfoWord (k : ℕ) (f : ConventionalCircuit) (coins : List Boo
   length_flatten_ofFn _ fun _ => length_labelOf _ _ _ _ _
 
 /-- The length condition: the lengths of `F`, `e` and `d` depend only on `k` and the shape. -/
-theorem scheme_lengthCondition : (scheme family).LengthCondition := by
+private theorem scheme_lengthCondition : (scheme family).LengthCondition := by
   rintro k - f f' ⟨hn, hm, hq⟩ g hg g' hg'
   obtain ⟨coins, -, rfl⟩ := (scheme family).mem_support_eval_garble_iff.mp hg
   obtain ⟨coins', -, rfl⟩ := (scheme family).mem_support_eval_garble_iff.mp hg'
@@ -748,7 +746,7 @@ theorem scheme_lengthCondition : (scheme family).LengthCondition := by
 
 /-- Non-degeneracy: the encoding and decoding information depend only on the coins and the
 shape. -/
-theorem scheme_nonDegenerate : (scheme family).NonDegenerate := by
+private theorem scheme_nonDegenerate : (scheme family).NonDegenerate := by
   rintro k - ⟨⟨n, m, q, A, B, G⟩, hf⟩ ⟨⟨n', m', q', A', B', G'⟩, hf'⟩ ⟨hn, hm, hq⟩ coins -
   simp only [scheme] at hn hm hq ⊢
   subst hn hm hq
