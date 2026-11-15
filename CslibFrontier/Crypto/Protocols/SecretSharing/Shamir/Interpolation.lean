@@ -13,8 +13,9 @@ import CslibFrontier.Foundations.Data.Polynomial.LagrangeEval
 /-!
 # Shamir shares as fixed linear combinations of other shares
 
-Two properties of Shamir sharing that threshold schemes use ([BonehShoup2023], Section 22.5.2,
-p. 977), which the book derives on p. 978 from Lemma 22.1 (p. 928):
+Two of the three properties of Shamir sharing that the book's threshold schemes use
+([BonehShoup2023], Section 22.5.2, p. 977). The book derives both on p. 978 from Lemma 22.1
+(p. 928); the third, independence of the shares, is not in this file:
 
 * **Linearity of the shares.** For a set `L` of `threshold` parties (the book's `t - 1`) and any
   party `i`, the share of `i` is a fixed linear combination of the secret and the shares of the
@@ -87,8 +88,9 @@ theorem Polynomial.lagrangeWeightAtZero_eq_eval_basis {F ι : Type*} [Field F] [
 variable {F Party : Type*} [Field F] [Fintype Party]
 
 /-- The evaluation points with `0` added: `none ↦ 0`, where the sharing polynomial takes the
-secret, and `some i ↦ params.point i`. These are the book's nodes `L ∪ {0}` ([BonehShoup2023],
-p. 978), indexed so that the secret has its own index. -/
+secret, and `some i ↦ params.point i`. These are the nodes `L ∪ {0}` implicit in the book's
+derivation of linearity of the shares from Lemma 22.1 with `j* = i` ([BonehShoup2023], p. 978),
+indexed so that the secret has its own index. -/
 def Params.pointOrZero (params : Params F Party) : Option Party → F :=
   fun o => o.elim 0 params.point
 

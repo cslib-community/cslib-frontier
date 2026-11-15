@@ -980,8 +980,9 @@ Model boundaries: `AccessScheme` expresses information-theoretic correctness (de
 
 ### Shamir shares as fixed linear combinations
 
-Boneh–Shoup Section 22.5.2 ([bs23][bs23], pp. 977–978) lists two properties of Shamir sharing
-that its threshold schemes use, and derives both from Lemma 22.1. Import
+Boneh–Shoup Section 22.5.2 ([bs23][bs23], pp. 977–978) lists three properties of Shamir sharing
+that its threshold schemes use, and derives two of them, linearity of the secret and linearity of
+the shares, from Lemma 22.1. Import
 [`Shamir/Interpolation.lean`](../../CslibFrontier/Crypto/Protocols/SecretSharing/Shamir/Interpolation.lean)
 for them. Each statement takes Shamir parameters `params : Params F Party` over a field `F` with
 `[Fintype Party]`, randomness `r` and a secret `a`; the forms acting on a module `M` take
