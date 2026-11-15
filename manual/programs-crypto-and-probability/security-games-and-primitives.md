@@ -320,6 +320,35 @@ efficient identity test, and shows that constant composite, Blum, and RSA moduli
 scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.DiffieHellman CslibFrontierTests.Crypto.MultiDDH CslibFrontierTests.Crypto.AssumptionNonvacuity
 ```
 
+In a group of even order, the parity test of [bs23][bs23], Section 16.1.3, distinguishes
+Diffie–Hellman triples from random ones. Import
+[`DiffieHellman/EvenOrder.lean`](../../CslibFrontier/Crypto/Computational/DiffieHellman/EvenOrder.lean).
+For `G` a `ZMod q`-module with `q` nonzero and even (`[NeZero q]`, `Even q`) and `c ↦ c • g`
+injective, `div_two_nsmul_smul_eq_zero_iff` (Lemma 16.1) and `even_val_mul_iff` (Lemma 16.2) read
+the parity of `a.val` and `(a * b).val` from `(q / 2) • _`, and, with `[DecidableEq G]`,
+`ddhAdvantage_ddhParityDistinguisher` proves that the parity test `ddhParityDistinguisher q` has
+fixed-group advantage exactly `1 / 2`. `ddhAdvantage_units_ddhParityDistinguisher` instantiates
+this for `(ZMod p)ˣ` with `p` an odd prime (`[Fact p.Prime]`, `p ≠ 2`) and any generator `g`
+(`hg : ∀ x, x ∈ Subgroup.zpowers g`), under the local instances `zmodUnitsModule p` and
+`neZero_sub_one_of_prime p`. The fixed-group advantage does not bound the distinguisher.
+Efficiency is stated over group families whose order need not be prime:
+[`DiscreteLog/CyclicGroupFamily.lean`](../../CslibFrontier/Crypto/Computational/DiscreteLog/CyclicGroupFamily.lean)
+defines `CyclicGroupFamily` (a `PrimeOrderGroupFamily` with `order_ne_zero` and
+`smul_generator_injective` in place of `prime_order` and `generator_ne_zero`) and
+`PrimeOrderGroupFamily.toCyclicGroupFamily`, and
+[`DiffieHellman/CyclicGroupFamily.lean`](../../CslibFrontier/Crypto/Computational/DiffieHellman/CyclicGroupFamily.lean)
+states its DDH assumption `CyclicGroupFamily.DDH`, which on a prime-order family is
+`PrimeOrderGroupFamily.DDH` (`ddh_toCyclicGroupFamily_iff`). There the certificate
+`CyclicGroupFamily.isPPT_ddhParityDistinguisher` shows that the parity test is computed by one
+uniform strict PPT machine on `encDDHInput`, so Exercise 10.24's distinguisher is efficient, and
+`CyclicGroupFamily.not_ddh_of_even_order` proves that DDH does not hold when every group the setup
+law can produce has even order. No family of the groups `(ZMod p)ˣ` is constructed, so the book's
+conclusion that DDH does not hold in `Z_p^*` is proved only in the fixed-group form. The
+[even-order client](../../CslibFrontierTests/Crypto/DiffieHellmanEvenOrder.lean) checks `ZMod 6`,
+`(ZMod 7)ˣ` and the odd-order failure of Lemma 16.1 in `ZMod 5`, applies
+`not_ddh_of_even_order` to the residue groups `ZMod (2 (n + 1))`, and derives that a prime-order
+family fails `PrimeOrderGroupFamily.DDH` for any setup law that only produces groups of order `2`.
+
 Inversion and prediction are each stated once, for a fixed function and input distribution, in
 [`Crypto/Game/Inversion.lean`](../../CslibFrontier/Crypto/Game/Inversion.lean):
 `inversionExperiment sample f A` draws `x`, gives `A` the image `f x` and accepts any preimage,
@@ -559,6 +588,8 @@ The shared byte and SHA-2 boundary used by the FIPS 205 SHA2 parameter sets is i
 `FixedBytes n` records digest lengths in the type, while Mathlib's `Fin.take` and `Fin.append`
 provide typed truncation and concatenation. `sha256` and `sha512` are total executable functions;
 `ValidSHA256Input` and `ValidSHA512Input` record FIPS 180-4's prescribed input-length domains.
+Equal-length byte lists and their `bytesToBitsBE` serializations have the same lexicographic order
+(`bytesToBitsBE_lt_iff_lt`).
 The implementation follows the standard's byte-aligned padding, message schedule, compression and
 digest conversion, but no independent functional-correctness theorem is claimed. The
 [ordinary-import client](../../CslibFrontierTests/Crypto/SHA2.lean) checks NIST's official
@@ -593,8 +624,25 @@ strict comparison to a sample from the shared fixed 64-fair-bit sampler, and
 `Falcon.eval_berExpThresholdCoin_true` proves acceptance mass exactly `z / 2^64`.
 The [ordinary-import client](../../CslibFrontierTests/Crypto/FalconBerExp.lean) checks the strict
 comparison and the thresholds zero, one, one half and `2^64 - 1`. This denotational interface does
-not model the reference implementation's lazy one-to-eight-byte trace, bound `ApproxExp`'s
-floating-point error, or certify a native runtime, circuit, query or static-program size.
+not itself model the reference implementation's byte-consumption trace.
+
+[`Falcon/BerExpLazy.lean`](../../CslibFrontier/Crypto/Computational/Falcon/BerExpLazy.lean)
+formalizes Algorithm 14, lines 5--10, as the actual sequential lazy comparison. It uses the shared
+`Byte` type and `natToFixedBytesBE` for `z`, draws eight fair bits for each visited byte, stops at
+the first mismatch, and returns the decision, number of bytes read and source ledger. The ledger
+charges one byte draw, source subtraction and loop equality test per consumed byte, exactly
+`8 * bytesRead` fair bits, and no external oracle or handler. Its comparison coordinate excludes
+the one final sign extraction and loop-index tests. The deterministic trace compares byte lists
+lexicographically; `Falcon.berExpLazyTrace64_accepted` connects that comparison to the
+same strict 64-bit threshold predicate, and `Falcon.eval_berExpLazyCoin_accepted` proves equality
+of the complete decision distributions. The trace consumes between one and eight bytes, consumes
+all eight and rejects when every byte agrees, and reads past the first byte with exact probability
+`2^-8`. The [ordinary-import client](../../CslibFrontierTests/Crypto/FalconBerExpLazy.lean) checks
+first- and later-mismatch decisions, the eight-byte boundary, all-equal rejection, the 64-bit
+bridge, exact laws and resource fields. These source operations are not Lean or native steps.
+This layer does not model PRNG-buffer refills, bound `ApproxExp`'s floating-point error, construct
+`BaseSampler` or `SamplerZ`, prove a Gaussian or retry law, or certify native runtime, circuit,
+query or static-program size.
 
 The Falcon frontend deliberately retains a finite XOF-prefix boundary: the concrete SHAKE function
 can supply any requested finite prefix, but the frontend does not choose a universally sufficient
@@ -1041,6 +1089,43 @@ public construction and security endpoints.
 For two-party key exchange secure against passive eavesdroppers ([katzlindell20][katzlindell20], §11.3, Definition 11.1, Construction 11.2, Theorem 11.3, pp. 390–395, and Exercises 11.3–11.4, pp. 399–400), import [`KeyExchange.lean`](../../CslibFrontier/Crypto/Computational/KeyExchange.lean) and [`Encryption/PublicKeyCPA.lean`](../../CslibFrontier/Crypto/Computational/Encryption/PublicKeyCPA.lean) (checked in [`CslibFrontierTests/Crypto/KeyExchange.lean`](../../CslibFrontierTests/Crypto/KeyExchange.lean)). `KeyExchange T K` models a protocol by its honest-execution law `execute : ℕ → PMF (Outcome T K)`, with keys in a set `K transcript` named by the transcript (`KeyExchange.Correct`; honest-party efficiency is not bundled). An `Eavesdropper T K` is typed: it receives the security parameter and a `View T K` (a transcript and a candidate key), and its efficiency is `Eavesdropper.IsPPT encT encK`, read through the `enc_structure` encoding `encView`. `realGame` and `idealGame` draw the view `realView` (transcript and Alice's key) or `idealView` (transcript and a fresh ideal key) and run the eavesdropper on it (`EavSecure`, `EavSecureBits`); `withSetup_realView_bind` and `withSetup_idealView_bind` split off a setup draw. Over any `PrimeOrderGroupFamily`, the transcript is the record `DHTranscript` and the key a group element (`DHKey`, `encDHKey`). At a fixed group, `dhExecution` is correct (`dhKeyExchange_correct`) and its real and ideal experiments are the DDH experiments of the typed distinguisher `dhEavToDDH` (`withSetup_realView_dhExecution`, `withSetup_idealView_dhExecution`); `dhKeyExchange setup` draws the group first, which gives `realGame_dhKeyExchange`, `idealGame_dhKeyExchange` and `EavSecure` against the uniform group-element ideal key `dhIdealKey` under `DDH` (`DDH.dhKeyExchange_eavSecure`). The test derives the word-level statement for eavesdroppers on the encoded transcript and key. At a fixed group, the active man-in-the-middle execution `dhMitmExecution` shares keys with both parties while each party's view has the law of `realView` of an honest execution (`dhMitmExecution_keys`, `map_aliceView_dhMitmExecution`, `map_bobView_dhMitmExecution`), and the 3-message XOR protocol `xorKeyExchange`, whose transcript is the record `XorTranscript`, is correct yet broken with advantage at least `1 / 2` by `xorEavesdropper` (`isPPT_xorEavesdropper`, `not_eavSecureBits_xorKeyExchange`). In `Encryption/PublicKeyCPA.lean`, `cpaOracleGameOn`, `WordINDCPAOracleOn`, and `WordINDCPAOracle` equip both stages of a `WordCPAAdversary` with an explicit public-key encryption oracle `encryptionOracle`, and `INDCPAOn.wordINDCPAOracleOn` and `WordINDCPA.wordINDCPAOracle` prove that single-challenge eavesdropping security implies oracle-CPA security whenever `encrypt` is uniform strict PPT ([katzlindell20][katzlindell20], §12.2.1, Proposition 12.3, p. 406; the multi-message left-or-right Theorem 12.6 is not formalized).
 
 For the RSA least-significant-bit experiment and algebraic attacks on plain RSA, import [`RSALeastSignificantBit.lean`](../../CslibFrontier/Crypto/Computational/RSALeastSignificantBit.lean) and [`RSAAttacks.lean`](../../CslibFrontier/Crypto/Computational/RSAAttacks.lean) ([katzlindell20][katzlindell20], §9.2.5, pp. 334–336, §12.5.1, pp. 436–440, and §12.5.3, pp. 443–445; checked instances are in [`CslibFrontierTests/Crypto/RSALeastSignificantBit.lean`](../../CslibFrontierTests/Crypto/RSALeastSignificantBit.lean) and [`CslibFrontierTests/Crypto/RSAAttacks.lean`](../../CslibFrontierTests/Crypto/RSAAttacks.lean)). `rsaLSBGame` samples `desc ← gen n` and a uniform residue `x ← Fin desc.modulus` (matching `rsaInversionGame` rather than `(ZMod N)ˣ`) and asks an `RSAPredictor` (with `RSAPredictor.IsPPT`, reading `encRSAInput` and writing a bit) for `x.testBit 0` given `pk.eval x`. The library does not state the hard-core property of this bit as an assumption, since the literature proves it from the RSA assumption ([#5578](https://github.com/cslib-community/cslib-frontier/issues/5578)). For odd `N`, `two_pow_mul_mod_mod_two` equates the parity of `2 ^ k * x % N` (`k ≠ 0`) with that of `⌊2 ^ k * x / N⌋`, `lsbRecover_lsbQueries` recovers `x` from the parities of the preimages of the `m` doubling queries `2 ^ (k * e) * y % N` once `N ≤ 2 ^ m`, and `lsbInverter` wins `rsaInversionGame` with probability `1` given a predictor that is always correct on the modulus (`eval_lsbInverter`, `succProbability_rsaInversionGame_lsbInverter`). `computableInPolyTime_lsbQueries`, `computableInPolyTime_lsbRecover`, and `isPPT_lsbInverter` certify uniform strict-PPT efficiency for `lsbInverter` whenever the predictor is PPT, yielding `RSAOneWay.not_frequently_alwaysCorrect_lsbPredictor` on eventually odd moduli; the noisy reconstruction of Theorem 12.31 for predictors with small noticeable bias, and with it the hard-core theorem, remains open. `RSAAttacks.lean` proves plain-RSA multiplicative malleability (`rsaEval_mul`, `rsaInvert_rsaEval_mul`), common-modulus recovery of units under coprime exponents via `zmodIntPow` (`commonModulusAttack_rsaEval`), unreduced short-message and pairwise-coprime CRT broadcast `e`-th root recovery (`rsaEval_eq_pow_of_pow_lt`, `eq_of_pow_eq_rsaEval`, `chineseRemainderOfList_rsaEval_eq_pow`, `eq_of_pow_eq_chineseRemainderOfList_rsaEval`), factoring `N` from `(N, φ(N))` (`factorOfTotient_eq`, `RSADesc.factorOfTotient_eq`, `computableInPolyTime_factorOfTotient`), the polynomial-time equivalence `totientHard_iff_modulusFactoringHard` (`TotientHard.modulusFactoringHard`, `ModulusFactoringHard.totientHard`, after Theorem 9.49) between `TotientHard` (`totientGame`) and `ModulusFactoringHard` via `factorToTotient` and `totientToFactor`, the certified PPT hierarchy `RSAOneWay` $\Rightarrow$ `RSAKeyRecoveryHard` (`rsaKeyRecoveryGame`) $\Rightarrow$ `TotientHard` $\Leftrightarrow$ `ModulusFactoringHard` (`RSAOneWay.rsaKeyRecoveryHard`, `RSAOneWay.totientHard`, `RSAOneWay.modulusFactoringHard`, `RSAKeyRecoveryHard.totientHard`, `RSAKeyRecoveryHard.modulusFactoringHard`) via `totientToKeyRecovery`, `keyRecoveryToRSA`, and `factorToRSA` (using the polynomial-time binary modular inverse `BinaryGcd.modInv`, `BinaryGcd.modInv_eq_zmod_inv_val`, and `ComputableInPolyTime.binary_modInv` in [`PolyTime/Nat/Gcd.lean`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/PolyTime/Nat/Gcd.lean)), the general nontrivial-square-root factoring lemmas `gcd_sub_one_proper_of_sq_modEq_one` and `gcd_add_one_proper_of_sq_modEq_one` for any `N` and `y`, and the deterministic steps `RSADesc.pow_mul_sub_one_modEq_one`, `RSADesc.gcd_sub_one_proper`, and `RSADesc.gcd_add_one_proper` of Corollary 9.51; the reverse randomized reduction from factoring to `RSAKeyRecoveryHard` (Theorem 9.50 / Corollary 9.51) is not yet formalized.
+
+For Shamir's trick ([bs23][bs23], §10.6.2, Theorem 10.6, p. 416), import
+[`RSACommonRoot.lean`](../../CslibFrontier/Crypto/Computational/RSACommonRoot.lean); the group
+identity behind it is in
+[`Foundations/Algebra/Group/ZPowCoprime.lean`](../../CslibFrontier/Foundations/Algebra/Group/ZPowCoprime.lean).
+In any group, if `a` and `b` commute, `a ^ m = b ^ n` and `m * s + n * t = 1` for integers, then
+`b ^ s * a ^ t` is an `m`-th root of `b` and an `n`-th root of `a`
+(`Commute.zpow_mul_zpow_zpow_eq_right`, `Commute.zpow_mul_zpow_zpow_eq_left`). By
+`eq_zpow_mul_zpow_of_zpow_eq`, still with `m * s + n * t = 1`, any `c` with `c ^ m = b` and
+`c ^ n = a` equals `b ^ s * a ^ t`, even when `a` and `b` do not commute. For commuting `a` and
+`b` and `IsCoprime m n`, `a ^ m = b ^ n` holds exactly when `a = c ^ n` and `b = c ^ m` for some `c`
+(`Commute.zpow_eq_zpow_iff_of_isCoprime`; `zpow_eq_zpow_iff_of_isCoprime` is the form for
+commutative groups). No group order is assumed. `commonRoot n e f w y` is the book's algorithm on
+natural numbers: it returns `y ^ s * (w⁻¹) ^ t mod n` with `s = BinaryGcd.modInv e f`,
+`t = (e * s - 1) / f` and `w⁻¹ = BinaryGcd.modInv w n`, and it returns `y mod n` for `f = 0` and
+`w mod n` for `f = 1`. For `0 < n`, `Nat.Coprime e f`, `Nat.Coprime w n` and
+`w ^ e ≡ y ^ f [MOD n]`, its output `x` satisfies `x ^ e ≡ y [MOD n]`
+(`commonRoot_pow_modEq_right`) and `x ^ f ≡ w [MOD n]` (`commonRoot_pow_modEq_left`); under these
+hypotheses together with `Nat.Coprime y n`, `x` is coprime to `n`, the book's `x ∈ ℤₙ*`
+(`commonRoot_coprime`, which uses `Nat.Coprime y n` only when `f = 0`); for `0 < n` it is below
+`n` (`commonRoot_lt`). `computableInPolyTime_commonRoot` shows that it is computable in polynomial
+time whenever `n`, `e`, `f`, `w` and `y` are, as natural numbers on `encNat`, with no condition on
+their values. The statement differs from the book's in three ways. The exponents are natural
+numbers, whereas the book allows negative ones and applies the theorem with `f = b' - b`
+([bs23][bs23], proof of Theorem 10.7, p. 417). The book states only `x ^ e ≡ y`; the second
+congruence is the one §10.9 uses to recover each proof from an aggregate ([bs23][bs23], §10.9,
+p. 422). The book takes units `w` and `y` modulo `n`, whereas here `w` and `y` are natural numbers,
+not necessarily below `n`, and the two congruences assume only `Nat.Coprime w n`: for `f ≠ 0` it
+makes `y` coprime to `n`, and for `f = 0` they do not need it. Theorems 10.5 and 10.7 and the
+accumulator of §10.9 are not formalized. `commonModulusAttack` in `RSAAttacks.lean` is the same
+algorithm, computed with `Nat.gcdA` and `Nat.gcdB` in `ZMod N` and without a polynomial-time
+certificate; its correctness proof `commonModulusAttack_rsaEval` uses
+`eq_zpow_mul_zpow_of_zpow_eq`. The checked examples for the
+[identity](../../CslibFrontierTests/Foundations/Algebra/ZPowCoprime.lean) and the
+[algorithm](../../CslibFrontierTests/Crypto/RSACommonRoot.lean) include the book's warm-up
+`e = 3`, `f = 2`, the case `f = 1`, and instances showing that coprime exponents, a unit `w` and
+commutativity are needed.
 
 For weak RSA moduli ([bs23][bs23], §16.4.2, pp. 698–699), import
 [`Factoring/WeakModuli.lean`](../../CslibFrontier/Crypto/Computational/Factoring/WeakModuli.lean).
@@ -1826,8 +1911,16 @@ four `ModuleLWE.advantage` terms: the public-key hop `mlweKeyReduction A b` and 
 `mlweReduction A b` for each challenge bit `b`, with centered-binomial secret and error laws. Both
 reductions are explicit programs that run the adversary's first stage themselves, as in the hops of
 Kyber v3.02 ([kyber302][kyber302], §4.4, eq. (6)), with a uniform matrix instead of `XOF` and a
-ciphertext hop on the uncompressed sample. The bound is concrete and charges no running time; `DecisionModuleLWE`
-fixes a uniform secret, so it does not bound these terms. `MLKEMTransform.decapsWith` is the FIPS 203 implicit-rejection wrapper over any
+ciphertext hop on the uncompressed sample. The bound is concrete and charges no running time.
+[`MLKEM/Native.lean`](../../CslibFrontier/Crypto/Computational/SIS/MLKEM/Native.lean) gives K-PKE
+on residue lists, with `SamplePolyCBD` from fair bits (`uniformList_map_cbdResidues`) and native
+encryption and decryption proved to compute `encrypt` and `decrypt`, and
+[`MLKEM/Family.lean`](../../CslibFrontier/Crypto/Computational/SIS/MLKEM/Family.lean) packages them
+as the word-level family `kpke P : WordPKE` for a parameter family `P`, efficient when `P` is
+computable in polynomial time (`kpke_isEfficient`) and with ciphertexts that fit
+(`kpke_ciphertextFits`). Its key generation draws the matrix coefficientwise at precision `κ`,
+within `k * k * n / 2 ^ κ` of uniform (`closeTo_keyGenWord`).
+`MLKEMTransform.decapsWith` is the FIPS 203 implicit-rejection wrapper over any
 `ExplicitCoinPKE`, defined through `FujisakiOkamoto.decT` and proved equal to the standard's
 decapsulation algorithm (`decapsWith_eq`). [`CslibFrontierTests/Crypto/MLKEM.lean`](../../CslibFrontierTests/Crypto/MLKEM.lean)
 checks the three parameter sets, sharpness of the compression and decoding bounds at `q = 3329`,
@@ -2187,6 +2280,38 @@ probability at most `(1 / 2) ^ n`. Composed with `OneWay.exists_eufCMA` and
 one-bit-per-block instance `merkleDamgard`, not the length-strengthened one),
 `CompressionFamily.exists_oneWay` and `CompressionFamily.exists_wordEUFCMA` give the same
 conclusions for `2 n → n` compression families. No converse is claimed.
+
+Merkle–Damgård chains have many messages with one digest at little more than the cost of one
+collision (Joux's attack, [bs23][bs23], §8.4.1, pp. 298–299). Import
+[`MerkleDamgard/Multicollision.lean`](../../CslibFrontier/Crypto/Computational/MerkleDamgard/Multicollision.lean).
+Its finders reach the compression function only as an oracle. Their certificates
+(`ProbOracleComp.IsQueryBounded`) bound the number of compression calls on every path, the cost
+measure of §8.3; they are not running times, since sampling and the search for a colliding pair
+are not counted, and they are worst-case counts, not expected costs. Let `h k` map `n + ℓ`-bit
+inputs to `n`-bit outputs (`hlen`), let `iv` have `n` bits (`hiv`), let `n + 7 ≤ ℓ`, and let
+`s = ⌈2 √(2 ^ n)⌉₊ + 1`. Then `merkleDamgardJouxFinder ℓ s (3 * b) b iv` makes at most
+`3 * b * s` calls (`isQueryBounded_merkleDamgardJouxFinder`), and with probability at least `1/2`
+it returns `b` pairs of blocks such that, for every common list of blocks `tail`, their `2 ^ b`
+selections, each followed by `tail`, have one `merkleDamgardChain` value from `iv`
+(`merkleDamgardJouxFinder_success_half`; `mem_multicollisionOutputs` unfolds the event);
+`merkleDamgardJouxFinder_success` gives the bound for any `s` and budget. For the library's
+one-bit-per-block `merkleDamgard`, let `h k` map `2 * k.length`-bit inputs to `k.length`-bit
+outputs, let groups have `g` bits with `k.length + 7 ≤ g`, and let `s = ⌈2 √(2 ^ k.length)⌉₊ + 1`.
+Then `merkleDamgardBitJouxFinder k.length g s (3 * b) b` makes at most `1 + 3 * b * (s * g)` calls
+and with probability at least `1/2` returns `b` pairs of groups whose `2 ^ b` selections are a
+`2 ^ b`-collision of `merkleDamgard h k` (`merkleDamgardBitJouxFinder_success_half`;
+`mem_bitMulticollisionOutputs` unfolds the event). One call per message bit puts a factor `g` in this
+count that the book's count does not have. Each attempt runs the birthday finder of
+[`CollisionResistant/Birthday.lean`](../../CslibFrontier/Crypto/Computational/CollisionResistant/Birthday.lean).
+Let `M` be a finite nonempty type, let `M` and `T` have decidable equality, let `O` be a
+deterministic oracle, let every value of `f : M → T` lie in a finite set `D` (`hf`), let `digest m`
+return `f m` when run against `O` (`hdigest`), and let `100 * D.card ≤ Fintype.card M`. Then
+`⌈2 √|D|⌉₊ + 1` uniform messages give two different messages with one value of `f` with
+probability at least `1/2` (`birthdayFinder_success_book`; [bs23][bs23], §8.3, Lemma 8.2,
+p. 294). The collision for `H₁ ‖ H₂` at the end of §8.4.1 is not stated. The checks in
+[`CslibFrontierTests/Crypto/MerkleDamgardMulticollision.lean`](../../CslibFrontierTests/Crypto/MerkleDamgardMulticollision.lean)
+show that 45 calls give an 8-collision with probability at least `3/4` for every compression
+function with one-bit chaining values and eight-bit blocks.
 
 ## Commitments and ideal distributions
 

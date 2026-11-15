@@ -22,6 +22,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Tactic.PolyTime
+import CslibFrontier.Foundations.Data.List.Lookup
 
 /-!
 # The simulator of point-and-permute garbling
@@ -326,10 +327,8 @@ theorem eval_simWord (k : ℕ) (f : ValidCircuit) (y : List Bool) :
   change ProbComp.eval (do
       let coins ← BitString.sampleList (simCoinLen k f.1.n f.1.q)
       return simViewWord family k y f.1.topo coins) = _
-  have hmap : ∀ {α β : Type} (p : PMF α) (g : α → β), p.bind (fun a => PMF.pure (g a)) = p.map g :=
-    fun p g => PMF.bind_pure_comp g p
-  simp only [simulate, ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform,
-    BitString.eval_sampleList, hcoins, hmap]
+  simp only [simulate, bind_pure_comp, ProbComp.eval_map, ProbComp.eval_bind,
+    ProbComp.eval_uniform, BitString.eval_sampleList, hcoins]
   rw [hview, ← PMF.map_comp, hsim, ← Cslib.Probability.PMF.uniformOfFintype_prod]
   simp only [PMF.map_bind, PMF.map_comp, Function.comp_def]
 
@@ -390,52 +389,23 @@ private def simRowData (k n q : ℕ) (coins : List Bool) (a b g i : ℕ) : List 
         (labelWord family k (lb.take (k + 1)) (tweak k g i 1)))
   else simLabel k coins (n + q + 4 * g + i)
 
-/-- The four rows of gate `g` of the simulated table. -/
-private def simRowsBlock (k n q : ℕ) (coins : List Bool) (a b g : ℕ) : List Bool :=
-  simRowData (family := family) k n q coins a b g 0 ++
-    (simRowData (family := family) k n q coins a b g 1 ++
-      (simRowData (family := family) k n q coins a b g 2 ++
-        simRowData (family := family) k n q coins a b g 3))
-
-/-- The body of the simulated garbled function from the gate list, with the wire numbers capped at
-the length of the coins. -/
-private def simBodyData (k n q : ℕ) (gates : List (ℕ × ℕ)) (coins : List Bool) : List Bool :=
-  ((List.range q).map fun g =>
-    BitString.lowBits (wireWidth n q) (gates.getD g (0, 0)).1 ++
-      BitString.lowBits (wireWidth n q) (gates.getD g (0, 0)).2 ++
-      simRowsBlock (family := family) k n q coins
-        (min (coins.length + 1) (gates.getD g (0, 0)).1 - 1)
-        (min (coins.length + 1) (gates.getD g (0, 0)).2 - 1) g).flatten
-
-private theorem ofFn_eq_map_range' {α : Type*} {c : ℕ} (h : ℕ → α) :
-    List.ofFn (fun i : Fin c => h i) = (List.range c).map h := by
-  apply List.ext_getElem (by simp)
-  intro i h₁ h₂
-  simp
-
-/-- The simulated view from the data of the topology. -/
+/-- The simulated view from the data of the topology: the body is `bodyWith` of the gate list,
+with the rows `simRowData` on argument wires capped at the length of the coins. -/
 private theorem simViewWord_eq_data (k : ℕ) (y : List Bool) (t : Topo) (coins : List Bool) :
     simViewWord family k y t coins =
-      ⟨encFn ((k, t.n, t.m, t.gateList.length),
-          simBodyData (family := family) k t.n t.gateList.length t.gateList coins),
+      ⟨encFn ((k, t.n, t.m, t.gateList.length), bodyWith t.n t.gateList.length (coins.length + 1)
+          (fun g => (t.gateList.getD g (0, 0)).1) (fun g => (t.gateList.getD g (0, 0)).2)
+          (fun g a b i => simRowData (family := family) k t.n t.gateList.length coins a b g i)),
         ((List.range t.n).map (simLabel k coins)).flatten,
         (List.range t.m).map fun o =>
           permOf (simLabel k coins (t.n + t.gateList.length - t.m + o)) (k + 1) ^^ permOf y o⟩ := by
+  have hgate (g : Fin t.q) : t.gateList.getD g (0, 0) = (t.A g, t.B g) := by
+    simp [Topo.gateList, List.getD_eq_getElem?_getD]
   have hcap (V : ℕ) : min (coins.length + 1) V - 1 = min coins.length (V - 1) := by omega
-  simp only [simViewWord, Topo.length_gateList, PrvView.mk.injEq]
-  refine ⟨?_, congrArg List.flatten (ofFn_eq_map_range' (fun i => simLabel k coins i)),
-    ofFn_eq_map_range' (fun o => permOf (simLabel k coins (t.n + t.q - t.m + o)) (k + 1) ^^
-      permOf y o)⟩
-  congr 3
-  apply List.ext_getElem (by simp)
-  intro g h₁ h₂
-  have hg : g < t.q := by simpa using h₁
-  have hgate : t.gateList.getD g (0, 0) = (t.A ⟨g, hg⟩, t.B ⟨g, hg⟩) := by
-    simp [Topo.gateList, List.getD_eq_getElem?_getD, hg]
-  simp only [List.getElem_ofFn, List.getElem_map, List.getElem_range, hgate]
-  congr 1
-  simp only [List.ofFn_succ, List.ofFn_zero, List.flatten_cons, List.flatten_nil, List.append_nil,
-    simRowsBlock, simRow, simRowData, hcap, simLabel_min, Fin.val_zero, Fin.val_succ]
+  simp only [simViewWord, Topo.length_gateList, List.map_range_eq_ofFn]
+  rw [bodyWith_eq_ofFn t.A t.B (simRow family k t coins) (fun g => by rw [hgate])
+    (fun g => by rw [hgate]) (fun g i => by simp only [simRow, simRowData, hcap, simLabel_min])]
+  rfl
 
 variable (hf : ComputableInPolyTime (fun p : List Bool × List Bool => family p.1 p.2)
   (encPair encBits encBits) encBits)
@@ -473,68 +443,6 @@ private theorem simRowData_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k n 
   exact h.comp ((hk.prod (hn.prod (hq.prod hcoins))).prod ((ha.prod hb).prod (hg.prod hi)))
 
 attribute [local fun_prop] simRowData_polyTime
-
-include hf in
-private theorem simRowsBlock_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k n q a b g : γ → ℕ}
-    {coins : γ → List Bool} (hk : ComputableInPolyTime k encIn encUnary)
-    (hn : ComputableInPolyTime n encIn encUnary) (hq : ComputableInPolyTime q encIn encUnary)
-    (hcoins : ComputableInPolyTime coins encIn encBits)
-    (ha : ComputableInPolyTime a encIn encUnary) (hb : ComputableInPolyTime b encIn encUnary)
-    (hg : ComputableInPolyTime g encIn encUnary) :
-    ComputableInPolyTime (fun x => simRowsBlock (family := family) (k x) (n x) (q x) (coins x)
-      (a x) (b x) (g x)) encIn encBits := by
-  have hrow (i : ℕ) := simRowData_polyTime hf hk hn hq hcoins ha hb hg
-    (ComputableInPolyTime.const (encIn := encIn) (encOut := encUnary) i)
-  exact .bitsAppend (hrow 0) (.bitsAppend (hrow 1) (.bitsAppend (hrow 2) (hrow 3)))
-
-/-- The input `(k, n, q, gates, coins)` of the simulator's body. -/
-private abbrev encSimBodyInput : (ℕ × ℕ × ℕ × List (ℕ × ℕ) × List Bool) ↪ List Bool :=
-  encPair encUnary (encPair encUnary (encPair encUnary
-    (encPair (encList (encPair encNat encNat)) encBits)))
-
-/-- Gate `g` of the simulator's body, with capped wire numbers. -/
-private def simGateBlock (x : ℕ × ℕ × ℕ × List (ℕ × ℕ) × List Bool) (g : ℕ) : List Bool :=
-  BitString.lowBits (wireWidth x.2.1 x.2.2.1) (x.2.2.2.1.getD g (0, 0)).1 ++
-    BitString.lowBits (wireWidth x.2.1 x.2.2.1) (x.2.2.2.1.getD g (0, 0)).2 ++
-    simRowsBlock (family := family) x.1 x.2.1 x.2.2.1 x.2.2.2.2
-      (min (x.2.2.2.2.length + 1) (x.2.2.2.1.getD g (0, 0)).1 - 1)
-      (min (x.2.2.2.2.length + 1) (x.2.2.2.1.getD g (0, 0)).2 - 1) g
-
-include hf in
-private theorem simGateBlock_polyTime :
-    ComputableInPolyTime (fun p => simGateBlock (family := family) p.1 p.2)
-      (encPair encSimBodyInput encUnary) encBits := by
-  have hgate : ComputableInPolyTime
-      (fun p : (ℕ × ℕ × ℕ × List (ℕ × ℕ) × List Bool) × ℕ => p.1.2.2.2.1.getD p.2 (0, 0))
-      (encPair encSimBodyInput encUnary) (encPair encNat encNat) := by
-    polytime
-  have hA := hgate.fst'
-  have hB := hgate.snd'
-  have hcap (V : (ℕ × ℕ × ℕ × List (ℕ × ℕ) × List Bool) × ℕ → ℕ)
-      (hV : ComputableInPolyTime V (encPair encSimBodyInput encUnary) encNat) :
-      ComputableInPolyTime (fun p => min (p.1.2.2.2.2.length + 1) (V p) - 1)
-        (encPair encSimBodyInput encUnary) encUnary := by
-    polytime
-  unfold simGateBlock
-  refine ComputableInPolyTime.bitsAppend (ComputableInPolyTime.bitsAppend ?_ ?_)
-    (simRowsBlock_polyTime hf (by polytime) (by polytime) (by polytime) (by polytime)
-      (hcap _ hA) (hcap _ hB) (by polytime))
-  · polytime
-  · polytime
-
-include hf in
-private theorem simBodyData_polyTime :
-    ComputableInPolyTime (fun (x : ℕ × ℕ × ℕ × List (ℕ × ℕ) × List Bool) =>
-      simBodyData (family := family) x.1 x.2.1 x.2.2.1 x.2.2.2.1 x.2.2.2.2) encSimBodyInput
-      encBits := by
-  have hblock := simGateBlock_polyTime hf
-  have heq : (fun (x : ℕ × ℕ × ℕ × List (ℕ × ℕ) × List Bool) =>
-      simBodyData (family := family) x.1 x.2.1 x.2.2.1 x.2.2.2.1 x.2.2.2.2) =
-      fun x => ((List.range x.2.2.1).map (simGateBlock (family := family) x)).flatten := by
-    funext x
-    rfl
-  rw [heq]
-  polytime
 
 private theorem simInput_polyTime : ComputableInPolyTime (fun p : ℕ × ℕ × List Bool =>
       ((List.range p.2.1).map (simLabel p.1 p.2.2)).flatten)
@@ -599,7 +507,22 @@ private theorem simViewWord_polyTime :
       p.1.2.2.1.gateList.length) E' encUnary := simGateCount_polyTime.comp hfst
   have hc' : ComputableInPolyTime (fun p : (ℕ × List Bool × ValidTopo) × List Bool => p.2) E'
       encBits := ComputableInPolyTime.snd _ _
-  have hbody := (simBodyData_polyTime hf).comp (hk'.prod (hn'.prod (hq'.prod (hg'.prod hc'))))
+  have hx := ComputableInPolyTime.fst E' (encPair encUnary (encPair encUnary
+    (encPair encUnary encUnary)))
+  have hrest := ComputableInPolyTime.snd E' (encPair encUnary (encPair encUnary
+    (encPair encUnary encUnary)))
+  have hrow := simRowData_polyTime hf (hk'.comp hx) (hn'.comp hx) (hq'.comp hx) (hc'.comp hx)
+    hrest.snd'.fst' hrest.snd'.snd'.fst' hrest.fst' hrest.snd'.snd'.snd'
+  have hgate := ComputableInPolyTime.listGetDWithInput
+    (hg'.comp (ComputableInPolyTime.fst E' encUnary)) (ComputableInPolyTime.snd _ _) (0, 0)
+  have hbody := bodyWith_polyTime
+    (n := fun p : (ℕ × List Bool × ValidTopo) × List Bool => p.1.2.2.1.n)
+    (cap := fun p => p.2.length + 1)
+    (A := fun p g => (p.1.2.2.1.gateList.getD g (0, 0)).1)
+    (B := fun p g => (p.1.2.2.1.gateList.getD g (0, 0)).2)
+    (row := fun p g a b i => simRowData (family := family) p.1.1 p.1.2.2.1.n
+      p.1.2.2.1.gateList.length p.2 a b g i)
+    hn' hq' (by polytime) hgate.fst' hgate.snd' hrow
   have henc : ComputableInPolyTime (fun z : (ℕ × ℕ × ℕ × ℕ) × List Bool => encFn z) encFn
       encBits := .of_eq fun _ => rfl
   have hfn := henc.comp ((hk'.prod (hn'.prod (hm'.prod hq'))).prod hbody)
