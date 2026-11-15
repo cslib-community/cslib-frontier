@@ -59,7 +59,7 @@ complement. -/
 theorem _root_.Cslib.ProbComp.probability_not (program : ProbComp Bool) :
     (ProbComp.eval (Bool.not <$> program) true).toReal =
       1 - (ProbComp.eval program true).toReal := by
-  rw [← PFunctor.FreeM.map_eq_map, ProbComp.eval_map]
+  rw [ProbComp.eval_map]
   simpa [PMF.map_apply] using
     PMF.toReal_false_eq_one_sub (ProbComp.eval program)
 
@@ -99,7 +99,7 @@ theorem isPPTOn_iff_encoded : IsPPTOn input output program ↔
     IsPPTOn input Turing.MultiTapeTM.encBits (fun a => output <$> program a) := by
   have hmap (a : α) : ProbComp.eval (output <$> program a) =
       (ProbComp.eval (program a)).map output := by
-    rw [← PFunctor.FreeM.map_eq_map, ProbComp.eval_map]
+    rw [ProbComp.eval_map]
   simp only [IsPPTOn, hmap, Turing.MultiTapeTM.encBits, Function.Embedding.coe_refl, PMF.map_id]
 
 end Cslib.Probability

@@ -38,6 +38,9 @@ apply directly.
 ## Main results
 
 * `Cslib.ProbOracleComp.isMonadHom_sample`: `sample` is a monad morphism from `ProbComp`.
+* `Cslib.ProbOracleComp.sample_freeMBind`, `.sample_freeMMap`: sampling commutes with
+  heterogeneous sequencing and mapping; `.sample_bind` and `.sample_map` are the ordinary
+  Type-0 forms.
 * `Cslib.ProbOracleComp.interpret_sample`: embedded sampling uses only the sampling handler.
 * `Cslib.ProbOracleComp.run_interpret_sample`: private sampling leaves oracle state unchanged.
 * `Cslib.ProbOracleComp.run_interpret_lift_sample`: a stateful handler with external calls
@@ -104,26 +107,37 @@ variable {State : Type} {m : Type → Type v} [Monad m] [LawfulMonad m]
       OracleComp.interpret random program := by
   rw [sample_eq_liftLeft, OracleComp.interpret_sumHandler_liftLeft]
 
-/-- Sampling preserves functional sequencing before any interpretation. -/
-@[simp] theorem sample_bind (program : ProbComp α) (next : α → ProbComp β) :
+/-- Sampling preserves heterogeneous functional sequencing before any interpretation. -/
+@[simp] theorem sample_freeMBind (program : ProbComp α) (next : α → ProbComp β) :
     sample (spec := spec) (PFunctor.FreeM.bind program next) =
       PFunctor.FreeM.bind (sample program) fun a => sample (next a) :=
   OracleComp.substitute_bind _ _ _
 
+/-- Sampling preserves ordinary Type-0 functional sequencing before any interpretation. -/
+@[simp] theorem sample_bind {α β : Type} (program : ProbComp α) (next : α → ProbComp β) :
+    sample (spec := spec) (program >>= next) =
+      sample program >>= fun a => sample (next a) := by
+  simpa only [PFunctor.FreeM.bind_eq_bind] using sample_freeMBind program next
+
 /-- Sampling a returned value makes no call. -/
 @[simp] theorem sample_pure (a : α) : sample (spec := spec) (pure a) = pure a := rfl
 
-/-- Deterministic postprocessing stays inside the embedded closed program. -/
-@[simp] theorem sample_map (f : α → β) (program : ProbComp α) :
+/-- Heterogeneous deterministic postprocessing stays inside the embedded closed program. -/
+@[simp] theorem sample_freeMMap (f : α → β) (program : ProbComp α) :
     sample (spec := spec) (PFunctor.FreeM.map f program) =
       PFunctor.FreeM.map f (sample program) :=
   OracleComp.substitute_map _ _ _
+
+/-- Ordinary Type-0 deterministic postprocessing stays inside the embedded closed program. -/
+@[simp] theorem sample_map {α β : Type} (f : α → β) (program : ProbComp α) :
+    sample (spec := spec) (f <$> program) = f <$> sample program := by
+  simpa only [PFunctor.FreeM.map_eq_map] using sample_freeMMap f program
 
 /-- Lifting a closed sampler into `ProbOracleComp spec` is a monad morphism on each object
 universe. -/
 theorem isMonadHom_sample : IsMonadHom ProbComp (ProbOracleComp spec) (sample (spec := spec)) :=
   .mk' sample_pure (fun program next => by
-    simpa only [PFunctor.FreeM.bind_eq_bind] using sample_bind (spec := spec) program next)
+    simpa only [PFunctor.FreeM.bind_eq_bind] using sample_freeMBind (spec := spec) program next)
 
 /-- Private sampling is fresh and leaves the complete external oracle state unchanged. -/
 theorem run_interpret_sample {α State : Type}
@@ -197,7 +211,7 @@ theorem eval_run_interpret {α State : Type}
   cases q with
   | inl n =>
     change ProbComp.eval (PFunctor.FreeM.map (fun a => (a, state)) (ProbComp.unifFin n)) = _
-    rw [ProbComp.eval_map, ProbComp.eval_unifFin]
+    rw [ProbComp.eval_freeMMap, ProbComp.eval_unifFin]
     rfl
   | inr q => rfl
 

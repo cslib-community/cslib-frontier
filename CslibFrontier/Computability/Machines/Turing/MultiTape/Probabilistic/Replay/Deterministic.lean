@@ -151,7 +151,6 @@ theorem mem_support_runConfigFrom_pure {σ : Type} (machine : MultiTapePTM k Sym
     | some state =>
       simp only [map_pure] at ih
       simp only [MultiTapeMachine.runConfigFrom, hs, map_pure, pure_bind, bind_map_left,
-        ← PFunctor.FreeM.bind_eq_bind,
         ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample, ProbComp.eval_uniform,
         PMF.bind_map, PMF.mem_support_bind_iff, Function.comp_apply]
       refine ⟨bit, hbit, ?_⟩

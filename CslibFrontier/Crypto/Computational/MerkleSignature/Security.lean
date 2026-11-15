@@ -232,10 +232,10 @@ private theorem eval_run_plantedHandler
             (OracleComp.sumHandler (fun j => StateT.lift (ProbComp.unifOracle j))
               (fun q s => ProbComp.eval (S.oneTimeSigningOracle x.2 q s)))
             (ProbOracleComp.sample p)) state = (ProbComp.eval p).map (·, state) :=
-        fun p state => ProbOracleComp.runWith_sample _ p state
+        fun p state => ProbOracleComp.run_interpret_sample _ p state
       rintro ⟨⟨⟩, w⟩ signed -
       unfold IndexedSignatureScheme.indexedSigningOracle plantedHandler
-      simp only [scheme, StateT.run, ProbOracleComp.runWith, OracleComp.runWith]
+      simp only [scheme, StateT.run, ProbOracleComp.runWith_eq_run_interpret]
       generalize IndexedSignatureScheme.requestDecoder.decode w = r
       obtain ⟨u, m⟩ := r
       dsimp only

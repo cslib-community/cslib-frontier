@@ -426,8 +426,7 @@ theorem eval_run_interpret_memoize_eq_eager [Fintype Key] [Finite Value]
   classical
   rw [interpret_eq_lazy]
   have h := congrArg (PMF.map Prod.fst) (eval_run_interpret_memoize sample program [])
-  simpa only [← PFunctor.FreeM.map_eq_map, ProbComp.eval_map, PMF.map_comp,
-    Function.comp_def, ofList_nil] using h
+  simpa only [ProbComp.eval_map, PMF.map_comp, Function.comp_def, ofList_nil] using h
 
 /-- Lift a stateful computation on a component cache `C` into a composite state `S`. -/
 def zoomStateT {S C α : Type} {m : Type → Type} [Monad m]
@@ -443,8 +442,7 @@ theorem eval_zoomStateT_memoize {S : Type}
     ProbComp.eval (zoomStateT get set (memoize (fun _ => dist) q) s) =
       (memoize (fun _ => ProbComp.eval dist) q (get s)).map
         (fun (v, c') => (v, set s c')) := by
-  simp [zoomStateT, ← PFunctor.FreeM.map_eq_map, ProbComp.eval_map,
-    ProbComp.eval_memoize, PMF.map]
+  simp [zoomStateT, ProbComp.eval_memoize, PMF.map]
 
 end Closed
 

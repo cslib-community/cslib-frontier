@@ -253,8 +253,9 @@ noncomputable def evalWith {α : Type w} (oracle : (q : ι) → PMF (spec q))
 @[simp] theorem evalWith_pure {α : Type w} (oracle : (q : ι) → PMF (spec q)) (a : α) :
     evalWith oracle (pure a : OracleComp spec α) = PMF.pure a := rfl
 
-/-- Evaluating a sequence binds the first output distribution to the continuation semantics. -/
-@[simp] theorem evalWith_bind {α : Type w} {β : Type w'}
+/-- Evaluating a heterogeneous sequence binds the first output distribution to the continuation
+semantics. -/
+@[simp] theorem evalWith_freeMBind {α : Type w} {β : Type w'}
     (oracle : (q : ι) → PMF (spec q)) (program : OracleComp spec α)
     (next : α → OracleComp spec β) :
     evalWith oracle (PFunctor.FreeM.bind program next) =
@@ -267,12 +268,28 @@ noncomputable def evalWith {α : Type w} (oracle : (q : ι) → PMF (spec q))
     simp only [PFunctor.FreeM.bind, evalWith, PFunctor.FreeM.foldFreeM, PMF.bind_bind]
     exact congrArg (PMF.bind (oracle q)) (funext ih)
 
-/-- Postprocessing maps the output distribution. -/
-@[simp] theorem evalWith_map {α : Type w} {β : Type w'} (oracle : (q : ι) → PMF (spec q))
+/-- Evaluating an ordinary same-universe sequence binds the first output distribution to the
+continuation semantics. -/
+@[simp] theorem evalWith_bind {α β : Type v}
+    (oracle : (q : ι) → PMF (spec q)) (program : OracleComp spec α)
+    (next : α → OracleComp spec β) :
+    evalWith oracle (program >>= next) =
+      (evalWith oracle program).bind fun a => evalWith oracle (next a) := by
+  simpa only [PFunctor.FreeM.bind_eq_bind] using evalWith_freeMBind oracle program next
+
+/-- Heterogeneous postprocessing maps the output distribution. -/
+@[simp] theorem evalWith_freeMMap {α : Type w} {β : Type w'}
+    (oracle : (q : ι) → PMF (spec q))
     (f : α → β) (program : OracleComp spec α) :
     evalWith oracle (PFunctor.FreeM.map f program) = (evalWith oracle program).map f := by
-  rw [← PFunctor.FreeM.bind_pure_comp, evalWith_bind]
+  rw [← PFunctor.FreeM.bind_pure_comp, evalWith_freeMBind]
   rfl
+
+/-- Ordinary same-universe postprocessing maps the output distribution. -/
+@[simp] theorem evalWith_map {α β : Type v} (oracle : (q : ι) → PMF (spec q))
+    (f : α → β) (program : OracleComp spec α) :
+    evalWith oracle (f <$> program) = (evalWith oracle program).map f := by
+  simpa only [PFunctor.FreeM.map_eq_map] using evalWith_freeMMap oracle f program
 
 /-- A single call has the distribution of its answer. -/
 @[simp] theorem evalWith_query (oracle : (q : ι) → PMF (spec q)) (q : ι) :
@@ -287,7 +304,7 @@ theorem evalWith_eq_interpret (oracle : (q : ι) → PMF (spec q)) {γ : Type v}
   induction program using OracleComp.induction with
   | pure a => rfl
   | query_bind q cont ih =>
-    rw [evalWith_bind, evalWith_query]
+    rw [evalWith_freeMBind, evalWith_query]
     rw [PFunctor.FreeM.bind_eq_bind, interpret_bind, interpret_query,
       Probability.PMF.monad_bind_eq_bind]
     exact congrArg (PMF.bind (oracle q)) (funext ih)
@@ -323,14 +340,22 @@ noncomputable def eval (program : ProbComp α) : PMF α :=
 
 @[simp] theorem eval_pure (a : α) : eval (pure a) = PMF.pure a := rfl
 
-@[simp] theorem eval_bind (program : ProbComp α) (next : α → ProbComp β) :
+@[simp] theorem eval_freeMBind (program : ProbComp α) (next : α → ProbComp β) :
     eval (PFunctor.FreeM.bind program next) =
       (eval program).bind (fun a => eval (next a)) := by
-  exact OracleComp.evalWith_bind _ _ _
+  exact OracleComp.evalWith_freeMBind _ _ _
 
-@[simp] theorem eval_map (f : α → β) (program : ProbComp α) :
+@[simp] theorem eval_bind {α β : Type} (program : ProbComp α) (next : α → ProbComp β) :
+    eval (program >>= next) = (eval program).bind (fun a => eval (next a)) := by
+  simpa only [PFunctor.FreeM.bind_eq_bind] using eval_freeMBind program next
+
+@[simp] theorem eval_freeMMap (f : α → β) (program : ProbComp α) :
     eval (PFunctor.FreeM.map f program) = (eval program).map f := by
-  exact OracleComp.evalWith_map _ _ _
+  exact OracleComp.evalWith_freeMMap _ _ _
+
+@[simp] theorem eval_map {α β : Type} (f : α → β) (program : ProbComp α) :
+    eval (f <$> program) = (eval program).map f := by
+  simpa only [PFunctor.FreeM.map_eq_map] using eval_freeMMap f program
 
 @[simp] theorem eval_unifFin (n : ℕ) :
     eval (unifFin n) = PMF.uniformOfFintype (Fin (n + 1)) := by
@@ -339,7 +364,7 @@ noncomputable def eval (program : ProbComp α) : PMF α :=
 /-- Sampling through an enumeration is uniform on the type. -/
 @[simp] theorem eval_uniform (α : Type w) [Fintype α] [Nonempty α] :
     eval (uniform α) = PMF.uniformOfFintype α := by
-  rw [uniform, eval_map, eval_unifFin]
+  rw [uniform, eval_freeMMap, eval_unifFin]
   exact PMF.uniformOfFintype_map_equiv
     ((finCongr (Nat.sub_add_cancel Fintype.card_pos)).trans (Fintype.equivFin α).symm)
 

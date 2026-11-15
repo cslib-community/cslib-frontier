@@ -33,8 +33,9 @@ answers:
 
 The three agree: the support of `evalWith h program` is `supportWith` of the supports of `h`
 (`support_evalWith`), a result of a stateful run is reached along replies the oracle can give
-(`mem_supportWith_of_mem_support_runWith`), and a memoryless oracle run with state is `evalWith`
-with the state unchanged (`runWith_lift`). On the sum `spec₁ ⊕ₒ spec₂`, a handler is a
+(`mem_supportWith_of_mem_support_runWith`), and a memoryless raw oracle run with state is `evalWith`
+with the state unchanged (`runWith_memoryless`); `runWith_lift` is its same-universe
+`StateT.lift` presentation. On the sum `spec₁ ⊕ₒ spec₂`, a handler is a
 `sumHandler`, and an embedded program sees only its own side (`evalWith_sumHandler_liftLeft`,
 `supportWith_sumHandler_liftLeft`, `runWith_sumHandler_liftLeft`).
 
@@ -64,16 +65,19 @@ about `evalWith`.
 
 ## Main results
 
-* `Cslib.OracleComp.evalWith_bind`, `.mem_supportWith_bind_iff`, `.runWith_bind`,
-  `.bind_congr_on_support`, and the `pure`, `map` and `query` rules: the structural rules of each
-  semantics.
+* `Cslib.OracleComp.evalWith_freeMBind`, `.mem_supportWith_freeMBind_iff`,
+  `.runWith_freeMBind`, `.freeMBind_congr_on_support`, and the corresponding `freeMMap`, `pure`
+  and `query` rules: heterogeneous structural rules of each semantics. The shorter `*_bind`,
+  `*_map` and `bind_congr_on_support` names are the ordinary same-universe forms used with
+  `do` and `<$>`.
 * `Cslib.OracleComp.isMonadHom_evalWith`: `evalWith h` is a monad morphism.
 * `Cslib.OracleComp.evalWith_substitute`, `.supportWith_substitute`, `.runWith_substitute`:
   heterogeneous replacement of calls composes with each semantics; the corresponding
   `*_interpret` results are their same-object-universe bridges.
 * `Cslib.OracleComp.support_evalWith`: evaluation and support agree.
 * `Cslib.OracleComp.mem_supportWith_of_mem_support_runWith`: stateful runs reach possible results.
-* `Cslib.OracleComp.runWith_lift`: memoryless oracles leave the state unchanged.
+* `Cslib.OracleComp.runWith_memoryless`: memoryless raw oracles leave an independently-universed
+  state unchanged; `.runWith_lift` is the same-universe `StateT.lift` form.
 * `Cslib.OracleComp.support_liftLeft`, `.support_liftRight`: embedding into a sum keeps the
   possible results.
 * `Cslib.ProbComp.eval_eq_evalWith`, `Cslib.ProbComp.support_eval`,
@@ -112,7 +116,7 @@ variable (h : (q : ι) → PMF (spec q))
 theorem isMonadHom_evalWith : IsMonadHom (OracleComp spec) PMF (evalWith h) :=
   .mk' (evalWith_pure h) (fun program next => by
     simpa only [PFunctor.FreeM.bind_eq_bind, Probability.PMF.monad_bind_eq_bind] using
-      evalWith_bind h program next)
+      evalWith_freeMBind h program next)
 
 end EvalWith
 
@@ -126,7 +130,7 @@ theorem evalWith_substitute {κ : Type u'} {target : OracleSpec.{u', v'} κ}
   induction program using OracleComp.induction with
   | pure a => rfl
   | query_bind q cont ih =>
-    simp only [substitute_bind, substitute_query, evalWith_bind, evalWith_query, ih]
+    simp only [substitute_bind, substitute_query, evalWith_freeMBind, evalWith_query, ih]
 
 /-- On one object universe, evaluation after generic monadic interpretation is evaluation of the
 original calls by the distributions of their replacements. -/
@@ -158,7 +162,7 @@ variable (possible : (q : ι) → Set (spec q))
 variable {possible} in
 /-- A possible result of a sequence is a possible result of a continuation at a possible first
 result. -/
-@[simp] theorem mem_supportWith_bind_iff {program : OracleComp spec α}
+@[simp] theorem mem_supportWith_freeMBind_iff {program : OracleComp spec α}
     {next : α → OracleComp spec β} {b : β} :
     b ∈ supportWith possible (PFunctor.FreeM.bind program next) ↔
       ∃ a ∈ supportWith possible program, b ∈ supportWith possible (next a) := by
@@ -179,26 +183,63 @@ result. -/
     · rintro ⟨a, ⟨x, hx, ha⟩, hb⟩
       exact ⟨x, hx, a, ha, hb⟩
 
-/-- The possible results of a sequence, as a union over the possible first results. -/
-theorem supportWith_bind (program : OracleComp spec α) (next : α → OracleComp spec β) :
+variable {possible} in
+/-- A possible result of an ordinary same-universe sequence is a possible result of a
+continuation at a possible first result. -/
+@[simp] theorem mem_supportWith_bind_iff {α β : Type v} {program : OracleComp spec α}
+    {next : α → OracleComp spec β} {b : β} :
+    b ∈ supportWith possible (program >>= next) ↔
+      ∃ a ∈ supportWith possible program, b ∈ supportWith possible (next a) := by
+  simpa only [PFunctor.FreeM.bind_eq_bind] using
+    (mem_supportWith_freeMBind_iff (possible := possible) (program := program)
+      (next := next) (b := b))
+
+/-- The possible results of a heterogeneous sequence, as a union over the possible first
+results. -/
+theorem supportWith_freeMBind (program : OracleComp spec α) (next : α → OracleComp spec β) :
     supportWith possible (PFunctor.FreeM.bind program next) =
       ⋃ a ∈ supportWith possible program, supportWith possible (next a) := by
   ext b
-  simp only [mem_supportWith_bind_iff, Set.mem_iUnion, exists_prop]
+  simp only [mem_supportWith_freeMBind_iff, Set.mem_iUnion, exists_prop]
+
+/-- The possible results of an ordinary same-universe sequence, as a union over the possible
+first results. -/
+theorem supportWith_bind {α β : Type v} (program : OracleComp spec α)
+    (next : α → OracleComp spec β) :
+    supportWith possible (program >>= next) =
+      ⋃ a ∈ supportWith possible program, supportWith possible (next a) := by
+  simpa only [PFunctor.FreeM.bind_eq_bind] using supportWith_freeMBind possible program next
 
 variable {possible} in
-/-- A possible mapped result is the image of a possible result. -/
-@[simp] theorem mem_supportWith_map_iff {f : α → β} {program : OracleComp spec α} {b : β} :
+/-- A possible heterogeneously mapped result is the image of a possible result. -/
+@[simp] theorem mem_supportWith_freeMMap_iff {f : α → β}
+    {program : OracleComp spec α} {b : β} :
     b ∈ supportWith possible (PFunctor.FreeM.map f program) ↔
       ∃ a ∈ supportWith possible program, f a = b := by
-  rw [← PFunctor.FreeM.bind_pure_comp, mem_supportWith_bind_iff]
+  rw [← PFunctor.FreeM.bind_pure_comp, mem_supportWith_freeMBind_iff]
   simp only [Function.comp_apply, supportWith_pure, Set.mem_singleton_iff, eq_comm]
 
-/-- The possible results of a mapped program are the image of its possible results. -/
-theorem supportWith_map (f : α → β) (program : OracleComp spec α) :
+variable {possible} in
+/-- A possible ordinary same-universe mapped result is the image of a possible result. -/
+@[simp] theorem mem_supportWith_map_iff {α β : Type v} {f : α → β}
+    {program : OracleComp spec α} {b : β} :
+    b ∈ supportWith possible (f <$> program) ↔
+      ∃ a ∈ supportWith possible program, f a = b := by
+  simpa only [PFunctor.FreeM.map_eq_map] using
+    (mem_supportWith_freeMMap_iff (possible := possible) (f := f) (program := program) (b := b))
+
+/-- The possible results of a heterogeneously mapped program are the image of its possible
+results. -/
+theorem supportWith_freeMMap (f : α → β) (program : OracleComp spec α) :
     supportWith possible (PFunctor.FreeM.map f program) = f '' supportWith possible program := by
   ext b
-  simp only [mem_supportWith_map_iff, Set.mem_image]
+  simp only [mem_supportWith_freeMMap_iff, Set.mem_image]
+
+/-- The possible results of an ordinary same-universe mapped program are the image of its
+possible results. -/
+theorem supportWith_map {α β : Type v} (f : α → β) (program : OracleComp spec α) :
+    supportWith possible (f <$> program) = f '' supportWith possible program := by
+  simpa only [PFunctor.FreeM.map_eq_map] using supportWith_freeMMap possible f program
 
 /-- A single call may return any of its possible answers. -/
 @[simp] theorem supportWith_query (q : ι) :
@@ -215,9 +256,9 @@ theorem supportWith_mono {possible possible' : (q : ι) → Set (spec q)}
   | pure a => exact subset_rfl
   | query_bind q cont ih =>
     intro b hb
-    obtain ⟨a, ha, hb⟩ := mem_supportWith_bind_iff.mp hb
+    obtain ⟨a, ha, hb⟩ := mem_supportWith_freeMBind_iff.mp hb
     rw [supportWith_query] at ha
-    exact mem_supportWith_bind_iff.mpr
+    exact mem_supportWith_freeMBind_iff.mpr
       ⟨a, by rw [supportWith_query]; exact hpossible q ha, ih a hb⟩
 
 /-- Replacing calls by programs over another interface: the possible results are those of the
@@ -231,7 +272,8 @@ theorem supportWith_substitute {κ : Type u'} {target : OracleSpec.{u', v'} κ}
   | pure a => rfl
   | query_bind q cont ih =>
     ext b
-    simp only [substitute_bind, substitute_query, mem_supportWith_bind_iff, supportWith_query, ih]
+    simp only [substitute_bind, substitute_query, mem_supportWith_freeMBind_iff,
+      supportWith_query, ih]
 
 /-- On one object universe, possible-result semantics after generic interpretation is possible-
 result semantics with the calls replaced. -/
@@ -255,7 +297,7 @@ abbrev support (program : OracleComp spec α) : Set α :=
 
 /-- Two continuations that agree on every possible output of `program` have identical `>>=` in
 `OracleComp`. -/
-theorem bind_congr_on_support {program : OracleComp spec α}
+theorem freeMBind_congr_on_support {program : OracleComp spec α}
     {f g : α → OracleComp spec β} (h : ∀ a ∈ program.support, f a = g a) :
     PFunctor.FreeM.bind program f = PFunctor.FreeM.bind program g := by
   induction program using OracleComp.induction with
@@ -264,7 +306,14 @@ theorem bind_congr_on_support {program : OracleComp spec α}
   | query_bind q cont ih =>
     simp only [PFunctor.FreeM.bind_assoc]
     exact congrArg (PFunctor.FreeM.bind (query q)) (funext fun r => ih r fun a ha =>
-      h a (mem_supportWith_bind_iff.mpr ⟨r, by simp, ha⟩))
+      h a (mem_supportWith_freeMBind_iff.mpr ⟨r, by simp, ha⟩))
+
+/-- Two continuations that agree on every possible output of `program` have identical ordinary
+same-universe `>>=` in `OracleComp`. -/
+theorem bind_congr_on_support {α β : Type v} {program : OracleComp spec α}
+    {f g : α → OracleComp spec β} (h : ∀ a ∈ program.support, f a = g a) :
+    program >>= f = program >>= g := by
+  simpa only [PFunctor.FreeM.bind_eq_bind] using freeMBind_congr_on_support h
 
 /-! ### Evaluation and support -/
 
@@ -276,8 +325,8 @@ theorem support_evalWith (h : (q : ι) → PMF (spec q)) (program : OracleComp s
   | pure a => simp only [evalWith_pure, PMF.support_pure, supportWith_pure]
   | query_bind q cont ih =>
     ext b
-    simp only [evalWith_bind, evalWith_query, PMF.mem_support_bind_iff,
-      mem_supportWith_bind_iff, supportWith_query, ih]
+    simp only [evalWith_freeMBind, evalWith_query, PMF.mem_support_bind_iff,
+      mem_supportWith_freeMBind_iff, supportWith_query, ih]
 
 /-! ### Stateful oracles -/
 
@@ -298,7 +347,8 @@ noncomputable def runWith (program : OracleComp spec α) (s : σ) : PMF (α × �
 
 /-- Running a sequence runs the first program, then the continuation at its result from the state
 it reached. -/
-@[simp] theorem runWith_bind (program : OracleComp spec α) (next : α → OracleComp spec β)
+@[simp] theorem runWith_freeMBind (program : OracleComp spec α)
+    (next : α → OracleComp spec β)
     (s : σ) :
     runWith oracle (PFunctor.FreeM.bind program next) s =
       (runWith oracle program s).bind fun x => runWith oracle (next x.1) x.2 := by
@@ -311,12 +361,27 @@ it reached. -/
     simp only [PFunctor.FreeM.bind, runWith, PFunctor.FreeM.foldFreeM, PMF.bind_bind]
     exact congrArg (PMF.bind (oracle q s)) (funext fun result => ih result.1 result.2)
 
-/-- Postprocessing maps the result and keeps the final state. -/
-@[simp] theorem runWith_map (f : α → β) (program : OracleComp spec α) (s : σ) :
+/-- Running an ordinary same-universe sequence runs the first program, then the continuation at
+its result from the state it reached. -/
+@[simp] theorem runWith_bind {α β : Type v} (program : OracleComp spec α)
+    (next : α → OracleComp spec β) (s : σ) :
+    runWith oracle (program >>= next) s =
+      (runWith oracle program s).bind fun x => runWith oracle (next x.1) x.2 := by
+  simpa only [PFunctor.FreeM.bind_eq_bind] using runWith_freeMBind oracle program next s
+
+/-- Heterogeneous postprocessing maps the result and keeps the final state. -/
+@[simp] theorem runWith_freeMMap (f : α → β) (program : OracleComp spec α) (s : σ) :
     runWith oracle (PFunctor.FreeM.map f program) s =
       (runWith oracle program s).map (Prod.map f id) := by
-  rw [← PFunctor.FreeM.bind_pure_comp, runWith_bind]
+  rw [← PFunctor.FreeM.bind_pure_comp, runWith_freeMBind]
   rfl
+
+/-- Ordinary same-universe postprocessing maps the result and keeps the final state. -/
+@[simp] theorem runWith_map {α β : Type v} (f : α → β)
+    (program : OracleComp spec α) (s : σ) :
+    runWith oracle (f <$> program) s =
+      (runWith oracle program s).map (Prod.map f id) := by
+  simpa only [PFunctor.FreeM.map_eq_map] using runWith_freeMMap oracle f program s
 
 /-- A single call is answered by the oracle from the current state. -/
 @[simp] theorem runWith_query (q : ι) (s : σ) :
@@ -338,9 +403,9 @@ theorem mem_supportWith_of_mem_support_runWith {possible : (q : ι) → Set (spe
     rw [runWith_pure, PMF.mem_support_pure_iff, Prod.mk.injEq] at h
     exact h.1
   | query_bind q cont ih =>
-    rw [runWith_bind, runWith_query, PMF.mem_support_bind_iff] at h
+    rw [runWith_freeMBind, runWith_query, PMF.mem_support_bind_iff] at h
     obtain ⟨⟨b, middle⟩, hb, h⟩ := h
-    exact mem_supportWith_bind_iff.mpr
+    exact mem_supportWith_freeMBind_iff.mpr
       ⟨b, by rw [supportWith_query]; exact hpossible q s b middle hb, ih b h⟩
 
 end RunWith
@@ -355,7 +420,7 @@ theorem runWith_substitute {κ : Type u'} {target : OracleSpec.{u', v'} κ} {σ 
   induction program using OracleComp.induction generalizing state with
   | pure a => rfl
   | query_bind q cont ih =>
-    simp only [substitute_bind, substitute_query, runWith_bind, runWith_query, ih]
+    simp only [substitute_bind, substitute_query, runWith_freeMBind, runWith_query, ih]
 
 /-- On one object universe, the raw state-handler semantics agrees with generic interpretation
 into `StateT`. -/
@@ -365,23 +430,31 @@ theorem runWith_eq_run_interpret {σ : Type v} (oracle : (q : ι) → σ → PMF
   induction program using OracleComp.induction generalizing state with
   | pure a => rfl
   | query_bind q cont ih =>
-    rw [runWith_bind, runWith_query]
+    rw [runWith_freeMBind, runWith_query]
     rw [PFunctor.FreeM.bind_eq_bind, interpret_bind, interpret_query, StateT.run_bind,
       Probability.PMF.monad_bind_eq_bind]
     exact congrArg (PMF.bind (oracle q state)) (funext fun result => ih result.1 result.2)
 
-/-- A memoryless oracle run with state leaves the state unchanged, and the result has the law of
-`evalWith`. -/
-@[simp] theorem runWith_lift {σ : Type s} (h : (q : ι) → PMF (spec q))
+/-- A memoryless raw oracle run with independently-universed state leaves the state unchanged,
+and the result has the law of `evalWith`. -/
+@[simp] theorem runWith_memoryless {σ : Type s} (h : (q : ι) → PMF (spec q))
     (program : OracleComp spec α) (s : σ) :
     runWith (fun q state => (h q).map (·, state)) program s =
       (evalWith h program).map (·, s) := by
   induction program using OracleComp.induction generalizing s with
   | pure a => simp only [runWith_pure, evalWith_pure, PMF.pure_map]
   | query_bind q cont ih =>
-    simp only [runWith_bind, runWith_query, evalWith_bind, evalWith_query, PMF.bind_map,
+    simp only [runWith_freeMBind, runWith_query, evalWith_freeMBind, evalWith_query, PMF.bind_map,
       PMF.map_bind, Function.comp_def]
     exact congrArg (PMF.bind (h q)) (funext fun a => ih a s)
+
+/-- A memoryless same-universe oracle expressed with `StateT.lift` leaves the state unchanged,
+and the result has the law of `evalWith`. -/
+@[simp] theorem runWith_lift {σ γ : Type v} (h : (q : ι) → PMF (spec q))
+    (program : OracleComp spec γ) (s : σ) :
+    runWith (fun q => StateT.lift (h q)) program s = (evalWith h program).map (·, s) := by
+  rw [runWith_eq_run_interpret, run_interpret_lift, ← evalWith_eq_interpret,
+    _root_.PMF.monad_map_eq_map]
 
 /-! ### Sums of interfaces -/
 
@@ -509,7 +582,7 @@ theorem interpret_unifFin (program : ProbComp α) :
 theorem mem_support_eval_uniform_bind_pure {β : Type} [Fintype α] [Nonempty α] (f : α → β)
     (b : β) : b ∈ (eval (uniform α >>= fun a => pure (f a))).support ↔ ∃ a, f a = b := by
   change b ∈ (eval (PFunctor.FreeM.bind (uniform α) fun a => pure (f a))).support ↔ _
-  simp only [eval_bind, eval_uniform, eval_pure, PMF.mem_support_bind_iff,
+  simp only [eval_freeMBind, eval_uniform, eval_pure, PMF.mem_support_bind_iff,
     PMF.mem_support_pure_iff]
   exact ⟨fun ⟨a, _, h⟩ => ⟨a, h.symm⟩, fun ⟨a, h⟩ => ⟨a, by simp [PMF.mem_support_iff], h.symm⟩⟩
 

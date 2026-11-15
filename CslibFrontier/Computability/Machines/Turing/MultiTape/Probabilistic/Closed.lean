@@ -64,7 +64,7 @@ theorem eval_runClosedConfigFrom_add_of_halted (machine : MultiTapePTM k Symbol 
   conv_rhs => rw [← PMF.bind_pure
     (ProbComp.eval (machine.runClosedConfigFrom fuel cfg))]
   unfold runClosedConfigFrom runConfigFrom
-  rw [MultiTapeMachine.runConfigFrom_add, ← PFunctor.FreeM.bind_eq_bind, ProbComp.eval_bind]
+  rw [MultiTapeMachine.runConfigFrom_add, ProbComp.eval_bind]
   apply Probability.PMF.bind_congr_on_support
   intro final hfinal
   rw [MultiTapeMachine.runConfigFrom_halted _ _ _ _ _ (hhalt final hfinal)]
@@ -88,7 +88,7 @@ theorem eval_runClosed_eq_of_halted (machine : MultiTapePTM k Symbol State) (inp
       final.tapes.state = none) :
     ProbComp.eval (machine.runClosed larger input) =
       ProbComp.eval (machine.runClosed fuel input) := by
-  simp only [runClosed_eq_map, ← PFunctor.FreeM.map_eq_map, ProbComp.eval_map,
+  simp only [runClosed_eq_map, ProbComp.eval_map,
     eval_runClosedConfigFrom_eq_of_halted machine _ hle hhalt]
 
 /-- Shared-tape sequencing preserves distributions once both phases have actually halted. -/

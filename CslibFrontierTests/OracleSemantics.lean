@@ -20,30 +20,24 @@ private def twoCalls : OracleComp (fun _ : Unit => Bool) Bool := do
 
 -- A deterministic handler gives a point distribution.
 example : evalWith (fun _ => PMF.pure true) twoCalls = PMF.pure false := by
-  simp only [twoCalls, ← PFunctor.FreeM.bind_eq_bind, evalWith_bind, evalWith_query,
-    PMF.pure_bind, evalWith_pure, Bool.not_true, Bool.and_false]
+  simp [twoCalls]
 
 -- When every call must answer `true`, the only possible result is `false`.
 example : supportWith (fun _ => {true}) twoCalls = {false} := by
   ext b
-  simp only [twoCalls, ← PFunctor.FreeM.bind_eq_bind, mem_supportWith_bind_iff,
-    supportWith_query, supportWith_pure, Set.mem_singleton_iff]
-  simp
+  simp [twoCalls, eq_comm]
 
 -- With fair answers, `true` has positive probability: evaluation and support agree.
 example : true ∈ (evalWith (fun _ => Probability.PMF.uniformOfFintype Bool) twoCalls).support := by
   rw [support_evalWith]
-  simp only [twoCalls, ← PFunctor.FreeM.bind_eq_bind, mem_supportWith_bind_iff,
-    supportWith_query, supportWith_pure, Set.mem_singleton_iff]
-  simp [PMF.mem_support_iff]
+  simp [twoCalls, PMF.mem_support_iff]
 
 -- A stateful oracle counting its calls.
 private noncomputable def counter : (q : Unit) → StateT ℕ PMF Bool :=
   fun _ s => PMF.pure (true, s + 1)
 
 example : runWith counter twoCalls 0 = PMF.pure (false, 2) := by
-  simp only [twoCalls, ← PFunctor.FreeM.bind_eq_bind, runWith_bind, runWith_query, counter,
-    PMF.pure_bind, runWith_pure, Bool.not_true, Bool.and_false]
+  simp [twoCalls, counter]
 
 -- Every result of the counting run is reached along a `true` reply.
 example {result : Bool} {final : ℕ} (h : (result, final) ∈ (runWith counter twoCalls 0).support) :
@@ -55,11 +49,10 @@ example {result : Bool} {final : ℕ} (h : (result, final) ∈ (runWith counter 
 
 -- A memoryless oracle run with state keeps the state.
 example (s : ℕ) :
-    runWith (fun _ state => (PMF.pure true).map (·, state)) twoCalls s =
+    runWith (fun _ => StateT.lift (PMF.pure true)) twoCalls s =
       PMF.pure (false, s) := by
   rw [runWith_lift]
-  simp only [twoCalls, ← PFunctor.FreeM.bind_eq_bind, evalWith_bind, evalWith_query,
-    PMF.pure_bind, evalWith_pure, PMF.pure_map, Bool.not_true, Bool.and_false]
+  simp [twoCalls]
 
 -- Closed probabilistic programs are the instance with uniform answers.
 example (program : ProbComp Bool) :
@@ -78,10 +71,7 @@ private noncomputable def coinThenQuery : ProbOracleComp (fun _ : Unit => Bool) 
 
 -- Its possible results are those for any coin and any reply.
 example : true ∈ support coinThenQuery := by
-  simp only [coinThenQuery, ← PFunctor.FreeM.bind_eq_bind, mem_supportWith_bind_iff,
-    ProbOracleComp.support_sample, ProbComp.eval_uniform, ProbOracleComp.supportWith_query,
-    supportWith_pure, Set.mem_singleton_iff]
-  simp [PMF.mem_support_iff]
+  simp [coinThenQuery, PMF.mem_support_iff]
 
 -- Its run is, by definition, the generic run of the sum handler.
 example (oracle : (q : Unit) → StateT ℕ PMF Bool) (s : ℕ) :
@@ -92,13 +82,9 @@ example (oracle : (q : Unit) → StateT ℕ PMF Bool) (s : ℕ) :
 
 -- Against a reply that is always `false`, it never accepts.
 example (s : ℕ) :
-    ProbOracleComp.acceptProbWith
-        (fun _ state => (PMF.pure false).map (·, state)) coinThenQuery s = 0 := by
+    ProbOracleComp.acceptProbWith (fun _ => StateT.lift (PMF.pure false)) coinThenQuery s = 0 := by
   rw [ProbOracleComp.acceptProbWith_lift]
-  simp only [coinThenQuery, ← PFunctor.FreeM.bind_eq_bind, evalWith_bind,
-    ProbOracleComp.sample_eq_liftLeft, evalWith_sumHandler_liftLeft, ProbOracleComp.query,
-    evalWith_query, evalWith_pure]
-  simp
+  simp [coinThenQuery, ProbOracleComp.sample_eq_liftLeft, ProbOracleComp.query]
 
 /-! The two universe regressions are intentionally separate. Generic oracle computations support
 higher response, result, and state carriers. `ProbOracleComp` supports higher query, result, and
@@ -119,7 +105,11 @@ private noncomputable def highOracle :
 -- Generic syntax and raw state semantics genuinely separate reply, result, and state universes.
 example (state : Type s) :
     runWith highOracle highProgram state = PMF.pure (PUnit, state) := by
-  simp [highProgram, highOracle]
+  rw [show highOracle = (fun _ state => (PMF.pure PUnit).map (·, state)) by
+      funext q state
+      simp only [highOracle, PMF.pure_map],
+    runWith_memoryless]
+  simp [highProgram]
 
 private abbrev highQuerySpec : Type u → Type := fun _ => Bool
 
@@ -134,6 +124,10 @@ private noncomputable def highProbOracle :
 example (state : Type s) :
     ProbOracleComp.runWith highProbOracle highProbProgram state =
       PMF.pure (PUnit, state) := by
-  simp [highProbProgram, highProbOracle]
+  rw [show highProbOracle = (fun _ state => (PMF.pure true).map (·, state)) by
+      funext q state
+      simp only [highProbOracle, PMF.pure_map],
+    ProbOracleComp.runWith_memoryless]
+  simp [highProbProgram]
 
 end CslibFrontierTests.OracleSemantics

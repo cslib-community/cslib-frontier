@@ -75,7 +75,7 @@ theorem isCostBounded_sample (cost : Query → ℕ) (program : ProbComp α) :
   | query_bind n cont ih =>
     have hquery : sample (spec := spec) (OracleComp.query n) = OracleComp.query (Sum.inl n) :=
       OracleComp.substitute_query _ _
-    rw [sample_bind, hquery]
+    rw [sample_freeMBind, hquery]
     simpa using (IsCostBounded.query (Sum.inl n)).bind fun a => ih a
 
 /-- A single external query costs its cost. -/
@@ -147,8 +147,8 @@ theorem transcript_cost_le {cost : Query → ℕ} {program : ProbOracleComp spec
     supp_cases hmem [runWith_pure]
     simp
   | liftBind q cont n _ ih =>
-    supp_cases hmem [ProbOracleComp.runWith, ← PFunctor.FreeM.bind_eq_bind,
-      OracleComp.runWith_bind, OracleComp.runWith_query]
+    supp_cases hmem [ProbOracleComp.runWith, OracleComp.runWith_bind,
+      OracleComp.runWith_query]
       with ⟨⟨a, middle, seen⟩, hfirst, hrest⟩
     cases q with
     | inl k =>

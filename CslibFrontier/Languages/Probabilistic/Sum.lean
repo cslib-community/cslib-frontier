@@ -34,6 +34,9 @@ an embedded program uses only the corresponding handler (`interpret_sumHandler_l
   `Cslib.OracleComp.interpret_sumHandler_liftRight`: an embedded program uses only its own side's
   handler.
 * `Cslib.OracleComp.interpret_sumHandler`: interpretation distributes over the two sides.
+* `Cslib.OracleComp.liftLeft_freeMBind`, `.liftRight_freeMBind` and their `freeMMap` forms:
+  embedding commutes with heterogeneous sequencing and mapping. The corresponding shorter
+  `*_bind` and `*_map` names are the ordinary same-universe forms.
 
 ## References
 
@@ -105,29 +108,55 @@ def liftRight (program : OracleComp spec₂ α) : OracleComp (spec₁ ⊕ₒ spe
 @[simp] theorem liftRight_pure (a : α) :
     liftRight (spec₁ := spec₁) (pure a : OracleComp spec₂ α) = pure a := rfl
 
-/-- `liftLeft` commutes with monadic bind `>>=`. -/
-@[simp] theorem liftLeft_bind (program : OracleComp spec₁ α) (next : α → OracleComp spec₁ β) :
+/-- `liftLeft` commutes with heterogeneous free-monad bind. -/
+@[simp] theorem liftLeft_freeMBind (program : OracleComp spec₁ α)
+    (next : α → OracleComp spec₁ β) :
     liftLeft (spec₂ := spec₂) (PFunctor.FreeM.bind program next) =
       PFunctor.FreeM.bind (liftLeft program) fun a => liftLeft (next a) :=
   substitute_bind _ _ _
 
-/-- `liftRight` commutes with monadic bind `>>=`. -/
-@[simp] theorem liftRight_bind (program : OracleComp spec₂ α) (next : α → OracleComp spec₂ β) :
+/-- `liftLeft` commutes with ordinary same-universe monadic bind `>>=`. -/
+@[simp] theorem liftLeft_bind {α β : Type v} (program : OracleComp spec₁ α)
+    (next : α → OracleComp spec₁ β) :
+    liftLeft (spec₂ := spec₂) (program >>= next) =
+      liftLeft program >>= fun a => liftLeft (next a) := by
+  simpa only [PFunctor.FreeM.bind_eq_bind] using liftLeft_freeMBind program next
+
+/-- `liftRight` commutes with heterogeneous free-monad bind. -/
+@[simp] theorem liftRight_freeMBind (program : OracleComp spec₂ α)
+    (next : α → OracleComp spec₂ β) :
     liftRight (spec₁ := spec₁) (PFunctor.FreeM.bind program next) =
       PFunctor.FreeM.bind (liftRight program) fun a => liftRight (next a) :=
   substitute_bind _ _ _
 
-/-- `liftLeft` commutes with functorial map `<$>`. -/
-@[simp] theorem liftLeft_map (f : α → β) (program : OracleComp spec₁ α) :
+/-- `liftRight` commutes with ordinary same-universe monadic bind `>>=`. -/
+@[simp] theorem liftRight_bind {α β : Type v} (program : OracleComp spec₂ α)
+    (next : α → OracleComp spec₂ β) :
+    liftRight (spec₁ := spec₁) (program >>= next) =
+      liftRight program >>= fun a => liftRight (next a) := by
+  simpa only [PFunctor.FreeM.bind_eq_bind] using liftRight_freeMBind program next
+
+/-- `liftLeft` commutes with heterogeneous free-monad map. -/
+@[simp] theorem liftLeft_freeMMap (f : α → β) (program : OracleComp spec₁ α) :
     liftLeft (spec₂ := spec₂) (PFunctor.FreeM.map f program) =
       PFunctor.FreeM.map f (liftLeft program) :=
   substitute_map _ _ _
 
-/-- `liftRight` commutes with functorial map `<$>`. -/
-@[simp] theorem liftRight_map (f : α → β) (program : OracleComp spec₂ α) :
+/-- `liftLeft` commutes with ordinary same-universe functorial map `<$>`. -/
+@[simp] theorem liftLeft_map {α β : Type v} (f : α → β) (program : OracleComp spec₁ α) :
+    liftLeft (spec₂ := spec₂) (f <$> program) = f <$> liftLeft program := by
+  simpa only [PFunctor.FreeM.map_eq_map] using liftLeft_freeMMap f program
+
+/-- `liftRight` commutes with heterogeneous free-monad map. -/
+@[simp] theorem liftRight_freeMMap (f : α → β) (program : OracleComp spec₂ α) :
     liftRight (spec₁ := spec₁) (PFunctor.FreeM.map f program) =
       PFunctor.FreeM.map f (liftRight program) :=
   substitute_map _ _ _
+
+/-- `liftRight` commutes with ordinary same-universe functorial map `<$>`. -/
+@[simp] theorem liftRight_map {α β : Type v} (f : α → β) (program : OracleComp spec₂ α) :
+    liftRight (spec₁ := spec₁) (f <$> program) = f <$> liftRight program := by
+  simpa only [PFunctor.FreeM.map_eq_map] using liftRight_freeMMap f program
 
 /-- Lifting a single query `query q` from the left interface produces `query (.inl q)`. -/
 @[simp] theorem liftLeft_query (q : ι₁) :

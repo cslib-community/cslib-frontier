@@ -74,7 +74,8 @@ theorem runFrom_map_state (M₁ M₂ : Machine I E) (f : M₂.State → M₁.Sta
         simp only [StateT.run_lift, bind_pure_comp, Functor.map_map]
         rfl
       | inr e => exact h e s
-    rw [runFrom_bind, runFrom_bind, runFrom_call, runFrom_call, hq, bind_map_left, map_bind]
+    rw [PFunctor.FreeM.bind_eq_bind, runFrom_bind, runFrom_bind, runFrom_call, runFrom_call,
+      hq, bind_map_left, map_bind]
     exact bind_congr fun x => ih x.1 x.2
 
 /-- Intertwining the inner machines of a composition intertwines the composed machines on the
@@ -162,7 +163,7 @@ theorem runFrom_id (program : ProbOracleComp E α) (s : (Machine.id E).State) :
     funext q
     cases q with
     | inl n => simp only [handler, Machine.id, ProbOracleComp.sample, ProbComp.unifFin,
-        OracleComp.interpret_query]
+        OracleComp.substitute_query]
     | inr e => rfl
   rw [runFrom, hhandler, OracleComp.run_interpret_lift, OracleComp.interpret_query_eq_self]
 
@@ -175,8 +176,9 @@ theorem runFrom_id (program : ProbOracleComp E α) (s : (Machine.id E).State) :
 
 /-- Embedded sampling makes as many calls as the closed program. -/
 theorem isQueryBounded_sample {program : ProbComp α} {n : ℕ} (h : program.IsQueryBounded n) :
-    (ProbOracleComp.sample (spec := I) program).IsQueryBounded n :=
-  OracleComp.IsCostBounded.interpret (fun _ => OracleComp.IsCostBounded.query _) h
+    (ProbOracleComp.sample (spec := I) program).IsQueryBounded n := by
+  rw [ProbOracleComp.sample, OracleComp.substitute_eq_interpret]
+  exact OracleComp.IsCostBounded.interpret (fun _ => OracleComp.IsCostBounded.query _) h
 
 /-- Every call of a program run against `P` costs at most `t + 1` calls of `P`'s imports. -/
 private theorem isQueryBounded_handler {P : Machine I J} {t : ℕ} (hP : P.IsBounded t)

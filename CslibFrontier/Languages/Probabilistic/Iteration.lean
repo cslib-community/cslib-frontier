@@ -165,8 +165,7 @@ theorem iterate_failure_le (count : ℕ) (step : State → ProbComp State) (init
     induction i with
     | zero => simp [eval_pure, PMF.toOuterMeasure_pure_apply, hinit]
     | succ i ih =>
-      rw [OracleComp.iterate_succ, ← PFunctor.FreeM.bind_eq_bind, eval_bind,
-        Finset.sum_range_succ]
+      rw [OracleComp.iterate_succ, eval_bind, Finset.sum_range_succ]
       exact (Probability.PMF.toOuterMeasure_bind_failure_le _ _
         {state | invariant i state} _ (error i)
         (fun state _ hinvariant => hstep i (by lia) state hinvariant)).trans
@@ -222,7 +221,7 @@ theorem eval_iterate_of_uniform [Fintype Seed] [Nonempty Seed]
       rw [OracleComp.iterate_zero, eval_pure]
       simp only [List.ofFn_zero, List.foldl_nil, Function.const_def, PMF.map_const]
     | succ i ih =>
-      rw [OracleComp.iterate_succ, ← PFunctor.FreeM.bind_eq_bind, eval_bind]
+      rw [OracleComp.iterate_succ, eval_bind]
       trans (eval (OracleComp.iterate i step initial)).bind
         (fun state => (PMF.uniformOfFintype Seed).map (evaluate state))
       · apply PMF.bind_congr_on_support

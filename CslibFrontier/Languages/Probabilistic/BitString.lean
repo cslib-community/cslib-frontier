@@ -47,9 +47,7 @@ noncomputable def sampleList : ℕ → ProbComp (List Bool)
 @[simp] theorem eval_sampleList (n : ℕ) : ProbComp.eval (sampleList n) = uniformList n := by
   induction n with
   | zero => simp [sampleList]
-  | succ n ih =>
-    simp [sampleList, uniformList_succ, ih, ← PFunctor.FreeM.bind_eq_bind,
-      ← PFunctor.FreeM.map_eq_map]
+  | succ n ih => simp [sampleList, uniformList_succ, ih]
 
 end Cslib.BitString
 
@@ -65,7 +63,7 @@ theorem eval_bind_of_uniformList {α β : Type} (first second : ℕ)
     eval (do let a ← program; next a) =
       (BitString.uniformList (first + second)).map (fun tape =>
         evaluateNext (evaluate (tape.take first)) (tape.drop first)) := by
-  rw [← PFunctor.FreeM.bind_eq_bind, eval_bind, hprogram, PMF.bind_map]
+  rw [eval_bind, hprogram, PMF.bind_map]
   simp only [Function.comp_def, hnext]
   exact (BitString.uniformList_bind_split first second
     (fun front back => PMF.pure (evaluateNext (evaluate front) back))).symm

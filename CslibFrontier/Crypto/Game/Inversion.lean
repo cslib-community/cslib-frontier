@@ -137,7 +137,7 @@ theorem eval_inversionExperiment [BEq β] (sample : ProbComp α) (f : α → β)
     (inverter : β → ProbComp α) :
     eval (inversionExperiment sample f inverter) =
       inversionExperiment (eval sample) f (fun image => eval (inverter image)) := by
-  simp only [inversionExperiment, ← PFunctor.FreeM.bind_eq_bind, eval_bind, eval_pure]
+  simp only [inversionExperiment, eval_bind, eval_pure]
   rfl
 
 /-- Evaluating the prediction experiment of programs gives the prediction experiment of their
@@ -147,7 +147,7 @@ theorem eval_predictionExperiment (sample : ProbComp α) (f : α → β) (h : α
     (predictor : β → ProbComp Bool) :
     eval (predictionExperiment sample f h predictor) =
       predictionExperiment (eval sample) f h (fun image => eval (predictor image)) := by
-  simp only [predictionExperiment, ← PFunctor.FreeM.bind_eq_bind, eval_bind, eval_pure]
+  simp only [predictionExperiment, eval_bind, eval_pure]
   rfl
 
 end Cslib.ProbComp

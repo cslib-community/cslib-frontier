@@ -167,7 +167,8 @@ theorem runWith_adapt {State : Type} (oracle : (q : Q) → StateT State PMF (spe
     (program : ProbOracleComp (fun _ : Op × List Bool => List Bool) α) (s : State) :
     ProbOracleComp.runWith oracle (c.adapt program) s =
       ProbOracleComp.runWith (c.wordOracle oracle) program s := by
-  simp only [ProbOracleComp.runWith, OracleComp.runWith, interpret_adapt]
+  rw [ProbOracleComp.runWith_eq_run_interpret, ProbOracleComp.runWith_eq_run_interpret]
+  exact congrArg (fun p : StateT State PMF α => p.run s) (c.interpret_adapt _ _ _)
 
 /-- Adapting keeps a cost budget when each query costs at most its request. -/
 theorem isCostBounded_adapt {wordCost : Op × List Bool → ℕ} {cost : Q → ℕ}
