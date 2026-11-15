@@ -83,8 +83,9 @@ Given a public matrix `A : Matrix (Fin m) (Fin n) (ZMod q)`, an encryption error
     LWE.advantage uniform errs (encryptIdealReduction t Q adv)`,
   where the combined LWE instance has `m + (Q + 1) * l` rows and error law
   `errs = encryptLWEErrorLaw W (ProbComp.eval E) Q`. When `W = χ^m`, `E = χ^l`, and `l = m`,
-  this is `LWE_{n, (t + 2) m, q, χ}` for `Q = t` queries as in [AponChoEldefrawyKatz2017],
-  Section 5.
+  this is the paper's `LWE_{n, (t + 2) m, q, χ}` ([AponChoEldefrawyKatz2017], Section 5).
+  Here `Q` is the letter `t` of Section 5, the number of oracle calls the adversary makes. It is
+  not the Hamming bound `t` of Definitions 1–3, which is the argument `t` of these lemmas.
 
 ## What is not proved
 
@@ -92,7 +93,9 @@ Given a public matrix `A : Matrix (Fin m) (Fin n) (ZMod q)`, an encryption error
   `strongReuseAdvantage_lweEncryptFuzzyExtractor_le` is unrestricted. Concluding strong
   reusability from `DecisionLWEWithErrors` needs an adversary class in the reuse experiments and
   efficiency certificates for `encryptRealReduction` and `encryptIdealReduction`; this is future
-  work.
+  work, recorded under "Reusable fuzzy extractors from LWE" in the Cryptography section of
+  `ROADMAP.md`. For i.i.d. errors, `decisionLWE_iff_decisionLWEWithErrors` connects that
+  conclusion to `DecisionLWE`.
 
 ## References
 
@@ -280,23 +283,17 @@ theorem DecoderCorrectWithError.setupCorrect_lweEncryptFuzzyExtractor
   rw [PMF.bind_comm (PMF.uniformOfFintype (Matrix (Fin m) (Fin n) (ZMod q)))
     (PMF.uniformOfFintype (Fin n → ZMod q))]
   refine PMF.bind_apply_le_on_support _ fun s _ => ?_
-  have hs : decodeGame decode s (w - w') false ≤ (δ : ℝ≥0∞) := by
-    have := ENNReal.coe_le_coe.mpr (hdec s (w - w') hdis)
-    rwa [Game.failProbability, ENNReal.coe_toNNReal (PMF.apply_ne_top _ _)] at this
-  refine le_trans ?_ hs
-  simp only [decodeGame, decodeCheck, ProbComp.eval_bind, ProbComp.eval_pure,
-    ProbComp.eval_uniform]
-  refine PMF.bind_apply_mono_on_support _ false fun A _ => ?_
+  rw [PMF.bind_comm (PMF.uniformOfFintype (Matrix (Fin m) (Fin n) (ZMod q)))
+    (PMF.uniformOfFintype (Fin l → Bool))]
   refine PMF.bind_apply_le_on_support _ fun r _ => ?_
+  rw [PMF.bind_comm (PMF.uniformOfFintype (Matrix (Fin m) (Fin n) (ZMod q)))
+    (PMF.uniformOfFintype (Matrix (Fin l) (Fin n) (ZMod q)))]
   refine PMF.bind_apply_le_on_support _ fun B _ => ?_
+  rw [PMF.bind_comm (PMF.uniformOfFintype (Matrix (Fin m) (Fin n) (ZMod q))) (ProbComp.eval E)]
   refine PMF.bind_apply_le_on_support _ fun e he => ?_
-  rw [add_sub_assoc]
-  refine PMF.bind_apply_mono_on_support _ false fun sOpt _ => ?_
-  by_cases h : sOpt = some s
-  · subst h
-    simp [symDecrypt_symEncrypt_eq s B e r (herr e he)]
-  · rw [decide_eq_false h, PMF.pure_apply_self]
-    exact PMF.coe_le_one _ _
+  simp only [add_sub_assoc]
+  exact uniform_bind_decode_bind_apply_false_le_of_failProbability_le decode s (w - w') _
+    (fun A => by simp [symDecrypt_symEncrypt_eq s B e r (herr e he)]) (hdec s (w - w') hdis)
 
 /-! ### Row-Block Splitting for `(m + (Q + 1) * l)`-Row LWE Instances -/
 
@@ -441,14 +438,6 @@ private theorem queryRows_mulVec_add {m n l Q q : ℕ}
     (s : Fin n → ZMod q) (err : Fin (m + (Q + 1) * l) → ZMod q) :
     queryRows (M *ᵥ s + err) = fun k => (queryMatrixRows M k).mulVec s + queryRows err k := rfl
 
-private theorem uniform_bind_bind_equiv {α β γ δ : Type} [Fintype α] [Nonempty α] [Fintype β]
-    [Nonempty β] [Fintype γ] [Nonempty γ] (e : α × β ≃ γ) (f : γ → PMF δ) :
-    ((PMF.uniformOfFintype α).bind fun a =>
-      (PMF.uniformOfFintype β).bind fun b => f (e (a, b))) =
-      (PMF.uniformOfFintype γ).bind f :=
-  Probability.PMF.uniformOfFintype_bind_bind_fst_equiv
-    (e.trans (Equiv.prodPUnit γ : γ × Unit ≃ γ).symm) f
-
 private theorem uniform_bind_splitRows {m l Q : ℕ} {α β : Type} [Fintype α] [Nonempty α]
     (k : (Fin (m + (Q + 1) * l) → α) → PMF β) :
     (PMF.uniformOfFintype (Fin (m + (Q + 1) * l) → α)).bind k =
@@ -456,9 +445,9 @@ private theorem uniform_bind_splitRows {m l Q : ℕ} {α β : Type} [Fintype α]
         (PMF.uniformOfFintype (Fin l → α)).bind fun xB =>
           (PMF.uniformOfFintype (Fin Q → Fin l → α)).bind fun xQ =>
             k (joinRows xA xB xQ) := by
-  rw [← uniform_bind_bind_equiv (splitRowsEquiv m l Q α) k]
+  rw [← Probability.PMF.uniformOfFintype_bind_bind_equiv (splitRowsEquiv m l Q α) k]
   congr 1 with xA : 1
-  rw [← uniform_bind_bind_equiv (Equiv.refl _)
+  rw [← Probability.PMF.uniformOfFintype_bind_bind_equiv (Equiv.refl _)
     (fun b => k ((splitRowsEquiv m l Q α) (xA, b)))]
   rfl
 
@@ -470,9 +459,9 @@ private theorem uniform_bind_splitMatrixRows {m n l Q : ℕ} {α β : Type}
         (PMF.uniformOfFintype (Matrix (Fin l) (Fin n) α)).bind fun B =>
           (PMF.uniformOfFintype (Fin Q → Matrix (Fin l) (Fin n) α)).bind fun B_vec =>
             k (joinMatrixRows A B B_vec) := by
-  rw [← uniform_bind_bind_equiv (splitMatrixRowsEquiv m n l Q α) k]
+  rw [← Probability.PMF.uniformOfFintype_bind_bind_equiv (splitMatrixRowsEquiv m n l Q α) k]
   congr 1 with A : 1
-  rw [← uniform_bind_bind_equiv (Equiv.refl _)
+  rw [← Probability.PMF.uniformOfFintype_bind_bind_equiv (Equiv.refl _)
     (fun b => k ((splitMatrixRowsEquiv m n l Q α) (A, b)))]
   rfl
 
@@ -485,7 +474,8 @@ strong-reusability LWE reduction ([AponChoEldefrawyKatz2017], Section 5):
 * the remaining `Q` blocks of `l` coordinates (shift-query encryption errors) are drawn
   independently from `E`.
 When `W = χ^m`, `E = χ^l`, and `l = m`, this is `χ^{(Q + 2) m}`, matching `LWE_{n, (t + 2) m, q, χ}`
-for `Q = t` queries in [AponChoEldefrawyKatz2017], Section 5. -/
+in [AponChoEldefrawyKatz2017], Section 5, where `t` is the number of oracle calls (our `Q`), not the
+Hamming bound. -/
 noncomputable def encryptLWEErrorLaw {m l q : ℕ} [NeZero q]
     (W : PMF (Fin m → ZMod q)) (E : PMF (Fin l → ZMod q)) (Q : ℕ) :
     PMF (Fin (m + (Q + 1) * l) → ZMod q) :=
@@ -885,8 +875,8 @@ the strong-reusability advantage against `lweEncryptFuzzyExtractor` is bounded b
 of the decisional LWE advantages of `encryptRealReduction t Q adv` and
 `encryptIdealReduction t Q adv` against `(m + (Q + 1) * l)`-sample LWE with uniform secret
 on `Fin n → ZMod q` and error distribution `encryptLWEErrorLaw W (ProbComp.eval E) Q`.
-When `W = χ^m`, `E = χ^l`, and `l = m`, this corresponds to `LWE_{n, (t + 2) m, q, χ}`
-for `Q = t` shift queries as in the paper. -/
+When `W = χ^m`, `E = χ^l`, and `l = m`, this corresponds to the paper's `LWE_{n, (t + 2) m, q, χ}`,
+whose `t` is the number of oracle calls (our `Q`), not the Hamming bound `t` here. -/
 theorem strongReuseAdvantage_lweEncryptFuzzyExtractor_le {St : Type}
     (E : ProbComp (Fin l → ZMod q))
     (decode : Matrix (Fin m) (Fin n) (ZMod q) → (Fin m → ZMod q) →

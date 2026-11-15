@@ -31,9 +31,10 @@ has distinguishing advantage `1 / 2` on a uniform 1-bit source. The asymptotic t
 premise holds unconditionally, and to independent-coordinate sources under `DecisionLWE`.
 The reusable-extractor tests use non-degenerate parameters (secret dimension at least `1`, modulus
 greater than `1`). They check the reduction bounds of the common-matrix scheme and of the Section 5
-scheme, the advantage lower bound of the Section 3.3 attack, that the hypotheses of the
-setup-averaged correctness theorems are satisfiable, and that both reduction bounds are attained
-(advantage `0`) for a uniform source (and uniform encryption errors).
+scheme, the advantage lower bound of the Section 3.3 attack (end to end with `unitDecoder`, giving
+advantage at least `3 / 5`), that the setup-averaged correctness theorems apply with `δ = 1 / 5`,
+and that both reduction bounds are attained (advantage `0`) for a uniform source (and uniform
+encryption errors).
 -/
 
 public section
@@ -311,6 +312,26 @@ example
         (commonMatrixFuzzyExtractor 3 1 1 5 decode) W 0 1 (commonMatrixStrongAttack decode) := by
   simpa using strongReuseAdvantage_commonMatrixStrongAttack_ge hdec W 0
 
+/-- Non-trivial correctness for the common-matrix scheme at `m = 1, k = 1, l = 0, q = 5`: with
+`unitDecoder` (`δ = 1 / 5`), reproduction from an identical reading fails with probability at most
+`1 / 5`, averaged over the common matrix. -/
+example : SetupCorrectHammingWithError (ProbComp.uniform (Matrix (Fin 1) (Fin (1 + 0)) (ZMod 5)))
+    (commonMatrixFuzzyExtractor 1 1 0 5 unitDecoder) 0 (1 / 5) :=
+  decoderCorrectWithError_unitDecoder.setupCorrect_commonMatrixFuzzyExtractor
+
+/-- The Section 3.3 attack bound end to end, at `m = 1, k = 1, l = 0, q = 5` with `unitDecoder`
+(`δ = 1 / 5 < 1 - 1 / q ^ k = 4 / 5`): on every source, the 1-query attack has strong-reuse
+advantage at least `1 - 1 / 5 - 1 / 5 = 3 / 5`. -/
+example (W : PMF (Fin 1 → ZMod 5)) :
+    (3 / 5 : ℝ) ≤
+      strongReuseAdvantage (ProbComp.uniform (Matrix (Fin 1) (Fin (1 + 0)) (ZMod 5)))
+        (commonMatrixFuzzyExtractor 1 1 0 5 unitDecoder) W 0 1
+        (commonMatrixStrongAttack unitDecoder) := by
+  refine le_trans (le_of_eq ?_) (strongReuseAdvantage_commonMatrixStrongAttack_ge (k := 1)
+    (l := 0) decoderCorrectWithError_unitDecoder W 0)
+  push_cast
+  norm_num
+
 /-! ### Section 5 encryption-based strongly reusable fuzzy extractor -/
 
 /-- Concrete verification of half-modulus encoding and `[3q / 8, 5q / 8]` threshold decoding
@@ -362,6 +383,17 @@ example
       (lweEncryptFuzzyExtractor 4 2 2 16 (return 0) decode) t 1 := by
   refine (decoderCorrectWithError_one decode t).setupCorrect_lweEncryptFuzzyExtractor
     ?_
+  intro e he i
+  simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at he
+  subst he
+  simp
+
+/-- Non-trivial Section 5 correctness at `m = 1, n = 1, l = 1, q = 5`: with `unitDecoder`
+(`δ = 1 / 5`) and the zero encryption error, reproduction from an identical reading fails with
+probability at most `1 / 5`, averaged over the public matrix. -/
+example : SetupCorrectHammingWithError (ProbComp.uniform (Matrix (Fin 1) (Fin 1) (ZMod 5)))
+    (lweEncryptFuzzyExtractor 1 1 1 5 (return 0) unitDecoder) 0 (1 / 5) := by
+  refine decoderCorrectWithError_unitDecoder.setupCorrect_lweEncryptFuzzyExtractor ?_
   intro e he i
   simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at he
   subst he

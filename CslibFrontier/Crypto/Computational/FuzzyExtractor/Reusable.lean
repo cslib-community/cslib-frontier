@@ -109,7 +109,8 @@ strong-reuse advantage is at least `1 - δ - 1 / q ^ k`.
 * A reusability security theorem. Here the adversary is any `ReuseAdversary`, with no efficiency
   bound. Concluding reusability from `DecisionLWEWithErrors` needs an adversary class in the
   reuse experiments and efficiency certificates for `commonMatrixSimulator` and the reductions;
-  this is future work.
+  this is future work, recorded under "Reusable fuzzy extractors from LWE" in the Cryptography
+  section of `ROADMAP.md`.
 * The Section 3.2 attack on independent-matrix FMR (`lweFuzzyExtractor` with fresh `A_i` per
   enrollment), which relies on the concrete `Decode_t` algorithm analysis.
 * The Section 4 random-oracle transformation from weak to strong reusability (Theorem 2).
@@ -570,20 +571,9 @@ theorem DecoderCorrectWithError.setupCorrect_commonMatrixFuzzyExtractor
   rw [PMF.bind_comm (PMF.uniformOfFintype (Matrix (Fin m) (Fin (k + l)) (ZMod q)))
     (PMF.uniformOfFintype (Fin (k + l) → ZMod q))]
   refine PMF.bind_apply_le_on_support _ fun s _ => ?_
-  have hs : decodeGame decode s (w - w') false ≤ (δ : ℝ≥0∞) := by
-    have := ENNReal.coe_le_coe.mpr (hdec s (w - w') hdis)
-    rwa [Game.failProbability, ENNReal.coe_toNNReal (PMF.apply_ne_top _ _)] at this
-  refine le_trans ?_ hs
-  simp only [decodeGame, decodeCheck, ProbComp.eval_bind, ProbComp.eval_pure,
-    ProbComp.eval_uniform]
-  refine PMF.bind_apply_mono_on_support _ false fun A _ => ?_
-  rw [add_sub_assoc]
-  refine PMF.bind_apply_mono_on_support _ false fun sOpt _ => ?_
-  by_cases h : sOpt = some s
-  · subst h
-    simp
-  · rw [decide_eq_false h, PMF.pure_apply_self]
-    exact PMF.coe_le_one _ _
+  simp only [add_sub_assoc]
+  exact uniform_bind_decode_bind_apply_false_le_of_failProbability_le decode s (w - w') _
+    (fun A => by simp) (hdec s (w - w') hdis)
 
 /-- The simulator of [AponChoEldefrawyKatz2017], Theorem 1 (Section 3.3), as a single-enrollment
 distinguisher against `lweFuzzyExtractor m k l q decode`: given key candidate `r` and helper
@@ -623,10 +613,6 @@ private theorem eval_commonMatrix_query_eq
   rw [Matrix.mulVec_add]
   abel
 
-private theorem uniformOfFintype_unit : PMF.uniformOfFintype Unit = PMF.pure () := by
-  ext u
-  simp
-
 /-- The `Q`-query weak-reusability real game of `commonMatrixFuzzyExtractor` (over a uniform public
 matrix `A`) equals the single-enrollment `realGame` of `lweFuzzyExtractor` against
 `commonMatrixSimulator t Q adv`. This is the real-game half of the reduction step in the proof of
@@ -643,7 +629,7 @@ theorem weakReuseRealGame_commonMatrixFuzzyExtractor {St : Type}
   simp only [weakReuseRealGame, FuzzyExtractor.realGame, Game.withSetup,
     weakReuseRealExperiment, FuzzyExtractor.realExperiment, lweFuzzyExtractor, decodeThenExtract,
     commonMatrixSimulator, ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform,
-    uniformOfFintype_unit, PMF.bind_bind, PMF.pure_bind]
+    Probability.PMF.uniformOfFintype_unit, PMF.bind_bind, PMF.pure_bind]
   rw [PMF.bind_comm (PMF.uniformOfFintype (Matrix (Fin m) (Fin (k + l)) (ZMod q))) W]
   congr 1 with w : 1
   congr 1 with A : 1
@@ -671,7 +657,7 @@ theorem weakReuseIdealGame_commonMatrixFuzzyExtractor {St : Type}
   simp only [weakReuseIdealGame, FuzzyExtractor.idealGame, Game.withSetup,
     weakReuseIdealExperiment, FuzzyExtractor.idealExperiment, lweFuzzyExtractor, decodeThenExtract,
     commonMatrixSimulator, ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform,
-    uniformOfFintype_unit, PMF.bind_bind, PMF.pure_bind]
+    Probability.PMF.uniformOfFintype_unit, PMF.bind_bind, PMF.pure_bind]
   rw [PMF.bind_comm (PMF.uniformOfFintype (Matrix (Fin m) (Fin (k + l)) (ZMod q))) W]
   congr 1 with w : 1
   congr 1 with A : 1
@@ -803,24 +789,15 @@ theorem failProbability_strongReuseRealGame_commonMatrixStrongAttack_le
   rw [PMF.bind_comm (PMF.uniformOfFintype (Matrix (Fin m) (Fin (k + l)) (ZMod q)))
     (PMF.uniformOfFintype (Fin (k + l) → ZMod q))]
   refine PMF.bind_apply_le_on_support _ fun s₁ _ => ?_
-  have hs : decodeGame decode (sStar - s₁) 0 false ≤ (δ : ℝ≥0∞) := by
-    have := ENNReal.coe_le_coe.mpr (hdec (sStar - s₁) 0 (by simp))
-    rwa [Game.failProbability, ENNReal.coe_toNNReal (PMF.apply_ne_top _ _)] at this
-  refine le_trans ?_ hs
-  simp only [decodeGame, decodeCheck, ProbComp.eval_bind, ProbComp.eval_pure,
-    ProbComp.eval_uniform]
-  refine PMF.bind_apply_mono_on_support _ false fun A _ => ?_
-  have hsub : (A.mulVec sStar + w) - (A.mulVec s₁ + w) = A.mulVec (sStar - s₁) + 0 := by
+  have hsub : ∀ A : Matrix (Fin m) (Fin (k + l)) (ZMod q),
+      (A.mulVec sStar + w) - (A.mulVec s₁ + w) = A.mulVec (sStar - s₁) + 0 := fun A => by
     rw [add_zero, (commonMatrix_recover_key_of_zero_shift A sStar s₁ w).1]
-  rw [hsub]
-  refine PMF.bind_apply_mono_on_support _ false fun sOpt _ => ?_
-  by_cases h : sOpt = some (sStar - s₁)
-  · subst h
-    simp only [ProbComp.eval_pure, PMF.pure_bind]
-    rw [(commonMatrix_recover_key_of_zero_shift A sStar s₁ w).2]
-    simp
-  · rw [decide_eq_false h, PMF.pure_apply_self]
-    exact PMF.coe_le_one _ _
+  simp only [hsub]
+  refine uniform_bind_decode_bind_apply_false_le_of_failProbability_le decode (sStar - s₁) 0 _
+    (fun A => ?_) (hdec (sStar - s₁) 0 (by simp))
+  simp only [ProbComp.eval_pure, PMF.pure_bind]
+  rw [(commonMatrix_recover_key_of_zero_shift A sStar s₁ w).2]
+  simp
 
 private theorem uniform_bind_decide_eq (x : Fin k → ZMod q) :
     ((PMF.uniformOfFintype (Fin k → ZMod q)).bind fun u => PMF.pure (decide (u = x))) =
