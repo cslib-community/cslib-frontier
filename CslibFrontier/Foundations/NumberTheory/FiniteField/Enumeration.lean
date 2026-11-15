@@ -10,7 +10,6 @@ module
 public import CslibFrontier.Init
 public import Mathlib.FieldTheory.Finite.Basic
 public import Mathlib.Data.Fintype.BigOperators
-public import Mathlib.RingTheory.RootsOfUnity.PrimitiveRoots
 
 /-!
 # Enumerating a prime field by natural representatives
@@ -55,12 +54,5 @@ theorem count_range_natCast_mem {n : ℕ} [NeZero n] (s : Finset (ZMod n)) :
   simpa only [Finset.sum_const, smul_eq_mul, mul_one] using
     sum_range_natCast_mem (M := ℕ) s (fun _ => 1)
 
-/-- The primitive-root specialization of the enumeration; no generator is chosen. -/
-theorem sum_range_primitiveRoots {p : ℕ} [Fact p.Prime] {M : Type*} [AddCommMonoid M]
-    (h : ZMod p → M) :
-    (∑ g ∈ Finset.range p,
-      if (g : ZMod p) ∈ primitiveRoots (p - 1) (ZMod p) then h (g : ZMod p) else 0) =
-      ∑ γ ∈ primitiveRoots (p - 1) (ZMod p), h γ :=
-  sum_range_natCast_mem _ h
 
 end ZMod
