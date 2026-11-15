@@ -204,7 +204,14 @@ jobs:
       # commits and this group change. Pull requests never run this step. A miss is a workflow
       # warning and leaves the remote-cache step and the ordinary build unchanged; the variables
       # that disable the exact-revision step disable this one. It needs no cloud credential.
+      # The script exits 0 after a restoration and after every miss, including a failed or timed-out
+      # history fetch whose processes were confirmed stopped. It exits 125 only when that shutdown
+      # could not be confirmed. `continue-on-error` would hide that from the steps below, which
+      # run Git, the remote cache and the build, so this step records its exit status and the
+      # next step fails the job on 125. Any other failure of this optional step, such as its
+      # timeout, still lets the job continue.
       - name: Restore nearest ancestor merge-group build outputs
+        id: ancestor-handoff
         if: >-
           github.event_name == 'merge_group' &&
           vars.DISABLE_CACHE_RESTORE != 'true' && vars.DISABLE_CACHE_RESTORE != '1' &&
@@ -214,7 +221,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           DISABLE_BUILD_HANDOFF: ${{ vars.DISABLE_BUILD_HANDOFF }}
-        run: python3 -B scripts/cache_handoff.py restore --ancestor
+        run: |
+          status=0
+          python3 -B scripts/cache_handoff.py restore --ancestor || status=$?
+          echo "exit-status=$status" >> "$GITHUB_OUTPUT"
+          exit "$status"
+      - name: Stop after an unconfirmed ancestor-handoff shutdown
+        if: steps.ancestor-handoff.outputs.exit-status == '125'
+        run: |
+          echo "::error title=Unconfirmed cache process shutdown::The ancestor handoff's history fetch may still be running; rerun the job."
+          exit 125
       # Download the outputs that `main` CI uploaded for the nearest uploaded ancestor of this
       # commit, skipping modules that `.lake` already has (scripts/cache/README.md). The script
       # deepens the depth-1 checkout to 100 generations to find that ancestor. Lake reuses an

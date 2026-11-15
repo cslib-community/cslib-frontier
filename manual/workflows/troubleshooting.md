@@ -174,7 +174,9 @@ restores the build handoff of its nearest first-parent ancestor that has one. It
 nearest ancestor merge-group build outputs* logs `Build handoff restored from ancestor <sha> (<n>
 first-parent commits back)`, or a `Build handoff unavailable` warning naming the reason (no
 handoff among the 20 nearest ancestors, a changed toolchain or dependency manifest, a new runner
-image, an expired artifact). The
+image, an expired artifact). A miss never fails the build. The one failure this step causes is an
+`Unconfirmed cache process shutdown` error from the step after it, raised when its history fetch
+could not be confirmed stopped; rerun the job. The
 [cache guide](../../scripts/cache/README.md#later-merge-groups) describes the search and its
 checks.
 

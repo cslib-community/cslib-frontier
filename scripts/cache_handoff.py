@@ -506,7 +506,9 @@ def main() -> int:
             restore(ROOT, os.environ)
     except UnsafeShutdown as error:
         # As in scripts/cache/restore.py: a fetch whose processes could not be stopped is an
-        # error, not a miss. Nothing has been downloaded or installed.
+        # error, not a miss. Nothing has been downloaded or installed. Exit status 125 is the
+        # only one the workflow treats as fatal: its next step fails the job on it, before any
+        # other Git, cache or build step runs.
         print(f"error: {error}", file=sys.stderr)
         return 125
     except (Rejected, OSError, ValueError, TypeError, KeyError, subprocess.SubprocessError,

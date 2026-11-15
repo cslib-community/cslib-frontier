@@ -143,6 +143,8 @@ CI_ONLY = {
     "Restore Mathlib cache with retries": "CI cache; check.sh runs scripts/cache/ensure.sh",
     "Restore nearest ancestor merge-group build outputs":
         "merge groups only; downloads an ancestor's merge-group artifact through the GitHub API",
+    "Stop after an unconfirmed ancestor-handoff shutdown":
+        "merge groups only; fails the job when the ancestor handoff step exits 125",
     "Restore build outputs from the remote cache":
         "CI cache; check.sh runs scripts/cache/ensure.sh",
     "Restore validated merge-group build outputs":

@@ -171,8 +171,11 @@ group was formed, or a queue entry ahead of it whose run has already succeeded.
   depth-1 checkout only when it holds fewer commits than it needs, and considers at most 20
   ancestors (`ANCESTOR_LIMIT`), nearest first. The fetch runs under the cache scripts' process
   supervisor (`scripts/cache/bounded.py`) with a 60-second limit: a timeout or failure, once the
-  fetch's processes are confirmed stopped, only leaves fewer ancestors to consider, and an
-  unconfirmed shutdown ends the step with an error before anything is downloaded. An ancestor
+  fetch's processes are confirmed stopped, only leaves fewer ancestors to consider. An
+  unconfirmed shutdown is the one case in which this optional step fails the build: the script
+  exits 125 before anything is downloaded, the step records that status, and the next step
+  (*Stop after an unconfirmed ancestor-handoff shutdown*) fails the job, so that neither the
+  remote cache nor `lake build` runs beside a fetch that may still be writing. Rerun the job. An ancestor
   with no merge-group run, a failed, cancelled or unfinished latest run, or a missing or expired
   artifact is skipped at the cost of one run listing. The bound of 20 and the cost of a miss are
   operational assumptions, not guarantees: a listing usually returns in about a second, each is
@@ -194,7 +197,7 @@ group was formed, or a queue entry ahead of it whose run has already succeeded.
   restoration; Lake's artifact cache and `.lake/packages` are untouched, and Lake then recompiles
   whatever the newer commits and the group changed. The log line is `Build handoff restored from
   ancestor <sha> (<n> first-parent commits back), run …`. Any miss is a `Build handoff
-  unavailable` workflow warning and the ordinary build runs. A failure after the ancestor is
+  unavailable` workflow warning with exit status 0, and the ordinary build runs. A failure after the ancestor is
   chosen (download, archive, metadata, a rerun in progress) is a miss; the script does not then
   try an older build, since the step has one download budget.
 - **Limits.** If the nearest ancestor's pack or upload failed, the build restored can be older than
