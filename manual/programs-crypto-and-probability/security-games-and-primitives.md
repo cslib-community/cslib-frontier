@@ -371,6 +371,21 @@ instead of writing another sampling block. The inner product of bit lists is
 Mathlib's `dotProduct` on `List.ofFn` inputs (`listDot_ofFn`); use it, and its polynomial-time rule
 `ComputableInPolyTime.bitsListDot`, instead of spelling out the zip-and-fold parity.
 
+For parallel PRG composition ([bs23][bs23], §3.4.1, Theorem 3.2),
+[`PRG/Parallel.lean`](../../CslibFrontier/Crypto/Primitives/PRG/Parallel.lean) defines
+`G.parallel n` (`(s_1, ..., s_n) ↦ (G s_1, ..., G s_n)`) on finite-type generators and proves the
+exact relation `(G.parallel n).advantage A = n * G.advantage (G.parallelReduction n A)` for
+`[NeZero n]` and unrestricted `PMF`-kernel adversaries (no efficiency claim). On word ensembles,
+[`PseudorandomGenerator/Parallel.lean`](../../CslibFrontier/Crypto/Computational/PseudorandomGenerator/Parallel.lean)
+defines `parallelGenerator`, certifies its polynomial-time execution
+(`computableInPolyTime_parallelGenerator`), and proves
+`computationallyIndistinguishable_parallelGenerator`: for any `PseudorandomGenerator` and unary
+polynomial-time copy schedule `count`, concatenating `parallelGenerator` across `count n`
+independent uniform `n`-bit seeds is computationally indistinguishable from
+`BitString.uniformList (count n * length n)` via `ComputationallyIndistinguishable.replicate_bind`
+(using the certified `sequenceTest` reduction with loss `dyadicSize (count n)`). Checked in
+[`CslibFrontierTests/Crypto/PseudorandomGeneratorParallel.lean`](../../CslibFrontierTests/Crypto/PseudorandomGeneratorParallel.lean).
+
 For a one-bit expanding PRG, [Stretch/Prefix.lean](../../CslibFrontier/Crypto/Computational/Stretch/Prefix.lean)
 proves that `(forwardIterate g ℓ seed).take ℓ` has length `ℓ` and agrees with the first `ℓ`
 emitted bits of every longer run. The premise is global: `length (g seed) = length seed + 1`
