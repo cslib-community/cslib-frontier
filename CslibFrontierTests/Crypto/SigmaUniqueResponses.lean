@@ -10,15 +10,13 @@ module
 import CslibFrontier.Crypto.Protocols.SigmaProtocol.UniqueResponses
 
 /-!
-# Tests for Unique Responses and Strong Special Soundness
+# Tests for unique responses and strong special soundness
 
 Hypothesis probes and concrete `ZMod 5` checks for
 `CslibFrontier.Crypto.Protocols.SigmaProtocol.UniqueResponses`.
 -/
 
-public section
-
-namespace SigmaUniqueResponsesTests
+namespace CslibFrontierTests.Crypto.SigmaUniqueResponses
 
 open Cslib.Crypto.Protocols.SigmaProtocol
 
@@ -75,29 +73,38 @@ example : (linear (fun _ : Unit => (0 : ZMod 5 →ₗ[ZMod 5] ZMod 5)) (fun _ =>
     ¬ Function.Injective (0 : ZMod 5 →ₗ[ZMod 5] ZMod 5) :=
   ⟨fun _ c => c.elim, fun h => absurd (h (a₁ := 0) (a₂ := 1) rfl) (by decide)⟩
 
-/- Checks standard axiom usage of the main declarations across the `module` boundary. -/
-/--
-info: 'Cslib.Crypto.Protocols.SigmaProtocol.SpecialSoundness.strong' depends on axioms: [propext,
- Classical.choice,
- Quot.sound]
--/
-#guard_msgs in
-#print axioms SpecialSoundness.strong
+/-- Checks `schnorr_uniqueResponsesAt_iff` negatively: `g = 0` over `ZMod 5` fails unique
+responses at statement `3`. -/
+example : ¬ (schnorr (Function.Embedding.refl (ZMod 5)) (0 : ZMod 5)).UniqueResponsesAt 3 :=
+  fun h => absurd (schnorr_uniqueResponsesAt_iff.mp h (a₁ := 0) (a₂ := 1) (by simp)) (by decide)
 
-/--
-info: 'Cslib.Crypto.Protocols.SigmaProtocol.linear_uniqueResponsesAt_iff' depends on axioms: [propext,
- Classical.choice,
- Quot.sound]
--/
-#guard_msgs in
-#print axioms linear_uniqueResponsesAt_iff
+/-- `3 α₀ = 2` over `ZMod 5`: the homogenized system has only `α₀ = 0`. -/
+example : (linearSystem (Function.Embedding.refl (ZMod 5)) 1 1).UniqueResponsesAt
+    ((fun _ _ => (3 : ZMod 5)), fun _ => 2) := by
+  rw [linearSystem_uniqueResponsesAt_iff]
+  intro α hα
+  funext j
+  have h0 := hα 0
+  rw [Fin.sum_univ_one] at h0
+  have hzero : ∀ x : ZMod 5, x • (3 : ZMod 5) = 0 → x = 0 := by decide
+  rw [Subsingleton.elim j 0]
+  exact hzero (α 0) h0
 
-/--
-info: 'Cslib.Crypto.Protocols.SigmaProtocol.schnorr_strongSpecialSoundness' depends on axioms: [propext,
- Classical.choice,
- Quot.sound]
--/
-#guard_msgs in
-#print axioms schnorr_strongSpecialSoundness
+/-- `α₀ + α₁ = 2` over `ZMod 5`: the homogenized system has the solution `(1, 4)`. -/
+example : ¬ (linearSystem (Function.Embedding.refl (ZMod 5)) 1 2).UniqueResponsesAt
+    ((fun _ _ => (1 : ZMod 5)), fun _ => 2) := by
+  rw [linearSystem_uniqueResponsesAt_iff]
+  intro h
+  exact absurd (congrFun (h ![1, 4] (by
+    intro i
+    simp only [smul_eq_mul, mul_one, Fin.sum_univ_two, Fin.isValue, Matrix.cons_val_zero,
+      Matrix.cons_val_one, Matrix.cons_val_fin_one]
+    decide)) 0) (by decide)
 
-end SigmaUniqueResponsesTests
+/-- Checks `StrongSpecialSoundness.specialSoundness` on Schnorr over `ZMod 5`. -/
+example : (schnorr (Function.Embedding.refl (ZMod 5)) (1 : ZMod 5)).SpecialSoundness
+    (fun α u => α • (1 : ZMod 5) = u) (linearExtract (Function.Embedding.refl (ZMod 5))) :=
+  haveI : Fact (Nat.Prime 5) := ⟨Nat.prime_five⟩
+  (schnorr_strongSpecialSoundness one_ne_zero).specialSoundness
+
+end CslibFrontierTests.Crypto.SigmaUniqueResponses

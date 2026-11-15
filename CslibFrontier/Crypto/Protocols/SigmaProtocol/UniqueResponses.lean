@@ -25,8 +25,8 @@ For the generic linear protocol `linear ψ u ι`, `linear_uniqueResponsesAt_iff`
 unique responses at `y` as injectivity of `ψ y` when `C` is nonempty, giving specializations for
 `schnorr`, `chaumPedersen`, and `linearSystem` (where the homogeneous system has only the zero
 solution), together with `schnorr_strongSpecialSoundness` for prime `q` and `g ≠ 0`. Exercises
-19.14(d), 19.15(b), and 19.16 (computational unique responses) are outside the scope of this
-module.
+19.14(d), 19.15(b), and 19.16 (computational strong special soundness) are outside the scope of
+this module.
 
 ## Main definitions
 
@@ -111,21 +111,6 @@ variable {q : ℕ} {M N Y C : Type u} [AddCommGroup M] [Module (ZMod q) M] [Fint
   [AddCommGroup N] [Module (ZMod q) N] [DecidableEq N]
   (ψ : Y → M →ₗ[ZMod q] N) (u : Y → N) (ι : C ↪ ZMod q)
 
-/-- **Exercise 19.14(c)** ([BonehShoup2023], p. 814): when `C` is nonempty, the linear protocol has
-unique responses at `y` exactly when `ψ y` is injective (its homogeneous system has only the zero
-solution). -/
-theorem linear_uniqueResponsesAt_iff [Nonempty C] {y : Y} :
-    (linear ψ u ι).UniqueResponsesAt y ↔ Function.Injective (ψ y) := by
-  constructor
-  · intro h z z' hzz'
-    obtain ⟨c⟩ := ‹Nonempty C›
-    refine h (ψ y z - ι c • u y) c z z' ?_ ?_
-    · rw [linear_accepts_iff, sub_add_cancel]
-    · rw [linear_accepts_iff, sub_add_cancel, hzz']
-  · intro h t c z z' hz hz'
-    rw [linear_accepts_iff] at hz hz'
-    exact h (hz.trans hz'.symm)
-
 /-- The sufficient direction of `linear_uniqueResponsesAt_iff`, kept separately because it needs
 no `[Nonempty C]` hypothesis. -/
 theorem linear_uniqueResponsesAt {y : Y} (h : Function.Injective (ψ y)) :
@@ -133,6 +118,18 @@ theorem linear_uniqueResponsesAt {y : Y} (h : Function.Injective (ψ y)) :
   intro t c z z' hz hz'
   rw [linear_accepts_iff] at hz hz'
   exact h (hz.trans hz'.symm)
+
+/-- **Exercise 19.14(c)** ([BonehShoup2023], p. 814): when `C` is nonempty, the linear protocol has
+unique responses at `y` exactly when `ψ y` is injective (its homogeneous system has only the trivial
+solution; the exercise asks for the sufficient direction and prints the unique solution as
+`α_j = 1`, whereas in this additive formalization the trivial solution is `0`). -/
+theorem linear_uniqueResponsesAt_iff [Nonempty C] {y : Y} :
+    (linear ψ u ι).UniqueResponsesAt y ↔ Function.Injective (ψ y) := by
+  refine ⟨fun h z z' hzz' => ?_, linear_uniqueResponsesAt ψ u ι⟩
+  obtain ⟨c⟩ := ‹Nonempty C›
+  refine h (ψ y z - ι c • u y) c z z' ?_ ?_
+  · rw [linear_accepts_iff, sub_add_cancel]
+  · rw [linear_accepts_iff, sub_add_cancel, hzz']
 
 end Linear
 
@@ -162,25 +159,20 @@ theorem chaumPedersen_uniqueResponses (hg : Function.Injective fun r : ZMod q =>
   exact congrArg Prod.fst h
 
 /-- **Exercise 19.14(c)** ([BonehShoup2023], p. 814) for `linearSystem`: when `C` is nonempty,
-unique responses hold at the system `s` exactly when its homogenized form has only the zero
-solution. -/
+unique responses hold at the system `s` exactly when its homogenized form has only the trivial
+solution. The exercise asks for the sufficient direction and prints the unique solution as
+`α_j = 1`; the trivial solution, which is what this condition states, has every `α_j = 0`. -/
 theorem linearSystem_uniqueResponsesAt_iff [Nonempty C] {m n : ℕ}
     {s : (Fin m → Fin n → G) × (Fin m → G)} :
     (linearSystem ι m n).UniqueResponsesAt s ↔
       ∀ α : Fin n → ZMod q, (∀ i, ∑ j, α j • s.1 i j = 0) → α = 0 := by
   rw [linearSystem, linear_uniqueResponsesAt_iff, injective_iff_map_eq_zero]
-  refine forall_congr' fun α => ?_
-  constructor
-  · intro h hα
-    refine h ?_
-    funext i
-    simpa [Fintype.linearCombination_apply] using hα i
-  · intro h hα
-    refine h fun i => ?_
-    simpa [Fintype.linearCombination_apply] using congrFun hα i
+  simp only [funext_iff, LinearMap.pi_apply, Fintype.linearCombination_apply, Pi.zero_apply]
 
 /-- Schnorr's protocol has strong special soundness ([BonehShoup2023], Exercises 19.14(a) and
-19.15(a)) with `linearExtract`, used for strong unforgeability of Schnorr signatures. -/
+19.15(a), pp. 813–814) with `linearExtract`. These are the hypotheses of Exercise 19.17(a)
+([BonehShoup2023], p. 815) on strongly secure Fiat–Shamir signatures, which the library does not yet
+prove. -/
 theorem schnorr_strongSpecialSoundness [Fact q.Prime] (hg : g ≠ 0) :
     (schnorr ι g).StrongSpecialSoundness (fun α u => α • g = u) (linearExtract ι) :=
   schnorr_specialSoundness.strong (schnorr_uniqueResponses (smul_left_injective (ZMod q) hg))
