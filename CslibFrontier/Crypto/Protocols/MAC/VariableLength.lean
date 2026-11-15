@@ -28,6 +28,7 @@ import CslibFrontier.Computability.Probabilistic.Oracle.Parameter
 import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.Sampling
+import CslibFrontier.Crypto.Negligible.InversePolynomial
 import CslibFrontier.Computability.Probabilistic.Traverse
 import CslibFrontier.Foundations.Data.BitString.List.LowBits
 import CslibFrontier.Foundations.Data.Nat.Power
@@ -1846,11 +1847,6 @@ theorem isOraclePPT_toForger_mixBlocksAdversary {replyBound : ℕ → ℕ → �
               List.replicate (fieldWidth (M.msgLen q.1.1)) true)) :=
     IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop)
   exact (hq1.bind_with (hq2.map_with' (by fun_prop))).isOraclePPT
-
-private theorem not_negligible_of_eventually_eq_one {f : ℕ → ℝ≥0}
-    (hf : ∀ᶠ n in Filter.atTop, f n = 1) : ¬ Negligible f := fun hneg =>
-  not_negligible_const one_ne_zero
-    (negligible_of_eventually_le hneg (hf.mono fun _ hn => hn.symm.le))
 
 /-- Without the block index (`noIndexEncoder`), the blockwise construction is not
 `BlockwiseEUFCMA`-secure whenever `3 ≤ fieldWidth (M.msgLen n)` eventually. -/

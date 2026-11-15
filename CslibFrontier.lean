@@ -4812,6 +4812,7 @@ public import CslibFrontier.Crypto.Game.UntilBad
 public import CslibFrontier.Crypto.Negligible
 public import CslibFrontier.Crypto.Negligible.Basic
 public import CslibFrontier.Crypto.Negligible.Dyadic
+public import CslibFrontier.Crypto.Negligible.InversePolynomial
 public import CslibFrontier.Crypto.Primitives.BlockCipher.CBCMAC
 public import CslibFrontier.Crypto.Primitives.BlockCipher.LengthPrependedCBCMAC
 public import CslibFrontier.Crypto.Primitives.BlockCipher.Modes
