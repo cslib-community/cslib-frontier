@@ -32,10 +32,10 @@ the adversary `L 1` and `L α`, runs it against the group oracle of `L` (`runLab
 it outputs `α`. The adversary's budget is `ProbOracleComp.IsQueryBounded`: at most `T` labeling and
 group-operation queries on every path, whatever its private coins; coin draws are free.
 
-This is an unconditional bound on query-bounded programs in an idealized model. It takes no
-hardness assumption and is not a statement about any specific group: as the book says (p. 695),
-the bound says nothing about the difficulty of discrete logarithm in any specific group. It applies
-to adversaries that are otherwise unbounded.
+This is a query bound on query-bounded programs in an idealized model; it assumes no computational
+hardness and is not a statement about any specific group: as the book says (p. 695), the bound
+says nothing about the difficulty of discrete logarithm in any specific group. It applies to
+adversaries that are otherwise unbounded.
 
 As in the book, `q` is prime; the bound is not claimed for composite `q`. For groups of
 prime-power order the book reduces discrete logarithm to the prime case (Section 16.1.2, p. 684).
