@@ -1887,16 +1887,29 @@ within `k * k * n / 2 ^ κ` of uniform (`closeTo_keyGenWord`).
 proves `indCPA_kpkeIdealCoins_of_decisionModuleLWEWith`, IND-CPA of K-PKE with ideal coin
 expansion: key generation and encryption draw their centered-binomial noise from fair coins, where
 Kyber v3.02 and FIPS 203 expand a seed with `PRF`. It is a step towards Kyber v3.02 Theorem 1
-([kyber302][kyber302], §4.3.1), not that theorem, whose bound has an `Adv^prf` term; the faithful
-theorem, with the `PRF` hop, is open under
-[#5293](https://github.com/cslib-community/cslib-frontier/issues/5293). It shows that `kpke P` is
-IND-CPA secure under `DecisionModuleLWEWith` with the centered-binomial laws `cbdLaw`: width `η₁`
-for both laws at the `k × k` key shape, and `η₁` secrets with `η₂` errors at the `(k + 1) × k`
+([kyber302][kyber302], §4.3.1), not that theorem, whose bound has an `Adv^prf` term. It shows
+that `kpke P` is IND-CPA secure under `DecisionModuleLWEWith` with the centered-binomial laws
+`cbdLaw`: width `η₁` for both laws at the `k × k` key shape, and `η₁` secrets with `η₂` errors at the `(k + 1) × k`
 ciphertext shape. It applies the assumption to the hops as families `keyReduction` and
 `ciphertextReduction` through `isPPT_keyReduction` and `isPPT_ciphertextReduction`, proved from the
 adversary's certificate, and bounds the rest with `cpaAdvantage_le` and the matrix sampler's
 distance. Its other deviations are those of `cpaAdvantage_le` above, a uniform matrix in place of
 `XOF` and an uncompressed ciphertext hop, and it is not a statement about ML-KEM.
+[`MLKEM/PRFExpansion.lean`](../../CslibFrontier/Crypto/Computational/SIS/MLKEM/PRFExpansion.lean)
+gives K-PKE with its own seed expansion, `kpkePRF P F`: key generation and encryption decode
+`CBD_η` from the first `n · 2η` bits of a keyed function `F` at a `κ`-bit seed and the word of each
+counter, as Algorithms 4 and 5 of Kyber v3.02 do with `PRF`.
+[`MLKEM/PRFSecurity.lean`](../../CslibFrontier/Crypto/Computational/SIS/MLKEM/PRFSecurity.lean)
+proves `indCPA_kpkePRF_of_decisionModuleLWEWith`, Kyber v3.02 Theorem 1 in this setting:
+`kpkePRF P F` is IND-CPA secure under the same two `DecisionModuleLWEWith` instances and
+`PseudorandomFunctionOver` for `F`, with counter words as inputs and `n · 2 · max(η₁, η₂)`-bit
+outputs. Its two `PRF` hops, `keyPRFReduction` (key generation) and `encPRFReduction`
+(encryption), are PRF distinguishers certified by `isOraclePPT_keyPRFReduction` and
+`isOraclePPT_encPRFReduction` from the adversary's certificate; against a random function they
+play the games of `kpke P`, to which the ideal-coin theorem applies. Its deviations from Theorem 1
+are listed in the module: the asymptotic setting with `κ`-bit seeds, counters of `(2k).size` bits,
+one PRF output length read by prefixes, the uncompressed Module-LWE terms of eq. (6), and four PRF
+advantages in place of one.
 `MLKEMTransform.decapsWith` is the FIPS 203 implicit-rejection wrapper over any
 `ExplicitCoinPKE`, defined through `FujisakiOkamoto.decT` and proved equal to the standard's
 decapsulation algorithm (`decapsWith_eq`). [`CslibFrontierTests/Crypto/MLKEM.lean`](../../CslibFrontierTests/Crypto/MLKEM.lean)

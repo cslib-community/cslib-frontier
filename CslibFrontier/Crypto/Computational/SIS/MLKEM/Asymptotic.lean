@@ -28,7 +28,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 key generation and encryption draw their centered-binomial noise from fair coins, where Kyber v3.02
 and FIPS 203 expand a seed with `PRF`. It is a step towards Kyber v3.02 ([AvanziEtAl2021], §4.3.1,
 Theorem 1, p. 20), not that theorem, whose bound has an `Adv^prf` term. The faithful theorem, with
-the `PRF` hop, is open under [#5293](https://github.com/cslib-community/cslib-frontier/issues/5293).
+the `PRF` hop, is `indCPA_kpkePRF_of_decisionModuleLWEWith`
+(`CslibFrontier.Crypto.Computational.SIS.MLKEM.PRFSecurity`), whose last step is this one.
 
 For a K-PKE parameter family `P` computable in polynomial time from the unary security parameter,
 the theorem shows that the word-level family `kpke P` is IND-CPA secure (`WordPKE.INDCPA`: every
@@ -65,8 +66,8 @@ The coins make this a step and not Theorem 1:
 
 * Key generation and encryption decode fair bits with `SamplePolyCBD`, where Kyber expands a
   32-byte seed with `PRF` (`σ` in key generation, the coins `r` in encryption). This idealizes the
-  scheme's own coin expansion, so the bound has no `Adv^prf` term. Removing it needs a `PRF` hop
-  under a named pseudorandomness assumption, which is open under #5293.
+  scheme's own coin expansion, so the bound has no `Adv^prf` term. The `PRF` hops, under
+  `PseudorandomFunctionOver`, are in `indCPA_kpkePRF_of_decisionModuleLWEWith`.
 
 The remaining differences restate Theorem 1 in this library's setting rather than weaken it:
 
@@ -624,8 +625,8 @@ theorem eval_sampleVecCBD (k n q η : ℕ) [NeZero q] :
 
 /-- **IND-CPA of K-PKE with ideal coin expansion** (fair coins in place of `PRF`), a step towards
 Kyber v3.02 Theorem 1 ([AvanziEtAl2021], §4.3.1, p. 20) and not that theorem, whose bound has an
-`Adv^prf` term. The faithful theorem, with the `PRF` hop, is open under
-[#5293](https://github.com/cslib-community/cslib-frontier/issues/5293).
+`Adv^prf` term. The faithful theorem, with the `PRF` hop, is
+`indCPA_kpkePRF_of_decisionModuleLWEWith`, which applies this one to its last game.
 
 Let `P` be a K-PKE parameter family computable in polynomial time from the unary security
 parameter. If decision Module-LWE is hard for the `k × k` key shape with secrets and errors from

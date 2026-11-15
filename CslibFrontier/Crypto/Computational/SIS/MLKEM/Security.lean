@@ -62,7 +62,8 @@ expansion: for a parameter family computable in polynomial time, the word-level 
 with fair coins in place of `PRF`, is IND-CPA secure under `DecisionModuleLWEWith` with these laws.
 It applies this bound to the reductions as families of distinguishers whose efficiency it proves
 from the adversary's certificate. It is a step towards Kyber v3.02 Theorem 1, not that theorem;
-the `PRF` hop is open under #5293.
+Theorem 1 itself, with the `PRF` hop, is `indCPA_kpkePRF_of_decisionModuleLWEWith`
+(`CslibFrontier.Crypto.Computational.SIS.MLKEM.PRFSecurity`).
 
 ## Main definitions
 
@@ -215,7 +216,8 @@ eq. (6), p. 22, in the model and with the deviations listed in the module docume
 matrix and sampled coins instead of `XOF` and `PRF`, an uncompressed ciphertext hop, and no running
 time. It is a concrete lemma for one parameter set, not an asymptotic security theorem; its
 asymptotic form, with ideal coin expansion and a step towards Theorem 1, is
-`indCPA_kpkeIdealCoins_of_decisionModuleLWEWith`. -/
+`indCPA_kpkeIdealCoins_of_decisionModuleLWEWith`, and Theorem 1 itself, with the `PRF` hop, is
+`indCPA_kpkePRF_of_decisionModuleLWEWith`. -/
 theorem cpaAdvantage_le [NeZero P.q] (A : CpaAdversary P σ) :
     (toExplicitCoinPKE P).cpaAdvantage A ≤
       (ModuleLWE.advantage (ProbComp.eval (sampleVecCBD P.k P.n P.q P.η₁))
