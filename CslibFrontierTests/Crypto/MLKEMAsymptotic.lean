@@ -10,14 +10,15 @@ public import CslibFrontier.Crypto.Computational.SIS.MLKEM.Asymptotic
 import CslibFrontier.Probability.PMF
 
 /-!
-# The hypotheses of the asymptotic K-PKE theorem hold together
+# The hypotheses of K-PKE IND-CPA with ideal coin expansion hold together
 
-`indCPA_kpke_of_decisionModuleLWEWith` assumes a parameter family computable in polynomial time
-and two instances of `DecisionModuleLWEWith`. At modulus `1` there is only one Module-LWE sample,
-so both instances hold for every shape and every pair of laws (`decisionModuleLWEWith_one`). The
-constant family `trivialParams` therefore satisfies every hypothesis at once, and the theorem
-applies to it. This checks that the hypotheses are jointly satisfiable; it says nothing about
-hardness at meaningful parameters, where `DecisionModuleLWEWith` is an assumption.
+`indCPA_kpkeIdealCoins_of_decisionModuleLWEWith` assumes a parameter family computable in
+polynomial time and two instances of `DecisionModuleLWEWith`. At modulus `1` there is only one
+Module-LWE sample, so both instances hold for every shape and every pair of laws
+(`decisionModuleLWEWith_one`). The constant family `trivialParams` therefore satisfies every
+hypothesis at once, and the theorem applies to it. This checks that the hypotheses are jointly
+satisfiable; it says nothing about hardness at meaningful parameters, where
+`DecisionModuleLWEWith` is an assumption.
 -/
 
 public section
@@ -46,9 +47,9 @@ theorem decisionModuleLWEWith_one (m d n : ℕ → ℕ)
   dsimp only
   rw [hgame, Game.advantage_self]
 
-/-- The asymptotic theorem applies to the constant family with modulus `1`. -/
+/-- The theorem applies to the constant family with modulus `1`. -/
 example : (kpke fun _ => trivialParams).INDCPA :=
-  indCPA_kpke_of_decisionModuleLWEWith (ComputableInPolyTime.const trivialParams)
+  indCPA_kpkeIdealCoins_of_decisionModuleLWEWith (ComputableInPolyTime.const trivialParams)
     (decisionModuleLWEWith_one _ _ _ _ _) (decisionModuleLWEWith_one _ _ _ _ _)
 
 end CslibFrontierTests.Crypto.MLKEMAsymptotic

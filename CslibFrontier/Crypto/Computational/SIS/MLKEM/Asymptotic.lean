@@ -22,22 +22,27 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 
 /-!
-# Asymptotic IND-CPA security of K-PKE from Module-LWE
+# IND-CPA of K-PKE with ideal coin expansion, from Module-LWE
 
-`indCPA_kpke_of_decisionModuleLWEWith`: for a K-PKE parameter family `P` computable in polynomial
-time from the unary security parameter, the word-level family `kpke P` is IND-CPA secure
-(`WordPKE.INDCPA`: every uniform strict PPT chosen-message adversary has negligible advantage)
-whenever decision Module-LWE (`DecisionModuleLWEWith`) holds for the two shapes of Kyber's proof,
-with the centered-binomial laws `cbdLaw` (Kyber's `β_η`), from which K-PKE samples
-(`eval_sampleVecCBD`):
+`indCPA_kpkeIdealCoins_of_decisionModuleLWEWith` is IND-CPA of K-PKE with ideal coin expansion:
+key generation and encryption draw their centered-binomial noise from fair coins, where Kyber v3.02
+and FIPS 203 expand a seed with `PRF`. It is a step towards Kyber v3.02 ([AvanziEtAl2021], §4.3.1,
+Theorem 1, p. 20), not that theorem, whose bound has an `Adv^prf` term. The faithful theorem, with
+the `PRF` hop, is open under [#5293](https://github.com/cslib-community/cslib-frontier/issues/5293).
+
+For a K-PKE parameter family `P` computable in polynomial time from the unary security parameter,
+the theorem shows that the word-level family `kpke P` is IND-CPA secure (`WordPKE.INDCPA`: every
+uniform strict PPT chosen-message adversary has negligible advantage) whenever decision Module-LWE
+(`DecisionModuleLWEWith`) holds for the two shapes of Kyber's proof, with the centered-binomial laws
+`cbdLaw` (Kyber's `β_η`), from which K-PKE samples (`eval_sampleVecCBD`):
 
 * the public-key shape `k × k` with secret and error `CBD_{η₁}`, the term `Adv^mlwe_{k,k,η₁}`, and
 * the ciphertext shape `(k + 1) × k` with secret `CBD_{η₁}` and error `CBD_{η₂}`, the term
   `Adv^mlwer_{k+1,k,η₁,η₂,d_u}` without compression, which is decision Module-LWE with these laws
   ([AvanziEtAl2021], footnote 3, pp. 21–22).
 
-This is the asymptotic form of Kyber v3.02 ([AvanziEtAl2021], §4.3.1, Theorem 1, p. 20), in the
-form of §4.4, eq. (6), p. 22, which replaces `2 · Adv^mlwe_{k+1,k,η}` by these two terms.
+These are the two terms of §4.4, eq. (6), p. 22, which replaces Theorem 1's
+`2 · Adv^mlwe_{k+1,k,η}`; the `Adv^prf` term has no counterpart here.
 
 ## The proof
 
@@ -54,13 +59,20 @@ natives of `CslibFrontier.Crypto.Computational.SIS.MLKEM.Native` and
 `CslibFrontier.Crypto.Computational.LWE.Module.Native`, and run `A`'s stages. The theorem applies
 the two assumptions to these reductions through their certificates.
 
-## Model differences from Kyber v3.02 Theorem 1
+## Differences from Kyber v3.02 Theorem 1
+
+The coins make this a step and not Theorem 1:
+
+* Key generation and encryption decode fair bits with `SamplePolyCBD`, where Kyber expands a
+  32-byte seed with `PRF` (`σ` in key generation, the coins `r` in encryption). This idealizes the
+  scheme's own coin expansion, so the bound has no `Adv^prf` term. Removing it needs a `PRF` hop
+  under a named pseudorandomness assumption, which is open under #5293.
+
+The remaining differences restate Theorem 1 in this library's setting rather than weaken it:
 
 * The matrix `A` is drawn coefficientwise by the bounded modular sampler rather than expanded from
-  a seed by `XOF` modelled as a random oracle; the statistical distance `k * k * n / 2 ^ κ` from a
-  uniform matrix is negligible.
-* The encryption coins are fair bits decoded by `SamplePolyCBD` rather than `PRF` outputs, so there
-  is no `PRF` term and no random oracle.
+  a seed by `XOF`, which Theorem 1 models as a random oracle; the statistical distance
+  `k * k * n / 2 ^ κ` from a uniform matrix is proved and negligible.
 * The ciphertext hop is decision Module-LWE on the uncompressed sample with secret `CBD_{η₁}` and
   error `CBD_{η₂}`, the Module-LWER problem of eq. (6) without compression; the reduction adds the
   message and compresses the ciphertext itself. This assumption implies eq. (6)'s
@@ -73,8 +85,8 @@ the two assumptions to these reductions through their certificates.
 * Polynomials are in coefficient form, keys and ciphertexts are words of residue lists, and
   messages are words of exactly `n` bits.
 
-This is IND-CPA security of K-PKE (Kyber.CPAPKE); it is not a statement about ML-KEM
-([NISTFIPS203]) or its Fujisaki–Okamoto transform.
+This is IND-CPA of K-PKE (Kyber.CPAPKE) with ideal coin expansion; it is not a statement about
+ML-KEM ([NISTFIPS203]) or its Fujisaki–Okamoto transform.
 
 ## Main definitions
 
@@ -89,8 +101,8 @@ This is IND-CPA security of K-PKE (Kyber.CPAPKE); it is not a statement about ML
 * `Cslib.Crypto.MLKEM.isPPT_keyReduction`, `Cslib.Crypto.MLKEM.isPPT_ciphertextReduction`: the
   reductions are uniform strict PPT, from the adversary's certificate.
 * `Cslib.Crypto.MLKEM.advantage_gameOn_le`: the concrete bound at each `κ`.
-* `Cslib.Crypto.MLKEM.indCPA_kpke_of_decisionModuleLWEWith`: asymptotic IND-CPA security of
-  K-PKE from decision Module-LWE.
+* `Cslib.Crypto.MLKEM.indCPA_kpkeIdealCoins_of_decisionModuleLWEWith`: IND-CPA of K-PKE with
+  ideal coin expansion from decision Module-LWE, a step towards Kyber v3.02 Theorem 1.
 
 ## References
 
@@ -557,7 +569,7 @@ private theorem advantage_gameOn_cpaExperiment_le (A : Encryption.WordAdversary)
   rfl
 
 /-- **Concrete IND-CPA bound for the word family**, a step of
-`indCPA_kpke_of_decisionModuleLWEWith`: at each `κ`, the
+`indCPA_kpkeIdealCoins_of_decisionModuleLWEWith`: at each `κ`, the
 advantage of `A` in the word-level IND-CPA game of `kpke P` is at most the four Module-LWE
 advantages of the explicit reductions `keyReduction P A b` and `ciphertextReduction P A b`, plus
 twice the matrix-sampler distance `k * k * n / 2 ^ κ`. -/
@@ -587,7 +599,7 @@ theorem advantage_gameOn_le (A : Encryption.WordAdversary) (κ : ℕ) :
 
 end Bridge
 
-/-! ### The asymptotic theorem -/
+/-! ### IND-CPA with ideal coin expansion -/
 
 /-- The centered-binomial law `β_η^k` on vectors of `k` polynomials of `ℤ_q[X] / (X^n + 1)`: every
 coefficient is an independent centered-binomial sample of width `η` ([NIST, Section 4.2.2,
@@ -610,20 +622,23 @@ theorem eval_sampleVecCBD (k n q η : ℕ) [NeZero q] :
   congr 1 with j : 1
   rw [hpoly, ProbComp.eval_replicateFin, ProbComp.eval_map]
 
-/-- **Asymptotic IND-CPA security of K-PKE from decision Module-LWE.** Let `P` be a K-PKE
-parameter family computable in polynomial time from the unary security parameter. If decision
-Module-LWE is hard for the `k × k` key shape with secrets and errors from `cbdLaw` of width `η₁`
-(`hkey`) and for the `(k + 1) × k` ciphertext shape with secrets of width `η₁` and errors of width
-`η₂` (`hct`), then
-the word-level family `kpke P` is IND-CPA secure (`WordPKE.INDCPA`): every uniform strict PPT
-adversary has negligible advantage.
+/-- **IND-CPA of K-PKE with ideal coin expansion** (fair coins in place of `PRF`), a step towards
+Kyber v3.02 Theorem 1 ([AvanziEtAl2021], §4.3.1, p. 20) and not that theorem, whose bound has an
+`Adv^prf` term. The faithful theorem, with the `PRF` hop, is open under
+[#5293](https://github.com/cslib-community/cslib-frontier/issues/5293).
 
-This is the asymptotic form of Kyber v3.02 ([AvanziEtAl2021], §4.3.1, Theorem 1, p. 20) in the
-form of §4.4, eq. (6), p. 22, with a uniform matrix in place of `XOF` (Theorem 1's random oracle;
-the word family samples it within a negligible distance) and fair coins in place of `PRF` (so no
-`Adv^prf` term), and with an uncompressed ciphertext hop; the module documentation lists all
-deviations. -/
-theorem indCPA_kpke_of_decisionModuleLWEWith {P : ℕ → Params} [∀ κ, NeZero (P κ).q]
+Let `P` be a K-PKE parameter family computable in polynomial time from the unary security
+parameter. If decision Module-LWE is hard for the `k × k` key shape with secrets and errors from
+`cbdLaw` of width `η₁` (`hkey`) and for the `(k + 1) × k` ciphertext shape with secrets of width
+`η₁` and errors of width `η₂` (`hct`), then the word-level family `kpke P`, whose key generation
+and encryption draw their noise from fair coins, is IND-CPA secure (`WordPKE.INDCPA`): every
+uniform strict PPT adversary has negligible advantage.
+
+The two assumptions are the terms of §4.4, eq. (6), p. 22. Besides the coins, the deviations are a
+uniform matrix in place of `XOF` (Theorem 1's random oracle; the word family samples it within a
+proved negligible distance `k * k * n / 2 ^ κ`) and an uncompressed ciphertext hop; the module
+documentation lists all of them. -/
+theorem indCPA_kpkeIdealCoins_of_decisionModuleLWEWith {P : ℕ → Params} [∀ κ, NeZero (P κ).q]
     (hP : ComputableInPolyTime P encUnary encParams)
     (hkey : DecisionModuleLWEWith (fun κ => (P κ).k) (fun κ => (P κ).k) (fun κ => (P κ).n)
       (fun κ => (P κ).q) (fun κ => cbdLaw (P κ).k (P κ).n (P κ).q (P κ).η₁)

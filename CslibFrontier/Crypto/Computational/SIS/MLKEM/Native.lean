@@ -45,7 +45,7 @@ centered-binomial widths and compression widths are unary and the modulus is bin
 
 These are the natives of the word-level K-PKE family `kpke`
 (`CslibFrontier.Crypto.Computational.SIS.MLKEM.Family`) and of the efficiency certificates of the
-reductions of `indCPA_kpke_of_decisionModuleLWEWith`
+reductions of `indCPA_kpkeIdealCoins_of_decisionModuleLWEWith`
 (`CslibFrontier.Crypto.Computational.SIS.MLKEM.Asymptotic`). They make no security claim.
 
 ## Main definitions

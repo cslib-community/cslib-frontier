@@ -56,11 +56,13 @@ bound for one parameter set in this library's model, which differs from the sour
 * No running time is charged. The bound holds for every adversary, efficient or not; it is not an
   asymptotic security theorem.
 
-The asymptotic theorem is `indCPA_kpke_of_decisionModuleLWEWith`
-(`CslibFrontier.Crypto.Computational.SIS.MLKEM.Asymptotic`): for a parameter family computable in
-polynomial time, the word-level family `kpke` is IND-CPA secure under `DecisionModuleLWEWith` with
-these laws. It applies this bound to the reductions as families of distinguishers whose efficiency
-it proves from the adversary's certificate.
+Its asymptotic form is `indCPA_kpkeIdealCoins_of_decisionModuleLWEWith`
+(`CslibFrontier.Crypto.Computational.SIS.MLKEM.Asymptotic`), IND-CPA of K-PKE with ideal coin
+expansion: for a parameter family computable in polynomial time, the word-level family `kpke`,
+with fair coins in place of `PRF`, is IND-CPA secure under `DecisionModuleLWEWith` with these laws.
+It applies this bound to the reductions as families of distinguishers whose efficiency it proves
+from the adversary's certificate. It is a step towards Kyber v3.02 Theorem 1, not that theorem;
+the `PRF` hop is open under #5293.
 
 ## Main definitions
 
@@ -211,8 +213,9 @@ Module-LWE advantages of `mlweKeyReduction A b` (`k × k`, `CBD_{η₁}` secret 
 argument behind Kyber v3.02 ([AvanziEtAl2021], §4.3.1, Theorem 1, p. 20), with the hops of §4.4,
 eq. (6), p. 22, in the model and with the deviations listed in the module documentation: a uniform
 matrix and sampled coins instead of `XOF` and `PRF`, an uncompressed ciphertext hop, and no running
-time. It is a concrete lemma for one parameter set, not an asymptotic security theorem; the
-asymptotic theorem is `indCPA_kpke_of_decisionModuleLWEWith`. -/
+time. It is a concrete lemma for one parameter set, not an asymptotic security theorem; its
+asymptotic form, with ideal coin expansion and a step towards Theorem 1, is
+`indCPA_kpkeIdealCoins_of_decisionModuleLWEWith`. -/
 theorem cpaAdvantage_le [NeZero P.q] (A : CpaAdversary P σ) :
     (toExplicitCoinPKE P).cpaAdvantage A ≤
       (ModuleLWE.advantage (ProbComp.eval (sampleVecCBD P.k P.n P.q P.η₁))

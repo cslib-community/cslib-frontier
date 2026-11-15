@@ -1884,13 +1884,20 @@ computable in polynomial time (`kpke_isEfficient`) and with ciphertexts that fit
 (`kpke_ciphertextFits`). Its key generation draws the matrix coefficientwise at precision `κ`,
 within `k * k * n / 2 ^ κ` of uniform (`closeTo_keyGenWord`).
 [`MLKEM/Asymptotic.lean`](../../CslibFrontier/Crypto/Computational/SIS/MLKEM/Asymptotic.lean)
-proves the asymptotic theorem `indCPA_kpke_of_decisionModuleLWEWith`: `kpke P` is IND-CPA secure
-under `DecisionModuleLWEWith` with the centered-binomial laws `cbdLaw`: width `η₁` for both laws at
-the `k × k` key shape, and `η₁` secrets with `η₂` errors at the `(k + 1) × k` ciphertext shape. It
-applies the assumption to the hops as families `keyReduction` and `ciphertextReduction` through
-`isPPT_keyReduction` and `isPPT_ciphertextReduction`, proved from the adversary's certificate, and
-bounds the rest with `cpaAdvantage_le` and the matrix sampler's distance. It is K-PKE IND-CPA with
-the model differences above, not a statement about ML-KEM. `MLKEMTransform.decapsWith` is the FIPS 203 implicit-rejection wrapper over any
+proves `indCPA_kpkeIdealCoins_of_decisionModuleLWEWith`, IND-CPA of K-PKE with ideal coin
+expansion: key generation and encryption draw their centered-binomial noise from fair coins, where
+Kyber v3.02 and FIPS 203 expand a seed with `PRF`. It is a step towards Kyber v3.02 Theorem 1
+([kyber302][kyber302], §4.3.1), not that theorem, whose bound has an `Adv^prf` term; the faithful
+theorem, with the `PRF` hop, is open under
+[#5293](https://github.com/cslib-community/cslib-frontier/issues/5293). It shows that `kpke P` is
+IND-CPA secure under `DecisionModuleLWEWith` with the centered-binomial laws `cbdLaw`: width `η₁`
+for both laws at the `k × k` key shape, and `η₁` secrets with `η₂` errors at the `(k + 1) × k`
+ciphertext shape. It applies the assumption to the hops as families `keyReduction` and
+`ciphertextReduction` through `isPPT_keyReduction` and `isPPT_ciphertextReduction`, proved from the
+adversary's certificate, and bounds the rest with `cpaAdvantage_le` and the matrix sampler's
+distance. Its other deviations are those of `cpaAdvantage_le` above, a uniform matrix in place of
+`XOF` and an uncompressed ciphertext hop, and it is not a statement about ML-KEM.
+`MLKEMTransform.decapsWith` is the FIPS 203 implicit-rejection wrapper over any
 `ExplicitCoinPKE`, defined through `FujisakiOkamoto.decT` and proved equal to the standard's
 decapsulation algorithm (`decapsWith_eq`). [`CslibFrontierTests/Crypto/MLKEM.lean`](../../CslibFrontierTests/Crypto/MLKEM.lean)
 checks the three parameter sets, sharpness of the compression and decoding bounds at `q = 3329`,

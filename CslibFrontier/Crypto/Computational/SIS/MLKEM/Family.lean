@@ -51,8 +51,9 @@ uniform matrix of `keyGen` (`closeTo_keyGenWord`). With parameters computable in
 from the unary security parameter, the family is efficient (`kpke_isEfficient`), and its
 ciphertexts fit the ciphertext space `ctLength` (`kpke_ciphertextFits`).
 
-This is the family of the asymptotic IND-CPA theorem `indCPA_kpke_of_decisionModuleLWEWith`
-(`CslibFrontier.Crypto.Computational.SIS.MLKEM.Asymptotic`). This module makes no security claim.
+This is the family of `indCPA_kpkeIdealCoins_of_decisionModuleLWEWith`
+(`CslibFrontier.Crypto.Computational.SIS.MLKEM.Asymptotic`), IND-CPA of K-PKE with ideal coin
+expansion. This module makes no security claim.
 
 ## Model differences from FIPS 203
 
