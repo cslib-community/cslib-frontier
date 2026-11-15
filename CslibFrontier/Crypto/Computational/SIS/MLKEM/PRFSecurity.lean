@@ -23,14 +23,24 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 
 /-!
-# IND-CPA of K-PKE from Module-LWE and a pseudorandom function
+# IND-CPA of K-PKE with the matrix in the public key, from Module-LWE and a PRF
 
-`indCPA_kpkePRF_of_decisionModuleLWEWith` is Kyber v3.02 Theorem 1 ([AvanziEtAl2021], §4.3.1,
-p. 20) in this library's asymptotic setting. Theorem 1 models `XOF` and `G` as random oracles and
-bounds the IND-CPA advantage of Kyber.CPAPKE by `2 · Adv^mlwe_{k+1,k,η} + Adv^prf_PRF`. Here,
-K-PKE with its noise expanded from seeds by a keyed function `F` (`kpkePRF P F`) is IND-CPA secure
-(`WordPKE.INDCPA`: every uniform strict PPT chosen-message adversary has negligible advantage)
-whenever
+`indCPA_kpkePRF_of_decisionModuleLWEWith` is IND-CPA of the full-matrix K-PKE family with PRF seed
+expansion, a step towards Kyber v3.02 Theorem 1 ([AvanziEtAl2021], §4.3.1, p. 20) and not that
+theorem. The public key carries the sampled matrix in place of the seed `ρ`, the seed `σ` is
+sampled directly, and neither the scheme nor the adversary has an `XOF` or `G` oracle. Theorem 1
+assumes that `XOF` and `G` are random oracles and bounds the IND-CPA advantage of Kyber.CPAPKE by
+`2 · Adv^mlwe_{k+1,k,η} + Adv^prf_PRF`; this theorem has the `Adv^prf_PRF` hop but not the
+random-oracle model. The remaining step to Theorem 1 itself is the random-oracle lift: the scheme
+with `ρ` in the public key and `XOF` and `G` oracles, with a lazily sampled, programmable simulator
+and its efficiency witness. It is open under
+[#5293](https://github.com/cslib-community/cslib-frontier/issues/5293#issuecomment-6893099765),
+and depends on that issue's §3 gap A, a reusable oracle-PPT certificate for a lazily sampled,
+programmable random oracle.
+
+Here, K-PKE with its noise expanded from seeds by a keyed function `F` (`kpkePRF P F`) is IND-CPA
+secure (`WordPKE.INDCPA`: every uniform strict PPT chosen-message adversary has negligible
+advantage) whenever
 
 * decision Module-LWE (`DecisionModuleLWEWith`) holds for the two shapes of Kyber's proof with the
   centered-binomial laws `cbdLaw`, as in `indCPA_kpkeIdealCoins_of_decisionModuleLWEWith`, and
@@ -62,9 +72,20 @@ its advantage against `kpke P` (`advantage_gameOn_kpkePRF_le`), which is negligi
 
 ## Differences from Kyber v3.02 Theorem 1
 
-* `XOF` and `G` are random oracles, as in Theorem 1: the matrix is drawn coefficientwise within
-  the proved statistical distance `k * k * n / 2 ^ κ` of uniform, and the seed `σ` of key
-  generation is uniform.
+The random oracles make this a step and not Theorem 1:
+
+* The public key carries the matrix `A`, which key generation draws coefficientwise within
+  `k * k * n / 2 ^ κ` of uniform, and the seed `σ` of key generation is sampled uniformly. In
+  Kyber the public key is `Encode(t̂) ‖ ρ` with `(ρ, σ) := G(d)`, and encryption re-derives `A` as
+  `XOF(ρ)` (Algorithms 4 and 5, pp. 8–9). Theorem 1 assumes that `XOF` and `G` are random oracles,
+  which the adversary may query, so a reduction in its model must answer the adversary's `XOF`
+  queries at `ρ` with its Module-LWE matrix. Here neither the scheme nor the adversary has an `XOF`
+  or `G` oracle (`WordPKE.INDCPA` quantifies over adversaries without oracles), so that step is not
+  formalized. The proved distance compares matrix distributions only and does not relate the
+  random-oracle game to this one. The random-oracle lift is open under #5293, as above.
+
+The remaining differences restate Theorem 1 in this library's setting:
+
 * The statement is asymptotic over a parameter family, against uniform classical strict PPT
   adversaries, with `κ`-bit seeds in place of 32-byte ones; the source states a concrete bound at
   fixed parameter sets. The assumptions are meaningful only when the parameters grow with `κ`.
@@ -78,13 +99,12 @@ its advantage against `kpke P` (`advantage_gameOn_kpkePRF_le`), which is negligi
 * Polynomials are in coefficient form, keys and ciphertexts are words of residue lists, and
   messages are words of exactly `n` bits.
 
-This is IND-CPA of K-PKE (Kyber.CPAPKE); it is not a statement about ML-KEM ([NISTFIPS203]) or its
-Fujisaki–Okamoto transform.
+This is IND-CPA of K-PKE (Kyber.CPAPKE) with the matrix in the public key; it is not a statement
+about ML-KEM ([NISTFIPS203]) or its Fujisaki–Okamoto transform.
 
 ## Main definitions
 
 * `Cslib.Crypto.MLKEM.queryNoise`: reading noise bits from a PRF oracle at the counter words.
-* `Cslib.Crypto.MLKEM.afterKeyPRF`: the IND-CPA game of `kpkePRF P F` after the public key.
 * `Cslib.Crypto.MLKEM.keyPRFReduction`, `Cslib.Crypto.MLKEM.encPRFReduction`: the two PRF hops.
 
 ## Main results
@@ -93,8 +113,9 @@ Fujisaki–Okamoto transform.
   `Cslib.Crypto.MLKEM.isOraclePPT_encPRFReduction`: the reductions are uniform strict oracle PPT,
   from the adversary's certificate.
 * `Cslib.Crypto.MLKEM.advantage_gameOn_kpkePRF_le`: the concrete bound at each `κ`.
-* `Cslib.Crypto.MLKEM.indCPA_kpkePRF_of_decisionModuleLWEWith`: IND-CPA of K-PKE from Module-LWE
-  and a pseudorandom function, Kyber v3.02 Theorem 1.
+* `Cslib.Crypto.MLKEM.indCPA_kpkePRF_of_decisionModuleLWEWith`: IND-CPA of K-PKE with the matrix
+  in the public key from Module-LWE and a pseudorandom function, a step towards Kyber v3.02
+  Theorem 1.
 
 ## References
 
@@ -116,7 +137,7 @@ open scoped NNReal
 
 /-- One step of `queryNoise`: ask the oracle for the word of counter `N`, keep the first `width N`
 bits of the reply and append them to the bits read so far. -/
-def queryNoiseStep (P : Params) (width : ℕ → ℕ) (state : ℕ × List Bool) :
+private def queryNoiseStep (P : Params) (width : ℕ → ℕ) (state : ℕ × List Bool) :
     WordOracleComp Unit (ℕ × List Bool) :=
   (fun reply => (state.1 + 1, state.2 ++ reply)) <$>
     (List.take (width state.1) <$> ProbOracleComp.query ((), nonceWord P state.1))
@@ -245,7 +266,7 @@ variable (P : ℕ → Params) (F : List Bool → List Bool → List Bool)
 /-- The IND-CPA game of `kpkePRF P F` against `A` with challenge bit `b`, from the public key `pk`
 on: run `A.choose` on `pk`; if the pair is admissible, encrypt the selected message with a uniform
 `κ`-bit seed expanded by `encNoise` and return `A.guess`, and otherwise return `false`. -/
-noncomputable def afterKeyPRF (A : Encryption.WordAdversary) (b : Bool) (κ : ℕ)
+private noncomputable def afterKeyPRF (A : Encryption.WordAdversary) (b : Bool) (κ : ℕ)
     (pk : List Bool) : ProbComp Bool := do
   let choice ← A.choose κ pk
   if (kpke P).IsMessagePair κ pk (ChoiceOut.msg₀ choice) (ChoiceOut.msg₁ choice) then
@@ -285,7 +306,7 @@ noncomputable def encPRFReduction (A : Encryption.WordAdversary) (b : Bool) :
 variable {P F}
 
 /-- The continuation `afterKeyPRF` is uniform strict PPT on `(κ, pk)`. -/
-theorem isPPTOn_afterKeyPRF (hP : ComputableInPolyTime P encUnary encParams)
+private theorem isPPTOn_afterKeyPRF (hP : ComputableInPolyTime P encUnary encParams)
     (hF : ComputableInPolyTime (fun pair : List Bool × List Bool => F pair.1 pair.2)
       (encPair encBits encBits) encBits)
     {A : Encryption.WordAdversary} (hA : A.IsPPT) (b : Bool) :
@@ -594,9 +615,16 @@ theorem advantage_gameOn_kpkePRF_le (P : ℕ → Params) (F : List Bool → List
   refine (Game.advantage_triangle _ _ _).trans (add_le_add le_rfl ?_)
   exact Game.advantage_triangle _ _ _
 
-/-- **IND-CPA of K-PKE from Module-LWE and a pseudorandom function**: Kyber v3.02 Theorem 1
-([AvanziEtAl2021], §4.3.1, p. 20), with `XOF` and `G` modeled as random oracles as there, in this
-library's asymptotic setting.
+/-- **IND-CPA of K-PKE with the matrix in the public key, from Module-LWE and a pseudorandom
+function** (`XOF` and `G` not modeled as oracles), a step towards Kyber v3.02 Theorem 1
+([AvanziEtAl2021], §4.3.1, p. 20) and not that theorem. The public key carries the sampled matrix
+in place of the seed `ρ`, the seed `σ` is sampled directly, and the adversary has no `XOF` or `G`
+oracle, where Theorem 1 assumes that both are random oracles. The remaining step to Theorem 1 is
+the random-oracle lift: the scheme with `ρ` in the public key and `XOF` and `G` oracles, with a
+lazily sampled, programmable simulator and its efficiency witness. It is open under
+[#5293](https://github.com/cslib-community/cslib-frontier/issues/5293#issuecomment-6893099765),
+and depends on its §3 gap A, a reusable certificate for a lazily sampled, programmable random
+oracle.
 
 Let `P` be a K-PKE parameter family computable in polynomial time from the unary security
 parameter, and `F` a keyed function. If decision Module-LWE is hard for the `k × k` key shape with
@@ -606,10 +634,10 @@ with `κ`-bit keys, `nonceLen`-bit counter words as inputs and `prfLen`-bit outp
 K-PKE with its noise expanded from seeds by `F` (`kpkePRF P F`) is IND-CPA secure
 (`WordPKE.INDCPA`): every uniform strict PPT adversary has negligible advantage.
 
-The deviations from Theorem 1, named in the module documentation, are the asymptotic setting with
-`κ`-bit seeds, counters of `(2k).size` bits, one PRF output length with prefixes, the Module-LWE
-terms of §4.4, eq. (6), without compression in place of `2 · Adv^mlwe_{k+1,k,η}`, four PRF
-advantages in place of one, and the representation of polynomials, keys and ciphertexts. -/
+The other deviations from Theorem 1, named in the module documentation, are the asymptotic
+setting with `κ`-bit seeds, counters of `(2k).size` bits, one PRF output length with prefixes, the
+Module-LWE terms of §4.4, eq. (6), without compression in place of `2 · Adv^mlwe_{k+1,k,η}`, four
+PRF advantages in place of one, and the representation of polynomials, keys and ciphertexts. -/
 theorem indCPA_kpkePRF_of_decisionModuleLWEWith {P : ℕ → Params} [∀ κ, NeZero (P κ).q]
     {F : List Bool → List Bool → List Bool}
     (hP : ComputableInPolyTime P encUnary encParams)
