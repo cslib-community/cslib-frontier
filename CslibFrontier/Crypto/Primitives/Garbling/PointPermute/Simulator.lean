@@ -54,6 +54,7 @@ output law is the typed simulator's (`eval_simWord`). Every simulated view decod
   typed simulator's view.
 * `Cslib.Crypto.Garbling.PointPermute.decodeWord_evalWord_simViewWord`: simulated views decode to
   the output.
+* `Cslib.Crypto.Garbling.PointPermute.isPPTOn_simWord`: the simulator is PPT.
 
 ## References
 
