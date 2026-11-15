@@ -53,6 +53,23 @@ example (input : HandlerRunInput Bool) (output : HandlerRunOutput Bool) :
         encPair (encList encUnary) encBool (output.output, output.handlerState) :=
   ⟨rfl, rfl⟩
 
+/-- The shared retained-command query view exposes the exact selected fields, and its compiler
+retains the documented payload encoding. -/
+example (state : RetainedState Bool) (request : List ℕ) (next : ℕ) (pending : ICfg) :
+    retainedCommandQueryPayload 1 0 (state, .query 0 request next pending) =
+        { operation := 0, request, next, pending } ∧
+      (retainedCommandQueryPayloadCompiler 1 0 (eRetainedState encBool)).outputBits
+          (state, .query 0 request next pending) =
+        (eRetainedQueryPayload 1 { operation := 0, request, next, pending }).length :=
+  ⟨rfl, rfl⟩
+
+/-- Replacing the former tuple payload with named fields preserves every encoded word. -/
+example (payload : RetainedQueryPayload 1) :
+    eRetainedQueryPayload 1 payload =
+      encPair (eOperation 1) (encPair (encList encUnary) (encPair encUnary eICfg))
+        (payload.operation, payload.request, payload.next, payload.pending) :=
+  rfl
+
 /-- The actual query boundary preserves the selected request and private state. -/
 example (state : RetainedState Bool) (request : List ℕ) (next : ℕ) (pending : ICfg) :
     handlerQueryInput 0 (state, .query 0 request next pending) =
@@ -64,40 +81,107 @@ example (state : RetainedState Bool) (request : List ℕ) (next : ℕ) (pending 
         handlerState := state.handlerState } :=
   handlerQueryInput_query 0 state 0 request next pending
 
-section CertifiedLoop
+/-- Exact reply-installer ledger for the sole result returned by `falseHandler`. -/
+noncomputable def falsePostOnline : OnlineAccounting (QueryInput 1 Bool) where
+  time := fun phase input =>
+    (installReplyArtifact 0 1 encBool).online.time phase
+      (input, { reply := [false], state := input.handlerState })
+  workspace := fun phase input =>
+    (installReplyArtifact 0 1 encBool).online.workspace phase
+      (input, { reply := [false], state := input.handlerState })
 
-variable (postOnline : OnlineAccounting (QueryInput 1 Bool))
-variable (hpost : PostBound 1 encBool falseHandler postOnline)
-variable (loopCertificate :
-  LoopCertificate 0 encBool falseHandler falseHandlerArtifact postOnline hpost)
+/-- The exact ledger bounds every supported result of the concrete handler. -/
+theorem falsePostBound : PostBound 1 encBool falseHandler falsePostOnline := by
+  intro input OracleState oracle state result state' hresult phase
+  simp only [falseHandler, ProbOracleComp.runWith_pure, PMF.mem_support_pure_iff,
+    Prod.mk.injEq] at hresult
+  rcases hresult with ⟨rfl, rfl⟩
+  exact ⟨le_rfl, le_rfl⟩
+
+/-- The finite Boolean private state supplies an actual loop certificate. -/
+noncomputable def falseLoopCertificate :
+    LoopCertificate 0 encBool falseHandler falseHandlerArtifact falsePostOnline falsePostBound :=
+  finiteLoopCertificate 0 encBool Decoder.bool falseHandlerArtifact falsePostOnline falsePostBound
+
+/-- The complete output certificate is constructed rather than assumed. -/
+noncomputable def falseRunCertificate :
+    RunCertificate 0 encBool falseHandler falseHandlerArtifact falsePostOnline falsePostBound :=
+  finiteRunCertificate 0 encBool Decoder.bool falseHandlerArtifact falsePostOnline falsePostBound
 
 /-- The ordinary importer reaches the one shared stateful body and its exact singleton installed
 inventory without referring to private controller helpers. -/
 example :
-    (handlerBodyArtifact 0 encBool falseHandlerArtifact postOnline hpost).installedDescriptions =
-      [(handlerBodyArtifact 0 encBool falseHandlerArtifact postOnline hpost).description] :=
-  handlerBodyArtifact_installedDescriptions 0 encBool falseHandlerArtifact postOnline hpost
+    (handlerBodyArtifact 0 encBool falseHandlerArtifact falsePostOnline
+      falsePostBound).installedDescriptions =
+      [(handlerBodyArtifact 0 encBool falseHandlerArtifact falsePostOnline
+        falsePostBound).description] :=
+  handlerBodyArtifact_installedDescriptions 0 encBool falseHandlerArtifact falsePostOnline
+    falsePostBound
 
 /-- The typed full loop is the literal iteration of that same body. -/
 example :
-    (handlerLoopArtifact 0 encBool falseHandlerArtifact postOnline hpost
-      loopCertificate).machine =
-        (handlerBodyArtifact 0 encBool falseHandlerArtifact postOnline hpost).machine.iterateWhile
-          true :=
-  machine_handlerLoopArtifact 0 encBool falseHandlerArtifact postOnline hpost loopCertificate
-
-variable (runCertificate :
-  RunCertificate 0 encBool falseHandler falseHandlerArtifact postOnline hpost)
+    (handlerLoopArtifact 0 encBool falseHandlerArtifact falsePostOnline falsePostBound
+      falseLoopCertificate).machine =
+        (handlerBodyArtifact 0 encBool falseHandlerArtifact falsePostOnline
+          falsePostBound).machine.iterateWhile true :=
+  machine_handlerLoopArtifact 0 encBool falseHandlerArtifact falsePostOnline falsePostBound
+    falseLoopCertificate
 
 /-- The final closed artifact has no external operation channel and charges the composed
 description once rather than adding its inlined handler, body and loop controls again. -/
 example :
     (Turing.MultiTapePTM.Universal.NativeHandler.artifact 0 encBool falseHandlerArtifact
-      postOnline hpost runCertificate).installedBits =
+      falsePostOnline falsePostBound falseRunCertificate).installedBits =
       (Turing.MultiTapePTM.Universal.NativeHandler.artifact 0 encBool falseHandlerArtifact
-        postOnline hpost runCertificate).staticBits :=
-  artifact_installedBits 0 encBool falseHandlerArtifact postOnline hpost runCertificate
+        falsePostOnline falsePostBound falseRunCertificate).staticBits :=
+  artifact_installedBits 0 encBool falseHandlerArtifact falsePostOnline falsePostBound
+    falseRunCertificate
 
-end CertifiedLoop
+/-- A valid one-operation description whose first instruction queries its sole channel for either
+private coin. -/
+def positiveQueryDesc : Desc :=
+  let base : Desc := ⟨0, 2, 1, 0, []⟩
+  let cfg := ICfg.init base
+  let branches : Branches := ⟨.query 0 1, .query 0 1⟩
+  { base with table := [(cfg.key [] 0, branches)] }
+
+/-- Concrete valid runtime input with positive fuel and a nondefault initial handler state. -/
+def positiveRunInput : HandlerRunInput Bool :=
+  { source := { desc := positiveQueryDesc, fuel := 1, input := [], replyBits := 1 }
+    handlerState := true }
+
+/-- The positive runtime input really initializes one retained source round. -/
+example : handlerRounds (initialHandlerState 1 positiveRunInput) = 1 := by
+  decide
+
+/-- The positive-fuel fixture reaches a query for either private coin, so the concrete closed body
+cannot discharge this client through only its stopped or local branch. -/
+example (coin : Bool) :
+    match (ICfg.init positiveQueryDesc).commandAt 1 positiveQueryDesc [] coin with
+    | .query operation request _ _ => operation = 0 ∧ request = []
+    | .local _ => False := by
+  cases coin <;> decide
+
+/-- The concrete complete program therefore has a positive-fuel execution that enters the locally
+installed handler branch, while remaining a closed `Fin 0` oracle program. -/
+noncomputable def positiveClosedRun : WordOracleComp (Fin 0) (HandlerRunOutput Bool) :=
+  handlerRunProgram 0 falseHandler positiveRunInput
+
+/-- The positive-fuel client reaches the public complete `runState` law, including its final
+Boolean handler state. -/
+example :
+    positiveClosedRun.run (fun impossible => impossible.1.elim0) =
+      (fun result =>
+        ({ output := result.1, handlerState := result.2 } : HandlerRunOutput Bool)) <$>
+        ((Turing.MultiTapePTM.Universal.NativeInterpreter.run 1 positiveRunInput.source).runState
+          (localHandlerOracle falseHandler)).run positiveRunInput.handlerState :=
+  run_handlerRunProgram_eq_runState 0 falseHandler positiveRunInput
+
+/-- The constructed final artifact is inhabited for the same concrete locally installed handler. -/
+noncomputable def falseFinalArtifact :
+    NativeOracleProgram 0 (handlerRunProgram 0 falseHandler)
+      (eHandlerRunInput encBool) (eHandlerRunOutput encBool) :=
+  Turing.MultiTapePTM.Universal.NativeHandler.artifact 0 encBool falseHandlerArtifact
+    falsePostOnline falsePostBound falseRunCertificate
 
 end CslibFrontierTests.Machines.Turing.MultiTape.Probabilistic.Universal.NativeHandler
