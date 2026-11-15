@@ -142,6 +142,39 @@ The [development issue](https://github.com/cslib-community/cslib-frontier/issues
 the remaining finite-field product and CRT sign-recovery objectives. This foundation alone does
 not certify those bounds or the downstream real-feasibility theorem.
 
+For binary interval endpoints, import `CountingHierarchy.Range`: `CountingFunction.sum_range`
+and `sum_range_int` sum over `0 ≤ i < r(w)` in one level. The endpoint is computed in binary;
+its value may be exponential. `CountingHierarchy.Arithmetic` supplies same-level multiplication,
+remainder, comparison and modular exponentiation. The last uses a binary exponent and the
+existing total `powMod` operation; modulus zero returns one.
+
+`CountingHierarchy.Generator` certifies a total prime-field generator test in F_1. One uniform
+universal pass checks prime divisors and smaller powers, rejecting composite moduli and
+noncanonical representatives. The standalone primality test and generator test share the
+bounded-divisor evaluator, its polynomial-time certificate and its primality characterization. `CountingHierarchy.DiscreteLog` certifies the sum of matching
+exponents below `p - 1` in F_1. Its logarithm specification requires a primitive base and a
+nonzero target; its total behavior is defined on every binary triple. The
+[checked clients](../../CslibFrontierTests/CountingNumberTheory.lean) cover these domain limits,
+binary interval sums and modular powering. These certificates do not yet certify field products.
+
+## Finite-field product identities
+
+Import `CslibFrontier.Foundations.NumberTheory.FiniteField.GeneratorProducts` for the algebraic
+identity `ZMod.prod_eq_generator_average`. For a prime modulus, it writes a finite product as
+the average of its logarithm formula over all multiplicative generators. The generator count
+is positive and smaller than the prime, so its image in the field is invertible, including
+at the prime two. An explicit zero test handles zero factors; empty products are covered too.
+The matching-exponent sum `ZMod.generatorLogSum` is total even for nongenerators, but its
+bounded-logarithm specification requires a primitive root and a nonzero target.
+
+`FiniteField.Enumeration` translates sums over canonical natural representatives into sums
+over residues or a finite subset. `BitString.WeightedEnumeration` translates sums over wider
+bitstrings, restricted by their binary value, into ordinary interval sums. The existing
+word-count theorem uses the weighted rule with constant weight one. These are mathematical
+identities; they assert no computational cost or efficient discrete-logarithm algorithm.
+The [checked examples](../../CslibFrontierTests/PrimeFieldProducts.lean) cover a product modulo
+five, the prime two, residue enumeration, signed weights and a zero-width interval.
+
 ## Efficient oracle programs
 
 [IsOraclePPTOn](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/Probabilistic/Oracle.lean#L63) realizes an open probabilistic word-query program by one finite native oracle PTM under one polynomial clock. The semantic equality quantifies over every state type, stateful oracle handler and initial oracle state, and preserves the joint output and final oracle state. Checking only the output marginal would permit a program to erase externally visible query effects; the joint contract rules this out.
