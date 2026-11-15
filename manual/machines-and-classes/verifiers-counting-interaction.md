@@ -162,7 +162,8 @@ existing total `powMod` operation; modulus zero returns one.
 
 `CountingHierarchy.Generator` certifies a total prime-field generator test in F_1. One uniform
 universal pass checks prime divisors and smaller powers, rejecting composite moduli and
-noncanonical representatives. `CountingHierarchy.DiscreteLog` certifies the sum of matching
+noncanonical representatives. The standalone primality test and generator test share the
+bounded-divisor evaluator, its polynomial-time certificate and its primality characterization. `CountingHierarchy.DiscreteLog` certifies the sum of matching
 exponents below `p - 1` in F_1. Its logarithm specification requires a primitive base and a
 nonzero target; its total behavior is defined on every binary triple. The
 [checked clients](../../CslibFrontierTests/CountingNumberTheory.lean) cover these domain limits,
