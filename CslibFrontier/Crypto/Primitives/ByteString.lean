@@ -123,7 +123,8 @@ theorem bytesToBitsBE_lt_iff_lt {X Y : List Byte} (hlength : X.length = Y.length
           | cons bit tail ihprefix =>
               exact List.lex_cons_iff.trans ihprefix
         simp only [bytesToBitsBE]
-        rw [prefixCancel (byteBitsBE x), List.lex_cons_iff, ih hlength]
+        rw [prefixCancel (byteBitsBE x), ih hlength]
+        exact List.lex_cons_iff.symm
       · have hbits := (byteBitsBE_lt_iff_lt y x).2 hgt
         have happend := List.append_lt_append_of_lt_of_length_eq hbits
           ((byteBitsLength y).trans (byteBitsLength x).symm)
