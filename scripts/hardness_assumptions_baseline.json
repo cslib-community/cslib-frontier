@@ -95,6 +95,7 @@
   "Cslib.Crypto.PRG.IsSubexponentiallySecure": "#5578: RazborovRudich1997 is not checked at the source.",
   "Cslib.Crypto.Protocols.FujisakiOkamoto.WordPKE.INDCPA": "#5578: HofheinzHoevelmannsKiltz2017 is not checked at the source.",
   "Cslib.Crypto.Protocols.ROMSignature.EUFCMA": "#5578: this Boneh–Shoup locator was not checked against the v0.6 PDF.",
+  "Cslib.Crypto.Protocols.ROMSignature.SUFCMA": "#5554: the Boneh–Shoup strong-unforgeability locator was not checked against the v0.6 PDF.",
   "Cslib.Crypto.Protocols.UC.Emulates": "#5578: Canetti2020 is not checked at the source.",
   "Cslib.Crypto.Protocols.UC.EmulatesBlackBoxWithin": "#5578: Canetti2020 is not checked at the source.",
   "Cslib.Crypto.Protocols.UC.EmulatesDummyWithin": "#5578: Canetti2020 is not checked at the source.",

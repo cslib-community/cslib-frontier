@@ -163,6 +163,7 @@ Names are relative to `Cslib.Crypto`.
 | `IndexedSignatureScheme.IndexedEUFCMA` | standard | [BonehShoup2023] Definition 14.6, p. 597 | Differences listed in the module docstring. | — |
 | `IndexedSignatureScheme.CounterEUFCMA` | standard | [BonehShoup2023] Section 14.6.4, p. 602 | A counter as the nonce. | — |
 | `Protocols.ROMSignature.EUFCMA` | standard | [BonehShoup2023] Attack Game 13.1, random-oracle version (locator not verified) | — | — |
+| `Protocols.ROMSignature.SUFCMA` | standard | [BonehShoup2023] Section 13.1.1, in the random-oracle setting of Section 13.2.1 (locator not verified) | Native uniform oracle-PPT word forgers in one shared classical lazy random oracle; no QROM or scheme-security claim. | — |
 
 ## Zero knowledge, commitments and protocols
 
