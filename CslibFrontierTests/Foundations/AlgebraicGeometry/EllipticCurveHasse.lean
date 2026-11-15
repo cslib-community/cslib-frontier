@@ -4,14 +4,19 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Karn Seth, Samuel Schlesinger
 -/
 
-import CslibFrontier.Foundations.AlgebraicGeometry.EllipticCurve.Hasse
-import CslibFrontier.Foundations.AlgebraicGeometry.EllipticCurve.QuadraticTwist
+module
+
+public import CslibFrontier.Foundations.AlgebraicGeometry.EllipticCurve.Decidable
+public import CslibFrontier.Foundations.AlgebraicGeometry.EllipticCurve.Hasse
+public import CslibFrontier.Foundations.AlgebraicGeometry.EllipticCurve.QuadraticTwist
 import Mathlib.Tactic.NormNum.Prime
 
 /-! Point counts, Hasse's bound, and quadratic twists for small elliptic curves over `ZMod p`,
 including the curve `y² = x³ + 3x + 3` over `ZMod 7` from Example 9.69 of [KatzLindell2020], the
 12-point curve `y² = x³ + 1` over `ZMod 11` from Equation (15.4) of [BonehShoup2023] (Section 15.2,
 p. 618), and quadratic twists from [BonehShoup2023] (Section 15.3.2, p. 623). -/
+
+public section
 
 namespace CslibFrontierTests.EllipticCurveHasse
 
@@ -134,10 +139,6 @@ theorem Δ_E11 : E11.Δ ≠ 0 := by decide
 
 instance : E11.IsElliptic := ⟨isUnit_iff_ne_zero.2 Δ_E11⟩
 
-theorem ringChar_zmod_eleven : ringChar (ZMod 11) ≠ 2 := by
-  rw [ZMod.ringChar_zmod_n]
-  decide
-
 /-- The 11 affine points of `y² = x³ + 1` over `ZMod 11` listed in Equation (15.4) of
 [BonehShoup2023]: `(-1, 0), (0, ±1), (2, ±3), (5, ±4), (7, ±5), (9, ±2)`. -/
 theorem affinePoints_E11 :
@@ -153,7 +154,7 @@ theorem natCard_E11 : Nat.card E11.toAffine.Point = 12 := by
 
 -- The point count of `E11` is `11 + 1 - t` with `t = 0`, so the cubic character sum is `0`.
 example : cubicCharSum E11.a₂ E11.a₄ E11.a₆ = 0 := by
-  have h := natCard_point_eq_of_isCharNeTwoNF ringChar_zmod_eleven E11
+  have h := natCard_point_eq_of_isCharNeTwoNF E11
   rw [natCard_E11, ZMod.card] at h
   omega
 
@@ -170,40 +171,48 @@ theorem natCard_quadraticTwist_E11 :
   rw [natCard_E11] at h
   omega
 
--- Bijection of `(E11.quadraticTwist 2).toAffine.Point` with `WithZero` of the solutions of
--- `2 y² = x³ + 0 x + 1`, and the resulting cardinality identity.
-noncomputable example :
-    (E11.quadraticTwist 2).toAffine.Point ≃
-      WithZero {xy : ZMod 11 × ZMod 11 // 2 * xy.2 ^ 2 = xy.1 ^ 3 + 0 * xy.1 + 1} :=
-  E11.quadraticTwistShortPointEquiv (by decide)
+-- Explicit action of `quadraticTwistEquationEquiv` and `quadraticTwistPointEquiv` across the
+-- module boundary on `(1, 1)` for `2 y² = x³ + 1` over `ZMod 11` (`(c x, c² y) = (2, 4)`),
+-- and the resulting cardinality identities.
+example (h : (2 : ZMod 11) * 1 ^ 2 = 1 ^ 3 + E11.a₂ * 1 ^ 2 + E11.a₄ * 1 + E11.a₆) :
+    (E11.quadraticTwistEquationEquiv (c := 2) (by decide) ⟨(1, 1), h⟩ : ZMod 11 × ZMod 11) =
+      (2, 4) := by
+  simp only [quadraticTwistEquationEquiv_apply]
+  decide
 
-noncomputable example :
-    {xy : ZMod 11 × ZMod 11 // 2 * xy.2 ^ 2 = xy.1 ^ 3 + 0 * xy.1 + 1} ≃
-      {XY : ZMod 11 × ZMod 11 // (E11.quadraticTwist 2).toAffine.Equation XY.1 XY.2} :=
-  E11.quadraticTwistShortEquationEquiv (by decide)
+example (h : (E11.quadraticTwist 2).toAffine.Equation 2 4) :
+    ((E11.quadraticTwistEquationEquiv (c := 2) (by decide)).symm ⟨(2, 4), h⟩ :
+      ZMod 11 × ZMod 11) = (1, 1) := by
+  simp only [quadraticTwistEquationEquiv_symm_apply]
+  ext
+  · exact inv_mul_cancel₀ (by decide)
+  · rw [show (4 : ZMod 11) = 2 ^ 2 by decide]
+    exact inv_mul_cancel₀ (by decide)
+
+example : E11.quadraticTwistPointEquiv (c := 2) (by decide) 0 = 0 ∧
+    (E11.quadraticTwistPointEquiv (c := 2) (by decide)).symm 0 = 0 :=
+  ⟨E11.quadraticTwistPointEquiv_zero _, E11.quadraticTwistPointEquiv_symm_zero _⟩
+
+example (hns : (E11.quadraticTwist 2).toAffine.Nonsingular 2 4) :
+    E11.quadraticTwistPointEquiv (c := 2) (by decide) (.some _ _ hns) =
+      WithZero.coe ((E11.quadraticTwistEquationEquiv (by decide)).symm ⟨(2, 4), hns.left⟩) :=
+  E11.quadraticTwistPointEquiv_some (by decide) hns
 
 example :
     Nat.card (E11.quadraticTwist 2).toAffine.Point =
       1 + Nat.card {xy : ZMod 11 × ZMod 11 // 2 * xy.2 ^ 2 = xy.1 ^ 3 + 0 * xy.1 + 1} :=
   E11.natCard_point_quadraticTwist_eq_one_add_of_isShortNF (by decide)
 
--- Basic algebraic identities on `quadraticTwist` and its standard invariants.
+-- Basic algebraic identities on `quadraticTwist` and its discriminant.
 example : E11.quadraticTwist 1 = E11 ∧
     (E11.quadraticTwist 2).quadraticTwist 3 = E11.quadraticTwist 6 ∧
-    (ofCubic (0 : ZMod 11) 0 1).quadraticTwist 2 = ofCubic 0 0 8 :=
-  ⟨E11.quadraticTwist_one, E11.quadraticTwist_quadraticTwist 2 3, quadraticTwist_ofCubic 0 0 1 2⟩
+    (E11.quadraticTwist 2).Δ = 2 ^ 6 * E11.Δ :=
+  ⟨E11.quadraticTwist_one, E11.quadraticTwist_quadraticTwist 2 3, E11.quadraticTwist_Δ 2⟩
 
-example (c : ZMod 11) :
-    (E11.quadraticTwist c).b₂ = c * E11.b₂ ∧
-    (E11.quadraticTwist c).b₄ = c ^ 2 * E11.b₄ ∧
-    (E11.quadraticTwist c).b₆ = c ^ 3 * E11.b₆ ∧
-    (E11.quadraticTwist c).b₈ = c ^ 4 * E11.b₈ ∧
-    (E11.quadraticTwist c).c₄ = c ^ 2 * E11.c₄ ∧
-    (E11.quadraticTwist c).c₆ = c ^ 3 * E11.c₆ ∧
-    (E11.quadraticTwist c).Δ = c ^ 6 * E11.Δ :=
-  ⟨E11.quadraticTwist_b₂ c, E11.quadraticTwist_b₄ c, E11.quadraticTwist_b₆ c,
-    E11.quadraticTwist_b₈ c, E11.quadraticTwist_c₄ c, E11.quadraticTwist_c₆ c,
-    E11.quadraticTwist_Δ c⟩
+-- Direct count of the book's twisted equation `3 y² = x³ + 3 x + 3` over `ZMod 7` (`9` affine
+-- solutions, hence `1 + 9 = 10` points).
+example : Fintype.card {xy : ZMod 7 × ZMod 7 // 3 * xy.2 ^ 2 = xy.1 ^ 3 + 3 * xy.1 + 3} = 9 := by
+  decide
 
 theorem not_isSquare_three_zmod_seven : ¬ IsSquare (3 : ZMod 7) := by decide
 
@@ -250,13 +259,11 @@ example :
   cubicCharSum_mul_of_isSquare 0 3 3 (by decide) (by decide)
 
 example : Nat.card (E7.quadraticTwist 4).toAffine.Point = 6 := by
-  rw [E7.natCard_point_quadraticTwist_of_isSquare ringChar_zmod_seven (by decide) (by decide),
-    natCard_E7]
+  rw [E7.natCard_point_quadraticTwist_of_isSquare (by decide) (by decide), natCard_E7]
 
 example :
     Nat.card E7.toAffine.Point + Nat.card (E7.quadraticTwist 4).toAffine.Point ≠ 2 * 7 + 2 := by
-  rw [E7.natCard_point_quadraticTwist_of_isSquare ringChar_zmod_seven (by decide) (by decide),
-    natCard_E7]
+  rw [E7.natCard_point_quadraticTwist_of_isSquare (by decide) (by decide), natCard_E7]
   decide
 
 -- 2. `hc : c ≠ 0` is needed for `isElliptic_quadraticTwist` and
@@ -310,16 +317,19 @@ example :
     Nat.card_eq_fintype_card, Nat.card_eq_fintype_card]
   decide
 
--- 5. Characteristic 2: over `ZMod 2` every element is a square, and for `E2` (`y² + y = x³`,
--- 3 points) no `c : ZMod 2` gives `2 * 2 + 2 = 6` points in total.
+-- 5. Characteristic 2: over `ZMod 2` every element is a square (`¬ IsSquare c` is false) and
+-- no `IsCharNeTwoNF` curve is elliptic, which is why `ringChar F ≠ 2` is not needed as an extra
+-- hypothesis on `natCard_point_eq_of_isCharNeTwoNF` or `natCard_point_add_quadraticTwist`.
 example (c : ZMod 2) : IsSquare c :=
   FiniteField.isSquare_of_char_two (by rw [ZMod.ringChar_zmod_n]) c
 
-example (c : ZMod 2) :
-    Nat.card E2.toAffine.Point + Nat.card (E2.quadraticTwist c).toAffine.Point ≠ 2 * 2 + 2 := by
-  rw [natCard_E2, (E2.quadraticTwist c).toAffine.natCard_point_eq_one_add_nonsingular,
-    Nat.card_eq_fintype_card]
-  revert c
-  decide
+example (W : WeierstrassCurve (ZMod 2)) [W.IsCharNeTwoNF] : ¬ W.IsElliptic := by
+  intro h
+  have h2 : (2 : ZMod 2) = 0 := rfl
+  apply W.isUnit_Δ.ne_zero
+  rw [W.Δ_of_isCharNeTwoNF]
+  linear_combination
+    (-32 * W.a₂ ^ 3 * W.a₆ + 8 * W.a₂ ^ 2 * W.a₄ ^ 2 - 32 * W.a₄ ^ 3 -
+      216 * W.a₆ ^ 2 + 144 * W.a₂ * W.a₄ * W.a₆) * h2
 
 end CslibFrontierTests.EllipticCurveHasse

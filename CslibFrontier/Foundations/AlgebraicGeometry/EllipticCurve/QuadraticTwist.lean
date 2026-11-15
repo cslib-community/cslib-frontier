@@ -5,7 +5,7 @@ Authors: Samuel Schlesinger
 -/
 
 module
--- upstream: candidate
+-- upstream: candidate (Mathlib, `Mathlib/AlgebraicGeometry/EllipticCurve/QuadraticTwist.lean`)
 
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.AlgebraicGeometry.EllipticCurve.PointCount
@@ -18,10 +18,10 @@ For a Weierstrass curve `W` in `IsCharNeTwoNF` form `Y² = X³ + a₂ X² + a₄
 commutative ring `R` and a scalar `c : R`, the quadratic twist `W.quadraticTwist c` is the
 Weierstrass curve `Y² = X³ + c a₂ X² + c² a₄ X + c³ a₆`, with discriminant `c⁶ W.Δ`. Over a field
 `F` with `c ≠ 0`, the coordinate scaling `(x, y) ↦ (c x, c² y)` identifies the solutions of the
-twisted equation `c y² = x³ + a₂ x² + a₄ x + a₆` (and, for a short Weierstrass curve
-`y² = x³ + a₄ x + a₆`, the solutions of `c y² = x³ + a₄ x + a₆`) with the affine solutions of
-`W.quadraticTwist c`, and identifies `(W.quadraticTwist c).toAffine.Point` with the point at
-infinity together with those affine solutions.
+twisted equation `c y² = x³ + a₂ x² + a₄ x + a₆` with the affine solutions of
+`W.quadraticTwist c` (`WeierstrassCurve.quadraticTwistEquationEquiv`), and when `W` is elliptic it
+identifies `(W.quadraticTwist c).toAffine.Point` with the point at infinity together with those
+solutions (`WeierstrassCurve.quadraticTwistPointEquiv`).
 
 Over a finite field `F`, twisting the cubic `X³ + α X² + β X + γ` by `c ≠ 0` multiplies its
 character sum `cubicCharSum` by `quadraticChar F c`. When `c` is a quadratic non-residue
@@ -30,24 +30,21 @@ character sum `cubicCharSum` by `quadraticChar F c`. When `c` is a quadratic non
 [Boneh and Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023], Section 15.3.2
 (p. 623).
 
-Note that `WeierstrassCurve.Manin.twist` in `ManinTwist.lean` is a different object: it is the
-function-field twist over `RatFunc k` of `ofCubic α β γ` by the polynomial `cubicPoly α β γ`
-itself, used internally in Manin's proof of Hasse's bound.
+Note that `WeierstrassCurve.Manin.twistPoly` in `ManinTwist.lean` is the instance
+`(ofCubic (C α) (C β) (C γ)).quadraticTwist (cubicPoly α β γ)` over `Polynomial k` (with
+`WeierstrassCurve.Manin.twist` its base change to `RatFunc k`), used internally in Manin's proof
+of Hasse's bound.
 
 ## Main definitions
 
-* `WeierstrassCurve.Affine.instDecidableEquation`,
-  `WeierstrassCurve.Affine.instDecidableNonsingular`: decidability of `W.Equation x y` and
-  `W.Nonsingular x y` over a ring with decidable equality.
 * `WeierstrassCurve.quadraticTwist W c`: the Weierstrass curve
   `Y² = X³ + c a₂ X² + c² a₄ X + c³ a₆`.
-* `WeierstrassCurve.quadraticTwistEquationEquiv`,
-  `WeierstrassCurve.quadraticTwistShortEquationEquiv`: the coordinate-scaling equivalence
-  `(x, y) ↦ (c x, c² y)` from solutions of `c y² = x³ + a₂ x² + a₄ x + a₆` (or
-  `c y² = x³ + a₄ x + a₆`) to affine solutions of `W.quadraticTwist c`.
-* `WeierstrassCurve.quadraticTwistPointEquiv`,
-  `WeierstrassCurve.quadraticTwistShortPointEquiv`: the equivalence between
-  `(W.quadraticTwist c).toAffine.Point` and `WithZero` of the solutions of the twisted equation.
+* `WeierstrassCurve.quadraticTwistEquationEquiv`: the coordinate-scaling equivalence
+  `(x, y) ↦ (c x, c² y)` from solutions of `c y² = x³ + a₂ x² + a₄ x + a₆` to affine solutions of
+  `W.quadraticTwist c`.
+* `WeierstrassCurve.quadraticTwistPointEquiv`: for elliptic `W`, the equivalence between
+  `(W.quadraticTwist c).toAffine.Point` and `WithZero` of the solutions of
+  `c y² = x³ + a₂ x² + a₄ x + a₆`.
 
 ## Main results
 
@@ -60,7 +57,7 @@ itself, used internally in Manin's proof of Hasse's bound.
   `c y² = x³ + a₄ x + a₆`).
 * `WeierstrassCurve.cubicCharSum_mul`: for `c ≠ 0`, twisting scales `cubicCharSum` by
   `quadraticChar F c`.
-* `WeierstrassCurve.natCard_point_quadraticTwist`: for `c ≠ 0` in odd characteristic,
+* `WeierstrassCurve.natCard_point_quadraticTwist`: for `c ≠ 0` and elliptic `W`,
   `#Ẽ(F) = #F + 1 + χ(c) · cubicCharSum W.a₂ W.a₄ W.a₆`.
 * `WeierstrassCurve.natCard_point_quadraticTwist_of_isSquare`: twisting by a nonzero square
   preserves `#E(F)`.
@@ -77,14 +74,13 @@ itself, used internally in Manin's proof of Hasse's bound.
 * [BonehShoup2023], Section 15.3.2 (p. 623) writes the twist of `y² = x³ + a x + b` over `𝔽_p`
   (`p > 3`) as the non-monic equation `c y² = x³ + a x + b`. Because Mathlib's `WeierstrassCurve`
   is monic in `Y²` and `X³`, `W.quadraticTwist c` is defined as the isomorphic Weierstrass model
-  `Y² = X³ + c a₂ X² + c² a₄ X + c³ a₆`, and `quadraticTwistPointEquiv` /
-  `quadraticTwistShortPointEquiv` record the explicit bijection with `WithZero` of the solutions of
-  `c y² = x³ + a₂ x² + a₄ x + a₆` (and `c y² = x³ + a₄ x + a₆`).
+  `Y² = X³ + c a₂ X² + c² a₄ X + c³ a₆`, and `quadraticTwistPointEquiv` records the explicit
+  bijection with `WithZero` of the solutions of `c y² = x³ + a₂ x² + a₄ x + a₆`.
 * The results are stated for any curve satisfying `[W.IsCharNeTwoNF]` (`a₁ = 0` and `a₃ = 0`, which
   includes `ofCubic α β γ` and short Weierstrass curves `[W.IsShortNF]`) over any finite field `F`,
-  with `natCard_point_add_quadraticTwist_zmod` specializing to `ZMod p`. In a finite field,
-  `¬ IsSquare c` implies both `c ≠ 0` and `ringChar F ≠ 2`, so neither is needed as a separate
-  hypothesis on `natCard_point_add_quadraticTwist`.
+  with `natCard_point_add_quadraticTwist_zmod` specializing to `ZMod p`. Over a field,
+  `[W.IsCharNeTwoNF]` together with `[W.IsElliptic]` forces `ringChar F ≠ 2`, so odd characteristic
+  is not needed as a separate hypothesis.
 * The informal notion of "twist security" and the 256-bit twist-order factorizations of secp256r1
   and secp256k1 in [BonehShoup2023], Section 15.3.2 are not formalized here.
 
@@ -99,22 +95,6 @@ public section
 open Polynomial
 
 namespace WeierstrassCurve
-
-/-! ### Decidability of affine equations and nonsingularity -/
-
-namespace Affine
-
-variable {R : Type*} [CommRing R] (W : Affine R)
-
-/-- `W.Equation x y` is decidable when equality in `R` is decidable. -/
-instance instDecidableEquation [DecidableEq R] (x y : R) : Decidable (W.Equation x y) :=
-  decidable_of_iff' _ (W.equation_iff x y)
-
-/-- `W.Nonsingular x y` is decidable when equality in `R` is decidable. -/
-instance instDecidableNonsingular [DecidableEq R] (x y : R) : Decidable (W.Nonsingular x y) :=
-  decidable_of_iff' _ (W.nonsingular_iff x y)
-
-end Affine
 
 /-! ### The quadratic twist of a Weierstrass curve -/
 
@@ -136,13 +116,11 @@ instance instIsShortNFOfCubicZero (β γ : R) : (ofCubic 0 β γ).IsShortNF :=
 `Y² = X³ + a₂ X² + a₄ X + a₆`) by `c : R`, namely the Weierstrass curve
 `Y² = X³ + c a₂ X² + c² a₄ X + c³ a₆` ([BonehShoup2023], Section 15.3.2, p. 623).
 When `c` is a unit, the change of coordinates `(x, y) ↦ (c x, c² y)` identifies its affine
-solutions with those of the twisted equation `c y² = x³ + a₂ x² + a₄ x + a₆`. -/
+solutions with those of the twisted equation `c y² = x³ + a₂ x² + a₄ x + a₆`.
+Outside `IsCharNeTwoNF`, `a₁` and `a₃` are ignored and `W.quadraticTwist c` is not the quadratic
+twist of `W`. -/
 @[expose] def quadraticTwist (W : WeierstrassCurve R) (c : R) : WeierstrassCurve R :=
   ofCubic (c * W.a₂) (c ^ 2 * W.a₄) (c ^ 3 * W.a₆)
-
-theorem quadraticTwist_ofCubic (α β γ c : R) :
-    (ofCubic α β γ).quadraticTwist c = ofCubic (c * α) (c ^ 2 * β) (c ^ 3 * γ) :=
-  rfl
 
 @[simp] lemma quadraticTwist_a₁ (c : R) : (W.quadraticTwist c).a₁ = 0 := rfl
 @[simp] lemma quadraticTwist_a₂ (c : R) : (W.quadraticTwist c).a₂ = c * W.a₂ := rfl
@@ -165,36 +143,6 @@ theorem quadraticTwist_quadraticTwist (c d : R) :
     (W.quadraticTwist c).quadraticTwist d = W.quadraticTwist (d * c) := by
   ext <;> simp [quadraticTwist] <;> ring
 
-theorem quadraticTwist_b₂ [W.IsCharNeTwoNF] (c : R) :
-    (W.quadraticTwist c).b₂ = c * W.b₂ := by
-  simp only [b₂_of_isCharNeTwoNF, quadraticTwist_a₂]
-  ring
-
-theorem quadraticTwist_b₄ [W.IsCharNeTwoNF] (c : R) :
-    (W.quadraticTwist c).b₄ = c ^ 2 * W.b₄ := by
-  simp only [b₄_of_isCharNeTwoNF, quadraticTwist_a₄]
-  ring
-
-theorem quadraticTwist_b₆ [W.IsCharNeTwoNF] (c : R) :
-    (W.quadraticTwist c).b₆ = c ^ 3 * W.b₆ := by
-  simp only [b₆_of_isCharNeTwoNF, quadraticTwist_a₆]
-  ring
-
-theorem quadraticTwist_b₈ [W.IsCharNeTwoNF] (c : R) :
-    (W.quadraticTwist c).b₈ = c ^ 4 * W.b₈ := by
-  simp only [b₈_of_isCharNeTwoNF, quadraticTwist_a₂, quadraticTwist_a₄, quadraticTwist_a₆]
-  ring
-
-theorem quadraticTwist_c₄ [W.IsCharNeTwoNF] (c : R) :
-    (W.quadraticTwist c).c₄ = c ^ 2 * W.c₄ := by
-  simp only [c₄_of_isCharNeTwoNF, quadraticTwist_a₂, quadraticTwist_a₄]
-  ring
-
-theorem quadraticTwist_c₆ [W.IsCharNeTwoNF] (c : R) :
-    (W.quadraticTwist c).c₆ = c ^ 3 * W.c₆ := by
-  simp only [c₆_of_isCharNeTwoNF, quadraticTwist_a₂, quadraticTwist_a₄, quadraticTwist_a₆]
-  ring
-
 /-- For a curve `W` in `IsCharNeTwoNF` form, the discriminant of `W.quadraticTwist c` is
 `c⁶ * W.Δ`. -/
 theorem quadraticTwist_Δ [W.IsCharNeTwoNF] (c : R) :
@@ -208,8 +156,7 @@ theorem isElliptic_quadraticTwist [W.IsCharNeTwoNF] [W.IsElliptic] {c : R} (hc :
   rw [isElliptic_iff, quadraticTwist_Δ]
   exact (hc.pow 6).mul W.isUnit_Δ
 
-/-- Evaluating the twisted cubic at `c * x` scales the value at `x` by `c³`. -/
-theorem eval_cubicPoly_mul (α β γ c x : R) :
+private lemma eval_cubicPoly_mul (α β γ c x : R) :
     (cubicPoly (c * α) (c ^ 2 * β) (c ^ 3 * γ)).eval (c * x) =
       c ^ 3 * (cubicPoly α β γ).eval x := by
   simp only [eval_cubicPoly]
@@ -248,17 +195,19 @@ noncomputable def quadraticTwistEquationEquiv {c : F} (hc : c ≠ 0) :
     (Equiv.prodCongr (Equiv.mulLeft₀ c hc) (Equiv.mulLeft₀ (c ^ 2) (pow_ne_zero 2 hc)))
     fun xy ↦ (W.quadraticTwist_equation_iff hc xy.1 xy.2).symm
 
-/-- For a short Weierstrass curve `y² = x³ + a₄ x + a₆`, scaling coordinates by
-`(x, y) ↦ (c x, c² y)` identifies the solutions of the book's twisted equation
-`c y² = x³ + a₄ x + a₆` ([BonehShoup2023], Section 15.3.2, p. 623) with the affine solutions of
-`W.quadraticTwist c`. -/
-noncomputable def quadraticTwistShortEquationEquiv [W.IsShortNF] {c : F} (hc : c ≠ 0) :
-    {xy : F × F // c * xy.2 ^ 2 = xy.1 ^ 3 + W.a₄ * xy.1 + W.a₆} ≃
-      {XY : F × F // (W.quadraticTwist c).toAffine.Equation XY.1 XY.2} :=
-  (Equiv.subtypeEquivRight fun _ ↦ by simp).trans (W.quadraticTwistEquationEquiv hc)
+@[simp] theorem quadraticTwistEquationEquiv_apply {c : F} (hc : c ≠ 0) {x y : F}
+    (h : c * y ^ 2 = x ^ 3 + W.a₂ * x ^ 2 + W.a₄ * x + W.a₆) :
+    (W.quadraticTwistEquationEquiv hc ⟨(x, y), h⟩ : F × F) = (c * x, c ^ 2 * y) := by
+  rfl
+
+@[simp] theorem quadraticTwistEquationEquiv_symm_apply {c : F} (hc : c ≠ 0) {x y : F}
+    (h : (W.quadraticTwist c).toAffine.Equation x y) :
+    ((W.quadraticTwistEquationEquiv hc).symm ⟨(x, y), h⟩ : F × F) =
+      (c⁻¹ * x, (c ^ 2)⁻¹ * y) := by
+  rfl
 
 /-- For an elliptic curve `W` in `IsCharNeTwoNF` form and `c ≠ 0`, the points of
-`W.quadraticTwist c` are in bijection with the point at infinity (`none`) together with the
+`W.quadraticTwist c` are in bijection with the point at infinity (`0`) together with the
 solutions of `c y² = x³ + a₂ x² + a₄ x + a₆`. -/
 noncomputable def quadraticTwistPointEquiv [W.IsCharNeTwoNF] [W.IsElliptic] {c : F}
     (hc : c ≠ 0) :
@@ -271,16 +220,30 @@ noncomputable def quadraticTwistPointEquiv [W.IsCharNeTwoNF] [W.IsElliptic] {c :
       (Affine.equation_iff_nonsingular_of_Δ_ne_zero hΔ).symm).trans
         (W.quadraticTwistEquationEquiv hc).symm).optionCongr
 
-/-- For a short Weierstrass elliptic curve `y² = x³ + a₄ x + a₆` and `c ≠ 0`, the points of
-`W.quadraticTwist c` are in bijection with the point at infinity (`none`) together with the
-solutions of the book's twisted equation `c y² = x³ + a₄ x + a₆` ([BonehShoup2023],
-Section 15.3.2, p. 623). -/
-noncomputable def quadraticTwistShortPointEquiv [W.IsShortNF] [W.IsElliptic] {c : F}
+@[simp] theorem quadraticTwistPointEquiv_zero [W.IsCharNeTwoNF] [W.IsElliptic] {c : F}
     (hc : c ≠ 0) :
-    (W.quadraticTwist c).toAffine.Point ≃
-      WithZero {xy : F × F // c * xy.2 ^ 2 = xy.1 ^ 3 + W.a₄ * xy.1 + W.a₆} :=
-  (W.quadraticTwistPointEquiv hc).trans <|
-    (Equiv.subtypeEquivRight fun _ ↦ by simp).optionCongr
+    W.quadraticTwistPointEquiv hc 0 = 0 := by
+  rfl
+
+@[simp] theorem quadraticTwistPointEquiv_symm_zero [W.IsCharNeTwoNF] [W.IsElliptic] {c : F}
+    (hc : c ≠ 0) :
+    (W.quadraticTwistPointEquiv hc).symm 0 = 0 := by
+  rfl
+
+theorem quadraticTwistPointEquiv_some [W.IsCharNeTwoNF] [W.IsElliptic] {c : F} (hc : c ≠ 0)
+    {x y : F} (h : (W.quadraticTwist c).toAffine.Nonsingular x y) :
+    W.quadraticTwistPointEquiv hc (.some _ _ h) =
+      WithZero.coe ((W.quadraticTwistEquationEquiv hc).symm ⟨(x, y), h.left⟩) := by
+  rfl
+
+theorem quadraticTwistPointEquiv_symm_coe [W.IsCharNeTwoNF] [W.IsElliptic] {c : F} (hc : c ≠ 0)
+    {x y : F} (h : c * y ^ 2 = x ^ 3 + W.a₂ * x ^ 2 + W.a₄ * x + W.a₆) :
+    let heq := (W.quadraticTwist_equation_iff hc x y).mpr h
+    let hns : (W.quadraticTwist c).toAffine.Nonsingular (c * x) (c ^ 2 * y) :=
+      have : (W.quadraticTwist c).IsElliptic := W.isElliptic_quadraticTwist hc.isUnit
+      (Affine.equation_iff_nonsingular_of_Δ_ne_zero (W.quadraticTwist c).isUnit_Δ.ne_zero).mp heq
+    (W.quadraticTwistPointEquiv hc).symm (WithZero.coe ⟨(x, y), h⟩) = .some _ _ hns := by
+  rfl
 
 /-- For an elliptic curve `W` in `IsCharNeTwoNF` form over a finite field and `c ≠ 0`, the number
 of points of `W.quadraticTwist c` is one (the point at infinity) plus the number of solutions of
@@ -290,10 +253,8 @@ theorem natCard_point_quadraticTwist_eq_one_add [Finite F] [W.IsCharNeTwoNF] [W.
     Nat.card (W.quadraticTwist c).toAffine.Point =
       1 + Nat.card
         {xy : F × F // c * xy.2 ^ 2 = xy.1 ^ 3 + W.a₂ * xy.1 ^ 2 + W.a₄ * xy.1 + W.a₆} := by
-  have : (W.quadraticTwist c).IsElliptic := W.isElliptic_quadraticTwist hc.isUnit
-  rw [(W.quadraticTwist c).toAffine.natCard_point_eq_one_add_equation
-    (W.quadraticTwist c).isUnit_Δ.ne_zero]
-  exact congrArg (1 + ·) (Nat.card_congr (W.quadraticTwistEquationEquiv hc).symm)
+  rw [Nat.card_congr (W.quadraticTwistPointEquiv hc), add_comm]
+  exact Finite.card_option
 
 /-- For a short Weierstrass elliptic curve `y² = x³ + a₄ x + a₆` over a finite field and `c ≠ 0`,
 the number of points of `W.quadraticTwist c` is one (the point at infinity) plus the number of
@@ -313,6 +274,23 @@ section PointCount
 
 variable {F : Type*} [Field F] [Fintype F]
 
+omit [Fintype F] in
+private lemma ne_zero_of_not_isSquare {c : F} (hc : ¬ IsSquare c) : c ≠ 0 := by
+  rintro rfl
+  exact hc IsSquare.zero
+
+omit [Fintype F] in
+private lemma ringChar_ne_two_of_isCharNeTwoNF (W : WeierstrassCurve F)
+    [W.IsCharNeTwoNF] [W.IsElliptic] : ringChar F ≠ 2 := by
+  intro h2
+  have h2zero : (2 : F) = 0 := by
+    simpa [h2] using (CharP.cast_eq_zero F (ringChar F) : ((ringChar F : ℕ) : F) = 0)
+  apply W.isUnit_Δ.ne_zero
+  rw [W.Δ_of_isCharNeTwoNF]
+  linear_combination
+    (-32 * W.a₂ ^ 3 * W.a₆ + 8 * W.a₂ ^ 2 * W.a₄ ^ 2 - 32 * W.a₄ ^ 3 -
+      216 * W.a₆ ^ 2 + 144 * W.a₂ * W.a₄ * W.a₆) * h2zero
+
 /-- For `c ≠ 0`, twisting the cubic `X³ + α X² + β X + γ` by `c` multiplies its character sum
 `cubicCharSum` by `quadraticChar F c`. -/
 theorem cubicCharSum_mul [DecidableEq F] (α β γ : F) {c : F} (hc : c ≠ 0) :
@@ -329,8 +307,8 @@ character sum `cubicCharSum`. -/
 theorem cubicCharSum_mul_of_not_isSquare [DecidableEq F] (α β γ : F) {c : F}
     (hc : ¬ IsSquare c) :
     cubicCharSum (c * α) (c ^ 2 * β) (c ^ 3 * γ) = -cubicCharSum α β γ := by
-  have hc0 : c ≠ 0 := by rintro rfl; exact hc IsSquare.zero
-  rw [cubicCharSum_mul α β γ hc0, quadraticChar_neg_one_iff_not_isSquare.mpr hc, neg_one_mul]
+  rw [cubicCharSum_mul α β γ (ne_zero_of_not_isSquare hc),
+    quadraticChar_neg_one_iff_not_isSquare.mpr hc, neg_one_mul]
 
 /-- For a nonzero square `c`, twisting the cubic `X³ + α X² + β X + γ` by `c` preserves its
 character sum `cubicCharSum`. -/
@@ -347,36 +325,39 @@ private lemma cubicCharSum_b₂_b₄_b₆_of_isCharNeTwoNF [DecidableEq F] (hF :
   rw [W.b₂_of_isCharNeTwoNF, W.b₄_of_isCharNeTwoNF, W.b₆_of_isCharNeTwoNF,
     mul_div_cancel_left₀ _ h4, mul_div_cancel_left₀ _ h2, mul_div_cancel_left₀ _ h4]
 
-/-- For an elliptic curve `W` in `IsCharNeTwoNF` form over a finite field of odd characteristic,
+/-- For an elliptic curve `W` in `IsCharNeTwoNF` form over a finite field,
 `#E(F) = #F + 1 + cubicCharSum W.a₂ W.a₄ W.a₆`. -/
-theorem natCard_point_eq_of_isCharNeTwoNF [DecidableEq F] (hF : ringChar F ≠ 2)
+theorem natCard_point_eq_of_isCharNeTwoNF [DecidableEq F]
     (W : WeierstrassCurve F) [W.IsCharNeTwoNF] [W.IsElliptic] :
     (Nat.card W.toAffine.Point : ℤ) =
       Fintype.card F + 1 + cubicCharSum W.a₂ W.a₄ W.a₆ := by
+  have hF : ringChar F ≠ 2 := ringChar_ne_two_of_isCharNeTwoNF W
   rw [natCard_point_eq hF W, cubicCharSum_b₂_b₄_b₆_of_isCharNeTwoNF hF W]
 
-/-- For an elliptic curve `W` in `IsCharNeTwoNF` form over a finite field of odd characteristic
-and `c ≠ 0`, `#Ẽ(F) = #F + 1 + χ(c) · cubicCharSum W.a₂ W.a₄ W.a₆`. -/
-theorem natCard_point_quadraticTwist [DecidableEq F] (hF : ringChar F ≠ 2)
+/-- For an elliptic curve `W` in `IsCharNeTwoNF` form over a finite field and `c ≠ 0`,
+`#Ẽ(F) = #F + 1 + χ(c) · cubicCharSum W.a₂ W.a₄ W.a₆`. -/
+theorem natCard_point_quadraticTwist [DecidableEq F]
     (W : WeierstrassCurve F) [W.IsCharNeTwoNF] [W.IsElliptic] {c : F} (hc : c ≠ 0) :
     (Nat.card (W.quadraticTwist c).toAffine.Point : ℤ) =
       Fintype.card F + 1 + quadraticChar F c * cubicCharSum W.a₂ W.a₄ W.a₆ := by
   have : (W.quadraticTwist c).IsElliptic := W.isElliptic_quadraticTwist hc.isUnit
-  rw [natCard_point_eq_of_isCharNeTwoNF hF (W.quadraticTwist c), quadraticTwist_a₂,
+  rw [natCard_point_eq_of_isCharNeTwoNF (W.quadraticTwist c), quadraticTwist_a₂,
     quadraticTwist_a₄, quadraticTwist_a₆, cubicCharSum_mul _ _ _ hc]
 
 omit [Fintype F] in
 /-- Twisting by a nonzero square preserves the number of points. -/
-theorem natCard_point_quadraticTwist_of_isSquare [Finite F] (hF : ringChar F ≠ 2)
+theorem natCard_point_quadraticTwist_of_isSquare [Finite F]
     (W : WeierstrassCurve F) [W.IsCharNeTwoNF] [W.IsElliptic] {c : F}
     (hc : IsSquare c) (hc0 : c ≠ 0) :
     Nat.card (W.quadraticTwist c).toAffine.Point = Nat.card W.toAffine.Point := by
   classical
   let _ : Fintype F := Fintype.ofFinite F
-  have h := natCard_point_quadraticTwist hF W hc0
-  rw [(quadraticChar_one_iff_isSquare hc0).mpr hc, one_mul,
-    ← natCard_point_eq_of_isCharNeTwoNF hF W] at h
-  exact_mod_cast h
+  have : (W.quadraticTwist c).IsElliptic := W.isElliptic_quadraticTwist hc0.isUnit
+  have h1 := natCard_point_eq_of_isCharNeTwoNF W
+  have h2 := natCard_point_eq_of_isCharNeTwoNF (W.quadraticTwist c)
+  rw [quadraticTwist_a₂, quadraticTwist_a₄, quadraticTwist_a₆,
+    cubicCharSum_mul_of_isSquare _ _ _ hc hc0, ← h1] at h2
+  exact_mod_cast h2
 
 /-- Even without nonsingularity (`IsElliptic`), the affine solution sets of `W` (in
 `IsCharNeTwoNF` form) and of its quadratic twist by a non-square `c` have `2 #F` points in
@@ -402,12 +383,12 @@ theorem natCard_point_add_quadraticTwist (W : WeierstrassCurve F)
     [W.IsCharNeTwoNF] [W.IsElliptic] {c : F} (hc : ¬ IsSquare c) :
     Nat.card W.toAffine.Point + Nat.card (W.quadraticTwist c).toAffine.Point =
       2 * Fintype.card F + 2 := by
-  classical
-  have hF : ringChar F ≠ 2 := fun h2 ↦ hc (FiniteField.isSquare_of_char_two h2 c)
-  have hc0 : c ≠ 0 := by rintro rfl; exact hc IsSquare.zero
-  have h1 := natCard_point_eq_of_isCharNeTwoNF hF W
-  have h2 := natCard_point_quadraticTwist hF W hc0
-  rw [quadraticChar_neg_one_iff_not_isSquare.mpr hc, neg_one_mul] at h2
+  have : (W.quadraticTwist c).IsElliptic :=
+    W.isElliptic_quadraticTwist (ne_zero_of_not_isSquare hc).isUnit
+  have h1 := W.toAffine.natCard_point_eq_one_add_equation W.isUnit_Δ.ne_zero
+  have h2 := (W.quadraticTwist c).toAffine.natCard_point_eq_one_add_equation
+    (W.quadraticTwist c).isUnit_Δ.ne_zero
+  have heq := W.natCard_equation_add_quadraticTwist hc
   omega
 
 /-- If `#E(F) = q + 1 - t` and `c` is a quadratic non-residue, then `#Ẽ(F) = q + 1 + t`
