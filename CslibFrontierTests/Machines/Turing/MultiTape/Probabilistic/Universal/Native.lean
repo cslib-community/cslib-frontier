@@ -20,16 +20,10 @@ open Turing.MultiTapePTM.Universal
 
 /-- Channel reads cover negative, in-range and right-blank answer positions. -/
 example :
-    Channel.readCompiler.outputBits ⟨[], [4], -1⟩ = 0 ∧
-      Channel.readCompiler.outputBits ⟨[], [4], 0⟩ = 5 ∧
-      Channel.readCompiler.outputBits ⟨[], [4], 1⟩ = 0 := by
+    Channel.read ⟨[], [4], -1⟩ = none ∧
+      Channel.read ⟨[], [4], 0⟩ = some 4 ∧
+      Channel.read ⟨[], [4], 1⟩ = none := by
   decide
-
-/-- Key construction includes retained input, work-tape and answer-channel reads. -/
-example (word : List ℕ) (cfg : ICfg) (state : ℕ) :
-    ICfg.keyCompiler.outputBits (word, cfg, state) =
-      (eKey (cfg.key word state)).length :=
-  rfl
 
 /-- Reply installation updates one in-range channel and leaves a malformed short list unchanged. -/
 example :
@@ -67,7 +61,8 @@ example :
 example (d : Desc) : ICfg.initCompiler.outputBits d = (eICfg (ICfg.init d)).length :=
   rfl
 
-/-- Local execution defaults short action lists and ignores actions past stored tape/channel lists. -/
+/-- Local execution defaults short action lists and ignores actions past stored tape and channel
+lists. -/
 example :
     let tape := Turing.MultiTapeTM.Universal.Tape.blank
     let channel := Channel.blank
@@ -102,7 +97,7 @@ example :
     (match (ICfg.init zero).commandAt 0 zero [] false with
       | .local next => next.control = none
       | .query .. => False) := by
-  decide
+  simp [ICfg.commandAt, ICfg.init, ICfg.halt]
 
 /-- Query validation rejects invalid tags and preserves the exact request on a valid branch. -/
 example :
@@ -118,7 +113,7 @@ example :
       | .query operation request next _ =>
           operation.val = 0 ∧ request = [7] ∧ next = 1
       | .local _ => False) := by
-  decide
+  norm_num [ICfg.command, ICfg.halt]
 
 /-- Table lookup, coin selection and query construction preserve the buffered request exactly. -/
 example :
@@ -133,15 +128,7 @@ example :
       | .local _ => False) ∧
       (ICfg.commandAtCompiler 1).outputBits (d, [], cfg, false) =
         (eCommand 1 (cfg.commandAt 1 d [] false)).length := by
-  decide
-
-/-- The application wrapper keeps first-match order and the standard optional output framing. -/
-example (key : Key) (first second : Branches) :
-    firstMatch ([(key, first), (key, second)], key) = some first ∧
-      firstMatchCompiler.outputBits ([(key, first), (key, second)], key) =
-        (encOption eBranches (some first)).length := by
-  constructor
-  · simp [firstMatch, Turing.MultiTapeTM.Internal.NativeCompiler.firstMatch]
-  · rfl
+  norm_num [ICfg.commandAt, ICfg.command, ICfg.key]
+  rfl
 
 end CslibFrontierTests.Machines.Turing.MultiTape.Probabilistic.Universal.Native

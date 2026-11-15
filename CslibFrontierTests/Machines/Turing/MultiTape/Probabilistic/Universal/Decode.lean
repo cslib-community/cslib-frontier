@@ -16,7 +16,7 @@ public section
 
 namespace CslibFrontierTests.Machines.Turing.MultiTape.Probabilistic.Universal.Decode
 
-open Turing MultiTapeTM MultiTapePTM.Universal
+open _root_.Turing _root_.Turing.MultiTapeTM _root_.Turing.MultiTapePTM.Universal
 
 example (z : ℤ) :
     MultiTapeTM.Universal.intUnaryDecoder.decode (encIntUnary z) = z :=

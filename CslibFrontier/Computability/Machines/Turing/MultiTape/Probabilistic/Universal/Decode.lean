@@ -31,7 +31,7 @@ its concrete parsing machines.
 Every decoder's `Decoder.decode_enc` field proves that it retracts the corresponding encoding.
 -/
 
-@[expose] public section
+public section
 
 namespace Turing.MultiTapePTM.Universal
 
@@ -46,7 +46,7 @@ private abbrev tapeDecoder := Turing.MultiTapeTM.Universal.tapeDecoder
 def keyDecoder : Decoder eKey :=
   (Decoder.pair .unary
     (.pair symDecoder (.pair (.list symDecoder) (.list symDecoder)))).map
-    (fun (state, input, work, answers) => ⟨state, input, work, answers⟩)
+    (fun (state, input, work, answers) => ⟨⟨state, input, work⟩, answers⟩)
     (fun k => (k.state, k.input, k.work, k.answers)) (fun _ => rfl) fun _ => rfl
 
 /-- Tagged ordinary and query actions. -/
