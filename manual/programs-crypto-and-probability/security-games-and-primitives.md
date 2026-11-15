@@ -199,8 +199,10 @@ which supplies a canonical decoder `decode : ∀ d, List Bool → Option (Carrie
 (`computableInPolyTime_isElem`, instantiated for `schnorrDecodableGroups` and
 [`DecodablePrimeOrderGroupFamily.withSeed`](../../CslibFrontier/Crypto/Computational/ElGamal/KDF.lean)),
 `wordToTypedCDHAdversary` turns any word-level CDH adversary into a typed one without losing PPT
-or success probability, establishing `CDH ↔ WordCDH` (`cdh_iff_encoded`) and restoring word-level
-`DDH.wordCDH` as a corollary of `DDH`. For decodable families,
+or success probability, establishing `CDH ↔ WordCDH` (`cdh_iff_encoded`). `DDH.wordCDH` then
+derives `F.WordCDH setup` from `F.DDH setup` under the hypotheses of `DDH.cdh`: every group in the
+support of `setup n` has order at least `m n > 0`, and `1 / m n` is negligible.
+For decodable families,
 [`ElGamal/Decodable.lean`](../../CslibFrontier/Crypto/Computational/ElGamal/Decodable.lean) and
 [`CramerShoup/Decodable.lean`](../../CslibFrontier/Crypto/Computational/CramerShoup/Decodable.lean)
 also specialize group-element ElGamal CPA (`elGamalGroupCPAGame`, `elGamalGroupValid`,
