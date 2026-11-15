@@ -377,7 +377,10 @@ noncomputable def totientGame (gen : RSAGen) (T : ℕ → ℕ → ProbComp ℕ) 
 
 /-- The Euler totient hardness assumption for `gen` ([KatzLindell2020], Section 9.2.5,
 Theorem 9.49): every uniform PPT algorithm has negligible probability of computing
-`φ(N) = (p - 1) * (q - 1)` from `N = p * q`. -/
+`φ(N) = (p - 1) * (q - 1)` from `N = p * q`. The source states no separate assumption: its
+Theorem 9.49 shows that computing `φ(N)` is equivalent to factoring `N`, and
+`totientHard_iff_modulusFactoringHard` proves that equivalence here. Keys come from any law on
+`RSADesc`, which need not be efficiently samplable. -/
 def TotientHard (gen : RSAGen) : Prop :=
   ∀ T : ℕ → ℕ → ProbComp ℕ,
     IsPPTOn (encPair encUnary encNat) encNat (fun input => T input.1 input.2) →
@@ -510,7 +513,11 @@ noncomputable def rsaKeyRecoveryGame (gen : RSAGen) (K : ℕ → RSAPublicKey �
 
 /-- The RSA private-exponent recovery hardness assumption for `gen` ([KatzLindell2020],
 Section 9.2.5, Theorem 9.50): every uniform PPT algorithm given `(N, e)` has negligible probability
-of finding a valid private exponent `d'` with `e * d' ≡ 1 [MOD φ(N)]`. -/
+of finding a valid private exponent `d'` with `e * d' ≡ 1 [MOD φ(N)]`. The source states no
+separate assumption: its Theorem 9.50 shows that computing `d` is as hard as factoring `N`, a
+direction not formalized here. This assumption follows from `RSAOneWay`
+(`RSAOneWay.rsaKeyRecoveryHard`) and implies `TotientHard` (`RSAKeyRecoveryHard.totientHard`). Keys
+come from any law on `RSADesc`, which need not be efficiently samplable. -/
 def RSAKeyRecoveryHard (gen : RSAGen) : Prop :=
   ∀ K : ℕ → RSAPublicKey → ProbComp ℕ,
     IsPPTOn (encPair encUnary encRSAPublicKey) encNat (fun input => K input.1 input.2) →

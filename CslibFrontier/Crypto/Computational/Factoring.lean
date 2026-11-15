@@ -72,7 +72,8 @@ noncomputable def modulusFactoringGame (modGen : ℕ → PMF ℕ) (A : ℕ → �
 
 /-- The integer factoring assumption for a modulus distribution family `modGen : ℕ → PMF ℕ`
 ([KatzLindell2020], Section 9.2.3, Definition 9.45): every uniform PPT factoring algorithm succeeds
-with negligible probability. -/
+with negligible probability. In place of the source's `GenModulus`, `modGen` is any law on `ℕ`,
+which need not be efficiently samplable or supported on products of two primes. -/
 def ModulusFactoringHard (modGen : ℕ → PMF ℕ) : Prop :=
   ∀ A : ℕ → ℕ → ProbComp (ℕ × ℕ),
     IsPPTOn (encPair encUnary encNat) (encPair encNat encNat)
