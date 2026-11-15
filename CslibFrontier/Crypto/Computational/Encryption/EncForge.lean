@@ -229,7 +229,10 @@ theorem isPPT_encForgeGame (E : SymmetricCipher) {adversary : CIAdversary}
 /-- Fresh-message encryption unforgeability (`EncForge`, or KL Definition 5.2)
 ([KatzLindell2020], Section 5.2, Definition 5.2, printed p. 151): every uniform strict
 `IsOraclePPT encBits` adversary has negligible probability of outputting a ciphertext that decrypts
-to an unqueried plaintext. -/
+to an unqueried plaintext. This is plaintext integrity, [BonehShoup2023], Exercise 9.15 (p. 395):
+the ciphertext integrity game, Attack Game 9.1 (pp. 358–359), won when the output decrypts to a
+message that was never queried. Encryption queries on words other than `n`-bit messages are
+answered with `[]`. -/
 def EncForge (E : SymmetricCipher) : Prop :=
   Game.Indistinguishable
     (fun adversary n => ProbComp.eval (E.encForgeGame adversary n))
