@@ -37,10 +37,6 @@ adapted word program.
   on the word channel.
 * `Cslib.Crypto.PRF.advantage_atLevel_adapt`: the finite PRF advantage of an adapted word
   distinguisher is its word-level PRF advantage.
-
-## References
-
-* [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023], Section 4.4.
 -/
 
 public section
