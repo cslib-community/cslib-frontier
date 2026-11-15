@@ -212,6 +212,7 @@ These notions state the security of whatever the caller supplies: two games or e
 | `Game.IndistinguishableWithin` | vocabulary | — | Concrete `(Within, ε)`-indistinguishability against a resource predicate that the caller supplies. | — |
 | `Game.SuccWithin` | vocabulary | — | Concrete one-sided security against a resource predicate that the caller supplies. | — |
 | `ComputationallyIndistinguishable` | vocabulary | — | Two caller-supplied word ensembles against uniform strict PPT distinguishers; neither ensemble need be efficiently samplable or polynomially bounded in length. | — |
+| `StatisticallyIndistinguishable` | vocabulary | — | Negligible statistical distance between two caller-supplied ensembles on any types: `Game.Indistinguishable` against every family of tests, with no efficiency condition. For word ensembles it implies `ComputationallyIndistinguishable`. | — |
 | `IndistinguishableWithAdvice` | vocabulary | — | Two caller-supplied ensembles against uniform strict PPT tests that also read one fixed advice family; with empty advice it is `ComputationallyIndistinguishable`. | — |
 | `NonuniformlyIndistinguishable` | vocabulary | — | `IndistinguishableWithAdvice` for every polynomially bounded advice family: non-uniform indistinguishability of two caller-supplied ensembles, with the advice length charged to the test's clock. | — |
 | `NativeQuantum.ComputationallyIndistinguishable` | vocabulary | — | Two caller-supplied ensembles against native uniform quantum tests without advice or a useful oracle. | — |
