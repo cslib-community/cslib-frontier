@@ -76,7 +76,11 @@ differences:
   (`IsPPTOn`): every run halts within a polynomial in the length of the machine's whole encoded
   input, which includes `1ⁿ` and, for a simulator, the coalition's inputs and outputs, as in
   [Goldreich2004]. [Lindell2017] (p. 3) bounds a party's running time in the security parameter
-  alone. The inputs here come from a PPT environment, so their length is polynomial in `n`.
+  alone. The inputs here are chosen by a PPT environment that reads `1ⁿ` and the public
+  parameters `d`, so their length is polynomial in the length of that whole encoded input,
+  `encPair encUnary E.desc`. It is polynomial in `n` only when the words `E.desc d` are, which
+  neither `ProtocolFamily` nor `SemiHonestSecure` requires: a setup law may supply a `2 ^ n`-bit
+  public word that the environment copies into an input.
 * The notion constrains only the simulator and the environment. The efficiency and correctness of
   the honest parties' algorithms, which the sources assume, are separate properties of a
   protocol family.
