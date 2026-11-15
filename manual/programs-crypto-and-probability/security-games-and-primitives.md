@@ -404,6 +404,28 @@ instead of writing another sampling block. The inner product of bit lists is
 Mathlib's `dotProduct` on `List.ofFn` inputs (`listDot_ofFn`); use it, and its polynomial-time rule
 `ComputableInPolyTime.bitsListDot`, instead of spelling out the zip-and-fold parity.
 
+For offline dictionary attacks against a hash oracle `H` ([bs23][bs23], §18.3.1.2–§18.3.1.3,
+(18.1)–(18.3), pp. 721–723, and §18.4.1–§18.4.2, pp. 724–726), import
+[`Computational/DictionarySearch.lean`](../../CslibFrontier/Crypto/Computational/DictionarySearch.lean).
+`dictionarySearch input accept D` searches a candidate list `D` in order by querying `H` at
+`input w` and testing replies with `accept`; against `H` it returns the first passing candidate
+(`evalPure_dictionarySearch`, `exists_evalPure_dictionarySearch_of_mem`, and
+`evalPure_dictionaryPreimageSearch_of_injOn` when `H` is injective on `D`), queries only candidate
+inputs (`queriesSatisfy_dictionarySearch`), and makes at most `D.length` oracle calls on every
+path (`isQueryBounded_dictionarySearch`, sharp by `not_isQueryBounded_dictionarySearch`). The
+preprocessing table `dictionaryTable` costs `D.length` oracle calls
+(`isQueryBounded_dictionaryTable`) and matches `dictionaryPreimageSearch` via `List.lookup`
+(`lookup_evalPure_dictionaryTable`), so the batch search `dictionaryBatchSearch` answers a whole
+file `F` in `D.length` calls (`isQueryBounded_dictionaryBatchSearch`) against `F.length * D.length`
+for separate searches (`isQueryBounded_mapM_dictionaryPreimageSearch`). For any secret
+distribution `μ`, `dictionarySearch_inverts` pairs the `D.length` query bound with the bound
+`μ {pw | pw ∈ D}` on `inversionExperiment` success (`dictionaryInverter`, returning `default` on
+failure). The cost is a count of oracle evaluations of `H` and nothing else: comparisons,
+`accept`, and `List.lookup` are uncounted, and no running time in a machine model is stated.
+Salted and secret-salt instances, MAC-key and §21.11 search shapes, and failing cases showing each
+hypothesis is needed are in
+[`Crypto/DictionarySearch.lean`](../../CslibFrontierTests/Crypto/DictionarySearch.lean).
+
 For a one-bit expanding PRG, [Stretch/Prefix.lean](../../CslibFrontier/Crypto/Computational/Stretch/Prefix.lean)
 proves that `(forwardIterate g ℓ seed).take ℓ` has length `ℓ` and agrees with the first `ℓ`
 emitted bits of every longer run. The premise is global: `length (g seed) = length seed + 1`
