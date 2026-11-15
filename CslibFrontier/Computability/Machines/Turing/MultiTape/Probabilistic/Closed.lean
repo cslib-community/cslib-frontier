@@ -64,7 +64,7 @@ theorem eval_runClosedConfigFrom_add_of_halted (machine : MultiTapePTM k Symbol 
   conv_rhs => rw [← PMF.bind_pure
     (ProbComp.eval (machine.runClosedConfigFrom fuel cfg))]
   unfold runClosedConfigFrom runConfigFrom
-  rw [MultiTapeMachine.runConfigFrom_add, ProbComp.eval_bind]
+  rw [MultiTapeMachine.runConfigFrom_add, ← PFunctor.FreeM.bind_eq_bind, ProbComp.eval_bind]
   apply Probability.PMF.bind_congr_on_support
   intro final hfinal
   rw [MultiTapeMachine.runConfigFrom_halted _ _ _ _ _ (hhalt final hfinal)]
@@ -88,7 +88,7 @@ theorem eval_runClosed_eq_of_halted (machine : MultiTapePTM k Symbol State) (inp
       final.tapes.state = none) :
     ProbComp.eval (machine.runClosed larger input) =
       ProbComp.eval (machine.runClosed fuel input) := by
-  simp only [runClosed_eq_map, ProbComp.eval_map,
+  simp only [runClosed_eq_map, ← PFunctor.FreeM.map_eq_map, ProbComp.eval_map,
     eval_runClosedConfigFrom_eq_of_halted machine _ hle hhalt]
 
 /-- Shared-tape sequencing preserves distributions once both phases have actually halted. -/
@@ -113,19 +113,26 @@ theorem eval_runClosedConfigFrom_seq (first : MultiTapePTM k Symbol State₀)
       intro result hresult
       rw [OracleComp.run_interpret_stateless, PMF.monad_map_eq_map] at hresult
       obtain ⟨final, hfinal, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hresult
-      exact hfirst final hfinal) (by
+      exact hfirst final (by
+        simpa only [runClosedConfigFrom, ProbComp.eval,
+          OracleComp.evalWith_eq_interpret] using hfinal)) (by
       intro result hresult final hfinal
       rw [OracleComp.run_interpret_stateless, PMF.monad_map_eq_map] at hresult hfinal
       obtain ⟨source, hsource, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hresult
       obtain ⟨target, htarget, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hfinal
-      exact hsecond source hsource target htarget)
+      exact hsecond source (by
+        simpa only [runClosedConfigFrom, ProbComp.eval,
+          OracleComp.evalWith_eq_interpret] using hsource) target (by
+        simpa only [runClosedConfigFrom, ProbComp.eval,
+          OracleComp.evalWith_eq_interpret] using htarget))
   simp only [OracleComp.run_interpret_stateless] at h
   have hout := congrArg (PMF.map Prod.fst) h
   simp only [PMF.monad_map_eq_map, PMF.map_bind,
     PMF.bind_map, PMF.map_comp, Function.comp_def] at hout
   change PMF.map id _ = _ at hout
   rw [PMF.map_id] at hout
-  exact hout
+  simpa only [runClosedConfigFrom, ProbComp.eval, OracleComp.evalWith_eq_interpret,
+    Probability.PMF.monad_bind_eq_bind] using hout
 
 /-- A deterministic embedding has a point-mass configuration distribution. -/
 theorem eval_runClosedConfigFrom_ofDeterministic (machine : MultiTapeTM k Symbol State)
@@ -144,6 +151,7 @@ theorem eval_runClosedConfigFrom_ofDeterministic (machine : MultiTapeTM k Symbol
     PMF.pure_map] at hout
   change PMF.map id _ = _ at hout
   rw [PMF.map_id] at hout
-  exact hout
+  simpa only [runClosedConfigFrom, ProbComp.eval,
+    OracleComp.evalWith_eq_interpret] using hout
 
 end Turing.MultiTapePTM

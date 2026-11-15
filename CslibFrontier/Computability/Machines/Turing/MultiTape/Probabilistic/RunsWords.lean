@@ -108,8 +108,10 @@ theorem run_interpret_runOracleConfigFrom_add_of_halted
         s).support,
       final.1.tapes.state = none) :
     ProbOracleComp.runWith oracle (machine.runOracleConfigFrom (fuel + padding) cfg) s =
-      ProbOracleComp.runWith oracle (machine.runOracleConfigFrom fuel cfg) s :=
-  MultiTapeMachine.run_interpret_runConfigFrom_add_of_halted machine _ _ _ cfg fuel padding s hhalt
+      ProbOracleComp.runWith oracle (machine.runOracleConfigFrom fuel cfg) s := by
+  simp only [ProbOracleComp.runWith_eq_run_interpret] at hhalt ⊢
+  exact MultiTapeMachine.run_interpret_runConfigFrom_add_of_halted machine _ _ _ cfg fuel padding
+    s hhalt
 
 /-- Any larger clock gives the same joint configuration and external state distribution after a
 halting bound. -/
@@ -132,9 +134,12 @@ theorem run_interpret_runOracleConfigFrom_ofDeterministic
     (oracle : Operation × List Symbol → StateT OracleState PMF (List Symbol))
     (fuel : ℕ) (cfg : Config k Symbol State Operation input) (s : OracleState) :
     ProbOracleComp.runWith oracle ((ofDeterministic machine).runOracleConfigFrom fuel cfg) s =
-      PMF.pure ({ cfg with tapes := machine.runFrom cfg.tapes fuel }, s) :=
-  run_interpret_runConfigFrom_ofDeterministic machine _ _ _ (PMF.uniformOfFintype Bool)
-    (run_interpret_sample_uniform_bool oracle) fuel cfg s
+      PMF.pure ({ cfg with tapes := machine.runFrom cfg.tapes fuel }, s) := by
+  rw [ProbOracleComp.runWith_eq_run_interpret]
+  apply run_interpret_runConfigFrom_ofDeterministic machine _ _ _ (PMF.uniformOfFintype Bool)
+    (fun state => ?_) fuel cfg s
+  rw [← ProbOracleComp.runWith_eq_run_interpret]
+  exact run_interpret_sample_uniform_bool oracle state
 
 /-- Sequencing law for `runOracleConfigFrom` when both phases halt on all supported paths. -/
 theorem run_interpret_runOracleConfigFrom_seq
@@ -153,8 +158,9 @@ theorem run_interpret_runOracleConfigFrom_seq
     (ProbOracleComp.runWith oracle (first.runOracleConfigFrom t₁ cfg) s).bind (fun result =>
       (ProbOracleComp.runWith oracle
           (second.runOracleConfigFrom t₂ (Sequential.start second result.1)) result.2).map
-        (fun (final, s') => (Sequential.right final, s'))) :=
-  run_interpret_runConfigFrom_seq first second _ _ _ cfg t₁ t₂ s h₁ h₂
+        (fun (final, s') => (Sequential.right final, s'))) := by
+  simp only [ProbOracleComp.runWith_eq_run_interpret] at h₁ h₂ ⊢
+  exact run_interpret_runConfigFrom_seq first second _ _ _ cfg t₁ t₂ s h₁ h₂
 
 /-- A live step whose transition does not depend on the coin bit advances the configuration
 deterministically while preserving the external oracle state. -/
@@ -173,7 +179,8 @@ theorem run_interpret_runOracleConfigFrom_succ_step
         s := by
   dsimp only [runOracleConfigFrom, runConfigFrom]
   rw [MultiTapeMachine.runConfigFrom]
-  simp only [hstate, bind_map_left, htr, ProbOracleComp.runWith_bind,
+  simp only [hstate, bind_map_left, htr, ← PFunctor.FreeM.bind_eq_bind,
+    ProbOracleComp.runWith_bind,
     run_interpret_sample_uniform_bool, PMF.bind_map, Function.comp_def, PMF.bind_const]
 
 /-- A live query step whose transition does not depend on the coin bit submits the accumulated
@@ -193,7 +200,8 @@ theorem run_interpret_runOracleConfigFrom_succ_query
           s') := by
   dsimp only [runOracleConfigFrom, runConfigFrom]
   rw [MultiTapeMachine.runConfigFrom]
-  simp only [hstate, bind_map_left, htr, ProbOracleComp.runWith_bind,
+  simp only [hstate, bind_map_left, htr, ← PFunctor.FreeM.bind_eq_bind,
+    ProbOracleComp.runWith_bind,
     ProbOracleComp.runWith_query, run_interpret_sample_uniform_bool, PMF.bind_map,
     Function.comp_def, PMF.bind_const]
 
@@ -298,7 +306,7 @@ theorem of_map (f : α → β) (ws₁' : β → Fin k → List Bool) (emit' : β
   intro OracleState oracle s cfg htapes hbuf
   obtain ⟨hlaw, hclean⟩ := h OracleState oracle s cfg htapes hbuf
   refine ⟨?_, hclean⟩
-  rw [hlaw, ProbOracleComp.runWith_map, PMF.map_comp]
+  rw [hlaw, ← PFunctor.FreeM.map_eq_map, ProbOracleComp.runWith_map, PMF.map_comp]
   rfl
 
 /-- Lift a deterministic `TransformsTapes` specification to `ofDeterministic`. -/
@@ -358,7 +366,8 @@ theorem law_bind {C D T U : Type}
     obtain ⟨a, ha, hlaw⟩ := h₂ r hr
     rw [hlaw, Function.comp_apply, ha, hg]
   rw [PMF.map_bind, hcongr, h₁, PMF.bind_map]
-  simp only [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_map, PMF.map_bind, PMF.map_comp,
+  simp only [← PFunctor.FreeM.bind_eq_bind, ← PFunctor.FreeM.map_eq_map,
+    ProbOracleComp.runWith_bind, ProbOracleComp.runWith_map, PMF.map_bind, PMF.map_comp,
     Function.comp_def]
   congr 1
   funext ⟨a, s₁⟩
@@ -498,7 +507,7 @@ theorem of_nil_output (h : machine.RunsWords x ws₀ [] time program ws₁ emit)
     exact MultiTapeMachine.runConfigFrom_prependOutput machine _ _ time cfg₀ out₀
   obtain ⟨hlaw, hclean⟩ := h OracleState oracle s cfg₀ rfl hbuf
   dsimp only
-  rw [hrun, ProbOracleComp.runWith_map]
+  rw [hrun, ← PFunctor.FreeM.map_eq_map, ProbOracleComp.runWith_map]
   constructor
   · have hmap :
         PMF.map (fun (final, s') => (final.tapes, s'))
@@ -576,7 +585,7 @@ theorem of_first_step_mapState {S : Type} {tm : MultiTapePTM k Bool S Operation}
       time cfg₀
   dsimp only
   rw [run_interpret_runOracleConfigFrom_succ_step machine oracle time cfg s hstate htr_step, hstep,
-    hmapRun, ProbOracleComp.runWith_map]
+    hmapRun, ← PFunctor.FreeM.map_eq_map, ProbOracleComp.runWith_map]
   obtain ⟨hlaw, hclean⟩ := htm OracleState oracle s cfg₀ rfl hbuf
   constructor
   · have hmap :
@@ -619,7 +628,9 @@ theorem length_output_le_of_mem_support_runOracleConfigFrom {x : List Bool}
     (fun op word => ProbOracleComp.query
       (spec := fun _ : Operation × List Bool => List Bool) (op, word))
     (OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifOracle n)) oracle)
-    fuel cfg final s s' hfinal
+    fuel cfg final s s' (by
+      rw [← ProbOracleComp.runWith_eq_run_interpret]
+      exact hfinal)
 
 /-- Any word emitted by a `RunsWords` phase has length at most `time`. -/
 theorem RunsWords.length_emit_le {machine : MultiTapePTM k Bool State Operation} {x : List Bool}
@@ -673,7 +684,7 @@ theorem runOracle (h : machine.ComputesTidily x time program)
   have hlaw := ((h []) OracleState oracle s (machine.initialConfig x)
     (Cfg.init_eq_wordsCfg machine.initial x) (fun _ => rfl)).1
   have hout := congrArg (PMF.map (fun p => (p.1.output, p.2))) hlaw
-  rw [runOracle_eq_map, ProbOracleComp.runWith_map]
+  rw [runOracle_eq_map, ← PFunctor.FreeM.map_eq_map, ProbOracleComp.runWith_map]
   refine Eq.trans ?_ (hout.trans ?_)
   · rw [PMF.map_comp]
     congr 1

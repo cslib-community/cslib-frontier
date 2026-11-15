@@ -78,7 +78,12 @@ sample. Randomness is interpreted only when the resulting program is run. -/
 @[simp] theorem simulate_sample (handler : (q : Query) → ProbOracleComp spec' (spec q))
     (program : ProbComp α) : simulate handler (sample program) = sample program := by
   rw [simulate, interpret_sample]
-  simp only [sample, ProbComp.unifFin, OracleComp.interpret_query]
+  have hsample (n : ℕ) : sample (spec := spec') (ProbComp.unifFin n) =
+      OracleComp.query (Sum.inl n) := OracleComp.substitute_query _ _
+  rw [show (fun n => sample (spec := spec') (ProbComp.unifFin n)) =
+      (fun n => OracleComp.query (spec := probOracleSpec spec') (Sum.inl n)) from
+    funext hsample]
+  exact (OracleComp.substitute_eq_interpret _ program).symm
 
 /-- Running a substituted program runs each handler under the same outer interpreter. In
 particular, a stateful interpreter shares its state across all calls and private samples. -/

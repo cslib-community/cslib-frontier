@@ -96,13 +96,28 @@ theorem congr {program program' : α → WordOracleComp Operation β}
       ProbOracleComp.runWith oracle (program' a) s) : IsOraclePPTOn input output program' := by
   obtain ⟨hops, k, Control, hfinite, machine, c, d, h⟩ := h
   refine ⟨hops, k, Control, hfinite, machine, c, d, fun a State oracle s => ?_⟩
-  simpa only [ProbOracleComp.runWith_map, heq] using h a State oracle s
+  calc
+    ProbOracleComp.runWith oracle (output <$> program' a) s =
+        (ProbOracleComp.runWith oracle (program' a) s).map (Prod.map output id) := by
+      rw [← PFunctor.FreeM.map_eq_map, ProbOracleComp.runWith_map]
+    _ = (ProbOracleComp.runWith oracle (program a) s).map (Prod.map output id) :=
+      congrArg (PMF.map (Prod.map output id)) (heq a State oracle s).symm
+    _ = ProbOracleComp.runWith oracle (output <$> program a) s := by
+      rw [← PFunctor.FreeM.map_eq_map, ProbOracleComp.runWith_map]
+    _ = _ := h a State oracle s
 
 /-- A program returning its declared encoding has the same strict oracle PPT certificates. -/
 theorem iff_encoded {program : α → WordOracleComp Operation β} :
     IsOraclePPTOn input output program ↔
-      IsOraclePPTOn input Turing.MultiTapeTM.encBits (fun a => output <$> program a) := by
-  simp only [IsOraclePPTOn, Turing.MultiTapeTM.encBits, Function.Embedding.coe_refl, id_map]
+      IsOraclePPTOn input Turing.MultiTapeTM.encBits
+        (fun a => output <$> program a) := by
+  have hmap {γ δ : Type} (f : γ → δ) (p : WordOracleComp Operation γ) (State : Type)
+      (oracle : Operation × List Bool → StateT State PMF (List Bool)) (s : State) :
+      ProbOracleComp.runWith oracle (f <$> p) s =
+        (ProbOracleComp.runWith oracle p s).map (Prod.map f id) := by
+    rw [← PFunctor.FreeM.map_eq_map, ProbOracleComp.runWith_map]
+  simp only [IsOraclePPTOn, hmap, Turing.MultiTapeTM.encBits, Function.Embedding.coe_refl,
+    Prod.map_id, PMF.map_id]
 
 /-- Every supported encoded output has polynomial length, independently of all oracle replies. -/
 theorem length_le {program : α → WordOracleComp Operation β}
@@ -113,9 +128,9 @@ theorem length_le {program : α → WordOracleComp Operation β}
       (output result).length ≤ c * ((input a).length + 1) ^ d := by
   obtain ⟨_, k, Control, _, machine, c, d, h⟩ := h
   refine ⟨c, d, fun a State oracle s s' result hresult => ?_⟩
-  have hmap : (output result, s') ∈ (ProbOracleComp.runWith oracle (output <$> program a)
-      s).support := by
-    rw [ProbOracleComp.runWith_map]
+  have hmap : (output result, s') ∈
+      (ProbOracleComp.runWith oracle (output <$> program a) s).support := by
+    rw [← PFunctor.FreeM.map_eq_map, ProbOracleComp.runWith_map]
     exact (PMF.mem_support_map_iff _ _ _).mpr ⟨(result, s'), hresult, rfl⟩
   rw [h a State oracle s] at hmap
   exact machine.length_output_runOracle_le oracle _ _ _ s s' hmap

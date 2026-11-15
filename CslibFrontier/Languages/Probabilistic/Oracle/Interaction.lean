@@ -64,6 +64,8 @@ namespace Cslib.ProbOracleComp
 
 open scoped ENNReal
 
+universe u v w s
+
 variable {Query : Type} {spec : Query → Type} {State α β : Type}
   (oracle : (q : Query) → StateT State PMF (spec q))
 
@@ -92,9 +94,34 @@ continuation. -/
 /-- The joint law of the result of `program` and the final state of the oracle answering its
 external calls, starting from the state `s`. Private samples are fresh. This is the generic
 stateful run `OracleComp.runWith` of the sum handler. -/
-noncomputable def runWith (program : ProbOracleComp spec α) (s : State) : PMF (α × State) :=
+noncomputable def runWith {Query : Type u} {spec : Query → Type} {State : Type s}
+    {α : Type w} (oracle : (q : Query) → State → PMF (spec q × State))
+    (program : ProbOracleComp spec α) (s : State) : PMF (α × State) :=
   OracleComp.runWith
-    (OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifOracle n)) oracle) program s
+    (OracleComp.sumHandler (m := fun α => State → PMF (α × State))
+      (fun n state => (ProbComp.unifOracle n).map (·, state)) oracle) program s
+
+/-- On the single object universe supported by generic `StateT` interpretation, `runWith` agrees
+with the original interpreter presentation. -/
+theorem runWith_eq_run_interpret (program : ProbOracleComp spec α) (s : State) :
+    runWith oracle program s =
+      (OracleComp.interpret
+        (OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifOracle n)) oracle)
+        program).run s := by
+  rw [runWith, OracleComp.runWith_eq_run_interpret]
+  have hhandler :
+      (OracleComp.sumHandler (m := fun α => State → PMF (α × State))
+        (fun n state => (ProbComp.unifOracle n).map (·, state)) oracle) =
+      OracleComp.sumHandler (m := StateT State PMF)
+        (fun n => StateT.lift (ProbComp.unifOracle n)) oracle := by
+    funext q state
+    cases q with
+    | inl n => simp only [OracleComp.sumHandler, StateT.lift, bind_pure_comp,
+        PMF.monad_map_eq_map]
+    | inr q => rfl
+  exact congrArg
+    (fun handler => (OracleComp.interpret (m := StateT State PMF) handler program).run s)
+    hhandler
 
 /-- The probability that `program` returns `true` against the oracle from the state `s`. -/
 noncomputable def acceptProbWith (program : ProbOracleComp spec Bool) (s : State) : ℝ≥0∞ :=
@@ -102,47 +129,66 @@ noncomputable def acceptProbWith (program : ProbOracleComp spec Bool) (s : State
 
 /-- Against a memoryless oracle, the run is `OracleComp.evalWith` of the uniform handler on the
 sampling side and the oracle on the other, with the state unchanged. -/
-theorem runWith_lift (h : (q : Query) → PMF (spec q)) (program : ProbOracleComp spec α)
-    (s : State) :
-    runWith (fun q => StateT.lift (h q)) program s =
+theorem runWith_lift {Query : Type u} {spec : Query → Type} {State : Type s} {α : Type w}
+    (h : (q : Query) → PMF (spec q)) (program : ProbOracleComp spec α) (s : State) :
+    runWith (fun q state => (h q).map (·, state)) program s =
       (OracleComp.evalWith (OracleComp.sumHandler ProbComp.unifOracle h) program).map (·, s) := by
-  rw [runWith, OracleComp.sumHandler_lift, OracleComp.runWith_lift]
+  have hsum :
+      OracleComp.sumHandler (m := fun α => State → PMF (α × State))
+          (fun n state => (ProbComp.unifOracle n).map (·, state))
+          (fun q state => (h q).map (·, state)) =
+        (fun q state =>
+          (OracleComp.sumHandler ProbComp.unifOracle h q).map (·, state)) := by
+    funext q state
+    cases q <;> rfl
+  rw [runWith, hsum, OracleComp.runWith_lift]
 
 /-- Against a memoryless oracle, the acceptance probability is the probability of `true` under
 `OracleComp.evalWith` of the uniform handler and the oracle. -/
 theorem acceptProbWith_lift (h : (q : Query) → PMF (spec q)) (program : ProbOracleComp spec Bool)
     (s : State) :
-    acceptProbWith (fun q => StateT.lift (h q)) program s =
+    acceptProbWith (fun q state => (h q).map (·, state)) program s =
       OracleComp.evalWith (OracleComp.sumHandler ProbComp.unifOracle h) program true := by
   rw [acceptProbWith, runWith_lift, PMF.map_comp,
     show (Prod.fst ∘ fun a : Bool => (a, s)) = id from rfl, PMF.map_id]
 
 /-- A pure program returns its value and leaves the oracle state unchanged. -/
-@[simp] theorem runWith_pure (a : α) (s : State) : runWith oracle (pure a) s = PMF.pure (a, s) :=
+@[simp] theorem runWith_pure {Query : Type u} {spec : Query → Type} {State : Type s}
+    {α : Type w} (oracle : (q : Query) → State → PMF (spec q × State)) (a : α) (s : State) :
+    runWith oracle (pure a) s = PMF.pure (a, s) :=
   OracleComp.runWith_pure _ _ _
 
 /-- Running `program >>= next` runs `program`, then runs `next` at its result from the oracle
 state it reached. -/
-@[simp] theorem runWith_bind (program : ProbOracleComp spec α) (next : α → ProbOracleComp spec β)
-    (s : State) :
-    runWith oracle (program >>= next) s =
+@[simp] theorem runWith_bind {Query : Type u} {spec : Query → Type} {State : Type s}
+    {α : Type w} {β : Type v} (oracle : (q : Query) → State → PMF (spec q × State))
+    (program : ProbOracleComp spec α) (next : α → ProbOracleComp spec β) (s : State) :
+    runWith oracle (PFunctor.FreeM.bind program next) s =
       (runWith oracle program s).bind fun x => runWith oracle (next x.1) x.2 :=
   OracleComp.runWith_bind _ _ _ _
 
 /-- Mapping `f` over a program maps it over the result and keeps the final oracle state. -/
-@[simp] theorem runWith_map (f : α → β) (program : ProbOracleComp spec α) (s : State) :
-    runWith oracle (f <$> program) s = (runWith oracle program s).map (Prod.map f id) :=
+@[simp] theorem runWith_map {Query : Type u} {spec : Query → Type} {State : Type s}
+    {α : Type w} {β : Type v} (oracle : (q : Query) → State → PMF (spec q × State))
+    (f : α → β) (program : ProbOracleComp spec α) (s : State) :
+    runWith oracle (PFunctor.FreeM.map f program) s =
+      (runWith oracle program s).map (Prod.map f id) :=
   OracleComp.runWith_map _ _ _ _
 
 /-- A single external call is answered by the oracle from the current state. -/
-@[simp] theorem runWith_query (q : Query) (s : State) :
+@[simp] theorem runWith_query {Query : Type u} {spec : Query → Type} {State : Type s}
+    (oracle : (q : Query) → State → PMF (spec q × State)) (q : Query) (s : State) :
     runWith oracle (query (spec := spec) q) s = oracle q s :=
   OracleComp.runWith_query _ (Sum.inr q) _
 
 /-- A private sample has the law of the sampled program and leaves the oracle state unchanged. -/
-@[simp] theorem runWith_sample (program : ProbComp α) (s : State) :
+@[simp] theorem runWith_sample {Query : Type u} {spec : Query → Type} {State : Type s}
+    {α : Type w} (oracle : (q : Query) → State → PMF (spec q × State))
+    (program : ProbComp α) (s : State) :
     runWith oracle (sample (spec := spec) program) s = (ProbComp.eval program).map (·, s) :=
-  run_interpret_sample _ _ _
+  by
+    rw [runWith, sample_eq_liftLeft, OracleComp.runWith_sumHandler_liftLeft]
+    exact OracleComp.runWith_lift _ _ _
 
 /-- A private sample followed by a continuation averages the continuation's run over the sample,
 from the same oracle state. -/
@@ -150,6 +196,7 @@ theorem runWith_sample_bind (program : ProbComp α) (next : α → ProbOracleCom
     (s : State) :
     runWith oracle (sample program >>= next) s =
       (ProbComp.eval program).bind fun a => runWith oracle (next a) s := by
+  rw [← PFunctor.FreeM.bind_eq_bind]
   rw [runWith_bind, runWith_sample, PMF.bind_map]
   rfl
 
@@ -167,8 +214,8 @@ theorem runWith_sample_bind_comm {γ : Type} (program : ProbComp α)
     runWith oracle (sample program >>= fun a => other >>= fun b => next a b) s =
       runWith oracle (other >>= fun b => sample program >>= fun a => next a b) s := by
   rw [runWith_sample_bind]
-  conv_lhs => arg 2; ext a; rw [runWith_bind]
-  rw [PMF.bind_comm, runWith_bind]
+  conv_lhs => arg 2; ext a; rw [← PFunctor.FreeM.bind_eq_bind, runWith_bind]
+  rw [PMF.bind_comm, ← PFunctor.FreeM.bind_eq_bind, runWith_bind]
   congr 1
   funext b
   rw [← runWith_sample_bind]
@@ -180,7 +227,8 @@ theorem runWith_interpret {ι : Type} {spec' : OracleSpec ι}
     (s : State) :
     runWith oracle (OracleComp.interpret handler program) s =
       OracleComp.runWith (fun q => runWith oracle (handler q)) program s := by
-  rw [runWith, OracleComp.runWith, OracleComp.runWith, OracleComp.interpret_interpret]
+  rw [runWith, ← OracleComp.substitute_eq_interpret handler program,
+    OracleComp.runWith_substitute]
   rfl
 
 /-- A program whose private draws are forwarded and whose external calls a handler answers with
@@ -195,7 +243,7 @@ theorem runWith_interpret_sumHandler {Query' : Type} {spec' : Query' → Type}
   congr 1 with q t : 2
   cases q with
   | inl n =>
-    simp [OracleComp.sumHandler, StateT.lift, ProbComp.unifOracle, PMF.map, Function.comp_def]
+    simp [OracleComp.sumHandler, ProbComp.unifOracle, PMF.map, Function.comp_def]
   | inr q => rfl
 
 /-- Evaluating a closed run, in which a handler program answers the external calls, is `runWith`
@@ -205,7 +253,8 @@ theorem eval_run_interpret_eq_runWith (oracle : (q : Query) → StateT State Pro
     ProbComp.eval ((OracleComp.interpret
       (OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifFin n)) oracle) program).run s) =
       runWith (fun q state => ProbComp.eval (oracle q state)) program s :=
-  eval_run_interpret oracle program s
+  (eval_run_interpret oracle program s).trans
+    (OracleComp.runWith_eq_run_interpret _ _ _).symm
 
 /-- A pure program accepts with probability `1` if it returns `true` and `0` otherwise. -/
 theorem acceptProbWith_pure (b : Bool) (s : State) :
@@ -224,6 +273,7 @@ theorem acceptProbWith_bind (program : ProbOracleComp spec α)
     (next : α → ProbOracleComp spec Bool) (s : State) :
     acceptProbWith oracle (program >>= next) s =
       ∑' x, runWith oracle program s x * acceptProbWith oracle (next x.1) x.2 := by
+  rw [← PFunctor.FreeM.bind_eq_bind]
   rw [acceptProbWith, runWith_bind, PMF.map_bind, PMF.bind_apply]
   rfl
 
@@ -241,6 +291,7 @@ theorem acceptProbWith_sample_bind (program : ProbComp α) (next : α → ProbOr
     (s : State) :
     acceptProbWith oracle (sample program >>= next) s =
       ∑' a, ProbComp.eval program a * acceptProbWith oracle (next a) s := by
+  rw [← PFunctor.FreeM.bind_eq_bind]
   rw [acceptProbWith, runWith_bind, runWith_sample, PMF.bind_map, PMF.map_bind, PMF.bind_apply]
   rfl
 

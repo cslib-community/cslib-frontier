@@ -84,7 +84,8 @@ theorem expect_mul_right (m : ProbComp α) (f : α → ℝ≥0∞) (c : ℝ≥0�
 
 theorem expect_bind (m : ProbComp α) (k : α → ProbComp β) (f : β → ℝ≥0∞) :
     expect (m >>= k) f = expect m (fun a => expect (k a) f) := by
-  simp only [expect, eval_bind, PMF.bind_apply, ← ENNReal.tsum_mul_right]
+  rw [expect, ← PFunctor.FreeM.bind_eq_bind, eval_bind]
+  simp only [expect, PMF.bind_apply, ← ENNReal.tsum_mul_right]
   rw [tsum_comm]
   congr 1 with a : 1
   simp only [mul_assoc, ENNReal.tsum_mul_left]

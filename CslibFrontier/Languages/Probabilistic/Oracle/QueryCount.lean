@@ -74,7 +74,7 @@ theorem isCostBounded_sample (cost : Query → ℕ) (program : ProbComp α) :
   | pure a => exact .pure a 0
   | query_bind n cont ih =>
     have hquery : sample (spec := spec) (OracleComp.query n) = OracleComp.query (Sum.inl n) :=
-      OracleComp.interpret_query _ _
+      OracleComp.substitute_query _ _
     rw [sample_bind, hquery]
     simpa using (IsCostBounded.query (Sum.inl n)).bind fun a => ih a
 
@@ -147,12 +147,13 @@ theorem transcript_cost_le {cost : Query → ℕ} {program : ProbOracleComp spec
     supp_cases hmem [runWith_pure]
     simp
   | liftBind q cont n _ ih =>
-    supp_cases hmem [ProbOracleComp.runWith, OracleComp.runWith, interpret_bind,
-      OracleComp.interpret_query, StateT.run_bind] with ⟨⟨a, middle, seen⟩, hfirst, hrest⟩
+    supp_cases hmem [ProbOracleComp.runWith, ← PFunctor.FreeM.bind_eq_bind,
+      OracleComp.runWith_bind, OracleComp.runWith_query]
+      with ⟨⟨a, middle, seen⟩, hfirst, hrest⟩
     cases q with
     | inl k =>
       supp_cases hfirst [sumHandler, StateT.run_lift] with ⟨_, -, rfl, rfl, rfl⟩
-      simpa using ih a hrest
+      simpa using ih _ hrest
     | inr q =>
       supp_cases hfirst [sumHandler, StateT.run, withTranscript]
         with ⟨⟨answer, next⟩, -, rfl, rfl, rfl⟩
