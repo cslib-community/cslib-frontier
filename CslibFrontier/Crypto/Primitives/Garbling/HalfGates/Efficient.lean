@@ -29,7 +29,7 @@ efficient garbling scheme (`Scheme.IsEfficient`) for XOR–AND circuits encoded 
 
 `En` and `De` are those of point-and-permute garbling and `ev` is the semantics of conventional
 circuits, so their certificates are `PointPermute.encodeWord_polyTime`,
-`PointPermute.decodeWord_polyTime` and `PointPermute.evalCirc_polyTime`. The garbler computes the
+`PointPermute.decodeWord_polyTime` and `evalCirc_polyTime`. The garbler computes the
 zero labels by a fold over the gates of the encoded circuit whose state grows by one label per
 gate, writes the body of the garbled function with `PointPermute.bodyWith`, whose four rows per
 gate are here the AND bit, the two ciphertexts of an AND gate and an empty row, and reads the
@@ -675,7 +675,7 @@ theorem scheme_isEfficient : (scheme hash).IsEfficient encXorAndCircuit where
   encode := PointPermute.encodeWord_polyTime
   evalGarbled := evalWord_polyTime hf
   decode := PointPermute.decodeWord_polyTime
-  ev := PointPermute.evalCirc_polyTime.comp
+  ev := evalCirc_polyTime.comp
     ((XorAndCircuit.val_polyTime.comp (ComputableInPolyTime.fst _ _)).prod
       (ComputableInPolyTime.snd _ _))
 

@@ -120,7 +120,7 @@ words of its input labels in order, and its decoding bits. -/
 @[expose] def viewWord {n m : ℕ} (k : ℕ) (C : Circuit signature n m)
     (V : View C (BitString (k + 1))) : PrvView where
   fn := encodeFn k C V.table
-  input := (List.ofFn fun i => PointPermute.labelBits (V.input i)).flatten
+  input := (List.ofFn fun i => labelBits (V.input i)).flatten
   decInfo := List.ofFn V.decoding
 
 /-! ### The simulator's coins -/
@@ -173,13 +173,13 @@ private noncomputable def slotIndex (f : XorAndCircuit) (p : Slot (toCircuit f))
 /-- The input labels read from the simulator's coins. -/
 private def simInputLabels {n : ℕ} (k : ℕ) (coins : List Bool) (i : Fin n) :
     BitString (k + 1) × Bool :=
-  PointPermute.labelOfWord k (BitString.listRow (k + 2) i coins)
+  labelOfWord k (BitString.listRow (k + 2) i coins)
 
 /-- The table read from the simulator's coins. -/
 private noncomputable def simTable (k : ℕ) (f : XorAndCircuit) (coins : List Bool)
     (p : Slot (toCircuit f)) :
     BitString (k + 1) × Bool :=
-  PointPermute.labelOfWord k (BitString.listRow (k + 2) (slotIndex f p) coins)
+  labelOfWord k (BitString.listRow (k + 2) (slotIndex f p) coins)
 
 private theorem slotIndex_lt (f : XorAndCircuit) (p : Slot (toCircuit f)) :
     slotIndex f p < f.circuit.n + 2 * andRank f.circuit f.circuit.q := by
@@ -239,8 +239,8 @@ private theorem uniformList_map_simCoins (k : ℕ) (f : XorAndCircuit) :
       (Fin f.circuit.n → BitString (k + 1) × Bool) ×
         (Slot (toCircuit f) → BitString (k + 1) × Bool) :=
     (Equiv.sumArrowEquivProdArrow _ _ _).trans (Equiv.prodCongr
-      (Equiv.arrowCongr (Equiv.refl _) (PointPermute.labelEquiv k))
-      (Equiv.arrowCongr (Equiv.refl _) (PointPermute.labelEquiv k)))
+      (Equiv.arrowCongr (Equiv.refl _) (labelEquiv k))
+      (Equiv.arrowCongr (Equiv.refl _) (labelEquiv k)))
   have h : (fun coins => ((simInputLabels k coins : Fin f.circuit.n → _), simTable k f coins)) =
       (E : _ → _) ∘
         fun coins i => BitString.ofList (k + 2) (BitString.listRow (k + 2) (e i) coins) := by
@@ -275,7 +275,7 @@ private theorem encodeGate_simTable (k : ℕ) (f : XorAndCircuit) (coins : List 
   · have hop : op (toCircuit f) g = .and := (op_toCircuit_eq_and_iff f g).mpr hG
     rw [dite_eq_left hop, decide_eq_true hop]
     simp only [simTable, slotIndex, Slot.gate, Bool.toNat_false, Bool.toNat_true, Nat.add_zero,
-      PointPermute.labelBits_labelOfWord (BitString.length_listRow _ _ _), Fin.val_cast,
+      labelBits_labelOfWord (BitString.length_listRow _ _ _), Fin.val_cast,
       ↓reduceIte]
 
 /-- On the simulator's coins, the evaluated labels are a fixed point of an evaluation round. -/
@@ -302,15 +302,15 @@ private theorem simViewWord_eq (k : ℕ) (f : XorAndCircuit) (y coins : List Boo
       rfl
   have hX : (List.ofFn fun i : Fin f.circuit.n => BitString.listRow (k + 2) i coins).flatten =
       (List.ofFn fun i : Fin f.circuit.n =>
-        PointPermute.labelBits (simInputLabels k coins i)).flatten := by
-    simp only [simInputLabels, PointPermute.labelBits_labelOfWord (BitString.length_listRow _ _ _)]
+        labelBits (simInputLabels k coins i)).flatten := by
+    simp only [simInputLabels, labelBits_labelOfWord (BitString.length_listRow _ _ _)]
   simp only [simViewWord, viewWord, simulateWith, PrvView.mk.injEq]
   refine ⟨hF, hX, ?_⟩
   rw [hF, hX, evalWord_encodeFn hash k f _ _ _
     (evalStep_evalLabels _ (CCR.atLevel hash k) (slotTweak _ k) _ _)]
   congr 1
   funext o
-  rw [BitString.listRow_flatten_ofFn _ (fun _ => PointPermute.length_labelBits _),
+  rw [BitString.listRow_flatten_ofFn _ (fun _ => length_labelBits _),
     colourWord_labelBits]
   rfl
 
@@ -470,17 +470,12 @@ private theorem simCoinLen_polyTime :
   have hgates : ComputableInPolyTime (fun x : ℕ × List Bool × XorAndCircuit =>
       x.2.2.circuit.gateList) encSimInput (encList (encPair encNat (encPair encNat encBits))) :=
     simData_polyTime.snd'.snd'
-  have ha : ComputableInPolyTime (fun x : ℕ × List Bool × XorAndCircuit =>
-      x.2.2.circuit.gateList.countP fun gate => gate.2.2.getD 3 false) encSimInput encUnary :=
-    ComputableInPolyTime.countPWithInput hgates (ComputableInPolyTime.bitsGetDWithInput
-      (ComputableInPolyTime.snd encSimInput (encPair encNat (encPair encNat encBits))).snd'.snd'
-      (ComputableInPolyTime.const 3) false)
+  have ha := andCount_polyTime hgates ((ComputableInPolyTime.length_list _).comp hgates)
   have heq : (fun x : ℕ × List Bool × XorAndCircuit => simCoinLen x.1 x.2.2.circuit) = fun x =>
-      (x.2.2.circuit.n + 2 * x.2.2.circuit.gateList.countP fun gate => gate.2.2.getD 3 false) *
-        (x.1 + 2) := by
+      (x.2.2.circuit.n + 2 * (x.2.2.circuit.gateList.take x.2.2.circuit.gateList.length).countP
+        fun gate => gate.2.2.getD 3 false) * (x.1 + 2) := by
     funext x
-    rw [simCoinLen, andRank_eq_gateList, List.take_of_length_le
-      (ConventionalCircuit.length_gateList _).le]
+    rw [simCoinLen, andRank_eq_gateList, ConventionalCircuit.length_gateList]
   rw [heq]
   exact ComputableInPolyTime.unary_mul.comp ((ComputableInPolyTime.unary_add' hn
     (ComputableInPolyTime.unary_mul.comp ((ComputableInPolyTime.const 2).prod ha))).prod

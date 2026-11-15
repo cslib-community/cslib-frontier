@@ -42,8 +42,8 @@ defaulted lookup: indices at or beyond the length all read the default. -/
 theorem getD_min_length_succ_sub_one {α : Type*} (l : List α) (d : α) (v : ℕ) :
     l.getD (min (l.length + 1) v - 1) d = l.getD (v - 1) d := by
   rcases Nat.le_total (l.length + 1) v with h | h
-  · rw [Nat.min_eq_left h, Nat.add_sub_cancel, getD_eq_getElem?_getD,
-      getElem?_eq_none (Nat.le_refl _), getD_eq_getElem?_getD, getElem?_eq_none (by omega)]
+  · rw [Nat.min_eq_left h, Nat.add_sub_cancel, getD_eq_default _ _ (Nat.le_refl _),
+      getD_eq_default _ _ (by omega)]
   · rw [Nat.min_eq_right h]
 
 end List
