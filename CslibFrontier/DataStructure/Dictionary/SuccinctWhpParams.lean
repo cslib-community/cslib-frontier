@@ -12,6 +12,7 @@ public import CslibFrontier.DataStructure.Dictionary.FeistelQuotient
 public import CslibFrontier.DataStructure.Dictionary.SuccinctBucket
 public import CslibFrontier.DataStructure.HashFamily.WordRAM.BitPackedDoubleTabulation
 public import CslibFrontier.Foundations.Data.Nat.Log
+import CslibFrontier.Foundations.Data.Nat.ChooseLog
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
@@ -34,7 +35,7 @@ hashing, arbitrary key universes `n_max ≤ U`, value payloads `Fin V`, and arbi
 `w`:
 * Below the `c`-only capacity threshold `whpThreshold c = 2 ^ bMinWhp c` (`bMinWhp c = Θ(c^6)`),
   the dictionary uses a deterministic bit-packed array of `n_max` entries (`Present`, `Keys`,
-  `Values`), and by `FeistelQuotient.pow_le_pow_mul_choose`,
+  `Values`), and by `Nat.mul_clog_le_add_clog_choose`,
   `n_max * keyBits U ≤ optBits + (bMinWhp c + 2) * n_max * logLogFactor n_max`.
 * At or above `whpThreshold c ≤ n_max` (`bMinWhp c ≤ ⌊log₂ n_max⌋`), `Nat.mul_log_le_add_sq` gives
   `codeExpWhp c * logLogFactor n_max ≤ bCharWhp n_max = ⌊log₂ n_max⌋ / 4`, simultaneously
@@ -169,6 +170,20 @@ private theorem cTabWhp_bounds_le_codeExpWhp (c : ℕ) :
     exact Nat.le_mul_of_pos_left _ (by decide)
   unfold codeExpWhp
   omega
+
+private theorem dTabWhp_le_two_pow (c : ℕ) :
+    dTabWhp c ≤ 2 ^ (3 * (cTabWhp c + 1)) := by
+  have hqc : qTabWhp c ≤ cTabWhp c + 1 := by
+    unfold qTabWhp cTabWhp
+    have := one_le_cEff c
+    omega
+  have ha : 2 * qTabWhp c ≤ 2 ^ (2 * (cTabWhp c + 1)) := by
+    have := (@Nat.lt_two_pow_self (2 * (cTabWhp c + 1))).le
+    omega
+  have hb : cTabWhp c + 1 ≤ 2 ^ (cTabWhp c + 1) := (@Nat.lt_two_pow_self _).le
+  calc dTabWhp c = (2 * qTabWhp c) * (cTabWhp c + 1) := rfl
+    _ ≤ 2 ^ (2 * (cTabWhp c + 1)) * 2 ^ (cTabWhp c + 1) := Nat.mul_le_mul ha hb
+    _ = 2 ^ (3 * (cTabWhp c + 1)) := by rw [← Nat.pow_add]; ring_nf
 
 /-- Capacity threshold `2 ^ bMinWhp c` separating the deterministic bit-packed regime
 (`n_max < whpThreshold c`) from the succinct two-stage double-tabulation regime
@@ -497,18 +512,7 @@ theorem two_mul_doubleTabCodeBound_le_pow_bCharWhp {c n_max : ℕ} (hth : whpThr
     calc c' * kIndepWhp c n_max = (c' * (2 * (cEff c + 4))) * 2 ^ ell := hrew
       _ ≤ 2 ^ (2 * c') * 2 ^ ell := Nat.mul_le_mul_right _ h1
       _ = 2 ^ (2 * c' + ell) := (Nat.pow_add 2 _ _).symm
-  have hd_le : d ≤ 2 ^ (3 * c') := by
-    have hqc' : q ≤ c' := by
-      dsimp only [q, c', qTabWhp, cTabWhp]
-      have := one_le_cEff c
-      omega
-    have hlt1 : 2 * q ≤ 2 ^ (2 * c') := by
-      have := (@Nat.lt_two_pow_self (2 * c')).le
-      omega
-    have hlt2 : c' ≤ 2 ^ c' := (@Nat.lt_two_pow_self c').le
-    calc d = (2 * q) * c' := rfl
-      _ ≤ 2 ^ (2 * c') * 2 ^ c' := Nat.mul_le_mul hlt1 hlt2
-      _ = 2 ^ (3 * c') := by rw [← Nat.pow_add]; ring_nf
+  have hd_le : d ≤ 2 ^ (3 * c') := dTabWhp_le_two_pow c
   have hterm : (c' * kIndepWhp c n_max) ^ (2 * c') * d ≤ 2 ^ (6 * c' ^ 2 * ell + 3 * c' * ell) := by
     have he1 : 2 * c' * (2 * c' + ell) ≤ 6 * c' ^ 2 * ell := by
       have hc2_pos : 0 ≤ c' ^ 2 := Nat.zero_le _
@@ -725,64 +729,44 @@ per-slot and per-bucket metadata, shared backyard slab pools, SWAR B+-tree slice
 /-- Universal additive `w`-bit word slack (`160` words, independent of `c, U, V, w, n_max`). -/
 @[expose] def whpSpaceConst : ℕ := 160
 
-/-- Shared binomial-entropy key-bit inequality: when `0 < n_max ≤ U` and `n_max ≤ 2 ^ E`,
-`n_max * keyBits U ≤ n_max + n_max * E + Nat.clog 2 (U.choose n_max)`. -/
-private theorem mul_keyBits_le_add_clog_choose {U n_max E : ℕ}
-    (hn : 0 < n_max) (hnU : n_max ≤ U) (hpow_n : n_max ≤ 2 ^ E) :
-    n_max * keyBits U ≤ n_max + n_max * E + Nat.clog 2 (U.choose n_max) := by
-  have hpow_key : 2 ^ keyBits U ≤ 2 * U :=
-    Nat.pow_clog_le_mul Nat.one_lt_two (hn.trans_le hnU).ne'
-  have hchoose : U.choose n_max ≤ 2 ^ Nat.clog 2 (U.choose n_max) :=
-    Nat.le_pow_clog (by decide) (U.choose n_max)
-  have hmain :
-      2 ^ (n_max * keyBits U) ≤ 2 ^ (n_max + n_max * E + Nat.clog 2 (U.choose n_max)) := by
-    calc 2 ^ (n_max * keyBits U)
-        = (2 ^ keyBits U) ^ n_max := by rw [Nat.mul_comm, Nat.pow_mul]
-      _ ≤ (2 * U) ^ n_max := Nat.pow_le_pow_left hpow_key n_max
-      _ = 2 ^ n_max * U ^ n_max := Nat.mul_pow 2 U n_max
-      _ ≤ 2 ^ n_max * (n_max ^ n_max * U.choose n_max) :=
-          Nat.mul_le_mul_left _ (pow_le_pow_mul_choose hnU)
-      _ ≤ 2 ^ n_max * ((2 ^ E) ^ n_max * 2 ^ Nat.clog 2 (U.choose n_max)) :=
-          Nat.mul_le_mul_left _ (Nat.mul_le_mul (Nat.pow_le_pow_left hpow_n n_max) hchoose)
-      _ = 2 ^ (n_max + n_max * E + Nat.clog 2 (U.choose n_max)) := by
-          rw [← Nat.pow_mul, Nat.mul_comm E n_max, ← Nat.pow_add, ← Nat.pow_add, ← Nat.add_assoc]
-  exact (Nat.pow_le_pow_iff_right (by decide : 1 < 2)).mp hmain
-
 /-- Universal bit accounting for `n_max` quotients of `quotBitsWhp U n_max` bits and `n_max` values
 of `valBits V` bits across all `n_max ≤ U`. -/
 private theorem quotient_val_whp_bits_le_optBits {U V n_max : ℕ} (hnU : n_max ≤ U) :
     n_max * quotBitsWhp U n_max + n_max * valBits V ≤
       Dynamic.optBits U V n_max + 14 * n_max * Dynamic.logLogFactor n_max := by
-  rcases Nat.eq_zero_or_pos n_max with rfl | hn
-  · simp
-  · have hpow_n : n_max ≤ 2 ^ (bWhp n_max + 12 * Dynamic.logLogFactor n_max + 1) :=
-      (Nat.lt_pow_succ_log_self Nat.one_lt_two n_max).le.trans
+  have hpow_n : n_max ≤ 2 ^ (bWhp n_max + 12 * Dynamic.logLogFactor n_max + 1) := by
+    rcases Nat.eq_zero_or_pos n_max with rfl | _
+    · exact Nat.zero_le _
+    · exact (Nat.lt_pow_succ_log_self Nat.one_lt_two n_max).le.trans
         (Nat.pow_le_pow_right (by decide) (by unfold bWhp; omega))
-    have hexp := mul_keyBits_le_add_clog_choose hn hnU hpow_n
-    have hsplit : keyBits U = quotBitsWhp U n_max + bWhp n_max :=
-      (quotBitsWhp_add_bWhp hnU).symm
-    have hll : 1 ≤ Dynamic.logLogFactor n_max := Dynamic.one_le_logLogFactor n_max
-    rw [hsplit, Nat.mul_add] at hexp
-    unfold Dynamic.optBits valBits
-    nlinarith
+  have hexp : n_max * keyBits U ≤
+      n_max + n_max * (bWhp n_max + 12 * Dynamic.logLogFactor n_max + 1) +
+        Nat.clog 2 (U.choose n_max) :=
+    Nat.mul_clog_le_add_clog_choose Nat.one_lt_two hnU hpow_n
+  have hsplit : keyBits U = quotBitsWhp U n_max + bWhp n_max :=
+    (quotBitsWhp_add_bWhp hnU).symm
+  have hll : 1 ≤ Dynamic.logLogFactor n_max := Dynamic.one_le_logLogFactor n_max
+  rw [hsplit, Nat.mul_add] at hexp
+  unfold Dynamic.optBits valBits
+  nlinarith
 
 /-- Small-`n_max` bit accounting (`n_max < whpThreshold c` and `n_max ≤ U`). -/
 private theorem small_bits_le_optBits {c U V n_max : ℕ} (hsmall : n_max < whpThreshold c)
     (hnU : n_max ≤ U) :
     n_max * 1 + n_max * keyBits U + n_max * valBits V ≤
       Dynamic.optBits U V n_max + (bMinWhp c + 2) * n_max * Dynamic.logLogFactor n_max := by
-  rcases Nat.eq_zero_or_pos n_max with rfl | hn
-  · simp
-  · have hpow_n : n_max ≤ 2 ^ bMinWhp c := by
-      unfold whpThreshold at hsmall
-      exact hsmall.le
-    have hexp := mul_keyBits_le_add_clog_choose hn hnU hpow_n
-    have hll : 1 ≤ Dynamic.logLogFactor n_max := Dynamic.one_le_logLogFactor n_max
-    have hmul1 : (bMinWhp c + 2) * n_max ≤ (bMinWhp c + 2) * n_max * Dynamic.logLogFactor n_max :=
-      Nat.le_mul_of_pos_right _ hll
-    have hdist : (bMinWhp c + 2) * n_max = n_max * bMinWhp c + 2 * n_max := by ring
-    unfold Dynamic.optBits valBits
-    omega
+  have hpow_n : n_max ≤ 2 ^ bMinWhp c := by
+    unfold whpThreshold at hsmall
+    exact hsmall.le
+  have hexp : n_max * keyBits U ≤
+      n_max + n_max * bMinWhp c + Nat.clog 2 (U.choose n_max) :=
+    Nat.mul_clog_le_add_clog_choose Nat.one_lt_two hnU hpow_n
+  have hll : 1 ≤ Dynamic.logLogFactor n_max := Dynamic.one_le_logLogFactor n_max
+  have hmul1 : (bMinWhp c + 2) * n_max ≤ (bMinWhp c + 2) * n_max * Dynamic.logLogFactor n_max :=
+    Nat.le_mul_of_pos_right _ hll
+  have hdist : (bMinWhp c + 2) * n_max = n_max * bMinWhp c + 2 * n_max := by ring
+  unfold Dynamic.optBits valBits
+  omega
 
 /-- Upper bound on `globalPtrBits n_max` when `whpThreshold c ≤ n_max`:
 `globalPtrBits n_max ≤ 2 * slabScale n_max`. -/
@@ -896,20 +880,9 @@ theorem sublinear_table_bits_le {c n_max : ℕ} (hth : whpThreshold c ≤ n_max)
   have hc1_d_lt : (cTabWhp c + 1) * dTabWhp c ≤ 2 ^ bc := by
     have hexp : 4 * (cTabWhp c + 1) ≤ bc :=
       ((cTabWhp_bounds_le_codeExpWhp c).1.trans (Nat.le_mul_of_pos_right _ hell)).trans hmain
-    have hlt1 : cTabWhp c + 1 ≤ 2 ^ (cTabWhp c + 1) := (@Nat.lt_two_pow_self _).le
-    have hlt2 : dTabWhp c ≤ 2 ^ (3 * (cTabWhp c + 1)) := by
-      have hqc : qTabWhp c ≤ cTabWhp c + 1 := by
-        unfold qTabWhp cTabWhp
-        have := one_le_cEff c
-        omega
-      have ha : 2 * qTabWhp c ≤ 2 ^ (2 * (cTabWhp c + 1)) := by
-        have := (@Nat.lt_two_pow_self (2 * (cTabWhp c + 1))).le
-        omega
-      calc dTabWhp c = (2 * qTabWhp c) * (cTabWhp c + 1) := rfl
-        _ ≤ 2 ^ (2 * (cTabWhp c + 1)) * 2 ^ (cTabWhp c + 1) := Nat.mul_le_mul ha hlt1
-        _ = 2 ^ (3 * (cTabWhp c + 1)) := by rw [← Nat.pow_add]; ring_nf
     calc (cTabWhp c + 1) * dTabWhp c
-        ≤ 2 ^ (cTabWhp c + 1) * 2 ^ (3 * (cTabWhp c + 1)) := Nat.mul_le_mul hlt1 hlt2
+        ≤ 2 ^ (cTabWhp c + 1) * 2 ^ (3 * (cTabWhp c + 1)) :=
+          Nat.mul_le_mul (@Nat.lt_two_pow_self _).le (dTabWhp_le_two_pow c)
       _ = 2 ^ (4 * (cTabWhp c + 1)) := by rw [← Nat.pow_add]; ring_nf
       _ ≤ 2 ^ bc := Nat.pow_le_pow_right (by decide) hexp
   have hd_lt : dTabWhp c ≤ 2 ^ bc :=

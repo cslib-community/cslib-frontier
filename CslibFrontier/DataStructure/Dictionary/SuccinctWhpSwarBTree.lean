@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
+public import CslibFrontier.DataStructure.PackedLane
 public import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 public import Mathlib.Data.Finset.Lattice.Fold
 public import Mathlib.Data.Fintype.Basic
@@ -45,9 +46,10 @@ standard arithmetic and bitwise word operations (`+`, `-`, `*`, `/`, `%`, `&&&`,
 
 ## Main definitions
 
-* `Cslib.DataStructure.Dictionary.SuccinctWhp.laneGet`, `wordTakeLow`, `wordDropLow`,
-  `wordInsertAt`, `wordDeleteAt`, `wordUpdateAt`, `swarOnes`, `ltMask`, `swarRank`:
-  pure `O(1)` SWAR lane operations.
+* `Cslib.DataStructure.Dictionary.SuccinctWhp.wordTakeLow`, `wordDropLow`, `wordInsertAt`,
+  `wordDeleteAt`, `wordUpdateAt`, `swarOnes`, `ltMask`, `swarRank`: pure SWAR lane update and
+  parallel-rank operations (built on `Cslib.DataStructure.laneGet` in
+  `CslibFrontier/DataStructure/PackedLane.lean`).
 * `Cslib.DataStructure.Dictionary.SuccinctWhp.BTreeNode`, `NodeSplit`, `BTreeSlice`,
   `splitFullNode`, `finishLeafInsert`, `btreeLookup`, `btreeInsert`, `btreeDelete`, `btreeUpdate`,
   `hMaxBTree`: pure bounded-depth top-down split-only SWAR B+-tree operations.
@@ -76,11 +78,7 @@ namespace Cslib.DataStructure.Dictionary.SuccinctWhp
 open Finset
 open scoped BigOperators
 
-/-! ## Section 1: Pure `O(1)` SWAR word-lane operations and exact lane laws -/
-
-/-- Extract the `W`-bit lane at index `j` from `word`. -/
-@[expose] def laneGet (W word j : ℕ) : ℕ :=
-  (word >>> (j * W)) &&& (2 ^ W - 1)
+/-! ## Section 1: Pure SWAR word-lane operations and parallel rank -/
 
 /-- Retain the low `j` lanes (`j * W` bits) of `word`. -/
 @[expose] def wordTakeLow (W j word : ℕ) : ℕ :=
@@ -112,21 +110,10 @@ open scoped BigOperators
   let onesM := swarOnes W m
   (((2 ^ fpBits + q) * onesM - (keysWord + onesM)) >>> fpBits) &&& onesM
 
-/-- Word-parallel `O(1)`-operation SWAR rank `# { j < m | laneGet (fpBits + 2) keysWord j < q }`. -/
+/-- Word-parallel SWAR rank `# { j < m | laneGet (fpBits + 2) keysWord j < q }`. -/
 @[expose] def swarRank (fpBits capLanes m q keysWord : ℕ) : ℕ :=
   let W := fpBits + 2
   ((ltMask fpBits m q keysWord * swarOnes W capLanes) >>> ((capLanes - 1) * W)) &&& (2 ^ W - 1)
-
-/-- Division-and-modulus characterization of `laneGet`. -/
-theorem laneGet_eq_div_mod (W word j : ℕ) :
-    laneGet W word j = (word / 2 ^ (j * W)) % 2 ^ W := by
-  unfold laneGet
-  rw [Nat.shiftRight_eq_div_pow, Nat.and_two_pow_sub_one_eq_mod]
-
-/-- Every extracted `W`-bit lane is strictly less than `2 ^ W`. -/
-theorem laneGet_lt (W word j : ℕ) : laneGet W word j < 2 ^ W := by
-  rw [laneGet_eq_div_mod]
-  exact Nat.mod_lt _ (Nat.two_pow_pos W)
 
 /-- Modulus characterization of `wordTakeLow`. -/
 theorem wordTakeLow_eq_mod (W j word : ℕ) :
@@ -149,12 +136,6 @@ theorem wordDropLow_lt {W a b word : ℕ} (hw : word < 2 ^ ((a + b) * W)) :
   rw [wordDropLow_eq_div]
   refine Nat.div_lt_of_lt_mul ?_
   rwa [← Nat.pow_add, ← Nat.add_mul]
-
-private theorem testBit_laneGet (W word j b : ℕ) :
-    (laneGet W word j).testBit b = (decide (b < W) && word.testBit (j * W + b)) := by
-  unfold laneGet
-  rw [Nat.testBit_and, Nat.testBit_two_pow_sub_one, Nat.testBit_shiftRight, Bool.and_comm,
-    Nat.add_comm (j * W) b]
 
 /-- Lane extraction from `wordTakeLow` returns `laneGet W word i` for `i < j` and `0` otherwise. -/
 theorem laneGet_wordTakeLow (W j word i : ℕ) :
@@ -189,62 +170,18 @@ theorem laneGet_wordDropLow (W j word i : ℕ) :
   congr 2
   ring
 
-private theorem add_shiftLeft_eq_or {a b k : ℕ} (ha : a < 2 ^ k) :
-    a + (b <<< k) = a ||| (b <<< k) := by
-  apply Nat.eq_of_testBit_eq
-  intro i
-  rw [Nat.testBit_or, Nat.testBit_shiftLeft]
-  by_cases hi : k ≤ i
-  · have ha0 : a.testBit i = false :=
-      Nat.testBit_lt_two_pow (ha.trans_le (Nat.pow_le_pow_right (by decide) hi))
-    simp only [hi, decide_true, Bool.true_and, ha0, Bool.false_or]
-    rw [Nat.shiftLeft_eq, Nat.testBit, Nat.testBit, Nat.shiftRight_eq_div_pow,
-      Nat.shiftRight_eq_div_pow]
-    have hpow : 2 ^ i = 2 ^ k * 2 ^ (i - k) := by rw [← Nat.pow_add]; congr 1; omega
-    have hdiv_b := (Nat.div_add_mod b (2 ^ (i - k))).symm
-    set q := b / 2 ^ (i - k)
-    set r := b % 2 ^ (i - k)
-    have hr_lt : r < 2 ^ (i - k) := Nat.mod_lt b (Nat.two_pow_pos _)
-    have hlow_lt : a + r * 2 ^ k < 2 ^ i := by
-      have hr_le : r + 1 ≤ 2 ^ (i - k) := hr_lt
-      calc a + r * 2 ^ k < 2 ^ k + r * 2 ^ k := by omega
-        _ = (r + 1) * 2 ^ k := by ring
-        _ ≤ 2 ^ (i - k) * 2 ^ k := Nat.mul_le_mul_right _ hr_le
-        _ = 2 ^ i := by rw [Nat.mul_comm, ← hpow]
-    have hrew : a + b * 2 ^ k = (a + r * 2 ^ k) + q * 2 ^ i := by
-      calc a + b * 2 ^ k = a + (2 ^ (i - k) * q + r) * 2 ^ k := by rw [← hdiv_b]
-        _ = (a + r * 2 ^ k) + q * (2 ^ k * 2 ^ (i - k)) := by ring
-        _ = (a + r * 2 ^ k) + q * 2 ^ i := by rw [← hpow]
-    rw [hrew, Nat.add_mul_div_right _ _ (Nat.two_pow_pos i), Nat.div_eq_of_lt hlow_lt,
-      Nat.zero_add]
-  · simp only [hi, decide_false, Bool.false_and, Bool.or_false]
-    rw [Nat.shiftLeft_eq, Nat.testBit, Nat.testBit, Nat.shiftRight_eq_div_pow,
-      Nat.shiftRight_eq_div_pow, Nat.and_comm 1, Nat.and_comm 1]
-    change ((((a + b * 2 ^ k) / 2 ^ i) &&& (2 ^ 1 - 1)) != 0) =
-      (((a / 2 ^ i) &&& (2 ^ 1 - 1)) != 0)
-    rw [Nat.and_two_pow_sub_one_eq_mod, Nat.and_two_pow_sub_one_eq_mod]
-    have hpow : 2 ^ k = (2 ^ (k - i - 1) * 2) * 2 ^ i := by
-      calc 2 ^ k = 2 ^ ((k - i - 1) + 1 + i) := by congr 1; omega
-        _ = 2 ^ (k - i - 1) * 2 ^ 1 * 2 ^ i := by rw [Nat.pow_add, Nat.pow_add]
-        _ = (2 ^ (k - i - 1) * 2) * 2 ^ i := by ring
-    have hrew : a + b * 2 ^ k = a + ((b * 2 ^ (k - i - 1)) * 2) * 2 ^ i := by
-      rw [hpow]; ring
-    rw [hrew, Nat.add_mul_div_right _ _ (Nat.two_pow_pos i),
-      show (2 ^ 1 : ℕ) = 2 from rfl, Nat.add_mul_mod_self_right]
-
 /-- Lane extraction after inserting `v < 2 ^ W` at lane `j`. -/
 theorem laneGet_wordInsertAt {W j v word : ℕ} (hv : v < 2 ^ W) (i : ℕ) :
     laneGet W (wordInsertAt W j v word) i =
       if i < j then laneGet W word i
       else if i = j then v
       else laneGet W word (i - 1) := by
-  have hor1 : v + (wordDropLow W j word <<< W) = v ||| (wordDropLow W j word <<< W) :=
-    add_shiftLeft_eq_or hv
+  have hor1 : v + (wordDropLow W j word <<< W) = v ||| (wordDropLow W j word <<< W) := by
+    rw [Nat.add_comm, Nat.shiftLeft_add_eq_or_of_lt hv, Nat.or_comm]
   have hor2 : wordInsertAt W j v word =
       wordTakeLow W j word ||| ((v ||| (wordDropLow W j word <<< W)) <<< (j * W)) := by
     unfold wordInsertAt
-    rw [hor1]
-    exact add_shiftLeft_eq_or (wordTakeLow_lt W j word)
+    rw [hor1, Nat.add_comm, Nat.shiftLeft_add_eq_or_of_lt (wordTakeLow_lt W j word), Nat.or_comm]
   apply Nat.eq_of_testBit_eq
   intro b
   rw [hor2, testBit_laneGet]
@@ -297,8 +234,9 @@ theorem laneGet_wordDeleteAt (W j word i : ℕ) :
     laneGet W (wordDeleteAt W j word) i =
       if i < j then laneGet W word i else laneGet W word (i + 1) := by
   have hor : wordDeleteAt W j word =
-      wordTakeLow W j word ||| ((word >>> ((j + 1) * W)) <<< (j * W)) :=
-    add_shiftLeft_eq_or (wordTakeLow_lt W j word)
+      wordTakeLow W j word ||| ((word >>> ((j + 1) * W)) <<< (j * W)) := by
+    unfold wordDeleteAt
+    rw [Nat.add_comm, Nat.shiftLeft_add_eq_or_of_lt (wordTakeLow_lt W j word), Nat.or_comm]
   apply Nat.eq_of_testBit_eq
   intro b
   rw [hor, testBit_laneGet]
@@ -419,107 +357,7 @@ theorem wordUpdateAt_lt {W j m v word : ℕ} (hj : j < m) (hv : v < 2 ^ W)
   obtain ⟨m', rfl⟩ : ∃ m', m = m' + 1 := ⟨m - 1, by omega⟩
   rw [wordUpdateAt_eq_wordInsertAt_wordDeleteAt]
   exact wordInsertAt_lt (by omega) hv (wordDeleteAt_lt (by omega) hw)
-/-! ### Exact digit expansion, `swarOnes`, `ltMask`, and `swarRank_eq_count_lt` -/
-
-/-- Two words are equal when all of their `W`-bit lanes (`0 < W`) agree. -/
-theorem eq_of_forall_laneGet_eq {W a b : ℕ} (hW : 0 < W)
-    (h : ∀ k, laneGet W a k = laneGet W b k) : a = b := by
-  apply Nat.eq_of_testBit_eq
-  intro t
-  have ht : t = (t / W) * W + t % W := by
-    rw [Nat.mul_comm, Nat.div_add_mod]
-  have hmod : t % W < W := Nat.mod_lt t hW
-  have ha := testBit_laneGet W a (t / W) (t % W)
-  have hb := testBit_laneGet W b (t / W) (t % W)
-  rw [h (t / W)] at ha
-  simp only [hmod, decide_true, Bool.true_and, ← ht] at ha hb
-  exact ha.symm.trans hb
-
-private theorem sum_mul_pow_lt {W n : ℕ} {f : ℕ → ℕ} (hf : ∀ j < n, f j < 2 ^ W) :
-    ∑ j ∈ range n, f j * 2 ^ (j * W) < 2 ^ (n * W) := by
-  induction n with
-  | zero => simp
-  | succ m ih =>
-    rw [sum_range_succ]
-    have hm_lt := ih (fun j hj => hf j (Nat.lt_succ_of_lt hj))
-    have hfm : f m + 1 ≤ 2 ^ W := hf m (Nat.lt_succ_self m)
-    calc ∑ j ∈ range m, f j * 2 ^ (j * W) + f m * 2 ^ (m * W)
-        < 2 ^ (m * W) + f m * 2 ^ (m * W) := by omega
-      _ = (f m + 1) * 2 ^ (m * W) := by ring
-      _ ≤ 2 ^ W * 2 ^ (m * W) := Nat.mul_le_mul_right _ hfm
-      _ = 2 ^ ((m + 1) * W) := by rw [← Nat.pow_add, Nat.add_mul, one_mul, Nat.add_comm]
-
-private theorem laneGet_sum_mul_pow {W n : ℕ} {f : ℕ → ℕ} (hf : ∀ j < n, f j < 2 ^ W) (k : ℕ) :
-    laneGet W (∑ j ∈ range n, f j * 2 ^ (j * W)) k = if k < n then f k else 0 := by
-  induction n with
-  | zero =>
-    simp [laneGet]
-  | succ m ih =>
-    rw [sum_range_succ]
-    set S := ∑ j ∈ range m, f j * 2 ^ (j * W)
-    have hS_lt : S < 2 ^ (m * W) := sum_mul_pow_lt (fun j hj => hf j (Nat.lt_succ_of_lt hj))
-    have hfm_lt : f m < 2 ^ W := hf m (Nat.lt_succ_self m)
-    have hor : S + f m * 2 ^ (m * W) = S ||| (f m <<< (m * W)) := by
-      rw [← Nat.shiftLeft_eq]
-      exact add_shiftLeft_eq_or hS_lt
-    apply Nat.eq_of_testBit_eq
-    intro b
-    rw [hor, testBit_laneGet]
-    by_cases hb : b < W
-    · simp only [hb, decide_true, Bool.true_and, Nat.testBit_or, Nat.testBit_shiftLeft]
-      rcases lt_trichotomy k m with hlt | rfl | hgt
-      · have hk1 : k < m + 1 := by omega
-        have hnge : ¬(m * W ≤ k * W + b) := by
-          have : (k + 1) * W ≤ m * W := Nat.mul_le_mul_right W hlt
-          rw [Nat.add_mul, one_mul] at this
-          omega
-        have hih := congrArg (fun x => x.testBit b)
-          (ih (fun j hj => hf j (Nat.lt_succ_of_lt hj)))
-        rw [testBit_laneGet] at hih
-        simpa [hk1, hlt, hnge, hb] using hih
-      · have hk1 : k < k + 1 := Nat.lt_succ_self k
-        have hge : k * W ≤ k * W + b := Nat.le_add_right _ _
-        have hS0 : S.testBit (k * W + b) = false :=
-          Nat.testBit_lt_two_pow (hS_lt.trans_le (Nat.pow_le_pow_right (by decide) hge))
-        simp [hk1, hge, hS0]
-      · have hnk1 : ¬(k < m + 1) := by omega
-        have hge1 : (m + 1) * W ≤ k * W + b := by
-          have : (m + 1) * W ≤ k * W := Nat.mul_le_mul_right W hgt
-          omega
-        have hS0 : S.testBit (k * W + b) = false :=
-          Nat.testBit_lt_two_pow (hS_lt.trans_le (Nat.pow_le_pow_right (by decide) (by
-            have : m * W ≤ (m + 1) * W := Nat.mul_le_mul_right W (by omega)
-            omega)))
-        simp only [hnk1, ↓reduceIte, Nat.zero_testBit, hS0, Bool.false_or]
-        by_cases hge : m * W ≤ k * W + b
-        · simp only [hge, decide_true, Bool.true_and]
-          refine Nat.testBit_lt_two_pow (hfm_lt.trans_le (Nat.pow_le_pow_right (by decide) ?_))
-          have : (m + 1) * W = m * W + W := by ring
-          omega
-        · simp [hge]
-    · simp only [hb, decide_false, Bool.false_and]
-      split_ifs with hk1
-      · symm
-        exact Nat.testBit_lt_two_pow ((hf k hk1).trans_le
-          (Nat.pow_le_pow_right (by decide) (Nat.le_of_not_lt hb)))
-      · simp
-
-/-- Base-`2 ^ W` expansion of any word `< 2 ^ (n * W)` into its first `n` lanes. -/
-theorem word_eq_sum_laneGet {W n word : ℕ} (hW : 0 < W) (hw : word < 2 ^ (n * W)) :
-    word = ∑ j ∈ range n, laneGet W word j * 2 ^ (j * W) := by
-  refine eq_of_forall_laneGet_eq hW fun k => ?_
-  rw [laneGet_sum_mul_pow (fun j _ => laneGet_lt W word j)]
-  split_ifs with hk
-  · rfl
-  · apply Nat.eq_of_testBit_eq
-    intro b
-    rw [testBit_laneGet, Nat.zero_testBit]
-    by_cases hb : b < W
-    · simp only [hb, decide_true, Bool.true_and]
-      refine Nat.testBit_lt_two_pow (hw.trans_le (Nat.pow_le_pow_right (by decide) ?_))
-      have : n * W ≤ k * W := Nat.mul_le_mul_right W (Nat.le_of_not_lt hk)
-      omega
-    · simp [hb]
+/-! ### `swarOnes`, `ltMask`, and `swarRank_eq_count_lt` -/
 
 private theorem swarOnes_eq_sum {W : ℕ} (hW : 1 ≤ W) (n : ℕ) :
     swarOnes W n = ∑ j ∈ range n, 2 ^ (j * W) := by
@@ -540,15 +378,6 @@ private theorem swarOnes_eq_sum {W : ℕ} (hW : 1 ≤ W) (n : ℕ) :
       omega
   unfold swarOnes
   rw [← hgeom n, Nat.mul_div_cancel _ hpos]
-
-private theorem swarOnes_lt (W n : ℕ) : swarOnes W n < 2 ^ (n * W) := by
-  rcases Nat.eq_zero_or_pos W with rfl | hW
-  · simp [swarOnes]
-  · rw [swarOnes_eq_sum hW]
-    have h2 : 2 ≤ 2 ^ W := by
-      calc 2 = 2 ^ 1 := by decide
-        _ ≤ 2 ^ W := Nat.pow_le_pow_right (by decide) hW
-    simpa only [one_mul] using sum_mul_pow_lt (f := fun _ => 1) (n := n) (fun _ _ => h2)
 
 private theorem ltMask_eq_sum (fpBits m q keysWord : ℕ)
     (hq : q < 2 ^ fpBits) (hkw : keysWord < 2 ^ (m * (fpBits + 2)))

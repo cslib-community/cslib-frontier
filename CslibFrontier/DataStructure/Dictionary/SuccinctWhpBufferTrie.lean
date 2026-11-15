@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpSwarBTree
+public import CslibFrontier.DataStructure.PackedLane
 
 /-!
 # Bounded-Depth Character Trie Buffer (`BufTrie`) for Deamortized Salt Collisions
@@ -20,38 +20,45 @@ W. Kuszmaul, SOSA 2024, Section 2.2 Lemma 2.2 and Section 5, pp. 363–373; auth
 pp. 3 and 6][BenderFarachColtonKuszmaulKuszmaul2024]).
 
 Each Stage-1 reduced key `rKey < 2 ^ (cTab * bChar)` is decomposed into `cTab` digits in base
-`2 ^ bChar` (`laneGet`). Augmenting SOSA 2024's `k`-trie for deterministic `O(1)`-per-step
-background draining and cleanup without scanning all `2 ^ bChar` child slots, a `BufTrie` stores:
+`2 ^ bChar` (`Cslib.DataStructure.laneGet`, `eq_of_forall_laneGet_eq_of_lt`). Augmenting SOSA
+2024's `k`-trie for deterministic per-step background draining and cleanup without scanning all
+`2 ^ bChar` child slots, a `BufTrie` stores:
 * A rooted `2 ^ bChar`-ary trie (root at node `0`, allocated non-root nodes `1 .. nodeAlloc - 1`)
   recording `(nodeParent u, nodeChar u)` for each `1 ≤ u < nodeAlloc` so all dirty child entries can
-  be re-zeroed incrementally in `O(1)` writes per step (`bufClearOne`, `bufClearSteps`) without
-  scanning `2 ^ bChar` children.
+  be re-zeroed incrementally in `O(1)` logical table updates per clear pop (`bufClearOne`,
+  `bufClearSteps`) without scanning `2 ^ bChar` children.
 * A sequential append log `0 .. itemAlloc - 1` (`itemLeaf`, `itemBucket`, `itemLoc`) paired with
   per-leaf slot index `nodeLeafItem` (`id + 1`, or `0` if never allocated in this epoch) and flag
   `nodeActive` (`0` if deleted/inactive, non-zero if active), so item `id < itemAlloc` is active iff
   `nodeLeafItem (itemLeaf id) = id + 1 ∧ nodeActive (itemLeaf id) ≠ 0`. Deletion clears
   `nodeActive leaf := 0` while preserving `nodeLeafItem leaf` (so same-epoch re-insertion reuses
-  slot `id` with zero allocations), and the background drainer scans `0 .. itemAlloc - 1` via
-  `bufCheckSlot` in `O(1)` time per step without doubly-linked list pointers.
+  slot `id` with zero allocations), and the background drainer probes `0 .. itemAlloc - 1` via
+  `bufCheckSlot` in `O(1)` logical table reads per slot without doubly-linked list pointers.
+
+**Cost convention:** All `O(1)` and `O(cTab)` operation descriptions in this module count logical
+table accesses/updates or clear pops (with `cTab` fixed). The definitions use pure `Nat` arithmetic
+and functional `ℕ → ℕ` tables; this module does not certify Lean runtime or Word-RAM
+instruction/memory cost.
 
 ## Main definitions
 
 * `Cslib.DataStructure.Dictionary.SuccinctWhp.BufTrie`, `emptyBufTrie`: pure buffer-trie state.
 * `Cslib.DataStructure.Dictionary.SuccinctWhp.bufLookup`, `bufInsert`, `bufDelete`,
-  `bufCheckSlot`, `bufClearOne`, `bufClearSteps`: constant-time (`O(cTab)`) buffer operations.
+  `bufCheckSlot`, `bufClearOne`, `bufClearSteps`: pure buffer operations making `O(cTab)` logical
+  table accesses/updates for trie walks and `O(1)` logical table accesses/updates per slot probe or
+  clear pop (for fixed `cTab`, over pure `Nat` arithmetic and functional tables; Lean runtime and
+  Word-RAM instruction/memory costs are not certified here).
 * `Cslib.DataStructure.Dictionary.SuccinctWhp.ValidBufTrie`: structural, map-refinement,
   active-slot, and parent-log invariant for `BufTrie`.
 
 ## Main results
 
-* `Cslib.DataStructure.Dictionary.SuccinctWhp.eq_of_forall_laneGet_eq_of_lt`: digit tuple
-  injectivity on `< 2 ^ (cTab * bChar)`.
 * `Cslib.DataStructure.Dictionary.SuccinctWhp.validBufTrie_empty`,
   `ValidBufTrie.lookup_eq`, `ValidBufTrie.delete_spec`, `ValidBufTrie.insert_spec`,
   `ValidBufTrie.insert_nodeAlloc_le`, `ValidBufTrie.checkSlot_some`,
   `ValidBufTrie.exists_checkSlot_of_map_some`, `ValidBufTrie.toClearable`,
-  `ClearableBufTrie.clearOne_step`, `ClearableBufTrie.clearSteps_spec`,
-  `ValidBufTrie.clearSteps_spec`: exact map, active-slot scan, and cleanup specifications.
+  `ClearableBufTrie.clearOne_step`, `ClearableBufTrie.clearSteps_spec`: exact map, slot-allocation,
+  active-slot scan, and cleanup specifications.
 
 ## References
 
@@ -63,23 +70,10 @@ public section
 
 namespace Cslib.DataStructure.Dictionary.SuccinctWhp
 
-/-! ## Section 1: Bounded-word base-`2 ^ bChar` lane injectivity -/
-
-/-- Keys `< 2 ^ (cTab * bChar)` are uniquely determined by their first `cTab` base-`2 ^ bChar`
-lanes. -/
-theorem eq_of_forall_laneGet_eq_of_lt {cTab bChar k₁ k₂ : ℕ}
-    (hk₁ : k₁ < 2 ^ (cTab * bChar)) (hk₂ : k₂ < 2 ^ (cTab * bChar))
-    (hd : ∀ d < cTab, laneGet bChar k₁ d = laneGet bChar k₂ d) :
-    k₁ = k₂ := by
-  rcases Nat.eq_zero_or_pos bChar with rfl | hb
-  · simp at hk₁ hk₂; omega
-  · rw [word_eq_sum_laneGet hb hk₁, word_eq_sum_laneGet hb hk₂]
-    exact Finset.sum_congr rfl fun d hd_mem => by rw [hd d (Finset.mem_range.mp hd_mem)]
-
-/-! ## Section 2: Pure `BufTrie` state and `O(cTab)` operations -/
+/-! ## Section 1: Pure `BufTrie` state and logical buffer operations -/
 
 /-- Pure state of a bounded-depth character trie buffer with append-only item log and parent-edge
-log for incremental `O(1)`-per-step re-zeroing. -/
+log for incremental re-zeroing in `O(1)` logical table updates per clear pop. -/
 structure BufTrie where
   /-- Number of allocated trie nodes (`1` initially; node `0` is the root). -/
   nodeAlloc : ℕ
@@ -188,8 +182,10 @@ structure BufTrie where
       itemBucket := Function.update tr1.itemBucket id b
       itemLoc := Function.update tr1.itemLoc id loc }
 
-/-- Delete `rKey` from `tr` in `O(cTab)` steps (clearing `nodeActive leaf := 0` while preserving
-its epoch slot `nodeLeafItem leaf` so re-insertions of `rKey` allocate zero new slots). -/
+/-- Delete `rKey` from `tr` in `O(cTab)` logical table accesses and at most one flag update
+(clearing `nodeActive leaf := 0` while preserving its epoch slot `nodeLeafItem leaf` so
+re-insertions of `rKey` allocate zero new slots; pure functional model, not certified Lean or
+Word-RAM execution cost). -/
 @[expose] def bufDelete (cTab bChar : ℕ) (tr : BufTrie) (rKey : ℕ) : BufTrie :=
   match bufWalk bChar tr.trieChild rKey cTab 0 0 with
   | none => tr
@@ -197,8 +193,9 @@ its epoch slot `nodeLeafItem leaf` so re-insertions of `rKey` allocate zero new 
     if tr.nodeLeafItem leaf = 0 ∨ tr.nodeActive leaf = 0 then tr
     else { tr with nodeActive := Function.update tr.nodeActive leaf 0 }
 
-/-- Constant-time (`O(1)`) scan probe at item slot `id < tr.itemAlloc`: returns `some (b, loc)` iff
-item `id` is still active (`nodeLeafItem (itemLeaf id) = id + 1 ∧ nodeActive (itemLeaf id) ≠ 0`). -/
+/-- Scan probe at item slot `id < tr.itemAlloc` using `O(1)` logical table reads (pure functional
+model, not certified Lean or Word-RAM execution cost): returns `some (b, loc)` iff item `id` is
+still active (`nodeLeafItem (itemLeaf id) = id + 1 ∧ nodeActive (itemLeaf id) ≠ 0`). -/
 @[expose] def bufCheckSlot (tr : BufTrie) (id : ℕ) : Option (ℕ × ℕ) :=
   if id < tr.itemAlloc then
     let leaf := tr.itemLeaf id
@@ -207,9 +204,10 @@ item `id` is still active (`nodeLeafItem (itemLeaf id) = id + 1 ∧ nodeActive (
     else none
   else none
 
-/-- One elementary `O(1)` cleanup step: zeroes `itemAlloc := 0` on every step, pops one allocated
-non-root node `u = nodeAlloc - 1` and re-zeroes `trieChild (nodeParent u) (nodeChar u)` and
-`nodeLeafItem u` when `1 < nodeAlloc`, and sets `nodeAlloc := 1` and `nodeLeafItem 0 := 0` when
+/-- One elementary cleanup pop using `O(1)` logical table reads/updates (pure functional model, not
+certified Lean or Word-RAM execution cost): zeroes `itemAlloc := 0` on every step, pops one
+allocated non-root node `u = nodeAlloc - 1` and re-zeroes `trieChild (nodeParent u) (nodeChar u)`
+and `nodeLeafItem u` when `1 < nodeAlloc`, and sets `nodeAlloc := 1` and `nodeLeafItem 0 := 0` when
 `nodeAlloc ≤ 1`. -/
 @[expose] def bufClearOne (tr : BufTrie) : BufTrie :=
   if 1 < tr.nodeAlloc then
@@ -228,12 +226,12 @@ non-root node `u = nodeAlloc - 1` and re-zeroes `trieChild (nodeParent u) (nodeC
       itemAlloc := 0
       nodeLeafItem := Function.update tr.nodeLeafItem 0 0 }
 
-/-- Execute `k` elementary `bufClearOne` steps. -/
+/-- Execute `k` elementary `bufClearOne` pops. -/
 @[expose] def bufClearSteps : ℕ → BufTrie → BufTrie
   | 0, tr => tr
   | k + 1, tr => bufClearSteps k (bufClearOne tr)
 
-/-! ## Section 3: Exact structural and map invariant (`ValidBufTrie`) -/
+/-! ## Section 2: Exact structural and map invariant (`ValidBufTrie`) -/
 
 /-- Structural, parent-log, and map-refinement invariant for `BufTrie` at character count `cTab`
 and character bit-width `bChar`. -/
@@ -783,7 +781,9 @@ private theorem bufEnsurePath_props {cTab bChar rKey : ℕ} :
 
 /-- Exact specification of `bufInsert`:
 * Preserves `ValidBufTrie` for `Function.update mapFn rKey (some (b, loc))`;
-* Allocates at most `cTab` trie nodes and at most `1` item slot;
+* Allocates at most `cTab` trie nodes, increments `itemAlloc` by exactly `1` when
+  `bufEverPresent cTab bChar tr rKey = false`, and leaves `itemAlloc` unchanged when
+  `bufEverPresent cTab bChar tr rKey = true`;
 * Sets `bufEverPresent` at `rKey` to `true` and preserves `bufEverPresent` on all other keys
   `< 2 ^ (cTab * bChar)`;
 * Whenever `bufEverPresent cTab bChar tr rKey = true` (including re-insertion of a previously
@@ -797,8 +797,8 @@ theorem ValidBufTrie.insert_spec {cTab bChar rKey b loc : ℕ} {tr : BufTrie}
     ValidBufTrie cTab bChar tr' (Function.update mapFn rKey (some (b, loc))) ∧
     tr.nodeAlloc ≤ tr'.nodeAlloc ∧
     tr'.nodeAlloc ≤ tr.nodeAlloc + cTab ∧
-    tr.itemAlloc ≤ tr'.itemAlloc ∧
-    tr'.itemAlloc ≤ tr.itemAlloc + 1 ∧
+    tr'.itemAlloc =
+      (if bufEverPresent cTab bChar tr rKey then tr.itemAlloc else tr.itemAlloc + 1) ∧
     (∀ k < 2 ^ (cTab * bChar),
       bufEverPresent cTab bChar tr' k =
         if k = rKey then true else bufEverPresent cTab bChar tr k) ∧
@@ -869,7 +869,7 @@ theorem ValidBufTrie.insert_spec {cTab bChar rKey b loc : ℕ} {tr : BufTrie}
         have hge_old : tr.nodeAlloc ≤ leaf_k :=
           bufWalk_ge_of_none hnew1 hinc1 cTab 0 0 leaf_k k hwk_old hwk1
         rw [Function.update_of_ne hne_leaf, hz_ge1 leaf_k hge_old]
-    refine ⟨?_, ha_le, ha_ub, by omega, by omega, ?_, ?_,
+    refine ⟨?_, ha_le, ha_ub, by simp [hever_false, hia], ?_, ?_,
       fun hne => absurd hmap_none hne⟩
     · refine ⟨by dsimp only; omega, ?_, ?_, ?_, depth1, hd1_0, hedge1, hiff1, ?_⟩
       · intro u hu_ge
@@ -935,7 +935,10 @@ theorem ValidBufTrie.insert_spec {cTab bChar rKey b loc : ℕ} {tr : BufTrie}
       · exact htr_eq
       · exact absurd (hz_ge1 leaf hge_leaf) hid1
     obtain ⟨_, hle_id1, hil_leaf, _⟩ := hleaf1 leaf hleaf_lt hid1
-    refine ⟨?_, ha_le, ha_ub, by omega, by omega, ?_,
+    have hever_true : bufEverPresent cTab bChar tr rKey = true := by
+      rw [← htr1_eq]
+      simp [bufEverPresent, hw_rKey, hid1]
+    refine ⟨?_, ha_le, ha_ub, by simp [hever_true, hia], ?_,
       fun _ => ⟨by rw [htr1_eq], hia⟩, ?_⟩
     · refine ⟨by dsimp only; omega, hz1, ?_, ?_, depth1, hd1_0, hedge1, hiff1, ?_⟩
       · intro k hk_ge
@@ -1067,7 +1070,7 @@ theorem ValidBufTrie.exists_checkSlot_of_map_some {cTab bChar k b loc : ℕ} {tr
         rwa [hil_eq]
       simp [hid_lt, hli_eq, hact_eq, hmk.1, hmk.2]
 
-/-! ## Section 4: Incremental `O(1)`-per-step cleanup (`ClearableBufTrie`, `clearSteps_spec`) -/
+/-! ## Section 3: Incremental single-pop cleanup (`ClearableBufTrie`, `clearSteps_spec`) -/
 
 /-- Structural parent-log invariant maintained across intermediate `bufClearOne` steps while
 re-zeroing `BufOld` in the second half of an epoch. -/
@@ -1217,17 +1220,6 @@ theorem ClearableBufTrie.clearSteps_spec (cTab bChar : ℕ) :
       have hle_nxt : (bufClearOne tr).nodeAlloc ≤ k := by omega
       exact ih hc1 hle_nxt
 
-/-- Corollary for `ValidBufTrie`: `bufClearSteps k tr` (for `tr.nodeAlloc ≤ k`) yields a clean
-empty `ValidBufTrie` with `nodeAlloc = 1` and `itemAlloc = 0`. -/
-theorem ValidBufTrie.clearSteps_spec {cTab bChar k : ℕ} {tr : BufTrie}
-    {mapFn : ℕ → Option (ℕ × ℕ)} (hv : ValidBufTrie cTab bChar tr mapFn)
-    (hle : tr.nodeAlloc ≤ k) :
-    let tr' := bufClearSteps k tr
-    ValidBufTrie cTab bChar tr' (fun _ => none) ∧
-    tr'.nodeAlloc = 1 ∧
-    tr'.itemAlloc = 0 :=
-  hv.toClearable.clearSteps_spec cTab bChar k hle
-
 /-- `bufInsert` preserves the linear bound `nodeAlloc ≤ 1 + cTab * itemAlloc` across all
 insertions, overwrites, and reactivations. -/
 theorem ValidBufTrie.insert_nodeAlloc_le {cTab bChar rKey b loc : ℕ} {tr : BufTrie}
@@ -1236,30 +1228,14 @@ theorem ValidBufTrie.insert_nodeAlloc_le {cTab bChar rKey b loc : ℕ} {tr : Buf
     let tr' := bufInsert cTab bChar tr rKey b loc
     tr'.nodeAlloc ≤ 1 + cTab * tr'.itemAlloc := by
   dsimp only
+  obtain ⟨_, _, ha_ub, hia, _, hreuse, _⟩ := hv.insert_spec (b := b) (loc := loc) hk
   by_cases hev : bufEverPresent cTab bChar tr rKey = true
-  · obtain ⟨ha_eq, hia_eq⟩ := (hv.insert_spec (b := b) (loc := loc) hk).2.2.2.2.2.2.1 hev
+  · obtain ⟨ha_eq, hia_eq⟩ := hreuse hev
     rw [ha_eq, hia_eq]
     exact hlin
-  · obtain ⟨halloc, hzero, _, _, depth, hd0, hedge, hiff, hleaf⟩ := hv
-    have hens := bufEnsurePath_props (cTab := cTab) (bChar := bChar) (rKey := rKey)
-      cTab 0 tr 0 depth (Nat.zero_add cTab) halloc hzero hd0 hedge hiff hleaf halloc hd0
-    dsimp only [bufInsert]
-    generalize bufEnsurePath bChar rKey cTab 0 tr 0 = p at hens ⊢
-    rcases p with ⟨tr1, leaf⟩
-    dsimp only at hens ⊢
-    rcases hens with ⟨_, ha_ub, hia, _, _, _, _, _, hz_ge1, _, _, hwalk_or, _, _, _⟩
-    by_cases hid1 : tr1.nodeLeafItem leaf = 0
-    · simp only [hid1, ↓reduceIte]
-      rw [hia, Nat.mul_add, Nat.mul_one]
-      omega
-    · exfalso
-      apply hev
-      rcases hwalk_or with ⟨hw_old, htr_eq⟩ | ⟨_, hge_leaf⟩
-      · rw [← htr_eq] at hw_old
-        have htr_eq' : tr = tr1 := htr_eq.symm
-        subst htr_eq'
-        simp [bufEverPresent, hw_old, hid1]
-      · exact absurd (hz_ge1 leaf hge_leaf) hid1
+  · simp only [hev, Bool.false_eq_true, ↓reduceIte] at hia
+    rw [hia, Nat.mul_add, Nat.mul_one]
+    omega
 
 end Cslib.DataStructure.Dictionary.SuccinctWhp
 

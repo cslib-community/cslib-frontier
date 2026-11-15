@@ -8,24 +8,28 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
+public import CslibFrontier.DataStructure.PackedLane
 public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpBufferTrie
 public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpParams
 public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpSwarBTree
 public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpSwarBTreeInsert
 public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpSwarBTreeSpec
+public import CslibFrontier.Foundations.Data.Nat.ChooseLog
 
 /-!
 # Tests for `SuccinctWhp` Parameters, SWAR B+-Tree, and Buffer Trie
 
 Ordinary-import `module` client exercising the Milestone 3a pure components of `#5356`:
-1. **`SuccinctWhpParams`**:
-   - Concrete small-regime parameter evaluations and `whpSpace_le_succinctWords`.
+1. **`SuccinctWhpParams` and `Nat.ChooseLog`**:
+   - Concrete small-regime parameter evaluations, `Nat.mul_clog_le_add_clog_choose`, and
+     `whpSpace_le_succinctWords`.
    - Non-vacuous large-regime witness at `n_max = whpThreshold c` verifying threshold separation,
      Thorup's double-tabulation bound, branching cube bound, and a concrete satisfying load vector
      for the 3-case front-yard/backyard conservation theorem `sum_sub_capFront_le_poolSize`.
-2. **`SuccinctWhpSwarBTree` (SWAR word-lane primitives)**:
-   - Concrete `laneGet`, `wordInsertAt`, `wordDeleteAt`, `wordUpdateAt`, `swarOnes`, `ltMask`, and
-     `swarRank` evaluations across boundary queries, paired with `swarRank_eq_count_lt`.
+2. **`PackedLane` and `SuccinctWhpSwarBTree` (SWAR word-lane primitives)**:
+   - Concrete `laneGet`, `eq_of_forall_laneGet_eq_of_lt`, `wordInsertAt`, `wordDeleteAt`,
+     `wordUpdateAt`, `swarOnes`, `ltMask`, and `swarRank` evaluations across boundary queries,
+     paired with `swarRank_eq_count_lt`.
 3. **`SuccinctWhpSwarBTree` / `Spec` / `Insert` (top-down split-only SWAR B+-tree)**:
    - Concrete execution at `(fpBits = 4, W_val = 8, tMin = 3)` verifying `NodeSplit` output of
      `splitFullNode`, proactive root splitting (`splitRootIfFull`), proactive internal child
@@ -38,13 +42,14 @@ Ordinary-import `module` client exercising the Milestone 3a pure components of `
 4. **`SuccinctWhpBufferTrie` (`BufTrie`)**:
    - Concrete execution at `(cTab = 3, bChar = 2)` covering shared-prefix node sharing, deletion,
      zero-allocation same-epoch slot reactivation, `bufCheckSlot` scanning, and incremental
-     `O(1)`-per-step cleanup (`bufClearSteps`), paired with `ValidBufTrie` theorem composition.
+     single-pop cleanup (`bufClearSteps`), paired with `ValidBufTrie` theorem composition.
 -/
 
 public section
 
 namespace CslibFrontierTests.DataStructure.SuccinctWhpSwarBTree
 
+open Cslib.DataStructure
 open Cslib.DataStructure.Dictionary
 open Cslib.DataStructure.Dictionary.FeistelQuotient
 open Cslib.DataStructure.Dictionary.SuccinctWhp
@@ -76,6 +81,13 @@ theorem small_regime_whpSpace_le :
     whpSpace 1 64 16 64 16 ≤
       Dynamic.succinctWords (whpSpaceFactor 1) whpSpaceConst 64 16 64 16 :=
   whpSpace_le_succinctWords (by decide : 16 ≤ 64)
+
+/-- Ordinary-import check of `Nat.mul_clog_le_add_clog_choose` across `n = 0` and `0 < n ≤ U`. -/
+example :
+    0 * Nat.clog 2 10 ≤ 0 + 0 * 3 + Nat.clog 2 (Nat.choose 10 0) ∧
+    5 * Nat.clog 2 12 ≤ 5 + 5 * 3 + Nat.clog 2 (Nat.choose 12 5) :=
+  ⟨Nat.mul_clog_le_add_clog_choose Nat.one_lt_two (by decide) (by decide),
+   Nat.mul_clog_le_add_clog_choose Nat.one_lt_two (by decide) (by decide)⟩
 
 /-- Concrete non-vacuous bucket-load profile `X b = capFrontWhp n_max + deltaWhp n_max` satisfying
 all hypotheses of `sum_sub_capFront_le_poolSize` at every `n_max ≥ whpThreshold c`. -/
@@ -178,6 +190,10 @@ example : swarRank 4 6 4 1 sampleKeysWord = 0 ∧
 example : swarRank 4 6 4 7 sampleKeysWord =
     #((range 4).filter fun j => laneGet 6 sampleKeysWord j < 7) :=
   swarRank_eq_count_lt (by decide) (by decide) (by decide) (by decide) (by decide)
+
+example {a b : ℕ} (ha : a < 2 ^ (3 * 2)) (hb : b < 2 ^ (3 * 2))
+    (hd : ∀ d < 3, laneGet 2 a d = laneGet 2 b d) : a = b :=
+  eq_of_forall_laneGet_eq_of_lt ha hb hd
 
 /-! ## 3. Concrete SWAR B+-Tree Splits, Descent, and Entry-Point Reduction -/
 
@@ -621,6 +637,7 @@ theorem bufTrie_lifecycle_spec :
     let t3 := bufInsert 3 2 t2 5 6 60
     let tc1 := bufClearOne t3
     let tc := bufClearSteps tc1.nodeAlloc tc1
+    t1.itemAlloc = 1 ∧
     t3.nodeAlloc = t1.nodeAlloc ∧
     t3.itemAlloc = t1.itemAlloc ∧
     t3.nodeAlloc ≤ 1 + 3 * t3.itemAlloc ∧
@@ -632,7 +649,11 @@ theorem bufTrie_lifecycle_spec :
     tc.itemAlloc = 0 := by
   have hk : 5 < 2 ^ (3 * 2) := by decide
   have hv0 := validBufTrie_empty 3 2
-  obtain ⟨hv1, _, _, _, _, hev1, _, _⟩ := hv0.insert_spec (b := 2) (loc := 20) hk
+  obtain ⟨hv1, _, _, hia1, hev1, _, _⟩ := hv0.insert_spec (b := 2) (loc := 20) hk
+  have hia1_eq : (bufInsert 3 2 emptyBufTrie 5 2 20).itemAlloc = 1 := by
+    have hev0 : bufEverPresent 3 2 emptyBufTrie 5 = false := by decide
+    rw [hev0] at hia1
+    simpa [emptyBufTrie] using hia1
   have hlin1 : (bufInsert 3 2 emptyBufTrie 5 2 20).nodeAlloc ≤
       1 + 3 * (bufInsert 3 2 emptyBufTrie 5 2 20).itemAlloc :=
     hv0.insert_nodeAlloc_le hk (by decide)
@@ -641,14 +662,14 @@ theorem bufTrie_lifecycle_spec :
       true := by
     rw [hev2]
     simpa using hev1 5 hk
-  obtain ⟨hv3, _, _, _, _, _, hreuse, _⟩ := hv2.insert_spec (b := 6) (loc := 60) hk
+  obtain ⟨hv3, _, _, _, _, hreuse, _⟩ := hv2.insert_spec (b := 6) (loc := 60) hk
   obtain ⟨hna3, hia3⟩ := hreuse hev_t2
   have hlin3 := hv2.insert_nodeAlloc_le (b := 6) (loc := 60) hk (by rw [hna2, hia2]; exact hlin1)
   have hscan := hv3.exists_checkSlot_of_map_some (k := 5) (b := 6) (loc := 60)
     (by simp [Function.update_self])
   obtain ⟨hc1, hnac1⟩ := hv3.toClearable.clearOne_step
   obtain ⟨hvc, hnac, hiac⟩ := hc1.clearSteps_spec 3 2 _ le_rfl
-  exact ⟨hna3.trans hna2, hia3.trans hia2, hlin3, hscan, hc1, hnac1, hvc, hnac, hiac⟩
+  exact ⟨hia1_eq, hna3.trans hna2, hia3.trans hia2, hlin3, hscan, hc1, hnac1, hvc, hnac, hiac⟩
 
 end CslibFrontierTests.DataStructure.SuccinctWhpSwarBTree
 
