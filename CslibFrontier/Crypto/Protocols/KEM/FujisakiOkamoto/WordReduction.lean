@@ -59,13 +59,17 @@ runs `A` against the simulator from empty caches (`WordPKE.simFilterWordHit`) an
 **The certificate.** `WordPKE.IsEfficient.isPPT_romFilterCpaReductionWord` derives
 `Encryption.AdversaryOf.IsPPT` of the reduction from `IsOraclePPT encBool A`, the efficiency of
 the PKE family (`WordPKE.IsEfficient`), a polynomial-time key length and a polynomial-time filter.
-The simulator is substituted into `A` with `IsOraclePPT.run_interpret_preprocess'`. Each call is
+The simulator is substituted into `A` with `IsOraclePPT.run_interpret_preprocess`. Each call is
 strict PPT in the full state (`WordPKE.IsEfficient.isPPTOn_simFilterWordHandler`), keeps every
 cached value at most `coinLen n + keyLen n` bits long, and adds at most a polynomial in the
 request length and `n` to the encoded state.
 
-Relating the advantage of this reduction to the typed `cpaAdvantage` of `Scheme.romCpaReduction`
-on a typed view of `A`, and the asymptotic IND-CCA theorem, are later steps of #5293.
+The advantage of this reduction is the typed `cpaAdvantage` of `Scheme.romCpaReduction` on a typed
+view of `A` (`WordPKE.IsEfficient.exists_typedAdversary` in
+`CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.WordBridge`), and the asymptotic IND-CCA
+theorem `WordPKE.INDCPA.romINDCCA` in
+`CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.WordSecurity` applies the IND-CPA assumption
+to it.
 
 ## Main definitions
 
@@ -719,7 +723,7 @@ theorem IsEfficient.isPPT_romFilterCpaReductionWord {P : WordPKE} (hP : P.IsEffi
           ((hstate.fst'.comp (ComputableInPolyTime.fst _ _)).prod
             (hcs.comp (ComputableInPolyTime.fst _ _)))).prod
           (ComputableInPolyTime.snd _ _))
-    have hrun := hA.run_interpret_preprocess' (operationEncoding := encFinEnum CCAOp)
+    have hrun := hA.run_interpret_preprocess (operationEncoding := encFinEnum CCAOp)
       (stateEncoding := encSimState)
       (handler := fun (c : (ℕ × List Bool × List Bool) × List Bool) request st =>
         P.simFilterWordHandler keyLen d c.1.1 (D.decode c.1.2.1).1 c.1.2.2 request st)

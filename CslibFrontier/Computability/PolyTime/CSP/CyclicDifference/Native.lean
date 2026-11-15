@@ -58,7 +58,7 @@ private theorem argumentTable_polyTime (encRel : Rel ↪ List Bool) :
       (encList encNat) := by
   unfold argumentTable
   apply ComputableInPolyTime.mapWithInput (computableInPolyTime_occurrences encRel encNat)
-  apply (ComputableInPolyTime.of_tidy ComputableTidilyInPolyTime.unary_to_binary).comp
+  apply ComputableInPolyTime.unary_to_binary.comp
   exact (argumentNextIndex_polyTime encRel encNat).comp
     (g := fun p : CSP Rel ℕ × (ℕ × ℕ × ℕ) => ((p.1, p.2.1), p.2.2.1)) (by
     unfold encOccurrenceRecord
@@ -77,9 +77,11 @@ private theorem whiteTable_polyTime (encRel : Rel ↪ List Bool) :
       (fun p : (CSP Rel ℕ × Graph.RotationCertificate) × ℕ =>
         p.1.2.successor.idxOf (2 * p.2))
       (encPair (encCSPRotationCertificate encRel encNat) encUnary) encUnary := by
-    apply ComputableInPolyTime.of_tidy
-    apply ComputableTidilyInPolyTime.idxOfWithInput (hs.tidy.comp (by fun_prop))
-    exact ComputableTidilyInPolyTime.unary_to_binary.comp (by
+    apply (ComputableInPolyTime.idxOf encNat).comp
+      (g := fun p : (CSP Rel ℕ × Graph.RotationCertificate) × ℕ =>
+        (p.1.2.successor, 2 * p.2))
+    apply ComputableInPolyTime.prod (hs.comp (by fun_prop))
+    exact ComputableInPolyTime.unary_to_binary.comp (by
       unfold encCSPRotationCertificate
       fun_prop)
   have hhalf : ComputableInPolyTime
@@ -87,11 +89,10 @@ private theorem whiteTable_polyTime (encRel : Rel ↪ List Bool) :
         p.1.2.successor.idxOf (2 * p.2) / 2)
       (encPair (encCSPRotationCertificate encRel encNat) encUnary) encNat :=
     ComputableInPolyTime.binary_div.comp
-      (((ComputableInPolyTime.of_tidy ComputableTidilyInPolyTime.unary_to_binary).comp
+      ((ComputableInPolyTime.unary_to_binary.comp
         hinv).prod (ComputableInPolyTime.const 2))
-  exact (ComputableInPolyTime.of_tidy ComputableTidilyInPolyTime.unary_to_binary).comp
-    (.of_tidy (ComputableTidilyInPolyTime.idxOfWithInput (ha.tidy.comp (by fun_prop))
-      hhalf.tidy))
+  exact ComputableInPolyTime.unary_to_binary.comp
+    ((ComputableInPolyTime.idxOf encNat).comp ((ha.comp (by fun_prop)).prod hhalf))
 
 private theorem whiteScope_polyTime (encRel : Rel ↪ List Bool) :
     ComputableInPolyTime (fun p : (CSP Rel ℕ × Graph.RotationCertificate) × ℕ =>
@@ -146,10 +147,10 @@ private theorem blackScope_polyTime (encRel : Rel ↪ List Bool) :
   have hp := argumentPositions_polyTime encRel encNat
   unfold blackScope
   apply ComputableInPolyTime.mapWithInput (encA := encUnary) (by fun_prop)
-  exact (ComputableInPolyTime.of_tidy ComputableTidilyInPolyTime.unary_to_binary).comp
-    (.of_tidy (ComputableTidilyInPolyTime.idxOfWithInput
-      (hp.tidy.comp (g := fun p : ((CSP Rel ℕ × ℕ) × List ℕ) × ℕ => p.1.1.1) (by fun_prop))
-      (show ComputableTidilyInPolyTime
+  exact ComputableInPolyTime.unary_to_binary.comp
+    ((ComputableInPolyTime.idxOf (encPair encUnary encUnary)).comp
+      ((hp.comp (g := fun p : ((CSP Rel ℕ × ℕ) × List ℕ) × ℕ => p.1.1.1) (by fun_prop)).prod
+      (show ComputableInPolyTime
         (fun p : ((CSP Rel ℕ × ℕ) × List ℕ) × ℕ => (p.1.1.2, p.2))
         (encPair (encPair (encPair (encCSP encRel encNat) encUnary) (encList encNat)) encUnary)
         (encPair encUnary encUnary) by fun_prop)))
@@ -159,7 +160,7 @@ private theorem blackConstraints_polyTime [Finite Rel] (encRel : Rel ↪ List Bo
     ComputableInPolyTime (blackConstraints arity sem) (encCSP encRel encNat)
       (encCSP encTable encNat) := by
   have ht : ComputableInPolyTime (differenceTable arity sem) encRel encTable := .of_finite _
-  have hz := ComputableInPolyTime.of_tidy (ComputableTidilyInPolyTime.zipIdx
+  have hz := (ComputableInPolyTime.zipIdx
     (encConstraint encRel encNat))
   have hscope := blackScope_polyTime encRel
   unfold blackConstraints encCSP
@@ -185,7 +186,7 @@ private theorem whiteConstraints_polyTime :
   have hz : ComputableInPolyTime (fun p : ℕ × List (List ℕ) => p.2.zipIdx)
       (encPair encUnary (encList (encList encNat)))
       (encList (encPair (encList encNat) encUnary)) :=
-    .of_tidy ((ComputableTidilyInPolyTime.zipIdx (encList encNat)).comp (by fun_prop))
+    ((ComputableInPolyTime.zipIdx (encList encNat)).comp (by fun_prop))
   unfold whiteConstraints
   apply ComputableInPolyTime.flatMapWithInput hz
   have hp := auxiliaryPrefix_polyTime.comp
@@ -221,8 +222,8 @@ theorem computableInPolyTime_body [Finite Rel] (encRel : Rel ↪ List Bool)
     fun_prop
   have hc := whiteConstraints_polyTime.comp harg
   unfold body
-  exact .of_tidy ((ComputableTidilyInPolyTime.listAppend (encConstraint encTable encNat)).comp
-    ((hb.tidy.comp (ComputableTidilyInPolyTime.fst _ _)).prod hc.tidy))
+  exact ComputableInPolyTime.listAppend'
+    (hb.comp (ComputableInPolyTime.fst _ _)) hc
 
 /-- Total ordinary native polynomial-time compiler under the original framed input and
 explicit-table output encodings. No input-validity, positivity, semantic, or runtime premise

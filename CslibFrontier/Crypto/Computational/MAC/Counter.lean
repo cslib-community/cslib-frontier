@@ -13,7 +13,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryLog
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
@@ -348,16 +348,6 @@ theorem succProbability_counterSufCmaGame_le {bound : ℕ → ℕ → ℕ} {n : 
 
 /-! ### Efficiency of the reduction -/
 
-/-- Comparing a unary counter with `2 ^ L` is plain polynomial-time. -/
-private theorem computableInPolyTime_lt_two_pow_comp {γ : Type} {encIn : γ ↪ List Bool}
-    {L j : γ → ℕ} (hL : ComputableInPolyTime L encIn encUnary)
-    (hj : ComputableInPolyTime j encIn encUnary) :
-    ComputableInPolyTime (fun a => decide (j a < 2 ^ L a)) encIn encBool :=
-  ComputableInPolyTime.binary_lt' (ComputableInPolyTime.unary_to_binary.comp hj)
-    (ComputableInPolyTime.binary_two_pow.comp hL)
-
-attribute [local fun_prop] computableInPolyTime_lt_two_pow_comp
-
 /-- `counterHandler` is strict oracle PPT in the caller `(n, aux)`, the request and the counter,
 for every polynomial-time bound. -/
 private theorem isOraclePPTOn_counterHandler {bound : ℕ → ℕ → ℕ}
@@ -403,7 +393,7 @@ theorem isOraclePPT_counterForger {bound : ℕ → ℕ → ℕ}
     {adversary : NonceMACForger} (hadversary : IsOraclePPT encNonceTaggedMessage adversary) :
     IsOraclePPT encNonceTaggedMessage (M.counterForger bound adversary) := by
   have hnonce := M.nonceLen_polyTime
-  refine ((hadversary.run_interpret_preprocess_open' (prepare := fun c => c)
+  refine ((hadversary.run_interpret_preprocess_open (prepare := fun c => c)
       (initial := fun _ => (0 : ℕ))
       (resources := fun c w => bound c.1 w.length + 2 * M.nonceLen c.1 + 2)
       ComputableInPolyTime.id' (isOraclePPTOn_counterHandler hboundPoly)

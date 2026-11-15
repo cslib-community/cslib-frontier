@@ -161,7 +161,9 @@ statistic of i.i.d. samples from a measure into this setting, import
 `map_measurePi_eq_toMeasure_pi` identifies the image of `Measure.pi μ` under coordinatewise
 almost everywhere measurable maps into finite types with
 `(pi fun i => ((μ i).map (g i)).toPMF).toMeasure`. The finite-product bounds then apply:
-Hoeffding's `pi_sum_abs_sub_mean_ge` in
+Hoeffding's `pi_sum_abs_sub_mean_ge` (and the `[0, 1]`-score forms
+`pi_sum_le_mean_sub_card_mul`, `pi_sum_ge_mean_add_card_mul`, and
+`pi_sum_abs_sub_mean_ge_card_mul` at deviation `card ι * γ` with exponent `-2 card ι γ²`) in
 [Concentration.lean](../../CslibFrontier/Probability/Concentration.lean) and the Chernoff lower
 tail `pi_sum_le_one_sub_mul` in [Chernoff.lean](../../CslibFrontier/Probability/Chernoff.lean). For
 a uniform draw on a finite group, import
@@ -283,6 +285,21 @@ a single `PMF.apply_ne_top _ _` keep the term. To compare success probabilities,
 `Game.succProbability`, and `Game.succProbability_le_add_of_advantage_le` turns a bound on
 `Game.advantage g₀ g₁` into `succProbability g₀ ≤ succProbability g₁ + B`. The [checked examples](../../CslibFrontierTests/PMFFiniteness.lean) cover
 each rule and the failure.
+
+## Certify a seeded binary linear hash
+
+Import [Probabilistic/LinearHash.lean](../../CslibFrontier/Computability/Probabilistic/LinearHash.lean).
+`LinearHash.computableInPolyTime_wordHash` takes plain certificates for the unary output count,
+the raw matrix seed and the input word, under any input encoding. Its row parser pads short
+seeds with zero; there is no well-formed-seed hypothesis. The proof composes the plain row parser,
+captured map and constant-state Boolean fold.
+
+`LinearHash.isPPTOn_extract` samples `count * input.length` fair bits and returns the complete
+seed followed by the digest. Supply plain count and input certificates; sampling and copying the
+revealed seed are included in the strict-PPT claim. For a deterministic caller, see the padded
+Naor–Reingold evaluator in
+[NaorReingold/Security.lean](../../CslibFrontier/Crypto/Computational/NaorReingold/Security.lean).
+These certificates assert polynomial time, rather than an exact time or workspace constant.
 
 ## Count the fair coins used by an exact sampler
 
@@ -1594,6 +1611,22 @@ example {A : ℕ → List Bool → ProbComp (List Bool)} (hA : IsPPT encBits A) 
 
 The inverters in the [InaccessibleEntropy development](../../CslibFrontier/Crypto/Computational/InaccessibleEntropy/OneWay.lean) are certified this way. In November 2026 a `ppt` call there cost about 11,000–14,000 heartbeats even on small goals, against a few hundred for the explicit proof. Without the right definition hints, a call could exhaust Aesop's rule limit.
 
+### Plain certificates for closed adaptive loops
+
+Import [Adaptive.lean](../../CslibFrontier/Computability/Probabilistic/Adaptive.lean).
+`IsPPTOn.iterate_spec'` and `iterateWith_spec'` take plain `ComputableInPolyTime`
+certificates for the unary count and initial state. Use `iterate_of_bounded_growth'`
+for fixed additive encoded-state growth, `iterateWith_of_bounded_growth'` for growth
+polynomially bounded in the captured input, and `iterate_of_length_le'` when the
+step never increases encoded size. The growth premises cover every supported result.
+The unprimed entry points retain their existing tidy premises during #862 migration.
+
+The [layered evaluator](../../CslibFrontier/Crypto/Computational/Homomorphic/Layered/PolyTime.lean)
+passes its existing `hcount` and `hinit` directly to the captured-growth rule. Its bound
+still covers malformed public inputs. The ordinary-import
+[adaptive regression client](../../CslibFrontierTests/AdaptivePPT.lean) applies the plain
+constant-growth rule to a quadratic number of random bit-prepending steps.
+
 ## Bound a centered-binomial sampler tail
 
 [CenteredBinomial/Concentration.lean](../../CslibFrontier/Languages/Probabilistic/CenteredBinomial/Concentration.lean)
@@ -1863,11 +1896,11 @@ Use `adaptive_isOraclePPTOn.query_bounds` to obtain polynomial bounds on externa
 
 <!-- /worked-example -->
 
-When replacing the external handler with an implementation, open [Oracle/Substitution.lean](../../CslibFrontier/Computability/Probabilistic/Oracle/Substitution.lean). The plain-certificate variant `IsOraclePPTOn.run_interpret_preprocess_open'` requires efficient preparation, initialization and handling, plus an invariant and bounds on reply length and added encoded state. Its `hresources` premise also certifies a uniform unary computation of the resource allowance from the original caller and request; an abstract polynomial bound alone does not supply this certificate. Repeated state doubling explains why “each call is polynomial time” is insufficient.
+When replacing the external handler with an implementation, open [Oracle/Substitution.lean](../../CslibFrontier/Computability/Probabilistic/Oracle/Substitution.lean). The canonical `IsOraclePPTOn.run_interpret_preprocess_open` rule takes plain polynomial-time preparation and initialization certificates and a strict oracle-PPT handler, plus an invariant and bounds on reply length and added encoded state. Its `hresources` premise also certifies a uniform unary computation of the resource allowance from the original caller and request; an abstract polynomial bound alone does not supply this certificate. Repeated state doubling explains why “each call is polynomial time” is insufficient. The closed `run_interpret_preprocess` rule and its parameterized wrapper accept the same plain preparation, initial-state and unary-allowance certificates. The former primed spellings have been removed after caller migration. The [ordinary-module client](../../CslibFrontierTests/OraclePlainSubstitution.lean) checks captured-input closed sampling, open memoized queries and the joint external/private-state law, together with zero-query and zero-allowance cases. `run_interpret_withSampleList` likewise consumes plain deterministic preparation and resource certificates; it still returns the final private state and unused samples.
 
-When the allowance is polynomially bounded but not conveniently computed, apply `IsOraclePPTOn.run_interpret_preprocess_open_of_polyBounded` instead (the uniform-clock form is `IsOraclePPT.run_interpret_preprocess_open_of_polyBounded` in [Oracle/Parameter.lean](../../CslibFrontier/Computability/Probabilistic/Oracle/Parameter.lean)). Its `hresources` premise is only `PolyBounded` growth of `resources caller request` in the length of the encoded caller–request pair, so no unary computation of the allowance is needed; both certificate variants are derived from it. The other premises are unchanged: the invariant must still hold for every handler result in the support under every external oracle, and the allowance must still bound each reply and the added encoded state. [`isPPTOn_runWithEncryption`](../../CslibFrontier/Crypto/Computational/Encryption/PublicKeyCPA.lean) is a checked client: it proves the allowance's growth with `growth_poly` from the security parameter and the lengths of the public key and the request.
+When the allowance is polynomially bounded but not conveniently computed, apply `IsOraclePPTOn.run_interpret_preprocess_open_of_polyBounded` instead (the uniform-clock form is `IsOraclePPT.run_interpret_preprocess_open_of_polyBounded` in [Oracle/Parameter.lean](../../CslibFrontier/Computability/Probabilistic/Oracle/Parameter.lean)). Its `hresources` premise is only `PolyBounded` growth of `resources caller request` in the length of the encoded caller–request pair, so no unary computation of the allowance is needed; the computed-allowance rule is derived from it. The other premises are unchanged: the invariant must still hold for every handler result in the support under every external oracle, and the allowance must still bound each reply and the added encoded state. [`isPPTOn_runWithEncryption`](../../CslibFrontier/Crypto/Computational/Encryption/PublicKeyCPA.lean) is a checked client: it proves the allowance's growth with `growth_poly` from the security parameter and the lengths of the public key and the request.
 
-When the run is written with [`runState`](../../CslibFrontier/Languages/Probabilistic/Oracle/RunState.lean) as `((program (prepare a)).runState (oracle a)).run (initial a)`, certify it with `IsOraclePPTOn.isPPTOn_runState`, or `IsOraclePPT.isPPTOn_runState` for a parameterized program, from [Oracle/RunState.lean](../../CslibFrontier/Computability/Probabilistic/Oracle/RunState.lean). They are `run_interpret_preprocess` and `run_interpret_preprocess'` restated on `runState`, with plain polynomial-time preparation, initial state and allowance in both: the oracle certificate applies the stateful oracle to caller, request and state, which `fun_prop` can certify, and the invariant and allowance are unchanged. The [checked client](../../CslibFrontierTests/OracleRunStatePPT.lean) certifies a run against a stateful oracle.
+When the run is written with [`runState`](../../CslibFrontier/Languages/Probabilistic/Oracle/RunState.lean) as `((program (prepare a)).runState (oracle a)).run (initial a)`, certify it with `IsOraclePPTOn.isPPTOn_runState`, or `IsOraclePPT.isPPTOn_runState` for a parameterized program, from [Oracle/RunState.lean](../../CslibFrontier/Computability/Probabilistic/Oracle/RunState.lean). They are the canonical closed `run_interpret_preprocess` rules restated on `runState`, with plain polynomial-time preparation, initial state and allowance in both: the oracle certificate applies the stateful oracle to caller, request and state, which `fun_prop` can certify, and the invariant and allowance are unchanged. The [checked client](../../CslibFrontierTests/OracleRunStatePPT.lean) certifies a run against a stateful oracle.
 
 ## Bound stateful identical-until-bad hops and random-oracle collisions
 
@@ -1953,7 +1986,7 @@ shared `PKE.cpaExperiment` of `toPKE`), and the narrower fixed-message `indCpaGa
 publicly re-exports that API for existing transform clients. State new IND-CPA hypotheses with
 `cpaAdvantage`: a bound for every fixed message pair does not give two-stage security.
 
-When the KEM instead derandomizes an explicit-coin public-key encryption scheme `encDet : PK → M → R → CT` with a mandatory re-encryption check (`T[PKE, G]`, `FO^⊥`, and domain-separated implicit-rejection `FO-notbot`), import [`FujisakiOkamoto.lean`](../../CslibFrontier/Crypto/Protocols/KEM/FujisakiOkamoto.lean) and [`FujisakiOkamoto/Security.lean`](../../CslibFrontier/Crypto/Protocols/KEM/FujisakiOkamoto/Security.lean) rather than `KEMFromPKE.lean`. Those modules supply `ExplicitCoinPKE` (`DeltaCorrect`, `GammaSpread`, `cpaAdvantage`), deterministic recovery and re-encryption rigidity lemmas (`decT_encT_eq_some`, `encT_of_decT_eq_some`, `Scheme.decapsBot_encT_eq_some`, `Scheme.decapsBot_eq_none_of_reencrypt_ne`, `Scheme.decapsNotBot_encT_eq`, `Scheme.decapsNotBot_of_reencrypt_ne`), and the `FO-notbot` ROM IND-CCA games (`Scheme.roIndCcaGame`, `Scheme.eagerIndCcaGame`, `Scheme.eval_roIndCcaGame_eq_eagerIndCcaGame`, `Scheme.indCcaRomAdvantage_eq_eager`) and keyless two-stage IND-CPA reduction (`Scheme.simHandler`, `Scheme.romCpaReduction`, `Scheme.simFilterOwExperiment`, `Scheme.succProbability_simFilterOwExperiment_le`; checked clients in [`CslibFrontierTests/Crypto/FujisakiOkamoto.lean`](../../CslibFrontierTests/Crypto/FujisakiOkamoto.lean)); the IND-CCA bound `Scheme.indCcaRomAdvantage_le` for adversaries with explicit coins (`RandomizedROAdversary`) from two-stage IND-CPA security of the one reduction `romCpaReduction A`, `δ`-correctness and `γ`-spreadness is in [`FujisakiOkamoto/NotBot.lean`](../../CslibFrontier/Crypto/Protocols/KEM/FujisakiOkamoto/NotBot.lean), with its hybrid games in `NotBot/Hybrids.lean` and one module per hop, while [`FujisakiOkamoto/Bot.lean`](../../CslibFrontier/Crypto/Protocols/KEM/FujisakiOkamoto/Bot.lean) (`Scheme.roIndCcaBotGame`, `Scheme.indCcaBotAdvantage_le`) and [`FujisakiOkamoto/SpreadNecessity.lean`](../../CslibFrontier/Crypto/Protocols/KEM/FujisakiOkamoto/SpreadNecessity.lean) (`unspreadPointPKE`, `probeDecapsAdv`, `advantage_eagerIndCcaBotGame_simBotGame_probeDecapsAdv`; checked client in [`CslibFrontierTests/Crypto/FujisakiOkamotoBot.lean`](../../CslibFrontierTests/Crypto/FujisakiOkamotoBot.lean)) prove the corresponding ROM IND-CCA bound for explicit-rejection `FO^⊥ = U^⊥ ∘ T` and the necessity of its `qD · 2^{-γ}` spreadness term, and [`FujisakiOkamoto/NoCheck.lean`](../../CslibFrontier/Crypto/Protocols/KEM/FujisakiOkamoto/NoCheck.lean) (`leakyPKE`, `decapsNotBot_leakyPKE_some`, `Scheme.decapsNoCheck`, `Scheme.eagerNoCheckGame`, `leakAdv`, `advantage_eagerNoCheckGame_leakAdv`) proves that dropping the re-encryption check breaks `FO-notbot` with advantage `≥ 1 - (n + 1) / |K|` for a perfectly correct `P` and uniform keys.
+When the KEM instead derandomizes an explicit-coin public-key encryption scheme `encDet : PK → M → R → CT` with a mandatory re-encryption check (`T[PKE, G]`, `FO^⊥`, and domain-separated implicit-rejection `FO-notbot`), import [`FujisakiOkamoto.lean`](../../CslibFrontier/Crypto/Protocols/KEM/FujisakiOkamoto.lean) and [`FujisakiOkamoto/Security.lean`](../../CslibFrontier/Crypto/Protocols/KEM/FujisakiOkamoto/Security.lean) rather than `KEMFromPKE.lean`. Those modules supply `ExplicitCoinPKE` (`DeltaCorrect`, `GammaSpread`, `cpaAdvantage`), deterministic recovery and re-encryption rigidity lemmas (`decT_encT_eq_some`, `encT_of_decT_eq_some`, `Scheme.decapsBot_encT_eq_some`, `Scheme.decapsBot_eq_none_of_reencrypt_ne`, `Scheme.decapsNotBot_encT_eq`, `Scheme.decapsNotBot_of_reencrypt_ne`), and the `FO-notbot` ROM IND-CCA games (`Scheme.roIndCcaGame`, `Scheme.eagerIndCcaGame`, `Scheme.eval_roIndCcaGame_eq_eagerIndCcaGame`, `Scheme.indCcaRomAdvantage_eq_eager`) and keyless two-stage IND-CPA reduction (`Scheme.simHandler`, `Scheme.romCpaReduction`, `Scheme.simFilterOwExperiment`, `Scheme.succProbability_simFilterOwExperiment_le`; checked clients in [`CslibFrontierTests/Crypto/FujisakiOkamoto.lean`](../../CslibFrontierTests/Crypto/FujisakiOkamoto.lean)); the concrete per-instance IND-CCA advantage bound `Scheme.indCcaRomAdvantage_le` for adversaries with explicit coins (`RandomizedROAdversary`), in terms of the two-stage IND-CPA advantage of the one reduction `romCpaReduction A` and `δ`-correctness (no `γ`-spreadness, as in HHK17) is in [`FujisakiOkamoto/NotBot.lean`](../../CslibFrontier/Crypto/Protocols/KEM/FujisakiOkamoto/NotBot.lean), with its hybrid games in `NotBot/Hybrids.lean` and one module per hop, while [`FujisakiOkamoto/Bot.lean`](../../CslibFrontier/Crypto/Protocols/KEM/FujisakiOkamoto/Bot.lean) (`Scheme.roIndCcaBotGame`, `Scheme.indCcaBotAdvantage_le`) and [`FujisakiOkamoto/SpreadNecessity.lean`](../../CslibFrontier/Crypto/Protocols/KEM/FujisakiOkamoto/SpreadNecessity.lean) (`unspreadPointPKE`, `probeDecapsAdv`, `advantage_eagerIndCcaBotGame_simBotGame_probeDecapsAdv`; checked client in [`CslibFrontierTests/Crypto/FujisakiOkamotoBot.lean`](../../CslibFrontierTests/Crypto/FujisakiOkamotoBot.lean)) prove the corresponding ROM IND-CCA bound for explicit-rejection `FO^⊥ = U^⊥ ∘ T` and the necessity of its `qD · 2^{-γ}` spreadness term, and [`FujisakiOkamoto/NoCheck.lean`](../../CslibFrontier/Crypto/Protocols/KEM/FujisakiOkamoto/NoCheck.lean) (`leakyPKE`, `decapsNotBot_leakyPKE_some`, `Scheme.decapsNoCheck`, `Scheme.eagerNoCheckGame`, `leakAdv`, `advantage_eagerNoCheckGame_leakAdv`) proves that dropping the re-encryption check breaks `FO-notbot` with advantage `≥ 1 - (n + 1) / |K|` for a perfectly correct `P` and uniform keys.
 
 ## Certify a list accumulator
 

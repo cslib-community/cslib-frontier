@@ -28,6 +28,7 @@ import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.PPT
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # MAC-then-Encrypt Composition and Chosen-Ciphertext Counterexample
@@ -698,7 +699,7 @@ theorem isOraclePPT_extendOneTimeCPAAdversary {ctBound : ℕ → ℕ}
             (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
             (extendOneTimeCPAHandler caller.1 (ctBound caller.1)))
           (adversary caller.1 [])).run false) := by
-    apply hadversary.run_interpret_preprocess_open'
+    apply hadversary.run_interpret_preprocess_open
       (prepare := fun caller : ℕ × List Bool => (caller.1, ([] : List Bool)))
       (initial := fun _ => false)
       (resources := fun caller _ => ctBound caller.1 + 2)
@@ -1174,8 +1175,7 @@ theorem prfMAC_pair_length
   have htagLen : (prfOracle family km.length km msg).length = n := by
     simp only [prfOracle, hmsg, hkmLen, ↓reduceIte]
     rw [hlen km msg (by rw [hmsg, hkmLen]), hkmLen]
-  simp only [length_encPair, encBits_apply, hmsg, htagLen]
-  omega
+  enc_len [hmsg, htagLen]
 
 /-- Concrete MAC-then-Encrypt counterexample cipher instantiated on
 `(prfCipher family).extendCipher` and `prfMAC family` with plaintext-tag length schedule

@@ -74,6 +74,12 @@ STEPS = (
          ("python3 -B -m unittest test_cache_handoff.HandoffTests"
           ".test_real_lake_reuses_module_and_native_outputs_without_setup_inputs",),
          cwd="scripts", env={"COMPLEXITYLIB_TEST_LAKE_HANDOFF": "1"}),
+    Step("Test real Lake interrupt cleanup",
+         ("python3 -B -m unittest "
+          "scripts.test_check_cache_restores.RealLakeTests"
+          ".test_parallel_real_lake_sigint_cleans_up_descendant_process_tree "
+          "scripts.test_check_cache_restores.RealLakeTests"
+          ".test_parallel_real_lake_sigterm_cleans_up_descendant_process_tree",)),
     Step("Test real Lake cache publication staging",
          ("python3 -B -m unittest scripts.test_cache_publish.RealLakePublicationTests",)),
     Step("lake build",
@@ -89,6 +95,9 @@ STEPS = (
     Step("Security premise ratchet (changed modules)",
          ("python3 -B -m unittest scripts/test_check_security_premises.py",
           'python3 -B scripts/check_security_premises.py --base "$BASE"')),
+    Step("Named assumptions (whole library)",
+         ("python3 -B -m unittest scripts/test_check_hardness_assumptions.py",
+          "python3 -B scripts/check_hardness_assumptions.py")),
     Step("Result registry references", ("python3 -B scripts/results_registry.py --compiled",)),
     Step("Changed-file lints", ('python3 -B scripts/check_changed_files.py --base "$BASE"',)),
     Step("lake exe mk_all --check", ("lake exe mk_all --check",)),
@@ -121,6 +130,7 @@ CI_ONLY = {
         "merge groups and main pushes only; reports and always succeeds",
     "Security premise report":
         "merge groups and main pushes only; reports and always succeeds",
+    "Named assumptions report": "main pushes only; reports and always succeeds",
     "Repeated-proof-block notice (advisory)":
         "advisory; never fails the job. Run `scripts/proof_copies.py --base REF` to see it",
     "Reclaim unused hosted-runner SDK space": "hosted-runner disk cleanup",

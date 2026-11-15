@@ -8,7 +8,10 @@ module
 
 public import CslibFrontier.Crypto.Computational.FuzzyExtractor.Basic
 public import CslibFrontier.Crypto.Computational.FuzzyExtractor.DecodeThenExtract
+public import CslibFrontier.Crypto.Computational.FuzzyExtractor.DecodeThenExtract.Security
 import CslibFrontier.Probability.PMF.Uniform
+import CslibFrontier.Probability.PMF.UniformPoint
+import Mathlib.Algebra.Field.ZMod
 
 /-!
 # Computational fuzzy extractor tests
@@ -16,11 +19,14 @@ import CslibFrontier.Probability.PMF.Uniform
 Exercise the fuzzy-extractor definitions, the sketch-and-extract construction (Lemma 2.5), and the
 LWE decode-then-extract construction (Construction 4.1) on concrete finite-field parameters.
 Distinguishers are `Experiment` programs. Includes positive instances (zero-error
-sketch-and-extract, the additive extractor on a uniform source, the LWE security bound for
+sketch-and-extract, a decoder over `ZMod 5` that satisfies `DecoderCorrectWithError` with failure
+probability `1 / 5`, the additive extractor on a uniform source, the LWE security bound for
 Construction 4.1 at concrete dimensions against `LWE.advantage`, a concrete Hamming distance) and a
 separating negative fixture
 (`revealingFuzzyExtractor`) that is perfectly reproducible for every distance threshold `t` yet
-has distinguishing advantage `1 / 2` on a uniform 1-bit source.
+has distinguishing advantage `1 / 2` on a uniform 1-bit source. The asymptotic theorem
+`computationallySecure_lweFuzzyExtractor` is applied to the uniform source, for which its LWE
+premise holds unconditionally, and to independent-coordinate sources under `DecisionLWE`.
 -/
 
 public section
@@ -66,6 +72,51 @@ example (w : Fin 3 → ZMod 2) :
     (by simp [hammingDist_self])
   exact le_antisymm h zero_le
 
+/-! ### Average-case decoder correctness is satisfiable -/
+
+/-- A decoder for one error-free LWE sample over `ZMod 5`: it returns `(A 0 0)⁻¹ * c 0` when
+`A 0 0 ≠ 0` and gives up on the zero matrix, where `c = A s` does not depend on `s`. -/
+def unitDecoder (A : Matrix (Fin 1) (Fin 1) (ZMod 5)) (c : Fin 1 → ZMod 5) :
+    ProbComp (Option (Fin 1 → ZMod 5)) :=
+  return if A 0 0 = 0 then none else some fun _ => (A 0 0)⁻¹ * c 0
+
+/-- `unitDecoder` fails only on the zero matrix, which a uniform `1 × 1` matrix over `ZMod 5`
+hits with probability `1 / 5`. So `DecoderCorrectWithError` holds with `δ = 1 / 5 < 1` at
+`n = 1`, `q = 5`, parameters where no decoder is correct for every matrix. -/
+theorem decoderCorrectWithError_unitDecoder : DecoderCorrectWithError unitDecoder 0 (1 / 5) := by
+  intro s e he
+  obtain rfl : e = 0 := hammingNorm_eq_zero.mp (Nat.le_zero.mp he)
+  rw [← ENNReal.coe_le_coe, Game.failProbability, ENNReal.coe_toNNReal (PMF.apply_ne_top _ _)]
+  simp only [decodeGame, decodeCheck, unitDecoder, ProbComp.eval_bind, ProbComp.eval_pure,
+    ProbComp.eval_uniform, PMF.pure_bind]
+  -- The failure probability is the probability that the negated success test accepts.
+  have hflip (E : Matrix (Fin 1) (Fin 1) (ZMod 5) → Bool) :
+      ((PMF.uniformOfFintype _).bind fun A => PMF.pure (E A)) false =
+        ((PMF.uniformOfFintype _).bind fun A => PMF.pure (!E A)) true := by
+    simp only [PMF.bind_apply, PMF.pure_apply]
+    congr 1 with A
+    cases E A <;> simp
+  rw [hflip]
+  refine (Cslib.Probability.PMF.uniformOfFintype_bind_pure_apply_true_le ?_).trans ?_
+  · -- Decoding fails only on the zero matrix.
+    refine (Set.subsingleton_singleton (a := (0 : Matrix (Fin 1) (Fin 1) (ZMod 5)))).anti
+      fun A hA => ?_
+    rw [Set.mem_singleton_iff]
+    ext i j
+    obtain rfl := Subsingleton.elim i 0
+    obtain rfl := Subsingleton.elim j 0
+    by_contra h0
+    rw [Matrix.zero_apply] at h0
+    have : Fact (Nat.Prime 5) := ⟨by decide⟩
+    have hs : (fun _ : Fin 1 => (A 0 0)⁻¹ * A.mulVec s 0) = s := by
+      funext i
+      obtain rfl := Subsingleton.elim i 0
+      rw [Matrix.mulVec, dotProduct, Fin.sum_univ_one]
+      exact inv_mul_cancel_left₀ h0 _
+    simp [h0, hs] at hA
+  · have hcard : Fintype.card (Matrix (Fin 1) (Fin 1) (ZMod 5)) = 5 := rfl
+    rw [hcard, Nat.cast_ofNat, one_div, ENNReal.coe_inv (by norm_num), ENNReal.coe_ofNat]
+
 /-! ### Concrete decode-then-extract security (Construction 4.1) -/
 
 /-- Concrete instantiation of `decodeThenExtract` on `m = 3, n = 2, q = 5` with the additive
@@ -95,18 +146,8 @@ example
 theorem lweAdvantage_uniform_error_eq_zero
     (B : Matrix (Fin 4) (Fin 1) (ZMod 7) → (Fin 4 → ZMod 7) → Experiment) :
     LWE.advantage (PMF.uniformOfFintype (Fin 1 → ZMod 7))
-      (PMF.uniformOfFintype (Fin 4 → ZMod 7)) B = 0 := by
-  have hreal : LWE.realGame (PMF.uniformOfFintype (Fin 1 → ZMod 7))
-      (PMF.uniformOfFintype (Fin 4 → ZMod 7)) B = LWE.randomGame B := by
-    simp only [LWE.realGame, LWE.randomGame, LWE.eval_realExperiment,
-      LWE.eval_randomExperiment, PMF.monad_bind_eq_bind]
-    refine Eq.trans ?_ (PMF.bind_const (PMF.uniformOfFintype (Fin 1 → ZMod 7)) _)
-    congr 1 with s : 1
-    rw [PMF.bind_comm (PMF.uniformOfFintype (Fin 4 → ZMod 7))]
-    congr 1 with A : 1
-    exact PMF.uniformOfFintype_bind_equiv (Equiv.addLeft (A.mulVec s))
-      (fun b => ProbComp.eval (B A b))
-  rw [LWE.advantage, hreal, Game.advantage_self]
+      (PMF.uniformOfFintype (Fin 4 → ZMod 7)) B = 0 :=
+  LWE.advantage_uniform_error_eq_zero _ B
 
 /-- For the uniform source, both LWE advantages in `securityAdvantage_lweFuzzyExtractor_le` vanish,
 so Construction 4.1 is `0`-secure for it against every distinguisher. -/
@@ -120,6 +161,45 @@ example
   subst hW
   simpa only [lweAdvantage_uniform_error_eq_zero, add_zero] using
     securityAdvantage_lweFuzzyExtractor_le decode (PMF.uniformOfFintype (Fin 4 → ZMod 7)) D
+
+/-! ### Asymptotic security: the premise is satisfiable -/
+
+/-- With uniform errors, `DecisionLWEWithErrors` holds for all dimensions: `A s + e` is uniform and
+independent of `(A, s)`, so the real and random games coincide. -/
+theorem decisionLWEWithErrors_uniform (n m w : ℕ → ℕ) :
+    DecisionLWEWithErrors n m w fun κ => PMF.uniformOfFintype (Fin (m κ) → ZMod (2 ^ w κ)) := by
+  intro D _
+  simp only [LWE.realGame_uniform_error_eq_randomGame, Game.advantage_self]
+  exact negligible_zero
+
+open Turing.MultiTapeTM in
+/-- The asymptotic theorem applies to the family with `κ` samples, key length `κ`, `κ` further
+secret coordinates and modulus `2`, on the uniform source. -/
+example (decode : (κ : ℕ) → Matrix (Fin κ) (Fin (κ + κ)) (ZMod (2 ^ 1)) →
+      (Fin κ → ZMod (2 ^ 1)) → ProbComp (Option (Fin (κ + κ) → ZMod (2 ^ 1)))) :
+    ComputationallySecure (fun κ => lweFuzzyExtractor κ κ κ (2 ^ 1) (decode κ))
+      {fun κ => PMF.uniformOfFintype (Fin κ → ZMod (2 ^ 1))}
+      (LWEFamily.Distinguisher.IsPPT (m := id) (k := id) (l := id) (w := fun _ => 1)) :=
+  computationallySecure_lweFuzzyExtractor (m := id) (k := id) (l := id) (w := fun _ => 1)
+    ComputableInPolyTime.id' ComputableInPolyTime.id' ComputableInPolyTime.id'
+    (ComputableInPolyTime.const 1) decode (by
+      rintro _ rfl
+      exact decisionLWEWithErrors_uniform id id fun _ => 1)
+
+open Turing.MultiTapeTM in
+/-- On the source whose coordinates are independent draws from `noise κ`, the premise is
+`DecisionLWE l m w noise`, the form of the assumption used by the Regev and GSW schemes. -/
+example {m k l w : ℕ → ℕ} (hm : ComputableInPolyTime m encUnary encUnary)
+    (hk : ComputableInPolyTime k encUnary encUnary) (hl : ComputableInPolyTime l encUnary encUnary)
+    (hw : ComputableInPolyTime w encUnary encUnary)
+    (decode : (κ : ℕ) → Matrix (Fin (m κ)) (Fin (k κ + l κ)) (ZMod (2 ^ w κ)) →
+      (Fin (m κ) → ZMod (2 ^ w κ)) → ProbComp (Option (Fin (k κ + l κ) → ZMod (2 ^ w κ))))
+    (noise : (κ : ℕ) → PMF (ZMod (2 ^ w κ))) (hLWE : DecisionLWE l m w noise) :
+    ComputationallySecure (fun κ => lweFuzzyExtractor (m κ) (k κ) (l κ) (2 ^ w κ) (decode κ))
+      {fun κ => PMF.pi fun _ : Fin (m κ) => noise κ} LWEFamily.Distinguisher.IsPPT :=
+  computationallySecure_lweFuzzyExtractor hm hk hl hw decode (by
+    rintro _ rfl
+    exact (decisionLWE_iff_decisionLWEWithErrors l m w noise).mp hLWE)
 
 /-! ### Separating fixture: reproducible for all `t`, but insecure -/
 
