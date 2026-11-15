@@ -130,11 +130,22 @@ arbitrary lists: exhaustion before a mismatch rejects, and every matched pair is
 @[expose] def berExpLazyTrace : List Byte → List Byte → BerExpLazyResult
   | threshold :: thresholds, sample :: samples =>
       if sample < threshold then
-        BerExpLazyResult.stop true
+        { accepted := true, bytesRead := 1,
+          resources := ⟨1, 1, 1, 8, 0, 0⟩ }
       else if threshold < sample then
-        BerExpLazyResult.stop false
+        { accepted := false, bytesRead := 1,
+          resources := ⟨1, 1, 1, 8, 0, 0⟩ }
       else
-        (berExpLazyTrace thresholds samples).next
+        let result := berExpLazyTrace thresholds samples
+        { result with
+          bytesRead := result.bytesRead + 1
+          resources :=
+            { byteDrawCount := result.resources.byteDrawCount + 1
+              byteSubtractionCount := result.resources.byteSubtractionCount + 1
+              byteComparisonCount := result.resources.byteComparisonCount + 1
+              randomBits := result.resources.randomBits + 8
+              oracleQueries := result.resources.oracleQueries
+              handlerCalls := result.resources.handlerCalls } }
   | _, _ => { accepted := false, bytesRead := 0, resources := ⟨0, 0, 0, 0, 0, 0⟩ }
 
 /-- On lists of equal length, the lazy trace accepts exactly at strict lexicographic comparison. -/
@@ -167,7 +178,7 @@ theorem berExpLazyTrace_bytesRead_le (thresholds samples : List Byte) :
           · simp [berExpLazyTrace, hlt]
           · by_cases hgt : threshold < sample
             · simp [berExpLazyTrace, hlt, hgt]
-            · simp only [berExpLazyTrace, hlt, hgt, if_false, BerExpLazyResult.next]
+            · simp only [berExpLazyTrace, hlt, hgt, ite_false]
               have := ih samples
               omega
 
@@ -175,10 +186,10 @@ private theorem one_le_berExpLazyTrace_bytesRead (threshold : Byte) (thresholds 
     (sample : Byte) (samples : List Byte) :
     1 ≤ (berExpLazyTrace (threshold :: thresholds) (sample :: samples)).bytesRead := by
   by_cases hlt : sample < threshold
-  · simp [berExpLazyTrace, hlt, BerExpLazyResult.stop]
+  · simp [berExpLazyTrace, hlt]
   · by_cases hgt : threshold < sample
-    · simp [berExpLazyTrace, hlt, hgt, BerExpLazyResult.stop]
-    · simp [berExpLazyTrace, hlt, hgt, BerExpLazyResult.next]
+    · simp [berExpLazyTrace, hlt, hgt]
+    · simp [berExpLazyTrace, hlt, hgt]
 
 /-- Every deterministic trace ledger charges exactly the byte pairs it consumed. -/
 private theorem berExpLazyTrace_resources (thresholds samples : List Byte) :
@@ -196,11 +207,11 @@ private theorem berExpLazyTrace_resources (thresholds samples : List Byte) :
       | nil => simp [berExpLazyTrace]
       | cons sample samples =>
           by_cases hlt : sample < threshold
-          · simp [berExpLazyTrace, hlt, BerExpLazyResult.stop]
+          · simp [berExpLazyTrace, hlt]
           · by_cases hgt : threshold < sample
-            · simp [berExpLazyTrace, hlt, hgt, BerExpLazyResult.stop]
+            · simp [berExpLazyTrace, hlt, hgt]
             · have hresources := ih samples
-              simp only [berExpLazyTrace, hlt, hgt, if_false, BerExpLazyResult.next]
+              simp only [berExpLazyTrace, hlt, hgt, ite_false]
               omega
 
 /-- The shared eight-byte big-endian representation of a 64-bit threshold. -/
@@ -300,7 +311,7 @@ private theorem eval_berExpLazyBytes (thresholds : List Byte) :
         · simp [berExpLazyTrace, hlt, hgt, BerExpLazyResult.stop]
         · have heq : sample = threshold := le_antisymm (not_lt.mp hgt) (not_lt.mp hlt)
           subst sample
-          simp only [lt_self_iff_false, if_false, ih, PMF.map_comp, Function.comp_def]
+          simp only [lt_self_iff_false, ite_false, ih, PMF.map_comp, Function.comp_def]
           congr 1 with result : 1
           rfl
 
@@ -429,13 +440,13 @@ private theorem berExpLazyTrace_bytesRead_gt_one {first second : Byte}
   simp only [List.length_cons, Nat.add_right_cancel_iff] at hlength
   obtain ⟨nextSample, remaining, rfl⟩ := List.exists_cons_of_length_eq_add_one hlength
   by_cases hlt : sample < first
-  · simp [berExpLazyTrace, hlt, BerExpLazyResult.stop, hlt.ne]
+  · simp [berExpLazyTrace, hlt, hlt.ne]
   · by_cases hgt : first < sample
-    · simp [berExpLazyTrace, hlt, hgt, BerExpLazyResult.stop, hgt.ne]
+    · simp [berExpLazyTrace, hlt, hgt, hgt.ne]
     · have heq : sample = first := le_antisymm (not_lt.mp hgt) (not_lt.mp hlt)
       subst sample
       have hone := one_le_berExpLazyTrace_bytesRead second thresholds nextSample remaining
-      simp [berExpLazyTrace, BerExpLazyResult.next, hone]
+      simp [berExpLazyTrace, hone]
 
 private theorem eval_berExpLazyBytes_bytesRead_gt_one (first second : Byte)
     (thresholds : List Byte) :
