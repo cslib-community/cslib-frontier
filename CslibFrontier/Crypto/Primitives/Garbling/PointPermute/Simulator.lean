@@ -34,7 +34,7 @@ topology `t = (n, m, q, A, B)`. It samples one `(k + 2)`-bit label for each of t
 and four filler labels for each gate, and writes the view `(F, X, d)` (`simViewWord`): in each
 gate's table, the row named by the colours of its argument wires' labels holds the gate's label
 masked under their keys, and every other row holds a filler label; `X` lists the input wires'
-labels, and `d` makes the output wires' colours decode to `y`.
+labels, and `d` makes the output wires' colours decode to `y` when `y` has `m` bits.
 
 The words written are those of the typed simulator `simulateWith` on `toCircuit f`, for every
 valid circuit `f` of topology `t`, with the labels read from the coins (`simViewWord_eq`), and the
