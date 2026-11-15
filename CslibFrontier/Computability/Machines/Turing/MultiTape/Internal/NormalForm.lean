@@ -12,11 +12,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBoun
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Defs
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.KernelNormalForm
-import CslibFrontier.Computability.Machines.Turing.MultiTape.TapeLemmas
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Deterministic
-import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Ring
+import Mathlib.Tactic.TypeStar
 
 /-!
 # Internal machine normal forms for plain resource bounds
