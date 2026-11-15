@@ -295,7 +295,8 @@ read a polynomially bounded advice word, charged to their clock, in place of the
 families of polynomial-size circuits. The two give the same notion: fixing an advised inverter's
 coins to a best choice and writing out its run gives a polynomial-size circuit at each length, as
 the source's remark after the definition does for uniform inverters, and a circuit's description
-is polynomially bounded advice for a uniform circuit evaluator. -/
+is polynomially bounded advice for a uniform circuit evaluator. Section 1.3.3, pp. 18–20, of the
+source describes this correspondence between machines with advice and circuit families. -/
 structure NonuniformOneWay (f : List Bool → List Bool) : Prop where
   /-- A deterministic polynomial-time algorithm evaluates the function. -/
   polyTime : ComputableInPolyTime f encBits encBits
@@ -339,7 +340,8 @@ This is [Goldreich1998Fragments], Definition 3.3.2, p. 85, with pseudorandomness
 polynomial-size circuits, the indistinguishability that Exercise 8 of Chapter 3, p. 121, defines,
 in place of probabilistic polynomial-time tests. As for `NonuniformOneWay`, the circuits are
 replaced by uniform strict PPT tests reading a polynomially bounded advice word, which give the
-same notion. -/
+same notion; fixing a probabilistic test's coins loses no distinguishing gap (Exercise 7 of
+Chapter 3, p. 121). -/
 structure NonuniformPRG (generator : List Bool → List Bool) (length : ℕ → ℕ) : Prop where
   /-- One deterministic polynomial-time machine evaluates the generator. -/
   polyTime : ComputableInPolyTime generator encBits encBits

@@ -62,10 +62,22 @@ variable {soundness soundness' : ℕ → ENNReal}
 parameter (`∀ n, soundness n ≠ ⊤`, ruling out the degenerate `ENNReal.toNNReal ⊤ = 0` case) and
 its nonnegative real value `fun n => (soundness n).toNNReal` is `Negligible`.
 
-This is the soundness condition of [Goldreich1998Fragments], Definition 4.2.6, p. 136, with a
-negligible soundness bound. The bound is indexed by the security parameter `n`, where the
-source's is a function of the input length `|x|`; as there, it bounds the acceptance probability
-of every prover on false instances, with no resource bound on the prover (`ZKProof.sound`). -/
+This notion is novel to this library. It strengthens the soundness condition of
+[Goldreich1998Fragments], Definition 4.2.6, p. 136, with a negligible soundness bound: through
+`ZKProof.sound`, `soundness n` bounds the acceptance probability of every prover on every false
+instance at parameter `n`, uniformly in the instance, where the source's bound `s(|x|)` is a
+function of the input length. For a verifier that ignores `n`, a bound negligible in `n` forces
+soundness error `0`, so such a verifier with soundness error `2^(-|x|)` meets the source's
+condition with a negligible bound but not this one. As in the source, the provers have no resource
+bound.
+
+*Relation to standard assumptions.* Running the verifier at `n = |x|` gives the source's soundness
+condition with the negligible bound `s(m) = soundness m`.
+
+*Why it is plausible.* Sequential repetition gives it: `ZKProof.negligibleSoundness_one_third_pow`
+proves it for soundness `(1/3)^(k n)` with `n ≤ k n`, and the library's Goldreich–Micali–Wigderson
+theorems `OneWay.exists_zkProof_of_mem_NP` and `NonuniformOneWay.exists_zkProof_of_mem_NP` build
+proof systems with it for every language in NP. -/
 def NegligibleSoundness (_zk : ZKProof enc A soundness) : Prop :=
   (∀ n, soundness n ≠ ⊤) ∧ Negligible (fun n => (soundness n).toNNReal)
 
