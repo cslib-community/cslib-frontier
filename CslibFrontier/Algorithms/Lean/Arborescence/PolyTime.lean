@@ -25,6 +25,7 @@ import CslibFrontier.Foundations.Data.List.ArgMin
 import CslibFrontier.Foundations.Data.Nat.BinarySize
 import CslibFrontier.Tactic.PolyTime
 import Mathlib.Data.List.GetD
+import Mathlib.Logic.Equiv.Fin.Basic
 
 /-!
 # Polynomial-time Chu–Liu/Edmonds arborescence and branching solvers (`P`)
@@ -1283,16 +1284,14 @@ theorem computableInPolyTime_edmondsTableAuxList :
     set L := (encTableAuxInput x).length
     set M₀ := x.cost.foldl (fun m r => r.foldl (fun k (z : ℤ) => max k z.natAbs) m) 0
     have hinv := stateBoundInv_iterate x i
-    have hlen_in : L = 2 * x.fuel + 1 + (2 * x.root + 1 +
-        (2 * (encList (encList encBool) x.adj).length + 1 +
-          (encList (encList encIntBin) x.cost).length)) := by
-      dsimp only [L]
-      rw [encTableAuxInput_apply, length_encPair, length_encPair, length_encPair]
-      simp [encUnary_apply]
-    have hfuel : x.fuel ≤ L := by omega
-    have hroot : x.root ≤ L := by omega
-    have hadj_in : (encList (encList encBool) x.adj).length ≤ L := by omega
-    have hcost_in : (encList (encList encIntBin) x.cost).length ≤ L := by omega
+    have hfuel : x.fuel ≤ L := by
+      simpa only [encUnary_apply, List.length_replicate] using encTableAuxInput_fuel_length_le x
+    have hroot : x.root ≤ L := by
+      simpa only [encUnary_apply, List.length_replicate] using encTableAuxInput_root_length_le x
+    have hadj_in : (encList (encList encBool) x.adj).length ≤ L :=
+      encTableAuxInput_adj_length_le x
+    have hcost_in : (encList (encList encIntBin) x.cost).length ≤ L :=
+      encTableAuxInput_cost_length_le x
     have hn : x.adj.length ≤ L :=
       (SizedListEncoding.length_le (encA := encList encBool)
         (encL := encList (encList encBool)) x.adj).trans hadj_in
@@ -1415,16 +1414,11 @@ theorem computableInPolyTime_edmondsTableAuxList :
       set base := p.2
       have hinv := stateBoundInv_iterate x x.fuel
       set final := contractStep^[x.fuel] ⟨x.adj, x.cost, x.root, false, none, []⟩
-      have hlen_in : (encTableAuxInput x).length = 2 * x.fuel + 1 + (2 * x.root + 1 +
-          (2 * (encList (encList encBool) x.adj).length + 1 +
-            (encList (encList encIntBin) x.cost).length)) := by
-        rw [encTableAuxInput_apply, length_encPair, length_encPair, length_encPair]
-        simp [encUnary_apply]
-      have hL_adj : x.adj.length ≤ (encTableAuxInput x).length := by
-        have h1 := SizedListEncoding.length_le (encA := encList encBool)
-          (encL := encList (encList encBool)) x.adj
-        omega
-      have hL_root : x.root ≤ (encTableAuxInput x).length := by omega
+      have hL_adj : x.adj.length ≤ (encTableAuxInput x).length :=
+        (SizedListEncoding.length_le (encA := encList encBool)
+          (encL := encList (encList encBool)) x.adj).trans (encTableAuxInput_adj_length_le x)
+      have hL_root : x.root ≤ (encTableAuxInput x).length := by
+        simpa only [encUnary_apply, List.length_replicate] using encTableAuxInput_root_length_le x
       have hbase_len : base.length ≤ (encList encUnary base).length :=
         SizedListEncoding.length_le (encA := encUnary) (encL := encList encUnary) base
       have hbase_elem : ∀ v ∈ base, v ≤ (encList encUnary base).length := fun v hv => by
@@ -2520,27 +2514,15 @@ theorem maxBranchingDecide_eq_true_iff (d : BranchingDecInstance) :
   set n := d.inst.adj.length
   set adj' := superRootAdjList d.inst.adj
   set wt' := superRootWeightList n d.inst.weight
-  set r : Fin (n + 1) := ⟨n, Nat.lt_succ_self n⟩
+  set r : Fin (n + 1) := Fin.last n
   let G' : Digraph (Fin (n + 1)) := ⟨fun u w => tableAdj (n + 1) adj' u w = true⟩
   let _ : DecidableRel G'.Adj :=
     fun u w => inferInstanceAs (Decidable (tableAdj (n + 1) adj' u w = true))
-  let e : Fin (n + 1) ≃ Option (Fin n) :=
-    { toFun := fun x => if h : x.1 < n then some ⟨x.1, h⟩ else none
-      invFun := fun o => o.elim r fun v => ⟨v.1, Nat.lt_succ_of_lt v.2⟩
-      left_inv := fun x => by
-        dsimp only
-        split_ifs with h
-        · rfl
-        · ext; exact (Nat.eq_of_le_of_lt_succ (Nat.le_of_not_lt h) x.2).symm
-      right_inv := fun o => by
-        cases o with
-        | none => simp [r]
-        | some v => simp [v.2] }
+  let e : Fin (n + 1) ≃ Option (Fin n) := finSuccEquivLast
   have he_none : e r = none := by simp [e, r]
-  have he_symm_none : e.symm none = r := rfl
-  have he_some (v : Fin n) : e ⟨v.1, Nat.lt_succ_of_lt v.2⟩ = some v := by
-    simp [e, v.2]
-  have he_symm_some (v : Fin n) : e.symm (some v) = ⟨v.1, Nat.lt_succ_of_lt v.2⟩ := rfl
+  have he_symm_none : e.symm none = r := by simp [e, r]
+  have he_some (v : Fin n) : e v.castSucc = some v := by simp [e]
+  have he_symm_some (v : Fin n) : e.symm (some v) = v.castSucc := by simp [e]
   have ha'_len : adj'.length = n + 1 := by simp [adj', superRootAdjList, n]
   have hcase (u : Fin (n + 1)) : (∃ h : u.1 < n, (u.1 == n) = false ∧ e u = some ⟨u.1, h⟩) ∨
       ((u.1 == n) = true ∧ e u = none) := by
@@ -2600,7 +2582,8 @@ theorem maxBranchingDecide_eq_true_iff (d : BranchingDecInstance) :
     | none => simp [hL] at hrun_eq
     | some pL =>
       simp only [hL] at hrun_eq
-      exact ⟨pL, rfl, hrun_eq.1, hrun_eq.2⟩
+      refine ⟨pL, ?_, hrun_eq.1, hrun_eq.2⟩
+      simpa only [r, Fin.val_last] using hL
   obtain ⟨hT, hTG, hoptT⟩ := edmonds_optimal hpV
   have hT_map_arb : (mapDigraph e (Digraph.parentDigraph r pV)).IsInArborescence none := by
     rw [← he_none]
@@ -2631,26 +2614,28 @@ theorem maxBranchingDecide_eq_true_iff (d : BranchingDecInstance) :
             let pv := p.getD v 0; if pv == n then v else pv)).getD v.1 0 = _
       rw [hpL_eq, Option.elim_some, List.getD_eq_getElem _ _ (by simp [hvn]),
         List.getElem_map, List.getElem_range]
-    have hpv_lt := hpL_val ⟨v.1, Nat.lt_succ_of_lt v.2⟩
-    have hv_ne : (⟨v.1, Nat.lt_succ_of_lt v.2⟩ : Fin (n + 1)) ≠ r := by
+    have hpv_lt := hpL_val v.castSucc
+    simp only [Fin.val_castSucc] at hpv_lt
+    have hv_ne : v.castSucc ≠ r := by
       simp [Fin.ext_iff, r, v.2.ne]
-    by_cases hpr : pV ⟨v.1, Nat.lt_succ_of_lt v.2⟩ = r
-    · have hpn : pL.getD v.1 0 = n := by rw [hpv_lt, hpr]
+    by_cases hpr : pV v.castSucc = r
+    · have hpn : pL.getD v.1 0 = n := by
+        rw [hpv_lt, hpr]
+        simp only [r, Fin.val_last]
       rw [hopt_get, hpn]
       simp [hpr, r, Fin.ext_iff, v.2.ne, u.2.ne.symm]
-    · have hplt : (pV ⟨v.1, Nat.lt_succ_of_lt v.2⟩).1 < n := by
-        have hlt := (pV ⟨v.1, Nat.lt_succ_of_lt v.2⟩).2
-        have hne : (pV ⟨v.1, Nat.lt_succ_of_lt v.2⟩).1 ≠ n := fun h => hpr (Fin.ext h)
+    · have hplt : (pV v.castSucc).1 < n := by
+        have hlt := (pV v.castSucc).2
+        have hne : (pV v.castSucc).1 ≠ n := fun h => hpr (Fin.ext h)
         omega
-      dsimp only at hpv_lt
       have hp_ne : (pL.getD v.1 0 == n) = false := beq_false_of_ne (by omega)
       have hval : (optimumBranchingList d.inst).getD v.1 0 =
-          (pV ⟨v.1, Nat.lt_succ_of_lt v.2⟩).1 := by
+          (pV v.castSucc).1 := by
         rw [hopt_get, hp_ne]
         simp only [Bool.false_eq_true, ↓reduceIte]
         exact hpv_lt
       have hP : (let pv := (optimumBranchingList d.inst).getD v.1 0
-          if h : pv < n then ⟨pv, h⟩ else v) = ⟨(pV ⟨v.1, Nat.lt_succ_of_lt v.2⟩).1, hplt⟩ := by
+          if h : pv < n then ⟨pv, h⟩ else v) = ⟨(pV v.castSucc).1, hplt⟩ := by
         dsimp only
         split_ifs with hlt
         · exact Fin.ext hval
@@ -2658,13 +2643,13 @@ theorem maxBranchingDecide_eq_true_iff (d : BranchingDecInstance) :
       rw [hP]
       constructor
       · rintro ⟨_, h⟩
-        have hval_h : (pV ⟨v.1, Nat.lt_succ_of_lt v.2⟩).1 = u.1 :=
+        have hval_h : (pV v.castSucc).1 = u.1 :=
           congrArg (@Fin.val (n + 1)) h
         refine ⟨fun hvu => ?_, Fin.ext hval_h⟩
-        have hself : pV ⟨v.1, Nat.lt_succ_of_lt v.2⟩ = ⟨v.1, Nat.lt_succ_of_lt v.2⟩ :=
+        have hself : pV v.castSucc = v.castSucc :=
           Fin.ext (congrArg (@Fin.val n) hvu)
         have hloop : (Digraph.parentDigraph r pV).Adj
-            ⟨v.1, Nat.lt_succ_of_lt v.2⟩ ⟨v.1, Nat.lt_succ_of_lt v.2⟩ := ⟨hv_ne, hself⟩
+            v.castSucc v.castSucc := ⟨hv_ne, hself⟩
         have hc := Relation.TransGen.single (show Bstar.Adj v v from by
           simpa [Bstar, mapDigraph, he_symm_some] using hloop)
         exact hB_branch.acyclic hc
@@ -2685,9 +2670,9 @@ theorem maxBranchingDecide_eq_true_iff (d : BranchingDecInstance) :
           (superRootWeightList n d.inst.weight) = some pL from hpL_eq,
         Option.elim_some, List.getD_eq_getElem _ _ (by dsimp only [n]; simp),
         List.getElem_map, List.getElem_range]
-      have hv_val := hpL_val ⟨v.1, Nat.lt_succ_of_lt v.2⟩
-      dsimp only at hv_val
-      have hpV_lt := (pV ⟨v.1, Nat.lt_succ_of_lt v.2⟩).2
+      have hv_val := hpL_val v.castSucc
+      simp only [Fin.val_castSucc] at hv_val
+      have hpV_lt := (pV v.castSucc).2
       split_ifs with heq
       · exact v.2
       · have hne' : pL.getD v.1 0 ≠ n := fun h => heq (beq_iff_eq.mpr h)

@@ -330,7 +330,11 @@ symmetric MAC against uniform strict oracle-PPT adversaries.
 
 Note that `eufCmaGame` enforces fresh-message unforgeability (`msg ∉ queried`), whereas
 [Boneh and Shoup, Attack Game 6.1 / Definition 6.2][BonehShoup2023] defines the stronger fresh-pair
-variant (`(msg, tag) ∉ queriedPairs`) for general (possibly randomized) signing algorithms. -/
+variant (`(msg, tag) ∉ queriedPairs`) for general (possibly randomized) signing algorithms. The
+tagging oracle tags words of any length, while a forgery counts only on a `msgLen n`-bit message;
+in the source, signing queries lie in the message space. With its weaker forgery condition and its
+stronger oracle, the notion is incomparable with the source's; in particular, the source's notion
+does not imply it. -/
 def EUFCMA (M : MACScheme) : Prop :=
   Game.Indistinguishable
     (fun adversary n => ProbComp.eval (M.eufCmaGame adversary n))
@@ -408,7 +412,17 @@ theorem isPPT_eufOneTimeGame (M : MACScheme) {adversary : Forger}
     IsPPT encBool (fun n _ => M.eufOneTimeGame adversary n) :=
   ((M.isPPTOn_eufOneTimeGame hadversary).preprocess (ComputableInPolyTime.fst _ _)).isPPT
 
-/-- Existential unforgeability under one-time adaptive chosen-message attack for a symmetric MAC. -/
+/-- Fresh-message existential unforgeability of a symmetric MAC under a one-time adaptive
+chosen-message attack, against uniform strict oracle-PPT forgers. It is the one-time game of
+[BonehShoup2023], Section 7.6 (p. 275), Attack Game 6.1 (pp. 218–219) with a single signing query,
+with three differences. Section 7.6 defines unconditional security, negligible advantage for all
+adversaries, even computationally unbounded ones; here the forgers are efficient, as for the
+one-time secure MAC of Theorem 9.2 (p. 367). A forgery counts only on a message that was not
+queried, where the source accepts any new message–tag pair (`OneTimeSUFCMA`). The oracle, which
+answers only the first query, tags a word of any length, while a forgery counts only on a
+`msgLen n`-bit message; in the source, signing queries lie in the message space. The notion is
+therefore incomparable with the source's; in particular, because of the oracle, the source's notion
+does not imply it. -/
 def OneTimeEUFCMA (M : MACScheme) : Prop :=
   Game.Indistinguishable
     (fun adversary n => ProbComp.eval (M.eufOneTimeGame adversary n))
@@ -532,7 +546,7 @@ theorem isPPTOn_run_signingPairOracle (M : MACScheme) {adversary : Forger}
     unfold signingPairOracle
     exact (M.isPPTOn_sign_comp (by fun_prop) (by fun_prop)).bind_with
       (ComputableInPolyTime.isPPTOn (by fun_prop))
-  apply hadversary.run_interpret_preprocess'
+  apply hadversary.run_interpret_preprocess
     (prepare := fun caller : ℕ × List Bool => (caller.1, ([] : List Bool)))
     (initial := fun _ => ([] : List (List Bool × List Bool)))
     (resources := fun caller query =>
@@ -577,7 +591,9 @@ theorem isPPT_sufCmaGame (M : MACScheme) {adversary : Forger}
 
 /-- Strong (fresh-pair) existential unforgeability under adaptive chosen-message attack (`SUFCMA`)
 for a symmetric MAC against uniform strict oracle-PPT adversaries
-([Boneh and Shoup, Attack Game 6.1 / Definition 6.2][BonehShoup2023]). -/
+([Boneh and Shoup, Attack Game 6.1 / Definition 6.2][BonehShoup2023]). The tagging oracle tags
+words of any length, while a forgery counts only on a `msgLen n`-bit message; in the source,
+signing queries lie in the message space. -/
 def SUFCMA (M : MACScheme) : Prop :=
   Game.Indistinguishable
     (fun adversary n => ProbComp.eval (M.sufCmaGame adversary n))
@@ -834,7 +850,7 @@ theorem isPPTOn_run_oneTimeSigningPairOracle (M : MACScheme) {adversary : Forger
       ((M.isPPTOn_sign_comp (by fun_prop) (by fun_prop)).bind_with
         (ComputableInPolyTime.isPPTOn (by fun_prop)))
       (ComputableInPolyTime.isPPTOn (by fun_prop))
-  apply hadversary.run_interpret_preprocess'
+  apply hadversary.run_interpret_preprocess
     (prepare := fun caller : ℕ × List Bool => (caller.1, ([] : List Bool)))
     (initial := fun _ => ([] : List (List Bool × List Bool)))
     (resources := fun caller query =>
@@ -876,8 +892,12 @@ theorem isPPT_sufOneTimeGame (M : MACScheme) {adversary : Forger}
   ((M.isPPTOn_sufOneTimeGame hadversary).preprocess (ComputableInPolyTime.fst _ _)).isPPT
 
 /-- Strong (fresh-pair) existential unforgeability under one-time adaptive chosen-message attack
-(`OneTimeSUFCMA`) for a symmetric MAC against uniform strict oracle-PPT adversaries
-([Boneh and Shoup, Attack Game 6.1 and Section 7.6, printed p. 275][BonehShoup2023]). -/
+(`OneTimeSUFCMA`) for a symmetric MAC against uniform strict oracle-PPT adversaries: the
+advantage `MAC1adv` of [BonehShoup2023], Section 7.6 (p. 275), in Attack Game 6.1 (pp. 218–219)
+with a single signing query, is negligible, as for the one-time secure MAC of Theorem 9.2
+(p. 367). The oracle answers only the first query. It tags a word of any length, while a forgery
+counts only on a `msgLen n`-bit message; in the source, signing queries lie in the message
+space. -/
 def OneTimeSUFCMA (M : MACScheme) : Prop :=
   Game.Indistinguishable
     (fun adversary n => ProbComp.eval (M.sufOneTimeGame adversary n))
@@ -1320,7 +1340,7 @@ theorem isOraclePPT_macToPrfDistinguisher {adversary : Forger}
             (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
             (macLogHandler caller.1))
           (adversary caller.1 [])).run []) := by
-    apply hadversary.run_interpret_preprocess_open'
+    apply hadversary.run_interpret_preprocess_open
       (prepare := fun caller : ℕ × List Bool => (caller.1, ([] : List Bool)))
       (initial := fun _ => ([] : List (List Bool)))
       (resources := fun caller query => caller.1 + 2 * query.length + 2)
@@ -1909,7 +1929,7 @@ theorem isPPTOn_run_signingPairOracle (M : NonceMACScheme) {adversary : NonceMAC
     unfold signingPairOracle
     exact (M.isPPTOn_sign_comp (by fun_prop) (by fun_prop) (by fun_prop)).bind_with
       (ComputableInPolyTime.isPPTOn (by fun_prop))
-  apply hadversary.run_interpret_preprocess'
+  apply hadversary.run_interpret_preprocess
     (prepare := fun caller : ℕ × List Bool => (caller.1, ([] : List Bool)))
     (initial := fun _ => ([] : List ((List Bool × List Bool) × List Bool)))
     (resources := fun caller query =>
@@ -1975,7 +1995,10 @@ theorem isPPT_eufCmaGame (M : NonceMACScheme) {adversary : NonceMACForger}
 
 /-- Strong existential unforgeability under nonce-respecting adaptive chosen-message attack
 (`SUFCMA`) for a `NonceMACScheme` against uniform strict oracle-PPT adversaries
-([Boneh and Shoup, Section 7.5, Attack Game 7.4][BonehShoup2023]). -/
+([Boneh and Shoup, Section 7.5, Attack Game 7.4][BonehShoup2023]). A run that repeats a nonce
+loses, as the source forbids repeated nonces. The oracle tags messages and nonces of any length,
+while a forgery counts only with a `msgLen n`-bit message and a `nonceLen n`-bit nonce; in the
+source, queries lie in the message and nonce spaces. -/
 def SUFCMA (M : NonceMACScheme) : Prop :=
   Game.Indistinguishable
     (fun adversary n => ProbComp.eval (M.sufCmaGame adversary n))
@@ -1999,7 +2022,14 @@ theorem SUFCMA.of_negligible {M : NonceMACScheme}
   Game.Indistinguishable.of_negligible_succProbability h
 
 /-- Fresh-message existential unforgeability under nonce-respecting adaptive chosen-message attack
-(`EUFCMA`) for a `NonceMACScheme` against uniform strict oracle-PPT adversaries. -/
+(`EUFCMA`) for a `NonceMACScheme` against uniform strict oracle-PPT adversaries: [BonehShoup2023],
+Attack Game 7.4 and Definition 7.6 (p. 274), with two differences. A forgery counts only on a
+message that was never queried, where the source accepts any new triple `(m, t, N)` (`SUFCMA`). The
+oracle tags messages and nonces of any length, while a forgery counts only with a `msgLen n`-bit
+message and a `nonceLen n`-bit nonce; in the source, queries lie in the message and nonce spaces.
+With its weaker forgery condition and its stronger oracle, the notion is incomparable with the
+source's; in particular, the source's notion does not imply it. A run that repeats a nonce loses,
+as the source forbids repeated nonces. -/
 def EUFCMA (M : NonceMACScheme) : Prop :=
   Game.Indistinguishable
     (fun adversary n => ProbComp.eval (M.eufCmaGame adversary n))
