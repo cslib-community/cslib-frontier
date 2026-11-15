@@ -97,7 +97,10 @@ noncomputable def weakPrfIdealGame (adversary : OracleDistinguisher) (n : ℕ) :
   (adversary n []).run fun _ => weakSample n (randomFunctionOracle n table)
 
 /-- A keyed family evaluated in plain polynomial time whose answers at uniformly random points are
-indistinguishable from those of a random function ([KatzLindell2020], Exercise 3.28). -/
+indistinguishable from those of a random function ([KatzLindell2020]): a weakly
+secure PRF, [BonehShoup2023], Definition 4.3 (p. 133), with `n`-bit keys, inputs and outputs,
+against uniform strict oracle-PPT adversaries. Each call returns a uniform point followed by the
+function's value there, as the source's challenger sends both. -/
 structure WeakPseudorandomFunction (family : List Bool → List Bool → List Bool) : Prop where
   /-- One deterministic machine evaluates the family from the encoded key and query. -/
   polyTime : ComputableInPolyTime (fun pair => family pair.1 pair.2)
@@ -204,9 +207,9 @@ private theorem eval_interpret_weakToPrfDistinguisher (adversary : OracleDisting
 theorem eval_prfRealGame_weakToPrfDistinguisher (family : List Bool → List Bool → List Bool)
     (hlen : ∀ key query, query.length = key.length → (family key query).length = key.length)
     (adversary : OracleDistinguisher) (n : ℕ) :
-    ProbComp.eval (prfRealGame family (weakToPrfDistinguisher adversary) n) =
+    ProbComp.eval (prfRealGame id family (weakToPrfDistinguisher adversary) n) =
       ProbComp.eval (weakPrfRealGame family adversary n) := by
-  simp only [prfRealGame, weakPrfRealGame, ProbComp.eval_bind]
+  simp only [prfRealGame, id_eq, weakPrfRealGame, ProbComp.eval_bind]
   refine PMF.bind_congr_on_support _ _ _ fun key hkey => ?_
   rw [BitString.eval_sampleList] at hkey
   have hkeyLen : key.length = n := BitString.length_of_mem_support_uniformList hkey
@@ -216,9 +219,9 @@ theorem eval_prfRealGame_weakToPrfDistinguisher (family : List Bool → List Boo
 
 /-- The reduction turns the adaptive ideal game into the weak ideal game. -/
 theorem eval_prfIdealGame_weakToPrfDistinguisher (adversary : OracleDistinguisher) (n : ℕ) :
-    ProbComp.eval (prfIdealGame (weakToPrfDistinguisher adversary) n) =
+    ProbComp.eval (prfIdealGame id id (weakToPrfDistinguisher adversary) n) =
       ProbComp.eval (weakPrfIdealGame adversary n) := by
-  simp only [prfIdealGame, weakPrfIdealGame, ProbComp.eval_bind]
+  simp only [prfIdealGame, id_eq, weakPrfIdealGame, ProbComp.eval_bind]
   congr 1
   funext table
   refine eval_interpret_weakToPrfDistinguisher adversary n _ fun point hpoint => ?_
