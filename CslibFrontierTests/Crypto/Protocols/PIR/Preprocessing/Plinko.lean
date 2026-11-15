@@ -28,6 +28,12 @@ Concrete smoke tests exercising:
    (`eval_queryTranscript_plinkoHybridScheme`).
 5. Database and hint updates (`updateDB`, `updateHint`, `updateState`, `applyUpdates`,
    `PlinkoState.valid_updateHint`, `PlinkoState.valid_updateState`).
+6. A non-degenerate instance (`c = 4`, `w = 2`, `nReg = 3`, `nBackup = 2`), where regular hints
+   are proper `3`-block subsets: a query sequence that consumes a regular hint, then consumes the
+   promoted backup hint it created, then hits the cache; every preprocessed state satisfies the
+   correctness hypotheses (`PlinkoState.valid_of_mem_support_preprocess`); and single-query and
+   adaptive multi-query privacy at `c = 4`, `w = 3` against a server whose queries depend on the
+   messages it has seen.
 -/
 
 namespace Cslib.Crypto.Protocols.PIR.Preprocessing.Plinko.Tests
@@ -216,6 +222,118 @@ info: 'Cslib.Crypto.Protocols.PIR.Preprocessing.Plinko.applyUpdates_nil' does no
 -/
 #guard_msgs in
 #print axioms applyUpdates_nil
+
+/-! ### 6. A non-degenerate instance: `c = 4` blocks, `w = 2` offsets, `3 + 2` hint slots -/
+
+/-- The ideal iPRF from the `5` hint slots to the `2` offsets. -/
+noncomputable abbrev exampleIPRF4 : InvertiblePRF (Fin 5 → Fin 2) (Fin 5) (Fin 2) :=
+  idealInvertiblePRF (Fin 5) (Fin 2)
+
+/-- With the ideal iPRF, `getHint` agrees with the linear scan on every state and index. -/
+theorem getHint_exampleIPRF4 (st : PlinkoState 4 2 3 2 (Fin 5 → Fin 2)) (x : Fin 4 × Fin 2) :
+    getHint exampleIPRF4 st x = getHintScan exampleIPRF4 st x :=
+  getHint_eq_getHintScan st x (isCorrectKey_idealInvertiblePRF _)
+
+/-- A non-constant `8`-bit database on `Fin 4 × Fin 2`. -/
+def exampleDB4 (x : Fin 4 × Fin 2) : Bool :=
+  ![![true, false], ![false, true], ![true, true], ![false, true]] x.1 x.2
+
+/-- Per-block iPRF keys (functions from the `5` slots to the `2` offsets). -/
+def exampleKeys4 : Fin 4 → Fin 5 → Fin 2 :=
+  ![![0, 1, 0, 1, 0], ![1, 0, 1, 0, 1], ![0, 0, 1, 1, 0], ![1, 1, 1, 0, 1]]
+
+/-- Regular block sets of size `c / 2 + 1 = 3` (used in slots `0, 1, 2`). -/
+def exampleRegBlocks4 : Fin 5 → Finset (Fin 4) :=
+  ![{0, 1, 2}, {1, 2, 3}, {0, 2, 3}, {0, 1, 2}, {0, 1, 2}]
+
+/-- Backup block sets of size `c / 2 = 2` (used in slots `3, 4`). -/
+def exampleBackupBlocks4 : Fin 5 → Finset (Fin 4) :=
+  ![{0, 1}, {0, 1}, {0, 1}, {0, 1}, {2, 3}]
+
+/-- Offline preprocessing state with `3` regular and `2` backup hints. -/
+noncomputable abbrev exampleState4 : PlinkoState 4 2 3 2 (Fin 5 → Fin 2) :=
+  streamPreprocess exampleIPRF4 exampleDB4 exampleKeys4 exampleRegBlocks4 exampleBackupBlocks4
+
+theorem exampleState4_valid : exampleState4.Valid exampleIPRF4 exampleDB4 :=
+  PlinkoState.valid_streamPreprocess (nReg := 3) (nBackup := 2) exampleIPRF4 exampleDB4
+    exampleKeys4 exampleRegBlocks4 exampleBackupBlocks4
+
+/-- The block sets used by `streamPreprocess` have the sizes that `plinkoScheme` samples:
+`c / 2 + 1 = 3` in the regular slots and `c / 2 = 2` in the backup slots. -/
+example : (∀ j : Fin 5, j.val < 3 → (exampleRegBlocks4 j).card = 3) ∧
+    (∀ j : Fin 5, 3 ≤ j.val → (exampleBackupBlocks4 j).card = 2) := by decide
+
+/-- Query `(0, 0)` uses regular slot `0`; slot `2` also contains block `0` at offset `0`. -/
+example : (getHintScan exampleIPRF4 exampleState4 (0, 0)).map Prod.fst = some 0 := by decide
+
+/-- After `(0, 0)`, backup slot `3` is promoted with `(0, 0)` and caches `exampleDB4 (0, 0)`. -/
+example : (exampleState4.nextState exampleIPRF4 exampleDB4 (0, 0)).cache (0, 0) =
+    some (true, 3) := by
+  dsimp only [PlinkoState.nextState]
+  simp only [getHint_exampleIPRF4]
+  decide
+
+/-- The second query `(3, 0)` is answered by the promoted hint in slot `3`, whose effective block
+set is `{0, 2, 3}`. -/
+example :
+    (getHintScan exampleIPRF4 (exampleState4.nextState exampleIPRF4 exampleDB4 (0, 0))
+      (3, 0)).map (fun t => (t.1, t.2.1)) = some (3, {0, 2, 3}) := by
+  dsimp only [PlinkoState.nextState]
+  simp only [getHint_exampleIPRF4]
+  decide
+
+/-- The sequence `[(0, 0), (3, 0), (0, 0)]` is answerable: a regular hint, then the promoted hint
+created by the first query, then the cache. -/
+theorem exampleState4_canAnswerSeq :
+    exampleState4.CanAnswerSeq exampleIPRF4 exampleDB4 [(0, 0), (3, 0), (0, 0)] := by
+  refine ⟨Or.inr ?_, Or.inr ?_, Or.inl ?_, trivial⟩ <;>
+    simp only [PlinkoState.nextState, getHint_exampleIPRF4] <;> decide
+
+example :
+    (plinkoScheme 4 2 3 2 exampleIPRF4).IsCorrectFrom exampleDB4 exampleState4
+      [(0, 0), (3, 0), (0, 0)] :=
+  (PlinkoState.isCorrectFrom_plinkoScheme exampleState4_valid
+    (fun α => isCorrectKey_idealInvertiblePRF (exampleState4.keys α))
+    exampleState4_canAnswerSeq).1
+
+/-- Every state that `plinkoScheme` preprocesses with the ideal iPRF is `Valid` and has
+inversion-correct keys. -/
+example (db : Fin 4 × Fin 2 → Bool) (st : PlinkoState 4 2 3 2 (Fin 5 → Fin 2))
+    (hmem : st ∈ (ProbComp.eval ((plinkoScheme 4 2 3 2 exampleIPRF4).preprocess db)).support) :
+    st.Valid exampleIPRF4 db ∧ ∀ α, exampleIPRF4.IsCorrectKey (st.keys α) :=
+  let h := PlinkoState.valid_of_mem_support_preprocess hmem
+  ⟨h.1, h.2 isCorrectOnGen_idealInvertiblePRF⟩
+
+instance : Fact (Even 4) := ⟨⟨2, rfl⟩⟩
+
+/-- Single-query exact privacy at `c = 4`, `w = 3`, where a conditioned regular hint is one of
+three `3`-block sets containing the queried block. -/
+example (x : Fin 4 × Fin 3) :
+    ProbComp.eval (do
+      let P ← ProbComp.uniform (RegBlocksContaining 4 x.1)
+      let o ← ProbComp.uniform (OffsetsContaining 4 3 x)
+      let b ← ProbComp.uniform Bool
+      let r ← ProbComp.uniform (Fin 3)
+      pure (buildQuery x P.1 o.1 b r)) =
+      ProbComp.eval (plinkoSim 4 3) :=
+  eval_buildQuery_conditioned_eq_plinkoSim x
+
+/-- An adaptive server for `c = 4`, `w = 3` that picks its next index from the last query message
+it saw and logs every message. -/
+def plinkoAdaptiveServer4 : AdaptiveServer (Fin 4 × Fin 3) (PlinkoQuery 4 3) (Bool × Bool)
+    (List (PlinkoQuery 4 3)) where
+  chooseQuery st :=
+    match st with
+    | [] => pure (st, (0, 0))
+    | q :: _ => pure (st, if 0 ∈ q.blocks then (1, q.offsets 1) else (3, q.offsets 2))
+  onQuery st q := pure (q :: st, (decide (2 ∈ q.blocks), decide (q.offsets 3 = 1)))
+
+example (db : Fin 4 × Fin 3 → Bool) :
+    (plinkoHybridScheme 4 3).privacyAdvantage (plinkoSim 4 3) plinkoAdaptiveServer4
+      (fun st => match st with
+        | q :: _ => decide (0 ∈ q.blocks)
+        | [] => false) db 3 [] = 0 :=
+  privacyAdvantage_plinkoHybridScheme_eq_zero plinkoAdaptiveServer4 _ db 3 []
 
 end Cslib.Crypto.Protocols.PIR.Preprocessing.Plinko.Tests
 

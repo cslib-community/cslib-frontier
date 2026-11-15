@@ -84,8 +84,10 @@ indexed by `Fin (nReg + nBackup)`, together with one invertible PRF key `keys α
 * `getHint_eq_getHintScan`: equivalence of `getHint` via `iF.inv` and `getHintScan`.
 * `foldr_streamEntry_univ`, `PlinkoState.valid_streamPreprocess`: offline streaming correctness.
 * `PlinkoState.valid_nextState`, `PlinkoState.eval_step_plinkoScheme`,
-  `PlinkoState.isCorrectFrom_plinkoScheme`: online state-validity preservation and conditional
+  `PlinkoState.isCorrectFrom_plinkoScheme`): online state-validity preservation and conditional
   multi-query correctness of `plinkoScheme`.
+* `PlinkoState.valid_of_mem_support_preprocess`: every preprocessed state is `Valid`, with
+  inversion-correct keys when `iF.IsCorrectOnGen` holds.
 * `queryBlocksEquiv`, `queryOffsetsEquiv`, `eval_buildQuery_conditioned_eq_plinkoSim`,
   `eval_snd_plinkoScheme_query_of_getHint`: single-query exact privacy and bridge lemma.
 * `isCorrect_plinkoHybridScheme`, `isPerfectlyPrivateWith_plinkoHybridScheme`,
@@ -96,15 +98,34 @@ indexed by `Fin (nReg + nBackup)`, together with one invertible PRF key `keys α
 
 ## What is not proved
 
-* Exact multi-query perfect privacy is proved for the idealized random-hint proof device
-  `plinkoHybridScheme`, not for the full `plinkoScheme` (where `getHint` takes the first candidate
-  slot, conditioning earlier slots, and the paper argues computational privacy via Ren, Mughees,
-  and Sun (2024) and iPRF
-  security).
-* The Chernoff load bound on `|iF.inv (keys α) β|` (Section 5.2, p. 22), the failure-probability
+* Exact multi-query perfect privacy is proved only for the idealized random-hint proof device
+  `plinkoHybridScheme`, which has no iPRF, no keys and no hint table: every query draws a fresh
+  regular hint conditioned on containing the queried index (the ideal random-set model). Nothing
+  about privacy is proved for the full `plinkoScheme`. Its `getHint` takes the smallest matching
+  candidate slot, which conditions the remaining slots, and the paper argues privacy only
+  computationally, by appeal to Ren, Mughees, and Sun (2024) and to iPRF security (Section 5.2,
+  p. 23). The bridge lemma `eval_snd_plinkoScheme_query_of_getHint` only shows that both schemes
+  build the query message from the consumed hint by the same map; the law of the hint that
+  `plinkoScheme` consumes is not analysed, and no reduction to iPRF security is given.
+* The Chernoff load bound on `|iF.inv (keys α) β|` (Section 5.2, p. 23), the failure-probability
   bound for `CanAnswerSeq`, amortized re-streaming after `nBackup` queries, the Appendix B
   Plinko–Piano variant (Figure 8), `B`-bit entries, the FHE offline phase, and the asymptotic
   runtime/storage bounds of Theorem 5.3 are not formalized.
+
+## Modelling choices
+
+* Figure 7 `GetHint` scans the candidate slots `iF.inv (K[α], β)` in random order, and Section 5.2
+  (p. 22) picks a random unused hint. `getHint` instead returns the smallest matching slot. The
+  correctness and update results do not depend on this choice.
+* On a repeated (cached) query, Figure 7 `Query` issues a real query for a fresh random index that
+  has not been queried before, consuming and promoting a hint for it. `plinkoScheme` instead sends
+  a dummy message drawn from `plinkoSim` and leaves the hint state unchanged; the cached bit is
+  returned in both cases.
+* If no matching hint or no backup hint is left, the paper's scheme has failed. `plinkoScheme` then
+  sends a dummy message and its output is unspecified; correctness is only claimed under
+  `PlinkoState.CanAnswerSeq`.
+* Regular and backup block sets are sampled for every slot, and `streamPreprocess` uses the regular
+  set only in slots `j < nReg` and the backup set only in slots `j ≥ nReg`.
 
 ## References
 
@@ -310,9 +331,10 @@ parity, and offset vector
     (fun j => decide (iF.eval (st.keys x.1) j = x.2) && slotMatchesBlock iF st x j)
 
 /-- `GetHint` via `iF.inv`
-([Hoover, Patel, Persiano and Yeo, Figure 7][HooverPatelPersianoYeo2025]): finds the first
+([Hoover, Patel, Persiano and Yeo, Figure 7][HooverPatelPersianoYeo2025]): finds the smallest
 candidate slot `j ∈ iF.inv (st.keys x.1) x.2` with a matching active hint and returns
-`(j, P_eff, p, o)`. -/
+`(j, P_eff, p, o)`. Figure 7 scans the candidates in random order instead; see the module
+docstring. -/
 @[expose] def getHint (iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w))
     (st : PlinkoState c w nReg nBackup Key) (x : Fin c × Fin w) :
     Option (Fin (nReg + nBackup) × Finset (Fin c) × Bool × (Fin c → Fin w)) :=
@@ -917,14 +939,41 @@ vector `o : Fin c → Fin w`. -/
   let o ← ProbComp.uniform (Fin c → Fin w)
   pure ⟨S.1, o⟩
 
+/-- Samples one independent key from `gen` for each block `α : Fin n`
+([Hoover, Patel, Persiano and Yeo, Figure 7, `HintInit`][HooverPatelPersianoYeo2025], step
+`K[i] ← iF.Gen`). -/
+@[expose] def sampleBlockKeys (gen : ProbComp Key) : (n : ℕ) → ProbComp (Fin n → Key)
+  | 0 => pure Fin.elim0
+  | n + 1 => do
+    let k ← gen
+    let ks ← sampleBlockKeys gen n
+    pure (Fin.cons k ks)
+
+/-- Every block key sampled by `sampleBlockKeys gen n` lies in the support of `gen`. -/
+theorem mem_support_sampleBlockKeys {gen : ProbComp Key} :
+    ∀ {n : ℕ} {ks : Fin n → Key}, ks ∈ (ProbComp.eval (sampleBlockKeys gen n)).support →
+      ∀ α : Fin n, ks α ∈ (ProbComp.eval gen).support
+  | 0, _, _, α => α.elim0
+  | n + 1, ks, hmem, α => by
+    simp only [sampleBlockKeys, ProbComp.eval_bind, ProbComp.eval_pure, PMF.mem_support_bind_iff,
+      PMF.mem_support_pure_iff] at hmem
+    obtain ⟨k, hk, ks', hks', rfl⟩ := hmem
+    refine Fin.cases ?_ (fun i => ?_) α
+    · simpa using hk
+    · simpa using mem_support_sampleBlockKeys hks' i
+
 /-- Full `Preprocessing.Scheme` packaging of Plinko
-([Hoover, Patel, Persiano and Yeo, Figure 7][HooverPatelPersianoYeo2025]). -/
+([Hoover, Patel, Persiano and Yeo, Figure 7][HooverPatelPersianoYeo2025]). `HintInit` samples one
+key per block from `iF.gen`, a uniform `(c / 2 + 1)`-block regular set and a uniform `(c / 2)`-block
+backup set per slot, and computes the parities with `streamPreprocess`. The module docstring lists
+where `query` departs from Figure 7: `getHint` takes the smallest matching slot instead of a random
+one, and a cached query sends a dummy `plinkoSim` message instead of querying a fresh index. -/
 @[expose] noncomputable def plinkoScheme (c w nReg nBackup : ℕ) [NeZero w]
-    [Fintype Key] [Nonempty Key] (iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w)) :
+    (iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w)) :
     Scheme (Fin c × Fin w) (PlinkoState c w nReg nBackup Key)
       (PlinkoQueryRecord nReg nBackup) (PlinkoQuery c w) (Bool × Bool) where
   preprocess db := do
-    let keys ← ProbComp.uniform (Fin c → Key)
+    let keys ← sampleBlockKeys iF.gen c
     let regB ← ProbComp.uniform (Fin (nReg + nBackup) → RegBlocks c)
     let bakB ← ProbComp.uniform (Fin (nReg + nBackup) → HalfBlocks c)
     pure (streamPreprocess iF db keys (fun j => (regB j).1) (fun j => (bakB j).1))
@@ -950,7 +999,21 @@ vector `o : Fin c → Fin w`. -/
 
 namespace PlinkoState
 
-variable [NeZero w] [Fintype Key] [Nonempty Key]
+variable [NeZero w]
+
+/-- **Every preprocessed state satisfies the correctness hypotheses**: each state in the support
+of `(plinkoScheme c w nReg nBackup iF).preprocess db` is `Valid` for `db`, and when
+`iF.IsCorrectOnGen` holds every block key is inversion-correct. -/
+theorem valid_of_mem_support_preprocess
+    {iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w)} {db : Fin c × Fin w → Bool}
+    {st : PlinkoState c w nReg nBackup Key}
+    (hmem : st ∈ (ProbComp.eval ((plinkoScheme c w nReg nBackup iF).preprocess db)).support) :
+    st.Valid iF db ∧ (iF.IsCorrectOnGen → ∀ α : Fin c, iF.IsCorrectKey (st.keys α)) := by
+  simp only [plinkoScheme, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure,
+    PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hmem
+  obtain ⟨keys, hkeys, regB, -, bakB, -, rfl⟩ := hmem
+  exact ⟨valid_streamPreprocess iF db keys _ _,
+    fun hgen α => hgen (keys α) (mem_support_sampleBlockKeys hkeys α)⟩
 
 /-- **Single-step exact evaluation of `plinkoScheme`**: when `st.Valid iF db`,
 `st.CanAnswer iF x`, and `iF.IsCorrectKey (st.keys x.1)` hold, one honest online step of
@@ -1167,17 +1230,19 @@ theorem eval_buildQuery_conditioned_eq_plinkoSim {c w : ℕ} [Fact (Even c)] [Ne
 
 /-- **Idealized random-hint hybrid of Plinko (`plinkoHybridScheme`)**: a proof device for the
 ideal-random-set privacy analysis of
-[Hoover, Patel, Persiano and Yeo, Section 5.2][HooverPatelPersianoYeo2025]. At each online query
-for `x = (α, β)`, it samples a fresh conditioned regular hint
-`(P, o) ← RegBlocksContaining c x.1 × OffsetsContaining c w x`, computes the exact hint parity
-`p = blockParity db P.1 o.1` from the database stored in its state, sends
+[Hoover, Patel, Persiano and Yeo, Section 5.2][HooverPatelPersianoYeo2025]. It has no iPRF, no
+keys and no hint table. At each online query for `x = (α, β)`, it samples a fresh conditioned
+regular hint `(P, o) ← RegBlocksContaining c x.1 × OffsetsContaining c w x`, computes the exact hint
+parity `p = blockParity db P.1 o.1` from the database stored in its state, sends
 `buildQuery x P.1 o.1 b r`, and reconstructs `db x = plinkoReconstruct p b ans`.
 
 Unlike `pianoHybridScheme`, `plinkoHybridScheme` is **both** a correct PIR scheme
 (`isCorrect_plinkoHybridScheme`) and adaptively perfectly private
-(`isPerfectlyPrivateWith_plinkoHybridScheme`); it is a proof device because it retains `db` in its
-state to compute exact hint parities online and draws a fresh conditioned hint at each query rather
-than scanning the finite table `PlinkoState`. -/
+(`isPerfectlyPrivateWith_plinkoHybridScheme`). It is only a proof device: it keeps `db` in its
+state to compute exact hint parities online, and it draws a fresh conditioned hint at each query
+rather than looking one up in a finite table `PlinkoState`. Its privacy says nothing directly about
+`plinkoScheme`; the bridge `eval_snd_plinkoScheme_query_of_getHint` shows only that both schemes
+apply the same map to the consumed hint. -/
 @[expose] noncomputable def plinkoHybridScheme (c w : ℕ) [Fact (Even c)] [NeZero w] :
     Scheme (Fin c × Fin w) (Fin c × Fin w → Bool) (Bool × Bool) (PlinkoQuery c w)
       (Bool × Bool) where
@@ -1196,7 +1261,7 @@ than scanning the finite table `PlinkoState`. -/
 query `x` where `getHint iF st x = some (j, P, p, o)`, the server query distribution of
 `plinkoScheme` equals the query distribution built from `(P, o)` using the same map
 `fun (b, r) => buildQuery x P o b r` as `plinkoHybridScheme`. -/
-theorem eval_snd_plinkoScheme_query_of_getHint [NeZero w] [Fintype Key] [Nonempty Key]
+theorem eval_snd_plinkoScheme_query_of_getHint [NeZero w]
     (iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w))
     (st : PlinkoState c w nReg nBackup Key) (x : Fin c × Fin w)
     {j : Fin (nReg + nBackup)} {P : Finset (Fin c)} {p : Bool} {o : Fin c → Fin w}

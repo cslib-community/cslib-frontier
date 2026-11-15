@@ -27,8 +27,11 @@ returning the preimage set of a range element `y : R` under `eval k`.
   `iF.inv k y = Finset.univ.filter (fun x => iF.eval k x = y)` when `D` is finite).
 * **Forward security** (`InvertiblePRF.forwardAdvantage`): as noted in
   [Hoover, Patel, Persiano and Yeo, Section 4 and Section 5.2][HooverPatelPersianoYeo2025]
-  (pp. 10 and 22), Plinko only requires pseudorandomness against adversaries with access to the
+  (pp. 10 and 23), Plinko only requires pseudorandomness against adversaries with access to the
   forward oracle, measured by the finite PRF advantage `Cslib.Crypto.PRF.advantage iF.eval`.
+  That game draws the key uniformly from `Key`, so it matches Definition 4.1's key law only when
+  `gen` is uniform (as for `idealInvertiblePRF`). No security theorem about any concrete iPRF is
+  proved here.
 * **Ideal random-function iPRF** (`idealInvertiblePRF`): samples a uniformly random function
   `f : D → R` as key, evaluates `f x` in the forward direction, and returns the exact preimage
   `Finset.univ.filter (fun x => f x = y)` in the inverse direction.
@@ -145,7 +148,8 @@ theorem eval_gen_inv_eq_filter [Fintype D] [DecidableEq D] [DecidableEq R]
 
 /-- The forward PRF distinguishing advantage against `iF` under a uniform key from `Key`,
 reusing `Cslib.Crypto.PRF.advantage`
-([Hoover, Patel, Persiano and Yeo, Definition 3.1 and Section 5.2][HooverPatelPersianoYeo2025]). -/
+([Hoover, Patel, Persiano and Yeo, Definition 3.1 and Section 5.2][HooverPatelPersianoYeo2025]).
+The key is uniform on `Key`, not drawn from `iF.gen`; the two agree when `iF.gen` is uniform. -/
 noncomputable abbrev forwardAdvantage [Fintype Key] [Nonempty Key] [Fintype D]
     [DecidableEq D] [Fintype R] [Nonempty R] (iF : InvertiblePRF Key D R)
     (A : Adversary D R) : ℝ≥0 :=
