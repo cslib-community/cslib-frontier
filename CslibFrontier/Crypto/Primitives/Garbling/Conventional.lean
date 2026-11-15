@@ -19,10 +19,11 @@ A conventional circuit `f = (n, m, q, A, B, G)` of Bellare, Hoang and Rogaway
 its gates' arguments from the 1-indexed wires `A g` and `B g`, and outputs its last `m` wires. A
 valid one is a circuit `ConventionalCircuit.toCircuit f : Circuit (fullSignature 2 Bool) n m` over
 the full binary basis: gate `g` applies the truth table `G g` to the 0-indexed wires `A g - 1` and
-`B g - 1`, and output `o` is wire `n + q - m + o`. It is decoded with `Circuit.ofCode` from this gate
-list (`ConventionalCircuit.code_toCircuit`), so the garbling and privacy results stated for
-`Circuit` apply to conventional circuits. Both semantics agree (`ConventionalCircuit.eval_toCircuit`):
-on an `n`-bit input the circuit's outputs are `ConventionalCircuit.evalCirc`.
+`B g - 1`, and output `o` is wire `n + q - m + o`. It is decoded with `Circuit.ofCode` from this
+gate list (`ConventionalCircuit.code_toCircuit`), so the garbling and privacy results stated for
+`Circuit` apply to conventional circuits. Both semantics agree
+(`ConventionalCircuit.eval_toCircuit`): on an `n`-bit input the circuit's outputs are
+`ConventionalCircuit.evalCirc`.
 
 ## Main definitions
 
