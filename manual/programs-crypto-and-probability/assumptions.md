@@ -168,7 +168,7 @@ Names are relative to `Cslib.Crypto`.
 
 | Assumption | Status | Source definition | Deviations or relation | Nonvacuity |
 |---|---|---|---|---|
-| `StatefulHiding` | standard | [Naor1991] (locator not verified) | A stateful receiver that chooses both bits. | — |
+| `StatefulHiding` | standard | [Naor1991] Section 2, pp. 3–4 of the author's copy | The secrecy condition for commitments to many bits, at one bit: the receiver sends `r` and chooses both bits. A distinguishing advantage in place of the guessing probability; auxiliary input only from families computable in polynomial time, where the source also allows an arbitrary one. | — |
 | `CommitmentScheme.StatisticalHiding` | standard | [BonehShoup2023] Section 8.12: the hiding experiment, p. 344, and unconditional hiding, p. 346 | The source names unconditional hiding in prose (statistically indistinguishable commitments), not in a numbered definition; Definition 8.8 is a secure (hiding and binding) scheme. Read here as the p. 344 experiment against every adversary: an unbounded `Encryption.WordAdversary` that sees the public parameters, drawn from a setup law `keyDist` (the source's scheme has none), and chooses the two messages. | — |
 | `FuzzyExtractor.ComputationallySecureFor` | standard | [FullerMengReyzin2020] Definition 2.2, item 4 (locator not verified) | — | — |
 | `ZKProof.NegligibleSoundness` | standard | [Goldreich2001] Section 4.2 (locator not verified) | A finite soundness error at every parameter. | — |
