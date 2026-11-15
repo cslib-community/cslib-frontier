@@ -64,16 +64,9 @@ theorem listOfFn_castLEEmb_eq_blockReadout {count width : ℕ} (h : count ≤ wi
 
 namespace GateCode
 
-/-- Three CNOTs swapping wire `left` with wire `right`. -/
-private def swapWireCodes (left right : ℕ) : List GateCode :=
-  [(false, left, [right]), (false, right, [left]), (false, left, [right])]
-
 /-- Swap the block `source, …, source + count - 1` with the output prefix. -/
 def prefixSwapCodes (source count : ℕ) : List GateCode :=
   (List.range count).flatMap fun j => swapWireCodes j (source + j)
-
-@[simp] private theorem length_swapWireCodes (left right : ℕ) :
-    (swapWireCodes left right).length = 3 := rfl
 
 @[simp] theorem length_prefixSwapCodes (source count : ℕ) :
     (prefixSwapCodes source count).length = 3 * count := by
@@ -83,37 +76,6 @@ private theorem prefixSwapCodes_succ (source count : ℕ) :
     prefixSwapCodes source (count + 1) =
       prefixSwapCodes source count ++ swapWireCodes count (source + count) := by
   simp [prefixSwapCodes, List.range_succ]
-
-/-- Swapping two distinct valid wires is a well-formed classical circuit. -/
-private theorem isClassical_swapWireCodes {left right width : ℕ} (hne : left ≠ right)
-    (hleft : left < width) (hright : right < width) :
-    IsClassical width (swapWireCodes left right) := by
-  intro g hg
-  simp only [swapWireCodes, List.mem_cons, List.not_mem_nil, or_false] at hg
-  rcases hg with rfl | rfl | rfl
-  · exact ⟨rfl, by simp [WellFormed, hne, hleft, hright]⟩
-  · exact ⟨rfl, by simp [WellFormed, hne.symm, hleft, hright]⟩
-  · exact ⟨rfl, by simp [WellFormed, hne, hleft, hright]⟩
-
-/-- The left wire after a swap contains the former right-wire bit. -/
-private theorem readBit_classicalRun_swapWireCodes {left right width : ℕ} (hne : left ≠ right)
-    (hleft : left < width) (hright : right < width) (x : Fin width → Bool) :
-    readBit (classicalRun (swapWireCodes left right) x) left = readBit x right := by
-  simp only [swapWireCodes, classicalRun_cons, classicalRun_nil, readBit_classicalStep,
-    List.all_cons, List.all_nil, Bool.and_true]
-  simp [hleft, hright, hne, hne.symm]
-
-/-- A wire outside a swapped pair is unchanged. -/
-private theorem readBit_classicalRun_swapWireCodes_of_ne {left right q width : ℕ}
-    (hql : q ≠ left) (hqr : q ≠ right) (x : Fin width → Bool) :
-    readBit (classicalRun (swapWireCodes left right) x) q = readBit x q := by
-  apply readBit_classicalRun_of_forall_ne
-  intro g hg
-  simp only [swapWireCodes, List.mem_cons, List.not_mem_nil, or_false] at hg
-  rcases hg with rfl | rfl | rfl
-  · exact fun h => hql h.symm
-  · exact fun h => hqr h.symm
-  · exact fun h => hql h.symm
 
 /-- The block-to-prefix adapter is classical and well formed when its two blocks are disjoint and
 fit in the register. -/

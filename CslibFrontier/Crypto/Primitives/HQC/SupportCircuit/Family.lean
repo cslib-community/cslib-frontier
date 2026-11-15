@@ -7,51 +7,38 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Circuit.Boolean.ParallelCode
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Generator
 public import CslibFrontier.Computability.Circuit.Quantum.Output
 public import CslibFrontier.Computability.Circuit.Quantum.Reversible.Sampling.Prefix
 public import CslibFrontier.Crypto.Game.AttackResources
+public import CslibFrontier.Crypto.Primitives.HQC.PKE
 public import CslibFrontier.Crypto.Primitives.HQC.SupportCircuit.PolyTime
-public import CslibFrontier.Crypto.Primitives.HQC.SupportCircuit.Resolve.PolyTime
-public import CslibFrontier.Crypto.Primitives.HQC.SupportCircuit.Sampler
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Foundations.Data.List.UnaryCode
 
 /-!
-# A growing-width client of the HQC support sampler
+# Uniform families for finite-width HQC support sampling
 
-This module gives one concrete asymptotic schedule for the existing finite sampler.  At security
-parameter `s`, two independent `(s + 1)`-bit words sample a support of weight two in a universe of
-size three.  The schedule deliberately retains the ordinary non-dyadic finite law and its exact
-collision correction; its discrepancy from the ideal fixed-weight law is negligible as `s`
-grows.
+`SupportSamplerSchedule` supplies arbitrary unary-computable word-width, value-bit, universe, and
+support-weight schedules. The resulting oracle-free circuit family has exactly the finite
+`sampleSupport2` law at every security parameter; it does not replace that non-dyadic law by the
+ideal fixed-weight distribution. `SupportSamplerSchedule.HasNegligibleError` records the separate
+growing-width condition under which the exact finite discrepancy is negligible.
 
-The fixed `(n, count) = (3, 2)` schedule is a deliberately small checked client of the generic
-sampler construction.  It is not a published HQC parameter schedule and does not compose the
-three support vectors used by HQC encryption.
+`PKESupportSamplerSchedules` connects three such schedules to the actual HQC-PKE parameters. Its
+derived `PKESupportSamplerFamilies` names the five support draws in source order: key-generation
+`y, x` at weight `omega`, then encryption `r2, e, r1` at weights
+`omegaR, omegaE, omegaR`. This is sampler infrastructure for the reductions; it makes no HQC
+security or QROM claim.
 
-The Boolean circuit is generated natively from component codes.  The uniform quantum family then
-clears the known unary security-parameter input, runs the reversible sampler, and moves its output
-block to the measured prefix.  Generator time, workspace, static program bits, generated
-description bits, and online circuit resources remain separate.  In particular, this module does
-not charge offline generation as attack execution, instantiate the actual HQC reduction schedule,
-or make an HQC security or QROM claim.
+The schedule carries two layout facts needed by the existing unshifted reversible realization:
+the framed unary family input fits its active register, and the copied output block is disjoint
+from the measured prefix. They are properties of the generated layout, not sampling or security
+assumptions.
 
-## Main definitions
-
-* `Cslib.Crypto.HQC.growingSupportCircuit`: the concrete Boolean sampler at a supplied word width.
-* `Cslib.Crypto.HQC.growingSupportSamplerFamily`: its growing-width uniform quantum family.
-
-## Main results
-
-* `Cslib.Crypto.HQC.samplerDist_growingSupportCircuit`: the exact finite `sampleSupport2` law.
-* `Cslib.Crypto.HQC.negligible_growingSupportSamplerError`: negligible non-dyadic discrepancy.
-
-The circuit-generation and family-composition results are original infrastructure.  The finite
-sampler law and its density bound are reused unchanged from `SupportCircuit.Sampler` and
-`SupportProbability`.
+The circuit-generation and family-composition results are original infrastructure. The exact
+finite law and density bound are reused from `SupportCircuit.Sampler` and `SupportProbability`.
 -/
 
 public section
@@ -62,165 +49,119 @@ open Circuits Circuits.Boolean BitString Probability
 open Quantum Quantum.GateCode Quantum.Reversible
 open Turing.MultiTapeTM ComputableInPolyTime
 
-/-- The two fixed multiply-high candidates, each reading its own `width`-bit source word. -/
-private def growingSupportCandidates (width : ℕ) : Circuit signature (2 * width) (2 * 2) :=
-  ((candidateCircuit width 2 3 0).parallel (candidateCircuit width 2 3 1)).comp
-    (Circuit.wiring signature (Fin.cast (Nat.two_mul width).symm))
+/-- Polynomial-time parameter schedules and layout facts for one finite HQC support sampler. -/
+structure SupportSamplerSchedule where
+  /-- Number of fair bits used for each source word. -/
+  wordWidth : ℕ → ℕ
+  /-- Number of bits used to represent each candidate value. -/
+  valueBits : ℕ → ℕ
+  /-- Size of the sampled support universe. -/
+  universeSize : ℕ → ℕ
+  /-- Requested fixed support weight. -/
+  supportWeight : ℕ → ℕ
+  /-- The word-width schedule is polynomial-time computable in unary. -/
+  computableInPolyTime_wordWidth : ComputableInPolyTime wordWidth encUnary encUnary
+  /-- The value-bit schedule is polynomial-time computable in unary. -/
+  computableInPolyTime_valueBits : ComputableInPolyTime valueBits encUnary encUnary
+  /-- The universe schedule is polynomial-time computable in unary. -/
+  computableInPolyTime_universeSize : ComputableInPolyTime universeSize encUnary encUnary
+  /-- The support-weight schedule is polynomial-time computable in unary. -/
+  computableInPolyTime_supportWeight : ComputableInPolyTime supportWeight encUnary encUnary
+  /-- Every requested support fits in its universe. -/
+  supportWeight_le_universeSize : ∀ s, supportWeight s ≤ universeSize s
+  /-- Every universe value fits in the declared binary representation. -/
+  universeSize_lt_two_pow_valueBits : ∀ s, universeSize s < 2 ^ valueBits s
+  /-- The framed unary security parameter fits the active sampler register. -/
+  framedInput_le_activeWidth : ∀ s,
+    2 * s + 1 ≤ samplerWidth (supportWeight s * wordWidth s)
+      (supportSamplerCircuit (wordWidth s) (valueBits s) (universeSize s)
+        (supportWeight s)).code
+  /-- The copied output block begins after the measured prefix. -/
+  outputPrefix_disjoint : ∀ s,
+    universeSize s ≤ samplerOutputStart (supportWeight s * wordWidth s)
+      (supportSamplerCircuit (wordWidth s) (valueBits s) (universeSize s)
+        (supportWeight s)).code
 
-/-- Raw native code for `growingSupportCandidates`, including its input-block wiring. -/
-private def growingSupportCandidatesCode (width : ℕ) :
-    List (Op × List ℕ) × List ℕ :=
-  compCode (2 * width)
-    (parallelCode width width (candidateCircuit width 2 3 0).code
-      (candidateCircuit width 2 3 1).code)
-    ([], List.range (2 * width))
+namespace SupportSamplerSchedule
 
-/-- The native two-candidate code agrees with every gate and output wire of the typed circuit. -/
-private theorem growingSupportCandidatesCode_eq_code (width : ℕ) :
-    growingSupportCandidatesCode width = (growingSupportCandidates width).code := by
-  rw [growingSupportCandidatesCode, growingSupportCandidates]
-  rw [show ([], List.range (2 * width)) =
-      (Circuit.wiring signature (Fin.cast (Nat.two_mul width).symm)).code by
-    symm
-    simpa [Nat.two_mul] using Circuit.code_wiring_eq_map
-      (σ := signature) (f := Fin.cast (Nat.two_mul width).symm) (g := id) (fun _ => rfl)]
-  rw [parallelCode_code, compCode_code]
+variable (S : SupportSamplerSchedule)
 
-/-- The complete two-candidate circuit has a native polynomial-time generator in the unary word
-width. -/
-@[fun_prop] private theorem computableInPolyTime_growingSupportCandidates :
-    ComputableInPolyTime (fun width => (growingSupportCandidates width).code)
-      encUnary encCode := by
-  have hparallel := computableInPolyTime_parallelCode id' id'
-    (computableInPolyTime_candidateCircuit id' (const 2) (const 3) (const 0))
-    (computableInPolyTime_candidateCircuit id' (const 2) (const 3) (const 1))
-  have hinput : ComputableInPolyTime
-      (fun width => ([], List.range (2 * width))) encUnary encCode := by
-    have htwice : ComputableInPolyTime (fun width : ℕ => 2 * width) encUnary encUnary :=
-      unary_mul' (const 2) id'
-    have hwires := unary_to_binary.map.comp (range.comp htwice)
-    exact (const (encOut := encList encGate) []).prod
-      (by simpa only [Function.comp_def, List.map_id_fun', id_eq] using hwires)
-  have h := computableInPolyTime_compCode (binary_mul' (const 2) unary_to_binary)
-    hparallel hinput
-  change ComputableInPolyTime growingSupportCandidatesCode encUnary encCode at h
-  have heq : (fun width => (growingSupportCandidates width).code) =
-      growingSupportCandidatesCode := by
-    funext width
-    exact (growingSupportCandidatesCode_eq_code width).symm
-  rw [heq]
-  exact h
+/-- Boolean support sampler selected by a parameter schedule. -/
+@[expose] def circuit (s : ℕ) : Circuit signature
+    (S.supportWeight s * S.wordWidth s) (S.universeSize s) :=
+  supportSamplerCircuit (S.wordWidth s) (S.valueBits s) (S.universeSize s)
+    (S.supportWeight s)
 
-/-- The natively generated pair has exactly the semantics of the existing two-element candidate
-family. -/
-private theorem eval_growingSupportCandidates (width : ℕ) (x : BitString (2 * width)) :
-    (growingSupportCandidates width).eval interpretation x =
-      (supportCandidateCircuit width 2 3 2).eval interpretation x := by
-  funext i
-  obtain ⟨⟨j, k⟩, rfl⟩ := finProdFinEquiv.surjective i
-  change _ = (Circuit.parallelFamily fun j : Fin 2 =>
-    candidateCircuit width 2 3 j.val).eval interpretation x (finProdFinEquiv (j, k))
-  rw [Circuit.eval_parallelFamily_apply]
-  simp only [growingSupportCandidates, Circuit.eval_comp, Circuit.eval_wiring,
-    Circuit.eval_parallel]
-  have hleft :
-      ((x ∘ Fin.cast (Nat.two_mul width).symm) ∘ Fin.castAdd width) = block x (0 : Fin 2) := by
-    funext q
-    apply congrArg x
-    apply Fin.ext
-    simp [finProdFinEquiv]
-  have hright :
-      ((x ∘ Fin.cast (Nat.two_mul width).symm) ∘ Fin.natAdd width) = block x (1 : Fin 2) := by
-    funext q
-    apply congrArg x
-    apply Fin.ext
-    simp [finProdFinEquiv]
-  rw [hleft, hright]
-  fin_cases j
-  · change Fin.append _ _ (finProdFinEquiv ((0 : Fin 2), k)) =
-      (candidateCircuit width 2 3 0).eval interpretation (block x 0) k
-    rw [show finProdFinEquiv ((0 : Fin 2), k) = Fin.castAdd 2 k by
-      apply Fin.ext
-      simp [finProdFinEquiv], Fin.append_left]
-  · change Fin.append _ _ (finProdFinEquiv ((1 : Fin 2), k)) =
-      (candidateCircuit width 2 3 1).eval interpretation (block x 1) k
-    rw [show finProdFinEquiv ((1 : Fin 2), k) = Fin.natAdd 2 k by
-      apply Fin.ext
-      simp [finProdFinEquiv], Fin.append_right]
+/-- Number of independent fair seed bits at a security parameter. -/
+@[expose] def seedBits (s : ℕ) : ℕ := S.supportWeight s * S.wordWidth s
 
-/-- The concrete Boolean sampler: two multiply-high candidates, exact descending collision
-correction, and a three-bit support indicator. -/
-def growingSupportCircuit (width : ℕ) : Circuit signature (2 * width) 3 :=
-  (supportIndicatorCircuit 2 3 2).comp
-    ((supportScanCircuit 2 0 2).comp (growingSupportCandidates width))
+/-- Active register width of the reversible sampler, before auxiliary-input allowance. -/
+@[expose] def activeWidth (s : ℕ) : ℕ := samplerWidth (S.seedBits s) (S.circuit s).code
 
-/-- The concrete circuit evaluates exactly like the existing generic sampler at parameters
-`bits = 2`, `n = 3`, and `count = 2`. -/
-theorem eval_growingSupportCircuit (width : ℕ) (x : BitString (2 * width)) :
-    (growingSupportCircuit width).eval interpretation x =
-      (supportSamplerCircuit width 2 3 2).eval interpretation x := by
-  simp only [growingSupportCircuit, supportSamplerCircuit, Circuit.eval_comp]
-  rw [eval_growingSupportCandidates]
+/-- The exact finite discrepancy inherited from the multiply-high support sampler. -/
+@[expose] noncomputable def finiteError (s : ℕ) : NNReal := Real.toNNReal
+  (1 - (supportLowerDensity (S.wordWidth s) (S.universeSize s) 0
+    (S.supportWeight s)).toReal)
 
-/-- The whole concrete Boolean sampler has a native polynomial-time code generator. -/
-@[fun_prop] theorem computableInPolyTime_growingSupportCircuit :
-    ComputableInPolyTime (fun width => (growingSupportCircuit width).code)
-      encUnary encCode := by
-  have hinput := binary_mul' (const 2) unary_to_binary
-  have hscan : ComputableInPolyTime
-      (fun _ : ℕ => (supportScanCircuit 2 0 2).code) encUnary encCode := const _
-  have hindicator : ComputableInPolyTime
-      (fun _ : ℕ => (supportIndicatorCircuit 2 3 2).code) encUnary encCode := const _
-  have hinner := computableInPolyTime_compCode hinput hscan
-    computableInPolyTime_growingSupportCandidates
-  have h := computableInPolyTime_compCode hinput hindicator hinner
-  simpa only [growingSupportCircuit, compCode_code] using h
+/-- The schedule grows sufficiently when its exact finite-width discrepancy is negligible. -/
+@[expose] def HasNegligibleError : Prop := Negligible S.finiteError
 
-private theorem samplerDist_growingSupportCircuit_eq (width : ℕ) :
-    samplerDist (growingSupportCircuit width) =
-      samplerDist (supportSamplerCircuit width 2 3 2) := by
-  rw [samplerDist_eq_outputDist, samplerDist_eq_outputDist]
-  have heval : (growingSupportCircuit width).eval interpretation =
-      (supportSamplerCircuit width 2 3 2).eval interpretation := by
-    funext x
-    exact eval_growingSupportCircuit width x
-  unfold Circuit.outputDist
-  rw [heval]
+/-- The scheduled Boolean circuit retains the exact finite `sampleSupport2` law. -/
+theorem samplerDist_circuit (s : ℕ) :
+    samplerDist (S.circuit s) =
+      (ProbComp.eval (sampleSupport2 (S.wordWidth s) (S.universeSize s)
+        (S.supportWeight s))).map (indicatorVector (S.universeSize s)) :=
+  samplerDist_supportSamplerCircuit (S.supportWeight_le_universeSize s)
+    (S.universeSize_lt_two_pow_valueBits s)
 
-/-- Measuring the reversible concrete sampler retains the exact finite `sampleSupport2` law,
-including its non-dyadic bias and collision correction. -/
-theorem samplerDist_growingSupportCircuit (width : ℕ) :
-    samplerDist (growingSupportCircuit width) =
-      (ProbComp.eval (sampleSupport2 width 3 2)).map (indicatorVector 3) := by
-  rw [samplerDist_growingSupportCircuit_eq]
-  exact samplerDist_supportSamplerCircuit (by decide) (by decide)
+/-- The scheduled finite law is close to the ideal fixed-weight law by the exact density error. -/
+theorem samplerDist_closeTo_ideal (s : ℕ) :
+    CloseTo (samplerDist (S.circuit s))
+      ((PMF.uniformOfFinset ((Finset.range (S.universeSize s)).powersetCard
+        (S.supportWeight s)) (Finset.powersetCard_nonempty.mpr
+          (by simpa only [Finset.card_range] using S.supportWeight_le_universeSize s))).map
+            (indicatorVector (S.universeSize s)))
+      (S.finiteError s : ENNReal) :=
+  supportSamplerDist_closeTo_ideal (S.supportWeight_le_universeSize s)
+    (S.universeSize_lt_two_pow_valueBits s)
 
-/-- The exact finite discrepancy of the growing schedule from the ideal weight-two support law. -/
-theorem growingSupportSampler_closeTo_ideal (s : ℕ) :
-    CloseTo (samplerDist (growingSupportCircuit (s + 1)))
-      ((PMF.uniformOfFinset ((Finset.range 3).powersetCard 2)
-        (Finset.powersetCard_nonempty.mpr (by decide))).map (indicatorVector 3))
-      (ENNReal.ofReal (1 - (supportLowerDensity (s + 1) 3 0 2).toReal)) := by
-  rw [samplerDist_growingSupportCircuit_eq]
-  exact supportSamplerDist_closeTo_ideal (by decide) (by decide)
+private theorem computableInPolyTime_circuitCode :
+    ComputableInPolyTime (fun s => (S.circuit s).code) encUnary encCode :=
+  computableInPolyTime_supportSamplerCircuit S.computableInPolyTime_wordWidth
+    S.computableInPolyTime_valueBits S.computableInPolyTime_universeSize
+    S.computableInPolyTime_supportWeight
 
-/-- The growing word width makes the exact non-dyadic sampling discrepancy negligible. -/
-theorem negligible_growingSupportSamplerError :
-    Negligible (fun s => Real.toNNReal
-      (1 - (supportLowerDensity (s + 1) 3 0 2).toReal)) := by
-  apply negligible_one_sub_supportLowerDensity
-    (width := fun s => s + 1) (n := fun _ => 3) (count := fun _ => 2)
-  · intro s
-    omega
-  · exact .const 3
-  · exact .const 2
-  · intro s
-    omega
+private theorem computableInPolyTime_seedBits :
+    ComputableInPolyTime S.seedBits encUnary encUnary := by
+  unfold seedBits
+  exact unary_mul' S.computableInPolyTime_supportWeight
+    S.computableInPolyTime_wordWidth
+
+/-- Clear the framed unary family input, prepare the fair seeds, run the reversible sampler, and
+move its output block to the measured prefix. -/
+@[expose] def gateCodes (s : ℕ) : List GateCode :=
+  flipCodes (List.range (2 * s)) ++
+    samplerCodes (S.seedBits s) (S.circuit s).code ++
+    prefixSwapCodes (samplerOutputStart (S.seedBits s) (S.circuit s).code)
+      (S.universeSize s)
+
+/-- The complete scheduled gate list is generated in polynomial time from unary `s`. -/
+@[fun_prop] theorem computableInPolyTime_gateCodes :
+    ComputableInPolyTime S.gateCodes encUnary (encList encGateCode) := by
+  have hseed := S.computableInPolyTime_seedBits
+  have hcode := S.computableInPolyTime_circuitCode
+  have hsampler := computableInPolyTime_samplerCodes hseed hcode
+  have hsource : ComputableInPolyTime
+      (fun s => samplerOutputStart (S.seedBits s) (S.circuit s).code)
+      encUnary encUnary := computableInPolyTime_samplerOutputStart hseed hcode
+  have hprefix := computableInPolyTime_prefixSwapCodes hsource
+    S.computableInPolyTime_universeSize
+  unfold gateCodes flipCodes
+  fun_prop
 
 /-- Flipping the framed unary security parameter clears the initialized basis word for empty
-auxiliary input.  No deterministic input bit is used as a fair sampler seed. -/
-private theorem classicalRun_clearGrowingSupportInput {s width : ℕ}
-    (hwidth : 2 * s + 1 ≤ width) :
+auxiliary input. No deterministic input bit is used as a fair sampler seed. -/
+private theorem classicalRun_clearInput {s width : ℕ} (hwidth : 2 * s + 1 ≤ width) :
     classicalRun (flipCodes (List.range (2 * s)))
       (inputState width (encPair encUnary encBits (s, []))) = inputState width [] := by
   apply funext_readBit
@@ -243,133 +184,98 @@ private theorem classicalRun_clearGrowingSupportInput {s width : ℕ}
     have hnot : ¬c < 2 * s := by omega
     simp [List.mem_range, hnot]
 
-/-- Active width of the reversible growing sampler before allowance for an auxiliary input. -/
-@[expose] def growingSupportSamplerWidth (s : ℕ) : ℕ :=
-  samplerWidth (2 * (s + 1)) (growingSupportCircuit (s + 1)).code
-
-/-- Complete oracle-free gate code at security parameter `s`: clear the known framed unary
-input, run the reversible sampler, then move its three-bit output block to the measured prefix. -/
-@[expose] def growingSupportSamplerGateCodes (s : ℕ) : List GateCode :=
-  flipCodes (List.range (2 * s)) ++
-    samplerCodes (2 * (s + 1)) (growingSupportCircuit (s + 1)).code ++
-    prefixSwapCodes
-      (samplerOutputStart (2 * (s + 1)) (growingSupportCircuit (s + 1)).code) 3
-
-private theorem computableInPolyTime_growingSupportSeed :
-    ComputableInPolyTime (fun s : ℕ => 2 * (s + 1)) encUnary encUnary := by
-  fun_prop
-
-private theorem computableInPolyTime_growingSupportCircuitCode :
-    ComputableInPolyTime (fun s => (growingSupportCircuit (s + 1)).code)
-      encUnary encCode := by
-  exact computableInPolyTime_growingSupportCircuit.comp (by fun_prop)
-
-/-- The complete family gate list is generated in polynomial time from the unary security
-parameter. -/
-@[fun_prop] theorem computableInPolyTime_growingSupportSamplerGateCodes :
-    ComputableInPolyTime growingSupportSamplerGateCodes encUnary (encList encGateCode) := by
-  have hseed := computableInPolyTime_growingSupportSeed
-  have hcode := computableInPolyTime_growingSupportCircuitCode
-  have hsampler := computableInPolyTime_samplerCodes hseed hcode
-  have hsource : ComputableInPolyTime
-      (fun s => samplerOutputStart (2 * (s + 1))
-        (growingSupportCircuit (s + 1)).code) encUnary encUnary :=
-    computableInPolyTime_samplerOutputStart hseed hcode
-  have hprefix := computableInPolyTime_prefixSwapCodes hsource (const 3)
-  unfold growingSupportSamplerGateCodes flipCodes
-  fun_prop
-
-private theorem run_growingSupportSamplerGateCodes (s : ℕ) :
-    let C := growingSupportCircuit (s + 1)
-    let seed := 2 * (s + 1)
-    let width := samplerWidth seed C.code
-    Circuit.run (Circuit.ofCodes width (growingSupportSamplerGateCodes s))
-        (inputState width (encPair encUnary encBits (s, []))) =
-      Circuit.eval (Circuit.ofCodes width
-          (prefixSwapCodes (samplerOutputStart seed C.code) 3))
-        (Circuit.run (Circuit.ofCodes width (samplerCodes seed C.code))
-          (inputState width [])) := by
-  dsimp only
-  have hclear : IsClassical
-      (samplerWidth (2 * (s + 1)) (growingSupportCircuit (s + 1)).code)
-      (flipCodes (List.range (2 * s))) :=
+private theorem run_gateCodes (s : ℕ) :
+    Circuit.run (Circuit.ofCodes (S.activeWidth s) (S.gateCodes s))
+        (inputState (S.activeWidth s) (encPair encUnary encBits (s, []))) =
+      Circuit.eval (Circuit.ofCodes (S.activeWidth s)
+          (prefixSwapCodes
+            (samplerOutputStart (S.seedBits s) (S.circuit s).code)
+            (S.universeSize s)))
+        (Circuit.run (Circuit.ofCodes (S.activeWidth s)
+            (samplerCodes (S.seedBits s) (S.circuit s).code))
+          (inputState (S.activeWidth s) [])) := by
+  have hwidth : 2 * s + 1 ≤ S.activeWidth s := by
+    change 2 * s + 1 ≤ samplerWidth (S.supportWeight s * S.wordWidth s)
+      (supportSamplerCircuit (S.wordWidth s) (S.valueBits s) (S.universeSize s)
+        (S.supportWeight s)).code
+    exact S.framedInput_le_activeWidth s
+  have hclear : IsClassical (S.activeWidth s) (flipCodes (List.range (2 * s))) :=
     isClassical_flipCodes (by
       intro j hj
       have hj' := List.mem_range.mp hj
-      unfold samplerWidth samplerOutputStart samplerZero
       omega)
-  rw [Circuit.run, growingSupportSamplerGateCodes, Circuit.ofCodes_append,
-    Circuit.ofCodes_append, Quantum.Circuit.eval_append, Quantum.Circuit.eval_append,
+  rw [Circuit.run, gateCodes, Circuit.ofCodes_append, Circuit.ofCodes_append,
+    Quantum.Circuit.eval_append, Quantum.Circuit.eval_append,
     Circuit.eval_ofCodes_ket hclear,
-    classicalRun_clearGrowingSupportInput (by
-      unfold samplerWidth samplerOutputStart samplerZero
-      omega)]
+    classicalRun_clearInput hwidth]
   rw [Quantum.Circuit.run]
 
-/-- Starting from the actual framed empty input, the complete raw gate list has exactly the
-existing reversible sampler law at width `s + 1`.  The prefix adapter and input clearing add no
-approximation. -/
-theorem measureOut_growingSupportSamplerGateCodes (s : ℕ) :
-    let C := growingSupportCircuit (s + 1)
-    let seed := 2 * (s + 1)
-    let width := samplerWidth seed C.code
-    let Q := Circuit.ofCodes width (growingSupportSamplerGateCodes s)
-    measureOut (Circuit.run Q (inputState width (encPair encUnary encBits (s, []))))
-        (Circuit.norm_run Q _) (blockReadout 0 3) = samplerDist C := by
-  dsimp only
-  let C := growingSupportCircuit (s + 1)
-  let seed := 2 * (s + 1)
-  let width := samplerWidth seed C.code
-  let source := samplerOutputStart seed C.code
-  let ψ : Qubits width := Circuit.run
-    (Circuit.ofCodes width (samplerCodes seed C.code)) (inputState width [])
+/-- Starting from the framed empty input, the complete gate list realizes exactly the scheduled
+Boolean sampler law. Input clearing and output-prefix movement add no approximation. -/
+theorem measureOut_gateCodes (s : ℕ) :
+    measureOut
+        (Circuit.run (Circuit.ofCodes (S.activeWidth s) (S.gateCodes s))
+          (inputState (S.activeWidth s) (encPair encUnary encBits (s, []))))
+        (Circuit.norm_run _ _) (blockReadout 0 (S.universeSize s)) =
+      samplerDist (S.circuit s) := by
+  let source := samplerOutputStart (S.seedBits s) (S.circuit s).code
+  let ψ : Qubits (S.activeWidth s) := Circuit.run
+    (Circuit.ofCodes (S.activeWidth s) (samplerCodes (S.seedBits s) (S.circuit s).code))
+    (inputState (S.activeWidth s) [])
   have hψ : ‖ψ‖ = 1 := by
     dsimp only [ψ]
     exact Circuit.norm_run _ _
   have hrun :
-      Circuit.run (Circuit.ofCodes width (growingSupportSamplerGateCodes s))
-          (inputState width (encPair encUnary encBits (s, []))) =
-        Circuit.eval (Circuit.ofCodes width (prefixSwapCodes source 3)) ψ := by
-    simpa only [C, seed, width, source, ψ] using run_growingSupportSamplerGateCodes s
+      Circuit.run (Circuit.ofCodes (S.activeWidth s) (S.gateCodes s))
+          (inputState (S.activeWidth s) (encPair encUnary encBits (s, []))) =
+        Circuit.eval
+          (Circuit.ofCodes (S.activeWidth s) (prefixSwapCodes source (S.universeSize s))) ψ := by
+    simpa only [source, ψ] using S.run_gateCodes s
+  have hdisjoint : S.universeSize s ≤ source := by
+    change S.universeSize s ≤ samplerOutputStart
+      (S.supportWeight s * S.wordWidth s)
+      (supportSamplerCircuit (S.wordWidth s) (S.valueBits s) (S.universeSize s)
+        (S.supportWeight s)).code
+    exact S.outputPrefix_disjoint s
+  have hfit : source + S.universeSize s ≤ S.activeWidth s := by
+    unfold source activeWidth seedBits circuit samplerWidth
+    simp only [Circuit.code, List.length_ofFn]
+    omega
   calc
     measureOut
-        (Circuit.run (Circuit.ofCodes width (growingSupportSamplerGateCodes s))
-          (inputState width (encPair encUnary encBits (s, []))))
-        (Circuit.norm_run _ _) (blockReadout 0 3) =
-      measureOut (Circuit.eval (Circuit.ofCodes width (prefixSwapCodes source 3)) ψ)
-        (by rw [Circuit.norm_eval, hψ]) (blockReadout 0 3) := by
+        (Circuit.run (Circuit.ofCodes (S.activeWidth s) (S.gateCodes s))
+          (inputState (S.activeWidth s) (encPair encUnary encBits (s, []))))
+        (Circuit.norm_run _ _) (blockReadout 0 (S.universeSize s)) =
+      measureOut
+        (Circuit.eval
+          (Circuit.ofCodes (S.activeWidth s) (prefixSwapCodes source (S.universeSize s))) ψ)
+        (by rw [Circuit.norm_eval, hψ]) (blockReadout 0 (S.universeSize s)) := by
           congr 1
-    _ = measureOut ψ hψ (blockReadout source 3) :=
-      measureOut_eval_prefixSwapCodes (by
-        dsimp only [source, seed]
-        unfold samplerOutputStart samplerZero
-        omega) (by
-        dsimp only [source, width]
-        unfold samplerWidth
-        simp only [C, Circuit.code, List.length_ofFn]
-        omega) ψ hψ
-    _ = samplerDist C := by
-      have hout : blockReadout source 3 = samplerReadout C := by
-        funext X j
-        rw [blockReadout, samplerReadout]
-      rw [hout]
-      simp only [ψ, width, seed, samplerDist]
+    _ = measureOut ψ hψ (blockReadout source (S.universeSize s)) :=
+      measureOut_eval_prefixSwapCodes hdisjoint hfit ψ hψ
+    _ = samplerDist (S.circuit s) := by
+      change measureOut ψ hψ (samplerReadout (S.circuit s)) = samplerDist (S.circuit s)
+      simp only [ψ, activeWidth, seedBits, samplerDist]
+      congr 1
 
-/-- The exact finite description generated for a security parameter and auxiliary-input length.
-The extra `ℓ` qubits only ensure that every declared classical input fits. -/
-@[expose] def growingSupportSamplerDescription (s ℓ : ℕ) : OracleCircuitDescription where
-  width := growingSupportSamplerWidth s + ℓ
+/-- Exact finite oracle-free description at a security parameter and auxiliary-input length. -/
+@[expose] def description (s ℓ : ℕ) : OracleCircuitDescription where
+  width := S.activeWidth s + ℓ
   queryWidth := 0
   responseWidth := 0
   quantumInputWidth := 0
-  outputWidth := 3
-  instructions := (growingSupportSamplerGateCodes s).map fun g =>
-    OracleGateCode.gate (false, g)
+  outputWidth := S.universeSize s
+  instructions := (S.gateCodes s).map fun g => OracleGateCode.gate (false, g)
 
-private theorem computableInPolyTime_growingSupportSamplerDescription :
+private theorem computableInPolyTime_activeWidth :
+    ComputableInPolyTime S.activeWidth encUnary encUnary :=
+  computableInPolyTime_samplerWidth S.computableInPolyTime_seedBits
+    S.computableInPolyTime_circuitCode
+
+private theorem computableInPolyTime_description :
     ComputableInPolyTime
-      (fun input : OracleInputSize => growingSupportSamplerDescription
-        input.securityParameter input.classicalInputLength)
+      (fun input : OracleInputSize => S.description input.securityParameter
+        input.classicalInputLength)
       encOracleInputSize encOracleCircuitDescription := by
   have hs : ComputableInPolyTime
       (fun input : OracleInputSize => input.securityParameter) encOracleInputSize encUnary := by
@@ -377,191 +283,231 @@ private theorem computableInPolyTime_growingSupportSamplerDescription :
   have hℓ : ComputableInPolyTime
       (fun input : OracleInputSize => input.classicalInputLength) encOracleInputSize encUnary := by
     fun_prop
-  have hseed := computableInPolyTime_growingSupportSeed
-  have hcode := computableInPolyTime_growingSupportCircuitCode
-  have hwidth : ComputableInPolyTime growingSupportSamplerWidth encUnary encUnary :=
-    computableInPolyTime_samplerWidth hseed hcode
+  have hwidth := S.computableInPolyTime_activeWidth
+  have huniverse := S.computableInPolyTime_universeSize
   have hphase : ComputableInPolyTime (fun g : GateCode => (false, g))
       encGateCode encPhaseGateCode := (const false).prod id'
   have horacle := OracleGateCode.computableInPolyTime_gate hphase
-  have hinstructions := horacle.map.comp
-    (computableInPolyTime_growingSupportSamplerGateCodes.comp hs)
-  unfold growingSupportSamplerDescription
+  have hinstructions := horacle.map.comp (S.computableInPolyTime_gateCodes.comp hs)
+  unfold description
   fun_prop
 
-private theorem wellFormed_growingSupportSamplerDescription (s ℓ : ℕ) :
-    (growingSupportSamplerDescription s ℓ).WellFormed ⟨s, ℓ⟩ := by
-  let code := (growingSupportCircuit (s + 1)).code
-  let seed := 2 * (s + 1)
+private theorem wellFormed_description (s ℓ : ℕ) :
+    (S.description s ℓ).WellFormed ⟨s, ℓ⟩ := by
+  let code := (S.circuit s).code
+  let seed := S.seedBits s
   let source := samplerOutputStart seed code
-  let width := samplerWidth seed code
+  let width := S.activeWidth s
   have hinput : 2 * s + 1 + ℓ ≤ width + ℓ := by
-    dsimp only [width, seed]
-    unfold samplerWidth samplerOutputStart samplerZero
-    omega
-  have hsource : 3 ≤ source := by
-    dsimp only [source, seed]
-    unfold samplerOutputStart samplerZero
-    omega
-  have hfit : source + 3 ≤ width := by
-    have hlen : code.2.length = 3 := by
-      simp only [code, growingSupportCircuit, Circuit.code, List.length_ofFn]
-    change source + 3 ≤ source + code.2.length
+    have h := S.framedInput_le_activeWidth s
+    change 2 * s + 1 + ℓ ≤ S.activeWidth s + ℓ
+    change 2 * s + 1 + ℓ ≤ width + ℓ
+    change 2 * s + 1 ≤ S.activeWidth s at h
+    exact Nat.add_le_add_right h ℓ
+  have hsource : S.universeSize s ≤ source := by
+    change S.universeSize s ≤ samplerOutputStart
+      (S.supportWeight s * S.wordWidth s)
+      (supportSamplerCircuit (S.wordWidth s) (S.valueBits s) (S.universeSize s)
+        (S.supportWeight s)).code
+    exact S.outputPrefix_disjoint s
+  have hfit : source + S.universeSize s ≤ width := by
+    have hlen : code.2.length = S.universeSize s := by
+      simp only [code, circuit, Circuit.code, List.length_ofFn]
+    change source + S.universeSize s ≤ source + code.2.length
     rw [hlen]
   have hclear : IsClassical width (flipCodes (List.range (2 * s))) :=
     isClassical_flipCodes (by
       intro j hj
       have hj' := List.mem_range.mp hj
-      dsimp only [width, seed]
-      unfold samplerWidth samplerOutputStart samplerZero
+      have h := S.framedInput_le_activeWidth s
+      change 2 * s + 1 ≤ width at h
       omega)
   have hsampler : ∀ g ∈ samplerCodes seed code, g.WellFormed width := by
-    simpa only [width] using wellFormed_samplerCodes seed code
-  have hprefix : IsClassical width (prefixSwapCodes source 3) :=
+    dsimp only [width, seed]
+    unfold activeWidth
+    simpa only [code] using wellFormed_samplerCodes (S.seedBits s) (S.circuit s).code
+  have hprefix : IsClassical width (prefixSwapCodes source (S.universeSize s)) :=
     isClassical_prefixSwapCodes hsource hfit
-  refine ⟨hinput, by simp [growingSupportSamplerDescription], ?_, ?_⟩
-  · change 3 ≤ width + ℓ
+  refine ⟨hinput, by simp [description], ?_, ?_⟩
+  · change S.universeSize s ≤ width + ℓ
     omega
   intro instruction hinstruction
-  simp only [growingSupportSamplerDescription, List.mem_map] at hinstruction
+  simp only [description, List.mem_map] at hinstruction
   obtain ⟨g, hg, rfl⟩ := hinstruction
   change OracleGateCode.WellFormed 0 0 (width + ℓ) (.gate (false, g))
   simp only [OracleGateCode.WellFormed, PhaseGateCode.WellFormed]
   have hgwidth : g.WellFormed width := by
-    simp only [growingSupportSamplerGateCodes, List.mem_append] at hg
+    simp only [gateCodes, List.mem_append] at hg
     rcases hg with (hg | hg) | hg
     · exact (hclear g hg).2
     · exact hsampler g hg
     · exact (hprefix g hg).2
   simpa using hgwidth.shift (o := 0) (by omega : 0 + width ≤ width + ℓ)
 
-/-- A native uniform oracle-circuit family for the growing support sampler.  It is oracle-free and
-its certified output law below is for empty auxiliary input. -/
-def growingSupportSamplerFamily : UniformOracleCircuitFamily where
-  description := growingSupportSamplerDescription
-  computableInPolyTime_description := computableInPolyTime_growingSupportSamplerDescription
-  wellFormed := wellFormed_growingSupportSamplerDescription
+/-- Native uniform oracle-circuit family realizing one scheduled HQC support draw. The family is
+oracle-free; the certified output law below uses empty auxiliary input. -/
+def family : UniformOracleCircuitFamily where
+  description := S.description
+  computableInPolyTime_description := S.computableInPolyTime_description
+  wellFormed := S.wellFormed_description
 
-private theorem output_growingSupportSamplerFamily_eq_measureOut (s : ℕ) :
-    growingSupportSamplerFamily.output s [] (fun _ _ => false)
-        (ket (fun _ => false)) (norm_ket _) =
+private theorem output_family_eq_measureOut (s : ℕ) :
+    S.family.output s [] (fun _ _ => false) (ket (fun _ => false)) (norm_ket _) =
       (measureOut
-        (Circuit.run
-          (Circuit.ofCodes (growingSupportSamplerWidth s) (growingSupportSamplerGateCodes s))
-          (inputState (growingSupportSamplerWidth s) (encPair encUnary encBits (s, []))))
-        (Circuit.norm_run _ _) (blockReadout 0 3)).map List.ofFn := by
-  let H : (Fin (growingSupportSamplerFamily.description s 0).queryWidth → Bool) →
-      Fin (growingSupportSamplerFamily.description s 0).responseWidth → Bool :=
-    fun _ _ => false
-  let z : Fin (growingSupportSamplerFamily.description s 0).quantumInputWidth → Bool :=
-    fun _ => false
-  let ψ : Qubits (growingSupportSamplerFamily.description s 0).width :=
+        (Circuit.run (Circuit.ofCodes (S.activeWidth s) (S.gateCodes s))
+          (inputState (S.activeWidth s) (encPair encUnary encBits (s, []))))
+        (Circuit.norm_run _ _) (blockReadout 0 (S.universeSize s))).map List.ofFn := by
+  let H : (Fin (S.family.description s 0).queryWidth → Bool) →
+      Fin (S.family.description s 0).responseWidth → Bool := fun _ _ => false
+  let z : Fin (S.family.description s 0).quantumInputWidth → Bool := fun _ => false
+  let ψ : Qubits (S.family.description s 0).width :=
     Circuit.eval
-      (OracleCircuit.toCircuit (growingSupportSamplerFamily.description s 0).width H
-        (growingSupportSamplerFamily.description s 0).instructions)
-      (ket (inputState (growingSupportSamplerFamily.description s 0).width
+      (OracleCircuit.toCircuit (S.family.description s 0).width H
+        (S.family.description s 0).instructions)
+      (ket (inputState (S.family.description s 0).width
         (encPair encUnary encBits (s, ([] : List Bool)) ++ List.ofFn z)))
   have hψ : ‖ψ‖ = 1 := by
     dsimp only [ψ]
     rw [Circuit.norm_eval, norm_ket]
   calc
-    growingSupportSamplerFamily.output s [] (fun _ _ => false)
-        (ket (fun _ => false)) (norm_ket _) =
+    S.family.output s [] (fun _ _ => false) (ket (fun _ => false)) (norm_ket _) =
       measureOut ψ hψ (fun y => List.ofFn fun i =>
-        y (Fin.castLEEmb (growingSupportSamplerFamily.wellFormed s 0).output_le i)) := by
-      convert
-        (UniformOracleCircuitFamily.output_ket growingSupportSamplerFamily s
-          ([] : List Bool) H z) using 1
+        y (Fin.castLEEmb (S.family.wellFormed s 0).output_le i)) := by
+      convert (UniformOracleCircuitFamily.output_ket S.family s ([] : List Bool) H z) using 1
     _ = measureOut ψ hψ (fun y => List.ofFn
-          (blockReadout 0 (growingSupportSamplerFamily.description s 0).outputWidth y)) := by
+          (blockReadout 0 (S.family.description s 0).outputWidth y)) := by
       congr 1
-      exact listOfFn_castLEEmb_eq_blockReadout
-        (growingSupportSamplerFamily.wellFormed s 0).output_le
+      exact listOfFn_castLEEmb_eq_blockReadout (S.family.wellFormed s 0).output_le
     _ = (measureOut ψ hψ
-        (blockReadout 0 (growingSupportSamplerFamily.description s 0).outputWidth)).map
-          List.ofFn :=
+        (blockReadout 0 (S.family.description s 0).outputWidth)).map List.ofFn :=
       (measureOut_map ψ hψ _ List.ofFn).symm
     _ = _ := by
-      simp only [H, z, ψ, growingSupportSamplerFamily, growingSupportSamplerDescription,
-        List.ofFn_zero, List.append_nil, Nat.add_zero]
+      simp only [H, z, ψ, family, description, List.ofFn_zero, List.append_nil, Nat.add_zero]
       simp only [OracleCircuit.toCircuit_map_gateCode, Quantum.Circuit.run]
       congr 1
 
-/-- On empty auxiliary input, the actual uniform family returns exactly the finite
-`sampleSupport2 (s + 1) 3 2` indicator law.  The oracle type is empty, so no oracle behavior enters
-the statement. -/
-theorem output_growingSupportSamplerFamily (s : ℕ) :
-    growingSupportSamplerFamily.output s [] (fun _ _ => false)
-        (ket (fun _ => false)) (norm_ket _) =
-      ((ProbComp.eval (sampleSupport2 (s + 1) 3 2)).map
-        (indicatorVector 3)).map List.ofFn := by
-  rw [output_growingSupportSamplerFamily_eq_measureOut,
-    growingSupportSamplerWidth, measureOut_growingSupportSamplerGateCodes,
-    samplerDist_growingSupportCircuit]
+/-- On empty auxiliary input, the uniform family returns exactly the scheduled finite
+`sampleSupport2` indicator law. -/
+theorem output_family (s : ℕ) :
+    S.family.output s [] (fun _ _ => false) (ket (fun _ => false)) (norm_ket _) =
+      ((ProbComp.eval (sampleSupport2 (S.wordWidth s) (S.universeSize s)
+        (S.supportWeight s))).map (indicatorVector (S.universeSize s))).map List.ofFn := by
+  rw [S.output_family_eq_measureOut, S.measureOut_gateCodes, S.samplerDist_circuit]
 
-/-- Exact online-circuit and finite-description resources of the generated artifact.  These
-coordinates do not include generator time, workspace, or static generator code. -/
-@[expose] def growingSupportSamplerCircuitResources (s ℓ : ℕ) : OracleCircuit.Resources :=
-  let description := growingSupportSamplerDescription s ℓ
-  ⟨description.width, description.instructions.gateCount,
-    description.instructions.queryCount, (encOracleCircuitDescription description).length⟩
+/-- The uniform-family output is close to the ideal fixed-weight indicator law by the scheduled
+finite-width error. -/
+theorem output_family_closeTo_ideal (s : ℕ) :
+    CloseTo
+      (S.family.output s [] (fun _ _ => false) (ket (fun _ => false)) (norm_ket _))
+      (((PMF.uniformOfFinset ((Finset.range (S.universeSize s)).powersetCard
+        (S.supportWeight s)) (Finset.powersetCard_nonempty.mpr
+          (by simpa only [Finset.card_range] using S.supportWeight_le_universeSize s))).map
+            (indicatorVector (S.universeSize s))).map List.ofFn)
+      (S.finiteError s : ENNReal) := by
+  rw [S.output_family_eq_measureOut, S.measureOut_gateCodes]
+  exact (S.samplerDist_closeTo_ideal s).map List.ofFn
 
-/-- The generated finite artifact fits its exact four online/description coordinates. -/
-theorem within_growingSupportSamplerCircuitResources (s ℓ : ℕ) :
-    OracleCircuit.Within (growingSupportSamplerDescription s ℓ).instructions
-      (growingSupportSamplerDescription s ℓ).width
-      (encOracleCircuitDescription (growingSupportSamplerDescription s ℓ)).length
-      (growingSupportSamplerCircuitResources s ℓ) := by
-  simp [growingSupportSamplerCircuitResources, OracleCircuit.Within]
+/-- Exact online-circuit and finite-description resources of the generated artifact. These
+coordinates exclude generator time, workspace, and static generator code. -/
+@[expose] def circuitResources (s ℓ : ℕ) : OracleCircuit.Resources :=
+  let D := S.description s ℓ
+  ⟨D.width, D.instructions.gateCount, D.instructions.queryCount,
+    (encOracleCircuitDescription D).length⟩
 
-/-- The generated family is oracle-free: every instruction is an elementary gate. -/
-@[simp] theorem queryCount_growingSupportSamplerDescription (s ℓ : ℕ) :
-    (growingSupportSamplerDescription s ℓ).instructions.queryCount = 0 := by
-  simp [growingSupportSamplerDescription, OracleCircuit.queryCount,
-    OracleGateCode.isQuery]
+/-- The generated finite artifact fits its exact online and description coordinates. -/
+theorem within_circuitResources (s ℓ : ℕ) :
+    OracleCircuit.Within (S.description s ℓ).instructions (S.description s ℓ).width
+      (encOracleCircuitDescription (S.description s ℓ)).length (S.circuitResources s ℓ) := by
+  simp [circuitResources, OracleCircuit.Within]
 
-/-- One retained generator occurrence and one retained generated-description occurrence.  The
-latter is the same description charged by the circuit resource's `descriptionBits` coordinate;
-it is not a second stored artifact. -/
-@[expose] def growingSupportSamplerInstalledArtifacts
-    (certificate : growingSupportSamplerFamily.GeneratorCertificate) (s : ℕ) :
+/-- Every generated description is oracle-free. -/
+@[simp] theorem queryCount_description (s ℓ : ℕ) :
+    (S.description s ℓ).instructions.queryCount = 0 := by
+  simp [description, OracleCircuit.queryCount, OracleGateCode.isQuery]
+
+/-- One retained generator occurrence and one retained generated-description occurrence. The
+second is the description already charged by `circuitResources.descriptionBits`. -/
+@[expose] def installedArtifacts (certificate : S.family.GeneratorCertificate) (s : ℕ) :
     List Crypto.Game.InstalledArtifact :=
   [{ kind := .generator, bits := (certificate.resources ⟨s, 0⟩).codeBits },
     { kind := .generatedProgram, bits := (certificate.resources ⟨s, 0⟩).outputBits }]
 
-/-- The occurrence inventory charges the exact static universal-machine description once. -/
-theorem installedBits_growingSupportSamplerGenerator
-    (certificate : growingSupportSamplerFamily.GeneratorCertificate) (s : ℕ) :
-    Crypto.Game.InstalledArtifact.installedBits
-      (growingSupportSamplerInstalledArtifacts certificate s) .generator =
-        (Turing.MultiTapeTM.Universal.eDesc certificate.code).length := by
-  simp [growingSupportSamplerInstalledArtifacts,
-    Crypto.Game.InstalledArtifact.installedBits,
+/-- The artifact inventory charges the exact static universal-machine description once. -/
+theorem installedBits_generator (certificate : S.family.GeneratorCertificate) (s : ℕ) :
+    Crypto.Game.InstalledArtifact.installedBits (S.installedArtifacts certificate s) .generator =
+      (Turing.MultiTapeTM.Universal.eDesc certificate.code).length := by
+  simp [installedArtifacts, Crypto.Game.InstalledArtifact.installedBits,
     UniformOracleCircuitFamily.GeneratorCertificate.resources]
 
-/-- The occurrence inventory charges the exact generated description once. -/
-theorem installedBits_growingSupportSamplerGeneratedProgram
-    (certificate : growingSupportSamplerFamily.GeneratorCertificate) (s : ℕ) :
-    Crypto.Game.InstalledArtifact.installedBits
-      (growingSupportSamplerInstalledArtifacts certificate s) .generatedProgram =
-        (encOracleCircuitDescription (growingSupportSamplerDescription s 0)).length := by
-  simp [growingSupportSamplerInstalledArtifacts,
-    Crypto.Game.InstalledArtifact.installedBits,
-    UniformOracleCircuitFamily.GeneratorCertificate.resources,
-    growingSupportSamplerFamily]
+/-- The artifact inventory charges the exact generated description once. -/
+theorem installedBits_generatedProgram (certificate : S.family.GeneratorCertificate) (s : ℕ) :
+    Crypto.Game.InstalledArtifact.installedBits (S.installedArtifacts certificate s)
+        .generatedProgram =
+      (encOracleCircuitDescription (S.description s 0)).length := by
+  simp [installedArtifacts, Crypto.Game.InstalledArtifact.installedBits,
+    UniformOracleCircuitFamily.GeneratorCertificate.resources, family]
 
-/-- The actual uniform family has a deterministic generator certificate whose static code,
-offline time, offline workspace, and exact generated output size are polynomial on this schedule.
-The existential certificate exposes exact finite resource values, but does not choose inspectable
-construction-specific constants. -/
-theorem exists_growingSupportSamplerGenerator :
-    ∃ certificate : growingSupportSamplerFamily.GeneratorCertificate,
+/-- The uniform family has a deterministic generator certificate whose static code, offline
+time, workspace, and exact output size are polynomial on the schedule. -/
+theorem exists_generator :
+    ∃ certificate : S.family.GeneratorCertificate,
       UniformOracleCircuitFamily.GeneratorResources.IsPolynomial
         (fun s => certificate.resources ⟨s, 0⟩) := by
-  obtain ⟨certificate⟩ := growingSupportSamplerFamily.exists_generatorCertificate
+  obtain ⟨certificate⟩ := S.family.exists_generatorCertificate
   refine ⟨certificate, certificate.resources_isPolynomial ?_⟩
   simpa only [encOracleInputSize_apply, encOracleInputSizeFields, length_encPair,
     encUnary_apply, List.length_replicate, Nat.add_zero] using
       (((PolynomiallyBounded.const 2).mul .id).add (.const 1))
+
+end SupportSamplerSchedule
+
+/-- Three support-sampler schedules matched to a parameterized HQC-PKE instance. The secret
+schedule is used twice in key generation, the random schedule twice in encryption, and the error
+schedule once. -/
+structure PKESupportSamplerSchedules (P : ℕ → PKEParams) where
+  /-- Schedule for key-generation supports `y` and `x`. -/
+  secret : SupportSamplerSchedule
+  /-- Schedule for encryption supports `r2` and `r1`. -/
+  encryptionRandom : SupportSamplerSchedule
+  /-- Schedule for the encryption-error support `e`. -/
+  encryptionError : SupportSamplerSchedule
+  /-- Secret draws use the HQC ring size. -/
+  secret_universeSize : ∀ s, secret.universeSize s = (P s).n
+  /-- Secret draws use weight `omega`. -/
+  secret_supportWeight : ∀ s, secret.supportWeight s = (P s).omega
+  /-- Encryption-random draws use the HQC ring size. -/
+  encryptionRandom_universeSize : ∀ s, encryptionRandom.universeSize s = (P s).n
+  /-- Encryption-random draws use weight `omegaR`. -/
+  encryptionRandom_supportWeight : ∀ s, encryptionRandom.supportWeight s = (P s).omegaR
+  /-- Encryption-error draws use the HQC ring size. -/
+  encryptionError_universeSize : ∀ s, encryptionError.universeSize s = (P s).n
+  /-- Encryption-error draws use weight `omegaE`. -/
+  encryptionError_supportWeight : ∀ s, encryptionError.supportWeight s = (P s).omegaE
+
+/-- The five actual HQC-PKE support-sampler families, named in the source sampling order. -/
+structure PKESupportSamplerFamilies where
+  /-- Key-generation draw `y` of weight `omega`. -/
+  keyGenY : UniformOracleCircuitFamily
+  /-- Key-generation draw `x` of weight `omega`. -/
+  keyGenX : UniformOracleCircuitFamily
+  /-- Encryption draw `r2` of weight `omegaR`. -/
+  encryptionR2 : UniformOracleCircuitFamily
+  /-- Encryption draw `e` of weight `omegaE`. -/
+  encryptionError : UniformOracleCircuitFamily
+  /-- Encryption draw `r1` of weight `omegaR`. -/
+  encryptionR1 : UniformOracleCircuitFamily
+
+namespace PKESupportSamplerSchedules
+
+/-- Instantiate the five HQC-PKE support draws from their three parameter-matched schedules. -/
+@[expose] def families {P : ℕ → PKEParams} (S : PKESupportSamplerSchedules P) :
+    PKESupportSamplerFamilies where
+  keyGenY := S.secret.family
+  keyGenX := S.secret.family
+  encryptionR2 := S.encryptionRandom.family
+  encryptionError := S.encryptionError.family
+  encryptionR1 := S.encryptionRandom.family
+
+end PKESupportSamplerSchedules
 
 end Cslib.Crypto.HQC

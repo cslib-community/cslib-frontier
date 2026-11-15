@@ -8,14 +8,15 @@ module
 -- upstream: local-only (test client)
 
 public import CslibFrontier.Crypto.Primitives.HQC.SupportCircuit.Family
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 
 /-!
-# Checked client for the growing HQC support-sampler family
+# Checked clients for scheduled HQC support-sampler families
 
-These examples exercise the deliberately small `(n, count) = (3, 2)` schedule. They check the
-implemented output's length and weight, the oracle-free online description, and the separate
-offline generator and installed-artifact accounting. This is not the published HQC parameter
-schedule or an HQC security claim.
+These examples instantiate the generic family with growing widths and bind three schedules to a
+small `PKEParams` fixture. They check exact fixed-weight output laws for both the secret weight and
+the distinct encryption-error weight, the oracle-free resource record, negligible finite-width
+error, and separate offline artifact accounting. They do not state an HQC security claim.
 -/
 
 public section
@@ -23,53 +24,144 @@ public section
 namespace CslibFrontierTests.HQCSupportSamplerFamily
 
 open Cslib Cslib.Crypto.HQC Cslib.Quantum Cslib.Probability Cslib.BitString
+open Cslib.Quantum.Reversible
+open Turing.MultiTapeTM ComputableInPolyTime
 
-theorem output_shape (s : ℕ) {out : List Bool}
-    (hout : out ∈ (growingSupportSamplerFamily.output s [] (fun _ _ => false)
+private def secretSchedule : SupportSamplerSchedule where
+  wordWidth := fun s => 2 * s + 3
+  valueBits := fun _ => 2
+  universeSize := fun _ => 3
+  supportWeight := fun _ => 2
+  computableInPolyTime_wordWidth :=
+    unary_add' (unary_mul' (const 2) id') (const 3)
+  computableInPolyTime_valueBits := const 2
+  computableInPolyTime_universeSize := const 3
+  computableInPolyTime_supportWeight := const 2
+  supportWeight_le_universeSize := by intro; omega
+  universeSize_lt_two_pow_valueBits := by intro; norm_num
+  framedInput_le_activeWidth := by
+    intro s
+    unfold samplerWidth samplerOutputStart samplerZero
+    omega
+  outputPrefix_disjoint := by
+    intro s
+    unfold samplerOutputStart samplerZero
+    omega
+
+private def errorSchedule : SupportSamplerSchedule where
+  wordWidth := fun s => 2 * s + 3
+  valueBits := fun _ => 2
+  universeSize := fun _ => 3
+  supportWeight := fun _ => 1
+  computableInPolyTime_wordWidth :=
+    unary_add' (unary_mul' (const 2) id') (const 3)
+  computableInPolyTime_valueBits := const 2
+  computableInPolyTime_universeSize := const 3
+  computableInPolyTime_supportWeight := const 1
+  supportWeight_le_universeSize := by intro; omega
+  universeSize_lt_two_pow_valueBits := by intro; norm_num
+  framedInput_le_activeWidth := by
+    intro s
+    unfold samplerWidth samplerOutputStart samplerZero
+    omega
+  outputPrefix_disjoint := by
+    intro s
+    unfold samplerOutputStart samplerZero
+    omega
+
+private def testPKEParams (_ : ℕ) : PKEParams where
+  n := 3
+  k := 1
+  ell := 1
+  omega := 2
+  omegaR := 2
+  omegaE := 1
+  delta := 1
+  ell_le_n := by decide
+  omega_le_n := by decide
+  omegaR_le_n := by decide
+  omegaE_le_n := by decide
+
+private def pkeSchedules : PKESupportSamplerSchedules testPKEParams where
+  secret := secretSchedule
+  encryptionRandom := secretSchedule
+  encryptionError := errorSchedule
+  secret_universeSize := by intro; rfl
+  secret_supportWeight := by intro; rfl
+  encryptionRandom_universeSize := by intro; rfl
+  encryptionRandom_supportWeight := by intro; rfl
+  encryptionError_universeSize := by intro; rfl
+  encryptionError_supportWeight := by intro; rfl
+
+theorem output_shape (S : SupportSamplerSchedule) (s : ℕ) {out : List Bool}
+    (hout : out ∈ (S.family.output s [] (fun _ _ => false)
       (ket (fun _ => false)) (norm_ket _)).support) :
-    out.length = 3 ∧ out.count true = 2 := by
-  rw [output_growingSupportSamplerFamily] at hout
+    out.length = S.universeSize s ∧ out.count true = S.supportWeight s := by
+  rw [S.output_family] at hout
   obtain ⟨word, hword, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hout
-  obtain ⟨S, hS, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hword
+  obtain ⟨A, hA, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hword
   obtain ⟨hsub, hcard⟩ := Finset.mem_powersetCard.mp
-    (sampleSupport2_mem_powersetCard (by decide) hS)
+    (sampleSupport2_mem_powersetCard (S.supportWeight_le_universeSize s) hA)
   exact ⟨List.length_ofFn, by rw [count_true_ofFn, weight_indicatorVector hsub, hcard]⟩
 
--- The output constraint is inhabited for every security parameter, not a vacuous implication.
+-- The PKE API bundle maps key-generation `y` to weight two and encryption error `e` to the
+-- distinct weight one; both output constraints are inhabited.
 example (s : ℕ) :
-    ∃ out ∈ (growingSupportSamplerFamily.output s [] (fun _ _ => false)
+    (∃ out ∈ (pkeSchedules.families.keyGenY.output s [] (fun _ _ => false)
       (ket (fun _ => false)) (norm_ket _)).support,
-      out.length = 3 ∧ out.count true = 2 := by
-  obtain ⟨out, hout⟩ := (growingSupportSamplerFamily.output s [] (fun _ _ => false)
-    (ket (fun _ => false)) (norm_ket _)).support_nonempty
-  exact ⟨out, hout, output_shape s hout⟩
+        out.length = 3 ∧ out.count true = 2) ∧
+      (∃ out ∈ (pkeSchedules.families.encryptionError.output s [] (fun _ _ => false)
+        (ket (fun _ => false)) (norm_ket _)).support,
+          out.length = 3 ∧ out.count true = 1) := by
+  constructor
+  · obtain ⟨out, hout⟩ := (pkeSchedules.families.keyGenY.output s [] (fun _ _ => false)
+      (ket (fun _ => false)) (norm_ket _)).support_nonempty
+    refine ⟨out, hout, ?_⟩
+    simpa [PKESupportSamplerSchedules.families, pkeSchedules, secretSchedule] using
+      output_shape secretSchedule s hout
+  · obtain ⟨out, hout⟩ := (pkeSchedules.families.encryptionError.output s []
+      (fun _ _ => false) (ket (fun _ => false)) (norm_ket _)).support_nonempty
+    refine ⟨out, hout, ?_⟩
+    simpa [PKESupportSamplerSchedules.families, pkeSchedules, errorSchedule] using
+      output_shape errorSchedule s hout
+
+-- Growing word width establishes the explicit asymptotic premise; fixed width 32 would not.
+example : secretSchedule.HasNegligibleError := by
+  unfold SupportSamplerSchedule.HasNegligibleError SupportSamplerSchedule.finiteError
+  apply negligible_one_sub_supportLowerDensity
+    (width := fun s => 2 * s + 3) (n := fun _ => 3) (count := fun _ => 2)
+  · intro s
+    omega
+  · exact .const 3
+  · exact .const 2
+  · intro s
+    omega
 
 -- Every generated description is oracle-free and fits its exact online resource record.
 example (s ℓ : ℕ) :
-    OracleCircuit.Within (growingSupportSamplerDescription s ℓ).instructions
-        (growingSupportSamplerDescription s ℓ).width
-        (encOracleCircuitDescription (growingSupportSamplerDescription s ℓ)).length
-        (growingSupportSamplerCircuitResources s ℓ) ∧
-      (growingSupportSamplerDescription s ℓ).instructions.queryCount = 0 :=
-  ⟨within_growingSupportSamplerCircuitResources s ℓ,
-    queryCount_growingSupportSamplerDescription s ℓ⟩
+    OracleCircuit.Within (secretSchedule.description s ℓ).instructions
+        (secretSchedule.description s ℓ).width
+        (encOracleCircuitDescription (secretSchedule.description s ℓ)).length
+        (secretSchedule.circuitResources s ℓ) ∧
+      (secretSchedule.description s ℓ).instructions.queryCount = 0 :=
+  ⟨secretSchedule.within_circuitResources s ℓ, secretSchedule.queryCount_description s ℓ⟩
 
 -- Offline generation is polynomial, while the retained generator and generated program are
 -- charged as two distinct exact occurrences.
 example :
-    ∃ certificate : growingSupportSamplerFamily.GeneratorCertificate,
+    ∃ certificate : secretSchedule.family.GeneratorCertificate,
       UniformOracleCircuitFamily.GeneratorResources.IsPolynomial
           (fun s => certificate.resources ⟨s, 0⟩) ∧
         ∀ s,
           Crypto.Game.InstalledArtifact.installedBits
-              (growingSupportSamplerInstalledArtifacts certificate s) .generator =
+              (secretSchedule.installedArtifacts certificate s) .generator =
               (Turing.MultiTapeTM.Universal.eDesc certificate.code).length ∧
             Crypto.Game.InstalledArtifact.installedBits
-              (growingSupportSamplerInstalledArtifacts certificate s) .generatedProgram =
-              (encOracleCircuitDescription (growingSupportSamplerDescription s 0)).length := by
-  obtain ⟨certificate, hpoly⟩ := exists_growingSupportSamplerGenerator
+              (secretSchedule.installedArtifacts certificate s) .generatedProgram =
+              (encOracleCircuitDescription (secretSchedule.description s 0)).length := by
+  obtain ⟨certificate, hpoly⟩ := secretSchedule.exists_generator
   refine ⟨certificate, hpoly, fun s => ⟨?_, ?_⟩⟩
-  · exact installedBits_growingSupportSamplerGenerator certificate s
-  · exact installedBits_growingSupportSamplerGeneratedProgram certificate s
+  · exact secretSchedule.installedBits_generator certificate s
+  · exact secretSchedule.installedBits_generatedProgram certificate s
 
 end CslibFrontierTests.HQCSupportSamplerFamily

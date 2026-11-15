@@ -8,25 +8,24 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Circuit.Boolean.CodeComposition
-public import CslibFrontier.Computability.Circuit.Parallel
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+public import CslibFrontier.Computability.Circuit.Replication
 
 /-!
-# Native code for two circuits on disjoint inputs
+# Native code for circuit families on disjoint inputs
 
-`parallelCode` applies the existing sequential and shared-input code constructors to two raw
-circuit codes.  The first code reads the first input block and the second reads the following
-block.  This retains each component's internal sharing; it is not a truth-table compiler.
+`parallelFamilyCode n m codes` runs an arbitrary list of `n`-input, `m`-output circuit codes on
+consecutive disjoint input blocks and concatenates their output blocks.  The fold mirrors
+`Circuit.parallelFamily`: it retains each member's internal sharing and never compiles a truth
+table.
 
 ## Main definitions
 
-* `Cslib.Circuits.Boolean.parallelCode`: raw code for two disjoint-input circuits.
+* `Cslib.Circuits.Boolean.parallelFamilyCode`: raw code for a list of disjoint-input circuits.
 
 ## Main results
 
-* `Cslib.Circuits.Boolean.parallelCode_code`: exact agreement with `Circuit.parallel`.
-* `Cslib.Circuits.Boolean.computableInPolyTime_parallelCode`: native polynomial-time generation.
+* `Cslib.Circuits.Boolean.parallelFamilyCode_code`: exact agreement with
+  `Circuit.parallelFamily` for every finite family.
 
 These code-composition results are original infrastructure.
 -/
@@ -35,19 +34,17 @@ public section
 
 namespace Cslib.Circuits.Boolean
 
-open Turing.MultiTapeTM ComputableInPolyTime
+local notation "Code" => List (Op × List ℕ) × List ℕ
 
-/-- Run raw code `left` on the first `leftInputs` inputs and `right` on the following
-`rightInputs` inputs, concatenating their outputs. -/
-def parallelCode (leftInputs rightInputs : ℕ)
-    (left right : List (Op × List ℕ) × List ℕ) : List (Op × List ℕ) × List ℕ :=
+/-- Run two raw circuit codes on consecutive disjoint input blocks.  This binary constructor is
+kept private as the implementation step of the list-level family compiler. -/
+private def parallelCode (leftInputs rightInputs : ℕ) (left right : Code) : Code :=
   appendCode (leftInputs + rightInputs)
     (compCode (leftInputs + rightInputs) left ([], List.range leftInputs))
     (compCode (leftInputs + rightInputs) right
       ([], (List.range rightInputs).map (leftInputs + ·)))
 
-/-- The raw disjoint-input constructor is exactly the code of typed parallel composition. -/
-theorem parallelCode_code {n m p q : ℕ}
+private theorem parallelCode_code {n m p q : ℕ}
     (left : Circuit signature n m) (right : Circuit signature p q) :
     parallelCode n p left.code right.code = (left.parallel right).code := by
   rw [parallelCode, Circuit.parallel]
@@ -62,36 +59,65 @@ theorem parallelCode_code {n m p q : ℕ}
       (σ := signature) (f := Fin.natAdd n) (g := (n + ·)) (fun _ => rfl)]
   rw [compCode_code, compCode_code, appendCode_code]
 
-/-- Parallel composition is generated in polynomial time from unary input-block sizes and the
-complete binary-wire encodings of both component codes. -/
-@[fun_prop] theorem computableInPolyTime_parallelCode {α : Type} {enc : α ↪ List Bool}
-    {n p : α → ℕ} {left right : α → List (Op × List ℕ) × List ℕ}
-    (hn : ComputableInPolyTime n enc encUnary) (hp : ComputableInPolyTime p enc encUnary)
-    (hleft : ComputableInPolyTime left enc encCode)
-    (hright : ComputableInPolyTime right enc encCode) :
-    ComputableInPolyTime
-      (fun a => parallelCode (n a) (p a) (left a) (right a)) enc encCode := by
-  have hn' := unary_to_binary.comp hn
-  have hp' := unary_to_binary.comp hp
-  have htotal := binary_add' hn' hp'
-  have hleftWires : ComputableInPolyTime
-      (fun a => List.range (n a)) enc (encList encNat) := by
-    have h := unary_to_binary.map.comp (range.comp hn)
-    simpa only [Function.comp_def, List.map_id_fun', id_eq] using h
-  have hleftInput : ComputableInPolyTime
-      (fun a => ([], List.range (n a))) enc encCode :=
-    (const (encOut := encList encGate) []).prod hleftWires
-  have hrightWires : ComputableInPolyTime
-      (fun a => (List.range (p a)).map (n a + ·)) enc (encList encNat) := by
-    have hwire : ComputableInPolyTime (fun q : α × ℕ => n q.1 + q.2)
-        (encPair enc encUnary) encNat :=
-      binary_add' (hn'.comp (fst _ _)) (unary_to_binary.comp (snd _ _))
-    exact mapWithInput (range.comp hp) hwire
-  have hrightInput : ComputableInPolyTime
-      (fun a => ([], (List.range (p a)).map (n a + ·))) enc encCode :=
-    (const (encOut := encList encGate) []).prod hrightWires
-  exact computableInPolyTime_appendCode htotal
-    (computableInPolyTime_compCode htotal hleft hleftInput)
-    (computableInPolyTime_compCode htotal hright hrightInput)
+/-- Run a list of raw `n`-input, `m`-output circuit codes on consecutive disjoint input blocks,
+preserving the list order in the output blocks. -/
+@[expose] def parallelFamilyCode (n m : ℕ) (codes : List Code) : Code :=
+  (codes.foldl (fun state code =>
+    let k := state.1
+    let inputCount := (k + 1) * n
+    let outputCount := (k + 1) * m
+    let combined := appendCode (k * n + n)
+      (compCode (k * n + n) state.2 ([], List.range (k * n)))
+      (compCode (k * n + n) code ([], (List.range n).map (k * n + ·)))
+    (k + 1,
+      compCode inputCount ([], List.range outputCount)
+        (compCode inputCount combined ([], List.range inputCount)))) (0, ([], []))).2
+
+private theorem fold_parallelFamilyCodeStep_code {k n m : ℕ}
+    (cs : Fin k → Circuit signature n m) :
+    (List.ofFn fun j => (cs j).code).foldl (fun state code =>
+      let k := state.1
+      let inputCount := (k + 1) * n
+      let outputCount := (k + 1) * m
+      let combined := appendCode (k * n + n)
+        (compCode (k * n + n) state.2 ([], List.range (k * n)))
+        (compCode (k * n + n) code ([], (List.range n).map (k * n + ·)))
+      (k + 1,
+        compCode inputCount ([], List.range outputCount)
+          (compCode inputCount combined ([], List.range inputCount)))) (0, ([], [])) =
+      (k, (Circuit.parallelFamily cs).code) := by
+  induction k with
+  | zero => simp [Circuit.parallelFamily, Circuit.code_wiring]
+  | succ k ih =>
+    rw [List.ofFn_succ_last, List.foldl_append, ih (fun j => cs j.castSucc)]
+    simp only [List.foldl_cons, List.foldl_nil]
+    have hout : (Circuit.wiring signature (Fin.cast (Nat.succ_mul k m))).code =
+        ([], List.range ((k + 1) * m)) := by
+      simpa [Nat.succ_eq_add_one, Nat.succ_mul] using Circuit.code_wiring_eq_map
+        (σ := signature) (f := Fin.cast (Nat.succ_mul k m)) (g := id) fun _ => rfl
+    have hin : (Circuit.wiring signature (Fin.cast (Nat.succ_mul k n).symm)).code =
+        ([], List.range ((k + 1) * n)) := by
+      simpa [Nat.succ_eq_add_one, Nat.succ_mul] using Circuit.code_wiring_eq_map
+        (σ := signature) (f := Fin.cast (Nat.succ_mul k n).symm) (g := id) fun _ => rfl
+    have hparallel :
+        appendCode (k * n + n)
+          (compCode (k * n + n) (Circuit.parallelFamily fun j => cs j.castSucc).code
+            ([], List.range (k * n)))
+          (compCode (k * n + n) (cs (Fin.last k)).code
+            ([], (List.range n).map (k * n + ·))) =
+          ((Circuit.parallelFamily fun j => cs j.castSucc).parallel
+            (cs (Fin.last k))).code := by
+      simpa only [parallelCode] using parallelCode_code
+        (Circuit.parallelFamily fun j => cs j.castSucc) (cs (Fin.last k))
+    rw [← hout, ← hin, hparallel, compCode_code, compCode_code]
+    rfl
+
+/-- Compiling the codes of a typed finite family gives exactly the code of its disjoint-input
+parallel composition, including the empty family. -/
+theorem parallelFamilyCode_code {k n m : ℕ} (cs : Fin k → Circuit signature n m) :
+    parallelFamilyCode n m (List.ofFn fun j => (cs j).code) =
+      (Circuit.parallelFamily cs).code := by
+  unfold parallelFamilyCode
+  rw [fold_parallelFamilyCodeStep_code]
 
 end Cslib.Circuits.Boolean

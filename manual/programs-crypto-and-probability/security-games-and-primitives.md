@@ -1323,22 +1323,31 @@ encoded-code bound charges framed unary wire indices for the emitted gates. It d
 the static generator description or offline generation time as online attack execution.
 
 [`HQC/SupportCircuit/Family.lean`](../../CslibFrontier/Crypto/Primitives/HQC/SupportCircuit/Family.lean)
-checks the complete composition on the deliberately small schedule `(n, count, width) =
-(3, 2, s + 1)`. Its native uniform family has the exact finite implemented law above, negligible
-finite-width discrepancy on this growing schedule, exact online circuit resources, and separate
-polynomial offline-generator and static-occurrence accounting. This is a checked client of the
-generic sampler, not an HQC parameter schedule: HQC v5.1 §6.2.3 composes the upper-density
-factors for three encryption support vectors multiplicatively. Instantiating that actual schedule
-and its reduction remains [#5281](https://github.com/cslib-community/cslib-frontier/issues/5281).
-The family module makes no HQC security or QROM claim.
+builds a native uniform family from arbitrary polynomial-time word-width, value-bit, universe and
+support-weight schedules. At every parameter its output has exactly the finite implemented law
+above. Negligibility is a separate growing-width property; in particular, the published fixed
+word width `32` does not satisfy it. The module records exact online resources and separate
+polynomial offline-generator and static-occurrence accounting.
+
+`PKESupportSamplerSchedules` binds three schedules to a `PKEParams` family and
+`PKESupportSamplerFamilies` names the five source-order draws: key generation `y, x` at weight
+`omega`, then encryption `r2, e, r1` at weights `omegaR, omegaE, omegaR`. The checked client uses a
+small `PKEParams` fixture with distinct secret/random and error weights; it is not a published HQC
+parameter-set consumer. The named `hqc1PKEParams`, `hqc3PKEParams` and `hqc5PKEParams` records are
+currently supplied only by the unmerged [#5279](https://github.com/cslib-community/cslib-frontier/issues/5279)
+work. Connecting this family to those records depends on that work landing. HQC v5.1 §6.2.3 also
+composes the upper-density factors for three encryption support vectors multiplicatively; the
+reduction remains [#5281](https://github.com/cslib-community/cslib-frontier/issues/5281). The family
+module makes no HQC security or QROM claim.
 
 The complete ordinary clients in
 [`HQCSupportCircuit.lean`](../../CslibFrontierTests/Crypto/HQCSupportCircuit.lean) and
 [`HQCSupportProbability.lean`](../../CslibFrontierTests/Crypto/HQCSupportProbability.lean) check
 the non-dyadic sampler law, finite discrepancy, and the growing-width qualification.
 [`HQCSupportSamplerFamily.lean`](../../CslibFrontierTests/Crypto/HQCSupportSamplerFamily.lean)
-checks the generated family's inhabited fixed-weight output, each resource coordinate, and its
-offline occurrence accounting. From the repository root, build them with:
+checks inhabited fixed-weight outputs for two distinct PKE fixture weights, the negligible
+growing-width condition, each resource coordinate, and offline occurrence accounting. From the
+repository root, build them with:
 
 ```bash
 scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.HQCSupportCircuit CslibFrontierTests.Crypto.HQCSupportProbability CslibFrontierTests.Crypto.HQCSupportSamplerFamily
