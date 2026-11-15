@@ -10,9 +10,8 @@ module
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.SchnorrSignature
 public import CslibFrontier.Languages.Probabilistic.QueryCount
 import CslibFrontier.Languages.Probabilistic.Norm
-import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bind
-import CslibFrontier.Probability.Uniform
+import CslibFrontier.Probability.PMF.UniformPoint
 
 /-!
 # Schnorr signatures with related nonces
@@ -26,11 +25,11 @@ least `1 - 1 / |C|` (`one_sub_inv_card_le_succProbability_relatedNonceGame`).
 **Differences from Boneh–Shoup.** The book fixes a cyclic group with generator `g`, hashes to a
 challenge set `C`, and states that the adversary recovers the secret key with high probability. Here
 the ambient group is an additive `ZMod q`-module with an arbitrary base `g` and challenge embedding
-`ι : C ↪ ZMod q` (`schnorrROMScheme`), extraction holds unconditionally as an algebraic identity on
-honest responses (`relatedNonceExtract_respond`) with no generator assumption on `g`, and the
-explicit lower bound `1 - 1 / |C|` assumes `m₀ ≠ m₁` (needed because equal messages with `a = 1`,
-`b = 0` repeat the random-oracle query and force `a * ι c₀ = ι c₁`). Only the exact-security typed
-ROM experiment is defined here; polynomial-time word extraction is separate in
+`ι : C ↪ ZMod q` (`schnorrROMScheme`), for honest responses the formula returns the key for any base
+`g` whenever `a * ι c₀ ≠ ι c₁` (`relatedNonceExtract_respond`), and the explicit lower bound
+`1 - 1 / |C|` assumes `m₀ ≠ m₁` (needed because equal messages with `a = 1`, `b = 0` repeat the
+random-oracle query and force `a * ι c₀ = ι c₁`). Only the exact-security typed ROM experiment is
+defined here; polynomial-time word extraction is separate in
 `CslibFrontier.Crypto.Computational.SchnorrRelatedNonce`, with no word-level game.
 
 ## Main definitions
@@ -122,12 +121,6 @@ theorem relatedNonceExtract_respond [Fact q.Prime] (α : ZMod q) (u : G) (r a b 
   rw [smul_eq_mul, smul_eq_mul, inv_mul_eq_iff_eq_mul₀ hne]
   ring
 
-omit [NeZero q] in
-/-- When `a * c₀ = c₁` the formula returns `0`. -/
-theorem relatedNonceExtract_of_eq (a b c₀ z₀ z₁ : ZMod q) :
-    relatedNonceExtract a b c₀ z₀ (a * c₀) z₁ = 0 := by
-  simp [relatedNonceExtract, ZMod.inv_zero]
-
 end Algebra
 
 section RandomOracle
@@ -177,51 +170,33 @@ theorem one_sub_inv_card_le_succProbability_relatedNonceGame (ι : C ↪ ZMod q)
     (a b : ZMod q) {m₀ m₁ : M} (hm : m₀ ≠ m₁) :
     1 - (Fintype.card C : ℝ≥0)⁻¹ ≤ Game.succProbability (relatedNonceGame ι g a b m₀ m₁) := by
   have hfail : relatedNonceGame ι g a b m₀ m₁ false ≤ (Fintype.card C : ℝ≥0∞)⁻¹ := by
-    have hmiss : ∀ (p : M × G) (cache : List ((M × G) × C)), cache.lookup p = none →
-        (oracle C p).run cache =
-          (PMF.uniformOfFintype C).bind fun c => PMF.pure (c, (p, c) :: cache) := by
-      intro p cache h
-      change memoize (fun _ => PMF.uniformOfFintype C) p cache = _
-      rw [memoize_of_none _ _ _ h]
-      rfl
-    have hhit : ∀ (p : M × G) (cache : List ((M × G) × C)) (c : C), cache.lookup p = some c →
-        (oracle C p).run cache = PMF.pure (c, cache) := by
-      intro p cache c h
-      change memoize (fun _ => PMF.uniformOfFintype C) p cache = _
-      rw [memoize_of_some _ _ _ _ h]
-      rfl
     simp only [relatedNonceGame, relatedNonceAttacker, schnorrROMScheme, fiatShamir, interpret_map,
       interpret_query, interpret_bind, interpret_pure, StateT.run_map, StateT.run_bind,
       StateT.run_pure, pmf_norm, PMF.monad_map_eq_map, PMF.bind_bind, PMF.pure_bind,
       PMF.map, Function.Embedding.refl_apply]
     refine PMF.bind_apply_le_on_support _ fun key _ => ?_
     refine PMF.bind_apply_le_on_support _ fun r _ => ?_
-    rw [hmiss _ [] rfl]
+    rw [run_oracle_of_lookup_eq_none (cache := []) rfl]
     simp only [PMF.bind_bind, PMF.pure_bind]
     refine PMF.bind_apply_le_on_support _ fun c₀ _ => ?_
     have hne : ((m₁, (a * r + b) • g) == (m₀, r • g)) = false := by simp [Ne.symm hm]
     have hne' : ((m₀, r • g) == (m₁, (a * r + b) • g)) = false := by simp [hm]
-    rw [hmiss _ _ (by simp [List.lookup, hne])]
+    rw [run_oracle_of_lookup_eq_none (by simp [List.lookup, hne])]
     simp only [PMF.bind_bind, PMF.pure_bind]
     have hsum : ∑' c₁ : C, PMF.uniformOfFintype C c₁ *
         (if a * ι c₀ = ι c₁ then (1 : ℝ≥0∞) else 0) ≤ (Fintype.card C : ℝ≥0∞)⁻¹ := by
-      simp only [PMF.uniformOfFintype_apply, mul_ite, mul_one, mul_zero, tsum_fintype]
-      by_cases hex : ∃ c, a * ι c₀ = ι c
-      · obtain ⟨c, hc⟩ := hex
-        have hiff : ∀ c₁, (a * ι c₀ = ι c₁) ↔ c = c₁ := fun c₁ => by
-          rw [hc]; exact ι.injective.eq_iff
-        rw [Finset.sum_eq_single_of_mem c (Finset.mem_univ c)
-          fun c₁ _ hne => ite_eq_right fun h => hne ((hiff c₁).mp h).symm, ite_eq_left hc]
-      · rw [not_exists] at hex
-        simp only [hex, ite_false, Finset.sum_const_zero, zero_le]
+      simpa only [PMF.bind_apply, PMF.pure_apply, true_eq_decide_iff] using
+        PMF.uniformOfFintype_bind_pure_apply_true_le (α := C)
+          (E := fun c₁ => decide (a * ι c₀ = ι c₁)) fun x hx y hy =>
+            ι.injective ((of_decide_eq_true hx).symm.trans (of_decide_eq_true hy))
     rw [PMF.bind_apply]
     refine le_trans (tsum_le_tsum fun c₁ => mul_le_mul_right ?_ _) hsum
     by_cases hc : a * ι c₀ = ι c₁
     · rw [ite_eq_left hc]
       exact PMF.coe_le_one _ _
-    · rw [ite_eq_right hc, hhit _ _ c₀ (by simp [List.lookup, hne']), PMF.pure_bind,
-        hhit _ _ c₁ (by simp [List.lookup]), PMF.pure_bind,
-        relatedNonceExtract_respond key.1 key.2 r a b hc]
+    · rw [ite_eq_right hc, run_oracle_of_lookup_eq_some (c := c₀) (by simp [List.lookup, hne']),
+        PMF.pure_bind, run_oracle_of_lookup_eq_some (c := c₁) (by simp [List.lookup]),
+        PMF.pure_bind, relatedNonceExtract_respond key.1 key.2 r a b hc]
       simp
   have hf : Game.failProbability (relatedNonceGame ι g a b m₀ m₁) ≤
       (Fintype.card C : ℝ≥0)⁻¹ := by
