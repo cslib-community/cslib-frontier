@@ -1209,12 +1209,13 @@ by `decide` and build the instance as `⟨isUnit_iff_ne_zero.2 h⟩`.
   (including `WeierstrassCurve.ofCubic α β γ` and short Weierstrass curves `[W.IsShortNF]`) and
   `c : R`, `W.quadraticTwist c` is `ofCubic (c * W.a₂) (c ^ 2 * W.a₄) (c ^ 3 * W.a₆)`, with
   discriminant `c ^ 6 * W.Δ` (`WeierstrassCurve.quadraticTwist_Δ`). Over a field `F`, for an
-  elliptic curve `W` (`[W.IsElliptic]`) in `IsCharNeTwoNF` form and `c ≠ 0`, scaling by
+  elliptic curve `W` (`[W.IsElliptic]`) in `IsCharNeTwoNF` form and `c ≠ 0`,
+  `WeierstrassCurve.ringChar_ne_two_of_isCharNeTwoNF` gives `ringChar F ≠ 2`, and scaling by
   `(x, y) ↦ (c x, c² y)` identifies the points of `W.quadraticTwist c` with the point at infinity
   plus the solutions of `c y² = x³ + a₂ x² + a₄ x + a₆` (`WeierstrassCurve.quadraticTwistPointEquiv`,
-  and over finite `F`, `WeierstrassCurve.natCard_point_quadraticTwist_eq_one_add` and
-  `WeierstrassCurve.natCard_point_quadraticTwist_eq_one_add_of_isShortNF`). Over a finite field
-  `F`, twisting by `c ≠ 0` multiplies `cubicCharSum` by `quadraticChar F c`
+  and over finite `F`, `WeierstrassCurve.natCard_point_quadraticTwist_eq_one_add`, or
+  `WeierstrassCurve.natCard_point_quadraticTwist_eq_one_add_of_isShortNF` for `c y² = x³ + a₄ x + a₆`).
+  Over a finite field `F`, twisting by `c ≠ 0` multiplies `cubicCharSum` by `quadraticChar F c`
   (`WeierstrassCurve.cubicCharSum_mul`); for an elliptic curve `W` in `IsCharNeTwoNF` form and a
   quadratic non-residue `hc : ¬ IsSquare c`, `WeierstrassCurve.natCard_point_add_quadraticTwist`
   (and `WeierstrassCurve.natCard_point_add_quadraticTwist_zmod` over `ZMod p`) proves
@@ -1227,12 +1228,13 @@ by `decide` and build the instance as `⟨isUnit_iff_ne_zero.2 h⟩`.
 The [checked client](../../CslibFrontierTests/Foundations/AlgebraicGeometry/EllipticCurveHasse.lean)
 (using [`EllipticCurve/Decidable.lean`](../../CslibFrontier/Foundations/AlgebraicGeometry/EllipticCurve/Decidable.lean)
 for decidable `Equation` and `Nonsingular` checks) counts the points of `y² = x³ + 3x + 3` over
-`ZMod 7` (Example 9.69 of [katzlindell20][katzlindell20]), of `y² + y = x³` over `ZMod 2`, of two
-curves over `ZMod 5` that attain both ends of the bound, and of the 12-point curve `y² = x³ + 1`
-over `ZMod 11` ([bs23][bs23], §15.2, Equation (15.4), p. 618), and checks quadratic twists over
-`ZMod 11`, `ZMod 7`, `ZMod 5` and `ZMod 3` together with counterexamples when `¬ IsSquare c`,
-`c ≠ 0`, `IsElliptic` or `IsCharNeTwoNF` is dropped (and why no `IsCharNeTwoNF` curve over
-`ZMod 2` is elliptic). Build it with
+`ZMod 7` (Example 9.69 of [katzlindell20][katzlindell20]), of `y² + y = x³` over `ZMod 2` and of
+two curves over `ZMod 5` that attain both ends of the bound, and applies each form of the theorem
+to them. It also counts the 12-point curve `y² = x³ + 1` over `ZMod 11` ([bs23][bs23], §15.2,
+Equation (15.4), p. 618), and checks quadratic twists over `ZMod 11`, `ZMod 7`, `ZMod 5` and
+`ZMod 3` together with counterexamples when `¬ IsSquare c`, `c ≠ 0`, `IsElliptic` or
+`IsCharNeTwoNF` is dropped (and why no `IsCharNeTwoNF` curve over `ZMod 2` is elliptic via
+`WeierstrassCurve.ringChar_ne_two_of_isCharNeTwoNF`). Build it with
 `lake build CslibFrontierTests.Foundations.AlgebraicGeometry.EllipticCurveHasse`.
 
 ### Lagrange interpolation in the exponent

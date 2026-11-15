@@ -174,14 +174,14 @@ theorem natCard_quadraticTwist_E11 :
 -- Explicit action of `quadraticTwistEquationEquiv` and `quadraticTwistPointEquiv` across the
 -- module boundary on `(1, 1)` for `2 y² = x³ + 1` over `ZMod 11` (`(c x, c² y) = (2, 4)`),
 -- and the resulting cardinality identities.
-example (h : (2 : ZMod 11) * 1 ^ 2 = 1 ^ 3 + E11.a₂ * 1 ^ 2 + E11.a₄ * 1 + E11.a₆) :
-    (E11.quadraticTwistEquationEquiv (c := 2) (by decide) ⟨(1, 1), h⟩ : ZMod 11 × ZMod 11) =
-      (2, 4) := by
+example :
+    (E11.quadraticTwistEquationEquiv (c := 2) (by decide) ⟨(1, 1), by decide⟩ :
+      ZMod 11 × ZMod 11) = (2, 4) := by
   simp only [quadraticTwistEquationEquiv_apply]
   decide
 
-example (h : (E11.quadraticTwist 2).toAffine.Equation 2 4) :
-    ((E11.quadraticTwistEquationEquiv (c := 2) (by decide)).symm ⟨(2, 4), h⟩ :
+example :
+    ((E11.quadraticTwistEquationEquiv (c := 2) (by decide)).symm ⟨(2, 4), by decide⟩ :
       ZMod 11 × ZMod 11) = (1, 1) := by
   simp only [quadraticTwistEquationEquiv_symm_apply]
   ext
@@ -193,10 +193,16 @@ example : E11.quadraticTwistPointEquiv (c := 2) (by decide) 0 = 0 ∧
     (E11.quadraticTwistPointEquiv (c := 2) (by decide)).symm 0 = 0 :=
   ⟨E11.quadraticTwistPointEquiv_zero _, E11.quadraticTwistPointEquiv_symm_zero _⟩
 
-example (hns : (E11.quadraticTwist 2).toAffine.Nonsingular 2 4) :
-    E11.quadraticTwistPointEquiv (c := 2) (by decide) (.some _ _ hns) =
-      WithZero.coe ((E11.quadraticTwistEquationEquiv (by decide)).symm ⟨(2, 4), hns.left⟩) :=
-  E11.quadraticTwistPointEquiv_some (by decide) hns
+example :
+    E11.quadraticTwistPointEquiv (c := 2) (by decide) (.some (2 : ZMod 11) 4 (by decide)) =
+      WithZero.coe ((E11.quadraticTwistEquationEquiv (by decide)).symm ⟨(2, 4), by decide⟩) :=
+  E11.quadraticTwistPointEquiv_some (by decide) _
+
+example :
+    (E11.quadraticTwistPointEquiv (c := 2) (by decide)).symm
+      (WithZero.coe ⟨((1 : ZMod 11), 1), by decide⟩) =
+      .some (2 * 1) (2 ^ 2 * 1) (by decide) :=
+  E11.quadraticTwistPointEquiv_symm_coe (by decide) (by decide) (by decide)
 
 example :
     Nat.card (E11.quadraticTwist 2).toAffine.Point =
@@ -323,13 +329,7 @@ example :
 example (c : ZMod 2) : IsSquare c :=
   FiniteField.isSquare_of_char_two (by rw [ZMod.ringChar_zmod_n]) c
 
-example (W : WeierstrassCurve (ZMod 2)) [W.IsCharNeTwoNF] : ¬ W.IsElliptic := by
-  intro h
-  have h2 : (2 : ZMod 2) = 0 := rfl
-  apply W.isUnit_Δ.ne_zero
-  rw [W.Δ_of_isCharNeTwoNF]
-  linear_combination
-    (-32 * W.a₂ ^ 3 * W.a₆ + 8 * W.a₂ ^ 2 * W.a₄ ^ 2 - 32 * W.a₄ ^ 3 -
-      216 * W.a₆ ^ 2 + 144 * W.a₂ * W.a₄ * W.a₆) * h2
+example (W : WeierstrassCurve (ZMod 2)) [W.IsCharNeTwoNF] : ¬ W.IsElliptic :=
+  fun _ ↦ W.ringChar_ne_two_of_isCharNeTwoNF (ZMod.ringChar_zmod_n 2)
 
 end CslibFrontierTests.EllipticCurveHasse
