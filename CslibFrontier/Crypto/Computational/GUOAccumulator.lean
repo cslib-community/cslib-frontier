@@ -13,6 +13,7 @@ public import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 public import Mathlib.Data.Nat.Prime.Defs
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Int.Binary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.ListProd
 import Mathlib.Data.Nat.GCD.BigOperators
 import Mathlib.Data.Nat.Prime.Basic
 import Mathlib.Data.ZMod.Basic
@@ -67,6 +68,8 @@ The source's claims map to Lean as follows.
 ## Main results
 
 * `Cslib.Crypto.guoCommit_insert`: the commitment to `insert x S` is `c ^ H x` for `x ∉ S`.
+* `Cslib.Crypto.guoCommit_toFinset`: the commitment to the elements of a list without duplicates
+  is `g` raised to the product of the hashes along the list.
 * `Cslib.Crypto.guoVerifySubset_subsetWitness`, `Cslib.Crypto.guoVerifySubset_singleton`,
   `Cslib.Crypto.guoVerifySubset_pair`: Alice's proofs for a subset, an element and a pair verify.
 * `Cslib.Crypto.guoVerifySubset_split`, `Cslib.Crypto.guoVerifySubset_commonRoot`: an aggregate
@@ -85,6 +88,10 @@ The source's claims map to Lean as follows.
   `Cslib.Crypto.computableInPolyTime_guoForgeryRoot`: both checks, Alice's non-membership proof
   and the root are computable in polynomial time from polynomial-time inputs, the integer `γ` on
   `encIntBin` and every natural number on `encNat`, with no condition on the values.
+* `Cslib.Crypto.computableInPolyTime_guoExponent_toFinset`,
+  `Cslib.Crypto.computableInPolyTime_guoCommit_toFinset`: Alice's exponent `E` and commitment for
+  the elements of a list without duplicates, read on `encList`, are computable in polynomial time
+  when `H` is.
 
 ## Implementation notes
 
@@ -105,8 +112,12 @@ The statements differ from the book's as follows.
 * "Correctness relies on the collision resistance of `H`" (p. 422) is stated by the explicit
   collision of `exists_collision_of_not_coprime_guoExponent`, not as a game against a hash family.
 
-Alice's computing `E` from a list of elements is not certified: `guoCommit` and `guoSubsetWitness`
-take a `Finset`, and the certificates for her non-membership proof take `E` as an input.
+`guoCommit` and `guoSubsetWitness` take a `Finset`. Alice computes `E` from a list of elements as
+the product of their hashes, which for a list without duplicates is `guoExponent` of its elements
+(`List.prod_toFinset`). `computableInPolyTime_guoExponent_toFinset` and
+`computableInPolyTime_guoCommit_toFinset` certify `E` and the commitment from such a list; the
+certificates for her non-membership proof take `E` as an input and compose with the first. Her
+membership proofs `guoSubsetWitness` are not certified from a list.
 
 ## References
 
@@ -163,6 +174,13 @@ theorem guoCommit_insert [DecidableEq X] (N g : ℕ) (H : X → ℕ) {S : Finset
     (hx : x ∉ S) : guoCommit N g H (insert x S) = powMod N (guoCommit N g H S) (H x) := by
   rw [guoCommit, guoCommit, powMod_powMod, guoExponent, guoExponent, Finset.prod_insert hx,
     mul_comm]
+
+/-- Alice's commitment to the set of elements of a list `l` without duplicates is `g` raised to the
+product of the hashes along `l`, which is how she computes it. The exponent alone is
+`List.prod_toFinset`: `guoExponent H l.toFinset = (l.map H).prod`. -/
+theorem guoCommit_toFinset [DecidableEq X] (N g : ℕ) (H : X → ℕ) {l : List X} (hl : l.Nodup) :
+    guoCommit N g H l.toFinset = powMod N g (l.map H).prod :=
+  congrArg (powMod N g) (List.prod_toFinset H hl)
 
 /-- Alice's proof that `T ⊆ S` verifies against the commitment to `S`, with the product of the
 hashes of the elements of `T` as exponent ([BonehShoup2023], §10.9, p. 423). -/
@@ -388,6 +406,33 @@ theorem computableInPolyTime_guoVerifyNonMem {N g c h b : α → ℕ} {γ : α �
       (ComputableInPolyTime.beq
         (ComputableInPolyTime.binary_mod' (ComputableInPolyTime.binary_mul' hbh hcγ) hN)
         (ComputableInPolyTime.binary_mod' hg hN)))
+
+/-- Alice's exponent `E` for the set of elements of a list without duplicates is computable in
+polynomial time whenever the list is, on `encList encX`, and `H` is, with binary values. She
+computes it as the product `((l a).map H).prod` (`List.prod_toFinset`); for a list that may repeat
+elements, `binary_prod.comp ((ComputableInPolyTime.map hH).comp hl)` certifies that product. The
+list certificate comes first, so that `fun_prop` can infer the element encoding. -/
+theorem computableInPolyTime_guoExponent_toFinset {β : Type} [DecidableEq β]
+    {encX : β ↪ List Bool} {H : β → ℕ} {l : α → List β}
+    (hl : ComputableInPolyTime l enc (encList encX)) (hH : ComputableInPolyTime H encX encNat)
+    (hnd : ∀ a, (l a).Nodup) :
+    ComputableInPolyTime (fun a => guoExponent H (l a).toFinset) enc encNat := by
+  rw [show (fun a => guoExponent H (l a).toFinset) = fun a => ((l a).map H).prod from
+    funext fun a => List.prod_toFinset H (hnd a)]
+  exact ComputableInPolyTime.binary_prod.comp ((ComputableInPolyTime.map hH).comp hl)
+
+/-- Alice's commitment to the set of elements of a list without duplicates is computable in
+polynomial time whenever `N` and `g` are, as natural numbers on `encNat`, the list is, on
+`encList encX`, and `H` is, with binary values. She computes it as
+`powMod N g ((l a).map H).prod` (`guoCommit_toFinset`); for a list that may repeat elements,
+`computableInPolyTime_powMod` with `binary_prod` certifies that power. -/
+theorem computableInPolyTime_guoCommit_toFinset {β : Type} [DecidableEq β]
+    {encX : β ↪ List Bool} {N g : α → ℕ} {H : β → ℕ} {l : α → List β}
+    (hN : ComputableInPolyTime N enc encNat) (hg : ComputableInPolyTime g enc encNat)
+    (hl : ComputableInPolyTime l enc (encList encX)) (hH : ComputableInPolyTime H encX encNat)
+    (hnd : ∀ a, (l a).Nodup) :
+    ComputableInPolyTime (fun a => guoCommit (N a) (g a) H (l a).toFinset) enc encNat :=
+  computableInPolyTime_powMod hN hg (computableInPolyTime_guoExponent_toFinset hl hH hnd)
 
 /-- Alice's non-membership coefficient `guoNonMemCoeff h E`, the natural number `-γ` on `encNat`,
 is computable in polynomial time whenever `h` and `E` are, as natural numbers on `encNat`. -/

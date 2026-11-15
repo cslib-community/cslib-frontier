@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 
 import CslibFrontier.Crypto.Computational.GUOAccumulator
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.ListProd
 import Mathlib.Tactic.NormNum.Prime
 
 /-!
@@ -18,6 +19,8 @@ Checks for `CslibFrontier/Crypto/Computational/GUOAccumulator.lean`, modulo `N =
 * The commitment to `{0, 1}` is `2 ^ 15 ≡ 8`, with membership proofs `32` and `8`; inserting `2`
   gives `8 ^ 7 ≡ 22`. Alice's non-membership proof for `2` is `(b, γ) = (2, -6)`, and it verifies;
   her attempt for the member `0` does not.
+* Alice computes the commitment to `{0, 1}` from the list `[0, 1]`; for `[0, 0]` the product along
+  the list differs from the commitment to `{0}`, so the list must have no duplicates.
 * For the commitment `22` to all three elements, the membership proofs of `0` and `1` are `18` and
   `22`; Shamir's trick combines them into `23 = 2 ^ 7`, the aggregate proof, and `23 ^ 5 ≡ 18`
   splits it again.
@@ -28,7 +31,9 @@ Checks for `CslibFrontier/Crypto/Computational/GUOAccumulator.lean`, modulo `N =
 * `guoForgeryRoot` turns a membership and a non-membership proof for one element into a root of
   `g`, for `γ = 0` and for `γ < 0`.
 * The polynomial-time certificates apply to inputs read from `encNat` and `encIntBin`, and Alice's
-  coefficient is certified both as the natural number `-γ` and as the integer `γ`.
+  coefficient is certified both as the natural number `-γ` and as the integer `γ`. The list
+  certificates apply to the list `[n, n + 1]` and supply `E` to the certificate of Alice's
+  non-membership proof; for lists that may repeat elements, `binary_prod` certifies the product.
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
@@ -65,6 +70,19 @@ example : guoCommit 35 2 testH (insert 2 {0, 1}) = powMod 35 (guoCommit 35 2 tes
   guoCommit_insert 35 2 testH (by decide)
 
 example : powMod 35 8 7 = 22 ∧ guoCommit 35 2 testH {0, 1, 2} = 22 := by decide
+
+/-! ### The commitment from a list -/
+
+/-- Alice computes the commitment to `{0, 1}` from the list `[0, 1]` as `2 ^ (3 * 5) ≡ 8`. -/
+example : guoCommit 35 2 testH [0, 1].toFinset = powMod 35 2 ([0, 1].map testH).prod :=
+  guoCommit_toFinset 35 2 testH (by decide)
+
+example : powMod 35 2 ([0, 1].map testH).prod = 8 := by decide
+
+/-- A list without duplicates is needed: `[0, 0]` lists the set `{0}`, whose commitment is
+`2 ^ 3 = 8`, but the product along the list gives `2 ^ 9 ≡ 22`. -/
+example : guoCommit 35 2 testH [0, 0].toFinset = 8 ∧ powMod 35 2 ([0, 0].map testH).prod = 22 := by
+  decide
 
 /-! ### Non-membership proofs -/
 
@@ -220,5 +238,28 @@ from `encIntBin`. -/
 example : ComputableInPolyTime (fun p : ℕ × ℕ × ℤ => guoForgeryRoot 35 p.1 p.2.1 p.2.2)
     (encPair encNat (encPair encNat encIntBin)) encNat :=
   computableInPolyTime_guoForgeryRoot (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
+
+/-- `computableInPolyTime_guoCommit_toFinset` for `N = 35`, `g = 2` and the hash `i ↦ 2 * i + 3`,
+on the list `[n, n + 1]` of two distinct elements computed from `n` on `encNat`. -/
+example : ComputableInPolyTime
+    (fun n : ℕ => guoCommit 35 2 (fun i => 2 * i + 3) [n, n + 1].toFinset) encNat encNat :=
+  computableInPolyTime_guoCommit_toFinset (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
+    fun n => by simp
+
+/-- `computableInPolyTime_guoExponent_toFinset` supplies `E` to the certificate of Alice's
+non-membership proof. -/
+example : ComputableInPolyTime
+    (fun n : ℕ => guoNonMemWitness 35 2 7 (guoExponent (fun i => 2 * i + 3) [n, n + 1].toFinset))
+    encNat encNat :=
+  computableInPolyTime_guoNonMemWitness (by fun_prop) (by fun_prop) (by fun_prop)
+    (computableInPolyTime_guoExponent_toFinset (by fun_prop) (by fun_prop) fun n => by simp)
+
+/-- For lists that may repeat elements, `binary_prod` composed with `ComputableInPolyTime.map`
+certifies the product along the list, here inside the power `g ^ ∏ H x mod N` for words `x`. -/
+example (H : List Bool → ℕ) (hH : ComputableInPolyTime H encBits encNat) :
+    ComputableInPolyTime (fun p : (ℕ × ℕ) × List (List Bool) => powMod p.1.1 p.1.2 (p.2.map H).prod)
+      (encPair (encPair encNat encNat) (encList encBits)) encNat :=
+  computableInPolyTime_powMod (by fun_prop) (by fun_prop)
+    (ComputableInPolyTime.binary_prod.comp ((ComputableInPolyTime.map hH).comp (by fun_prop)))
 
 end CslibFrontierTests.Crypto.GUOAccumulator
