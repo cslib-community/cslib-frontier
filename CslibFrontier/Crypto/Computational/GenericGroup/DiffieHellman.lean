@@ -18,9 +18,9 @@ import Mathlib.Data.Nat.Choose.Bounds
 
 A lower bound for computational Diffie–Hellman (CDH) in the generic group model of
 [BonehShoup2023], Section 16.3: part (a) of Exercise 16.5 (p. 708), which asks to adapt the proof
-of Theorem 16.3 to CDH. The exercise states no bound; the one below is what the adapted proof
-gives. For prime `q`, an adversary that makes at most `T` queries to the group oracle outputs the
-label of `α β` with probability at most `((3T + 4)² / 2 + 2) / q`.
+of Theorem 16.3 to CDH. The bound is not stated in the book: the exercise states none, and the one
+below is what the adapted proof gives. For prime `q`, an adversary that makes at most `T` queries
+to the group oracle outputs the label of `α β` with probability at most `((3T + 4)² / 2 + 2) / q`.
 
 `cdhGame A` draws a uniform injective labeling `L : ZMod q ↪ S` and uniform `α β : ZMod q`, gives
 the adversary `L 1`, `L α` and `L β`, runs it against the group oracle of `L` (`runLabeled`), and
@@ -47,8 +47,8 @@ output is the label of `α β`. It differs from the bound of Theorem 16.3 in two
 linear forms and for the count of solutions of `X Y = a X + b Y + c`. The bound is not claimed for
 composite `q`, and it fails there: for `q = 2¹⁰`, recovering `α` bit by bit and then asking for the
 label of `α β` wins with probability one using `12` queries, where the sharp form gives `391 / 512`.
-That attack was checked by computation and is not formalized. Part (b) of the exercise,
-interactive CDH with a decision oracle, is not formalized here.
+That attack was checked by computation and is not formalized. Part (b) of the exercise, the
+interactive CDH (ICDH) problem of Definition 12.4, is not formalized here.
 
 ## Main definitions
 
