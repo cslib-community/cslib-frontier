@@ -15,6 +15,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Op
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 public import CslibFrontier.Crypto.Primitives.Garbling.Games
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 
 /-!
 # Efficient garbling schemes
@@ -41,7 +42,8 @@ topology `(n, m, q, A, B)` revealed by `phiTopo` in the same layout without the 
   conventional circuits as data.
 * `Cslib.Crypto.Garbling.Topo.gateList`, `Cslib.Crypto.Garbling.encTopo`,
   `Cslib.Crypto.Garbling.encValidTopo`: topologies, the side information of `phiTopo`, as data.
-* `Cslib.Crypto.Garbling.encPrvView`: the encoding of a privacy view `(F, X, d)`.
+* `Cslib.Crypto.Garbling.encPrvView`, `Cslib.Crypto.Garbling.encQuery`: the encodings of a
+  privacy view `(F, X, d)` and of a query `(f, x)`.
 
 ## References
 
@@ -142,6 +144,16 @@ def encConventionalCircuit : ConventionalCircuit ↪ List Bool :=
 def encValidCircuit : ValidCircuit ↪ List Bool :=
   (Function.Embedding.subtype _).trans encConventionalCircuit
 
+/-- A valid circuit's word has at least `n + q` bits: `n` in unary and at least one bit per
+gate. -/
+theorem n_add_q_le_length_encValidCircuit (f : ValidCircuit) :
+    f.1.n + f.1.q ≤ (encValidCircuit f).length := by
+  change f.1.n + f.1.q ≤ (encCircuitData (f.1.n, f.1.m, f.1.gateList)).length
+  have h := length_le_length_encList (encPair encNat (encPair encNat encBits)) f.1.gateList
+  simp only [ConventionalCircuit.length_gateList] at h
+  simp only [encCircuitData, length_encPair, encUnary_apply, List.length_replicate]
+  omega
+
 /-- The data of a valid circuit is read from its word in polynomial time. -/
 theorem circuitData_polyTime :
     ComputableInPolyTime (fun f : ValidCircuit => (f.1.n, f.1.m, f.1.gateList)) encValidCircuit
@@ -198,5 +210,9 @@ theorem topoData_polyTime :
 /-- The encoding of a privacy view `(F, X, d)`: `F` and `X` framed, then `d`. -/
 enc_structure encPrvView : PrvView where
   fn : encBits, input : encBits, decInfo : encBits
+
+/-- The encoding of a query `(f, x)`: `f` by `encFn`, framed, then `x`. -/
+enc_structure encQuery (Fn : Type) (encFn : Fn ↪ List Bool) : Query Fn where
+  fn : encFn, input : encBits
 
 end Cslib.Crypto.Garbling
