@@ -157,43 +157,50 @@ theorem mapOp_toCircuit (f : XorAndCircuit) :
 theorem size_toCircuit (f : XorAndCircuit) : (toCircuit f).size = f.circuit.q := by
   rw [← Circuit.size_mapOp (φ := toFull), mapOp_toCircuit, ConventionalCircuit.size_toCircuit]
 
-/-- The code of line `g` of `toCircuit f`: `opOf (G g)` on the 0-indexed wires `A g - 1` and
-`B g - 1`. -/
+/-- Line `g` of `toCircuit f`, translated along `toFull`, has the code of line `g` of
+`ConventionalCircuit.toCircuit f`. -/
 private theorem code_lines_toCircuit (f : XorAndCircuit) (g : Fin (toCircuit f).size) :
-    ((toCircuit f).program.lines g).code =
-      (opOf (f.circuit.G (g.cast (size_toCircuit f))),
-        [f.circuit.A (g.cast (size_toCircuit f)) - 1,
-          f.circuit.B (g.cast (size_toCircuit f)) - 1]) := by
-  rw [← Program.getD_code _ _ (Op.xor, [])]
-  have h := congrArg Prod.fst (code_toCircuit f)
+    (toFull (op (toCircuit f) g), ((toCircuit f).program.lines g).code.2) =
+      ((ConventionalCircuit.toCircuit f.1).program.lines (g.cast
+        ((size_toCircuit f).trans (ConventionalCircuit.size_toCircuit f.1).symm))).code := by
+  have h := congrArg Prod.fst ((Circuit.code_mapOp toFull (toCircuit f)).symm.trans
+    (congrArg Circuit.code (mapOp_toCircuit f)))
   simp only [Circuit.code] at h
-  have hg : g.val < f.circuit.q := size_toCircuit f ▸ g.isLt
-  rw [h, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (by simpa [gateCode] using hg)]
-  simp only [gateCode, List.getElem_ofFn, Option.getD_some]
+  rw [← Program.getD_code _ _ ((fun line : Op × List ℕ => (toFull line.1, line.2)) (.xor, [])),
+    Fin.val_cast, ← h, List.getD_eq_getElem?_getD, List.getElem?_map, Option.getD_map,
+    ← List.getD_eq_getElem?_getD, Program.getD_code]
   rfl
 
 /-- Gate `g` of `toCircuit f` is an AND gate exactly when `G g` is the AND table. -/
 theorem op_toCircuit (f : XorAndCircuit) (g : Fin (toCircuit f).size) :
-    op (toCircuit f) g = opOf (f.circuit.G (g.cast (size_toCircuit f))) :=
-  congrArg Prod.fst (code_lines_toCircuit f g)
+    op (toCircuit f) g = opOf (f.circuit.G (g.cast (size_toCircuit f))) := by
+  have h := (congrArg Prod.fst (code_lines_toCircuit f g)).trans
+    (congrArg Line.op (ConventionalCircuit.lines_toCircuit f.1 _))
+  cases hop : op (toCircuit f) g <;> rw [hop] at h <;>
+    have h11 := congrFun (FullOp.fn.inj h) fun _ => true <;>
+    simp_all [opOf, Fin.cast_cast]
 
 /-- The first argument of gate `g` of `toCircuit f` is the 0-indexed wire `A g - 1`. -/
 theorem toNat_left_toCircuit (f : XorAndCircuit) (g : Fin (toCircuit f).size) :
     (left (toCircuit f) g).toNat = f.circuit.A (g.cast (size_toCircuit f)) - 1 := by
-  have h := congrArg (fun code => code.2.getD 0 0) (code_lines_toCircuit f g)
-  simpa [Line.code, left, List.getD_eq_getElem?_getD] using h
+  have h := congrArg (fun code => code.getD 0 0)
+    ((congrArg Prod.snd (code_lines_toCircuit f g)).trans
+      (ConventionalCircuit.ofFn_toNat_wires_toCircuit f.1 _))
+  simpa [Line.code, left, List.getD_eq_getElem?_getD, Fin.cast_cast] using h
 
 /-- The second argument of gate `g` of `toCircuit f` is the 0-indexed wire `B g - 1`. -/
 theorem toNat_right_toCircuit (f : XorAndCircuit) (g : Fin (toCircuit f).size) :
     (right (toCircuit f) g).toNat = f.circuit.B (g.cast (size_toCircuit f)) - 1 := by
-  have h := congrArg (fun code => code.2.getD 1 0) (code_lines_toCircuit f g)
-  simpa [Line.code, right, List.getD_eq_getElem?_getD] using h
+  have h := congrArg (fun code => code.getD 1 0)
+    ((congrArg Prod.snd (code_lines_toCircuit f g)).trans
+      (ConventionalCircuit.ofFn_toNat_wires_toCircuit f.1 _))
+  simpa [Line.code, right, List.getD_eq_getElem?_getD, Fin.cast_cast] using h
 
 /-- Output `o` of `toCircuit f` is the 0-indexed wire `n + q - m + o`. -/
 theorem toNat_outputs_toCircuit (f : XorAndCircuit) (o : Fin f.circuit.m) :
     ((toCircuit f).outputs o).toNat = f.circuit.n + f.circuit.q - f.circuit.m + o := by
-  have h := congrArg (fun code => code.2[o.val]?) (code_toCircuit f)
-  simpa [Circuit.code, ConventionalCircuit.outputCode] using h
+  rw [← ConventionalCircuit.toNat_outputs_toCircuit f.1, ← mapOp_toCircuit]
+  rfl
 
 /-- **The translation computes the conventional semantics.** On every `n`-bit input, the outputs
 of `toCircuit f` are `evalCirc f`. -/

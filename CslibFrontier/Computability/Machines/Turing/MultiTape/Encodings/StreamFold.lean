@@ -184,6 +184,7 @@ public theorem transformsTapesAt_streamLoop_encoded_after {α : Type u} {σ : Ty
   have hread' : ∀ j (hj : j < toks.length), r.read r.q₀ (toks.flatten.drop
       ((toks.take j).flatten).length) = (cont j, toks[j].length) := by
     intro j hj
+    -- vendored: crei's `drop_flatten_take` is `List.drop_flatten_take` here
     rw [List.drop_flatten_take toks hj]
     simp [toks, hcont j (by omega), hread]
   have hE' : ∀ j < toks.length, TransformsTapes E

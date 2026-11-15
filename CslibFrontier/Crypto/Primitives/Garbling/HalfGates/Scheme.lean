@@ -17,8 +17,10 @@ import CslibFrontier.Foundations.Data.List.Flatten
 /-!
 # Half-gates garbling as a garbling scheme
 
-Definitions and correctness only; privacy is the next step of
-[#5293](https://github.com/cslib-community/cslib-frontier/issues/5293) (B4).
+Definitions and correctness only. Two later steps of
+[#5293](https://github.com/cslib-community/cslib-frontier/issues/5293) (B4) build on it: H2, the
+efficiency certificates of the scheme and a word simulator, and H3, simulation privacy (`prv.sim`)
+by a reduction to `CircularCorrelationRobust` with a certified efficiency witness.
 
 The half-gates garbling of `CslibFrontier.Crypto.Primitives.Garbling.HalfGates`, after Zahur,
 Rosulek and Evans [ZahurRosulekEvans2015] (Figure 2, p. 9), as a garbling scheme in the sense of
@@ -43,6 +45,12 @@ evaluator half. XOR gates have no ciphertexts [KolesnikovSchneider2008]. The enc
 `e` lists the two labels of each input wire, for bit `0` and bit `1`, as in point-and-permute
 garbling, so `En` is `PointPermute.encodeWord`; the decoding information `d` lists the colours of
 the zero labels of the `m` output wires, and `De` is `PointPermute.decodeWord`.
+
+Three choices differ from Figure 2 of [ZahurRosulekEvans2015] (p. 9): the tweaks are numbered by
+gate, `2 g + s` modulo `2 ^ k`, where Figure 2 takes `j` and `j'` from the counter `NextIndex`,
+which advances only at AND gates; `e` is projective, listing both labels of each input, where
+Figure 2 sets `e_i = W_i^0` and encodes `X_i = e_i ⊕ x_i R`; and labels have `k + 2` bits, where
+Figure 2 has `k`-bit labels and `R ∈ {0,1}^{k-1}1`.
 
 The scheme is correct (`HalfGates.scheme_correct`) but not valid in the sense of
 [BellareHoangRogaway2012] (§3.1, p. 7). The length of `F` depends on the number of AND gates, so
@@ -287,15 +295,7 @@ theorem labelBits_atLevel (k : ℕ) (x : BitString (k + 1) × Bool) (t : BitStri
   obtain ⟨key, colour⟩ := x
   have hpad (w : List Bool) : BitString.ofList (k + 2)
       ((w ++ List.replicate (k + 2) false).take (k + 2)) = BitString.ofList (k + 2) w := by
-    rw [BitString.ofList_take]
-    funext i
-    simp only [BitString.ofList, List.getD_eq_getElem?_getD]
-    by_cases hi : i.val < w.length
-    · rw [List.getElem?_append_left hi]
-    · have hlen : i.val - w.length < k + 2 := by omega
-      rw [List.getElem?_append_right (by omega), List.getElem?_replicate_of_lt hlen,
-        List.getElem?_eq_none (by omega)]
-      rfl
+    rw [← BitString.ofFn_ofList_eq_take, BitString.ofList_ofFn]
   have hlabel : CCR.atLevel hash k (key, colour) t = PointPermute.labelOfWord k
       (hashWord hash k (PointPermute.labelBits (key, colour)) (List.ofFn t)) := by
     simp only [CCR.atLevel, PointPermute.labelOfWord, PointPermute.labelEquiv, hashWord,

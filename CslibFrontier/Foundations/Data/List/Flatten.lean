@@ -16,7 +16,9 @@ A list of blocks `L : List (List α)`, flattened, is read from left to right one
 Block `j` starts at the length of the first `j` blocks flattened: dropping that many entries leaves
 block `j` followed by the later blocks (`List.drop_flatten_take`), and the boundary after block `j`
 is the one before it plus the length of block `j` (`List.length_flatten_take_succ`). Mathlib's
-`List.drop_sum_flatten` states the first fact with the boundary as a sum of block lengths.
+`List.drop_sum_flatten` is a weaker form of the first fact: with the boundary written as a sum of
+block lengths, dropping that many entries leaves `(L.drop j).flatten`, without block `j` split
+off.
 
 ## Main results
 
