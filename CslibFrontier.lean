@@ -1337,6 +1337,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.OracleFormula
 public import CslibFrontier.Computability.Circuit.Boolean.PPoly
 public import CslibFrontier.Computability.Circuit.Boolean.PPoly.Closure
 public import CslibFrontier.Computability.Circuit.Boolean.PPolyHard
+public import CslibFrontier.Computability.Circuit.Boolean.ParallelCode
 public import CslibFrontier.Computability.Circuit.Boolean.Parity
 public import CslibFrontier.Computability.Circuit.Boolean.ParityNC1
 public import CslibFrontier.Computability.Circuit.Boolean.Polarization
@@ -1727,6 +1728,7 @@ public import CslibFrontier.Computability.Circuit.Quantum.Reversible
 public import CslibFrontier.Computability.Circuit.Quantum.Reversible.Circuit
 public import CslibFrontier.Computability.Circuit.Quantum.Reversible.Resources
 public import CslibFrontier.Computability.Circuit.Quantum.Reversible.Sampling
+public import CslibFrontier.Computability.Circuit.Quantum.Reversible.Sampling.Prefix
 public import CslibFrontier.Computability.Circuit.Quantum.Reversible.Sampling.Resources
 public import CslibFrontier.Computability.Circuit.Quantum.SuperdenseCoding
 public import CslibFrontier.Computability.Circuit.Quantum.Teleportation
@@ -4809,6 +4811,7 @@ public import CslibFrontier.Crypto.Primitives.HQC.PKE
 public import CslibFrontier.Crypto.Primitives.HQC.SupportCircuit
 public import CslibFrontier.Crypto.Primitives.HQC.SupportCircuit.Collision
 public import CslibFrontier.Crypto.Primitives.HQC.SupportCircuit.Collision.PolyTime
+public import CslibFrontier.Crypto.Primitives.HQC.SupportCircuit.Family
 public import CslibFrontier.Crypto.Primitives.HQC.SupportCircuit.PolyTime
 public import CslibFrontier.Crypto.Primitives.HQC.SupportCircuit.Resolve
 public import CslibFrontier.Crypto.Primitives.HQC.SupportCircuit.Resolve.PolyTime
