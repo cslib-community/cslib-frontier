@@ -59,7 +59,7 @@ example : exampleProduct [true, false, true] = 4 := by
   decide
 
 -- Input two has width one, so its factor two gives zero in the two-element field.
-example : exampleProduct [false, true] = 0 := by
+example : exampleProduct [true, false] = 0 := by
   change primeFieldProduct 2 1 (fun w => BitString.binaryValue w + 1) = 0
   rw [primeFieldProduct_eq_val]
   decide
