@@ -1920,6 +1920,22 @@ native certificate charges the framing test and both callbacks. This repairs the
 boundary needed by CCA composition, without changing `hybridEncrypt` or its CPA security
 theorems.
 
+For message-recovery security from semantic security ([bs23][bs23], §2.2.3, Attack Game 2.2, p. 18;
+Definition 2.3 and Theorem 2.7, p. 19), import
+[`Encryption/MessageRecovery.lean`](../../CslibFrontier/Crypto/Computational/Encryption/MessageRecovery.lean).
+On any typed cipher `E : Cipher K M C` over a finite nonempty decidable message type `M`,
+`messageRecoveryAdvantage E sampleKey A` measures `|Pr[W] - 1 / |M||` in
+`messageRecoveryExperiment`, and `messageRecoveryAdvantage_eq_advantage_messageRecoveryReduction`
+equates it to the one-time semantic-security advantage of `messageRecoveryReduction A` whenever
+`valid` admits every pair in `M` (`hvalid`; inequality (2.5) is `.le`). At the word level over
+`{0, 1}^{msgLen n}`, `messageRecoveryWordAdvantage_eq_demKeyGameOn` derives the analogous identity
+from the concrete theorem when `A`'s outputs all have length `msgLen n` (`hA_len`), and
+`DEMOneTimeKeyWordINDCPA.negligible_messageRecoveryWordAdvantage` concludes negligibility via
+`isPPT_messageRecoveryWordToDEMAdversary` whenever `msgLen` is unary polynomial-time computable. The
+[checked clients](../../CslibFrontierTests/Crypto/MessageRecovery.lean) demonstrate (2.5), a
+uniform word-guessing adversary, and counterexamples when `hvalid` or `hA_len` is dropped; run
+`scripts/build.sh CslibFrontierTests.Crypto.MessageRecovery`.
+
 [`Hybrid/DEMCCA.lean`](../../CslibFrontier/Crypto/Computational/Encryption/Hybrid/DEMCCA.lean)
 proves the exact DEM leg of Boneh–Shoup Exercise 12.5(a), p. 513 [bs23][bs23]. Its middle game
 retains the original KEM key/encapsulation correlation and independently samples the actual
