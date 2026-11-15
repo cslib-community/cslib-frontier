@@ -19,6 +19,8 @@ import CslibFrontier.Crypto.Computational.DiffieHellman.SelfReduction
 import CslibFrontier.Crypto.Game.CloseTo
 import CslibFrontier.Crypto.Game.Order
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpBounds
+import CslibFrontier.Foundations.Data.Nat.Bits
+import CslibFrontier.Foundations.Data.ZMod.NatCast
 import CslibFrontier.Languages.Probabilistic.Retry
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.UniformPoint
@@ -42,11 +44,11 @@ probability of the word-level adversary `A` read in the group selected by `d`
 same way.
 
 * `dlSelfReduceAdversary A` masks the input word by `σ • g` with `F.add` and `F.smul`, runs `A`
-  and subtracts `σ` from the answer read as a natural number. `dlSelfReduceAttempt` adds the test
-  `x • g = u`, computed on encodings by comparing `F.smul (d, x, encode g)` with the input word.
-  `dlSelfReduceRetryAdversary A k` makes at most `k n` such attempts and returns the first answer
-  that passes the test, or the empty word. With `k = fun _ => 1` it is the algorithm `B` of the
-  proof of Theorem 10.2 (p. 412), with the empty word for `fail`.
+  and subtracts `σ` from the answer read as a natural number; its answer is never the empty word.
+  `dlSelfReduceRetryAdversary A k` makes at most `k n` such calls, each followed by the test
+  `x • g = u`, computed on encodings by comparing `F.smul (d, x, encode g)` with the input word,
+  and returns the first answer that passes the test, or the empty word. With `k = fun _ => 1` it
+  is the algorithm `B` of the proof of Theorem 10.2 (p. 412), with the empty word for `fail`.
 * `cdhSelfReduceAdversary A` masks both inputs and removes the three cross terms, as
   `Cslib.Crypto.cdhSelfReduce` does; the construction is this library's, since Exercise 10.6 gives
   none.
@@ -62,9 +64,10 @@ rejects every word that encodes no group element
   less `1 / 2 ^ n` (one DL mask) or `2 / 2 ^ n` (two CDH masks), not equal to `ε` as in
   Theorem 10.2. The equality holds for the fixed-group programs with uniform masks
   (`Cslib.Crypto.eval_dlSelfReduce_one_smul_some`).
-* The book's `fail` is the empty word, which the discrete-logarithm game reads as the exponent
-  `0`. So on the instance `α = 0` a failed run counts as a win. This only increases the success
-  probabilities bounded below here, and it is why no upper bound is stated for the checked loop.
+* The book's `fail` is the empty word. The discrete-logarithm game reads it as the exponent `0`,
+  so on the instance `α = 0` the game counts a failed run as a win. The bounds for the checked
+  loop are therefore stated on the output word, for the event that it is nonempty and reads as
+  `α`; the bounds on the exponent that the game reads are corollaries.
 * The answer `x - σ` is computed on natural numbers as `x + (q - σ % q)`, which the game reads
   modulo `q`.
 * The iteration remark after Theorem 10.2 runs `B` `n ⌈1 / ε⌉` times. A uniform machine is given
@@ -77,7 +80,6 @@ rejects every word that encodes no group element
   discrete-logarithm adversary, as in `DiscreteLog`.
 * `Cslib.Crypto.PrimeOrderGroupFamily.dlSelfReduceAdversary`: one masked call of a word-level
   discrete-logarithm adversary.
-* `Cslib.Crypto.PrimeOrderGroupFamily.dlSelfReduceAttempt`: one masked call with its test bit.
 * `Cslib.Crypto.PrimeOrderGroupFamily.dlSelfReduceRetryAdversary`: at most `k n` checked attempts.
 * `Cslib.Crypto.PrimeOrderGroupFamily.cdhSelfReduceAdversary`: one call of a CDH adversary with
   both inputs masked.
@@ -94,19 +96,27 @@ rejects every word that encodes no group element
 * `eq_nil_or_encode_smul_eq_of_mem_support_dlSelfReduceRetryAdversary`: on every input word the
   loop outputs the empty word or a word `x` with `encode (x • g)` equal to the input
   (Theorem 10.2: "`B` outputs `fail` or `Dlog_g(u)`").
-* `le_eval_discreteLogAdversary_dlSelfReduceRetryAdversary_one`: on every instance `α • g`, one
-  checked attempt returns `α` with probability at least `ε - 1 / 2 ^ n` (Theorem 10.2, with the
-  sampling loss), and `one_sub_pow_le_eval_discreteLogAdversary_dlSelfReduceRetryAdversary` for
-  `k n` attempts.
+* `le_toOuterMeasure_dlSelfReduceRetryAdversary_one`: on the encoding of every instance `α • g`,
+  one checked attempt returns a nonempty word that reads as `α` with probability at least
+  `ε - 1 / 2 ^ n` (Theorem 10.2, with the sampling loss), and
+  `one_sub_pow_le_toOuterMeasure_dlSelfReduceRetryAdversary` for `k n` attempts. The
+  corresponding bounds on the exponent that the game reads are
+  `le_eval_discreteLogAdversary_dlSelfReduceRetryAdversary_one` and
+  `one_sub_pow_le_eval_discreteLogAdversary_dlSelfReduceRetryAdversary`.
 * `dlSelfReduceRetryAdversary_error_le_pow` and `negligible_dlSelfReduceRetryAdversary_error`: the
   iteration remark. If the adversary wins in the group with probability at least `1 / invEps n`
-  and `1 / 2 ^ n ≤ 1 / (2 * invEps n)`, the loop with `n * (2 * invEps n)` attempts errs with
-  probability at most `(1 / 2) ^ n` on every instance. So it errs with negligible probability
-  when `invEps` is computable in polynomial time in unary and, for all large `n`, `0 < invEps n`
-  and the adversary wins with probability at least `1 / invEps n`.
+  and `1 / 2 ^ n ≤ 1 / (2 * invEps n)`, the loop with `n * (2 * invEps n)` attempts errs, that
+  is returns the empty word or a word that does not read as `α`, with probability at most
+  `(1 / 2) ^ n` on every instance. So it errs with negligible probability when `invEps` is
+  computable in polynomial time in unary and, for all large `n`, `0 < invEps n` and the adversary
+  wins with probability at least `1 / invEps n`.
+  `discreteLogAdversary_dlSelfReduceRetryAdversary_error_le_pow` and
+  `negligible_discreteLogAdversary_dlSelfReduceRetryAdversary_error` bound the probability that
+  the game reads an exponent other than `α`.
 * `advantage_dlWorstCaseGame_discreteLogGame_le` and `discreteLog_of_worstCase`: the reduction
   wins the worst-case game within `1 / 2 ^ n` of the adversary's average-case success, so
-  negligible success of every PPT adversary on fixed instances implies `DiscreteLog`.
+  `DiscreteLog` holds if every PPT adversary has instances on which it succeeds with negligible
+  probability.
 * `advantage_cdhSelfReduceAdversary_le`, `advantage_cdhWorstCaseGame_cdhGame_le` and
   `cdh_of_worstCase`: the same for CDH with loss `2 / 2 ^ n` (Exercise 10.6, with the sampling
   loss).
@@ -148,16 +158,16 @@ noncomputable def dlSelfReduceAdversary
 
 /-- One checked attempt: the answer word of `dlSelfReduceAdversary`, paired with the bit of the
 test `x • g = u` computed on encodings, `F.smul (d, x, encode g) = w` for the input word `w`. -/
-noncomputable def dlSelfReduceAttempt
+private noncomputable def dlSelfReduceAttempt
     (adversary : ℕ → F.Desc × List Bool → ProbComp (List Bool)) (n : ℕ)
     (x : F.Desc × List Bool) : ProbComp (Bool × List Bool) :=
   (fun out => (decide (F.smul (x.1, ofBits out, F.encode x.1 (F.generator x.1)) = x.2), out)) <$>
     F.dlSelfReduceAdversary adversary n x
 
-/-- At most `k n` checked attempts (`dlSelfReduceAttempt`), returning the first answer that passes
-its test, or the empty word when none does. With `k = fun _ => 1` this is the algorithm `B` in the
-proof of [BonehShoup2023], Theorem 10.2 (p. 412), with the empty word for its output `fail`. The
-discrete-logarithm game reads the empty word as the exponent `0`. -/
+/-- At most `k n` checked attempts, each a masked call (`dlSelfReduceAdversary`) followed by the
+test `x • g = u` computed on encodings, returning the first answer that passes its test, or the
+empty word when none does. With `k = fun _ => 1` this is the algorithm `B` in the proof of
+[BonehShoup2023], Theorem 10.2 (p. 412), with the empty word for its output `fail`. -/
 noncomputable def dlSelfReduceRetryAdversary
     (adversary : ℕ → F.Desc × List Bool → ProbComp (List Bool)) (k : ℕ → ℕ) :
     ℕ → F.Desc × List Bool → ProbComp (List Bool) := fun n x =>
@@ -280,12 +290,6 @@ theorem isPPTOn_dlSelfReduceRetryAdversary_invEps
         input.1 input.2) :=
   F.isPPTOn_dlSelfReduceRetryAdversary hA (by fun_prop)
 
-/-- `x + (q - σ % q)` reads as `x - σ` modulo `q`. -/
-private theorem natCast_add_sub_mod (d : F.Desc) (x σ : ℕ) :
-    ((x + (F.order d - σ % F.order d) : ℕ) : ZMod (F.order d)) = (x : ZMod (F.order d)) - σ := by
-  rw [Nat.cast_add, Nat.cast_sub (Nat.mod_lt _ (F.prime_order d).pos).le, ZMod.natCast_self,
-    ZMod.natCast_mod, zero_sub, sub_eq_add_neg]
-
 /-- The CDH correction term computed with natural-number scalars, `q - σ % q` for `-σ`, is the
 one of `cdhSelfReduceAdversary`. -/
 private theorem add_correction_eq (d : F.Desc) (u v w : F.Carrier d) (ρ τ : ℕ) :
@@ -295,9 +299,7 @@ private theorem add_correction_eq (d : F.Desc) (u v w : F.Carrier d) (ρ τ : �
           F.generator d) =
       w - (τ : ZMod (F.order d)) • u - (ρ : ZMod (F.order d)) • v -
         ((ρ : ZMod (F.order d)) * τ) • F.generator d := by
-  have hneg (σ : ℕ) : ((F.order d - σ % F.order d : ℕ) : ZMod (F.order d)) = -σ := by
-    simpa using F.natCast_add_sub_mod d 0 σ
-  rw [hneg, hneg]
+  rw [ZMod.natCast_sub_mod_eq_neg, ZMod.natCast_sub_mod_eq_neg]
   module
 
 /-- **The CDH self-reduction is efficient**: if the CDH adversary is uniform strict PPT, so is
@@ -366,7 +368,7 @@ theorem discreteLogAdversary_dlSelfReduceAdversary
       let α₁ ← F.discreteLogAdversary adversary n d (u + (σ : ZMod (F.order d)) • F.generator d)
       return α₁ - (σ : ZMod (F.order d)) := by
   simp [discreteLogAdversary, dlSelfReduceAdversary, F.smul_encode, F.add_encode,
-    F.natCast_add_sub_mod, ofBits_bits]
+    ZMod.natCast_sub_mod_eq_neg, ofBits_bits, ← sub_eq_add_neg]
 
 /-- **One masked call on every instance**: on `α • g`, the masked call returns `α` with the
 probability with which the adversary wins the discrete-logarithm experiment in the group `d`, up
@@ -437,37 +439,47 @@ theorem succProbability_discreteLogGame_le_dlWorstCaseGame (setup : ℕ → PMF 
   rw [Game.advantage_comm]
   exact F.advantage_dlWorstCaseGame_discreteLogGame_le setup α adversary n
 
-/-- Average-case discrete-logarithm hardness from worst-case hardness: if every uniform strict PPT
-word-level adversary wins the worst-case game on the instances `α d • g` with negligible
-probability, then `DiscreteLog` holds for the setup law. The book states this implication only
-informally (p. 412: "if it is hard in the worst case, then it must be hard on average"); this
-formulation and `dlWorstCaseGame` are this library's. -/
-theorem discreteLog_of_worstCase {setup : ℕ → PMF F.Desc} (α : ∀ d : F.Desc, ZMod (F.order d))
+/-- Average-case discrete-logarithm hardness from worst-case hardness: if for every uniform strict
+PPT word-level adversary there are instances `α d • g` on which it wins the worst-case game with
+negligible probability, then `DiscreteLog` holds for the setup law. The instances may depend on
+the adversary. The book states this implication only informally (p. 412: "if it is hard in the
+worst case, then it must be hard on average"); this formulation and `dlWorstCaseGame` are this
+library's. The premise of `Cslib.Crypto.PrimeOrderGroupFamily.ddh_of_worstCase` is stronger: it
+fixes the instances before the distinguisher. -/
+theorem discreteLog_of_worstCase {setup : ℕ → PMF F.Desc}
     (hworst : ∀ adversary : ℕ → F.Desc × List Bool → ProbComp (List Bool),
-      IsPPTOn F.encDiscreteLogInput encBits
-        (fun input => adversary input.1 input.2) →
-      Negligible fun n => Game.succProbability (F.dlWorstCaseGame setup α adversary n)) :
+      IsPPTOn F.encDiscreteLogInput encBits (fun input => adversary input.1 input.2) →
+      ∃ α : ∀ d : F.Desc, ZMod (F.order d),
+        Negligible fun n => Game.succProbability (F.dlWorstCaseGame setup α adversary n)) :
     F.DiscreteLog setup := by
   intro adversary hA
-  have hw := hworst _ (F.isPPTOn_dlSelfReduceAdversary hA)
+  obtain ⟨α, hw⟩ := hworst _ (F.isPPTOn_dlSelfReduceAdversary hA)
   negligible using F.succProbability_discreteLogGame_le_dlWorstCaseGame setup α adversary
 
 /-! ### The checked loop -/
 
-/-- An answer that the loop can return passes its test: on the input word `w`, it reads as an
-exponent `x` with `F.encode d (x • g) = w`. -/
-private theorem encode_smul_eq_of_mem_support_retry
+/-- An answer that the loop can return is nonempty and passes its test: on the input word `w`, it
+reads as an exponent `x` with `F.encode d (x • g) = w`. It is nonempty because the masked call
+answers `Nat.bits (ofBits guess + (q - σ % q))` and `q - σ % q` is positive. -/
+private theorem ne_nil_and_encode_smul_eq_of_mem_support_retry
     {adversary : ℕ → F.Desc × List Bool → ProbComp (List Bool)} {k n : ℕ} {d : F.Desc}
     {w : List Bool} {b : Bool} {out : List Bool}
     (hout : some (b, out) ∈ (ProbComp.eval (OracleComp.retry (fun p : Bool × List Bool => p.1)
       (F.dlSelfReduceAttempt adversary n (d, w)) k)).support) :
-    F.encode d ((ofBits out : ZMod (F.order d)) • F.generator d) = w := by
+    out ≠ [] ∧ F.encode d ((ofBits out : ZMod (F.order d)) • F.generator d) = w := by
   rw [ProbComp.support_eval] at hout
   obtain ⟨hb, hmem⟩ := OracleComp.mem_supportWith_retry hout
-  obtain ⟨out', -, hw⟩ := OracleComp.mem_supportWith_map_iff.mp hmem
+  obtain ⟨out', hout', hw⟩ := OracleComp.mem_supportWith_map_iff.mp hmem
   obtain ⟨rfl, rfl⟩ := Prod.mk.inj hw
-  have htest : F.smul (d, ofBits out', F.encode d (F.generator d)) = w := by simpa using hb
-  rwa [F.smul_encode] at htest
+  refine ⟨?_, ?_⟩
+  · simp only [dlSelfReduceAdversary, OracleComp.mem_supportWith_bind_iff,
+      OracleComp.supportWith_pure, Set.mem_singleton_iff] at hout'
+    obtain ⟨σ, -, guess, -, rfl⟩ := hout'
+    have hσ := Nat.mod_lt σ (F.prime_order d).pos
+    rw [Ne, Nat.bits_eq_nil_iff]
+    omega
+  · have htest : F.smul (d, ofBits out', F.encode d (F.generator d)) = w := by simpa using hb
+    rwa [F.smul_encode] at htest
 
 /-- **Soundness of the loop on every input word**: on `(d, w)` the loop outputs the empty word
 (the book's `fail`) or a word that reads as an exponent `x` with `F.encode d (x • g) = w`. This is
@@ -482,7 +494,7 @@ theorem eq_nil_or_encode_smul_eq_of_mem_support_dlSelfReduceRetryAdversary
   obtain ⟨o, ho, rfl⟩ := hout
   obtain _ | ⟨b, out⟩ := o
   · exact Or.inl rfl
-  · exact Or.inr (F.encode_smul_eq_of_mem_support_retry ho)
+  · exact Or.inr (F.ne_nil_and_encode_smul_eq_of_mem_support_retry ho).2
 
 /-- On the encoding of an element `u`, the loop outputs the empty word or a discrete logarithm of
 `u`. -/
@@ -531,17 +543,43 @@ private theorem toOuterMeasure_eval_dlSelfReduceAttempt_not_le
   have h' := tsub_le_iff_right.mpr (tsub_le_iff_left.mp ((le_max_right _ _).trans h))
   exact (ENNReal.coe_le_coe.mpr h').trans_eq (Game.coe_succProbability_ennreal _)
 
-/-- **The loop on every instance**: on `α • g`, `k n` checked attempts return `α` with probability
-at least `1 - (1 - (ε - 1 / 2 ^ n)) ^ k n`, where `ε` is the adversary's success in the group `d`.
-The iteration remark after [BonehShoup2023], Theorem 10.2 (p. 412) gives
-`1 - (1 - ε) ^ k` without the sampling loss. -/
-theorem one_sub_pow_le_eval_discreteLogAdversary_dlSelfReduceRetryAdversary
+/-- The discrete-logarithm game reads an answer as `α` at least as often as the answer is nonempty
+and reads as `α`. -/
+private theorem toOuterMeasure_le_eval_discreteLogAdversary
+    (adversary : ℕ → F.Desc × List Bool → ProbComp (List Bool)) (n : ℕ) (d : F.Desc)
+    (u : F.Carrier d) (α : ZMod (F.order d)) :
+    (ProbComp.eval (adversary n (d, F.encode d u))).toOuterMeasure
+        {out | out ≠ [] ∧ (ofBits out : ZMod (F.order d)) = α} ≤
+      ProbComp.eval (F.discreteLogAdversary adversary n d u) α := by
+  rw [← PMF.toOuterMeasure_apply_singleton]
+  simp only [discreteLogAdversary, ProbComp.eval_map, PMF.toOuterMeasure_map_apply]
+  exact PMF.toOuterMeasure_mono _ fun out h => h.1.2
+
+/-- The discrete-logarithm game reads an answer as an exponent other than `α` at most as often as
+the answer is empty or reads as an exponent other than `α`. -/
+private theorem toOuterMeasure_eval_discreteLogAdversary_ne_le
+    (adversary : ℕ → F.Desc × List Bool → ProbComp (List Bool)) (n : ℕ) (d : F.Desc)
+    (u : F.Carrier d) (α : ZMod (F.order d)) :
+    (ProbComp.eval (F.discreteLogAdversary adversary n d u)).toOuterMeasure {x | x ≠ α} ≤
+      (ProbComp.eval (adversary n (d, F.encode d u))).toOuterMeasure
+        {out | out = [] ∨ (ofBits out : ZMod (F.order d)) ≠ α} := by
+  simp only [discreteLogAdversary, ProbComp.eval_map, PMF.toOuterMeasure_map_apply]
+  exact PMF.toOuterMeasure_mono _ fun out h => Or.inr h.1
+
+/-- **The loop on every instance**: on the encoding of `α • g`, `k n` checked attempts return a
+nonempty word that reads as `α` with probability at least `1 - (1 - (ε - 1 / 2 ^ n)) ^ k n`, where
+`ε` is the adversary's success in the group `d`. The iteration remark after [BonehShoup2023],
+Theorem 10.2 (p. 412) gives `1 - (1 - ε) ^ k` without the sampling loss. The event excludes the
+empty word, the book's `fail`, for the reason given at
+`le_toOuterMeasure_dlSelfReduceRetryAdversary_one`. -/
+theorem one_sub_pow_le_toOuterMeasure_dlSelfReduceRetryAdversary
     (adversary : ℕ → F.Desc × List Bool → ProbComp (List Bool)) (k : ℕ → ℕ) (n : ℕ) (d : F.Desc)
     (α : ZMod (F.order d)) :
     1 - (1 - ((dlAdvantage (F.order d) (F.generator d) (F.discreteLogAdversary adversary n d) -
         1 / 2 ^ n : ℝ≥0) : ℝ≥0∞)) ^ k n ≤
-      ProbComp.eval (F.discreteLogAdversary (F.dlSelfReduceRetryAdversary adversary k) n d
-        (α • F.generator d)) α := by
+      (ProbComp.eval (F.dlSelfReduceRetryAdversary adversary k n
+        (d, F.encode d (α • F.generator d)))).toOuterMeasure
+        {out | out ≠ [] ∧ (ofBits out : ZMod (F.order d)) = α} := by
   let μ := ProbComp.eval (OracleComp.retry (fun p : Bool × List Bool => p.1)
     (F.dlSelfReduceAttempt adversary n (d, F.encode d (α • F.generator d))) (k n))
   have hnone : μ none ≤ (1 - ((dlAdvantage (F.order d) (F.generator d)
@@ -549,16 +587,16 @@ theorem one_sub_pow_le_eval_discreteLogAdversary_dlSelfReduceRetryAdversary
     OracleComp.evalWith_retry_none_le _ _ _
       (F.toOuterMeasure_eval_dlSelfReduceAttempt_not_le adversary n d α) (k n)
   have hsome : μ.toOuterMeasure {none}ᶜ ≤
-      ProbComp.eval (F.discreteLogAdversary (F.dlSelfReduceRetryAdversary adversary k) n d
-        (α • F.generator d)) α := by
-    rw [← PMF.toOuterMeasure_apply_singleton]
-    simp only [discreteLogAdversary, dlSelfReduceRetryAdversary, ProbComp.eval_map, PMF.map_comp,
-      PMF.toOuterMeasure_map_apply]
+      (ProbComp.eval (F.dlSelfReduceRetryAdversary adversary k n
+        (d, F.encode d (α • F.generator d)))).toOuterMeasure
+        {out | out ≠ [] ∧ (ofBits out : ZMod (F.order d)) = α} := by
+    simp only [dlSelfReduceRetryAdversary, ProbComp.eval_map, PMF.toOuterMeasure_map_apply]
     refine PMF.toOuterMeasure_mono _ ?_
     rintro (_ | ⟨b, out⟩) ⟨ho, hsupp⟩
     · exact absurd rfl ho
-    · exact F.smul_generator_injective d
-        (F.encode_injective d (F.encode_smul_eq_of_mem_support_retry hsupp))
+    · obtain ⟨hne, henc⟩ := F.ne_nil_and_encode_smul_eq_of_mem_support_retry hsupp
+      exact (show out ≠ [] ∧ (ofBits out : ZMod (F.order d)) = α from
+        ⟨hne, F.smul_generator_injective d (F.encode_injective d henc)⟩)
   have hsum := Probability.PMF.toOuterMeasure_add_compl_ennreal μ {none}
   rw [PMF.toOuterMeasure_apply_singleton] at hsum
   calc _ ≤ 1 - μ none := tsub_le_tsub_left hnone 1
@@ -566,28 +604,62 @@ theorem one_sub_pow_le_eval_discreteLogAdversary_dlSelfReduceRetryAdversary
         (ENNReal.eq_sub_of_add_eq (PMF.apply_ne_top _ _) (by rw [add_comm]; exact hsum)).symm
     _ ≤ _ := hsome
 
-/-- **[BonehShoup2023], Theorem 10.2, with the sampling loss**: on every instance `α • g`, one
-checked attempt returns `α` with probability at least `ε - 1 / 2 ^ n`, where `ε` is the
-adversary's success in the group `d`. The book's equality `= ε` is
-`Cslib.Crypto.eval_dlSelfReduce_one_smul_some` for the fixed-group program with a uniform mask;
-here the mask is drawn by `sampleExp`, and the empty word that stands for `fail` reads as `0`, so
-only a lower bound is stated. The attempt is efficient (`isPPTOn_dlSelfReduceRetryAdversary`). -/
+/-- **[BonehShoup2023], Theorem 10.2, with the sampling loss**: on the encoding of every instance
+`α • g`, one checked attempt returns a nonempty word that reads as `α` with probability at least
+`ε - 1 / 2 ^ n`, where `ε` is the adversary's success in the group `d`.
+
+The bound is on the output word, not on the exponent that the discrete-logarithm game reads from
+it. The game reads the empty word, the book's `fail`, as `0`, so on the instance `α = 0` the
+game-level bound `le_eval_discreteLogAdversary_dlSelfReduceRetryAdversary_one` holds even for a
+loop that always fails. Excluding the empty word gives the book's claim that `B` returns an answer
+other than `fail`, the discrete logarithm, with probability `ε`, for every `u`.
+
+The book's equality `= ε` is `Cslib.Crypto.eval_dlSelfReduce_one_smul_some` for the fixed-group
+program with a uniform mask; here the mask is drawn by `sampleExp`, and only the lower bound is
+stated. The attempt is efficient (`isPPTOn_dlSelfReduceRetryAdversary`). -/
+theorem le_toOuterMeasure_dlSelfReduceRetryAdversary_one
+    (adversary : ℕ → F.Desc × List Bool → ProbComp (List Bool)) (n : ℕ) (d : F.Desc)
+    (α : ZMod (F.order d)) :
+    ((dlAdvantage (F.order d) (F.generator d) (F.discreteLogAdversary adversary n d) -
+        1 / 2 ^ n : ℝ≥0) : ℝ≥0∞) ≤
+      (ProbComp.eval (F.dlSelfReduceRetryAdversary adversary (fun _ => 1) n
+        (d, F.encode d (α • F.generator d)))).toOuterMeasure
+        {out | out ≠ [] ∧ (ofBits out : ZMod (F.order d)) = α} := by
+  have h := F.one_sub_pow_le_toOuterMeasure_dlSelfReduceRetryAdversary adversary (fun _ => 1) n d α
+  rwa [pow_one, ENNReal.sub_sub_cancel ENNReal.one_ne_top
+    (by exact_mod_cast tsub_le_self.trans (Game.succProbability_le_one _))] at h
+
+/-- The bound of `one_sub_pow_le_toOuterMeasure_dlSelfReduceRetryAdversary` for the exponent that
+the discrete-logarithm game reads from the loop's answer. At `α = 0` it holds for every loop, since
+the game reads the empty word as `0`. -/
+theorem one_sub_pow_le_eval_discreteLogAdversary_dlSelfReduceRetryAdversary
+    (adversary : ℕ → F.Desc × List Bool → ProbComp (List Bool)) (k : ℕ → ℕ) (n : ℕ) (d : F.Desc)
+    (α : ZMod (F.order d)) :
+    1 - (1 - ((dlAdvantage (F.order d) (F.generator d) (F.discreteLogAdversary adversary n d) -
+        1 / 2 ^ n : ℝ≥0) : ℝ≥0∞)) ^ k n ≤
+      ProbComp.eval (F.discreteLogAdversary (F.dlSelfReduceRetryAdversary adversary k) n d
+        (α • F.generator d)) α :=
+  (F.one_sub_pow_le_toOuterMeasure_dlSelfReduceRetryAdversary adversary k n d α).trans
+    (F.toOuterMeasure_le_eval_discreteLogAdversary _ n d _ α)
+
+/-- The bound of `le_toOuterMeasure_dlSelfReduceRetryAdversary_one` for the exponent that the
+discrete-logarithm game reads from the loop's answer. At `α = 0` it holds for every loop, since
+the game reads the empty word as `0`. -/
 theorem le_eval_discreteLogAdversary_dlSelfReduceRetryAdversary_one
     (adversary : ℕ → F.Desc × List Bool → ProbComp (List Bool)) (n : ℕ) (d : F.Desc)
     (α : ZMod (F.order d)) :
     ((dlAdvantage (F.order d) (F.generator d) (F.discreteLogAdversary adversary n d) -
         1 / 2 ^ n : ℝ≥0) : ℝ≥0∞) ≤
       ProbComp.eval (F.discreteLogAdversary (F.dlSelfReduceRetryAdversary adversary fun _ => 1)
-        n d (α • F.generator d)) α := by
-  have h := F.one_sub_pow_le_eval_discreteLogAdversary_dlSelfReduceRetryAdversary adversary
-    (fun _ => 1) n d α
-  rwa [pow_one, ENNReal.sub_sub_cancel ENNReal.one_ne_top
-    (by exact_mod_cast tsub_le_self.trans (Game.succProbability_le_one _))] at h
+        n d (α • F.generator d)) α :=
+  (F.le_toOuterMeasure_dlSelfReduceRetryAdversary_one adversary n d α).trans
+    (F.toOuterMeasure_le_eval_discreteLogAdversary _ n d _ α)
 
 /-- **The iteration remark after [BonehShoup2023], Theorem 10.2** (p. 412), in a fixed group with
 the sampling loss: if the adversary wins the discrete-logarithm game in the group `d` with
-probability at least `1 / invEps n` and `1 / 2 ^ n ≤ 1 / (2 * invEps n)`, then on every instance
-`α • g` the loop with `n * (2 * invEps n)` attempts errs with probability at most `(1 / 2) ^ n`.
+probability at least `1 / invEps n` and `1 / 2 ^ n ≤ 1 / (2 * invEps n)`, then on the encoding of
+every instance `α • g` the loop with `n * (2 * invEps n)` attempts errs, that is returns the empty
+word or a word that does not read as `α`, with probability at most `(1 / 2) ^ n`.
 The book runs `n ⌈1 / ε⌉` attempts and bounds the error by `exp (-n)`. The second hypothesis forces
 `0 < invEps n`. -/
 theorem dlSelfReduceRetryAdversary_error_le_pow
@@ -596,9 +668,9 @@ theorem dlSelfReduceRetryAdversary_error_le_pow
     (hadv : 1 / (invEps n : ℝ) ≤
       Game.succProbability (F.discreteLogGame (fun _ => PMF.pure d) adversary n))
     (hmod : 1 / (2 ^ n : ℝ) ≤ 1 / (2 * (invEps n : ℝ))) :
-    ((ProbComp.eval (F.discreteLogAdversary
-        (F.dlSelfReduceRetryAdversary adversary fun n => n * (2 * invEps n)) n d
-        (α • F.generator d))).toOuterMeasure {x | x ≠ α}).toReal ≤ (1 / 2 : ℝ) ^ n := by
+    ((ProbComp.eval (F.dlSelfReduceRetryAdversary adversary (fun n => n * (2 * invEps n)) n
+        (d, F.encode d (α • F.generator d)))).toOuterMeasure
+        {out | out = [] ∨ (ofBits out : ZMod (F.order d)) ≠ α}).toReal ≤ (1 / 2 : ℝ) ^ n := by
   have hmpos : (0 : ℝ) < invEps n := by
     by_contra h
     have h0 : (invEps n : ℝ) = 0 := le_antisymm (not_lt.mp h) (Nat.cast_nonneg _)
@@ -617,14 +689,17 @@ theorem dlSelfReduceRetryAdversary_error_le_pow
       field_simp
       ring
     linarith
-  have hmain := F.one_sub_pow_le_eval_discreteLogAdversary_dlSelfReduceRetryAdversary adversary
+  have hmain := F.one_sub_pow_le_toOuterMeasure_dlSelfReduceRetryAdversary adversary
     (fun n => n * (2 * invEps n)) n d α
-  rw [← PMF.toOuterMeasure_apply_singleton] at hmain
-  have herr := Probability.PMF.toOuterMeasure_compl_le_one_sub _ {α} hmain
+  have herr := Probability.PMF.toOuterMeasure_compl_le_one_sub _ _ hmain
   have hpow1 : (1 - (c : ℝ≥0∞)) ^ (n * (2 * invEps n)) ≤ 1 :=
     pow_le_one₀ (by positivity) tsub_le_self
   rw [ENNReal.sub_sub_cancel ENNReal.one_ne_top hpow1] at herr
-  change ((ProbComp.eval _).toOuterMeasure ({α} : Set (ZMod (F.order d)))ᶜ).toReal ≤ _
+  have hset : {out : List Bool | out = [] ∨ (ofBits out : ZMod (F.order d)) ≠ α} =
+      {out | out ≠ [] ∧ (ofBits out : ZMod (F.order d)) = α}ᶜ := by
+    ext out
+    simp only [Set.mem_ofPred_eq, Set.mem_compl_iff, not_and_or, not_not, ne_eq]
+  rw [hset]
   calc _ ≤ ((1 - (c : ℝ≥0∞)) ^ (n * (2 * invEps n))).toReal :=
         ENNReal.toReal_mono (ne_top_of_le_ne_top ENNReal.one_ne_top hpow1) herr
     _ = (1 - (c : ℝ)) ^ (n * (2 * invEps n)) := by
@@ -643,10 +718,27 @@ theorem dlSelfReduceRetryAdversary_error_le_pow
           exact le_rfl
     _ ≤ (1 / 2 : ℝ) ^ n := Real.exp_le_half_pow n le_rfl
 
+/-- The bound of `dlSelfReduceRetryAdversary_error_le_pow` for the exponent that the
+discrete-logarithm game reads from the loop's answer: it reads an exponent other than `α` with
+probability at most `(1 / 2) ^ n`. -/
+theorem discreteLogAdversary_dlSelfReduceRetryAdversary_error_le_pow
+    (adversary : ℕ → F.Desc × List Bool → ProbComp (List Bool)) (invEps : ℕ → ℕ) (n : ℕ)
+    (d : F.Desc) (α : ZMod (F.order d))
+    (hadv : 1 / (invEps n : ℝ) ≤
+      Game.succProbability (F.discreteLogGame (fun _ => PMF.pure d) adversary n))
+    (hmod : 1 / (2 ^ n : ℝ) ≤ 1 / (2 * (invEps n : ℝ))) :
+    ((ProbComp.eval (F.discreteLogAdversary
+        (F.dlSelfReduceRetryAdversary adversary fun n => n * (2 * invEps n)) n d
+        (α • F.generator d))).toOuterMeasure {x | x ≠ α}).toReal ≤ (1 / 2 : ℝ) ^ n :=
+  (ENNReal.toReal_mono (Probability.PMF.toOuterMeasure_ne_top _ _)
+    (F.toOuterMeasure_eval_discreteLogAdversary_ne_le _ n d _ α)).trans
+    (F.dlSelfReduceRetryAdversary_error_le_pow adversary invEps n d α hadv hmod)
+
 /-- **Discrete logarithm on every instance with negligible error**: if `invEps` is computable in
 polynomial time in unary and, for large `n`, `0 < invEps n` and the adversary wins the
-discrete-logarithm game in the group `d n` with probability at least `1 / invEps n`, then on every
-sequence of instances `α n • g` in `d n` the loop with `n * (2 * invEps n)` attempts errs with
+discrete-logarithm game in the group `d n` with probability at least `1 / invEps n`, then on the
+encoding of every sequence of instances `α n • g` in `d n` the loop with `n * (2 * invEps n)`
+attempts errs, that is returns the empty word or a word that does not read as `α n`, with
 negligible probability.
 The loop is uniform strict PPT (`isPPTOn_dlSelfReduceRetryAdversary_invEps`). This is the
 conclusion of the remark after [BonehShoup2023], Theorem 10.2 (p. 412), "if `1/ε` is
@@ -660,9 +752,9 @@ theorem negligible_dlSelfReduceRetryAdversary_error
     (hadv : ∀ᶠ n in Filter.atTop, 1 / (invEps n : ℝ) ≤
       Game.succProbability (F.discreteLogGame (fun _ => PMF.pure (d n)) adversary n)) :
     Negligible fun n =>
-      ((ProbComp.eval (F.discreteLogAdversary
-        (F.dlSelfReduceRetryAdversary adversary fun n => n * (2 * invEps n)) n (d n)
-        (α n • F.generator (d n)))).toOuterMeasure {x | x ≠ α n}).toNNReal := by
+      ((ProbComp.eval (F.dlSelfReduceRetryAdversary adversary (fun n => n * (2 * invEps n)) n
+        (d n, F.encode (d n) (α n • F.generator (d n))))).toOuterMeasure
+        {out | out = [] ∨ (ofBits out : ZMod (F.order (d n))) ≠ α n}).toNNReal := by
   have hgeom : Negligible fun n => ((2⁻¹ : ℝ≥0) ^ n) := by negligible
   have hpoly : PolynomiallyBounded fun n => 2 * invEps n + 1 :=
     ((PolynomiallyBounded.const 2).mul hinvEps.tidy.polynomiallyBounded).add (.const 1)
@@ -677,6 +769,24 @@ theorem negligible_dlSelfReduceRetryAdversary_error
   negligible eventually (by
     filter_upwards [hadv, hmod] with n hadv_n hmod_n
     exact F.dlSelfReduceRetryAdversary_error_le_pow adversary invEps n (d n) (α n) hadv_n hmod_n)
+
+/-- The conclusion of `negligible_dlSelfReduceRetryAdversary_error` for the exponent that the
+discrete-logarithm game reads from the loop's answer: it reads an exponent other than `α n` with
+negligible probability. -/
+theorem negligible_discreteLogAdversary_dlSelfReduceRetryAdversary_error
+    {adversary : ℕ → F.Desc × List Bool → ProbComp (List Bool)} {invEps : ℕ → ℕ}
+    (hinvEps : ComputableInPolyTime invEps encUnary encUnary)
+    (d : ℕ → F.Desc) (α : ∀ n, ZMod (F.order (d n)))
+    (hpos : ∀ᶠ n in Filter.atTop, 0 < invEps n)
+    (hadv : ∀ᶠ n in Filter.atTop, 1 / (invEps n : ℝ) ≤
+      Game.succProbability (F.discreteLogGame (fun _ => PMF.pure (d n)) adversary n)) :
+    Negligible fun n =>
+      ((ProbComp.eval (F.discreteLogAdversary
+        (F.dlSelfReduceRetryAdversary adversary fun n => n * (2 * invEps n)) n (d n)
+        (α n • F.generator (d n)))).toOuterMeasure {x | x ≠ α n}).toNNReal :=
+  negligible_of_le (F.negligible_dlSelfReduceRetryAdversary_error hinvEps d α hpos hadv) fun n =>
+    ENNReal.toNNReal_mono (Probability.PMF.toOuterMeasure_ne_top _ _)
+      (F.toOuterMeasure_eval_discreteLogAdversary_ne_le _ n (d n) _ (α n))
 
 /-! ### Computational Diffie–Hellman -/
 
@@ -739,15 +849,19 @@ theorem succProbability_cdhGame_le_cdhWorstCaseGame (setup : ℕ → PMF F.Desc)
   rw [Game.advantage_comm]
   exact F.advantage_cdhWorstCaseGame_cdhGame_le setup α β adversary n
 
-/-- Average-case CDH hardness from worst-case hardness: if every uniform strict PPT CDH adversary
-wins the worst-case game on the pairs `(α d • g, β d • g)` with negligible probability, then `CDH`
-holds for the setup law. This formulation and `cdhWorstCaseGame` are this library's. -/
-theorem cdh_of_worstCase {setup : ℕ → PMF F.Desc} (α β : ∀ d : F.Desc, ZMod (F.order d))
+/-- Average-case CDH hardness from worst-case hardness: if for every uniform strict PPT CDH
+adversary there are pairs `(α d • g, β d • g)` on which it wins the worst-case game with negligible
+probability, then `CDH` holds for the setup law. The pairs may depend on the adversary. This
+formulation and `cdhWorstCaseGame` are this library's. The premise of
+`Cslib.Crypto.PrimeOrderGroupFamily.ddh_of_worstCase` is stronger: it fixes the instances before
+the distinguisher. -/
+theorem cdh_of_worstCase {setup : ℕ → PMF F.Desc}
     (hworst : ∀ adversary : F.CDHAdversary, adversary.IsPPT →
-      Negligible fun n => Game.succProbability (F.cdhWorstCaseGame setup α β adversary n)) :
+      ∃ α β : ∀ d : F.Desc, ZMod (F.order d),
+        Negligible fun n => Game.succProbability (F.cdhWorstCaseGame setup α β adversary n)) :
     F.CDH setup := by
   intro adversary hA
-  have hw := hworst _ (F.isPPT_cdhSelfReduceAdversary hA)
+  obtain ⟨α, β, hw⟩ := hworst _ (F.isPPT_cdhSelfReduceAdversary hA)
   negligible using F.succProbability_cdhGame_le_cdhWorstCaseGame setup α β adversary
 
 end Cslib.Crypto.PrimeOrderGroupFamily

@@ -6086,6 +6086,7 @@ public import CslibFrontier.Foundations.Data.ZMod.CRTUnits
 public import CslibFrontier.Foundations.Data.ZMod.DotProduct
 public import CslibFrontier.Foundations.Data.ZMod.ModulusSwitch
 public import CslibFrontier.Foundations.Data.ZMod.Multiples
+public import CslibFrontier.Foundations.Data.ZMod.NatCast
 public import CslibFrontier.Foundations.Data.ZMod.PolynomialRoots
 public import CslibFrontier.Foundations.Data.ZMod.SquareModulus
 public import CslibFrontier.Foundations.Data.ZMod.ValMinAbs

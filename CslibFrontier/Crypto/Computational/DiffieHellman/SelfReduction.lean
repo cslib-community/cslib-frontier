@@ -174,8 +174,8 @@ theorem smul_eq_of_mem_support_dlSelfReduce [DecidableEq G] {A : G → ProbComp 
 /-- **The probability in [BonehShoup2023], Theorem 10.2** (pp. 411–412), in a fixed group: on input
 `α • g`, one attempt returns `α` with probability exactly `ε = dlAdvantage q g A`. The theorem's
 claim that `B` is efficient is not stated here; the family-level form is
-`Cslib.Crypto.PrimeOrderGroupFamily.le_eval_discreteLogAdversary_dlSelfReduceRetryAdversary_one`,
-and `Cslib.Crypto.PrimeOrderGroupFamily.isPPTOn_dlSelfReduceRetryAdversary` certifies its program.
+`Cslib.Crypto.PrimeOrderGroupFamily.le_toOuterMeasure_dlSelfReduceRetryAdversary_one`, and
+`Cslib.Crypto.PrimeOrderGroupFamily.isPPTOn_dlSelfReduceRetryAdversary` certifies its program.
 The book takes `G` cyclic of prime order `q` with generator `g`, where every input is `α • g` for
 its discrete logarithm `α`; this needs neither hypothesis. -/
 theorem eval_dlSelfReduce_one_smul_some [DecidableEq G] (A : G → ProbComp (ZMod q))

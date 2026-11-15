@@ -17,14 +17,17 @@ Clients of `CslibFrontier/Crypto/Computational/DiffieHellman/SelfReduction.lean`
 encapsulation, with ordinary imports.
 
 * In `ZMod 5` with `g = 1`, an adversary that is right only on the challenge `0` has advantage
-  `1 / 5`. It never finds the logarithm of `3`, yet one attempt of `dlSelfReduce` on `3` returns
-  `3` with probability `1 / 5`, and five attempts fail with probability `(4 / 5) ^ 5 ≤ exp (-1)`.
+  `1 / 5`. It never finds the logarithm of `3`, yet one masked call and one attempt of
+  `dlSelfReduce` on `3` return `3` with probability `1 / 5`. Five attempts fail with probability
+  `(4 / 5) ^ 5 ≤ exp (-1)` and succeed with probability `1 - (4 / 5) ^ 5 ≥ 1 - exp (-1)`, and `k`
+  attempts fail with probability at most `exp (-(k / 5))`.
 * An adversary that is never right makes every attempt fail, so `0 < ε` is needed in the iteration
   bound.
 * In `ZMod 4` with `g = 2`, which has order `2`, the constant guess `0` has advantage `1 / 4`. One
   attempt on `0` returns each of the two logarithms `0` and `2` of `0` with probability `1 / 4`, so
   it does not fail with probability `1 - 1 / 4`: the exact failure probability needs injectivity
-  of `c ↦ c • g`. An input outside the image of `c ↦ c • g` makes every attempt fail.
+  of `c ↦ c • g`, while the upper bound `(1 - 1 / 4) ^ k` does not. An input outside the image of
+  `c ↦ c • g` makes every attempt fail.
 * In `ZMod 5`, the two-sided CDH self-reduction succeeds with probability `1 / 5` on every input
   for an adversary that is right only when its second input is `0`, while masking the first input
   alone succeeds with probability `1` or `0` depending on the second input.
@@ -101,7 +104,15 @@ theorem dlAdvantage_zeroOnly : dlAdvantage 5 (1 : ZMod 5) zeroOnly = 1 / 5 := by
 example : ProbComp.eval (zeroOnly 3) 3 = 0 := by
   rw [zeroOnly, ProbComp.eval_pure, PMF.pure_apply, ite_eq_right (by decide)]
 
-/-- Yet one attempt of the self-reduction on `3` returns `3` with probability `1 / 5`. -/
+/-- Yet one masked call of `zeroOnly` on `3` returns `3` with probability `1 / 5`, its advantage. -/
+example : ProbComp.eval (dlRerandomize 5 (1 : ZMod 5) zeroOnly 3) 3 = 1 / 5 := by
+  have h := eval_dlRerandomize_smul_apply 5 (1 : ZMod 5) zeroOnly 3
+  simp only [smul_eq_mul, mul_one] at h
+  rw [h, ← Game.coe_succProbability_ennreal]
+  change ((dlAdvantage 5 (1 : ZMod 5) zeroOnly : ℝ≥0) : ℝ≥0∞) = 1 / 5
+  rw [dlAdvantage_zeroOnly, one_div, one_div, ENNReal.coe_inv (by norm_num), ENNReal.coe_ofNat]
+
+/-- And one attempt of the self-reduction on `3` returns `3` with probability `1 / 5`. -/
 example : ProbComp.eval (dlSelfReduce 5 (1 : ZMod 5) zeroOnly 1 3) (some 3) = 1 / 5 := by
   have h := eval_dlSelfReduce_one_smul_some 5 (1 : ZMod 5) zeroOnly 3
   rw [smul_eq_mul, mul_one, dlAdvantage_zeroOnly] at h
@@ -118,12 +129,40 @@ example :
     NNReal.coe_ofNat]
   norm_num
 
+/-- Five attempts on `3` return `3` with probability `1 - (4 / 5) ^ 5 = 2101 / 3125`. -/
+example :
+    (ProbComp.eval (dlSelfReduce 5 (1 : ZMod 5) zeroOnly 5 3) (some 3)).toReal = 2101 / 3125 := by
+  have h := eval_dlSelfReduce_smul_some 5 (1 : ZMod 5) zmod5_smul_one_injective zeroOnly 5 3
+  rw [smul_eq_mul, mul_one, dlAdvantage_zeroOnly] at h
+  rw [h, ENNReal.toReal_sub_of_le (pow_le_one₀ (by positivity) tsub_le_self) ENNReal.one_ne_top,
+    ENNReal.toReal_one, ENNReal.toReal_pow, ENNReal.toReal_sub_of_le
+    (ENNReal.coe_le_one_iff.2 (div_le_one_of_le₀ (by norm_num) (by norm_num)))
+    ENNReal.one_ne_top, ENNReal.toReal_one, ENNReal.coe_toReal, NNReal.coe_div, NNReal.coe_one,
+    NNReal.coe_ofNat]
+  norm_num
+
+/-- `k` attempts on `3` all fail with probability at most `exp (-(k / 5))`. -/
+example (k : ℕ) :
+    (ProbComp.eval (dlSelfReduce 5 (1 : ZMod 5) zeroOnly k 3) none).toReal ≤
+      Real.exp (-(k * (1 / 5 : ℝ))) := by
+  have h := eval_dlSelfReduce_smul_none_le_exp_mul 5 (1 : ZMod 5) zeroOnly k 3
+  rwa [smul_eq_mul, mul_one, dlAdvantage_zeroOnly, NNReal.coe_div, NNReal.coe_one,
+    NNReal.coe_ofNat] at h
+
 /-- The iteration bound with `n = 1`: `⌈1 / ε⌉ = 5` attempts fail with probability at most
 `exp (-1)`. -/
 example : (ProbComp.eval (dlSelfReduce 5 (1 : ZMod 5) zeroOnly 5 3) none).toReal ≤
     Real.exp (-1) := by
   have h := eval_dlSelfReduce_smul_none_le_exp 5 (1 : ZMod 5) zeroOnly
     (by rw [dlAdvantage_zeroOnly]; norm_num) 1 3
+  rwa [dlAdvantage_zeroOnly, one_div, inv_inv, Nat.ceil_ofNat, one_mul, smul_eq_mul, mul_one,
+    Nat.cast_one] at h
+
+/-- ... and return `3` with probability at least `1 - exp (-1)`. -/
+example : 1 - Real.exp (-1) ≤
+    (ProbComp.eval (dlSelfReduce 5 (1 : ZMod 5) zeroOnly 5 3) (some 3)).toReal := by
+  have h := one_sub_exp_le_eval_dlSelfReduce_smul_some 5 (1 : ZMod 5) zmod5_smul_one_injective
+    zeroOnly (by rw [dlAdvantage_zeroOnly]; norm_num) 1 3
   rwa [dlAdvantage_zeroOnly, one_div, inv_inv, Nat.ceil_ofNat, one_mul, smul_eq_mul, mul_one,
     Nat.cast_one] at h
 
@@ -161,6 +200,14 @@ theorem dlAdvantage_zmod4_const_zero :
     ProbComp.eval_pure, ProbComp.eval_uniform, PMF.pure_bind]
   rw [Game.succProbability, PMF.uniformOfFintype_bind_decide_eq_apply_true, ZMod.card,
     ENNReal.toNNReal_inv, ENNReal.toNNReal_natCast, one_div, Nat.cast_ofNat]
+
+/-- Without injectivity of `c ↦ c • 2`, `k` attempts on `0` still all fail with probability at most
+`(1 - 1 / 4) ^ k`. -/
+example (k : ℕ) :
+    ProbComp.eval (dlSelfReduce 4 (2 : ZMod 4) (fun _ => pure 0) k 0) none ≤ (1 - 4⁻¹) ^ k := by
+  have h := eval_dlSelfReduce_smul_none_le 4 (2 : ZMod 4) (fun _ => pure 0) k 0
+  rwa [zero_smul, dlAdvantage_zmod4_const_zero, one_div, ENNReal.coe_inv (by norm_num),
+    ENNReal.coe_ofNat] at h
 
 /-- One attempt on `0` returns each of the two logarithms `0` and `2` of `0` with probability
 `1 / 4`, so it does not fail with probability `1 - 1 / 4`: the exact failure probability of
