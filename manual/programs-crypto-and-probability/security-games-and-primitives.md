@@ -540,9 +540,10 @@ not itself model the reference implementation's byte-consumption trace.
 formalizes Algorithm 14, lines 5--10, as the actual sequential lazy comparison. It uses the shared
 `Byte` type and `natToFixedBytesBE` for `z`, draws eight fair bits for each visited byte, stops at
 the first mismatch, and returns the decision, number of bytes read and source ledger. The ledger
-charges one byte draw, source subtraction and comparison per consumed byte, exactly
-`8 * bytesRead` fair bits, and no external oracle or handler. The deterministic trace compares
-byte lists lexicographically; `Falcon.berExpLazyTrace64_accepted` connects that comparison to the
+charges one byte draw, source subtraction and loop equality test per consumed byte, exactly
+`8 * bytesRead` fair bits, and no external oracle or handler. Its comparison coordinate excludes
+the one final sign extraction and loop-index tests. The deterministic trace compares byte lists
+lexicographically; `Falcon.berExpLazyTrace64_accepted` connects that comparison to the
 same strict 64-bit threshold predicate, and `Falcon.eval_berExpLazyCoin_accepted` proves equality
 of the complete decision distributions. The trace consumes between one and eight bytes, consumes
 all eight and rejects when every byte agrees, and reads past the first byte with exact probability

@@ -28,9 +28,10 @@ eight-fair-bit draw for every visited byte, returns the same decision as the fix
 experiment in `BerExp.lean`, and records the number of bytes read.
 
 The trace uses the shared `Byte` type and `natToFixedBytesBE` serialization. Its source ledger
-records one byte draw, subtraction and comparison per visited byte, exactly eight fair bits per
-byte, and no external oracle or handler. These are Algorithm 14 source operations, not
-Lean evaluation steps, native instructions, PRNG-buffer refills or a runtime certificate.
+records one byte draw, subtraction and loop equality test per visited byte, exactly eight fair
+bits per byte, and no external oracle or handler. The comparison coordinate excludes the one
+final sign extraction and loop-index tests. These are Algorithm 14 source operations, not Lean
+evaluation steps, native instructions, PRNG-buffer refills or a runtime certificate.
 
 The trace uses between one and eight bytes. It uses more than one byte exactly when the first
 random byte equals the first threshold byte, an event of probability `2^-8`; equality in all
@@ -81,14 +82,15 @@ open Probability
 
 /-- Source-level operations and randomness used by one lazy comparison trace.
 
-The subtraction and comparison coordinates describe the source's byte subtraction and sign test,
-not the definitional order tests used by `berExpLazyTrace`. -/
+The subtraction coordinate describes the source's byte subtraction. The comparison coordinate
+counts its per-byte loop equality tests, excluding the one final sign extraction and loop-index
+tests; it does not count the definitional order tests used by `berExpLazyTrace`. -/
 structure BerExpLazySourceResources where
   /-- Eight-bit random values requested from the PRNG interface. -/
   byteDrawCount : Nat
   /-- Source byte subtractions `sample - threshold`. -/
   byteSubtractionCount : Nat
-  /-- Source sign/equality comparisons of byte differences. -/
+  /-- Source loop tests for whether the byte difference is nonzero, one per visited byte. -/
   byteComparisonCount : Nat
   /-- Fair random bits underlying the byte draws. -/
   randomBits : Nat
