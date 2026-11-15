@@ -1630,8 +1630,10 @@ and `LWEFamily.encryptIdealReduction`, which are PPT by `LWEFamily.isPPT_encrypt
 Further deviations: adversaries are uniform strict oracle PPT programs, a shift of Hamming weight
 above `t κ` is answered as the shift `0` (`clampShift`), where Definition 3 admits only shifts of
 weight at most `t`, and the advantage is the distance between the real and ideal games, twice the
-source's `ε` in `1/2 + ε`. Correctness, which needs a prime modulus for `Decode_t`, is not part of
-this theorem. -/
+source's `ε` in `1/2 + ε`. Definition 3 is stated for a fuzzy extractor, correctness included;
+this theorem concludes only the security half. Section 5 calls correctness immediate "for the same
+range of parameters as in the FMR scheme" (p. 12); averaged over the matrix it is
+`DecoderCorrectWithError.setupCorrect_lweEncryptFuzzyExtractor`. -/
 theorem stronglyReusable_lweEncryptFuzzyExtractor {m n l w : ℕ → ℕ}
     (hm : ComputableInPolyTime m encUnary encUnary)
     (hn : ComputableInPolyTime n encUnary encUnary)
