@@ -1,5 +1,5 @@
 {
- "CslibFrontier/Computability/Machines/Turing/MultiTape/Combinators/Encoding.lean": 8,
+ "CslibFrontier/Computability/Machines/Turing/MultiTape/Combinators/Encoding.lean": 1,
  "CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/BigO.lean": 29,
  "CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/BigO/Plain.lean": 2,
  "CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/Degree.lean": 24,
@@ -34,7 +34,6 @@
  "CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/Quantitative.lean": 11,
  "CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/Streaming.lean": 14,
  "CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/Translate.lean": 2,
- "CslibFrontier/Computability/Machines/Turing/MultiTape/Encodings/Basic.lean": 7,
  "CslibFrontier/Computability/Machines/Turing/MultiTape/Encodings/MultiPass.lean": 1,
  "CslibFrontier/Computability/Machines/Turing/MultiTape/Encodings/NatPower.lean": 1,
  "CslibFrontier/Computability/Machines/Turing/MultiTape/Encodings/StreamFold.lean": 4,
