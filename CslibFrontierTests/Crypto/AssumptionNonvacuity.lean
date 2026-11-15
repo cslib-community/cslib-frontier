@@ -43,9 +43,9 @@ pseudorandom generators and hard-core predicates are elsewhere.
   `RSAOneWay` all fail for a fixed modulus or key descriptor `fun _ => PMF.pure d`.
   `RSAUnitOneWay` fails for a fixed key descriptor too: decrypting with its private exponent
   always wins.
-* **Strong RSA.** For a fixed modulus `N > 0` and a fixed unit base `g`, `StrongRSA` fails for
-  `fun _ => PMF.pure ⟨N, g⟩`: Euler's theorem gives the order multiple `φ(N)`, and the known-order
-  adversary of `not_strongRSA_of_knownOrder` wins with probability `1`.
+* **Strong RSA.** For a fixed modulus `N` and a fixed unit base `g`, `StrongRSA` fails for
+  `fun _ => PMF.pure ⟨N, g⟩`: Euler's theorem gives the order multiple `φ(N)`, and the adversary
+  of `not_strongRSA_of_orderMultiple` wins with probability `1`.
 -/
 
 namespace CslibFrontierTests.Crypto.AssumptionNonvacuity
@@ -343,14 +343,19 @@ theorem not_rsaUnitOneWay_const (desc : RSADesc) : ¬ RSAUnitOneWay (fun _ => PM
   exact not_negligible_const one_ne_zero hneg
 
 /-- **`StrongRSA` fails for a fixed modulus and a fixed unit base**: by Euler's theorem
-`g ^ φ(N) ≡ 1 [MOD N]`, so the known-order adversary with `u = φ(N)` and `v = φ(N) + 1` wins with
-probability `1`. The unit condition is needed (`strongRSA_const_four_two` in
-`CslibFrontierTests/Crypto/StrongRSA.lean`). -/
-theorem not_strongRSA_const {N g : ℕ} (hN : 0 < N) (hg : Nat.Coprime g N) :
+`g ^ φ(N) ≡ 1 [MOD N]`, so the order-multiple adversary with `u = max 1 φ(N)` wins with
+probability `1`. For `N = 0` the only unit is `g = 1`. The unit condition is needed
+(`strongRSA_const_four_two` in `CslibFrontierTests/Crypto/StrongRSA.lean`). -/
+theorem not_strongRSA_const {N g : ℕ} (hg : Nat.Coprime g N) :
     ¬ StrongRSA fun _ => PMF.pure ⟨N, g⟩ := by
-  refine not_strongRSA_of_knownOrder (u := fun _ _ => N.totient) (v := fun _ _ => N.totient + 1)
-    (ComputableInPolyTime.const _) (ComputableInPolyTime.const _) fun n p hp => ?_
+  refine not_strongRSA_of_orderMultiple (u := fun _ _ => max 1 N.totient)
+    (ComputableInPolyTime.const _) fun n p hp => ?_
   obtain rfl : p = ⟨N, g⟩ := by simpa using hp
-  exact ⟨Nat.ModEq.pow_totient hg, by simp, by simpa using (Nat.totient_pos.mpr hN).ne'⟩
+  refine ⟨by simp, ?_⟩
+  rcases Nat.eq_zero_or_pos N with rfl | hN
+  · obtain rfl : g = 1 := Nat.coprime_zero_right _ |>.mp hg
+    simp [Nat.ModEq.refl]
+  · rw [max_eq_right (Nat.totient_pos.mpr hN)]
+    exact Nat.ModEq.pow_totient hg
 
 end CslibFrontierTests.Crypto.AssumptionNonvacuity

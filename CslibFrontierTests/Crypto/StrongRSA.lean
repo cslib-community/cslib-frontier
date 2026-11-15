@@ -21,11 +21,12 @@ Checks for `CslibFrontier/Crypto/Computational/StrongRSA.lean`:
 * `0 < u` is needed in `powMod_knownOrderRoot`: `2 ^ 0 ≡ 1 [MOD 5]` and `1` is coprime to `0`, but
   `knownOrderRoot 5 0 1 2 = 1`, and `1 ^ 1` is not `2` modulo `5`.
 * `not_strongRSA_rsaGUOSetup_const`: the book's `GGen` with a fixed RSA key does not satisfy the
-  assumption. Every drawn base is a unit, so `not_strongRSA_of_knownOrder` applies with the
-  constant exponents `u = φ(N)` and `v = φ(N) + 1`.
+  assumption. Every drawn base is a unit (`exists_of_mem_support_rsaGUOSetup`), so
+  `not_strongRSA_of_orderMultiple` applies with the constant multiple `u = φ(N)` of the order.
 * The unit condition in `not_strongRSA_const` (`AssumptionNonvacuity.lean`) is needed:
   for `(N, g) = (4, 2)` no output is a solution (`isStrongRSASolution_four_two`), so the strong
-  RSA assumption holds for that constant setup (`strongRSA_const_four_two`).
+  RSA assumption holds for that constant setup (`strongRSA_const_four_two`). The same setup shows
+  that `0 < u` is needed in `not_strongRSA_of_orderMultiple`: `u = 0` meets `2 ^ 0 ≡ 1 [MOD 4]`.
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
@@ -59,18 +60,16 @@ example : 2 ^ 0 ≡ 1 [MOD 5] ∧ Nat.Coprime 1 0 ∧ knownOrderRoot 5 0 1 2 = 1
 /-! ### The book's `GGen` with a fixed key -/
 
 /-- **`rsaGUOSetup` with a fixed RSA key does not satisfy the strong RSA assumption**: every base it
-draws is a unit modulo `N`, so `g ^ φ(N) ≡ 1 [MOD N]`, and the known-order adversary with `u = φ(N)`
-and `v = φ(N) + 1` wins with probability `1`. -/
+draws is a unit modulo `N`, so `g ^ φ(N) ≡ 1 [MOD N]`, and the order-multiple adversary with
+`u = φ(N)` wins with probability `1`. -/
 theorem not_strongRSA_rsaGUOSetup_const (desc : RSADesc) :
     ¬ StrongRSA (rsaGUOSetup fun _ => PMF.pure desc) := by
-  have hpos : 0 < desc.modulus.totient := Nat.totient_pos.mpr (Nat.pos_of_neZero _)
-  refine not_strongRSA_of_knownOrder (u := fun _ _ => desc.modulus.totient)
-    (v := fun _ _ => desc.modulus.totient + 1)
-    (ComputableInPolyTime.const _) (ComputableInPolyTime.const _) fun n p hp => ?_
-  simp only [rsaGUOSetup, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.pure_bind,
-    PMF.mem_support_bind_iff, PMF.support_pure, Set.mem_singleton_iff] at hp
-  obtain ⟨g, -, rfl⟩ := hp
-  exact ⟨Nat.ModEq.pow_totient (ZMod.val_coe_unit_coprime g), by simp, by omega⟩
+  refine not_strongRSA_of_orderMultiple (u := fun _ _ => desc.modulus.totient)
+    (ComputableInPolyTime.const _) fun n p hp => ?_
+  obtain ⟨d, hd, hN, hg⟩ := exists_of_mem_support_rsaGUOSetup hp
+  obtain rfl : d = desc := by simpa using hd
+  rw [hN] at hg ⊢
+  exact ⟨Nat.totient_pos.mpr (Nat.pos_of_neZero _), Nat.ModEq.pow_totient hg⟩
 
 /-! ### A base that is not a unit -/
 
@@ -99,5 +98,11 @@ theorem strongRSA_const_four_two : StrongRSA fun _ => PMF.pure ⟨4, 2⟩ := by
       ProbComp.eval_pure, hfalse]
     exact PMF.bind_const _ _
   simp [hgame, Game.succProbability]
+
+/-- **`0 < u` is needed in `not_strongRSA_of_orderMultiple`**: `u = 0` meets `g ^ u ≡ 1 [MOD N]`
+for every `(N, g)`, yet the strong RSA assumption holds for the constant setup `(4, 2)`. -/
+example : (∀ p : GUOParams, p.base ^ 0 ≡ 1 [MOD p.modulus]) ∧
+    StrongRSA fun _ => PMF.pure ⟨4, 2⟩ :=
+  ⟨fun p => by rw [pow_zero], strongRSA_const_four_two⟩
 
 end CslibFrontierTests.Crypto.StrongRSA

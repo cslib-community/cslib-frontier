@@ -1125,22 +1125,29 @@ public parameters `(N, g)` of the group `(ZMod N)ˣ`, encoded by `encGUOParams`.
 (`isStrongRSASolution_eq_true_iff` for `0 < N`). `StrongRSA setup` says that every PPT adversary
 (`StrongRSAAdversary.IsPPT`) wins with negligible probability; the
 [assumptions inventory](assumptions.md) lists it as standard. `rsaGUOSetup gen` is the book's
-`GGen`: an RSA modulus from the key law `gen` and a uniform unit `g`. The statement differs from the
-book's in two ways. The setup is any law on `GUOParams`, which need not be efficiently samplable or
-give a unit `g`, in place of a group of unknown order from an efficient `GGen`; class groups
-(p. 423) are not covered. The adversary outputs natural numbers `x` and `e ≠ 1` in place of `x ∈ G`
-and an integer `e ≠ ±1`. Every winning output gives one for the book's game, so the book's
-assumption implies `StrongRSA`; that implication is not formalized. `not_strongRSA_of_knownOrder`
-is the observation of p. 421 that the assumption is false when a multiple `u` of the order of `g`
-is known. If polynomial-time functions `u` and `v` of the security parameter and `(N, g)` give
-`g ^ u ≡ 1 [MOD N]` and `v ≠ 1` coprime to `u` on the support of every `setup n`, then
-`knownOrderAdversary u v` wins with probability `1` (`strongRSAGame_knownOrderAdversary`), and
-`isPPT_knownOrderAdversary` shows that it is PPT. The book takes `v > 1`. The adversary outputs
-`(knownOrderRoot N u v g, v)`, where `knownOrderRoot N u v g` is `g ^ (v⁻¹ mod u)` modulo `N`, a
-`v`-th root of `g` when `0 < u` (`powMod_knownOrderRoot`). The
-[checked examples](../../CslibFrontierTests/Crypto/StrongRSA.lean) cover `N = 15` and `g = 2`, an
-instance showing that `0 < u` is needed in `powMod_knownOrderRoot`, and the failure of the
-assumption for `rsaGUOSetup` with a fixed key (`not_strongRSA_rsaGUOSetup_const`).
+`GGen`: an RSA modulus from the key law `gen` and a uniform unit `g`; every `(N, g)` it draws has
+`g` coprime to `N` (`exists_of_mem_support_rsaGUOSetup`). The statement differs from the book's in
+two ways. The setup is any law on `GUOParams`, which need not be efficiently samplable or give a
+unit `g`, in place of a group of unknown order from an efficient `GGen`; class groups (p. 423) are
+not covered. The adversary outputs natural numbers `x` and `e ≠ 1` in place of `x ∈ G` and an
+integer `e ≠ ±1`. For a unit `g`, every winning output gives one for the book's game, so for a
+setup that gives a unit `g` the book's assumption implies `StrongRSA`; that implication is not
+formalized. The book's remark that strong RSA is a stronger assumption than standard RSA (p. 420)
+is not formalized either: no implication between `StrongRSA (rsaGUOSetup gen)` and `RSAOneWay gen`
+or `RSAUnitOneWay gen` is proved. `not_strongRSA_of_orderMultiple` is the observation of p. 421
+that the assumption is false when a multiple `u` of the order of `g` is known. If a
+polynomial-time function `u` of the security parameter and `(N, g)` gives `0 < u` and
+`g ^ u ≡ 1 [MOD N]` on the support of every `setup n`, then `orderMultipleAdversary u` wins with
+probability `1`, and `isPPT_orderMultipleAdversary` shows that it is PPT. It is
+`knownOrderAdversary u v` with `v = u + 1`, which outputs `(knownOrderRoot N u v g, v)`, where
+`knownOrderRoot N u v g` is `g ^ (v⁻¹ mod u)` modulo `N`. `powMod_knownOrderRoot` says that this is
+a `v`-th root of `g` modulo `N` when `0 < u`, `g ^ u ≡ 1 [MOD N]` and `v` is coprime to `u`, for
+every `N`. The general form `not_strongRSA_of_knownOrder` takes any polynomial-time `v ≠ 1` coprime
+to `u` (`strongRSAGame_knownOrderAdversary`, `isPPT_knownOrderAdversary`); the book takes `v > 1`.
+The [checked examples](../../CslibFrontierTests/Crypto/StrongRSA.lean) cover `N = 15` and `g = 2`,
+instances showing that `0 < u` is needed in `powMod_knownOrderRoot` and in
+`not_strongRSA_of_orderMultiple`, and the failure of the assumption for `rsaGUOSetup` with a fixed
+key (`not_strongRSA_rsaGUOSetup_const`).
 [`AssumptionNonvacuity.lean`](../../CslibFrontierTests/Crypto/AssumptionNonvacuity.lean) shows
 that `StrongRSA` fails for a fixed modulus and unit base (`not_strongRSA_const`), and the checked
 examples show that the unit condition is needed there (`strongRSA_const_four_two`).
