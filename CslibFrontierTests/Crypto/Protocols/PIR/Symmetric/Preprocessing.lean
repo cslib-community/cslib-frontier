@@ -146,4 +146,40 @@ example :
   ⟨toyScheme_isPerfectlyPrivateOn_injective 2 2,
     toyScheme_not_isPerfectlyPrivate (by decide) (by decide)⟩
 
+
+/-! ### 4. The coordinate-wise toy scheme meets every hypothesis at `n = 3, k = 2` -/
+
+/-- At `n = 3` and `k = 2`, `parallelToyScheme` is perfectly correct, perfectly private for every
+batch tuple (repeats included), and perfectly data private, so the hypotheses of
+`Scheme.correct_le_card_div_two_pow` hold together for a genuine batch. -/
+example :
+    (parallelToyScheme 3 2).IsCorrectWith 1 ∧
+      (parallelToyScheme 3 2).IsPerfectlyPrivate ∧
+      (parallelToyScheme 3 2).IsPerfectlyDataPrivate :=
+  ⟨(parallelToyScheme_isCorrect 3 2).isCorrectWith_one,
+    parallelToyScheme_isPerfectlyPrivate 3 2,
+    parallelToyScheme_isPerfectlyDataPrivate 3 2⟩
+
+/-- Instantiating the core bound on `parallelToyScheme 3 2`, whose state has
+`(2 ^ 3) ^ 2 * 6 ^ 2 = 2304` elements. -/
+example : (1 : ℝ) ≤ (Fintype.card (ParallelToyState 3 2) : ℝ) / 2 ^ 2 ∧
+    Fintype.card (ParallelToyState 3 2) = 2304 :=
+  ⟨(parallelToyScheme 3 2).correct_le_card_div_two_pow (by decide) (by decide)
+      (parallelToyScheme_isPerfectlyPrivate 3 2)
+      (parallelToyScheme_isPerfectlyDataPrivate 3 2)
+      (parallelToyScheme_isCorrect 3 2).isCorrectWith_one,
+    by rw [card_parallelToyState]; decide⟩
+
+/-- Concrete execution of `parallelToyScheme 3 2` on the repeated batch tuple `Q = ![1, 1]`. -/
+example :
+    let D : Fin 3 → Bool := ![true, false, true]
+    let r : Fin 2 → Fin 3 → Bool := ![![false, true, true], ![true, true, false]]
+    let π : Fin 2 → Equiv.Perm (Fin 3) := ![Equiv.swap 0 2, Equiv.swap 1 2]
+    let st : ParallelToyState 3 2 := (fun j i => xor (D i) (r j (π j i)), π)
+    let Q : Fin 2 → Fin 3 := ![1, 1]
+    let τu := (parallelToyScheme 3 2).query st Q
+    let τd := (parallelToyScheme 3 2).answer D r τu
+    τu = ![1, 2] ∧ (parallelToyScheme 3 2).reconstruct st Q τd = D ∘ Q := by
+  decide
+
 end CslibTests.Crypto.Protocols.PIR.Symmetric.Preprocessing

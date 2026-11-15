@@ -47,6 +47,14 @@ retrieval (SPIR) with client preprocessing from
   leaks equality patterns among the coordinates of `Q` (`π (Q 0) = π (Q 1) ↔ Q 0 = Q 1`), so
   `toyScheme n k` is **not** perfectly private over all tuples `Q : Fin k → Fin n` with repeats
   allowed (`toyScheme_not_isPerfectlyPrivate`).
+* **Coordinate-wise variant (not from the source).** `parallelToyScheme n k` runs `k` independent
+  copies of the one-query case, each with its own permutation and its own block of server
+  randomness. Its upload is uniform for every batch tuple, so it is perfectly correct, perfectly
+  private and perfectly data private for all `n` and `k`
+  (`parallelToyScheme_isCorrect`, `parallelToyScheme_isPerfectlyPrivate`,
+  `parallelToyScheme_isPerfectlyDataPrivate`). It shows that the hypotheses of
+  `Scheme.correct_le_card_div_two_pow` hold together for genuine batches `k ≥ 2`. Its state has
+  `(2 ^ n) ^ k * (n!) ^ k` elements (`card_parallelToyState`).
 
 ## Main definitions
 
@@ -54,6 +62,9 @@ retrieval (SPIR) with client preprocessing from
   `(Fin n → Bool) × Equiv.Perm (Fin n)`.
 * `Cslib.Crypto.Protocols.PIR.Symmetric.Preprocessing.toyScheme`: the random-permutation toy
   `k`-batch SPIR scheme.
+* `Cslib.Crypto.Protocols.PIR.Symmetric.Preprocessing.ParallelToyState`,
+  `Cslib.Crypto.Protocols.PIR.Symmetric.Preprocessing.parallelToyScheme`: the coordinate-wise
+  variant.
 
 ## Main results
 
@@ -70,6 +81,10 @@ retrieval (SPIR) with client preprocessing from
   unconditional perfect server privacy when `k ≤ 1`.
 * `Cslib.Crypto.Protocols.PIR.Symmetric.Preprocessing.toyScheme_not_isPerfectlyPrivate`:
   counterexample to unrestricted perfect privacy when `2 ≤ k` and `2 ≤ n`.
+* `Cslib.Crypto.Protocols.PIR.Symmetric.Preprocessing.parallelToyScheme_isPerfectlyPrivate`,
+  `Cslib.Crypto.Protocols.PIR.Symmetric.Preprocessing.parallelToyScheme_isPerfectlyDataPrivate`,
+  `Cslib.Crypto.Protocols.PIR.Symmetric.Preprocessing.parallelToyScheme_isCorrect`:
+  the coordinate-wise variant meets all three hypotheses of the core bound for every `n` and `k`.
 
 ## References
 
@@ -263,5 +278,113 @@ theorem toyScheme_not_isPerfectlyPrivate {n k : ℕ} (hn : 2 ≤ n) (hk : 2 ≤ 
       omega
     simp [obs, Q₁, hj, π.injective.eq_iff, hi]
   exact Cslib.Probability.PMF.ne_of_map_eq_pure hmap₀ hmap₁ (by decide) (hpriv D Q₀ Q₁)
+
+/-! ### Coordinate-wise toy scheme: privacy for every batch tuple (not from the source) -/
+
+/-- Client state of `parallelToyScheme n k`: for each batch coordinate `j : Fin k`, an `n`-bit
+masked database together with a permutation of `Fin n`. -/
+abbrev ParallelToyState (n k : ℕ) : Type :=
+  (Fin k → Fin n → Bool) × (Fin k → Equiv.Perm (Fin n))
+
+/-- The client state of `parallelToyScheme n k` has cardinality `(2 ^ n) ^ k * (n!) ^ k`. -/
+theorem card_parallelToyState (n k : ℕ) :
+    Fintype.card (ParallelToyState n k) = (2 ^ n) ^ k * n.factorial ^ k := by
+  simp [ParallelToyState, Fintype.card_perm]
+
+/-- The coordinate-wise toy `k`-batch SPIR scheme: `k` independent copies of the one-query case
+of `toyScheme`, one per batch coordinate. The server randomness is a uniform family
+`r : Fin k → Fin n → Bool`; the ideal setup gives the client independent uniform permutations
+`π j` and the masked databases `fun i => xor (D i) (r j (π j i))`; on `Q` the client uploads
+`fun j => π j (Q j)`, the server answers `fun j => r j (τu j)`, and the client unmasks coordinate
+`j` with its `j`-th masked database. Because each coordinate uses a fresh permutation, the upload
+is uniform for every batch tuple, repeated indices included. This construction is not in the
+source; it witnesses that the hypotheses of `Scheme.correct_le_card_div_two_pow` hold together
+for every `n` and `k`. -/
+@[expose] noncomputable def parallelToyScheme (n k : ℕ) :
+    Scheme n k (Fin k → Fin n → Bool) (ParallelToyState n k) Unit (Fin k → Fin n)
+      (Fin k → Bool) where
+  rLaw := ProbComp.uniform (Fin k → Fin n → Bool)
+  setup D r := do
+    let π ← ProbComp.uniform (Fin k → Equiv.Perm (Fin n))
+    pure ((fun j i => xor (D i) (r j (π j i)), π), ())
+  query st Q := fun j => st.2 j (Q j)
+  answer _D r τu := fun j => r j (τu j)
+  reconstruct st Q τd := fun j => xor (st.1 j (Q j)) (τd j)
+
+private theorem parallel_xor_cancel_query {n k : ℕ} (D : Fin n → Bool) (Q : Fin k → Fin n)
+    (r : Fin k → Fin n → Bool) (π : Fin k → Equiv.Perm (Fin n)) :
+    (fun j => xor (xor (D (Q j)) (r j (π j (Q j)))) (r j (π j (Q j)))) = D ∘ Q := by
+  funext j
+  simp
+
+/-- `parallelToyScheme n k` is perfectly correct (`IsCorrect`). -/
+theorem parallelToyScheme_isCorrect (n k : ℕ) : (parallelToyScheme n k).IsCorrect := by
+  intro D Q
+  simp only [Scheme.run, Scheme.runAt, parallelToyScheme, bind_assoc, pure_bind,
+    parallel_xor_cancel_query, ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_const]
+
+/-- Involution on the server randomness family that shifts `r j m` by
+`xor (D₀ ((π j).symm m)) (D₁ ((π j).symm m))`. -/
+private def parallelMaskEquiv {n k : ℕ} (D₀ D₁ : Fin n → Bool)
+    (π : Fin k → Equiv.Perm (Fin n)) : (Fin k → Fin n → Bool) ≃ (Fin k → Fin n → Bool) where
+  toFun r j m := xor (r j m) (xor (D₀ ((π j).symm m)) (D₁ ((π j).symm m)))
+  invFun r j m := xor (r j m) (xor (D₀ ((π j).symm m)) (D₁ ((π j).symm m)))
+  left_inv r := by
+    funext j m
+    simp
+  right_inv r := by
+    funext j m
+    simp
+
+private theorem parallelMaskEquiv_maskedDB {n k : ℕ} (D₀ D₁ : Fin n → Bool)
+    (π : Fin k → Equiv.Perm (Fin n)) (r : Fin k → Fin n → Bool) :
+    (fun j i => xor (D₀ i) (parallelMaskEquiv D₀ D₁ π r j (π j i))) =
+      fun j i => xor (D₁ i) (r j (π j i)) := by
+  funext j i
+  simp only [parallelMaskEquiv, Equiv.coe_fn_mk, Equiv.symm_apply_apply]
+  cases D₀ i <;> cases D₁ i <;> cases r j (π j i) <;> rfl
+
+private theorem parallelMaskEquiv_query {n k : ℕ} {D₀ D₁ : Fin n → Bool} {Q : Fin k → Fin n}
+    (hD : D₀ ∘ Q = D₁ ∘ Q) (π : Fin k → Equiv.Perm (Fin n)) (r : Fin k → Fin n → Bool)
+    (j : Fin k) :
+    parallelMaskEquiv D₀ D₁ π r j (π j (Q j)) = r j (π j (Q j)) := by
+  have hDj : D₀ (Q j) = D₁ (Q j) := congrFun hD j
+  simp [parallelMaskEquiv, hDj]
+
+/-- `parallelToyScheme n k` is perfectly data private (`IsPerfectlyDataPrivate`). -/
+theorem parallelToyScheme_isPerfectlyDataPrivate (n k : ℕ) :
+    (parallelToyScheme n k).IsPerfectlyDataPrivate := by
+  intro D₀ D₁ Q hD
+  simp only [Scheme.clientView, Scheme.clientViewAt, parallelToyScheme, bind_assoc, pure_bind,
+    ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure]
+  rw [PMF.bind_comm]
+  symm
+  rw [PMF.bind_comm]
+  symm
+  congr 1
+  funext π
+  rw [← Cslib.Probability.PMF.uniformOfFintype_bind_equiv (parallelMaskEquiv D₀ D₁ π)]
+  congr 1
+  funext r
+  simp only [parallelMaskEquiv_maskedDB D₀ D₁ π r, parallelMaskEquiv_query hD π r]
+
+/-- `parallelToyScheme n k` is perfectly private (`IsPerfectlyPrivate`) for every pair of batch
+tuples, repeated indices included: composing each `π j` with the transposition of `Q₀ j` and
+`Q₁ j` is a bijection on the permutation families that maps one upload to the other. -/
+theorem parallelToyScheme_isPerfectlyPrivate (n k : ℕ) :
+    (parallelToyScheme n k).IsPerfectlyPrivate := by
+  intro D Q₀ Q₁
+  obtain ⟨e, he⟩ : ∃ e : (Fin k → Equiv.Perm (Fin n)) ≃ (Fin k → Equiv.Perm (Fin n)),
+      ∀ π j, e π j (Q₀ j) = π j (Q₁ j) :=
+    ⟨Equiv.piCongrRight fun j => Equiv.mulRight (Equiv.swap (Q₀ j) (Q₁ j)),
+      fun π j => by simp⟩
+  simp only [Scheme.serverView, Scheme.serverViewAt, parallelToyScheme, bind_assoc, pure_bind,
+    ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure]
+  congr 1
+  funext r
+  rw [← Cslib.Probability.PMF.uniformOfFintype_bind_equiv e]
+  congr 1
+  funext π
+  simp only [he]
 
 end Cslib.Crypto.Protocols.PIR.Symmetric.Preprocessing

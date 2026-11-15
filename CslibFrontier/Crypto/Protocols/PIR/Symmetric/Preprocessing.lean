@@ -71,6 +71,12 @@ The distinguishing games `Scheme.privacyGame` and `Scheme.dataPrivacyGame` are b
   is necessary: at `n = k = 1`, `D₀ ∘ Q = D₁ ∘ Q` forces `D₀ = D₁`, so a zero-storage scheme
   (`Fintype.card St = 1 = 2 ^ 0`, `s = 0 < k = 1`) that sends `D 0` in `τd` is perfectly correct,
   perfectly private, and vacuously perfectly data private.
+* **The hypotheses are jointly satisfiable.** For every `n` and `k`, the coordinate-wise toy scheme
+  `parallelToyScheme` (in `Cslib.Crypto.Protocols.PIR.Symmetric.Toy`; not from the source) is
+  perfectly correct, perfectly private for every batch tuple, and perfectly data private, so the
+  core bound is not vacuous for genuine batches `k ≥ 2`. All three notions are perfect
+  (information-theoretic): they quantify over every distinguisher without any computational
+  assumption, matching `δ = γ = 0` in Definition 6.1.
 * **Omitted results.** Random-oracle / relativized lower bounds (Sections 3–5 and the ROM
   phrasing of Theorem 6.2), the informal shared-randomness correlation statements (Lemma 6.3 and
   Theorem 6.4), the PRF inner-product toy scheme (Section 6.3, Toy 2), and the generic-2PC +
