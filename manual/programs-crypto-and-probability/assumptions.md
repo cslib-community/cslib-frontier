@@ -6,7 +6,7 @@ A security theorem may assume named hardness assumptions: Prop-valued definition
 - **novel**: no cited source states the assumption. Its docstring says that it is novel to this library, and *Deviations or relation* says how it relates to standard assumptions (it follows from one, implies one, or neither) and why it is plausible. A novel assumption may support a result presented as original. A theorem that rests on it names it, and is never presented as a cited result: that would be a stand-in under [Faithful headlines](../../AGENTS.md#faithful-headlines) rule 2.
 - **vocabulary**: a generic notion parameterized by the objects whose security it states (games, ensembles, an adversary predicate, a bound), such as `Game.Indistinguishable` or `ComputationallyIndistinguishable`. It becomes an assumption only through the instance that a theorem supplies, and review checks that instance under a cited headline. A primitive's or problem's own security notion is never vocabulary, even in a concrete form against a caller's adversary class and bound, as `PRG.Generator.Secure` is.
 
-A row of any status says "locator not verified" until someone has read its locator at the source. A pull request removes the phrase only when its body records that check (the source's version or URL and what was read there) and its reviewer confirms it at the source. A row that says "status pending" has an open question about its status, named in the row; until it is settled, the assumption does not count as the source's under a cited headline. The Boneh–Shoup locators without that phrase were read in Version 0.6 of the book (January 2023), the Regev locator in the author's 2009 version of the paper, and the Kyber and Dilithium locators in versions 3.02 and 3.1 of their specifications, by the authors of [#5585](https://github.com/cslib-community/cslib-frontier/pull/5585), whose description records what was read, and confirmed by its reviewers.
+A row of any status says "locator not verified" until someone has read its locator at the source. A pull request removes the phrase only when its body records that check (the source's version or URL and what was read there) and its reviewer confirms it at the source. A row that says "status pending" has an open question about its status, named in the row; until it is settled, the assumption does not count as the source's under a cited headline. The Boneh–Shoup locators without that phrase were read in Version 0.6 of the book (January 2023), the Regev locator in the author's 2009 version of the paper, and the Kyber and Dilithium locators in versions 3.02 and 3.1 of their specifications. The pull request that removed the phrase from a row ([#5585](https://github.com/cslib-community/cslib-frontier/pull/5585) for the first rows) records in its description what was read, and its reviewers confirmed it.
 
 *Nonvacuity* links a test that shows the assumption fails for an insecure instance (for example a fixed group, a zero noise law or a constant function), where the library has one.
 
@@ -99,11 +99,11 @@ Names are relative to `Cslib.Crypto`.
 | Assumption | Status | Source definition | Deviations or relation | Nonvacuity |
 |---|---|---|---|---|
 | `CollisionResistantForOn` | standard | [BonehShoup2023] Attack Game 8.1 and Definitions 8.1–8.2, pp. 290–291 | The setup law need not be efficiently samplable; inputs are restricted to `valid`. | — |
-| `CollisionResistantFor` | standard | [BonehShoup2023] Attack Game 8.1 and Definitions 8.1–8.2, pp. 290–291 | `CollisionResistantForOn` on all inputs. | [CCA.lean](../../CslibFrontierTests/Crypto/CCA.lean) `not_collisionResistantFor_constZModHash` |
-| `CollisionResistantOn` | standard | [BonehShoup2023] Attack Game 8.1 and Definitions 8.1–8.2, pp. 290–291 | Keyed by uniform `n`-bit keys. | — |
+| `CollisionResistantFor` | standard | [BonehShoup2023] Attack Game 8.1 and Definitions 8.1–8.2, pp. 290–291 | `CollisionResistantForOn` on all inputs; the setup law need not be efficiently samplable. | [CCA.lean](../../CslibFrontierTests/Crypto/CCA.lean) `not_collisionResistantFor_constZModHash` |
+| `CollisionResistantOn` | standard | [BonehShoup2023] Attack Game 8.1 and Definitions 8.1–8.2, pp. 290–291 | Keyed by uniform `n`-bit keys, the form that footnote 1 on p. 290 identifies with the source's system parameter; inputs are restricted to `valid`. | — |
 | `CollisionResistant` | standard | [BonehShoup2023] Attack Game 8.1 and Definitions 8.1–8.2, pp. 290–291 | On all bit strings. | [MerkleDamgard.lean](../../CslibFrontierTests/Crypto/MerkleDamgard.lean) `not_collisionResistant_constHash` |
-| `CompressionFamily` | standard | [BonehShoup2023] Section 8.2 (locator not verified) | `2n → n` compression under `n`-bit keys, evaluated in polynomial time. | — |
-| `HashFamily` | standard | [BonehShoup2023] Attack Game 8.1 and Definitions 8.1–8.2, pp. 290–291 | Arbitrary-length messages, `n`-bit keys and digests, evaluated in polynomial time. | — |
+| `CompressionFamily` | standard | [BonehShoup2023] Section 8.4, pp. 295–296 (compression functions), with Attack Game 8.1 and Definitions 8.1–8.2, pp. 290–291 | `2n → n` compression under `n`-bit keys, evaluated in polynomial time. | — |
+| `HashFamily` | standard | [BonehShoup2023] Attack Game 8.1 and Definitions 8.1–8.2, pp. 290–291 | Arbitrary-length messages, `n`-bit keys and digests of exactly `n` bits (which the source does not require), evaluated in polynomial time. | — |
 | `TargetCollisionResistantOn` | standard | [BonehShoup2023] Attack Game 8.5 and Definition 8.7, pp. 337–338 | Uniform `keyLen n`-bit keys; inputs are restricted to `valid`. | [NaorYungUOWHF.lean](../../CslibFrontierTests/Crypto/NaorYungUOWHF.lean) `not_targetCollisionResistantOn_naorYungStep_id` |
 | `TargetCollisionResistant` | standard | [BonehShoup2023] Attack Game 8.5 and Definition 8.7, pp. 337–338 | On all bit strings. | — |
 | `KeyedHashFamily.TargetCollisionResistant` | standard | [BonehShoup2023] Attack Game 8.5 and Definition 8.7, pp. 337–338 | On all bit strings. | — |
@@ -149,20 +149,20 @@ Names are relative to `Cslib.Crypto`.
 
 | Assumption | Status | Source definition | Deviations or relation | Nonvacuity |
 |---|---|---|---|---|
-| `MACScheme.EUFCMA` | standard | [BonehShoup2023] Attack Game 6.1 and Definition 6.2, pp. 218–219 | A forgery must be on a fresh message, which is weaker than Boneh–Shoup's fresh pair. | — |
-| `MACScheme.SUFCMA` | standard | [BonehShoup2023] Attack Game 6.1 and Definition 6.2, pp. 218–219 | — | — |
-| `MACScheme.OneTimeEUFCMA` | standard | [BonehShoup2023] Attack Game 6.1 and Definition 6.2, pp. 218–219 | One signing query; fresh message. | — |
-| `MACScheme.OneTimeSUFCMA` | standard | [BonehShoup2023] Attack Game 6.1 and Section 7.6 (locator not verified) | One signing query. | — |
+| `MACScheme.EUFCMA` | standard | [BonehShoup2023] Attack Game 6.1 and Definition 6.2, pp. 218–219 | A forgery must be on a fresh message, which is weaker than Boneh–Shoup's fresh pair. Tagging queries may be words of any length, while a forgery counts only on a `msgLen n`-bit message; the source's queries lie in the message space. | — |
+| `MACScheme.SUFCMA` | standard | [BonehShoup2023] Attack Game 6.1 and Definition 6.2, pp. 218–219 | Tagging queries may be words of any length, while a forgery counts only on a `msgLen n`-bit message; the source's queries lie in the message space. | — |
+| `MACScheme.OneTimeEUFCMA` | standard | [BonehShoup2023] Section 7.6, p. 275 (Attack Game 6.1, pp. 218–219, with one signing query) | Fresh message, weaker than the source's new pair; the tagging query may be a word of any length. | — |
+| `MACScheme.OneTimeSUFCMA` | standard | [BonehShoup2023] Section 7.6, p. 275 (Attack Game 6.1, pp. 218–219, with one signing query), against efficient adversaries as for the one-time secure MAC of Theorem 9.2, p. 367 | The tagging query may be a word of any length, while a forgery counts only on a `msgLen n`-bit message. | — |
 | `MACScheme.BlockwiseEUFCMA` | standard | [KatzLindell2020] Construction 4.7 and Theorem 4.8 (locator not verified) | — | — |
-| `NonceMACScheme.SUFCMA` | standard | [BonehShoup2023] Attack Game 7.4, p. 274 | — | — |
-| `NonceMACScheme.EUFCMA` | standard | [BonehShoup2023] Attack Game 7.4, p. 274 | Fresh message. | — |
-| `NonceMACScheme.CounterSUFCMA` | standard | [BonehShoup2023] Section 7.5 (locator not verified) | A counter as the nonce. | — |
-| `SignatureScheme.EUFCMA` | standard | [BonehShoup2023] Attack Game 13.1 and Definition 13.2, pp. 529–530 | — | — |
-| `SignatureScheme.OneTimeEUFCMA` | standard | [BonehShoup2023] Attack Game 13.1 and Definition 13.2, pp. 529–530 | One signing query. | — |
+| `NonceMACScheme.SUFCMA` | standard | [BonehShoup2023] Attack Game 7.4, p. 274 | A run that repeats a nonce loses. Queries may have messages and nonces of any length, while a forgery counts only with a `msgLen n`-bit message and a `nonceLen n`-bit nonce. | — |
+| `NonceMACScheme.EUFCMA` | standard | [BonehShoup2023] Attack Game 7.4 and Definition 7.6, p. 274 | Fresh message, weaker than the source's new triple; queries of any length, as for `NonceMACScheme.SUFCMA`. | — |
+| `NonceMACScheme.CounterSUFCMA` | standard | [BonehShoup2023] Attack Game 7.4, p. 274, with the signer's counter as the nonce, as suggested in Section 7.5, p. 273 | The forger does not choose the nonces; follows from `NonceMACScheme.SUFCMA` (`NonceMACScheme.SUFCMA.counterSufCma`). Messages of any length may be tagged. | — |
+| `SignatureScheme.EUFCMA` | standard | [BonehShoup2023] Attack Game 13.1 and Definition 13.2, pp. 529–530 | `n`-bit messages. Signing queries may be words of any length, while a forgery counts only on an `n`-bit message; the source's queries lie in the message space. | — |
+| `SignatureScheme.OneTimeEUFCMA` | standard | [BonehShoup2023] Definition 14.1, p. 583 (Attack Game 13.1, pp. 529–530, with one signing query) | `n`-bit messages; the signing query may be a word of any length, as for `SignatureScheme.EUFCMA`. | — |
 | `WordSignatureScheme.EUFCMA` | standard | [BonehShoup2023] Attack Game 13.1 and Definition 13.2, pp. 529–530 | Arbitrary-length messages. | — |
 | `IndexedSignatureScheme.IndexedEUFCMA` | standard | [BonehShoup2023] Definition 14.6, p. 597 | Differences listed in the module docstring. | — |
 | `IndexedSignatureScheme.CounterEUFCMA` | standard | [BonehShoup2023] Section 14.6.4, p. 602 | A counter as the nonce. | — |
-| `Protocols.ROMSignature.EUFCMA` | standard | [BonehShoup2023] Attack Game 13.1, random-oracle version (locator not verified) | — | — |
+| `Protocols.ROMSignature.EUFCMA` | standard | [BonehShoup2023] Attack Game 13.1 and Definition 13.2, pp. 529–530, in the random oracle version of Section 8.10.2, p. 328, as used in Section 13.3, p. 535 | One lazily sampled random function from words to `Digest n`; every word is a message. The scheme carries no efficiency or correctness requirement. | — |
 
 ## Zero knowledge, commitments and protocols
 
