@@ -389,6 +389,15 @@ noncomputable def encodeRestr {α β : Type*} [Fintype β] (S : Finset α) (f : 
     (encodeRestr S f).length = Nat.clog 2 (Fintype.card β ^ S.card) := by
   classical rw [encodeRestr, length_encodeFintype, Fintype.card_fun, Fintype.card_coe]
 
+@[simp] theorem length_encodeRestr_bool {α : Type*} (S : Finset α) (f : α → Bool) :
+    (encodeRestr S f).length = S.card := by
+  rw [length_encodeRestr, Fintype.card_bool, Nat.clog_pow _ _ Nat.one_lt_two]
+
+@[simp] theorem length_encodeRestr_fin_two_pow {α : Type*} (S : Finset α) (w : ℕ)
+    (f : α → Fin (2 ^ w)) :
+    (encodeRestr S f).length = w * S.card := by
+  rw [length_encodeRestr, Fintype.card_fin, ← pow_mul, Nat.clog_pow _ _ Nat.one_lt_two]
+
 theorem encodeRestr_inj {α β : Type*} [Fintype β] {S₁ S₂ : Finset α} {f₁ f₂ : α → β}
     (hS : S₁ = S₂) (heq : encodeRestr S₁ f₁ = encodeRestr S₂ f₂) : ∀ x ∈ S₁, f₁ x = f₂ x := by
   classical subst hS; intro x hx; exact congrFun (encodeFintype_injective heq) ⟨x, hx⟩

@@ -18,7 +18,6 @@ import CslibFrontier.Probability.Conditioning
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Map
 import Mathlib.Algebra.Group.Fin.Basic
-import Mathlib.Analysis.Complex.ExponentialBounds
 import Mathlib.GroupTheory.Perm.Support
 
 /-!
@@ -45,27 +44,44 @@ page `p + 1`):
 
 Original formalization adaptations of [LiLiangYuZhou2023] (`arXiv:2306.02253v3`):
 1. **Deterministic `c = 1` probe cap (`Sections 4.2, 5.1, 5.2, and 8.1`):** `IsModeSeedConsistent`
-   enforces `|S_A|, |S_B| ≤ m * t` directly inside the consistency event (incurring `< λ_{ℓ+1} / 16`
-   bad-segment loss in `OuterGame.sum_prob_gt_probeCap_lt_div_sixteen`), so Step 5 of Lemma 8.1
-   encodes `S_A ∩ S_B ⊆ S_B` and `Diff ⊆ S_A ∩ S_B` in `≤ 2 * m * t` bits deterministically on
-   every consistent outcome without conditional expectation inflation on `{W = 1}`.
+   enforces `|S_A|, |S_B| ≤ m * t` directly inside the consistency event (incurring
+   `≤ (1 / 16) * λ_{ℓ+1}` probe-cap loss via Markov's inequality on `nodeProbes` in
+   `MetaTree.sum_prob_not_isGoodSeg_le`), so Step 5 of Lemma 8.1 encodes `S_A ∩ S_B ⊆ S_B` and
+   `Diff ⊆ S_A ∩ S_B` in `≤ 2 * m * t` bits deterministically on every consistent outcome without
+   conditional expectation inflation on `{W = 1}`.
 2. **Internal Markov sub-conditioning in Step 6 (`Section 8.1`):** to encode `C_B` prefix-freely
    within its decoded dictionary fiber `stateFiber` on `{W = 1}`, Lemma 8.1 sub-conditions on
    `c(T_B) ≤ 2 ^ (R + 1) * U ^ (γ * m)` over the uniform marginal of `T_B` (`Pr[bad] ≤
    (1 / 2) * U ^ (-γ * m)`), costing `R + 2 + γ * m * log₂ U` bits in Step 6 and tightening Lemma
-   8.1's value threshold from `V ≥ U ^ (2 + 5 * γ) / n ^ 2` to `V ≥ U ^ (2 + 7 * γ) / n ^ 2`
-   (`prob_isModeSeedConsistent_section8_of_val_ge_le`), while leaving Theorem 1.3's asymptotic
-   hypothesis `V ≥ U ^ (2 + α_V) / n ^ 2` unchanged (choosing `γ ≤ α_V / 7`).
+   8.1's value budget by `2 * γ * m * log₂ U` while leaving Theorem 1.3's asymptotic hypothesis
+   `V ≥ U ^ (2 + α_V) / n ^ 2` unchanged (choosing `(5 + c_w) * γ ≤ min (1 / 4) (α_V / 16)`).
 3. **Public deterministic `IndexedScheme` endpoints (`Section 3`):** every headline theorem is
    exported first for deterministic step-indexed schemes `D_det : CellProbe.IndexedScheme ...` exact
    on `validHistoriesUpTo`, followed by its zero-error `CellProbe.Randomized.Scheme` corollary via
    Yao coin-fixing (`exists_det_indexedScheme_insertQueryDeleteDist` /
    `exists_det_indexedScheme_insertDeleteDist`).
 
+Model and boundary conventions:
+* **Zero-error oblivious randomization:** randomized lower bounds (`expectedSeqProbes_*`) apply to
+  zero-error (Las Vegas) `CellProbe.Randomized.Scheme`s on oblivious operation distributions;
+  bounded-error (Monte Carlo) schemes and adaptive sequence adversaries are out of scope.
+* **Trailing `+ 1` correctness horizon (`4 * n + 1` and `3 * n + 1`):** on `insertDeleteDist`
+  (`3 * n` update steps returning `PUnit`), requiring correctness up to length `3 * n + 1` ensures
+  one trailing admissible `.query` step can witness `decodeDict` at every step `≤ 3 * n` while
+  charging probes only on the `3 * n` update sequence itself.
+* **`R = n` boundary in Theorem 1.2 / 1.3(2):** at `R = n` (`n ≥ 1`), `log₂(n / max R 1) = 0`, so
+  the standalone sublinear-redundancy bounds reduce to `0 ≤ E[seqProbes]`; the `Ω(n * log* n)` and
+  combined `Ω(n * (log* n + log₂(n / max R 1)))` theorems supply the active lower bound for
+  `R = Θ(n)`.
+
+## Main definitions
+
+* `Cslib.DataStructure.Dictionary.CellProbe.queryFreeInnerDist`: conditional `(seed, B)`
+  distribution for the query-free inner game of Section 8.1 (Lemma 8.1).
+
 ## Main results
 
-* `Cslib.DataStructure.Dictionary.CellProbe.prob_isModeSeedConsistent_section8_le`,
-  `Cslib.DataStructure.Dictionary.CellProbe.prob_isModeSeedConsistent_section8_of_val_ge_le`,
+* `Cslib.DataStructure.Dictionary.CellProbe.prob_isModeSeedConsistent_queryFreeInnerDist_le`,
   `Cslib.DataStructure.Dictionary.CellProbe.expected_card_modeConsistent_segmentRest_lt_half_le`,
   `Cslib.DataStructure.Dictionary.CellProbe.outer_lemma_insertDelete`,
   `Cslib.DataStructure.Dictionary.CellProbe.outer_lemma_largeVal_insertQueryDelete`: Lemma 8.1 and
@@ -117,112 +133,6 @@ open Cslib.BitString Cslib.Probability Cslib.Probability.Coding InformationTheor
 open Finset (orderSubset orderSubset_apply image_orderSubset embSetPermEquiv)
 
 /-! ### Part A: Section 8.1 Modified Inner Game (Lemma 8.1) -/
-
-private theorem choose_le_two_pow_mul_choose_sub_of_two_mul_le {N d k : ℕ}
-    (hk : k ≤ N - d) (h2k : 2 * k ≤ N - d + 1) :
-    N.choose k ≤ 2 ^ d * (N - d).choose k := by
-  rcases Nat.eq_zero_or_pos k with rfl | hk_pos
-  · simpa using Nat.one_le_two_pow
-  have hdN : d ≤ N := by omega
-  have hstep : ∀ M : ℕ, k ≤ M → 2 * k ≤ M + 1 → (M + 1).choose k ≤ 2 * M.choose k := by
-    intro M hkM h2M
-    obtain ⟨k', rfl⟩ := Nat.exists_eq_succ_of_ne_zero hk_pos.ne'
-    have hmul : (M + 1).choose (k' + 1) * (M + 1 - (k' + 1)) = M.choose (k' + 1) * (M + 1) := by
-      rw [Nat.choose_succ_succ, Nat.succ_eq_add_one, Nat.right_distrib]
-      have hc := Nat.choose_succ_right_eq M k'
-      have hsub : M - k' = M + 1 - (k' + 1) := by omega
-      rw [hsub] at hc
-      rw [← hc, ← Nat.left_distrib, Nat.add_sub_of_le (by omega : k' + 1 ≤ M + 1)]
-    have hpos : 0 < M + 1 - (k' + 1) := by omega
-    have hle : M.choose (k' + 1) * (M + 1) ≤
-        (2 * M.choose (k' + 1)) * (M + 1 - (k' + 1)) := by
-      have : M + 1 ≤ 2 * (M + 1 - (k' + 1)) := by omega
-      calc M.choose (k' + 1) * (M + 1)
-          ≤ M.choose (k' + 1) * (2 * (M + 1 - (k' + 1))) := Nat.mul_le_mul_left _ this
-        _ = (2 * M.choose (k' + 1)) * (M + 1 - (k' + 1)) := by ring
-    exact Nat.le_of_mul_le_mul_right (hmul.trans_le hle) hpos
-  have hgen : ∀ (M₀ r : ℕ), k ≤ M₀ → 2 * k ≤ M₀ + 1 →
-      (M₀ + r).choose k ≤ 2 ^ r * M₀.choose k := by
-    intro M₀ r h1 h2
-    induction r with
-    | zero => simp
-    | succ r ih =>
-      calc (M₀ + (r + 1)).choose k = (M₀ + r + 1).choose k := by ring_nf
-        _ ≤ 2 * (M₀ + r).choose k := hstep (M₀ + r) (by omega) (by omega)
-        _ ≤ 2 * (2 ^ r * M₀.choose k) := Nat.mul_le_mul_left 2 ih
-        _ = 2 ^ (r + 1) * M₀.choose k := by rw [Nat.pow_succ']; ring
-  simpa only [Nat.sub_add_cancel hdN] using hgen (N - d) d hk h2k
-
-/-- Binomial difference estimate for Lemma 8.1 ([LiLiangYuZhou2023], Section 8, p. 30 / PDF p. 31):
-for `3 * n ≤ U` and `1 ≤ m ≤ n`,
-`log₂ C(U, n) - log₂ C(U - 3 * m, n - m) ≤ m * log₂ (U / n) + 5 * m`. -/
-theorem logb_choose_sub_logb_sub_three_mul_choose_sub_le {U n m : ℕ}
-    (hU : 3 * n ≤ U) (hm1 : 1 ≤ m) (hmn : m ≤ n) :
-    Real.logb 2 (U.choose n) - Real.logb 2 ((U - 3 * m).choose (n - m)) ≤
-      (m : ℝ) * Real.logb 2 ((U : ℝ) / (n : ℝ)) + 5 * (m : ℝ) := by
-  have hm_pos : (0 : ℝ) < (m : ℝ) := by exact_mod_cast hm1
-  have hn_pos : (0 : ℝ) < (n : ℝ) := lt_of_lt_of_le hm_pos (by exact_mod_cast hmn)
-  have hU_pos : (0 : ℝ) < (U : ℝ) := lt_of_lt_of_le hn_pos (by exact_mod_cast (by omega : n ≤ U))
-  have h1_nat := choose_le_two_pow_mul_choose_sub_of_two_mul_le
-    (N := U) (d := 3 * m) (k := n - m) (by omega) (by omega)
-  have hc_sub_pos : (0 : ℝ) < ((U - 3 * m).choose (n - m) : ℝ) := by
-    exact_mod_cast Nat.choose_pos (by omega)
-  have hc_Unm_pos : (0 : ℝ) < (U.choose (n - m) : ℝ) := by
-    exact_mod_cast Nat.choose_pos (by omega)
-  have hstep1 : Real.logb 2 (U.choose (n - m)) - Real.logb 2 ((U - 3 * m).choose (n - m)) ≤
-      3 * (m : ℝ) := by
-    have hlog := Real.logb_le_logb_of_le (by norm_num : (1 : ℝ) < 2) hc_Unm_pos
-      (show (U.choose (n - m) : ℝ) ≤ (2 : ℝ) ^ (3 * m) * ((U - 3 * m).choose (n - m) : ℝ) by
-        exact_mod_cast h1_nat)
-    rw [Real.logb_mul (by positivity) hc_sub_pos.ne', Real.logb_pow,
-      Real.logb_self_eq_one (by norm_num : (1 : ℝ) < 2), mul_one, Nat.cast_mul,
-      Nat.cast_ofNat] at hlog
-    linarith
-  have habs_nat : U.choose n * n.choose (n - m) =
-      U.choose (n - m) * (U - (n - m)).choose (n - (n - m)) :=
-    @Nat.choose_mul U n (n - m) (by omega)
-  rw [← Nat.choose_symm (Nat.sub_le n m), Nat.sub_sub_self hmn] at habs_nat
-  have hc_nm_ge : ((n : ℝ) / (m : ℝ)) ^ m ≤ (n.choose m : ℝ) := Cslib.div_pow_le_choose hmn
-  have hc_Um_le : (((U - (n - m)).choose m : ℕ) : ℝ) ≤ (4 * (U : ℝ) / (m : ℝ)) ^ m := by
-    have hle1 : ((U - (n - m)).choose m : ℝ) ≤ (U.choose m : ℝ) := by
-      exact_mod_cast Nat.choose_le_choose m (Nat.sub_le U _)
-    have hle2 := Nat.choose_le_exp_mul_div_pow U m
-    have he4 : Real.exp 1 * (U : ℝ) / (m : ℝ) ≤ 4 * (U : ℝ) / (m : ℝ) := by
-      apply div_le_div_of_nonneg_right _ hm_pos.le
-      nlinarith [Real.exp_one_lt_d9]
-    exact hle1.trans (hle2.trans (pow_le_pow_left₀ (by positivity) he4 m))
-  have hratio : (U.choose n : ℝ) ≤ (4 * ((U : ℝ) / (n : ℝ))) ^ m * (U.choose (n - m) : ℝ) := by
-    have hpow_pos : 0 < ((n : ℝ) / (m : ℝ)) ^ m := pow_pos (div_pos hn_pos hm_pos) m
-    have habs_real : (U.choose n : ℝ) * (n.choose m : ℝ) =
-        (U.choose (n - m) : ℝ) * (((U - (n - m)).choose m : ℕ) : ℝ) := by exact_mod_cast habs_nat
-    have hmul_ineq : (U.choose n : ℝ) * ((n : ℝ) / (m : ℝ)) ^ m ≤
-        ((4 * ((U : ℝ) / (n : ℝ))) ^ m * (U.choose (n - m) : ℝ)) *
-          ((n : ℝ) / (m : ℝ)) ^ m := by
-      calc (U.choose n : ℝ) * ((n : ℝ) / (m : ℝ)) ^ m
-          ≤ (U.choose n : ℝ) * (n.choose m : ℝ) :=
-            mul_le_mul_of_nonneg_left hc_nm_ge (Nat.cast_nonneg _)
-        _ = (U.choose (n - m) : ℝ) * (((U - (n - m)).choose m : ℕ) : ℝ) := habs_real
-        _ ≤ (U.choose (n - m) : ℝ) * (4 * (U : ℝ) / (m : ℝ)) ^ m :=
-            mul_le_mul_of_nonneg_left hc_Um_le (Nat.cast_nonneg _)
-        _ = ((4 * ((U : ℝ) / (n : ℝ))) ^ m * (U.choose (n - m) : ℝ)) *
-              ((n : ℝ) / (m : ℝ)) ^ m := by
-            rw [mul_comm _ (U.choose (n - m) : ℝ), mul_assoc]
-            congr 1
-            rw [← mul_pow]
-            congr 1
-            field_simp
-    exact le_of_mul_le_mul_right hmul_ineq hpow_pos
-  have hc_Un_pos : (0 : ℝ) < (U.choose n : ℝ) := by exact_mod_cast Nat.choose_pos (by omega)
-  have hstep2 : Real.logb 2 (U.choose n) - Real.logb 2 (U.choose (n - m)) ≤
-      (m : ℝ) * Real.logb 2 ((U : ℝ) / (n : ℝ)) + 2 * (m : ℝ) := by
-    have hlog := Real.logb_le_logb_of_le (by norm_num : (1 : ℝ) < 2) hc_Un_pos hratio
-    rw [Real.logb_mul (by positivity) hc_Unm_pos.ne', Real.logb_pow,
-      show (4 : ℝ) * ((U : ℝ) / (n : ℝ)) = (2 : ℝ) ^ (2 : ℕ) * ((U : ℝ) / (n : ℝ)) by ring,
-      Real.logb_mul (by positivity) (div_pos hU_pos hn_pos).ne', Real.logb_pow,
-      Real.logb_self_eq_one (by norm_num : (1 : ℝ) < 2), mul_one] at hlog
-    push_cast at hlog
-    nlinarith
-  linarith
 
 /-! #### Candidate segment replay and dictionary-state multiplicity fibers -/
 
@@ -517,66 +427,7 @@ private theorem validHistory_and_run_modeCandidateOps (withQueries : Bool) {U V 
   refine ⟨hvh_m, ?_, hst_m⟩
   rw [List.length_append, hpref_len, hlen_B]; ring
 
-/-! #### Section 8 pool distributions, `T_B` uniformity, and Markov sub-conditioning -/
-
-open Classical in
-private noncomputable def section8PoolDist {U V n : ℕ} (hU : 2 * n ≤ U) (hV : 1 ≤ V)
-    (F : HardKeyValSeed U V n → Finset (Finset (Fin U))) (hne : ∀ s, (F s).Nonempty) :
-    PMF (HardKeyValSeed U V n × Finset (Fin U)) :=
-  letI : Nonempty (HardKeyValSeed U V n) := ⟨⟨Fin.castLEEmb hU, fun _ => ⟨0, hV⟩, 1⟩⟩
-  (PMF.uniformOfFintype (HardKeyValSeed U V n)).bind fun s =>
-    (PMF.uniformOfFinset (F s) (hne s)).map (s, ·)
-
-open Classical in
-private theorem toReal_section8PoolDist_apply {U V n : ℕ} (hU : 2 * n ≤ U) (hV : 1 ≤ V)
-    (F : HardKeyValSeed U V n → Finset (Finset (Fin U))) (hne : ∀ s, (F s).Nonempty)
-    (s : HardKeyValSeed U V n) (B : Finset (Fin U)) :
-    letI : Nonempty (HardKeyValSeed U V n) := ⟨⟨Fin.castLEEmb hU, fun _ => ⟨0, hV⟩, 1⟩⟩
-    ((section8PoolDist hU hV F hne) (s, B)).toReal =
-      if B ∈ F s then
-        ((PMF.uniformOfFintype (HardKeyValSeed U V n)) s).toReal / ((F s).card : ℝ)
-      else 0 := by
-  let _ : Nonempty (HardKeyValSeed U V n) := ⟨⟨Fin.castLEEmb hU, fun _ => ⟨0, hV⟩, 1⟩⟩
-  rw [section8PoolDist, PMF.bind_map_prodMk_apply, PMF.uniformOfFinset_apply]
-  by_cases hB : B ∈ F s
-  · simp only [hB, ↓reduceIte, ENNReal.toReal_mul, ENNReal.toReal_inv, ENNReal.toReal_natCast,
-      div_eq_mul_inv]
-  · simp [hB]
-
-open Classical in
-private theorem prob_section8PoolDist_eq {U V n c : ℕ} (hU : 2 * n ≤ U) (hV : 1 ≤ V)
-    (F : HardKeyValSeed U V n → Finset (Finset (Fin U))) (hcard : ∀ s, (F s).card = c)
-    (hne : ∀ s, (F s).Nonempty) (P : HardKeyValSeed U V n → Finset (Fin U) → Prop) :
-    letI : Nonempty (HardKeyValSeed U V n) := ⟨⟨Fin.castLEEmb hU, fun _ => ⟨0, hV⟩, 1⟩⟩
-    (((section8PoolDist hU hV F hne).map fun sb => decide (P sb.1 sb.2)) true).toReal =
-      (c : ℝ)⁻¹ * ∑ s : HardKeyValSeed U V n,
-        ((PMF.uniformOfFintype (HardKeyValSeed U V n)) s).toReal *
-          (((F s).filter (P s)).card : ℝ) := by
-  let _ : Nonempty (HardKeyValSeed U V n) := ⟨⟨Fin.castLEEmb hU, fun _ => ⟨0, hV⟩, 1⟩⟩
-  rw [PMF.map_apply_toReal, Fintype.sum_prod_type]
-  simp_rw [toReal_section8PoolDist_apply, hcard]
-  have hrow (s : HardKeyValSeed U V n) :
-      (∑ B : Finset (Fin U),
-        if true = decide (P s B) then
-          (if B ∈ F s then ((PMF.uniformOfFintype (HardKeyValSeed U V n)) s).toReal / (c : ℝ)
-            else 0)
-        else 0) =
-      (c : ℝ)⁻¹ * (((PMF.uniformOfFintype (HardKeyValSeed U V n)) s).toReal *
-        (((F s).filter (P s)).card : ℝ)) := by
-    have hsum : (∑ B : Finset (Fin U),
-          if true = decide (P s B) then
-            (if B ∈ F s then ((PMF.uniformOfFintype (HardKeyValSeed U V n)) s).toReal / (c : ℝ)
-              else 0)
-          else 0) =
-        ∑ B ∈ (F s).filter (P s),
-          (((PMF.uniformOfFintype (HardKeyValSeed U V n)) s).toReal / (c : ℝ)) := by
-      rw [Finset.sum_filter, ← Finset.sum_subset (Finset.subset_univ (F s))
-        (fun B _ hB => by by_cases hP : P s B <;> simp [hB, hP])]
-      refine Finset.sum_congr rfl fun B hB => ?_
-      by_cases hP : P s B <;> simp [hB, hP]
-    rw [hsum, Finset.sum_const, nsmul_eq_mul, div_eq_mul_inv]
-    ring
-  simp_rw [hrow, ← Finset.mul_sum]
+/-! #### Query-free inner pool symmetry, `T_B` uniformity, and Markov sub-conditioning -/
 
 private def actSeed8Equiv {U V n : ℕ} [NeZero V] (τ : Equiv.Perm (Fin U)) (δ : Fin U → Fin V) :
     HardKeyValSeed U V n ≃ HardKeyValSeed U V n where
@@ -695,14 +546,14 @@ private theorem prob_gt_cap_stateFiber_le {U V n t₀ m g P_size cells w : ℕ} 
       (s.insertedSet t₀ m ht₀ ∩ B).card = g)
     (hne : ∀ s, (Fg s).Nonempty)
     (D_det : IndexedScheme (Dynamic.Op U) Dynamic.Op.Result cells w) (stepIdx : ℕ) :
-    let μ_g := section8PoolDist hU hV Fg hne
+    let μ_g := innerPoolDist hU hV Fg hne
     let M_cap := (2 : ℝ) ^ (R + 1) * (U : ℝ) ^ (γ * (m : ℝ))
     (((μ_g.map fun sb => decide (M_cap <
       ((stateFiber D_det stepIdx (toDictState (pairBOf t₀ m ht₀ sb))).card : ℝ))) true).toReal) ≤
       (1 / 2) * (U : ℝ) ^ (-γ * (m : ℝ)) := by
   let _ : NeZero V := ⟨by omega⟩
   let _ : Nonempty (HardKeyValSeed U V n) := ⟨⟨Fin.castLEEmb hU, fun _ => ⟨0, hV⟩, 1⟩⟩
-  let μ_g := section8PoolDist hU hV Fg hne
+  let μ_g := innerPoolDist hU hV Fg hne
   let M_cap := (2 : ℝ) ^ (R + 1) * (U : ℝ) ^ (γ * (m : ℝ))
   have hFg_card : ∀ s, (Fg s).card = m.choose g * (P_size - m).choose (m - g) := fun s => by
     rw [hFg s, card_inter_filter_powersetCard (hA_pool s)
@@ -766,7 +617,7 @@ private theorem prob_gt_cap_stateFiber_le {U V n t₀ m g P_size cells w : ℕ} 
             rcases Finset.mem_map.mp hx with ⟨y, hy, rfl⟩
             exact Finset.mem_map.mpr ⟨y, h hy, rfl⟩⟩
       change (μ_g (actSeed8Equiv τ δ s, B.map τ.toEmbedding)).toReal = (μ_g (s, B)).toReal
-      rw [toReal_section8PoolDist_apply, toReal_section8PoolDist_apply, hFg_card, hFg_card]
+      rw [toReal_innerPoolDist_apply, toReal_innerPoolDist_apply, hFg_card, hFg_card]
       have hunif_s : ((PMF.uniformOfFintype (HardKeyValSeed U V n)) (actSeed8Equiv τ δ s)) =
           (PMF.uniformOfFintype (HardKeyValSeed U V n)) s := by
         simp [PMF.uniformOfFintype_apply]
@@ -1003,7 +854,7 @@ private def target8 {U V n : ℕ} (t₀ m : ℕ) (ht₀ : t₀ + m ≤ n)
        sb.1.insertedSet t₀ m ht₀ ∪ sb.2 then some (sb.1.kv u) else none)
 
 open Classical in
-private theorem fiber_le_section8PoolDist {U V n t₀ m g P_size : ℕ}
+private theorem fiber_le_queryFreePoolDist {U V n t₀ m g P_size : ℕ}
     (hU : 3 * n ≤ U) (hV : 1 ≤ V) (hm_n : 2 * m ≤ n) (hg : g < m / 2) (ht₀ : t₀ + m ≤ n)
     (pool : HardKeyValSeed U V n → Finset (Fin U))
     (hcard_pool : ∀ s, (pool s).card = P_size)
@@ -1017,14 +868,14 @@ private theorem fiber_le_section8PoolDist {U V n t₀ m g P_size : ℕ}
     (hne : ∀ s, (Fg s).Nonempty)
     (o : (Fin m → Fin U) × Finset (Fin U) × (Fin m → Fin U))
     (T : Finset (Fin U) × (Fin U → Option (Fin V))) :
-    let μ_g := section8PoolDist (by omega) hV Fg hne
+    let μ_g := innerPoolDist (by omega) hV Fg hne
     let M_nat := (U - 3 * m).choose (n - m) * V ^ (n + 2 * m - g)
     ((μ_g.map fun sb => (obs8 t₀ m ht₀ sb, target8 t₀ m ht₀ sb)) (o, T)).toReal ≤
       ((μ_g.map (obs8 t₀ m ht₀)) o).toReal / (M_nat : ℝ) := by
   dsimp only
   let _ : NeZero V := ⟨by omega⟩
   let _ : Nonempty (HardKeyValSeed U V n) := ⟨⟨Fin.castLEEmb (by omega), fun _ => ⟨0, hV⟩, 1⟩⟩
-  let μ_g := section8PoolDist (by omega : 2 * n ≤ U) hV Fg hne
+  let μ_g := innerPoolDist (by omega : 2 * n ≤ U) hV Fg hne
   let M_nat := (U - 3 * m).choose (n - m) * V ^ (n + 2 * m - g)
   have hM_pos : (0 : ℝ) < (M_nat : ℝ) := by
     dsimp only [M_nat]
@@ -1125,7 +976,7 @@ private theorem fiber_le_section8PoolDist {U V n t₀ m g P_size : ℕ}
             rcases Finset.mem_map.mp hx with ⟨y, hy, rfl⟩
             exact Finset.mem_map.mpr ⟨y, h hy, rfl⟩⟩
       change (μ_g (actSeed8Equiv τ γ.2 s, B)).toReal = (μ_g (s, B)).toReal
-      rw [toReal_section8PoolDist_apply, toReal_section8PoolDist_apply, hFg_card, hFg_card]
+      rw [toReal_innerPoolDist_apply, toReal_innerPoolDist_apply, hFg_card, hFg_card]
       have hunif_s : ((PMF.uniformOfFintype (HardKeyValSeed U V n)) (actSeed8Equiv τ γ.2 s)) =
           (PMF.uniformOfFintype (HardKeyValSeed U V n)) s := by
         simp [PMF.uniformOfFintype_apply]
@@ -1517,7 +1368,7 @@ private theorem fiber_le_section8PoolDist {U V n t₀ m g P_size : ℕ}
               · simp [ho_sb]
             · have h0 : (μ_g sb).toReal = 0 := by
                 dsimp only [μ_g]
-                rw [toReal_section8PoolDist_apply, ite_eq_right hsupp]
+                rw [toReal_innerPoolDist_apply, ite_eq_right hsupp]
               rw [h0, zero_mul, zero_mul]
       _ = ((μ_g.map (obs8 t₀ m ht₀)) o).toReal * (Fintype.card G : ℝ) := havg_obs.symm
   · have hzero : ((μ_g.map fun sb => (obs8 t₀ m ht₀ sb, target8 t₀ m ht₀ sb)) (o, T)).toReal =
@@ -1530,7 +1381,7 @@ private theorem fiber_le_section8PoolDist {U V n t₀ m g P_size : ℕ}
           (Finset.mem_powersetCard.mp (Finset.mem_filter.mp (hFg sb.1 ▸ h)).1).2)
         rw [ite_eq_left heq]
         dsimp only [μ_g]
-        rw [toReal_section8PoolDist_apply, ite_eq_right hnFg]
+        rw [toReal_innerPoolDist_apply, ite_eq_right hnFg]
       · rw [ite_eq_right heq]
     rw [hzero, zero_mul]
     exact ENNReal.toReal_nonneg
@@ -1598,7 +1449,7 @@ private theorem decodeDict_modeCandidateOps_eq (withQueries : Bool) {U V n t₀ 
   exact hdec.trans hst
 
 open Classical in
-private theorem prob_section8Pool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cells w : ℕ}
+private theorem prob_queryFreePool_eq_le (withQueries : Bool) {U V n t₀ m g P_size cells w : ℕ}
     {γ R t : ℝ} (hU : 3 * n ≤ U) (hV : 1 ≤ V) (hm : 2 ≤ m) (hm_n : 2 * m ≤ n)
     (hg : g < m / 2) (ht₀ : t₀ + m ≤ n) (_hγ : 0 < γ)
     (hspace : ((cells * w : ℕ) : ℝ) ≤ benchmarkBits U V n + R)
@@ -1618,12 +1469,12 @@ private theorem prob_section8Pool_eq_le (withQueries : Bool) {U V n t₀ m g P_s
     (hFg : ∀ s, Fg s = ((pool s).powersetCard m).filter fun B =>
       (s.insertedSet t₀ m ht₀ ∩ B).card = g)
     (hne : ∀ s, (Fg s).Nonempty) :
-    (((section8PoolDist (by omega) hV Fg hne).map fun sb =>
+    (((innerPoolDist (by omega) hV Fg hne).map fun sb =>
       decide (IsModeSeedConsistent withQueries D_det t₀ m ht₀ γ t sb.1 sb.2)) true).toReal ≤
       (U : ℝ) ^ (-γ * (m : ℝ)) := by
   let _ : Nonempty (HardKeyValSeed U V n) := ⟨⟨Fin.castLEEmb (by omega), fun _ => ⟨0, hV⟩, 1⟩⟩
   let Ω := HardKeyValSeed U V n × Finset (Fin U)
-  let μ_g : PMF Ω := section8PoolDist (by omega : 2 * n ≤ U) hV Fg hne
+  let μ_g : PMF Ω := innerPoolDist (by omega : 2 * n ≤ U) hV Fg hne
   let stride := modeStride withQueries
   let step₀ := n + stride * t₀
   let step_end := n + stride * (t₀ + m)
@@ -1699,7 +1550,7 @@ private theorem prob_section8Pool_eq_le (withQueries : Bool) {U V n t₀ m g P_s
       by_contra hnFg
       have h0 : (μ_g x).toReal = 0 := by
         dsimp only [μ_g]
-        rw [toReal_section8PoolDist_apply, ite_eq_right hnFg]
+        rw [toReal_innerPoolDist_apply, ite_eq_right hnFg]
       exact (ENNReal.toReal_pos hμ_ne (PMF.apply_ne_top μ_g x)).ne' h0
     exact ⟨hx_Fg, hW_true.1, hW_true.2⟩
   -- Define execution objects and 6-piece codeword on Ω
@@ -1979,7 +1830,7 @@ private theorem prob_section8Pool_eq_le (withQueries : Bool) {U V n t₀ m g P_s
   have hent_lo : Real.logb 2 (((μ_g.map W) true).toReal) + Real.logb 2 (M_nat : ℝ) ≤
       PMF.conditionalEntropy joint_ot :=
     logb_prob_add_logb_le_conditionalEntropy_of_fiber_le μ_g W (obs8 t₀ m ht₀) (target8 t₀ m ht₀)
-      hM_pos hW0 (fiber_le_section8PoolDist hU hV hm_n hg ht₀ pool hcard_pool hA_pool hdisj_pool
+      hM_pos hW0 (fiber_le_queryFreePoolDist hU hV hm_n hg ht₀ pool hcard_pool hA_pool hdisj_pool
         hpool_act Fg hFg hne)
   -- Lower bound Real.logb 2 M_nat
   have hlog_M : benchmarkBits U V n + (3 / 2) * (m : ℝ) * Real.logb 2 V -
@@ -2038,17 +1889,13 @@ private theorem prob_section8Pool_eq_le (withQueries : Bool) {U V n t₀ m g P_s
         ← pow_mul, Nat.clog_pow _ _ (by norm_num), mul_comm]
       exact hspace
     have hm3 : ((m₃ sb).length : ℝ) ≤ (m : ℝ) * t := by
-      dsimp only [m₃, SB_sim, C_mix]
-      rw [length_encodeRestr, Fintype.card_bool, Nat.clog_pow _ _ (by norm_num), hSB_eq]
-      exact hSB_cap
+      simpa only [m₃, SB_sim, C_mix, length_encodeRestr_bool, hSB_eq] using hSB_cap
     have hm4 : ((m₄ sb).length : ℝ) ≤ (m : ℝ) * t := by
-      dsimp only [m₄, I_AB, SB_sim, C_mix]
-      rw [length_encodeRestr, Fintype.card_bool, Nat.clog_pow _ _ (by norm_num), hSB_eq]
-      exact (Nat.cast_le.mpr (Finset.card_le_card Finset.inter_subset_right)).trans hSB_cap
+      simpa only [m₄, I_AB, SB_sim, C_mix, length_encodeRestr_bool, hSB_eq] using
+        (Nat.cast_le.mpr (Finset.card_le_card Finset.inter_subset_right)).trans hSB_cap
     have hm5 : ((m₅ sb).length : ℝ) ≤ γ * (m : ℝ) * (w : ℝ) := by
       dsimp only [m₅]
-      rw [length_encodeRestr, Fintype.card_fin, ← pow_mul, Nat.clog_pow _ _ (by norm_num),
-        Nat.cast_mul, mul_comm]
+      rw [length_encodeRestr_fin_two_pow, Nat.cast_mul, mul_comm]
       exact mul_le_mul_of_nonneg_right hΔ_cap (Nat.cast_nonneg w)
     have hm6 : ((m₆ sb).length : ℝ) ≤ R + 2 + γ * (m : ℝ) * Real.logb 2 U := by
       dsimp only [m₆]
@@ -2084,104 +1931,6 @@ private theorem prob_section8Pool_eq_le (withQueries : Bool) {U V n t₀ m g P_s
   dsimp only [C_upper] at hexp_msg
   linarith
 
-open Classical in
-private theorem prob_and_expect_section8Pool_lt_half_le (withQueries : Bool)
-    {U V n t₀ m P_size cells w : ℕ} {γ R t : ℝ}
-    (hU : 3 * n ≤ U) (hV : 1 ≤ V) (hm : 2 ≤ m) (hm_n : 2 * m ≤ n) (ht₀ : t₀ + m ≤ n)
-    (hγ : 0 < γ) (hP_ge : 2 * m ≤ P_size)
-    (hspace : ((cells * w : ℕ) : ℝ) ≤ benchmarkBits U V n + R)
-    (hbudget : 2 * R + 7 * (m : ℝ) + 2 * (m : ℝ) * t + γ * (m : ℝ) * (w : ℝ) +
-      2 * γ * (m : ℝ) * Real.logb 2 U ≤
-      ((m : ℝ) / 2) * Real.logb 2 V - (m : ℝ) * Real.logb 2 ((U : ℝ) / (n : ℝ)))
-    {D_det : IndexedScheme (Dynamic.Op U) Dynamic.Op.Result cells w}
-    (hcorr : ∀ ops ∈ validHistoriesUpTo U V n (modeHorizon withQueries n + 1),
-      (D_det.runSeq ops).1 = ((Dynamic.spec U V n).run (Dictionary.empty U) ops).2)
-    (pool : HardKeyValSeed U V n → Finset (Fin U))
-    (hcard_pool : ∀ s, (pool s).card = P_size)
-    (hA_pool : ∀ s, s.insertedSet t₀ m ht₀ ⊆ pool s)
-    (hdisj_pool : ∀ s, Disjoint (pool s) (s.activeKeys t₀ (Nat.le_of_add_right_le ht₀)))
-    (hpool_act : ∀ [NeZero V] (τ : Equiv.Perm (Fin U)) (δ : Fin U → Fin V) s,
-      pool (actSeed8Equiv τ δ s) = (pool s).map τ.toEmbedding) :
-    let F_lt : HardKeyValSeed U V n → Finset (Finset (Fin U)) := fun s =>
-      ((pool s).powersetCard m).filter fun B => (s.insertedSet t₀ m ht₀ ∩ B).card < m / 2
-    letI : Nonempty (HardKeyValSeed U V n) := ⟨⟨Fin.castLEEmb (by omega), fun _ => ⟨0, hV⟩, 1⟩⟩
-    ∀ hne : ∀ s, (F_lt s).Nonempty,
-      (((section8PoolDist (by omega) hV F_lt hne).map fun sb =>
-        decide (IsModeSeedConsistent withQueries D_det t₀ m ht₀ γ t sb.1 sb.2)) true).toReal ≤
-          (U : ℝ) ^ (-γ * (m : ℝ)) ∧
-      (∑ s : HardKeyValSeed U V n, ((PMF.uniformOfFintype (HardKeyValSeed U V n)) s).toReal *
-        (((F_lt s).filter (IsModeSeedConsistent withQueries D_det t₀ m ht₀ γ t s)).card : ℝ)) ≤
-        (P_size.choose m : ℝ) * (U : ℝ) ^ (-γ * (m : ℝ)) := by
-  dsimp only; intro hne
-  let _ : Nonempty (HardKeyValSeed U V n) := ⟨⟨Fin.castLEEmb (by omega), fun _ => ⟨0, hV⟩, 1⟩⟩
-  set F_lt : HardKeyValSeed U V n → Finset (Finset (Fin U)) := fun s =>
-    ((pool s).powersetCard m).filter fun B => (s.insertedSet t₀ m ht₀ ∩ B).card < m / 2
-  let Fg (g : ℕ) (s : HardKeyValSeed U V n) : Finset (Finset (Fin U)) :=
-    ((pool s).powersetCard m).filter fun B => (s.insertedSet t₀ m ht₀ ∩ B).card = g
-  let cg (g : ℕ) : ℕ := m.choose g * (P_size - m).choose (m - g)
-  have hFg_card (g : ℕ) (s : HardKeyValSeed U V n) : (Fg g s).card = cg g := by
-    dsimp only [Fg, cg]
-    rw [card_inter_filter_powersetCard (hA_pool s)
-      ((Finset.card_image_of_injective _
-        (segInsertedKeys s.keys t₀ m ht₀).injective).trans (by simp)), hcard_pool]
-  have hFlt_biUnion (s : HardKeyValSeed U V n) :
-      F_lt s = (Finset.range (m / 2)).biUnion fun g => Fg g s := by
-    dsimp only [F_lt, Fg]; ext B
-    simp only [Finset.mem_filter, Finset.mem_biUnion, Finset.mem_range]
-    exact ⟨fun ⟨hB, hlt⟩ => ⟨_, hlt, hB, rfl⟩, fun ⟨_, hg, hB, heq⟩ => ⟨hB, heq ▸ hg⟩⟩
-  have hdisj_g (s : HardKeyValSeed U V n) :
-      ((Finset.range (m / 2) : Set ℕ)).PairwiseDisjoint (fun g => Fg g s) :=
-    fun g₁ _ g₂ _ hne_g => Finset.disjoint_left.mpr fun B h₁ h₂ =>
-      hne_g ((Finset.mem_filter.mp h₁).2.symm.trans (Finset.mem_filter.mp h₂).2)
-  let clt : ℕ := ∑ g ∈ Finset.range (m / 2), cg g
-  have hcard_Flt (s : HardKeyValSeed U V n) : (F_lt s).card = clt := by
-    rw [hFlt_biUnion s, Finset.card_biUnion (hdisj_g s)]
-    exact Finset.sum_congr rfl fun g _ => hFg_card g s
-  have hclt_pos : (0 : ℝ) < (clt : ℝ) := by
-    obtain ⟨s₀⟩ := ‹Nonempty (HardKeyValSeed U V n)›
-    rw [← hcard_Flt s₀]; exact Nat.cast_pos.mpr (Finset.card_pos.mpr (hne s₀))
-  have hclt_le : (clt : ℝ) ≤ (P_size.choose m : ℝ) := by
-    obtain ⟨s₀⟩ := ‹Nonempty (HardKeyValSeed U V n)›
-    rw [← hcard_Flt s₀]
-    exact_mod_cast (Finset.card_le_card (Finset.filter_subset _ _)).trans_eq
-      (by rw [Finset.card_powersetCard, hcard_pool])
-  have hexp_g (g : ℕ) (hg : g ∈ Finset.range (m / 2)) :
-      (∑ s, ((PMF.uniformOfFintype (HardKeyValSeed U V n)) s).toReal *
-        (((Fg g s).filter (IsModeSeedConsistent withQueries D_det t₀ m ht₀ γ t s)).card : ℝ)) ≤
-        (cg g : ℝ) * (U : ℝ) ^ (-γ * (m : ℝ)) := by
-    have hg_lt : g < m / 2 := Finset.mem_range.mp hg
-    have hne_g : ∀ s, (Fg g s).Nonempty := fun s => by
-      rw [← Finset.card_pos, hFg_card g s]
-      exact mul_pos (Nat.choose_pos (by omega)) (Nat.choose_pos (by omega))
-    have hcg_pos : (0 : ℝ) < (cg g : ℝ) := by
-      obtain ⟨s₀⟩ := ‹Nonempty (HardKeyValSeed U V n)›
-      rw [← hFg_card g s₀]; exact Nat.cast_pos.mpr (Finset.card_pos.mpr (hne_g s₀))
-    have h1 := prob_section8Pool_eq_le withQueries hU hV hm hm_n hg_lt ht₀ hγ hspace hbudget hcorr
-      pool hcard_pool hA_pool hdisj_pool hpool_act (Fg g) (fun _ => rfl) hne_g
-    rw [prob_section8PoolDist_eq (by omega) hV (Fg g) (hFg_card g) hne_g] at h1
-    exact (inv_mul_le_iff₀ hcg_pos).mp h1
-  have hexp_lt :
-      (∑ s, ((PMF.uniformOfFintype (HardKeyValSeed U V n)) s).toReal *
-        (((F_lt s).filter (IsModeSeedConsistent withQueries D_det t₀ m ht₀ γ t s)).card : ℝ)) ≤
-        (clt : ℝ) * (U : ℝ) ^ (-γ * (m : ℝ)) := by
-    have hdecomp (s : HardKeyValSeed U V n) :
-        (((F_lt s).filter (IsModeSeedConsistent withQueries D_det t₀ m ht₀ γ t s)).card : ℝ) =
-          ∑ g ∈ Finset.range (m / 2),
-            (((Fg g s).filter
-              (IsModeSeedConsistent withQueries D_det t₀ m ht₀ γ t s)).card : ℝ) := by
-      rw [hFlt_biUnion s, Finset.filter_biUnion]
-      have hd : ((Finset.range (m / 2) : Set ℕ)).PairwiseDisjoint
-          (fun g => (Fg g s).filter (IsModeSeedConsistent withQueries D_det t₀ m ht₀ γ t s)) :=
-        fun g₁ hg₁ g₂ hg₂ hne_g => Finset.disjoint_of_subset_left (Finset.filter_subset _ _)
-          (Finset.disjoint_of_subset_right (Finset.filter_subset _ _) (hdisj_g s hg₁ hg₂ hne_g))
-      exact_mod_cast Finset.card_biUnion hd
-    simp_rw [hdecomp, Finset.mul_sum]; rw [Finset.sum_comm]
-    exact (Finset.sum_le_sum hexp_g).trans_eq (by rw [← Finset.sum_mul]; simp [clt])
-  refine ⟨?_, hexp_lt.trans (mul_le_mul_of_nonneg_right hclt_le
-    (Real.rpow_nonneg (Nat.cast_nonneg U) _))⟩
-  rw [prob_section8PoolDist_eq (by omega) hV F_lt hcard_Flt hne]
-  exact (inv_mul_le_iff₀ hclt_pos).mpr hexp_lt
-
 /-! #### Public Section 8.1 theorems (Lemma 8.1 and update-only / large-value `OuterLemma`) -/
 
 private theorem disjoint_insertedSet_activeKeys {U V n t₀ r : ℕ} (s : HardKeyValSeed U V n)
@@ -2202,13 +1951,13 @@ private theorem disjoint_insertedSet_activeKeys {U V n t₀ r : ℕ} (s : HardKe
   have := k.isLt; omega
 
 open Classical in
-/-- Section 8 conditional `(seed, B)` distribution sampling `B ⊆ Finset.univ \ K` uniformly among
-`m`-subsets with `(A ∩ B).card = g` under `3 * n ≤ U` ([LiLiangYuZhou2023], Section 8.1, Lemma 8.1,
-p. 28 / PDF p. 29). -/
-noncomputable def section8Dist {U V n : ℕ} (t₀ m g : ℕ) (hU : 3 * n ≤ U) (hV : 1 ≤ V)
-    (hm_n : 2 * m ≤ n) (hg : g ≤ m) (ht₀ : t₀ + m ≤ n) :
+/-- Query-free inner-game conditional `(seed, B)` distribution sampling `B ⊆ Finset.univ \ K`
+uniformly among `m`-subsets with `(A ∩ B).card = g` under `3 * n ≤ U` ([LiLiangYuZhou2023],
+Section 8.1, Lemma 8.1, p. 28 / PDF p. 29). -/
+noncomputable def queryFreeInnerDist {U V n : ℕ} (t₀ m g : ℕ) (hU : 3 * n ≤ U) (hV : 1 ≤ V)
+    (_hm_n : 2 * m ≤ n) (hg : g ≤ m) (ht₀ : t₀ + m ≤ n) :
     PMF (HardKeyValSeed U V n × Finset (Fin U)) :=
-  section8PoolDist (by omega) hV
+  innerPoolDist (by omega) hV
     (fun s => (((Finset.univ \ s.activeKeys t₀ (Nat.le_of_add_right_le ht₀)).powersetCard m).filter
       fun B => (s.insertedSet t₀ m ht₀ ∩ B).card = g))
     (fun s => by
@@ -2227,10 +1976,11 @@ noncomputable def section8Dist {U V n : ℕ} (t₀ m g : ℕ) (hU : 3 * n ≤ U)
 open Classical in
 /-- **Lemma 8.1** ([LiLiangYuZhou2023], Section 8.1, pp. 28–30 / PDF pp. 29–31, adapted with the
 deterministic `c = 1` probe cap and Step 6 internal Markov sub-conditioning): under `3 * n ≤ U`,
-`2 ≤ m`, `2 * m ≤ n`, and `g < m / 2`, the probability of `IsModeSeedConsistent` conditioned on
-`|A ∩ B| = g` is at most `U ^ (-γ * m)`. -/
-theorem prob_isModeSeedConsistent_section8_le (withQueries : Bool) {U V n t₀ m g cells w : ℕ}
-    {γ R t : ℝ} (hU : 3 * n ≤ U) (hV : 1 ≤ V) (hm : 2 ≤ m) (hm_n : 2 * m ≤ n)
+`2 ≤ m`, `2 * m ≤ n`, and `g < m / 2`, the probability of `IsModeSeedConsistent` on
+`queryFreeInnerDist` (`|A ∩ B| = g`) is at most `U ^ (-γ * m)`. -/
+theorem prob_isModeSeedConsistent_queryFreeInnerDist_le (withQueries : Bool)
+    {U V n t₀ m g cells w : ℕ} {γ R t : ℝ}
+    (hU : 3 * n ≤ U) (hV : 1 ≤ V) (hm : 2 ≤ m) (hm_n : 2 * m ≤ n)
     (hg : g < m / 2) (ht₀ : t₀ + m ≤ n) (hγ : 0 < γ)
     (hspace : ((cells * w : ℕ) : ℝ) ≤ benchmarkBits U V n + R)
     (hbudget : 2 * R + 7 * (m : ℝ) + 2 * (m : ℝ) * t + γ * (m : ℝ) * (w : ℝ) +
@@ -2239,7 +1989,7 @@ theorem prob_isModeSeedConsistent_section8_le (withQueries : Bool) {U V n t₀ m
     {D_det : IndexedScheme (Dynamic.Op U) Dynamic.Op.Result cells w}
     (hcorr : ∀ ops ∈ validHistoriesUpTo U V n (modeHorizon withQueries n + 1),
       (D_det.runSeq ops).1 = ((Dynamic.spec U V n).run (Dictionary.empty U) ops).2) :
-    (((section8Dist t₀ m g hU hV hm_n (by omega) ht₀).map fun sb =>
+    (((queryFreeInnerDist t₀ m g hU hV hm_n (by omega) ht₀).map fun sb =>
       decide (IsModeSeedConsistent withQueries D_det t₀ m ht₀ γ t sb.1 sb.2)) true).toReal ≤
       (U : ℝ) ^ (-γ * (m : ℝ)) := by
   let ht₀_n : t₀ ≤ n := Nat.le_of_add_right_le ht₀
@@ -2257,47 +2007,8 @@ theorem prob_isModeSeedConsistent_section8_le (withQueries : Bool) {U V n t₀ m
     rw [actSeed8Equiv_activeKeys, Finset.map_sdiff]
     congr 1; ext x; simp only [Finset.mem_univ, Finset.mem_map, Equiv.coe_toEmbedding, true_iff]
     exact ⟨τ.symm x, trivial, τ.apply_symm_apply x⟩
-  exact prob_section8Pool_eq_le withQueries hU hV hm hm_n hg ht₀ hγ hspace hbudget hcorr pool
+  exact prob_queryFreePool_eq_le withQueries hU hV hm hm_n hg ht₀ hγ hspace hbudget hcorr pool
     hcard_pool hA_pool (fun _ => Finset.sdiff_disjoint) hpool_act _ (fun _ => rfl) _
-
-open Classical in
-/-- Explicit `(U : ℝ) ^ (2 + 7 * γ) ≤ (V : ℝ) * (n : ℝ) ^ 2` specialization of Lemma 8.1
-([LiLiangYuZhou2023], Section 8.1, Lemma 8.1, p. 28 / PDF p. 29, adapted from `U ^ (2 + 5 * γ)` to
-`U ^ (2 + 7 * γ)` for Step 6's internal Markov sub-conditioning on `c(T_B)`). -/
-theorem prob_isModeSeedConsistent_section8_of_val_ge_le (withQueries : Bool)
-    {U V n t₀ m g cells w : ℕ} {γ R t : ℝ}
-    (hU : 3 * n ≤ U) (hV : 1 ≤ V) (hm : 2 ≤ m) (hm_n : 2 * m ≤ n) (hg : g < m / 2)
-    (ht₀ : t₀ + m ≤ n) (hγ : 0 < γ)
-    (hV_lo : (U : ℝ) ^ (2 + 7 * γ) ≤ (V : ℝ) * (n : ℝ) ^ 2)
-    (hspace : ((cells * w : ℕ) : ℝ) ≤ benchmarkBits U V n + R)
-    (hbudget : 2 * R + 7 * (m : ℝ) + 2 * (m : ℝ) * t + γ * (m : ℝ) * (w : ℝ) ≤
-      (3 / 2) * γ * (m : ℝ) * Real.logb 2 U)
-    {D_det : IndexedScheme (Dynamic.Op U) Dynamic.Op.Result cells w}
-    (hcorr : ∀ ops ∈ validHistoriesUpTo U V n (modeHorizon withQueries n + 1),
-      (D_det.runSeq ops).1 = ((Dynamic.spec U V n).run (Dictionary.empty U) ops).2) :
-    (((section8Dist t₀ m g hU hV hm_n (by omega) ht₀).map fun sb =>
-      decide (IsModeSeedConsistent withQueries D_det t₀ m ht₀ γ t sb.1 sb.2)) true).toReal ≤
-      (U : ℝ) ^ (-γ * (m : ℝ)) := by
-  have hn_pos : (0 : ℝ) < (n : ℝ) := by exact_mod_cast (show 0 < n by omega)
-  have hU_pos : (0 : ℝ) < (U : ℝ) := by exact_mod_cast (show 0 < U by omega)
-  have hV_pos : (0 : ℝ) < (V : ℝ) := by exact_mod_cast hV
-  have hlog_V : (2 + 7 * γ) * Real.logb 2 U ≤ Real.logb 2 V + 2 * Real.logb 2 n := by
-    have h1 := Real.logb_le_logb_of_le (by norm_num : (1 : ℝ) < 2)
-      (Real.rpow_pos_of_pos hU_pos _) hV_lo
-    rw [Real.logb_rpow_eq_mul_logb_of_pos hU_pos,
-      Real.logb_mul hV_pos.ne' (pow_pos hn_pos 2).ne', Real.logb_pow] at h1
-    simpa using h1
-  have hlog_div : Real.logb 2 ((U : ℝ) / (n : ℝ)) = Real.logb 2 U - Real.logb 2 n :=
-    Real.logb_div hU_pos.ne' hn_pos.ne'
-  have hgap : (7 / 2) * γ * (m : ℝ) * Real.logb 2 U ≤
-      ((m : ℝ) / 2) * Real.logb 2 V - (m : ℝ) * Real.logb 2 ((U : ℝ) / (n : ℝ)) := by
-    have h1 : (7 / 2) * γ * Real.logb 2 U ≤
-        (1 / 2) * Real.logb 2 V - Real.logb 2 ((U : ℝ) / (n : ℝ)) := by linarith
-    have hm_nn : (0 : ℝ) ≤ (m : ℝ) := Nat.cast_nonneg m
-    have h2 := mul_le_mul_of_nonneg_left h1 hm_nn
-    linarith
-  exact prob_isModeSeedConsistent_section8_le withQueries hU hV hm hm_n hg ht₀ hγ hspace
-    (by linarith) hcorr
 
 open Classical in
 /-- Claim 4.2 far-candidate expectation bound for `IsModeSeedConsistent` over the remaining
@@ -2351,8 +2062,55 @@ theorem expected_card_modeConsistent_segmentRest_lt_half_le (withQueries : Bool)
     obtain ⟨B, hB⟩ := h0
     exact ⟨B, Finset.mem_filter.mpr ⟨(Finset.mem_filter.mp hB).1,
       by rw [(Finset.mem_filter.mp hB).2]; omega⟩⟩
-  exact (prob_and_expect_section8Pool_lt_half_le withQueries hU hV hm hm_n ht₀ hγ hrest_ge hspace
-    hbudget hcorr pool hcard_pool hA_pool hdisj_pool hpool_act hne).2
+  exact (prob_and_expect_innerPoolDist_lt_half_le (by omega) hV hm ht₀ hrest_ge
+    (Real.rpow_nonneg (Nat.cast_nonneg U) _) pool hcard_pool hA_pool
+    (IsModeSeedConsistent withQueries D_det t₀ m ht₀ γ t)
+    (fun g hg hne_g => prob_queryFreePool_eq_le withQueries hU hV hm hm_n hg ht₀ hγ hspace
+      hbudget hcorr pool hcard_pool hA_pool hdisj_pool hpool_act _ (fun _ => rfl) hne_g) hne).2
+
+private theorem outer_lemma_of_val_budget (withQueries : Bool) {U V n cells w : ℕ}
+    {R_outer R_inner γ t : ℝ} (hU : 3 * n ≤ U) (hV : 1 ≤ V)
+    (hspace_outer : ((cells * w : ℕ) : ℝ) ≤ benchmarkBits U V n + R_outer)
+    (hspace_inner : ((cells * w : ℕ) : ℝ) ≤ benchmarkBits U V n + R_inner)
+    (T : MetaTree) {D_det : IndexedScheme (Dynamic.Op U) Dynamic.Op.Result cells w}
+    (hcorr : ∀ ops ∈ validHistoriesUpTo U V n (modeHorizon withQueries n + 1),
+      (D_det.runSeq ops).1 = ((Dynamic.spec U V n).run (Dictionary.empty U) ops).2)
+    (hγ : 0 < γ) (ht : 0 < t) {ℓ b : ℕ} (hℓ : 1 ≤ ℓ)
+    (ht_stop : T.nodeStop (ℓ + 1) b ≤ n)
+    (hF_lo : 2 ^ 64 ≤ T.fanout (ℓ + 1))
+    (hF_hi : (T.fanout (ℓ + 1) : ℝ) ≤ (γ / 2) * Real.logb 2 U)
+    (hR_outer : 100 * R_outer ≤ (T.blockSize (ℓ + 1) : ℝ) * Real.logb 2 (T.fanout (ℓ + 1)))
+    (hbudget_inner : 2 * R_inner + 7 * (T.blockSize ℓ : ℝ) + 2 * (T.blockSize ℓ : ℝ) * t +
+      γ * (T.blockSize ℓ : ℝ) * (w : ℝ) + 2 * γ * (T.blockSize ℓ : ℝ) * Real.logb 2 U ≤
+      ((T.blockSize ℓ : ℝ) / 2) * Real.logb 2 V -
+        (T.blockSize ℓ : ℝ) * Real.logb 2 ((U : ℝ) / (n : ℝ))) :
+    (γ / 100) * (T.blockSize (ℓ + 1) : ℝ) ≤
+        ∑' ops, (modeDist withQueries U V n
+          (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV ops).toReal *
+          (T.nodeCost D_det n (modeStride withQueries) ops ℓ b : ℝ) ∨
+      (1 / 16) * (T.blockSize (ℓ + 1) : ℝ) * t ≤
+        ∑' ops, (modeDist withQueries U V n
+          (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV ops).toReal *
+          (T.nodeProbes D_det n (modeStride withQueries) ops (ℓ + 1) b : ℝ) := by
+  have hm_ge2 : 2 ≤ T.blockSize ℓ :=
+    (Nat.pow_le_pow_right (by decide) hℓ).trans (T.two_pow_le_blockSize ℓ)
+  have hF_ge2 : 2 ≤ T.fanout (ℓ + 1) := T.two_le_fanout (Nat.le_add_left 1 ℓ)
+  have hm_n : 2 * T.blockSize ℓ ≤ n := by
+    clear hF_lo
+    have h1 : 2 * T.blockSize ℓ ≤ T.blockSize ℓ * T.fanout (ℓ + 1) := by
+      rw [mul_comm 2]; exact Nat.mul_le_mul_left _ hF_ge2
+    have h2 : T.blockSize (ℓ + 1) ≤ T.nodeStop (ℓ + 1) b :=
+      Nat.le_mul_of_pos_left _ (Nat.succ_pos b)
+    rw [T.blockSize_succ] at h2; omega
+  have hU2 : 2 ≤ U := by clear hF_lo; omega
+  exact outer_node_lower_bound withQueries
+    (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hU2 hV hspace_outer T hcorr
+    hγ ht hℓ ht_stop hF_lo hF_hi hR_outer fun i _ => by
+      clear hF_lo
+      have hFh : 2 ≤ T.fanout (ℓ + 1) - i.val := by omega
+      exact expected_card_modeConsistent_segmentRest_lt_half_le withQueries hU hV hm_ge2 hm_n
+        (Nat.mul_le_mul_right _ hFh) (nodeStart_add_rest_le T ht_stop i.val i.isLt.le)
+        hγ hspace_inner hbudget_inner hcorr
 
 /-- Update-only **Outer Lemma** on `insertDeleteDist` ([LiLiangYuZhou2023], Section 8.1, pp. 27–30 /
 PDF pp. 28–31, combining Protocol 1 `outer_node_lower_bound false` with Lemma 8.1). -/
@@ -2378,31 +2136,11 @@ theorem outer_lemma_insertDelete {U V n cells w : ℕ} {R_outer R_inner γ t : �
       (1 / 16) * (T.blockSize (ℓ + 1) : ℝ) * t ≤
         ∑' ops, (insertDeleteDist U V n (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU)
           hV ops).toReal * (T.nodeProbes D_det n 2 ops (ℓ + 1) b : ℝ) := by
-  have hm_ge2 : 2 ≤ T.blockSize ℓ :=
-    (Nat.pow_le_pow_right (by decide) hℓ).trans (T.two_pow_le_blockSize ℓ)
-  have hF_ge2 : 2 ≤ T.fanout (ℓ + 1) := T.two_le_fanout (Nat.le_add_left 1 ℓ)
-  have hm_n : 2 * T.blockSize ℓ ≤ n := by
-    clear hF_lo
-    have h1 : 2 * T.blockSize ℓ ≤ T.blockSize ℓ * T.fanout (ℓ + 1) := by
-      rw [mul_comm 2]; exact Nat.mul_le_mul_left _ hF_ge2
-    have h2 : T.blockSize (ℓ + 1) ≤ T.nodeStop (ℓ + 1) b :=
-      Nat.le_mul_of_pos_left _ (Nat.succ_pos b)
-    rw [T.blockSize_succ] at h2; omega
-  have hU2 : 2 ≤ U := by clear hF_lo; omega
-  simpa only [modeDist_false, modeStride, Bool.false_eq_true, ↓reduceIte] using
-    outer_node_lower_bound false (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hU2 hV
-      hspace_outer T
+  exact
+    outer_lemma_of_val_budget false hU hV hspace_outer hspace_inner T
       (by simpa only [modeHorizon, modeStride, Bool.false_eq_true, ↓reduceIte,
         show n + 2 * n = 3 * n by ring] using hcorr)
-      hγ ht hℓ ht_stop hF_lo hF_hi hR_outer fun i hi => by
-        clear hF_lo
-        have hFh : 2 ≤ T.fanout (ℓ + 1) - i.val := by omega
-        simp_rw [outerAllCandidates_eq]
-        exact expected_card_modeConsistent_segmentRest_lt_half_le false hU hV hm_ge2 hm_n
-          (Nat.mul_le_mul_right _ hFh) (nodeStart_add_rest_le T ht_stop i.val i.isLt.le)
-          hγ hspace_inner hbudget_inner
-          (by simpa only [modeHorizon, modeStride, Bool.false_eq_true, ↓reduceIte,
-            show n + 2 * n = 3 * n by ring] using hcorr)
+      hγ ht hℓ ht_stop hF_lo hF_hi hR_outer hbudget_inner
 
 /-- Large-value **Outer Lemma** on `insertQueryDeleteDist` ([LiLiangYuZhou2023], Sections 7 and 8.1,
 combining `outer_node_lower_bound true` with Lemma 8.1 so word sizes `w = Θ(log U + log V)` remain
@@ -2431,31 +2169,11 @@ theorem outer_lemma_largeVal_insertQueryDelete {U V n cells w : ℕ} {R_outer R_
         ∑' ops, (insertQueryDeleteDist U V n
           (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV ops).toReal *
           (T.nodeProbes D_det n 3 ops (ℓ + 1) b : ℝ) := by
-  have hm_ge2 : 2 ≤ T.blockSize ℓ :=
-    (Nat.pow_le_pow_right (by decide) hℓ).trans (T.two_pow_le_blockSize ℓ)
-  have hF_ge2 : 2 ≤ T.fanout (ℓ + 1) := T.two_le_fanout (Nat.le_add_left 1 ℓ)
-  have hm_n : 2 * T.blockSize ℓ ≤ n := by
-    clear hF_lo
-    have h1 : 2 * T.blockSize ℓ ≤ T.blockSize ℓ * T.fanout (ℓ + 1) := by
-      rw [mul_comm 2]; exact Nat.mul_le_mul_left _ hF_ge2
-    have h2 : T.blockSize (ℓ + 1) ≤ T.nodeStop (ℓ + 1) b :=
-      Nat.le_mul_of_pos_left _ (Nat.succ_pos b)
-    rw [T.blockSize_succ] at h2; omega
-  have hU2 : 2 ≤ U := by clear hF_lo; omega
-  simpa only [modeDist_true, modeStride, ↓reduceIte] using
-    outer_node_lower_bound true (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hU2 hV
-      hspace_outer T
+  exact
+    outer_lemma_of_val_budget true hU hV hspace_outer hspace_inner T
       (by simpa only [modeHorizon, modeStride, ↓reduceIte,
         show n + 3 * n = 4 * n by ring] using hcorr)
-      hγ ht hℓ ht_stop hF_lo hF_hi hR_outer fun i hi => by
-        clear hF_lo
-        have hFh : 2 ≤ T.fanout (ℓ + 1) - i.val := by omega
-        simp_rw [outerAllCandidates_eq]
-        exact expected_card_modeConsistent_segmentRest_lt_half_le true hU hV hm_ge2 hm_n
-          (Nat.mul_le_mul_right _ hFh) (nodeStart_add_rest_le T ht_stop i.val i.isLt.le)
-          hγ hspace_inner hbudget_inner
-          (by simpa only [modeHorizon, modeStride, ↓reduceIte,
-            show n + 3 * n = 4 * n by ring] using hcorr)
+      hγ ht hℓ ht_stop hF_lo hF_hi hR_outer hbudget_inner
 
 /-! ### Part B: Base `Ω(n)` Bound, Multi-Level `MetaTree` Aggregation, and `optBits` Bridges -/
 
@@ -2550,7 +2268,7 @@ theorem det_expectedSeqProbes_ge_linear (withQueries : Bool) {U V n cells w : �
   have hexp : (∑' ops, (modeDist withQueries U V n hU hV ops).toReal * (D_det.seqProbes ops : ℝ)) =
       ∑ s, (μ s).toReal * (D_det.seqProbes (s.modeOps withQueries) : ℝ) := by
     rw [← map_modeOps_uniformOfFintype_hardKeyValSeed]
-    exact tsum_toReal_map_mul_natCast μ (HardKeyValSeed.modeOps withQueries) _
+    exact PMF.tsum_toReal_map_mul_natCast μ (HardKeyValSeed.modeOps withQueries) _
   rw [hexp]
   let stepProbe (s : HardKeyValSeed U V n) (k : ℕ) : ℕ :=
     rangeProbes D_det 0 1 (s.modeOps withQueries) k (k + 1)
@@ -2749,7 +2467,7 @@ theorem det_expectedSeqProbes_ge_of_outer_tree (withQueries : Bool) {U V n cells
       (∑' ops, (modeDist withQueries U V n hU hV ops).toReal * (c ops : ℝ)) =
         ∑ s, (μ s).toReal * (c (s.modeOps withQueries) : ℝ) := by
     rw [← map_modeOps_uniformOfFintype_hardKeyValSeed]
-    exact tsum_toReal_map_mul_natCast μ (HardKeyValSeed.modeOps withQueries) c
+    exact PMF.tsum_toReal_map_mul_natCast μ (HardKeyValSeed.modeOps withQueries) c
   have hnode_comb (ℓ : ℕ) (hℓ : ℓ ∈ Finset.Ico 1 H) (b : ℕ)
       (hb : b ∈ Finset.range (T.nodeCount (ℓ + 1))) :
       (γ / 100) * (T.blockSize (ℓ + 1) : ℝ) ≤
@@ -3302,38 +3020,131 @@ private theorem outer_lemma_both_val_regimes {U V n cells w : ℕ} {α c_w γ R 
       (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV hspace hspace T hcorr hγ
       ht hℓ ht_stop hF_lo hF_hi hR_outer hbud
 
-/-- Deterministic **Theorem 1.1 / Theorem 3.1** ([LiLiangYuZhou2023], Section 1, p. 1 / PDF p. 2 and
-Section 3, pp. 10–13 / PDF pp. 11–14; Section 7, pp. 26–27 / PDF pp. 27–28): for any `α > 0`,
-`c_R ≥ 0`, and `c_w ≥ 0`, there exists `c > 0` such that any step-indexed `IndexedScheme` exact on
-admissible histories up to `4 * n + 1` with space
-`≤ benchmarkBits U V n + c_R * n * max 1 (log^{(k)} n)` incurs at least `c * n * k` expected cell
-probes on `insertQueryDeleteDist`. -/
-theorem det_expectedSeqProbes_ge_of_iterLog_redundancy {α c_R c_w : ℝ}
-    (hα : 0 < α) (hcR : 0 ≤ c_R) (hcw : 0 ≤ c_w) :
+private theorem exists_gamma_query {α c_w : ℝ} (hα : 0 < α) (hcw : 0 ≤ c_w) :
+    ∃ γ : ℝ, 0 < γ ∧ γ ≤ 1 ∧ (20 + 24 * c_w) * γ = α / (1 + α) := by
+  refine ⟨α / ((20 + 24 * c_w) * (1 + α)), by positivity, ?_, ?_⟩
+  · have h1 : α / ((20 + 24 * c_w) * (1 + α)) ≤ (1 + α) / (1 * (1 + α)) :=
+      div_le_div₀ (by positivity) (by linarith) (by positivity)
+        (mul_le_mul_of_nonneg_right (by linarith) (by positivity))
+    exact h1.trans_eq (by field_simp)
+  · have : (20 + 24 * c_w) ≠ 0 := by positivity
+    have : (1 + α) ≠ 0 := by positivity
+    field_simp
+
+private theorem exists_gamma_update {α_V c_w : ℝ} (hα_V : 0 < α_V) (hcw : 0 ≤ c_w) :
+    ∃ γ : ℝ, 0 < γ ∧ γ ≤ 1 ∧ (5 + c_w) * γ ≤ min (1 / 4) (α_V / 16) := by
+  set η := min (1 / 4) (α_V / 16)
+  have hη : 0 < η := by dsimp [η]; positivity
+  refine ⟨min (1 / 20) (η / (5 + c_w)), by positivity,
+    (min_le_left _ _).trans (by norm_num), ?_⟩
+  exact (mul_le_mul_of_nonneg_left (min_le_right _ _) (by positivity)).trans_eq
+    (mul_div_cancel₀ _ (by positivity))
+
+private theorem le_expectedSeqProbes_query_of_det {U V n cells w : ℕ}
+    (hU : 2 * n ≤ U) (hV : 1 ≤ V) {B : ℝ}
+    (P : Cslib.CellProbe.Randomized.Scheme (Dynamic.Op U) Dynamic.Op.Result cells w)
+    (hcorr : ∀ ops ∈ validHistoriesUpTo U V n (4 * n + 1),
+      ((Dynamic.spec U V n).toObliviousSequenceSpec (Dictionary.empty U)).Contract
+        ops ((P.runSeq ops).map Prod.fst))
+    (hdet : ∀ {D_det : IndexedScheme (Dynamic.Op U) Dynamic.Op.Result cells w},
+      (∀ ops ∈ validHistoriesUpTo U V n (4 * n + 1),
+        (D_det.runSeq ops).1 = ((Dynamic.spec U V n).run (Dictionary.empty U) ops).2) →
+      B ≤ ∑' ops, (insertQueryDeleteDist U V n hU hV ops).toReal * (D_det.seqProbes ops : ℝ)) :
+    ENNReal.ofReal B ≤
+      ∑' ops, insertQueryDeleteDist U V n hU hV ops * P.expectedSeqProbes ops := by
+  obtain ⟨D_det, _, hcorr_det, hle_exp⟩ :=
+    exists_det_indexedScheme_insertQueryDeleteDist hU hV P hcorr
+  exact (ofReal_le_tsum_seqProbes_of_toReal_le _ D_det (hdet hcorr_det)).trans hle_exp
+
+private theorem le_expectedSeqProbes_update_of_det {U V n cells w : ℕ}
+    (hU : 2 * n ≤ U) (hV : 1 ≤ V) {B : ℝ}
+    (P : Cslib.CellProbe.Randomized.Scheme (Dynamic.Op U) Dynamic.Op.Result cells w)
+    (hcorr : ∀ ops ∈ validHistoriesUpTo U V n (3 * n + 1),
+      ((Dynamic.spec U V n).toObliviousSequenceSpec (Dictionary.empty U)).Contract
+        ops ((P.runSeq ops).map Prod.fst))
+    (hdet : ∀ {D_det : IndexedScheme (Dynamic.Op U) Dynamic.Op.Result cells w},
+      (∀ ops ∈ validHistoriesUpTo U V n (3 * n + 1),
+        (D_det.runSeq ops).1 = ((Dynamic.spec U V n).run (Dictionary.empty U) ops).2) →
+      B ≤ ∑' ops, (insertDeleteDist U V n hU hV ops).toReal * (D_det.seqProbes ops : ℝ)) :
+    ENNReal.ofReal B ≤
+      ∑' ops, insertDeleteDist U V n hU hV ops * P.expectedSeqProbes ops := by
+  obtain ⟨D_det, _, hcorr_det, hle_exp⟩ :=
+    exists_det_indexedScheme_insertDeleteDist hU hV P hcorr
+  exact (ofReal_le_tsum_seqProbes_of_toReal_le _ D_det (hdet hcorr_det)).trans hle_exp
+
+private theorem iterLog_logStar_space_le {U V n cells w : ℕ} {c_R : ℝ} (hn : 2 ≤ n)
+    (hspace : ((cells * w : ℕ) : ℝ) ≤ benchmarkBits U V n + c_R * (n : ℝ)) :
+    1 ≤ Nat.logStar n ∧
+      ((cells * w : ℕ) : ℝ) ≤
+        benchmarkBits U V n +
+          c_R * (n : ℝ) * ((max (Nat.iterLog (Nat.logStar n) n) 1 : ℕ) : ℝ) := by
+  have hk1 : 1 ≤ Nat.logStar n := by
+    have : Nat.logStar 2 = 1 := by decide
+    exact this ▸ Nat.logStar_mono hn
+  have hiter1 : max (Nat.iterLog (Nat.logStar n) n) 1 = 1 := by
+    have hle : Nat.iterLog (Nat.logStar n) n ≤ 1 :=
+      (Nat.iterLog_anti_left n (Nat.floorLogStar_le_logStar n)).trans
+        (Nat.iterLog_floorLogStar_le_one n)
+    omega
+  exact ⟨hk1, by rw [hiter1, Nat.cast_one, mul_one]; exact hspace⟩
+
+private theorem combine_iterLogStar_and_sublinear {c₁ c₂ L R E : ℝ} {n : ℕ}
+    (hn : 2 ≤ n) (hL_nn : 0 ≤ L) (hE_nn : 0 ≤ E)
+    (hb₁ : c₁ * (n : ℝ) * L ≤ E)
+    (hb₂ : R ≤ (n : ℝ) → c₂ * (n : ℝ) * Real.logb 2 ((n : ℝ) / max R 1) ≤ E) :
+    (min c₁ c₂ / 2) * (n : ℝ) * (L + max 0 (Real.logb 2 ((n : ℝ) / max R 1))) ≤ E := by
+  have hm₁ : min c₁ c₂ * (n : ℝ) * L ≤ E :=
+    (mul_le_mul_of_nonneg_right
+      (mul_le_mul_of_nonneg_right (min_le_left c₁ c₂) (Nat.cast_nonneg n)) hL_nn).trans hb₁
+  have hm₂ : min c₁ c₂ * (n : ℝ) * max 0 (Real.logb 2 ((n : ℝ) / max R 1)) ≤ E := by
+    by_cases hRn : R ≤ (n : ℝ)
+    · have hdiv1 : 1 ≤ (n : ℝ) / max R 1 :=
+        (one_le_div (lt_of_lt_of_le zero_lt_one (_root_.le_max_right R 1))).mpr
+          (max_le hRn (by exact_mod_cast (show 1 ≤ n by omega)))
+      have hlog_nn : 0 ≤ Real.logb 2 ((n : ℝ) / max R 1) := Real.logb_nonneg (by norm_num) hdiv1
+      rw [max_eq_right hlog_nn]
+      exact (mul_le_mul_of_nonneg_right
+        (mul_le_mul_of_nonneg_right (min_le_right c₁ c₂) (Nat.cast_nonneg n)) hlog_nn).trans
+        (hb₂ hRn)
+    · push Not at hRn
+      have hdiv_le : (n : ℝ) / max R 1 ≤ 1 :=
+        (div_le_one (lt_of_lt_of_le zero_lt_one (_root_.le_max_right R 1))).mpr
+          (hRn.le.trans (_root_.le_max_left R 1))
+      have hlog_np : Real.logb 2 ((n : ℝ) / max R 1) ≤ 0 :=
+        Real.logb_nonpos (by norm_num) (div_nonneg (Nat.cast_nonneg n)
+          (le_trans zero_le_one (_root_.le_max_right R 1))) hdiv_le
+      rw [max_eq_left hlog_np, mul_zero]
+      exact hE_nn
+  linarith
+
+private theorem det_expectedSeqProbes_mode_ge_iterLog (withQueries : Bool)
+    {γ c_R : ℝ} (hγ : 0 < γ) (hγ1 : γ ≤ 1) (hcR : 0 ≤ c_R) :
     ∃ c : ℝ, 0 < c ∧
-      ∀ {U V n k cells w : ℕ} (hn : 2 ≤ n) (hU : 4 * n ≤ U)
-        (_hU_poly : (n : ℝ) ^ (1 + α) ≤ (U : ℝ)) (hV : 1 ≤ V)
+      ∀ {U V n k cells w : ℕ} (_hn : 2 ≤ n) (hU : 2 * n ≤ U) (hV : 1 ≤ V)
         (_hk_lo : 1 ≤ k) (_hk_hi : k ≤ Nat.logStar n)
-        (_hw : (w : ℝ) ≤ c_w * (Real.logb 2 U + Real.logb 2 V))
         (_hspace : ((cells * w : ℕ) : ℝ) ≤
           benchmarkBits U V n + c_R * (n : ℝ) * ((max (Nat.iterLog k n) 1 : ℕ) : ℝ))
         {D_det : IndexedScheme (Dynamic.Op U) Dynamic.Op.Result cells w}
-        (_hcorr : ∀ ops ∈ validHistoriesUpTo U V n (4 * n + 1),
-          (D_det.runSeq ops).1 = ((Dynamic.spec U V n).run (Dictionary.empty U) ops).2),
+        (_hcorr : ∀ ops ∈ validHistoriesUpTo U V n (modeHorizon withQueries n + 1),
+          (D_det.runSeq ops).1 = ((Dynamic.spec U V n).run (Dictionary.empty U) ops).2)
+        (_hnode : ∀ {R t : ℝ} (_hspace_R : ((cells * w : ℕ) : ℝ) ≤ benchmarkBits U V n + R)
+          (T : MetaTree) (_ht : 0 < t) {ℓ b : ℕ} (_hℓ : 1 ≤ ℓ)
+          (_ht_stop : T.nodeStop (ℓ + 1) b ≤ n)
+          (_hF_lo : 2 ^ 64 ≤ T.fanout (ℓ + 1))
+          (_h11 : 11 / γ ≤ Real.logb 2 U)
+          (_ht_hi : 6 * t ≤ γ * Real.logb 2 U)
+          (_hm_lo : (n : ℝ) ^ (1 - γ / 2) ≤ (T.blockSize ℓ : ℝ))
+          (_hF_hi : (T.fanout (ℓ + 1) : ℝ) ≤ (γ / 2) * Real.logb 2 U)
+          (_hR_out : 100 * R ≤ (T.blockSize (ℓ + 1) : ℝ) * Real.logb 2 (T.fanout (ℓ + 1)))
+          (_hR_in : R ≤ (γ / 2) * (T.blockSize ℓ : ℝ) * Real.logb 2 U),
+          (γ / 100) * (T.blockSize (ℓ + 1) : ℝ) ≤
+              ∑' ops, (modeDist withQueries U V n hU hV ops).toReal *
+                (T.nodeCost D_det n (modeStride withQueries) ops ℓ b : ℝ) ∨
+            (1 / 16) * (T.blockSize (ℓ + 1) : ℝ) * t ≤
+              ∑' ops, (modeDist withQueries U V n hU hV ops).toReal *
+                (T.nodeProbes D_det n (modeStride withQueries) ops (ℓ + 1) b : ℝ)),
         c * (n : ℝ) * (k : ℝ) ≤
-          ∑' ops, (insertQueryDeleteDist U V n
-            (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV ops).toReal *
-            (D_det.seqProbes ops : ℝ) := by
-  have hγ_exists : ∃ γ : ℝ, 0 < γ ∧ γ ≤ 1 ∧ (20 + 24 * c_w) * γ = α / (1 + α) := by
-    refine ⟨α / ((20 + 24 * c_w) * (1 + α)), by positivity, ?_, ?_⟩
-    · have h1 : α / ((20 + 24 * c_w) * (1 + α)) ≤ (1 + α) / (1 * (1 + α)) :=
-        div_le_div₀ (by positivity) (by linarith) (by positivity)
-          (mul_le_mul_of_nonneg_right (by linarith) (by positivity))
-      exact h1.trans_eq (by field_simp)
-    · have : (20 + 24 * c_w) ≠ 0 := by positivity
-      have : (1 + α) ≠ 0 := by positivity
-      field_simp
-  obtain ⟨γ, hγ, hγ1, hγ_eq⟩ := hγ_exists
+          ∑' ops, (modeDist withQueries U V n hU hV ops).toReal * (D_det.seqProbes ops : ℝ) := by
   generalize hc_tree : max 8 (Nat.ceil (808 * (c_R + 1) / γ)) = c_tree
   have hct8 : 8 ≤ c_tree := hc_tree ▸ _root_.le_max_left 8 _
   have hct_ceil : 808 * (c_R + 1) / γ ≤ (c_tree : ℝ) :=
@@ -3352,12 +3163,11 @@ theorem det_expectedSeqProbes_ge_of_iterLog_redundancy {α c_R c_w : ℝ}
   generalize hK_cap : max (2 * s_off + 6) (Nat.logStar N₀ + 1) = K_cap
   have hK_pos : 1 ≤ K_cap := by rw [← hK_cap]; exact le_trans (by omega) (_root_.le_max_left _ _)
   refine ⟨min (1 / (2 * (K_cap : ℝ))) (γ / 1600), by positivity, ?_⟩
-  intro U V n k cells w hn hU hU_poly hV hk_lo hk_hi hw hspace D_det hcorr
+  intro U V n k cells w hn hU hV hk_lo hk_hi hspace D_det hcorr hnode
   generalize hc_def : min (1 / (2 * (K_cap : ℝ))) (γ / 1600) = c
   have hc1 : c ≤ 1 / (2 * (K_cap : ℝ)) := hc_def ▸ min_le_left _ _
   have hc2 : c ≤ γ / 1600 := hc_def ▸ min_le_right _ _
   clear hc_def
-  have hU2 : 2 * n ≤ U := Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU
   have hnU : n ≤ U := Nat.le_trans (Nat.le_mul_of_pos_left n (by decide)) hU
   by_cases hbig : N₀ ≤ n ∧ 2 * s_off + 6 ≤ k
   · obtain ⟨hn_N₀, hk_s⟩ := hbig
@@ -3409,7 +3219,7 @@ theorem det_expectedSeqProbes_ge_of_iterLog_redundancy {α c_R c_w : ℝ}
           _ = (n : ℝ) := hrpow_eq
           _ ≤ (T.blockSize 1 : ℝ) * Real.logb 2 n := hn_le_b1
       exact le_of_mul_le_mul_right hm1 hlogn_pos
-    have htree := det_expectedSeqProbes_ge_of_outer_tree true hU2 hV T
+    have htree := det_expectedSeqProbes_ge_of_outer_tree withQueries hU hV T
       (iterLogMetaTree_horizon n k' c_tree) hH_ge
       (fun ℓ hℓ => (hlevels ℓ hℓ).1) hγ (D_det := D_det) fun ℓ hℓ b hb => by
         obtain ⟨_, hF_lo, hF_hi, hR_out, hR_in⟩ := hlevels ℓ hℓ
@@ -3422,10 +3232,7 @@ theorem det_expectedSeqProbes_ge_of_iterLog_redundancy {α c_R c_w : ℝ}
             dsimp [MetaTree.nodeCount]; rw [iterLogMetaTree_horizon]
           exact (Nat.mul_le_mul_right _ (Nat.succ_le_of_lt hb)).trans
             (hnc ▸ Nat.div_mul_le_self n _)
-        simpa only [modeDist_true, modeStride, ↓reduceIte] using
-          outer_lemma_both_val_regimes hα hcw hγ hγ_eq hn hU hU_poly hV hw hspace_R T hcorr ht_pos
-            hℓ_ge ht_stop hF_lo h11_logU ht_hi hm_lo hF_hi hR_out hR_in
-    simp only [modeDist_true] at htree
+        exact hnode hspace_R T ht_pos hℓ_ge ht_stop hF_lo h11_logU ht_hi hm_lo hF_hi hR_out hR_in
     refine (?_ : c * (n : ℝ) * (k : ℝ) ≤ ((H - 1 : ℕ) : ℝ) * (γ / 400) * (n : ℝ)).trans htree
     calc c * (n : ℝ) * (k : ℝ)
         ≤ (γ / 1600) * (n : ℝ) * (k : ℝ) := by gcongr
@@ -3441,10 +3248,7 @@ theorem det_expectedSeqProbes_ge_of_iterLog_redundancy {α c_R c_w : ℝ}
           Nat.lt_of_not_ge fun hge => hbig ⟨hn_ge, hge⟩
         exact hk_lt.le.trans (_root_.le_max_left _ _)
     clear hs_off hK_cap hN₀
-    have hlin := det_expectedSeqProbes_ge_linear true hU2 hV (D_det := D_det)
-      (by simpa only [modeHorizon, modeStride, ↓reduceIte, show n + 3 * n = 4 * n by ring]
-        using hcorr)
-    simp only [modeDist_true] at hlin
+    have hlin := det_expectedSeqProbes_ge_linear withQueries hU hV (D_det := D_det) hcorr
     refine (?_ : c * (n : ℝ) * (k : ℝ) ≤ (n : ℝ) / 2).trans hlin
     have hK_pos_r : (0 : ℝ) < (K_cap : ℝ) := by exact_mod_cast hK_pos
     have hk_r : (k : ℝ) ≤ (K_cap : ℝ) := by exact_mod_cast hk_le_K
@@ -3455,90 +3259,6 @@ theorem det_expectedSeqProbes_ge_of_iterLog_redundancy {α c_R c_w : ℝ}
     calc c * (n : ℝ) * (k : ℝ) = (c * (k : ℝ)) * (n : ℝ) := by ring
       _ ≤ (1 / 2) * (n : ℝ) := mul_le_mul_of_nonneg_right hck (Nat.cast_nonneg n)
       _ = (n : ℝ) / 2 := by ring
-
-/-- Zero-error randomized **Theorem 1.1 / Theorem 3.1** ([LiLiangYuZhou2023], Section 1, p. 1 /
-PDF p. 2 and Section 3, pp. 10–13 / PDF pp. 11–14): any zero-error `CellProbe.Randomized.Scheme`
-storing `n` keys in `[U]` (`U ≥ n ^ (1 + α)`) with
-`≤ benchmarkBits U V n + c_R * n * max 1 (log^{(k)} n)` bits of memory incurs `≥ c * n * k`
-expected cell probes on `insertQueryDeleteDist`. -/
-theorem expectedSeqProbes_ge_of_iterLog_redundancy {α c_R c_w : ℝ}
-    (hα : 0 < α) (hcR : 0 ≤ c_R) (hcw : 0 ≤ c_w) :
-    ∃ c : ℝ, 0 < c ∧
-      ∀ {U V n k cells w : ℕ} (hn : 2 ≤ n) (hU : 4 * n ≤ U)
-        (_hU_poly : (n : ℝ) ^ (1 + α) ≤ (U : ℝ)) (hV : 1 ≤ V)
-        (_hk_lo : 1 ≤ k) (_hk_hi : k ≤ Nat.logStar n)
-        (_hw : (w : ℝ) ≤ c_w * (Real.logb 2 U + Real.logb 2 V))
-        (_hspace : ((cells * w : ℕ) : ℝ) ≤
-          benchmarkBits U V n + c_R * (n : ℝ) * ((max (Nat.iterLog k n) 1 : ℕ) : ℝ))
-        (P : Cslib.CellProbe.Randomized.Scheme (Dynamic.Op U) Dynamic.Op.Result cells w)
-        (_hcorr : ∀ ops ∈ validHistoriesUpTo U V n (4 * n + 1),
-          ((Dynamic.spec U V n).toObliviousSequenceSpec (Dictionary.empty U)).Contract
-            ops ((P.runSeq ops).map Prod.fst)),
-        ENNReal.ofReal (c * (n : ℝ) * (k : ℝ)) ≤
-          ∑' ops, insertQueryDeleteDist U V n
-            (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV ops *
-            P.expectedSeqProbes ops := by
-  obtain ⟨c, hc, hdet⟩ := det_expectedSeqProbes_ge_of_iterLog_redundancy hα hcR hcw
-  refine ⟨c, hc, fun {U V n k cells w} hn hU hU_poly hV hk_lo hk_hi hw hspace P hcorr => ?_⟩
-  obtain ⟨D_det, _, hcorr_det, hle_exp⟩ :=
-    exists_det_indexedScheme_insertQueryDeleteDist
-      (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV P hcorr
-  exact (ofReal_le_tsum_seqProbes_of_toReal_le _ D_det
-    (hdet hn hU hU_poly hV hk_lo hk_hi hw hspace hcorr_det)).trans hle_exp
-
-/-- Deterministic `Ω(n * log* n)` specialization of Theorem 1.1 at `k = Nat.logStar n` (`O(n)`
-redundancy). -/
-theorem det_expectedSeqProbes_ge_iterLogStar {α c_R c_w : ℝ}
-    (hα : 0 < α) (hcR : 0 ≤ c_R) (hcw : 0 ≤ c_w) :
-    ∃ c : ℝ, 0 < c ∧
-      ∀ {U V n cells w : ℕ} (hn : 2 ≤ n) (hU : 4 * n ≤ U)
-        (_hU_poly : (n : ℝ) ^ (1 + α) ≤ (U : ℝ)) (hV : 1 ≤ V)
-        (_hw : (w : ℝ) ≤ c_w * (Real.logb 2 U + Real.logb 2 V))
-        (_hspace : ((cells * w : ℕ) : ℝ) ≤ benchmarkBits U V n + c_R * (n : ℝ))
-        {D_det : IndexedScheme (Dynamic.Op U) Dynamic.Op.Result cells w}
-        (_hcorr : ∀ ops ∈ validHistoriesUpTo U V n (4 * n + 1),
-          (D_det.runSeq ops).1 = ((Dynamic.spec U V n).run (Dictionary.empty U) ops).2),
-        c * (n : ℝ) * (Nat.logStar n : ℝ) ≤
-          ∑' ops, (insertQueryDeleteDist U V n
-            (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV ops).toReal *
-            (D_det.seqProbes ops : ℝ) := by
-  obtain ⟨c, hc, hdet⟩ := det_expectedSeqProbes_ge_of_iterLog_redundancy hα hcR hcw
-  refine ⟨c, hc, fun {U V n cells w} hn hU hU_poly hV hw hspace D_det hcorr => ?_⟩
-  have hk1 : 1 ≤ Nat.logStar n := by
-    have : Nat.logStar 2 = 1 := by decide
-    exact this ▸ Nat.logStar_mono hn
-  have hiter1 : max (Nat.iterLog (Nat.logStar n) n) 1 = 1 := by
-    have hle : Nat.iterLog (Nat.logStar n) n ≤ 1 :=
-      (Nat.iterLog_anti_left n (Nat.floorLogStar_le_logStar n)).trans
-        (Nat.iterLog_floorLogStar_le_one n)
-    omega
-  exact hdet hn hU hU_poly hV hk1 le_rfl hw
-    (by rw [hiter1, Nat.cast_one, mul_one]; exact hspace) hcorr
-
-/-- Zero-error randomized `Ω(n * log* n)` specialization of Theorem 1.1 at `k = Nat.logStar n`
-(`O(n)` bits of redundancy). -/
-theorem expectedSeqProbes_ge_iterLogStar {α c_R c_w : ℝ}
-    (hα : 0 < α) (hcR : 0 ≤ c_R) (hcw : 0 ≤ c_w) :
-    ∃ c : ℝ, 0 < c ∧
-      ∀ {U V n cells w : ℕ} (hn : 2 ≤ n) (hU : 4 * n ≤ U)
-        (_hU_poly : (n : ℝ) ^ (1 + α) ≤ (U : ℝ)) (hV : 1 ≤ V)
-        (_hw : (w : ℝ) ≤ c_w * (Real.logb 2 U + Real.logb 2 V))
-        (_hspace : ((cells * w : ℕ) : ℝ) ≤ benchmarkBits U V n + c_R * (n : ℝ))
-        (P : Cslib.CellProbe.Randomized.Scheme (Dynamic.Op U) Dynamic.Op.Result cells w)
-        (_hcorr : ∀ ops ∈ validHistoriesUpTo U V n (4 * n + 1),
-          ((Dynamic.spec U V n).toObliviousSequenceSpec (Dictionary.empty U)).Contract
-            ops ((P.runSeq ops).map Prod.fst)),
-        ENNReal.ofReal (c * (n : ℝ) * (Nat.logStar n : ℝ)) ≤
-          ∑' ops, insertQueryDeleteDist U V n
-            (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV ops *
-            P.expectedSeqProbes ops := by
-  obtain ⟨c, hc, hdet⟩ := det_expectedSeqProbes_ge_iterLogStar hα hcR hcw
-  refine ⟨c, hc, fun {U V n cells w} hn hU hU_poly hV hw hspace P hcorr => ?_⟩
-  obtain ⟨D_det, _, hcorr_det, hle_exp⟩ :=
-    exists_det_indexedScheme_insertQueryDeleteDist
-      (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV P hcorr
-  exact (ofReal_le_tsum_seqProbes_of_toReal_le _ D_det
-    (hdet hn hU hU_poly hV hw hspace hcorr_det)).trans hle_exp
 
 private theorem fanout_geomMetaTree_of_two_le (n m₁_half : ℕ) {ℓ : ℕ} (hℓ : 2 ≤ ℓ) :
     (geomMetaTree n m₁_half).fanout ℓ = 2 ^ 64 := by
@@ -3560,36 +3280,33 @@ private theorem height_geomMetaTree_le_logb {n : ℕ} (hn : 2 ≤ n) (m₁_half 
     have hl := Real.logb_le_logb_of_le (by norm_num : (1 : ℝ) < 2) (by positivity) hpow
     rwa [Real.logb_pow, Real.logb_self_eq_one (by norm_num : (1 : ℝ) < 2), mul_one] at hl
 
-/-- Deterministic **Theorem 1.2 / Theorem 6.1** ([LiLiangYuZhou2023], Section 1, p. 2 / PDF p. 3 and
-Section 6, pp. 25–26 / PDF pp. 26–27): for any `α > 0` and `c_w ≥ 0`, there exists `c > 0` such that
-any step-indexed `IndexedScheme` exact on admissible histories up to `4 * n + 1` with `R ≤ n` bits
-of redundancy (`cells * w ≤ benchmarkBits U V n + R`) incurs at least
-`c * n * log₂(n / max R 1)` expected cell probes on `insertQueryDeleteDist`. -/
-theorem det_expectedSeqProbes_ge_of_sublinear_redundancy {α c_w : ℝ}
-    (hα : 0 < α) (hcw : 0 ≤ c_w) :
+private theorem det_expectedSeqProbes_mode_ge_sublinear (withQueries : Bool)
+    {γ : ℝ} (hγ : 0 < γ) (hγ1 : γ ≤ 1) :
     ∃ c : ℝ, 0 < c ∧
-      ∀ {U V n cells w : ℕ} {R : ℝ} (hn : 2 ≤ n) (hU : 4 * n ≤ U)
-        (_hU_poly : (n : ℝ) ^ (1 + α) ≤ (U : ℝ)) (hV : 1 ≤ V)
+      ∀ {U V n cells w : ℕ} {R : ℝ} (_hn : 2 ≤ n) (hU : 2 * n ≤ U) (hV : 1 ≤ V)
         (_hR_hi : R ≤ (n : ℝ))
-        (_hw : (w : ℝ) ≤ c_w * (Real.logb 2 U + Real.logb 2 V))
         (_hspace : ((cells * w : ℕ) : ℝ) ≤ benchmarkBits U V n + R)
         {D_det : IndexedScheme (Dynamic.Op U) Dynamic.Op.Result cells w}
-        (_hcorr : ∀ ops ∈ validHistoriesUpTo U V n (4 * n + 1),
-          (D_det.runSeq ops).1 = ((Dynamic.spec U V n).run (Dictionary.empty U) ops).2),
+        (_hcorr : ∀ ops ∈ validHistoriesUpTo U V n (modeHorizon withQueries n + 1),
+          (D_det.runSeq ops).1 = ((Dynamic.spec U V n).run (Dictionary.empty U) ops).2)
+        (_hnode : ∀ {R' t : ℝ} (_hspace_R : ((cells * w : ℕ) : ℝ) ≤ benchmarkBits U V n + R')
+          (T : MetaTree) (_ht : 0 < t) {ℓ b : ℕ} (_hℓ : 1 ≤ ℓ)
+          (_ht_stop : T.nodeStop (ℓ + 1) b ≤ n)
+          (_hF_lo : 2 ^ 64 ≤ T.fanout (ℓ + 1))
+          (_h11 : 11 / γ ≤ Real.logb 2 U)
+          (_ht_hi : 6 * t ≤ γ * Real.logb 2 U)
+          (_hm_lo : (n : ℝ) ^ (1 - γ / 2) ≤ (T.blockSize ℓ : ℝ))
+          (_hF_hi : (T.fanout (ℓ + 1) : ℝ) ≤ (γ / 2) * Real.logb 2 U)
+          (_hR_out : 100 * R' ≤ (T.blockSize (ℓ + 1) : ℝ) * Real.logb 2 (T.fanout (ℓ + 1)))
+          (_hR_in : R' ≤ (γ / 2) * (T.blockSize ℓ : ℝ) * Real.logb 2 U),
+          (γ / 100) * (T.blockSize (ℓ + 1) : ℝ) ≤
+              ∑' ops, (modeDist withQueries U V n hU hV ops).toReal *
+                (T.nodeCost D_det n (modeStride withQueries) ops ℓ b : ℝ) ∨
+            (1 / 16) * (T.blockSize (ℓ + 1) : ℝ) * t ≤
+              ∑' ops, (modeDist withQueries U V n hU hV ops).toReal *
+                (T.nodeProbes D_det n (modeStride withQueries) ops (ℓ + 1) b : ℝ)),
         c * (n : ℝ) * Real.logb 2 ((n : ℝ) / max R 1) ≤
-          ∑' ops, (insertQueryDeleteDist U V n
-            (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV ops).toReal *
-            (D_det.seqProbes ops : ℝ) := by
-  have hγ_exists : ∃ γ : ℝ, 0 < γ ∧ γ ≤ 1 ∧ (20 + 24 * c_w) * γ = α / (1 + α) := by
-    refine ⟨α / ((20 + 24 * c_w) * (1 + α)), by positivity, ?_, ?_⟩
-    · have h1 : α / ((20 + 24 * c_w) * (1 + α)) ≤ (1 + α) / (1 * (1 + α)) :=
-        div_le_div₀ (by positivity) (by linarith) (by positivity)
-          (mul_le_mul_of_nonneg_right (by linarith) (by positivity))
-      exact h1.trans_eq (by field_simp)
-    · have : (20 + 24 * c_w) ≠ 0 := by positivity
-      have : (1 + α) ≠ 0 := by positivity
-      field_simp
-  obtain ⟨γ, hγ, hγ1, hγ_eq⟩ := hγ_exists
+          ∑' ops, (modeDist withQueries U V n hU hV ops).toReal * (D_det.seqProbes ops : ℝ) := by
   generalize hM_exp : max (Nat.ceil (2 * ((2 ^ 64 : ℕ) : ℝ) / γ)) (Nat.ceil (11 / γ)) = M_exp
   have hM_fan : ((2 ^ 64 : ℕ) : ℝ) ≤ (γ / 2) * (M_exp : ℝ) := by
     have h1 : 2 * ((2 ^ 64 : ℕ) : ℝ) / γ ≤ (M_exp : ℝ) :=
@@ -3615,7 +3332,7 @@ theorem det_expectedSeqProbes_ge_of_sublinear_redundancy {α c_w : ℝ}
     (div_le_div_of_nonneg_right (by norm_num) hγ.le).trans (hK_log ▸ _root_.le_max_right _ _)
   clear hK_log
   refine ⟨min (1 / (2 * K_log)) (γ ^ 2 / 104800), by positivity, ?_⟩
-  intro U V n cells w R hn hU hU_poly hV hR_hi hw hspace D_det hcorr
+  intro U V n cells w R hn hU hV hR_hi hspace D_det hcorr hnode
   generalize hc_def : min (1 / (2 * K_log)) (γ ^ 2 / 104800) = c
   have hc1 : c ≤ 1 / (2 * K_log) := hc_def ▸ min_le_left _ _
   have hc2 : c ≤ γ ^ 2 / 104800 := hc_def ▸ min_le_right _ _
@@ -3693,7 +3410,6 @@ theorem det_expectedSeqProbes_ge_of_sublinear_redundancy {α c_w : ℝ}
         exact hd.trans_eq hid
       have hdiv_le_n : (n : ℝ) / R₁ ≤ (n : ℝ) := div_le_self hn_pos.le hR1_ge
       exact (Real.logb_le_logb_of_le (by norm_num) (by positivity) hdiv_le_n).trans hlogn
-  have hU2 : 2 * n ≤ U := Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU
   have hnU : n ≤ U := Nat.le_trans (Nat.le_mul_of_pos_left n (by decide)) hU
   by_cases hbig : N₀ ≤ n ∧ 2 ≤ H
   · obtain ⟨hn_N₀, hH_ge⟩ := hbig
@@ -3730,7 +3446,7 @@ theorem det_expectedSeqProbes_ge_of_sublinear_redundancy {α c_w : ℝ}
       have hb1 := blockSize_geomMetaTree n m₁_half le_rfl
       rw [Nat.sub_self, pow_zero, mul_one, max_eq_right hm₁_pos] at hb1
       exact_mod_cast hb1.symm.le
-    have htree := det_expectedSeqProbes_ge_of_outer_tree true hU2 hV T
+    have htree := det_expectedSeqProbes_ge_of_outer_tree withQueries hU hV T
       (geomMetaTree_horizon n m₁_half) hH_ge
       (fun ℓ hℓ => (le_height_geomMetaTree_iff hn m₁_half (ℓ + 1)).mp (Finset.mem_Ico.mp hℓ).2)
       hγ (D_det := D_det) fun ℓ hℓ b hb => by
@@ -3770,10 +3486,8 @@ theorem det_expectedSeqProbes_ge_of_sublinear_redundancy {α c_w : ℝ}
             dsimp [MetaTree.nodeCount]; rw [geomMetaTree_horizon]
           exact (Nat.mul_le_mul_right _ (Nat.succ_le_of_lt hb)).trans
             (hnc ▸ Nat.div_mul_le_self n _)
-        simpa only [modeDist_true, modeStride, ↓reduceIte] using
-          outer_lemma_both_val_regimes hα hcw hγ hγ_eq hn hU hU_poly hV hw hspace_R1 T hcorr ht_pos
-            hℓ_ge ht_stop hF_lo h11_logU ht_hi hm_lo hF_hi hR_outer hR_in
-    simp only [modeDist_true] at htree
+        exact hnode hspace_R1 T ht_pos hℓ_ge ht_stop hF_lo h11_logU ht_hi hm_lo hF_hi hR_outer
+          hR_in
     refine (?_ : c * (n : ℝ) * Real.logb 2 ((n : ℝ) / R₁) ≤
       ((H - 1 : ℕ) : ℝ) * (γ / 400) * (n : ℝ)).trans htree
     have hH_sub : (H : ℝ) - 1 = ((H - 1 : ℕ) : ℝ) := by
@@ -3813,10 +3527,7 @@ theorem det_expectedSeqProbes_ge_of_sublinear_redundancy {α c_w : ℝ}
           _ = 134 / γ := by ring
           _ ≤ K_log := hK_γ
     clear hN₀
-    have hlin := det_expectedSeqProbes_ge_linear true hU2 hV (D_det := D_det)
-      (by simpa only [modeHorizon, modeStride, ↓reduceIte, show n + 3 * n = 4 * n by ring]
-        using hcorr)
-    simp only [modeDist_true] at hlin
+    have hlin := det_expectedSeqProbes_ge_linear withQueries hU hV (D_det := D_det) hcorr
     refine (?_ : c * (n : ℝ) * Real.logb 2 ((n : ℝ) / R₁) ≤ (n : ℝ) / 2).trans hlin
     have hck : c * Real.logb 2 ((n : ℝ) / R₁) ≤ 1 / 2 := by
       calc c * Real.logb 2 ((n : ℝ) / R₁)
@@ -3828,10 +3539,147 @@ theorem det_expectedSeqProbes_ge_of_sublinear_redundancy {α c_w : ℝ}
       _ ≤ (1 / 2) * (n : ℝ) := mul_le_mul_of_nonneg_right hck hn_pos.le
       _ = (n : ℝ) / 2 := by ring
 
+/-- Deterministic **Theorem 1.1 / Theorem 3.1** ([LiLiangYuZhou2023], Section 1, p. 1 / PDF p. 2 and
+Section 3, pp. 10–13 / PDF pp. 11–14; Section 7, pp. 26–27 / PDF pp. 27–28): for any `α > 0`,
+`c_R ≥ 0`, and `c_w ≥ 0`, there exists `c > 0` such that any step-indexed `IndexedScheme` exact on
+admissible histories up to `4 * n + 1` with space
+`≤ benchmarkBits U V n + c_R * n * max 1 (log^{(k)} n)` incurs at least `c * n * k` expected cell
+probes on `insertQueryDeleteDist`. -/
+theorem det_expectedSeqProbes_ge_of_iterLog_redundancy {α c_R c_w : ℝ}
+    (hα : 0 < α) (hcR : 0 ≤ c_R) (hcw : 0 ≤ c_w) :
+    ∃ c : ℝ, 0 < c ∧
+      ∀ {U V n k cells w : ℕ} (hn : 2 ≤ n) (hU : 4 * n ≤ U)
+        (_hU_poly : (n : ℝ) ^ (1 + α) ≤ (U : ℝ)) (hV : 1 ≤ V)
+        (_hk_lo : 1 ≤ k) (_hk_hi : k ≤ Nat.logStar n)
+        (_hw : (w : ℝ) ≤ c_w * (Real.logb 2 U + Real.logb 2 V))
+        (_hspace : ((cells * w : ℕ) : ℝ) ≤
+          benchmarkBits U V n + c_R * (n : ℝ) * ((max (Nat.iterLog k n) 1 : ℕ) : ℝ))
+        {D_det : IndexedScheme (Dynamic.Op U) Dynamic.Op.Result cells w}
+        (_hcorr : ∀ ops ∈ validHistoriesUpTo U V n (4 * n + 1),
+          (D_det.runSeq ops).1 = ((Dynamic.spec U V n).run (Dictionary.empty U) ops).2),
+        c * (n : ℝ) * (k : ℝ) ≤
+          ∑' ops, (insertQueryDeleteDist U V n
+            (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV ops).toReal *
+            (D_det.seqProbes ops : ℝ) := by
+  obtain ⟨γ, hγ, hγ1, hγ_eq⟩ := exists_gamma_query hα hcw
+  obtain ⟨c, hc, hmode⟩ := det_expectedSeqProbes_mode_ge_iterLog true hγ hγ1 hcR
+  refine ⟨c, hc, fun {_U _V n _k _cells _w} hn hU hU_poly hV hk_lo hk_hi hw hspace {_D_det} hcorr =>
+    ?_⟩
+  exact
+    hmode hn (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV hk_lo hk_hi hspace
+      (by simpa only [modeHorizon, modeStride, ↓reduceIte, show n + 3 * n = 4 * n by ring]
+        using hcorr)
+      fun {_R _t} hspace_R T ht {_ℓ _b} hℓ ht_stop hF_lo h11 ht_hi hm_lo hF_hi hR_out hR_in =>
+        outer_lemma_both_val_regimes hα hcw hγ hγ_eq hn hU hU_poly hV hw hspace_R T hcorr ht hℓ
+          ht_stop hF_lo h11 ht_hi hm_lo hF_hi hR_out hR_in
+
+/-- Zero-error randomized **Theorem 1.1 / Theorem 3.1** ([LiLiangYuZhou2023], Section 1, p. 1 /
+PDF p. 2 and Section 3, pp. 10–13 / PDF pp. 11–14): any zero-error (Las Vegas)
+`CellProbe.Randomized.Scheme` on oblivious `insertQueryDeleteDist` storing `n` keys in `[U]`
+(`U ≥ n ^ (1 + α)`) with `≤ benchmarkBits U V n + c_R * n * max 1 (log^{(k)} n)` bits of memory
+incurs `≥ c * n * k` expected cell probes (bounded-error Monte Carlo schemes and adaptive
+adversaries are not covered). -/
+theorem expectedSeqProbes_ge_of_iterLog_redundancy {α c_R c_w : ℝ}
+    (hα : 0 < α) (hcR : 0 ≤ c_R) (hcw : 0 ≤ c_w) :
+    ∃ c : ℝ, 0 < c ∧
+      ∀ {U V n k cells w : ℕ} (hn : 2 ≤ n) (hU : 4 * n ≤ U)
+        (_hU_poly : (n : ℝ) ^ (1 + α) ≤ (U : ℝ)) (hV : 1 ≤ V)
+        (_hk_lo : 1 ≤ k) (_hk_hi : k ≤ Nat.logStar n)
+        (_hw : (w : ℝ) ≤ c_w * (Real.logb 2 U + Real.logb 2 V))
+        (_hspace : ((cells * w : ℕ) : ℝ) ≤
+          benchmarkBits U V n + c_R * (n : ℝ) * ((max (Nat.iterLog k n) 1 : ℕ) : ℝ))
+        (P : Cslib.CellProbe.Randomized.Scheme (Dynamic.Op U) Dynamic.Op.Result cells w)
+        (_hcorr : ∀ ops ∈ validHistoriesUpTo U V n (4 * n + 1),
+          ((Dynamic.spec U V n).toObliviousSequenceSpec (Dictionary.empty U)).Contract
+            ops ((P.runSeq ops).map Prod.fst)),
+        ENNReal.ofReal (c * (n : ℝ) * (k : ℝ)) ≤
+          ∑' ops, insertQueryDeleteDist U V n
+            (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV ops *
+            P.expectedSeqProbes ops := by
+  obtain ⟨c, hc, hdet⟩ := det_expectedSeqProbes_ge_of_iterLog_redundancy hα hcR hcw
+  exact ⟨c, hc, fun hn hU hU_poly hV hk_lo hk_hi hw hspace P hcorr =>
+    le_expectedSeqProbes_query_of_det _ hV P hcorr (hdet hn hU hU_poly hV hk_lo hk_hi hw hspace)⟩
+
+/-- Deterministic `Ω(n * log* n)` specialization of Theorem 1.1 at `k = Nat.logStar n` (`O(n)`
+redundancy). -/
+theorem det_expectedSeqProbes_ge_iterLogStar {α c_R c_w : ℝ}
+    (hα : 0 < α) (hcR : 0 ≤ c_R) (hcw : 0 ≤ c_w) :
+    ∃ c : ℝ, 0 < c ∧
+      ∀ {U V n cells w : ℕ} (hn : 2 ≤ n) (hU : 4 * n ≤ U)
+        (_hU_poly : (n : ℝ) ^ (1 + α) ≤ (U : ℝ)) (hV : 1 ≤ V)
+        (_hw : (w : ℝ) ≤ c_w * (Real.logb 2 U + Real.logb 2 V))
+        (_hspace : ((cells * w : ℕ) : ℝ) ≤ benchmarkBits U V n + c_R * (n : ℝ))
+        {D_det : IndexedScheme (Dynamic.Op U) Dynamic.Op.Result cells w}
+        (_hcorr : ∀ ops ∈ validHistoriesUpTo U V n (4 * n + 1),
+          (D_det.runSeq ops).1 = ((Dynamic.spec U V n).run (Dictionary.empty U) ops).2),
+        c * (n : ℝ) * (Nat.logStar n : ℝ) ≤
+          ∑' ops, (insertQueryDeleteDist U V n
+            (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV ops).toReal *
+            (D_det.seqProbes ops : ℝ) := by
+  obtain ⟨c, hc, hdet⟩ := det_expectedSeqProbes_ge_of_iterLog_redundancy hα hcR hcw
+  refine ⟨c, hc, fun hn hU hU_poly hV hw hspace _ hcorr => ?_⟩
+  obtain ⟨hk1, hspace'⟩ := iterLog_logStar_space_le hn hspace
+  exact hdet hn hU hU_poly hV hk1 le_rfl hw hspace' hcorr
+
+/-- Zero-error randomized `Ω(n * log* n)` specialization of Theorem 1.1 at `k = Nat.logStar n`
+(`O(n)` bits of redundancy, Las Vegas oblivious model). -/
+theorem expectedSeqProbes_ge_iterLogStar {α c_R c_w : ℝ}
+    (hα : 0 < α) (hcR : 0 ≤ c_R) (hcw : 0 ≤ c_w) :
+    ∃ c : ℝ, 0 < c ∧
+      ∀ {U V n cells w : ℕ} (hn : 2 ≤ n) (hU : 4 * n ≤ U)
+        (_hU_poly : (n : ℝ) ^ (1 + α) ≤ (U : ℝ)) (hV : 1 ≤ V)
+        (_hw : (w : ℝ) ≤ c_w * (Real.logb 2 U + Real.logb 2 V))
+        (_hspace : ((cells * w : ℕ) : ℝ) ≤ benchmarkBits U V n + c_R * (n : ℝ))
+        (P : Cslib.CellProbe.Randomized.Scheme (Dynamic.Op U) Dynamic.Op.Result cells w)
+        (_hcorr : ∀ ops ∈ validHistoriesUpTo U V n (4 * n + 1),
+          ((Dynamic.spec U V n).toObliviousSequenceSpec (Dictionary.empty U)).Contract
+            ops ((P.runSeq ops).map Prod.fst)),
+        ENNReal.ofReal (c * (n : ℝ) * (Nat.logStar n : ℝ)) ≤
+          ∑' ops, insertQueryDeleteDist U V n
+            (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV ops *
+            P.expectedSeqProbes ops := by
+  obtain ⟨c, hc, hdet⟩ := det_expectedSeqProbes_ge_iterLogStar hα hcR hcw
+  exact ⟨c, hc, fun hn hU hU_poly hV hw hspace P hcorr =>
+    le_expectedSeqProbes_query_of_det _ hV P hcorr (hdet hn hU hU_poly hV hw hspace)⟩
+
+/-- Deterministic **Theorem 1.2 / Theorem 6.1** ([LiLiangYuZhou2023], Section 1, p. 2 / PDF p. 3 and
+Section 6, pp. 25–26 / PDF pp. 26–27): for any `α > 0` and `c_w ≥ 0`, there exists `c > 0` such that
+any step-indexed `IndexedScheme` exact on admissible histories up to `4 * n + 1` with `R ≤ n` bits
+of redundancy (`cells * w ≤ benchmarkBits U V n + R`) incurs at least
+`c * n * log₂(n / max R 1)` expected cell probes on `insertQueryDeleteDist` (at the `R = n`
+boundary `log₂(n / max R 1) = 0`; see `det_expectedSeqProbes_ge_iterLogStar_add_log_div` for the
+combined bound across `R ≤ c_R * n`). -/
+theorem det_expectedSeqProbes_ge_of_sublinear_redundancy {α c_w : ℝ}
+    (hα : 0 < α) (hcw : 0 ≤ c_w) :
+    ∃ c : ℝ, 0 < c ∧
+      ∀ {U V n cells w : ℕ} {R : ℝ} (hn : 2 ≤ n) (hU : 4 * n ≤ U)
+        (_hU_poly : (n : ℝ) ^ (1 + α) ≤ (U : ℝ)) (hV : 1 ≤ V)
+        (_hR_hi : R ≤ (n : ℝ))
+        (_hw : (w : ℝ) ≤ c_w * (Real.logb 2 U + Real.logb 2 V))
+        (_hspace : ((cells * w : ℕ) : ℝ) ≤ benchmarkBits U V n + R)
+        {D_det : IndexedScheme (Dynamic.Op U) Dynamic.Op.Result cells w}
+        (_hcorr : ∀ ops ∈ validHistoriesUpTo U V n (4 * n + 1),
+          (D_det.runSeq ops).1 = ((Dynamic.spec U V n).run (Dictionary.empty U) ops).2),
+        c * (n : ℝ) * Real.logb 2 ((n : ℝ) / max R 1) ≤
+          ∑' ops, (insertQueryDeleteDist U V n
+            (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV ops).toReal *
+            (D_det.seqProbes ops : ℝ) := by
+  obtain ⟨γ, hγ, hγ1, hγ_eq⟩ := exists_gamma_query hα hcw
+  obtain ⟨c, hc, hmode⟩ := det_expectedSeqProbes_mode_ge_sublinear true hγ hγ1
+  refine ⟨c, hc, fun {_U _V n _cells _w} {_R} hn hU hU_poly hV hR_hi hw hspace {_D_det} hcorr => ?_⟩
+  exact
+    hmode hn (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV hR_hi hspace
+      (by simpa only [modeHorizon, modeStride, ↓reduceIte, show n + 3 * n = 4 * n by ring]
+        using hcorr)
+      fun {_R _t} hspace_R T ht {_ℓ _b} hℓ ht_stop hF_lo h11 ht_hi hm_lo hF_hi hR_out hR_in =>
+        outer_lemma_both_val_regimes hα hcw hγ hγ_eq hn hU hU_poly hV hw hspace_R T hcorr ht hℓ
+          ht_stop hF_lo h11 ht_hi hm_lo hF_hi hR_out hR_in
+
 /-- Zero-error randomized **Theorem 1.2 / Theorem 6.1** ([LiLiangYuZhou2023], Section 1, p. 2 /
-PDF p. 3 and Section 6, pp. 25–26 / PDF pp. 26–27): any zero-error `CellProbe.Randomized.Scheme`
-storing `n` keys in `[U]` (`U ≥ n ^ (1 + α)`) with `R ≤ n` bits of redundancy incurs at least
-`c * n * log₂(n / max R 1)` expected cell probes on `insertQueryDeleteDist`. -/
+PDF p. 3 and Section 6, pp. 25–26 / PDF pp. 26–27): any zero-error (Las Vegas)
+`CellProbe.Randomized.Scheme` on oblivious `insertQueryDeleteDist` storing `n` keys in `[U]`
+(`U ≥ n ^ (1 + α)`) with `R ≤ n` bits of redundancy incurs at least `c * n * log₂(n / max R 1)`
+expected cell probes (vanishing at `R = n`). -/
 theorem expectedSeqProbes_ge_of_sublinear_redundancy {α c_w : ℝ}
     (hα : 0 < α) (hcw : 0 ≤ c_w) :
     ∃ c : ℝ, 0 < c ∧
@@ -3849,12 +3697,8 @@ theorem expectedSeqProbes_ge_of_sublinear_redundancy {α c_w : ℝ}
             (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV ops *
             P.expectedSeqProbes ops := by
   obtain ⟨c, hc, hdet⟩ := det_expectedSeqProbes_ge_of_sublinear_redundancy hα hcw
-  refine ⟨c, hc, fun {U V n cells w R} hn hU hU_poly hV hR_hi hw hspace P hcorr => ?_⟩
-  obtain ⟨D_det, _, hcorr_det, hle_exp⟩ :=
-    exists_det_indexedScheme_insertQueryDeleteDist
-      (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV P hcorr
-  exact (ofReal_le_tsum_seqProbes_of_toReal_le _ D_det
-    (hdet hn hU hU_poly hV hR_hi hw hspace hcorr_det)).trans hle_exp
+  exact ⟨c, hc, fun hn hU hU_poly hV hR_hi hw hspace P hcorr =>
+    le_expectedSeqProbes_query_of_det _ hV P hcorr (hdet hn hU hU_poly hV hR_hi hw hspace)⟩
 
 /-- Combined deterministic **Theorems 1.1 & 1.2** (`Ω(n * (log* n + log₂(n / max R 1)))`) across
 all `R ≤ c_R * n` ([LiLiangYuZhou2023], Section 1, pp. 1–2 / PDF pp. 2–3). -/
@@ -3875,43 +3719,15 @@ theorem det_expectedSeqProbes_ge_iterLogStar_add_log_div {α c_R c_w : ℝ}
             (D_det.seqProbes ops : ℝ) := by
   obtain ⟨c₁, hc₁, hdet₁⟩ := det_expectedSeqProbes_ge_iterLogStar hα hcR hcw
   obtain ⟨c₂, hc₂, hdet₂⟩ := det_expectedSeqProbes_ge_of_sublinear_redundancy hα hcw
-  refine ⟨min c₁ c₂ / 2, by positivity, ?_⟩
-  intro U V n cells w R hn hU hU_poly hV hR_hi hw hspace D_det hcorr
-  have hb₁ : min c₁ c₂ * (n : ℝ) * (Nat.logStar n : ℝ) ≤
-      ∑' ops, (insertQueryDeleteDist U V n
-        (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV ops).toReal *
-        (D_det.seqProbes ops : ℝ) :=
-    (mul_le_mul_of_nonneg_right
-      (mul_le_mul_of_nonneg_right (min_le_left c₁ c₂) (Nat.cast_nonneg n))
-      (Nat.cast_nonneg _)).trans
-      (hdet₁ hn hU hU_poly hV hw (hspace.trans (by linarith)) hcorr)
-  have hb₂ : min c₁ c₂ * (n : ℝ) * max 0 (Real.logb 2 ((n : ℝ) / max R 1)) ≤
-      ∑' ops, (insertQueryDeleteDist U V n
-        (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV ops).toReal *
-        (D_det.seqProbes ops : ℝ) := by
-    by_cases hRn : R ≤ (n : ℝ)
-    · have hdiv1 : 1 ≤ (n : ℝ) / max R 1 :=
-        (one_le_div (lt_of_lt_of_le zero_lt_one (_root_.le_max_right R 1))).mpr
-          (max_le hRn (by exact_mod_cast (show 1 ≤ n by omega)))
-      have hlog_nn : 0 ≤ Real.logb 2 ((n : ℝ) / max R 1) := Real.logb_nonneg (by norm_num) hdiv1
-      rw [max_eq_right hlog_nn]
-      exact (mul_le_mul_of_nonneg_right
-        (mul_le_mul_of_nonneg_right (min_le_right c₁ c₂) (Nat.cast_nonneg n)) hlog_nn).trans
-        (hdet₂ hn hU hU_poly hV hRn hw hspace hcorr)
-    · push Not at hRn
-      have hdiv_le : (n : ℝ) / max R 1 ≤ 1 :=
-        (div_le_one (lt_of_lt_of_le zero_lt_one (_root_.le_max_right R 1))).mpr
-          (hRn.le.trans (_root_.le_max_left R 1))
-      have hlog_np : Real.logb 2 ((n : ℝ) / max R 1) ≤ 0 :=
-        Real.logb_nonpos (by norm_num) (div_nonneg (Nat.cast_nonneg n)
-          (le_trans zero_le_one (_root_.le_max_right R 1))) hdiv_le
-      rw [max_eq_left hlog_np, mul_zero]
-      exact tsum_nonneg fun _ => mul_nonneg ENNReal.toReal_nonneg (Nat.cast_nonneg _)
-  linarith
+  refine ⟨min c₁ c₂ / 2, by positivity, fun hn hU hU_poly hV hR_hi hw hspace _ hcorr => ?_⟩
+  exact combine_iterLogStar_and_sublinear hn (Nat.cast_nonneg _)
+    (tsum_nonneg fun _ => mul_nonneg ENNReal.toReal_nonneg (Nat.cast_nonneg _))
+    (hdet₁ hn hU hU_poly hV hw (hspace.trans (by linarith)) hcorr)
+    fun hRn => hdet₂ hn hU hU_poly hV hRn hw hspace hcorr
 
 /-- Combined zero-error randomized **Theorems 1.1 & 1.2**
-(`Ω(n * (log* n + log₂(n / max R 1)))`) across all `R ≤ c_R * n` ([LiLiangYuZhou2023], Section 1,
-pp. 1–2 / PDF pp. 2–3). -/
+(`Ω(n * (log* n + log₂(n / max R 1)))`) across all `R ≤ c_R * n` in the Las Vegas oblivious model
+([LiLiangYuZhou2023], Section 1, pp. 1–2 / PDF pp. 2–3). -/
 theorem expectedSeqProbes_ge_iterLogStar_add_log_div {α c_R c_w : ℝ}
     (hα : 0 < α) (hcR : 0 ≤ c_R) (hcw : 0 ≤ c_w) :
     ∃ c : ℝ, 0 < c ∧
@@ -3930,12 +3746,8 @@ theorem expectedSeqProbes_ge_iterLogStar_add_log_div {α c_R c_w : ℝ}
             (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV ops *
             P.expectedSeqProbes ops := by
   obtain ⟨c, hc, hdet⟩ := det_expectedSeqProbes_ge_iterLogStar_add_log_div hα hcR hcw
-  refine ⟨c, hc, fun {U V n cells w R} hn hU hU_poly hV hR_hi hw hspace P hcorr => ?_⟩
-  obtain ⟨D_det, _, hcorr_det, hle_exp⟩ :=
-    exists_det_indexedScheme_insertQueryDeleteDist
-      (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV P hcorr
-  exact (ofReal_le_tsum_seqProbes_of_toReal_le _ D_det
-    (hdet hn hU hU_poly hV hR_hi hw hspace hcorr_det)).trans hle_exp
+  exact ⟨c, hc, fun hn hU hU_poly hV hR_hi hw hspace P hcorr =>
+    le_expectedSeqProbes_query_of_det _ hV P hcorr (hdet hn hU hU_poly hV hR_hi hw hspace)⟩
 
 /-- Unified single-node update-only `OuterLemma` on `insertDeleteDist` under
 `U ^ (2 + α_V) ≤ V * n ^ 2` and `w ≤ c_w * (log₂ U + log₂ V)` ([LiLiangYuZhou2023], Section 8,
@@ -4050,7 +3862,8 @@ private theorem outer_lemma_update_of_val_ge {U V n cells w : ℕ} {α_V c_w γ 
 /-- Deterministic **Theorem 1.3(1)** ([LiLiangYuZhou2023], Section 1, p. 2 / PDF p. 3 and
 Section 8, pp. 27–30 / PDF pp. 28–31): update-only (`insertDeleteDist`) `Ω(n * k)` cell-probe
 lower bound for `3 * n ≤ U` and `U ^ (2 + α_V) ≤ V * n ^ 2` under redundancy
-`≤ c_R * n * max 1 (log^{(k)} n)`. -/
+`≤ c_R * n * max 1 (log^{(k)} n)` (correctness up to `3 * n + 1` allows one trailing `.query` step
+so `decodeDict` is well-defined after the `3 * n` `PUnit`-returning updates). -/
 theorem det_expectedSeqProbes_update_ge_iterLog {α_V c_R c_w : ℝ}
     (hα_V : 0 < α_V) (hcR : 0 ≤ c_R) (hcw : 0 ≤ c_w) :
     ∃ c : ℝ, 0 < c ∧
@@ -4067,117 +3880,21 @@ theorem det_expectedSeqProbes_update_ge_iterLog {α_V c_R c_w : ℝ}
           ∑' ops, (insertDeleteDist U V n
             (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV ops).toReal *
             (D_det.seqProbes ops : ℝ) := by
-  have hγ_exists : ∃ γ : ℝ, 0 < γ ∧ γ ≤ 1 ∧ (5 + c_w) * γ ≤ min (1 / 4) (α_V / 16) := by
-    set η := min (1 / 4) (α_V / 16)
-    have hη : 0 < η := by dsimp [η]; positivity
-    refine ⟨min (1 / 20) (η / (5 + c_w)), by positivity,
-      (min_le_left _ _).trans (by norm_num), ?_⟩
-    exact (mul_le_mul_of_nonneg_left (min_le_right _ _) (by positivity)).trans_eq
-      (mul_div_cancel₀ _ (by positivity))
-  obtain ⟨γ, hγ, hγ1, hγ_le⟩ := hγ_exists
-  generalize hc_tree : max 8 (Nat.ceil (808 * (c_R + 1) / γ)) = c_tree
-  have hct8 : 8 ≤ c_tree := hc_tree ▸ _root_.le_max_left 8 _
-  have hct_ceil : 808 * (c_R + 1) / γ ≤ (c_tree : ℝ) :=
-    (Nat.le_ceil _).trans (by rw [← hc_tree]; exact_mod_cast _root_.le_max_right 8 _)
-  clear hc_tree
-  generalize hs_off : Nat.logStar (max 71 (4 * c_tree * (4 * c_tree + 71))) + 2 = s_off
-  generalize hM_exp : max 32 (Nat.ceil (11 / γ)) = M_exp
-  have hM32 : 32 ≤ M_exp := hM_exp ▸ _root_.le_max_left 32 _
-  have hM11 : Nat.ceil (11 / γ) ≤ M_exp := hM_exp ▸ _root_.le_max_right 32 _
-  clear hM_exp
-  generalize hN₀ : 2 ^ M_exp = N₀
-  generalize hK_cap : max (2 * s_off + 6) (Nat.logStar N₀ + 1) = K_cap
-  have hK_pos : 1 ≤ K_cap := by rw [← hK_cap]; exact le_trans (by omega) (_root_.le_max_left _ _)
-  refine ⟨min (1 / (2 * (K_cap : ℝ))) (γ / 1600), by positivity, ?_⟩
-  intro U V n k cells w hn hU hV hV_lo hk_lo hk_hi hw hspace D_det hcorr
-  generalize hc_def : min (1 / (2 * (K_cap : ℝ))) (γ / 1600) = c
-  have hc1 : c ≤ 1 / (2 * (K_cap : ℝ)) := hc_def ▸ min_le_left _ _
-  have hc2 : c ≤ γ / 1600 := hc_def ▸ min_le_right _ _
-  clear hc_def
-  have hU2 : 2 * n ≤ U := Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU
-  have hnU : n ≤ U := Nat.le_trans (Nat.le_mul_of_pos_left n (by decide)) hU
-  by_cases hbig : N₀ ≤ n ∧ 2 * s_off + 6 ≤ k
-  · obtain ⟨hn_N₀, hk_s⟩ := hbig
-    have hpow_N₀ : 2 ^ M_exp ≤ n := hN₀ ▸ hn_N₀
-    have hfls : 4 ≤ Nat.floorLogStar n :=
-      (Nat.four_le_floorLogStar_two_pow (le_rfl : 32 ≤ 32)).trans
-        (Nat.floorLogStar_mono ((Nat.pow_le_pow_right Nat.two_pos hM32).trans hpow_N₀))
-    generalize hk' : min k (Nat.floorLogStar n - 1) = k'
-    obtain ⟨hH_ge, hk_r, hH1_logU, hmax_le, _, hlevels⟩ :=
-      iterLog_tree_bounds hγ hγ1 hcR hct8 hct_ceil hs_off.symm hn hnU hfls hk_s hk_hi hk'.symm
-    clear hs_off hK_cap hN₀
-    set T := iterLogMetaTree n k' c_tree
-    set H := k' - s_off
-    set R := c_R * (n : ℝ) * (Nat.iterLog k' n : ℝ)
-    set t := ((H - 1 : ℕ) : ℝ) * (4 * γ / 25)
-    have hspace_R : ((cells * w : ℕ) : ℝ) ≤ benchmarkBits U V n + R :=
-      hspace.trans (by dsimp [R]; gcongr)
-    have h11_logU : 11 / γ ≤ Real.logb 2 U := by
-      have hp : 2 ^ Nat.ceil (11 / γ) ≤ U :=
-        ((Nat.pow_le_pow_right Nat.two_pos hM11).trans hpow_N₀).trans hnU
-      have hl := Real.logb_le_logb_of_le (by norm_num : (1 : ℝ) < 2) (by positivity)
-        (show (2 : ℝ) ^ Nat.ceil (11 / γ) ≤ (U : ℝ) by exact_mod_cast hp)
-      rw [Real.logb_pow, Real.logb_self_eq_one (by norm_num : (1 : ℝ) < 2), mul_one] at hl
-      exact (Nat.le_ceil _).trans hl
-    have ht_pos : 0 < t := by
-      dsimp [t]
-      have : (0 : ℝ) < ((H - 1 : ℕ) : ℝ) := by exact_mod_cast (show 0 < H - 1 by omega)
-      positivity
-    have ht_hi : 6 * t ≤ γ * Real.logb 2 U := by
-      dsimp [t]
-      calc 6 * (((H - 1 : ℕ) : ℝ) * (4 * γ / 25))
-          ≤ 1 * (γ * ((H - 1 : ℕ) : ℝ)) := by
-            have : (0 : ℝ) ≤ γ * ((H - 1 : ℕ) : ℝ) := by positivity
-            linarith
-        _ = γ * ((H - 1 : ℕ) : ℝ) := one_mul _
-        _ ≤ γ * Real.logb 2 U := mul_le_mul_of_nonneg_left hH1_logU hγ.le
-    have htree := det_expectedSeqProbes_ge_of_outer_tree false hU2 hV T
-      (iterLogMetaTree_horizon n k' c_tree) hH_ge
-      (fun ℓ hℓ => (hlevels ℓ hℓ).1) hγ (D_det := D_det) fun ℓ hℓ b hb => by
-        obtain ⟨_, hF_lo, hF_hi, hR_out, hR_in⟩ := hlevels ℓ hℓ
-        have hℓ_ge : 1 ≤ ℓ := (Finset.mem_Ico.mp hℓ).1
-        have ht_stop : T.nodeStop (ℓ + 1) b ≤ n := by
-          dsimp [MetaTree.nodeStop]
-          have hnc : T.nodeCount (ℓ + 1) = n / T.blockSize (ℓ + 1) := by
-            dsimp [MetaTree.nodeCount]; rw [iterLogMetaTree_horizon]
-          exact (Nat.mul_le_mul_right _ (Nat.succ_le_of_lt hb)).trans
-            (hnc ▸ Nat.div_mul_le_self n _)
-        simpa only [modeDist_false, modeStride, Bool.false_eq_true, ↓reduceIte] using
-          outer_lemma_update_of_val_ge hα_V hcw hγ hγ_le hn hU hV hV_lo hw hspace_R T hcorr
-            ht_pos hℓ_ge ht_stop hF_lo h11_logU ht_hi hF_hi hR_out hR_in
-    simp only [modeDist_false] at htree
-    refine (?_ : c * (n : ℝ) * (k : ℝ) ≤ ((H - 1 : ℕ) : ℝ) * (γ / 400) * (n : ℝ)).trans htree
-    calc c * (n : ℝ) * (k : ℝ)
-        ≤ (γ / 1600) * (n : ℝ) * (k : ℝ) := by gcongr
-      _ = ((k : ℝ) / 4) * (γ / 400) * (n : ℝ) := by ring
-      _ ≤ ((H - 1 : ℕ) : ℝ) * (γ / 400) * (n : ℝ) := by gcongr
-  · have hk_le_K : k ≤ K_cap := by
-      rw [← hK_cap]
-      by_cases hn_lt : n < N₀
-      · exact (hk_hi.trans (Nat.logStar_mono hn_lt.le)).trans
-          ((Nat.le_succ _).trans (_root_.le_max_right _ _))
-      · have hn_ge : N₀ ≤ n := Nat.not_lt.mp hn_lt
-        have hk_lt : k < 2 * s_off + 6 :=
-          Nat.lt_of_not_ge fun hge => hbig ⟨hn_ge, hge⟩
-        exact hk_lt.le.trans (_root_.le_max_left _ _)
-    clear hs_off hK_cap hN₀
-    have hlin := det_expectedSeqProbes_ge_linear false hU2 hV (D_det := D_det)
+  obtain ⟨γ, hγ, hγ1, hγ_le⟩ := exists_gamma_update hα_V hcw
+  obtain ⟨c, hc, hmode⟩ := det_expectedSeqProbes_mode_ge_iterLog false hγ hγ1 hcR
+  refine ⟨c, hc, fun {_U _V n _k _cells _w} hn hU hV hV_lo hk_lo hk_hi hw hspace {_D_det} hcorr =>
+    ?_⟩
+  exact
+    hmode hn (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV hk_lo hk_hi hspace
       (by simpa only [modeHorizon, modeStride, Bool.false_eq_true, ↓reduceIte,
         show n + 2 * n = 3 * n by ring] using hcorr)
-    simp only [modeDist_false] at hlin
-    refine (?_ : c * (n : ℝ) * (k : ℝ) ≤ (n : ℝ) / 2).trans hlin
-    have hK_pos_r : (0 : ℝ) < (K_cap : ℝ) := by exact_mod_cast hK_pos
-    have hk_r : (k : ℝ) ≤ (K_cap : ℝ) := by exact_mod_cast hk_le_K
-    have hck : c * (k : ℝ) ≤ 1 / 2 := by
-      calc c * (k : ℝ) ≤ (1 / (2 * (K_cap : ℝ))) * (K_cap : ℝ) :=
-            mul_le_mul hc1 hk_r (Nat.cast_nonneg k) (by positivity)
-        _ = 1 / 2 := by field_simp
-    calc c * (n : ℝ) * (k : ℝ) = (c * (k : ℝ)) * (n : ℝ) := by ring
-      _ ≤ (1 / 2) * (n : ℝ) := mul_le_mul_of_nonneg_right hck (Nat.cast_nonneg n)
-      _ = (n : ℝ) / 2 := by ring
+      fun {_R _t} hspace_R T ht {_ℓ _b} hℓ ht_stop hF_lo h11 ht_hi _hm_lo hF_hi hR_out hR_in =>
+        outer_lemma_update_of_val_ge hα_V hcw hγ hγ_le hn hU hV hV_lo hw hspace_R T hcorr ht hℓ
+          ht_stop hF_lo h11 ht_hi hF_hi hR_out hR_in
 
 /-- Zero-error randomized **Theorem 1.3(1)** ([LiLiangYuZhou2023], Section 1, p. 2 / PDF p. 3 and
-Section 8, pp. 27–30 / PDF pp. 28–31). -/
+Section 8, pp. 27–30 / PDF pp. 28–31) in the Las Vegas oblivious model (`3 * n + 1` correctness
+horizon for `decodeDict` on update-only `insertDeleteDist`). -/
 theorem expectedSeqProbes_update_ge_iterLog {α_V c_R c_w : ℝ}
     (hα_V : 0 < α_V) (hcR : 0 ≤ c_R) (hcw : 0 ≤ c_w) :
     ∃ c : ℝ, 0 < c ∧
@@ -4196,12 +3913,8 @@ theorem expectedSeqProbes_update_ge_iterLog {α_V c_R c_w : ℝ}
             (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV ops *
             P.expectedSeqProbes ops := by
   obtain ⟨c, hc, hdet⟩ := det_expectedSeqProbes_update_ge_iterLog hα_V hcR hcw
-  refine ⟨c, hc, fun {U V n k cells w} hn hU hV hV_lo hk_lo hk_hi hw hspace P hcorr => ?_⟩
-  obtain ⟨D_det, _, hcorr_det, hle_exp⟩ :=
-    exists_det_indexedScheme_insertDeleteDist
-      (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV P hcorr
-  exact (ofReal_le_tsum_seqProbes_of_toReal_le _ D_det
-    (hdet hn hU hV hV_lo hk_lo hk_hi hw hspace hcorr_det)).trans hle_exp
+  exact ⟨c, hc, fun hn hU hV hV_lo hk_lo hk_hi hw hspace P hcorr =>
+    le_expectedSeqProbes_update_of_det _ hV P hcorr (hdet hn hU hV hV_lo hk_lo hk_hi hw hspace)⟩
 
 /-- Deterministic `Ω(n * log* n)` specialization of Theorem 1.3(1) at `k = Nat.logStar n` (`O(n)`
 redundancy). -/
@@ -4220,20 +3933,12 @@ theorem det_expectedSeqProbes_update_ge_iterLogStar {α_V c_R c_w : ℝ}
             (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV ops).toReal *
             (D_det.seqProbes ops : ℝ) := by
   obtain ⟨c, hc, hdet⟩ := det_expectedSeqProbes_update_ge_iterLog hα_V hcR hcw
-  refine ⟨c, hc, fun {U V n cells w} hn hU hV hV_lo hw hspace D_det hcorr => ?_⟩
-  have hk1 : 1 ≤ Nat.logStar n := by
-    have : Nat.logStar 2 = 1 := by decide
-    exact this ▸ Nat.logStar_mono hn
-  have hiter1 : max (Nat.iterLog (Nat.logStar n) n) 1 = 1 := by
-    have hle : Nat.iterLog (Nat.logStar n) n ≤ 1 :=
-      (Nat.iterLog_anti_left n (Nat.floorLogStar_le_logStar n)).trans
-        (Nat.iterLog_floorLogStar_le_one n)
-    omega
-  exact hdet hn hU hV hV_lo hk1 le_rfl hw
-    (by rw [hiter1, Nat.cast_one, mul_one]; exact hspace) hcorr
+  refine ⟨c, hc, fun hn hU hV hV_lo hw hspace _ hcorr => ?_⟩
+  obtain ⟨hk1, hspace'⟩ := iterLog_logStar_space_le hn hspace
+  exact hdet hn hU hV hV_lo hk1 le_rfl hw hspace' hcorr
 
-/-- Zero-error randomized `Ω(n * log* n)` specialization of Theorem 1.3(1) at `k = Nat.logStar n`.
--/
+/-- Zero-error randomized `Ω(n * log* n)` specialization of Theorem 1.3(1) at `k = Nat.logStar n`
+(Las Vegas oblivious model). -/
 theorem expectedSeqProbes_update_ge_iterLogStar {α_V c_R c_w : ℝ}
     (hα_V : 0 < α_V) (hcR : 0 ≤ c_R) (hcw : 0 ≤ c_w) :
     ∃ c : ℝ, 0 < c ∧
@@ -4250,17 +3955,14 @@ theorem expectedSeqProbes_update_ge_iterLogStar {α_V c_R c_w : ℝ}
             (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV ops *
             P.expectedSeqProbes ops := by
   obtain ⟨c, hc, hdet⟩ := det_expectedSeqProbes_update_ge_iterLogStar hα_V hcR hcw
-  refine ⟨c, hc, fun {U V n cells w} hn hU hV hV_lo hw hspace P hcorr => ?_⟩
-  obtain ⟨D_det, _, hcorr_det, hle_exp⟩ :=
-    exists_det_indexedScheme_insertDeleteDist
-      (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV P hcorr
-  exact (ofReal_le_tsum_seqProbes_of_toReal_le _ D_det
-    (hdet hn hU hV hV_lo hw hspace hcorr_det)).trans hle_exp
+  exact ⟨c, hc, fun hn hU hV hV_lo hw hspace P hcorr =>
+    le_expectedSeqProbes_update_of_det _ hV P hcorr (hdet hn hU hV hV_lo hw hspace)⟩
 
 /-- Deterministic **Theorem 1.3(2)** ([LiLiangYuZhou2023], Section 1, p. 2 / PDF p. 3 and
 Section 8, pp. 27–30 / PDF pp. 28–31): update-only (`insertDeleteDist`)
 `Ω(n * log₂(n / max R 1))` cell-probe lower bound for `3 * n ≤ U`, `U ^ (2 + α_V) ≤ V * n ^ 2`,
-and `R ≤ n`. -/
+and `R ≤ n` (vanishing at the `R = n` boundary, with `3 * n + 1` correctness horizon for
+`decodeDict`). -/
 theorem det_expectedSeqProbes_update_ge_sublinear {α_V c_w : ℝ}
     (hα_V : 0 < α_V) (hcw : 0 ≤ c_w) :
     ∃ c : ℝ, 0 < c ∧
@@ -4276,202 +3978,19 @@ theorem det_expectedSeqProbes_update_ge_sublinear {α_V c_w : ℝ}
           ∑' ops, (insertDeleteDist U V n
             (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV ops).toReal *
             (D_det.seqProbes ops : ℝ) := by
-  have hγ_exists : ∃ γ : ℝ, 0 < γ ∧ γ ≤ 1 ∧ (5 + c_w) * γ ≤ min (1 / 4) (α_V / 16) := by
-    set η := min (1 / 4) (α_V / 16)
-    have hη : 0 < η := by dsimp [η]; positivity
-    refine ⟨min (1 / 20) (η / (5 + c_w)), by positivity,
-      (min_le_left _ _).trans (by norm_num), ?_⟩
-    exact (mul_le_mul_of_nonneg_left (min_le_right _ _) (by positivity)).trans_eq
-      (mul_div_cancel₀ _ (by positivity))
-  obtain ⟨γ, hγ, hγ1, hγ_le⟩ := hγ_exists
-  generalize hM_exp : max (Nat.ceil (2 * ((2 ^ 64 : ℕ) : ℝ) / γ)) (Nat.ceil (11 / γ)) = M_exp
-  have hM_fan : ((2 ^ 64 : ℕ) : ℝ) ≤ (γ / 2) * (M_exp : ℝ) := by
-    have h1 : 2 * ((2 ^ 64 : ℕ) : ℝ) / γ ≤ (M_exp : ℝ) :=
-      (Nat.le_ceil _).trans (by rw [← hM_exp]; exact_mod_cast _root_.le_max_left _ _)
-    calc ((2 ^ 64 : ℕ) : ℝ)
-      _ = (2 * ((2 ^ 64 : ℕ) : ℝ) / γ) * (γ / 2) := by
-        have : γ ≠ 0 := ne_of_gt hγ
-        field_simp
-      _ ≤ (M_exp : ℝ) * (γ / 2) :=
-        mul_le_mul_of_nonneg_right h1 (by positivity)
-      _ = (γ / 2) * (M_exp : ℝ) := mul_comm _ _
-  have hM11 : 11 / γ ≤ (M_exp : ℝ) :=
-    (Nat.le_ceil _).trans (by rw [← hM_exp]; exact_mod_cast _root_.le_max_right _ _)
-  clear hM_exp
-  generalize hN₀ : 2 ^ M_exp = N₀
-  generalize hK_log : max ((M_exp : ℝ) + 1) 134 = K_log
-  have hK_pos : 0 < K_log := lt_of_lt_of_le (by norm_num : (0 : ℝ) < 134)
-    (hK_log ▸ _root_.le_max_right _ _)
-  have hK_M : (M_exp : ℝ) ≤ K_log :=
-    (by linarith : (M_exp : ℝ) ≤ (M_exp : ℝ) + 1).trans (hK_log ▸ _root_.le_max_left _ _)
-  have hK_67 : (67 : ℝ) ≤ K_log :=
-    (by norm_num : (67 : ℝ) ≤ 134).trans (hK_log ▸ _root_.le_max_right _ _)
-  clear hK_log
-  refine ⟨min (1 / (2 * K_log)) (γ / 52400), by positivity, ?_⟩
-  intro U V n cells w R hn hU hV hV_lo hR_hi hw hspace D_det hcorr
-  generalize hc_def : min (1 / (2 * K_log)) (γ / 52400) = c
-  have hc1 : c ≤ 1 / (2 * K_log) := hc_def ▸ min_le_left _ _
-  have hc2 : c ≤ γ / 52400 := hc_def ▸ min_le_right _ _
-  clear hc_def
-  set R₁ := max R 1
-  have hR1_ge : 1 ≤ R₁ := _root_.le_max_right R 1
-  have hR_le_R1 : R ≤ R₁ := _root_.le_max_left R 1
-  have hR1_le_n : R₁ ≤ (n : ℝ) :=
-    max_le hR_hi (by exact_mod_cast (show 1 ≤ n by clear hM_fan; omega))
-  have hn_pos : (0 : ℝ) < (n : ℝ) := by exact_mod_cast (show 0 < n by clear hM_fan; omega)
-  have hdiv_ge1 : 1 ≤ (n : ℝ) / R₁ := (one_le_div (by positivity)).mpr hR1_le_n
-  have hlog_div_nn : 0 ≤ Real.logb 2 ((n : ℝ) / R₁) := Real.logb_nonneg (by norm_num) hdiv_ge1
-  generalize hm₁ : Nat.ceil R₁ = m₁_half
-  have hm₁_R : R₁ ≤ (m₁_half : ℝ) := hm₁ ▸ Nat.le_ceil R₁
-  have hm₁_pos : 1 ≤ m₁_half :=
-    hm₁ ▸ Nat.one_le_iff_ne_zero.mpr (Nat.ceil_pos.mpr (by positivity)).ne'
-  have hm₁_ub : (m₁_half : ℝ) ≤ 2 * R₁ := by
-    have hlt := (Nat.ceil_lt_add_one (show 0 ≤ R₁ by positivity)).le
-    rw [← hm₁]; linarith
-  clear hm₁
-  set T := geomMetaTree n m₁_half
-  set H := T.height
-  have hlog_H : Real.logb 2 ((n : ℝ) / R₁) ≤ 3 + 64 * (H : ℝ) := by
-    have hlt_nat := lt_mul_pow_height_geomMetaTree n m₁_half
-    rw [max_eq_right hm₁_pos] at hlt_nat
-    have hle_r : (n : ℝ) ≤ 4 * (m₁_half : ℝ) * ((2 ^ 64 : ℕ) : ℝ) ^ H := by
-      exact_mod_cast hlt_nat.le
-    have hpow_eq : (8 : ℝ) * (((2 ^ 64 : ℕ) : ℝ) ^ H) = (2 : ℝ) ^ (3 + 64 * H) := by
-      rw [Nat.cast_pow, Nat.cast_ofNat, ← pow_mul, show (8 : ℝ) = (2 : ℝ) ^ 3 by norm_num,
-        ← pow_add]
-    have hle_pow : (n : ℝ) ≤ R₁ * (2 : ℝ) ^ (3 + 64 * H) := by
-      calc (n : ℝ)
-          ≤ 4 * (2 * R₁) * (((2 ^ 64 : ℕ) : ℝ) ^ H) :=
-            hle_r.trans (mul_le_mul_of_nonneg_right
-              (mul_le_mul_of_nonneg_left hm₁_ub (by norm_num)) (by positivity))
-        _ = R₁ * ((8 : ℝ) * (((2 ^ 64 : ℕ) : ℝ) ^ H)) := by ring
-        _ = R₁ * (2 : ℝ) ^ (3 + 64 * H) := by rw [hpow_eq]
-    have hdiv_pow : (n : ℝ) / R₁ ≤ (2 : ℝ) ^ (3 + 64 * H) :=
-      (div_le_iff₀ (by positivity)).mpr (by linarith)
-    have hl := Real.logb_le_logb_of_le (by norm_num : (1 : ℝ) < 2) (by positivity) hdiv_pow
-    rwa [Real.logb_pow, Real.logb_self_eq_one (by norm_num : (1 : ℝ) < 2), mul_one,
-      Nat.cast_add, Nat.cast_mul, Nat.cast_ofNat] at hl
-  have hU2 : 2 * n ≤ U := Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU
-  have hnU : n ≤ U := Nat.le_trans (Nat.le_mul_of_pos_left n (by decide)) hU
-  by_cases hbig : N₀ ≤ n ∧ 2 ≤ H
-  · obtain ⟨hn_N₀, hH_ge⟩ := hbig
-    have hpow_N₀ : 2 ^ M_exp ≤ n := hN₀ ▸ hn_N₀
-    clear hN₀
-    have hM_logU : (M_exp : ℝ) ≤ Real.logb 2 U := by
-      have hp : (2 : ℝ) ^ M_exp ≤ (U : ℝ) := by exact_mod_cast hpow_N₀.trans hnU
-      have hl := Real.logb_le_logb_of_le (by norm_num : (1 : ℝ) < 2) (by positivity) hp
-      rwa [Real.logb_pow, Real.logb_self_eq_one (by norm_num : (1 : ℝ) < 2), mul_one] at hl
-    have h11_logU : 11 / γ ≤ Real.logb 2 U := hM11.trans hM_logU
-    have hfan_U : ((2 ^ 64 : ℕ) : ℝ) ≤ (γ / 2) * Real.logb 2 U :=
-      hM_fan.trans (mul_le_mul_of_nonneg_left hM_logU (by positivity))
-    clear hM_fan
-    have hH_logU : ((H - 1 : ℕ) : ℝ) ≤ Real.logb 2 U := by
-      have h1 : ((H - 1 : ℕ) : ℝ) ≤ (H : ℝ) := by exact_mod_cast Nat.sub_le H 1
-      exact (h1.trans (height_geomMetaTree_le_logb hn m₁_half)).trans
-        (Real.logb_le_logb_of_le (by norm_num) hn_pos (by exact_mod_cast hnU))
-    set t := ((H - 1 : ℕ) : ℝ) * (4 * γ / 25)
-    have ht_pos : 0 < t := by
-      dsimp [t]
-      have : (0 : ℝ) < ((H - 1 : ℕ) : ℝ) := by exact_mod_cast (show 0 < H - 1 by omega)
-      positivity
-    have ht_hi : 6 * t ≤ γ * Real.logb 2 U := by
-      dsimp [t]
-      calc 6 * (((H - 1 : ℕ) : ℝ) * (4 * γ / 25))
-          ≤ 1 * (γ * ((H - 1 : ℕ) : ℝ)) := by
-            have : (0 : ℝ) ≤ γ * ((H - 1 : ℕ) : ℝ) := by positivity
-            linarith
-        _ = γ * ((H - 1 : ℕ) : ℝ) := one_mul _
-        _ ≤ γ * Real.logb 2 U := mul_le_mul_of_nonneg_left hH_logU hγ.le
-    have hspace_R1 : ((cells * w : ℕ) : ℝ) ≤ benchmarkBits U V n + R₁ :=
-      hspace.trans (by linarith)
-    have hb1_ge : 2 * (m₁_half : ℝ) ≤ (T.blockSize 1 : ℝ) := by
-      have hb1 := blockSize_geomMetaTree n m₁_half le_rfl
-      rw [Nat.sub_self, pow_zero, mul_one, max_eq_right hm₁_pos] at hb1
-      exact_mod_cast hb1.symm.le
-    have htree := det_expectedSeqProbes_ge_of_outer_tree false hU2 hV T
-      (geomMetaTree_horizon n m₁_half) hH_ge
-      (fun ℓ hℓ => (le_height_geomMetaTree_iff hn m₁_half (ℓ + 1)).mp (Finset.mem_Ico.mp hℓ).2)
-      hγ (D_det := D_det) fun ℓ hℓ b hb => by
-        have hℓ_ge : 1 ≤ ℓ := (Finset.mem_Ico.mp hℓ).1
-        have hfan : T.fanout (ℓ + 1) = 2 ^ 64 :=
-          fanout_geomMetaTree_of_two_le n m₁_half (by omega)
-        have hF_lo : 2 ^ 64 ≤ T.fanout (ℓ + 1) := by rw [hfan]
-        have hF_hi : (T.fanout (ℓ + 1) : ℝ) ≤ (γ / 2) * Real.logb 2 U := by
-          rw [hfan]; exact hfan_U
-        have hbℓ_ge : 2 * (m₁_half : ℝ) ≤ (T.blockSize ℓ : ℝ) :=
-          hb1_ge.trans (by exact_mod_cast T.blockSize_strictMono.monotone hℓ_ge)
-        have hR_outer : 100 * R₁ ≤ (T.blockSize (ℓ + 1) : ℝ) * Real.logb 2 (T.fanout (ℓ + 1)) := by
-          have hb1_next : 2 * R₁ ≤ (T.blockSize (ℓ + 1) : ℝ) :=
-            (mul_le_mul_of_nonneg_left hm₁_R (by norm_num)).trans
-              (hb1_ge.trans (by exact_mod_cast T.blockSize_strictMono.monotone (by omega)))
-          have hlog_fan : Real.logb 2 (T.fanout (ℓ + 1)) = 64 := by
-            rw [hfan, Nat.cast_pow, Nat.cast_ofNat, Real.logb_pow,
-              Real.logb_self_eq_one (by norm_num : (1 : ℝ) < 2), mul_one, Nat.cast_ofNat]
-          rw [hlog_fan]
-          linarith
-        have hR_in : R₁ ≤ (γ / 2) * (T.blockSize ℓ : ℝ) * Real.logb 2 U := by
-          have hγU : 1 ≤ (γ / 2) * Real.logb 2 U := by
-            have := (div_le_iff₀ hγ).mp h11_logU; linarith
-          have hmR : R₁ ≤ (T.blockSize ℓ : ℝ) := by
-            have : 0 ≤ (m₁_half : ℝ) := Nat.cast_nonneg _
-            linarith
-          calc R₁ = 1 * R₁ := (one_mul R₁).symm
-            _ ≤ ((γ / 2) * Real.logb 2 U) * (T.blockSize ℓ : ℝ) :=
-              mul_le_mul hγU hmR (by positivity) (by positivity)
-            _ = (γ / 2) * (T.blockSize ℓ : ℝ) * Real.logb 2 U := by ring
-        have ht_stop : T.nodeStop (ℓ + 1) b ≤ n := by
-          dsimp [MetaTree.nodeStop]
-          have hnc : T.nodeCount (ℓ + 1) = n / T.blockSize (ℓ + 1) := by
-            dsimp [MetaTree.nodeCount]; rw [geomMetaTree_horizon]
-          exact (Nat.mul_le_mul_right _ (Nat.succ_le_of_lt hb)).trans
-            (hnc ▸ Nat.div_mul_le_self n _)
-        simpa only [modeDist_false, modeStride, Bool.false_eq_true, ↓reduceIte] using
-          outer_lemma_update_of_val_ge hα_V hcw hγ hγ_le hn hU hV hV_lo hw hspace_R1 T hcorr
-            ht_pos hℓ_ge ht_stop hF_lo h11_logU ht_hi hF_hi hR_outer hR_in
-    simp only [modeDist_false] at htree
-    refine (?_ : c * (n : ℝ) * Real.logb 2 ((n : ℝ) / R₁) ≤
-      ((H - 1 : ℕ) : ℝ) * (γ / 400) * (n : ℝ)).trans htree
-    have hH_sub : (H : ℝ) - 1 = ((H - 1 : ℕ) : ℝ) := by
-      rw [Nat.cast_sub (by omega), Nat.cast_one]
-    have hH1_ge1 : 1 ≤ ((H - 1 : ℕ) : ℝ) := by exact_mod_cast (show 1 ≤ H - 1 by omega)
-    have hlog_H1 : Real.logb 2 ((n : ℝ) / R₁) ≤ 131 * ((H - 1 : ℕ) : ℝ) := by linarith
-    calc c * (n : ℝ) * Real.logb 2 ((n : ℝ) / R₁)
-        ≤ (γ / 52400) * (n : ℝ) * (131 * ((H - 1 : ℕ) : ℝ)) :=
-          mul_le_mul (mul_le_mul_of_nonneg_right hc2 hn_pos.le) hlog_H1 hlog_div_nn (by positivity)
-      _ = ((H - 1 : ℕ) : ℝ) * (γ / 400) * (n : ℝ) := by ring
-  · clear hM_fan
-    have hlog_le_K : Real.logb 2 ((n : ℝ) / R₁) ≤ K_log := by
-      by_cases hn_lt : n < N₀
-      · have hdiv_le_N : (n : ℝ) / R₁ ≤ (2 : ℝ) ^ M_exp := by
-          have hn_le : (n : ℝ) ≤ (2 : ℝ) ^ M_exp := by
-            have : n ≤ 2 ^ M_exp := hN₀ ▸ hn_lt.le
-            exact_mod_cast this
-          exact (div_le_self hn_pos.le hR1_ge).trans hn_le
-        have hl := Real.logb_le_logb_of_le (by norm_num : (1 : ℝ) < 2) (by positivity) hdiv_le_N
-        rw [Real.logb_pow, Real.logb_self_eq_one (by norm_num : (1 : ℝ) < 2), mul_one] at hl
-        exact hl.trans hK_M
-      · have hn_ge : N₀ ≤ n := Nat.not_lt.mp hn_lt
-        have hH_lt : H < 2 := Nat.lt_of_not_ge fun hge => hbig ⟨hn_ge, hge⟩
-        have hH_le1 : (H : ℝ) ≤ 1 := by exact_mod_cast (show H ≤ 1 by omega)
-        exact (hlog_H.trans (by linarith)).trans hK_67
-    clear hN₀
-    have hlin := det_expectedSeqProbes_ge_linear false hU2 hV (D_det := D_det)
+  obtain ⟨γ, hγ, hγ1, hγ_le⟩ := exists_gamma_update hα_V hcw
+  obtain ⟨c, hc, hmode⟩ := det_expectedSeqProbes_mode_ge_sublinear false hγ hγ1
+  refine ⟨c, hc, fun {_U _V n _cells _w} {_R} hn hU hV hV_lo hR_hi hw hspace {_D_det} hcorr => ?_⟩
+  exact
+    hmode hn (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV hR_hi hspace
       (by simpa only [modeHorizon, modeStride, Bool.false_eq_true, ↓reduceIte,
         show n + 2 * n = 3 * n by ring] using hcorr)
-    simp only [modeDist_false] at hlin
-    refine (?_ : c * (n : ℝ) * Real.logb 2 ((n : ℝ) / R₁) ≤ (n : ℝ) / 2).trans hlin
-    have hck : c * Real.logb 2 ((n : ℝ) / R₁) ≤ 1 / 2 := by
-      calc c * Real.logb 2 ((n : ℝ) / R₁)
-          ≤ (1 / (2 * K_log)) * K_log :=
-            mul_le_mul hc1 hlog_le_K hlog_div_nn (by positivity)
-        _ = 1 / 2 := by field_simp
-    calc c * (n : ℝ) * Real.logb 2 ((n : ℝ) / R₁)
-        = (c * Real.logb 2 ((n : ℝ) / R₁)) * (n : ℝ) := by ring
-      _ ≤ (1 / 2) * (n : ℝ) := mul_le_mul_of_nonneg_right hck hn_pos.le
-      _ = (n : ℝ) / 2 := by ring
+      fun {_R _t} hspace_R T ht {_ℓ _b} hℓ ht_stop hF_lo h11 ht_hi _hm_lo hF_hi hR_out hR_in =>
+        outer_lemma_update_of_val_ge hα_V hcw hγ hγ_le hn hU hV hV_lo hw hspace_R T hcorr ht hℓ
+          ht_stop hF_lo h11 ht_hi hF_hi hR_out hR_in
 
 /-- Zero-error randomized **Theorem 1.3(2)** ([LiLiangYuZhou2023], Section 1, p. 2 / PDF p. 3 and
-Section 8, pp. 27–30 / PDF pp. 28–31). -/
+Section 8, pp. 27–30 / PDF pp. 28–31) in the Las Vegas oblivious model (vanishing at `R = n`). -/
 theorem expectedSeqProbes_update_ge_sublinear {α_V c_w : ℝ}
     (hα_V : 0 < α_V) (hcw : 0 ≤ c_w) :
     ∃ c : ℝ, 0 < c ∧
@@ -4489,12 +4008,8 @@ theorem expectedSeqProbes_update_ge_sublinear {α_V c_w : ℝ}
             (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV ops *
             P.expectedSeqProbes ops := by
   obtain ⟨c, hc, hdet⟩ := det_expectedSeqProbes_update_ge_sublinear hα_V hcw
-  refine ⟨c, hc, fun {U V n cells w R} hn hU hV hV_lo hR_hi hw hspace P hcorr => ?_⟩
-  obtain ⟨D_det, _, hcorr_det, hle_exp⟩ :=
-    exists_det_indexedScheme_insertDeleteDist
-      (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV P hcorr
-  exact (ofReal_le_tsum_seqProbes_of_toReal_le _ D_det
-    (hdet hn hU hV hV_lo hR_hi hw hspace hcorr_det)).trans hle_exp
+  exact ⟨c, hc, fun hn hU hV hV_lo hR_hi hw hspace P hcorr =>
+    le_expectedSeqProbes_update_of_det _ hV P hcorr (hdet hn hU hV hV_lo hR_hi hw hspace)⟩
 
 /-- Combined deterministic **Theorem 1.3(1)–(2)**
 (`Ω(n * (log* n + log₂(n / max R 1)))`) on `insertDeleteDist` across all `R ≤ c_R * n`
@@ -4516,43 +4031,16 @@ theorem det_expectedSeqProbes_update_ge_iterLogStar_add_log_div {α_V c_R c_w : 
             (D_det.seqProbes ops : ℝ) := by
   obtain ⟨c₁, hc₁, hdet₁⟩ := det_expectedSeqProbes_update_ge_iterLogStar hα_V hcR hcw
   obtain ⟨c₂, hc₂, hdet₂⟩ := det_expectedSeqProbes_update_ge_sublinear hα_V hcw
-  refine ⟨min c₁ c₂ / 2, by positivity, ?_⟩
-  intro U V n cells w R hn hU hV hV_lo hR_hi hw hspace D_det hcorr
-  have hb₁ : min c₁ c₂ * (n : ℝ) * (Nat.logStar n : ℝ) ≤
-      ∑' ops, (insertDeleteDist U V n
-        (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV ops).toReal *
-        (D_det.seqProbes ops : ℝ) :=
-    (mul_le_mul_of_nonneg_right
-      (mul_le_mul_of_nonneg_right (min_le_left c₁ c₂) (Nat.cast_nonneg n))
-      (Nat.cast_nonneg _)).trans
-      (hdet₁ hn hU hV hV_lo hw (hspace.trans (by linarith)) hcorr)
-  have hb₂ : min c₁ c₂ * (n : ℝ) * max 0 (Real.logb 2 ((n : ℝ) / max R 1)) ≤
-      ∑' ops, (insertDeleteDist U V n
-        (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV ops).toReal *
-        (D_det.seqProbes ops : ℝ) := by
-    by_cases hRn : R ≤ (n : ℝ)
-    · have hdiv1 : 1 ≤ (n : ℝ) / max R 1 :=
-        (one_le_div (lt_of_lt_of_le zero_lt_one (_root_.le_max_right R 1))).mpr
-          (max_le hRn (by exact_mod_cast (show 1 ≤ n by omega)))
-      have hlog_nn : 0 ≤ Real.logb 2 ((n : ℝ) / max R 1) := Real.logb_nonneg (by norm_num) hdiv1
-      rw [max_eq_right hlog_nn]
-      exact (mul_le_mul_of_nonneg_right
-        (mul_le_mul_of_nonneg_right (min_le_right c₁ c₂) (Nat.cast_nonneg n)) hlog_nn).trans
-        (hdet₂ hn hU hV hV_lo hRn hw hspace hcorr)
-    · push Not at hRn
-      have hdiv_le : (n : ℝ) / max R 1 ≤ 1 :=
-        (div_le_one (lt_of_lt_of_le zero_lt_one (_root_.le_max_right R 1))).mpr
-          (hRn.le.trans (_root_.le_max_left R 1))
-      have hlog_np : Real.logb 2 ((n : ℝ) / max R 1) ≤ 0 :=
-        Real.logb_nonpos (by norm_num) (div_nonneg (Nat.cast_nonneg n)
-          (le_trans zero_le_one (_root_.le_max_right R 1))) hdiv_le
-      rw [max_eq_left hlog_np, mul_zero]
-      exact tsum_nonneg fun _ => mul_nonneg ENNReal.toReal_nonneg (Nat.cast_nonneg _)
-  linarith
+  refine ⟨min c₁ c₂ / 2, by positivity, fun hn hU hV hV_lo hR_hi hw hspace _ hcorr => ?_⟩
+  exact combine_iterLogStar_and_sublinear hn (Nat.cast_nonneg _)
+    (tsum_nonneg fun _ => mul_nonneg ENNReal.toReal_nonneg (Nat.cast_nonneg _))
+    (hdet₁ hn hU hV hV_lo hw (hspace.trans (by linarith)) hcorr)
+    fun hRn => hdet₂ hn hU hV hV_lo hRn hw hspace hcorr
 
 /-- Combined zero-error randomized **Theorem 1.3(1)–(2)**
-(`Ω(n * (log* n + log₂(n / max R 1)))`) on `insertDeleteDist` across all `R ≤ c_R * n`
-([LiLiangYuZhou2023], Section 1, p. 2 / PDF p. 3 and Section 8, p. 27 / PDF p. 28). -/
+(`Ω(n * (log* n + log₂(n / max R 1)))`) on `insertDeleteDist` across all `R ≤ c_R * n` in the
+Las Vegas oblivious model ([LiLiangYuZhou2023], Section 1, p. 2 / PDF p. 3 and Section 8, p. 27 /
+PDF p. 28). -/
 theorem expectedSeqProbes_update_ge_iterLogStar_add_log_div {α_V c_R c_w : ℝ}
     (hα_V : 0 < α_V) (hcR : 0 ≤ c_R) (hcw : 0 ≤ c_w) :
     ∃ c : ℝ, 0 < c ∧
@@ -4571,11 +4059,7 @@ theorem expectedSeqProbes_update_ge_iterLogStar_add_log_div {α_V c_R c_w : ℝ}
             (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV ops *
             P.expectedSeqProbes ops := by
   obtain ⟨c, hc, hdet⟩ := det_expectedSeqProbes_update_ge_iterLogStar_add_log_div hα_V hcR hcw
-  refine ⟨c, hc, fun {U V n cells w R} hn hU hV hV_lo hR_hi hw hspace P hcorr => ?_⟩
-  obtain ⟨D_det, _, hcorr_det, hle_exp⟩ :=
-    exists_det_indexedScheme_insertDeleteDist
-      (Nat.le_trans (Nat.mul_le_mul_right n (by decide)) hU) hV P hcorr
-  exact (ofReal_le_tsum_seqProbes_of_toReal_le _ D_det
-    (hdet hn hU hV hV_lo hR_hi hw hspace hcorr_det)).trans hle_exp
+  exact ⟨c, hc, fun hn hU hV hV_lo hR_hi hw hspace P hcorr =>
+    le_expectedSeqProbes_update_of_det _ hV P hcorr (hdet hn hU hV hV_lo hR_hi hw hspace)⟩
 
 end Cslib.DataStructure.Dictionary.CellProbe

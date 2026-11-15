@@ -28,7 +28,8 @@ into the vocabulary of `Finset.expect` (`𝔼`) and `Finset.dens`.
 ## Main results
 
 * `Cslib.Probability.PMF.sum_le_affine`: average pointwise affine bounds.
-* `Cslib.Probability.PMF.sum_map_mul`, `.sum_bind_mul`: average deterministic and random scores.
+* `Cslib.Probability.PMF.sum_map_mul`, `.sum_bind_mul`, `.tsum_toReal_map_mul_natCast`: average
+  deterministic and random scores (including finite-source pushforwards onto arbitrary codomains).
 * `Cslib.Probability.PMF.tsum_map_mul`, `.tsum_bind_mul`: the same laws for extended
   nonnegative scores over arbitrary types.
 * `Cslib.Probability.PMF.sq_tsum_le_tsum_sq`: Jensen's inequality `E[g]² ≤ E[g²]` for a
@@ -73,6 +74,20 @@ theorem sum_map_mul {α β : Type*} [Fintype α] [Fintype β]
   simp only [map_apply_toReal, Finset.sum_mul]
   rw [Finset.sum_comm]
   simp [ite_mul]
+
+/-- Real-valued expectation pushforward for `ℕ`-valued scores from a finite distribution `p` onto
+an arbitrary codomain `β`. -/
+theorem tsum_toReal_map_mul_natCast {α β : Type*} [Fintype α]
+    (p : PMF α) (f : α → β) (c : β → ℕ) :
+    (∑' b, ((p.map f) b).toReal * (c b : ℝ)) = ∑ a, (p a).toReal * (c (f a) : ℝ) := by
+  have htsum := tsum_map_mul p f (fun b => (c b : ℝ≥0∞))
+  conv_rhs at htsum => rw [tsum_fintype]
+  have h1 := ENNReal.tsum_toReal_eq (f := fun b => (p.map f) b * (c b : ℝ≥0∞))
+    fun b => ENNReal.mul_ne_top (PMF.apply_ne_top _ b) (ENNReal.natCast_ne_top _)
+  have h2 := ENNReal.toReal_sum (s := Finset.univ) (f := fun a => p a * (c (f a) : ℝ≥0∞))
+    fun a _ => ENNReal.mul_ne_top (PMF.apply_ne_top p a) (ENNReal.natCast_ne_top _)
+  simp only [ENNReal.toReal_mul, ENNReal.toReal_natCast] at h1 h2
+  exact h1.symm.trans ((congrArg ENNReal.toReal htsum).trans h2)
 
 /-- Averaging a score after a random choice averages its conditional scores.
 Adapted from the cslib `crypto` branch at `5ff69ca`. -/

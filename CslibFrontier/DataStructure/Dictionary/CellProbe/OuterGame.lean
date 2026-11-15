@@ -12,6 +12,7 @@ public import CslibFrontier.DataStructure.Dictionary.CellProbe.InnerGame
 public import CslibFrontier.Probability.Entropy
 import CslibFrontier.Foundations.Data.BitString.List.PrefixFree
 import CslibFrontier.Foundations.Data.List.Counting
+import CslibFrontier.Foundations.Data.Nat.Choose
 import CslibFrontier.Foundations.Data.Nat.Choose.Real
 import CslibFrontier.Probability.Coding.PrefixFreeEntropy
 import CslibFrontier.Probability.Conditioning
@@ -19,6 +20,7 @@ import CslibFrontier.Probability.Divergence
 import CslibFrontier.Probability.MinEntropy
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Map
+import Mathlib.Logic.Equiv.Fin.Basic
 
 /-!
 # Multi-Round Outer Communication Game and Outer Lemma
@@ -30,51 +32,39 @@ below follow `arXiv:2306.02253v3`, where printed page `p` is PDF page `p + 1`).
 Pinned source: [LiLiangYuZhou2023] (`arXiv:2306.02253v3`), Section 3, Lemma 3.2, p. 12 (PDF p. 13);
 Section 4.1, Eq. (1), pp. 13–14 (PDF pp. 14–15); Section 4.2, Protocol 1 and Eqs. (2)–(3),
 pp. 14–16 (PDF pp. 15–17); Section 4.3, Eq. (4), Claim 4.1, Eq. (5), Claim 4.2, Eq. (6),
-Definition 4.3, Lemma 4.4, Claim 4.5, Claim 4.6, Eq. (7), and Eqs. (8)–(9), pp. 16–20 (PDF
-pp. 17–21); Section 8, p. 27 (PDF p. 28).
+Definition 4.3, Lemma 4.4, Claim 4.6, Eq. (7), and Eqs. (8)–(9), pp. 16–20 (PDF pp. 17–21);
+Section 8, p. 27 (PDF p. 28).
 
 Original formalization adaptations:
 1. **Deterministic `c = 1` probe cap (`Sections 4.2, 5.1, and 5.2`):** `MetaTree.IsGoodSeg`,
-   `IsQualified`, and `IsCappedConsistent` incorporate `|S_A^{[i]}|, |S_B| ≤ m_ℓ * t`, preventing
-   conditional probe inflation on `{W = 1}` in Section 5.2 Eq. (11) and Section 8.1 Step 5 while
-   incurring `< λ_{ℓ+1} / 16` bad-segment loss by Markov's inequality on `nodeProbes`
-   (`sum_prob_gt_probeCap_lt_div_sixteen`).
+   `IsQualified`, and `IsCappedConsistent` incorporate `|S_A^{[i]}|, |S_B| ≤ m_ℓ * t` directly,
+   superseding Claim 4.5's per-segment expectation filtering while preventing conditional probe
+   inflation on `{W = 1}` in Section 5.2 Eq. (11) and Section 8.1 Step 5 (`≤ (1 / 16) * λ_{ℓ+1}`
+   probe-cap loss via Markov's inequality on `nodeProbes` in `MetaTree.sum_prob_not_isGoodSeg_le`).
 2. **Independent `R_outer` and `R_inner` and child-segment `m_ℓ` alignment:**
    `outer_node_lower_bound` and `outer_lemma_insertQueryDelete` separate Step 1's end-memory
    entropy budget `R_outer` from the inner-game redundancy `R_inner`, and state the inner-game
    hypotheses at child-segment length `m_ℓ = T.blockSize ℓ` (matching Section 5 Lemma 5.1, p. 21 /
    PDF p. 22, where Lemma 3.2/4.4 on pp. 12, 18 / PDF pp. 13, 19 wrote `m_{ℓ+1}`).
 3. **Mode-parametric `withQueries : Bool` (`stride = 3` vs. `stride = 2`):** sharing
-   `kv : Fin U → Fin V` in `BobOuterObs` (as in Section 8, p. 27 / PDF p. 28) leaves Eq. (1)'s
-   partition entropy `log₂ m_{ℓ+1}! - λ_{ℓ+1} log₂ m_ℓ!` unchanged while letting `BobOuterObs`
-   reconstruct `S_end` uniformly across both `insertQueryDeleteDist` and `insertDeleteDist`.
+   `kv : Fin U → Fin V` in Bob's prior observation (as in Section 8, p. 27 / PDF p. 28) leaves
+   Eq. (1)'s partition entropy `log₂ m_{ℓ+1}! - λ_{ℓ+1} log₂ m_ℓ!` unchanged while reconstructing
+   `S_end` uniformly across both `insertQueryDeleteDist` and `insertDeleteDist`.
 
 ## Main definitions
 
 * `Cslib.DataStructure.Dictionary.CellProbe.benchmarkBits`: real-valued space benchmark
   `log₂ C(U, n) + n * log₂ V`.
-* `Cslib.DataStructure.Dictionary.CellProbe.HardKeyValSeed.updateOps`,
-  `Cslib.DataStructure.Dictionary.CellProbe.HardKeyValSeed.modeOps`,
-  `Cslib.DataStructure.Dictionary.CellProbe.HardKeyValSeed.modeCandidateOps`: update-only and
-  mode-parametric operation sequences on `HardKeyValSeed`.
-* `Cslib.DataStructure.Dictionary.CellProbe.BobOuterObs`,
-  `Cslib.DataStructure.Dictionary.CellProbe.outerRoundMsg`,
-  `Cslib.DataStructure.Dictionary.CellProbe.outerProtocolMsg`: Bob's outer-game observation and
-  Protocol 1 prefix-free round/transcript messages.
+* `Cslib.DataStructure.Dictionary.CellProbe.IsModeSeedConsistent`: mode-parametric inner-game
+  seed consistency predicate (`withQueries : Bool`).
 
 ## Main results
 
-* `Cslib.DataStructure.Dictionary.CellProbe.sum_logb_choose_le_conditionalEntropy_outerTarget`,
-  `Cslib.DataStructure.Dictionary.CellProbe.conditionalEntropy_endMem_le`: Eq. (1) partition
-  conditional entropy lower bound and Eq. (2) end-memory conditional entropy upper bound.
-* `Cslib.DataStructure.Dictionary.CellProbe.sum_prob_gt_probeCap_lt_div_sixteen`,
-  `Cslib.DataStructure.Dictionary.CellProbe.prob_not_qualSubsetNbr_and_isGoodSeg_le_one_eighth`,
-  `Cslib.DataStructure.Dictionary.CellProbe.card_badExpectedProbeSegs_le`: Claim 4.1 probe-cap loss
-  `< λ_{ℓ+1} / 16`, Claim 4.2 (`≤ 1 / 8`), and Claim 4.5 (`≤ λ_{ℓ+1} / 16`).
+* `Cslib.DataStructure.Dictionary.CellProbe.nodeStart_add_rest_le`: remaining child-segments
+  horizon bound under `T.nodeStop (ℓ + 1) b ≤ n`.
 * `Cslib.DataStructure.Dictionary.CellProbe.outer_node_lower_bound`,
-  `Cslib.DataStructure.Dictionary.CellProbe.outer_lemma_insertQueryDelete`,
-  `Cslib.DataStructure.Dictionary.CellProbe.outer_lemma_poly_insertQueryDelete`: abstract Outer
-  Lemma and Lemma 3.2 with independent `R_outer` and `R_inner`.
+  `Cslib.DataStructure.Dictionary.CellProbe.outer_lemma_insertQueryDelete`: mode-parametric Outer
+  Lemma and Lemma 3.2 on `insertQueryDeleteDist` with independent `R_outer` and `R_inner`.
 
 ## References
 
@@ -107,363 +97,17 @@ noncomputable def benchmarkBits (U V n : ℕ) : ℝ :=
 theorem benchmarkBits_eq (U V n : ℕ) :
     benchmarkBits U V n = Real.logb 2 (U.choose n) + (n : ℝ) * Real.logb 2 V := by rfl
 
-/-! ### Fiberwise conditional min-entropy and chain-rule helpers -/
-
-open Classical in
-/-- Fiberwise event-conditioned conditional entropy lower bound: if under prior `μ : PMF Ω`, every
-observation-target pair `(o, t)` has joint probability at most `((μ.map obs) o).toReal / M`, then
-conditioning on any event `W` with `(μ.map W) true ≠ 0` leaves at least `log₂ Pr[W] + log₂ M` bits
-of conditional entropy `H_p(target | obs)` (by fiberwise min-entropy plus non-negativity of KL
-divergence `D(P(obs | W) ‖ P(obs)) ≥ 0`). -/
-theorem logb_prob_add_logb_le_conditionalEntropy_of_fiber_le {Ω ObsT TgtT : Type*}
-    [Finite Ω] [Finite ObsT] [Finite TgtT]
-    (μ : PMF Ω) (W : Ω → Bool) (obs : Ω → ObsT) (target : Ω → TgtT) {M : ℝ} (hM : 0 < M)
-    (hW0 : (μ.map W) true ≠ 0)
-    (hfiber : ∀ (o : ObsT) (t : TgtT),
-      ((μ.map fun ω => (obs ω, target ω)) (o, t)).toReal ≤ ((μ.map obs) o).toReal / M) :
-    let p := PMF.conditionalSnd (μ.map fun ω => (W ω, ω)) true
-    Real.logb 2 (((μ.map W) true).toReal) + Real.logb 2 M ≤
-      PMF.conditionalEntropy (p.map fun ω => (obs ω, target ω)) := by
-  let _ := Fintype.ofFinite Ω
-  let _ := Fintype.ofFinite ObsT
-  let _ := Fintype.ofFinite TgtT
-  dsimp only
-  have hsurp_eq (x : PMF ObsT) (a : ObsT) (ha : a ∈ x.support) :
-      PMF.surprisal x a = -Real.logb 2 (x a).toReal := by
-    have hpos := ENNReal.toReal_pos ha (PMF.apply_ne_top x a)
-    apply le_antisymm
-    · exact PMF.surprisal_le_of_mass_ge x a (by
-        rw [neg_neg, Real.rpow_logb (by norm_num) (by norm_num) hpos])
-    · have hm := (PMF.surprisal_le_iff_mass_ge x a ha).mp le_rfl
-      have hl := (Real.le_logb_iff_rpow_le (by norm_num : (1 : ℝ) < 2) hpos).mpr hm
-      linarith
-  have hW_mem : true ∈ ((μ.map fun ω => (W ω, ω)).map Prod.fst).support := by
-    rw [_root_.PMF.map_comp]; exact (_root_.PMF.mem_support_iff _ _).mpr hW0
-  set p : PMF Ω := PMF.conditionalSnd (μ.map fun ω => (W ω, ω)) true
-  set J : PMF (ObsT × TgtT) := p.map fun ω => (obs ω, target ω)
-  set r : PMF ObsT := J.map Prod.fst
-  set q : PMF ObsT := μ.map obs
-  set pW : ℝ := ((μ.map W) true).toReal
-  have hpW_pos : 0 < pW := ENNReal.toReal_pos hW0 (PMF.apply_ne_top (μ.map W) true)
-  have hp_le (ω : Ω) : (p ω).toReal ≤ pW⁻¹ * (μ ω).toReal := by
-    have hle_enn : p ω ≤ ((μ.map W) true)⁻¹ * μ ω := by
-      rw [PMF.conditionalSnd_apply _ _ hW_mem]
-      have hmap_le : (μ.map fun ω' => (W ω', ω')) (true, ω) ≤ μ ω := by
-        rw [_root_.PMF.map_apply, tsum_fintype]
-        refine (Finset.sum_le_sum (g := fun x => if x = ω then μ x else 0) fun x _ => ?_).trans_eq
-          (by simp)
-        split_ifs with h₁ h₂
-        · rfl
-        · exact (h₂ (Prod.mk.inj h₁).2.symm).elim
-        · exact zero_le
-        · rfl
-      have hfst : (μ.map fun ω' => (W ω', ω')).map Prod.fst = μ.map W := by
-        rw [_root_.PMF.map_comp]; rfl
-      rw [hfst, div_eq_mul_inv, mul_comm]; exact mul_le_mul_right hmap_le _
-    have htop : ((μ.map W) true)⁻¹ * μ ω ≠ ⊤ :=
-      ENNReal.mul_ne_top (ENNReal.inv_ne_top.mpr hW0) (PMF.apply_ne_top μ ω)
-    exact (ENNReal.toReal_mono htop hle_enn).trans_eq
-      (by rw [ENNReal.toReal_mul, ENNReal.toReal_inv])
-  have hj_le (ot : ObsT × TgtT) :
-      (J ot).toReal ≤ pW⁻¹ * ((μ.map fun ω => (obs ω, target ω)) ot).toReal := by
-    dsimp only [J]; rw [PMF.map_apply_toReal p, PMF.map_apply_toReal μ, Finset.mul_sum]
-    exact Finset.sum_le_sum fun ω _ => by split_ifs <;> [exact hp_le ω; simp]
-  have hr_eq : r = p.map obs := by simp only [r, J, _root_.PMF.map_comp, Function.comp_def]
-  have hr_le (o : ObsT) : (r o).toReal ≤ pW⁻¹ * (q o).toReal := by
-    rw [hr_eq]; dsimp only [q]
-    rw [PMF.map_apply_toReal p, PMF.map_apply_toReal μ, Finset.mul_sum]
-    exact Finset.sum_le_sum fun ω _ => by split_ifs <;> [exact hp_le ω; simp]
-  have hsupp : r.support ⊆ q.support := fun o ho => by
-    have hro : 0 < (r o).toReal := ENNReal.toReal_pos ((_root_.PMF.mem_support_iff _ _).mp ho)
-      (PMF.apply_ne_top r o)
-    have hqo : 0 < (q o).toReal := by
-      have := hr_le o
-      by_contra hle; push Not at hle
-      have hq0 : (q o).toReal = 0 := le_antisymm hle ENNReal.toReal_nonneg
-      rw [hq0, mul_zero] at this; linarith
-    exact (_root_.PMF.mem_support_iff _ _).mpr fun h0 => by simp [h0] at hqo
-  have hterm (o : ObsT) :
-      (r o).toReal * (Real.logb 2 pW + Real.logb 2 M) -
-        (r o).toReal * PMF.surprisal r o + (r o).toReal * PMF.surprisal q o ≤
-      (r o).toReal * PMF.entropy (PMF.conditionalSnd J o) := by
-    by_cases ho : o ∈ r.support
-    · have hro : 0 < (r o).toReal := ENNReal.toReal_pos ((_root_.PMF.mem_support_iff _ _).mp ho)
-        (PMF.apply_ne_top r o)
-      have hqo : 0 < (q o).toReal := ENNReal.toReal_pos
-        ((_root_.PMF.mem_support_iff _ _).mp (hsupp ho)) (PMF.apply_ne_top q o)
-      have hmin : Real.logb 2 (pW * (r o).toReal * M / (q o).toReal) ≤
-          PMF.entropy (PMF.conditionalSnd J o) := by
-        refine le_trans ?_ (PMF.minEntropy_le_entropy _)
-        rw [PMF.le_minEntropy_iff]; intro t
-        rw [Real.rpow_neg (by norm_num),
-          Real.rpow_logb (by norm_num) (by norm_num) (by positivity), inv_div]
-        have hm := congrArg ENNReal.toReal (PMF.marginal_mul_conditionalSnd J o t)
-        rw [ENNReal.toReal_mul] at hm
-        have hjt := (hj_le (o, t)).trans
-          (mul_le_mul_of_nonneg_left (hfiber o t) (inv_nonneg.mpr hpW_pos.le))
-        change (r o).toReal * (PMF.conditionalSnd J o t).toReal = (J (o, t)).toReal at hm
-        rw [← hm] at hjt
-        rw [le_div_iff₀ (by positivity)]
-        have hjt' :
-            (r o).toReal * (PMF.conditionalSnd J o t).toReal * (pW * M) ≤ (q o).toReal := by
-          have := mul_le_mul_of_nonneg_right hjt (show 0 ≤ pW * M by positivity)
-          calc (r o).toReal * (PMF.conditionalSnd J o t).toReal * (pW * M)
-              ≤ pW⁻¹ * ((q o).toReal / M) * (pW * M) := this
-            _ = (q o).toReal := by field_simp
-        linarith [show (PMF.conditionalSnd J o t).toReal * (pW * (r o).toReal * M) =
-          (r o).toReal * (PMF.conditionalSnd J o t).toReal * (pW * M) by ring]
-      have hlog : Real.logb 2 (pW * (r o).toReal * M / (q o).toReal) =
-          Real.logb 2 pW + Real.logb 2 M - PMF.surprisal r o + PMF.surprisal q o := by
-        rw [Real.logb_div (by positivity) hqo.ne', Real.logb_mul (by positivity) hM.ne',
-          Real.logb_mul hpW_pos.ne' hro.ne', hsurp_eq r o ho, hsurp_eq q o (hsupp ho)]
-        ring
-      have hmul := mul_le_mul_of_nonneg_left (hlog ▸ hmin) hro.le
-      linarith
-    · have hr0 : (r o).toReal = 0 := by simp [(_root_.PMF.apply_eq_zero_iff r o).mpr ho]
-      simp [hr0]
-  have hsum := Finset.sum_le_sum (s := Finset.univ) fun (o : ObsT) _ => hterm o
-  simp only [Finset.sum_add_distrib, Finset.sum_sub_distrib, ← Finset.sum_mul,
-    PMF.sum_toReal r, one_mul, ← PMF.entropy_eq_sum_surprisal r] at hsum
-  have hkl := PMF.entropy_le_sum_mul_surprisal hsupp
-  have hce : PMF.conditionalEntropy J =
-      ∑ o : ObsT, (r o).toReal * PMF.entropy (PMF.conditionalSnd J o) :=
-    PMF.conditionalEntropy_eq_sum J
-  change Real.logb 2 pW + Real.logb 2 M ≤ PMF.conditionalEntropy J
-  linarith
-
-/-- Unconditioned specialization of `logb_prob_add_logb_le_conditionalEntropy_of_fiber_le`: if
-`((μ.map fun ω => (obs ω, target ω)) (o, t)).toReal ≤ ((μ.map obs) o).toReal / M` for all `(o, t)`,
-then `Real.logb 2 M ≤ PMF.conditionalEntropy (μ.map fun ω => (obs ω, target ω))`. -/
-theorem logb_le_conditionalEntropy_of_fiber_le {Ω ObsT TgtT : Type*}
-    [Finite Ω] [Finite ObsT] [Finite TgtT]
-    (μ : PMF Ω) (obs : Ω → ObsT) (target : Ω → TgtT) {M : ℝ} (hM : 0 < M)
-    (hfiber : ∀ (o : ObsT) (t : TgtT),
-      ((μ.map fun ω => (obs ω, target ω)) (o, t)).toReal ≤ ((μ.map obs) o).toReal / M) :
-    Real.logb 2 M ≤ PMF.conditionalEntropy (μ.map fun ω => (obs ω, target ω)) := by
-  classical
-  let _ := Fintype.ofFinite Ω
-  have htrue : (μ.map fun _ => true) true = 1 := by
-    change (μ.map (Function.const Ω true)) true = 1
-    rw [_root_.PMF.map_const, _root_.PMF.pure_apply_self]
-  have hcond : PMF.conditionalSnd (μ.map fun ω => (true, ω)) true = μ := by
-    ext ω
-    have hmem : true ∈ ((μ.map fun ω' => (true, ω')).map Prod.fst).support := by
-      rw [_root_.PMF.map_comp]; change true ∈ (μ.map fun _ => true).support
-      rw [_root_.PMF.mem_support_iff, htrue]; exact one_ne_zero
-    rw [PMF.conditionalSnd_apply _ _ hmem]
-    have hfst : ((μ.map fun ω' => (true, ω')).map Prod.fst) true = 1 := by
-      rw [_root_.PMF.map_comp]; exact htrue
-    rw [hfst, div_one, _root_.PMF.map_apply, tsum_fintype]
-    simp only [Prod.mk.injEq, true_and, Finset.sum_ite_eq, Finset.mem_univ, ↓reduceIte]
-  have h := logb_prob_add_logb_le_conditionalEntropy_of_fiber_le μ (fun _ => true) obs target hM
-    (by rw [htrue]; exact one_ne_zero) hfiber
-  dsimp only at h
-  rw [htrue, ENNReal.toReal_one, Real.logb_one, zero_add, hcond] at h
-  exact h
-
-/-- Conditional entropy subadditivity along an intermediate revelation `mid`:
-`H(tgt | obs) ≤ H(mid | obs) + H(tgt | obs, mid)`. -/
-theorem conditionalEntropy_le_add_conditionalEntropy {Ω Obs Mid Tgt : Type*}
-    [Finite Obs] [Finite Mid] [Finite Tgt]
-    (p : PMF Ω) (obs : Ω → Obs) (mid : Ω → Mid) (tgt : Ω → Tgt) :
-    PMF.conditionalEntropy (p.map fun ω => (obs ω, tgt ω)) ≤
-      PMF.conditionalEntropy (p.map fun ω => (obs ω, mid ω)) +
-        PMF.conditionalEntropy (p.map fun ω => ((obs ω, mid ω), tgt ω)) := by
-  have hle : PMF.entropy (p.map fun ω => (obs ω, tgt ω)) ≤
-      PMF.entropy (p.map fun ω => ((obs ω, mid ω), tgt ω)) := by
-    have hcomp : (p.map fun ω => ((obs ω, mid ω), tgt ω)).map (fun x => (x.1.1, x.2)) =
-        p.map fun ω => (obs ω, tgt ω) := by
-      rw [_root_.PMF.map_comp]; rfl
-    rw [← hcomp]
-    exact PMF.entropy_map_le _ _
-  simp only [PMF.conditionalEntropy, _root_.PMF.map_comp, Function.comp_def] at hle ⊢
-  linarith
-
-/-! ### Mode-parametric hard sequences (`withQueries : Bool`) -/
-
-/-- Elementary-step stride per meta-operation: `3` (`[query, delete, insert]`) when
-`withQueries = true`, and `2` (`[delete, insert]`) when `withQueries = false`. -/
-@[expose] def modeStride (withQueries : Bool) : ℕ :=
-  if withQueries then 3 else 2
-
-/-- Correctness horizon `n + modeStride withQueries * n` (`4 * n` vs. `3 * n`). -/
-@[expose] def modeHorizon (withQueries : Bool) (n : ℕ) : ℕ :=
-  n + modeStride withQueries * n
-
-/-- Mode-parametric hard operational sequence distribution (`insertQueryDeleteDist` vs.
-`insertDeleteDist`). -/
-noncomputable def modeDist (withQueries : Bool) (U V n : ℕ) (hU : 2 * n ≤ U) (hV : 1 ≤ V) :
-    PMF (List (Dynamic.Op U)) :=
-  if withQueries then insertQueryDeleteDist U V n hU hV else insertDeleteDist U V n hU hV
-
-@[simp]
-theorem modeDist_true (U V n : ℕ) (hU : 2 * n ≤ U) (hV : 1 ≤ V) :
-    modeDist true U V n hU hV = insertQueryDeleteDist U V n hU hV := by rfl
-
-@[simp]
-theorem modeDist_false (U V n : ℕ) (hU : 2 * n ≤ U) (hV : 1 ≤ V) :
-    modeDist false U V n hU hV = insertDeleteDist U V n hU hV := by rfl
-
-/-- Full `3 * n`-operation `[delete, insert]` update-only sequence generated by `s`. -/
-@[expose] def HardKeyValSeed.updateOps {U V n : ℕ} (s : HardKeyValSeed U V n) :
-    List (Dynamic.Op U) :=
-  insertDeleteSeq s.keys (fun idx => s.kv (s.keys idx)) s.delPerm
-
-/-- Mode-parametric full sequence generated by `s` (`s.ops` vs. `s.updateOps`). -/
-@[expose] def HardKeyValSeed.modeOps {U V n : ℕ} (withQueries : Bool) (s : HardKeyValSeed U V n) :
-    List (Dynamic.Op U) :=
-  if withQueries then s.ops else s.updateOps
-
-/-- Candidate `[delete, insert]` segment sequence for candidate set `B` (`B.card = m`). -/
-noncomputable def HardKeyValSeed.candidateUpdateOps {U V n : ℕ} (s : HardKeyValSeed U V n)
-    (t₀ m : ℕ) (ht : t₀ + m ≤ n) (B : Finset (Fin U)) (hB : B.card = m) : List (Dynamic.Op U) :=
-  candidateDeleteInsertOps (segDeletedKeys s.keys s.delPerm t₀ m ht)
-    (orderSubset B hB (embSetPermEquiv (Fin U) m (segInsertedKeys s.keys t₀ m ht)).2) s.kv
-
-theorem HardKeyValSeed.candidateUpdateOps_eq {U V n : ℕ} (s : HardKeyValSeed U V n)
-    (t₀ m : ℕ) (ht : t₀ + m ≤ n) (B : Finset (Fin U)) (hB : B.card = m) :
-    s.candidateUpdateOps t₀ m ht B hB =
-      candidateDeleteInsertOps (segDeletedKeys s.keys s.delPerm t₀ m ht)
-        (orderSubset B hB (embSetPermEquiv (Fin U) m (segInsertedKeys s.keys t₀ m ht)).2) s.kv := by
-  rfl
-
-/-- Mode-parametric candidate segment sequence for candidate set `B` (`B.card = m`). -/
-noncomputable def HardKeyValSeed.modeCandidateOps {U V n : ℕ} (withQueries : Bool)
-    (s : HardKeyValSeed U V n) (t₀ m : ℕ) (ht : t₀ + m ≤ n) (B : Finset (Fin U))
-    (hB : B.card = m) : List (Dynamic.Op U) :=
-  if withQueries then s.candidateOps t₀ m ht B hB else s.candidateUpdateOps t₀ m ht B hB
-
-theorem HardKeyValSeed.modeCandidateOps_eq {U V n : ℕ} (withQueries : Bool)
-    (s : HardKeyValSeed U V n) (t₀ m : ℕ) (ht : t₀ + m ≤ n) (B : Finset (Fin U))
-    (hB : B.card = m) :
-    s.modeCandidateOps withQueries t₀ m ht B hB =
-      if withQueries then s.candidateOps t₀ m ht B hB else s.candidateUpdateOps t₀ m ht B hB := by
-  rfl
-
-/-- Pushing `PMF.uniformOfFintype (HardKeyValSeed U V n)` forward by `HardKeyValSeed.updateOps`
-recovers `insertDeleteDist U V n hU hV`. -/
-theorem map_updateOps_uniformOfFintype_hardKeyValSeed {U V n : ℕ} (hU : 2 * n ≤ U) (hV : 1 ≤ V) :
-    letI : Nonempty (HardKeyValSeed U V n) := ⟨⟨Fin.castLEEmb hU, fun _ => ⟨0, hV⟩, 1⟩⟩
-    (PMF.uniformOfFintype (HardKeyValSeed U V n)).map HardKeyValSeed.updateOps =
-      insertDeleteDist U V n hU hV := by
-  let _ : Nonempty (Fin (2 * n) ↪ Fin U) := ⟨Fin.castLEEmb hU⟩
-  let _ : Nonempty (Fin V) := ⟨⟨0, hV⟩⟩
-  let _ : Nonempty (HardKeyValSeed U V n) := ⟨⟨Fin.castLEEmb hU, fun _ => ⟨0, hV⟩, 1⟩⟩
-  let e : (((Fin (2 * n) ↪ Fin U) × (Fin U → Fin V)) × Equiv.Perm (Fin n)) ≃
-      HardKeyValSeed U V n :=
-    ⟨fun ⟨⟨k, kv⟩, d⟩ => ⟨k, kv, d⟩, fun s => ((s.keys, s.kv), s.delPerm),
-      fun ⟨⟨_, _⟩, _⟩ => rfl, fun ⟨_, _, _⟩ => rfl⟩
-  rw [insertDeleteDist_eq_bind_keyVals hU hV, ← PMF.uniformOfFintype_map_equiv e,
-    _root_.PMF.map_comp, ← PMF.uniformOfFintype_prod, _root_.PMF.map_bind,
-    ← PMF.uniformOfFintype_prod, _root_.PMF.bind_bind]
-  congr 1 with keys; congr 1 with kv
-  simp [_root_.PMF.map_comp, Function.comp_def, e, HardKeyValSeed.updateOps]
-
-theorem map_modeOps_uniformOfFintype_hardKeyValSeed (withQueries : Bool) {U V n : ℕ}
-    (hU : 2 * n ≤ U) (hV : 1 ≤ V) :
-    letI : Nonempty (HardKeyValSeed U V n) := ⟨⟨Fin.castLEEmb hU, fun _ => ⟨0, hV⟩, 1⟩⟩
-    (PMF.uniformOfFintype (HardKeyValSeed U V n)).map (HardKeyValSeed.modeOps withQueries) =
-      modeDist withQueries U V n hU hV := by
-  cases withQueries
-  · exact map_updateOps_uniformOfFintype_hardKeyValSeed hU hV
-  · exact map_ops_uniformOfFintype_hardKeyValSeed hU hV
-
-/-- Dictionary state reached after `n` initial insertions and `t ≤ n` update-only meta-operations of
-`s.updateOps`. -/
-theorem HardKeyValSeed.run_take_updateOps_fst {U V n t : ℕ} (s : HardKeyValSeed U V n)
-    (ht : t ≤ n) :
-    ((Dynamic.spec U V n).run (Dictionary.empty U) (s.updateOps.take (n + 2 * t))).1 =
-      (windowDict s.permKeyEmb (fun idx => s.kv (s.permKeyEmb idx)) t ht).1 := by
-  set vals := fun idx => s.kv (s.keys idx); set pvals := fun idx => s.kv (s.permKeyEmb idx)
-  have hinit : ((Dynamic.spec U V n).run (Dictionary.empty U) (initInsertSeq s.keys vals)).1 =
-      ((Dynamic.spec U V n).run (Dictionary.empty U) (initInsertSeq s.permKeyEmb pvals)).1 := by
-    rw [run_initInsertSeq_fst, run_initInsertSeq_fst, windowDict_coe, windowDict_coe]
-    have hemb (k : Fin n) : windowEmb s.permKeyEmb 0 (Nat.zero_le n) k =
-        windowEmb s.keys 0 (Nat.zero_le n) (s.delPerm k) := by simp [HardKeyValSeed.permKeyEmb]
-    funext u; by_cases hex : ∃ i : Fin n, windowEmb s.keys 0 (Nat.zero_le n) i = u
-    · obtain ⟨i, rfl⟩ := hex
-      have hk := hemb (s.delPerm.symm i); rw [Equiv.apply_symm_apply] at hk
-      rw [dictOfEmb_apply_self, ← hk, dictOfEmb_apply_self]
-      simp [vals, pvals, HardKeyValSeed.permKeyEmb]
-    · push Not at hex
-      rw [dictOfEmb_apply_eq_none _ _ hex,
-        dictOfEmb_apply_eq_none _ _ fun k => by rw [hemb]; exact hex _]
-  have hmeta (j : Fin n) : deleteInsertMetaOp s.keys vals s.delPerm j =
-      deleteInsertMetaOp s.permKeyEmb pvals (Equiv.refl (Fin n)) j := by
-    simp [deleteInsertMetaOp, vals, pvals, HardKeyValSeed.permKeyEmb]
-  have hrhs :=
-    (validHistory_and_run_take_insertDeleteSeq s.permKeyEmb pvals (Equiv.refl (Fin n)) ht).2
-  rw [take_insertDeleteSeq, StateTransitionSpec.run_append, activeWindowDict_refl] at hrhs
-  rw [HardKeyValSeed.updateOps, take_insertDeleteSeq, StateTransitionSpec.run_append]
-  dsimp only at hrhs ⊢
-  rw [hinit, List.flatMap_congr fun j _ => hmeta j]; exact hrhs
-
-theorem HardKeyValSeed.run_take_modeOps_fst (withQueries : Bool) {U V n t : ℕ}
-    (s : HardKeyValSeed U V n) (ht : t ≤ n) :
-    ((Dynamic.spec U V n).run (Dictionary.empty U)
-        ((s.modeOps withQueries).take (n + modeStride withQueries * t))).1 =
-      (windowDict s.permKeyEmb (fun idx => s.kv (s.permKeyEmb idx)) t ht).1 := by
-  cases withQueries
-  · exact s.run_take_updateOps_fst ht
-  · exact s.run_take_ops_fst ht
-
-theorem HardKeyValSeed.validHistory_take_modeOps (withQueries : Bool) {U V n t : ℕ}
-    (s : HardKeyValSeed U V n) (ht : t ≤ n) :
-    (Dynamic.spec U V n).ValidHistory (Dictionary.empty U)
-      ((s.modeOps withQueries).take (n + modeStride withQueries * t)) := by
-  cases withQueries
-  · exact (validHistory_and_run_take_insertDeleteSeq s.keys (fun idx => s.kv (s.keys idx))
-      s.delPerm ht).1
-  · exact (validHistory_and_run_take_insertQueryDeleteSeq s.keys (fun idx => s.kv (s.keys idx))
-      s.delPerm ht).1
-
-theorem HardKeyValSeed.length_modeOps (withQueries : Bool) {U V n : ℕ}
-    (s : HardKeyValSeed U V n) :
-    (s.modeOps withQueries).length = modeHorizon withQueries n := by
-  cases withQueries
-  · simp [modeOps, updateOps, modeHorizon, modeStride, length_insertDeleteSeq]; ring
-  · simp [modeOps, HardKeyValSeed.ops, modeHorizon, modeStride, length_insertQueryDeleteSeq]; ring
-
-theorem HardKeyValSeed.length_take_modeOps (withQueries : Bool) {U V n t : ℕ}
-    (s : HardKeyValSeed U V n) (ht : t ≤ n) :
-    ((s.modeOps withQueries).take (n + modeStride withQueries * t)).length =
-      n + modeStride withQueries * t := by
-  rw [List.length_take, s.length_modeOps, Nat.min_eq_left]
-  exact Nat.add_le_add_left (Nat.mul_le_mul_left _ ht) n
-
-theorem HardKeyValSeed.elemSlice_modeOps_eq_trueCandidate (withQueries : Bool) {U V n t₀ m : ℕ}
-    (s : HardKeyValSeed U V n) (ht : t₀ + m ≤ n) :
-    elemSlice n (modeStride withQueries) (s.modeOps withQueries) t₀ (t₀ + m) =
-      s.modeCandidateOps withQueries t₀ m ht (s.insertedSet t₀ m ht)
-        (by simp [HardKeyValSeed.insertedSet,
-          Finset.card_image_of_injective _ (segInsertedKeys s.keys t₀ m ht).injective]) := by
-  have hcard : (s.insertedSet t₀ m ht).card = m := by
-    simp [HardKeyValSeed.insertedSet,
-      Finset.card_image_of_injective _ (segInsertedKeys s.keys t₀ m ht).injective]
-  have hord : orderSubset (s.insertedSet t₀ m ht) hcard
-      (embSetPermEquiv (Fin U) m (segInsertedKeys s.keys t₀ m ht)).2 =
-      segInsertedKeys s.keys t₀ m ht :=
-    orderSubset_eq_of_embSetPermEquiv_fst
-      (Subtype.ext (embSetPermEquiv_fst m (segInsertedKeys s.keys t₀ m ht)))
-  cases withQueries
-  · simp only [modeStride, Bool.false_eq_true, ↓reduceIte, modeOps, modeCandidateOps,
-      candidateUpdateOps, hord]
-    exact elemSlice_insertDeleteSeq_eq_candidate s.keys s.kv s.delPerm ht
-  · simp only [modeStride, ↓reduceIte, modeOps, HardKeyValSeed.ops, modeCandidateOps,
-      HardKeyValSeed.candidateOps_eq, hord]
-    exact elemSlice_insertQueryDeleteSeq_eq_candidate s.keys s.kv s.delPerm ht
-
 /-! ### Outer Game observations, Eq. (2) end-memory entropy, and Eq. (1) partition entropy -/
 
 /-- Bob's prior observation at node `(ℓ + 1, b)` in the Outer Game ([LiLiangYuZhou2023],
 Section 4.1, p. 14 / PDF p. 15 and Section 8, p. 27 / PDF p. 28):
 `(C_st, A, d, π, kv)`. -/
-abbrev BobOuterObs (U V cells w F m : ℕ) : Type :=
+private abbrev BobOuterObs (U V cells w F m : ℕ) : Type :=
   Mem cells w × Finset (Fin U) × (Fin (F * m) → Fin U) ×
     (Fin F → Equiv.Perm (Fin m)) × (Fin U → Fin V)
 
 /-- Bob's observation extracted from `s : HardKeyValSeed U V n` at `[t_st, t_st + F * m)`. -/
-noncomputable def bobOuterObsOf (withQueries : Bool) {U V n cells w : ℕ}
+private noncomputable def bobOuterObsOf (withQueries : Bool) {U V n cells w : ℕ}
     (D_det : IndexedScheme (Dynamic.Op U) Dynamic.Op.Result cells w)
     (t_st F m : ℕ) (ht_end : t_st + F * m ≤ n) (s : HardKeyValSeed U V n) :
     BobOuterObs U V cells w F m :=
@@ -476,38 +120,15 @@ noncomputable def bobOuterObsOf (withQueries : Bool) {U V n cells w : ℕ}
    s.kv)
 
 /-- Ordered partition `(A^{[0]}, …, A^{[F - 1]})` of `A` that Bob must learn in Protocol 1. -/
-def outerTarget {U V n : ℕ} (t_st F m : ℕ) (ht_end : t_st + F * m ≤ n)
+private def outerTarget {U V n : ℕ} (t_st F m : ℕ) (ht_end : t_st + F * m ≤ n)
     (s : HardKeyValSeed U V n) : Fin F → Finset (Fin U) :=
   fun i => s.insertedSet (t_st + i.val * m) m (by have := i.isLt; nlinarith)
-
-/-- Multinomial identity `(∏_{i < F} C((F - i) * m, m)) * (m!)^F = (F * m)!` connecting
-`∑_{i < F} log₂ |F_all^{[i]}|` to Eq. (1)'s `log₂ (F * m)! - F * log₂ m!`. -/
-theorem prod_choose_partition_mul_pow_factorial (F m : ℕ) :
-    (∏ i : Fin F, ((F - i.val) * m).choose m) * m.factorial ^ F = (F * m).factorial := by
-  induction F with
-  | zero => simp
-  | succ F ih =>
-    rw [Fin.prod_univ_succ, Fin.val_zero, Nat.sub_zero, pow_succ]
-    have hrest : (∏ i : Fin F, ((F + 1 - (Fin.succ i).val) * m).choose m) =
-        ∏ i : Fin F, ((F - i.val) * m).choose m :=
-      Finset.prod_congr rfl fun i _ => by simp
-    rw [hrest]
-    have hchoose := Nat.choose_mul_factorial_mul_factorial
-      (show m ≤ (F + 1) * m from Nat.le_mul_of_pos_left m (Nat.succ_pos F))
-    have hsub : (F + 1) * m - m = F * m := by rw [Nat.succ_mul, Nat.add_sub_cancel]
-    rw [hsub] at hchoose
-    calc ((F + 1) * m).choose m * (∏ i : Fin F, ((F - i.val) * m).choose m) *
-          (m.factorial ^ F * m.factorial)
-        = ((F + 1) * m).choose m * m.factorial *
-            ((∏ i : Fin F, ((F - i.val) * m).choose m) * m.factorial ^ F) := by ring
-      _ = ((F + 1) * m).choose m * m.factorial * (F * m).factorial := by rw [ih]
-      _ = ((F + 1) * m).factorial := hchoose
 
 open Classical in
 /-- Eq. (2) of [LiLiangYuZhou2023] (Section 4.2, p. 15 / PDF p. 16): given Bob's observation
 `bobOuterObsOf`, the end-of-node memory `C_end` has conditional entropy at most `R_outer` whenever
 `cells * w ≤ benchmarkBits U V n + R_outer`. -/
-theorem conditionalEntropy_endMem_le (withQueries : Bool) {U V n cells w : ℕ} {R_outer : ℝ}
+private theorem conditionalEntropy_endMem_le (withQueries : Bool) {U V n cells w : ℕ} {R_outer : ℝ}
     (hU : 2 * n ≤ U) (hV : 1 ≤ V)
     (hspace : ((cells * w : ℕ) : ℝ) ≤ benchmarkBits U V n + R_outer)
     {D_det : IndexedScheme (Dynamic.Op U) Dynamic.Op.Result cells w}
@@ -653,8 +274,10 @@ theorem conditionalEntropy_endMem_le (withQueries : Bool) {U V n cells w : ℕ} 
       rw [hdec_at s t_end ht_end, s.run_take_modeOps_fst withQueries ht_end]
     rw [hfn, ← _root_.PMF.map_comp, map_modeOps_uniformOfFintype_hardKeyValSeed]
     cases withQueries
-    · exact map_extractKeySetVals_insertDeleteDist hU hV ht_end hnU
-    · exact map_extractKeySetVals_insertQueryDeleteDist hU hV ht_end hnU
+    · simpa only [modeDist_false, modeStride, Bool.false_eq_true, ↓reduceIte] using
+        map_extractKeySetVals_insertDeleteDist hU hV ht_end hnU
+    · simpa only [modeDist_true, modeStride, ↓reduceIte] using
+        map_extractKeySetVals_insertQueryDeleteDist hU hV ht_end hnU
   have hkv_ent : PMF.entropy ((μ.map fun s => (kvEndOfMem (endMem s), endMem s)).map Prod.fst) =
       benchmarkBits U V n := by
     have hfst : (μ.map fun s => (kvEndOfMem (endMem s), endMem s)).map Prod.fst =
@@ -734,25 +357,6 @@ private theorem actInsKeyPerm_ins {n t_st N : ℕ} (h : t_st + N ≤ n)
   apply Fin.ext; dsimp
   exact congrArg (n + t_st + ·) (congrArg Fin.val (congrArg γ (Fin.ext (by dsimp; omega))))
 
-private def divModEquiv {F m : ℕ} (hm : 0 < m) : Fin F × Fin m ≃ Fin (F * m) where
-  toFun p := ⟨p.1.val * m + p.2.val, by
-    calc p.1.val * m + p.2.val < p.1.val * m + m := Nat.add_lt_add_left p.2.isLt _
-      _ = (p.1.val + 1) * m := by ring
-      _ ≤ F * m := Nat.mul_le_mul_right m p.1.isLt⟩
-  invFun x := (⟨x.val / m, (Nat.div_lt_iff_lt_mul hm).mpr x.isLt⟩, ⟨x.val % m, Nat.mod_lt _ hm⟩)
-  left_inv := fun ⟨i, r⟩ => Prod.ext
-    (Fin.ext (by
-      change (i.val * m + r.val) / m = i.val
-      rw [Nat.add_comm (i.val * m), Nat.mul_comm i.val m, Nat.add_mul_div_left _ _ hm,
-        Nat.div_eq_of_lt r.isLt, Nat.zero_add]))
-    (Fin.ext (by
-      change (i.val * m + r.val) % m = r.val
-      rw [Nat.add_comm (i.val * m), Nat.mul_comm i.val m, Nat.add_mul_mod_self_left,
-        Nat.mod_eq_of_lt r.isLt]))
-  right_inv x := Fin.ext (by
-    change (x.val / m) * m + x.val % m = x.val
-    rw [Nat.mul_comm (x.val / m) m]; exact Nat.div_add_mod x.val m)
-
 private def blockProdPerm {F : ℕ} {m : ℕ} (δ : Fin F → Equiv.Perm (Fin m)) :
     Equiv.Perm (Fin F × Fin m) where
   toFun p := (p.1, δ p.1 p.2)
@@ -760,23 +364,23 @@ private def blockProdPerm {F : ℕ} {m : ℕ} (δ : Fin F → Equiv.Perm (Fin m)
   left_inv := fun ⟨i, r⟩ => Prod.ext rfl ((δ i).symm_apply_apply r)
   right_inv := fun ⟨i, r⟩ => Prod.ext rfl ((δ i).apply_symm_apply r)
 
-private def blockPerm {F m : ℕ} (hm : 0 < m) (δ : Fin F → Equiv.Perm (Fin m)) :
+private def blockPerm {F m : ℕ} (δ : Fin F → Equiv.Perm (Fin m)) :
     Equiv.Perm (Fin (F * m)) :=
-  (divModEquiv hm).symm.trans ((blockProdPerm δ).trans (divModEquiv hm))
+  finProdFinEquiv.symm.trans ((blockProdPerm δ).trans finProdFinEquiv)
 
-private theorem blockPerm_apply {F m : ℕ} (hm : 0 < m) (δ : Fin F → Equiv.Perm (Fin m))
+private theorem blockPerm_apply {F m : ℕ} (δ : Fin F → Equiv.Perm (Fin m))
     (i : Fin F) (r : Fin m) :
-    blockPerm hm δ (divModEquiv hm (i, r)) = divModEquiv hm (i, δ i r) := by
+    blockPerm δ (finProdFinEquiv (i, r)) = finProdFinEquiv (i, δ i r) := by
   simp [blockPerm, blockProdPerm]
 
 open Classical in
 /-- Eq. (1) of [LiLiangYuZhou2023] (Section 4.1, p. 14 / PDF p. 15): given Bob's observation
 `bobOuterObsOf`, the ordered partition `outerTarget` has conditional entropy at least
 `∑_{i < F} log₂ C((F - i) * m, m) = log₂ (F * m)! - F * log₂ m!`. -/
-theorem sum_logb_choose_le_conditionalEntropy_outerTarget (withQueries : Bool)
+private theorem sum_logb_choose_le_conditionalEntropy_outerTarget (withQueries : Bool)
     {U V n cells w : ℕ} (hU : 2 * n ≤ U) (hV : 1 ≤ V)
     (D_det : IndexedScheme (Dynamic.Op U) Dynamic.Op.Result cells w)
-    (t_st F m : ℕ) (hm : 1 ≤ m) (ht_end : t_st + F * m ≤ n) :
+    (t_st F m : ℕ) (ht_end : t_st + F * m ≤ n) :
     letI : Nonempty (HardKeyValSeed U V n) := ⟨⟨Fin.castLEEmb hU, fun _ => ⟨0, hV⟩, 1⟩⟩
     let μ := PMF.uniformOfFintype (HardKeyValSeed U V n)
     (∑ i : Fin F, Real.logb 2 (((F - i.val) * m).choose m)) ≤
@@ -815,7 +419,6 @@ theorem sum_logb_choose_le_conditionalEntropy_outerTarget (withQueries : Bool)
         exact_mod_cast Nat.choose_pos (Nat.le_mul_of_pos_left m (by have := i.isLt; omega))
   rw [← hlog_M]
   refine logb_le_conditionalEntropy_of_fiber_le μ obs tgt hM_pos fun o P => ?_
-  have hm_pos : 0 < m := hm
   let G := Equiv.Perm (Fin (F * m))
   let H := Fin F → Equiv.Perm (Fin m)
   have htake_eq (γ : G) (s : HardKeyValSeed U V n) :
@@ -868,14 +471,14 @@ theorem sum_logb_choose_le_conditionalEntropy_outerTarget (withQueries : Bool)
   have hseg_eq (γ : G) (s : HardKeyValSeed U V n) (i : Fin F) (r : Fin m) :
       segInsertedKeys (actInsSeed t_st (F * m) ht_end γ s).keys (t_st + i.val * m) m
           (by have := i.isLt; nlinarith) r =
-        segInsertedKeys s.keys t_st (F * m) ht_end (γ (divModEquiv hm_pos (i, r))) := by
+        segInsertedKeys s.keys t_st (F * m) ht_end (γ (finProdFinEquiv (i, r))) := by
     simp only [actInsSeed, segInsertedKeys_apply, Equiv.coe_fn_mk,
       Function.Embedding.trans_apply, Equiv.coe_toEmbedding]
     have hidx : (⟨n + (t_st + i.val * m + r.val), by have := i.isLt; nlinarith [r.isLt]⟩ :
         Fin (2 * n)) =
-        ⟨n + t_st + (divModEquiv hm_pos (i, r)).val,
-          by have := (divModEquiv hm_pos (i, r)).isLt; omega⟩ :=
-      Fin.ext (by dsimp [divModEquiv]; ring)
+        ⟨n + t_st + (finProdFinEquiv (i, r)).val,
+          by have := (finProdFinEquiv (i, r)).isLt; omega⟩ :=
+      Fin.ext (by simp [finProdFinEquiv]; ring)
     rw [hidx, actInsKeyPerm_ins ht_end γ]
     exact congrArg s.keys (Fin.ext (by ring))
   have hA_inv (γ : G) (s : HardKeyValSeed U V n) :
@@ -928,7 +531,7 @@ theorem sum_logb_choose_le_conditionalEntropy_outerTarget (withQueries : Bool)
     intro γ₁ γ₂ heq
     rcases Prod.mk.inj heq with ⟨hpi, htgt⟩
     ext x
-    obtain ⟨⟨i, r⟩, rfl⟩ := (divModEquiv hm_pos).surjective x
+    obtain ⟨⟨i, r⟩, rfl⟩ := finProdFinEquiv.surjective x
     have hset_i : (actInsSeed t_st (F * m) ht_end γ₁ s).insertedSet (t_st + i.val * m) m
           (by have := i.isLt; nlinarith) =
         (actInsSeed t_st (F * m) ht_end γ₂ s).insertedSet (t_st + i.val * m) m
@@ -954,19 +557,19 @@ theorem sum_logb_choose_le_conditionalEntropy_outerTarget (withQueries : Bool)
     have hseq := (hseg_eq γ₁ s i r).symm.trans (hfeq.trans (hseg_eq γ₂ s i r))
     exact congrArg Fin.val ((segInsertedKeys s.keys t_st (F * m) ht_end).injective hseq)
   have hpi_block (δ : H) (γ : G) (s : HardKeyValSeed U V n) :
-      piOf (actInsSeed t_st (F * m) ht_end ((blockPerm hm_pos δ).trans γ) s) =
+      piOf (actInsSeed t_st (F * m) ht_end ((blockPerm δ).trans γ) s) =
         fun i => (δ i).trans (piOf (actInsSeed t_st (F * m) ht_end γ s) i) := by
     funext i
     have hseg_b : segInsertedKeys
-          (actInsSeed t_st (F * m) ht_end ((blockPerm hm_pos δ).trans γ) s).keys
+          (actInsSeed t_st (F * m) ht_end ((blockPerm δ).trans γ) s).keys
           (t_st + i.val * m) m (by have := i.isLt; nlinarith) =
         (δ i).toEmbedding.trans (segInsertedKeys
           (actInsSeed t_st (F * m) ht_end γ s).keys
           (t_st + i.val * m) m (by have := i.isLt; nlinarith)) := by
       apply Function.Embedding.ext; intro r
-      rw [hseg_eq ((blockPerm hm_pos δ).trans γ) s i r, Function.Embedding.trans_apply,
+      rw [hseg_eq ((blockPerm δ).trans γ) s i r, Function.Embedding.trans_apply,
         Equiv.coe_toEmbedding, hseg_eq γ s i (δ i r), Equiv.trans_apply,
-        blockPerm_apply hm_pos δ i r]
+        blockPerm_apply δ i r]
     dsimp only [piOf]; rw [hseg_b]
     exact embSetPermEquiv_perm_trans (δ i) _
   have hcard_pi_fiber (s : HardKeyValSeed U V n) (π₀ : H) :
@@ -978,23 +581,23 @@ theorem sum_logb_choose_le_conditionalEntropy_outerTarget (withQueries : Bool)
           (Finset.univ.filter fun γ : G =>
             piOf (actInsSeed t_st (F * m) ht_end γ s) = π₂).card := by
       let δ : H := fun i => (π₂ i).trans (π₁ i).symm
-      refine Finset.card_bij (fun γ _ => (blockPerm hm_pos δ).trans γ)
+      refine Finset.card_bij (fun γ _ => (blockPerm δ).trans γ)
         (fun γ hγ => ?_)
         (fun γ₁ _ γ₂ _ h => by
           ext x
-          have hx := congrArg (fun e : G => e ((blockPerm hm_pos δ).symm x)) h
-          change ((blockPerm hm_pos δ).trans γ₁) ((blockPerm hm_pos δ).symm x) =
-            ((blockPerm hm_pos δ).trans γ₂) ((blockPerm hm_pos δ).symm x) at hx
+          have hx := congrArg (fun e : G => e ((blockPerm δ).symm x)) h
+          change ((blockPerm δ).trans γ₁) ((blockPerm δ).symm x) =
+            ((blockPerm δ).trans γ₂) ((blockPerm δ).symm x) at hx
           rw [Equiv.trans_apply, Equiv.trans_apply, Equiv.apply_symm_apply] at hx
           exact congrArg Fin.val hx)
-        (fun γ hγ => ⟨(blockPerm hm_pos δ).symm.trans γ, ?_, by ext x; simp⟩)
+        (fun γ hγ => ⟨(blockPerm δ).symm.trans γ, ?_, by ext x; simp⟩)
       · rw [Finset.mem_filter] at hγ ⊢; refine ⟨Finset.mem_univ _, ?_⟩
         rw [hpi_block, hγ.2]; funext i; ext r; simp [δ]
       · rw [Finset.mem_filter] at hγ ⊢; refine ⟨Finset.mem_univ _, ?_⟩
-        have hsymm : (blockPerm hm_pos δ).symm = blockPerm hm_pos (fun i => (δ i).symm) := by
+        have hsymm : (blockPerm δ).symm = blockPerm (fun i => (δ i).symm) := by
           apply Equiv.ext; intro x
-          obtain ⟨⟨i, r⟩, rfl⟩ := (divModEquiv hm_pos).surjective x
-          apply (blockPerm hm_pos δ).injective
+          obtain ⟨⟨i, r⟩, rfl⟩ := finProdFinEquiv.surjective x
+          apply (blockPerm δ).injective
           rw [Equiv.apply_symm_apply, blockPerm_apply, blockPerm_apply, Equiv.apply_symm_apply]
         rw [hsymm, hpi_block, hγ.2]; funext i; ext r; simp [δ]
     have hpart : ∑ π' : H,
@@ -1008,7 +611,7 @@ theorem sum_logb_choose_le_conditionalEntropy_outerTarget (withQueries : Bool)
       simp [H, Fintype.card_perm]
     have hcardG : Fintype.card G = (F * m).factorial := by
       simp [G, Fintype.card_perm]
-    have hprod := prod_choose_partition_mul_pow_factorial F m
+    have hprod := Nat.prod_choose_partition_mul_pow_factorial F m
     rw [hcardH, hcardG, ← hprod, mul_comm M_nat] at hpart
     exact Nat.eq_of_mul_eq_mul_left (pow_pos (Nat.factorial_pos m) F) hpart
   have horbit_ineq (s : HardKeyValSeed U V n) :
@@ -1148,23 +751,21 @@ adapted with the `c = 1` deterministic probe cap). -/
     IsCappedConsistent D_det (n + stride * t₀) (memAt D_det ops (n + stride * t₀)) γ m t
       (elemSlice n stride ops t₀ (t₀ + m)) (s.modeCandidateOps withQueries t₀ m ht₀ B hB)
 
-theorem HardKeyValSeed.modeCandidateOps_insertedSet_eq_elemSlice (withQueries : Bool)
+@[simp]
+theorem isModeSeedConsistent_true_iff {U V n cells w : ℕ}
+    (D_det : IndexedScheme (Dynamic.Op U) Dynamic.Op.Result cells w)
+    (t₀ m : ℕ) (ht₀ : t₀ + m ≤ n) (γ t : ℝ) (s : HardKeyValSeed U V n) (B : Finset (Fin U)) :
+    IsModeSeedConsistent true D_det t₀ m ht₀ γ t s B ↔
+      IsSeedConsistent D_det t₀ m ht₀ γ t s B := by
+  simp [IsModeSeedConsistent, IsSeedConsistent, memAt, modeStride, HardKeyValSeed.modeOps,
+    HardKeyValSeed.modeCandidateOps_eq]
+
+private theorem HardKeyValSeed.modeCandidateOps_insertedSet_eq_elemSlice (withQueries : Bool)
     {U V n : ℕ} (s : HardKeyValSeed U V n) (t₀ m : ℕ) (ht : t₀ + m ≤ n)
     (hcard : (s.insertedSet t₀ m ht).card = m) :
     s.modeCandidateOps withQueries t₀ m ht (s.insertedSet t₀ m ht) hcard =
-      elemSlice n (modeStride withQueries) (s.modeOps withQueries) t₀ (t₀ + m) := by
-  have hord : orderSubset (s.insertedSet t₀ m ht) hcard
-      (embSetPermEquiv (Fin U) m (segInsertedKeys s.keys t₀ m ht)).2 =
-      segInsertedKeys s.keys t₀ m ht :=
-    orderSubset_eq_of_embSetPermEquiv_fst (Subtype.ext (embSetPermEquiv_fst m _))
-  cases withQueries
-  · simp only [HardKeyValSeed.modeCandidateOps, Bool.false_eq_true, ↓reduceIte,
-      HardKeyValSeed.candidateUpdateOps, modeStride, HardKeyValSeed.modeOps,
-      HardKeyValSeed.updateOps]
-    rw [hord, ← elemSlice_insertDeleteSeq_eq_candidate]
-  · simp only [HardKeyValSeed.modeCandidateOps, ↓reduceIte, HardKeyValSeed.candidateOps_eq,
-      modeStride, HardKeyValSeed.modeOps, HardKeyValSeed.ops]
-    rw [hord, ← elemSlice_insertQueryDeleteSeq_eq_candidate]
+      elemSlice n (modeStride withQueries) (s.modeOps withQueries) t₀ (t₀ + m) :=
+  (s.elemSlice_modeOps_eq_trueCandidate withQueries ht).symm
 
 /-- Remaining child-segments end bound
 `nodeStart (ℓ + 1) b + k * blockSize ℓ + (fanout (ℓ + 1) - k) * blockSize ℓ ≤ n` when
@@ -1182,7 +783,7 @@ theorem nodeStart_add_rest_le (T : MetaTree) {n ℓ b : ℕ}
 
 /-- Child-segment end bound `nodeStart (ℓ + 1) b + i * blockSize ℓ + blockSize ℓ ≤ n` when
 `nodeStop (ℓ + 1) b ≤ n`. -/
-theorem seg_stop_le (T : MetaTree) {n ℓ b : ℕ}
+private theorem seg_stop_le (T : MetaTree) {n ℓ b : ℕ}
     (ht_stop : T.nodeStop (ℓ + 1) b ≤ n) (i : Fin (T.fanout (ℓ + 1))) :
     T.nodeStart (ℓ + 1) b + i.val * T.blockSize ℓ + T.blockSize ℓ ≤ n := by
   have h := nodeStart_add_rest_le T ht_stop (i.val + 1) i.isLt
@@ -1193,29 +794,20 @@ theorem seg_stop_le (T : MetaTree) {n ℓ b : ℕ}
 /-- Candidate family `F_all^{[i]}` of all `m_ℓ`-subsets of the remaining inserted-key pool `A_rest`
 at round `i` of Protocol 1 ([LiLiangYuZhou2023], Section 4.2, Protocol 1 Line 5, p. 14 / PDF
 p. 15). -/
-noncomputable def outerAllCandidates {U V n : ℕ} (T : MetaTree) (ℓ b : ℕ)
+private noncomputable def outerAllCandidates {U V n : ℕ} (T : MetaTree) (ℓ b : ℕ)
     (ht_stop : T.nodeStop (ℓ + 1) b ≤ n) (s : HardKeyValSeed U V n)
     (i : Fin (T.fanout (ℓ + 1))) : Finset (Finset (Fin U)) :=
   (s.insertedSet (T.nodeStart (ℓ + 1) b + i.val * T.blockSize ℓ)
     ((T.fanout (ℓ + 1) - i.val) * T.blockSize ℓ)
     (nodeStart_add_rest_le T ht_stop i.val i.isLt.le)).powersetCard (T.blockSize ℓ)
 
-theorem outerAllCandidates_eq {U V n : ℕ} (T : MetaTree) (ℓ b : ℕ)
-    (ht_stop : T.nodeStop (ℓ + 1) b ≤ n) (s : HardKeyValSeed U V n)
-    (i : Fin (T.fanout (ℓ + 1))) :
-    outerAllCandidates T ℓ b ht_stop s i =
-      (s.insertedSet (T.nodeStart (ℓ + 1) b + i.val * T.blockSize ℓ)
-        ((T.fanout (ℓ + 1) - i.val) * T.blockSize ℓ)
-        (nodeStart_add_rest_le T ht_stop i.val i.isLt.le)).powersetCard (T.blockSize ℓ) := by
-  rfl
-
 open Classical in
 /-- Qualified candidate family `F_qual^{[i]}` at round `i` of Protocol 1 ([LiLiangYuZhou2023],
 Section 4.2, Protocol 1 Line 9, p. 14 / PDF p. 15, adapted with the `c = 1` probe cap in
 `IsQualified`). -/
-noncomputable def outerQualCandidates (withQueries : Bool) {U V n cells w : ℕ} (T : MetaTree)
-    (D_det : IndexedScheme (Dynamic.Op U) Dynamic.Op.Result cells w) (γ t : ℝ) (ℓ b : ℕ)
-    (ht_stop : T.nodeStop (ℓ + 1) b ≤ n) (s : HardKeyValSeed U V n)
+private noncomputable def outerQualCandidates (withQueries : Bool) {U V n cells w : ℕ}
+    (T : MetaTree) (D_det : IndexedScheme (Dynamic.Op U) Dynamic.Op.Result cells w) (γ t : ℝ)
+    (ℓ b : ℕ) (ht_stop : T.nodeStop (ℓ + 1) b ≤ n) (s : HardKeyValSeed U V n)
     (i : Fin (T.fanout (ℓ + 1))) : Finset (Finset (Fin U)) :=
   let stride := modeStride withQueries
   let ops := s.modeOps withQueries
@@ -1229,7 +821,7 @@ noncomputable def outerQualCandidates (withQueries : Bool) {U V n cells w : ℕ}
 
 /-- Neighbor candidate family `F_nbr^{[i]} = {B ∈ F_all^{[i]} | m_ℓ / 2 ≤ |A^{[i]} ∩ B|}`
 ([LiLiangYuZhou2023], Section 4.3, p. 16 / PDF p. 17). -/
-noncomputable def outerNbrCandidates {U V n : ℕ} (T : MetaTree) (ℓ b : ℕ)
+private noncomputable def outerNbrCandidates {U V n : ℕ} (T : MetaTree) (ℓ b : ℕ)
     (ht_stop : T.nodeStop (ℓ + 1) b ≤ n) (s : HardKeyValSeed U V n)
     (i : Fin (T.fanout (ℓ + 1))) : Finset (Finset (Fin U)) :=
   let t₀ := T.nodeStart (ℓ + 1) b + i.val * T.blockSize ℓ
@@ -1241,7 +833,7 @@ open Classical in
 /-- Round-`i` message `M_i` sent by Alice in Protocol 1 ([LiLiangYuZhou2023], Section 4.2,
 Protocol 1 Lines 6–12, pp. 14–16 / PDF pp. 15–17): 1 indicator bit `X_i` followed by a fixed-width
 index in `F_qual^{[i]}` when `X_i = 1` or in `F_all^{[i]}` when `X_i = 0`. -/
-noncomputable def outerRoundMsg (withQueries : Bool) {U V n cells w : ℕ} (T : MetaTree)
+private noncomputable def outerRoundMsg (withQueries : Bool) {U V n cells w : ℕ} (T : MetaTree)
     (D_det : IndexedScheme (Dynamic.Op U) Dynamic.Op.Result cells w) (γ t : ℝ) (ℓ b : ℕ)
     (ht_stop : T.nodeStop (ℓ + 1) b ≤ n) (s : HardKeyValSeed U V n)
     (i : Fin (T.fanout (ℓ + 1))) : List Bool :=
@@ -1257,7 +849,7 @@ noncomputable def outerRoundMsg (withQueries : Bool) {U V n cells w : ℕ} (T : 
 
 /-- Concatenated `λ_{ℓ+1}`-round transcript `(M_1, …, M_{λ_{ℓ+1}})` of Protocol 1 after `C_end`
 ([LiLiangYuZhou2023], Section 4.2, Eq. (3), p. 16 / PDF p. 17). -/
-noncomputable def outerProtocolMsg (withQueries : Bool) {U V n cells w : ℕ} (T : MetaTree)
+private noncomputable def outerProtocolMsg (withQueries : Bool) {U V n cells w : ℕ} (T : MetaTree)
     (D_det : IndexedScheme (Dynamic.Op U) Dynamic.Op.Result cells w) (γ t : ℝ) (ℓ b : ℕ)
     (ht_stop : T.nodeStop (ℓ + 1) b ≤ n) (s : HardKeyValSeed U V n) : List Bool :=
   (List.finRange (T.fanout (ℓ + 1))).flatMap
@@ -1307,105 +899,11 @@ private theorem mem_outerQualCandidates_self (withQueries : Bool) {U V n cells w
   rwa [hst, hsp] at hq
 
 open Classical in
-/-- Strict probe-cap bad-segment loss bound (`< λ_{ℓ+1} / 16`) under expected node probe bound
-`< (1 / 16) * m_{ℓ+1} * t` ([LiLiangYuZhou2023], Section 4.2, p. 15 / PDF p. 16 and Section 4.3,
-Claim 4.1, p. 17 / PDF p. 18, formalization adaptation for the `c = 1` deterministic probe cap). -/
-theorem sum_prob_gt_probeCap_lt_div_sixteen {Ω Op : Type*} {Result : Op → Type}
-    {cells w : ℕ} [Fintype Ω]
-    (T : MetaTree) (D : IndexedScheme Op Result cells w) (initLen stride : ℕ)
-    (p : PMF Ω) (opsOf : Ω → List Op) {t : ℝ} (ht : 0 < t) (ℓ b : ℕ)
-    (hprobe : ∑ ω, (p ω).toReal * (T.nodeProbes D initLen stride (opsOf ω) (ℓ + 1) b : ℝ) <
-      (1 / 16) * (T.blockSize (ℓ + 1) : ℝ) * t) :
-    (∑ i : Fin (T.fanout (ℓ + 1)), ∑ ω, (p ω).toReal *
-      (if ((T.blockSize ℓ : ℝ) * t) <
-          (((T.segProbedCells D initLen stride (opsOf ω) ℓ b i).card : ℕ) : ℝ)
-        then (1 : ℝ) else 0)) <
-      (T.fanout (ℓ + 1) : ℝ) / 16 := by
-  set m : ℝ := (T.blockSize ℓ : ℝ)
-  set F : ℝ := (T.fanout (ℓ + 1) : ℝ)
-  have hm_pos : 0 < m := Nat.cast_pos.mpr (T.blockSize_pos ℓ)
-  have hmt_pos : 0 < m * t := mul_pos hm_pos ht
-  have hblock : (T.blockSize (ℓ + 1) : ℝ) = m * F := by simp [m, F]
-  have hpt (ω : Ω) (i : Fin (T.fanout (ℓ + 1))) :
-      (m * t) * (if m * t < (((T.segProbedCells D initLen stride (opsOf ω) ℓ b i).card : ℕ) : ℝ)
-        then (1 : ℝ) else 0) ≤
-      (((T.segProbedCells D initLen stride (opsOf ω) ℓ b i).card : ℕ) : ℝ) := by
-    split_ifs with hlt
-    · linarith
-    · simp
-  have hmul : (m * t) * (∑ i : Fin (T.fanout (ℓ + 1)), ∑ ω : Ω, (p ω).toReal *
-      (if m * t < (((T.segProbedCells D initLen stride (opsOf ω) ℓ b i).card : ℕ) : ℝ)
-        then (1 : ℝ) else 0)) < (1 / 16) * (m * F) * t :=
-    calc (m * t) * (∑ i, ∑ ω, (p ω).toReal *
-          (if m * t < (((T.segProbedCells D initLen stride (opsOf ω) ℓ b i).card : ℕ) : ℝ)
-            then (1 : ℝ) else 0))
-        = ∑ ω, (p ω).toReal * (∑ i, (m * t) *
-          (if m * t < (((T.segProbedCells D initLen stride (opsOf ω) ℓ b i).card : ℕ) : ℝ)
-            then (1 : ℝ) else 0)) := by
-            rw [Finset.mul_sum]
-            simp_rw [Finset.mul_sum, mul_left_comm (m * t)]
-            exact Finset.sum_comm
-      _ ≤ ∑ ω, (p ω).toReal * (T.nodeProbes D initLen stride (opsOf ω) (ℓ + 1) b : ℝ) := by
-            refine Finset.sum_le_sum fun ω _ =>
-              mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg
-            exact (Finset.sum_le_sum fun i _ => hpt ω i).trans
-              (by exact_mod_cast (T.sum_card_segProbedCells_le_nodeProbes D initLen stride
-                (opsOf ω) ℓ b))
-      _ < (1 / 16) * (m * F) * t := by rw [← hblock]; exact hprobe
-  nlinarith
-
-open Classical in
-/-- Claim 4.5 ([LiLiangYuZhou2023], Section 4.3, Claim 4.5, p. 18 / PDF p. 19): if
-`E[nodeProbes] ≤ (1 / 16) * m_{ℓ+1} * t`, at most `λ_{ℓ+1} / 16` child segments in the first half
-`i < λ_{ℓ+1} / 2` have `E[|S_A^{[i]}|] > m_ℓ * t` (`Z_i = 0`). -/
-theorem card_badExpectedProbeSegs_le {Ω Op : Type*} {Result : Op → Type}
-    {cells w : ℕ} [Fintype Ω]
-    (T : MetaTree) (D : IndexedScheme Op Result cells w) (initLen stride : ℕ)
-    (p : PMF Ω) (opsOf : Ω → List Op) {t : ℝ} (ht : 0 < t) (ℓ b : ℕ)
-    (hprobe : ∑ ω, (p ω).toReal * (T.nodeProbes D initLen stride (opsOf ω) (ℓ + 1) b : ℝ) ≤
-      (1 / 16) * (T.blockSize (ℓ + 1) : ℝ) * t) :
-    (((Finset.univ.filter fun i : Fin (T.fanout (ℓ + 1)) =>
-      i.val < T.fanout (ℓ + 1) / 2 ∧
-        (T.blockSize ℓ : ℝ) * t <
-          ∑ ω : Ω, (p ω).toReal *
-            (((T.segProbedCells D initLen stride (opsOf ω) ℓ b i).card : ℕ) : ℝ)).card : ℕ) : ℝ) ≤
-      (T.fanout (ℓ + 1) : ℝ) / 16 := by
-  set S := Finset.univ.filter fun i : Fin (T.fanout (ℓ + 1)) =>
-    i.val < T.fanout (ℓ + 1) / 2 ∧
-      (T.blockSize ℓ : ℝ) * t <
-        ∑ ω : Ω, (p ω).toReal *
-          (((T.segProbedCells D initLen stride (opsOf ω) ℓ b i).card : ℕ) : ℝ)
-  set m : ℝ := (T.blockSize ℓ : ℝ)
-  set F : ℝ := (T.fanout (ℓ + 1) : ℝ)
-  have hm_pos : 0 < m := Nat.cast_pos.mpr (T.blockSize_pos ℓ)
-  have hmt_pos : 0 < m * t := mul_pos hm_pos ht
-  have hblock : (T.blockSize (ℓ + 1) : ℝ) = m * F := by simp [m, F]
-  have hmul : (S.card : ℝ) * (m * t) ≤ (1 / 16) * (m * F) * t :=
-    calc (S.card : ℝ) * (m * t)
-        = ∑ _i ∈ S, (m * t) := by rw [Finset.sum_const, nsmul_eq_mul]
-      _ ≤ ∑ i ∈ S, ∑ ω : Ω, (p ω).toReal *
-            (((T.segProbedCells D initLen stride (opsOf ω) ℓ b i).card : ℕ) : ℝ) :=
-          Finset.sum_le_sum fun i hi => (Finset.mem_filter.mp hi).2.2.le
-      _ ≤ ∑ i : Fin (T.fanout (ℓ + 1)), ∑ ω : Ω, (p ω).toReal *
-            (((T.segProbedCells D initLen stride (opsOf ω) ℓ b i).card : ℕ) : ℝ) :=
-          Finset.sum_le_univ_sum_of_nonneg fun _ => Finset.sum_nonneg fun _ _ =>
-            mul_nonneg ENNReal.toReal_nonneg (Nat.cast_nonneg _)
-      _ = ∑ ω : Ω, (p ω).toReal * ∑ i : Fin (T.fanout (ℓ + 1)),
-            (((T.segProbedCells D initLen stride (opsOf ω) ℓ b i).card : ℕ) : ℝ) := by
-          rw [Finset.sum_comm]; exact Finset.sum_congr rfl fun _ _ => (Finset.mul_sum _ _ _).symm
-      _ ≤ ∑ ω : Ω, (p ω).toReal * (T.nodeProbes D initLen stride (opsOf ω) (ℓ + 1) b : ℝ) :=
-          Finset.sum_le_sum fun ω _ => mul_le_mul_of_nonneg_left
-            (by exact_mod_cast (T.sum_card_segProbedCells_le_nodeProbes D initLen stride
-              (opsOf ω) ℓ b)) ENNReal.toReal_nonneg
-      _ ≤ (1 / 16) * (m * F) * t := by rw [← hblock]; exact hprobe
-  nlinarith
-
-open Classical in
 /-- Claim 4.2 ([LiLiangYuZhou2023], Section 4.3, Claim 4.2 and Eq. (6), pp. 17–18 / PDF pp. 18–19):
 if the expected far-consistent candidate count on segment `i` is bounded by
 `C((F - i) * m_ℓ, m_ℓ) * U ^ (-γ * m_ℓ)`, `2 ^ 64 ≤ F`, `2 ≤ U`, and `F ≤ (γ / 2) * log₂ U`, then
 `Pr[¬ (F_qual^{[i]} ⊆ F_nbr^{[i]}) ∧ IsGoodSeg(i)] ≤ 1 / 8`. -/
-theorem prob_not_qualSubsetNbr_and_isGoodSeg_le_one_eighth (withQueries : Bool)
+private theorem prob_not_qualSubsetNbr_and_isGoodSeg_le_one_eighth (withQueries : Bool)
     {U V n cells w : ℕ} (hU : 2 * n ≤ U) (hU2 : 2 ≤ U) (hV : 1 ≤ V)
     (T : MetaTree) (D_det : IndexedScheme (Dynamic.Op U) Dynamic.Op.Result cells w)
     {γ t : ℝ} (ℓ b : ℕ) (ht_stop : T.nodeStop (ℓ + 1) b ≤ n)
@@ -1524,11 +1022,11 @@ private theorem modeCandidateOps_eq_of_bobOuterObs_eq (withQueries : Bool) {U V 
   have hpi := congrFun (congrArg (fun o : BobOuterObs U V cells w _ _ => o.2.2.2.1) hobs) i
   have hkv := congrArg (fun o : BobOuterObs U V cells w _ _ => o.2.2.2.2) hobs
   dsimp only [bobOuterObsOf] at hd_full hpi hkv
-  have hd : (segDeletedKeys s₁.keys s₁.delPerm (T.nodeStart (ℓ + 1) b + i.val * T.blockSize ℓ)
-      (T.blockSize ℓ) (seg_stop_le T ht_stop i) : Fin (T.blockSize ℓ) → Fin U) =
+  have hd : segDeletedKeys s₁.keys s₁.delPerm (T.nodeStart (ℓ + 1) b + i.val * T.blockSize ℓ)
+      (T.blockSize ℓ) (seg_stop_le T ht_stop i) =
       segDeletedKeys s₂.keys s₂.delPerm (T.nodeStart (ℓ + 1) b + i.val * T.blockSize ℓ)
       (T.blockSize ℓ) (seg_stop_le T ht_stop i) := by
-    funext r
+    refine Function.Embedding.ext fun r => ?_
     have hr := congrFun hd_full ⟨i.val * T.blockSize ℓ + r.val,
       by have := i.isLt; nlinarith [r.isLt]⟩
     simp only [segDeletedKeys_apply] at hr ⊢
@@ -1544,11 +1042,10 @@ private theorem modeCandidateOps_eq_of_bobOuterObs_eq (withQueries : Bool) {U V 
       apply Fin.ext; dsimp
       exact congrArg Fin.val (congrArg s.delPerm (Fin.ext (by dsimp; omega)))
     rw [hidx s₁, hidx s₂]; exact hr
+  rw [HardKeyValSeed.modeCandidateOps_eq, HardKeyValSeed.modeCandidateOps_eq]
   cases withQueries
-  · simp only [HardKeyValSeed.modeCandidateOps, Bool.false_eq_true, ↓reduceIte,
-      HardKeyValSeed.candidateUpdateOps, hd, hpi, hkv]
-  · simp only [HardKeyValSeed.modeCandidateOps, ↓reduceIte, HardKeyValSeed.candidateOps_eq,
-      hd, hpi, hkv]
+  · simp only [Bool.false_eq_true, ↓reduceIte, HardKeyValSeed.candidateUpdateOps_eq, hd, hpi, hkv]
+  · simp only [↓reduceIte, HardKeyValSeed.candidateOps_eq, hd, hpi, hkv]
 
 private theorem outerAll_and_qual_eq_of_prev (withQueries : Bool) {U V n cells w : ℕ}
     (T : MetaTree) (D_det : IndexedScheme (Dynamic.Op U) Dynamic.Op.Result cells w)
@@ -1578,7 +1075,6 @@ private theorem outerAll_and_qual_eq_of_prev (withQueries : Bool) {U V n cells w
   let stride := modeStride withQueries
   have ht_end : t_st + F * m ≤ n :=
     (nodeStart_add_fanout_mul_eq_nodeStop T ℓ b).trans_le ht_stop
-  have hm_pos : 0 < m := T.blockSize_pos ℓ
   have hmem_k : ∀ k : ℕ, k ≤ i.val →
       memAt D_det (s₁.modeOps withQueries) (n + stride * (t_st + k * m)) =
         memAt D_det (s₂.modeOps withQueries) (n + stride * (t_st + k * m)) := by
@@ -1637,8 +1133,9 @@ private theorem outerAll_and_qual_eq_of_prev (withQueries : Bool) {U V n cells w
       have hj_le : (j.val + 1) * m ≤ i.val * m := Nat.mul_le_mul_right m hj
       have := r'.isLt; nlinarith
     · rintro ⟨⟨x, rfl⟩, hnot⟩
-      obtain ⟨⟨j, r'⟩, hx⟩ := (divModEquiv hm_pos).surjective x
-      have hx_val : x.val = j.val * m + r'.val := by rw [← hx]; rfl
+      obtain ⟨⟨j, r'⟩, hx⟩ := finProdFinEquiv.surjective x
+      have hx_val : x.val = j.val * m + r'.val := by
+        rw [← hx]; simp [finProdFinEquiv]; ring
       by_cases hj : j.val < i.val
       · exfalso; exact hnot ⟨j, hj, r', congrArg s.keys (Fin.ext (by dsimp; omega))⟩
       · have hij : i.val ≤ j.val := Nat.le_of_not_lt hj
@@ -1768,20 +1265,6 @@ private theorem outerProtocolMsg_prefix_imp (withQueries : Bool) {U V n cells w 
   obtain ⟨hall_j, _⟩ := hstep F le_rfl
   refine ⟨List.flatMap_congr fun j _ => (hall_j j j.isLt).1, funext fun j => (hall_j j j.isLt).2⟩
 
-/-- Real-valued expectation pushforward for `ℕ`-valued scores from a finite distribution `p` onto
-an arbitrary codomain `β` (such as `List (Dynamic.Op U)`). -/
-theorem tsum_toReal_map_mul_natCast {α β : Type*} [Fintype α]
-    (p : PMF α) (f : α → β) (c : β → ℕ) :
-    (∑' b, ((p.map f) b).toReal * (c b : ℝ)) = ∑ a, (p a).toReal * (c (f a) : ℝ) := by
-  have htsum := PMF.tsum_map_mul p f (fun b => (c b : ℝ≥0∞))
-  conv_rhs at htsum => rw [tsum_fintype]
-  have h1 := ENNReal.tsum_toReal_eq (f := fun b => (p.map f) b * (c b : ℝ≥0∞))
-    fun b => ENNReal.mul_ne_top (PMF.apply_ne_top _ b) (ENNReal.natCast_ne_top _)
-  have h2 := ENNReal.toReal_sum (s := Finset.univ) (f := fun a => p a * (c (f a) : ℝ≥0∞))
-    fun a _ => ENNReal.mul_ne_top (PMF.apply_ne_top p a) (ENNReal.natCast_ne_top _)
-  simp only [ENNReal.toReal_mul, ENNReal.toReal_natCast] at h1 h2
-  exact h1.symm.trans ((congrArg ENNReal.toReal htsum).trans h2)
-
 open Classical in
 /-- Mode-parametric Outer Lemma ([LiLiangYuZhou2023], Section 3, Lemma 3.2, p. 12 / PDF p. 13 and
 Section 4, pp. 13–20 / PDF pp. 14–21): at any internal node `(ℓ + 1, b)` (`1 ≤ ℓ`,
@@ -1801,16 +1284,18 @@ theorem outer_node_lower_bound (withQueries : Bool) {U V n cells w : ℕ} {R_out
     (hF_hi : (T.fanout (ℓ + 1) : ℝ) ≤ (γ / 2) * Real.logb 2 U)
     (hR_outer : 100 * R_outer ≤ (T.blockSize (ℓ + 1) : ℝ) * Real.logb 2 (T.fanout (ℓ + 1)))
     (hinner : ∀ i : Fin (T.fanout (ℓ + 1)), i.val < T.fanout (ℓ + 1) / 2 →
+      let t₀ := T.nodeStart (ℓ + 1) b + i.val * T.blockSize ℓ
+      let r_rest := (T.fanout (ℓ + 1) - i.val) * T.blockSize ℓ
+      let hrest : t₀ + r_rest ≤ n := nodeStart_add_rest_le T ht_stop i.val i.isLt.le
+      let ht₀ : t₀ + T.blockSize ℓ ≤ n := by
+        have := Nat.le_mul_of_pos_left (T.blockSize ℓ) (Nat.sub_pos_of_lt i.isLt)
+        omega
       letI : Nonempty (HardKeyValSeed U V n) := ⟨⟨Fin.castLEEmb hU, fun _ => ⟨0, hV⟩, 1⟩⟩
       (∑ s : HardKeyValSeed U V n, ((PMF.uniformOfFintype (HardKeyValSeed U V n)) s).toReal *
-        (((((outerAllCandidates T ℓ b ht_stop s i).filter fun B =>
-          (s.insertedSet (T.nodeStart (ℓ + 1) b + i.val * T.blockSize ℓ) (T.blockSize ℓ)
-            (seg_stop_le T ht_stop i) ∩ B).card < T.blockSize ℓ / 2).filter
-          (IsModeSeedConsistent withQueries D_det
-            (T.nodeStart (ℓ + 1) b + i.val * T.blockSize ℓ) (T.blockSize ℓ)
-            (seg_stop_le T ht_stop i) γ t s)).card : ℕ) : ℝ)) ≤
-        (((T.fanout (ℓ + 1) - i.val) * T.blockSize ℓ).choose (T.blockSize ℓ) : ℝ) *
-          (U : ℝ) ^ (-γ * (T.blockSize ℓ : ℝ))) :
+        ((((((s.insertedSet t₀ r_rest hrest).powersetCard (T.blockSize ℓ)).filter fun B =>
+          (s.insertedSet t₀ (T.blockSize ℓ) ht₀ ∩ B).card < T.blockSize ℓ / 2).filter
+          (IsModeSeedConsistent withQueries D_det t₀ (T.blockSize ℓ) ht₀ γ t s)).card : ℕ) : ℝ)) ≤
+        (r_rest.choose (T.blockSize ℓ) : ℝ) * (U : ℝ) ^ (-γ * (T.blockSize ℓ : ℝ))) :
     (γ / 100) * (T.blockSize (ℓ + 1) : ℝ) ≤
         ∑' ops, (modeDist withQueries U V n hU hV ops).toReal *
           (T.nodeCost D_det n (modeStride withQueries) ops ℓ b : ℝ) ∨
@@ -1837,12 +1322,12 @@ theorem outer_node_lower_bound (withQueries : Bool) {U V n cells w : ℕ} {R_out
         (T.nodeCost D_det n stride ops ℓ b : ℝ)) =
       ∑ s, (μ s).toReal * (T.nodeCost D_det n stride (s.modeOps withQueries) ℓ b : ℝ) := by
     rw [← map_modeOps_uniformOfFintype_hardKeyValSeed]
-    exact tsum_toReal_map_mul_natCast μ (HardKeyValSeed.modeOps withQueries) _
+    exact PMF.tsum_toReal_map_mul_natCast μ (HardKeyValSeed.modeOps withQueries) _
   have hexp_probe : (∑' ops, (modeDist withQueries U V n hU hV ops).toReal *
         (T.nodeProbes D_det n stride ops (ℓ + 1) b : ℝ)) =
       ∑ s, (μ s).toReal * (T.nodeProbes D_det n stride (s.modeOps withQueries) (ℓ + 1) b : ℝ) := by
     rw [← map_modeOps_uniformOfFintype_hardKeyValSeed]
-    exact tsum_toReal_map_mul_natCast μ (HardKeyValSeed.modeOps withQueries) _
+    exact PMF.tsum_toReal_map_mul_natCast μ (HardKeyValSeed.modeOps withQueries) _
   rw [hexp_cost, hexp_probe]
   by_contra hnot
   push Not at hnot
@@ -1857,9 +1342,9 @@ theorem outer_node_lower_bound (withQueries : Bool) {U V n cells w : ℕ} {R_out
     dsimp only [endMem, t_st, F, m]; rw [nodeStart_add_fanout_mul_eq_nodeStop]
   -- Eq. (1), Eq. (2), and prefix-free compression -> Eq. (3)
   have heq1 := sum_logb_choose_le_conditionalEntropy_outerTarget withQueries hU hV D_det t_st F m
-    (by omega) ht_end
+    ht_end
   have heq2 := conditionalEntropy_endMem_le withQueries hU hV hspace_outer hcorr t_st F m ht_end
-  have hchain := conditionalEntropy_le_add_conditionalEntropy μ obs endMem tgt
+  have hchain := PMF.conditionalEntropy_le_add_conditionalEntropy μ obs endMem tgt
   have hpf_len : PMF.conditionalEntropy (μ.map fun s => ((obs s, endMem s), tgt s)) ≤
       ∑ s, (μ s).toReal * ((msg s).length : ℝ) := by
     refine conditionalEntropy_map_le_expected_length_of_isPrefixFree μ
@@ -2087,7 +1572,7 @@ theorem outer_lemma_insertQueryDelete {U V n cells w : ℕ} {R_outer R_inner γ 
       Nat.le_mul_of_pos_left _ (Nat.succ_pos b)
     rw [T.blockSize_succ] at h2; omega
   have hU2 : 2 ≤ U := by omega
-  simpa only [modeDist, modeStride, ↓reduceIte] using
+  exact
     outer_node_lower_bound true (by omega) hU2 hV hspace_outer T
       (by simpa only [modeHorizon, modeStride, ↓reduceIte,
         show n + 3 * n = 4 * n by ring] using hcorr)
@@ -2098,52 +1583,37 @@ theorem outer_lemma_insertQueryDelete {U V n cells w : ℕ} {R_outer R_inner γ 
           omega
         have hrest_ge : 2 * T.blockSize ℓ ≤ (T.fanout (ℓ + 1) - i.val) * T.blockSize ℓ :=
           Nat.mul_le_mul_right _ hFh
+        classical
+        dsimp only
+        have hfilt (s : HardKeyValSeed U V n) :
+            ((((s.insertedSet (T.nodeStart (ℓ + 1) b + i.val * T.blockSize ℓ)
+              ((T.fanout (ℓ + 1) - i.val) * T.blockSize ℓ)
+              (nodeStart_add_rest_le T ht_stop i.val i.isLt.le)).powersetCard
+              (T.blockSize ℓ)).filter fun B =>
+              (s.insertedSet (T.nodeStart (ℓ + 1) b + i.val * T.blockSize ℓ) (T.blockSize ℓ)
+                (by have := Nat.le_mul_of_pos_left (T.blockSize ℓ) (Nat.sub_pos_of_lt i.isLt)
+                    have := nodeStart_add_rest_le T ht_stop i.val i.isLt.le; omega) ∩ B).card <
+                T.blockSize ℓ / 2).filter
+              (IsModeSeedConsistent true D_det
+                (T.nodeStart (ℓ + 1) b + i.val * T.blockSize ℓ) (T.blockSize ℓ)
+                (by have := Nat.le_mul_of_pos_left (T.blockSize ℓ) (Nat.sub_pos_of_lt i.isLt)
+                    have := nodeStart_add_rest_le T ht_stop i.val i.isLt.le; omega) γ t s)) =
+            ((((s.insertedSet (T.nodeStart (ℓ + 1) b + i.val * T.blockSize ℓ)
+              ((T.fanout (ℓ + 1) - i.val) * T.blockSize ℓ)
+              (nodeStart_add_rest_le T ht_stop i.val i.isLt.le)).powersetCard
+              (T.blockSize ℓ)).filter fun B =>
+              (s.insertedSet (T.nodeStart (ℓ + 1) b + i.val * T.blockSize ℓ) (T.blockSize ℓ)
+                (by have := Nat.le_mul_of_pos_left (T.blockSize ℓ) (Nat.sub_pos_of_lt i.isLt)
+                    have := nodeStart_add_rest_le T ht_stop i.val i.isLt.le; omega) ∩ B).card <
+                T.blockSize ℓ / 2).filter
+              (IsSeedConsistent D_det
+                (T.nodeStart (ℓ + 1) b + i.val * T.blockSize ℓ) (T.blockSize ℓ)
+                (by have := Nat.le_mul_of_pos_left (T.blockSize ℓ) (Nat.sub_pos_of_lt i.isLt)
+                    have := nodeStart_add_rest_le T ht_stop i.val i.isLt.le; omega) γ t s)) :=
+          Finset.filter_congr fun B _ => isModeSeedConsistent_true_iff D_det _ _ _ γ t s B
+        simp_rw [hfilt]
         exact expected_card_cappedConsistent_segmentRest_lt_half_le hU hV hm_n hγ hm_lo
           hspace_inner hbudget_inner hcorr hm_ge2 hrest_ge
           (nodeStart_add_rest_le T ht_stop i.val i.isLt.le)
-
-/-- Polynomial-universe specialization of `outer_lemma_insertQueryDelete` matching Lemma 3.2's
-explicit `(n : ℝ) ^ (1 + α) ≤ U` and `λ_{ℓ+1} ≤ (α / 12) * log₂ n` hypotheses with
-`γ = α / (6 * (1 + α))` ([LiLiangYuZhou2023], Section 3, Lemma 3.2, p. 12 / PDF p. 13). -/
-theorem outer_lemma_poly_insertQueryDelete {U V n cells w : ℕ} {α R_outer R_inner t : ℝ}
-    (hU : 4 * n ≤ U) (hV : 1 ≤ V) (hn : 1 ≤ n) (hα : 0 < α)
-    (hU_poly : (n : ℝ) ^ (1 + α) ≤ (U : ℝ))
-    (hspace_outer : ((cells * w : ℕ) : ℝ) ≤ benchmarkBits U V n + R_outer)
-    (hspace_inner : ((cells * w : ℕ) : ℝ) ≤ benchmarkBits U V n + R_inner)
-    (T : MetaTree) {D_det : IndexedScheme (Dynamic.Op U) Dynamic.Op.Result cells w}
-    (hcorr : ∀ ops ∈ validHistoriesUpTo U V n (4 * n + 1),
-      (D_det.runSeq ops).1 = ((Dynamic.spec U V n).run (Dictionary.empty U) ops).2)
-    (ht : 0 < t) {ℓ b : ℕ} (hℓ : 1 ≤ ℓ)
-    (ht_stop : T.nodeStop (ℓ + 1) b ≤ n)
-    (hm_lo : (n : ℝ) ^ (1 - (α / (6 * (1 + α))) / 2) ≤ (T.blockSize ℓ : ℝ))
-    (hF_lo : 2 ^ 64 ≤ T.fanout (ℓ + 1))
-    (hF_hi : (T.fanout (ℓ + 1) : ℝ) ≤ (α / 12) * Real.logb 2 n)
-    (hR_outer : 100 * R_outer ≤ (T.blockSize (ℓ + 1) : ℝ) * Real.logb 2 (T.fanout (ℓ + 1)))
-    (hbudget_inner : R_inner + 11 * (T.blockSize ℓ : ℝ) + 6 * (T.blockSize ℓ : ℝ) * t +
-      (α / (6 * (1 + α))) * (T.blockSize ℓ : ℝ) * (w : ℝ) +
-      (3 / 2) * (α / (6 * (1 + α))) * (T.blockSize ℓ : ℝ) * Real.logb 2 U ≤
-      ((T.blockSize ℓ : ℝ) / 2) * Real.logb 2 ((U : ℝ) / (n : ℝ))) :
-    ((α / (6 * (1 + α))) / 100) * (T.blockSize (ℓ + 1) : ℝ) ≤
-        ∑' ops, (insertQueryDeleteDist U V n (by omega) hV ops).toReal *
-          (T.nodeCost D_det n 3 ops ℓ b : ℝ) ∨
-      (1 / 16) * (T.blockSize (ℓ + 1) : ℝ) * t ≤
-        ∑' ops, (insertQueryDeleteDist U V n (by omega) hV ops).toReal *
-          (T.nodeProbes D_det n 3 ops (ℓ + 1) b : ℝ) := by
-  set γ := α / (6 * (1 + α))
-  have hγ : 0 < γ := by dsimp [γ]; positivity
-  have hn_pos : (0 : ℝ) < (n : ℝ) := by exact_mod_cast hn
-  have hU_pos : (0 : ℝ) < (U : ℝ) := by exact_mod_cast (show 0 < U by omega)
-  have hlogU : (1 + α) * Real.logb 2 n ≤ Real.logb 2 U := by
-    have h1 := Real.logb_le_logb_of_le (by norm_num : (1 : ℝ) < 2)
-      (Real.rpow_pos_of_pos hn_pos _) hU_poly
-    rwa [Real.logb_rpow_eq_mul_logb_of_pos hn_pos] at h1
-  have hF_hi' : (T.fanout (ℓ + 1) : ℝ) ≤ (γ / 2) * Real.logb 2 U := by
-    have h1 : (α / 12) * Real.logb 2 n = (γ / 2) * ((1 + α) * Real.logb 2 n) := by
-      dsimp [γ]; field_simp; ring
-    have h2 : (γ / 2) * ((1 + α) * Real.logb 2 n) ≤ (γ / 2) * Real.logb 2 U :=
-      mul_le_mul_of_nonneg_left hlogU (by positivity)
-    linarith
-  exact outer_lemma_insertQueryDelete hU hV hspace_outer hspace_inner T hcorr hγ ht hℓ ht_stop
-    hm_lo hF_lo hF_hi' hR_outer hbudget_inner
 
 end Cslib.DataStructure.Dictionary.CellProbe
