@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.Params
+public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.TreeDelete
 public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.TreeRehash
 
 /-!
@@ -25,18 +26,21 @@ sentinel-padded routing (`TreeRouting.lean`), tree invariants and Section 5.6 DF
 (`TreeCore.lean`), canonical tree construction and good-seed existence (`TreeBuild.lean`),
 root-to-leaf `query` and `rawOverwrite` (`TreeQuery.lean`), normal-path insertion
 (`TreeInsert.lean`), `Algorithm 3` (`deleteAndGetQuotient`, PDF p. 31 / printed p. 30,
-`TreeDelete.lean`), and `Algorithm 4` (`rehashSubtree`, PDF p. 34 / printed p. 33,
-`TreeRehash.lean`).
+`TreeDelete.lean`), and the pure reconstruction/local-splice step of `Algorithm 4` under supplied
+validated seeds (`rehashSubtree`, PDF p. 34 / printed p. 33, `TreeRehash.lean`).
 
 In addition, this file provides:
 1. Internal single-key padded updates `rawInsertFresh` and `rawDeleteMem` combining localized
-   subtree rehashing (`TreeState.rehashSubtree`, `exists_allGoodSeeds_localized_pair`) with the
-   normal `O(depth)` update path (`normalInsertFresh`, `normalDeleteMem`).
+   subtree reconstruction (`TreeState.rehashSubtree`, `exists_allGoodSeeds_localized_pair`) with
+   the normal `O(depth)` update path (`normalInsertFresh`, `normalDeleteMem`) under their
+   fresh-key / member-key raw contracts.
 2. The external dictionary interface `TreeSchedule.initTree`, `TreeState.insert`, and
    `TreeState.delete` maintaining sentinel padding (`|S_padded| ∈ {cap - 1, cap}`, `Section 4,
    Footnote 5`, PDF p. 12 / printed p. 11; `Section 5`, PDF p. 26 / printed p. 25) and satisfying
    the exact `Dictionary.State` `Function.update` laws (`query_initTree`, `query_insert`,
-   `query_delete`).
+   `query_delete`). On valid (`WellFormed`) states, absent external `delete` and capacity-rejected
+   fresh external `insert` are guarded no-ops; arbitrary malformed states and raw-helper calls
+   carry no blanket no-op guarantee.
 
 ## Formalization adaptations and explicit scope boundaries
 
@@ -51,12 +55,14 @@ In addition, this file provides:
   `Cslib.Probability.trinomialPolyHash` (`m = FeistelPerm.childRouterHalfInd (P.nHigh ℓ) = O(1)`,
   adapting `[LiLiangYuZhou2024, Sections 5.1 & 5.4, Claim B.2]`, PDF pp. 27, 32–33, 41 /
   printed pp. 26, 31–32, 40).
-* **Out of scope**: randomized seed sampling and multi-step expected rehashing work bounds (Stage 3
-  of `#5349`; `initTree`, `TreeState.insert`, and `TreeState.delete` here are pure mathematical
-  `noncomputable` specifications selecting good seeds via `Classical.choose`), Word-RAM
-  `Memory.Prog` compilation and lookup-table realization, Section 4 small-parameter variable-length
-  adapter trees (`R < n / log₂ ^ 0.1 n`), strong history independence, dynamic capacity resizing in
-  `|S|`, and super-polynomial key universes (`U > n ^ (1 + α_max)`).
+* **Out of scope**: uniform seed sampling, failed-seed rejection, recursive `Algorithm 4`
+  sampling, randomized operation histories, Claim 5.4 multi-step seed survival, and Lemma 5.3
+  expected rehashing work bounds (Stage 3 of `#5349`; `initTree`, `TreeState.insert`, and
+  `TreeState.delete` here are pure mathematical `noncomputable` specifications selecting validated
+  seeds via `Classical.choose`), Word-RAM `Memory.Prog` compilation and lookup-table realization,
+  Section 4 small-parameter variable-length adapter trees (`R < n / log₂ ^ 0.1 n`), strong history
+  independence, dynamic capacity resizing in `|S|`, and super-polynomial key universes
+  (`U > n ^ (1 + α_max)`).
 
 ## Main definitions
 
@@ -189,11 +195,12 @@ private theorem rehashBeforeUpdate_spec (hcr : P.ConcentrationReady)
     st.wellFormedPadded_rehashSubtree hwf ℓ₀ hℓ₀ u₀ (Classical.choose hex) hout hg_cur⟩
 
 open scoped Classical in
-/-- Internal fresh-key insertion on `st` (`x ∉ paddedDom d`, `#S' ∈ [nLow 0, nHigh 0]`): runs
-`normalInsertFresh` when `st.seeds` stays good on `Insert.insert x S`, and otherwise invokes
-`st.rehashSubtree` (`Algorithm 4`) at the highest failing node `(ℓ₀, nodeAt ℓ₀ x)` using
-`Classical.choose` to non-constructively select good replacement seeds, followed by
-`normalInsertFresh`. -/
+/-- Internal fresh-key insertion on `st` (contract: `WellFormedPadded`, `x ∉ paddedDom d`, and
+`#S' ∈ [nLow 0, nHigh 0]`): runs `normalInsertFresh` when `st.seeds` stays good on
+`Insert.insert x S`, and otherwise invokes `st.rehashSubtree` (the pure reconstruction/local-splice
+step of `Algorithm 4`) at the highest failing node `(ℓ₀, nodeAt ℓ₀ x)` using `Classical.choose` to
+supply validated replacement seeds, followed by `normalInsertFresh`. Carries no blanket no-op
+guarantee on arbitrary malformed states. -/
 noncomputable def rawInsertFresh (hcr : P.ConcentrationReady)
     (scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth))
     (st : P.TreeState) (x : Fin P.paddedUniv) (v : Fin P.valBound) : P.TreeState :=
@@ -269,10 +276,13 @@ theorem wellFormedPadded_rawInsertFresh (hcr : P.ConcentrationReady)
     exact hout j hj w hnot
 
 open scoped Classical in
-/-- Internal member-key deletion on `st` (`z ∈ paddedDom d`, `#S' ∈ [nLow 0, nHigh 0]`): runs
-`normalDeleteMem` (`Algorithm 3`) when `st.seeds` stays good on `S.erase z`, and otherwise invokes
-`st.rehashSubtree` (`Algorithm 4`) at `(ℓ₀, nodeAt ℓ₀ z)` using `Classical.choose` to
-non-constructively select good replacement seeds, followed by `normalDeleteMem`. -/
+/-- Internal **member-only** deletion on `st` (contract: `WellFormedPadded`, `z ∈ paddedDom d`,
+and `#S' ∈ [nLow 0, nHigh 0]`): runs `normalDeleteMem` (`Algorithm 3`) when `st.seeds` stays good
+on `S.erase z`, and otherwise invokes `st.rehashSubtree` (the pure reconstruction/local-splice step
+of `Algorithm 4`) at `(ℓ₀, nodeAt ℓ₀ z)` using `Classical.choose` to supply validated replacement
+seeds, followed by `normalDeleteMem`. Because the `AllGoodSeeds S'` branch runs `normalDeleteMem`
+by compressed ID without checking membership or `WellFormedPadded`, this raw helper is not a no-op
+on absent keys or malformed states (external `TreeState.delete` guards exact membership first). -/
 noncomputable def rawDeleteMem (hcr : P.ConcentrationReady)
     (scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth))
     (st : P.TreeState) (z : Fin P.paddedUniv) : P.TreeState :=
@@ -465,6 +475,22 @@ theorem MatchesExternal.insert_fresh_lt {P : TreeSchedule} {d : P.PaddedDict} {s
         have hne : y ≠ x := fun h => by subst h; exact absurd u.isLt (not_lt.mpr hy)
         rw [Function.update_of_ne hne, hm.sentinel_eq y hy] }
 
+private theorem MatchesExternal.sentinelKey_mem_paddedDom_iff {P : TreeSchedule}
+    {d : P.PaddedDict} {sc : ℕ} {dict : Dictionary.State P.univ}
+    (hm : P.MatchesExternal d sc dict) (i : Fin P.cap) :
+    P.sentinelKey i ∈ P.paddedDom d ↔ i.val < sc := by
+  have hs_ge : P.univ ≤ (P.sentinelKey i).val := by dsimp only [sentinelKey]; omega
+  rw [P.mem_paddedDom_iff, hm.sentinel_eq (P.sentinelKey i) hs_ge]
+  by_cases hlt : i.val < sc
+  · rw [ite_eq_left (by dsimp only [sentinelKey]; omega)]; simp [hlt]
+  · rw [ite_eq_right (by dsimp only [sentinelKey]; omega)]; simp [hlt]
+
+private theorem card_erase_bounds_of_eq_cap {P : TreeSchedule} {S : Finset (Fin P.paddedUniv)}
+    {z : Fin P.paddedUniv} (hz : z ∈ S) (hcard : #S = P.cap) :
+    P.nLow 0 ≤ #(S.erase z) ∧ #(S.erase z) ≤ P.nHigh 0 := by
+  rw [card_erase_of_mem hz, hcard, P.nLow_zero_eq, P.nHigh_zero_eq]
+  exact ⟨le_rfl, by omega⟩
+
 theorem MatchesExternal.insert_fresh_full {P : TreeSchedule} {d : P.PaddedDict} {sc : ℕ}
     {dict : Dictionary.State P.univ} (hm : P.MatchesExternal d sc dict)
     {u : Fin P.univ} (hx_fresh : P.embedReal u ∉ P.paddedDom d)
@@ -475,10 +501,8 @@ theorem MatchesExternal.insert_fresh_full {P : TreeSchedule} {d : P.PaddedDict} 
   intro s_last
   let x := P.embedReal u
   have hcard_d : #(P.paddedDom d) = P.cap := by have := hm.card_hi; omega
-  have hs_ge : P.univ ≤ s_last.val := by dsimp only [s_last, sentinelKey]; omega
-  have hs_lt : s_last.val < P.univ + sc := by dsimp only [s_last, sentinelKey]; omega
-  have hs_mem : s_last ∈ P.paddedDom d := by
-    rw [P.mem_paddedDom_iff, hm.sentinel_eq s_last hs_ge, ite_eq_left hs_lt]; rfl
+  have hs_mem : s_last ∈ P.paddedDom d :=
+    (hm.sentinelKey_mem_paddedDom_iff ⟨sc - 1, by omega⟩).mpr (by dsimp; omega)
   let d₁ := Function.update d s_last none
   have hx_fresh₁ : x ∉ P.paddedDom d₁ := by
     rw [P.paddedDom_update_none, mem_erase]; exact fun h => hx_fresh h.2
@@ -546,10 +570,8 @@ theorem MatchesExternal.delete_lt {P : TreeSchedule} {d : P.PaddedDict} {sc : �
   intro s_new
   let x := P.embedReal u
   have hcard_d : #(P.paddedDom d) = P.cap - 1 := by have := hm.card_lo; omega
-  have hs_ge : P.univ ≤ s_new.val := by dsimp only [s_new, sentinelKey]; omega
-  have hs_not_lt : ¬ s_new.val < P.univ + sc := by dsimp only [s_new, sentinelKey]; omega
-  have hs_fresh : s_new ∉ P.paddedDom d := by
-    rw [P.mem_paddedDom_iff, hm.sentinel_eq s_new hs_ge, ite_eq_right hs_not_lt]; simp
+  have hs_fresh : s_new ∉ P.paddedDom d :=
+    mt (hm.sentinelKey_mem_paddedDom_iff ⟨sc, hsc_lt⟩).mp (by dsimp; omega)
   let d₁ := Function.update d s_new (some ⟨0, P.val_pos⟩)
   have hx_dom₁ : x ∈ P.paddedDom d₁ := by
     rw [P.paddedDom_update_some, mem_insert]; exact Or.inr hx_dom
@@ -588,18 +610,26 @@ namespace TreeState
 variable {P : TreeSchedule}
 
 /-- Insert or overwrite external key `u : Fin P.univ` with bounded value `v : Fin P.valBound`,
-maintaining sentinel padding in `{cap - 1, cap}` (`Section 5.3`). Falls back to a no-op on the
-`else` branch when preconditions or capacity bounds fail, using `Classical.choose` inside
-`rawInsertFresh` / `rawDeleteMem` for non-constructive seed choice on rehash branches. -/
+maintaining sentinel padding in `{cap - 1, cap}` (`Section 5.3`). On valid (`WellFormed`) states,
+fresh insertion at full capacity (`(dom dict).card = P.cap`, where `sentCount = 0` and
+`#(paddedDom d) = P.cap`) is a guarded no-op via the final `else` branch; arbitrary malformed
+states have no blanket no-op guarantee. Uses `Classical.choose` inside `rawInsertFresh` /
+`rawDeleteMem` to select validated replacement seeds on subtree-reconstruction branches. -/
 noncomputable def insert (hcr : P.ConcentrationReady)
     (scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth))
     (st : P.TreeState) (u : Fin P.univ) (v : Fin P.valBound) : P.TreeState :=
-  st.insertWith (m := Id) (fun x v => st.rawOverwrite scheme x v)
-    (fun st' x v => st'.rawInsertFresh hcr scheme x v)
-    (fun st' z => st'.rawDeleteMem hcr scheme z)
-    (fun x => (st.rawQuery scheme x).isSome)
-    #(P.paddedDom (st.rawQuery scheme))
-    u v
+  let x := P.embedReal u
+  if (st.rawQuery scheme x).isSome then
+    st.rawOverwrite scheme x v
+  else if #(P.paddedDom (st.rawQuery scheme)) < P.cap then
+    st.rawInsertFresh hcr scheme x v
+  else if hsc : 0 < st.sentCount ∧ st.sentCount ≤ P.cap then
+    let s_last := P.sentinelKey ⟨st.sentCount - 1, by omega⟩
+    let st₁ : P.TreeState :=
+      { st.rawDeleteMem hcr scheme s_last with sentCount := st.sentCount - 1 }
+    st₁.rawInsertFresh hcr scheme x v
+  else
+    st
 
 /-- **External `insert` preserves `WellFormed`** (either overwriting an existing key `u ∈ dom dict`
 or inserting a fresh key when `(dom dict).card < P.cap`). -/
@@ -615,7 +645,7 @@ theorem wellFormed_insert (hcr : P.ConcentrationReady)
   have hreal_iff : (d x).isSome ↔ u ∈ Dictionary.dom dict := by
     simp only [Dictionary.dom, mem_filter, Finset.mem_univ, true_and, ← hm.real_eq u,
       Option.isSome_map, x]
-  dsimp only [insert, insertWith_id]
+  dsimp only [insert]
   rw [hd_eq]
   by_cases hmem : (d x).isSome
   · rw [ite_eq_left hmem]
@@ -644,16 +674,11 @@ theorem wellFormed_insert (hcr : P.ConcentrationReady)
       have hsc_ok : 0 < st.sentCount ∧ st.sentCount ≤ P.cap := ⟨by omega, hm.sentCount_le⟩
       rw [dite_eq_left hsc_ok]
       let s_last := P.sentinelKey ⟨st.sentCount - 1, by omega⟩
-      have hs_ge : P.univ ≤ s_last.val := by dsimp only [s_last, sentinelKey]; omega
-      have hs_lt : s_last.val < P.univ + st.sentCount := by dsimp only [s_last, sentinelKey]; omega
-      have hs_mem : s_last ∈ P.paddedDom d := by
-        rw [P.mem_paddedDom_iff, hm.sentinel_eq s_last hs_ge, ite_eq_left hs_lt]; rfl
-      have hcard_er : P.nLow 0 ≤ #((P.paddedDom d).erase s_last) ∧
-          #((P.paddedDom d).erase s_last) ≤ P.nHigh 0 := by
-        rw [card_erase_of_mem hs_mem, hcard_d, P.nLow_zero_eq, P.nHigh_zero_eq]
-        exact ⟨le_rfl, by omega⟩
+      have hs_mem : s_last ∈ P.paddedDom d :=
+        (hm.sentinelKey_mem_paddedDom_iff ⟨st.sentCount - 1, by omega⟩).mpr (by dsimp; omega)
       obtain ⟨_, _, sl₁, hwfp₁_raw⟩ :=
-        st.wellFormedPadded_rawDeleteMem hcr hwfp hs_mem hcard_er
+        st.wellFormedPadded_rawDeleteMem hcr hwfp hs_mem
+          (card_erase_bounds_of_eq_cap hs_mem hcard_d)
       let d₁ := Function.update d s_last none
       let st₁ : P.TreeState :=
         { (st.rawDeleteMem hcr scheme s_last) with sentCount := st.sentCount - 1 }
@@ -683,19 +708,27 @@ theorem query_insert (hcr : P.ConcentrationReady)
   have hq : st.query scheme = dict := funext (query_eq_apply hwf)
   rw [hq]
 
-/-- Delete external key `u : Fin P.univ` (no-op if absent), maintaining sentinel padding in
-`{cap - 1, cap}` (`Section 5.3` & `Algorithm 3`). Falls back to a no-op on the `else` branch
-when preconditions or capacity bounds fail, using `Classical.choose` inside
-`rawInsertFresh` / `rawDeleteMem` for non-constructive seed choice on rehash branches. -/
+/-- Delete external key `u : Fin P.univ`, maintaining sentinel padding in `{cap - 1, cap}`
+(`Section 5.3` & `Algorithm 3`). On valid (`WellFormed`) states, deleting an absent key is a
+guarded no-op via the exact `rawQuery` membership check before invoking member-only
+`rawDeleteMem`; arbitrary malformed states have no blanket no-op guarantee. Uses
+`Classical.choose` inside `rawInsertFresh` / `rawDeleteMem` to select validated replacement seeds
+on subtree-reconstruction branches. -/
 noncomputable def delete (hcr : P.ConcentrationReady)
     (scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth))
     (st : P.TreeState) (u : Fin P.univ) : P.TreeState :=
-  st.deleteWith (m := Id)
-    (fun st' s v => st'.rawInsertFresh hcr scheme s v)
-    (fun st' x => st'.rawDeleteMem hcr scheme x)
-    (fun x => (st.rawQuery scheme x).isSome)
-    #(P.paddedDom (st.rawQuery scheme))
-    u
+  let x := P.embedReal u
+  if !(st.rawQuery scheme x).isSome then
+    st
+  else if P.cap ≤ #(P.paddedDom (st.rawQuery scheme)) then
+    st.rawDeleteMem hcr scheme x
+  else if hsc : st.sentCount < P.cap then
+    let s_new := P.sentinelKey ⟨st.sentCount, hsc⟩
+    let st₁ : P.TreeState :=
+      { st.rawInsertFresh hcr scheme s_new ⟨0, P.val_pos⟩ with sentCount := st.sentCount + 1 }
+    st₁.rawDeleteMem hcr scheme x
+  else
+    st
 
 /-- **External `delete` preserves `WellFormed`**. -/
 theorem wellFormed_delete (hcr : P.ConcentrationReady)
@@ -706,7 +739,7 @@ theorem wellFormed_delete (hcr : P.ConcentrationReady)
   obtain ⟨d, storeLvl, hm, hwfp⟩ := hwf
   have hd_eq : st.rawQuery scheme = d := funext (st.rawQuery_eq hwfp)
   let x := P.embedReal u
-  dsimp only [delete, deleteWith_id]
+  dsimp only [delete]
   rw [hd_eq]
   by_cases hmem : (d x).isSome
   · rw [ite_eq_right (by simp [x, hmem])]
@@ -719,12 +752,9 @@ theorem wellFormed_delete (hcr : P.ConcentrationReady)
     by_cases hge_cap : P.cap ≤ #(P.paddedDom d)
     · rw [ite_eq_left hge_cap]
       have hcard_d : #(P.paddedDom d) = P.cap := by have := hm.card_hi; omega
-      have hcard_er : P.nLow 0 ≤ #((P.paddedDom d).erase x) ∧
-          #((P.paddedDom d).erase x) ≤ P.nHigh 0 := by
-        rw [card_erase_of_mem hx_dom, hcard_d, P.nLow_zero_eq, P.nHigh_zero_eq]
-        exact ⟨le_rfl, by omega⟩
       obtain ⟨hsc, _, sl', hwfp'⟩ :=
-        st.wellFormedPadded_rawDeleteMem hcr hwfp hx_dom hcard_er
+        st.wellFormedPadded_rawDeleteMem hcr hwfp hx_dom
+          (card_erase_bounds_of_eq_cap hx_dom hcard_d)
       exact ⟨Function.update d x none, sl', hsc ▸ hm.delete_ge hx_dom hge_cap, hwfp'⟩
     · rw [ite_eq_right hge_cap]
       have hcard_d : #(P.paddedDom d) = P.cap - 1 := by have := hm.card_lo; omega
@@ -732,11 +762,8 @@ theorem wellFormed_delete (hcr : P.ConcentrationReady)
       have hsc_lt : st.sentCount < P.cap := by omega
       rw [dite_eq_left hsc_lt]
       let s_new := P.sentinelKey ⟨st.sentCount, hsc_lt⟩
-      have hs_ge : P.univ ≤ s_new.val := by dsimp only [s_new, sentinelKey]; omega
-      have hs_not_lt : ¬ s_new.val < P.univ + st.sentCount := by
-        dsimp only [s_new, sentinelKey]; omega
-      have hs_fresh : s_new ∉ P.paddedDom d := by
-        rw [P.mem_paddedDom_iff, hm.sentinel_eq s_new hs_ge, ite_eq_right hs_not_lt]; simp
+      have hs_fresh : s_new ∉ P.paddedDom d :=
+        mt (hm.sentinelKey_mem_paddedDom_iff ⟨st.sentCount, hsc_lt⟩).mp (by dsimp; omega)
       have hcard_ins : P.nLow 0 ≤ #(Insert.insert s_new (P.paddedDom d)) ∧
           #(Insert.insert s_new (P.paddedDom d)) ≤ P.nHigh 0 := by
         rw [card_insert_of_notMem hs_fresh, hcard_d, P.nLow_zero_eq, P.nHigh_zero_eq]

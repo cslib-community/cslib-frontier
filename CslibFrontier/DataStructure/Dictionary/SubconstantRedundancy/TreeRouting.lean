@@ -24,8 +24,8 @@ Renfei Zhou, *Dynamic Dictionary with Subconstant Wasted Bits per Key* ([LiLiang
 
 * `TreeSchedule.embedReal`, `TreeSchedule.sentinelKey`, `TreeSchedule.PaddedDict`: external and
   sentinel key embeddings into `Fin paddedUniv`.
-* `TreeSchedule.childNodeEquiv`, `TreeSchedule.parentNode`, `TreeSchedule.ancestorAt`: forest node
-  indexing and ancestor projections.
+* `TreeSchedule.childNodeEquiv`, `TreeSchedule.parentNode`, `TreeSchedule.ancestorAt`,
+  `TreeSchedule.InSubtree`: forest node indexing, ancestor projections, and subtree membership.
 * `TreeSchedule.SeedAssignment`: per-node hash seed assignment `g_u` across `0 ≤ ℓ ≤ depth`, with
   bijections `levelCoordEquiv` and `stepCoordEquiv`.
 
@@ -290,6 +290,51 @@ theorem ancestorAt_trans {i j ℓ : ℕ} (hij : i ≤ j) (hjℓ : j ≤ ℓ) (u 
     · subst hjm; simp
     · have hj_le : j ≤ m := Nat.le_of_lt_succ (lt_of_le_of_ne hjℓ hjm)
       rw [P.ancestorAt_succ hj_le, P.ancestorAt_succ (hij.trans hj_le), ih hij hj_le]
+
+/-- Node `(ℓ, u)` lies in the subtree rooted at `(ℓ₀, u₀)` iff `ℓ₀ ≤ ℓ` and `ancestorAt u = u₀`. -/
+@[expose]
+def InSubtree (ℓ₀ : ℕ) (u₀ : Fin (P.numNodes ℓ₀)) (ℓ : ℕ) (u : Fin (P.numNodes ℓ)) : Prop :=
+  ∃ h : ℓ₀ ≤ ℓ, P.ancestorAt h u = u₀
+
+instance instDecidableInSubtree (ℓ₀ : ℕ) (u₀ : Fin (P.numNodes ℓ₀)) (ℓ : ℕ)
+    (u : Fin (P.numNodes ℓ)) : Decidable (P.InSubtree ℓ₀ u₀ ℓ u) :=
+  if h : ℓ₀ ≤ ℓ then
+    decidable_of_iff (P.ancestorAt h u = u₀) ⟨fun he => ⟨h, he⟩, fun ⟨_, he⟩ => he⟩
+  else
+    isFalse fun ⟨h', _⟩ => h h'
+
+theorem inSubtree_refl {ℓ₀ : ℕ} (u₀ : Fin (P.numNodes ℓ₀)) :
+    P.InSubtree ℓ₀ u₀ ℓ₀ u₀ :=
+  ⟨le_rfl, P.ancestorAt_refl u₀⟩
+
+theorem not_inSubtree_ancestor_of_not_inSubtree {ℓ₀ : ℕ} {u₀ : Fin (P.numNodes ℓ₀)} {j ℓ : ℕ}
+    (hj : j ≤ ℓ) {u : Fin (P.numNodes ℓ)} (hnot : ¬ P.InSubtree ℓ₀ u₀ ℓ u) :
+    ¬ P.InSubtree ℓ₀ u₀ j (P.ancestorAt hj u) := by
+  rintro ⟨h0j, hanc⟩
+  exact hnot ⟨h0j.trans hj, by rw [← P.ancestorAt_trans h0j hj u, hanc]⟩
+
+theorem inSubtree_step_iff {ℓ j : ℕ} (u : Fin (P.numNodes ℓ)) (v : Fin (P.numNodes j)) :
+    P.InSubtree ℓ u j v ↔
+      (∃ h_eq : ℓ = j, h_eq ▸ u = v) ∨
+        ∃ b : Fin (2 ^ P.branchBits ℓ), P.InSubtree (ℓ + 1) (P.childNodeEquiv ℓ (u, b)) j v := by
+  constructor
+  · rintro ⟨hℓj, hanc⟩
+    by_cases h_eq : ℓ = j
+    · subst h_eq
+      exact Or.inl ⟨rfl, by simpa only [P.ancestorAt_refl] using hanc.symm⟩
+    · have h1j : ℓ + 1 ≤ j := by omega
+      let w := P.ancestorAt h1j v
+      refine Or.inr ⟨P.childBranch ℓ w, h1j, ?_⟩
+      have hpw : P.parentNode ℓ w = u := by
+        have hstep := P.ancestorAt_trans (Nat.le_succ ℓ) h1j v
+        rw [P.ancestorAt_succ le_rfl, P.ancestorAt_refl] at hstep
+        exact hstep.trans hanc
+      rw [← hpw, P.childNodeEquiv_parent_branch]
+  · rintro (⟨rfl, rfl⟩ | ⟨b, h1j, hanc⟩)
+    · exact P.inSubtree_refl u
+    · refine ⟨(Nat.le_succ ℓ).trans h1j, ?_⟩
+      rw [← P.ancestorAt_trans (Nat.le_succ ℓ) h1j v, hanc,
+        P.ancestorAt_succ le_rfl, P.ancestorAt_refl, P.parentNode_childNodeEquiv]
 
 /-! ## Section 3: Seed assignments and bijective coordinate pipeline -/
 

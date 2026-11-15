@@ -8,10 +8,10 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.TreeDelete
+public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.TreeCore
 
 /-!
-# Subtree Seed Resampling and Canonical Multi-Level Tree Construction
+# Subtree Good-Seed Existence and Canonical Multi-Level Tree Construction
 
 This file formalizes good-seed existence (`exists_goodSubtreeSeeds`, `exists_allGoodSeeds`,
 `exists_allGoodSeeds_localized_pair`) and canonical bottom-up tree
@@ -24,7 +24,6 @@ printed pp. 26–29 and 33).
 
 ## Main definitions
 
-* `TreeSchedule.InSubtree`: subtree membership predicate `∃ h : ℓ₀ ≤ ℓ, ancestorAt h u = u₀`.
 * `TreeSchedule.canonicalStoreLvl`: canonical bottom-up storage-level selection.
 * `TreeSchedule.buildTreeFromSeeds`: full-tree construction from a good `SeedAssignment`.
 
@@ -33,7 +32,8 @@ printed pp. 26–29 and 33).
 * `TreeSchedule.exists_goodSubtreeSeeds`, `TreeSchedule.exists_allGoodSeeds`,
   `TreeSchedule.exists_allGoodSeeds_localized_pair`: existence of good subtree/forest seed
   assignments under `ConcentrationReady` across both `DoubleTabulation` and small-node
-  `trinomialPolyHash`.
+  `trinomialPolyHash` (used to supply validated seeds to subtree reconstruction; uniform seed
+  sampling and failed-seed rejection belong to Stage 3 under `#5349`).
 * `TreeSchedule.wellFormedPadded_buildTreeFromSeeds`: `WellFormedPadded` for `buildTreeFromSeeds`.
 
 ## References
@@ -54,29 +54,7 @@ namespace TreeSchedule
 
 variable (P : TreeSchedule)
 
-/-! ## Section 1: Subtree predicate and good-seed resampling (`exists_goodSubtreeSeeds`) -/
-
-/-- Node `(ℓ, u)` lies in the subtree rooted at `(ℓ₀, u₀)` iff `ℓ₀ ≤ ℓ` and `ancestorAt u = u₀`. -/
-@[expose]
-def InSubtree (ℓ₀ : ℕ) (u₀ : Fin (P.numNodes ℓ₀)) (ℓ : ℕ) (u : Fin (P.numNodes ℓ)) : Prop :=
-  ∃ h : ℓ₀ ≤ ℓ, P.ancestorAt h u = u₀
-
-instance instDecidableInSubtree (ℓ₀ : ℕ) (u₀ : Fin (P.numNodes ℓ₀)) (ℓ : ℕ)
-    (u : Fin (P.numNodes ℓ)) : Decidable (P.InSubtree ℓ₀ u₀ ℓ u) :=
-  if h : ℓ₀ ≤ ℓ then
-    decidable_of_iff (P.ancestorAt h u = u₀) ⟨fun he => ⟨h, he⟩, fun ⟨_, he⟩ => he⟩
-  else
-    isFalse fun ⟨h', _⟩ => h h'
-
-theorem inSubtree_refl {ℓ₀ : ℕ} (u₀ : Fin (P.numNodes ℓ₀)) :
-    P.InSubtree ℓ₀ u₀ ℓ₀ u₀ :=
-  ⟨le_rfl, P.ancestorAt_refl u₀⟩
-
-theorem not_inSubtree_ancestor_of_not_inSubtree {ℓ₀ : ℕ} {u₀ : Fin (P.numNodes ℓ₀)} {j ℓ : ℕ}
-    (hj : j ≤ ℓ) {u : Fin (P.numNodes ℓ)} (hnot : ¬ P.InSubtree ℓ₀ u₀ ℓ u) :
-    ¬ P.InSubtree ℓ₀ u₀ j (P.ancestorAt hj u) := by
-  rintro ⟨h0j, hanc⟩
-  exact hnot ⟨h0j.trans hj, by rw [← P.ancestorAt_trans h0j hj u, hanc]⟩
+/-! ## Section 1: Good-seed existence on subtrees (`exists_goodSubtreeSeeds`) -/
 
 /-- Update `base : P.SeedAssignment` only at level `L` on nodes satisfying `InSubtree ℓ₀ u₀ L v`. -/
 private def updateSeedsAtLevel {P : TreeSchedule} (base : P.SeedAssignment) (ℓ₀ : ℕ)
@@ -113,7 +91,8 @@ private theorem updateSeedsAtLevel_self {P : TreeSchedule} (base : P.SeedAssignm
     (updateSeedsAtLevel base ℓ₀ u₀ L hL f).seed L hL v = f v hsub := by
   dsimp only [updateSeedsAtLevel]; rw [dite_eq_left rfl, dite_eq_left hsub]
 
-/-- **Paired subtree good-seed existence (`Algorithm 4` resampling)**: whenever `#S₁, #S₂ ∈
+/-- **Paired subtree good-seed existence** (existence of validated subtree seeds for `Algorithm 4`;
+uniform sampling and failed-seed rejection are Stage 3): whenever `#S₁, #S₂ ∈
 [nLow 0, nHigh 0]` and all strict ancestors `j < ℓ₀` of `u₀` have good seeds in `base` on both `S₁`
 and `S₂`, there exists `seeds'` agreeing with `base` outside `InSubtree ℓ₀ u₀` whose every node in
 `InSubtree ℓ₀ u₀` satisfies `IsGoodNodeSeed` on both `S₁` and `S₂`. -/
@@ -235,7 +214,8 @@ theorem exists_goodSubtreeSeeds_pair {P : TreeSchedule} (hcr : P.ConcentrationRe
   obtain ⟨s, hout, hgood⟩ := hstep (P.depth - ℓ₀) (by omega)
   exact ⟨s, hout, fun j hj v hsub => hgood j hj v hsub (by omega)⟩
 
-/-- **Subtree good-seed existence (`Algorithm 4` resampling)** on a single set `S`. -/
+/-- **Subtree good-seed existence** on a single set `S` (for `Algorithm 4` subtree reconstruction;
+uniform sampling and failed-seed rejection are Stage 3). -/
 theorem exists_goodSubtreeSeeds {P : TreeSchedule} (hcr : P.ConcentrationReady)
     (base : P.SeedAssignment) {S : Finset (Fin P.paddedUniv)}
     (hcard0 : P.nLow 0 ≤ #S ∧ #S ≤ P.nHigh 0) {ℓ₀ : ℕ} (hℓ₀ : ℓ₀ ≤ P.depth)
@@ -569,25 +549,23 @@ private theorem waitPrevIdOf_eq {P : TreeSchedule} {S : Finset (Fin P.paddedUniv
   obtain ⟨hy_act, hid_eq⟩ := Classical.choose_spec hex
   rw [seeds.injOn_idAt_activeAt hgood (by omega) hℓ u hy_act hx hid_eq]
 
-/-- Construct a single `RootNode` from `(d, seeds, hgood, storeLvl)`. -/
+/-- Construct a single `RootNode` from `(d, seeds, storeLvl)`. -/
 noncomputable def buildRootOfStoreLvl {P : TreeSchedule} (d : P.PaddedDict)
-    (seeds : P.SeedAssignment) (hgood : seeds.AllGoodSeeds (P.paddedDom d))
-    {storeLvl : Fin P.paddedUniv → ℕ} (hvsl : ValidStoreLvl seeds (P.paddedDom d) storeLvl)
+    (seeds : P.SeedAssignment) (storeLvl : Fin P.paddedUniv → ℕ)
     (u₁ : Fin (P.numNodes 1)) : P.RootNode :=
   let h1d : 1 ≤ P.depth := Nat.one_le_of_lt P.two_le_depth
   { seed := seeds.seed 1 h1d u₁
     table := StorageTable.ofFinset
       (((seeds.activeAt (P.paddedDom d) 1 h1d u₁).filter fun x => storeLvl x = 1).image
         (seeds.idAt 1 le_rfl h1d))
-      (hvsl.root_card_le hgood u₁) (P.quotUniv_pos 1) P.val_pos
+      (P.quotUniv_pos 1) P.val_pos
       (nodePayloadOf d seeds 1 le_rfl h1d u₁) }
 
 @[simp]
 theorem seed_buildRootOfStoreLvl {P : TreeSchedule} (d : P.PaddedDict)
-    (seeds : P.SeedAssignment) (hgood : seeds.AllGoodSeeds (P.paddedDom d))
-    {storeLvl : Fin P.paddedUniv → ℕ} (hvsl : ValidStoreLvl seeds (P.paddedDom d) storeLvl)
+    (seeds : P.SeedAssignment) (storeLvl : Fin P.paddedUniv → ℕ)
     (u₁ : Fin (P.numNodes 1)) :
-    (buildRootOfStoreLvl d seeds hgood hvsl u₁).seed =
+    (buildRootOfStoreLvl d seeds storeLvl u₁).seed =
       seeds.seed 1 (Nat.one_le_of_lt P.two_le_depth) u₁ := by
   rfl
 
@@ -596,11 +574,12 @@ theorem dom_buildRootOfStoreLvl {P : TreeSchedule} (d : P.PaddedDict)
     (seeds : P.SeedAssignment) (hgood : seeds.AllGoodSeeds (P.paddedDom d))
     {storeLvl : Fin P.paddedUniv → ℕ} (hvsl : ValidStoreLvl seeds (P.paddedDom d) storeLvl)
     (u₁ : Fin (P.numNodes 1)) :
-    (buildRootOfStoreLvl d seeds hgood hvsl u₁).table.tableMeta.dom =
+    (buildRootOfStoreLvl d seeds storeLvl u₁).table.tableMeta.dom =
       ((seeds.activeAt (P.paddedDom d) 1 (Nat.one_le_of_lt P.two_le_depth) u₁).filter
         fun x => storeLvl x = 1).image
         (seeds.idAt 1 le_rfl (Nat.one_le_of_lt P.two_le_depth)) := by
-  dsimp only [buildRootOfStoreLvl]; rw [StorageTable.dom_ofFinset]
+  dsimp only [buildRootOfStoreLvl]
+  exact StorageTable.dom_ofFinset _ (hvsl.root_card_le hgood u₁) _ _ _
 
 theorem query_buildRootOfStoreLvl {P : TreeSchedule} {d : P.PaddedDict}
     {seeds : P.SeedAssignment} (hgood : seeds.AllGoodSeeds (P.paddedDom d))
@@ -608,7 +587,7 @@ theorem query_buildRootOfStoreLvl {P : TreeSchedule} {d : P.PaddedDict}
     (u₁ : Fin (P.numNodes 1)) {x : Fin P.paddedUniv} {v : Fin P.valBound}
     (hdx : d x = some v)
     (hnx : seeds.nodeAt 1 (Nat.one_le_of_lt P.two_le_depth) x = u₁) (hsl : storeLvl x = 1) :
-    (buildRootOfStoreLvl d seeds hgood hvsl u₁).table.query
+    (buildRootOfStoreLvl d seeds storeLvl u₁).table.query
       (seeds.idAt 1 le_rfl (Nat.one_le_of_lt P.two_le_depth) x) =
       some (seeds.quotAt 1 le_rfl (Nat.one_le_of_lt P.two_le_depth) x, v) := by
   let h1d : 1 ≤ P.depth := Nat.one_le_of_lt P.two_le_depth
@@ -619,7 +598,8 @@ theorem query_buildRootOfStoreLvl {P : TreeSchedule} {d : P.PaddedDict}
       ⟨SeedAssignment.mem_activeAt_iff.mpr
         ⟨(P.mem_paddedDom_iff d x).mpr (by simp [hdx]), hnx⟩, hsl⟩)
   dsimp only [buildRootOfStoreLvl]
-  rw [StorageTable.query_ofFinset, ite_eq_left hmem, nodePayloadOf_eq hgood le_rfl h1d u₁ hdx hnx]
+  rw [StorageTable.query_ofFinset _ (hvsl.root_card_le hgood u₁), ite_eq_left hmem,
+    nodePayloadOf_eq hgood le_rfl h1d u₁ hdx hnx]
 
 private noncomputable def buildWaitOfStoreLvl {P : TreeSchedule} (S : Finset (Fin P.paddedUniv))
     (seeds : P.SeedAssignment) (hgood : seeds.AllGoodSeeds S)
@@ -639,12 +619,9 @@ noncomputable def buildInnerOfStoreLvl {P : TreeSchedule} (d : P.PaddedDict)
     (ℓ : ℕ) (h2 : 2 ≤ ℓ) (hlt : ℓ < P.depth) (u : Fin (P.numNodes ℓ)) : P.InnerNode ℓ :=
   let S_id := ((seeds.activeAt (P.paddedDom d) ℓ hlt.le u).filter fun x => storeLvl x = ℓ).image
     (seeds.idAt ℓ (by omega) hlt.le)
-  have hcard : S_id.card = P.tableCap ℓ := by
-    rw [card_image_of_injOn ((seeds.injOn_idAt_activeAt hgood (by omega) hlt.le u).mono
-      (filter_subset _ _)), hvsl.inner_card ℓ h2 hlt u]
   { seed := seeds.seed ℓ hlt.le u
     wait := buildWaitOfStoreLvl (P.paddedDom d) seeds hgood hvsl ℓ h2 hlt.le u
-    table := StorageTable.ofFinset S_id hcard.le (P.quotUniv_pos ℓ) P.val_pos
+    table := StorageTable.ofFinset S_id (P.quotUniv_pos ℓ) P.val_pos
       (nodePayloadOf d seeds ℓ (by omega) hlt.le u) }
 
 @[simp]
@@ -663,7 +640,8 @@ theorem dom_buildInnerOfStoreLvl {P : TreeSchedule} (d : P.PaddedDict)
     (buildInnerOfStoreLvl d seeds hgood hvsl ℓ h2 hlt u).table.tableMeta.dom =
       ((seeds.activeAt (P.paddedDom d) ℓ hlt.le u).filter fun x => storeLvl x = ℓ).image
         (seeds.idAt ℓ (by omega) hlt.le) := by
-  dsimp only [buildInnerOfStoreLvl]; rw [StorageTable.dom_ofFinset]
+  dsimp only [buildInnerOfStoreLvl]
+  exact StorageTable.dom_ofFinset _ (card_image_le.trans_eq (hvsl.inner_card ℓ h2 hlt u)) _ _ _
 
 theorem card_dom_buildInnerOfStoreLvl {P : TreeSchedule} (d : P.PaddedDict)
     (seeds : P.SeedAssignment) (hgood : seeds.AllGoodSeeds (P.paddedDom d))
@@ -691,7 +669,8 @@ theorem query_buildInnerOfStoreLvl {P : TreeSchedule} {d : P.PaddedDict}
       ⟨SeedAssignment.mem_activeAt_iff.mpr
         ⟨(P.mem_paddedDom_iff d x).mpr (by simp [hdx]), hnx⟩, hsl⟩)
   dsimp only [buildInnerOfStoreLvl]
-  rw [StorageTable.query_ofFinset, ite_eq_left hmem, nodePayloadOf_eq hgood h1 hlt.le u hdx hnx]
+  rw [StorageTable.query_ofFinset _ (card_image_le.trans_eq (hvsl.inner_card ℓ h2 hlt u)),
+    ite_eq_left hmem, nodePayloadOf_eq hgood h1 hlt.le u hdx hnx]
 
 @[simp]
 theorem wait_dom_buildInnerOfStoreLvl {P : TreeSchedule} (d : P.PaddedDict)
@@ -740,9 +719,10 @@ noncomputable def buildTreeFromSeeds
     (scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth))
     (d : P.PaddedDict) (sentCount : ℕ) (seeds : P.SeedAssignment)
     (hgood : seeds.AllGoodSeeds (P.paddedDom d)) : P.TreeState :=
+  let storeLvl := canonicalStoreLvl seeds (P.paddedDom d) hgood
   let hvsl := validStoreLvl_canonicalStoreLvl seeds (P.paddedDom d) hgood
   { topSeed := seeds.seed 0 (Nat.zero_le _) ⟨0, P.numNodes_pos 0⟩
-    roots := buildRootOfStoreLvl d seeds hgood hvsl
+    roots := buildRootOfStoreLvl d seeds storeLvl
     inner := fun ℓ h2 hlt u => buildInnerOfStoreLvl d seeds hgood hvsl ℓ h2 hlt u
     leaves := buildLeafOfStoreLvl scheme d seeds hgood hvsl
     sentCount := sentCount }
@@ -791,7 +771,7 @@ theorem wellFormedPadded_buildTreeFromSeeds {P : TreeSchedule}
       dom_eq := fun ℓ h1 hℓ u => by
         rw [hseeds]
         by_cases h_one : ℓ = 1
-        · subst h_one; simp [st, buildTreeFromSeeds]
+        · subst h_one; simp [st, buildTreeFromSeeds, dom_buildRootOfStoreLvl d seeds hgood hvsl u]
         · by_cases hlt : ℓ < P.depth
           · rw [TreeState.nodeDom_inner st h1 (by omega) hlt hℓ]
             simp [st, buildTreeFromSeeds]

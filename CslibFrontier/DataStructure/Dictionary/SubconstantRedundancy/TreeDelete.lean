@@ -241,22 +241,12 @@ theorem deleteAndGetQuotient_spec
             rw [Function.update_of_ne hwz]
             exact ⟨(hwf.storeLvl_bounds w hwin).1, hle⟩
           storeLvl_gt_eq := fun w hw _ => Function.update_of_ne (mem_erase.mp hw).1 ..
-          above_dom_eq := fun j hj1 hjd hgt u => by
-            by_cases hlt' : j < P.depth
-            · simp [nodeDom_inner _ hj1 (by omega) hlt' hjd, updateRoot]
-            · have hd' : j = P.depth := by omega
-              subst hd'; simp [updateRoot]
-          above_query_eq := fun j hj1 hjd hgt u k => by
-            by_cases hlt' : j < P.depth
-            · rw [nodeQuery_inner _ _ hj1 (by omega) hlt' hjd,
-                nodeQuery_inner _ _ hj1 (by omega) hlt' hjd]; rfl
-            · have hd' : j = P.depth := by omega
-              subst hd'; rw [nodeQuery_depth, nodeQuery_depth]; rfl
-          above_wait_eq := fun j hj2 hjd _ u => by
-            by_cases hlt' : j < P.depth
-            · simp [nodeWait_inner _ hj2 hlt' hjd, updateRoot]
-            · have hd' : j = P.depth := by omega
-              subst hd'; simp [updateRoot]
+          above_dom_eq := fun j hj1 hjd hgt u =>
+            st.nodeDom_updateRoot_other u₁ _ hj1 hjd u fun h_eq => by omega
+          above_query_eq := fun j hj1 hjd hgt u k =>
+            st.nodeQuery_updateRoot_other scheme u₁ _ hj1 hjd u k fun h_eq => by omega
+          above_wait_eq := fun j hj2 hjd _ u =>
+            st.nodeWait_updateRoot u₁ _ hj2 hjd u
           le_dom_eq := fun j hj1 hjℓ u => by
             obtain rfl : j = 1 := by omega
             rw [nodeDom_one]
@@ -400,6 +390,44 @@ theorem deleteAndGetQuotient_spec
             res_y.2.2)
         have hsl_z_y : storeLvl_y z = m + 2 :=
           (hpost_y.storeLvl_gt_eq z (mem_erase.mpr ⟨hyz.symm, hz_in⟩) (by omega)).trans hslz_eq
+        have hsl_eq_iff : ∀ {w}, w ≠ z → w ≠ y →
+            (storeLvl' w = m + 2 ↔ storeLvl w = m + 2) := by
+          intro w hwz hwy
+          by_cases hwin : w ∈ P.paddedDom d
+          · dsimp only [storeLvl']
+            rw [Function.update_of_ne hwz, Function.update_of_ne hwy]
+            have hwin_y := mem_erase.mpr ⟨hwy, hwin⟩
+            by_cases hle_p : storeLvl w ≤ m + 1
+            · have hb := hpost_y.storeLvl_le_bounds w hwin_y hle_p; omega
+            · rw [hpost_y.storeLvl_gt_eq w hwin_y (by omega)]
+          · have h1' : storeLvl' w = 0 := by
+              dsimp only [storeLvl']
+              rw [Function.update_of_ne hwz, Function.update_of_ne hwy]
+              exact hpost_y.storeLvl_outside w fun hm => hwin (mem_of_mem_erase hm)
+            rw [h1', hwf.storeLvl_outside w hwin]
+        have hsl_lt_iff : ∀ {w}, w ∈ P.paddedDom d → w ≠ z → w ≠ y →
+            (storeLvl' w < m + 2 ↔ storeLvl w < m + 2) := by
+          intro w hwin hwz hwy
+          dsimp only [storeLvl']
+          rw [Function.update_of_ne hwz, Function.update_of_ne hwy]
+          constructor
+          · intro hlt_w; by_contra hge
+            rw [hpost_y.storeLvl_gt_eq w (mem_erase.mpr ⟨hwy, hwin⟩) (by omega)] at hlt_w; omega
+          · intro hlt_w
+            have hb := hpost_y.storeLvl_le_bounds w (mem_erase.mpr ⟨hwy, hwin⟩) (by omega); omega
+        have hfilter_below : ∀ (j : ℕ) (hj_le : j ≤ P.depth) (u : Fin (P.numNodes j))
+            (p : ℕ → Prop) [DecidablePred p], ¬ p (m + 2) →
+            ((st.seeds.activeAt ((P.paddedDom d).erase z) j hj_le u).filter
+              fun w => p (storeLvl' w)) =
+            (st.seeds.activeAt ((P.paddedDom d).erase y) j hj_le u).filter
+              fun w => p (storeLvl_y w) := by
+          intro j hj_le u p _ hp; ext w
+          simp only [mem_filter, SeedAssignment.mem_activeAt_iff, mem_erase]
+          by_cases hwz : w = z
+          · rw [hwz]; simp [hsl_z_y, hp]
+          · by_cases hwy : w = y
+            · rw [hwy]; simp [storeLvl', hyz, hp]
+            · simp [storeLvl', hwz, hwy]
         refine
           { seeds_eq := (res_y.1.seeds_replaceAtNode scheme h2 hℓ ..).trans hpost_y.seeds_eq
             sentCount_eq :=
@@ -469,21 +497,7 @@ theorem deleteAndGetQuotient_spec
               · rw [hwz]; simp [Ne.symm hyz]
               · by_cases hwy : w = y
                 · rw [hwy]; simp [hy_in, hny, storeLvl', hyz]
-                · have hsl_eq : storeLvl' w = m + 2 ↔ storeLvl w = m + 2 := by
-                    by_cases hwin : w ∈ P.paddedDom d
-                    · dsimp only [storeLvl']
-                      rw [Function.update_of_ne hwz, Function.update_of_ne hwy]
-                      have hwin_y := mem_erase.mpr ⟨hwy, hwin⟩
-                      by_cases hle_p : storeLvl w ≤ m + 1
-                      · have hb := hpost_y.storeLvl_le_bounds w hwin_y hle_p
-                        omega
-                      · rw [hpost_y.storeLvl_gt_eq w hwin_y (by omega)]
-                    · have h1' : storeLvl' w = 0 := by
-                        dsimp only [storeLvl']
-                        rw [Function.update_of_ne hwz, Function.update_of_ne hwy]
-                        exact hpost_y.storeLvl_outside w fun hm => hwin (mem_of_mem_erase hm)
-                      rw [h1', hwf.storeLvl_outside w hwin]
-                  simp [hwz, hwy, hsl_eq]
+                · simp [hwz, hwy, hsl_eq_iff hwz hwy]
             · have hne_u : ∀ h_eq : m + 2 = m + 2, h_eq ▸ u ≠ u_cur := fun _ => hu
               dsimp only [st_fin]
               rw [res_y.1.nodeDom_replaceAtNode_other scheme h2 hℓ u_cur wait' z_id y_id_cur _
@@ -500,34 +514,14 @@ theorem deleteAndGetQuotient_spec
                 · rw [hwy]
                   have hnu : st.seeds.nodeAt (m + 2) hℓ y ≠ u := fun h => hu (h.symm.trans hny)
                   simp [hnu]
-                · constructor
-                  · rintro ⟨⟨hwin, hnw⟩, hslw⟩
-                    refine ⟨⟨⟨hwz, hwin⟩, hnw⟩, ?_⟩
-                    dsimp only [storeLvl']
-                    rw [Function.update_of_ne hwz, Function.update_of_ne hwy]
-                    exact hpost_y.storeLvl_gt_eq w (mem_erase.mpr ⟨hwy, hwin⟩) (by omega) |>.trans
-                      hslw
-                  · rintro ⟨⟨⟨_, hwin⟩, hnw⟩, hslw⟩
-                    refine ⟨⟨hwin, hnw⟩, ?_⟩
-                    dsimp only [storeLvl'] at hslw
-                    rw [Function.update_of_ne hwz, Function.update_of_ne hwy] at hslw
-                    by_cases hle_p : storeLvl w ≤ m + 1
-                    · have hb := hpost_y.storeLvl_le_bounds w (mem_erase.mpr ⟨hwy, hwin⟩) hle_p
-                      omega
-                    · rwa [hpost_y.storeLvl_gt_eq w (mem_erase.mpr ⟨hwy, hwin⟩) (by omega)] at hslw
+                · simp [hwz, hsl_eq_iff hwz hwy]
           · have hj_le_prev : j ≤ m + 1 := by omega
             have hne_j : ∀ h_eq : j = m + 2, h_eq ▸ u ≠ u_cur := fun h_eq => by omega
             dsimp only [st_fin]
             rw [res_y.1.nodeDom_replaceAtNode_other scheme h2 hℓ u_cur wait' z_id y_id_cur _
               hj1 (hjℓ.trans hℓ) u hne_j,
-              hpost_y.le_dom_eq j hj1 hj_le_prev u]
-            congr 1; ext w
-            simp only [mem_filter, SeedAssignment.mem_activeAt_iff, mem_erase]
-            by_cases hwz : w = z
-            · rw [hwz]; simp [hsl_z_y, show m + 2 ≠ j by omega]
-            · by_cases hwy : w = y
-              · rw [hwy]; simp [storeLvl', hyz, show m + 2 ≠ j by omega]
-              · simp [storeLvl', hwz, hwy]
+              hpost_y.le_dom_eq j hj1 hj_le_prev u,
+              hfilter_below j (hjℓ.trans hℓ) u (· = j) (by omega)]
         · have hwz : w ≠ z := fun h => by subst h; simp at hdw
           rw [Function.update_of_ne hwz] at hdw
           have hwin : w ∈ P.paddedDom d := (P.mem_paddedDom_iff d w).mpr (by simp [hdw])
@@ -549,28 +543,16 @@ theorem deleteAndGetQuotient_spec
                   hwz (hinj_cur (SeedAssignment.mem_activeAt_iff.mpr ⟨hwin, hnw⟩) hz_act h)
                 rw [Function.update_of_ne hne_new, Function.update_of_ne hne_old,
                   hpost_y.above_query_eq (m + 2) hj1 hℓ (by omega) u_cur]
-                dsimp only [storeLvl'] at hslw
-                rw [Function.update_of_ne hwz, Function.update_of_ne hwy] at hslw
-                have hslw_orig : storeLvl w = m + 2 := by
-                  by_cases hle_p : storeLvl w ≤ m + 1
-                  · have hb := hpost_y.storeLvl_le_bounds w (mem_erase.mpr ⟨hwy, hwin⟩) hle_p
-                    omega
-                  · rwa [hpost_y.storeLvl_gt_eq w (mem_erase.mpr ⟨hwy, hwin⟩) (by omega)] at hslw
-                exact hwf.query_eq_of_storeLvl (m + 2) hj1 hℓ u_cur w vw hdw hnw hslw_orig
+                exact hwf.query_eq_of_storeLvl (m + 2) hj1 hℓ u_cur w vw hdw hnw
+                  ((hsl_eq_iff hwz hwy).mp hslw)
             · have hne_u : ∀ h_eq : m + 2 = m + 2, h_eq ▸ u ≠ u_cur := fun _ => hu
               have hwy : w ≠ y := fun h => hu (hnw.symm.trans (h ▸ hny))
               dsimp only [st_fin]
               rw [res_y.1.nodeQuery_replaceAtNode_other scheme h2 hℓ u_cur wait' z_id y_id_cur _
                 hj1 hℓ u _ hne_u,
                 hpost_y.above_query_eq (m + 2) hj1 hℓ (by omega) u]
-              dsimp only [storeLvl'] at hslw
-              rw [Function.update_of_ne hwz, Function.update_of_ne hwy] at hslw
-              have hslw_orig : storeLvl w = m + 2 := by
-                by_cases hle_p : storeLvl w ≤ m + 1
-                · have hb := hpost_y.storeLvl_le_bounds w (mem_erase.mpr ⟨hwy, hwin⟩) hle_p
-                  omega
-                · rwa [hpost_y.storeLvl_gt_eq w (mem_erase.mpr ⟨hwy, hwin⟩) (by omega)] at hslw
-              exact hwf.query_eq_of_storeLvl (m + 2) hj1 hℓ u w vw hdw hnw hslw_orig
+              exact hwf.query_eq_of_storeLvl (m + 2) hj1 hℓ u w vw hdw hnw
+                ((hsl_eq_iff hwz hwy).mp hslw)
           · have hj_le_prev : j ≤ m + 1 := by omega
             have hwy : w ≠ y := fun h => by
               subst h; dsimp only [storeLvl'] at hslw
@@ -639,20 +621,10 @@ theorem deleteAndGetQuotient_spec
               · rw [hwz]; simp [hslz_eq]
               · by_cases hwy : w = y
                 · rw [hwy]; simp [storeLvl', hyz]
-                · constructor
-                  · rintro ⟨_, ⟨hwin, hnw⟩, hlt_w⟩
-                    refine ⟨⟨⟨hwz, hwin⟩, hnw⟩, ?_⟩
-                    dsimp only [storeLvl']
-                    rw [Function.update_of_ne hwz, Function.update_of_ne hwy]
-                    have hb := hpost_y.storeLvl_le_bounds w (mem_erase.mpr ⟨hwy, hwin⟩) (by omega)
-                    omega
-                  · rintro ⟨⟨⟨_, hwin⟩, hnw⟩, hlt_w⟩
-                    refine ⟨hwy, ⟨hwin, hnw⟩, ?_⟩
-                    dsimp only [storeLvl'] at hlt_w
-                    rw [Function.update_of_ne hwz, Function.update_of_ne hwy] at hlt_w
-                    by_contra hge
-                    rw [hpost_y.storeLvl_gt_eq w (mem_erase.mpr ⟨hwy, hwin⟩) (by omega)] at hlt_w
-                    omega
+                · exact ⟨fun ⟨_, ⟨hwin, hnw⟩, hlt_w⟩ =>
+                    ⟨⟨⟨hwz, hwin⟩, hnw⟩, (hsl_lt_iff hwin hwz hwy).mpr hlt_w⟩,
+                    fun ⟨⟨⟨_, hwin⟩, hnw⟩, hlt_w⟩ =>
+                    ⟨hwy, ⟨hwin, hnw⟩, (hsl_lt_iff hwin hwz hwy).mp hlt_w⟩⟩
             · have hne_u : ∀ h_eq : m + 2 = m + 2, h_eq ▸ u ≠ u_cur := fun _ => hu
               dsimp only [st_fin]
               rw [res_y.1.nodeWait_replaceAtNode_other scheme h2 hℓ u_cur wait' z_id y_id_cur _
@@ -667,48 +639,26 @@ theorem deleteAndGetQuotient_spec
                 · rw [hwy]
                   have hnu : st.seeds.nodeAt (m + 2) hℓ y ≠ u := fun h => hu (h.symm.trans hny)
                   simp [hnu]
-                · constructor
-                  · rintro ⟨⟨hwin, hnw⟩, hlt_w⟩
-                    refine ⟨⟨⟨hwz, hwin⟩, hnw⟩, ?_⟩
-                    dsimp only [storeLvl']
-                    rw [Function.update_of_ne hwz, Function.update_of_ne hwy]
-                    have hb := hpost_y.storeLvl_le_bounds w (mem_erase.mpr ⟨hwy, hwin⟩) (by omega)
-                    omega
-                  · rintro ⟨⟨⟨_, hwin⟩, hnw⟩, hlt_w⟩
-                    refine ⟨⟨hwin, hnw⟩, ?_⟩
-                    dsimp only [storeLvl'] at hlt_w
-                    rw [Function.update_of_ne hwz, Function.update_of_ne hwy] at hlt_w
-                    by_contra hge
-                    rw [hpost_y.storeLvl_gt_eq w (mem_erase.mpr ⟨hwy, hwin⟩) (by omega)] at hlt_w
-                    omega
+                · exact ⟨fun ⟨⟨hwin, hnw⟩, hlt_w⟩ =>
+                    ⟨⟨⟨hwz, hwin⟩, hnw⟩, (hsl_lt_iff hwin hwz hwy).mpr hlt_w⟩,
+                    fun ⟨⟨⟨_, hwin⟩, hnw⟩, hlt_w⟩ =>
+                    ⟨⟨hwin, hnw⟩, (hsl_lt_iff hwin hwz hwy).mp hlt_w⟩⟩
           · have hj_le_prev : j ≤ m + 1 := by omega
             have hne_j : ∀ h_eq : j = m + 2, h_eq ▸ u ≠ u_cur := fun h_eq => by omega
             dsimp only [st_fin]
             rw [res_y.1.nodeWait_replaceAtNode_other scheme h2 hℓ u_cur wait' z_id y_id_cur _
               hj2 (hjℓ.trans hℓ) u hne_j,
-              hpost_y.le_wait_dom_eq j hj2 hj_le_prev u]
-            congr 1; ext w
-            simp only [mem_filter, SeedAssignment.mem_activeAt_iff, mem_erase]
-            by_cases hwz : w = z
-            · rw [hwz]; simp [hsl_z_y, show ¬ m + 2 < j by omega]
-            · by_cases hwy : w = y
-              · rw [hwy]; simp [storeLvl', hyz, show ¬ m + 2 < j by omega]
-              · simp [storeLvl', hwz, hwy]
+              hpost_y.le_wait_dom_eq j hj2 hj_le_prev u,
+              hfilter_below j (hjℓ.trans hℓ) u (· < j) (by omega)]
         · obtain ⟨hw_er, hnw⟩ := SeedAssignment.mem_activeAt_iff.mp hw
           obtain ⟨hwz, hwin⟩ := mem_erase.mp hw_er
           have hwy : w ≠ y := fun h => by
             subst h; dsimp only [storeLvl'] at hslw
             rw [Function.update_of_ne hwz, Function.update_self] at hslw; omega
-          dsimp only [storeLvl'] at hslw
-          rw [Function.update_of_ne hwz, Function.update_of_ne hwy] at hslw
           by_cases hj_top : j = m + 2
           · subst hj_top
-            have hslw_orig : storeLvl w < m + 2 := by
-              by_contra hge
-              rw [hpost_y.storeLvl_gt_eq w (mem_erase.mpr ⟨hwy, hwin⟩) (by omega)] at hslw
-              omega
             have hlk_old := hwf.wait_lookup_eq (m + 2) h2 hℓ u w
-              (SeedAssignment.mem_activeAt_iff.mpr ⟨hwin, hnw⟩) hslw_orig
+              (SeedAssignment.mem_activeAt_iff.mpr ⟨hwin, hnw⟩) ((hsl_lt_iff hwin hwz hwy).mp hslw)
             by_cases hu : u = u_cur
             · rw [hu] at hnw hlk_old ⊢
               dsimp only [st_fin]
@@ -730,6 +680,8 @@ theorem deleteAndGetQuotient_spec
             dsimp only [st_fin]
             rw [res_y.1.nodeWait_replaceAtNode_other scheme h2 hℓ u_cur wait' z_id y_id_cur _
               hj2 (hjℓ.trans hℓ) u hne_j]
+            dsimp only [storeLvl'] at hslw
+            rw [Function.update_of_ne hwz, Function.update_of_ne hwy] at hslw
             exact hpost_y.le_wait_lookup_eq j hj2 hj_le_prev u w
               (SeedAssignment.mem_activeAt_iff.mpr ⟨mem_erase.mpr ⟨hwy, hwin⟩, hnw⟩) hslw
       · -- Branch 1: `z` is in `w_list`, so `storeLvl z < m + 2`
@@ -913,7 +865,9 @@ theorem deleteAndGetQuotient_spec
             exact hpost_z.le_wait_lookup_eq j hj2 (by omega) u w hw hslw
 
 /-- Normal-path deletion of an active internal key `z ∈ P.paddedDom d`, invoking `Algorithm 3`
-starting at the leaf `(depth, nodeAt depth z)` (`Section 5.3`, PDF p. 31 / printed p. 30). -/
+starting at the leaf `(depth, nodeAt depth z)` (`Section 5.3`, PDF p. 31 / printed p. 30).
+Carries a member-only contract (`z ∈ P.paddedDom d` on a `WellFormedPadded` state; `Algorithm 3`
+routes by compressed ID and is not a no-op on absent keys or malformed states). -/
 noncomputable def normalDeleteMem
     (scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth))
     (st : P.TreeState) (z : Fin P.paddedUniv) : P.TreeState :=

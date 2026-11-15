@@ -21,11 +21,13 @@ Exercises (reusing schedule fixtures `sublinearRegime`, `sublinearConcentrationR
    - executable `#eval` traces of `WaitingList`, `StorageTable` (`Section 5.6` metadata separation
      `locateSlot`), and `rootValPoolCap` conservation (`rootKeyCount_le_rootValPoolCap`);
 2. `SubconstantRedundancy.TreeModel`:
-   - `SeedAssignment` routing bijections and Section 5.6 `dfsSubtreeMeta` on depth `3`;
+   - `SeedAssignment` routing bijections and Section 5.6 `dfsSubtreeMeta` exact descendant coverage
+     and node count on depth `3`;
    - end-to-end dictionary trace (`initTree`, `insert`, overwrite, `query`, `delete`, absent
      `delete`) preserving `WellFormed`;
-   - `Algorithm 3` (`deleteAndGetQuotient_spec`) and `Algorithm 4` (`rehashSubtree` strict
-     locality and `wellFormedPadded_rehashSubtree`).
+   - `Algorithm 3` (`deleteAndGetQuotient_spec`) and the pure reconstruction/local-splice step of
+     `Algorithm 4` under supplied validated seeds (`rehashSubtree` strict locality and
+     `wellFormedPadded_rehashSubtree`).
 -/
 
 public section
@@ -104,13 +106,21 @@ example {scheme : DynamicMatching.Scheme
 
 /-! ## 2. Multi-Level Tree Operations, `Algorithm 3`, `Algorithm 4` & DFS Metadata -/
 
--- Level-coordinate bijection and Section 5.6 DFS pre-order metadata on `smallDepth3Sched`.
+-- Level-coordinate bijection and Section 5.6 DFS pre-order subtree metadata count and descendant
+-- coverage on `smallDepth3Sched` (`1` level-2 inner node + `2` level-3 leaf children = `3` items).
 theorem smallDepth3_routing_and_dfs_meta (st : smallDepth3Sched.TreeState)
-    (u₂ : Fin (smallDepth3Sched.numNodes 2)) :
+    (u₂ : Fin (smallDepth3Sched.numNodes 2)) (b : Fin (2 ^ smallDepth3Sched.branchBits 2)) :
     Function.Bijective (st.seeds.levelCoordEquiv 2 (by decide) (by decide)) ∧
-    st.dfsSubtreeMeta 2 (by decide) (by decide) u₂ ≠ [] :=
-  ⟨(st.seeds.levelCoordEquiv 2 (by decide) (by decide)).bijective,
-    st.dfsSubtreeMeta_nonempty (by decide) (by decide) u₂⟩
+    (st.dfsSubtreeMeta 2 (by decide) (by decide) u₂).length = 3 ∧
+    st.nodeMeta 3 (by decide) (by decide) (smallDepth3Sched.childNodeEquiv 2 (u₂, b)) ∈
+      st.dfsSubtreeMeta 2 (by decide) (by decide) u₂ := by
+  refine ⟨(st.seeds.levelCoordEquiv 2 (by decide) (by decide)).bijective, ?_, ?_⟩
+  · rw [st.length_dfsSubtreeMeta (by decide) (by decide) u₂]
+    decide
+  · rw [st.mem_dfsSubtreeMeta_iff]
+    exact ⟨3, by decide, by decide, smallDepth3Sched.childNodeEquiv 2 (u₂, b),
+      (smallDepth3Sched.inSubtree_step_iff u₂ _).mpr
+        (Or.inr ⟨b, smallDepth3Sched.inSubtree_refl _⟩), rfl⟩
 
 /-- End-to-end dictionary trace on `canonicalSchedule sublinearRegime` exercising `initTree`,
 fresh `insert`s, in-place key overwrite, present-key `delete`, and absent-key `delete`, verifying
@@ -212,8 +222,9 @@ theorem endToEnd_dictionary_trace
       Function.update_self]
   · rw [hq5 k₃, Function.update_self]
 
-/-- Direct instantiation of `Algorithm 3` (`deleteAndGetQuotient_spec`) and `Algorithm 4`
-(`rehashSubtree` locality and `wellFormedPadded_rehashSubtree`) on any `TreeSchedule`. -/
+/-- Direct instantiation of `Algorithm 3` (`deleteAndGetQuotient_spec`) and the pure
+reconstruction/local-splice step of `Algorithm 4` under supplied validated seeds (`rehashSubtree`
+locality and `wellFormedPadded_rehashSubtree`) on any `TreeSchedule`. -/
 theorem deleteAndGetQuotient_and_rehashSubtree_specs
     {P : TreeSchedule}
     {scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth)}

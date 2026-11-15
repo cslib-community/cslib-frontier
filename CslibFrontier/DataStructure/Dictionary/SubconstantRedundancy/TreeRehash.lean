@@ -11,21 +11,25 @@ public import CslibFrontier.Init
 public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.TreeBuild
 
 /-!
-# Localized Subtree Rehashing (`Algorithm 4`) in the Multi-Level Dictionary Tree
+# Pure Subtree Reconstruction and Local-Splice Step of `Algorithm 4`
 
-This file formalizes localized subtree rehashing (`Algorithm 4`, `Rehash(u)`) of Tianxiao Li,
-Jingxun Liang, Huacheng Yu, and Renfei Zhou, *Dynamic Dictionary with Subconstant Wasted Bits per
-Key* ([LiLiangYuZhou2024, Section 5.5, Algorithm 4];
+This file formalizes the **pure reconstruction and local-splice step of `Algorithm 4`
+(`Rehash(u)`) under supplied validated seeds** of Tianxiao Li, Jingxun Liang, Huacheng Yu, and
+Renfei Zhou, *Dynamic Dictionary with Subconstant Wasted Bits per Key*
+([LiLiangYuZhou2024, Section 5.5, Algorithm 4];
 [arXiv:2310.20536v1](https://arxiv.org/abs/2310.20536v1), PDF p. 34 / printed p. 33).
 
-When node `(ℓ₀, u₀)` (`0 ≤ ℓ₀ ≤ depth`) is rehashed with resampled subtree seeds `seeds'`
-agreeing with `st.seeds` outside `InSubtree ℓ₀ u₀`, `rehashSubtree` reconstructs `InSubtree ℓ₀ u₀`,
-updates only the `ℓ₀ - 1` strict ancestor nodes `(j, ancestorAt u₀)` (`1 ≤ j < ℓ₀`), and leaves all
-other root trees and sibling subtrees untouched.
+Given replacement subtree seeds `seeds'` agreeing with `st.seeds` outside `InSubtree ℓ₀ u₀` and
+validated by `hgood' : seeds'.AllGoodSeeds (P.paddedDom d)`, `rehashSubtree` builds a canonical
+tree, splices `InSubtree ℓ₀ u₀`, updates only the `ℓ₀ - 1` strict ancestor nodes
+`(j, ancestorAt u₀)` (`1 ≤ j < ℓ₀`), and leaves all other root trees and sibling subtrees
+untouched. Uniform seed sampling, failed-seed rejection, recursive `Algorithm 4` sampling, and
+randomized-history / expected-work obligations belong to Stage 3 under `#5349`.
 
 ## Main definitions
 
-* `TreeSchedule.TreeState.rehashSubtree`: localized subtree reconstruction (`Algorithm 4`).
+* `TreeSchedule.TreeState.rehashSubtree`: pure subtree reconstruction and local splice under
+  supplied validated seeds (`Algorithm 4` reconstruction step).
 
 ## Main results
 
@@ -202,6 +206,15 @@ private theorem validStoreLvl_rehashStoreLvlTwo
     simp only [A₀, SeedAssignment.mem_activeAt_iff,
       (SeedAssignment.primCoordAt_congr_ancestors hℓ₀ u₀
         (fun i hi => houtside i (hi.le.trans hℓ₀) _ fun ⟨hge, _⟩ => by omega) x).1]
+  have hfilter_other : ∀ (j : ℕ) (hj : j ≤ P.depth) (u : Fin (P.numNodes j)),
+      ¬ P.InSubtree ℓ₀ u₀ j u → (¬ ∃ hlt : j < ℓ₀, u = P.ancestorAt hlt.le u₀) →
+      ((seeds'.activeAt S j hj u).filter fun x => storeLvl' x = j) =
+        (st.seeds.activeAt S j hj u).filter fun x => storeLvl x = j := by
+    intro j hj u hsub hnot_anc
+    rw [← hact_outside j hj u hsub]
+    refine filter_congr fun x hx => ?_
+    have hxA := notMem_A0_of_not_anc_not_sub hℓ₀ u₀ hj u hsub hnot_anc hx
+    dsimp only [storeLvl', rehashStoreLvlTwo]; rw [dite_eq_right hxA]
   refine
     { bounds := fun x hx => by
         dsimp only [storeLvl', rehashStoreLvlTwo]
@@ -239,26 +252,16 @@ private theorem validStoreLvl_rehashStoreLvlTwo
         have hA_sub_B : A₀ ⊆ B := seeds'.activeAt_subset_ancestor hj_lt.le hℓ₀ u₀
         have hsplit1 : (B.filter fun x => storeLvl' x = j) =
             ((B \ A₀).filter fun x => storeLvl' x = j) ∪ (A₀.filter fun x => storeLvl' x = j) := by
-          ext x; simp only [mem_filter, mem_union, mem_sdiff]
-          exact ⟨fun ⟨hxB, he⟩ => if hxA : x ∈ A₀ then Or.inr ⟨hxA, he⟩
-            else Or.inl ⟨⟨hxB, hxA⟩, he⟩,
-            fun h => h.elim (fun ⟨⟨hxB, _⟩, he⟩ => ⟨hxB, he⟩)
-              (fun ⟨hxA, he⟩ => ⟨hA_sub_B hxA, he⟩)⟩
+          rw [← filter_union, sdiff_union_of_subset hA_sub_B]
         have hsplit2 : (B.filter fun x => storeLvl x = j) =
             ((B \ A₀).filter fun x => storeLvl x = j) ∪ (A₀.filter fun x => storeLvl x = j) := by
-          ext x; simp only [mem_filter, mem_union, mem_sdiff]
-          exact ⟨fun ⟨hxB, he⟩ => if hxA : x ∈ A₀ then Or.inr ⟨hxA, he⟩
-            else Or.inl ⟨⟨hxB, hxA⟩, he⟩,
-            fun h => h.elim (fun ⟨⟨hxB, _⟩, he⟩ => ⟨hxB, he⟩)
-              (fun ⟨hxA, he⟩ => ⟨hA_sub_B hxA, he⟩)⟩
+          rw [← filter_union, sdiff_union_of_subset hA_sub_B]
         have hdisj1 : Disjoint ((B \ A₀).filter fun x => storeLvl' x = j)
-            (A₀.filter fun x => storeLvl' x = j) := by
-          rw [Finset.disjoint_left]; intro x h1 h2
-          exact (mem_sdiff.mp (mem_filter.mp h1).1).2 (mem_filter.mp h2).1
+            (A₀.filter fun x => storeLvl' x = j) :=
+          disjoint_sdiff_self_left.mono (filter_subset _ _) (filter_subset _ _)
         have hdisj2 : Disjoint ((B \ A₀).filter fun x => storeLvl x = j)
-            (A₀.filter fun x => storeLvl x = j) := by
-          rw [Finset.disjoint_left]; intro x h1 h2
-          exact (mem_sdiff.mp (mem_filter.mp h1).1).2 (mem_filter.mp h2).1
+            (A₀.filter fun x => storeLvl x = j) :=
+          disjoint_sdiff_self_left.mono (filter_subset _ _) (filter_subset _ _)
         have hsdiff_eq : ((B \ A₀).filter fun x => storeLvl' x = j) =
             (B \ A₀).filter fun x => storeLvl x = j :=
           filter_congr fun x hx => by
@@ -306,14 +309,8 @@ private theorem validStoreLvl_rehashStoreLvlTwo
           rw [hB_eq]; exact hvsl_old.inner_card j h2 hlt _
         rw [hsplit1, card_union_of_disjoint hdisj1, hsdiff_eq, hA_bij,
           ← card_union_of_disjoint hdisj2, ← hsplit2, hold_card]
-      · have hfeq : ((seeds'.activeAt S j hlt.le u).filter fun x => storeLvl' x = j) =
-            (st.seeds.activeAt S j hlt.le u).filter fun x => storeLvl x = j := by
-          have ha := hact_outside j hlt.le u hsub
-          rw [← ha]
-          refine filter_congr fun x hx => ?_
-          have hxA := notMem_A0_of_not_anc_not_sub hℓ₀ u₀ hlt.le u hsub hanc_ex hx
-          dsimp only [storeLvl', rehashStoreLvlTwo]; rw [dite_eq_right hxA]
-        rw [hfeq]; exact hvsl_old.inner_card j h2 hlt u
+      · rw [hfilter_other j hlt.le u hsub hanc_ex]
+        exact hvsl_old.inner_card j h2 hlt u
   · by_cases hsub : P.InSubtree ℓ₀ u₀ P.depth u
     · obtain ⟨h0d, hanc_u⟩ := hsub
       have hfeq : ((seeds'.activeAt S P.depth le_rfl u).filter fun x => storeLvl' x = P.depth) =
@@ -322,21 +319,16 @@ private theorem validStoreLvl_rehashStoreLvlTwo
           (rehashStoreLvlTwo_ge_iff hwf h2₀ hℓ₀ u₀ houtside hgood'
             (hanc_u ▸ seeds'.activeAt_subset_ancestor h0d le_rfl u hx) h0d).1
       rw [hfeq]; exact hvsl_can.leaf_card u
-    · have hnot_anc : ¬ ∃ hlt : P.depth < ℓ₀, u = P.ancestorAt hlt.le u₀ :=
-        fun ⟨hlt, _⟩ => by omega
-      have hfeq : ((seeds'.activeAt S P.depth le_rfl u).filter fun x => storeLvl' x = P.depth) =
-          (st.seeds.activeAt S P.depth le_rfl u).filter fun x => storeLvl x = P.depth := by
-        have ha := hact_outside P.depth le_rfl u hsub
-        rw [← ha]
-        refine filter_congr fun x hx => ?_
-        have hxA := notMem_A0_of_not_anc_not_sub hℓ₀ u₀ le_rfl u hsub hnot_anc hx
-        dsimp only [storeLvl', rehashStoreLvlTwo]; rw [dite_eq_right hxA]
-      rw [hfeq]; exact hvsl_old.leaf_card u
+    · rw [hfilter_other P.depth le_rfl u hsub (fun ⟨hlt, _⟩ => by omega)]
+      exact hvsl_old.leaf_card u
 
-/-- **`Algorithm 4` (`Rehash(u₀)`, [LiLiangYuZhou2024, Section 5.5], PDF p. 34 / printed p. 33)**:
-rebuilds the subtree rooted at `(ℓ₀, u₀)` (`0 ≤ ℓ₀ ≤ depth`) using new subtree seeds `seeds'`
-agreeing with `st.seeds` outside `InSubtree ℓ₀ u₀`, adjusting only the `ℓ₀ - 1` strict ancestor
-nodes `(j, ancestorAt u₀)` (`1 ≤ j < ℓ₀`) and leaving all sibling subtrees untouched. -/
+/-- **Pure reconstruction and local-splice step of `Algorithm 4` (`Rehash(u₀)`) under supplied
+validated seeds** ([LiLiangYuZhou2024, Section 5.5], PDF p. 34 / printed p. 33): given replacement
+seeds `seeds'` agreeing with `st.seeds` outside `InSubtree ℓ₀ u₀` and validated by
+`hgood' : seeds'.AllGoodSeeds (P.paddedDom d)`, builds a canonical tree and splices
+`InSubtree ℓ₀ u₀` while rebuilding only the `ℓ₀ - 1` strict ancestor nodes `(j, ancestorAt u₀)`
+(`1 ≤ j < ℓ₀`) and leaving sibling subtrees untouched. Uniform seed sampling, failed-seed
+rejection, and recursive `Algorithm 4` sampling remain in Stage 3 (`#5349`). -/
 noncomputable def rehashSubtree
     {scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth)}
     (st : P.TreeState) {d : P.PaddedDict} {storeLvl : Fin P.paddedUniv → ℕ}
@@ -359,10 +351,11 @@ noncomputable def rehashSubtree
   else
     have h2₀ : 2 ≤ ℓ₀ := by omega
     have h1lt₀ : 1 < ℓ₀ := by omega
+    let storeLvl' := rehashStoreLvlTwo hwf h2₀ hℓ₀ u₀ houtside hgood'
     let hvsl' := validStoreLvl_rehashStoreLvlTwo hwf h2₀ hℓ₀ u₀ houtside hgood'
     { topSeed := st.topSeed
       roots := fun u₁ =>
-        if u₁ = P.ancestorAt h1lt₀.le u₀ then buildRootOfStoreLvl d seeds' hgood' hvsl' u₁
+        if u₁ = P.ancestorAt h1lt₀.le u₀ then buildRootOfStoreLvl d seeds' storeLvl' u₁
         else st.roots u₁
       inner := fun ℓ h2 hlt v =>
         if P.InSubtree ℓ₀ u₀ ℓ v then st_canon.inner ℓ h2 hlt v
@@ -400,47 +393,78 @@ theorem seeds_rehashSubtree
     (st.rehashSubtree hwf ℓ₀ hℓ₀ u₀ seeds' houtside hgood').seeds = seeds' := by
   have hsc := P.seeds_buildTreeFromSeeds scheme d st.sentCount seeds' hgood'
   dsimp only [rehashSubtree]
-  split_ifs with h0 h1
-  · exact hsc
-  · ext j hj v
+  by_cases h0 : ℓ₀ = 0
+  · rw [dite_eq_left h0]; exact hsc
+  · rw [dite_eq_right h0]
+    ext j hj v
     by_cases hj0 : j = 0
-    · subst hj0; rw [seeds_zero, ← seeds_zero st hj v]
-      exact (houtside 0 hj v fun ⟨hg, _⟩ => by omega).symm
+    · subst hj0
+      by_cases h1 : ℓ₀ = 1 <;>
+      · simp only [h1, ↓reduceDIte, seeds_zero]
+        rw [← seeds_zero st hj v]
+        exact (houtside 0 hj v fun ⟨hg, _⟩ => by omega).symm
     · by_cases hj1 : j = 1
-      · subst hj1; simp only [seeds_one]
-        split_ifs with hsub
-        · rw [← seeds_one (P.buildTreeFromSeeds scheme d st.sentCount seeds' hgood') hj v, hsc]
-        · rw [← seeds_one st hj v, houtside 1 hj v hsub]
-      · by_cases hlt : j < P.depth
-        · simp only [seeds_inner _ (by omega) hlt hj]
+      · subst hj1
+        by_cases h1 : ℓ₀ = 1
+        · subst h1; rw [dite_eq_left rfl]; simp only [seeds_one]
           split_ifs with hsub
-          · rw [← seeds_inner (P.buildTreeFromSeeds scheme d st.sentCount seeds' hgood')
-              (by omega) hlt hj v, hsc]
-          · rw [← seeds_inner st (by omega) hlt hj v, houtside j hj v hsub]
-        · have hd : j = P.depth := by omega
-          subst hd; simp only [seeds_depth]
-          split_ifs with hsub
-          · rw [← seeds_depth (P.buildTreeFromSeeds scheme d st.sentCount seeds' hgood') hj v, hsc]
-          · rw [← seeds_depth st hj v, houtside P.depth hj v hsub]
-  · ext j hj v
-    by_cases hj0 : j = 0
-    · subst hj0; rw [seeds_zero, ← seeds_zero st hj v]
-      exact (houtside 0 hj v fun ⟨hg, _⟩ => by omega).symm
-    · by_cases hj1 : j = 1
-      · subst hj1; simp only [seeds_one]
-        split_ifs with heq
-        · simp
-        · rw [← seeds_one st hj v, houtside 1 hj v fun ⟨hg, _⟩ => by omega]
-      · by_cases hlt : j < P.depth
-        · simp only [seeds_inner _ (by omega) hlt hj]
-          split_ifs with hsub hlt0 heq
-          · rw [← seeds_inner (P.buildTreeFromSeeds scheme d st.sentCount seeds' hgood')
-              (by omega) hlt hj v, hsc]
+          · rw [← seeds_one (P.buildTreeFromSeeds scheme d st.sentCount seeds' hgood') hj v, hsc]
+          · rw [← seeds_one st hj v, houtside 1 hj v hsub]
+        · rw [dite_eq_right h1]; simp only [seeds_one]
+          split_ifs with heq
           · simp
-          · rw [← seeds_inner st (by omega) hlt hj v, houtside j hj v hsub]
-          · rw [← seeds_inner st (by omega) hlt hj v, houtside j hj v hsub]
+          · rw [← seeds_one st hj v, houtside 1 hj v fun ⟨hg, _⟩ => by omega]
+      · by_cases hlt : j < P.depth
+        · by_cases h1 : ℓ₀ = 1
+          · rw [dite_eq_left h1]; simp only [seeds_inner _ (by omega) hlt hj]
+            split_ifs with hsub
+            · rw [← seeds_inner (P.buildTreeFromSeeds scheme d st.sentCount seeds' hgood')
+                (by omega) hlt hj v, hsc]
+            · rw [← seeds_inner st (by omega) hlt hj v, houtside j hj v hsub]
+          · rw [dite_eq_right h1]; simp only [seeds_inner _ (by omega) hlt hj]
+            split_ifs with hsub hlt0 heq
+            · rw [← seeds_inner (P.buildTreeFromSeeds scheme d st.sentCount seeds' hgood')
+                (by omega) hlt hj v, hsc]
+            · simp
+            · rw [← seeds_inner st (by omega) hlt hj v, houtside j hj v hsub]
+            · rw [← seeds_inner st (by omega) hlt hj v, houtside j hj v hsub]
         · have hd : j = P.depth := by omega
-          subst hd; simp only [seeds_depth]
+          subst hd
+          have hlvs : (if h1 : ℓ₀ = 1 then
+              ({ topSeed := st.topSeed
+                 roots := fun u₁ => if P.InSubtree ℓ₀ u₀ 1 u₁ then
+                   (P.buildTreeFromSeeds scheme d st.sentCount seeds' hgood').roots u₁
+                 else st.roots u₁
+                 inner := fun ℓ h2 hlt v => if P.InSubtree ℓ₀ u₀ ℓ v then
+                   (P.buildTreeFromSeeds scheme d st.sentCount seeds' hgood').inner ℓ h2 hlt v
+                 else st.inner ℓ h2 hlt v
+                 leaves := fun v => if P.InSubtree ℓ₀ u₀ P.depth v then
+                   (P.buildTreeFromSeeds scheme d st.sentCount seeds' hgood').leaves v
+                 else st.leaves v
+                 sentCount := st.sentCount } : P.TreeState)
+            else
+              have h2₀ : 2 ≤ ℓ₀ := by omega
+              have h1lt₀ : 1 < ℓ₀ := by omega
+              let storeLvl' := rehashStoreLvlTwo hwf h2₀ hℓ₀ u₀ houtside hgood'
+              let hvsl' := validStoreLvl_rehashStoreLvlTwo hwf h2₀ hℓ₀ u₀ houtside hgood'
+              { topSeed := st.topSeed
+                roots := fun u₁ => if u₁ = P.ancestorAt h1lt₀.le u₀ then
+                  buildRootOfStoreLvl d seeds' storeLvl' u₁ else st.roots u₁
+                inner := fun ℓ h2 hlt v => if P.InSubtree ℓ₀ u₀ ℓ v then
+                  (P.buildTreeFromSeeds scheme d st.sentCount seeds' hgood').inner ℓ h2 hlt v
+                else if hlt₀ : ℓ < ℓ₀ then
+                  if v = P.ancestorAt hlt₀.le u₀ then
+                    buildInnerOfStoreLvl d seeds' hgood' hvsl' ℓ h2 hlt v
+                  else st.inner ℓ h2 hlt v
+                else st.inner ℓ h2 hlt v
+                leaves := fun v => if P.InSubtree ℓ₀ u₀ P.depth v then
+                  (P.buildTreeFromSeeds scheme d st.sentCount seeds' hgood').leaves v
+                else st.leaves v
+                sentCount := st.sentCount }).leaves v =
+            if P.InSubtree ℓ₀ u₀ P.depth v then
+              (P.buildTreeFromSeeds scheme d st.sentCount seeds' hgood').leaves v
+            else st.leaves v := by by_cases h1 : ℓ₀ = 1 <;> simp [h1]
+          rw [seeds_depth, hlvs]
           split_ifs with hsub
           · rw [← seeds_depth (P.buildTreeFromSeeds scheme d st.sentCount seeds' hgood') hj v, hsc]
           · rw [← seeds_depth st hj v, houtside P.depth hj v hsub]
@@ -508,7 +532,8 @@ theorem rehashSubtree_untouched_leaves
   rw [dite_eq_right (by omega)]
   split_ifs <;> simp [hnot_sub]
 
-/-- **`Algorithm 4` (`rehashSubtree`) preserves `WellFormedPadded`**. -/
+/-- **Subtree reconstruction (`rehashSubtree`, the pure local-splice step of `Algorithm 4` under
+supplied validated seeds) preserves `WellFormedPadded`**. -/
 theorem wellFormedPadded_rehashSubtree
     {scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth)}
     (st : P.TreeState) {d : P.PaddedDict} {storeLvl : Fin P.paddedUniv → ℕ}
@@ -554,40 +579,29 @@ theorem wellFormedPadded_rehashSubtree
         exact ((SeedAssignment.primCoordAt_congr_ancestors h1d v
           (fun i hi => houtside i (hi.le.trans h1d) _ fun ⟨hg, _⟩ => by omega) x).1.mp rfl).symm
       set st_fin := st.rehashSubtree hwf 1 hℓ₀ u₀ seeds' houtside hgood'
-      have hdom_fin : ∀ (j : ℕ) (hj1 : 1 ≤ j) (hj : j ≤ P.depth) (v : Fin (P.numNodes j)),
+      have hdom_q_fin : ∀ (j : ℕ) (hj1 : 1 ≤ j) (hj : j ≤ P.depth) (v : Fin (P.numNodes j)),
           st_fin.nodeDom j hj1 hj v =
-            if P.InSubtree 1 u₀ j v then st_canon.nodeDom j hj1 hj v
-            else st.nodeDom j hj1 hj v := by
+            (if P.InSubtree 1 u₀ j v then st_canon.nodeDom j hj1 hj v
+              else st.nodeDom j hj1 hj v) ∧
+          ∀ k, st_fin.nodeQuery scheme j hj1 hj v k =
+            if P.InSubtree 1 u₀ j v then st_canon.nodeQuery scheme j hj1 hj v k
+            else st.nodeQuery scheme j hj1 hj v k := by
         intro j hj1 hj v
         dsimp only [st_fin, rehashSubtree]
         rw [dite_eq_right (by omega), dite_eq_left rfl]
         by_cases hj_one : j = 1
-        · subst hj_one; rw [nodeDom_one, nodeDom_one, nodeDom_one]
+        · subst hj_one
           by_cases hsub : P.InSubtree 1 u₀ 1 v <;> simp [hsub, st_canon]
         · by_cases hlt : j < P.depth
           · rw [nodeDom_inner _ hj1 (by omega) hlt hj, nodeDom_inner _ hj1 (by omega) hlt hj,
               nodeDom_inner _ hj1 (by omega) hlt hj]
-            by_cases hsub : P.InSubtree 1 u₀ j v <;> simp [hsub, st_canon]
-          · have hd : j = P.depth := by omega
-            subst hd; rw [nodeDom_depth, nodeDom_depth, nodeDom_depth]
-            by_cases hsub : P.InSubtree 1 u₀ P.depth v <;> simp [hsub, st_canon]
-      have hq_fin : ∀ (j : ℕ) (hj1 : 1 ≤ j) (hj : j ≤ P.depth) (v : Fin (P.numNodes j)) k,
-          st_fin.nodeQuery scheme j hj1 hj v k =
-            if P.InSubtree 1 u₀ j v then st_canon.nodeQuery scheme j hj1 hj v k
-            else st.nodeQuery scheme j hj1 hj v k := by
-        intro j hj1 hj v k
-        dsimp only [st_fin, rehashSubtree]
-        rw [dite_eq_right (by omega), dite_eq_left rfl]
-        by_cases hj_one : j = 1
-        · subst hj_one; rw [nodeQuery_one, nodeQuery_one, nodeQuery_one]
-          by_cases hsub : P.InSubtree 1 u₀ 1 v <;> simp [hsub, st_canon]
-        · by_cases hlt : j < P.depth
-          · rw [nodeQuery_inner _ _ hj1 (by omega) hlt hj,
+            refine ⟨by by_cases hsub : P.InSubtree 1 u₀ j v <;> simp [hsub, st_canon], fun k => ?_⟩
+            rw [nodeQuery_inner _ _ hj1 (by omega) hlt hj,
               nodeQuery_inner _ _ hj1 (by omega) hlt hj,
               nodeQuery_inner _ _ hj1 (by omega) hlt hj]
             by_cases hsub : P.InSubtree 1 u₀ j v <;> simp [hsub, st_canon]
           · have hd : j = P.depth := by omega
-            subst hd; rw [nodeQuery_depth, nodeQuery_depth, nodeQuery_depth]
+            subst hd
             by_cases hsub : P.InSubtree 1 u₀ P.depth v <;> simp [hsub, st_canon]
       have hw_fin : ∀ (j : ℕ) (hj2 : 2 ≤ j) (hj : j ≤ P.depth) (v : Fin (P.numNodes j)),
           st_fin.nodeWait j hj2 hj v =
@@ -614,7 +628,7 @@ theorem wellFormedPadded_rehashSubtree
             · exact hwf_canon.storeLvl_outside x hx
             · exact hwf.storeLvl_outside x hx
           dom_eq := fun j hj1 hj v => by
-            rw [hseeds_fin, hdom_fin]
+            rw [hseeds_fin, (hdom_q_fin j hj1 hj v).1]
             split_ifs with hsub
             · obtain ⟨_, hanc⟩ := hsub
               rw [hwf_canon.dom_eq j hj1 hj v, hseeds_canon]
@@ -638,7 +652,7 @@ theorem wellFormedPadded_rehashSubtree
                 (hce x (SeedAssignment.mem_activeAt_iff.mp (mem_filter.mp hx).1).2).symm
           query_eq_of_storeLvl := fun j hj1 hj v x vx hdx hnx hsl => by
             rw [hseeds_fin] at hnx ⊢
-            rw [hq_fin]
+            rw [(hdom_q_fin j hj1 hj v).2]
             split_ifs with hsub
             · obtain ⟨_, hanc⟩ := hsub
               have hn1 : seeds'.nodeAt 1 h1d x = u₀ := by
@@ -806,7 +820,7 @@ theorem wellFormedPadded_rehashSubtree
             by_cases hj_one : j = 1
             · subst hj_one; rw [nodeDom_one]
               dsimp only [st_fin, rehashSubtree]; rw [dite_eq_right h0, dite_eq_right h1]
-              dsimp only; rw [ite_eq_left hv, dom_buildRootOfStoreLvl]
+              dsimp only; rw [ite_eq_left hv, dom_buildRootOfStoreLvl d seeds' hgood' hvsl' v]
             · have hlt : j < P.depth := hlt0.trans_le hℓ₀
               rw [nodeDom_inner st_fin hj1 (by omega) hlt hj]
               dsimp only [st_fin, rehashSubtree]; rw [dite_eq_right h0, dite_eq_right h1]

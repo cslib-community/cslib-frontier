@@ -36,6 +36,9 @@ printed pp. 26–29 and 34–35).
 
 ## Main results
 
+* `TreeSchedule.TreeState.mem_dfsSubtreeMeta_iff`,
+  `TreeSchedule.TreeState.length_dfsSubtreeMeta`: exact descendant coverage (`InSubtree ℓ u`) and
+  subtree node count (`∑ j ∈ Icc ℓ depth, numNodes j / numNodes ℓ`) of `dfsSubtreeMeta`.
 * `TreeSchedule.TreeState.subtree_stored_card_eq_nLow`: every level-`ℓ` (`2 ≤ ℓ ≤ depth`) subtree
   stores `nLow ℓ` keys in total.
 * `TreeSchedule.TreeState.card_nodeWait_dom_eq`, `TreeSchedule.TreeState.card_root_dom_add_eq`,
@@ -513,6 +516,15 @@ def updateLeaf (st : P.TreeState) (u₀ : Fin (P.numNodes P.depth)) (ln : P.Leaf
     P.TreeState :=
   { st with leaves := Function.update st.leaves u₀ ln }
 
+theorem inner_updateInner_of_ne (st : P.TreeState) {ℓ₀ : ℕ} (h2₀ : 2 ≤ ℓ₀)
+    (hlt₀ : ℓ₀ < P.depth) (u₀ : Fin (P.numNodes ℓ₀)) (nd : P.InnerNode ℓ₀)
+    {ℓ : ℕ} (h2 : 2 ≤ ℓ) (hlt : ℓ < P.depth) (u : Fin (P.numNodes ℓ))
+    (hdiff : ∀ h_eq : ℓ = ℓ₀, h_eq ▸ u ≠ u₀) :
+    (st.updateInner ℓ₀ h2₀ hlt₀ u₀ nd).inner ℓ h2 hlt u = st.inner ℓ h2 hlt u := by
+  by_cases hℓ_eq : ℓ = ℓ₀
+  · subst hℓ_eq; simp [updateInner, hdiff rfl]
+  · simp [updateInner, hℓ_eq]
+
 theorem seeds_updateRoot_of_seed_eq (st : P.TreeState) (u₀ : Fin (P.numNodes 1))
     (nd : P.RootNode) (hs : nd.seed = (st.roots u₀).seed) :
     (st.updateRoot u₀ nd).seeds = st.seeds := by
@@ -540,14 +552,11 @@ theorem seeds_updateInner_of_seed_eq (st : P.TreeState) {ℓ₀ : ℕ} (h2₀ : 
   · by_cases h1 : ℓ = 1
     · subst h1; simp [updateInner]
     · by_cases hlt : ℓ < P.depth
-      · simp only [seeds_inner _ (by omega) hlt hℓ, updateInner]
-        by_cases hℓ_eq : ℓ = ℓ₀
-        · subst hℓ_eq
-          rw [dite_eq_left rfl]
-          by_cases hu : u = u₀
-          · subst hu; simp [hs]
-          · simp [hu]
-        · rw [dite_eq_right hℓ_eq]
+      · rw [seeds_inner _ (by omega) hlt hℓ, seeds_inner _ (by omega) hlt hℓ]
+        by_cases hsame : ∃ h_eq : ℓ = ℓ₀, h_eq ▸ u = u₀
+        · obtain ⟨rfl, rfl⟩ := hsame; simp [updateInner, hs]
+        · push Not at hsame
+          rw [st.inner_updateInner_of_ne h2₀ hlt₀ u₀ nd (by omega) hlt u hsame]
       · have hd : ℓ = P.depth := by omega
         subst hd; simp [updateInner]
 
@@ -567,6 +576,112 @@ theorem seeds_updateLeaf_of_seed_eq (st : P.TreeState) (u₀ : Fin (P.numNodes P
         by_cases hu : u = u₀
         · subst hu; simp [hs]
         · simp [hu]
+
+theorem nodeDom_updateRoot_other (st : P.TreeState) (u₀ : Fin (P.numNodes 1))
+    (nd : P.RootNode) {ℓ : ℕ} (h1 : 1 ≤ ℓ) (hℓ : ℓ ≤ P.depth) (u : Fin (P.numNodes ℓ))
+    (hdiff : ∀ h_eq : ℓ = 1, h_eq ▸ u ≠ u₀) :
+    (st.updateRoot u₀ nd).nodeDom ℓ h1 hℓ u = st.nodeDom ℓ h1 hℓ u := by
+  by_cases h1_eq : ℓ = 1
+  · subst h1_eq; simp [updateRoot, hdiff rfl]
+  · by_cases hlt : ℓ < P.depth
+    · simp [nodeDom_inner _ h1 (by omega) hlt hℓ, updateRoot]
+    · have hd : ℓ = P.depth := by omega
+      subst hd; simp [updateRoot]
+
+theorem nodeQuery_updateRoot_other
+    (scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth))
+    (st : P.TreeState) (u₀ : Fin (P.numNodes 1)) (nd : P.RootNode)
+    {ℓ : ℕ} (h1 : 1 ≤ ℓ) (hℓ : ℓ ≤ P.depth) (u : Fin (P.numNodes ℓ))
+    (k : Fin (2 ^ P.idBits ℓ)) (hdiff : ∀ h_eq : ℓ = 1, h_eq ▸ u ≠ u₀) :
+    (st.updateRoot u₀ nd).nodeQuery scheme ℓ h1 hℓ u k = st.nodeQuery scheme ℓ h1 hℓ u k := by
+  by_cases h1_eq : ℓ = 1
+  · subst h1_eq; simp [updateRoot, hdiff rfl]
+  · by_cases hlt : ℓ < P.depth
+    · simp [nodeQuery_inner _ _ h1 (by omega) hlt hℓ, updateRoot]
+    · have hd : ℓ = P.depth := by omega
+      subst hd; simp [updateRoot]
+
+@[simp]
+theorem nodeWait_updateRoot (st : P.TreeState) (u₀ : Fin (P.numNodes 1))
+    (nd : P.RootNode) {ℓ : ℕ} (h2 : 2 ≤ ℓ) (hℓ : ℓ ≤ P.depth) (u : Fin (P.numNodes ℓ)) :
+    (st.updateRoot u₀ nd).nodeWait ℓ h2 hℓ u = st.nodeWait ℓ h2 hℓ u := by
+  by_cases hlt : ℓ < P.depth
+  · simp [nodeWait_inner _ h2 hlt hℓ, updateRoot]
+  · have hd : ℓ = P.depth := by omega
+    subst hd; simp [updateRoot]
+
+theorem nodeDom_updateInner_other (st : P.TreeState) {ℓ₀ : ℕ} (h2₀ : 2 ≤ ℓ₀)
+    (hlt₀ : ℓ₀ < P.depth) (u₀ : Fin (P.numNodes ℓ₀)) (nd : P.InnerNode ℓ₀)
+    {ℓ : ℕ} (h1 : 1 ≤ ℓ) (hℓ : ℓ ≤ P.depth) (u : Fin (P.numNodes ℓ))
+    (hdiff : ∀ h_eq : ℓ = ℓ₀, h_eq ▸ u ≠ u₀) :
+    (st.updateInner ℓ₀ h2₀ hlt₀ u₀ nd).nodeDom ℓ h1 hℓ u = st.nodeDom ℓ h1 hℓ u := by
+  by_cases h1_eq : ℓ = 1
+  · subst h1_eq; simp [updateInner]
+  · by_cases hlt : ℓ < P.depth
+    · simp [nodeDom_inner _ h1 (by omega) hlt hℓ,
+        st.inner_updateInner_of_ne h2₀ hlt₀ u₀ nd (by omega) hlt u hdiff]
+    · have hd : ℓ = P.depth := by omega
+      subst hd; simp [updateInner]
+
+theorem nodeQuery_updateInner_other
+    (scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth))
+    (st : P.TreeState) {ℓ₀ : ℕ} (h2₀ : 2 ≤ ℓ₀) (hlt₀ : ℓ₀ < P.depth)
+    (u₀ : Fin (P.numNodes ℓ₀)) (nd : P.InnerNode ℓ₀)
+    {ℓ : ℕ} (h1 : 1 ≤ ℓ) (hℓ : ℓ ≤ P.depth) (u : Fin (P.numNodes ℓ))
+    (k : Fin (2 ^ P.idBits ℓ)) (hdiff : ∀ h_eq : ℓ = ℓ₀, h_eq ▸ u ≠ u₀) :
+    (st.updateInner ℓ₀ h2₀ hlt₀ u₀ nd).nodeQuery scheme ℓ h1 hℓ u k =
+      st.nodeQuery scheme ℓ h1 hℓ u k := by
+  by_cases h1_eq : ℓ = 1
+  · subst h1_eq; simp [updateInner]
+  · by_cases hlt : ℓ < P.depth
+    · simp [nodeQuery_inner _ _ h1 (by omega) hlt hℓ,
+        st.inner_updateInner_of_ne h2₀ hlt₀ u₀ nd (by omega) hlt u hdiff]
+    · have hd : ℓ = P.depth := by omega
+      subst hd; simp [updateInner]
+
+theorem nodeWait_updateInner_other (st : P.TreeState) {ℓ₀ : ℕ} (h2₀ : 2 ≤ ℓ₀)
+    (hlt₀ : ℓ₀ < P.depth) (u₀ : Fin (P.numNodes ℓ₀)) (nd : P.InnerNode ℓ₀)
+    {ℓ : ℕ} (h2 : 2 ≤ ℓ) (hℓ : ℓ ≤ P.depth) (u : Fin (P.numNodes ℓ))
+    (hdiff : ∀ h_eq : ℓ = ℓ₀, h_eq ▸ u ≠ u₀) :
+    (st.updateInner ℓ₀ h2₀ hlt₀ u₀ nd).nodeWait ℓ h2 hℓ u = st.nodeWait ℓ h2 hℓ u := by
+  by_cases hlt : ℓ < P.depth
+  · simp [nodeWait_inner _ h2 hlt hℓ,
+      st.inner_updateInner_of_ne h2₀ hlt₀ u₀ nd h2 hlt u hdiff]
+  · have hd : ℓ = P.depth := by omega
+    subst hd; simp [updateInner]
+
+theorem nodeDom_updateLeaf_other (st : P.TreeState) (u₀ : Fin (P.numNodes P.depth))
+    (ln : P.LeafNode) {ℓ : ℕ} (h1 : 1 ≤ ℓ) (hℓ : ℓ ≤ P.depth) (u : Fin (P.numNodes ℓ))
+    (hdiff : ∀ h_eq : ℓ = P.depth, h_eq ▸ u ≠ u₀) :
+    (st.updateLeaf u₀ ln).nodeDom ℓ h1 hℓ u = st.nodeDom ℓ h1 hℓ u := by
+  by_cases h1_eq : ℓ = 1
+  · subst h1_eq; simp [updateLeaf]
+  · by_cases hlt : ℓ < P.depth
+    · simp [nodeDom_inner _ h1 (by omega) hlt hℓ, updateLeaf]
+    · have hd : ℓ = P.depth := by omega
+      subst hd; simp [updateLeaf, hdiff rfl]
+
+theorem nodeQuery_updateLeaf_other
+    (scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth))
+    (st : P.TreeState) (u₀ : Fin (P.numNodes P.depth)) (ln : P.LeafNode)
+    {ℓ : ℕ} (h1 : 1 ≤ ℓ) (hℓ : ℓ ≤ P.depth) (u : Fin (P.numNodes ℓ))
+    (k : Fin (2 ^ P.idBits ℓ)) (hdiff : ∀ h_eq : ℓ = P.depth, h_eq ▸ u ≠ u₀) :
+    (st.updateLeaf u₀ ln).nodeQuery scheme ℓ h1 hℓ u k = st.nodeQuery scheme ℓ h1 hℓ u k := by
+  by_cases h1_eq : ℓ = 1
+  · subst h1_eq; simp [updateLeaf]
+  · by_cases hlt : ℓ < P.depth
+    · simp [nodeQuery_inner _ _ h1 (by omega) hlt hℓ, updateLeaf]
+    · have hd : ℓ = P.depth := by omega
+      subst hd; simp [updateLeaf, hdiff rfl]
+
+theorem nodeWait_updateLeaf_other (st : P.TreeState) (u₀ : Fin (P.numNodes P.depth))
+    (ln : P.LeafNode) {ℓ : ℕ} (h2 : 2 ≤ ℓ) (hℓ : ℓ ≤ P.depth) (u : Fin (P.numNodes ℓ))
+    (hdiff : ∀ h_eq : ℓ = P.depth, h_eq ▸ u ≠ u₀) :
+    (st.updateLeaf u₀ ln).nodeWait ℓ h2 hℓ u = st.nodeWait ℓ h2 hℓ u := by
+  by_cases hlt : ℓ < P.depth
+  · simp [nodeWait_inner _ h2 hlt hℓ, updateLeaf]
+  · have hd : ℓ = P.depth := by omega
+    subst hd; simp [updateLeaf, hdiff rfl]
 
 /-- Tagged node metadata item (`Section 5.6`, PDF pp. 35–36 / printed pp. 34–35) for DFS pre-order
 subtree metadata packing in Word-RAM M4. -/
@@ -601,11 +716,116 @@ def dfsSubtreeMeta (st : P.TreeState) (ℓ : ℕ) (h1 : 1 ≤ ℓ) (hℓ : ℓ �
 termination_by P.depth - ℓ
 decreasing_by omega
 
-theorem dfsSubtreeMeta_nonempty (st : P.TreeState) {ℓ : ℕ} (h1 : 1 ≤ ℓ) (hℓ : ℓ ≤ P.depth)
+/-- **`dfsSubtreeMeta` covers every descendant in `InSubtree ℓ u` (`Section 5.6`)**: an item
+appears in `st.dfsSubtreeMeta ℓ h1 hℓ u` iff it is `st.nodeMeta j hj1 hjd v` for some node `(j, v)`
+in the subtree rooted at `(ℓ, u)`. -/
+theorem mem_dfsSubtreeMeta_iff (st : P.TreeState) {ℓ : ℕ} (h1 : 1 ≤ ℓ) (hℓ : ℓ ≤ P.depth)
+    (u : Fin (P.numNodes ℓ)) (item : NodeMetaItem P) :
+    item ∈ st.dfsSubtreeMeta ℓ h1 hℓ u ↔
+      ∃ (j : ℕ) (hj1 : 1 ≤ j) (hjd : j ≤ P.depth) (v : Fin (P.numNodes j)),
+        P.InSubtree ℓ u j v ∧ st.nodeMeta j hj1 hjd v = item := by
+  have hgen : ∀ (k m : ℕ), m + k = P.depth → (hm1 : 1 ≤ m) → (hmd : m ≤ P.depth) →
+      ∀ (v₀ : Fin (P.numNodes m)),
+        item ∈ st.dfsSubtreeMeta m hm1 hmd v₀ ↔
+          ∃ (j : ℕ) (hj1 : 1 ≤ j) (hjd : j ≤ P.depth) (v : Fin (P.numNodes j)),
+            P.InSubtree m v₀ j v ∧ st.nodeMeta j hj1 hjd v = item := by
+    intro k
+    induction k with
+    | zero =>
+      intro m hsum hm1 hmd v₀
+      obtain rfl : m = P.depth := by omega
+      unfold dfsSubtreeMeta
+      rw [dite_eq_right (lt_irrefl _), List.mem_singleton]
+      constructor
+      · rintro rfl
+        exact ⟨P.depth, hm1, hmd, v₀, P.inSubtree_refl v₀, rfl⟩
+      · rintro ⟨j, _, _, v, ⟨_, hanc⟩, hmeta⟩
+        obtain rfl : j = P.depth := by omega
+        obtain rfl : v = v₀ := by simpa only [P.ancestorAt_refl] using hanc
+        exact hmeta.symm
+    | succ k ih =>
+      intro m hsum hm1 hmd v₀
+      have hlt : m < P.depth := by omega
+      unfold dfsSubtreeMeta
+      rw [dite_eq_left hlt, List.mem_cons, List.mem_flatMap]
+      constructor
+      · rintro (rfl | ⟨b, _, hmem⟩)
+        · exact ⟨m, hm1, hmd, v₀, P.inSubtree_refl v₀, rfl⟩
+        · obtain ⟨j, hj1, hjd, v, hsub, hmeta⟩ :=
+            (ih (m + 1) (by omega) (by omega) hlt (P.childNodeEquiv m (v₀, b))).mp hmem
+          exact ⟨j, hj1, hjd, v, (P.inSubtree_step_iff v₀ v).mpr (Or.inr ⟨b, hsub⟩), hmeta⟩
+      · rintro ⟨j, hj1, hjd, v, hsub, hmeta⟩
+        rcases (P.inSubtree_step_iff v₀ v).mp hsub with ⟨rfl, rfl⟩ | ⟨b, hsub'⟩
+        · exact Or.inl hmeta.symm
+        · exact Or.inr ⟨b, List.mem_finRange b,
+            (ih (m + 1) (by omega) (by omega) hlt _).mpr ⟨j, hj1, hjd, v, hsub', hmeta⟩⟩
+  exact hgen (P.depth - ℓ) ℓ (by omega) h1 hℓ u
+
+private theorem numNodes_dvd {m j : ℕ} (hmj : m ≤ j) : P.numNodes m ∣ P.numNodes j := by
+  induction j with
+  | zero =>
+    obtain rfl : m = 0 := by omega
+    exact dvd_rfl
+  | succ n ih =>
+    by_cases hm : m = n + 1
+    · subst hm; exact dvd_rfl
+    · rw [P.numNodes_succ]
+      exact dvd_mul_of_dvd_left (ih (by omega)) _
+
+private theorem branchFactor_mul_numNodes_div {m j : ℕ} (hm1 : m + 1 ≤ j) :
+    2 ^ P.branchBits m * (P.numNodes j / P.numNodes (m + 1)) =
+      P.numNodes j / P.numNodes m := by
+  obtain ⟨q, hq⟩ := numNodes_dvd (P := P) hm1
+  have h1 : P.numNodes j / P.numNodes (m + 1) = q := by
+    rw [hq, Nat.mul_div_cancel_left q (P.numNodes_pos (m + 1))]
+  have h2 : P.numNodes j / P.numNodes m = 2 ^ P.branchBits m * q := by
+    rw [hq, P.numNodes_succ, TreeSchedule.branchFactor, Nat.mul_assoc,
+      Nat.mul_div_cancel_left _ (P.numNodes_pos m)]
+  rw [h1, h2]
+
+/-- **Exact subtree node count of `dfsSubtreeMeta` (`Section 5.6`)**: the DFS pre-order metadata
+block rooted at `(ℓ, u)` contains `∑ j ∈ Icc ℓ depth, numNodes j / numNodes ℓ` node entries,
+matching the per-level multiplicity in `TreeSchedule.subtreeMetaBits`. -/
+theorem length_dfsSubtreeMeta (st : P.TreeState) {ℓ : ℕ} (h1 : 1 ≤ ℓ) (hℓ : ℓ ≤ P.depth)
     (u : Fin (P.numNodes ℓ)) :
-    st.dfsSubtreeMeta ℓ h1 hℓ u ≠ [] := by
-  unfold dfsSubtreeMeta
-  split_ifs <;> simp
+    (st.dfsSubtreeMeta ℓ h1 hℓ u).length =
+      ∑ j ∈ Finset.Icc ℓ P.depth, P.numNodes j / P.numNodes ℓ := by
+  have hgen : ∀ (k m : ℕ), m + k = P.depth → (hm1 : 1 ≤ m) → (hmd : m ≤ P.depth) →
+      ∀ (v₀ : Fin (P.numNodes m)),
+        (st.dfsSubtreeMeta m hm1 hmd v₀).length =
+          ∑ j ∈ Finset.Icc m P.depth, P.numNodes j / P.numNodes m := by
+    intro k
+    induction k with
+    | zero =>
+      intro m hsum hm1 hmd v₀
+      obtain rfl : m = P.depth := by omega
+      unfold dfsSubtreeMeta
+      rw [dite_eq_right (lt_irrefl _), List.length_singleton, Finset.Icc_self,
+        Finset.sum_singleton, Nat.div_self (P.numNodes_pos P.depth)]
+    | succ k ih =>
+      intro m hsum hm1 hmd v₀
+      have hlt : m < P.depth := by omega
+      unfold dfsSubtreeMeta
+      rw [dite_eq_left hlt, List.length_cons, List.length_flatMap]
+      have hmap : List.map (fun b => (st.dfsSubtreeMeta (m + 1) (by omega) hlt
+            (P.childNodeEquiv m (v₀, b))).length) (List.finRange (2 ^ P.branchBits m)) =
+          List.replicate (2 ^ P.branchBits m)
+            (∑ j ∈ Finset.Icc (m + 1) P.depth, P.numNodes j / P.numNodes (m + 1)) := by
+        refine List.eq_replicate_iff.mpr ⟨by simp, ?_⟩
+        intro x hx
+        obtain ⟨b, _, rfl⟩ := List.mem_map.mp hx
+        exact ih (m + 1) (by omega) (by omega) hlt _
+      rw [hmap, List.sum_replicate, smul_eq_mul, Finset.mul_sum]
+      have hsum_step : ∑ x ∈ Finset.Icc (m + 1) P.depth,
+          2 ^ P.branchBits m * (P.numNodes x / P.numNodes (m + 1)) =
+          ∑ x ∈ Finset.Icc (m + 1) P.depth, P.numNodes x / P.numNodes m :=
+        Finset.sum_congr rfl fun x hx =>
+          branchFactor_mul_numNodes_div (P := P) (Finset.mem_Icc.mp hx).1
+      have hnotMem : m ∉ Finset.Icc (m + 1) P.depth := by simp
+      rw [hsum_step, ← Finset.insert_Icc_add_one_left_eq_Icc hmd,
+        Finset.sum_insert hnotMem, Nat.div_self (P.numNodes_pos m)]
+      omega
+  exact hgen (P.depth - ℓ) ℓ (by omega) h1 hℓ u
 
 /-- Total number of keys currently stored in level-1 root tables across all `N_1` roots. -/
 def rootKeyCount (st : P.TreeState) : ℕ :=
@@ -927,82 +1147,6 @@ theorem rootKeyCount_le_rootValPoolCap
     simpa [nHigh] using this
   dsimp only [rootValPoolCap]
   omega
-
-
-/-- Generic monadic external insert dispatch with sentinel padding in `{cap - 1, cap}`. -/
-@[expose]
-def insertWith {m : Type → Type} [Monad m] (st : P.TreeState)
-    (rawOverwrite : Fin P.paddedUniv → Fin P.valBound → P.TreeState)
-    (rawInsertFresh : P.TreeState → Fin P.paddedUniv → Fin P.valBound → m P.TreeState)
-    (rawDeleteMem : P.TreeState → Fin P.paddedUniv → m P.TreeState)
-    (isSome : Fin P.paddedUniv → Bool) (paddedDomCard : ℕ)
-    (u : Fin P.univ) (v : Fin P.valBound) : m P.TreeState :=
-  let x := P.embedReal u
-  if isSome x then
-    pure (rawOverwrite x v)
-  else if paddedDomCard < P.cap then
-    rawInsertFresh st x v
-  else if hsc : 0 < st.sentCount ∧ st.sentCount ≤ P.cap then
-    let s_last := P.sentinelKey ⟨st.sentCount - 1, by omega⟩
-    rawDeleteMem st s_last >>= fun st_del =>
-      let st₁ : P.TreeState := { st_del with sentCount := st.sentCount - 1 }
-      rawInsertFresh st₁ x v
-  else
-    pure st
-
-/-- Generic monadic external delete dispatch with sentinel padding in `{cap - 1, cap}`. -/
-@[expose]
-def deleteWith {m : Type → Type} [Monad m] (st : P.TreeState)
-    (rawInsertFresh : P.TreeState → Fin P.paddedUniv → Fin P.valBound → m P.TreeState)
-    (rawDeleteMem : P.TreeState → Fin P.paddedUniv → m P.TreeState)
-    (isSome : Fin P.paddedUniv → Bool) (paddedDomCard : ℕ)
-    (u : Fin P.univ) : m P.TreeState :=
-  let x := P.embedReal u
-  if !isSome x then
-    pure st
-  else if P.cap ≤ paddedDomCard then
-    rawDeleteMem st x
-  else if hsc : st.sentCount < P.cap then
-    let s_new := P.sentinelKey ⟨st.sentCount, hsc⟩
-    rawInsertFresh st s_new ⟨0, P.val_pos⟩ >>= fun st_ins =>
-      let st₁ : P.TreeState := { st_ins with sentCount := st.sentCount + 1 }
-      rawDeleteMem st₁ x
-  else
-    pure st
-
-@[simp]
-theorem insertWith_id (st : P.TreeState)
-    (rawOverwrite : Fin P.paddedUniv → Fin P.valBound → P.TreeState)
-    (rawInsertFresh : P.TreeState → Fin P.paddedUniv → Fin P.valBound → P.TreeState)
-    (rawDeleteMem : P.TreeState → Fin P.paddedUniv → P.TreeState)
-    (isSome : Fin P.paddedUniv → Bool) (paddedDomCard : ℕ)
-    (u : Fin P.univ) (v : Fin P.valBound) :
-    st.insertWith (m := Id) rawOverwrite rawInsertFresh rawDeleteMem isSome paddedDomCard u v =
-      let x := P.embedReal u
-      if isSome x then rawOverwrite x v
-      else if paddedDomCard < P.cap then rawInsertFresh st x v
-      else if hsc : 0 < st.sentCount ∧ st.sentCount ≤ P.cap then
-        let s_last := P.sentinelKey ⟨st.sentCount - 1, by omega⟩
-        let st₁ : P.TreeState := { rawDeleteMem st s_last with sentCount := st.sentCount - 1 }
-        rawInsertFresh st₁ x v
-      else st := rfl
-
-@[simp]
-theorem deleteWith_id (st : P.TreeState)
-    (rawInsertFresh : P.TreeState → Fin P.paddedUniv → Fin P.valBound → P.TreeState)
-    (rawDeleteMem : P.TreeState → Fin P.paddedUniv → P.TreeState)
-    (isSome : Fin P.paddedUniv → Bool) (paddedDomCard : ℕ)
-    (u : Fin P.univ) :
-    st.deleteWith (m := Id) rawInsertFresh rawDeleteMem isSome paddedDomCard u =
-      let x := P.embedReal u
-      if !isSome x then st
-      else if P.cap ≤ paddedDomCard then rawDeleteMem st x
-      else if hsc : st.sentCount < P.cap then
-        let s_new := P.sentinelKey ⟨st.sentCount, hsc⟩
-        let st₁ : P.TreeState := { rawInsertFresh st s_new ⟨0, P.val_pos⟩ with
-          sentCount := st.sentCount + 1 }
-        rawDeleteMem st₁ x
-      else st := rfl
 
 end TreeState
 

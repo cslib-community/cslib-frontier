@@ -26,9 +26,10 @@ theorems from `NodeSeeds`.
 * `Cslib.DataStructure.Dictionary.SubconstantRedundancy.WaitingList`: bounded waiting list of pairs
   `(x_id^[ℓ], x_id^[ℓ - 1])` (`Section 5.2`, capacity `waitCap ℓ = 2 * delta ℓ`).
 * `StorageTableMeta`, `StorageTable`: inner and root storage tables separating `StorageTableMeta`
-  (`Section 5.6` ID-only slot locator `locateSlot`, bit budget `succinctTableMetaBits`, though
-  modeled as a map with ~`m · 2^I` states without an explicit bit-packing encoding) from
-  `(quot, val)` payload slots.
+  (`Section 5.6` ID-only slot locator `locateSlot`, corresponding to the bit budget
+  `succinctTableMetaBits`, though modeled here as an unpacked injective partial slot map
+  `Fin m → Option (Fin (2 ^ I))` with `∑_{k=0}^m C(m, k) · k! · C(2^I, k)` states rather than
+  packed to that bit budget by an explicit encoding) from `(quot, val)` payload slots.
 * `TreeSchedule.LeafMeta`, `TreeSchedule.LeafNode`, `TreeSchedule.InnerMeta`,
   `TreeSchedule.InnerNode`, `TreeSchedule.RootMeta`, `TreeSchedule.RootNode`: leaf
   (`Minimap.FixedEncoded`), inner, and root node representations with explicit metadata projections
@@ -302,9 +303,10 @@ theorem lookup_ofFinset (S : Finset (Fin (2 ^ I_cur))) (hS : S.card ≤ cap)
 end WaitingList
 
 /-- Pure storage-table ID metadata on `Fin (2 ^ I)` with `m` slots (`Section 5.6` metadata
-component of `SuccinctBucket`, matching the intended bit budget `succinctTableMetaBits I m`,
-though modeled here as a slot-assignment structure with ~`m · 2^I` states rather than packed to
-that bit budget by an explicit encoding). -/
+component of `SuccinctBucket`, corresponding to the bit budget `succinctTableMetaBits I m`,
+though modeled here as an unpacked injective partial slot assignment
+`Fin m → Option (Fin (2 ^ I))` with `∑_{k=0}^m C(m, k) · k! · C(2^I, k)` states rather than
+packed to that bit budget by an explicit encoding). -/
 structure StorageTableMeta (I m : ℕ) where
   /-- Slot-to-active-ID assignment across the `m` table slots. -/
   slots : Fin m → Option (Fin (2 ^ I))
@@ -544,28 +546,21 @@ theorem query_insert (tbl : StorageTable I m Q V) (k : Fin (2 ^ I)) (qv : Fin Q 
     dsimp only [tbl', insert]
     rw [Function.update_self]
   · rw [Function.update_of_ne hkk]
-    dsimp only [query]
-    rcases hloc : tbl.tableMeta.locateSlot k' with _ | j
-    · have hloc' : tbl'.tableMeta.locateSlot k' = none := by
-        rcases hl : tbl'.tableMeta.locateSlot k' with _ | j'
-        · rfl
-        · have hsj := (tbl'.tableMeta.locateSlot_eq_some_iff k' j').mp hl
-          dsimp only [tbl', insert] at hsj
-          by_cases hji : j' = i₀
-          · subst hji; rw [Function.update_self] at hsj
-            exact absurd (Option.some.inj hsj).symm hkk
-          · rw [Function.update_of_ne hji] at hsj
-            have := (tbl.tableMeta.locateSlot_eq_some_iff k' j').mpr hsj
-            rw [hloc] at this; cases this
-      rw [hloc']; rfl
-    · have hsj := (tbl.tableMeta.locateSlot_eq_some_iff k' j).mp hloc
+    by_cases hk' : k' ∈ tbl.tableMeta.dom
+    · obtain ⟨j, hsj⟩ := (tbl.tableMeta.mem_dom_iff k').mp hk'
+      have hloc : tbl.tableMeta.locateSlot k' = some j :=
+        (tbl.tableMeta.locateSlot_eq_some_iff k' j).mpr hsj
       have hji : j ≠ i₀ := fun h => by rw [h, hi₀_none] at hsj; cases hsj
       have hloc' : tbl'.tableMeta.locateSlot k' = some j :=
         (tbl'.tableMeta.locateSlot_eq_some_iff k' j).mpr
           (by dsimp only [tbl', insert]; rw [Function.update_of_ne hji]; exact hsj)
-      rw [hloc', Option.map_some, Option.map_some]
+      dsimp only [query]
+      rw [hloc', hloc, Option.map_some, Option.map_some]
       dsimp only [tbl', insert]
       rw [Function.update_of_ne hji]
+    · have hk'' : k' ∉ tbl'.tableMeta.dom := by simp [tbl', hkk, hk']
+      rw [Option.not_isSome_iff_eq_none.mp (mt (tbl'.isSome_query_iff k').mp hk''),
+        Option.not_isSome_iff_eq_none.mp (mt (tbl.isSome_query_iff k').mp hk')]
 
 /-- Delete `k` from `tbl` (used at root nodes `ℓ = 1`). -/
 def delete (tbl : StorageTable I m Q V) (k : Fin (2 ^ I)) : StorageTable I m Q V where
@@ -600,26 +595,13 @@ theorem query_delete (tbl : StorageTable I m Q V) (k k' : Fin (2 ^ I)) :
   by_cases hkk : k' = k
   · subst k'
     rw [Function.update_self]
-    dsimp only [query]
-    rcases hl : (tbl.delete k).tableMeta.locateSlot k with _ | i
-    · rfl
-    · have hi := ((tbl.delete k).tableMeta.locateSlot_eq_some_iff k i).mp hl
-      dsimp only [delete] at hi
-      split_ifs at hi with h
-      exact absurd (beq_iff_eq.mpr hi) (by simp [h])
+    have hk' : k ∉ (tbl.delete k).tableMeta.dom := by simp
+    exact Option.not_isSome_iff_eq_none.mp (mt ((tbl.delete k).isSome_query_iff k).mp hk')
   · rw [Function.update_of_ne hkk]
-    dsimp only [query]
-    rcases hl : tbl.tableMeta.locateSlot k' with _ | i
-    · have hl' : (tbl.delete k).tableMeta.locateSlot k' = none := by
-        rcases h2 : (tbl.delete k).tableMeta.locateSlot k' with _ | j
-        · rfl
-        · have hj := ((tbl.delete k).tableMeta.locateSlot_eq_some_iff k' j).mp h2
-          dsimp only [delete] at hj
-          split_ifs at hj
-          have := (tbl.tableMeta.locateSlot_eq_some_iff k' j).mpr hj
-          rw [hl] at this; cases this
-      rw [hl']; rfl
-    · have hi := (tbl.tableMeta.locateSlot_eq_some_iff k' i).mp hl
+    by_cases hk' : k' ∈ tbl.tableMeta.dom
+    · obtain ⟨i, hi⟩ := (tbl.tableMeta.mem_dom_iff k').mp hk'
+      have hl : tbl.tableMeta.locateSlot k' = some i :=
+        (tbl.tableMeta.locateSlot_eq_some_iff k' i).mpr hi
       have hl' : (tbl.delete k).tableMeta.locateSlot k' = some i := by
         refine ((tbl.delete k).tableMeta.locateSlot_eq_some_iff k' i).mpr ?_
         dsimp only [delete]
@@ -627,8 +609,12 @@ theorem query_delete (tbl : StorageTable I m Q V) (k k' : Fin (2 ^ I)) :
           rw [hi]; exact beq_eq_false_iff_ne.mpr (fun h => hkk (Option.some.inj h))
         rw [ite_eq_right (by simp [hbeq])]
         exact hi
-      rw [hl']
+      dsimp only [query]
+      rw [hl', hl]
       rfl
+    · have hk'' : k' ∉ (tbl.delete k).tableMeta.dom := by simp [hk']
+      rw [Option.not_isSome_iff_eq_none.mp (mt ((tbl.delete k).isSome_query_iff k').mp hk''),
+        Option.not_isSome_iff_eq_none.mp (mt (tbl.isSome_query_iff k').mp hk')]
 
 /-- Replace an active key `k_old ∈ tbl.tableMeta.dom` with `(k_new, qv_new)` in the freed slot
 (`Algorithm 3`, Branch 2 at inner nodes `2 ≤ ℓ < depth`). -/
@@ -712,46 +698,29 @@ theorem query_replace (tbl : StorageTable I m Q V) (k_old k_new : Fin (2 ^ I))
     by_cases hold_eq : k' = k_old
     · subst k'
       rw [Function.update_self]
-      dsimp only [query]
-      have hl' : tbl'.tableMeta.locateSlot k_old = none := by
-        rcases hl : tbl'.tableMeta.locateSlot k_old with _ | j
-        · rfl
-        · have hj := (tbl'.tableMeta.locateSlot_eq_some_iff k_old j).mp hl
-          dsimp only [tbl', replace] at hj
-          by_cases hji : j = i₀
-          · subst hji; rw [Function.update_self] at hj
-            exact absurd (Option.some.inj hj).symm hnew_eq
-          · rw [Function.update_of_ne hji] at hj
-            exact absurd (tbl.tableMeta.inj_slots j i₀ k_old hj hsl₀) hji
-      rw [hl']
-      rfl
+      have hk'' : k_old ∉ tbl'.tableMeta.dom := by simp [tbl', hnew_eq]
+      exact Option.not_isSome_iff_eq_none.mp (mt (tbl'.isSome_query_iff k_old).mp hk'')
     · rw [Function.update_of_ne hold_eq]
-      dsimp only [query]
-      rcases hl : tbl.tableMeta.locateSlot k' with _ | j
-      · have hl' : tbl'.tableMeta.locateSlot k' = none := by
-          rcases hl2 : tbl'.tableMeta.locateSlot k' with _ | j'
-          · rfl
-          · have hj := (tbl'.tableMeta.locateSlot_eq_some_iff k' j').mp hl2
-            dsimp only [tbl', replace] at hj
-            by_cases hji : j' = i₀
-            · subst hji; rw [Function.update_self] at hj
-              exact absurd (Option.some.inj hj).symm hnew_eq
-            · rw [Function.update_of_ne hji] at hj
-              have := (tbl.tableMeta.locateSlot_eq_some_iff k' j').mpr hj
-              rw [hl] at this; cases this
-        rw [hl']; rfl
-      · have hsj := (tbl.tableMeta.locateSlot_eq_some_iff k' j).mp hl
+      by_cases hk' : k' ∈ tbl.tableMeta.dom
+      · obtain ⟨j, hsj⟩ := (tbl.tableMeta.mem_dom_iff k').mp hk'
+        have hl : tbl.tableMeta.locateSlot k' = some j :=
+          (tbl.tableMeta.locateSlot_eq_some_iff k' j).mpr hsj
         have hji : j ≠ i₀ := fun h => hold_eq (Option.some.inj (hsj.symm.trans (h ▸ hsl₀)))
         have hl' : tbl'.tableMeta.locateSlot k' = some j :=
           (tbl'.tableMeta.locateSlot_eq_some_iff k' j).mpr
             (by dsimp only [tbl', replace]; rw [Function.update_of_ne hji]; exact hsj)
-        rw [hl', Option.map_some, Option.map_some]
+        dsimp only [query]
+        rw [hl', hl, Option.map_some, Option.map_some]
         dsimp only [tbl', replace]
         rw [Function.update_of_ne hji]
+      · have hk'' : k' ∉ tbl'.tableMeta.dom := by simp [tbl', hnew_eq, hold_eq, hk']
+        rw [Option.not_isSome_iff_eq_none.mp (mt (tbl'.isSome_query_iff k').mp hk''),
+          Option.not_isSome_iff_eq_none.mp (mt (tbl.isSome_query_iff k').mp hk')]
 
-/-- Bulk-initialize a storage table from `S : Finset (Fin (2 ^ I))` (`#S ≤ m`) and `f`
-(`Algorithm 4` `Rehash`). -/
-noncomputable def ofFinset (S : Finset (Fin (2 ^ I))) (_hS : S.card ≤ m)
+/-- Bulk-initialize a storage table from `S : Finset (Fin (2 ^ I))` and payload map `f` (used in
+tree construction and subtree reconstruction), materializing the first `min #S m` elements of `S`
+in ascending order (`#S ≤ m` recovers all of `S`). -/
+noncomputable def ofFinset (S : Finset (Fin (2 ^ I)))
     (hQ : 1 ≤ Q) (hV : 1 ≤ V) (f : Fin (2 ^ I) → Fin Q × Fin V) : StorageTable I m Q V :=
   let iso := S.orderIsoOfFin rfl
   { tableMeta :=
@@ -768,7 +737,7 @@ noncomputable def ofFinset (S : Finset (Fin (2 ^ I))) (_hS : S.card ≤ m)
 @[simp]
 theorem dom_ofFinset (S : Finset (Fin (2 ^ I))) (hS : S.card ≤ m)
     (hQ : 1 ≤ Q) (hV : 1 ≤ V) (f : Fin (2 ^ I) → Fin Q × Fin V) :
-    (ofFinset S hS hQ hV f).tableMeta.dom = S := by
+    (ofFinset (m := m) S hQ hV f).tableMeta.dom = S := by
   ext k
   rw [StorageTableMeta.mem_dom_iff]
   dsimp only [ofFinset]
@@ -784,8 +753,8 @@ theorem dom_ofFinset (S : Finset (Fin (2 ^ I))) (hS : S.card ≤ m)
 @[simp]
 theorem query_ofFinset (S : Finset (Fin (2 ^ I))) (hS : S.card ≤ m)
     (hQ : 1 ≤ Q) (hV : 1 ≤ V) (f : Fin (2 ^ I) → Fin Q × Fin V) (k : Fin (2 ^ I)) :
-    (ofFinset S hS hQ hV f).query k = if k ∈ S then some (f k) else none := by
-  set tbl := ofFinset S hS hQ hV f
+    (ofFinset (m := m) S hQ hV f).query k = if k ∈ S then some (f k) else none := by
+  set tbl := ofFinset (m := m) S hQ hV f
   by_cases hk : k ∈ S
   · rw [ite_eq_left hk]
     let idx := (S.orderIsoOfFin rfl).symm ⟨k, hk⟩
@@ -799,12 +768,8 @@ theorem query_ofFinset (S : Finset (Fin (2 ^ I))) (hS : S.card ≤ m)
     dsimp only [tbl, ofFinset, i]
     simp [idx.isLt, idx]
   · rw [ite_eq_right hk]
-    rcases hl : tbl.tableMeta.locateSlot k with _ | i
-    · simp [query, hl]
-    · have hmem : k ∈ tbl.tableMeta.dom := (tbl.tableMeta.mem_dom_iff k).mpr
-        ⟨i, (tbl.tableMeta.locateSlot_eq_some_iff k i).mp hl⟩
-      rw [dom_ofFinset] at hmem
-      exact absurd hmem hk
+    have hk' : k ∉ tbl.tableMeta.dom := by rwa [dom_ofFinset S hS]
+    exact Option.not_isSome_iff_eq_none.mp (mt (tbl.isSome_query_iff k).mp hk')
 
 end StorageTable
 

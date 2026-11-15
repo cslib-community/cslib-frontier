@@ -440,51 +440,59 @@ def removeWaitAtNode (st : P.TreeState) (L : ℕ) (h2L : 2 ≤ L) (hLL : L ≤ P
       (motive := fun m => Fin (P.numNodes m) → Fin (2 ^ P.idBits m) → P.TreeState)
       (removeWaitLeafAt st) hd.symm uL k
 
+private theorem removeWaitAtNode_cases (st : P.TreeState) {L : ℕ} (h2L : 2 ≤ L)
+    (hLL : L ≤ P.depth) (uL : Fin (P.numNodes L)) (k : Fin (2 ^ P.idBits L)) :
+    let st' := st.removeWaitAtNode L h2L hLL uL k
+    (∃ (hlt : L < P.depth) (nd : P.InnerNode L),
+      nd.seed = (st.inner L h2L hlt uL).seed ∧
+      nd.table = (st.inner L h2L hlt uL).table ∧
+      st' = st.updateInner L h2L hlt uL nd) ∨
+    (∃ (hd : L = P.depth) (ln : P.LeafNode),
+      ln.leafMeta.seed = (st.leaves (hd ▸ uL)).leafMeta.seed ∧
+      ln.toFixedEncoded = (st.leaves (hd ▸ uL)).toFixedEncoded ∧
+      st' = st.updateLeaf (hd ▸ uL) ln) := by
+  dsimp only [removeWaitAtNode]
+  by_cases hLlt : L < P.depth
+  · rw [dite_eq_left hLlt]
+    exact Or.inl ⟨hLlt,
+      { (st.inner L h2L hLlt uL) with wait := (st.inner L h2L hLlt uL).wait.remove k },
+      rfl, rfl, rfl⟩
+  · have hdL : L = P.depth := by omega
+    subst hdL; rw [dite_eq_right (lt_irrefl _)]; dsimp only [removeWaitLeafAt]
+    exact Or.inr ⟨rfl,
+      { (st.leaves uL) with leafMeta :=
+          { (st.leaves uL).leafMeta with wait := (st.leaves uL).leafMeta.wait.remove k } },
+      rfl, rfl, rfl⟩
+
 theorem seeds_removeWaitAtNode (st : P.TreeState) {L : ℕ} (h2L : 2 ≤ L) (hLL : L ≤ P.depth)
     (uL : Fin (P.numNodes L)) (k : Fin (2 ^ P.idBits L)) :
     (st.removeWaitAtNode L h2L hLL uL k).seeds = st.seeds := by
-  dsimp only [removeWaitAtNode]
-  by_cases hlt : L < P.depth
-  · rw [dite_eq_left hlt]; exact st.seeds_updateInner_of_seed_eq _ _ _ _ rfl
-  · have hd : L = P.depth := by omega
-    subst hd; rw [dite_eq_right (lt_irrefl _)]; exact st.seeds_updateLeaf_of_seed_eq _ _ rfl
+  rcases st.removeWaitAtNode_cases h2L hLL uL k with
+    ⟨hlt, nd, hs, _, h⟩ | ⟨rfl, ln, hs, _, h⟩
+  · rw [h]; exact st.seeds_updateInner_of_seed_eq h2L hlt uL nd hs
+  · rw [h]; exact st.seeds_updateLeaf_of_seed_eq uL ln hs
 
 theorem sentCount_removeWaitAtNode (st : P.TreeState) {L : ℕ} (h2L : 2 ≤ L) (hLL : L ≤ P.depth)
     (uL : Fin (P.numNodes L)) (k : Fin (2 ^ P.idBits L)) :
     (st.removeWaitAtNode L h2L hLL uL k).sentCount = st.sentCount := by
-  dsimp only [removeWaitAtNode]
-  by_cases hlt : L < P.depth
-  · rw [dite_eq_left hlt]; rfl
-  · have hd : L = P.depth := by omega
-    subst hd; rw [dite_eq_right (lt_irrefl _)]; rfl
+  rcases st.removeWaitAtNode_cases h2L hLL uL k with
+    ⟨_, _, _, _, h⟩ | ⟨_, _, _, _, h⟩ <;> rw [h] <;> rfl
 
 theorem nodeDom_removeWaitAtNode (st : P.TreeState) {L : ℕ} (h2L : 2 ≤ L) (hLL : L ≤ P.depth)
     (uL : Fin (P.numNodes L)) (k : Fin (2 ^ P.idBits L))
     {ℓ : ℕ} (h1 : 1 ≤ ℓ) (hℓ : ℓ ≤ P.depth) (u : Fin (P.numNodes ℓ)) :
     (st.removeWaitAtNode L h2L hLL uL k).nodeDom ℓ h1 hℓ u = st.nodeDom ℓ h1 hℓ u := by
-  dsimp only [removeWaitAtNode]
-  by_cases hLlt : L < P.depth
-  · rw [dite_eq_left hLlt]
-    by_cases hℓ1 : ℓ = 1
-    · subst hℓ1; simp [updateInner]
-    · by_cases hlt' : ℓ < P.depth
-      · simp only [nodeDom_inner _ h1 (by omega) hlt' hℓ, updateInner]
-        by_cases hℓL : ℓ = L
-        · subst hℓL; rw [dite_eq_left rfl]; by_cases hu : u = uL <;> simp [hu]
-        · rw [dite_eq_right hℓL]
-      · have hd' : ℓ = P.depth := by omega
-        subst hd'; simp [updateInner]
-  · have hdL : L = P.depth := by omega
-    subst hdL; rw [dite_eq_right (lt_irrefl _)]; dsimp only [removeWaitLeafAt]
-    by_cases hℓ1 : ℓ = 1
-    · subst hℓ1; simp [updateLeaf]
-    · by_cases hlt' : ℓ < P.depth
-      · simp [nodeDom_inner _ h1 (by omega) hlt' hℓ, updateLeaf]
-      · have hd' : ℓ = P.depth := by omega
-        subst hd'; simp only [nodeDom_depth, updateLeaf]
-        by_cases hu : u = uL
-        · subst hu; rw [Function.update_self]; rfl
-        · simp [hu]
+  by_cases hsame : ∃ h_eq : ℓ = L, h_eq ▸ u = uL
+  · obtain ⟨rfl, rfl⟩ := hsame
+    rcases st.removeWaitAtNode_cases h2L hLL u k with
+      ⟨hlt, nd, _, htbl, h⟩ | ⟨rfl, ln, _, hfe, h⟩
+    · rw [h]; simp [nodeDom_inner _ h1 h2L hlt hℓ, updateInner, htbl]
+    · rw [h]; simp [LeafNode.dom, updateLeaf, hfe]
+  · push Not at hsame
+    rcases st.removeWaitAtNode_cases h2L hLL uL k with
+      ⟨hlt, nd, _, _, h⟩ | ⟨rfl, ln, _, _, h⟩
+    · rw [h]; exact st.nodeDom_updateInner_other h2L hlt uL nd h1 hℓ u hsame
+    · rw [h]; exact st.nodeDom_updateLeaf_other uL ln h1 hℓ u hsame
 
 theorem nodeQuery_removeWaitAtNode
     (scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth))
@@ -494,33 +502,17 @@ theorem nodeQuery_removeWaitAtNode
     (k' : Fin (2 ^ P.idBits ℓ)) :
     (st.removeWaitAtNode L h2L hLL uL k).nodeQuery scheme ℓ h1 hℓ u k' =
       st.nodeQuery scheme ℓ h1 hℓ u k' := by
-  dsimp only [removeWaitAtNode]
-  by_cases hLlt : L < P.depth
-  · rw [dite_eq_left hLlt]
-    by_cases hℓ1 : ℓ = 1
-    · subst hℓ1; rw [nodeQuery_one, nodeQuery_one]; rfl
-    · by_cases hlt' : ℓ < P.depth
-      · rw [nodeQuery_inner _ _ h1 (by omega) hlt' hℓ, nodeQuery_inner _ _ h1 (by omega) hlt' hℓ]
-        dsimp only [updateInner]
-        by_cases hℓL : ℓ = L
-        · subst hℓL; rw [dite_eq_left rfl]; dsimp only
-          by_cases hu : u = uL <;> simp [hu]
-        · rw [dite_eq_right hℓL]
-      · have hd' : ℓ = P.depth := by omega
-        subst hd'; rw [nodeQuery_depth, nodeQuery_depth]; rfl
-  · have hdL : L = P.depth := by omega
-    subst hdL; rw [dite_eq_right (lt_irrefl _)]; dsimp only [removeWaitLeafAt]
-    by_cases hℓ1 : ℓ = 1
-    · subst hℓ1; rw [nodeQuery_one, nodeQuery_one]; rfl
-    · by_cases hlt' : ℓ < P.depth
-      · rw [nodeQuery_inner _ _ h1 (by omega) hlt' hℓ, nodeQuery_inner _ _ h1 (by omega) hlt' hℓ]
-        rfl
-      · have hd' : ℓ = P.depth := by omega
-        subst hd'; rw [nodeQuery_depth, nodeQuery_depth]
-        dsimp only [updateLeaf]
-        by_cases hu : u = uL
-        · subst hu; rw [Function.update_self]; rfl
-        · rw [Function.update_of_ne hu]
+  by_cases hsame : ∃ h_eq : ℓ = L, h_eq ▸ u = uL
+  · obtain ⟨rfl, rfl⟩ := hsame
+    rcases st.removeWaitAtNode_cases h2L hLL u k with
+      ⟨hlt, nd, _, htbl, h⟩ | ⟨rfl, ln, _, hfe, h⟩
+    · rw [h]; simp [nodeQuery_inner _ _ h1 h2L hlt hℓ, updateInner, htbl]
+    · rw [h]; simp [LeafNode.query, updateLeaf, hfe]
+  · push Not at hsame
+    rcases st.removeWaitAtNode_cases h2L hLL uL k with
+      ⟨hlt, nd, _, _, h⟩ | ⟨rfl, ln, _, _, h⟩
+    · rw [h]; exact st.nodeQuery_updateInner_other scheme h2L hlt uL nd h1 hℓ u k' hsame
+    · rw [h]; exact st.nodeQuery_updateLeaf_other scheme uL ln h1 hℓ u k' hsame
 
 theorem nodeWait_removeWaitAtNode_same (st : P.TreeState) {L : ℕ} (h2L : 2 ≤ L)
     (hLL : L ≤ P.depth) (uL : Fin (P.numNodes L)) (k : Fin (2 ^ P.idBits L)) :
@@ -539,23 +531,10 @@ theorem nodeWait_removeWaitAtNode_other (st : P.TreeState) {L : ℕ} (h2L : 2 �
     {ℓ : ℕ} (h2 : 2 ≤ ℓ) (hℓ : ℓ ≤ P.depth) (u : Fin (P.numNodes ℓ))
     (hdiff : ∀ h_eq : ℓ = L, h_eq ▸ u ≠ uL) :
     (st.removeWaitAtNode L h2L hLL uL k).nodeWait ℓ h2 hℓ u = st.nodeWait ℓ h2 hℓ u := by
-  dsimp only [removeWaitAtNode]
-  by_cases hLlt : L < P.depth
-  · rw [dite_eq_left hLlt]
-    by_cases hlt' : ℓ < P.depth
-    · rw [nodeWait_inner _ h2 hlt' hℓ, nodeWait_inner _ h2 hlt' hℓ]
-      dsimp only [updateInner]
-      by_cases hℓL : ℓ = L
-      · subst hℓL; rw [dite_eq_left rfl]; dsimp only; rw [Function.update_of_ne (hdiff rfl)]
-      · rw [dite_eq_right hℓL]
-    · have hd' : ℓ = P.depth := by omega
-      subst hd'; rw [nodeWait_depth, nodeWait_depth]; rfl
-  · have hdL : L = P.depth := by omega
-    subst hdL; rw [dite_eq_right (lt_irrefl _)]; dsimp only [removeWaitLeafAt]
-    by_cases hlt' : ℓ < P.depth
-    · rw [nodeWait_inner _ h2 hlt' hℓ, nodeWait_inner _ h2 hlt' hℓ]; rfl
-    · have hd' : ℓ = P.depth := by omega
-      subst hd'; rw [nodeWait_depth, nodeWait_depth]; simp [updateLeaf, hdiff rfl]
+  rcases st.removeWaitAtNode_cases h2L hLL uL k with
+    ⟨hlt, nd, _, _, h⟩ | ⟨rfl, ln, _, _, h⟩
+  · rw [h]; exact st.nodeWait_updateInner_other h2L hlt uL nd h2 hℓ u hdiff
+  · rw [h]; exact st.nodeWait_updateLeaf_other uL ln h2 hℓ u hdiff
 
 private def replaceInnerAt (st : P.TreeState) (L : ℕ) (h2 : 2 ≤ L) (hlt : L < P.depth)
     (u : Fin (P.numNodes L))
@@ -598,6 +577,38 @@ def replaceAtNode (scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLo
         Fin (P.quotUniv m) × Fin P.valBound → P.TreeState)
       (replaceLeafAt scheme st) hd.symm uL wait' k_old k_new qv_new
 
+private theorem replaceAtNode_cases
+    (scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth))
+    (st : P.TreeState) {L : ℕ} (h2L : 2 ≤ L) (hLL : L ≤ P.depth)
+    (uL : Fin (P.numNodes L))
+    (wait' : WaitingList (P.idBits L) (P.idBits (L - 1)) (P.waitCap L))
+    (k_old k_new : Fin (2 ^ P.idBits L))
+    (qv_new : Fin (P.quotUniv L) × Fin P.valBound) :
+    let st' := st.replaceAtNode scheme L h2L hLL uL wait' k_old k_new qv_new
+    st' = st ∨
+      (∃ (hlt : L < P.depth) (nd : P.InnerNode L),
+        nd.seed = (st.inner L h2L hlt uL).seed ∧ st' = st.updateInner L h2L hlt uL nd) ∨
+      (∃ (hd : L = P.depth) (ln : P.LeafNode),
+        ln.leafMeta.seed = (st.leaves (hd ▸ uL)).leafMeta.seed ∧
+        st' = st.updateLeaf (hd ▸ uL) ln) := by
+  dsimp only [replaceAtNode]
+  by_cases hLlt : L < P.depth
+  · rw [dite_eq_left hLlt]; dsimp only [replaceInnerAt]
+    split_ifs with h
+    · exact Or.inr (Or.inl ⟨hLlt,
+        { (st.inner L h2L hLlt uL) with
+          wait := wait'
+          table := (st.inner L h2L hLlt uL).table.replace k_old k_new qv_new h.1 h.2 },
+        rfl, rfl⟩)
+    · exact Or.inl rfl
+  · have hdL : L = P.depth := by omega
+    subst hdL; rw [dite_eq_right (lt_irrefl _)]; dsimp only [replaceLeafAt]
+    split_ifs with h
+    · exact Or.inr (Or.inr ⟨rfl,
+        (st.leaves uL).replace scheme wait' k_old k_new qv_new h.1 h.2,
+        rfl, rfl⟩)
+    · exact Or.inl rfl
+
 theorem seeds_replaceAtNode
     (scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth))
     (st : P.TreeState) {L : ℕ} (h2L : 2 ≤ L) (hLL : L ≤ P.depth)
@@ -606,17 +617,11 @@ theorem seeds_replaceAtNode
     (k_old k_new : Fin (2 ^ P.idBits L))
     (qv_new : Fin (P.quotUniv L) × Fin P.valBound) :
     (st.replaceAtNode scheme L h2L hLL uL wait' k_old k_new qv_new).seeds = st.seeds := by
-  dsimp only [replaceAtNode]
-  by_cases hlt : L < P.depth
-  · rw [dite_eq_left hlt]; dsimp only [replaceInnerAt]
-    split_ifs with h
-    · exact st.seeds_updateInner_of_seed_eq _ _ _ _ rfl
-    · rfl
-  · have hd : L = P.depth := by omega
-    subst hd; rw [dite_eq_right (lt_irrefl _)]; dsimp only [replaceLeafAt]
-    split_ifs with h
-    · exact st.seeds_updateLeaf_of_seed_eq _ _ rfl
-    · rfl
+  rcases st.replaceAtNode_cases scheme h2L hLL uL wait' k_old k_new qv_new with
+    h | ⟨hlt, nd, hs, h⟩ | ⟨rfl, ln, hs, h⟩
+  · rw [h]
+  · rw [h]; exact st.seeds_updateInner_of_seed_eq h2L hlt uL nd hs
+  · rw [h]; exact st.seeds_updateLeaf_of_seed_eq uL ln hs
 
 theorem sentCount_replaceAtNode
     (scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth))
@@ -626,11 +631,8 @@ theorem sentCount_replaceAtNode
     (k_old k_new : Fin (2 ^ P.idBits L))
     (qv_new : Fin (P.quotUniv L) × Fin P.valBound) :
     (st.replaceAtNode scheme L h2L hLL uL wait' k_old k_new qv_new).sentCount = st.sentCount := by
-  dsimp only [replaceAtNode]
-  by_cases hlt : L < P.depth
-  · rw [dite_eq_left hlt]; dsimp only [replaceInnerAt]; split_ifs <;> rfl
-  · have hd : L = P.depth := by omega
-    subst hd; rw [dite_eq_right (lt_irrefl _)]; dsimp only [replaceLeafAt]; split_ifs <;> rfl
+  rcases st.replaceAtNode_cases scheme h2L hLL uL wait' k_old k_new qv_new with
+    h | ⟨_, _, _, h⟩ | ⟨_, _, _, h⟩ <;> rw [h] <;> rfl
 
 theorem nodeDom_replaceAtNode_same
     (scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth))
@@ -669,30 +671,11 @@ theorem nodeDom_replaceAtNode_other
     (hdiff : ∀ h_eq : ℓ = L, h_eq ▸ u ≠ uL) :
     (st.replaceAtNode scheme L h2L hLL uL wait' k_old k_new qv_new).nodeDom ℓ h1 hℓ u =
       st.nodeDom ℓ h1 hℓ u := by
-  dsimp only [replaceAtNode]
-  by_cases hLlt : L < P.depth
-  · rw [dite_eq_left hLlt]; dsimp only [replaceInnerAt]
-    split_ifs with h
-    · by_cases hℓ1 : ℓ = 1
-      · subst hℓ1; simp [updateInner]
-      · by_cases hlt' : ℓ < P.depth
-        · simp only [nodeDom_inner _ h1 (by omega) hlt' hℓ, updateInner]
-          by_cases hℓL : ℓ = L
-          · subst hℓL; rw [dite_eq_left rfl]; dsimp only; rw [Function.update_of_ne (hdiff rfl)]
-          · rw [dite_eq_right hℓL]
-        · have hd' : ℓ = P.depth := by omega
-          subst hd'; simp [updateInner]
-    · rfl
-  · have hdL : L = P.depth := by omega
-    subst hdL; rw [dite_eq_right (lt_irrefl _)]; dsimp only [replaceLeafAt]
-    split_ifs with h
-    · by_cases hℓ1 : ℓ = 1
-      · subst hℓ1; simp [updateLeaf]
-      · by_cases hlt' : ℓ < P.depth
-        · simp [nodeDom_inner _ h1 (by omega) hlt' hℓ, updateLeaf]
-        · have hd' : ℓ = P.depth := by omega
-          subst hd'; simp only [nodeDom_depth, updateLeaf]; simp [hdiff rfl]
-    · rfl
+  rcases st.replaceAtNode_cases scheme h2L hLL uL wait' k_old k_new qv_new with
+    h | ⟨hlt, nd, _, h⟩ | ⟨rfl, ln, _, h⟩
+  · rw [h]
+  · rw [h]; exact st.nodeDom_updateInner_other h2L hlt uL nd h1 hℓ u hdiff
+  · rw [h]; exact st.nodeDom_updateLeaf_other uL ln h1 hℓ u hdiff
 
 theorem nodeQuery_replaceAtNode_same
     (scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth))
@@ -752,33 +735,11 @@ theorem nodeQuery_replaceAtNode_other
     (k' : Fin (2 ^ P.idBits ℓ)) (hdiff : ∀ h_eq : ℓ = L, h_eq ▸ u ≠ uL) :
     (st.replaceAtNode scheme L h2L hLL uL wait' k_old k_new qv_new).nodeQuery scheme ℓ h1 hℓ u k' =
       st.nodeQuery scheme ℓ h1 hℓ u k' := by
-  dsimp only [replaceAtNode]
-  by_cases hLlt : L < P.depth
-  · rw [dite_eq_left hLlt]; dsimp only [replaceInnerAt]
-    split_ifs with h
-    · by_cases hℓ1 : ℓ = 1
-      · subst hℓ1; rw [nodeQuery_one, nodeQuery_one]; rfl
-      · by_cases hlt' : ℓ < P.depth
-        · rw [nodeQuery_inner _ _ h1 (by omega) hlt' hℓ,
-            nodeQuery_inner _ _ h1 (by omega) hlt' hℓ]
-          dsimp only [updateInner]
-          by_cases hℓL : ℓ = L
-          · subst hℓL; rw [dite_eq_left rfl]; dsimp only; rw [Function.update_of_ne (hdiff rfl)]
-          · rw [dite_eq_right hℓL]
-        · have hd' : ℓ = P.depth := by omega
-          subst hd'; rw [nodeQuery_depth, nodeQuery_depth]; rfl
-    · rfl
-  · have hdL : L = P.depth := by omega
-    subst hdL; rw [dite_eq_right (lt_irrefl _)]; dsimp only [replaceLeafAt]
-    split_ifs with h
-    · by_cases hℓ1 : ℓ = 1
-      · subst hℓ1; rw [nodeQuery_one, nodeQuery_one]; rfl
-      · by_cases hlt' : ℓ < P.depth
-        · rw [nodeQuery_inner _ _ h1 (by omega) hlt' hℓ,
-            nodeQuery_inner _ _ h1 (by omega) hlt' hℓ]; rfl
-        · have hd' : ℓ = P.depth := by omega
-          subst hd'; rw [nodeQuery_depth, nodeQuery_depth]; simp [updateLeaf, hdiff rfl]
-    · rfl
+  rcases st.replaceAtNode_cases scheme h2L hLL uL wait' k_old k_new qv_new with
+    h | ⟨hlt, nd, _, h⟩ | ⟨rfl, ln, _, h⟩
+  · rw [h]
+  · rw [h]; exact st.nodeQuery_updateInner_other scheme h2L hlt uL nd h1 hℓ u k' hdiff
+  · rw [h]; exact st.nodeQuery_updateLeaf_other scheme uL ln h1 hℓ u k' hdiff
 
 theorem nodeWait_replaceAtNode_same
     (scheme : DynamicMatching.Scheme (2 ^ P.idBits P.depth) (P.nLow P.depth))
@@ -817,27 +778,11 @@ theorem nodeWait_replaceAtNode_other
     (hdiff : ∀ h_eq : ℓ = L, h_eq ▸ u ≠ uL) :
     (st.replaceAtNode scheme L h2L hLL uL wait' k_old k_new qv_new).nodeWait ℓ h2 hℓ u =
       st.nodeWait ℓ h2 hℓ u := by
-  dsimp only [replaceAtNode]
-  by_cases hLlt : L < P.depth
-  · rw [dite_eq_left hLlt]; dsimp only [replaceInnerAt]
-    split_ifs with h
-    · by_cases hlt' : ℓ < P.depth
-      · rw [nodeWait_inner _ h2 hlt' hℓ, nodeWait_inner _ h2 hlt' hℓ]
-        dsimp only [updateInner]
-        by_cases hℓL : ℓ = L
-        · subst hℓL; rw [dite_eq_left rfl]; dsimp only; rw [Function.update_of_ne (hdiff rfl)]
-        · rw [dite_eq_right hℓL]
-      · have hd' : ℓ = P.depth := by omega
-        subst hd'; rw [nodeWait_depth, nodeWait_depth]; rfl
-    · rfl
-  · have hdL : L = P.depth := by omega
-    subst hdL; rw [dite_eq_right (lt_irrefl _)]; dsimp only [replaceLeafAt]
-    split_ifs with h
-    · by_cases hlt' : ℓ < P.depth
-      · rw [nodeWait_inner _ h2 hlt' hℓ, nodeWait_inner _ h2 hlt' hℓ]; rfl
-      · have hd' : ℓ = P.depth := by omega
-        subst hd'; rw [nodeWait_depth, nodeWait_depth]; simp [updateLeaf, hdiff rfl]
-    · rfl
+  rcases st.replaceAtNode_cases scheme h2L hLL uL wait' k_old k_new qv_new with
+    h | ⟨hlt, nd, _, h⟩ | ⟨rfl, ln, _, h⟩
+  · rw [h]
+  · rw [h]; exact st.nodeWait_updateInner_other h2L hlt uL nd h2 hℓ u hdiff
+  · rw [h]; exact st.nodeWait_updateLeaf_other uL ln h2 hℓ u hdiff
 
 end TreeSchedule.TreeState
 
