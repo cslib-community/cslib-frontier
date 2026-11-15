@@ -188,7 +188,8 @@ strict certificates charging queries, replies, intermediate values and encoded o
 integer product or unreduced power is passed as program data. The ordinary-module
 [checked client](../../CslibFrontierTests/CountingFieldProducts.lean) covers variable binary
 moduli and unary widths, polynomial output length, prime two, zero factors, noncanonical
-factors, restrictions and nonprime defaults. Run
+factors, restrictions and nonprime defaults. Its one certified variable-input product takes
+different values at the words representing five and two, including a nonzero prime-field value. Run
 `LEAN_NUM_THREADS=2 scripts/build.sh CslibFrontierTests.CountingFieldProducts --wfail --iofail`.
 
 ## Finite-field product identities
