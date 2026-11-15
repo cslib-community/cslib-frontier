@@ -256,10 +256,12 @@ is the step that the family bound averages over setup. Random self-reducibility 
 Exercises 10.8–10.10) works on the same types: `ddhRerandomize` maps a triple `(u, v, w)` to a
 uniform real triple when `w` is the Diffie–Hellman element and to a uniform triple otherwise
 (`ddhRerandomizeLaw_real`, `ddhRerandomizeLaw_random`); `ddhSelfReduceDistinguisher` is its
-efficient form, so `ddh_of_worstCase` derives `F.DDH setup` from worst-case indistinguishability of
-fixed triple families with loss `6 / 2 ^ n`; and `ddhAmplifiedDecider` turns a distinguisher with
-inverse-polynomial fixed-group advantage into one that decides every triple except with
-negligible error (`negligible_ddhAmplifiedDecider_error`). For the discrete logarithm and CDH,
+efficient form, so `ddh_of_worstCase` derives `F.DDH setup`, with loss `6 / 2 ^ n`, from worst-case
+hardness: for every PPT distinguisher there are a real and a non-DDH triple family, which may depend
+on the distinguisher, between which its advantage is negligible; and `ddhAmplifiedDecider` turns a
+distinguisher with inverse-polynomial fixed-group advantage into one that decides every triple
+except with negligible error (`negligible_ddhAmplifiedDecider_error`). For the discrete logarithm
+and CDH,
 [`DiffieHellman/SelfReduction.lean`](../../CslibFrontier/Crypto/Computational/DiffieHellman/SelfReduction.lean)
 gives the success probabilities of the self-reductions of [bs23][bs23], Theorem 10.2 and
 Exercise 10.6, in one fixed group: one attempt of `dlSelfReduce q g A` on `α • g` returns `α` with
