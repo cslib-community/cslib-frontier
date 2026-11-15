@@ -7,8 +7,6 @@ Authors: Samuel Schlesinger
 module
 
 public import CslibFrontier.Crypto.Computational.HQC.DQCSD
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Probability.PMF.Support
 import CslibFrontier.Probability.Product
@@ -87,19 +85,17 @@ example : SupportsLength
 
 private theorem test_twoSample_eq_true (κ : ℕ) (sample : SyndromeSample 1)
     (hpublic : parity 1 sample.publicBlock = true) :
-    test firstBitFamily κ sample.toWord = PMF.pure true := by
+    test (bitFamily 0) κ sample.toWord = PMF.pure true := by
   have hbit : sample.publicBlock 0 = true := by
     simpa [parity, parityOn_eq_sum, Fin.sum_univ_succ] using hpublic
   have hword : sample.toWord = true :: [sample.value 0] := by
     rw [SyndromeSample.toWord, List.ofFn_fin_append]
     simp [hbit]
-  rw [hword, test_eq,
-    show (fun _ : Fin 0 => false) = Fin.elim0 from Subsingleton.elim _ _,
-    output_firstBitFamily, PMF.pure_map]
+  rw [hword, test_bitFamily]
   rfl
 
 private theorem distinguishingGame_twoReal_unit (κ : ℕ) :
-    distinguishingGame (twoRealEnsemble unitParameters (fun _ => true)) firstBitFamily κ =
+    distinguishingGame (twoRealEnsemble unitParameters (fun _ => true)) (bitFamily 0) κ =
       PMF.pure true := by
   rw [distinguishingGame_eq_bind, twoRealEnsemble, PMF.bind_map]
   apply Probability.PMF.bind_eq_pure_of_forall_mem_support
@@ -108,7 +104,7 @@ private theorem distinguishingGame_twoReal_unit (κ : ℕ) :
   exact (parity_of_mem_support_realSyndromeLaw (unitParameters.weight_le κ) true hsample).1
 
 private theorem distinguishingGame_twoUniform_unit (κ : ℕ) :
-    distinguishingGame (twoUniformEnsemble unitParameters (fun _ => true)) firstBitFamily κ =
+    distinguishingGame (twoUniformEnsemble unitParameters (fun _ => true)) (bitFamily 0) κ =
       PMF.pure true := by
   rw [distinguishingGame_eq_bind, twoUniformEnsemble, PMF.bind_map]
   apply Probability.PMF.bind_eq_pure_of_forall_mem_support
@@ -124,8 +120,8 @@ private theorem distinguishingGame_twoUniform_unit (κ : ℕ) :
 -- first-bit family sees zero gap because both source laws preserve the public parity constraint.
 example (κ : ℕ) :
     Game.advantage
-      (distinguishingGame (twoRealEnsemble unitParameters (fun _ => true)) firstBitFamily κ)
-      (distinguishingGame (twoUniformEnsemble unitParameters (fun _ => true)) firstBitFamily κ) =
+      (distinguishingGame (twoRealEnsemble unitParameters (fun _ => true)) (bitFamily 0) κ)
+      (distinguishingGame (twoUniformEnsemble unitParameters (fun _ => true)) (bitFamily 0) κ) =
         0 := by
   rw [distinguishingGame_twoReal_unit, distinguishingGame_twoUniform_unit]
   exact Game.advantage_self _
@@ -158,67 +154,7 @@ has advantage `1 / 2`, so neither assumption holds for this family. -/
 
 section FullWeight
 
-open Turing.MultiTapeTM Cslib.BitString
-
-/-- Swap challenge bit `j` into the measured output wire. An extra zero qubit makes the
-description valid for every challenge length. -/
-private abbrev bitDescription (j n ℓ : ℕ) : OracleCircuitDescription where
-  width := 2 * n + 1 + ℓ + j + 1
-  queryWidth := 0
-  responseWidth := 0
-  quantumInputWidth := 0
-  outputWidth := 1
-  instructions := ((GateCode.swapCodes (2 * n + 1 + j)).map fun g => (false, g)).map
-    OracleGateCode.gate
-
-private theorem polyTime_bitDescription (j : ℕ) : ComputableInPolyTime
-    (fun s : OracleInputSize => bitDescription j s.securityParameter s.classicalInputLength)
-    encOracleInputSize encOracleCircuitDescription := by
-  dsimp only [bitDescription, GateCode.swapCodes, List.map]
-  fun_prop
-
-private theorem wellFormed_bitDescription (j n ℓ : ℕ) :
-    (bitDescription j n ℓ).WellFormed ⟨n, ℓ⟩ := by
-  refine ⟨by dsimp only [bitDescription]; omega,
-    by dsimp only [bitDescription]; omega,
-    by dsimp only [bitDescription]; omega, ?_⟩
-  intro instruction hinstruction
-  simp only [List.mem_map] at hinstruction
-  obtain ⟨phaseCode, hphaseCode, rfl⟩ := hinstruction
-  obtain ⟨code, hcode, rfl⟩ := hphaseCode
-  exact (GateCode.isClassical_swapCodes (N := 2 * n + 1 + ℓ + j + 1)
-    (by omega) (by omega) code hcode).2
-
-/-- The native family that measures challenge bit `j`. -/
-private abbrev bitFamily (j : ℕ) : UniformOracleCircuitFamily :=
-  ⟨bitDescription j, polyTime_bitDescription j, wellFormed_bitDescription j⟩
-
-/-- The native test of `bitFamily j` returns bit `j` of the challenge, or `false` past its end. -/
-private theorem test_bitFamily (j n : ℕ) (x : List Bool) :
-    test (bitFamily j) n x = PMF.pure (x.getD j false) := by
-  have hcodes : GateCode.IsClassical (2 * n + 1 + x.length + j + 1)
-      (GateCode.swapCodes (2 * n + 1 + j)) :=
-    GateCode.isClassical_swapCodes (by omega) (by omega)
-  have hrun (H : (Fin 0 → Bool) → Fin 0 → Bool) : (bitFamily j).run n x H (ket Fin.elim0) =
-      ket (GateCode.classicalRun (GateCode.swapCodes (2 * n + 1 + j))
-        (inputState (2 * n + 1 + x.length + j + 1) (encPair encUnary encBits (n, x)))) := by
-    rw [UniformOracleCircuitFamily.run_apply, OracleCircuit.toCircuit_map_gate,
-      Circuit.ofPhaseCodes_map, UniformOracleCircuitFamily.initialState_ket]
-    simp only [List.ofFn_zero, List.append_nil]
-    exact Circuit.eval_ofCodes_ket hcodes _
-  rw [test_eq, show (fun _ : Fin 0 => false) = Fin.elim0 from Subsingleton.elim _ _,
-    UniformOracleCircuitFamily.output_eq]
-  simp only [hrun, measureOut_ket, PMF.pure_map]
-  apply congrArg PMF.pure
-  let y := GateCode.classicalRun (GateCode.swapCodes (2 * n + 1 + j))
-    (inputState (2 * n + 1 + x.length + j + 1) (encPair encUnary encBits (n, x)))
-  change [y ⟨0, by omega⟩].headD false = _
-  rw [List.headD_cons, ← readBit_of_lt y (by omega),
-    GateCode.readBit_classicalRun_swapCodes (by omega) (by omega),
-    readBit_inputState (by simp [encPair_apply, encUnary_apply, encBits_apply]; omega)]
-  simp only [encPair_apply, encUnary_apply, encBits_apply, List.getD_eq_getElem?_getD]
-  rw [List.getElem?_append_right (by simp [length_frame])]
-  simp [length_frame]
+open Cslib.BitString
 
 /-- The native distinguishing game of `bitFamily j` reads bit `j` of the sampled word. -/
 private theorem distinguishingGame_bitFamily (X : ℕ → PMF (List Bool)) (j n : ℕ) :

@@ -162,7 +162,7 @@ The real oracle answers `(g, X, a, b)` with `H(g, X + a Δ_i) + b Δ_j`. For the
 def zeroH : MixedModulusHash (Fin 2) μ ℓ := fun _ _ _ _ => 0
 
 /-- The query `(g, X, a, b) = (0, 0, 1, 0)` from sort `0` to sort `0`. -/
-abbrev colourQuery : Fin 2 × CCRInput μ ℓ := (0, ⟨0, 0, 0, 1, 0⟩)
+private abbrev colourQuery : Fin 2 × CCRInput μ ℓ := (0, ⟨0, 0, 0, 1, 0⟩)
 
 /-- Ask `colourQuery` once and accept when the colour of the reply is `0`. -/
 def colourTest : CCRAdversary (Fin 2) μ ℓ := do
