@@ -37,10 +37,11 @@ hardness assumption and is not a statement about any specific group: as the book
 the bound says nothing about the difficulty of discrete logarithm in any specific group. It applies
 to adversaries that are otherwise unbounded.
 
-Primality of `q` is needed for the theorem, not only for its proof: for `q = dᵏ` an adversary can
-recover `α` digit by digit, with probability `1`, from fewer queries than the bound allows (for
-example `q = 512` with `9` queries). The proof uses primality only in the fact that two distinct
-linear forms `c X + d` agree at no more than one point of `ZMod q`.
+Primality of `q` is needed for the theorem, not only for its proof: for `q = 512 = 2⁹` an
+adversary that recovers `α` bit by bit makes `9` queries and always succeeds, where the bound would
+be `407 / 512`. This attack is a numerical check, not proved here; it follows the book's reduction
+for groups of prime-power order (Section 16.1.2, p. 684). The proof uses primality only in the fact
+that two distinct linear forms `c X + d` agree at no more than one point of `ZMod q`.
 
 It differs from the book's setting as follows.
 
@@ -1021,8 +1022,7 @@ private theorem succProbability_permDlogGame_le [NeZero q] (hq : q.Prime) {T : �
 /-- **Theorem 16.3, sharp form.** For prime `q` and an adversary that makes at most `T` queries to
 the group oracle on every path, the discrete-logarithm game in the generic group model is won with
 probability at most `((3T + 2).choose 2 + 1) / q`. This is the bound the proof of
-[BonehShoup2023], Theorem 16.3, gives before it rounds `(3T + 2).choose 2` up to `(3T + 2)² / 2`;
-it is attained at `T = 0`. -/
+[BonehShoup2023], Theorem 16.3, gives before it rounds `(3T + 2).choose 2` up to `(3T + 2)² / 2`. -/
 theorem succProbability_dlogGame_le_choose [NeZero q] [Fintype S] [Nonempty (ZMod q ↪ S)]
     (hq : q.Prime) {T : ℕ} {A : S → S → ProbOracleComp (GroupOracleSpec q S) (ZMod q)}
     (hA : ∀ g u, (A g u).IsQueryBounded T) :

@@ -320,11 +320,31 @@ model is a query bound on the program: every call is a product of two labels
 (`queriesSatisfy_babyStepGiantStep`), and every run makes at most `(m - 1) + (n - 1)` calls
 (`isQueryBounded_babyStepGiantStep`), which is `2 * Nat.sqrt (q - 1)` at the book's table size
 (`babyStepGiantStep_sqrt`). The giant steps multiply by the label of `m` instead of the book's
-`g^(-m)`; the module documentation lists this and the other differences from the book. No lower
-bound (Theorem 16.3), security game or running time in a machine model is stated. Runs and
-instances showing that each hypothesis is needed are in
+`g^(-m)`; the module documentation lists this and the other differences from the book. No running
+time in a machine model is stated. Runs and instances showing that each hypothesis is needed are in
 [`GenericGroup.lean`](../../CslibFrontierTests/Crypto/GenericGroup.lean) and
 [`GenericGroupRuns.lean`](../../CslibFrontierTests/Crypto/GenericGroupRuns.lean).
+
+The lower bound for discrete logarithm in this model, Theorem 16.3 ([bs23][bs23], §16.3,
+pp. 693–695), is in
+[`GenericGroup/DiscreteLog.lean`](../../CslibFrontier/Crypto/Computational/GenericGroup/DiscreteLog.lean).
+`dlogGame A` draws a uniform injective labeling `L : ZMod q ↪ S` and a uniform `α`, gives the
+adversary `L 1` and `L α`, runs it against `answer L` (`runLabeled`), and is won when the
+adversary outputs `α`. For a prime `q` (`hq : q.Prime`, with the instance `NeZero q`), a finite `S`
+with `Nonempty (ZMod q ↪ S)` (the book's `|S| ≥ q`) and an adversary `A` with
+`(A g u).IsQueryBounded T` for all `g u` (at most `T` labeling and group-operation queries on every
+path; private coins are free), `succProbability_dlogGame_le` bounds the success probability by
+`((3T + 2)² / 2 + 1) / q`, the book's (16.6), and `succProbability_dlogGame_le_choose` by the
+sharper `((3T + 2).choose 2 + 1) / q`. The bound takes no hardness assumption and applies to
+adversaries that are otherwise unbounded, but it is about the model only: it says nothing about
+discrete logarithm in any specific group (p. 695). Primality of `q` is needed; the module
+documentation gives a composite-order example. The proof reduces labels in `S` to a uniform
+permutation of `ZMod q` with
+[`GenericGroup/Relabel.lean`](../../CslibFrontier/Crypto/Computational/GenericGroup/Relabel.lean):
+`relabel j A` answers each query of `A` with at most one query (`isQueryBounded_relabel`) and
+behaves against a permutation `σ` as `A` against `j ∘ σ` (`runLabeled_relabel`). Checked
+examples, including where the proof uses primality, are in
+[`GenericGroupDiscreteLog.lean`](../../CslibFrontierTests/Crypto/GenericGroupDiscreteLog.lean).
 
 For a fixed keyed function or block cipher over finite types, import [`Primitives/PRF/Finite.lean`](../../CslibFrontier/Crypto/Primitives/PRF/Finite.lean) and [`Primitives/PRP/Finite.lean`](../../CslibFrontier/Crypto/Primitives/PRP/Finite.lean) (Boneh–Shoup §4.1–§4.4 [bs23][bs23]). A `PRF.Adversary D R` is an adaptive oracle program with private coins. `PRF.realExperiment F A` and `PRF.idealExperiment A` are `ProbComp Bool` programs answering its queries with `F key` for a uniform key or with a uniform function `D → R`, and `PRF.advantage` is the distance between their laws. For a block cipher `E : Key → Equiv.Perm D`, `PRP.realExperiment E` is the PRF experiment of `E` and `PRP.idealExperiment` samples a uniform permutation. The switching lemma `PRP.advantage_idealExperiment_prfIdealExperiment_le` bounds the distance between the two ideal experiments by `Q.choose 2 / |D|` for a `Q`-query adversary (Theorem 4.4), and `PRP.prfAdvantage_le_advantage_add` is Corollary 4.5. `PRP.strongRealExperiment` and `PRP.strongIdealExperiment` also answer inverse queries through `RandomPermutation.PermOracleSpec D`; `PRP.StrongAdversary.ofForward` runs a forward adversary there with the same advantage (`PRP.strongAdvantage_ofForward`). These statements are single-instance and track no running time. The word-level `BlockCipher.PRP` switching lemma `advantage_prpIdealGame_randomFunctionIdealGame_le` is derived from the finite one. Checked examples are in [`CslibFrontierTests/Crypto/PseudorandomPermutation.lean`](../../CslibFrontierTests/Crypto/PseudorandomPermutation.lean).
 

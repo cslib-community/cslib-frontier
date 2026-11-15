@@ -20,9 +20,9 @@ public import Mathlib.Logic.Equiv.Fintype
 answered by `answer L`.
 
 `relabel j A` turns a program for labels in `S` into one for labels in `ZMod q`, through an
-injection `j : ZMod q ↪ S`: it answers each query of `A` with one query of its own and translates
-labels by `j`. Against a permutation `σ` of `ZMod q`, the relabelled program behaves as `A` against
-the labeling `j ∘ σ` (`runLabeled_relabel`), and it makes no more queries than `A`
+injection `j : ZMod q ↪ S`: it answers each query of `A` with at most one query of its own and
+translates labels by `j`. Against a permutation `σ` of `ZMod q`, the relabelled program behaves as
+`A` against the labeling `j ∘ σ` (`runLabeled_relabel`), and it makes no more queries than `A`
 (`isQueryBounded_relabel`). Since a uniform injection `ZMod q ↪ S` is a uniform injection after a
 uniform permutation (`uniform_embedding_bind_eq`), a statement about generic groups with labels in
 `S` reduces to one with labels in `ZMod q` and a uniform permutation as labeling, in which no group
@@ -39,8 +39,8 @@ the proof of Theorem 16.3. The names in this file are this library's.
 * `Cslib.Crypto.GenericGroup.runLabeled_relabel`: relabelling against `σ` is running against
   `j ∘ σ`.
 * `Cslib.Crypto.GenericGroup.isQueryBounded_relabel`: relabelling preserves a query bound.
-* `Cslib.Crypto.GenericGroup.uniform_embedding_bind_eq`: a uniform injection is a uniform
-  injection after a uniform permutation of its domain.
+* `Cslib.Crypto.GenericGroup.uniform_embedding_bind_eq`: a uniform injective labeling is a
+  uniform injective labeling after a uniform permutation of `ZMod q`.
 
 ## References
 
@@ -63,8 +63,9 @@ uniform and group queries are answered by `answer L`. -/
   OracleComp.interpret
     (OracleComp.sumHandler ProbComp.unifOracle fun query => PMF.pure (answer L query)) program
 
-/-- Answer a query for labels in `S` with one query for labels in `ZMod q`, translating labels
-through `j`. A group operation on a label outside the image of `j` is rejected without a query. -/
+/-- Answer a query for labels in `S` with at most one query for labels in `ZMod q`, translating
+labels through `j`. A group operation on a label outside the image of `j` is rejected without a
+query. -/
 noncomputable def relabelHandler (j : ZMod q ↪ S) :
     (query : GroupQuery q S) →
       ProbOracleComp (GroupOracleSpec q (ZMod q)) (GroupOracleSpec q S query)
@@ -78,8 +79,8 @@ noncomputable def relabelHandler (j : ZMod q ↪ S) :
             ProbOracleComp.query (spec := GroupOracleSpec q (ZMod q)) (.op x₁ x₂ κ₁ κ₂)
       | _, _ => pure none
 
-/-- The program for labels in `ZMod q` that runs `A` and answers its queries through `j`, one query
-for each query of `A`. -/
+/-- The program for labels in `ZMod q` that runs `A` and answers its queries through `j`, with at
+most one query for each query of `A`. -/
 noncomputable def relabel {α : Type} (j : ZMod q ↪ S)
     (A : ProbOracleComp (GroupOracleSpec q S) α) : ProbOracleComp (GroupOracleSpec q (ZMod q)) α :=
   ProbOracleComp.simulate (relabelHandler j) A
@@ -135,17 +136,18 @@ theorem isQueryBounded_relabel {α : Type} (j : ZMod q ↪ S)
     · exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (ProbOracleComp.isCostBounded_query _ _)
     · exact .pure _ _
 
-/-- A uniform injection is a uniform injection after a uniform permutation of its domain. -/
-theorem uniform_embedding_bind_eq {α β γ : Type} [Fintype α] [DecidableEq α] [Fintype β]
-    [Nonempty (α ↪ β)] (f : (α ↪ β) → PMF γ) :
-    (PMF.uniformOfFintype (α ↪ β)).bind f =
-      (PMF.uniformOfFintype (α ↪ β)).bind fun j =>
-        (PMF.uniformOfFintype (Equiv.Perm α)).bind fun σ => f (σ.toEmbedding.trans j) := by
-  have key : ∀ σ : Equiv.Perm α,
-      (PMF.uniformOfFintype (α ↪ β)).bind (fun j => f (σ.toEmbedding.trans j)) =
-        (PMF.uniformOfFintype (α ↪ β)).bind f := by
+/-- A uniform injective labeling is a uniform injective labeling after a uniform permutation of
+`ZMod q`. -/
+theorem uniform_embedding_bind_eq [NeZero q] [Fintype S] [Nonempty (ZMod q ↪ S)] {β : Type}
+    (f : (ZMod q ↪ S) → PMF β) :
+    (PMF.uniformOfFintype (ZMod q ↪ S)).bind f =
+      (PMF.uniformOfFintype (ZMod q ↪ S)).bind fun j =>
+        (PMF.uniformOfFintype (Equiv.Perm (ZMod q))).bind fun σ => f (σ.toEmbedding.trans j) := by
+  have key : ∀ σ : Equiv.Perm (ZMod q),
+      (PMF.uniformOfFintype (ZMod q ↪ S)).bind (fun j => f (σ.toEmbedding.trans j)) =
+        (PMF.uniformOfFintype (ZMod q ↪ S)).bind f := by
     intro σ
-    let e : (α ↪ β) ≃ (α ↪ β) :=
+    let e : (ZMod q ↪ S) ≃ (ZMod q ↪ S) :=
       { toFun := fun j => σ.toEmbedding.trans j
         invFun := fun j => σ.symm.toEmbedding.trans j
         left_inv := fun j => by ext x; simp
