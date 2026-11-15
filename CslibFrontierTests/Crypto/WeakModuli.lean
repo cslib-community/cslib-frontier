@@ -18,11 +18,13 @@ Concrete checks for `CslibFrontier/Crypto/Computational/Factoring/WeakModuli.lea
 
 * The moduli `101 * 103` and `101 * 107` share the prime `101`, and their gcd finds it; with
   equal second primes the gcd is the whole modulus.
-* `10403 = 101 * 103` satisfies the closeness bound, so `⌈√10403⌉ = 102` and Fermat factoring
+* `10403 = 101 * 103` satisfies the closeness bound, so `⌈√10403⌉ = 102` and `fermatFactor`
   returns `(103, 101)`, both by evaluation and by `fermatFactor_mul_eq`.
-* `303 = 3 * 101` violates the closeness bound, and Fermat factoring returns `(22, 13)`.
+* `303 = 3 * 101` violates the closeness bound, and `fermatFactor`, which tries only
+  `A = ⌈√303⌉ = 18`, returns `(22, 13)`. Fermat's full method, which goes on to larger `A`,
+  would factor `303` at `A = 52`, where `52 ^ 2 - 303 = 49 ^ 2`.
 * For `6 = 3 * 2` the closeness bound holds but `3 + 2` is odd: `⌈√6⌉ = 3 ≠ (3 + 2) / 2`, and
-  Fermat factoring returns `(4, 1)`, so the parity hypothesis is needed.
+  `fermatFactor` returns `(4, 1)`, so the parity hypothesis is needed.
 -/
 
 set_option linter.privateModule false
@@ -64,13 +66,13 @@ theorem close_103_101 :
     |((103 : ℕ) : ℝ) - (101 : ℕ)| < 2 * (((103 : ℕ) : ℝ) * (101 : ℕ)) ^ (1 / 4 : ℝ) :=
   (abs_sub_lt_two_mul_rpow_iff (by positivity)).2 (by norm_num)
 
-/-- Lemma 16.4 at `p = 103`, `q = 101`: `102 - √10403 < 1 / 2`. -/
-example : ((103 : ℝ) + 101) / 2 - Real.sqrt (103 * 101) < 1 / 2 :=
-  add_div_two_sub_sqrt_mul_lt_half (by norm_num) (by norm_num)
+/-- Lemma 16.4 at `p = 103`, `q = 101`: `|102 - √10403| < 1 / 2`. -/
+example : |((103 : ℝ) + 101) / 2 - Real.sqrt (103 * 101)| < 1 / 2 :=
+  abs_add_div_two_sub_sqrt_mul_lt_half (by norm_num) (by norm_num)
     ((abs_sub_lt_two_mul_rpow_iff (by norm_num)).2 (by norm_num))
 
 example : (if 103 * 101 = 0 then 0 else (103 * 101 - 1).sqrt + 1) = (103 + 101) / 2 :=
-  ceilSqrt_mul_eq_add_div_two (by norm_num) (by norm_num) (by decide) close_103_101
+  ceilSqrt_mul_eq_add_div_two (by decide) close_103_101
 
 /-- The natural-number ceiling square root agrees with the real ceiling here: `⌈√10403⌉ = 102`,
 since `101 ^ 2 < 10403 ≤ 102 ^ 2`. -/
@@ -78,15 +80,15 @@ example : ⌈Real.sqrt 10403⌉₊ = 102 := by
   rw [Nat.ceil_eq_iff (by norm_num), Real.lt_sqrt (by norm_num), Real.sqrt_le_left (by norm_num)]
   norm_num
 
-/-- Fermat factoring of `10403`, by evaluation. -/
+/-- `fermatFactor` factors `10403`, by evaluation. -/
 example : fermatFactor 10403 = (103, 101) := by
   norm_num [fermatFactor, factorOfTotient]
 
-/-- Fermat factoring of `10403`, from `fermatFactor_mul_eq`. -/
+/-- `fermatFactor` factors `10403`, from `fermatFactor_mul_eq`. -/
 example : fermatFactor (103 * 101) = (103, 101) :=
-  fermatFactor_mul_eq (by norm_num) (by norm_num) (by decide) close_103_101
+  fermatFactor_mul_eq (by norm_num) (by decide) close_103_101
 
-/-- Fermat factoring of the RSA modulus of `rsa10403`. -/
+/-- `fermatFactor` factors the RSA modulus of `rsa10403`. -/
 example : fermatFactor rsa10403.modulus = (103, 101) :=
   RSADesc.fermatFactor_eq rsa10403 (by decide) (by decide)
     ((abs_sub_lt_two_mul_rpow_iff (by positivity)).2 (by norm_num [rsa10403]))
@@ -98,7 +100,8 @@ example : ¬ |((101 : ℕ) : ℝ) - (3 : ℕ)| < 2 * (((101 : ℕ) : ℝ) * (3 :
   rw [abs_sub_lt_two_mul_rpow_iff (by positivity)]
   norm_num
 
-/-- Fermat factoring does not factor `303 = 3 * 101`. -/
+/-- The single step `A = ⌈√303⌉ = 18` of `fermatFactor` does not factor `303 = 3 * 101`; Fermat's
+full method would continue to `A = 52`. -/
 example : fermatFactor 303 = (22, 13) := by
   norm_num [fermatFactor, factorOfTotient]
 
@@ -112,7 +115,7 @@ example : |((3 : ℕ) : ℝ) - (2 : ℕ)| < 2 * (((3 : ℕ) : ℝ) * (2 : ℕ)) 
 example : (if 3 * 2 = 0 then 0 else (3 * 2 - 1).sqrt + 1) ≠ (3 + 2) / 2 := by
   norm_num
 
-/-- Fermat factoring does not factor `6 = 3 * 2`. -/
+/-- `fermatFactor` does not factor `6 = 3 * 2`. -/
 example : fermatFactor 6 = (4, 1) := by
   norm_num [fermatFactor, factorOfTotient]
 

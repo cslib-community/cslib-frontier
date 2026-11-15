@@ -907,16 +907,19 @@ For the RSA least-significant-bit experiment and algebraic attacks on plain RSA,
 For weak RSA moduli ([bs23][bs23], §16.4.2, pp. 698–699), import
 [`Factoring/WeakModuli.lean`](../../CslibFrontier/Crypto/Computational/Factoring/WeakModuli.lean).
 Moduli sharing a prime are factored by their gcd (`gcd_mul_mul_of_prime_ne`,
-`RSADesc.gcd_modulus_eq_of_p_eq`). Lemma 16.4 is proved over `ℝ`
-(`add_div_two_sub_sqrt_mul_lt_half`), and `abs_sub_lt_two_mul_rpow_iff` turns its closeness bound
-`|p - q| < 2 * (p * q) ^ (1 / 4)` into `(p - q) ^ 4 < 16 * (p * q)`, which `norm_num` decides on
-numbers. `fermatFactor n` applies `factorOfTotient` to `n + 1 - 2 * ⌈√n⌉`, with `⌈√n⌉` written as
-the function that `binary_ceilSqrt` certifies; `fermatFactor_mul_eq` shows that it returns `(p, q)`
-for `0 < q ≤ p` with `p + q` even under the closeness bound, without primality, and
-`RSADesc.fermatFactor_eq` does so for odd RSA primes. No polynomial-time certificate for
-`fermatFactor` is proved. The [checked examples](../../CslibFrontierTests/Crypto/WeakModuli.lean)
-factor `10403 = 101 * 103` and two moduli sharing `101`, and show that `3 * 101` and `3 * 2` are not
-factored.
+`RSADesc.gcd_modulus_eq_of_p_eq`). Lemma 16.4 is proved over `ℝ` as printed, with the absolute
+value in the conclusion `|(p + q) / 2 - √(p * q)| < 1 / 2`
+(`abs_add_div_two_sub_sqrt_mul_lt_half`), and `abs_sub_lt_two_mul_rpow_iff` turns its closeness
+bound `|p - q| < 2 * (p * q) ^ (1 / 4)` into `(p - q) ^ 4 < 16 * (p * q)`, which `norm_num`
+decides on numbers. `fermatFactor n` applies `factorOfTotient` to `n + 1 - 2 * ⌈√n⌉`, with `⌈√n⌉`
+written as the function that `binary_ceilSqrt` certifies. The book does not name this algorithm:
+`fermatFactor` is the library's name, and it is a single step of Fermat's method, trying only
+`A = ⌈√n⌉`. `fermatFactor_mul_eq` shows that it returns `(p, q)` for `q ≤ p` with `p + q` even
+under the closeness bound, which also forces `p` and `q` to be positive; primality is not needed.
+For an RSA modulus with odd primes, `RSADesc.fermatFactor_eq` shows that it returns
+`(max p q, min p q)`. No polynomial-time certificate for `fermatFactor` is proved. The
+[checked examples](../../CslibFrontierTests/Crypto/WeakModuli.lean) factor `10403 = 101 * 103`
+and two moduli sharing `101`, and show that `fermatFactor` does not factor `3 * 101` or `3 * 2`.
 
 ### Elliptic curves over finite fields and Hasse's bound
 
