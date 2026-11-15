@@ -85,7 +85,8 @@ private theorem correctnessToy_valid : correctnessToy.Valid :=
 
 private theorem correctnessHash_inBall : ∀ x, InBall correctnessToy.τ (correctnessHash x) := by
   intro _
-  decide +kernel +revert
+  simp only [correctnessHash]
+  decide +kernel
 
 private theorem correctnessSk_short :
     ∀ i j, |(correctnessSk.s₂ i j).valMinAbs| ≤ correctnessToy.η := by
