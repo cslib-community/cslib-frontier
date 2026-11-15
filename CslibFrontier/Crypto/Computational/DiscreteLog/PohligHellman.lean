@@ -371,18 +371,17 @@ theorem extractModRough_eq_mod {q L x r₁ s₁ r₂ s₂ : ℕ} (hL : L ∣ q) 
     mul_comm _ (inv : ZMod L), hinv, mul_one]
 
 /-- **Composite-order discrete-logarithm recovery** (original): combining a residue
-`a = x % D` on the smooth divisor `D` with `extractModRough` on the coprime cofactor `L` (where
-`D * L = q`) recovers the exact discrete logarithm `x < q`. -/
+`a = x % D` on the smooth divisor `D` with `extractModRough` on the cofactor `L` (where
+`D * L = q`) recovers the exact discrete logarithm `x < q`, given an inverse of `D` modulo `L`. -/
 theorem crtCombine_extractModRough_eq {q D L x r₁ s₁ r₂ s₂ invDiff invD : ℕ}
-    (hD : 0 < D) (hL : 0 < L) (hq : D * L = q) (hcop : Nat.Coprime D L)
-    (hx : x < q) (hr₂ : r₂ ≤ q) (hs₂ : s₂ ≤ q)
+    (hq : D * L = q) (hx : x < q) (hr₂ : r₂ ≤ q) (hs₂ : s₂ ≤ q)
     (hrel : ((s₁ : ZMod q) - s₂) = (x : ZMod q) * ((r₁ : ZMod q) - r₂))
     (hinvDiff : (invDiff : ZMod L) * (((r₁ + (q - r₂)) % L : ℕ) : ZMod L) = 1)
     (hinvD : (invD : ZMod L) * D = 1) :
     crtCombine D L (x % D) (extractModRough q L s₁ s₂ invDiff) invD = x := by
   have hL_dvd : L ∣ q := ⟨D, by rw [← hq, mul_comm]⟩
   have hxL := extractModRough_eq_mod hL_dvd hr₂ hs₂ hrel invDiff hinvDiff
-  exact crtCombine_eq hD hL hcop (hq.symm ▸ hx) rfl hxL invD hinvD
+  exact crtCombine_eq (hq.symm ▸ hx) rfl hxL invD hinvD
 
 /-- **Schnorr transcript congruence in a cyclic group** (original): if `g` has order `q` and two
 transcripts `(r₁, s₁)` and `(r₂, s₂)` share the same commitment

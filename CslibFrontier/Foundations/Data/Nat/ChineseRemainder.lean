@@ -20,9 +20,9 @@ import Mathlib.Tactic.Linarith
 and a residue `xL` modulo `L`, given an inverse `inv` of `D` modulo `L`. The difference
 `xL - a` is taken modulo `L` and written as `xL + (L - a mod L)`, so no natural-number
 subtraction truncates. The output is congruent to `a` modulo `D` for all arguments and to `xL`
-modulo `L` whenever `inv * D ≡ 1 (mod L)`. For coprime `D` and `L` it therefore reconstructs
-every `x < D * L` from `x mod D` and `x mod L`; Mathlib's `Nat.chineseRemainder` gives the same
-value without an explicit formula.
+modulo `L` whenever `inv * D ≡ 1 (mod L)`. Such an inverse makes `D` and `L` coprime, so
+`crtCombine` reconstructs every `x < D * L` from `x mod D` and `x mod L`; Mathlib's
+`Nat.chineseRemainder` gives the same value without an explicit formula.
 
 ## Main definitions
 
@@ -32,8 +32,8 @@ value without an explicit formula.
 
 * `Cslib.crtCombine_modEq_left`, `Cslib.crtCombine_modEq_right`: the output is congruent to `a`
   modulo `D` and, given the inverse, to `xL` modulo `L`.
-* `Cslib.crtCombine_eq`: for coprime `D` and `L`, recombining `x mod D` and `x mod L` returns
-  every `x < D * L`.
+* `Cslib.crtCombine_eq`: given an inverse of `D` modulo `L`, recombining `x mod D` and `x mod L`
+  returns every `x < D * L`.
 
 ## References
 
@@ -68,12 +68,17 @@ theorem crtCombine_modEq_right {D L inv : ℕ} (hL : 0 < L) (hinv : (inv : ZMod 
   linear_combination ((xL : ZMod L) - a) * hinv
 
 /-- **Chinese Remainder Theorem reconstruction** (the two-modulus case of the CRT used in
-[KatzLindell2020], Section 10.2.1, p. 374): for coprime `D` and `L` with `x < D * L`,
-`a = x % D`, `xL = x % L`, and `inv * D ≡ 1 (mod L)`, `crtCombine D L a xL inv = x`. -/
-theorem crtCombine_eq {D L x a xL : ℕ} (hD : 0 < D) (hL : 0 < L) (hcop : Nat.Coprime D L)
-    (hx : x < D * L) (ha : a = x % D) (hxL : xL = x % L) (inv : ℕ)
-    (hinv : (inv : ZMod L) * D = 1) :
+[KatzLindell2020], Section 10.2.1, p. 374): for `x < D * L`, `a = x % D`, `xL = x % L`, and
+`inv * D ≡ 1 (mod L)`, `crtCombine D L a xL inv = x`. Positivity of `D` and `L` follows from
+`x < D * L`, and their coprimality from the inverse. -/
+theorem crtCombine_eq {D L x a xL : ℕ} (hx : x < D * L) (ha : a = x % D) (hxL : xL = x % L)
+    (inv : ℕ) (hinv : (inv : ZMod L) * D = 1) :
     crtCombine D L a xL inv = x := by
+  have hD : 0 < D := Nat.pos_of_ne_zero fun h => by simp [h] at hx
+  have hL : 0 < L := Nat.pos_of_ne_zero fun h => by simp [h] at hx
+  have hcop : Nat.Coprime D L := Nat.coprime_of_mul_modEq_one inv <| by
+    rw [← ZMod.natCast_eq_natCast_iff, Nat.cast_mul, Nat.cast_one, mul_comm]
+    exact hinv
   have h1 : crtCombine D L a xL inv ≡ x [MOD D] :=
     (crtCombine_modEq_left D L a xL inv).trans (ha ▸ Nat.mod_modEq x D)
   have h2 : crtCombine D L a xL inv ≡ x [MOD L] :=

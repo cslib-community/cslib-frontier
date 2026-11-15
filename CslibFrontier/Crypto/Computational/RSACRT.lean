@@ -139,14 +139,10 @@ private theorem natCast_qInv_mul_q {key : RSACRTKey} (hinv : key.qInv * key.q �
   exact h
 
 /-- **CRT recombination** ([BonehShoup2023], §16.4.3, p. 701): for an inverse `q_inv` of `q`
-modulo `p` and `x < p * q`, recombining `x mod p` and `x mod q` returns `x`. Positivity of `p`
-and `q` follows from `x < p * q`, and their coprimality from the inverse. -/
+modulo `p` and `x < p * q`, recombining `x mod p` and `x mod q` returns `x`. -/
 theorem combine_mod_mod (key : RSACRTKey) (hinv : key.qInv * key.q ≡ 1 [MOD key.p]) {x : ℕ}
     (hx : x < key.p * key.q) : key.combine (x % key.p) (x % key.q) = x :=
-  crtCombine_eq (Nat.pos_of_ne_zero fun h => by simp [h] at hx)
-    (Nat.pos_of_ne_zero fun h => by simp [h] at hx)
-    (Nat.coprime_of_mul_modEq_one key.qInv (by rwa [mul_comm])) (by rwa [mul_comm]) rfl rfl
-    key.qInv (natCast_qInv_mul_q hinv)
+  crtCombine_eq (by rwa [mul_comm]) rfl rfl key.qInv (natCast_qInv_mul_q hinv)
 
 /-- The recombined value is congruent to `x_q` modulo `q`, for all `x_p` and `x_q`. -/
 theorem combine_modEq_q (key : RSACRTKey) (xp xq : ℕ) : key.combine xp xq ≡ xq [MOD key.q] :=
