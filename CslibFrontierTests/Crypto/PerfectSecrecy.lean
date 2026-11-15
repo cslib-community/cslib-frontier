@@ -18,8 +18,10 @@ with ordinary imports.
 
 * The counting criterion (Theorem 2.1, (i) ⇔ (ii)) accepts a cipher with two keys per message and
   ciphertext, and rejects the identity cipher with one key.
-* The criterion `N_c = 1` proves the upstream one-time pad perfectly secure, as the book proves
+* The criterion `N_c = 1` proves the one-time pad `otp` perfectly secure, as the book proves
   Theorem 2.2.
+* Theorem 2.3 in both directions: every event has the same probability under any two messages of
+  the one-time pad, and the event `{true}` separates the two messages of the identity cipher.
 * Full support is needed in the converse of Theorem 2.4: the identity cipher with a point-mass
   message law has independent message and ciphertext, and is not perfectly secure. With the
   uniform message law, the theorem shows that its message and ciphertext are dependent.
@@ -39,13 +41,20 @@ example : (EncScheme.ofPure (uniformOfFintype (Bool × Bool))
   (EncScheme.ciphertextIndist_ofPure_uniformOfFintype_iff _ _ _).mpr fun c => ⟨2, fun m => by
     rw [Nat.card_eq_fintype_card, Fintype.card_subtype]; revert m c; decide⟩
 
-/-- The one-time pad of pinned cslib through the criterion `N_c = 1`, with the key `c ⊕ m`: the
+/-- The one-time pad `otp` through the criterion `N_c = 1`, with the key `c ⊕ m`: the
 book's proof of Theorem 2.2. -/
 example (l : ℕ) : (otp l).CiphertextIndist :=
   EncScheme.ciphertextIndist_ofPure_uniformOfFintype_of_existsUnique _ _ _ fun m c =>
     ⟨c ^^^ m, by simp only [BitVec.xor_assoc, BitVec.xor_self, BitVec.xor_zero],
       fun k (hk : k ^^^ m = c) => by
         subst hk; simp only [BitVec.xor_assoc, BitVec.xor_self, BitVec.xor_zero]⟩
+
+/-- Theorem 2.3, forward: under the one-time pad every event on ciphertexts has the same
+probability for any two messages. -/
+example (l : ℕ) (S : Set (BitVec l)) (m₀ m₁ : BitVec l) :
+    ((otp l).ciphertextDist m₀).toOuterMeasure S = ((otp l).ciphertextDist m₁).toOuterMeasure S :=
+  (EncScheme.ciphertextIndist_iff_forall_toOuterMeasure _).mp
+    ((EncScheme.perfectlySecret_iff_ciphertextIndist _).mp (otp_perfectlySecret l)) S m₀ m₁
 
 /-! ### The identity cipher -/
 
@@ -69,6 +78,12 @@ example : ¬ idCipher.CiphertextIndist := by
   have h₂ := hN false
   rw [Nat.card_eq_fintype_card, Fintype.card_subtype] at h₁ h₂
   exact absurd (h₁.trans h₂.symm) (by decide)
+
+/-- Theorem 2.3, converse: the event `{true}` has probability `1` under the message `true` and `0`
+under `false`, so the identity cipher is not perfectly secure. -/
+example : ¬ idCipher.CiphertextIndist := fun h => by
+  have := (EncScheme.ciphertextIndist_iff_forall_toOuterMeasure _).mp h {true} true false
+  simp [idCipher_ciphertextDist] at this
 
 /-! ### Full support in Theorem 2.4 -/
 

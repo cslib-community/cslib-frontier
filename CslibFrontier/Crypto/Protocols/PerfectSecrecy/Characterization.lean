@@ -14,14 +14,14 @@ import CslibFrontier.Probability.PMF.Map
 # Characterizations of perfect security (Boneh–Shoup §2.1.2)
 
 The equivalent forms of perfect security that [BonehShoup2023], v0.6, §2.1.2 (printed pp. 8–12)
-states for Shannon ciphers, on the information-theoretic encryption schemes of pinned cslib.
+states for Shannon ciphers, on the information-theoretic encryption schemes `EncScheme`.
 
 A Shannon cipher `(E, D)` over `(K, M, C)` with its uniformly random key is
 `EncScheme.ofPure (uniformOfFintype K) enc dec h`, where `h` is the book's correctness property
 `D(k, E(k, m)) = m`. Its `CiphertextIndist` (equal ciphertext laws for any two messages) is the
 book's Definition 2.1 (perfect security, p. 8): two laws on `C` are equal exactly when they give
 every ciphertext the same mass. The library's `PerfectlySecret` is instead the posterior form of
-[KatzLindell2020], Definition 2.3; upstream `perfectlySecret_iff_ciphertextIndist` converts between
+[KatzLindell2020], Definition 2.3; `perfectlySecret_iff_ciphertextIndist` converts between
 the two, so every result below also characterizes `PerfectlySecret`.
 
 The ciphertext law of a deterministic scheme is the image of its key law
@@ -52,7 +52,7 @@ All of this is information-theoretic: there is no adversary and no resource boun
 * In Theorem 2.1 (ii) the integer `N_c` is a natural number, as a count of keys is.
 * In Theorem 2.3 the book's predicates `φ` on `C` are events `S : Set C`.
 * Theorem 2.4 is stated as one equivalence for a message law of full support. The book's first
-  half holds for every message law; that is upstream `indep_of_ciphertextIndist`.
+  half holds for every message law; that is `indep_of_ciphertextIndist`.
 * Independence in Theorem 2.4 is the factorization `Pr[m = m ∧ c = c] = Pr[m = m] · Pr[c = c]` of
   the joint law, not Mathlib's `ProbabilityTheory.IndepFun`.
 
@@ -135,13 +135,15 @@ any key law. A scheme has equal ciphertext laws for any two messages if and only
 `S` on ciphertexts has the same probability under any two messages.
 
 The book's predicates `φ` on `C` are the events `S = {c | φ c}`; its statement is the case
-`scheme = ofPure (uniformOfFintype K) enc dec h`, where `CiphertextIndist` is Definition 2.1. As in
-the book's proof, the converse uses only singleton events. -/
+`scheme = ofPure (uniformOfFintype K) enc dec h`, where `CiphertextIndist` is Definition 2.1. The
+theorem is Mathlib's `PMF.toOuterMeasure_inj` read for the ciphertext laws: what it adds is the
+book's formulation, not a new argument. As in the book's proof, the converse needs only singleton
+events. -/
 theorem ciphertextIndist_iff_forall_toOuterMeasure (scheme : EncScheme M K C) :
     scheme.CiphertextIndist ↔ ∀ (S : Set C) (m₀ m₁ : M),
       (scheme.ciphertextDist m₀).toOuterMeasure S = (scheme.ciphertextDist m₁).toOuterMeasure S :=
-  ⟨fun h S m₀ m₁ => by rw [h m₀ m₁], fun h m₀ m₁ => PMF.ext fun c => by
-    simpa only [PMF.toOuterMeasure_apply_singleton] using h {c} m₀ m₁⟩
+  ⟨fun h S m₀ m₁ => by rw [h m₀ m₁], fun h m₀ m₁ =>
+    PMF.toOuterMeasure_injective (MeasureTheory.OuterMeasure.ext fun S => h S m₀ m₁)⟩
 
 /-- **Perfect security as independence of message and ciphertext**: [BonehShoup2023], Theorem 2.4
 (pp. 11–12), for every scheme and one message law `msgDist` that gives every message nonzero
@@ -152,7 +154,7 @@ uses.
 
 The book states the theorem for Shannon ciphers with a uniform key, the case
 `scheme = ofPure (uniformOfFintype K) enc dec h`. Its first half, that perfect security gives
-independence, holds for every message law and is upstream `indep_of_ciphertextIndist`; full support
+independence, holds for every message law and is `indep_of_ciphertextIndist`; full support
 is used only for the converse, which is the book's second half. The converse is false without it:
 the identity cipher on `Bool` with a point-mass message law satisfies the factorization and is not
 `CiphertextIndist`. -/
