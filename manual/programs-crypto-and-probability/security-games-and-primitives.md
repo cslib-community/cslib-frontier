@@ -168,8 +168,8 @@ queries by two `(m + (Q + 1) * l)`-row decisional LWE advantages with combined e
 `FuzzyExtractor.encryptLWEErrorLaw W (ProbComp.eval E) Q`, via `encryptRealReduction` and
 `encryptIdealReduction`, which answer the `k`-th query from the `k`-th `l`-row block of the LWE
 instance; the presampling theorem `ProbOracleComp.IsQueryBounded.eval_presample` equates this with
-fresh blocks. `FuzzyExtractor.StronglyReusable` is the strong-reusability experiment against word
-adversaries, with each leakage `(p, r)` written as the pair of its helper and key words, and
+fresh blocks. `FuzzyExtractor.StronglyReusable` is the asymptotic predicate for strong
+reusability against word adversaries, with each leakage `(p, r)` written as the pair of its helper and key words, and
 `FuzzyExtractor.stronglyReusable_lweEncryptFuzzyExtractor` is the Section 5 claim in that form: if
 `DecisionLWE` holds with `m + (Q + 1) * l` samples and error law `χ`, and the encryption errors
 have independent coordinates drawn from `χ`, the Section 5 family is `StronglyReusable` for the

@@ -314,6 +314,24 @@ theorem encInput_apply (x : Input n m w) :
       frame (encUnary x.secParam) ++ Matrix.toBinary (augmentedMatrix x.matrix x.target) := by
   simp [encInput, Input.words, encPair, encBits]
 
+variable {n m w} in
+/-- The security parameter of a decision-LWE input is computable in polynomial time from its
+encoding. -/
+theorem computableInPolyTime_secParam :
+    ComputableInPolyTime (fun x : Input n m w => x.secParam) (encInput n m w) encUnary :=
+  (ComputableInPolyTime.fst encUnary encBits).comp
+    (ComputableInPolyTime.of_eq (f := Input.words) fun _ => rfl)
+
+variable {n m w} in
+/-- The word of the matrix `[b | A]` of a decision-LWE input is computable in polynomial time from
+its encoding. -/
+theorem computableInPolyTime_augmentedWord :
+    ComputableInPolyTime
+      (fun x : Input n m w => Matrix.toBinary (augmentedMatrix x.matrix x.target))
+      (encInput n m w) encBits :=
+  (ComputableInPolyTime.snd encUnary encBits).comp
+    (ComputableInPolyTime.of_eq (f := Input.words) fun _ => rfl)
+
 /-- A decision-LWE distinguisher: given the security parameter `κ`, a matrix `A` and a vector `b`
 of the dimensions and modulus at `κ`, it outputs a bit. `Distinguisher.IsPPT` states its
 efficiency on encodings. -/

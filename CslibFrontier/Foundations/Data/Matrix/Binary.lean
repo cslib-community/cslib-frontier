@@ -127,11 +127,7 @@ theorem toBinary_ofBinary {rows cols w : ℕ} {word : List Bool}
 theorem binaryEntry_eq_zero_of_length_le {cols w : ℕ} {word : List Bool} {i j : ℕ}
     (h : word.length ≤ (i * cols + j) * w) : binaryEntry cols w word i j = 0 := by
   rw [binaryEntry, listRow, List.drop_eq_nil_of_le h, List.nil_append, List.take_replicate,
-    Nat.min_self]
-  clear h
-  induction w with
-  | zero => rfl
-  | succ w ih => rw [List.replicate_succ, List.foldr_cons, ih]; rfl
+    Nat.min_self, Nat.foldr_bit_replicate_false]
 
 /-- Fixed-dimensional matrices inject into their complete binary words. This fixed-type
 embedding alone makes no claim of uniform computational efficiency in the dimensions. -/

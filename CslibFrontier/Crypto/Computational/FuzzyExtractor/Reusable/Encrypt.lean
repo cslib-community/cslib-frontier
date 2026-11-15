@@ -534,17 +534,6 @@ noncomputable def encryptLWEErrorLaw {m l q : ℕ} [NeZero q]
       (Probability.PMF.pi (fun _ : Fin Q => E)).bind fun eQ =>
         PMF.pure (joinRows w e₀ eQ)
 
-/-- With a uniform source and uniform encryption errors, the combined error law of
-`encryptLWEErrorLaw` is uniform on all `m + (Q + 1) * l` rows. Together with
-`LWE.advantage_uniform_error_eq_zero`, this shows that the right-hand side of
-`strongReuseAdvantage_lweEncryptFuzzyExtractor_le` can be `0`. -/
-theorem encryptLWEErrorLaw_uniform (Q : ℕ) :
-    encryptLWEErrorLaw (PMF.uniformOfFintype (Fin m → ZMod q))
-        (PMF.uniformOfFintype (Fin l → ZMod q)) Q =
-      PMF.uniformOfFintype (Fin (m + (Q + 1) * l) → ZMod q) := by
-  rw [encryptLWEErrorLaw, Probability.PMF.pi_uniformOfFintype,
-    ← uniform_bind_splitRows PMF.pure, PMF.bind_pure]
-
 /-- Under assumptions (1) and (2) of [AponChoEldefrawyKatz2017], Section 5, p. 12, the combined
 error law of `encryptLWEErrorLaw` is that of plain LWE: when every coordinate of the reading and
 of each encryption error is drawn independently from one law `χ`, all `m + (Q + 1) * l`
@@ -1233,7 +1222,7 @@ private theorem leakWordOf_eq {m n l Q w : ℕ} (t k : ℕ)
   have hhead (i : Fin m) := rowEntries M b (rowIndexEquiv m l Q (Sum.inl i)) (row := i.val)
     (by simp [rowIndexEquiv])
   obtain ⟨hb, hB⟩ := blockAt_entries M b k
-  rw [leakWordOf, ← keyWord_reply (headMatrixRows M) (headRows b) t x request _
+  rw [leakWordOf, ← keyWord_eq_replyWordOf (headMatrixRows M) (headRows b) t x request _
       (fun i => (hhead i).1) (fun i j => (hhead i).2 j),
     ← toBinary_eq_matrixRowsWord (blockAt M b k).1 _ _ hB,
     ← keyWord_eq_cipherRowsWord (blockAt M b k).2 (blockAt M b k).1 x r _ _ _ _ hb hB
@@ -1408,15 +1397,11 @@ private theorem isPPTOn_queryWords (hm : ComputableInPolyTime m encUnary encUnar
   let encCall : Call ↪ List Bool := encHandlerCall input (encFinEnum Unit) encUnary
   have hκ : ComputableInPolyTime (fun p : LWE.Input n R w × List Bool => p.1.secParam) input
       encUnary :=
-    (ComputableInPolyTime.fst encUnary encBits).comp
-      ((ComputableInPolyTime.of_eq (f := LWE.Input.words) fun _ => rfl).comp
-        (ComputableInPolyTime.fst _ _))
+    LWE.computableInPolyTime_secParam.comp (ComputableInPolyTime.fst _ _)
   have hword : ComputableInPolyTime
       (fun p : LWE.Input n R w × List Bool =>
         Cslib.Matrix.toBinary (LWE.augmentedMatrix p.1.matrix p.1.target)) input encBits :=
-    (ComputableInPolyTime.snd encUnary encBits).comp
-      ((ComputableInPolyTime.of_eq (f := LWE.Input.words) fun _ => rfl).comp
-        (ComputableInPolyTime.fst _ _))
+    LWE.computableInPolyTime_augmentedWord.comp (ComputableInPolyTime.fst _ _)
   have hκc : ComputableInPolyTime (fun call : Call => call.1.1.secParam) encCall encUnary :=
     hκ.comp (ComputableInPolyTime.fst _ _)
   have hwordc : ComputableInPolyTime
@@ -1558,8 +1543,7 @@ theorem isPPT_encryptRealReduction (hm : ComputableInPolyTime m encUnary encUnar
   let input := LWE.encInput n (fun κ => m κ + (Q κ + 1) * l κ) w
   have hκ : ComputableInPolyTime
       (fun x : LWE.Input n (fun κ => m κ + (Q κ + 1) * l κ) w => x.secParam) input encUnary :=
-    (ComputableInPolyTime.fst encUnary encBits).comp
-      (ComputableInPolyTime.of_eq (f := LWE.Input.words) fun _ => rfl)
+    LWE.computableInPolyTime_secParam
   have hkey : IsPPTOn input encBits fun x : LWE.Input n (fun κ => m κ + (Q κ + 1) * l κ) w =>
       encBitString (l x.secParam) <$> ProbComp.uniform (BitString (l x.secParam)) :=
     (hl.comp hκ).uniformBitString
@@ -1584,8 +1568,7 @@ theorem isPPT_encryptIdealReduction (hm : ComputableInPolyTime m encUnary encUna
   let input := LWE.encInput n (fun κ => m κ + (Q κ + 1) * l κ) w
   have hκ : ComputableInPolyTime
       (fun x : LWE.Input n (fun κ => m κ + (Q κ + 1) * l κ) w => x.secParam) input encUnary :=
-    (ComputableInPolyTime.fst encUnary encBits).comp
-      (ComputableInPolyTime.of_eq (f := LWE.Input.words) fun _ => rfl)
+    LWE.computableInPolyTime_secParam
   have hkey : IsPPTOn input encBits fun x : LWE.Input n (fun κ => m κ + (Q κ + 1) * l κ) w =>
       encBitString (l x.secParam) <$> ProbComp.uniform (BitString (l x.secParam)) :=
     (hl.comp hκ).uniformBitString

@@ -72,7 +72,7 @@ the Section 5 reductions also use); that program has the law of the typed simula
 * `Cslib.Crypto.FuzzyExtractor.LWEFamily.commonMatrixSimulator`: the simulator at every parameter.
 * `Cslib.Crypto.FuzzyExtractor.LWEFamily.lightShift`,
   `Cslib.Crypto.FuzzyExtractor.LWEFamily.replyWordOf`: the word of a simulated code offset
-  `c + A s' + clampShift t δ` (`LWEFamily.keyWord_reply`).
+  `c + A s' + clampShift t δ` (`LWEFamily.keyWord_eq_replyWordOf`).
 
 ## Main results
 
@@ -252,7 +252,7 @@ def lightShift (m w t : ℕ) (request : List Bool) : Bool :=
 /-- The word of a simulated code offset `c + A s' + δ'`: entry `i` is `c i + ∑ⱼ A i j * s' j + δ' i`
 in `w` bits, where `c` and `A` are read from rows `0, …, m - 1` of the word `helper` of a matrix
 `[c | A]` with `n + 1` columns, `s'` from the coins, and `δ'` from the request if `lightShift`
-holds and is `0` otherwise (`keyWord_reply`). -/
+holds and is `0` otherwise (`keyWord_eq_replyWordOf`). -/
 def replyWordOf (m n w t : ℕ) (helper : List Bool) (coins : List ℕ)
     (request : List Bool) : List Bool :=
   (List.range m).flatMap fun i =>
@@ -301,7 +301,7 @@ private theorem lightShift_eq (m w t : ℕ) (request : List Bool) :
 /-- `replyWordOf` computes the word of `c + A s' + clampShift t δ`, for the coins of `s'` and the
 shift `δ` decoded from the request, from any word `helper` whose row `i` holds `c i` in column `0`
 and `A i j` in column `j + 1`, as the word of `[c | A]` does. -/
-theorem keyWord_reply {m n w : ℕ} (A : _root_.Matrix (Fin m) (Fin n) (ZMod (2 ^ w)))
+theorem keyWord_eq_replyWordOf {m n w : ℕ} (A : _root_.Matrix (Fin m) (Fin n) (ZMod (2 ^ w)))
     (c : Fin m → ZMod (2 ^ w)) (t : ℕ) (x : Fin n → ZMod (2 ^ w)) (request : List Bool)
     (helper : List Bool)
     (hc : ∀ i : Fin m, (Cslib.Matrix.binaryEntry (n + 1) w helper i.val 0 : ZMod (2 ^ w)) = c i)
@@ -342,7 +342,7 @@ private theorem eval_simHandler {m n w : ℕ} (A : _root_.Matrix (Fin m) (Fin n)
       ProbComp.eval_replicate_sampleBinaryNat, ProbComp.eval_uniform, PMF.bind_map,
       PMF.map_bind, Function.comp_def, PMF.pure_map]
     congr 1 with x : 1
-    rw [← keyWord_reply A c t x word (helperWord ⟨A, c, ()⟩)
+    rw [← keyWord_eq_replyWordOf A c t x word (helperWord ⟨A, c, ()⟩)
       (LWE.binaryEntry_toBinary_augmentedMatrix_zero A c)
       (LWE.binaryEntry_toBinary_augmentedMatrix_succ A c)]
     rfl

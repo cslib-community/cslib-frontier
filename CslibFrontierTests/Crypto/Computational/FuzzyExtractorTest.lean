@@ -425,7 +425,12 @@ example
   have h := strongReuseAdvantage_lweEncryptFuzzyExtractor_le
     (ProbComp.uniform (Fin 2 → ZMod 16)) decode (PMF.uniformOfFintype (Fin 4 → ZMod 16)) t Q adv
     hQ
-  rw [ProbComp.eval_uniform, encryptLWEErrorLaw_uniform, LWE.advantage_uniform_error_eq_zero,
+  have hlaw : encryptLWEErrorLaw (PMF.uniformOfFintype (Fin 4 → ZMod 16))
+      (PMF.uniformOfFintype (Fin 2 → ZMod 16)) Q =
+        PMF.uniformOfFintype (Fin (4 + (Q + 1) * 2) → ZMod 16) := by
+    simpa only [Probability.PMF.pi_uniformOfFintype] using
+      encryptLWEErrorLaw_pi (m := 4) (l := 2) (PMF.uniformOfFintype (ZMod 16)) Q
+  rw [ProbComp.eval_uniform, hlaw, LWE.advantage_uniform_error_eq_zero,
     LWE.advantage_uniform_error_eq_zero, add_zero] at h
   exact le_antisymm h zero_le
 
