@@ -7,6 +7,7 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: candidate
 
+import Cslib.Computability.Machines.Turing.MultiTape.Combinators.AlmostConstant
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.NondeterministicQueryMachine
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.SpaceNormalForm
 import Mathlib.Data.List.GetD
