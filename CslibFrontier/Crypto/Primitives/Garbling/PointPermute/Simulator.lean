@@ -204,7 +204,7 @@ masked by the keyed function at their keys; every other row holds its filler lab
 /-- The simulated view `(F, X, d)` at parameter `k` for the output `y` and the topology `t`, on the
 simulator's coins: the garbled function with the header and wire numbers of `t` and the rows
 `simRow`, the labels of the input wires, and the decoding bits that make the colours of the output
-wires' labels decode to `y`. -/
+wires' labels decode to `y` when `y` has `t.m` bits. -/
 @[expose] def simViewWord (k : ℕ) (y : List Bool) (t : Topo) (coins : List Bool) : PrvView where
   fn := encFn ((k, t.n, t.m, t.q), (List.ofFn fun g : Fin t.q =>
     BitString.lowBits (wireWidth t.n t.q) (t.A g) ++
