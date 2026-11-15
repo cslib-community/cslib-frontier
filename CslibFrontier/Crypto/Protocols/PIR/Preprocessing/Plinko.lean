@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Crypto.Primitives.PRF.Invertible
 public import CslibFrontier.Crypto.Protocols.PIR.Preprocessing.Basic
+public import CslibFrontier.Foundations.Data.Finset.OrderedFilter
 public import Mathlib.Algebra.Ring.BooleanRing
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF.Bind
@@ -31,7 +32,7 @@ indexed by `Fin (nReg + nBackup)`, together with one invertible PRF key `keys α
 
 * **Hint lookup via iPRF inversion** (`getHint`, `getHintScan`, `getHint_eq_getHintScan`):
   to find an active hint containing `x = (α, β)`, `getHint` inverts `iF` at `(keys α, β)` to obtain
-  the candidate slot set `iF.inv (keys α) β` and selects the first matching active slot.
+  the candidate slot set `iF.inv (keys α) β` and selects the smallest matching active slot.
   When `iF.IsCorrectKey (keys α)` holds, `getHint` returns the exact same hint as a full linear scan
   `getHintScan` over all `nReg + nBackup` slots.
 * **Offline single-pass entry streaming** (`initPlinkoState`, `streamEntry`, `streamPreprocess`,
@@ -40,26 +41,26 @@ indexed by `Fin (nReg + nBackup)`, together with one invertible PRF key `keys α
   cache validity invariant `PlinkoState.Valid`.
 * **Online query, answer, reconstruction, and backup promotion** (`buildQuery`, `plinkoAnswer`,
   `plinkoReconstruct`, `plinkoScheme`, `PlinkoState.eval_step_plinkoScheme`,
-  `PlinkoState.isCorrectFrom_plinkoScheme`): on an uncached query `x = (α, β)`, the client removes
+  `PlinkoState.isCorrectFrom_plinkoScheme_of_canAnswerSeq`): on an uncached query `x = (α, β)`, the client removes
   `α` from the matched `(c / 2 + 1)`-block set `P` to obtain `P' = P.erase α`, randomly sends either
   `P'` or `Finset.univ \ P'` according to a fair coin `b : Bool`, replaces `α`'s offset with a
   random offset `r : Fin w`, reconstructs `db x = p + r_b`, consumes the matched hint, promotes the
   next backup hint `T[j']` into `H[j']`, and caches `(db x, j')` in `cache x`. Under `Valid` and
   `CanAnswerSeq`, `plinkoScheme` satisfies `Scheme.IsCorrectFrom` and preserves `Valid` across both
   the promotion and cache paths.
-* **Single-query and hybrid multi-query privacy** (`eval_buildQuery_conditioned_eq_plinkoSim`,
-  `plinkoHybridScheme`, `isCorrect_plinkoHybridScheme`,
-  `isPerfectlyPrivateWith_plinkoHybridScheme`, `eval_snd_plinkoScheme_query_of_getHint`):
-  when `Even c`, a regular hint conditioned on containing `x = (α, β)` produces a query message
-  whose distribution equals `plinkoSim c w` (a uniform `(c / 2)`-subset of blocks paired with
-  independent uniform offsets), independent of `x`. In the idealized random-hint hybrid
-  `plinkoHybridScheme` (a proof device that stores `db` to compute exact parities and samples a
-  fresh conditioned regular hint at each query), this yields unconditional correctness
-  `Scheme.IsCorrect` and multi-query adaptive perfect privacy `Scheme.IsPerfectlyPrivateWith`.
+* **The query map and an idealized stand-in** (`eval_buildQuery_conditioned_eq_plinkoSim`,
+  `plinkoHybridScheme`, `isPerfectlyPrivateWith_plinkoHybridScheme`): when `Even c`, `buildQuery`
+  sends a uniform regular hint conditioned on containing `x = (α, β)`, together with a uniform coin
+  and replacement offset, to the simulator distribution `plinkoSim c w` (a uniform
+  `(c / 2)`-subset of blocks with independent uniform offsets). This is a fact about the query map
+  under an assumed hint law; the law of the hints that `plinkoScheme` consumes is not analysed.
+  The idealized stand-in `plinkoHybridScheme` has no iPRF, no keys and no hint table, keeps `db` in
+  its state and draws a fresh conditioned hint for each query; it is perfectly private against
+  adaptive servers. Neither result is privacy of `plinkoScheme` or the paper's privacy claim.
 * **Database and hint updates** (`updateDB`, `updateHint`, `updateState`,
   `PlinkoState.valid_updateHint_delta`, `PlinkoState.valid_updateHint`,
   `PlinkoState.valid_updateState`, `PlinkoState.canAnswer_updateHint_iff`):
-  updating entry `i = (α, β)` to `d` via summary `δ = (i, db i + d)` touches only the candidate
+  updating entry `i = (α, β)` to `d` via summary `δ = ⟨i, db i + d⟩` touches only the candidate
   slots in `iF.inv (keys α) β` and the cache entry `cache i`, preserving `PlinkoState.Valid`
   against `Function.update db i d` as well as `PlinkoState.CanAnswer`.
 
@@ -67,16 +68,17 @@ indexed by `Fin (nReg + nBackup)`, together with one invertible PRF key `keys α
 
 * `blockParity`, `PlinkoQuery`, `buildQuery`, `plinkoAnswer`, `plinkoReconstruct`:
   block-offset parities, online query construction, server answer, and client reconstruction.
-* `ActiveHint`, `BackupHint`, `PlinkoState`, `getHint`, `getHintScan`:
-  client hint state and hint lookup via iPRF inversion (`iF.inv`) vs. linear scan.
+* `ActiveHint`, `BackupHint`, `PlinkoState`, `ExtractedHint`, `MatchedHint`, `getHint`,
+  `getHintScan`: client hint state and hint lookup via iPRF inversion (`iF.inv`) vs. linear scan.
 * `initPlinkoState`, `streamEntry`, `streamUpTo`, `streamPreprocess`:
   offline single-pass entry streaming (`HintInit`).
 * `refreshPlinkoState`, `PlinkoState.Valid`, `PlinkoState.CanAnswer`, `PlinkoState.CanAnswerSeq`,
   `PlinkoState.nextState`: online backup promotion, state validity invariant, and answerability.
-* `plinkoSim`, `plinkoScheme`, `plinkoHybridScheme`: simulator, full Plinko `Scheme`, and idealized
-  random-hint hybrid `Scheme`.
-* `updateDB`, `updateHint`, `applyUpdates`, `updateState`: database and hint update algorithms
-  (Definition 5.2 and Figure 7).
+* `plinkoSim`, `plinkoScheme`, `plinkoHybridScheme`: simulator, full Plinko `Scheme`, and an
+  idealized stand-in `Scheme` with no iPRF, keys or hint table.
+* `queryBlocksEquiv`, `queryOffsetsEquiv`: bijections that decompose a query message.
+* `UpdateSummary`, `updateDB`, `updateHint`, `applyUpdates`, `updateState`: update summaries and
+  the database and hint update algorithms (Definition 5.2 and Figure 7).
 
 ## Main results
 
@@ -84,29 +86,30 @@ indexed by `Fin (nReg + nBackup)`, together with one invertible PRF key `keys α
 * `getHint_eq_getHintScan`: equivalence of `getHint` via `iF.inv` and `getHintScan`.
 * `foldr_streamEntry_univ`, `PlinkoState.valid_streamPreprocess`: offline streaming correctness.
 * `PlinkoState.valid_nextState`, `PlinkoState.eval_step_plinkoScheme`,
-  `PlinkoState.isCorrectFrom_plinkoScheme`): online state-validity preservation and conditional
-  multi-query correctness of `plinkoScheme`.
+  `PlinkoState.isCorrectFrom_plinkoScheme_of_canAnswerSeq`: online state-validity preservation and
+  multi-query correctness of `plinkoScheme` under the availability condition `CanAnswerSeq`.
 * `PlinkoState.valid_of_mem_support_preprocess`: every preprocessed state is `Valid`, with
   inversion-correct keys when `iF.IsCorrectOnGen` holds.
-* `queryBlocksEquiv`, `queryOffsetsEquiv`, `eval_buildQuery_conditioned_eq_plinkoSim`,
-  `eval_snd_plinkoScheme_query_of_getHint`: single-query exact privacy and bridge lemma.
-* `isCorrect_plinkoHybridScheme`, `isPerfectlyPrivateWith_plinkoHybridScheme`,
-  `privacyAdvantage_plinkoHybridScheme_eq_zero`, `eval_queryTranscript_plinkoHybridScheme`:
-  unconditional correctness and multi-query adaptive perfect privacy of `plinkoHybridScheme`.
+* `eval_buildQuery_conditioned_eq_plinkoSim`: the query map sends a uniform regular hint
+  conditioned on containing `x` to `plinkoSim c w`.
+* `isPerfectlyPrivateWith_plinkoHybridScheme`, `eval_queryTranscript_plinkoHybridScheme`: perfect
+  privacy of the idealized stand-in `plinkoHybridScheme`, which is not privacy of `plinkoScheme`.
 * `PlinkoState.valid_updateHint_delta`, `PlinkoState.valid_updateHint`,
   `PlinkoState.valid_updateState`, `PlinkoState.canAnswer_updateHint_iff`: hint update correctness.
 
 ## What is not proved
 
-* Exact multi-query perfect privacy is proved only for the idealized random-hint proof device
-  `plinkoHybridScheme`, which has no iPRF, no keys and no hint table: every query draws a fresh
-  regular hint conditioned on containing the queried index (the ideal random-set model). Nothing
-  about privacy is proved for the full `plinkoScheme`. Its `getHint` takes the smallest matching
+* Perfect privacy is proved only for the idealized stand-in `plinkoHybridScheme`, which has no
+  iPRF, no keys and no hint table: every query draws a fresh regular hint conditioned on containing
+  the queried index. The paper's argument that the hint table stays uniform after hints are consumed
+  and backups promoted is not formalized. Nothing about privacy is proved for the full
+  `plinkoScheme`. Its `getHint` takes the smallest matching
   candidate slot, which conditions the remaining slots, and the paper argues privacy only
   computationally, by appeal to Ren, Mughees, and Sun (2024) and to iPRF security (Section 5.2,
   p. 23). The bridge lemma `eval_snd_plinkoScheme_query_of_getHint` only shows that both schemes
   build the query message from the consumed hint by the same map; the law of the hint that
-  `plinkoScheme` consumes is not analysed, and no reduction to iPRF security is given.
+  `plinkoScheme` consumes is not analysed, and no reduction to iPRF security is given. No iPRF
+  security notion is defined.
 * The Chernoff load bound on `|iF.inv (keys α) β|` (Section 5.2, p. 23), the failure-probability
   bound for `CanAnswerSeq`, amortized re-streaming after `nBackup` queries, the Appendix B
   Plinko–Piano variant (Figure 8), `B`-bit entries, the FHE offline phase, and the asymptotic
@@ -131,7 +134,7 @@ indexed by `Fin (nReg + nBackup)`, together with one invertible PRF key `keys α
 
 * [A. Hoover, S. Patel, G. Persiano, K. Yeo, *Plinko: Single-Server PIR with Efficient Updates via
   Invertible PRFs*][HooverPatelPersianoYeo2025], Section 5 (Definitions 5.1–5.2, Figure 5, and
-  Theorem 5.3) and Appendix A (Figure 7; locators follow IACR ePrint 2024/318).
+  Theorem 5.3) and Appendix A (p. 30; Figure 7, p. 31; locators follow IACR ePrint 2024/318).
 -/
 
 public section
@@ -202,9 +205,8 @@ coin `b : Bool`, and replacement offset `r : Fin w`
 removes `x.1` from `P` to form `P' = P.erase x.1`, complements `P'` when `b = true`, and replaces
 the offset in block `x.1` with `r`. -/
 @[expose] def buildQuery (x : Fin c × Fin w) (P : Finset (Fin c)) (o : Fin c → Fin w) (b : Bool)
-    (r : Fin w) : PlinkoQuery c w := by
-  let P' := P.erase x.1
-  exact ⟨if b then Finset.univ \ P' else P', Function.update o x.1 r⟩
+    (r : Fin w) : PlinkoQuery c w :=
+  ⟨if b then Finset.univ \ P.erase x.1 else P.erase x.1, Function.update o x.1 r⟩
 
 /-- Deterministic server answer algorithm `(r₀, r₁)`
 ([Hoover, Patel, Persiano and Yeo, Figure 7, `Answer`][HooverPatelPersianoYeo2025]): `r₀` is the
@@ -290,20 +292,46 @@ structure PlinkoState (c w nReg nBackup : ℕ) (Key : Type) where
   /-- Query cache `Q`, mapping each previously queried index `x` to `(db x, promotedSlot)`. -/
   cache : Fin c × Fin w → Option (Bool × Fin (nReg + nBackup))
 
+/-- The effective block set, parity and offset vector of an active hint that contains a queried
+index, as returned by `extractActiveHint`. -/
+@[ext]
+structure ExtractedHint (c w : ℕ) where
+  /-- Effective block set of the hint (for a promoted hint, its base set plus the promoted block). -/
+  blocks : Finset (Fin c)
+  /-- Stored parity of the hint. -/
+  parity : Bool
+  /-- Offset of the hint in each block. -/
+  offsets : Fin c → Fin w
+  deriving DecidableEq
+
+/-- A hint found by `getHint` or `getHintScan`: the slot `j` it occupies in the table `H`,
+together with its effective block set, parity and offset vector. -/
+@[ext]
+structure MatchedHint (c w N : ℕ) where
+  /-- Slot of the matched hint in the table `H`. -/
+  slot : Fin N
+  /-- Effective block set of the hint. -/
+  blocks : Finset (Fin c)
+  /-- Stored parity of the hint. -/
+  parity : Bool
+  /-- Offset of the hint in each block. -/
+  offsets : Fin c → Fin w
+  deriving DecidableEq
+
 /-- Checks whether an active hint `h : ActiveHint c w` at slot `j` contains block `x.1` (compatible
 with offset `x.2` at `x.1` when `iF.eval (keys x.1) j = x.2`) and returns its effective block set,
 parity, and offset vector
 ([Hoover, Patel, Persiano and Yeo, Figure 7, `GetHint`][HooverPatelPersianoYeo2025]). -/
 @[expose] def extractActiveHint (iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w))
     (keys : Fin c → Key) (j : Fin (nReg + nBackup)) (h : ActiveHint c w) (x : Fin c × Fin w) :
-    Option (Finset (Fin c) × Bool × (Fin c → Fin w)) :=
+    Option (ExtractedHint c w) :=
   let o : Fin c → Fin w := fun a => iF.eval (keys a) j
   match h with
   | .regular P p =>
-    if x.1 ∈ P then some (P, p, o) else none
+    if x.1 ∈ P then some ⟨P, p, o⟩ else none
   | .promoted P y p =>
     if (x.1 = y.1 ∧ x.2 = y.2) ∨ (x.1 ≠ y.1 ∧ x.1 ∈ P) then
-      some (insert y.1 P, p, Function.update o y.1 y.2)
+      some ⟨insert y.1 P, p, Function.update o y.1 y.2⟩
     else none
 
 /-- Boolean predicate testing whether slot `j` in `st.H` has an active hint matching `x` under
@@ -333,15 +361,16 @@ parity, and offset vector
 /-- `GetHint` via `iF.inv`
 ([Hoover, Patel, Persiano and Yeo, Figure 7][HooverPatelPersianoYeo2025]): finds the smallest
 candidate slot `j ∈ iF.inv (st.keys x.1) x.2` with a matching active hint and returns
-`(j, P_eff, p, o)`. Figure 7 scans the candidates in random order instead; see the module
+the matched hint. Figure 7 scans the candidates in random order instead; see the module
 docstring. -/
 @[expose] def getHint (iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w))
     (st : PlinkoState c w nReg nBackup Key) (x : Fin c × Fin w) :
-    Option (Fin (nReg + nBackup) × Finset (Fin c) × Bool × (Fin c → Fin w)) :=
+    Option (MatchedHint c w (nReg + nBackup)) :=
   match findHintSlot iF st x with
   | some j =>
     match st.H j with
-    | some h => (extractActiveHint iF st.keys j h x).map (fun t => (j, t))
+    | some h => (extractActiveHint iF st.keys j h x).map
+        (fun t => ⟨j, t.blocks, t.parity, t.offsets⟩)
     | none => none
   | none => none
 
@@ -349,22 +378,14 @@ docstring. -/
 evaluations `iF.eval`. -/
 @[expose] def getHintScan (iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w))
     (st : PlinkoState c w nReg nBackup Key) (x : Fin c × Fin w) :
-    Option (Fin (nReg + nBackup) × Finset (Fin c) × Bool × (Fin c → Fin w)) :=
+    Option (MatchedHint c w (nReg + nBackup)) :=
   match findHintSlotScan iF st x with
   | some j =>
     match st.H j with
-    | some h => (extractActiveHint iF st.keys j h x).map (fun t => (j, t))
+    | some h => (extractActiveHint iF st.keys j h x).map
+        (fun t => ⟨j, t.blocks, t.parity, t.offsets⟩)
     | none => none
   | none => none
-
-private theorem sort_eq_filter_finRange {N : ℕ} (s : Finset (Fin N)) :
-    s.sort (· ≤ ·) = (List.finRange N).filter (· ∈ s) := by
-  apply List.Perm.eq_of_pairwise (fun a b _ _ (hab : a ≤ b) (hba : b ≤ a) => le_antisymm hab hba)
-  · exact Finset.pairwise_sort s (· ≤ ·)
-  · exact ((List.pairwise_lt_finRange N).imp le_of_lt).filter _
-  · refine (List.perm_ext_iff_of_nodup (s.sort_nodup _) ((List.nodup_finRange N).filter _)).mpr ?_
-    intro j
-    simp [Finset.mem_sort, List.mem_filter, List.mem_finRange]
 
 /-- **Algorithmic equivalence of `getHint` and linear scan**
 ([Hoover, Patel, Persiano and Yeo, Section 5.2, p. 21][HooverPatelPersianoYeo2025]): when
@@ -375,13 +396,13 @@ theorem findHintSlot_eq_findHintSlotScan
     (st : PlinkoState c w nReg nBackup Key) (x : Fin c × Fin w)
     (hcorr : iF.IsCorrectKey (st.keys x.1)) :
     findHintSlot iF st x = findHintSlotScan iF st x := by
-  rw [findHintSlot, findHintSlotScan, sort_eq_filter_finRange, List.find?_filter]
+  rw [findHintSlot, findHintSlotScan, Finset.sort_eq_filter_finRange, List.find?_filter]
   congr 1
   funext j
   simp [hcorr j x.2]
 
 /-- When `iF.IsCorrectKey (st.keys x.1)` holds, `getHint` via `iF.inv` returns the exact same
-hint tuple as `getHintScan`. -/
+matched hint as `getHintScan`. -/
 theorem getHint_eq_getHintScan
     {iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w)}
     (st : PlinkoState c w nReg nBackup Key) (x : Fin c × Fin w)
@@ -406,25 +427,24 @@ slots `j ∈ iF.inv (st.keys x.1) x.2`
 ([Hoover, Patel, Persiano and Yeo, Figure 7, `HintInit`][HooverPatelPersianoYeo2025]). -/
 @[expose] def streamEntry (iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w))
     (x : Fin c × Fin w) (d : Bool) (st : PlinkoState c w nReg nBackup Key) :
-    PlinkoState c w nReg nBackup Key := by
+    PlinkoState c w nReg nBackup Key :=
   let cand := iF.inv (st.keys x.1) x.2
-  exact
-    { keys := st.keys
-      H := fun j =>
-        if j ∈ cand then
-          match st.H j with
-          | some (.regular P p) =>
-            if x.1 ∈ P then some (.regular P (d + p)) else some (.regular P p)
-          | other => other
-        else st.H j
-      T := fun j =>
-        if j ∈ cand then
-          match st.T j with
-          | some ⟨B, p₁, p₂⟩ =>
-            if x.1 ∈ B then some ⟨B, d + p₁, p₂⟩ else some ⟨B, p₁, d + p₂⟩
-          | none => none
-        else st.T j
-      cache := st.cache }
+  { keys := st.keys
+    H := fun j =>
+      if j ∈ cand then
+        match st.H j with
+        | some (.regular P p) =>
+          if x.1 ∈ P then some (.regular P (d + p)) else some (.regular P p)
+        | other => other
+      else st.H j
+    T := fun j =>
+      if j ∈ cand then
+        match st.T j with
+        | some ⟨B, p₁, p₂⟩ =>
+          if x.1 ∈ B then some ⟨B, d + p₁, p₂⟩ else some ⟨B, p₁, d + p₂⟩
+        | none => none
+      else st.T j
+    cache := st.cache }
 
 /-- The `PlinkoState` after streaming a subset of database entries `s : Finset (Fin c × Fin w)`. -/
 @[expose] def streamUpTo (iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w))
@@ -468,17 +488,6 @@ slots `j ∈ iF.inv (st.keys x.1) x.2`
         blockParity db (Finset.univ \ backupBlocks j) (fun a => iF.eval (keys a) j)⟩
   cache := fun _ => none
 
-private theorem bool_mul_false (b : Bool) : b * false = false := by
-  cases b <;> rfl
-
-private theorem bool_false_add (b : Bool) : false + b = b := by
-  cases b <;> rfl
-
-private theorem bool_add_false (b : Bool) : b + false = b := by
-  cases b <;> rfl
-
-private theorem bool_zero_eq_false : (0 : Bool) = false := rfl
-
 @[simp]
 theorem streamUpTo_empty (iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w))
     (db : Fin c × Fin w → Bool) (keys : Fin c → Key)
@@ -486,7 +495,7 @@ theorem streamUpTo_empty (iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w))
     (backupBlocks : Fin (nReg + nBackup) → Finset (Fin c)) :
     streamUpTo iF db ∅ keys regBlocks backupBlocks =
       initPlinkoState keys regBlocks backupBlocks := by
-  ext <;> simp [streamUpTo, initPlinkoState, bool_mul_false]
+  ext <;> simp [streamUpTo, initPlinkoState, ← Bool.zero_eq_false]
 
 theorem streamUpTo_univ (iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w))
     (db : Fin c × Fin w → Bool) (keys : Fin c → Key)
@@ -495,6 +504,26 @@ theorem streamUpTo_univ (iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w))
     streamUpTo iF db Finset.univ keys regBlocks backupBlocks =
       streamPreprocess iF db keys regBlocks backupBlocks := by
   ext <;> simp [streamUpTo, streamPreprocess, blockParity]
+
+/-- The sum over `a ∈ P` of the indicator that `(a, o a) = x`, weighted by `v`. -/
+private theorem sum_ite_eq_single (P : Finset (Fin c)) (o : Fin c → Fin w) (x : Fin c × Fin w)
+    (v : Bool) :
+    (∑ a ∈ P, if a = x.1 ∧ o x.1 = x.2 then v else false) =
+      if o x.1 = x.2 ∧ x.1 ∈ P then v else false := by
+  by_cases ho : o x.1 = x.2
+  · by_cases hP : x.1 ∈ P
+    · rw [Finset.sum_eq_single x.1]
+      · simp [ho, hP]
+      · intro a _ hne; simp [hne, ← Bool.zero_eq_false]
+      · intro habs; exact absurd hP habs
+    · rw [Finset.sum_eq_zero]
+      · simp [hP, ← Bool.zero_eq_false]
+      · intro a ha
+        have hne : a ≠ x.1 := fun h => hP (h ▸ ha)
+        simp [hne, ← Bool.zero_eq_false]
+  · rw [Finset.sum_eq_zero]
+    · simp [ho, ← Bool.zero_eq_false]
+    · intro a _; simp [ho, ← Bool.zero_eq_false]
 
 private theorem sum_ite_mem_insert (db : Fin c × Fin w → Bool)
     (o : Fin c → Fin w) (P : Finset (Fin c)) {s : Finset (Fin c × Fin w)} {x : Fin c × Fin w}
@@ -511,25 +540,12 @@ private theorem sum_ite_mem_insert (db : Fin c × Fin w → Bool)
     · have ha1 : a = x.1 := congrArg Prod.fst hax
       have ha2 : o x.1 = x.2 := ha1 ▸ congrArg Prod.snd hax
       rw [hax]
-      simp [ha1, ha2, hx, bool_add_false]
+      simp [ha1, ha2, hx, ← Bool.zero_eq_false]
     · have hne : ¬(a = x.1 ∧ o x.1 = x.2) := fun ⟨h1, h2⟩ => hax (Prod.ext h1 (h1 ▸ h2))
-      simp [Finset.mem_insert, hax, hne, bool_false_add]
+      simp [Finset.mem_insert, hax, hne, ← Bool.zero_eq_false]
   rw [Finset.sum_congr rfl hpoint, Finset.sum_add_distrib]
   congr 1
-  by_cases ho : o x.1 = x.2
-  · by_cases hP : x.1 ∈ P
-    · rw [Finset.sum_eq_single x.1]
-      · simp [ho, hP]
-      · intro a _ hne; simp [hne, bool_zero_eq_false]
-      · intro habs; exact absurd hP habs
-    · rw [Finset.sum_eq_zero]
-      · simp [hP, bool_zero_eq_false]
-      · intro a ha
-        have hne : a ≠ x.1 := fun h => hP (h ▸ ha)
-        simp [hne, bool_zero_eq_false]
-  · rw [Finset.sum_eq_zero]
-    · simp [ho, bool_zero_eq_false]
-    · intro a _; simp [ho, bool_zero_eq_false]
+  exact sum_ite_eq_single P o x (db x)
 
 /-- Streaming a fresh entry `x ∉ s` via `streamEntry` transitions `streamUpTo iF db s` to
 `streamUpTo iF db (insert x s)` whenever `iF.IsCorrectKey (keys x.1)` holds. -/
@@ -546,7 +562,7 @@ theorem streamEntry_streamUpTo {iF : InvertiblePRF Key (Fin (nReg + nBackup)) (F
     by_cases hj : j.val < nReg
     · rw [sum_ite_mem_insert db (fun a => iF.eval (keys a) j) (regBlocks j) hx]
       by_cases hev : iF.eval (keys x.1) j = x.2 <;> by_cases hP : x.1 ∈ regBlocks j <;>
-        simp [hj, hev, hP, bool_false_add]
+        simp [hj, hev, hP, ← Bool.zero_eq_false]
     · simp [hj]
   · simp only [streamEntry, streamUpTo, hcorr j x.2]
     by_cases hj : j.val < nReg
@@ -554,7 +570,7 @@ theorem streamEntry_streamUpTo {iF : InvertiblePRF Key (Fin (nReg + nBackup)) (F
     · rw [sum_ite_mem_insert db (fun a => iF.eval (keys a) j) (backupBlocks j) hx,
         sum_ite_mem_insert db (fun a => iF.eval (keys a) j) (Finset.univ \ backupBlocks j) hx]
       by_cases hev : iF.eval (keys x.1) j = x.2 <;> by_cases hB : x.1 ∈ backupBlocks j <;>
-        simp [hj, hev, hB, bool_false_add]
+        simp [hj, hev, hB, ← Bool.zero_eq_false]
   · rfl
 
 /-- Folding `streamEntry` over any duplicate-free list of database entries `xs` starting from
@@ -705,14 +721,14 @@ theorem valid_streamPreprocess (iF : InvertiblePRF Key (Fin (nReg + nBackup)) (F
   valid_cache x a j hC := by
     simp [streamPreprocess] at hC
 
-/-- If `getHint iF st x = some (j, P, p, o)` on a valid state `st` and
+/-- If `getHint iF st x = some ⟨j, P, p, o⟩` on a valid state `st` and
 `iF.IsCorrectKey (st.keys x.1)` holds, then `x.1 ∈ P`, `o x.1 = x.2`, and
 `p = blockParity db P o`. -/
-theorem getHint_valid_props {iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w)}
+theorem Valid.getHint_spec {iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w)}
     {db : Fin c × Fin w → Bool} {st : PlinkoState c w nReg nBackup Key} {x : Fin c × Fin w}
     {j : Fin (nReg + nBackup)} {P : Finset (Fin c)} {p : Bool} {o : Fin c → Fin w}
     (hvalid : st.Valid iF db) (hcorr : iF.IsCorrectKey (st.keys x.1))
-    (hget : getHint iF st x = some (j, P, p, o)) :
+    (hget : getHint iF st x = some ⟨j, P, p, o⟩) :
     st.H j ≠ none ∧ x.1 ∈ P ∧ o x.1 = x.2 ∧ p = blockParity db P o := by
   dsimp only [getHint] at hget
   cases hfind : findHintSlot iF st x with
@@ -733,14 +749,14 @@ theorem getHint_valid_props {iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin 
       | regular P₀ p₀ =>
         dsimp only [extractActiveHint] at hget
         by_cases hxP₀ : x.1 ∈ P₀
-        · simp only [hxP₀, ↓reduceIte, Option.map_some, Option.some.injEq, Prod.mk.injEq] at hget
+        · simp only [hxP₀, ↓reduceIte, Option.map_some, Option.some.injEq, MatchedHint.mk.injEq] at hget
           obtain ⟨rfl, rfl, rfl, rfl⟩ := hget
           exact ⟨by simp [hH], hxP₀, hj₀_eval, hvalid.valid_regular j₀ P₀ p₀ hH⟩
         · simp [hxP₀] at hget
       | promoted P₀ y p₀ =>
         dsimp only [extractActiveHint] at hget
         by_cases hcond : (x.1 = y.1 ∧ x.2 = y.2) ∨ (x.1 ≠ y.1 ∧ x.1 ∈ P₀)
-        · simp only [hcond, ↓reduceIte, Option.map_some, Option.some.injEq, Prod.mk.injEq] at hget
+        · simp only [hcond, ↓reduceIte, Option.map_some, Option.some.injEq, MatchedHint.mk.injEq] at hget
           obtain ⟨rfl, rfl, rfl, rfl⟩ := hget
           obtain ⟨hyP₀, hp₀, -⟩ := hvalid.valid_promoted j₀ P₀ y p₀ hH
           have hpar : p₀ = blockParity db (insert y.1 P₀)
@@ -767,7 +783,7 @@ database `db` and index `x`. -/
     PlinkoState c w nReg nBackup Key :=
   refreshPlinkoState st x
     ⟨(st.cache x).map Prod.fst,
-     if (st.cache x).isSome then none else (getHint iF st x).map Prod.fst,
+     if (st.cache x).isSome then none else (getHint iF st x).map MatchedHint.slot,
      false, false⟩
     (db x)
 
@@ -819,7 +835,7 @@ theorem valid_nextState {iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w)}
       obtain ⟨j', hbak⟩ := Option.isSome_iff_exists.mp hbak_some
       have hTj' : (st.T j').isSome := by simpa [findBackupSlot] using List.find?_some hbak
       obtain ⟨bk, hbk⟩ := Option.isSome_iff_exists.mp hTj'
-      obtain ⟨hHj_ne, -, -, -⟩ := getHint_valid_props hvalid hcorr hget
+      obtain ⟨hHj_ne, -, -, -⟩ := hvalid.getHint_spec hcorr hget
       obtain ⟨hbk_in, hbk_out, hHj'_none, hcache_j'⟩ := hvalid.valid_backup j' bk hbk
       have hj_ne_j' : j ≠ j' := fun heq => hHj_ne (heq ▸ hHj'_none)
       simp only [Option.map_none, Option.isSome_none, Bool.false_eq_true, ↓reduceIte,
@@ -986,7 +1002,7 @@ one, and a cached query sends a dummy `plinkoSim` message instead of querying a 
       pure (⟨some cachedBit, none, false, b⟩, qDummy)
     | none =>
       match getHint iF st x with
-      | some (j, P, p, o) =>
+      | some ⟨j, P, p, o⟩ =>
         pure (⟨none, some j, p, b⟩, buildQuery x P o b r)
       | none =>
         pure (⟨none, none, false, b⟩, qDummy)
@@ -1042,7 +1058,7 @@ theorem eval_step_plinkoScheme {iF : InvertiblePRF Key (Fin (nReg + nBackup)) (F
       rcases hcan with hc | ⟨hget_some, _⟩
       · simp [hcache] at hc
       · obtain ⟨⟨j, P, p, o⟩, hget⟩ := Option.isSome_iff_exists.mp hget_some
-        obtain ⟨-, hxP, hox, hp⟩ := getHint_valid_props hvalid hcorr hget
+        obtain ⟨-, hxP, hox, hp⟩ := hvalid.getHint_spec hcorr hget
         rw [hcache, hget] at hq
         simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff, Prod.mk.injEq] at hq hstep
         obtain ⟨rfl, rfl⟩ := hq
@@ -1055,12 +1071,12 @@ theorem eval_step_plinkoScheme {iF : InvertiblePRF Key (Fin (nReg + nBackup)) (F
     id (Function.const _ (st.nextState iF db x, db x)) hsupp
   simpa only [PMF.map_id, PMF.map_const] using hmap
 
-/-- **Conditional multi-query correctness of `plinkoScheme`**
+/-- **Multi-query correctness of `plinkoScheme` under `CanAnswerSeq`**
 ([Hoover, Patel, Persiano and Yeo, Section 5.2 and Figure 7][HooverPatelPersianoYeo2025]):
 if `st.Valid iF db`, `∀ α, iF.IsCorrectKey (st.keys α)`, and `st.CanAnswerSeq iF db xs` hold, then
 `(plinkoScheme c w nReg nBackup iF).IsCorrectFrom db st xs` holds, and every hint state reached
 after `xs` satisfies `Valid iF db`. -/
-theorem isCorrectFrom_plinkoScheme {iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w)}
+theorem isCorrectFrom_plinkoScheme_of_canAnswerSeq {iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w)}
     {db : Fin c × Fin w → Bool} {st : PlinkoState c w nReg nBackup Key}
     {xs : List (Fin c × Fin w)} (hvalid : st.Valid iF db)
     (hcorr : ∀ α : Fin c, iF.IsCorrectKey (st.keys α))
@@ -1161,22 +1177,8 @@ replacement offset `r : Fin w` and arbitrary offset vectors `Fin c → Fin w`. -
     ext a
     simp
 
-private theorem uniformOfFintype_bind_bind_equiv_single {α β γ ε : Type*} [Fintype α] [Nonempty α]
-    [Fintype β] [Nonempty β] [Fintype γ] [Nonempty γ]
-    (e : α × β ≃ γ) (f : γ → PMF ε) :
-    ((PMF.uniformOfFintype α).bind fun a => (PMF.uniformOfFintype β).bind fun b =>
-      f (e (a, b))) =
-      (PMF.uniformOfFintype γ).bind f := by
-  calc _ = (PMF.uniformOfFintype (α × β)).bind (fun ab => f (e ab)) := by
-        rw [← PMF.uniformOfFintype_prod, PMF.bind_bind]
-        simp only [PMF.bind_map, Function.comp_def]
-    _ = ((PMF.uniformOfFintype (α × β)).map e).bind f := by
-        rw [PMF.bind_map]; rfl
-    _ = (PMF.uniformOfFintype γ).bind f := by
-        rw [PMF.uniformOfFintype_map_equiv]
-
-/-- **Continuation-passing exact privacy of `buildQuery`**: when `Even c`, binding any continuation
-`k` to `buildQuery x P.1 o.1 b r` over uniform `(P, o, b, r)` equals binding `k` to
+/-- Continuation form of `eval_buildQuery_conditioned_eq_plinkoSim`: when `Even c`, binding any
+continuation `k` to `buildQuery x P.1 o.1 b r` over uniform `(P, o, b, r)` equals binding `k` to
 `plinkoSim c w`. -/
 theorem uniformOfFintype_bind_buildQuery {c w : ℕ} [Fact (Even c)] [NeZero w]
     {ε : Type*} (x : Fin c × Fin w) (k : PlinkoQuery c w → PMF ε) :
@@ -1197,7 +1199,7 @@ theorem uniformOfFintype_bind_buildQuery {c w : ℕ} [Fact (Even c)] [NeZero w]
     intro P
     rw [PMF.bind_comm]
     congr 1; funext b
-    exact uniformOfFintype_bind_bind_equiv_single (queryOffsetsEquiv x)
+    exact Cslib.Probability.PMF.uniformOfFintype_bind_bind_equiv (queryOffsetsEquiv x)
       (fun o' => k ⟨(queryBlocksEquiv Fact.out x.1 (P, b)).1, o'⟩)
   simp only [plinkoSim, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure,
     PMF.bind_bind, PMF.pure_bind]
@@ -1206,16 +1208,19 @@ theorem uniformOfFintype_bind_buildQuery {c w : ℕ} [Fact (Even c)] [NeZero w]
       (PMF.uniformOfFintype (Fin c → Fin w)).bind fun o' =>
         k ⟨(queryBlocksEquiv Fact.out x.1 (P, b)).1, o'⟩)
   · congr 1; funext P; exact hcomm P
-  · exact uniformOfFintype_bind_bind_equiv_single (queryBlocksEquiv Fact.out x.1)
+  · exact Cslib.Probability.PMF.uniformOfFintype_bind_bind_equiv (queryBlocksEquiv Fact.out x.1)
       (fun S => (PMF.uniformOfFintype (Fin c → Fin w)).bind fun o' => k ⟨S.1, o'⟩)
 
-/-- **Single-query exact privacy of Plinko**
-([Hoover, Patel, Persiano and Yeo, Section 5.2, p. 22][HooverPatelPersianoYeo2025]):
-when `Even c`, if the consumed hint `(P, o)` is distributed as a uniform regular hint conditioned
-on containing `x = (α, β)` (`P ← ProbComp.uniform (RegBlocksContaining c x.1)` and
-`o ← ProbComp.uniform (OffsetsContaining c w x)`), then the query message
-`buildQuery x P.1 o.1 b r` has the exact simulator distribution `plinkoSim c w`, independent of
-`x`. -/
+/-- **The query map sends a conditioned uniform hint to `plinkoSim`**: when `Even c`, if `(P, o)` is
+a uniform regular hint conditioned on containing `x = (α, β)`
+(`P ← ProbComp.uniform (RegBlocksContaining c x.1)` and
+`o ← ProbComp.uniform (OffsetsContaining c w x)`), and `b` and `r` are a uniform coin and a uniform
+replacement offset, then `buildQuery x P.1 o.1 b r` has the distribution `plinkoSim c w` for every
+`x`. This is the observation of
+[Hoover, Patel, Persiano and Yeo, Section 5.2, p. 22][HooverPatelPersianoYeo2025] that the server
+sees a random split of the blocks and a random offset in each block. It assumes the law of the hint;
+that law is not established for the hints that `plinkoScheme` consumes, so this is not privacy of
+`plinkoScheme`. -/
 theorem eval_buildQuery_conditioned_eq_plinkoSim {c w : ℕ} [Fact (Even c)] [NeZero w]
     (x : Fin c × Fin w) :
     ProbComp.eval (do
@@ -1228,20 +1233,17 @@ theorem eval_buildQuery_conditioned_eq_plinkoSim {c w : ℕ} [Fact (Even c)] [Ne
   simp only [ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure]
   exact (uniformOfFintype_bind_buildQuery x PMF.pure).trans (PMF.bind_pure _)
 
-/-- **Idealized random-hint hybrid of Plinko (`plinkoHybridScheme`)**: a proof device for the
-ideal-random-set privacy analysis of
-[Hoover, Patel, Persiano and Yeo, Section 5.2][HooverPatelPersianoYeo2025]. It has no iPRF, no
-keys and no hint table. At each online query for `x = (α, β)`, it samples a fresh conditioned
+/-- **An idealized stand-in for Plinko (`plinkoHybridScheme`)**. It idealizes the construction of
+[Hoover, Patel, Persiano and Yeo, Section 5.2][HooverPatelPersianoYeo2025] and is not an
+implementation of it: it has no iPRF, no keys and no hint table. At each online query for `x = (α, β)`, it samples a fresh conditioned
 regular hint `(P, o) ← RegBlocksContaining c x.1 × OffsetsContaining c w x`, computes the exact hint
 parity `p = blockParity db P.1 o.1` from the database stored in its state, sends
 `buildQuery x P.1 o.1 b r`, and reconstructs `db x = plinkoReconstruct p b ans`.
 
-Unlike `pianoHybridScheme`, `plinkoHybridScheme` is **both** a correct PIR scheme
-(`isCorrect_plinkoHybridScheme`) and adaptively perfectly private
-(`isPerfectlyPrivateWith_plinkoHybridScheme`). It is only a proof device: it keeps `db` in its
-state to compute exact hint parities online, and it draws a fresh conditioned hint at each query
-rather than looking one up in a finite table `PlinkoState`. Its privacy says nothing directly about
-`plinkoScheme`; the bridge `eval_snd_plinkoScheme_query_of_getHint` shows only that both schemes
+Because it keeps `db` in its state, it computes hint parities online instead of storing them, and
+because it draws a fresh conditioned hint at each query, it skips the paper's argument that the hint
+table stays uniform after hints are consumed and backups promoted. Its privacy says nothing about
+`plinkoScheme`; the lemma `eval_snd_plinkoScheme_query_of_getHint` shows only that both schemes
 apply the same map to the consumed hint. -/
 @[expose] noncomputable def plinkoHybridScheme (c w : ℕ) [Fact (Even c)] [NeZero w] :
     Scheme (Fin c × Fin w) (Fin c × Fin w → Bool) (Bool × Bool) (PlinkoQuery c w)
@@ -1258,14 +1260,14 @@ apply the same map to the consumed hint. -/
   refresh db _ _ _ := pure db
 
 /-- **Bridge lemma between `plinkoScheme.query` and `plinkoHybridScheme.query`**: on an uncached
-query `x` where `getHint iF st x = some (j, P, p, o)`, the server query distribution of
+query `x` where `getHint iF st x = some ⟨j, P, p, o⟩`, the server query distribution of
 `plinkoScheme` equals the query distribution built from `(P, o)` using the same map
 `fun (b, r) => buildQuery x P o b r` as `plinkoHybridScheme`. -/
 theorem eval_snd_plinkoScheme_query_of_getHint [NeZero w]
     (iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w))
     (st : PlinkoState c w nReg nBackup Key) (x : Fin c × Fin w)
     {j : Fin (nReg + nBackup)} {P : Finset (Fin c)} {p : Bool} {o : Fin c → Fin w}
-    (hcache : st.cache x = none) (hget : getHint iF st x = some (j, P, p, o)) :
+    (hcache : st.cache x = none) (hget : getHint iF st x = some ⟨j, P, p, o⟩) :
     ProbComp.eval (Prod.snd <$> (plinkoScheme c w nReg nBackup iF).query st x) =
       ProbComp.eval (do
         let b ← ProbComp.uniform Bool
@@ -1277,21 +1279,6 @@ theorem eval_snd_plinkoScheme_query_of_getHint [NeZero w]
 section HybridProperties
 
 variable [Fact (Even c)] [NeZero w]
-
-/-- `plinkoHybridScheme c w` is unconditionally multi-query correct (`Scheme.IsCorrect`). -/
-theorem isCorrect_plinkoHybridScheme : (plinkoHybridScheme c w).IsCorrect := by
-  refine Scheme.isCorrect_of_forall_preprocess fun db xs h₀ hmem => ?_
-  simp only [plinkoHybridScheme, ProbComp.eval_pure, PMF.mem_support_pure_iff] at hmem
-  subst h₀
-  induction xs with
-  | nil => exact Scheme.isCorrectFrom_nil _ _ _
-  | cons x xs ih =>
-    refine Scheme.isCorrectFrom_cons fun h' β hmem => ?_
-    simp only [Scheme.step, plinkoHybridScheme, ProbComp.eval_bind, ProbComp.eval_uniform,
-      ProbComp.eval_pure, PMF.mem_support_bind_iff, PMF.mem_support_pure_iff,
-      Prod.mk.injEq] at hmem
-    obtain ⟨⟨rec, q⟩, ⟨P, -, o, -, b, -, r, -, rfl, rfl⟩, _, rfl, rfl, rfl⟩ := hmem
-    exact ⟨plinkoReconstruct_plinkoAnswer_eq h' x P.1 o.1 b r P.2.2 o.2, ih⟩
 
 /-- Projected one-step transition of `(Unit, serverState)` in the adaptive privacy experiment for
 `plinkoHybridScheme`. -/
@@ -1307,10 +1294,12 @@ private noncomputable def plinkoHybridAdaptiveStep {St : Type}
       pure (buildQuery p.2 P.1 o.1 b r))).bind fun q =>
       (ProbComp.eval (adv.onQuery p.1 q)).map fun sa => ((), sa.1)
 
-/-- **Multi-query adaptive perfect privacy of `plinkoHybridScheme`**
-([Hoover, Patel, Persiano and Yeo, Section 5.2][HooverPatelPersianoYeo2025]): when `Even c`,
-`plinkoHybridScheme c w` is perfectly private with simulator `plinkoSim c w` against any adaptive
-malicious server `adv` over any number of queries `k`. -/
+/-- **Perfect privacy of the idealized stand-in `plinkoHybridScheme`.** This is not privacy of
+`plinkoScheme` and not the privacy claim of
+[Hoover, Patel, Persiano and Yeo, Section 5.2, p. 23][HooverPatelPersianoYeo2025]. The stand-in has
+no iPRF, no keys and no hint table, keeps `db` in its state, and draws a fresh conditioned hint for
+each query. Under these idealizations, when `Even c`, `plinkoHybridScheme c w` is perfectly private
+with simulator `plinkoSim c w` against every adaptive server, over any number of queries. -/
 theorem isPerfectlyPrivateWith_plinkoHybridScheme :
     (plinkoHybridScheme c w).IsPerfectlyPrivateWith (plinkoSim c w) := by
   apply Scheme.isPerfectlyPrivateWith_of_invariant
@@ -1335,14 +1324,14 @@ theorem isPerfectlyPrivate_plinkoHybridScheme :
   isPerfectlyPrivateWith_plinkoHybridScheme.isPerfectlyPrivate
 
 /-- Every adaptive malicious server with Boolean finalizer `finalize : St → Bool` has zero
-distinguishing advantage against `plinkoHybridScheme c w`. -/
+distinguishing advantage against the idealized stand-in `plinkoHybridScheme c w`. -/
 theorem privacyAdvantage_plinkoHybridScheme_eq_zero {St : Type}
     (adv : AdaptiveServer (Fin c × Fin w) (PlinkoQuery c w) (Bool × Bool) St)
     (finalize : St → Bool) (db : Fin c × Fin w → Bool) (k : ℕ) (st₀ : St) :
     (plinkoHybridScheme c w).privacyAdvantage (plinkoSim c w) adv finalize db k st₀ = 0 :=
   isPerfectlyPrivateWith_plinkoHybridScheme.privacyAdvantage_eq_zero adv finalize db k st₀
 
-/-- **Multi-query non-adaptive transcript privacy of `plinkoHybridScheme`**: for every database
+/-- **Query transcripts of the idealized stand-in `plinkoHybridScheme`**: for every database
 `db` and query list `xs : List (Fin c × Fin w)`, the query transcript of `plinkoHybridScheme c w`
 has the same distribution as `xs.length` independent draws from `plinkoSim c w`. -/
 theorem eval_queryTranscript_plinkoHybridScheme (db : Fin c × Fin w → Bool)
@@ -1384,32 +1373,30 @@ theorem blockParity_update_db (db : Fin c × Fin w → Bool) (u : Fin c × Fin w
       rw [hau]
       simp [ha1, ha2]
     · have hne : ¬(a = u.1 ∧ o u.1 = u.2) := fun ⟨h1, h2⟩ => hau (Prod.ext h1 (h1 ▸ h2))
-      simp [Function.update_of_ne hau, hne, bool_false_add]
+      simp [Function.update_of_ne hau, hne, ← Bool.zero_eq_false]
   unfold blockParity
   rw [Finset.sum_congr rfl hpoint, Finset.sum_add_distrib]
   congr 1
-  by_cases ho : o u.1 = u.2
-  · by_cases hP : u.1 ∈ P
-    · rw [Finset.sum_eq_single u.1]
-      · simp [ho, hP]
-      · intro a _ hne; simp [hne, bool_zero_eq_false]
-      · intro habs; exact absurd hP habs
-    · rw [Finset.sum_eq_zero]
-      · simp [hP, bool_zero_eq_false]
-      · intro a ha
-        have hne : a ≠ u.1 := fun h => hP (h ▸ ha)
-        simp [hne, bool_zero_eq_false]
-  · rw [Finset.sum_eq_zero]
-    · simp [ho, bool_zero_eq_false]
-    · intro a _; simp [ho, bool_zero_eq_false]
+  exact sum_ite_eq_single P o u d
+
+/-- An update summary `δ = (i, u)`
+([Hoover, Patel, Persiano and Yeo, Definition 5.2][HooverPatelPersianoYeo2025]): entry `i` of the
+database is XORed with `u`. -/
+@[ext]
+structure UpdateSummary (c w : ℕ) where
+  /-- The updated entry `i`. -/
+  entry : Fin c × Fin w
+  /-- The XOR difference `u` between the new and the old bit. -/
+  delta : Bool
+  deriving DecidableEq
 
 /-- Server database update algorithm `UpdateDB(i, d; D)`
 ([Hoover, Patel, Persiano and Yeo, Definition 5.2 and Figure 7][HooverPatelPersianoYeo2025]):
 when entry `i` is updated to new bit `d`, returns the update summary `δ = (i, db i + d)` together
 with the updated database `Function.update db i d`. -/
 @[expose] def updateDB (db : Fin c × Fin w → Bool) (i : Fin c × Fin w) (d : Bool) :
-    ((Fin c × Fin w) × Bool) × (Fin c × Fin w → Bool) :=
-  ((i, db i + d), Function.update db i d)
+    UpdateSummary c w × (Fin c × Fin w → Bool) :=
+  (⟨i, db i + d⟩, Function.update db i d)
 
 /-- Client hint update algorithm `UpdateHint(δ; st)` for an update summary `δ = (i, u)` where
 `u : Bool` is the XOR delta at entry `i : Fin c × Fin w`
@@ -1420,10 +1407,10 @@ with the updated database `Function.update db i d`. -/
 3. If `st.cache i = some (a, j')`, updates `st.cache i` to `some (u + a, j')` and (if `st.H j'` is
    still active as a promoted hint for `i`) flips its parity by `u`. -/
 @[expose] def updateHint (iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w))
-    (δ : (Fin c × Fin w) × Bool) (st : PlinkoState c w nReg nBackup Key) :
+    (δ : UpdateSummary c w) (st : PlinkoState c w nReg nBackup Key) :
     PlinkoState c w nReg nBackup Key :=
-  let i := δ.1
-  let u := δ.2
+  let i := δ.entry
+  let u := δ.delta
   let cand := iF.inv (st.keys i.1) i.2
   { keys := st.keys
     H := fun j =>
@@ -1444,17 +1431,17 @@ with the updated database `Function.update db i d`. -/
       | none => none
     cache := Function.update st.cache i ((st.cache i).map fun ak => (u + ak.1, ak.2)) }
 
-/-- Applies a list of database XOR update summaries `updates : List ((Fin c × Fin w) × Bool)` to
+/-- Applies a list of database XOR update summaries `updates : List (UpdateSummary c w)` to
 `db`. -/
-@[expose] def applyUpdates (updates : List ((Fin c × Fin w) × Bool))
+@[expose] def applyUpdates (updates : List (UpdateSummary c w))
     (db : Fin c × Fin w → Bool) : Fin c × Fin w → Bool :=
-  updates.foldr (fun δ d => Function.update d δ.1 (δ.2 + d δ.1)) db
+  updates.foldr (fun δ d => Function.update d δ.entry (δ.delta + d δ.entry)) db
 
 /-- Updates the client state `st` across a list of database XOR update summaries
-`updates : List ((Fin c × Fin w) × Bool)`
+`updates : List (UpdateSummary c w)`
 ([Hoover, Patel, Persiano and Yeo, Figure 7, `UpdateHint`][HooverPatelPersianoYeo2025]). -/
 @[expose] def updateState (iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w))
-    (updates : List ((Fin c × Fin w) × Bool)) (st : PlinkoState c w nReg nBackup Key) :
+    (updates : List (UpdateSummary c w)) (st : PlinkoState c w nReg nBackup Key) :
     PlinkoState c w nReg nBackup Key :=
   updates.foldr (fun δ s => updateHint iF δ s) st
 
@@ -1463,10 +1450,11 @@ theorem applyUpdates_nil (db : Fin c × Fin w → Bool) :
     applyUpdates [] db = db := rfl
 
 @[simp]
-theorem applyUpdates_cons (δ : (Fin c × Fin w) × Bool) (updates : List ((Fin c × Fin w) × Bool))
+theorem applyUpdates_cons (δ : UpdateSummary c w) (updates : List (UpdateSummary c w))
     (db : Fin c × Fin w → Bool) :
     applyUpdates (δ :: updates) db =
-      Function.update (applyUpdates updates db) δ.1 (δ.2 + applyUpdates updates db δ.1) := rfl
+      Function.update (applyUpdates updates db) δ.entry
+        (δ.delta + applyUpdates updates db δ.entry) := rfl
 
 @[simp]
 theorem updateState_nil (iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w))
@@ -1475,7 +1463,7 @@ theorem updateState_nil (iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w))
 
 @[simp]
 theorem updateState_cons (iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w))
-    (δ : (Fin c × Fin w) × Bool) (updates : List ((Fin c × Fin w) × Bool))
+    (δ : UpdateSummary c w) (updates : List (UpdateSummary c w))
     (st : PlinkoState c w nReg nBackup Key) :
     updateState iF (δ :: updates) st = updateHint iF δ (updateState iF updates st) := rfl
 
@@ -1483,13 +1471,13 @@ namespace PlinkoState
 
 @[simp]
 theorem updateHint_keys (iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w))
-    (δ : (Fin c × Fin w) × Bool) (st : PlinkoState c w nReg nBackup Key) :
+    (δ : UpdateSummary c w) (st : PlinkoState c w nReg nBackup Key) :
     (updateHint iF δ st).keys = st.keys :=
   rfl
 
 @[simp]
 theorem updateState_keys (iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w))
-    (updates : List ((Fin c × Fin w) × Bool)) (st : PlinkoState c w nReg nBackup Key) :
+    (updates : List (UpdateSummary c w)) (st : PlinkoState c w nReg nBackup Key) :
     (updateState iF updates st).keys = st.keys := by
   induction updates <;> simp [*]
 
@@ -1502,13 +1490,13 @@ private theorem bool_promoted_update_eq (d b₁ b₂ c₁ c₂ : Bool) :
 
 /-- **Single-entry XOR-delta update preserves `PlinkoState.Valid`**
 ([Hoover, Patel, Persiano and Yeo, Figure 7, `UpdateHint`][HooverPatelPersianoYeo2025]): if
-`st.Valid iF db` and `iF.IsCorrectKey (st.keys u.1)` hold, then `updateHint iF (u, d) st` is valid
+`st.Valid iF db` and `iF.IsCorrectKey (st.keys u.1)` hold, then `updateHint iF ⟨u, d⟩ st` is valid
 for the updated database `Function.update db u (d + db u)`. -/
 theorem valid_updateHint_delta {iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w)}
     {db : Fin c × Fin w → Bool} {st : PlinkoState c w nReg nBackup Key}
     (u : Fin c × Fin w) (d : Bool) (hvalid : st.Valid iF db)
     (hcorr : iF.IsCorrectKey (st.keys u.1)) :
-    (updateHint iF (u, d) st).Valid iF (Function.update db u (d + db u)) where
+    (updateHint iF ⟨u, d⟩ st).Valid iF (Function.update db u (d + db u)) where
   valid_regular j P p' hH := by
     dsimp only [updateHint] at hH ⊢
     cases hHj : st.H j with
@@ -1524,7 +1512,7 @@ theorem valid_updateHint_delta {iF : InvertiblePRF Key (Fin (nReg + nBackup)) (F
         rw [blockParity_update_db, ← hp]
         simp only [hcorr j u.2]
         by_cases hcond : iF.eval (st.keys u.1) j = u.2 ∧ u.1 ∈ P₀ <;>
-          simp [hcond, bool_false_add]
+          simp [hcond, ← Bool.zero_eq_false]
   valid_promoted j P y p' hH := by
     dsimp only [updateHint] at hH ⊢
     cases hHj : st.H j with
@@ -1565,16 +1553,16 @@ theorem valid_updateHint_delta {iF : InvertiblePRF Key (Fin (nReg + nBackup)) (F
         rw [blockParity_update_db, ← hin]
         simp only [hcorr j u.2]
         by_cases hcond : iF.eval (st.keys u.1) j = u.2 ∧ u.1 ∈ B <;>
-          simp [hcond, bool_false_add]
+          simp [hcond, ← Bool.zero_eq_false]
       · dsimp only
         rw [blockParity_update_db, ← hout]
         simp only [hcorr j u.2, Finset.mem_sdiff, Finset.mem_univ, true_and]
         by_cases hcond : iF.eval (st.keys u.1) j = u.2 ∧ u.1 ∉ B <;>
-          simp [hcond, bool_false_add]
+          simp [hcond, ← Bool.zero_eq_false]
       · intro x
         by_cases hxu : x = u
         · subst hxu
-          have hmap : ((updateHint iF (x, d) st).cache x).map Prod.snd =
+          have hmap : ((updateHint iF ⟨x, d⟩ st).cache x).map Prod.snd =
               (st.cache x).map Prod.snd := by
             dsimp only [updateHint]
             rw [Function.update_self]
@@ -1614,13 +1602,13 @@ theorem valid_updateHint_delta {iF : InvertiblePRF Key (Fin (nReg + nBackup)) (F
 /-- **Database and hint update correctness (`UpdateDB` / `UpdateHint`, Figure 7)**
 ([Hoover, Patel, Persiano and Yeo, Section 5.2 and Figure 7][HooverPatelPersianoYeo2025]): if
 `st.Valid iF db` and `iF.IsCorrectKey (st.keys i.1)` hold, updating entry `i` to new bit `d` via
-summary `(i, db i + d) = (updateDB db i d).1` yields a client state valid for
+summary `⟨i, db i + d⟩ = (updateDB db i d).1` yields a client state valid for
 `Function.update db i d = (updateDB db i d).2`. -/
 theorem valid_updateHint {iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w)}
     {db : Fin c × Fin w → Bool} {st : PlinkoState c w nReg nBackup Key}
     (i : Fin c × Fin w) (d : Bool) (hvalid : st.Valid iF db)
     (hcorr : iF.IsCorrectKey (st.keys i.1)) :
-    (updateHint iF (i, db i + d) st).Valid iF (Function.update db i d) := by
+    (updateHint iF ⟨i, db i + d⟩ st).Valid iF (Function.update db i d) := by
   have hcancel : (db i + d) + db i = d := by
     rw [add_comm (db i) d, bool_add_add_cancel]
   simpa [hcancel] using valid_updateHint_delta i (db i + d) hvalid hcorr
@@ -1628,7 +1616,7 @@ theorem valid_updateHint {iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w)}
 /-- `updateHint` preserves `slotMatchesBlock` at every slot `j` and query `x`. -/
 @[simp]
 theorem slotMatchesBlock_updateHint (iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w))
-    (δ : (Fin c × Fin w) × Bool) (st : PlinkoState c w nReg nBackup Key) (x : Fin c × Fin w)
+    (δ : UpdateSummary c w) (st : PlinkoState c w nReg nBackup Key) (x : Fin c × Fin w)
     (j : Fin (nReg + nBackup)) :
     slotMatchesBlock iF (updateHint iF δ st) x j = slotMatchesBlock iF st x j := by
   dsimp only [slotMatchesBlock, updateHint]
@@ -1640,14 +1628,14 @@ theorem slotMatchesBlock_updateHint (iF : InvertiblePRF Key (Fin (nReg + nBackup
 /-- `updateHint` preserves `findHintSlot` for every query `x`. -/
 @[simp]
 theorem findHintSlot_updateHint (iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w))
-    (δ : (Fin c × Fin w) × Bool) (st : PlinkoState c w nReg nBackup Key) (x : Fin c × Fin w) :
+    (δ : UpdateSummary c w) (st : PlinkoState c w nReg nBackup Key) (x : Fin c × Fin w) :
     findHintSlot iF (updateHint iF δ st) x = findHintSlot iF st x := by
   simp [findHintSlot]
 
 /-- `updateHint` preserves `findBackupSlot`. -/
 @[simp]
 theorem findBackupSlot_updateHint (iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w))
-    (δ : (Fin c × Fin w) × Bool) (st : PlinkoState c w nReg nBackup Key) :
+    (δ : UpdateSummary c w) (st : PlinkoState c w nReg nBackup Key) :
     findBackupSlot (updateHint iF δ st).T = findBackupSlot st.T := by
   have hpred : (fun j : Fin (nReg + nBackup) => ((updateHint iF δ st).T j).isSome) =
       (fun j : Fin (nReg + nBackup) => (st.T j).isSome) := by
@@ -1659,14 +1647,14 @@ theorem findBackupSlot_updateHint (iF : InvertiblePRF Key (Fin (nReg + nBackup))
 /-- `updateHint` preserves `CanAnswer` for every query `x`. -/
 @[simp]
 theorem canAnswer_updateHint_iff (iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w))
-    (δ : (Fin c × Fin w) × Bool) (st : PlinkoState c w nReg nBackup Key) (x : Fin c × Fin w) :
+    (δ : UpdateSummary c w) (st : PlinkoState c w nReg nBackup Key) (x : Fin c × Fin w) :
     (updateHint iF δ st).CanAnswer iF x ↔ st.CanAnswer iF x := by
   have hcache : ((updateHint iF δ st).cache x).isSome = (st.cache x).isSome := by
     dsimp only [updateHint]
-    by_cases hxu : x = δ.1
+    by_cases hxu : x = δ.entry
     · subst hxu
       simp only [Function.update_self]
-      cases st.cache δ.1 <;> rfl
+      cases st.cache δ.entry <;> rfl
     · simp [Function.update_of_ne hxu]
   have hget : (getHint iF (updateHint iF δ st) x).isSome = (getHint iF st x).isSome := by
     dsimp only [getHint]
@@ -1687,21 +1675,21 @@ and `∀ α, iF.IsCorrectKey (st.keys α)` hold, then `updateState iF updates st
 `applyUpdates updates db`. -/
 theorem valid_updateState {iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w)}
     {db : Fin c × Fin w → Bool} {st : PlinkoState c w nReg nBackup Key}
-    (updates : List ((Fin c × Fin w) × Bool)) (hvalid : st.Valid iF db)
+    (updates : List (UpdateSummary c w)) (hvalid : st.Valid iF db)
     (hcorr : ∀ α : Fin c, iF.IsCorrectKey (st.keys α)) :
     (updateState iF updates st).Valid iF (applyUpdates updates db) := by
   induction updates with
   | nil => exact hvalid
   | cons δ updates ih =>
     simp only [updateState_cons, applyUpdates_cons]
-    refine valid_updateHint_delta δ.1 δ.2 ih ?_
+    refine valid_updateHint_delta δ.entry δ.delta ih ?_
     rw [updateState_keys]
-    exact hcorr δ.1.1
+    exact hcorr δ.entry.1
 
 /-- `updateState` preserves `CanAnswer` for every query `x`. -/
 @[simp]
 theorem canAnswer_updateState_iff (iF : InvertiblePRF Key (Fin (nReg + nBackup)) (Fin w))
-    (updates : List ((Fin c × Fin w) × Bool)) (st : PlinkoState c w nReg nBackup Key)
+    (updates : List (UpdateSummary c w)) (st : PlinkoState c w nReg nBackup Key)
     (x : Fin c × Fin w) :
     (updateState iF updates st).CanAnswer iF x ↔ st.CanAnswer iF x := by
   induction updates <;> simp [*]

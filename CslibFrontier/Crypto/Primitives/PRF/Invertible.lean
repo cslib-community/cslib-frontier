@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Primitives.PRF.Finite
-import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF.Uniform
 
@@ -25,13 +24,6 @@ returning the preimage set of a range element `y : R` under `eval k`.
   `InvertiblePRF.IsCorrectOnGen`): for a key `k`, `iF.IsCorrectKey k` states that
   `x ∈ iF.inv k y ↔ iF.eval k x = y` for all `x : D` and `y : R` (equivalently,
   `iF.inv k y = Finset.univ.filter (fun x => iF.eval k x = y)` when `D` is finite).
-* **Forward security** (`InvertiblePRF.forwardAdvantage`): as noted in
-  [Hoover, Patel, Persiano and Yeo, Section 4 and Section 5.2][HooverPatelPersianoYeo2025]
-  (pp. 10 and 23), Plinko only requires pseudorandomness against adversaries with access to the
-  forward oracle, measured by the finite PRF advantage `Cslib.Crypto.PRF.advantage iF.eval`.
-  That game draws the key uniformly from `Key`, so it matches Definition 4.1's key law only when
-  `gen` is uniform (as for `idealInvertiblePRF`). No security theorem about any concrete iPRF is
-  proved here.
 * **Ideal random-function iPRF** (`idealInvertiblePRF`): samples a uniformly random function
   `f : D → R` as key, evaluates `f x` in the forward direction, and returns the exact preimage
   `Finset.univ.filter (fun x => f x = y)` in the inverse direction.
@@ -45,15 +37,16 @@ returning the preimage set of a range element `y : R` under `eval k`.
 
 ## What is not proved
 
-* The bidirectional iPRF security reduction of Theorem 4.4 and the pseudorandom multinomial sampler
-  (PMNS) construction (Definitions 4.2–4.3, Figure 4, Lemma 4.6, and Theorem 4.7) are not
-  formalized.
+* No security notion for iPRFs is defined, and no security statement is proved. In particular,
+  the forward-only security that Plinko needs (Section 5.2, p. 23), the bidirectional security
+  half of Theorem 4.4 (p. 12), and the pseudorandom multinomial sampler (PMNS) construction
+  (Definitions 4.2–4.3, Figure 4, Lemma 4.6, and Theorem 4.7) are not formalized.
 
 ## References
 
 * [A. Hoover, S. Patel, G. Persiano, K. Yeo, *Plinko: Single-Server PIR with Efficient Updates via
-  Invertible PRFs*][HooverPatelPersianoYeo2025], Section 4 (Definition 4.1, Theorem 4.4, and
-  Corollary 4.5; locators follow IACR ePrint 2024/318).
+  Invertible PRFs*][HooverPatelPersianoYeo2025], Section 4 (Definition 4.1, p. 10; Theorem 4.4,
+  p. 12; Corollary 4.5, p. 13; locators follow IACR ePrint 2024/318).
 -/
 
 public section
@@ -94,17 +87,9 @@ Corollary 4.5][HooverPatelPersianoYeo2025]). -/
 @[expose] def IsCorrectOnGen (iF : InvertiblePRF Key D R) : Prop :=
   ∀ k ∈ (ProbComp.eval iF.gen).support, iF.IsCorrectKey k
 
-theorem IsCorrect.isCorrectKey {iF : InvertiblePRF Key D R} (h : iF.IsCorrect) (k : Key) :
-    iF.IsCorrectKey k :=
-  h k
-
 theorem IsCorrect.isCorrectOnGen {iF : InvertiblePRF Key D R} (h : iF.IsCorrect) :
     iF.IsCorrectOnGen :=
   fun k _ => h k
-
-theorem IsCorrectKey.mem_inv_iff {iF : InvertiblePRF Key D R} {k : Key} (hk : iF.IsCorrectKey k)
-    (x : D) (y : R) : x ∈ iF.inv k y ↔ iF.eval k x = y :=
-  hk x y
 
 /-- On a finite domain `D`, `iF.IsCorrectKey k` holds if and only if `iF.inv k y` equals the
 exact preimage filter `{x ∈ D | iF.eval k x = y}` for every `y : R`
@@ -124,36 +109,6 @@ theorem IsCorrectKey.inv_eq_filter [Fintype D] [DecidableEq R] {iF : InvertibleP
     {k : Key} (hk : iF.IsCorrectKey k) (y : R) :
     iF.inv k y = Finset.univ.filter (fun x => iF.eval k x = y) :=
   (iF.isCorrectKey_iff_inv_eq k).mp hk y
-
-theorem IsCorrect.inv_eq_filter [Fintype D] [DecidableEq R] {iF : InvertiblePRF Key D R}
-    (h : iF.IsCorrect) (k : Key) (y : R) :
-    iF.inv k y = Finset.univ.filter (fun x => iF.eval k x = y) :=
-  (h k).inv_eq_filter y
-
-/-- Under `iF.IsCorrectOnGen`, for every `y : R`, a key `k ← iF.gen` produces the exact preimage
-set `Finset.univ.filter (fun x => iF.eval k x = y)` with probability one (zero failure probability
-in [Hoover, Patel, Persiano and Yeo, Definition 4.1][HooverPatelPersianoYeo2025]). -/
-theorem eval_gen_inv_eq_filter [Fintype D] [DecidableEq D] [DecidableEq R]
-    {iF : InvertiblePRF Key D R} (h : iF.IsCorrectOnGen) (y : R) :
-    ProbComp.eval (do
-      let k ← iF.gen
-      pure (decide (iF.inv k y = Finset.univ.filter (fun x => iF.eval k x = y)))) =
-      PMF.pure true := by
-  simp only [ProbComp.eval_bind, ProbComp.eval_pure]
-  rw [Cslib.Probability.PMF.bind_congr_on_support (ProbComp.eval iF.gen) _
-    (fun _ => PMF.pure true) (fun k hk => by simp [(h k hk).inv_eq_filter y]),
-    PMF.bind_const]
-
-/-! ### Forward PRF security (Definition 3.1 / Section 5.2) -/
-
-/-- The forward PRF distinguishing advantage against `iF` under a uniform key from `Key`,
-reusing `Cslib.Crypto.PRF.advantage`
-([Hoover, Patel, Persiano and Yeo, Definition 3.1 and Section 5.2][HooverPatelPersianoYeo2025]).
-The key is uniform on `Key`, not drawn from `iF.gen`; the two agree when `iF.gen` is uniform. -/
-noncomputable abbrev forwardAdvantage [Fintype Key] [Nonempty Key] [Fintype D]
-    [DecidableEq D] [Fintype R] [Nonempty R] (iF : InvertiblePRF Key D R)
-    (A : Adversary D R) : ℝ≥0 :=
-  PRF.advantage iF.eval A
 
 /-! ### Ideal random-function iPRF -/
 
@@ -181,13 +136,6 @@ theorem _root_.Cslib.Crypto.PRF.isCorrectOnGen_idealInvertiblePRF [Fintype D] [D
     [Fintype R] [DecidableEq R] [Nonempty R] :
     (idealInvertiblePRF D R).IsCorrectOnGen :=
   isCorrect_idealInvertiblePRF.isCorrectOnGen
-
-/-- The ideal random-function iPRF has zero forward PRF distinguishing advantage against every
-adversary `A`. -/
-theorem _root_.Cslib.Crypto.PRF.forwardAdvantage_idealInvertiblePRF_eq_zero [Fintype D]
-    [DecidableEq D] [Fintype R] [DecidableEq R] [Nonempty R] (A : Adversary D R) :
-    (idealInvertiblePRF D R).forwardAdvantage A = 0 :=
-  Game.advantage_self _
 
 /-! ### Composition with a keyed permutation (Theorem 4.4 and Corollary 4.5) -/
 

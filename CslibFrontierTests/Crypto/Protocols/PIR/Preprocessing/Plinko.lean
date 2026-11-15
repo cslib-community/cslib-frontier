@@ -13,27 +13,26 @@ public import CslibFrontier.Crypto.Protocols.PIR.Preprocessing.Plinko
 /-! # Tests for Invertible PRFs and the Plinko Preprocessing PIR Scheme
 
 Concrete smoke tests exercising:
-1. `idealInvertiblePRF`, `isCorrect_idealInvertiblePRF`,
-   `forwardAdvantage_idealInvertiblePRF_eq_zero`, `InvertiblePRF.composePerm`, and
-   `InvertiblePRF.isCorrect_composePerm`.
+1. `idealInvertiblePRF`, `isCorrect_idealInvertiblePRF`, `InvertiblePRF.composePerm`,
+   `InvertiblePRF.isCorrect_composePerm`, and an iPRF that is not inversion-correct.
 2. Single-pass database streaming (`streamEntry`, `foldr_streamEntry_univ`) and
    `PlinkoState.Valid` on a concrete `2 × 2` database (`c = 2`, `w = 2`, `nReg = 2`, `nBackup = 1`).
 3. Hint lookup (`findHintSlotScan`, `findHintSlot_eq_findHintSlotScan`, `getHintScan`),
    state transition (`PlinkoState.nextState`, `PlinkoState.valid_nextState`), and single/multi-query
-   correctness (`PlinkoState.eval_step_plinkoScheme`, `PlinkoState.isCorrectFrom_plinkoScheme`),
-   including regular hint consumption, backup hint promotion, and cache hits.
-4. Single-query exact privacy (`eval_buildQuery_conditioned_eq_plinkoSim`), adaptive multi-query
-   perfect privacy (`isPerfectlyPrivateWith_plinkoHybridScheme`,
-   `privacyAdvantage_plinkoHybridScheme_eq_zero`), and non-adaptive transcript privacy
-   (`eval_queryTranscript_plinkoHybridScheme`).
+   correctness (`PlinkoState.eval_step_plinkoScheme`,
+   `PlinkoState.isCorrectFrom_plinkoScheme_of_canAnswerSeq`), including regular hint consumption, backup hint promotion, and cache hits.
+4. The query map on a conditioned uniform hint (`eval_buildQuery_conditioned_eq_plinkoSim`) and
+   perfect privacy of the idealized stand-in `plinkoHybridScheme`
+   (`isPerfectlyPrivateWith_plinkoHybridScheme`, `privacyAdvantage_plinkoHybridScheme_eq_zero`,
+   `eval_queryTranscript_plinkoHybridScheme`); neither is privacy of `plinkoScheme`.
 5. Database and hint updates (`updateDB`, `updateHint`, `updateState`, `applyUpdates`,
    `PlinkoState.valid_updateHint`, `PlinkoState.valid_updateState`).
 6. A non-degenerate instance (`c = 4`, `w = 2`, `nReg = 3`, `nBackup = 2`), where regular hints
    are proper `3`-block subsets: a query sequence that consumes a regular hint, then consumes the
    promoted backup hint it created, then hits the cache; every preprocessed state satisfies the
-   correctness hypotheses (`PlinkoState.valid_of_mem_support_preprocess`); and single-query and
-   adaptive multi-query privacy at `c = 4`, `w = 3` against a server whose queries depend on the
-   messages it has seen.
+   correctness hypotheses (`PlinkoState.valid_of_mem_support_preprocess`); and the query map and the
+   idealized stand-in at `c = 4`, `w = 3`, against a server whose queries depend on the messages it
+   has seen.
 -/
 
 namespace Cslib.Crypto.Protocols.PIR.Preprocessing.Plinko.Tests
@@ -62,10 +61,14 @@ example : examplePermIPRF.IsCorrect :=
   InvertiblePRF.isCorrect_composePerm (ProbComp.uniform (Equiv.Perm (Fin 3))) id
     isCorrect_idealInvertiblePRF
 
-/-- For `idealInvertiblePRF (Fin 2) (Fin 2)`, any forward PRF adversary has advantage `0`. -/
-example (A : Adversary (Fin 2) (Fin 2)) :
-    (idealInvertiblePRF (Fin 2) (Fin 2)).forwardAdvantage A = 0 :=
-  forwardAdvantage_idealInvertiblePRF_eq_zero A
+/-- An iPRF on `Fin 2` whose inverse is always empty: it is not inversion-correct at its key. -/
+def emptyInverseIPRF : InvertiblePRF Unit (Fin 2) (Fin 2) where
+  gen := pure ()
+  eval _ x := x
+  inv _ _ := ∅
+
+example : ¬ emptyInverseIPRF.IsCorrectKey () := fun h => by
+  simpa [emptyInverseIPRF] using (h 0 0).mpr rfl
 
 /-! ### 2. Concrete 4-bit database (`c = 2` blocks × `w = 2` entries) -/
 
@@ -156,7 +159,7 @@ theorem exampleState_canAnswerSeq_00_00 :
 
 example :
     (plinkoScheme 2 2 2 1 exampleIPRF).IsCorrectFrom exampleDB exampleState [(0, 0), (0, 0)] :=
-  (PlinkoState.isCorrectFrom_plinkoScheme exampleState_valid
+  (PlinkoState.isCorrectFrom_plinkoScheme_of_canAnswerSeq exampleState_valid
     (fun α => isCorrectKey_idealInvertiblePRF (exampleState.keys α))
     exampleState_canAnswerSeq_00_00).1
 
@@ -164,8 +167,7 @@ example :
 
 instance : Fact (Even 2) := ⟨⟨1, rfl⟩⟩
 
-/-- Single-query exact privacy on `Fin 2 × Fin 2`: `buildQuery` on a conditioned regular hint has
-the exact simulator distribution `plinkoSim 2 2`. -/
+/-- On `Fin 2 × Fin 2`, `buildQuery` sends a conditioned uniform regular hint to `plinkoSim 2 2`. -/
 example (x : Fin 2 × Fin 2) :
     ProbComp.eval (do
       let P ← ProbComp.uniform (RegBlocksContaining 2 x.1)
@@ -176,7 +178,7 @@ example (x : Fin 2 × Fin 2) :
       ProbComp.eval (plinkoSim 2 2) :=
   eval_buildQuery_conditioned_eq_plinkoSim x
 
-/-- Adaptive multi-query perfect privacy for `plinkoHybridScheme 2 2`. -/
+/-- Perfect privacy of the idealized stand-in `plinkoHybridScheme 2 2`. -/
 example : (plinkoHybridScheme 2 2).IsPerfectlyPrivateWith (plinkoSim 2 2) :=
   isPerfectlyPrivateWith_plinkoHybridScheme
 
@@ -192,8 +194,7 @@ example (db : Fin 2 × Fin 2 → Bool) :
   privacyAdvantage_plinkoHybridScheme_eq_zero plinkoTranscriptServer
     (fun st => decide (st.2.length = 2)) db 2 (0, [])
 
-/-- Non-adaptive multi-query transcript privacy for `plinkoHybridScheme 2 2` on a 3-query
-sequence. -/
+/-- Query transcripts of the idealized stand-in `plinkoHybridScheme 2 2` on a 3-query sequence. -/
 example :
     ProbComp.eval
       ((plinkoHybridScheme 2 2).queryTranscript exampleDB [(0, 0), (1, 1), (0, 1)]) =
@@ -211,7 +212,7 @@ example :
     (isCorrectKey_idealInvertiblePRF (exampleState.keys 0))
 
 /-- Batch updates via `updateState` preserve `PlinkoState.Valid` for `applyUpdates`. -/
-example (updates : List ((Fin 2 × Fin 2) × Bool)) :
+example (updates : List (UpdateSummary 2 2)) :
     (updateState exampleIPRF updates exampleState).Valid
       exampleIPRF (applyUpdates updates exampleDB) :=
   PlinkoState.valid_updateState updates exampleState_valid
@@ -264,7 +265,7 @@ example : (∀ j : Fin 5, j.val < 3 → (exampleRegBlocks4 j).card = 3) ∧
     (∀ j : Fin 5, 3 ≤ j.val → (exampleBackupBlocks4 j).card = 2) := by decide
 
 /-- Query `(0, 0)` uses regular slot `0`; slot `2` also contains block `0` at offset `0`. -/
-example : (getHintScan exampleIPRF4 exampleState4 (0, 0)).map Prod.fst = some 0 := by decide
+example : (getHintScan exampleIPRF4 exampleState4 (0, 0)).map MatchedHint.slot = some 0 := by decide
 
 /-- After `(0, 0)`, backup slot `3` is promoted with `(0, 0)` and caches `exampleDB4 (0, 0)`. -/
 example : (exampleState4.nextState exampleIPRF4 exampleDB4 (0, 0)).cache (0, 0) =
@@ -277,7 +278,7 @@ example : (exampleState4.nextState exampleIPRF4 exampleDB4 (0, 0)).cache (0, 0) 
 set is `{0, 2, 3}`. -/
 example :
     (getHintScan exampleIPRF4 (exampleState4.nextState exampleIPRF4 exampleDB4 (0, 0))
-      (3, 0)).map (fun t => (t.1, t.2.1)) = some (3, {0, 2, 3}) := by
+      (3, 0)).map (fun t => (t.slot, t.blocks)) = some (3, {0, 2, 3}) := by
   dsimp only [PlinkoState.nextState]
   simp only [getHint_exampleIPRF4]
   decide
@@ -292,7 +293,7 @@ theorem exampleState4_canAnswerSeq :
 example :
     (plinkoScheme 4 2 3 2 exampleIPRF4).IsCorrectFrom exampleDB4 exampleState4
       [(0, 0), (3, 0), (0, 0)] :=
-  (PlinkoState.isCorrectFrom_plinkoScheme exampleState4_valid
+  (PlinkoState.isCorrectFrom_plinkoScheme_of_canAnswerSeq exampleState4_valid
     (fun α => isCorrectKey_idealInvertiblePRF (exampleState4.keys α))
     exampleState4_canAnswerSeq).1
 
@@ -306,8 +307,8 @@ example (db : Fin 4 × Fin 2 → Bool) (st : PlinkoState 4 2 3 2 (Fin 5 → Fin 
 
 instance : Fact (Even 4) := ⟨⟨2, rfl⟩⟩
 
-/-- Single-query exact privacy at `c = 4`, `w = 3`, where a conditioned regular hint is one of
-three `3`-block sets containing the queried block. -/
+/-- At `c = 4`, `w = 3`, `buildQuery` sends a conditioned uniform regular hint (one of three
+`3`-block sets containing the queried block) to `plinkoSim 4 3`. -/
 example (x : Fin 4 × Fin 3) :
     ProbComp.eval (do
       let P ← ProbComp.uniform (RegBlocksContaining 4 x.1)
