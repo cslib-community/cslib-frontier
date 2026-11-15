@@ -182,14 +182,13 @@ theorem compressResidues_polyResidues {n q : ℕ} (d : ℕ) (f : Fin n → ZMod 
     Function.comp_def]
 
 /-- Native decompression computes `decompressPoly`. -/
-theorem decompressResidues_polyResidues {n : ℕ} (q d : ℕ) [NeZero q]
-    (f : Fin n → ZMod (2 ^ d)) :
+theorem decompressResidues_polyResidues {n : ℕ} (q d : ℕ) (f : Fin n → ZMod (2 ^ d)) :
     decompressResidues q d (polyResidues f) = polyResidues (decompressPoly q d f) := by
   simp [decompressResidues, polyResidues, decompress, modulusSwitchResidue_natCast,
     ZMod.val_natCast, Function.comp_def]
 
 /-- The native message polynomial of a word `m` is `messagePoly` of its first `n` bits. -/
-theorem messageResidues_eq (P : Params) [NeZero P.q] (m : List Bool) :
+theorem messageResidues_eq (P : Params) (m : List Bool) :
     messageResidues P.n P.q m = polyResidues (messagePoly P fun i => m.getD i false) := by
   rw [messagePoly, ← decompressResidues_polyResidues, messageResidues]
   congr 1
