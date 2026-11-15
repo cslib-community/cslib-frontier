@@ -150,8 +150,8 @@ theorem sampleCompiler_accounted (n : ℕ) :
   · simp [Game.CompilerInstallation.IsInInventory, sampleResources, sampleInventory]
   · simp [sampleResources, sampleInventory, sampleExecution, sampleCompilerExecution]
   · simp only [SampleCompilerCertifies, sampleResources, sampleExecution,
-      sampleCompilerExecution, sampleOnlinePhases]
-    exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, by omega, by omega⟩
+      sampleCompilerExecution, sampleOnlinePhases, true_and]
+    constructor <;> omega
   · change 18 * (n + 1) + 19 * (n + 1) ≤ 299 * n + 299
     omega
   · change 31 * (n + 1) ≤ 42 * n + 42
@@ -173,8 +173,8 @@ theorem inlinedCompiler_accounted (n : ℕ) :
   · simp [Game.CompilerInstallation.IsInInventory, inlinedCompilerResources]
   · simp [inlinedCompilerResources, sampleExecution, sampleCompilerExecution]
   · simp only [SampleCompilerCertifies, inlinedCompilerResources, sampleExecution,
-      sampleCompilerExecution, sampleOnlinePhases]
-    exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, by omega, by omega⟩
+      sampleCompilerExecution, sampleOnlinePhases, true_and]
+    constructor <;> omega
   · change 18 * (n + 1) + 19 * (n + 1) ≤ 299 * n + 299
     omega
   · change 31 * (n + 1) ≤ 42 * n + 42
@@ -198,8 +198,9 @@ theorem sampleOnlinePhases_accounted (n : ℕ) :
     Game.AttackResources.AccountsForOnlinePhases SampleAttackCertifies n
       (sampleResources n) := by
   refine ⟨?_, ?_, ?_⟩
-  · simp only [SampleAttackCertifies, sampleResources, sampleExecution, sampleOnlinePhases]
-    exact ⟨rfl, rfl, rfl, by omega, by omega⟩
+  · simp only [SampleAttackCertifies, sampleResources, sampleExecution, sampleOnlinePhases,
+      true_and]
+    constructor <;> omega
   · change (sampleOnlinePhases n).totalTime = 299 * n + 299
     simp [Game.OnlinePhaseLedger.totalTime, Game.OnlinePhaseLedger.asList,
       sampleOnlinePhases]
@@ -212,8 +213,9 @@ theorem sampleOnlinePhases_accounted (n : ℕ) :
 theorem sampleOutput_accounted (n : ℕ) :
     Game.AttackResources.AccountsForOutput SampleAttackCertifies n (sampleResources n) := by
   refine ⟨?_, ?_, ?_, ?_, ?_⟩
-  · simp only [SampleAttackCertifies, sampleResources, sampleExecution, sampleOnlinePhases]
-    exact ⟨rfl, rfl, rfl, by omega, by omega⟩
+  · simp only [SampleAttackCertifies, sampleResources, sampleExecution, sampleOnlinePhases,
+      true_and]
+    constructor <;> omega
   · change 17 * (n + 1) + 28 * (n + 1) + 29 * (n + 1) ≤ 299 * n + 299
     omega
   · change 30 * (n + 1) ≤ 42 * n + 42
