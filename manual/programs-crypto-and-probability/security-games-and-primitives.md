@@ -81,7 +81,7 @@ CI also checks the witness rule on pull requests. After `lake build`, `python3 s
 | One-way functions | [CslibFrontier/Crypto/Computational/OneWay.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/OneWay.lean) | Deterministic native polynomial evaluation; uniform seed-length sampling; strict-PPT inverter gets unary length and image; any preimage may win |
 | Pseudorandom generator | [CslibFrontier/Crypto/Computational/PseudorandomGenerator.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/PseudorandomGenerator.lean) | Length schedule, expansion, native deterministic evaluation and indistinguishability |
 | Adaptive pseudorandom function | [CslibFrontier/Crypto/Computational/PseudorandomFunction.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/PseudorandomFunction.lean) | Oracle-PPT access, consistent ideal random function, explicit input/output widths and malformed-query convention |
-| Collision resistance | [CslibFrontier/Crypto/Computational/CollisionResistant.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/CollisionResistant.lean) | Public setup distribution/encoding and input-validity predicate; keyed word specialization; setup need not be efficiently sampleable in the general interface; [DiscreteLog/GroupHash.lean](../../CslibFrontier/Crypto/Computational/DiscreteLog/GroupHash.lean) instantiates it with the Katz–Lindell discrete-logarithm hash (`DiscreteLog.collisionResistantForOn_groupHash`, exact zero-loss reduction for the encoded outputs; fixed digest width, compression and efficient setup are not established) |
+| Collision resistance | [CslibFrontier/Crypto/Computational/CollisionResistant.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/CollisionResistant.lean) | Public setup distribution/encoding and input-validity predicate; keyed word specialization; setup need not be efficiently sampleable in the general interface; [DiscreteLog/GroupHash.lean](../../CslibFrontier/Crypto/Computational/DiscreteLog/GroupHash.lean) instantiates it with the Katz–Lindell discrete-logarithm hash (`DiscreteLog.collisionResistantForOn_groupHash`, exact zero-loss reduction for the encoded outputs; fixed digest width, compression and efficient setup are not established), and [RSAHash.lean](../../CslibFrontier/Crypto/Computational/RSAHash.lean) with the Boneh–Shoup RSA hash `H_rsa` (`RSAOneWay.collisionResistantForOn_rsaHash`, when `e` is eventually prime on the key support) |
 | Target collision resistance | [CslibFrontier/Crypto/Computational/TargetCollisionResistant.lean](../../CslibFrontier/Crypto/Computational/TargetCollisionResistant.lean), [CslibFrontier/Crypto/Computational/NaorYungUOWHF.lean](../../CslibFrontier/Crypto/Computational/NaorYungUOWHF.lean), [CslibFrontier/Crypto/Computational/InaccessibleEntropy/TargetCollision.lean](../../CslibFrontier/Crypto/Computational/InaccessibleEntropy/TargetCollision.lean) | Two-stage pre-key target choice and post-key second-preimage search; polynomial key/block schedules, fixed-depth `2^n`-capacity tree extension, Naor–Yung UOWHFs from `OneWayPermutation`, and Rompel–HHRVW UOWHFs from `OneWay` |
 | Inaccessible entropy and shrinking collision grids | [CslibFrontier/Crypto/Computational/InaccessibleEntropy/Basic.lean](../../CslibFrontier/Crypto/Computational/InaccessibleEntropy/Basic.lean), [CslibFrontier/Crypto/Computational/InaccessibleEntropy/Amplify.lean](../../CslibFrontier/Crypto/Computational/InaccessibleEntropy/Amplify.lean), [CslibFrontier/Crypto/Computational/InaccessibleEntropy/TargetCollision.lean](../../CslibFrontier/Crypto/Computational/InaccessibleEntropy/TargetCollision.lean) | Fixed-width native polynomial evaluation, accessible preimage subsets with eventual `1 / denom n` entropy gap, polynomial-size grids of `1`-bit shrinking candidates with an existential random-collision-resistant sequence (`exists_good_candidate`), and uniform `gridCount n`-way cascade concatenation |
 | Discrete logarithm and DDH | [CslibFrontier/Crypto/Computational/DiscreteLog.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/DiscreteLog.lean), [CslibFrontier/Crypto/Computational/DiffieHellman.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/DiffieHellman.lean) | Encoded prime-order group families, exact ideal group laws; public operations and samplers require separate certificates |
@@ -1117,6 +1117,46 @@ cases `p = 2` and `e = 1`, and an instance showing that the branch for `y = 0` i
 [`AssumptionNonvacuity.lean`](../../CslibFrontierTests/Crypto/AssumptionNonvacuity.lean) shows
 that `RSAUnitOneWay` fails for a fixed key (`not_rsaUnitOneWay_const`).
 
+For the RSA hash `H_rsa` ([bs23][bs23], §10.6.2, p. 415, and Theorem 10.7 with the bound (10.3),
+pp. 416–417), import [`RSAHash.lean`](../../CslibFrontier/Crypto/Computational/RSAHash.lean). An
+`RSAHashKey` is a public key `(N, e)` with a base `y`, encoded by `encRSAHashKey`, and
+`rsaHashSetup gen n` draws `desc ← gen n` and a uniform unit `y` modulo `N`. `rsaHash k m` reads
+the word `m` as a pair `(a, b)` of binary numbers (`rsaHashDecoder`) and returns
+`a ^ e * y ^ b % N`. `validRSAHashInput n k m` holds when `m` is the encoding of that pair, `a < N`,
+`a` is coprime to `N` and `b < e`. The hash is an instance of `collisionGameFor`, as `groupHash` in
+[`DiscreteLog/GroupHash.lean`](../../CslibFrontier/Crypto/Computational/DiscreteLog/GroupHash.lean)
+is. `rsaHashRoot N e y a b a' b'` is Shamir's trick on the pair
+ordered by exponent: `commonRoot N e (b' - b) w y` with `w = a * BinaryGcd.modInv a' N % N` when
+`b < b'`, and `commonRoot N e (b - b') w y` with `w = a' * BinaryGcd.modInv a N % N` otherwise, so
+`commonRoot` keeps natural exponents where the book's proof takes `f = b' - b`. For `0 < N`, a prime
+`e`, `y < N`, `Nat.Coprime y N`, `Nat.Coprime a N`, `Nat.Coprime a' N`, `b < e`, `b' < e`,
+`b ≠ b'` and `a ^ e * y ^ b ≡ a' ^ e * y ^ b' [MOD N]`, `rsaEval_rsaHashRoot` says that
+`rsaEval N e (rsaHashRoot N e y a b a' b') = y`. `rsaHashToRSA A`, the book's adversary `B'`, runs
+the collision finder `A` on the key `(N, e, y)` and returns `rsaHashRoot` of the two decoded pairs
+without checking that they collide. `isPPT_rsaHashToRSA` shows that `rsaHashToRSA A` is PPT
+whenever `A` is PPT on `(1ⁿ, k)`; `computableInPolyTime_rsaHash` and
+`computableInPolyTime_validRSAHashInput` show that the hash and its domain are computable in
+polynomial time from the encoded key and word. At every security parameter `n` where `e` is prime
+for every key in the support of `gen n`,
+`succProbability_collisionGameFor_rsaHash_le_rsaUnitInversionGame` bounds the success probability
+of `A` in the collision game by that of `rsaHashToRSA A` in `rsaUnitInversionGame`, and
+`succProbability_collisionGameFor_rsaHash_le_rsaInversionGame`, the bound (10.3), by that of
+`unitRSAToRSA (rsaHashToRSA A)` in `rsaInversionGame`. Hence, if for all sufficiently large `n`
+`e` is prime for every key in the support of `gen n`, then `RSAUnitOneWay gen` and `RSAOneWay gen`
+each make `rsaHash` collision resistant on `validRSAHashInput` under `rsaHashSetup gen`
+(`RSAUnitOneWay.collisionResistantForOn_rsaHash`, `RSAOneWay.collisionResistantForOn_rsaHash`).
+The statements differ from the book's in four ways. The bound is `≤` where the book's proof gives
+equality, because `rsaHashToRSA` also wins on some words that the game rejects, such as a valid
+word followed by `false`. The domain `ℤₙ* × I_e` is the set of words that `validRSAHashInput`
+accepts. Digests are natural numbers below `N`, not units modulo `N`. The book fixes a prime `e`,
+whereas keys here come from any law on `RSADesc`, with no condition on `ℓ`, and the results assume
+that `e` is prime on its support; `e` coprime to `(p - 1) * (q - 1)` is not enough. Exercise 10.26
+(p. 431), the use of `H_rsa` as a compression function in the Merkle–Damgård construction (p. 416)
+and the accumulator of §10.9 are not formalized. The
+[checked examples](../../CslibFrontierTests/Crypto/RSAHash.lean) cover a collision at `N = 15`,
+`e = 3` and `y = 2` with its root `8`, a word that decodes to a valid pair but is not valid, and, at
+`e = 9`, which is coprime to `(3 - 1) * (5 - 1) = 8`, a collision that gives no ninth root of `2`.
+
 For Shamir's trick ([bs23][bs23], §10.6.2, Theorem 10.6, p. 416), import
 [`RSACommonRoot.lean`](../../CslibFrontier/Crypto/Computational/RSACommonRoot.lean); the group
 identity behind it is in
@@ -1140,12 +1180,13 @@ hypotheses together with `Nat.Coprime y n`, `x` is coprime to `n`, the book's `x
 time whenever `n`, `e`, `f`, `w` and `y` are, as natural numbers on `encNat`, with no condition on
 their values. The statement differs from the book's in three ways. The exponents are natural
 numbers, whereas the book allows negative ones and applies the theorem with `f = b' - b`
-([bs23][bs23], proof of Theorem 10.7, p. 417). The book states only `x ^ e ≡ y`; the second
+([bs23][bs23], proof of Theorem 10.7, p. 417); `rsaHashRoot` orders the pair so that natural
+exponents suffice there. The book states only `x ^ e ≡ y`; the second
 congruence is the one §10.9 uses to recover each proof from an aggregate ([bs23][bs23], §10.9,
 p. 422). The book takes units `w` and `y` modulo `n`, whereas here `w` and `y` are natural numbers,
 not necessarily below `n`, and the two congruences assume only `Nat.Coprime w n`: for `f ≠ 0` it
-makes `y` coprime to `n`, and for `f = 0` they do not need it. Theorem 10.7 and the accumulator
-of §10.9 are not formalized. In `RSAAttacks.lean`, `commonRoot_rsaEval` applies the
+makes `y` coprime to `n`, and for `f = 0` they do not need it. The accumulator of §10.9 is not
+formalized. In `RSAAttacks.lean`, `commonRoot_rsaEval` applies the
 algorithm to the common-modulus attack on plain RSA: for `Nat.Coprime e₁ e₂` and
 `Nat.Coprime m N`, `commonRoot N e₂ e₁ (rsaEval N e₁ m) (rsaEval N e₂ m) = m % N`, so
 `computableInPolyTime_commonRoot` is also the attack's certificate. The checked examples for the
