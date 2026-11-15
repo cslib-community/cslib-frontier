@@ -354,19 +354,19 @@ private theorem labelBits_hybridView (k : ℕ) (f : ValidCircuit) {x : List Bool
     · rw [apply_ite labelBits]
       refine ite_congr (propext ?_) (fun _ => ?_) (fun _ => ?_)
       · simp only [IsTarget, htb₀, activeColour, trace_wires f hx, permFn, hw₀, Bool.add_eq_xor]
-      · simp only [replyOracle, rowIndex_testBit_of_eq_two harity hi, Fin.val_mk, add_zero]
+      · simp only [replyOracle, rowIndex_testBit_of_eq_two harity hi, add_zero]
         exact hreply 0 (by omega)
       · rw [← labelWord_ofFn, ofFn_keyFn, hw₀]
-        simp only [slotTweak, ofFn_ofList_tweak, rowIndex_testBit_of_eq_two harity hi, Fin.val_mk,
-          htb₀, hq, Fin.val_cast]
+        simp only [slotTweak, ofFn_ofList_tweak, rowIndex_testBit_of_eq_two harity hi, htb₀, hq,
+          Fin.val_cast]
     · rw [apply_ite labelBits]
       refine ite_congr (propext ?_) (fun _ => ?_) (fun _ => ?_)
       · simp only [IsTarget, htb₁, activeColour, trace_wires f hx, permFn, hw₁, Bool.add_eq_xor]
-      · simp only [replyOracle, rowIndex_testBit_of_eq_two harity hi, Fin.val_mk]
+      · simp only [replyOracle, rowIndex_testBit_of_eq_two harity hi]
         exact hreply 1 (by omega)
       · rw [← labelWord_ofFn, ofFn_keyFn, hw₁]
-        simp only [slotTweak, ofFn_ofList_tweak, rowIndex_testBit_of_eq_two harity hi, Fin.val_mk,
-          htb₁, hq, Fin.val_cast]
+        simp only [slotTweak, ofFn_ofList_tweak, rowIndex_testBit_of_eq_two harity hi, htb₁, hq,
+          Fin.val_cast]
 
 /-- **The hybrid view on words is the typed hybrid view.** For a valid circuit `f`, an input `x`
 of `f.n` bits and answers `rs` of `k + 2` bits to the tweaks of all slots, hybrid view `j` on words
@@ -411,7 +411,7 @@ reply. Answer `8 g + 2 i + a` is then the answer to the tweak of slot `a` of row
       ((), BitString.lowBits k rs.length))
 
 /-- **The PRF reduction** for a `prv.sim` adversary `B`, at label parameter `k`, with step range
-`Probability.dyadicSize (P k)`: run `B`'s choice of a query `(f, x)`; when `x` has `f.n` bits, draw a step `j`,
+`dyadicSize (P k)`: run `B`'s choice of a query `(f, x)`; when `x` has `f.n` bits, draw a step `j`,
 the garbler's coins and filler labels, ask the oracle at the tweaks of the `8 q` slots, and run
 `B`'s guess on hybrid view `j`; otherwise run `B`'s guess on `⊥`. -/
 noncomputable def prvSimReduction {σ : Type} (B : ℕ → PrvSimAdversary ValidCircuit σ)
@@ -451,7 +451,7 @@ private theorem run_iterate_replyStep (k : ℕ) (T : BitString k → BitString (
   | succ c ih =>
     rw [OracleComp.iterate_succ, ProbOracleComp.run_bind, ih, pure_bind]
     simp only [replyStep, ProbOracleComp.run_map, ProbOracleComp.run_query, wordOracle_labelCodec,
-      BitString.length_lowBits, if_true, map_pure, List.length_map, List.length_range,
+      BitString.length_lowBits, ite_true, map_pure, List.length_map, List.length_range,
       List.range_succ, List.map_append, List.map_cons, List.map_nil,
       List.take_of_length_le (le_of_eq (length_labelBits _))]
 
@@ -485,7 +485,7 @@ the words of a typed view. -/
 
 /-- **The word reduction runs the typed reductions.** Against every label table `T`, the reduction
 for `B` at label parameter `k` runs `B`'s choice of `(f, x)` and, when `x` has `f.n` bits, the
-typed reduction for a uniform step `j` below `Probability.dyadicSize (P k)` on `toCircuit f` with `B`'s guess
+typed reduction for a uniform step `j` below `dyadicSize (P k)` on `toCircuit f` with `B`'s guess
 on the words of the view; otherwise `B`'s guess on `⊥`. -/
 theorem eval_run_prvSimReduction {σ : Type} (B : ℕ → PrvSimAdversary ValidCircuit σ) (P : ℕ → ℕ)
     (k : ℕ) (T : BitString k → BitString (k + 1) × Bool) :
@@ -526,7 +526,7 @@ theorem eval_run_prvSimReduction {σ : Type} (B : ℕ → PrvSimAdversary ValidC
       PMF.map_comp]
     rfl
   simp only [ProbOracleComp.run_bind, ProbOracleComp.run_sample, run_iterate_replyStep,
-    ProbComp.eval_bind, ProbComp.eval_pure, pure_bind, ProbComp.eval_sampleDyadicIndex,
+    ProbComp.eval_bind, pure_bind, ProbComp.eval_sampleDyadicIndex,
     BitString.eval_sampleList, PMF.bind_map, Function.comp_def,
     hybViewWord_eq family k f hx _ _ _ hrs hlen, eval_run_reduction]
   refine congrArg _ (funext fun j => ?_)
@@ -599,7 +599,7 @@ private theorem eval_prvSimExperiment_true {σ : Type} (B : ℕ → PrvSimAdvers
   rw [hin]
   split_ifs with hx
   · rw [hybridGame_zero]
-    simp only [if_true, ProbComp.eval_bind, realGame]
+    simp only [ProbComp.eval_bind, realGame]
     rw [eval_prvView family k query.fn hx, PMF.bind_map]
     rfl
   · rfl
@@ -622,7 +622,8 @@ private theorem eval_prvSimExperiment_false {σ : Type} (B : ℕ → PrvSimAdver
   · rw [hybridGame_of_le _ _ _ _ _ _ (by rw [size_toCircuit]; exact hc query state hmem hx)]
     simp only [ProbComp.eval_bind, simGame]
     have hy : BitString.ofList query.fn.1.m (query.fn.1.evalCirc query.input) =
-        (toCircuit query.fn).eval fullInterpretation (BitString.ofList query.fn.1.n query.input) := by
+        (toCircuit query.fn).eval fullInterpretation
+          (BitString.ofList query.fn.1.n query.input) := by
       have h := eval_toCircuit query.fn (BitString.ofList query.fn.1.n query.input)
       rw [BitString.ofFn_ofList hx] at h
       rw [← h, BitString.ofList_ofFn]
@@ -688,7 +689,7 @@ theorem prvSimAdvantage_simWord_eq {σ : Type} (B : ℕ → PrvSimAdversary Vali
     prvSimAdvantage (scheme family) phiTopo k (simWord family k) (B k) =
       Probability.dyadicSize (P k) * PRF.advantage (PRF.label (PRF.atLevel family (k + 1)))
         ((labelCodec k).adapt (prvSimReduction family B P k [])) := by
-  haveI : NeZero (Probability.dyadicSize (P k)) := ⟨(Probability.dyadicSize_pos _).ne'⟩
+  have : NeZero (Probability.dyadicSize (P k)) := ⟨(Probability.dyadicSize_pos _).ne'⟩
   have hc : ∀ query state, (query, state) ∈ (ProbComp.eval ((B k).choose ())).support →
       query.input.length = query.fn.1.n →
         query.fn.1.n + query.fn.1.q ≤ Probability.dyadicSize (P k) :=
@@ -986,10 +987,12 @@ private theorem hybBodyData_polyTime :
   rw [heq]
   polytime
 
-private theorem hybInput_polyTime : ComputableInPolyTime (fun p : ℕ × ℕ × ℕ × List Bool × List Bool =>
-      ((List.range p.2.1).map fun i =>
-        labelOf p.1 (p.2.1 + p.2.2.1) p.2.2.2.2 i (permOf p.2.2.2.1 i ^^ permOf p.2.2.2.2 i)).flatten)
-      (encPair encUnary (encPair encUnary (encPair encUnary (encPair encBits encBits)))) encBits := by
+private theorem hybInput_polyTime :
+    ComputableInPolyTime (fun p : ℕ × ℕ × ℕ × List Bool × List Bool =>
+      ((List.range p.2.1).map fun i => labelOf p.1 (p.2.1 + p.2.2.1) p.2.2.2.2 i
+        (permOf p.2.2.2.1 i ^^ permOf p.2.2.2.2 i)).flatten)
+      (encPair encUnary (encPair encUnary (encPair encUnary (encPair encBits encBits))))
+      encBits := by
   polytime
 
 private theorem hybDecInfo_polyTime : ComputableInPolyTime (fun p : ℕ × ℕ × ℕ × List Bool =>
@@ -1221,8 +1224,8 @@ theorem isOraclePPT_prvSimReduction
       encBool encσ B) {P : ℕ → ℕ} (hP : ComputableInPolyTime P encUnary encUnary) :
     IsOraclePPT encBool (prvSimReduction family B P) := by
   have hchoose := (hB.choose.preprocess (prepare := fun a : ℕ × List Bool => (a.1, ()))
-    ((ComputableInPolyTime.fst encUnary encBits).prod (ComputableInPolyTime.const ()))).isOraclePPTOn
-    (Operation := Unit)
+    ((ComputableInPolyTime.fst encUnary encBits).prod
+      (ComputableInPolyTime.const ()))).isOraclePPTOn (Operation := Unit)
   exact hchoose.bind_with (isOraclePPTOn_prvSimBranch hf hB hP)
 
 end Efficiency
