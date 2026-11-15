@@ -1209,6 +1209,11 @@ Carsten Lund, Lance Fortnow, Howard Karloff and Noam Nisan. *Algebraic Methods f
 
 Xin Li. *Two Source Extractors for Asymptotically Optimal Entropy, and (Many) More*. FOCS 2023, 1271–1281. https://doi.org/10.1109/FOCS57990.2023.00075 . Bibliographic metadata checked; secondary search summaries indicate Definition 3.1 (affine sources), Lemma 3.9 (affine conditioning), Lemma 3.10 (block decomposition), Theorem 7.13 (sumset extractor), and Corollary 7.14 in preprint versions, while the full primary PDF was not read line by line, so individual numbered locators in `AffineSource.lean` remain unverified against the typeset FOCS version.
 
+<a id="lindell17"></a>
+## lindell17
+
+Yehuda Lindell. *How To Simulate It – A Tutorial on the Simulation Proof Technique*. Electronic Colloquium on Computational Complexity, Report TR17-112, 2017. https://eccc.weizmann.ac.il/report/2017/112/ . The ECCC PDF dated June 27, 2017 was read for Section 2 (computational indistinguishability against non-uniform polynomial-time distinguishers with one negligible function for all inputs, p. 3), Section 4.2 (Definition 4.1, security against static semi-honest adversaries for two parties, p. 7) and the remark on auxiliary information (p. 9); page numbers are those printed in the report.
+
 <a id="liptonyoung1994"></a>
 ## liptonyoung1994
 
