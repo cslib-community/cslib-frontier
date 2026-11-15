@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 
 import CslibFrontier.Crypto.Computational.GenericGroup.DiscreteLog
+import CslibFrontier.Probability.PMF.EmbeddingPerm
 import Mathlib.Tactic.NormNum.Prime
 
 /-!
@@ -31,7 +32,7 @@ set_option linter.privateModule false
 
 namespace CslibFrontierTests.Crypto.GenericGroupDiscreteLog
 
-open Cslib Cslib.Crypto.GenericGroup
+open Cslib Cslib.Crypto.GenericGroup Cslib.Probability
 open scoped NNReal
 
 /-! ### An adversary without queries -/
@@ -84,6 +85,42 @@ example (j : ZMod 5 ↪ Fin 8) (σ : Equiv.Perm (ZMod 5)) :
       runLabeled (fun β => j (σ β))
         (ProbOracleComp.query (spec := GroupOracleSpec 5 (Fin 8)) (.label 2)) :=
   runLabeled_relabel j σ _
+
+private instance : Nonempty (ZMod 2 ↪ Fin 3) := ⟨Fin.castLEEmb (by decide)⟩
+
+/-- Precomposing a uniform embedding `ZMod 2 ↪ Fin 3` with an independent uniform permutation of
+`ZMod 2` preserves the law of the image of `1`. -/
+example : (PMF.uniformOfFintype (ZMod 2 ↪ Fin 3)).map (fun j => j 1) =
+    (PMF.uniformOfFintype (ZMod 2 ↪ Fin 3)).bind fun j =>
+      (PMF.uniformOfFintype (Equiv.Perm (ZMod 2))).map fun σ => j (σ 1) :=
+  PMF.uniformOfFintype_embedding_bind_perm_trans fun j => PMF.pure (j 1)
+
+/-! ### `answer_op`: rejecting non-labels and computing preimages -/
+
+/-- The labeling `ZMod 2 → Fin 3` sending `0 ↦ 0`, `1 ↦ 2`; `1 : Fin 3` is not a label. -/
+private def L₂ : ZMod 2 → Fin 3 := fun β => if β = 0 then 0 else 2
+
+private theorem partialInv_L₂_one : Function.partialInv L₂ 1 = none := by
+  unfold Function.partialInv
+  exact dite_eq_right (by decide)
+
+/-- A group operation on a string that is not a label is rejected in the first argument. -/
+example (ℓ₂ : Fin 3) (κ₁ κ₂ : ZMod 2) : answer L₂ (.op 1 ℓ₂ κ₁ κ₂) = none := by
+  rw [answer_op, partialInv_L₂_one]
+  rfl
+
+/-- A group operation on a string that is not a label is rejected in the second argument. -/
+example (κ₁ κ₂ : ZMod 2) : answer L₂ (.op (L₂ 1) 1 κ₁ κ₂) = none := by
+  rw [answer_op, partialInv_L₂_one]
+  cases Function.partialInv L₂ (L₂ 1) <;> rfl
+
+private theorem injective_L₂ : Function.Injective L₂ := by decide
+
+/-- `answer_op` with both preimages computed: `1 · 1 + 1 · 1 = 0` in `ZMod 2`. -/
+example : answer L₂ (.op 2 2 1 1) = some 0 := by
+  have h : Function.partialInv L₂ 2 = some 1 := Function.partialInv_left injective_L₂ 1
+  rw [answer_op, h]
+  decide
 
 /-! ### Hypotheses -/
 
