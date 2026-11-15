@@ -8,7 +8,9 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.DiffieHellman.Finite
-import CslibFrontier.Crypto.Game.Order
+public import CslibFrontier.Languages.Probabilistic.UniformNat.ModIndex
+import CslibFrontier.Languages.Probabilistic.UniformNat.LowerBound
+import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.DensityBounds
 import CslibFrontier.Probability.PMF.UniformIndex
 import CslibFrontier.Probability.PMF.UniformPoint
@@ -26,20 +28,26 @@ Theorem 11.4 (Section 11.5.1, pp. 446–448), where it is the source of the fact
 of at most `Q` queries at random gives `CDHadv[Bcdh, G] ≥ Pr[Z] / Q`, equation (11.12).
 
 The reduction `listCDHToCDH` takes its index sampler as an argument, and the analysis is general
-in its law: `eval_listCDHExperiment_le_mul` bounds the list experiment by `c` times the CDH
-experiment of `listCDHToCDH` for every index sampler that selects each of the first `Q` entries of
-every list with probability at least `1 / c`. An exactly uniform index below `Q` gives `c = Q`
-(`listCDHAdvantage_le_mul_cdhAdvantage`). A machine with fair coins draws such an index exactly
-only when `Q` is a power of two, so the efficient reduction over a prime-order group family uses
-the same program with an index from a power-of-two range; it, its certificate and the conclusion
-under the CDH assumption are in
+in its law: `eval_listCDHExperiment_le_mul_add_of_index` bounds the list experiment by `c` times the
+CDH experiment of `listCDHToCDH` plus `ε` for every index sampler such that, for each of the first
+`Q` entries of every list, `c` times the probability of selecting it, plus `ε`, is at least `1`;
+`eval_listCDHExperiment_le_mul` is its case `ε = 0`. An exactly uniform index below `Q` gives
+`c = Q` and `ε = 0` (`listCDHAdvantage_le_mul_cdhAdvantage`). A machine with fair coins cannot draw
+an exactly uniform index below every `Q`. It can draw `Cslib.ProbComp.sampleModIndex width Q`: the
+residue modulo `Q` of a number written with `width` fair coins, capped at `Q` (which matters only
+at `Q = 0`). Each position below `Q` is drawn with probability at least `1 / Q - 1 / 2 ^ width`
+(`Cslib.ProbComp.one_le_mul_eval_sampleModNat_add`), so the reduction keeps the factor `Q` and
+adds the term `Q / 2 ^ width` (`eval_listCDHExperiment_le_mul_add`), for every `width` and every
+`Q`. The efficient reduction over a prime-order group family draws its index this way; it, its
+certificate, its bound and the conclusion under the CDH assumption are in
 `CslibFrontier/Crypto/Computational/DiffieHellman/ListCDHFamily.lean`.
 
 No hypothesis restricts `Q` or the adversary's lists:
 
-* At `Q = 0` the list experiment is never won (`listCDHAdvantage_zero`), and the bound reads
-  `0 ≤ 0`. The bound's index is then uniform below `1`, so the reduction reads position `0`.
-* A list shorter than `Q` counts in full, since `l.take Q = l`; the reduction's index falls past
+* At `Q = 0` the list experiment is never won (`listCDHAdvantage_zero`), and both bounds read
+  `0 ≤ 0`. The exact bound's index is then uniform below `1`, and `sampleModIndex width 0` always
+  returns `0`, so the reduction reads position `0`.
+* A list shorter than `Q` counts in full, since `l.take Q = l`; an exactly uniform index falls past
   its end with probability `1 - l.length / Q`, and the reduction then outputs `g`.
 * Repeated entries are allowed. Each copy of the Diffie–Hellman value among the first `Q` entries
   adds `1 / Q` to the reduction's success probability, so the bound can be strict.
@@ -72,9 +80,16 @@ declarations here are this library's names.
 ## Main results
 
 * `Cslib.Crypto.listCDHAdvantage_zero`: at `Q = 0` the list experiment is never won.
-* `Cslib.Crypto.eval_listCDHExperiment_le_mul`: the bound for a general index sampler.
+* `Cslib.Crypto.eval_listCDHExperiment_le_mul_add_of_index`,
+  `Cslib.Crypto.eval_listCDHExperiment_le_mul`: the bound for a general index sampler, with and
+  without an additive term.
 * `Cslib.Crypto.listCDHAdvantage_le_mul_cdhAdvantage`: the list advantage is at most `Q` times the
-  CDH advantage of the reduction, for every `Q`.
+  CDH advantage of the reduction with an exactly uniform index, for every `Q`.
+* `Cslib.Crypto.eval_listCDHExperiment_le_mul_add`: with the fair-coin index
+  `sampleModIndex width Q`, the list success probability is at most `Q` times the CDH success
+  probability of the reduction plus `Q / 2 ^ width`, for every `width` and every `Q`.
+* `Cslib.Crypto.eval_listCDHExperiment_mono`: the list success probability does not decrease when
+  the bound `Q` grows.
 
 ## References
 
@@ -127,21 +142,22 @@ theorem listCDHAdvantage_zero (A : G → G → ProbComp (List G)) :
   simp [listCDHAdvantage, listCDHExperiment, Experiment.succProbability, hfalse,
     Game.succProbability]
 
-/-- **The guessing step for a general index sampler**: if, for every list `l`, the entry of `l` at
-a position drawn from `index` (or `g` past the end) is each member of `l.take Q` with probability
-at least `1 / c`, then the list experiment accepts with probability at most `c` times that of the
-CDH experiment for `listCDHToCDH`. The hypothesis is on the index law alone. -/
-theorem eval_listCDHExperiment_le_mul (Q : ℕ) (index : ProbComp ℕ) {c : ℝ≥0∞}
+/-- **The guessing step for a general index sampler, with an additive term**: if, for every list
+`l` and every member `x` of `l.take Q`, `c` times the probability that the entry of `l` at a
+position drawn from `index` (or `g` past the end) is `x`, plus `ε`, is at least `1`, then the list
+experiment accepts with probability at most `c` times that of the CDH experiment for
+`listCDHToCDH`, plus `ε`. The hypothesis is on the index law alone. -/
+theorem eval_listCDHExperiment_le_mul_add_of_index (Q : ℕ) (index : ProbComp ℕ) {c ε : ℝ≥0∞}
     (hindex : ∀ (l : List G) (x : G), x ∈ l.take Q →
-      1 ≤ c * (ProbComp.eval index).map (fun i => l.getD i g) x)
+      1 ≤ c * (ProbComp.eval index).map (fun i => l.getD i g) x + ε)
     (A : G → G → ProbComp (List G)) :
     ProbComp.eval (listCDHExperiment q g Q A) true ≤
-      c * ProbComp.eval (cdhExperiment q g (listCDHToCDH g index A)) true := by
+      c * ProbComp.eval (cdhExperiment q g (listCDHToCDH g index A)) true + ε := by
   simp only [listCDHExperiment, cdhExperiment, listCDHToCDH, ProbComp.eval_bind,
     ProbComp.eval_pure, ProbComp.eval_uniform, PMF.bind_bind, PMF.pure_bind]
-  refine PMF.bind_apply_le_mul_bind_apply _ fun a => ?_
-  refine PMF.bind_apply_le_mul_bind_apply _ fun b => ?_
-  refine PMF.bind_apply_le_mul_bind_apply _ fun l => ?_
+  refine PMF.bind_apply_le_mul_bind_apply_add _ fun a => ?_
+  refine PMF.bind_apply_le_mul_bind_apply_add _ fun b => ?_
+  refine PMF.bind_apply_le_mul_bind_apply_add _ fun l => ?_
   have hmap : ((ProbComp.eval index).bind fun i => PMF.pure (decide (l.getD i g = (a * b) • g))) =
       ((ProbComp.eval index).map fun i => l.getD i g).bind
         fun z => PMF.pure (decide (z = (a * b) • g)) := by
@@ -152,14 +168,28 @@ theorem eval_listCDHExperiment_le_mul (Q : ℕ) (index : ProbComp ℕ) {c : ℝ�
   · simpa [hx] using hindex l _ hx
   · simp [hx]
 
+/-- **The guessing step for a general index sampler**: if, for every list `l`, the entry of `l` at
+a position drawn from `index` (or `g` past the end) is each member of `l.take Q` with probability
+at least `1 / c`, then the list experiment accepts with probability at most `c` times that of the
+CDH experiment for `listCDHToCDH`. The hypothesis is on the index law alone. This is the case
+`ε = 0` of `eval_listCDHExperiment_le_mul_add_of_index`. -/
+theorem eval_listCDHExperiment_le_mul (Q : ℕ) (index : ProbComp ℕ) {c : ℝ≥0∞}
+    (hindex : ∀ (l : List G) (x : G), x ∈ l.take Q →
+      1 ≤ c * (ProbComp.eval index).map (fun i => l.getD i g) x)
+    (A : G → G → ProbComp (List G)) :
+    ProbComp.eval (listCDHExperiment q g Q A) true ≤
+      c * ProbComp.eval (cdhExperiment q g (listCDHToCDH g index A)) true := by
+  simpa using eval_listCDHExperiment_le_mul_add_of_index q g Q index (ε := 0)
+    (fun l x hx => by simpa using hindex l x hx) A
+
 /-- **The list form of CDH loses at most a factor `Q`** ([BonehShoup2023], Section 21.11.4, p. 908,
 and equation (11.12) in the proof of Theorem 11.4, p. 448): the guessing reduction with the index
 `Fin.val <$> ProbComp.unifFin (Q - 1)`, exactly uniform below `Q` when `0 < Q`, solves CDH with at
 least `1 / Q` of the list adversary's success probability. It holds for every `Q`, including `0`,
 every list length and lists with repeated entries; beyond `NeZero q` and `DecidableEq G`, which the
-experiments need, there is no hypothesis on `q` or `g`. The efficient form over a group family,
-with an index from a power-of-two range, is `PrimeOrderGroupFamily.succProbability_listCDHGame_le`
-in `CslibFrontier/Crypto/Computational/DiffieHellman/ListCDHFamily.lean`. -/
+experiments need, there is no hypothesis on `q` or `g`. With the fair-coin index
+`ProbComp.sampleModIndex width Q` the factor stays `Q` and the term `Q / 2 ^ width` is added
+(`eval_listCDHExperiment_le_mul_add`). -/
 theorem listCDHAdvantage_le_mul_cdhAdvantage (Q : ℕ) (A : G → G → ProbComp (List G)) :
     listCDHAdvantage q g Q A ≤
       Q * cdhAdvantage q g (listCDHToCDH g (Fin.val <$> ProbComp.unifFin (Q - 1)) A) := by
@@ -178,6 +208,51 @@ theorem listCDHAdvantage_le_mul_cdhAdvantage (Q : ℕ) (A : G → G → ProbComp
   rw [← ENNReal.toNNReal_natCast, ← ENNReal.toNNReal_mul]
   exact ENNReal.toNNReal_mono (ENNReal.mul_ne_top (ENNReal.natCast_ne_top _) (PMF.apply_ne_top _ _))
     hle
+
+/-- **The guessing step with a fair-coin index loses a factor `Q` plus `Q / 2 ^ width`**: the
+guessing reduction of [BonehShoup2023], Section 21.11.4 (p. 908) and equation (11.12) in the proof
+of Theorem 11.4 (p. 448), run with the index `ProbComp.sampleModIndex width Q` drawn from `width`
+fair coins, solves CDH with probability at least `1 / Q` of the list adversary's success
+probability, minus `1 / 2 ^ width`. The book draws the index exactly uniformly; the fair-coin index
+and the term `Q / 2 ^ width` are this library's. The factor is exactly `Q`: each position below
+`Q` is drawn with probability at least `1 / Q - 1 / 2 ^ width`
+(`ProbComp.one_le_mul_eval_sampleModNat_add`), so whenever the Diffie–Hellman value is among the
+first `Q` entries the reduction returns it with at least that probability. It holds for every
+`width` and every `Q`, including `Q = 0`, where both sides are `0`; beyond `NeZero q` and
+`DecidableEq G` there is no hypothesis on `q` or `g`. -/
+theorem eval_listCDHExperiment_le_mul_add (width Q : ℕ) (A : G → G → ProbComp (List G)) :
+    ProbComp.eval (listCDHExperiment q g Q A) true ≤
+      Q * ProbComp.eval
+          (cdhExperiment q g (listCDHToCDH g (ProbComp.sampleModIndex width Q) A)) true +
+        Q / 2 ^ width := by
+  refine eval_listCDHExperiment_le_mul_add_of_index q g Q _ (fun l x hx => ?_) A
+  obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hx
+  rw [List.length_take] at hi
+  have hiQ : i < Q := hi.trans_le (min_le_left _ _)
+  have hil : i < l.length := hi.trans_le (min_le_right _ _)
+  rw [ProbComp.sampleModIndex_eq_sampleModNat width ((Nat.zero_le i).trans_lt hiQ)]
+  calc (1 : ℝ≥0∞) ≤ Q * ProbComp.eval (ProbComp.sampleModNat width Q) i + Q / 2 ^ width :=
+        ProbComp.one_le_mul_eval_sampleModNat_add hiQ
+    _ ≤ _ := by
+        gcongr
+        have hget : (l.take Q)[i] = l.getD i g := by
+          simp [List.getElem_take, List.getD_eq_getElem?_getD, hil]
+        rw [hget]
+        exact PMF.le_map_apply _ (fun j => l.getD j g) i
+
+/-- **More entries that count cannot hurt the adversary**: if `Q ≤ Q'`, the list experiment with
+bound `Q'` accepts with probability at least that with bound `Q`, since the first `Q` entries of a
+list are among its first `Q'`. -/
+theorem eval_listCDHExperiment_mono {Q Q' : ℕ} (hle : Q ≤ Q') (A : G → G → ProbComp (List G)) :
+    ProbComp.eval (listCDHExperiment q g Q A) true ≤
+      ProbComp.eval (listCDHExperiment q g Q' A) true := by
+  simp only [listCDHExperiment, ProbComp.eval_bind, ProbComp.eval_pure]
+  refine PMF.bind_apply_mono_on_support _ _ fun a _ => ?_
+  refine PMF.bind_apply_mono_on_support _ _ fun b _ => ?_
+  refine PMF.bind_apply_mono_on_support _ _ fun l _ => ?_
+  by_cases hx : (a * b) • g ∈ l.take Q
+  · simp [hx, List.take_subset_take_left l hle hx]
+  · simp [hx]
 
 end Experiments
 
