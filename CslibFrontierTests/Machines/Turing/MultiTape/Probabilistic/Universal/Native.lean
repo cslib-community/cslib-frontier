@@ -7,16 +7,19 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (tests of candidate modules)
 
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Universal.Native
+public import
+  CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Universal.Interpreter.Native
 
-/-! Checked boundary clients for retained first-order initialization and table lookup. -/
+/-! Checked boundary clients for retained first-order initialization, table lookup and the generic
+interpreter body. -/
 
 public section
 
 namespace CslibFrontierTests.Machines.Turing.MultiTape.Probabilistic.Universal.Native
 
-open Turing.MultiTapeTM Turing.MultiTapeTM.Internal
+open Turing.MultiTapeTM Turing.MultiTapeTM.Internal Turing.MultiTapePTM.Internal
 open Turing.MultiTapePTM.Universal
+open Turing.MultiTapePTM.Universal.NativeInterpreter
 
 /-- Channel reads cover negative, in-range and right-blank answer positions. -/
 example :
@@ -67,7 +70,8 @@ example :
 example (d : Desc) : ICfg.initCompiler.outputBits d = (eICfg (ICfg.init d)).length :=
   rfl
 
-/-- Local execution defaults short action lists and ignores actions past stored tape/channel lists. -/
+/-- Local execution defaults short action lists and ignores actions past stored tape/channel
+lists. -/
 example :
     let tape := Turing.MultiTapeTM.Universal.Tape.blank
     let channel := Channel.blank
@@ -143,5 +147,69 @@ example (key : Key) (first second : Branches) :
   constructor
   · simp [firstMatch, Turing.MultiTapeTM.Internal.NativeCompiler.firstMatch]
   · rfl
+
+/-! The generic retained controller is usable through the ordinary interpreter import. -/
+
+/-- The public retained-command encoding keeps the documented state-then-command layout. -/
+example (r : ℕ) (state : LoopState) (command : Command r) :
+    eRetainedCommandInput r eLoopState (state, command) =
+      encPair eLoopState (eCommand r) (state, command) :=
+  rfl
+
+/-- A dummy zero-channel query artifact used only to exercise the caller-facing constructor. The
+constructor's zero-channel machine and accounting do not install this artifact. -/
+noncomputable def unusedZeroQuery :
+    NativeOracleProgram 0
+      (fun _ : RetainedCommandInput 0 LoopState => pure none)
+      (eRetainedCommandInput 0 eLoopState) (encOption eLoopState) :=
+  NativeOracleProgram.ofCompiler (r := 0)
+    (ClassifiedCompiler.inPhase .controller
+      (NativeCompiler.const (eRetainedCommandInput 0 eLoopState)
+        (encOption eLoopState) none))
+
+/-- A distinct retained implementation of the same unreachable program checks zero-channel
+construction independence. -/
+noncomputable def unusedZeroQueryComposed :
+    NativeOracleProgram 0
+      (fun _ : RetainedCommandInput 0 LoopState => pure none)
+      (eRetainedCommandInput 0 eLoopState) (encOption eLoopState) :=
+  NativeOracleProgram.preprocess
+    (ClassifiedCompiler.inPhase .marshalling
+      (NativeCompiler.identity (eRetainedCommandInput 0 eLoopState))) unusedZeroQuery
+
+/-- Ordinary importers can instantiate the shared body constructor without reaching private
+lookup, coin or dispatch helpers. -/
+noncomputable def zeroBody :=
+  bodyWithQueryBranch 0 eLoopState id (NativeCompiler.identity eLoopState)
+    (fun input => input.1.advance input.2) advanceCompiler unusedZeroQuery
+
+example :
+    zeroBody.installedDescriptions = [zeroBody.description] :=
+  bodyWithQueryBranch_installedDescriptions 0 eLoopState id
+    (NativeCompiler.identity eLoopState) (fun input => input.1.advance input.2)
+      advanceCompiler unusedZeroQuery
+
+example :
+    (bodyWithQueryBranch 0 eLoopState id (NativeCompiler.identity eLoopState)
+      (fun input => input.1.advance input.2) advanceCompiler unusedZeroQuery).machine =
+        (bodyWithQueryBranch 0 eLoopState id (NativeCompiler.identity eLoopState)
+          (fun input => input.1.advance input.2) advanceCompiler
+            unusedZeroQueryComposed).machine ∧
+      (bodyWithQueryBranch 0 eLoopState id (NativeCompiler.identity eLoopState)
+        (fun input => input.1.advance input.2) advanceCompiler unusedZeroQuery).online =
+        (bodyWithQueryBranch 0 eLoopState id (NativeCompiler.identity eLoopState)
+          (fun input => input.1.advance input.2) advanceCompiler
+            unusedZeroQueryComposed).online :=
+  bodyWithQueryBranch_zero_independent eLoopState id
+    (NativeCompiler.identity eLoopState) (fun input => input.1.advance input.2)
+      advanceCompiler unusedZeroQuery unusedZeroQueryComposed
+
+/-- The public semantic equations expose the stopped boundary without unfolding construction
+internals. -/
+example :
+    bodyProgramWithQueryBranch 0 id (fun input : LoopState × ICfg =>
+      input.1.advance input.2) (fun _ => pure none) none = pure none :=
+  bodyProgramWithQueryBranch_none 0 id (fun input : LoopState × ICfg =>
+    input.1.advance input.2) (fun _ => pure none)
 
 end CslibFrontierTests.Machines.Turing.MultiTape.Probabilistic.Universal.Native

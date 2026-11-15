@@ -45,22 +45,6 @@ private theorem frameBitsT_run (word : List Bool) :
     rw [ih]
     rfl
 
-/-- Read the payload of each three-symbol Boolean element. -/
-private def listBitsT : Transducer Bool (Fin 3) where
-  q₀ := 0
-  step q b := if q = 0 then (1, []) else if q = 1 then (2, [b]) else (0, [])
-  final _ := []
-  length_step_le q b := by split_ifs <;> simp
-  length_final_le _ := by decide
-
-private theorem listBitsT_run (word : List Bool) :
-    listBitsT.run 0 (encList encBool word) = word := by
-  induction word with
-  | nil => rfl
-  | cons b word ih =>
-    change b :: listBitsT.run 0 (encList encBool word) = _
-    rw [ih]
-
 /-- Convert raw bits to the existing framed Boolean-list encoding in linear time and space. -/
 public theorem bitsToList : ComputableInDegree (fun word => word)
     encBits (encList encBool) 1 1 := by
@@ -74,6 +58,9 @@ public theorem bitsToList : ComputableInDegree (fun word => word)
 /-- Remove Boolean-element framing in linear time and space, leaving the list unchanged. -/
 public theorem listToBits : ComputableInDegree (fun word => word)
     (encList encBool) encBits 1 1 :=
-  of_transducer listBitsT fun word => (listBitsT_run word).symm
+  of_transducer Encodings.listBitsT fun word => by
+    change word = Encodings.listBitsT.run Encodings.listBitsT.q₀
+      (word.flatMap (frame ∘ encBool))
+    exact (Encodings.listBitsT_run word).symm
 
 end Turing.MultiTapeTM.ComputableInDegree

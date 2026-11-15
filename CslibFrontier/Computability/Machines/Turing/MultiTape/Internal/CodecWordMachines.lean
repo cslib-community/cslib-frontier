@@ -1,20 +1,22 @@
 /-
-Copyright (c) 2026 Christian Reitwiessner. All rights reserved.
+Copyright (c) 2026 Christian Reitwiessner, Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Christian Reitwiessner
+Authors: Christian Reitwiessner, Samuel Schlesinger
 -/
 
 module
 -- upstream: vendored crei:crei/tidy-universal @7f7c0696 (unsubmitted)
 
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Bool
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.FrameMachines
 
 /-! # Shared codec word machines
 
 The original head and emptiness transducers, moved unchanged from Encodings.Basic.
+The Boolean-list payload transducer is a local addition shared by native and degree certificates.
 -/
 
-@[expose] public section
+public section
 namespace Turing.MultiTapeTM
 
 /-! ### Transducers for the word operations -/
@@ -26,7 +28,7 @@ open Internal.FrameMachines
 /-- Emits a word determined by its input's first symbol, if any, and by `drop`: `[true]` followed by
 the input (`drop = none`), the input without its first symbol (`drop = some false`), or just the
 first symbol (`drop = some true`). -/
-@[simps -isSimp q₀ step final]
+@[expose, simps -isSimp q₀ step final]
 def headT (drop : Option Bool) : Transducer Bool Bool where
   q₀ := false
   step
@@ -59,7 +61,7 @@ lemma headT_some_true_run (v : List Bool) :
   cases v <;> simp [headT_run_true, headT_q₀, headT_step, headT_final]
 
 /-- Emits `[true]` on the empty word and `[false]` on every other word. -/
-@[simps -isSimp q₀ step final]
+@[expose, simps -isSimp q₀ step final]
 def isEmptyT : Transducer Bool Bool where
   q₀ := false
   step q _ := (true, if q then [] else [false])
@@ -74,6 +76,24 @@ lemma isEmptyT_run_true (v : List Bool) : isEmptyT.run true v = [] := by
 /-- `isEmptyT` emits the emptiness test of its input. -/
 lemma isEmptyT_run (v : List Bool) : isEmptyT.run isEmptyT.q₀ v = [v.isEmpty] := by
   cases v <;> simp [isEmptyT_run_true, isEmptyT_q₀, isEmptyT_step, isEmptyT_final]
+
+-- vendored: `listBitsT` and `listBitsT_run` below are local additions, not in
+-- crei:crei/tidy-universal
+/-- Read the payload bit from each three-symbol framed Boolean element. -/
+def listBitsT : Transducer Bool (Fin 3) where
+  q₀ := 0
+  step q b := if q = 0 then (1, []) else if q = 1 then (2, [b]) else (0, [])
+  final _ := []
+  length_step_le q b := by split_ifs <;> simp
+  length_final_le _ := by decide
+
+/-- The Boolean-list payload transducer removes every element frame. -/
+theorem listBitsT_run : ∀ word : List Bool,
+    listBitsT.run listBitsT.q₀ (word.flatMap (frame ∘ encBool)) = word
+  | [] => rfl
+  | bit :: word => by
+      change bit :: listBitsT.run listBitsT.q₀ (word.flatMap (frame ∘ encBool)) = _
+      rw [listBitsT_run word]
 
 end Encodings
 
