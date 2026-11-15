@@ -4993,7 +4993,9 @@ public import CslibFrontier.Crypto.Protocols.SSP.Hybrid
 public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Additive
 public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Basic
 public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Designs
+public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Generic
 public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Privacy
+public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Recognition
 public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Shamir
 public import CslibFrontier.Crypto.Protocols.SecretSharing.Shamir.Interpolation
 public import CslibFrontier.Crypto.Protocols.SecretSharing.Shamir.Linear
