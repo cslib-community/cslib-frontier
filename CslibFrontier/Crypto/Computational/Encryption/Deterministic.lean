@@ -10,7 +10,7 @@ module
 public import CslibFrontier.Crypto.Computational.Encryption.Basic
 public import CslibFrontier.Crypto.Encoding
 import CslibFrontier.Crypto.Negligible.Basic
-import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Probability.PMF.Support
 import CslibFrontier.Tactic.PPT
 import CslibFrontier.Tactic.PolyTime
 
@@ -37,20 +37,18 @@ API:
   `Encryption.isPPT_detAdversary` from the PPT certificate of `encrypt` and polynomial-time
   certificates of `m₀` and `m₁`.
 
-Four differences from the prose presentation in [BonehShoup2023], Section 11.3.1, are made explicit
-in the hypotheses (each with a checked counterexample in
-`CslibFrontierTests.Crypto.DeterministicPKE`):
+The hypotheses relate to [BonehShoup2023], Section 11.3.1, as follows.
+`CslibFrontierTests.Crypto.DeterministicPKE` has checked instances showing that correctness,
+admissibility, `m₀ ≠ m₁` and determinism are each needed.
 
-* **Decryption correctness is an explicit hypothesis.** The book states without mention of
-  correctness that when `b = 1` the adversary always outputs `1`, which requires
-  `E(pk, m₁) ≠ E(pk, m₀)`. At one scheme, `PKE.eval_cpaExperiment_detAdversary_true`,
+* **Correctness is a hypothesis.** Definition 11.1 (p. 436) requires of every scheme that
+  decryption undoes encryption, so the scheme of Section 11.3.1 is correct. Here `PKE` is a bare
+  triple and `PKE.Correct` a separate predicate, so `Encryption.not_indcpaOn_of_deterministic`
+  assumes `PKE.Correct` of `(keyGen n, encrypt n, decrypt n)`. The argument uses correctness only
+  for `b = 1`, as disjointness of the ciphertext supports of `m₀` and `m₁` under honest public
+  keys (`hne`, by `PKE.Correct.notMem_support_encrypt`); `PKE.eval_cpaExperiment_detAdversary_true`,
   `PKE.advantage_cpaExperiment_detAdversary` and `Encryption.advantage_gameOn_detAdversary` assume
-  disjointness of the ciphertext supports of `m₀` and `m₁` under honest public keys (`hne`), which
-  `PKE.Correct.notMem_support_encrypt` derives from `PKE.Correct` and `m₀ ≠ m₁`. The asymptotic
-  refutation `Encryption.not_indcpaOn_of_deterministic` takes `PKE.Correct` of
-  `(keyGen n, encrypt n, decrypt n)`. `PKE.Correct.notMem_support_encrypt` is placed here rather
-  than in `CslibFrontier/Crypto/Computational/Encryption/Scheme.lean` to keep the interface of that
-  module unchanged.
+  `hne` directly.
 * **Only the encryption of `m₀` must be deterministic.** The book assumes the entire encryption
   algorithm is deterministic, whereas its argument uses only that `encrypt pk m₀` is a point mass
   (`PMF.pure c`) under every supported key pair (`hdet`), so the theorem also applies to schemes
@@ -81,9 +79,8 @@ in the hypotheses (each with a checked counterexample in
   disjoint ciphertext supports under every supported key pair.
 * `Cslib.Crypto.Encryption.isPPT_detAdversary`: `detAdversary` is uniform strict PPT when
   encryption is PPT and `m₀`, `m₁` are computable in polynomial time.
-* `Cslib.Crypto.Encryption.toTwoStage_detAdversary`,
-  `Cslib.Crypto.Encryption.advantage_gameOn_detAdversary`: at parameter `n`, the word-level
-  `detAdversary` plays the typed `PKE.detAdversary` and achieves `gameOn` advantage `1`.
+* `Cslib.Crypto.Encryption.advantage_gameOn_detAdversary`: at parameter `n`, the word-level
+  `detAdversary` achieves `gameOn` advantage `1`.
 * `Cslib.Crypto.Encryption.not_indcpaOn_of_deterministic`: a public-key encryption scheme that is
   correct from some parameter `n₀` onward and admits two distinct polynomial-time challenge
   messages, the first encrypted deterministically, is not `INDCPAOn`
@@ -93,13 +90,12 @@ in the hypotheses (each with a checked counterexample in
 
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*,
   Version 0.6][BonehShoup2023], Section 11.2 (Definition 11.1, Attack Game 11.1, Definition 11.2,
-  p. 436) and Section 11.3.1 (pp. 438–439).
+  pp. 436–437) and Section 11.3.1 (pp. 438–439).
 -/
 
 public section
 
 open Cslib Probability Turing.MultiTapeTM
-open scoped NNReal
 
 namespace Cslib.Crypto
 
@@ -128,7 +124,7 @@ theorem eval_cpaExperiment_detAdversary_false [BEq C] [LawfulBEq C] (E : PKE PK 
       ∃ c, ProbComp.eval (E.encrypt keys.1 m₀) = PMF.pure c) :
     ProbComp.eval (E.cpaExperiment valid (E.detAdversary m₀ m₁) false) = PMF.pure false := by
   simp only [cpaExperiment, ProbComp.eval_bind]
-  refine (PMF.bind_congr_on_support _ _ _ fun keys hkeys => ?_).trans (PMF.bind_const _ _)
+  refine PMF.bind_eq_pure_of_forall_mem_support fun keys hkeys => ?_
   obtain ⟨c, hc⟩ := hdet keys hkeys
   by_cases hv : valid keys.1 m₀ m₁ = true <;>
     simp [lrExperiment, detAdversary, hv, hc]
@@ -145,11 +141,11 @@ theorem eval_cpaExperiment_detAdversary_true [BEq C] [LawfulBEq C] (E : PKE PK S
         c₁ ∉ (ProbComp.eval (E.encrypt keys.1 m₀)).support) :
     ProbComp.eval (E.cpaExperiment valid (E.detAdversary m₀ m₁) true) = PMF.pure true := by
   simp only [cpaExperiment, ProbComp.eval_bind]
-  refine (PMF.bind_congr_on_support _ _ _ fun keys hkeys => ?_).trans (PMF.bind_const _ _)
+  refine PMF.bind_eq_pure_of_forall_mem_support fun keys hkeys => ?_
   simp only [lrExperiment, detAdversary, pure_bind, hvalid keys hkeys, ↓reduceIte,
     MessagePair.select_true, ProbComp.eval_bind, ProbComp.eval_pure]
-  refine (PMF.bind_congr_on_support _ _ _ fun c₁ hc₁ => ?_).trans (PMF.bind_const _ _)
-  refine (PMF.bind_congr_on_support _ _ _ fun c₀ hc₀ => ?_).trans (PMF.bind_const _ _)
+  refine PMF.bind_eq_pure_of_forall_mem_support fun c₁ hc₁ => ?_
+  refine PMF.bind_eq_pure_of_forall_mem_support fun c₀ hc₀ => ?_
   have : c₁ ≠ c₀ := fun h => hne keys hkeys c₁ hc₁ (h ▸ hc₀)
   rw [show (c₁ != c₀) = true from bne_iff_ne.mpr this]
 
@@ -214,7 +210,7 @@ theorem isPPT_detAdversary {encMsg : Msg ↪ List Bool}
 
 /-- At security parameter `n`, the two-stage form of `detAdversary encrypt m₀ m₁` is the typed
 `PKE.detAdversary` of `(keyGen n, encrypt n, decrypt)` with messages `m₀ n` and `m₁ n`. -/
-theorem toTwoStage_detAdversary (keyGen : ℕ → ProbComp (List Bool × List Bool))
+private theorem toTwoStage_detAdversary (keyGen : ℕ → ProbComp (List Bool × List Bool))
     (encrypt : ℕ → List Bool → Msg → ProbComp (List Bool))
     (decrypt : List Bool → List Bool → Option Msg) (m₀ m₁ : ℕ → Msg) (n : ℕ) :
     (detAdversary encrypt m₀ m₁).toTwoStage n =

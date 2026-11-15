@@ -66,16 +66,10 @@ example (n : ℕ) :
     (fun _ => true) n (by simp) (fun _ _ => ⟨[false], by simp [plaintext]⟩)
     (fun _ _ c₁ hc₁ hc₀ => by simp_all [plaintext])
 
-/-- Correctness is needed: the constant ciphertext `[]` is deterministic and every adversary has
-advantage `0` against it. -/
+/-- Probe 1 (`hcorrect`): the constant ciphertext `[]` is deterministic with two distinct admissible
+messages and satisfies `INDCPA`. -/
 noncomputable def constCipher : ℕ → List Bool → Bool → ProbComp (List Bool) := fun _ _ _ => pure []
 
-example (A : Encryption.Adversary) (n : ℕ) :
-    Encryption.advantage (Encryption.game emptyKeys constCipher A) n = 0 := by
-  simp [Encryption.advantage, Encryption.game, Encryption.gameOn, constCipher, Game.advantage]
-
--- Probe 1 (`hcorrect`): `constCipher` is deterministic with two distinct admissible messages and
--- satisfies `INDCPA`.
 example : Encryption.INDCPA emptyKeys constCipher := fun A _ =>
   negligible_zero.congr fun n => by
     simp [Encryption.gameOn, constCipher, Game.advantage]

@@ -1802,25 +1802,29 @@ bits of a key-leaking scheme, with and without the oracle, and rewrite `gameOn` 
 [`CslibFrontierTests/Crypto/Experiment.lean`](../../CslibFrontierTests/Crypto/Experiment.lean).
 
 A public-key scheme whose encryption is deterministic is not semantically secure (Boneh–Shoup v0.6,
-Section 11.3.1, pp. 438–439 [bs23][bs23]), packaged in
+Section 11.3.1, pp. 438–439 [bs23][bs23]); import
 [`Encryption/Deterministic.lean`](../../CslibFrontier/Crypto/Computational/Encryption/Deterministic.lean).
-For one fixed scheme `E`, `PKE.detAdversary E m₀ m₁` challenges with `(m₀, m₁)`, saves the public
-key, re-encrypts `m₀`, and outputs `c != c₀`; `PKE.advantage_cpaExperiment_detAdversary` shows that
-its `cpaExperiment` advantage is `1` when `(m₀, m₁)` is admissible, `E.encrypt pk m₀` is a point
-mass on every supported key pair (`eval_cpaExperiment_detAdversary_false`), and the ciphertext
-supports of `m₀` and `m₁` are disjoint (`eval_cpaExperiment_detAdversary_true`), which
-`PKE.Correct.notMem_support_encrypt` derives from `PKE.Correct` and `m₀ ≠ m₁`. Over encoded
-families, `Encryption.detAdversary encrypt m₀ m₁` is certified PPT by `Encryption.isPPT_detAdversary`
-from `hencrypt : IsPPTOn (encKeyedInput encMsg) encBits (fun ⟨n, pk, msg⟩ => encrypt n pk msg)` and
-polynomial-time `m₀, m₁ : ℕ → Msg`, plays `PKE.detAdversary` at each parameter
-(`Encryption.toTwoStage_detAdversary`, `Encryption.advantage_gameOn_detAdversary`), and refutes
-`INDCPAOn valid encMsg keyGen encrypt` via `Encryption.not_indcpaOn_of_deterministic` when from some
-parameter `n₀` onward the scheme is `PKE.Correct` (an explicit hypothesis that the book leaves
-implicit), `m₀ n ≠ m₁ n`, `(m₀ n, m₁ n)` is admissible, and `encrypt n pk (m₀ n)` is deterministic
-on supported keys. The [checked examples](../../CslibFrontierTests/Crypto/DeterministicPKE.lean)
-apply the refutation to the plaintext cipher and check counterexamples when correctness,
-admissibility, message distinctness or determinism is dropped; run
-`scripts/build.sh CslibFrontierTests.Crypto.DeterministicPKE`.
+For one scheme `E` whose ciphertext type has `[BEq C] [LawfulBEq C]`, `PKE.detAdversary E m₀ m₁`
+challenges with `(m₀, m₁)`, saves the public key, re-encrypts `m₀`, and outputs `c != c₀`. It
+outputs `false` in experiment `false` when `E.encrypt pk m₀` is a point mass under every supported
+key pair (`PKE.eval_cpaExperiment_detAdversary_false`), and `true` in experiment `true` when, under
+every supported key pair, `(m₀, m₁)` is admissible and no ciphertext of `m₁` is a ciphertext of
+`m₀` (`PKE.eval_cpaExperiment_detAdversary_true`); under all three conditions its `cpaExperiment`
+advantage is `1` (`PKE.advantage_cpaExperiment_detAdversary`). `PKE.Correct.notMem_support_encrypt`
+derives the third condition from `PKE.Correct` and `m₀ ≠ m₁`. Over encoded families,
+`Encryption.detAdversary encrypt m₀ m₁` is PPT (`Encryption.isPPT_detAdversary`) when `encrypt` is
+PPT on `encKeyedInput encMsg` and `m₀ m₁ : ℕ → Msg` are polynomial-time in the unary parameter, and
+it has `gameOn` advantage `1` at each parameter where the three conditions hold
+(`Encryption.advantage_gameOn_detAdversary`). Under the same two efficiency hypotheses,
+`Encryption.not_indcpaOn_of_deterministic decrypt n₀` refutes
+`INDCPAOn valid encMsg keyGen encrypt` when, for every `n ≥ n₀`,
+`PKE.mk (keyGen n) (encrypt n) (decrypt n)` is `PKE.Correct` for the `decrypt` the caller passes,
+`m₀ n ≠ m₁ n`, the pair is admissible, and `encrypt n pk (m₀ n)` is a point mass under every
+supported key. Correctness is part of the book's definition of a scheme (Definition 11.1, p. 436)
+and a separate predicate here. The
+[checked examples](../../CslibFrontierTests/Crypto/DeterministicPKE.lean) apply the refutation to
+the plaintext cipher and show that correctness, admissibility, distinct messages and determinism
+are each needed; run `scripts/build.sh CslibFrontierTests.Crypto.DeterministicPKE`.
 
 To replace the honest public-key distribution by another law, such as lossy or uniform keys, import
 [`Encryption/PublicKeyReplacement.lean`](../../CslibFrontier/Crypto/Computational/Encryption/PublicKeyReplacement.lean).
