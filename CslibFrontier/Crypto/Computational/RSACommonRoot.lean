@@ -42,6 +42,8 @@ identities `Commute.zpow_mul_zpow_zpow_eq_right` and `Commute.zpow_mul_zpow_zpow
 * `Cslib.Crypto.commonRoot_coprime`: if moreover `y` is coprime to `n`, the output is coprime to
   `n`, so it is a unit modulo `n` as in the book.
 * `Cslib.Crypto.commonRoot_lt`: for `0 < n`, the output is below `n`.
+* `Cslib.Crypto.coprime_of_pow_modEq_pow`: if `f ≠ 0`, `w` is coprime to `n` and
+  `w ^ e ≡ y ^ f [MOD n]`, then `y` is coprime to `n`.
 * `Cslib.Crypto.computableInPolyTime_commonRoot`: `commonRoot` is computable in polynomial time
   from polynomial-time inputs on `encNat`, with no condition on the inputs.
 
@@ -58,9 +60,9 @@ The statement differs from the book's in three ways.
   proofs, and recovering each proof from the aggregate (p. 422) is the second.
 * The book takes a positive `n` and units `w`, `y` modulo `n`. Here `w` and `y` are natural
   numbers, not necessarily below `n`, and the two congruences assume only that `w` is coprime to
-  `n`: for `f ≠ 0` this makes `y` coprime to `n`, and for `f = 0` they do not need it.
-  `commonRoot_coprime`, the book's `x ∈ ℤₙ*`, also assumes that `y` is coprime to `n`, and uses
-  this only when `f = 0`.
+  `n`: for `f ≠ 0` this makes `y` coprime to `n` (`coprime_of_pow_modEq_pow`), and for `f = 0`
+  they do not need it. `commonRoot_coprime`, the book's `x ∈ ℤₙ*`, also assumes that `y` is
+  coprime to `n`, and uses this only when `f = 0`.
 
 The certificate covers the computation on encoded numbers. Nothing here concerns an adversary or
 a security game. Theorem 10.5 is in `RSAUnitInversion.lean` and Theorem 10.7 in `RSAHash.lean`;
@@ -113,8 +115,9 @@ private theorem mul_modInv_eq_mul_div_add_one {e f : ℕ} (hf : 2 ≤ f) (hef : 
   rw [hk, Nat.mul_div_cancel_left _ (by omega)]
   omega
 
-/-- When `f ≠ 0`, `w` is coprime to `n` and `w ^ e ≡ y ^ f [MOD n]`, `y` is coprime to `n`. -/
-private theorem coprime_of_pow_modEq_pow {n e f w y : ℕ} (hf : f ≠ 0) (hw : Nat.Coprime w n)
+/-- If `f ≠ 0`, `w` is coprime to `n` and `w ^ e ≡ y ^ f [MOD n]`, then `y` is coprime to `n`.
+There is no condition on `e`. -/
+theorem coprime_of_pow_modEq_pow {n e f w y : ℕ} (hf : f ≠ 0) (hw : Nat.Coprime w n)
     (h : w ^ e ≡ y ^ f [MOD n]) : Nat.Coprime y n := by
   have hyf : Nat.Coprime (y ^ f) n := by
     rw [Nat.Coprime, ← h.gcd_eq]
