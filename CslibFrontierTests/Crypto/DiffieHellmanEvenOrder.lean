@@ -9,17 +9,17 @@ module
 import CslibFrontier.Crypto.Computational.DiffieHellman.EvenOrder
 
 /-!
-# DDH in groups of even order: checked instances
+# The parity test for DDH in groups of even order: checked instances
 
 Concrete checks for `CslibFrontier/Crypto/Computational/DiffieHellman/EvenOrder.lean`, through
 ordinary imports of its public API:
 
 * In `ZMod 6` with `g = 1`, Lemmas 16.1 and 16.2 hold on sample exponents, the parity
-  distinguisher accepts a Diffie–Hellman triple and rejects a non-Diffie–Hellman one, and its DDH
-  advantage is exactly `1 / 2`.
+  distinguisher accepts a Diffie–Hellman triple and rejects a non-Diffie–Hellman one, and its
+  fixed-group DDH advantage is exactly `1 / 2`.
 * For odd `q` Lemma 16.1 fails: in `ZMod 5`, `a = 2` is even but `(5 / 2) • (2 • 1) ≠ 0`.
 * In `(ZMod 7)ˣ` with generator `3`, and in `(ZMod p)ˣ` for every odd prime `p`, the distinguisher
-  has DDH advantage `1 / 2`.
+  has fixed-group DDH advantage `1 / 2`.
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
@@ -60,7 +60,8 @@ example : Pr[ddhRealExperiment 6 (1 : ZMod 6) (ddhParityDistinguisher 6)] = 1 :=
 example : Pr[ddhRandomExperiment 6 (1 : ZMod 6) (ddhParityDistinguisher 6)] = 1 / 2 :=
   probability_ddhRandomExperiment_ddhParityDistinguisher 6 1 even_six zmod6_injective
 
-/-- In `ZMod 6` with `g = 1` the parity distinguisher has DDH advantage exactly `1 / 2`. -/
+/-- In `ZMod 6` with `g = 1` the parity distinguisher has fixed-group DDH advantage exactly
+`1 / 2`. -/
 theorem ddhAdvantage_zmod6 : ddhAdvantage 6 (1 : ZMod 6) (ddhParityDistinguisher 6) = 1 / 2 :=
   ddhAdvantage_ddhParityDistinguisher 6 1 even_six zmod6_injective
 
@@ -99,13 +100,13 @@ theorem three_generates : ∀ x, x ∈ Subgroup.zpowers three := by
   rw [htop]
   exact Subgroup.mem_top x
 
-/-- In `(ZMod 7)ˣ` with generator `3`, written additively, the parity distinguisher has DDH
-advantage exactly `1 / 2`. -/
+/-- In `(ZMod 7)ˣ` with generator `3`, written additively, the parity distinguisher has
+fixed-group DDH advantage exactly `1 / 2`. -/
 example : ddhAdvantage (7 - 1) (Additive.ofMul three) (ddhParityDistinguisher (7 - 1)) = 1 / 2 :=
   ddhAdvantage_units_ddhParityDistinguisher 7 (by norm_num) three_generates
 
 /-- For every odd prime `p`, some generator of `(ZMod p)ˣ` exists, and with it the parity
-distinguisher has DDH advantage `1 / 2`: the hypotheses of
+distinguisher has fixed-group DDH advantage `1 / 2`: the hypotheses of
 `ddhAdvantage_units_ddhParityDistinguisher` are satisfiable. -/
 example (p : ℕ) [Fact p.Prime] (hp : p ≠ 2) :
     ∃ g : (ZMod p)ˣ,

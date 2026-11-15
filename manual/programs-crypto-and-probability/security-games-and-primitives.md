@@ -237,14 +237,17 @@ repository root, check these clients with:
 scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.DiffieHellman CslibFrontierTests.Crypto.MultiDDH CslibFrontierTests.Crypto.AssumptionNonvacuity
 ```
 
-DDH fails when the group order is even ([bs23][bs23], Section 16.1.3 and Exercise 10.24). Import
+In a group of even order, the parity test of [bs23][bs23], Section 16.1.3, distinguishes
+Diffie–Hellman triples from random ones. Import
 [`DiffieHellman/EvenOrder.lean`](../../CslibFrontier/Crypto/Computational/DiffieHellman/EvenOrder.lean).
 For `Even q` and `c ↦ c • g` injective, `div_two_nsmul_smul_eq_zero_iff` (Lemma 16.1) and
 `even_val_mul_iff` (Lemma 16.2) read the parity of `a.val` and `(a * b).val` from `(q / 2) • _`,
 and `ddhAdvantage_ddhParityDistinguisher` proves that the parity test `ddhParityDistinguisher q`
 has fixed-group advantage exactly `1 / 2`. `ddhAdvantage_units_ddhParityDistinguisher` instantiates
 this for `(ZMod p)ˣ`, `p` an odd prime, under the local module structure `zmodUnitsModule p`. The
-operation count is not stated. The [even-order client](../../CslibFrontierTests/Crypto/DiffieHellmanEvenOrder.lean)
+fixed-group advantage does not bound the distinguisher, and the test's efficiency is not stated, so
+Exercise 10.24's efficient adversary and the book's conclusion that DDH does not hold in `Z_p^*`
+are not proved. The [even-order client](../../CslibFrontierTests/Crypto/DiffieHellmanEvenOrder.lean)
 checks `ZMod 6`, `(ZMod 7)ˣ` and the odd-order failure of Lemma 16.1 in `ZMod 5`.
 
 Inversion and prediction are each stated once, for a fixed function and input distribution, in
