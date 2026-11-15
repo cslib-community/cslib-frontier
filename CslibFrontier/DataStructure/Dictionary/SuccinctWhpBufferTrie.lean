@@ -49,7 +49,8 @@ background draining and cleanup without scanning all `2 ^ bChar` child slots, a 
 * `Cslib.DataStructure.Dictionary.SuccinctWhp.validBufTrie_empty`,
   `ValidBufTrie.lookup_eq`, `ValidBufTrie.delete_spec`, `ValidBufTrie.insert_spec`,
   `ValidBufTrie.insert_nodeAlloc_le`, `ValidBufTrie.checkSlot_some`,
-  `ValidBufTrie.exists_checkSlot_of_map_some`, `ClearableBufTrie.clearSteps_spec`,
+  `ValidBufTrie.exists_checkSlot_of_map_some`, `ValidBufTrie.toClearable`,
+  `ClearableBufTrie.clearOne_step`, `ClearableBufTrie.clearSteps_spec`,
   `ValidBufTrie.clearSteps_spec`: exact map, active-slot scan, and cleanup specifications.
 
 ## References
@@ -90,7 +91,8 @@ structure BufTrie where
   nodeParent : ℕ → ℕ
   /-- Character edge from `nodeParent u` to `u`. -/
   nodeChar : ℕ → ℕ
-  /-- Active item slot `+ 1` at leaf node `u` (`0` if never allocated in this epoch). -/
+  /-- Epoch-allocated item slot `+ 1` at leaf node `u` (`0` if never allocated in this epoch;
+  retained across deletions while `nodeActive` records whether the slot is currently active). -/
   nodeLeafItem : ℕ → ℕ
   /-- Active flag (`0` if deleted/inactive, non-zero if currently active) at leaf node `u`. -/
   nodeActive : ℕ → ℕ
@@ -1079,7 +1081,7 @@ def ClearableBufTrie (tr : BufTrie) : Prop :=
     tr.nodeParent (tr.trieChild v ch) = v ∧ tr.nodeChar (tr.trieChild v ch) = ch)
 
 /-- Every `ValidBufTrie` satisfies `ClearableBufTrie`. -/
-private theorem ValidBufTrie.toClearable {cTab bChar : ℕ} {tr : BufTrie}
+theorem ValidBufTrie.toClearable {cTab bChar : ℕ} {tr : BufTrie}
     {mapFn : ℕ → Option (ℕ × ℕ)} (hv : ValidBufTrie cTab bChar tr mapFn) :
     ClearableBufTrie tr := by
   obtain ⟨halloc, hzero, _, _, _, _, hedge, hiff, _⟩ := hv
@@ -1087,7 +1089,7 @@ private theorem ValidBufTrie.toClearable {cTab bChar : ℕ} {tr : BufTrie}
   exact ⟨(hedge u h1 h2).1, (hedge u h1 h2).2.2.2.2⟩
 
 /-- One step of `bufClearOne` preserves `ClearableBufTrie` and decrements `nodeAlloc` toward `1`. -/
-private theorem ClearableBufTrie.clearOne_step {tr : BufTrie} (hc : ClearableBufTrie tr) :
+theorem ClearableBufTrie.clearOne_step {tr : BufTrie} (hc : ClearableBufTrie tr) :
     ClearableBufTrie (bufClearOne tr) ∧
     (bufClearOne tr).nodeAlloc = max 1 (tr.nodeAlloc - 1) := by
   obtain ⟨halloc, hzero, hedge, hchild⟩ := hc

@@ -8,7 +8,10 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpParams
+public import Mathlib.Algebra.BigOperators.Group.Finset.Basic
+public import Mathlib.Data.Finset.Lattice.Fold
+public import Mathlib.Data.Fintype.Basic
+import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Data.Nat.Bitwise
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
@@ -677,7 +680,8 @@ theorem swarRank_eq_count_lt {fpBits capLanes m q keysWord : ℕ}
       exact Prod.ext rfl (by omega)
     calc c s ≤ ∑ _p ∈ P.filter (fun p => p.1 + p.2 = s), 1 :=
             sum_le_sum fun p _ => by dsimp only [b]; split_ifs <;> omega
-      _ = #(P.filter fun p => p.1 + p.2 = s) := by rw [sum_const, smul_eq_mul, mul_one]
+      _ = #(P.filter fun p => p.1 + p.2 = s) := by
+            rw [sum_const, nsmul_eq_mul, Nat.cast_id, mul_one]
       _ = #((P.filter fun p => p.1 + p.2 = s).image Prod.fst) := (card_image_of_injOn hinj).symm
       _ ≤ #(range m) := card_le_card hsub
       _ = m := card_range m
@@ -717,7 +721,7 @@ theorem swarRank_eq_count_lt {fpBits capLanes m q keysWord : ℕ}
       (fun _ _ => rfl)
   rw [hbij]
   dsimp only [b]
-  rw [← sum_filter, sum_const, smul_eq_mul, mul_one]
+  rw [← sum_filter, sum_const, nsmul_eq_mul, Nat.cast_id, mul_one]
 
 /-! ## Section 2: Iterative Top-Down Split-Only SWAR B+-Tree -/
 
@@ -986,7 +990,7 @@ inductive BTreeTree : Type
   | .branch idx _ cs => insert idx (univ.biUnion fun i => (cs i).nodeSet)
 
 /-- Number of leaves in `T`. -/
-def BTreeTree.leafCount : BTreeTree → ℕ
+@[expose] def BTreeTree.leafCount : BTreeTree → ℕ
   | .leaf _ _ => 1
   | .branch _ _ cs => ∑ i, (cs i).leafCount
 
@@ -1183,7 +1187,7 @@ private theorem ValidSubtree.pow_height_le_leafCount_nonroot {fpBits W_val tMin 
         ≤ (cnt + 1) * tMin ^ (cs ⟨0, Nat.succ_pos cnt⟩).height :=
           Nat.mul_le_mul_right _ (by omega)
       _ = ∑ _i : Fin (cnt + 1), tMin ^ (cs ⟨0, Nat.succ_pos cnt⟩).height := by
-          rw [sum_const, card_univ, Fintype.card_fin, smul_eq_mul]
+          rw [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul, Nat.cast_id]
       _ ≤ ∑ i : Fin (cnt + 1), (cs i).leafCount := sum_le_sum fun i _ => hle_each i
 
 /-- Any valid subtree of height `≥ 1` has `2 * tMin ^ (T.height - 1) ≤ T.leafCount`. -/
@@ -1210,7 +1214,7 @@ theorem ValidSubtree.two_mul_pow_height_sub_one_le_leafCount {isRoot : Bool}
         ≤ (cnt + 1) * tMin ^ (cs ⟨0, Nat.succ_pos cnt⟩).height :=
           Nat.mul_le_mul_right _ (by omega)
       _ = ∑ _i : Fin (cnt + 1), tMin ^ (cs ⟨0, Nat.succ_pos cnt⟩).height := by
-          rw [sum_const, card_univ, Fintype.card_fin, smul_eq_mul]
+          rw [sum_const, card_univ, Fintype.card_fin, nsmul_eq_mul, Nat.cast_id]
       _ ≤ ∑ i : Fin (cnt + 1), (cs i).leafCount := sum_le_sum fun i _ => hle_each i
 
 end Cslib.DataStructure.Dictionary.SuccinctWhp

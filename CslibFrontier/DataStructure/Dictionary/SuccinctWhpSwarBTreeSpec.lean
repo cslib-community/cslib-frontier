@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpSwarBTree
+import Mathlib.Algebra.BigOperators.Fin
+import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
@@ -410,6 +412,63 @@ private theorem descendToLeaf_root_ranked {fpBits W_val tMin : ℕ} {sl : BTreeS
   · obtain ⟨T', hrt', _, hht', hpot', hv'⟩ := hlift cnt' nd' mapFn' hc hm hvn
     exact ⟨T', hrt', hht', hpot', hv'⟩
 
+/-- Shared root-to-leaf point-modification template discharging the `sl.alloc ≠ 0` guard, leaf
+SWAR rank setup, and key-miss branch for both `btreeDelete_subtree_spec` and
+`btreeUpdate_subtree_spec`. -/
+private theorem btreeModifyLeaf_subtree_spec {fpBits W_val tMin : ℕ} {sl sl' : BTreeSlice}
+    {mapFn mapFn' : ℕ → Option ℕ} {T : BTreeTree} {q : ℕ}
+    (ht2 : 2 ≤ tMin) (hcap : 2 * tMin < 2 ^ (fpBits + 2))
+    (halloc_pos : 1 ≤ sl.alloc) (hroot : T.rootIdx = sl.root)
+    (hv : ValidSubtree true fpBits W_val tMin sl.alloc sl.nodes 0 (2 ^ fpBits - 1) mapFn T)
+    (hfuel : T.height ≤ hMaxBTree) (hq : q < 2 ^ fpBits)
+    (hmiss_eq : ∀ {leafIdx cntL r : ℕ},
+      leafIdx = descendToLeaf fpBits W_val tMin sl.nodes hMaxBTree sl.root q →
+      cntL = metaCount (sl.nodes leafIdx).metaWord →
+      r = swarRank fpBits (2 * tMin) cntL q (sl.nodes leafIdx).keysWord →
+      (r < cntL && laneGet (fpBits + 2) (sl.nodes leafIdx).keysWord r == q) = false →
+      mapFn q = none →
+      sl' = sl ∧ mapFn' = mapFn)
+    (hhit_spec : ∀ {leafIdx cntL loL hiL r : ℕ},
+      leafIdx = descendToLeaf fpBits W_val tMin sl.nodes hMaxBTree sl.root q →
+      loL ≤ q → q ≤ hiL →
+      cntL = metaCount (sl.nodes leafIdx).metaWord →
+      ValidSubtree false fpBits W_val tMin sl.alloc sl.nodes loL hiL mapFn (.leaf leafIdx cntL) →
+      r = swarRank fpBits (2 * tMin) cntL q (sl.nodes leafIdx).keysWord →
+      (∀ j < r, laneGet (fpBits + 2) (sl.nodes leafIdx).keysWord j < q) →
+      r < cntL →
+      laneGet (fpBits + 2) (sl.nodes leafIdx).keysWord r = q →
+      (r < cntL && laneGet (fpBits + 2) (sl.nodes leafIdx).keysWord r == q) = true →
+      ∃ cnt' : ℕ, ∃ nd' : BTreeNode,
+        cnt' ≤ cntL ∧
+        sl' = { sl with nodes := Function.update sl.nodes leafIdx nd' } ∧
+        (∀ q' ≠ q, mapFn' q' = mapFn q') ∧
+        ValidSubtree false fpBits W_val tMin sl.alloc
+          (Function.update sl.nodes leafIdx nd') loL hiL mapFn' (.leaf leafIdx cnt')) :
+    sl'.alloc = sl.alloc ∧
+      ∃ T' : BTreeTree,
+        T'.rootIdx = sl'.root ∧
+        T'.height = T.height ∧
+        T'.potential tMin ≤ T.potential tMin ∧
+        ValidSubtree true fpBits W_val tMin sl'.alloc sl'.nodes 0 (2 ^ fpBits - 1) mapFn' T' := by
+  have _ := halloc_pos
+  obtain ⟨cntL, loL, hiL, hloL_q, hq_hiL, _, hcnt_nd, hv_leaf,
+    ⟨_, hlt_r, _, hmiss_spec⟩, hlift⟩ :=
+    descendToLeaf_root_ranked ht2 hcap hroot hv hfuel hq
+  set leafIdx := descendToLeaf fpBits W_val tMin sl.nodes hMaxBTree sl.root q
+  set r := swarRank fpBits (2 * tMin) cntL q (sl.nodes leafIdx).keysWord
+  by_cases hhit : r < cntL ∧ laneGet (fpBits + 2) (sl.nodes leafIdx).keysWord r = q
+  · obtain ⟨hrc, hkey_eq⟩ := hhit
+    have hcond : (r < cntL && laneGet (fpBits + 2) (sl.nodes leafIdx).keysWord r == q) = true := by
+      simp [hrc, hkey_eq]
+    obtain ⟨cnt', nd', hcnt_le', hsl', hmap_other, hv_new⟩ :=
+      hhit_spec rfl hloL_q hq_hiL hcnt_nd.symm hv_leaf rfl hlt_r hrc hkey_eq hcond
+    rw [hsl']
+    exact ⟨rfl, hlift cnt' nd' mapFn' hcnt_le' hmap_other hv_new⟩
+  · obtain ⟨hcond, hmap_q_none⟩ := hmiss_spec hhit
+    obtain ⟨hsl', hmap'⟩ := hmiss_eq rfl hcnt_nd.symm rfl hcond hmap_q_none
+    rw [hsl', hmap']
+    exact ⟨rfl, T, hroot, rfl, le_rfl, hv⟩
+
 /-- Subtree deletion specification: `btreeDelete` preserves `ValidSubtree`, keeps `alloc` and
 `height` unchanged, does not increase `potential`, and updates `mapFn` to
 `Function.update mapFn q none`. -/
@@ -427,36 +486,23 @@ theorem btreeDelete_subtree_spec {fpBits W_val tMin : ℕ} {sl : BTreeSlice}
         T'.potential tMin ≤ T.potential tMin ∧
         ValidSubtree true fpBits W_val tMin sl'.alloc sl'.nodes 0 (2 ^ fpBits - 1)
           (Function.update mapFn q none) T' := by
-  obtain ⟨cntL, loL, hiL, hloL_q, hq_hiL, _, hcnt_nd, hv_leaf,
-    ⟨hr_le, hlt_r, _, hmiss_spec⟩, hlift⟩ :=
-    descendToLeaf_root_ranked ht2 hcap hroot hv hfuel hq
   have hnz : sl.alloc ≠ 0 := by omega
-  set leafIdx := descendToLeaf fpBits W_val tMin sl.nodes hMaxBTree sl.root q
-  obtain ⟨hidx_lt, _, hcnt_le, hkw, hvw, hbounds, hmono, href⟩ := hv_leaf
-  set W_key := fpBits + 2
-  set nd := sl.nodes leafIdx
-  set r := swarRank fpBits (2 * tMin) cntL q nd.keysWord
-  unfold btreeDelete
-  simp only [hnz, ↓reduceIte]
-  change (let leafIdx0 := leafIdx; _)
-  dsimp only
-  rw [hcnt_nd]
-  by_cases hhit : r < cntL ∧ laneGet W_key nd.keysWord r = q
-  · obtain ⟨hrc, hkey_eq⟩ := hhit
-    have hcond : (r < cntL && laneGet W_key nd.keysWord r == q) = true := by
-      simp [hrc, hkey_eq]
-    rw [hcond]
-    simp only [↓reduceIte]
-    refine ⟨trivial, ?_⟩
+  refine btreeModifyLeaf_subtree_spec ht2 hcap halloc_pos hroot hv hfuel hq
+    (fun hleaf hcnt hr hcond hmap_none => ⟨?_, ?_⟩)
+    (fun {leafIdx cntL loL hiL r} hleaf _ _ hcnt hv_leaf hr hlt_r hrc hkey_eq hcond => ?_)
+  · unfold btreeDelete; simp [hnz, ← hleaf, ← hcnt, ← hr, hcond]
+  · ext x; by_cases hx : x = q <;> simp [hx, hmap_none]
+  · obtain ⟨hidx_lt, _, hcnt_le, hkw, hvw, hbounds, hmono, href⟩ := hv_leaf
+    set W_key := fpBits + 2
+    set nd := sl.nodes leafIdx
     let nd' : BTreeNode :=
       ⟨mkNodeMeta true (cntL - 1),
         wordDeleteAt W_key r nd.keysWord,
         wordDeleteAt W_val r nd.valsWord⟩
     have hcnt_eq : cntL - 1 + 1 = cntL := by omega
-    have hv_new : ValidSubtree false fpBits W_val tMin sl.alloc
-        (Function.update sl.nodes leafIdx nd') loL hiL
-        (Function.update mapFn q none) (.leaf leafIdx (cntL - 1)) := by
-      dsimp only [ValidSubtree]
+    refine ⟨cntL - 1, nd', Nat.sub_le _ _, ?_, fun q' hne => Function.update_of_ne hne _ _, ?_⟩
+    · unfold btreeDelete; simp [hnz, ← hleaf, ← hcnt, ← hr, hcond, W_key, nd, nd']
+    · dsimp only [ValidSubtree]
       rw [Function.update_self]
       refine ⟨hidx_lt, rfl, by omega,
         wordDeleteAt_lt (by omega) (by rwa [hcnt_eq]),
@@ -506,16 +552,6 @@ theorem btreeDelete_subtree_spec {fpBits W_val tMin : ℕ} {sl : BTreeSlice}
             split_ifs with hjr
             · exact hno j (by omega)
             · exact hno (j + 1) (by omega)
-    exact hlift (cntL - 1) nd' (Function.update mapFn q none) (by omega)
-      (fun q' hne => Function.update_of_ne hne _ _) hv_new
-  · obtain ⟨hcond, hmap_q_none⟩ := hmiss_spec hhit
-    rw [hcond]
-    change sl.alloc = sl.alloc ∧ _
-    have hupd_eq : Function.update mapFn q none = mapFn := by
-      ext x
-      by_cases hx : x = q <;> simp [hx, hmap_q_none]
-    refine ⟨rfl, T, hroot, rfl, le_rfl, ?_⟩
-    simpa only [Bool.false_eq_true, ↓reduceIte, hupd_eq] using hv
 
 /-- Subtree in-place value update specification: when `newVal < 2 ^ W_val`, `btreeUpdate` preserves
 `ValidSubtree`, `alloc`, `height`, and `potential`, updating `mapFn q` to `some newVal` whenever `q`
@@ -534,34 +570,22 @@ theorem btreeUpdate_subtree_spec {fpBits W_val tMin : ℕ} {sl : BTreeSlice}
         T'.height = T.height ∧
         T'.potential tMin ≤ T.potential tMin ∧
         ValidSubtree true fpBits W_val tMin sl'.alloc sl'.nodes 0 (2 ^ fpBits - 1) mapFn' T' := by
-  obtain ⟨cntL, loL, hiL, hloL_q, hq_hiL, _, hcnt_nd, hv_leaf,
-    ⟨_, _, _, hmiss_spec⟩, hlift⟩ :=
-    descendToLeaf_root_ranked ht2 hcap hroot hv hfuel hq
   have hnz : sl.alloc ≠ 0 := by omega
-  set leafIdx := descendToLeaf fpBits W_val tMin sl.nodes hMaxBTree sl.root q
-  have ⟨hidx_lt, hmeta, hcnt_le, hkw, hvw, hbounds, hmono, href⟩ := hv_leaf
-  set W_key := fpBits + 2
-  set nd := sl.nodes leafIdx
-  set r := swarRank fpBits (2 * tMin) cntL q nd.keysWord
-  unfold btreeUpdate
-  simp only [hnz, ↓reduceIte]
-  change (let leafIdx0 := leafIdx; _)
-  dsimp only
-  rw [hcnt_nd]
-  by_cases hhit : r < cntL ∧ laneGet W_key nd.keysWord r = q
-  · obtain ⟨hrc, hkey_eq⟩ := hhit
-    have hcond : (r < cntL && laneGet W_key nd.keysWord r == q) = true := by
-      simp [hrc, hkey_eq]
+  refine btreeModifyLeaf_subtree_spec ht2 hcap halloc_pos hroot hv hfuel hq
+    (fun hleaf hcnt hr hcond hmap_none => ⟨?_, by simp [hmap_none]⟩)
+    (fun {leafIdx cntL loL hiL r} hleaf hloL_q hq_hiL hcnt hv_leaf hr _ hrc hkey_eq hcond => ?_)
+  · unfold btreeUpdate; simp [hnz, ← hleaf, ← hcnt, ← hr, hcond]
+  · obtain ⟨hidx_lt, hmeta, hcnt_le, hkw, hvw, hbounds, hmono, href⟩ := hv_leaf
     have hsome : (mapFn q).isSome = true := by
       rcases href q hloL_q hq_hiL with ⟨r₀, _, _, hmr₀⟩ | ⟨hno, _⟩
       · simp [hmr₀]
       · exact absurd hkey_eq (hno r hrc)
-    rw [hcond, hsome]
-    simp only [↓reduceIte]
+    set nd := sl.nodes leafIdx
     let nd' : BTreeNode := ⟨nd.metaWord, nd.keysWord, wordUpdateAt W_val r newVal nd.valsWord⟩
-    have hv_new : ValidSubtree false fpBits W_val tMin sl.alloc
-        (Function.update sl.nodes leafIdx nd') loL hiL
-        (Function.update mapFn q (some newVal)) (.leaf leafIdx cntL) := by
+    refine ⟨cntL, nd', le_rfl, ?_,
+      fun q' hne => by simp [hsome, Function.update_of_ne hne], ?_⟩
+    · unfold btreeUpdate; simp [hnz, ← hleaf, ← hcnt, ← hr, hcond, nd, nd']
+    · simp only [hsome, ↓reduceIte]
       dsimp only [ValidSubtree]
       rw [Function.update_self]
       refine ⟨hidx_lt, hmeta, hcnt_le, hkw, wordUpdateAt_lt hrc hval hvw,
@@ -583,12 +607,6 @@ theorem btreeUpdate_subtree_spec {fpBits W_val tMin : ℕ} {sl : BTreeSlice}
           simp [hj₀_ne, hmj₀]
         · right
           exact ⟨hno, hmno⟩
-    exact ⟨trivial, hlift cntL nd' (Function.update mapFn q (some newVal)) le_rfl
-      (fun q' hne => Function.update_of_ne hne _ _) hv_new⟩
-  · obtain ⟨hcond, hmap_q_none⟩ := hmiss_spec hhit
-    rw [hcond]
-    refine ⟨by simp, T, by simp [hroot], rfl, le_rfl, ?_⟩
-    simpa only [Bool.false_eq_true, ↓reduceIte, hmap_q_none, Option.isSome_none] using hv
 
 /-! ## Section 2: Proactive node splitting (`splitFullNode`, `splitRootIfFull`) -/
 

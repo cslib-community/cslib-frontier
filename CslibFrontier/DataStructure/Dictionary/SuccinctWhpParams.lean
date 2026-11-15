@@ -113,7 +113,7 @@ theorem one_le_cEff (c : ℕ) : 1 ≤ cEff c :=
 
 /-- Number of base-`2 ^ bCharWhp` key characters `8 * (cEff c + 5)` (`≥ 48`), serving as both the
 Stage-1 reduced-key character count and the constant height of the `G`/`S` buffer tries. -/
-def cTabWhp (c : ℕ) : ℕ :=
+@[expose] def cTabWhp (c : ℕ) : ℕ :=
   8 * (cEff c + 5)
 
 /-- Character count `cTabWhp c` is at least `48`. -/
@@ -123,7 +123,7 @@ theorem le_cTabWhp (c : ℕ) : 48 ≤ cTabWhp c := by
   omega
 
 /-- Double-tabulation expansion parameter `q = 4 * (cEff c + 6) + 2` (`≥ 30`). -/
-def qTabWhp (c : ℕ) : ℕ :=
+@[expose] def qTabWhp (c : ℕ) : ℕ :=
   4 * (cEff c + 6) + 2
 
 /-- Double-tabulation expansion parameter `qTabWhp c` is at least `30`. -/
@@ -133,13 +133,13 @@ theorem le_qTabWhp (c : ℕ) : 30 ≤ qTabWhp c := by
   omega
 
 /-- Double-tabulation intermediate tuple length `d = 2 * qTabWhp c * (cTabWhp c + 1)`. -/
-def dTabWhp (c : ℕ) : ℕ :=
+@[expose] def dTabWhp (c : ℕ) : ℕ :=
   2 * qTabWhp c * (cTabWhp c + 1)
 
 /-- Combined logarithmic exponent multiplier `320 + 16 * (cTabWhp c + 1) ^ 2 * qTabWhp c` (`Θ(c^3)`)
 chosen so `codeExpWhp c * Dynamic.logLogFactor n_max ≤ bCharWhp n_max` discharges both Thorup's code
 bound and all polylogarithmic scale inequalities. -/
-def codeExpWhp (c : ℕ) : ℕ :=
+@[expose] def codeExpWhp (c : ℕ) : ℕ :=
   320 + 16 * (cTabWhp c + 1) ^ 2 * qTabWhp c
 
 /-- Logarithmic exponent multiplier `codeExpWhp c` is at least `320`. -/
@@ -148,7 +148,7 @@ theorem le_codeExpWhp (c : ℕ) : 320 ≤ codeExpWhp c := by
   omega
 
 /-- Minimum `⌊log₂ n_max⌋` threshold `64 * (codeExpWhp c) ^ 2 + 16 * codeExpWhp c` (`Θ(c^6)`). -/
-def bMinWhp (c : ℕ) : ℕ :=
+@[expose] def bMinWhp (c : ℕ) : ℕ :=
   64 * (codeExpWhp c) ^ 2 + 16 * codeExpWhp c
 
 /-- Minimum log-capacity threshold `bMinWhp c` is at least `6553600`. -/
@@ -173,7 +173,7 @@ private theorem cTabWhp_bounds_le_codeExpWhp (c : ℕ) :
 /-- Capacity threshold `2 ^ bMinWhp c` separating the deterministic bit-packed regime
 (`n_max < whpThreshold c`) from the succinct two-stage double-tabulation regime
 (`whpThreshold c ≤ n_max`). -/
-def whpThreshold (c : ℕ) : ℕ :=
+@[expose] def whpThreshold (c : ℕ) : ℕ :=
   2 ^ bMinWhp c
 
 /-- Capacity threshold `whpThreshold c` is strictly positive. -/
@@ -184,11 +184,11 @@ theorem whpThreshold_pos (c : ℕ) : 0 < whpThreshold c := by
 /-! ## Section 2: Bucket, quotient, fingerprint, salt, B+-tree, and buffer parameters -/
 
 /-- Tabulation character width `⌊log₂ n_max⌋ / 4`. -/
-def bCharWhp (n_max : ℕ) : ℕ :=
+@[expose] def bCharWhp (n_max : ℕ) : ℕ :=
   Nat.log 2 n_max / 4
 
 /-- Feistel bucket index bit-width `⌊log₂ n_max⌋ - 12 * Dynamic.logLogFactor n_max`. -/
-def bWhp (n_max : ℕ) : ℕ :=
+@[expose] def bWhp (n_max : ℕ) : ℕ :=
   Nat.log 2 n_max - 12 * Dynamic.logLogFactor n_max
 
 /-- Number of Feistel buckets `M = 2 ^ bWhp n_max`. -/
@@ -196,7 +196,7 @@ def bWhp (n_max : ℕ) : ℕ :=
   2 ^ bWhp n_max
 
 /-- Stored quotient bit-width `keyBits U - bWhp n_max`. -/
-def quotBitsWhp (U n_max : ℕ) : ℕ :=
+@[expose] def quotBitsWhp (U n_max : ℕ) : ℕ :=
   keyBits U - bWhp n_max
 
 /-- Salted fingerprint bit-width `36 * Dynamic.logLogFactor n_max`
@@ -205,15 +205,15 @@ def quotBitsWhp (U n_max : ℕ) : ℕ :=
   36 * Dynamic.logLogFactor n_max
 
 /-- Per-bucket salt search bound `(cEff c + 4) * slabScale n_max`. -/
-def sMaxWhp (c n_max : ℕ) : ℕ :=
+@[expose] def sMaxWhp (c n_max : ℕ) : ℕ :=
   (cEff c + 4) * slabScale n_max
 
-/-- Required `k`-wise independence degree `2 * ((cEff c + 4) * slabScale n_max)`. -/
-def kIndepWhp (c n_max : ℕ) : ℕ :=
-  2 * ((cEff c + 4) * slabScale n_max)
+/-- Required `k`-wise independence degree `2 * sMaxWhp c n_max`. -/
+@[expose] def kIndepWhp (c n_max : ℕ) : ℕ :=
+  2 * sMaxWhp c n_max
 
 /-- Deamortization epoch length `Q = (slabScale n_max) ^ 18`. -/
-def qEpochWhp (n_max : ℕ) : ℕ :=
+@[expose] def qEpochWhp (n_max : ℕ) : ℕ :=
   (slabScale n_max) ^ 18
 
 /-- Per-bucket load concentration margin
@@ -226,24 +226,20 @@ def qEpochWhp (n_max : ℕ) : ℕ :=
   n_max / numBucketsWhp n_max - 4 * deltaWhp n_max
 
 /-- Per-bucket backyard pointer directory capacity `2 * (slabScale n_max) ^ 11`. -/
-def capBackWhp (n_max : ℕ) : ℕ :=
+@[expose] def capBackWhp (n_max : ℕ) : ℕ :=
   2 * (slabScale n_max) ^ 11
 
-/-- Total local coordinates per bucket `capFrontWhp n_max + capBackWhp n_max`. -/
-private def totalLocalCoordsWhp (n_max : ℕ) : ℕ :=
-  capFrontWhp n_max + capBackWhp n_max
-
 /-- Maximum good-event bucket occupancy `4 * (slabScale n_max) ^ 12`. -/
-def capMaxWhp (n_max : ℕ) : ℕ :=
+@[expose] def capMaxWhp (n_max : ℕ) : ℕ :=
   4 * (slabScale n_max) ^ 12
 
 /-- Global shared backyard pool capacity `n_max - numBucketsWhp n_max * capFrontWhp n_max`. -/
-def poolSizeWhp (n_max : ℕ) : ℕ :=
+@[expose] def poolSizeWhp (n_max : ℕ) : ℕ :=
   n_max - numBucketsWhp n_max * capFrontWhp n_max
 
 /-- Minimum degree `t ≥ 2` of internal SWAR B+-tree nodes:
 `max 2 (⌊log₂ n_max⌋ / (160 * Dynamic.logLogFactor n_max))`. -/
-def tMinWhp (n_max : ℕ) : ℕ :=
+@[expose] def tMinWhp (n_max : ℕ) : ℕ :=
   max 2 (Nat.log 2 n_max / (160 * Dynamic.logLogFactor n_max))
 
 /-- SWAR key lane bit-width `fpBitsWhp n_max + 2 = 36 * Dynamic.logLogFactor n_max + 2`. -/
@@ -255,11 +251,11 @@ def tMinWhp (n_max : ℕ) : ℕ :=
   12 * Dynamic.logLogFactor n_max + 8
 
 /-- Packed SWAR keys-word bit-width `2 * tMinWhp n_max * keyLaneBitsWhp n_max`. -/
-def keysWordBitsWhp (n_max : ℕ) : ℕ :=
+@[expose] def keysWordBitsWhp (n_max : ℕ) : ℕ :=
   2 * tMinWhp n_max * keyLaneBitsWhp n_max
 
 /-- Packed SWAR values/children-word bit-width `2 * tMinWhp n_max * valLaneBitsWhp n_max`. -/
-def valsWordBitsWhp (n_max : ℕ) : ℕ :=
+@[expose] def valsWordBitsWhp (n_max : ℕ) : ℕ :=
   2 * tMinWhp n_max * valLaneBitsWhp n_max
 
 /-- Packed SWAR B+-tree node metadata bit-width `Dynamic.logLogFactor n_max + 4`
@@ -272,16 +268,12 @@ def valsWordBitsWhp (n_max : ℕ) : ℕ :=
   32 * (slabScale n_max) ^ 12 / (tMinWhp n_max - 1) + 64
 
 /-- Total SWAR B+-tree nodes across all `3 * M` slices (`3` independent roles per bucket). -/
-def totalBTreeNodesWhp (n_max : ℕ) : ℕ :=
+@[expose] def totalBTreeNodesWhp (n_max : ℕ) : ℕ :=
   3 * numBucketsWhp n_max * nSliceWhp n_max
 
 /-- Maximum `BufTrie` nodes per buffer (`(cTabWhp c + 1) * qEpochWhp n_max + 2`). -/
-def maxTrieNodesWhp (c n_max : ℕ) : ℕ :=
+@[expose] def maxTrieNodesWhp (c n_max : ℕ) : ℕ :=
   (cTabWhp c + 1) * qEpochWhp n_max + 2
-
-/-- Total child-pointer entries `(maxTrieNodesWhp c n_max) * 2 ^ bCharWhp n_max` per `BufTrie`. -/
-private def trieChildEntriesWhp (c n_max : ℕ) : ℕ :=
-  maxTrieNodesWhp c n_max * 2 ^ bCharWhp n_max
 
 /-! ## Section 3: Threshold inequalities for `whpThreshold c ≤ n_max` -/
 
@@ -499,7 +491,7 @@ theorem two_mul_doubleTabCodeBound_le_pow_bCharWhp {c n_max : ℕ} (hth : whpThr
       calc c' * (2 * (cEff c + 4)) ≤ 2 ^ c' * 2 ^ c' := Nat.mul_le_mul hlt1 hlt2
         _ = 2 ^ (2 * c') := by rw [← Nat.pow_add, two_mul]
     have hrew : c' * kIndepWhp c n_max = (c' * (2 * (cEff c + 4))) * 2 ^ ell := by
-      unfold kIndepWhp slabScale
+      unfold kIndepWhp sMaxWhp slabScale
       dsimp only [ell]
       ring
     calc c' * kIndepWhp c n_max = (c' * (2 * (cEff c + 4))) * 2 ^ ell := hrew
@@ -684,57 +676,54 @@ theorem sum_sub_capFront_le_poolSize {c n_max : ℕ} (hth : whpThreshold c ≤ n
 
 /-! ## Section 5: Memory layout and master succinct space theorem (`whpSpace_le_succinctWords`) -/
 
-/-- Number of plain header words at `base + 0 .. base + 31`. -/
-private def hdrWordsWhp : ℕ := 32
-
 /-- Word footprint in the small-`n_max` deterministic regime (`n_max < whpThreshold c`):
 32 header words plus bit-packed `Present` (`1` bit), `Keys` (`keyBits U` bits), and `Values`
 (`valBits V` bits). -/
-def smallSpaceWhp (U V w n_max : ℕ) : ℕ :=
-  hdrWordsWhp +
+@[expose] def smallSpaceWhp (U V w n_max : ℕ) : ℕ :=
+  32 +
     packedWords n_max 1 w +
     packedWords n_max (keyBits U) w +
     packedWords n_max (valBits V) w
 
-/-- Combined word footprint of the auxiliary metadata, SWAR B+-tree, and `G`/`S` `BufTrie` arrays in
-the large-`n_max` regime (`whpThreshold c ≤ n_max`). -/
-private def largeAuxWordsWhp (c w n_max : ℕ) : ℕ :=
-  packedWords n_max (12 * Dynamic.logLogFactor n_max + 4) w +
-  packedWords (numBucketsWhp n_max * totalLocalCoordsWhp n_max) 2 w +
-  packedWords (16 * numBucketsWhp n_max) (globalPtrBits n_max) w +
-  packedWords (numBucketsWhp n_max + 1) (globalPtrBits n_max) w +
-  packedWords (numBucketsWhp n_max * capBackWhp n_max) (globalPtrBits n_max) w +
-  packedWords (numBucketsWhp n_max * capBackWhp n_max) (12 * Dynamic.logLogFactor n_max + 4) w +
-  2 * packedWords (poolSizeWhp n_max) (globalPtrBits n_max) w +
-  packedWords (totalBTreeNodesWhp n_max) (nodeMetaBitsWhp n_max) w +
-  packedWords (totalBTreeNodesWhp n_max) (keysWordBitsWhp n_max) w +
-  packedWords (totalBTreeNodesWhp n_max) (valsWordBitsWhp n_max) w +
-  2 * packedWords (trieChildEntriesWhp c n_max) (globalPtrBits n_max) w +
-  2 * packedWords (6 * maxTrieNodesWhp c n_max) (globalPtrBits n_max) w +
-  2 * packedWords (6 * qEpochWhp n_max + 6) (globalPtrBits n_max) w
-
-/-- Word footprint in the large-`n_max` regime (`whpThreshold c ≤ n_max`). -/
-def largeSpaceWhp (c U V w n_max : ℕ) : ℕ :=
-  hdrWordsWhp +
+/-- Word footprint in the large-`n_max` regime (`whpThreshold c ≤ n_max`), summing 32 header words,
+Stage-2 salted bucket and fingerprint double-tabulation tables, bit-packed quotients and values,
+per-slot and per-bucket metadata, shared backyard slab pools, SWAR B+-tree slices, and both epoch
+`BufTrie` arrays. -/
+@[expose] def largeSpaceWhp (c U V w n_max : ℕ) : ℕ :=
+  let auxWords :=
+    packedWords n_max (12 * Dynamic.logLogFactor n_max + 4) w +
+    packedWords (numBucketsWhp n_max * (capFrontWhp n_max + capBackWhp n_max)) 2 w +
+    packedWords (16 * numBucketsWhp n_max) (globalPtrBits n_max) w +
+    packedWords (numBucketsWhp n_max + 1) (globalPtrBits n_max) w +
+    packedWords (numBucketsWhp n_max * capBackWhp n_max) (globalPtrBits n_max) w +
+    packedWords (numBucketsWhp n_max * capBackWhp n_max) (12 * Dynamic.logLogFactor n_max + 4) w +
+    2 * packedWords (poolSizeWhp n_max) (globalPtrBits n_max) w +
+    packedWords (totalBTreeNodesWhp n_max) (nodeMetaBitsWhp n_max) w +
+    packedWords (totalBTreeNodesWhp n_max) (keysWordBitsWhp n_max) w +
+    packedWords (totalBTreeNodesWhp n_max) (valsWordBitsWhp n_max) w +
+    2 * packedWords (maxTrieNodesWhp c n_max * 2 ^ bCharWhp n_max) (globalPtrBits n_max) w +
+    2 * packedWords (6 * maxTrieNodesWhp c n_max) (globalPtrBits n_max) w +
+    2 * packedWords (6 * qEpochWhp n_max + 6) (globalPtrBits n_max) w
+  32 +
   BitPackedDoubleTabulation.space w (cTabWhp c) (dTabWhp c) (bCharWhp n_max) (bWhp n_max) +
   BitPackedDoubleTabulation.space w (cTabWhp c) (dTabWhp c) (bCharWhp n_max) (fpBitsWhp n_max) +
   packedWords n_max (quotBitsWhp U n_max) w +
   packedWords n_max (valBits V) w +
-  largeAuxWordsWhp c w n_max
+  auxWords
 
 /-- Total `w`-bit word footprint of the WHP succinct dictionary across all `n_max`. -/
-def whpSpace (c U V w n_max : ℕ) : ℕ :=
+@[expose] def whpSpace (c U V w n_max : ℕ) : ℕ :=
   if n_max < whpThreshold c then
     smallSpaceWhp U V w n_max
   else
     largeSpaceWhp c U V w n_max
 
 /-- `c`-only redundancy multiplier on `n_max * logLogFactor n_max` (`Θ(c^6)` due to `bMinWhp c`). -/
-def whpSpaceFactor (c : ℕ) : ℕ :=
+@[expose] def whpSpaceFactor (c : ℕ) : ℕ :=
   bMinWhp c + 120000
 
 /-- Universal additive `w`-bit word slack (`160` words, independent of `c, U, V, w, n_max`). -/
-def whpSpaceConst : ℕ := 160
+@[expose] def whpSpaceConst : ℕ := 160
 
 /-- Shared binomial-entropy key-bit inequality: when `0 < n_max ≤ U` and `n_max ≤ 2 ^ E`,
 `n_max * keyBits U ≤ n_max + n_max * E + Nat.clog 2 (U.choose n_max)`. -/
@@ -1033,7 +1022,7 @@ theorem whpSpace_le_succinctWords {c U V w n_max : ℕ} (hnU : n_max ≤ U) :
       Dynamic.succinctWords (whpSpaceFactor c) whpSpaceConst U V w n_max := by
   unfold whpSpace
   split_ifs with hsmall
-  · unfold smallSpaceWhp hdrWordsWhp
+  · unfold smallSpaceWhp
     have h12 := packedWords_add_le n_max 1 n_max (keyBits U) w
     have h123 := div_add_packedWords_le (n_max * 1 + n_max * keyBits U) 5 n_max (valBits V) w
     have hbits := small_bits_le_optBits (V := V) hsmall hnU
@@ -1069,7 +1058,9 @@ theorem whpSpace_le_succinctWords {c U V w n_max : ℕ} (hnU : n_max ≤ U) :
         have := Nat.le_mul_of_pos_right n_max hell
         omega
       linarith
-    have hb_lstate : (M * totalLocalCoordsWhp n_max) * 2 ≤ 4 * (n_max * ell) := by
+    let totLoc := capFrontWhp n_max + capBackWhp n_max
+    let trieEntries := maxTrieNodesWhp c n_max * 2 ^ bCharWhp n_max
+    have hb_lstate : (M * totLoc) * 2 ≤ 4 * (n_max * ell) := by
       have hcf : M * capFrontWhp n_max ≤ n_max :=
         (Nat.mul_le_mul_left M (Nat.sub_le _ _)).trans (Nat.mul_div_le n_max M)
       have hcb : M * capBackWhp n_max ≤ n_max := by
@@ -1189,7 +1180,7 @@ theorem whpSpace_le_succinctWords {c U V w n_max : ℕ} (hnU : n_max ≤ U) :
       (bCharWhp n_max) (fpBitsWhp n_max)
     have hqv := quotient_val_whp_bits_le_optBits (V := V) hnU
     let a1 := n_max * (12 * ell + 4)
-    let a2 := a1 + (M * totalLocalCoordsWhp n_max) * 2
+    let a2 := a1 + (M * totLoc) * 2
     let a3 := a2 + (16 * M) * globalPtrBits n_max
     let a4 := a3 + (M + 1) * globalPtrBits n_max
     let a5 := a4 + (M * capBackWhp n_max) * globalPtrBits n_max
@@ -1198,12 +1189,25 @@ theorem whpSpace_le_succinctWords {c U V w n_max : ℕ} (hnU : n_max ≤ U) :
     let a8 := a7 + totalBTreeNodesWhp n_max * nodeMetaBitsWhp n_max
     let a9 := a8 + totalBTreeNodesWhp n_max * keysWordBitsWhp n_max
     let a10 := a9 + totalBTreeNodesWhp n_max * valsWordBitsWhp n_max
-    let a11 := a10 + (2 * trieChildEntriesWhp c n_max) * globalPtrBits n_max
+    let a11 := a10 + (2 * trieEntries) * globalPtrBits n_max
     let a12 := a11 + (2 * (6 * maxTrieNodesWhp c n_max)) * globalPtrBits n_max
     let B_aux := a12 + (2 * (6 * qEpochWhp n_max + 6)) * globalPtrBits n_max
-    have haux_words : largeAuxWordsWhp c w n_max ≤ (B_aux + w - 1) / w + 50 := by
-      unfold largeAuxWordsWhp
-      have p1 := packedWords_add_le n_max (12 * ell + 4) (M * totalLocalCoordsWhp n_max) 2 w
+    let auxWords :=
+      packedWords n_max (12 * ell + 4) w +
+      packedWords (M * totLoc) 2 w +
+      packedWords (16 * M) (globalPtrBits n_max) w +
+      packedWords (M + 1) (globalPtrBits n_max) w +
+      packedWords (M * capBackWhp n_max) (globalPtrBits n_max) w +
+      packedWords (M * capBackWhp n_max) (12 * ell + 4) w +
+      2 * packedWords (poolSizeWhp n_max) (globalPtrBits n_max) w +
+      packedWords (totalBTreeNodesWhp n_max) (nodeMetaBitsWhp n_max) w +
+      packedWords (totalBTreeNodesWhp n_max) (keysWordBitsWhp n_max) w +
+      packedWords (totalBTreeNodesWhp n_max) (valsWordBitsWhp n_max) w +
+      2 * packedWords trieEntries (globalPtrBits n_max) w +
+      2 * packedWords (6 * maxTrieNodesWhp c n_max) (globalPtrBits n_max) w +
+      2 * packedWords (6 * qEpochWhp n_max + 6) (globalPtrBits n_max) w
+    have haux_words : auxWords ≤ (B_aux + w - 1) / w + 50 := by
+      have p1 := packedWords_add_le n_max (12 * ell + 4) (M * totLoc) 2 w
       have p2 := div_add_packedWords_le a2 5 (16 * M) (globalPtrBits n_max) w
       have p3 := div_add_packedWords_le a3 8 (M + 1) (globalPtrBits n_max) w
       have p4 := div_add_packedWords_le a4 11 (M * capBackWhp n_max) (globalPtrBits n_max) w
@@ -1212,15 +1216,13 @@ theorem whpSpace_le_succinctWords {c U V w n_max : ℕ} (hnU : n_max ≤ U) :
       have p7 := div_add_packedWords_le a7 23 (totalBTreeNodesWhp n_max) (nodeMetaBitsWhp n_max) w
       have p8 := div_add_packedWords_le a8 26 (totalBTreeNodesWhp n_max) (keysWordBitsWhp n_max) w
       have p9 := div_add_packedWords_le a9 29 (totalBTreeNodesWhp n_max) (valsWordBitsWhp n_max) w
-      have p10 := div_add_mul_packedWords_le 2 a10 32 (trieChildEntriesWhp c n_max)
-        (globalPtrBits n_max) w
+      have p10 := div_add_mul_packedWords_le 2 a10 32 trieEntries (globalPtrBits n_max) w
       have p11 := div_add_mul_packedWords_le 2 a11 38 (6 * maxTrieNodesWhp c n_max)
         (globalPtrBits n_max) w
       have p12 := div_add_mul_packedWords_le 2 a12 44 (6 * qEpochWhp n_max + 6)
         (globalPtrBits n_max) w
-      dsimp only [ell, M] at p1 p2 p3 p4 p5 p6 p7 p8 p9 p10 p11 p12
-      change _ ≤ (B_aux + w - 1) / w + 50
-      dsimp only [B_aux, a12, a11, a10, a9, a8, a7, a6, a5, a4, a3, a2, a1, ell, M] at *
+      dsimp only [auxWords, B_aux, a12, a11, a10, a9, a8, a7, a6, a5, a4, a3, a2, a1,
+        totLoc, trieEntries, ell, M] at *
       omega
     let B_bkt := BitPackedDoubleTabulation.topEntries (cTabWhp c) (dTabWhp c) (bCharWhp n_max) *
         bCharWhp n_max +
@@ -1241,9 +1243,9 @@ theorem whpSpace_le_succinctWords {c U V w n_max : ℕ} (hnU : n_max ≤ U) :
       have h60k : B_bkt + B_fp + B_qv + B_aux ≤
           Dynamic.optBits U V n_max + 60000 * (n_max * ell) := by
         dsimp only [B_bkt, B_fp, B_qv, B_aux, a12, a11, a10, a9, a8, a7, a6, a5, a4, a3, a2, a1]
-        rw [hmul_assoc (poolSizeWhp n_max), hmul_assoc (trieChildEntriesWhp c n_max),
+        rw [hmul_assoc (poolSizeWhp n_max), hmul_assoc trieEntries,
           hmul_assoc (6 * maxTrieNodesWhp c n_max), hmul_assoc (6 * qEpochWhp n_max + 6)]
-        have htc' : trieChildEntriesWhp c n_max * globalPtrBits n_max ≤ n_max := htc
+        have htc' : trieEntries * globalPtrBits n_max ≤ n_max := htc
         have hqv' : n_max * quotBitsWhp U n_max + n_max * valBits V ≤
             Dynamic.optBits U V n_max + 14 * (n_max * ell) := by
           simpa [ell, mul_assoc] using hqv
@@ -1259,7 +1261,8 @@ theorem whpSpace_le_succinctWords {c U V w n_max : ℕ} (hnU : n_max ≤ U) :
           w - 1) / w :=
       Nat.div_le_div_right (by omega)
     dsimp only [B_bkt, B_fp, B_qv] at hhash_words hcomb1 hcomb2 hdiv
-    unfold largeSpaceWhp hdrWordsWhp Dynamic.succinctWords whpSpaceConst
+    unfold largeSpaceWhp Dynamic.succinctWords whpSpaceConst
+    dsimp only [auxWords, totLoc, trieEntries, ell, M] at haux_words ⊢
     omega
 
 /-- Branching cube bound for SWAR B+-tree height: when `whpThreshold c ≤ n_max`,

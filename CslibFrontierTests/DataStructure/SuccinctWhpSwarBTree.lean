@@ -56,6 +56,19 @@ open scoped BigOperators
 example : cEff 0 = 1 ∧ cEff 3 = 3 := by decide
 example : Dynamic.logLogFactor 16 = 2 ∧ slabScale 16 = 4 := by decide
 example : 64 ≤ nSliceWhp 16 := sixty_four_le_nSliceWhp 16
+example (c n_max : ℕ) :
+    dTabWhp c = 2 * qTabWhp c * (cTabWhp c + 1) ∧
+    kIndepWhp c n_max = 2 * sMaxWhp c n_max ∧
+    whpSpace c 64 16 64 16 = smallSpaceWhp 64 16 64 16 ∧
+    whpSpace c (whpThreshold c) 16 64 (whpThreshold c) =
+      largeSpaceWhp c (whpThreshold c) 16 64 (whpThreshold c) := by
+  refine ⟨rfl, rfl, ?_, ?_⟩
+  · have hlt : 16 < whpThreshold c := by
+      have hbm := le_bMinWhp c
+      calc 16 < 2 ^ 5 := by decide
+        _ ≤ 2 ^ bMinWhp c := Nat.pow_le_pow_right (by decide) (by omega)
+    simp [whpSpace, hlt]
+  · simp [whpSpace]
 
 /-- Concrete small-regime instantiation of `whpSpace_le_succinctWords` at
 `(c = 1, U = 64, V = 16, w = 64, n_max = 16)`. -/
@@ -494,15 +507,19 @@ theorem validWhpSlice_foldl {c n_max ins₀ : ℕ} {sl₀ : BTreeSlice} {map₀ 
       exact ih (hv₀.delete_spec hth (by omega) hop) hins hrest
 
 /-- Concrete 4-step sequence `insert 3 30 → insert 9 90 → update 3 33 → delete 9` verified via
-`validWhpSlice_foldl` and `ValidWhpSlice.lookup_eq` at `n_max = whpThreshold c`. -/
+`validWhpSlice_foldl`, `ValidWhpSlice.lookup_eq`, and `ValidWhpSlice.alloc_and_height_lt` at
+`n_max = whpThreshold c` (including single-word packed bit-width fit `< 2 ^ ⌊log₂ n_max⌋`). -/
 theorem validWhpSlice_sequence_lookup (c : ℕ) :
     let n_max := whpThreshold c
     let ops : List SliceOp := [.insert 3 30, .insert 9 90, .update 3 33, .delete 9]
     let slFinal := ops.foldl (stepWhpSlice n_max) uninitSlice
+    slFinal.alloc < nSliceWhp n_max ∧
+    (slFinal.nodes slFinal.root).keysWord < 2 ^ Nat.log 2 n_max ∧
+    (slFinal.nodes slFinal.root).valsWord < 2 ^ Nat.log 2 n_max ∧
     btreeLookup (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max) slFinal 3 = some 33 ∧
     btreeLookup (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max) slFinal 9 = none ∧
     btreeLookup (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max) slFinal 5 = none := by
-  set n_max := whpThreshold c
+  intro n_max ops slFinal
   have hth : whpThreshold c ≤ n_max := le_rfl
   have hell := Dynamic.one_le_logLogFactor n_max
   have hL2 := two_le_slabScale n_max
@@ -515,7 +532,6 @@ theorem validWhpSlice_sequence_lookup (c : ℕ) :
   have hL12_ge : 2 ≤ 8 * (slabScale n_max) ^ 12 := by
     have : 1 ≤ (slabScale n_max) ^ 12 := Nat.one_le_pow 12 _ (by omega)
     omega
-  let ops : List SliceOp := [.insert 3 30, .insert 9 90, .update 3 33, .delete 9]
   have hv₀ : ValidWhpSlice n_max 0 uninitSlice (fun _ => none) :=
     validWhpSlice_zero n_max 0 uninitSlice.nodes
   have hops : ∀ op ∈ ops, ValidSliceOp n_max op := by
@@ -527,10 +543,26 @@ theorem validWhpSlice_sequence_lookup (c : ℕ) :
     (by dsimp [ops, countInserts]; omega) hops
   have hins_final : 0 + countInserts ops ≤ 8 * (slabScale n_max) ^ 12 := by
     dsimp [ops, countInserts]; omega
-  refine ⟨?_, ?_, ?_⟩
-  · rw [hvFinal.lookup_eq hth hins_final (by omega)]; decide
-  · rw [hvFinal.lookup_eq hth hins_final (by omega)]; decide
-  · rw [hvFinal.lookup_eq hth hins_final (by omega)]; decide
+  dsimp only [slFinal]
+  have hlk3 : btreeLookup (fpBitsWhp n_max) (valLaneBitsWhp n_max) (tMinWhp n_max)
+      (ops.foldl (stepWhpSlice n_max) uninitSlice) 3 = some 33 := by
+    rw [hvFinal.lookup_eq hth hins_final (by omega)]; rfl
+  obtain ⟨halloc_lt, ⟨_, hmap0⟩ | ⟨_, T, hrt, _, _, hbits, _⟩⟩ :=
+    hvFinal.alloc_and_height_lt hth hins_final
+  · have h3_eq : (ops.foldl stepMapFn (fun _ => none)) 3 = some 33 := rfl
+    rw [hmap0] at h3_eq
+    cases h3_eq
+  · obtain ⟨_, hkw_lt, hvw_lt⟩ := hbits _ (hrt ▸ T.rootIdx_mem_nodeSet)
+    have hkw_log : keysWordBitsWhp n_max < Nat.log 2 n_max :=
+      (Nat.le_add_right _ _).trans_lt (keysWordBitsWhp_lt_log hth)
+    have hvw_log : valsWordBitsWhp n_max < Nat.log 2 n_max :=
+      (Nat.le_add_right _ _).trans_lt (valsWordBitsWhp_lt_log hth)
+    refine ⟨by omega,
+      hkw_lt.trans (Nat.pow_lt_pow_right (by decide) hkw_log),
+      hvw_lt.trans (Nat.pow_lt_pow_right (by decide) hvw_log),
+      hlk3, ?_, ?_⟩
+    · rw [hvFinal.lookup_eq hth hins_final (by omega)]; rfl
+    · rw [hvFinal.lookup_eq hth hins_final (by omega)]; rfl
 
 /-! ## 5. `BufTrie`: Shared-Prefix Sharing, Slot Reactivation, Scan, and Cleanup -/
 
@@ -581,16 +613,20 @@ example :
     bufEverPresent 3 2 tc 21 = false := by decide
 
 /-- Symbolic composition of `validBufTrie_empty`, `insert_spec`, `insert_nodeAlloc_le`,
-`delete_spec`, `exists_checkSlot_of_map_some`, and `clearSteps_spec`. -/
+`delete_spec`, `exists_checkSlot_of_map_some`, single-step `toClearable` / `clearOne_step`, and
+`clearSteps_spec`. -/
 theorem bufTrie_lifecycle_spec :
     let t1 := bufInsert 3 2 emptyBufTrie 5 2 20
     let t2 := bufDelete 3 2 t1 5
     let t3 := bufInsert 3 2 t2 5 6 60
-    let tc := bufClearSteps t3.nodeAlloc t3
+    let tc1 := bufClearOne t3
+    let tc := bufClearSteps tc1.nodeAlloc tc1
     t3.nodeAlloc = t1.nodeAlloc ∧
     t3.itemAlloc = t1.itemAlloc ∧
     t3.nodeAlloc ≤ 1 + 3 * t3.itemAlloc ∧
     (∃ id < t3.itemAlloc, bufCheckSlot t3 id = some (6, 60)) ∧
+    ClearableBufTrie tc1 ∧
+    tc1.nodeAlloc = max 1 (t3.nodeAlloc - 1) ∧
     ValidBufTrie 3 2 tc (fun _ => none) ∧
     tc.nodeAlloc = 1 ∧
     tc.itemAlloc = 0 := by
@@ -610,8 +646,9 @@ theorem bufTrie_lifecycle_spec :
   have hlin3 := hv2.insert_nodeAlloc_le (b := 6) (loc := 60) hk (by rw [hna2, hia2]; exact hlin1)
   have hscan := hv3.exists_checkSlot_of_map_some (k := 5) (b := 6) (loc := 60)
     (by simp [Function.update_self])
-  obtain ⟨hvc, hnac, hiac⟩ := hv3.clearSteps_spec le_rfl
-  exact ⟨hna3.trans hna2, hia3.trans hia2, hlin3, hscan, hvc, hnac, hiac⟩
+  obtain ⟨hc1, hnac1⟩ := hv3.toClearable.clearOne_step
+  obtain ⟨hvc, hnac, hiac⟩ := hc1.clearSteps_spec 3 2 _ le_rfl
+  exact ⟨hna3.trans hna2, hia3.trans hia2, hlin3, hscan, hc1, hnac1, hvc, hnac, hiac⟩
 
 end CslibFrontierTests.DataStructure.SuccinctWhpSwarBTree
 
