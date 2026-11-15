@@ -532,8 +532,21 @@ strict comparison to a sample from the shared fixed 64-fair-bit sampler, and
 `Falcon.eval_berExpThresholdCoin_true` proves acceptance mass exactly `z / 2^64`.
 The [ordinary-import client](../../CslibFrontierTests/Crypto/FalconBerExp.lean) checks the strict
 comparison and the thresholds zero, one, one half and `2^64 - 1`. This denotational interface does
-not model the reference implementation's lazy one-to-eight-byte trace, bound `ApproxExp`'s
-floating-point error, or certify a native runtime, circuit, query or static-program size.
+not itself model the reference implementation's byte-consumption trace.
+
+[`Falcon/BerExpLazy.lean`](../../CslibFrontier/Crypto/Computational/Falcon/BerExpLazy.lean)
+formalizes Algorithm 14, lines 5--10, as the actual sequential lazy comparison: it serializes `z`
+into eight big-endian bytes, draws eight fair bits for each visited byte, stops at the first
+mismatch, and returns both the decision and number of bytes read. The deterministic trace compares
+byte lists lexicographically; `Falcon.berExpLazyTrace64_accepted` connects that comparison to the
+same strict 64-bit threshold predicate, and `Falcon.eval_berExpLazyCoin_accepted` proves equality
+of the complete decision distributions. The trace consumes between one and eight bytes, consumes
+all eight and rejects when every byte agrees, and reads past the first byte with exact probability
+`2^-8`. The [ordinary-import client](../../CslibFrontierTests/Crypto/FalconBerExpLazy.lean) checks
+first- and later-mismatch decisions, the eight-byte boundary, all-equal rejection, the 64-bit
+bridge and both exact laws. This layer does not model PRNG-buffer refills, bound `ApproxExp`'s
+floating-point error, construct `BaseSampler` or `SamplerZ`, prove a Gaussian or retry law, or
+certify native runtime, circuit, query or static-program size.
 
 The Falcon frontend deliberately retains a finite XOF-prefix boundary: the concrete SHAKE function
 can supply any requested finite prefix, but the frontend does not choose a universally sufficient
