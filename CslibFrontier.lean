@@ -5034,6 +5034,7 @@ public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Lyubashevsky.Signatur
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.ProofOfKnowledge
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.SchnorrIdentification
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.SchnorrSignature
+public import CslibFrontier.Crypto.Protocols.SigmaProtocol.UniqueResponses
 public import CslibFrontier.Crypto.Protocols.Signature.RandomOracle
 public import CslibFrontier.Crypto.Protocols.Signature.RandomOracle.Simulation
 public import CslibFrontier.Crypto.Protocols.UC.Commitment
