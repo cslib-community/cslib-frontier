@@ -266,8 +266,8 @@ binary predecessor followed by the charged binary-indexed list scan. -/
 /-- Retained boundary-aware input-head movement. The positive branch tests binary zero and the
 standard option tag explicitly before selecting the concrete successor or identity machines. -/
 @[expose] noncomputable def moveInput :
-    NativeCompiler (fun input : MoveInput =>
-      Turing.MultiTapeTM.Universal.moveInput input.1 input.2.1 input.2.2)
+    NativeCompiler (fun (position, symbol, movement) : MoveInput =>
+      Turing.MultiTapeTM.Universal.moveInput position symbol movement)
       eMoveInput encNat := by
   let position := first encNat (encPair eSym encSign)
   let tail := second encNat (encPair eSym encSign)

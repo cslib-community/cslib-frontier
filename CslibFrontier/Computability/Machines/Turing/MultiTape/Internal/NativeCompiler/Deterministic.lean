@@ -73,8 +73,8 @@ noncomputable def cfgWorkTapes : NativeCompiler SCfg.workTapes eCfg (encList eTa
 /-- Retained transition key on the `stepWith` layout. -/
 noncomputable def stepWithKeyCompiler :
     NativeCompiler
-      (fun input : StepWithInput =>
-        ⟨input.2.1.state.getD 0, input.2.2, input.2.1.workTapes.map Tape.read⟩)
+      (fun (_description, cfg, symbol) : StepWithInput =>
+        ⟨cfg.state.getD 0, symbol, cfg.workTapes.map Tape.read⟩)
       eStepWithInput eKey := by
   let tail := second eDesc (encPair eCfg eSym)
   let cfg := (first eCfg eSym).comp tail
@@ -86,8 +86,8 @@ noncomputable def stepWithKeyCompiler :
 /-- Retained first-match table lookup on the `stepWith` layout. -/
 noncomputable def stepWithLookupCompiler :
     NativeCompiler
-      (fun input : StepWithInput => firstMatch (input.1.table,
-        ⟨input.2.1.state.getD 0, input.2.2, input.2.1.workTapes.map Tape.read⟩))
+      (fun (description, cfg, symbol) : StepWithInput => firstMatch (description.table,
+        ⟨cfg.state.getD 0, symbol, cfg.workTapes.map Tape.read⟩))
       eStepWithInput (encOption eAct) := by
   let description := first eDesc (encPair eCfg eSym)
   let table := descTable.comp description
@@ -96,10 +96,10 @@ noncomputable def stepWithLookupCompiler :
 /-- Apply one retained deterministic action on a supplied input-head symbol. -/
 noncomputable def actApplyWithCompiler :
     NativeCompiler
-      (fun input : Act × (SCfg × Option ℕ) =>
-        ⟨input.1.state,
-          moveInput input.2.1.inputPos input.2.2 input.1.inputTape,
-          Turing.MultiTapeTM.Universal.applyTapes input.2.1.workTapes input.1.workTapes⟩)
+      (fun (action, cfg, symbol) : Act × (SCfg × Option ℕ) =>
+        ⟨action.state,
+          moveInput cfg.inputPos symbol action.inputTape,
+          Turing.MultiTapeTM.Universal.applyTapes cfg.workTapes action.workTapes⟩)
       (encPair eAct (encPair eCfg eSym)) eCfg := by
   let action := first eAct (encPair eCfg eSym)
   let cfgSymbol := second eAct (encPair eCfg eSym)
@@ -114,14 +114,15 @@ noncomputable def actApplyWithCompiler :
   exact state.pair (movedInput.pair movedWork) |>.ofOutputEq fun _ => rfl
 
 /-- Interpret a captured deterministic lookup result without rescanning the table. -/
-def stepWithFromLookup (input : StepWithLookupInput) : SCfg × Option ℕ :=
-  match input.2 with
-  | none => ({ input.1.2.1 with state := none }, none)
-  | some action =>
-      (⟨action.state,
-        moveInput input.1.2.1.inputPos input.1.2.2 action.inputTape,
-        Turing.MultiTapeTM.Universal.applyTapes input.1.2.1.workTapes action.workTapes⟩,
-        action.output)
+def stepWithFromLookup : StepWithLookupInput → SCfg × Option ℕ
+  | ((_description, cfg, symbol), lookup) =>
+      match lookup with
+      | none => ({ cfg with state := none }, none)
+      | some action =>
+          (⟨action.state,
+            moveInput cfg.inputPos symbol action.inputTape,
+            Turing.MultiTapeTM.Universal.applyTapes cfg.workTapes action.workTapes⟩,
+            action.output)
 
 /-- Retained post-lookup deterministic action/missing-transition stage. -/
 noncomputable def stepWithFromLookupCompiler :
@@ -140,15 +141,16 @@ noncomputable def stepWithFromLookupCompiler :
   let haltedCfg := haltedState.pair ((cfgInputPos.comp cfg).pair (cfgWorkTapes.comp cfg))
   let missing := haltedCfg.pair (const eStepWithLookupInput eSym none)
   refine (ite hasAction successful missing).ofOutputEq ?_
-  rintro ⟨input, lookup⟩
+  rintro ⟨⟨_, _, _⟩, lookup⟩
   cases lookup <;> rfl
 
 /-- Retained active deterministic step with exactly one captured lookup result. -/
 noncomputable def stepWithActiveCompiler :
     NativeCompiler
-      (fun input : StepWithInput => stepWithFromLookup (input,
-        firstMatch (input.1.table,
-          ⟨input.2.1.state.getD 0, input.2.2, input.2.1.workTapes.map Tape.read⟩)))
+      (fun (description, cfg, symbol) : StepWithInput =>
+        let input := (description, cfg, symbol)
+        stepWithFromLookup (input, firstMatch (description.table,
+          ⟨cfg.state.getD 0, symbol, cfg.workTapes.map Tape.read⟩)))
       eStepWithInput (encPair eCfg eSym) :=
   stepWithFromLookupCompiler.comp
     ((identity eStepWithInput).pair stepWithLookupCompiler)
@@ -157,7 +159,8 @@ noncomputable def stepWithActiveCompiler :
 the table scan; active configurations execute the single captured lookup stage. -/
 noncomputable def stepWithCompiler :
     NativeCompiler
-      (fun input : StepWithInput => Universal.stepWith input.1 input.2.1 input.2.2)
+      (fun (description, cfg, symbol) : StepWithInput =>
+        Universal.stepWith description cfg symbol)
       eStepWithInput (encPair eCfg eSym) := by
   let tail := second eDesc (encPair eCfg eSym)
   let cfg := (first eCfg eSym).comp tail
@@ -174,7 +177,8 @@ noncomputable def stepWithCompiler :
 `stepWith` controller. -/
 noncomputable def stepCompiler :
     NativeCompiler
-      (fun input : Desc × (List ℕ × SCfg) => Universal.step input.1 input.2.1 input.2.2)
+      (fun (description, word, cfg) : Desc × (List ℕ × SCfg) =>
+        Universal.step description word cfg)
       (encPair eDesc (encPair (encList encUnary) eCfg)) (encPair eCfg eSym) := by
   let description := first eDesc (encPair (encList encUnary) eCfg)
   let tail := second eDesc (encPair (encList encUnary) eCfg)

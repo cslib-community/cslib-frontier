@@ -91,9 +91,10 @@ layer around either list. -/
 abbrev ListGetNatState (Value : Type u) := ℕ × Option Value
 
 /-- Advance the binary countdown, retaining the first value selected at remaining index zero. -/
-@[expose] def listGetNatNext (input : ListGetNatState Value × Value) : ListGetNatState Value :=
-  if input.1.2.isSome then input.1
-  else if input.1.1 = 0 then (0, some input.2) else (input.1.1 - 1, none)
+@[expose] def listGetNatNext : ListGetNatState Value × Value → ListGetNatState Value
+  | ((remaining, selected), value) =>
+      if selected.isSome then (remaining, selected)
+      else if remaining = 0 then (0, some value) else (remaining - 1, none)
 
 /-- Return a selected value, or the explicit default if the index was out of range. -/
 @[expose] def listGetNatFinish (default : Value) (state : ListGetNatState Value) : Value :=
@@ -619,15 +620,16 @@ variable {Left Right Zipped : Type u} {zipValue : Left × Right → Zipped}
 abbrev ListReplaceState (Value : Type u) := ℕ × (Bool × Value)
 
 /-- Update the unary countdown after emitting one list element. -/
-@[expose] def listReplaceNext (input : ListReplaceState Value × Value) :
-    ListReplaceState Value :=
-  if input.1.2.1 then input.1
-  else if input.1.1 = 0 then (0, true, input.1.2.2)
-  else (input.1.1 - 1, false, input.1.2.2)
+@[expose] def listReplaceNext : ListReplaceState Value × Value → ListReplaceState Value
+  | ((remaining, done, replacement), _value) =>
+      if done then (remaining, done, replacement)
+      else if remaining = 0 then (0, true, replacement)
+      else (remaining - 1, false, replacement)
 
 /-- Emit the replacement at the selected occurrence and the original element elsewhere. -/
-@[expose] def listReplaceEmit (input : ListReplaceState Value × Value) : Value :=
-  if input.1.2.1 then input.2 else if input.1.1 = 0 then input.1.2.2 else input.2
+@[expose] def listReplaceEmit : ListReplaceState Value × Value → Value
+  | ((remaining, done, replacement), value) =>
+      if done then value else if remaining = 0 then replacement else value
 
 private theorem streamEmit_listReplace_done (encValue : Value ↪ List Bool)
     (remaining : ℕ) (replacement : Value) : ∀ list : List Value,
@@ -725,8 +727,8 @@ theorem streamEmit_listReplace (encValue : Value ↪ List Bool) (replacement : V
 /-- Retained unary-indexed replacement scan before input marshalling. -/
 @[expose] noncomputable def listReplaceStreamCompiler (encValue : Value ↪ List Bool) :
     NativeCompiler
-      (fun input : ListReplaceState Value × List Value =>
-        input.2.modify input.1.1 fun _ => input.1.2.2)
+      (fun ((index, _done, replacement), list) : ListReplaceState Value × List Value =>
+        list.modify index fun _ => replacement)
       (encPair (encPair encUnary (encPair encBool encValue)) (encList encValue))
       (encList encValue) := by
   let nextCompiler := listReplaceNextCompiler encValue
@@ -771,8 +773,8 @@ theorem streamEmit_listReplace (encValue : Value ↪ List Bool) (replacement : V
 /-- Retained marshalling from `(list, unary index, replacement)` to replacement stream state. -/
 @[expose] noncomputable def listReplaceMarshalCompiler (encValue : Value ↪ List Bool) :
     NativeCompiler
-      (fun input : List Value × (ℕ × Value) =>
-        ((input.2.1, false, input.2.2), input.1))
+      (fun (list, index, replacement) : List Value × (ℕ × Value) =>
+        ((index, false, replacement), list))
       (encPair (encList encValue) (encPair encUnary encValue))
       (encPair (encPair encUnary (encPair encBool encValue)) (encList encValue)) := by
   let encInput := encPair (encList encValue) (encPair encUnary encValue)
@@ -786,8 +788,8 @@ theorem streamEmit_listReplace (encValue : Value ↪ List Bool) (replacement : V
 /-- Unary-indexed replacement, including marshalling and a full charged list scan. -/
 @[expose] noncomputable def listReplaceUnaryCompiler (encValue : Value ↪ List Bool) :
     NativeCompiler
-      (fun input : List Value × (ℕ × Value) =>
-        input.1.modify input.2.1 fun _ => input.2.2)
+      (fun (list, index, replacement) : List Value × (ℕ × Value) =>
+        list.modify index fun _ => replacement)
       (encPair (encList encValue) (encPair encUnary encValue)) (encList encValue) :=
   ((listReplaceStreamCompiler encValue).comp
     (listReplaceMarshalCompiler encValue)).ofOutputEq fun _ => rfl

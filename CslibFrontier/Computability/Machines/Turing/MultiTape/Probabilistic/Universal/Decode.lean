@@ -46,7 +46,7 @@ private abbrev tapeDecoder := Turing.MultiTapeTM.Universal.tapeDecoder
 def keyDecoder : Decoder eKey :=
   (Decoder.pair .unary
     (.pair symDecoder (.pair (.list symDecoder) (.list symDecoder)))).map
-    (fun t => ⟨t.1, t.2.1, t.2.2.1, t.2.2.2⟩)
+    (fun (state, input, work, answers) => ⟨state, input, work, answers⟩)
     (fun k => (k.state, k.input, k.work, k.answers)) (fun _ => rfl) fun _ => rfl
 
 /-- Tagged ordinary and query actions. -/
@@ -55,8 +55,9 @@ def actDecoder : Decoder eAct :=
     (Decoder.pair ordinaryActDecoder (.pair (.list symDecoder) (.list signDecoder)))
     (Decoder.pair .unary .unary)).map
     (fun action => match action with
-      | .inl step => .step step.1 step.2.1 step.2.2
-      | .inr query => .query query.1 query.2)
+      | .inl (ordinary, querySymbols, answerMoves) =>
+          .step ordinary querySymbols answerMoves
+      | .inr (operation, next) => .query operation next)
     eAct_toSum (fun action => by cases action <;> rfl) fun action => by
       rcases action with ⟨ordinary, querySymbols, answerMoves⟩ | ⟨operation, next⟩ <;> rfl
 
@@ -72,14 +73,14 @@ def descDecoder : Decoder eDesc :=
     (.pair .unary
       (.pair .unary
         (.pair .unary (.list (.pair keyDecoder branchesDecoder)))))).map
-    (fun d => ⟨d.1, d.2.1, d.2.2.1, d.2.2.2.1, d.2.2.2.2⟩)
+    (fun (tapes, states, operations, q₀, table) => ⟨tapes, states, operations, q₀, table⟩)
     (fun d => (d.tapes, d.states, d.operations, d.q₀, d.table)) (fun _ => rfl) fun _ => rfl
 
 /-- One first-order oracle channel. -/
 def channelDecoder : Decoder eChannel :=
   (Decoder.pair (.list .unary)
     (.pair (.list .unary) Turing.MultiTapeTM.Universal.intUnaryDecoder)).map
-    (fun channel => ⟨channel.1, channel.2.1, channel.2.2⟩)
+    (fun (query, answer, answerPos) => ⟨query, answer, answerPos⟩)
     (fun channel => (channel.query, channel.answer, channel.answerPos))
     (fun _ => rfl) fun _ => rfl
 
@@ -89,7 +90,8 @@ def iCfgDecoder : Decoder eICfg :=
     (.pair .nat
       (.pair (.list tapeDecoder)
         (.pair (.list .unary) (.list channelDecoder))))).map
-    (fun cfg => ⟨cfg.1, cfg.2.1, cfg.2.2.1, cfg.2.2.2.1, cfg.2.2.2.2⟩)
+    (fun (control, inputPos, workTapes, output, channels) =>
+      ⟨control, inputPos, workTapes, output, channels⟩)
     (fun cfg => (cfg.control, cfg.inputPos, cfg.workTapes, cfg.output, cfg.channels))
     (fun _ => rfl) fun _ => rfl
 

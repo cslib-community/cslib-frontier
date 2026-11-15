@@ -48,12 +48,14 @@ variable {Key Value : Type u} [DecidableEq Key]
 abbrev FirstMatchState := Key × Bool
 
 /-- Advance the first-match state after one table entry. -/
-@[expose] def firstMatchNext (input : FirstMatchState × (Key × Value)) : FirstMatchState :=
-  (input.1.1, input.1.2 || decide (input.2.1 = input.1.1))
+@[expose] def firstMatchNext : FirstMatchState × (Key × Value) → FirstMatchState
+  | ((query, found), (entryKey, _value)) =>
+      (query, found || decide (entryKey = query))
 
 /-- Emit a value exactly when this is the first matching entry. -/
-@[expose] def firstMatchEmit (input : FirstMatchState × (Key × Value)) : Option Value :=
-  if input.1.2 then none else if input.2.1 = input.1.1 then some input.2.2 else none
+@[expose] def firstMatchEmit : FirstMatchState × (Key × Value) → Option Value
+  | ((query, found), (entryKey, value)) =>
+      if found then none else if entryKey = query then some value else none
 
 /-- A completed table scan emits the first match, unless a prior prefix had already matched. -/
 theorem streamEmit_firstMatch (encValue : Value ↪ List Bool) (query : Key) :
@@ -151,8 +153,8 @@ theorem streamEmit_firstMatch (encValue : Value ↪ List Bool) (query : Key) :
 @[expose] noncomputable def firstMatchStreamCompiler (encKey : Key ↪ List Bool)
     (encValue : Value ↪ List Bool) :
     NativeCompiler
-      (fun input : FirstMatchState × List (Key × Value) =>
-        if input.1.2 then none else firstMatch (input.2, input.1.1))
+      (fun ((query, found), table) : FirstMatchState × List (Key × Value) =>
+        if found then none else firstMatch (table, query))
       (encPair (encPair encKey encBool) (encList (encPair encKey encValue)))
       (encOption encValue) := by
   let nextCompiler := firstMatchNextCompiler encKey encValue

@@ -70,13 +70,14 @@ def intUnaryDecoder : Decoder encIntUnary :=
 /-- Work-tape zippers, from their signed head position and two symbol lists. -/
 def tapeDecoder : Decoder eTape :=
   (Decoder.pair intUnaryDecoder (.pair (.list symDecoder) (.list symDecoder))).map
-    (fun t => ⟨t.1, t.2.1, t.2.2⟩)
+    (fun (head, left, right) => ⟨head, left, right⟩)
     (fun t => (t.head, t.left, t.right)) (fun _ => rfl) fun _ => rfl
 
 /-- Keys of transitions, from their fields. -/
 def keyDecoder : Decoder eKey :=
   (Decoder.pair .unary (.pair symDecoder (.list symDecoder))).map
-    (fun t => ⟨t.1, t.2.1, t.2.2⟩) (fun k => (k.state, k.input, k.work)) (fun _ => rfl)
+    (fun (state, input, work) => ⟨state, input, work⟩)
+    (fun k => (k.state, k.input, k.work)) (fun _ => rfl)
     fun _ => rfl
 
 /-- Actions on a work tape. -/
@@ -85,13 +86,14 @@ def tapeActDecoder : Decoder eTA := .pair (.option symDecoder) signDecoder
 /-- Actions, from their fields. -/
 def actDecoder : Decoder eAct :=
   (Decoder.pair signDecoder (.pair (.list tapeActDecoder) (.pair symDecoder symDecoder))).map
-    (fun t => ⟨t.1, t.2.1, t.2.2.1, t.2.2.2⟩)
+    (fun (inputTape, workTapes, output, state) => ⟨inputTape, workTapes, output, state⟩)
     (fun a => (a.inputTape, a.workTapes, a.output, a.state)) (fun _ => rfl) fun _ => rfl
 
 /-- **The decoder of descriptions.** -/
 def descDecoder : Decoder eDesc :=
   (Decoder.pair .unary (.pair .unary (.list (.pair keyDecoder actDecoder)))).map
-    (fun t => ⟨t.1, t.2.1, t.2.2⟩) (fun d => (d.tapes, d.q₀, d.table)) (fun _ => rfl)
+    (fun (tapes, q₀, table) => ⟨tapes, q₀, table⟩)
+    (fun d => (d.tapes, d.q₀, d.table)) (fun _ => rfl)
     fun _ => rfl
 
 /-- The description decoded from a word. -/

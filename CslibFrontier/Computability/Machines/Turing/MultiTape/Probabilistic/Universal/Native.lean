@@ -237,7 +237,8 @@ noncomputable def Channel.receiveCompiler :
 
 /-- Retained one-channel local step, including query append and signed answer-head movement. -/
 noncomputable def Channel.stepCompiler :
-    NativeCompiler (fun input : ChannelStepInput => input.1.step input.2.1 input.2.2)
+    NativeCompiler (fun (channel, symbol, movement) : ChannelStepInput =>
+      channel.step symbol movement)
       eChannelStepInput eChannel := by
   let channel := NativeCompiler.first eChannel (encPair eSym encSign)
   let action := NativeCompiler.second eChannel (encPair eSym encSign)
@@ -268,8 +269,9 @@ private theorem channelsZip_eq_mapIdx (channels : List Channel)
 answer moves with every stored channel, including their defaults. -/
 noncomputable def ICfg.channelsStepCompiler :
     NativeCompiler
-      (fun input : ChannelsStepInput => input.1.mapIdx fun operation channel =>
-        channel.step (input.2.1.getD operation none) (input.2.2.getD operation 0))
+      (fun (channels, querySymbols, answerMoves) : ChannelsStepInput =>
+        channels.mapIdx fun operation channel =>
+          channel.step (querySymbols.getD operation none) (answerMoves.getD operation 0))
       eChannelsStepInput (encList eChannel) := by
   let channels := NativeCompiler.first (encList eChannel)
     (encPair (encList eSym) (encList encSign))
@@ -308,7 +310,7 @@ noncomputable def ICfg.workSymbolsCompiler :
 /-- Retained first-order transition-key construction. Input, work-tape and answer-channel reads
 are all named native scans; the supplied state tag is framed with their results. -/
 noncomputable def ICfg.keyCompiler :
-    NativeCompiler (fun input : KeyInput => input.2.1.key input.1 input.2.2)
+    NativeCompiler (fun (word, cfg, state) : KeyInput => cfg.key word state)
       eKeyInput eKey := by
   let word := NativeCompiler.first (encList encUnary) (encPair eICfg encUnary)
   let tail := NativeCompiler.second (encList encUnary) (encPair eICfg encUnary)
@@ -326,8 +328,8 @@ charged list scan; if first-order storage is malformed and too short, the list i
 as in `List.modify`. -/
 noncomputable def ICfg.receiveCompiler (r : ℕ) :
     NativeCompiler
-      (fun input : ReceiveInput r =>
-        input.1.receive input.2.1 input.2.2.1 input.2.2.2)
+      (fun (cfg, operation, next, reply) : ReceiveInput r =>
+        cfg.receive operation next reply)
       (eReceiveInput r) eICfg := by
   let encTail := encPair (eOperation r) (encPair encUnary (encList encUnary))
   let cfg := NativeCompiler.first eICfg encTail
@@ -483,9 +485,9 @@ noncomputable def ICfg.nextIControlCompiler :
 constituent compiler so phase-aware consumers can charge local execution separately. -/
 noncomputable def ICfg.localStepCompiler :
     NativeCompiler
-      (fun input : Desc × (List ℕ × (ICfg × Act)) =>
-        input.2.2.1.step input.2.1 input.1.states input.2.2.2.stepPayload.1
-          input.2.2.2.stepPayload.2.1 input.2.2.2.stepPayload.2.2)
+      (fun (description, word, cfg, action) : Desc × (List ℕ × (ICfg × Act)) =>
+        let (ordinary, querySymbols, answerMoves) := action.stepPayload
+        cfg.step word description.states ordinary querySymbols answerMoves)
       (encPair eDesc (encPair (encList encUnary) (encPair eICfg eAct))) eICfg := by
   let ordinary := commandOrdinaryCompiler
   let next := NativeCompiler.actState.comp ordinary
@@ -543,18 +545,17 @@ private noncomputable def commandQueryWordCompiler :
 emit the exact locally halted command word. -/
 noncomputable def ICfg.queryCommandWordCompiler (r : ℕ) :
     NativeCompiler
-      (fun input : CommandInput =>
-        if input.1.operations = r then
-          if input.2.2.2.queryPayload.1 < r then
-            if input.2.2.2.queryPayload.2 < input.1.states then
+      (fun (description, _word, cfg, action) : CommandInput =>
+        let (operation, next) := action.queryPayload
+        if description.operations = r then
+          if operation < r then
+            if next < description.states then
               true :: encPair encUnary
                 (encPair (encList encUnary) (encPair encUnary eICfg))
-                (input.2.2.2.queryPayload.1,
-                  (input.2.2.1.channels.getD input.2.2.2.queryPayload.1 Channel.blank).query,
-                  input.2.2.2.queryPayload.2, input.2.2.1)
-            else false :: eICfg input.2.2.1.halt
-          else false :: eICfg input.2.2.1.halt
-        else false :: eICfg input.2.2.1.halt)
+                (operation, (cfg.channels.getD operation Channel.blank).query, next, cfg)
+            else false :: eICfg cfg.halt
+          else false :: eICfg cfg.halt
+        else false :: eICfg cfg.halt)
       eCommandInput encBits := by
   let countMatches := (NativeCompiler.wordEqTest encUnary).comp
     (commandOperationsCompiler.pair (NativeCompiler.const eCommandInput encUnary r))
@@ -570,7 +571,8 @@ noncomputable def ICfg.queryCommandWordCompiler (r : ℕ) :
 
 /-- Retained action-constructor dispatch test on the complete command input. -/
 noncomputable def ICfg.isQueryCompiler :
-    NativeCompiler (fun input : CommandInput => (eAct_toSum input.2.2.2).isRight)
+    NativeCompiler (fun (_description, _word, _cfg, action) : CommandInput =>
+      (eAct_toSum action).isRight)
       eCommandInput Turing.MultiTapeTM.encTest :=
   NativeCompiler.boolToTest.comp
     (((NativeCompiler.sumTag eStepPayload eQueryPayload).ofInputEq eAct_toSum fun _ => rfl).comp
@@ -579,9 +581,9 @@ noncomputable def ICfg.isQueryCompiler :
 /-- Retained local-command encoding for the ordinary-step branch. -/
 noncomputable def ICfg.localCommandWordCompiler :
     NativeCompiler
-      (fun input : CommandInput => false :: eICfg
-        (input.2.2.1.step input.2.1 input.1.states input.2.2.2.stepPayload.1
-          input.2.2.2.stepPayload.2.1 input.2.2.2.stepPayload.2.2))
+      (fun (description, word, cfg, action) : CommandInput =>
+        let (ordinary, querySymbols, answerMoves) := action.stepPayload
+        false :: eICfg (cfg.step word description.states ordinary querySymbols answerMoves))
       eCommandInput Turing.MultiTapeTM.encBits :=
   (NativeCompiler.prefixBit false).comp ICfg.localStepCompiler
 
@@ -589,8 +591,8 @@ noncomputable def ICfg.localCommandWordCompiler :
 execution remain separately exposed constituent machines for phase-aware accounting. -/
 noncomputable def ICfg.commandCompiler (r : ℕ) :
     NativeCompiler
-      (fun input : Desc × (List ℕ × (ICfg × Act)) =>
-        input.2.2.1.command r input.1 input.2.1 input.2.2.2)
+      (fun (description, word, cfg, action) : Desc × (List ℕ × (ICfg × Act)) =>
+        cfg.command r description word action)
       (encPair eDesc (encPair (encList encUnary) (encPair eICfg eAct))) (eCommand r) := by
   let assembled := NativeCompiler.ite ICfg.isQueryCompiler
     (ICfg.queryCommandWordCompiler r) ICfg.localCommandWordCompiler
@@ -618,8 +620,8 @@ noncomputable def Branches.getCompiler :
 /-- Retained active-control key construction on the complete `commandAt` input layout. -/
 noncomputable def ICfg.commandAtKeyCompiler :
     NativeCompiler
-      (fun input : CommandAtInput =>
-        input.2.2.1.key input.2.1 ((input.2.2.1.control.getD none).getD 0))
+      (fun (_description, word, cfg, _coin) : CommandAtInput =>
+        cfg.key word ((cfg.control.getD none).getD 0))
       eCommandAtInput eKey := by
   let tail := NativeCompiler.second eDesc
     (encPair (encList encUnary) (encPair eICfg encBool))
@@ -636,8 +638,9 @@ noncomputable def ICfg.commandAtKeyCompiler :
 /-- Retained first-match lookup stage on the complete `commandAt` input layout. -/
 noncomputable def ICfg.commandAtLookupCompiler :
     NativeCompiler
-      (fun input : CommandAtInput => NativeCompiler.firstMatch (input.1.table,
-        input.2.2.1.key input.2.1 ((input.2.2.1.control.getD none).getD 0)))
+      (fun (description, word, cfg, _coin) : CommandAtInput =>
+        NativeCompiler.firstMatch
+          (description.table, cfg.key word ((cfg.control.getD none).getD 0)))
       eCommandAtInput (encOption eBranches) := by
   let description := NativeCompiler.first eDesc
     (encPair (encList encUnary) (encPair eICfg encBool))
@@ -646,22 +649,23 @@ noncomputable def ICfg.commandAtLookupCompiler :
     (table.pair ICfg.commandAtKeyCompiler)
 
 /-- One `commandAt` input paired with its already-computed first-match result. -/
-def commandAtFromLookup (r : ℕ) (input : CommandAtLookupInput) : Command r :=
-  match input.1.2.2.1.control with
-  | none => .local input.1.2.2.1
-  | some none => .local input.1.2.2.1.halt
-  | some (some _) =>
-      match input.2 with
-      | none => .local input.1.2.2.1.halt
-      | some branches =>
-          input.1.2.2.1.command r input.1.1 input.1.2.1 (branches.get input.1.2.2.2)
+def commandAtFromLookup (r : ℕ) : CommandAtLookupInput → Command r
+  | ((description, word, cfg, coin), lookup) =>
+      match cfg.control with
+      | none => .local cfg
+      | some none => .local cfg.halt
+      | some (some _) =>
+          match lookup with
+          | none => .local cfg.halt
+          | some branches => cfg.command r description word (branches.get coin)
 
 /-- The source `commandAt` function factors through one captured first-match result. -/
 theorem commandAtFromLookup_firstMatch (r : ℕ) (input : CommandAtInput) :
-    commandAtFromLookup r (input, NativeCompiler.firstMatch (input.1.table,
-      input.2.2.1.key input.2.1 ((input.2.2.1.control.getD none).getD 0))) =
-      input.2.2.1.commandAt r input.1 input.2.1 input.2.2.2 := by
-  rcases input with ⟨description, input, cfg, coin⟩
+    let (description, word, cfg, coin) := input
+    commandAtFromLookup r (input, NativeCompiler.firstMatch
+      (description.table, cfg.key word ((cfg.control.getD none).getD 0))) =
+      cfg.commandAt r description word coin := by
+  rcases input with ⟨description, word, cfg, coin⟩
   cases hcontrol : cfg.control with
   | none => simp [commandAtFromLookup, ICfg.commandAt, hcontrol]
   | some control =>
@@ -675,8 +679,9 @@ theorem commandAtFromLookup_firstMatch (r : ℕ) (input : CommandAtInput) :
 input for all later tag and coin-dispatch stages. -/
 noncomputable def ICfg.commandAtLookupStageCompiler :
     NativeCompiler
-      (fun input : CommandAtInput => (input, NativeCompiler.firstMatch (input.1.table,
-        input.2.2.1.key input.2.1 ((input.2.2.1.control.getD none).getD 0))))
+      (fun (description, word, cfg, coin) : CommandAtInput =>
+        ((description, word, cfg, coin), NativeCompiler.firstMatch
+          (description.table, cfg.key word ((cfg.control.getD none).getD 0))))
       eCommandAtInput eCommandAtLookupInput :=
   (NativeCompiler.identity eCommandAtInput).pair ICfg.commandAtLookupCompiler
 
@@ -684,7 +689,8 @@ noncomputable def ICfg.commandAtLookupStageCompiler :
 used only behind the separately exposed lookup-presence test. -/
 noncomputable def ICfg.commandAtActionCompiler :
     NativeCompiler
-      (fun input : CommandAtLookupInput => input.2.getD default |>.get input.1.2.2.2)
+      (fun ((_description, _word, _cfg, coin), lookup) : CommandAtLookupInput =>
+        lookup.getD default |>.get coin)
       eCommandAtLookupInput eAct := by
   let original := NativeCompiler.first eCommandAtInput (encOption eBranches)
   let lookup := NativeCompiler.second eCommandAtInput (encOption eBranches)
@@ -737,8 +743,8 @@ noncomputable def ICfg.commandAtFromLookupCompiler (r : ℕ) :
 stage and the post-lookup tag/coin/local-command stage remain separately chargeable. -/
 noncomputable def ICfg.commandAtCompiler (r : ℕ) :
     NativeCompiler
-      (fun input : Desc × (List ℕ × (ICfg × Bool)) =>
-        input.2.2.1.commandAt r input.1 input.2.1 input.2.2.2)
+      (fun (description, word, cfg, coin) : Desc × (List ℕ × (ICfg × Bool)) =>
+        cfg.commandAt r description word coin)
       (encPair eDesc (encPair (encList encUnary) (encPair eICfg encBool))) (eCommand r) :=
   ((ICfg.commandAtFromLookupCompiler r).comp ICfg.commandAtLookupStageCompiler).ofOutputEq
     fun input => congrArg (eCommand r) (commandAtFromLookup_firstMatch r input).symm
