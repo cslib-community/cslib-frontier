@@ -8,6 +8,7 @@ module
 -- upstream: local-only (ordinary-module computability boundary regression)
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Computable
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List
 import Lean.Elab.Command
 
 /-!
