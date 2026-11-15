@@ -1706,6 +1706,7 @@ public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Controller.Refe
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Controller.Request
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Controller.Resources
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Density
+public import CslibFrontier.Computability.Circuit.Quantum.Oracle.FromPPT
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Generator
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.Interaction
 public import CslibFrontier.Computability.Circuit.Quantum.Oracle.InteractionResources
@@ -1963,6 +1964,7 @@ public import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.A
 public import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.DiscreteLog
 public import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.Generator
 public import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.Primality
+public import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.Products
 public import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.Range
 public import CslibFrontier.Computability.Complexity.Classes.CountingSimulation.Accumulate
 public import CslibFrontier.Computability.Complexity.Classes.CountingSimulation.Admissible
@@ -4675,6 +4677,8 @@ public import CslibFrontier.Crypto.Computational.Pseudoentropy.WordSeedExtractio
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.CircuitLowerBound
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Coins
+public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Finite
+public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Label
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.MultiKey
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.RandomOracle
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.TruthTable
@@ -4685,6 +4689,7 @@ public import CslibFrontier.Crypto.Computational.Quantum
 public import CslibFrontier.Crypto.Computational.Quantum.Mixture
 public import CslibFrontier.Crypto.Computational.RSAAttacks
 public import CslibFrontier.Crypto.Computational.RSACRT
+public import CslibFrontier.Crypto.Computational.RSACommonRoot
 public import CslibFrontier.Crypto.Computational.RSALeastSignificantBit
 public import CslibFrontier.Crypto.Computational.RSATrapdoor
 public import CslibFrontier.Crypto.Computational.RabinFactoring
@@ -4861,6 +4866,7 @@ public import CslibFrontier.Crypto.Protocols.FAEST.Challenge
 public import CslibFrontier.Crypto.Protocols.FAEST.Conversion
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Bot
+public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Correctness
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.NoCheck
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.NotBot
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.NotBot.Challenge
@@ -4869,6 +4875,7 @@ public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.NotBot.Fallback
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.NotBot.Hybrids
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.NotBot.Lazy
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.NotBot.Pushforward
+public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Salted.Correctness
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Security
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.SpreadNecessity
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Word
@@ -5082,6 +5089,15 @@ public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.NodeS
 public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.Params
 public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.Schedule
 public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.SeedBounds
+public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.StorageNode
+public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.TreeBuild
+public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.TreeCore
+public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.TreeDelete
+public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.TreeInsert
+public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.TreeModel
+public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.TreeQuery
+public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.TreeRehash
+public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.TreeRouting
 public import CslibFrontier.DataStructure.Dictionary.SuccinctBucket
 public import CslibFrontier.DataStructure.Dictionary.UniformProbing
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.BitPackedArray
@@ -5328,6 +5344,7 @@ public import CslibFrontier.Foundations.Algebra.DFT
 public import CslibFrontier.Foundations.Algebra.FiniteMagnitude
 public import CslibFrontier.Foundations.Algebra.GeometricTail
 public import CslibFrontier.Foundations.Algebra.Group.HomomorphismTesting
+public import CslibFrontier.Foundations.Algebra.Group.ZPowCoprime
 public import CslibFrontier.Foundations.Algebra.Module.ZLattice.CoefficientFiber
 public import CslibFrontier.Foundations.Algebra.Negacyclic
 public import CslibFrontier.Foundations.Algebra.Polynomial.LagrangeInversion
@@ -6331,6 +6348,7 @@ public import CslibFrontier.Foundations.NumberTheory.PrimeCollisionWindow
 public import CslibFrontier.Foundations.NumberTheory.PrimeCounting
 public import CslibFrontier.Foundations.NumberTheory.PrimeDensity
 public import CslibFrontier.Foundations.NumberTheory.PrimeWindow
+public import CslibFrontier.Foundations.NumberTheory.PrimeWindowBounds
 public import CslibFrontier.Foundations.NumberTheory.SqrtPrimeWindow
 public import CslibFrontier.Foundations.Order.AntitoneSwap
 public import CslibFrontier.Foundations.Order.BooleanSubalgebra
