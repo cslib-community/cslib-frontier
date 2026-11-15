@@ -163,7 +163,7 @@ Names are relative to `Cslib.Crypto`.
 | `IndexedSignatureScheme.IndexedEUFCMA` | standard | [BonehShoup2023] Definition 14.6, p. 597 | Differences listed in the module docstring. | — |
 | `IndexedSignatureScheme.CounterEUFCMA` | standard | [BonehShoup2023] Section 14.6.4, p. 602 | A counter as the nonce. | — |
 | `Protocols.ROMSignature.EUFCMA` | standard | [BonehShoup2023] Attack Game 13.1, random-oracle version (locator not verified) | — | — |
-| `Protocols.ROMSignature.SUFCMA` | standard | [BonehShoup2023] Attack Game 13.2 and Definition 13.3, p. 529 | Specializes the source's fresh-pair condition to native uniform oracle-PPT word forgers and its shared classical random function (Section 8.10.2, pp. 327–329), implemented here lazily. Public keys, messages, signatures and query points are arbitrary-length words. The scheme components and digest encoding have no efficiency or correctness certificates; no QROM or concrete scheme-security claim. | Correctness is separate. Without it, an always-rejecting scheme satisfies this predicate vacuously. |
+| `Protocols.ROMSignature.SUFCMA` | standard | [BonehShoup2023] Attack Game 13.2 and Definition 13.3, p. 530 | Specializes the source's fresh-pair condition to native uniform oracle-PPT word forgers and its shared classical random function (Section 8.10.2, pp. 327–329), implemented here lazily. Unlike Definition 13.1, pp. 528–529, public keys, messages, signatures and query points are arbitrary-length words, and the scheme components and digest encoding have no efficiency or correctness certificates. No QROM or concrete scheme-security claim. | Correctness is separate. Without it, an always-rejecting scheme satisfies this predicate vacuously. |
 
 ## Zero knowledge, commitments and protocols
 
