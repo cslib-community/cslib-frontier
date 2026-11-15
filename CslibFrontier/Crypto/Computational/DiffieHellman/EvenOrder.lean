@@ -26,11 +26,14 @@ in breaking DDH, on the fixed-group experiments of
 
 The fixed-group advantage `ddhAdvantage` places no bound on the distinguisher: in this model a
 brute-force discrete-logarithm distinguisher already has advantage at least `1 - 1 / q`. What
-makes the book's attack meaningful is that the test is efficient, and this module does not state
-that. It therefore does not prove Exercise 10.24 (p. 431), which asks for an *efficient*
-adversary with advantage `1 / 2`, nor the book's conclusion that the DDH assumption, which
-concerns efficient adversaries, does not hold in `Z_p^*` (p. 687, and the remark after Exercise
-10.24). These remain open.
+makes the book's attack meaningful is that the test is efficient. That is stated over cyclic group
+families in `CslibFrontier/Crypto/Computational/DiffieHellman/CyclicGroupFamily.lean`: the
+certificate `CyclicGroupFamily.isPPT_ddhParityDistinguisher` gives one uniform strict PPT machine
+that computes the test on encoded inputs, and `CyclicGroupFamily.not_ddh_of_even_order` concludes
+that DDH does not hold in a family of even order, which is Exercise 10.24 (p. 431). The book's
+conclusion that DDH does not hold in `Z_p^*` (p. 687, and the remark after Exercise 10.24) needs a
+family of the groups `(ZMod p)ˣ`, which is not constructed; here it is proved in the fixed-group
+form `ddhAdvantage_units_ddhParityDistinguisher`.
 
 The setting is that of `Finite.lean`: an additive commutative group `G` that is a `ZMod q`-module
 and an element `g : G`, with the textbook `g^α` written `α • g`. The book's cyclic group of order
@@ -64,9 +67,10 @@ of the natural representative `α.val`.
 * `Cslib.Crypto.ddhAdvantage_units_ddhParityDistinguisher`: in `(ZMod p)ˣ`, `p` an odd prime, with
   any generator, the test has fixed-group DDH advantage exactly `1 / 2`.
 
-Not proved here: the efficiency of the test, Exercise 10.24's efficient adversary, and the
-asymptotic statement that DDH does not hold in `Z_p^*`. Exercise 16.2, the generalization to a
-small prime factor of the order, is not covered either.
+The efficiency certificate and Exercise 10.24 are in
+`CslibFrontier/Crypto/Computational/DiffieHellman/CyclicGroupFamily.lean`. Not proved: the
+asymptotic statement that DDH does not hold in `Z_p^*`, which needs a family of the groups
+`(ZMod p)ˣ`, and Exercise 16.2, the generalization to a small prime factor of the order.
 
 ## References
 
@@ -214,9 +218,10 @@ theorem probability_ddhRandomExperiment_ddhParityDistinguisher (hq : Even q)
 /-- **The parity test has advantage `1 / 2`** ([BonehShoup2023], Section 16.1.3, p. 687): when
 `q` is even and `g` has order `q`, the three-step parity test of Section 16.1.3 has fixed-group
 DDH advantage exactly `1 / 2`, the book's "this algorithm has advantage 1/2 in breaking DDH in the
-group G". The fixed-group advantage does not bound the distinguisher's running time, and the
-test's efficiency is not stated here, so this is not Exercise 10.24 (p. 431), which asks for an
-efficient adversary. -/
+group G". The fixed-group advantage does not bound the distinguisher's running time. Exercise
+10.24 (p. 431), which asks for an efficient adversary, is
+`CyclicGroupFamily.not_ddh_of_even_order` over cyclic group families, with the efficiency
+certificate `CyclicGroupFamily.isPPT_ddhParityDistinguisher`. -/
 theorem ddhAdvantage_ddhParityDistinguisher (hq : Even q)
     (hg : Function.Injective fun c : ZMod q => c • g) :
     ddhAdvantage q g (ddhParityDistinguisher q) = 1 / 2 := by
@@ -269,9 +274,11 @@ theorem injective_smul_ofMul_units {g : (ZMod p)ˣ} (hg : ∀ x, x ∈ Subgroup.
 prime `p` and any generator `g` of `(ZMod p)ˣ`, a cyclic group of even order `p - 1`, the parity
 test of Section 16.1.3 has fixed-group DDH advantage exactly `1 / 2`. The group is written
 additively, with the module structure `zmodUnitsModule p`. Generators exist: `(ZMod p)ˣ` is cyclic
-(`IsCyclic.exists_generator`). The test's efficiency is not stated, so this does not prove the
-book's conclusion that DDH does not hold in `Z_p^*` (p. 687, and the remark after Exercise 10.24,
-p. 431), which concerns efficient adversaries. -/
+(`IsCyclic.exists_generator`). This fixed-group statement does not bound running time, so it
+does not prove the book's conclusion that DDH does not hold in `Z_p^*` (p. 687, and the remark
+after Exercise 10.24, p. 431), which concerns efficient adversaries. That would follow from
+`CyclicGroupFamily.not_ddh_of_even_order` for a family of these groups, which is not constructed
+here. -/
 theorem ddhAdvantage_units_ddhParityDistinguisher (hp : p ≠ 2) {g : (ZMod p)ˣ}
     (hg : ∀ x, x ∈ Subgroup.zpowers g) :
     ddhAdvantage (p - 1) (Additive.ofMul g) (ddhParityDistinguisher (p - 1)) = 1 / 2 :=

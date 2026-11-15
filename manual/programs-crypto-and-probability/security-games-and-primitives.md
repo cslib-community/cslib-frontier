@@ -245,10 +245,24 @@ For `Even q` and `c ↦ c • g` injective, `div_two_nsmul_smul_eq_zero_iff` (Le
 and `ddhAdvantage_ddhParityDistinguisher` proves that the parity test `ddhParityDistinguisher q`
 has fixed-group advantage exactly `1 / 2`. `ddhAdvantage_units_ddhParityDistinguisher` instantiates
 this for `(ZMod p)ˣ`, `p` an odd prime, under the local module structure `zmodUnitsModule p`. The
-fixed-group advantage does not bound the distinguisher, and the test's efficiency is not stated, so
-Exercise 10.24's efficient adversary and the book's conclusion that DDH does not hold in `Z_p^*`
-are not proved. The [even-order client](../../CslibFrontierTests/Crypto/DiffieHellmanEvenOrder.lean)
-checks `ZMod 6`, `(ZMod 7)ˣ` and the odd-order failure of Lemma 16.1 in `ZMod 5`.
+fixed-group advantage does not bound the distinguisher. Efficiency is stated over group families
+whose order need not be prime:
+[`DiscreteLog/CyclicGroupFamily.lean`](../../CslibFrontier/Crypto/Computational/DiscreteLog/CyclicGroupFamily.lean)
+defines `CyclicGroupFamily` (a `PrimeOrderGroupFamily` with `order_ne_zero` and
+`smul_generator_injective` in place of `prime_order` and `generator_ne_zero`) and
+`PrimeOrderGroupFamily.toCyclicGroupFamily`, and
+[`DiffieHellman/CyclicGroupFamily.lean`](../../CslibFrontier/Crypto/Computational/DiffieHellman/CyclicGroupFamily.lean)
+states its DDH assumption `CyclicGroupFamily.DDH`, which on a prime-order family is
+`PrimeOrderGroupFamily.DDH` (`ddh_toCyclicGroupFamily_iff`). There the certificate
+`CyclicGroupFamily.isPPT_ddhParityDistinguisher` shows that the parity test is computed by one
+uniform strict PPT machine on `encDDHInput`, so Exercise 10.24's distinguisher is efficient, and
+`CyclicGroupFamily.not_ddh_of_even_order` proves that DDH does not hold when every group the setup
+law can produce has even order. No family of the groups `(ZMod p)ˣ` is constructed, so the book's
+conclusion that DDH does not hold in `Z_p^*` is proved only in the fixed-group form. The
+[even-order client](../../CslibFrontierTests/Crypto/DiffieHellmanEvenOrder.lean) checks `ZMod 6`,
+`(ZMod 7)ˣ` and the odd-order failure of Lemma 16.1 in `ZMod 5`, applies
+`not_ddh_of_even_order` to the residue groups `ZMod (2 (n + 1))`, and derives that a prime-order
+family of order `2` fails `PrimeOrderGroupFamily.DDH`.
 
 Inversion and prediction are each stated once, for a fixed function and input distribution, in
 [`Crypto/Game/Inversion.lean`](../../CslibFrontier/Crypto/Game/Inversion.lean):

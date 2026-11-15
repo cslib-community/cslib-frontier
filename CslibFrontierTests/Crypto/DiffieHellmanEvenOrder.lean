@@ -6,13 +6,19 @@ Authors: Samuel Schlesinger
 
 module
 
+import CslibFrontier.Crypto.Computational.DiffieHellman.CyclicGroupFamily
 import CslibFrontier.Crypto.Computational.DiffieHellman.EvenOrder
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.WordsRoundTrip
 
 /-!
 # The parity test for DDH in groups of even order: checked instances
 
-Concrete checks for `CslibFrontier/Crypto/Computational/DiffieHellman/EvenOrder.lean`, through
-ordinary imports of its public API:
+Concrete checks for `CslibFrontier/Crypto/Computational/DiffieHellman/EvenOrder.lean` and
+`CslibFrontier/Crypto/Computational/DiffieHellman/CyclicGroupFamily.lean`, through ordinary imports
+of their public API:
 
 * In `ZMod 6` with `g = 1`, Lemmas 16.1 and 16.2 hold on sample exponents, the parity
   distinguisher accepts a Diffie–Hellman triple and rejects a non-Diffie–Hellman one, and its
@@ -20,6 +26,10 @@ ordinary imports of its public API:
 * For odd `q` Lemma 16.1 fails: in `ZMod 5`, `a = 2` is even but `(5 / 2) • (2 • 1) ≠ 0`.
 * In `(ZMod 7)ˣ` with generator `3`, and in `(ZMod p)ˣ` for every odd prime `p`, the distinguisher
   has fixed-group DDH advantage `1 / 2`.
+* The additive groups `ZMod q` of nonzero order `q`, with generator `1` and residues in binary,
+  form a `CyclicGroupFamily`. With the even orders `2 (n + 1)`, DDH does not hold for it
+  (`not_ddh_of_even_order`), and a prime-order family whose setup law only produces groups of
+  order `2` fails `PrimeOrderGroupFamily.DDH` (through `ddh_toCyclicGroupFamily_iff`).
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
@@ -115,5 +125,92 @@ example (p : ℕ) [Fact p.Prime] (hp : p ≠ 2) :
   exact ⟨g, ddhAdvantage_units_ddhParityDistinguisher p hp hg⟩
 
 end Units
+
+/-! ### A cyclic group family of even order -/
+
+section Family
+
+open Turing.MultiTapeTM
+
+/-- Nonzero moduli, as public group parameters. -/
+private abbrev ModulusDesc : Type := {q : ℕ // q ≠ 0}
+
+/-- A modulus is encoded by its binary digits. -/
+private def encModulus : ModulusDesc ↪ List Bool :=
+  (Function.Embedding.subtype _).trans encNat
+
+private theorem computableInPolyTime_modulus :
+    ComputableInPolyTime (Subtype.val : ModulusDesc → ℕ) encModulus encNat :=
+  ComputableInPolyTime.of_eq fun _ => rfl
+
+/-- Addition modulo `q` of binary residues. -/
+private def modulusAdd : ModulusDesc × List Bool × List Bool → List Bool
+  | (q, x, y) => ((ofBits x + ofBits y) % q.1).bits
+
+/-- Multiplication modulo `q` of a binary residue by a natural number. -/
+private def modulusSMul : ModulusDesc × ℕ × List Bool → List Bool
+  | (q, a, x) => (a * ofBits x % q.1).bits
+
+/-- The additive groups `ZMod q` of nonzero order `q`, with generator `1` and residues encoded in
+binary. The order need not be prime. -/
+private def residueGroups : CyclicGroupFamily where
+  Desc := ModulusDesc
+  encDesc := encModulus
+  order q := q.1
+  order_ne_zero q := q.2
+  Carrier q := ZMod q.1
+  generator _ := 1
+  card_carrier q := Nat.card_zmod q.1
+  smul_generator_injective _ a b h := by simpa using h
+  encode _ x := x.val.bits
+  encode_injective q x y h := by
+    have : NeZero q.1 := ⟨q.2⟩
+    exact ZMod.val_injective _ (encNat.injective h)
+  add := modulusAdd
+  add_encode q x y := by
+    have : NeZero q.1 := ⟨q.2⟩
+    simp only [modulusAdd, ofBits_bits, ZMod.val_add]
+  smul := modulusSMul
+  smul_encode q a x := by
+    have : NeZero q.1 := ⟨q.2⟩
+    simp only [modulusSMul, ofBits_bits, smul_eq_mul, ZMod.val_mul, ZMod.val_natCast,
+      Nat.mod_mul_mod]
+  computableInPolyTime_order := computableInPolyTime_modulus
+  computableInPolyTime_generator := by
+    have := computableInPolyTime_modulus
+    simp only [ZMod.val_one_eq_one_mod]
+    fun_prop
+  computableInPolyTime_add := by
+    have := computableInPolyTime_modulus
+    unfold modulusAdd
+    fun_prop
+  computableInPolyTime_smul := by
+    have := computableInPolyTime_modulus
+    unfold modulusSMul
+    fun_prop
+
+/-- The setup law that, at security parameter `n`, always produces the modulus `2 (n + 1)`. -/
+private noncomputable def evenSetup (n : ℕ) : PMF residueGroups.Desc :=
+  PMF.pure ⟨2 * (n + 1), by omega⟩
+
+/-- DDH does not hold for the residue groups of even order `2 (n + 1)`: the parity test is PPT and
+has advantage `1 / 2`. -/
+theorem not_ddh_residueGroups : ¬ residueGroups.DDH evenSetup :=
+  CyclicGroupFamily.not_ddh_of_even_order fun n d hd => by
+    obtain rfl := (PMF.mem_support_pure_iff _ _).1 hd
+    exact even_two_mul (n + 1)
+
+/-- A prime-order family whose setup law only produces groups of order `2` fails DDH:
+`ddh_toCyclicGroupFamily_iff` transfers `not_ddh_of_even_order`. -/
+theorem not_ddh_of_order_eq_two (F : PrimeOrderGroupFamily) {setup : ℕ → PMF F.Desc}
+    (htwo : ∀ n, ∀ d ∈ (setup n).support, F.order d = 2) : ¬ F.DDH setup := fun h =>
+  CyclicGroupFamily.not_ddh_of_even_order (F := F.toCyclicGroupFamily)
+    (fun n d hd => by
+      change Even (F.order d)
+      rw [htwo n d hd]
+      exact even_two)
+    ((F.ddh_toCyclicGroupFamily_iff setup).2 h)
+
+end Family
 
 end CslibFrontierTests.Crypto.DiffieHellmanEvenOrder
