@@ -4872,6 +4872,7 @@ public import CslibFrontier.Crypto.Primitives.Hash.Keccak.SHAKE128
 public import CslibFrontier.Crypto.Primitives.Hash.SHA2
 public import CslibFrontier.Crypto.Primitives.Hash.Sponge
 public import CslibFrontier.Crypto.Primitives.IdealCipher.Compression
+public import CslibFrontier.Crypto.Primitives.IdealCipher.CompressionVariants
 public import CslibFrontier.Crypto.Primitives.PRF.Finite
 public import CslibFrontier.Crypto.Primitives.PRF.MultiKey
 public import CslibFrontier.Crypto.Primitives.PRF.RandomOracleModel
