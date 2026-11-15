@@ -86,7 +86,10 @@ def bytesToBitsBE : List Byte → List Bool
 /-- One byte and its eight-bit big-endian serialization have the same strict order. -/
 private theorem byteBitsBE_lt_iff_lt (x y : Byte) :
     byteBitsBE x < byteBitsBE y ↔ x < y := by
-  rw [← BitString.binaryValue_lt_iff_lt (by simp [byteBitsBE])]
+  have hlength : (byteBitsBE x).length = (byteBitsBE y).length := by
+    change (binaryWord 8 x).length = (binaryWord 8 y).length
+    rw [length_binaryWord x.isLt, length_binaryWord y.isLt]
+  rw [← BitString.binaryValue_lt_iff_lt hlength]
   simp [byteBitsBE]
 
 /-- Equal-length byte strings and their big-endian bit serializations have the same strict
@@ -100,20 +103,35 @@ theorem bytesToBitsBE_lt_iff_lt {X Y : List Byte} (hlength : X.length = Y.length
   | cons x X ih =>
       obtain ⟨y, Y, rfl⟩ := List.exists_cons_of_length_eq_add_one hlength.symm
       simp only [List.length_cons, Nat.add_right_cancel_iff] at hlength
+      have byteBitsLength (z : Byte) : (byteBitsBE z).length = 8 := by
+        change (binaryWord 8 z).length = 8
+        exact length_binaryWord z.isLt
       rcases lt_trichotomy x y with hlt | heq | hgt
       · have hbits := (byteBitsBE_lt_iff_lt x y).2 hlt
         have happend := List.append_lt_append_of_lt_of_length_eq hbits
-          (by simp [byteBitsBE]) (bytesToBitsBE X) (bytesToBitsBE Y)
+          ((byteBitsLength x).trans (byteBitsLength y).symm)
+          (bytesToBitsBE X) (bytesToBitsBE Y)
         exact iff_of_true (by simpa [bytesToBitsBE] using happend)
           (by exact List.Lex.rel hlt)
       · subst y
-        simpa only [bytesToBitsBE, List.cons_lt_cons_iff, lt_self_iff_false, false_or,
-          true_and] using ih hlength
+        have hprefix : byteBitsBE x ++ bytesToBitsBE X <
+            byteBitsBE x ++ bytesToBitsBE Y ↔
+              bytesToBitsBE X < bytesToBitsBE Y := by
+          induction byteBitsBE x with
+          | nil => rfl
+          | cons bit prefix ihprefix =>
+              simpa only [List.cons_append, List.lex_cons_iff] using ihprefix
+        simp only [bytesToBitsBE]
+        rw [hprefix, List.lex_cons_iff, ih hlength]
       · have hbits := (byteBitsBE_lt_iff_lt y x).2 hgt
         have happend := List.append_lt_append_of_lt_of_length_eq hbits
-          (by simp [byteBitsBE]) (bytesToBitsBE Y) (bytesToBitsBE X)
-        exact iff_of_false (by exact (by simpa [bytesToBitsBE] using happend).asymm)
-          (by exact (List.Lex.rel hgt).asymm)
+          ((byteBitsLength y).trans (byteBitsLength x).symm)
+          (bytesToBitsBE Y) (bytesToBitsBE X)
+        have hnotBits : ¬ bytesToBitsBE (x :: X) < bytesToBitsBE (y :: Y) :=
+          not_lt_of_gt (by simpa [bytesToBitsBE] using happend)
+        have hnotBytes : ¬ x :: X < y :: Y :=
+          not_lt_of_gt (show y :: Y < x :: X from List.Lex.rel hgt)
+        exact iff_of_false hnotBits hnotBytes
 
 /-- Read at most eight big-endian bits as one byte. Missing low-order bits are not added; callers
 that require a full byte should supply an eight-bit chunk. -/

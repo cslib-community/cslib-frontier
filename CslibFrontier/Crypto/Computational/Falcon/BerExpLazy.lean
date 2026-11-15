@@ -13,8 +13,7 @@ import CslibFrontier.Languages.Probabilistic.BitString
 import CslibFrontier.Languages.Probabilistic.Repeat
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF.UniformPoint
-import Mathlib.Tactic.NormNum
-import Mathlib.Tactic.Omega
+import Mathlib.Tactic
 
 /-!
 # Falcon v1.2 BerExp lazy-byte trace
