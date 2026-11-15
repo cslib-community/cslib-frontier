@@ -35,8 +35,10 @@ example {K M C : Type} (E : Cipher K M C) [Fintype M] [Nonempty M] [DecidableEq 
     (hvalid : ∀ m₀ m₁ : M, valid m₀ m₁ = true) (A : C → ProbComp M) :
     messageRecoveryAdvantage E sampleKey A ≤
       Experiment.advantage
-        (E.oneTimeExperiment sampleKey valid (messageRecoveryReduction A) false)
-        (E.oneTimeExperiment sampleKey valid (messageRecoveryReduction A) true) :=
+        (E.oneTimeExperiment sampleKey valid
+          (messageRecoveryReduction (ProbComp.uniform M) A) false)
+        (E.oneTimeExperiment sampleKey valid
+          (messageRecoveryReduction (ProbComp.uniform M) A) true) :=
   (messageRecoveryAdvantage_eq_advantage_messageRecoveryReduction E sampleKey hvalid A).le
 
 /-- Positive word-level client: uniformly guessing a `msgLen n`-bit string has negligible
@@ -66,8 +68,10 @@ theorem cex_messageRecovery_invalid_length :
       (A : Bool → ProbComp M),
       messageRecoveryAdvantage E sampleKey A = (1 : ℝ≥0) / 3 ∧
         Experiment.advantage
-          (E.oneTimeExperiment sampleKey valid (messageRecoveryReduction A) false)
-          (E.oneTimeExperiment sampleKey valid (messageRecoveryReduction A) true) = 0 := by
+          (E.oneTimeExperiment sampleKey valid
+            (messageRecoveryReduction (ProbComp.uniform M) A) false)
+          (E.oneTimeExperiment sampleKey valid
+            (messageRecoveryReduction (ProbComp.uniform M) A) true) = 0 := by
   let E : Cipher Unit (Option Bool) Bool :=
     ⟨fun _ m => pure m.isSome, fun _ _ => pure none⟩
   let A : Bool → ProbComp (Option Bool) := fun c => pure (if c then some false else none)
@@ -91,16 +95,13 @@ theorem cex_messageRecovery_invalid_length :
     apply NNReal.coe_injective
     rw [coe_nndist, NNReal.dist_eq]
     norm_num [abs_of_pos]
-  · have heq : ProbComp.eval (Cipher.oneTimeExperiment E (pure ())
-        (fun m₀ m₁ => m₀.isSome == m₁.isSome) (messageRecoveryReduction A) false) =
-      ProbComp.eval (Cipher.oneTimeExperiment E (pure ())
-        (fun m₀ m₁ => m₀.isSome == m₁.isSome) (messageRecoveryReduction A) true) := by
-      simp only [Cipher.oneTimeExperiment, E, A, messageRecoveryReduction, lrExperiment,
-        MessagePair.select_false, MessagePair.select_true, ProbComp.eval_bind, ProbComp.eval_pure,
-        ProbComp.eval_uniform, PMF.bind_bind, PMF.pure_bind]
-      refine congrArg _ (funext fun m₀ => congrArg _ (funext fun m₁ => ?_))
-      cases hm₀ : m₀.isSome <;> cases hm₁ : m₁.isSome <;> simp
-    rw [Experiment.advantage, Game.advantage, heq, nndist_self]
+  · rw [Experiment.advantage, Game.advantage, nndist_eq_zero]
+    congr 1
+    simp only [Cipher.oneTimeExperiment, E, A, messageRecoveryReduction, lrExperiment,
+      MessagePair.select_false, MessagePair.select_true, ProbComp.eval_bind, ProbComp.eval_pure,
+      ProbComp.eval_uniform, PMF.bind_bind, PMF.pure_bind]
+    refine congrArg _ (funext fun m₀ => congrArg _ (funext fun m₁ => ?_))
+    cases hm₀ : m₀.isSome <;> cases hm₁ : m₁.isSome <;> simp
 
 /-- Shows `hA_len` is needed in `messageRecoveryWordAdvantage_eq_demKeyGameOn`: an adversary
 outputting `[]` when `msgLen n = 1` achieves `messageRecoveryWordAdvantage = 1/2` while the

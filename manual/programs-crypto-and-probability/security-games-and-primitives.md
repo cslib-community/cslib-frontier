@@ -1926,8 +1926,8 @@ Definition 2.3 and Theorem 2.7, p. 19), import
 On any typed cipher `E : Cipher K M C` over a finite nonempty decidable message type `M`,
 `messageRecoveryAdvantage E sampleKey A` measures `|Pr[W] - 1 / |M||` in
 `messageRecoveryExperiment`, and `messageRecoveryAdvantage_eq_advantage_messageRecoveryReduction`
-equates it to the one-time semantic-security advantage of `messageRecoveryReduction A` whenever
-`valid` admits every pair in `M` (`hvalid`; inequality (2.5) is `.le`). At the word level over
+equates it to the one-time semantic-security advantage of
+`messageRecoveryReduction (ProbComp.uniform M) A` whenever `valid` admits every pair in `M` (`hvalid`; inequality (2.5) is `.le`), while the word-level reduction runs `messageRecoveryReduction` with `BitString.sampleList (msgLen n)`. At the word level over
 `{0, 1}^{msgLen n}`, `messageRecoveryWordAdvantage_eq_demKeyGameOn` derives the analogous identity
 from the concrete theorem when `A`'s outputs all have length `msgLen n` (`hA_len`), and
 `DEMOneTimeKeyWordINDCPA.negligible_messageRecoveryWordAdvantage` concludes negligibility via

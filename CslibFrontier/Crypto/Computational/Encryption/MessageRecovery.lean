@@ -101,14 +101,16 @@ Game 2.2, p. 18). -/
   nndist (Game.succProbability (ProbComp.eval (messageRecoveryExperiment E sampleKey A)))
     ((Fintype.card M : ℝ≥0)⁻¹)
 
-/-- Explicit semantic-security reduction `B` from a message-recovery adversary `A`
-([BonehShoup2023], Theorem 2.7, p. 19): sample independent uniform `m₀, m₁` from `M`, submit
-`(m₀, m₁)`, run `mHat ← A c` on the challenge ciphertext, and output `mHat == m₁`. -/
-@[expose] noncomputable def messageRecoveryReduction [Fintype M] [Nonempty M] [DecidableEq M]
-    (A : C → ProbComp M) : TwoStage Unit (MessagePair M) C Bool M where
+/-- Explicit semantic-security reduction `B` from a message-recovery adversary `A` given a
+message sampler `sampleMsg` ([BonehShoup2023], Theorem 2.7, p. 19): sample independent
+`m₀, m₁ ← sampleMsg`, submit `(m₀, m₁)`, run `mHat ← A c` on the challenge ciphertext, and
+output `mHat == m₁`. Concrete finite theorems instantiate `sampleMsg := ProbComp.uniform M`;
+word-level reductions instantiate `sampleMsg := BitString.sampleList (msgLen n)`. -/
+@[expose] noncomputable def messageRecoveryReduction [BEq M]
+    (sampleMsg : ProbComp M) (A : C → ProbComp M) : TwoStage Unit (MessagePair M) C Bool M where
   choose _ := do
-    let m₀ ← ProbComp.uniform M
-    let m₁ ← ProbComp.uniform M
+    let m₀ ← sampleMsg
+    let m₁ ← sampleMsg
     return (⟨m₀, m₁⟩, m₁)
   guess m₁ c := do
     let mHat ← A c
@@ -117,7 +119,8 @@ Game 2.2, p. 18). -/
 private theorem eval_oneTimeExperiment_messageRecoveryReduction_true (E : Cipher K M C)
     [Fintype M] [Nonempty M] [DecidableEq M] (sampleKey : ProbComp K) {valid : M → M → Bool}
     (hvalid : ∀ m₀ m₁ : M, valid m₀ m₁ = true) (A : C → ProbComp M) :
-    ProbComp.eval (E.oneTimeExperiment sampleKey valid (messageRecoveryReduction A) true) =
+    ProbComp.eval (E.oneTimeExperiment sampleKey valid
+        (messageRecoveryReduction (ProbComp.uniform M) A) true) =
       ProbComp.eval (messageRecoveryExperiment E sampleKey A) := by
   simp only [Cipher.oneTimeExperiment, messageRecoveryReduction, messageRecoveryExperiment,
     lrExperiment, MessagePair.select_true, hvalid, ↓reduceIte, ProbComp.eval_bind,
@@ -129,13 +132,16 @@ private theorem succProbability_oneTimeExperiment_messageRecoveryReduction_false
     (E : Cipher K M C) [Fintype M] [Nonempty M] [DecidableEq M] (sampleKey : ProbComp K)
     {valid : M → M → Bool} (hvalid : ∀ m₀ m₁ : M, valid m₀ m₁ = true) (A : C → ProbComp M) :
     Game.succProbability (ProbComp.eval
-      (E.oneTimeExperiment sampleKey valid (messageRecoveryReduction A) false)) =
+      (E.oneTimeExperiment sampleKey valid
+        (messageRecoveryReduction (ProbComp.uniform M) A) false)) =
       (Fintype.card M : ℝ≥0)⁻¹ := by
   have htrue :
-      ProbComp.eval (E.oneTimeExperiment sampleKey valid (messageRecoveryReduction A) false) true =
+      ProbComp.eval (E.oneTimeExperiment sampleKey valid
+          (messageRecoveryReduction (ProbComp.uniform M) A) false) true =
         ((Fintype.card M : ℝ≥0∞)⁻¹) := by
     have hrewrite :
-        ProbComp.eval (E.oneTimeExperiment sampleKey valid (messageRecoveryReduction A) false) =
+        ProbComp.eval (E.oneTimeExperiment sampleKey valid
+            (messageRecoveryReduction (ProbComp.uniform M) A) false) =
           ((ProbComp.eval sampleKey).bind fun k =>
             (PMF.uniformOfFintype M).bind fun m₀ =>
             (ProbComp.eval (E.encrypt k m₀)).bind fun c =>
@@ -165,16 +171,18 @@ private theorem succProbability_oneTimeExperiment_messageRecoveryReduction_false
     NNReal.coe_inv, NNReal.coe_natCast]
 
 /-- **Concrete advantage equality for Theorem 2.7** ([BonehShoup2023], p. 19):
-`MRadv[A, E] = SSadv[messageRecoveryReduction A, E]` whenever `valid` admits every message pair
-in `M`. Display (2.5), `MRadv[A, E] ≤ SSadv[messageRecoveryReduction A, E]`, is the `.le`
-projection of this equality. -/
+`MRadv[A, E] = SSadv[messageRecoveryReduction (ProbComp.uniform M) A, E]` whenever `valid` admits
+every message pair in `M`. Display (2.5), `MRadv[A, E] ≤ SSadv[B, E]`, is the `.le` projection of
+this equality. -/
 theorem messageRecoveryAdvantage_eq_advantage_messageRecoveryReduction (E : Cipher K M C)
     [Fintype M] [Nonempty M] [DecidableEq M] (sampleKey : ProbComp K) {valid : M → M → Bool}
     (hvalid : ∀ m₀ m₁ : M, valid m₀ m₁ = true) (A : C → ProbComp M) :
     messageRecoveryAdvantage E sampleKey A =
       Experiment.advantage
-        (E.oneTimeExperiment sampleKey valid (messageRecoveryReduction A) false)
-        (E.oneTimeExperiment sampleKey valid (messageRecoveryReduction A) true) := by
+        (E.oneTimeExperiment sampleKey valid
+          (messageRecoveryReduction (ProbComp.uniform M) A) false)
+        (E.oneTimeExperiment sampleKey valid
+          (messageRecoveryReduction (ProbComp.uniform M) A) true) := by
   rw [messageRecoveryAdvantage, Experiment.advantage, Game.advantage, nndist_comm,
     eval_oneTimeExperiment_messageRecoveryReduction_true E sampleKey hvalid A,
     succProbability_oneTimeExperiment_messageRecoveryReduction_false E sampleKey hvalid A]
@@ -208,12 +216,9 @@ keys ([BonehShoup2023], Attack Game 2.2, p. 18). -/
 @[expose] noncomputable def messageRecoveryWordToDEMAdversary (msgLen : ℕ → ℕ)
     (A : ℕ → List Bool → ProbComp (List Bool)) : WordAdversary where
   choose n _ := do
-    let m₀ ← BitString.sampleList (msgLen n)
-    let m₁ ← BitString.sampleList (msgLen n)
-    return ((m₀, m₁), m₁)
-  guess n m₁ ct := do
-    let mHat ← A n ct
-    return (mHat == m₁)
+    let out ← (messageRecoveryReduction (BitString.sampleList (msgLen n)) (A n)).choose ()
+    return ((out.1.msg₀, out.1.msg₁), out.2)
+  guess n := (messageRecoveryReduction (BitString.sampleList (msgLen n)) (A n)).guess
 
 /-- `messageRecoveryWordToDEMAdversary msgLen A` is uniform strict PPT whenever `msgLen` is unary
 polynomial-time computable and `A` is uniform strict PPT on framed `(n, ct)` inputs. -/
@@ -223,8 +228,11 @@ theorem isPPT_messageRecoveryWordToDEMAdversary {msgLen : ℕ → ℕ}
     (hA : IsPPTOn (encPair encUnary encBits) encBits (fun ⟨n, ct⟩ => A n ct)) :
     AdversaryOf.IsPPT encBits (messageRecoveryWordToDEMAdversary msgLen A) := by
   refine ⟨?_, ?_⟩
-  · dsimp only [messageRecoveryWordToDEMAdversary]; ppt
-  · dsimp only [messageRecoveryWordToDEMAdversary]; ppt
+  · dsimp only [messageRecoveryWordToDEMAdversary, messageRecoveryReduction]
+    simp only [bind_assoc, pure_bind]
+    ppt
+  · dsimp only [messageRecoveryWordToDEMAdversary, messageRecoveryReduction]
+    ppt
 
 private theorem beq_bitString_iff_list {L : ℕ} {mHat : List Bool} (hm : mHat.length = L)
     (m : BitString L) :
@@ -289,7 +297,7 @@ theorem messageRecoveryWordAdvantage_eq_demKeyGameOn (msgLen keyLen : ℕ → �
     simp [BitString]
   have hgame : ∀ bit : Bool,
       ProbComp.eval (E.oneTimeExperiment sampleKey (fun _ _ => true)
-        (messageRecoveryReduction A') bit) =
+        (messageRecoveryReduction (ProbComp.uniform (BitString (msgLen n))) A') bit) =
       ProbComp.eval (demKeyGameOn (fun _ _ m₀ m₁ => m₀.length == m₁.length)
         keyLen encryptSym (messageRecoveryWordToDEMAdversary msgLen A) bit n) := by
     intro bit
