@@ -32,11 +32,6 @@ modulus, base and target; its logarithm specification requires a primitive prime
 @[expose] def modularLogSum (p g x : ℕ) : ℕ :=
   ∑ e ∈ Finset.range (p - 1), if Turing.MultiTapeTM.powMod p g e = x % p then e else 0
 
-/-- The word layout for three binary naturals: modulus, base, and target. The first two are
-framed; the final target is unframed. -/
-abbrev encModularLog : (ℕ × ℕ × ℕ) ↪ List Bool :=
-  encPair encNat (encPair encNat encNat)
-
 /-- The natural matching-exponent sum agrees with its prime-field algebraic counterpart. -/
 theorem modularLogSum_eq_generatorLogSum {p : ℕ} (hp : p ≠ 0) (g x : ℕ) :
     modularLogSum p g x = ZMod.generatorLogSum p (g : ZMod p) (x : ZMod p) := by
@@ -52,34 +47,34 @@ theorem modularLogSum_eq_generatorLogSum {p : ℕ} (hp : p ≠ 0) (g x : ℕ) :
 Its range endpoint is short even when its value is exponential. -/
 theorem modularLogSum_mem_CountingFunction :
     (fun (p, g, x) => modularLogSum p g x) ∈
-      CountingFunction 1 encModularLog encNat := by
-  have hp : ComputableInPolyTime (fun x : ℕ × ℕ × ℕ => x.1) encModularLog encNat := by
+      CountingFunction 1 encNat3 encNat := by
+  have hp : ComputableInPolyTime (fun x : ℕ × ℕ × ℕ => x.1) encNat3 encNat := by
     fun_prop
-  have hg : ComputableInPolyTime (fun x : ℕ × ℕ × ℕ => x.2.1) encModularLog encNat := by
+  have hg : ComputableInPolyTime (fun x : ℕ × ℕ × ℕ => x.2.1) encNat3 encNat := by
     fun_prop
-  have hx : ComputableInPolyTime (fun x : ℕ × ℕ × ℕ => x.2.2) encModularLog encNat := by
+  have hx : ComputableInPolyTime (fun x : ℕ × ℕ × ℕ => x.2.2) encNat3 encNat := by
     fun_prop
   have hpower : ComputableInPolyTime
       (fun x : (ℕ × ℕ × ℕ) × ℕ =>
         Turing.MultiTapeTM.powMod x.1.1 x.1.2.1 x.2)
-      (encPair encModularLog encNat) encNat :=
+      (encPair encNat3 encNat) encNat :=
     computableInPolyTime_powMod (by fun_prop) (by fun_prop) (by fun_prop)
   have htarget : ComputableInPolyTime
       (fun x : (ℕ × ℕ × ℕ) × ℕ => x.1.2.2 % x.1.1)
-      (encPair encModularLog encNat) encNat :=
+      (encPair encNat3 encNat) encNat :=
     ComputableInPolyTime.binary_mod.comp
       ((hx.comp (ComputableInPolyTime.fst _ _)).prod
         (hp.comp (ComputableInPolyTime.fst _ _)))
   have htest : ComputableInPolyTime
       (fun x : (ℕ × ℕ × ℕ) × ℕ => decide
         (Turing.MultiTapeTM.powMod x.1.1 x.1.2.1 x.2 = x.1.2.2 % x.1.1))
-      (encPair encModularLog encNat) encBool :=
+      (encPair encNat3 encNat) encBool :=
     ComputableInPolyTime.of_tidy
       (ComputableTidilyInPolyTime.decide_eq' hpower.tidy htarget.tidy)
   have hterm : ComputableInPolyTime
       (fun x : (ℕ × ℕ × ℕ) × ℕ =>
         if Turing.MultiTapeTM.powMod x.1.1 x.1.2.1 x.2 = x.1.2.2 % x.1.1 then x.2 else 0)
-      (encPair encModularLog encNat) encNat := by
+      (encPair encNat3 encNat) encNat := by
     simpa only [decide_eq_true_eq] using
       ComputableInPolyTime.ite' htest (ComputableInPolyTime.snd _ _)
         (ComputableInPolyTime.const 0)
