@@ -26,8 +26,9 @@ probability `1 / 5`, the additive extractor on a uniform source, the LWE securit
 Construction 4.1 at concrete dimensions against `LWE.advantage`, a concrete Hamming distance) and a
 separating negative fixture
 (`revealingFuzzyExtractor`) that is perfectly reproducible for every distance threshold `t` yet
-has distinguishing advantage `1 / 2` on a uniform 1-bit source. The asymptotic theorem
-`computationallySecure_lweFuzzyExtractor` is applied to the uniform source, for which its LWE
+has distinguishing advantage `1 / 2` on a uniform 1-bit source. The asymptotic security step
+`computationallySecure_lweFuzzyExtractor_of_decisionLWEWithErrors` is applied to the uniform
+source, for which its LWE
 premise holds unconditionally, and to independent-coordinate sources under `DecisionLWE`.
 The reusable-extractor tests use non-degenerate parameters (secret dimension at least `1`, modulus
 greater than `1`). They check the reduction bounds of the common-matrix scheme and of the Section 5
@@ -181,15 +182,15 @@ theorem decisionLWEWithErrors_uniform (n m w : ℕ → ℕ) :
   exact negligible_zero
 
 open Turing.MultiTapeTM in
-/-- The asymptotic theorem applies to the family with `κ` samples, key length `κ`, `κ` further
+/-- The asymptotic step applies to the family with `κ` samples, key length `κ`, `κ` further
 secret coordinates and modulus `2`, on the uniform source. -/
 example (decode : (κ : ℕ) → Matrix (Fin κ) (Fin (κ + κ)) (ZMod (2 ^ 1)) →
       (Fin κ → ZMod (2 ^ 1)) → ProbComp (Option (Fin (κ + κ) → ZMod (2 ^ 1)))) :
     ComputationallySecure (fun κ => lweFuzzyExtractor κ κ κ (2 ^ 1) (decode κ))
       {fun κ => PMF.uniformOfFintype (Fin κ → ZMod (2 ^ 1))}
       (LWEFamily.Distinguisher.IsPPT (m := id) (k := id) (l := id) (w := fun _ => 1)) :=
-  computationallySecure_lweFuzzyExtractor (m := id) (k := id) (l := id) (w := fun _ => 1)
-    ComputableInPolyTime.id' ComputableInPolyTime.id' ComputableInPolyTime.id'
+  computationallySecure_lweFuzzyExtractor_of_decisionLWEWithErrors (m := id) (k := id) (l := id)
+    (w := fun _ => 1) ComputableInPolyTime.id' ComputableInPolyTime.id' ComputableInPolyTime.id'
     (ComputableInPolyTime.const 1) decode (by
       rintro _ rfl
       exact decisionLWEWithErrors_uniform id id fun _ => 1)
@@ -205,7 +206,7 @@ example {m k l w : ℕ → ℕ} (hm : ComputableInPolyTime m encUnary encUnary)
     (noise : (κ : ℕ) → PMF (ZMod (2 ^ w κ))) (hLWE : DecisionLWE l m w noise) :
     ComputationallySecure (fun κ => lweFuzzyExtractor (m κ) (k κ) (l κ) (2 ^ w κ) (decode κ))
       {fun κ => PMF.pi fun _ : Fin (m κ) => noise κ} LWEFamily.Distinguisher.IsPPT :=
-  computationallySecure_lweFuzzyExtractor hm hk hl hw decode (by
+  computationallySecure_lweFuzzyExtractor_of_decisionLWEWithErrors hm hk hl hw decode (by
     rintro _ rfl
     exact (decisionLWE_iff_decisionLWEWithErrors l m w noise).mp hLWE)
 
@@ -285,18 +286,18 @@ example
 
 /-- By the Theorem 1 reduction bound (`weakReuseAdvantage_commonMatrixFuzzyExtractor_le`), on a
 uniform source at `m = 4, k = 1, l = 1, q = 7`, every weak-reusability adversary has advantage `0`
-against the common-matrix scheme, for every error bound `t` and query count `Q`. -/
+against the common-matrix scheme, for every error bound `t`. -/
 example
     (decode : Matrix (Fin 4) (Fin (1 + 1)) (ZMod 7) → (Fin 4 → ZMod 7) →
       ProbComp (Option (Fin (1 + 1) → ZMod 7)))
-    (t Q : ℕ) (St : Type)
+    (t : ℕ) (St : Type)
     (adv : WeakReuseAdversary (Matrix (Fin 4) (Fin (1 + 1)) (ZMod 7)) 4 7
       (Fin 1 → ZMod 7) (Fin 4 → ZMod 7) St) :
     weakReuseAdvantage (ProbComp.uniform (Matrix (Fin 4) (Fin (1 + 1)) (ZMod 7)))
       (commonMatrixFuzzyExtractor 4 1 1 7 decode)
-      (PMF.uniformOfFintype (Fin 4 → ZMod 7)) t Q adv = 0 := by
+      (PMF.uniformOfFintype (Fin 4 → ZMod 7)) t adv = 0 := by
   have h := weakReuseAdvantage_commonMatrixFuzzyExtractor_le decode
-    (PMF.uniformOfFintype (Fin 4 → ZMod 7)) t Q adv
+    (PMF.uniformOfFintype (Fin 4 → ZMod 7)) t adv
   rw [lweAdvantage_uniform_error_eq_zero, lweAdvantage_uniform_error_eq_zero, add_zero] at h
   exact le_antisymm h zero_le
 
@@ -309,7 +310,7 @@ example
     (δ : ℝ≥0) (hdec : DecoderCorrectWithError decode 0 δ) (W : PMF (Fin 3 → ZMod 5)) :
     1 - (δ : ℝ) - 1 / 5 ≤
       strongReuseAdvantage (ProbComp.uniform (Matrix (Fin 3) (Fin (1 + 1)) (ZMod 5)))
-        (commonMatrixFuzzyExtractor 3 1 1 5 decode) W 0 1 (commonMatrixStrongAttack decode) := by
+        (commonMatrixFuzzyExtractor 3 1 1 5 decode) W 0 (commonMatrixStrongAttack decode) := by
   simpa using strongReuseAdvantage_commonMatrixStrongAttack_ge hdec W 0
 
 /-- Non-trivial correctness for the common-matrix scheme at `m = 1, k = 1, l = 0, q = 5`: with
@@ -325,7 +326,7 @@ advantage at least `1 - 1 / 5 - 1 / 5 = 3 / 5`. -/
 example (W : PMF (Fin 1 → ZMod 5)) :
     (3 / 5 : ℝ) ≤
       strongReuseAdvantage (ProbComp.uniform (Matrix (Fin 1) (Fin (1 + 0)) (ZMod 5)))
-        (commonMatrixFuzzyExtractor 1 1 0 5 unitDecoder) W 0 1
+        (commonMatrixFuzzyExtractor 1 1 0 5 unitDecoder) W 0
         (commonMatrixStrongAttack unitDecoder) := by
   refine le_trans (le_of_eq ?_) (strongReuseAdvantage_commonMatrixStrongAttack_ge (k := 1)
     (l := 0) decoderCorrectWithError_unitDecoder W 0)
@@ -355,22 +356,23 @@ example (s : Fin 2 → ZMod 16) (B : Matrix (Fin 2) (Fin 2) (ZMod 16)) (r : Fin 
   fin_cases i <;> decide
 
 /-- Concrete strong-reusability bound for `lweEncryptFuzzyExtractor` at
-`m = 4, n = 2, l = 2, q = 16`: the `Q`-query strong-reusability advantage is bounded by two
-decisional LWE advantages with `4 + (Q + 1) * 2` rows. -/
+`m = 4, n = 2, l = 2, q = 16`: the strong-reusability advantage of an adversary making at most `Q`
+shift queries is bounded by two decisional LWE advantages with `4 + (Q + 1) * 2` rows. -/
 example
     (E : ProbComp (Fin 2 → ZMod 16))
     (decode : Matrix (Fin 4) (Fin 2) (ZMod 16) → (Fin 4 → ZMod 16) →
       ProbComp (Option (Fin 2 → ZMod 16)))
     (W : PMF (Fin 4 → ZMod 16)) (t Q : ℕ) (St : Type)
     (adv : StrongReuseAdversary (Matrix (Fin 4) (Fin 2) (ZMod 16)) 4 16
-      (Fin 2 → Bool) (EncryptHelper 4 2 2 16) St) :
+      (Fin 2 → Bool) (EncryptHelper 4 2 2 16) St)
+    (hQ : ∀ A pStar, ProbOracleComp.IsQueryBounded (adv.query A pStar) Q) :
     strongReuseAdvantage (ProbComp.uniform (Matrix (Fin 4) (Fin 2) (ZMod 16)))
-      (lweEncryptFuzzyExtractor 4 2 2 16 E decode) W t Q adv ≤
+      (lweEncryptFuzzyExtractor 4 2 2 16 E decode) W t adv ≤
       LWE.advantage (PMF.uniformOfFintype (Fin 2 → ZMod 16))
         (encryptLWEErrorLaw W (ProbComp.eval E) Q) (encryptRealReduction t Q adv) +
       LWE.advantage (PMF.uniformOfFintype (Fin 2 → ZMod 16))
         (encryptLWEErrorLaw W (ProbComp.eval E) Q) (encryptIdealReduction t Q adv) :=
-  strongReuseAdvantage_lweEncryptFuzzyExtractor_le E decode W t Q adv
+  strongReuseAdvantage_lweEncryptFuzzyExtractor_le E decode W t Q adv hQ
 
 /-! ### Section 5: the hypotheses are satisfiable and the bound can be attained -/
 
@@ -401,18 +403,20 @@ example : SetupCorrectHammingWithError (ProbComp.uniform (Matrix (Fin 1) (Fin 1)
 
 /-- With a uniform source and uniform encryption errors, both LWE advantages in
 `strongReuseAdvantage_lweEncryptFuzzyExtractor_le` vanish, so every strong-reusability adversary
-has advantage exactly `0`: the bound is attained, not vacuous. -/
+making at most `Q` shift queries has advantage exactly `0`: the bound is attained, not vacuous. -/
 example
     (decode : Matrix (Fin 4) (Fin 2) (ZMod 16) → (Fin 4 → ZMod 16) →
       ProbComp (Option (Fin 2 → ZMod 16)))
     (t Q : ℕ) (St : Type)
     (adv : StrongReuseAdversary (Matrix (Fin 4) (Fin 2) (ZMod 16)) 4 16
-      (Fin 2 → Bool) (EncryptHelper 4 2 2 16) St) :
+      (Fin 2 → Bool) (EncryptHelper 4 2 2 16) St)
+    (hQ : ∀ A pStar, ProbOracleComp.IsQueryBounded (adv.query A pStar) Q) :
     strongReuseAdvantage (ProbComp.uniform (Matrix (Fin 4) (Fin 2) (ZMod 16)))
       (lweEncryptFuzzyExtractor 4 2 2 16 (ProbComp.uniform (Fin 2 → ZMod 16)) decode)
-      (PMF.uniformOfFintype (Fin 4 → ZMod 16)) t Q adv = 0 := by
+      (PMF.uniformOfFintype (Fin 4 → ZMod 16)) t adv = 0 := by
   have h := strongReuseAdvantage_lweEncryptFuzzyExtractor_le
     (ProbComp.uniform (Fin 2 → ZMod 16)) decode (PMF.uniformOfFintype (Fin 4 → ZMod 16)) t Q adv
+    hQ
   rw [ProbComp.eval_uniform, encryptLWEErrorLaw_uniform, LWE.advantage_uniform_error_eq_zero,
     LWE.advantage_uniform_error_eq_zero, add_zero] at h
   exact le_antisymm h zero_le

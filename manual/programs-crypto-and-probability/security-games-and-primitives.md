@@ -81,14 +81,14 @@ CI also checks the witness rule on pull requests. After `lake build`, `python3 s
 | One-way functions | [CslibFrontier/Crypto/Computational/OneWay.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/OneWay.lean) | Deterministic native polynomial evaluation; uniform seed-length sampling; strict-PPT inverter gets unary length and image; any preimage may win |
 | Pseudorandom generator | [CslibFrontier/Crypto/Computational/PseudorandomGenerator.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/PseudorandomGenerator.lean) | Length schedule, expansion, native deterministic evaluation and indistinguishability |
 | Adaptive pseudorandom function | [CslibFrontier/Crypto/Computational/PseudorandomFunction.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/PseudorandomFunction.lean) | Oracle-PPT access, consistent ideal random function, explicit input/output widths and malformed-query convention |
-| Collision resistance | [CslibFrontier/Crypto/Computational/CollisionResistant.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/CollisionResistant.lean) | Public setup distribution/encoding and input-validity predicate; keyed word specialization; setup need not be efficiently sampleable in the general interface; [DiscreteLog/GroupHash.lean](../../CslibFrontier/Crypto/Computational/DiscreteLog/GroupHash.lean) instantiates it with the Katz–Lindell discrete-logarithm hash (`DiscreteLog.collisionResistantForOn_groupHash`, exact zero-loss reduction for the encoded outputs; fixed digest width, compression and efficient setup are not established) |
+| Collision resistance | [CslibFrontier/Crypto/Computational/CollisionResistant.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/CollisionResistant.lean) | Public setup distribution/encoding and input-validity predicate; keyed word specialization; setup need not be efficiently sampleable in the general interface; [DiscreteLog/GroupHash.lean](../../CslibFrontier/Crypto/Computational/DiscreteLog/GroupHash.lean) instantiates it with the Katz–Lindell discrete-logarithm hash (`DiscreteLog.collisionResistantForOn_groupHash`, exact zero-loss reduction for the encoded outputs; fixed digest width, compression and efficient setup are not established), and [RSAHash.lean](../../CslibFrontier/Crypto/Computational/RSAHash.lean) with the Boneh–Shoup RSA hash `H_rsa` (`RSAOneWay.collisionResistantForOn_rsaHash`, when `e` is eventually prime on the key support) |
 | Target collision resistance | [CslibFrontier/Crypto/Computational/TargetCollisionResistant.lean](../../CslibFrontier/Crypto/Computational/TargetCollisionResistant.lean), [CslibFrontier/Crypto/Computational/NaorYungUOWHF.lean](../../CslibFrontier/Crypto/Computational/NaorYungUOWHF.lean), [CslibFrontier/Crypto/Computational/InaccessibleEntropy/TargetCollision.lean](../../CslibFrontier/Crypto/Computational/InaccessibleEntropy/TargetCollision.lean) | Two-stage pre-key target choice and post-key second-preimage search; polynomial key/block schedules, fixed-depth `2^n`-capacity tree extension, Naor–Yung UOWHFs from `OneWayPermutation`, and Rompel–HHRVW UOWHFs from `OneWay` |
 | Inaccessible entropy and shrinking collision grids | [CslibFrontier/Crypto/Computational/InaccessibleEntropy/Basic.lean](../../CslibFrontier/Crypto/Computational/InaccessibleEntropy/Basic.lean), [CslibFrontier/Crypto/Computational/InaccessibleEntropy/Amplify.lean](../../CslibFrontier/Crypto/Computational/InaccessibleEntropy/Amplify.lean), [CslibFrontier/Crypto/Computational/InaccessibleEntropy/TargetCollision.lean](../../CslibFrontier/Crypto/Computational/InaccessibleEntropy/TargetCollision.lean) | Fixed-width native polynomial evaluation, accessible preimage subsets with eventual `1 / denom n` entropy gap, polynomial-size grids of `1`-bit shrinking candidates with an existential random-collision-resistant sequence (`exists_good_candidate`), and uniform `gridCount n`-way cascade concatenation |
 | Discrete logarithm and DDH | [CslibFrontier/Crypto/Computational/DiscreteLog.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/DiscreteLog.lean), [CslibFrontier/Crypto/Computational/DiffieHellman.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/DiffieHellman.lean) | Encoded prime-order group families, exact ideal group laws; public operations and samplers require separate certificates |
 | Decisional composite residuosity and Paillier encryption | [CslibFrontier/Crypto/Computational/CompositeResiduosity.lean](../../CslibFrontier/Crypto/Computational/CompositeResiduosity.lean), [CslibFrontier/Crypto/Computational/Paillier.lean](../../CslibFrontier/Crypto/Computational/Paillier.lean), [CslibFrontier/Crypto/Computational/Paillier/Security.lean](../../CslibFrontier/Crypto/Computational/Paillier/Security.lean), [CslibFrontier/Crypto/Computational/Paillier/Finite.lean](../../CslibFrontier/Crypto/Computational/Paillier/Finite.lean) | Factor pairs `(p, q)` of balanced moduli with validity in the type; arbitrary setup law; Paillier encryption with perfect correctness and plaintext-addition preservation under decryption over an abstract strict-PPT modulus generator, which is not constructed; IND-CPA security under DCR with an explicit prime-growth hypothesis; at a fixed modulus, typed Paillier with exactly uniform randomness, full Definition 15.14 and an exact CPA-to-DCR bound |
 | Quadratic residuosity, Goldwasser–Micali, RSA, and Rabin factoring | [CslibFrontier/Crypto/Computational/Factoring.lean](../../CslibFrontier/Crypto/Computational/Factoring.lean), [CslibFrontier/Crypto/Computational/QuadraticResiduosity.lean](../../CslibFrontier/Crypto/Computational/QuadraticResiduosity.lean), [CslibFrontier/Crypto/Computational/GoldwasserMicali.lean](../../CslibFrontier/Crypto/Computational/GoldwasserMicali.lean), [CslibFrontier/Crypto/Computational/RSATrapdoor.lean](../../CslibFrontier/Crypto/Computational/RSATrapdoor.lean), [CslibFrontier/Crypto/Computational/RSALeastSignificantBit.lean](../../CslibFrontier/Crypto/Computational/RSALeastSignificantBit.lean), [CslibFrontier/Crypto/Computational/RSAAttacks.lean](../../CslibFrontier/Crypto/Computational/RSAAttacks.lean), [CslibFrontier/Crypto/Computational/RabinFactoring.lean](../../CslibFrontier/Crypto/Computational/RabinFactoring.lean) | Composite Jacobi symbol `jacobiSymbol`, `QR_N` / `QNR_N^{+1}` split and `QuadraticResiduosityHard`; Goldwasser–Micali bit and bounded-word public-key encryption (`KeyDesc`, `blumKeyGen`, `encrypt`, `decrypt`, `mulCiphertexts`, ideal distributional XOR homomorphism, Blum-modulus `INDCPA` from `QuadraticResiduosityHard` and explicit prime growth, ideal-key-law bit and bounded-word bounds, and Jacobi `-1` attack); all-residue and unit-group RSA trapdoor bijection (`rsaEval`, `rsaInvert`, `RSAOneWay`); Blum-integer square roots (`blumSqrt`, `crtSqrt`), `ModulusFactoringHard`, `FactoringHard`, `RabinOneWay`, explicit PPT equivalences `rabinOneWay_iff_factoringHard` and `totientHard_iff_modulusFactoringHard`, and the certified PPT hierarchy `QuadraticResiduosityHard` / `DCR` / `RSAOneWay` / `RSAKeyRecoveryHard` / `TotientHard` $\Rightarrow$ factoring |
 | LWE, SIS, and module lattices | [CslibFrontier/Crypto/Computational/LWE/Basic.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/LWE/Basic.lean), [CslibFrontier/Crypto/Computational/LWE/Decoding.lean](../../CslibFrontier/Crypto/Computational/LWE/Decoding.lean), [CslibFrontier/Crypto/Computational/LWE/KeyGen.lean](../../CslibFrontier/Crypto/Computational/LWE/KeyGen.lean), [CslibFrontier/Crypto/Computational/LWE/Trapdoor/Gadget.lean](../../CslibFrontier/Crypto/Computational/LWE/Trapdoor/Gadget.lean), [CslibFrontier/Crypto/Computational/LWE/Trapdoor/Basic.lean](../../CslibFrontier/Crypto/Computational/LWE/Trapdoor/Basic.lean), [CslibFrontier/Crypto/Computational/SIS/Basic.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/SIS/Basic.lean), [CslibFrontier/Crypto/Computational/SIS/Ajtai.lean](../../CslibFrontier/Crypto/Computational/SIS/Ajtai.lean), [CslibFrontier/Crypto/Computational/SIS/Module.lean](../../CslibFrontier/Crypto/Computational/SIS/Module.lean), [CslibFrontier/Crypto/Computational/LWE/Module.lean](../../CslibFrontier/Crypto/Computational/LWE/Module.lean), [CslibFrontier/Crypto/Computational/SIS/ModuleEncryption.lean](../../CslibFrontier/Crypto/Computational/SIS/ModuleEncryption.lean), [CslibFrontier/Crypto/Computational/LWE/Regev.lean](../../CslibFrontier/Crypto/Computational/LWE/Regev.lean), [CslibFrontier/Crypto/Computational/LWE/Regev/Security.lean](../../CslibFrontier/Crypto/Computational/LWE/Regev/Security.lean), [CslibFrontier/Crypto/Computational/LWE/DualRegev.lean](../../CslibFrontier/Crypto/Computational/LWE/DualRegev.lean), [CslibFrontier/Crypto/Computational/LWE/DualRegev/Security.lean](../../CslibFrontier/Crypto/Computational/LWE/DualRegev/Security.lean) | Explicit dimensions, modulus and noise/norm parameters (typed decision-LWE experiments over a finite commutative ring and `2^w` binary matrix words in `LWE/Basic.lean`, shared LWE decoding/key-generation helpers in `LWE/Decoding.lean` and `LWE/KeyGen.lean`, Micciancio–Peikert power-of-two gadget matrices, short kernel matrices (kernel membership, `det S_w = 2^w`, and column norm bounds, without the lattice-basis generation proof), tagged `GenTrap` trapdoors, and deterministic trapdoor LWE inversion in `LWE/Trapdoor/*`, the typed fixed-instance experiment `sisExperiment` over arbitrary nonzero moduli and the family hypothesis `SIS` in `SIS/Basic.lean`, the Ajtai collision-to-SIS bound `ajtaiAdvantage_le_sisAdvantage` in `SIS/Ajtai.lean`, negacyclic `R_q = ℤ_q[X]/(X^n+1)` block-anticirculant expansion `expandModuleMatrix`, `moduleSISExperiment`, `ModuleSIS` and `RingSIS` in `SIS/Module.lean`, typed decision Module-LWE games for any secret and error laws and `DecisionModuleLWE` in `LWE/Module.lean`, Module-LWE public-key encryption in `SIS/ModuleEncryption.lean`, and plain-LWE Regev and GPV dual-Regev bit encryption and IND-CPA security at modulus `2^w` in `LWE/Regev*` and `LWE/DualRegev*`); classical uniform-PPT hardness hypotheses |
-| Computational fuzzy extractors | [CslibFrontier/Crypto/Computational/FuzzyExtractor/Basic.lean](../../CslibFrontier/Crypto/Computational/FuzzyExtractor/Basic.lean), [CslibFrontier/Crypto/Computational/FuzzyExtractor/DecodeThenExtract.lean](../../CslibFrontier/Crypto/Computational/FuzzyExtractor/DecodeThenExtract.lean), [CslibFrontier/Crypto/Computational/FuzzyExtractor/DecodeThenExtract/Security.lean](../../CslibFrontier/Crypto/Computational/FuzzyExtractor/DecodeThenExtract/Security.lean), [CslibFrontier/Crypto/Computational/FuzzyExtractor/Reusable.lean](../../CslibFrontier/Crypto/Computational/FuzzyExtractor/Reusable.lean), [CslibFrontier/Crypto/Computational/FuzzyExtractor/Reusable/Encrypt.lean](../../CslibFrontier/Crypto/Computational/FuzzyExtractor/Reusable/Encrypt.lean) | Fuller, Meng and Reyzin's `FuzzyExtractor` with correctness and computational security over an explicit source family [fmr20][fmr20]; the sketch-and-extract construction; the LWE construction `FuzzyExtractor.lweFuzzyExtractor` with an advantage bound by two LWE advantages and asymptotic security `FuzzyExtractor.computationallySecure_lweFuzzyExtractor` from decision LWE whose error law is the source; Apon, Cho, Eldefrawy and Katz's weak and strong reusability experiments (`WeakReuseAdversary`, `StrongReuseAdversary`, `weakReuseAdvantage`, `strongReuseAdvantage`), the common-matrix FMR construction `FuzzyExtractor.commonMatrixFuzzyExtractor` with the reduction step of Theorem 1 (`weakReuseAdvantage_commonMatrixFuzzyExtractor_eq`) and an advantage lower bound for its 1-query strong-reusability attack (`strongReuseAdvantage_commonMatrixStrongAttack_ge`), and the Section 5 encryption-based construction `FuzzyExtractor.lweEncryptFuzzyExtractor` with the reduction step of its security argument (`strongReuseAdvantage_lweEncryptFuzzyExtractor_le`); reduction lemmas only, no reusability security theorem [acek17][acek17] (details below) |
+| Computational fuzzy extractors | [CslibFrontier/Crypto/Computational/FuzzyExtractor/Basic.lean](../../CslibFrontier/Crypto/Computational/FuzzyExtractor/Basic.lean), [CslibFrontier/Crypto/Computational/FuzzyExtractor/DecodeThenExtract.lean](../../CslibFrontier/Crypto/Computational/FuzzyExtractor/DecodeThenExtract.lean), [CslibFrontier/Crypto/Computational/FuzzyExtractor/DecodeThenExtract/Security.lean](../../CslibFrontier/Crypto/Computational/FuzzyExtractor/DecodeThenExtract/Security.lean), [CslibFrontier/Crypto/Computational/FuzzyExtractor/Reusable.lean](../../CslibFrontier/Crypto/Computational/FuzzyExtractor/Reusable.lean), [CslibFrontier/Crypto/Computational/FuzzyExtractor/Reusable/Encrypt.lean](../../CslibFrontier/Crypto/Computational/FuzzyExtractor/Reusable/Encrypt.lean) | Fuller, Meng and Reyzin's `FuzzyExtractor` with correctness and computational security over an explicit source family [fmr20][fmr20]; the sketch-and-extract construction; the LWE construction `FuzzyExtractor.lweFuzzyExtractor` with an advantage bound by two LWE advantages and an asymptotic security step at modulus `2 ^ w`, `FuzzyExtractor.computationallySecure_lweFuzzyExtractor_of_decisionLWEWithErrors`, from decision LWE whose error law is the source, an assumption novel to this library; Apon, Cho, Eldefrawy and Katz's weak and strong reusability experiments (`WeakReuseAdversary`, `StrongReuseAdversary`, `weakReuseAdvantage`, `strongReuseAdvantage`), the common-matrix FMR construction `FuzzyExtractor.commonMatrixFuzzyExtractor` with the reduction step of Theorem 1 (`weakReuseAdvantage_commonMatrixFuzzyExtractor_eq`) and an advantage lower bound for its 1-query strong-reusability attack (`strongReuseAdvantage_commonMatrixStrongAttack_ge`), and the Section 5 encryption-based construction `FuzzyExtractor.lweEncryptFuzzyExtractor` with the reduction step of its security argument (`strongReuseAdvantage_lweEncryptFuzzyExtractor_le`); reduction lemmas only, no reusability security theorem [acek17][acek17] (details below) |
 
 For computational fuzzy extractors, `FuzzyExtractor` formalizes Fuller, Meng and Reyzin's
 definitions [fmr20][fmr20] (Definitions 2.1-2.4 of the full version) with `Correct`,
@@ -106,14 +106,21 @@ reductions `FuzzyExtractor.hardcoreKeyReduction` and `FuzzyExtractor.hardcoreUni
 `FuzzyExtractor.DecoderCorrectWithError.correctHammingWithError_decodeThenExtract` transfers
 average-case decoder correctness. `FuzzyExtractor.ComputationallySecure` is the asymptotic form of
 `ComputationallySecureFor` for a family indexed by the security parameter.
-`FuzzyExtractor.computationallySecure_lweFuzzyExtractor` proves the family
-`κ ↦ lweFuzzyExtractor (m κ) (k κ) (l κ) (2 ^ w κ)` secure against uniform strict PPT
-distinguishers on every source ensemble for which `DecisionLWEWithErrors l m w source` holds
-(decision LWE with the source as the joint error law), given polynomial-time unary parameter
-schedules; `LWEFamily.isPPT_keyReduction` and `LWEFamily.isPPT_uniformReduction` certify the
+`FuzzyExtractor.computationallySecure_lweFuzzyExtractor_of_decisionLWEWithErrors` is a step
+toward the security part of Theorem 4.11 at power-of-two modulus, not that theorem: Construction
+4.1 needs a prime `q`, so apart from modulus `2` it covers no instance of Theorem 4.11, which stays
+open at a prime modulus ([#5293](https://github.com/cslib-community/cslib-frontier/issues/5293)).
+It proves the family `κ ↦ lweFuzzyExtractor (m κ) (k κ) (l κ) (2 ^ w κ)` secure against uniform
+strict PPT distinguishers on every source ensemble for which `DecisionLWEWithErrors l m w source`
+holds, given polynomial-time unary parameter schedules. That assumption is decision LWE with the
+source as the joint error law, and the [assumptions inventory](assumptions.md) lists it as novel
+to this library: it has the form of [fmr20][fmr20] Definition 4.5 as Lemma 4.7 and Theorem 4.11
+use it, but at modulus `2 ^ w κ`, outside that definition's range of prime `q`, and against
+uniform PPT distinguishers instead of size-bounded ones. `LWEFamily.isPPT_keyReduction` and
+`LWEFamily.isPPT_uniformReduction` certify the
 reductions. The modulus is `2 ^ w κ`, the modulus of the typed decision LWE.
 
-Not established in FMR20: hardness of LWE with error `W` (Theorems 4.6 and 4.8), efficiency of the
+Not established here: hardness of LWE with error `W` (Theorems 4.6 and 4.8), efficiency of the
 honest `Gen`/`Rep`, the Construction 4.9 decoder (Lemma 4.10), and Section 5; the generic
 `FuzzyExtractor.decodeThenExtract` carries no security claim. Build with
 `lake build CslibFrontier.Crypto.Computational.FuzzyExtractor.DecodeThenExtract.Security`.
@@ -121,15 +128,16 @@ honest `Gen`/`Rep`, the Construction 4.9 decoder (Lemma 4.10), and Section 5; th
 For reusable computational fuzzy extractors, [`FuzzyExtractor/Reusable.lean`](../../CslibFrontier/Crypto/Computational/FuzzyExtractor/Reusable.lean)
 formalizes the experiments of Definitions 2 and 3 of Apon, Cho, Eldefrawy and Katz [acek17][acek17]
 in the public-parameters model (`setup : ProbComp PP`,
-`fe : PP → FuzzyExtractor (Fin m → ZMod q) Key Helper`). An adaptive `Q`-query adversary
+`fe : PP → FuzzyExtractor (Fin m → ZMod q) Key Helper`). An adaptive adversary
 (`FuzzyExtractor.ReuseAdversary`, specialized to `WeakReuseAdversary` with helper-only leakage and
-`StrongReuseAdversary` with `(helper, key)` leakage) submits shifts `δ_i : Fin m → ZMod q` clamped
-to Hamming weight at most `t` by `FuzzyExtractor.clampShift` (`reuseQueryLoop`). It receives the
-real or uniform challenge key only after the queries. `weakReuseAdvantage` and
+`StrongReuseAdversary` with `(helper, key)` leakage) runs an oracle program whose queries are
+shifts `δ_i : Fin m → ZMod q`, clamped to Hamming weight at most `t` by
+`FuzzyExtractor.clampShift` in the shift oracles `weakReuseOracle` and `strongReuseOracle`. It
+receives the real or uniform challenge key only after the queries. `weakReuseAdvantage` and
 `strongReuseAdvantage` are `Game.advantage` between the real and ideal experiments averaged with
-`Game.withSetup W`. `weakReuseAdvantage_eq_strongReuseAdvantage_toStrong` relates the two
-experiments, and `weakReuseAdvantage_zero_eq_securityAdvantage` relates the `0`-query experiment
-to `FuzzyExtractor.securityAdvantage`. There is no reusability security predicate: such a
+`Game.withSetup W`. `weakReuseAdvantage_ofDistinguisher_eq_securityAdvantage` runs a
+single-enrollment distinguisher as an adversary that makes no query, which is the remark that weak
+reusability implies basic security. There is no reusability security predicate: such a
 predicate needs a class of efficient adversaries, which is future work. Correctness is averaged
 over the public parameters (`FuzzyExtractor.SetupCorrectHammingWithError`) and follows from the
 average-case decoder hypothesis `DecoderCorrectWithError` over a uniform matrix. Placing the
@@ -149,13 +157,15 @@ encryption errors satisfy `8 * (e i).valMinAbs.natAbs + 4 ≤ q`, so the scheme 
 error at most `δ` under `DecoderCorrectWithError decode t δ`
 (`DecoderCorrectWithError.setupCorrect_lweEncryptFuzzyExtractor`).
 `FuzzyExtractor.strongReuseAdvantage_lweEncryptFuzzyExtractor_le` is the reduction step of the
-Section 5 argument: it bounds the `Q`-query strong-reusability advantage of each adversary by two
-`(m + (Q + 1) * l)`-row decisional LWE advantages with combined error law
+Section 5 argument: it bounds the strong-reusability advantage of each adversary making at most
+`Q` shift queries by two `(m + (Q + 1) * l)`-row decisional LWE advantages with combined error law
 `FuzzyExtractor.encryptLWEErrorLaw W (ProbComp.eval E) Q`, via `encryptRealReduction` and
-`encryptIdealReduction`. Not part of these modules: the reusability security theorems themselves
-(an adversary class in the reuse experiments, efficiency certificates for the simulator and the
-reductions, and the conclusion from `DecisionLWEWithErrors`), and the random-oracle transform of
-Section 4 (Theorem 2).
+`encryptIdealReduction`, which answer the `k`-th query from the `k`-th `l`-row block of the LWE
+instance; the presampling theorem `ProbOracleComp.IsQueryBounded.eval_presample` equates this with
+fresh blocks. Not part of these modules: the reusability security theorems themselves (an
+adversary class in the reuse experiments, efficiency certificates for the simulator and the
+reductions, and the conclusion from `DecisionLWE`; tracked in #5293), and the random-oracle
+transform of Section 4 (Theorem 2).
 
 The pseudoentropy gap of
 [`Pseudoentropy/Basic.lean`](../../CslibFrontier/Crypto/Computational/Pseudoentropy/Basic.lean)
@@ -376,7 +386,7 @@ check zero widths, order-sensitive output, and native XOR encryption/recovery. T
 prerequisite for the stream-cipher route of Boneh–Shoup §3.2 [bs23][bs23]; adaptive arbitrary-word
 one-time encryption and hash-then-MAC/EtM remain open in [#2749](https://github.com/cslib-community/cslib-frontier/issues/2749).
 
-The Ideal Cipher Model models a block cipher as a key-indexed family of independent random permutation oracles supporting forward and inverse queries. [`IdealCipher.lean`](../../CslibFrontier/Languages/Probabilistic/IdealCipher.lean) formalizes lazy exact and forgetful ideal-cipher caches, proves partial bijection preservation (`uniform_interpret_eq_lazy`), and bounds the distinguishing advantage between a uniform ideal cipher and the forgetful sampler by `(Q.choose 2) * |Block|⁻¹` (`abs_sub_uniformPerm_forgetful_le`). Built upon this, [`Compression.lean`](../../CslibFrontier/Crypto/Primitives/IdealCipher/Compression.lean) models collision resistance (`collisionGame`), records the probability-`1` inverse-query attack on `cipherOutput` (`cipherOutputAdversary_wins`, [katzlindell20][katzlindell20] Exercise 7.23(a)), and proves the Davies–Meyer Ideal-Cipher collision-resistance upper bound of `2 * ((Q + 2).choose 2) * |Block|⁻¹ = ((Q + 2) * (Q + 1)) * |Block|⁻¹` for every `Q`-query adaptive adversary (`daviesMeyer_collisionGame_le`, `daviesMeyer_collisionGame_mul_le`; [katzlindell20][katzlindell20] Theorem 7.5), checked nonvacuously in [`CslibFrontierTests/Crypto/IdealCipherCompression.lean`](../../CslibFrontierTests/Crypto/IdealCipherCompression.lean).
+The Ideal Cipher Model models a block cipher as a key-indexed family of independent random permutation oracles supporting forward and inverse queries. [`IdealCipher.lean`](../../CslibFrontier/Languages/Probabilistic/IdealCipher.lean) formalizes lazy exact and forgetful ideal-cipher caches, proves partial bijection preservation (`uniform_interpret_eq_lazy`), and bounds the distinguishing advantage between a uniform ideal cipher and the forgetful sampler by `(Q.choose 2) * |Block|⁻¹` (`abs_sub_uniformPerm_forgetful_le`). Built upon this, [`Compression.lean`](../../CslibFrontier/Crypto/Primitives/IdealCipher/Compression.lean) models collision resistance (`collisionGame`), records the probability-`1` inverse-query attack on `cipherOutput` (`cipherOutputAdversary_wins`, [katzlindell20][katzlindell20] Exercise 7.23(a)), and proves the Davies–Meyer Ideal-Cipher collision-resistance upper bound of `2 * ((Q + 2).choose 2) * |Block|⁻¹ = ((Q + 2) * (Q + 1)) * |Block|⁻¹` for every `Q`-query adaptive adversary (`daviesMeyer_collisionGame_le`, `daviesMeyer_collisionGame_mul_le`; [katzlindell20][katzlindell20] Theorem 7.5), checked nonvacuously in [`CslibFrontierTests/Crypto/IdealCipherCompression.lean`](../../CslibFrontierTests/Crypto/IdealCipherCompression.lean). For the insecure Davies–Meyer variants of Boneh–Shoup §8.5.2 and Exercise 8.11 ([bs23][bs23], pp. 301 and 349), [`CompressionVariants.lean`](../../CslibFrontier/Crypto/Primitives/IdealCipher/CompressionVariants.lean) gives collision finders `keyMaskedAdversary k1 k2 y` (for `keyMasked`, which is `h₄` with its two arguments swapped) and `keyMaskedInputAdversary k1 k2 y` (for `keyMaskedInput`, `h₅`). Each makes two inverse queries (`isQueryBounded_keyMaskedAdversary`, `isQueryBounded_keyMaskedInputAdversary`) and, for distinct keys `k1 ≠ k2`, wins `collisionGame` with probability `1` over any finite additive group (`keyMaskedAdversary_wins`, `keyMaskedInputAdversary_wins`); a group with at least two elements has such keys (`exists_collisionFinder_keyMasked`, `exists_collisionFinder_keyMaskedInput`). These are statements in the ideal-cipher model only; concrete checks live in [`CslibFrontierTests/Crypto/IdealCipherCompressionVariants.lean`](../../CslibFrontierTests/Crypto/IdealCipherCompressionVariants.lean).
 
 For the generic group model of Boneh–Shoup ([bs23][bs23], §16.3), import
 [`GenericGroup/Basic.lean`](../../CslibFrontier/Crypto/Computational/GenericGroup/Basic.lean).
@@ -421,6 +431,8 @@ examples, including where the proof uses primality, are in
 For a fixed keyed function or block cipher over finite types, import [`Primitives/PRF/Finite.lean`](../../CslibFrontier/Crypto/Primitives/PRF/Finite.lean) and [`Primitives/PRP/Finite.lean`](../../CslibFrontier/Crypto/Primitives/PRP/Finite.lean) (Boneh–Shoup §4.1–§4.4 [bs23][bs23]). A `PRF.Adversary D R` is an adaptive oracle program with private coins. `PRF.realExperiment F A` and `PRF.idealExperiment A` are `ProbComp Bool` programs answering its queries with `F key` for a uniform key or with a uniform function `D → R`, and `PRF.advantage` is the distance between their laws. For a block cipher `E : Key → Equiv.Perm D`, `PRP.realExperiment E` is the PRF experiment of `E` and `PRP.idealExperiment` samples a uniform permutation. The switching lemma `PRP.advantage_idealExperiment_prfIdealExperiment_le` bounds the distance between the two ideal experiments by `Q.choose 2 / |D|` for a `Q`-query adversary (Theorem 4.4), and `PRP.prfAdvantage_le_advantage_add` is Corollary 4.5. `PRP.strongRealExperiment` and `PRP.strongIdealExperiment` also answer inverse queries through `RandomPermutation.PermOracleSpec D`; `PRP.StrongAdversary.ofForward` runs a forward adversary there with the same advantage (`PRP.strongAdvantage_ofForward`). These statements are single-instance and track no running time. The word-level `BlockCipher.PRP` switching lemma `advantage_prpIdealGame_prfIdealGame_le` is derived from the finite one. [`Computational/PseudorandomFunction/Finite.lean`](../../CslibFrontier/Crypto/Computational/PseudorandomFunction/Finite.lean) connects the two levels: `PRF.atLevel family n` is a word family read as a keyed function on `n`-bit strings, and `PRF.advantage_atLevel_adapt` shows that, for a length-preserving family, the finite advantage against it of a word distinguisher `A` read through `OracleCodec.bitString n` is the advantage of `A` between `prfRealGame id family A n` and `prfIdealGame id id A n`. A finite argument therefore transfers to `PseudorandomFunction` once its adversary is exhibited as an adapted oracle-PPT word program. Checked examples of the finite experiments and the switching lemma are in [`CslibFrontierTests/Crypto/PseudorandomPermutation.lean`](../../CslibFrontierTests/Crypto/PseudorandomPermutation.lean); the bridge, `PRF.label` and `labelCodec` are checked on concrete families and tables in [`CslibFrontierTests/Crypto/PRFLabel.lean`](../../CslibFrontierTests/Crypto/PRFLabel.lean).
 
 Several independently keyed copies of a pseudorandom function are again pseudorandom: [`PseudorandomFunction.multiKey`](../../CslibFrontier/Crypto/Computational/PseudorandomFunction/MultiKey.lean) answers `t` word channels with the `n`-bit blocks of one `t * n`-bit key, against `t` independent random functions, for every fixed `t`. Its hybrid reduction `prfMultiReduction` simulates the already random channels with a lazy list cache and is itself oracle PPT; the concrete bound sums `t` PRF advantages (Boneh–Shoup, Exercise 4.26). The number of keys is a constant, not a function of the security parameter; the exercise also allows a polynomially bounded number of keys, which this theorem does not cover. The finite counterpart is [`Primitives/PRF/MultiKey.lean`](../../CslibFrontier/Crypto/Primitives/PRF/MultiKey.lean): for a keyed function `F : Key → D → R` on finite types and an adversary with private coins and `t` channels, `PRF.multiKeyAdvantage_le_sum` bounds the distance between `t` independent uniform keys and `t` independent uniform functions by `∑ j < t, PRF.advantage F (PRF.multiKeyReduction F j A)`. Each reduction is one randomized `PRF.Adversary D R` that samples its own keys, forwards channel `j`, and lazily samples the channels below `j` with a list cache; it makes at most as many queries as `A` (`PRF.isQueryBounded_multiKeyReduction`).
+
+For keyed functions that call a random oracle, import [`Primitives/PRF/RandomOracleModel.lean`](../../CslibFrontier/Crypto/Primitives/PRF/RandomOracleModel.lean) ([bs23][bs23], §8.10.2, Attack Game 8.4 and Theorem 8.9, p. 329). A `PRF.ROAdversary X Y M T` is one adaptive program with private coins that asks for the keyed function at `x : X` with the query `Sum.inl x`, answered in `Y`, and for the random oracle at `m : M` with the query `Sum.inr m`, answered in `T`. For finite types `Key`, `X`, `Y`, `M` and `T`, with decidable equality on `X` and `M` and with `Key`, `Y` and `T` nonempty, `PRF.roRealExperiment F A` samples the whole oracle table `O : M → T` and one uniform key and answers the keyed queries with `F O key`, for `F : (M → T) → Key → X → Y`; `PRF.roIdealExperiment A` samples the whole table and one uniform function `X → Y`; both answer the oracle queries with `O`, and `PRF.roAdvantage F A` is their distinguishing advantage. `A.IsOracleQueryBounded Q` says that `A` makes at most `Q` random-oracle queries on every path, whatever its coins and the replies; it counts neither the queries `Sum.inl x` nor private samples. `PRF.roAdvantage_prependKey_le` proves Theorem 8.9: for finite types `Key`, `X`, `M` and `T`, with decidable equality on `X` and `M` and with `Key` and `T` nonempty, for `encode : Key → X → M` with `Function.Injective2 encode`, and for `A : PRF.ROAdversary X T M T` with `A.IsOracleQueryBounded Q`, the advantage `PRF.roAdvantage (PRF.prependKey encode) A` of the key-prepending function `PRF.prependKey encode O key x = O (encode key x)` is at most `Q / Fintype.card Key`, whatever the adversary's other queries, coins and running time. Both halves of injectivity are needed: [`RandomOraclePRF.lean`](../../CslibFrontierTests/Crypto/RandomOraclePRF.lean) checks a pairing that is constant in the input, against which an adversary without random-oracle queries has advantage `1 / 2` where the bound would be `0`, and a pairing that sends every key to the same point, against which one random-oracle query gives advantage `1 / 2` for every number of keys. `PRF.keyAppend κ L` gives the book's `k ‖ x`, a `κ`-bit key followed by a word of `shortWords L`, and `PRF.roAdvantage_prependKey_keyAppend_le` bounds the advantage of an adversary with `A.IsOracleQueryBounded Q` against it by `Q / 2 ^ κ` for every finite nonempty `T`. Over a security parameter `n`, with `Key n`, `X n`, `M n` and `T n` finite, decidable equality on `X n` and `M n`, and `Key n` and `T n` nonempty for every `n`, `PRF.negligible_roAdvantage_prependKey` makes the advantage negligible for every family of adversaries whose numbers of random-oracle queries are bounded by a polynomially bounded `Q`, provided that `encode n` is injective in the pair for every `n` and that `1 / Fintype.card (Key n)` is negligible; for finite nonempty `T n` at every `n`, `PRF.negligible_roAdvantage_prependKey_keyAppend` gives the same for `keyAppend (κ n) (L n)` when `n ≤ κ n` for every `n`. Neither statement asks the adversaries to be efficient. Nothing is claimed about `H(k ‖ x)` for a concrete hash function `H` (for a Merkle–Damgård hash the book shows it insecure, §8.7), Definition 8.5 is not a named predicate, and no lower bound on the advantage is proved.
 
 Unconditionally, any pseudorandom function on `n`-bit inputs requires at least `2 * n - 2` binary gates over the full binary Boolean basis `B₂` (`fullInterpretation (k := 2)`) on all but a negligible fraction of keys (Fan–Li–Yang §§4.2, 7.1, Theorem 7.5 [fly22][fly22]): [`CircuitLowerBound.lean`](../../CslibFrontier/Crypto/Computational/PseudorandomFunction/CircuitLowerBound.lean) proves the bound both for arbitrary `BooleanPRF` ensembles (which impose no efficient sampling or evaluation condition) and for word-valued `PseudorandomFunction` families via deterministic `BitString.lowBits`-encoded restriction queries. The underlying wire out-degree, syntactic dead-gate elimination (`Circuit.NoDeadGates`), critical-path `2 * n - 2 * m` gate bound, and `B₂` intersection bottleneck live in [`CslibFrontier/Computability/Circuit/CriticalPath.lean`](../../CslibFrontier/Computability/Circuit/CriticalPath.lean) and [`CslibFrontier/Computability/Circuit/Boolean/CriticalPath.lean`](../../CslibFrontier/Computability/Circuit/Boolean/CriticalPath.lean). Tightness at `2 * n - 2`, distinguisher completeness, refutation of bitwise XOR, unconditional `BooleanPRF` non-vacuity on random functions, and conditional `OneWay` non-vacuity are checked in [`CslibFrontierTests/Crypto/PRFCircuitLowerBound.lean`](../../CslibFrontierTests/Crypto/PRFCircuitLowerBound.lean).
 
@@ -1119,6 +1131,85 @@ cases `p = 2` and `e = 1`, and an instance showing that the branch for `y = 0` i
 [`AssumptionNonvacuity.lean`](../../CslibFrontierTests/Crypto/AssumptionNonvacuity.lean) shows
 that `RSAUnitOneWay` fails for a fixed key (`not_rsaUnitOneWay_const`).
 
+For the RSA hash `H_rsa` ([bs23][bs23], §10.6.2, p. 415, and Theorem 10.7 with the bound (10.3),
+pp. 416–417), import [`RSAHash.lean`](../../CslibFrontier/Crypto/Computational/RSAHash.lean). An
+`RSAHashKey` is a public key `(N, e)` with a base `y`, encoded by `encRSAHashKey`, and
+`rsaHashSetup gen n` draws `desc ← gen n` and a uniform unit `y` modulo `N`. `rsaHash k m` reads
+the word `m` as a pair `(a, b)` of binary numbers (`rsaHashDecoder`) and returns
+`a ^ e * y ^ b % N`. `validRSAHashInput n k m` holds when `m` is the encoding of that pair, `a < N`,
+`a` is coprime to `N` and `b < e`. The hash is an instance of `collisionGameFor`, as `groupHash` in
+[`DiscreteLog/GroupHash.lean`](../../CslibFrontier/Crypto/Computational/DiscreteLog/GroupHash.lean)
+is. `rsaHashRoot N e y a b a' b'` is Shamir's trick on the pair
+ordered by exponent: `commonRoot N e (b' - b) w y` with `w = a * BinaryGcd.modInv a' N % N` when
+`b < b'`, and `commonRoot N e (b - b') w y` with `w = a' * BinaryGcd.modInv a N % N` otherwise, so
+`commonRoot` keeps natural exponents where the book's proof takes `f = b' - b`. For `y < N`,
+`Nat.Coprime y N`, `Nat.Coprime a N`, `Nat.Coprime a' N`, `Nat.Coprime e (b.dist b')` and
+`a ^ e * y ^ b ≡ a' ^ e * y ^ b' [MOD N]`, `rsaEval_rsaHashRoot` says that
+`rsaEval N e (rsaHashRoot N e y a b a' b') = y`. Here `b.dist b'` is `b' - b` or `b - b'`; a
+prime `e` greater than both `b` and `b'`, with `b ≠ b'`, is coprime to it, and `b = b'` forces
+`e = 1`. `rsaHashToRSA A`, the book's adversary `B'`, runs
+the collision finder `A` on the key `(N, e, y)` and returns `rsaHashRoot` of the two decoded pairs
+without checking that they collide. `isPPT_rsaHashToRSA` shows that `rsaHashToRSA A` is PPT
+whenever `A` is PPT on `(1ⁿ, k)`; `computableInPolyTime_rsaHash` and
+`computableInPolyTime_validRSAHashInput` show that the hash and its domain are computable in
+polynomial time from the encoded key and word. At every security parameter `n` where `e` is prime
+for every key in the support of `gen n`,
+`succProbability_collisionGameFor_rsaHash_le_rsaUnitInversionGame` bounds the success probability
+of `A` in the collision game by that of `rsaHashToRSA A` in `rsaUnitInversionGame`, and
+`succProbability_collisionGameFor_rsaHash_le_rsaInversionGame`, the bound (10.3), by that of
+`unitRSAToRSA (rsaHashToRSA A)` in `rsaInversionGame`. Hence, if for all sufficiently large `n`
+`e` is prime for every key in the support of `gen n`, then `RSAUnitOneWay gen` and `RSAOneWay gen`
+each make `rsaHash` collision resistant on `validRSAHashInput` under `rsaHashSetup gen`
+(`RSAUnitOneWay.collisionResistantForOn_rsaHash`, `RSAOneWay.collisionResistantForOn_rsaHash`).
+The statements differ from the book's in four ways. The bound is `≤` where the book's proof gives
+equality, because `rsaHashToRSA` also wins on some words that the game rejects, such as a valid
+word followed by `false`. The domain `ℤₙ* × I_e` is the set of words that `validRSAHashInput`
+accepts. Digests are natural numbers below `N`, not units modulo `N`. The book fixes a prime `e`,
+whereas keys here come from any law on `RSADesc`, with no condition on `ℓ`, and the results assume
+that `e` is prime on its support; `e` coprime to `(p - 1) * (q - 1)` is not enough. Exercise 10.26
+(p. 431) and the use of `H_rsa` as a compression function in the Merkle–Damgård construction
+(p. 416) are not formalized. The accumulator of §10.9 is in `GUOAccumulator.lean` (below), without
+its security theorem. The
+[checked examples](../../CslibFrontierTests/Crypto/RSAHash.lean) cover a collision at `N = 15`,
+`e = 3` and `y = 2` with its root `8`, a word that decodes to a valid pair but is not valid, and, at
+`e = 9`, which is coprime to `(3 - 1) * (5 - 1) = 8`, a collision that gives no ninth root of `2`.
+
+For the strong RSA assumption ([bs23][bs23], §10.9, pp. 420–421), import
+[`StrongRSA.lean`](../../CslibFrontier/Crypto/Computational/StrongRSA.lean). `GUOParams` holds the
+public parameters `(N, g)` of the group `(ZMod N)ˣ`, encoded by `encGUOParams`. In
+`strongRSAGame setup A n` the adversary receives `(N, g)` drawn from `setup n` and wins with a pair
+`(x, e)` when `isStrongRSASolution (N, g) (x, e)`: `x ^ e` and `g` agree modulo `N`, and `e ≠ 1`
+(`isStrongRSASolution_eq_true_iff` for `0 < N`). `StrongRSA setup` says that every PPT adversary
+(`StrongRSAAdversary.IsPPT`) wins with negligible probability; the
+[assumptions inventory](assumptions.md) lists it as standard. `rsaGUOSetup gen` is the book's
+`GGen`: an RSA modulus from the key law `gen` and a uniform unit `g`; every `(N, g)` it draws has
+`g` coprime to `N` (`exists_of_mem_support_rsaGUOSetup`). The statement differs from the book's in
+two ways. The setup is any law on `GUOParams`, which need not be efficiently samplable or give a
+unit `g`, in place of a group of unknown order from an efficient `GGen`; class groups (p. 423) are
+not covered. The adversary outputs natural numbers `x` and `e ≠ 1` in place of `x ∈ G` and an
+integer `e ≠ ±1`. For a unit `g`, every winning output gives one for the book's game, so for a
+setup that gives a unit `g` the book's assumption implies `StrongRSA`; that implication is not
+formalized. The book's remark that strong RSA is a stronger assumption than standard RSA (p. 420)
+is not formalized either: no implication between `StrongRSA (rsaGUOSetup gen)` and `RSAOneWay gen`
+or `RSAUnitOneWay gen` is proved. `not_strongRSA_of_orderMultiple` is the observation of p. 421
+that the assumption is false when a multiple `u` of the order of `g` is known. If a
+polynomial-time function `u` of the security parameter and `(N, g)` gives `0 < u` and
+`g ^ u ≡ 1 [MOD N]` on the support of every `setup n`, then `orderMultipleAdversary u` wins with
+probability `1` (`strongRSAGame_orderMultipleAdversary`), and `isPPT_orderMultipleAdversary` shows
+that it is PPT. It is `knownOrderAdversary u v` with `v = u + 1`, which outputs
+`(knownOrderRoot N u v g, v)`, where `knownOrderRoot N u v g` is `g ^ (v⁻¹ mod u)` modulo `N`.
+`powMod_knownOrderRoot` says that this is a `v`-th root of `g` modulo `N` when `0 < u`,
+`g ^ u ≡ 1 [MOD N]` and `v` is coprime to `u`, for every `N`. The general form
+`not_strongRSA_of_knownOrder` takes any polynomial-time `v ≠ 1` coprime to `u`
+(`strongRSAGame_knownOrderAdversary`, `isPPT_knownOrderAdversary`); the book takes `v > 1`. The
+[checked examples](../../CslibFrontierTests/Crypto/StrongRSA.lean) cover `N = 15` and `g = 2`,
+where `orderMultipleAdversary` with `u = 4` wins, instances showing that `0 < u` is needed in
+`powMod_knownOrderRoot` and in `not_strongRSA_of_orderMultiple`, and the failure of the assumption
+for `rsaGUOSetup` with a fixed key (`not_strongRSA_rsaGUOSetup_const`).
+[`AssumptionNonvacuity.lean`](../../CslibFrontierTests/Crypto/AssumptionNonvacuity.lean) shows
+that `StrongRSA` fails for a fixed modulus and unit base (`not_strongRSA_const`), and the checked
+examples show that the unit condition is needed there (`strongRSA_const_four_two`).
+
 For Shamir's trick ([bs23][bs23], §10.6.2, Theorem 10.6, p. 416), import
 [`RSACommonRoot.lean`](../../CslibFrontier/Crypto/Computational/RSACommonRoot.lean); the group
 identity behind it is in
@@ -1142,12 +1233,14 @@ hypotheses together with `Nat.Coprime y n`, `x` is coprime to `n`, the book's `x
 time whenever `n`, `e`, `f`, `w` and `y` are, as natural numbers on `encNat`, with no condition on
 their values. The statement differs from the book's in three ways. The exponents are natural
 numbers, whereas the book allows negative ones and applies the theorem with `f = b' - b`
-([bs23][bs23], proof of Theorem 10.7, p. 417). The book states only `x ^ e ≡ y`; the second
+([bs23][bs23], proof of Theorem 10.7, p. 417); `rsaHashRoot` orders the pair so that natural
+exponents suffice there. The book states only `x ^ e ≡ y`; the second
 congruence is the one §10.9 uses to recover each proof from an aggregate ([bs23][bs23], §10.9,
 p. 422). The book takes units `w` and `y` modulo `n`, whereas here `w` and `y` are natural numbers,
 not necessarily below `n`, and the two congruences assume only `Nat.Coprime w n`: for `f ≠ 0` it
-makes `y` coprime to `n`, and for `f = 0` they do not need it. Theorem 10.7 and the accumulator
-of §10.9 are not formalized. In `RSAAttacks.lean`, `commonRoot_rsaEval` applies the
+makes `y` coprime to `n`, and for `f = 0` they do not need it. The accumulator of §10.9 is in
+`GUOAccumulator.lean` (below), without its security theorem. In `RSAAttacks.lean`,
+`commonRoot_rsaEval` applies the
 algorithm to the common-modulus attack on plain RSA: for `Nat.Coprime e₁ e₂` and
 `Nat.Coprime m N`, `commonRoot N e₂ e₁ (rsaEval N e₁ m) (rsaEval N e₂ m) = m % N`, so
 `computableInPolyTime_commonRoot` is also the attack's certificate. The checked examples for the
@@ -1155,6 +1248,47 @@ algorithm to the common-modulus attack on plain RSA: for `Nat.Coprime e₁ e₂`
 [algorithm](../../CslibFrontierTests/Crypto/RSACommonRoot.lean) include the book's warm-up
 `e = 3`, `f = 2`, the case `f = 1`, and instances showing that coprime exponents, a unit `w` and
 commutativity are needed.
+
+For the accumulator in a group of unknown order ([bs23][bs23], §10.9, pp. 421–423), import
+[`GUOAccumulator.lean`](../../CslibFrontier/Crypto/Computational/GUOAccumulator.lean). The group
+is `(ℤ/Nℤ)ˣ` with a base `g`, its elements are natural numbers, and the hash is any `H : X → ℕ`.
+`guoCommit N g H S` is `g ^ guoExponent H S mod N`, with the product of the hashes of the finite
+set `S` in the exponent, and `guoCommit_insert` raises it to the power `H x` when `x ∉ S` is added.
+`guoSubsetWitness N g H S T` is `g` to the product of the hashes over `S \ T`: the membership proof
+for `T = {x}`, the book's `π_xy` for `T = {x, y}` and `π_T` in general. Bob's check `b ^ e = c` is
+`guoVerifySubset N c e b`. Against `c = guoCommit N g H S`, the witness for `T` passes it with
+`e = guoExponent H T` when `T ⊆ S` (`guoVerifySubset_subsetWitness`), the witness for `{x}` with
+`e = H x` when `x ∈ S` (`guoVerifySubset_singleton`), and the witness for `{x, y}` with
+`e = H x * H y` when `x` and `y` are distinct elements of `S` (`guoVerifySubset_pair`). If `b`
+passes with `e * f`, then `b ^ f mod N` passes with `e` (`guoVerifySubset_split`); if `b₁` and `b₂`
+pass against a unit `c` with coprime exponents `e` and `f`, Shamir's trick gives a proof that
+passes with `e * f` (`guoVerifySubset_commonRoot`). A non-membership proof is a pair `(b, γ)` with
+`γ : ℤ`, and `guoVerifyNonMem N g c h b γ` checks that `c` is a unit and that `b ^ h * c ^ γ = g`,
+comparing `b ^ h` with `g * c ^ |γ|` when `γ < 0`, so no inverse is computed. Alice's proof
+`(guoNonMemWitness N g h E, -guoNonMemCoeff h E)` passes against `c = powMod N g E` whenever `g`
+is a unit, `0 < h` and `Nat.Coprime h E` (`guoVerifyNonMem_witness`), so it passes against
+`guoCommit` for a prime `H x` distinct from the prime hashes of `S` (`coprime_guoExponent`,
+`guoVerifyNonMem_guoCommit`). The book's remark that correctness relies on the collision
+resistance of `H` is stated as an explicit collision: if `x ∉ S`, `H x` and the hashes of `S` are
+prime and `H x` is not coprime to `guoExponent H S`, then some `y ∈ S` other than `x` has
+`H y = H x` (`exists_collision_of_not_coprime_guoExponent`); no game against a hash family is
+stated. If `a` passes `guoVerifySubset N c h a` and `(b, γ)` passes `guoVerifyNonMem N g c h b γ`
+for the same `c` and `h`, then `guoForgeryRoot N a b γ`, which computes `b * a ^ γ mod N`, is an
+`h`-th root of `g` modulo `N` (`powMod_guoForgeryRoot`), with no hypothesis on `N`, `g` or `h`:
+this is the algebra of the book's security argument (p. 422). Both checks, Alice's non-membership
+proof and the root are computable in polynomial time, with `γ` on `encIntBin` and the natural
+numbers on `encNat` (`computableInPolyTime_guoVerifySubset`,
+`computableInPolyTime_guoVerifyNonMem`, `computableInPolyTime_neg_guoNonMemCoeff`,
+`computableInPolyTime_guoNonMemWitness`, `computableInPolyTime_guoForgeryRoot`);
+`computableInPolyTime_guoNonMemCoeff` certifies the natural number `-γ` on `encNat`. The
+statements differ from the book's in two further places: the book's
+`π_T = g ^ (E / ∏ x ∈ T, H x)` equals `guoSubsetWitness` when `T ⊆ S` and no hash is `0`, and for
+`0 < H x` Alice's `γ` satisfies `|γ| < H x` where the book has `|γ| ≤ H(x)` (`guoNonMemCoeff_lt`).
+Security under strong RSA, a certificate for computing `E` from a list of elements, aggregated
+non-membership proofs and class groups are not formalized in this module. The
+[checked examples](../../CslibFrontierTests/Crypto/GUOAccumulator.lean) work modulo `35` with
+`g = 2` and the hashes `3`, `5` and `7`, and include instances showing that the unit commitment,
+the unit base, `0 < h`, prime hashes and the unit check on `c` are needed.
 
 For weak RSA moduli ([bs23][bs23], §16.4.2, pp. 698–699), import
 [`Factoring/WeakModuli.lean`](../../CslibFrontier/Crypto/Computational/Factoring/WeakModuli.lean).
@@ -1801,6 +1935,8 @@ bits of a key-leaking scheme, with and without the oracle, and rewrite `gameOn` 
 `scripts/build.sh CslibFrontierTests.Crypto.PKEScheme`. The PPT transfer is checked in
 [`CslibFrontierTests/Crypto/Experiment.lean`](../../CslibFrontierTests/Crypto/Experiment.lean).
 
+For functional encryption at one fixed scheme (Boneh–Shoup v0.6, Section 15.7, Definitions 15.13 and 15.15, Attack Game 15.9, Example 15.1 and Remark 15.13, pp. 658–661 [bs23][bs23]), import [`Encryption/Functional.lean`](../../CslibFrontier/Crypto/Computational/Encryption/Functional.lean). `FE MPK MSK Fn SK M C Y` packages `setup`, `keyGen`, `encrypt` and deterministic `decrypt`, and `FE.Functionality Fn M Y` bundles `eval : Fn → M → Option Y` with the null identifier `null : Fn` (`ε`); `FE.Correct` and `FE.Robust` state correctness and ciphertext robustness. Both `eval` and `decrypt` return `Option Y`, using `none` for `⊥` in `eval` and for both `⊥` and rejection in `decrypt`, so the book's robustness implies `FE.Robust` while the converse can fail for a scheme that outputs `⊥` where the functionality has a value. In `E.ssExperiment F A b`, the challenger generates `(mpk, msk)` and `skNull ← E.keyGen msk F.null`, runs the two stages of `A : FE.Adversary MPK Fn SK M C σ` against the logged key-generation oracle `E.keyGen msk` (`ProbOracleComp.runLog`, with `ProbOracleComp.runLog_sample` in [`Oracle/RunState.lean`](../../CslibFrontier/Languages/Probabilistic/Oracle/RunState.lean)) around a single challenge encryption, and enforces the query restriction at the end by returning `guess && F.admissible ((log₁ ++ log₂).map Prod.fst) pair`, so any run in which `F.null` or a pre- or post-challenge key query distinguishes the challenge messages outputs `false` in both experiments. When `F.eval F.null` is injective, `FE.eval_ssExperiment_eq_of_injective_null` and `FE.advantage_ssExperiment_eq_zero_of_injective_null` (specialized to `FE.Functionality.pke` in `FE.advantage_ssExperiment_pke_eq_zero`) show that every scheme—including the cleartext scheme `FE.cleartext F` (`FE.cleartext_correct`, `FE.cleartext_robust`)—has semantic-security advantage `0` against every adversary (Remark 15.13). For a public-key scheme `E : PKE PK SK M C`, `E.toFE leak` implements Example 15.1 over `FE.Functionality.pke len`, with correctness characterized by `PKE.toFE_correct_iff`, and `PKE.eval_ssExperiment_toFE_ofTwoStage` shows that against `FE.Adversary.ofTwoStage A` (which makes no key queries; this compares the two experiments and is not a reduction or efficiency claim) the game coincides with `E.cpaExperiment` with admissibility rule `len m₀ = len m₁`. Asymptotic security over scheme families and efficient typed oracle adversaries (Definition 15.14), identity-based encryption (Example 15.2), and Exercises 15.21–15.22 are not formalized here. The [checked examples](../../CslibFrontierTests/Crypto/FunctionalEncryption.lean) exercise `FE.cleartext`, `FE.Robust`, pre- and post-challenge key queries, Remark 15.13 and `PKE.toFE`; run `scripts/build.sh CslibFrontierTests.Crypto.FunctionalEncryption`.
+
 To replace the honest public-key distribution by another law, such as lossy or uniform keys, import
 [`Encryption/PublicKeyReplacement.lean`](../../CslibFrontier/Crypto/Computational/Encryption/PublicKeyReplacement.lean).
 `publicKeyGameOn valid keys encrypt adversary bit n` is `gameOn valid` with its public key drawn
@@ -2280,15 +2416,19 @@ forward permutation queries: a collision between distinct messages triggers `Ima
 the output map (E1), `ZeroCapacity` (E2) or `ImageCollision` for `Prod.snd` (E3) among the
 evaluated inputs. `hash_eq_of_capacity_eq` extends any capacity collision to a hash collision, and
 `hash_prodCongr_collision` answers Exercise 7.26. Inverse queries, Claim 7.9 and the bound of
-Theorem 7.7 are not formalized. The block-cipher module defines Davies–Meyer (`daviesMeyer`) and
-the compression functions of Exercise 7.23(a) and (c) (`cipherOutput`, `keyMasked`), with
-inverse-query collisions (`cipherOutput_collision`, `keyMasked_collision`) and the fixed-point
+Theorem 7.7 are not formalized. The block-cipher module defines Davies–Meyer (`daviesMeyer`),
+the compression functions of [katzlindell20][katzlindell20] Exercise 7.23(a) and (c)
+(`cipherOutput`, `keyMasked` — which is `h₄` of Boneh–Shoup §8.5.2 [bs23][bs23] with its two
+arguments swapped), and `h₅` (`keyMaskedInput`), with inverse-query collisions
+(`cipherOutput_collision`, `keyMasked_collision`, `keyMaskedInput_collision`) and the fixed-point
 collision of Exercise 7.24 (`daviesMeyer_collision_of_fixedPoints`); the Ideal-Cipher bound of
 Theorem 7.5 is proved in `daviesMeyer_collisionGame_le` and `daviesMeyer_collisionGame_mul_le`
 (combining `daviesMeyer_collision_difference_bound` with the forgetful collision bound) in
-[`CslibFrontier/Crypto/Primitives/IdealCipher/Compression.lean`](../../CslibFrontier/Crypto/Primitives/IdealCipher/Compression.lean). Concrete checks are in
-[`CslibFrontierTests/Crypto/Sponge.lean`](../../CslibFrontierTests/Crypto/Sponge.lean) and
-[`CslibFrontierTests/Crypto/IdealCipherCompression.lean`](../../CslibFrontierTests/Crypto/IdealCipherCompression.lean).
+[`CslibFrontier/Crypto/Primitives/IdealCipher/Compression.lean`](../../CslibFrontier/Crypto/Primitives/IdealCipher/Compression.lean), and the 2-query Ideal-Cipher collision finders for `keyMasked` and `keyMaskedInput` (Boneh–Shoup §8.5.2 and Exercise 8.11 [bs23][bs23], ideal-cipher model only) are in
+[`CslibFrontier/Crypto/Primitives/IdealCipher/CompressionVariants.lean`](../../CslibFrontier/Crypto/Primitives/IdealCipher/CompressionVariants.lean). Concrete checks are in
+[`CslibFrontierTests/Crypto/Sponge.lean`](../../CslibFrontierTests/Crypto/Sponge.lean),
+[`CslibFrontierTests/Crypto/IdealCipherCompression.lean`](../../CslibFrontierTests/Crypto/IdealCipherCompression.lean), and
+[`CslibFrontierTests/Crypto/IdealCipherCompressionVariants.lean`](../../CslibFrontierTests/Crypto/IdealCipherCompressionVariants.lean).
 
 For the single-oracle real-versus-ideal formulation of authenticated encryption ([katzlindell20][katzlindell20], §5.2, Definition 5.4 and Theorem 5.5, pp. 152–153), import [`Encryption/RealIdealAE.lean`](../../CslibFrontier/Crypto/Computational/Encryption/RealIdealAE.lean). `SymmetricCipher.aeRealGame` answers `n`-bit encryption queries honestly (recording returned ciphertexts and answering decryption queries on them with `[]`) and decrypts fresh ciphertexts via `encOption encBits (E.decrypt n k ct)`, whereas `aeIdealGame` encrypts `List.replicate n false` and answers every decryption query with `[]`; `RealIdealAE` asks every `IsOraclePPT encBool` adversary to have negligible advantage, and `realIdealAE_iff_indcca_and_ciphertextIntegrity` and `realIdealAE_iff_authenticatedEncryption` prove equivalence with `INDCCA ∧ CiphertextIntegrity` and `AuthenticatedEncryption` via `cpaToAEAdversary`, `ciToAEAdversary`, and `aeToCCAAdversary`. [`Encryption/HalfBlockPRP.lean`](../../CslibFrontier/Crypto/Computational/Encryption/HalfBlockPRP.lean) formalizes the half-block construction `BlockCipher.halfBlockCipher` (`F_k(r ‖ m)` on `2 n`-bit blocks, Exercises 5.8 and 5.9, p. 165) and shows via the zero-query `allOnesForger` that it fails `CiphertextIntegrity`, `AuthenticatedEncryption`, and `RealIdealAE` for every block cipher (its CCA security under a strong PRP is not formalized); checked instances over an identity cipher are in [`CslibFrontierTests/Crypto/RealIdealAEAndHalfBlock.lean`](../../CslibFrontierTests/Crypto/RealIdealAEAndHalfBlock.lean).
 
