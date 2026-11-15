@@ -80,9 +80,13 @@ compares named explicit lifts with a locally registered degree-to-polynomial `fu
 transition. Its irreducible test operations have only locally registered degree rules and no
 direct degree hypotheses in their clients. Separate cost/output indices, Boolean output degree
 zero, composition and negative controls before registration and after its scope are covered.
-Inspect the checked results and each named pair's profiler output before drawing a conclusion;
-elaboration and comparative timings remain pending. This experiment neither changes global
-automation nor supplies production-caller or shared-wrapper migration evidence.
+The checked experiment discovers the degree certificates and lifts them through the local
+transition. One hosted measurement on 2026-11-15, including profiler overhead, took about
+2.5/2.3/3.4 ms for the explicit pack/flag/composition proofs and 7.9/6.5/12.8 ms for
+local-transition search. These single observations establish neither a stable speed ratio nor
+a general performance result. The experiment supports retaining explicit lifts and keeping the
+transition local; it neither changes global automation nor supplies production-caller migration
+evidence.
 
 The two encoding commands share the degree-certificate proof terms in
 [`Internal.DegreeLifts`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/DegreeLifts.lean).
