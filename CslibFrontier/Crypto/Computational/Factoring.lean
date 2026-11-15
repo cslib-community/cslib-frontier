@@ -17,8 +17,8 @@ import Mathlib.Data.Nat.Prime.Basic
 # The integer factoring experiment and assumption
 
 The modulus-only integer factoring experiment `modulusFactoringGame` and hardness assumption
-`ModulusFactoringHard` ([KatzLindell2020], Section 9.2.3, Definition 9.45; [BonehShoup2023],
-Section 10.2), parameterized by an arbitrary modulus distribution `modGen : ℕ → PMF ℕ`.
+`ModulusFactoringHard` ([KatzLindell2020], Section 9.2.3, Definition 9.45), parameterized by an
+arbitrary modulus distribution `modGen : ℕ → PMF ℕ`.
 
 Also provides the shared challenge-input encoding `encModulusChallengeInput` (`(1^n, (N, y))`) used
 by modulus-parameterized assumptions (`QuadraticResiduosityHard`, `DCR`, `RabinOneWay`) and their
@@ -43,8 +43,11 @@ reductions to integer factoring, together with the semiprime unique-factorizatio
 
 * [J. Katz, Y. Lindell, *Introduction to Modern Cryptography*][KatzLindell2020],
   Section 9.2.3, Definition 9.45 (The Factoring Assumption).
-* [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023],
-  Section 10.2 (The Integer Factoring Assumption).
+  This is the source of the definitions.
+* [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023], context
+  only: the book states no factoring experiment or assumption. Section 16.4, p. 696 (Analyzing the
+  factoring and RSA assumptions), and the remark in Section 10.3, p. 404, that RSA can be one-way
+  only if factoring is hard.
 -/
 
 @[expose] public section
@@ -59,8 +62,8 @@ abbrev encModulusChallengeInput : (ℕ × ℕ × ℕ) ↪ List Bool :=
   encPair encUnary (encPair encNat encNat)
 
 /-- The modulus-only integer factoring experiment ([KatzLindell2020], Section 9.2.3,
-Definition 9.45; [BonehShoup2023], Section 10.2): sample `N ← modGen n`, run `A n N`, and accept
-when `A` returns a nontrivial factorization `1 < a`, `1 < b`, `a * b = N`. -/
+Definition 9.45): sample `N ← modGen n`, run `A n N`, and accept when `A` returns a nontrivial
+factorization `1 < a`, `1 < b`, `a * b = N`. -/
 noncomputable def modulusFactoringGame (modGen : ℕ → PMF ℕ) (A : ℕ → ℕ → ProbComp (ℕ × ℕ))
     (n : ℕ) : Game := do
   let N ← modGen n
@@ -68,8 +71,8 @@ noncomputable def modulusFactoringGame (modGen : ℕ → PMF ℕ) (A : ℕ → �
   return decide (1 < ab.1 ∧ 1 < ab.2 ∧ ab.1 * ab.2 = N)
 
 /-- The integer factoring assumption for a modulus distribution family `modGen : ℕ → PMF ℕ`
-([KatzLindell2020], Section 9.2.3, Definition 9.45; [BonehShoup2023], Section 10.2): every uniform
-PPT factoring algorithm succeeds with negligible probability. -/
+([KatzLindell2020], Section 9.2.3, Definition 9.45): every uniform PPT factoring algorithm succeeds
+with negligible probability. -/
 def ModulusFactoringHard (modGen : ℕ → PMF ℕ) : Prop :=
   ∀ A : ℕ → ℕ → ProbComp (ℕ × ℕ),
     IsPPTOn (encPair encUnary encNat) (encPair encNat encNat)

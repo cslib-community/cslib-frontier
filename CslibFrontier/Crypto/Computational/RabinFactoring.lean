@@ -84,8 +84,10 @@ charging the full binary-encoded inputs and sampled/callback outputs uniformly b
   Section 9.2.3, Definition 9.45 (The Factoring Assumption), Section 15.4 (Quadratic Residuosity),
   and Sections 15.5.1–15.5.2, Lemma 15.35, Theorem 15.36, Proposition 15.37, and Theorem 15.38
   (Computing Modular Square Roots; A Trapdoor Permutation Based on Factoring).
-* [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023],
-  Sections 10.2, 16.1, and 16.2.
+  This is the source of the definitions.
+* [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023], context
+  only: Exercise 16.9(a), p. 709 (a square-root oracle factors `n`), and Appendix A.2.3, p. 1097
+  (Quadratic residues).
 -/
 
 @[expose] public section

@@ -108,6 +108,11 @@ here, so Theorem 9.50 and Corollary 9.51 themselves are not claimed.
   Section 9.2.5, pp. 333–336 (Theorem 9.49, Theorem 9.50, and Corollary 9.51) and
   Section 12.5.1, pp. 436–440 (plain RSA encryption Construction 12.26 and its attacks for
   small messages and for one message sent to several receivers).
+  This is the source of the definitions.
+* [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023], context
+  only: the book has no private-exponent recovery experiment. Section 10.3, Attack Game 10.3
+  (p. 404) and Definition 10.5 (p. 405) state the RSA assumption, and Section 16.4, p. 696, gives
+  the algorithm that factors `N`, computes `d` and then inverts.
 -/
 
 public section
@@ -494,9 +499,9 @@ theorem totientHard_iff_modulusFactoringHard (gen : RSAGen) :
     TotientHard gen ↔ ModulusFactoringHard (fun n => (gen n).map RSADesc.modulus) :=
   ⟨TotientHard.modulusFactoringHard, ModulusFactoringHard.totientHard⟩
 
-/-- The RSA private-exponent recovery experiment ([KatzLindell2020], Section 9.2.5, Theorem 9.50;
-[BonehShoup2023], Section 10.2.1): sample `desc ← gen n`, run `K n desc.publicKey`, and accept when
-`K` returns an exponent `d'` with `desc.e * d' ≡ 1 [MOD desc.totient]`. -/
+/-- The RSA private-exponent recovery experiment ([KatzLindell2020], Section 9.2.5, Theorem 9.50):
+sample `desc ← gen n`, run `K n desc.publicKey`, and accept when `K` returns an exponent `d'` with
+`desc.e * d' ≡ 1 [MOD desc.totient]`. -/
 noncomputable def rsaKeyRecoveryGame (gen : RSAGen) (K : ℕ → RSAPublicKey → ProbComp ℕ)
     (n : ℕ) : Game := do
   let desc ← gen n
@@ -504,9 +509,8 @@ noncomputable def rsaKeyRecoveryGame (gen : RSAGen) (K : ℕ → RSAPublicKey �
   return decide (desc.e * d' % desc.totient = 1)
 
 /-- The RSA private-exponent recovery hardness assumption for `gen` ([KatzLindell2020],
-Section 9.2.5, Theorem 9.50; [BonehShoup2023], Section 10.2.1): every uniform PPT algorithm given
-`(N, e)` has negligible probability of finding a valid private exponent `d'` with
-`e * d' ≡ 1 [MOD φ(N)]`. -/
+Section 9.2.5, Theorem 9.50): every uniform PPT algorithm given `(N, e)` has negligible probability
+of finding a valid private exponent `d'` with `e * d' ≡ 1 [MOD φ(N)]`. -/
 def RSAKeyRecoveryHard (gen : RSAGen) : Prop :=
   ∀ K : ℕ → RSAPublicKey → ProbComp ℕ,
     IsPPTOn (encPair encUnary encRSAPublicKey) encNat (fun input => K input.1 input.2) →
