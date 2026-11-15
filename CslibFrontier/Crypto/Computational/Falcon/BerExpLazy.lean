@@ -9,8 +9,11 @@ module
 
 public import CslibFrontier.Crypto.Computational.Falcon.BerExp
 public import CslibFrontier.Crypto.Primitives.ByteString
+import CslibFrontier.Foundations.Data.BitString.List.BinaryOrder
 import CslibFrontier.Languages.Probabilistic.BitString
 import CslibFrontier.Languages.Probabilistic.Repeat
+import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF.UniformPoint
 import Mathlib.Tactic
@@ -160,10 +163,12 @@ theorem berExpLazyTrace_accepted {thresholds samples : List Byte}
       obtain ⟨sample, samples, rfl⟩ := List.exists_cons_of_length_eq_add_one hlength.symm
       simp only [List.length_cons, Nat.add_right_cancel_iff] at hlength
       rcases lt_trichotomy sample threshold with hlt | heq | hgt
-      · simp [berExpLazyTrace, hlt]
+      · have hcons : sample :: samples < threshold :: thresholds := List.Lex.rel hlt
+        simp [berExpLazyTrace, hlt, hcons]
       · subst sample
         simp [berExpLazyTrace, ih hlength]
-      · simp [berExpLazyTrace, hgt, hgt.asymm]
+      · have hcons : threshold :: thresholds < sample :: samples := List.Lex.rel hgt
+        simp [berExpLazyTrace, hgt, hgt.asymm, hcons.le]
 
 /-- A deterministic trace cannot read more pairs than either input supplies. -/
 theorem berExpLazyTrace_bytesRead_le (thresholds samples : List Byte) :
@@ -179,8 +184,15 @@ theorem berExpLazyTrace_bytesRead_le (thresholds samples : List Byte) :
           · by_cases hgt : threshold < sample
             · simp [berExpLazyTrace, hlt, hgt]
             · simp only [berExpLazyTrace, hlt, hgt, ite_false]
-              have := ih samples
-              omega
+              simp only [List.length_cons]
+              have hbound := ih samples
+              rcases le_total thresholds.length samples.length with hle | hle
+              · rw [Nat.min_eq_left hle] at hbound
+                rw [Nat.min_eq_left (Nat.add_le_add_right hle 1)]
+                omega
+              · rw [Nat.min_eq_right hle] at hbound
+                rw [Nat.min_eq_right (Nat.add_le_add_right hle 1)]
+                omega
 
 private theorem one_le_berExpLazyTrace_bytesRead (threshold : Byte) (thresholds : List Byte)
     (sample : Byte) (samples : List Byte) :
@@ -225,27 +237,30 @@ private def berExpThresholdBytes (threshold : BerExpThreshold) : List Byte :=
 private theorem bytesToBitsBE_berExpThresholdBytes (threshold : BerExpThreshold) :
     bytesToBitsBE (berExpThresholdBytes threshold) =
       BitString.binaryWord 64 threshold.val := by
-  apply BitString.binaryValue_injective_of_length_eq
-  · simp [berExpThresholdBytes]
-  · have hvalue := threshold.isLt
-    norm_num [berExpThresholdBytes, FixedBytes.toList, natToFixedBytesBE,
-      List.ofFn_succ, bytesToBitsBE, byteBitsBE, BitString.binaryValue_append] at hvalue ⊢
-    omega
+  rw [berExpThresholdBytes, bytesToBitsBE_natToFixedBytesBE]
+  congr 1
+  exact Nat.mod_eq_of_lt threshold.isLt
 
 private theorem berExpThresholdBytes_lt_iff (left right : BerExpThreshold) :
     berExpThresholdBytes left < berExpThresholdBytes right ↔ left.val < right.val := by
   have hlength : (berExpThresholdBytes left).length =
       (berExpThresholdBytes right).length := by simp
+  have hwordLength (value : BerExpThreshold) :
+      (BitString.binaryWord 64 value.val).length = 64 :=
+    BitString.length_binaryWord value.isLt
+  have hwordLengthEq : (BitString.binaryWord 64 left.val).length =
+      (BitString.binaryWord 64 right.val).length :=
+    (hwordLength left).trans (hwordLength right).symm
   constructor
   · intro hbytes
     have hbits := (bytesToBitsBE_lt_iff_lt hlength).mpr hbytes
     rw [bytesToBitsBE_berExpThresholdBytes, bytesToBitsBE_berExpThresholdBytes] at hbits
-    have hvalues := (BitString.binaryValue_lt_iff_lt (by simp)).mpr hbits
+    have hvalues := (BitString.binaryValue_lt_iff_lt hwordLengthEq).mpr hbits
     simpa using hvalues
   · intro hvalues
     apply (bytesToBitsBE_lt_iff_lt hlength).mp
     rw [bytesToBitsBE_berExpThresholdBytes, bytesToBitsBE_berExpThresholdBytes]
-    apply (BitString.binaryValue_lt_iff_lt (by simp)).mp
+    apply (BitString.binaryValue_lt_iff_lt hwordLengthEq).mp
     simpa using hvalues
 
 /-- On two 64-bit words, the lazy trace returns the fixed threshold decision. -/
@@ -255,8 +270,8 @@ theorem berExpLazyTrace64_accepted (threshold sample : BerExpThreshold) :
         berExpThresholdAccepts threshold sample.val := by
   change (berExpLazyTrace (berExpThresholdBytes threshold)
     (berExpThresholdBytes sample)).accepted = _
-  rw [berExpLazyTrace_accepted (by simp), berExpThresholdAccepts,
-    berExpThresholdBytes_lt_iff]
+  rw [berExpLazyTrace_accepted (by simp), berExpThresholdAccepts]
+  exact decide_eq_decide.mpr (berExpThresholdBytes_lt_iff sample threshold)
 
 /-- Reduce a natural value to the shared unsigned-byte type. -/
 private def berExpByteOfNat (value : Nat) : Byte :=
@@ -269,10 +284,14 @@ private noncomputable def berExpLazyByte : ProbComp Byte :=
 private theorem eval_berExpLazyByte :
     ProbComp.eval berExpLazyByte = PMF.uniformOfFintype Byte := by
   rw [berExpLazyByte, ProbComp.eval_map, ProbComp.eval_sampleBinaryNat, PMF.map_comp]
-  convert PMF.map_id (PMF.uniformOfFintype (Fin (2 ^ 8))) using 1
-  funext value
-  apply Fin.ext
-  simp [berExpByteOfNat, Nat.mod_eq_of_lt value.isLt]
+  calc
+    (PMF.uniformOfFintype (Fin (2 ^ 8))).map (berExpByteOfNat ∘ Fin.val) =
+        (PMF.uniformOfFintype (Fin (2 ^ 8))).map id := by
+      apply PMF.map_congr_on_support
+      intro value _hvalue
+      apply Fin.ext
+      simp [berExpByteOfNat]
+    _ = _ := PMF.map_id _
 
 /-- Make sequential eight-bit draws until a byte differs from the corresponding threshold byte. -/
 private noncomputable def berExpLazyBytes : List Byte → ProbComp BerExpLazyResult
@@ -300,20 +319,32 @@ private theorem eval_berExpLazyBytes (thresholds : List Byte) :
   induction thresholds with
   | nil => simp [berExpLazyBytes, berExpLazyTrace]
   | cons threshold thresholds ih =>
-      rw [berExpLazyBytes, OracleComp.replicate_succ]
-      simp only [ProbComp.eval_bind, ProbComp.eval_map, PMF.map_bind, PMF.bind_map,
-        Function.comp_def]
+      rw [berExpLazyBytes]
+      simp only [List.length_cons]
+      rw [OracleComp.replicate_succ]
+      simp only [ProbComp.eval_bind, ProbComp.eval_map, PMF.map_bind]
       apply PMF.bind_congr_on_support
       intro sample _hsample
       by_cases hlt : sample < threshold
-      · simp [berExpLazyTrace, hlt, BerExpLazyResult.stop]
+      · rw [PMF.map_comp]
+        rw [ite_eq_left hlt, ProbComp.eval_pure]
+        rw [← PMF.map_const _ (BerExpLazyResult.stop true)]
+        apply PMF.map_congr_on_support
+        intro result _hresult
+        simp [berExpLazyTrace, hlt, BerExpLazyResult.stop]
       · by_cases hgt : threshold < sample
-        · simp [berExpLazyTrace, hlt, hgt, BerExpLazyResult.stop]
+        · rw [PMF.map_comp]
+          rw [ite_eq_right hlt, ite_eq_left hgt, ProbComp.eval_pure]
+          rw [← PMF.map_const _ (BerExpLazyResult.stop false)]
+          apply PMF.map_congr_on_support
+          intro result _hresult
+          simp [berExpLazyTrace, hlt, hgt, BerExpLazyResult.stop]
         · have heq : sample = threshold := le_antisymm (not_lt.mp hgt) (not_lt.mp hlt)
           subst sample
-          simp only [lt_self_iff_false, ite_false, ih, PMF.map_comp, Function.comp_def]
+          rw [ite_eq_right hlt, ite_eq_right hgt]
+          rw [ProbComp.eval_map, ih, PMF.map_comp, PMF.map_comp]
           congr 1 with result : 1
-          rfl
+          simp [berExpLazyTrace, BerExpLazyResult.next]
 
 private theorem bytesToBitsBE_map_berExpByteOfNat_listRows : ∀ (count : Nat)
     {bits : List Bool}, bits.length = count * 8 →
@@ -322,7 +353,10 @@ private theorem bytesToBitsBE_map_berExpByteOfNat_listRows : ∀ (count : Nat)
   | 0, bits, hlength => by
       have hbits : bits = [] := List.length_eq_zero_iff.mp (by simpa using hlength)
       subst bits
-      simp [bytesToBitsBE]
+      have hrows : BitString.listRows 0 8 [] = [] :=
+        List.length_eq_zero_iff.mp (by simp)
+      rw [hrows]
+      rfl
   | count + 1, bits, hlength => by
       let head := bits.take 8
       let tail := bits.drop 8
@@ -335,9 +369,14 @@ private theorem bytesToBitsBE_map_berExpByteOfNat_listRows : ∀ (count : Nat)
         omega
       have hsplit : bits = head ++ tail := (List.take_append_drop 8 bits).symm
       have hbyte : berExpByteOfNat (BitString.binaryValue head) = byteOfBitsBE head := by
+        have hvalue := congrArg BitString.binaryValue (byteBitsBE_byteOfBitsBE head hhead)
+        have hbyteValue : (byteOfBitsBE head).val = BitString.binaryValue head := by
+          simpa only [byteBitsBE, BitString.binaryValue_binaryWord] using hvalue
         apply Fin.ext
-        simp [berExpByteOfNat, byteOfBitsBE, List.take_of_length_le hhead.le,
-          Nat.mod_eq_of_lt (by simpa only [hhead] using BitString.binaryValue_lt_two_pow head)]
+        change BitString.binaryValue head % 256 = (byteOfBitsBE head).val
+        rw [Nat.mod_eq_of_lt (by
+          simpa only [hhead] using BitString.binaryValue_lt_two_pow head)]
+        exact hbyteValue.symm
       rw [hsplit, BitString.listRows_succ_append count 8 hhead tail]
       simp only [List.map_cons, bytesToBitsBE, hbyte]
       rw [byteBitsBE_byteOfBitsBE head hhead,
@@ -352,33 +391,69 @@ theorem eval_berExpLazyCoin_accepted (threshold : BerExpThreshold) :
     berExpLazyByte (fun bits => berExpByteOfNat (BitString.binaryValue bits)) (by
       simp only [berExpLazyByte, ProbComp.sampleBinaryNat, ProbComp.eval_map,
         BitString.eval_sampleList, PMF.map_comp, Function.comp_def])
-  rw [hrepeated]
-  simp only [PMF.map_comp, Function.comp_def, berExpThresholdCoin,
-    ProbComp.sampleBinaryNat, ProbComp.eval_bind, ProbComp.eval_map,
-    BitString.eval_sampleList, ProbComp.eval_pure, PMF.bind_map, PMF.bind_pure_comp]
-  apply PMF.map_congr_on_support
-  intro tape htape
-  have htapeLength : tape.length = 64 :=
-    BitString.length_of_mem_support_uniformList htape
-  rw [berExpLazyTrace_accepted (by simp), berExpThresholdAccepts]
-  apply decide_eq_decide.mpr
-  calc
-    (BitString.listRows 8 8 tape).map
-          (fun bits => berExpByteOfNat (BitString.binaryValue bits)) <
-        berExpThresholdBytes threshold ↔
-        bytesToBitsBE ((BitString.listRows 8 8 tape).map
-          (fun bits => berExpByteOfNat (BitString.binaryValue bits))) <
-            bytesToBitsBE (berExpThresholdBytes threshold) :=
-      (bytesToBitsBE_lt_iff_lt (by simp)).symm
-    _ ↔ tape < BitString.binaryWord 64 threshold.val := by
-      rw [bytesToBitsBE_map_berExpByteOfNat_listRows 8 (by simpa using htapeLength),
-        bytesToBitsBE_berExpThresholdBytes]
-    _ ↔ BitString.binaryValue tape <
-        BitString.binaryValue (BitString.binaryWord 64 threshold.val) :=
-      (BitString.binaryValue_lt_iff_lt (by
-        simpa using htapeLength.trans (BitString.length_binaryWord threshold.isLt).symm)).symm
-    _ ↔ BitString.binaryValue tape < threshold.val := by
-      rw [BitString.binaryValue_binaryWord]
+  rw [length_berExpThresholdBytes, hrepeated]
+  simp only [PMF.map_comp, Function.comp_def]
+  have heq :
+      (BitString.uniformList (8 * 8)).map (fun tape =>
+        (berExpLazyTrace (berExpThresholdBytes threshold)
+          ((BitString.listRows 8 8 tape).map
+            (fun bits => berExpByteOfNat (BitString.binaryValue bits)))).accepted) =
+        (BitString.uniformList (8 * 8)).map
+          (fun tape => decide (BitString.binaryValue tape < threshold.val)) := by
+    apply PMF.map_congr_on_support
+    intro tape htape
+    have htapeLength : tape.length = 64 :=
+      BitString.length_of_mem_support_uniformList htape
+    rw [berExpLazyTrace_accepted (by simp)]
+    apply decide_eq_decide.mpr
+    calc
+      (BitString.listRows 8 8 tape).map
+            (fun bits => berExpByteOfNat (BitString.binaryValue bits)) <
+          berExpThresholdBytes threshold ↔
+          bytesToBitsBE ((BitString.listRows 8 8 tape).map
+            (fun bits => berExpByteOfNat (BitString.binaryValue bits))) <
+              bytesToBitsBE (berExpThresholdBytes threshold) :=
+        (bytesToBitsBE_lt_iff_lt (by simp)).symm
+      _ ↔ tape < BitString.binaryWord 64 threshold.val := by
+        rw [bytesToBitsBE_map_berExpByteOfNat_listRows 8 (by simpa using htapeLength),
+          bytesToBitsBE_berExpThresholdBytes]
+      _ ↔ BitString.binaryValue tape <
+          BitString.binaryValue (BitString.binaryWord 64 threshold.val) :=
+        (BitString.binaryValue_lt_iff_lt (by
+          simpa using htapeLength.trans (BitString.length_binaryWord threshold.isLt).symm)).symm
+      _ ↔ BitString.binaryValue tape < threshold.val := by
+        rw [BitString.binaryValue_binaryWord]
+  rw [heq]
+  have htrue :
+      ((BitString.uniformList (8 * 8)).map
+        (fun tape => decide (BitString.binaryValue tape < threshold.val))) true =
+          (threshold.val : ENNReal) / 2 ^ 64 := by
+    rw [show 8 * 8 = 64 by norm_num,
+      show (fun tape => decide (BitString.binaryValue tape < threshold.val)) =
+          (fun value : Nat => decide (value < threshold.val)) ∘ BitString.binaryValue by rfl,
+      ← PMF.map_comp,
+      BitString.uniformList_binaryValue, PMF.map_comp,
+      show ((fun value : Nat => decide (value < threshold.val)) ∘ Fin.val) =
+          (fun value : Fin (2 ^ 64) => decide (value.val < threshold.val)) by rfl,
+      Cslib.Probability.uniformFin_decide_lt, Nat.min_eq_right threshold.isLt.le]
+    norm_num
+  apply PMF.ext
+  intro result
+  cases result with
+  | true => exact htrue.trans (eval_berExpThresholdCoin_true threshold).symm
+  | false =>
+      apply (ENNReal.toReal_eq_toReal_iff'
+        (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _)).mp
+      calc
+        (((BitString.uniformList (8 * 8)).map
+          (fun tape => decide (BitString.binaryValue tape < threshold.val))) false).toReal =
+            1 - (((BitString.uniformList (8 * 8)).map
+              (fun tape => decide (BitString.binaryValue tape < threshold.val))) true).toReal :=
+          PMF.toReal_false_eq_one_sub _
+        _ = 1 - (ProbComp.eval (berExpThresholdCoin threshold) true).toReal := by
+          rw [htrue, eval_berExpThresholdCoin_true]
+        _ = (ProbComp.eval (berExpThresholdCoin threshold) false).toReal :=
+          (PMF.toReal_false_eq_one_sub _).symm
 
 /-- The lazy comparison accepts with the same exact mass `z / 2^64`. -/
 theorem eval_berExpLazyCoin_accepted_true (threshold : BerExpThreshold) :
@@ -406,10 +481,12 @@ theorem mem_support_berExpLazyCoin_bytesRead {threshold : BerExpThreshold}
     rw [hnil] at hsamplesLength
     simp only [List.length_nil] at hsamplesLength
     omega
-  obtain ⟨thresholdByte, thresholdBytes, rfl⟩ :=
+  obtain ⟨thresholdByte, thresholdBytes, hthreshold⟩ :=
     List.exists_cons_of_ne_nil hthresholdNonempty
-  obtain ⟨sampleByte, sampleBytes, rfl⟩ :=
+  obtain ⟨sampleByte, sampleBytes, hsamplesEq⟩ :=
     List.exists_cons_of_ne_nil hsamplesNonempty
+  rw [hthreshold] at hthresholdLength ⊢
+  rw [hsamplesEq] at hsamplesLength ⊢
   constructor
   · exact one_le_berExpLazyTrace_bytesRead thresholdByte thresholdBytes sampleByte sampleBytes
   · have hbound := berExpLazyTrace_bytesRead_le
@@ -442,11 +519,17 @@ private theorem berExpLazyTrace_bytesRead_gt_one {first second : Byte}
   by_cases hlt : sample < first
   · simp [berExpLazyTrace, hlt, hlt.ne]
   · by_cases hgt : first < sample
-    · simp [berExpLazyTrace, hlt, hgt, hgt.ne]
+    · rw [berExpLazyTrace, ite_eq_right hlt, ite_eq_left hgt]
+      apply decide_eq_decide.mpr
+      simp only [List.headD_cons]
+      exact iff_of_false (by omega) hgt.ne'
     · have heq : sample = first := le_antisymm (not_lt.mp hgt) (not_lt.mp hlt)
       subst sample
       have hone := one_le_berExpLazyTrace_bytesRead second thresholds nextSample remaining
-      simp [berExpLazyTrace, hone]
+      rw [berExpLazyTrace]
+      apply decide_eq_decide.mpr
+      simp only [lt_self_iff_false, ite_false, List.headD_cons, eq_self, iff_true]
+      omega
 
 private theorem eval_berExpLazyBytes_bytesRead_gt_one (first second : Byte)
     (thresholds : List Byte) :
@@ -461,10 +544,26 @@ private theorem eval_berExpLazyBytes_bytesRead_gt_one (first second : Byte)
       exact ((ProbComp.mem_support_replicate_iff _ _ _).mp hsamples).1))
   rw [show (first :: second :: thresholds).length = (thresholds.length + 1) + 1 by simp,
     OracleComp.replicate_succ]
-  simp only [ProbComp.eval_bind, ProbComp.eval_map, PMF.map_bind, PMF.bind_map,
-    Function.comp_def, List.headD_cons, PMF.map_const, PMF.bind_pure_comp,
-    Probability.PMF.map_decide_eq_apply_true]
-  rw [eval_berExpLazyByte, PMF.uniformOfFintype_apply]
+  simp only [ProbComp.eval_bind, ProbComp.eval_map, PMF.map_bind, PMF.map_comp,
+    Function.comp_def]
+  have hbind := PMF.bind_congr_on_support (ProbComp.eval berExpLazyByte)
+    (fun sample =>
+      (ProbComp.eval (OracleComp.replicate (thresholds.length + 1) berExpLazyByte)).map
+        (fun samples => decide ((sample :: samples).headD 0 = first)))
+    (fun sample => PMF.pure (decide (sample = first))) (fun sample _hsample => by
+      calc
+        (ProbComp.eval
+            (OracleComp.replicate (thresholds.length + 1) berExpLazyByte)).map
+              (fun samples => decide ((sample :: samples).headD 0 = first)) =
+            (ProbComp.eval
+              (OracleComp.replicate (thresholds.length + 1) berExpLazyByte)).map
+                (fun _samples => decide (sample = first)) := by
+          apply PMF.map_congr_on_support
+          intro samples _hsamples
+          exact decide_eq_decide.mpr (by simp)
+        _ = PMF.pure (decide (sample = first)) := PMF.map_const _ _)
+  rw [hbind, Probability.PMF.bind_pure_decide_eq_apply_true',
+    eval_berExpLazyByte, PMF.uniformOfFintype_apply]
   norm_num
 
 /-- The lazy comparison reads a second byte with exact probability `2^-8`, independently of the
@@ -476,12 +575,23 @@ theorem eval_berExpLazyCoin_bytesRead_gt_one (threshold : BerExpThreshold) :
   have hlength : bytes.length = 8 := length_berExpThresholdBytes threshold
   obtain ⟨first, second, rest, hbytes⟩ :
       ∃ first second rest, bytes = first :: second :: rest := by
-    cases bytes with
-    | nil => simp at hlength
-    | cons first tail =>
-        cases tail with
-        | nil => simp at hlength
-        | cons second rest => exact ⟨first, second, rest, rfl⟩
+    have hbytesNonempty : bytes ≠ [] := by
+      intro hnil
+      rw [hnil] at hlength
+      simp only [List.length_nil] at hlength
+      omega
+    obtain ⟨first, tail, hfirst⟩ := List.exists_cons_of_ne_nil hbytesNonempty
+    have htailLength : tail.length = 7 := by
+      rw [hfirst] at hlength
+      simp only [List.length_cons] at hlength
+      omega
+    have htailNonempty : tail ≠ [] := by
+      intro hnil
+      rw [hnil] at htailLength
+      simp only [List.length_nil] at htailLength
+      omega
+    obtain ⟨second, rest, hsecond⟩ := List.exists_cons_of_ne_nil htailNonempty
+    exact ⟨first, second, rest, hfirst.trans (congrArg (List.cons first) hsecond)⟩
   have hthresholdBytes : berExpThresholdBytes threshold = first :: second :: rest := by
     simpa only [bytes] using hbytes
   rw [berExpLazyCoin, hthresholdBytes]

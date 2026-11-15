@@ -8,6 +8,7 @@ module
 -- upstream: local-only (test)
 
 public import CslibFrontier.Crypto.Computational.Falcon.BerExpLazy
+public meta import CslibFrontier.Crypto.Computational.Falcon.BerExpLazy
 
 /-!
 # Tests for the Falcon v1.2 BerExp lazy-byte trace
@@ -18,11 +19,16 @@ mass. They also exercise the shared byte encoding and exact source-resource fiel
 test floating-point threshold construction, a PRNG buffer or Gaussian sampling.
 -/
 
+-- This module checks the exported Falcon API and exports no test fixtures.
+set_option linter.privateModule false
+
 public section
 
 namespace CslibFrontierTests.Crypto.FalconBerExpLazy
 
 open Cslib Cslib.Crypto Cslib.Crypto.Falcon Probability
+
+set_option linter.hashCommand false
 
 #guard (berExpLazyTrace [16, 32] [15, 255]).accepted
 #guard (berExpLazyTrace [16, 32] [15, 255]).bytesRead == 1

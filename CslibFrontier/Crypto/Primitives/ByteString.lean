@@ -36,6 +36,8 @@ with a different within-byte convention, such as FIPS 202's Keccak, keep that co
   byte to bits and back is exact in either direction.
 * `Cslib.Crypto.bytesToBitsBE_bitsToFixedBytesBE`: an exact-length bit string round-trips through
   typed bytes.
+* `Cslib.Crypto.bytesToBitsBE_natToFixedBytesBE`: natural-number serialization retains exactly
+  its low `8n` bits.
 * `Cslib.Crypto.bytesToBitsBE_lt_iff_lt`: equal-length byte strings and their big-endian bit
   serializations have the same lexicographic order.
 -/
@@ -190,5 +192,51 @@ def bitsToFixedBytesBE (n : ℕ) (bits : List Bool) : FixedBytes n := fun i =>
 /-- Encode a natural number as exactly `n` big-endian bytes, retaining its low `8n` bits. -/
 def natToFixedBytesBE (n value : ℕ) : FixedBytes n := fun i =>
   ⟨value / 2 ^ (8 * (n - 1 - i.val)) % 256, Nat.mod_lt _ (by decide)⟩
+
+private theorem natToFixedBytesBE_toList_succ (n value : ℕ) :
+    (natToFixedBytesBE (n + 1) value).toList =
+      ⟨value / 2 ^ (8 * n) % 256, Nat.mod_lt _ (by decide)⟩ ::
+        (natToFixedBytesBE n value).toList := by
+  simp only [natToFixedBytesBE, FixedBytes.toList, List.ofFn_succ]
+  congr 1
+  apply List.ofFn_inj.mpr
+  funext i
+  apply Fin.ext
+  dsimp only
+  rw [Fin.val_succ]
+  congr 3
+  omega
+
+/-- Serializing a natural number as `n` bytes produces its low `8n` bits in big-endian order. -/
+theorem bytesToBitsBE_natToFixedBytesBE (n value : ℕ) :
+    bytesToBitsBE (natToFixedBytesBE n value).toList =
+      binaryWord (8 * n) (value % 2 ^ (8 * n)) := by
+  induction n with
+  | zero =>
+      change [] = binaryWord 0 (value % 1)
+      rw [Nat.mod_one]
+      rfl
+  | succ n ih =>
+      rw [natToFixedBytesBE_toList_succ]
+      simp only [bytesToBitsBE, byteBitsBE, ih]
+      apply binaryValue_injective_of_length_eq
+      · rw [List.length_append,
+          length_binaryWord (Nat.mod_lt _ (by decide)),
+          length_binaryWord (Nat.mod_lt _ (Nat.two_pow_pos _)),
+          length_binaryWord (Nat.mod_lt _ (Nat.two_pow_pos _))]
+        omega
+      · rw [binaryValue_append, binaryValue_binaryWord, binaryValue_binaryWord,
+          binaryValue_binaryWord, length_binaryWord (Nat.mod_lt _ (Nat.two_pow_pos _))]
+        rw [show 2 ^ (8 * (n + 1)) = 2 ^ (8 * n) * 256 by
+          rw [show 8 * (n + 1) = 8 * n + 8 by omega]
+          simp only [Nat.pow_succ]
+          omega]
+        calc
+          _ = value % (2 ^ (8 * n) * 256) / 2 ^ (8 * n) * 2 ^ (8 * n) +
+              value % 2 ^ (8 * n) := by rw [Nat.mod_mul_right_div_self]
+          _ = value % (2 ^ (8 * n) * 256) / 2 ^ (8 * n) * 2 ^ (8 * n) +
+              value % (2 ^ (8 * n) * 256) % 2 ^ (8 * n) := by
+                rw [Nat.mod_mul_right_mod]
+          _ = _ := Nat.div_add_mod' _ _
 
 end Cslib.Crypto
