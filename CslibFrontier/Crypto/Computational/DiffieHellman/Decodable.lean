@@ -56,6 +56,12 @@ and injectivity of `F.encode d`. When the family is decodable
 * `Cslib.Crypto.DecodablePrimeOrderGroupFamily.DDH.wordCDH`: for a decodable family, `F.DDH setup`
   implies `F.WordCDH setup` when every supported group has prime order at least `m n > 0` with
   `1 / m n` negligible.
+
+## References
+
+* [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*,
+  Version 0.6][BonehShoup2023], Section 10.5 (Attack Game 10.5 and Definition 10.7, printed
+  pp. 409–410).
 -/
 
 public section
@@ -85,8 +91,10 @@ when it outputs `encode ((a * b) • g)`. -/
     let guess ← adversary n (d, F.encode d (a • F.generator d), F.encode d (b • F.generator d))
     return decide (guess = F.encode d ((a * b) • F.generator d))
 
-/-- The word-level Computational Diffie–Hellman assumption: every uniform strict PPT adversary on
-encoded CDH instances `encWordCDHInput` wins `cdhWordGame` with negligible probability. -/
+/-- The word-level Computational Diffie–Hellman assumption ([BonehShoup2023], Attack Game 10.5 and
+Definition 10.7, printed pp. 409–410, with the adversary's answer taken as a bit string): every
+uniform strict PPT adversary on encoded CDH instances `encWordCDHInput` wins `cdhWordGame` with
+negligible probability. -/
 @[expose] def WordCDH (setup : ℕ → PMF F.Desc) : Prop :=
   ∀ adversary : ℕ → F.Desc × List Bool × List Bool → ProbComp (List Bool),
     IsPPTOn F.encWordCDHInput encBits (fun x => adversary x.1 x.2) →
