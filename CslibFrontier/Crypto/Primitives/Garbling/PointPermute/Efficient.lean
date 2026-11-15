@@ -16,6 +16,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Tactic.PolyTime
+import CslibFrontier.Foundations.Data.List.Lookup
 
 /-!
 # Point-and-permute garbling is efficient
@@ -23,7 +24,9 @@ import CslibFrontier.Tactic.PolyTime
 `PointPermute.scheme family` of `CslibFrontier.Crypto.Primitives.Garbling.PointPermute` is an
 efficient garbling scheme (`Scheme.IsEfficient`) whenever the word family `family` is computed in
 polynomial time, as `PseudorandomFunction.polyTime` provides: `PointPermute.scheme_isEfficient`.
-Circuits are encoded by `encValidCircuit` (`n`, `m` in unary, wire numbers in binary).
+Circuits are encoded by `encValidCircuit` (`n`, `m` in unary, wire numbers in binary). Privacy of
+the scheme, with a polynomial-time simulator and certified reductions, is open under
+[#5293](https://github.com/cslib-community/cslib-frontier/issues/5293).
 
 The garbler writes each gate's block from the gate list of the encoded circuit; wire numbers read
 from that list are capped at the length of the coins, which changes nothing since a wire beyond
@@ -36,9 +39,6 @@ permutation bits and labels are stated compositionally for reuse.
 
 * `Cslib.Crypto.Garbling.PointPermute.scheme_isEfficient`: point-and-permute garbling is
   efficient.
-* `Cslib.Crypto.Garbling.PointPermute.labelWord_polyTime`,
-  `Cslib.Crypto.Garbling.PointPermute.labelOf_polyTime`: its building blocks run in polynomial
-  time.
 -/
 
 public section
@@ -185,12 +185,6 @@ private theorem evalWord_polyTime :
   exact hfin.comp (hfold.prod hc)
 
 /-! ### Garbling -/
-
-private theorem ofFn_eq_map_range {α : Type*} {c : ℕ} (h : ℕ → α) :
-    List.ofFn (fun i : Fin c => h i) = (List.range c).map h := by
-  apply List.ext_getElem (by simp)
-  intro i h₁ h₂
-  simp
 
 /-- The truth table of a gate read from its four bits. -/
 private theorem getD_table (G : Bool → Bool → Bool) (x y : Bool) :
@@ -432,12 +426,12 @@ private theorem encInfoWord_eq (k : ℕ) (f : ConventionalCircuit) (coins : List
     encInfoWord k f coins = ((List.range (2 * f.n)).map fun j =>
       labelOf k (f.n + f.gateList.length) coins (j / 2) (j.testBit 0 ^^ permOf coins
         (j / 2))).flatten := by
-  rw [encInfoWord, ConventionalCircuit.length_gateList, ← ofFn_eq_map_range]
+  rw [encInfoWord, ConventionalCircuit.length_gateList, List.map_range_eq_ofFn]
 
 private theorem decInfoWord_eq (f : ConventionalCircuit) (coins : List Bool) :
     decInfoWord f coins = (List.range f.m).map fun o =>
       permOf coins (f.n + f.gateList.length - f.m + o) := by
-  rw [decInfoWord, ConventionalCircuit.length_gateList, ← ofFn_eq_map_range]
+  rw [decInfoWord, ConventionalCircuit.length_gateList, List.map_range_eq_ofFn]
 
 private theorem encRange_polyTime : ComputableInPolyTime (fun p : ℕ × ℕ × ℕ × List Bool =>
       ((List.range (2 * p.2.1)).map fun j => labelOf p.1 (p.2.1 + p.2.2.1) p.2.2.2 (j / 2)
@@ -455,10 +449,6 @@ include hf in
 private theorem gb_polyTime :
     ComputableInPolyTime (fun (k, f, coins) => (scheme family).gb k f coins)
       (encPair encUnary (encPair encValidCircuit encBits)) Scheme.encGarbled := by
-  have hd := data_polyTime
-  have hn := hd.fst'
-  have hm := hd.snd'.fst'
-  have hq := q_polyTime
   have hcoins := (ComputableInPolyTime.snd (encUnary) (encPair encValidCircuit encBits)).snd'
   have hq' := q'_polyTime
   have hn' := n_polyTime
@@ -473,11 +463,7 @@ private theorem gb_polyTime :
       decInfoWord x.2.1.1 x.2.2) encGbInput encBits := by
     simp only [decInfoWord_eq, ConventionalCircuit.length_gateList]
     exact hd₀.comp (hn'.prod (hq'.prod (hm'.prod hcoins)))
-  have hfn := fnWord_polyTime hf
-  have htriple : ComputableInPolyTime (fun t : List Bool × List Bool × List Bool =>
-      (⟨t.1, t.2.1, t.2.2⟩ : Scheme.Garbled)) (encPair encBits (encPair encBits encBits))
-      Scheme.encGarbled := .of_eq fun _ => Scheme.encGarbled_apply _
-  have hcomp := htriple.comp (hfn.prod (he.prod hdec))
+  have hcomp := Scheme.encGarbled_mk_polyTime (fnWord_polyTime hf) he hdec
   have heq : (fun x : ℕ × ValidCircuit × List Bool => (⟨fnWord family x.1 x.2.1.1 x.2.2,
       encInfoWord x.1 x.2.1.1 x.2.2, decInfoWord x.2.1.1 x.2.2⟩ : Scheme.Garbled)) =
       fun (k, f, coins) => (scheme family).gb k f coins := by
@@ -596,10 +582,12 @@ private theorem ev_polyTime :
 
 include hf in
 /-- **Point-and-permute garbling is efficient** for every family computed in polynomial time
-(`PseudorandomFunction.polyTime` supplies `hf`): the number of coins and the garbler on
-`(1^k, f, r)`, and `En`, `Ev`, `De` and `ev` on their encoded arguments, run in polynomial time,
-for valid circuits encoded by `encValidCircuit`. -/
+(`PseudorandomFunction.polyTime` supplies `hf`): the length readers `n` and `m`, the number of
+coins and the garbler on `(1^k, f, r)`, and `En`, `Ev`, `De` and `ev` on their encoded arguments,
+run in polynomial time, for valid circuits encoded by `encValidCircuit`. -/
 theorem scheme_isEfficient : (scheme family).IsEfficient encValidCircuit where
+  inLen := circuitData_polyTime.fst'
+  outLen := circuitData_polyTime.snd'.fst'
   coins := coins_polyTime
   gb := gb_polyTime hf
   encode := encodeWord_polyTime
