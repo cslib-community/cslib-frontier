@@ -4668,6 +4668,7 @@ public import CslibFrontier.Crypto.Computational.SIS.Basic
 public import CslibFrontier.Crypto.Computational.SIS.MLKEM.Compress
 public import CslibFrontier.Crypto.Computational.SIS.MLKEM.Encoding
 public import CslibFrontier.Crypto.Computational.SIS.MLKEM.KPKE
+public import CslibFrontier.Crypto.Computational.SIS.MLKEM.Native
 public import CslibFrontier.Crypto.Computational.SIS.MLKEM.Security
 public import CslibFrontier.Crypto.Computational.SIS.MLKEM.SeedExpansion
 public import CslibFrontier.Crypto.Computational.SIS.Module
