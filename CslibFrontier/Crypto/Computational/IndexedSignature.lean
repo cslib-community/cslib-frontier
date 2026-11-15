@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Crypto.Computational.Signature
 public import CslibFrontier.Crypto.Encoding
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder
