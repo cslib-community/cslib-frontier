@@ -39,6 +39,8 @@ identities `Commute.zpow_mul_zpow_zpow_eq_right` and `Commute.zpow_mul_zpow_zpow
 * `Cslib.Crypto.commonRoot_pow_modEq_right`: for `0 < n`, coprime `e` and `f`, `w` coprime to `n`
   and `w ^ e ≡ y ^ f [MOD n]`, the output `x` satisfies `x ^ e ≡ y [MOD n]`.
 * `Cslib.Crypto.commonRoot_pow_modEq_left`: under the same hypotheses, `x ^ f ≡ w [MOD n]`.
+* `Cslib.Crypto.commonRoot_coprime`: if moreover `y` is coprime to `n`, the output is coprime to
+  `n`, so it is a unit modulo `n` as in the book.
 * `Cslib.Crypto.commonRoot_lt`: for `0 < n`, the output is below `n`.
 * `Cslib.Crypto.computableInPolyTime_commonRoot`: `commonRoot` is computable in polynomial time
   from polynomial-time inputs on `encNat`, with no condition on the inputs.
@@ -54,11 +56,21 @@ The statement differs from the book's in three ways.
   only the first. Section 10.9 (pp. 422–423) applies the theorem to aggregate two membership
   proofs, and recovering each proof from the aggregate (p. 422) is the second.
 * The book takes a positive `n` and units `w`, `y` modulo `n`. Here `w` and `y` are natural
-  numbers, not necessarily below `n`, and only `w` is assumed coprime to `n`: for `f ≠ 0` this
-  makes `y` coprime to `n`, and for `f = 0` the result does not need it.
+  numbers, not necessarily below `n`, and the two congruences assume only that `w` is coprime to
+  `n`: for `f ≠ 0` this makes `y` coprime to `n`, and for `f = 0` they do not need it.
+  `commonRoot_coprime`, the book's `x ∈ ℤₙ*`, also assumes that `y` is coprime to `n`, and uses
+  this only when `f = 0`.
 
 The certificate covers the computation on encoded numbers. Nothing here concerns an adversary or
 a security game; Theorems 10.5 and 10.7 and the accumulator of §10.9 are not formalized.
+
+`Cslib.Crypto.commonModulusAttack N e₁ e₂ c₁ c₂` in `RSAAttacks.lean` is the same algorithm: it
+computes `c₁ ^ a * c₂ ^ b` in `ZMod N` from the Bézout coefficients `a = Nat.gcdA e₁ e₂` and
+`b = Nat.gcdB e₁ e₂` through `zmodIntPow`, and it has no polynomial-time certificate. Its
+correctness proof `commonModulusAttack_rsaEval` uses the identity `eq_zpow_mul_zpow_of_zpow_eq`.
+A follow-up would prove `commonRoot N e₂ e₁ (rsaEval N e₁ m) (rsaEval N e₂ m) = m % N` as
+`commonRoot_rsaEval`, which gives the attack a certificate, and then remove `commonModulusAttack`
+and `zmodIntPow`, which have no other users.
 
 ## References
 
@@ -77,7 +89,8 @@ modulus `n`, exponents `e`, `f` and residues `w`, `y`, it returns `y mod n` when
 when `f = 1`, and otherwise `y ^ s * (w⁻¹) ^ t mod n`, where `s = modInv e f`,
 `t = (e * s - 1) / f` and `w⁻¹ = modInv w n`. When `0 < n`, `e` and `f` are coprime, `w` is coprime
 to `n` and `w ^ e ≡ y ^ f [MOD n]`, the output is an `e`-th root of `y` and an `f`-th root of `w`
-modulo `n` (`commonRoot_pow_modEq_right`, `commonRoot_pow_modEq_left`). -/
+modulo `n` (`commonRoot_pow_modEq_right`, `commonRoot_pow_modEq_left`), and a unit modulo `n` if
+`y` is also coprime to `n` (`commonRoot_coprime`). -/
 @[expose] def commonRoot (n e f w y : ℕ) : ℕ :=
   if f = 0 then y % n
   else if f = 1 then w % n
@@ -175,6 +188,22 @@ theorem commonRoot_pow_modEq_left {n e f w y : ℕ} (hn : 0 < n) (hef : Nat.Copr
     (hw : Nat.Coprime w n) (h : w ^ e ≡ y ^ f [MOD n]) :
     commonRoot n e f w y ^ f ≡ w [MOD n] :=
   (commonRoot_pow_modEq hn hef hw h).2
+
+/-- The output of Shamir's trick is a unit modulo `n`, as in [BonehShoup2023], Theorem 10.6
+(`x ∈ ℤₙ*`): for `0 < n`, coprime `e` and `f`, `w` and `y` coprime to `n` and
+`w ^ e ≡ y ^ f [MOD n]`, `commonRoot n e f w y` is coprime to `n`. The hypothesis on `y` is used
+only when `f = 0`, where the output is `y mod n`. -/
+theorem commonRoot_coprime {n e f w y : ℕ} (hn : 0 < n) (hef : Nat.Coprime e f)
+    (hw : Nat.Coprime w n) (hy : Nat.Coprime y n) (h : w ^ e ≡ y ^ f [MOD n]) :
+    Nat.Coprime (commonRoot n e f w y) n := by
+  by_cases hf : f = 0
+  · have he : e = 1 := Nat.coprime_zero_right e |>.mp (hf ▸ hef)
+    have hx : Nat.Coprime (commonRoot n e f w y ^ e) n :=
+      (commonRoot_pow_modEq_right hn hef hw h).gcd_eq.trans hy
+    exact (Nat.coprime_pow_left_iff (by omega) _ _).mp hx
+  · have hx : Nat.Coprime (commonRoot n e f w y ^ f) n :=
+      (commonRoot_pow_modEq_left hn hef hw h).gcd_eq.trans hw
+    exact (Nat.coprime_pow_left_iff (Nat.pos_of_ne_zero hf) _ _).mp hx
 
 /-- `commonRoot` is computable in polynomial time whenever `n`, `e`, `f`, `w` and `y` are
 computable in polynomial time as natural numbers on `encNat`. There is no condition on the

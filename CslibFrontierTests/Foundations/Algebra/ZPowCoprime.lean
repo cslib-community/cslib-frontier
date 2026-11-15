@@ -25,7 +25,8 @@ Checks for `CslibFrontier/Foundations/Algebra/Group/ZPowCoprime.lean`:
   `m = 1`, `n = 0`.
 * A concrete instance in `(ZMod 35)ˣ` with a negative Bézout coefficient, evaluated.
 * Two client steps: a prime `e` and `0 < |f| < e` give `IsCoprime e f`, and the characterization
-  splits one relation `πx ^ p = πy ^ r` into a common root.
+  splits one relation `πx ^ p = πy ^ r` into a common root. The characterization also applies to
+  commuting elements of `Equiv.Perm (Fin 3)`.
 * The hypotheses are needed: coprimality in `(ZMod 3)ˣ` and for `m = n = 0`, commutativity in
   `Equiv.Perm (Fin 3)`.
 -/
@@ -112,6 +113,13 @@ example {N : ℕ} (πx πy : (ZMod N)ˣ) {p r : ℤ} (hpr : IsCoprime p r) (h : 
     ∃ π : (ZMod N)ˣ, π ^ r = πx ∧ π ^ p = πy := by
   obtain ⟨π, h1, h2⟩ := (zpow_eq_zpow_iff_of_isCoprime hpr).mp h
   exact ⟨π, h1.symm, h2.symm⟩
+
+/-- The characterization for commuting elements of a noncommutative group: `c ^ 3` and `c ^ 2`
+commute in `Equiv.Perm (Fin 3)`, and `2`, `3` are coprime. -/
+example (c : Equiv.Perm (Fin 3)) :
+    (c ^ (3 : ℤ)) ^ (2 : ℤ) = (c ^ (2 : ℤ)) ^ (3 : ℤ) ↔
+      ∃ d, c ^ (3 : ℤ) = d ^ (3 : ℤ) ∧ c ^ (2 : ℤ) = d ^ (2 : ℤ) :=
+  ((Commute.refl c).zpow_zpow 3 2).zpow_eq_zpow_iff_of_isCoprime ⟨-1, 1, by norm_num⟩
 
 /-! ### The hypotheses are needed -/
 

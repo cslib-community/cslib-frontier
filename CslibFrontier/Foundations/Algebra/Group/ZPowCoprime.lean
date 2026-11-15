@@ -27,7 +27,7 @@ This is the identity that makes the output of the algorithm in Theorem 10.6 of [
 its running time are not part of this file.
 
 The characterization `Commute.zpow_eq_zpow_iff_of_isCoprime` is the counterpart, for groups and
-integer exponents, of Mathlib's `Commute.pow_eq_pow_iff_of_coprime` for monoids with zero and
+integer exponents, of Mathlib's `Commute.pow_eq_pow_iff_of_coprime` for groups with zero and
 natural exponents. Integer exponents matter in the applications: Bézout coefficients have mixed
 signs, and the book applies the result with a possibly negative exponent.
 
