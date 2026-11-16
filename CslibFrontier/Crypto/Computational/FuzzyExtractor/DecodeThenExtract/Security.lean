@@ -232,16 +232,11 @@ private def helperWordOf (m k l w : ℕ) (lweWord : List Bool) (a : List (List �
       (List.range l).flatMap fun j =>
         BitString.lowBits w (Cslib.Matrix.binaryEntry (l + 1) w lweWord i (j + 1))
 
-private theorem lowBits_eq_ofFn_val (w x : ℕ) :
-    BitString.lowBits w x =
-      List.ofFn fun t : Fin w => (x : ZMod (2 ^ w)).val.testBit t.val := by
-  rw [← BitString.lowBits_val_natCast, BitString.lowBits_eq_ofFn]
-
 private theorem keyWord_coinVector (k w : ℕ) (keyCoins : List ℕ) :
     keyWord (coinVector k w keyCoins) = keyWordOf k w keyCoins := by
   simp only [keyWord, keyWordOf, Cslib.Matrix.toBinary_eq, _root_.Matrix.of_apply,
     List.ofFn_succ, List.ofFn_zero, List.flatten_cons, List.flatten_nil, List.append_nil,
-    List.flatMap_def, List.map_range_eq_ofFn, coinVector, lowBits_eq_ofFn_val]
+    List.flatMap_def, List.map_range_eq_ofFn, coinVector, BitString.lowBits_eq_ofFn_val]
 
 private theorem helperWord_reductionInput (x : LWE.Input l m w) (a : List (List ℕ))
     (b keyCoins : List ℕ) :
@@ -249,15 +244,8 @@ private theorem helperWord_reductionInput (x : LWE.Input l m w) (a : List (List 
       helperWordOf (m x.secParam) (k x.secParam) (l x.secParam) (w x.secParam)
         (Cslib.Matrix.toBinary (LWE.augmentedMatrix x.matrix x.target)) a b := by
   obtain ⟨κ, A₂, c₂⟩ := x
-  have hc (i : Fin (m κ)) : (Cslib.Matrix.binaryEntry (l κ + 1) (w κ)
-      (Cslib.Matrix.toBinary (LWE.augmentedMatrix A₂ c₂)) i.val 0 : ZMod (2 ^ w κ)) = c₂ i := by
-    simpa [LWE.augmentedMatrix] using
-      Cslib.Matrix.binaryEntry_toBinary (LWE.augmentedMatrix A₂ c₂) i 0
-  have hA (i : Fin (m κ)) (j : Fin (l κ)) : (Cslib.Matrix.binaryEntry (l κ + 1) (w κ)
-      (Cslib.Matrix.toBinary (LWE.augmentedMatrix A₂ c₂)) i.val (j.val + 1) : ZMod (2 ^ w κ)) =
-        A₂ i j := by
-    simpa [LWE.augmentedMatrix] using
-      Cslib.Matrix.binaryEntry_toBinary (LWE.augmentedMatrix A₂ c₂) i j.succ
+  have hc := LWE.binaryEntry_toBinary_augmentedMatrix_zero A₂ c₂
+  have hA := LWE.binaryEntry_toBinary_augmentedMatrix_succ A₂ c₂
   generalize Cslib.Matrix.toBinary (LWE.augmentedMatrix A₂ c₂) = word at hc hA ⊢
   simp only [helperWord, helperWordOf, reductionInput, Cslib.Matrix.toBinary_eq,
     List.flatMap_def, List.map_range_eq_ofFn]
@@ -266,7 +254,7 @@ private theorem helperWord_reductionInput (x : LWE.Input l m w) (a : List (List 
   funext i
   rw [List.ofFn_succ, List.ofFn_add, List.flatten_cons, List.flatten_append, List.append_assoc]
   simp only [LWE.augmentedMatrix, Fin.cons_zero, Fin.cons_succ, joinCols, _root_.Matrix.of_apply,
-    Fin.append_left', Fin.append_right, lowBits_eq_ofFn_val, Pi.add_apply,
+    Fin.append_left', Fin.append_right, BitString.lowBits_eq_ofFn_val, Pi.add_apply,
     _root_.Matrix.mulVec, dotProduct, coinMatrix, coinVector, Nat.cast_add, List.sum_ofFn,
     Nat.cast_sum, Nat.cast_mul, hc, hA]
 
@@ -341,20 +329,6 @@ end PolyTime
 
 /-! ### Certificates for the reductions -/
 
-/-- The security parameter of an LWE input is computable in polynomial time from its encoding. -/
-private theorem computableInPolyTime_secParam :
-    ComputableInPolyTime (fun x : LWE.Input l m w => x.secParam) (LWE.encInput l m w) encUnary :=
-  (ComputableInPolyTime.fst encUnary encBits).comp
-    (ComputableInPolyTime.of_eq (f := LWE.Input.words) fun _ => rfl)
-
-/-- The LWE word of an input is computable in polynomial time from its encoding. -/
-private theorem computableInPolyTime_lweWord :
-    ComputableInPolyTime
-      (fun x : LWE.Input l m w => Cslib.Matrix.toBinary (LWE.augmentedMatrix x.matrix x.target))
-      (LWE.encInput l m w) encBits :=
-  (ComputableInPolyTime.snd encUnary encBits).comp
-    (ComputableInPolyTime.of_eq (f := LWE.Input.words) fun _ => rfl)
-
 /-- Building the distinguisher input from an LWE input and coins is polynomial-time. -/
 private theorem computableInPolyTime_reductionInput {β : Type} {enc : β ↪ List Bool}
     {x : β → LWE.Input l m w} {a : β → List (List ℕ)} {b keyCoins : β → List ℕ}
@@ -366,8 +340,8 @@ private theorem computableInPolyTime_reductionInput {β : Type} {enc : β ↪ Li
     (hkeyCoins : ComputableInPolyTime keyCoins enc (encList encNat)) :
     ComputableInPolyTime (fun q => reductionInput (k := k) (x q) (a q) (b q) (keyCoins q)) enc
       (encInput m k l w) := by
-  have hκ := computableInPolyTime_secParam.comp hx
-  have hword := computableInPolyTime_lweWord.comp hx
+  have hκ := LWE.computableInPolyTime_secParam.comp hx
+  have hword := LWE.computableInPolyTime_augmentedWord.comp hx
   refine ComputableInPolyTime.of_enc_eq
     (hκ.prod ((computableInPolyTime_keyWordOf (hk.comp hκ) (hw.comp hκ) hkeyCoins).prod
       (computableInPolyTime_helperWordOf (hm.comp hκ) (hk.comp hκ) (hl.comp hκ) (hw.comp hκ)
@@ -417,8 +391,9 @@ private theorem isPPTOn_sampleCoinRows (hm : ComputableInPolyTime m encUnary enc
     (hw : ComputableInPolyTime w encUnary encUnary) :
     IsPPTOn (LWE.encInput l m w) (encList (encList encNat))
       fun x => sampleCoinRows (m x.secParam) (k x.secParam) (w x.secParam) :=
-  ((hw.comp computableInPolyTime_secParam).sampleBinaryNat.replicate
-    (hk.comp computableInPolyTime_secParam)).replicate (hm.comp computableInPolyTime_secParam)
+  ((hw.comp LWE.computableInPolyTime_secParam).sampleBinaryNat.replicate
+    (hk.comp LWE.computableInPolyTime_secParam)).replicate
+      (hm.comp LWE.computableInPolyTime_secParam)
 
 /-- Sampling a coin vector is strict PPT for every input encoding with a polynomial-time security
 parameter. -/
@@ -438,7 +413,7 @@ theorem isPPT_keyReduction (hm : ComputableInPolyTime m encUnary encUnary)
   let encA := encPair (LWE.encInput l m w) (encList (encList encNat))
   have hκ : ComputableInPolyTime (fun p : LWE.Input l m w × List (List ℕ) => p.1.secParam)
       encA encUnary :=
-    computableInPolyTime_secParam.comp (ComputableInPolyTime.fst _ _)
+    LWE.computableInPolyTime_secParam.comp (ComputableInPolyTime.fst _ _)
   have hinput := computableInPolyTime_reductionInput hm hk hl hw
     (x := fun q : (LWE.Input l m w × List (List ℕ)) × List ℕ => q.1.1)
     (a := fun q => q.1.2) (b := fun q => q.2) (keyCoins := fun q => q.2)
@@ -467,7 +442,7 @@ theorem isPPT_uniformReduction (hm : ComputableInPolyTime m encUnary encUnary)
   let encB := encPair encA (encList encNat)
   have hκA : ComputableInPolyTime (fun p : LWE.Input l m w × List (List ℕ) => p.1.secParam)
       encA encUnary :=
-    computableInPolyTime_secParam.comp (ComputableInPolyTime.fst _ _)
+    LWE.computableInPolyTime_secParam.comp (ComputableInPolyTime.fst _ _)
   have hκB : ComputableInPolyTime
       (fun p : (LWE.Input l m w × List (List ℕ)) × List ℕ => p.1.1.secParam) encB encUnary :=
     hκA.comp (ComputableInPolyTime.fst _ _)
