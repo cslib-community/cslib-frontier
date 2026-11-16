@@ -39,8 +39,9 @@ is secure if the strong RSA assumption holds for `GGen`.
 * `Cslib.Crypto.StrongRSA.negligible_guoAccumulatorGame`: **the security of the accumulator**
   (p. 422). If `StrongRSA setup` holds and `H` is computable in polynomial time with no value
   `1`, every PPT adversary wins `guoAccumulatorGame setup H` with negligible probability.
-* `Cslib.Crypto.succProbability_guoAccumulatorGame_le`: for every adversary `A`, its success
-  probability is at most that of `guoToStrongRSA H A` in the strong RSA game.
+* `Cslib.Crypto.succProbability_guoAccumulatorGame_le`: if `H` never takes the value `1`, the
+  success probability of every adversary `A` is at most that of `guoToStrongRSA H A` in the strong
+  RSA game.
 * `Cslib.Crypto.isPPT_guoToStrongRSA`: the reduction is PPT when `A` is and `H` is computable in
   polynomial time.
 

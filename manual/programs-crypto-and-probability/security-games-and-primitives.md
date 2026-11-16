@@ -1296,9 +1296,10 @@ of Bob's checks for `H x` (`GUOForgery.isValid`). `StrongRSA.negligible_guoAccum
 book's security theorem: if `StrongRSA setup` holds and `H` is computable in polynomial time
 (`ComputableInPolyTime H encBits encNat`) with `H x ≠ 1` for every `x`, then every PPT adversary
 wins `guoAccumulatorGame setup H` with negligible probability. Its reduction `guoToStrongRSA H A`
-outputs `(guoForgeryRoot N a b γ, H x)`. `succProbability_guoAccumulatorGame_le` bounds the success
-probability of every adversary `A` by that of `guoToStrongRSA H A` in the strong RSA game, and
-`isPPT_guoToStrongRSA` certifies that the reduction is PPT when `A` is. The book's hash takes prime
+outputs `(guoForgeryRoot N a b γ, H x)`. When `H x ≠ 1` for every `x`,
+`succProbability_guoAccumulatorGame_le` bounds the success probability of every adversary `A` by
+that of `guoToStrongRSA H A` in the strong RSA game, and `isPPT_guoToStrongRSA` certifies that the
+reduction is PPT when `A` is and `H` is computable in polynomial time. The book's hash takes prime
 values and is collision resistant; the proof needs only `H x ≠ 1`, because the strong RSA game
 rejects the exponent `1`. The book calls a correct accumulator secure; the theorem concerns the
 security game alone, and correctness is in the paragraph above. The group comes from any law on
