@@ -407,11 +407,33 @@ states its DDH assumption `CyclicGroupFamily.DDH`, which on a prime-order family
 uniform strict PPT machine on `encDDHInput`, so Exercise 10.24's distinguisher is efficient, and
 `CyclicGroupFamily.not_ddh_of_even_order` proves that DDH does not hold when every group the setup
 law can produce has even order. No family of the groups `(ZMod p)ˣ` is constructed, so the book's
-conclusion that DDH does not hold in `Z_p^*` is proved only in the fixed-group form. The
+conclusion that DDH does not hold in `Z_p^*` is proved only in the fixed-group form. More
+generally, for any prime divisor `l ∣ q` ([bs23][bs23], Exercise 16.2(a), p. 707),
+[`DiffieHellman/SmallFactor.lean`](../../CslibFrontier/Crypto/Computational/DiffieHellman/SmallFactor.lean)
+generalizes both lemmas (`div_nsmul_smul_eq_zero_iff` and `dvd_val_mul_iff`, with `EvenOrder` now
+re-exporting `SmallFactor` at `l = 2`) and proves that `ddhSmallFactorDistinguisher q l` has
+exact fixed-group advantage `((3 * l - 2) * (l - 1)) / l ^ 3` in `ℝ≥0` (at least `1 / l` by
+`inv_le_ddhAdvantage_ddhSmallFactorDistinguisher`, equal to `1 / 2` at `l = 2`, and close to
+`3 / l` for large `l`, matching the book's "advantage about `1 / l`") via
+`ddhAdvantage_ddhSmallFactorDistinguisher`. Over a `CyclicGroupFamily`,
+`CyclicGroupFamily.ddhSmallFactorDistinguisher` is polynomial time on `encDDHInput` whenever its
+selector is (`CyclicGroupFamily.isPPT_ddhSmallFactorDistinguisher`), DDH fails whenever a
+polynomial-time selector finds a polynomially bounded prime factor infinitely often
+(`CyclicGroupFamily.not_ddh_of_prime_factor`), and
+`CyclicGroupFamily.not_ddh_of_polynomiallyBounded_minFac` proves that DDH fails when `1 < F.order d`
+and `(F.order d).minFac ≤ bound n` across `(setup n).support` infinitely often for a polynomially
+bounded `bound`. The distinguisher instantiated in that proof uses `Nat.findGreatest` to test the
+greatest prime factor up to `C * (n + 1) ^ D` where the exercise names the smallest prime factor,
+yielding the same theorem. Polynomial time on `encDDHInput` is proved rather than an `O(log q)`
+count of group operations, and Exercise 16.2(b) stays open. The
 [even-order client](../../CslibFrontierTests/Crypto/DiffieHellmanEvenOrder.lean) checks `ZMod 6`,
 `(ZMod 7)ˣ` and the odd-order failure of Lemma 16.1 in `ZMod 5`, applies
 `not_ddh_of_even_order` to the residue groups `ZMod (2 (n + 1))`, and derives that a prime-order
-family fails `PrimeOrderGroupFamily.DDH` for any setup law that only produces groups of order `2`.
+family fails `PrimeOrderGroupFamily.DDH` for any setup law that only produces groups of order `2`;
+the [small-factor client](../../CslibFrontierTests/Crypto/DiffieHellmanSmallFactor.lean) checks
+`ZMod 15` and `(ZMod 7)ˣ` at `l = 3` (`14 / 27`), `oddFactorFamily` under
+`not_ddh_of_polynomiallyBounded_minFac`, a non-constant selector under `not_ddh_of_prime_factor`,
+and five hypothesis counterexamples.
 
 For a linear feedback shift register ([bs23][bs23], Section 3.8, p. 75), `LFSR.output taps ℓ state`
 in [`PRG/LFSR.lean`](../../CslibFrontier/Crypto/Primitives/PRG/LFSR.lean) clocks it `ℓ` times with
