@@ -2189,6 +2189,7 @@ public import CslibFrontier.Computability.Complexity.Classes.PH.Kannan
 public import CslibFrontier.Computability.Complexity.Classes.PH.KarpLipton
 public import CslibFrontier.Computability.Complexity.Classes.PH.OracleNP
 public import CslibFrontier.Computability.Complexity.Classes.PH.Projection
+public import CslibFrontier.Computability.Complexity.Classes.PH.QBF
 public import CslibFrontier.Computability.Complexity.Classes.PH.Reduction
 public import CslibFrontier.Computability.Complexity.Classes.PH.SipserLautemann
 public import CslibFrontier.Computability.Complexity.Classes.PH.Yap
@@ -2704,6 +2705,13 @@ public import CslibFrontier.Computability.Complexity.Problems.PlanarThreeSATThre
 public import CslibFrontier.Computability.Complexity.Problems.Primes
 public import CslibFrontier.Computability.Complexity.Problems.Primes.MillerRabin
 public import CslibFrontier.Computability.Complexity.Problems.QUADEQ
+public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT
+public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.Completeness
+public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.Evaluation
+public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.Hardness
+public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.Membership
+public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.Parsing
+public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.Tableau
 public import CslibFrontier.Computability.Complexity.Problems.SAT
 public import CslibFrontier.Computability.Complexity.Problems.SAT.Declared
 public import CslibFrontier.Computability.Complexity.Problems.SAT.ExactOne.Drawing
@@ -2796,6 +2804,7 @@ public import CslibFrontier.Computability.Complexity.Problems.TMSAT
 public import CslibFrontier.Computability.Complexity.Problems.TMSigmaSAT
 public import CslibFrontier.Computability.Complexity.Problems.TQBF
 public import CslibFrontier.Computability.Complexity.Problems.TQBF.Closed
+public import CslibFrontier.Computability.Complexity.Problems.TQBF.QuantifierFree
 public import CslibFrontier.Computability.Complexity.Problems.TSP
 public import CslibFrontier.Computability.Complexity.Problems.TSP.Approximation
 public import CslibFrontier.Computability.Complexity.Problems.TSP.Christofides
@@ -3468,6 +3477,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.P
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Pi
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Polynomial
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Prefix
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Rat
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.RotationMap
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.RotationMap.Family
@@ -7260,6 +7270,8 @@ public import CslibFrontier.Logics.Propositional.Pigeonhole
 public import CslibFrontier.Logics.Propositional.Pigeonhole.Extension
 public import CslibFrontier.Logics.Propositional.QBF
 public import CslibFrontier.Logics.Propositional.QBF.Arithmetization
+public import CslibFrontier.Logics.Propositional.QBF.Assignment
+public import CslibFrontier.Logics.Propositional.QBF.Blocks
 public import CslibFrontier.Logics.Propositional.Resolution
 public import CslibFrontier.Logics.Propositional.Resolution.CliqueColoring
 public import CslibFrontier.Logics.Propositional.Resolution.ExistentialPebble

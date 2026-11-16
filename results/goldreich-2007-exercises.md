@@ -21,9 +21,11 @@ Coverage of the chapters:
 - Chapters 2 and 5–10 are classified below. Chapter 7 uses `r4.pdf` (March 2007), as the chapter
   audit does, not the earlier `r3.pdf` copy. Printed page = PDF page + offset: `r1.pdf` −25,
   `r2.pdf` +116, `r3.pdf` +202, `r4.pdf` +264, `r5.pdf` +382.
-- Chapter 3's twelve exercises are inventoried in open PR
-  [#4852](https://github.com/cslib-community/cslib-frontier/pull/4852), which also proves the
-  Exercise 3.12 endpoint. They are not repeated here.
+- Chapter 3's twelve exercises are inventoried in the
+  [chapter audit](goldreich-2007.md#theory-exercises-chapter-3). Exercises 3.7 and 3.10(1)
+  are covered by [quantified SAT completeness](../CslibFrontier/Computability/Complexity/Problems/QuantifiedSAT/Completeness.lean);
+  Exercise 3.10(2)'s oracle identities remain [#5451](https://github.com/cslib-community/cslib-frontier/issues/5451).
+  The rows are not repeated here.
 - Chapter 4's twelve exercises are inventoried in the
   [#4772 Chapter 4 pass](https://github.com/cslib-community/cslib-frontier/issues/4772#issuecomment-6841285129).
   Exercises 4.3 and 4.5 are covered in the chapter audit
