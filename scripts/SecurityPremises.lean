@@ -147,23 +147,29 @@ scheme or protocol built from a component on the bounding side only, such as
 `Adv(A) = Adv(toScheme S, B A)`, is reported as a reduction: the baseline exempts it.
 
 **Reductions run by a certified program.** An input line
-`via\t<reduction>\t<program>\t<certificate>\t<equality>\t<headline>` asks this mode to verify a
-`via_certified_program` baseline entry (`checkVia`), which records a reduction `R` that a certified
-program `X` runs. Each name is resolved as written or, for a private declaration, without its
-private prefix. The checks are: all five declarations exist; `X` is a definition that finally
-yields a program; the certificate `Y` is a theorem whose conclusion has a claim atom headed by an
-efficiency certificate (as for witnesses above) that mentions `X`; the equality `E` is a theorem
-whose conclusion, after its `∀`s and premises, is an equation `a = b` between values that are not
-propositions, one side of which mentions `X` and the other `R` (so a bound `≤`/`<`, an `↔` or a
-simulation predicate is rejected); and the headline `H` is a theorem whose statement mentions `X`
-or `Y` or, failing that, whose proof does: the constants of its value and, at most three deep, of
-the auxiliary declarations that Lean generates under its name. A name that resolves to no
-declaration of the compiled modules, private or not, fails. It prints `{"v": reduction, "p":
-[problems], "at": "statement" | "proof" | "", "vm": [modules of the declarations found], "em":
-module of `E` or "", "missing": [names not found]}` for each request, before the summary line;
-`scripts/check_reduction_witnesses.py` compares `em` with the file the entry records for `E`.
-Mentioning a constant is a syntactic test: the checks do not judge which arguments `E` equates or
-what `Y` assumes.
+`via\t<reduction>\t<its module>\t<program>\t<certificate>\t<equality>\t<its module>\t<headline>`
+asks this mode to verify a `via_certified_program` baseline entry (`checkVia`), which records a
+reduction `R` that a certified program `X` runs. The program `X`, its certificate `Y` and the
+headline `H` must be public declarations, named as written. `R` and the equality `E` may also be
+private: a private one is looked up, by its name without the private prefix, only in the module
+the request gives for it, so two private declarations of the same name in different modules
+cannot be confused. The checks are: all five declarations exist; `X` is a definition that finally
+yields a program; `Y` is a theorem whose conclusion has a claim atom headed by an efficiency
+certificate (as for witnesses above) that mentions `X`; `E` is a theorem whose conclusion, after
+its `∀`s and premises, is an equation `a = b` between values that are not propositions, one side
+of which mentions `X` and the other `R` (so a bound `≤`/`<`, an `↔` or a simulation predicate is
+rejected); and `H` is a theorem other than `Y` and `E` whose conclusion has a claim atom of the
+kind `negligible` or `advantage` (`classify`), directly or inside Prop-valued definitions unfolded
+at most five times, and whose statement mentions `X` or `Y` or, failing that, whose proof does:
+the constants of its value and, at most three deep, of the auxiliary declarations that Lean
+generates under its name. It prints `{"v": reduction, "p": [problems], "at": "statement" |
+"proof" | "", "vm": [modules of the declarations found], "em": module of `E` or "", "pc": number
+of premises of `E`, "missing": [names not found]}` for each request, before the summary line. A
+premise of `E` is a leading binder, other than an instance argument, on which nothing after it
+depends. `scripts/check_reduction_witnesses.py` compares `em` with the file the entry records for
+`E`, and requires the entry's `why` to state `E`'s premises when there are any. Mentioning a
+constant is a syntactic test: the checks do not judge which arguments `E` equates or what `Y`
+assumes.
 
 **Named assumptions.** With `--assumptions` (`lake env lean --run scripts/SecurityPremises.lean
 <lib-dir> --assumptions`), for `scripts/check_hardness_assumptions.py`, it reports the named
@@ -888,45 +894,84 @@ partial def proofConstants (env : Env) (fuel : Nat) (h : Name) : Array Name :=
         acc ++ proofConstants env (fuel - 1) c
       else acc
 
-/-- Verify a request `#[reduction, program, certificate, equality, headline]` for a
-`via_certified_program` baseline entry (see the module docstring), with `resolve` finding a
-declaration by its name, private ones without their prefix. Returns
-`{"v": reduction, "p": [problems], "at": "statement" | "proof" | "", "vm": [modules of the
-declarations found], "em": module of the equality or "", "missing": [names not found]}`, where
-`at` says whether the headline's statement or only its proof mentions the program or the
-certificate. -/
-def checkVia (env : Env) (resolve : String → Option Name) (fields : Array String) : Json :=
-    Id.run do
-  let roles := #["reduction", "program", "certificate", "equality", "headline"]
-  -- The module of the equality, which the entry records so that a reviewer can open it.
-  let equalityModule : String :=
-    match fields[3]?.bind resolve |>.bind (env.moduleOf[·]?) with
-    | some m => m.toString
-    | none => ""
-  let result (problems : Array String) (at_ : String) (modules absent : Array String) : Json :=
+/-- The name that Lean gives a private declaration `n` of module `m`. -/
+def privateNameIn (m n : Name) : Name :=
+  Name.mkNum (`_private ++ m) 0 ++ n
+
+/-- The number of premises of a statement: its leading binders, other than instance arguments,
+on which neither the later binders nor the conclusion depend. -/
+partial def premiseCount : Expr → Nat
+  | .forallE _ _ b bi =>
+    (if !bi.isInstImplicit && !b.hasLooseBVar 0 then 1 else 0) + premiseCount b
+  | .mdata _ b => premiseCount b
+  | _ => 0
+
+/-- Whether a conclusion has a claim atom of the kind `negligible` or `advantage` (`classify`),
+directly or inside Prop-valued definitions of the environment unfolded at most `fuel` times, as
+`INDCPAOf …` unfolds through `Game.Indistinguishable` to a negligibility claim for every admitted
+adversary. -/
+partial def securityConclusion (env : Env) (fuel : Nat) (e : Expr) : Bool :=
+  (atoms e).any fun a =>
+    match classify env a with
+    | some ("negligible", _) | some ("advantage", _) => true
+    | _ =>
+      match fuel, unfoldProp? env a with
+      | fuel + 1, some u => securityConclusion env fuel u
+      | _, _ => false
+
+/-- Verify a request `#[reduction, its module, program, certificate, equality, the equality's
+module, headline]` for a `via_certified_program` baseline entry (see the module docstring).
+`privateNames` holds the names of the private declarations without their prefix, used only to
+explain a failure. Returns `{"v": reduction, "p": [problems], "at": "statement" | "proof" | "",
+"vm": [modules of the declarations found], "em": module of the equality or "", "pc": number of
+premises of the equality, "missing": [names not found]}`, where `at` says whether the headline's
+statement or only its proof mentions the program or the certificate. -/
+def checkVia (env : Env) (privateNames : NameSet) (fields : Array String) : Json := Id.run do
+  let result (problems : Array String) (at_ em : String) (pc : Nat)
+      (modules absent : Array String) : Json :=
     Json.mkObj [("v", toJson (fields[0]?.getD "")), ("p", toJson problems), ("at", toJson at_),
-      ("vm", toJson modules), ("em", toJson equalityModule), ("missing", toJson absent)]
-  if fields.size != roles.size then
-    return result #[s!"malformed request with {fields.size} fields"] "" #[] #[]
+      ("vm", toJson modules), ("em", toJson em), ("pc", toJson pc), ("missing", toJson absent)]
+  let #[sr, rmod, sx, sy, se, emod, sh] := fields |
+    return result #[s!"malformed request with {fields.size} fields"] "" "" 0 #[] #[]
+  -- A public declaration by its name; the reduction and the equality may also be private
+  -- declarations of their recorded modules.
+  let public? (s : String) : Option Name :=
+    let n := s.toName
+    if env.consts.contains n then some n else none
+  let inModule? (s m : String) : Option Name :=
+    (public? s).orElse fun _ =>
+      let n := privateNameIn m.toName s.toName
+      if env.consts.contains n then some n else none
+  let requests : Array (String × String × Option Name) := #[
+    ("reduction", sr, inModule? sr rmod), ("program", sx, public? sx),
+    ("certificate", sy, public? sy), ("equality", se, inModule? se emod),
+    ("headline", sh, public? sh)]
   let mut problems : Array String := #[]
   let mut absent : Array String := #[]
   let mut modules : Array String := #[]
   let mut found : Array Name := #[]
-  for i in [0:roles.size] do
-    match resolve fields[i]! with
+  for (role, s, resolved) in requests do
+    match resolved with
     | some n =>
       found := found.push n
       if let some m := env.moduleOf[n]? then
         unless modules.contains m.toString do modules := modules.push m.toString
     | none =>
-      absent := absent.push fields[i]!
-      problems := problems.push s!"{roles[i]!} `{fields[i]!}` does not exist"
-  let #[r, x, y, e, h] := found | return result problems "" modules absent
-  let some xi := env.consts[x]? | return result problems "" modules absent
-  let some yi := env.consts[y]? | return result problems "" modules absent
-  let some ei := env.consts[e]? | return result problems "" modules absent
-  let some hi := env.consts[h]? | return result problems "" modules absent
-  let (sx, sy, se, sh) := (fields[1]!, fields[2]!, fields[3]!, fields[4]!)
+      absent := absent.push s
+      problems := problems.push <|
+        if role == "equality" || role == "reduction" then
+          s!"{role} `{s}` does not exist, publicly or as a private declaration of \
+            {if role == "equality" then emod else rmod}"
+        else if privateNames.contains s.toName then
+          s!"{role} `{s}` is private; the program, its certificate and the headline must be \
+            public"
+        else s!"{role} `{s}` does not exist"
+  let #[r, x, y, e, h] := found | return result problems "" "" 0 modules absent
+  let some xi := env.consts[x]? | return result problems "" "" 0 modules absent
+  let some yi := env.consts[y]? | return result problems "" "" 0 modules absent
+  let some ei := env.consts[e]? | return result problems "" "" 0 modules absent
+  let some hi := env.consts[h]? | return result problems "" "" 0 modules absent
+  let em := ((env.moduleOf[e]?).map (·.toString)).getD ""
   -- The program: a definition that yields a program.
   match xi with
   | .defnInfo _ | .opaqueInfo _ =>
@@ -956,7 +1001,7 @@ def checkVia (env : Env) (resolve : String → Option Name) (fields : Array Stri
         problems := problems.push s!"equality `{se}` equates propositions"
       else unless has lhs x && has rhs r || has lhs r && has rhs x do
         problems := problems.push s!"equality `{se}` does not equate a term that mentions \
-          `{sx}` with one that mentions `{fields[0]!}`"
+          `{sx}` with one that mentions `{sr}`"
     else
       let head := match concl.getAppFn with
         | .const f _ => s!"`{f}`"
@@ -964,18 +1009,26 @@ def checkVia (env : Env) (resolve : String → Option Name) (fields : Array Stri
       problems := problems.push s!"equality `{se}` is not an equation (its conclusion is headed \
         by {head}); a step linked by a bound or a simulation stays a `gap`"
   | _ => problems := problems.push s!"equality `{se}` is not a theorem"
-  -- The headline: a theorem whose statement, or else whose proof, mentions the program or the
-  -- certificate.
+  -- The headline: a theorem other than the certificate and the equality, whose conclusion makes
+  -- a negligibility or advantage claim, and whose statement, or else whose proof, mentions the
+  -- program or the certificate.
   let mentions (cs : Array Name) : Bool := cs.any fun c => c == x || c == y
   let at_ := if mentions hi.type.getUsedConstants then "statement"
     else if mentions (proofConstants env 3 h) then "proof" else ""
-  match hi with
-  | .thmInfo _ =>
-    if at_.isEmpty then
-      problems := problems.push s!"headline `{sh}` mentions neither `{sx}` nor `{sy}` in its \
-        statement or proof"
-  | _ => problems := problems.push s!"headline `{sh}` is not a theorem"
-  return result problems at_ modules absent
+  if h == y || h == e then
+    problems := problems.push s!"headline `{sh}` is the {if h == y then "certificate" else
+      "equality"}; name the theorem that applies the hardness assumption to `{sx}`"
+  else
+    match hi with
+    | .thmInfo _ =>
+      unless securityConclusion env 5 hi.type do
+        problems := problems.push s!"headline `{sh}` does not conclude a negligibility or \
+          advantage claim, directly or through the notions it states"
+      if at_.isEmpty then
+        problems := problems.push s!"headline `{sh}` mentions neither `{sx}` nor `{sy}` in its \
+          statement or proof"
+    | _ => problems := problems.push s!"headline `{sh}` is not a theorem"
+  return result problems at_ em (premiseCount ei.type) modules absent
 
 /-- The `--reductions` mode (see the module docstring): every reduction that a public theorem
 states an advantage bound with, and how it is certified. -/
@@ -1045,16 +1098,13 @@ unsafe def runReductions (libDir : System.FilePath) : IO Unit := do
       ("l", toJson ((env.lines.get? r).getD 0)), ("t", names theorems),
       ("tm", toJson (modules.toList.eraseDups.toArray.qsort (· < ·))),
       ("k", toJson kind), ("w", names by_)]
-  -- Private declarations by their names without the private prefix.
-  let mut privates : Std.HashMap Name Name := {}
+  -- The names of private declarations without their prefix, to explain a failure.
+  let mut privateNames : NameSet := {}
   unless requests.isEmpty do
     for (c, _) in env.consts do
-      if isPrivateName c then privates := privates.insert (privateToUserName c) c
-  let resolve (s : String) : Option Name :=
-    let n := s.toName
-    if env.consts.contains n then some n else privates[n]?
+      if isPrivateName c then privateNames := privateNames.insert (privateToUserName c)
   for fields in requests do
-    stdout.putStrLn <| Json.compress <| checkVia env resolve fields
+    stdout.putStrLn <| Json.compress <| checkVia env privateNames fields
   stdout.putStrLn <| Json.compress <| Json.mkObj [("theorems", toJson scanned),
     ("modules", toJson mods.size), ("missing", toJson missing)]
   if regions.isEmpty then stdout.flush
