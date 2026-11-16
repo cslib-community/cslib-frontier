@@ -87,7 +87,7 @@ Information-theoretic private information retrieval, following Chor–Goldreich�
 
 - **SDitH foundations**: [#5212](https://github.com/cslib-community/cslib-frontier/issues/5212), [#5263](https://github.com/cslib-community/cslib-frontier/issues/5263) and [#5542](https://github.com/cslib-community/cslib-frontier/issues/5542) are bounded binary-RSD, `TweakSalt` and two-child `ExpandSeed` milestones. Algorithm 6's byte PRG, the full GGM/BAVC tree, the PIOP, commitments, grinding, signing/verification, hardness, machine costs, asymptotic family security and finite instantiated exact-constant bounds remain under [#4987](https://github.com/cslib-community/cslib-frontier/issues/4987).
 
-- **Concurrent composition**: Fixed-`Fin m` multi-session UC composition (`UC.Emulates.composeMulti` and `UC.Emulates.composeFamily`) has landed for static-corruption, call-bounded protocols; dynamic-`SID` spawning, joint-state UC (Canetti–Rabin), and global-setup UC (GUC/EUC) remain open.
+- **Concurrent composition**: Extend fixed-arity multi-session UC composition (`UC.Emulates.composeMulti`) to session ids created on first use and bounded by the environment's polynomial budget, then to joint-state UC (Canetti–Rabin), global-setup UC (GUC/EUC), and adaptive corruption.
   Then develop selected adaptive-corruption and non-malleability applications, alongside the static-malicious OT target.
 - **Quantum-secure cryptography**: Define uniform quantum-efficient distinguishers and computational indistinguishability with quantum side information, and justify security reductions for concrete constructions in that model.
   Connect the quantum-computation and lattice tracks through these adversary models.
