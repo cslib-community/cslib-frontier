@@ -125,8 +125,12 @@ theorem runWith_eq_run_interpret (program : ProbOracleComp spec α) (s : State) 
     (fun handler => (OracleComp.interpret (m := StateT State PMF) handler program).run s)
     hhandler
 
-/-- The probability that `program` returns `true` against the oracle from the state `s`. -/
-noncomputable def acceptProbWith (program : ProbOracleComp spec Bool) (s : State) : ℝ≥0∞ :=
+/-- The probability that `program` returns `true` against the raw oracle from the state `s`.
+The query and state types may live in independent universes; replies remain small as required by
+`ProbOracleComp`. -/
+noncomputable def acceptProbWith {Query : Type u} {spec : Query → Type} {State : Type s}
+    (oracle : (q : Query) → State → PMF (spec q × State))
+    (program : ProbOracleComp spec Bool) (s : State) : ℝ≥0∞ :=
   (runWith oracle program s).map Prod.fst true
 
 /-- Against a memoryless raw oracle with independently-universed state, the run is
@@ -287,19 +291,24 @@ theorem eval_run_interpret_eq_runWith (oracle : (q : Query) → StateT State Pro
     (OracleComp.runWith_eq_run_interpret _ _ _).symm
 
 /-- A pure program accepts with probability `1` if it returns `true` and `0` otherwise. -/
-theorem acceptProbWith_pure (b : Bool) (s : State) :
+theorem acceptProbWith_pure {Query : Type u} {spec : Query → Type} {State : Type s}
+    (oracle : (q : Query) → State → PMF (spec q × State)) (b : Bool) (s : State) :
     acceptProbWith oracle (pure b) s = if b then 1 else 0 := by
   rw [acceptProbWith, runWith_pure, PMF.pure_map, PMF.pure_apply]
   cases b <;> simp
 
 /-- An acceptance probability is at most `1`. -/
-theorem acceptProbWith_le_one (program : ProbOracleComp spec Bool) (s : State) :
+theorem acceptProbWith_le_one {Query : Type u} {spec : Query → Type} {State : Type s}
+    (oracle : (q : Query) → State → PMF (spec q × State))
+    (program : ProbOracleComp spec Bool) (s : State) :
     acceptProbWith oracle program s ≤ 1 :=
   PMF.coe_le_one _ _
 
 /-- The acceptance probability of `program >>= next` averages the acceptance probability of `next`
 over the joint law of the result and oracle state of `program`. -/
-theorem acceptProbWith_bind (program : ProbOracleComp spec α)
+theorem acceptProbWith_bind {Query : Type u} {spec : Query → Type} {State : Type s}
+    {α : Type} (oracle : (q : Query) → State → PMF (spec q × State))
+    (program : ProbOracleComp spec α)
     (next : α → ProbOracleComp spec Bool) (s : State) :
     acceptProbWith oracle (program >>= next) s =
       ∑' x, runWith oracle program s x * acceptProbWith oracle (next x.1) x.2 := by
@@ -308,16 +317,18 @@ theorem acceptProbWith_bind (program : ProbOracleComp spec α)
 
 /-- The acceptance probability after an external call `q` averages over the oracle's replies and
 next states. -/
-theorem acceptProbWith_query_bind (q : Query) (next : spec q → ProbOracleComp spec Bool)
-    (s : State) :
+theorem acceptProbWith_query_bind {Query : Type u} {spec : Query → Type} {State : Type s}
+    (oracle : (q : Query) → State → PMF (spec q × State))
+    (q : Query) (next : spec q → ProbOracleComp spec Bool) (s : State) :
     acceptProbWith oracle (query (spec := spec) q >>= next) s =
       ∑' x, oracle q s x * acceptProbWith oracle (next x.1) x.2 := by
   rw [acceptProbWith_bind, runWith_query]
 
 /-- The acceptance probability after a private sample averages over the law of the sample, with
 the oracle state unchanged. -/
-theorem acceptProbWith_sample_bind (program : ProbComp α) (next : α → ProbOracleComp spec Bool)
-    (s : State) :
+theorem acceptProbWith_sample_bind {Query : Type u} {spec : Query → Type} {State : Type s}
+    {α : Type} (oracle : (q : Query) → State → PMF (spec q × State))
+    (program : ProbComp α) (next : α → ProbOracleComp spec Bool) (s : State) :
     acceptProbWith oracle (sample program >>= next) s =
       ∑' a, ProbComp.eval program a * acceptProbWith oracle (next a) s := by
   rw [acceptProbWith, runWith_bind, runWith_sample, PMF.bind_map, PMF.map_bind, PMF.bind_apply]
@@ -325,8 +336,9 @@ theorem acceptProbWith_sample_bind (program : ProbComp α) (next : α → ProbOr
 
 /-- Running a second check only after a first one accepted accepts at most as often as the first
 check. -/
-theorem acceptProbWith_bind_ite_le (program : ProbOracleComp spec Bool)
-    (next : ProbOracleComp spec Bool) (s : State) :
+theorem acceptProbWith_bind_ite_le {Query : Type u} {spec : Query → Type} {State : Type s}
+    (oracle : (q : Query) → State → PMF (spec q × State))
+    (program : ProbOracleComp spec Bool) (next : ProbOracleComp spec Bool) (s : State) :
     acceptProbWith oracle (program >>= fun b => if b then next else pure false) s ≤
       acceptProbWith oracle program s := by
   conv_rhs => rw [← bind_pure program, acceptProbWith_bind]

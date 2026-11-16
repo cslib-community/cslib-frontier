@@ -35,7 +35,8 @@ theorem runWith_simulate (oracle : (q : Query) → StateT State PMF (spec q))
     (handler : (q : Query') → ProbOracleComp spec (spec' q)) (program : ProbOracleComp spec' α)
     (s : State) :
     runWith oracle (simulate handler program) s =
-      runWith (fun q => runWith oracle (handler q)) program s :=
-  runWith_interpret_sumHandler oracle handler program s
+      runWith (fun q => runWith oracle (handler q)) program s := by
+  rw [simulate, OracleComp.substitute_eq_interpret]
+  exact runWith_interpret_sumHandler oracle handler program s
 
 end Cslib.ProbOracleComp

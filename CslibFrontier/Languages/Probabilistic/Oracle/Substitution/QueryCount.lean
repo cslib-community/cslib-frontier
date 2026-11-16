@@ -43,8 +43,9 @@ theorem isCostBounded_simulate {cost : Query → ℕ} {cost' : Query' → ℕ}
     (hhandler : ∀ q, IsCostBounded (Sum.elim (fun _ => 0) cost') (handler q) (cost q))
     {program : ProbOracleComp spec α} {n : ℕ}
     (h : IsCostBounded (Sum.elim (fun _ => 0) cost) program n) :
-    IsCostBounded (Sum.elim (fun _ => 0) cost') (ProbOracleComp.simulate handler program) n :=
-  h.interpret fun
+    IsCostBounded (Sum.elim (fun _ => 0) cost') (ProbOracleComp.simulate handler program) n := by
+  rw [ProbOracleComp.simulate, OracleComp.substitute_eq_interpret]
+  exact h.interpret fun
     | .inl k => isCostBounded_sample cost' (ProbComp.unifFin k)
     | .inr q => hhandler q
 
