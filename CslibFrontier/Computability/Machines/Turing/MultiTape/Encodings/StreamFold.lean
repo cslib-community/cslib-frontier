@@ -12,6 +12,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Basic
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.StreamFold
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Comp
 import CslibFrontier.Foundations.Data.List.Flatten
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
@@ -324,12 +325,13 @@ public theorem ComputableTidilyInTimeAndSpace.streamFold_sum_after {α : Type u}
       (fun x => c * (sI x + sF (streamState (init x) next (elems x) (elems x).length) + sMax x +
         lMax x + 1)) := by
   -- the framed next state, and finalization from the framed final state
-  obtain ⟨cfr, hfr⟩ := ComputableTidilyInLinearTimeAndSpace.of_frame (f := id) (encIn := encS)
-    (encOut := encFramed encS) fun _ => rfl
+  obtain ⟨cfr, hfr⟩ := Internal.NormalForm.linear <|
+    ComputableInDegree.of_frame (f := id) (encIn := encS)
+    (encMid := encFramed encS) fun _ => rfl
   -- vendored: crei's `comp` is `comp_linear` here, as cslib #1111 restates `comp`
   obtain ⟨cN, hN'⟩ := ComputableTidilyInTimeAndSpace.comp_linear hfr hnext
-  obtain ⟨cuf, huf⟩ := ComputableTidilyInLinearTimeAndSpace.of_unframe (f := id)
-    (encIn := encFramed encS) (encOut := encS) fun s => by simp
+  obtain ⟨cuf, huf⟩ := Internal.NormalForm.linear <| ComputableInDegree.of_unframe (f := id)
+    (encIn := encFramed encS) (encMid := encS) fun s => by simp
   -- vendored: crei's `comp` is `comp_linear` here, as cslib #1111 restates `comp`
   obtain ⟨cF, hF'⟩ := ComputableTidilyInTimeAndSpace.comp_linear hfinish huf
   obtain ⟨kE, SE, _, tmE, htmE⟩ := hemit
@@ -504,8 +506,9 @@ public theorem ComputableTidilyInTimeAndSpace.streamFold_sum {α : Type u} {σ :
       (fun x => c * (sI x + sF (streamState (init x) next (elems x) (elems x).length) + sMax x +
         lMax x + 1)) := by
   -- the initial state is computed from the whole input and framed onto the selected tape
-  obtain ⟨cfr, hfr⟩ := ComputableTidilyInLinearTimeAndSpace.of_frame (f := id) (encIn := encS)
-    (encOut := encFramed encS) fun _ => rfl
+  obtain ⟨cfr, hfr⟩ := Internal.NormalForm.linear <|
+    ComputableInDegree.of_frame (f := id) (encIn := encS)
+    (encMid := encFramed encS) fun _ => rfl
   -- vendored: crei's `comp` is `comp_linear` here, as cslib #1111 restates `comp`
   obtain ⟨cI, hI'⟩ := ComputableTidilyInTimeAndSpace.comp_linear hfr hinit
   obtain ⟨kI, SI, _, tmI, htmI⟩ := hI'

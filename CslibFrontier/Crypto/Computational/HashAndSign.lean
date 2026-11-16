@@ -7,6 +7,7 @@ Authors: Karn Seth
 module
 -- upstream: candidate
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder
 public import CslibFrontier.Crypto.Computational.CollisionResistant
 public import CslibFrontier.Crypto.Computational.MerkleDamgard
@@ -16,7 +17,6 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
-import CslibFrontier.Computability.Probabilistic.Oracle.Tidy
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Crypto.Negligible.Basic

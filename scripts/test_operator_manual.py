@@ -14,7 +14,7 @@ from unittest import mock
 from build_operator_manual import main as build_main
 from check_operator_manual import (LABEL_LOCATOR, LIST_AFTER_PARAGRAPH, MISNAMED_SOURCE_ANCHOR,
                                    STALE_SOURCE_ANCHOR, book_input_errors, check, comment_depths,
-                                   fix_anchors, lists_after_paragraphs, main as check_main,
+                                   fix_anchors, frozen, lists_after_paragraphs, main as check_main,
                                    source_anchor_error)
 
 DATA = Path(__file__).resolve().parents[1] / "manual/data"
@@ -444,6 +444,75 @@ class ManualChecks(unittest.TestCase):
             self.assertEqual(payload["fixed_anchors"], [])
             self.assertEqual(len(payload["errors"]), 2)
 
+    def frozen_page(self, body=""):
+        """A frozen reference chapter, linked from the entry page, with one stale source anchor."""
+        (self.repo / "CslibFrontierTests/Anchored.lean").write_text(ANCHORED_SOURCE)
+        stale = ANCHORED_SOURCE.splitlines().index("  2") + 1
+        url = f"../../CslibFrontierTests/Anchored.lean#L{stale}"
+        page = self.manual / "machines-and-classes/frozen.md"
+        page.parent.mkdir(exist_ok=True)
+        page.write_text(f"# Frozen chapter\n\n## Model\n\n[two]({url})\n{body}")
+        readme = self.manual / "README.md"
+        readme.write_text(readme.read_text() + "[Reference](machines-and-classes/frozen.md#model)\n")
+        return page, url
+
+    def test_frozen_page_tolerates_source_and_maintained_page_drift(self):
+        page, url = self.frozen_page(
+            "[one](../../CslibFrontierTests/Anchored.lean#L10000)\n"
+            "[Deleted](../../CslibFrontierTests/Deleted.lean#L3)\n"
+            "[Renamed heading](../workflows/first.md#gone)\n"
+            "[Removed page](../workflows/removed.md)\n")
+        result = check(self.repo)
+        self.assertEqual(result["errors"], [])
+        self.assertEqual(result["frozen_documents"], 1)
+        # The same stale anchor in a maintained page still fails.
+        self.doc.write_text(self.doc.read_text() + f"\n[two]({url})\n")
+        self.assertEqual(self.errors(), [f"workflows/first.md: {STALE_SOURCE_ANCHOR}: {url}"])
+
+    def test_registry_in_a_frozen_directory_is_maintained(self):
+        _, url = self.frozen_page()
+        registry = self.manual / "programs-crypto-and-probability/assumptions.md"
+        self.assertFalse(frozen("programs-crypto-and-probability/assumptions.md"))
+        self.assertTrue(frozen("programs-crypto-and-probability/index.md"))
+        registry.parent.mkdir()
+        registry.write_text(f"# Assumptions\n\n[two]({url})\n")
+        readme = self.manual / "README.md"
+        readme.write_text(readme.read_text()
+                          + "[Assumptions](programs-crypto-and-probability/assumptions.md)\n")
+        self.assertEqual(self.errors(), [
+            f"programs-crypto-and-probability/assumptions.md: {STALE_SOURCE_ANCHOR}: {url}"])
+
+    def test_links_into_and_between_frozen_pages_are_checked(self):
+        page, _ = self.frozen_page()
+        readme = self.manual / "README.md"
+        readme.write_text(readme.read_text().replace("frozen.md#model", "frozen.md#gone"))
+        self.assertEqual(self.errors(), [
+            "README.md: missing Markdown anchor: machines-and-classes/frozen.md#gone"])
+        readme.write_text(readme.read_text().replace("frozen.md#gone", "absent.md"))
+        self.assertIn("README.md: missing local link: machines-and-classes/absent.md", self.errors())
+        readme.write_text(readme.read_text().replace("absent.md", "frozen.md"))
+        page.write_text(page.read_text() + "\n[Sibling](../model-map.md#gone) [Self](#gone)\n")
+        (self.manual / "model-map.md").write_text("# Model map\n")
+        self.assertEqual(self.errors(), [
+            f"machines-and-classes/frozen.md: missing Markdown anchor: {url}"
+            for url in ("../model-map.md#gone", "#gone")])
+
+    def test_frozen_page_keeps_checks_of_its_own_text(self):
+        page, _ = self.frozen_page("\nThe cases:\n- one;\n- another.\n\n[Read it][undefined]\n"
+                                   "[Outside](../../../outside.md)\n")
+        self.assertEqual([error.split(": ", 1)[1].split(":")[0] for error in self.errors()],
+                         ["Line 8", "undefined reference [undefined]",
+                          "local link escapes repository"])
+
+    def test_fix_anchors_leaves_frozen_pages_untouched(self):
+        page, url = self.frozen_page()
+        before = page.read_text()
+        self.doc.write_text(self.doc.read_text() + f"\n[two]({url})\n")
+        fixes = fix_anchors(self.repo)
+        self.assertEqual([fix["document"] for fix in fixes], ["workflows/first.md"])
+        self.assertEqual(page.read_text(), before)
+        self.assertEqual(self.errors(), [])
+
 
 class SourceLineAnchors(unittest.TestCase):
     """A relative `.lean#L` link must start a declaration, attribute, docstring or section."""
@@ -775,6 +844,16 @@ class PortableLinks(unittest.TestCase):
             for href in ('../CslibFrontierTests/A%20client.lean', '../CslibFrontierTests'):
                 with self.subTest(href=href), self.assertRaisesRegex(ValueError, 'uncommitted changes'):
                     self.target(href)
+
+    def test_frozen_chapter_prints_the_text_of_a_link_to_a_removed_file(self):
+        frozen_page = 'machines-and-classes/reductions.md'
+        self.assertEqual(self.link('../../CslibFrontierTests/Removed.lean#L4', frozen_page),
+                         {'t': 'Span', 'c': [['', [], []], [{'t': 'Str', 'c': 'Client'}]]})
+        self.assertIn(f'/blob/{self.revision}/CslibFrontierTests/A%20client.lean#L4',
+                      self.target('../../CslibFrontierTests/A%20client.lean#L4', frozen_page))
+        with self.assertRaisesRegex(ValueError, 'absent from the rendered revision'):
+            self.target('../../CslibFrontierTests/Removed.lean',
+                        'programs-crypto-and-probability/assumptions.md')
 
     def test_paths_outside_repository_are_rejected(self):
         with self.assertRaisesRegex(ValueError, 'outside the repository'):

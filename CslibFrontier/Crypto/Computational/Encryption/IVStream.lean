@@ -22,14 +22,20 @@ import CslibFrontier.Probability.BitString
 import CslibFrontier.Tactic.PolyTime
 
 /-!
-# Stream encryption under a random initial value
+# Encryption under a random initial value
+
+A random-IV mode draws a uniform `n`-bit initial value `iv` and outputs `iv` followed by a body
+computed from the key, `iv` and the message. `ivModeEncrypt body` is this envelope for a body
+`body n k iv msg`; it is efficient whenever the body is computable in polynomial time
+(`isPPTOn_ivModeEncrypt`).
 
 Randomized counter mode ([BonehShoup2023], Section 5.4.2) and output feedback mode
-(Exercise 5.15(b)) encrypt in the same way: draw a uniform `n`-bit initial value `iv`, derive a
-keystream of whole `n`-bit blocks from the key and `iv`, and output `iv` followed by the message
-XORed with the keystream. They differ only in the keystream. `ivStreamEncrypt keystream` and
-`ivStreamDecrypt keystream` are this construction for a keystream generator
-`keystream n k iv blocks`. Decryption accepts an `n`-bit initial value followed by whole blocks.
+(Exercise 5.15(b)) are the stream case: derive a keystream of whole `n`-bit blocks from the key
+and `iv`, and XOR it with the message. They differ only in the keystream. `ivStreamEncrypt
+keystream` and `ivStreamDecrypt keystream` are this construction for a keystream generator
+`keystream n k iv blocks`; `ivStreamEncrypt keystream` is defined as `ivModeEncrypt` with the XOR
+body.
+Decryption accepts an `n`-bit initial value followed by whole blocks.
 
 Decryption inverts encryption on whole-block messages whenever the keystream has `blocks * n` bits
 (`ivStreamDecrypt_ivStreamEncrypt`). Both algorithms are efficient whenever the keystream generator
@@ -38,13 +44,15 @@ is computable in polynomial time (`isPPTOn_ivStreamEncrypt`,
 
 ## Main definitions
 
-* `Cslib.Crypto.ivStreamEncrypt`, `Cslib.Crypto.ivStreamDecrypt`: encryption and decryption.
+* `Cslib.Crypto.ivModeEncrypt`: encryption under a random initial value with a given body.
+* `Cslib.Crypto.ivStreamEncrypt`, `Cslib.Crypto.ivStreamDecrypt`: stream encryption and
+  decryption.
 
 ## Main results
 
 * `Cslib.Crypto.ivStreamDecrypt_ivStreamEncrypt`: correctness.
-* `Cslib.Crypto.isPPTOn_ivStreamEncrypt`, `Cslib.Crypto.computableInPolyTime_ivStreamDecrypt`:
-  efficiency.
+* `Cslib.Crypto.isPPTOn_ivModeEncrypt`, `Cslib.Crypto.isPPTOn_ivStreamEncrypt`,
+  `Cslib.Crypto.computableInPolyTime_ivStreamDecrypt`: efficiency.
 
 ## References
 
@@ -58,13 +66,21 @@ namespace Cslib.Crypto
 
 open Probability Turing.MultiTapeTM
 
-/-- Stream encryption under a random initial value: draw a uniform `n`-bit `iv` and output `iv`
-followed by the message XORed with the keystream `keystream n k iv (msg.length / n)`. -/
+/-- Encryption under a random initial value with body `body`: draw a uniform `n`-bit `iv` and
+output `iv` followed by `body n k iv msg`. -/
 @[expose]
-noncomputable def ivStreamEncrypt (keystream : ℕ → List Bool → List Bool → ℕ → List Bool)
+noncomputable def ivModeEncrypt (body : ℕ → List Bool → List Bool → List Bool → List Bool)
     (n : ℕ) (k msg : List Bool) : ProbComp (List Bool) := do
   let iv ← BitString.sampleList n
-  return iv ++ List.zipWith xor (keystream n k iv (msg.length / n)) msg
+  return iv ++ body n k iv msg
+
+/-- Stream encryption under a random initial value: the random-IV mode `ivModeEncrypt` whose body
+is the message XORed with the keystream `keystream n k iv (msg.length / n)`. -/
+@[expose]
+noncomputable def ivStreamEncrypt (keystream : ℕ → List Bool → List Bool → ℕ → List Bool)
+    (n : ℕ) (k msg : List Bool) : ProbComp (List Bool) :=
+  ivModeEncrypt (fun n k iv msg => List.zipWith xor (keystream n k iv (msg.length / n)) msg)
+    n k msg
 
 /-- Stream decryption: accept an `n`-bit initial value followed by whole blocks, and XOR the blocks
 with the keystream from that initial value. -/
@@ -84,8 +100,8 @@ theorem ivStreamDecrypt_ivStreamEncrypt {keystream : ℕ → List Bool → List 
     (hmsg : msg.length % n = 0) {ct : List Bool}
     (hct : ct ∈ (ProbComp.eval (ivStreamEncrypt keystream n k msg)).support) :
     ivStreamDecrypt keystream n k ct = some msg := by
-  simp only [ivStreamEncrypt, ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList,
-    PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hct
+  simp only [ivStreamEncrypt, ivModeEncrypt, ProbComp.eval_bind, ProbComp.eval_pure,
+    BitString.eval_sampleList, PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hct
   obtain ⟨iv, hiv, rfl⟩ := hct
   have hivLen : iv.length = n := BitString.length_of_mem_support_uniformList hiv
   have hksLen : (keystream n k iv (msg.length / n)).length = msg.length := by
@@ -97,6 +113,25 @@ theorem ivStreamDecrypt_ivStreamEncrypt {keystream : ℕ → List Bool → List 
     hivLen]
   simp [hmsg, body, BitString.zipWith_xor_self_left _ _ hksLen]
 
+/-- Encryption under a random initial value is uniformly strict PPT in `(n, k, msg)` when the body
+is computable in polynomial time on `(n, k, iv, msg)`. -/
+theorem isPPTOn_ivModeEncrypt {body : ℕ → List Bool → List Bool → List Bool → List Bool}
+    (hbody : ComputableInPolyTime
+      (fun ((n, k, iv, msg) : ℕ × List Bool × List Bool × List Bool) => body n k iv msg)
+      (encPair encUnary (encPair encBits (encPair encBits encBits))) encBits) :
+    IsPPTOn (encKeyedInput encBits) encBits
+      (fun ((n, k, msg) : ℕ × List Bool × List Bool) => ivModeEncrypt body n k msg) := by
+  let EIn := encPair (encKeyedInput encBits) encBits
+  have hargs : ComputableInPolyTime
+      (fun p : (ℕ × List Bool × List Bool) × List Bool => (p.1.1, p.1.2.1, p.2, p.1.2.2))
+      EIn (encPair encUnary (encPair encBits (encPair encBits encBits))) := by
+    dsimp only [EIn]; fun_prop
+  have hpost : ComputableInPolyTime
+      (fun p : (ℕ × List Bool × List Bool) × List Bool => p.2 ++ body p.1.1 p.1.2.1 p.2 p.1.2.2)
+      EIn encBits :=
+    ComputableInPolyTime.bitsAppend (by dsimp only [EIn]; fun_prop) (hbody.comp hargs)
+  exact (ComputableInPolyTime.sampleList (ComputableInPolyTime.fst _ _)).bind_with hpost.isPPTOn
+
 /-- Stream encryption is uniformly strict PPT in `(n, k, msg)` when the keystream generator is
 computable in polynomial time on `(n, k, iv, blocks)`. -/
 theorem isPPTOn_ivStreamEncrypt {keystream : ℕ → List Bool → List Bool → ℕ → List Bool}
@@ -105,23 +140,15 @@ theorem isPPTOn_ivStreamEncrypt {keystream : ℕ → List Bool → List Bool →
       (encPair encUnary (encPair encBits (encPair encBits encUnary))) encBits) :
     IsPPTOn (encKeyedInput encBits) encBits
       (fun ((n, k, msg) : ℕ × List Bool × List Bool) => ivStreamEncrypt keystream n k msg) := by
-  let EIn := encPair (encKeyedInput encBits) encBits
+  let EBody := encPair encUnary (encPair encBits (encPair encBits encBits))
   have hargs : ComputableInPolyTime
-      (fun p : (ℕ × List Bool × List Bool) × List Bool =>
-        (p.1.1, p.1.2.1, p.2, p.1.2.2.length / p.1.1))
-      EIn (encPair encUnary (encPair encBits (encPair encBits encUnary))) := by
-    dsimp only [EIn]; fun_prop
-  have hks : ComputableInPolyTime
-      (fun p : (ℕ × List Bool × List Bool) × List Bool =>
-        keystream p.1.1 p.1.2.1 p.2 (p.1.2.2.length / p.1.1)) EIn encBits :=
-    hkeystream.comp hargs
-  have hpost : ComputableInPolyTime
-      (fun p : (ℕ × List Bool × List Bool) × List Bool =>
-        p.2 ++ List.zipWith xor (keystream p.1.1 p.1.2.1 p.2 (p.1.2.2.length / p.1.1)) p.1.2.2)
-      EIn encBits :=
-    ComputableInPolyTime.bitsAppend (by dsimp only [EIn]; fun_prop)
-      (ComputableInPolyTime.bitsZipWithInput xor hks (by dsimp only [EIn]; fun_prop))
-  exact (ComputableInPolyTime.sampleList (ComputableInPolyTime.fst _ _)).bind_with hpost.isPPTOn
+      (fun p : ℕ × List Bool × List Bool × List Bool =>
+        (p.1, p.2.1, p.2.2.1, p.2.2.2.length / p.1))
+      EBody (encPair encUnary (encPair encBits (encPair encBits encUnary))) := by
+    dsimp only [EBody]; fun_prop
+  exact isPPTOn_ivModeEncrypt
+    (body := fun n k iv msg => List.zipWith xor (keystream n k iv (msg.length / n)) msg)
+    (ComputableInPolyTime.bitsZipWithInput xor (hkeystream.comp hargs) (by fun_prop))
 
 /-- Stream decryption is computable in polynomial time on `(n, k, ct)` when the keystream
 generator is computable in polynomial time on `(n, k, iv, blocks)`. -/

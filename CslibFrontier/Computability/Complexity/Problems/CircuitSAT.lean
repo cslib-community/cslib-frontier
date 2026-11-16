@@ -262,9 +262,9 @@ private theorem evalCode_circuitBlock (V : List Bool) (p i : ℕ) (b e : Bool)
   cases e
   · have hi := hi rfl
     cases b <;>
-    simp [circuitBlock, evalCode, interpretation, hV, show i < p + 3 by omega,
+    simp [circuitBlock, evalCode, evalCodeStep, interpretation, hV, show i < p + 3 by omega,
       show p + 1 < p + 3 by omega, show p + 2 < p + 3 by omega]
-  · simp [circuitBlock, evalCode, interpretation, hV]
+  · simp [circuitBlock, evalCode, evalCodeStep, interpretation, hV]
 
 /-- The blocks of instructions `k, k + 1, …` keep the state of `circuitState`: after them, the
 last gate holds the conjunction computed from the state before them. -/
@@ -338,7 +338,7 @@ theorem eval_toCircuit (φ : CNF ℕ) (x : BitString (toCircuit φ).1) :
   have hinit : evalCode interpretation false (List.ofFn x)
       [(Op.const false, []), (Op.const false, []), (Op.const true, [])] =
       List.ofFn x ++ [false, false, true] := by
-    simp [evalCode, interpretation]
+    simp [evalCode, evalCodeStep, interpretation]
   rw [hinit]
   have hn : (List.ofFn x).length = φ.vars.length := List.length_ofFn
   have := evalCode_flatMap φ (List.ofFn x) hn (circuitSteps φ)
