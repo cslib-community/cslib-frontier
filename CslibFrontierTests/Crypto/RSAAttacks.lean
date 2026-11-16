@@ -197,12 +197,4 @@ example (gen : RSAGen) (h : RSAOneWay gen) :
 #guard_msgs in
 #print axioms Cslib.Crypto.RSAOneWay.modulusFactoringHard
 
-/-- info: 'Cslib.Crypto.gcd_sub_proper_of_sq_modEq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Cslib.Crypto.gcd_sub_proper_of_sq_modEq
-
-/-- info: 'Cslib.Crypto.gcd_add_proper_of_sq_modEq' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Cslib.Crypto.gcd_add_proper_of_sq_modEq
-
 end CslibFrontierTests.Crypto.RSAAttacks

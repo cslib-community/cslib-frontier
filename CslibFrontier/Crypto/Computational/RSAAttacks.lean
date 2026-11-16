@@ -272,10 +272,7 @@ private theorem one_lt_of_sq_modEq {N x y : ℕ} (hsq : x ^ 2 ≡ y ^ 2 [MOD N])
 private theorem dvd_sub_mul_add_of_sq_modEq {N x y : ℕ} (hyx : y ≤ x)
     (hsq : x ^ 2 ≡ y ^ 2 [MOD N]) : N ∣ (x - y) * (x + y) := by
   have h := (Nat.modEq_iff_dvd' (Nat.pow_le_pow_left hyx 2)).mp hsq.symm
-  rwa [show x ^ 2 - y ^ 2 = (x - y) * (x + y) by
-    obtain ⟨z, rfl⟩ := Nat.exists_eq_add_of_le hyx
-    rw [show y + z - y = z by omega, show (y + z) ^ 2 = z * (y + z + y) + y ^ 2 by ring,
-      Nat.add_sub_cancel]] at h
+  rwa [Nat.pow_two_sub_pow_two, Nat.mul_comm] at h
 
 /-- **Square-congruence factoring (`gcd(x - y, N)`)**: for any `N` and `y ≤ x`, if
 `x ^ 2 ≡ y ^ 2 [MOD N]`, `x ≢ y [MOD N]`, and `x + y ≢ 0 [MOD N]`, then `gcd(x - y, N)` is a
