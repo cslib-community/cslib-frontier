@@ -11,6 +11,8 @@ public import CslibFrontier.Tactic.SuppCases
 
 /-! # Inverting support memberships with `supp_cases` and `supp_norm` -/
 
+set_option linter.privateModule false
+
 namespace CslibFrontierTests.SuppCases
 
 open Cslib
@@ -150,14 +152,17 @@ example {ι : Type} {spec : OracleSpec ι} {α : Type u} {β : Type v} {γ : Typ
 
 private abbrev lowReplySpec : Unit → Type := fun _ => Bool
 
--- Ordinary bind over low replies keeps a result in an independently chosen high universe.
+-- Ordinary bind sequences high-universe results while the underlying oracle replies stay low.
 example (possible : (q : Unit) → Set (lowReplySpec q))
-    (next : Bool → OracleComp lowReplySpec (Type u)) (x : Type u)
+    (next : ULift.{u} Bool → OracleComp lowReplySpec (ULift.{u} Bool)) (x : ULift.{u} Bool)
     (h : x ∈ OracleComp.supportWith possible (do
-      let reply ← OracleComp.query ()
+      let reply ← PFunctor.FreeM.bind (OracleComp.query ()) fun answer =>
+        pure (ULift.up answer)
       next reply)) :
-    ∃ reply ∈ possible (), x ∈ OracleComp.supportWith possible (next reply) := by
-  supp_cases h with ⟨reply, hreply, hx⟩
+    ∃ reply ∈ possible (),
+      x ∈ OracleComp.supportWith possible (next (ULift.up reply)) := by
+  supp_cases h with ⟨lifted, hlifted, hx⟩
+  obtain ⟨reply, hreply, rfl⟩ := hlifted
   exact ⟨reply, hreply, hx⟩
 
 -- A decided condition selects its branch even under `ProbComp.eval`, which does not split `if`.
