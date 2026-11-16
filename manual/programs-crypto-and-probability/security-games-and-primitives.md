@@ -3135,27 +3135,6 @@ CPA game of `A`, for either challenge bit; `SymmetricCipher.INDCCA.indcpa` deriv
 `INDCCA`. Examples are in
 [`CslibFrontierTests/Crypto/CCAToCPA.lean`](../../CslibFrontierTests/Crypto/CCAToCPA.lean).
 
-For Exercise 9.15(b), that chosen-ciphertext security and plaintext integrity give authenticated
-encryption, import
-[`Encryption/PlaintextIntegrity.lean`](../../CslibFrontier/Crypto/Computational/Encryption/PlaintextIntegrity.lean).
-`SymmetricCipher.INDCCA.ciphertextIntegrity` derives `CiphertextIntegrity` from `INDCCA` and
-`EncForge`, and `SymmetricCipher.INDCCA.authenticatedEncryption` adds `INDCCA.indcpa` to obtain
-`AuthenticatedEncryption`. Both reductions draw `Q n` uniform `n`-bit messages `rᵢ`.
-`ciToCCAAdversary ctBound Q A` runs the CI adversary `A`, asks the CCA oracle to encrypt the `i`-th
-query of `A` (bit `false`) or `rᵢ` (bit `true`), and makes one decryption query, on the forgery of
-`A`; it outputs `true` when that ciphertext is accepted and its plaintext is none of the `rᵢ`.
-`ciToRandEncForgeAdversary ctBound Q A` answers the `i`-th query of `A` with an encryption of `rᵢ`
-and outputs the forgery of `A`. `isOraclePPT_ciToCCAAdversary` and
-`isOraclePPT_ciToRandEncForgeAdversary` certify them when `A` is `IsOraclePPT encBits` and
-`ctBound` and `Q` are polynomial-time computable. When `A` makes at most `Q n` queries and
-`E.CiphertextLengthLE n (ctBound n)` holds, `succProbability_ciGame_le_encForge_add_indcca` bounds
-the success of `A` in `ciGame` by that of the plaintext-integrity reduction in `encForgeGame`, plus
-the advantage of the CCA reduction, plus `Q n / 2ⁿ`. The CCA reduction makes one decryption query
-and uses the plaintext it returns; the hypothesis is the library's `INDCCA`. Examples, including
-the instance on `prfEncryptThenMAC` and the equivalence of `AuthenticatedEncryption` with `INDCCA`
-together with `EncForge`, are in
-[`CslibFrontierTests/Crypto/PlaintextIntegrity.lean`](../../CslibFrontierTests/Crypto/PlaintextIntegrity.lean).
-
 For generic MAC-then-Encrypt composition, its `INDCPA` preservation, and its chosen-ciphertext
 counterexample over `SymmetricCipher` and `MACScheme`, import
 [`Encryption/MACThenEncrypt.lean`](../../CslibFrontier/Crypto/Computational/Encryption/MACThenEncrypt.lean)
