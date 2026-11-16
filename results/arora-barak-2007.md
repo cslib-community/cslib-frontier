@@ -469,7 +469,7 @@ endpoint, not the separate adjacent-pair block construction in Exercise 2 or the
 ### What the existing query API establishes
 
 - Exact finite query-measure inequalities are available without a machine-encoding translation.
-- Bounded-error depth minimax and zero-error expected cost are distinct contracts; their separate APIs do not by themselves prove 11.17.
+- Bounded-error depth minimax and zero-error expected cost are distinct contracts: bounded-error depth alone does not imply the expected-cost minimax. 11.17 is proved by the dedicated expected-cost theorem `zeroErrorComplexity_eq_iSup_distributionalExpectedComplexity`, not by the depth API.
 
 ### Connectivity evasiveness after the audited snapshot
 

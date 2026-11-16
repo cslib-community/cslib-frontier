@@ -538,9 +538,9 @@ new client test, whole-library semantic audit or axiom-dependency audit was perf
 whose verifier efficiency is supplied as an external assumption. `NP_eq_PCP_log` similarly
 uses the encoded gap-graph pipeline and a native polynomial-time nonadaptive verifier.
 The noncomputable `Cslib.PCP.Dinur.round` separately has the exact factor-two combinatorial
-bound and linear cardinality bounds; this must not be mistaken for the encoded single-round
-runtime theorem in 9.19. Conversely, that remaining bridge does not invalidate the already
-proved class-level PCP theorem.
+bound and linear cardinality bounds; it is distinct from the executable encoded `amplify`,
+whose concrete gain instantiation and encoded polynomial self-map establish 9.19 (see its row).
+The noncomputable `round` is not itself the polynomial-time step.
 
 The subsequent Exercise 9.21(1)–(3) now has its arbitrary finite abelian group endpoint in
 [HomomorphismTesting](../CslibFrontier/Foundations/Algebra/Group/HomomorphismTesting.lean).
