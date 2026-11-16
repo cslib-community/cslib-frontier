@@ -98,6 +98,21 @@ unchanged.
   `Cslib.Crypto.Protocols.UC.AdaptiveEmulatesWithin`, `Cslib.Crypto.Protocols.UC.AdaptiveEmulates`:
   call budgets and adaptive UC emulation.
 
+## Main results
+
+* `Cslib.Crypto.Protocols.UC.adaptiveAdvantage_self`,
+  `Cslib.Crypto.Protocols.UC.adaptiveAdvantage_comm`,
+  `Cslib.Crypto.Protocols.UC.adaptiveAdvantage_triangle`: the adaptive advantage is a pseudometric.
+* `Cslib.Crypto.Protocols.UC.Environment.PolyBounded.toAdaptive`: embedding a static environment
+  preserves its call budget.
+* `Cslib.Crypto.Protocols.UC.AdaptiveEmulatesWithin.mono`,
+  `Cslib.Crypto.Protocols.UC.AdaptiveEmulatesWithin.refl`,
+  `Cslib.Crypto.Protocols.UC.AdaptiveEmulatesWithin.trans`,
+  `Cslib.Crypto.Protocols.UC.AdaptiveEmulatesWithin.emulates`,
+  `Cslib.Crypto.Protocols.UC.AdaptiveEmulates.refl`,
+  `Cslib.Crypto.Protocols.UC.AdaptiveEmulates.trans`: reflexivity, transitivity, and error
+  monotonicity of adaptive UC emulation.
+
 ## References
 
 * [R. Canetti, *Universally Composable Security*][Canetti2020], J. ACM 67(5), Art. 28, 2020:
@@ -389,6 +404,38 @@ under the same `mode`, while each uses its own protocol's `memory`. -/
     (Z : AdaptiveEnvironment n In Out AdvQ AdvR) (κ : ℕ) (z : List Bool) : NNReal :=
   Game.advantage (adaptiveExec mode P A Z κ z).eval (adaptiveExec mode Q S Z κ z).eval
 
+/-- An adaptive execution cannot be distinguished from itself. -/
+@[simp] theorem adaptiveAdvantage_self (mode : CorruptionMode)
+    (P : AdaptiveProtocol n In Out NetQ NetR View)
+    (A : AdaptiveAdversary n In Out NetQ NetR View AdvQ AdvR)
+    (Z : AdaptiveEnvironment n In Out AdvQ AdvR) (κ : ℕ) (z : List Bool) :
+    adaptiveAdvantage mode P P A A Z κ z = 0 :=
+  Game.advantage_self _
+
+/-- The adaptive distinguishing advantage is symmetric. -/
+theorem adaptiveAdvantage_comm (mode : CorruptionMode)
+    (P : AdaptiveProtocol n In Out NetQ₁ NetR₁ View₁)
+    (Q : AdaptiveProtocol n In Out NetQ₂ NetR₂ View₂)
+    (A : AdaptiveAdversary n In Out NetQ₁ NetR₁ View₁ AdvQ AdvR)
+    (S : AdaptiveAdversary n In Out NetQ₂ NetR₂ View₂ AdvQ AdvR)
+    (Z : AdaptiveEnvironment n In Out AdvQ AdvR) (κ : ℕ) (z : List Bool) :
+    adaptiveAdvantage mode P Q A S Z κ z = adaptiveAdvantage mode Q P S A Z κ z :=
+  Game.advantage_comm _ _
+
+/-- The triangle inequality for adaptive advantage through an intermediate protocol and
+adversary. -/
+theorem adaptiveAdvantage_triangle (mode : CorruptionMode)
+    (P₁ : AdaptiveProtocol n In Out NetQ₁ NetR₁ View₁)
+    (P₂ : AdaptiveProtocol n In Out NetQ₂ NetR₂ View₂)
+    (P₃ : AdaptiveProtocol n In Out NetQ₃ NetR₃ View₃)
+    (A₁ : AdaptiveAdversary n In Out NetQ₁ NetR₁ View₁ AdvQ AdvR)
+    (A₂ : AdaptiveAdversary n In Out NetQ₂ NetR₂ View₂ AdvQ AdvR)
+    (A₃ : AdaptiveAdversary n In Out NetQ₃ NetR₃ View₃ AdvQ AdvR)
+    (Z : AdaptiveEnvironment n In Out AdvQ AdvR) (κ : ℕ) (z : List Bool) :
+    adaptiveAdvantage mode P₁ P₃ A₁ A₃ Z κ z ≤
+      adaptiveAdvantage mode P₁ P₂ A₁ A₂ Z κ z + adaptiveAdvantage mode P₂ P₃ A₂ A₃ Z κ z :=
+  Game.advantage_triangle _ _ _
+
 end Execution
 
 /-! ### Budgets and adaptive emulation -/
@@ -396,7 +443,7 @@ end Execution
 section Budgets
 
 variable {n : ℕ} {In Out NetQ NetR View AdvQ AdvR : Type}
-  {NetQ₁ NetR₁ View₁ NetQ₂ NetR₂ View₂ : Type}
+  {NetQ₁ NetR₁ View₁ NetQ₂ NetR₂ View₂ NetQ₃ NetR₃ View₃ : Type}
 
 /-- Every activation of `P.machine κ` makes at most `p.eval κ` calls. -/
 @[expose] def AdaptiveProtocol.PolyBounded
@@ -414,6 +461,37 @@ auxiliary input `z`. -/
 @[expose] def AdaptiveEnvironment.PolyBounded
     (Z : AdaptiveEnvironment n In Out AdvQ AdvR) (p : Polynomial ℕ) : Prop :=
   ∀ κ z, (Z κ z).IsQueryBounded (p.eval κ)
+
+theorem AdaptiveProtocol.PolyBounded.mono {P : AdaptiveProtocol n In Out NetQ NetR View}
+    {p q : Polynomial ℕ} (h : P.PolyBounded p) (hpq : ∀ κ, p.eval κ ≤ q.eval κ) :
+    P.PolyBounded q :=
+  fun κ => (h κ).mono (hpq κ)
+
+theorem AdaptiveAdversary.PolyBounded.mono
+    {A : AdaptiveAdversary n In Out NetQ NetR View AdvQ AdvR} {p q : Polynomial ℕ}
+    (h : A.PolyBounded p) (hpq : ∀ κ, p.eval κ ≤ q.eval κ) : A.PolyBounded q :=
+  fun κ => (h κ).mono (hpq κ)
+
+theorem AdaptiveEnvironment.PolyBounded.mono {Z : AdaptiveEnvironment n In Out AdvQ AdvR}
+    {p q : Polynomial ℕ} (h : Z.PolyBounded p) (hpq : ∀ κ, p.eval κ ≤ q.eval κ) :
+    Z.PolyBounded q :=
+  fun κ z => (h κ z).mono (hpq κ)
+
+/-- Lifting static queries into `adaptiveExecSpec` preserves query budgets. -/
+theorem isQueryBounded_liftPartyQuery {α : Type}
+    {program : ProbOracleComp (execSpec n In Out AdvQ AdvR) α} {m : ℕ}
+    (h : program.IsQueryBounded m) :
+    (liftPartyQuery program).IsQueryBounded m := by
+  refine OracleComp.IsCostBounded.interpret (fun q => ?_) h
+  rcases q with k | (⟨i, x⟩ | a)
+  · exact OracleComp.IsCostBounded.query _
+  · exact OracleComp.IsCostBounded.query _
+  · exact OracleComp.IsCostBounded.query _
+
+/-- Embedding a static environment into `AdaptiveEnvironment` preserves its call budget. -/
+theorem Environment.PolyBounded.toAdaptive {Z : Environment n In Out AdvQ AdvR}
+    {p : Polynomial ℕ} (h : Z.PolyBounded p) : Z.toAdaptive.PolyBounded p :=
+  fun κ z => isQueryBounded_liftPartyQuery (h κ z)
 
 /-- Concrete adaptive UC emulation under `mode` (statistical, call-bounded adaptation of
 [Canetti2020], Section 7.1.1, p. 28:71, not a theorem of the paper). Every adversary `A` with
@@ -445,6 +523,82 @@ adaptation of [Canetti2020], Section 7.1.1, p. 28:71, not a theorem of the paper
           ∀ (Z : AdaptiveEnvironment n In Out AdvQ AdvR),
             Z.PolyBounded pZ → ∀ (κ : ℕ) (z : List Bool),
               adaptiveAdvantage mode P Q A S Z κ z ≤ ν κ
+
+namespace AdaptiveEmulatesWithin
+
+/-- A larger error bound is still an error bound. -/
+theorem mono {mode : CorruptionMode} {P : AdaptiveProtocol n In Out NetQ₁ NetR₁ View₁}
+    {Q : AdaptiveProtocol n In Out NetQ₂ NetR₂ View₂}
+    {g : Polynomial ℕ} {ε ε' : Polynomial ℕ → Polynomial ℕ → ℕ → ℝ≥0}
+    (h : AdaptiveEmulatesWithin mode P Q g ε) (hε : ∀ pA pZ κ, ε pA pZ κ ≤ ε' pA pZ κ) :
+    AdaptiveEmulatesWithin mode P Q g ε' := by
+  intro AdvQ AdvR A pA hA
+  obtain ⟨S, pS, hS, hSg, hadv⟩ := h AdvQ AdvR A pA hA
+  exact ⟨S, pS, hS, hSg, fun Z pZ hZ κ z => (hadv Z pZ hZ κ z).trans (hε pA pZ κ)⟩
+
+/-- Every adaptive protocol emulates itself with zero error. -/
+theorem refl (mode : CorruptionMode) (P : AdaptiveProtocol n In Out NetQ NetR View) :
+    AdaptiveEmulatesWithin mode P P Polynomial.X (fun _ _ _ => 0) :=
+  fun _ _ A pA hA => ⟨A, pA, hA, SimPolyBound.refl pA, fun Z _ _ κ z => by simp⟩
+
+/-- Transitivity of concrete adaptive UC emulation. -/
+theorem trans {mode : CorruptionMode} {P₁ : AdaptiveProtocol n In Out NetQ₁ NetR₁ View₁}
+    {P₂ : AdaptiveProtocol n In Out NetQ₂ NetR₂ View₂}
+    {P₃ : AdaptiveProtocol n In Out NetQ₃ NetR₃ View₃}
+    {g₁₂ g₂₃ : Polynomial ℕ} {ε₁₂ ε₂₃ : Polynomial ℕ → Polynomial ℕ → ℕ → ℝ≥0}
+    (h₁₂ : AdaptiveEmulatesWithin mode P₁ P₂ g₁₂ ε₁₂)
+    (h₂₃ : AdaptiveEmulatesWithin mode P₂ P₃ g₂₃ ε₂₃)
+    (hmono : ∀ p p' pZ κ, (∀ κ', p.eval κ' ≤ p'.eval κ') → ε₂₃ p pZ κ ≤ ε₂₃ p' pZ κ) :
+    AdaptiveEmulatesWithin mode P₁ P₃ (g₂₃.comp (Polynomial.X + g₁₂))
+      (fun pA pZ κ => ε₁₂ pA pZ κ + ε₂₃ (g₁₂.comp (Polynomial.X + pA)) pZ κ) := by
+  intro AdvQ AdvR A pA hA
+  obtain ⟨S₂, pS₂, hS₂, hS₂g, hadv₁₂⟩ := h₁₂ AdvQ AdvR A pA hA
+  obtain ⟨S₃, pS₃, hS₃, hS₃g, hadv₂₃⟩ := h₂₃ AdvQ AdvR S₂ pS₂ hS₂
+  refine ⟨S₃, pS₃, hS₃, hS₂g.trans hS₃g, fun Z pZ hZ κ z => ?_⟩
+  calc adaptiveAdvantage mode P₁ P₃ A S₃ Z κ z
+      ≤ adaptiveAdvantage mode P₁ P₂ A S₂ Z κ z + adaptiveAdvantage mode P₂ P₃ S₂ S₃ Z κ z :=
+        adaptiveAdvantage_triangle mode P₁ P₂ P₃ A S₂ S₃ Z κ z
+    _ ≤ ε₁₂ pA pZ κ + ε₂₃ (g₁₂.comp (Polynomial.X + pA)) pZ κ :=
+        add_le_add (hadv₁₂ Z pZ hZ κ z)
+          ((hadv₂₃ Z pZ hZ κ z).trans (hmono _ _ pZ κ hS₂g.le_eval_comp))
+
+/-- Concrete adaptive emulation whose errors are negligible for all budgets is asymptotic adaptive
+emulation. -/
+theorem emulates {mode : CorruptionMode} {P : AdaptiveProtocol n In Out NetQ₁ NetR₁ View₁}
+    {Q : AdaptiveProtocol n In Out NetQ₂ NetR₂ View₂} {g : Polynomial ℕ}
+    {ε : Polynomial ℕ → Polynomial ℕ → ℕ → ℝ≥0}
+    (h : AdaptiveEmulatesWithin mode P Q g ε) (hε : ∀ pA pZ, Negligible (ε pA pZ)) :
+    AdaptiveEmulates mode P Q := by
+  intro AdvQ AdvR A pA hA
+  obtain ⟨S, pS, hS, _, hadv⟩ := h AdvQ AdvR A pA hA
+  exact ⟨S, pS, hS, fun pZ => ⟨ε pA pZ, hε pA pZ, fun Z hZ κ z => hadv Z pZ hZ κ z⟩⟩
+
+end AdaptiveEmulatesWithin
+
+namespace AdaptiveEmulates
+
+/-- Every adaptive protocol emulates itself. -/
+theorem refl (mode : CorruptionMode) (P : AdaptiveProtocol n In Out NetQ NetR View) :
+    AdaptiveEmulates mode P P :=
+  (AdaptiveEmulatesWithin.refl mode P).emulates fun _ _ => negligible_zero
+
+/-- Asymptotic adaptive UC emulation is transitive. -/
+theorem trans {mode : CorruptionMode} {P₁ : AdaptiveProtocol n In Out NetQ₁ NetR₁ View₁}
+    {P₂ : AdaptiveProtocol n In Out NetQ₂ NetR₂ View₂}
+    {P₃ : AdaptiveProtocol n In Out NetQ₃ NetR₃ View₃}
+    (h₁₂ : AdaptiveEmulates mode P₁ P₂) (h₂₃ : AdaptiveEmulates mode P₂ P₃) :
+    AdaptiveEmulates mode P₁ P₃ := by
+  intro AdvQ AdvR A pA hA
+  obtain ⟨S₂, pS₂, hS₂, hadv₁₂⟩ := h₁₂ AdvQ AdvR A pA hA
+  obtain ⟨S₃, pS₃, hS₃, hadv₂₃⟩ := h₂₃ AdvQ AdvR S₂ pS₂ hS₂
+  refine ⟨S₃, pS₃, hS₃, fun pZ => ?_⟩
+  obtain ⟨ν₁₂, hν₁₂, h₁⟩ := hadv₁₂ pZ
+  obtain ⟨ν₂₃, hν₂₃, h₂⟩ := hadv₂₃ pZ
+  refine ⟨ν₁₂ + ν₂₃, hν₁₂.add hν₂₃, fun Z hZ κ z => ?_⟩
+  exact (adaptiveAdvantage_triangle mode P₁ P₂ P₃ A S₂ S₃ Z κ z).trans
+    (add_le_add (h₁ Z hZ κ z) (h₂ Z hZ κ z))
+
+end AdaptiveEmulates
 
 end Budgets
 
