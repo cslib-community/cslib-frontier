@@ -404,13 +404,10 @@ scalar-alias extraction, rejected commitments, and distinct/repeated junk hash q
 in
 [`Crypto/SchnorrWordROM.lean`](../../CslibFrontierTests/Crypto/SchnorrWordROM.lean).
 
-The same module instantiates `schnorrFamilyROMScheme` with `m`-bit challenges when
-`2 ^ m ≤ F.order d`, and `schnorrScalarROMScheme` with full scalar challenges. Their exact typed
-EUF-CMA bounds account for both signing queries and random-oracle queries. Their forking
-reductions are distribution-level programs, so `F.DiscreteLog` does not apply to them directly; the
-security theorem under `F.DiscreteLog` is in `SchnorrSignature/Security.lean`, described below.
-The earlier asymptotic corollary, which assumed that its own forking reduction has negligible
-discrete-log success, was removed ([#5293](https://github.com/cslib-community/cslib-frontier/issues/5293)).
+The security theorem under `F.DiscreteLog` is in `SchnorrSignature/Security.lean`, described
+below. It replaced typed instantiations over `F.Carrier d`, whose concrete bounds went through
+uncertified forking reductions, and an asymptotic corollary that assumed its own forking
+reduction's discrete-log success ([#5293](https://github.com/cslib-community/cslib-frontier/issues/5293)).
 The private-coin
 prerequisite is supplied by `IsOraclePPTOn.exists_savedCoins` in
 [`Oracle/Replay.lean`](../../CslibFrontier/Computability/Probabilistic/Oracle/Replay.lean), which charges
@@ -423,7 +420,7 @@ full-input native replay and equality of `wordEufCmaGame` and the explicit-coin 
 word hash payloads stay distinct. `exists_closeTo_wordEufCmaGame_schnorrNativeROMScheme` (below)
 applies it to the native Schnorr scheme, and `SchnorrSignature/Security.lean` (below) certifies
 the forking reduction built on it. See the
-checked algorithms and typed-ROM examples in
+checked algorithms and the typed-ROM replay example in
 [`CslibFrontierTests/Crypto/SchnorrSignature.lean`](../../CslibFrontierTests/Crypto/SchnorrSignature.lean).
 
 [`SchnorrSignature/NativeROM.lean`](../../CslibFrontier/Crypto/Computational/SchnorrSignature/NativeROM.lean)
