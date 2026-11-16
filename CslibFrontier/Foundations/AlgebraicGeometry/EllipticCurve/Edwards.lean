@@ -27,11 +27,10 @@ Unlike Weierstrass form, the unified Edwards addition formula
 requires no case split for doubling or adding the identity `(0, 1)`, and the inverse of `(x, y)`
 is `(-x, y)`.
 
-Over a field `F`, when `d` is a non-square (`¬ IsSquare E.d`), the addition denominators never
-vanish (`EdwardsCurve.denom_ne_zero`) in any characteristic (including characteristic two, where
-every curve point satisfies `x * y = 0`), making `EdwardsCurve.add` total on `E.Point` with
-identity `(0, 1)`, negation `(-x, y)`, commutativity, and inverse cancellation. Associativity and
-the equivalence with Montgomery and Weierstrass models are left to follow-up modules.
+Over any field `F`, when `d` is a non-square (`¬ IsSquare E.d`), the addition denominators never
+vanish (`EdwardsCurve.denom_ne_zero`), making `EdwardsCurve.add` total on `E.Point` with identity
+`(0, 1)`, negation `(-x, y)`, commutativity, and inverse cancellation. Associativity and the
+equivalence with Montgomery and Weierstrass models are left to follow-up modules.
 
 ## Main definitions
 
@@ -41,14 +40,13 @@ the equivalence with Montgomery and Weierstrass models are left to follow-up mod
 * `EdwardsCurve.zero`: the identity point `(0, 1)`.
 * `EdwardsCurve.neg`: the inverse map `(x, y) ↦ (-x, y)`.
 * `EdwardsCurve.order4Point`: the point `(1, 0)` (which has order four when `(2 : F) ≠ 0`).
-* `EdwardsCurve.add`: the unified Edwards addition law (taking `¬ IsSquare E.d`, in arbitrary
-  characteristic).
+* `EdwardsCurve.add`: the unified Edwards addition law on `E.Point` when `¬ IsSquare E.d`.
 
 ## Main results
 
-* `EdwardsCurve.add_equation`: closure of `E.Equation` under the unified addition formula.
+* `EdwardsCurve.equation_add`: closure of `E.Equation` under the unified addition formula.
 * `EdwardsCurve.denom_ne_zero`: for `¬ IsSquare E.d`, `1 ± E.d * P.x * Q.x * P.y * Q.y ≠ 0`
-  over any field (including characteristic two).
+  over any field.
 * `EdwardsCurve.zero_add`, `EdwardsCurve.add_zero`, `EdwardsCurve.add_comm`,
   `EdwardsCurve.neg_add_cancel`: left/right identity, commutativity, and inverse cancellation for
   `E.add`.
@@ -56,11 +54,13 @@ the equivalence with Montgomery and Weierstrass models are left to follow-up mod
 ## Implementation notes and deviations from the source
 
 * [BonehShoup2023], Section 15.2.1 (p. 619) states only `d ≠ 0, 1` over `𝔽_p` when introducing
-  the unified addition formula; in fact `¬ IsSquare E.d` is required so that denominators
-  `1 ± d x₁ x₂ y₁ y₂` never vanish on `E.Point`.
+  the unified addition formula; `d ≠ 0, 1` alone does not keep the denominators
+  `1 ± d x₁ x₂ y₁ y₂` nonzero on `E.Point` (see `d = 4` over `ZMod 11` in the test suite), and
+  this module adds the hypothesis `¬ IsSquare E.d`, which is sufficient but not necessary.
 * Over a field, `denom_ne_zero`, `add`, `zero_add`, `add_zero`, `add_comm`, and `neg_add_cancel`
   hold without assuming `(2 : F) ≠ 0`, because in characteristic two a non-square `d` forces
-  `R.x * R.y = 0` for every point `R`.
+  `R.x * R.y = 0` for every point `R`, so the curve has only the points `(0, 1)` and `(1, 0)`; no
+  finite field of characteristic two satisfies the hypothesis.
 
 ## References
 
@@ -124,7 +124,7 @@ def neg (P : E.Point) : E.Point := ⟨-P.x, P.y, by simpa [Equation] using P.eq�
 @[simp] theorem neg_y (P : E.Point) : (E.neg P).y = P.y := by rfl
 
 /-- Negation is involutive on `E.Point`. -/
-@[simp] theorem neg_neg (P : E.Point) : E.neg (E.neg P) = P := by
+@[simp] protected theorem neg_neg (P : E.Point) : E.neg (E.neg P) = P := by
   ext <;> simp
 
 /-- The point `(1, 0)` on `E` (which has order four when `(2 : F) ≠ 0`). -/
@@ -136,17 +136,17 @@ def order4Point : E.Point := ⟨1, 0, by simp [Equation]⟩
 /-- The `y`-coordinate of `E.order4Point` is `0`. -/
 @[simp] theorem order4Point_y : E.order4Point.y = 0 := by rfl
 
+/-- `1 - E.d ≠ 0` follows from `E.d ≠ 1`. -/
+theorem one_sub_d_ne_zero : 1 - E.d ≠ 0 :=
+  sub_ne_zero.mpr E.d_ne_one.symm
+
 end Basic
 
 section Field
 
 variable {F : Type*} [Field F] (E : EdwardsCurve F)
 
-/-- `1 - E.d ≠ 0` follows from `E.d ≠ 1`. -/
-theorem one_sub_d_ne_zero : 1 - E.d ≠ 0 :=
-  sub_ne_zero.mpr E.d_ne_one.symm
-
-private lemma add_equation_identity {R : Type*} [CommRing R] (d x₁ y₁ x₂ y₂ : R)
+private lemma equation_add_identity {R : Type*} [CommRing R] (d x₁ y₁ x₂ y₂ : R)
     (h₁ : x₁ ^ 2 + y₁ ^ 2 = 1 + d * x₁ ^ 2 * y₁ ^ 2)
     (h₂ : x₂ ^ 2 + y₂ ^ 2 = 1 + d * x₂ ^ 2 * y₂ ^ 2) :
     (1 - d * x₁ * x₂ * y₁ * y₂) ^ 2 * (x₁ * y₂ + x₂ * y₁) ^ 2 +
@@ -178,13 +178,13 @@ private lemma add_equation_identity {R : Type*} [CommRing R] (d x₁ y₁ x₂ y
 
 /-- The unified Edwards addition formula preserves `E.Equation` whenever both denominators are
 nonzero. -/
-theorem add_equation {x₁ y₁ x₂ y₂ : F} (h₁ : E.Equation x₁ y₁) (h₂ : E.Equation x₂ y₂)
+theorem equation_add {x₁ y₁ x₂ y₂ : F} (h₁ : E.Equation x₁ y₁) (h₂ : E.Equation x₂ y₂)
     (hplus : 1 + E.d * x₁ * x₂ * y₁ * y₂ ≠ 0)
     (hminus : 1 - E.d * x₁ * x₂ * y₁ * y₂ ≠ 0) :
     E.Equation ((x₁ * y₂ + x₂ * y₁) / (1 + E.d * x₁ * x₂ * y₁ * y₂))
       ((y₁ * y₂ - x₁ * x₂) / (1 - E.d * x₁ * x₂ * y₁ * y₂)) := by
   simp only [Equation] at h₁ h₂ ⊢
-  have hgoal := add_equation_identity E.d x₁ y₁ x₂ y₂ h₁ h₂
+  have hgoal := equation_add_identity E.d x₁ y₁ x₂ y₂ h₁ h₂
   have hplus' : 1 + x₁ * y₂ * x₂ * y₁ * E.d ≠ 0 := by convert hplus using 1; ring
   have hminus' : 1 - x₁ * y₂ * x₂ * y₁ * E.d ≠ 0 := by convert hminus using 1; ring
   field_simp [hplus', hminus']
@@ -211,7 +211,7 @@ private lemma add_denom_ne_zero_of_two_ne_zero (h2 : (2 : F) ≠ 0) (hd : ¬IsSq
   set ε := E.d * x₁ * x₂ * y₁ * y₂
   have hL : (1 - ε) ^ 2 * (x₁ * y₂ + x₂ * y₁) ^ 2 + (1 + ε) ^ 2 * (y₁ * y₂ - x₁ * x₂) ^ 2 =
       (1 + ε) ^ 2 * (1 - ε) ^ 2 + E.d * (x₁ * y₂ + x₂ * y₁) ^ 2 * (y₁ * y₂ - x₁ * x₂) ^ 2 :=
-    add_equation_identity E.d x₁ y₁ x₂ y₂ P.eq Q.eq
+    equation_add_identity E.d x₁ y₁ x₂ y₂ P.eq Q.eq
   intro hplus
   have hε : ε = -1 := by linear_combination hplus
   have h4 : 4 * (x₁ * y₂ + x₂ * y₁) ^ 2 =
@@ -224,16 +224,8 @@ private lemma add_denom_ne_zero_of_two_ne_zero (h2 : (2 : F) ≠ 0) (hd : ¬IsSq
     have hxy : x₂ * y₁ = -(x₁ * y₂) := by linear_combination hsum
     have hsq : E.d * (x₁ * y₂) ^ 2 = 1 := by
       linear_combination -hε + E.d * (x₁ * y₂) * hxy
-    have hnz : x₁ * y₂ ≠ 0 := fun hz ↦
-      one_ne_zero (by linear_combination -hsq + E.d * (x₁ * y₂) * hz)
-    have hinv : (x₁ * y₂)⁻¹ * (x₁ * y₂)⁻¹ * (x₁ * y₂) ^ 2 = 1 := by
-      rw [sq, show (x₁ * y₂)⁻¹ * (x₁ * y₂)⁻¹ * (x₁ * y₂ * (x₁ * y₂)) =
-          ((x₁ * y₂)⁻¹ * (x₁ * y₂)) * ((x₁ * y₂)⁻¹ * (x₁ * y₂)) by ring,
-        inv_mul_cancel₀ hnz, mul_one]
-    calc E.d = E.d * 1 := (mul_one _).symm
-      _ = E.d * ((x₁ * y₂)⁻¹ * (x₁ * y₂)⁻¹ * (x₁ * y₂) ^ 2) := by rw [hinv]
-      _ = (E.d * (x₁ * y₂) ^ 2) * ((x₁ * y₂)⁻¹ * (x₁ * y₂)⁻¹) := by ring
-      _ = (x₁ * y₂)⁻¹ * (x₁ * y₂)⁻¹ := by rw [hsq, one_mul]
+    have hnz : x₁ * y₂ ≠ 0 := fun hz => by rw [hz] at hsq; simp at hsq
+    exact (eq_mul_inv_iff_mul_eq₀ hnz).mpr (eq_inv_of_mul_eq_one_left (by linear_combination hsq))
   · have h4' : E.d * (y₁ * y₂ - x₁ * x₂) ^ 2 = 4 := by
       apply mul_right_cancel₀ (pow_ne_zero 2 hsum)
       linear_combination -h4
@@ -242,15 +234,10 @@ private lemma add_denom_ne_zero_of_two_ne_zero (h2 : (2 : F) ≠ 0) (hd : ¬IsSq
     have h4ne : (4 : F) ≠ 0 := by
       rw [show (4 : F) = 2 * 2 by ring]
       exact mul_ne_zero h2 h2
-    have hnz : y₁ * y₂ - x₁ * x₂ ≠ 0 := by
-      intro hz
-      rw [hz, sq, mul_zero, mul_zero] at h4'
-      exact h4ne h4'.symm
-    calc E.d = E.d * (y₁ * y₂ - x₁ * x₂) ^ 2 / (y₁ * y₂ - x₁ * x₂) ^ 2 := by
-          rw [mul_div_cancel_right₀ _ (pow_ne_zero 2 hnz)]
-      _ = 4 / (y₁ * y₂ - x₁ * x₂) ^ 2 := by rw [h4']
-      _ = 2 / (y₁ * y₂ - x₁ * x₂) * (2 / (y₁ * y₂ - x₁ * x₂)) := by
-          rw [div_mul_div_comm, sq]; norm_num
+    have hnz : (y₁ * y₂ - x₁ * x₂) ^ 2 ≠ 0 := fun hz =>
+      h4ne (by rw [hz, mul_zero] at h4'; exact h4'.symm)
+    rw [div_mul_div_comm, ← sq, ← sq, show (2 : F) ^ 2 = 4 by norm_num, eq_div_iff hnz]
+    exact h4'
 
 private lemma add_denom_ne_zero (hd : ¬IsSquare E.d) (P Q : E.Point) :
     1 + E.d * P.x * Q.x * P.y * Q.y ≠ 0 := by
@@ -263,7 +250,7 @@ private lemma add_denom_ne_zero (hd : ¬IsSquare E.d) (P Q : E.Point) :
   · exact E.add_denom_ne_zero_of_two_ne_zero h2 hd P Q
 
 /-- For non-square `E.d`, both denominators `1 ± E.d * P.x * Q.x * P.y * Q.y` in the unified
-Edwards addition formula are nonzero over any field `F`, including characteristic two. -/
+Edwards addition formula are nonzero over any field `F`. -/
 theorem denom_ne_zero (hd : ¬IsSquare E.d) (P Q : E.Point) :
     1 + E.d * P.x * Q.x * P.y * Q.y ≠ 0 ∧ 1 - E.d * P.x * Q.x * P.y * Q.y ≠ 0 := by
   refine ⟨E.add_denom_ne_zero hd P Q, ?_⟩
@@ -275,7 +262,7 @@ theorem denom_ne_zero (hd : ¬IsSquare E.d) (P Q : E.Point) :
 def add (hd : ¬IsSquare E.d) (P Q : E.Point) : E.Point where
   x := (P.x * Q.y + Q.x * P.y) / (1 + E.d * P.x * Q.x * P.y * Q.y)
   y := (P.y * Q.y - P.x * Q.x) / (1 - E.d * P.x * Q.x * P.y * Q.y)
-  eq := E.add_equation P.eq Q.eq (E.denom_ne_zero hd P Q).1 (E.denom_ne_zero hd P Q).2
+  eq := E.equation_add P.eq Q.eq (E.denom_ne_zero hd P Q).1 (E.denom_ne_zero hd P Q).2
 
 /-- The `x`-coordinate of `E.add hd P Q`. -/
 @[simp] theorem add_x (hd : ¬IsSquare E.d) (P Q : E.Point) :
@@ -286,22 +273,22 @@ def add (hd : ¬IsSquare E.d) (P Q : E.Point) : E.Point where
     (E.add hd P Q).y = (P.y * Q.y - P.x * Q.x) / (1 - E.d * P.x * Q.x * P.y * Q.y) := by rfl
 
 /-- Left identity for `E.add`. -/
-theorem zero_add (hd : ¬IsSquare E.d) (P : E.Point) :
+protected theorem zero_add (hd : ¬IsSquare E.d) (P : E.Point) :
     E.add hd E.zero P = P := by
   ext <;> simp
 
 /-- Right identity for `E.add`. -/
-theorem add_zero (hd : ¬IsSquare E.d) (P : E.Point) :
+protected theorem add_zero (hd : ¬IsSquare E.d) (P : E.Point) :
     E.add hd P E.zero = P := by
   ext <;> simp
 
 /-- Commutativity of `E.add`. -/
-theorem add_comm (hd : ¬IsSquare E.d) (P Q : E.Point) :
+protected theorem add_comm (hd : ¬IsSquare E.d) (P Q : E.Point) :
     E.add hd P Q = E.add hd Q P := by
   ext <;> simp <;> ring
 
 /-- Left inverse cancellation for `E.add`. -/
-theorem neg_add_cancel (hd : ¬IsSquare E.d) (P : E.Point) :
+protected theorem neg_add_cancel (hd : ¬IsSquare E.d) (P : E.Point) :
     E.add hd (E.neg P) P = E.zero := by
   have h1 : 1 - E.d * (-P.x) * P.x * P.y * P.y ≠ 0 :=
     (E.denom_ne_zero hd (E.neg P) P).2
