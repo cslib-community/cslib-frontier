@@ -27,11 +27,12 @@ import Mathlib.Data.Nat.Size
 # Polynomial-time integer `k`-th roots on binary naturals
 
 `Nat.nthRoot k m` (`⌊m ^ (1 / k)⌋`) is computable in polynomial time, with `k` in unary and `m`
-in binary, by the most-significant-bit-first fold of
-`Turing.MultiTapeTM.ComputableInPolyTime.binary_sqrt` over the `m.size` bit positions: at position
+in binary, by a most-significant-bit-first fold over the `m.size` bit positions: at position
 `i`, the candidate bit `2 ^ i` is added to the running root `acc` whenever `(acc + 2 ^ i) ^ k ≤ m`
 and `acc + 2 ^ i ≤ m`. The second test is implied by the first when `k ≠ 0`, and keeps every
 intermediate root at most `m` also for `k = 0`.
+
+The square root `Turing.MultiTapeTM.ComputableInPolyTime.binary_sqrt` is the case `k = 2`.
 
 ## Main results
 

@@ -50,7 +50,7 @@ linked issue bodies read; a mention only in an older body may be missed.
 | 6 | 15 | 10 | 5 | 2 | §9(a)–(c), and the uniform halves of §11 (corrected) and §12: [#4224](https://github.com/cslib-community/cslib-frontier/issues/4224) |
 | 7 | 12 | 5 | 6 | 2 | — |
 | 8 | 11 | 7 | 6 | 2 | — |
-| 9 | 7 | 7 | 2 | 0 | — |
+| 9 | 7 | 5 | 4 | 0 | — |
 | 10 | 9 | 5 | 3 | 0 | — |
 | 11 | 4 | 0 | 4 | 0 | — |
 | 12 | 12 | 2 | 6 | 2 | — |

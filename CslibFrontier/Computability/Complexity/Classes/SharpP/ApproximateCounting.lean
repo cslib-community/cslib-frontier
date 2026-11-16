@@ -40,10 +40,13 @@ import CslibFrontier.Probability.BitString.AffineHash
 Stockmeyer showed that the number `#R(a)` of witnesses of an NP relation `R` can be approximated
 within any factor `1 ± 1 / q(n)`, `q` a positive polynomial and `n` the encoded length of `a`, by
 a probabilistic polynomial-time algorithm with an `NP` oracle [Stockmeyer1983]
-[Goldreich, Theorem 6.27][Goldreich2007Draft]. This file proves that theorem for the native
-oracle machines (`Cslib.Complexity.ComputableInPolyTimeWithOracle`) with the oracle fixed to the
-set `encCNF '' SAT` of encoded satisfiable formulas, and Goldreich's Exercise 6.34, the
-membership in `NP` of the query that drives it.
+[Goldreich, Theorem 6.27][Goldreich2007Draft]. This file proves it for `#P` functions, the
+counts of certificates of exactly the prescribed length, on the native oracle machines
+(`Cslib.Complexity.ComputableInPolyTimeWithOracle`) with the oracle fixed to the set
+`encCNF '' SAT` of encoded satisfiable formulas. It also proves Goldreich's Exercise 6.34, the
+membership in `NP` of the sieve query. Goldreich's theorem for every polynomially balanced PC
+relation additionally needs the count-preserving transport of such counts into `#P`, which is
+not on `main`.
 
 ## The algorithm
 
@@ -70,8 +73,11 @@ independent.
 
 ## Statement-to-source mapping
 
-* Goldreich's `R ∈ PC` is `Cslib.Complexity.NPRelation` (witnesses of exactly the prescribed
-  length), and `#R(a)` is `acceptCount R.verifier a m`.
+* Goldreich's `R ∈ PC` is covered only through its count in `#P`: the estimator works on a
+  `Cslib.Complexity.NPRelation` (witnesses of exactly the prescribed length) with
+  `#R(a) = acceptCount R.verifier a m`, and `SharpP.exists_approxCount_SAT` takes `f ∈ #P`.
+  Relations with solutions of varying length (`FNP`) need the missing count-preserving
+  transport.
 * Goldreich's probabilistic polynomial-time oracle machine is a function `E` of the instance and
   a random string of `ℓ(n)` bits, `ℓ` a polynomial, computable in polynomial time relative to the
   oracle; probabilities are densities over the random strings. The output is a natural number,
@@ -81,7 +87,9 @@ independent.
 * Exercise 6.34 asks that `{(a, i, h, 1 ^ t) : ∃ distinct y₁, …, y_t ∈ R(a), h(y_j) = 0 ^ i}` be in
   `NP`. Here `h` ranges over the affine hashes given by a seed (the rows of the matrix, then the
   offset) and `t` is written in unary (`NPRelation.sieveQuery`,
-  `NPRelation.mem_sieveQuery_language_iff`). The algorithm above uses the closely related query
+  `NPRelation.mem_sieveQuery_language_iff`, at least `t` solutions); the exercise's question
+  whether more than `t` solutions pass the sieve is the query with `t + 1`. The algorithm above
+  uses the closely related query
   on `k`-fold products instead.
 * Arora–Barak's Exercise 9 §6 (a), (b) [Arora and Barak, draft of 2007-01-08][AroraBarak07]: if
   `NP ⊆ P`, the same estimator, with its queries decided in polynomial time, approximates every
@@ -103,7 +111,8 @@ independent.
 * `Cslib.Complexity.Stockmeyer.one_sub_inv_two_pow_le_dens_estimator`: the estimator's accuracy.
 * `Cslib.Complexity.Stockmeyer.computableInPolyTimeWithOracle_estimator`: polynomial time with
   the `SAT` oracle.
-* `Cslib.Complexity.NPRelation.exists_approxCount_SAT`: **Stockmeyer's approximate counting**.
+* `Cslib.Complexity.SharpP.exists_approxCount_SAT`: Stockmeyer's approximate counting for `#P`
+  functions with the `SAT` oracle, a step toward Goldreich's Theorem 6.27.
 * `Cslib.Complexity.SharpP.exists_approx_of_NP_subset_P`: approximate counting under `NP ⊆ P`.
 
 ## References
@@ -729,44 +738,42 @@ private theorem dens_lt_abs_estimator_sub_le (a : α) (hq : q.eval (enc a).lengt
 
 end Stockmeyer
 
-namespace NPRelation
-
-open Stockmeyer
-
-variable {enc : α ↪ List Bool} (R : NPRelation enc)
-
-/-- **Stockmeyer's approximate counting** [Goldreich, Theorem 6.27][Goldreich2007Draft]
-[Stockmeyer1983]: for every NP relation `R` and every positive polynomial `q`, a polynomial-time
-oracle algorithm with the `SAT` oracle, reading `ℓ(n)` random bits for a polynomial `ℓ`, outputs
-an estimate `E` of the number `#R(a)` of witnesses of `a` that misses it by more than
-`#R(a) / q(n)` with probability at most `2 ^ (-n)`, `n` the encoded length of `a`. The oracle is
-the set of encoded satisfiable formulas, and the estimate is a natural number. -/
-theorem exists_approxCount_SAT (q : Polynomial ℕ) (hq : ∀ n, q.eval n ≠ 0) :
-    ∃ (ℓ : Polynomial ℕ) (E : α × List Bool → ℕ),
-      ComputableInPolyTimeWithOracle (encCNF '' SAT) E (encPair enc encBits) encNat ∧
-      ∀ a, dens {r : BitString (ℓ.eval (enc a).length) |
-        (acceptCount R.verifier a (R.certLength.eval (enc a).length) : ℚ) / q.eval (enc a).length <
-          |(E (a, List.ofFn r) : ℚ) -
-            acceptCount R.verifier a (R.certLength.eval (enc a).length)|} ≤
-        (2 ^ (enc a).length)⁻¹ := by
-  refine ⟨randomLengthPoly R q, estimator R q, computableInPolyTimeWithOracle_estimator R q,
-    fun a => ?_⟩
-  rw [eval_randomLengthPoly, ← card_witnessSet]
-  refine (dens_lt_abs_estimator_sub_le R q a (hq _)).trans ?_
-  exact inv_anti₀ (by positivity) (pow_le_pow_right₀ (by norm_num) (Nat.le_add_right _ _))
-
-end NPRelation
-
 namespace SharpP
 
 open Stockmeyer
 
 variable {enc : α ↪ List Bool}
 
+/-- **Stockmeyer's approximate counting for `#P` functions, with a `SAT` oracle.** This is a step
+toward Goldreich's Theorem 6.27 [Goldreich2007Draft] [Stockmeyer1983], not the cited result: it
+approximates functions `f ∈ #P`, which count the accepted certificates of exactly the prescribed
+length, while the theorem counts the solutions of any polynomially balanced PC relation (`FNP`).
+The missing step is the count-preserving transport putting those counts in `#P`.
+
+For every positive polynomial `q`, a polynomial-time oracle algorithm with the `SAT` oracle,
+reading `ℓ(n)` random bits for a polynomial `ℓ`, outputs an estimate `E` that misses `f(a)` by
+more than `f(a) / q(n)` with probability at most `2 ^ (-n)`, `n` the encoded length of `a`. The
+oracle is the set of encoded satisfiable formulas, and the estimate is a natural number. -/
+theorem exists_approxCount_SAT {f : α → ℕ} (hf : f ∈ SharpP enc) (q : Polynomial ℕ)
+    (hq : ∀ n, q.eval n ≠ 0) :
+    ∃ (ℓ : Polynomial ℕ) (E : α × List Bool → ℕ),
+      ComputableInPolyTimeWithOracle (encCNF '' SAT) E (encPair enc encBits) encNat ∧
+      ∀ a, dens {r : BitString (ℓ.eval (enc a).length) |
+        (f a : ℚ) / q.eval (enc a).length < |(E (a, List.ofFn r) : ℚ) - f a|} ≤
+        (2 ^ (enc a).length)⁻¹ := by
+  obtain ⟨p, V, hV, hfV⟩ := hf
+  let R : NPRelation enc := ⟨p, V, hV⟩
+  refine ⟨randomLengthPoly R q, estimator R q, computableInPolyTimeWithOracle_estimator R q,
+    fun a => ?_⟩
+  rw [eval_randomLengthPoly, hfV a, ← R.card_witnessSet a]
+  refine (dens_lt_abs_estimator_sub_le R q a (hq _)).trans ?_
+  exact inv_anti₀ (by positivity) (pow_le_pow_right₀ (by norm_num) (Nat.le_add_right _ _))
+
 /-- **Approximate counting under `NP ⊆ P`** [Arora and Barak, Chapter 9, Exercise 6][AroraBarak07]:
 if `NP ⊆ P`, then for every function `f ∈ #P` and every `ε > 0` a polynomial-time algorithm
 reading `ℓ(n)` random bits, for a polynomial `ℓ`, approximates `f` within the factor `1 - ε`,
-`(1 - ε) f(a) ≤ A(a) ≤ f(a) / (1 - ε)`, with probability at least `2 / 3`. For `ε = 1 / 2` this
+`(1 - ε) f(a) ≤ A(a)` and `(1 - ε) A(a) ≤ f(a)`, with probability at least `2 / 3`; for
+`0 < ε < 1` the second inequality reads `A(a) ≤ f(a) / (1 - ε)`. For `ε = 1 / 2` this
 is the approximation within the factor `1 / 2`, `f(a) / 2 ≤ A(a) ≤ 2 f(a)`, of the exercise's
 first part. The algorithm is Stockmeyer's estimator (`Cslib.Complexity.Stockmeyer.estimator`)
 with the constant precision `⌈1 / ε⌉ + 1`, whose `NP` queries are answered in polynomial time. -/

@@ -10,9 +10,10 @@ import CslibFrontier.Computability.Complexity.Classes.SharpP.ApproximateCounting
 
 /-! # Clients of Stockmeyer's approximate counting
 
-Checked instances of the hypotheses of `NPRelation.exists_approxCount_SAT` (Goldreich,
-Theorem 6.27), of the sieve query of Goldreich's Exercise 6.34, and the factor-`1 / 2` form of
-Arora–Barak's Exercise 9 §6(a) as the case `ε = 1 / 2` of `SharpP.exists_approx_of_NP_subset_P`.
+Checked instances of the hypotheses of `SharpP.exists_approxCount_SAT` (a step toward
+Goldreich, Theorem 6.27), of the sieve query of Goldreich's Exercise 6.34, and the factor-`1 / 2`
+form of Arora–Barak's Exercise 9 §6(a) as the case `ε = 1 / 2` of
+`SharpP.exists_approx_of_NP_subset_P`.
 -/
 
 set_option linter.privateModule false
@@ -21,17 +22,15 @@ open Cslib Cslib.Complexity Cslib.BitString Finset Turing.MultiTapeTM
 
 variable {α : Type} {enc : α ↪ List Bool}
 
--- Goldreich, Theorem 6.27, for the constant precision `1`: the hypothesis on `q` is satisfiable.
-example (R : NPRelation enc) :
+-- The step toward Goldreich, Theorem 6.27, for the constant precision `1`: the hypothesis on `q`
+-- is satisfiable.
+example {f : α → ℕ} (hf : f ∈ SharpP enc) :
     ∃ (ℓ : Polynomial ℕ) (E : α × List Bool → ℕ),
       ComputableInPolyTimeWithOracle (encCNF '' SAT) E (encPair enc encBits) encNat ∧
       ∀ a, dens {r : BitString (ℓ.eval (enc a).length) |
-        (acceptCount R.verifier a (R.certLength.eval (enc a).length) : ℚ) /
-            (Polynomial.C 1 : Polynomial ℕ).eval (enc a).length <
-          |(E (a, List.ofFn r) : ℚ) -
-            acceptCount R.verifier a (R.certLength.eval (enc a).length)|} ≤
-        (2 ^ (enc a).length)⁻¹ :=
-  R.exists_approxCount_SAT _ fun _ => by simp
+        (f a : ℚ) / (Polynomial.C 1 : Polynomial ℕ).eval (enc a).length <
+          |(E (a, List.ofFn r) : ℚ) - f a|} ≤ (2 ^ (enc a).length)⁻¹ :=
+  SharpP.exists_approxCount_SAT hf _ fun _ => by simp
 
 -- Goldreich, Exercise 6.34: the sieve queries are in `NP`.
 example (R : NPRelation enc) : R.sieveQuery.language ∈ NP (encHashQuery α enc) :=
