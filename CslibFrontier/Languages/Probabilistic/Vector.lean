@@ -31,6 +31,7 @@ values with the product distribution `PMF.pi`.
 * `Cslib.OracleComp.replicateFin_eq_pi`: `replicateFin` is the constant-family specialization of
   `pi`.
 * `Cslib.OracleComp.map_ofFn_replicateFin`: agreement with list-valued repetition.
+* `Cslib.OracleComp.map_ofFn_pi`: listing a non-dependent tuple is a list traversal `List.mapM`.
 * `Cslib.OracleComp.mem_supportWith_pi_iff`: the possible results of `pi` over any interface are
   coordinatewise.
 * `Cslib.ProbComp.mem_support_pi_iff`, `Cslib.ProbComp.mem_support_replicateFin_iff`: its special
@@ -126,6 +127,16 @@ theorem replicateFin_succ (count : ℕ) (program : OracleComp spec α) :
   | zero => rfl
   | succ count ih =>
     simp [replicateFin_succ, replicate_succ, map_bind, Functor.map_map, List.ofFn_succ, ← ih]
+
+/-- Listing the coordinates of a tuple of runs with one result type is traversing the indices in
+order. -/
+theorem map_ofFn_pi {m : ℕ} (programs : Fin m → OracleComp spec α) :
+    List.ofFn <$> pi programs = (List.finRange m).mapM programs := by
+  induction m with
+  | zero => rfl
+  | succ m ih =>
+    rw [pi_succ, List.finRange_succ, List.mapM_cons, List.mapM_map, ← ih]
+    simp [map_bind, Functor.map_map, List.ofFn_succ, Function.comp_def]
 
 /-- A tuple is a possible result of `pi programs` exactly when each coordinate is a possible
 result of its program. -/

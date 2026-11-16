@@ -4064,6 +4064,7 @@ public import CslibFrontier.Computability.Probabilistic.Oracle.SingleOracle
 public import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
 public import CslibFrontier.Computability.Probabilistic.Oracle.Time
 public import CslibFrontier.Computability.Probabilistic.Oracle.Time.Basic
+public import CslibFrontier.Computability.Probabilistic.Oracle.Traverse
 public import CslibFrontier.Computability.Probabilistic.OracleSimulation
 public import CslibFrontier.Computability.Probabilistic.PPT
 public import CslibFrontier.Computability.Probabilistic.PPT.AuxClock
@@ -4490,6 +4491,7 @@ public import CslibFrontier.Crypto.Computational.Encryption.Circular
 public import CslibFrontier.Crypto.Computational.Encryption.CompositionCounterexamples
 public import CslibFrontier.Crypto.Computational.Encryption.DecryptionBound
 public import CslibFrontier.Crypto.Computational.Encryption.Deterministic
+public import CslibFrontier.Crypto.Computational.Encryption.ECB
 public import CslibFrontier.Crypto.Computational.Encryption.EncForge
 public import CslibFrontier.Crypto.Computational.Encryption.EncryptThenMAC
 public import CslibFrontier.Crypto.Computational.Encryption.EncryptThenMAC.PartialTag
@@ -4517,6 +4519,7 @@ public import CslibFrontier.Crypto.Computational.Encryption.OFBMode
 public import CslibFrontier.Crypto.Computational.Encryption.OFBMode.Uniform
 public import CslibFrontier.Crypto.Computational.Encryption.OneWay
 public import CslibFrontier.Crypto.Computational.Encryption.ParityPrediction
+public import CslibFrontier.Crypto.Computational.Encryption.PlaintextIntegrity
 public import CslibFrontier.Crypto.Computational.Encryption.PolyTime
 public import CslibFrontier.Crypto.Computational.Encryption.PublicKeyCPA
 public import CslibFrontier.Crypto.Computational.Encryption.PublicKeyReplacement
@@ -5971,6 +5974,7 @@ public import CslibFrontier.Foundations.Control.Except
 public import CslibFrontier.Foundations.Control.Monad.FilterM
 public import CslibFrontier.Foundations.Control.Monad.FindM
 public import CslibFrontier.Foundations.Control.Monad.IsMonadHom.StateT
+public import CslibFrontier.Foundations.Control.Monad.MapM
 public import CslibFrontier.Foundations.Control.Monad.Memoize
 public import CslibFrontier.Foundations.Data.BiTape
 public import CslibFrontier.Foundations.Data.BiTape.OfCells
@@ -6740,6 +6744,7 @@ public import CslibFrontier.Languages.Probabilistic.Concentration
 public import CslibFrontier.Languages.Probabilistic.Expect
 public import CslibFrontier.Languages.Probabilistic.Forking
 public import CslibFrontier.Languages.Probabilistic.IdealCipher
+public import CslibFrontier.Languages.Probabilistic.IdealCipher.DomainSeparation
 public import CslibFrontier.Languages.Probabilistic.IntBox
 public import CslibFrontier.Languages.Probabilistic.Iteration
 public import CslibFrontier.Languages.Probabilistic.Iteration.Chain
@@ -6763,6 +6768,7 @@ public import CslibFrontier.Languages.Probabilistic.Oracle.Run
 public import CslibFrontier.Languages.Probabilistic.Oracle.RunLogAgree
 public import CslibFrontier.Languages.Probabilistic.Oracle.RunState
 public import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
+public import CslibFrontier.Languages.Probabilistic.Oracle.Simulation.Handler
 public import CslibFrontier.Languages.Probabilistic.Oracle.Substitution
 public import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.QueryCount
 public import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.RunWith

@@ -1710,6 +1710,13 @@ It also checks that neither the former public tidy predicate nor the internal ph
 available through the facade. The [internal machine tests](../../CslibFrontierTests/PlainCleanPhase.lean)
 import the compiler explicitly to exercise phase composition.
 
+To send every word of an efficiently computed list to the oracle and keep an efficiently computed
+prefix of each reply, import [Oracle/Traverse.lean](../../CslibFrontier/Computability/Probabilistic/Oracle/Traverse.lean)
+and apply `IsOraclePPTOn.mapM_query_take` to the `List.mapM` traversal; no loop or state invariant
+is needed. The word-level ECB distinguisher (`BlockCipher.isOraclePPT_ecbToPrpDistinguisher`), the
+PRF-to-PRG reduction (`isOraclePPT_prgFromPRFReduction`) and the blockwise MAC simulator
+(`isOraclePPTOn_blockwiseBoundedSimulator`) use it.
+
 For a finite-control oracle machine with an efficiently computed unary clock, import
 [Oracle/Normalization.lean](../../CslibFrontier/Computability/Probabilistic/Oracle/Normalization.lean)
 and apply `IsOraclePPTOn.runOracle_of_clock`. Normalization preserves adaptive query order and

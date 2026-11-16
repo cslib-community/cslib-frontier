@@ -148,6 +148,7 @@ the hidden bit `b`, runs `A`'s first stage, and on an admissible pair answers th
 querying its oracle on the blocks of `m_b`; it outputs whether `A`'s guess equals `b`. On an
 inadmissible pair it outputs whether `false` equals `b`, as the challenger of Attack Game 2.1
 returns `false` there. -/
+@[expose]
 noncomputable def reduction (ℓ : ℕ) {σ : Type}
     (A : TwoStage Unit (MessagePair (List D)) (List D) Bool σ) :
     ProbOracleComp (fun _ : D => D) Bool := do
