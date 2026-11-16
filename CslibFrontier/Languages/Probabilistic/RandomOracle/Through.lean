@@ -7,9 +7,9 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
+public import CslibFrontier.Languages.Probabilistic.RandomOracle
+public import CslibFrontier.Languages.Probabilistic.Oracle.Interaction
 public import CslibFrontier.Languages.Probabilistic.Oracle.Substitution
-public import CslibFrontier.Languages.Probabilistic.UntilBad
 public import CslibFrontier.Probability.StatisticalDistance.CloseTo
 import CslibFrontier.Foundations.Data.List.SortedAssoc
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
@@ -19,37 +19,25 @@ import CslibFrontier.Languages.Probabilistic.UntilBad.Flag
 /-!
 # Lazily sampled function called through a map
 
-This module analyses an oracle program that queries `m : M` and receives answers from a lazily
-sampled function on `Y` evaluated at `φ m`. `memoizeThrough φ dist` implements that oracle while
-recording queries in a `List (M × Z)` cache so that the two handlers in
-`identicalUntilBad_memoizeThrough` share one state type (`List (M × Z)`) and the bad event
-`HasImageCollision φ` (two distinct cached queries having the same image under `φ`) is monotone
-and readable directly from the final cache of a lazy run on `M`.
+A program queries `m : M`, and each query is answered by a lazily sampled function on `Y` at
+`φ m`. Its result is statistically close to its result against a lazily sampled function on `M`
+itself; the error is the probability that the queries of the second run contain two distinct
+`m`, `m'` with `φ m = φ m'`.
 
 ## Main definitions
 
 * `Cslib.RandomOracle.HasImageCollision`: two distinct keys of a cache have the same image under
   `φ`.
-* `Cslib.RandomOracle.memoizeThrough`: lazy sampling of a function on `Y` called at `φ m`, keeping
-  the cache by query in `M`.
 
 ## Main results
 
-* `Cslib.RandomOracle.hasImageCollision_iff`: characterizes `HasImageCollision` on `cache.map
-  Prod.fst`.
-* `Cslib.RandomOracle.identicalUntilBad_memoizeThrough`: `memoizeThrough φ dist` and `memoize` on
-  `M` agree until `HasImageCollision φ`.
-* `Cslib.RandomOracle.runWith_memoizeThrough_map_fst`: projecting `Prod.fst` from a run against
-  `memoizeThrough φ dist` equals running the `φ`-substituted program against `RandomOracle.answer`.
-* `Cslib.RandomOracle.closeTo_runWith_memoize_memoizeThrough`: statistical closeness between
-  running against a lazy function on `M` and running against `memoizeThrough φ dist`, bounded by
-  the probability of `HasImageCollision φ` in the final cache.
+* `Cslib.RandomOracle.closeTo_runWith_memoize_simulate_query`: the closeness statement above.
 
 ## References
 
 * [D. Boneh and V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023], Version 0.6,
-  Theorem 4.7 (Difference Lemma, via `OracleComp.IdenticalUntilBad`); library infrastructure for
-  Section 7.3 (Theorem 7.7, pp. 262–265).
+  Section 7.3, proof of Theorem 7.7, Games 1 and 2 (p. 264), an application of the Difference
+  Lemma (Theorem 4.7).
 -/
 
 public section
@@ -67,10 +55,28 @@ answers. -/
 @[expose] def HasImageCollision (φ : M → Y) (cache : List (M × Z)) : Prop :=
   ∃ e ∈ cache, ∃ e' ∈ cache, e.1 ≠ e'.1 ∧ φ e.1 = φ e'.1
 
+omit [DecidableEq M] [DecidableEq Y] in
+/-- `HasImageCollision` depends only on the list of cached queries. -/
+theorem hasImageCollision_iff (φ : M → Y) (cache : List (M × Z)) :
+    HasImageCollision φ cache ↔
+      ∃ m ∈ cache.map Prod.fst, ∃ m' ∈ cache.map Prod.fst, m ≠ m' ∧ φ m = φ m' := by
+  simp only [HasImageCollision, List.mem_map]
+  constructor
+  · rintro ⟨e, he, e', he', h1, h2⟩
+    exact ⟨e.1, ⟨e, he, rfl⟩, e'.1, ⟨e', he', rfl⟩, h1, h2⟩
+  · rintro ⟨m, ⟨e, he, rfl⟩, m', ⟨e', he', rfl⟩, h1, h2⟩
+    exact ⟨e, he, e', he', h1, h2⟩
+
+omit [DecidableEq M] [DecidableEq Y] in
+private theorem HasImageCollision.mono {φ : M → Y} {s t : List (M × Z)} (hst : s ⊆ t)
+    (h : HasImageCollision φ s) : HasImageCollision φ t :=
+  let ⟨e, he, e', he', h1, h2⟩ := h
+  ⟨e, hst he, e', hst he', h1, h2⟩
+
 /-- Lazy sampling of a function on `Y` that is called at `φ m`, with the cache kept by query. In
 the cache-hit branch, `(m, z)` is still recorded when `m` is not yet cached so that `cache`
 retains every distinct query after an image collision. -/
-noncomputable def memoizeThrough (φ : M → Y) (dist : PMF Z) (m : M) :
+private noncomputable def memoizeThrough (φ : M → Y) (dist : PMF Z) (m : M) :
     StateT (List (M × Z)) PMF Z := fun cache =>
   match (cache.map (Prod.map φ id)).lookup (φ m) with
   | some z => PMF.pure (z, if (cache.lookup m).isSome then cache else (m, z) :: cache)
@@ -95,8 +101,7 @@ private theorem lookup_map_of_lookup (φ : M → Y) {cache : List (M × Z)} {m :
         hgood ⟨(m, z), List.mem_cons_of_mem _ hmem, (m₀, z₀), by simp, hm, heq⟩
       have hb' : (φ m == φ m₀) = false := by simpa using hφ
       simp only [List.map_cons, Prod.map_apply, id_eq, List.lookup_cons, hb']
-      exact ih (fun ⟨e, he, e', he', h1, h2⟩ =>
-        hgood ⟨e, List.mem_cons_of_mem _ he, e', List.mem_cons_of_mem _ he', h1, h2⟩) h
+      exact ih (fun hbad => hgood (hbad.mono (List.subset_cons_self _ _))) h
 
 private theorem hasImageCollision_cons_of_lookup (φ : M → Y) {cache : List (M × Z)} {m : M} {z : Z}
     (hm : cache.lookup m = none)
@@ -132,7 +137,7 @@ private theorem memoizeThrough_map_ofList (φ : M → Y) (dist : PMF Z) (m : M)
 
 /-- The lazy function called through `φ` and the lazy function on the queries agree until two
 distinct queries have the same image. -/
-theorem identicalUntilBad_memoizeThrough (φ : M → Y) (dist : PMF Z) :
+private theorem identicalUntilBad_memoizeThrough (φ : M → Y) (dist : PMF Z) :
     OracleComp.IdenticalUntilBad (memoizeThrough φ dist)
       (memoize (fun _ : M => dist)) (HasImageCollision φ) where
   agree m s hs a s' hs' := by
@@ -164,44 +169,27 @@ theorem identicalUntilBad_memoizeThrough (φ : M → Y) (dist : PMF Z) :
             exact hs' (h' ▸ hbad a)
         rw [h1, h2]
   absorb_first m s hs x hx := by
-    obtain ⟨e, he, e', he', h1, h2⟩ := hs
-    have hsub : ∀ p ∈ s, p ∈ x.2 := by
-      simp only [memoizeThrough] at hx
-      split at hx
-      · simp only [PMF.support_pure, Set.mem_singleton_iff] at hx
-        subst hx
-        intro p hp
-        dsimp only
-        split
-        · exact hp
-        · exact List.mem_cons_of_mem _ hp
-      · simp only [PMF.support_map, Set.mem_image] at hx
-        obtain ⟨z, -, rfl⟩ := hx
-        exact fun p hp => List.mem_cons_of_mem _ hp
-    exact ⟨e, hsub e he, e', hsub e' he', h1, h2⟩
+    refine hs.mono fun p hp => ?_
+    simp only [memoizeThrough] at hx
+    split at hx
+    · simp only [PMF.support_pure, Set.mem_singleton_iff] at hx
+      subst hx
+      dsimp only
+      split
+      · exact hp
+      · exact List.mem_cons_of_mem _ hp
+    · simp only [PMF.support_map, Set.mem_image] at hx
+      obtain ⟨z, -, rfl⟩ := hx
+      exact List.mem_cons_of_mem _ hp
   absorb_second m s hs x hx := by
-    obtain ⟨e, he, e', he', h1, h2⟩ := hs
-    have hsub : ∀ p ∈ s, p ∈ x.2 := by
-      rcases (mem_support_memoize_iff _ _ _ _).mp hx with ⟨-, h⟩ | ⟨-, -, h⟩
-      · exact fun p hp => h ▸ hp
-      · exact fun p hp => h ▸ List.mem_cons_of_mem _ hp
-    exact ⟨e, hsub e he, e', hsub e' he', h1, h2⟩
-
-omit [DecidableEq M] [DecidableEq Y] in
-/-- `HasImageCollision` depends only on the list of cached queries. -/
-theorem hasImageCollision_iff (φ : M → Y) (cache : List (M × Z)) :
-    HasImageCollision φ cache ↔
-      ∃ m ∈ cache.map Prod.fst, ∃ m' ∈ cache.map Prod.fst, m ≠ m' ∧ φ m = φ m' := by
-  simp only [HasImageCollision, List.mem_map]
-  constructor
-  · rintro ⟨e, he, e', he', h1, h2⟩
-    exact ⟨e.1, ⟨e, he, rfl⟩, e'.1, ⟨e', he', rfl⟩, h1, h2⟩
-  · rintro ⟨m, ⟨e, he, rfl⟩, m', ⟨e', he', rfl⟩, h1, h2⟩
-    exact ⟨e, he, e', he', h1, h2⟩
+    refine hs.mono fun p hp => ?_
+    rcases (mem_support_memoize_iff _ _ _ _).mp hx with ⟨-, h⟩ | ⟨-, -, h⟩
+    · exact h ▸ hp
+    · exact h ▸ List.mem_cons_of_mem _ hp
 
 /-- The result of a program run against `memoizeThrough φ dist` is its result when each query `m`
 is replaced by the query `φ m` to a lazily sampled function on `Y`. -/
-theorem runWith_memoizeThrough_map_fst (φ : M → Y) (dist : PMF Z)
+private theorem runWith_memoizeThrough_map_fst (φ : M → Y) (dist : PMF Z)
     (program : ProbOracleComp (fun _ : M => Z) α) :
     (ProbOracleComp.runWith (memoizeThrough φ dist) program []).map Prod.fst =
       (ProbOracleComp.runWith (answer fun _ : Y => dist)
@@ -220,16 +208,20 @@ theorem runWith_memoizeThrough_map_fst (φ : M → Y) (dist : PMF Z)
   rw [ProbOracleComp.runWith_simulate, hq]
   exact h'
 
-/-- A lazily sampled function called through `φ` is a lazily sampled function on the queries until
-two distinct queries have the same image. The error is the probability, in the run against the
-function on the queries, that the final cache has such a pair. -/
-theorem closeTo_runWith_memoize_memoizeThrough (φ : M → Y) (dist : PMF Z)
+/-- **A lazily sampled function called through `φ`.** Replacing each query `m` of `program` by the
+query `φ m` to a lazily sampled function on `Y` changes the law of the result by at most the
+probability that, in the run against a lazily sampled function on the queries themselves, the
+final cache holds two distinct queries with the same image. -/
+theorem closeTo_runWith_memoize_simulate_query (φ : M → Y) (dist : PMF Z)
     (program : ProbOracleComp (fun _ : M => Z) α) :
     CloseTo ((ProbOracleComp.runWith (memoize fun _ : M => dist) program []).map Prod.fst)
-      ((ProbOracleComp.runWith (memoizeThrough φ dist) program []).map Prod.fst)
+      ((ProbOracleComp.runWith (answer fun _ : Y => dist)
+        (ProbOracleComp.simulate (fun m => ProbOracleComp.query (φ m)) program)
+        (fun _ => none)).map Prod.fst)
       ((ProbOracleComp.runWith (memoize fun _ : M => dist) program []).toOuterMeasure
-        {x | HasImageCollision φ x.2}) :=
-  ((identicalUntilBad_memoizeThrough φ dist).symm.probOracleComp.closeTo_run program []).map
+        {x | HasImageCollision φ x.2}) := by
+  rw [← runWith_memoizeThrough_map_fst]
+  exact ((identicalUntilBad_memoizeThrough φ dist).symm.probOracleComp.closeTo_run program []).map
     Prod.fst
 
 end Cslib.RandomOracle
