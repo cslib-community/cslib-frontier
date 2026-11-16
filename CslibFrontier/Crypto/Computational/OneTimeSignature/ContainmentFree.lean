@@ -27,25 +27,29 @@ are defined here.
 A map `P : M → Finset α` is containment free (`ContainmentFree P`) when no image `P m` is a
 subset of another image `P m'` for distinct `m ≠ m'` (Definition 14.3). Equivalently, `P` is
 injective and its range is an antichain under `⊆` (`containmentFree_iff`). Any injective map into
-constant-size subsets is containment free (`containmentFree_of_injective_of_card_eq`). By Sperner's
-theorem (`card_le_choose_half_of_containmentFree`), `Fintype.card M ≤ Nat.choose n (n / 2)` where
+constant-size subsets is containment free (`containmentFree_of_injective_of_card_eq`). By the
+finite-cardinality form of Sperner's theorem (`card_le_choose_half_of_containmentFree`, proved from
+Mathlib's `IsAntichain.sperner`, underlying the `n_min ≈ v + (log₂ v) / 2` estimate in Section
+14.2.1, which is not formalized here), `Fintype.card M ≤ Nat.choose n (n / 2)` where
 `n = Fintype.card α`; conversely, any finite message space satisfying that bound admits a
 containment-free encoding via `unrankCombination` (`exists_containmentFree_of_card_le`, existence
-only with no polynomial-time claim).
+only with no polynomial-time claim; not stated in the book).
 
 Two explicit computable encodings are provided:
 
 * `optWord` / `optSet` (`P_opt`, Section 14.2.1, Lemma 14.3): appends the `w`-bit little-endian
-  checksum `(List.ofFn m).count false` (`v - weight m`) to `m` and takes its support in
-  `Fin (v + w)`. Whenever `v < 2 ^ w` (for example `w = 1 + Nat.clog 2 v`), `optSet v w` is
-  containment free (`optSet_containmentFree`) and `optWord` is computable in polynomial time in
-  `w` (unary) and `m` (`optWord_polyTime`).
+  (`lowBits`, LSB-first) checksum `(List.ofFn m).count false` (`v - weight m`) to `m` and takes
+  its support in `Fin (v + w)`. Unlike Figure 14.2 (p. 589), which prints the checksum MSB-first
+  (`5` as `0101`), `optWord` appends checksum bits LSB-first. Whenever `v < 2 ^ w` (for example
+  `w = 1 + Nat.clog 2 v`), `optSet v w` is containment free (`optSet_containmentFree`) and
+  `optWord` is computable in polynomial time in `w` (unary) and `m` (`optWord_polyTime`).
 * `horsWord` / `horsSet` (Section 14.4): maps a `v`-bit message via its big-endian binary value
-  into `unrankCombination n ℓ`. Whenever `2 ^ v ≤ n.choose ℓ`, `horsSet n ℓ` is containment free
-  (`horsSet_containmentFree`) and `horsWord` is computable in polynomial time in `(n, ℓ)` (unary)
-  and `m` (`horsWord_polyTime`). This uses the library's `unrankCombination` (ordered with `false`
-  first via `Nat.choose m k`), satisfying the §14.4 requirement of an efficient injective map into
-  fixed-size subsets; the specific unranking loop of Exercise 14.3 is not formalized here.
+  into `unrankCombination n ℓ`. Whenever `2 ^ v ≤ n.choose ℓ`, `horsSet n ℓ` produces `ℓ`-element
+  subsets (`card_horsSet`), is containment free (`horsSet_containmentFree`), and `horsWord` is
+  computable in polynomial time in `(n, ℓ)` (unary) and `m` (`horsWord_polyTime`). This uses the
+  library's `unrankCombination` (ordered with `false` first via `Nat.choose m k`), satisfying the
+  §14.4 requirement of an efficient injective map into fixed-size subsets; the specific unranking
+  loop of Exercise 14.3 is not formalized here.
 
 ## Main definitions
 
@@ -65,6 +69,8 @@ Two explicit computable encodings are provided:
 * `Cslib.Crypto.OneTimeSignature.exists_containmentFree_of_card_le`: Sperner converse.
 * `Cslib.Crypto.OneTimeSignature.optSet_containmentFree`: Lemma 14.3 for `v < 2 ^ w`.
 * `Cslib.Crypto.OneTimeSignature.optWord_polyTime`: polynomial-time certificate for `optWord`.
+* `Cslib.Crypto.OneTimeSignature.card_horsSet`: constant output cardinality `ℓ` under
+  `2 ^ v ≤ n.choose ℓ`.
 * `Cslib.Crypto.OneTimeSignature.horsSet_containmentFree`: containment freeness when
   `2 ^ v ≤ n.choose ℓ`.
 * `Cslib.Crypto.OneTimeSignature.horsWord_polyTime`: polynomial-time certificate for `horsWord`.
@@ -72,7 +78,7 @@ Two explicit computable encodings are provided:
 ## References
 
 * [BonehShoup2023]: Dan Boneh and Victor Shoup, *A Graduate Course in Applied Cryptography*
-  (v0.6), Section 14.2 (Definition 14.3, p. 587), Section 14.2.1 (Sperner's theorem, pp. 587–588;
+  (v0.6), Section 14.2 (Definition 14.3, p. 587), Section 14.2.1 (Sperner's theorem, p. 588;
   `P_opt` and Lemma 14.3, pp. 588–589), and Section 14.4 (p. 593).
 -/
 
@@ -105,9 +111,11 @@ theorem containmentFree_of_injective_of_card_eq {M α : Type*} {P : M → Finset
     (hinj : Function.Injective P) (hcard : ∀ m, (P m).card = ℓ) : ContainmentFree P :=
   fun _ _ hne hsub => hne (hinj (Finset.eq_of_subset_of_card_le hsub (by rw [hcard, hcard])))
 
-/-- Sperner's theorem ([BonehShoup2023], Section 14.2.1, p. 588): any containment-free family
-into `Finset α` has message space cardinality at most
-`(Fintype.card α).choose (Fintype.card α / 2)`. -/
+/-- Finite-cardinality form of Sperner's theorem, proved from Mathlib's `IsAntichain.sperner`:
+any containment-free family into `Finset α` has message space cardinality at most
+`(Fintype.card α).choose (Fintype.card α / 2)`. ([BonehShoup2023], Section 14.2.1, p. 588, invokes
+Sperner's theorem only for the `n_min ≈ v + (log₂ v) / 2` estimate, which is not formalized
+here.) -/
 theorem card_le_choose_half_of_containmentFree {M α : Type*} [Fintype M] [Fintype α]
     {P : M → Finset α} (hP : ContainmentFree P) :
     Fintype.card M ≤ (Fintype.card α).choose (Fintype.card α / 2) := by
@@ -122,8 +130,9 @@ theorem card_le_choose_half_of_containmentFree {M α : Type*} [Fintype M] [Finty
   simpa [Finset.card_image_of_injective _ hinj] using hant_img.sperner
 
 /-- The word construction underlying `P_opt` ([BonehShoup2023], Section 14.2.1, pp. 588–589):
-appends the `w`-bit little-endian binary encoding of `m.count false` (`v - weight m` on `v`-bit
-messages) to `m`. -/
+appends the `w`-bit little-endian (`lowBits`, LSB-first) binary encoding of `m.count false`
+(`v - weight m` on `v`-bit messages) to `m`. Unlike Figure 14.2 (p. 589), which prints the
+checksum MSB-first, checksum bits are appended LSB-first here. -/
 def optWord (w : ℕ) (m : List Bool) : List Bool :=
   m ++ lowBits w (m.count false)
 
@@ -148,8 +157,8 @@ theorem mem_optSet_natAdd {v w : ℕ} (m : BitString v) (j : Fin w) :
   rw [List.getElem?_eq_getElem (by simp [length_lowBits])]
   simp [lowBits_eq_ofFn]
 
-/-- Lemma 14.3 ([BonehShoup2023], Section 14.2.1, p. 589): `P_opt` is containment free whenever
-`v < 2 ^ w` (in particular for the book's choice `w = 1 + Nat.clog 2 v`). -/
+/-- Lemma 14.3 ([BonehShoup2023], Section 14.2.1, pp. 588–589): `P_opt` is containment free
+whenever `v < 2 ^ w` (in particular for the book's choice `w = 1 + Nat.clog 2 v`). -/
 theorem optSet_containmentFree {v w : ℕ} (hv : v < 2 ^ w) :
     ContainmentFree (optSet v w) := by
   intro m m' hne hsub
@@ -206,7 +215,9 @@ unranking order (`false` before `true`) rather than the loop of Exercise 14.3. -
 @[expose] def horsWord (n ℓ : ℕ) (m : List Bool) : List Bool :=
   unrankCombination n ℓ (binaryValue m)
 
-/-- The fixed-size `ℓ`-element subset encoding on `v`-bit strings derived from `horsWord`. -/
+/-- The subset encoding on `v`-bit strings derived from `horsWord`; its image has constant
+cardinality `ℓ` (`card_horsSet`) and is containment free (`horsSet_containmentFree`) whenever
+`2 ^ v ≤ n.choose ℓ`. -/
 @[expose] def horsSet (n ℓ : ℕ) {v : ℕ} (m : BitString v) : Finset (Fin n) :=
   supportOfList n (horsWord n ℓ (List.ofFn m))
 
@@ -222,15 +233,27 @@ private theorem containmentFree_supportOfList_unrankCombination {M : Type*} {n �
     rw [card_supportOfList_of_length (length_unrankCombination n ℓ _),
       count_true_unrankCombination (hf_lt m)]
 
+private theorem binaryValue_ofFn_lt_choose {n ℓ v : ℕ}
+    (hbound : 2 ^ v ≤ n.choose ℓ) (m : BitString v) :
+    binaryValue (List.ofFn m) < n.choose ℓ := by
+  have hlt : binaryValue (List.ofFn m) < 2 ^ v := by
+    simpa [List.length_ofFn] using binaryValue_lt_two_pow (List.ofFn m)
+  exact lt_of_lt_of_le hlt hbound
+
+/-- Under `2 ^ v ≤ n.choose ℓ`, `horsSet n ℓ` produces subsets of cardinality `ℓ`
+([BonehShoup2023], Section 14.4, p. 593). -/
+theorem card_horsSet {n ℓ v : ℕ} (hbound : 2 ^ v ≤ n.choose ℓ) (m : BitString v) :
+    (horsSet n ℓ m).card = ℓ := by
+  rw [horsSet, horsWord, card_supportOfList_of_length (length_unrankCombination _ _ _)]
+  exact count_true_unrankCombination (binaryValue_ofFn_lt_choose hbound m)
+
 /-- Any bitstring message space with `2 ^ v ≤ n.choose ℓ` admits a containment-free encoding
 into `ℓ`-element subsets of `Fin n` via `horsSet` ([BonehShoup2023], Section 14.4, p. 593). -/
 theorem horsSet_containmentFree {n ℓ v : ℕ} (hbound : 2 ^ v ≤ n.choose ℓ) :
     ContainmentFree (horsSet n ℓ (v := v)) := by
   have hf_inj : Function.Injective (fun m : BitString v => binaryValue (List.ofFn m)) :=
     fun _ _ h => List.ofFn_injective (binaryValue_injective_of_length_eq (by simp) h)
-  have hf_lt : ∀ m : BitString v, binaryValue (List.ofFn m) < n.choose ℓ := fun m =>
-    lt_of_lt_of_le (by simpa [List.length_ofFn] using binaryValue_lt_two_pow (List.ofFn m)) hbound
-  exact containmentFree_supportOfList_unrankCombination hf_inj hf_lt
+  exact containmentFree_supportOfList_unrankCombination hf_inj (binaryValue_ofFn_lt_choose hbound)
 
 /-- Efficiency certificate for `horsWord`: computing `horsWord n ℓ m` runs in polynomial time
 in `(n, ℓ)` (unary) and `m` (bitstring). -/
@@ -243,9 +266,10 @@ theorem horsWord_polyTime :
     (ComputableInPolyTime.snd (encPair encUnary encUnary) encBits)
   exact Cslib.GenericRAM.SubsetPairFold.unrankCombination_polyTime.comp (h1.prod h2)
 
-/-- Converse to Sperner's theorem ([BonehShoup2023], Section 14.2.1, p. 588): any finite message
-space with cardinality at most `n.choose (n / 2)` admits a containment-free encoding into
-`Finset (Fin n)`. This is a pure existence result and makes no polynomial-time claim. -/
+/-- Converse to the finite-cardinality form of Sperner's theorem (not stated in
+[BonehShoup2023]): any finite message space with cardinality at most `n.choose (n / 2)` admits a
+containment-free encoding into `Finset (Fin n)`. This is a pure existence result and makes no
+polynomial-time claim. -/
 theorem exists_containmentFree_of_card_le {M : Type*} [Fintype M] {n : ℕ}
     (hM : Fintype.card M ≤ n.choose (n / 2)) :
     ∃ P : M → Finset (Fin n), ContainmentFree P := by
