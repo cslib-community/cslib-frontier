@@ -11,6 +11,8 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Li
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.Bits
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Unary
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
+public import CslibFrontier.Crypto.Computational.OneTimeSignature.ContainmentFree
+public import CslibFrontier.Foundations.Data.BitString.Counter
 public import CslibFrontier.Init
 public import Mathlib.Data.Fin.Tuple.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
@@ -18,8 +20,10 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Foundations.Data.BitString.Weight
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
+import Mathlib.Data.Bool.Count
 import Mathlib.Data.Fintype.EquivFin
 
 /-!
@@ -68,6 +72,8 @@ characterization (`winternitzDigitList_eq_ofFn`), length and entry agreements
   `winternitzDigits`.
 * `Cslib.Crypto.OneTimeSignature.winternitzDigitList_polyTime`: polynomial-time computability of
   `winternitzDigitList`.
+* `Cslib.Crypto.OneTimeSignature.winternitzDigits_one_eq_one_iff_mem_optSet`: equivalence of
+  `winternitzDigits 1` with `optSet` ([BonehShoup2023], Section 14.3.1, p. 593).
 
 ## References
 
@@ -330,5 +336,45 @@ theorem winternitzDigitList_polyTime :
       encIn (encList encNat) :=
     radixDigitList_polyTime.comp (hd.prod (hn1.prod hcs))
   exact ComputableTidilyInPolyTime.listAppend' hm0 hm1
+
+private theorem radixDigits_one_val (n x : ℕ) (i : Fin n) :
+    (radixDigits 1 n x i).val = (x.testBit i.val).toNat := by
+  dsimp only [radixDigits]
+  rw [Nat.testBit_eq_decide_div_mod_eq]
+  rcases Nat.mod_two_eq_zero_or_one (x / 2 ^ i.val) with h | h <;> simp [h]
+
+section
+open Cslib.BitString
+
+/-- For `d = 1`, `winternitzDigits 1 v w` on the little-endian integer value of `m` is `1` at
+coordinate `k` if and only if `k ∈ optSet v w m` ([BonehShoup2023], Section 14.3.1, p. 593). -/
+theorem winternitzDigits_one_eq_one_iff_mem_optSet {v w : ℕ} (m : BitString v)
+    (k : Fin (v + w)) :
+    winternitzDigits 1 v w (lsbValue (List.ofFn m)) k = 1 ↔ k ∈ optSet v w m := by
+  have hm (i : Fin v) :
+      (radixDigits 1 v (lsbValue (List.ofFn m)) i).val = (m i).toNat := by
+    rw [radixDigits_one_val, testBit_lsbValue, List.getD_eq_getElem?_getD,
+      List.getElem?_eq_getElem (by simp only [List.length_ofFn, i.isLt]),
+      List.getElem_ofFn, Option.getD_some]
+  have hsum :
+      (∑ i : Fin v, (1 - (radixDigits 1 v (lsbValue (List.ofFn m)) i).val)) =
+        (List.ofFn m).count false := by
+    have hadd :
+        (∑ i : Fin v, (m i).toNat) + ∑ i : Fin v, (1 - (m i).toNat) = v := by
+      simpa only [hm, Nat.one_mul] using sum_radixDigits_add_sum_sub 1 v (lsbValue (List.ofFn m))
+    have hcount := List.count_true_add_count_false (List.ofFn m)
+    rw [List.length_ofFn, count_true_ofFn, weight_eq_sum_toNat] at hcount
+    simp only [hm]
+    lia
+  induction k using Fin.addCases with
+  | left i =>
+    rw [mem_optSet_castAdd, winternitzDigits, Fin.append_left, Fin.ext_iff, hm i]
+    cases m i <;> decide
+  | right j =>
+    rw [mem_optSet_natAdd, winternitzDigits, Fin.append_right, Fin.ext_iff, hsum,
+      radixDigits_one_val]
+    cases ((List.ofFn m).count false).testBit j.val <;> decide
+
+end
 
 end Cslib.Crypto.OneTimeSignature
