@@ -14,7 +14,6 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Crypto.Game.Order
 import CslibFrontier.Probability.BitString.List
 import CslibFrontier.Probability.PMF.Bind
-import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.PPT
 
 /-!
@@ -87,24 +86,13 @@ theorem validFixedLengthInput_eq_true_iff {n : ℕ} {m : List Bool} :
     validFixedLengthInput n m = true ↔ m.length = n :=
   decide_eq_true_iff
 
-@[local fun_prop]
-private theorem computableTidilyInPolyTime_validFixedLengthInput :
-    ComputableTidilyInPolyTime
-      (fun p : ℕ × List Bool => validFixedLengthInput p.1 p.2)
-      (encPair encUnary encBits) encBool := by
-  have heq : (fun p : ℕ × List Bool => validFixedLengthInput p.1 p.2) =
-      (fun p : ℕ × List Bool => p.2.length == p.1) :=
-    funext fun p => Bool.eq_iff_iff.mpr (by simp [validFixedLengthInput])
-  rw [heq]
-  polytime
-
 /-- Testing whether an input has length `n` is computable in plain polynomial time. -/
 @[program_certificate]
 theorem computableInPolyTime_validFixedLengthInput :
     ComputableInPolyTime
       (fun p : ℕ × List Bool => validFixedLengthInput p.1 p.2)
       (encPair encUnary encBits) encBool :=
-  .of_tidy computableTidilyInPolyTime_validFixedLengthInput
+  ComputableInPolyTime.id'.snd'.length_bits_comp.decide_eq' ComputableInPolyTime.id'.fst'
 
 /-- The XOR-masked keyed hash family `H_tcr(k, m) = H(k ⊕ m)` of [BonehShoup2023], Section 8.11.3,
 equation (8.18), p. 338, at security parameter `n` (where keys and messages have length `n`). -/
@@ -146,34 +134,10 @@ uniformly strict PPT. -/
 theorem isPPT_xorTargetToSecondPreimage {adversary : TargetCollisionFinder}
     (ha : adversary.IsPPT) :
     IsPPT encBits (xorTargetToSecondPreimage adversary) := by
-  let E0 := encPair encUnary encBits
-  let E1 := encPair E0 (encPair encBits encBits)
-  let E2 := encPair E1 encBits
-  have h0 := ComputableInPolyTime.id' (encIn := E0)
-  have h1 := ComputableInPolyTime.id' (encIn := E1)
-  have h2 := ComputableInPolyTime.id' (encIn := E2)
-  have hk1 : ComputableInPolyTime
-      (fun p : (ℕ × List Bool) × (List Bool × List Bool) =>
-        BitString.listXor p.1.1 [p.1.2, p.2.1]) E1 encBits :=
-    ComputableInPolyTime.bitsXorWithInput h1.fst'.fst'
-      (ComputableInPolyTime.cons' h1.fst'.snd'
-        (ComputableInPolyTime.cons' h1.snd'.fst' (.const [])))
-  have hfind_in : ComputableInPolyTime
-      (fun p : (ℕ × List Bool) × (List Bool × List Bool) =>
-        (p.1.1, p.2.2, BitString.listXor p.1.1 [p.1.2, p.2.1]))
-      E1 (encPair encUnary (encPair encBits encBits)) :=
-    h1.fst'.fst'.prod (h1.snd'.snd'.prod hk1)
-  have hout : ComputableInPolyTime
-      (fun r : ((ℕ × List Bool) × (List Bool × List Bool)) × List Bool =>
-        BitString.listXor r.1.1.1 [r.2, BitString.listXor r.1.1.1 [r.1.1.2, r.1.2.1]])
-      E2 encBits :=
-    ComputableInPolyTime.bitsXorWithInput h2.fst'.fst'.fst'
-      (ComputableInPolyTime.cons' h2.snd'
-        (ComputableInPolyTime.cons' (hk1.comp h2.fst') (.const [])))
-  have hon : IsPPTOn E0 encBits (fun p => xorTargetToSecondPreimage adversary p.1 p.2) :=
-    (ha.choose.preprocess h0.fst').bind_with
-      ((ha.find.preprocess hfind_in).bind_with hout.isPPTOn)
-  exact hon.isPPT
+  have hc := ha.choose
+  have hf := ha.find
+  unfold xorTargetToSecondPreimage
+  ppt
 
 /-- **Theorem 8.12, concrete bound** ([BonehShoup2023], Section 8.11.3, pp. 338–339): for every
 target-collision adversary `adversary` attacking `xorTargetHash H` on `n`-bit messages and any
