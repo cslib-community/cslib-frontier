@@ -9,7 +9,6 @@ module
 
 public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
 public import CslibFrontier.Probability.Product
-import CslibFrontier.Languages.Probabilistic.Sum.Lift
 import CslibFrontier.Probability.PMF.Bind
 
 /-!
@@ -154,8 +153,8 @@ theorem coinLaw_bind_runWith_fixCoins [∀ q, Fintype (spec q)] {State : Type}
     (oracle : (q : Query) → StateT State PMF (spec q)) (prog : ProbOracleComp spec α)
     (s : State) :
     (coinLaw prog).bind (fun ω => OracleComp.runWith oracle (fixCoins prog ω) s) =
-      OracleComp.runWith
-        (OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifOracle n)) oracle) prog s := by
+      ProbOracleComp.runWith oracle prog s := by
+  rw [ProbOracleComp.runWith]
   induction prog generalizing s with
   | pure a =>
     dsimp only [coinLaw, fixCoins]
@@ -168,10 +167,6 @@ theorem coinLaw_bind_runWith_fixCoins [∀ q, Fintype (spec q)] {State : Type}
       dsimp only [Coins, coinLaw, fixCoins]
       rw [hbind (.inl k) cont, OracleComp.runWith_bind, OracleComp.runWith_query]
       simp only [OracleComp.sumHandler, PMF.bind_bind, PMF.bind_map, Function.comp_def]
-      have hlift : (StateT.lift (ProbComp.unifOracle k) s : PMF (Fin (k + 1) × State)) =
-          (ProbComp.unifOracle k).map (·, s) := by
-        simp [StateT.lift, PMF.map, Function.comp_def]
-      rw [hlift, PMF.bind_map]
       congr 1 with c : 1
       exact ih c s
     | inr q =>
@@ -204,10 +199,10 @@ theorem bind_interpret_fixCoins [∀ q, Fintype (spec q)] (prog : ProbOracleComp
   have h := congrArg (PMF.map Prod.fst)
     (coinLaw_bind_runWith_fixCoins (State := Unit)
       (fun q => StateT.lift (PMF.pure (table q))) prog ())
-  rw [PMF.map_bind, OracleComp.sumHandler_lift] at h
+  rw [PMF.map_bind, ProbOracleComp.runWith_lift] at h
   simp only [OracleComp.runWith_lift, PMF.map_comp] at h
   have hid {β : Type} (p : PMF β) : PMF.map (fun x => x) p = p := PMF.map_id p
-  simpa only [OracleComp.evalWith, Function.comp_def, hid] using h
+  simpa only [OracleComp.evalWith_eq_interpret, Function.comp_def, hid] using h
 
 /-- Sampling an external deterministic oracle table `t ← μ` independently of `prog`'s private coins
 commutes with fixing `ω ← coinLaw prog`. -/

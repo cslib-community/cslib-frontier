@@ -407,15 +407,6 @@ section Switching
 
 open Probability RandomPermutation
 
--- The coin-fixing lemma in the form a client of `ProbOracleComp.runWith` meets.
-example {Query α State : Type} {spec : Query → Type} [∀ q, Fintype (spec q)]
-    (oracle : (q : Query) → StateT State PMF (spec q)) (prog : ProbOracleComp spec α)
-    (s : State) :
-    (ProbOracleComp.coinLaw prog).bind
-        (fun ω => OracleComp.runWith oracle (ProbOracleComp.fixCoins prog ω) s) =
-      ProbOracleComp.runWith oracle prog s :=
-  ProbOracleComp.coinLaw_bind_runWith_fixCoins oracle prog s
-
 /-- Ask the permutation of `Bool` at `false` and at `true`, and accept when the replies differ. -/
 private noncomputable def twoForward : ProbOracleComp (PermOracleSpec Bool) Bool := do
   let y₀ ← ProbOracleComp.query (spec := PermOracleSpec Bool) (.forward false)

@@ -63,11 +63,11 @@ theorem advantage_strongIdealExperiment_forgetful_le {A : StrongAdversary D} {Q 
   rw [eval_strongIdealExperiment,
     ProbOracleComp.table_bind_interpret_eq_coinLaw_bind (PMF.uniformOfFintype (Equiv.Perm D))
       (fun π q => evalPerm π q) A,
-    ProbOracleComp.runWith, ← ProbOracleComp.coinLaw_bind_runWith_fixCoins, PMF.map_bind]
+    ← ProbOracleComp.coinLaw_bind_runWith_fixCoins, PMF.map_bind]
   refine Game.advantage_bind_le _ _ _ fun ω => ?_
   rw [Game.coe_advantage, div_eq_mul_inv]
   simpa only [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal,
-    Probability.PMF.monad_bind_eq_bind, PMF.bind_pure, OracleComp.runWith] using
+    Probability.PMF.monad_bind_eq_bind, PMF.bind_pure, OracleComp.runWith_eq_run_interpret] using
       abs_sub_uniformPerm_forgetful_le (ProbOracleComp.isQueryBounded_fixCoins hQ ω) PMF.pure true
 
 end Cslib.Crypto.PRP
