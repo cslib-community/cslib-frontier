@@ -8,9 +8,9 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.Encryption.LoRCPA
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 public import CslibFrontier.Computability.Probabilistic.UniformNat
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
@@ -18,6 +18,7 @@ import CslibFrontier.Computability.Probabilistic.Adaptive
 import CslibFrontier.Crypto.Game.Hybrid
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Probability.PMF
+import CslibFrontier.Probability.PMF.BindCompare
 import CslibFrontier.Tactic.EncLen
 import CslibFrontier.Tactic.GameHop
 import CslibFrontier.Tactic.Negligible
@@ -31,17 +32,17 @@ In [BonehShoup2023], Section 11.3.2, Theorem 11.1 (printed pp. 439–440), any `
 left-or-right CPA adversary `A` against a public-key encryption scheme yields a single-challenge
 semantic-security adversary `B` such that `CPAadv[A, E] = Q · SSadv[B, E]`.
 
-In our strict fair-coin polynomial-time machine model, sampling uniformly over `Fin (Q n)` is not
-uniformly strict PPT for arbitrary `Q n` (including `Q n = 0`), so `lorToSingle` samples a cut
-index in `Fin (dyadicSize (Q n))` via `ProbComp.sampleDyadicIndex (Q n)` (`dyadicSize (Q n) <
-2 * max (Q n) 1`) and rejects indices `≥ Q n`. This preserves exact equality
-(`advantage_lorGameOn_eq` with factor `dyadicSize (Q n)`) and yields asymptotic `LoRINDCPAOn`
-under polynomial `Q`. `advantage_lorGameOn_eq_uniform` separately gives the literal book factor
-`Q n` when `0 < Q n` and the cut index is drawn uniformly from `Fin (Q n)`.
+A machine that flips a bounded number of fair coins outputs each value with a dyadic probability,
+so the certified adversary `lorToSingle` draws its cut index from `Fin (dyadicSize (Q n))` with
+`ProbComp.sampleDyadicIndex (Q n)` and outputs `false` on indices `≥ Q n`. Here
+`Q n < dyadicSize (Q n) ≤ 2 * (Q n + 1)` (`lt_dyadicSize`, `dyadicSize_le`). The identity stays
+exact with the factor `dyadicSize (Q n)` (`advantage_lorGameOn_eq`), which gives `LoRINDCPAOn` for
+polynomial `Q`. `advantage_lorGameOn_eq_uniform` is the printed equality with the factor `Q n`,
+for `0 < Q n`: its right side is the uniform mixture over `Fin (Q n)` of the games of
+`lorToSingleAt`, not the game of one `AdversaryOf`, and it carries no PPT certificate.
 
 ## Main definitions
 
-* `Cslib.Crypto.Encryption.LoRToSingleState`: saved state across the single-challenge cut.
 * `Cslib.Crypto.Encryption.lorToSingleAt`: single-challenge adversary fixing the embedded query
   index.
 * `Cslib.Crypto.Encryption.lorToSingle`: strict-PPT reduction sampling the index via
@@ -80,7 +81,7 @@ open scoped NNReal ENNReal
 /-! ### Saved state and hybrid reduction -/
 
 /-- Saved state passed from `choose` to `guess` in `lorToSingleAt` and `lorToSingle`. -/
-structure LoRToSingleState where
+private structure LoRToSingleState where
   /-- Whether the sampled cut index `split` was strictly less than `Q n`. -/
   active : Bool
   /-- Public key forwarded to the suffix simulation. -/
@@ -93,7 +94,7 @@ structure LoRToSingleState where
   transcript : List (List Bool)
 
 /-- Framing encoding of `LoRToSingleState`. -/
-enc_structure encLoRToSingleState : LoRToSingleState where
+private enc_structure encLoRToSingleState : LoRToSingleState where
   active : encBool, pk : encBits, split : encUnary, stateA : encBits,
   transcript : (encList encBits)
 
@@ -155,88 +156,6 @@ noncomputable def lorToSingle {Msg : Type}
     (lorToSingleAt valid encrypt Q adversary 0).guess n state ct
 
 /-! ### Uniform strict PPT certificates -/
-
-private theorem isPPTOn_lorRunOn {α Msg : Type} {input : α ↪ List Bool}
-    {encMsg : Msg ↪ List Bool} {valid : ℕ → List Bool → Msg → Msg → Bool}
-    {encrypt : ℕ → List Bool → Msg → ProbComp (List Bool)}
-    {adversary : LoRAdversaryOf Msg} {security : α → ℕ} {pk : α → List Bool}
-    {bit : α → Bool} {count : α → ℕ} {initial : α → List Bool × List (List Bool)}
-    {ctBound : ℕ → ℕ}
-    (hvalid : ComputableInPolyTime (fun ⟨n, k, m₀, m₁⟩ => valid n k m₀ m₁)
-      (encChallengePairInput encMsg) encBool)
-    (hencrypt : IsPPTOn (encKeyedInput encMsg) encBits (fun ⟨n, k, msg⟩ => encrypt n k msg))
-    (hctBound : Cslib.PolynomiallyBounded ctBound)
-    (hctLen : ∀ n k msg c, c ∈ (ProbComp.eval (encrypt n k msg)).support → c.length ≤ ctBound n)
-    (hadversary : adversary.IsPPT encMsg)
-    (hsecurity : ComputableInPolyTime security input encUnary)
-    (hpk : ComputableInPolyTime pk input encBits)
-    (hbit : ComputableInPolyTime bit input encBool)
-    (hcount : ComputableInPolyTime count input encUnary)
-    (hinitial : ComputableInPolyTime initial input encLoRLoopState) :
-    IsPPTOn input encLoRLoopState
-      (fun a => lorRunOn valid encrypt adversary (security a) (pk a) (bit a)
-        (count a) (initial a)) := by
-  let stepMidEnc := encPair (encPair input encLoRLoopState) (encChoiceOut encMsg)
-  have hquery : IsPPTOn (encPair input encLoRLoopState) (encChoiceOut encMsg)
-      (fun p => adversary.query (security p.1) p.2.1 p.2.2) :=
-    hadversary.query.preprocess
-      ((hsecurity.comp (ComputableInPolyTime.fst input encLoRLoopState)).prod
-        (ComputableInPolyTime.snd input encLoRLoopState))
-  have hcp : ComputableInPolyTime
-      (fun q : (α × (List Bool × List (List Bool))) × ChoiceOut Msg =>
-        (security q.1.1, pk q.1.1, ChoiceOut.msg₀ q.2, ChoiceOut.msg₁ q.2))
-      stepMidEnc (encChallengePairInput encMsg) := by
-    dsimp only [stepMidEnc, encChallengePairInput, encChoiceOut]; fun_prop
-  have hvalid_q := hvalid.comp hcp
-  have hsel : ComputableInPolyTime
-      (fun q : (α × (List Bool × List (List Bool))) × ChoiceOut Msg =>
-        if bit q.1.1 then ChoiceOut.msg₁ q.2 else ChoiceOut.msg₀ q.2)
-      stepMidEnc encMsg :=
-    ComputableInPolyTime.ite (by dsimp only [stepMidEnc]; fun_prop)
-      (by dsimp only [stepMidEnc, encChoiceOut]; fun_prop)
-      (by dsimp only [stepMidEnc, encChoiceOut]; fun_prop)
-  have hencArg : ComputableInPolyTime
-      (fun q : (α × (List Bool × List (List Bool))) × ChoiceOut Msg =>
-        (security q.1.1, pk q.1.1, if bit q.1.1 then ChoiceOut.msg₁ q.2 else ChoiceOut.msg₀ q.2))
-      stepMidEnc (encKeyedInput encMsg) := by
-    dsimp only [stepMidEnc, encKeyedInput]
-    exact (hsecurity.comp (by fun_prop)).prod ((hpk.comp (by fun_prop)).prod hsel)
-  have hencCond : IsPPTOn stepMidEnc encBits
-      (fun q => if valid (security q.1.1) (pk q.1.1)
-          (ChoiceOut.msg₀ q.2) (ChoiceOut.msg₁ q.2) then
-        encrypt (security q.1.1) (pk q.1.1)
-          (if bit q.1.1 then ChoiceOut.msg₁ q.2 else ChoiceOut.msg₀ q.2)
-      else pure []) :=
-    IsPPTOn.cond' hvalid_q (hencrypt.preprocess hencArg)
-      (ComputableInPolyTime.const []).tidy.isPPTOn
-  have hcons := hencCond.map_with (f := fun q c => (ChoiceOut.state q.2, c :: q.1.2.2))
-    (by dsimp only [stepMidEnc, encLoRLoopState, encChoiceOut]; fun_prop)
-  have hstep : IsPPTOn (encPair input encLoRLoopState) encLoRLoopState
-      (fun p => lorStepOn valid encrypt adversary (security p.1) (pk p.1) (bit p.1) p.2) := by
-    simpa only [lorStepOn, bind_pure_comp] using hquery.bind_with hcons
-  obtain ⟨stBound, hstBound, hstLen⟩ := hadversary.state_growth
-  have hsecPoly : PolyBounded (fun a : α => (input a).length) security :=
-    hsecurity.tidy.polyBounded
-  have hstPoly := (PolyBounded.of_polynomiallyBounded security hstBound).comp hsecPoly
-  have hctPoly := (PolyBounded.of_polynomiallyBounded security hctBound).comp hsecPoly
-  have hgrowthPoly : PolyBounded (fun a : α => (input a).length)
-      (fun a => 2 * stBound (security a) + 2 * ctBound (security a) + 1) :=
-    (((PolyBounded.const 2).mul hstPoly).add ((PolyBounded.const 2).mul hctPoly)).add
-      (PolyBounded.const 1)
-  refine IsPPTOn.iterateWith_of_bounded_growth hcount.tidy hinitial.tidy hstep hgrowthPoly ?_
-  intro a loopState next hnext
-  simp only [lorStepOn, apply_ite ProbComp.eval, ProbComp.eval_bind, ProbComp.eval_pure,
-    PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hnext
-  obtain ⟨choice, hchoice_supp, c, hc_supp, rfl⟩ := hnext
-  have hst := hstLen (security a) loopState.1 loopState.2 choice hchoice_supp
-  have hct : c.length ≤ ctBound (security a) := by
-    cases hval : valid (security a) (pk a) (ChoiceOut.msg₀ choice) (ChoiceOut.msg₁ choice) <;>
-      simp only [hval, Bool.false_eq_true, ↓reduceIte, PMF.mem_support_pure_iff] at hc_supp
-    · subst hc_supp; exact Nat.zero_le _
-    · exact hctLen (security a) (pk a) _ c hc_supp
-  simp only [encLoRLoopState, encPair_apply, encBits_apply, encList_cons,
-    List.length_append, length_frame]
-  omega
 
 private theorem isPPTOn_lorToSingleAt_choose {Msg : Type} {encMsg : Msg ↪ List Bool}
     {valid : ℕ → List Bool → Msg → Msg → Bool}
@@ -434,22 +353,6 @@ noncomputable def lorHybridGameOn {Msg : Type}
   simp only [lorHybridGameOn, lorHybridDistinguisherOn, lorGameOn, lorDistinguisherOn,
     Nat.min_eq_right hle, Nat.sub_eq_zero_of_le hle, lorRunOn, OracleComp.iterate_zero, pure_bind]
 
-private theorem succProbability_bind_sub {α : Type} (p : PMF α) (f g : α → PMF Bool) :
-    (Game.succProbability (p.bind f) : ℝ) - Game.succProbability (p.bind g) =
-      ∑' a : α, (p a).toReal * ((Game.succProbability (f a) : ℝ) - Game.succProbability (g a)) := by
-  have hs (h : α → PMF Bool) :
-      Summable (fun a => (p a).toReal * (Game.succProbability (h a) : ℝ)) :=
-    Summable.of_nonneg_of_le
-      (fun a => mul_nonneg ENNReal.toReal_nonneg (Game.succProbability (h a)).coe_nonneg)
-      (fun a => mul_le_of_le_one_right ENNReal.toReal_nonneg
-        (by exact_mod_cast Game.succProbability_le_one (h a)))
-      (Probability.PMF.summable_toReal p)
-  rw [Game.coe_succProbability, Game.coe_succProbability,
-    Probability.PMF.bind_apply_toReal_tsum, Probability.PMF.bind_apply_toReal_tsum]
-  simp_rw [← Game.coe_succProbability]
-  rw [← (hs f).tsum_sub (hs g)]
-  exact tsum_congr fun a => by ring
-
 /-- **Single-step hybrid identity for adaptive left-or-right CPA**
 ([BonehShoup2023], Section 11.3.2, Theorem 11.1, printed p. 440): for every `split : ℕ`, the
 signed gap between `lorHybridGameOn ... split n` and `lorHybridGameOn ... (split + 1) n` equals
@@ -540,14 +443,18 @@ theorem lorHybridGameOn_step_gap {Msg : Type}
       simp only [Bool.false_eq_true, ↓reduceIte]
     rw [hsplit_eq, lhs_eq false, lhs_eq true, rhs_eq false, rhs_eq true]
     simp only [PMF.monad_bind_eq_bind]
-    simp_rw [succProbability_bind_sub]
-    refine tsum_congr fun keys => congrArg (_ * ·) ?_
-    refine tsum_congr fun st₀ => congrArg (_ * ·) ?_
-    refine tsum_congr fun mid => congrArg (_ * ·) ?_
-    refine tsum_congr fun choice => congrArg (_ * ·) ?_
+    rw [sub_eq_sub_iff_add_eq_add, Game.coe_succProbability, Game.coe_succProbability,
+      Game.coe_succProbability, Game.coe_succProbability,
+      ← ENNReal.toReal_add (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _),
+      ← ENNReal.toReal_add (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _)]
+    refine congrArg ENNReal.toReal ?_
+    refine PMF.bind_apply_add_eq_on_support fun keys _ =>
+      PMF.bind_apply_add_eq_on_support fun st₀ _ =>
+      PMF.bind_apply_add_eq_on_support fun mid _ =>
+      PMF.bind_apply_add_eq_on_support fun choice _ => ?_
     by_cases hv : valid n keys.1 (ChoiceOut.msg₀ choice) (ChoiceOut.msg₁ choice) = true
     · simp [hv]
-    · simp [hv]
+    · simp [hv, add_comm]
   · have hle : Q n ≤ split := Nat.le_of_not_lt hlt
     have heqL :
         ProbComp.eval (lorHybridGameOn valid keyGen encrypt Q adversary split n) =
@@ -587,12 +494,51 @@ theorem eval_gameOn_lorToSingle {Msg : Type}
       ProbComp.eval_pure, PMF.pure_bind, apply_ite ProbComp.eval, ProbComp.eval_bind,
       decode_rejectLoRToSingleState, PMF.bind_const, ite_self]
 
+/-- Both exact identities at once: the cut index is uniform on `Fin capacity` with
+`Q n ≤ capacity`, and indices `≥ Q n` output `false`. -/
+private theorem advantage_lorGameOn_eq_mixture {Msg : Type}
+    (valid : ℕ → List Bool → Msg → Msg → Bool)
+    (keyGen : ℕ → ProbComp (List Bool × List Bool))
+    (encrypt : ℕ → List Bool → Msg → ProbComp (List Bool)) (Q : ℕ → ℕ)
+    (adversary : LoRAdversaryOf Msg) (n capacity : ℕ) [NeZero capacity] (hle : Q n ≤ capacity) :
+    Game.advantage
+      (ProbComp.eval (lorGameOn valid keyGen encrypt Q adversary false n))
+      (ProbComp.eval (lorGameOn valid keyGen encrypt Q adversary true n)) =
+      capacity *
+        Game.advantage
+          ((PMF.uniformOfFintype (Fin capacity)).bind fun i =>
+            if i.val < Q n then
+              ProbComp.eval
+                (gameOn valid keyGen encrypt
+                  (lorToSingleAt valid encrypt Q adversary i.val) false n)
+            else PMF.pure false)
+          ((PMF.uniformOfFintype (Fin capacity)).bind fun i =>
+            if i.val < Q n then
+              ProbComp.eval
+                (gameOn valid keyGen encrypt
+                  (lorToSingleAt valid encrypt Q adversary i.val) true n)
+            else PMF.pure false) := by
+  have hred := Game.succProbability_hybrid_reduction
+    (games := fun split => ProbComp.eval (lorHybridGameOn valid keyGen encrypt Q adversary split n))
+    (game1 := fun split => ProbComp.eval
+      (gameOn valid keyGen encrypt (lorToSingleAt valid encrypt Q adversary split) false n))
+    (game2 := fun split => ProbComp.eval
+      (gameOn valid keyGen encrypt (lorToSingleAt valid encrypt Q adversary split) true n))
+    (Q n) capacity hle 1
+    (fun split _ => by
+      rw [one_mul]; exact lorHybridGameOn_step_gap valid keyGen encrypt Q adversary split n)
+  rw [eval_lorHybridGameOn_zero, eval_lorHybridGameOn_of_le valid keyGen encrypt Q adversary le_rfl,
+    mul_one] at hred
+  apply NNReal.eq
+  rw [NNReal.coe_mul, Game.coe_advantage, Game.coe_advantage, NNReal.coe_natCast, hred,
+    abs_mul, Nat.abs_cast]
+
 /-- **Quantitative Theorem 11.1 (exact strict-PPT reduction equality):** for every `n`, the
 `Q`-query left-or-right CPA advantage of `adversary` equals `dyadicSize (Q n)` times the
 single-challenge semantic-security advantage of the certified adversary `lorToSingle valid encrypt
-Q adversary`, paying `dyadicSize (Q n) < 2 * max (Q n) 1` instead of `Q n` so that sampling the
-embedded query index runs in strict fair-coin polynomial time ([BonehShoup2023], Section 11.3.2,
-Theorem 11.1, printed pp. 439–440). -/
+Q adversary`. The factor is `dyadicSize (Q n) ≤ 2 * (Q n + 1)` (`dyadicSize_le`) instead of the
+printed `Q n`, so that sampling the embedded query index runs in strict fair-coin polynomial time
+([BonehShoup2023], Section 11.3.2, Theorem 11.1, printed pp. 439–440). -/
 theorem advantage_lorGameOn_eq {Msg : Type}
     (valid : ℕ → List Bool → Msg → Msg → Bool)
     (keyGen : ℕ → ProbComp (List Bool × List Bool))
@@ -607,27 +553,16 @@ theorem advantage_lorGameOn_eq {Msg : Type}
             (gameOn valid keyGen encrypt (lorToSingle valid encrypt Q adversary) false n))
           (ProbComp.eval
             (gameOn valid keyGen encrypt (lorToSingle valid encrypt Q adversary) true n)) := by
-  have : NeZero (dyadicSize (Q n)) := ⟨(dyadicSize_pos (Q n)).ne'⟩
-  have hred := Game.succProbability_hybrid_reduction
-    (games := fun split => ProbComp.eval (lorHybridGameOn valid keyGen encrypt Q adversary split n))
-    (game1 := fun split => ProbComp.eval
-      (gameOn valid keyGen encrypt (lorToSingleAt valid encrypt Q adversary split) false n))
-    (game2 := fun split => ProbComp.eval
-      (gameOn valid keyGen encrypt (lorToSingleAt valid encrypt Q adversary split) true n))
-    (Q n) (dyadicSize (Q n)) (Nat.le_of_lt (lt_dyadicSize (Q n))) 1
-    (fun split _ => by
-      rw [one_mul]; exact lorHybridGameOn_step_gap valid keyGen encrypt Q adversary split n)
-  rw [eval_lorHybridGameOn_zero, eval_lorHybridGameOn_of_le valid keyGen encrypt Q adversary le_rfl,
-    mul_one, ← eval_gameOn_lorToSingle, ← eval_gameOn_lorToSingle] at hred
-  apply NNReal.eq
-  rw [NNReal.coe_mul, Game.coe_advantage, Game.coe_advantage, NNReal.coe_natCast, hred,
-    abs_mul, Nat.abs_cast]
+  rw [eval_gameOn_lorToSingle, eval_gameOn_lorToSingle]
+  exact advantage_lorGameOn_eq_mixture valid keyGen encrypt Q adversary n _
+    (lt_dyadicSize (Q n)).le
 
 /-- **Quantitative Theorem 11.1 (exact printed equality `CPAadv[A, E] = Q · SSadv[B, E]`):**
-when `0 < Q n` (`[NeZero (Q n)]`) and the embedded query index is drawn uniformly from `Fin (Q n)`,
-the `Q`-query left-or-right CPA advantage of `adversary` equals `Q n` times the single-challenge
-semantic-security advantage ([BonehShoup2023], Section 11.3.2, Theorem 11.1,
-printed pp. 439–440). -/
+when `0 < Q n` (`[NeZero (Q n)]`), the `Q`-query left-or-right CPA advantage of `adversary` equals
+`Q n` times the advantage between the two uniform mixtures over `i : Fin (Q n)` of the
+single-challenge games of `lorToSingleAt valid encrypt Q adversary i`. The mixture is the book's
+`B`; it is not the game of one `AdversaryOf` and has no PPT certificate here
+([BonehShoup2023], Section 11.3.2, Theorem 11.1, printed pp. 439–440). -/
 theorem advantage_lorGameOn_eq_uniform {Msg : Type}
     (valid : ℕ → List Bool → Msg → Msg → Bool)
     (keyGen : ℕ → ProbComp (List Bool × List Bool))
@@ -645,31 +580,8 @@ theorem advantage_lorGameOn_eq_uniform {Msg : Type}
             ProbComp.eval
               (gameOn valid keyGen encrypt
                 (lorToSingleAt valid encrypt Q adversary i.val) true n)) := by
-  have hred := Game.succProbability_hybrid_reduction
-    (games := fun split => ProbComp.eval (lorHybridGameOn valid keyGen encrypt Q adversary split n))
-    (game1 := fun split => ProbComp.eval
-      (gameOn valid keyGen encrypt (lorToSingleAt valid encrypt Q adversary split) false n))
-    (game2 := fun split => ProbComp.eval
-      (gameOn valid keyGen encrypt (lorToSingleAt valid encrypt Q adversary split) true n))
-    (Q n) (Q n) le_rfl 1
-    (fun split _ => by
-      rw [one_mul]; exact lorHybridGameOn_step_gap valid keyGen encrypt Q adversary split n)
-  rw [eval_lorHybridGameOn_zero, eval_lorHybridGameOn_of_le valid keyGen encrypt Q adversary le_rfl,
-    mul_one] at hred
-  have hs (b : Bool) :
-      ((PMF.uniformOfFintype (Fin (Q n))).bind fun i =>
-        if i.val < Q n then
-          ProbComp.eval
-            (gameOn valid keyGen encrypt (lorToSingleAt valid encrypt Q adversary i.val) b n)
-        else PMF.pure false) =
-      ((PMF.uniformOfFintype (Fin (Q n))).bind fun i =>
-        ProbComp.eval
-          (gameOn valid keyGen encrypt (lorToSingleAt valid encrypt Q adversary i.val) b n)) := by
-    congr 1 with i; simp [i.isLt]
-  rw [hs false, hs true] at hred
-  apply NNReal.eq
-  rw [NNReal.coe_mul, Game.coe_advantage, Game.coe_advantage, NNReal.coe_natCast, hred,
-    abs_mul, Nat.abs_cast]
+  simpa only [Fin.is_lt, ↓reduceIte] using
+    advantage_lorGameOn_eq_mixture valid keyGen encrypt Q adversary n (Q n) le_rfl
 
 /-! ### Asymptotic Theorem 11.1 -/
 
@@ -679,9 +591,12 @@ security under admissibility predicate `valid` implies `Q`-query left-or-right C
   filter simulated prefix and suffix queries.
 - `hencrypt`: `encrypt` must be uniformly strict PPT because `lorToSingle` directly encrypts
   simulated prefix and suffix queries under `pk`.
-- `hctBound` and `hctLen`: supported ciphertexts must have length bounded by a polynomial
-  `ctBound n` depending only on `n` so transcript lengths stay polynomially bounded across `Q n`
-  adaptive rounds.
+- `hctBound` and `hctLen`: every ciphertext of every `msg : Msg`, admissible or not, has length at
+  most `ctBound n`, a polynomial in `n` alone, so that the transcript stays polynomially bounded
+  over `Q n` rounds. On an infinite message type no scheme that decrypts every message satisfies
+  this (there are finitely many ciphertexts of length at most `ctBound n`): as in [BonehShoup2023],
+  Definition 11.3 (pp. 437–438), the message space is length-bounded, and `encrypt` must truncate
+  or reject longer inputs.
 - `hQ`: `Q` must be computable in unary polynomial time so `lorToSingle` can sample the hybrid cut,
   iterate `Q n` steps in strict PPT, and bound `dyadicSize (Q n)` polynomially. -/
 theorem INDCPAOn.lorINDCPAOn {Msg : Type}
@@ -709,8 +624,9 @@ theorem INDCPAOn.lorINDCPAOn {Msg : Type}
 /-- **Theorem 11.1 (unrestricted messages):** unrestricted `INDCPAOf` implies `LoRINDCPAOf`.
 - `hencrypt`: `encrypt` must be uniformly strict PPT so `lorToSingle` can simulate prefix/suffix
   queries.
-- `hctBound` and `hctLen`: supported ciphertexts must have length bounded by `ctBound n`
-  (polynomially in `n`) so adaptive transcripts do not blow up across `Q n` steps.
+- `hctBound` and `hctLen`: every ciphertext of every `msg : Msg` has length at most `ctBound n`,
+  as in `INDCPAOn.lorINDCPAOn` (on an infinite message type, `encrypt` must truncate or reject
+  inputs beyond a polynomial length).
 - `hQ`: `Q` must be computable in unary polynomial time to execute and certify the reduction. -/
 theorem INDCPAOf.lorINDCPAOf {Msg : Type} {encMsg : Msg ↪ List Bool}
     {keyGen : ℕ → ProbComp (List Bool × List Bool)}
@@ -727,8 +643,8 @@ theorem INDCPAOf.lorINDCPAOf {Msg : Type} {encMsg : Msg ↪ List Bool}
 /-- **Theorem 11.1 (single-bit messages):** `INDCPA` implies `LoRINDCPA`.
 - `hencrypt`: `encrypt` must be uniformly strict PPT so `lorToSingle` can simulate prefix/suffix
   queries.
-- `hctBound` and `hctLen`: supported ciphertexts must have length bounded by `ctBound n`
-  (polynomially in `n`) so adaptive transcripts stay polynomially bounded across `Q n` steps.
+- `hctBound` and `hctLen`: every ciphertext of every `msg : Bool` has length at most `ctBound n`,
+  as in `INDCPAOn.lorINDCPAOn`.
 - `hQ`: `Q` must be computable in unary polynomial time to execute and certify the reduction. -/
 theorem INDCPA.lorINDCPA
     {keyGen : ℕ → ProbComp (List Bool × List Bool)}
@@ -745,8 +661,9 @@ theorem INDCPA.lorINDCPA
 /-- **Theorem 11.1 (bit-word messages, equal-length rule):** `WordINDCPA` implies `WordLoRINDCPA`.
 - `hencrypt`: `encrypt` must be uniformly strict PPT so `lorToSingle` can simulate prefix/suffix
   queries.
-- `hctBound` and `hctLen`: supported ciphertexts must have length bounded by `ctBound n`
-  (polynomially in `n`) so adaptive transcripts stay polynomially bounded across `Q n` steps.
+- `hctBound` and `hctLen`: every ciphertext of every `msg : List Bool` (admissible or not) has
+  length at most `ctBound n`, as in `INDCPAOn.lorINDCPAOn`; `encrypt` must truncate or reject
+  words beyond a polynomial length.
 - `hQ`: `Q` must be computable in unary polynomial time to execute and certify the reduction. -/
 theorem WordINDCPA.wordLoRINDCPA
     {keyGen : ℕ → ProbComp (List Bool × List Bool)}

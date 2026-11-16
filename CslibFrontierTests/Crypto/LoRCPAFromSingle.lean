@@ -4,17 +4,24 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+
 import CslibFrontier.Crypto.Computational.Encryption.LoRCPA.FromSingle
+import CslibFrontier.Crypto.Computational.LWE.Regev.Security
 import CslibFrontier.Tactic.PolyTime
+import CslibFrontier.Tactic.PPT
+import Mathlib.Data.Set.Finite.List
 
 /-!
 # Tests for Left-or-Right CPA from Single-Challenge Semantic Security
 
-Smoke tests for `Cslib.Crypto.Encryption.LoRCPA.FromSingle`: saved-state framing, hybrid endpoint
-identities, concrete `dyadicSize (Q n)` and uniform `Q n` advantage equalities, strict-PPT
-certificates, positive asymptotic `INDCPAOf`/`WordLoRINDCPA`/`LoRINDCPA` clients, and nonvacuity
-via a plaintext-leaking scheme.
+Smoke tests for `Cslib.Crypto.Encryption.LoRCPA.FromSingle`: hybrid endpoint identities, concrete
+`dyadicSize (Q n)` and uniform `Q n` advantage equalities, strict-PPT certificates, positive
+asymptotic `INDCPAOf`/`WordLoRINDCPA`/`LoRINDCPA` clients (including Regev under `DecisionLWE`),
+`hctLen` witness on infinite word messages, and nonvacuity via a plaintext-leaking scheme.
 -/
+
+set_option linter.privateModule false
 
 namespace LoRCPAFromSingleTests
 
@@ -38,12 +45,6 @@ private lemma isPPT_constWordAdv : LoRAdversaryOf.IsPPT encBits constWordAdv whe
     simp only [constWordAdv, ProbComp.eval_pure, PMF.mem_support_pure_iff] at hr
     subst hr; simp [ChoiceOut.state]⟩
 
-/-- `encLoRToSingleState` matches the five-field nested `encPair` framing tuple. -/
-example (s : LoRToSingleState) :
-    encLoRToSingleState s =
-      encPair encBool (encPair encBits (encPair encUnary (encPair encBits (encList encBits))))
-        (s.active, s.pk, s.split, s.stateA, s.transcript) := rfl
-
 /-- Hybrid endpoint identities match left (`bit = false`) at `0` and right (`bit = true`) at
 `split ≥ Q n`. -/
 theorem constHybridEndpoints (n : ℕ) :
@@ -58,41 +59,54 @@ theorem constHybridEndpoints (n : ℕ) :
   ⟨eval_lorHybridGameOn_zero _ _ _ _ _ n,
    eval_lorHybridGameOn_of_le _ _ _ _ _ (Nat.le_refl 3)⟩
 
-/-- Concrete exact identity with strict-PPT `dyadicSize (Q n)` factor (`Q n = 3`). -/
-theorem const_exact_eq (n : ℕ) :
-    Game.advantage
-      (ProbComp.eval (lorGameOn (fun _ _ m₀ m₁ => m₀.length == m₁.length)
-        constKeyGen constWordEncrypt (fun _ => 3) constWordAdv false n))
-      (ProbComp.eval (lorGameOn (fun _ _ m₀ m₁ => m₀.length == m₁.length)
-        constKeyGen constWordEncrypt (fun _ => 3) constWordAdv true n)) =
-      dyadicSize 3 *
-        Game.advantage
-          (ProbComp.eval (gameOn (fun _ _ m₀ m₁ => m₀.length == m₁.length) constKeyGen
-            constWordEncrypt (lorToSingle (fun _ _ m₀ m₁ => m₀.length == m₁.length)
-              constWordEncrypt (fun _ => 3) constWordAdv) false n))
-          (ProbComp.eval (gameOn (fun _ _ m₀ m₁ => m₀.length == m₁.length) constKeyGen
-            constWordEncrypt (lorToSingle (fun _ _ m₀ m₁ => m₀.length == m₁.length)
-              constWordEncrypt (fun _ => 3) constWordAdv) true n)) :=
-  advantage_lorGameOn_eq _ _ _ _ _ n
+private def leakBitEncrypt (_ : ℕ) (_ : List Bool) (m : Bool) : ProbComp (List Bool) := pure [m]
 
-/-- Concrete literal-`Q` identity (`CPAadv[A, E] = Q · SSadv[B, E]`) when `Q n = 3` is nonzero. -/
-theorem const_exact_eq_uniform (n : ℕ) :
+/-- Asks `(false, true)` twice and outputs `true` iff both replies are `[true]`. -/
+private noncomputable def bothAdv : LoRAdversary where
+  start _ _ := pure []
+  query _ _ _ := pure ((false, true), [])
+  guess _ _ tr := pure (tr == [[true], [true]])
+
+private theorem advantage_bothAdv (n : ℕ) :
     Game.advantage
-      (ProbComp.eval (lorGameOn (fun _ _ m₀ m₁ => m₀.length == m₁.length)
-        constKeyGen constWordEncrypt (fun _ => 3) constWordAdv false n))
-      (ProbComp.eval (lorGameOn (fun _ _ m₀ m₁ => m₀.length == m₁.length)
-        constKeyGen constWordEncrypt (fun _ => 3) constWordAdv true n)) =
-      3 *
-        Game.advantage
-          ((PMF.uniformOfFintype (Fin 3)).bind fun i =>
-            ProbComp.eval (gameOn (fun _ _ m₀ m₁ => m₀.length == m₁.length) constKeyGen
-              constWordEncrypt (lorToSingleAt (fun _ _ m₀ m₁ => m₀.length == m₁.length)
-                constWordEncrypt (fun _ => 3) constWordAdv i.val) false n))
-          ((PMF.uniformOfFintype (Fin 3)).bind fun i =>
-            ProbComp.eval (gameOn (fun _ _ m₀ m₁ => m₀.length == m₁.length) constKeyGen
-              constWordEncrypt (lorToSingleAt (fun _ _ m₀ m₁ => m₀.length == m₁.length)
-                constWordEncrypt (fun _ => 3) constWordAdv i.val) true n)) :=
-  advantage_lorGameOn_eq_uniform _ _ _ (fun _ => 3) _ n
+      (ProbComp.eval (lorGame constKeyGen leakBitEncrypt (fun _ => 2) bothAdv false n))
+      (ProbComp.eval (lorGame constKeyGen leakBitEncrypt (fun _ => 2) bothAdv true n)) = 1 := by
+  simp [lorGameOn, lorDistinguisherOn, lorRunOn, lorStepOn, OracleComp.iterate_succ,
+    OracleComp.iterate_zero, constKeyGen, leakBitEncrypt, bothAdv, Game.advantage,
+    Game.succProbability]
+
+/-- `advantage_lorGameOn_eq` where neither side vanishes: against the bit-leaking scheme with
+`Q n = 2`, the certified `lorToSingle` has advantage exactly `1 / dyadicSize 2 = 1 / 4`. -/
+theorem leak_exact_eq (n : ℕ) :
+    Game.advantage
+      (ProbComp.eval (game constKeyGen leakBitEncrypt
+        (lorToSingle (fun _ _ _ _ => true) leakBitEncrypt (fun _ => 2) bothAdv) false n))
+      (ProbComp.eval (game constKeyGen leakBitEncrypt
+        (lorToSingle (fun _ _ _ _ => true) leakBitEncrypt (fun _ => 2) bothAdv) true n)) =
+      1 / 4 := by
+  have h := advantage_lorGameOn_eq (fun _ _ _ _ => true) constKeyGen leakBitEncrypt (fun _ => 2)
+    bothAdv n
+  have h4 : dyadicSize 2 = 4 := by decide
+  rw [advantage_bothAdv, h4] at h
+  rw [eq_div_iff (by norm_num), mul_comm]
+  exact_mod_cast h.symm
+
+/-- `advantage_lorGameOn_eq_uniform` on the same instance: the uniform mixture of `lorToSingleAt`
+over `Fin 2`, the book's `B`, has advantage `1 / 2`, the printed `1 = Q · (1 / 2)`. -/
+theorem leak_exact_eq_uniform (n : ℕ) :
+    Game.advantage
+      ((PMF.uniformOfFintype (Fin 2)).bind fun i =>
+        ProbComp.eval (game constKeyGen leakBitEncrypt
+          (lorToSingleAt (fun _ _ _ _ => true) leakBitEncrypt (fun _ => 2) bothAdv i.val) false n))
+      ((PMF.uniformOfFintype (Fin 2)).bind fun i =>
+        ProbComp.eval (game constKeyGen leakBitEncrypt
+          (lorToSingleAt (fun _ _ _ _ => true) leakBitEncrypt (fun _ => 2) bothAdv i.val) true n)) =
+      1 / 2 := by
+  have h := advantage_lorGameOn_eq_uniform (fun _ _ _ _ => true) constKeyGen leakBitEncrypt
+    (fun _ => 2) bothAdv n
+  rw [advantage_bothAdv] at h
+  rw [eq_div_iff (by norm_num), mul_comm]
+  exact_mod_cast h.symm
 
 /-- `isPPT_lorToSingleAt` and `isPPT_lorToSingle` certify PPT on `constWordAdv` with `Q n = 3`. -/
 theorem isPPT_const_lorToSingle :
@@ -203,5 +217,48 @@ theorem leak_not_wordLoRINDCPA :
     simp only [hadv1, pow_zero, one_mul] at h
     exact h
   exact one_ne_zero (tendsto_const_nhds_iff.mp hzero)
+
+open Turing.MultiTapeTM.ComputableInPolyTime in
+/-- Real-scheme client: `INDCPA.lorINDCPA` turns Regev `INDCPA` under `DecisionLWE` into
+`Regev.LoRINDCPA`. -/
+theorem regev_lorINDCPA_of_decisionLWE {n m w η Q : ℕ → ℕ}
+    (hn : ComputableInPolyTime n encUnary encUnary)
+    (hm : ComputableInPolyTime m encUnary encUnary)
+    (hw : ComputableInPolyTime w encUnary encUnary)
+    (hQ : ComputableInPolyTime Q encUnary encUnary)
+    (hmargin : ∀ᶠ security in Filter.atTop,
+      (n security + 1) * w security + 2 * security ≤ m security)
+    (hLWE : DecisionLWE n m w (fun k => LWE.noiseLaw (w k) (η k))) :
+    Regev.LoRINDCPA n m w η Q := by
+  have hlen : Cslib.PolynomiallyBounded (fun k => (n k + 1) * w k) := by
+    have h : ComputableInPolyTime (fun k => (n k + 1) * w k) encUnary encUnary := by fun_prop
+    exact h.polynomiallyBounded
+  have henc : IsPPTOn (encKeyedInput encBool) encBits
+      (fun ⟨security, pk, msg⟩ =>
+        Regev.encryptSerialized (n security) (m security) (w security) pk msg) :=
+    Regev.isPPTOn_encryptSerialized (hn.comp (by fun_prop)) (hm.comp (by fun_prop))
+      (hw.comp (by fun_prop)) (by fun_prop) (by fun_prop)
+  exact (Regev.indCPA_of_decisionLWE hn hm hw hmargin hLWE).lorINDCPA henc hlen
+    (fun _ _ _ _ hc => le_of_eq (Regev.length_of_mem_support_encryptSerialized hc)) hQ
+
+/-- On `Msg = List Bool`, no scheme that decrypts every message satisfies `hctLen`. -/
+theorem no_correct_word_scheme_with_hctLen
+    (encrypt : ℕ → List Bool → List Bool → ProbComp (List Bool))
+    (decrypt : List Bool → List Bool → List Bool) (ctBound : ℕ → ℕ) (n : ℕ) (pk sk : List Bool)
+    (hctLen : ∀ n k msg c, c ∈ (ProbComp.eval (encrypt n k msg)).support → c.length ≤ ctBound n)
+    (hcorrect : ∀ msg c, c ∈ (ProbComp.eval (encrypt n pk msg)).support → decrypt sk c = msg) :
+    False := by
+  classical
+  let f : List Bool → List Bool :=
+    fun msg => (PMF.support_nonempty (ProbComp.eval (encrypt n pk msg))).some
+  have hf (msg : List Bool) : f msg ∈ (ProbComp.eval (encrypt n pk msg)).support :=
+    (PMF.support_nonempty _).some_mem
+  have hinj : Function.Injective f := fun a b h => by
+    rw [← hcorrect a (f a) (hf a), h, hcorrect b (f b) (hf b)]
+  have hfin : (Set.range f).Finite :=
+    (List.finite_length_le Bool (ctBound n)).subset (by
+      rintro _ ⟨msg, rfl⟩
+      exact hctLen n pk msg _ (hf msg))
+  exact Set.infinite_range_of_injective hinj hfin
 
 end LoRCPAFromSingleTests
