@@ -88,9 +88,10 @@ open Probability Turing.MultiTapeTM
 
 /-! ### The prediction experiment -/
 
-/-- A least-significant-bit predictor for RSA: given the security parameter, a public key
-`(N, e)` and a residue modulo `N`, it outputs a bit. `RSAPredictor.IsPPT` states its efficiency
-on encodings. -/
+/-- A one-bit predictor for RSA: given the security parameter, a public key `(N, e)` and a residue
+modulo `N`, it outputs a bit, whose meaning is fixed by the experiment (the least significant bit
+of the preimage in `rsaLSBGame`) or by a correctness hypothesis. `RSAPredictor.IsPPT` states its
+efficiency on encodings. -/
 abbrev RSAPredictor : Type :=
   ℕ → (pk : RSAPublicKey) → Fin pk.N → ProbComp Bool
 
