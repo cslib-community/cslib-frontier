@@ -18,7 +18,6 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.BitString
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Languages.Probabilistic.Oracle.Norm
-import CslibFrontier.Languages.Probabilistic.Oracle.Substitution
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
 import CslibFrontier.Tactic.SuppCases
 

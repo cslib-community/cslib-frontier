@@ -10,10 +10,7 @@ public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Word
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.WordGame
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.WordBridge
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.WordSecurity
-import CslibFrontier.Crypto.Negligible.Dyadic
-import CslibFrontier.Languages.Probabilistic.Oracle.Norm
-import CslibFrontier.Languages.Probabilistic.Norm
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeOptionPrimitives
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListPrimitives
 
 /-!

@@ -11,7 +11,6 @@ public import CslibFrontier.Computability.Probabilistic.Time
 public import CslibFrontier.Computability.Probabilistic.Oracle
 public import CslibFrontier.Computability.Probabilistic.Oracle.Parameter
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.RunsWords
-import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.QueryBounds
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.QueryTake
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.ExtendTapes

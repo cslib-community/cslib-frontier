@@ -39,8 +39,8 @@ import CslibFrontier.Languages.Probabilistic.Oracle.Support
 import CslibFrontier.Languages.Probabilistic.Traverse.SupportWith
 import CslibFrontier.Probability.BitString
 import CslibFrontier.Probability.PMF.Bind
-import CslibFrontier.Tactic.Negligible
 import CslibFrontier.Tactic.PolyTime.Init
+import Mathlib.Tactic.Positivity
 import CslibFrontier.Tactic.SuppCases
 
 /-!

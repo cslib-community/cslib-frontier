@@ -13,21 +13,12 @@ public import CslibFrontier.Computability.Probabilistic.PPT
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Nondeterministic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Space
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Loop.Space
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.IterateWhile
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Tidy
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Composition
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Composition.Space
-import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
-import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Probability.PMF.Bool
-import CslibFrontier.Probability.PMF.Bind
 import Mathlib.Tactic.Ring
 import Mathlib.Tactic.Linarith
-import CslibFrontier.Tactic.EncLen
 
 /-!
 # Binary-counter exponential iteration on fair-coin multitape machines

@@ -12,7 +12,6 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.De
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
-import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Languages.Probabilistic.Oracle.Support
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Tactic.PolyTime

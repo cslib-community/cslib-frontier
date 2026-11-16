@@ -11,8 +11,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.Ora
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.IterateWhile
 public import CslibFrontier.Languages.Probabilistic.Iteration
 public import CslibFrontier.Languages.Probabilistic.Oracle.Support
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeNatFrontends
 import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 
 /-!

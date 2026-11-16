@@ -13,12 +13,9 @@ public import CslibFrontier.Crypto.Computational.IndexedSignature
 public import CslibFrontier.Crypto.Computational.MerkleTree.Binding
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder
 public import CslibFrontier.Languages.Probabilistic.Repeat
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Log
 import CslibFrontier.Computability.Probabilistic.Repeat
-import CslibFrontier.Probability.PMF.Bind
-import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.PPT
 

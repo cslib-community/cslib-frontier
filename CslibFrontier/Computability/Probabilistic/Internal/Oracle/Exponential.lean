@@ -9,9 +9,6 @@ module
 
 public import CslibFrontier.Computability.Complexity.Classes.EXP
 public import CslibFrontier.Computability.Complexity.Classes.Oracle
-import CslibFrontier.Computability.Complexity.Classes.Oracle.Closure
-import CslibFrontier.Computability.Complexity.Reduction
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.RunsWords
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Tidy

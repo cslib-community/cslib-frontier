@@ -20,7 +20,6 @@ import CslibFrontier.Crypto.Computational.GGM.Security
 import CslibFrontier.Crypto.Computational.GeneratorReindex
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.TruthTable
 import CslibFrontier.Crypto.Computational.Stretch
-import CslibFrontier.Crypto.Game.Statistical
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.BitString

@@ -21,7 +21,6 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
-import CslibFrontier.Computability.Probabilistic.Repeat
 import CslibFrontier.Logics.Propositional.CNF.PolyTime
 
 /-!

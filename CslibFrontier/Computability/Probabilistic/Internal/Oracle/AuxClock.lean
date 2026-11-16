@@ -10,9 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.PrefixLocality
 public import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 public import CslibFrontier.Computability.Probabilistic.PPT.Composition
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.QueryBounds
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Basic
 import CslibFrontier.Probability.PMF.Map

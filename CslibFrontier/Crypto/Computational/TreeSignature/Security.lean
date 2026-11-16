@@ -15,14 +15,11 @@ public import CslibFrontier.Crypto.Computational.OneWay
 public import CslibFrontier.Crypto.Negligible.Dyadic
 public import CslibFrontier.Languages.Probabilistic.Repeat
 public import CslibFrontier.Languages.Probabilistic.UniformNat
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.BitString
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.Oracle.Memoize
 import CslibFrontier.Computability.Probabilistic.Oracle.Substitution

@@ -16,9 +16,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
-import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
 import CslibFrontier.Foundations.Data.BitString.List.Operations
 import CslibFrontier.Languages.Probabilistic.Oracle.Support
 import CslibFrontier.Languages.Probabilistic.QueryCount.Congr

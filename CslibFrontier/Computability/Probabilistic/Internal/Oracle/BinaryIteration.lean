@@ -24,7 +24,6 @@ import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
-import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Probability.PMF.Bind
 import Mathlib.Tactic.Ring
 import Mathlib.Tactic.Linarith

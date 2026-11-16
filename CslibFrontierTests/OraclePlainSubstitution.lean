@@ -13,7 +13,6 @@ public import CslibFrontier.Computability.Probabilistic.Oracle.RunState
 public import CslibFrontier.Computability.Probabilistic.Oracle.Memoize
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Tactic.PPT
 import CslibFrontier.Tactic.PolyTime
 

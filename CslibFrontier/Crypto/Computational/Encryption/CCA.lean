@@ -24,12 +24,9 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Crypto.Computational.Encryption.DecryptionBound
-import CslibFrontier.Crypto.Negligible.Basic
-import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.BindCompare
-import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.PPT

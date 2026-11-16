@@ -10,10 +10,9 @@ module
 public import CslibFrontier.Computability.Probabilistic.Oracle
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Tidy
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.TidyNormalForm
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Foundations.Data.List.Fold
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.KernelNormalForm
 import Mathlib.Data.Fintype.Basic
 
 /-!
