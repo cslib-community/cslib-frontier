@@ -149,6 +149,22 @@ example :
   have h := congrArg (fun p => p.1.2) h₀
   simp at h
 
+/-- Necessity of `[Fact q.Prime]` in `equalPlaintexts_specialSoundness` and
+`equalPlaintexts_sound`: in `ZMod 4` with generator `g = 1` and `u = 1`, the statement
+`(1, (0, 2), (0, 0))` has no witness in `equalPlaintextsRelation`, yet commitment `(0, 0)` with
+response `0` is accepted at distinct challenges `0` and `2`, so `SpecialSoundness` fails. -/
+example :
+    Function.Surjective (fun β : ZMod 4 => β • (1 : ZMod 4)) ∧
+      (¬ ∃ β : ZMod 4, equalPlaintextsRelation (1 : ZMod 4) β (1, (0, 2), (0, 0))) ∧
+      (0 : ZMod 4) ≠ 2 ∧
+      (equalPlaintexts (Function.Embedding.refl (ZMod 4)) (1 : ZMod 4)).Accepts
+        (1, (0, 2), (0, 0)) (0, 0) 0 0 ∧
+      (equalPlaintexts (Function.Embedding.refl (ZMod 4)) (1 : ZMod 4)).Accepts
+        (1, (0, 2), (0, 0)) (0, 0) 2 0 := by
+  refine ⟨fun y => ⟨y, by simp⟩, ?_⟩
+  simp only [equalPlaintextsRelation]
+  decide
+
 /-- Completeness for a prover holding `(β₀, β₁, m)`: pulling back `equalPlaintexts` along
 `(β₀, β₁, m) ↦ β₀ - β₁` yields a complete protocol for ciphertext pairs `(β₀ • g, β₀ • u + m)`
 and `(β₁ • g, β₁ • u + m)` via `Complete.comap` and `equalPlaintextsRelation_sub`. -/

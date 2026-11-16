@@ -38,10 +38,11 @@ special HVZK are those of `chaumPedersen`.
   ciphertext is a true statement, and the re-encryption exponent gives the witness (with opposite
   sign).
 * `Cslib.Crypto.Protocols.SigmaProtocol.equalPlaintexts_complete`,
-  `Cslib.Crypto.Protocols.SigmaProtocol.equalPlaintexts_specialSoundness`,
-  `Cslib.Crypto.Protocols.SigmaProtocol.equalPlaintexts_specialHVZK`,
-  `Cslib.Crypto.Protocols.SigmaProtocol.equalPlaintexts_sound`: the protocol is complete, special
-  sound and special HVZK for (20.2), and when `g` generates the group every prover makes the
+  `Cslib.Crypto.Protocols.SigmaProtocol.equalPlaintexts_specialHVZK`: the protocol is complete
+  and special HVZK for (20.2), with no primality or generator hypothesis.
+* `Cslib.Crypto.Protocols.SigmaProtocol.equalPlaintexts_specialSoundness`,
+  `Cslib.Crypto.Protocols.SigmaProtocol.equalPlaintexts_sound`: for prime `q` the protocol is
+  special sound for (20.2), and when in addition `g` generates the group every prover makes the
   verifier accept a non-equal-plaintext pair with probability at most `1 / |C|`.
 
 ## References
@@ -147,9 +148,9 @@ theorem equalPlaintexts_specialHVZK :
   chaumPedersen_specialHVZK.comap fun _ _ h => h
 
 /-- Soundness with error `1 / |C|` against arbitrary provers ([BonehShoup2023], Theorem 20.1,
-eq. (20.1), p. 824, applied to Example 20.2, p. 826): when `g` generates the group, on a public
-key and two ciphertexts that do not encrypt one message, every prover makes the verifier accept with
-output in `langOut` with probability at most `1 / |C|`. -/
+eq. (20.1), p. 824, applied to Example 20.2, p. 826): when `q` is prime and `g` generates the
+group, on a public key and two ciphertexts that do not encrypt one message, every prover makes
+the verifier accept with output in `langOut` with probability at most `1 / |C|`. -/
 theorem equalPlaintexts_sound [Fact q.Prime] [Fintype C] [Nonempty C]
     (hg : Function.Surjective fun β : ZMod q => β • g) (langOut : Set Unit := Set.univ) :
     (equalPlaintexts ι g).toInteractiveVerifier.Sound World.plain
