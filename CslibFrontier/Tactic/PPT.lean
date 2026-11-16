@@ -34,10 +34,10 @@ Strict oracle PPT goals (`IsOraclePPTOn`, `IsOraclePPT`) search with the `Oracle
 `PolyTime` Aesop rule sets while keeping `simp` disabled on oracle goals so charged reply prefixes
 (`List.take _ <$> ProbOracleComp.query _`) are never fused into surrounding maps or binds. Local
 and structure-field oracle routine calls prepare tuple arguments with `IsOraclePPTOn.preprocess`;
-`pure`, `ProbOracleComp.sample` and `IsOraclePPTOn.query_take` bridge to deterministic `PolyTime`, closed `PPT`
-and plain request/limit bounds; sequencing, captured maps, plain conditionals and bounded-growth
-`OracleComp.iterate` loops search jointly. Handler substitution and general adaptive loop
-invariants keep their explicit theorems (`IsOraclePPT.run_interpret_preprocess`,
+`pure`, `ProbOracleComp.sample` and `IsOraclePPTOn.query_take` bridge to deterministic `PolyTime`,
+closed `PPT` and plain request/limit bounds; sequencing, captured maps, plain conditionals and
+bounded-growth `OracleComp.iterate` loops search jointly. Handler substitution and general adaptive
+loop invariants keep their explicit theorems (`IsOraclePPT.run_interpret_preprocess`,
 `IsOraclePPTOn.iterate_spec`, `IsOraclePPTOn.iterateWith_spec`).
 
 Before searching, `ppt [f, g]` unfolds the hinted definitions in the goal and inlines the `let`s

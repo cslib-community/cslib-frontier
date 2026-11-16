@@ -438,7 +438,7 @@ theorem isPPTOn_pedersenHidingProbExperiment {adversary : Encryption.WordAdversa
     exact hA.choose.preprocess
       (parameter := fun p : (ℕ × F.Desc) × F.PedersenKey => p.1.1)
       (auxiliary := fun p : (ℕ × F.Desc) × F.PedersenKey => F.pedersenScheme.encodeKey p.2)
-      hn.tidy (henc.comp hk).tidy
+      hn (henc.comp hk)
   have hmsg : ComputableInPolyTime
       (fun q : ((ℕ × F.Desc) × F.PedersenKey) × Encryption.ChoiceOut (List Bool) =>
         if bit && F.validPedersenMessageBool q.1.2.1 q.2.1.1 &&

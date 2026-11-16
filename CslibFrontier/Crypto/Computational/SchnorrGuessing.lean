@@ -113,14 +113,13 @@ theorem inv_two_pow_le_succProbability_schnorrDirectGame (setup : ℕ → PMF F.
 polynomial time (`ComputableInPolyTime m encUnary encUnary`). -/
 theorem isPPT_schnorrGuessingImpersonator {m : ℕ → ℕ}
     (hm : ComputableInPolyTime m encUnary encUnary) : (F.schnorrGuessingImpersonator m).IsPPT := by
-  have hm' := hm.tidy
   refine ⟨?_, ?_⟩
   · have h := F.isPPTOn_schnorrSimulatedTranscript
       (encIn := encPair encUnary (encPair F.encDesc encBits))
       (n := fun p => p.1) (d := fun p => p.2.1) (u := fun p => p.2.2) (m := fun p => m p.1)
       (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
-    exact h.bind_with ((ComputableInPolyTime.tidy (by fun_prop)).isPPTOn)
-  · exact (ComputableInPolyTime.tidy (by fun_prop)).isPPTOn
+    exact h.bind_with (ComputableInPolyTime.isPPTOn (by fun_prop))
+  · exact ComputableInPolyTime.isPPTOn (by fun_prop)
 
 /-- **Negligible `1 / 2 ^ k n` is necessary for security against direct attacks**: for every
 `setup` and `k : ℕ → ℕ`, if every uniform strict-PPT impersonator wins
