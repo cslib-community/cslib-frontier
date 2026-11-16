@@ -334,7 +334,8 @@ theorem absorbAdaptiveAdversary_polyBounded
 
 /-! ### Completeness of the adaptive dummy adversary -/
 
-/-- Concrete emulation of the adaptive dummy adversary under `mode`: for every initial corruption
+/-- Concrete emulation of the adaptive dummy adversary under `mode` (statistical, call-bounded
+adaptation of [Canetti2020], Definition 10 and Claim 11, p. 28:43): for every initial corruption
 schedule `C₀`, there exists a simulator `S_D` with call budget `pD` such that every environment `Z`
 with budget `pZ` has advantage at most `ε pZ κ`. Quantifying `C₀` outside `S_D` lets `S_D.initial`
 match `C₀`, which `.status` makes observable. -/
