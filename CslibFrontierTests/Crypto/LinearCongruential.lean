@@ -12,7 +12,7 @@ import Cslib.Probability.PMF
 import Mathlib.Tactic.NormNum
 
 /-!
-# Tests for linear congruential generator prediction
+# Tests for linear congruential generator distinguisher and seed search
 -/
 
 set_option linter.privateModule false
@@ -141,12 +141,42 @@ example : ¬ ∃ f : ℕ → ℕ, ∀ s < 4, f (even.next s) = s := fun ⟨f, h�
   rw [show even.next 2 = even.next 0 by decide, h₀] at h₂
   exact absurd h₂ (by decide)
 
-/-- Without coprimality the test accepts one generated output in four, where the proof of
-`advantage_generator_test` has all four accepted. -/
-example : (Finset.univ.filter fun s : Fin even.q =>
-    even.test (s / even.w) (even.next s) = true).card = 1 := by
-  unfold test prev BinaryGcd.modInv
-  decide
+/-- Without coprimality the advantage formula itself fails: on `even`, `test` has advantage `0`
+rather than `1 - 1 / |R| = 3 / 4`. -/
+example : even.generator.advantage (fun y => PMF.pure (even.test y.1 y.2)) = 0 ∧
+    even.generator.advantage (fun y => PMF.pure (even.test y.1 y.2)) ≠
+      1 - 1 / (((even.q - 1) / even.w + 1 : ℕ) : ℝ) := by
+  have hc₁ : (Finset.univ.filter fun s : Fin even.q =>
+      true = even.test (even.generator s).1 (even.generator s).2).card = 1 := by
+    unfold generator test prev BinaryGcd.modInv
+    decide
+  have hc₂ : (Finset.univ.filter fun y : Fin ((even.q - 1) / even.w + 1) × Fin even.q =>
+      true = even.test y.1 y.2).card = 4 := by
+    unfold test prev BinaryGcd.modInv
+    decide
+  have hreal :
+      (even.generator.realExperiment (fun y => PMF.pure (even.test y.1 y.2)) true).toReal =
+        1 / 4 := by
+    simp only [Generator.realExperiment, Generator.outputDist, PMF.bind_map, Function.comp_def,
+      PMF.bind_apply, PMF.pure_apply, Cslib.Probability.PMF.uniformOfFintype_apply, tsum_fintype,
+      mul_ite, mul_one, mul_zero, ← Finset.sum_filter, Finset.sum_const, hc₁, one_nsmul,
+      Fintype.card_fin, ENNReal.toReal_inv, ENNReal.toReal_natCast]
+    norm_num [even]
+  have hideal :
+      (Generator.idealExperiment
+          (fun y : Fin ((even.q - 1) / even.w + 1) × Fin even.q =>
+            PMF.pure (even.test y.1 y.2)) true).toReal = 1 / 4 := by
+    simp only [Generator.idealExperiment, PMF.bind_apply, PMF.pure_apply,
+      Cslib.Probability.PMF.uniformOfFintype_apply, tsum_fintype,
+      mul_ite, mul_one, mul_zero, ← Finset.sum_filter, Finset.sum_const, hc₂,
+      Fintype.card_prod, Fintype.card_fin, nsmul_eq_mul,
+      ENNReal.toReal_mul, ENNReal.toReal_inv, ENNReal.toReal_natCast]
+    norm_num [even]
+  have hadv : even.generator.advantage (fun y => PMF.pure (even.test y.1 y.2)) = 0 := by
+    simp [Generator.advantage, hreal, hideal]
+  refine ⟨hadv, ?_⟩
+  rw [hadv]
+  norm_num [even]
 
 /-! ### The search -/
 

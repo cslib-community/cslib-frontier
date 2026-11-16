@@ -16,7 +16,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Search
 
 /-!
-# Linear congruential generator prediction
+# Linear congruential generator distinguisher and seed search
 
 The linear congruential generator `G_lcg(s) = (⌊s / w⌋, a * s + b mod q)` with state space
 `S_q = {0, …, q - 1}` and output space `R = {0, …, ⌊(q - 1) / w⌋}`
@@ -25,25 +25,28 @@ The linear congruential generator `G_lcg(s) = (⌊s / w⌋, a * s + b mod q)` wi
 Given `(r, s')`, `LinearCongruential.test` recovers `s` from `s'` using `BinaryGcd.modInv` and
 checks `⌊s / w⌋ = r`. On `LinearCongruential.generator : Generator (Fin q) (Fin |R| × Fin q)`,
 when `a` is coprime to `q`, `generator` is injective (`generator_injective`) and `test` computes
-pinned cslib's range test `Generator.rangeTest` (`rangeTest_generator`), so
+cslib's range test `Generator.rangeTest` (`rangeTest_generator`), so
 `advantage_generator_test` gives exact distinguishing advantage `1 - 1 / |R|`. Note the boundary:
-Boneh–Shoup say `G_lcg` is "clearly insecure" under `0 < w ≤ q`, which holds when `0 < w < q`
-(advantage at least `1 / 2`) and fails when `w = q` or `w = 0`, where `|R| = 1` and the advantage
-is `0`. The advantage theorem targets the finite typed game (which has no adversary cost model);
-`computableInPolyTime_test` separately certifies `test` on encoded natural numbers in binary.
+Boneh–Shoup call `G_lcg` "clearly insecure" for every positive `w ≤ q`. That holds when `0 < w < q`
+(advantage at least `1 / 2`) and fails at `w = q`: then `|R| = 1` and the advantage is `0`, as it
+is for the values `w = 0` and `w > q` that the book excludes. The advantage theorem targets the
+finite typed game (which has no adversary cost model); `computableInPolyTime_test` separately
+certifies `test` on encoded natural numbers in binary.
 
 For the multi-iteration generator outputting consecutive `⌊s_i / w⌋` values,
 `LinearCongruential.seedSearch` checks all `w` candidates `r₁ * w + e` with `e < w` below `q` whose
 second and third outputs match `r₂` and `r₃`, returning the greatest passing candidate or `r₁ * w`
 if none passes (Boneh–Shoup do not specify a tie-breaking or fallback value). `seedSearch_eq` proves
-exact recovery when `0 < w` and the lattice condition `hshort` holds (no nonzero `d` with
-`|d| < w` has `a * d` within `w` of a multiple of `q`), which implies two outputs already determine
-the state (`eq_of_div_eq_of_next_div_eq`); Boneh–Shoup state search recovery without a hypothesis,
-whereas without `hshort` it can fail even when `a, b < q` and `0 < w ≤ q`. `hshort` is sufficient
-and not necessary. `computableInPolyTime_seedSearch` certifies `seedSearch` in time polynomial in
-`w` (given in unary via `encUnary`) and the binary lengths of the other inputs. `java8` records
-Boneh–Shoup's parameters for Java 8 `Math.random`, and `seedSearch_java8` discharges `hshort` for
-every seed `s < 2 ^ 48`.
+that the search returns the seed `s < q` when `0 < w` and the condition `hshort` holds: no nonzero
+`d` with `|d| < w` has `a * d` within less than `w` of a multiple of `q`. Under `0 < w` and
+`hshort` two outputs already determine the state (`eq_of_div_eq_of_next_div_eq`). `hshort` is not
+in the book, which describes the search for the Java 8 parameters only. It is sufficient and not
+necessary, and some condition is needed: with `a = b = 1`, `q = 16`, `w = 4`, which meet the book's
+conditions on the parameters, the seeds `0` and `1` have the same three outputs.
+`computableInPolyTime_seedSearch` certifies `seedSearch` in time polynomial in `w` (given in unary
+via `encUnary`, so exponential in the bit length of `w`) and the binary lengths of the other
+inputs. `java8` records Boneh–Shoup's parameters for Java 8 `Math.random`, and `seedSearch_java8`
+discharges `hshort` for every seed `s < 2 ^ 48`.
 
 Differences from [BonehShoup2023]: `LinearCongruential` omits `a, b < q` and `0 < w ≤ q`, taking
 only the hypothesis each result uses; `G_lcg^(n)` as a generator and Lemma 3.7 are omitted.
@@ -176,22 +179,22 @@ theorem computableInPolyTime_test {α : Type} {enc : α ↪ List Bool} {P : α �
   ⟨fun s => (⟨s / P.w, Nat.lt_succ_of_le (Nat.div_le_div_right (Nat.le_sub_one_of_lt s.isLt))⟩,
     ⟨P.next s, Nat.mod_lt _ s.pos⟩)⟩
 
+private theorem eq_of_next_eq (P : LinearCongruential) (ha : P.a.Coprime P.q)
+    {s t : ℕ} (hs : s < P.q) (ht : t < P.q) (h : P.next s = P.next t) : s = t := by
+  have := congrArg P.prev h
+  simpa [P.prev_next ha hs, P.prev_next ha ht] using this
+
 /-- `G_lcg` is injective when `a` is coprime to `q`. -/
 theorem generator_injective (P : LinearCongruential) (ha : P.a.Coprime P.q) :
-    Function.Injective P.generator := fun s t h => Fin.ext (by
-  have := congrArg (fun y : Fin ((P.q - 1) / P.w + 1) × Fin P.q => P.prev y.2) h
-  simpa [generator, P.prev_next ha s.isLt, P.prev_next ha t.isLt] using this)
+    Function.Injective P.generator := fun s t h =>
+  Fin.ext (P.eq_of_next_eq ha s.isLt t.isLt (congrArg (Fin.val ∘ Prod.snd) h))
 
 /-- The book's test is the range test of `G_lcg`. -/
 theorem rangeTest_generator (P : LinearCongruential) (ha : P.a.Coprime P.q)
     (y : Fin ((P.q - 1) / P.w + 1) × Fin P.q) :
     P.generator.rangeTest y = P.test y.1 y.2 := by
   have hinj : Function.Injective fun s : Fin P.q => (P.generator s).2 := fun s t h =>
-    P.generator_injective ha (Prod.ext (Fin.ext (by
-      have := congrArg (fun x : Fin P.q => P.prev x) h
-      have hst : (s : ℕ) = t := by
-        simpa [generator, P.prev_next ha s.isLt, P.prev_next ha t.isLt] using this
-      simp [generator, hst])) h)
+    Fin.ext (P.eq_of_next_eq ha s.isLt t.isLt (congrArg Fin.val h))
   obtain ⟨t, ht⟩ := Finite.surjective_of_injective hinj y.2
   have hprev : P.prev y.2 = t := by
     rw [← ht]
@@ -278,7 +281,7 @@ theorem seedSearch_eq (P : LinearCongruential) (hw : 0 < P.w)
     Nat.zero_add]
 
 /-- The search runs in time polynomial in `w` and in the length of the other inputs in binary: the
-caller supplies `w` in unary. -/
+caller supplies `w` in unary (so time is exponential in the bit length of `w`). -/
 theorem computableInPolyTime_seedSearch {α : Type} {enc : α ↪ List Bool}
     {P : α → LinearCongruential} {r₁ r₂ r₃ : α → ℕ}
     (hP : ComputableInPolyTime P enc encLinearCongruential)
