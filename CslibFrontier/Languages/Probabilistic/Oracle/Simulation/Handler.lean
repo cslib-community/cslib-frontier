@@ -42,7 +42,7 @@ theorem runWith_run_interpret_map {Query Query' S₁ S₂ E₁ α : Type} {spec 
     (hstep : ∀ q s₁,
       (oSimple q s₁).map (fun p => (p.1, (rep₂ p.2, repE p.2))) =
         (runWith oOuter ((inner q).run (rep₂ s₁)) (repE s₁)).map
-          (fun p : (spec q × S₂) × E₁ => (p.1.1, p.1.2, p.2)))
+          (fun (((a, s₂), e) : (spec q × S₂) × E₁) => (a, s₂, e)))
     (prog : ProbOracleComp spec α) (s₁ : S₁) :
     runWith oOuter ((OracleComp.interpret
       (sumHandler (fun m => StateT.lift (sample (ProbComp.unifFin m))) inner) prog).run
