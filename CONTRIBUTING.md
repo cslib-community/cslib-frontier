@@ -250,8 +250,36 @@ equality must be public; a private equality is named without its prefix and look
 recorded file. The conditions under which the equality holds are for the reviewer to read; the `why`
 states them by hand. The checker verifies these declarations in Lean, so a renamed one fails, and
 `--report` prints where each headline uses the program; it does not judge them, and review still
-does. CI treats it as it treats the premise check: a pull request fails when a changed module has an
-unrecorded uncertified reduction or a baseline entry that no longer matches, so the baseline only
+does. When the equality holds only at the instance of a generic reduction that the headline uses,
+the entry adds `"scope": "instance"` and `"consumers"`, an object from each *referrer* of the
+reduction outside its module to a tag, and its `why` says that the equality is instance-scoped and
+names the instance. The baseline is keyed on the reduction, so the pinned list is what keeps a later
+theorem from applying an assumption through it at another instance unseen. A referrer is a public
+declaration whose statement or proof names the reduction directly, through the declarations Lean
+generates under a name, or through private declarations; only the reduction's module and the modules
+that import it, directly or through others, are read. The tags are `headline`, a theorem on the
+headline's proof path (the headline, or a library constant that its statement and proof use,
+transitively); `concrete`, a theorem off that path, an exact bound that applies no assumption; and
+`reduction`, a definition that uses the reduction. The check fails when the pinned list differs from
+the referrers, so a new referrer must be tagged or the entry made a `gap`; when a tag does not hold;
+when a referring theorem other than the headline, in the reduction's module or outside it, is not
+concrete, because a premise (instance arguments included) is headed by a named assumption
+(recognized as for the named-assumption check below) or a premise or the conclusion makes a
+negligibility claim, directly or through Prop-valued definitions unfolded at most five times (as for
+the headline; an alias for the whole statement is unfolded too); and when a referring definition has
+neither an efficiency witness of its own nor a baseline entry. That entry is a `gap` or `exempt`
+entry, kept even when no theorem states a bound with the definition. Here, unlike for a reduction,
+being mentioned in a certified definition's body is not a witness, so a generic wrapper run inside
+one certified program still needs its entry. So the baseline accounts for every definition that uses
+the reduction, but this does not establish that every headline downstream of such a definition has
+its own certificate or via entry: a referrer is found by name, and a public declaration stops the
+search, so a theorem that reaches the reduction only through another public declaration (one that
+consumes the headline, or one about a wrapping definition) is not a referrer. The recognizers also
+miss a premise that assumes a bound without `Negligible` or a named assumption (`Adv ≤ ε`, say) or
+reaches one only after more than five unfoldings; whether a `headline` consumer uses the reduction
+at the equality's instance is for review. The summary counts these entries apart from the other via
+entries. CI treats it as it treats the premise check: a pull request fails when a changed module has
+an unrecorded uncertified reduction or a baseline entry that no longer matches, so the baseline only
 shrinks; merge groups only report. `--list` shows every reduction with its certificate, and
 `--update-baseline` adds entries whose `why` you then fill in. The check does not see a reduction
 written inline in a bound, a bound without an advantage-named constant, a simulator or extractor on
