@@ -8,6 +8,7 @@ module
 
 import CslibFrontier.Crypto.Primitives.Garbling.HalfGates.Scheme
 import CslibFrontier.Crypto.Primitives.Garbling.HalfGates.Simulator
+import CslibFrontier.Crypto.Primitives.Garbling.HalfGates.PrvSim
 import CslibFrontier.Tactic.PolyTime
 
 /-!
@@ -30,6 +31,15 @@ its simulator is PPT (`isPPTOn_simWord`); the hash of a circular correlation rob
 too. The simulator samples `(2 + 2 · 1) · 4 = 16` coins for the circuit at `k = 2`; on fixed coins
 its garbled function has the length of the real one, and the view decodes to the output it was
 given, by computation.
+
+A `prv.sim` adversary that chooses the same circuit on the input `(1, 1)` and guesses the first
+decoding bit of its view is uniform strict PPT. With the toy hash, the privacy reduction for it is
+oracle PPT (`isOraclePPT_prvSimReduction`) and legal at every level
+(`isTweakUnique_prvSimReduction`). At `k = 2` the circuit's two gates fit the `2 ^ 2` tweaks, so
+the adversary's `prv.sim` advantage against the simulator is exactly the reduction's CCR advantage
+(`prvSimAdvantage_simWord_eq`); nothing is assumed of the toy hash, which is not circular
+correlation robust. Under circular correlation robustness of a hash family, the adversary's
+advantage against the simulator is negligible.
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
@@ -131,5 +141,64 @@ example : PointPermute.decodeWord simView.decInfo
     (HalfGates.evalWord toyHash simView.fn simView.input) = some [true] := by
   simp only [simView, HalfGates.simViewWord, HalfGates.evalWord, PointPermute.fnDecoder.decode_enc]
   decide
+
+/-! ### The privacy reduction -/
+
+/-- The query of the adversary below: the circuit `x₀ ⊕ (x₀ ∧ x₁)` on the input `(1, 1)`. -/
+def query : Query XorAndCircuit := ⟨xorAndCircuit, [true, true]⟩
+
+/-- A `prv.sim` adversary at every parameter: it chooses `query`, keeps no state, and guesses the
+first decoding bit of the view it receives, or `false` on `⊥`. -/
+def adversary : ℕ → PrvSimAdversary XorAndCircuit Unit := fun _ =>
+  ⟨fun () => pure (query, ()), fun () view =>
+    pure ((view.getD ⟨[], [], []⟩).decInfo.getD 0 false)⟩
+
+open Turing.MultiTapeTM in
+/-- The adversary is uniform strict PPT: its choice is a constant, and its guess reads one bit of
+the encoded view. -/
+theorem adversary_isPPT : TwoStage.IsPPT encUnit (encQuery XorAndCircuit encXorAndCircuit)
+    (encOption encPrvView) encBool encUnit adversary where
+  choose := (ComputableInPolyTime.const (encIn := encPair encUnary encUnit)
+    (encOut := encPair (encQuery XorAndCircuit encXorAndCircuit) encUnit) (query, ())).isPPTOn
+  guess := by
+    have hview := (ComputableInPolyTime.optionGetD encPrvView).comp
+      ((ComputableInPolyTime.snd encUnary (encPair encUnit (encOption encPrvView))).snd'.prod
+        (ComputableInPolyTime.const (encIn := encPair encUnary (encPair encUnit
+          (encOption encPrvView))) (encOut := encPrvView) ⟨[], [], []⟩))
+    exact (ComputableInPolyTime.bitsGetDWithInput (encPrvView_decInfo_polyTime hview)
+      (ComputableInPolyTime.const 0) false).isPPTOn
+
+/-- With the toy hash, the reduction for the adversary is uniform strict oracle PPT. -/
+example : IsOraclePPT Turing.MultiTapeTM.encBool (HalfGates.prvSimReduction toyHash adversary) :=
+  HalfGates.isOraclePPT_prvSimReduction toyHash_polyTime adversary_isPPT
+
+/-- It asks each tweak at most once at every level. -/
+example (k : ℕ) :
+    CCR.IsTweakUnique ((CCR.codec k).adapt (HalfGates.prvSimReduction toyHash adversary k [])) :=
+  HalfGates.isTweakUnique_prvSimReduction toyHash adversary k
+
+/-- The adversary's circuit has two gates, so at `k = 2` its four slots fit the `2 ^ 2` tweaks. -/
+theorem capacity_adversary {q : Query XorAndCircuit} {state : Unit}
+    (h : (q, state) ∈ (ProbComp.eval ((adversary 2).choose ())).support) :
+    2 * q.fn.circuit.q ≤ 2 ^ 2 := by
+  simp only [adversary, ProbComp.eval_pure, PMF.support_pure, Set.mem_singleton_iff,
+    Prod.mk.injEq] at h
+  obtain ⟨rfl, -⟩ := h
+  decide
+
+/-- **The exact identity at `k = 2`.** The `prv.sim` advantage of the adversary against the
+simulator, with the toy hash, equals the CCR advantage of the reduction at level `2`. -/
+example : prvSimAdvantage (HalfGates.scheme toyHash) (SideInfo.circ (HalfGates.scheme toyHash)) 2
+      (HalfGates.simWord toyHash 2) (adversary 2) =
+    CCR.advantage (CCR.atLevel toyHash 2) CCR.offset CCR.offset
+      ((CCR.codec 2).adapt (HalfGates.prvSimReduction toyHash adversary 2 [])) :=
+  HalfGates.prvSimAdvantage_simWord_eq toyHash adversary 2 fun _ _ h _ => capacity_adversary h
+
+/-- Under circular correlation robustness of a hash family, the adversary's advantage against the
+simulator is negligible. -/
+example {hash : List Bool → List Bool → List Bool} (h : CircularCorrelationRobust hash) :
+    Negligible fun k => prvSimAdvantage (HalfGates.scheme hash)
+      (SideInfo.circ (HalfGates.scheme hash)) k (HalfGates.simWord hash k) (adversary k) :=
+  h.negligible_prvSimAdvantage_simWord adversary_isPPT
 
 end CslibFrontierTests.Crypto.GarblingHalfGates

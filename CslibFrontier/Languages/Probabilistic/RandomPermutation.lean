@@ -61,7 +61,8 @@ with polymorphic bidirectional query deduplication over arbitrary `[DecidableEq 
 
 ## Main definitions
 
-* `Cslib.RandomPermutation.PermQuery`, `PermQuery.ofBoolProd`, `PermQuery.toCacheEntry`,
+* `Cslib.RandomPermutation.PermQuery`, `PermQuery.ofBoolProd`, `PermQuery.equivBoolProd`,
+  `PermQuery.toCacheEntry`,
   `PermOracleSpec`, `evalPerm`, `liftForward`, `liftBoolProd`: bidirectional permutation queries,
   oracle specification, deterministic evaluation, and query liftings.
 * `Cslib.RandomPermutation.Cache`, `invLookup`, `AgreesWith`, `IsPartialBijection`, `extPerms`,
@@ -177,6 +178,25 @@ def PermQuery.ofBoolProd {α : Type} : Bool × α → PermQuery α
 /-- Tag `true` converts `(true, y)` into the inverse query `.inverse y`. -/
 @[simp] theorem PermQuery.ofBoolProd_true {α : Type} (y : α) :
     PermQuery.ofBoolProd (true, y) = .inverse y := rfl
+
+/-- Bidirectional queries as channel-tagged points: `.forward x` is `(false, x)` and `.inverse y` is
+`(true, y)`. The inverse is `PermQuery.ofBoolProd`. -/
+def PermQuery.equivBoolProd (α : Type) : PermQuery α ≃ Bool × α where
+  toFun
+    | .forward x => (false, x)
+    | .inverse y => (true, y)
+  invFun := PermQuery.ofBoolProd
+  left_inv := by rintro (x | y) <;> rfl
+  right_inv := by rintro ⟨_ | _, x⟩ <;> rfl
+
+@[simp] theorem PermQuery.equivBoolProd_forward {α : Type} (x : α) :
+    PermQuery.equivBoolProd α (.forward x) = (false, x) := rfl
+
+@[simp] theorem PermQuery.equivBoolProd_inverse {α : Type} (y : α) :
+    PermQuery.equivBoolProd α (.inverse y) = (true, y) := rfl
+
+@[simp] theorem PermQuery.equivBoolProd_symm_apply {α : Type} (p : Bool × α) :
+    (PermQuery.equivBoolProd α).symm p = PermQuery.ofBoolProd p := rfl
 
 /-- Lift a `Bool × α` bidirectional oracle program into a `PermOracleSpec α` program. -/
 def liftBoolProd {α β : Type} (program : OracleComp (fun _ : Bool × α => α) β) :
@@ -516,6 +536,7 @@ theorem map_fst_interpret_bidirDedupStep_evalPerm {β : Type} (π : Equiv.Perm �
   | pure a =>
     simp [PMF.pure_map]
   | query_bind q cont ih =>
+    rw [PFunctor.FreeM.bind_eq_bind]
     simp only [OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind,
       Probability.PMF.monad_bind_eq_bind, PMF.pure_bind]
     change (((OracleComp.interpret (fun q => PMF.pure (evalPerm π q))
@@ -562,6 +583,7 @@ private theorem bidirDedupStep_transcript_inv {β σ : Type}
     rcases hmem with ⟨⟨_, rfl⟩, _, rfl⟩
     exact ⟨rfl, List.nodup_nil, fun _ h => False.elim (List.not_mem_nil h)⟩
   | query_bind q cont ih =>
+    rw [PFunctor.FreeM.bind_eq_bind] at hmem
     simp only [OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind] at hmem
     change ((result, cache'), (s', transcript)) ∈
       (((OracleComp.interpret (OracleComp.withTranscript oracle) (bidirDedupStep q cache)).run
@@ -717,6 +739,7 @@ theorem agreesWith_and_pairwise_of_mem_support_run_bidirDedupStep {β : Type} (�
     rcases hmem with ⟨_, rfl⟩
     exact ⟨hπ, hp1, hπ.pairwise_snd_of_pairwise_fst hp1⟩
   | query_bind q cont ih =>
+    rw [PFunctor.FreeM.bind_eq_bind] at hmem
     simp only [OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind,
       Probability.PMF.monad_bind_eq_bind] at hmem
     change (result, cache') ∈
@@ -1158,6 +1181,7 @@ theorem interpret_run_bidirDedupStep_uniformOfFintype {β : Type}
   induction program using OracleComp.induction generalizing cache with
   | pure a => rfl
   | query_bind q cont ih =>
+    rw [PFunctor.FreeM.bind_eq_bind]
     simp only [OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind]
     change ((OracleComp.interpret (fun _ : PermQuery α => PMF.uniformOfFintype α)
       (bidirDedupStep q cache)).bind fun p =>

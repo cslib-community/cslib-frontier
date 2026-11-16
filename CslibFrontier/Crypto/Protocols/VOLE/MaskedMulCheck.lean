@@ -246,8 +246,17 @@ theorem maskedMulCheck_complete (left right output : ι → Fin n) :
       VOLECorrelation.senderView]
     apply PMF.bind_congr_on_support
     intro c hc
-    rw [← ProbOracleComp.sample]
-    simp only [pmf_norm, ProbOracleComp.runWith_sample, ProbComp.eval_uniform]
+    let oracle : (q : Unit ⊕ Unit) →
+        StateT (Option (VOLECorrelation F (n + 1))) PMF
+          ((voleSenderSpec F (n + 1) ⊕ₒ voleReceiverSpec F (n + 1)) q) :=
+      (voleWorld F (n + 1)).impl
+    rw [← OracleComp.substitute_eq_interpret]
+    change (ProbOracleComp.runWith oracle
+      (ProbOracleComp.sample
+        (spec := voleSenderSpec F (n + 1) ⊕ₒ voleReceiverSpec F (n + 1))
+        (ProbComp.uniform (ι → F))) (some c)).bind _ = _
+    rw [ProbOracleComp.runWith_sample, PMF.bind_map]
+    simp only [pmf_norm, ProbComp.eval_uniform]
     congr 1 with r : 1
     simp only [VOLECorrelation.receiverView, MaskedMulCheckAccepts,
       maskedMulCheckReply_correct left right output w c
@@ -273,9 +282,17 @@ theorem maskedMulCheckView_eq (left right output : ι → Fin n) (w : Fin n → 
     OracleComp.interpret_pure, VOLECorrelation.senderView, ProbOracleComp.runWith_bind,
     ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure, pure_bind]
   congr 1 with c : 1
-  rw [← ProbOracleComp.sample]
-  simp [ProbOracleComp.runWith_sample, PMF.bind_map, PMF.bind_const, ProbComp.eval_uniform,
-    Function.comp_def]
+  let oracle : (q : Unit ⊕ Unit) →
+      StateT (Option (VOLECorrelation F (n + 1))) PMF
+        ((voleSenderSpec F (n + 1) ⊕ₒ voleReceiverSpec F (n + 1)) q) :=
+    (voleWorld F (n + 1)).impl
+  rw [← OracleComp.substitute_eq_interpret]
+  change (ProbOracleComp.runWith oracle
+    (ProbOracleComp.sample
+      (spec := voleSenderSpec F (n + 1) ⊕ₒ voleReceiverSpec F (n + 1))
+      (ProbComp.uniform (ι → F))) (some c)).bind _ = _
+  rw [ProbOracleComp.runWith_sample, PMF.bind_map]
+  simp [PMF.bind_const, ProbComp.eval_uniform, Function.comp_def]
 
 omit [DecidableEq F] [DecidableEq ι] in
 private theorem maskedView_fixed (left right output : ι → Fin n) (w : Fin n → F)

@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Computability.Probabilistic.Parameter
 public import CslibFrontier.Crypto.Computational.Encryption.SymmetricCPA
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction
@@ -14,9 +15,7 @@ public import CslibFrontier.Crypto.Game.HiddenBit
 public import CslibFrontier.Crypto.Game.UntilBad
 public import CslibFrontier.Languages.Probabilistic.UniformNat
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair.Projections
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.UniformNat
@@ -2989,11 +2988,15 @@ theorem advantage_ccaGame_ccaRejectGame_le_sum (E : SymmetricCipher) (ctBound Qd
       have hiub := (identicalUntilBad_ccaRejectWithBad_ccaWithBad E n k bit).symm
       have hstep := hiub.bind_apply_le (adversary n []) ([], false) (fun out => PMF.pure out.1) true
       rw [← (identicalUntilBad_ccaRejectWithBad_ccaWithBad E n k bit).bad_eq] at hstep
+      rw [← ProbOracleComp.runWith_eq_run_interpret,
+        ← ProbOracleComp.runWith_eq_run_interpret] at hstep
       refine hstep.trans (add_le_add le_rfl ?_)
-      refine (bad_ccaRejectWithBad_le_sum_ciCombined E n k bit hq []).trans (le_of_eq ?_)
+      have hbad := bad_ccaRejectWithBad_le_sum_ciCombined E n k bit hq []
+      rw [← ProbOracleComp.runWith_eq_run_interpret] at hbad
+      refine hbad.trans (le_of_eq ?_)
       refine Finset.sum_congr rfl fun j _ => ?_
       rw [eval_ciGame_ccaToCIAtIndexAdversary_key E ctBound j bit adversary n k hk hctBound]
-      rfl
+      rw [ProbOracleComp.runWith_eq_run_interpret]
     · rw [(PMF.apply_eq_zero_iff _ _).mpr hk, zero_mul, zero_mul]
   have hle2 : pRej ≤ pCCA + pSum := by
     rw [hCCA_eq, hRej_eq, hsum_eq, ← tsum_add]
@@ -3003,11 +3006,15 @@ theorem advantage_ccaGame_ccaRejectGame_le_sum (E : SymmetricCipher) (ctBound Qd
     · refine mul_le_mul_of_nonneg_left ?_ zero_le
       have hiub := identicalUntilBad_ccaRejectWithBad_ccaWithBad E n k bit
       have hstep := hiub.bind_apply_le (adversary n []) ([], false) (fun out => PMF.pure out.1) true
+      rw [← ProbOracleComp.runWith_eq_run_interpret,
+        ← ProbOracleComp.runWith_eq_run_interpret] at hstep
       refine hstep.trans (add_le_add le_rfl ?_)
-      refine (bad_ccaRejectWithBad_le_sum_ciCombined E n k bit hq []).trans (le_of_eq ?_)
+      have hbad := bad_ccaRejectWithBad_le_sum_ciCombined E n k bit hq []
+      rw [← ProbOracleComp.runWith_eq_run_interpret] at hbad
+      refine hbad.trans (le_of_eq ?_)
       refine Finset.sum_congr rfl fun j _ => ?_
       rw [eval_ciGame_ccaToCIAtIndexAdversary_key E ctBound j bit adversary n k hk hctBound]
-      rfl
+      rw [ProbOracleComp.runWith_eq_run_interpret]
     · rw [(PMF.apply_eq_zero_iff _ _).mpr hk, zero_mul, zero_mul]
   have hpSum_ne_top : pSum ≠ ⊤ :=
     ENNReal.sum_ne_top.mpr fun j _ => PMF.apply_ne_top _ _
@@ -3984,12 +3991,15 @@ private theorem advantage_ccaOneTimeGame_ccaOneTimeRejectGame_le_sum (E : Symmet
       have hiub := (identicalUntilBad_oneTimeCCARejectWithBad_oneTimeCCAWithBad E n k bit).symm
       have hstep := hiub.bind_apply_le (adversary n []) ([], false) (fun out => PMF.pure out.1) true
       rw [← (identicalUntilBad_oneTimeCCARejectWithBad_oneTimeCCAWithBad E n k bit).bad_eq] at hstep
+      rw [← ProbOracleComp.runWith_eq_run_interpret,
+        ← ProbOracleComp.runWith_eq_run_interpret] at hstep
       refine hstep.trans (add_le_add le_rfl ?_)
-      refine (bad_oneTimeCCARejectWithBad_le_sum_oneTimeCICombined E n k bit hq []).trans
-        (le_of_eq ?_)
+      have hbad := bad_oneTimeCCARejectWithBad_le_sum_oneTimeCICombined E n k bit hq []
+      rw [← ProbOracleComp.runWith_eq_run_interpret] at hbad
+      refine hbad.trans (le_of_eq ?_)
       refine Finset.sum_congr rfl fun j _ => ?_
       rw [eval_ciOneTimeGame_ccaToCIAtIndexAdversary_key E ctBound j bit adversary n k hk hctBound]
-      rfl
+      rw [ProbOracleComp.runWith_eq_run_interpret]
     · rw [(PMF.apply_eq_zero_iff _ _).mpr hk, zero_mul, zero_mul]
   have hle2 : pRej ≤ pCCA + pSum := by
     rw [hCCA_eq, hRej_eq, hsum_eq, ← tsum_add]
@@ -3999,12 +4009,15 @@ private theorem advantage_ccaOneTimeGame_ccaOneTimeRejectGame_le_sum (E : Symmet
     · refine mul_le_mul_of_nonneg_left ?_ zero_le
       have hiub := identicalUntilBad_oneTimeCCARejectWithBad_oneTimeCCAWithBad E n k bit
       have hstep := hiub.bind_apply_le (adversary n []) ([], false) (fun out => PMF.pure out.1) true
+      rw [← ProbOracleComp.runWith_eq_run_interpret,
+        ← ProbOracleComp.runWith_eq_run_interpret] at hstep
       refine hstep.trans (add_le_add le_rfl ?_)
-      refine (bad_oneTimeCCARejectWithBad_le_sum_oneTimeCICombined E n k bit hq []).trans
-        (le_of_eq ?_)
+      have hbad := bad_oneTimeCCARejectWithBad_le_sum_oneTimeCICombined E n k bit hq []
+      rw [← ProbOracleComp.runWith_eq_run_interpret] at hbad
+      refine hbad.trans (le_of_eq ?_)
       refine Finset.sum_congr rfl fun j _ => ?_
       rw [eval_ciOneTimeGame_ccaToCIAtIndexAdversary_key E ctBound j bit adversary n k hk hctBound]
-      rfl
+      rw [ProbOracleComp.runWith_eq_run_interpret]
     · rw [(PMF.apply_eq_zero_iff _ _).mpr hk, zero_mul, zero_mul]
   have hpSum_ne_top : pSum ≠ ⊤ :=
     ENNReal.sum_ne_top.mpr fun j _ => PMF.apply_ne_top _ _

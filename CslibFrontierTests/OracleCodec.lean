@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 import CslibFrontier.Languages.Probabilistic.Oracle.Codec
+import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 
 /-! # Typed views of word oracles -/
 
@@ -26,14 +27,13 @@ example (calls : ℕ) :
     ProbOracleComp.runWith echo ((OracleCodec.bitString 2).adapt wordAdversary) calls =
       PMF.pure (([], [true, false]), calls + 1) := by
   rw [OracleCodec.runWith_adapt]
-  simp only [ProbOracleComp.runWith, OracleComp.runWith, wordAdversary, OracleComp.interpret_bind,
-    ProbOracleComp.interpret_query, StateT.run_bind, OracleComp.interpret_pure, StateT.run_pure]
-  simp only [OracleCodec.wordOracle, OracleCodec.bitString, List.ofFn_succ, Fin.isValue,
-    Fin.succ_zero_eq_one, List.ofFn_zero, List.length_cons, List.length_nil, zero_add,
-    OfNat.one_ne_ofNat, ↓reduceIte, StateT.run_pure, Probability.PMF.monad_pure_eq_pure,
-    Nat.reduceAdd, Function.Embedding.coeFn_mk, StateT.run_map, PMF.monad_map_eq_map,
-    Probability.PMF.monad_bind_eq_bind, PMF.bind_map, PMF.pure_bind]
-  simp [echo, StateT.run, BitString.ofList]
+  simp only [wordAdversary, runWith_norm, pmf_norm]
+  simp only [OracleCodec.wordOracle, OracleCodec.bitString]
+  simp only [List.length_cons, List.length_nil, Nat.reduceAdd, OfNat.one_ne_ofNat, ↓reduceIte]
+  change (PMF.pure ([], calls)).bind (fun x =>
+    (PMF.map (Prod.map List.ofFn id) (echo (BitString.ofList 2 [true, false]) x.2)).bind
+      fun x_1 => PMF.pure ((x.1, x_1.1), x_1.2)) = _
+  simp [echo, BitString.ofList]
 
 -- Adapting removes the malformed request from the program itself.
 example : (OracleCodec.bitString 2).adapt wordAdversary = (do
