@@ -69,8 +69,8 @@ and Chapter 10 rows to the open Chapter 10 audit PR
 | 9 | 29 | 24 | 6 | 1 | — |
 | 10 | 29 | 27 | 0 | 0 | 10.2 runtime: [#2869](https://github.com/cslib-community/cslib-frontier/issues/2869); 10.25: listed in [#2865](https://github.com/cslib-community/cslib-frontier/issues/2865) |
 
-The 2026-11-16 check of 6.36(b) and 10.6 leaves both rows T (partial); recounting every
-exercise row gives the chapter totals above, unchanged (200 T, 41 C, 4 S rows overall).
+The 2026-11-16 check of 6.36(b) and 10.6 leaves both rows T (partial), so it changes no
+chapter total.
 
 S rows and corrected endpoints are candidates for the drafts' source-error record
 [#4781](https://github.com/cslib-community/cslib-frontier/issues/4781); this inventory does not
