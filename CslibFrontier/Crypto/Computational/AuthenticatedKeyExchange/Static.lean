@@ -80,9 +80,9 @@ def Protocol.StaticallySecureWith (P : Protocol) (pf : PartnerFunction) : Prop :
 /-- An AKE protocol `P` is statically secure if there exists a polynomial-time partner function
 `pf` such that `P.StaticallySecureWith pf` ([BonehShoup2023], §21.9, Definition 21.1, p. 888).
 
-`P` ranges over `Protocol`, whose algorithms are polynomial time on each call and whose stored
-states obey polynomial bounds standing in for the book's efficient TTP interface and poly-bounded
-instance configurations; the module defining `Protocol` compares the two.
+`P` ranges over `Protocol`, whose algorithms are polynomial time on each call and whose size bound
+makes the TTP an efficient interface and keeps instance configurations polynomial in `n`, with
+narrowings that the module defining `Protocol` lists.
 As in the book, this definition includes no correctness clause; the protocol `abortProtocol` that
 immediately aborts every session satisfies `Protocol.StaticallySecure`
 (`abortProtocol_staticallySecure`). -/

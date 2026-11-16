@@ -61,9 +61,10 @@ private def Protocol.ofStep (keyLength : ℕ → ℕ)
   ttpStep_ppt := by ppt
   step_ppt := step_ppt
   key_length := key_length
-  stateBound := fun _ => 0
-  stateBound_polyTime := by ppt
+  sizeBound := fun _ => 1
+  sizeBound_polyTime := by ppt
   registerHonest_ttp_length := fun _ _ hout => by simp_all
+  registerHonest_output_length := fun _ _ hout => by simp_all
   registerCorrupt_ttp_length := fun _ _ hout => by simp_all
   ttpStep_ttp_length := fun _ _ hout => by simp_all
   step_state_length := fun input out hout => by simp [step_state input out hout]
@@ -132,7 +133,8 @@ private theorem eval_ofStep_threeStep (kl : ℕ → ℕ)
   dsimp only [StateT.run, OracleComp.sumHandler]
   rw [PMF.pure_bind, challenger_registerHonest]
   have hreg : (⟨[], [], [], [], []⟩ : Challenger).isRegistered [] = false := rfl
-  simp only [hreg, Bool.false_eq_true, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure,
+  simp only [hreg, Bool.false_eq_true, Protocol.not_tooLong_nil, or_self, ↓reduceIte,
+    ProbComp.eval_bind, ProbComp.eval_pure,
     PMF.pure_bind, PMF.pure_map, List.nil_append]
   rw [challenger_init]
   have hfind : (⟨[], [⟨[], []⟩], [], [], []⟩ : Challenger).findHonest [] = some ⟨[], []⟩ := rfl
@@ -172,9 +174,12 @@ theorem challenger_abortProtocol (n : ℕ) (idl : Idealization) :
       rw [challenger_deliver_of_getElem?_eq_none _ _ _ _ _ hget,
         challenger_deliver_of_getElem?_eq_none _ _ _ _ _ hget]
     | some inst =>
+      by_cases hlong : abortProtocol.TooLong n (dropFrame req)
+      · rw [challenger_deliver_of_tooLong _ _ _ _ _ hlong,
+          challenger_deliver_of_tooLong _ _ _ _ _ hlong]
       by_cases hrun : inst.phase = .running
-      · rw [challenger_deliver_of_running _ _ _ _ _ inst hget hrun,
-          challenger_deliver_of_running _ _ _ _ _ inst hget hrun]
+      · rw [challenger_deliver_of_running _ _ _ _ _ inst hget hrun hlong,
+          challenger_deliver_of_running _ _ _ _ _ inst hget hrun hlong]
         simp [abortProtocol, Protocol.ofStep]
       · rw [challenger_deliver_of_not_running _ _ _ _ _ inst hget hrun,
           challenger_deliver_of_not_running _ _ _ _ _ inst hget hrun]
@@ -238,7 +243,8 @@ theorem eval_run_none_echoAttack (n : ℕ) :
   rw [eval_ofStep_threeStep]
   rw [challenger_deliver_of_running _ _ _ _ _
     ⟨[], [], .left, [], .running, [], [], none, none⟩
-    (by rw [unframe_encPair_encBits]; rfl) rfl]
+    (by rw [unframe_encPair_encBits]; rfl) rfl
+    (by rw [dropFrame_encPair_encBits]; simp [Protocol.TooLong, Protocol.ofStep])]
   dsimp only [Protocol.ofStep]
   simp only [unframe_encPair_encBits, dropFrame_encPair_encBits, List.length_nil,
     ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList, PMF.bind_bind,
@@ -256,7 +262,8 @@ theorem eval_run_some_echoAttack (pf : PartnerFunction) (n : ℕ) :
   rw [eval_ofStep_threeStep]
   rw [challenger_deliver_of_running _ _ _ _ _
     ⟨[], [], .left, [], .running, [], [], none, none⟩
-    (by rw [unframe_encPair_encBits]; rfl) rfl]
+    (by rw [unframe_encPair_encBits]; rfl) rfl
+    (by rw [dropFrame_encPair_encBits]; simp [Protocol.TooLong, Protocol.ofStep])]
   dsimp only [Protocol.ofStep]
   simp only [unframe_encPair_encBits, dropFrame_encPair_encBits, List.length_nil,
     ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList, PMF.bind_bind,
@@ -346,7 +353,8 @@ theorem eval_run_none_constKeyAttack (n : ℕ) :
   rw [eval_ofStep_threeStep]
   rw [challenger_deliver_of_running _ _ _ _ _
     ⟨[], [], .left, [], .running, [], [], none, none⟩
-    (by rw [unframe_encPair_encBits]; rfl) rfl]
+    (by rw [unframe_encPair_encBits]; rfl) rfl
+    (by rw [dropFrame_encPair_encBits]; simp [Protocol.TooLong, Protocol.ofStep])]
   dsimp only [Protocol.ofStep]
   simp only [unframe_encPair_encBits, dropFrame_encPair_encBits, List.length_nil,
     ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind, PMF.pure_map, ↓reduceIte,
@@ -362,7 +370,8 @@ theorem eval_run_some_constKeyAttack_le (pf : PartnerFunction) (n : ℕ) :
   rw [eval_ofStep_threeStep]
   rw [challenger_deliver_of_running _ _ _ _ _
     ⟨[], [], .left, [], .running, [], [], none, none⟩
-    (by rw [unframe_encPair_encBits]; rfl) rfl]
+    (by rw [unframe_encPair_encBits]; rfl) rfl
+    (by rw [dropFrame_encPair_encBits]; simp [Protocol.TooLong, Protocol.ofStep])]
   dsimp only [Protocol.ofStep]
   simp only [unframe_encPair_encBits, dropFrame_encPair_encBits, List.length_nil,
     ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind, PMF.map_bind, PMF.pure_map,
@@ -486,7 +495,8 @@ theorem staticAdvantage_constKeyAttack_zero :
   rw [eval_ofStep_threeStep]
   rw [challenger_deliver_of_running _ _ _ _ _
     ⟨[], [], .left, [], .running, [], [], none, none⟩
-    (by rw [unframe_encPair_encBits]; rfl) rfl]
+    (by rw [unframe_encPair_encBits]; rfl) rfl
+    (by rw [dropFrame_encPair_encBits]; simp [Protocol.TooLong, Protocol.ofStep])]
   dsimp only [Protocol.ofStep]
   simp only [unframe_encPair_encBits, dropFrame_encPair_encBits, List.length_nil,
     ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind, PMF.pure_map,
@@ -508,7 +518,7 @@ theorem eval_challenger_deliver_fresh_reply (P : Protocol) (n : ℕ) (req : List
     (s : Challenger) (inst : Instance)
     (stateOut msgOut : StepInput → List Bool)
     (hinst : s.instances[(unframe req).length]? = some inst)
-    (hphase : inst.phase = .running)
+    (hphase : inst.phase = .running) (hlen : ¬ P.TooLong n (dropFrame req))
     (hreg : s.isRegistered inst.user = true)
     (hstep : ∀ input, ProbComp.eval (P.step input) =
       (BitString.uniformList (P.keyLength input.parameter)).map
@@ -516,8 +526,8 @@ theorem eval_challenger_deliver_fresh_reply (P : Protocol) (n : ℕ) (req : List
     (ProbComp.eval (challenger P n (some { partner := fun _ => .fresh }) (.deliver, req) s)).map
         Prod.fst =
       (ProbComp.eval (challenger P n none (.deliver, req) s)).map Prod.fst := by
-  rw [challenger_deliver_of_running P n _ req s inst hinst hphase,
-    challenger_deliver_of_running P n none req s inst hinst hphase]
+  rw [challenger_deliver_of_running P n _ req s inst hinst hphase hlen,
+    challenger_deliver_of_running P n none req s inst hinst hphase hlen]
   simp only [ProbComp.eval_bind, hstep, PMF.map_bind, PMF.bind_map, Function.comp_def,
     ↓reduceIte, ProbComp.eval_pure, PMF.pure_map]
   trans (BitString.uniformList (P.keyLength n)).bind (fun _ =>

@@ -23,13 +23,15 @@ query handler `challenger` for Experiments 0 and 1 ([BonehShoup2023], §21.9, pp
 ## Model conventions and differences from [BonehShoup2023]
 
 * **(a)** Strict PPT word algorithms (`IsPPTOn`/`IsOraclePPT`/`ComputableInPolyTime`), with
-  the polynomial state bounds of `Protocol` standing in for the book's efficient TTP interface
-  and poly-bounded instance configurations (compared in the module defining `Protocol`).
+  the size bound of `Protocol` standing in for the book's efficient TTP interface and
+  poly-bounded instance configurations (compared in the module defining `Protocol`).
 * **(b)** Joint honest registration (`registerHonest` runs in one step, unlogged).
 * **(c)** Stepwise corrupt registration (one TTP step and `.corruptUser` log entry per query).
-* **(d)** Refused disallowed queries return `[]` with unchanged state; refusal and visible view
-  depend only on `(honestIds, corruptIds, phases)` (`challenger_of_refused`, `view_of_mem_support`;
-  game-level equivalence is unproved).
+* **(d)** Refused disallowed queries return `[]` with unchanged state. Besides the book's
+  disallowed queries, the challenger refuses a query that would hand a protocol algorithm a user
+  identity or message longer than `P.sizeBound n` (`Protocol.TooLong`). Refusal and visible view
+  depend only on `(honestIds, corruptIds, phases)` and the lengths of the request's words
+  (`challenger_of_refused`, `view_of_mem_support`; game-level equivalence is unproved).
 * **(e)** Index-named instances (`(unframe req).length`); `.init` omits `user`.
 * **(f)** `PartnerFunction` receives security parameter `n`.
 * **(g)** Log-then-classify order: `.deliver` logs before `idl.partner` runs.
@@ -247,21 +249,23 @@ noncomputable def effectiveKey (P : Protocol) (n : ℕ) (c : Classification) (ex
     | none => pure none
 
 /-- Query handler for Experiment 0 (`ideal = none`) and Experiment 1 (`ideal = some idl`)
-([BonehShoup2023], §21.9, pp. 886–888). Disallowed queries return `[]` with unchanged state, and
-refusal depends only on `(honestIds, corruptIds, instancePhases)` (`challenger_of_refused`,
-`view_of_mem_support`). Clients should rewrite with `challenger_*` equations. -/
+([BonehShoup2023], §21.9, pp. 886–888). Disallowed queries, and queries that would hand a protocol
+algorithm a word longer than `P.sizeBound n` (`Protocol.TooLong`), return `[]` with unchanged
+state; refusal depends only on `(honestIds, corruptIds, instancePhases)` and the lengths of the
+request's words (`challenger_of_refused`, `view_of_mem_support`). Clients should rewrite with
+`challenger_*` equations. -/
 noncomputable def challenger (P : Protocol) (n : ℕ) (ideal : Option Idealization) :
     Op × List Bool → StateT Challenger ProbComp (List Bool) :=
   fun (op, req) s =>
     match op with
     | .registerHonest =>
-      if s.isRegistered req then pure ([], s)
+      if s.isRegistered req ∨ P.TooLong n req then pure ([], s)
       else do
         let out ← P.registerHonest ⟨n, s.ttp, req, []⟩
         pure ([], { s with ttp := out.ttp, honest := s.honest ++ [⟨req, out.output⟩] })
     | .registerCorrupt =>
       let user := unframe req
-      if s.isHonest user then pure ([], s)
+      if s.isHonest user ∨ P.TooLong n user ∨ P.TooLong n (dropFrame req) then pure ([], s)
       else do
         let out ← P.registerCorrupt ⟨n, s.ttp, user, dropFrame req⟩
         pure (out.output,
@@ -273,16 +277,18 @@ noncomputable def challenger (P : Protocol) (n : ℕ) (ideal : Option Idealizati
         let inst : Instance := ⟨u.id, u.longTermKey, role, [], .running, [], [], none, none⟩
         pure ([], ⟨s.ttp, s.honest, s.corrupt, s.instances ++ [inst],
           s.log ++ [.init s.instances.length role]⟩)
-    | .deliverTTP => do
-      let out ← P.ttpStep ⟨n, s.ttp, [], req⟩
-      pure (out.output, { s with ttp := out.ttp, log := s.log ++ [.deliverTTP req out.output] })
+    | .deliverTTP =>
+      if P.TooLong n req then pure ([], s)
+      else do
+        let out ← P.ttpStep ⟨n, s.ttp, [], req⟩
+        pure (out.output, { s with ttp := out.ttp, log := s.log ++ [.deliverTTP req out.output] })
     | .deliver =>
       let i := (unframe req).length
       let msg := dropFrame req
       match s.instances[i]? with
       | none => pure ([], s)
       | some inst =>
-        if inst.phase ≠ .running then pure ([], s)
+        if inst.phase ≠ .running ∨ P.TooLong n msg then pure ([], s)
         else do
           let out ← P.step ⟨n, inst.user, inst.longTermKey, inst.role, inst.state, msg⟩
           let stepInst : Instance := ⟨inst.user, inst.longTermKey, inst.role, out.state,
@@ -311,7 +317,8 @@ theorem encDeliverReply_some (message : List Bool) (phase : Phase) (partner key 
 /-- Query equation for `.registerHonest`. -/
 theorem challenger_registerHonest (P : Protocol) (n : ℕ) (ideal : Option Idealization)
     (user : List Bool) (s : Challenger) :
-    challenger P n ideal (.registerHonest, user) s = (if s.isRegistered user then pure ([], s)
+    challenger P n ideal (.registerHonest, user) s =
+      (if s.isRegistered user ∨ P.TooLong n user then pure ([], s)
       else do
         let out ← P.registerHonest ⟨n, s.ttp, user, []⟩
         pure ([], { s with ttp := out.ttp, honest := s.honest ++ [⟨user, out.output⟩] })) := by
@@ -320,7 +327,9 @@ theorem challenger_registerHonest (P : Protocol) (n : ℕ) (ideal : Option Ideal
 /-- Query equation for `.registerCorrupt`. -/
 theorem challenger_registerCorrupt (P : Protocol) (n : ℕ) (ideal : Option Idealization)
     (req : List Bool) (s : Challenger) :
-    challenger P n ideal (.registerCorrupt, req) s = (if s.isHonest (unframe req) then pure ([], s)
+    challenger P n ideal (.registerCorrupt, req) s =
+      (if s.isHonest (unframe req) ∨ P.TooLong n (unframe req) ∨ P.TooLong n (dropFrame req) then
+        pure ([], s)
       else do
         let out ← P.registerCorrupt ⟨n, s.ttp, unframe req, dropFrame req⟩
         pure (out.output, ⟨out.ttp, s.honest, s.corrupt ++ [unframe req], s.instances,
@@ -341,10 +350,11 @@ theorem challenger_init (P : Protocol) (n : ℕ) (ideal : Option Idealization)
 /-- Query equation for `.deliverTTP`. -/
 theorem challenger_deliverTTP (P : Protocol) (n : ℕ) (ideal : Option Idealization)
     (msg : List Bool) (s : Challenger) :
-    challenger P n ideal (.deliverTTP, msg) s = (do
-      let out ← P.ttpStep ⟨n, s.ttp, [], msg⟩
-      pure (out.output,
-        { s with ttp := out.ttp, log := s.log ++ [.deliverTTP msg out.output] })) := by
+    challenger P n ideal (.deliverTTP, msg) s = (if P.TooLong n msg then pure ([], s)
+      else do
+        let out ← P.ttpStep ⟨n, s.ttp, [], msg⟩
+        pure (out.output,
+          { s with ttp := out.ttp, log := s.log ++ [.deliverTTP msg out.output] })) := by
   rfl
 
 /-- Query equation for `.deliver` targeting a non-existent instance index. -/
@@ -358,12 +368,20 @@ theorem challenger_deliver_of_not_running (P : Protocol) (n : ℕ) (ideal : Opti
     (req : List Bool) (s : Challenger) (inst : Instance)
     (h : s.instances[(unframe req).length]? = some inst) (hphase : inst.phase ≠ .running) :
     challenger P n ideal (.deliver, req) s = pure ([], s) := by
-  simp only [challenger, h, ne_eq, hphase, not_false_eq_true, ↓reduceIte]
+  simp only [challenger, h, ne_eq, hphase, not_false_eq_true, true_or, ↓reduceIte]
 
-/-- Query equation for `.deliver` targeting a running instance. -/
+/-- Query equation for `.deliver` with a message longer than `P.sizeBound n`. -/
+theorem challenger_deliver_of_tooLong (P : Protocol) (n : ℕ) (ideal : Option Idealization)
+    (req : List Bool) (s : Challenger) (hlong : P.TooLong n (dropFrame req)) :
+    challenger P n ideal (.deliver, req) s = pure ([], s) := by
+  cases h : s.instances[(unframe req).length]? <;> simp [challenger, h, hlong]
+
+/-- Query equation for `.deliver` of a message of at most `P.sizeBound n` bits to a running
+instance. -/
 theorem challenger_deliver_of_running (P : Protocol) (n : ℕ) (ideal : Option Idealization)
     (req : List Bool) (s : Challenger) (inst : Instance)
-    (h : s.instances[(unframe req).length]? = some inst) (hphase : inst.phase = .running) :
+    (h : s.instances[(unframe req).length]? = some inst) (hphase : inst.phase = .running)
+    (hlen : ¬ P.TooLong n (dropFrame req)) :
     challenger P n ideal (.deliver, req) s = (do
       let i := (unframe req).length
       let msg := dropFrame req
@@ -384,6 +402,6 @@ theorem challenger_deliver_of_running (P : Protocol) (n : ℕ) (ideal : Option I
             { s' with instances := s'.instances.set i finInst })
       else
         pure (encDeliverReply ⟨out.message, out.phase, [], none⟩, s')) := by
-  simp only [challenger, h, ne_eq, hphase, not_true_eq_false, ↓reduceIte]; rfl
+  simp only [challenger, h, ne_eq, hphase, not_true_eq_false, hlen, or_self, ↓reduceIte]; rfl
 
 end Cslib.Crypto.AKE

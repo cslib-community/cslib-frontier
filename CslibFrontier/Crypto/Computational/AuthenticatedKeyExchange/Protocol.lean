@@ -25,30 +25,42 @@ polynomial-time or `IsPPTOn` efficiency certificate over explicit structure enco
 registration is modeled as one joint step (`registerHonest`), whereas corrupt registration and
 key establishment proceed step by step through explicit TTP and instance states.
 
-A certificate for each call alone would admit a TTP that doubles its state on every call, whose
-replies grow exponentially over many polynomial-time calls. The book excludes this. It asks the
-TTP to be an efficient interface ([BonehShoup2023], footnote 1 on p. 885, and Definition 2.12,
-p. 33), whose total running time is polynomial in the security parameter and the number of
-interactions. It also bounds the configuration of a running protocol instance by a fixed
-polynomial in the security parameter (§18.1.1, p. 718), naming this doubling as the reason. A
-`Protocol` carries a bound `stateBound`, computable in polynomial time in unary and so polynomial
-in `n`, with two conditions:
+A certificate for each call alone is not enough. It admits a TTP that doubles its state on every
+call, and a TTP that echoes an arbitrarily long request; in both, the work and the replies are
+not bounded by any polynomial in the security parameter and the number of calls. The book
+excludes both:
 
-* **TTP calls.** Each call lengthens the TTP state by at most `stateBound n`, so after `I`
-  calls the state is polynomial in `n` and `I`.
-* **Session steps.** Every state a step outputs has length at most `stateBound n`.
+* the TTP must be an efficient interface ([BonehShoup2023], footnote 1 on p. 885, and
+  Definition 2.12, p. 33), whose total running time is polynomial in the security parameter and
+  the number of interactions;
+* the configuration of a running protocol instance is bounded by a fixed polynomial in the
+  security parameter (§18.1.1, p. 718), which names the doubling as the reason.
 
-Each call therefore runs in time polynomial in `n`, the number of earlier calls and the lengths
-of the words the adversary has sent, so the experiments are efficient against an efficient
-adversary. A
-certificate for running the experiment is not proved here.
+A `Protocol` therefore carries a size bound `sizeBound`, computable in polynomial time in unary
+and so polynomial in `n`. The bound limits three things:
 
-These conditions differ from the book's in three ways:
+* **TTP state.** Each TTP call lengthens the TTP state by at most `sizeBound n`.
+* **Long-term keys and instance states.** Every long-term key that honest registration outputs,
+  and every state that a session step outputs, has length at most `sizeBound n`.
+* **Adversary words.** The challenger refuses any query that would hand a protocol algorithm a
+  user identity or message longer than `sizeBound n` (`Protocol.TooLong`), as it refuses other
+  disallowed queries.
 
-* They are narrower than Definition 2.12, which also admits interfaces whose growth per call
-  increases with the number of earlier calls.
-* A call may take time polynomial in the lengths of the words it receives. The word model reads
-  its whole input, and Definition 2.12 bounds the time regardless of their lengths.
+Every input of a TTP call then has length polynomial in `n` and the number of earlier calls, and
+every input of a session step has length polynomial in `n`. So the TTP runs in time polynomial in
+`n` and the number of interactions, as Definition 2.12 requires, and each session step runs in
+time polynomial in `n`, as §18.1.1 requires. A certificate that running the whole experiment is
+PPT is not proved here.
+
+These conditions narrow the book's in three ways, and leave out one of its requirements:
+
+* Each call may add at most `sizeBound n` to the TTP state. Definition 2.12 only bounds the
+  cumulative running time, so it also admits interfaces whose growth per call increases with the
+  number of earlier calls.
+* Over-long words are refused. The book's interface instead reads as much of a word as its time
+  budget allows.
+* The bound is worst-case. Definition 2.12 allows the time bound to fail with negligible
+  probability.
 * The polynomial round complexity of §18.1.1 is not required. It does not affect the
   experiments, since the adversary decides how many messages to deliver.
 
@@ -60,8 +72,10 @@ These conditions differ from the book's in three ways:
   session key establishment step, with encodings `encStepInput` and `encStepOutput`.
 * `Cslib.Crypto.AKE.TTPInput`, `Cslib.Crypto.AKE.TTPOutput`: input and output records of TTP
   queries, with encodings `encTTPInput` and `encTTPOutput`.
-* `Cslib.Crypto.AKE.Protocol`: AKE protocol record with efficiency certificates and session-key
-  length invariant.
+* `Cslib.Crypto.AKE.Protocol`: AKE protocol record with efficiency certificates, session-key
+  length invariant and size bound.
+* `Cslib.Crypto.AKE.Protocol.TooLong`: a word longer than the size bound, which the challenger
+  refuses to hand to a protocol algorithm.
 
 ## References
 
@@ -180,10 +194,10 @@ enc_structure encTTPOutput : TTPOutput where
 
 /-- Syntactic specification of an authenticated key exchange protocol ([BonehShoup2023], §21.9,
 pp. 885–886), packaged with uniform strict polynomial-time / `IsPPTOn` certificates, the
-session-key length condition `k ∈ 𝒦` where `𝒦 = {0, 1}^{keyLength n}`, and the state bounds that
-make the TTP an efficient interface (Definition 2.12, p. 33) and keep instance configurations
-polynomial in `n` (§18.1.1, p. 718). The module documentation compares these bounds with the
-book's. -/
+session-key length condition `k ∈ 𝒦` where `𝒦 = {0, 1}^{keyLength n}`, and the size bound that
+makes the TTP an efficient interface (Definition 2.12, p. 33) and keeps instance configurations
+polynomial in `n` (§18.1.1, p. 718). The module documentation compares this bound with the
+book's conditions. -/
 structure Protocol where
   /-- Session key length as a function of the security parameter. -/
   keyLength : ℕ → ℕ
@@ -212,23 +226,43 @@ structure Protocol where
   /-- Every finished step produces a key in `𝒦`, i.e., of length `keyLength input.parameter`. -/
   key_length : ∀ input, ∀ out ∈ (ProbComp.eval (step input)).support,
     out.phase = .finished → out.key.length = keyLength input.parameter
-  /-- Bound on how much a TTP call may lengthen the TTP state, and on the length of every
-  instance state, as a function of the security parameter. -/
-  stateBound : ℕ → ℕ
-  /-- `stateBound` is computable in polynomial time in unary, so `stateBound n` is polynomial in
+  /-- Size bound of the protocol at security parameter `n`: the most a TTP call may add to the TTP
+  state, the length of every long-term key and instance state, and the length of every user
+  identity and message the challenger hands to a protocol algorithm. -/
+  sizeBound : ℕ → ℕ
+  /-- `sizeBound` is computable in polynomial time in unary, so `sizeBound n` is polynomial in
   `n`. -/
-  stateBound_polyTime : ComputableInPolyTime stateBound encUnary encUnary
-  /-- Honest registration lengthens the TTP state by at most `stateBound n`. -/
+  sizeBound_polyTime : ComputableInPolyTime sizeBound encUnary encUnary
+  /-- Honest registration lengthens the TTP state by at most `sizeBound n`. -/
   registerHonest_ttp_length : ∀ input, ∀ out ∈ (ProbComp.eval (registerHonest input)).support,
-    out.ttp.length ≤ input.ttp.length + stateBound input.parameter
-  /-- Corrupt registration lengthens the TTP state by at most `stateBound n`. -/
+    out.ttp.length ≤ input.ttp.length + sizeBound input.parameter
+  /-- Honest registration outputs a long-term key of length at most `sizeBound n`. -/
+  registerHonest_output_length : ∀ input, ∀ out ∈ (ProbComp.eval (registerHonest input)).support,
+    out.output.length ≤ sizeBound input.parameter
+  /-- Corrupt registration lengthens the TTP state by at most `sizeBound n`. -/
   registerCorrupt_ttp_length : ∀ input, ∀ out ∈ (ProbComp.eval (registerCorrupt input)).support,
-    out.ttp.length ≤ input.ttp.length + stateBound input.parameter
-  /-- An online TTP step lengthens the TTP state by at most `stateBound n`. -/
+    out.ttp.length ≤ input.ttp.length + sizeBound input.parameter
+  /-- An online TTP step lengthens the TTP state by at most `sizeBound n`. -/
   ttpStep_ttp_length : ∀ input, ∀ out ∈ (ProbComp.eval (ttpStep input)).support,
-    out.ttp.length ≤ input.ttp.length + stateBound input.parameter
-  /-- Every instance state a step outputs has length at most `stateBound n`. -/
+    out.ttp.length ≤ input.ttp.length + sizeBound input.parameter
+  /-- Every instance state a step outputs has length at most `sizeBound n`. -/
   step_state_length : ∀ input, ∀ out ∈ (ProbComp.eval (step input)).support,
-    out.state.length ≤ stateBound input.parameter
+    out.state.length ≤ sizeBound input.parameter
+
+namespace Protocol
+
+/-- A word is too long for `P` at security parameter `n` when it has more than `P.sizeBound n`
+bits. The challenger refuses any query that would hand such a user identity or message to a
+protocol algorithm. -/
+@[expose] def TooLong (P : Protocol) (n : ℕ) (w : List Bool) : Prop :=
+  P.sizeBound n < w.length
+
+instance (P : Protocol) (n : ℕ) (w : List Bool) : Decidable (P.TooLong n w) :=
+  inferInstanceAs (Decidable (_ < _))
+
+@[simp] theorem not_tooLong_nil (P : Protocol) (n : ℕ) : ¬ P.TooLong n [] := by
+  simp [TooLong]
+
+end Protocol
 
 end Cslib.Crypto.AKE
