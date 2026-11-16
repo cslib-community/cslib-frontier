@@ -10,6 +10,10 @@ module
 public import CslibFrontier.Crypto.Computational.Encryption.MACThenEncrypt
 public import CslibFrontier.Crypto.Computational.Encryption.EncryptThenMAC
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.RandomOracle
+import CslibFrontier.Languages.Probabilistic.RandomOracle.Programming
+import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.RunWith
+import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.QueryCount
+import CslibFrontier.Probability.StatisticalDistance.CloseTo
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair.Projections
 import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
@@ -74,6 +78,134 @@ noncomputable def mteCIToPrfDistinguisher (M : MACScheme) (ptLen : ℕ → ℕ)
     else
       pure false
 
+
+/-! ## The ideal games -/
+
+/-- A record of one answered encryption query: IV, pad, message, tag. -/
+abbrev MteRec := List Bool × List Bool × List Bool × List Bool
+
+/-- The ciphertext a record stands for. -/
+def MteRec.ct (m : ℕ) (e : MteRec) : List Bool :=
+  e.1 ++ List.zipWith xor (e.2.1.take m) (encPair encBits encBits (e.2.2.1, e.2.2.2))
+
+/-- State of the ideal games: the random-function cache and the query history, newest first. -/
+abbrev MteState := List (List Bool × List Bool) × List MteRec
+
+/-- The coins of one encryption query: the tag of the message, then the IV. -/
+private noncomputable def mteCoins (M : MACScheme) (m : ℕ) (km : List Bool)
+    (request : Unit × List Bool) : PMF (List Bool × List Bool) :=
+  (ProbComp.eval (M.sign km request.2)).bind fun tag =>
+    (BitString.uniformList m).map fun r => (tag, r)
+
+/-- The reply to one encryption query and the history entry it adds, from its coins and pad. -/
+private def mteFinish (m : ℕ) (request : Unit × List Bool) (coins : List Bool × List Bool)
+    (pad : List Bool) (history : List MteRec) : List Bool × List MteRec :=
+  (coins.2 ++ List.zipWith xor (pad.take m) (encPair encBits encBits (request.2, coins.1)),
+    (coins.2, pad, request.2, coins.1) :: history)
+
+/-- The encryption oracle of the CI game of `macThenEncrypt` over `prfCipher` with a lazily
+sampled random function in place of the PRF: an `n`-bit message is tagged, a fresh `m`-bit IV is
+drawn, its pad is looked up or drawn, and the query is logged. -/
+private noncomputable def mteFaithfulOracle (M : MACScheme) (n m : ℕ) (km : List Bool)
+    (request : Unit × List Bool) : StateT MteState PMF (List Bool) :=
+  RandomOracle.lazyProgramHandler (Reply := fun _ : Unit × List Bool => List Bool)
+    (Coins := fun _ : Unit × List Bool => List Bool × List Bool) (BitString.uniformList m)
+    (fun req => req.2.length == n) (fun _ _ history => PMF.pure ([], history))
+    (mteCoins M m km) (fun _ coins => coins.2) (mteFinish m) (.inl request)
+
+/-- Game 1 of the proof of [BonehShoup2023], Theorem 9.3 (p. 375): the encryption oracle of the
+ideal CI game with a fresh pad for every query. An `n`-bit message is tagged, a fresh `m`-bit IV
+and a fresh pad are drawn, the reply is `IV ++ (pad ⊕ (msg ‖ tag))`, and the IV, pad, message and
+tag are logged; the pair `(IV, pad)` is put in front of the cache. Other queries get `[]`. -/
+noncomputable def mteForgetfulOracle (M : MACScheme) (n m : ℕ) (km : List Bool)
+    (request : Unit × List Bool) : StateT MteState PMF (List Bool) :=
+  RandomOracle.overwriteProgramHandler (Reply := fun _ : Unit × List Bool => List Bool)
+    (Coins := fun _ : Unit × List Bool => List Bool × List Bool) (BitString.uniformList m)
+    (fun req => req.2.length == n) (fun _ _ history => PMF.pure ([], history))
+    (mteCoins M m km) (fun _ coins => coins.2) (mteFinish m) (.inl request)
+
+/-- The winning condition of the ideal CI games: the final ciphertext is new and has `2 * m` bits,
+and its plaintext under the pad of its IV (looked up in the cache, or drawn fresh) passes the check
+of `macThenEncrypt`. -/
+noncomputable def mteIdealFinal (M : MACScheme) (n m : ℕ) (km : List Bool)
+    (out : List Bool × MteState) : PMF Bool :=
+  if !(out.2.2.map (MteRec.ct m)).contains out.1 && out.1.length == 2 * m then
+    (memoize (fun _ => BitString.uniformList m) (out.1.take m) out.2.1).map fun res =>
+      mtePlaintextValid M n km (List.zipWith xor (res.1.take m) (out.1.drop m))
+  else
+    PMF.pure false
+
+private theorem mteFaithfulOracle_apply (M : MACScheme) (n m : ℕ) (km : List Bool)
+    (request : Unit × List Bool) (st : MteState) :
+    mteFaithfulOracle M n m km request st =
+      if request.2.length == n then
+        (ProbComp.eval (M.sign km request.2)).bind fun tag =>
+          (BitString.uniformList m).bind fun r =>
+            (memoize (fun _ => BitString.uniformList m) r st.1).map fun res =>
+              (r ++ List.zipWith xor (res.1.take m) (encPair encBits encBits (request.2, tag)),
+                (res.2, (r, res.1, request.2, tag) :: st.2))
+      else
+        PMF.pure ([], st) := by
+  obtain ⟨cache, history⟩ := st
+  unfold mteFaithfulOracle RandomOracle.lazyProgramHandler
+  by_cases hlen : (request.2.length == n) = true
+  · simp only [hlen, ↓reduceDIte, ↓reduceIte, mteCoins, mteFinish,
+      Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure, PMF.bind_bind,
+      PMF.bind_map, PMF.map, Function.comp_def, PMF.pure_bind]
+  · simp [hlen]
+
+/-! ## The random-function step -/
+
+/-- Replacing the lazily sampled random function by a fresh pad for every query moves the
+probability of any final event by at most `Q.choose 2 / 2 ^ m`: an instance of
+`RandomOracle.closeTo_runWith_lazyProgramHandler_overwriteProgramHandler_choose_two`. -/
+private theorem mteFaithful_bind_apply_le (M : MACScheme) (n m : ℕ) (km : List Bool)
+    {program : WordOracleComp Unit (List Bool)} {Q : ℕ} (hq : program.IsQueryBounded Q)
+    (next : List Bool × MteState → PMF Bool) :
+    ((ProbOracleComp.runWith (mteFaithfulOracle M n m km) program ([], [])).bind next) true ≤
+      ((ProbOracleComp.runWith (mteForgetfulOracle M n m km) program ([], [])).bind next)
+          true + (Q.choose 2 : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ m) := by
+  let embed : (q : Unit × List Bool) →
+      ProbOracleComp (OracleSpec.sum (fun _ : Unit × List Bool => List Bool)
+        (fun _ : List Bool => List Bool)) (List Bool) :=
+    fun q => ProbOracleComp.query (spec := OracleSpec.sum (fun _ : Unit × List Bool => List Bool)
+      (fun _ : List Bool => List Bool)) (.inl q)
+  have hmin : ∀ req : Unit × List Bool, (req.2.length == n) = true → ∀ r,
+      ((mteCoins M m km req).map fun coins => coins.2) r ≤ (1 : ℝ≥0∞) / 2 ^ m := by
+    intro req _ r
+    have hmap : ((mteCoins M m km req).map fun coins => coins.2) = BitString.uniformList m := by
+      simp only [mteCoins, PMF.map_bind, PMF.map_comp, Function.comp_def, PMF.map_id']
+      exact PMF.bind_const _ _
+    rw [hmap]
+    exact BitString.uniformList_apply_le m r
+  have hqS : IsCostBounded (Sum.elim (fun _ => 0) (Sum.elim (fun _ => 1) (fun _ => 0)))
+      (ProbOracleComp.simulate embed program) Q :=
+    ProbOracleComp.isCostBounded_simulate (cost := fun _ => 1)
+      (fun q => by simpa using ProbOracleComp.isCostBounded_query
+        (Sum.elim (fun _ => 1) (fun _ => 0)) (Sum.inl q)) hq
+  have hqH : IsCostBounded (Sum.elim (fun _ => 0) (Sum.elim (fun _ => 0) (fun _ => 1)))
+      (ProbOracleComp.simulate embed program) 0 :=
+    ProbOracleComp.isCostBounded_simulate (cost := fun _ => 0)
+      (fun q => by simpa using ProbOracleComp.isCostBounded_query
+        (Sum.elim (fun _ => 0) (fun _ => 1)) (Sum.inl q))
+      (IsCostBounded.of_forall_cost_eq_zero (fun q => by cases q <;> rfl) program)
+  have hclose := RandomOracle.closeTo_runWith_lazyProgramHandler_overwriteProgramHandler_choose_two
+    (Reply := fun _ : Unit × List Bool => List Bool)
+    (Coins := fun _ : Unit × List Bool => List Bool × List Bool) (BitString.uniformList m)
+    (fun req => req.2.length == n) (fun _ _ history => PMF.pure ([], history))
+    (mteCoins M m km) (fun _ coins => coins.2) (mteFinish m) hmin hqS hqH [] []
+  have hrun (oracle : (q : (Unit × List Bool) ⊕ List Bool) → StateT MteState PMF
+      ((OracleSpec.sum (fun _ : Unit × List Bool => List Bool) (fun _ : List Bool => List Bool))
+        q)) :
+      ProbOracleComp.runWith oracle (ProbOracleComp.simulate embed program) ([], []) =
+        ProbOracleComp.runWith (fun q => oracle (.inl q)) program ([], []) := by
+    rw [ProbOracleComp.runWith_simulate]
+    simp [embed]
+  rw [hrun, hrun] at hclose
+  have h := (hclose.bind_left next) {true}
+  simpa [PMF.toOuterMeasure_apply_singleton] using h
+
+/-! ## The PRF step -/
 
 private theorem eval_prfRealGame_mteCIToPrfDistinguisher
     (family : List Bool → List Bool → List Bool)
@@ -150,6 +282,109 @@ private theorem eval_prfRealGame_mteCIToPrfDistinguisher
     simp only [Bool.false_eq_true, ↓reduceIte, runWith_norm, pmf_norm, hfresh',
       Bool.false_and]
 
+
+/-- The ideal PRF game of `B_prf` is the CI game against the lazily sampled random function. -/
+private theorem eval_prfIdealGame_mteCIToPrfDistinguisher (M : MACScheme) (ptLen : ℕ → ℕ)
+    (hmono : StrictMono ptLen) (adversary : CIAdversary) (n : ℕ) :
+    ProbComp.eval (prfIdealGame id id (mteCIToPrfDistinguisher M ptLen adversary) (ptLen n)) =
+      (ProbComp.eval (M.keyGen n)).bind fun km =>
+        (ProbOracleComp.runWith (mteFaithfulOracle M n (ptLen n) km) (adversary n [])
+          ([], [])).bind (mteIdealFinal M n (ptLen n) km) := by
+  have hparam := GeneratorReindex.parameter_apply_of_strictMono hmono n
+  rw [prfIdealGame_eq_cached]
+  simp only [mteCIToPrfDistinguisher, hparam, beq_self_eq_true, ↓reduceIte, runWith_norm, pmf_norm]
+  refine PMF.bind_congr_on_support _ _ _ fun km _ => ?_
+  have hsim := ProbOracleComp.runWith_map_state
+    (oracle := mteFaithfulOracle M n (ptLen n) km)
+    (oracle' := fun (q : Unit × List Bool)
+        (state : List (List Bool) × List (List Bool × List Bool)) =>
+      PMF.map (fun x => (x.1.1, x.1.2, x.2))
+        (ProbOracleComp.runWith
+          (fun (q : Unit × List Bool) state =>
+            ProbComp.eval (cachedRandomFunctionOracle (ptLen n) q.2 state))
+          ((mteCIToPrfHandler M n (ptLen n) km q).run state.1) state.2))
+    (represent := fun st : MteState => (st.2.map (MteRec.ct (ptLen n)), st.1))
+    (step := by
+      rintro ⟨⟨⟩, msg⟩ ⟨cache, hist⟩
+      rw [mteFaithfulOracle_apply]
+      unfold mteCIToPrfHandler
+      dsimp only [StateT.run]
+      by_cases hmsg : (msg.length == n) = true
+      · simp only [hmsg, ↓reduceIte, runWith_norm, pmf_norm, BitString.eval_sampleList]
+        refine PMF.bind_congr_on_support _ _ _ fun tag _ => ?_
+        refine PMF.bind_congr_on_support _ _ _ fun r hr => ?_
+        have hrLen : r.length = ptLen n := BitString.length_of_mem_support_uniformList hr
+        simp only [cachedRandomFunctionOracle, hrLen, ↓reduceIte, ProbComp.eval_memoize,
+          BitString.eval_sampleList]
+        rfl
+      · simp [hmsg, runWith_norm, pmf_norm])
+    (adversary n []) ([], [])
+  rw [show (([] : List (List Bool)), ([] : List (List Bool × List Bool))) =
+      (fun st : MteState => (st.2.map (MteRec.ct (ptLen n)), st.1)) ([], []) from rfl,
+    ← hsim, PMF.bind_map]
+  refine PMF.bind_congr_on_support _ _ _ fun out _ => ?_
+  obtain ⟨ct, cache, hist⟩ := out
+  unfold mteIdealFinal
+  dsimp only [Function.comp_apply]
+  by_cases hcond :
+      (!(hist.map (MteRec.ct (ptLen n))).contains ct && ct.length == 2 * ptLen n) = true
+  · have hlenCt : ct.length = 2 * ptLen n := beq_iff_eq.mp (Bool.and_eq_true_iff.mp hcond).2
+    have htakeLen : (ct.take (ptLen n)).length = ptLen n := by
+      rw [List.length_take, hlenCt]; omega
+    simp only [hcond, ↓reduceIte, runWith_norm, pmf_norm, cachedRandomFunctionOracle, htakeLen,
+      ProbComp.eval_memoize, BitString.eval_sampleList]
+    rfl
+  · simp only [hcond, Bool.false_eq_true, ↓reduceIte, runWith_norm, pmf_norm]
+
+/-- **Step (9.13) of the proof of [BonehShoup2023], Theorem 9.3**, for `macThenEncrypt` over the
+one-block cipher `prfCipher`, messages of exactly `n` bits and a polynomial schedule `ptLen`; it is
+a step of the proof, not the theorem. For a CI adversary with at most `Q n` encryption queries, its
+winning probability is at most the PRF advantage of `mteCIToPrfDistinguisher`, plus
+`(Q n).choose 2 / 2 ^ ptLen n` for a repeated IV (the source prints `Q ^ 2 / (2 |X|)`), plus the
+winning probability in Game 1, the ideal game with a fresh pad for every query
+(`mteForgetfulOracle`, `mteIdealFinal`). `StrictMono ptLen` is what `mteCIToPrfDistinguisher`
+needs to recover `n` from the PRF parameter `ptLen n`. -/
+theorem eval_ciGame_macThenEncrypt_prfCipher_le_freshPads
+    (family : List Bool → List Bool → List Bool)
+    (hpoly : ComputableInPolyTime (fun pair => family pair.1 pair.2)
+      (encPair encBits encBits) encBits)
+    (hlen : ∀ key query, query.length = key.length → (family key query).length = key.length)
+    (M : MACScheme) (ptLen : ℕ → ℕ) (hptLenPoly : ComputableInPolyTime ptLen encUnary encUnary)
+    (hmono : StrictMono ptLen) (hmsgLen : ∀ n, M.msgLen n = n)
+    (hpairLen : ∀ n km, km ∈ (ProbComp.eval (M.keyGen n)).support →
+      ∀ msg, msg.length = n →
+      ∀ tag ∈ (ProbComp.eval (M.sign km msg)).support,
+        (encPair encBits encBits (msg, tag)).length = ptLen n)
+    (adversary : CIAdversary) (Q : ℕ → ℕ) (n : ℕ)
+    (hq : (adversary n []).IsQueryBounded (Q n)) :
+    (ProbComp.eval ((macThenEncrypt (prfCipher family hpoly hlen) M ptLen hptLenPoly hmsgLen
+        hpairLen).ciGame adversary n)) true ≤
+      ((Game.advantage
+          (ProbComp.eval
+            (prfRealGame id family (mteCIToPrfDistinguisher M ptLen adversary) (ptLen n)))
+          (ProbComp.eval
+            (prfIdealGame id id (mteCIToPrfDistinguisher M ptLen adversary) (ptLen n))) : ℝ≥0) :
+          ℝ≥0∞) +
+        ((Q n).choose 2 : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ ptLen n) +
+        ((ProbComp.eval (M.keyGen n)).bind fun km =>
+          (ProbOracleComp.runWith (mteForgetfulOracle M n (ptLen n) km) (adversary n [])
+            ([], [])).bind (mteIdealFinal M n (ptLen n) km)) true := by
+  rw [← eval_prfRealGame_mteCIToPrfDistinguisher family hpoly hlen M ptLen hptLenPoly hmono
+    hmsgLen hpairLen adversary n]
+  have hideal : (ProbComp.eval (prfIdealGame id id (mteCIToPrfDistinguisher M ptLen adversary)
+      (ptLen n))) true ≤
+      ((ProbComp.eval (M.keyGen n)).bind fun km =>
+          (ProbOracleComp.runWith (mteForgetfulOracle M n (ptLen n) km) (adversary n [])
+            ([], [])).bind (mteIdealFinal M n (ptLen n) km)) true +
+        ((Q n).choose 2 : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ ptLen n) := by
+    rw [eval_prfIdealGame_mteCIToPrfDistinguisher M ptLen hmono adversary n]
+    exact PMF.bind_apply_le_add_const_on_support _ true fun km _ =>
+      mteFaithful_bind_apply_le M n (ptLen n) km hq (mteIdealFinal M n (ptLen n) km)
+  refine ((Game.apply_true_le_of_advantage_le le_rfl).1.trans
+    (add_le_add hideal le_rfl)).trans (le_of_eq ?_)
+  ring
+
+/-! ## Efficiency of `B_prf` -/
 
 private theorem computableInPolyTime_mtePlaintextValid (M : MACScheme) :
     ComputableInPolyTime
