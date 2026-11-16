@@ -5195,6 +5195,7 @@ public import CslibFrontier.DataStructure.ApproximateMembership.WordRAM.Quotient
 public import CslibFrontier.DataStructure.BTree.Basic
 public import CslibFrontier.DataStructure.BTree.BinarySearch
 public import CslibFrontier.DataStructure.BTree.Comparisons.BinarySearch
+public import CslibFrontier.DataStructure.BTree.Comparisons.Erase
 public import CslibFrontier.DataStructure.BTree.Comparisons.Insert
 public import CslibFrontier.DataStructure.BTree.Comparisons.Query
 public import CslibFrontier.DataStructure.BTree.Comparisons.Range
