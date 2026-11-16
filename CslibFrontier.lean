@@ -2151,6 +2151,7 @@ public import CslibFrontier.Computability.Complexity.Classes.Oracle.CountingEqui
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.Deterministic
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.Diagonal
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.Exponential
+public import CslibFrontier.Computability.Complexity.Classes.Oracle.Exponential.Basic
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.Function
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.ListOracle
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.Lowness
@@ -3626,6 +3627,9 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OOp
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OPrimitives
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OnWords
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OneWorkTape
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.Oracle.Iteration
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.Oracle.Normalization
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.Oracle.Phase
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeBinaryDivision
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeBinaryPower
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeBinaryPrimitives
@@ -4037,11 +4041,14 @@ public import CslibFrontier.Computability.Probabilistic.ExponentialIterate
 public import CslibFrontier.Computability.Probabilistic.Finite
 public import CslibFrontier.Computability.Probabilistic.Fold
 public import CslibFrontier.Computability.Probabilistic.IntBox
+public import CslibFrontier.Computability.Probabilistic.Internal.Oracle.AuxClock
+public import CslibFrontier.Computability.Probabilistic.Internal.Oracle.BinaryIteration
+public import CslibFrontier.Computability.Probabilistic.Internal.Oracle.Exponential
+public import CslibFrontier.Computability.Probabilistic.Internal.Oracle.Time
 public import CslibFrontier.Computability.Probabilistic.LinearHash
 public import CslibFrontier.Computability.Probabilistic.Memoize
 public import CslibFrontier.Computability.Probabilistic.Oracle
 public import CslibFrontier.Computability.Probabilistic.Oracle.Composition
-public import CslibFrontier.Computability.Probabilistic.Oracle.Iteration
 public import CslibFrontier.Computability.Probabilistic.Oracle.Memoize
 public import CslibFrontier.Computability.Probabilistic.Oracle.Normalization
 public import CslibFrontier.Computability.Probabilistic.Oracle.Parameter
@@ -4050,11 +4057,12 @@ public import CslibFrontier.Computability.Probabilistic.Oracle.ReplayParameter
 public import CslibFrontier.Computability.Probabilistic.Oracle.RunState
 public import CslibFrontier.Computability.Probabilistic.Oracle.SingleOracle
 public import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
-public import CslibFrontier.Computability.Probabilistic.Oracle.Tidy
 public import CslibFrontier.Computability.Probabilistic.Oracle.Time
+public import CslibFrontier.Computability.Probabilistic.Oracle.Time.Basic
 public import CslibFrontier.Computability.Probabilistic.OracleSimulation
 public import CslibFrontier.Computability.Probabilistic.PPT
 public import CslibFrontier.Computability.Probabilistic.PPT.AuxClock
+public import CslibFrontier.Computability.Probabilistic.PPT.AuxClock.Basic
 public import CslibFrontier.Computability.Probabilistic.PPT.Capture
 public import CslibFrontier.Computability.Probabilistic.PPT.Clock
 public import CslibFrontier.Computability.Probabilistic.PPT.Composition
@@ -4411,6 +4419,7 @@ public import CslibFrontier.Crypto.Computational.Commitment.PublicOperations
 public import CslibFrontier.Crypto.Computational.Commitment.Scheme
 public import CslibFrontier.Crypto.Computational.CompositeResiduosity
 public import CslibFrontier.Crypto.Computational.CompositeResiduosity.Finite
+public import CslibFrontier.Crypto.Computational.CorrelationRobust
 public import CslibFrontier.Crypto.Computational.CramerShoup
 public import CslibFrontier.Crypto.Computational.CramerShoup.Interleaved
 public import CslibFrontier.Crypto.Computational.CramerShoup.ProjectiveHash
@@ -5031,6 +5040,7 @@ public import CslibFrontier.Crypto.Protocols.MPC.DDHOT
 public import CslibFrontier.Crypto.Protocols.MPC.DDHOT.Family
 public import CslibFrontier.Crypto.Protocols.MPC.DDHOT.Simulators
 public import CslibFrontier.Crypto.Protocols.MPC.IKNP
+public import CslibFrontier.Crypto.Protocols.MPC.IKNP.Family
 public import CslibFrontier.Crypto.Protocols.MPC.OTCommitment
 public import CslibFrontier.Crypto.Protocols.MPC.OTCommitment.CompleteSender
 public import CslibFrontier.Crypto.Protocols.MPC.OTCommitment.CompleteSender.PolyTime

@@ -112,6 +112,8 @@ differences:
   simulator families give close ideal games.
 * `Cslib.Crypto.Protocols.MPC.PartyEncoding.encCoalition_singleton`: the word of a single party's
   values, as two-party certificates use it.
+* `Cslib.Crypto.Protocols.MPC.PartyEncoding.encCoalition_apply_polyTime`: reading one member's
+  value from the word of a coalition's values, as simulator certificates use it.
 
 `CslibFrontier/Crypto/Protocols/MPC/DDHOT/Simulators.lean` proves the notion for DDH oblivious
 transfer from the DDH assumption (`Cslib.Crypto.PrimeOrderGroupFamily.DDH.ddhOTSemiHonestSecure`).
@@ -256,6 +258,19 @@ theorem encCoalition_singleton (n : ℕ) (d : Desc) (i : Fin m)
   obtain rfl := Finset.mem_singleton.mp hj
   rfl
 
+/-- **Reading one member's value.** From the word of a coalition's values, computed in polynomial
+time, the representation of member `i`'s value is computed in polynomial time. A certificate
+applies it to `encSimInput_inputs_polyTime` or `encSimInput_outputs_polyTime` to read a
+coalition member's input or output from a simulator's input. -/
+theorem encCoalition_apply_polyTime {I : Finset (Fin m)} {γ : Type} {enc : γ ↪ List Bool}
+    {n : γ → ℕ} {d : γ → Desc} {v : (c : γ) → (i : I) → X (n c) (d c) i}
+    (h : ComputableInPolyTime (fun c => e.encCoalition (n c) (d c) I (v c)) enc encBits)
+    (i : I) : ComputableInPolyTime (fun c => e.rep (n c) (d c) i (v c i)) enc (e.enc i) := by
+  have htable : ComputableInPolyTime (fun c => fun j : I => e.rep (n c) (d c) j (v c j)) enc
+      (encDPi fun j : I => e.enc j) :=
+    h.of_enc_eq fun _ => rfl
+  exact (ComputableInPolyTime.dpi_apply _ i).comp htable
+
 end PartyEncoding
 
 /-- How machines read and write the public parameters, inputs, outputs and views of a protocol
@@ -342,28 +357,6 @@ structure Environment.IsPPT (E : P.Encoding) (Z : Environment P I) : Prop where
   IsPPTOn (encSimInput E) (encDPi fun i : I => E.view.enc i) fun x =>
     (fun v i => E.view.rep x.secParam x.desc i (v i)) <$>
       S x.secParam x.desc x.inputs x.outputs
-
-/-- A simulator reads the representation of the input of a coalition member `i` from its input in
-polynomial time. -/
-theorem encSimInput_inputRep_polyTime (E : P.Encoding) (i : I) :
-    ComputableInPolyTime (fun x : SimInput P I => E.input.rep x.secParam x.desc i (x.inputs i))
-      (encSimInput E) (E.input.enc i) := by
-  have hinputs : ComputableInPolyTime (fun x : SimInput P I =>
-      fun j : I => E.input.rep x.secParam x.desc j (x.inputs j))
-      (encSimInput E) (encDPi fun j : I => E.input.enc j) :=
-    (encSimInput_inputs_polyTime E .id').of_enc_eq fun _ => rfl
-  exact (ComputableInPolyTime.dpi_apply _ i).comp hinputs
-
-/-- A simulator reads the representation of the output of a coalition member `i` from its input
-in polynomial time. -/
-theorem encSimInput_outputRep_polyTime (E : P.Encoding) (i : I) :
-    ComputableInPolyTime (fun x : SimInput P I => E.output.rep x.secParam x.desc i (x.outputs i))
-      (encSimInput E) (E.output.enc i) := by
-  have houtputs : ComputableInPolyTime (fun x : SimInput P I =>
-      fun j : I => E.output.rep x.secParam x.desc j (x.outputs j))
-      (encSimInput E) (encDPi fun j : I => E.output.enc j) :=
-    (encSimInput_outputs_polyTime E .id').of_enc_eq fun _ => rfl
-  exact (ComputableInPolyTime.dpi_apply _ i).comp houtputs
 
 namespace ProtocolFamily
 

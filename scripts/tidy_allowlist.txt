@@ -56,3 +56,10 @@ CslibFrontier/Computability/Machines/Turing/MultiTape/Probabilistic/RunsWords.le
 CslibFrontier/Computability/Machines/Turing/MultiTape/Probabilistic/Tidy.lean
 CslibFrontier/Computability/Machines/Turing/MultiTape/Probabilistic/Tidy/Redirect.lean
 CslibFrontier/Computability/Machines/Turing/MultiTape/Probabilistic/IterateWhile.lean
+
+# Internal oracle phase compiler moved from the public probabilistic calculus (#862).
+# These exact modules construct/compose/normalize raw machines; public numerical facades
+# import them for proofs only, and OraclePhaseFacade checks the ordinary import boundary.
+CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/Oracle/Phase.lean
+CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/Oracle/Iteration.lean
+CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/Oracle/Normalization.lean

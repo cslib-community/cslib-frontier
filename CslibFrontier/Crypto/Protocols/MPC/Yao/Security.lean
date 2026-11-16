@@ -46,10 +46,11 @@ environment. Point-and-permute and half-gates garbling satisfy the stronger form
 parameter, the evaluator's output and `Φ(f)`, and reads the evaluator's view from the simulated
 `(F, X, d)` (`Yao.viewOfPrvView`): `X` splits into `G.inLen f` tokens of equal width, the first
 `garblerLen` of which go into the garbler's message with `F` and `d`, and the others are the tokens
-that the oblivious transfer delivers. This is the simulator `S₂` of Case 2 of the proof of
-Theorem 7 of [LindellPinkas2009] (pp. 18–19), with the garbling simulator in place of their fake
-garbled circuit. It is PPT when `S` is, `Φ` is computed in polynomial time and `G` reads input
-lengths in polynomial time (`Yao.isPPT_evaluatorSim`).
+that the oblivious transfer delivers. It plays the role of the simulator `S₂` of Case 2 of the
+proof of Theorem 7 of [LindellPinkas2009] (pp. 18–19), with the garbling simulator in place of
+their fake garbled circuit; in the hybrid model their first step, simulating the evaluator's view
+of the oblivious-transfer protocol, is empty. It is PPT when `S` is, `Φ` is computed in polynomial
+time and `G` reads input lengths in polynomial time (`Yao.isPPT_evaluatorSim`).
 
 **The reduction.** `Yao.evaluatorToPrvSim samp Z` turns an environment `Z` into a `prv.sim`
 adversary. Its choice stage draws the public parameters with the sampler `samp`, runs `Z.choose`
@@ -71,8 +72,10 @@ that theorem:
 * **Oblivious transfer.** The transfers are the ideal `batchOTSpec`. Theorem 7 assumes an
   oblivious transfer protocol secure against semi-honest adversaries, and its proof simulates that
   protocol's views; composition with a protocol is not formalized here.
-* **Garbling scheme and assumption.** Any garbling scheme that is efficient, correct, projective
-  and `prv.sim` secure with one simulator, in place of the double-encryption construction of §4.1
+* **Garbling scheme and assumption.** Any garbling scheme with polynomial-time algorithms, correct
+  from `n = 1` on, with the encoding `projectiveEncode` (projective in one word layout, with tokens
+  of one width) and `prv.sim` secure with one simulator, in place of the double-encryption
+  construction of §4.1
   (p. 12) under an encryption scheme with indistinguishable encryptions under chosen-plaintext
   attacks and an elusive, efficiently verifiable range. This modular form follows
   [BellareHoangRogaway2012], §7.1 (Theorem 14, p. 35), whose quantifiers are `∀ B ∃ S` on both
@@ -141,7 +144,7 @@ and `d`, and the others are the tokens that the oblivious transfer delivers. -/
 
 /-- On the real garbled view of the function's input with the garbler's coins `coins`,
 `viewOfPrvView` is the evaluator's view in the run with these coins, when the encoding of `G` is
-projective. -/
+`projectiveEncode`. -/
 theorem viewOfPrvView_gb (hproj : G.encode = projectiveEncode) (n : ℕ) (c : Params G)
     (x : (i : Fin 2) → Input c i) (coins : List Bool) :
     viewOfPrvView c (x 1) ⟨(G.gb n c.fn coins).fn,
@@ -255,7 +258,7 @@ theorem idealGame_evaluator_eq (samp : ℕ → ProbComp (Params G))
 
 /-- At every parameter `n ≥ 1`, the real game against a corrupted evaluator is the experiment
 `PrvSim` of the reduction on the real side (`b = true`), when `G` is correct and its encoding is
-projective. -/
+`projectiveEncode`. -/
 theorem realGame_evaluator_eq (hproj : G.encode = projectiveEncode) (hcorrect : G.Correct)
     {n : ℕ} (hn : 0 < n) (samp : ℕ → ProbComp (Params G)) (Z : Environment (family G) {1})
     (Φ : SideInfo Fn Λ) (S : ℕ → PrvSimulator Λ) :
@@ -328,9 +331,9 @@ private noncomputable def evaluatorSimWord (N g : ℕ) (x₁ : List Bool) (V : P
 
 /-- **The evaluator's simulator is PPT** for `encoding G encFn` when the garbling simulator `S` is
 PPT on `(1^k, y, φ)`, `Φ` is computed in polynomial time and `G` reads input lengths in polynomial
-time. -/
+time (`hinLen`). -/
 theorem isPPT_evaluatorSim {encFn : Fn ↪ List Bool} {encΛ : Λ ↪ List Bool} {Φ : SideInfo Fn Λ}
-    {S : ℕ → PrvSimulator Λ} (heff : G.IsEfficient encFn)
+    {S : ℕ → PrvSimulator Λ} (hinLen : ComputableInPolyTime G.inLen encFn encUnary)
     (hΦ : ComputableInPolyTime Φ.phi encFn encΛ)
     (hS : IsPPTOn (encPair encUnary (encPair encBits encΛ)) encPrvView
       (fun (k, y, φ) => S k y φ)) :
@@ -342,9 +345,11 @@ theorem isPPT_evaluatorSim {encFn : Fn ↪ List Bool} {encΛ : Λ ↪ List Bool}
       (encSimInput (encoding G encFn)) (encParams encFn) :=
     encSimInput_desc_polyTime (encoding G encFn) .id'
   have hfn := encParams_fn_polyTime hc
-  have hx₁ := encSimInput_inputRep_polyTime (encoding G encFn)
+  have hx₁ := (encoding G encFn).input.encCoalition_apply_polyTime
+    (encSimInput_inputs_polyTime (encoding G encFn) .id')
     (⟨1, Finset.mem_singleton_self 1⟩ : ({1} : Finset (Fin 2)))
-  have hy := encSimInput_outputRep_polyTime (encoding G encFn)
+  have hy := (encoding G encFn).output.encCoalition_apply_polyTime
+    (encSimInput_outputs_polyTime (encoding G encFn) .id')
     (⟨1, Finset.mem_singleton_self 1⟩ : ({1} : Finset (Fin 2)))
   have hprep : ComputableInPolyTime (fun x : SimInput (family G) {1} =>
       (x.secParam, (encoding G encFn).output.rep x.secParam x.desc 1
@@ -357,7 +362,7 @@ theorem isPPT_evaluatorSim {encFn : Fn ↪ List Bool} {encΛ : Λ ↪ List Bool}
           (p.1.inputs ⟨1, Finset.mem_singleton_self 1⟩)) p.2)
       (encPair (encSimInput (encoding G encFn)) encPrvView) encBits :=
     (ComputableInPolyTime.pi fun _ => (viewWordsOfPrvView_polyTime
-      ((heff.inLen.comp hfn).comp (.fst _ _)) ((encParams_garblerLen_polyTime hc).comp (.fst _ _))
+      ((hinLen.comp hfn).comp (.fst _ _)) ((encParams_garblerLen_polyTime hc).comp (.fst _ _))
       (hx₁.comp (.fst _ _)) (.snd _ _)).encoding_comp).encoding_comp
   have hprog : IsPPTOn (encSimInput (encoding G encFn)) encBits
       (fun x : SimInput (family G) {1} =>
@@ -388,10 +393,11 @@ private noncomputable def guessWords (k : ℕ) (st : ReductionState G) (V : Opti
     encPi encBits fun _ : Fin 2 => st.output)
 
 /-- **The reduction is PPT** whenever the environment `Z` is PPT for `encoding G encFn`, the public
-parameters are drawn by a PPT sampler `samp`, and `G` reads input lengths and evaluates `ev` in
-polynomial time. -/
+parameters are drawn by a PPT sampler `samp`, and `G` reads input lengths (`hinLen`) and evaluates
+`ev` (`hev`) in polynomial time. -/
 theorem isPPT_evaluatorToPrvSim {encFn : Fn ↪ List Bool} {samp : ℕ → ProbComp (Params G)}
-    {Z : Environment (family G) {1}} (heff : G.IsEfficient encFn)
+    {Z : Environment (family G) {1}} (hinLen : ComputableInPolyTime G.inLen encFn encUnary)
+    (hev : ComputableInPolyTime (fun (f, x) => G.ev f x) (encPair encFn encBits) encBits)
     (hsamp : IsPPTOn encUnary (encParams encFn) samp) (hZ : Z.IsPPT (encoding G encFn)) :
     TwoStage.IsPPT encUnit (encQuery Fn encFn) (encOption encPrvView) encBool
       (encReductionState (G := G) encFn) (evaluatorToPrvSim samp Z) where
@@ -416,7 +422,7 @@ theorem isPPT_evaluatorToPrvSim {encFn : Fn ↪ List Bool} {samp : ℕ → ProbC
       (encQuery_mk_polyTime Fn encFn hfn happ).prod (encReductionState_mk_polyTime encFn
         ((ComputableInPolyTime.snd _ _).comp (.fst _ _))
         ((ComputableInPolyTime.snd _ _).comp (.snd _ _)) hx₁
-        (heff.ev.comp (hfn.prod happ)))
+        (hev.comp (hfn.prod happ)))
     have hprog : IsPPTOn (encPair encUnary encUnit)
         (encPair (encQuery Fn encFn) (encReductionState (G := G) encFn)) (fun x : ℕ × Unit => do
           let c ← samp x.1
@@ -446,7 +452,7 @@ theorem isPPT_evaluatorToPrvSim {encFn : Fn ↪ List Bool} {samp : ℕ → ProbC
         (encOption encPrvView) := (ComputableInPolyTime.snd _ _).comp (.snd _ _)
     have hc := encReductionState_params_polyTime encFn hst
     have hfn := encParams_fn_polyTime hc
-    have hN := heff.inLen.comp hfn
+    have hN := hinLen.comp hfn
     have hg := encParams_garblerLen_polyTime hc
     have hw := encReductionState_evaluatorInput_polyTime encFn hst
     have hout := encReductionState_output_polyTime encFn hst
@@ -478,7 +484,7 @@ theorem isPPT_evaluatorToPrvSim {encFn : Fn ↪ List Bool} {samp : ℕ → ProbC
 /-- **The reduction is exact**: at every parameter `n ≥ 1`, the advantage of an environment `Z`
 between the real game and the ideal game with `evaluatorSim G Φ S` equals the `prv.sim` advantage
 of the reduction `evaluatorToPrvSim samp Z` against `S n`, when `G` is correct and its encoding is
-projective. -/
+`projectiveEncode`. -/
 theorem advantage_evaluator_eq (hproj : G.encode = projectiveEncode) (hcorrect : G.Correct)
     {n : ℕ} (hn : 0 < n) (samp : ℕ → ProbComp (Params G)) (Z : Environment (family G) {1})
     (Φ : SideInfo Fn Λ) (S : ℕ → PrvSimulator Λ) :
@@ -489,24 +495,30 @@ theorem advantage_evaluator_eq (hproj : G.encode = projectiveEncode) (hcorrect :
     idealGame_evaluator_eq samp Z Φ S n, Game.advantage_comm]
   rfl
 
-/-- **Semi-honest security against a corrupted evaluator**, a step towards Case 2 (p. 18) of the
-proof of Theorem 7 of [LindellPinkas2009], in the hybrid model of the ideal batched oblivious
-transfer. When `G` is `prv.sim` secure with one simulator `S` for every adversary
-(`Scheme.PrvSimSecureUniversal`) for side information `Φ` computed in polynomial time, and `G` is
-correct, efficient and projective, then for public parameters drawn by any PPT sampler, the PPT
-simulator family `evaluatorSim G Φ S` makes the real and ideal games indistinguishable for every
-PPT environment: from `n = 1` on, an environment's advantage is the `prv.sim` advantage of the
-certified reduction `evaluatorToPrvSim` (`advantage_evaluator_eq`, `isPPT_evaluatorToPrvSim`). -/
+/-- **Semi-honest security against a corrupted evaluator in the oblivious-transfer hybrid model**,
+a step towards Theorem 7 of [LindellPinkas2009] (§4.2, p. 15), not that theorem or its Case 2
+(pp. 18–19). Case 2 first replaces the oblivious-transfer protocol by its simulator, then the real
+garbled circuit by a fake one; with the ideal `batchOTSpec` the first step is empty, and the second
+is the `prv.sim` security of `G`. When `G` is `prv.sim` secure with one simulator `S` for every
+adversary (`Scheme.PrvSimSecureUniversal`) for side information `Φ` computed in polynomial time,
+`G` is correct, its encoding is `projectiveEncode`, and it reads input lengths and evaluates `ev` in
+polynomial time, then for public parameters drawn by any PPT sampler the PPT simulator family
+`evaluatorSim G Φ S` makes the real and ideal games indistinguishable for every PPT environment:
+from `n = 1` on, an environment's advantage is the `prv.sim` advantage of the certified reduction
+`evaluatorToPrvSim` (`advantage_evaluator_eq`, `isPPT_evaluatorToPrvSim`). The other deviations
+are those of the module documentation. -/
 theorem semiHonestSecure_evaluator {encFn : Fn ↪ List Bool} {encΛ : Λ ↪ List Bool}
     {Φ : SideInfo Fn Λ} (hG : G.PrvSimSecureUniversal Φ encFn encΛ)
-    (heff : G.IsEfficient encFn) (hproj : G.encode = projectiveEncode) (hcorrect : G.Correct)
+    (hinLen : ComputableInPolyTime G.inLen encFn encUnary)
+    (hev : ComputableInPolyTime (fun (f, x) => G.ev f x) (encPair encFn encBits) encBits)
+    (hproj : G.encode = projectiveEncode) (hcorrect : G.Correct)
     (hΦ : ComputableInPolyTime Φ.phi encFn encΛ) {samp : ℕ → ProbComp (Params G)}
     (hsamp : IsPPTOn encUnary (encParams encFn) samp) :
     (family G).SemiHonestSecure (fun n => ProbComp.eval (samp n)) {1} (encoding G encFn) := by
   obtain ⟨S, hS, hsec⟩ := hG
-  refine ⟨evaluatorSim G Φ S, isPPT_evaluatorSim heff hΦ hS, fun Z hZ => ?_⟩
+  refine ⟨evaluatorSim G Φ S, isPPT_evaluatorSim hinLen hΦ hS, fun Z hZ => ?_⟩
   refine negligible_of_eventually_le
-    (hsec _ (encReductionState (G := G) encFn) _ (isPPT_evaluatorToPrvSim heff hsamp hZ)) ?_
+    (hsec _ (encReductionState (G := G) encFn) _ (isPPT_evaluatorToPrvSim hinLen hev hsamp hZ)) ?_
   filter_upwards [Filter.eventually_gt_atTop 0] with n hn
   rw [advantage_evaluator_eq hproj hcorrect hn samp Z Φ S]
 
@@ -520,10 +532,13 @@ variable {Fn Λ : Type} {G : Scheme Fn}
 
 /-- **Yao's protocol in the oblivious-transfer hybrid model is semi-honest secure** against the
 corruption of either party: a step towards Theorem 7 of [LindellPinkas2009] (§4.2, p. 15), not
-that theorem, since the oblivious transfers are the ideal `batchOTSpec`. The garbling scheme `G`
+that theorem: the oblivious transfers are the ideal `batchOTSpec`, and the module documentation
+lists the other deviations (uniform environments that choose the inputs, a setup law, the scheme as
+a parameter). The garbling scheme `G`
 is `prv.sim` secure with one simulator for every adversary (`Scheme.PrvSimSecureUniversal`) for
-side information `Φ` computed in polynomial time; it is efficient, correct and projective; and the
-public parameters are drawn by a PPT sampler `samp`. Then `Yao.family G` is semi-honest secure,
+side information `Φ` computed in polynomial time; it has polynomial-time algorithms
+(`Scheme.IsEfficient`), it is correct, and its encoding is `projectiveEncode`; and the public
+parameters are drawn by a PPT sampler `samp`. Then `Yao.family G` is semi-honest secure,
 in the sense of `ProtocolFamily.SemiHonestSecure`, against the corruption of the garbler
 (`Yao.semiHonestSecure_garbler`, which needs no assumption) and of the evaluator
 (`Yao.semiHonestSecure_evaluator`, through the certified reduction `Yao.evaluatorToPrvSim`). The
@@ -537,7 +552,7 @@ theorem Scheme.PrvSimSecureUniversal.yaoSemiHonestSecure {encFn : Fn ↪ List Bo
     (Yao.family G).SemiHonestSecure (fun n => ProbComp.eval (samp n)) {i}
       (Yao.encoding G encFn) := by
   fin_cases i
-  · exact Yao.semiHonestSecure_garbler heff hproj hcorrect _
-  · exact Yao.semiHonestSecure_evaluator hG heff hproj hcorrect hΦ hsamp
+  · exact Yao.semiHonestSecure_garbler heff.coins hproj hcorrect _
+  · exact Yao.semiHonestSecure_evaluator hG heff.inLen heff.ev hproj hcorrect hΦ hsamp
 
 end Cslib.Crypto.Garbling
