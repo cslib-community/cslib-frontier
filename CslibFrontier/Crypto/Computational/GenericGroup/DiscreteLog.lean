@@ -725,14 +725,6 @@ private theorem map_bind_eq_of_step {A A' B σ σ' : Type} (φ : A → A') (r : 
   rw [PMF.map_bind, ← hm, PMF.bind_map]
   exact PMF.bind_congr_on_support _ _ _ fun x hx => hf x.1 x.2 (hI x hx)
 
-/-- The probability that a Boolean test accepts is the probability of the event it tests. -/
-private theorem bind_pure_decide_apply_true {β : Type} (p : PMF β) (P : β → Prop)
-    [DecidablePred P] :
-    (p.bind fun x => PMF.pure (decide (P x))) true = p.toOuterMeasure {x | P x} := by
-  rw [PMF.bind_apply, PMF.toOuterMeasure_apply]
-  refine tsum_congr fun x => ?_
-  by_cases hx : P x <;> simp [hx]
-
 section Games
 
 variable [NeZero q]
@@ -876,7 +868,7 @@ private theorem real_le (α : ZMod q)
     (symStep_map_fst α) (primGame D) [] false
   refine (hiub.bind_apply_le (primGame D) ([], false) _ true).trans ?_
   rw [hiub.bad_eq, ← hfst, PMF.bind_map, PMF.bind_map]
-  refine add_le_add le_rfl (le_of_le_of_eq ?_ (bind_pure_decide_apply_true _
+  refine add_le_add le_rfl (le_of_le_of_eq ?_ (PMF.bind_pure_decide_apply_true _
     (fun x : ZMod q × (Tab q × Bool) => Collides α x.2.1)).symm)
   refine PMF.toOuterMeasure_mono _ fun x hx => ?_
   exact OracleComp.run_interpret_invariant (withBadFlag (symStep α))
@@ -951,7 +943,7 @@ private theorem detGame_apply_le [NeZero q] (hq : q.Prime) {T : ℕ}
         refine add_le_add (PMF.bind_apply_le_on_support _ fun y _ => ?_)
           (PMF.bind_apply_le_on_support _ fun y hy => ?_)
         · rw [PMF.uniformOfFintype_bind_decide_eq_apply_true, ZMod.card]
-        · rw [bind_pure_decide_apply_true _ (fun α : ZMod q => Collides α y.2),
+        · rw [PMF.bind_pure_decide_apply_true _ (fun α : ZMod q => Collides α y.2),
             PMF.toOuterMeasure_uniformOfFintype, ZMod.card]
           gcongr
           exact_mod_cast (card_filter_collides_le hq y.2).trans (Nat.choose_le_choose 2 (hlen y hy))

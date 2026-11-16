@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Reuse a successful exact-revision merge-group build on its push to main.
+"""Reuse a successful merge-group build: on its push to main, or in a later merge group.
+
+`restore` gives a push to main the build of its exact revision. `restore --ancestor` gives a
+merge-group build the build of its nearest first-parent ancestor that has one, so that the
+queue starts from the newest validated build instead of the caches that completed `main`
+builds publish, which lag it. Lake then recompiles whatever the newer commits changed.
 
 This optional cache never replaces validation. Only the latest current attempt of the
 authoritative Lean workflow may supply an artifact; misses leave the normal build to run.
@@ -19,9 +24,13 @@ import re
 import shutil
 import stat
 import subprocess
+import sys
 import tarfile
 import tempfile
 from urllib.parse import urlencode
+
+sys.path.insert(0, str(Path(__file__).resolve().parent / "cache"))
+from bounded import UnsafeShutdown, interruptible, run as bounded_run  # noqa: E402
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -38,6 +47,16 @@ MAX_ARCHIVE_BYTES = 4 * 1024 ** 3
 MAX_METADATA_BYTES = 64 * 1024
 # Download budget for an archive of up to MAX_ARCHIVE_BYTES, inside the step's 10 minutes.
 DOWNLOAD_SECONDS = 420
+# First-parent ancestors that `restore --ancestor` considers, nearest first. Every commit that
+# lands through the queue has a handoff for two days, so the nearest one is normally one or two
+# commits back: the tip of `main` when the group was formed, behind any queue entries ahead of it
+# that are still building. Twenty is an operational choice, not a guarantee: it is meant to cover
+# a long stacked queue and a run of failed packs, and it bounds a complete miss at one run listing
+# per ancestor. Each listing is a `gh api` call with a 60-second limit, usually about a second, and
+# the step's ten minutes bound the whole search whatever the API's latency.
+ANCESTOR_LIMIT = 20
+# Budget for deepening the depth-1 checkout far enough to see ANCESTOR_LIMIT ancestors.
+DEEPEN_SECONDS = 60
 
 
 class Rejected(RuntimeError):
@@ -115,6 +134,58 @@ def source_context(root: Path, env: dict, event: str) -> dict:
     return {"version": 1, "repository": repository, "source_sha": sha,
             "cache_recovery_generation": generation,
             "inputs": {name: digest(root / name) for name in INPUTS}, "platform": platform}
+
+
+def first_parents(root: Path) -> list[str]:
+    """The checked-out commit and at most ANCESTOR_LIMIT first-parent ancestors, nearest first."""
+    return subprocess.check_output(
+        ["git", "rev-list", "--first-parent", "-n", str(ANCESTOR_LIMIT + 1), "HEAD"],
+        cwd=root, text=True).split()
+
+
+def deepen_history(root: Path, sha: str) -> None:
+    """Fetch the history that ANCESTOR_LIMIT first-parent ancestors need, when it is missing.
+
+    CI checks out one commit. As in scripts/cache/restore.py, a failed or timed-out fetch only
+    leaves fewer ancestors to consider. The fetch runs only while the checkout holds too few
+    commits, so it cannot shorten history that is already there.
+
+    Git's transport helpers are separate processes that a timeout on `git` alone would leave
+    running, so the fetch runs under the cache scripts' supervisor (scripts/cache/bounded.py): on
+    a timeout, or when the step is cancelled, its whole process group is stopped before this
+    returns. `UnsafeShutdown` means that could not be confirmed; it is not a miss, and the caller
+    must not go on to download or install.
+    """
+    shallow = subprocess.check_output(["git", "rev-parse", "--is-shallow-repository"],
+                                      cwd=root, text=True).strip()
+    if shallow != "true" or len(first_parents(root)) > ANCESTOR_LIMIT:
+        return
+    with interruptible():
+        result = bounded_run(["git", "fetch", "--quiet", "--no-tags",
+                              f"--depth={ANCESTOR_LIMIT + 1}", "origin", sha],
+                             timeout=DEEPEN_SECONDS, cwd=root, capture_output=True)
+    if result.returncode:
+        outcome = ("timed out" if result.returncode == 124
+                   else f"failed (exit {result.returncode}): {(result.stderr or '').strip()}")
+        print(f"Build handoff could not deepen the checkout; using available history: {outcome}")
+
+
+def ancestor_contexts(root: Path, env: dict) -> list[dict]:
+    """Contexts for the handoffs a merge-group build may reuse, nearest ancestor first.
+
+    Each context is the current merge group's own (the same switches, repository, runner
+    platform, recovery generation and, read from this checkout, input digests) with
+    `source_sha` naming a first-parent ancestor of the checked-out commit. Every check that
+    takes a context therefore accepts only that ancestor's merge-group run and an artifact
+    recorded for that ancestor whose toolchain, manifest and lakefile equal the current ones.
+    """
+    current = source_context(root, env, "merge_group")
+    chain = first_parents(root)
+    require(bool(chain) and chain[0] == current["source_sha"]
+            and all(re.fullmatch(r"[0-9a-f]{40}", sha) for sha in chain)
+            and len(set(chain)) == len(chain) <= ANCESTOR_LIMIT + 1,
+            "Malformed first-parent history")
+    return [{**current, "source_sha": sha} for sha in chain[1:]]
 
 
 def artifact_name(sha: str, run_id: int, attempt: int) -> str:
@@ -335,14 +406,17 @@ def download_handoff(repository: str, run_id: int, name: str, destination: Path)
     gh_download_artifact(repository, run_id, name, destination, timeout=DOWNLOAD_SECONDS)
 
 
-def restore(root: Path, env: dict, *, api=gh_get, downloader=download_handoff) -> None:
-    context = source_context(root, env, "push")
-    workflow = api(f"repos/{context['repository']}/actions/workflows/{WORKFLOW_FILE}")
+def authoritative_workflow(api, repository: str) -> int:
+    workflow = api(f"repos/{repository}/actions/workflows/{WORKFLOW_FILE}")
     require(isinstance(workflow, dict) and workflow.get("path") == WORKFLOW_PATH
             and workflow.get("state") == "active" and positive(workflow.get("id")),
             "Authoritative Lean workflow is unavailable")
-    run = latest_success(api, context, workflow["id"])
-    artifact = find_artifact(api, context, run)
+    return workflow["id"]
+
+
+def install_handoff(root: Path, context: dict, workflow_id: int, run: dict, artifact: dict,
+                    recheck, restored: str, *, api, downloader) -> None:
+    """Download, validate and install `artifact`; `recheck` recomputes `context` afterwards."""
     directory(root / ".lake")
     stage = Path(tempfile.mkdtemp(prefix="handoff-", dir=root / ".lake"))
     backup, installed = stage / "previous", False
@@ -351,16 +425,16 @@ def restore(root: Path, env: dict, *, api=gh_get, downloader=download_handoff) -
         download.mkdir()
         downloader(context["repository"], run["id"], artifact["name"], download)
         staged = unpack(download, stage / "unpacked", context, run)
-        current = latest_success(api, context, workflow["id"])
+        current = latest_success(api, context, workflow_id)
         require((current["id"], current["run_attempt"]) == (run["id"], run["run_attempt"]),
                 "Merge-group run changed during download")
         require(find_artifact(api, context, current)["id"] == artifact["id"],
                 "Artifact changed during download")
-        require(source_context(root, env, "push") == context, "Checkout changed during download")
+        require(recheck() == context, "Checkout changed during download")
         install_build(root, staged, backup)
         installed = True
-        print(f"Build handoff restored from run {run['id']} attempt {run['run_attempt']}; "
-              "normal build and checks still run")
+        print(f"Build handoff restored from {restored}run {run['id']} attempt "
+              f"{run['run_attempt']}; normal build and checks still run")
     finally:
         # A failed rollback must leave the original build available for recovery. With the
         # build directory absent, the normal Lake invocation safely recompiles from sources.
@@ -370,17 +444,73 @@ def restore(root: Path, env: dict, *, api=gh_get, downloader=download_handoff) -
             shutil.rmtree(stage)
 
 
+def restore(root: Path, env: dict, *, api=gh_get, downloader=download_handoff) -> None:
+    context = source_context(root, env, "push")
+    workflow_id = authoritative_workflow(api, context["repository"])
+    run = latest_success(api, context, workflow_id)
+    artifact = find_artifact(api, context, run)
+    install_handoff(root, context, workflow_id, run, artifact,
+                    lambda: source_context(root, env, "push"), "",
+                    api=api, downloader=downloader)
+
+
+def restore_ancestor(root: Path, env: dict, *, api=gh_get, downloader=download_handoff,
+                     deepen=deepen_history) -> None:
+    """Give a merge-group build the outputs of its nearest ancestor that has a handoff.
+
+    The nearest ancestor whose latest merge-group run succeeded and still holds its artifact is
+    chosen; ancestors without one are skipped. A failure after that choice (download, archive,
+    metadata, a rerun) is a miss, not a reason to try an older build: the step has one download
+    budget.
+    """
+    contexts = ancestor_contexts(root, env)
+    if len(contexts) < ANCESTOR_LIMIT:
+        deepen(root, env["GITHUB_SHA"])
+        contexts = ancestor_contexts(root, env)
+    require(bool(contexts), "No first-parent ancestor is available in the checkout")
+    workflow_id = authoritative_workflow(api, contexts[0]["repository"])
+    nearest = None
+    for back, context in enumerate(contexts, 1):
+        try:
+            run = latest_success(api, context, workflow_id)
+            artifact = find_artifact(api, context, run)
+        except Rejected as miss:
+            nearest = nearest or miss
+            continue
+
+        def recheck(ancestor=context["source_sha"]):
+            return next((item for item in ancestor_contexts(root, env)
+                         if item["source_sha"] == ancestor), None)
+        install_handoff(root, context, workflow_id, run, artifact, recheck,
+                        f"ancestor {context['source_sha']} ({back} first-parent commits back), ",
+                        api=api, downloader=downloader)
+        return
+    raise Rejected(f"None of the {len(contexts)} nearest first-parent ancestors has a usable "
+                   f"merge-group build (nearest: {nearest})")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
     commands.add_parser("pack").add_argument("--output", type=Path, required=True)
-    commands.add_parser("restore")
+    commands.add_parser("restore").add_argument(
+        "--ancestor", action="store_true",
+        help="in a merge group, restore the nearest first-parent ancestor's build")
     args = parser.parse_args()
     try:
         if args.command == "pack":
             pack(ROOT, args.output, os.environ)
+        elif args.ancestor:
+            restore_ancestor(ROOT, os.environ)
         else:
             restore(ROOT, os.environ)
+    except UnsafeShutdown as error:
+        # As in scripts/cache/restore.py: a fetch whose processes could not be stopped is an
+        # error, not a miss. Nothing has been downloaded or installed. Exit status 125 is the
+        # only one the workflow treats as fatal: its next step fails the job on it, before any
+        # other Git, cache or build step runs.
+        print(f"error: {error}", file=sys.stderr)
+        return 125
     except (Rejected, OSError, ValueError, TypeError, KeyError, subprocess.SubprocessError,
             tarfile.TarError, EOFError) as error:
         message = f"Build handoff unavailable: {error}; continuing without this optional cache"

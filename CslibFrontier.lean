@@ -2919,6 +2919,7 @@ public import CslibFrontier.Computability.Interactive.Security
 public import CslibFrontier.Computability.Interactive.Security.Oracle
 public import CslibFrontier.Computability.Interactive.Security.Repeat
 public import CslibFrontier.Computability.Interactive.Sequential
+public import CslibFrontier.Computability.Interactive.StatementMap
 public import CslibFrontier.Computability.Interactive.StrategyEffect
 public import CslibFrontier.Computability.Interactive.Sumcheck
 public import CslibFrontier.Computability.Interactive.ThreeMove
@@ -4875,11 +4876,14 @@ public import CslibFrontier.Crypto.Primitives.Garbling.Foundations
 public import CslibFrontier.Crypto.Primitives.Garbling.FreeXOR
 public import CslibFrontier.Crypto.Primitives.Garbling.Games
 public import CslibFrontier.Crypto.Primitives.Garbling.HalfGates
+public import CslibFrontier.Crypto.Primitives.Garbling.HalfGates.Conventional
 public import CslibFrontier.Crypto.Primitives.Garbling.HalfGates.Privacy
+public import CslibFrontier.Crypto.Primitives.Garbling.HalfGates.Scheme
 public import CslibFrontier.Crypto.Primitives.Garbling.MixedModulus
 public import CslibFrontier.Crypto.Primitives.Garbling.OneHot
 public import CslibFrontier.Crypto.Primitives.Garbling.PointPermute
 public import CslibFrontier.Crypto.Primitives.Garbling.PointPermute.Efficient
+public import CslibFrontier.Crypto.Primitives.Garbling.PointPermute.LabelWord
 public import CslibFrontier.Crypto.Primitives.Garbling.PointPermute.Privacy
 public import CslibFrontier.Crypto.Primitives.Garbling.PointPermute.Reduction
 public import CslibFrontier.Crypto.Primitives.Garbling.PointPermute.Simulator
@@ -4916,6 +4920,7 @@ public import CslibFrontier.Crypto.Primitives.IdealCipher.CompressionVariants
 public import CslibFrontier.Crypto.Primitives.PRF.Finite
 public import CslibFrontier.Crypto.Primitives.PRF.Invertible
 public import CslibFrontier.Crypto.Primitives.PRF.MultiKey
+public import CslibFrontier.Crypto.Primitives.PRF.RandPrefixFreeEncoding
 public import CslibFrontier.Crypto.Primitives.PRF.RandomOracleModel
 public import CslibFrontier.Crypto.Primitives.PRG.Circuit
 public import CslibFrontier.Crypto.Primitives.PRG.Game
@@ -5057,11 +5062,15 @@ public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Basic
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Composition
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Computational
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Efficient
+public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Efficient.Verifier
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.FiatShamir
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.FiatShamirNIZK
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.ForkingReduction
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Identification
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Interactive
+public import CslibFrontier.Crypto.Protocols.SigmaProtocol.LanguageReduction
+public import CslibFrontier.Crypto.Protocols.SigmaProtocol.LanguageReduction.Efficient
+public import CslibFrontier.Crypto.Protocols.SigmaProtocol.LanguageReduction.Sound
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Linear
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Lyubashevsky
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Lyubashevsky.Commitment
@@ -6055,6 +6064,7 @@ public import CslibFrontier.Foundations.Data.List.EraseDupsBy
 public import CslibFrontier.Foundations.Data.List.Filter
 public import CslibFrontier.Foundations.Data.List.FilterMap
 public import CslibFrontier.Foundations.Data.List.FlatMapRange
+public import CslibFrontier.Foundations.Data.List.Flatten
 public import CslibFrontier.Foundations.Data.List.Fold
 public import CslibFrontier.Foundations.Data.List.FoldlIdx
 public import CslibFrontier.Foundations.Data.List.FoldrForall
@@ -6068,6 +6078,7 @@ public import CslibFrontier.Foundations.Data.List.Lex
 public import CslibFrontier.Foundations.Data.List.ListsUpTo
 public import CslibFrontier.Foundations.Data.List.Lookup
 public import CslibFrontier.Foundations.Data.List.MaskSelect
+public import CslibFrontier.Foundations.Data.List.ModifyLast
 public import CslibFrontier.Foundations.Data.List.OfFn
 public import CslibFrontier.Foundations.Data.List.OfFnGetD
 public import CslibFrontier.Foundations.Data.List.OfFnPad
