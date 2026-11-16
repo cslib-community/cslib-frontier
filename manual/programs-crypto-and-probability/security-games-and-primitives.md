@@ -30,6 +30,8 @@ For statistical indistinguishability of ensembles ([bs23][bs23], Definition 3.6 
 
 Pinned cslib also has the finite [Generator](https://github.com/leanprover/cslib/blob/254e30e6d4299c51323aaeaf5f51a4763b375d4a/Cslib/Crypto/Primitives/PRG/Defs.lean#L38) interface, whose `Secure` accepts any chosen predicate on randomized tests, while expansion is a separate cardinality property. cslib-frontier adds circuit-bounded tests and uniform machine tests on top. These are intentionally different quantifiers; the circuit version can select a new bounded circuit at each input length [cslib][cslib].
 
+For pseudorandom numbers modulo `m` from pseudorandom words ([bs23][bs23], Example 3.3, pp. 86–87), import [`PseudorandomGenerator/ModReduction.lean`](../../CslibFrontier/Crypto/Computational/PseudorandomGenerator/ModReduction.lean). `modWord m word` reads `word` most significant bit first and writes `binaryValue word % m` with `encNat`, least significant bit first; the ideal uniform residue is `(PMF.uniformOfFintype (Fin m)).map fun i => encNat i.val`. For a modulus with every `m n` nonzero, `ComputationallyIndistinguishable.map_modWord` derives computational indistinguishability of the reduced residues from indistinguishability from uniform `length n`-bit words, an efficiently computable modulus `hm : ComputableInPolyTime m encUnary encNat`, and negligibility of `m n / 2 ^ length n`; `PseudorandomGenerator.indistinguishable_map_modWord` specializes it to a `PseudorandomGenerator`. The reduction is `modDistinguisher m A`, which `isPPT_modDistinguisher` certifies PPT when `A` is PPT and `hm` holds; for any word function, `advantage_generatorEnsemble_map_modWord_le` bounds the advantage of `A` between the reduced outputs and uniform residues by the advantage of `modDistinguisher m A` in the generator's game plus `m n / 2 ^ length n`. The conclusion can fail when `m n / 2 ^ length n` is not negligible: it does for two fair bits modulo `3` (checked, with constant-modulus instances, an unconditional instance on `n` fair bits modulo `3`, and the other hypothesis probes, in [`PseudorandomResidues.lean`](../../CslibFrontierTests/Crypto/PseudorandomResidues.lean)); `hm` is the efficiency condition on the parameter for `isPPT_modDistinguisher`, with no failing case without it known. On finite types, [`PRG/ModReduction.lean`](../../CslibFrontier/Crypto/Primitives/PRG/ModReduction.lean) gives `PRG.Generator.modNat`, `PRG.Generator.advantage_modNat_le` (the same inequality with error `m / N` for nonzero `N` and `m`), and `PRG.Generator.Secure.modNat`; this layer has no cost model, so the efficiency of its reduction is the adversary-closure hypothesis `hred`. Nothing about rejection sampling or any exact value of the statistical distance is claimed.
+
 ### Security theorems and efficiency witnesses
 
 A security theorem says that every admitted adversary has negligible advantage, given a named hardness assumption. [AGENTS.md](../../AGENTS.md#security-theorems) fixes what such a theorem may assume: named hardness assumptions, stated relative to the setup sampler or component they concern; that the adversary is in the admitted class; and properties of components that the cited result itself takes as given. It may assume nothing about an object that its proof constructs, from the adversary or not (a reduction, distinguisher, simulator, extractor or hybrid), and it may not take from the caller an object whose existence or efficiency is what it should prove.
@@ -2844,6 +2846,21 @@ probability at most `(1 / 2) ^ n`. Composed with `OneWay.exists_eufCMA` and
 one-bit-per-block instance `merkleDamgard`, not the length-strengthened one),
 `CompressionFamily.exists_oneWay` and `CompressionFamily.exists_wordEUFCMA` give the same
 conclusions for `2 n → n` compression families. No converse is claimed.
+
+For the encoding behind Winternitz one-time signatures ([bs23][bs23], §14.3, pp. 591–593), import
+[`OneTimeSignature/DominationFree.lean`](../../CslibFrontier/Crypto/Computational/OneTimeSignature/DominationFree.lean).
+`DominationFree P` is Definition 14.4: no two distinct messages have `P m ≤ P m'` coordinatewise.
+`winternitzDigits d n0 n1 m` is the function `P` of §14.3.1: the `n0` base-`(d + 1)` digits of
+`m`, least significant first, then the `n1` digits of the checksum
+`∑ i : Fin n0, (d - (radixDigits d n0 m i).val)`. `winternitzDigits_dominationFree` is
+Lemma 14.5 for any injective `f : M → ℕ` with values below `(d + 1) ^ n0` and any `n1` with
+`d * n0 < (d + 1) ^ n1`; the book's `2 ^ v` messages with `2 ^ v ≤ (d + 1) ^ n0` and its
+`n1 = Nat.clog (d + 1) (d * n0) + 1` are an instance, and the table on p. 592 uses the least
+such `n1`. `winternitzDigitList` is the same encoding as a list (`winternitzDigitList_eq_ofFn`),
+with `winternitzDigitList_polyTime` for `d`, `m` in binary and `n0`, `n1` in unary. Not included:
+the signature scheme, the estimate (14.3), the `d = 1` comparison with `P_opt`, and the link
+to `SLHDSA.WOTS.digits`. Checks are in
+[`CslibFrontierTests/Crypto/DominationFree.lean`](../../CslibFrontierTests/Crypto/DominationFree.lean).
 
 Second-preimage resistance ([bs23][bs23], §8.11.1, Definition 8.6, p. 336, and Exercise 8.23(a)–(b),
 pp. 352–353) is split between the experiment with its finite bounds in
