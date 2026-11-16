@@ -19,8 +19,10 @@ public import CslibFrontier.Probability.PMF.Map
   `Cslib.Probability.PMF.mul_bind_apply_le_of_mul_le`: density bounds multiply under sequential
   sampling, including when the second distribution depends on the first result.
 * `Cslib.Probability.PMF.bind_apply_le_mul_bind_apply_add`,
-  `Cslib.Probability.PMF.bind_apply_le_mul_bind_apply`: an affine bound at one outcome of every
-  continuation survives the initial draw, and so does its multiplicative case `ε = 0`.
+  `Cslib.Probability.PMF.bind_apply_le_mul_bind_apply`,
+  `Cslib.Probability.PMF.bind_apply_le_mul_bind_apply_on_support`: an affine bound at one outcome
+  of every continuation survives the initial draw, and so does its multiplicative case `ε = 0`
+  (even when assumed only on `p.support`).
 -/
 
 public section
@@ -69,6 +71,18 @@ continuations are compared only at `b`. -/
 theorem bind_apply_le_mul_bind_apply (p : PMF α) {f g : α → PMF β} {c : ℝ≥0∞} {b : β}
     (h : ∀ a, f a b ≤ c * g a b) : p.bind f b ≤ c * p.bind g b := by
   simpa using bind_apply_le_mul_bind_apply_add p (ε := 0) (fun a => by simpa using h a)
+
+/-- A variant of `bind_apply_le_mul_bind_apply` requiring the pointwise continuation bound only
+on `p.support`. -/
+theorem bind_apply_le_mul_bind_apply_on_support (p : PMF α) {f g : α → PMF β} {c : ℝ≥0∞} {b : β}
+    (h : ∀ a ∈ p.support, f a b ≤ c * g a b) : p.bind f b ≤ c * p.bind g b := by
+  simp only [PMF.bind_apply, ← ENNReal.tsum_mul_left]
+  refine tsum_le_tsum fun a => ?_
+  by_cases ha : a ∈ p.support
+  · rw [← mul_left_comm]
+    exact mul_le_mul' le_rfl (h a ha)
+  · rw [PMF.mem_support_iff, not_not] at ha
+    simp [ha]
 
 /-- Lower density factors for the initial draw and every continuation multiply. -/
 theorem mul_bind_apply_le_of_mul_le {p q : PMF α} {f g : α → PMF β} {c d : ℝ≥0∞}

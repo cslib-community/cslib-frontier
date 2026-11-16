@@ -232,6 +232,7 @@ private theorem lifted_final_support {r L : ℕ} {w₀ : List Bool}
     (⟨hbase, Nat.zero_le L⟩ : liftedInvariant invariant L 0 ([], w₀))
     (fun n p hn hp p' hp' => by
       obtain ⟨_, oracle', st, st', hp'⟩ := ProbOracleComp.mem_support_iff_exists.mp hp'
+      rw [← ProbOracleComp.runWith_eq_run_interpret] at hp'
       exact (lifted_preserve invariant hpreserve hlength n hn p hp _ oracle' st st' p' hp').1)
     mid (ProbOracleComp.mem_support_of_mem oracle hmid)
   exact ⟨rfl, hlength r le_rfl mid.2 hmidInv.1⟩

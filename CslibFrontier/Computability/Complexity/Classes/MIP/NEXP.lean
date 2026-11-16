@@ -871,7 +871,9 @@ theorem MIP_subset_NEXP : MIP enc ⊆ NEXP enc := by
     constructor
     · intro ha
       obtain ⟨P, hP⟩ := hproto.complete a ha
-      have haccP := acceptProb_eq_sum M (hreal a) (Prover.independent P)
+      have haccP := acceptProb_eq_sum M (by
+        simpa only [ProbOracleComp.runWith_eq_run_interpret] using hreal a)
+        (Prover.independent P)
       have hopt := MIP.exists_deterministic_prover_family
         (fun r : Fin t → Bool => coinProgram M t x (List.ofFn r))
         (fun r => by
@@ -932,7 +934,8 @@ theorem MIP_subset_NEXP : MIP enc ⊆ NEXP enc := by
       obtain ⟨D, hsum_le, hlt⟩ := MIP.exists_detProver_of_checkCert M hcheck
       by_contra ha
       have hsound := hproto.sound a ha (fun i => (D i).toProver)
-      have haccD := acceptProb_eq_sum M (hreal a)
+      have haccD := acceptProb_eq_sum M (by
+        simpa only [ProbOracleComp.runWith_eq_run_interpret] using hreal a)
         (Prover.independent fun i => (D i).toProver)
       have hineq : (cert.length : ℝ≥0∞) / (2 ^ t : ℕ) ≤ (1 / 3 : ℝ≥0∞) := by
         calc (cert.length : ℝ≥0∞) / (2 ^ t : ℕ)

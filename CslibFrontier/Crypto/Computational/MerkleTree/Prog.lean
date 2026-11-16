@@ -301,13 +301,16 @@ theorem mem_support_run_memoize_invariant {Query : Type} [BEq Query] [LawfulBEq 
     supp_cases hmem [OracleComp.run_interpret_pure] with ⟨rfl, rfl⟩
     exact ⟨fun _ h => h, hnodup, hsupp, fun _ _ => rfl⟩
   | query_bind q cont ih =>
-    supp_cases hmem [OracleComp.run_interpret_bind, OracleComp.run_interpret_query]
+    rw [← OracleComp.runWith_eq_run_interpret] at hmem
+    supp_cases hmem [OracleComp.runWith_freeMBind, OracleComp.runWith_query]
       with ⟨⟨ans, tr₁⟩, hans, hcont⟩
     obtain ⟨hq_mem, hsub₁, hnodup₁, hsupp₁⟩ :=
       mem_support_memoize_nodup dist q hnodup hsupp hans
+    rw [OracleComp.runWith_eq_run_interpret] at hcont
     obtain ⟨hsub₂, hnodup', hsupp', heval⟩ := ih ans hnodup₁ hsupp₁ hcont
     refine ⟨fun e he => hsub₂ e (hsub₁ e he), hnodup', hsupp', fun h hcons => ?_⟩
     have hq_eq : h q = ans := hcons (q, ans) (hsub₂ (q, ans) hq_mem)
+    rw [PFunctor.FreeM.bind_eq_bind]
     simp only [OracleComp.evalPure_bind, OracleComp.evalPure_query, hq_eq]
     exact heval h hcons
 

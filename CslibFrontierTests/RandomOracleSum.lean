@@ -44,8 +44,6 @@ example :
         interpret (fun q => PMF.pure (table q)) mixed) := by
   rw [RandomOracle.map_fst_run_interpret_memoizeSum_nil, RandomOracle.interpret_eq_lazy]
   congr 3
-  funext q
-  cases q <;> rfl
 
 -- A challenge list filled from a constant oracle records only that value, while the hash list,
 -- filled by a uniform oracle on the same run, is constrained by nothing.

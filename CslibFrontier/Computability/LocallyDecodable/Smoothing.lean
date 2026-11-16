@@ -282,6 +282,7 @@ theorem decodeLaw_eq_of_isQueryBounded_zero {program : ProbOracleComp (fun _ : P
   induction program using OracleComp.induction with
   | pure a => rw [decodeLaw_pure, decodeLaw_pure]
   | query_bind q' cont ih =>
+    rw [PFunctor.FreeM.bind_eq_bind]
     obtain ⟨hle, hcont⟩ := IsCostBounded.liftBind_iff.mp hq
     cases q' with
     | inl n =>
@@ -301,6 +302,7 @@ theorem hasObliviousReads_of_isQueryBounded_one {program : ProbOracleComp (fun _
   induction program using OracleComp.induction generalizing n with
   | pure a => rw [expectedReads_pure, expectedReads_pure]
   | query_bind q' cont ih =>
+    rw [PFunctor.FreeM.bind_eq_bind]
     obtain ⟨hle, hcont⟩ := IsCostBounded.liftBind_iff.mp hqn
     rw [expectedReads_query_bind, expectedReads_query_bind]
     cases q' with

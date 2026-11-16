@@ -60,7 +60,7 @@ private theorem doubledTransducer_run (l : List Bool) :
 theorem doubled_inSpace :
     ComputableTidilyInSpace doubled encBits encBits fun l => (encBits l).length :=
   ComputableTidilyInSpace.of_inO (.of_linear
-    (doubledTransducer.computableTidilyInLinearTimeAndSpace fun l =>
+    (ComputableInDegree.of_transducer doubledTransducer fun l =>
       (doubledTransducer_run l).symm))
 
 end Turing.MultiTapeTM

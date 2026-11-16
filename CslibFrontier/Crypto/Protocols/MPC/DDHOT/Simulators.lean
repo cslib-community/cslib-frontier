@@ -233,13 +233,10 @@ theorem isPPT_ddhOTSenderSimSampleExp : F.ddhOTSenderSimSampleExp.IsPPT F.ddhOTE
     fun {γ encγ x _ _ _ _ _ _} hx ha hr₀ hs₀ hr₁ hs₁ hb => ?_).congr fun x => ?_)
   · have hd : ComputableInPolyTime (fun c => (x c).desc) encγ F.encDesc :=
       encSimInput_desc_polyTime F.ddhOTEncoding hx
-    have hinputs : ComputableInPolyTime (fun c => fun i : ({0} : Finset (Fin 2)) =>
-        F.ddhOTEncoding.input.rep (x c).secParam (x c).desc i ((x c).inputs i)) encγ
-        (encDPi fun i : ({0} : Finset (Fin 2)) => F.ddhOTEncoding.input.enc i) :=
-      (encSimInput_inputs_polyTime F.ddhOTEncoding hx).of_enc_eq fun _ => rfl
     have hm : ComputableInPolyTime (fun c => (F.encode (x c).desc ((x c).inputs sender).1,
         F.encode (x c).desc ((x c).inputs sender).2)) encγ (encPair encBits encBits) :=
-      (ComputableInPolyTime.dpi_apply _ sender).comp hinputs
+      F.ddhOTEncoding.input.encCoalition_apply_polyTime
+        (encSimInput_inputs_polyTime F.ddhOTEncoding hx) sender
     have hq := F.computableInPolyTime_order.comp hd
     have hg := computableInPolyTime_encode_generator hd
     exact (ComputableInPolyTime.pi fun _ => (encDDHOTSenderViewWords_mk_polyTime hm.fst' hm.snd'
@@ -298,19 +295,13 @@ theorem isPPT_ddhOTReceiverSimSampleExp : F.ddhOTReceiverSimSampleExp.IsPPT F.dd
     fun {γ encγ x _ _ _ _ _ _} hx ha hb hr hs hk hc => ?_).congr fun x => ?_)
   · have hd : ComputableInPolyTime (fun c => (x c).desc) encγ F.encDesc :=
       encSimInput_desc_polyTime F.ddhOTEncoding hx
-    have hinputs : ComputableInPolyTime (fun c => fun i : ({1} : Finset (Fin 2)) =>
-        F.ddhOTEncoding.input.rep (x c).secParam (x c).desc i ((x c).inputs i)) encγ
-        (encDPi fun i : ({1} : Finset (Fin 2)) => F.ddhOTEncoding.input.enc i) :=
-      (encSimInput_inputs_polyTime F.ddhOTEncoding hx).of_enc_eq fun _ => rfl
-    have houtputs : ComputableInPolyTime (fun c => fun i : ({1} : Finset (Fin 2)) =>
-        F.ddhOTEncoding.output.rep (x c).secParam (x c).desc i ((x c).outputs i)) encγ
-        (encDPi fun i : ({1} : Finset (Fin 2)) => F.ddhOTEncoding.output.enc i) :=
-      (encSimInput_outputs_polyTime F.ddhOTEncoding hx).of_enc_eq fun _ => rfl
     have hσ : ComputableInPolyTime (fun c => ((x c).inputs receiver : Bool)) encγ encBool :=
-      (ComputableInPolyTime.dpi_apply _ receiver).comp hinputs
+      F.ddhOTEncoding.input.encCoalition_apply_polyTime
+        (encSimInput_inputs_polyTime F.ddhOTEncoding hx) receiver
     have hm : ComputableInPolyTime (fun c => F.encode (x c).desc ((x c).outputs receiver)) encγ
         encBits :=
-      (ComputableInPolyTime.dpi_apply _ receiver).comp houtputs
+      F.ddhOTEncoding.output.encCoalition_apply_polyTime
+        (encSimInput_outputs_polyTime F.ddhOTEncoding hx) receiver
     have hg := computableInPolyTime_encode_generator hd
     have hu := computableInPolyTime_encode_natCast_smul hd ha hg
     have he := computableInPolyTime_encode_add hd

@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+import Cslib.Computability.Machines.Turing.MultiTape.Combinators.AlmostConstant
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpaceLib
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Option

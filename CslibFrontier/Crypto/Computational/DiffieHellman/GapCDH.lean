@@ -256,7 +256,8 @@ private theorem runDDH_query (y : ZMod (F.order d)) (q : F.Carrier d × F.Carrie
 
 private theorem runDDH_sample (y : ZMod (F.order d)) (program : ProbComp α) :
     F.runDDH d y (ProbOracleComp.sample program) = ProbComp.eval program :=
-  ProbOracleComp.interpret_sample _ _ program
+  (ProbOracleComp.interpret_sample _ _ program).trans
+    (OracleComp.evalWith_eq_interpret _ program).symm
 
 /-- A stateful handler over the DDH interface, with every call executed against `O_y`. -/
 private def lowerHandler {σ ι : Type} {spec : OracleSpec ι} (y : ZMod (F.order d))
@@ -273,7 +274,8 @@ private theorem runDDH_run_interpret {σ ι : Type} {spec : OracleSpec ι} (y : 
   induction program using OracleComp.induction generalizing s with
   | pure a => rfl
   | query_bind q cont ih =>
-    rw [OracleComp.run_interpret_bind, OracleComp.run_interpret_bind, runDDH_bind,
+    rw [PFunctor.FreeM.bind_eq_bind, OracleComp.run_interpret_bind,
+      OracleComp.run_interpret_bind, runDDH_bind,
       OracleComp.run_interpret_query, OracleComp.run_interpret_query]
     simp only [ih]
     rfl
