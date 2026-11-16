@@ -13,6 +13,7 @@ public import CslibFrontier.Crypto.Computational.TwoStage
 public import CslibFrontier.Crypto.Game.CloseTo
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Efficient
 public import CslibFrontier.Languages.Probabilistic.Lift
+import CslibFrontier.Crypto.Negligible.Basic
 
 /-!
 # Computational special honest-verifier zero knowledge
@@ -88,6 +89,8 @@ Schnorr's simulator achieves in `PrimeOrderGroupFamily.computationalSpecialHVZK_
   `Cslib.Crypto.Protocols.SigmaProtocol.EfficientSpecialHVZK.exists_computationalSpecialHVZK`:
   statistical special HVZK with negligible realization error along `setup` implies computational
   special HVZK.
+* `Cslib.Crypto.Protocols.SigmaProtocol.exists_negligible_inv_two_pow_map`: uniform `1 / 2 ^ n`
+  error along any `(setup n).map (n, ·)` distribution is negligibly bounded.
 
 ## References
 
@@ -347,5 +350,16 @@ theorem EfficientSpecialHVZK.exists_computationalSpecialHVZK
   exact ⟨sim, hreal.computationalSpecialHVZK h.specialHVZK hppt hnegl⟩
 
 end StatisticalBridge
+
+/-- `1 / 2 ^ n` is bounded along any distribution paired with the security parameter by a
+negligible geometric sequence. -/
+theorem exists_negligible_inv_two_pow_map {D : Type} (setup : ℕ → PMF D) :
+    ∃ ε : ℕ → ℝ≥0, Negligible ε ∧
+      ∀ n, ∀ i ∈ ((setup n).map (n, ·)).support, (1 / 2 ^ i.1 : ℝ≥0∞) ≤ ε n := by
+  refine ⟨fun n => (1 / 2 : ℝ≥0) ^ n, negligible_geometric (by norm_num), fun n i hi => ?_⟩
+  obtain ⟨d, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hi
+  dsimp only
+  rw [one_div_pow, ENNReal.coe_div (pow_ne_zero _ two_ne_zero), ENNReal.coe_one, ENNReal.coe_pow,
+    ENNReal.coe_ofNat]
 
 end Cslib.Crypto.Protocols.SigmaProtocol

@@ -182,7 +182,7 @@ theorem advantage_cca2Game_flipAdversary (gen : ℕ → ProbComp KeyDesc) (n : �
       1 := by
   unfold flipAdversary
   exact advantage_cca2GameOn_maulAdversary (fun _ _ => rfl) fun bit _ hkeys _ hct =>
-    flip_conditions_keyGen gen n bit hkeys hct
+    (flip_conditions_keyGen gen n bit hkeys hct).imp_left (ne_of_apply_ne _)
 
 /-- `flipAdversary` has 1CCA advantage exactly `1` against Blum-modulus Goldwasser–Micali whenever
 `gen n` draws Blum moduli. -/
@@ -194,7 +194,7 @@ theorem advantage_cca2Game_blum_flipAdversary {gen : ℕ → ProbComp ModulusDes
       1 := by
   unfold flipAdversary
   exact advantage_cca2GameOn_maulAdversary (fun _ _ => rfl) fun bit _ hkeys _ hct =>
-    flip_conditions_blumKeyGen hblum bit hkeys hct
+    (flip_conditions_blumKeyGen hblum bit hkeys hct).imp_left (ne_of_apply_ne _)
 
 /-- `flipAdversary` refutes `Encryption.INDCCA2` for any key generator on whose honest key pairs
 the flip conditions hold. -/
@@ -209,7 +209,8 @@ private theorem not_indcca2_of_flip_conditions {keyGen : ℕ → ProbComp (List 
     (maul := fun _ pk ct => flipCiphertext pk ct)
     (target := fun _ _ => encOption encBool (some false))
     (.const false) (.const true) (computableInPolyTime_flipCiphertext.comp (by fun_prop))
-    (.const _) (fun _ _ _ => rfl) h
+    (.const _) (fun _ _ _ => rfl) fun n bit _ hkeys _ hct =>
+      (h n bit _ hkeys _ hct).imp_left (ne_of_apply_ne _)
 
 /-- **Goldwasser–Micali encryption is not 1CCA secure** ([BonehShoup2023], Section 12.2.1,
 pp. 469–470, applied to the XOR homomorphism of [KatzLindell2020], Exercise 15.11): for every

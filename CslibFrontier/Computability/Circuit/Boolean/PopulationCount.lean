@@ -50,26 +50,23 @@ open BitString
 
 namespace PopulationCount
 
-/-- Select a bit from the first half of the next tree level. -/
-@[expose] def leftWire (h : ℕ) (i : Fin (2 ^ h)) : Fin (2 ^ (h + 1)) :=
-  ⟨i.val, by have := i.isLt; rw [pow_succ, Nat.mul_two]; omega⟩
-
-/-- Select a bit from the second half of the next tree level. -/
-@[expose] def rightWire (h : ℕ) (i : Fin (2 ^ h)) : Fin (2 ^ (h + 1)) :=
-  ⟨2 ^ h + i.val, by have := i.isLt; rw [pow_succ, Nat.mul_two]; omega⟩
-
 /-- Add the counts of the two half blocks, retaining the final carry. A height-`h` tree has
 `2^h` inputs and `h+1` output bits. -/
 @[expose] def tree : (h : ℕ) → Circuit signature (2 ^ h) (h + 1)
   | 0 => Circuit.id signature 1
   | h + 1 =>
     (carryLookahead (h + 1)).comp
-      ((((tree h).comp (Circuit.wiring signature (leftWire h))).append
-          ((tree h).comp (Circuit.wiring signature (rightWire h)))).append
+      ((((tree h).comp (Circuit.wiring signature fun i : Fin (2 ^ h) =>
+          (Fin.castAdd (2 ^ h) i).cast (by rw [pow_succ, Nat.mul_two]))).append
+        ((tree h).comp (Circuit.wiring signature fun i : Fin (2 ^ h) =>
+          (Fin.natAdd (2 ^ h) i).cast (by rw [pow_succ, Nat.mul_two])))).append
         (Circuit.oneGate (.const false) Fin.elim0))
 
 private theorem weight_halves (h : ℕ) (x : BitString (2 ^ (h + 1))) :
-    weight (x ∘ leftWire h) + weight (x ∘ rightWire h) = weight x := by
+    weight (x ∘ fun i : Fin (2 ^ h) =>
+        (Fin.castAdd (2 ^ h) i).cast (by rw [pow_succ, Nat.mul_two])) +
+      weight (x ∘ fun i : Fin (2 ^ h) =>
+        (Fin.natAdd (2 ^ h) i).cast (by rw [pow_succ, Nat.mul_two])) = weight x := by
   have he : 2 ^ h + 2 ^ h = 2 ^ (h + 1) := by rw [pow_succ, Nat.mul_two]
   rw [weight_eq_sum_toNat, weight_eq_sum_toNat, weight_eq_sum_toNat]
   calc
@@ -92,8 +89,12 @@ theorem val_eval_tree (h : ℕ) (x : BitString (2 ^ h)) :
     change (BitString.equivFin (h + 1 + 1)
       ((carryLookahead (h + 1)).eval interpretation
         (Fin.append
-          (Fin.append ((tree h).eval interpretation (x ∘ leftWire h))
-            ((tree h).eval interpretation (x ∘ rightWire h))) (fun _ => false))) : ℕ) = _
+          (Fin.append
+            ((tree h).eval interpretation (x ∘ fun i : Fin (2 ^ h) =>
+              (Fin.castAdd (2 ^ h) i).cast (by rw [pow_succ, Nat.mul_two])))
+            ((tree h).eval interpretation (x ∘ fun i : Fin (2 ^ h) =>
+              (Fin.natAdd (2 ^ h) i).cast (by rw [pow_succ, Nat.mul_two]))))
+          (fun _ => false))) : ℕ) = _
     rw [val_eval_carryLookahead, ih, ih, Bool.toNat_false, Nat.add_zero, weight_halves]
 
 private theorem size_tree_succ (h : ℕ) :
