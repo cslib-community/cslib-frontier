@@ -498,6 +498,8 @@ theorem F_corrTrack_midRun_corrupt (κ : ℕ) (z : List Bool) :
 
 /-! ### Erasing vs non-erasing separation -/
 
+/-- `P_coin .erasing` and `F_coin.toAdaptive coinReveal` share the same machine, view map, and
+trivial `onCorrupt := fun _ _ s => s`, so they agree definitionally. -/
 private theorem P_coin_erasing_eq_F_coin :
     P_coin .erasing = F_coin.toAdaptive coinReveal := by
   dsimp only [P_coin, F_coin, IdealFunctionality.toAdaptive]
@@ -515,7 +517,9 @@ private theorem P_coin_erasing_eq_F_coin :
              split_ifs <;> rfl)
     · rfl
 
-/-- `P_coin .erasing` adaptively emulates `F_coin.toAdaptive coinReveal` with zero error. -/
+/-- `P_coin .erasing` adaptively emulates `F_coin.toAdaptive coinReveal` with zero error by
+reflexivity (`AdaptiveEmulatesWithin.refl` via `P_coin_erasing_eq_F_coin`), rather than a
+non-trivial simulation argument. -/
 theorem adaptiveEmulates_erasing_witness :
     AdaptiveEmulatesWithin .adaptive (P_coin .erasing) (F_coin.toAdaptive coinReveal)
       Polynomial.X (fun _ _ _ => 0) := by
@@ -1123,8 +1127,10 @@ private theorem eval_F_coin_Z_star_le_half
             ENNReal.tsum_mul_right
         _ = 1 / 2 := by rw [PMF.tsum_coe, one_mul]
 
-/-- `P_coin .nonErasing` cannot be adaptively emulated by `F_coin.toAdaptive coinReveal` with any
-concrete error below `1 / 2`. -/
+/-- Single-point separation at `κ = 0` (`pA = 1`, `pZ = 5`, `ε 1 5 0 < 1 / 2`, gap `1 / 2`,
+ideal success probability `≤ 1 / 2` vs. real `1`): `P_coin .nonErasing` cannot be adaptively
+emulated by `F_coin.toAdaptive coinReveal` under `AdaptiveEmulatesWithin .adaptive _ _ g ε`.
+This is a concrete fixed-parameter counterexample, not an asymptotic `¬ AdaptiveEmulates` proof. -/
 theorem not_adaptiveEmulatesWithin_nonErasing_witness
     {g : Polynomial ℕ} {ε : Polynomial ℕ → Polynomial ℕ → ℕ → ℝ≥0}
     (hε : ε 1 5 0 < 1 / 2) :
