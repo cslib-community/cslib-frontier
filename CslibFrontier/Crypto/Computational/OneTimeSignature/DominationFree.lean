@@ -361,9 +361,7 @@ theorem winternitzDigits_one_eq_one_iff_mem_optSet {v w : ℕ} (m : BitString v)
         (List.ofFn m).count false := by
     have hadd :
         (∑ i : Fin v, (m i).toNat) + ∑ i : Fin v, (1 - (m i).toNat) = v := by
-      rw [← Finset.sum_add_distrib]
-      have h1 (i : Fin v) : (m i).toNat + (1 - (m i).toNat) = 1 := by cases m i <;> rfl
-      simp only [h1, Finset.sum_const, Finset.card_fin, smul_eq_mul, mul_one]
+      simpa only [hm, Nat.one_mul] using sum_radixDigits_add_sum_sub 1 v (lsbValue (List.ofFn m))
     have hcount := List.count_true_add_count_false (List.ofFn m)
     rw [List.length_ofFn, count_true_ofFn, weight_eq_sum_toNat] at hcount
     simp only [hm]
