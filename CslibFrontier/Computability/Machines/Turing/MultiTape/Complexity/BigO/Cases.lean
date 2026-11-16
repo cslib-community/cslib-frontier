@@ -125,12 +125,12 @@ theorem sumElimSnd {f : π × α → ε} {g : π × β → ε} {Tf Sf : π × α
   obtain ⟨c₀, ⟨k₀, Q₀, _, tm₀, h₀⟩, -⟩ := Internal.NormalForm.inO htest
   obtain ⟨c₁, ⟨k₁, Q₁, _, tm₁, h₁⟩, l₁⟩ := Internal.NormalForm.inO (hf.comp hL)
   obtain ⟨c₂, ⟨k₂, Q₂, _, tm₂, h₂⟩, l₂⟩ := Internal.NormalForm.inO (hg.comp hR)
-  have hF₁ : ∀ q : {p : π × (α ⊕ β) // p.2.isLeft = true}, F q.1 = (f ∘ L) q := by
+  have hF₁ : ∀ q : {p : π × (α ⊕ β) // p.2.isLeft = true}, F q.1 = f (L q) := by
     rintro ⟨⟨x, s⟩, hs⟩
     cases s with
     | inl a => rfl
     | inr b => simp at hs
-  have hF₂ : ∀ q : {p : π × (α ⊕ β) // p.2.isLeft = false}, F q.1 = (g ∘ R) q := by
+  have hF₂ : ∀ q : {p : π × (α ⊕ β) // p.2.isLeft = false}, F q.1 = g (R q) := by
     rintro ⟨⟨x, s⟩, hs⟩
     cases s with
     | inl a => simp at hs
@@ -150,30 +150,20 @@ theorem sumElimSnd {f : π × α → ε} {g : π × β → ε} {Tf Sf : π × α
     (sg := fun p => c₂ * ((enc p).length + Sr p + 1))
     (fun q => by
       have hq := h₁ q
-      rw [Function.comp_apply, ← hF₁ q] at hq
+      dsimp only [Function.comp_apply] at hq
+      rw [← hF₁ q] at hq
       rcases q with ⟨⟨x, s⟩, hs⟩
-      exact hq.mono
-      (by
-        cases s with
-        | inl a => exact le_of_eq rfl
-        | inr b => simp at hs)
-      (by
-        cases s with
-        | inl a => exact le_of_eq rfl
-        | inr b => simp at hs))
+      cases s with
+      | inl a => exact hq.mono le_rfl le_rfl
+      | inr b => simp at hs)
     (fun q => by
       have hq := h₂ q
-      rw [Function.comp_apply, ← hF₂ q] at hq
+      dsimp only [Function.comp_apply] at hq
+      rw [← hF₂ q] at hq
       rcases q with ⟨⟨x, s⟩, hs⟩
-      exact hq.mono
-      (by
-        cases s with
-        | inl a => simp at hs
-        | inr b => exact le_of_eq rfl)
-      (by
-        cases s with
-        | inl a => simp at hs
-        | inr b => exact le_of_eq rfl))
+      cases s with
+      | inr b => exact hq.mono le_rfl le_rfl
+      | inl a => simp at hs)
   have hFeq : (fun x => if x.2.isLeft then F x else F x) = F := funext fun _ => by
     split_ifs <;> rfl
   rw [hFeq] at h
@@ -247,12 +237,12 @@ theorem optionElimSnd {f : π → ε} {g : π × α → ε} {Tf Sf : π → ℕ}
   obtain ⟨c₀, ⟨k₀, Q₀, _, tm₀, h₀⟩, -⟩ := Internal.NormalForm.inO htest
   obtain ⟨c₁, ⟨k₁, Q₁, _, tm₁, h₁⟩, l₁⟩ := Internal.NormalForm.inO (hg.comp hS)
   obtain ⟨c₂, ⟨k₂, Q₂, _, tm₂, h₂⟩, l₂⟩ := Internal.NormalForm.inO (hf.comp hN)
-  have hF₁ : ∀ q : {p : π × Option α // p.2.isSome = true}, F q.1 = (g ∘ S) q := by
+  have hF₁ : ∀ q : {p : π × Option α // p.2.isSome = true}, F q.1 = g (S q) := by
     rintro ⟨⟨x, o⟩, ho⟩
     cases o with
     | none => simp at ho
     | some a => rfl
-  have hF₂ : ∀ q : {p : π × Option α // p.2.isSome = false}, F q.1 = (f ∘ N) q := by
+  have hF₂ : ∀ q : {p : π × Option α // p.2.isSome = false}, F q.1 = f (N q) := by
     rintro ⟨⟨x, o⟩, ho⟩
     cases o with
     | none => rfl
@@ -272,30 +262,20 @@ theorem optionElimSnd {f : π → ε} {g : π × α → ε} {Tf Sf : π → ℕ}
     (sg := fun p => c₂ * ((enc p).length + Sn p + 1))
     (fun q => by
       have hq := h₁ q
-      rw [Function.comp_apply, ← hF₁ q] at hq
+      dsimp only [Function.comp_apply] at hq
+      rw [← hF₁ q] at hq
       rcases q with ⟨⟨x, o⟩, ho⟩
-      exact hq.mono
-      (by
-        cases o with
-        | none => simp at ho
-        | some a => exact le_of_eq rfl)
-      (by
-        cases o with
-        | none => simp at ho
-        | some a => exact le_of_eq rfl))
+      cases o with
+      | some a => exact hq.mono le_rfl le_rfl
+      | none => simp at ho)
     (fun q => by
       have hq := h₂ q
-      rw [Function.comp_apply, ← hF₂ q] at hq
+      dsimp only [Function.comp_apply] at hq
+      rw [← hF₂ q] at hq
       rcases q with ⟨⟨x, o⟩, ho⟩
-      exact hq.mono
-      (by
-        cases o with
-        | none => exact le_of_eq rfl
-        | some a => simp at ho)
-      (by
-        cases o with
-        | none => exact le_of_eq rfl
-        | some a => simp at ho))
+      cases o with
+      | none => exact hq.mono le_rfl le_rfl
+      | some a => simp at ho)
   have hFeq : (fun x => if x.2.isSome then F x else F x) = F := funext fun _ => by
     split_ifs <;> rfl
   rw [hFeq] at h
