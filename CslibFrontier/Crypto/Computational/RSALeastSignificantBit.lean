@@ -37,7 +37,7 @@ recovers `x` exactly whenever the predictor is always correct on the modulus (`e
 ## Main definitions
 
 * `Cslib.Crypto.RSAPredictor`, `Cslib.Crypto.RSAPredictor.IsPPT`, `Cslib.Crypto.rsaLSBGame`:
-  least-significant-bit predictors and the prediction experiment.
+  one-bit predictors and the least-significant-bit prediction experiment.
 * `Cslib.Crypto.lsbQueries`, `Cslib.Crypto.lsbRecover`: the doubling queries, and the final
   rounding of the most-significant-first value of the answered parities.
 * `Cslib.Crypto.lsbInverter`: the inverter that queries a predictor on the `N.size` doubling

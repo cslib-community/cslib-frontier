@@ -46,14 +46,21 @@ example : (List.range 2).map (fun k => decide (7 < 2 * (0 * 2 ^ k % 7))) =
 /-! ### Part (b) -/
 
 /-- The toy RSA parameters `N = 3 * 11`, `e = 3`, `d = 7`. -/
-@[expose] def desc33 : RSADesc :=
+def desc33 : RSADesc :=
   { p := 3, q := 11, e := 3, d := 7, hp := by norm_num, hq := by norm_num, hpq := by decide,
     he := by decide, hed := by decide }
 
--- The half oracle is asked at part (a)'s points: on `lsbInverter`'s six queries for `y = 26`,
--- `halfToLSBPredictor` asks at `query * 17 ^ 3 % 33` (`17 = (33 + 1) / 2`), the RSA images of
--- `5 * 2 ^ k`, `k = 0, …, 5`.
-example : (lsbQueries 33 3 26 6).map (fun query => query * 17 ^ 3 % 33) =
+-- The inverter asks the half oracle at part (a)'s points: on the key `(33, 3)` and `y = 26`, it
+-- calls `H` at `2 ^ (3 * k) * 26 % 33` for `k < Nat.size 33`, ...
+example (H : RSAPredictor) (n : ℕ) :
+    lsbInverter (halfToLSBPredictor H) n ⟨33, 3⟩ ⟨26, by decide⟩ = (do
+      let bits ← (List.range (Nat.size 33)).mapM fun k =>
+        H n ⟨33, 3⟩ ⟨2 ^ (k * 3) * 26 % 33, Nat.mod_lt _ (by decide)⟩
+      return ⟨lsbRecover 33 (Nat.size 33) bits % 33, Nat.mod_lt _ (by decide)⟩) :=
+  lsbInverter_halfToLSBPredictor (by decide) _
+
+-- ... which are the RSA images of `5 * 2 ^ k % 33`, `k = 0, …, 5`.
+example : (List.range (Nat.size 33)).map (fun k => 2 ^ (k * 3) * 26 % 33) =
     (List.range 6).map fun k => rsaEval 33 3 (5 * 2 ^ k % 33) := by decide
 
 /-- A half predictor that decrypts with `d = 7`, written with `testBit` (the parity identity) so

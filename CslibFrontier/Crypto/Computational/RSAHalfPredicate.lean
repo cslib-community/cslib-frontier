@@ -27,16 +27,18 @@ Here the predicate is written `decide (N < 2 * y)`, which is `y > N / 2` over th
 (`lsbRecover_map_decide_lt_two_mul`, part (a)). For part (b), `halfToLSBPredictor H` asks a half
 oracle `H` about `y * ((N + 1) / 2) ^ e % N`, the RSA image of half the preimage of `y`. For odd
 `N`, half of `w` exceeds `N / 2` exactly when `w` is odd, so `halfToLSBPredictor H` predicts the
-least significant bit and `lsbInverter` inverts RSA with it. On the doubling queries of
-`lsbInverter`, the oracle `H` is asked at the RSA images of `2 ^ k * w`: these are part (a)'s points
-`r = 2 ^ k`.
+least significant bit and `lsbInverter` inverts RSA with it. By
+`lsbInverter_halfToLSBPredictor`, the inverter on `y = w ^ e % N` calls `H` at
+`2 ^ (k * e) * y % N`, the RSA images of `2 ^ k * w % N`, for `k < N.size`, and returns
+`lsbRecover` of the answers: part (a) at the points `r = 2 ^ k`.
 
-Both parts need an odd modulus: for the modulus `6 = 2 * 3`, `P_0` and `P_3` agree at every point.
+Part (a) needs an odd modulus: for the modulus `6 = 2 * 3`, `P_0` and `P_3` agree at every point.
+The inverter of part (b) needs one because halving needs `2` to be invertible modulo `N`.
 The efficiency certificate is relative, as for `isPPT_lsbInverter`: the inverter is PPT whenever
 `H` is. Under `RSAOneWay` and eventually odd moduli no always-correct `H` is PPT
 (`RSAOneWay.not_frequently_alwaysCorrect_halfPredictor`), so the certificate does not count the
 work of an oracle that holds the secret key. The inverter is not stated as an oracle program with
-`N.size` queries.
+a query bound.
 
 ## Main definitions
 
@@ -47,6 +49,8 @@ work of an oracle that holds the secret key. The inverter is not stated as an or
 
 * `Cslib.Crypto.lsbRecover_map_decide_lt_two_mul`: part (a), for odd `N ≤ 2 ^ m`, the half
   predicate at `2 ^ 0, …, 2 ^ (m - 1)` determines `x < N` through `lsbRecover`.
+* `Cslib.Crypto.lsbInverter_halfToLSBPredictor`: for odd `N`, the inverter built from `H` calls `H`
+  at `2 ^ (k * e) * y % N`, `k < N.size`, in order, and returns `lsbRecover` of the answers.
 * `Cslib.Crypto.eval_halfToLSBPredictor`: a half predictor that is correct on every RSA image modulo
   an odd `N` gives a correct least-significant-bit predictor.
 * `Cslib.Crypto.succProbability_rsaInversionGame_halfToLSBPredictor`: part (b), the inverter
@@ -115,6 +119,33 @@ odd `N`. -/
 def halfToLSBPredictor (H : RSAPredictor) : RSAPredictor := fun n pk y =>
   H n pk ⟨y * ((pk.N + 1) / 2) ^ pk.e % pk.N, Nat.mod_lt _ y.pos⟩
 
+/-- **Where the inverter asks the half oracle.** For odd `N`, `lsbInverter (halfToLSBPredictor H)`
+on `y` calls `H` at the residues `2 ^ (k * e) * y % N` for `k = 0, …, N.size - 1`, in this order,
+and returns `lsbRecover N N.size` of the answers, reduced modulo `N`. When `y = w ^ e % N`, these
+residues are the RSA images of `2 ^ k * w % N`. -/
+theorem lsbInverter_halfToLSBPredictor {H : RSAPredictor} {n : ℕ} {pk : RSAPublicKey}
+    (hN : Odd pk.N) (y : Fin pk.N) :
+    lsbInverter (halfToLSBPredictor H) n pk y = (do
+      let bits ← (List.range pk.N.size).mapM fun k =>
+        H n pk ⟨2 ^ (k * pk.e) * y % pk.N, Nat.mod_lt _ y.pos⟩
+      return ⟨lsbRecover pk.N pk.N.size bits % pk.N, Nat.mod_lt _ y.pos⟩) := by
+  have hpoint : ∀ k : ℕ, 2 ^ ((k + 1) * pk.e) * y % pk.N % pk.N * ((pk.N + 1) / 2) ^ pk.e % pk.N =
+      2 ^ (k * pk.e) * y % pk.N := by
+    intro k
+    obtain ⟨t, ht⟩ := hN
+    have hhalf : (pk.N + 1) / 2 = t + 1 := by omega
+    have hinv : 2 * (t + 1) ≡ 1 [MOD pk.N] := by
+      rw [Nat.ModEq, show 2 * (t + 1) = 1 + pk.N * 1 by omega, Nat.add_mul_mod_self_left]
+    rw [hhalf, Nat.mod_mod, Nat.mod_mul_mod,
+      show 2 ^ ((k + 1) * pk.e) * y * (t + 1) ^ pk.e = 2 ^ (k * pk.e) * y * (2 * (t + 1)) ^ pk.e by
+        rw [mul_pow, add_mul, one_mul, pow_add]
+        ring]
+    have h := (hinv.pow pk.e).mul_left (2 ^ (k * pk.e) * y)
+    rw [one_pow, mul_one] at h
+    exact h
+  simp only [lsbInverter, lsbQueries, halfToLSBPredictor, List.mapM_map, Function.comp_def,
+    hpoint]
+
 /-- If `H` says correctly, on every RSA image modulo an odd `N`, whether the preimage exceeds
 `N / 2`, then `halfToLSBPredictor H` predicts the least significant bit of the preimage
 correctly. -/
@@ -135,7 +166,9 @@ theorem eval_halfToLSBPredictor {H : RSAPredictor} {n : ℕ} {pk : RSAPublicKey}
 /-- **Exercise 12.21(b)** ([BonehShoup2023], pp. 519–520): if the moduli of `gen n` are odd and
 `H` says correctly, on every RSA image, whether the `e`-th root exceeds `N / 2`, then the inverter
 `lsbInverter (halfToLSBPredictor H)` recovers the `e`-th root with probability `1`. It asks `H`
-about the RSA images of `2 ^ k * x` for `k < N.size`, part (a)'s points. -/
+about the RSA images of `2 ^ k * x % N` for `k < N.size`, part (a)'s points
+(`lsbInverter_halfToLSBPredictor`). The pointwise form, every challenge inverted, is
+`eval_lsbInverter` applied to `eval_halfToLSBPredictor`. -/
 theorem succProbability_rsaInversionGame_halfToLSBPredictor {gen : RSAGen} {H : RSAPredictor}
     {n : ℕ} (hodd : ∀ desc ∈ (gen n).support, Odd desc.modulus)
     (hH : ∀ desc ∈ (gen n).support, ∀ w : Fin desc.modulus,
