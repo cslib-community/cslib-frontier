@@ -6,8 +6,6 @@ Authors: Samuel Schlesinger
 
 module
 
-public import CslibFrontier.Crypto.Computational.DiffieHellman.Static
-public import CslibFrontier.Crypto.Computational.ElGamal
 public import CslibFrontier.Crypto.Computational.ElGamal.OneWay
 import CslibFrontier.Tactic.PPT
 
@@ -15,11 +13,11 @@ import CslibFrontier.Tactic.PPT
 # Tests for the one-wayness of multiplicative ElGamal
 
 Checks of `CslibFrontier/Crypto/Computational/ElGamal/OneWay.lean` as an ordinary `module` client:
-the book's literal draws `x ←R 𝔾` and `y ←R 𝔾` give the same equality when `g` generates the
-group; at a member of a group family the scheme's encryption and decryption are the library's
-`elGamalEncrypt` and `elGamalDecrypt`, and decryption is the decryption oracle of the static
-Diffie–Hellman module; and `CDH.elGamal_oneWay` applies to a named adversary with its efficiency
-proof.
+`γ • g` for uniform `γ` is uniform when `g` generates the group, which holds at every member of a
+group family and transfers the fixed-group equality to the book's literal draws `x ←R 𝔾` and
+`y ←R 𝔾`; one value of the advantage, at `g = 0`, in the one-way game and in the CDH game of `ℬ`;
+with a point setup law the family game is `PKE.owAdvantage` at that group; and
+`CDH.elGamal_oneWay` applies to a named adversary with its efficiency proof.
 -/
 
 public section
@@ -28,17 +26,33 @@ namespace CslibFrontierTests.Crypto.ElGamalOneWay
 
 open Cslib Cslib.Probability Cslib.Crypto Cslib.Crypto.Protocols Turing.MultiTapeTM
 
-/-- The book's literal form: when `γ ↦ γ • g` is a bijection, drawing the message and `ℬ`'s `y`
-uniformly from the group gives the same one-way and CDH laws. -/
-example {G : Type} [AddCommGroup G] [Fintype G] [Nonempty G] [DecidableEq G] (q : ℕ) [NeZero q]
+/-! ### The message law -/
+
+/-- When `γ ↦ γ • g` is a bijection, `γ • g` for uniform `γ` is uniform on the group. -/
+theorem eval_smul_uniform {G : Type} [AddCommGroup G] [Fintype G] (q : ℕ) [NeZero q]
+    [Module (ZMod q) G] (g : G) (hg : Function.Bijective fun c : ZMod q => c • g) :
+    ProbComp.eval ((fun γ : ZMod q => γ • g) <$> ($ᵗ ZMod q)) = PMF.uniformOfFintype G := by
+  rw [ProbComp.eval_map, ProbComp.eval_uniform, PMF.map,
+    ← PMF.bind_pure (PMF.uniformOfFintype G)]
+  exact uniformOfFintype_bind_smul hg PMF.pure
+
+/-- At a member of a group family the message of `elGamalOWGame` is uniform on the group, as the
+book's `x ←R 𝔾` is. -/
+example (F : PrimeOrderGroupFamily) (d : F.Desc) [Fintype (F.Carrier d)] :
+    ProbComp.eval ((fun γ : ZMod (F.order d) => γ • F.generator d) <$> ($ᵗ ZMod (F.order d))) =
+      PMF.uniformOfFintype (F.Carrier d) :=
+  eval_smul_uniform (F.order d) (F.generator d) (F.smul_generator_bijective d)
+
+/-- The book's literal draws: for a generator `g`, the fixed-group equality transfers through
+`eval_smul_uniform` to a message and a `y` drawn by `$ᵗ G`. The bijection is used only to identify
+the sampler `γ • g` with `$ᵗ G`. -/
+example {G : Type} [AddCommGroup G] [Fintype G] [DecidableEq G] (q : ℕ) [NeZero q]
     [Module (ZMod q) G] (g : G) (hg : Function.Bijective fun c : ZMod q => c • g)
     (A : G → G × G → ProbComp G) :
     ProbComp.eval (PKE.owExperiment (elGamalExplicitCoinPKE q g).toPKE ($ᵗ G) A) =
       ProbComp.eval (cdhExperiment q g (elGamalOWToCDH ($ᵗ G) A)) := by
   have hS : ProbComp.eval ((fun γ : ZMod q => γ • g) <$> ($ᵗ ZMod q)) = ProbComp.eval ($ᵗ G) := by
-    rw [ProbComp.eval_map, ProbComp.eval_uniform, ProbComp.eval_uniform, PMF.map,
-      ← PMF.bind_pure (PMF.uniformOfFintype G)]
-    exact uniformOfFintype_bind_smul hg PMF.pure
+    rw [eval_smul_uniform q g hg, ProbComp.eval_uniform]
   have h1 (S S' : ProbComp G) (h : ProbComp.eval S = ProbComp.eval S') :
       ProbComp.eval (PKE.owExperiment (elGamalExplicitCoinPKE q g).toPKE S A) =
         ProbComp.eval (PKE.owExperiment (elGamalExplicitCoinPKE q g).toPKE S' A) := by
@@ -48,25 +62,35 @@ example {G : Type} [AddCommGroup G] [Fintype G] [Nonempty G] [DecidableEq G] (q 
         ProbComp.eval (cdhExperiment q g (elGamalOWToCDH S' A)) := by
     simp only [cdhExperiment, elGamalOWToCDH, ProbComp.eval_bind, h]
   rw [← h1 _ _ hS, ← h2 _ _ hS]
-  exact owExperiment_elGamalExplicitCoinPKE_eq_cdhExperiment q g A
+  exact eval_owExperiment_elGamalExplicitCoinPKE q g A
 
-/-- At a member of a group family, encryption is the library's `elGamalEncrypt`. -/
-example (F : PrimeOrderGroupFamily) (d : F.Desc) (u x : F.Carrier d) (β : ZMod (F.order d)) :
-    (elGamalExplicitCoinPKE (F.order d) (F.generator d)).encDet u x β =
-      F.elGamalEncrypt d u x β := rfl
+/-! ### One value of the advantage -/
 
-/-- At a member of a group family, decryption is the library's `elGamalDecrypt`. -/
-example (F : PrimeOrderGroupFamily) (d : F.Desc) (α : ZMod (F.order d))
-    (ct : F.Carrier d × F.Carrier d) :
-    (elGamalExplicitCoinPKE (F.order d) (F.generator d)).dec α ct =
-      some (F.elGamalDecrypt d α ct) := rfl
+/-- At `g = 0` the message is always `0`, so the adversary that answers `0` has one-way
+advantage `1`. -/
+theorem owAdvantage_zero_generator {G : Type} [AddCommGroup G] [DecidableEq G] (q : ℕ) [NeZero q]
+    [Module (ZMod q) G] :
+    PKE.owAdvantage (elGamalExplicitCoinPKE q (0 : G)).toPKE
+      ((fun γ : ZMod q => γ • (0 : G)) <$> ($ᵗ ZMod q)) (fun _ _ => pure 0) = 1 := by
+  simp [PKE.owAdvantage, PKE.owExperiment, Experiment.succProbability, Game.succProbability]
 
-/-- Decryption is the decryption oracle of the static Diffie–Hellman module. -/
-example {G : Type} [AddCommGroup G] [DecidableEq G] (q : ℕ) [NeZero q] [Module (ZMod q) G] (g : G)
-    (α : ZMod q) (ct : G × G) :
-    pure ((elGamalExplicitCoinPKE q g).dec α ct) =
-      (some <$> elGamalDecryptOracle q α ct : ProbComp (Option G)) := by
-  simp [elGamalExplicitCoinPKE, elGamalDecryptOracle]
+/-- The advantage theorem carries that value to the CDH game: at `g = 0`, where CDH is false, the
+adversary `ℬ` built from the zero adversary has CDH advantage `1`. -/
+example {G : Type} [AddCommGroup G] [DecidableEq G] (q : ℕ) [NeZero q] [Module (ZMod q) G] :
+    cdhAdvantage q (0 : G)
+      (elGamalOWToCDH ((fun γ : ZMod q => γ • (0 : G)) <$> ($ᵗ ZMod q)) fun _ _ => pure 0) = 1 := by
+  rw [← owAdvantage_elGamalExplicitCoinPKE_eq_cdhAdvantage, owAdvantage_zero_generator]
+
+/-! ### The family game -/
+
+/-- With a point setup law, the game of `CDH.elGamal_oneWay` is Attack Game 12.6 on the scheme of
+that group: its success probability is `PKE.owAdvantage`. -/
+example (F : PrimeOrderGroupFamily) (d : F.Desc) (A : F.ElGamalOWAdversary) (n : ℕ) :
+    Game.succProbability (F.elGamalOWGame (fun _ => PMF.pure d) A n) =
+      PKE.owAdvantage (elGamalExplicitCoinPKE (F.order d) (F.generator d)).toPKE
+        ((fun γ : ZMod (F.order d) => γ • F.generator d) <$> ($ᵗ ZMod (F.order d))) (A n d) := by
+  rw [PrimeOrderGroupFamily.elGamalOWGame, Game.withSetup_pure]
+  rfl
 
 /-- The adversary that guesses the second ciphertext component as the message. -/
 def guessSecond (F : PrimeOrderGroupFamily) : F.ElGamalOWAdversary :=

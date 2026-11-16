@@ -2345,18 +2345,24 @@ One-way encryption is Attack Game 12.6 (Boneh–Shoup v0.6, §12.6, p. 495 [bs23
 `PKE.owExperiment E sampleMsg A` in
 [`Encryption/OneWay.lean`](../../CslibFrontier/Crypto/Computational/Encryption/OneWay.lean) draws
 keys, a message from `sampleMsg` and its encryption, and accepts when `A` returns the message;
-`PKE.owAdvantage` is its success probability. In
+`PKE.owAdvantage` is its success probability. `elGamalExplicitCoinPKE q g` in
+[`ElGamal/ExplicitCoin.lean`](../../CslibFrontier/Crypto/Computational/ElGamal/ExplicitCoin.lean)
+is the multiplicative ElGamal of §12.6.2 (pp. 499–500) in a fixed `ZMod q`-module `G` with `q ≠ 0`
+(`[NeZero q]`), correct by `elGamalExplicitCoinPKE_correct`; the module imports no group family. In
 [`ElGamal/OneWay.lean`](../../CslibFrontier/Crypto/Computational/ElGamal/OneWay.lean),
-`elGamalExplicitCoinPKE q g` is the multiplicative ElGamal of §12.6.2 (pp. 499–500) in a fixed
-`ZMod q`-module, and `elGamalOWToCDH` is the book's adversary `ℬ`. When the message and `ℬ`'s `y`
-are drawn as `γ • g` for uniform `γ`, the one-way advantage equals `ℬ`'s CDH advantage
-(`owAdvantage_elGamalExplicitCoinPKE_eq_cdhAdvantage`); finiteness of `G` and that `g` generates
-it are not needed. For a prime-order group family, `elGamalOWToCDHAdversary` draws `y` through
-`sampleExp` and has the certificate `isPPT_elGamalOWToCDHAdversary`. Its CDH game is within
-`1 / 2 ^ n` of `elGamalOWGame` (`advantage_elGamalOWGame_cdhGame_le`), and
+`elGamalOWToCDH` is the book's adversary `ℬ`. When the message and `ℬ`'s `y` are drawn as `γ • g`
+for uniform `γ`, the one-way advantage equals `ℬ`'s CDH advantage for every `g`, given decidable
+equality on `G` (`owAdvantage_elGamalExplicitCoinPKE_eq_cdhAdvantage`); finiteness of `G` and that
+`g` generates it are not needed. For a prime-order group family, `elGamalOWGame` is that
+experiment in the group drawn by `setup`; there `γ • g` is uniform on the group
+(`smul_generator_bijective`), as the book's message is. `elGamalOWToCDHAdversary A` draws `y`
+through `sampleExp` and is efficient whenever `A` is (`isPPT_elGamalOWToCDHAdversary`). Its CDH
+game is within `1 / 2 ^ n` of `elGamalOWGame` (`advantage_elGamalOWGame_cdhGame_le`), and
 `CDH.elGamal_oneWay` shows that every efficient typed adversary has negligible advantage under CDH.
 Adversaries read and write group elements; a word-level one-wayness predicate (Definition 12.5)
 waits for a decoder of group elements. Examples are in
+[`CslibFrontierTests/Crypto/ElGamalExplicitCoin.lean`](../../CslibFrontierTests/Crypto/ElGamalExplicitCoin.lean)
+and
 [`CslibFrontierTests/Crypto/ElGamalOneWay.lean`](../../CslibFrontierTests/Crypto/ElGamalOneWay.lean).
 
 The canonical [`KEMINDCPA keyLen keyGen encaps`](../../CslibFrontier/Crypto/Computational/Encryption/Hybrid.lean) compares the real encapsulated key with an independent uniform `keyLen n`-bit word. Use `fun n => n` for normalized keys, or another schedule such as `fun n => 2 * n`. The composition methods `KEMINDCPA.hybrid_indcpa` and `KEMINDCPA.hybrid_indcpaOn` consume `DEMOneTimeKeyINDCPAOf` and `DEMOneTimeKeyINDCPAOn` at the same schedule; the latter requires a polynomial-time admissibility predicate independent of the public key. The exact bound is twice the hidden-bit KEM distinguisher's advantage plus the DEM adversary's advantage (Boneh–Shoup v0.6, Exercise 11.9(b), pp. 460–461 [bs23][bs23]). The native ideal-game certificate `isPPTOn_kemIdealGame` additionally takes `ComputableInPolyTime keyLen encUnary encUnary`. The reductions do not sample ideal keys, so the security implication itself does not need that certificate.
