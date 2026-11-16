@@ -242,13 +242,27 @@ example (H : Bool × Fin 4 → Bool) :
   rw [succProbability_inversionExperiment_revealAtZero (T := Bool) (s := 2) H]
   norm_num
 
-/-- The identity on bit strings is unconditionally `SecondPreimageResistant`. -/
+/-- The identity on bit strings is unconditionally `SecondPreimageResistantOn` for any validity
+predicate and `SecondPreimageResistant`. -/
+theorem secondPreimageResistantOn_id (valid : ℕ → List Bool → Bool) :
+    SecondPreimageResistantOn id valid :=
+  SecondPreimageResistantOn.of_injective (ComputableInPolyTime.id' (encIn := encBits))
+    fun _ _ _ _ _ h => h
+
 theorem secondPreimageResistant_id : SecondPreimageResistant id :=
-  SecondPreimageResistant.of_injective (ComputableInPolyTime.id' (encIn := encBits))
-    Function.injective_id
+  secondPreimageResistantOn_id _
+
+/-- Nonvacuity test for the `SecondPreimageResistantOn` row of `assumptions.md`. -/
+theorem not_secondPreimageResistantOn_length_const_empty :
+    ¬ SecondPreimageResistantOn (fun _ => []) (fun n w => decide (w.length = n)) :=
+  not_secondPreimageResistantOn_const [] <|
+    Filter.eventually_ge_atTop 1 |>.mono fun n hn x hlen => by
+      cases x with
+      | nil => simp at hlen; omega
+      | cons b xs => simpa using hlen
 
 /-- Nonvacuity test for the `SecondPreimageResistant` row of `assumptions.md`. -/
 theorem not_secondPreimageResistant_const_empty : ¬ SecondPreimageResistant (fun _ => []) :=
-  not_secondPreimageResistant_const []
+  not_secondPreimageResistantOn_const [] (Filter.Eventually.of_forall fun _ _ _ => rfl)
 
 end CslibFrontierTests.Crypto.SecondPreimageResistant
