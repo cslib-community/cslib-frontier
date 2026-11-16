@@ -252,9 +252,9 @@ class ViaTests(unittest.TestCase):
         baseline = {**BASELINE, VIA_REDUCTION: SCOPED_ENTRY}
         problems = c.compare(self.reductions, baseline, None, checks)
         self.assertEqual([(name, reason) for name, _, reason in problems.invalid], [
-            (VIA_REDUCTION, f"`{WRAPPER}` is an uncertified definition that uses "
-                            f"`{VIA_REDUCTION}` but has no baseline entry; record it (a `gap` or "
-                            "`exempt` entry), or make this entry a `gap`")])
+            (VIA_REDUCTION, f"`{WRAPPER}` is a definition that uses `{VIA_REDUCTION}` without an "
+                            "efficiency witness of its own but has no baseline entry; record it (a "
+                            "`gap` or `exempt` entry), or make this entry a `gap`")])
         # Recorded, as a `gap` or an `exempt` entry, it passes completely: the entry is not stale
         # although no theorem states a bound with the wrapper.
         for kind in ("gap", "exempt"):
@@ -284,8 +284,22 @@ class ViaTests(unittest.TestCase):
         stale = c.compare(self.reductions, {**baseline, WRAPPER: entry(WORD_PATH)}, None,
                           checks).stale
         self.assertEqual([(name, reason) for name, _, reason in stale], [
-            (WRAPPER, "certified, as a definition that uses an instance-scoped reduction; it needs "
-                      "no entry")])
+            (WRAPPER, "has an efficiency witness of its own, as a definition that uses an "
+                      "instance-scoped reduction; it needs no entry")])
+
+    def test_a_reduction_certified_only_through_another_definition_keeps_its_entry(self) -> None:
+        # Mentioned in a certified program's body but without a witness of its own, it is still
+        # tracked, so its entry stands; with a witness of its own, the entry is stale.
+        wrapped = c.Reduction(WRAPPER, WORD_PATH, 50, ("Cslib.Crypto.GarblingWord.bound",),
+                              (WORD_PATH,), "wrapper", ("Cslib.Crypto.GarblingWord.program",))
+        reductions = {**self.reductions, WRAPPER: wrapped}
+        baseline = {**BASELINE, VIA_REDUCTION: SCOPED_ENTRY, WRAPPER: entry(WORD_PATH)}
+        tracked = c.parse_checks(check_row(definitions=[(WRAPPER, WORD_MODULE)]))
+        self.assertFalse(c.compare(reductions, baseline, None, tracked))
+        self.assertEqual(c.update(reductions, baseline, None, c.tracked_definitions(tracked))
+                         [WRAPPER], entry(WORD_PATH))
+        stale = c.compare(reductions, baseline, None, {}).stale
+        self.assertEqual([name for name, _, _ in stale], [WRAPPER])
 
     def test_update_records_the_tracked_definitions(self) -> None:
         checks = c.parse_checks(check_row(definitions=[(WRAPPER, WORD_MODULE)]))
@@ -792,6 +806,12 @@ def otherWrapper (A : Adversary) : Adversary := otherStep A
 def certifiedOther (A : Adversary) : Adversary := certified (otherStep A)
 theorem isPPT_certifiedOther (h : IsPPT A) : IsPPT (certifiedOther A) :=
   isPPT_certified (A := otherStep A) h
+/-- A generic wrapper of `otherStep`, which a certified definition runs but which has no witness of
+its own. -/
+def genericOther (A : Adversary) : Adversary := otherStep A
+def certifiedGeneric (A : Adversary) : Adversary := certified (genericOther A)
+theorem isPPT_certifiedGeneric (h : IsPPT A) : IsPPT (certifiedGeneric A) :=
+  isPPT_certified (A := genericOther A) h
 /-- A class that packages the assumption. -/
 class WrappedClass (G : Group) : Prop where
   hard : Hard G
@@ -856,7 +876,7 @@ NOT_CONCRETE = {"otherHeadline": "headline", "wrappedOther": "headline",
                 "otherWrapper": "reduction", "certifiedOther": "reduction",
                 "isPPT_certifiedOther": "concrete", "classOther": "concrete",
                 "plainInstance": "concrete", "aliasOther": "concrete",
-                "WrappedType": "reduction"}
+                "WrappedType": "reduction", "genericOther": "reduction"}
 
 
 def via_request(changes: dict[str, str], consumers: dict[str, str] | None = None,
@@ -1086,9 +1106,11 @@ class CompiledFixtureTests(unittest.TestCase):
             self.assertTrue(any(problem in p for p in verdict.problems), problem)
 
     def test_definitions_that_use_the_step_are_reported_with_their_certification(self) -> None:
-        # An uncertified wrapper needs a baseline entry; a certified one has its witness.
+        # A wrapper without a witness of its own needs a baseline entry, even when a certified
+        # definition runs it (`genericOther`); one with a witness of its own needs none.
         verdict = self.verdicts["not concrete"]
         self.assertEqual(verdict.definitions, ((PREFIX + "WrappedType", CONSUMERS_PATH),
+                                               (PREFIX + "genericOther", CONSUMERS_PATH),
                                                (PREFIX + "otherWrapper", CONSUMERS_PATH)))
         self.assertEqual(verdict.certified_definitions, (PREFIX + "certifiedOther",))
         self.assertEqual(self.verdicts["scoped"].definitions,

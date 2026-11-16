@@ -194,20 +194,21 @@ or through other modules, can mention `R`, and only they are read. The checks ar
   collect its premises. Another theorem that rests on an assumption would be a second headline,
   which `E` was not checked against.
 
-The verdict adds `"refs"`, the referrers outside `R`'s module; `"defs"`, the uncertified
-definitions among all referrers with their modules; and `"cdefs"`, the certified ones, as
-`certificate?` decides for reductions. `vm` includes the referrers' modules.
-`scripts/check_reduction_witnesses.py` requires each definition in `defs` to have a baseline entry
-of its own, a `gap` or `exempt` entry, which it keeps even when no theorem states a bound with the
-definition; a certified definition has its own witness and needs none. So the baseline accounts for
-every definition that uses `R`. That does not establish that every headline downstream of such a
-definition has its own certificate or via entry: a referrer is found by name, and a public
-declaration stops the search, so a theorem that reaches `R` only through another public
-declaration (a theorem that consumes `H`, or one about a definition that wraps `R`) is not a
-referrer. Concreteness is recognized as above, so a premise that assumes a bound without
-`Negligible` or a named assumption, such as `Adv ≤ ε`, or reaches one only after more than five
-unfoldings, is not seen. Whether a `headline` consumer uses `R` at the instance that `E` covers is
-for the reviewer.
+The verdict adds `"refs"`, the referrers outside `R`'s module; `"defs"`, the definitions among all
+referrers that have no efficiency witness of their own, with their modules; and `"cdefs"`, the ones
+that have. Unlike a reduction, such a definition is not certified by being mentioned in a certified
+definition's body (`certificate?`'s `wrapper` kind): a generic wrapper of `R` run inside one
+certified program at one instance would otherwise need no entry. `vm` includes the referrers'
+modules. `scripts/check_reduction_witnesses.py` requires each definition in `defs` to have a
+baseline entry of its own, a `gap` or `exempt` entry, which it keeps even when no theorem states a
+bound with the definition; a definition with a witness of its own needs none. So the baseline
+accounts for every definition that uses `R`. That does not establish that every headline downstream
+of such a definition has its own certificate or via entry: a referrer is found by name, and a public
+declaration stops the search, so a theorem that reaches `R` only through another public declaration
+(a theorem that consumes `H`, or one about a definition that wraps `R`) is not a referrer.
+Concreteness is recognized as above, so a premise that assumes a bound without `Negligible` or a
+named assumption, such as `Adv ≤ ε`, or reaches one only after more than five unfoldings, is not
+seen. Whether a `headline` consumer uses `R` at the instance that `E` covers is for the reviewer.
 
 **Named assumptions.** With `--assumptions` (`lake env lean --run scripts/SecurityPremises.lean
 <lib-dir> --assumptions`), for `scripts/check_hardness_assumptions.py`, it reports the named
@@ -907,10 +908,9 @@ def pushOnce (m : Std.HashMap Name (Array Name)) (key x : Name) : Std.HashMap Na
 /-- How the reduction `c` is certified, with the certifying declarations, or `none`: `direct` by
 theorems that conclude an efficiency certificate mentioning it, `abbrev` when it is reducible and
 the programs of the scanned modules in its body (`parts`) are all certified, or `wrapper` by
-certified definitions whose bodies mention it (`wrappers`). -/
-partial def certificate? (env : Env) (witnesses : Std.HashMap Name (Array Name))
-    (wrappers : Name → Option (Array Name)) (parts : Name → Array Name) (fuel : Nat) (c : Name) :
-    Option (String × Array Name) :=
+certified definitions whose bodies mention it. -/
+partial def certificate? (env : Env) (witnesses wrappers : Std.HashMap Name (Array Name))
+    (parts : Name → Array Name) (fuel : Nat) (c : Name) : Option (String × Array Name) :=
   match witnesses[c]? with
   | some ws => some ("direct", ws)
   | none =>
@@ -918,7 +918,7 @@ partial def certificate? (env : Env) (witnesses : Std.HashMap Name (Array Name))
     if fuel > 0 && env.reducible.contains c && !ps.isEmpty &&
         ps.all (certificate? env witnesses wrappers parts (fuel - 1) · |>.isSome) then
       some ("abbrev", ps)
-    else (wrappers c).map (("wrapper", ·))
+    else (wrappers[c]?).map (("wrapper", ·))
 
 /-- The constants of a theorem's proof, with those of the auxiliary declarations that Lean
 generates under its name (`h.proof_1`, `h.match_1`, …), followed at most `fuel` deep. -/
@@ -1057,16 +1057,19 @@ def consumerTags : List String := ["headline", "concrete", "reduction"]
 module, headline]` for a `via_certified_program` baseline entry (see the module docstring),
 followed, for an entry scoped to one instance, by `instance` and its pinned consumers as
 `tag:name`. `privateNames` holds the names of the private declarations without their prefix, used
-only to explain a failure; `mods` are the scanned modules; `certified` says how a definition is
-certified, as for reductions (`certificate?`). Returns `{"v": reduction, "p":
+only to explain a failure; `mods` are the scanned modules; `witnessed` says whether a definition
+has an efficiency witness of its own. Being mentioned in a certified definition's body, which
+certifies a reduction as a `wrapper` (`certificate?`), does not count here: a generic wrapper of `R`
+run inside one certified program at one instance would otherwise need no entry, and a headline
+through it at another instance would go unseen. Returns `{"v": reduction, "p":
 [problems], "at": "statement" | "proof" | "", "vm": [modules of the declarations found], "em":
 module of the equality or "", "missing": [names not found], "refs": [referrers of the reduction
-outside its module], "defs": [{"n": uncertified definition among the referrers, "m": its module}],
-"cdefs": [certified definitions among the referrers]}`, the last three for an instance-scoped
-request, where `at` says whether the headline's statement or only its proof mentions the program or
-the certificate. -/
+outside its module], "defs": [{"n": definition among the referrers without a witness of its own,
+"m": its module}], "cdefs": [definitions among the referrers with one]}`, the last three for an
+instance-scoped request, where `at` says whether the headline's statement or only its proof mentions
+the program or the certificate. -/
 def checkVia (env : Env) (privateNames : NameSet) (mods : Array (Name × ModuleData))
-    (certified : Name → Option (String × Array Name)) (fields : Array String) : Json := Id.run do
+    (witnessed : Name → Bool) (fields : Array String) : Json := Id.run do
   let result (problems : Array String) (at_ em : String) (modules absent : Array String)
       (refs : Array String := #[]) (defs : Array Json := #[]) (cdefs : Array String := #[]) :
       Json :=
@@ -1211,7 +1214,7 @@ def checkVia (env : Env) (privateNames : NameSet) (mods : Array (Name × ModuleD
           " in its module"} and is not concrete ({"; ".intercalate reasons.toList}): a second \
           headline, which the equality was not checked against; make the entry a `gap`"
     | some (.defnInfo _) | some (.opaqueInfo _) =>
-      if (certified c).isSome then cdefs := cdefs.push c.toString
+      if witnessed c then cdefs := cdefs.push c.toString
       else defs := defs.push <| Json.mkObj [("n", toJson c.toString),
         ("m", toJson ((env.moduleOf[c]?).getD .anonymous).toString)]
     | _ =>
@@ -1304,7 +1307,7 @@ unsafe def runReductions (libDir : System.FilePath) : IO Unit := do
   let names (ns : Array Name) : Json :=
     toJson ((ns.map (privateToUserName · |>.toString)).qsort (· < ·))
   for (r, theorems) in stated.toArray.qsort (fun a b => a.1.lt b.1) do
-    let (kind, by_) := (certificate? env witnesses (wrappers[·]?) parts 4 r).getD ("", #[])
+    let (kind, by_) := (certificate? env witnesses wrappers parts 4 r).getD ("", #[])
     let modules := theorems.filterMap fun t => (env.moduleOf.get? t).map (·.toString)
     stdout.putStrLn <| Json.compress <| Json.mkObj [
       ("n", toJson (privateToUserName r).toString),
@@ -1312,28 +1315,16 @@ unsafe def runReductions (libDir : System.FilePath) : IO Unit := do
       ("l", toJson ((env.lines.get? r).getD 0)), ("t", names theorems),
       ("tm", toJson (modules.toList.eraseDups.toArray.qsort (· < ·))),
       ("k", toJson kind), ("w", names by_)]
-  -- How a definition among the referrers of an instance-scoped request is certified. `wrappers`
-  -- covers the reductions only, so for another definition the certified definitions' bodies are
-  -- searched.
-  let certifiedDefs : Array (Name × Expr) := witnesses.toArray.filterMap fun (u, _) =>
-    match env.consts[u]? with
-    | some (.defnInfo v) => if (env.moduleOf[u]?).any (inScope · u) then some (u, v.value) else none
-    | _ => none
-  let wrappersOf (c : Name) : Option (Array Name) :=
-    match wrappers[c]? with
-    | some ws => some ws
-    | none =>
-      let ws := certifiedDefs.filterMap fun (u, v) =>
-        if u != c && v.getUsedConstants.contains c then some u else none
-      if ws.isEmpty then none else some ws
-  let certifiedDef := certificate? env witnesses wrappersOf parts 4
+  -- A definition among the referrers of an instance-scoped request counts as certified only by a
+  -- witness of its own (see `checkVia`).
+  let witnessed (c : Name) : Bool := witnesses.contains c
   -- The names of private declarations without their prefix, to explain a failure.
   let mut privateNames : NameSet := {}
   unless requests.isEmpty do
     for (c, _) in env.consts do
       if isPrivateName c then privateNames := privateNames.insert (privateToUserName c)
   for fields in requests do
-    stdout.putStrLn <| Json.compress <| checkVia env privateNames mods certifiedDef fields
+    stdout.putStrLn <| Json.compress <| checkVia env privateNames mods witnessed fields
   stdout.putStrLn <| Json.compress <| Json.mkObj [("theorems", toJson scanned),
     ("modules", toJson mods.size), ("missing", toJson missing)]
   if regions.isEmpty then stdout.flush

@@ -69,30 +69,31 @@ the reduction outside its module to its tag. The baseline is keyed on the reduct
 pinned list a later theorem that applied an assumption through the reduction at another instance
 would pass unseen. A referrer is a public declaration that names the reduction in its statement or
 proof, directly, through the declarations Lean generates under a name, or through private
-declarations; only the reduction's module and the modules that import it, directly or through
-other modules, are read. The tags are `headline`, a theorem on the headline's proof path (the
-headline itself, or a constant of the library that its statement and proof use, transitively);
-`concrete`, a theorem elsewhere, an exact bound that applies no assumption; and `reduction`, a
-definition that uses the reduction. The Lean pass fails when the pinned consumers differ from the
-referrers, so a new one must be classified, or the entry made a `gap`; when a tag does not hold;
-and when a referring theorem other than the headline, in the reduction's module or outside it, is
-not *concrete*: a premise (instance arguments included) is headed by a named assumption, or a
-premise or the conclusion makes a negligibility claim, directly or through Prop-valued definitions
-unfolded at most five times, an alias for the whole statement included. This checker fails when an
-uncertified definition among the referrers, tagged or in the reduction's module, has no baseline
-entry of its own: a `gap` or `exempt` entry, which it keeps even when no theorem states a bound
-with the definition (`tracked_definitions`). A certified definition has its own witness and needs
-no entry, and an entry for it is stale. So the baseline accounts for every definition that uses the
-reduction; that does not establish that every headline downstream of such a definition has its own
-certificate or via entry. The referrers' modules join the modules where the entry is enforced.
-The pass finds a referrer by name, and a public declaration stops the search, so it does not see a
-theorem that reaches the reduction only through another public declaration (a theorem that
-consumes the headline, or one about a definition that wraps the reduction), nor a premise that
-assumes a bound without `Negligible` or a named assumption, and it does not judge whether a
-`headline` consumer uses the reduction at the instance that the equality covers; review does.
-`--update-baseline` also adds `gap` entries for the unrecorded uncertified definitions and keeps
-the recorded ones. The summary prints the gap, via, instance-scoped via and exempt counts
-separately.
+declarations; only the reduction's module and the modules that import it, directly or through other
+modules, are read. The tags are `headline`, a theorem on the headline's proof path (the headline
+itself, or a constant of the library that its statement and proof use, transitively); `concrete`, a
+theorem elsewhere, an exact bound that applies no assumption; and `reduction`, a definition that
+uses the reduction. The Lean pass fails when the pinned consumers differ from the referrers, so a
+new one must be classified, or the entry made a `gap`; when a tag does not hold; and when a
+referring theorem other than the headline, in the reduction's module or outside it, is not
+*concrete*: a premise (instance arguments included) is headed by a named assumption, or a premise or
+the conclusion makes a negligibility claim, directly or through Prop-valued definitions unfolded at
+most five times, an alias for the whole statement included. This checker fails when a definition
+among the referrers, tagged or in the reduction's module, has no efficiency witness of its own and
+no baseline entry: a `gap` or `exempt` entry, which it keeps even when no theorem states a bound
+with the definition, or when the definition is a reduction certified only through another definition
+(`tracked_definitions`). Being mentioned in a certified definition's body, which certifies a
+reduction, does not count as a witness here. A definition with a witness of its own needs no entry,
+and an entry for it is stale. So the baseline accounts for every definition that uses the reduction;
+that does not establish that every headline downstream of such a definition has its own certificate
+or via entry. The referrers' modules join the modules where the entry is enforced. The pass finds a
+referrer by name, and a public declaration stops the search, so it does not see a theorem that
+reaches the reduction only through another public declaration (a theorem that consumes the headline,
+or one about a definition that wraps the reduction), nor a premise that assumes a bound without
+`Negligible` or a named assumption, and it does not judge whether a `headline` consumer uses the
+reduction at the instance that the equality covers; review does. `--update-baseline` also adds `gap`
+entries for the unrecorded uncertified definitions and keeps the recorded ones. The summary prints
+the gap, via, instance-scoped via and exempt counts separately.
 
 In a module that the change touches (adds, modifies or deletes, against the merge base of
 `--base`, default `origin/main`, and the working tree, as `scripts/check_changed_files.py`
@@ -319,9 +320,10 @@ def baseline_text(entries: dict[str, dict]) -> str:
 
 
 def tracked_definitions(checks: dict[str, ViaCheck]) -> dict[str, str]:
-    """The uncertified definitions that use a reduction of an instance-scoped entry, with their
-    paths. Each needs a baseline entry of its own, which stands even when no theorem states an
-    advantage bound with the definition."""
+    """The definitions without a witness of their own that use a reduction of an instance-scoped
+    entry, with their paths. Each needs a baseline entry of its own, which stands even when no
+    theorem states an advantage bound with the definition, or when the definition is a reduction
+    certified only through another definition."""
     return {name: path for check in checks.values() for name, path in check.definitions}
 
 
@@ -366,13 +368,16 @@ def compare(reductions: dict[str, Reduction], baseline: dict[str, dict],
             continue
         if r is None:
             if name in certified_definitions:
-                stale.append((name, entry, "certified, as a definition that uses an "
-                                           "instance-scoped reduction; it needs no entry"))
+                stale.append((name, entry, "has an efficiency witness of its own, as a definition "
+                                           "that uses an instance-scoped reduction; it needs no "
+                                           "entry"))
             elif name not in tracked:
                 stale.append((name, entry, "no theorem states an advantage bound with it"))
             elif tracked[name] != entry["module"]:
                 stale.append((name, entry, f"now defined in {tracked[name]}"))
-        elif r.certificate:
+        elif r.certificate and name not in tracked:
+            # A reduction certified only through another definition (`wrapper`, `abbrev`) keeps
+            # its entry while an instance-scoped entry needs it.
             stale.append((name, entry, f"certified ({r.certificate}: {', '.join(r.certified_by)})"))
         elif r.path != entry["module"]:
             stale.append((name, entry, f"now defined in {r.path}"))
@@ -387,11 +392,12 @@ def compare(reductions: dict[str, Reduction], baseline: dict[str, dict],
                 reasons.append(f"equality `{entry['equality']}` is in {check.equality_path}, not "
                                f"{recorded}; record its file as `{EQUALITY_MODULE}`, or omit "
                                "that field when it is the entry's `module`")
-            # An uncertified definition that uses the reduction is recorded, so that the baseline
-            # accounts for every definition that runs it; a certified one has its witness.
-            reasons += [f"`{d}` is an uncertified definition that uses `{name}` but has no "
-                        "baseline entry; record it (a `gap` or `exempt` entry), or make this entry "
-                        "a `gap`" for d, _ in check.definitions if d not in baseline]
+            # A definition that uses the reduction is recorded unless it has a witness of its own,
+            # so that the baseline accounts for every definition that runs it.
+            reasons += [f"`{d}` is a definition that uses `{name}` without an efficiency witness "
+                        "of its own but has no baseline entry; record it (a `gap` or `exempt` "
+                        "entry), or make this entry a `gap`"
+                        for d, _ in check.definitions if d not in baseline]
             if reasons:
                 invalid.append((name, entry, "; ".join(reasons)))
     return Problems(new, stale, unjustified, invalid)
@@ -490,7 +496,8 @@ def update(reductions: dict[str, Reduction], baseline: dict[str, dict], paths: s
     justification."""
     def scoped(*candidates: str) -> bool:
         return paths is None or bool(paths.intersection(candidates))
-    tracked = {name: path for name, path in (tracked or {}).items() if name not in reductions}
+    unrecorded = uncertified(reductions)
+    tracked = {name: path for name, path in (tracked or {}).items() if name not in unrecorded}
     updated = {}
     for name, entry in baseline.items():
         r = reductions.get(name)
