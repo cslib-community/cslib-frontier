@@ -24,6 +24,12 @@ set are also computed by brute force over the eight inputs. Majority of five bit
 lemmas behind the theorem are also checked on small cases: counting the true bits outside a
 coordinate and their distribution, symmetric spectra, the derivative of majority, and the sum of
 characters at a balanced string.
+
+Complementary levels of majority of three bits have opposite coefficients. The level-one weight of
+majority drops from `3 / 4` on three bits to `45 / 64` on five, majority of five bits has no
+weight on level two, the noise stability of majority of three bits is `3 / 4 ρ + 1 / 4 ρ ^ 3`, and
+majority of five bits is strictly less noise-stable. On five bits the top weight `W^5` is `1 / 5`
+of the level-one weight `W^1`.
 -/
 
 public section
@@ -122,5 +128,59 @@ example : ∑ T ∈ (univ : Finset (Fin 4)).powersetCard (2 * 1), chi ℝ T ![tr
     -2 := by
   rw [sum_powersetCard_chi _ _ 2 1 (by decide) (by decide)]
   norm_num
+
+-- Complementary levels of majority of three bits: `|{0}| + |univ| = 4`, so the whole-set
+-- coefficient is `(-1) ^ 1` times the singleton coefficient.
+example : fourierCoeff maj₃ univ = -fourierCoeff maj₃ {0} := by
+  rw [fourierCoeff_signVal_majority_of_card_add_card 1 (S := {0}) (T := univ) (by simp)]
+  ring
+
+-- The level-one weight is `3 (1 / 2) ^ 2 = 3 / 4` for three bits and `5 (3 / 8) ^ 2 = 45 / 64` for
+-- five bits.
+example : levelWeight (2 * 0 + 1) (fun x => signVal (majority (2 * 1 + 1) x)) = 3 / 4 := by
+  rw [levelWeight_signVal_majority_of_odd]
+  norm_num [Nat.choose]
+
+example : levelWeight (2 * 0 + 1) (fun x => signVal (majority (2 * 2 + 1) x)) = 45 / 64 := by
+  rw [levelWeight_signVal_majority_of_odd]
+  norm_num [Nat.choose]
+
+-- Majority of five bits has no weight on level two.
+example : levelWeight 2 (fun x => signVal (majority (2 * 2 + 1) x)) = 0 :=
+  levelWeight_signVal_majority_of_even 2 even_two
+
+-- So the level-one weight of majority of five bits is below the `3 / 4` of three bits.
+example : levelWeight (2 * 0 + 1) (fun x => signVal (majority (2 * (1 + 1) + 1) x)) < 3 / 4 := by
+  refine (levelWeight_signVal_majority_succ_lt 1 0 (by norm_num)).trans_eq ?_
+  rw [levelWeight_signVal_majority_of_odd]
+  norm_num [Nat.choose]
+
+-- By degree, the noise stability of majority of three bits is `3 / 4 ρ + 1 / 4 ρ ^ 3`.
+example (ρ : ℝ) : noiseStability ρ maj₃ = 3 / 4 * ρ + 1 / 4 * ρ ^ 3 := by
+  have h1 : levelWeight 1 maj₃ = 3 / 4 := by
+    have := levelWeight_signVal_majority_of_odd 1 0
+    norm_num [Nat.choose] at this
+    exact this
+  have h3 : levelWeight 3 maj₃ = 1 / 4 := by
+    have := levelWeight_signVal_majority_of_odd 1 1
+    norm_num [Nat.choose] at this
+    exact this
+  rw [noiseStability_eq_sum_levelWeight, Fintype.card_fin]
+  simp only [sum_range_succ, sum_range_zero, h1, h3,
+    levelWeight_signVal_majority_of_even 1 Even.zero,
+    levelWeight_signVal_majority_of_even 1 even_two]
+  ring
+
+-- Majority of five bits is strictly less noise-stable than majority of three bits.
+example : noiseStability (1 / 2) (fun x => signVal (majority (2 * (1 + 1) + 1) x)) <
+    noiseStability (1 / 2) (fun x => signVal (majority (2 * 1 + 1) x)) :=
+  noiseStability_signVal_majority_succ_lt 1 (by norm_num) (by norm_num)
+
+-- On five bits, `5 W^5 = 1 · W^1`: the top weight is `(45 / 64) / 5 = 9 / 64`.
+example : levelWeight (2 * (2 - 0) + 1) (fun x => signVal (majority (2 * 2 + 1) x)) = 9 / 64 := by
+  have h := card_mul_levelWeight_signVal_majority 2 0 (by norm_num)
+  rw [levelWeight_signVal_majority_of_odd 2 0] at h
+  norm_num [Nat.choose] at h ⊢
+  linarith
 
 end CslibFrontierTests.BooleanAnalysisMajorityFourier

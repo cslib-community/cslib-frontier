@@ -7,8 +7,9 @@ Authors: Vincent Liew
 module
 -- upstream: candidate
 
-public import CslibFrontier.Foundations.BooleanAnalysis.Influence
+public import CslibFrontier.Foundations.BooleanAnalysis.LevelWeight
 public import CslibFrontier.Foundations.BooleanAnalysis.LongCode
+public import CslibFrontier.Foundations.BooleanAnalysis.Noise
 public import CslibFrontier.Foundations.Data.BitString.Threshold
 import CslibFrontier.Foundations.BooleanAnalysis.TransitiveSymmetric
 import CslibFrontier.Foundations.Data.BitString.AgreeExpect
@@ -39,6 +40,19 @@ other `2 m` coordinates, the characters of these sets sum to the coefficient of 
 (`BitString.expect_ite_card_filter_eq` in `Data.BitString.AgreeExpect`). The book instead compares
 two expansions of the noise operator applied to the tie indicator.
 
+From the explicit formula, the coefficients on sets `S`, `T` with `|S| + |T| = n + 1` agree up to
+the sign `(-1) ^ ((n - 1) / 2)`, so `(n - k + 1) W^{n-k+1} = k W^k`
+(`BitString.fourierCoeff_signVal_majority_of_card_add_card`,
+`BitString.card_mul_levelWeight_signVal_majority`)
+[O'Donnell, Corollary 5.20][ODonnell2014]. The weight `W^k` on each odd level `k` strictly
+decreases as `n` grows (`BitString.levelWeight_signVal_majority_succ_lt`)
+[O'Donnell, Corollary 5.21][ODonnell2014]. Hence the noise stability
+`Stab_ρ[Maj_n] = ∑_k ρ ^ k W^k` strictly decreases from `n` to `n + 2` for `0 < ρ < 1`
+(`BitString.noiseStability_signVal_majority_succ_lt`): the weight lost on the levels up to `n`
+moves to the new top level `n + 2`, where `ρ ^ k` is smaller
+[O'Donnell, Theorem 5.18][ODonnell2014]. The asymptotic bounds of Theorem 5.18 are not
+formalized.
+
 ## Main results
 
 * `Cslib.BitString.sum_powersetCard_chi`: the sum of the characters of the `2 j`-subsets at a
@@ -47,6 +61,13 @@ two expansions of the noise operator applied to the tie indicator.
   odd number of bits is odd, and its derivative is the tie indicator.
 * `Cslib.BitString.fourierCoeff_signVal_majority_of_even`,
   `Cslib.BitString.fourierCoeff_signVal_majority_of_card_eq`: the Fourier coefficients of majority.
+* `Cslib.BitString.levelWeight_signVal_majority_of_odd`,
+  `Cslib.BitString.levelWeight_signVal_majority_of_even`: the level weights of majority.
+* `Cslib.BitString.fourierCoeff_signVal_majority_of_card_add_card`,
+  `Cslib.BitString.card_mul_levelWeight_signVal_majority`: Corollary 5.20.
+* `Cslib.BitString.levelWeight_signVal_majority_succ_lt`: Corollary 5.21.
+* `Cslib.BitString.noiseStability_signVal_majority_succ_lt`: the noise stability of majority
+  decreases in `n`, the monotonicity claim of Theorem 5.18.
 
 ## References
 
@@ -58,7 +79,7 @@ public section
 namespace Cslib.BitString
 
 open Finset Function Polynomial
-open scoped BigOperators
+open scoped BigOperators Nat
 
 variable {ι : Type*} [Fintype ι] [DecidableEq ι]
 
@@ -167,5 +188,158 @@ theorem fourierCoeff_signVal_majority_of_card_eq (m j : ℕ) {S : Finset (Fin (2
     Fintype.card_fin, show 2 * m + 1 - 1 = 2 * m by omega, nsmul_eq_mul] at hsum
   rw [div_mul_eq_mul_div, eq_div_iff (Nat.cast_ne_zero.2 (Nat.choose_pos hjm).ne'), mul_comm]
   exact hsum
+
+/-! ### Levels of majority -/
+
+/-- The size of the odd coefficients of majority, in factorials. -/
+private theorem choose_div_choose_mul_choose_div {m j : ℕ} (hj : j ≤ m) :
+    (m.choose j : ℝ) / (2 * m).choose (2 * j) * ((2 * m).choose m / 4 ^ m) =
+      (2 * j)! * (2 * (m - j))! / (j ! * (m - j)! * m ! * 4 ^ m) := by
+  rw [Nat.cast_choose ℝ hj, Nat.cast_choose ℝ (by omega : 2 * j ≤ 2 * m),
+    Nat.cast_choose ℝ (by omega : m ≤ 2 * m), show 2 * m - 2 * j = 2 * (m - j) by omega,
+    show 2 * m - m = m by omega]
+  field_simp
+
+/-- **The level weights of majority**: the Fourier weight `W^{2 j + 1}` of majority of `2 m + 1`
+bits, read as signs, is `C(2 m + 1, 2 j + 1)` times the square of the coefficient on a set of size
+`2 j + 1`. -/
+theorem levelWeight_signVal_majority_of_odd (m j : ℕ) :
+    levelWeight (2 * j + 1) (fun x => signVal (majority (2 * m + 1) x)) =
+      (2 * m + 1).choose (2 * j + 1) *
+        ((m.choose j : ℝ) / (2 * m).choose (2 * j) * ((2 * m).choose m / 4 ^ m)) ^ 2 := by
+  rw [levelWeight, sum_congr rfl fun S hS => by
+    rw [fourierCoeff_signVal_majority_of_card_eq m j (mem_filter.1 hS).2]]
+  have hc : #{S : Finset (Fin (2 * m + 1)) | #S = 2 * j + 1} =
+      (2 * m + 1).choose (2 * j + 1) := by simp
+  rw [sum_const, hc, nsmul_eq_mul]
+  congr 1
+  rw [mul_div_assoc, mul_assoc, mul_pow, ← pow_mul, mul_comm j 2, pow_mul]
+  norm_num
+
+/-- Majority has no Fourier weight on the levels of even size. -/
+theorem levelWeight_signVal_majority_of_even (m : ℕ) {k : ℕ} (hk : Even k) :
+    levelWeight k (fun x => signVal (majority (2 * m + 1) x)) = 0 :=
+  sum_eq_zero fun S hS => by
+    rw [fourierCoeff_signVal_majority_of_even m ((mem_filter.1 hS).2 ▸ hk)]
+    norm_num
+
+/-- **Complementary levels of majority** [O'Donnell, Corollary 5.20][ODonnell2014]: for majority of
+`n = 2 m + 1` bits read as signs, the coefficients on sets `S`, `T` with `|S| + |T| = n + 1` agree
+up to the sign `(-1) ^ m = (-1) ^ ((n - 1) / 2)`. -/
+theorem fourierCoeff_signVal_majority_of_card_add_card (m : ℕ) {S T : Finset (Fin (2 * m + 1))}
+    (h : #S + #T = 2 * m + 2) :
+    fourierCoeff (fun x => signVal (majority (2 * m + 1) x)) T =
+      (-1) ^ m * fourierCoeff (fun x => signVal (majority (2 * m + 1) x)) S := by
+  rcases Nat.even_or_odd #S with hS | ⟨j, hS⟩
+  · obtain ⟨a, ha⟩ := hS
+    rw [fourierCoeff_signVal_majority_of_even m ⟨a, ha⟩,
+      fourierCoeff_signVal_majority_of_even m ⟨m + 1 - a, by omega⟩, mul_zero]
+  obtain ⟨r, rfl⟩ : ∃ r, m = j + r := ⟨m - j, by omega⟩
+  rw [fourierCoeff_signVal_majority_of_card_eq _ j hS,
+    fourierCoeff_signVal_majority_of_card_eq _ r (by omega : #T = 2 * r + 1),
+    ← Nat.choose_symm_add (a := j) (b := r), mul_add, ← Nat.choose_symm_add (a := 2 * j),
+    ← mul_add, show ((-1 : ℝ)) ^ r = (-1) ^ (j + r) * (-1) ^ j by
+      rw [pow_add, mul_right_comm, ← pow_add, Even.neg_one_pow ⟨j, rfl⟩, one_mul]]
+  ring
+
+/-- **Complementary level weights of majority** [O'Donnell, Corollary 5.20][ODonnell2014]: for
+majority of `n = 2 m + 1` bits and `k = 2 j + 1`, `(n - k + 1) W^{n-k+1} = k W^k`. The book's
+`W^{n-k+1} = k / (n - k + 1) W^k` is stated multiplied out, and only for odd `k`: for even `k` both
+levels are even and both sides vanish by `BitString.levelWeight_signVal_majority_of_even`. -/
+theorem card_mul_levelWeight_signVal_majority (m j : ℕ) (hj : j ≤ m) :
+    ((2 * (m - j) + 1 : ℕ) : ℝ) *
+        levelWeight (2 * (m - j) + 1) (fun x => signVal (majority (2 * m + 1) x)) =
+      ((2 * j + 1 : ℕ) : ℝ) *
+        levelWeight (2 * j + 1) (fun x => signVal (majority (2 * m + 1) x)) := by
+  obtain ⟨r, rfl⟩ : ∃ r, m = j + r := ⟨m - j, by omega⟩
+  rw [show j + r - j = r by omega, levelWeight_signVal_majority_of_odd,
+    levelWeight_signVal_majority_of_odd, ← Nat.choose_symm_add (a := j) (b := r),
+    mul_add, ← Nat.choose_symm_add (a := 2 * j), ← mul_add, ← mul_assoc, ← mul_assoc]
+  congr 1
+  -- `C(n, n - k + 1) (n - k + 1) = C(n, k - 1) (n - k + 1) = C(n, k) k`
+  have := Nat.choose_succ_right_eq (2 * (j + r) + 1) (2 * j)
+  rw [show 2 * (j + r) + 1 - 2 * j = 2 * r + 1 by omega,
+    show 2 * (j + r) + 1 = 2 * j + (2 * r + 1) by ring, Nat.choose_symm_add] at this
+  rw [show 2 * (j + r) + 1 = 2 * j + (2 * r + 1) by ring]
+  exact_mod_cast by rw [mul_comm, ← this, mul_comm]
+
+/-- **The level weights of majority decrease** [O'Donnell, Corollary 5.21][ODonnell2014]: for odd
+`k = 2 j + 1 ≤ n = 2 m + 1`, the weight of majority on level `k` is strictly smaller on `n + 2` bits
+than on `n` bits. Their ratio is `(2 m + 3) (2 m + 1 - 2 j) / ((2 m + 2 - 2 j) (2 m + 2)) < 1`. -/
+theorem levelWeight_signVal_majority_succ_lt (m j : ℕ) (hj : j ≤ m) :
+    levelWeight (2 * j + 1) (fun x => signVal (majority (2 * (m + 1) + 1) x)) <
+      levelWeight (2 * j + 1) (fun x => signVal (majority (2 * m + 1) x)) := by
+  obtain ⟨r, rfl⟩ : ∃ r, m = j + r := ⟨m - j, by omega⟩
+  rw [levelWeight_signVal_majority_of_odd, levelWeight_signVal_majority_of_odd,
+    choose_div_choose_mul_choose_div (by omega), choose_div_choose_mul_choose_div hj,
+    show j + r + 1 - j = r + 1 by omega, show j + r - j = r by omega,
+    Nat.cast_choose ℝ (by omega : 2 * j + 1 ≤ 2 * (j + r + 1) + 1),
+    Nat.cast_choose ℝ (by omega : 2 * j + 1 ≤ 2 * (j + r) + 1),
+    show 2 * (j + r + 1) + 1 - (2 * j + 1) = 2 * r + 1 + 1 by omega,
+    show 2 * (j + r) + 1 - (2 * j + 1) = 2 * r by omega,
+    show 2 * (j + r + 1) + 1 = 2 * (j + r) + 1 + 1 + 1 by omega,
+    show 2 * (r + 1) = 2 * r + 1 + 1 by omega]
+  simp only [Nat.factorial_succ, pow_succ]
+  push_cast
+  have hq : (2 * ((j : ℝ) + r) + 3) * (2 * r + 1) / (4 * ((r : ℝ) + 1) * (j + r + 1)) < 1 := by
+    rw [div_lt_one (by positivity)]
+    nlinarith [(j.cast_nonneg : (0 : ℝ) ≤ j), (r.cast_nonneg : (0 : ℝ) ≤ r)]
+  refine lt_of_eq_of_lt ?_ (mul_lt_of_lt_one_right (by positivity) hq)
+  field_simp
+  ring
+
+/-- **The noise stability of majority decreases in `n`** [O'Donnell, Theorem 5.18][ODonnell2014]:
+for `0 < ρ < 1`, `Stab_ρ[Maj_n]` is strictly smaller on `n + 2 = 2 m + 3` bits than on
+`n = 2 m + 1` bits. At the endpoints the two agree: both are `0` at `ρ = 0` (majority is
+unbiased) and `1` at `ρ = 1`. The bounds of Theorem 5.18 by `(2 / π) arcsin ρ` are not
+formalized. The levels up to `n` lose weight, which the new top level `n + 2` gains, and
+`ρ ^ k ≥ ρ ^ n > ρ ^ (n + 2)` there. -/
+theorem noiseStability_signVal_majority_succ_lt (m : ℕ) {ρ : ℝ} (h0 : 0 < ρ) (h1 : ρ < 1) :
+    noiseStability ρ (fun x => signVal (majority (2 * (m + 1) + 1) x)) <
+      noiseStability ρ (fun x => signVal (majority (2 * m + 1) x)) := by
+  set W : ℕ → ℕ → ℝ := fun n k => levelWeight k fun x : Fin n → Bool => signVal (majority n x)
+    with hW
+  -- Sums over the levels `k ≤ n` extend to `k < 2 m + 4`, where the weights vanish.
+  have hext {n : ℕ} (hn : n < 2 * m + 4) (c : ℕ → ℝ) :
+      ∑ k ∈ range (n + 1), c k * W n k = ∑ k ∈ range (2 * m + 4), c k * W n k :=
+    sum_subset (range_subset_range.2 (by omega)) fun k _ hk => by
+      rw [show W n k = 0 from levelWeight_eq_zero_of_card_lt (by simpa using hk) _, mul_zero]
+  have hstab {n : ℕ} (hn : n < 2 * m + 4) :
+      noiseStability ρ (fun x => signVal (majority n x)) =
+        ∑ k ∈ range (2 * m + 4), ρ ^ k * W n k := by
+    rw [noiseStability_eq_sum_levelWeight, Fintype.card_fin]
+    exact hext hn _
+  have hone {n : ℕ} (hn : n < 2 * m + 4) : ∑ k ∈ range (2 * m + 4), W n k = 1 := by
+    have h := sum_levelWeight_signVal (majority n)
+    rw [Fintype.card_fin] at h
+    simpa using (hext hn fun _ => 1).symm.trans (by simpa using h)
+  rw [hstab (by omega), hstab (by omega), ← sub_pos, ← sum_sub_distrib]
+  -- `∑ ρ ^ n (a k - b k) = 0`, and `(ρ ^ k - ρ ^ n) (a k - b k) ≥ 0` on every level, with strict
+  -- inequality on the new top level
+  have hsum : ∑ k ∈ range (2 * m + 4),
+      ρ ^ (2 * m + 1) * (W (2 * m + 1) k - W (2 * (m + 1) + 1) k) = 0 := by
+    rw [← mul_sum, sum_sub_distrib, hone (by omega), hone (by omega), sub_self, mul_zero]
+  have hpow := pow_lt_pow_right_of_lt_one₀ h0 h1 (by omega : 2 * m + 1 < 2 * (m + 1) + 1)
+  rw [← hsum]
+  refine sum_lt_sum (fun k _ => ?_) ⟨2 * (m + 1) + 1, by simp; omega, ?_⟩
+  · rcases le_or_gt k (2 * m + 1) with hk | hk
+    · rw [← mul_sub]
+      refine mul_le_mul_of_nonneg_right (pow_le_pow_of_le_one h0.le h1.le hk) (sub_nonneg.2 ?_)
+      rcases Nat.even_or_odd k with he | ⟨j, rfl⟩
+      · simp only [hW, levelWeight_signVal_majority_of_even _ he, le_refl]
+      · exact (levelWeight_signVal_majority_succ_lt m j (by omega)).le
+    · have ha : W (2 * m + 1) k = 0 := levelWeight_eq_zero_of_card_lt (by simpa using hk) _
+      rw [ha]
+      nlinarith [pow_le_pow_of_le_one h0.le h1.le hk.le, levelWeight_nonneg k
+        fun x : Fin (2 * (m + 1) + 1) → Bool => signVal (majority (2 * (m + 1) + 1) x)]
+  · have ha : W (2 * m + 1) (2 * (m + 1) + 1) = 0 :=
+      levelWeight_eq_zero_of_card_lt (by simp) _
+    have hb : 0 < W (2 * (m + 1) + 1) (2 * (m + 1) + 1) := by
+      simp only [hW, levelWeight_signVal_majority_of_odd, Nat.choose_self, Nat.cast_one, div_one,
+        one_mul]
+      have := Nat.choose_pos (by omega : m + 1 ≤ 2 * (m + 1))
+      positivity
+    rw [ha]
+    nlinarith
 
 end Cslib.BitString
