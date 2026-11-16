@@ -23,13 +23,13 @@ Checks for `CslibFrontier/Crypto/Computational/EnhancedTargetCollisionResistant.
   first bit of an `(n + 1)`-bit key) and for `KeyedHashFamily.EnhancedTargetCollisionResistant`
   (`not_enhancedTargetCollisionResistant_zeroKeyedHashFamily`), plus positive nonvacuity for
   zero-length keys (`enhancedTargetCollisionResistant_zeroKey_id`).
-* Consumer examples for `EnhancedTargetCollisionResistantOn`, `KeyedHashFamily`, and
-  `TargetCollisionResistantOn.enhancedTargetCollisionResistantOn_appendKeyHash` (Exercise 8.27(d)
-  of [BonehShoup2023], p. 354), along with concrete checks of
-  `eval_enhancedTargetCollisionGame_toEnhancedFinder` and
-  `succProbability_enhancedTargetCollisionGame_appendKeyHash_le`.
-* Hypothesis-necessity counterexamples for omitting `k'.length = keyLen n` and omitting
-  `valid n m'`.
+* Concrete `appendKeyHash` and `isEnhancedTargetCollision` evaluations plus consumer examples
+  composing `enhancedTargetCollisionResistant_zeroKey_id`,
+  `TargetCollisionResistantOn.enhancedTargetCollisionResistantOn_appendKeyHash`,
+  `EnhancedTargetCollisionResistantOn.targetCollisionResistantOn` (Exercise 8.27(d) of
+  [BonehShoup2023], p. 354), and `HashFamily.targetCollisionResistant_toKeyedHashFamily`.
+* Counterexamples checking pairs accepted when the `k'.length = keyLen n` check or the
+  `valid n m'` check is omitted.
 -/
 
 set_option linter.privateModule false
@@ -168,48 +168,57 @@ theorem enhancedTargetCollisionResistant_zeroKey_id :
   simp only [heval, Game.succProbability, PMF.pure_apply, Bool.true_eq_false, ↓reduceIte,
     ENNReal.toNNReal_zero, negligible_zero]
 
-/-! ## Consumer bridges and API checks -/
+/-! ## Concrete checks and consumer compositions -/
 
-/-- Any `HashFamily` yields an `EnhancedTargetCollisionResistant` `KeyedHashFamily` via
-`appendKeyHash`. -/
-example {H : List Bool → List Bool → List Bool} (hH : HashFamily H) :
-    hH.toKeyedHashFamily.appendKeyHash.EnhancedTargetCollisionResistant :=
-  hH.targetCollisionResistant_toKeyedHashFamily.enhancedTargetCollisionResistant_appendKeyHash
+/-- Concrete evaluation of `appendKeyHash`. -/
+example :
+    appendKeyHash (fun _ _ m => m) 2 [true, false] [true] = [true, true, false] := rfl
 
-/-- Any `KeyedHashFamily` that is `EnhancedTargetCollisionResistant` is `TargetCollisionResistant`
-via `KeyedHashFamily.EnhancedTargetCollisionResistant.targetCollisionResistant`. -/
-example {H : KeyedHashFamily} (hH : H.EnhancedTargetCollisionResistant) :
-    H.TargetCollisionResistant :=
-  hH.targetCollisionResistant
+/-- Distinct keys collide for `H(k, m) := m`, accepted when `k'` has length `keyLen n`. -/
+example :
+    isEnhancedTargetCollision id (fun _ _ m => m) (fun _ _ => true) 2
+      [false, true] [true] [true, true] [true] = true := by
+  decide
 
-/-- Round-trip on `TargetCollisionResistantOn`, concrete game bounds, and `.negligible`. -/
-example {keyLen : ℕ → ℕ} {H : ℕ → List Bool → List Bool → List Bool}
-    {valid : ℕ → List Bool → Bool} (hTCR : TargetCollisionResistantOn keyLen H valid)
-    (advE : EnhancedTargetCollisionFinder) (hEPPT : advE.IsPPT)
-    (advT : TargetCollisionFinder) (n : ℕ) :
-    TargetCollisionResistantOn keyLen (appendKeyHash H) valid ∧
-      Negligible (fun m => Game.succProbability (ProbComp.eval
-        (enhancedTargetCollisionGame keyLen (appendKeyHash H) valid advE m))) ∧
-      Game.succProbability (ProbComp.eval
-        (enhancedTargetCollisionGame keyLen (appendKeyHash H) valid advE n)) ≤
-        Game.succProbability (ProbComp.eval
-          (targetCollisionGame keyLen H valid (toTargetFinder advE) n)) ∧
-      ProbComp.eval
-          (enhancedTargetCollisionGame keyLen H valid (toEnhancedFinder advT) n) =
-        ProbComp.eval (targetCollisionGame keyLen H valid advT n) :=
-  ⟨hTCR.enhancedTargetCollisionResistantOn_appendKeyHash.targetCollisionResistantOn,
-    hTCR.enhancedTargetCollisionResistantOn_appendKeyHash.negligible advE hEPPT,
-    succProbability_enhancedTargetCollisionGame_appendKeyHash_le keyLen H valid advE n,
-    eval_enhancedTargetCollisionGame_toEnhancedFinder keyLen H valid advT n⟩
+/-- Identical `(k', m') = (k, m₀)` is not an enhanced target collision. -/
+example :
+    isEnhancedTargetCollision id (fun _ _ m => m) (fun _ _ => true) 2
+      [false, true] [true] [false, true] [true] = false := by
+  decide
+
+/-- Appending the key blocks cross-key collisions in `isEnhancedTargetCollision`. -/
+example :
+    isEnhancedTargetCollision id (appendKeyHash (fun _ _ m => m)) (fun _ _ => true) 2
+      [false, true] [true] [true, true] [true] = false := by
+  decide
+
+/-- Concrete consumer composition: `appendKeyHash` preserves `TargetCollisionResistant` for the
+zero-length-key identity `enhancedTargetCollisionResistant_zeroKey_id`. -/
+theorem targetCollisionResistant_appendKeyHash_zeroKey_id :
+    TargetCollisionResistant (fun _ => 0) (appendKeyHash (fun _ _ m => m)) :=
+  EnhancedTargetCollisionResistantOn.targetCollisionResistantOn
+    (TargetCollisionResistantOn.enhancedTargetCollisionResistantOn_appendKeyHash
+      (EnhancedTargetCollisionResistantOn.targetCollisionResistantOn
+        enhancedTargetCollisionResistant_zeroKey_id))
+
+/-- Composing `HashFamily.targetCollisionResistant_toKeyedHashFamily`, Exercise 8.27(d), and
+`KeyedHashFamily.EnhancedTargetCollisionResistant.targetCollisionResistant` preserves
+`KeyedHashFamily.TargetCollisionResistant`. -/
+theorem targetCollisionResistant_appendKeyHash_of_hashFamily
+    {H : List Bool → List Bool → List Bool} (hH : HashFamily H) :
+    hH.toKeyedHashFamily.appendKeyHash.TargetCollisionResistant :=
+  hH.targetCollisionResistant_toKeyedHashFamily
+    |>.enhancedTargetCollisionResistant_appendKeyHash
+    |>.targetCollisionResistant
 
 /-! ## Hypothesis necessity counterexamples -/
 
-/-- Counterexample 1 (omitting `k'.length == keyLen n` invalidates Exercise 8.27(d)):
+/-- Counterexample 1 (explicit `(k', m')` pair when `k'.length == keyLen n` is omitted):
 for every `k` of length `n + 1`, taking `m₀ := []`, `k' := []`, and `m' := k` satisfies
 `(k, m₀) ≠ (k', m')` and
 `appendKeyHash (fun _ _ m => m) n k' m' = appendKeyHash (fun _ _ m => m) n k m₀`.
-In prose, `H(k, m) := m` is unconditionally TCR, so omitting `k'.length = keyLen n` allows an
-adversary to return `k' = []`, `m' = k` on `H'(k, m) = m ++ k` for every `(n + 1)`-bit key `k`. -/
+Without the `k'.length = keyLen n` check, an adversary can break Exercise 8.27(d) on the
+unconditionally TCR hash `H(k, m) := m` by returning `k' = []`, `m' = k` on `(n + 1)`-bit keys. -/
 theorem counterexample_missing_keyLen_check (n : ℕ) (k : List Bool) (hk : k.length = n + 1) :
     (k, ([] : List Bool)) ≠ ([], k) ∧
       appendKeyHash (fun _ _ m => m) n [] k = appendKeyHash (fun _ _ m => m) n k [] := by
@@ -219,12 +228,12 @@ theorem counterexample_missing_keyLen_check (n : ℕ) (k : List Bool) (hk : k.le
     simp [hk0] at hk
   · simp [appendKeyHash]
 
-/-- Counterexample 2 (omitting `valid n m'` invalidates Exercise 8.27(d)):
+/-- Counterexample 2 (explicit `(k', m')` pair when `valid n m'` is omitted):
 taking `H(k, m) := m.take 1`, `m₀ := [false]`, and `m' := [false, false]` with `k' := k`, checks
 that `m₀` has length `1`, `(k, m₀) ≠ (k, m')`, and
 `appendKeyHash H n k m' = appendKeyHash H n k m₀`.
-In prose, `m ↦ m.take 1` is injective—and therefore TCR—on `valid n m := (m.length == 1)`, so
-accepting an invalid `m'` (`m'.length ≠ 1`) would break `appendKeyHash H` even with `k' = k`. -/
+Without the `valid n m'` check, an adversary can break Exercise 8.27(d) on the injective (hence
+TCR) family `m ↦ m.take 1` over `valid n m := (m.length == 1)` even with `k' = k`. -/
 theorem counterexample_missing_valid_check (n : ℕ) (k : List Bool) :
     let H : ℕ → List Bool → List Bool → List Bool := fun _ _ m => m.take 1
     let m₀ : List Bool := [false]

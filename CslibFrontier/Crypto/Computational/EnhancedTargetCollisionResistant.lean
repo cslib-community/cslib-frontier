@@ -52,11 +52,12 @@ are not proved here.
   `Cslib.Crypto.EnhancedTargetCollisionResistant`,
   `Cslib.Crypto.KeyedHashFamily.EnhancedTargetCollisionResistant`: asymptotic enhanced target
   collision resistance.
-* `Cslib.Crypto.toEnhancedFinder`: lift a `TargetCollisionFinder` to an
+* `Cslib.Crypto.TargetCollisionFinder.toEnhancedFinder`: lift a `TargetCollisionFinder` to an
   `EnhancedTargetCollisionFinder` returning `(k, m')`.
 * `Cslib.Crypto.appendKeyHash`, `Cslib.Crypto.KeyedHashFamily.appendKeyHash`: Exercise 8.27(d)
   construction `H'(k, m) := H(k, m) ++ k`.
-* `Cslib.Crypto.toTargetFinder`: project `m'` from a `(k', m')` enhanced collision finder.
+* `Cslib.Crypto.EnhancedTargetCollisionFinder.toTargetFinder`: project `m'` from a `(k', m')`
+  enhanced collision finder.
 
 ## Main results
 
@@ -204,17 +205,17 @@ theorem not_enhancedTargetCollisionResistantOn_of_eventually_le_succProbability
 
 /-- Lift any two-stage `TargetCollisionFinder` into an `EnhancedTargetCollisionFinder` by returning
 the challenged key `k` unchanged alongside `m₁`. -/
-noncomputable def toEnhancedFinder
+noncomputable def TargetCollisionFinder.toEnhancedFinder
     (adversary : TargetCollisionFinder) : EnhancedTargetCollisionFinder where
   choose := adversary.choose
   find n state key := do
     let m₁ ← adversary.find n state key
     return (key, m₁)
 
-/-- `toEnhancedFinder` preserves uniform strict PPT admissibility. -/
+/-- `TargetCollisionFinder.toEnhancedFinder` preserves uniform strict PPT admissibility. -/
 theorem TargetCollisionFinder.IsPPT.toEnhancedFinder
     {adversary : TargetCollisionFinder} (ha : adversary.IsPPT) :
-    (toEnhancedFinder adversary).IsPPT where
+    adversary.toEnhancedFinder.IsPPT where
   choose := ha.choose
   find := by
     have hE : ComputableInPolyTime
@@ -224,15 +225,16 @@ theorem TargetCollisionFinder.IsPPT.toEnhancedFinder
       polytime
     exact ha.find.bind_with hE.isPPTOn
 
-/-- Running `toEnhancedFinder adversary` in `enhancedTargetCollisionGame` produces the exact same
+/-- Running `adversary.toEnhancedFinder` in `enhancedTargetCollisionGame` produces the exact same
 output distribution as running `adversary` in `targetCollisionGame`. -/
 theorem eval_enhancedTargetCollisionGame_toEnhancedFinder
     (keyLen : ℕ → ℕ) (H : ℕ → List Bool → List Bool → List Bool)
     (valid : ℕ → List Bool → Bool) (adversary : TargetCollisionFinder) (n : ℕ) :
-    ProbComp.eval (enhancedTargetCollisionGame keyLen H valid (toEnhancedFinder adversary) n) =
+    ProbComp.eval (enhancedTargetCollisionGame keyLen H valid adversary.toEnhancedFinder n) =
       ProbComp.eval (targetCollisionGame keyLen H valid adversary n) := by
-  simp only [enhancedTargetCollisionGame, targetCollisionGame, toEnhancedFinder,
-    ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList, bind_assoc, pure_bind]
+  simp only [enhancedTargetCollisionGame, targetCollisionGame,
+    TargetCollisionFinder.toEnhancedFinder, ProbComp.eval_bind, ProbComp.eval_pure,
+    BitString.eval_sampleList, bind_assoc, pure_bind]
   apply PMF.bind_congr_on_support; intro choice _
   apply PMF.bind_congr_on_support; intro k hk
   have hkLen : k.length = keyLen n := BitString.length_of_mem_support_uniformList hk
@@ -244,9 +246,11 @@ theorem eval_enhancedTargetCollisionGame_toEnhancedFinder
   exact ⟨fun ⟨h1, h2⟩ => ⟨fun heq => h1 heq.symm, h2.symm⟩,
     fun ⟨h1, h2⟩ => ⟨fun heq => h1 heq.symm, h2.symm⟩⟩
 
-/-- **Enhanced target collision resistance implies target collision resistance**
-([BonehShoup2023], Exercise 8.27, p. 354): fixing `k' = k` reduces `targetCollisionGame` directly
-to `enhancedTargetCollisionGame` with identical success probability. -/
+/-- Enhanced target collision resistance implies target collision resistance. [BonehShoup2023],
+Exercise 8.27, p. 354 defines enhanced target collision resistance and states parts (a)–(d)
+without stating this implication explicitly; it follows directly from the definition because a
+target collision under the challenge key `k` is an enhanced collision with `k' = k`, giving both
+games the same success probability. -/
 theorem EnhancedTargetCollisionResistantOn.targetCollisionResistantOn
     {keyLen : ℕ → ℕ} {H : ℕ → List Bool → List Bool → List Bool}
     {valid : ℕ → List Bool → Bool}
@@ -255,7 +259,7 @@ theorem EnhancedTargetCollisionResistantOn.targetCollisionResistantOn
   apply TargetCollisionResistantOn.of_negligible
   intro adversary hPPT
   simpa only [eval_enhancedTargetCollisionGame_toEnhancedFinder] using
-    h.negligible (toEnhancedFinder adversary) hPPT.toEnhancedFinder
+    h.negligible adversary.toEnhancedFinder hPPT.toEnhancedFinder
 
 /-- Any `KeyedHashFamily` that is enhanced target collision-resistant is target
 collision-resistant. -/
@@ -305,17 +309,17 @@ def KeyedHashFamily.appendKeyHash (H : KeyedHashFamily) : KeyedHashFamily where
 
 /-- Turn an `EnhancedTargetCollisionFinder` into a `TargetCollisionFinder` by projecting `m'` from
 the returned `(k', m')` pair ([BonehShoup2023], Exercise 8.27(d), p. 354). -/
-noncomputable def toTargetFinder
+noncomputable def EnhancedTargetCollisionFinder.toTargetFinder
     (adversary : EnhancedTargetCollisionFinder) : TargetCollisionFinder where
   choose := adversary.choose
   find n state key := do
     let ans ← adversary.find n state key
     return ans.2
 
-/-- `toTargetFinder` preserves uniform strict PPT admissibility. -/
+/-- `EnhancedTargetCollisionFinder.toTargetFinder` preserves uniform strict PPT admissibility. -/
 theorem EnhancedTargetCollisionFinder.IsPPT.toTargetFinder
     {adversary : EnhancedTargetCollisionFinder} (ha : adversary.IsPPT) :
-    (toTargetFinder adversary).IsPPT where
+    adversary.toTargetFinder.IsPPT where
   choose := ha.choose
   find := by
     have hE : ComputableInPolyTime
@@ -329,9 +333,10 @@ private theorem eval_enhancedTargetCollisionGame_appendKeyHash_le
     (keyLen : ℕ → ℕ) (H : ℕ → List Bool → List Bool → List Bool)
     (valid : ℕ → List Bool → Bool) (adversary : EnhancedTargetCollisionFinder) (n : ℕ) :
     (ProbComp.eval (enhancedTargetCollisionGame keyLen (appendKeyHash H) valid adversary n)) true ≤
-      (ProbComp.eval (targetCollisionGame keyLen H valid (toTargetFinder adversary) n)) true := by
-  simp only [enhancedTargetCollisionGame, targetCollisionGame, toTargetFinder,
-    ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList, bind_assoc, pure_bind]
+      (ProbComp.eval (targetCollisionGame keyLen H valid adversary.toTargetFinder n)) true := by
+  simp only [enhancedTargetCollisionGame, targetCollisionGame,
+    EnhancedTargetCollisionFinder.toTargetFinder, ProbComp.eval_bind, ProbComp.eval_pure,
+    BitString.eval_sampleList, bind_assoc, pure_bind]
   apply PMF.bind_apply_mono_on_support; intro choice _
   apply PMF.bind_apply_mono_on_support; intro k hk
   have hkLen : k.length = keyLen n := BitString.length_of_mem_support_uniformList hk
@@ -352,14 +357,14 @@ private theorem eval_enhancedTargetCollisionGame_appendKeyHash_le
 
 /-- **Boneh–Shoup Exercise 8.27(d) (concrete bound)**: winning probability in
 `enhancedTargetCollisionGame` against `appendKeyHash H` is at most the winning probability of
-`toTargetFinder adversary` in `targetCollisionGame` against `H`. -/
+`adversary.toTargetFinder` in `targetCollisionGame` against `H`. -/
 theorem succProbability_enhancedTargetCollisionGame_appendKeyHash_le
     (keyLen : ℕ → ℕ) (H : ℕ → List Bool → List Bool → List Bool)
     (valid : ℕ → List Bool → Bool) (adversary : EnhancedTargetCollisionFinder) (n : ℕ) :
     Game.succProbability
         (ProbComp.eval (enhancedTargetCollisionGame keyLen (appendKeyHash H) valid adversary n)) ≤
       Game.succProbability
-        (ProbComp.eval (targetCollisionGame keyLen H valid (toTargetFinder adversary) n)) :=
+        (ProbComp.eval (targetCollisionGame keyLen H valid adversary.toTargetFinder n)) :=
   Game.succProbability_mono
     (eval_enhancedTargetCollisionGame_appendKeyHash_le keyLen H valid adversary n)
 
@@ -374,7 +379,7 @@ theorem TargetCollisionResistantOn.enhancedTargetCollisionResistantOn_appendKeyH
   apply EnhancedTargetCollisionResistantOn.of_negligible
   intro adversary hPPT
   exact negligible_of_le
-    (hTCR.negligible (toTargetFinder adversary) hPPT.toTargetFinder)
+    (hTCR.negligible adversary.toTargetFinder hPPT.toTargetFinder)
     (succProbability_enhancedTargetCollisionGame_appendKeyHash_le keyLen H valid adversary)
 
 /-- **Boneh–Shoup Exercise 8.27(d) (`KeyedHashFamily` form)**: if a `KeyedHashFamily` `H` is
