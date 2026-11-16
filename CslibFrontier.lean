@@ -1210,6 +1210,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.
 public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.GLAmpCircuit
 public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.GLAmpDecode
 public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.GLSynthesis
+public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.Samples
 public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.Schedule
 public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.Stages
 public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.WorstCase
@@ -5885,6 +5886,7 @@ public import CslibFrontier.Foundations.Combinatorics.PowersetTail
 public import CslibFrontier.Foundations.Combinatorics.ReplacementCounting
 public import CslibFrontier.Foundations.Combinatorics.ReplacementDesignBridge
 public import CslibFrontier.Foundations.Combinatorics.SetFamily.Oddtown
+public import CslibFrontier.Foundations.Combinatorics.SetFamily.PairwiseIntersection
 public import CslibFrontier.Foundations.Combinatorics.SetFamily.RayChaudhuriWilson
 public import CslibFrontier.Foundations.Combinatorics.SetPartition.Basic
 public import CslibFrontier.Foundations.Combinatorics.SetPartition.JoinMatrix
@@ -6104,6 +6106,7 @@ public import CslibFrontier.Foundations.Data.Code.SelfCorrection
 public import CslibFrontier.Foundations.Data.Code.Singleton
 public import CslibFrontier.Foundations.Data.Code.Sudan
 public import CslibFrontier.Foundations.Data.Code.SudanInterpolant
+public import CslibFrontier.Foundations.Data.Code.Varshamov
 public import CslibFrontier.Foundations.Data.ENat.IInf
 public import CslibFrontier.Foundations.Data.Fin.AddFlip
 public import CslibFrontier.Foundations.Data.Fin.Append
