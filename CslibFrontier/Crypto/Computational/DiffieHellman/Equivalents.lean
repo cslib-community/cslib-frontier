@@ -11,6 +11,7 @@ public import CslibFrontier.Languages.Probabilistic.Oracle.EvalPure
 public import CslibFrontier.Languages.Probabilistic.QueryCount
 public import Mathlib.Data.ZMod.Basic
 import CslibFrontier.Foundations.Data.BitString.List.Binary
+import CslibFrontier.Languages.Probabilistic.Traverse.SupportWith
 import Mathlib.Algebra.Field.ZMod
 import Mathlib.FieldTheory.Finite.Basic
 import Mathlib.Tactic.FieldSimp
@@ -27,7 +28,7 @@ solver call counts under `OracleComp.IsQueryBounded` (and `OracleComp.QueriesSat
 solver's domain excludes `0`); group operations, scalar multiplications, and running time are
 not counted.
 
-For a modulus `q : ℕ` and generator `g : G`, written additively (`α • g` for `g ^ α`):
+For a modulus `q : ℕ` and element `g : G`, written additively (`α • g` for `g ^ α`):
 
 * `SolvesCDH`: **(a) CDH**, computing `(α * β) • g` from `(α • g, β • g)`.
 * `SolvesSqDH`: **(b) Square-DH**, computing `(α ^ 2) • g` from `α • g`.
@@ -44,9 +45,9 @@ For a modulus `q : ℕ` and generator `g : G`, written additively (`α • g` fo
 * `Cslib.Crypto.sqFromInvProg`: reduces Square-DH to Inverse-DH in at most `3` queries.
 * `Cslib.Crypto.invFromDivProg`: reduces Inverse-DH to Divisible-DH in at most `1` query.
 * `Cslib.Crypto.invFromCDHStep`, `Cslib.Crypto.invFromCDHProg`: reduces Inverse-DH to CDH by
-  square-and-multiply for `α ^ (q - 2)` in `2 * (q - 2).bits.length` queries.
-* `Cslib.Crypto.divFromCDHProg`: reduces Divisible-DH to CDH in `2 * (q - 2).bits.length + 1`
-  queries.
+  square-and-multiply for `α ^ (q - 2)` in at most `2 * (q - 2).bits.length` queries.
+* `Cslib.Crypto.divFromCDHProg`: reduces Divisible-DH to CDH in at most
+  `2 * (q - 2).bits.length + 1` queries.
 
 ## Main results
 
@@ -76,12 +77,6 @@ namespace Cslib.Crypto
 
 section Algebra
 
-private theorem two_ne_zero_of_prime_ne_two {q : ℕ} [Fact q.Prime] (hq2 : q ≠ 2) :
-    (2 : ZMod q) ≠ 0 := by
-  intro h2
-  have hdvd : q ∣ 2 := (ZMod.natCast_eq_zero_iff 2 q).mp (by simpa using h2)
-  exact hq2 (((Nat.dvd_prime Nat.prime_two).mp hdvd).resolve_left (Fact.out : q.Prime).ne_one)
-
 private theorem two_ne_zero_of_ne_zero_one {q : ℕ} [Fact q.Prime] {α : ZMod q}
     (h0 : α ≠ 0) (h1 : α ≠ 1) : (2 : ZMod q) ≠ 0 := by
   by_cases hq2 : q = 2
@@ -90,7 +85,7 @@ private theorem two_ne_zero_of_ne_zero_one {q : ℕ} [Fact q.Prime] {α : ZMod q
     have hα1 : α = 1 :=
       (IsUnit.unit_spec hu).symm.trans (congrArg Units.val (Subsingleton.elim hu.unit 1))
     exact absurd hα1 h1
-  · exact two_ne_zero_of_prime_ne_two hq2
+  · exact Ring.two_ne_zero (by rw [ZMod.ringChar_zmod_n]; exact hq2)
 
 private theorem inv_sub_one_sub_inv_add_one {K : Type*} [Field K]
     {α : K} (hsub : α - 1 ≠ 0) (hadd : α + 1 ≠ 0) :
@@ -115,34 +110,24 @@ end Algebra
 
 section FixedGroupOracle
 
-private theorem isCostBounded_foldlM {ι α β : Type} {spec : OracleSpec.{0, 0} ι}
-    {cost : ι → ℕ} {f : α → β → OracleComp spec α} {k : ℕ}
-    (hf : ∀ a b, OracleComp.IsCostBounded cost (f a b) k) (init : α) (xs : List β) :
-    OracleComp.IsCostBounded cost (xs.foldlM f init) (k * xs.length) := by
-  induction xs generalizing init with
-  | nil => simp [OracleComp.IsCostBounded.pure]
-  | cons x xs ih =>
-    rw [List.foldlM_cons, List.length_cons, Nat.mul_succ, Nat.add_comm]
-    exact (hf init x).bind fun a => ih a
-
 variable {G : Type} [AddCommGroup G] (q : ℕ) [Module (ZMod q) G] (g : G)
 
-/-- A deterministic solver solves **(a) CDH** with respect to generator `g` of order `q` when on
+/-- A deterministic solver solves **(a) CDH** with respect to `g` when on
 `(α • g, β • g)` it returns `(α * β) • g`. -/
 @[expose] def SolvesCDH (cdh : G × G → G) : Prop :=
   ∀ α β : ZMod q, cdh (α • g, β • g) = (α * β) • g
 
-/-- A deterministic solver solves **(b) Square-DH** with respect to generator `g` of order `q`
+/-- A deterministic solver solves **(b) Square-DH** with respect to `g`
 when on `α • g` it returns `(α ^ 2) • g`. -/
 @[expose] def SolvesSqDH (sq : G → G) : Prop :=
   ∀ α : ZMod q, sq (α • g) = (α ^ 2) • g
 
-/-- A deterministic solver solves **(c) Inverse-DH** with respect to generator `g` of order `q`
+/-- A deterministic solver solves **(c) Inverse-DH** with respect to `g`
 when on `α • g` with `α ≠ 0` it returns `α⁻¹ • g`. -/
 @[expose] def SolvesInvDH (inv : G → G) : Prop :=
   ∀ α : ZMod q, α ≠ 0 → inv (α • g) = α⁻¹ • g
 
-/-- A deterministic solver solves **(d) Divisible-DH** with respect to generator `g` of order `q`
+/-- A deterministic solver solves **(d) Divisible-DH** with respect to `g`
 when on `(α • g, β • g)` with `β ≠ 0` it returns `(α * β⁻¹) • g`. -/
 @[expose] def SolvesDivDH (div : G × G → G) : Prop :=
   ∀ α β : ZMod q, β ≠ 0 → div (α • g, β • g) = (α * β⁻¹) • g
@@ -150,7 +135,7 @@ when on `(α • g, β • g)` with `β ≠ 0` it returns `(α * β⁻¹) • g`
 section CDHFromSq
 
 /-- Deterministic oracle reduction `(a) CDH ≤ (b) Square-DH`: for `q = 2`, returns `0` if
-`u = 0` and `v` otherwise (since `α, β ∈ {0, 1}` gives `α * β = α` if `α = 1`, `0` if `α = 0`);
+`u = 0` and `v` otherwise (since `α, β ∈ {0, 1}` gives `α * β = β` if `α = 1`, `0` if `α = 0`);
 for odd prime `q`, evaluates `(4 : ZMod q)⁻¹ • (sq (u + v) - sq (u - v))` in `2` queries. -/
 @[expose] def cdhFromSqProg [DecidableEq G] (u v : G) : OracleComp (fun _ : G => G) G :=
   if q = 2 then pure (if u = 0 then 0 else v)
@@ -197,7 +182,7 @@ theorem solvesCDH_evalPure_cdhFromSqProg [DecidableEq G] [Fact q.Prime] {sq : G 
       congr 1
       ring
     have h4 : (4 : ZMod q) ≠ 0 := by
-      have h2 := two_ne_zero_of_prime_ne_two hq
+      have h2 : (2 : ZMod q) ≠ 0 := Ring.two_ne_zero (by rw [ZMod.ringChar_zmod_n]; exact hq)
       exact (by ring : (4 : ZMod q) = 2 * 2) ▸ mul_ne_zero h2 h2
     rw [hdiff, smul_smul, ← mul_assoc, inv_mul_cancel₀ h4, one_mul]
 
@@ -245,26 +230,16 @@ every execution path against arbitrary oracle responses. -/
 theorem isQueryBounded_sqFromInvProg [DecidableEq G] (u : G) :
     OracleComp.IsQueryBounded (sqFromInvProg g u) 3 := by
   unfold sqFromInvProg
-  by_cases hu0 : u = 0
-  · simp [hu0, OracleComp.IsQueryBounded, OracleComp.IsCostBounded.pure]
-  · simp only [hu0, ↓reduceIte]
-    by_cases hug : u = g ∨ u = -g
-    · simp [hug, OracleComp.IsQueryBounded, OracleComp.IsCostBounded.pure]
-    · simp only [hug, ↓reduceIte]
-      have hcont (r₁ r₂ : G) :
-          OracleComp.IsCostBounded (fun _ => 1)
-            (if r₁ = r₂ then (pure 0 : OracleComp (fun _ : G => G) G)
-              else do
-                let r₃ ← OracleComp.query (spec := fun _ : G => G) (r₁ - r₂)
-                pure (2 • r₃ + g)) 1 := by
-        by_cases hr : r₁ = r₂
-        · simp [hr, OracleComp.IsCostBounded.pure]
-        · simp only [hr, ↓reduceIte]
-          exact (OracleComp.IsCostBounded.query (cost := fun _ => 1) (r₁ - r₂)).bind fun r₃ =>
-            OracleComp.IsCostBounded.pure _ 0
-      exact ((OracleComp.IsCostBounded.query (cost := fun _ => 1) (u - g)).bind fun r₁ =>
-        (OracleComp.IsCostBounded.query (cost := fun _ => 1) (u + g)).bind fun r₂ =>
-          hcont r₁ r₂).mono (by decide : 1 + (1 + 1) ≤ 3)
+  split_ifs
+  · exact .pure _ _
+  · exact .pure _ _
+  · refine ((OracleComp.IsCostBounded.query (cost := fun _ => 1) (u - g)).bind fun r₁ =>
+      (OracleComp.IsCostBounded.query (cost := fun _ => 1) (u + g)).bind fun r₂ => ?_).mono
+        (by decide : 1 + (1 + 1) ≤ 3)
+    split_ifs
+    · exact .pure _ _
+    · exact (OracleComp.IsCostBounded.query (cost := fun _ => 1) (r₁ - r₂)).bind fun _ =>
+        .pure _ 0
 
 /-- Every query emitted by `sqFromInvProg` is nonzero, on every execution path against any
 oracle responses. -/
@@ -378,7 +353,8 @@ section InvFromCDH
   if bit then OracleComp.query (sq, u) else pure sq
 
 /-- Deterministic oracle reduction `(c) Inverse-DH ≤ (a) CDH`: computes `α ^ (q - 2) • g` by
-square-and-multiply along `(q - 2).bits.reverse` using `2 * (q - 2).bits.length` CDH queries. -/
+square-and-multiply along `(q - 2).bits.reverse` using at most `2 * (q - 2).bits.length` CDH
+queries. -/
 @[expose] def invFromCDHProg (u : G) : OracleComp (fun _ : G × G => G) G :=
   (q - 2).bits.reverse.foldlM (invFromCDHStep u) g
 
@@ -400,8 +376,8 @@ omit [AddCommGroup G] [Module (ZMod q) G] in
 theorem isQueryBounded_invFromCDHProg (u : G) :
     OracleComp.IsQueryBounded (invFromCDHProg q g u) (2 * (q - 2).bits.length) := by
   unfold invFromCDHProg
-  have h := isCostBounded_foldlM (isCostBounded_invFromCDHStep u) g (q - 2).bits.reverse
-  rwa [List.length_reverse] at h
+  have h := OracleComp.IsCostBounded.foldlM (isCostBounded_invFromCDHStep u) g (q - 2).bits.reverse
+  rwa [List.length_reverse, Nat.mul_comm] at h
 
 private theorem evalPure_foldlM_invFromCDHStep {cdh : G × G → G} (hcdh : SolvesCDH q g cdh)
     (α : ZMod q) (word : List Bool) :
@@ -447,7 +423,7 @@ end InvFromCDH
 section DivFromCDH
 
 /-- Deterministic oracle reduction `(d) Divisible-DH ≤ (a) CDH`: inverts `v` with
-`invFromCDHProg` and calls `cdh (u, v⁻¹)` in `2 * (q - 2).bits.length + 1` queries. -/
+`invFromCDHProg` and calls `cdh (u, v⁻¹)` in at most `2 * (q - 2).bits.length + 1` queries. -/
 @[expose] def divFromCDHProg (u v : G) : OracleComp (fun _ : G × G => G) G := do
   let inv_v ← invFromCDHProg q g v
   OracleComp.query (u, inv_v)

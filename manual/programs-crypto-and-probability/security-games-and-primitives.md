@@ -359,24 +359,26 @@ where `0 < ε`, injectivity of `c ↦ c • g` and masking both CDH inputs are n
 [family client](../../CslibFrontierTests/Crypto/DiffieHellmanSelfReductionFamily.lean) applies the
 family results to the adversary that always guesses `0`.
 
-In a fixed `ZMod q`-module `G`,
+In a fixed `ZMod q`-module `G` with a fixed element `g`,
 [`DiffieHellman/Equivalents.lean`](../../CslibFrontier/Crypto/Computational/DiffieHellman/Equivalents.lean)
-formalizes the deterministic oracle reductions among **(a) CDH** (`SolvesCDH`), **(b) Square-DH**
-(`SolvesSqDH`), **(c) Inverse-DH** (`SolvesInvDH`), and **(d) Divisible-DH** (`SolvesDivDH`)
-([bs23][bs23], Exercise 10.17, p. 429): `cdhFromSqProg` in `2` queries
-(`solvesCDH_evalPure_cdhFromSqProg`), `sqFromCDHProg` in `1` query
-(`solvesSqDH_evalPure_sqFromCDHProg`), `sqFromInvProg` in `3` nonzero queries
-(`solvesSqDH_evalPure_sqFromInvProg`, `queriesSatisfy_sqFromInvProg`), `invFromDivProg` in `1`
-query with nonzero divisor (`solvesInvDH_evalPure_invFromDivProg`, `queriesSatisfy_invFromDivProg`),
-`invFromCDHProg` by square-and-multiply for `q - 2` in `2 * (q - 2).bits.length` queries
-(`solvesInvDH_evalPure_invFromCDHProg`), and `divFromCDHProg` in `2 * (q - 2).bits.length + 1`
-queries (`solvesDivDH_evalPure_divFromCDHProg`). The reductions are `OracleComp` programs proved
-correct under `OracleComp.evalPure` with `OracleComp.IsQueryBounded` query bounds; group
-operations, scalar multiplications, and running time are not certified. The
+gives explicit deterministic `OracleComp` programs between solvers of **(a) CDH** (`SolvesCDH`),
+**(b) Square-DH** (`SolvesSqDH`), **(c) Inverse-DH** (`SolvesInvDH`) and **(d) Divisible-DH**
+(`SolvesDivDH`) ([bs23][bs23], Exercise 10.17, p. 429). `sqFromCDHProg` makes one solver call and
+is correct for every `q` (`solvesSqDH_evalPure_sqFromCDHProg`). For prime `q`, `cdhFromSqProg`
+makes at most `2` calls (`solvesCDH_evalPure_cdhFromSqProg`), `sqFromInvProg` at most `3`, none
+at `0` (`solvesSqDH_evalPure_sqFromInvProg`, `queriesSatisfy_sqFromInvProg`), `invFromDivProg` at
+most `1`, with nonzero divisor (`solvesInvDH_evalPure_invFromDivProg`,
+`queriesSatisfy_invFromDivProg`), `invFromCDHProg` at most `2 * (q - 2).bits.length`
+(`solvesInvDH_evalPure_invFromCDHProg`) and `divFromCDHProg` at most
+`2 * (q - 2).bits.length + 1` (`solvesDivDH_evalPure_divFromCDHProg`); the first three of these
+need `DecidableEq G`. Correctness is under `OracleComp.evalPure` against every solver that is
+correct on its domain, and the counts are `OracleComp.IsQueryBounded` bounds on solver calls only:
+group operations, scalar multiplications and running time are not certified, so the exercise's
+polynomial-time equivalence is not yet proved. The
 [equivalents client](../../CslibFrontierTests/Crypto/DiffieHellmanEquivalents.lean) composes the
-four-step cycle over `ZMod 5`, evaluates the programs by `decide` at `q = 5` and `q = 2`, probes
-failure without the `q = 2` branch or primality (`q = 4`), and tests `sqFromInvProg` against a
-solver wrong at `0`.
+cycle over `ZMod 5`, evaluates the programs at `q = 5` and `q = 2`, probes the `q = 2` branch and
+composite `q = 4`, and uses `QueriesSatisfy.interpret_congr` to verify `sqFromInvProg` and
+`invFromDivProg` against solvers corrupted at disallowed zero inputs.
 
 Fixed-first-coordinate rerandomization, single-exponent shifting, and Multi-DDH (I) ([bs23][bs23],
 Exercises 10.8, 10.9, and 10.11) live in
