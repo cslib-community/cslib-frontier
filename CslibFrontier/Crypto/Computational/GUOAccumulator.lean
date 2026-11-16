@@ -92,8 +92,8 @@ The source's claims map to Lean as follows.
   `encIntBin` and every natural number on `encNat`, with no condition on the values.
 * `Cslib.Crypto.computableInPolyTime_guoExponent_toFinset`,
   `Cslib.Crypto.computableInPolyTime_guoCommit_toFinset`: Alice's exponent `E` and commitment for
-  the elements of a list read on `encList` are computable in polynomial time when `H` is, and for
-  the commitment `N` and `g`.
+  the elements of a list read on `encList` are computable in polynomial time when `H` is (and, for
+  the commitment, when `N` and `g` are).
 
 ## Implementation notes
 
