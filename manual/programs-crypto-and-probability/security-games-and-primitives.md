@@ -2697,6 +2697,20 @@ in decryption, preserving `INDCPA` (`SymmetricCipher.INDCPA.extendCipher`) and `
 `echoMAC` as well as the PRF instantiation are in
 [`CslibFrontierTests/Crypto/MACThenEncrypt.lean`](../../CslibFrontierTests/Crypto/MACThenEncrypt.lean).
 
+For the plaintext integrity of MAC-then-Encrypt (Boneh–Shoup Exercise 9.15(a), p. 395
+[bs23][bs23]), import
+[`Encryption/MACThenEncrypt/EncForge.lean`](../../CslibFrontier/Crypto/Computational/Encryption/MACThenEncrypt/EncForge.lean).
+The exercise's PI game is `SymmetricCipher.EncForge`. `encForge_macThenEncrypt` proves
+`(macThenEncrypt E M ptLen …).EncForge` from `M.EUFCMA` alone, for every cipher `E`. The reduction
+`mteToMACForger` samples the encryption key itself, answers encryption queries through the MAC
+signing oracle, and decrypts the adversary's ciphertext to obtain its forgery;
+`isOraclePPT_mteToMACForger` is its certificate and
+`succProbability_encForgeGame_macThenEncrypt_le` its bound. With `indcpa_macThenEncrypt` this gives
+both halves of (a); over `E.extendCipher` the scheme also fails `INDCCA` and
+`CiphertextIntegrity`, the exercise's Note. Both, and an instance from a pseudorandom function, are
+checked in
+[`CslibFrontierTests/Crypto/MACThenEncryptEncForge.lean`](../../CslibFrontierTests/Crypto/MACThenEncryptEncForge.lean).
+
 ## Authentication, signatures, and state
 
 To state a forgery experiment, import [Game/Forgery.lean](../../CslibFrontier/Crypto/Game/Forgery.lean). `forgeExperiment keyGen signer verify fresh A` draws a key pair, runs the forger `A` on the public key against a signing oracle, and accepts a candidate `(m, σ)` that verifies and is fresh. The oracle is a policy `Signer SK M Sig` that reads the log of answered queries. `Signer.ofSign` signs every query and `.oneTime` signs only the first; `Signer.indexed` and `Signer.counter` give the indexed and counter oracles. A refused query is answered with `default` and is not logged. `freshMessage` gives existential unforgeability and `freshPair` strong unforgeability; `succProbability_forgeExperiment_freshMessage_le` shows that strong implies existential. Verification also receives the secret key, so a MAC is the case `PK = Unit`. [Signature/Scheme.lean](../../CslibFrontier/Crypto/Computational/Signature/Scheme.lean) defines a typed `Signature.Scheme PK SK M Sig` with `eufCmaExperiment` (Boneh–Shoup Attack Game 13.1), `sufCmaExperiment` and `oneTimeEufCmaExperiment`; `restrict adm` makes verification accept only admissible messages. At each parameter `n`, the word games `SignatureScheme.eufCmaGame` and `eufOneTimeGame` equal these experiments for `S.toScheme n` and `adversary.toTyped n` ([Signature/Bridge.lean](../../CslibFrontier/Crypto/Computational/Signature/Bridge.lean), `eufCmaGame_eq_eufCmaExperiment`). `Signature.IndexedScheme` adds a capacity and passes an index to signing and verification. Its `eufCmaExperiment` uses `Signer.indexed` (Boneh–Shoup Definition 14.6) and `counterEufCmaExperiment` uses `Signer.counter` (Section 14.6.4). The word games `indexedEufCmaGame` and `counterEufCmaGame` equal them at each `n` (`indexedEufCmaGame_eq_eufCmaExperiment`, `counterEufCmaGame_eq_counterEufCmaExperiment`). For any typed scheme on words, `Forger.eval_eufCmaExperiment_toTyped` and its `restrict` form unfold the experiment played by a word forger into the word-level game; the tree signature games `TreeSignature.treeGame` and `treeGameWith` are experiments of the certificate-free `treeScheme` and use this form in the coin hybrid. The [checked clients](../../CslibFrontierTests/Crypto/Forgery.lean) cover the signing policies, a winning forger, a replay that loses, and the unique-signature equality.
