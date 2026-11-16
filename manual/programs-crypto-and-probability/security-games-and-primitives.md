@@ -2671,6 +2671,17 @@ so `encryptThenMAC E M.redundantTag hctLen` satisfies `INDCPA` and `EncForge` ye
 evaluations and composed `IsPPT` / `IsOraclePPT` checks on `echoFamily` are in
 [`CslibFrontierTests/Crypto/CompositionCounterexamples.lean`](../../CslibFrontierTests/Crypto/CompositionCounterexamples.lean).
 
+For the implication from chosen-ciphertext to chosen-plaintext security, import
+[`Encryption/CCAToCPA.lean`](../../CslibFrontier/Crypto/Computational/Encryption/CCAToCPA.lean)
+(Boneh–Shoup §9.2.2, p. 362 [bs23][bs23]). `SymmetricCipher.cpaToCCAAdversary` sends each query of
+a CPA adversary to the encryption channel of `ccaOracle`, cutting replies to a polynomial
+ciphertext-length bound, and makes no decryption query; `isOraclePPT_cpaToCCAAdversary` is its
+certificate. Under the bound (`CiphertextLengthLE`), `eval_ccaGame_cpaToCCAAdversary` equates its
+CCA game with the CPA game of the original adversary, and `SymmetricCipher.INDCCA.indcpa` derives
+`INDCPA` from `INDCCA`. The converse fails: `tailFallback` above keeps `INDCPA` and loses `INDCCA`.
+Examples are in
+[`CslibFrontierTests/Crypto/CCAToCPA.lean`](../../CslibFrontierTests/Crypto/CCAToCPA.lean).
+
 For generic MAC-then-Encrypt composition, its `INDCPA` preservation, and its chosen-ciphertext
 counterexample over `SymmetricCipher` and `MACScheme`, import
 [`Encryption/MACThenEncrypt.lean`](../../CslibFrontier/Crypto/Computational/Encryption/MACThenEncrypt.lean)
