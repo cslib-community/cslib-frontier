@@ -95,26 +95,15 @@ public lemma bitTr_events (w : List Bool) : bitTr.events w = w := by
 @[expose] public def bitScan (p : ℕ × ℕ) (b : Bool) : ℕ × ℕ :=
   (p.1 - 1, if p.1 = 1 then eBit b else p.2)
 
-lemma bitScan_zero (l : List Bool) (cur : ℕ) : l.foldl bitScan (0, cur) = (0, cur) := by
-  unfold bitScan
-  simpa only [Nat.zero_sub, Nat.lt_irrefl, false_and, ↓reduceIte] using
-    List.foldl_countdown eBit l 0 cur false
-
-lemma bitScan_all (l : List Bool) (k cur : ℕ) (hk : 1 ≤ k) :
-    l.foldl bitScan (k, cur) =
-      (k - l.length, if k ≤ l.length then eBit (l.getD (k - 1) false) else cur) := by
-  unfold bitScan
-  simpa only [show 0 < k by omega, true_and] using
-    List.foldl_countdown eBit l k cur false
-
 /-- **The countdown over bits finds the symbol under the input head.** -/
 public lemma inputSymbol_bitScan (w : List Bool) (p : ℕ) :
     inputSymbol (w.map eBit) p =
       if p = 0 ∨ (w.foldl bitScan (p, 0)).1 ≠ 0 then none else some (w.foldl bitScan (p, 0)).2 := by
   rcases Nat.eq_zero_or_pos p with rfl | hp
   · simp [inputSymbol]
-  rw [bitScan_all w p 0 hp]
-  simp only [inputSymbol, hp.ne', false_or, ne_eq]
+  unfold bitScan
+  rw [List.foldl_countdown eBit w p 0 false]
+  simp only [hp, true_and, inputSymbol, hp.ne', false_or, ne_eq]
   rcases Nat.lt_or_ge (p - 1) w.length with h | h
   · simp [Nat.sub_eq_zero_iff_le.mpr (by omega : p ≤ w.length), List.head?_drop, h]
     omega

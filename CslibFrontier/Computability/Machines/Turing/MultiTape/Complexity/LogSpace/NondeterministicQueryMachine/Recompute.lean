@@ -85,15 +85,6 @@ private theorem foldl_tick_toList (p : ℕ × Bool) (o : Option ℕ) :
     o.toList.foldl tick p = tickOpt p o := by
   cases o <;> rfl
 
-/-- **The countdown from `k ≥ 1` over the symbols `l`** ends at `0` exactly when `k ≤ l.length`,
-having read `l[k - 1]` as a bit. -/
-theorem foldl_tick (l : List ℕ) (k : ℕ) (b : Bool) (hk : 1 ≤ k) :
-    l.foldl tick (k, b) =
-      (k - l.length, if k ≤ l.length then decide (l.getD (k - 1) 0 ≠ 0) else b) := by
-  unfold tick
-  simpa only [show 0 < k by omega, true_and] using
-    List.foldl_countdown (fun n => decide (n ≠ 0)) l k b 0
-
 /-! ### The machine -/
 
 variable {σ : Type} (M : NondeterministicQueryMachine σ) (d : Desc)
@@ -182,7 +173,10 @@ private theorem step_recomputeAt_halt
     change (Universal.run d (x.map eBit) u).state.isSome = false
     rw [Bool.eq_false_iff, ne_eq, Option.isSome_iff_ne_none, not_not, hhalt]
   have hans : (recomputeAt M d x m u).answer = M.read y m := by
-    simp only [RecomputeState.answer, recomputeAt, hy, foldl_tick _ _ _ (Nat.le_add_left 1 _),
+    simp only [RecomputeState.answer, recomputeAt, hy]
+    unfold tick
+    rw [List.foldl_countdown (fun n => decide (n ≠ 0)) _ _ _ 0]
+    simp only [show 0 < M.query m + 1 by omega, true_and,
       List.length_map, NondeterministicQueryMachine.read, Nat.add_sub_cancel]
     by_cases hq : M.query m < y.length
     · rw [List.getD_eq_getElem?_getD, List.getElem?_map, List.getElem?_eq_getElem hq]
@@ -364,7 +358,8 @@ private theorem length_eRecompute_recomputeAt_le {encS : σ ↪ List Bool} (x : 
       2 * (encS m).length + 2 * (eCfg (Universal.run d (x.map eBit) r)).length +
         2 * (encNat (M.query m + 1)).length + 8 := by
   have hc : ((emitted d x r).foldl tick (M.query m + 1, false)).1 ≤ M.query m + 1 := by
-    rw [foldl_tick _ _ _ (Nat.le_add_left 1 _)]
+    unfold tick
+    rw [List.foldl_countdown (fun n => decide (n ≠ 0)) _ _ _ 0]
     omega
   have := length_encNat_mono hc
   simp only [eRecompute_apply, recomputeAt, length_encPair, encBool_apply, List.length_singleton]
