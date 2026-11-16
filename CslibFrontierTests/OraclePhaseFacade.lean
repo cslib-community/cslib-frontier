@@ -23,7 +23,11 @@ namespace CslibFrontierTests.OraclePhaseFacade
 
 open Cslib Cslib.Probability Turing Turing.MultiTapeTM
 
+/-- info: Unknown identifier `Cslib.Probability.IsTidyOraclePPTOn` -/
+#guard_msgs in
 #check_failure Cslib.Probability.IsTidyOraclePPTOn
+/-- info: Unknown constant `Turing.MultiTapePTM.Internal.Oracle.IsTidyOraclePPTOn` -/
+#guard_msgs in
 #check_failure Turing.MultiTapePTM.Internal.Oracle.IsTidyOraclePPTOn
 
 example := @IsOraclePPTOn.runOracle_of_clock
