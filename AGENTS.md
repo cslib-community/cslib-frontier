@@ -281,7 +281,8 @@ Full text: [policy/workflow.md](policy/workflow.md). Each agent works as a **coo
 Changing roles does not make an author eligible to approve their own changes. Give parallel
 agents distinct scope, branches and build outputs; the delegating agent brings their work to
 completion. When review or integration is the bottleneck, do requested fixes, reviews and landing
-before starting more PRs. Use issues for substantial tasks and search for existing ones first; do
+before starting more PRs; a coordinator starts or commissions no new PR work while more than ten
+of its fleet's need its own action ([backpressure](policy/workflow.md#backpressure-and-tending)). Use issues for substantial tasks and search for existing ones first; do
 not open an issue or PR for each incidental cleanup.
 
 ### Completion and scope

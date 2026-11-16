@@ -93,11 +93,13 @@ theorem mem_support_runWith_answer_invariant [DecidableEq ι] (dist : (q : ι) �
     supp_cases hmem [runWith_pure] with ⟨rfl, rfl⟩
     exact ⟨fun _ _ h => h, hsupp, fun _ _ => rfl⟩
   | query_bind q cont ih =>
-    supp_cases hmem [runWith_bind, runWith_query] with ⟨⟨ans, cache₁⟩, hans, hcont⟩
+    rw [runWith_freeMBind, runWith_query] at hmem
+    supp_cases hmem with ⟨⟨ans, cache₁⟩, hans, hcont⟩
     obtain ⟨hq_ans, hsub₁, hsupp₁⟩ := mem_support_answer_invariant dist q hsupp hans
     obtain ⟨hsub₂, hsupp', heval⟩ := ih ans hsupp₁ hcont
     refine ⟨fun q' v' h => hsub₂ q' v' (hsub₁ q' v' h), hsupp', fun h hh => ?_⟩
     have hq_eq : h q = ans := hh q ans (hsub₂ q ans hq_ans)
+    rw [PFunctor.FreeM.bind_eq_bind]
     simp only [evalPure_bind, evalPure_query, hq_eq]
     exact heval h hh
 

@@ -131,7 +131,7 @@ theorem tail {encL : List α ↪ List Bool} [ListEncoding encA encL] :
 @[fun_prop]
 theorem listIsEmpty {encL : List α ↪ List Bool} [ListEncoding encA encL] :
     ComputableTidilyInPolyTime (List.isEmpty (α := α)) encL encBool :=
-  of_linear (Internal.NormalForm.linear (ListEncoding.isEmpty (enc₁ := encA) (enc := encL)))
+  of_linear (ListEncoding.isEmpty (enc₁ := encA) (enc := encL))
 
 /-- Test a framed list's emptiness, determining its element encoding for automation. -/
 @[fun_prop]

@@ -235,7 +235,7 @@ private theorem interpret_liftDecisionLeft {α : Type} (τ : Transcript (s₁ ++
   funext q
   rcases q with e | q
   · exact e.elim
-  · refine (OracleComp.interpret_interpret (m := Id) _ _ _).trans ?_
+  · rw [OracleComp.interpret_sumHandler_liftRight]
     exact interpret_liftMsgLeft s₁ s₂ τ q
 
 private theorem interpret_liftDecisionRight {α : Type} (τ : Transcript (s₁ ++ s₂))
@@ -248,7 +248,7 @@ private theorem interpret_liftDecisionRight {α : Type} (τ : Transcript (s₁ +
   funext q
   rcases q with e | q
   · exact e.elim
-  · refine (OracleComp.interpret_interpret (m := Id) _ _ _).trans ?_
+  · rw [OracleComp.interpret_sumHandler_liftRight]
     exact interpret_liftMsgRight s₁ s₂ τ q
 
 /-- The composed verifier's output is the second verifier's output on the first one's. -/

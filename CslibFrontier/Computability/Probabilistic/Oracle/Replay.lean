@@ -51,6 +51,7 @@ open Cslib Cslib.Probability MultiTapeTM
   refine ⟨inferInstance, k', Control', hfinite, target, c, 1, ?_⟩
   intro p Store oracle s
   simp only [encBits, Function.Embedding.coe_refl, id_map, pow_one]
+  rw [ProbOracleComp.runWith_eq_run_interpret, ProbOracleComp.runWith_eq_run_interpret]
   exact (ht p.1 p.2 _ _ _ (ProbOracleComp.sample (ProbComp.uniform Bool))
     (fun op word => ProbOracleComp.query (op, word))
     (OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifOracle n)) oracle)
@@ -93,7 +94,7 @@ theorem IsOraclePPTOn.exists_savedCoins {Operation α β : Type} [DecidableEq Op
     (fun _ => by simp only [ProbOracleComp.run_interpret_sample, ProbComp.eval_uniform])
     (c * ((input a).length + 1) ^ d) (machine.initialConfig (input a)) s
   have hout := congrArg (PMF.map (fun result => (result.1.tapes.output, result.2))) hc
-  simpa only [ProbOracleComp.runWith, OracleComp.runWith, MultiTapePTM.runOracle,
+  simpa only [ProbOracleComp.runWith_eq_run_interpret, MultiTapePTM.runOracle,
     MultiTapePTM.run, MultiTapePTM.runFrom, runCoins, runFromCoins, OracleComp.interpret_map,
     StateT.run_map, PMF.monad_map_eq_map, PMF.map_bind] using hout
 
