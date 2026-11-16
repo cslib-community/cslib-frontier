@@ -7,8 +7,9 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Circuit.KernelVector
 public import CslibFrontier.Computability.Circuit.SpanProgram.Elimination
-public import CslibFrontier.Computability.Circuit.LinearSolve
+import CslibFrontier.Computability.Circuit.LinearSolve
 import CslibFrontier.Tactic.Synthesis
 
 /-!
@@ -26,8 +27,9 @@ each party, a membership value `χ i`, nonzero for the members; at an input `x` 
 are those of `fullInterpretation (k := 2)` over the field: one gate computes any function of at
 most two field elements, so a zero test with selection, a product and a quotient `a⁻¹ * b` each
 count as one gate. The bounds therefore count field operations and zero tests, not bit
-operations. With `r = ∑ i, rowDim i` rows and `kernelVecCost r n = 8 * (r + 1) * (n + 1) ^ 2`, the
-bounds are of order `r * tailDim ^ 2 + tailDim * r ^ 2`.
+operations. With `r = ∑ i, rowDim i` rows, `d = tailDim + 1` columns and
+`kernelVecCost r n = 8 * (r + 1) * (n + 1) ^ 2`, the bounds are of order
+`(r + 1) * d ^ 2 + d * (r + 1) ^ 2`.
 
 Open: a bound in bit operations over an encoded field, and uniformity of the circuits in the
 shape `(N, tailDim, rowDim)`.

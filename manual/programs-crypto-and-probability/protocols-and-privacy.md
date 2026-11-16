@@ -1070,9 +1070,8 @@ scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.ShamirInterpolation
 
 Boneh–Shoup Section 22.5.2 ([bs23][bs23], pp. 978–982, Definition 22.21, Construction 22.2,
 Theorem 22.13, Definition 22.22, Remark 22.15, Definition 22.23, Theorem 22.14 and Lemma 22.15)
-derives linear
-secret sharing for the access structure that a monotone span program `MonotoneSpanProgram F Party`
-recognizes over a field `F`
+derives linear secret sharing for the access structure that a monotone span program
+`MonotoneSpanProgram F Party` recognizes over a field `F`
 ([`SpanProgram/Basic.lean`](../../CslibFrontier/Computability/Circuit/SpanProgram/Basic.lean),
 [`AccessStructure/Linear.lean`](../../CslibFrontier/Crypto/Protocols/SecretSharing/AccessStructure/Linear.lean),
 and [`AccessStructure/Sources.lean`](../../CslibFrontier/Crypto/Protocols/SecretSharing/AccessStructure/Sources.lean)).
@@ -1094,10 +1093,13 @@ decidable equality,
 [`SpanProgram/Elimination.lean`](../../CslibFrontier/Computability/Circuit/SpanProgram/Elimination.lean)
 computes the algorithm `Lin` of Theorem 22.14 as `recombination` and the program `P_L` as
 `normalForm` (`P` times the identity with first column a kernel vector of the coalition's rows),
-both by elimination; `sum_recombination_dotProduct_linearShare` is part (a),
-`shareDist_linearUniformAccessScheme_normalForm` part (b)(i) and `normalForm_matrix_zero` part
-(b)(ii). Outside their domains `recombination` returns zero vectors and `normalForm` zeroes the
-first column of every party.
+both by elimination. For a coalition `s` with `P.Accepts s`,
+`sum_recombination_dotProduct_linearShare` is part (a): the vectors recombine the members' shares
+to the secret, for every key. For a coalition with `¬ P.Accepts s`,
+`shareDist_linearUniformAccessScheme_normalForm` is part (b)(i), over a finite field, and
+`accepts_normalForm` says that `P_L` accepts the same coalitions as `P`. `normalForm_matrix_zero`
+is part (b)(ii) and holds for every coalition. `recombination` of a coalition that is not accepted
+is zero, and `normalForm` of an accepted coalition has first column zero for every party.
 [`SpanProgram/EliminationSynthesis.lean`](../../CslibFrontier/Computability/Circuit/SpanProgram/EliminationSynthesis.lean)
 bounds circuits for both, one for each shape of program, whose inputs are the matrix entries and a
 membership value for each party: with `r` rows and `d` columns, `full_recombination` uses at most

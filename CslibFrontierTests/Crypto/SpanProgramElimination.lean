@@ -91,6 +91,12 @@ example (secret : ZMod 5) :
     fun k secret' => linearShare_eq_of_col_zero _
       (shamir23.normalForm_matrix_zero (by decide)) k secret secret'⟩
 
+/-- `P_L` accepts the same coalitions as `P`: the normal form for the rejected coalition `{1}`
+still accepts `{0, 1}` and still rejects `{1}`. -/
+example : (shamir23.normalForm {1}).Accepts {0, 1} ∧ ¬ (shamir23.normalForm {1}).Accepts {1} :=
+  ⟨(shamir23.accepts_normalForm shamir23_not_accepts_1 {0, 1}).mpr shamir23_accepts_01,
+    fun h => shamir23_not_accepts_1 ((shamir23.accepts_normalForm shamir23_not_accepts_1 {1}).mp h)⟩
+
 /-- "clearly implies Theorem 22.13" ([BonehShoup2023], p. 981): the privacy theorem for uniform
 keys follows from Theorem 22.14(b). -/
 example {F : Type*} [Field F] [Fintype F] [DecidableEq F] {N : ℕ}
