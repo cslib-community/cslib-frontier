@@ -10,6 +10,8 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Deterministic
 
+import Cslib.Computability.Machines.Turing.MultiTape.TapeLemmas
+
 /-!
 # Counters stored in work-head positions
 
@@ -202,28 +204,14 @@ theorem exists_unbounded_visited_fixed_support :
     have := congrArg (fun c => c.workTapePos 0) h
     simpa only [increment_run, cfg, Nat.cast_inj] using this
   · intro input s h
-    let p := MultiTapeNTM.ComputationPath.ofDeterministic increment input (s + 1)
-    have hbound := h p
-    have hmem : ∀ t ≤ s, (t : ℤ) ∈ MultiTapeNTM.RunPath.visitedByTapeHead p.toRunPath 0 := by
-      intro t ht
-      apply (MultiTapeNTM.RunPath.mem_visitedByTapeHead _).mpr
-      refine ⟨increment.runFrom (increment.initCfg input) (t + 1), ?_, ?_⟩
-      · exact ⟨⟨t + 1, by change t + 1 < s + 1 + 1; omega⟩, rfl⟩
-      · rw [increment_run]
-        rfl
-    have hcard : s + 1 ≤ p.spaceUsedByTape 0 := by
-      have hsub : (Finset.range (s + 1)).image (fun t : ℕ => (t : ℤ)) ⊆
-          MultiTapeNTM.RunPath.visitedByTapeHead p.toRunPath 0 := by
-        intro z hz
-        obtain ⟨t, ht, rfl⟩ := Finset.mem_image.mp hz
-        exact hmem t (Nat.lt_succ_iff.mp (Finset.mem_range.mp ht))
-      have hcard := Finset.card_le_card hsub
-      rw [Finset.card_image_of_injective (f := fun t : ℕ => (t : ℤ)) _
-        (fun _ _ h => Int.natCast_inj.mp h), Finset.card_range] at hcard
-      exact hcard
-    have hspace : p.space = p.spaceUsedByTape 0 := by
-      simp [MultiTapeNTM.ComputationPath.space, MultiTapeNTM.RunPath.space,
-        MultiTapeNTM.ComputationPath.spaceUsedByTape]
+    let p := MultiTapeNTM.ComputationPath.ofDeterministic increment input (s + 2)
+    have hw := MultiTapeNTM.RunPath.inWindow_of_space_le
+      (p := p.toRunPath) (fun _ => rfl) (h p)
+    have hz := mem_window.mp (hw p.last ⟨Fin.last _, rfl⟩ 0)
+    rw [computationPath_last_eq_runFrom] at hz
+    change ((increment.runFrom (increment.initCfg input) ((s + 1) + 1)).workTapePos 0).natAbs ≤ s
+      at hz
+    simp only [increment_run, cfg, Int.natAbs_natCast] at hz
     omega
 
 end Turing.MultiTapeTM.HeadCounter
