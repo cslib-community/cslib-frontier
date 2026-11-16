@@ -4770,6 +4770,7 @@ public import CslibFrontier.Crypto.Computational.Quantum.Mixture
 public import CslibFrontier.Crypto.Computational.RSAAttacks
 public import CslibFrontier.Crypto.Computational.RSACRT
 public import CslibFrontier.Crypto.Computational.RSACommonRoot
+public import CslibFrontier.Crypto.Computational.RSAHalfPredicate
 public import CslibFrontier.Crypto.Computational.RSAHash
 public import CslibFrontier.Crypto.Computational.RSALeastSignificantBit
 public import CslibFrontier.Crypto.Computational.RSATrapdoor
@@ -4951,6 +4952,7 @@ public import CslibFrontier.Crypto.Primitives.PRF.ToPRG
 public import CslibFrontier.Crypto.Primitives.PRG.Circuit
 public import CslibFrontier.Crypto.Primitives.PRG.Game
 public import CslibFrontier.Crypto.Primitives.PRG.LFSR
+public import CslibFrontier.Crypto.Primitives.PRG.LinearCongruential
 public import CslibFrontier.Crypto.Primitives.PRG.ModReduction
 public import CslibFrontier.Crypto.Primitives.PRG.NextBit
 public import CslibFrontier.Crypto.Primitives.PRG.Nisan
