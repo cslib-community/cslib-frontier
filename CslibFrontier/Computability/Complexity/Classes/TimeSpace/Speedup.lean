@@ -172,7 +172,7 @@ private lemma honest_cost {π : Type} {encP : π ↪ List Bool} {look : π × �
       (length_encNat_add_le y.length 1)
   have hL' := hL _ hpos
   have hlist : (encList encUnary c.2).length ≤ 2 * descLen d + 1 := by
-  have h := length_encList_le encUnary c.2 (b := descLen d) fun o ho => by
+    have h := length_encList_le encUnary c.2 (b := descLen d) fun o ho => by
       simpa only [encUnary_apply, List.length_replicate] using hinv.2.2 o ho
     have : c.2.length * (2 * descLen d + 1) ≤ 1 * (2 * descLen d + 1) :=
       Nat.mul_le_mul_right _ hout
@@ -313,7 +313,7 @@ theorem mem_SigmaTwoTIME_of_virtualRun {π : Type} [Inhabited π] {eP : π ↪ L
       (encPair eP (encPair eCfg (encList encUnary))) encBool
       (fun x => (encPair eP (encPair eCfg (encList encUnary)) x).length)
       (fun x => (encPair eP (encPair eCfg (encList encUnary)) x).length) := by
-  have h := (ComputableInO.const (encIn := encPair eP (encPair eCfg (encList encUnary)))
+    have h := (ComputableInO.const (encIn := encPair eP (encPair eCfg (encList encUnary)))
       (encMid := encList encUnary) [1]).eq'
       (ComputableInO.snd eP (encPair eCfg (encList encUnary))).snd'
     have h1 : (encList encUnary [1]).length ≤ 4 := by decide
