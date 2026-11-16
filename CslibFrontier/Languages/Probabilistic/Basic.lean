@@ -270,7 +270,7 @@ semantics. -/
 
 /-- Evaluating an ordinary same-universe sequence binds the first output distribution to the
 continuation semantics. -/
-@[simp] theorem evalWith_bind {α β : Type v}
+@[simp] theorem evalWith_bind {α β : Type w}
     (oracle : (q : ι) → PMF (spec q)) (program : OracleComp spec α)
     (next : α → OracleComp spec β) :
     evalWith oracle (program >>= next) =
@@ -286,7 +286,7 @@ continuation semantics. -/
   rfl
 
 /-- Ordinary same-universe postprocessing maps the output distribution. -/
-@[simp] theorem evalWith_map {α β : Type v} (oracle : (q : ι) → PMF (spec q))
+@[simp] theorem evalWith_map {α β : Type w} (oracle : (q : ι) → PMF (spec q))
     (f : α → β) (program : OracleComp spec α) :
     evalWith oracle (f <$> program) = (evalWith oracle program).map f := by
   simpa only [PFunctor.FreeM.map_eq_map] using evalWith_freeMMap oracle f program

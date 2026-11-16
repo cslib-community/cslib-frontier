@@ -186,7 +186,7 @@ result. -/
 variable {possible} in
 /-- A possible result of an ordinary same-universe sequence is a possible result of a
 continuation at a possible first result. -/
-@[simp] theorem mem_supportWith_bind_iff {α β : Type v} {program : OracleComp spec α}
+@[simp] theorem mem_supportWith_bind_iff {α β : Type w} {program : OracleComp spec α}
     {next : α → OracleComp spec β} {b : β} :
     b ∈ supportWith possible (program >>= next) ↔
       ∃ a ∈ supportWith possible program, b ∈ supportWith possible (next a) := by
@@ -204,7 +204,7 @@ theorem supportWith_freeMBind (program : OracleComp spec α) (next : α → Orac
 
 /-- The possible results of an ordinary same-universe sequence, as a union over the possible
 first results. -/
-theorem supportWith_bind {α β : Type v} (program : OracleComp spec α)
+theorem supportWith_bind {α β : Type w} (program : OracleComp spec α)
     (next : α → OracleComp spec β) :
     supportWith possible (program >>= next) =
       ⋃ a ∈ supportWith possible program, supportWith possible (next a) := by
@@ -221,7 +221,7 @@ variable {possible} in
 
 variable {possible} in
 /-- A possible ordinary same-universe mapped result is the image of a possible result. -/
-@[simp] theorem mem_supportWith_map_iff {α β : Type v} {f : α → β}
+@[simp] theorem mem_supportWith_map_iff {α β : Type w} {f : α → β}
     {program : OracleComp spec α} {b : β} :
     b ∈ supportWith possible (f <$> program) ↔
       ∃ a ∈ supportWith possible program, f a = b := by
@@ -237,7 +237,7 @@ theorem supportWith_freeMMap (f : α → β) (program : OracleComp spec α) :
 
 /-- The possible results of an ordinary same-universe mapped program are the image of its
 possible results. -/
-theorem supportWith_map {α β : Type v} (f : α → β) (program : OracleComp spec α) :
+theorem supportWith_map {α β : Type w} (f : α → β) (program : OracleComp spec α) :
     supportWith possible (f <$> program) = f '' supportWith possible program := by
   simpa only [PFunctor.FreeM.map_eq_map] using supportWith_freeMMap possible f program
 
@@ -310,7 +310,7 @@ theorem freeMBind_congr_on_support {program : OracleComp spec α}
 
 /-- Two continuations that agree on every possible output of `program` have identical ordinary
 same-universe `>>=` in `OracleComp`. -/
-theorem bind_congr_on_support {α β : Type v} {program : OracleComp spec α}
+theorem bind_congr_on_support {α β : Type w} {program : OracleComp spec α}
     {f g : α → OracleComp spec β} (h : ∀ a ∈ program.support, f a = g a) :
     program >>= f = program >>= g := by
   simpa only [PFunctor.FreeM.bind_eq_bind] using freeMBind_congr_on_support h
@@ -363,7 +363,7 @@ it reached. -/
 
 /-- Running an ordinary same-universe sequence runs the first program, then the continuation at
 its result from the state it reached. -/
-@[simp] theorem runWith_bind {α β : Type v} (program : OracleComp spec α)
+@[simp] theorem runWith_bind {α β : Type w} (program : OracleComp spec α)
     (next : α → OracleComp spec β) (s : σ) :
     runWith oracle (program >>= next) s =
       (runWith oracle program s).bind fun x => runWith oracle (next x.1) x.2 := by
@@ -377,7 +377,7 @@ its result from the state it reached. -/
   rfl
 
 /-- Ordinary same-universe postprocessing maps the result and keeps the final state. -/
-@[simp] theorem runWith_map {α β : Type v} (f : α → β)
+@[simp] theorem runWith_map {α β : Type w} (f : α → β)
     (program : OracleComp spec α) (s : σ) :
     runWith oracle (f <$> program) s =
       (runWith oracle program s).map (Prod.map f id) := by
@@ -547,23 +547,25 @@ end OracleComp
 
 namespace ProbComp
 
+universe w
+
 variable {α : Type}
 
 /-- Evaluating a closed probabilistic program is `evalWith` of the uniform handler. -/
-theorem eval_eq_evalWith (program : ProbComp α) :
+theorem eval_eq_evalWith {α : Type w} (program : ProbComp α) :
     eval program = OracleComp.evalWith unifOracle program :=
   rfl
 
 /-- The possible results of a closed probabilistic program are its results for any replies, since
 every uniform reply has positive probability. -/
-theorem support_eval (program : ProbComp α) :
+theorem support_eval {α : Type w} (program : ProbComp α) :
     (eval program).support = OracleComp.support program := by
   rw [eval_eq_evalWith, OracleComp.support_evalWith]
   congr 1 with n : 1
   exact Set.eq_univ_of_forall fun a => by simp [unifOracle, PMF.mem_support_iff]
 
 /-- Every closed probabilistic program has at least one possible result. -/
-theorem support_nonempty (program : ProbComp α) : program.support.Nonempty := by
+theorem support_nonempty {α : Type w} (program : ProbComp α) : program.support.Nonempty := by
   rw [← support_eval]
   exact (eval program).support_nonempty
 

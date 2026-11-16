@@ -116,7 +116,7 @@ def liftRight (program : OracleComp spec₂ α) : OracleComp (spec₁ ⊕ₒ spe
   substitute_bind _ _ _
 
 /-- `liftLeft` commutes with ordinary same-universe monadic bind `>>=`. -/
-@[simp] theorem liftLeft_bind {α β : Type v} (program : OracleComp spec₁ α)
+@[simp] theorem liftLeft_bind {α β : Type w} (program : OracleComp spec₁ α)
     (next : α → OracleComp spec₁ β) :
     liftLeft (spec₂ := spec₂) (program >>= next) =
       liftLeft program >>= fun a => liftLeft (next a) := by
@@ -130,7 +130,7 @@ def liftRight (program : OracleComp spec₂ α) : OracleComp (spec₁ ⊕ₒ spe
   substitute_bind _ _ _
 
 /-- `liftRight` commutes with ordinary same-universe monadic bind `>>=`. -/
-@[simp] theorem liftRight_bind {α β : Type v} (program : OracleComp spec₂ α)
+@[simp] theorem liftRight_bind {α β : Type w} (program : OracleComp spec₂ α)
     (next : α → OracleComp spec₂ β) :
     liftRight (spec₁ := spec₁) (program >>= next) =
       liftRight program >>= fun a => liftRight (next a) := by
@@ -143,7 +143,7 @@ def liftRight (program : OracleComp spec₂ α) : OracleComp (spec₁ ⊕ₒ spe
   substitute_map _ _ _
 
 /-- `liftLeft` commutes with ordinary same-universe functorial map `<$>`. -/
-@[simp] theorem liftLeft_map {α β : Type v} (f : α → β) (program : OracleComp spec₁ α) :
+@[simp] theorem liftLeft_map {α β : Type w} (f : α → β) (program : OracleComp spec₁ α) :
     liftLeft (spec₂ := spec₂) (f <$> program) = f <$> liftLeft program := by
   simpa only [PFunctor.FreeM.map_eq_map] using liftLeft_freeMMap f program
 
@@ -154,7 +154,7 @@ def liftRight (program : OracleComp spec₂ α) : OracleComp (spec₁ ⊕ₒ spe
   substitute_map _ _ _
 
 /-- `liftRight` commutes with ordinary same-universe functorial map `<$>`. -/
-@[simp] theorem liftRight_map {α β : Type v} (f : α → β) (program : OracleComp spec₂ α) :
+@[simp] theorem liftRight_map {α β : Type w} (f : α → β) (program : OracleComp spec₂ α) :
     liftRight (spec₁ := spec₁) (f <$> program) = f <$> liftRight program := by
   simpa only [PFunctor.FreeM.map_eq_map] using liftRight_freeMMap f program
 

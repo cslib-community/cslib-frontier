@@ -40,7 +40,7 @@ apply directly.
 * `Cslib.ProbOracleComp.isMonadHom_sample`: `sample` is a monad morphism from `ProbComp`.
 * `Cslib.ProbOracleComp.sample_freeMBind`, `.sample_freeMMap`: sampling commutes with
   heterogeneous sequencing and mapping; `.sample_bind` and `.sample_map` are the ordinary
-  Type-0 forms.
+  same-universe forms.
 * `Cslib.ProbOracleComp.interpret_sample`: embedded sampling uses only the sampling handler.
 * `Cslib.ProbOracleComp.run_interpret_sample`: private sampling leaves oracle state unchanged.
 * `Cslib.ProbOracleComp.run_interpret_lift_sample`: a stateful handler with external calls
@@ -113,8 +113,8 @@ variable {State : Type} {m : Type → Type v} [Monad m] [LawfulMonad m]
       PFunctor.FreeM.bind (sample program) fun a => sample (next a) :=
   OracleComp.substitute_bind _ _ _
 
-/-- Sampling preserves ordinary Type-0 functional sequencing before any interpretation. -/
-@[simp] theorem sample_bind {α β : Type} (program : ProbComp α) (next : α → ProbComp β) :
+/-- Sampling preserves ordinary same-universe functional sequencing before any interpretation. -/
+@[simp] theorem sample_bind {α β : Type w} (program : ProbComp α) (next : α → ProbComp β) :
     sample (spec := spec) (program >>= next) =
       sample program >>= fun a => sample (next a) := by
   simpa only [PFunctor.FreeM.bind_eq_bind] using sample_freeMBind program next
@@ -128,8 +128,8 @@ variable {State : Type} {m : Type → Type v} [Monad m] [LawfulMonad m]
       PFunctor.FreeM.map f (sample program) :=
   OracleComp.substitute_map _ _ _
 
-/-- Ordinary Type-0 deterministic postprocessing stays inside the embedded closed program. -/
-@[simp] theorem sample_map {α β : Type} (f : α → β) (program : ProbComp α) :
+/-- Ordinary same-universe deterministic postprocessing stays inside the embedded closed program. -/
+@[simp] theorem sample_map {α β : Type w} (f : α → β) (program : ProbComp α) :
     sample (spec := spec) (f <$> program) = f <$> sample program := by
   simpa only [PFunctor.FreeM.map_eq_map] using sample_freeMMap f program
 
