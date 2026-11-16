@@ -1331,21 +1331,20 @@ numbers on `encNat` (`computableInPolyTime_guoVerifySubset`,
 `computableInPolyTime_guoNonMemWitness`, `computableInPolyTime_guoForgeryRoot`);
 `computableInPolyTime_guoNonMemCoeff` certifies the natural number `-γ` on `encNat`. Alice
 computes `E` from a list `l` of elements as `(l.map H).prod`; when `l` has no duplicates, this is
-`guoExponent H l.toFinset` (Mathlib's `List.prod_toFinset`), and `guoCommit_toFinset` gives
-`guoCommit N g H l.toFinset = powMod N g (l.map H).prod`. For a list read on `encList` and `H`
-computable in polynomial time with binary values, `computableInPolyTime_guoExponent_toFinset` and
-`computableInPolyTime_guoCommit_toFinset` certify `E` and the commitment when every list has no
-duplicates; for lists that may repeat elements, `binary_prod` composed with
-`ComputableInPolyTime.map` certifies the product. The statements differ from the book's in two
+`guoExponent H l.toFinset` (Mathlib's `List.prod_toFinset`). For `N` and `g` computable in
+polynomial time on `encNat`, a list computable in polynomial time on `encList`, and `H` computable
+in polynomial time with binary values, `computableInPolyTime_guoExponent_toFinset` and
+`computableInPolyTime_guoCommit_toFinset` certify `E` and the commitment for any list: the
+machine erases duplicates before multiplying. The statements differ from the book's in two
 further places: the book's
 `π_T = g ^ (E / ∏ x ∈ T, H x)` equals `guoSubsetWitness` when `T ⊆ S` and no hash is `0`, and for
 `0 < H x` Alice's `γ` satisfies `|γ| < H x` where the book has `|γ| ≤ H(x)` (`guoNonMemCoeff_lt`).
 Security under strong RSA, certificates for membership proofs from a list, aggregated
 non-membership proofs and class groups are not formalized in this module. The
 [checked examples](../../CslibFrontierTests/Crypto/GUOAccumulator.lean) work modulo `35` with
-`g = 2` and the hashes `3`, `5` and `7`, compute the commitment from a list, and include instances
-showing that a list without duplicates, the unit commitment, the unit base, `0 < h`, prime hashes
-and the unit check on `c` are needed.
+`g = 2` and the hashes `3`, `5` and `7`, compute the commitment from a list, show that the product
+along a list with a repeated element is not the commitment, and include instances showing that
+the unit commitment, the unit base, `0 < h`, prime hashes and the unit check on `c` are needed.
 
 For weak RSA moduli ([bs23][bs23], §16.4.2, pp. 698–699), import
 [`Factoring/WeakModuli.lean`](../../CslibFrontier/Crypto/Computational/Factoring/WeakModuli.lean).
