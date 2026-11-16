@@ -4,6 +4,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Christian Reitwiessner
 -/
 
+module
+-- upstream: local-only (tests)
+
 import CslibFrontier.Computability.Complexity.Classes.RelaxedError
 
 /-! Checked instances of the error thresholds of `BPP`, `RP` and `ZPP`: the hypotheses of the
