@@ -16,27 +16,25 @@ import Mathlib.Tactic.NormNum.Prime
 # Variable change tests on affine Weierstrass points
 
 Client tests for `WeierstrassCurve.variableChange_equation_iff`,
-`WeierstrassCurve.variableChangePointEquiv`, and `WeierstrassCurve.variableChangePointEquiv_some`
-generically over any field and concretely over `ZMod 7`.
+`WeierstrassCurve.variableChange_nonsingular_iff`, `WeierstrassCurve.variableChangePointEquiv`,
+and `WeierstrassCurve.variableChangePointEquiv_some` generically over any field, over `ZMod 7`,
+and on a singular nodal cubic over `ZMod 5`.
 -/
 
-namespace VariableChangeTests
+namespace CslibFrontierTests.VariableChange
 
 open WeierstrassCurve
 
 public theorem generic_variableChange_map_add {F : Type*} [Field F] [DecidableEq F]
     (C : VariableChange F) (W : WeierstrassCurve F) {x₁ y₁ x₂ y₂ x₃ y₃ : F}
     (h₁ : (C • W).toAffine.Nonsingular x₁ y₁) (h₂ : (C • W).toAffine.Nonsingular x₂ y₂)
-    (h₁' : W.toAffine.Nonsingular (C.u ^ 2 * x₁ + C.r)
-      (C.u ^ 3 * y₁ + C.u ^ 2 * C.s * x₁ + C.t))
-    (h₂' : W.toAffine.Nonsingular (C.u ^ 2 * x₂ + C.r)
-      (C.u ^ 3 * y₂ + C.u ^ 2 * C.s * x₂ + C.t))
     (h₃' : W.toAffine.Nonsingular x₃ y₃)
-    (hadd : (.some _ _ h₁' : W.toAffine.Point) + .some _ _ h₂' = .some x₃ y₃ h₃') :
+    (hadd : (.some _ _ ((variableChange_nonsingular_iff C W x₁ y₁).mp h₁) : W.toAffine.Point) +
+        .some _ _ ((variableChange_nonsingular_iff C W x₂ y₂).mp h₂) =
+      .some x₃ y₃ h₃') :
     variableChangePointEquiv C W ((.some x₁ y₁ h₁ : (C • W).toAffine.Point) + .some x₂ y₂ h₂) =
       .some x₃ y₃ h₃' := by
-  rw [map_add, variableChangePointEquiv_some C W h₁ h₁',
-    variableChangePointEquiv_some C W h₂ h₂', hadd]
+  rw [map_add, variableChangePointEquiv_some, variableChangePointEquiv_some, hadd]
 
 section ZMod7
 
@@ -82,11 +80,7 @@ private lemma map_some_eq {x y x' y' : ZMod 7}
     (hy : (testChange.u : ZMod 7) ^ 3 * y + testChange.u ^ 2 * testChange.s * x +
       testChange.t = y') :
     variableChangePointEquiv testChange baseCurve (.some x y hp) = .some x' y' hq := by
-  have hq' : baseCurve.toAffine.Nonsingular (testChange.u ^ 2 * x + testChange.r)
-      (testChange.u ^ 3 * y + testChange.u ^ 2 * testChange.s * x + testChange.t) := by
-    simpa [hx, hy] using hq
-  rw [variableChangePointEquiv_some testChange baseCurve hp hq']
-  simp only [Affine.Point.some.injEq]
+  rw [variableChangePointEquiv_some, Affine.Point.some.injEq]
   exact ⟨hx, hy⟩
 
 private lemma map_P1 : variableChangePointEquiv testChange baseCurve (.some 0 4 hP1) =
@@ -137,13 +131,6 @@ private lemma baseCurve_double_2 :
   simp only [Affine.Point.some.injEq, Affine.addX, Affine.addY, Affine.negAddY, Affine.negY, hs]
   constructor <;> decide
 
--- Distinct-X addition (`P₁ + P₂ = P₃` transferred across `variableChangePointEquiv`).
-example :
-    variableChangePointEquiv testChange baseCurve
-        ((.some 0 4 hP1 : transformedCurve.toAffine.Point) + .some 1 6 hP2) =
-      variableChangePointEquiv testChange baseCurve (.some 5 6 hP3) := by
-  rw [map_add, map_P1, map_P2, map_P3, baseCurve_add_12]
-
 -- Tangent doubling (`P₂ + P₂ = P₄` transferred across `variableChangePointEquiv`).
 example :
     variableChangePointEquiv testChange baseCurve
@@ -151,7 +138,7 @@ example :
       variableChangePointEquiv testChange baseCurve (.some 1 3 hP4) := by
   rw [map_add, map_P2, map_P4, baseCurve_double_2]
 
--- Direct equality via `Injective` of `variableChangePointEquiv` without unfolding it.
+-- Distinct-X addition (`P₁ + P₂ = P₃` via `Injective` of `variableChangePointEquiv`).
 example :
     (.some 0 4 hP1 : transformedCurve.toAffine.Point) + .some 1 6 hP2 = .some 5 6 hP3 := by
   apply (variableChangePointEquiv testChange baseCurve).injective
@@ -159,4 +146,33 @@ example :
 
 end ZMod7
 
-end VariableChangeTests
+section NodalZMod5
+
+private local instance : Fact (Nat.Prime 5) := ⟨by decide⟩
+
+private abbrev nodalCurve : WeierstrassCurve (ZMod 5) := ⟨0, 1, 0, 0, 0⟩
+
+private abbrev nodalChange : VariableChange (ZMod 5) :=
+  ⟨⟨2, 3, by decide, by decide⟩, 3, 1, 4⟩
+
+-- Singular node `(3, 3) ↦ (0, 0)`: satisfies `Equation` but fails `Nonsingular` on both curves.
+example :
+    nodalCurve.toAffine.Equation (nodalChange.u ^ 2 * 3 + nodalChange.r)
+      (nodalChange.u ^ 3 * 3 + nodalChange.u ^ 2 * nodalChange.s * 3 + nodalChange.t) :=
+  (variableChange_equation_iff nodalChange nodalCurve 3 3).mp (by decide)
+
+example :
+    ¬nodalCurve.toAffine.Nonsingular (nodalChange.u ^ 2 * 3 + nodalChange.r)
+        (nodalChange.u ^ 3 * 3 + nodalChange.u ^ 2 * nodalChange.s * 3 + nodalChange.t) := by
+  rw [← variableChange_nonsingular_iff]
+  decide
+
+-- Nonsingular point `(0, 4) ↦ (3, 1)` on the same nodal cubic.
+example :
+    nodalCurve.toAffine.Nonsingular (nodalChange.u ^ 2 * 0 + nodalChange.r)
+      (nodalChange.u ^ 3 * 4 + nodalChange.u ^ 2 * nodalChange.s * 0 + nodalChange.t) :=
+  (variableChange_nonsingular_iff nodalChange nodalCurve 0 4).mp (by decide)
+
+end NodalZMod5
+
+end CslibFrontierTests.VariableChange

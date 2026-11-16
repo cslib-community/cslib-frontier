@@ -5,7 +5,7 @@ Authors: Samuel Schlesinger
 -/
 
 module
--- upstream: candidate (Mathlib, `Mathlib/AlgebraicGeometry/EllipticCurve/VariableChange.lean`)
+-- upstream: candidate (Mathlib, `Mathlib/AlgebraicGeometry/EllipticCurve/Affine/Point.lean`)
 
 public import CslibFrontier.Init
 public import Mathlib.AlgebraicGeometry.EllipticCurve.Affine.Point
@@ -20,18 +20,19 @@ group equivalence `(C • W).toAffine.Point ≃+ W.toAffine.Point`.
 ## Main definitions
 
 * `WeierstrassCurve.variableChangePointEquiv`: additive group equivalence between the affine
-  points of `C • W` and those of `W`.
+  points of `C • W` and those of `W`, whose action on affine points is given by
+  `WeierstrassCurve.variableChangePointEquiv_some`.
 
 ## Main results
 
 * `WeierstrassCurve.variableChange_equation_iff`: characterizes `(C • W).toAffine.Equation x y`
   in terms of `W.toAffine.Equation` at `(C.u ^ 2 * x + C.r, C.u ^ 3 * y + C.u ^ 2 * C.s * x + C.t)`.
-* `WeierstrassCurve.variableChangePointEquiv_some`: explicit formula for
-  `variableChangePointEquiv C W (.some x y h)`.
+* `WeierstrassCurve.variableChange_nonsingular_iff`: characterizes
+  `(C • W).toAffine.Nonsingular x y` in terms of `W.toAffine.Nonsingular` at
+  `(C.u ^ 2 * x + C.r, C.u ^ 3 * y + C.u ^ 2 * C.s * x + C.t)`.
 
 ## References
 
-* J. H. Silverman, *The Arithmetic of Elliptic Curves*, Section III.1.
 * [D. Boneh and V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023],
   Section 15.2.1.
 -/
@@ -100,7 +101,9 @@ private lemma variableChange_polynomialX (C : VariableChange F) (W : Weierstrass
   field_simp
   ring
 
-private lemma variableChange_nonsingular_iff (C : VariableChange F) (W : WeierstrassCurve F)
+/-- An affine point `(x, y)` is nonsingular on `C • W` if and only if
+`(C.u ^ 2 * x + C.r, C.u ^ 3 * y + C.u ^ 2 * C.s * x + C.t)` is nonsingular on `W`. -/
+theorem variableChange_nonsingular_iff (C : VariableChange F) (W : WeierstrassCurve F)
     (x y : F) :
     (C • W).toAffine.Nonsingular x y ↔
       W.toAffine.Nonsingular (C.u ^ 2 * x + C.r) (C.u ^ 3 * y + C.u ^ 2 * C.s * x + C.t) := by
@@ -109,9 +112,8 @@ private lemma variableChange_nonsingular_iff (C : VariableChange F) (W : Weierst
     variableChange_polynomialY]
   refine and_congr_right fun _ ↦ ?_
   by_cases hY : W.toAffine.polynomialY.evalEval (↑C.u ^ 2 * x + C.r)
-      (↑C.u ^ 3 * y + ↑C.u ^ 2 * C.s * x + C.t) = 0
-  · simp [hY]
-  · simp [hY]
+      (↑C.u ^ 3 * y + ↑C.u ^ 2 * C.s * x + C.t) = 0 <;>
+    simp [hY]
 
 private lemma variableChange_negY (C : VariableChange F) (W : WeierstrassCurve F) (x y : F) :
     C.u ^ 3 * (C • W).toAffine.negY x y + C.u ^ 2 * C.s * x + C.t =
@@ -169,16 +171,9 @@ private lemma variableChange_slope [DecidableEq F] (C : VariableChange F) (W : W
       change 2 * (C.u ^ 3 * y₁ + C.u ^ 2 * C.s * x₁ + C.t) +
         W.a₁ * (C.u ^ 2 * x₁ + C.r) + W.a₃ = 0 at h0
       linear_combination h0
-    have hpy' : W.toAffine.polynomialY.evalEval (↑C.u ^ 2 * x₁ + C.r)
-        (↑C.u ^ 2 * x₁ * C.s + ↑C.u ^ 3 * y₁ + C.t) ≠ 0 := by
-      convert hpy using 2
-      ring
-    field_simp [hpy]
-    have hpy'' : Polynomial.evalEval (↑C.u ^ 2 * x₁ + C.r)
-        (↑C.u ^ 2 * (↑C.u * y₁ + x₁ * C.s) + C.t) W.toAffine.polynomialY ≠ 0 := by
-      convert hpy using 2
-      ring
-    field_simp [hpy'']
+    generalize W.toAffine.polynomialX.evalEval _ _ = px
+    generalize W.toAffine.polynomialY.evalEval _ _ = py at hpy ⊢
+    field_simp
     ring
   · have hx' : (C.u : F) ^ 2 * x₁ + C.r ≠ C.u ^ 2 * x₂ + C.r :=
       fun h ↦ hx (mul_left_cancel₀ (pow_ne_zero 2 hu) (add_right_cancel h))
@@ -244,12 +239,13 @@ def variableChangePointEquiv [DecidableEq F] (C : VariableChange F) (W : Weierst
           Units.val_inv_eq_inv_val]
         constructor <;> field_simp <;> ring
 
-/-- Explicit coordinate formula for `WeierstrassCurve.variableChangePointEquiv` on affine points. -/
+/-- Explicit coordinate formula for `WeierstrassCurve.variableChangePointEquiv` on affine
+points. -/
 theorem variableChangePointEquiv_some [DecidableEq F] (C : VariableChange F)
-    (W : WeierstrassCurve F) {x y : F} (h : (C • W).toAffine.Nonsingular x y)
-    (h' : W.toAffine.Nonsingular (C.u ^ 2 * x + C.r) (C.u ^ 3 * y + C.u ^ 2 * C.s * x + C.t)) :
+    (W : WeierstrassCurve F) {x y : F} (h : (C • W).toAffine.Nonsingular x y) :
     variableChangePointEquiv C W (.some x y h) =
-      .some (C.u ^ 2 * x + C.r) (C.u ^ 3 * y + C.u ^ 2 * C.s * x + C.t) h' := by
+      .some (C.u ^ 2 * x + C.r) (C.u ^ 3 * y + C.u ^ 2 * C.s * x + C.t)
+        ((variableChange_nonsingular_iff C W x y).mp h) := by
   rfl
 
 end WeierstrassCurve
