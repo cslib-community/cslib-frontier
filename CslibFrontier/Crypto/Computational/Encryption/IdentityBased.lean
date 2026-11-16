@@ -153,8 +153,8 @@ abbrev encIBEChoice {Msg : Type} (encMsg : Msg ↪ List Bool) :
   encPair (encPair encBits (encPair encMsg encMsg)) encBits
 
 /-- Output `(((id₀, m₀), (id₁, m₁)), state)` of the first stage of a private-IBE adversary: the two
-(identity word, message) pairs, then the saved state word. Every pair and its identity are framed.
--/
+(identity word, message) pairs, then the saved state word. The two pairs together, the first pair
+and both identities are framed; the second pair is not. -/
 abbrev encIBEPairChoice {Msg : Type} (encMsg : Msg ↪ List Bool) :
     ((List Bool × Msg) × (List Bool × Msg)) × List Bool ↪ List Bool :=
   encPair (encPair (encPair encBits encMsg) (encPair encBits encMsg)) encBits
