@@ -2917,8 +2917,9 @@ a certified finder with success `1/2` on `msgLen(n)`-bit messages. Nothing compa
 of the birthday attack with the `N + 1` messages of brute force in machine time. The `2 ^ ℓ + 1`
 hash evaluations of brute force are not counted; the oracle-call count of `Birthday.lean` is for the
 birthday finder. The [tests](../../CslibFrontierTests/Crypto/CollisionResistantGenericAttacks.lean)
-show that `hnd`, `hlt`, `hlen`, `hM`, `hvalid` and `hN` cannot be dropped, refute 16-bit digests
-both ways as in the book, and apply both refutations to digests of `Nat.clog 2 n` bits.
+show that `hnd`, `hlt`, `hlen`, `hM` and `hvalid` cannot be dropped and that `ℓ n = n` fails `hN`,
+refute 16-bit digests both ways as in the book, and apply both refutations to digests of
+`Nat.clog 2 n` bits.
 
 ## Commitments and ideal distributions
 
