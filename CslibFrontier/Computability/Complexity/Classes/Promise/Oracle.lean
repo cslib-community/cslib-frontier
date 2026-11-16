@@ -21,7 +21,7 @@ interaction, including the number and length of adaptive queries.
 
 Goldreich's draft, Exercise 2.35 (December 2006 `r1.pdf`, PDF p. 138 / printed p. 113), asserts
 that a promise problem Cook-reducible to one solvable in polynomial time is itself solvable in
-polynomial time [Goldreich][Goldreich2007Draft]. Here `PromiseP` uses total polynomial-time
+polynomial time [Goldreich][Goldreich2006DraftR1]. Here `PromiseP` uses total polynomial-time
 solvers: the source's possibly nonhalting off-promise solver is first clocked, as its guideline
 allows. For typed oracle instances we require a total polynomial-time decoder of their encoding;
 ordinary bit strings use `Decoder.bits`.

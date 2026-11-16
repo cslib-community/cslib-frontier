@@ -4,10 +4,16 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Christian Reitwiessner
 -/
 
+module
+-- upstream: local-only (tests)
+
+public import CslibFrontier.Init
 import CslibFrontier.Computability.Complexity.Classes.Promise.Oracle
 import CslibFrontier.Computability.Complexity.Classes.Oracle.Closure
 
 /-! A promise with unrestricted answers on malformed words, and a typed one-query Cook client. -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.PromiseCook
 
