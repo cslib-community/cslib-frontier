@@ -50,9 +50,11 @@ both outputs, with a concrete advantage in place of computational indistinguisha
 
 Scope: the base transfers are the ideal oracle, and no composition theorem replaces them by a
 protocol. The statements are for a single instance (`H`, inputs and distinguisher fixed), with no
-security parameter; running time is not tracked, and neither the simulators nor the reduction are
-certified efficient. Only semi-honest security is covered, not the malicious variant of the
-paper.
+security parameter, and running time is not tracked. Only semi-honest security is covered, not the
+malicious variant of the paper. `CslibFrontier/Crypto/Protocols/MPC/IKNP/Family.lean` runs the
+protocol as a family of bit-transfer extensions, with PPT simulators and a PPT reduction, and
+proves it semi-honest secure from the asymptotic correlation-robustness assumption
+(`Cslib.Crypto.CorrelationRobust.iknpSemiHonestSecure`).
 
 ## Main definitions
 
@@ -67,6 +69,10 @@ paper.
 * `Cslib.Crypto.Protocols.MPC.idealJoint_iknp_sender`,
   `Cslib.Crypto.Protocols.MPC.semiHonestAdvantage_iknp_sender`: perfect privacy against the
   sender.
+* `Cslib.Crypto.Protocols.MPC.realJoint_iknp_receiver_bind`,
+  `Cslib.Crypto.Protocols.MPC.idealJoint_iknp_receiver_bind`: against the receiver, the real and
+  the ideal joint distribution, tested by `D`, are the correlation-robustness games of
+  `iknpReduction H x D`.
 * `Cslib.Crypto.Protocols.MPC.semiHonestAdvantage_iknp_receiver`: privacy against the receiver
   from the correlation robustness of `H`.
 
@@ -450,6 +456,42 @@ theorem realJoint_iknp_receiver (H : Fin m → BitString κ → L)
   simp only [Function.comp_apply, Prod.map, id, restrict_singleton]
   rw [iknpReceived_one]
 
+/-- The real joint distribution for a corrupted receiver, tested by `D`, is the real
+correlation-robustness game of `iknpReduction H x D`: the unchosen entries are masked by
+`H j (tⱼ + s)`. -/
+theorem realJoint_iknp_receiver_bind (H : Fin m → BitString κ → L)
+    (x : (i : Fin 2) → (batchOTSpec m L).Query () i)
+    (D : ((i : ({1} : Finset (Fin 2))) →
+        PartyView ((batchOTSpec m L).Query ()) (IKNPCoins κ m) (iknpSchedule κ m L) i) ×
+      ((i : Fin 2) → (batchOTSpec m L).Answer () i) → ProbComp Bool) :
+    ((iknpProtocol H).realJoint (batchOTWorld κ (BitString m)) {1} x).bind
+        (fun res => ProbComp.eval (D res)) =
+      CorrelationRobust.realGame H (iknpReduction H x D) := by
+  rw [realJoint_iknp_receiver, PMF.bind_map]
+  simp only [CorrelationRobust.realGame, sampleIKNPCoins, ProbComp.eval_bind, ProbComp.eval_pure,
+    PMF.bind_bind, PMF.pure_bind]
+  rfl
+
+/-- The ideal joint distribution for a corrupted receiver with `iknpReceiverSim`, tested by `D`,
+is the ideal correlation-robustness game of `iknpReduction H x D`: the simulator's uniform
+unchosen entries are uniform masks shifted by the sender's unchosen values. -/
+theorem idealJoint_iknp_receiver_bind [Fintype L] (H : Fin m → BitString κ → L)
+    (x : (i : Fin 2) → (batchOTSpec m L).Query () i)
+    (D : ((i : ({1} : Finset (Fin 2))) →
+        PartyView ((batchOTSpec m L).Query ()) (IKNPCoins κ m) (iknpSchedule κ m L) i) ×
+      ((i : Fin 2) → (batchOTSpec m L).Answer () i) → ProbComp Bool) :
+    ProbComp.eval (idealJoint (batchOTFunctionality m L) {1} (iknpReceiverSim H) x >>= D) =
+      CorrelationRobust.idealGame (iknpReduction H x D) := by
+  simp only [CorrelationRobust.idealGame, idealJoint, batchOTFunctionality,
+    Functionality.ofDeterministic, iknpReceiverSim, iknpReduction, ProbComp.eval_bind,
+    ProbComp.eval_pure, ProbComp.eval_uniform, PMF.pure_bind, PMF.bind_bind]
+  refine congrArg _ (funext fun T => ?_)
+  conv_lhs => rw [← PMF.uniformOfFintype_map_add_left (fun j => x 0 j (!x 1 j) : Fin m → L)]
+  rw [PMF.bind_map]
+  refine congrArg _ (funext fun w => ?_)
+  exact congrArg (fun Y => ProbComp.eval (D (singletonView (iknpReceiverView (x 1) T Y),
+    batchOTAnswer x))) (iknp_simulated_pairs H (x 0) (x 1) T w)
+
 /-- **Privacy against the receiver** (the security theorem of [IshaiKilianNissimPetrank2003] for
 a corrupted receiver): every distinguisher's advantage between the ideal joint distribution with
 `iknpReceiverSim` and the real one equals the correlation-robustness advantage of the reduction
@@ -462,24 +504,7 @@ theorem semiHonestAdvantage_iknp_receiver [Fintype L] (H : Fin m → BitString �
     semiHonestAdvantage (iknpProtocol H) (batchOTWorld κ (BitString m))
         (batchOTFunctionality m L) {1} (iknpReceiverSim H) x D =
       CorrelationRobust.advantage H (iknpReduction H x D) := by
-  have hreal : ((iknpProtocol H).realJoint (batchOTWorld κ (BitString m)) {1} x).bind
-      (fun res => ProbComp.eval (D res)) =
-        CorrelationRobust.realGame H (iknpReduction H x D) := by
-    rw [realJoint_iknp_receiver, PMF.bind_map]
-    simp only [CorrelationRobust.realGame, sampleIKNPCoins, ProbComp.eval_bind, ProbComp.eval_pure,
-      PMF.bind_bind, PMF.pure_bind]
-    rfl
-  have hideal : ProbComp.eval (idealJoint (batchOTFunctionality m L) {1} (iknpReceiverSim H) x >>=
-      D) = CorrelationRobust.idealGame (iknpReduction H x D) := by
-    simp only [CorrelationRobust.idealGame, idealJoint, batchOTFunctionality,
-      Functionality.ofDeterministic, iknpReceiverSim, iknpReduction, ProbComp.eval_bind,
-      ProbComp.eval_pure, ProbComp.eval_uniform, PMF.pure_bind, PMF.bind_bind]
-    refine congrArg _ (funext fun T => ?_)
-    conv_lhs => rw [← PMF.uniformOfFintype_map_add_left (fun j => x 0 j (!x 1 j) : Fin m → L)]
-    rw [PMF.bind_map]
-    refine congrArg _ (funext fun w => ?_)
-    exact congrArg (fun Y => ProbComp.eval (D (singletonView (iknpReceiverView (x 1) T Y),
-      batchOTAnswer x))) (iknp_simulated_pairs H (x 0) (x 1) T w)
-  rw [semiHonestAdvantage, hideal, hreal, Game.advantage_comm]
+  rw [semiHonestAdvantage, idealJoint_iknp_receiver_bind, realJoint_iknp_receiver_bind,
+    Game.advantage_comm]
 
 end Cslib.Crypto.Protocols.MPC
