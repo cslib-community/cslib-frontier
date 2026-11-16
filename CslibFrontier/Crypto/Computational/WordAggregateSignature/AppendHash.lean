@@ -24,8 +24,8 @@ also checks the hash. The pair `(pks, ms)` is hashed through the injective encod
 
 Only correctness of the transform is proved here (`appendHash_correctOn`). Neither security
 statement of the exercise is proved: strong binding of `appendHash` from collision resistance of
-`H`, and `ASIG` of `appendHash` from `ASIG` of the underlying scheme. The tests show that collision
-resistance cannot be dropped: with a constant hash the transform is not strongly binding
+`H`, and `ASIG` of `appendHash` from `ASIG` of the underlying scheme. The tests show only that the
+constant-hash transform of a scheme whose verifiers accept everything is not strongly binding
 (`not_strongBinding_constantHash`).
 
 ## Main definitions

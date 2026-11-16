@@ -17,8 +17,8 @@ import CslibFrontier.Tactic.PPT
 Both security notions fail for a scheme whose verifiers accept everything, and both hold for one
 whose aggregate verifier rejects everything, which is not correct. The hash transform of
 Exercise 15.11(c) preserves correctness (applied to the accept-all scheme with a constant hash) and
-needs it (the transform of the reject-all scheme is not correct); with a constant hash it is not
-strongly binding, so collision resistance cannot be dropped. The winning conditions are applied as
+needs it (the transform of the reject-all scheme is not correct). The constant-hash transform of
+the accept-all scheme is not strongly binding. The winning conditions are applied as
 a caller would, and reject outputs of unequal lengths, without the challenge key, on queried
 messages, with a rejecting verdict, and equal pairs.
 -/
@@ -81,8 +81,7 @@ def constantHash (S : WordAggregateSignatureScheme) : WordAggregateSignatureSche
 example : (constantHash acceptAll).CorrectOn fun _ _ => True :=
   appendHash_correctOn _ _ _ _ _ _ _ _ correctOn_acceptAll
 
-/-- Collision resistance cannot be dropped from Exercise 15.11(c): with a constant hash the
-transform of `acceptAll` is not strongly binding. -/
+/-- The constant-hash transform of `acceptAll` is not strongly binding. -/
 theorem not_strongBinding_constantHash : ¬ (constantHash acceptAll).StrongBinding := by
   intro hSB
   let A : SBAdversary := fun _ =>
