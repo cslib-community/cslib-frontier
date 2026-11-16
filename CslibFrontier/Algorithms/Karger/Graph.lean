@@ -142,34 +142,17 @@ private theorem sum_lt_add_le_sum {k : ℕ} (f : Fin k → ℕ) (u : Fin k) :
 private theorem exists_sum_lt_le_lt {k : ℕ} (f : Fin k → ℕ) {r : ℕ} (hr : r < ∑ a, f a) :
     ∃ u : Fin k, (∑ a ∈ Finset.univ.filter (· < u), f a) ≤ r ∧
       r < (∑ a ∈ Finset.univ.filter (· < u), f a) + f u := by
-  have hex : ∀ m ≤ k, r < (∑ a ∈ Finset.univ.filter (fun a : Fin k => a.val < m), f a) →
-      ∃ u : Fin k, (∑ a ∈ Finset.univ.filter (· < u), f a) ≤ r ∧
-        r < (∑ a ∈ Finset.univ.filter (· < u), f a) + f u := by
-    intro m
-    induction m with
-    | zero =>
-      intro _ hlt
-      simp at hlt
-    | succ m ih =>
-      intro hm hlt
-      let u_m : Fin k := ⟨m, hm⟩
-      have hsplit : (Finset.univ.filter fun a : Fin k => a.val < m + 1) =
-          insert u_m (Finset.univ.filter fun a : Fin k => a.val < m) := by
-        ext a
-        simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_insert,
-          Fin.ext_iff, u_m]
-        omega
-      have hnotmem : u_m ∉ Finset.univ.filter fun a : Fin k => a.val < m := by simp [u_m]
-      rw [hsplit, Finset.sum_insert hnotmem] at hlt
-      have hprefix : (∑ a ∈ Finset.univ.filter (fun a : Fin k => a.val < m), f a) =
-          ∑ a ∈ Finset.univ.filter (· < u_m), f a := by
-        refine Finset.sum_congr ?_ fun _ _ => rfl
-        ext a
-        simp [Fin.lt_def, u_m]
-      by_cases hge : (∑ a ∈ Finset.univ.filter (· < u_m), f a) ≤ r
-      · exact ⟨u_m, hge, by omega⟩
-      · exact ih (by omega) (by omega)
-  exact hex k le_rfl (by simpa using hr)
+  obtain ⟨⟨u, j⟩, hj⟩ := finSigmaFinEquiv.surjective (⟨r, hr⟩ : Fin (∑ a, f a))
+  have hval := finSigmaFinEquiv_apply (n := f) ⟨u, j⟩
+  have hprefix : ∑ i : Fin u.val, f (Fin.castLE u.2.le i) =
+      ∑ a ∈ Finset.univ.filter (· < u), f a :=
+    Finset.sum_bij (fun i _ => Fin.castLE u.2.le i)
+      (fun i _ => Finset.mem_filter.mpr ⟨Finset.mem_univ _, i.isLt⟩)
+      (fun _ _ _ _ h => Fin.castLE_injective _ h)
+      (fun a ha => ⟨⟨a.val, (Finset.mem_filter.mp ha).2⟩, Finset.mem_univ _, rfl⟩) fun _ _ => rfl
+  rw [hj, hprefix] at hval
+  dsimp only at hval
+  exact ⟨u, by omega, by omega⟩
 
 theorem weightBefore_add_le_rowDeg {k : ℕ} (W : Fin k → Fin k → ℕ) (u v : Fin k) :
     weightBefore W u v + W u v ≤ rowDeg W u :=
