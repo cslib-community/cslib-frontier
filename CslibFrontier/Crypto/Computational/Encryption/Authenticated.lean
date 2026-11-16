@@ -2575,31 +2575,31 @@ private theorem run_ccaBadOracleOn_false_map_fst (E : SymmetricCipher)
     split_ifs <;> simp [PMF.pure_map]
 
 /-- A step of `ccaBadOracleOn allow reveal` never clears the flag `bad`. -/
-private theorem ccaBadOracleOn_absorb (E : SymmetricCipher)
-    (allow : List (List Bool) → Bool) (reveal : Bool) (n : ℕ) (k : List Bool) (bit : Bool)
-    (request : Bool × List Bool) (s : List (List Bool) × Bool) (hs : s.2 = true)
-    (x : List Bool × (List (List Bool) × Bool))
-    (hx : x ∈ (ProbComp.eval (E.ccaBadOracleOn allow reveal n k bit request s)).support) :
-    x.2.2 = true := by
+private theorem isFlagMonotone_ccaBadOracleOn (E : SymmetricCipher)
+    (allow : List (List Bool) → Bool) (reveal : Bool) (n : ℕ) (k : List Bool) (bit : Bool) :
+    OracleComp.IsFlagMonotone
+      (fun q s => ProbComp.eval (E.ccaBadOracleOn allow reveal n k bit q s)) := by
+  intro request s x hx
   unfold ccaBadOracleOn at hx
   cases hreq : request.1
   · simp only [hreq, Bool.false_eq_true, ↓reduceIte] at hx
-    by_cases hlenEq : (allow s.1 && ((unframe request.2).length == n) &&
+    by_cases hlenEq : (allow s && ((unframe request.2).length == n) &&
         ((dropFrame request.2).length == n)) = true
     · simp only [hlenEq, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure,
         PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hx
       obtain ⟨_, _, rfl⟩ := hx
-      exact hs
+      rfl
     · simp only [hlenEq, Bool.false_eq_true, ↓reduceIte, ProbComp.eval_pure,
         PMF.mem_support_pure_iff] at hx
       subst x
-      exact hs
+      rfl
   · simp only [hreq, ↓reduceIte] at hx
     split_ifs at hx <;>
       simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hx <;>
       subst x <;>
-      simp [hs]
+      simp
 
+/-- Games 0 and 1 of Theorem 9.1 agree until the flag `bad` is raised. -/
 private theorem identicalUntilBad_ccaBadOracleOn (E : SymmetricCipher)
     (allow : List (List Bool) → Bool) (n : ℕ) (k : List Bool) (bit : Bool) :
     OracleComp.IdenticalUntilBad
@@ -2607,37 +2607,17 @@ private theorem identicalUntilBad_ccaBadOracleOn (E : SymmetricCipher)
         (fun q s => ProbComp.eval (E.ccaBadOracleOn allow false n k bit q s)))
       (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifOracle m))
         (fun q s => ProbComp.eval (E.ccaBadOracleOn allow true n k bit q s)))
-      (fun s => s.2 = true) where
-  agree q s hs a s' hs' := by
-    cases q with
-    | inl m => rfl
-    | inr request =>
-      simp only [OracleComp.sumHandler]
-      cases hreq : request.1
-      · simp only [ccaBadOracleOn, hreq, Bool.false_eq_true, ↓reduceIte]
-      · simp only [ccaBadOracleOn, hreq, Bool.false_eq_true, ↓reduceIte]
-        split_ifs with hmem
-        · rfl
-        · cases hdec : E.decrypt n k request.2 with
-          | none =>
-            simp [Option.isSome, encOption]
-          | some msg =>
-            have hne : s' ≠ (s.1, true) := fun h => hs' (congrArg Prod.snd h)
-            simp [Option.isSome, ProbComp.eval_pure, PMF.pure_apply, hne]
-  absorb_first q s hs x hx := by
-    cases q with
-    | inl m =>
-      change x ∈ ((ProbComp.unifOracle m).map (·, s)).support at hx
-      obtain ⟨_, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-      exact hs
-    | inr request => exact E.ccaBadOracleOn_absorb allow false n k bit request s hs x hx
-  absorb_second q s hs x hx := by
-    cases q with
-    | inl m =>
-      change x ∈ ((ProbComp.unifOracle m).map (·, s)).support at hx
-      obtain ⟨_, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-      exact hs
-    | inr request => exact E.ccaBadOracleOn_absorb allow true n k bit request s hs x hx
+      (fun s => s.2 = true) := by
+  refine OracleComp.IdenticalUntilBad.sumHandler_lift_left _
+    (OracleComp.IdenticalUntilBad.of_flag (E.isFlagMonotone_ccaBadOracleOn allow false n k bit)
+      (E.isFlagMonotone_ccaBadOracleOn allow true n k bit) fun request s a s' => ?_)
+  cases hreq : request.1
+  · simp only [ccaBadOracleOn, hreq, Bool.false_eq_true, ↓reduceIte]
+  · simp only [ccaBadOracleOn, hreq, Bool.false_eq_true, ↓reduceIte]
+    split_ifs
+    · rfl
+    · cases hdec : E.decrypt n k request.2 <;>
+        simp [Option.isSome, encOption, ProbComp.eval_pure, PMF.pure_apply]
 
 /-- Combined single-step stateful oracle representing `ccaToCIHandler` composed with
 `ciEncryptionOracleOn allow` on joint state `(rem, (hasCaptured, capturedCt)) × queriedCiphertexts`.
