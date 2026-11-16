@@ -9,7 +9,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Languages.Probabilistic.Notation
 public import CslibFrontier.Languages.Probabilistic.Semantics
-public import CslibFrontier.Probability.PMF.Uniform
+import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Languages.Probabilistic.RandomPermutation.ExtPermsCard
 import CslibFrontier.Probability.PMF.UniformSubset
 import Mathlib.Data.Finset.Basic
@@ -59,10 +59,12 @@ relocation graph ([WangRen2025], Definition 3.6, p. 15) supporting:
   unconsumed position that was empty prior to the relocation.
 * `realExperiment`, `idealExperiment`, `eval_realExperiment_eq_idealExperiment`
   ([WangRen2025], Experiments 3.1 and 3.2, p. 13; Lemma 3.16, pp. 16–17): when $\pi$ is sampled
-  uniformly at random, for any sequence of $Q \le m' - m$ distinct relocated positions, the real
-  and ideal relocation experiments have identical output distributions.
-* `CorrectAndSecure`, `correctAndSecure` ([WangRen2025], Theorem 3.3, p. 13): bundles the
-  three correctness properties (Lemmas 3.13–3.15) and perfect security (Lemma 3.16).
+  uniformly at random, for any sequence of $Q \le m' - m$ distinct relocated positions fixed in
+  advance, the real and ideal relocation experiments have identical output distributions.
+* `CorrectAndSecure`, `correctAndSecure`: the correctness and perfect-security part of
+  [WangRen2025] Theorem 3.3 (p. 13) for Construction 3.5 with an ideal uniformly random
+  permutation and fixed relocation positions. This is not Theorem 3.3 in full: its efficiency
+  bullets are not formalized.
 
 ## Modelling notes
 
@@ -72,24 +74,36 @@ relocation graph ([WangRen2025], Definition 3.6, p. 15) supporting:
   `s.history.length + 1` steps, proving in `outEdge?_walk_eq_none` and `inEdge?_walk_eq_none`
   that every chain terminates within `s.history.length` steps.
 * **0-indexed history:** We follow Definition 3.6 (p. 15) in 0-indexing $C$: the $t$-th relocation
-  (for $0 \le t < |C|$) adds the directed edge $C[t] \to \pi(m + t)$ (whereas the prose proof of
-  Lemma 3.16 on p. 17 writes $C[k - 1] \to \pi(m + k)$ with a 1-indexed off-by-one).
-* **Experiment 3.1 output typo:** The literal pseudocode of Experiment 3.1 ([WangRen2025], p. 13)
-  writes `(DS.Access(0), ..., DS.Access(m - 1))` for the initial output tuple, which is a typo
-  contradicted by Experiment 3.2 (p. 13, "Output the position of each element in $[m]$") and by
-  the proof of Lemma 3.16 (p. 16, "the initial positions are $(P(0), \ldots, P(m - 1))$").
-  Accordingly, `realExperiment` outputs `fun e => locate s₀ e hm`.
+  (for $0 \le t < |C|$) adds the directed edge $C[t] \to \pi(m + t)$. The proof of Lemma 3.16
+  (p. 16) counts relocations from 1 ("in the first t relocations, only P(0), P(1), ...,
+  P(m + t − 1) are accessed") and then treats $P(m + t)$ as the fresh node of the $t$-th
+  relocation; with the 0-indexed history of Definition 3.6 that node is $P(m + t - 1)$. The
+  off-by-one does not affect the argument.
+* **Experiment 3.1 output typo:** The pseudocode of Experiment 3.1 ([WangRen2025], p. 13) reads
+  "Output (DS.Access(0), DS.Access(1), . . . , DS.Access(m − 1))." That tuple lists the elements
+  at positions $0, \ldots, m - 1$, not the positions of the elements. Experiment 3.2 (p. 13)
+  reads "Output the position of each element in \[m\] in A.", and the proof of Lemma 3.16 (p. 16)
+  says "For 3.1, we see that the initial positions are (P (0), P (1), . . . , P (m − 1))". We
+  follow Experiment 3.2 and the proof: `realExperiment` outputs `fun e => locate s₀ e hm`, the
+  positions of the elements, as the paper's DS.Locate would.
+* **Fixed relocation positions:** As in Experiments 3.1 and 3.2, the relocated positions
+  $c_1, \ldots, c_Q$ are fixed in advance (`c : Fin Q → Fin m'`). They must be distinct
+  (Section 3.1, p. 12: "each time is called on a distinct position") and $Q \le m' - m$. An
+  adaptive choice of positions is not modelled.
 * **Deterministic correctness and exact security:** There is no error parameter $\varepsilon$:
   correctness holds deterministically for every permutation and valid history (matching
-  Definition 2.1's probability-1 requirement), and security holds as exact equality of evaluated
-  `PMF` distributions (`(realExperiment m m' Q c hm).eval = (idealExperiment m m' Q c hm).eval`).
-* **Scope:** This module covers Section 3's correctness and perfect security for a truly random
-  permutation (Theorem 3.3 without its expected/amortized running-time bounds); the expected-time
-  analysis (Appendix A), small-domain PRP instantiation (Section 2.2), and full PIR construction
-  (Section 4) are left to separate modules.
+  Definition 2.1's probability-1 requirement). Security is perfect (information-theoretic): the
+  output laws are exactly equal,
+  `(realExperiment m m' Q c hm).eval = (idealExperiment m m' Q c hm).eval`, with no adversary,
+  no computational assumption and no advantage bound.
+* **Scope:** This module covers Section 3's correctness and perfect security for an ideal
+  uniformly random permutation and fixed relocation positions (Theorem 3.3 without its
+  expected/amortized running-time bounds). Not formalized: the efficiency analysis (Theorem 3.3's
+  bullets, Appendix A), the small-domain PRP instantiation (Section 2.2), the PIR scheme of
+  Section 4 (Construction 4.2, Theorem 4.1) and the `ST = Ω(nw)` lower bounds (Appendix B).
 -/
 
-@[expose] public section
+public section
 
 open Cslib Cslib.Probability Cslib.RandomPermutation
 open scoped ENNReal
@@ -112,14 +126,14 @@ namespace RelocationState
 /-- A relocation state is valid if all relocated positions in `history` are distinct and
 the number of relocations does not exceed the number of spare positions `m' - m`
 ([WangRen2025], Section 3.1, p. 12). -/
-def Valid {m m' : ℕ} (s : RelocationState m m') : Prop :=
+@[expose] def Valid {m m' : ℕ} (s : RelocationState m m') : Prop :=
   s.history.Nodup ∧ m + s.history.length ≤ m'
 
 end RelocationState
 
 /-- Initialize the relocation data structure with permutation `perm` and empty history
 ([WangRen2025], Construction 3.5, `DS.Init`, p. 14). -/
-def init {m m' : ℕ} (perm : Equiv.Perm (Fin m')) : RelocationState m m' := ⟨perm, []⟩
+@[expose] def init {m m' : ℕ} (perm : Equiv.Perm (Fin m')) : RelocationState m m' := ⟨perm, []⟩
 
 /-- The initial relocation state is valid whenever `m ≤ m'`. -/
 theorem valid_init {m m' : ℕ} (perm : Equiv.Perm (Fin m')) (hm : m ≤ m' := by omega) :
@@ -129,21 +143,21 @@ theorem valid_init {m m' : ℕ} (perm : Equiv.Perm (Fin m')) (hm : m ≤ m' := b
 /-- Backward edge lookup in the relocation graph ([WangRen2025], Construction 3.5, `DS.InEdge`,
 p. 14): if `perm.symm c ≥ m` and `perm.symm c - m < history.length`, returns
 `history[perm.symm c - m]`. -/
-def inEdge? {m m' : ℕ} (s : RelocationState m m') (c : Fin m') : Option (Fin m') :=
+@[expose] def inEdge? {m m' : ℕ} (s : RelocationState m m') (c : Fin m') : Option (Fin m') :=
   let p := (s.perm.symm c).val
   if m ≤ p then s.history[p - m]? else none
 
 /-- Forward edge lookup in the relocation graph ([WangRen2025], Construction 3.5, `DS.OutEdge`,
 p. 14): if `c` appears at index `idx` in `history` and `m + idx < m'`, returns
 `perm ⟨m + idx, _⟩`. -/
-def outEdge? {m m' : ℕ} (s : RelocationState m m') (c : Fin m') : Option (Fin m') :=
+@[expose] def outEdge? {m m' : ℕ} (s : RelocationState m m') (c : Fin m') : Option (Fin m') :=
   match s.history.idxOf? c with
   | some idx =>
     if h : m + idx < m' then some (s.perm ⟨m + idx, h⟩) else none
   | none => none
 
 /-- Bounded walk along a partial transition function `step` for at most `fuel` steps. -/
-def walk {α : Type} (step : α → Option α) : ℕ → α → α
+@[expose] def walk {α : Type} (step : α → Option α) : ℕ → α → α
   | 0, c => c
   | fuel + 1, c =>
     match step c with
@@ -152,28 +166,29 @@ def walk {α : Type} (step : α → Option α) : ℕ → α → α
 
 /-- Walk backward along `inEdge?` to the start of the relocation chain containing `c`
 ([WangRen2025], Construction 3.5, `DS.StartOfChain`, p. 14). -/
-def startOfChain {m m' : ℕ} (s : RelocationState m m') (c : Fin m') : Fin m' :=
+@[expose] def startOfChain {m m' : ℕ} (s : RelocationState m m') (c : Fin m') : Fin m' :=
   walk (inEdge? s) (s.history.length + 1) c
 
 /-- Walk forward along `outEdge?` to the end of the relocation chain starting at `c`
 ([WangRen2025], Construction 3.5, `DS.EndOfChain`, p. 14). -/
-def endOfChain {m m' : ℕ} (s : RelocationState m m') (c : Fin m') : Fin m' :=
+@[expose] def endOfChain {m m' : ℕ} (s : RelocationState m m') (c : Fin m') : Fin m' :=
   walk (outEdge? s) (s.history.length + 1) c
 
 /-- Return the logical element (if any) whose chain currently ends at or passes through `c`
 ([WangRen2025], Construction 3.5, `DS.Access`, p. 14). -/
-def access {m m' : ℕ} (s : RelocationState m m') (c : Fin m') : Option (Fin m) :=
+@[expose] def access {m m' : ℕ} (s : RelocationState m m') (c : Fin m') : Option (Fin m) :=
   let i := s.perm.symm (startOfChain s c)
   if h : i.val < m then some ⟨i.val, h⟩ else none
 
 /-- Return the current physical position of logical element `e` ([WangRen2025],
 Construction 3.5, `DS.Locate`, p. 14). -/
-def locate {m m' : ℕ} (s : RelocationState m m') (e : Fin m) (hm : m ≤ m' := by omega) : Fin m' :=
+@[expose] def locate {m m' : ℕ} (s : RelocationState m m') (e : Fin m)
+    (hm : m ≤ m' := by omega) : Fin m' :=
   endOfChain s (s.perm (Fin.castLE hm e))
 
 /-- Relocate physical position `c` by appending it to `history` ([WangRen2025],
 Construction 3.5, `DS.Relocate`, p. 14). -/
-def relocate {m m' : ℕ} (s : RelocationState m m') (c : Fin m') : RelocationState m m' :=
+@[expose] def relocate {m m' : ℕ} (s : RelocationState m m') (c : Fin m') : RelocationState m m' :=
   { s with history := s.history ++ [c] }
 
 /-! ### General Walk Lemmas -/
@@ -808,14 +823,15 @@ noncomputable def idealRunSteps {m m' : ℕ} (A : Fin m' → IdealCell m) :
 
 /-- One step of the real relocation experiment ([WangRen2025], Experiment 3.1, p. 13): relocate
 `c` and output `some (locate (relocate s c) e)` if `access s c = some e` (`none` otherwise). -/
-def realStep {m m' : ℕ} (s : RelocationState m m') (c : Fin m') (hm : m ≤ m' := by omega) :
+@[expose] def realStep {m m' : ℕ} (s : RelocationState m m') (c : Fin m')
+    (hm : m ≤ m' := by omega) :
     RelocationState m m' × Option (Fin m') :=
   let s' := relocate s c
   let out := (access s c).map (fun e => locate s' e hm)
   (s', out)
 
 /-- Run a sequence of real relocation steps on `s` ([WangRen2025], Experiment 3.1, p. 13). -/
-def realRunSteps {m m' : ℕ} (s : RelocationState m m') :
+@[expose] def realRunSteps {m m' : ℕ} (s : RelocationState m m') :
     List (Fin m') → (hm : m ≤ m' := by omega) → RelocationState m m' × List (Option (Fin m'))
   | [], _ => (s, [])
   | c :: cs, hm =>
@@ -835,8 +851,10 @@ structure RelocationOutput (m m' : ℕ) where
 
 /-- Real relocation experiment ([WangRen2025], Experiment 3.1, p. 13): sample a uniform
 permutation `perm` on `Fin m'`, record the initial positions of all elements in `Fin m`, and run
-`realRunSteps` on the query sequence `c`. -/
-noncomputable def realExperiment (m m' Q : ℕ) (c : Fin Q → Fin m')
+`realRunSteps` on the query sequence `c`, which is fixed in advance. The initial output is the
+element positions (`locate`), not the tuple of `access` values that the paper literally writes;
+see the module docstring. -/
+@[expose] noncomputable def realExperiment (m m' Q : ℕ) (c : Fin Q → Fin m')
     (hm : m ≤ m' := by omega) : ProbComp (RelocationOutput m m') := do
   let perm ← $ᵗ (Equiv.Perm (Fin m'))
   let s₀ := init (m := m) perm
@@ -933,7 +951,7 @@ private theorem uniformOfFintype_perm_bind_prefix {α : Type} {m' k : ℕ} (hk :
 /-- Map a relocation state `s` to its induced ideal array view: consumed positions map to
 `.consumed`, positions holding element `e` map to `.elem e`, and all other positions map to
 `.empty`. -/
-def stateToIdealArray {m m' : ℕ} (s : RelocationState m m') (p : Fin m') : IdealCell m :=
+@[expose] def stateToIdealArray {m m' : ℕ} (s : RelocationState m m') (p : Fin m') : IdealCell m :=
   if p ∈ s.history then
     .consumed
   else
@@ -1024,7 +1042,7 @@ theorem mem_emptyPositions_stateToIdealArray_iff {m m' : ℕ} {s : RelocationSta
 /-- Bijection between spare indices `j ≥ m + s.history.length` and empty positions in
 `stateToIdealArray s`, given by `j ↦ endOfChain s (s.perm j)` ([WangRen2025], proof of
 Lemma 3.16, p. 17). -/
-def stepEquiv {m m' : ℕ} (s : RelocationState m m') (hv : s.Valid) :
+private def stepEquiv {m m' : ℕ} (s : RelocationState m m') (hv : s.Valid) :
     {j : Fin m' // m + s.history.length ≤ j.val} ≃ emptyPositions (stateToIdealArray s) where
   toFun j := ⟨endOfChain s (s.perm j.val), by
     have hin : inEdge? s (s.perm j.val) = none :=
@@ -1352,9 +1370,12 @@ private theorem realJointPMF_eq_idealJointPMF {m m' : ℕ} (cs : List (Fin m')) 
       PMF.map_comp, ← PMF.bind_pure_comp]
     rfl
 
-/-- **Lemma 3.16** of [WangRen2025] (pp. 16–17): for any sequence of $Q \le m' - m$ distinct
-relocated physical positions `c : Fin Q → Fin m'`, the real relocation experiment (Experiment 3.1)
-and the ideal relocation experiment (Experiment 3.2) induce identical output distributions. -/
+/-- **Lemma 3.16** of [WangRen2025] (pp. 16–17), perfect security: for any sequence of
+$Q \le m' - m$ distinct relocated physical positions `c : Fin Q → Fin m'` fixed in advance, the
+real relocation experiment (Experiment 3.1, with an ideal uniformly random permutation) and the
+ideal relocation experiment (Experiment 3.2) have exactly equal output laws. This is an
+information-theoretic statement; the paper's PRP instantiation and adaptive choices of positions
+are not covered. -/
 theorem eval_realExperiment_eq_idealExperiment {m m' Q : ℕ} {c : Fin Q → Fin m'}
     (hc : Function.Injective c) (hQ : Q ≤ m' - m) (hm : m ≤ m' := by omega) :
     (realExperiment m m' Q c hm).eval = (idealExperiment m m' Q c hm).eval := by
@@ -1366,8 +1387,9 @@ theorem eval_realExperiment_eq_idealExperiment {m m' Q : ℕ} {c : Fin Q → Fin
   simpa [realJointPMF, idealJointPMF, realExperiment, idealExperiment,
     PMF.map_comp, PMF.map_bind, Function.comp_def, PMF.bind_pure_comp] using hjoint
 
-/-- Correctness (Lemmas 3.13–3.15) and perfect security (Lemma 3.16) of Construction 3.5
-([WangRen2025], Theorem 3.3, p. 13, excluding the expected/amortized running-time bounds). -/
+/-- Correctness (Lemmas 3.13–3.15) and perfect security (Lemma 3.16) of Construction 3.5 with an
+ideal uniformly random permutation and fixed relocation positions: the correctness and security
+part of [WangRen2025] Theorem 3.3 (p. 13). Theorem 3.3's efficiency bullets are not included. -/
 structure CorrectAndSecure (m m' : ℕ) (hm : m ≤ m' := by omega) : Prop where
   /-- Lemma 3.13: for every valid state `s` and element `e`, there is a unique unconsumed
   position `c ∉ s.history` with `access s c = some e`. -/
@@ -1394,8 +1416,10 @@ structure CorrectAndSecure (m m' : ℕ) (hm : m ≤ m' := by omega) : Prop where
     Function.Injective c → Q ≤ m' - m →
     (realExperiment m m' Q c hm).eval = (idealExperiment m m' Q c hm).eval
 
-/-- **Theorem 3.3** of [WangRen2025] (p. 13): Construction 3.5 is a correct and perfectly secure
-relocation data structure (excluding the expected/amortized running-time claims). -/
+/-- Construction 3.5 is a correct and perfectly secure relocation data structure, with an ideal
+uniformly random permutation and fixed relocation positions. This is the correctness and security
+part of [WangRen2025] Theorem 3.3 (p. 13), not Theorem 3.3 in full: the expected-time bullets are
+not formalized. -/
 theorem correctAndSecure (m m' : ℕ) (hm : m ≤ m' := by omega) :
     CorrectAndSecure m m' hm where
   existsUnique_access hv e := existsUnique_access_eq hv e hm

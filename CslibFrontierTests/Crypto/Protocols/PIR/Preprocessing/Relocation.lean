@@ -6,6 +6,7 @@ Authors: Karn Seth
 module
 
 import CslibFrontier.Crypto.Protocols.PIR.Preprocessing.Relocation
+import CslibFrontier.Probability.PMF.Uniform
 import Mathlib.Probability.ProbabilityMassFunction.Monad
 
 /-! # Tests for the Wang–Ren Relocation Data Structure
@@ -98,10 +99,13 @@ example : (realRunSteps s₀ [1, 3]).2 = [some 3, some 2] := rfl
 -- Concrete `realRunSteps` trace when relocating an empty slot (`2`) then an occupied slot (`1`):
 example : (realRunSteps s₀ [2, 1]).2 = [none, some 3] := rfl
 
--- Concrete ideal array coupled with `s₀`, `s₁`, `s₂`:
-example : emptyPositions (stateToIdealArray s₀) = ({2, 3} : Finset (Fin 4)) := by decide
-example : emptyPositions (stateToIdealArray s₁) = ({2} : Finset (Fin 4)) := by decide
-example : emptyPositions (stateToIdealArray s₂) = (∅ : Finset (Fin 4)) := by decide
+-- Ideal arrays coupled with `s₀`, `s₁`, `s₂` (empty cells: `{2, 3}`, then `{2}`, then none):
+example : stateToIdealArray s₀ 0 = .elem 1 ∧ stateToIdealArray s₀ 1 = .elem 0 ∧
+    stateToIdealArray s₀ 2 = .empty ∧ stateToIdealArray s₀ 3 = .empty := ⟨rfl, rfl, rfl, rfl⟩
+example : stateToIdealArray s₁ 0 = .elem 1 ∧ stateToIdealArray s₁ 1 = .consumed ∧
+    stateToIdealArray s₁ 2 = .empty ∧ stateToIdealArray s₁ 3 = .elem 0 := ⟨rfl, rfl, rfl, rfl⟩
+example : stateToIdealArray s₂ 0 = .elem 1 ∧ stateToIdealArray s₂ 1 = .consumed ∧
+    stateToIdealArray s₂ 2 = .elem 0 ∧ stateToIdealArray s₂ 3 = .consumed := ⟨rfl, rfl, rfl, rfl⟩
 
 /-! ### Concrete Instantiations of Lemmas 3.13–3.16 and Theorem 3.3 -/
 
