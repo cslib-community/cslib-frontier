@@ -24,9 +24,12 @@ differs from it in three ways:
   (`Protocol.TooLong`) before the algorithm runs. `StaticallySecure P` is therefore the security
   of `P` behind this guard, which need not be the security of the unguarded algorithms. An
   algorithm that misbehaves only on refused inputs is never exposed.
-* **Messages are bounded.** The size bound also limits the TTP's growth per call, long-term keys
-  and instance states; the module defining `Protocol` compares these bounds with the book's
-  efficient interface (Definition 2.12, p. 33) and poly-bounded configurations (§18.1.1, p. 718).
+* **Inputs and stored state are bounded.** Incoming user identities and messages, long-term keys
+  and instance states have at most `P.sizeBound n` bits, and each TTP call adds at most
+  `P.sizeBound n` bits to the TTP state. Outgoing messages and TTP replies have no fixed cap; only
+  the running time of the algorithm that produces them bounds them. The module defining
+  `Protocol` compares these bounds with the book's efficient interface (Definition 2.12, p. 33)
+  and poly-bounded configurations (§18.1.1, p. 718).
 * **Rounds are unbounded.** `Protocol` does not require the polynomial terminal-round condition of
   §18.1.1 (p. 718), to which §21.9 refers: a session that stays `running` forever is admitted.
 
@@ -101,7 +104,9 @@ not Definition 21.1:
 
 * the challenger refuses over-long user identities and messages before any protocol algorithm
   runs, so this is the security of `P` behind that guard, not of its unguarded algorithms;
-* identities, messages, long-term keys and states are bounded by `P.sizeBound n`;
+* incoming user identities and messages, long-term keys and instance states have at most
+  `P.sizeBound n` bits, and each TTP call adds at most `P.sizeBound n` bits to the TTP state;
+  outgoing messages have no fixed cap;
 * `P` need not reach a terminal state within polynomially many rounds, as §18.1.1 (p. 718)
   requires.
 
