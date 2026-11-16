@@ -127,9 +127,8 @@ it links to the separate short manual without duplicating that manual’s conten
 link-only navigation paragraphs. The original academic paper plan remains in
 [history/paper-plan.md](history/paper-plan.md) as historical editorial context.
 
-Coordinator review must cover the impact on both manuals before integration. When either
-manual changes, check its rendered pages and retain its matching manifest when distributing
-the artifact. A shared converter change requires checking both editions. See
+When distributing a PDF, retain its matching manifest. A converter or layout change requires
+checking the rendered pages of both editions. See
 [the maintenance procedure](MAINTAINING.md) and the
 [contribution policy](../CONTRIBUTING.md#maintaining-the-manuals).
 
@@ -230,7 +229,7 @@ The historical study reports a fixed observation at `13e6a319`, dated November 2
 Its scripts are optional tools for inspecting the evidence; running them is not a prerequisite
 for reading or building either manual. Outputs default to the ignored `manual/_generated/`
 directory. Keep generated JSON, API responses, dependency copies and plots out of commits.
-The maintained chapters and [model map](model-map.md) hold the semantic account; the scripts
+The frozen reference chapters and [model map](model-map.md) hold the semantic account; the scripts
 do not reconstruct the retired detailed model ledgers or repeat their mathematical review.
 
 With Git history through the fixed revision available locally, run from the repository root:
