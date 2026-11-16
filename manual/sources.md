@@ -1272,7 +1272,7 @@ László Lovász. *On the Shannon Capacity of a Graph*. IEEE Transactions on Inf
 <a id="lp09"></a>
 ## lp09
 
-Yehuda Lindell, Benny Pinkas. "A Proof of Security of Yao's Protocol for Two-Party Computation." *Journal of Cryptology* 22(2), 161–188, 2009. https://doi.org/10.1007/s00145-008-9036-8 . Metadata checked at the publisher. The full text is paywalled and ePrint 2004/175 returned HTTP 403 in this pass, so theorem and section locators are not claimed.
+Yehuda Lindell, Benny Pinkas. "A Proof of Security of Yao's Protocol for Two-Party Computation." *Journal of Cryptology* 22(2), 161–188, 2009. https://doi.org/10.1007/s00145-008-9036-8 . Metadata checked at the publisher. Locators refer to the ePrint version 2004/175 of June 26, 2006 (25 pages; printed and PDF page numbers agree), read on 2026-11-15 through the Internet Archive copy https://web.archive.org/web/20260925153108/https://eprint.iacr.org/2004/175.pdf (sha256 `31b6d91daed7b182793d30b47b0b21736dd477f963a732434a21b97f0f07dfe9`): Definition 1 (§2.1, p. 5), the garbled-circuit construction (§4.1, p. 12), Protocol 2 and Theorem 7 (§4.2, p. 15), and the two cases of the proof of Theorem 7, Case 1 (p. 16) and Case 2 with the simulator `S₂` (pp. 18–19). The journal version was not inspected, and its numbering may differ.
 
 <a id="ltv98"></a>
 ## ltv98

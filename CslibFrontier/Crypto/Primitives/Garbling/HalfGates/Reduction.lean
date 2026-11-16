@@ -746,7 +746,7 @@ private theorem eval_prvView (k : ℕ) (q : Query XorAndCircuit)
     simp only [Function.comp_apply]
     rw [gb_eq_encodeGarbled]
     simp only [viewWord, encodeGarbled, Garbled.view, PrvView.mk.injEq, true_and, and_true]
-    exact PointPermute.encodeWord_encInfo (n := q.fn.circuit.n) _ hx
+    exact PointPermute.projectiveEncode_labelBits (n := q.fn.circuit.n) _ hx
   simp only [Scheme.prvView, garble, bind_pure_comp, ProbComp.eval_map, ProbComp.eval_bind,
     Scheme.eval_garble, ProbComp.eval_uniform, hcoins, PMF.map_comp]
   rw [hfun, ← PMF.map_comp, uniformList_map_offsetKey_inputLabels,
