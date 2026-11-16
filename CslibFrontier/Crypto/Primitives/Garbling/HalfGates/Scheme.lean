@@ -18,10 +18,10 @@ import CslibFrontier.Foundations.Data.List.Flatten
 # Half-gates garbling as a garbling scheme
 
 Definitions and correctness only. The efficiency certificates of the scheme
-(`CslibFrontier.Crypto.Primitives.Garbling.HalfGates.Efficient`) and its word simulator
-(`CslibFrontier.Crypto.Primitives.Garbling.HalfGates.Simulator`) build on it. Simulation privacy
-(`prv.sim`) by a reduction to `CircularCorrelationRobust` with a certified efficiency witness is
-the next step of [#5293](https://github.com/cslib-community/cslib-frontier/issues/5293) (B4, H3).
+(`CslibFrontier.Crypto.Primitives.Garbling.HalfGates.Efficient`), its word simulator
+(`CslibFrontier.Crypto.Primitives.Garbling.HalfGates.Simulator`) and its simulation privacy
+(`prv.sim`) under `CircularCorrelationRobust`, by a certified reduction
+(`CslibFrontier.Crypto.Primitives.Garbling.HalfGates.PrvSim`), build on it.
 
 The half-gates garbling of `CslibFrontier.Crypto.Primitives.Garbling.HalfGates`, after Zahur,
 Rosulek and Evans [ZahurRosulekEvans2015] (Figure 2, p. 9), as a garbling scheme in the sense of
@@ -359,7 +359,7 @@ theorem labelBits_inputLabels {n : ℕ} (k : ℕ) (coins : List Bool) (i : Fin n
   labelBits_labelOfWord (BitString.length_listRow _ _ _)
 
 /-- An entry of a prefix of the label words of a labelling. -/
-private theorem getD_take_labels {n s k : ℕ} (A : Wire n s → BitString (k + 1) × Bool) {j i : ℕ}
+theorem getD_take_labels {n s k : ℕ} (A : Wire n s → BitString (k + 1) × Bool) {j i : ℕ}
     (hij : i < j) (hj : j ≤ n + s) :
     ((List.ofFn fun v : Fin (n + s) =>
       labelBits (A (Wire.ofNat v v.isLt))).take j).getD i [] =
@@ -478,6 +478,29 @@ private theorem decide_op_toCircuit (f : XorAndCircuit) (g : Fin (toCircuit f).s
   rw [op_toCircuit, opOf]
   cases f.circuit.G (g.cast (size_toCircuit f)) true true <;> rfl
 
+/-- **Gate `g` of a typed garbled table over `toCircuit f`, as a word**: the argument wires
+`A g` and `B g` of `f` as `w`-bit numbers, `w` the bit length of `n + q`, the AND bit `G g 1 1`,
+and for an AND gate the words of its two ciphertexts, the generator half first. -/
+theorem encodeGate_toCircuit (k : ℕ) (f : XorAndCircuit)
+    (table : Slot (toCircuit f) → BitString (k + 1) × Bool) (g : Fin (toCircuit f).size) :
+    encodeGate k (PointPermute.wireWidth f.circuit.n (toCircuit f).size) (toCircuit f) table g =
+      BitString.lowBits (PointPermute.wireWidth f.circuit.n f.circuit.q)
+          (f.circuit.A (g.cast (size_toCircuit f))) ++
+        BitString.lowBits (PointPermute.wireWidth f.circuit.n f.circuit.q)
+          (f.circuit.B (g.cast (size_toCircuit f))) ++
+        [f.circuit.G (g.cast (size_toCircuit f)) true true] ++
+        if h : op (toCircuit f) g = .and then
+          labelBits (table (⟨g, h⟩, false)) ++ labelBits (table (⟨g, h⟩, true))
+        else [] := by
+  have hA₁ := f.isValid.one_le_A (g.cast (size_toCircuit f))
+  have hAB := f.isValid.A_lt_B (g.cast (size_toCircuit f))
+  simp only [ConventionalCircuit.topo] at hA₁ hAB
+  have hw : PointPermute.wireWidth f.circuit.n (toCircuit f).size =
+      PointPermute.wireWidth f.circuit.n f.circuit.q := by rw [size_toCircuit]
+  rw [hw]
+  simp only [encodeGate, toNat_left_toCircuit, toNat_right_toCircuit, Nat.sub_add_cancel hA₁,
+    Nat.sub_add_cancel (hA₁.trans hAB.le), decide_op_toCircuit]
+
 /-- The block of gate `g` of the typed garbled table, as a word, is `gateWord`. -/
 private theorem encodeGate_garbleTable (k : ℕ) (f : XorAndCircuit) (coins : List Bool)
     (g : Fin (toCircuit f).size) :
@@ -498,11 +521,8 @@ private theorem encodeGate_garbleTable (k : ℕ) (f : XorAndCircuit) (coins : Li
   have hgs := g.isLt
   have hl := left_toCircuit f g
   have hr := right_toCircuit f g
-  have hw : PointPermute.wireWidth f.circuit.n (toCircuit f).size =
-      PointPermute.wireWidth f.circuit.n f.circuit.q := by rw [size_toCircuit]
-  rw [hw, zeroWords_q, ← hWdef]
-  simp only [encodeGate, gateWord, toNat_left_toCircuit, toNat_right_toCircuit,
-    Nat.sub_add_cancel hA₁, Nat.sub_add_cancel (hA₁.trans hAB.le), decide_op_toCircuit]
+  rw [encodeGate_toCircuit, zeroWords_q, ← hWdef]
+  simp only [gateWord]
   rw [getD_ofFn_labels W (by omega), getD_ofFn_labels W (by omega), ← hl, ← hr]
   cases hG : f.circuit.G (g.cast (size_toCircuit f)) true true
   · have hop : op (toCircuit f) g = .xor := by rw [op_toCircuit, opOf, hG]; rfl

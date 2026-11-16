@@ -12,6 +12,7 @@ public import CslibFrontier.Crypto.Computational.OneWay
 public import CslibFrontier.Crypto.Computational.SecondPreimageResistant
 import CslibFrontier.Crypto.Game.Order
 import CslibFrontier.Crypto.Negligible
+import CslibFrontier.Probability.Guessing.UniformList
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.PPT
@@ -145,7 +146,7 @@ theorem succProbability_inversionGame_le_secondPreimageGameOn_add
   have hguess :
       ∑' m, BitString.uniformList n m * ProbComp.eval (adversary n (f m)) m ≤
         (((2 : ℝ≥0) ^ d / (2 : ℝ≥0) ^ n : ℝ≥0) : ℝ≥0∞) := by
-    refine (CollisionResistantToOneWay.tsum_uniformList_mul_apply_le f hlen
+    refine (PMF.tsum_uniformList_mul_apply_le f hlen
       (fun y => ProbComp.eval (adversary n y))).trans_eq ?_
     rw [ENNReal.coe_div (pow_ne_zero n two_ne_zero), ENNReal.coe_pow, ENNReal.coe_pow,
       ENNReal.coe_ofNat, one_div, div_eq_mul_inv]

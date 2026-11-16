@@ -1699,6 +1699,25 @@ bound below one. They also certify the actual growing program with `η = 8(l+1)`
 The native certificate charges unary width and signed binary output; this scalar result
 supplies neither encryption correctness nor a security reduction.
 
+## Compose through the public oracle certificate
+
+Import [Oracle/Composition.lean](../../CslibFrontier/Computability/Probabilistic/Oracle/Composition.lean)
+and use `IsOraclePPTOn` with explicit input and output encodings. The composition rules compile
+an internal clean phase as a proof implementation; ordinary clients do not import or construct
+that witness. The [ordinary-module client](../../CslibFrontierTests/OraclePhaseFacade.lean)
+composes plain deterministic preparation, sampled bits, selected branching and a bounded loop.
+It also checks that neither the former public tidy predicate nor the internal phase witness is
+available through the facade. The [internal machine tests](../../CslibFrontierTests/PlainCleanPhase.lean)
+import the compiler explicitly to exercise phase composition.
+
+For a finite-control oracle machine with an efficiently computed unary clock, import
+[Oracle/Normalization.lean](../../CslibFrontier/Computability/Probabilistic/Oracle/Normalization.lean)
+and apply `IsOraclePPTOn.runOracle_of_clock`. Normalization preserves adaptive query order and
+the joint output/external-state law. Its reply truncation follows the machine clock and assumes
+no global bound on an external reply. Explicit halting-time, primary-input auxiliary-clock and
+binary-iteration endpoints keep their existing public modules and independent resource contracts;
+their machine assembly lives in the internal compiler rather than a second public calculus.
+
 ## Substitute an oracle while preserving private samples
 
 Import [Oracle/Substitution.lean](../../CslibFrontier/Languages/Probabilistic/Oracle/Substitution.lean).
