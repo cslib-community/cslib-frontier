@@ -84,7 +84,7 @@ theorem computableInPolyTime_evalCode {x : α → List F}
   apply ComputableInPolyTime.foldl_of_bounded_growth hgates hx polyTime_step
     (growth := 2 * bound + 1)
   intro state gate
-  simp only [encList_append, encList_cons, encList_nil, List.append_nil,
+  simp only [evalCodeStep, encList_append, encList_cons, encList_nil, List.append_nil,
     List.length_append, length_frame]
   have hbound (x : F) : (eF x).length ≤ bound :=
     Finset.le_sup (f := fun x : F => (eF x).length) (Finset.mem_univ x)

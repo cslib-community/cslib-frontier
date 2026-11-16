@@ -37,6 +37,8 @@ Theorem 3.1; [BonehShoup2023], Section 10.6.1, Fact 10.3); the discrete-logarith
 
 * `Cslib.Crypto.PrimeOrderGroupFamily.extractNat_cast`: modulo a prime `q`, `extractNat` is
   `(c - c')⁻¹ (z - z')` whenever `c` and `c'` are distinct modulo `q`.
+* `Cslib.Crypto.PrimeOrderGroupFamily.extractNat_zmod_val`: canonical `ZMod q` form of
+  `extractNat_cast` for `c ≠ c'`.
 * `Cslib.Crypto.PrimeOrderGroupFamily.computableInPolyTime_extractNat`: the witness is computable
   in polynomial time from the group description and the four binary numbers.
 
@@ -74,6 +76,14 @@ theorem extractNat_cast {q : ℕ} [Fact q.Prime] {c z c' z' : ℕ}
   have hinv : ((c : ZMod q) - c') ^ (q - 2) = ((c : ZMod q) - c')⁻¹ :=
     ZMod.pow_card_sub_two_eq_inv hne
   simp only [extractNat, Nat.cast_mul, ZMod.natCast_mod, Nat.cast_pow, hsub, hinv]
+
+/-- Modulo a prime `q`, `extractNat` on canonical `ZMod q` representatives computes
+`(c - c')⁻¹ * (z - z')` whenever `c ≠ c'`. -/
+theorem extractNat_zmod_val {q : ℕ} [Fact q.Prime] {c z c' z' : ZMod q} (hc : c ≠ c') :
+    (extractNat q c.val z.val c'.val z'.val : ZMod q) = (c - c')⁻¹ * (z - z') := by
+  have hcast : ((c.val : ℕ) : ZMod q) ≠ (c'.val : ℕ) := by
+    simpa only [ZMod.natCast_zmod_val] using hc
+  simpa only [ZMod.natCast_zmod_val] using extractNat_cast (z := z.val) (z' := z'.val) hcast
 
 variable {F : PrimeOrderGroupFamily}
 
