@@ -4788,6 +4788,7 @@ public import CslibFrontier.Crypto.Computational.SNOVA.SigningAttempts
 public import CslibFrontier.Crypto.Computational.SchnorrEavesdrop
 public import CslibFrontier.Crypto.Computational.SchnorrGuessing
 public import CslibFrontier.Crypto.Computational.SchnorrIdentification
+public import CslibFrontier.Crypto.Computational.SchnorrLeakedNonce
 public import CslibFrontier.Crypto.Computational.SchnorrProofOfKnowledge
 public import CslibFrontier.Crypto.Computational.SchnorrProtocol
 public import CslibFrontier.Crypto.Computational.SchnorrRelatedNonce

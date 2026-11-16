@@ -366,6 +366,24 @@ computes the same recovery on binary words in polynomial time
 exercises extraction over `ZMod 7`, probes `m₀ = m₁` over `ZMod 5`, and evaluates word recovery
 in `schnorrGroups`.
 
+[CslibFrontier/Crypto/Computational/SchnorrLeakedNonce.lean](../../CslibFrontier/Crypto/Computational/SchnorrLeakedNonce.lean)
+specializes that extractor to the leaked-randomness case `a = 0`, `b = r`
+([bs23][bs23], Section 21.2, p. 861) and supplies the first word-level game for
+`schnorrRelatedNonceExtractWord`: `schnorrLeakedNonceWordGame` samples `(pk, sk)` with
+`schnorrSigKeyGen` and `r` with `sampleExp`, signs a fixed message `msg` using the reduced nonce
+word `rBits := (r % F.order d).bits` via the signing steps of `schnorrROMSign` against an `m`-bit
+stateful random oracle, and passes `(d, m, msg, sig, rBits)` (without `pk`) to the adversary.
+`schnorrLeakedNonceWordAdversary` makes one random-oracle query to recover the secret-key word via
+`schnorrRelatedNonceExtractWord`, `isOraclePPTOn_schnorrLeakedNonceWordAdversary` certifies its
+uniform strict oracle-PPT complexity with `m` encoded in unary, and
+`one_sub_inv_two_pow_le_succProbability_schnorrLeakedNonceWordGame` proves success probability at
+least `1 - 2⁻ᵐ` whenever `2 ^ m ≤ F.order d` (where the `2⁻ᵐ` loss is the zero-challenge event
+on which `z = r` is independent of the key);
+[CslibFrontierTests/Crypto/SchnorrLeakedNonce.lean](../../CslibFrontierTests/Crypto/SchnorrLeakedNonce.lean)
+checks the `a = 0` typed specializations, the `schnorrROMSign` step equivalence, concrete
+extraction and `m = 3` game/certificate instances on `d23`, the `ZMod 5` zero-challenge failure,
+and the `q = 3`, `m = 2` failure when `2 ^ m > F.order d`.
+
 The existing `fiatShamir` and its finite security theorem accept an injective
 `hashPoint : (M × T) ↪ Query`. Signing and final verification query `hashPoint (m, t)`, while
 arbitrary other `Query` values remain in the same cache and count toward the hash-query budget.
