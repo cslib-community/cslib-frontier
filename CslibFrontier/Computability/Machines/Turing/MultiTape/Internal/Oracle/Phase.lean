@@ -10,14 +10,13 @@ module
 public import CslibFrontier.Computability.Probabilistic.Oracle
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Tidy
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.TidyNormalForm
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Foundations.Data.List.Fold
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.KernelNormalForm
 import Mathlib.Data.Fintype.Basic
 
 /-!
-# Tidy realizations of oracle PPT programs
+# Internal clean-phase compiler for oracle machines
 
 `IsTidyOraclePPTOn` strengthens `IsOraclePPTOn` by requiring one finite machine that halts
 within a polynomial clock as a clean phase: it starts with blank work tapes and empty query
@@ -37,17 +36,17 @@ so no deterministic tidy certificate is needed.
 
 ## Main definitions
 
-* `Cslib.Probability.IsTidyOraclePPTOn`: a uniform polynomial-time clean-phase realization.
+* `IsTidyOraclePPTOn`: a uniform polynomial-time clean-phase realization.
 
 ## Main results
 
-* `Cslib.Probability.IsTidyOraclePPTOn.isOraclePPTOn`: clean realizations are oracle PPT.
-* `Cslib.Probability.IsTidyOraclePPTOn.of_computableInPolyTime`: plain deterministic programs are
+* `IsTidyOraclePPTOn.isOraclePPTOn`: clean realizations are oracle PPT.
+* `IsTidyOraclePPTOn.of_computableInPolyTime`: plain deterministic programs are
   clean phases.
-* `Cslib.Probability.IsTidyOraclePPTOn.query_take`: one external call returning a reply prefix.
-* `Cslib.Probability.IsTidyOraclePPTOn.bind`, `.bind_with`, `.pair`, `.map`, `.preprocess`:
+* `IsTidyOraclePPTOn.query_take`: one external call returning a reply prefix.
+* `IsTidyOraclePPTOn.bind`, `.bind_with`, `.pair`, `.map`, `.preprocess`:
   composition, charging every intermediate word.
-* `Cslib.Probability.IsTidyOraclePPTOn.cond`, `.finite_cases`: dispatch executing only the
+* `IsTidyOraclePPTOn.cond`, `.finite_cases`: dispatch executing only the
   selected branch.
 
 ## References
@@ -59,7 +58,9 @@ Reitwiessner) to the probabilistic oracle machines of the cslib `crypto` branch 
 
 @[expose] public section
 
-namespace Cslib.Probability
+namespace Turing.MultiTapePTM.Internal.Oracle
+
+open Cslib Cslib.Probability
 
 open _root_.Turing _root_.Turing.MultiTapeTM _root_.Turing.MultiTapePTM
 
@@ -327,4 +328,4 @@ theorem finite_cases {Tag : Type} [Finite Tag] {tagEncoding : Tag ↪ List Bool}
 
 end IsTidyOraclePPTOn
 
-end Cslib.Probability
+end Turing.MultiTapePTM.Internal.Oracle

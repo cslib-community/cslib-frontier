@@ -7,6 +7,7 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: candidate
 
+import Cslib.Computability.Machines.Turing.MultiTape.Combinators.AlmostConstant
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.NondeterministicQueryMachine
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.SpaceNormalForm
 import Mathlib.Data.List.GetD
@@ -34,13 +35,6 @@ selected transition, and writes the continuation flag. Only the finalizer emits.
 namespace Turing.NondeterministicQueryMachine
 
 open MultiTapeTM QueryMachine.Simulation
-
-open ComputableTidilyInLinearTimeAndSpace in
-private theorem linearFlag : ComputableTidilyInLinearTimeAndSpace flagWord encBool encBits := by
-  convert (of_eq (f := id) (encIn := encBool) (encMid := encBool) fun _ => rfl).ite
-    ((const [true]).restrict _) ((const []).restrict _) using 1
-  funext c
-  cases c <;> rfl
 
 private theorem le_of_add_le8 {a₁ a₂ a₃ a₄ a₅ a₆ a₇ : ℕ} {m : ℕ}
     (h : a₁ + a₂ + a₃ + a₄ + a₅ + a₆ + a₇ ≤ m) :
@@ -145,11 +139,11 @@ theorem exists_routines {α σ : Type} {enc : α ↪ List Bool} {encS : σ ↪ L
   choose TPN cPN hPN hlenPN using hpns
   obtain ⟨TC, cC, hC, -⟩ := Internal.NormalForm.space (passCont_inSpace hhalted false)
   obtain ⟨TF, cF, hF, -⟩ := Internal.NormalForm.space (passFinish_inSpace haccept false)
-  obtain ⟨cfr, hfr⟩ := ComputableTidilyInLinearTimeAndSpace.of_frame (f := id)
-    (encIn := encPass encS) (encOut := encFramed (encPass encS)) fun _ => rfl
-  obtain ⟨cuf, huf⟩ := ComputableTidilyInLinearTimeAndSpace.of_unframe (f := id)
-    (encIn := encFramed (encPass encS)) (encOut := encPass encS) fun s => by simp
-  obtain ⟨cfl, hfl⟩ := linearFlag
+  obtain ⟨cfr, hfr⟩ := Internal.NormalForm.linear <| ComputableInDegree.of_frame (f := id)
+    (encIn := encPass encS) (encMid := encFramed (encPass encS)) fun _ => rfl
+  obtain ⟨cuf, huf⟩ := Internal.NormalForm.linear <| ComputableInDegree.of_unframe (f := id)
+    (encIn := encFramed (encPass encS)) (encMid := encPass encS) fun s => by simp
+  obtain ⟨cfl, hfl⟩ := Internal.NormalForm.linear linear_flagWord
   obtain ⟨cI', hI'⟩ := ComputableTidilyInTimeAndSpace.comp_linear hfr hI
   obtain ⟨cN', hN'⟩ := ComputableTidilyInTimeAndSpace.comp_linear hfr hN
   obtain ⟨cF', hF'⟩ := ComputableTidilyInTimeAndSpace.comp_linear hF huf

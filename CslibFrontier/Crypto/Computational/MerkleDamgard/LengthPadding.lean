@@ -12,6 +12,7 @@ public import CslibFrontier.Foundations.Data.BitString.List.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString.BinaryWord
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
+import CslibFrontier.Foundations.Data.BitString.List.Rows
 import CslibFrontier.Foundations.Data.List.Append
 import CslibFrontier.Tactic.PolyTime.Init
 
@@ -130,19 +131,12 @@ theorem length_mdLengthPad {n : ℕ} {msg : List Bool}
   · rw [show (msg.length + n / 2) % n + 1 = n by omega, Nat.mod_self, Nat.sub_zero, Nat.mod_self]
     omega
 
-private theorem flatten_listRows_of_length_eq {count n : ℕ} {word : List Bool}
-    (h : word.length = count * n) : (Cslib.BitString.listRows count n word).flatten = word := by
-  have heq : word = List.ofFn (Cslib.BitString.ofList (count * n) word) :=
-    (Cslib.BitString.ofFn_ofList h).symm
-  conv_lhs => rw [heq, Cslib.BitString.listRows_ofFn, ← Cslib.BitString.ofFn_blocksEquiv_symm]
-  simp [Cslib.BitString.blocksEquiv_symm_block, ← heq]
-
 /-- When the block count fits in the length field, the blocks of `mdLengthBlocks n msg` concatenate
 to `mdLengthPad n msg`: no bit is dropped. -/
 theorem flatten_mdLengthBlocks {n : ℕ} {msg : List Bool}
     (hs : mdLengthBlockCount n msg < 2 ^ (n / 2)) :
     (mdLengthBlocks n msg).flatten = mdLengthPad n msg :=
-  flatten_listRows_of_length_eq (length_mdLengthPad hs)
+  Cslib.BitString.flatten_listRows_of_length (length_mdLengthPad hs)
 
 /-- **The length-strengthened blocks are suffix-free**: when the longer message's padded block count
 is less than `2 ^ (n / 2)`, `mdLengthBlocks n m₁` is a suffix of `mdLengthBlocks n m₂` if and only

@@ -140,16 +140,17 @@ example : (∃ c, ComputableInTimeAndSpace (fun l : List Bool =>
       l.foldl (fun acc b => acc ++ [b]) []) encBits encBits
       (fun l => c * (l.length + 1) ^ 2) (fun l => c * (l.length + 1))) ∧
       ∀ l : List Bool, (l.foldl (fun acc b => acc ++ [b]) []).length = l.length := by
-  have hfst : ComputableTidilyInLinearTimeAndSpace Prod.fst
-      (encPair encBits encBool) encBits := Internal.NormalForm.linear (PairEncoding.fst encBool)
-  have hsnd : ComputableTidilyInLinearTimeAndSpace Prod.snd
-      (encPair encBits encBool) encBool := Internal.NormalForm.linear (PairEncoding.snd encBits)
-  have hstep : ComputableTidilyInLinearTimeAndSpace
-      (fun p : List Bool × Bool => p.1 ++ [p.2]) (encPair encBits encBool) encBits :=
+  have hfst : ComputableInDegree Prod.fst
+      (encPair encBits encBool) encBits 1 1 := PairEncoding.fst encBool
+  have hsnd : ComputableInDegree Prod.snd
+      (encPair encBits encBool) encBool 1 1 := PairEncoding.snd encBits
+  have hstep : ComputableInDegree
+      (fun p : List Bool × Bool => p.1 ++ [p.2]) (encPair encBits encBool) encBits 1 1 :=
     hfst.append
       hsnd (fun _ => rfl)
-  obtain ⟨k, hk⟩ := hstep
-  obtain ⟨⟨c, h⟩, hpost⟩ := hk.foldl_bits_stream_sum_spec (step := fun acc b => acc ++ [b]) []
+  obtain ⟨k, hk⟩ := Internal.NormalForm.linear hstep
+  obtain ⟨⟨c, h⟩, hpost⟩ := ComputableTidilyInTimeAndSpace.foldl_bits_stream_sum_spec
+    (hstep := hk) (step := fun acc b => acc ++ [b]) []
     (fun _ i state => state.length = i) (by simp)
     (by intro l i hi state hs; simpa using hs)
     (R := fun _ i => k * (2 * i + 3) + 2 * i + 2)
@@ -195,20 +196,21 @@ example : ∃ c, ComputableTidilyInTimeAndSpace (fun l => l.foldl resetStep []) 
       have hg := hgrowth state b
       simpa only [List.foldl_cons, List.length_cons] using (show
         (l.foldl resetStep (resetStep state b)).length ≤ state.length + (l.length + 1) by lia)
-  have hfst : ComputableTidilyInLinearTimeAndSpace Prod.fst
-      (encPair encBits encBool) encBits := Internal.NormalForm.linear (PairEncoding.fst encBool)
-  have hsnd : ComputableTidilyInLinearTimeAndSpace Prod.snd
-      (encPair encBits encBool) encBool := Internal.NormalForm.linear (PairEncoding.snd encBits)
-  have happend : ComputableTidilyInLinearTimeAndSpace
-      (fun p : List Bool × Bool => p.1 ++ [false]) (encPair encBits encBool) encBits :=
+  have hfst : ComputableInDegree Prod.fst
+      (encPair encBits encBool) encBits 1 1 := PairEncoding.fst encBool
+  have hsnd : ComputableInDegree Prod.snd
+      (encPair encBits encBool) encBool 1 1 := PairEncoding.snd encBits
+  have happend : ComputableInDegree
+      (fun p : List Bool × Bool => p.1 ++ [false]) (encPair encBits encBool) encBits 1 1 :=
     hfst.append
-      (ComputableTidilyInLinearTimeAndSpace.const (encMid := encBool) false) (fun _ => rfl)
-  have hstep : ComputableTidilyInLinearTimeAndSpace
-      (fun p : List Bool × Bool => resetStep p.1 p.2) (encPair encBits encBool) encBits :=
+      (ComputableInDegree.const (encMid := encBool) false) (fun _ => rfl)
+  have hstep : ComputableInDegree
+      (fun p : List Bool × Bool => resetStep p.1 p.2) (encPair encBits encBool) encBits 1 1 :=
     hsnd.ite
-      (ComputableTidilyInLinearTimeAndSpace.const []) (happend.restrict _)
-  obtain ⟨k, hk⟩ := hstep
-  obtain ⟨c, h⟩ := hk.foldl_bits_stream_sum (step := resetStep) []
+      ((ComputableInDegree.const []).restrict _) (happend.restrict _)
+  obtain ⟨k, hk⟩ := Internal.NormalForm.linear hstep
+  obtain ⟨c, h⟩ := ComputableTidilyInTimeAndSpace.foldl_bits_stream_sum
+    (hstep := hk) (step := resetStep) []
     (R := fun l i => (3 * k + 2) * (((l.take i).foldl resetStep []).length + 1))
     (Q := fun l => k * (2 * l.length + 3)) (B := List.length)
     (fun l i hi => by

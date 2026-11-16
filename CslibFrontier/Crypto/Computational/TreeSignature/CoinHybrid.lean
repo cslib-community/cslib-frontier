@@ -7,28 +7,23 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
+import Mathlib.Data.List.GetD
 public import CslibFrontier.Computability.Probabilistic.Oracle.ReplayParameter
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Coins
 public import CslibFrontier.Crypto.Computational.Signature.Bridge
 public import CslibFrontier.Crypto.Computational.TreeSignature
 public import CslibFrontier.Languages.Probabilistic.Iteration
 public import Mathlib.Data.Nat.Pairing
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Search
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
-import CslibFrontier.Computability.Probabilistic.Oracle.Composition
-import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
 import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Crypto.Game.Order
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Languages.Probabilistic.Norm
-import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
-import CslibFrontier.Languages.Probabilistic.Oracle.Support
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Tactic.SuppCases
 import CslibFrontier.Tactic.EncLen
@@ -262,8 +257,8 @@ variable (c : List Bool → List Bool)
 
 @[simp] theorem evalDet_sample {α : Type} (program : ProbComp α) :
     evalDet c (ProbOracleComp.sample program) = ProbComp.eval program := by
-  simp only [evalDet, OracleComp.evalWith, ProbOracleComp.interpret_sample]
-  rfl
+  rw [evalDet, OracleComp.evalWith_eq_interpret, ProbOracleComp.interpret_sample]
+  exact (OracleComp.evalWith_eq_interpret ProbComp.unifOracle program).symm
 
 variable {c} (hc : ∀ x L, (c (encPair encBits encUnary (x, L))).length ≤ L)
 
@@ -454,7 +449,7 @@ theorem eval_interpret_eq_evalDet (c : List Bool → List Bool) {α : Type}
     ProbComp.eval (OracleComp.interpret
       (OracleComp.sumHandler ProbComp.unifFin (fun request : Unit × List Bool =>
         pure (c request.2))) program) = evalDet c program := by
-  rw [ProbOracleComp.eval_interpret]
+  rw [ProbOracleComp.eval_interpret, evalDet, OracleComp.evalWith_eq_interpret]
   rfl
 
 include hinv in

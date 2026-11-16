@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Crypto.Computational.NaorReingold
 public import CslibFrontier.Crypto.Computational.DiffieHellman.Order
 public import CslibFrontier.Crypto.Computational.ElGamal.KDF
@@ -21,13 +22,11 @@ import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Computability.Probabilistic.UniformNat
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Crypto.Game.Hybrid
 import CslibFrontier.Crypto.Game.Statistical
 import CslibFrontier.Crypto.Negligible.Basic
-import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Languages.Probabilistic.Presample
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
 import CslibFrontier.Probability.PMF.Bind
@@ -892,6 +891,7 @@ private theorem eval_frontierLevel_eq_withExpLaw (F : PrimeOrderGroupFamily) (n 
     eval_replicate_sampleNaorReingoldExp_eq_iid F n (m - (k + 1)) d, frontierLevelWithExpLaw,
     PMF.monad_bind_eq_bind, PMF.bind_map, Function.comp_def]
   congr 1; funext suffix
+  rw [ProbOracleComp.runWith_eq_run_interpret]
   refine congrArg (PMF.map Prod.fst)
     (congrArg (fun h => StateT.run (OracleComp.interpret h prog) []) ?_)
   funext q
@@ -993,7 +993,7 @@ private theorem dist_frontierLevelWithExpLaw_le (F : PrimeOrderGroupFamily) (d :
     · rw [← hpre, PMF.map_bind, PMF.iid_map, PMF.map_comp, PMF.bind_map]
       congr 1; funext tbl
       simp only [Function.comp_def, PMF.map_comp, detKernel]
-      rfl
+      rw [ProbOracleComp.runWith_eq_run_interpret]
   rw [hlaw μ₁, hlaw μ₂]
   have hdist_r : dist (PMF.iid μ₁ r) (PMF.iid μ₂ r) ≤ r * dist μ₁ μ₂ :=
     PMF.dist_iid_le μ₁ μ₂ r

@@ -332,7 +332,7 @@ theorem runFrom_par_id_liftInr (Q : Machine I E) (program : ProbOracleComp I α)
         cases q with
         | inl n =>
           simp only [OracleComp.interpret_query, Machine.handler, ProbOracleComp.sample,
-            ProbComp.unifFin]
+            ProbComp.unifFin, OracleComp.sumHandler, OracleComp.substitute_query]
         | inr i =>
           funext s'
           change (par Q (Machine.id I)).runFrom (ProbOracleComp.query (spec := E ⊕ₒ I) (.inr i))

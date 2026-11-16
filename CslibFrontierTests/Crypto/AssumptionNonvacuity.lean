@@ -6,6 +6,7 @@ Authors: Samuel Schlesinger
 
 import CslibFrontier.Crypto.Computational.CompositeResiduosity
 import CslibFrontier.Crypto.Computational.DiffieHellman
+import CslibFrontier.Crypto.Computational.DiffieHellman.Decodable
 import CslibFrontier.Crypto.Computational.Encryption.CCA
 import CslibFrontier.Crypto.Computational.PseudorandomFunction
 import CslibFrontier.Crypto.Computational.RabinFactoring
@@ -26,10 +27,10 @@ pseudorandom generators and hard-core predicates are elsewhere.
 
 * **Discrete logarithm, CDH and DDH.** For every prime-order group family `F` and every fixed
   description `d`, the constant setup `fun _ => PMF.pure d` satisfies none of `F.DiscreteLog`,
-  `F.CDH` and `F.DDH`. Guessing the exponent `0` solves the discrete logarithm with probability
-  `1 / q`. Testing whether the first and third elements are both the identity has advantage
-  `1 / q - 1 / q²` against DDH. These are constant because the group does not grow with the
-  security parameter.
+  `F.CDH`, `F.WordCDH` and `F.DDH`. Guessing the exponent `0` solves the discrete logarithm with
+  probability `1 / q`. Testing whether the first and third elements are both the identity has
+  advantage `1 / q - 1 / q²` against DDH. These are constant because the group does not grow with
+  the security parameter.
 * **IND-CPA and IND-CCA2.** Sending the plaintext bit as the ciphertext is neither `INDCPA` nor
   `INDCCA2`: copying the ciphertext guesses the challenge bit with advantage `1`.
 * **Pseudorandom functions.** The family answering every query with zeros of the declared width
@@ -88,6 +89,10 @@ theorem not_discreteLog_const : ¬ F.DiscreteLog fun _ => PMF.pure d := by
 /-- **CDH fails for a fixed group**, since it implies the discrete-logarithm assumption. -/
 theorem not_cdh_const : ¬ F.CDH fun _ => PMF.pure d :=
   fun h => not_discreteLog_const F d h.discreteLog
+
+/-- **Word-level CDH fails for a fixed group**, since it implies CDH. -/
+theorem not_wordCDH_const : ¬ F.WordCDH fun _ => PMF.pure d :=
+  fun h => not_cdh_const F d h.cdh
 
 /-! ### DDH -/
 
