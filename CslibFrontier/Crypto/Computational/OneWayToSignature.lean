@@ -29,6 +29,7 @@ import CslibFrontier.Computability.Probabilistic.UniformNat
 import CslibFrontier.Crypto.Game.Hybrid
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Foundations.Data.List.Lookup
+import Mathlib.Data.List.GetD
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
 import CslibFrontier.Probability.PMF
 
@@ -668,7 +669,7 @@ private theorem lamport_pointwise_le {f : List Bool → List Bool}
   · by_cases hsupp : out ∈ (lamportRunWith f hf adversary n pk (encList encBits w)).support
     · have hqlen : out.2.length ≤ 1 := by
         dsimp only [lamportRunWith] at hsupp
-        rw [ProbOracleComp.eval_run_interpret_eq_runWith] at hsupp
+        rw [ProbOracleComp.eval_run_interpret] at hsupp
         exact (lamportScheme f hf).length_le_one_of_mem_support_run_oneTimeSigningOracle
           (encList encBits w) (adversary n pk) hsupp
       have hwin' := hwin
@@ -683,8 +684,7 @@ private theorem lamport_pointwise_le {f : List Bool → List Bool}
       have hrun_eq : lamportRunWith f hf adversary n pk (encList encBits w) out =
           lamportRunWith f hf adversary n pk (lamportDummySk w jStar) out := by
         dsimp only [lamportRunWith, lamportDummySk]
-        rw [ProbOracleComp.eval_run_interpret_eq_runWith,
-          ProbOracleComp.eval_run_interpret_eq_runWith]
+        rw [ProbOracleComp.eval_run_interpret, ProbOracleComp.eval_run_interpret]
         exact (lamportScheme f hf).run_oneTimeSigningOracle_apply_eq_of_agree
           (encList encBits w) (lamportDummySk w jStar)
           (fun req hreq => lamportSign_eq_of_agreeAt hjStar_lt hw_len hreq)

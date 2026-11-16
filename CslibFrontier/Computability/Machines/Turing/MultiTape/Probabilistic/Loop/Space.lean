@@ -99,7 +99,7 @@ theorem runOracleConfigFrom_empty (M : MultiTapePTM k Bool State) (fuel : ℕ)
     (cfg : Config k Bool State Empty x) :
     M.runOracleConfigFrom fuel cfg = ProbOracleComp.sample (M.runClosedConfigFrom fuel cfg) := by
   simp only [runOracleConfigFrom, runClosedConfigFrom, runConfigFrom, ProbOracleComp.sample,
-    MultiTapeMachine.interpret_runConfigFrom]
+    OracleComp.substitute_eq_interpret, MultiTapeMachine.interpret_runConfigFrom]
   congr 2 with op : 1
   exact op.elim
 

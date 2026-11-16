@@ -445,7 +445,8 @@ variable [Fintype K] [Nonempty K]
 
 /-- The simulator: uniform input labels and a uniform table. It sees the circuit and the output
 `y`, but not the input. -/
-noncomputable def simulate (H : K × Bool → T → K × Bool) (tw : Slot C → T) (y : Fin m → Bool) :
+@[expose] noncomputable def simulate (H : K × Bool → T → K × Bool) (tw : Slot C → T)
+    (y : Fin m → Bool) :
     ProbComp (View C K) := do
   let X ← ProbComp.uniform (Fin n → K × Bool)
   let ct ← ProbComp.uniform (Slot C → K × Bool)
