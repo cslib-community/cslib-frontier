@@ -2805,6 +2805,21 @@ accumulator and runtime index, before field-operation scratch; generic static co
 of `n`. An unrolled specialization uses `O(n)` field-operation nodes and can omit the runtime index.
 No polynomial-time claim is made without encoded field operations and a certified sampler.
 
+GHASH, the keyed hash of GCM ([bs23][bs23], §9.7, (9.18), p. 382), is
+[`ghash k z`](../../CslibFrontier/Crypto/Protocols/MAC/GHASH.lean) `= z[0] k ^ v + ⋯ + z[v-1] k`
+over any field; `ghashBits e` is the same function on `w`-bit blocks, for a field with an additive
+bit encoding `e : F ≃+ BitString w`. An XOR-DUF (Remark 7.3, p. 269) is `IsDeltaUniversalHash` with
+digests in `BitString n`; there is no separate predicate. `isDeltaUniversalHash_ghash` proves the
+bound `ℓ / |F|` on every injective family of inputs of at most `ℓ` blocks whose last block fixes the
+number of blocks, and `isDeltaUniversalHash_ghashBits_gcmHashInput` proves `ℓ / 2 ^ 128` on GCM's
+input `gcmHashInput d c` (both fields padded with zeros to 128-bit blocks, then one block with the
+two bit lengths, each below `2 ^ 64`). On all inputs of at most `ℓ ≥ 1` blocks GHASH is not even
+universal (`not_isUniversalHash_ghash`). The general criterion behind both bounds, and behind
+Theorem 4.17 below, is `PolynomialEvaluation.isDeltaUniversalHash_ascendingEval`. The field with
+modulus `X^128 + X^7 + X^2 + X + 1` is not constructed, and no polynomial-time claim is made.
+Checks, including a failing case for each hypothesis, are in
+[`CslibFrontierTests/Crypto/GHASH.lean`](../../CslibFrontierTests/Crypto/GHASH.lean).
+
 For polynomial-evaluation hashing of messages shorter than `ℓ` over a finite field, import
 [`Protocols/MAC/PolynomialEvaluation.lean`](../../CslibFrontier/Crypto/Protocols/MAC/PolynomialEvaluation.lean)
 (Katz–Lindell 3rd ed., §4.5.2, Theorem 4.17 and Exercise 4.22). A message with its length code
