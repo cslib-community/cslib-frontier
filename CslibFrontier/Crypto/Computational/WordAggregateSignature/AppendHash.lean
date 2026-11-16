@@ -22,6 +22,12 @@ key `d ← setupH n`, the aggregate signature becomes `(H d (pks, ms), sigAg)`, 
 also checks the hash. The pair `(pks, ms)` is hashed through the injective encoding
 `encPair (encList encBits) (encList encBits)`.
 
+Only correctness of the transform is proved here (`appendHash_correctOn`). Neither security
+statement of the exercise is proved: strong binding of `appendHash` from collision resistance of
+`H`, and `ASIG` of `appendHash` from `ASIG` of the underlying scheme. The tests show that collision
+resistance cannot be dropped: with a constant hash the transform is not strongly binding
+(`not_strongBinding_constantHash`).
+
 ## Main definitions
 
 * `Cslib.Crypto.WordAggregateSignatureScheme.appendHash`: the scheme `SA'` of Exercise 15.11(c).
