@@ -47,6 +47,11 @@ Theorem 14, p. 35) is stated with `∀ B ∃ S` on both sides instead.
 * `Cslib.Crypto.Garbling.Scheme.PrvSimSecureUniversal`: asymptotic simulation privacy with one
   simulator for every adversary.
 
+## Main results
+
+* `Cslib.Crypto.Garbling.Scheme.PrvSimSecureUniversal.prvSimSecure`: one simulator for every
+  adversary gives a simulator for each adversary.
+
 ## References
 
 * [M. Bellare, V. T. Hoang, P. Rogaway, *Foundations of Garbled Circuits*][BellareHoangRogaway2012]
@@ -84,7 +89,8 @@ indistinguishable from `(F, X, d)` generated the usual way"), with any side info
 place of the circuit, and with the game `PrvSim` of [BellareHoangRogaway2012] (Fig. 5, p. 8) and
 the formal setting of `Scheme.PrvSimSecure`. It is stronger than `Scheme.PrvSimSecure`, whose
 quantifiers are those of [BellareHoangRogaway2012], §3.4 (p. 9): for every adversary there is a
-simulator. Point-and-permute and half-gates garbling satisfy it with their simulators `simWord`
+simulator (`Scheme.PrvSimSecureUniversal.prvSimSecure`). Point-and-permute and half-gates garbling
+satisfy it with their simulators `simWord`
 (`PseudorandomFunction.negligible_prvSimAdvantage_simWord`,
 `CircularCorrelationRobust.negligible_prvSimAdvantage_simWord`). -/
 @[expose] def Scheme.PrvSimSecureUniversal (G : Scheme Fn) (Φ : SideInfo Fn Λ)
@@ -94,5 +100,14 @@ simulator. Point-and-permute and half-gates garbling satisfy it with their simul
       ∀ (σ : Type) (encσ : σ ↪ List Bool) (B : ℕ → PrvSimAdversary Fn σ),
         TwoStage.IsPPT encUnit (encQuery Fn encFn) (encOption encPrvView) encBool encσ B →
           Negligible fun k => prvSimAdvantage G Φ k (S k) (B k)
+
+/-- **One simulator for every adversary gives a simulator for each adversary**: `prv.sim` security
+with one simulator (`∃ S ∀ B`, [ZahurRosulekEvans2015]) implies `prv.sim` security in the
+quantifier order of [BellareHoangRogaway2012], §3.4 (`∀ B ∃ S`). -/
+theorem Scheme.PrvSimSecureUniversal.prvSimSecure {G : Scheme Fn} {Φ : SideInfo Fn Λ}
+    {encFn : Fn ↪ List Bool} {encΛ : Λ ↪ List Bool} (h : G.PrvSimSecureUniversal Φ encFn encΛ) :
+    G.PrvSimSecure Φ encFn encΛ :=
+  let ⟨S, hS, hneg⟩ := h
+  fun σ encσ B hB => ⟨S, hS, hneg σ encσ B hB⟩
 
 end Cslib.Crypto.Garbling

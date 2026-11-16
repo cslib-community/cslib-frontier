@@ -5057,6 +5057,7 @@ public import CslibFrontier.Crypto.Protocols.MPC.PolyTime.Runner
 public import CslibFrontier.Crypto.Protocols.MPC.ProductRelation
 public import CslibFrontier.Crypto.Protocols.MPC.SPDZ
 public import CslibFrontier.Crypto.Protocols.MPC.SharedMul
+public import CslibFrontier.Crypto.Protocols.MPC.Yao
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.Family
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.Instances
 public import CslibFrontier.Crypto.Protocols.MPC.Yao.Security
