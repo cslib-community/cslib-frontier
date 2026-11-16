@@ -2191,10 +2191,13 @@ the four even-money bets from the text alongside `red` and `black`, each winning
 with probability `18 / 37` (`succProbability_uniform_rouletteWin`). The concrete advantage
 `rouletteAdvantage E sampleKey A` (`|Pr[W(r, bet) = 1] - 18 / 37|`) equals the one-time
 advantage of `rouletteReduction (ProbComp.uniform (Fin 37)) A` whenever `valid` admits every pair
-`(r, 0)` (`rouletteAdvantage_eq_advantage_rouletteReduction`). Concretely, `rouletteToDEMAdversary`
-draws spins via `ProbComp.sampleModNat (width n) 37` (`isPPT_rouletteToDEMAdversary`) to prove
-`rouletteDEMAdvantage_le_demKeyGame_add` with statistical-distance overhead `74 / 2 ^ width n`;
-asymptotically, `DEMOneTimeKeyINDCPAOf.negligible_rouletteDEMAdvantage` yields `Negligible`
+`(r, 0)` (`rouletteAdvantage_eq_advantage_rouletteReduction`). At security parameter `n`,
+`rouletteDEMAdvantage_le_demKeyGame_add` bounds `rouletteDEMAdvantage keyLen encryptSym A n` above
+by the one-time advantage of `rouletteToDEMAdversary width A` (which replaces uniform spin
+sampling with `ProbComp.sampleModNat (width n) 37`) plus `74 / 2 ^ width n`, where the textbook
+has equality; `isPPT_rouletteToDEMAdversary` certifies that adversary when `width` is
+polynomial-time computable in unary and `Probability.IsPPT encBet A` holds. Asymptotically,
+`DEMOneTimeKeyINDCPAOf.negligible_rouletteDEMAdvantage` yields `Negligible`
 `(rouletteDEMAdvantage keyLen encryptSym A)` from `DEMOneTimeKeyINDCPAOf encIndex keyLen encryptSym`
 and `Probability.IsPPT encBet A`. The
 [tests](../../CslibFrontierTests/Crypto/Roulette.lean) exercise PPT ciphertext-dependent clients

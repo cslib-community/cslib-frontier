@@ -30,7 +30,7 @@ import CslibFrontier.Probability.PMF.Expect
 Semantic security gives security for single-zero Internet roulette (`Fin 37`, outcomes `0..36`)
 ([BonehShoup2023], Section 2.2.4, pp. 22–25). The book defines four even-money bets (`high`,
 `low`, `even`, `odd`, p. 22); `RouletteBet` includes those four and adds `red` and `black`,
-making the universal statements over all players strictly stronger. Each bet wins on `18` nonzero
+making the universal statements over all players stronger. Each bet wins on `18` nonzero
 wheel outcomes and loses on `0` and the remaining `18` outcomes, so an adversary betting against an
 encrypted wheel outcome has concrete Internet roulette advantage
 `nndist Pr[W(r, bet) = 1] (18 / 37)` (`|Pr[W(r, bet) = 1] - 18 / 37|`, p. 22).
