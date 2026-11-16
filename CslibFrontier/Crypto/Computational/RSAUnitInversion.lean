@@ -182,6 +182,17 @@ theorem rsaNonUnitRoot_rsaEval (desc : RSADesc) {x : ℕ} (hx : x < desc.modulus
     d := BinaryGcd.modInv desc.e desc.totient
     hed := BinaryGcd.mul_modInv_modEq_one (by have := desc.totient_gt_one; lia) desc.he } hx
 
+/-- On a residue `y < N` that is not coprime to `N`, `rsaNonUnitRoot` is trapdoor inversion: the
+`e`-th root that `rsaInvert N d` computes with the private exponent is computed from `N` and `e`
+alone. -/
+theorem rsaNonUnitRoot_eq_rsaInvert (desc : RSADesc) {y : ℕ} (hy : y < desc.modulus)
+    (hunit : ¬ Nat.Coprime y desc.modulus) :
+    rsaNonUnitRoot desc.modulus desc.e y = rsaInvert desc.modulus desc.d y := by
+  have hx : rsaInvert desc.modulus desc.d y < desc.modulus := Nat.mod_lt _ desc.modulus_pos
+  have hev := rsaEval_rsaInvert desc hy
+  have h := rsaNonUnitRoot_rsaEval desc hx (by rwa [← coprime_rsaEval_iff desc, hev])
+  rwa [hev] at h
+
 /-- `rsaNonUnitRoot` is computable in polynomial time whenever `N`, `e` and `y` are, and
 `0 < N a`. -/
 theorem computableInPolyTime_rsaNonUnitRoot {α : Type} {enc : α ↪ List Bool} {N e y : α → ℕ}

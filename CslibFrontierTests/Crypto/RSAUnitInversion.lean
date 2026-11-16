@@ -17,7 +17,9 @@ import Mathlib.Tactic.NormNum.Prime
 Checks for `CslibFrontier/Crypto/Computational/RSAUnitInversion.lean`:
 
 * For `N = 33 = 3 * 11` and `e = 3`, the non-unit `6` encrypts to `18`, and `rsaNonUnitRoot`
-  recovers `6` from `(33, 3, 18)` alone, as `rsaNonUnitRoot_rsaEval` says.
+  recovers `6` from `(33, 3, 18)` alone, as `rsaNonUnitRoot_rsaEval` says. It is the root
+  `rsaInvert 33 7 18` of the private exponent (`rsaNonUnitRoot_eq_rsaInvert`); the two differ on
+  the unit `2`, and on `33`, which is not below the modulus.
 * `p = 2` is allowed: for `N = 10 = 2 * 5` and `e = 3`, the non-units `4` and `5` are their own
   images, and `rsaNonUnitRoot` returns them. So is `e = 1`.
 * The branch `y = 0` is needed: the general branch would return `rsaInvert 33 0 0 = 1` for the
@@ -68,6 +70,21 @@ example : rsaNonUnitRoot 33 3 18 = 6 := by
 
 example : rsaNonUnitRoot 33 3 (rsaEval 33 3 6) = 6 :=
   rsaNonUnitRoot_rsaEval desc33 (x := 6) (by decide) (by decide)
+
+/-- The private exponent `d = 7` gives the same root of `18`. -/
+example : rsaNonUnitRoot 33 3 18 = rsaInvert 33 7 18 :=
+  rsaNonUnitRoot_eq_rsaInvert desc33 (by decide) (by decide)
+
+/-- Both hypotheses of `rsaNonUnitRoot_eq_rsaInvert` are needed. On the unit `2` the exponent
+found is `0`, so the root returned is `1`, and `2 ^ 7 % 33 = 29`. On `33`, which is not coprime to
+the modulus and not below it, the root returned is again `1`, and `33 ^ 7 % 33 = 0`. -/
+example : rsaNonUnitRoot 33 3 2 = 1 ∧ rsaInvert 33 7 2 = 29 := by
+  unfold rsaNonUnitRoot BinaryGcd.modInv
+  decide
+
+example : rsaNonUnitRoot 33 3 33 = 1 ∧ rsaInvert 33 7 33 = 0 := by
+  unfold rsaNonUnitRoot BinaryGcd.modInv
+  decide
 
 /-- With `p = 2`: `4 ^ 3 ≡ 4` and `5 ^ 3 ≡ 5 [MOD 10]`, and the roots are `4` and `5`. -/
 example : rsaEval 10 3 4 = 4 ∧ rsaEval 10 3 5 = 5 := by decide
