@@ -73,7 +73,9 @@ Information-theoretic private information retrieval, following Chor–Goldreich�
   The covering-code schemes of CGKS Section 3.3 include radius-`2` codes, the other dimensions of Figure 1, the asymptotic lower estimate and server time, and take variable-length answers so that unbalanced covers meet CGKS Theorem 1 exactly.
   Also `t`-private schemes against coalitions, block retrieval and the converse from schemes to smooth codes (Katz–Trevisan).
 - **PIR lower bounds** ([#3426](https://github.com/cslib-community/cslib-frontier/issues/3426)): the single-server bound with and without interaction, the two-server linear-summation bound with its tight even-set scheme (CGKS Section 5), and lower bounds for general two-server schemes.
+- **Batch SPIR with client preprocessing (Hoover–Persiano–Yeo, FOCS 2026, arXiv:2607.06451v3, Theorem 6.2, p. 52)**: the storage lower bound as stated (`ε > 2^(s−k)`), in the random oracle model, with an interactive online phase and online client randomness. The library has only a restricted-model bound (plain model, one online round, deterministic online client) in `Crypto/Protocols/PIR/Symmetric/Preprocessing.lean`.
 - **Plinko privacy and bounds** ([#5736](https://github.com/cslib-community/cslib-frontier/issues/5736)): Prove privacy of the full `plinkoScheme` (the hint-refresh argument and a reduction to forward iPRF security), the security half of Theorem 4.4 with pseudorandom multinomial samplers, and the Theorem 5.3 bounds, including the hint-load and failure-probability estimates.
+- **Client-preprocessing single-server PIR**: Prove Wang–Ren Theorem 4.1 (Construction 4.2 instantiated with small-domain PRPs and expected-time bounds) and the generalized `ST = Ω(nw)` space-time trade-off lower bounds (Theorems B.1 and B.2 following Yeo 2023 and Corrigan-Gibbs–Henzinger–Kogan 2022).
 
 ### Concurrent and quantum security
 

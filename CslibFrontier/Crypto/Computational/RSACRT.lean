@@ -94,7 +94,8 @@ book, where it is part of the precomputed key. `computableInPolyTime_crtQInv` co
 from `p` and `q` with the certificate `ComputableInPolyTime.binary_modInv'` of `Gcd.lean`, and
 `computableInPolyTime_crtKey_invert` composes it with `computableInPolyTime_crtKeyWith_invert`.
 
-Not formalized: the book's estimate that RSA-CRT is about four times faster, and FDH-RSA signing.
+Not formalized: the book's estimate that RSA-CRT is about four times faster, and RSA-CRT as the
+signer of a signature scheme (`Cslib.Crypto.rsaSignature` signs with `rsaInvert`).
 The certificates cover the computations; nothing is proved about an attacker as an adversary in a
 security game.
 

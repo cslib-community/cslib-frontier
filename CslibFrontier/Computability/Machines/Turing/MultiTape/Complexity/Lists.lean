@@ -70,8 +70,8 @@ public theorem snoc (enc : α ↪ List Bool) :
     ComputableTidilyInDegree (fun p : List α × α => p.1 ++ [p.2]) (encPair (encList enc) enc)
       (encList enc) 1 1 :=
   ((fst (encList enc) enc).append ((of_linear
-    (ComputableTidilyInLinearTimeAndSpace.of_frame (f := id) (encIn := enc)
-      (encOut := encFramed enc) fun _ => rfl)).comp (snd (encList enc) enc))
+    (ComputableInDegree.of_frame (f := id) (encIn := enc)
+      (encMid := encFramed enc) fun _ => rfl)).comp (snd (encList enc) enc))
     (enc₂ := encFramed enc) fun _ => by simp).mono
 
 /-- Concatenation. -/
@@ -105,7 +105,7 @@ public theorem findWith {t : π × α → Bool} {par : γ → π} {list : γ →
   have hq := fst (encPair encP (encOption enc)) enc
   have hel := snd (encPair encP (encOption enc)) enc
   have hisSome := (of_finite (encIn := encBool) (encMid := encBool) (fun b : Bool => !b)).comp
-    ((of_linear (ComputableTidilyInLinearTimeAndSpace.of_isEmpty (encIn := encOption enc)
+    ((of_linear (ComputableInDegree.of_isEmpty (encIn := encOption enc)
       (f := fun o : Option α => o.isNone) fun o => by cases o <;> simp)).comp hq.snd')
   have h := hisSome.ite (hq.snd'.restrict _) ((ht.comp (hq.fst'.prod hel)).ite
     (((optionSome (enc₁ := enc)).comp hel).restrict _) ((const none).restrict _) |>.restrict _)
@@ -263,13 +263,13 @@ public theorem unary_min :
 lemma int_head : ComputableTidilyInDegree (fun z : ℤ => ((encIntUnary z).take 1).headD false)
     encIntUnary encBool 1 1 :=
   ((headD (enc₁ := encBool) false).comp
-    (of_linear (.of_take_one (f := fun z : ℤ => (encIntUnary z).take 1) (encOut := encBits)
+    (of_linear (.of_take_one (f := fun z : ℤ => (encIntUnary z).take 1) (encMid := encBits)
       fun _ => rfl))).mono
 
 lemma int_tailEmpty : ComputableTidilyInDegree (fun z : ℤ => (encIntUnary z).tail.isEmpty)
     encIntUnary encBool 1 1 :=
   ((isEmpty (enc₁ := encBool)).comp
-    (of_linear (.of_tail (f := fun z : ℤ => (encIntUnary z).tail) (encOut := encBits)
+    (of_linear (.of_tail (f := fun z : ℤ => (encIntUnary z).tail) (encMid := encBits)
       fun _ => rfl))).mono
 
 /-- Whether an integer is positive. -/

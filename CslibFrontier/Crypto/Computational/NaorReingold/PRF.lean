@@ -966,7 +966,7 @@ theorem DDH.exists_pseudorandomGenerator {F : PrimeOrderGroupFamily} {desc : ℕ
       rw [OracleComp.interpret_bind,
         KabanetsCai.interpret_queryTable ProbComp.unifOracle oracle (queries n),
         pure_bind, ProbOracleComp.interpret_sample]
-      rfl
+      exact (OracleComp.evalWith_eq_interpret ProbComp.unifOracle _).symm
     have hreal_eq :
         distinguishingGame ((BitString.uniformList (seedLen n)).map (core n)) (D n) =
         (BitString.uniformList

@@ -33,7 +33,8 @@ example {family : List Bool → List Bool → List Bool} (hfamily : Pseudorandom
     (adversary : MultiKeyDistinguisher 0) (n : ℕ) :
     Game.advantage (ProbComp.eval (prfMultiRealGame family 0 adversary n))
       (ProbComp.eval (prfMultiIdealGame 0 adversary n)) = 0 :=
-  le_antisymm (by simpa using advantage_prfMultiRealGame_prfMultiIdealGame_le hfamily adversary n)
+  le_antisymm
+    (by simpa using advantage_prfMultiRealGame_prfMultiIdealGame_le hfamily.length_eq adversary n)
     zero_le
 
 -- With one channel, the bound is the advantage of the single hybrid reduction.
@@ -44,6 +45,6 @@ example {family : List Bool → List Bool → List Bool} (hfamily : Pseudorandom
       Game.advantage
         (ProbComp.eval (prfRealGame id family (prfMultiReduction family 1 0 adversary) n))
         (ProbComp.eval (prfIdealGame id id (prfMultiReduction family 1 0 adversary) n)) := by
-  simpa using advantage_prfMultiRealGame_prfMultiIdealGame_le hfamily adversary n
+  simpa using advantage_prfMultiRealGame_prfMultiIdealGame_le hfamily.length_eq adversary n
 
 end CslibFrontierTests.Crypto.PRFMultiKey
