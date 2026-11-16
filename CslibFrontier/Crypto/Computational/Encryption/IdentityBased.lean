@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.Encryption.Basic
+public import CslibFrontier.Crypto.Computational.Signature
 public import CslibFrontier.Computability.Probabilistic.Oracle.Parameter
 public import CslibFrontier.Computability.Probabilistic.UniformNat
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
@@ -225,13 +226,11 @@ structure SelectiveIBEAdversaryOf.IsPPT {Msg : Type} (encMsg : Msg ↪ List Bool
 
 /-- The key oracle of [BonehShoup2023], Attack Game 15.5: answer the identity word `request.2`
 with a fresh secret key from `(E n).keyGen msk`, and add the identity to the log of queried
-identities. -/
+identities. It is the answer-and-log oracle `SignatureScheme.signingOracleOf` at `(E n).keyGen`. -/
 @[expose]
 def ibeKeyOracle {Msg : Type} (E : WordIBE Msg) (n : ℕ) (msk : List Bool)
     (request : Unit × List Bool) : StateT (List (List Bool)) ProbComp (List Bool) :=
-  fun queried => do
-    let sk ← (E n).keyGen msk request.2
-    return (sk, request.2 :: queried)
+  SignatureScheme.signingOracleOf (E n).keyGen msk request
 
 @[simp]
 theorem run_ibeKeyOracle {Msg : Type} (E : WordIBE Msg) (n : ℕ) (msk : List Bool)
