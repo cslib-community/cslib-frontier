@@ -65,10 +65,11 @@ def union : NondeterministicQueryMachine (UnionState σ τ) where
   init := ⟨M.init, N.init, none⟩
   query s := if s.side.getD false then N.query s.right else M.query s.left
   next p :=
-    if p.1.side.isSome then
-      if p.1.side.getD false then ⟨p.1.left, N.next (p.1.right, p.2.1, p.2.2), p.1.side⟩
-      else ⟨M.next (p.1.left, p.2.1, p.2.2), p.1.right, p.1.side⟩
-    else ⟨p.1.left, p.1.right, some p.2.2⟩
+    let ⟨s, ⟨read, choice⟩⟩ := p
+    if s.side.isSome then
+      if s.side.getD false then ⟨s.left, N.next (s.right, read, choice), s.side⟩
+      else ⟨M.next (s.left, read, choice), s.right, s.side⟩
+    else ⟨s.left, s.right, some choice⟩
   halted s := s.side.isSome && if s.side.getD false then N.halted s.right else M.halted s.left
   accept s := if s.side.getD false then N.accept s.right else M.accept s.left
 

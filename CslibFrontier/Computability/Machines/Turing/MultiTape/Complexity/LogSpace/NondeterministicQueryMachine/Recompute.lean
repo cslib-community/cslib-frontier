@@ -118,15 +118,16 @@ def recomputeStart (s : σ) : RecomputeState σ := ⟨s, Universal.init d, M.que
 def RecomputeState.answer (s : RecomputeState σ) : Option Bool :=
   if s.count = 0 then some s.found else none
 
-/-- A step of the recomputation, on the answer `p.2.1` to its query and the choice `p.2.2`: while
+/-- A step of the recomputation, on the answer to its query and the choice bit: while
 `d` runs, a step of `d` reading the real input, counting down the symbol it emits; once `d` has
 halted, a step of `M` on the bit found, with the choice, restarting `d` for the next query. -/
 def recomputeNext (p : RecomputeState σ × Option Bool × Bool) : RecomputeState σ :=
-  if p.1.cfg.state.isSome then
-    ⟨p.1.inner, (stepWith d p.1.cfg (nuSym p.1.cfg.inputPos p.2.1)).1,
-      (tickOpt (p.1.count, p.1.found) (stepWith d p.1.cfg (nuSym p.1.cfg.inputPos p.2.1)).2).1,
-      (tickOpt (p.1.count, p.1.found) (stepWith d p.1.cfg (nuSym p.1.cfg.inputPos p.2.1)).2).2⟩
-  else recomputeStart M d (M.next (p.1.inner, p.1.answer, p.2.2))
+  let ⟨s, ⟨read, choice⟩⟩ := p
+  if s.cfg.state.isSome then
+    ⟨s.inner, (stepWith d s.cfg (nuSym s.cfg.inputPos read)).1,
+      (tickOpt (s.count, s.found) (stepWith d s.cfg (nuSym s.cfg.inputPos read)).2).1,
+      (tickOpt (s.count, s.found) (stepWith d s.cfg (nuSym s.cfg.inputPos read)).2).2⟩
+  else recomputeStart M d (M.next (s.inner, s.answer, choice))
 
 /-- **The machine `M` reading the output of the deterministic machine described by `d`**, which
 is recomputed from the real input whenever `M` queries a bit. It halts and accepts with `M`. -/
