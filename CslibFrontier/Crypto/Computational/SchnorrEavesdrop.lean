@@ -59,7 +59,11 @@ of uniform on `ZMod q` (`closeTo_uniform_sampleExp`). Consequently:
   * `SchnorrEavesdropAdversary.toDirect` converts any eavesdropping adversary `A` into a direct
     impersonator that generates `Q n` simulated conversations on the public key before running
     `A.commit`. It is uniform strict PPT whenever `A`, the challenge length `k`, and the
-    conversation count `Q` are (`isPPT_toDirect`, `isPPTOn_rewind_toDirect`).
+    conversation count `Q` are (`isPPT_toDirect`, `isPPTOn_rewind_toDirect`). It runs the generic
+    reduction `SigmaProtocol.Impersonator.withSimulatedViews`: its typed view is that reduction
+    applied to the typed view of `A`, with the law `schnorrSampledSimulate` of the strict-PPT
+    simulator as the simulator, since `Q n` strict-PPT simulated conversations are `Q n` typed
+    simulated conversations written as words (`eval_replicate_schnorrSimulatedTranscript`).
   * At each security parameter where every supported group has order at least `2 ^ k n`,
     `succProbability_schnorrIdealEavesdropGame_le` and `succProbability_schnorrEavesdropGame_le`
     give the explicit bounds
@@ -95,6 +99,9 @@ of uniform on `ZMod q` (`closeTo_uniform_sampleExp`). Consequently:
   `Cslib.Crypto.PrimeOrderGroupFamily.schnorrRealTranscript`,
   `Cslib.Crypto.PrimeOrderGroupFamily.schnorrSimulatedTranscript`: ideal honest, strict-PPT honest,
   and strict-PPT simulated Schnorr conversations with `m`-bit challenges.
+* `Cslib.Crypto.PrimeOrderGroupFamily.schnorrSampledSimulate`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.transcriptWords`: the law of the strict-PPT simulator at a
+  typed challenge, and the word view of a typed conversation.
 * `Cslib.Crypto.PrimeOrderGroupFamily.schnorrEavesdropGame`,
   `Cslib.Crypto.PrimeOrderGroupFamily.schnorrIdealEavesdropGame`: eavesdropping attack games with
   strict-PPT and ideal honest conversations ([BonehShoup2023], Attack Game 18.2).
@@ -169,6 +176,11 @@ variable {F : PrimeOrderGroupFamily}
 /-- Encoding of a single Schnorr conversation `(t, c, z)` of bit words. -/
 abbrev encTranscript : (List Bool × List Bool × List Bool) ↪ List Bool :=
   encPair encBits (encPair encBits encBits)
+
+/-- The word view of a typed conversation `(t, c, z)`: the challenge as its list of bits. -/
+@[expose] def transcriptWords {m : ℕ} :
+    List Bool × BitString m × List Bool → List Bool × List Bool × List Bool
+  | (t, c, z) => (t, List.ofFn c, z)
 
 variable (F) in
 /-- A uniform eavesdropping adversary against Schnorr identification ([BonehShoup2023], Attack
@@ -269,6 +281,37 @@ theorem eval_schnorrSimulatedTranscript (n : ℕ) (d : F.Desc) (u : F.Carrier d)
   refine congrArg (PMF.bind _) (funext fun c => ?_)
   rw [ProbComp.eval_bind, eval_schnorrSimulateWord_bits, PMF.bind_map, ← PMF.bind_pure_comp]
   rfl
+
+/-- The law of the strict-PPT Schnorr simulator at a typed challenge: a sampled scalar response `z`
+and the commitment `z • g - c • u`, with the challenge read as a binary number. -/
+@[expose] noncomputable def schnorrSampledSimulate (n : ℕ) (d : F.Desc) {m : ℕ} (u : F.Carrier d)
+    (c : BitString m) : PMF (List Bool × List Bool) :=
+  ((ProbComp.eval (F.sampleExp n d)).map (Nat.cast : ℕ → ZMod (F.order d))).map fun z =>
+    (F.encode d (z • F.generator d - (ofBits (List.ofFn c) : ZMod (F.order d)) • u), z.val.bits)
+
+/-- A strict-PPT simulated transcript is a typed simulated conversation, written as words. -/
+theorem eval_schnorrSimulatedTranscript_eq_map (n : ℕ) (d : F.Desc) (m : ℕ) (u : F.Carrier d) :
+    ProbComp.eval (F.schnorrSimulatedTranscript n d (F.encode d u) m) =
+      (SigmaProtocol.simulateConversation (schnorrSampledSimulate n d (m := m)) u).map
+        transcriptWords := by
+  rw [eval_schnorrSimulatedTranscript, BitString.uniformList, PMF.bind_map]
+  simp only [SigmaProtocol.simulateConversation, schnorrSampledSimulate, PMF.monad_bind_eq_bind,
+    PMF.monad_pure_eq_pure, PMF.map_bind, PMF.bind_map, PMF.pure_map, Function.comp_def]
+  congr 1 with c : 1
+  rw [← PMF.bind_pure_comp, PMF.bind_map]
+  rfl
+
+/-- `k` strict-PPT simulated transcripts are `k` typed simulated conversations, written as
+words. -/
+theorem eval_replicate_schnorrSimulatedTranscript (n : ℕ) (d : F.Desc) (m k : ℕ)
+    (u : F.Carrier d) :
+    ProbComp.eval (OracleComp.replicate k (F.schnorrSimulatedTranscript n d (F.encode d u) m)) =
+      (PMF.iid (SigmaProtocol.simulateConversation (schnorrSampledSimulate n d (m := m)) u) k).map
+        fun transcripts => (List.ofFn transcripts).map transcriptWords := by
+  rw [ProbComp.eval_replicate_iid, eval_schnorrSimulatedTranscript_eq_map, PMF.iid_map,
+    PMF.map_comp]
+  congr 1 with transcripts : 1
+  simp [List.map_ofFn, Function.comp_def]
 
 private theorem schnorrHonestTranscript_eq_bind_uniform (d : F.Desc) (α : ZMod (F.order d))
     (m : ℕ) :
@@ -399,6 +442,32 @@ noncomputable def SchnorrEavesdropAdversary.toDirect (k Q : ℕ → ℕ)
     let views ← OracleComp.replicate (Q n) (F.schnorrSimulatedTranscript n d u (k n))
     A.commit n (d, u, views)
   respond := A.respond
+
+/-- The typed view of an eavesdropping adversary at security parameter `n`, with `m`-bit challenges
+and `Q` overheard conversations. Like `SchnorrImpersonator.typed`, it sees the statement encoded
+and the challenge as a word; it also reads each typed conversation as words (`transcriptWords`). -/
+private noncomputable def SchnorrEavesdropAdversary.typed (A : F.SchnorrEavesdropAdversary)
+    (n m Q : ℕ) :
+    SigmaProtocol.Impersonator (((d : F.Desc) × F.Carrier d) ×
+      (Fin Q → List Bool × BitString m × List Bool)) (List Bool) (BitString m) (List Bool) where
+  State := List Bool
+  commit := fun (y, views) =>
+    ProbComp.eval (A.commit n (y.1, F.encode y.1 y.2, (List.ofFn views).map transcriptWords))
+  respond s c := ProbComp.eval (A.respond n (s, List.ofFn c))
+
+/-- The word reduction `A.toDirect k Q` runs the generic reduction `withSimulatedViews`: at each
+security parameter `n`, its typed view is that reduction applied to the typed view of `A`, with the
+law of the strict-PPT simulator (`schnorrSampledSimulate`) as the simulator. -/
+private theorem SchnorrEavesdropAdversary.typed_toDirect (k Q : ℕ → ℕ)
+    (A : F.SchnorrEavesdropAdversary) (n : ℕ) :
+    (A.toDirect k Q).typed n (k n) =
+      (A.typed n (k n) (Q n)).withSimulatedViews fun y => schnorrSampledSimulate n y.1 y.2 := by
+  simp only [SchnorrImpersonator.typed, SigmaProtocol.Impersonator.withSimulatedViews,
+    SchnorrEavesdropAdversary.typed, SchnorrEavesdropAdversary.toDirect]
+  congr 1
+  funext y
+  rw [ProbComp.eval_bind, eval_replicate_schnorrSimulatedTranscript, PMF.bind_map]
+  rfl
 
 /-- Replacing `Q n` ideal honest conversations by strict-PPT simulated ones changes the game
 advantage by at most `Q n / 2 ^ n`. -/
