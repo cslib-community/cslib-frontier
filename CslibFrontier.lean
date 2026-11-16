@@ -4467,6 +4467,7 @@ public import CslibFrontier.Crypto.Computational.Encryption.Hybrid.CompositionCC
 public import CslibFrontier.Crypto.Computational.Encryption.Hybrid.DEMCCA
 public import CslibFrontier.Crypto.Computational.Encryption.IVStream
 public import CslibFrontier.Crypto.Computational.Encryption.IVStream.Reduction
+public import CslibFrontier.Crypto.Computational.Encryption.IdentityBased
 public import CslibFrontier.Crypto.Computational.Encryption.KEM
 public import CslibFrontier.Crypto.Computational.Encryption.KEMDEM
 public import CslibFrontier.Crypto.Computational.Encryption.KEMFromPKE
