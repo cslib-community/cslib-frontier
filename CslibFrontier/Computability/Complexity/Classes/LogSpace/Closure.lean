@@ -19,10 +19,11 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
 # Closure properties of nondeterministic logarithmic space
 
 `NL` is closed under logspace many-one reductions, for arbitrary encodings of the instances
-(`Cslib.Complexity.LogSpaceReducible.mem_NL`) [Sipser, Theorem 8.23 and Section 8.5][Sipser2013]:
-if `A` reduces to `B ∈ NL` by a function `f` computable in logarithmic space, a nondeterministic
-machine for `A` simulates the machine for `B` on `f a` without writing `f a` down, recomputing
-each symbol of it that the simulated machine reads. `NL` is also closed under union
+(`Cslib.Complexity.LogSpaceReducible.mem_NL`). This is the nondeterministic analogue of the
+closure of `L` [Sipser, Theorem 8.23][Sipser2013], proved by the same recomputation: if `A`
+reduces to `B ∈ NL` by a function `f` computable in logarithmic space, a nondeterministic machine
+for `A` simulates the machine for `B` on `f a` without writing `f a` down, recomputing each symbol
+of it that the simulated machine reads. `NL` is also closed under union
 (`Cslib.Complexity.union_mem_NL`), by guessing which machine to run, and so, being closed under
 complement by the Immerman–Szelepcsényi theorem, under intersection
 (`Cslib.Complexity.inter_mem_NL`).
@@ -46,7 +47,7 @@ into nondeterministic machines within logarithmic space; these recognize their p
 
 ## References
 
-* [M. Sipser, *Introduction to the Theory of Computation*, Theorem 8.23 and Section 8.5][Sipser2013]
+* [M. Sipser, *Introduction to the Theory of Computation*, Theorem 8.23][Sipser2013]
 * [N. Immerman, *Nondeterministic Space Is Closed under Complementation*][Immerman1988]
 * [R. Szelepcsényi, *The Method of Forcing for Nondeterministic Automata*][Szelepcsenyi1987]
 -/
@@ -127,10 +128,10 @@ private theorem exists_nuStart (hB : B ∈ NL encB) {f : α → β}
   · rw [budgetedNUniversal_accepts_iff, ← accepts_iff_bAccepts_descN _ ntm (hdec (f a)).1 (hbud a)]
     exact (hdec (f a)).2
 
-/-- **`NL` is closed under logspace reductions** [Sipser, Theorem 8.23][Sipser2013], for arbitrary
-encodings of the instances of both problems: a nondeterministic machine for `A` runs the machine
-for `B` on the image of its input, recomputing each symbol of the image that this machine reads,
-within logarithmic space. -/
+/-- **`NL` is closed under logspace reductions**, for arbitrary encodings of the instances of both
+problems: a nondeterministic machine for `A` runs the machine for `B` on the image of its input,
+recomputing each symbol of the image that this machine reads, within logarithmic space. This is the
+nondeterministic analogue of [Sipser, Theorem 8.23][Sipser2013], with the same recomputation. -/
 theorem LogSpaceReducible.mem_NL (hAB : LogSpaceReducible enc encB A B) (hB : B ∈ NL encB) :
     A ∈ NL enc := by
   obtain ⟨f, hf, hA⟩ := hAB
