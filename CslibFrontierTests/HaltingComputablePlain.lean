@@ -61,7 +61,9 @@ example : IsComputable
   exact hsecond.prod ((hnot.comp hfirst).ite hsecond hfalse)
 
 /-- Constant output does not require a finite domain or a bound on the copied word length. -/
-example : IsComputable (fun w : List Bool => (w, false)) encBits (encPair encBits encBool) :=
-  (isComputable_id encBits).prod (ComputableInPolyTime.const false).isComputable
+example : IsComputable (fun w : List Bool => (w, false)) encBits (encPair encBits encBool) := by
+  have hfalse : IsComputable (fun _ : List Bool => false) encBits encBool :=
+    (ComputableInPolyTime.const false).isComputable
+  exact (isComputable_id encBits).prod hfalse
 
 end CslibFrontierTests.HaltingComputablePlain
