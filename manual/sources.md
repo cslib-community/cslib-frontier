@@ -352,7 +352,7 @@ Michael Burrows and David J. Wheeler. *A Block-sorting Lossless Data Compression
 <a id="canetti20"></a>
 ## canetti20
 
-Ran Canetti. *Universally Composable Security*. Journal of the ACM 67(5), Article 28, 2020; full version Cryptology ePrint Archive 2000/067. https://doi.org/10.1145/3402457 .
+Ran Canetti. *Universally Composable Security*. Journal of the ACM 67(5), Article 28, 2020; full version Cryptology ePrint Archive 2000/067 (revision dated February 11, 2020). https://doi.org/10.1145/3402457 . Checked locators for multi-session composition: Section 6.1 Theorem 22 (JACM p. `28:58`; ePrint p. `61`), Corollaries 23 and 24 (JACM p. `28:59`; ePrint p. `62`), and Section 6.3 (JACM p. `28:67`; ePrint p. `70`). [Protocols/UC/MultiSession.lean](../CslibFrontier/Crypto/Protocols/UC/MultiSession.lean) adapts these to a fixed finite `Fin m` session family in the static-corruption, call-bounded model; dynamic `SID` creation and full Theorem 22 are not formalized.
 
 <a id="canonne22"></a>
 ## canonne22

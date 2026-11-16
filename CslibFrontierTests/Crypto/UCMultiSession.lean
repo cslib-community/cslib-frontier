@@ -1,3 +1,9 @@
+/-
+Copyright (c) 2026 Karn Seth. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Karn Seth
+-/
+
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Crypto.Protocols.UC.MultiSession
 import CslibFrontier.Tactic.Negligible
