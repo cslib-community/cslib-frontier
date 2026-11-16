@@ -82,7 +82,7 @@ CI also checks the witness rule on pull requests. After `lake build`, `python3 s
 | Pseudorandom generator | [CslibFrontier/Crypto/Computational/PseudorandomGenerator.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/PseudorandomGenerator.lean) | Length schedule, expansion, native deterministic evaluation and indistinguishability |
 | Adaptive pseudorandom function | [CslibFrontier/Crypto/Computational/PseudorandomFunction.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/PseudorandomFunction.lean) | Oracle-PPT access, consistent ideal random function, explicit input/output widths and malformed-query convention |
 | Collision resistance | [CslibFrontier/Crypto/Computational/CollisionResistant.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/CollisionResistant.lean) | Public setup distribution/encoding and input-validity predicate; keyed word specialization; setup need not be efficiently sampleable in the general interface; [DiscreteLog/GroupHash.lean](../../CslibFrontier/Crypto/Computational/DiscreteLog/GroupHash.lean) instantiates it with the Katz–Lindell discrete-logarithm hash (`DiscreteLog.collisionResistantForOn_groupHash`, exact zero-loss reduction for the encoded outputs; fixed digest width, compression and efficient setup are not established), and [RSAHash.lean](../../CslibFrontier/Crypto/Computational/RSAHash.lean) with the Boneh–Shoup RSA hash `H_rsa` (`RSAOneWay.collisionResistantForOn_rsaHash`, when `e` is eventually prime on the key support) |
-| Second-preimage resistance | [CslibFrontier/Crypto/Game/SecondPreimage.lean](../../CslibFrontier/Crypto/Game/SecondPreimage.lean), [CslibFrontier/Crypto/Computational/SecondPreimageResistant.lean](../../CslibFrontier/Crypto/Computational/SecondPreimageResistant.lean), [CslibFrontier/Crypto/Computational/SecondPreimageResistant/Relations.lean](../../CslibFrontier/Crypto/Computational/SecondPreimageResistant/Relations.lean) | Finite-domain experiment, counting and (8.22) bounds; asymptotic `SecondPreimageResistantOn` (`valid` domain, exact Definition 8.6 on `{0,1}ⁿ`) and any-length `SecondPreimageResistant`; `(8.17)` implications and separations (`ignoreHeadBit`, `plantEasyBranch`, `stripFalseHead`) |
+| Second-preimage resistance | [CslibFrontier/Crypto/Game/SecondPreimage.lean](../../CslibFrontier/Crypto/Game/SecondPreimage.lean), [CslibFrontier/Crypto/Computational/SecondPreimageResistant.lean](../../CslibFrontier/Crypto/Computational/SecondPreimageResistant.lean), [CslibFrontier/Crypto/Computational/SecondPreimageResistant/Relations.lean](../../CslibFrontier/Crypto/Computational/SecondPreimageResistant/Relations.lean) | Finite-domain experiment, counting and (8.22) bounds; asymptotic `SecondPreimageResistantOn` (`valid` domain, exact Definition 8.6 on `{0,1}ⁿ`) and any-length `SecondPreimageResistant`; `(8.17)` implications and separations (`ignoreHeadBit`, `plantEasyBranch`) |
 | Target collision resistance | [CslibFrontier/Crypto/Computational/TargetCollisionResistant.lean](../../CslibFrontier/Crypto/Computational/TargetCollisionResistant.lean), [CslibFrontier/Crypto/Computational/NaorYungUOWHF.lean](../../CslibFrontier/Crypto/Computational/NaorYungUOWHF.lean), [CslibFrontier/Crypto/Computational/InaccessibleEntropy/TargetCollision.lean](../../CslibFrontier/Crypto/Computational/InaccessibleEntropy/TargetCollision.lean) | Two-stage pre-key target choice and post-key second-preimage search; polynomial key/block schedules, fixed-depth `2^n`-capacity tree extension, Naor–Yung UOWHFs from `OneWayPermutation`, and Rompel–HHRVW UOWHFs from `OneWay` |
 | Inaccessible entropy and shrinking collision grids | [CslibFrontier/Crypto/Computational/InaccessibleEntropy/Basic.lean](../../CslibFrontier/Crypto/Computational/InaccessibleEntropy/Basic.lean), [CslibFrontier/Crypto/Computational/InaccessibleEntropy/Amplify.lean](../../CslibFrontier/Crypto/Computational/InaccessibleEntropy/Amplify.lean), [CslibFrontier/Crypto/Computational/InaccessibleEntropy/TargetCollision.lean](../../CslibFrontier/Crypto/Computational/InaccessibleEntropy/TargetCollision.lean) | Fixed-width native polynomial evaluation, accessible preimage subsets with eventual `1 / denom n` entropy gap, polynomial-size grids of `1`-bit shrinking candidates with an existential random-collision-resistant sequence (`exists_good_candidate`), and uniform `gridCount n`-way cascade concatenation |
 | Discrete logarithm and DDH | [CslibFrontier/Crypto/Computational/DiscreteLog.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/DiscreteLog.lean), [CslibFrontier/Crypto/Computational/DiffieHellman.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/DiffieHellman.lean) | Encoded prime-order group families, exact ideal group laws; public operations and samplers require separate certificates |
@@ -2768,10 +2768,14 @@ probability that `A (H m)` returns `m` itself
 (`succProbability_inversionExperiment_uniform_le_add_card_div`), writing `OWadv` and `SPRadv` for
 the success probabilities of `inversionExperiment` and `secondPreimageExperiment`; it weakens to
 (8.22), `OWadv[A, H] ≤ 2 · SPRadv[B, H] + 1 / s` when `|M| ≥ s · |T|` and `0 < s`
-(`succProbability_inversionExperiment_uniform_le_two_mul_add_div`). On bit strings, `SecondPreimageResistantOn f valid` (`secondPreimageGameOn`) restricts accepted
-answers `x'` to `valid n x' = true`; with `valid n w := decide (w.length = n)`, this is Definition 8.6
-on `{0,1}ⁿ`. The unindexed `SecondPreimageResistant f` specializes `valid` to `fun _ _ => true`
-(`secondPreimageResistant_iff_on`), admitting any `x' ≠ x` of arbitrary length as in `OneWay`. The
+(`succProbability_inversionExperiment_uniform_le_two_mul_add_div`). On bit strings,
+`secondPreimageGameOn f valid adversary n` draws a uniform `n`-bit word `x`, hands `(n, x)`
+(`n` in unary) to `adversary`, and accepts `x'` when `valid n x' = true`, `x' ≠ x`, and
+`f x' = f x`; `SecondPreimageResistantOn f valid` requires deterministic polynomial-time
+evaluation of `f` and negligible winning probability for every uniform strict-PPT finder (with
+`valid n w := decide (w.length = n)`, this is Definition 8.6 on `{0,1}ⁿ`). The unindexed
+`SecondPreimageResistant f` abbreviates `SecondPreimageResistantOn f (fun _ _ => true)`, admitting
+any `x' ≠ x` of arbitrary length as in `OneWay`. The
 [tests](../../CslibFrontierTests/Crypto/SecondPreimageResistant.lean) check that the factor-one
 bound is an equality on `Bool → Unit`, probe `0 < s`, instantiate the finite `revealAtZero`
 construction of Exercise 8.23(c), and refute constant functions under both `SecondPreimageResistantOn`
@@ -2782,31 +2786,39 @@ Exercise 8.23(b)–(d), p. 353, on bit strings live in
 [`SecondPreimageResistant/Relations.lean`](../../CslibFrontier/Crypto/Computational/SecondPreimageResistant/Relations.lean).
 Wrapping an `Inverter` via `inverterToSecondPreimage f adversary` (`isPPT_inverterToSecondPreimage`)
 gives `OWadv[A, f] ≤ SPRadvOn[B, f] + 2 ^ d / 2 ^ n`
-(`succProbability_inversionGame_le_secondPreimageGameOn_add`, and
-`succProbability_inversionGame_le_secondPreimageGame_add` for any-length answers) and hence (8.22)'s
-factor-two form (`succProbability_inversionGame_le_two_mul_secondPreimageGameOn_add` /
-`succProbability_inversionGame_le_two_mul_secondPreimageGame_add`) when `n`-bit inputs have `d`-bit
-digests and `f`-collisions with `n`-bit inputs satisfy `valid n`, so
-`SecondPreimageResistantOn.oneWay_of_outputLength` and `SecondPreimageResistant.oneWay_of_outputLength`
-derive `OneWay f` when `2 ^ outLen n / 2 ^ n` is negligible. Conversely,
+(`succProbability_inversionGame_le_secondPreimageGameOn_add`) and hence (8.22)'s factor-two form
+(`succProbability_inversionGame_le_two_mul_secondPreimageGameOn_add`) when `n`-bit inputs have
+`d`-bit digests and `f`-collisions with `n`-bit inputs satisfy `valid n` (`hpre`). Because `OneWay`
+accepts preimages of arbitrary length, `hpre` is required whenever `valid` restricts lengths; it
+holds automatically for any-length `SecondPreimageResistant` (`valid := fun _ _ => true`), whereas
+it fails on `{0,1}ⁿ` for functions with cross-length collisions such as
+`CollisionResistantToOneWay.keyDigest H`. Under `hpre`, `SecondPreimageResistantOn.oneWay_of_outputLength`
+derives `OneWay f` when `2 ^ outLen n / 2 ^ n` is negligible. Conversely, where [bs23][bs23] states
+the first arrow of (8.17) and Exercise 8.23(d) for an unkeyed hash, the library's `HashFamily H` is
+keyed with `(H key message).length = key.length`; for that invariant,
 `secondPreimageToCollisionFinder adversary r` (`isPPT_secondPreimageToCollisionFinder`) turns a
 second-preimage finder for `CollisionResistantToOneWay.keyDigest H` at length `3 * n + r` (`r < 3`)
 into a `CollisionFinder` for `H` at parameter `n` with zero loss
 (`succProbability_secondPreimageGame_keyDigest_le`), proving
-`HashFamily.secondPreimageResistantOn_keyDigest` and `HashFamily.secondPreimageResistant_keyDigest`
-(Exercise 8.23(d)). Both arrows of (8.17) are strict: `ignoreHeadBit f w = f w.tail` preserves
-`OneWay` (`OneWay.ignoreHeadBit`, via `ignoreHeadBitInverter` and `isPPT_ignoreHeadBitInverter`)
-while `flipHeadBit` breaks both `SecondPreimageResistantOn` (for `{0,1}ⁿ`) and
-`SecondPreimageResistant` with probability `1` (`not_secondPreimageResistantOn_ignoreHeadBit`,
-`not_secondPreimageResistant_ignoreHeadBit`); and `plantEasyBranch k H` preserves both
-(`SecondPreimageResistantOn.plantEasyBranch`, `SecondPreimageResistant.plantEasyBranch`) while
+`HashFamily.secondPreimageResistant_keyDigest` (which specializes via `SecondPreimageResistantOn.mono`
+to any `valid`, while the `(8.17)` chain to `OneWay (keyDigest H)` uses the any-length
+`SecondPreimageResistant` conclusion). Two separations cover the boundary of (8.17) (the
+separation between second-preimage resistance and collision resistance is not proved here):
+`ignoreHeadBit f w = f w.tail` preserves `OneWay` (`OneWay.ignoreHeadBit`, via
+`ignoreHeadBitInverter` and `isPPT_ignoreHeadBitInverter`) while `flipHeadBit` breaks
+`SecondPreimageResistantOn` — both on `{0,1}ⁿ` and on `valid := fun _ _ => true`
+(`SecondPreimageResistant`) — with probability `1` (`not_secondPreimageResistantOn_ignoreHeadBit`);
+and `plantEasyBranch k H` (`length_plantEasyBranch`, mapping `n`-bit inputs to `(n - (k - 1))`-bit
+outputs when `H` compresses by `k` bits for `n ≥ k`) preserves `SecondPreimageResistantOn` and
+`SecondPreimageResistant` (`SecondPreimageResistantOn.plantEasyBranch`) while
 `plantEasyBranchInverter k` (`isPPT_plantEasyBranchInverter`) breaks `OneWay` with success at least
 `(1 / 2) ^ k` (`not_oneWay_plantEasyBranch`, Exercise 8.23(c) on bit strings). The
-[checked clients](../../CslibFrontierTests/Crypto/SecondPreimageResistantRelations.lean) verify that
-`plantEasyBranch 2 id` is unconditionally `SecondPreimageResistantOn`, `SecondPreimageResistant`, and
-`¬ OneWay`, that `ignoreHeadBit id` fails both notions, that `id` is `SecondPreimageResistant` and
-`¬ OneWay` without compression, and that `stripFalseHead` separates `SecondPreimageResistantOn`
-on `{0,1}ⁿ` from `SecondPreimageResistant` and `OneWay`.
+[checked clients](../../CslibFrontierTests/Crypto/SecondPreimageResistantRelations.lean) verify
+`plantEasyBranch 2 id` and the compressing `k = 2` witness `exercise8_23c_compressing`, the composed
+`(8.17)` chain `HashFamily H → OneWay (keyDigest H)` alongside cross-length `hpre` refutation on
+`{0,1}ⁿ`, `ignoreHeadBit` (on `id` and a `OneWay f` hypothesis), `id` (`¬ OneWay` without
+compression), `stripFalseHead` separating `SecondPreimageResistantOn` on `{0,1}ⁿ` from
+`SecondPreimageResistant` and `OneWay`, and concrete `(n = 2, d = 1)` / `(n = 2, r = 1)` bounds.
 
 Merkle–Damgård chains have many messages with one digest at little more than the cost of one
 collision (Joux's attack, [bs23][bs23], §8.4.1, pp. 298–299). Import

@@ -12,17 +12,9 @@ public import CslibFrontier.Crypto.Computational.OneWay
 public import CslibFrontier.Crypto.Computational.SecondPreimageResistant
 import CslibFrontier.Crypto.Game.Order
 import CslibFrontier.Crypto.Negligible
-import CslibFrontier.Probability.BitString.List
-import CslibFrontier.Probability.Guessing.Leakage
 import CslibFrontier.Probability.PMF.Bind
-import CslibFrontier.Probability.PMF.Bool
-import CslibFrontier.Probability.PMF.Finiteness
-import CslibFrontier.Probability.PMF.Support
-import CslibFrontier.Probability.PMF.UniformPoint
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.PPT
-import Mathlib.Tactic.FinCases
-import Mathlib.Tactic.GCongr
 import Mathlib.Tactic.IntervalCases
 import Mathlib.Tactic.NormNum
 import Mathlib.Tactic.Ring
@@ -40,38 +32,40 @@ p. 353, and the two strict-separation constructions on bit strings:
   ((8.17), second arrow, and Exercise 8.23(b) on bit strings):
   `inverterToSecondPreimage f adversary` feeds `f m` to an `Inverter`, with
   `isPPT_inverterToSecondPreimage`, concrete bounds
-  `succProbability_inversionGame_le_secondPreimageGameOn_add` /
-  `succProbability_inversionGame_le_secondPreimageGame_add` and
-  `succProbability_inversionGame_le_two_mul_secondPreimageGameOn_add` /
-  `succProbability_inversionGame_le_two_mul_secondPreimageGame_add`, and asymptotic implications
-  `SecondPreimageResistantOn.oneWay_of_outputLength` (when `f`-collisions with `n`-bit inputs lie
-  in `valid n`) and `SecondPreimageResistant.oneWay_of_outputLength` when
-  `2 ^ outLen n / 2 ^ n` is negligible.
+  `succProbability_inversionGame_le_secondPreimageGameOn_add` and
+  `succProbability_inversionGame_le_two_mul_secondPreimageGameOn_add`, and asymptotic implication
+  `SecondPreimageResistantOn.oneWay_of_outputLength` when `2 ^ outLen n / 2 ^ n` is negligible and
+  `hpre : ∀ n x x', x.length = n → f x' = f x → valid n x' = true` holds. Because `OneWay` accepts
+  arbitrary-length preimages, `hpre` rules out `valid n x' := decide (x'.length = n)` for functions
+  with cross-length collisions such as `CollisionResistantToOneWay.keyDigest H`, so the `(8.17)`
+  chain passes through any-length `SecondPreimageResistant` (`valid := fun _ _ => true`), where
+  `hpre` is vacuous (`rfl`).
 * **Collision resistance implies second-preimage resistance** ((8.17), first arrow, and
-  Exercise 8.23(d)): `secondPreimageToCollisionFinder adversary r` turns a second-preimage finder
-  for `CollisionResistantToOneWay.keyDigest H` at length `3 * n + r` into a `CollisionFinder` for
-  `H` at parameter `n` (`isPPT_secondPreimageToCollisionFinder`), with exact zero-loss bound
-  `succProbability_secondPreimageGame_keyDigest_le` and asymptotic implications
-  `HashFamily.secondPreimageResistantOn_keyDigest` and
+  Exercise 8.23(d)): the book states this for an unkeyed collision-resistant hash `H`; because
+  `HashFamily H` is keyed with `(H key message).length = key.length`,
+  `secondPreimageToCollisionFinder adversary r` turns a second-preimage finder for
+  `CollisionResistantToOneWay.keyDigest H` at length `3 * n + r` into a `CollisionFinder` for `H`
+  at parameter `n` (`isPPT_secondPreimageToCollisionFinder`), with exact zero-loss bound
+  `succProbability_secondPreimageGame_keyDigest_le` and asymptotic implication
   `HashFamily.secondPreimageResistant_keyDigest`.
 * **One-wayness does not imply second-preimage resistance** ([BonehShoup2023], Section 8.11.1,
   p. 337): `ignoreHeadBit f w = f w.tail` preserves `OneWay` (`OneWay.ignoreHeadBit`, via
   `ignoreHeadBitInverter` and `isPPT_ignoreHeadBitInverter`) while flipping the head bit
-  (`flipHeadBit`) wins `secondPreimageGameOn` and `secondPreimageGame` with probability `1`
-  (`not_secondPreimageResistantOn_ignoreHeadBit`, `not_secondPreimageResistant_ignoreHeadBit`).
+  (`flipHeadBit`) wins `secondPreimageGameOn` with probability `1`
+  (`not_secondPreimageResistantOn_ignoreHeadBit`).
 * **Second-preimage resistance does not imply one-wayness at bounded compression**
   ([BonehShoup2023], Exercise 8.23(c), p. 353, on bit strings): `plantEasyBranch k H` outputs
-  `true :: w.drop k` when `w.take k == List.replicate k false` and `false :: H w` otherwise,
-  preserving `SecondPreimageResistantOn` (`SecondPreimageResistantOn.plantEasyBranch`) and
-  `SecondPreimageResistant` (`SecondPreimageResistant.plantEasyBranch`) while failing `OneWay` with
-  inversion probability at least `(1 / 2) ^ k` (`not_oneWay_plantEasyBranch`, via
+  `true :: w.drop k` when `w.take k == List.replicate k false` and `false :: H w` otherwise (with
+  output lengths tracked by `length_plantEasyBranch`), preserving `SecondPreimageResistantOn` (and
+  thus `SecondPreimageResistant`) via `SecondPreimageResistantOn.plantEasyBranch` while failing
+  `OneWay` with inversion probability at least `(1 / 2) ^ k` (`not_oneWay_plantEasyBranch`, via
   `plantEasyBranchInverter` and `isPPT_plantEasyBranchInverter`).
 
 ## Main definitions
 
 * `Cslib.Crypto.inverterToSecondPreimage`: wrap an `Inverter` into a `SecondPreimageFinder`.
-* `Cslib.Crypto.secondPreimageToCollisionFinder`: reduction from `secondPreimageGame (keyDigest H)`
-  to `collisionGame H`.
+* `Cslib.Crypto.secondPreimageToCollisionFinder`: reduction from
+  `secondPreimageGame (keyDigest H)` to `collisionGame H`.
 * `Cslib.Crypto.ignoreHeadBit`, `Cslib.Crypto.flipHeadBit`, `Cslib.Crypto.ignoreHeadBitInverter`:
   the Section 8.11.1 separation construction and its reductions.
 * `Cslib.Crypto.plantEasyBranch`, `Cslib.Crypto.plantEasyBranchInverter`: the bit-string form of
@@ -82,19 +76,14 @@ p. 353, and the two strict-separation constructions on bit strings:
 * `Cslib.Crypto.isPPT_inverterToSecondPreimage`,
   `Cslib.Crypto.succProbability_inversionGame_le_secondPreimageGameOn_add`,
   `Cslib.Crypto.succProbability_inversionGame_le_two_mul_secondPreimageGameOn_add`,
-  `Cslib.Crypto.succProbability_inversionGame_le_secondPreimageGame_add`,
-  `Cslib.Crypto.succProbability_inversionGame_le_two_mul_secondPreimageGame_add`,
-  `Cslib.Crypto.SecondPreimageResistantOn.oneWay_of_outputLength`,
-  `Cslib.Crypto.SecondPreimageResistant.oneWay_of_outputLength`.
+  `Cslib.Crypto.SecondPreimageResistantOn.oneWay_of_outputLength`.
 * `Cslib.Crypto.isPPT_secondPreimageToCollisionFinder`,
   `Cslib.Crypto.succProbability_secondPreimageGame_keyDigest_le`,
-  `Cslib.Crypto.HashFamily.secondPreimageResistantOn_keyDigest`,
   `Cslib.Crypto.HashFamily.secondPreimageResistant_keyDigest`.
 * `Cslib.Crypto.not_secondPreimageResistantOn_ignoreHeadBit`,
-  `Cslib.Crypto.not_secondPreimageResistant_ignoreHeadBit`,
   `Cslib.Crypto.isPPT_ignoreHeadBitInverter`, `Cslib.Crypto.OneWay.ignoreHeadBit`.
-* `Cslib.Crypto.SecondPreimageResistantOn.plantEasyBranch`,
-  `Cslib.Crypto.SecondPreimageResistant.plantEasyBranch`,
+* `Cslib.Crypto.length_plantEasyBranch`,
+  `Cslib.Crypto.SecondPreimageResistantOn.plantEasyBranch`,
   `Cslib.Crypto.isPPT_plantEasyBranchInverter`, `Cslib.Crypto.not_oneWay_plantEasyBranch`.
 
 ## References
@@ -114,7 +103,6 @@ open scoped NNReal ENNReal
 
 /-- Wrap an inverter `adversary` into a second-preimage finder by feeding it `f m`
 ([BonehShoup2023], Exercise 8.23(b), p. 353). -/
-@[expose]
 def inverterToSecondPreimage (f : List Bool → List Bool) (adversary : Inverter) :
     SecondPreimageFinder :=
   fun n m => adversary n (f m)
@@ -127,90 +115,15 @@ theorem isPPT_inverterToSecondPreimage {f : List Bool → List Bool} {adversary 
   unfold inverterToSecondPreimage
   ppt
 
-/-- **Reduction from one-way inversion to second-preimage search**: when `f` maps `n`-bit inputs to
-`d`-bit digests, an inverter `adversary` at length `n` either finds a second preimage of `m` via
-`inverterToSecondPreimage f adversary` or guesses `m` itself from its `d`-bit digest (probability
-at most `2 ^ d / 2 ^ n`). -/
-theorem succProbability_inversionGame_le_secondPreimageGame_add
-    {f : List Bool → List Bool} {n d : ℕ}
-    (hlen : ∀ w : List Bool, w.length = n → (f w).length = d)
-    (adversary : Inverter) :
-    Game.succProbability (ProbComp.eval (inversionGame f adversary n)) ≤
-      Game.succProbability
-        (ProbComp.eval (secondPreimageGame f (inverterToSecondPreimage f adversary) n)) +
-        (2 : ℝ≥0) ^ d / (2 : ℝ≥0) ^ n := by
-  let f' (m : List Bool) : List Bool := if m.length = n then f m else List.replicate d false
-  have hsplit :
-      ProbComp.eval (inversionGame f adversary n) true ≤
-        ProbComp.eval (secondPreimageGame f (inverterToSecondPreimage f adversary) n) true +
-          ∑' m, BitString.uniformList n m * ProbComp.eval (adversary n (f m)) m := by
-    simpa only [inversionGame, secondPreimageGame, inverterToSecondPreimage,
-      ProbComp.eval_inversionExperiment, ProbComp.eval_secondPreimageExperiment,
-      BitString.eval_sampleList] using
-      inversionExperiment_le_secondPreimageExperiment_add (BitString.uniformList n) f
-        fun y => ProbComp.eval (adversary n y)
-  have hsum :
-      ∑' m, BitString.uniformList n m * ProbComp.eval (adversary n (f m)) m =
-        ∑' m, BitString.uniformList n m * ProbComp.eval (adversary n (f' m)) m := by
-    refine tsum_congr fun m => ?_
-    by_cases hm : BitString.uniformList n m = 0
-    · simp [hm]
-    · have hmem : m ∈ (BitString.uniformList n).support := hm
-      simp only [f', BitString.length_of_mem_support_uniformList hmem, ↓reduceIte]
-  have hguess :
-      ∑' m, BitString.uniformList n m * ProbComp.eval (adversary n (f m)) m ≤
-        (((2 : ℝ≥0) ^ d / (2 : ℝ≥0) ^ n : ℝ≥0) : ℝ≥0∞) := by
-    rw [hsum]
-    refine (PMF.tsum_mul_apply_le_card_mul (BitString.uniformList n)
-      (BitString.uniformList_apply_le n) f'
-      ((Finset.univ : Finset (Fin d → Bool)).image List.ofFn)
-      (fun m => ?_)
-      (fun y => ProbComp.eval (adversary n y))).trans ?_
-    · have hmem {word : List Bool} (hw : word.length = d) :
-          word ∈ (Finset.univ : Finset (Fin d → Bool)).image List.ofFn := by
-        subst hw
-        exact Finset.mem_image.2 ⟨word.get, Finset.mem_univ _, List.ofFn_get word⟩
-      dsimp only [f']
-      split_ifs with hm
-      · exact hmem (hlen m hm)
-      · exact hmem List.length_replicate
-    · have hcard : ((Finset.univ : Finset (Fin d → Bool)).image List.ofFn).card ≤ 2 ^ d :=
-        Finset.card_image_le.trans (by simp)
-      have hcast :
-          (((2 : ℝ≥0) ^ d / (2 : ℝ≥0) ^ n : ℝ≥0) : ℝ≥0∞) =
-            (2 : ℝ≥0∞) ^ d * (1 / 2 ^ n) := by
-        rw [ENNReal.coe_div (pow_ne_zero n two_ne_zero), ENNReal.coe_pow, ENNReal.coe_pow,
-          ENNReal.coe_ofNat, div_eq_mul_inv, one_div]
-      rw [hcast]
-      gcongr
-      exact_mod_cast hcard
-  have hkey :
-      ProbComp.eval (inversionGame f adversary n) true ≤
-        ProbComp.eval (secondPreimageGame f (inverterToSecondPreimage f adversary) n) true +
-          (((2 : ℝ≥0) ^ d / (2 : ℝ≥0) ^ n : ℝ≥0) : ℝ≥0∞) :=
-    hsplit.trans (add_le_add le_rfl hguess)
-  unfold Game.succProbability
-  refine (ENNReal.toNNReal_mono (by finiteness) hkey).trans_eq ?_
-  rw [ENNReal.toNNReal_add (PMF.apply_ne_top _ _) ENNReal.coe_ne_top, ENNReal.toNNReal_coe]
-
-/-- **Exercise 8.23(b), equation (8.22) on bit strings** ([BonehShoup2023], p. 353): with
-compression factor `s = 2 ^ n / 2 ^ d`, `OWadv[A, f] ≤ 2 · SPRadv[B, f] + 2 ^ d / 2 ^ n`. -/
-theorem succProbability_inversionGame_le_two_mul_secondPreimageGame_add
-    {f : List Bool → List Bool} {n d : ℕ}
-    (hlen : ∀ w : List Bool, w.length = n → (f w).length = d)
-    (adversary : Inverter) :
-    Game.succProbability (ProbComp.eval (inversionGame f adversary n)) ≤
-      2 * Game.succProbability
-        (ProbComp.eval (secondPreimageGame f (inverterToSecondPreimage f adversary) n)) +
-        (2 : ℝ≥0) ^ d / (2 : ℝ≥0) ^ n := by
-  refine (succProbability_inversionGame_le_secondPreimageGame_add hlen adversary).trans ?_
-  rw [two_mul]
-  exact add_le_add le_add_self le_rfl
-
 /-- **Reduction from valid-domain second-preimage search to one-way inversion**: when `f` maps
 `n`-bit inputs to `d`-bit digests and every collision with an `n`-bit input lands in `valid n`,
 an inverter `adversary` at length `n` succeeds with probability at most
-`SPRadvOn[B, f] + 2 ^ d / 2 ^ n`. -/
+`SPRadvOn[B, f] + 2 ^ d / 2 ^ n`.
+
+The extra hypothesis `hpre` is required because `inversionGame` accepts preimages of arbitrary bit
+length while `secondPreimageGameOn` enforces `valid n x'`. It holds automatically for any-length
+`valid := fun _ _ => true` (`SecondPreimageResistant`), whereas it fails on `{0,1}ⁿ` for
+functions with cross-length collisions such as `CollisionResistantToOneWay.keyDigest H`. -/
 theorem succProbability_inversionGame_le_secondPreimageGameOn_add
     {f : List Bool → List Bool} {valid : ℕ → List Bool → Bool} {n d : ℕ}
     (hlen : ∀ w : List Bool, w.length = n → (f w).length = d)
@@ -220,23 +133,46 @@ theorem succProbability_inversionGame_le_secondPreimageGameOn_add
       Game.succProbability
         (ProbComp.eval (secondPreimageGameOn f valid (inverterToSecondPreimage f adversary) n)) +
         (2 : ℝ≥0) ^ d / (2 : ℝ≥0) ^ n := by
-  have hle : Game.succProbability
-      (ProbComp.eval (secondPreimageGame f (inverterToSecondPreimage f adversary) n)) ≤
+  have hsplit :
+      ProbComp.eval (inversionGame f adversary n) true ≤
+        ProbComp.eval (secondPreimageGame f (inverterToSecondPreimage f adversary) n) true +
+          ∑' m, BitString.uniformList n m * ProbComp.eval (adversary n (f m)) m := by
+    simpa only [inversionGame, secondPreimageGame, inverterToSecondPreimage,
+      ProbComp.eval_inversionExperiment, ProbComp.eval_secondPreimageExperiment,
+      BitString.eval_sampleList] using
+      inversionExperiment_le_secondPreimageExperiment_add (BitString.uniformList n) f
+        fun y => ProbComp.eval (adversary n y)
+  have hguess :
+      ∑' m, BitString.uniformList n m * ProbComp.eval (adversary n (f m)) m ≤
+        (((2 : ℝ≥0) ^ d / (2 : ℝ≥0) ^ n : ℝ≥0) : ℝ≥0∞) := by
+    refine (CollisionResistantToOneWay.tsum_uniformList_mul_apply_le f hlen
+      (fun y => ProbComp.eval (adversary n y))).trans_eq ?_
+    rw [ENNReal.coe_div (pow_ne_zero n two_ne_zero), ENNReal.coe_pow, ENNReal.coe_pow,
+      ENNReal.coe_ofNat, one_div, div_eq_mul_inv]
+  have hkey :
+      ProbComp.eval (inversionGame f adversary n) true ≤
+        ProbComp.eval (secondPreimageGame f (inverterToSecondPreimage f adversary) n) true +
+          (((2 : ℝ≥0) ^ d / (2 : ℝ≥0) ^ n : ℝ≥0) : ℝ≥0∞) :=
+    hsplit.trans (add_le_add le_rfl hguess)
+  have hbase :
+      Game.succProbability (ProbComp.eval (inversionGame f adversary n)) ≤
+        Game.succProbability
+          (ProbComp.eval (secondPreimageGame f (inverterToSecondPreimage f adversary) n)) +
+          (2 : ℝ≥0) ^ d / (2 : ℝ≥0) ^ n := by
+    unfold Game.succProbability
+    refine (ENNReal.toNNReal_mono
+      (ENNReal.add_ne_top.mpr ⟨PMF.apply_ne_top _ _, ENNReal.coe_ne_top⟩) hkey).trans_eq ?_
+    rw [ENNReal.toNNReal_add (PMF.apply_ne_top _ _) ENNReal.coe_ne_top, ENNReal.toNNReal_coe]
+  have hle :
       Game.succProbability
-        (ProbComp.eval
-          (secondPreimageGameOn f valid (inverterToSecondPreimage f adversary) n)) := by
-    refine Game.succProbability_mono ?_
+          (ProbComp.eval (secondPreimageGame f (inverterToSecondPreimage f adversary) n)) ≤
+        Game.succProbability
+          (ProbComp.eval
+            (secondPreimageGameOn f valid (inverterToSecondPreimage f adversary) n)) := by
     rw [secondPreimageGame_eq_secondPreimageGameOn]
-    unfold secondPreimageGameOn
-    simp only [ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList]
-    refine PMF.bind_apply_mono_on_support _ _ fun x hx => ?_
-    have hlenx : x.length = n := BitString.mem_support_uniformList_iff.mp hx
-    refine PMF.bind_apply_mono_on_support _ _ fun x' _ => ?_
-    by_cases hfx : f x' = f x
-    · simp [hfx, hpre x x' hlenx hfx]
-    · simp [hfx]
-  exact (succProbability_inversionGame_le_secondPreimageGame_add hlen adversary).trans
-    (add_le_add hle le_rfl)
+    exact succProbability_secondPreimageGameOn_le_of_imp
+      (fun x x' hx _ _ hfx => ⟨hpre x x' hx hfx, hfx⟩) _
+  exact hbase.trans (add_le_add hle le_rfl)
 
 /-- **Exercise 8.23(b), equation (8.22) on bit strings** ([BonehShoup2023], p. 353) for
 `secondPreimageGameOn`: with compression factor `s = 2 ^ n / 2 ^ d` and valid preimages,
@@ -256,8 +192,13 @@ theorem succProbability_inversionGame_le_two_mul_secondPreimageGameOn_add
 /-- **Equation (8.17), second implication, and Exercise 8.23(b)** ([BonehShoup2023], pp. 337, 353):
 a function that is second-preimage resistant on `valid`, whose `n`-bit inputs have `outLen n`-bit
 digests with `2 ^ outLen n / 2 ^ n` negligible (super-polynomial compression factor
-`s(n) = 2 ^ n / 2 ^ outLen n`), and whose collisions with `n`-bit inputs satisfy `valid n`, is
-one-way. -/
+`s(n) = 2 ^ n / 2 ^ outLen n`), and whose collisions with `n`-bit inputs satisfy `valid n` (`hpre`),
+is one-way.
+
+Note the `hpre` deviation: because `OneWay` accepts preimages of any bit length, `hpre` is needed
+whenever `valid` restricts answer lengths; it holds trivially (`fun _ _ _ _ _ => rfl`) for the
+any-length specialization `SecondPreimageResistant f` (`valid := fun _ _ => true`), whereas it
+fails on `{0,1}ⁿ` for functions with cross-length collisions such as `keyDigest H`. -/
 theorem SecondPreimageResistantOn.oneWay_of_outputLength
     {f : List Bool → List Bool} {valid : ℕ → List Bool → Bool} {outLen : ℕ → ℕ}
     (hf : SecondPreimageResistantOn f valid)
@@ -271,24 +212,11 @@ theorem SecondPreimageResistantOn.oneWay_of_outputLength
   exact negligible_of_le (hspr.add_fun hcomp) fun n =>
     succProbability_inversionGame_le_secondPreimageGameOn_add (hlen n) (hpre n) adversary
 
-/-- Any function satisfying `SecondPreimageResistant` (any-length collisions forbidden) whose
-`n`-bit inputs have `outLen n`-bit digests with `2 ^ outLen n / 2 ^ n` negligible is one-way;
-here `valid := fun _ _ => true` holds automatically without `hpre`. -/
-theorem SecondPreimageResistant.oneWay_of_outputLength
-    {f : List Bool → List Bool} {outLen : ℕ → ℕ}
-    (hf : SecondPreimageResistant f)
-    (hlen : ∀ n (w : List Bool), w.length = n → (f w).length = outLen n)
-    (hcomp : Negligible (fun n => (2 : ℝ≥0) ^ outLen n / (2 : ℝ≥0) ^ n)) :
-    OneWay f :=
-  (hf.secondPreimageResistantOn (fun _ _ => true)).oneWay_of_outputLength hlen
-    (fun _ _ _ _ _ => rfl) hcomp
-
 /-! ## Collision resistance implies second-preimage resistance (Exercise 8.23(d) and (8.17)) -/
 
 /-- Turn a second-preimage finder for `CollisionResistantToOneWay.keyDigest H` at input length
 `3 * n + r` into a `CollisionFinder` for `H` at security parameter `n` by sampling a random
 `(2 * n + r)`-bit message `x` and pairing `x` with the message part of the finder's answer. -/
-@[expose]
 noncomputable def secondPreimageToCollisionFinder (adversary : SecondPreimageFinder)
     (r : ℕ) : CollisionFinder := fun n key => do
   let message ← BitString.sampleList (2 * n + r)
@@ -367,12 +295,14 @@ theorem succProbability_secondPreimageGame_keyDigest_le
     rw [isCollision_of_keyDigest_secondPreimage hlen n (by rw [hmlen, hklen]) hr hwin.1 hwin.2]
 
 /-- **Equation (8.17), first implication, and Exercise 8.23(d)** ([BonehShoup2023], pp. 337, 353):
-for a collision-resistant hash family `H`, `CollisionResistantToOneWay.keyDigest H` is
-second-preimage resistant. -/
+for a keyed collision-resistant hash family `H` with `(H key message).length = key.length`,
+`CollisionResistantToOneWay.keyDigest H` replaces the book's unkeyed `H` and is second-preimage
+resistant (and hence also `SecondPreimageResistantOn (keyDigest H) valid` for any `valid` via
+`SecondPreimageResistantOn.mono`). -/
 theorem HashFamily.secondPreimageResistant_keyDigest
     {H : List Bool → List Bool → List Bool} (hH : HashFamily H) :
     SecondPreimageResistant (CollisionResistantToOneWay.keyDigest H) := by
-  refine SecondPreimageResistant.of_negligible
+  refine SecondPreimageResistantOn.of_negligible
     (CollisionResistantToOneWay.polyTime_keyDigest hH.polyTime)
     fun adversary hadversary => ?_
   have hcol (r : ℕ) := CollisionResistantOn.negligible hH.collisionResistant _
@@ -381,22 +311,12 @@ theorem HashFamily.secondPreimageResistant_keyDigest
   refine negligible_of_le hε fun N => ?_
   obtain ⟨n, r, hr, rfl⟩ : ∃ n r, r < 3 ∧ N = 3 * n + r :=
     ⟨N / 3, N % 3, Nat.mod_lt _ (by norm_num), (Nat.div_add_mod N 3).symm⟩
-  rw [show (3 * n + r) / 3 = n by omega]
+  rw [show (3 * n + r) / 3 = n by omega, ← secondPreimageGame_eq_secondPreimageGameOn]
   refine (succProbability_secondPreimageGame_keyDigest_le hH.length_eq adversary n r hr).trans ?_
   interval_cases r
   · exact le_add_right (le_add_right le_rfl)
   · exact le_add_right (le_add_left le_rfl)
   · exact le_add_left le_rfl
-
-/-- **Exercise 8.23(d), equation (8.17), first implication** ([BonehShoup2023], pp. 337, 353):
-every collision-resistant hash family `H` yields a `SecondPreimageResistantOn` function
-`CollisionResistantToOneWay.keyDigest H` for any validity predicate `valid` (including
-Definition 8.6 on `M = {0,1}ⁿ`). -/
-theorem HashFamily.secondPreimageResistantOn_keyDigest
-    {H : List Bool → List Bool → List Bool} (hH : HashFamily H)
-    (valid : ℕ → List Bool → Bool) :
-    SecondPreimageResistantOn (CollisionResistantToOneWay.keyDigest H) valid :=
-  hH.secondPreimageResistant_keyDigest.secondPreimageResistantOn valid
 
 /-! ## Separations: one-way does not imply second-preimage resistant, and Exercise 8.23(c) -/
 
@@ -411,13 +331,6 @@ same tail. -/
 @[expose]
 def flipHeadBit (w : List Bool) : List Bool :=
   (!w.headD false) :: w.tail
-
-@[simp]
-theorem tail_flipHeadBit (w : List Bool) : (flipHeadBit w).tail = w.tail := rfl
-
-@[simp]
-theorem ignoreHeadBit_flipHeadBit (f : List Bool → List Bool) (w : List Bool) :
-    ignoreHeadBit f (flipHeadBit w) = ignoreHeadBit f w := rfl
 
 theorem flipHeadBit_ne_self (w : List Bool) : flipHeadBit w ≠ w := by
   intro h
@@ -437,18 +350,6 @@ theorem computableInPolyTime_flipHeadBit :
   unfold flipHeadBit
   polytime
 
-/-- Flipping the first bit wins `secondPreimageGame (ignoreHeadBit f)` with certainty at every
-input length. -/
-theorem eval_secondPreimageGame_ignoreHeadBit (f : List Bool → List Bool) (n : ℕ) :
-    ProbComp.eval (secondPreimageGame (ignoreHeadBit f) (fun _ w => pure (flipHeadBit w)) n) =
-      PMF.pure true := by
-  have hcond (w : List Bool) :
-      ((flipHeadBit w != w) && (ignoreHeadBit f (flipHeadBit w) == ignoreHeadBit f w)) = true := by
-    rw [Bool.and_eq_true, bne_iff_ne, beq_iff_eq]
-    exact ⟨flipHeadBit_ne_self w, rfl⟩
-  simp only [secondPreimageGame, secondPreimageExperiment, ProbComp.eval_bind, ProbComp.eval_pure,
-    BitString.eval_sampleList, PMF.pure_bind, hcond, PMF.bind_const]
-
 /-- **Section 8.11.1 separation, negative half** ([BonehShoup2023], p. 337) for
 `SecondPreimageResistantOn`: for every `f` and every validity predicate `valid` admitting
 `flipHeadBit` on sufficiently large `n`-bit inputs (including `fun n w => decide (w.length = n)`),
@@ -458,36 +359,14 @@ theorem not_secondPreimageResistantOn_ignoreHeadBit (f : List Bool → List Bool
     (hvalid : ∀ᶠ n in Filter.atTop, ∀ x : List Bool, x.length = n →
       valid n (flipHeadBit x) = true) :
     ¬ SecondPreimageResistantOn (ignoreHeadBit f) valid := by
-  refine not_secondPreimageResistantOn_of_le_succProbability
-    (fun _ w => pure (flipHeadBit w)) computableInPolyTime_flipHeadBit.isPPT one_ne_zero ?_
+  refine not_secondPreimageResistantOn_of_le_succProbability one_ne_zero
+    (fun _ w => pure (flipHeadBit w)) computableInPolyTime_flipHeadBit.isPPT ?_
   filter_upwards [hvalid] with n hvn
-  have heval :
-      ProbComp.eval
-        (secondPreimageGameOn (ignoreHeadBit f) valid
-          (fun _ w => pure (flipHeadBit w)) n) = PMF.pure true := by
-    unfold secondPreimageGameOn
-    simp only [ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList]
-    refine PMF.bind_eq_pure_of_forall_mem_support fun x hx => ?_
-    have hlen : x.length = n := BitString.mem_support_uniformList_iff.mp hx
-    have hne : flipHeadBit x ≠ x := by cases x <;> simp [flipHeadBit]
-    have hcond : (valid n (flipHeadBit x) && flipHeadBit x != x) = true := by
-      simp only [Bool.and_eq_true, bne_iff_ne]
-      exact ⟨hvn x hlen, hne⟩
-    simp [hcond]
-  rw [heval, Game.succProbability, PMF.pure_apply_self, ENNReal.toNNReal_one]
-
-/-- **Section 8.11.1 separation, negative half** ([BonehShoup2023], p. 337): `ignoreHeadBit f` is
-never second-preimage resistant. -/
-theorem not_secondPreimageResistant_ignoreHeadBit (f : List Bool → List Bool) :
-    ¬ SecondPreimageResistant (ignoreHeadBit f) := by
-  refine not_secondPreimageResistant_of_le_succProbability one_ne_zero
-    (fun _ w => pure (flipHeadBit w)) computableInPolyTime_flipHeadBit.isPPT fun n => ?_
-  rw [eval_secondPreimageGame_ignoreHeadBit, Game.succProbability, PMF.pure_apply_self,
-    ENNReal.toNNReal_one]
+  rw [succProbability_secondPreimageGameOn_pure_eq_one
+    fun x hx => ⟨hvn x hx, flipHeadBit_ne_self x, rfl⟩]
 
 /-- Inverter for `f` at length `n` built from an inverter for `ignoreHeadBit f` at length `n + 1`:
 run `adversary (n + 1)` and take the tail of its candidate preimage. -/
-@[expose]
 def ignoreHeadBitInverter (adversary : Inverter) : Inverter :=
   fun n y => List.tail <$> adversary (n + 1) y
 
@@ -510,7 +389,7 @@ theorem eval_inversionGame_ignoreHeadBit_succ (f : List Bool → List Bool)
 
 /-- **Section 8.11.1 separation, positive half** ([BonehShoup2023], p. 337): if `f` is one-way,
 then `ignoreHeadBit f` is also one-way (while failing second-preimage resistance by
-`not_secondPreimageResistant_ignoreHeadBit`). -/
+`not_secondPreimageResistantOn_ignoreHeadBit`). -/
 theorem OneWay.ignoreHeadBit {f : List Bool → List Bool} (hf : OneWay f) :
     OneWay (Cslib.Crypto.ignoreHeadBit f) := by
   refine OneWay.of_inversion_negligible (computableInPolyTime_ignoreHeadBit hf.polyTime)
@@ -546,6 +425,15 @@ theorem computableInPolyTime_plantEasyBranch (k : ℕ) {H : List Bool → List B
   unfold plantEasyBranch
   polytime
 
+/-- Output length of `plantEasyBranch k H w`: when the first `k` bits of `w` are `false`, it has
+length `w.length - k + 1`; otherwise `(H w).length + 1`. Thus if `H` compresses `n`-bit inputs
+by `k` bits for `n ≥ k`, `plantEasyBranch k H` compresses `n`-bit inputs by `k - 1` bits. -/
+theorem length_plantEasyBranch (k : ℕ) (H : List Bool → List Bool) (w : List Bool) :
+    (plantEasyBranch k H w).length =
+      if w.take k == List.replicate k false then w.length - k + 1 else (H w).length + 1 := by
+  unfold plantEasyBranch
+  split_ifs <;> simp
+
 /-- Every second preimage under `plantEasyBranch k H` is a second preimage under `H`: any word
 whose first `k` bits are `false` is uniquely determined by `plantEasyBranch k H w`. -/
 theorem eq_of_plantEasyBranch_eq (k : ℕ) (H : List Bool → List Bool)
@@ -565,18 +453,6 @@ theorem eq_of_plantEasyBranch_eq (k : ℕ) (H : List Bool → List Bool)
   · cases heq
   · exact (List.cons.inj heq).2
 
-/-- For every second-preimage finder `adversary`, its success probability against
-`plantEasyBranch k H` is at most its success probability against `H`. -/
-theorem succProbability_secondPreimageGame_plantEasyBranch_le
-    (k : ℕ) (H : List Bool → List Bool) (adversary : SecondPreimageFinder) (n : ℕ) :
-    Game.succProbability
-      (ProbComp.eval (secondPreimageGame (plantEasyBranch k H) adversary n)) ≤
-      Game.succProbability (ProbComp.eval (secondPreimageGame H adversary n)) := by
-  simpa only [secondPreimageGame, ProbComp.eval_secondPreimageExperiment] using
-    succProbability_secondPreimageExperiment_le_of_eq_imp (ProbComp.eval (BitString.sampleList n))
-      (fun x x' hne heq => eq_of_plantEasyBranch_eq k H hne heq)
-      (fun w => ProbComp.eval (adversary n w))
-
 /-- For every second-preimage finder `adversary`, its valid-domain success probability against
 `plantEasyBranch k H` is at most its valid-domain success probability against `H`. -/
 theorem succProbability_secondPreimageGameOn_plantEasyBranch_le
@@ -584,23 +460,13 @@ theorem succProbability_secondPreimageGameOn_plantEasyBranch_le
     (adversary : SecondPreimageFinder) (n : ℕ) :
     Game.succProbability
       (ProbComp.eval (secondPreimageGameOn (plantEasyBranch k H) valid adversary n)) ≤
-      Game.succProbability (ProbComp.eval (secondPreimageGameOn H valid adversary n)) := by
-  refine Game.succProbability_mono ?_
-  unfold secondPreimageGameOn
-  simp only [ProbComp.eval_bind, ProbComp.eval_pure]
-  refine PMF.bind_apply_mono_on_support _ _ fun x _ =>
-    PMF.bind_apply_mono_on_support _ _ fun x' _ => ?_
-  by_cases hv : valid n x' = true
-  · by_cases hx : x' = x
-    · simp [hx]
-    · by_cases hp : plantEasyBranch k H x' = plantEasyBranch k H x
-      · simp [hv, hx, hp, eq_of_plantEasyBranch_eq k H hx hp]
-      · simp [hv, hx, hp]
-  · simp [hv]
+      Game.succProbability (ProbComp.eval (secondPreimageGameOn H valid adversary n)) :=
+  succProbability_secondPreimageGameOn_le_of_imp
+    (fun _ _ _ hval hne heq => ⟨hval, eq_of_plantEasyBranch_eq k H hne heq⟩) adversary
 
 /-- **Exercise 8.23(c) on bit strings, positive half** ([BonehShoup2023], p. 353): if `H` is
 second-preimage resistant on `valid`, then `plantEasyBranch k H` is also second-preimage resistant
-on `valid`. -/
+on `valid` (and in particular `SecondPreimageResistant` when `H` is). -/
 theorem SecondPreimageResistantOn.plantEasyBranch (k : ℕ) {H : List Bool → List Bool}
     {valid : ℕ → List Bool → Bool} (hH : SecondPreimageResistantOn H valid) :
     SecondPreimageResistantOn (Cslib.Crypto.plantEasyBranch k H) valid := by
@@ -609,18 +475,7 @@ theorem SecondPreimageResistantOn.plantEasyBranch (k : ℕ) {H : List Bool → L
   exact negligible_of_le (hH.negligible adversary hadversary)
     (succProbability_secondPreimageGameOn_plantEasyBranch_le k H valid adversary)
 
-/-- If `H` satisfies `SecondPreimageResistant`, then `plantEasyBranch k H` also satisfies
-`SecondPreimageResistant`. -/
-theorem SecondPreimageResistant.plantEasyBranch (k : ℕ) {H : List Bool → List Bool}
-    (hH : SecondPreimageResistant H) :
-    SecondPreimageResistant (Cslib.Crypto.plantEasyBranch k H) := by
-  refine SecondPreimageResistant.of_negligible
-    (computableInPolyTime_plantEasyBranch k hH.polyTime) fun adversary hadversary => ?_
-  exact negligible_of_le (hH.negligible adversary hadversary)
-    (succProbability_secondPreimageGame_plantEasyBranch_le k H adversary)
-
 /-- Inverter for `plantEasyBranch k H`: prepend `k` `false` bits to the tail of the digest. -/
-@[expose]
 def plantEasyBranchInverter (k : ℕ) : Inverter :=
   fun _ d => pure (List.replicate k false ++ d.tail)
 

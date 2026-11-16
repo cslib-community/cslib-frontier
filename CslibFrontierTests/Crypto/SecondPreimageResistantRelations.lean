@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 
 import CslibFrontier.Crypto.Computational.SecondPreimageResistant.Relations
+import CslibFrontier.Crypto.Negligible
 import CslibFrontier.Probability.PMF.Support
 import CslibFrontier.Tactic.PolyTime
 
@@ -17,14 +18,16 @@ Checks for `CslibFrontier/Crypto/Computational/SecondPreimageResistant/Relations
 `module` client with ordinary imports:
 
 * Concrete evaluations of `ignoreHeadBit`, `flipHeadBit`, and `plantEasyBranch`.
-* The Section 8.11.1 separation (`not_secondPreimageResistant_ignoreHeadBit_id`) and the
-  bit-string Exercise 8.23(c) separation (`secondPreimageResistant_plantEasyBranch_id` and
-  `not_oneWay_plantEasyBranch_id`), giving an explicit unconditional function `plantEasyBranch 2 id`
-  that is `SecondPreimageResistant` and `¬ OneWay`.
+* The Section 8.11.1 separation (`not_secondPreimageResistant_ignoreHeadBit_id` and hypothesis-form
+  `OneWay.ignoreHeadBit`) and the bit-string Exercise 8.23(c) separation
+  (`secondPreimageResistant_plantEasyBranch_id`, `not_oneWay_plantEasyBranch_id`, and the
+  compressing instance `exercise8_23c_compressing`).
 * Necessity of the super-polynomial compression premise in
-  `SecondPreimageResistant.oneWay_of_outputLength`: for `f = id` (`outLen n = n`), `id` is
-  `SecondPreimageResistant` (`secondPreimageResistant_id`) and satisfies `hlen`, yet `¬ OneWay id`
-  because `2 ^ n / 2 ^ n = 1` is not negligible (`not_oneWay_id`).
+  `SecondPreimageResistantOn.oneWay_of_outputLength`: `id` is `SecondPreimageResistant` and
+  length-preserving (`outLen n = n`), yet `¬ OneWay id` because `2 ^ n / 2 ^ n = 1` is not
+  negligible (`not_oneWay_id`).
+* The composed `(8.17)` chain `HashFamily H → OneWay (keyDigest H)`, failure of `hpre` on
+  `{0,1}ⁿ` for `keyDigest`, and concrete `(n, d)` / `(n, r)` reduction bounds.
 -/
 
 set_option linter.privateModule false
@@ -45,13 +48,9 @@ example : plantEasyBranch 2 id [false, false, true] = [true, true] := rfl
 
 example : plantEasyBranch 2 id [true, false, true] = [false, true, false, true] := rfl
 
-/-- The identity on bit strings is unconditionally `SecondPreimageResistant`. -/
-theorem secondPreimageResistant_id : SecondPreimageResistant id :=
-  SecondPreimageResistant.of_injective (ComputableInPolyTime.id' (encIn := encBits))
-    Function.injective_id
-
-/-- **Necessity of compression in `SecondPreimageResistant.oneWay_of_outputLength`**: `id` is
-`SecondPreimageResistant` and length-preserving (`outLen n = n`), yet `¬ OneWay id`. -/
+/-- **Necessity of compression in `SecondPreimageResistantOn.oneWay_of_outputLength`**: `id` is
+`SecondPreimageResistant` (see `CslibFrontierTests/Crypto/SecondPreimageResistant.lean`) and
+length-preserving (`outLen n = n`), yet `¬ OneWay id`. -/
 theorem not_oneWay_id : ¬ OneWay id :=
   not_oneWay_of_inverse id (fun _ y => y)
     (ComputableInPolyTime.id' (encIn := encBits)).isPPT (fun _ => rfl)
@@ -59,7 +58,7 @@ theorem not_oneWay_id : ¬ OneWay id :=
 /-- `ignoreHeadBit id` is not second-preimage resistant. -/
 theorem not_secondPreimageResistant_ignoreHeadBit_id :
     ¬ SecondPreimageResistant (ignoreHeadBit id) :=
-  not_secondPreimageResistant_ignoreHeadBit id
+  not_secondPreimageResistantOn_ignoreHeadBit id (Filter.Eventually.of_forall fun _ _ _ => rfl)
 
 /-- `ignoreHeadBit id` is not second-preimage resistant on `{0,1}ⁿ` either. -/
 theorem not_secondPreimageResistantOn_ignoreHeadBit_id :
@@ -75,11 +74,11 @@ theorem not_secondPreimageResistantOn_ignoreHeadBit_id :
 theorem secondPreimageResistantOn_plantEasyBranch_id (valid : ℕ → List Bool → Bool) :
     SecondPreimageResistantOn (plantEasyBranch 2 id) valid :=
   (SecondPreimageResistantOn.of_injective (ComputableInPolyTime.id' (encIn := encBits))
-    Function.injective_id).plantEasyBranch 2
+    fun _ _ _ _ _ h => h).plantEasyBranch 2
 
 theorem secondPreimageResistant_plantEasyBranch_id :
     SecondPreimageResistant (plantEasyBranch 2 id) :=
-  secondPreimageResistant_id.plantEasyBranch 2
+  secondPreimageResistantOn_plantEasyBranch_id _
 
 theorem not_oneWay_plantEasyBranch_id : ¬ OneWay (plantEasyBranch 2 id) :=
   not_oneWay_plantEasyBranch 2 id
@@ -120,35 +119,15 @@ theorem secondPreimageResistantOn_stripFalseHead :
   have hpoly : ComputableInPolyTime stripFalseHead encBits encBits := by
     unfold stripFalseHead
     polytime
-  refine SecondPreimageResistantOn.of_negligible hpoly fun adversary _ => ?_
-  have hzero : ∀ n, Game.succProbability (ProbComp.eval
-      (secondPreimageGameOn stripFalseHead (fun n w => decide (w.length = n)) adversary n)) = 0 :=
-    fun n => by
-      have heval : ProbComp.eval (secondPreimageGameOn stripFalseHead
-          (fun n w => decide (w.length = n)) adversary n) = PMF.pure false := by
-        unfold secondPreimageGameOn
-        simp only [ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList]
-        refine PMF.bind_eq_pure_of_forall_mem_support fun x hx => ?_
-        have hlenx : x.length = n := BitString.mem_support_uniformList_iff.mp hx
-        have hconst : ∀ x' : List Bool,
-            (decide (x'.length = n) && (x' != x && stripFalseHead x' == stripFalseHead x)) =
-              false := fun x' => by
-          by_cases hln : x'.length = n
-          · by_cases hne : x' = x
-            · simp [hne]
-            · have hne' : stripFalseHead x' ≠ stripFalseHead x := fun heq =>
-                hne (stripFalseHead_injOn_length (hln.trans hlenx.symm) heq)
-              simp [hne, hne']
-          · simp [hln]
-        simp_rw [hconst, PMF.bind_const]
-      simp [heval, Game.succProbability]
-  simpa only [hzero] using negligible_zero
+  exact SecondPreimageResistantOn.of_injective hpoly fun n x x' hx hx' heq =>
+    stripFalseHead_injOn_length ((of_decide_eq_true hx').trans hx.symm) heq
 
 theorem not_secondPreimageResistant_stripFalseHead : ¬ SecondPreimageResistant stripFalseHead := by
   let adv : SecondPreimageFinder := fun _ x => pure (false :: x)
   have hpoly : ComputableInPolyTime (fun x : List Bool => false :: x) encBits encBits := by polytime
-  refine not_secondPreimageResistant_of_le_succProbability (c := (1 / 2 : ℝ≥0))
-    (by norm_num) adv hpoly.isPPT fun n => ?_
+  refine not_secondPreimageResistantOn_of_le_succProbability (c := (1 / 2 : ℝ≥0))
+    (by norm_num) adv hpoly.isPPT (Filter.Eventually.of_forall fun n => ?_)
+  rw [← secondPreimageGame_eq_secondPreimageGameOn]
   unfold secondPreimageGame secondPreimageExperiment adv
   simp only [ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList, PMF.pure_bind]
   have hhalf : (1 / 2 : ℝ≥0∞) ≤
@@ -201,5 +180,111 @@ theorem not_oneWay_stripFalseHead : ¬ OneWay stripFalseHead := by
     | cons c cs => cases c <;> simp [inv, stripFalseHead]
   refine not_oneWay_of_inverse stripFalseHead (fun _ y => inv y) hinv_poly.isPPT fun x =>
     hright (stripFalseHead x)
+
+/-- `hpre` in `SecondPreimageResistantOn.oneWay_of_outputLength` fails on `{0,1}ⁿ` for
+`keyDigest`: 3-bit and 4-bit inputs share `n / 3 = 1` and collide when `H key _ = key`. -/
+example :
+    CollisionResistantToOneWay.keyDigest (fun key _ => key) [false, false, false] =
+      CollisionResistantToOneWay.keyDigest (fun key _ => key) [false, false, false, false] := rfl
+
+/-- Concrete compressing output-length check for `plantEasyBranch 2 (List.drop 2)` (`3 ↦ 2`). -/
+example : (plantEasyBranch 2 (List.drop 2) [false, false, true]).length = 2 := rfl
+
+example : (plantEasyBranch 2 (List.drop 2) [true, false, true]).length = 2 := rfl
+
+theorem length_plantEasyBranch_drop (w : List Bool) (hw : 2 ≤ w.length) :
+    (plantEasyBranch 2 (List.drop 2) w).length = w.length - 1 := by
+  rw [length_plantEasyBranch]
+  split_ifs
+  · omega
+  · simp
+    omega
+
+/-- **Exercise 8.23(c), compressing instance at `k = 2`**: given any `SecondPreimageResistant H`
+compressing `n`-bit inputs to `(n - 2)`-bit digests (`n ≥ 2`), `plantEasyBranch 2 H` maps
+`n`-bit inputs to `(n - 1)`-bit digests, remains `SecondPreimageResistant` (and
+`SecondPreimageResistantOn` on every `valid`), and is not `OneWay`. -/
+theorem exercise8_23c_compressing {H : List Bool → List Bool} (hH : SecondPreimageResistant H)
+    (hlen : ∀ w : List Bool, 2 ≤ w.length → (H w).length = w.length - 2)
+    (valid : ℕ → List Bool → Bool) :
+    (∀ w : List Bool, 2 ≤ w.length → (plantEasyBranch 2 H w).length = w.length - 1) ∧
+      SecondPreimageResistantOn (plantEasyBranch 2 H) valid ∧
+      SecondPreimageResistant (plantEasyBranch 2 H) ∧
+      ¬ OneWay (plantEasyBranch 2 H) := by
+  refine ⟨fun w hw => ?_, (hH.mono fun _ _ _ => rfl).plantEasyBranch 2,
+    hH.plantEasyBranch 2, not_oneWay_plantEasyBranch 2 H⟩
+  rw [length_plantEasyBranch]
+  split_ifs
+  · omega
+  · rw [hlen w hw]
+    omega
+
+/-- Composed **(8.17)** chain
+`HashFamily H → SecondPreimageResistant (keyDigest H) → OneWay (keyDigest H)`.
+Routing `(8.17)` through `SecondPreimageResistant` (`valid := fun _ _ => true`) makes `hpre` hold
+by `rfl`. -/
+example {H : List Bool → List Bool → List Bool} (hH : HashFamily H) :
+    OneWay (CollisionResistantToOneWay.keyDigest H) := by
+  refine hH.secondPreimageResistant_keyDigest.oneWay_of_outputLength
+    (outLen := fun n => 2 * (n / 3)) (fun n w hw => ?_) (fun _ _ _ _ _ => rfl) ?_
+  · simp [CollisionResistantToOneWay.keyDigest, hw, hH.length_eq, two_mul,
+      Nat.min_eq_left (Nat.div_le_self n 3)]
+  · have hhalf : Negligible fun n => (1 / 2 : ℝ≥0) ^ (n / 3) :=
+      (negligible_geometric (by norm_num : (1 / 2 : ℝ≥0) < 1)).comp_of_polynomial_bound
+        (bound := fun m => 3 * m + 2)
+        (Filter.tendsto_atTop_atTop.mpr fun b => ⟨3 * b, fun n hn => by omega⟩)
+        (by fun_prop) (Filter.Eventually.of_forall fun n => by omega)
+    refine negligible_of_le hhalf fun n => ?_
+    have hle : 2 * (n / 3) ≤ n := by omega
+    calc
+      (2 : ℝ≥0) ^ (2 * (n / 3)) / (2 : ℝ≥0) ^ n
+          = (1 / 2 : ℝ≥0) ^ (n - 2 * (n / 3)) := by
+              conv_lhs => rhs; rw [← Nat.add_sub_cancel' hle, pow_add]
+              rw [div_mul_cancel_left₀ (pow_ne_zero _ two_ne_zero), one_div, inv_pow]
+      _ ≤ (1 / 2 : ℝ≥0) ^ (n / 3) :=
+            pow_le_pow_of_le_one zero_le (by norm_num) (by omega)
+
+/-- Section 8.11.1 separation applied to a `OneWay f` hypothesis: `ignoreHeadBit f` stays one-way
+while failing second-preimage resistance on `{0,1}ⁿ`. -/
+example {f : List Bool → List Bool} (hf : OneWay f) :
+    OneWay (ignoreHeadBit f) ∧
+      ¬ SecondPreimageResistantOn (ignoreHeadBit f) (fun n w => decide (w.length = n)) :=
+  ⟨hf.ignoreHeadBit,
+    not_secondPreimageResistantOn_ignoreHeadBit f <|
+      Filter.eventually_ge_atTop 1 |>.mono fun n hn x hlen => by
+        cases x with
+        | nil => simp at hlen; omega
+        | cons b xs => simpa [flipHeadBit] using hlen⟩
+
+/-- Concrete `(n = 2, d = 1)` reduction bounds for `List.take 1` (`OWadv ≤ SPRadv + 2¹ / 2²` and
+`OWadv ≤ 2 · SPRadv + 2¹ / 2²`). -/
+example (adversary : Inverter) :
+    Game.succProbability (ProbComp.eval (inversionGame (List.take 1) adversary 2)) ≤
+      Game.succProbability
+        (ProbComp.eval
+          (secondPreimageGameOn (List.take 1) (fun _ _ => true)
+            (inverterToSecondPreimage (List.take 1) adversary) 2)) +
+        (2 : ℝ≥0) ^ 1 / (2 : ℝ≥0) ^ 2 ∧
+    Game.succProbability (ProbComp.eval (inversionGame (List.take 1) adversary 2)) ≤
+      2 * Game.succProbability
+        (ProbComp.eval
+          (secondPreimageGameOn (List.take 1) (fun _ _ => true)
+            (inverterToSecondPreimage (List.take 1) adversary) 2)) +
+        (2 : ℝ≥0) ^ 1 / (2 : ℝ≥0) ^ 2 :=
+  ⟨succProbability_inversionGame_le_secondPreimageGameOn_add
+      (fun w hw => by simp [hw]) (fun _ _ _ _ => rfl) adversary,
+    succProbability_inversionGame_le_two_mul_secondPreimageGameOn_add
+      (fun w hw => by simp [hw]) (fun _ _ _ _ => rfl) adversary⟩
+
+/-- Concrete `(n = 2, r = 1)` zero-loss second-preimage bound for `keyDigest H`. -/
+example {H : List Bool → List Bool → List Bool}
+    (hlen : ∀ key message, (H key message).length = key.length)
+    (adversary : SecondPreimageFinder) :
+    Game.succProbability
+      (ProbComp.eval (secondPreimageGame (CollisionResistantToOneWay.keyDigest H) adversary 7)) ≤
+      Game.succProbability
+        (ProbComp.eval
+          (collisionGame H (fun _ _ => true) (secondPreimageToCollisionFinder adversary 1) 2)) :=
+  succProbability_secondPreimageGame_keyDigest_le hlen adversary 2 1 (by decide)
 
 end CslibFrontierTests.Crypto.SecondPreimageResistantRelations
