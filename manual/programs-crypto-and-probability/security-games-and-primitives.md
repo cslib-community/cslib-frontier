@@ -2894,6 +2894,31 @@ p. 294). The collision for `H₁ ‖ H₂` at the end of §8.4.1 is not stated. 
 show that 45 calls give an 8-collision with probability at least `3/4` for every compression
 function with one-bit chaining values and eight-bit blocks.
 
+Brute force and the birthday attack are also polynomial-time collision finders for
+`collisionGame` ([bs23][bs23], §8.3, pp. 293–295). Import
+[`CollisionResistant/GenericAttacks.lean`](../../CslibFrontier/Crypto/Computational/CollisionResistant/GenericAttacks.lean).
+Unlike the oracle program of `Birthday.lean`, its finders evaluate the keyed hash themselves and
+carry `IsPPT` certificates. `collidingPairList? h ms` returns the first pair of different messages
+of `ms` with equal digests; among more than `2 ^ ℓ` distinct messages with `ℓ`-bit digests it
+always finds one (`isSome_collidingPairList?_of_two_pow_lt`). Let `H` be polynomial time with
+`ℓ(n)`-bit digests. Then `bruteForceCollisionFinder H msgs` succeeds with probability `1` when the
+polynomial-time list `msgs n` has more than `2 ^ ℓ(n)` distinct messages that `valid` accepts
+(`succProbability_bruteForceCollisionFinder`, `not_collisionResistantOn_of_bruteForce`). With the
+book's `⌈2 √(2 ^ ℓ(n))⌉₊ + 1` uniform `msgLen(n)`-bit messages, `birthdayCollisionFinder` succeeds
+with probability at least `1/2` when `100 * 2 ^ ℓ n ≤ 2 ^ msgLen n`
+(`half_le_succProbability_birthdayCollisionFinder`). It is PPT when `2 ^ ℓ(n)` is computable in
+unary in polynomial time (`isPPT_birthdayCollisionFinder_book`), and then `H` is not
+`CollisionResistantOn` (`not_collisionResistantOn_of_birthday`); under the same condition,
+`not_collisionResistant_of_two_pow_polyTime` refutes `CollisionResistant` by brute force. Each
+refutation needs `2 ^ ℓ(n)` to be polynomial in `n`, which holds for constant and logarithmic digest
+lengths only; there brute force alone refutes collision resistance, and the birthday refutation adds
+a certified finder with success `1/2` on `msgLen(n)`-bit messages. Nothing compares the `√N` samples
+of the birthday attack with the `N + 1` messages of brute force in machine time. The `2 ^ ℓ + 1`
+hash evaluations of brute force are not counted; the oracle-call count of `Birthday.lean` is for the
+birthday finder. The [tests](../../CslibFrontierTests/Crypto/CollisionResistantGenericAttacks.lean)
+probe each hypothesis, refute 16-bit digests both ways as in the book, and apply both refutations
+to digests of `Nat.clog 2 n` bits.
+
 ## Commitments and ideal distributions
 
 To state a commitment scheme and its games as programs, import [Commitment/Scheme.lean](../../CslibFrontier/Crypto/Computational/Commitment/Scheme.lean). `Commitment.Scheme K M C O` has typed key, message, commitment and opening spaces, with key generation and commitment as `ProbComp` programs and a Boolean `verify`. `hidingExperiment` draws a key and runs `lrExperiment` on the commitment component. `bindingExperiment` asks for a `BindingCollision`, two distinct messages opened against one commitment. `PerfectlyHidingAt S k` makes every message's commitment law equal at key `k`. At such a key, the left-or-right advantage is zero (`Scheme.advantage_lrExperiment_eq_zero`). `Scheme.advantage_hidingExperiment_le` bounds the hiding advantage by the probability that key generation lands outside a perfectly hiding set. The Pedersen instance `pedersen d` at a fixed group description is correct (`pedersen_correct`) and perfectly hiding at every key `h ≠ 0` (`pedersen_perfectlyHidingAt`). The zero key, drawn with probability `1 / q`, is the only loss, so `advantage_pedersen_hidingExperiment_le` gives at most `1 / q`. `succProbability_pedersen_bindingExperiment_le` bounds binding by the discrete-logarithm advantage of the explicit reduction `pedersenToDL`, which reads off `α = (r₁ - r₀)⁻¹ * (m₀ - m₁)` from two openings. These are fixed-parameter statements and make no efficiency claim. The [checked clients](../../CslibFrontierTests/Crypto/CommitmentScheme.lean) cover a perfectly hiding scheme whose binding success is one; the [Pedersen clients](../../CslibFrontierTests/Crypto/PedersenCommitment.lean) instantiate both bounds on a group of order `11`.
