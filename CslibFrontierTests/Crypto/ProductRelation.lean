@@ -4,6 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+
 import CslibFrontier.Crypto.Protocols.MPC.ProductRelation
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF.EventBind
@@ -25,10 +27,14 @@ Checks `Cslib.Crypto.Protocols.MPC.ProductRelation` on finite instances over `ZM
    `2 / 3`, matching `eval_honestPartiesRun_accept_le`.
 3. **Randomized corrupt dealer bound:** `toOuterMeasure_bind_le` lifts
    `eval_honestPartiesRun_accept_le` to any randomized corrupt dealer distribution `D`.
-4. **Why the book's conditions matter:** `q = 6, m = 1` shows composite modulus failure (`3` of `4`
-   challenges accept, exceeding `2m = 2`), and `q = 5, m = 3` shows `(23.8)` failing when
-   `m + 1 < q` holds (`Challenge 5 3` nonempty) but `2 * m < q` fails.
+4. **Why the book's conditions matter:** `q = 6, m = 1` shows a bare polynomial root count over
+   composite `ZMod 6` (`3` of `4` challenges in `Challenge 6 1` are roots of a degree-`2`
+   polynomial), and `q = 5, m = 3` shows `(23.8)` failing when `m + 1 < q` holds (`Challenge 5 3`
+   nonempty) but `2 * m < q` fails.
 -/
+
+-- This regression module checks ordinary imports and exports no test fixtures.
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.Crypto.ProductRelation
 

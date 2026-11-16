@@ -10,9 +10,8 @@ module
 public import CslibFrontier.Crypto.Protocols.MPC.Beaver
 public import CslibFrontier.Foundations.Data.Polynomial.LagrangeEval
 public import Mathlib.Algebra.Field.ZMod
-import CslibFrontier.Languages.Probabilistic.Norm
+import CslibFrontier.Foundations.Data.Code.ReedSolomon
 import CslibFrontier.Probability.PMF.UniformBound
-import Mathlib.Algebra.Polynomial.Roots
 
 /-!
 # Verifying Additive-Share Product Relations (Protocol 23.5 and Lemma 23.1)
@@ -25,9 +24,9 @@ corrupt dealer), polynomial identity `(23.8)`, and completeness for honest `D, P
 For `m` pairs of additive triple shares `((a_{k1}, b_{k1}, c_{k1}), (a_{k2}, b_{k2}, c_{k2}))`
 represented as `Cslib.Crypto.Protocols.MPC.Beaver.TripleShare (ZMod q)`, `ProductRelations t₁ t₂`
 expresses `(23.7)`: `(a_{k1} + a_{k2})(b_{k1} + b_{k2}) = c_{k1} + c_{k2}` for `k = 1, ..., m`.
-As noted in Section 23.2.4.8, these triples need not form a single gate's Beaver triple; the
-encoding of an authenticated triple as seven product relations and Theorem 23.9 stay outside this
-module, and the simulators and Fact 23.2 privacy analysis of Section 23.2.4.7 are deferred to
+This general `m`-relation problem is posed in Section 23.2.4.5 (p. 1014); the reduction from an
+authenticated triple in Section 23.2.4.8 and Theorem 23.9 stay outside this module, and the
+simulators and Fact 23.2 privacy analysis of Section 23.2.4.7 are deferred to
 `ProductRelation.Privacy`.
 
 ## Protocol model and hypotheses
@@ -35,22 +34,8 @@ module, and the simulators and Fact 23.2 privacy analysis of Section 23.2.4.7 ar
 * **Standing prime modulus and `2 * m < q`:** matching Section 23.2.1 (p. 1003), `q` is prime via
   `[Fact (Nat.Prime q)]`. We additionally assume `hm : 2 * m < q`, which the book leaves implicit so
   that the interpolation points `0, ..., 2m` are distinct in `ZMod q` (and ensures `m + 1 < q`, so
-  the challenge set `Challenge q m := ℤ_q \ {0, ..., m}` is nonempty).
-* **Protocol interface (`PartyDeal`, `deal`, `verifyPair`, `honestPartiesRun`):** `PartyDeal q m`
-  carries a dealer message `(a_k, b_k)_{k=0}^m` and `(c_k)_{k=0}^{2m}`, with `.triples` extracting
-  indices `1, ..., m`. An honest dealer `deal t₁ t₂` samples `P₁`'s blinding/tail shares
-  `e₁ : DealerExtra q m` and `(a₀₂, b₀₂)` uniformly in `ZMod q`, and determines `P₂`'s extra
-  values via `honestC2` (`Step 1(a)-(d)`). `verifyPair` checks the degree-`≤ 2m` interpolation
-  identity at challenge `r` (`Step 6`) and, for `P₂`, that `r ∉ {0, ..., m}` (`Step 4`);
-  `honestPartiesRun` samples `r` uniformly from `Challenge q m` (`Step 3`) and runs `verifyPair`.
-* **Lemma 23.1 (`eval_honestPartiesRun_accept_le`):** for every pair of arbitrary (corrupt-dealer)
-  messages `(d₁, d₂)` violating `ProductRelations d₁.triples d₂.triples`, the probability under
-  `honestPartiesRun` that either `P₁` or `P₂` accepts is at most `2m / (q - m - 1)`.
-* **Identity `(23.8)` and completeness (`discrepancyPoly_eq_zero_of_productRelations`,
-  `eval_honestProtocol_eq_pure`):** when `ProductRelations t₁ t₂` and `2 * m < q`, every honest
-  dealer output satisfies `discrepancyPoly d₁ d₂ = 0`, and `deal t₁ t₂ >>= honestPartiesRun` returns
-  `(true, true)` with probability `1`. `deal` and `honestC2` are `noncomputable` (interpolating
-  polynomials over `ZMod q`) and make no running-time claim.
+  the challenge set `Challenge q m := ℤ_q \ {0, ..., m}` is nonempty). `deal` and `honestC2` use
+  `Lagrange.interpolate` over `ZMod q` and are `noncomputable`, carrying no running-time claim.
 
 ## Main definitions
 
@@ -72,8 +57,8 @@ module, and the simulators and Fact 23.2 privacy analysis of Section 23.2.4.7 ar
   `2m / (q - m - 1)` against arbitrary corrupt dealer messages violating `(23.7)`.
 * `Cslib.Crypto.Protocols.MPC.ProductRelation.discrepancyPoly_eq_zero_of_productRelations`:
   polynomial identity `(23.8)` for honest dealer outputs.
-* `Cslib.Crypto.Protocols.MPC.ProductRelation.eval_honestProtocol_eq_pure`: completeness of
-  Protocol 23.5 under honest `(D, P₁, P₂)`.
+* `Cslib.Crypto.Protocols.MPC.ProductRelation.eval_honestProtocol_eq_pure`: consequence of
+  `(23.8)` that honest `(D, P₁, P₂)` both accept with probability `1`.
 
 ## References
 
@@ -86,8 +71,8 @@ public section
 
 namespace Cslib.Crypto.Protocols.MPC.ProductRelation
 
-open Polynomial Finset Cslib.Probability Cslib.ProbComp Cslib.Crypto.Protocols.MPC.Beaver
-open scoped BigOperators ENNReal
+open Polynomial Cslib.Probability Cslib.Crypto.Protocols.MPC.Beaver
+open scoped ENNReal
 
 /-- The product relations `(23.7)` of [BonehShoup2023] (§23.2.4.5, printed p. 1014) for `m`
 pairs of 2-party triple shares `(a_{ki}, b_{ki}, c_{ki})` over `ZMod q`:
@@ -102,11 +87,13 @@ instance {q m : ℕ} (t₁ t₂ : Fin m → TripleShare (ZMod q)) :
 /-- The full message sent by the dealer `D` to party `P_i` in Protocol 23.5 Step 1(e)
 ([BonehShoup2023], printed p. 1015): `(a_{ki}, b_{ki})_{k=0}^m` and `(c_{ki})_{k=0}^{2m}`. -/
 @[ext] structure PartyDeal (q m : ℕ) where
-  /-- Masked input wire shares `(a_{0i}, ..., a_{mi})`. -/
+  /-- The values `(a_{0i}, ..., a_{mi})`: `a_{0i}` is the extra value of Step 1(a) and
+  `a_{1i}, ..., a_{mi}` are the shares in `(23.7)`. -/
   a : Fin (m + 1) → ZMod q
-  /-- Masked second-input wire shares `(b_{0i}, ..., b_{mi})`. -/
+  /-- The values `(b_{0i}, ..., b_{mi})`, in the same layout. -/
   b : Fin (m + 1) → ZMod q
-  /-- Product shares `(c_{0i}, ..., c_{2m,i})`. -/
+  /-- The values `(c_{0i}, ..., c_{2m,i})`: `c_{0i}` of Step 1(a), the shares
+  `c_{1i}, ..., c_{mi}` in `(23.7)`, then `c_{m+1,i}, ..., c_{2m,i}` of Step 1(d). -/
   c : Fin (2 * m + 1) → ZMod q
   deriving DecidableEq
 
@@ -253,21 +240,6 @@ theorem discrepancyPoly_natDegree_le (d₁ d₂ : PartyDeal q m) (hm : 2 * m < q
       (max_le (interpPoly_natDegree_le d₁.c (by omega))
         (interpPoly_natDegree_le d₂.c (by omega)))
 
-private theorem card_filter_eval_eq_zero_le {ι : Type*} [Fintype ι]
-    {f : (ZMod q)[X]} (hf : f ≠ 0) {g : ι → ZMod q} (hg : Function.Injective g) :
-    (Finset.univ.filter fun x => f.eval (g x) = 0).card ≤ f.natDegree := by
-  calc (Finset.univ.filter fun x => f.eval (g x) = 0).card
-      = ((Finset.univ.filter fun x => f.eval (g x) = 0).image g).card :=
-        (Finset.card_image_of_injective _ hg).symm
-    _ ≤ f.roots.toFinset.card := by
-        refine Finset.card_le_card fun y hy => ?_
-        rcases Finset.mem_image.mp hy with ⟨x, hx, rfl⟩
-        rw [Finset.mem_filter] at hx
-        rw [Multiset.mem_toFinset, Polynomial.mem_roots hf, Polynomial.IsRoot.def]
-        exact hx.2
-    _ ≤ f.roots.card := Multiset.toFinset_card_le _
-    _ ≤ f.natDegree := Polynomial.card_roots' _
-
 theorem discrepancyPoly_ne_zero_of_not_productRelations {d₁ d₂ : PartyDeal q m} (hm : 2 * m < q)
     (hnot : ¬ ProductRelations d₁.triples d₂.triples) :
     discrepancyPoly d₁ d₂ ≠ 0 := by
@@ -329,9 +301,9 @@ returning `(P₁ accepts, P₂ accepts)` as in Protocol 23.5 Steps 4 and 6. -/
 /-- Honest execution of Protocol 23.5 Steps 3–6 against dealer messages `(d₁, d₂)` when both
 `P₁` and `P₂` are honest (`P₁` samples `r` uniformly from `ℤ_q \ {0, ..., m}`). -/
 @[expose] noncomputable def honestPartiesRun (q m : ℕ) [Fact (Nat.Prime q)] (hm : 2 * m < q)
-    (d₁ d₂ : PartyDeal q m) : ProbComp (Bool × Bool) := by
+    (d₁ d₂ : PartyDeal q m) : ProbComp (Bool × Bool) :=
   haveI : Nonempty (Challenge q m) := nonempty_challenge q m (succ_lt_of_two_mul_lt hm)
-  exact do
+  do
     let r ← ProbComp.uniform (Challenge q m)
     return verifyPair d₁ d₂ r.1
 
@@ -350,7 +322,7 @@ theorem eval_honestPartiesRun_accept_le {q m : ℕ} [Fact (Nat.Prime q)] (hm : 2
   have hne : discrepancyPoly d₁ d₂ ≠ 0 := discrepancyPoly_ne_zero_of_not_productRelations hm hnot
   have hroots : (Finset.univ.filter (fun r : Challenge q m =>
       (discrepancyPoly d₁ d₂).eval r.1 = 0)).card ≤ 2 * m :=
-    le_trans (card_filter_eval_eq_zero_le hne Subtype.coe_injective)
+    le_trans (Cslib.Code.card_filter_eval_eq_zero_le Subtype.coe_injective hne)
       (discrepancyPoly_natDegree_le d₁ d₂ hm)
   have hcard :
       (q - m - 1) * (Finset.univ.filter (fun r : Challenge q m =>
@@ -434,7 +406,6 @@ theorem discrepancyPoly_eq_zero_of_productRelations {q m : ℕ} [Fact (Nat.Prime
   let d₁ := e₁.toDeal t₁
   let d₂ := (honestC2 t₁ t₂ e₁ a02 b02).toDeal t₂
   change discrepancyPoly d₁ d₂ = 0
-  by_contra hne
   have hinj : Function.Injective (natNodes q (2 * m + 1)) := fun i j hij =>
     injOn_natNodes q (2 * m + 1) (by omega) (Finset.mem_univ i) (Finset.mem_univ j) hij
   have heval : ∀ k : Fin (2 * m + 1),
@@ -484,12 +455,8 @@ theorem discrepancyPoly_eq_zero_of_productRelations {q m : ℕ} [Fact (Nat.Prime
         rw [hd2A, hd2B]
         simp only [d₁, Polynomial.eval_mul, Polynomial.eval_add]
         ring
-  have hle := card_filter_eval_eq_zero_le hne hinj
-  have hdeg := discrepancyPoly_natDegree_le d₁ d₂ hm
-  have hcard : (Finset.univ.filter fun x =>
-      (discrepancyPoly d₁ d₂).eval (natNodes q (2 * m + 1) x) = 0).card = 2 * m + 1 := by
-    rw [Finset.filter_true_of_mem fun x _ => heval x, Finset.card_fin]
-  omega
+  exact Polynomial.eq_zero_of_natDegree_lt_card_of_eval_eq_zero _ hinj heval
+    (by rw [Fintype.card_fin]; exact Nat.lt_succ_of_le (discrepancyPoly_natDegree_le d₁ d₂ hm))
 
 private theorem verifyPair_of_honest {q m : ℕ} [Fact (Nat.Prime q)] (hm : 2 * m < q)
     {t₁ t₂ : Fin m → TripleShare (ZMod q)} (hrel : ProductRelations t₁ t₂)
@@ -501,9 +468,9 @@ private theorem verifyPair_of_honest {q m : ℕ} [Fact (Nat.Prime q)] (hm : 2 * 
     Polynomial.eval_zero, sub_eq_zero] at hpoly
   simp [verifyPair, hpoly, r.2]
 
-/-- **Completeness** of Protocol 23.5 ([BonehShoup2023], printed p. 1015): when `D, P₁, P₂` are
-honest and `(t₁, t₂)` satisfies `(23.7)` with `2 * m < q`, both parties accept with probability
-`1`. -/
+/-- The consequence of **(23.8)** ([BonehShoup2023], printed p. 1015) that when `D, P₁, P₂` are
+honest and `(t₁, t₂)` satisfies `(23.7)` with `2 * m < q`, both `P₁` and `P₂` accept with
+probability `1`. -/
 theorem eval_honestProtocol_eq_pure {q m : ℕ} [Fact (Nat.Prime q)] (hm : 2 * m < q)
     {t₁ t₂ : Fin m → TripleShare (ZMod q)} (hrel : ProductRelations t₁ t₂) :
     ProbComp.eval (do
