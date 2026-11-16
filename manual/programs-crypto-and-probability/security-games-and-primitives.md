@@ -2818,7 +2818,12 @@ stream reduction `ivStreamToPrfDistinguisher`
 with one PRF query per counter block. Its certificate `isOraclePPT_ctrToPrfDistinguisher` and its
 real- and ideal-game identities are instances of the shared ones
 (`isOraclePPT_ivStreamToPrfDistinguisher`, `eval_prfRealGame_ivStreamToPrfDistinguisher`,
-`eval_prfIdealGame_ivStreamToPrfDistinguisher`).
+`eval_prfIdealGame_ivStreamToPrfDistinguisher`). These are in turn instances of the reduction
+`ivModeToPrfDistinguisher` for any random-IV mode `ivModeEncrypt body`, given oracle queries that
+compute the body from the initial value and the message (`isOraclePPT_ivModeToPrfDistinguisher`,
+`eval_prfRealGame_ivModeToPrfDistinguisher`, `eval_prfIdealGame_ivModeToPrfDistinguisher`); a body
+that is not a keystream XOR is checked in
+[`CslibFrontierTests/Crypto/IVModeReduction.lean`](../../CslibFrontierTests/Crypto/IVModeReduction.lean).
 `advantage_ctrWordCPAGame_le` reuses the typed collision bound above, and
 `PseudorandomFunction.indcpa_ctrWordEncrypt` proves `SymmetricINDCPAOn blockPairValid` from
 `PseudorandomFunction family` alone. `SymmetricINDCPAOn`
