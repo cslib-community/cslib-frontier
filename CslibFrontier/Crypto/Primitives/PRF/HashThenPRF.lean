@@ -40,11 +40,15 @@ This module stays at the finite query-bound level without running-time certifica
 (`Cslib.Crypto.PRF.isQueryBounded_hashReduction`,
 `Cslib.Crypto.PRF.length_le_of_mem_support_idealQueries`), not `IsPPT` or `IsOraclePPT`
 certificates, and `IsUniversalHash` is statistical rather than a computational UHF
-(Definition 7.2). No asymptotic negligible-advantage theorem is proved here. Conversely,
-`Cslib.Crypto.PRF.toOuterMeasure_collision_le_advantage_collisionDistinguisher` formalizes the
-observation of Section 7.3 (p. 263) that two distinct messages colliding with probability `δ` give a
-two-query distinguisher (`Cslib.Crypto.PRF.collisionDistinguisher`) of advantage at least
-`δ - 1 / |Z|` against `hashThenPRF H F`.
+(Definition 7.2). No asymptotic negligible-advantage theorem is proved here: these are concrete,
+finite-type bounds, `hashReduction` has no efficiency witness yet, and the asymptotic Theorem 7.7
+with that witness is owned by
+[#5790](https://github.com/cslib-community/cslib-frontier/issues/5790).
+
+Conversely, `Cslib.Crypto.PRF.toOuterMeasure_collision_le_advantage_collisionDistinguisher`
+formalizes the observation of Section 7.3 (p. 263) that two distinct messages colliding with
+probability `δ` give a two-query distinguisher (`Cslib.Crypto.PRF.collisionDistinguisher`) of
+advantage at least `δ - 1 / |Z|` against `hashThenPRF H F`.
 
 ## Main definitions
 

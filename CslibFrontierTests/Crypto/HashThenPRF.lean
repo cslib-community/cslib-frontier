@@ -7,9 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test suite)
 
-import CslibFrontier.Crypto.Negligible
 import CslibFrontier.Crypto.Primitives.PRF.HashThenPRF
-import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
 import CslibFrontier.Probability.HashFamily.Polynomial
 
 set_option linter.privateModule false
@@ -24,8 +22,7 @@ Checks the API and hypotheses of `CslibFrontier.Crypto.PRF.HashThenPRF` and
 - `UHF.multiQueryExperiment` on constant hashes, repeated lists, two-query lists, and
   `collisionDistinguisher`;
 - tightness/necessity on constant hashes, counterexample when `m₀ = m₁` (`Z = Bool`), comparison
-  with `(Q ^ 2 / 2 : ℕ) * ε`, and the query-bound hypothesis probe;
-- asymptotic negligible-advantage composition via `Negligible` and `PolynomiallyBounded`.
+  with `(Q ^ 2 / 2 : ℕ) * ε`, and the query-bound hypothesis probe.
 -/
 
 namespace Cslib.Crypto.PRF.Tests
@@ -143,30 +140,5 @@ example {K₁ M Y : Type} [Fintype K₁] [Nonempty K₁] [DecidableEq M] [Decida
       ProbComp.eval (UHF.multiQueryExperiment (fun (_ : K₁) (_ : M) => y₀) (pure [m₀, m₁])) true =
         1 :=
   ⟨by simp, eval_multiQueryExperiment_const_pair y₀ hm⟩
-
-/-! ### Asymptotic negligible composition (via `Negligible` and `PolynomiallyBounded`) -/
-
-example {K₁ K₂ M Y Z : ℕ → Type}
-    [∀ n, Fintype (K₁ n)] [∀ n, Nonempty (K₁ n)]
-    [∀ n, Fintype (K₂ n)] [∀ n, Nonempty (K₂ n)]
-    [∀ n, Fintype (M n)] [∀ n, DecidableEq (M n)]
-    [∀ n, Fintype (Y n)] [∀ n, DecidableEq (Y n)]
-    [∀ n, Fintype (Z n)] [∀ n, Nonempty (Z n)]
-    (H : ∀ n, K₁ n → M n → Y n) (F : ∀ n, K₂ n → Y n → Z n)
-    (A : ∀ n, Adversary (M n) (Z n)) (Q : ℕ → ℕ) (ε : ℕ → ℝ≥0)
-    (hH : ∀ n, IsUniversalHash (PMF.uniformOfFintype (K₁ n)) (H n) (ε n))
-    (hε : Negligible ε) (hQ : PolynomiallyBounded Q) (hA : ∀ n, (A n).IsQueryBounded (Q n))
-    (hF : Negligible fun n => advantage (F n) (hashReduction (H n) (A n))) :
-    Negligible fun n => advantage (hashThenPRF (H n) (F n)) (A n) := by
-  have hpoly : PolynomiallyBounded fun n => (Q n).choose 2 := by
-    refine PolynomiallyBounded.mono_of_le (g := fun n => Q n ^ 2) (by fun_prop) fun n => ?_
-    dsimp only
-    rw [Nat.choose_two_right, sq]
-    exact (Nat.div_le_self _ 2).trans (Nat.mul_le_mul_left (Q n) (Nat.sub_le (Q n) 1))
-  refine negligible_of_le (hF.add (hε.polynomiallyBounded_mul hpoly)) fun n => ?_
-  have hle := advantage_hashThenPRF_le (hH n) (F n) (hA n)
-  exact ENNReal.coe_le_coe.mp
-    (by simpa only [Pi.add_apply, ENNReal.coe_add, ENNReal.coe_mul, ENNReal.coe_natCast,
-      mul_comm] using hle)
 
 end Cslib.Crypto.PRF.Tests
