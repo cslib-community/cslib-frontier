@@ -4846,6 +4846,7 @@ public import CslibFrontier.Crypto.Negligible.Basic
 public import CslibFrontier.Crypto.Negligible.Dyadic
 public import CslibFrontier.Crypto.Negligible.InversePolynomial
 public import CslibFrontier.Crypto.Primitives.BlockCipher.CBCMAC
+public import CslibFrontier.Crypto.Primitives.BlockCipher.ECB
 public import CslibFrontier.Crypto.Primitives.BlockCipher.LengthPrependedCBCMAC
 public import CslibFrontier.Crypto.Primitives.BlockCipher.Modes
 public import CslibFrontier.Crypto.Primitives.ByteString
