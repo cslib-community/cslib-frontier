@@ -2833,22 +2833,19 @@ one-bit-per-block instance `merkleDamgard`, not the length-strengthened one),
 `CompressionFamily.exists_oneWay` and `CompressionFamily.exists_wordEUFCMA` give the same
 conclusions for `2 n → n` compression families. No converse is claimed.
 
-For domination-free encodings and the Winternitz checksum encoding ([bs23][bs23], §14.3,
-Definition 14.4, §14.3.1, and Lemma 14.5), import
+For the encoding behind Winternitz one-time signatures ([bs23][bs23], §14.3, pp. 591–593), import
 [`OneTimeSignature/DominationFree.lean`](../../CslibFrontier/Crypto/Computational/OneTimeSignature/DominationFree.lean).
-`DominationFree P` asks that no distinct `m ≠ m'` satisfy `P m ≤ P m'` coordinatewise, proved
-for any injective `P0` and anti-monotone checksum digits by `dominationFree_of_append_checksum`.
-`radixDigits d width x` and `winternitzDigits d n0 n1 m` give little-endian base-`(d + 1)`
-message digits together with the `n1`-digit complement checksum
-`∑ i : Fin n0, (d - (radixDigits d n0 m i).val)`; when `f : M → ℕ` is injective below
-`(d + 1) ^ n0` and `d * n0 < (d + 1) ^ n1`, `winternitzDigits_dominationFree` proves
-`DominationFree`. The executable list counterpart `winternitzDigitList` agrees entrywise with
-`winternitzDigits` (`winternitzDigitList_length`, `getElem_winternitzDigitList`) and is
-certified `ComputableInPolyTime` in binary `(d, m)` and unary `(n0, n1)`
-(`winternitzDigitList_polyTime`). This module defines the combinatorial encoding only:
-one-time hash-chain signatures, the `d = 1` subset-encoding bridge, the `d = 15` WOTS+
-bridge, and the asymptotic `n_min` approximation are not part of it. Positive checks, p. 592
-parameter-table checks, and capacity counterexamples are in
+`DominationFree P` is Definition 14.4: no two distinct messages have `P m ≤ P m'` coordinatewise.
+`winternitzDigits d n0 n1 m` is the function `P` of §14.3.1: the `n0` base-`(d + 1)` digits of
+`m`, least significant first, then the `n1` digits of the checksum
+`∑ i : Fin n0, (d - (radixDigits d n0 m i).val)`. `winternitzDigits_dominationFree` is
+Lemma 14.5 for any injective `f : M → ℕ` with values below `(d + 1) ^ n0` and any `n1` with
+`d * n0 < (d + 1) ^ n1`; the book's `2 ^ v` messages with `2 ^ v ≤ (d + 1) ^ n0` and its
+`n1 = Nat.clog (d + 1) (d * n0) + 1` are an instance, and the table on p. 592 uses the least
+such `n1`. `winternitzDigitList` is the same encoding as a list (`winternitzDigitList_eq_ofFn`),
+with `winternitzDigitList_polyTime` for `d`, `m` in binary and `n0`, `n1` in unary. Not included:
+the signature scheme, the estimate (14.3), the `d = 1` comparison with `P_opt`, and the link
+to `SLHDSA.WOTS.digits`. Checks are in
 [`CslibFrontierTests/Crypto/DominationFree.lean`](../../CslibFrontierTests/Crypto/DominationFree.lean).
 
 Second-preimage resistance ([bs23][bs23], §8.11.1, Definition 8.6, p. 336, and Exercise 8.23(a)–(b),

@@ -26,7 +26,7 @@ import Mathlib.Data.Fintype.EquivFin
 # Domination-free encodings and the Winternitz encoding
 
 This module formalizes domination-free encodings and the Winternitz checksum encoding from
-Boneh–Shoup, Section 14.3 (Definition 14.4, Section 14.3.1, and Lemma 14.5).
+Boneh–Shoup, Section 14.3 (Definition 14.4, Section 14.3.1, and Lemma 14.5, pp. 591–593).
 
 A function `P : M → Fin n → Fin (d + 1)` is *domination-free* (`DominationFree`) when no pair of
 distinct messages `m ≠ m'` satisfies `P m ≤ P m'` coordinatewise. The Winternitz encoding
@@ -36,62 +36,78 @@ digits `radixDigits d n0 m`, computes the complement checksum
 When `d * n0 < (d + 1) ^ n1` and `f : M → ℕ` injects `M` into `{x | x < (d + 1) ^ n0}`, the
 resulting encoding is domination-free (`winternitzDigits_dominationFree`).
 
-We also provide an executable list form `winternitzDigitList` together with its length and entry
-agreements (`winternitzDigitList_length`, `getElem_winternitzDigitList`) and a polynomial-time
-certificate `winternitzDigitList_polyTime` in binary `d, m` and unary `n0, n1`.
+We also provide an executable list form `winternitzDigitList` together with its `List.ofFn`
+characterization (`winternitzDigitList_eq_ofFn`), length and entry agreements
+(`winternitzDigitList_length`, `getElem_winternitzDigitList`), and a polynomial-time certificate
+`winternitzDigitList_polyTime` in binary `d, m` and unary `n0, n1`.
 
 ## Main definitions
 
-* `Cslib.Crypto.DominationFree`: domination-free encodings `M → Fin n → Fin (d + 1)`.
-* `Cslib.Crypto.radixDigits`: little-endian base-`(d + 1)` digit vector of length `width`.
-* `Cslib.Crypto.winternitzDigits`: Winternitz message-and-checksum digit vector of length
-  `n0 + n1`.
-* `Cslib.Crypto.radixDigitList`: executable list of base-`(d + 1)` digits.
-* `Cslib.Crypto.winternitzDigitList`: executable list of Winternitz message-and-checksum digits.
+* `Cslib.Crypto.OneTimeSignature.DominationFree`: domination-free encodings
+  `M → Fin n → Fin (d + 1)`.
+* `Cslib.Crypto.OneTimeSignature.radixDigits`: little-endian base-`(d + 1)` digit vector of length
+  `width`.
+* `Cslib.Crypto.OneTimeSignature.winternitzDigits`: Winternitz message-and-checksum digit vector of
+  length `n0 + n1`.
+* `Cslib.Crypto.OneTimeSignature.winternitzDigitList`: executable list of Winternitz
+  message-and-checksum digits.
 
 ## Main results
 
-* `Cslib.Crypto.dominationFree_of_append_checksum`: structural append-checksum criterion for
-  domination-freeness.
-* `Cslib.Crypto.sum_radixDigits_mul_pow`: positional reconstruction of `x < (d + 1) ^ width`.
-* `Cslib.Crypto.radixDigits_injOn`: injectivity of `radixDigits d width` below `(d + 1) ^ width`.
-* `Cslib.Crypto.le_of_radixDigits_le`: coordinatewise digit comparison implies numeric comparison.
-* `Cslib.Crypto.winternitzDigits_dominationFree`: Boneh–Shoup Lemma 14.5.
-* `Cslib.Crypto.winternitzDigitList_polyTime`: polynomial-time computability of
+* `Cslib.Crypto.OneTimeSignature.dominationFree_of_append_checksum`: append-checksum criterion for
+  domination-freeness (argument of Lemma 14.5, p. 593).
+* `Cslib.Crypto.OneTimeSignature.sum_radixDigits_mul_pow`: positional reconstruction of
+  `x < (d + 1) ^ width`.
+* `Cslib.Crypto.OneTimeSignature.radixDigits_injOn`: injectivity of `radixDigits d width` below
+  `(d + 1) ^ width`.
+* `Cslib.Crypto.OneTimeSignature.le_of_radixDigits_le`: coordinatewise digit comparison implies
+  numeric comparison.
+* `Cslib.Crypto.OneTimeSignature.winternitzDigits_dominationFree`: Lemma 14.5 (p. 593), for any
+  `n1` with `d * n0 < (d + 1) ^ n1`.
+* `Cslib.Crypto.OneTimeSignature.winternitzDigitList_eq_ofFn`: `List.ofFn` agreement with
+  `winternitzDigits`.
+* `Cslib.Crypto.OneTimeSignature.winternitzDigitList_polyTime`: polynomial-time computability of
   `winternitzDigitList`.
 
 ## References
 
 * [D. Boneh and V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023],
-  Section 14.3 (Definition 14.4, Section 14.3.1, and Lemma 14.5).
+  Section 14.3 (Definition 14.4, Section 14.3.1, and Lemma 14.5, pp. 591–593).
 -/
 
 public section
 
-namespace Cslib.Crypto
+namespace Cslib.Crypto.OneTimeSignature
 
 open Turing.MultiTapeTM
 
-/-- A function `P : M → Fin n → Fin (d + 1)` is *domination-free* (Boneh–Shoup, Definition 14.4)
-if no distinct messages `m ≠ m'` satisfy `P m ≤ P m'` coordinatewise. -/
+/-- A function `P : M → Fin n → Fin (d + 1)` is *domination-free* ([BonehShoup2023],
+Definition 14.4, p. 591) if no distinct messages `m ≠ m'` satisfy `P m ≤ P m'` coordinatewise. -/
 @[expose] def DominationFree {M : Type*} {n d : ℕ} (P : M → Fin n → Fin (d + 1)) : Prop :=
   ∀ ⦃m m' : M⦄, m ≠ m' → ¬ P m ≤ P m'
 
-/-- Structural append-checksum criterion: if `P0` is injective and any strict coordinatewise
-increase `P0 m < P0 m'` prevents `P1 m ≤ P1 m'`, then `fun m => Fin.append (P0 m) (P1 m)` is
-domination-free. -/
+/-- Append-checksum criterion, the argument of the proof of Lemma 14.5 in [BonehShoup2023]
+(p. 593): if `P0` is injective, `∑ i, (P0 m i).val + checksum m` is the same number `C` for every
+`m`, and `P1 m ≤ P1 m'` implies `checksum m ≤ checksum m'`, then
+`fun m => Fin.append (P0 m) (P1 m)` is domination-free. -/
 theorem dominationFree_of_append_checksum {M : Type*} {n0 n1 d : ℕ}
-    {P0 : M → Fin n0 → Fin (d + 1)} {P1 : M → Fin n1 → Fin (d + 1)}
+    {P0 : M → Fin n0 → Fin (d + 1)} {P1 : M → Fin n1 → Fin (d + 1)} {checksum : M → ℕ} {C : ℕ}
     (h0 : Function.Injective P0)
-    (h1 : ∀ ⦃m m' : M⦄, P0 m < P0 m' → ¬ P1 m ≤ P1 m') :
+    (hsum : ∀ m, ∑ i, (P0 m i).val + checksum m = C)
+    (hmono : ∀ ⦃m m' : M⦄, P1 m ≤ P1 m' → checksum m ≤ checksum m') :
     DominationFree (fun m => Fin.append (P0 m) (P1 m)) := by
   intro m m' hne hle
   have hle0 : P0 m ≤ P0 m' := fun i => by
     simpa [Fin.append_left] using hle (Fin.castAdd n1 i)
   have hle1 : P1 m ≤ P1 m' := fun j => by
     simpa [Fin.append_right] using hle (Fin.natAdd n0 j)
-  have hne0 : P0 m ≠ P0 m' := fun h => hne (h0 h)
-  exact h1 (lt_of_le_of_ne hle0 hne0) hle1
+  obtain ⟨-, j, hj⟩ := Pi.lt_def.mp (lt_of_le_of_ne hle0 fun h => hne (h0 h))
+  have hlt : ∑ i, (P0 m i).val < ∑ i, (P0 m' i).val :=
+    Finset.sum_lt_sum (fun i _ => hle0 i) ⟨j, Finset.mem_univ j, hj⟩
+  have := hmono hle1
+  have := hsum m
+  have := hsum m'
+  lia
 
 /-- Little-endian base-`(d + 1)` digit representation of `x` in `width` digits, taking digit `i`
 to `(x / (d + 1) ^ i) % (d + 1)`. -/
@@ -130,49 +146,46 @@ theorem le_of_radixDigits_le {d width x y : ℕ}
   rw [← sum_radixDigits_mul_pow hx, ← sum_radixDigits_mul_pow hy]
   exact Finset.sum_le_sum fun i _ => Nat.mul_le_mul_right _ (hle i)
 
-/-- The Winternitz digit vector of length `n0 + n1` for `m`: `n0` base-`(d + 1)` message digits
-followed by `n1` base-`(d + 1)` digits of the complement checksum
-`∑ i : Fin n0, (d - (radixDigits d n0 m i).val)`. -/
+private theorem sum_radixDigits_add_sum_sub (d n0 x : ℕ) :
+    ∑ i : Fin n0, (radixDigits d n0 x i).val + ∑ i : Fin n0, (d - (radixDigits d n0 x i).val) =
+      d * n0 := by
+  rw [← Finset.sum_add_distrib, Finset.sum_congr rfl fun i _ =>
+    Nat.add_sub_cancel' (Nat.lt_succ_iff.mp (radixDigits d n0 x i).isLt)]
+  simp [Nat.mul_comm]
+
+/-- The function `P` of [BonehShoup2023], Section 14.3.1 (pp. 592–593), on a message `m : ℕ`:
+the `n0` base-`(d + 1)` digits of `m`, then the `n1` base-`(d + 1)` digits of the checksum
+`∑ i : Fin n0, (d - (radixDigits d n0 m i).val)`, which equals the printed
+`d * n0 - (s_1 + ... + s_n0)`. Both blocks are least significant first, a choice made here:
+domination-freeness does not depend on the order within a block. -/
 @[expose] def winternitzDigits (d n0 n1 m : ℕ) : Fin (n0 + n1) → Fin (d + 1) :=
   let m0 := radixDigits d n0 m
   let checksum := ∑ i : Fin n0, (d - (m0 i).val)
   Fin.append m0 (radixDigits d n1 checksum)
 
-/-- Boneh–Shoup Lemma 14.5: if `f : M → ℕ` is injective with `f m < (d + 1) ^ n0` for every `m`,
-and `d * n0 < (d + 1) ^ n1`, then `fun m => winternitzDigits d n0 n1 (f m)` is domination-free. -/
+/-- Lemma 14.5 of [BonehShoup2023] (p. 593): `fun m => winternitzDigits d n0 n1 (f m)` is
+domination-free when `f : M → ℕ` is injective with values below `(d + 1) ^ n0` and
+`d * n0 < (d + 1) ^ n1`.
+
+The book states it for the messages `{0,1}^v` read as the integers below `2 ^ v`, with `n0`
+the least integer such that `2 ^ v ≤ (d + 1) ^ n0` and `n1 = ⌈log_(d+1) (d * n0)⌉ + 1`: the
+instance `f = Fin.val` on `Fin (2 ^ v)` with `n1 = Nat.clog (d + 1) (d * n0) + 1`. Minimality
+of `n0` is not used. The table on p. 592 takes the least `n1` with `d * n0 < (d + 1) ^ n1`,
+one less than the printed formula for `d = 3, 15, 1023`. -/
 theorem winternitzDigits_dominationFree {M : Type*} {d n0 n1 : ℕ}
     {f : M → ℕ} (hf_inj : Function.Injective f)
     (hf_bound : ∀ m, f m < (d + 1) ^ n0) (hn1 : d * n0 < (d + 1) ^ n1) :
     DominationFree (fun m => winternitzDigits d n0 n1 (f m)) := by
-  let P0 : M → Fin n0 → Fin (d + 1) := fun m => radixDigits d n0 (f m)
-  let cs : M → ℕ := fun m => ∑ i : Fin n0, (d - (P0 m i).val)
-  let P1 : M → Fin n1 → Fin (d + 1) := fun m => radixDigits d n1 (cs m)
-  have h0 : Function.Injective P0 := fun m m' h =>
-    hf_inj (radixDigits_injOn d n0 (hf_bound m) (hf_bound m') h)
-  have hcs_lt : ∀ m, cs m < (d + 1) ^ n1 := fun m => by
-    have hle : cs m ≤ n0 * d := by
-      simpa [Finset.card_univ, Fintype.card_fin] using
-        Finset.sum_le_card_nsmul (Finset.univ : Finset (Fin n0))
-          (fun i => d - (P0 m i).val) d (fun i _ => Nat.sub_le d _)
+  have hlt (m : M) : ∑ i : Fin n0, (d - (radixDigits d n0 (f m) i).val) < (d + 1) ^ n1 := by
+    have := sum_radixDigits_add_sum_sub d n0 (f m)
     lia
-  have h1 : ∀ ⦃m m' : M⦄, P0 m < P0 m' → ¬ P1 m ≤ P1 m' := by
-    intro m m' hlt hle1
-    rw [Pi.lt_def] at hlt
-    obtain ⟨hle0, j, hj_lt⟩ := hlt
-    have hcomp_le : ∀ i : Fin n0, d - (P0 m' i).val ≤ d - (P0 m i).val :=
-      fun i => Nat.sub_le_sub_left (hle0 i) d
-    have hjm' : (P0 m' j).val ≤ d := Nat.lt_succ_iff.mp (P0 m' j).isLt
-    have hcomp_lt : d - (P0 m' j).val < d - (P0 m j).val := by
-      have hjv : (P0 m j).val < (P0 m' j).val := hj_lt
-      lia
-    have hcs_strict : cs m' < cs m :=
-      Finset.sum_lt_sum (fun i _ => hcomp_le i) ⟨j, Finset.mem_univ j, hcomp_lt⟩
-    have hcs_le : cs m ≤ cs m' := le_of_radixDigits_le (hcs_lt m) (hcs_lt m') hle1
-    lia
-  simpa [winternitzDigits, P0, cs, P1] using dominationFree_of_append_checksum h0 h1
+  exact dominationFree_of_append_checksum
+    (fun m m' h => hf_inj (radixDigits_injOn d n0 (hf_bound m) (hf_bound m') h))
+    (fun m => sum_radixDigits_add_sum_sub d n0 (f m))
+    (fun m m' h => le_of_radixDigits_le (hlt m) (hlt m') h)
 
-/-- Executable list of `width` little-endian base-`(d + 1)` digits of `x`. -/
-def radixDigitList (d width x : ℕ) : List ℕ :=
+-- Executable list of `width` little-endian base-`(d + 1)` digits of `x`.
+private def radixDigitList (d width x : ℕ) : List ℕ :=
   (List.range width).map (fun i => (x / (d + 1) ^ i) % (d + 1))
 
 /-- Executable list of `n0 + n1` Winternitz message-and-checksum digits for `m`. -/
@@ -197,15 +210,8 @@ private theorem sum_radixDigitList_eq (d n0 m : ℕ) :
 private theorem checksum_eq_sub_sum_radixDigitList (d n0 m : ℕ) :
     ∑ i : Fin n0, (d - (radixDigits d n0 m i).val) =
       d * n0 - (radixDigitList d n0 m).sum := by
+  have := sum_radixDigits_add_sum_sub d n0 m
   rw [sum_radixDigitList_eq]
-  have hsum :
-      ∑ i : Fin n0, (d - (radixDigits d n0 m i).val) +
-        ∑ i : Fin n0, (radixDigits d n0 m i).val = d * n0 := by
-    rw [← Finset.sum_add_distrib]
-    have hpt : ∀ i : Fin n0,
-        d - (radixDigits d n0 m i).val + (radixDigits d n0 m i).val = d := fun i =>
-      Nat.sub_add_cancel (Nat.lt_succ_iff.mp (radixDigits d n0 m i).isLt)
-    simp [hpt, Nat.mul_comm]
   lia
 
 /-- Length of `winternitzDigitList d n0 n1 m`. -/
@@ -238,6 +244,14 @@ theorem getElem_winternitzDigitList (d n0 n1 m : ℕ) (i : ℕ)
       lia
     rw [hidx, Fin.append_right, checksum_eq_sub_sum_radixDigitList]
     simp [radixDigitList, radixDigits]
+
+/-- `winternitzDigitList d n0 n1 m` as `List.ofFn` of `winternitzDigits d n0 n1 m`. -/
+theorem winternitzDigitList_eq_ofFn (d n0 n1 m : ℕ) :
+    winternitzDigitList d n0 n1 m = List.ofFn fun i => (winternitzDigits d n0 n1 m i).val := by
+  apply List.ext_getElem
+  · simp [winternitzDigitList_length]
+  · intro i h1 h2
+    simp [getElem_winternitzDigitList]
 
 private theorem radixDigitList_polyTime :
     ComputableTidilyInPolyTime (fun p : ℕ × ℕ × ℕ => radixDigitList p.1 p.2.1 p.2.2)
@@ -317,4 +331,4 @@ theorem winternitzDigitList_polyTime :
     radixDigitList_polyTime.comp (hd.prod (hn1.prod hcs))
   exact ComputableTidilyInPolyTime.listAppend' hm0 hm1
 
-end Cslib.Crypto
+end Cslib.Crypto.OneTimeSignature
