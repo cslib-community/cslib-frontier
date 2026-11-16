@@ -227,10 +227,12 @@ variable {n : ℕ} {In Out NetQ NetR View AdvQ AdvR : Type}
     trace := fun j => trace j ++ [P.view κ j s'] }
 
 /-- The adaptive corruption router wrapping `P.machine κ` with initial corruptions `C₀`.
-Initial corruptions apply `P.onCorrupt` at `init`. Environment party calls are dropped for
-corrupted parties; adversary party calls are allowed only for corrupted parties; `.status` returns
-`s.corrupted`; `.corrupt i` is ignored for `i ∉ s.corrupted` in `.static` mode and corrupts `i`
-in `.adaptive` mode, returning a `CorruptionReport` respecting `P.memory`. -/
+Initial corruptions apply `P.onCorrupt` at `init`. Environment party calls addressed to corrupted
+parties are dropped (`none`, matching static `corruptRouter`); adversary party calls are allowed
+only for corrupted parties; `.status` returns `s.corrupted`; `.corrupt i` is ignored for
+`i ∉ s.corrupted` in `.static` mode and in `.adaptive` mode applies `P.onCorrupt`, inserts `i`,
+and computes `P.corruptionReport` *after* `P.onCorrupt` (without recording an extra snapshot of
+the `onCorrupt` transition, modeling erasure-on-corruption). -/
 @[expose] def adaptiveRouter (mode : CorruptionMode)
     (P : AdaptiveProtocol n In Out NetQ NetR View) (κ : ℕ) (C₀ : Finset (Fin n)) :
     Machine OracleSpec.empty (adaptiveProtocolSpec n In Out NetQ NetR View) where
@@ -2180,9 +2182,9 @@ private theorem static_advantage_le_of_adaptive_clampStatic
       simpa [adaptiveAdvantage, hP_st, hQ_st, Game.succProbability] using hadv_st
     exact (Game.advantage_le_one _ _).trans h1
 
-/-- Adaptive emulation implies static emulation. Checking whether the simulator corrupted any
-party outside `A.initial κ` via `.status` costs one environment query, shifting the error's
-environment-budget argument from `pZ` to `pZ + 1`. -/
+/-- Adaptive emulation implies static emulation (sanity bridge, not a theorem of `[Canetti2020]`).
+Checking whether the simulator corrupted any party outside `A.initial κ` via `.status` costs one
+environment query, shifting the error's environment-budget argument from `pZ` to `pZ + 1`. -/
 theorem AdaptiveEmulatesWithin.static_of_adaptive
     {P : AdaptiveProtocol n In Out NetQ₁ NetR₁ View₁}
     {Q : AdaptiveProtocol n In Out NetQ₂ NetR₂ View₂}
@@ -2194,7 +2196,8 @@ theorem AdaptiveEmulatesWithin.static_of_adaptive
   refine ⟨S.clampStatic, pS, hS.clampStatic, hpS, fun Z pZ hZ κ z =>
     static_advantage_le_of_adaptive_clampStatic P Q A S (hadv · (pZ + 1) ·) Z hZ κ z⟩
 
-/-- Asymptotic adaptive emulation implies asymptotic static emulation. -/
+/-- Asymptotic adaptive emulation implies asymptotic static emulation (sanity bridge, not a theorem
+of `[Canetti2020]`). -/
 theorem AdaptiveEmulates.static_of_adaptive
     {P : AdaptiveProtocol n In Out NetQ₁ NetR₁ View₁}
     {Q : AdaptiveProtocol n In Out NetQ₂ NetR₂ View₂}
