@@ -37,6 +37,8 @@ that was never answered (strong unforgeability).
 
 ## Main results
 
+* `Cslib.Crypto.eval_forgeExperiment_eq`: the law of the forgery experiment as an event of the
+  logged run.
 * `Cslib.Crypto.succProbability_forgeExperiment_mono`: a weaker freshness test does not decrease
   the success probability. In particular a forger succeeds at least as often in the strong
   experiment as in the existential one (`succProbability_forgeExperiment_freshMessage_le`), so
@@ -125,6 +127,18 @@ theorem freshPair_of_freshMessage [DecidableEq M] [DecidableEq Sig] {m : M} {σ 
     {log : List (M × Sig)} (h : freshMessage m σ log = true) : freshPair m σ log = true := by
   simp only [freshMessage, freshPair, decide_eq_true_eq] at h ⊢
   exact fun hmem => h (List.mem_map_of_mem hmem)
+
+/-- The law of the forgery experiment, as an event of the logged run. -/
+theorem eval_forgeExperiment_eq {PK SK M Sig : Type} [Inhabited Sig]
+    (keyGen : ProbComp (PK × SK)) (signer : Signer SK M Sig)
+    (verify : PK → SK → M → Sig → Bool) (fresh : M → Sig → List (M × Sig) → Bool)
+    (A : PK → ProbOracleComp (fun _ : M => Sig) (M × Sig)) :
+    ProbComp.eval (forgeExperiment keyGen signer verify fresh A) =
+      (ProbComp.eval keyGen).bind fun ⟨pk, sk⟩ =>
+        (ProbComp.eval ((A pk).runLogWith (signer sk))).map fun ⟨⟨m, σ⟩, log⟩ =>
+          verify pk sk m σ && fresh m σ log := by
+  simp only [forgeExperiment, ProbComp.eval_bind, ProbComp.eval_pure]
+  congr 1
 
 variable [Inhabited Sig] {keyGen : ProbComp (PK × SK)} {signer : Signer SK M Sig}
   {verify : PK → SK → M → Sig → Bool}

@@ -505,6 +505,25 @@ instead of writing another sampling block. The inner product of bit lists is
 Mathlib's `dotProduct` on `List.ofFn` inputs (`listDot_ofFn`); use it, and its polynomial-time rule
 `ComputableInPolyTime.bitsListDot`, instead of spelling out the zip-and-fold parity.
 
+For repeated inversion of `t` independent inputs or length-`d` iterate chains (Attack Game 13.3
+and Exercise 14.15 of Boneh–Shoup), reuse `repeatedIterateExperiment` and
+`repeatedInversionExperiment` in
+[`Crypto/Game/RepeatedInversion.lean`](../../CslibFrontier/Crypto/Game/RepeatedInversion.lean)
+rather than writing a fresh multi-instance game. Instead of re-proving a challenge-planting
+guessing argument, apply `succProbability_repeatedIterateExperiment_le_sum` (`d ≥ 1` slots, for
+iterate-chain reductions) or `succProbability_repeatedInversionExperiment_le` (`plantInverter`,
+factor `t`, at `d = 1`) in
+[`Crypto/Game/RepeatedInversion/SlotBound.lean`](../../CslibFrontier/Crypto/Game/RepeatedInversion/SlotBound.lean).
+For uniform `n`-bit words, apply `succProbability_repeatedInversionGame_le` (incurring the dyadic
+sampling range `dyadicSize (t n)`) or `OneWay.repeatedInversion_negligible` via `repeatedInverter` in
+[`Crypto/Computational/OneWay/Repeated.lean`](../../CslibFrontier/Crypto/Computational/OneWay/Repeated.lean).
+Two intentional hypotheses differ from an unguarded informal statement and are checked by
+counterexamples in [`RepeatedInversion.lean`](../../CslibFrontierTests/Crypto/Game/RepeatedInversion.lean):
+`succProbability_repeatedIterateExperiment_le_sum` requires `0 < d` (at `d = 0` an adversary can
+still win with `zeroAttack`, `eval_game_zero`), and `repeatedInversionExperiment` uses index
+freshness (`freshMessage idx`) so distinct requests mapping to the same slot count as revealing
+that slot.
+
 For offline dictionary attacks against a hash oracle `H` ([bs23][bs23], §18.3.1.2–§18.3.1.3,
 (18.1)–(18.3), pp. 721–723, and §18.4.1–§18.4.2, pp. 724–726), import
 [`Computational/DictionarySearch.lean`](../../CslibFrontier/Crypto/Computational/DictionarySearch.lean).
