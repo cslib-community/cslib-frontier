@@ -7,19 +7,26 @@ Authors: Erik Demaine, Stefan Langerman, GPT 5.5/5.6, Chris Henson
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.WangTile.Robinson.Realization
+public import CslibFrontier.Computability.WangTile.Robinson.Signals
+import CslibFrontier.Computability.WangTile.Robinson.Forcing
+import CslibFrontier.Computability.WangTile.Robinson.Realization
 
 /-!
 # The concrete Robinson seed-removal map
 
 The finite map first extends a seeded quadrant palette to a pointed-plane palette, then pairs
 that palette with the corrected Robinson scaffold. Its computation is primitive recursive.
-The correctness argument here is an internal assembly step conditional on the forward forcing
-property; no unconditional seed-removal or domino theorem is asserted in this module yet.
+The concrete forcing and realization theorems discharge both obligations of generic seed
+removal: the output tiles the integer plane exactly when the input tiles the seeded quadrant.
 
 ## Main definitions
 
 * `forgetSeed`: the concrete seeded-to-unseeded palette transformation.
+
+## Main results
+
+* `tilesPlane_forgetSeed_iff`: unconditional correctness of concrete seed removal.
+* `primrec_forgetSeed`: primitive recursiveness for the existing instance encodings.
 
 ## References
 
@@ -40,11 +47,11 @@ def forgetSeed (I : SeededInstance) : List WangTile :=
 theorem primrec_forgetSeed : Primrec forgetSeed :=
   (primrec_combine scaffold).comp primrec_pointedExtension
 
-/-- Internal assembly step, not unconditional seed removal: the backward construction is
-proved here, while the supplied forward forcing property remains to be discharged. -/
-private theorem tilesPlane_forgetSeed_iff_of_forces
-    (forces : Forces scaffold) (I : SeededInstance) :
+/-- The concrete seed-removal palette tiles the plane exactly when the input tiles the seeded
+quadrant. Both scaffold properties are proved, with no additional hypothesis. -/
+theorem tilesPlane_forgetSeed_iff (I : SeededInstance) :
     TilesPlane (forgetSeed I) ↔ TilesQuadrant I :=
-  tilesPlane_combine_pointedExtension_iff_of_forces_of_realizes forces scaffold_realizes I
+  tilesPlane_combine_pointedExtension_iff_of_forces_of_realizes
+    scaffold_forces scaffold_realizes I
 
 end Cslib.WangTile.Robinson
