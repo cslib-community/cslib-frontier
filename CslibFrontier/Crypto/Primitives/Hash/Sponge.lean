@@ -301,6 +301,13 @@ theorem dvd_length_pad {r : ℕ} (hr : 0 < r) (msg : List Bool) : r ∣ (pad r m
       Nat.mod_eq_of_lt (by omega : r - (msg.length + 1) % r < r), Nat.add_sub_cancel' h1.le,
       Nat.mod_self]
 
+/-- Padding adds at most one block: a `1` and fewer than `r` zeros. -/
+theorem length_pad_le {r : ℕ} (hr : 0 < r) (msg : List Bool) :
+    (pad r msg).length ≤ msg.length + r := by
+  have := Nat.mod_lt (r - (msg.length + 1) % r) hr
+  simp only [pad, List.length_append, List.length_cons, List.length_replicate]
+  omega
+
 /-- On a message whose length is a multiple of `r`, padding appends one full block
 `1 ‖ 0^(r - 1)`. -/
 theorem pad_of_dvd {r : ℕ} (hr : 0 < r) {msg : List Bool} (h : r ∣ msg.length) :
