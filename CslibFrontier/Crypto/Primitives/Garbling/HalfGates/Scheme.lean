@@ -44,8 +44,9 @@ by its two argument wires `A g` and `B g` as `w`-bit numbers, `w` the bit length
 that is set for an AND gate, and for an AND gate its two ciphertexts, the generator half then the
 evaluator half. XOR gates have no ciphertexts [KolesnikovSchneider2008]. The encoding information
 `e` lists the two labels of each input wire, for bit `0` and bit `1`, as in point-and-permute
-garbling, so `En` is `PointPermute.encodeWord`; the decoding information `d` lists the colours of
-the zero labels of the `m` output wires, and `De` is `PointPermute.decodeWord`.
+garbling, so `En` is the projective encoding `projectiveEncode`; the decoding information `d`
+lists the colours of the zero labels of the `m` output wires, and `De` is
+`PointPermute.decodeWord`.
 
 Three choices differ from Figure 2 of [ZahurRosulekEvans2015] (p. 9): the tweaks are numbered by
 gate, `2 g + s` modulo `2 ^ k`, where Figure 2 takes `j` and `j'` from the counter `NextIndex`,
@@ -227,7 +228,7 @@ family `hash`. -/
   gb k f coins :=
     ⟨fnWord hash k f.circuit coins, encInfoWord k f.circuit coins,
       decInfoWord hash k f.circuit coins⟩
-  encode := PointPermute.encodeWord
+  encode := projectiveEncode
   evalGarbled := evalWord hash
   decode := PointPermute.decodeWord
 
@@ -731,7 +732,7 @@ theorem scheme_correct : (scheme hash).Correct := by
     (offsetKey k coins) (inputLabels k coins) (BitString.ofList f.circuit.n x)
   rw [gb_eq_encodeGarbled]
   simp only [scheme, encodeGarbled, garbleWith]
-  rw [PointPermute.encodeWord_encInfo (n := f.circuit.n)
+  rw [PointPermute.projectiveEncode_labelBits (n := f.circuit.n)
       (fun i b => inputLabels k coins i + bitOffset (CCR.offset (offsetKey k coins)) b) hx,
     evalWord_encodeFn hash k f _ _ _ (fun w => congrFun hfix w), PointPermute.decodeWord_ofFn]
   have h := congrArg List.ofFn hrun

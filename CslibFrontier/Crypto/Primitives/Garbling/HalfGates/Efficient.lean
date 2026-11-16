@@ -28,7 +28,7 @@ efficient garbling scheme (`Scheme.IsEfficient`) for XOR–AND circuits encoded 
 `CircularCorrelationRobust.polyTime` provides: `HalfGates.scheme_isEfficient`.
 
 `En` and `De` are those of point-and-permute garbling and `ev` is the semantics of conventional
-circuits, so their certificates are `PointPermute.encodeWord_polyTime`,
+circuits, so their certificates are `projectiveEncode_polyTime`,
 `PointPermute.decodeWord_polyTime` and `evalCirc_polyTime`. The garbler computes the
 zero labels by a fold over the gates of the encoded circuit whose state grows by one label per
 gate, writes the body of the garbled function with `PointPermute.bodyWith`, whose four rows per
@@ -708,7 +708,7 @@ theorem scheme_isEfficient : (scheme hash).IsEfficient encXorAndCircuit where
   outLen := (circuitData_polyTime.comp XorAndCircuit.val_polyTime).snd'.fst'
   coins := coins_polyTime
   gb := gb_polyTime hf
-  encode := PointPermute.encodeWord_polyTime
+  encode := projectiveEncode_polyTime
   evalGarbled := evalWord_polyTime hf
   decode := PointPermute.decodeWord_polyTime
   ev := evalCirc_polyTime.comp

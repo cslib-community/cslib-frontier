@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.St
 public import CslibFrontier.Computability.Probabilistic.PPT
 public import CslibFrontier.Crypto.Game
 public import CslibFrontier.Crypto.Protocols.MPC.Basic
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.DPi
 
 /-!
 # Asymptotic computational semi-honest security of protocol families
@@ -341,6 +342,28 @@ structure Environment.IsPPT (E : P.Encoding) (Z : Environment P I) : Prop where
   IsPPTOn (encSimInput E) (encDPi fun i : I => E.view.enc i) fun x =>
     (fun v i => E.view.rep x.secParam x.desc i (v i)) <$>
       S x.secParam x.desc x.inputs x.outputs
+
+/-- A simulator reads the representation of the input of a coalition member `i` from its input in
+polynomial time. -/
+theorem encSimInput_inputRep_polyTime (E : P.Encoding) (i : I) :
+    ComputableInPolyTime (fun x : SimInput P I => E.input.rep x.secParam x.desc i (x.inputs i))
+      (encSimInput E) (E.input.enc i) := by
+  have hinputs : ComputableInPolyTime (fun x : SimInput P I =>
+      fun j : I => E.input.rep x.secParam x.desc j (x.inputs j))
+      (encSimInput E) (encDPi fun j : I => E.input.enc j) :=
+    (encSimInput_inputs_polyTime E .id').of_enc_eq fun _ => rfl
+  exact (ComputableInPolyTime.dpi_apply _ i).comp hinputs
+
+/-- A simulator reads the representation of the output of a coalition member `i` from its input
+in polynomial time. -/
+theorem encSimInput_outputRep_polyTime (E : P.Encoding) (i : I) :
+    ComputableInPolyTime (fun x : SimInput P I => E.output.rep x.secParam x.desc i (x.outputs i))
+      (encSimInput E) (E.output.enc i) := by
+  have houtputs : ComputableInPolyTime (fun x : SimInput P I =>
+      fun j : I => E.output.rep x.secParam x.desc j (x.outputs j))
+      (encSimInput E) (encDPi fun j : I => E.output.enc j) :=
+    (encSimInput_outputs_polyTime E .id').of_enc_eq fun _ => rfl
+  exact (ComputableInPolyTime.dpi_apply _ i).comp houtputs
 
 namespace ProtocolFamily
 

@@ -11,6 +11,7 @@ public import CslibFrontier.Crypto.Primitives.Garbling.Conventional
 public import CslibFrontier.Crypto.Primitives.Garbling.Basic
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Label
 public import CslibFrontier.Crypto.Primitives.Garbling.LabelWord
+public import CslibFrontier.Crypto.Primitives.Garbling.Projective
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder.Basic
 public import CslibFrontier.Foundations.Data.BitString.List.Binary
 public import Mathlib.Data.Nat.Size
@@ -160,12 +161,6 @@ wires as `w`-bit numbers and its four rows. -/
 @[expose] def decInfoWord (f : ConventionalCircuit) (coins : List Bool) : List Bool :=
   List.ofFn fun o : Fin f.m => permOf coins (f.n + f.q - f.m + o)
 
-/-- `En(e, x)`: the label of each bit of `x`, read from `e` as two labels per input of
-`|e| / (2 |x|)` bits each. -/
-@[expose] def encodeWord (e x : List Bool) : List Bool :=
-  ((List.range x.length).map fun i => BitString.listRow (e.length / (2 * x.length))
-    (if x.getD i false then 2 * i + 1 else 2 * i) e).flatten
-
 /-- One gate of `Ev`: read the gate's argument wires and their labels, select the row named by
 their colours, and remove the masks with their keys. -/
 @[expose] def evalGate (k w : ℕ) (body : List Bool) (labels : List (List Bool)) (g : ℕ) :
@@ -204,7 +199,7 @@ masks keyed by `family`. -/
   ev f x := f.1.evalCirc x
   coinLen k n _ q := (n + q) * (2 * (k + 1) + 1)
   gb k f coins := ⟨fnWord family k f.1 coins, encInfoWord k f.1 coins, decInfoWord f.1 coins⟩
-  encode := encodeWord
+  encode := projectiveEncode
   evalGarbled := evalWord family
   decode := decodeWord
 
@@ -373,21 +368,21 @@ private theorem length_flatten_ofFn {c L : ℕ} (word : Fin c → List Bool)
   simp [List.length_flatten, List.sum_ofFn, hword]
 
 /-- `En` on the words of a typed input encoding writes the label of each bit. -/
-theorem encodeWord_encInfo {k : ℕ} (e : Fin n → Bool → BitString (k + 1) × Bool)
+theorem projectiveEncode_labelBits {k : ℕ} (e : Fin n → Bool → BitString (k + 1) × Bool)
     {x : List Bool} (hx : x.length = n) :
-    encodeWord (List.ofFn fun j : Fin (2 * n) =>
+    projectiveEncode (List.ofFn fun j : Fin (2 * n) =>
         labelBits (e ⟨j / 2, by omega⟩ (j.val.testBit 0))).flatten x =
       (List.ofFn fun i => labelBits (e i (BitString.ofList n x i))).flatten := by
   rcases Nat.eq_zero_or_pos n with rfl | hn
   · rw [List.length_eq_zero_iff.mp hx]
-    simp [encodeWord]
+    simp [projectiveEncode]
   subst hx
   have hL : (List.ofFn fun j : Fin (2 * x.length) =>
       labelBits (e ⟨j / 2, by omega⟩ (j.val.testBit 0))).flatten.length / (2 * x.length) =
         k + 2 := by
     rw [length_flatten_ofFn _ fun _ => length_labelBits _]
     exact Nat.mul_div_cancel_left _ (by omega)
-  simp only [encodeWord, hL]
+  simp only [projectiveEncode, projectiveToken, hL]
   congr 1
   apply List.ext_getElem (by simp)
   intro i h₁ h₂
@@ -667,7 +662,7 @@ private theorem scheme_correct : (scheme family).Correct := by
   simp only [Garbled.run, garbleWith, hev] at hrun
   rw [gb_eq_encodeGarbled]
   simp only [scheme, encodeGarbled, garbleWith]
-  rw [encodeWord_encInfo (n := f.1.n) _ hx, evalWord_encodeFn family k f _
+  rw [projectiveEncode_labelBits (n := f.1.n) _ hx, evalWord_encodeFn family k f _
     (fun i => inputEncoding (keyFn k coins) (permFn coins) i (BitString.ofList f.1.n x i)) _
     (evalStep_activeLabel (toCircuit f) fullInterpretation (PRF.label (PRF.atLevel family (k + 1)))
       (slotTweak _ k) (keyFn k coins) (permFn coins) (BitString.ofList f.1.n x)), decodeWord_ofFn]

@@ -4922,6 +4922,7 @@ public import CslibFrontier.Crypto.Primitives.Garbling.PointPermute.Privacy
 public import CslibFrontier.Crypto.Primitives.Garbling.PointPermute.Reduction
 public import CslibFrontier.Crypto.Primitives.Garbling.PointPermute.Simulator
 public import CslibFrontier.Crypto.Primitives.Garbling.Privacy
+public import CslibFrontier.Crypto.Primitives.Garbling.Projective
 public import CslibFrontier.Crypto.Primitives.Garbling.Rerandomizable
 public import CslibFrontier.Crypto.Primitives.Garbling.Scheme
 public import CslibFrontier.Crypto.Primitives.Garbling.SizeLowerBound
@@ -5057,6 +5058,7 @@ public import CslibFrontier.Crypto.Protocols.MPC.ProductRelation
 public import CslibFrontier.Crypto.Protocols.MPC.SPDZ
 public import CslibFrontier.Crypto.Protocols.MPC.SharedMul
 public import CslibFrontier.Crypto.Protocols.MPC.Yao
+public import CslibFrontier.Crypto.Protocols.MPC.Yao.Family
 public import CslibFrontier.Crypto.Protocols.MQOM.CorrelatedTree
 public import CslibFrontier.Crypto.Protocols.OPRF.DiffieHellman
 public import CslibFrontier.Crypto.Protocols.OT.CorrelatedBound.DealClient
