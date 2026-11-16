@@ -232,7 +232,8 @@ theorem advantage_lazy_fresh_le (program : PRF.Adversary (BitString n) (BitStrin
   have h := identicalUntilBad_lazyStep_freshStep.advantage_le program ([], false)
     fun x => PMF.pure x.1
   rw [identicalUntilBad_lazyStep_freshStep.bad_eq] at h
-  exact h
+  simpa only [ProbOracleComp.runWith_eq_run_interpret, ← PMF.bind_pure_comp,
+    Function.comp_def] using h
 
 /-- The advantage between `PRF.idealExperiment` and fresh independent sampling `freshStep` is
 bounded by the probability of raising the repetition flag under `freshStep`. -/
@@ -485,8 +486,9 @@ theorem freshGame_simulate_eq_blockModeIdealExperiment
         (OracleComp.interpret
           (sumHandler ProbComp.unifOracle fun q => ProbComp.eval (blockModeIdealOracle ℓ q))
           adversary).map (·, ()) :=
-    ProbOracleComp.runWith_readOnly (fun q _ => ProbComp.eval (blockModeIdealOracle ℓ q))
-      adversary ()
+    by simpa only [OracleComp.evalWith_eq_interpret] using
+      ProbOracleComp.runWith_readOnly (fun q _ => ProbComp.eval (blockModeIdealOracle ℓ q))
+        adversary ()
   rw [ProbOracleComp.runWith_simulate]
   calc
     (ProbOracleComp.runWith (fun q => ProbOracleComp.runWith freshStep (program q))

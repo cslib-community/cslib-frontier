@@ -12,6 +12,7 @@ public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
 import CslibFrontier.Crypto.Game.Hybrid
 import CslibFrontier.Foundations.Control.Monad.Memoize
 import CslibFrontier.Languages.Probabilistic.Memoize
+import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.RunWith
 import CslibFrontier.Languages.Probabilistic.QueryCount
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
@@ -206,20 +207,17 @@ private theorem interpret_multiKeyReduction (F : Key → D → R) (j : ℕ)
     ProbComp.eval (ProbComp.uniform (Fin t → Key)) from rfl, ProbComp.eval_uniform,
     Probability.PMF.monad_bind_eq_bind]
   congr 1 with keys : 1
-  have hhom : IsMonadHom (ProbOracleComp (fun _ : D => R)) PMF
-      (OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
-        (fun x : D => PMF.pure (ext x)))) :=
-    OracleComp.isMonadHom_evalWith _
-  rw [OracleComp.map_run_interpret hhom, PMF.monad_map_eq_map]
+  rw [← OracleComp.evalWith_eq_interpret,
+    OracleComp.map_run_interpret (OracleComp.isMonadHom_evalWith _), PMF.monad_map_eq_map]
   congr 3 with q cache : 2
   rcases q with k | ⟨i, x⟩
-  · simp [StateT.lift, ProbOracleComp.interpret_sample, ProbComp.unifFin, PMF.map,
-      Function.comp_def]
+  · simp [StateT.lift, ProbOracleComp.evalWith_sumHandler_unifOracle_sample,
+      ProbComp.unifFin, ProbComp.eval, PMF.map, Function.comp_def]
   · simp only [OracleComp.sumHandler, multiKeyHandler, semanticHandler]
     split_ifs
-    · rw [ProbOracleComp.interpret_sample]
+    · rw [ProbOracleComp.evalWith_sumHandler_unifOracle_sample]
       exact (ProbComp.eval_memoize _ _ _).trans (by simp only [ProbComp.eval_uniform])
-    · simp [PMF.monad_map_eq_map]
+    · simp [ProbOracleComp.evalWith_sumHandler_query]
     · simp
 
 /-- The deterministic answers of the reduction when its random channels read eager tables. -/
@@ -250,8 +248,7 @@ private theorem run_semanticHandler (F : Key → D → R) (j : ℕ) (keys : Fin 
     funext ⟨i, x⟩ cache
     simp only [adapter, semanticHandler]
     split_ifs
-    · simp only [ProbOracleComp.runWith, OracleComp.runWith, ProbOracleComp.interpret_query]
-      rfl
+    · simp only [ProbOracleComp.runWith_query]
     all_goals simp [ProbOracleComp.runWith, OracleComp.runWith]
   have heager (table : Fin t × D → R) :
       (fun q => OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
@@ -262,8 +259,8 @@ private theorem run_semanticHandler (F : Key → D → R) (j : ℕ) (keys : Fin 
     split_ifs <;> simp [Function.curry]
   simp only [ProbOracleComp.interpret_simulate, hlazy, heager, PMF.pi_uniformOfFintype,
     Probability.PMF.monad_bind_eq_bind] at h
-  rw [ProbOracleComp.runWith, OracleComp.runWith] at h
-  rw [← h, ← PMF.uniformOfFintype_map_equiv (Equiv.curry (Fin t) D R), PMF.bind_map]
+  rw [← ProbOracleComp.runWith_eq_run_interpret, ← h,
+    ← PMF.uniformOfFintype_map_equiv (Equiv.curry (Fin t) D R), PMF.bind_map]
   rfl
 
 /-- **The law of a hybrid reduction against a fixed function**: against a deterministic external

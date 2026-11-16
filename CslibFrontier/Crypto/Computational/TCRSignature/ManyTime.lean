@@ -1409,7 +1409,7 @@ theorem succProbability_wordScheme_eufCmaGame_le_of_machine {k : ℕ} {Control :
             (FiniteConfig.init machine.initial (wordOf keys.1), [])
           (msgSigDecoder.decode res.1.tapes.output, res.2) := by
     intro keys
-    rw [← ProbOracleComp.run_interpret_eq_runWith]
+    rw [ProbOracleComp.runWith_eq_run_interpret]
     have hdecode : adversary n (pkOf keys.1) =
         msgSigDecoder.decode <$> ((encPair encBits encBits) <$> adversary n (pkOf keys.1)) := by
       simp only [Functor.map_map, msgSigDecoder.decode_enc]
@@ -1621,6 +1621,19 @@ theorem exists_reduction_wordScheme_eufCmaGame_le (S : SignatureScheme) (H : Key
   have hlossPoly : PolynomiallyBounded (fun n => dyadicSize (fuelUpper H ckg dkg c d n)) :=
     (ComputableInPolyTime.unary_dyadicSize.comp
       (computableInPolyTime_fuelUpper H ckg dkg c d)).polynomiallyBounded
+  have hmachineInterpret : ∀ (input : ℕ × List Bool) (State : Type)
+      (oracle : Unit × List Bool → StateT State PMF (List Bool)) s,
+      (OracleComp.interpret
+        (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifOracle m)) oracle)
+          (encPair encBits encBits <$> adversary input.1 input.2)).run s =
+      (OracleComp.interpret
+        (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifOracle m)) oracle)
+          (machine.runOracle
+            (c * ((encPair encUnary encBits input).length + 1) ^ d)
+            (encPair encUnary encBits input))).run s := by
+    intro input State oracle s
+    simpa only [← ProbOracleComp.runWith_eq_run_interpret] using
+      hmachine input State oracle s
   exact ⟨manyTimeForger H sigBound adversary,
     tcrMultiAdversary S H machine ckg dkg c d,
     fun n => dyadicSize (fuelUpper H ckg dkg c d n),
@@ -1629,7 +1642,7 @@ theorem exists_reduction_wordScheme_eufCmaGame_le (S : SignatureScheme) (H : Key
     hlossPoly,
     succProbability_wordScheme_eufCmaGame_le_of_machine S H ckg dkg
       (fun n pk sk h => hpkBoundLe n (pk, sk) h) sigBound
-      (fun n pk sk h => hsigBoundLe n (pk, sk) h) adversary machine c d hmachine⟩
+      (fun n pk sk h => hsigBoundLe n (pk, sk) h) adversary machine c d hmachineInterpret⟩
 
 end TCRSignature
 
