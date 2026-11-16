@@ -220,8 +220,12 @@ theorem eval_runClosedConfigFrom_eq_map_coins (machine : MultiTapePTM k Symbol S
     ProbComp.eval (machine.runClosedConfigFrom fuel cfg) =
       (BitString.uniformList fuel).map
         (fun coins => machine.runClosedConfigFromCoins coins cfg) := by
-  rw [runClosedConfigFrom, ProbComp.eval, interpret_runConfigFrom_eq_coins machine _ _ _
-    (ProbComp.eval_uniform Bool)]
+  have hcoin : OracleComp.interpret ProbComp.unifOracle (ProbComp.uniform Bool) =
+      PMF.uniformOfFintype Bool := by
+    rw [← OracleComp.evalWith_eq_interpret]
+    exact ProbComp.eval_uniform Bool
+  rw [runClosedConfigFrom, ProbComp.eval, OracleComp.evalWith_eq_interpret,
+    interpret_runConfigFrom_eq_coins machine _ _ _ hcoin]
   simp [runConfigFromCoins_closed, PMF.map, Function.comp_def]
 
 /-- A closed fair-coin run is a deterministic function of a uniform tape of clock length. -/

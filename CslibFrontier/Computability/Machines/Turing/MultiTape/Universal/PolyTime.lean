@@ -130,9 +130,9 @@ theorem symbolsT_run (x : List Bool) :
 theorem computableTidilyInDegree_map_eBit :
     ComputableTidilyInDegree (fun x : List Bool => x.map eBit) encBits (encList encUnary) 1 1 :=
   (ComputableTidilyInDegree.of_linear (encIn := encTrueDoubled)
-    (symbolsT.computableTidilyInLinearTimeAndSpace fun x => (symbolsT_run x).symm)).comp
+    (ComputableInDegree.of_transducer symbolsT fun x => (symbolsT_run x).symm)).comp
     (ComputableTidilyInDegree.of_linear (encIn := encBits) (encMid := encTrueDoubled) (f := id)
-      (trueDoubleT.computableTidilyInLinearTimeAndSpace fun x => (trueDoubleT_run x).symm))
+      (ComputableInDegree.of_transducer trueDoubleT fun x => (trueDoubleT_run x).symm))
 
 /-- The input of a machine as symbols is linear. -/
 @[fun_prop]

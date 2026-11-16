@@ -83,6 +83,6 @@ theorem map_fst_eval_runLog (A : ProbOracleComp (fun _ : Q => R) α) (O : Q → 
   rw [runWith_lift] at h
   have h' := congrArg (PMF.map Prod.fst) h
   rw [PMF.map_comp, PMF.map_comp] at h'
-  exact h'.trans (PMF.map_id _)
+  exact h'.trans ((PMF.map_id _).trans (OracleComp.evalWith_eq_interpret _ _))
 
 end Cslib.ProbOracleComp

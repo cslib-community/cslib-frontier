@@ -258,22 +258,16 @@ private theorem encodeGate_simTable (k : ℕ) (f : XorAndCircuit) (coins : List 
         (simTable k f coins) g =
       simGateWord k (PointPermute.wireWidth f.circuit.n f.circuit.q) f.circuit coins
         (g.cast (size_toCircuit f)) := by
-  have hA₁ := f.isValid.one_le_A (g.cast (size_toCircuit f))
-  have hAB := f.isValid.A_lt_B (g.cast (size_toCircuit f))
-  simp only [ConventionalCircuit.topo] at hA₁ hAB
-  have hw : PointPermute.wireWidth f.circuit.n (toCircuit f).size =
-      PointPermute.wireWidth f.circuit.n f.circuit.q := by rw [size_toCircuit]
-  rw [hw]
-  simp only [encodeGate, simGateWord, toNat_left_toCircuit, toNat_right_toCircuit,
-    Nat.sub_add_cancel hA₁, Nat.sub_add_cancel (hA₁.trans hAB.le)]
+  rw [encodeGate_toCircuit]
+  simp only [simGateWord]
   cases hG : f.circuit.G (g.cast (size_toCircuit f)) true true
   · have hop : ¬ op (toCircuit f) g = .and := by
       rw [op_toCircuit_eq_and_iff, hG]
       simp
-    rw [dite_eq_right hop, decide_eq_false hop]
+    rw [dite_eq_right hop]
     rfl
   · have hop : op (toCircuit f) g = .and := (op_toCircuit_eq_and_iff f g).mpr hG
-    rw [dite_eq_left hop, decide_eq_true hop]
+    rw [dite_eq_left hop]
     simp only [simTable, slotIndex, Slot.gate, Bool.toNat_false, Bool.toNat_true, Nat.add_zero,
       labelBits_labelOfWord (BitString.length_listRow _ _ _), Fin.val_cast,
       ↓reduceIte]
@@ -504,20 +498,14 @@ private theorem simBody_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k n : �
       (fun g => ((gates x).getD g (0, 0, [])).1) (fun g => ((gates x).getD g (0, 0, [])).2.1)
       (fun g _ _ i => simRow (k x) (n x) (coins x) (((gates x).getD g (0, 0, [])).2.2.getD 3 false)
         (((gates x).take g).countP fun gate => gate.2.2.getD 3 false) i)) encIn encBits := by
-  have hx := ComputableInPolyTime.fst encIn
-    (encPair encUnary (encPair encUnary (encPair encUnary encUnary)))
-  have hrest := ComputableInPolyTime.snd encIn
-    (encPair encUnary (encPair encUnary (encPair encUnary encUnary)))
-  have hisAnd := ComputableInPolyTime.bitsGetDWithInput
-    (ComputableInPolyTime.listGetDWithInput (hgates.comp hx) hrest.fst' (0, 0, [])).snd'.snd'
-    (ComputableInPolyTime.const 3) false
-  have hrow := simRow_polyTime (hk.comp hx) (hn.comp hx) (hcoins.comp hx) hisAnd
-    (andCount_polyTime (hgates.comp hx) hrest.fst') hrest.snd'.snd'.snd'
-  have hgate := ComputableInPolyTime.listGetDWithInput
-    (hgates.comp (ComputableInPolyTime.fst encIn encUnary)) (ComputableInPolyTime.snd _ _)
-    (0, 0, [])
-  exact PointPermute.bodyWith_polyTime hn ((ComputableInPolyTime.length_list _).comp hgates)
-    (ComputableInPolyTime.const 0) hgate.fst' hgate.snd'.fst' hrow
+  have hx := ComputableInPolyTime.fst encIn (encPair encUnary (encPair encBool encUnary))
+  have hrest := ComputableInPolyTime.snd encIn (encPair encUnary (encPair encBool encUnary))
+  have hrow : ComputableInPolyTime (fun p : γ × ℕ × Bool × ℕ => simRow (k p.1) (n p.1) (coins p.1)
+      p.2.2.1 (((gates p.1).take p.2.1).countP fun gate => gate.2.2.getD 3 false) p.2.2.2)
+      (encPair encIn (encPair encUnary (encPair encBool encUnary))) encBits :=
+    simRow_polyTime (hk.comp hx) (hn.comp hx) (hcoins.comp hx) hrest.snd'.fst'
+      (andCount_polyTime (hgates.comp hx) hrest.fst') hrest.snd'.snd'
+  exact bodyWith_gateData_polyTime hn hgates hrow
 
 include hf in
 private theorem simViewWord_polyTime :

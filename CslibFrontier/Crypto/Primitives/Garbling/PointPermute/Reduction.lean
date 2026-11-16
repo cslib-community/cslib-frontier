@@ -168,7 +168,7 @@ private theorem prvViewWord_gb (k : ℕ) (f : ValidCircuit) {x : List Bool}
   rw [gb_eq_encodeGarbled]
   simp only [viewWord, encodeGarbled, garbleWith, Garbled.view, PrvView.mk.injEq, true_and,
     and_true]
-  exact encodeWord_encInfo (n := f.1.n) _ hx
+  exact projectiveEncode_labelBits (n := f.1.n) _ hx
 
 /-- **The real view is the typed real view.** For a valid circuit `f` and an input `x` of `f.n`
 bits, the real view `(F, X, d)` of the query `(f, x)` at parameter `k` is the typed view of the
