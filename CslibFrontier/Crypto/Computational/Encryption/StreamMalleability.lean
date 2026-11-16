@@ -11,7 +11,8 @@ public import CslibFrontier.Crypto.Computational.Encryption.EncryptThenMAC
 public import CslibFrontier.Crypto.Computational.Encryption.IVStream.Malleability
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair.Projections
 import CslibFrontier.Crypto.Negligible.Basic
-import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Languages.Probabilistic.Oracle.Norm
+import CslibFrontier.Probability.PMF.Support
 import CslibFrontier.Tactic.PPT
 
 /-!
@@ -24,7 +25,8 @@ decryption of `ĉ`, Mel was able to deduce the decryption of `c`". They conclude
 both encryption modes are CPA secure, and yet we just showed how to break them."
 
 This file proves that conclusion in the chosen-ciphertext game for the one-block cipher
-`prfCipher`, which `PseudorandomFunction.indcpa_prfCipher` proves CPA-secure. `prfCipher` encrypts
+`prfCipher`, which `PseudorandomFunction.indcpa_prfCipher` proves CPA-secure for a pseudorandom
+family. `prfCipher` encrypts
 as the stream envelope `ivStreamEncrypt` with one block, so `ivStreamXorBody` turns an encryption
 of `msg` into one of `msg ⊕ delta` (`ivStreamXorBody_mem_support_ivStreamEncrypt`). The adversary
 `prfCipherCCAAdversary` asks for the challenge encryption of `0ⁿ` or `1ⁿ`, flips every bit after
@@ -32,11 +34,11 @@ the initial value and asks the decryption oracle for the result, which is a diff
 when `1 ≤ n`; it decrypts to the other message, and the adversary wins with probability `1`
 (`eval_ccaOneTimeGame_prfCipher`).
 
-Differences from the book: only the one-block cipher `prfCipher` is refuted in a game, since the
-library has no chosen-ciphertext game for multi-block modes; for counter mode and output feedback
-mode `ivStreamDecrypt_ivStreamXorBody` says what the modified ciphertext decrypts to. The
-randomized CBC half of Section 9.2.1 is not covered. The attack needs `1 ≤ n`: at `n = 0` the
-modified ciphertext is the challenge itself, which the oracle refuses to decrypt.
+Differences from the book: the attack is carried out in a game only against the one-block cipher
+`prfCipher`, since the library has no chosen-ciphertext game for multi-block modes; for counter
+mode and output feedback mode `ivStreamDecrypt_ivStreamXorBody` says what the modified ciphertext
+decrypts to. The randomized CBC half of Section 9.2.1 is not covered. The attack needs `1 ≤ n`:
+at `n = 0` the modified ciphertext is the challenge itself, which the oracle refuses to decrypt.
 
 ## Main definitions
 
@@ -113,58 +115,30 @@ theorem eval_ccaOneTimeGame_prfCipher (family : List Bool → List Bool → List
     (bit : Bool) {n : ℕ} (hn : 1 ≤ n) :
     ProbComp.eval ((prfCipher family hpoly hlen).ccaOneTimeGame prfCipherCCAAdversary bit n) =
       PMF.pure bit := by
-  let E := prfCipher family hpoly hlen
+  have hbit : (if bit then List.replicate n true else List.replicate n false) =
+      List.replicate n bit := by
+    cases bit <;> rfl
   simp only [SymmetricCipher.ccaOneTimeGame, prfCipherCCAAdversary,
-    OracleComp.interpret_bind, OracleComp.interpret_map, OracleComp.interpret_pure,
-    ProbOracleComp.interpret_query, StateT.run_bind, StateT.run_map, StateT.run_pure,
-    ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure,
-    PMF.bind_map, Function.comp_def, PMF.bind_bind, PMF.pure_bind]
-  trans ((ProbComp.eval (E.keyGen n)).bind fun _ => PMF.pure bit)
-  · apply PMF.bind_congr_on_support
-    intro k hk
-    have hmbLen : (if bit then List.replicate n true else List.replicate n false).length = n := by
-      cases bit <;> simp
-    simp only [SymmetricCipher.oneTimeCCAOracle, StateT.run,
-      Bool.false_eq_true, ↓reduceIte, List.isEmpty_nil, unframe_encPair_encBits,
-      dropFrame_encPair_encBits, List.length_replicate, beq_self_eq_true, Bool.and_self,
-      ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
-    trans ((ProbComp.eval (E.encrypt n k
-        (if bit then List.replicate n true else List.replicate n false))).bind fun _ =>
-      PMF.pure bit)
-    · apply PMF.bind_congr_on_support
-      intro ct hct
-      have hctLen : ct.length = 2 * n :=
-        prfCipher_ciphertext_length family hpoly hlen n k hk _ hmbLen ct hct
-      rw [List.take_of_length_le hctLen.le]
-      obtain ⟨hdec, hne⟩ := prfCipher_decrypt_ivStreamXorBody family hpoly hlen hk hmbLen
-        List.length_replicate hct
-      have hflip : List.zipWith xor (if bit then List.replicate n true else List.replicate n false)
-          (List.replicate n true) =
-          if bit then List.replicate n false else List.replicate n true := by
-        cases bit <;> simp
-      have hne' : ivStreamXorBody n (List.replicate n true) ct ≠ ct := by
-        refine hne ?_
-        rw [hflip]
-        cases bit <;> simp [List.replicate_inj] <;> omega
-      simp only [List.contains_cons, List.contains_nil, Bool.or_false, beq_iff_eq, hne',
-        ↓reduceIte, ProbComp.eval_pure, PMF.pure_bind]
-      rw [hdec, hflip]
-      cases bit with
-      | true =>
-        have hlenEq : (encOption encBits (some (List.replicate n false))).length = n + 1 := by
-          simp
-        simp only [↓reduceIte]
-        rw [List.take_of_length_le hlenEq.le]
-        simp
-      | false =>
-        have hlenEq : (encOption encBits (some (List.replicate n true))).length = n + 1 := by
-          simp
-        simp only [Bool.false_eq_true, ↓reduceIte]
-        rw [List.take_of_length_le hlenEq.le]
-        have hne0 : (n == 0) = false := by simp; omega
-        simp [hne0]
-    · simp
-  · simp
+    SymmetricCipher.oneTimeCCAOracle, unframe_encPair_encBits, dropFrame_encPair_encBits, hbit,
+    List.isEmpty_nil, List.length_replicate, beq_self_eq_true, Bool.and_self, Bool.false_eq_true,
+    ↓reduceIte, runWith_norm, pmf_norm]
+  refine PMF.bind_eq_pure_of_forall_mem_support fun k hk =>
+    PMF.bind_eq_pure_of_forall_mem_support fun ct hct => ?_
+  obtain ⟨hdec, hne⟩ := prfCipher_decrypt_ivStreamXorBody family hpoly hlen hk
+    List.length_replicate (List.length_replicate (a := true)) hct
+  have hflip : List.zipWith xor (List.replicate n bit) (List.replicate n true) =
+      List.replicate n !bit := by
+    simp
+  rw [hflip] at hdec hne
+  have hnc : [ct].contains (ivStreamXorBody n (List.replicate n true) ct) = false := by
+    simpa using hne (by cases bit <;> simp [List.replicate_inj] <;> omega)
+  rw [List.take_of_length_le
+    (prfCipher_ciphertext_length family hpoly hlen n k hk _ List.length_replicate ct hct).le]
+  simp only [hnc, Bool.false_eq_true, ↓reduceIte, hdec, ProbComp.eval_pure, PMF.pure_bind]
+  rw [List.take_of_length_le (by simp)]
+  cases bit with
+  | true => simp
+  | false => simp [beq_eq_false_iff_ne.mpr (Nat.one_le_iff_ne_zero.mp hn)]
 
 /-- The one-block PRF cipher `prfCipher` is not one-time CCA-secure, for any family
 ([BonehShoup2023], Section 9.2.1), although it is CPA-secure for a pseudorandom family

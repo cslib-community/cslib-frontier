@@ -10,7 +10,6 @@ module
 public import CslibFrontier.Crypto.Computational.Encryption.IVStream
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
-import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Probability.BitString
 import CslibFrontier.Tactic.PolyTime
 
@@ -18,18 +17,22 @@ import CslibFrontier.Tactic.PolyTime
 # Malleability of stream encryption under a random initial value
 
 A ciphertext of `ivStreamEncrypt` is an `n`-bit initial value followed by the message XORed with
-a keystream. XORing a mask `delta` into the part after the initial value (`ivStreamXorBody`)
-therefore gives a ciphertext in the support of the encryption of `msg ⊕ delta`, whatever the
-keystream (`ivStreamXorBody_mem_support_ivStreamEncrypt`), and on whole-block messages it decrypts
-to `msg ⊕ delta` (`ivStreamDecrypt_ivStreamXorBody`). The transformation needs neither the key
-nor the keystream, and it is computable in polynomial time (`computableInPolyTime_ivStreamXorBody`).
+a keystream. XORing a mask `delta` at least as long as `msg` into the part after the initial value
+(`ivStreamXorBody`) therefore gives a ciphertext in the support of the encryption of
+`msg ⊕ delta`, whatever the keystream (`ivStreamXorBody_mem_support_ivStreamEncrypt`). On
+whole-block messages, when the keystream from every `n`-bit initial value has `blocks * n` bits,
+it decrypts to `msg ⊕ delta` (`ivStreamDecrypt_ivStreamXorBody`). The transformation needs
+neither the key nor the keystream, and it is computable in polynomial time
+(`computableInPolyTime_ivStreamXorBody`).
 
 Boneh and Shoup exploit this malleability against randomized counter mode in Section 9.2.1
 ([BonehShoup2023], printed pp. 360–361): "define `ĉ` to be the same as `c` except that
 `ĉ[1] := c[1] ⊕ u ⊕ v`", which is the mask `(u ⊕ v) ‖ 0`. In Section 9.10, Attack 3 (printed
 p. 391), they state it as "given the encryption of `m`, an attacker can create a valid encryption
 of `m ⊕ Δ` for any `Δ` of his choice." Counter mode (`ctrWordEncrypt`), output feedback mode
-(`ofbWordEncrypt`) and the one-block cipher `prfCipher` all encrypt by `ivStreamEncrypt`. The
+(`ofbWordEncrypt`) and the one-block cipher `prfCipher` all encrypt by `ivStreamEncrypt`. Since
+`ctrWordEncrypt` and `ofbWordEncrypt` are not exposed, a `module` client states its hypotheses for
+`ivStreamEncrypt (ctrWordKeystream family)` and `ivStreamEncrypt (ofbWordKeystream family)`. The
 randomized CBC half of Section 9.2.1 is not covered.
 
 ## Main definitions
@@ -54,18 +57,6 @@ public section
 namespace Cslib.Crypto
 
 open Probability Turing.MultiTapeTM
-
-private theorem zipWith_xor_assoc (a b c : List Bool) :
-    List.zipWith xor (List.zipWith xor a b) c = List.zipWith xor a (List.zipWith xor b c) := by
-  induction a generalizing b c with
-  | nil => simp
-  | cons x a ih =>
-    cases b with
-    | nil => simp
-    | cons y b =>
-      cases c with
-      | nil => simp
-      | cons z c => simp only [List.zipWith_cons_cons, Bool.xor_assoc, ih b c]
 
 /-- XOR the mask `delta` into the part of the ciphertext `ct` after its first `n` bits, the
 initial value of `ivStreamEncrypt` at parameter `n`. -/
@@ -100,7 +91,8 @@ theorem ivStreamXorBody_mem_support_ivStreamEncrypt
   refine ⟨iv, hiv, ?_⟩
   have hl : (List.zipWith xor msg delta).length = msg.length := by
     rw [List.length_zipWith, Nat.min_eq_left hdelta]
-  rw [hl, ivStreamXorBody, ← hivLen, List.take_left, List.drop_left, zipWith_xor_assoc]
+  rw [hl, ivStreamXorBody, ← hivLen, List.take_left, List.drop_left]
+  simp only [List.zipWith_zipWith_left, List.zipWith_zipWith_right, Bool.xor_assoc]
 
 /-- The modified ciphertext of `ivStreamXorBody_mem_support_ivStreamEncrypt` decrypts to
 `msg ⊕ delta` when `msg` is a whole number of `n`-bit blocks and the keystream from every `n`-bit

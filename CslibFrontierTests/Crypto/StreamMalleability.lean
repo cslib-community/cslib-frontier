@@ -12,7 +12,8 @@ public import CslibFrontier.Crypto.Computational.Encryption.CTRMode.Uniform
 public import CslibFrontier.Crypto.Computational.Encryption.StreamMalleability
 import CslibFrontier.Foundations.Data.BitString.List.Operations
 import CslibFrontier.Probability.BitString
-import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Languages.Probabilistic.Oracle.Norm
+import CslibFrontier.Probability.PMF.Support
 
 /-!
 # Tests for the malleability of stream encryption
@@ -115,33 +116,16 @@ decrypt, so the adversary always outputs `false`. -/
 theorem eval_ccaOneTimeGame_prfCipher_zero (bit : Bool) :
     ProbComp.eval ((prfCipher xorFamily xorFamily_polyTime xorFamily_length).ccaOneTimeGame
       prfCipherCCAAdversary bit 0) = PMF.pure false := by
-  let E := prfCipher xorFamily xorFamily_polyTime xorFamily_length
   simp only [SymmetricCipher.ccaOneTimeGame, prfCipherCCAAdversary,
-    OracleComp.interpret_bind, OracleComp.interpret_map, OracleComp.interpret_pure,
-    ProbOracleComp.interpret_query, StateT.run_bind, StateT.run_map, StateT.run_pure,
-    ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure,
-    PMF.bind_map, Function.comp_def, PMF.bind_bind, PMF.pure_bind]
-  trans ((ProbComp.eval (E.keyGen 0)).bind fun _ => PMF.pure false)
-  · apply PMF.bind_congr_on_support
-    intro k hk
-    have hmbLen : (if bit then List.replicate 0 true else List.replicate 0 false).length = 0 := by
-      cases bit <;> simp
-    simp only [SymmetricCipher.oneTimeCCAOracle, StateT.run,
-      Bool.false_eq_true, ↓reduceIte, List.isEmpty_nil, unframe_encPair_encBits,
-      dropFrame_encPair_encBits, List.length_replicate, beq_self_eq_true, Bool.and_self,
-      ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
-    trans ((ProbComp.eval (E.encrypt 0 k
-        (if bit then List.replicate 0 true else List.replicate 0 false))).bind fun _ =>
-      PMF.pure false)
-    · apply PMF.bind_congr_on_support
-      intro ct hct
-      have hctNil : ct = [] := List.eq_nil_of_length_eq_zero
-        (prfCipher_ciphertext_length xorFamily xorFamily_polyTime xorFamily_length
-          0 k hk _ hmbLen ct hct)
-      subst hctNil
-      simp [ivStreamXorBody]
-    · simp
-  · simp
+    SymmetricCipher.oneTimeCCAOracle, unframe_encPair_encBits, dropFrame_encPair_encBits,
+    List.replicate_zero, ite_self, List.isEmpty_nil, List.length_nil, beq_self_eq_true,
+    Bool.and_self, Bool.false_eq_true, ↓reduceIte, runWith_norm, pmf_norm]
+  refine PMF.bind_eq_pure_of_forall_mem_support fun k hk =>
+    PMF.bind_eq_pure_of_forall_mem_support fun ct hct => ?_
+  obtain rfl : ct = [] := List.eq_nil_of_length_eq_zero
+    (prfCipher_ciphertext_length xorFamily xorFamily_polyTime xorFamily_length 0 k hk _ rfl ct
+      hct)
+  simp [ivStreamXorBody]
 
 /-- So `1 ≤ n` is needed in `eval_ccaOneTimeGame_prfCipher`: at `n = 0` the advantage is `0`. -/
 example : Game.advantage

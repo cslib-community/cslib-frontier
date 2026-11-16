@@ -2592,17 +2592,24 @@ Stream encryption under a random initial value is malleable (Boneh–Shoup v0.6,
 Attack 3 [bs23][bs23]). In
 [`Encryption/IVStream/Malleability.lean`](../../CslibFrontier/Crypto/Computational/Encryption/IVStream/Malleability.lean),
 `ivStreamXorBody` XORs a mask into a ciphertext after its initial value. For every keystream and
-every mask at least as long as the message, this turns an encryption of `msg` into one of
-`msg ⊕ delta` (`ivStreamXorBody_mem_support_ivStreamEncrypt`), so counter mode above and OFB mode
-below are instances; `ivStreamDecrypt_ivStreamXorBody` gives the decryption. The book's
-counter-mode step `ĉ[1] := c[1] ⊕ u ⊕ v` is the mask `(u ⊕ v) ‖ 0`. The book's chosen-ciphertext
-attack is refuted in a game only for the one-block cipher `prfCipher`, because there is no
+every mask at least as long as the message, this turns an encryption of `msg` by
+`ivStreamEncrypt keystream` into one of `msg ⊕ delta`
+(`ivStreamXorBody_mem_support_ivStreamEncrypt`). If `msg` is a whole number of `n`-bit blocks and
+the keystream from every `n`-bit initial value has `blocks * n` bits, the result decrypts to
+`msg ⊕ delta` (`ivStreamDecrypt_ivStreamXorBody`). Counter mode above and OFB mode below are the
+keystreams `ctrWordKeystream family` and `ofbWordKeystream family`: state the hypothesis for
+`ivStreamEncrypt (ctrWordKeystream family)`, as the test file does, since `ctrWordEncrypt` and
+`ofbWordEncrypt` do not unfold in a `module` client. The book's counter-mode step
+`ĉ[1] := c[1] ⊕ u ⊕ v` is the mask `(u ⊕ v) ‖ 0`. The book's chosen-ciphertext attack is carried
+out in a game only against the one-block cipher `prfCipher`, because the library has no
 chosen-ciphertext game for multi-block modes:
 [`Encryption/StreamMalleability.lean`](../../CslibFrontier/Crypto/Computational/Encryption/StreamMalleability.lean)
-gives the adversary `prfCipherCCAAdversary` with its certificate, advantage `1` for every
-`1 ≤ n` (`eval_ccaOneTimeGame_prfCipher`), and `not_oneTimeINDCCA_prfCipher` and
-`not_indcca_prfCipher`, although `PseudorandomFunction.indcpa_prfCipher` proves it CPA-secure.
-At `n = 0` the attack fails. The randomized CBC half of §9.2.1 is not covered. Examples are in
+gives the adversary `prfCipherCCAAdversary` with its certificate
+`isOraclePPT_prfCipherCCAAdversary`. It guesses the challenge bit with probability `1` for every
+`1 ≤ n` (`eval_ccaOneTimeGame_prfCipher`), so `not_oneTimeINDCCA_prfCipher` and
+`not_indcca_prfCipher` hold for every family, although `PseudorandomFunction.indcpa_prfCipher`
+proves the cipher CPA-secure for a pseudorandom family. At `n = 0` the attack fails. The
+randomized CBC half of §9.2.1 is not covered. Examples are in
 [`CslibFrontierTests/Crypto/StreamMalleability.lean`](../../CslibFrontierTests/Crypto/StreamMalleability.lean).
 
 For the chosen-plaintext security of random-IV OFB mode, import
