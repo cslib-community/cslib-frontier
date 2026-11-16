@@ -2241,6 +2241,24 @@ The endpoint [DDH.indcca2On_cramerShoup](https://github.com/cslib-community/csli
 
 IND-CPA security does not give CCA security. [`ElGamal/Malleability.lean`](../../CslibFrontier/Crypto/Computational/ElGamal/Malleability.lean) shows that multiplicative ElGamal, which is IND-CPA secure under DDH, is not CCA secure (Boneh–Shoup v0.6, Exercise 12.1, p. 512 [bs23][bs23]). The adversary `elGamalMaulAdversary` is `maulAdversary` with transformation `elGamalMaulCiphertext`, which maps the challenge `(v, e)` to `(v, e + g)`; it asks the Phase 2 oracle to decrypt that different ciphertext and compares the reply with `m₁ + g`. `isPPT_elGamalMaulAdversary` certifies it, and `advantage_cca2GameOn_elGamalMaulAdversary` gives advantage exactly `1` at every parameter. `not_indcca2Of_elGamalBitEncryptProb` needs only a polynomial-time group family; `not_indcca2On_elGamalGroupEncryptProb` covers group-element messages under any admissibility predicate that admits `(0, g)`, such as `cramerShoupValid`. In the CCA games the decryptor is `elGamalDecryptOpt`, which never rejects. The proofs supply only the malleability conditions to `not_indcca2On_of_maulAdversary`, which applies the `INDCCA2On` hypothesis to the adversary through `isPPT_maulAdversary` and contradicts negligibility with `not_negligible_const`. The [checked clients](../../CslibFrontierTests/Crypto/ElGamalMalleability.lean) run the attack on a Schnorr group; run `scripts/build.sh CslibFrontierTests.Crypto.ElGamalMalleability`.
 
+One-way encryption is Attack Game 12.6 (Boneh–Shoup v0.6, §12.6, p. 495 [bs23][bs23]):
+`PKE.owExperiment E sampleMsg A` in
+[`Encryption/OneWay.lean`](../../CslibFrontier/Crypto/Computational/Encryption/OneWay.lean) draws
+keys, a message from `sampleMsg` and its encryption, and accepts when `A` returns the message;
+`PKE.owAdvantage` is its success probability. In
+[`ElGamal/OneWay.lean`](../../CslibFrontier/Crypto/Computational/ElGamal/OneWay.lean),
+`elGamalExplicitCoinPKE q g` is the multiplicative ElGamal of §12.6.2 (pp. 499–500) in a fixed
+`ZMod q`-module, and `elGamalOWToCDH` is the book's adversary `ℬ`. When the message and `ℬ`'s `y`
+are drawn as `γ • g` for uniform `γ`, the one-way advantage equals `ℬ`'s CDH advantage
+(`owAdvantage_elGamalExplicitCoinPKE_eq_cdhAdvantage`); finiteness of `G` and that `g` generates
+it are not needed. For a prime-order group family, `elGamalOWToCDHAdversary` draws `y` through
+`sampleExp` and has the certificate `isPPT_elGamalOWToCDHAdversary`. Its CDH game is within
+`1 / 2 ^ n` of `elGamalOWGame` (`advantage_elGamalOWGame_cdhGame_le`), and
+`CDH.elGamal_oneWay` shows that every efficient typed adversary has negligible advantage under CDH.
+Adversaries read and write group elements; a word-level one-wayness predicate (Definition 12.5)
+waits for a decoder of group elements. Examples are in
+[`CslibFrontierTests/Crypto/ElGamalOneWay.lean`](../../CslibFrontierTests/Crypto/ElGamalOneWay.lean).
+
 The canonical [`KEMINDCPA keyLen keyGen encaps`](../../CslibFrontier/Crypto/Computational/Encryption/Hybrid.lean) compares the real encapsulated key with an independent uniform `keyLen n`-bit word. Use `fun n => n` for normalized keys, or another schedule such as `fun n => 2 * n`. The composition methods `KEMINDCPA.hybrid_indcpa` and `KEMINDCPA.hybrid_indcpaOn` consume `DEMOneTimeKeyINDCPAOf` and `DEMOneTimeKeyINDCPAOn` at the same schedule; the latter requires a polynomial-time admissibility predicate independent of the public key. The exact bound is twice the hidden-bit KEM distinguisher's advantage plus the DEM adversary's advantage (Boneh–Shoup v0.6, Exercise 11.9(b), pp. 460–461 [bs23][bs23]). The native ideal-game certificate `isPPTOn_kemIdealGame` additionally takes `ComputableInPolyTime keyLen encUnary encUnary`. The reductions do not sample ideal keys, so the security implication itself does not need that certificate.
 
 For a fixed KEM and symmetric cipher, without words or a security parameter, import
