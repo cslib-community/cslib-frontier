@@ -131,36 +131,6 @@ with the final sets `(Dom_μ^(+1), Dom_μ^(-1))`. -/
 
 /-! ### Caches, fiber caches and partial bijections -/
 
-private lemma runWith_simulation_of_invariant {Query State State' β : Type}
-    {spec : Query → Type}
-    (oracle : (q : Query) → StateT State PMF (spec q))
-    (oracle' : (q : Query) → StateT State' PMF (spec q))
-    (relate : State → PMF State') (invariant : State → Prop)
-    (preserve : ∀ q s, invariant s → ∀ a s', (a, s') ∈ (oracle q s).support → invariant s')
-    (step : ∀ q s, invariant s →
-      (oracle q s).bind (fun (a, s') => (relate s').map (a, ·)) =
-        (relate s).bind (oracle' q))
-    (program : ProbOracleComp spec β) (s : State) (hs : invariant s) :
-    (runWith oracle program s).bind (fun (a, s') => (relate s').map (a, ·)) =
-      (relate s).bind (runWith oracle' program) := by
-  apply OracleComp.run_interpret_simulation_of_invariant _ _ relate invariant ?_ ?_ program s hs
-  · intro q state hstate a next hnext
-    cases q with
-    | inl n =>
-      change (a, next) ∈ ((ProbComp.unifOracle n).map (·, state)).support at hnext
-      obtain ⟨_, _, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hnext
-      exact (Prod.mk.inj heq).2 ▸ hstate
-    | inr q => exact preserve q state hstate a next hnext
-  · intro q state hstate
-    cases q with
-    | inl n =>
-      change ((ProbComp.unifOracle n).map (·, state)).bind
-        (fun (a, next) => (relate next).map (a, ·)) =
-          (relate state).bind (fun next => (ProbComp.unifOracle n).map (·, next))
-      simp only [PMF.map, Function.comp_def, PMF.bind_bind, PMF.pure_bind]
-      exact PMF.bind_comm _ _ _
-    | inr q => exact step q state hstate
-
 omit [Fintype U] [DecidableEq V] [Fintype V] in
 /-- `IdealCipher.answer` on a query whose answer is recorded in the key's cache. -/
 private lemma answer_eq_pure_of_cachedAnswer_eq_some {q : IdealCipher.Query U X}
@@ -241,14 +211,6 @@ private lemma recordQueryDomain_of_cacheDomains_mem {uCache : U → Cache X}
       rintro rfl
       exact mem_cacheDomains_snd.mpr ⟨_, hmem⟩
     · simp [recordQueryDomain, hμ]
-
-omit [DecidableEq U] [Fintype U] [DecidableEq V] [Fintype V] [Fintype X] [Nonempty X] in
-private lemma toCacheEntry_mem_of_cachedAnswer_eq_some {cache : Cache X} {q : PermQuery X}
-    {a : X} (h : cachedAnswer cache q = some a) :
-    PermQuery.toCacheEntry ⟨q, a⟩ ∈ cache := by
-  cases q with
-  | forward x => exact mem_of_lookup_eq_some h
-  | inverse y => exact mem_of_invLookup_eq_some h
 
 omit [DecidableEq U] [Fintype V] [DecidableEq X] [Fintype X] [Nonempty X] in
 /-- The pooled cache of all keys `μ` in the fiber `f⁻¹(ν)`. -/

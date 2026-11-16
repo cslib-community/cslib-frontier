@@ -381,6 +381,14 @@ def cachedAnswer (cache : Cache α) : PermQuery α → Option α
   | .forward x => cache.lookup x
   | .inverse y => invLookup cache y
 
+/-- A recorded answer `a` to `q` is stored in `cache` as the entry
+`PermQuery.toCacheEntry ⟨q, a⟩`. -/
+theorem toCacheEntry_mem_of_cachedAnswer_eq_some {cache : Cache α} {q : PermQuery α} {a : α}
+    (h : cachedAnswer cache q = some a) : PermQuery.toCacheEntry ⟨q, a⟩ ∈ cache := by
+  cases q with
+  | forward x => exact mem_of_lookup_eq_some h
+  | inverse y => exact mem_of_invLookup_eq_some h
+
 /-- A permutation that agrees with `cache` gives every query the answer recorded in `cache`. -/
 theorem AgreesWith.evalPerm_eq_of_cachedAnswer_eq_some {cache : Cache α}
     {π : Equiv.Perm α} (hπ : AgreesWith cache π) {q : PermQuery α} {a : α}
