@@ -1640,6 +1640,7 @@ public import CslibFrontier.Computability.Circuit.InnerSize
 public import CslibFrontier.Computability.Circuit.Inputization
 public import CslibFrontier.Computability.Circuit.Iteration
 public import CslibFrontier.Computability.Circuit.KernelVector
+public import CslibFrontier.Computability.Circuit.LinearSolve
 public import CslibFrontier.Computability.Circuit.Linearize
 public import CslibFrontier.Computability.Circuit.Local
 public import CslibFrontier.Computability.Circuit.MapLines
@@ -6336,6 +6337,7 @@ public import CslibFrontier.Foundations.LinearAlgebra.ImageSparsification
 public import CslibFrontier.Foundations.LinearAlgebra.Interpolation
 public import CslibFrontier.Foundations.LinearAlgebra.IsolatedBasis
 public import CslibFrontier.Foundations.LinearAlgebra.KernelVector
+public import CslibFrontier.Foundations.LinearAlgebra.LinearSolve
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Bareiss
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.BasicSolution
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.BlockEmbedding
