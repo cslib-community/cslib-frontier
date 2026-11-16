@@ -9,7 +9,6 @@ module
 import CslibFrontier.Foundations.AlgebraicGeometry.EllipticCurve.Edwards
 import Mathlib.Algebra.Field.ZMod
 import Mathlib.Data.Fintype.Parity
-import Mathlib.Tactic.Ring
 
 /-!
 # Edwards curves and their unified addition law: checked instances
@@ -97,20 +96,7 @@ example {F : Type*} [Field F] (h2 : (2 : F) = 0) (E : EdwardsCurve F) (hd : ¬Is
     (P = E.zero ∨ P = E.order4Point) ∧
       E.order4Point ≠ E.zero ∧ E.add hd E.order4Point E.order4Point = E.zero := by
   have hm1 : (-1 : F) = 1 := neg_eq_iff_add_eq_zero.mpr (by rw [one_add_one_eq_two, h2])
-  have hxy : P.x * P.y = 0 := by
-    by_contra hne
-    apply hd
-    have hP := P.eq
-    simp only [EdwardsCurve.Equation] at hP
-    have hsq : E.d * (P.x * P.y) ^ 2 = (P.x + P.y + 1) ^ 2 := by
-      have h2m : ∀ a : F, (2 : F) * a = 0 := fun a => by rw [h2, zero_mul]
-      calc E.d * (P.x * P.y) ^ 2 = E.d * P.x ^ 2 * P.y ^ 2 := by ring
-        _ = P.x ^ 2 + P.y ^ 2 - 1 := by rw [hP]; ring
-        _ = P.x ^ 2 + P.y ^ 2 + 1 := by rw [sub_eq_add_neg, hm1]
-        _ = (P.x + P.y + 1) ^ 2 - 2 * (P.x * P.y + P.x + P.y) := by ring
-        _ = (P.x + P.y + 1) ^ 2 := by rw [h2m, sub_zero]
-    refine ⟨(P.x + P.y + 1) / (P.x * P.y), ?_⟩
-    rw [div_mul_div_comm, ← sq, ← sq, ← hsq, mul_div_cancel_right₀ _ (pow_ne_zero 2 hne)]
+  have hxy : P.x * P.y = 0 := E.mul_xy_eq_zero_of_two_eq_zero h2 hd P
   refine ⟨?_, ?_, ?_⟩
   · have hP := P.eq
     simp only [EdwardsCurve.Equation] at hP

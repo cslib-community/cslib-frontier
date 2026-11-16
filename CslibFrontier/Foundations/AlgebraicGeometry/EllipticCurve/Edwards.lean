@@ -45,6 +45,8 @@ equivalence with Montgomery and Weierstrass models are left to follow-up modules
 ## Main results
 
 * `EdwardsCurve.equation_add`: closure of `E.Equation` under the unified addition formula.
+* `EdwardsCurve.mul_xy_eq_zero_of_two_eq_zero`: in characteristic two, `¬ IsSquare E.d` forces
+  `R.x * R.y = 0` for every point `R`.
 * `EdwardsCurve.denom_ne_zero`: for `¬ IsSquare E.d`, `1 ± E.d * P.x * Q.x * P.y * Q.y ≠ 0`
   over any field.
 * `EdwardsCurve.zero_add`, `EdwardsCurve.add_zero`, `EdwardsCurve.add_comm`,
@@ -190,7 +192,8 @@ theorem equation_add {x₁ y₁ x₂ y₂ : F} (h₁ : E.Equation x₁ y₁) (h�
   field_simp [hplus', hminus']
   linear_combination hgoal
 
-private lemma mul_xy_eq_zero_of_two_eq_zero (h2 : (2 : F) = 0) (hd : ¬IsSquare E.d)
+/-- In characteristic two, a non-square parameter forces `R.x * R.y = 0` for every point `R`. -/
+lemma mul_xy_eq_zero_of_two_eq_zero (h2 : (2 : F) = 0) (hd : ¬IsSquare E.d)
     (R : E.Point) : R.x * R.y = 0 := by
   by_contra hxy
   apply hd
@@ -224,7 +227,7 @@ private lemma add_denom_ne_zero_of_two_ne_zero (h2 : (2 : F) ≠ 0) (hd : ¬IsSq
     have hxy : x₂ * y₁ = -(x₁ * y₂) := by linear_combination hsum
     have hsq : E.d * (x₁ * y₂) ^ 2 = 1 := by
       linear_combination -hε + E.d * (x₁ * y₂) * hxy
-    have hnz : x₁ * y₂ ≠ 0 := fun hz => by rw [hz] at hsq; simp at hsq
+    have hnz : x₁ * y₂ ≠ 0 := fun hz ↦ by rw [hz] at hsq; simp at hsq
     exact (eq_mul_inv_iff_mul_eq₀ hnz).mpr (eq_inv_of_mul_eq_one_left (by linear_combination hsq))
   · have h4' : E.d * (y₁ * y₂ - x₁ * x₂) ^ 2 = 4 := by
       apply mul_right_cancel₀ (pow_ne_zero 2 hsum)
@@ -234,7 +237,7 @@ private lemma add_denom_ne_zero_of_two_ne_zero (h2 : (2 : F) ≠ 0) (hd : ¬IsSq
     have h4ne : (4 : F) ≠ 0 := by
       rw [show (4 : F) = 2 * 2 by ring]
       exact mul_ne_zero h2 h2
-    have hnz : (y₁ * y₂ - x₁ * x₂) ^ 2 ≠ 0 := fun hz =>
+    have hnz : (y₁ * y₂ - x₁ * x₂) ^ 2 ≠ 0 := fun hz ↦
       h4ne (by rw [hz, mul_zero] at h4'; exact h4'.symm)
     rw [div_mul_div_comm, ← sq, ← sq, show (2 : F) ^ 2 = 4 by norm_num, eq_div_iff hnz]
     exact h4'
