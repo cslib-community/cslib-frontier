@@ -369,6 +369,28 @@ computes the same recovery on binary words in polynomial time
 exercises extraction over `ZMod 7`, probes `m₀ = m₁` over `ZMod 5`, and evaluates word recovery
 in `schnorrGroups`.
 
+[CslibFrontier/Crypto/Computational/SchnorrLeakedNonce.lean](../../CslibFrontier/Crypto/Computational/SchnorrLeakedNonce.lean)
+specializes that extractor to the leaked-randomness case `a = 0`, `b = r`
+([bs23][bs23], Section 21.2, p. 861) and supplies the first word-level game for
+`schnorrRelatedNonceExtractWord`: `schnorrRelatedNonceExtractWord_schnorrSignCoins` shows that on
+an honest signature whose challenge word is nonzero modulo `F.order d`, the extractor recovers
+the canonical secret-key word `F.encScalar d α` (resting on the canonical-word characterization
+`schnorrRelatedNonceExtractWord_eq_encScalar` in `SchnorrRelatedNonce.lean`).
+`schnorrLeakedNonceWordGame` samples `(pk, sk)` with `schnorrSigKeyGen` and `r` with
+`sampleExp`, signs a fixed message `msg` using the reduced nonce word `rBits := (r % F.order d).bits`
+via the signing steps of `schnorrROMSign` against an `m`-bit stateful random oracle, and passes
+`(d, m, msg, sig, rBits)` (without `pk`) to the adversary. `schnorrLeakedNonceWordAdversary`
+makes one random-oracle query to recover the secret-key word via
+`schnorrRelatedNonceExtractWord`, `isOraclePPTOn_schnorrLeakedNonceWordAdversary` certifies its
+uniform strict oracle-PPT complexity with `m` encoded in unary, and
+`one_sub_inv_two_pow_le_succProbability_schnorrLeakedNonceWordGame` proves success probability at
+least `1 - 2⁻ᵐ` whenever `2 ^ m ≤ F.order d` (where the `2⁻ᵐ` loss is the zero-challenge event
+on which `z = r` is independent of the key);
+[CslibFrontierTests/Crypto/SchnorrLeakedNonce.lean](../../CslibFrontierTests/Crypto/SchnorrLeakedNonce.lean)
+checks the `a = 0` typed specializations, the `schnorrROMSign` step equivalence, concrete
+extraction and `m = 3` game/certificate instances on `d23`, the `ZMod 5` zero-challenge failure,
+and the `q = 3`, `m = 2` failure when `2 ^ m > F.order d`.
+
 The existing `fiatShamir` and its finite security theorem accept an injective
 `hashPoint : (M × T) ↪ Query`. Signing and final verification query `hashPoint (m, t)`, while
 arbitrary other `Query` values remain in the same cache and count toward the hash-query budget.
@@ -1082,9 +1104,9 @@ scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.ShamirInterpolation
 ### Monotone span programs and linear secret sharing
 
 Boneh–Shoup Section 22.5.2 ([bs23][bs23], pp. 978–982, Definition 22.21, Construction 22.2,
-Theorem 22.13, Definition 22.22, Remark 22.15, Definition 22.23 and Lemma 22.15) derives linear
-secret sharing for the access structure that a monotone span program `MonotoneSpanProgram F Party`
-recognizes over a field `F`
+Theorem 22.13, Definition 22.22, Remark 22.15, Definition 22.23, Theorem 22.14 and Lemma 22.15)
+derives linear secret sharing for the access structure that a monotone span program
+`MonotoneSpanProgram F Party` recognizes over a field `F`
 ([`SpanProgram/Basic.lean`](../../CslibFrontier/Computability/Circuit/SpanProgram/Basic.lean),
 [`AccessStructure/Linear.lean`](../../CslibFrontier/Crypto/Protocols/SecretSharing/AccessStructure/Linear.lean),
 and [`AccessStructure/Sources.lean`](../../CslibFrontier/Crypto/Protocols/SecretSharing/AccessStructure/Sources.lean)).
@@ -1101,20 +1123,41 @@ multiplies every matrix on the right by `R`, and for an invertible `R` with top 
 `accepts_mulRight` keeps the accepted coalitions and
 `shareDist_linearUniformAccessScheme_mulRight`
 ([`AccessStructure/LinearEquivalence.lean`](../../CslibFrontier/Crypto/Protocols/SecretSharing/AccessStructure/LinearEquivalence.lean))
-proves Lemma 22.15: the program is equivalent to `P`. The Example 22.3 generalization that every
-monotone access structure has a monotone span program, and Theorem 22.14, are not yet formalized.
-The
+proves Lemma 22.15: the program is equivalent to `P`. For parties `Fin N` over a field with
+decidable equality,
+[`SpanProgram/Elimination.lean`](../../CslibFrontier/Computability/Circuit/SpanProgram/Elimination.lean)
+computes the algorithm `Lin` of Theorem 22.14 as `recombination` and the program `P_L` as
+`normalForm` (`P` times the identity with first column a kernel vector of the coalition's rows),
+both by elimination. For a coalition `s` with `P.Accepts s`,
+`sum_recombination_dotProduct_linearShare` is part (a): the vectors recombine the members' shares
+to the secret, for every key. For a coalition with `¬ P.Accepts s`,
+`shareDist_linearUniformAccessScheme_normalForm` is part (b)(i), over a finite field, and
+`accepts_normalForm` says that `P_L` accepts the same coalitions as `P`. `normalForm_matrix_zero`
+is part (b)(ii) and holds for every coalition. `recombination` of a coalition that is not accepted
+is zero (`recombination_eq_zero_of_not_accepts`), and `normalForm` of an accepted coalition has
+first column zero for every party and accepts no coalition (`not_accepts_normalForm_of_accepts`).
+[`SpanProgram/EliminationSynthesis.lean`](../../CslibFrontier/Computability/Circuit/SpanProgram/EliminationSynthesis.lean)
+bounds circuits for both, one for each shape of program, whose inputs are the matrix entries and a
+membership value for each party: with `r` rows and `d` columns, `full_recombination` uses at most
+`kernelVecCost d (r + 1) + r * (d + 1) + 2` gates and `full_normalForm` at most
+`kernelVecCost r d + r * (3 * d + 1)`, where one gate computes any function of at most two field
+elements, so the bounds count field operations and zero tests. A bound in bit operations over an
+encoded field, uniform in the shape, is open. The Example 22.3 generalization that every monotone
+access structure has a monotone span program is not yet formalized. The
 [linear secret-sharing client](../../CslibFrontierTests/Crypto/LinearSecretSharing.lean) exercises
 Example 22.3 over `ZMod 5`, explicit row-weight recombination, additive and scalar linearity, and
 boundary probes including `ZMod 4`. The
 [equivalence client](../../CslibFrontierTests/Crypto/SpanProgramEquivalence.lean) applies
 Lemma 22.15 to the two-out-of-three program of Example 22.2 over `ZMod 5`, shows that each of its
-two hypotheses is needed, and compares programs with different numbers of columns. Check them
-with:
+two hypotheses is needed, and compares programs with different numbers of columns. The
+[elimination client](../../CslibFrontierTests/Crypto/SpanProgramElimination.lean) applies
+Theorem 22.14 to that program, derives the privacy of Theorem 22.13 from part (b), evaluates `Lin`
+(including the book's vectors for Example 22.3) and `P_L` by kernel reduction, turns both bounds
+into circuits for three parties, and shows that each hypothesis is needed. Check them with:
 
 ```bash
 scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.LinearSecretSharing \
-  CslibFrontierTests.Crypto.SpanProgramEquivalence
+  CslibFrontierTests.Crypto.SpanProgramEquivalence CslibFrontierTests.Crypto.SpanProgramElimination
 ```
 
 ## Differential privacy
