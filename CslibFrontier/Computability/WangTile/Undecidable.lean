@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.WangTile.Basic
-public import Mathlib.Computability.Halting
+public import Mathlib.Computability.RE
 import CslibFrontier.Computability.WangTile.SeededUndecidable
 import CslibFrontier.Computability.WangTile.Robinson.Reduction
 import Mathlib.Computability.Reduce
@@ -31,7 +31,7 @@ with a primitive-recursive reordering of the last two colour components, not ide
 We retain lean-wang's corrected component transcription; agreement of its literal tables with
 all printed figures is not proved here.
 
-The landed seeded-quadrant reduction encodes nonhalting of a universal `TM0` machine.
+The seeded-quadrant reduction encodes nonhalting of a universal `TM0` machine.
 `Robinson.forgetSeed` extends the quadrant to a pointed plane and combines that palette with
 the concrete scaffold. Its primitive-recursive certificate and unconditional tileability
 equivalence transfer undecidability to the unseeded plane problem. No aperiodicity theorem or
@@ -49,7 +49,7 @@ co-recursively-enumerable completeness result is asserted.
 * [Ollinger2008]. Internal locator not verified.
 * [JeandelVanier2020], §1.1, Theorem 1, manuscript p. 2; §3.3, Theorem 10, manuscript p. 29;
   §3.4, pp. 29–30 attributes this proof route to Robinson and its underlying tile set to Ollinger.
-* [lean-wang, revision 64268a3, Robinson reduction](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Reduction.lean).
+* [lean-wang, revision 64268a3, Robinson endpoint](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Final.lean#L29).
 -/
 
 public section
