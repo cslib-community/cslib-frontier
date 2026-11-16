@@ -1185,6 +1185,22 @@ private theorem forgetfulAnswer_of_cachedAnswer_eq_none {q : PermQuery α} {cach
   | forward x => exact forgetfulAnswer_forward_of_none h
   | inverse y => exact forgetfulAnswer_inverse_of_none h
 
+/-- A supported `forgetfulAnswer` step either answers from `cache` and leaves it unchanged, or
+misses and prepends the entry recording its answer. -/
+theorem mem_support_forgetfulAnswer {q : PermQuery α} {cache : Cache α} {r : α × Cache α}
+    (h : r ∈ (forgetfulAnswer q cache).support) :
+    (cachedAnswer cache q = some r.1 ∧ r.2 = cache) ∨
+      (cachedAnswer cache q = none ∧ r.2 = PermQuery.toCacheEntry ⟨q, r.1⟩ :: cache) := by
+  cases hc : cachedAnswer cache q with
+  | some a =>
+    rw [forgetfulAnswer_of_cachedAnswer_eq_some hc, PMF.mem_support_pure_iff] at h
+    subst h
+    exact Or.inl ⟨rfl, rfl⟩
+  | none =>
+    rw [forgetfulAnswer_of_cachedAnswer_eq_none hc, PMF.mem_support_map_iff] at h
+    obtain ⟨a, -, rfl⟩ := h
+    exact Or.inr ⟨rfl, rfl⟩
+
 /-- Interpreting a `bidirDedupStep`-wrapped program against i.i.d. uniform answers from `α` produces
 the exact same joint result and cache distribution as `forgetfulAnswer`. -/
 theorem interpret_run_bidirDedupStep_uniformOfFintype {β : Type}

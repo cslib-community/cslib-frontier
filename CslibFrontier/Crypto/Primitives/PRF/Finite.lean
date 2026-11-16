@@ -8,7 +8,11 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Game
+public import CslibFrontier.Foundations.Control.Monad.Memoize
+public import CslibFrontier.Languages.Probabilistic.Oracle.Interaction
 public import CslibFrontier.Languages.Probabilistic.Oracle.Run
+import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
+import CslibFrontier.Probability.Product
 
 /-!
 # Finite pseudorandom functions
@@ -36,6 +40,8 @@ reductions of `Cslib.Crypto.PRF.multiKeyReduction`, which the finite Luby–Rack
 
 * `Cslib.Crypto.PRF.eval_realExperiment`, `Cslib.Crypto.PRF.eval_idealExperiment`: the laws of the
   two experiments, with the key or the random function sampled at the `PMF` level.
+* `Cslib.Crypto.PRF.eval_idealExperiment_eq_runWith_memoize`: the ideal experiment with the random
+  function sampled lazily, one uniform value per new query, by a `memoize` list cache.
 
 ## References
 
@@ -93,5 +99,15 @@ theorem eval_idealExperiment [Fintype D] [DecidableEq D] [Fintype R] [Nonempty R
           (OracleComp.sumHandler ProbComp.unifOracle fun x => PMF.pure (f x)) A := by
   simp only [idealExperiment, ProbComp.eval_bind, ProbComp.eval_uniform, ProbOracleComp.eval_run,
     ProbComp.eval_pure]
+
+/-- The law of `idealExperiment` with the random function sampled lazily: a `memoize` list cache
+draws one uniform value for each new query and replays it for repeated queries. -/
+theorem eval_idealExperiment_eq_runWith_memoize [Fintype D] [DecidableEq D] [Fintype R]
+    [Nonempty R] (A : Adversary D R) :
+    ProbComp.eval (idealExperiment A) =
+      (ProbOracleComp.runWith (memoize fun _ : D => PMF.uniformOfFintype R) A []).map Prod.fst := by
+  rw [eval_idealExperiment]
+  simpa only [PMF.pi_uniformOfFintype, Probability.PMF.monad_bind_eq_bind] using
+    RandomOracle.interpret_prob_eq_memoize (fun _ : D => PMF.uniformOfFintype R) A
 
 end Cslib.Crypto.PRF
