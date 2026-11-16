@@ -156,6 +156,15 @@ theorem liftAdaptiveAdversary_comp
     rw [runFrom_liftAdaptiveAdversary_liftAdaptiveNet, liftAdaptiveNet_map]
     rfl
 
+/-- Lifting to the adaptive network port preserves call count. -/
+theorem isQueryBounded_liftAdaptiveNet {α : Type}
+    {program : ProbOracleComp (netSpec Q R) α} {m : ℕ} (h : program.IsQueryBounded m) :
+    (liftAdaptiveNet (n := n) (In := In) (Out := Out) program).IsQueryBounded m := by
+  refine OracleComp.IsCostBounded.interpret (fun q => ?_) h
+  cases q with
+  | inl _ => exact OracleComp.IsCostBounded.query _
+  | inr _ => exact OracleComp.IsCostBounded.query _
+
 /-- Lifting a machine with at most `t` calls per activation gives at most `t + 1` calls per
 activation: party and `.status` queries pass through with one call. -/
 theorem isBounded_liftAdaptiveAdversary {M : Machine (netSpec Q R) (netSpec AdvQ AdvR)} {t : ℕ}

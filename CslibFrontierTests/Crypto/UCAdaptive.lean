@@ -10,10 +10,13 @@ import CslibFrontier.Crypto.Protocols.UC.Adaptive
 # Tests for adaptive corruptions in the UC execution
 
 Exercises `CslibFrontier.Crypto.Protocols.UC.Adaptive` on a concrete two-party coin-flipping
-protocol `P_coin`, ideal functionality `F_coin`, and corruption-tracking `F_corrTrack`:
+protocol `P_coin`, ideal functionality `F_coin` (`F_coin_toStatic_eq`), and corruption-tracking
+`F_corrTrack`:
 
 * Router unit tests checking `.static` vs `.adaptive`, `.nonErasing` vs `.erasing`, and `.status`.
-* Concrete `corruptAdv` witness (`PolyBounded`, `.status` reports `{0, 1}` in `.adaptive` mode).
+* Concrete `corruptAdv` witness (`PolyBounded`, `.status` reports `{0, 1}` in `.adaptive` mode)
+  and `.corrupt` branch check for `adaptiveExec_static_eq_adaptive_of_noCorrupt`
+  (`corruptPre_static_eq_adaptive`).
 * Static embedding checks (`static_embedding_check`, `staticCheckEnv_toAdaptive_polyBounded`,
   `static_adaptive_embedding_check`) via `AdaptiveAdversary.ofStatic` and `Environment.toAdaptive`.
 * Ideal-functionality corruption tracking (`P_corrTrack_toStatic_eq`, `F_corrTrack_midRun_corrupt`).
@@ -85,6 +88,10 @@ and party `1` exposes its delivered output `delivered1`. -/
 def coinReveal (_ : ℕ) (s : F_coin.State) (i : Fin 2) : Option Bool :=
   if i.val = 0 then s.party0 else s.delivered1
 
+theorem F_coin_toStatic_eq :
+    (F_coin.toAdaptive coinReveal).toStatic = F_coin.toProtocol :=
+  F_coin.toStatic_toAdaptive_of_initIndep _ fun _ _ => rfl
+
 /-! ### Router unit tests on explicit states -/
 
 private def coinInitRS (C₀ : Finset (Fin 2)) :
@@ -131,7 +138,7 @@ private theorem router_status_returns_corrupted :
       pure (({0} : Finset (Fin 2)), coinInitRS {0}) := by
   simp [adaptiveRouter, StateT.run]; rfl
 
-/-! ### Satisfiability witnesses and distinguishing environment `Z_star` -/
+/-! ### Concrete adversary and status check -/
 
 /-- A concrete adaptive adversary that initially corrupts party `1` and forwards `.corrupt` queries
 to `adaptiveRouter`. -/
@@ -216,6 +223,71 @@ theorem corruptAdv_adaptiveExec_status (κ : ℕ) (z : List Bool) :
     simp only [adaptiveRouter, StateT.run, P_coin, hnot, ↓reduceIte,
       AdaptiveProtocol.corruptionReport]; rfl
   simpa using h
+
+/-- Adversary that initially corrupts `{1}` and sends only `.corrupt 1` (`NoNewCorrupt`). -/
+def corruptPreAdv :
+    AdaptiveAdversary 2 CoinIn Bool Unit Unit (Option Bool)
+      Unit (AdaptiveNetR Bool Unit (Option Bool)) where
+  initial _ := {1}
+  machine _ := {
+    State := Unit
+    init := pure ()
+    handle _ _ := do
+      let r ← ProbOracleComp.query
+        (spec := netSpec (AdaptiveNetQ 2 CoinIn Unit) (AdaptiveNetR Bool Unit (Option Bool)))
+        (.corrupt 1)
+      pure (r, ()) }
+
+/-- Environment querying `corruptPreAdv` and checking that `.corrupt 1` returns `some _`. -/
+def corruptPreEnv :
+    AdaptiveEnvironment 2 CoinIn Bool Unit (AdaptiveNetR Bool Unit (Option Bool)) :=
+  fun _ _ => do
+    let r ← ProbOracleComp.query
+      (spec := adaptiveExecSpec 2 CoinIn Bool Unit (AdaptiveNetR Bool Unit (Option Bool)))
+      (.inr ())
+    pure (match r with | .corrupt (some rep) => rep.current == none | _ => false)
+
+theorem corruptPre_static_eq_adaptive (κ : ℕ) (z : List Bool) :
+    adaptiveExec .static (P_coin .erasing) corruptPreAdv corruptPreEnv κ z =
+      adaptiveExec .adaptive (P_coin .erasing) corruptPreAdv corruptPreEnv κ z ∧
+      (adaptiveExec .adaptive (P_coin .erasing) corruptPreAdv corruptPreEnv κ z).eval true = 1 := by
+  have hno : corruptPreAdv.NoNewCorrupt := fun _ _ _ => by
+    dsimp only [corruptPreAdv, StateT.run]
+    exact .bind (.query (by decide)) fun _ => .pure _
+  refine ⟨adaptiveExec_static_eq_adaptive_of_noCorrupt _ _ hno _ κ z, ?_⟩
+  let A := liftAdaptiveAdversary (n := 2) (In := CoinIn) (Out := Bool) (corruptPreAdv.machine κ)
+  let M := adaptiveRouter .adaptive (P_coin .erasing) κ (corruptPreAdv.initial κ)
+  let sInit : AdaptiveRouterState CoinState (Option Bool) 2 :=
+    ⟨{ party0 := none, delivered1 := none }, {1}, fun _ => [none]⟩
+  have hMinit : M.init = pure sInit := by
+    simp only [M, sInit, adaptiveRouter, P_coin, AdaptiveProtocol.applyInitialCorruptions,
+      corruptPreAdv, pure_bind]
+    congr 1; congr 1; funext i; fin_cases i <;> rfl
+  have hrunA : A.runFrom (corruptPreEnv κ z) () =
+      ProbOracleComp.query
+          (spec := adaptiveProtocolSpec 2 CoinIn Bool Unit Unit (Option Bool))
+          (.inr (.corrupt 1)) >>= fun r =>
+      pure (match r with | .corrupt (some rep) => rep.current == none | _ => false, ()) := by
+    dsimp only [corruptPreEnv]
+    erw [Machine.runFrom_bind (M := A), Machine.runFrom_query (M := A)]
+    dsimp only [A, liftAdaptiveAdversary, corruptPreAdv, liftAdaptiveNet, StateT.run]
+    simp only [OracleComp.interpret_bind, OracleComp.interpret_pure, bind_assoc, pure_bind]
+    exact bind_congr fun _ => by erw [Machine.runFrom_pure (M := A)]; rfl
+  have hmem : (1 : Fin 2) ∈ ({1} : Finset (Fin 2)) := by decide
+  have hcor : (M.handle (.inr (.corrupt 1))).run sInit =
+      pure (.corrupt (some { current := none, history := none }), sInit) := by
+    simp only [M, sInit, adaptiveRouter, StateT.run, hmem, ↓reduceIte,
+      AdaptiveProtocol.corruptionReport]
+    rfl
+  rw [adaptiveExec, Machine.run]
+  change (Machine.closeProgram (ProbOracleComp.sample (A.comp M).init >>= fun s =>
+    Prod.fst <$> (A.comp M).runFrom (corruptPreEnv κ z) s)).eval true = 1
+  rw [Machine.comp_init]
+  erw [hMinit, ProbOracleComp.sample_bind, ProbOracleComp.sample_pure, bind_assoc, pure_bind,
+    ProbOracleComp.sample_pure, pure_bind, Machine.runFrom_comp (A := A) (P := M), hrunA,
+    Machine.runFrom_bind (M := M), Machine.runFrom_query (M := M), map_bind, hcor, pure_bind,
+    Machine.runFrom_pure (M := M), map_pure, Equiv.prodAssoc_apply]
+  simp [Machine.closeProgram_pure, ProbComp.eval_pure]
 
 /-! ### Static embedding check on `n = 2` with `C = {1}` -/
 

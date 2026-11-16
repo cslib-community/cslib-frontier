@@ -34,6 +34,14 @@ section AdaptiveToStatic
 variable {n : ℕ} {In Out NetQ NetR View AdvQ AdvR : Type}
 variable {NetQ₁ NetR₁ View₁ NetQ₂ NetR₂ View₂ : Type}
 
+/-- Private uniform index queries are unchanged under `liftAdaptiveNet`. -/
+theorem liftAdaptiveNet_unifFin {Q R : Type} (k : ℕ) :
+    liftAdaptiveNet (n := n) (In := In) (Out := Out) (Q := Q) (R := R)
+        (OracleComp.query (spec := probOracleSpec (netSpec Q R)) (Sum.inl k)) =
+      ProbOracleComp.sample (ProbComp.unifFin k) := by
+  simp only [liftAdaptiveNet, ProbOracleComp.sample, ProbComp.unifFin, OracleComp.interpret_query,
+    sumHandler]
+
 private theorem adaptiveRouter_handle_inl_party (mode : CorruptionMode)
     (P : AdaptiveProtocol n In Out NetQ NetR View) (κ : ℕ) (C₀ : Finset (Fin n))
     (i : Fin n) (x : In) (s : AdaptiveRouterState (P.machine κ).State View n) :
