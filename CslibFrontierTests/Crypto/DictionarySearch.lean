@@ -27,11 +27,6 @@ section Instances
 
 variable {P S Sp Y : Type} [DecidableEq Y]
 
-/-- Salted form of (18.1) (Section 18.4.1, "Limits of salting"): `D.length` calls, salt known. -/
-example (salt : S) (vk : Y) (D : List P) :
-    OracleComp.IsQueryBounded (dictionaryPreimageSearch (fun w : P => (w, salt)) vk D) D.length :=
-  isQueryBounded_dictionarySearch _ _ D
-
 /-- A secret in `D` is found by the salted search, up to a collision at the same salt. -/
 example (H : P × S → Y) (salt : S) (D : List P) {pw : P} (h : pw ∈ D) :
     ∃ w ∈ D,
@@ -39,13 +34,20 @@ example (H : P × S → Y) (salt : S) (D : List P) {pw : P} (h : pw ∈ D) :
         H (w, salt) = H (pw, salt) :=
   exists_evalPure_dictionaryPreimageSearch_of_mem H _ D h
 
+/-- With a hash that has no collision at the salt, the salted search returns the secret itself. -/
+example (salt : ℕ) (D : List ℕ) {pw : ℕ} (h : pw ∈ D) :
+    (dictionaryPreimageSearch (fun w : ℕ => (w, salt)) (pw + salt) D).evalPure
+      (fun x : ℕ × ℕ => x.1 + x.2) = some pw :=
+  evalPure_dictionaryPreimageSearch_of_injOn (fun x : ℕ × ℕ => x.1 + x.2) _ D h
+    fun _ _ _ _ h => Nat.add_right_cancel h
+
 /-- The salted search asks only at the given salt. -/
 example (salt : S) (vk : Y) (D : List P) :
     OracleComp.QueriesSatisfy (fun x : P × S => x.2 = salt)
       (dictionaryPreimageSearch (fun w : P => (w, salt)) vk D) :=
   (queriesSatisfy_dictionarySearch _ _ D).mono fun _ ⟨_, _, h⟩ => h ▸ rfl
 
-/-- Section 18.4.1, "Limits of salting", with its probability: whatever the salt, a secret drawn
+/-- Section 18.4.1, "Limits of salting", in probability form: whatever the salt, a secret drawn
 from `μ` is found at least as often as it lies in `D`, with `D.length` evaluations. -/
 example [Inhabited P] (μ : PMF P) (H : P × S → Y) (salt : S) (D : List P) :
     (∀ vk : Y, OracleComp.IsQueryBounded (dictionaryPreimageSearch (fun w : P => (w, salt)) vk D)
@@ -108,10 +110,13 @@ example (vk₁ vk₂ vk₃ : ℕ) :
     OracleComp.IsQueryBounded (dictionaryBatchSearch (id : ℕ → ℕ) [0, 1] [vk₁, vk₂, vk₃]) 2 :=
   isQueryBounded_dictionaryBatchSearch id [0, 1] [vk₁, vk₂, vk₃]
 
-/-- The table has one entry per candidate. -/
-example {X : Type} (H : X → Y) (input : P → X) (D : List P) :
-    ((dictionaryTable input D).evalPure H).length = D.length := by
-  rw [evalPure_dictionaryTable, List.length_map]
+/-- (18.2)–(18.3) evaluated: `H x = x % 3`, dictionary `[4, 1, 2, 7]`, file `[1, 2, 0]`. Three
+candidates hash to `1` and the first in dictionary order is returned; nothing hashes to `0`. -/
+example : (dictionaryBatchSearch (id : ℕ → ℕ) [4, 1, 2, 7] [1, 2, 0]).evalPure (· % 3) =
+    [some 4, some 2, none] := by
+  rw [evalPure_dictionaryBatchSearch]
+  simp only [List.map_cons, List.map_nil, evalPure_dictionarySearch]
+  decide
 
 /-- The shape of the searches of Sections 21.11.3 and 21.11.4: one call at an input derived from
 the candidate, then a test of the reply that is not an equality with a known hash. `dec` and the
@@ -168,8 +173,9 @@ example (vk : Y) (D : Finset P) :
   rwa [Finset.length_toList] at h
 
 /-- The search of Section 21.11.1 (printed p. 905) on the reply `v = H(pw, chb, 0, r, s)` of a
-phished client: the preimage form, with the channel binding and both nonces in the derived
-input. -/
+phished client: p. 905 prints the adversary's test as `H(pw′, r)` while the client sends
+`H(pw, chb, 0, r, s)`; as recorded in #5752, this instance uses the full derived input with the
+channel binding and both nonces. -/
 example {Chb R : Type} (H : P × Chb × ℕ × R × R → Y) (chb : Chb) (r s : R) (D : List P)
     {pw : P} (hmem : pw ∈ D) :
     OracleComp.IsQueryBounded
@@ -190,13 +196,6 @@ example {P Y : Type} [DecidableEq Y] [Inhabited P] (μ : PMF P) (H : P → Y) (D
       Game.succProbability (inversionExperiment μ H (dictionaryInverter H id D)) :=
   ENNReal.toNNReal_mono (PMF.apply_ne_top _ _) (le_inversionExperiment_dictionaryInverter μ H id D)
 
-/-- The inverter is the certified program evaluated against `H`. -/
-example {P Y : Type} [DecidableEq Y] [Inhabited P] (H : P → Y) (D : List P) (vk : Y) :
-    dictionaryInverter H id D vk =
-        PMF.pure (((dictionaryPreimageSearch id vk D).evalPure H).getD default) ∧
-      OracleComp.IsQueryBounded (dictionaryPreimageSearch (id : P → P) vk D) D.length :=
-  ⟨dictionaryInverter_apply H id D vk, isQueryBounded_dictionarySearch _ _ D⟩
-
 /-! ### Failing cases -/
 
 /-- With a collision the search returns the first colliding candidate, not the secret: the
@@ -205,6 +204,14 @@ hypothesis `Set.InjOn` of `evalPure_dictionaryPreimageSearch_of_injOn` cannot be
 example :
     (dictionaryPreimageSearch id ((fun _ : ℕ => (0 : ℕ)) 1) [0, 1]).evalPure
       (fun _ : ℕ => (0 : ℕ)) = some 0 := by
+  rw [evalPure_dictionarySearch]; decide
+
+/-- Injectivity of `H` alone does not give the secret: the hypothesis of
+`evalPure_dictionaryPreimageSearch_of_injOn` is injectivity of `w ↦ H (input w)` on `D`. Here
+`H = id`, the derived input is constant, the secret is `1`, and the output is `0`. -/
+example :
+    (dictionaryPreimageSearch (fun _ : ℕ => (0 : ℕ)) ((id : ℕ → ℕ) ((fun _ : ℕ => (0 : ℕ)) 1))
+      [0, 1]).evalPure (id : ℕ → ℕ) = some 0 := by
   rw [evalPure_dictionarySearch]; decide
 
 /-- A secret outside the dictionary is not found: `pw ∈ D` cannot be dropped. -/
@@ -251,5 +258,18 @@ example : (inversionExperiment (PMF.pure (2 : ℕ)) (id : ℕ → ℕ)
   rw [inversionExperiment_eq_bind_map, PMF.pure_bind, dictionaryInverter_apply, PMF.pure_map,
     evalPure_dictionarySearch, PMF.pure_apply]
   simp
+
+/-- The bound of `le_inversionExperiment_dictionaryInverter` is a lower bound and can be strict:
+with a constant `H` every output inverts, so a point mass outside the dictionary (`μ D = 0`) is
+inverted with probability `1`. -/
+example : (PMF.pure (2 : ℕ)).toOuterMeasure {pw | pw ∈ ([0, 1] : List ℕ)} = 0 ∧
+    (inversionExperiment (PMF.pure (2 : ℕ)) (fun _ : ℕ => (0 : ℕ))
+      (dictionaryInverter (fun _ : ℕ => (0 : ℕ)) id [0, 1])) true = 1 := by
+  constructor
+  · rw [PMF.toOuterMeasure_apply_eq_zero_iff]
+    simp
+  · rw [inversionExperiment_eq_bind_map, PMF.pure_bind, dictionaryInverter_apply, PMF.pure_map,
+      PMF.pure_apply]
+    simp
 
 end CslibFrontierTests.Crypto.DictionarySearch

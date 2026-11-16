@@ -46,7 +46,10 @@ This formalization differs from the book's presentation as follows:
    regardless of `F`; `O(|D| + |F|)` vs `O(|D| × |F|)` appears as two upper bounds, without claiming
    the second bound is attained for every input.
 7. **Weak-secret distribution.** `le_inversionExperiment_dictionaryInverter` formalizes choosing a
-   weak secret from an arbitrary distribution `μ` over a small dictionary.
+   weak secret from an arbitrary distribution `μ` over a small dictionary; the resulting
+   probability lower bound `μ.toOuterMeasure {pw | pw ∈ D} ≤ ...` is this library's (the book
+   states no probability, only the pointwise claim on p. 722 that if `pw ∈ D` the adversary obtains
+   `pw` or some `pw'` with `H(pw) = H(pw')` in time `O(|D|)`).
 8. **Total `PMF` inverter.** `dictionaryInverter` returns `default` when the search fails;
    `[Inhabited P]` is needed only there.
 9. **Recovering `pw` itself.** Returning `pw` (rather than some `w ∈ D` with `H (input w) = vk`)
@@ -74,13 +77,12 @@ evaluations").
 
 ## Main results
 
-* `Cslib.Crypto.evalPure_dictionarySearch`, `Cslib.Crypto.dictionarySearch_sound`,
-  `Cslib.Crypto.evalPure_dictionarySearch_eq_none_iff`: output characterization of
-  `dictionarySearch` against `H`.
+* `Cslib.Crypto.evalPure_dictionarySearch`: output characterization of `dictionarySearch` against
+  `H` (`List.find?`).
 * `Cslib.Crypto.isQueryBounded_dictionarySearch`,
   `Cslib.Crypto.not_isQueryBounded_dictionarySearch`,
-  `Cslib.Crypto.queriesSatisfy_dictionarySearch`: sharp bound of `D.length` oracle calls, all at
-  `input w` for `w ∈ D`.
+  `Cslib.Crypto.queriesSatisfy_dictionarySearch`: at most `D.length` oracle calls on every path, all
+  at `input w` for `w ∈ D`; no smaller bound holds when `accept` rejects some reply.
 * `Cslib.Crypto.exists_evalPure_dictionarySearch_of_mem`,
   `Cslib.Crypto.evalPure_dictionarySearch_of_unique`: success when the secret lies in `D` and
   passes `accept`.
@@ -183,8 +185,8 @@ theorem dictionarySearch_cons (input : P → X) (accept : Y → Bool) (w : P) (w
         if accept y then pure (some w) else dictionarySearch input accept ws := by
   simp only [dictionarySearch, List.findM?_cons, bind_map_left]
 
-/-- **The count is sharp.** If some reply is rejected for every candidate, no budget below
-`D.length` bounds the search. -/
+/-- **The count is sharp.** If `accept` rejects some reply, no budget below `D.length` bounds the
+search. -/
 theorem not_isQueryBounded_dictionarySearch {input : P → X} {accept : Y → Bool} {D : List P}
     {y₀ : Y} (hy : accept y₀ = false) {n : ℕ} (hn : n < D.length) :
     ¬ OracleComp.IsQueryBounded (dictionarySearch input accept D) n := by
@@ -260,15 +262,11 @@ access to the oracle. -/
 theorem lookup_evalPure_dictionaryTable (vk : Y) :
     ((dictionaryTable input D).evalPure H).lookup vk =
       (dictionaryPreimageSearch input vk D).evalPure H := by
-  rw [evalPure_dictionaryTable, evalPure_dictionarySearch]
-  induction D with
-  | nil => rfl
-  | cons w ws ih =>
-    rw [List.map_cons, List.lookup_cons, List.find?_cons, ih]
-    by_cases h : H (input w) = vk
-    · simp [h]
-    · rw [beq_false_of_ne (Ne.symm h)]
-      simp [h]
+  rw [evalPure_dictionaryTable, evalPure_dictionarySearch, List.lookup_eq_findSome?,
+    List.findSome?_map, List.find?_eq_findSome?_guard]
+  congr 1
+  funext w
+  simp [Option.guard, @eq_comm _ vk]
 
 /-- **The batch search (18.3).** One table, then one lookup for each entry of `F`. -/
 def dictionaryBatchSearch (input : P → X) (D : List P) (F : List Y) :
@@ -334,10 +332,13 @@ theorem le_inversionExperiment_dictionaryInverter [Inhabited P] (μ : PMF P) (H 
     simp [Set.indicator, hmem, hfind, hw]
   · simp [Set.indicator, hmem]
 
-/-- **The dictionary search against a weak secret** ([BonehShoup2023], Section 18.3.1.2): for
-every `H`, every derived input and every distribution `μ` of the secret, the search (18.1) over
-`D` makes at most `D.length` evaluations of `H` on every challenge, and wins the inversion
-experiment for `pw ↦ H (input pw)` at least as often as the secret lies in `D`. -/
+/-- **The dictionary search against a weak secret.** [BonehShoup2023], Section 18.3.1.2 (p. 722)
+states that if `pw ∈ D`, the adversary obtains `pw` or some `pw'` with `H(pw) = H(pw')` in time
+`O(|D|)`. Here, for every `H`, every derived input, and a secret drawn from an arbitrary
+distribution `μ` on `P`, the search `(18.1)` over `D` makes at most `D.length` evaluations of `H`
+on every challenge and wins `inversionExperiment` for `pw ↦ H (input pw)` with probability at
+least `μ.toOuterMeasure {pw | pw ∈ D}` (this probability form is original to this library, not in
+the book). -/
 theorem dictionarySearch_inverts [Inhabited P] (μ : PMF P) (H : X → Y) (input : P → X)
     (D : List P) :
     (∀ vk : Y, OracleComp.IsQueryBounded (dictionaryPreimageSearch input vk D) D.length) ∧
