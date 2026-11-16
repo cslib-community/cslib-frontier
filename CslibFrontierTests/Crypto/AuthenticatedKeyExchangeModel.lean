@@ -27,6 +27,8 @@ Checks for `CslibFrontier/Crypto/Computational/AuthenticatedKeyExchange/Experime
 * **Ruling 14 (`challenger_of_refused`, `view_of_mem_support`)**: disallowed queries return `[]`
   without modifying state, refusal depends only on `(honestIds, corruptIds, phases)`, and the
   updated visible view is determined by the prior view, query, and reply in both experiments.
+* **State bounds (`ttpStep_ne_doubling`)**: no `Protocol` has a TTP that doubles its state on every
+  call, although each call of that TTP is polynomial time.
 -/
 
 set_option linter.privateModule false
@@ -60,6 +62,12 @@ private def sampleProtocol : Protocol where
     simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hout
     subst hout
     rfl
+  stateBound := fun _ => 0
+  stateBound_polyTime := by ppt
+  registerHonest_ttp_length := fun _ _ hout => by simp_all
+  registerCorrupt_ttp_length := fun _ _ hout => by simp_all
+  ttpStep_ttp_length := fun _ _ hout => by simp_all
+  step_state_length := fun _ _ hout => by simp_all
 
 private def mkInst (u p : List Bool) (r : Role) (ph : Phase) (k : List Bool)
     (cls : Option Classification) (esk : Option (List Bool)) : Instance :=
@@ -437,5 +445,19 @@ theorem view_of_mem_support (P : Protocol) (n : ℕ) (ideal : Option Idealizatio
         · simp only [hfin, ↓reduceIte, ProbComp.eval_pure, PMF.mem_support_pure_iff] at hout
           subst hout
           simp only [view, List.map_set, replyPhase_encDeliverReply]
+
+/-! ### The state bounds exclude a state-doubling TTP -/
+
+/-- No `Protocol` has the online TTP step that doubles its state on every call (`s ↦ true :: (s ++
+s)`, replying with `s`), although each such call is polynomial time in its input: on a state longer
+than `stateBound 0`, it grows by more than the bound allows. -/
+theorem ttpStep_ne_doubling (P : Protocol) :
+    P.ttpStep ≠ fun input => pure ⟨true :: (input.ttp ++ input.ttp), input.ttp⟩ := by
+  intro h
+  let s := List.replicate (P.stateBound 0 + 1) true
+  have hgrow := P.ttpStep_ttp_length ⟨0, s, [], []⟩ ⟨true :: (s ++ s), s⟩
+    (by rw [h]; exact (PMF.mem_support_pure_iff _ _).mpr rfl)
+  simp only [List.length_cons, List.length_append, s, List.length_replicate] at hgrow
+  omega
 
 end CslibFrontierTests.Crypto.AuthenticatedKeyExchangeModel

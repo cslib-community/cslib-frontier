@@ -22,7 +22,9 @@ query handler `challenger` for Experiments 0 and 1 ([BonehShoup2023], §21.9, pp
 
 ## Model conventions and differences from [BonehShoup2023]
 
-* **(a)** Strict PPT word algorithms (`IsPPTOn`/`IsOraclePPT`/`ComputableInPolyTime`).
+* **(a)** Strict PPT word algorithms (`IsPPTOn`/`IsOraclePPT`/`ComputableInPolyTime`), with
+  the polynomial state bounds of `Protocol` standing in for the book's efficient TTP interface
+  and poly-bounded instance configurations (compared in `AuthenticatedKeyExchange/Protocol.lean`).
 * **(b)** Joint honest registration (`registerHonest` runs in one step, unlogged).
 * **(c)** Stepwise corrupt registration (one TTP step and `.corruptUser` log entry per query).
 * **(d)** Refused disallowed queries return `[]` with unchanged state; refusal and visible view

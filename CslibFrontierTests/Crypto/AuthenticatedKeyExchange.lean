@@ -38,14 +38,16 @@ open scoped NNReal
 
 /-! ### Test helpers -/
 
-/-- Build a protocol with a trivial trusted third party from `keyLength`, `step`, and their
-certificates. -/
+/-- Build a protocol with a trivial trusted third party from `keyLength`, a `step` that keeps no
+instance state, and their certificates. -/
 private def Protocol.ofStep (keyLength : ℕ → ℕ)
     (step : StepInput → ProbComp StepOutput)
     (keyLength_polyTime : ComputableInPolyTime keyLength encUnary encUnary)
     (step_ppt : IsPPTOn encStepInput encStepOutput step)
     (key_length : ∀ input, ∀ out ∈ (ProbComp.eval (step input)).support,
-      out.phase = .finished → out.key.length = keyLength input.parameter) : Protocol where
+      out.phase = .finished → out.key.length = keyLength input.parameter)
+    (step_state : ∀ input, ∀ out ∈ (ProbComp.eval (step input)).support, out.state = []) :
+    Protocol where
   keyLength := keyLength
   ttpInit := fun _ => pure []
   registerHonest := fun input => pure ⟨input.ttp, []⟩
@@ -59,6 +61,12 @@ private def Protocol.ofStep (keyLength : ℕ → ℕ)
   ttpStep_ppt := by ppt
   step_ppt := step_ppt
   key_length := key_length
+  stateBound := fun _ => 0
+  stateBound_polyTime := by ppt
+  registerHonest_ttp_length := fun _ _ hout => by simp_all
+  registerCorrupt_ttp_length := fun _ _ hout => by simp_all
+  ttpStep_ttp_length := fun _ _ hout => by simp_all
+  step_state_length := fun input out hout => by simp [step_state input out hout]
 
 /-- Taking `w.length + 1` bits of `w ++ b :: k` strictly extends `w` and therefore differs from
 `w`. -/
@@ -105,16 +113,16 @@ theorem effectiveKey_of_not_registered (P : Protocol) (n : ℕ) (c : Classificat
 instance `0` with `.left`, and deliver `msg` to instance `0`, continuing via `k` on the truncated
 reply. -/
 private theorem eval_ofStep_threeStep (kl : ℕ → ℕ)
-    (step : StepInput → ProbComp StepOutput) (hkl) (hstep_ppt) (hlen)
+    (step : StepInput → ProbComp StepOutput) (hkl) (hstep_ppt) (hlen) (hstate)
     (ideal : Option Idealization) (n : ℕ) (m : ℕ → ℕ) (msg : List Bool)
     (k : ℕ → List Bool → Bool) :
-    ProbComp.eval ((Protocol.ofStep kl step hkl hstep_ppt hlen).run ideal (fun i _ => do
+    ProbComp.eval ((Protocol.ofStep kl step hkl hstep_ppt hlen hstate).run ideal (fun i _ => do
       let _ ← List.take 0 <$> ProbOracleComp.query (.registerHonest, [])
       let _ ← List.take 0 <$> ProbOracleComp.query (.init .left, [])
       let reply ← List.take (m i) <$>
         ProbOracleComp.query (.deliver, encPair encBits encBits ([], msg))
       pure (k i reply)) n) =
-      (ProbComp.eval (challenger (Protocol.ofStep kl step hkl hstep_ppt hlen) n ideal
+      (ProbComp.eval (challenger (Protocol.ofStep kl step hkl hstep_ppt hlen hstate) n ideal
         (.deliver, encPair encBits encBits ([], msg))
         ⟨[], [⟨[], []⟩], [], [⟨[], [], .left, [], .running, [], [], none, none⟩],
           [LogEntry.init 0 .left]⟩)).map (fun res => k n (res.1.take (m n))) := by
@@ -138,10 +146,15 @@ private theorem eval_ofStep_threeStep (kl : ℕ → ℕ)
 def abortProtocol : Protocol :=
   Protocol.ofStep id
     (fun _ => pure ⟨[], [], .aborted, [], []⟩)
-    (by ppt) (by ppt) fun _ _ hout hfin => by
+    (by ppt) (by ppt)
+    (fun _ _ hout hfin => by
       simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hout
       subst hout
-      cases hfin
+      cases hfin)
+    fun _ _ hout => by
+      simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hout
+      subst hout
+      rfl
 
 /-- Because `abortProtocol` never finishes an instance, Experiment 1 and Experiment 0 have identical
 query handlers for every idealization. -/
@@ -190,11 +203,17 @@ noncomputable def echoProtocol : Protocol :=
     (fun input => do
       let key ← BitString.sampleList input.parameter
       pure ⟨[], [], .finished, input.message, key⟩)
-    (by ppt) (by ppt) fun input out hout _ => by
+    (by ppt) (by ppt)
+    (fun input out hout _ => by
       simp only [ProbComp.eval_bind, BitString.eval_sampleList, ProbComp.eval_pure,
         PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hout
       obtain ⟨k, hk, rfl⟩ := hout
-      exact BitString.length_of_mem_support_uniformList hk
+      exact BitString.length_of_mem_support_uniformList hk)
+    fun _ _ hout => by
+      simp only [ProbComp.eval_bind, BitString.eval_sampleList, ProbComp.eval_pure,
+        PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hout
+      obtain ⟨_, _, rfl⟩ := hout
+      rfl
 
 private def echoErrorReply : List Bool :=
   encDeliverReply ⟨[], .finished, [true], none⟩
@@ -275,10 +294,15 @@ constant all-zero key `List.replicate n false`. -/
 def constKeyProtocol : Protocol :=
   Protocol.ofStep id
     (fun input => pure ⟨[], [], .finished, input.user, List.replicate input.parameter false⟩)
-    (by ppt) (by ppt) fun input out hout _ => by
+    (by ppt) (by ppt)
+    (fun input out hout _ => by
       simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hout
       subst hout
-      simp
+      simp)
+    fun _ _ hout => by
+      simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hout
+      subst hout
+      rfl
 
 private def zeroReplyPrefix : List Bool :=
   encDeliverReply ⟨[], .finished, [], none⟩ ++ [true]

@@ -25,6 +25,33 @@ polynomial-time or `IsPPTOn` efficiency certificate over explicit structure enco
 registration is modeled as one joint step (`registerHonest`), whereas corrupt registration and
 key establishment proceed step by step through explicit TTP and instance states.
 
+A certificate for each call alone would admit a TTP that doubles its state on every call, whose
+replies grow exponentially over many polynomial-time calls. The book excludes this. It asks the
+TTP to be an efficient interface ([BonehShoup2023], footnote 1 on p. 885, and Definition 2.12,
+p. 33), whose total running time is polynomial in the security parameter and the number of
+interactions. It also bounds the configuration of a running protocol instance by a fixed
+polynomial in the security parameter (§18.1.1, p. 718), naming this doubling as the reason. A
+`Protocol` carries a bound `stateBound`, computable in polynomial time in unary and so polynomial
+in `n`, with two conditions:
+
+* **TTP calls.** Each call lengthens the TTP state by at most `stateBound n`, so after `I`
+  calls the state is polynomial in `n` and `I`.
+* **Session steps.** Every state a step outputs has length at most `stateBound n`.
+
+Each call therefore runs in time polynomial in `n`, the number of earlier calls and the lengths
+of the words the adversary has sent, so the experiments are efficient against an efficient
+adversary. A
+certificate for running the experiment is not proved here.
+
+These conditions differ from the book's in three ways:
+
+* They are narrower than Definition 2.12, which also admits interfaces whose growth per call
+  increases with the number of earlier calls.
+* A call may take time polynomial in the lengths of the words it receives. The word model reads
+  its whole input, and Definition 2.12 bounds the time regardless of their lengths.
+* The polynomial round complexity of §18.1.1 is not required. It does not affect the
+  experiments, since the adversary decides how many messages to deliver.
+
 ## Main definitions
 
 * `Cslib.Crypto.AKE.Role`: session role (`left` or `right`).
@@ -39,7 +66,7 @@ key establishment proceed step by step through explicit TTP and instance states.
 ## References
 
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023],
-  Section 21.9, pp. 885–886.
+  Section 21.9, pp. 885–886; Definition 2.12, p. 33; Section 18.1.1, p. 718.
 -/
 
 public section
@@ -152,8 +179,11 @@ enc_structure encTTPOutput : TTPOutput where
   output : encBits
 
 /-- Syntactic specification of an authenticated key exchange protocol ([BonehShoup2023], §21.9,
-pp. 885–886), packaged with uniform strict polynomial-time / `IsPPTOn` certificates and the
-session-key length condition `k ∈ 𝒦` where `𝒦 = {0, 1}^{keyLength n}`. -/
+pp. 885–886), packaged with uniform strict polynomial-time / `IsPPTOn` certificates, the
+session-key length condition `k ∈ 𝒦` where `𝒦 = {0, 1}^{keyLength n}`, and the state bounds that
+make the TTP an efficient interface (Definition 2.12, p. 33) and keep instance configurations
+polynomial in `n` (§18.1.1, p. 718). The module documentation compares these bounds with the
+book's. -/
 structure Protocol where
   /-- Session key length as a function of the security parameter. -/
   keyLength : ℕ → ℕ
@@ -182,5 +212,23 @@ structure Protocol where
   /-- Every finished step produces a key in `𝒦`, i.e., of length `keyLength input.parameter`. -/
   key_length : ∀ input, ∀ out ∈ (ProbComp.eval (step input)).support,
     out.phase = .finished → out.key.length = keyLength input.parameter
+  /-- Bound on how much a TTP call may lengthen the TTP state, and on the length of every
+  instance state, as a function of the security parameter. -/
+  stateBound : ℕ → ℕ
+  /-- `stateBound` is computable in polynomial time in unary, so `stateBound n` is polynomial in
+  `n`. -/
+  stateBound_polyTime : ComputableInPolyTime stateBound encUnary encUnary
+  /-- Honest registration lengthens the TTP state by at most `stateBound n`. -/
+  registerHonest_ttp_length : ∀ input, ∀ out ∈ (ProbComp.eval (registerHonest input)).support,
+    out.ttp.length ≤ input.ttp.length + stateBound input.parameter
+  /-- Corrupt registration lengthens the TTP state by at most `stateBound n`. -/
+  registerCorrupt_ttp_length : ∀ input, ∀ out ∈ (ProbComp.eval (registerCorrupt input)).support,
+    out.ttp.length ≤ input.ttp.length + stateBound input.parameter
+  /-- An online TTP step lengthens the TTP state by at most `stateBound n`. -/
+  ttpStep_ttp_length : ∀ input, ∀ out ∈ (ProbComp.eval (ttpStep input)).support,
+    out.ttp.length ≤ input.ttp.length + stateBound input.parameter
+  /-- Every instance state a step outputs has length at most `stateBound n`. -/
+  step_state_length : ∀ input, ∀ out ∈ (ProbComp.eval (step input)).support,
+    out.state.length ≤ stateBound input.parameter
 
 end Cslib.Crypto.AKE
