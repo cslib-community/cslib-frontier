@@ -290,8 +290,9 @@ theorem ComputableInO.natToUnary : ComputableInO (fun n : ℕ => n) encNat encUn
   obtain ⟨ci, hi⟩ := computableInTimeAndSpace_of_const (encIn := encNat) (encOut := encUnary) 1
   obtain ⟨ce, he⟩ := computableInTimeAndSpace_of_const
     (encIn := encUnary) (encOut := encBits) ([] : List Bool)
-  obtain ⟨c₀, hstep, -⟩ := Internal.NormalForm.inO ((ComputableInDegree.unaryAdd (ComputableInDegree.fst encUnary encBool)
-    (ComputableInDegree.fst encUnary encBool) le_rfl le_rfl).inO_one)
+  obtain ⟨c₀, hstep, -⟩ := Internal.NormalForm.inO
+    ((ComputableInDegree.unaryAdd (ComputableInDegree.fst encUnary encBool)
+      (ComputableInDegree.fst encUnary encBool) le_rfl le_rfl).inO_one)
   have hemit : ComputableInO (fun p : ℕ × Bool => if p.2 then p.1 else 0)
       (encPair encUnary encBool) encUnary (fun p => (encPair encUnary encBool p).length)
       fun p => (encPair encUnary encBool p).length :=
@@ -346,7 +347,8 @@ theorem ComputableInO.natToUnary : ComputableInO (fun n : ℕ => n) encNat encUn
     have h₂ := Universal.length_encNat_le n
     have h₃ := hgeom (encNat n).length
     nlinarith
-  refine (ComputableInO.of_bounds hK.computableInTimeAndSpace (K * (2 * ci + 2 * ce + 5 * D + 20) + 1)
+  refine (ComputableInO.of_bounds hK.computableInTimeAndSpace
+    (K * (2 * ci + 2 * ce + 5 * D + 20) + 1)
     (fun n => ?_) (fun n => ?_) fun n => ?_)
   · calc K * (2 * ci + 2 + (2 * ce + 2) + (encNat n).length +
           (∑ j ∈ Finset.range (encNat n).length, D * (2 ^ j + 1)) +

@@ -137,11 +137,11 @@ theorem ite_subtype {encC : Bool ↪ List Bool} {c : α → Bool} {f g : α → 
   obtain ⟨tf, cf, hf⟩ := hf
   obtain ⟨tg, cg, hg⟩ := hg
   obtain ⟨dc, _, kc, Qc, hfinc, tmc, hc⟩ := Internal.NormalForm.exactBounds hc
-  letI := hfinc
+  let := hfinc
   obtain ⟨df, _, kf, Qf, hfinf, tmf, hf⟩ := Internal.NormalForm.exactBounds hf
-  letI := hfinf
+  let := hfinf
   obtain ⟨dg, _, kg, Qg, hfing, tmg, hg⟩ := Internal.NormalForm.exactBounds hg
-  letI := hfing
+  let := hfing
   let tf' (a : α) : ℕ :=
     if h : c a = true then
       df * (tf ⟨a, h⟩ + 1)
@@ -154,13 +154,20 @@ theorem ite_subtype {encC : Bool ↪ List Bool} {c : α → Bool} {f g : α → 
   let sg' (a : α) : ℕ := dg * (cg * ((encIn a).length.log2 + 1) + 1)
   have hf' (x : {a // c a = true}) : tmf.ComputesTidilyInTimeAndSpace
       (encIn x) (encOut (f x)) (tf' x) (sf' x) := by
-    simpa only [tf', sf', x.2, ↓reduceDIte] using hf x
+    rcases x with ⟨a, ha⟩
+    simpa only [tf', sf', ha, ↓reduceDIte, Function.comp_apply,
+      Function.Embedding.trans_apply, Function.Embedding.subtype_apply] using hf ⟨a, ha⟩
   have hg' (x : {a // c a = false}) : tmg.ComputesTidilyInTimeAndSpace
       (encIn x) (encOut (g x)) (tg' x) (sg' x) := by
-    simpa only [tg', sg', x.2, ↓reduceDIte] using hg x
+    rcases x with ⟨a, ha⟩
+    simpa only [tg', sg', ha, ↓reduceDIte, Function.comp_apply,
+      Function.Embedding.trans_apply, Function.Embedding.subtype_apply] using hg ⟨a, ha⟩
   obtain ⟨k, km, Qm, hfinm, tm, h⟩ := Internal.conditional hc hf' hg'
   refine ⟨_, dc * (cc + 1) + df * (cf + 1) + dg * (cg + 1) + k,
-    km, Qm, hfinm, tm, fun a => (h a).computesInTimeAndSpace.mono le_rfl ?_⟩
+    km, Qm, hfinm, tm, ?_⟩
+  refine ComputesFunInTimeAndSpace.mono (fun a => (h a).computesInTimeAndSpace)
+    (fun _ => le_rfl) ?_
+  intro a
   simp only [sf', sg']
   generalize Nat.log2 (encIn a).length = l
   cases c a <;> simp only [Bool.false_eq_true, ↓reduceIte] <;>
