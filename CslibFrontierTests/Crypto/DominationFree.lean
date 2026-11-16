@@ -13,8 +13,9 @@ import Mathlib.Data.Nat.Log
 
 /-! Checked positive clients, parameter-table checks, and counterexamples for
 `Cslib.Crypto.OneTimeSignature.DominationFree`,
-`Cslib.Crypto.OneTimeSignature.winternitzDigits`, and
-`Cslib.Crypto.OneTimeSignature.winternitzDigitList_polyTime`. -/
+`Cslib.Crypto.OneTimeSignature.winternitzDigits`,
+`Cslib.Crypto.OneTimeSignature.winternitzDigitList_polyTime`, and
+`Cslib.Crypto.OneTimeSignature.winternitzDigits_one_eq_one_iff_mem_optSet`. -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
 set_option linter.privateModule false
@@ -112,5 +113,58 @@ example : ¬ DominationFree (fun m : Fin 4 => winternitzDigits 1 2 1 m.val) := b
   intro h
   have hne : (0 : Fin 4) ≠ 3 := by decide
   exact h hne (by decide)
+
+-- Binary (`d = 1`) comparison with `P_opt` on the 8-bit message `01001100` (checksum `5 = 0101`
+-- LSB-first at coordinates `8` and `10`): message/checksum coordinates match `optSet`.
+example :
+    winternitzDigits 1 8 4
+        (Cslib.BitString.lsbValue
+          (List.ofFn ![false, true, false, false, true, true, false, false])) 10 = 1 :=
+  (winternitzDigits_one_eq_one_iff_mem_optSet
+    ![false, true, false, false, true, true, false, false] 10).2
+    ((mem_optSet_natAdd ![false, true, false, false, true, true, false, false] 2).2 (by decide))
+
+example :
+    winternitzDigits 1 8 4
+        (Cslib.BitString.lsbValue
+          (List.ofFn ![false, true, false, false, true, true, false, false])) 9 ≠ 1 :=
+  (winternitzDigits_one_eq_one_iff_mem_optSet
+    ![false, true, false, false, true, true, false, false] 9).not.2
+    ((mem_optSet_natAdd ![false, true, false, false, true, true, false, false] 1).not.2 (by decide))
+
+-- Counterexample when `d ≠ 1` (`d = 2`): `1 ∈ optSet 1 2 ![false]`, yet digit `1` is `2 ≠ 1`.
+example :
+    (1 : Fin 3) ∈ optSet 1 2 ![false] ∧
+      winternitzDigits 2 1 2 (Cslib.BitString.lsbValue (List.ofFn ![false])) 1 ≠ 1 :=
+  ⟨(mem_optSet_natAdd ![false] 0).2 (by decide), by decide⟩
+
+-- Client bridge: deriving `ContainmentFree (optSet v w)` from `winternitzDigits_dominationFree`
+-- via `winternitzDigits_one_eq_one_iff_mem_optSet` when `v < 2 ^ w`.
+example {v w : ℕ} (hv : v < 2 ^ w) : ContainmentFree (optSet v w) := by
+  have hdom : DominationFree (fun m : Cslib.BitString v =>
+      winternitzDigits 1 v w (Cslib.BitString.lsbValue (List.ofFn m))) :=
+    winternitzDigits_dominationFree
+      (fun _ _ h => List.ofFn_inj.mp
+        (Cslib.BitString.lsbValue_injective (by simp only [List.length_ofFn]) h))
+      (fun m => by
+        simpa only [Nat.reduceAdd, List.length_ofFn] using
+          Cslib.BitString.lsbValue_lt (List.ofFn m))
+      (by simpa only [Nat.one_mul, Nat.reduceAdd] using hv)
+  intro m m' hne hsub
+  apply hdom hne
+  intro k
+  dsimp only
+  by_cases hk : k ∈ optSet v w m
+  · rw [(winternitzDigits_one_eq_one_iff_mem_optSet m k).2 hk,
+      (winternitzDigits_one_eq_one_iff_mem_optSet m' k).2 (hsub hk)]
+  · have hne1 := (winternitzDigits_one_eq_one_iff_mem_optSet m k).not.2 hk
+    have hlt := (winternitzDigits 1 v w (Cslib.BitString.lsbValue (List.ofFn m)) k).isLt
+    rw [Fin.le_def]
+    have h0 : (winternitzDigits 1 v w (Cslib.BitString.lsbValue (List.ofFn m)) k).val = 0 := by
+      have hval1 : (winternitzDigits 1 v w (Cslib.BitString.lsbValue (List.ofFn m)) k).val ≠ 1 :=
+        fun h => hne1 (Fin.ext h)
+      omega
+    rw [h0]
+    exact Nat.zero_le _
 
 end CslibFrontierTests.Crypto.DominationFree

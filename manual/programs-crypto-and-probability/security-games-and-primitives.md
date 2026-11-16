@@ -3196,9 +3196,11 @@ Lemma 14.5 for any injective `f : M → ℕ` with values below `(d + 1) ^ n0` an
 `d * n0 < (d + 1) ^ n1`; the book's `2 ^ v` messages with `2 ^ v ≤ (d + 1) ^ n0` and its
 `n1 = Nat.clog (d + 1) (d * n0) + 1` are an instance, and the table on p. 592 uses the least
 such `n1`. `winternitzDigitList` is the same encoding as a list (`winternitzDigitList_eq_ofFn`),
-with `winternitzDigitList_polyTime` for `d`, `m` in binary and `n0`, `n1` in unary. Not included:
-the signature scheme, the estimate (14.3), the `d = 1` comparison with `P_opt`, and the link
-to `SLHDSA.WOTS.digits`. Checks are in
+with `winternitzDigitList_polyTime` for `d`, `m` in binary and `n0`, `n1` in unary. For `d = 1`,
+`winternitzDigits_one_eq_one_iff_mem_optSet` equates
+`winternitzDigits 1 v w (Cslib.BitString.lsbValue (List.ofFn m)) k = 1` with
+`k ∈ optSet v w m`. Not included: the signature scheme, the estimate (14.3), and the link to
+`SLHDSA.WOTS.digits`. Checks are in
 [`CslibFrontierTests/Crypto/DominationFree.lean`](../../CslibFrontierTests/Crypto/DominationFree.lean).
 
 Second-preimage resistance ([bs23][bs23], §8.11.1, Definition 8.6, p. 336, and Exercise 8.23(a)–(b),
