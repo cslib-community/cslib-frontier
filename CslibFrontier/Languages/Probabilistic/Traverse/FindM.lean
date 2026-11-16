@@ -67,8 +67,8 @@ theorem evalPure_findM? (h : (q : ι) → spec q) (test : α → OracleComp spec
   rfl
 
 /-- A `findSomeM?` search whose steps each cost at most `n` costs at most `xs.length * n` on
-every path. The bound is attained when no step returns `some`; it does not use that the search
-stops at the first kept result. -/
+every path. The bound can be attained when no step returns `some`; it does not use that the
+search stops at the first kept result. -/
 theorem IsCostBounded.findSomeM? {cost : ι → ℕ} {β : Type} {f : α → OracleComp spec (Option β)}
     {n : ℕ} {xs : List α} (h : ∀ a ∈ xs, IsCostBounded cost (f a) n) :
     IsCostBounded cost (xs.findSomeM? f) (xs.length * n) := by
@@ -82,7 +82,7 @@ theorem IsCostBounded.findSomeM? {cost : ι → ℕ} {β : Type} {f : α → Ora
     | some _ => exact .pure _ _
 
 /-- A search whose tests each cost at most `n` costs at most `xs.length * n` on every path. The
-bound is attained when no test accepts; it does not use that the search stops at the first
+bound can be attained when no test accepts; it does not use that the search stops at the first
 accepted element. -/
 theorem IsCostBounded.findM? {cost : ι → ℕ} {test : α → OracleComp spec Bool} {n : ℕ}
     {xs : List α} (h : ∀ a ∈ xs, IsCostBounded cost (test a) n) :

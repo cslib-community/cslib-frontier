@@ -66,9 +66,7 @@ element of `xs` in order. -/
 private theorem queriesWith_probe_zero (xs : List ℕ) :
     OracleComp.queriesWith (fun _ => 0) (xs.findSomeM? probe) = xs := by
   rw [OracleComp.queriesWith_findSomeM?_of_forall_eq_none]
-  · induction xs with
-    | nil => rfl
-    | cons x xs ih => rw [List.flatMap_cons, queriesWith_probe, List.singleton_append, ih]
+  · simp only [queriesWith_probe, List.flatMap_singleton']
   · intro x _
     simp only [probe, OracleComp.evalPure_map, OracleComp.evalPure_query]
     rfl
