@@ -16,7 +16,6 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
-import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Foundations.Data.ZMod.NatCast
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Tactic.PPT
@@ -219,15 +218,6 @@ theorem extractorRealizedBy_schnorrExtractWord :
     Function.Embedding.coeFn_mk, encNat_apply, ofBits_bits, schnorrExtract, ZMod.val_natCast,
     extractNat, Nat.mod_mod]
 
-omit F in
-/-- Modulo a prime `q`, `extractNat` on canonical `ZMod q` representatives computes
-`(c - c')⁻¹ * (z - z')` whenever `c ≠ c'`. -/
-theorem extractNat_zmod_val {q : ℕ} [Fact q.Prime] {c z c' z' : ZMod q} (hc : c ≠ c') :
-    (extractNat q c.val z.val c'.val z'.val : ZMod q) = (c - c')⁻¹ * (z - z') := by
-  have hcast : ((c.val : ℕ) : ZMod q) ≠ (c'.val : ℕ) := by
-    simpa only [ZMod.natCast_zmod_val] using hc
-  simpa only [ZMod.natCast_zmod_val] using extractNat_cast (z := z.val) (z' := z'.val) hcast
-
 /-- **Schnorr's protocol has efficient special soundness** ([BonehShoup2023], Example 19.2). -/
 theorem efficientSpecialSoundness_schnorr :
     EfficientSpecialSoundness F.schnorrFamily (fun i α u => α • F.generator i.2 = u)
@@ -422,18 +412,6 @@ theorem accepts_schnorrSimulator (i : ℕ × F.Desc) (u : F.Carrier i.2) (c : ZM
   intro z _
   simp only [Set.mem_preimage, Set.mem_ofPred_eq, schnorrFamily, schnorr_accepts_iff,
     Function.Embedding.refl_apply, sub_add_cancel]
-
-omit F in
-/-- `1 / 2 ^ n` is bounded along any distribution paired with the security parameter by a
-negligible geometric sequence. -/
-theorem exists_negligible_inv_two_pow_map {D : Type} (setup : ℕ → PMF D) :
-    ∃ ε : ℕ → ℝ≥0, Negligible ε ∧
-      ∀ n, ∀ i ∈ ((setup n).map (n, ·)).support, (1 / 2 ^ i.1 : ℝ≥0∞) ≤ ε n := by
-  refine ⟨fun n => (1 / 2 : ℝ≥0) ^ n, negligible_geometric (by norm_num), fun n i hi => ?_⟩
-  obtain ⟨d, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hi
-  dsimp only
-  rw [one_div_pow, ENNReal.coe_div (pow_ne_zero _ two_ne_zero), ENNReal.coe_one, ENNReal.coe_pow,
-    ENNReal.coe_ofNat]
 
 /-- **Schnorr's protocol has computational special HVZK** ([BonehShoup2023], Definition 20.6) with
 zero acceptance error (`δ = fun _ => 0`) over any group-description setup `setup : ℕ → PMF F.Desc`
