@@ -228,8 +228,8 @@ private theorem isPPTOn_lorToSingleAt_choose {Msg : Type} {encMsg : Msg ↪ List
   have hno : IsPPTOn EIn (encPair (encPair encMsg encMsg) encBits)
       (fun _ => let m := dummyMsg adversary; return ((m, m), rejectLoRToSingleState)) :=
     (ComputableInPolyTime.const ((dummyMsg adversary, dummyMsg adversary),
-      rejectLoRToSingleState)).tidy.isPPTOn
-  exact IsPPTOn.cond' hcond hyes hno
+      rejectLoRToSingleState)).isPPTOn
+  exact IsPPTOn.cond hcond hyes hno
 
 /-- `lorToSingleAt` is uniformly strict PPT in `AdversaryOf.IsPPT encMsg`: `hvalid`, `hencrypt`,
 `hctBound`/`hctLen`, and `hQ` certify the prefix/suffix simulation (`valid`, `encrypt`, bounded
@@ -284,8 +284,8 @@ theorem isPPT_lorToSingleAt {Msg : Type} {encMsg : Msg ↪ List Bool}
           (encPair encGuessInput encLoRLoopState) encLoRStageInput := by
         dsimp only [encLoRStageInput, encGuessInput, encLoRLoopState]; fun_prop
       exact hadversary.guess.preprocess harg
-    simpa only [lorToSingleAt] using IsPPTOn.cond' (encLoRToSingleState_active_polyTime hdecoded)
-      (hrun.bind_with hguess) (ComputableInPolyTime.const false).tidy.isPPTOn
+    simpa only [lorToSingleAt] using IsPPTOn.cond (encLoRToSingleState_active_polyTime hdecoded)
+      (hrun.bind_with hguess) (ComputableInPolyTime.const false).isPPTOn
 
 /-- `lorToSingle` is uniformly strict PPT in `AdversaryOf.IsPPT encMsg`: `hvalid`, `hencrypt`,
 `hctBound`/`hctLen`, and `hQ` certify the dyadic sampler and simulated prefix/suffix queries. -/

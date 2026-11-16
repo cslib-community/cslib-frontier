@@ -210,8 +210,8 @@ private theorem isOraclePPTOn_prgQueryStep {outLen : ℕ → ℕ}
       inp encUnary :=
     hout.comp hfst
   unfold prgQueryStep
-  refine IsOraclePPTOn.cond' (by fun_prop) hsnd.isOraclePPTOn ?_
-  refine (IsOraclePPTOn.query_take' () hquery hw0).map_with'
+  refine IsOraclePPTOn.cond (by fun_prop) hsnd.isOraclePPTOn ?_
+  refine (IsOraclePPTOn.query_take () hquery hw0).map_with
     (f := fun pair reply =>
       (pair.2.1.tail, pair.2.2 ++ (reply ++ List.replicate (outLen pair.1) false).take
         (outLen pair.1))) ?_
@@ -269,12 +269,12 @@ theorem isOraclePPT_prgFromPRFReduction {ℓ inLen outLen : ℕ → ℕ}
   have hiter : IsOraclePPTOn encUnary (encPair (encList encBits) encBits)
       (fun n => OracleComp.iterate (ℓ n) (prgQueryStep outLen n)
         (List.ofFn fun i : Fin (ℓ n) => List.ofFn (x n i), [])) :=
-    IsOraclePPTOn.iterateWith_of_bounded_growth' hℓ hinit
+    IsOraclePPTOn.iterateWith_of_bounded_growth hℓ hinit
       (isOraclePPTOn_prgQueryStep hout) hpolyOut hgrowth
   have hbits : IsOraclePPTOn encUnary encBits
       (fun n => Prod.snd <$> OracleComp.iterate (ℓ n) (prgQueryStep outLen n)
         (List.ofFn fun i : Fin (ℓ n) => List.ofFn (x n i), [])) :=
-    IsOraclePPTOn.map' hiter (by fun_prop)
+    IsOraclePPTOn.map hiter (by fun_prop)
   have hpaired : IsOraclePPTOn encUnary (encPair encUnary encBits)
       (fun n => (fun bits => (n, bits)) <$>
         (Prod.snd <$> OracleComp.iterate (ℓ n) (prgQueryStep outLen n)
