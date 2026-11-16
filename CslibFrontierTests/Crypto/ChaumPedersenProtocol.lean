@@ -67,21 +67,10 @@ example (i : ℕ × F.Desc) (u v w : F.Carrier i.2) (t : F.Carrier i.2 × F.Carr
       F.chaumPedersenExtract i (u, v, w) t c z c' z' • u = w :=
   F.efficientSpecialSoundness_chaumPedersen.specialSoundness i (u, v, w) t c z c' z' hc hz hz'
 
-/-- The extractor is `(c - c')⁻¹ (z - z')`: modulo `7`, `(3 - 1)⁻¹ (5 - 2) = 4 · 3 = 5`. -/
-example : PrimeOrderGroupFamily.extractNat 7 3 5 1 2 = 5 := by decide
-
 /-- The extractor does not read the statement or the commitment. -/
 example (i : ℕ × F.Desc) (y y' : F.Carrier i.2 × F.Carrier i.2 × F.Carrier i.2)
     (t t' : F.Carrier i.2 × F.Carrier i.2) (c z c' z' : ZMod (F.order i.2)) :
     F.chaumPedersenExtract i y t c z c' z' = F.chaumPedersenExtract i y' t' c z c' z' := rfl
-
-/-- The simulator accepts with probability `1` on every statement, including triples that are not
-Diffie–Hellman triples. -/
-example (i : ℕ × F.Desc) (y : F.Carrier i.2 × F.Carrier i.2 × F.Carrier i.2)
-    (c : ZMod (F.order i.2)) :
-    (ProbComp.eval (F.chaumPedersenSimulator i y c)).toOuterMeasure
-      {tz | (F.chaumPedersenFamily i).Accepts y tz.1 c tz.2} = 1 :=
-  F.accepts_chaumPedersenSimulator i y c
 
 /-- The simulator is within `1 / 2 ^ n` of the honest prover on every Diffie–Hellman triple. -/
 example (n : ℕ) (d : F.Desc) (β : ZMod (F.order d)) (u : F.Carrier d) (c : ZMod (F.order d)) :
@@ -245,6 +234,33 @@ example : schnorrGroups.chaumPedersenVerifyWord
 example :
     let g := schnorrGroups.generator d23
     schnorrGroups.chaumPedersenExtract (0, d23) (g, g, g) (g, g) 1 5 2 8 = 3 := by
+  decide
+
+/-- A concrete non-Diffie–Hellman triple in `d23` has no witness, yet `chaumPedersenSimulator`
+accepts on it with probability `1`. -/
+example (c : ZMod (schnorrGroups.order d23)) :
+    let g := schnorrGroups.generator d23
+    let y := ((2 : ZMod (schnorrGroups.order d23)) • g,
+      (3 : ZMod (schnorrGroups.order d23)) • g, (1 : ZMod (schnorrGroups.order d23)) • g)
+    (¬ ∃ β : ZMod (schnorrGroups.order d23), β • g = y.2.1 ∧ β • y.1 = y.2.2) ∧
+      (ProbComp.eval (schnorrGroups.chaumPedersenSimulator (0, d23) y c)).toOuterMeasure
+        {tz | (schnorrGroups.chaumPedersenFamily (0, d23)).Accepts y tz.1 c tz.2} = 1 := by
+  refine ⟨?_, schnorrGroups.accepts_chaumPedersenSimulator (0, d23) _ c⟩
+  rintro ⟨β, h1, h2⟩
+  have hβ3 : β - 3 = 0 := (smul_eq_zero.mp (by
+    rw [sub_smul, sub_eq_zero]
+    exact h1)).resolve_right (schnorrGroups.generator_ne_zero d23)
+  have h5g : (5 : ZMod (schnorrGroups.order d23)) • schnorrGroups.generator d23 = 0 := by
+    calc
+      (5 : ZMod (schnorrGroups.order d23)) • schnorrGroups.generator d23 =
+          β • ((2 : ZMod (schnorrGroups.order d23)) • schnorrGroups.generator d23) -
+          (1 : ZMod (schnorrGroups.order d23)) • schnorrGroups.generator d23 -
+          (2 : ZMod (schnorrGroups.order d23)) •
+            ((β - 3) • schnorrGroups.generator d23) := by
+        module
+      _ = 0 := by rw [h2, sub_self, zero_sub, hβ3, zero_smul, smul_zero, neg_zero]
+  refine schnorrGroups.generator_ne_zero d23 ((smul_eq_zero.mp h5g).resolve_left ?_)
+  change (5 : ZMod 11) ≠ 0
   decide
 
 end CslibFrontierTests.Crypto.ChaumPedersenProtocol

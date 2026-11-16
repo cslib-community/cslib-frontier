@@ -10,13 +10,7 @@ module
 public import CslibFrontier.Crypto.Computational.SchnorrProtocol
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair.Projections
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
-import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Foundations.Data.ZMod.NatCast
-import CslibFrontier.Probability.PMF
 import CslibFrontier.Tactic.PPT
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.WordsRoundTrip
 
@@ -147,13 +141,10 @@ theorem efficientSpecialSoundness_chaumPedersen :
       (fun i β (u, v, w) => β • F.generator i.2 = v ∧ β • u = w)
       F.chaumPedersenEncoding (fun i => F.encScalar i.2) F.chaumPedersenExtract where
   specialSoundness i y t c z c' z' hc hz hz' := by
-    have hcast : ((c.val : ℕ) : ZMod (F.order i.2)) ≠ (c'.val : ℕ) := by
-      simpa only [ZMod.natCast_zmod_val] using hc
     have h := chaumPedersen_specialSoundness (ι := Function.Embedding.refl _)
       (g := F.generator i.2) y t c z c' z' hc hz hz'
     simp only [linearExtract, Function.Embedding.refl_apply, smul_eq_mul] at h
-    simp only [chaumPedersenExtract, extractNat_cast hcast, ZMod.natCast_zmod_val]
-    exact h
+    simpa only [chaumPedersenExtract, extractNat_zmod_val hc] using h
   polyTime := ⟨F.schnorrExtractWord, F.computableInPolyTime_schnorrExtractWord,
     F.extractorRealizedBy_chaumPedersen⟩
 
@@ -220,18 +211,9 @@ theorem isPPTOn_chaumPedersenSimulateWord :
   have hv := ComputableInPolyTime.unframe.comp hvw
   have hw := ComputableInPolyTime.dropFrame.comp hvw
   have hq := F.computableInPolyTime_order.comp hd'
-  have hg := F.computableInPolyTime_generator.comp hd'
-  have hneg : ComputableInPolyTime
-      (fun p : ((ℕ × F.Desc) × List Bool × List Bool) × ℕ =>
-        F.order p.1.1.2 - ofBits p.1.2.2 % F.order p.1.1.2) encMid encNat :=
-    (.binary_sub' hq (.binary_mod'
-      (ComputableInPolyTime.bitsToNat.comp hc) hq))
-  have ht₁ := F.computableInPolyTime_add.comp (hd'.prod
-    ((F.computableInPolyTime_smul.comp (hd'.prod (hs.prod hg))).prod
-      (F.computableInPolyTime_smul.comp (hd'.prod (hneg.prod hv)))))
-  have ht₂ := F.computableInPolyTime_add.comp (hd'.prod
-    ((F.computableInPolyTime_smul.comp (hd'.prod (hs.prod hu))).prod
-      (F.computableInPolyTime_smul.comp (hd'.prod (hneg.prod hw)))))
+  have ht₁ := F.computableInPolyTime_add_smul_sub_mod hd' hs
+    (F.computableInPolyTime_generator.comp hd') hc hv
+  have ht₂ := F.computableInPolyTime_add_smul_sub_mod hd' hs hu hc hw
   have hz : ComputableInPolyTime
       (fun p : ((ℕ × F.Desc) × List Bool × List Bool) × ℕ =>
         (p.2 % F.order p.1.1.2).bits) encMid encBits :=
@@ -254,14 +236,8 @@ theorem simulatorRealizedBy_chaumPedersenSimulator :
           (LinearMap.toSpanSingleton (ZMod (F.order i.2)) (F.Carrier i.2) (F.generator i.2)).prod
             (LinearMap.toSpanSingleton (ZMod (F.order i.2)) (F.Carrier i.2) s.1))
         Prod.snd (Function.Embedding.refl _))
-      F.chaumPedersenSimulator (fun i => 1 / 2 ^ i.1) := by
-  intro i ⟨u, v, w⟩ c
-  have hδ : (((1 / 2 ^ i.1 : ℝ≥0)) : ℝ≥0∞) = 1 / 2 ^ i.1 := by
-    rw [ENNReal.coe_div (pow_ne_zero _ two_ne_zero), ENNReal.coe_one, ENNReal.coe_pow,
-      ENNReal.coe_ofNat]
-  simp only [chaumPedersenSimulator, ProbComp.eval_map]
-  rw [← hδ]
-  exact (F.closeTo_uniform_sampleExp i.1 i.2).map _
+      F.chaumPedersenSimulator (fun i => 1 / 2 ^ i.1) :=
+  fun i ⟨_, _, _⟩ _ => F.closeTo_map_uniform_sampleExp i.1 i.2 _
 
 /-- **The Chaum–Pedersen protocol has efficient special HVZK** ([BonehShoup2023], Theorem 19.10
 with Definition 19.5), with statistical error `1 / 2 ^ n` at security parameter `n`: the perfect
@@ -298,14 +274,10 @@ theorem computationalSpecialHVZK_chaumPedersen (setup : ℕ → PMF F.Desc) :
     ComputationalSpecialHVZK F.chaumPedersenFamily
       (fun i β (u, v, w) => β • F.generator i.2 = v ∧ β • u = w)
       F.chaumPedersenEncoding (fun i => F.encScalar i.2) (fun n => (setup n).map (n, ·))
-      F.chaumPedersenSimulator (fun _ => 0) := by
-  refine F.simulatorRealizedBy_chaumPedersenSimulator.computationalSpecialHVZK_of_accepts
+      F.chaumPedersenSimulator (fun _ => 0) :=
+  F.simulatorRealizedBy_chaumPedersenSimulator.computationalSpecialHVZK_of_accepts
     (fun _ => chaumPedersen_specialHVZK) F.isPPT_chaumPedersenSimulator
     (fun i y c => by rw [F.accepts_chaumPedersenSimulator i y c, tsub_zero])
-    ⟨fun n => (1 / 2 : ℝ≥0) ^ n, negligible_geometric (by norm_num), fun n i hi => ?_⟩
-  obtain ⟨d, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hi
-  dsimp only
-  rw [one_div_pow, ENNReal.coe_div (pow_ne_zero _ two_ne_zero), ENNReal.coe_one, ENNReal.coe_pow,
-    ENNReal.coe_ofNat]
+    (exists_negligible_inv_two_pow_map setup)
 
 end Cslib.Crypto.PrimeOrderGroupFamily

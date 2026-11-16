@@ -219,17 +219,23 @@ theorem extractorRealizedBy_schnorrExtractWord :
     Function.Embedding.coeFn_mk, encNat_apply, ofBits_bits, schnorrExtract, ZMod.val_natCast,
     extractNat, Nat.mod_mod]
 
+omit F in
+/-- Modulo a prime `q`, `extractNat` on canonical `ZMod q` representatives computes
+`(c - c')⁻¹ * (z - z')` whenever `c ≠ c'`. -/
+theorem extractNat_zmod_val {q : ℕ} [Fact q.Prime] {c z c' z' : ZMod q} (hc : c ≠ c') :
+    (extractNat q c.val z.val c'.val z'.val : ZMod q) = (c - c')⁻¹ * (z - z') := by
+  have hcast : ((c.val : ℕ) : ZMod q) ≠ (c'.val : ℕ) := by
+    simpa only [ZMod.natCast_zmod_val] using hc
+  simpa only [ZMod.natCast_zmod_val] using extractNat_cast (z := z.val) (z' := z'.val) hcast
+
 /-- **Schnorr's protocol has efficient special soundness** ([BonehShoup2023], Example 19.2). -/
 theorem efficientSpecialSoundness_schnorr :
     EfficientSpecialSoundness F.schnorrFamily (fun i α u => α • F.generator i.2 = u)
       F.schnorrEncoding (fun i => F.encScalar i.2) F.schnorrExtract where
   specialSoundness i u t c z c' z' hc hz hz' := by
-    have hcast : ((c.val : ℕ) : ZMod (F.order i.2)) ≠ (c'.val : ℕ) := by
-      simpa only [ZMod.natCast_zmod_val] using hc
     have h := schnorr_specialSoundness (ι := Function.Embedding.refl _) u t c z c' z' hc hz hz'
     simp only [linearExtract, Function.Embedding.refl_apply, smul_eq_mul] at h
-    simp only [schnorrExtract, extractNat_cast hcast, ZMod.natCast_zmod_val]
-    exact h
+    simpa only [schnorrExtract, extractNat_zmod_val hc] using h
   polyTime := ⟨F.schnorrExtractWord, F.computableInPolyTime_schnorrExtractWord,
     F.extractorRealizedBy_schnorrExtractWord⟩
 
@@ -247,6 +253,20 @@ theorem closeTo_uniform_sampleExp (n : ℕ) (d : F.Desc) :
   have h := F.advantage_bind_sampleExp_le n d fun a => PMF.pure (decide (a ∈ E))
   rw [PMF.map_comp, ← PMF.bind_pure_comp, ← PMF.bind_pure_comp]
   exact h
+
+open Classical in
+/-- Post-processing the modular cast of `sampleExp n d` by `f` is within `ℝ≥0∞`-distance
+`1 / 2 ^ n` of `f` applied to a uniform scalar in `ZMod q`. -/
+theorem closeTo_map_uniform_sampleExp {α : Type} (n : ℕ) (d : F.Desc)
+    (f : ZMod (F.order d) → α) :
+    CloseTo ((PMF.uniformOfFintype (ZMod (F.order d))).map f)
+      (ProbComp.eval (f <$> ((Nat.cast : ℕ → ZMod (F.order d)) <$> F.sampleExp n d)))
+      (1 / 2 ^ n : ℝ≥0∞) := by
+  have hδ : (((1 / 2 ^ n : ℝ≥0)) : ℝ≥0∞) = 1 / 2 ^ n := by
+    rw [ENNReal.coe_div (pow_ne_zero _ two_ne_zero), ENNReal.coe_one, ENNReal.coe_pow,
+      ENNReal.coe_ofNat]
+  rw [ProbComp.eval_map, ProbComp.eval_map, ← hδ]
+  exact (F.closeTo_uniform_sampleExp n d).map f
 
 /-- A challenge sampler for `schnorrFamily` with fair coins: at index `(n, d)`, sample `s` with
 `sampleExp n d` and read it modulo the group order. It is within statistical distance `1 / 2 ^ n`
@@ -313,6 +333,27 @@ theorem eval_schnorrSimulateWord (i : ℕ × F.Desc) (u : F.Carrier i.2) (c : ZM
   simp only [Function.comp_apply, Prod.map, schnorrEncoding, encodeEmbedding, encScalar,
     Function.Embedding.coeFn_mk, encNat_apply, ZMod.val_natCast]
 
+/-- A word-level commitment step `k • b + (q - c % q) • x` computed with the family's word
+operations is computable in polynomial time from polynomial-time components. -/
+theorem computableInPolyTime_add_smul_sub_mod {α : Type} {encIn : α ↪ List Bool}
+    {d : α → F.Desc} {k : α → ℕ} {b c x : α → List Bool}
+    (hd : ComputableInPolyTime d encIn F.encDesc)
+    (hk : ComputableInPolyTime k encIn encNat)
+    (hb : ComputableInPolyTime b encIn encBits)
+    (hc : ComputableInPolyTime c encIn encBits)
+    (hx : ComputableInPolyTime x encIn encBits) :
+    ComputableInPolyTime
+      (fun p => F.add (d p, F.smul (d p, k p, b p),
+        F.smul (d p, F.order (d p) - ofBits (c p) % F.order (d p), x p)))
+      encIn encBits := by
+  have hq := F.computableInPolyTime_order.comp hd
+  have hneg : ComputableInPolyTime
+      (fun p => F.order (d p) - ofBits (c p) % F.order (d p)) encIn encNat :=
+    .binary_sub' hq (.binary_mod' (ComputableInPolyTime.bitsToNat.comp hc) hq)
+  exact F.computableInPolyTime_add.comp
+    (hd.prod ((F.computableInPolyTime_smul.comp (hd.prod (hk.prod hb))).prod
+      (F.computableInPolyTime_smul.comp (hd.prod (hneg.prod hx)))))
+
 /-- `schnorrSimulateWord` is uniform strict PPT in the security parameter, the description and the
 encoded statement and challenge. -/
 theorem isPPTOn_schnorrSimulateWord :
@@ -338,15 +379,8 @@ theorem isPPTOn_schnorrSimulateWord :
   have hc : ComputableInPolyTime (fun p : ((ℕ × F.Desc) × List Bool × List Bool) × ℕ =>
       p.1.2.2) encMid encBits := by fun_prop
   have hq := F.computableInPolyTime_order.comp hd'
-  have hg := F.computableInPolyTime_generator.comp hd'
-  have hsg := F.computableInPolyTime_smul.comp (hd'.prod (hs.prod hg))
-  have hneg : ComputableInPolyTime
-      (fun p : ((ℕ × F.Desc) × List Bool × List Bool) × ℕ =>
-        F.order p.1.1.2 - ofBits p.1.2.2 % F.order p.1.1.2) encMid encNat :=
-    (.binary_sub' hq (.binary_mod'
-      (ComputableInPolyTime.bitsToNat.comp hc) hq))
-  have hcu := F.computableInPolyTime_smul.comp (hd'.prod (hneg.prod hu))
-  have ht := F.computableInPolyTime_add.comp (hd'.prod (hsg.prod hcu))
+  have ht := F.computableInPolyTime_add_smul_sub_mod hd' hs
+    (F.computableInPolyTime_generator.comp hd') hc hu
   have hz : ComputableInPolyTime
       (fun p : ((ℕ × F.Desc) × List Bool × List Bool) × ℕ =>
         (p.2 % F.order p.1.1.2).bits) encMid encBits :=
@@ -364,14 +398,8 @@ theorem simulatorRealizedBy_schnorrSimulator :
     SimulatorRealizedBy
       (fun i : ℕ × F.Desc => linearSimulate (fun _ => LinearMap.toSpanSingleton
         (ZMod (F.order i.2)) (F.Carrier i.2) (F.generator i.2)) id (Function.Embedding.refl _))
-      F.schnorrSimulator (fun i => 1 / 2 ^ i.1) := by
-  intro i u c
-  have hδ : (((1 / 2 ^ i.1 : ℝ≥0)) : ℝ≥0∞) = 1 / 2 ^ i.1 := by
-    rw [ENNReal.coe_div (pow_ne_zero _ two_ne_zero), ENNReal.coe_one, ENNReal.coe_pow,
-      ENNReal.coe_ofNat]
-  simp only [schnorrSimulator, ProbComp.eval_map]
-  rw [← hδ]
-  exact (F.closeTo_uniform_sampleExp i.1 i.2).map _
+      F.schnorrSimulator (fun i => 1 / 2 ^ i.1) :=
+  fun i _ _ => F.closeTo_map_uniform_sampleExp i.1 i.2 _
 
 /-- **Schnorr's protocol has efficient special HVZK** ([BonehShoup2023], Example 19.3), with
 statistical error `1 / 2 ^ n` at security parameter `n`: the perfect simulator `linearSimulate` is
@@ -395,21 +423,29 @@ theorem accepts_schnorrSimulator (i : ℕ × F.Desc) (u : F.Carrier i.2) (c : ZM
   simp only [Set.mem_preimage, Set.mem_ofPred_eq, schnorrFamily, schnorr_accepts_iff,
     Function.Embedding.refl_apply, sub_add_cancel]
 
+omit F in
+/-- `1 / 2 ^ n` is bounded along any distribution paired with the security parameter by a
+negligible geometric sequence. -/
+theorem exists_negligible_inv_two_pow_map {D : Type} (setup : ℕ → PMF D) :
+    ∃ ε : ℕ → ℝ≥0, Negligible ε ∧
+      ∀ n, ∀ i ∈ ((setup n).map (n, ·)).support, (1 / 2 ^ i.1 : ℝ≥0∞) ≤ ε n := by
+  refine ⟨fun n => (1 / 2 : ℝ≥0) ^ n, negligible_geometric (by norm_num), fun n i hi => ?_⟩
+  obtain ⟨d, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hi
+  dsimp only
+  rw [one_div_pow, ENNReal.coe_div (pow_ne_zero _ two_ne_zero), ENNReal.coe_one, ENNReal.coe_pow,
+    ENNReal.coe_ofNat]
+
 /-- **Schnorr's protocol has computational special HVZK** ([BonehShoup2023], Definition 20.6) with
 zero acceptance error (`δ = fun _ => 0`) over any group-description setup `setup : ℕ → PMF F.Desc`
 paired with the security parameter. -/
 theorem computationalSpecialHVZK_schnorr (setup : ℕ → PMF F.Desc) :
     ComputationalSpecialHVZK F.schnorrFamily (fun i α u => α • F.generator i.2 = u)
       F.schnorrEncoding (fun i => F.encScalar i.2) (fun n => (setup n).map (n, ·))
-      F.schnorrSimulator (fun _ => 0) := by
-  refine F.simulatorRealizedBy_schnorrSimulator.computationalSpecialHVZK_of_accepts
+      F.schnorrSimulator (fun _ => 0) :=
+  F.simulatorRealizedBy_schnorrSimulator.computationalSpecialHVZK_of_accepts
     (fun _ => schnorr_specialHVZK) F.isPPT_schnorrSimulator
     (fun i u c => by rw [F.accepts_schnorrSimulator i u c, tsub_zero])
-    ⟨fun n => (1 / 2 : ℝ≥0) ^ n, negligible_geometric (by norm_num), fun n i hi => ?_⟩
-  obtain ⟨d, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hi
-  dsimp only
-  rw [one_div_pow, ENNReal.coe_div (pow_ne_zero _ two_ne_zero), ENNReal.coe_one, ENNReal.coe_pow,
-    ENNReal.coe_ofNat]
+    (exists_negligible_inv_two_pow_map setup)
 
 /-! ### Shared bit-encoded Schnorr key generation, commitment, response, and verification -/
 
@@ -585,19 +621,8 @@ theorem computableInPolyTime_schnorrRecoverCommitBits :
       (fun p : F.Desc × List Bool × List Bool × List Bool => p.2.2.1) encIn encBits := by fun_prop
   have hz : ComputableInPolyTime
       (fun p : F.Desc × List Bool × List Bool × List Bool => p.2.2.2) encIn encBits := by fun_prop
-  have hq := F.computableInPolyTime_order.comp hd
-  have hg := F.computableInPolyTime_generator.comp hd
-  have hz_nat : ComputableInPolyTime
-      (fun p : F.Desc × List Bool × List Bool × List Bool => ofBits p.2.2.2) encIn encNat :=
-    (ComputableInPolyTime.bitsToNat.comp hz)
-  have hzg := F.computableInPolyTime_smul.comp (hd.prod (hz_nat.prod hg))
-  have hneg : ComputableInPolyTime
-      (fun p : F.Desc × List Bool × List Bool × List Bool =>
-        F.order p.1 - ofBits p.2.2.1 % F.order p.1) encIn encNat :=
-    (.binary_sub' hq
-      (.binary_mod' (ComputableInPolyTime.bitsToNat.comp hro) hq))
-  have hcpk := F.computableInPolyTime_smul.comp (hd.prod (hneg.prod hpk))
-  exact F.computableInPolyTime_add.comp (hd.prod (hzg.prod hcpk))
+  exact F.computableInPolyTime_add_smul_sub_mod hd (ComputableInPolyTime.bitsToNat.comp hz)
+    (F.computableInPolyTime_generator.comp hd) hro hpk
 
 /-- On an encoded public key `pk = F.encode d u`, `schnorrRecoverCommitBits` computes the encoding
 of `z • g - roOut • u`. -/
