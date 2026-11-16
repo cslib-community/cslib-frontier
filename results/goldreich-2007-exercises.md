@@ -61,7 +61,7 @@ and Chapter 10 rows to the open Chapter 10 audit PR
 
 | Chapter | Exercises | T rows | C rows | S items | Owned or claimed T work |
 |---|---|---|---|---|---|
-| 2 | 36 | 25 | 12 | 0 | — |
+| 2 | 36 | 24 | 13 | 0 | — |
 | 5 | 30 | 29 | 4 | 0 | 5.12: [#4224](https://github.com/cslib-community/cslib-frontier/issues/4224) (objective B3) |
 | 6 | 39 | 35 | 10 | 1 | 6.15: [#2084](https://github.com/cslib-community/cslib-frontier/issues/2084); 6.26: [#5147](https://github.com/cslib-community/cslib-frontier/issues/5147) |
 | 7 | 24 | 23 | 3 | 1 | — |
