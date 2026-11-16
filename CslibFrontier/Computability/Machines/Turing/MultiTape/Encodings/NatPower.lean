@@ -54,7 +54,7 @@ theorem twoPowT_run (w : List Bool) :
     rfl
 
 /-- **An exponential clock in binary.** `2 ^ (encIn a).length` is computable in linear time and
-zero work space, with linear output length, for every encoding of the input. -/
+work space, with linear output length, for every encoding of the input. -/
 theorem ComputableInDegree.two_pow_length {α : Type*} (encIn : α ↪ List Bool) :
     ComputableInDegree (fun a => 2 ^ (encIn a).length) encIn encNat 1 1 := by
   refine ⟨⟨fun a => 2 * (encIn a).length + 3, fun _ => 0,
@@ -69,7 +69,6 @@ theorem ComputableInDegree.two_pow_length {α : Type*} (encIn : α ↪ List Bool
 and space, for every encoding of the input. -/
 theorem ComputableTidilyInDegree.two_pow_length {α : Type*} (encIn : α ↪ List Bool) :
     ComputableTidilyInDegree (fun a => 2 ^ (encIn a).length) encIn encNat 1 1 :=
-  .of_linear (twoPowT.computableTidilyInLinearTimeAndSpace fun a => by
-    rw [encNat_two_pow, twoPowT_run])
+  .of_linear (ComputableInDegree.two_pow_length encIn)
 
 end Turing.MultiTapeTM

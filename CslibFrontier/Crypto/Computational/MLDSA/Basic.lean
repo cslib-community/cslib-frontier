@@ -17,7 +17,7 @@ import Mathlib.Tactic.Linarith
 
 This module states the CRYSTALS-Dilithium signature scheme ([DucasEtAl2018]), standardized as
 ML-DSA in [NISTFIPS204], over `R_q = ℤ_q[X] / (X^n + 1)` (coefficient vectors `Fin n → ZMod q`
-with `Cslib.Crypto.negacyclicMul`), and proves its correctness.
+with `Cslib.negacyclicMul`), and proves its correctness.
 
 The model is the *uncompressed-public-key* scheme: the public key is `(A, t)` with
 `t = A s₁ + s₂`, a signature is `(z, c)`, and verification recomputes
@@ -50,6 +50,7 @@ drawn from an arbitrary `ProbComp` sampler.
 * `Cslib.Crypto.MLDSA.InBall`: the challenge set `B_τ`.
 * `Cslib.Crypto.MLDSA.PublicKey`, `Cslib.Crypto.MLDSA.SecretKey`,
   `Cslib.Crypto.MLDSA.SecretKey.publicKey`: keys, with `t = A s₁ + s₂`.
+* `Cslib.Crypto.MLDSA.Signature`: signatures `(z, c)`.
 * `Cslib.Crypto.MLDSA.signAttempt`, `Cslib.Crypto.MLDSA.sign`, `Cslib.Crypto.MLDSA.verify`:
   signing with aborts and verification.
 
@@ -181,10 +182,11 @@ theorem sum_abs_valMinAbs_le {τ : ℕ} {c : Fin n → ZMod q} (hc : InBall τ c
           · rw [not_not.mp h, ZMod.valMinAbs_zero, abs_zero]
     _ = τ := by rw [Finset.sum_boole, hc.2]
 
-/-- **Challenge times short is short.** If `c ∈ B_τ` and `‖s‖_∞ ≤ η`, with `2 τ η < q` so that
-the product has centered representatives, then `‖c s‖_∞ ≤ τ η` in `R_q`. -/
+/-- **Challenge times short is short.** If `c ∈ B_τ` and `‖s‖_∞ ≤ η`, then
+`‖c s‖_∞ ≤ τ η` in `R_q`. Centered reduction modulo `q` cannot increase the norm, so a
+no-wrap hypothesis is unnecessary. -/
 theorem abs_valMinAbs_negacyclicMul_le [NeZero q] {τ η : ℕ} {c s : Fin n → ZMod q}
-    (hc : InBall τ c) (hs : ∀ j, |(s j).valMinAbs| ≤ η) (hq : 2 * (τ * η) < q) (i : Fin n) :
+    (hc : InBall τ c) (hs : ∀ j, |(s j).valMinAbs| ≤ η) (i : Fin n) :
     |(negacyclicMul c s i).valMinAbs| ≤ τ * η := by
   set ĉ : Fin n → ℤ := fun j => (c j).valMinAbs
   set ŝ : Fin n → ℤ := fun j => (s j).valMinAbs
@@ -196,12 +198,11 @@ theorem abs_valMinAbs_negacyclicMul_le [NeZero q] {τ η : ℕ} {c s : Fin n →
   have hbound : |negacyclicMul ĉ ŝ i| ≤ τ * η := by
     calc |negacyclicMul ĉ ŝ i| ≤ (∑ j, |ĉ j|) * η := abs_negacyclicMul_le_sum_abs_mul hs i
       _ ≤ τ * η := mul_le_mul_of_nonneg_right (sum_abs_valMinAbs_le hc) (by positivity)
-  have hq' : (2 * (τ * η) : ℤ) < q := by exact_mod_cast hq
-  rw [hlift, (ZMod.valMinAbs_spec _ _).mpr ⟨rfl, ?_⟩]
-  · exact hbound
-  · rw [abs_le] at hbound
-    simp only [Set.mem_Ioc]
-    constructor <;> linarith [hbound.1, hbound.2]
+  calc
+    |(negacyclicMul c s i).valMinAbs| ≤ |negacyclicMul ĉ ŝ i| := by
+      rw [hlift]
+      exact ZMod.abs_valMinAbs_intCast_le _
+    _ ≤ τ * η := hbound
 
 end Challenge
 
@@ -229,8 +230,17 @@ structure SecretKey where
 def SecretKey.publicKey {P : Params} (sk : SecretKey P) : PublicKey P :=
   ⟨sk.A, moduleSISMap sk.A sk.s₁ + sk.s₂⟩
 
-/-- A signature `(z, c)` with response `z ∈ R_q^ℓ` and challenge `c ∈ R_q`. -/
-abbrev Signature := (Fin P.ℓ → Fin P.n → ZMod P.q) × (Fin P.n → ZMod P.q)
+/-- An ML-DSA signature `(z, c)`: a response `z ∈ R_q^ℓ` and a challenge `c ∈ R_q`. -/
+@[ext] structure Signature where
+  /-- The response `z = y + c s₁`. -/
+  z : Fin P.ℓ → Fin P.n → ZMod P.q
+  /-- The challenge polynomial. -/
+  c : Fin P.n → ZMod P.q
+
+/-- Signatures are compared field by field; unlike a derived instance, this one reduces under
+`decide`. -/
+instance : DecidableEq (Signature P) := fun _ _ =>
+  decidable_of_iff _ (Signature.ext_iff (P := P)).symm
 
 /-- The commitment hash `(w₁, M) ↦ c`, standing for `SampleInBall ∘ H` of [NISTFIPS204]: it maps
 a high-bits vector `w₁ ∈ ℤ^{k × n}` and a message to a challenge polynomial. -/
@@ -267,7 +277,7 @@ def signAttempt (H : Hash P) (sk : SecretKey P) (msg : List Bool)
   let c := H (highBitsVec P w, msg)
   let z := y + fun j => negacyclicMul c (sk.s₁ j)
   if ResponseShort P z ∧ LowBitsShort P (w - fun i => negacyclicMul c (sk.s₂ i)) then
-    some (z, c)
+    some ⟨z, c⟩
   else none
 
 /-- Signing by rejection sampling: draw a mask from `mask` and run `signAttempt`, retrying after
@@ -284,8 +294,8 @@ def sign (H : Hash P) (sk : SecretKey P) (mask : ProbComp (Fin P.ℓ → Fin P.n
 /-- Verification: accept `(z, c)` on `M` iff `‖z‖_∞ < γ₁ - β`, `c ∈ B_τ`, and
 `c = H(HighBits(A z - c t), M)`. -/
 def verify (H : Hash P) (pk : PublicKey P) (msg : List Bool) (σ : Signature P) : Bool :=
-  decide (ResponseShort P σ.1) && decide (InBall P.τ σ.2) &&
-    decide (H (highBitsVec P (verifierCommitment P pk σ.1 σ.2), msg) = σ.2)
+  decide (ResponseShort P σ.z) && decide (InBall P.τ σ.c) &&
+    decide (H (highBitsVec P (verifierCommitment P pk σ.z σ.c), msg) = σ.c)
 
 /-! ### Correctness -/
 
@@ -323,12 +333,10 @@ theorem verify_signAttempt (hP : P.Valid) {H : Hash P} (hH : ∀ x, InBall P.τ 
   refine ⟨⟨hz, hH _⟩, ?_⟩
   rw [verifierCommitment_publicKey]
   -- `HighBits(w - c s₂) = HighBits(w)`, since `c s₂` is `β`-short.
-  have hq : 2 * (P.τ * P.η) < P.q := by
-    have := hP.τ_mul_η_le_β; have := hP.two_mul_β_lt_q; omega
   have hhigh : highBitsVec P (w - fun i => negacyclicMul c (sk.s₂ i)) = highBitsVec P w := by
     funext i j
     have hs : |(negacyclicMul c (sk.s₂ i) j).valMinAbs| ≤ P.β := by
-      have := abs_valMinAbs_negacyclicMul_le (hH (highBitsVec P w, msg)) (hs₂ i) hq j
+      have := abs_valMinAbs_negacyclicMul_le (hH (highBitsVec P w, msg)) (hs₂ i) j
       have hτη : ((P.τ * P.η : ℕ) : ℤ) ≤ P.β := by exact_mod_cast hP.τ_mul_η_le_β
       push_cast at hτη
       linarith

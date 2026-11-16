@@ -23,6 +23,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Tactic.SuppCases
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Approximate counting gives almost uniform sampling for self-reducible families
@@ -380,15 +382,10 @@ private theorem mem_support_walkStep {p t m extra : ℕ} {s s' : WalkState α}
       (s.2.2.2 = true ∧ ∃ e₀ ∈ (ProbComp.eval (R.nodeEstimate A p t (R.child s.1 false))).support,
         ∃ e₁ ∈ (ProbComp.eval (R.nodeEstimate A p t (R.child s.1 true))).support,
         ∃ o, s' = R.advance s e₀ e₁ o) := by
-  cases hrun : s.2.2.2
-  · refine Or.inl ⟨rfl, ?_⟩
-    simpa only [walkStep, hrun, Bool.false_eq_true, ↓reduceIte, ProbComp.eval_pure,
-      PMF.support_pure, Set.mem_singleton_iff] using h
-  · refine Or.inr ⟨rfl, ?_⟩
-    simp only [walkStep, hrun, ↓reduceIte, ProbComp.eval_bind, PMF.mem_support_bind_iff,
-      ProbComp.eval_map, PMF.mem_support_map_iff] at h
-    obtain ⟨e₀, he₀, e₁, he₁, o, -, rfl⟩ := h
-    exact ⟨e₀, he₀, e₁, he₁, o, rfl⟩
+  supp_cases h [walkStep, apply_ite ProbComp.eval]
+    with ⟨hrun, e₀, he₀, e₁, he₁, o, -, rfl⟩ | ⟨hrun, rfl⟩
+  · exact Or.inr ⟨hrun, e₀, he₀, e₁, he₁, o, rfl⟩
+  · exact Or.inl ⟨by simpa using hrun, rfl⟩
 
 /-- A bound on the encoded estimates returned at nodes no longer than `x`, from a length bound
 `c (n + 1) ^ d` for the counter. -/
@@ -410,14 +407,12 @@ private theorem length_estimate_le {c d : ℕ}
   · simp only [h0, ↓reduceIte, ProbComp.eval_pure, PMF.support_pure, Set.mem_singleton_iff] at he
     subst he
     have h1 := length_encNat_mono (show (if [] ∈ W y then 1 else 0) ≤ 1 by split_ifs <;> omega)
-    simp only [length_encPair] at h1 ⊢
-    omega
+    enc_len at h1 ⊢
   · simp only [h0, ↓reduceIte] at he
     have h := hcd (y, p, t) e he
     have hle : (encPair enc (encPair encUnary encUnary) (y, p, t)).length ≤
         (encPair enc (encPair encUnary encUnary) (x, p, t)).length := by
-      simp only [length_encPair]
-      omega
+      enc_len
     have := Nat.mul_le_mul_left c (Nat.pow_le_pow_left (Nat.add_le_add_right hle 1) d)
     omega
 
@@ -508,9 +503,7 @@ private theorem isPPTOn_trial
           omega
         · omega
       unfold estBound at hE
-      simp only [encState, length_encPair, encBits_apply, encBool_apply, List.length_singleton,
-        encUnary_apply, List.length_replicate] at hE ⊢
-      omega)
+      enc_len [encState, List.length_singleton] at hE ⊢)
   have hfinish : ComputableInPolyTime (walkFinish W) (encState enc) (encOption encBits) := by
     unfold walkFinish
     have hnil : ComputableInPolyTime (fun s : WalkState α => decide ([] ∈ W s.1)) (encState enc)

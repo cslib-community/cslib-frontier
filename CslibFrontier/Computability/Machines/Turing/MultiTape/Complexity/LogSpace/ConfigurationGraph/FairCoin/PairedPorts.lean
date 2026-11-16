@@ -78,30 +78,6 @@ section RadixAndListHelpers
 
 variable {k : ℕ}
 
-/-- Every compact ID strictly below `vertexBound B` has positive radix `B`. -/
-theorem radix_pos_of_lt_vertexBound {B u : ℕ} (hu : u < vertexBound (k := k) B) : 0 < B := by
-  rcases Nat.eq_zero_or_pos B with rfl | hpos
-  · have : Nonempty (Register k) := ⟨.inputPos⟩
-    have hcard : Fintype.card (Register k) ≠ 0 := Fintype.card_ne_zero
-    simp [vertexBound, zero_pow hcard] at hu
-  · exact hpos
-
-/-- Packing `readRegisters B u` recovers any compact ID `u < vertexBound B`. -/
-theorem pack_readRegisters_of_lt_vertexBound {B u : ℕ} (hu : u < vertexBound (k := k) B) :
-    Cslib.Radix.pack B (readRegisters (k := k) B u) = u := by
-  have hB : 0 < B := radix_pos_of_lt_vertexBound hu
-  obtain ⟨x, hx, hval⟩ := Nat.exists_ofDigits_ofFn (B := B) (d := Fintype.card (Register k)) hu
-  let f : Register k → ℕ := fun i => x (Fintype.equivFin (Register k) i)
-  have hf_lt : ∀ i, f i < B := fun i => hx _
-  have hpack_f : Cslib.Radix.pack B f = u := by
-    unfold Cslib.Radix.pack
-    simpa only [f, Equiv.apply_symm_apply] using hval
-  have hread : readRegisters (k := k) B u = f := by
-    funext i
-    rw [← hpack_f]
-    exact Cslib.Radix.component_pack hB hf_lt i
-  rw [hread, hpack_f]
-
 /-- Combine two optional natural targets into a strictly sorted duplicate-free list of length at
 most `2`. -/
 private def pairSortedTargets : Option ℕ → Option ℕ → List ℕ
@@ -937,7 +913,7 @@ theorem mem_coinOutTargetsWithSymbol_iff_mem_coinInSources (machine : MultiTapeP
     (D d n a p : ℕ) (symOut : Option Bool) (inSyms : List (Option Bool)) : Option (ℕ × ℕ) :=
   let B := radix D n
   let N := vertexBound (k := k) B
-  let T := 2 * (2 * (n + 1)) ^ d
+  let T := polyClock d n
   if a < clockedVertexBound (k := k) D d n ∧ p < 2 ∧ a / N < T then
     let u := a % N
     match (coinOutTargetsWithSymbol machine B n u symOut)[p]? with
@@ -953,7 +929,7 @@ theorem mem_coinOutTargetsWithSymbol_iff_mem_coinInSources (machine : MultiTapeP
   let n := w.length
   let B := radix D n
   let N := vertexBound (k := k) B
-  let T := 2 * (2 * (n + 1)) ^ d
+  let T := polyClock d n
   if a < clockedVertexBound (k := k) D d n ∧ p < 2 ∧ a / N < T then
     let u := a % N
     let symOut := w[queryIndex (k := k) B u]?
@@ -999,7 +975,7 @@ theorem mem_coinOutTargetsWithSymbol_iff_mem_coinInSources (machine : MultiTapeP
     (D d n a p : ℕ) (symOut : Option Bool) : ℕ :=
   let B := radix D n
   let N := vertexBound (k := k) B
-  let T := 2 * (2 * (n + 1)) ^ d
+  let T := polyClock d n
   if a < clockedVertexBound (k := k) D d n ∧ p < 2 ∧ a / N < T then
     let u := a % N
     match (coinOutTargetsWithSymbol machine B n u symOut)[p]? with
@@ -1132,7 +1108,7 @@ theorem clockedOutPort_eq_some_iff (machine : MultiTapePTM k Bool State)
   let n := w.length
   let B := radix D n
   let N := vertexBound (k := k) B
-  let T := 2 * (2 * (n + 1)) ^ d
+  let T := polyClock d n
   constructor
   · intro hout
     dsimp only [clockedOutPort] at hout
@@ -1164,8 +1140,7 @@ theorem clockedOutPort_eq_some_iff (machine : MultiTapePTM k Bool State)
           0 < b / N := ⟨hb_lt, hq_lt, by rw [hb_div]; exact Nat.succ_pos _⟩
       obtain ⟨hp_len, hp_val⟩ := List.getElem?_eq_some_iff.mp hg
       dsimp only [clockedInPort]
-      rw [ite_eq_left hb_cond, hb_mod, ← hq_eq, List.getElem?_eq_getElem hq_len,
-        List.getElem_idxOf hq_len]
+      rw [ite_eq_left hb_cond, hb_mod, ← hq_eq, List.getElem?_idxOf hu_mem]
       simp only [Option.some.injEq, Prod.mk.injEq]
       refine ⟨?_, ?_⟩
       · rw [hb_div, Nat.add_sub_cancel, Nat.mul_comm]
@@ -1207,8 +1182,7 @@ theorem clockedOutPort_eq_some_iff (machine : MultiTapePTM k Bool State)
         ⟨ha_lt, hp_lt, ha_div_lt⟩
       obtain ⟨hq_len, hq_val⟩ := List.getElem?_eq_some_iff.mp hg
       dsimp only [clockedOutPort]
-      rw [ite_eq_left ha_cond, ha_mod, ← hp_eq, List.getElem?_eq_getElem hp_len,
-        List.getElem_idxOf hp_len]
+      rw [ite_eq_left ha_cond, ha_mod, ← hp_eq, List.getElem?_idxOf hv_mem]
       simp only [Option.some.injEq, Prod.mk.injEq]
       refine ⟨?_, ?_⟩
       · have hsub : b / N - 1 + 1 = b / N := by omega
@@ -1335,7 +1309,7 @@ theorem clockedOutCountWithSymbol_budget (machine : MultiTapePTM k Bool State)
   have hB : ComputableInSpace (fun x => radix D (n x)) enc encNat S :=
     budget_natPow (budget_natAdd hn htwo) hin D
   have hN := vertexBound_budget (k := k) hB hin
-  have hT := budget_natMul htwo (budget_natPow (budget_natMul htwo (budget_natSucc hn)) hin d)
+  have hT := polyClock_budget d hn hin
   have hM := clockedVertexBound_budget (k := k) D d hn hin
   have hcond := budget_boolAnd (budget_natLt ha hM)
     (budget_boolAnd (budget_natLt hp htwo) (budget_natLt (budget_natDiv ha hN) hT))
@@ -1367,7 +1341,7 @@ theorem clockedOutPortWithSymbols_budget (machine : MultiTapePTM k Bool State)
   have hB : ComputableInSpace (fun x => radix D (n x)) enc encNat S :=
     budget_natPow (budget_natAdd hn htwo) hin D
   have hN := vertexBound_budget (k := k) hB hin
-  have hT := budget_natMul htwo (budget_natPow (budget_natMul htwo (budget_natSucc hn)) hin d)
+  have hT := polyClock_budget d hn hin
   have hM := clockedVertexBound_budget (k := k) D d hn hin
   have hcond := budget_boolAnd (budget_natLt ha hM)
     (budget_boolAnd (budget_natLt hp htwo) (budget_natLt (budget_natDiv ha hN) hT))

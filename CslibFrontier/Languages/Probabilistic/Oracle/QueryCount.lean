@@ -11,6 +11,7 @@ public import CslibFrontier.Languages.Probabilistic.Oracle.Transcript
 public import CslibFrontier.Languages.Probabilistic.QueryCount
 
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
+import CslibFrontier.Tactic.SuppCases
 
 /-!
 # Query budgets of randomized programs
@@ -54,7 +55,11 @@ namespace Cslib.ProbOracleComp
 
 open OracleComp
 
-variable {Query α β : Type} {spec : Query → Type}
+universe u
+
+section
+
+variable {Query : Type u} {α β : Type} {spec : Query → Type}
 
 /-- The program makes at most `n` external queries on every path, whatever its private samples and
 the replies. Private samples are free. -/
@@ -73,8 +78,8 @@ theorem isCostBounded_sample (cost : Query → ℕ) (program : ProbComp α) :
   | pure a => exact .pure a 0
   | query_bind n cont ih =>
     have hquery : sample (spec := spec) (OracleComp.query n) = OracleComp.query (Sum.inl n) :=
-      OracleComp.interpret_query _ _
-    rw [sample_bind, hquery]
+      OracleComp.substitute_query _ _
+    rw [sample_freeMBind, hquery]
     simpa using (IsCostBounded.query (Sum.inl n)).bind fun a => ih a
 
 /-- A single external query costs its cost. -/
@@ -130,7 +135,11 @@ theorem QueriesSatisfy.of_forall {p : Query → Prop} (hp : ∀ q, p q)
     (program : ProbOracleComp spec α) : program.QueriesSatisfy p :=
   OracleComp.QueriesSatisfy.of_forall (fun q => by cases q <;> simp [hp]) program
 
+end
+
 /-! ### Logged executions -/
+
+variable {Query α β : Type} {spec : Query → Type}
 
 /-- Against every stateful oracle, the external queries recorded on a supported run cost at most
 the budget. Private samples are not recorded. -/
@@ -143,30 +152,22 @@ theorem transcript_cost_le {cost : Query → ℕ} {program : ProbOracleComp spec
     (transcript.map fun entry => cost entry.1).sum ≤ n := by
   induction h generalizing s s' result transcript with
   | pure a n =>
-    simp only [runWith_pure, PMF.mem_support_pure_iff] at hmem
-    cases hmem
+    supp_cases hmem [runWith_pure]
     simp
   | liftBind q cont n _ ih =>
-    simp only [ProbOracleComp.runWith, OracleComp.runWith, interpret_bind,
-      OracleComp.interpret_query, StateT.run_bind, Probability.PMF.monad_bind_eq_bind,
-      PMF.mem_support_bind_iff] at hmem
-    obtain ⟨⟨a, middle, seen⟩, hfirst, hrest⟩ := hmem
+    supp_cases hmem [ProbOracleComp.runWith, OracleComp.runWith_bind,
+      OracleComp.runWith_query]
+      with ⟨⟨a, middle, seen⟩, hfirst, hrest⟩
     cases q with
     | inl k =>
-      simp only [sumHandler, StateT.run_lift, Probability.PMF.monad_bind_eq_bind,
-        Probability.PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff,
-        PMF.mem_support_pure_iff] at hfirst
-      obtain ⟨_, -, heq⟩ := hfirst
-      cases heq
-      simpa using ih a hrest
+      supp_cases hfirst [sumHandler, StateT.run_lift] with ⟨_, -, rfl, rfl, rfl⟩
+      simpa using ih _ hrest
     | inr q =>
-      simp only [sumHandler, StateT.run, withTranscript, PMF.mem_support_map_iff] at hfirst
-      obtain ⟨⟨answer, next⟩, -, heq⟩ := hfirst
-      cases heq
+      supp_cases hfirst [sumHandler, StateT.run, withTranscript]
+        with ⟨⟨answer, next⟩, -, rfl, rfl, rfl⟩
       change _ ∈ (runWith _ _ _).support at hrest
-      rw [run_interpret_withTranscript_append, PMF.mem_support_map_iff] at hrest
-      obtain ⟨⟨result', final, fresh⟩, hfresh, heq⟩ := hrest
-      cases heq
+      rw [run_interpret_withTranscript_append] at hrest
+      supp_cases hrest with ⟨⟨result', final, fresh⟩, hfresh, rfl, rfl, rfl⟩
       have := ih answer hfresh
       simp only [List.map_append, List.sum_append, List.map_cons, List.map_nil, List.sum_cons,
         List.sum_nil, Sum.elim_inr]

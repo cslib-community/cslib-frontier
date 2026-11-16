@@ -21,6 +21,7 @@ import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Tactic.EncLen
 import Cslib.Foundations.Data.Polynomial.Monotone
+import CslibFrontier.Probability.PMF.Bool
 
 /-!
 # One-way functions put NP outside BPP
@@ -69,7 +70,7 @@ as well (`Cslib.Crypto.OneWay.SAT_notMem_BPP`).
 
 namespace Cslib.Crypto
 
-open Complexity Probability Turing.MultiTapeTM ComputableTidilyInPolyTime
+open Complexity Probability Turing.MultiTapeTM ComputableInPolyTime
 
 variable {f : List Bool → List Bool}
 
@@ -93,15 +94,14 @@ theorem isPPT_randomizedPreimageSearch {p : Polynomial ℕ}
     {V : (ℕ × List Bool × List Bool) × List Bool → Bool}
     (hV : ComputableInPolyTime V (encPair encPreimagePrefix encBits) encBool) :
     IsPPT encBits (randomizedPreimageSearch p V) := by
-  have hV := hV.tidy
   apply IsPPTOn.isPPT
-  have hlen : ComputableTidilyInPolyTime (fun q : ℕ × List Bool => searchCoinLength p q)
+  have hlen : ComputableInPolyTime (fun q : ℕ × List Bool => searchCoinLength p q)
       (encPair encUnary encBits) encUnary := by
     unfold searchCoinLength
     exact (unary_eval p).comp ((encoding_length encPreimagePrefix).comp
       ((fst _ _).prod ((snd _ _).prod ((bitsReplicate false).comp (fst _ _)))))
-  refine IsPPTOn.map_with (ComputableInPolyTime.of_tidy hlen).sampleList
-    (computableInPolyTime_preimageSearch_of_input (.of_tidy ?_) (.of_tidy (fst _ _)))
+  refine IsPPTOn.map_with hlen.sampleList
+    (computableInPolyTime_preimageSearch_of_input (?_) (fst _ _))
   exact hV.comp ((snd _ _).prod (bitsTakeWithInput (fst _ _).snd'
     ((unary_eval p).comp ((encoding_length encPreimagePrefix).comp (snd _ _)))))
 
@@ -150,7 +150,7 @@ theorem half_le_succProbability_inversionGame {p : Polynomial ℕ}
         (BitString.uniformList (searchCoinLength p (n, f x))).map fun coins =>
           f (preimageSearch (fun inst =>
             V (inst, coins.take (p.eval (encPreimagePrefix inst).length))) (n, f x)) == f x := by
-    simp [inversionGame, randomizedPreimageSearch]
+    simp [inversionGame, inversionExperiment, randomizedPreimageSearch]
   have hhalf : (1 / 2 : ENNReal) ≤
       ProbComp.eval (inversionGame f (randomizedPreimageSearch p V) n) true := by
     rw [hgame]
@@ -205,8 +205,8 @@ theorem half_le_succProbability_inversionGame {p : Polynomial ℕ}
                   exact_mod_cast Nat.lt_two_pow_self.le
               _ = 1 / 2 := by
                   rw [← mul_div_assoc, ENNReal.mul_div_mul_left _ _ (by simp) (by simp)]
-    have hsum : (μ.map g) true + (μ.map g) false = 1 := by
-      rw [add_comm, ← tsum_bool, PMF.tsum_coe]
+    have hsum : (μ.map g) true + (μ.map g) false = 1 :=
+      Probability.PMF.apply_true_add_apply_false _
     calc (1 / 2 : ENNReal) = 1 - 1 / 2 := by rw [one_div, ENNReal.one_sub_inv_two]
       _ ≤ 1 - (μ.map g) false := tsub_le_tsub_left hfail 1
       _ = (μ.map g) true := by

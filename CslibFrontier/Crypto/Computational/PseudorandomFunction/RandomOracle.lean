@@ -9,18 +9,21 @@ module
 
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction
 public import CslibFrontier.Computability.Probabilistic.Parameter
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 import CslibFrontier.Computability.Probabilistic.Memoize
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
 import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.BitString
 
 /-!
 # An executable finite-list oracle for the PRF ideal game
 
 Valid queries are memoized as ordinary words. Malformed queries receive the empty word and retain
 the cache. Injective key representations and the shared eager/lazy theorem identify this program
-with the ideal PRF game for every randomized adaptive adversary.
+with the length-preserving ideal PRF game `prfIdealGame id id` for every randomized adaptive
+adversary.
 
 ## Main definitions
 
@@ -72,7 +75,7 @@ theorem isPPTOn_cachedRandomFunctionOracle {α : Type} {input : α ↪ List Bool
 /-- An executable list cache realizes the ideal experiment, preserving repeated-query
 consistency and independent private randomness under arbitrary adaptive interaction. -/
 theorem prfIdealGame_eq_cached (adversary : OracleDistinguisher) (n : ℕ) :
-    ProbComp.eval (prfIdealGame adversary n) =
+    ProbComp.eval (prfIdealGame id id adversary n) =
       ProbComp.eval (Prod.fst <$> (OracleComp.interpret
         (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
           (fun request => cachedRandomFunctionOracle n request.2)) (adversary n [])).run []) := by
@@ -81,11 +84,10 @@ theorem prfIdealGame_eq_cached (adversary : OracleDistinguisher) (n : ℕ) :
       ProbOracleComp (fun _ : BitString n => List Bool) (List Bool))
     else pure []
   have h := RandomOracle.interpret_prob_eq_memoize_map
-    (⟨List.ofFn, List.ofFn_injective⟩ : BitString n ↪ List Bool) List.ofFn
+    (Turing.MultiTapeTM.encBitString n) List.ofFn
     (fun _ => PMF.uniformOfFintype (BitString n)) (fun _ => BitString.uniformList n)
-    (fun _ => rfl) (OracleComp.interpret
-      (OracleComp.sumHandler (fun k => ProbOracleComp.sample (ProbComp.unifFin k))
-        (fun request : Unit × List Bool => adapter request.2)) (adversary n []))
+    (fun _ => rfl)
+    (ProbOracleComp.simulate (fun request : Unit × List Bool => adapter request.2) (adversary n []))
   have hstep (query : List Bool) : OracleComp.interpret
       (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k))
         (fun key => memoize (fun _ => BitString.uniformList n) (List.ofFn key)))
@@ -103,25 +105,24 @@ theorem prfIdealGame_eq_cached (adversary : OracleDistinguisher) (n : ℕ) :
         (adapter query) = PMF.pure (randomFunctionOracle n table query) := by
     by_cases hquery : query.length = n <;> simp [adapter, randomFunctionOracle, hquery]
   rw [ProbComp.eval_map, ProbOracleComp.eval_run_interpret]
-  simpa only [prfIdealGame, ProbComp.eval_bind, ProbComp.eval_uniform,
+  simpa only [prfIdealGame, id_eq, ProbOracleComp.run, ProbComp.eval_bind, ProbComp.eval_uniform,
     ProbOracleComp.eval_interpret, ProbComp.eval_pure, PMF.pi_uniformOfFintype,
-    OracleComp.interpret_interpret, OracleComp.interpret_sumHandler,
-    ProbOracleComp.interpret_sample, ProbComp.unifFin, OracleComp.interpret_query,
-    Function.Embedding.coeFn_mk, hstep, heager, PMF.monad_bind_eq_bind] using h
+    ProbOracleComp.interpret_simulate,
+    Turing.MultiTapeTM.encBitString_apply, hstep, heager, PMF.monad_bind_eq_bind] using h
 
 open Turing.MultiTapeTM in
 /-- The ideal experiment has a strict PPT realization through its lazy cache. This does not
 construct the exponentially large eager table; the entire adaptive interaction is certified. -/
 theorem isPPT_prfIdealGame {adversary : OracleDistinguisher}
     (hadversary : IsOraclePPT encBool adversary) :
-    IsPPT encBool (fun n _ => prfIdealGame adversary n) := by
+    IsPPT encBool (fun n _ => prfIdealGame id id adversary n) := by
   have hrun : IsPPTOn (encPair encUnary encBits)
       (encPair encBool (encList (encPair encBits encBits))) (fun pair : ℕ × List Bool =>
         (OracleComp.interpret
           (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
             (fun request => cachedRandomFunctionOracle pair.1 request.2))
               (adversary pair.1 [])).run []) := by
-    apply hadversary.run_interpret_preprocess' (operationEncoding := encFinEnum Unit)
+    apply hadversary.run_interpret_preprocess (operationEncoding := encFinEnum Unit)
       (prepare := fun pair : ℕ × List Bool => (pair.1, []))
       (resources := fun pair query => 4 * query.length + 2 * pair.1 + 3)
       (by fun_prop) (by fun_prop) (by fun_prop)

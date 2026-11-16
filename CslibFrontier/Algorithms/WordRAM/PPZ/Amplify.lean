@@ -15,6 +15,7 @@ public import CslibFrontier.Algorithms.WordRAM.PPZ.Round
 public import CslibFrontier.Algorithms.WordRAM.Schoening.Amplify
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.ToReal
+import CslibFrontier.Probability.PMF.EventBind
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpBounds
 import CslibFrontier.Foundations.Data.Nat.CeilDiv
 
@@ -568,24 +569,42 @@ theorem le_two_pow_mul_mul_rpow_neg {e c : ℕ} {x : ℝ} (hx : x ≤ e) :
   calc (c : ℝ) ≤ c * ((2 : ℝ) ^ e * (2 : ℝ) ^ (-x)) := le_mul_of_one_le_right (Nat.cast_nonneg c) h
     _ = ((2 ^ e * c : ℕ) : ℝ) * (2 : ℝ) ^ (-x) := by push_cast; ring
 
-/-- `(1 - 1 / k) · n` is the quotient of natural numbers `(k - 1) · n / k`. -/
-private theorem one_sub_one_div_mul_eq {k : ℕ} (hk : 1 ≤ k) (n : ℕ) :
-    (1 - 1 / (k : ℝ)) * n = (((k - 1) * n : ℕ) : ℝ) / k := by
+/-- Rounding an exponent `x` up to `e ≤ x + 1` costs at most a factor of `2` in `2 ^ e`. -/
+theorem two_pow_le_two_mul_rpow {e : ℕ} {x : ℝ} (he : (e : ℝ) ≤ x + 1) :
+    (2 : ℝ) ^ e ≤ 2 * (2 : ℝ) ^ x := by
+  rw [← Real.rpow_natCast, show 2 * (2 : ℝ) ^ x = (2 : ℝ) ^ (x + 1) by
+    rw [Real.rpow_add two_pos, Real.rpow_one]; ring]
+  exact Real.rpow_le_rpow_of_exponent_le one_le_two he
+
+/-- `(a * n + b - 1) / b` is the ceiling of `(a / b) · n`. -/
+private theorem add_pred_div_eq_ceil {a b : ℕ} (hb : 0 < b) (n : ℕ) :
+    (a * n + b - 1) / b = ⌈(a : ℝ) / b * n⌉₊ := by
+  rw [div_mul_eq_mul_div, ← Nat.cast_mul]
+  exact (Nat.ceil_div_eq_ceilDiv _ hb).symm
+
+/-- Ceiling division `(a * n + b - 1) / b` is at least `(a / b) · n`. -/
+theorem div_mul_le_add_pred_div {a b : ℕ} (hb : 0 < b) (n : ℕ) :
+    (a : ℝ) / b * n ≤ ((a * n + b - 1) / b : ℕ) := by
+  rw [add_pred_div_eq_ceil hb]
+  exact Nat.le_ceil _
+
+/-- Ceiling division `(a * n + b - 1) / b` is at most `(a / b) · n + 1`. -/
+theorem add_pred_div_le_div_mul_add_one {a b : ℕ} (hb : 0 < b) (n : ℕ) :
+    (((a * n + b - 1) / b : ℕ) : ℝ) ≤ (a : ℝ) / b * n + 1 := by
+  rw [add_pred_div_eq_ceil hb]
+  exact (Nat.ceil_lt_add_one (by positivity)).le
+
+/-- `1 - 1 / k` is the quotient of natural numbers `(k - 1) / k`. -/
+private theorem one_sub_one_div_eq {k : ℕ} (hk : 1 ≤ k) :
+    1 - 1 / (k : ℝ) = ((k - 1 : ℕ) : ℝ) / k := by
   have hk0 : (k : ℝ) ≠ 0 := Nat.cast_ne_zero.mpr (by omega)
   push_cast [Nat.cast_sub hk]
   field_simp
 
-/-- `ppzExp k n` is the ceiling division `(k - 1) · n ⌈/⌉ k` by definition, so it is the ceiling
-of `(1 - 1 / k) · n`. -/
-private theorem ppzExp_eq_ceil {k : ℕ} (hk : 1 ≤ k) (n : ℕ) :
-    ppzExp k n = ⌈(1 - 1 / (k : ℝ)) * n⌉₊ := by
-  rw [one_sub_one_div_mul_eq hk]
-  exact (Nat.ceil_div_eq_ceilDiv _ hk).symm
-
 /-- The exponent is at least `(1 - 1 / k) n`. -/
 theorem le_ppzExp {k : ℕ} (hk : 1 ≤ k) (n : ℕ) : (1 - 1 / (k : ℝ)) * n ≤ ppzExp k n := by
-  rw [ppzExp_eq_ceil hk]
-  exact Nat.le_ceil _
+  rw [one_sub_one_div_eq hk]
+  exact div_mul_le_add_pred_div hk n
 
 /-- The exponent is at most `n`. -/
 theorem ppzExp_le (k n : ℕ) : ppzExp k n ≤ n := by
@@ -674,14 +693,9 @@ theorem ampSetup_exec (k c : ℕ) (φ : CNF (Fin n)) {w : ℕ}
   have hf2 : Fits w 2 := hw.of_le (by simp [encode]; omega)
   have hf3 : Fits w 3 := hw.of_le (by simp [encode]; omega)
   have hf4 : Fits w 4 := hw.of_le (by simp [encode]; omega)
-  have hf5 : Fits w ((k :: c :: encode φ).length + 1) := hw.of_le (by omega)
-  have hf6 : Fits w ((k :: c :: encode φ).length + 1 + n) := hw.of_le (by omega)
   have hf7 : Fits w ((k :: c :: encode φ).length + 1 + n + n) := hw.of_le (by omega)
   have hkn : (k - 1) * n ≤ k * n := Nat.mul_le_mul_right n (Nat.sub_le k 1)
-  have hf8 : Fits w (k - 1) := hw.of_le (by omega)
-  have hf9 : Fits w ((k - 1) * n) := hw.of_le (by omega)
   have hf10 : Fits w ((k - 1) * n + k) := hw.of_le (by omega)
-  have hf11 : Fits w ((k - 1) * n + k - 1) := hw.of_le (by omega)
   have hf12 : Fits w (((k - 1) * n + k - 1) / k) := hw.of_le (by
     have := Nat.div_le_self ((k - 1) * n + k - 1) k; omega)
   have hm0 : (Data.init (k :: c :: encode φ) : Data 32).mem 0 = (k :: c :: encode φ).length :=
@@ -692,7 +706,7 @@ theorem ampSetup_exec (k c : ℕ) (φ : CNF (Fin n)) {w : ℕ}
   refine ⟨?run, ?frame⟩
   case run =>
     ram_eval [ampSetup, ampSetupData, ppzExp, Data.init_regs, hm0, hm1, hm2, hm3, hf1, hf2, hf3,
-      hf4, hf5, hf6, hf7, hf8, hf9, hf10, hf11, hf12]
+      hf4, hf7, hf10, hf12]
   case frame =>
     refine ⟨by simp +decide [ampSetupData], by simp +decide [ampSetupData],
       by simp +decide [ampSetupData], by simp +decide [ampSetupData],
@@ -907,8 +921,8 @@ theorem ampProgram_failure_le_exp {k c : ℕ} (hk : 1 ≤ k) {φ : CNF (Fin n)} 
 /-- The exponent is at most `(1 - 1 / k) n + 1`. -/
 theorem ppzExp_le_add_one {k : ℕ} (hk : 1 ≤ k) (n : ℕ) :
     (ppzExp k n : ℝ) ≤ (1 - 1 / (k : ℝ)) * n + 1 := by
-  rw [ppzExp_eq_ceil hk]
-  exact (Nat.ceil_lt_add_one (by rw [one_sub_one_div_mul_eq hk]; positivity)).le
+  rw [one_sub_one_div_eq hk]
+  exact add_pred_div_le_div_mul_add_one hk n
 
 /-- **The running time** of the PPZ algorithm is `O((n + L) ^ 2 2 ^ ((1 - 1 / k) n) (c + 1))`:
 explicitly, at most `200 (n + L + 1) ^ 2 2 ^ ((1 - 1 / k) n) (c + 1)` instructions. For `k = 3`
@@ -916,7 +930,7 @@ this is `O((n + L) ^ 2 2 ^ (2 n / 3) (c + 1))`, about `1.588 ^ n`. -/
 theorem ampTime_le {k : ℕ} (hk : 1 ≤ k) (n c L : ℕ) :
     (ampTime k n c L : ℝ) ≤
       200 * ((n + L + 1 : ℕ) : ℝ) ^ 2 * (2 : ℝ) ^ ((1 - 1 / (k : ℝ)) * n) * (c + 1) := by
-  set X := (2 : ℝ) ^ ((1 - 1 / (k : ℝ)) * n) with hX
+  set X := (2 : ℝ) ^ ((1 - 1 / (k : ℝ)) * n)
   obtain ⟨N, hN⟩ : ∃ N, n + L + 1 = N := ⟨_, rfl⟩
   rw [hN]
   have hk1 : (1 : ℝ) ≤ k := by exact_mod_cast hk
@@ -928,11 +942,8 @@ theorem ampTime_le {k : ℕ} (hk : 1 ≤ k) (n c L : ℕ) :
   have hR : (ppzRounds k n c : ℝ) ≤ 2 * X * c := by
     simp only [ppzRounds]
     push_cast
-    have h : (2 : ℝ) ^ ppzExp k n ≤ 2 * X := by
-      rw [← Real.rpow_natCast, hX, show 2 * (2 : ℝ) ^ ((1 - 1 / (k : ℝ)) * n) =
-        (2 : ℝ) ^ ((1 - 1 / (k : ℝ)) * n + 1) by rw [Real.rpow_add two_pos, Real.rpow_one]; ring]
-      exact Real.rpow_le_rpow_of_exponent_le one_le_two (ppzExp_le_add_one hk n)
-    exact mul_le_mul_of_nonneg_right h (Nat.cast_nonneg c)
+    exact mul_le_mul_of_nonneg_right (two_pow_le_two_mul_rpow (ppzExp_le_add_one hk n))
+      (Nat.cast_nonneg c)
   -- one round
   have hP : n * (28 * L + 40) + 12 * L + 41 ≤ 41 * N ^ 2 := by
     have h1 : n + 1 ≤ N := by omega

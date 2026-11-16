@@ -13,6 +13,7 @@ public import Mathlib.Combinatorics.SimpleGraph.DegreeSum
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.UniformOrder
+import CslibFrontier.Tactic.SuppCases
 import Mathlib.Data.Nat.Choose.Bounds
 
 /-!
@@ -276,8 +277,7 @@ theorem invariant_of_mem_support_run {k : ℕ} {s : State V}
     (hs : s ∈ (ProbComp.eval (run G k)).support) : Invariant G s :=
   ProbComp.iterate_invariant k (phase G) init (fun _ s => Invariant G s) (invariant_init G)
     (fun _ _ s hs next hnext => by
-      rw [eval_phase, PMF.support_map] at hnext
-      obtain ⟨σ, -, rfl⟩ := hnext
+      supp_cases hnext [eval_phase] with ⟨σ, rfl⟩
       exact hs.step G σ) s hs
 
 /-- Each phase with a live vertex removes at least one live vertex: the live vertex of least rank
@@ -295,15 +295,13 @@ independent set. -/
 theorem maximal_of_mem_support_lubyMIS {k : ℕ} (hk : Fintype.card V ≤ k) {S : Finset V}
     (hS : S ∈ (ProbComp.eval (lubyMIS G k)).support) :
     Maximal G.IsIndepSet (S : Set V) := by
-  rw [lubyMIS, ProbComp.eval_map, PMF.support_map] at hS
-  obtain ⟨s, hs, rfl⟩ := hS
+  supp_cases hS [lubyMIS] with ⟨s, hs, rfl⟩
   refine (invariant_of_mem_support_run G hs).maximal_iff.2 ?_
   -- Until the live set empties, each phase removes a live vertex.
   have hcard := ProbComp.iterate_invariant k (phase G) init
     (fun i s => s.live = ∅ ∨ s.live.card + i ≤ Fintype.card V) (Or.inr (by simp [init]))
     (fun i _ s hs next hnext => by
-      rw [eval_phase, PMF.support_map] at hnext
-      obtain ⟨σ, -, rfl⟩ := hnext
+      supp_cases hnext [eval_phase] with ⟨σ, rfl⟩
       rcases s.live.eq_empty_or_nonempty with he | hne
       · exact Or.inl (subset_empty.1 (he ▸ step_live_subset G s σ))
       · rcases hs with he | hs
@@ -317,8 +315,7 @@ theorem maximal_of_mem_support_lubyMIS {k : ℕ} (hk : Fintype.card V ≤ k) {S 
 /-- **Independence.** After any number of phases, every possible output is an independent set. -/
 theorem isIndepSet_of_mem_support_lubyMIS {k : ℕ} {S : Finset V}
     (hS : S ∈ (ProbComp.eval (lubyMIS G k)).support) : G.IsIndepSet (S : Set V) := by
-  rw [lubyMIS, ProbComp.eval_map, PMF.support_map] at hS
-  obtain ⟨s, hs, rfl⟩ := hS
+  supp_cases hS [lubyMIS] with ⟨s, hs, rfl⟩
   exact (invariant_of_mem_support_run G hs).isIndepSet
 
 /-! ### Random rankings -/
@@ -503,7 +500,8 @@ theorem two_pow_mul_expect_liveEdges_run_le (k : ℕ) :
       tsum_eq_single init (fun t ht => by rw [PMF.pure_apply, ite_eq_right ht, zero_mul]),
       PMF.pure_apply, ite_eq_left rfl, one_mul, liveEdges_init]
   | succ k ih =>
-    rw [run_succ, ProbComp.eval_bind, Probability.PMF.tsum_bind_mul]
+    rw [run_succ, ProbComp.eval_bind,
+      Probability.PMF.tsum_bind_mul]
     calc 2 ^ (k + 1) * ∑' a, ProbComp.eval (run G k) a *
           ∑' t, ProbComp.eval (phase G a) t * (liveEdges G t : ℝ≥0∞)
         = 2 ^ k * ∑' a, ProbComp.eval (run G k) a *
@@ -535,7 +533,8 @@ theorem two_pow_mul_toOuterMeasure_live_nonempty_le (k : ℕ) :
     2 ^ k * (ProbComp.eval (run G (k + 1))).toOuterMeasure {s | s.live.Nonempty} ≤
       G.edgeFinset.card := by
   refine le_trans ?_ (two_pow_mul_expect_liveEdges_run_le G k)
-  rw [run_succ, ProbComp.eval_bind, PMF.toOuterMeasure_bind_apply]
+  rw [run_succ, ProbComp.eval_bind,
+    PMF.toOuterMeasure_bind_apply]
   gcongr with a
   rcases Nat.eq_zero_or_pos (liveEdges G a) with h0 | hpos
   · rw [h0, Nat.cast_zero, eval_phase, PMF.toOuterMeasure_map_apply]
@@ -550,7 +549,8 @@ set fails to be a maximal independent set with probability at most `2 ^ (-t)`. -
 theorem toOuterMeasure_not_maximal_lubyMIS_le {m : ℕ} (hm : G.edgeFinset.card ≤ 2 ^ m) (t : ℕ) :
     (ProbComp.eval (lubyMIS G (m + t + 1))).toOuterMeasure
         {S | ¬ Maximal G.IsIndepSet (S : Set V)} ≤ (2 ^ t)⁻¹ := by
-  rw [lubyMIS, ProbComp.eval_map, PMF.toOuterMeasure_map_apply]
+  rw [lubyMIS, ProbComp.eval_map,
+    PMF.toOuterMeasure_map_apply]
   have hsub : (State.chosen ⁻¹' {S : Finset V | ¬ Maximal G.IsIndepSet (S : Set V)}) ∩
       (ProbComp.eval (run G (m + t + 1))).support ⊆ {s | s.live.Nonempty} := by
     rintro s ⟨hs, hsupp⟩

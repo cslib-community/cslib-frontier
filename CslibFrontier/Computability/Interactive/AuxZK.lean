@@ -14,6 +14,7 @@ public import CslibFrontier.Crypto.Game.CloseTo
 import CslibFrontier.Computability.Probabilistic.PPT.Composition
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Probability.PMF.EventBind
 
 /-!
 # Auxiliary-input zero knowledge and product composition for interactive reductions
@@ -29,9 +30,11 @@ directions from the zero-knowledge roadmap:
      reduction is automatically `AuxHVZK` / `PerfectAuxHVZK` by ignoring `z`
      (`Reduction.HVZK.auxHVZK`, `Reduction.PerfectHVZK.perfectAuxHVZK`), and conversely
      instantiating at any `z₀ : Aux` recovers `HVZK` / `PerfectHVZK`.
-   * `VerifierStrategy`, `runAgainst`, `Reduction.viewOf`, `Reduction.ZK`: malicious-verifier
-     auxiliary-input zero knowledge in the plain model, where a strategy tree of the verifier's
-     role adaptively chooses challenges and outputs an arbitrary view. Embedding the honest
+   * `VerifierStrategy`, `runAgainst`, `Reduction.viewOf`, `Reduction.ZK`: statistical
+     malicious-verifier auxiliary-input zero knowledge in the plain model, with unbounded
+     verifiers and an unbounded simulator, where a strategy tree of the verifier's role adaptively
+     chooses challenges and outputs an arbitrary view. It is not the computational definition of
+     [Goldreich2001], whose verifiers and simulators are efficient. Embedding the honest
      verifier's challenge samplers (`honestVerifierStrategy`) proves that `Reduction.ZK` implies
      `Reduction.AuxHVZK` (`Reduction.ZK.auxHVZK`).
    * `AuxSimulatorRealizedBy`, `Reduction.EfficientAuxHVZK`: uniform strict-PPT realization of an
@@ -66,8 +69,8 @@ directions from the zero-knowledge roadmap:
 * `Cslib.Interactive.VerifierStrategy`, `Cslib.Interactive.runAgainst`,
   `Cslib.Interactive.Reduction.viewOf`, `Cslib.Interactive.Reduction.ZK`,
   `Cslib.Interactive.honestVerifierStrategy`.
-* `Cslib.Interactive.AuxSimulatorRealizedBy`, `Cslib.Interactive.Reduction.EfficientAuxHVZK`,
-  `Cslib.Interactive.Reduction.ComputationalHVZK`,
+* `Cslib.Interactive.Encoding.encStatementAux`, `Cslib.Interactive.AuxSimulatorRealizedBy`,
+  `Cslib.Interactive.Reduction.EfficientAuxHVZK`, `Cslib.Interactive.Reduction.ComputationalHVZK`,
   `Cslib.Interactive.Reduction.ComputationalAuxHVZK`.
 * `Cslib.Interactive.relProd`, `Cslib.Interactive.relDisj`,
   `Cslib.Interactive.Verifier.liftFirst`, `Cslib.Interactive.Verifier.liftSecond`,
@@ -281,10 +284,13 @@ noncomputable def Reduction.viewOf
     let (_, _, view) ← runAgainst s p v
     return view
 
-/-- **Malicious-verifier auxiliary-input zero knowledge** ([Goldreich2001], §4.3.3,
-Definition 4.3.10) with statistical error `ε`, in the plain model: for every malicious verifier
-`Vstar`, every valid `(x, w)` in `relIn`, and every auxiliary input `z : Aux`, the simulator
-`Sim Vstar x z` reproduces `Vstar`'s view within statistical distance `ε x z`. -/
+/-- **Statistical malicious-verifier auxiliary-input zero knowledge, with an unbounded simulator
+and verifier**, in the plain model: for every malicious verifier `Vstar`, every valid `(x, w)` in
+`relIn`, and every auxiliary input `z : Aux`, the simulator `Sim Vstar x z` reproduces `Vstar`'s
+view within statistical distance `ε x z`. Neither `Vstar` nor `Sim` is required to be efficient,
+and closeness is statistical, so this is not the computational auxiliary-input definition of
+[Goldreich2001], §4.3.3, Definition 4.3.10, whose verifiers and simulators are efficient. An
+efficient variant is not formalized. -/
 def Reduction.ZK
     (R : Reduction OracleSpec.empty OracleSpec.empty s StmtIn WitIn StmtOut WitOut)
     (relIn : StmtIn → WitIn → Prop)
@@ -389,8 +395,8 @@ theorem Reduction.viewOf_honestVerifierStrategy
   rw [plainLaw_runAgainst_honestVerifierStrategy, PMF.bind_map]
   rfl
 
-/-- **Malicious-verifier auxiliary-input zero knowledge (`Reduction.ZK`) implies honest-verifier
-auxiliary-input zero knowledge (`Reduction.AuxHVZK`).** -/
+/-- **Statistical malicious-verifier auxiliary-input zero knowledge (`Reduction.ZK`) implies
+honest-verifier auxiliary-input zero knowledge (`Reduction.AuxHVZK`).** -/
 theorem Reduction.ZK.auxHVZK
     {R : Reduction OracleSpec.empty OracleSpec.empty s StmtIn WitIn StmtOut WitOut}
     {relIn : StmtIn → WitIn → Prop}
@@ -411,6 +417,14 @@ theorem Reduction.ZK.auxHVZK
 section Indexed
 
 variable {I : Type} {sI : I → Spec} {StmtI WitI StmtOutI WitOutI AuxI : I → Type}
+
+/-- Family index, encoded statement and auxiliary input word `(i, x, z)`: the index under
+`enc.index`, then `x` and `z` as bit words (`enc.index` and `x` framed, `z` unframed). An
+auxiliary-input simulator reads this triple; a transcript distinguisher reads it after the unary
+parameter, paired with an encoded transcript, with an auxiliary input word in the `z` slot. -/
+abbrev Encoding.encStatementAux (enc : Encoding I sI StmtI) :
+    I × List Bool × List Bool ↪ List Bool :=
+  encPair enc.index (encPair encBits encBits)
 
 /-- The program `program` realizes the auxiliary-input simulator family `Sim` on encodings up to
 statistical distance `δ`: on `(i, enc.statement i x, encAux i z)`, its output is within `δ i` of
@@ -463,7 +477,7 @@ structure Reduction.EfficientAuxHVZK
   /-- One uniform strict PPT program of the index, statement and auxiliary input realizes `Sim` up
   to `δ`. -/
   realized : ∃ program,
-    IsPPTOn (encPair enc.index (encPair encBits encBits)) encBits program ∧
+    IsPPTOn enc.encStatementAux encBits program ∧
       AuxSimulatorRealizedBy enc encAux Sim program δ
 
 /-- **Every `EfficientHVZK` reduction is automatically `EfficientAuxHVZK`**: the simulator and its
@@ -505,7 +519,7 @@ structure Reduction.ComputationalHVZK
       (∀ n, rel (idx n) (x n) (w n)) →
       ∀ D : ℕ → I → List Bool → List Bool → List Bool → ProbComp Bool,
         IsPPTOn
-          (encPair (encPair encUnary (encPair enc.index (encPair encBits encBits))) encBits)
+          (encPair (encPair encUnary enc.encStatementAux) encBits)
           encBool (fun ⟨⟨n, i, xw, zw⟩, τw⟩ => D n i xw zw τw) →
         Negligible (fun n => Game.advantage
           ((((R (idx n)).honestTranscript (x n) (w n)).map (enc.transcript (idx n))).bind
@@ -526,7 +540,7 @@ structure Reduction.ComputationalAuxHVZK
     (encAux : ∀ i, AuxI i ↪ List Bool)
     (program : I × List Bool × List Bool → ProbComp (List Bool)) : Prop where
   /-- The simulator program is uniform strict PPT in `(i, enc.statement i x, encAux i z)`. -/
-  ppt : IsPPTOn (encPair enc.index (encPair encBits encBits)) encBits program
+  ppt : IsPPTOn enc.encStatementAux encBits program
   /-- Honest and simulated encoded transcripts have negligible distinguishing advantage across all
   polynomially bounded valid families and auxiliary inputs. -/
   indistinguishable :
@@ -537,7 +551,7 @@ structure Reduction.ComputationalAuxHVZK
       (∀ n, rel (idx n) (x n) (w n)) →
       ∀ D : ℕ → I → List Bool → List Bool → List Bool → ProbComp Bool,
         IsPPTOn
-          (encPair (encPair encUnary (encPair enc.index (encPair encBits encBits))) encBits)
+          (encPair (encPair encUnary enc.encStatementAux) encBits)
           encBool (fun ⟨⟨n, i, xw, zw⟩, τw⟩ => D n i xw zw τw) →
         Negligible (fun n => Game.advantage
           ((((R (idx n)).honestTranscript (x n) (w n)).map (enc.transcript (idx n))).bind
@@ -572,7 +586,7 @@ theorem AuxSimulatorRealizedBy.computationalAuxHVZK
     {Sim : ∀ i, StmtI i → AuxI i → ProbComp (Transcript (sI i))}
     {program : I × List Bool × List Bool → ProbComp (List Bool)} {ε δ : I → ℝ≥0∞}
     (hzk : ∀ i, (R i).AuxHVZK (rel i) (Sim i) (fun _ _ => ε i))
-    (hppt : IsPPTOn (encPair enc.index (encPair encBits encBits)) encBits program)
+    (hppt : IsPPTOn enc.encStatementAux encBits program)
     (hreal : AuxSimulatorRealizedBy enc encAux Sim program δ)
     {η : I → ℝ≥0} (hη : ∀ i, ε i + δ i ≤ η i)
     (hnegl : ∀ idx : ℕ → I, PolynomiallyBounded (fun n => (enc.index (idx n)).length) →
@@ -931,8 +945,10 @@ theorem Verifier.KnowledgeSound.seqProd
       ¬ relIn₂ x₂ (E₂ x₂ (Transcript.split s₁ s₂ r.1).2 r.2.2)}
   have hsub : (fun r : Transcript (s₁ ++ s₂) × (W₁' × W₂') =>
         (r.1, (V₁.seqProd V₂).outputOn (x₁, x₂) r.1, r.2)) ⁻¹'
-      {r | (∃ y, r.2.1 = some y ∧ relProd relOut₁ relOut₂ y r.2.2) ∧
-        ¬ relProd relIn₁ relIn₂ (x₁, x₂) (Verifier.extractSeqProd E₁ E₂ (x₁, x₂) r.1 r.2.2)} ⊆
+      {r : Execution (s₁ ++ s₂) (S₁' × S₂') (W₁' × W₂') |
+        (∃ y, r.output = some y ∧ relProd relOut₁ relOut₂ y r.result) ∧
+        ¬ relProd relIn₁ relIn₂ (x₁, x₂)
+          (Verifier.extractSeqProd E₁ E₂ (x₁, x₂) r.transcript r.result)} ⊆
       T₁ ∪ T₂ := by
     rintro ⟨τ, w₁', w₂'⟩ ⟨⟨⟨y₁, y₂⟩, hout, hy₁, hy₂⟩, hnot⟩
     rw [Verifier.outputOn_seqProd_eq_some_iff] at hout

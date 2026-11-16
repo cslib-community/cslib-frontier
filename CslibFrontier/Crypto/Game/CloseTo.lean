@@ -10,6 +10,8 @@ module
 public import CslibFrontier.Computability.Interactive.Security
 public import CslibFrontier.Crypto.Game
 public import CslibFrontier.Probability.StatisticalDistance.CloseTo
+import CslibFrontier.Probability.PMF.Bool
+import CslibFrontier.Probability.PMF.Event
 
 /-!
 # Bridging Boolean game advantage and all-events statistical closeness
@@ -41,6 +43,8 @@ ensembles `PMF (List Bool)` and protocol transcripts.
   `Cslib.Crypto.Game.coe_advantage_bind_le_of_closeTo`,
   `Cslib.Crypto.Game.advantage_bind_le_of_closeTo`: postprocessing `CloseTo` by a deterministic or
   randomized Boolean distinguisher bounds `Game.advantage`.
+* `Cslib.Crypto.Game.closeTo_advantage_map_decide_lt`: the deterministic likelihood test bounds
+  `CloseTo` without finiteness ([BonehShoup2023], Theorem 3.10, p. 83).
 * `Cslib.Crypto.Game.closeTo_of_coe_advantage_decide_le`,
   `Cslib.Crypto.Game.closeTo_of_advantage_decide_le`: indicator-event tests suffice for `CloseTo`.
 * `Cslib.Crypto.Game.closeTo_iff_forall_coe_advantage_map_le`,
@@ -50,6 +54,11 @@ ensembles `PMF (List Bool)` and protocol transcripts.
   `CloseTo` via deterministic and randomized Boolean distinguishers.
 * `Cslib.Probability.CloseTo.bind_right_tsum`: input-dependent error bounds on mixtures
   under `CloseTo`.
+
+## References
+
+* [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023],
+  Section 3.11 (Theorem 3.10, p. 83).
 -/
 
 public section
@@ -59,8 +68,8 @@ namespace Cslib.Crypto.Game
 open Probability
 open scoped ENNReal NNReal
 
-private theorem coe_succProbability_ennreal (game : Game) :
-    (succProbability game : ℝ≥0∞) = game true :=
+/-- In `ℝ≥0∞`, the success probability of a game is the probability it assigns to `true`. -/
+theorem coe_succProbability_ennreal (game : Game) : (succProbability game : ℝ≥0∞) = game true :=
   ENNReal.coe_toNNReal (game.apply_ne_top true)
 
 /-- On Boolean experiments, `ε`-closeness in `ℝ≥0∞` is equivalent to `(advantage : ℝ≥0∞) ≤ ε`. -/
@@ -82,10 +91,8 @@ theorem closeTo_iff_coe_advantage_le {game1 game2 : Game} {ε : ℝ≥0∞} :
     rw [hadv, max_le_iff] at hadv_le
     have ht1 : game1 true ≤ game2 true + ε := tsub_le_iff_left.mp hadv_le.1
     have ht2 : game2 true ≤ game1 true + ε := tsub_le_iff_left.mp hadv_le.2
-    have hsum1 : game1 true + game1 false = 1 := by
-      simpa only [tsum_bool, add_comm] using game1.tsum_coe
-    have hsum2 : game2 true + game2 false = 1 := by
-      simpa only [tsum_bool, add_comm] using game2.tsum_coe
+    have hsum1 : game1 true + game1 false = 1 := Probability.PMF.apply_true_add_apply_false game1
+    have hsum2 : game2 true + game2 false = 1 := Probability.PMF.apply_true_add_apply_false game2
     have hf1 : game1 false ≤ game2 false + ε := by
       refine WithTop.le_of_add_le_add_left (game2.apply_ne_top true) ?_
       calc
@@ -136,19 +143,29 @@ theorem advantage_bind_le_of_closeTo {α : Type} {μ ν : PMF α} {ε : ℝ≥0}
     advantage (μ.bind test) (ν.bind test) ≤ ε :=
   closeTo_iff_advantage_le.mp (h.bind_left test)
 
+/-- **A best test.** The deterministic test asking whether a point is more likely under `μ` than
+under `ν` gives an advantage that bounds the statistical distance ([BonehShoup2023], Theorem 3.10,
+p. 83); with `Game.advantage_map_le_of_closeTo`, it is the least such bound. No finiteness is
+assumed. -/
+theorem closeTo_advantage_map_decide_lt {α : Type} (μ ν : PMF α) :
+    CloseTo μ ν (advantage (μ.map fun a => decide (ν a < μ a))
+      (ν.map fun a => decide (ν a < μ a))) := by
+  have hclose := (closeTo_iff_coe_advantage_le
+    (game1 := μ.map fun a => decide (ν a < μ a))
+    (game2 := ν.map fun a => decide (ν a < μ a))).mpr le_rfl {true}
+  rw [PMF.toOuterMeasure_map_apply, PMF.toOuterMeasure_map_apply,
+    PMF.toOuterMeasure_eq_add_tsum_tsub μ ν (fun a ha => le_of_lt (by simpa using ha))
+      fun a ha => not_lt.1 (by simpa using ha)] at hclose
+  exact closeTo_iff_tsum_tsub_le.2
+    ((ENNReal.add_le_add_iff_left (PMF.toOuterMeasure_ne_top ν _)).1 hclose)
+
 open Classical in
 /-- A bound in `ℝ≥0∞` on the advantage of every indicator test gives `CloseTo`. -/
 theorem closeTo_of_coe_advantage_decide_le {α : Type} {μ ν : PMF α} {ε : ℝ≥0∞}
     (h : ∀ E : Set α, (advantage (μ.map fun a => decide (a ∈ E))
       (ν.map fun a => decide (a ∈ E)) : ℝ≥0∞) ≤ ε) :
-    CloseTo μ ν ε := fun E => by
-  have hmap (p : PMF α) : (p.map fun a => decide (a ∈ E)) true = p.toOuterMeasure E := by
-    rw [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply]
-    congr 1
-    ext a
-    simp
-  have hclose := closeTo_iff_coe_advantage_le.mpr (h E) {true}
-  simpa only [PMF.toOuterMeasure_apply_singleton, hmap] using hclose
+    CloseTo μ ν ε :=
+  (closeTo_advantage_map_decide_lt μ ν).mono (by convert h {a | ν a < μ a})
 
 open Classical in
 /-- A bound in `ℝ≥0` on the advantage of every indicator test gives `CloseTo`. -/

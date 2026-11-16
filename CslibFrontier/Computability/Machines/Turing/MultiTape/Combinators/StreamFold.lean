@@ -12,6 +12,7 @@ public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.ClearWork
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.ReadInput
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.WhileInput
 public import CslibFrontier.Foundations.Data.Fin.Tuple
+import CslibFrontier.Foundations.Data.List.Flatten
 import Mathlib.Tactic.FinCases
 
 /-!
@@ -76,7 +77,6 @@ public noncomputable def frozenRound (E : MultiTapeTM K Bool SE) (Nm : MultiTape
     ((copyWord (threeTapes V N F hVN hVF hNF) true).seq
       ((clearWork Bool).extendTapes (tapeEmb N)))))
 
-open Sequential in
 /-- `frozenRound` takes the word `w` on tape `V` and every other tape blank to `next` on tape `V`
 and every other tape blank, emitting `emit`, if `E` emits `emit` from `w` and `Nm` writes `next`
 to tape `N`. -/
@@ -192,20 +192,9 @@ public lemma streamPos_lt (toks : List (List Bool)) (j : ℕ) :
   have := (List.take_sublist j toks).flatten.length_le
   omega
 
-public lemma drop_flatten_take (toks : List (List Bool)) {j : ℕ} (hj : j < toks.length) :
-    toks.flatten.drop ((toks.take j).flatten).length =
-      toks[j] ++ (toks.drop (j + 1)).flatten := by
-  calc toks.flatten.drop ((toks.take j).flatten).length
-      = ((toks.take j).flatten ++ (toks.drop j).flatten).drop ((toks.take j).flatten).length := by
-        rw [← List.flatten_append, List.take_append_drop]
-    _ = (toks.drop j).flatten := List.drop_left
-    _ = toks[j] ++ (toks.drop (j + 1)).flatten := by
-        rw [List.drop_eq_getElem_cons hj, List.flatten_cons]
-
-public lemma length_flatten_take_succ (toks : List (List Bool)) {j : ℕ} (hj : j < toks.length) :
-    ((toks.take (j + 1)).flatten).length = ((toks.take j).flatten).length + toks[j].length := by
-  rw [List.take_succ_eq_append_getElem hj, List.flatten_append, List.length_append]
-  simp
+-- vendored: the upstream branch's `drop_flatten_take` and `length_flatten_take_succ`, list facts,
+-- live in `CslibFrontier.Foundations.Data.List.Flatten` as `List.drop_flatten_take` and
+-- `List.length_flatten_take_succ`.
 
 /-- The time of round `j` of the streaming loop. -/
 @[expose] public def streamRoundTime (toks : List (List Bool)) (cont vs : ℕ → List Bool)
@@ -275,7 +264,7 @@ public theorem transformsTapesAt_streamLoop_after (hVN : V ≠ N) (hVF : V ≠ F
       rw [hp']
       change (1 + (pre.length + ((toks.take n).flatten).length)) + toks[n].length =
         1 + (pre.length + ((toks.take (n + 1)).flatten).length)
-      rw [length_flatten_take_succ toks hn]
+      rw [List.length_flatten_take_succ toks hn]
       omega
     · simp [streamRoundTime, List.getElem?_eq_getElem hn]
     · exact hsR n hn
@@ -283,7 +272,7 @@ public theorem transformsTapesAt_streamLoop_after (hVN : V ≠ N) (hVF : V ≠ F
       inputSymbolAt input p ≠ none := by
     rintro n hn input p ws em ⟨rfl, hp, -, -⟩
     have hlt : L n < x.length := by
-      have h₁ := length_flatten_take_succ toks hn
+      have h₁ := List.length_flatten_take_succ toks hn
       have h₂ := hpos (n + 1)
       have : 0 < toks[n].length := List.length_pos_iff.mpr (htoks _ (List.getElem_mem hn))
       simp only [x, L, List.length_append] at h₂ ⊢
@@ -336,7 +325,6 @@ public theorem transformsTapesAt_streamLoop (hVN : V ≠ N) (hVF : V ≠ F) (hNF
   transformsTapesAt_streamLoop_after hVN hVF hNF [] toks htoks cont vs es hread hE hN hsR
 
 -- upstream: candidate
-open Sequential in
 /-- Initialize with a phase `I` that may move the input head past a prefix `pre`, run a streaming
 phase from there, emit from its final state and clean up. The phase specifications own the token
 reader, round callbacks and their resource accounting. -/

@@ -10,7 +10,7 @@ module
 public import CslibFrontier.Computability.Interactive.Plain
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.BindFailure
-import CslibFrontier.Probability.PMF.Event
+import CslibFrontier.Probability.PMF.EventBind
 
 /-!
 # Sequential composition of interactive reductions
@@ -235,7 +235,7 @@ private theorem interpret_liftDecisionLeft {α : Type} (τ : Transcript (s₁ ++
   funext q
   rcases q with e | q
   · exact e.elim
-  · refine (OracleComp.interpret_interpret (m := Id) _ _ _).trans ?_
+  · rw [OracleComp.interpret_sumHandler_liftRight]
     exact interpret_liftMsgLeft s₁ s₂ τ q
 
 private theorem interpret_liftDecisionRight {α : Type} (τ : Transcript (s₁ ++ s₂))
@@ -248,7 +248,7 @@ private theorem interpret_liftDecisionRight {α : Type} (τ : Transcript (s₁ +
   funext q
   rcases q with e | q
   · exact e.elim
-  · refine (OracleComp.interpret_interpret (m := Id) _ _ _).trans ?_
+  · rw [OracleComp.interpret_sumHandler_liftRight]
     exact interpret_liftMsgRight s₁ s₂ τ q
 
 /-- The composed verifier's output is the second verifier's output on the first one's. -/
@@ -623,7 +623,8 @@ theorem Reduction.Complete.append {R₁ : Reduction OracleSpec.empty OracleSpec.
   rw [plainLaw_run_reductionAppend]
   refine le_trans (Probability.PMF.toOuterMeasure_bind_le_add _ _ _ _ _ fun r₁ _ hr₁ => ?_)
     (add_le_add hl₁ le_rfl)
-  simp only [Set.mem_preimage, Set.mem_ofPred_eq, not_not] at hr₁
+  simp only [Set.mem_preimage, Set.mem_ofPred_eq, not_not, Execution.output, Execution.result]
+    at hr₁
   obtain ⟨hout, hrel⟩ := hr₁
   have hl₂ := h₂ r₁.2.1 r₁.2.2 hrel
   rw [Reduction.run, World.plain_eval_execute, PMF.toOuterMeasure_map_apply] at hl₂

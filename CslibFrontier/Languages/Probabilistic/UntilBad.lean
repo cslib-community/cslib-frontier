@@ -88,7 +88,7 @@ theorem bad_of_mem_support_run {handler : (q : ι) → StateT σ PMF (spec q)} {
     exact hx ▸ hs
   | query_bind q cont ih =>
     intro x hx
-    simp only [run_interpret_bind, run_interpret_query,
+    simp only [PFunctor.FreeM.bind_eq_bind, run_interpret_bind, run_interpret_query,
       Probability.PMF.monad_bind_eq_bind, PMF.mem_support_bind_iff] at hx
     obtain ⟨y, hy, hxy⟩ := hx
     exact ih y.1 (habsorb q s hs y hy) x hxy
@@ -105,7 +105,7 @@ theorem run_apply (h : IdenticalUntilBad first second bad) (program : OracleComp
   induction program using OracleComp.induction generalizing s with
   | pure b => rfl
   | query_bind q cont ih =>
-    simp only [run_interpret_bind, run_interpret_query,
+    simp only [PFunctor.FreeM.bind_eq_bind, run_interpret_bind, run_interpret_query,
       Probability.PMF.monad_bind_eq_bind, PMF.bind_apply]
     refine tsum_congr fun y => ?_
     by_cases hy : bad y.2
@@ -154,16 +154,8 @@ theorem symm (h : IdenticalUntilBad first second bad) : IdenticalUntilBad second
 
 /-- A run gives the bad states and the good states total probability one. -/
 private theorem toOuterMeasure_bad_add_good (p : PMF (α × σ)) :
-    p.toOuterMeasure {x | bad x.2} + p.toOuterMeasure {x | ¬bad x.2} = 1 := by
-  classical
-  simp only [PMF.toOuterMeasure_apply]
-  rw [← tsum_add, ← p.tsum_coe]
-  refine tsum_congr fun x => ?_
-  by_cases hx : bad x.2
-  · rw [Set.indicator_of_mem (show x ∈ {x : α × σ | bad x.2} from hx),
-      Set.indicator_of_notMem (show x ∉ {x : α × σ | ¬bad x.2} from fun h => h hx), add_zero]
-  · rw [Set.indicator_of_notMem (show x ∉ {x : α × σ | bad x.2} from hx),
-      Set.indicator_of_mem (show x ∈ {x : α × σ | ¬bad x.2} from hx), zero_add]
+    p.toOuterMeasure {x | bad x.2} + p.toOuterMeasure {x | ¬bad x.2} = 1 :=
+  Probability.PMF.toOuterMeasure_add_compl_ennreal p _
 
 /-- Handlers that agree until a bad state reach a bad state with the same probability. -/
 theorem bad_eq (h : IdenticalUntilBad first second bad) (program : OracleComp spec α) (s : σ) :

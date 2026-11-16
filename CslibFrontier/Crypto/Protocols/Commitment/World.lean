@@ -100,9 +100,7 @@ theorem interpret_sample {α : Type} (program : ProbComp α) :
   funext st
   rw [ProbOracleComp.interpret_sample]
   change (OracleComp.interpret (m := StateT Store ProbComp) _ program).run st = _
-  rw [OracleComp.run_interpret_lift]
-  change (fun a => (a, st)) <$> OracleComp.interpret OracleComp.query program = _
-  rw [OracleComp.interpret_query_eq_self]
+  rw [OracleComp.run_interpret_lift, ProbComp.interpret_unifFin]
   simp [StateT.lift, bind_pure_comp]
 
 /-- One phased session, with sender commands on the left and receiver polls on the right.
@@ -129,8 +127,8 @@ theorem polling_run {α : Type} (program : ProbOracleComp receiverSpec α) (s : 
     funext q s
     cases q <;>
       simp [oracle, handler, OracleComp.sumHandler, StateT.lift, PMF.map, Function.comp_def]
-  unfold ProbOracleComp.runWith OracleComp.runWith
-  rw [handlers, OracleComp.run_interpret_readOnly]
+  rw [ProbOracleComp.runWith_eq_run_interpret, handlers, OracleComp.run_interpret_readOnly]
+  rw [OracleComp.evalWith_eq_interpret]
   rfl
 
 /-- Before opening, receiver-only interaction reveals no committed bit. The program may retain
@@ -157,6 +155,7 @@ theorem committed_invariant {α : Type}
     {result : α} {s : Store}
     (h : (result, s) ∈ (ProbOracleComp.runWith world.impl program (.committed b)).support) :
     s = .committed b ∨ s = .opened b ∨ s = .aborted := by
+  rw [ProbOracleComp.runWith_eq_run_interpret] at h
   apply OracleComp.run_interpret_invariant
     (OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifOracle n)) world.impl)
     (fun s => s = .committed b ∨ s = .opened b ∨ s = .aborted) _
