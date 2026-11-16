@@ -39,6 +39,8 @@ there is nothing to encode, so those clauses are proved separately, over `ZMod q
 
 * `Lagrange.eval_basis`: the value of a Lagrange basis polynomial at any point, as a product of
   quotients.
+* `Lagrange.eval_basis_ne_zero`: nonzero value of a Lagrange basis polynomial at any point avoiding
+  all other distinct interpolation nodes.
 * `Lagrange.eval_eq_sum_eval_basis_mul_eval`: the identity of Lemma 22.1 of [BonehShoup2023].
 * `Lagrange.eval_smul_eq_sum_eval_basis_smul`: the identity behind Corollary 22.2 of
   [BonehShoup2023], in a module.
@@ -64,6 +66,16 @@ sides are `0`. -/
 theorem eval_basis (s : Finset ι) (v : ι → F) (i : ι) (x : F) :
     (Lagrange.basis s v i).eval x = ∏ j ∈ s.erase i, (x - v j) / (v i - v j) := by
   simp [Lagrange.basis, basisDivisor, eval_prod, div_eq_inv_mul]
+
+/-- A Lagrange basis polynomial evaluates to a nonzero element whenever `v` is injective on `s`
+and `x` avoids every node `v j` with `j ∈ s`, `j ≠ i`. -/
+theorem eval_basis_ne_zero (hv : Set.InjOn v s) {i : ι} (hi : i ∈ s) {x : F}
+    (hx : ∀ j ∈ s, j ≠ i → x ≠ v j) : (Lagrange.basis s v i).eval x ≠ 0 := by
+  rw [Lagrange.eval_basis, Finset.prod_ne_zero_iff]
+  intro j hj
+  rw [Finset.mem_erase] at hj
+  exact div_ne_zero (sub_ne_zero.mpr (hx j hj.2 hj.1))
+    (sub_ne_zero.mpr fun h => hj.1 (hv hi hj.2 h).symm)
 
 /-- **The identity of Lemma 22.1** of [BonehShoup2023] ("linearity of interpolation"): for nodes
 `v` injective on `s` and a polynomial `f` of degree less than `#s`, the value of `f` at any point

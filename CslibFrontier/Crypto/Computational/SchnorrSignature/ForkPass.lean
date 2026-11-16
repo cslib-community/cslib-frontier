@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.SchnorrSignature.EncodedROM
+public import CslibFrontier.Crypto.Computational.SchnorrEavesdrop
 public import CslibFrontier.Crypto.Computational.Signature.WordRandomOracle
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.BitString
 import CslibFrontier.Computability.Probabilistic.OracleSimulation
@@ -56,8 +57,8 @@ theorem are separate steps (#2568).
 * `schnorrForkRun`: the guarded replay run against `schnorrForkStep`.
 * `schnorrForkFinish`: the final check.
 * `schnorrForkPass`: one native pass.
-* `forkIndexCode`, `forkRunWords`, `transcriptWords`: the native code of a named fork index, the
-  words a pass returns for one typed run, and the native view of a typed transcript.
+* `forkIndexCode`, `forkRunWords`: the native code of a named fork index and the words a pass
+  returns for one typed run.
 
 ## Main results
 
@@ -599,11 +600,6 @@ private abbrev TypedState (m : ℕ) :=
 private def positionTag : Option ℕ → ℕ
   | none => 0
   | some i => i + 1
-
-/-- The native view of a typed transcript. -/
-@[expose] def transcriptWords :
-    List Bool × BitString m × List Bool → List Bool × List Bool × List Bool
-  | (t, c, z) => (t, List.ofFn c, z)
 
 /-- The native view of a typed table entry. -/
 private def nativeEntry : List Bool × BitString m × Option ℕ → SchnorrForkEntry
