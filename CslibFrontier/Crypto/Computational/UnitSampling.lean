@@ -45,8 +45,9 @@ is always a unit, and the replacement is computable in polynomial time.
 
 * `Cslib.Crypto.Game.advantage_bind_units_le`: restricting a uniform residue modulo `N` to the
   units changes the advantage of any continuation by at most `(N - φ(N)) / N`.
-* `Cslib.Crypto.sub_totient_div_le`: for distinct `n`-bit primes `p` and `q`, the non-units
-  modulo `p * q` are at most a `4 / 2 ^ n` fraction of the residues.
+* `Cslib.Crypto.sub_totient_div_lt`, `Cslib.Crypto.sub_totient_div_le`: for distinct `n`-bit
+  primes `p` and `q`, the non-units modulo `p * q` are strictly less than (and hence at most) a
+  `4 / 2 ^ n` fraction of the residues.
 * `Cslib.Crypto.Game.advantage_sampleModNat_units_le`: for `N = p * q` with `n`-bit primes,
   replacing `ProbComp.sampleModNat (n + |N|) N` by a uniform unit changes the advantage of any
   continuation by at most `5 / 2 ^ n`.
@@ -110,11 +111,11 @@ theorem Game.advantage_bind_units_le (N : ℕ) [NeZero N] (k : ZMod N → Game) 
   rw [Probability.PMF.dist_filter, Probability.PMF.toOuterMeasure_uniformOfFintype_toReal, hcount,
     ZMod.card, NNReal.coe_div, NNReal.coe_natCast, NNReal.coe_natCast]
 
-/-- For distinct primes `p` and `q` of at least `n` bits, the non-units modulo `p * q` are at most
-a `4 / 2 ^ n` fraction of the residues. -/
-theorem sub_totient_div_le {p q n : ℕ} (hp : p.Prime) (hq : q.Prime) (hpq : p ≠ q)
+/-- For distinct primes `p` and `q` of at least `n` bits, the non-units modulo `p * q` are strictly
+less than a `4 / 2 ^ n` fraction of the residues. -/
+theorem sub_totient_div_lt {p q n : ℕ} (hp : p.Prime) (hq : q.Prime) (hpq : p ≠ q)
     (hpn : n ≤ p.size) (hqn : n ≤ q.size) :
-    ((p * q - (p * q).totient : ℕ) : ℝ≥0) / (p * q : ℕ) ≤ 4 / 2 ^ n := by
+    ((p * q - (p * q).totient : ℕ) : ℝ≥0) / (p * q : ℕ) < 4 / 2 ^ n := by
   have hpow {x m : ℕ} (hx : x.Prime) (hm : m ≤ x.size) : 2 ^ m ≤ 2 * x := by
     cases m with
     | zero => rw [pow_zero]; have := hx.two_le; omega
@@ -122,14 +123,21 @@ theorem sub_totient_div_le {p q n : ℕ} (hp : p.Prime) (hq : q.Prime) (hpq : p 
   have h2p := hpow hp hpn
   have h2q := hpow hq hqn
   have hle : (p - 1) * (q - 1) ≤ p * q := Nat.mul_le_mul (Nat.sub_le _ _) (Nat.sub_le _ _)
-  have hnat : (p * q - (p - 1) * (q - 1)) * 2 ^ n ≤ 4 * (p * q) := by
+  have hnat : (p * q - (p - 1) * (q - 1)) * 2 ^ n < 4 * (p * q) := by
     zify [hle, hp.one_le, hq.one_le] at h2p h2q ⊢
     nlinarith [mul_le_mul_of_nonneg_right h2p (Int.natCast_nonneg q),
       mul_le_mul_of_nonneg_right h2q (Int.natCast_nonneg p), pow_pos (two_pos : (0 : ℤ) < 2) n]
   rw [Nat.totient_mul ((Nat.coprime_primes hp hq).mpr hpq), Nat.totient_prime hp,
-    Nat.totient_prime hq, div_le_div_iff₀ (Nat.cast_pos.mpr (Nat.mul_pos hp.pos hq.pos))
+    Nat.totient_prime hq, div_lt_div_iff₀ (Nat.cast_pos.mpr (Nat.mul_pos hp.pos hq.pos))
       (by positivity)]
   exact_mod_cast hnat
+
+/-- For distinct primes `p` and `q` of at least `n` bits, the non-units modulo `p * q` are at most
+a `4 / 2 ^ n` fraction of the residues. -/
+theorem sub_totient_div_le {p q n : ℕ} (hp : p.Prime) (hq : q.Prime) (hpq : p ≠ q)
+    (hpn : n ≤ p.size) (hqn : n ≤ q.size) :
+    ((p * q - (p * q).totient : ℕ) : ℝ≥0) / (p * q : ℕ) ≤ 4 / 2 ^ n :=
+  (sub_totient_div_lt hp hq hpq hpn hqn).le
 
 /-- For `N = p * q` with distinct primes `p` and `q` of at least `n` bits, drawing
 `r ← ProbComp.sampleModNat (n + |N|) N` instead of a uniform unit `u` modulo `N` changes the

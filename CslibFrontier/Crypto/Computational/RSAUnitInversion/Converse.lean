@@ -19,25 +19,30 @@ import CslibFrontier.Probability.StatisticalDistance.TotalVariation
 /-!
 # Converse reduction from unit RSA to full RSA (Exercises 10.25–10.26)
 
-In [BonehShoup2023], §10.6.2 (printed p. 431), Exercises 10.25 and 10.26 prove the converse of
+In [BonehShoup2023], §10.11 (printed p. 431), Exercises 10.25 and 10.26 ask for the converse of
 Theorem 10.5: when the modulus `N = p * q` is the product of two distinct `ℓ`-bit primes
 (`ℓ ≤ p.size` and `ℓ ≤ q.size`), uniform residues in `ZMod N` and uniform units in `(ZMod N)ˣ`
-have statistical distance at most `4 / 2 ^ ℓ` (which equals `2 ^ -(ℓ - 2)` for `ℓ ≥ 2`; the book
-states `< 2 ^ -(ℓ - 2)`, while `Cslib.Crypto.sub_totient_div_le` gives `≤ 4 / 2 ^ ℓ`).
-Consequently, running a full-RSA inverter `A` itself in the unit-RSA game (`B = A`, so no new
-reduction is defined) gives `RSAadv[A] ≤ uRSAadv[A] + 4 / 2 ^ ℓ`.
+have statistical distance strictly less than `4 / 2 ^ ℓ` (which equals `2 ^ -(ℓ - 2)` for `ℓ ≥ 2`).
+Here `dist_uniformOfFintype_zmod_units_le` bounds the distance by `(N - φ(N)) / N` for any
+positive `N`, and `dist_uniformOfFintype_zmod_units_lt` derives `< 4 / 2 ^ ℓ` via
+`Cslib.Crypto.sub_totient_div_lt`. The book's Exercise 10.26 inequality names an adversary `B` that
+it does not introduce; here the full-RSA inverter `A` itself runs in `rsaUnitInversionGame` (so no
+new reduction is defined), giving `RSAadv[A] ≤ uRSAadv[A] + 4 / 2 ^ ℓ`.
 
 ## Main results
 
-* `Cslib.Crypto.dist_uniformOfFintype_zmod_units_le`: Exercise 10.25 — for distinct primes
-  `p ≠ q` with `ℓ ≤ p.size` and `ℓ ≤ q.size`, `PMF.uniformOfFintype (ZMod (p * q))` and
-  `(PMF.uniformOfFintype (ZMod (p * q))ˣ).map Units.val` have statistical distance at most
-  `4 / 2 ^ ℓ`.
+* `Cslib.Crypto.dist_uniformOfFintype_zmod_units_le`: for any positive `N`,
+  `PMF.uniformOfFintype (ZMod N)` and `(PMF.uniformOfFintype (ZMod N)ˣ).map Units.val` have
+  statistical distance at most `(N - φ(N)) / N`.
+* `Cslib.Crypto.dist_uniformOfFintype_zmod_units_lt`: Exercise 10.25 — for distinct primes `p ≠ q`
+  with `ℓ ≤ p.size` and `ℓ ≤ q.size`, `PMF.uniformOfFintype (ZMod (p * q))` and
+  `(PMF.uniformOfFintype (ZMod (p * q))ˣ).map Units.val` have statistical distance strictly less
+  than `4 / 2 ^ ℓ`.
 * `Cslib.Crypto.succProbability_rsaInversionGame_le_of_nonUnitFrac_le`: per-parameter bound in
   terms of an upper bound `δ` on the non-unit fraction `(N - φ(N)) / N` across `(gen n).support`.
 * `Cslib.Crypto.succProbability_rsaInversionGame_le_of_size`: Exercise 10.26 — concrete converse
-  bound with `B = A` and loss `4 / 2 ^ ℓ` when every key in `(gen n).support` has `ℓ ≤ p.size`
-  and `ℓ ≤ q.size`.
+  bound running `A` in both games (no new reduction) with loss `4 / 2 ^ ℓ` when every key in
+  `(gen n).support` has `ℓ ≤ p.size` and `ℓ ≤ q.size`.
 * `Cslib.Crypto.RSAUnitOneWay.rsaOneWay_of_nonUnitFrac_le`: asymptotic converse when the non-unit
   fraction is bounded by a negligible function on `(gen n).support`.
 * `Cslib.Crypto.RSAUnitOneWay.rsaOneWay`: asymptotic converse `RSAUnitOneWay gen → RSAOneWay gen`
@@ -47,7 +52,7 @@ reduction is defined) gives `RSAadv[A] ≤ uRSAadv[A] + 4 / 2 ^ ℓ`.
 
 ## References
 
-* [BonehShoup2023] §10.6.2, p. 431, Exercises 10.25–10.26.
+* [BonehShoup2023] §10.11, p. 431, Exercises 10.25–10.26.
 -/
 
 public section
@@ -57,22 +62,30 @@ namespace Cslib.Crypto
 open Cslib.Probability
 open scoped NNReal ENNReal Cslib.Probability.PMF
 
-/-- **Boneh–Shoup Exercise 10.25 (printed p. 431):** for distinct primes `p ≠ q` with `ℓ ≤ p.size`
-and `ℓ ≤ q.size`, uniform residues modulo `p * q` and uniform units in `(ZMod (p * q))ˣ` have
-statistical distance at most `4 / 2 ^ ℓ` (`2 ^ -(ℓ - 2)` for `ℓ ≥ 2`), reusing
-`sub_totient_div_le` (the book states `< 2 ^ -(ℓ - 2)`). -/
-theorem dist_uniformOfFintype_zmod_units_le {p q ℓ : ℕ} [NeZero (p * q)]
-    (hp : p.Prime) (hq : q.Prime) (hpq : p ≠ q) (hpn : ℓ ≤ p.size) (hqn : ℓ ≤ q.size) :
-    dist (PMF.uniformOfFintype (ZMod (p * q)))
-      ((PMF.uniformOfFintype (ZMod (p * q))ˣ).map Units.val) ≤ (4 : ℝ) / 2 ^ ℓ := by
-  have hclose : CloseTo (PMF.uniformOfFintype (ZMod (p * q)))
-      ((PMF.uniformOfFintype (ZMod (p * q))ˣ).map Units.val)
-      ((((4 : ℝ≥0) / 2 ^ ℓ : ℝ≥0)) : ℝ≥0∞) := by
+/-- For any positive modulus `N`, uniform residues in `ZMod N` and uniform units in `(ZMod N)ˣ`
+have statistical distance at most `(N - φ(N)) / N`, reusing `Game.advantage_bind_units_le`. -/
+theorem dist_uniformOfFintype_zmod_units_le (N : ℕ) [NeZero N] :
+    dist (PMF.uniformOfFintype (ZMod N))
+      ((PMF.uniformOfFintype (ZMod N)ˣ).map Units.val) ≤
+      ((N - N.totient : ℕ) : ℝ) / N := by
+  have hclose : CloseTo (PMF.uniformOfFintype (ZMod N))
+      ((PMF.uniformOfFintype (ZMod N)ˣ).map Units.val)
+      (((((N - N.totient : ℕ) : ℝ≥0) / N) : ℝ≥0) : ℝ≥0∞) := by
     rw [Game.closeTo_iff_forall_advantage_bind_le]
     intro k
-    simpa only [PMF.bind_map, Function.comp_def] using
-      (Game.advantage_bind_units_le (p * q) k).trans (sub_totient_div_le hp hq hpq hpn hqn)
+    simpa only [PMF.bind_map, Function.comp_def] using Game.advantage_bind_units_le N k
   exact_mod_cast (closeTo_coe_iff_dist_le.mp hclose)
+
+/-- **Boneh–Shoup Exercise 10.25 (§10.11, printed p. 431):** for distinct primes `p ≠ q` with
+`ℓ ≤ p.size` and `ℓ ≤ q.size`, uniform residues modulo `p * q` and uniform units in
+`(ZMod (p * q))ˣ` have statistical distance strictly less than `4 / 2 ^ ℓ` (`2 ^ -(ℓ - 2)` for
+`ℓ ≥ 2`), reusing `sub_totient_div_lt`. -/
+theorem dist_uniformOfFintype_zmod_units_lt {p q ℓ : ℕ} [NeZero (p * q)]
+    (hp : p.Prime) (hq : q.Prime) (hpq : p ≠ q) (hpn : ℓ ≤ p.size) (hqn : ℓ ≤ q.size) :
+    dist (PMF.uniformOfFintype (ZMod (p * q)))
+      ((PMF.uniformOfFintype (ZMod (p * q))ˣ).map Units.val) < (4 : ℝ) / 2 ^ ℓ :=
+  (dist_uniformOfFintype_zmod_units_le (p * q)).trans_lt
+    (by exact_mod_cast sub_totient_div_lt hp hq hpq hpn hqn)
 
 private theorem unitResidue_eq_finEquiv_symm (desc : RSADesc) (u : (ZMod desc.modulus)ˣ) :
     desc.unitResidue u = (ZMod.finEquiv desc.modulus).symm (u : ZMod desc.modulus) := by
@@ -80,10 +93,10 @@ private theorem unitResidue_eq_finEquiv_symm (desc : RSADesc) (u : (ZMod desc.mo
   rw [ZMod.val_finEquiv_symm]
   rfl
 
-/-- Per-parameter converse bound from `rsaUnitInversionGame` to `rsaInversionGame`: using the same
-inverter (`B = A`, no new reduction defined), when every key in `(gen n).support` has non-unit
-fraction `(N - φ(N)) / N ≤ δ`, `rsaInversionGame` succeeds with probability at most that of
-`rsaUnitInversionGame` plus `δ`. -/
+/-- Per-parameter converse bound from `rsaUnitInversionGame` to `rsaInversionGame`: running the
+same inverter `A` directly in both games (no new reduction is defined), when every key in
+`(gen n).support` has non-unit fraction `(N - φ(N)) / N ≤ δ`, `rsaInversionGame` succeeds with
+probability at most that of `rsaUnitInversionGame` plus `δ`. -/
 theorem succProbability_rsaInversionGame_le_of_nonUnitFrac_le
     (gen : RSAGen) (A : RSAInverter) {n : ℕ} {δ : ℝ≥0}
     (hδ : ∀ desc ∈ (gen n).support,
@@ -128,9 +141,9 @@ theorem succProbability_rsaInversionGame_le_of_nonUnitFrac_le
     linarith [(abs_sub_le_iff.mp hcoe).1]
   exact_mod_cast hreal
 
-/-- **Boneh–Shoup Exercise 10.26 (printed p. 431):** using the same inverter (`B = A`, no new
-reduction defined), if every key in `(gen n).support` has primes satisfying `ℓ ≤ p.size` and
-`ℓ ≤ q.size`, then `rsaInversionGame` succeeds with probability at most that of
+/-- **Boneh–Shoup Exercise 10.26 (§10.11, printed p. 431):** running the same inverter `A` in both
+games (no new reduction is defined), if every key in `(gen n).support` has primes satisfying
+`ℓ ≤ p.size` and `ℓ ≤ q.size`, then `rsaInversionGame` succeeds with probability at most that of
 `rsaUnitInversionGame` plus `4 / 2 ^ ℓ` (`2 ^ -(ℓ - 2)` for `ℓ ≥ 2`). -/
 theorem succProbability_rsaInversionGame_le_of_size
     (gen : RSAGen) (A : RSAInverter) {n ℓ : ℕ}
@@ -142,7 +155,8 @@ theorem succProbability_rsaInversionGame_le_of_size
 
 /-- Asymptotic converse of Theorem 10.5 (`RSAOneWay.rsaUnitOneWay`): `RSAUnitOneWay gen` implies
 `RSAOneWay gen` whenever the non-unit fraction `(N - φ(N)) / N` on `(gen n).support` is
-eventually bounded by a negligible function `δ`. Uses `B = A` directly (no new reduction). -/
+eventually bounded by a negligible function `δ`, running `A` directly in both games (no new
+reduction is defined). -/
 theorem RSAUnitOneWay.rsaOneWay_of_nonUnitFrac_le {gen : RSAGen} {δ : ℕ → ℝ≥0}
     (hδ : Negligible δ)
     (hbound : ∀ᶠ n in Filter.atTop, ∀ desc ∈ (gen n).support,
@@ -155,7 +169,7 @@ theorem RSAUnitOneWay.rsaOneWay_of_nonUnitFrac_le {gen : RSAGen} {δ : ℕ → �
 
 /-- Asymptotic converse of Theorem 10.5 (`RSAOneWay.rsaUnitOneWay`): `RSAUnitOneWay gen` implies
 `RSAOneWay gen` whenever `n ≤ desc.p.size ∧ n ≤ desc.q.size` holds eventually on `(gen n).support`
-(Boneh–Shoup Exercise 10.26, p. 431, using `B = A`). -/
+(Boneh–Shoup §10.11, Exercise 10.26, p. 431, running `A` directly in both games). -/
 theorem RSAUnitOneWay.rsaOneWay {gen : RSAGen}
     (hsize : ∀ᶠ n in Filter.atTop, ∀ desc ∈ (gen n).support,
       n ≤ desc.p.size ∧ n ≤ desc.q.size)
