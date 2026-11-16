@@ -18,6 +18,8 @@ Checks for `CslibFrontier/Crypto/Computational/GUOAccumulator.lean`, modulo `N =
 * The commitment to `{0, 1}` is `2 ^ 15 ≡ 8`, with membership proofs `32` and `8`; inserting `2`
   gives `8 ^ 7 ≡ 22`. Alice's non-membership proof for `2` is `(b, γ) = (2, -6)`, and it verifies;
   her attempt for the member `0` does not.
+* Alice computes the commitment to `{0, 1}` from the list `[0, 1]`; for `[0, 0]` the product along
+  the list differs from the commitment to `{0}`, which is why duplicates are erased first.
 * For the commitment `22` to all three elements, the membership proofs of `0` and `1` are `18` and
   `22`; Shamir's trick combines them into `23 = 2 ^ 7`, the aggregate proof, and `23 ^ 5 ≡ 18`
   splits it again.
@@ -28,7 +30,9 @@ Checks for `CslibFrontier/Crypto/Computational/GUOAccumulator.lean`, modulo `N =
 * `guoForgeryRoot` turns a membership and a non-membership proof for one element into a root of
   `g`, for `γ = 0` and for `γ < 0`.
 * The polynomial-time certificates apply to inputs read from `encNat` and `encIntBin`, and Alice's
-  coefficient is certified both as the natural number `-γ` and as the integer `γ`.
+  coefficient is certified both as the natural number `-γ` and as the integer `γ`. The list
+  certificates apply where Alice reads `(N, g)` and a list of words, and supply `E` to the
+  certificate of Alice's non-membership proof.
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
@@ -65,6 +69,20 @@ example : guoCommit 35 2 testH (insert 2 {0, 1}) = powMod 35 (guoCommit 35 2 tes
   guoCommit_insert 35 2 testH (by decide)
 
 example : powMod 35 8 7 = 22 ∧ guoCommit 35 2 testH {0, 1, 2} = 22 := by decide
+
+/-! ### The commitment from a list -/
+
+/-- Alice computes the commitment to `{0, 1}` from the list `[0, 1]` as `2 ^ (3 * 5) ≡ 8`; for a
+list without duplicates the exponents agree by `List.prod_toFinset`. -/
+example : guoCommit 35 2 testH [0, 1].toFinset = powMod 35 2 ([0, 1].map testH).prod :=
+  congrArg (powMod 35 2) (List.prod_toFinset testH (by decide))
+
+example : powMod 35 2 ([0, 1].map testH).prod = 8 := by decide
+
+/-- Duplicates are erased before multiplying: `[0, 0]` lists the set `{0}`, whose commitment is
+`2 ^ 3 = 8`, but the product along the list gives `2 ^ 9 ≡ 22`. -/
+example : guoCommit 35 2 testH [0, 0].toFinset = 8 ∧ powMod 35 2 ([0, 0].map testH).prod = 22 := by
+  decide
 
 /-! ### Non-membership proofs -/
 
@@ -220,5 +238,22 @@ from `encIntBin`. -/
 example : ComputableInPolyTime (fun p : ℕ × ℕ × ℤ => guoForgeryRoot 35 p.1 p.2.1 p.2.2)
     (encPair encNat (encPair encNat encIntBin)) encNat :=
   computableInPolyTime_guoForgeryRoot (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
+
+/-- `computableInPolyTime_guoCommit_toFinset` where Alice reads the modulus, the base and a list of
+words, which may repeat, for a hash `H` on words computable in polynomial time. -/
+example (H : List Bool → ℕ) (hH : ComputableInPolyTime H encBits encNat) :
+    ComputableInPolyTime
+      (fun p : (ℕ × ℕ) × List (List Bool) => guoCommit p.1.1 p.1.2 H p.2.toFinset)
+      (encPair (encPair encNat encNat) (encList encBits)) encNat :=
+  computableInPolyTime_guoCommit_toFinset (by fun_prop) (by fun_prop) (by fun_prop) hH
+
+/-- `computableInPolyTime_guoExponent_toFinset` supplies `E` for a list of words to the certificate
+of Alice's non-membership proof. -/
+example (H : List Bool → ℕ) (hH : ComputableInPolyTime H encBits encNat) :
+    ComputableInPolyTime
+      (fun l : List (List Bool) => guoNonMemWitness 35 2 7 (guoExponent H l.toFinset))
+      (encList encBits) encNat :=
+  computableInPolyTime_guoNonMemWitness (by fun_prop) (by fun_prop) (by fun_prop)
+    (computableInPolyTime_guoExponent_toFinset (by fun_prop) hH)
 
 end CslibFrontierTests.Crypto.GUOAccumulator
