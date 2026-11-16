@@ -277,12 +277,13 @@ abbrev AdaptiveEnvironment (n : ℕ) (In Out AdvQ AdvR : Type) : Type :=
 view-leakage map `reveal`, and optional corruption-notification state hook `onCorrupt`
 ([Canetti2020], Section 7.2, pp. 28:73–74, standard PID-wise corruption). Marking ideal
 functionalities `.erasing` models that `F`'s internal state belongs to no party and only
-`reveal` is exposed on corruption. When `onCorrupt` is supplied, `F` learns of both initial
-corruptions (via `applyInitialCorruptions`) and mid-run corruptions (via `adaptiveRouter`), so
-`(F.toAdaptive reveal onCorrupt).toStatic = F.toProtocol` whenever `F.init κ C` factors as
-`applyInitialCorruptions κ C <$> F.init κ ∅` (e.g., `C`-independent or deterministically tracked
-initial corruptions; arbitrary `C`-dependent probabilistic sampling inside `F.init κ C` cannot be
-reconstructed after `init` and remains outside `AdaptiveProtocol`). -/
+`reveal` is exposed on corruption; rule (1)'s disclosure of party `p`'s past inputs and
+subroutine outputs holds when `F`'s state records them and `reveal` exposes them. When `onCorrupt`
+is supplied, `F` learns of both initial corruptions (via `applyInitialCorruptions`) and mid-run
+corruptions (via `adaptiveRouter`), so `(F.toAdaptive reveal onCorrupt).toStatic = F.toProtocol`
+whenever `F.init κ C` factors as `applyInitialCorruptions κ C <$> F.init κ ∅` (e.g., `C`-independent
+or deterministically tracked initial corruptions; arbitrary `C`-dependent probabilistic sampling
+inside `F.init κ C` cannot be reconstructed after `init` and remains outside `AdaptiveProtocol`). -/
 @[expose] def IdealFunctionality.toAdaptive {BackQ BackR : Type}
     (F : IdealFunctionality n In Out BackQ BackR)
     (reveal : (κ : ℕ) → F.State → Fin n → View)
@@ -343,23 +344,6 @@ variable {n : ℕ} {In Out Q R NetQ NetR View AdvQ AdvR : Type}
       ProbOracleComp.sample program := by
   simp only [liftAdaptiveNet, ProbOracleComp.interpret_sample]
   rfl
-
-/-- Private uniform index queries are unchanged. -/
-theorem liftAdaptiveNet_unifFin (k : ℕ) :
-    liftAdaptiveNet (n := n) (In := In) (Out := Out) (Q := Q) (R := R)
-        (OracleComp.query (spec := probOracleSpec (netSpec Q R)) (Sum.inl k)) =
-      ProbOracleComp.sample (ProbComp.unifFin k) := by
-  simp only [liftAdaptiveNet, ProbOracleComp.sample, ProbComp.unifFin, OracleComp.interpret_query,
-    sumHandler]
-
-/-- Lifting to the adaptive network port preserves call count. -/
-theorem isQueryBounded_liftAdaptiveNet {α : Type}
-    {program : ProbOracleComp (netSpec Q R) α} {m : ℕ} (h : program.IsQueryBounded m) :
-    (liftAdaptiveNet (n := n) (In := In) (Out := Out) program).IsQueryBounded m := by
-  refine OracleComp.IsCostBounded.interpret (fun q => ?_) h
-  cases q with
-  | inl _ => exact OracleComp.IsCostBounded.query _
-  | inr _ => exact OracleComp.IsCostBounded.query _
 
 /-- Mirror of `UC.liftAdversary` for `adaptivePartySpec n In Out`. -/
 @[expose] def liftAdaptiveAdversary (A : Machine (netSpec Q R) (netSpec AdvQ AdvR)) :
@@ -717,6 +701,8 @@ theorem AdaptiveAdversary.noNewCorrupt_ofStatic
       AdaptiveAdversary n In Out NetQ NetR View AdvQ AdvR).NoNewCorrupt :=
   fun κ q s => noNewCorrupt_liftStaticNetProgram (C κ) (((A κ (C κ)).handle q).run s)
 
+/-- Sample the initial state of `adaptiveExecMachine` as independent samples of protocol and
+adversary initial states. -/
 theorem sample_adaptiveExecMachine_init (mode : CorruptionMode)
     (P : AdaptiveProtocol n In Out NetQ NetR View)
     (A : AdaptiveAdversary n In Out NetQ NetR View AdvQ AdvR) (κ : ℕ) {α : Type}
@@ -751,6 +737,7 @@ private theorem sample_execMachine_init (P : AdaptiveProtocol n In Out NetQ NetR
   rw [ProbOracleComp.sample_map, bind_assoc, bind_map_left]
   exact bind_congr fun _ => by erw [bind_assoc]; exact bind_congr fun _ => pure_bind _ _
 
+/-- Left-port party query step of `adaptiveExecMachine`. -/
 theorem adaptiveExecMachine_handle_inl_party (mode : CorruptionMode)
     (P : AdaptiveProtocol n In Out NetQ NetR View)
     (A : AdaptiveAdversary n In Out NetQ NetR View AdvQ AdvR) (κ : ℕ)
@@ -767,6 +754,7 @@ theorem adaptiveExecMachine_handle_inl_party (mode : CorruptionMode)
   · simp [hi]; rfl
   · simp only [hi, ↓reduceIte]; erw [Functor.map_map, map_bind]; exact bind_congr fun _ => rfl
 
+/-- Left-port `.status` query step of `adaptiveExecMachine`. -/
 theorem adaptiveExecMachine_handle_inl_status (mode : CorruptionMode)
     (P : AdaptiveProtocol n In Out NetQ NetR View)
     (A : AdaptiveAdversary n In Out NetQ NetR View AdvQ AdvR) (κ : ℕ)
@@ -777,6 +765,7 @@ theorem adaptiveExecMachine_handle_inl_status (mode : CorruptionMode)
       ((fun v => (v, sA)) <$> ProbOracleComp.query (Sum.inl .status)) rs = _
   erw [Machine.runFrom_map, Machine.runFrom_query]; rfl
 
+/-- Interpreting with the identity `sumHandler` returns the original program. -/
 theorem interpret_sumHandler_id {ι α : Type} {E : ι → Type} (p : ProbOracleComp E α) :
     OracleComp.interpret (sumHandler (fun k => OracleComp.query (spec := probOracleSpec E) (.inl k))
         (fun q => ProbOracleComp.query (spec := E) q)) p = p := by
@@ -787,6 +776,7 @@ theorem interpret_sumHandler_id {ι α : Type} {E : ι → Type} (p : ProbOracle
       simp only [OracleComp.interpret_bind, OracleComp.interpret_query, sumHandler] <;>
       exact congrArg (_ >>= ·) (funext ih)
 
+/-- Sequential `sumHandler` interpretations compose to a single interpretation. -/
 theorem interpret_sumHandler_comp {ι₀ ι₁ ι₂ α : Type}
     {E₀ : ι₀ → Type} {E₁ : ι₁ → Type} {E₂ : ι₂ → Type}
     (h₀ : (q : ι₀) → ProbOracleComp E₁ (E₀ q))
@@ -808,8 +798,7 @@ theorem interpret_sumHandler_comp {ι₀ ι₁ ι₂ α : Type}
       simp only [OracleComp.interpret_bind, OracleComp.interpret_query, sumHandler] <;>
       exact congrArg (_ >>= ·) (funext ih)
 
-/-- Generic state-intertwining lemma for `Machine.runFrom` over two interpreted programs sharing
-an invariant `R` between machine states and `Inv` on allowed queries. -/
+/-- Every `ProbOracleComp` trivially satisfies the always-true query predicate. -/
 theorem queriesSatisfy_sumTrue {ι : Type} {E : ι → Type} {α : Type}
     (p : ProbOracleComp E α) :
     OracleComp.QueriesSatisfy (Sum.elim (fun _ => True) (fun _ => True)) p := by
@@ -817,6 +806,8 @@ theorem queriesSatisfy_sumTrue {ι : Type} {E : ι → Type} {α : Type}
   | pure _ => exact .pure _
   | query_bind q _ ih => rcases q with k | q <;> exact .bind (.query trivial) ih
 
+/-- Generic state-intertwining lemma for `Machine.runFrom` over two interpreted programs sharing
+an invariant `R` between machine states and `Inv` on allowed queries. -/
 theorem runFrom_interpret_intertwine {ι₁ ι₂ ι α β : Type}
     {E₁ : ι₁ → Type} {E₂ : ι₂ → Type} {O : ι → Type}
     (M₁ : Machine OracleSpec.empty E₁) (M₂ : Machine OracleSpec.empty E₂)
@@ -860,6 +851,7 @@ theorem runFrom_interpret_intertwine {ι₁ ι₂ ι α β : Type}
       erw [Machine.runFrom_bind, Machine.runFrom_bind, bind_assoc, bind_assoc]
       exact hstep q s₁ s₂ _ _ hq.1 hR fun r s₁'' s₂'' hR' => ih r (hq.2 r) s₁'' s₂'' hR'
 
+/-- Direct (uninterpreted) state-intertwining specialization of `runFrom_interpret_intertwine`. -/
 theorem runFrom_intertwine {ιE α β : Type} {E : ιE → Type}
     (M₁ M₂ : Machine OracleSpec.empty E) (Inv : ιE → Prop) (R : M₁.State → M₂.State → Prop)
     (prog : ProbOracleComp E α)
