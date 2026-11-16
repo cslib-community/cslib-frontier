@@ -24,8 +24,9 @@ lower-bound hypothesis on the group orders. Under `CDH`, the adversary always ou
 element `0` and succeeds whenever `a = 0` or `b = 0` (so at least when `a = 0`, which occurs with
 probability `1 / q`). Under `DDH`, the distinguisher tests whether the candidate shared element is
 the identity: it succeeds with probability `1 / q + (q - 1) / q²` on real triples and `1 / q` on
-random ones, so the expected inverse order is at most twice its advantage. Both statements stay in
-this module because `DDH.cdh` assumes a negligible inverse-order bound.
+random ones, so the expected inverse order is at most twice its advantage. The DDH bound is not
+derived from the CDH bound, because `DDH.cdh`, which turns DDH into CDH, itself needs a negligible
+inverse-order bound as a hypothesis.
 
 Clients can use these bounds without importing Naor–Reingold or ElGamal.
 
