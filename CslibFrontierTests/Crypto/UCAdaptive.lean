@@ -198,6 +198,93 @@ theorem corruptAdv_polyBounded : corruptAdv.PolyBounded 1 := fun κ => by
     exact OracleComp.IsCostBounded.bind (OracleComp.IsCostBounded.query _) fun _ =>
       OracleComp.IsCostBounded.pure _ 0
 
+/-- Environment that instructs `corruptAdv` to corrupt `0` and checks `.status = {0, 1}`. -/
+def corruptCheckEnv :
+    AdaptiveEnvironment 2 CoinIn Bool (Fin 2) (AdaptiveNetR Bool Unit (Option Bool)) :=
+  fun _ _ => do
+    let _ ← ProbOracleComp.query
+      (spec := adaptiveExecSpec 2 CoinIn Bool (Fin 2) (AdaptiveNetR Bool Unit (Option Bool)))
+      (.inr 0)
+    let C : Finset (Fin 2) ← ProbOracleComp.query
+      (spec := adaptiveExecSpec 2 CoinIn Bool (Fin 2) (AdaptiveNetR Bool Unit (Option Bool)))
+      (.inl .status)
+    pure (decide (C = ({0, 1} : Finset (Fin 2))))
+
+theorem corruptAdv_noNewCorrupt_clampStatic : corruptAdv.clampStatic.NoNewCorrupt :=
+  corruptAdv.noNewCorrupt_clampStatic
+
+theorem corruptAdv_clampStatic_polyBounded : corruptAdv.clampStatic.PolyBounded 1 :=
+  corruptAdv_polyBounded.clampStatic
+
+private theorem corruptCheckEnv_eval_eq (mode : CorruptionMode) (κ : ℕ) (z : List Bool)
+    (C' : Finset (Fin 2)) (rep : Option (CorruptionReport (Option Bool)))
+    (hcor : ((adaptiveRouter mode (P_coin .erasing) κ {1}).handle (.inr (.corrupt 0))).run
+        ⟨{ party0 := none, delivered1 := none }, {1}, fun _ => [none]⟩ =
+      pure (.corrupt rep, ⟨{ party0 := none, delivered1 := none }, C', fun _ => [none]⟩)) :
+    (adaptiveExec mode (P_coin .erasing) corruptAdv corruptCheckEnv κ z).eval
+      (decide (C' = ({0, 1} : Finset (Fin 2)))) = 1 := by
+  let A := liftAdaptiveAdversary (n := 2) (In := CoinIn) (Out := Bool)
+    (corruptAdv.machine κ)
+  let M := adaptiveRouter mode (P_coin .erasing) κ (corruptAdv.initial κ)
+  let sInit : AdaptiveRouterState CoinState (Option Bool) 2 :=
+    ⟨{ party0 := none, delivered1 := none }, {1}, fun _ => [none]⟩
+  let sNext : AdaptiveRouterState CoinState (Option Bool) 2 :=
+    ⟨{ party0 := none, delivered1 := none }, C', fun _ => [none]⟩
+  have hMinit : M.init = pure sInit := by
+    simp only [M, sInit, adaptiveRouter, P_coin, AdaptiveProtocol.applyInitialCorruptions,
+      corruptAdv, pure_bind]
+    congr 1; congr 1
+    funext i; fin_cases i <;> rfl
+  have hAinit : A.init = pure () := rfl
+  have hrunA : A.runFrom (corruptCheckEnv κ z) () =
+      ProbOracleComp.query
+          (spec := adaptiveProtocolSpec 2 CoinIn Bool Unit Unit (Option Bool))
+          (.inr (.corrupt 0)) >>= fun _ =>
+      ProbOracleComp.query
+          (spec := adaptiveProtocolSpec 2 CoinIn Bool Unit Unit (Option Bool))
+          (.inl .status) >>= fun (C : Finset (Fin 2)) =>
+      pure (decide (C = ({0, 1} : Finset (Fin 2))), ()) := by
+    dsimp only [corruptCheckEnv]
+    erw [Machine.runFrom_bind (M := A), Machine.runFrom_query (M := A), StateT.run_lift]
+    dsimp only [A, liftAdaptiveAdversary, corruptAdv]
+    simp only [bind_assoc, pure_bind]
+    refine bind_congr fun _ => ?_
+    erw [Machine.runFrom_bind (M := A), Machine.runFrom_query (M := A)]
+    simp only [Machine.runFrom_pure]
+    rfl
+  rw [adaptiveExec, Machine.run]
+  change (Machine.closeProgram do
+    let s ← ProbOracleComp.sample (A.comp M).init
+    Prod.fst <$> (A.comp M).runFrom (corruptCheckEnv κ z) s).eval
+      (decide (C' = ({0, 1} : Finset (Fin 2)))) = 1
+  rw [Machine.comp_init]
+  erw [hMinit, hAinit, ProbOracleComp.sample_bind, ProbOracleComp.sample_pure, bind_assoc,
+    pure_bind, ProbOracleComp.sample_pure, pure_bind]
+  erw [Machine.runFrom_comp (A := A) (P := M), hrunA]
+  erw [Machine.runFrom_bind (M := M), Machine.runFrom_query (M := M)]
+  erw [map_bind, hcor, map_pure]
+  simp [Machine.closeProgram_pure, ProbComp.eval_pure]
+
+theorem corruptAdv_adaptiveExec_status (κ : ℕ) (z : List Bool) :
+    (adaptiveExec .adaptive (P_coin .erasing) corruptAdv corruptCheckEnv κ z).eval true = 1 := by
+  have h := corruptCheckEnv_eval_eq .adaptive κ z {0, 1}
+    (some { current := none, history := none }) <| by
+    have hnot : (0 : Fin 2) ∉ ({1} : Finset (Fin 2)) := by decide
+    simp only [adaptiveRouter, StateT.run, P_coin, hnot, ↓reduceIte,
+      AdaptiveProtocol.corruptionReport]
+    rfl
+  simpa using h
+
+theorem corruptAdv_clampStatic_status (κ : ℕ) (z : List Bool) :
+    (adaptiveExec .adaptive (P_coin .erasing) corruptAdv.clampStatic corruptCheckEnv κ z).eval
+        false = 1 := by
+  rw [← adaptiveExec_static_eq_adaptive_clampStatic]
+  have h := corruptCheckEnv_eval_eq .static κ z {1} none <| by
+    have hnot : (0 : Fin 2) ∉ ({1} : Finset (Fin 2)) := by decide
+    simp [adaptiveRouter, StateT.run, hnot]
+  have hneq : ({1} : Finset (Fin 2)) ≠ {0, 1} := by decide
+  simpa [hneq] using h
+
 /-- Distinguishing environment `Z_star` for the adaptive dummy adversary: activates `(0, .go)`,
 `(0, .erase)`, polls `(1, .poll)` for `b`, asks the dummy adversary to `.corrupt 0`, queries
 `.status`, and outputs `true` iff `C = {0}` and `r.history = some [none, some b, none, none]`. -/
@@ -438,6 +525,30 @@ theorem static_embedding_check (κ : ℕ) (z : List Bool) :
   erw [htail (decide ((0 : Fin 2) = 0)), htail (decide ((1 : Fin 2) = 0))]
   simp [Machine.closeProgram_pure, ProbComp.eval_pure, PMF.pure_apply,
     Probability.PMF.uniformOfFintype, one_div]
+
+theorem staticCheckEnv_polyBounded : staticCheckEnv.PolyBounded 2 := fun κ _ => by
+  simp only [Polynomial.eval_ofNat]
+  change (staticCheckEnv κ _).IsQueryBounded 2
+  unfold staticCheckEnv
+  exact OracleComp.IsCostBounded.bind (OracleComp.IsCostBounded.query _) fun _ =>
+    OracleComp.IsCostBounded.bind (OracleComp.IsCostBounded.query _) fun _ =>
+      OracleComp.IsCostBounded.pure _ 0
+
+theorem staticCheckEnv_toAdaptive_polyBounded : staticCheckEnv.toAdaptive.PolyBounded 2 :=
+  staticCheckEnv_polyBounded.toAdaptive
+
+theorem static_adaptive_embedding_check (κ : ℕ) (z : List Bool) :
+    adaptiveExec .adaptive (P_coin .erasing)
+        (AdaptiveAdversary.ofStatic staticPollOneAdv (fun _ => {1}))
+        staticCheckEnv.toAdaptive κ z =
+      exec (P_coin .erasing).toStatic staticPollOneAdv {1} staticCheckEnv κ z ∧
+      (adaptiveExec .adaptive (P_coin .erasing)
+          (AdaptiveAdversary.ofStatic staticPollOneAdv (fun _ => {1}))
+          staticCheckEnv.toAdaptive κ z).eval true = 1 / 2 := by
+  refine ⟨adaptiveExec_adaptive_ofStatic (P_coin .erasing) staticPollOneAdv
+    (fun _ => {1}) staticCheckEnv κ z, ?_⟩
+  rw [adaptiveExec_adaptive_ofStatic, ← (static_embedding_check κ z).1]
+  exact (static_embedding_check κ z).2
 
 /-! ### Ideal-functionality corruption notification check (`Canetti2020`, pp. 28:73–74) -/
 
@@ -1169,5 +1280,30 @@ theorem not_adaptiveEmulatesWithin_nonErasing_witness
       S Z_star 0 [] : ℝ) ≤ (ε 1 5 0 : ℝ) := by
     exact_mod_cast h1
   linarith
+
+/-! ### Headline bridge and dummy-adversary witnesses -/
+
+theorem erasing_adaptiveEmulates :
+    AdaptiveEmulates .adaptive (P_coin .erasing) (F_coin.toAdaptive coinReveal) :=
+  adaptiveEmulates_erasing_witness.emulates fun _ _ _ => by simp
+
+theorem erasing_staticEmulatesWithin :
+    AdaptiveEmulatesWithin .static (P_coin .erasing) (F_coin.toAdaptive coinReveal)
+      Polynomial.X (fun _ _ _ => 0) :=
+  adaptiveEmulates_erasing_witness.static_of_adaptive
+
+theorem erasing_staticEmulates :
+    AdaptiveEmulates .static (P_coin .erasing) (F_coin.toAdaptive coinReveal) :=
+  erasing_adaptiveEmulates.static_of_adaptive
+
+theorem erasing_emulatesDummyWithin :
+    AdaptiveEmulatesDummyWithin .adaptive (P_coin .erasing) (F_coin.toAdaptive coinReveal)
+      (Polynomial.X.comp (Polynomial.X + 1)) (fun _ _ => 0) :=
+  adaptiveEmulates_erasing_witness.emulatesDummyWithin
+
+theorem erasing_adaptiveEmulatesDummy :
+    AdaptiveEmulatesDummy .adaptive (P_coin .erasing) (F_coin.toAdaptive coinReveal) :=
+  (adaptiveEmulates_iff_adaptiveEmulatesDummy .adaptive
+    (P_coin .erasing) (F_coin.toAdaptive coinReveal)).mp erasing_adaptiveEmulates
 
 end CslibFrontierTests.Crypto.UCAdaptive
