@@ -2699,30 +2699,24 @@ in decryption, preserving `INDCPA` (`SymmetricCipher.INDCPA.extendCipher`) and `
 
 For partial-tag Encrypt-then-MAC ([bs23][bs23], §9.4.1.1, printed pp. 368–369), import
 [`Encryption/EncryptThenMAC/PartialTag.lean`](../../CslibFrontier/Crypto/Computational/Encryption/EncryptThenMAC/PartialTag.lean).
-`prfCipherPartialTag` wraps `prfCipher family hpoly hlen` (`2 * n`-bit ciphertexts `r ++ c`)
-together with any `MACScheme M` authenticating `n`-bit messages (`∀ n, M.msgLen n = n`):
-encryption signs only the `n`-bit body `cFull.drop n` and outputs `encPair encBits encBits
-(cFull, tag)` while leaving the `n`-bit IV `r` unauthenticated, and decryption verifies canonical
-`encPair` framing, `(unframe ct).length == 2 * n`, and `M.verify` on `(unframe ct).drop n` before
-decrypting `unframe ct`. For every `n ≥ 1`, the explicit 1-query adversary
-`partialTagCIAdversary` (`isOraclePPT_partialTagCIAdversary`,
-`isQueryBounded_partialTagCIAdversary`) queries `0^n` and flips the first IV bit via
-`flipHeadBit`, winning `ciOneTimeGame` with probability `1`
-(`eval_ciOneTimeGame_prfCipherPartialTag`) and unconditionally refuting
-`OneTimeCiphertextIntegrity`, `CiphertextIntegrity`, `OneTimeAuthenticatedEncryption`, and
-`AuthenticatedEncryption` (`not_oneTimeCiphertextIntegrity_prfCipherPartialTag`,
-`not_ciphertextIntegrity_prfCipherPartialTag`,
-`not_oneTimeAuthenticatedEncryption_prfCipherPartialTag`,
-`not_authenticatedEncryption_prfCipherPartialTag`). By reduction `partialTagToCPAAdversary`
-(`isOraclePPT_partialTagToCPAAdversary`, `eval_cpaGame_partialTagToCPAAdversary`), any
-`PseudorandomFunction` keeps `prfCipherPartialTag` both `INDCPA`
-(`PseudorandomFunction.indcpa_prfCipherPartialTag`) and `OneTimeINDCPA`, yielding an explicit
-`INDCPA` yet non-AE counterexample via
-`PseudorandomFunction.prfCipherPartialTag_counterexample`. The randomized CBC plaintext-shift
-effect (`m'[0] = m[0] ⊕ Δ`) and chosen-ciphertext break of §9.4.1.1 are not covered here, since
-flipping the IV of `prfCipher` evaluates the PRF on a fresh nonce rather than XORing `Δ` into the
-plaintext. Concrete IV-flip vs body-tamper checks, the `n = 0` boundary failure, certificates, and
-the `prfMAC` instantiation are in
+Given any `MACScheme M` on `n`-bit messages (`∀ n, M.msgLen n = n`), `partialTagMAC M hmsgLen`
+lifts `M` to `2 * n`-bit messages by signing and verifying only the second half
+`msg.drop (msg.length / 2)`, and `prfCipherPartialTag` builds `encryptThenMAC` from `prfCipher`
+(`2 * n`-bit ciphertexts `r ++ c`) and `partialTagMAC M hmsgLen`, leaving the `n`-bit IV `r`
+unauthenticated. The one-query adversary `partialTagCIAdversary ctBound` asks for an encryption of
+`0^n`, cuts the reply to `ctBound n` bits and flips the first IV bit (`flipHeadBit`). It is
+`IsOraclePPT encBits` when `ctBound` is computable in plain polynomial time
+(`ComputableInPolyTime ctBound encUnary encUnary`). When `CiphertextLengthLE n (ctBound n)` holds
+and `n ≥ 1`, it wins `ciOneTimeGame` with probability `1`
+(`eval_ciOneTimeGame_prfCipherPartialTag_partialTagCIAdversary`), unconditionally refuting
+`OneTimeCiphertextIntegrity`, `CiphertextIntegrity`, and `AuthenticatedEncryption`, while
+`indcpa_encryptThenMAC` preserves `INDCPA` under any `PseudorandomFunction`
+(`PseudorandomFunction.indcpa_prfCipherPartialTag`,
+`PseudorandomFunction.prfCipherPartialTag_counterexample`). The plaintext-shift half of §9.4.1.1
+(`m'[0] = m[0] ⊕ Δ`) needs a CBC cipher (flipping the IV of `prfCipher` evaluates the PRF on a
+fresh nonce), and chosen-ciphertext security (`INDCCA`) of this scheme is neither proved nor
+refuted here. Concrete IV-flip vs body-tamper checks, `n = 0` and short-`ctBound` failing cases,
+the `n = 2` win with its certificates, and the `prfMAC` instantiation live in
 [`CslibFrontierTests/Crypto/EncryptThenMACPartialTag.lean`](../../CslibFrontierTests/Crypto/EncryptThenMACPartialTag.lean).
 
 ## Authentication, signatures, and state

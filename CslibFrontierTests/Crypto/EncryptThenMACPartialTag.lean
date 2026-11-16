@@ -6,11 +6,11 @@ Authors: Samuel Schlesinger
 
 module
 
-public import CslibFrontier.Crypto.Computational.Encryption.EncryptThenMAC
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
+public import CslibFrontier.Crypto.Computational.Encryption.EncryptThenMAC.PartialTag
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair.Projections
-import CslibFrontier.Crypto.Computational.Encryption.EncryptThenMAC.PartialTag
+import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Probability.PMF.Support
 import CslibFrontier.Tactic.PolyTime
 
 /-!
@@ -18,10 +18,9 @@ import CslibFrontier.Tactic.PolyTime
 
 An ordinary `module` client of
 `CslibFrontier.Crypto.Computational.Encryption.EncryptThenMAC.PartialTag`: checks `flipHeadBit`,
-concrete IV-bit-flip forgery vs body-tamper rejection, the `n = 0` boundary failure vs `n ≥ 1`
-win of `partialTagCIAdversary`, `IsOraclePPT` / `IsQueryBounded` / `IsPPT` certificates,
-unconditional CI/AE failures, preserved `INDCPA`, and end-to-end `PseudorandomFunction`
-instantiation.
+concrete IV-bit-flip forgery vs body-tamper rejection, the `n = 0` and insufficient-`ctBound`
+failing cases vs the `n = 2` win of `partialTagCIAdversary` with its certificates, and the
+non-vacuous `PseudorandomFunction` / `prfMAC` instantiation.
 -/
 
 public section
@@ -87,23 +86,27 @@ example :
     (echoPrfPartialTag.decrypt 2 k flippedIvCt).isSome = true ∧
     echoPrfPartialTag.decrypt 2 k tamperedBodyCt = none ∧
     echoPrfPartialTag.decrypt 2 k [false, true] = none := by
-  simp only [echoPrfPartialTag, prfCipherPartialTag, echoMAC, flipHeadBit]
+  simp only [echoPrfPartialTag, prfCipherPartialTag, encryptThenMAC, partialTagMAC, echoMAC,
+    flipHeadBit]
   decide
 
-/-! ### Exact ciphertext bound, `n = 0` boundary failure, and `n ≥ 1` `ciOneTimeGame` win -/
+/-! ### `CiphertextLengthLE` bound, `n = 0` & short-`ctBound` failures, and `n = 2` win -/
 
 /-- Honest ciphertexts of `echoPrfPartialTag` on `n`-bit plaintexts have length `≤ 5 * n + 1`. -/
 private theorem echoPrfPartialTag_ctBound (n : ℕ) :
     echoPrfPartialTag.CiphertextLengthLE n (5 * n + 1) := by
   intro k hk msg hmsg ct hct
-  simp only [echoPrfPartialTag, prfCipherPartialTag, ProbComp.eval_bind, ProbComp.eval_pure,
-    PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hk hct
+  simp only [echoPrfPartialTag, prfCipherPartialTag, encryptThenMAC, partialTagMAC,
+    ProbComp.eval_bind, ProbComp.eval_pure, PMF.mem_support_bind_iff,
+    PMF.mem_support_pure_iff] at hk hct
   obtain ⟨ke, hke, km, _, rfl⟩ := hk
   rw [unframe_encPair_encBits] at hct
   obtain ⟨cFull, hcFull, tag, htag, rfl⟩ := hct
   have hcFullLen : cFull.length = 2 * n :=
     prfCipher_ciphertext_length echoFamily echoFamily_polyTime echoFamily_length n ke hke
       msg hmsg cFull hcFull
+  have hcHalf : cFull.length / 2 = n := by rw [hcFullLen]; omega
+  rw [hcHalf] at htag
   change tag ∈ (ProbComp.eval (pure (cFull.drop n))).support at htag
   simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at htag
   subst htag
@@ -116,41 +119,46 @@ example :
     ProbComp.eval
         (echoPrfPartialTag.ciOneTimeGame (partialTagCIAdversary (fun m => 5 * m + 1)) 0) =
       PMF.pure false := by
-  simp only [SymmetricCipher.ciOneTimeGame, partialTagCIAdversary, OracleComp.interpret_bind,
-    OracleComp.interpret_map, OracleComp.interpret_pure, ProbOracleComp.interpret_query,
-    StateT.run_bind, StateT.run_map, StateT.run_pure, ProbComp.eval_bind, ProbComp.eval_map,
-    ProbComp.eval_pure, PMF.bind_map, Function.comp_def, PMF.bind_bind, PMF.pure_bind]
-  trans ((ProbComp.eval (echoPrfPartialTag.keyGen 0)).bind fun _ => PMF.pure false)
-  · apply PMF.bind_congr_on_support
-    intro k hk
-    have hk' := hk
-    simp only [echoPrfPartialTag, prfCipherPartialTag, ProbComp.eval_bind, ProbComp.eval_pure,
-      PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hk'
-    obtain ⟨ke, hke, km, _, rfl⟩ := hk'
-    simp only [SymmetricCipher.oneTimeCIEncryptionOracle, StateT.run, List.isEmpty_nil,
-      List.length_replicate, beq_self_eq_true, Bool.and_self, ↓reduceIte, ProbComp.eval_bind,
-      ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
-    trans ((ProbComp.eval (echoPrfPartialTag.encrypt 0 (encPair encBits encBits (ke, km))
-        [])).bind fun _ => PMF.pure false)
-    · apply PMF.bind_congr_on_support
-      intro ct hct
-      rw [List.take_of_length_le (echoPrfPartialTag_ctBound 0 _ hk [] rfl ct hct)]
-      simp only [echoPrfPartialTag, prfCipherPartialTag, unframe_encPair_encBits,
-        ProbComp.eval_bind, ProbComp.eval_pure, PMF.mem_support_bind_iff,
-        PMF.mem_support_pure_iff] at hct
-      obtain ⟨cFull, hcFull, tag, _, rfl⟩ := hct
-      have hcFullLen : cFull.length = 2 * 0 :=
-        prfCipher_ciphertext_length echoFamily echoFamily_polyTime echoFamily_length 0 ke hke
-          [] rfl cFull hcFull
-      have hNil : cFull = [] := List.eq_nil_of_length_eq_zero (by omega)
-      subst hNil
-      rw [unframe_encPair_encBits, dropFrame_encPair_encBits]
-      simp [flipHeadBit]
-    · simp
-  · simp
+  simp only [SymmetricCipher.ciOneTimeGame, partialTagCIAdversary, runWith_norm, pmf_norm]
+  refine PMF.bind_eq_pure_of_forall_mem_support fun k hk => ?_
+  have hk' := hk
+  simp only [echoPrfPartialTag, prfCipherPartialTag, encryptThenMAC, partialTagMAC,
+    ProbComp.eval_bind, ProbComp.eval_pure, PMF.mem_support_bind_iff,
+    PMF.mem_support_pure_iff] at hk'
+  obtain ⟨ke, hke, km, _, rfl⟩ := hk'
+  simp only [SymmetricCipher.oneTimeCIEncryptionOracle, List.isEmpty_nil,
+    List.length_replicate, beq_self_eq_true, Bool.and_self, ↓reduceIte, pmf_norm]
+  refine PMF.bind_eq_pure_of_forall_mem_support fun ct hct => ?_
+  rw [List.take_of_length_le (echoPrfPartialTag_ctBound 0 _ hk [] rfl ct hct)]
+  simp only [echoPrfPartialTag, prfCipherPartialTag, encryptThenMAC, partialTagMAC,
+    unframe_encPair_encBits, ProbComp.eval_bind, ProbComp.eval_pure,
+    PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hct
+  obtain ⟨cFull, hcFull, tag, _, rfl⟩ := hct
+  have hcFullLen : cFull.length = 2 * 0 :=
+    prfCipher_ciphertext_length echoFamily echoFamily_polyTime echoFamily_length 0 ke hke
+      [] rfl cFull hcFull
+  have hNil : cFull = [] := List.eq_nil_of_length_eq_zero (by omega)
+  subst hNil
+  rw [unframe_encPair_encBits, dropFrame_encPair_encBits]
+  simp [flipHeadBit]
+
+-- When `ctBound` violates `CiphertextLengthLE` (`ctBound _ = 0` at `n = 2`), the reply is cut to
+-- `[]`, producing an ill-sized forgery that fails decryption, so the adversary loses
+-- `ciOneTimeGame`.
+example :
+    ProbComp.eval
+        (echoPrfPartialTag.ciOneTimeGame (partialTagCIAdversary (fun _ => 0)) 2) =
+      PMF.pure false := by
+  simp only [SymmetricCipher.ciOneTimeGame, partialTagCIAdversary, runWith_norm, pmf_norm]
+  refine PMF.bind_eq_pure_of_forall_mem_support fun _ _ => ?_
+  simp only [SymmetricCipher.oneTimeCIEncryptionOracle, List.isEmpty_nil,
+    List.length_replicate, beq_self_eq_true, Bool.and_self, ↓reduceIte, pmf_norm]
+  refine PMF.bind_eq_pure_of_forall_mem_support fun _ _ => ?_
+  simp [echoPrfPartialTag, prfCipherPartialTag, encryptThenMAC, partialTagMAC, flipHeadBit,
+    unframe]
 
 -- For `n = 2 ≥ 1`, `partialTagCIAdversary` wins `ciOneTimeGame` with probability `1`, satisfies
--- `IsOraclePPT` and 1-query boundedness, and yields a `IsPPT` closed game.
+-- `IsOraclePPT` and 1-query boundedness, and yields an `IsPPT` closed game.
 example :
     IsOraclePPT encBits (partialTagCIAdversary (fun m => 5 * m + 1)) ∧
     (partialTagCIAdversary (fun m => 5 * m + 1) 2 []).IsQueryBounded 1 ∧
@@ -162,68 +170,17 @@ example :
   ⟨isOraclePPT_partialTagCIAdversary (by polytime),
    isQueryBounded_partialTagCIAdversary (fun m => 5 * m + 1) 2 [],
    echoPrfPartialTag.isPPT_ciOneTimeGame (isOraclePPT_partialTagCIAdversary (by polytime)),
-   eval_ciOneTimeGame_prfCipherPartialTag echoFamily echoFamily_polyTime echoFamily_length
-     echoMAC (fun _ => rfl) (fun m => 5 * m + 1) (by decide) (echoPrfPartialTag_ctBound 2)⟩
+   eval_ciOneTimeGame_prfCipherPartialTag_partialTagCIAdversary echoFamily echoFamily_polyTime
+     echoFamily_length echoMAC (fun _ => rfl) (fun m => 5 * m + 1) (by decide)
+     (echoPrfPartialTag_ctBound 2)⟩
 
-/-! ### Unconditional CI/AE failures, CPA preservation, and PRF counterexample -/
-
--- `echoPrfPartialTag` fails all four ciphertext-integrity and authenticated-encryption notions.
-example :
-    ¬ echoPrfPartialTag.OneTimeCiphertextIntegrity ∧
-    ¬ echoPrfPartialTag.CiphertextIntegrity ∧
-    ¬ echoPrfPartialTag.OneTimeAuthenticatedEncryption ∧
-    ¬ echoPrfPartialTag.AuthenticatedEncryption :=
-  ⟨not_oneTimeCiphertextIntegrity_prfCipherPartialTag echoFamily echoFamily_polyTime
-     echoFamily_length echoMAC (fun _ => rfl),
-   not_ciphertextIntegrity_prfCipherPartialTag echoFamily echoFamily_polyTime
-     echoFamily_length echoMAC (fun _ => rfl),
-   not_oneTimeAuthenticatedEncryption_prfCipherPartialTag echoFamily echoFamily_polyTime
-     echoFamily_length echoMAC (fun _ => rfl),
-   not_authenticatedEncryption_prfCipherPartialTag echoFamily echoFamily_polyTime
-     echoFamily_length echoMAC (fun _ => rfl)⟩
-
-/-- Zero-query CPA distinguisher returning `false`. -/
-@[expose]
-def zeroCPAAdversary : OracleDistinguisher :=
-  fun _ _ => ProbOracleComp.sample (pure false)
-
-theorem isOraclePPT_zeroCPAAdversary : IsOraclePPT encBool zeroCPAAdversary :=
-  (ComputableInPolyTime.const false :
-      ComputableInPolyTime (fun _ : ℕ × List Bool => false) (encPair encUnary encBits)
-        encBool).isPPTOn.isOraclePPTOn.isOraclePPT
-
--- `partialTagToCPAAdversary` preserves `IsOraclePPT` and matches the `cpaGame` distribution.
-example (bit : Bool) (n : ℕ) :
-    IsOraclePPT encBool (partialTagToCPAAdversary echoMAC zeroCPAAdversary) ∧
-    ProbComp.eval
-        ((prfCipher echoFamily echoFamily_polyTime echoFamily_length).cpaGame
-          (partialTagToCPAAdversary echoMAC zeroCPAAdversary) bit n) =
-      ProbComp.eval (echoPrfPartialTag.cpaGame zeroCPAAdversary bit n) :=
-  ⟨isOraclePPT_partialTagToCPAAdversary echoMAC isOraclePPT_zeroCPAAdversary,
-   eval_cpaGame_partialTagToCPAAdversary echoFamily echoFamily_polyTime echoFamily_length
-     echoMAC (fun _ => rfl) zeroCPAAdversary bit n⟩
-
--- `INDCPA` preservation and non-vacuous instantiation from any `PseudorandomFunction`
--- (both with an abstract `MACScheme` and with `prfMAC family hprf.polyTime`).
-example
-    {family : List Bool → List Bool → List Bool} (hprf : PseudorandomFunction family)
-    (M : MACScheme) (hmsgLen : ∀ n, M.msgLen n = n) :
-    (prfCipherPartialTag family hprf.polyTime hprf.length_eq M hmsgLen).INDCPA :=
-  hprf.indcpa_prfCipherPartialTag M hmsgLen
+/-! ### Non-vacuous `PseudorandomFunction` / `prfMAC` instantiation -/
 
 example {family : List Bool → List Bool → List Bool} (hprf : PseudorandomFunction family) :
     (prfCipherPartialTag family hprf.polyTime hprf.length_eq
         (prfMAC family hprf.polyTime) (fun _ => rfl)).INDCPA ∧
-      (prfCipherPartialTag family hprf.polyTime hprf.length_eq
-        (prfMAC family hprf.polyTime) (fun _ => rfl)).OneTimeINDCPA ∧
       ¬ (prfCipherPartialTag family hprf.polyTime hprf.length_eq
-          (prfMAC family hprf.polyTime) (fun _ => rfl)).OneTimeCiphertextIntegrity ∧
-      ¬ (prfCipherPartialTag family hprf.polyTime hprf.length_eq
-          (prfMAC family hprf.polyTime) (fun _ => rfl)).CiphertextIntegrity ∧
-      ¬ (prfCipherPartialTag family hprf.polyTime hprf.length_eq
-          (prfMAC family hprf.polyTime) (fun _ => rfl)).OneTimeAuthenticatedEncryption ∧
-      ¬ (prfCipherPartialTag family hprf.polyTime hprf.length_eq
-          (prfMAC family hprf.polyTime) (fun _ => rfl)).AuthenticatedEncryption :=
+          (prfMAC family hprf.polyTime) (fun _ => rfl)).OneTimeCiphertextIntegrity :=
   hprf.prfCipherPartialTag_counterexample (prfMAC family hprf.polyTime) (fun _ => rfl)
 
 end CslibFrontierTests.Crypto.EncryptThenMACPartialTag
