@@ -4313,11 +4313,15 @@ public import CslibFrontier.Computability.WangTile.Robinson.Canonical.Patches
 public import CslibFrontier.Computability.WangTile.Robinson.Carrier.Addresses
 public import CslibFrontier.Computability.WangTile.Robinson.Carrier.Borders
 public import CslibFrontier.Computability.WangTile.Robinson.Carrier.Corners
+public import CslibFrontier.Computability.WangTile.Robinson.Forcing
+public import CslibFrontier.Computability.WangTile.Robinson.FreeGrid.Basic
+public import CslibFrontier.Computability.WangTile.Robinson.FreeGrid.Obstruction
 public import CslibFrontier.Computability.WangTile.Robinson.Hierarchy
 public import CslibFrontier.Computability.WangTile.Robinson.Realization
 public import CslibFrontier.Computability.WangTile.Robinson.Recognizability
 public import CslibFrontier.Computability.WangTile.Robinson.RedPaths.Basic
 public import CslibFrontier.Computability.WangTile.Robinson.RedPaths.Certificates
+public import CslibFrontier.Computability.WangTile.Robinson.RedPaths.OddCoverage
 public import CslibFrontier.Computability.WangTile.Robinson.Reduction
 public import CslibFrontier.Computability.WangTile.Robinson.Shading.Basic
 public import CslibFrontier.Computability.WangTile.Robinson.Shading.Geometry
