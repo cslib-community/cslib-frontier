@@ -164,9 +164,7 @@ theorem sumElimSnd {f : π × α → ε} {g : π × β → ε} {Tf Sf : π × α
       cases s with
       | inr b => exact hq.mono le_rfl le_rfl
       | inl a => simp at hs)
-  have hFeq : (fun x => if x.2.isLeft then F x else F x) = F := funext fun _ => by
-    split_ifs <;> rfl
-  rw [hFeq] at h
+  simp only [ite_self] at h
   refine of_bounds ⟨K, Q, inferInstance, tm, fun p => (h p).computesInTimeAndSpace⟩
     (c₀ + c₁ + c₂ + k + 1) (fun p => ?_) (fun p => ?_) (fun p => ?_)
   · obtain ⟨x, s⟩ := p
@@ -276,9 +274,7 @@ theorem optionElimSnd {f : π → ε} {g : π × α → ε} {Tf Sf : π → ℕ}
       cases o with
       | none => exact hq.mono le_rfl le_rfl
       | some a => simp at ho)
-  have hFeq : (fun x => if x.2.isSome then F x else F x) = F := funext fun _ => by
-    split_ifs <;> rfl
-  rw [hFeq] at h
+  simp only [ite_self] at h
   refine of_bounds ⟨K, Q, inferInstance, tm, fun p => (h p).computesInTimeAndSpace⟩
     (c₀ + c₁ + c₂ + k + 1) (fun p => ?_) (fun p => ?_) (fun p => ?_)
   · obtain ⟨x, o⟩ := p

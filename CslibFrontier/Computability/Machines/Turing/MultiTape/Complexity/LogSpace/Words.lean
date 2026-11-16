@@ -163,16 +163,16 @@ theorem ite_subtype {encC : Bool ↪ List Bool} {c : α → Bool} {f g : α → 
     simpa only [tg', sg', ha, ↓reduceDIte, Function.comp_apply,
       Function.Embedding.trans_apply, Function.Embedding.subtype_apply] using hg ⟨a, ha⟩
   obtain ⟨k, km, Qm, hfinm, tm, h⟩ := Internal.conditional hc hf' hg'
-  refine ⟨_, dc * (cc + 1) + df * (cf + 1) + dg * (cg + 1) + k,
+  refine ⟨(fun a => dc * (tc a + 1) + (if c a then tf' a else tg' a) + k),
+    dc * (cc + 1) + df * (cf + 1) + dg * (cg + 1) + k,
     km, Qm, hfinm, tm, ?_⟩
   refine ComputesFunInTimeAndSpace.mono (fun a => (h a).computesInTimeAndSpace)
     (fun _ => le_rfl) ?_
   intro a
   simp only [sf', sg']
   generalize Nat.log2 (encIn a).length = l
-  cases c a <;> simp only [Bool.false_eq_true, ↓reduceIte] <;>
-    nlinarith [Nat.zero_le l, Nat.zero_le (dc * cc * l), Nat.zero_le (df * cf * l),
-      Nat.zero_le (dg * cg * l)]
+  cases c a <;> simp only [Bool.false_eq_true, ↓reduceIte, Nat.mul_add, Nat.add_mul,
+    Nat.mul_one, Nat.mul_assoc] <;> omega
 
 /-- **Case distinction**: if `c`, `f` and `g` are computable in logarithmic space on a common
 input, so is `fun a => if c a then f a else g a`. -/
@@ -216,7 +216,8 @@ theorem append {f₁ : α → β₁} {f₂ : α → β₂} {g : α → β}
   refine ComputesFunInTimeAndSpace.mono h (fun _ => le_rfl) ?_
   intro a
   generalize Nat.log2 (encIn a).length = l
-  nlinarith [Nat.zero_le l, Nat.zero_le (d₁ * c₁ * l), Nat.zero_le (d₂ * c₂ * l)]
+  simp only [Nat.mul_add, Nat.add_mul, Nat.mul_one, Nat.mul_assoc]
+  omega
 
 /-- The first component of a pair. -/
 theorem fst (enc₁ : β₁ ↪ List Bool) (enc₂ : β₂ ↪ List Bool) :
