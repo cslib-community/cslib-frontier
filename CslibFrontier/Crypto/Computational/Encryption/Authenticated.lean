@@ -2508,11 +2508,12 @@ The argument is the same for the full-query and the one-time games, so it is pro
 admission policy `allow` and instantiated at `fun _ => true` here and at `List.isEmpty` in the
 one-time section below. -/
 
-/-- `ccaOracleOn allow` instrumented with a sticky Boolean flag `bad` that becomes `true` whenever
-the adversary submits a fresh ciphertext `ct` (`!queried.contains ct`) that decrypts to `some _`
-([BonehShoup2023], Section 9.2.3, event $Z$ in Theorem 9.1). -/
-private noncomputable def ccaWithBadOracleOn (E : SymmetricCipher)
-    (allow : List (List Bool) → Bool) (n : ℕ) (k : List Bool) (bit : Bool)
+/-- `ccaOracleOn allow` (`reveal = true`) or `ccaRejectOracleOn allow` (`reveal = false`)
+instrumented with a sticky Boolean flag `bad` that becomes `true` whenever the adversary submits a
+fresh ciphertext `ct` (`!queried.contains ct`) that decrypts to `some _` ([BonehShoup2023],
+Section 9.2.3, event $Z$ in Theorem 9.1, in Games 0 and 1). -/
+private noncomputable def ccaBadOracleOn (E : SymmetricCipher)
+    (allow : List (List Bool) → Bool) (reveal : Bool) (n : ℕ) (k : List Bool) (bit : Bool)
     (request : Bool × List Bool) : StateT (List (List Bool) × Bool) ProbComp (List Bool) :=
   fun state =>
     if request.1 then
@@ -2520,28 +2521,7 @@ private noncomputable def ccaWithBadOracleOn (E : SymmetricCipher)
         return ([], state)
       else
         let dec := E.decrypt n k request.2
-        return (encOption encBits dec, (state.1, state.2 || dec.isSome))
-    else
-      let m0 := unframe request.2
-      let m1 := dropFrame request.2
-      if allow state.1 && (m0.length == n) && (m1.length == n) then do
-        let ct ← E.encrypt n k (if bit then m1 else m0)
-        return (ct, (ct :: state.1, state.2))
-      else
-        return ([], state)
-
-/-- `ccaRejectOracleOn allow` instrumented with the same sticky Boolean flag `bad`
-([BonehShoup2023], Section 9.2.3, Game 1 with event $Z$ in Theorem 9.1). -/
-private noncomputable def ccaRejectWithBadOracleOn (E : SymmetricCipher)
-    (allow : List (List Bool) → Bool) (n : ℕ) (k : List Bool) (bit : Bool)
-    (request : Bool × List Bool) : StateT (List (List Bool) × Bool) ProbComp (List Bool) :=
-  fun state =>
-    if request.1 then
-      if state.1.contains request.2 then
-        return ([], state)
-      else
-        let dec := E.decrypt n k request.2
-        return ([], (state.1, state.2 || dec.isSome))
+        return (if reveal then encOption encBits dec else [], (state.1, state.2 || dec.isSome))
     else
       let m0 := unframe request.2
       let m1 := dropFrame request.2
@@ -2554,81 +2534,54 @@ private noncomputable def ccaRejectWithBadOracleOn (E : SymmetricCipher)
 private theorem run_ccaWithBadOracleOn_map_fst (E : SymmetricCipher)
     (allow : List (List Bool) → Bool) (n : ℕ) (k : List Bool) (bit : Bool)
     (program : WordOracleComp Bool Bool) (queried : List (List Bool)) (bad : Bool) :
-    (ProbOracleComp.runWith (fun q s => ProbComp.eval (E.ccaWithBadOracleOn allow n k bit q s))
+    (ProbOracleComp.runWith (fun q s => ProbComp.eval (E.ccaBadOracleOn allow true n k bit q s))
         program (queried, bad)).map (fun (a, s) => (a, s.1)) =
       ProbOracleComp.runWith (fun q s => ProbComp.eval (E.ccaOracleOn allow n k bit q s))
         program queried := by
   refine ProbOracleComp.runWith_map_state
-    (fun q s => ProbComp.eval (E.ccaWithBadOracleOn allow n k bit q s))
+    (fun q s => ProbComp.eval (E.ccaBadOracleOn allow true n k bit q s))
     (fun q s => ProbComp.eval (E.ccaOracleOn allow n k bit q s))
     Prod.fst ?_ program (queried, bad)
   intro request state
   cases hreq : request.1
-  · simp only [ccaWithBadOracleOn, ccaOracleOn, hreq, Bool.false_eq_true, ↓reduceIte]
+  · simp only [ccaBadOracleOn, ccaOracleOn, hreq, Bool.false_eq_true, ↓reduceIte]
     by_cases hlenEq : (allow state.1 && ((unframe request.2).length == n) &&
         ((dropFrame request.2).length == n)) = true
     · simp [hlenEq, PMF.map_comp, Function.comp_def]
     · simp [hlenEq, PMF.pure_map]
-  · simp only [ccaWithBadOracleOn, ccaOracleOn, hreq, ↓reduceIte]
+  · simp only [ccaBadOracleOn, ccaOracleOn, hreq, ↓reduceIte]
     split_ifs <;> simp [PMF.pure_map]
 
 private theorem run_ccaRejectWithBadOracleOn_map_fst (E : SymmetricCipher)
     (allow : List (List Bool) → Bool) (n : ℕ) (k : List Bool) (bit : Bool)
     (program : WordOracleComp Bool Bool) (queried : List (List Bool)) (bad : Bool) :
     (ProbOracleComp.runWith
-        (fun q s => ProbComp.eval (E.ccaRejectWithBadOracleOn allow n k bit q s))
+        (fun q s => ProbComp.eval (E.ccaBadOracleOn allow false n k bit q s))
         program (queried, bad)).map (fun (a, s) => (a, s.1)) =
       ProbOracleComp.runWith (fun q s => ProbComp.eval (E.ccaRejectOracleOn allow n k bit q s))
         program queried := by
   refine ProbOracleComp.runWith_map_state
-    (fun q s => ProbComp.eval (E.ccaRejectWithBadOracleOn allow n k bit q s))
+    (fun q s => ProbComp.eval (E.ccaBadOracleOn allow false n k bit q s))
     (fun q s => ProbComp.eval (E.ccaRejectOracleOn allow n k bit q s))
     Prod.fst ?_ program (queried, bad)
   intro request state
   cases hreq : request.1
-  · simp only [ccaRejectWithBadOracleOn, ccaRejectOracleOn, hreq, Bool.false_eq_true,
-      ↓reduceIte]
+  · simp only [ccaBadOracleOn, ccaRejectOracleOn, hreq, Bool.false_eq_true, ↓reduceIte]
     by_cases hlenEq : (allow state.1 && ((unframe request.2).length == n) &&
         ((dropFrame request.2).length == n)) = true
     · simp [hlenEq, PMF.map_comp, Function.comp_def]
     · simp [hlenEq, PMF.pure_map]
-  · simp only [ccaRejectWithBadOracleOn, ccaRejectOracleOn, hreq, ↓reduceIte]
+  · simp only [ccaBadOracleOn, ccaRejectOracleOn, hreq, Bool.false_eq_true, ↓reduceIte]
     split_ifs <;> simp [PMF.pure_map]
 
-/-- A step of `ccaRejectWithBadOracleOn allow` never clears the flag `bad`. -/
-private theorem ccaRejectWithBadOracleOn_absorb (E : SymmetricCipher)
-    (allow : List (List Bool) → Bool) (n : ℕ) (k : List Bool) (bit : Bool)
+/-- A step of `ccaBadOracleOn allow reveal` never clears the flag `bad`. -/
+private theorem ccaBadOracleOn_absorb (E : SymmetricCipher)
+    (allow : List (List Bool) → Bool) (reveal : Bool) (n : ℕ) (k : List Bool) (bit : Bool)
     (request : Bool × List Bool) (s : List (List Bool) × Bool) (hs : s.2 = true)
     (x : List Bool × (List (List Bool) × Bool))
-    (hx : x ∈ (ProbComp.eval (E.ccaRejectWithBadOracleOn allow n k bit request s)).support) :
+    (hx : x ∈ (ProbComp.eval (E.ccaBadOracleOn allow reveal n k bit request s)).support) :
     x.2.2 = true := by
-  unfold ccaRejectWithBadOracleOn at hx
-  cases hreq : request.1
-  · simp only [hreq, Bool.false_eq_true, ↓reduceIte] at hx
-    by_cases hlenEq : (allow s.1 && ((unframe request.2).length == n) &&
-        ((dropFrame request.2).length == n)) = true
-    · simp only [hlenEq, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure,
-        PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hx
-      obtain ⟨_, _, rfl⟩ := hx
-      exact hs
-    · simp only [hlenEq, Bool.false_eq_true, ↓reduceIte, ProbComp.eval_pure,
-        PMF.mem_support_pure_iff] at hx
-      subst x
-      exact hs
-  · simp only [hreq, ↓reduceIte] at hx
-    split_ifs at hx <;>
-      simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hx <;>
-      subst x <;>
-      simp [hs]
-
-/-- A step of `ccaWithBadOracleOn allow` never clears the flag `bad`. -/
-private theorem ccaWithBadOracleOn_absorb (E : SymmetricCipher)
-    (allow : List (List Bool) → Bool) (n : ℕ) (k : List Bool) (bit : Bool)
-    (request : Bool × List Bool) (s : List (List Bool) × Bool) (hs : s.2 = true)
-    (x : List Bool × (List (List Bool) × Bool))
-    (hx : x ∈ (ProbComp.eval (E.ccaWithBadOracleOn allow n k bit request s)).support) :
-    x.2.2 = true := by
-  unfold ccaWithBadOracleOn at hx
+  unfold ccaBadOracleOn at hx
   cases hreq : request.1
   · simp only [hreq, Bool.false_eq_true, ↓reduceIte] at hx
     by_cases hlenEq : (allow s.1 && ((unframe request.2).length == n) &&
@@ -2651,9 +2604,9 @@ private theorem identicalUntilBad_ccaRejectWithBadOn_ccaWithBadOn (E : Symmetric
     (allow : List (List Bool) → Bool) (n : ℕ) (k : List Bool) (bit : Bool) :
     OracleComp.IdenticalUntilBad
       (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifOracle m))
-        (fun q s => ProbComp.eval (E.ccaRejectWithBadOracleOn allow n k bit q s)))
+        (fun q s => ProbComp.eval (E.ccaBadOracleOn allow false n k bit q s)))
       (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifOracle m))
-        (fun q s => ProbComp.eval (E.ccaWithBadOracleOn allow n k bit q s)))
+        (fun q s => ProbComp.eval (E.ccaBadOracleOn allow true n k bit q s)))
       (fun s => s.2 = true) where
   agree q s hs a s' hs' := by
     cases q with
@@ -2661,9 +2614,8 @@ private theorem identicalUntilBad_ccaRejectWithBadOn_ccaWithBadOn (E : Symmetric
     | inr request =>
       simp only [OracleComp.sumHandler]
       cases hreq : request.1
-      · simp only [ccaRejectWithBadOracleOn, ccaWithBadOracleOn, hreq, Bool.false_eq_true,
-          ↓reduceIte]
-      · simp only [ccaRejectWithBadOracleOn, ccaWithBadOracleOn, hreq, ↓reduceIte]
+      · simp only [ccaBadOracleOn, hreq, Bool.false_eq_true, ↓reduceIte]
+      · simp only [ccaBadOracleOn, hreq, Bool.false_eq_true, ↓reduceIte]
         split_ifs with hmem
         · rfl
         · cases hdec : E.decrypt n k request.2 with
@@ -2678,14 +2630,14 @@ private theorem identicalUntilBad_ccaRejectWithBadOn_ccaWithBadOn (E : Symmetric
       change x ∈ ((ProbComp.unifOracle m).map (·, s)).support at hx
       obtain ⟨_, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
       exact hs
-    | inr request => exact E.ccaRejectWithBadOracleOn_absorb allow n k bit request s hs x hx
+    | inr request => exact E.ccaBadOracleOn_absorb allow false n k bit request s hs x hx
   absorb_second q s hs x hx := by
     cases q with
     | inl m =>
       change x ∈ ((ProbComp.unifOracle m).map (·, s)).support at hx
       obtain ⟨_, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
       exact hs
-    | inr request => exact E.ccaWithBadOracleOn_absorb allow n k bit request s hs x hx
+    | inr request => exact E.ccaBadOracleOn_absorb allow true n k bit request s hs x hx
 
 /-- Combined single-step stateful oracle representing `ccaToCIHandler` composed with
 `ciEncryptionOracleOn allow` on joint state `(rem, (hasCaptured, capturedCt)) × queriedCiphertexts`.
@@ -2738,10 +2690,10 @@ private theorem ciCombinedOn_captured_bind_eq_one {α : Type} (E : SymmetricCiph
   have hct : x.2.1.2.2 = ct := by rw [hinv.1]
   rw [hct, hinv.2, hwin, PMF.pure_apply_self]
 
-private theorem eval_ccaRejectWithBadOracleOn_false (E : SymmetricCipher)
+private theorem eval_ccaBadOracleOn_false (E : SymmetricCipher)
     (allow : List (List Bool) → Bool) (n : ℕ) (k : List Bool) (bit : Bool)
     (request : Bool × List Bool) (queried : List (List Bool)) :
-    ProbComp.eval (E.ccaRejectWithBadOracleOn allow n k bit request (queried, false)) =
+    ProbComp.eval (E.ccaBadOracleOn allow false n k bit request (queried, false)) =
       if request.1 then
         if queried.contains request.2 then
           PMF.pure ([], (queried, false))
@@ -2755,11 +2707,11 @@ private theorem eval_ccaRejectWithBadOracleOn_false (E : SymmetricCipher)
             (fun ct => PMF.pure (ct, (ct :: queried, false)))
         else
           PMF.pure ([], (queried, false)) := by
-  unfold ccaRejectWithBadOracleOn
+  unfold ccaBadOracleOn
   cases hreq : request.1
   · simp only [Bool.false_eq_true, ↓reduceIte]
     split_ifs <;> simp only [ProbComp.eval_bind, ProbComp.eval_pure]
-  · simp only [↓reduceIte, Bool.false_or]
+  · simp only [Bool.false_eq_true, ↓reduceIte, Bool.false_or]
     split_ifs <;> simp only [ProbComp.eval_pure]
 
 private theorem eval_ccaToCICombinedOracleOn_false (E : SymmetricCipher)
@@ -2800,7 +2752,7 @@ private theorem tsum_mul_le_sum_tsum_mul {β ι : Type*} (μ : β → ℝ≥0∞
 
 /-- Decryption-query induction for [BonehShoup2023], Theorem 9.1: for any program `program` making
 at most `Qd` decryption queries, the probability of reaching `bad = true` under
-`ccaRejectWithBadOracleOn allow` from `(queried, false)` is bounded by the sum over
+`ccaBadOracleOn allow false` from `(queried, false)` is bounded by the sum over
 decryption-query indices `j ∈ Finset.range Qd` of the CI winning probability under
 `ccaToCICombinedOracleOn allow` from `((j, (false, [])), queried)`. -/
 private theorem bad_ccaRejectWithBadOn_le_sum_ciCombinedOn {α : Type} (E : SymmetricCipher)
@@ -2809,7 +2761,7 @@ private theorem bad_ccaRejectWithBadOn_le_sum_ciCombinedOn {α : Type} (E : Symm
     (hq : IsDecryptionQueryBounded program Qd) (queried : List (List Bool)) :
     ((OracleComp.interpret
       (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifOracle m))
-        (fun q s => ProbComp.eval (E.ccaRejectWithBadOracleOn allow n k bit q s)))
+        (fun q s => ProbComp.eval (E.ccaBadOracleOn allow false n k bit q s)))
       program).run (queried, false)).toOuterMeasure {x | x.2.2 = true} ≤
       ∑ j ∈ Finset.range Qd,
         ((OracleComp.interpret
@@ -2834,7 +2786,7 @@ private theorem bad_ccaRejectWithBadOn_le_sum_ciCombinedOn {α : Type} (E : Symm
     | inr request =>
       simp only [Sum.elim_inr, OracleComp.run_interpret_bind, OracleComp.run_interpret_query,
         OracleComp.sumHandler]
-      simp only [eval_ccaRejectWithBadOracleOn_false, eval_ccaToCICombinedOracleOn_false]
+      simp only [eval_ccaBadOracleOn_false, eval_ccaToCICombinedOracleOn_false]
       cases hreq : request.1
       · -- An encryption query costs nothing and keeps every countdown.
         simp only [Bool.false_eq_true, ↓reduceIte, Nat.add_zero]
@@ -2962,7 +2914,7 @@ private theorem advantage_ccaGameOn_ccaRejectGameOn_le_sum (E : SymmetricCipher)
   have hccaEq (k : List Bool) :
       (ProbOracleComp.runWith (fun q s => ProbComp.eval (E.ccaOracleOn allow n k bit q s))
           (adversary n []) []).bind (fun out => PMF.pure out.1) =
-      (ProbOracleComp.runWith (fun q s => ProbComp.eval (E.ccaWithBadOracleOn allow n k bit q s))
+      (ProbOracleComp.runWith (fun q s => ProbComp.eval (E.ccaBadOracleOn allow true n k bit q s))
           (adversary n []) ([], false)).bind (fun out => PMF.pure out.1) := by
     rw [← run_ccaWithBadOracleOn_map_fst E allow n k bit (adversary n []) [] false,
       PMF.bind_map, Function.comp_def]
@@ -2970,7 +2922,7 @@ private theorem advantage_ccaGameOn_ccaRejectGameOn_le_sum (E : SymmetricCipher)
       (ProbOracleComp.runWith (fun q s => ProbComp.eval (E.ccaRejectOracleOn allow n k bit q s))
           (adversary n []) []).bind (fun out => PMF.pure out.1) =
       (ProbOracleComp.runWith
-          (fun q s => ProbComp.eval (E.ccaRejectWithBadOracleOn allow n k bit q s))
+          (fun q s => ProbComp.eval (E.ccaBadOracleOn allow false n k bit q s))
           (adversary n []) ([], false)).bind (fun out => PMF.pure out.1) := by
     rw [← run_ccaRejectWithBadOracleOn_map_fst E allow n k bit (adversary n []) [] false,
       PMF.bind_map, Function.comp_def]
@@ -2992,14 +2944,14 @@ private theorem advantage_ccaGameOn_ccaRejectGameOn_le_sum (E : SymmetricCipher)
     refine tsum_congr fun k => ?_
     rw [Finset.mul_sum]
   have hCCA_eq : pCCA = ∑' k : List Bool, ProbComp.eval (E.keyGen n) k *
-      (ProbOracleComp.runWith (fun q s => ProbComp.eval (E.ccaWithBadOracleOn allow n k bit q s))
+      (ProbOracleComp.runWith (fun q s => ProbComp.eval (E.ccaBadOracleOn allow true n k bit q s))
           (adversary n []) ([], false)).bind (fun out => PMF.pure out.1) true := by
     simp only [pCCA, ccaGameOn, ProbComp.eval_bind, ProbComp.eval_pure,
       ProbOracleComp.eval_run_interpret_eq_runWith, hccaEq]
     exact PMF.bind_apply _ _ _
   have hRej_eq : pRej = ∑' k : List Bool, ProbComp.eval (E.keyGen n) k *
       (ProbOracleComp.runWith
-          (fun q s => ProbComp.eval (E.ccaRejectWithBadOracleOn allow n k bit q s))
+          (fun q s => ProbComp.eval (E.ccaBadOracleOn allow false n k bit q s))
           (adversary n []) ([], false)).bind (fun out => PMF.pure out.1) true := by
     simp only [pRej, ccaRejectGameOn, ProbComp.eval_bind, ProbComp.eval_pure,
       ProbOracleComp.eval_run_interpret_eq_runWith, hrejEq]
@@ -3007,7 +2959,7 @@ private theorem advantage_ccaGameOn_ccaRejectGameOn_le_sum (E : SymmetricCipher)
   -- The bad event of the all-reject run is bounded by the CI sum, key by key.
   have hbad (k : List Bool) (hk : k ∈ (ProbComp.eval (E.keyGen n)).support) :
       ((ProbOracleComp.runWith
-          (fun q s => ProbComp.eval (E.ccaRejectWithBadOracleOn allow n k bit q s))
+          (fun q s => ProbComp.eval (E.ccaBadOracleOn allow false n k bit q s))
           (adversary n []) ([], false)).toOuterMeasure {x | x.2.2 = true}) ≤
         ∑ j ∈ Finset.range (Qd n),
           (ProbOracleComp.runWith
