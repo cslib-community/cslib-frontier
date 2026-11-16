@@ -34,9 +34,9 @@ one-time semantic security, Attack Game 2.1 with a uniform `keyLen n`-bit key
 * Theorem 4.1: if `E` is a secure block cipher (`BlockCipher.PRP`), ECB on messages of at most
   `ℓ n` distinct blocks is semantically secure (`BlockCipher.PRP.ecb_demOneTimeKeyINDCPAOn`). The
   reduction `BlockCipher.ecbToPrpDistinguisher` runs the typed reduction `ECB.reduction` of
-  `Crypto/Primitives/BlockCipher/ECB.lean` against the word oracle, and it is uniform strict
-  oracle PPT (`BlockCipher.isOraclePPT_ecbToPrpDistinguisher`). At each parameter the advantage is
-  exactly twice the block-cipher advantage of that reduction
+  `CslibFrontier.Crypto.Primitives.BlockCipher.ECB` against the word oracle, and it is uniform
+  strict oracle PPT (`BlockCipher.isOraclePPT_ecbToPrpDistinguisher`). At each parameter the
+  advantage is exactly twice the block-cipher advantage of that reduction
   (`BlockCipher.advantage_demKeyGameOn_ecbEncrypt`), from the typed equation (4.3).
 * ECB is not semantically secure on messages of up to `ℓ n` arbitrary blocks: the two-block attack
   `BlockCipher.ecbTwoBlockAdversary` is uniform strict PPT and has advantage `1` at every
@@ -118,10 +118,11 @@ noncomputable def ecbTypedAdversary (ℓ : ℕ → ℕ) (A : Encryption.Adversar
     (n : ℕ) :
     TwoStage Unit (MessagePair (List (BitString (E.blockLen n))))
       (List (BitString (E.blockLen n))) Bool (List Bool) where
-  choose _ := (fun c => (if E.ecbValid ℓ n [] c.1.1 c.1.2 then
-      ⟨(E.ecbBlocks n c.1.1).map (BitString.ofList _),
-        (E.ecbBlocks n c.1.2).map (BitString.ofList _)⟩
-    else ⟨[], [fun _ => false]⟩, c.2)) <$> A.choose n []
+  choose _ := (fun c => (if E.ecbValid ℓ n [] (Encryption.ChoiceOut.msg₀ c)
+        (Encryption.ChoiceOut.msg₁ c) then
+      ⟨(E.ecbBlocks n (Encryption.ChoiceOut.msg₀ c)).map (BitString.ofList _),
+        (E.ecbBlocks n (Encryption.ChoiceOut.msg₁ c)).map (BitString.ofList _)⟩
+    else ⟨[], [fun _ => false]⟩, Encryption.ChoiceOut.state c)) <$> A.choose n []
   guess st c := A.guess n st (c.flatMap List.ofFn)
 
 /-- The block-cipher distinguisher of Theorem 4.1 on words: the typed reduction `ECB.reduction`
