@@ -33,7 +33,7 @@ import CslibFrontier.Crypto.Negligible.InversePolynomial
 import CslibFrontier.Computability.Probabilistic.Traverse
 import CslibFrontier.Foundations.Data.BitString.List.LowBits
 import CslibFrontier.Foundations.Data.Nat.Power
-import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
+import CslibFrontier.Languages.Probabilistic.Oracle.Simulation.Handler
 import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.RunWith
 import CslibFrontier.Languages.Probabilistic.Oracle.Support
 import CslibFrontier.Languages.Probabilistic.Traverse.SupportWith
@@ -871,21 +871,15 @@ private theorem runWith_blockwiseSimulator (A : BlockwiseMACAdversary) (n : ℕ)
         (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
         (M.blockwiseSimulator E n)) (A n)).run []) [] =
       (M.blockwiseRun E A n sk).map fun out => (out, authenticatedInputs E (M.msgLen n) out.2) := by
-  rw [ProbOracleComp.runWith_run_interpret]
-  have hsim := ProbOracleComp.runWith_map_state
-    (oracle := fun q s => ProbComp.eval (M.blockwiseSigningOracle E n sk q s))
-    (oracle' := fun q (state : List (List Bool × Tag) × List (List Bool)) =>
-      (ProbOracleComp.runWith (fun q s => ProbComp.eval (M.signingOracle sk q s))
-        ((M.blockwiseSimulator E n q).run state.1) state.2).map fun x => (x.1.1, x.1.2, x.2))
-    (represent := fun log => (log, authenticatedInputs E (M.msgLen n) log))
-    (step := by
-      intro m log
+  exact ProbOracleComp.runWith_run_interpret_map (M.blockwiseSimulator E n)
+    (fun q s => ProbComp.eval (M.signingOracle sk q s))
+    (fun q s => ProbComp.eval (M.blockwiseSigningOracle E n sk q s)) (fun log => log)
+    (authenticatedInputs E (M.msgLen n)) (fun m log => by
       simp only [eval_blockwiseSigningOracle, StateT.run, blockwiseSimulator,
         ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample, ProbOracleComp.runWith_pure,
         runWith_mapM_query, BitString.eval_sampleList, PMF.map_bind, PMF.bind_map, PMF.pure_map,
         Function.comp_def, authenticatedInputs, List.flatMap_cons])
     (A n) []
-  exact (congrArg (PMF.map _) hsim.symm).trans (by rw [PMF.map_comp]; rfl)
 
 private theorem eval_eufCmaGame_blockwiseReduction (A : BlockwiseMACAdversary) (n : ℕ) :
     ProbComp.eval (M.eufCmaGame (M.blockwiseReduction E A) n) =

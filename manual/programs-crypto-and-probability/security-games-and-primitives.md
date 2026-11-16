@@ -3135,8 +3135,8 @@ CPA game of `A`, for either challenge bit; `SymmetricCipher.INDCCA.indcpa` deriv
 `INDCCA`. Examples are in
 [`CslibFrontierTests/Crypto/CCAToCPA.lean`](../../CslibFrontierTests/Crypto/CCAToCPA.lean).
 
-For Exercise 9.15(b), that chosen-ciphertext security and plaintext integrity give authenticated
-encryption, import
+For Boneh–Shoup [bs23][bs23], Exercise 9.15(b), p. 395, that chosen-ciphertext security and
+plaintext integrity give authenticated encryption, import
 [`Encryption/PlaintextIntegrity.lean`](../../CslibFrontier/Crypto/Computational/Encryption/PlaintextIntegrity.lean).
 `SymmetricCipher.INDCCA.ciphertextIntegrity` derives `CiphertextIntegrity` from `INDCCA` and
 `EncForge`, and `SymmetricCipher.INDCCA.authenticatedEncryption` adds `INDCCA.indcpa` to obtain
@@ -3152,8 +3152,8 @@ and outputs the forgery of `A`. `isOraclePPT_ciToCCAAdversary` and
 the success of `A` in `ciGame` by that of the plaintext-integrity reduction in `encForgeGame`, plus
 the advantage of the CCA reduction, plus `Q n / 2ⁿ`. The CCA reduction makes one decryption query
 and uses the plaintext it returns; the hypothesis is the library's `INDCCA`. Examples, including
-the instance on `prfEncryptThenMAC` and the equivalence of `AuthenticatedEncryption` with `INDCCA`
-together with `EncForge`, are in
+the instance on `prfEncryptThenMAC`, an adversary that makes one encryption query, and the
+equivalence of `AuthenticatedEncryption` with `INDCCA` together with `EncForge`, are in
 [`CslibFrontierTests/Crypto/PlaintextIntegrity.lean`](../../CslibFrontierTests/Crypto/PlaintextIntegrity.lean).
 
 For generic MAC-then-Encrypt composition, its `INDCPA` preservation, and its chosen-ciphertext

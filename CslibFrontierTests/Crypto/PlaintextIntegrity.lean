@@ -22,9 +22,10 @@ An ordinary `module` client of `CslibFrontier.Crypto.Computational.Encryption.Pl
   and real/ideal security. With `AuthenticatedEncryption.indcca` and `CiphertextIntegrity.encForge`
   from `main`, authenticated encryption is exactly `INDCCA` together with `EncForge`, and under
   `INDCCA` plaintext integrity is equivalent to ciphertext integrity.
-* The instance on Encrypt-then-MAC from a pseudorandom function.
+* The hypotheses are satisfiable: Encrypt-then-MAC from a pseudorandom function meets them.
 * Both certificates applied to a CI adversary that asks nothing, and the concrete bound applied to
-  it, where the collision term vanishes, and to any adversary at `n = 0`.
+  it, where the collision term vanishes, and to an adversary that makes one encryption query,
+  where it is `1 / 2ⁿ`.
 -/
 
 set_option linter.privateModule false
@@ -48,7 +49,9 @@ example {E : SymmetricCipher} : E.AuthenticatedEncryption ↔ E.INDCCA ∧ E.Enc
 example {E : SymmetricCipher} (hcca : E.INDCCA) : E.EncForge ↔ E.CiphertextIntegrity :=
   ⟨hcca.ciphertextIntegrity, SymmetricCipher.CiphertextIntegrity.encForge⟩
 
--- The instance on Encrypt-then-MAC from a pseudorandom function.
+-- The hypotheses are satisfiable: Encrypt-then-MAC from a pseudorandom function is CCA-secure and
+-- has plaintext integrity (the latter from its own authenticated encryption), so the theorem
+-- applies to it.
 example {family : List Bool → List Bool → List Bool} (hprf : PseudorandomFunction family) :
     (prfEncryptThenMAC family hprf.polyTime hprf.length_eq).AuthenticatedEncryption :=
   hprf.indcca_prfEncryptThenMAC.authenticatedEncryption
@@ -88,19 +91,42 @@ example (E : SymmetricCipher) (ctBound : ℕ → ℕ) (n : ℕ)
   simpa using SymmetricCipher.succProbability_ciGame_le_encForge_add_indcca E ctBound
     (fun _ => 0) silentAdversary n (.pure _ _) hctBound
 
--- At `n = 0` the bound holds with additive term `Q 0`.
-example (E : SymmetricCipher) (ctBound Q : ℕ → ℕ) (adversary : CIAdversary)
-    (hq : (adversary 0 []).IsQueryBounded (Q 0))
-    (hctBound : E.CiphertextLengthLE 0 (ctBound 0)) :
-    (Game.succProbability (ProbComp.eval (E.ciGame adversary 0)) : ℝ) ≤
-      (Game.succProbability (ProbComp.eval
-        (E.encForgeGame (SymmetricCipher.ciToRandEncForgeAdversary ctBound Q adversary) 0)) : ℝ) +
+/-- A CI adversary that asks for an encryption of the all-zero `n`-bit message and outputs at most
+`n` bits of the reply as its forgery. -/
+def replayAdversary : CIAdversary :=
+  fun n _ => List.take n <$> ProbOracleComp.query ((), List.replicate n false)
+
+theorem isOraclePPT_replayAdversary : IsOraclePPT encBits replayAdversary :=
+  IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop)
+
+theorem isQueryBounded_replayAdversary (n : ℕ) : (replayAdversary n []).IsQueryBounded 1 := by
+  simpa [replayAdversary, map_eq_bind_pure_comp] using
+    (ProbOracleComp.IsQueryBounded.query ((), List.replicate n false)).bind fun _ => .pure _ 0
+
+-- Both certificates apply to the reductions built from it.
+example : IsOraclePPT encBool
+      (SymmetricCipher.ciToCCAAdversary (fun n => n) (fun _ => 1) replayAdversary) ∧
+    IsOraclePPT encBits
+      (SymmetricCipher.ciToRandEncForgeAdversary (fun n => n) (fun _ => 1) replayAdversary) :=
+  ⟨SymmetricCipher.isOraclePPT_ciToCCAAdversary (by polytime) (by polytime)
+      isOraclePPT_replayAdversary,
+    SymmetricCipher.isOraclePPT_ciToRandEncForgeAdversary (by polytime) (by polytime)
+      isOraclePPT_replayAdversary⟩
+
+-- With one encryption query the collision term of the bound is `1 / 2ⁿ`.
+example (E : SymmetricCipher) (ctBound : ℕ → ℕ) (n : ℕ)
+    (hctBound : E.CiphertextLengthLE n (ctBound n)) :
+    (Game.succProbability (ProbComp.eval (E.ciGame replayAdversary n)) : ℝ) ≤
+      (Game.succProbability (ProbComp.eval (E.encForgeGame
+        (SymmetricCipher.ciToRandEncForgeAdversary ctBound (fun _ => 1) replayAdversary) n)) : ℝ) +
       (Game.advantage
-        (ProbComp.eval (E.ccaGame (SymmetricCipher.ciToCCAAdversary ctBound Q adversary) false 0))
-        (ProbComp.eval (E.ccaGame (SymmetricCipher.ciToCCAAdversary ctBound Q adversary) true 0)) :
+        (ProbComp.eval (E.ccaGame
+          (SymmetricCipher.ciToCCAAdversary ctBound (fun _ => 1) replayAdversary) false n))
+        (ProbComp.eval (E.ccaGame
+          (SymmetricCipher.ciToCCAAdversary ctBound (fun _ => 1) replayAdversary) true n)) :
           ℝ) +
-      (Q 0 : ℝ) := by
-  simpa using SymmetricCipher.succProbability_ciGame_le_encForge_add_indcca E ctBound Q adversary
-    0 hq hctBound
+      1 / 2 ^ n := by
+  simpa using SymmetricCipher.succProbability_ciGame_le_encForge_add_indcca E ctBound
+    (fun _ => 1) replayAdversary n (isQueryBounded_replayAdversary n) hctBound
 
 end CslibFrontierTests.Crypto.PlaintextIntegrity

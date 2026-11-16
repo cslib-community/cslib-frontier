@@ -11,9 +11,9 @@ public import CslibFrontier.Crypto.Computational.Encryption.EncForge
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair.Projections
 import CslibFrontier.Crypto.Computational.Encryption.CCAToCPA
-import CslibFrontier.Crypto.Computational.PseudorandomFunction.MultiKey
 import CslibFrontier.Languages.Probabilistic.Oracle.QueryBoundedSimulation
-import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
+import CslibFrontier.Languages.Probabilistic.Oracle.Simulation.Handler
+import CslibFrontier.Probability.BitString.List
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Tactic.EncLen
@@ -82,91 +82,19 @@ open scoped ENNReal NNReal
 
 namespace SymmetricCipher
 
-/-! ### Blocks of the random string -/
-
-/-- The `i`-th `n`-bit block of `rawBits` (`keyBlock`), or `n` zeros past the end of `rawBits`, so
-that the result always has length `n`. -/
-private def chunkAt (rawBits : List Bool) (n i : ℕ) : List Bool :=
-  if (keyBlock n i rawBits).length == n then keyBlock n i rawBits else List.replicate n false
-
-@[simp]
-private theorem length_chunkAt (rawBits : List Bool) (n i : ℕ) :
-    (chunkAt rawBits n i).length = n := by
-  unfold chunkAt
-  split_ifs with h
-  · exact beq_iff_eq.mp h
-  · exact List.length_replicate
-
-private theorem chunkAt_eq_keyBlock {Q n i : ℕ} {rawBits : List Bool}
-    (hlen : rawBits.length = Q * n) (hi : i < Q) :
-    chunkAt rawBits n i = keyBlock n i rawBits := by
-  simp [chunkAt, length_keyBlock hlen hi]
-
-/-- Each block of a uniform string of `Q` blocks is uniform. -/
-private theorem map_uniformList_keyBlock {Q n i : ℕ} (hi : i < Q) :
-    (BitString.uniformList (Q * n)).map (keyBlock n i) = BitString.uniformList n := by
-  have hsplit : Q * n = i * n + (n + (Q - (i + 1)) * n) := by
-    have hi1 : i + 1 ≤ Q := hi
-    calc Q * n = (i + (1 + (Q - (i + 1)))) * n := by congr 1; omega
-      _ = i * n + (n + (Q - (i + 1)) * n) := by ring
-  rw [hsplit, BitString.uniformList_add, PMF.map_bind]
-  have hcongr : ∀ left ∈ (BitString.uniformList (i * n)).support,
-      ((BitString.uniformList (n + (Q - (i + 1)) * n)).map (left ++ ·)).map (keyBlock n i) =
-        BitString.uniformList n := by
-    intro left hleft
-    have hleftLen := BitString.length_of_mem_support_uniformList hleft
-    rw [PMF.map_comp]
-    have hdrop : (BitString.uniformList (n + (Q - (i + 1)) * n)).map
-        (keyBlock n i ∘ (left ++ ·)) =
-        (BitString.uniformList (n + (Q - (i + 1)) * n)).map (List.take n) := by
-      apply PMF.map_congr_on_support
-      intro back _
-      rw [Function.comp_apply, keyBlock, List.drop_left' hleftLen]
-    rw [hdrop, BitString.uniformList_take (Nat.le_add_right n _)]
-  rw [PMF.bind_congr_on_support _ _ _ hcongr, PMF.bind_const]
-
-private theorem map_uniformList_chunkAt {Q n i : ℕ} (hi : i < Q) :
-    (BitString.uniformList (Q * n)).map (fun rawBits => chunkAt rawBits n i) =
-      BitString.uniformList n := by
-  rw [← map_uniformList_keyBlock (n := n) hi]
-  apply PMF.map_congr_on_support
-  intro rawBits hraw
-  exact chunkAt_eq_keyBlock (BitString.length_of_mem_support_uniformList hraw) hi
-
-private theorem computableInPolyTime_chunkAt {γ : Type} {encIn : γ ↪ List Bool}
-    {raw : γ → List Bool} {n i : γ → ℕ}
-    (hraw : ComputableInPolyTime raw encIn encBits)
-    (hn : ComputableInPolyTime n encIn encUnary)
-    (hi : ComputableInPolyTime i encIn encUnary) :
-    ComputableInPolyTime (fun x => chunkAt (raw x) (n x) (i x)) encIn encBits := by
-  have hdrop : ComputableInPolyTime (fun p : List Bool × ℕ => p.1.drop p.2)
-      (encPair encBits encUnary) encBits :=
-    (ComputableTidilyInPolyTime.dropUnary (encA := encBool) (encL := encBits)).computableInPolyTime
-  have hslice : ComputableInPolyTime (fun x => (raw x).drop (i x * n x)) encIn encBits :=
-    hdrop.comp (hraw.prod (by fun_prop))
-  have hsl : ComputableInPolyTime (fun x => ((raw x).drop (i x * n x)).take (n x)) encIn encBits :=
-    by fun_prop
-  have hlen : ComputableInPolyTime (fun x => (((raw x).drop (i x * n x)).take (n x)).length)
-      encIn encUnary :=
-    ComputableInPolyTime.length_bits.comp hsl
-  have hcond : ComputableInPolyTime
-      (fun x => (((raw x).drop (i x * n x)).take (n x)).length == n x) encIn encBool :=
-    ComputableInPolyTime.unary_beq' hlen hn
-  unfold chunkAt keyBlock
-  exact hcond.ite hsl (by fun_prop)
-
 /-! ### The two reductions -/
 
 /-- Handler of `ciToCCAAdversary`: in state `(idx, rs)`, answers an encryption query for an
-`n`-bit message `m` by asking the CCA oracle to encrypt `m` or `r = chunkAt rawBits n idx`, and
-moves to `(idx + 1, r :: rs)`. -/
+`n`-bit message `m` by asking the CCA oracle to encrypt `m` or the `idx`-th `n`-bit row `r` of
+`rawBits` (`BitString.listRow`), and moves to `(idx + 1, r :: rs)`. -/
 private def ciToCCAHandler (n ctBound : ℕ) (rawBits : List Bool) (request : Unit × List Bool) :
     StateT (ℕ × List (List Bool)) (WordOracleComp Bool) (List Bool) :=
   fun (idx, rs) =>
     if request.2.length == n then do
       let ct ← List.take ctBound <$>
-        ProbOracleComp.query (false, encPair encBits encBits (request.2, chunkAt rawBits n idx))
-      return (ct, (idx + 1, chunkAt rawBits n idx :: rs))
+        ProbOracleComp.query
+          (false, encPair encBits encBits (request.2, BitString.listRow n idx rawBits))
+      return (ct, (idx + 1, BitString.listRow n idx rawBits :: rs))
     else
       return ([], (idx, rs))
 
@@ -188,12 +116,13 @@ noncomputable def ciToCCAAdversary (ctBound Q : ℕ → ℕ) (adversary : CIAdve
     return (dec.take 1 == [true]) && !rUsed.contains (dec.drop 1)
 
 /-- Handler of `ciToRandEncForgeAdversary`: in state `idx`, answers an encryption query for an
-`n`-bit message by asking the plaintext-integrity oracle to encrypt `chunkAt rawBits n idx`. -/
-private noncomputable def ciToRandEncForgeHandler (n ctBound : ℕ) (rawBits : List Bool)
+`n`-bit message by asking the plaintext-integrity oracle to encrypt the `idx`-th `n`-bit row of
+`rawBits` (`BitString.listRow`). -/
+private def ciToRandEncForgeHandler (n ctBound : ℕ) (rawBits : List Bool)
     (request : Unit × List Bool) : StateT ℕ (WordOracleComp Unit) (List Bool) :=
   fun idx =>
     if request.2.length == n then do
-      let ct ← List.take ctBound <$> ProbOracleComp.query ((), chunkAt rawBits n idx)
+      let ct ← List.take ctBound <$> ProbOracleComp.query ((), BitString.listRow n idx rawBits)
       return (ct, idx + 1)
     else
       return ([], idx)
@@ -234,21 +163,21 @@ theorem isOraclePPT_ciToCCAAdversary {ctBound Q : ℕ → ℕ}
       (by dsimp only [EHandler, ECaller]; fun_prop)
   have hchunk : ComputableInPolyTime
       (fun p : ((ℕ × List Bool) × List Bool) × ((Unit × List Bool) × (ℕ × List (List Bool))) =>
-        chunkAt p.1.2 p.1.1.1 p.2.2.1)
+        BitString.listRow p.1.1.1 p.2.2.1 p.1.2)
       EHandler encBits :=
-    computableInPolyTime_chunkAt
-      (by dsimp only [EHandler, ECaller]; fun_prop)
+    ComputableInPolyTime.bitsRowWithInput
       (by dsimp only [EHandler, ECaller]; fun_prop)
       (by dsimp only [EHandler, EState]; fun_prop)
+      (by dsimp only [EHandler, ECaller]; fun_prop)
   have hyes : IsOraclePPTOn (Operation := Bool) EHandler (encPair encBits EState)
       (fun p : ((ℕ × List Bool) × List Bool) × ((Unit × List Bool) × (ℕ × List (List Bool))) => do
         let ct ← List.take (ctBound p.1.1.1) <$>
           ProbOracleComp.query
-            (false, encPair encBits encBits (p.2.1.2, chunkAt p.1.2 p.1.1.1 p.2.2.1))
-        return (ct, (p.2.2.1 + 1, chunkAt p.1.2 p.1.1.1 p.2.2.1 :: p.2.2.2))) := by
+            (false, encPair encBits encBits (p.2.1.2, BitString.listRow p.1.1.1 p.2.2.1 p.1.2))
+        return (ct, (p.2.2.1 + 1, BitString.listRow p.1.1.1 p.2.2.1 p.1.2 :: p.2.2.2))) := by
     have hreq : ComputableInPolyTime
         (fun p : ((ℕ × List Bool) × List Bool) × ((Unit × List Bool) × (ℕ × List (List Bool))) =>
-          encPair encBits encBits (p.2.1.2, chunkAt p.1.2 p.1.1.1 p.2.2.1))
+          encPair encBits encBits (p.2.1.2, BitString.listRow p.1.1.1 p.2.2.1 p.1.2))
         EHandler encBits :=
       ComputableInPolyTime.encoding_comp
         ((by dsimp only [EHandler]; fun_prop : ComputableInPolyTime
@@ -264,18 +193,18 @@ theorem isOraclePPT_ciToCCAAdversary {ctBound Q : ℕ → ℕ}
     have hpost : ComputableInPolyTime
         (fun q : (((ℕ × List Bool) × List Bool) × ((Unit × List Bool) × (ℕ × List (List Bool)))) ×
             List Bool =>
-          (q.2, (q.1.2.2.1 + 1, chunkAt q.1.1.2 q.1.1.1.1 q.1.2.2.1 :: q.1.2.2.2)))
+          (q.2, (q.1.2.2.1 + 1, BitString.listRow q.1.1.1.1 q.1.2.2.1 q.1.1.2 :: q.1.2.2.2)))
         (encPair EHandler encBits) (encPair encBits EState) := by
       have hc : ComputableInPolyTime
           (fun q : (((ℕ × List Bool) × List Bool) ×
               ((Unit × List Bool) × (ℕ × List (List Bool)))) × List Bool =>
-            chunkAt q.1.1.2 q.1.1.1.1 q.1.2.2.1)
+            BitString.listRow q.1.1.1.1 q.1.2.2.1 q.1.1.2)
           (encPair EHandler encBits) encBits :=
         hchunk.comp (ComputableInPolyTime.fst _ _)
       have hcons : ComputableInPolyTime
           (fun q : (((ℕ × List Bool) × List Bool) ×
               ((Unit × List Bool) × (ℕ × List (List Bool)))) × List Bool =>
-            chunkAt q.1.1.2 q.1.1.1.1 q.1.2.2.1 :: q.1.2.2.2)
+            BitString.listRow q.1.1.1.1 q.1.2.2.1 q.1.1.2 :: q.1.2.2.2)
           (encPair EHandler encBits) (encList encBits) :=
         (ComputableTidilyInPolyTime.cons encBits).computableInPolyTime.comp
           (hc.prod (by dsimp only [EHandler, EState]; fun_prop))
@@ -336,8 +265,8 @@ theorem isOraclePPT_ciToCCAAdversary {ctBound Q : ℕ → ℕ}
       have hresEq := OracleComp.eq_of_mem_supportWith_pure hresult
       subst hresEq
       refine ⟨trivial, (List.length_take_le _ _).trans (by lia), ?_⟩
-      have hcl : (chunkAt caller.2 caller.1.1 state.1).length = request.2.length :=
-        (length_chunkAt _ _ _).trans (beq_iff_eq.mp hlenEq).symm
+      have hcl : (BitString.listRow caller.1.1 state.1 caller.2).length = request.2.length :=
+        (BitString.length_listRow _ _ _).trans (beq_iff_eq.mp hlenEq).symm
       dsimp only [EState]
       enc_len
     · have hresEq := OracleComp.eq_of_mem_supportWith_pure hresult
@@ -422,12 +351,12 @@ theorem isOraclePPT_ciToRandEncForgeAdversary {ctBound Q : ℕ → ℕ}
       (by dsimp only [EHandler, ECaller]; fun_prop)
   have hchunk : ComputableInPolyTime
       (fun p : ((ℕ × List Bool) × List Bool) × ((Unit × List Bool) × ℕ) =>
-        chunkAt p.1.2 p.1.1.1 p.2.2)
+        BitString.listRow p.1.1.1 p.2.2 p.1.2)
       EHandler encBits :=
-    computableInPolyTime_chunkAt
-      (by dsimp only [EHandler, ECaller]; fun_prop)
+    ComputableInPolyTime.bitsRowWithInput
       (by dsimp only [EHandler, ECaller]; fun_prop)
       (by dsimp only [EHandler]; fun_prop)
+      (by dsimp only [EHandler, ECaller]; fun_prop)
   have hctLim : ComputableInPolyTime
       (fun p : ((ℕ × List Bool) × List Bool) × ((Unit × List Bool) × ℕ) => ctBound p.1.1.1)
       EHandler encUnary :=
@@ -436,7 +365,7 @@ theorem isOraclePPT_ciToRandEncForgeAdversary {ctBound Q : ℕ → ℕ}
   have hyes : IsOraclePPTOn (Operation := Unit) EHandler (encPair encBits encUnary)
       (fun p : ((ℕ × List Bool) × List Bool) × ((Unit × List Bool) × ℕ) => do
         let ct ← List.take (ctBound p.1.1.1) <$>
-          ProbOracleComp.query ((), chunkAt p.1.2 p.1.1.1 p.2.2)
+          ProbOracleComp.query ((), BitString.listRow p.1.1.1 p.2.2 p.1.2)
         return (ct, p.2.2 + 1)) := by
     have hq := IsOraclePPTOn.query_take' (Operation := Unit) () hchunk hctLim
     have hpost : ComputableInPolyTime
@@ -539,29 +468,6 @@ private theorem decCheck_eq (E : SymmetricCipher) (n : ℕ) (k : List Bool)
       simp only [List.contains_eq_mem, decide_eq_decide] at hc
       simp [List.take_succ_cons, List.drop_succ_cons, hc]
 
-/-- A handler that draws private coins and calls an outer oracle, run against that oracle, is one
-run against a simple oracle whose state represents both, when each call of the simple oracle maps
-to one call of the handler. -/
-private theorem runWith_run_interpret_map {Query Query' S₁ S₂ E₁ α : Type}
-    (inner : Query × List Bool → StateT S₂ (WordOracleComp Query') (List Bool))
-    (oOuter : Query' × List Bool → StateT E₁ PMF (List Bool))
-    (oSimple : Query × List Bool → StateT S₁ PMF (List Bool))
-    (rep₂ : S₁ → S₂) (repE : S₁ → E₁)
-    (hstep : ∀ req s₁,
-      (oSimple req s₁).map (fun p => (p.1, (rep₂ p.2, repE p.2))) =
-        (ProbOracleComp.runWith oOuter ((inner req).run (rep₂ s₁)) (repE s₁)).map
-          (fun p : (List Bool × S₂) × E₁ => (p.1.1, p.1.2, p.2)))
-    (prog : WordOracleComp Query α) (s₁ : S₁) :
-    ProbOracleComp.runWith oOuter ((OracleComp.interpret
-      (OracleComp.sumHandler (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
-        inner) prog).run (rep₂ s₁)) (repE s₁) =
-      (ProbOracleComp.runWith oSimple prog s₁).map
-        (fun (a, s') => ((a, rep₂ s'), repE s')) := by
-  rw [ProbOracleComp.runWith_run_interpret,
-    ← ProbOracleComp.runWith_map_state oSimple _ (fun s => (rep₂ s, repE s)) hstep prog s₁,
-    PMF.map_comp]
-  congr 1
-
 /-- A program that makes at most `Q` queries to `ciPairOracle` records at most `Q` pairs. -/
 private theorem length_le_of_mem_support_runWith_ciPairOracle (E : SymmetricCipher) (n Q : ℕ)
     (k : List Bool) {prog : WordOracleComp Unit (List Bool)} (hq : prog.IsQueryBounded Q)
@@ -569,6 +475,7 @@ private theorem length_le_of_mem_support_runWith_ciPairOracle (E : SymmetricCiph
     (hmem : (ctStar, pairs) ∈ (ProbOracleComp.runWith
       (fun q s => ProbComp.eval (E.ciPairOracle n k q s)) prog []).support) :
     pairs.length ≤ Q := by
+  rw [ProbOracleComp.runWith_eq_run_interpret] at hmem
   have h := hq.run_interpret_invariant (fun q s => ProbComp.eval (E.ciPairOracle n k q s))
     (fun rem (s : List (List Bool × List Bool)) => s.length + rem ≤ Q)
     (fun _ _ h => by omega) ?_ (by simp) ctStar pairs hmem
@@ -589,10 +496,10 @@ private theorem length_le_of_mem_support_runWith_ciPairOracle (E : SymmetricCiph
 /-- The first `k` random chunks of `rawBits`, most recent first. -/
 private def chunksBelow (rawBits : List Bool) (n : ℕ) : ℕ → List (List Bool)
   | 0 => []
-  | k + 1 => chunkAt rawBits n k :: chunksBelow rawBits n k
+  | k + 1 => BitString.listRow n k rawBits :: chunksBelow rawBits n k
 
 private theorem mem_chunksBelow {rawBits : List Bool} {n k : ℕ} {r : List Bool} :
-    r ∈ chunksBelow rawBits n k ↔ ∃ i < k, chunkAt rawBits n i = r := by
+    r ∈ chunksBelow rawBits n k ↔ ∃ i < k, BitString.listRow n i rawBits = r := by
   induction k with
   | zero => simp [chunksBelow]
   | succ k ih =>
@@ -618,7 +525,7 @@ private theorem eval_run_ciToCCAHandler_false (E : SymmetricCipher) (n ctBound :
     (ProbOracleComp.runWith (fun q s => ProbComp.eval (E.ciPairOracle n k q s)) prog []).map
       (fun (ctStar, pairs) =>
         ((ctStar, (pairs.length, chunksBelow rawBits n pairs.length)), pairs.map Prod.snd)) := by
-  refine runWith_run_interpret_map (ciToCCAHandler n ctBound rawBits)
+  refine ProbOracleComp.runWith_run_interpret_map (ciToCCAHandler n ctBound rawBits)
     (fun q s => ProbComp.eval (E.ccaOracle n k false q s))
     (fun q s => ProbComp.eval (E.ciPairOracle n k q s))
     (fun pairs => (pairs.length, chunksBelow rawBits n pairs.length))
@@ -628,8 +535,8 @@ private theorem eval_run_ciToCCAHandler_false (E : SymmetricCipher) (n ctBound :
   unfold SymmetricCipher.ciPairOracle ciToCCAHandler
   by_cases hlen : msg.length = n
   · have hbeq : (msg.length == n) = true := beq_iff_eq.mpr hlen
-    have hchunkLen : (chunkAt rawBits n pairs.length).length = n :=
-      length_chunkAt rawBits n pairs.length
+    have hchunkLen : (BitString.listRow n pairs.length rawBits).length = n :=
+      BitString.length_listRow n pairs.length rawBits
     simp only [StateT.run, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure,
       ProbOracleComp.runWith_bind, ProbOracleComp.runWith_map,
       ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure,
@@ -652,17 +559,18 @@ private theorem uniformList_chunksBelow_contains_le (Q n L : ℕ) (hL : L ≤ Q)
       (Q : ENNReal) / (2 : ENNReal) ^ n := by
   have hmono := Cslib.Probability.PMF.map_true_mono (BitString.uniformList (Q * n))
     (E := fun rawBits => (chunksBelow rawBits n L).contains x)
-    (F := fun rawBits => (List.range L).any (fun i => chunkAt rawBits n i == x))
+    (F := fun rawBits => (List.range L).any (fun i => BitString.listRow n i rawBits == x))
     (fun rawBits _ h => by
       obtain ⟨i, hi, heq⟩ := mem_chunksBelow.mp (List.contains_iff_mem.mp h)
       exact List.any_eq_true.mpr ⟨i, List.mem_range.mpr hi, beq_iff_eq.mpr heq⟩)
   refine hmono.trans ((Cslib.Probability.PMF.map_any_range_true_le_sum _ L
-    (fun i rawBits => chunkAt rawBits n i == x)).trans ?_)
+    (fun i rawBits => BitString.listRow n i rawBits == x)).trans ?_)
   have hterm (i : ℕ) (hi : i ∈ Finset.range L) :
-      ((BitString.uniformList (Q * n)).map (fun rawBits => chunkAt rawBits n i == x)) true ≤
+      ((BitString.uniformList (Q * n)).map
+        (fun rawBits => BitString.listRow n i rawBits == x)) true ≤
         1 / (2 : ENNReal) ^ n := by
     rw [← Function.comp_def (fun r => r == x), ← PMF.map_comp,
-      map_uniformList_chunkAt (lt_of_lt_of_le (Finset.mem_range.mp hi) hL), PMF.map_apply]
+      BitString.uniformList_map_listRow (lt_of_lt_of_le (Finset.mem_range.mp hi) hL), PMF.map_apply]
     rw [tsum_eq_single x (fun r hr => by simp [hr])]
     simpa using BitString.uniformList_apply_le n x
   refine (Finset.sum_le_sum hterm).trans ?_
@@ -769,7 +677,7 @@ private theorem succProbability_ciGame_le_ccaFalse (E : SymmetricCipher)
         have hr : ∀ r ∈ chunksBelow rawBits n pairs.length, r.length = n := by
           intro r hr
           obtain ⟨i, _, rfl⟩ := mem_chunksBelow.mp hr
-          exact length_chunkAt _ _ _
+          exact BitString.length_listRow _ _ _
         simp only [Function.comp_def]
         rw [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_map, ProbOracleComp.runWith_query]
         have hdec := decCheck_eq E n k ctStar _ hr (pairs.map Prod.snd)
@@ -822,7 +730,7 @@ private noncomputable def ccaTruePairOracle (E : SymmetricCipher) (n ctBound : �
     StateT (ℕ × List (List Bool) × List (List Bool)) ProbComp (List Bool) :=
   fun (idx, rUsed, cts) =>
     if request.2.length == n then do
-      let r := chunkAt rawBits n idx
+      let r := BitString.listRow n idx rawBits
       let ct ← E.encrypt n k r
       return (ct.take ctBound, (idx + 1, r :: rUsed, ct :: cts))
     else
@@ -847,7 +755,7 @@ private theorem length_of_mem_support_ccaTruePairOracle (E : SymmetricCipher) (n
     obtain ⟨rfl, rfl⟩ := Prod.mk.inj hstepEq
     intro r hr
     rcases List.mem_cons.mp hr with rfl | hr'
-    · exact length_chunkAt _ _ _
+    · exact BitString.length_listRow _ _ _
     · exact hr0 r hr'
   · simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hstep
     obtain ⟨rfl, rfl⟩ := Prod.mk.inj hstep
@@ -863,7 +771,7 @@ private theorem eval_run_ccaTruePairOracle_proj_cca (E : SymmetricCipher) (n ctB
       (fun q s => ProbComp.eval (ccaTruePairOracle E n ctBound k rawBits q s))
       prog (0, [], [])).map
       (fun (ctStar, (idx, rUsed, cts)) => ((ctStar, (idx, rUsed)), cts)) := by
-  refine runWith_run_interpret_map (ciToCCAHandler n ctBound rawBits)
+  refine ProbOracleComp.runWith_run_interpret_map (ciToCCAHandler n ctBound rawBits)
     (fun q s => ProbComp.eval (E.ccaOracle n k true q s))
     (fun q s => ProbComp.eval (ccaTruePairOracle E n ctBound k rawBits q s))
     (fun (idx, rUsed, _) => (idx, rUsed))
@@ -873,7 +781,8 @@ private theorem eval_run_ccaTruePairOracle_proj_cca (E : SymmetricCipher) (n ctB
   unfold ccaTruePairOracle ciToCCAHandler
   by_cases hlen : msg.length = n
   · have hbeq : (msg.length == n) = true := beq_iff_eq.mpr hlen
-    have hchunkLen : (chunkAt rawBits n idx).length = n := length_chunkAt rawBits n idx
+    have hchunkLen : (BitString.listRow n idx rawBits).length = n :=
+      BitString.length_listRow n idx rawBits
     simp only [StateT.run, ↓reduceIte, SymmetricCipher.ccaOracle, Bool.false_eq_true,
       unframe_encPair_encBits, dropFrame_encPair_encBits, hlen, hchunkLen, beq_self_eq_true,
       Bool.and_self, ProbComp.eval_bind, ProbComp.eval_pure,
@@ -894,7 +803,7 @@ private theorem eval_run_ccaTruePairOracle_proj_encForge (E : SymmetricCipher) (
       (fun q s => ProbComp.eval (ccaTruePairOracle E n ctBound k rawBits q s))
       prog (0, [], [])).map
       (fun (ctStar, (idx, rUsed, _)) => ((ctStar, idx), rUsed)) := by
-  refine runWith_run_interpret_map (ciToRandEncForgeHandler n ctBound rawBits)
+  refine ProbOracleComp.runWith_run_interpret_map (ciToRandEncForgeHandler n ctBound rawBits)
     (fun q s => ProbComp.eval (E.encForgeOracle n k q s))
     (fun q s => ProbComp.eval (ccaTruePairOracle E n ctBound k rawBits q s))
     (fun (idx, _, _) => idx)
@@ -904,7 +813,8 @@ private theorem eval_run_ccaTruePairOracle_proj_encForge (E : SymmetricCipher) (
   unfold ccaTruePairOracle ciToRandEncForgeHandler
   by_cases hlen : msg.length = n
   · have hbeq : (msg.length == n) = true := beq_iff_eq.mpr hlen
-    have hchunkLen : (chunkAt rawBits n idx).length = n := length_chunkAt rawBits n idx
+    have hchunkLen : (BitString.listRow n idx rawBits).length = n :=
+      BitString.length_listRow n idx rawBits
     simp only [StateT.run, hbeq, ↓reduceIte, SymmetricCipher.encForgeOracle, hchunkLen,
       beq_self_eq_true, ProbComp.eval_bind, ProbComp.eval_pure, ProbOracleComp.runWith_bind,
       ProbOracleComp.runWith_map, ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure,
