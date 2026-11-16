@@ -49,11 +49,6 @@ open Turing.MultiTapeTM
 open Turing.MultiTapeTM.Internal
 open Turing.MultiTapeTM.Internal.NativeCompiler
 
-@[simp] private theorem vector_get_ofFn {α : Type*} {n : ℕ}
-    (f : Fin n → α) (i : Fin n) : (Vector.ofFn f).get i = f i := by
-  change (Vector.ofFn f)[i.val] = f i
-  simp
-
 /-- Flatten a Keccak-p[1600] lane array in FIPS 202 order: lane `5 * y + x`, then its 64
 least-significant-bit-first coordinates. -/
 @[expose] def stateBits (A : State) : BitString 1600 := fun i =>
@@ -73,7 +68,7 @@ least-significant-bit-first coordinates. -/
 @[simp] private theorem get_stateOfBits (bits : BitString 1600) (lane : Fin 25) :
     (stateOfBits bits).get lane = laneOfBits (BitString.block bits lane) := by
   unfold stateOfBits
-  exact vector_get_ofFn _ _
+  exact Vector.get_ofFn _ _
 
 /-- Flattening a reconstructed Keccak state returns every input bit. -/
 @[simp] theorem stateBits_stateOfBits (bits : BitString 1600) :
@@ -407,7 +402,7 @@ private theorem eval_thetaBitCircuit (A : State) (x y : Fin 5) (z : Fin 64) :
         (columnBitCircuit (coordinate (x.val + 1)) (rotateSource 1 z)).eval
           interpretation (stateBits A) 0)) = _
   rw [stateBits_bitIndex, stateBits_bitIndex, eval_columnBitCircuit, eval_columnBitCircuit]
-  simp only [theta, getLane, vector_get_ofFn, coordinate_laneIndex,
+  simp only [theta, getLane, Vector.get_ofFn, coordinate_laneIndex,
     BitVec.getLsbD_xor, getLsbD_rotateLeft_eq, Bool.xor_assoc]
 
 private theorem eval_thetaCircuit (A : State) :
@@ -425,7 +420,7 @@ private theorem eval_rhoCircuit_bit (A : State) (x y : Fin 5) (z : Fin 64) :
   simp only [rhoCircuit, Circuit.eval_wiring, Function.comp_apply, flatX_bitIndex,
     flatY_bitIndex, flatZ_bitIndex, stateBits_bitIndex]
   unfold rho getLane
-  rw [vector_get_ofFn, coordinate_laneIndex]
+  rw [Vector.get_ofFn, coordinate_laneIndex]
   have hy : (⟨(laneIndex x y).val / 5, by omega⟩ : Fin 5) = y :=
     Fin.ext (laneIndex_div_five x y)
   simp only [hy]
@@ -449,7 +444,7 @@ private theorem eval_piCircuit_bit (A : State) (x y : Fin 5) (z : Fin 64) :
   simp only [piCircuit, Circuit.eval_wiring, Function.comp_apply, flatX_bitIndex,
     flatY_bitIndex, flatZ_bitIndex, stateBits_bitIndex]
   unfold pi getLane
-  rw [vector_get_ofFn, coordinate_laneIndex]
+  rw [Vector.get_ofFn, coordinate_laneIndex]
   simp only [laneIndex_div_five]
 
 private theorem eval_piCircuit (A : State) :
@@ -477,7 +472,7 @@ private theorem eval_chiBitAtCircuit (A : State) (x y : Fin 5) (z : Fin 64) :
   rw [stateBits_bitIndex, stateBits_bitIndex, stateBits_bitIndex,
     stateBits_bitIndex]
   unfold chi getLane
-  rw [vector_get_ofFn, coordinate_laneIndex]
+  rw [Vector.get_ofFn, coordinate_laneIndex]
   have hy : (⟨(laneIndex x y).val / 5, by omega⟩ : Fin 5) = y :=
     Fin.ext (laneIndex_div_five x y)
   simp only [hy, BitVec.getLsbD_xor, BitVec.getLsbD_not, BitVec.getLsbD_and]
@@ -508,10 +503,10 @@ private theorem eval_iotaBitCircuit (constant : Lane) (A : State)
         Bool.false_eq_true, ite_false, ite_true, Circuit.eval_comp, eval_notCircuit,
         Circuit.eval_wiring, Function.comp_apply, stateBits_bitIndex]
     · unfold iota getLane
-      rw [vector_get_ofFn]
+      rw [Vector.get_ofFn]
       simp only [laneIndex, hlane, ite_true, BitVec.getLsbD_xor, hconstant, Bool.xor_false]
     · unfold iota getLane
-      rw [vector_get_ofFn]
+      rw [Vector.get_ofFn]
       simp only [laneIndex, hlane, ite_true, BitVec.getLsbD_xor, hconstant]
       cases (A.get 0).getLsbD z.val <;> rfl
   · have hlaneIndex : laneIndex x y ≠ 0 := fun h => hlane (Fin.ext_iff.mp h)
@@ -521,7 +516,7 @@ private theorem eval_iotaBitCircuit (constant : Lane) (A : State)
     simp only [iotaBitCircuit, hlane, decide_false, Bool.false_and, Bool.false_eq_true,
       ite_false, Circuit.eval_wiring, Function.comp_apply, stateBits_bitIndex]
     unfold iota getLane
-    rw [vector_get_ofFn]
+    rw [Vector.get_ofFn]
     simp only [laneIndex, hlane, ite_false]
 
 private theorem eval_iotaCircuit (constant : Lane) (A : State) :

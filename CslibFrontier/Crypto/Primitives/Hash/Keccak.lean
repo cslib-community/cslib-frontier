@@ -25,7 +25,7 @@ Section 4.
 Keccak-p[1600] rate/capacity split and explicit domain-separation suffix. Bytes are expanded least
 significant bit first, matching NIST's official example state dumps; the suffix and `pad10*1` are
 appended; rate blocks are processed by the existing `Cslib.Crypto.Sponge.hashBlocks`; and output
-bytes are assembled in the same convention. `sha3_512` uses the 576-bit rate, suffix `01`, and a
+bytes are assembled in the same convention. `sha3512` uses the 576-bit rate, suffix `01`, and a
 64-byte output. `shake256` uses the 1088-bit rate and suffix `1111`; SHAKE128 specializes the same
 machinery in `CslibFrontier.Crypto.Primitives.Hash.Keccak.SHAKE128`.
 
@@ -44,7 +44,7 @@ August 2015 standard and does not claim agreement with a future revision or with
   least-significant-bit-first byte boundary.
 * `Cslib.Crypto.Keccak.rateBytesFor`, `squeezeBytesFor`, `byteSponge`: shared byte-aligned sponge
   machinery parameterized by the layout and domain-separation suffix.
-* `Cslib.Crypto.Keccak.sha3_512`: byte-aligned SHA3-512.
+* `Cslib.Crypto.Keccak.sha3512`: byte-aligned SHA3-512.
 * `Cslib.Crypto.Keccak.shake256`: byte-aligned SHAKE256 with an output length in bytes.
 
 ## Main results
@@ -55,7 +55,7 @@ August 2015 standard and does not claim agreement with a future revision or with
   views are inverse.
 * `Cslib.Crypto.Keccak.length_byteSponge`, `take_byteSponge`: the shared sponge has the requested
   length and preserves prefixes for a fixed suffix.
-* `Cslib.Crypto.Keccak.length_sha3_512`: SHA3-512 returns exactly 64 bytes.
+* `Cslib.Crypto.Keccak.length_sha3512`: SHA3-512 returns exactly 64 bytes.
 * `Cslib.Crypto.Keccak.length_shake256`, `take_shake256`: SHAKE256 returns exactly the requested
   byte count, and longer requests preserve the preceding XOF bytes.
 
@@ -100,7 +100,7 @@ abbrev SpongeView (layout : SpongeLayout) :=
   BitString (64 * layout.rateLanes) × BitString (64 * layout.capacityLanes)
 
 /-- The SHA3-512 layout: nine rate lanes and sixteen capacity lanes. -/
-@[expose] def sha3_512Layout : SpongeLayout := ⟨9, 16, by decide, by decide⟩
+@[expose] def sha3512Layout : SpongeLayout := ⟨9, 16, by decide, by decide⟩
 
 /-- The SHAKE256 layout: 17 rate lanes and eight capacity lanes. -/
 @[expose] def shake256Layout : SpongeLayout := ⟨17, 8, by decide, by decide⟩
@@ -477,12 +477,12 @@ theorem take_byteXof (layout : SpongeLayout) (input : List (Fin 256)) {m n : ℕ
 
 The input bytes use the explicit little-endian bit convention of `bytesToBitsLE`. The suffix is
 the SHA-3 domain separator `01` in FIPS bit-string order, and the digest is 64 bytes. -/
-@[expose] def sha3_512 (input : List (Fin 256)) : List (Fin 256) :=
-  byteSponge sha3_512Layout [false, true] input 64
+@[expose] def sha3512 (input : List (Fin 256)) : List (Fin 256) :=
+  byteSponge sha3512Layout [false, true] input 64
 
 /-- SHA3-512 returns exactly 64 bytes. -/
-@[simp] theorem length_sha3_512 (input : List (Fin 256)) : (sha3_512 input).length = 64 := by
-  simp [sha3_512]
+@[simp] theorem length_sha3512 (input : List (Fin 256)) : (sha3512 input).length = 64 := by
+  simp [sha3512]
 
 /-! ### SHAKE256 specialization -/
 

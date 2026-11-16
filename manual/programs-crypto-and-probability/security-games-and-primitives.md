@@ -806,7 +806,7 @@ FIPS 202 SHA3-512, SHAKE256 and SHAKE128 ([fips202][fips202]) are implemented in
 [`Hash/Keccak.lean`](../../CslibFrontier/Crypto/Primitives/Hash/Keccak.lean) and
 [`Hash/Keccak/SHAKE128.lean`](../../CslibFrontier/Crypto/Primitives/Hash/Keccak/SHAKE128.lean) on
 top of the existing generic sponge mechanics. The executable state uses 25 lanes in `5 * y + x`
-order and shares the standard's θ/ρ/π/χ/ι maps and 24-round permutation. `Keccak.sha3_512` uses the
+order and shares the standard's θ/ρ/π/χ/ι maps and 24-round permutation. `Keccak.sha3512` uses the
 576-bit rate, 1024-bit capacity, `01` suffix and 64-byte output. `Keccak.shake256` uses the 1088-bit
 rate and 512-bit capacity, while `Keccak.shake128` uses the 1344-bit rate and 256-bit capacity;
 both use the `1111` suffix. All three use `pad10*1` and explicit least-significant-bit-first bytes.

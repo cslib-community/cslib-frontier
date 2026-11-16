@@ -49,7 +49,7 @@ concrete bound for the whole sponge.
 
 * `Cslib.Crypto.Keccak.computableInPolyTime_byteSponge`: every fixed lane-aligned layout and
   suffix has a uniform polynomial-time byte-sponge implementation.
-* `Cslib.Crypto.Keccak.computableInPolyTime_sha3_512`: uniform polynomial time for SHA3-512.
+* `Cslib.Crypto.Keccak.computableInPolyTime_sha3512`: uniform polynomial time for SHA3-512.
 * `Cslib.Crypto.Keccak.computableInPolyTime_shake256`: uniform polynomial time for SHAKE256,
   including its requested output length.
 -/
@@ -341,13 +341,13 @@ polynomial-time in the framed input bytes and the unary requested output length.
     simpa only [byteSponge, rate, rateBytes] using htaken
 
 /-- SHA3-512 is uniformly polynomial-time in its framed little-endian input bytes. -/
-@[fun_prop] theorem computableInPolyTime_sha3_512 :
-    ComputableInPolyTime sha3_512 encByteStringLE encByteStringLE := by
+@[fun_prop] theorem computableInPolyTime_sha3512 :
+    ComputableInPolyTime sha3512 encByteStringLE encByteStringLE := by
   change ComputableInPolyTime
-    (fun input => byteSponge sha3_512Layout [false, true] input 64)
+    (fun input => byteSponge sha3512Layout [false, true] input 64)
     encByteStringLE encByteStringLE
   simpa only [Function.comp_def] using
-    (computableInPolyTime_byteSponge sha3_512Layout [false, true]).comp
+    (computableInPolyTime_byteSponge sha3512Layout [false, true]).comp
       ((id' (encIn := encByteStringLE)).prod (const 64))
 
 /-- SHAKE256 is uniformly polynomial-time when the requested number of output bytes is unary. -/

@@ -61,7 +61,7 @@ private def sha3EmptyPaddedRate : BitString 576 :=
   fun i => decide (i.val = 1 ∨ i.val = 2 ∨ i.val = 575)
 
 private def sha3EmptyPaddedState : State :=
-  ofSpongeView sha3_512Layout (sha3EmptyPaddedRate, (0 : BitString 1024))
+  ofSpongeView sha3512Layout (sha3EmptyPaddedRate, (0 : BitString 1024))
 
 #guard (getLane sha3EmptyPaddedState 0 0).toNat == 0x06
 #guard (getLane sha3EmptyPaddedState 3 1).toNat == 0x8000000000000000
@@ -82,8 +82,8 @@ private def sha3Message1600Digest : List (Fin 256) :=
     0x84, 0x73, 0x9A, 0x2D, 0xF4, 0x6B, 0xE5, 0x89, 0xC5, 0x1C, 0xA1, 0xA4, 0xA8, 0x41,
     0x6D, 0xF6, 0x54, 0x5A, 0x1C, 0xE8, 0xBA, 0x00]
 
-#guard sha3_512 [] == sha3EmptyDigest
-#guard sha3_512 (List.replicate 200 0xA3) == sha3Message1600Digest
+#guard sha3512 [] == sha3EmptyDigest
+#guard sha3512 (List.replicate 200 0xA3) == sha3Message1600Digest
 
 /-! ### Official NIST SHAKE256 examples -/
 
@@ -125,16 +125,16 @@ example (state : SpongeState) : toSpongeState (ofSpongeState state) = state :=
 example (A : State) : ofSpongeState (toSpongeState A) = A :=
   ofSpongeState_toSpongeState A
 
-example (input : List (Fin 256)) : (sha3_512 input).length = 64 :=
-  length_sha3_512 input
+example (input : List (Fin 256)) : (sha3512 input).length = 64 :=
+  length_sha3512 input
 
 example (input : List (Fin 256)) {m n : ℕ} (h : m ≤ n) :
     (shake256 input n).take m = shake256 input m :=
   take_shake256 input h
 
-example : Turing.MultiTapeTM.ComputableInPolyTime sha3_512
+example : Turing.MultiTapeTM.ComputableInPolyTime sha3512
     encByteStringLE encByteStringLE :=
-  computableInPolyTime_sha3_512
+  computableInPolyTime_sha3512
 
 example : Turing.MultiTapeTM.ComputableInPolyTime
     (fun p : List (Fin 256) × ℕ => shake256 p.1 p.2)

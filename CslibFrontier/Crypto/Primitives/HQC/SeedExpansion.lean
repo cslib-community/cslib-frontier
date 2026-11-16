@@ -57,7 +57,7 @@ decryption-key and encryption-key seed streams.
 The input is a 32-byte seed in the standardized parameter sets; the executable function remains
 total on every byte string, which is useful for its uniform machine certificate. -/
 @[expose] def pkeSeedDigest (seed : List (Fin 256)) : List (Fin 256) :=
-  sha3_512 (seed ++ [0x02])
+  sha3512 (seed ++ [0x02])
 
 /-- HQC-PKE's `I` expansion always emits 64 bytes. -/
 theorem length_pkeSeedDigest (seed : List (Fin 256)) : (pkeSeedDigest seed).length = 64 := by
@@ -82,15 +82,16 @@ abbrev encPkeSeedPrefixInput : (List (Fin 256) × (ℕ × ℕ)) ↪ List Bool :=
 
 The first requested length belongs to the decryption-key stream and the second to the
 encryption-key stream. This function recomputes each requested prefix from its seed. -/
-@[expose] def pkeSeedPrefixes
-    (input : List (Fin 256) × (ℕ × ℕ)) : List (Fin 256) × List (Fin 256) :=
-  let seeds := pkeSeeds input.1
-  (shake256 seeds.1 input.2.1, shake256 seeds.2 input.2.2)
+@[expose] def pkeSeedPrefixes :
+    (List (Fin 256) × (ℕ × ℕ)) → List (Fin 256) × List (Fin 256) :=
+  fun (seed, dkLength, ekLength) =>
+    let seeds := pkeSeeds seed
+    (shake256 seeds.1 dkLength, shake256 seeds.2 ekLength)
 
 /-- The two one-shot seed streams return exactly their requested numbers of bytes. -/
 theorem lengths_pkeSeedPrefixes (input : List (Fin 256) × (ℕ × ℕ)) :
-    (pkeSeedPrefixes input).1.length = input.2.1 ∧
-      (pkeSeedPrefixes input).2.length = input.2.2 := by
+    (pkeSeedPrefixes input).1.length = (Prod.fst ∘ Prod.snd) input ∧
+      (pkeSeedPrefixes input).2.length = (Prod.snd ∘ Prod.snd) input := by
   simp [pkeSeedPrefixes]
 
 /-- HQC-PKE's domain-separated hash `I` is uniformly polynomial-time. -/
@@ -102,9 +103,9 @@ theorem computableInPolyTime_pkeSeedDigest :
     ComputableInPolyTime.of_tidy <|
       Turing.MultiTapeTM.ComputableTidilyInPolyTime.listAppend encByteLE |>.comp
         ((id' (encIn := encByteStringLE)).tidy.prod (const [0x02]).tidy)
-  change ComputableInPolyTime (fun seed : List (Fin 256) => sha3_512 (seed ++ [0x02]))
+  change ComputableInPolyTime (fun seed : List (Fin 256) => sha3512 (seed ++ [0x02]))
     encByteStringLE encByteStringLE
-  exact computableInPolyTime_sha3_512.comp happended
+  exact computableInPolyTime_sha3512.comp happended
 
 /-- HQC's domain-separated SHA3-512 seed split is uniformly polynomial-time. -/
 theorem computableInPolyTime_pkeSeeds :
