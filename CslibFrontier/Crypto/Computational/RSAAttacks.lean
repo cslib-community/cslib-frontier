@@ -47,11 +47,13 @@ reductions connecting `RSAOneWay`, `RSAKeyRecoveryHard`, `TotientHard`, and
   `BinaryGcd.modInv e φ(N)` recovers a valid private exponent `d'`, and `rsaInvert N d'` inverts
   `rsaEval N e` on all residues modulo `N` (`RSAOneWay.rsaKeyRecoveryHard`,
   `RSAOneWay.totientHard`, `RSAOneWay.modulusFactoringHard`).
-* **Factoring from `(N, e, d)` and nontrivial square roots of `1`.** Every unit `x` modulo `N`
-  satisfies `x ^ (e * d - 1) ≡ 1`, and for any `N` and `y`, a square root `y` of `1` modulo
-  `N` other than `±1` gives the proper factors `gcd(y - 1, N)` and `gcd(y + 1, N)`
-  (`gcd_sub_one_proper_of_sq_modEq_one`, `gcd_add_one_proper_of_sq_modEq_one`)
-  [Arora–Barak, Lemma 20.24][AroraBarak07].
+* **Factoring from `x ^ 2 ≡ y ^ 2 [MOD N]`, nontrivial square roots of `1`, and `(N, e, d)`.**
+  Any `x, y` with `x ^ 2 ≡ y ^ 2 [MOD N]`, `x ≢ y [MOD N]`, and `x + y ≢ 0 [MOD N]` yield a proper
+  factor `gcd(x + y, N)` of `N`, and `gcd(x - y, N)` when `y ≤ x` (`gcd_sub_proper_of_sq_modEq`,
+  `gcd_add_proper_of_sq_modEq`) [Boneh–Shoup, §16.4.1, p. 697][BonehShoup2023]. Taking `y = 1`
+  recovers the nontrivial-square-root factoring lemmas `gcd_sub_one_proper_of_sq_modEq_one` and
+  `gcd_add_one_proper_of_sq_modEq_one` [Arora–Barak, Lemma 20.24][AroraBarak07], and every unit
+  `x` modulo `N` satisfies `x ^ (e * d - 1) ≡ 1`.
 
 ## Main definitions
 
@@ -83,11 +85,13 @@ reductions connecting `RSAOneWay`, `RSAKeyRecoveryHard`, `TotientHard`, and
   `Cslib.Crypto.RSAOneWay.modulusFactoringHard`:
   `RSAOneWay` implies private-exponent recovery hardness, totient hardness, and integer factoring
   hardness.
-* `Cslib.Crypto.gcd_sub_one_proper_of_sq_modEq_one`,
+* `Cslib.Crypto.gcd_sub_proper_of_sq_modEq`, `Cslib.Crypto.gcd_add_proper_of_sq_modEq`,
+  `Cslib.Crypto.gcd_sub_one_proper_of_sq_modEq_one`,
   `Cslib.Crypto.gcd_add_one_proper_of_sq_modEq_one`,
   `Cslib.Crypto.RSADesc.pow_mul_sub_one_modEq_one`, `Cslib.Crypto.RSADesc.gcd_sub_one_proper`,
-  `Cslib.Crypto.RSADesc.gcd_add_one_proper`: factoring from a nontrivial square root of `1` modulo
-  `N`, and the number-theoretic steps of factoring from `(N, e, d)`.
+  `Cslib.Crypto.RSADesc.gcd_add_one_proper`: factoring from `x ^ 2 ≡ y ^ 2 [MOD N]`, from a
+  nontrivial square root of `1` modulo `N`, and the number-theoretic steps of factoring from
+  `(N, e, d)`.
 
 ## Implementation notes
 
@@ -102,7 +106,9 @@ The two statements on factoring from `(N, e, d)` are the deterministic ingredien
 direction `ModulusFactoringHard → RSAKeyRecoveryHard` ([KatzLindell2020], Theorem 9.50 and
 Corollary 9.51, Section 9.2.5), which also needs the probability bound that a random unit leads to
 a nontrivial square root of `1`; that probabilistic algorithm and its analysis are not formalized
-here, so Theorem 9.50 and Corollary 9.51 themselves are not claimed.
+here, so Theorem 9.50 and Corollary 9.51 themselves are not claimed. For
+`x ^ 2 ≡ y ^ 2 [MOD N]` ([BonehShoup2023], Section 16.4.1, p. 697), only the deterministic
+gcd-factoring conclusion is formalized; the heuristic probability over random `x, y` is excluded.
 
 ## References
 
@@ -113,8 +119,9 @@ here, so Theorem 9.50 and Corollary 9.51 themselves are not claimed.
   Section 12.5.1, pp. 436–440 (plain RSA encryption Construction 12.26 and its attacks for
   small messages and for one message sent to several receivers).
   This is the source of the definitions.
-* [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023], context
-  only: the book has no private-exponent recovery experiment. Section 10.3, Attack Game 10.3
+* [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023],
+  Section 16.4.1, p. 697 (factoring from `x ^ 2 ≡ y ^ 2 [MOD N]`); context only for the
+  remainder: the book has no private-exponent recovery experiment, Section 10.3, Attack Game 10.3
   (p. 404) and Definition 10.5 (p. 405) state the RSA assumption, and Section 16.4, p. 696, gives
   the algorithm that factors `N`, computes `d` and then inverts.
 -/
@@ -240,7 +247,7 @@ theorem factorOfTotient_eq {p q : ℕ} (hq : 0 < q) (hqp : q ≤ p) :
   rw [factorOfTotient, hsum, hdisc, Nat.sqrt_eq']
   ext <;> dsimp only <;> omega
 
-/-! ### Factoring from a nontrivial square root of `1` and from `(N, e, d)` -/
+/-! ### Factoring from `x ^ 2 ≡ y ^ 2`, nontrivial square roots of `1`, and `(N, e, d)` -/
 
 /-- If `N > 1` divides `a * b` without dividing either `a` or `b`, then `gcd(a, N)` is a proper
 factor of `N`. -/
@@ -252,31 +259,44 @@ private theorem proper_gcd_of_dvd_mul {N a b : ℕ} (hN : 1 < N) (hdvd : N ∣ a
   exact ⟨by omega, lt_of_le_of_ne (Nat.gcd_le_right a (by omega)) fun h =>
     ha (h ▸ Nat.gcd_dvd_left a N)⟩
 
-/-- If `y ^ 2 ≡ 1 [MOD N]` for `N > 1`, then `y ≥ 1` and `N ∣ (y - 1) * (y + 1)`. -/
-private theorem dvd_sub_one_mul_add_one_of_sq_modEq_one {N y : ℕ} (hN : 1 < N)
-    (hsq : y ^ 2 ≡ 1 [MOD N]) : 1 ≤ y ∧ N ∣ (y - 1) * (y + 1) := by
-  have hy : 1 ≤ y := by
-    rcases Nat.eq_zero_or_pos y with rfl | h
-    · exfalso
-      have h := hsq
-      rw [Nat.ModEq, zero_pow two_ne_zero, Nat.zero_mod, Nat.mod_eq_of_lt hN] at h
-      exact zero_ne_one h
-    · exact h
-  refine ⟨hy, ?_⟩
-  have h := (Nat.modEq_iff_dvd' (Nat.one_le_pow _ _ hy)).mp hsq.symm
-  rwa [show y ^ 2 - 1 = (y - 1) * (y + 1) by
-    obtain ⟨z, rfl⟩ := Nat.exists_eq_add_of_le hy
-    rw [show 1 + z - 1 = z by omega, show (1 + z) ^ 2 = z * (1 + z + 1) + 1 by ring]
-    omega] at h
-
-/-- If `y ^ 2 ≡ 1 [MOD N]` and `y ≢ 1 [MOD N]`, then `1 < N`. -/
-private theorem one_lt_of_sq_modEq_one {N y : ℕ} (hsq : y ^ 2 ≡ 1 [MOD N])
-    (hone : ¬ y ≡ 1 [MOD N]) : 1 < N := by
+/-- If `x ^ 2 ≡ y ^ 2 [MOD N]` and `x ≢ y [MOD N]`, then `1 < N`. -/
+private theorem one_lt_of_sq_modEq {N x y : ℕ} (hsq : x ^ 2 ≡ y ^ 2 [MOD N])
+    (hsub : ¬ x ≡ y [MOD N]) : 1 < N := by
   rcases N with _ | _ | N
-  · simp only [Nat.ModEq, Nat.mod_zero] at hsq hone
-    exact False.elim (hone (by nlinarith))
-  · exact False.elim (hone (by simp [Nat.ModEq, Nat.mod_one]))
+  · simp only [Nat.ModEq, Nat.mod_zero] at hsq hsub
+    exact False.elim (hsub (Nat.pow_left_injective two_ne_zero hsq))
+  · exact False.elim (hsub (by simp [Nat.ModEq, Nat.mod_one]))
   · omega
+
+/-- If `y ≤ x` and `x ^ 2 ≡ y ^ 2 [MOD N]`, then `N ∣ (x - y) * (x + y)`. -/
+private theorem dvd_sub_mul_add_of_sq_modEq {N x y : ℕ} (hyx : y ≤ x)
+    (hsq : x ^ 2 ≡ y ^ 2 [MOD N]) : N ∣ (x - y) * (x + y) := by
+  have h := (Nat.modEq_iff_dvd' (Nat.pow_le_pow_left hyx 2)).mp hsq.symm
+  rwa [Nat.pow_two_sub_pow_two, Nat.mul_comm] at h
+
+/-- **Square-congruence factoring (`gcd(x - y, N)`)**: for any `N` and `y ≤ x`, if
+`x ^ 2 ≡ y ^ 2 [MOD N]`, `x ≢ y [MOD N]`, and `x + y ≢ 0 [MOD N]`, then `gcd(x - y, N)` is a
+proper factor of `N` [Boneh–Shoup, §16.4.1, p. 697][BonehShoup2023]. -/
+theorem gcd_sub_proper_of_sq_modEq {N x y : ℕ} (hyx : y ≤ x)
+    (hsq : x ^ 2 ≡ y ^ 2 [MOD N]) (hsub : ¬ x ≡ y [MOD N]) (hadd : ¬ x + y ≡ 0 [MOD N]) :
+    1 < Nat.gcd (x - y) N ∧ Nat.gcd (x - y) N < N :=
+  proper_gcd_of_dvd_mul (one_lt_of_sq_modEq hsq hsub) (dvd_sub_mul_add_of_sq_modEq hyx hsq)
+    (fun h => hsub ((Nat.modEq_iff_dvd' hyx).mpr h).symm)
+    (fun h => hadd (Nat.modEq_zero_iff_dvd.mpr h))
+
+/-- **Square-congruence factoring (`gcd(x + y, N)`)**: for any `N`, `x`, and `y`, if
+`x ^ 2 ≡ y ^ 2 [MOD N]`, `x ≢ y [MOD N]`, and `x + y ≢ 0 [MOD N]`, then `gcd(x + y, N)` is a
+proper factor of `N` [Boneh–Shoup, §16.4.1, p. 697][BonehShoup2023]. -/
+theorem gcd_add_proper_of_sq_modEq {N x y : ℕ} (hsq : x ^ 2 ≡ y ^ 2 [MOD N])
+    (hsub : ¬ x ≡ y [MOD N]) (hadd : ¬ x + y ≡ 0 [MOD N]) :
+    1 < Nat.gcd (x + y) N ∧ Nat.gcd (x + y) N < N := by
+  wlog hyx : y ≤ x generalizing x y
+  · rw [add_comm]
+    exact this hsq.symm (fun h => hsub h.symm) (add_comm x y ▸ hadd) (le_of_not_ge hyx)
+  exact proper_gcd_of_dvd_mul (one_lt_of_sq_modEq hsq hsub)
+    (mul_comm (x - y) (x + y) ▸ dvd_sub_mul_add_of_sq_modEq hyx hsq)
+    (fun h => hadd (Nat.modEq_zero_iff_dvd.mpr h))
+    (fun h => hsub ((Nat.modEq_iff_dvd' hyx).mpr h).symm)
 
 /-- **Nontrivial square root of `1` gives a proper factor (`gcd(y - 1, N)`)**: for any `N` and `y`,
 if `y ^ 2 ≡ 1 [MOD N]`, `y ≢ 1 [MOD N]`, and `y + 1 ≢ 0 [MOD N]`, then `gcd(y - 1, N)` is a proper
@@ -284,22 +304,22 @@ factor of `N` [Arora–Barak, Lemma 20.24][AroraBarak07]. -/
 theorem gcd_sub_one_proper_of_sq_modEq_one {N y : ℕ} (hsq : y ^ 2 ≡ 1 [MOD N])
     (hone : ¬ y ≡ 1 [MOD N]) (hneg : ¬ y + 1 ≡ 0 [MOD N]) :
     1 < Nat.gcd (y - 1) N ∧ Nat.gcd (y - 1) N < N := by
-  have hN : 1 < N := one_lt_of_sq_modEq_one hsq hone
-  obtain ⟨hy, hdvd⟩ := dvd_sub_one_mul_add_one_of_sq_modEq_one hN hsq
-  exact proper_gcd_of_dvd_mul hN hdvd (fun h => hone ((Nat.modEq_iff_dvd' hy).mpr h).symm)
-    (fun h => hneg (Nat.modEq_zero_iff_dvd.mpr h))
+  have hy : 1 ≤ y := by
+    rcases Nat.eq_zero_or_pos y with rfl | h
+    · exfalso
+      have hN := one_lt_of_sq_modEq ((Nat.one_pow 2).symm ▸ hsq) hone
+      rw [Nat.ModEq, zero_pow two_ne_zero, Nat.zero_mod, Nat.mod_eq_of_lt hN] at hsq
+      exact zero_ne_one hsq
+    · exact h
+  exact gcd_sub_proper_of_sq_modEq hy ((Nat.one_pow 2).symm ▸ hsq) hone hneg
 
 /-- **Nontrivial square root of `1` gives a proper factor (`gcd(y + 1, N)`)**: for any `N` and `y`,
 if `y ^ 2 ≡ 1 [MOD N]`, `y ≢ 1 [MOD N]`, and `y + 1 ≢ 0 [MOD N]`, then `gcd(y + 1, N)` is a proper
 factor of `N` [Arora–Barak, Lemma 20.24][AroraBarak07]. -/
 theorem gcd_add_one_proper_of_sq_modEq_one {N y : ℕ} (hsq : y ^ 2 ≡ 1 [MOD N])
     (hone : ¬ y ≡ 1 [MOD N]) (hneg : ¬ y + 1 ≡ 0 [MOD N]) :
-    1 < Nat.gcd (y + 1) N ∧ Nat.gcd (y + 1) N < N := by
-  have hN : 1 < N := one_lt_of_sq_modEq_one hsq hone
-  obtain ⟨hy, hdvd⟩ := dvd_sub_one_mul_add_one_of_sq_modEq_one hN hsq
-  exact proper_gcd_of_dvd_mul hN (mul_comm (y - 1) (y + 1) ▸ hdvd)
-    (fun h => hneg (Nat.modEq_zero_iff_dvd.mpr h))
-    (fun h => hone ((Nat.modEq_iff_dvd' hy).mpr h).symm)
+    1 < Nat.gcd (y + 1) N ∧ Nat.gcd (y + 1) N < N :=
+  gcd_add_proper_of_sq_modEq ((Nat.one_pow 2).symm ▸ hsq) hone hneg
 
 namespace RSADesc
 

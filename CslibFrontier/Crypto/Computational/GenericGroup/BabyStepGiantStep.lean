@@ -47,6 +47,8 @@ about running time in a machine model.
 
 * `Cslib.Crypto.GenericGroup.babyStepGiantStep`: baby-step/giant-step with `m` baby labels and
   `n` giant labels.
+* `Cslib.Crypto.GenericGroup.subgroupDlog`: baby-step/giant-step in a subgroup of order `w`, with
+  `m = n = Nat.sqrt (w - 1) + 1`.
 
 ## Main results
 
@@ -61,6 +63,10 @@ about running time in a machine model.
 * `Cslib.Crypto.GenericGroup.evalPure_groupAnswer_babyStepGiantStep`: in a `ZMod q`-module with
   `q ≠ 0`, for `g` of order `q`, the program run on the group's own oracle outputs the discrete
   logarithm.
+* `Cslib.Crypto.GenericGroup.evalPure_subgroupDlog`,
+  `Cslib.Crypto.GenericGroup.queriesSatisfy_subgroupDlog`,
+  `Cslib.Crypto.GenericGroup.isQueryBounded_subgroupDlog`: correctness and product count
+  `2 * Nat.sqrt (w - 1)` for `subgroupDlog`.
 
 ## References
 
@@ -146,42 +152,50 @@ private theorem not_mem_of_firstMatch_eq_none [DecidableEq S] {baby giant : List
   have := List.findSome?_eq_none_iff.mp h (ℓ, γ) (List.mem_zipIdx_iff_getElem?.mpr hγ)
   simp [hb] at this
 
-/-- When `q ≤ m * n`, every `α : ZMod q` is `(β + 1) - m * γ` for some `β < m` and `γ < n`. -/
-private theorem exists_add_one_eq_add_mul [NeZero q] {m n : ℕ} (hmn : q ≤ m * n) (α : ZMod q) :
-    ∃ β < m, ∃ γ < n, (1 + β : ZMod q) = α + γ * m := by
-  set s := ((m : ZMod q) - α).val with hs_def
-  have hs : s < q := ZMod.val_lt _
-  have hm : 0 < m := Nat.pos_of_mul_pos_right ((Nat.pos_of_neZero q).trans_le hmn)
+/-- When `addOrderOf t ≤ m * n`, `(1 + β) * t = (α + γ * m) * t` for some `β < m` and `γ < n`. -/
+private theorem exists_add_one_mul_eq_add_mul [NeZero q] {m n : ℕ} (t : ZMod q)
+    (hmn : addOrderOf t ≤ m * n) (α : ZMod q) :
+    ∃ β < m, ∃ γ < n, ((1 + β : ℕ) : ZMod q) * t = (α + γ * m) * t := by
+  set w := addOrderOf t with hw_def
+  have hw := addOrderOf_pos t
+  have : NeZero w := ⟨hw.ne'⟩
+  have hm : 0 < m := Nat.pos_of_mul_pos_right (hw.trans_le hmn)
+  set s := ((m : ZMod w) - (α.val : ZMod w)).val with hs_def
+  have hs : s < w := ZMod.val_lt _
   refine ⟨m - 1 - s % m, by omega, s / m, (Nat.div_lt_iff_lt_mul hm).mpr (by nlinarith), ?_⟩
-  have h₁ : ((1 + (m - 1 - s % m) + s % m : ℕ) : ZMod q) = m := by
-    congr 1
-    have := Nat.mod_lt s hm
-    omega
-  have h₂ : ((s : ℕ) : ZMod q) = ((s % m + m * (s / m) : ℕ) : ZMod q) := by
-    rw [Nat.mod_add_div]
-  have h₃ : ((s : ℕ) : ZMod q) = m - α := by
-    rw [hs_def, ZMod.natCast_zmod_val]
+  have hmod_mul (k : ℕ) : (k : ZMod q) * t = ((k % w : ℕ) : ZMod q) * t := by
+    rw [← nsmul_eq_mul, ← nsmul_eq_mul, hw_def, mod_addOrderOf_nsmul]
+  have h₁ : ((1 + (m - 1 - s % m) + s % m : ℕ) : ZMod w) = m := by
+    congr 1; have := Nat.mod_lt s hm; omega
+  have h₂ : ((s : ℕ) : ZMod w) = ((s % m + m * (s / m) : ℕ) : ZMod w) := by rw [Nat.mod_add_div]
+  have h₃ : ((s : ℕ) : ZMod w) = m - α.val := by rw [hs_def, ZMod.natCast_zmod_val]
   push_cast at h₁ h₂
-  linear_combination h₁ + h₂ - h₃
+  have hz : ((1 + (m - 1 - s % m) : ℕ) : ZMod w) = ((α.val + (s / m) * m : ℕ) : ZMod w) := by
+    push_cast; linear_combination h₁ + h₂ - h₃
+  have hval := congr_arg ZMod.val hz
+  simp only [ZMod.val_natCast] at hval
+  rw [hmod_mul (1 + (m - 1 - s % m)), hval, ← hmod_mul (α.val + (s / m) * m)]
+  push_cast; rw [ZMod.natCast_zmod_val]
 
-/-- Correctness against any oracle that multiplies labels of an injective labeling. -/
-private theorem evalPure_babyStepGiantStep_of_op [NeZero q] [DecidableEq S]
+/-- Correctness against any oracle that multiplies labels of an injective labeling, for a base `t`
+of any order `addOrderOf t ≤ m * n`. -/
+private theorem evalPure_babyStepGiantStep_mul_of_op [NeZero q] [DecidableEq S]
     (hL : Function.Injective L) (hO : ∀ β₁ β₂, O (.op (L β₁) (L β₂) 1 1) = some (L (β₁ + β₂)))
-    {m n : ℕ} (hmn : q ≤ m * n) (α : ZMod q) :
-    (babyStepGiantStep m n (L 1) (L α)).evalPure O = α := by
-  have hmn' := (Nat.pos_of_neZero q).trans_le hmn
+    {m n : ℕ} (t : ZMod q) (hmn : addOrderOf t ≤ m * n) (α : ZMod q) :
+    (babyStepGiantStep m n (L t) (L (α * t))).evalPure O * t = α * t := by
+  have hmn' := (addOrderOf_pos t).trans_le hmn
   have hm := Nat.pos_of_mul_pos_right hmn'
   have hn := Nat.pos_of_mul_pos_left hmn'
-  have hbaby : (walk (L 1) (L 1) (m - 1)).evalPure O =
-      (List.range m).map fun i : ℕ => L (1 + i) := by
-    rw [evalPure_walk hO, Nat.sub_add_cancel hm]
-    simp only [mul_one]
-  have hlast : ((List.range m).map fun i : ℕ => L (1 + i)).getLastD (L 1) = L m := by
+  have hbaby : (walk (L t) (L t) (m - 1)).evalPure O =
+      (List.range m).map fun i : ℕ => L ((1 + i) * t) := by
+    rw [evalPure_walk hO, Nat.sub_add_cancel hm]; congr 1; ext i; congr 1; ring
+  have hlast : ((List.range m).map fun i : ℕ => L ((1 + i) * t)).getLastD (L t) =
+      L (m * t) := by
     rw [List.getLastD_eq_getLast?, List.getLast?_map, List.getLast?_range, ite_eq_right hm.ne',
       Option.map_some, Option.getD_some, Nat.cast_pred hm, add_sub_cancel]
-  have hgiant : (walk (L m) (L α) (n - 1)).evalPure O =
-      (List.range n).map fun j : ℕ => L (α + j * m) := by
-    rw [evalPure_walk hO, Nat.sub_add_cancel hn]
+  have hgiant : (walk (L (m * t)) (L (α * t)) (n - 1)).evalPure O =
+      (List.range n).map fun j : ℕ => L ((α + j * m) * t) := by
+    rw [evalPure_walk hO, Nat.sub_add_cancel hn]; congr 1; ext j; congr 1; ring
   unfold babyStepGiantStep
   simp only [OracleComp.evalPure_bind, OracleComp.evalPure_pure, hbaby, hlast, hgiant]
   split
@@ -193,12 +207,13 @@ private theorem evalPure_babyStepGiantStep_of_op [NeZero q] [DecidableEq S]
     obtain ⟨-, heq⟩ := hg
     linear_combination -hL heq
   · rename_i h
-    obtain ⟨β, hβ, γ, hγ, heq⟩ := exists_add_one_eq_add_mul hmn α
+    obtain ⟨β, hβ, γ, hγ, heq⟩ := exists_add_one_mul_eq_add_mul t hmn α
     exfalso
     refine not_mem_of_firstMatch_eq_none h
-      (List.mem_map_of_mem (f := fun j : ℕ => L (α + j * m)) (List.mem_range.mpr hγ)) ?_
+      (List.mem_map_of_mem (f := fun j : ℕ => L ((α + j * m) * t)) (List.mem_range.mpr hγ)) ?_
     rw [← heq]
-    exact List.mem_map_of_mem (f := fun i : ℕ => L (1 + i)) (List.mem_range.mpr hβ)
+    push_cast
+    exact List.mem_map_of_mem (f := fun i : ℕ => L ((1 + i) * t)) (List.mem_range.mpr hβ)
 
 /-- **Correctness.** For `q ≠ 0`, an injective labeling `L` and table sizes with `q ≤ m * n`,
 baby-step/giant-step on the labels of `1` and `α` outputs `α` ([BonehShoup2023],
@@ -206,9 +221,10 @@ Section 16.1.1, run in the generic group of Section 16.3). There is no primality
 book says that `q` may or may not be prime. -/
 theorem evalPure_babyStepGiantStep [NeZero q] [DecidableEq S] {L : ZMod q → S}
     (hL : Function.Injective L) {m n : ℕ} (hmn : q ≤ m * n) (α : ZMod q) :
-    (babyStepGiantStep m n (L 1) (L α)).evalPure (answer L) = α :=
-  evalPure_babyStepGiantStep_of_op hL
-    (fun β₁ β₂ => by rw [answer_op_label hL, one_mul, one_mul]) hmn α
+    (babyStepGiantStep m n (L 1) (L α)).evalPure (answer L) = α := by
+  simpa [mul_one] using evalPure_babyStepGiantStep_mul_of_op hL
+    (fun β₁ β₂ => by rw [answer_op_label hL, one_mul, one_mul]) 1
+    (by rwa [ZMod.addOrderOf_one]) α
 
 /-- **Correctness in a group.** For `q ≠ 0`, in a `ZMod q`-module `G` with `g` of order `q` (the
 map `β ↦ β • g` is injective) and table sizes with `q ≤ m * n`, baby-step/giant-step run on the
@@ -219,9 +235,10 @@ theorem evalPure_groupAnswer_babyStepGiantStep [NeZero q] {G : Type} [AddCommGro
     [Module (ZMod q) G] [DecidableEq G] {g : G} (hg : Function.Injective fun β : ZMod q => β • g)
     {m n : ℕ} (hmn : q ≤ m * n) (α : ZMod q) :
     (babyStepGiantStep m n g (α • g)).evalPure (groupAnswer q g) = α := by
-  have h := evalPure_babyStepGiantStep_of_op (O := groupAnswer q g) hg
-    (fun β₁ β₂ => by simp only [groupAnswer, one_smul, add_smul]) hmn α
-  rwa [one_smul] at h
+  have h := evalPure_babyStepGiantStep_mul_of_op (O := groupAnswer q g) hg
+    (fun β₁ β₂ => by simp only [groupAnswer, one_smul, add_smul]) 1
+    (by rwa [ZMod.addOrderOf_one]) α
+  rwa [one_smul, mul_one, mul_one] at h
 
 end Correctness
 
@@ -288,5 +305,43 @@ theorem babyStepGiantStep_sqrt [NeZero q] [DecidableEq S] {L : ZMod q → S}
     omega
   · simpa [two_mul] using isQueryBounded_babyStepGiantStep (q := q)
       (Nat.sqrt (q - 1) + 1) (Nat.sqrt (q - 1) + 1) (L 1) (L α)
+
+/-- Baby-step/giant-step in a subgroup of order `w`, with `m = n = Nat.sqrt (w - 1) + 1` and the
+residue modulo `w` as output. -/
+def subgroupDlog [DecidableEq S] (w : ℕ) (g u : S) : OracleComp (GroupOracleSpec q S) ℕ :=
+  (fun x : ZMod q => x.val % w) <$>
+    babyStepGiantStep (Nat.sqrt (w - 1) + 1) (Nat.sqrt (w - 1) + 1) g u
+
+/-- **Subgroup correctness.** For `q ≠ 0`, an injective labeling `L`, any oracle `O` that
+multiplies labels of `L`, and a base `t` with `addOrderOf t = w`, `subgroupDlog w (L t) (L (a * t))`
+outputs `a` for every `a < w`. -/
+theorem evalPure_subgroupDlog [NeZero q] [DecidableEq S] {L : ZMod q → S}
+    (hL : Function.Injective L) {O : (query : GroupQuery q S) → GroupOracleSpec q S query}
+    (hO : ∀ β₁ β₂, O (.op (L β₁) (L β₂) 1 1) = some (L (β₁ + β₂)))
+    {w : ℕ} {t : ZMod q} (ht : addOrderOf t = w) {a : ℕ} (ha : a < w) :
+    (subgroupDlog w (L t) (L (a * t))).evalPure O = a := by
+  have hw : 0 < w := ht ▸ addOrderOf_pos t
+  have hsq : addOrderOf t ≤ (Nat.sqrt (w - 1) + 1) * (Nat.sqrt (w - 1) + 1) := by
+    have := Nat.lt_succ_sqrt (w - 1); rw [Nat.succ_eq_add_one] at this; omega
+  have hmul := evalPure_babyStepGiantStep_mul_of_op hL hO t hsq a
+  rw [subgroupDlog, OracleComp.evalPure_map]
+  subst ht
+  refine nsmul_injOn_Iio_addOrderOf (Nat.mod_lt _ hw) ha ?_
+  beta_reduce
+  rw [mod_addOrderOf_nsmul, nsmul_eq_mul, nsmul_eq_mul, ZMod.natCast_zmod_val, hmul]
+
+/-- Every query made by `subgroupDlog` is a product (`GroupQuery.IsProduct`). -/
+theorem queriesSatisfy_subgroupDlog [DecidableEq S] (w : ℕ) (g u : S) :
+    OracleComp.QueriesSatisfy GroupQuery.IsProduct (subgroupDlog (q := q) w g u) :=
+  (OracleComp.queriesSatisfy_map_iff _ _).mpr (queriesSatisfy_babyStepGiantStep _ _ _ _)
+
+/-- `subgroupDlog` makes at most `2 * Nat.sqrt (w - 1)` product queries on every path, whatever
+the oracle returns; exponent and modulus arithmetic and table search are not costed, and no
+machine-model bound is claimed. -/
+theorem isQueryBounded_subgroupDlog [DecidableEq S] (w : ℕ) (g u : S) :
+    OracleComp.IsQueryBounded (subgroupDlog (q := q) w g u) (2 * Nat.sqrt (w - 1)) := by
+  refine (OracleComp.isCostBounded_map_iff _ _ _).mpr ?_
+  simpa [two_mul] using isQueryBounded_babyStepGiantStep (q := q)
+    (Nat.sqrt (w - 1) + 1) (Nat.sqrt (w - 1) + 1) g u
 
 end Cslib.Crypto.GenericGroup
