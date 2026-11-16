@@ -410,6 +410,16 @@ conclusion that DDH does not hold in `Z_p^*` is proved only in the fixed-group f
 `not_ddh_of_even_order` to the residue groups `ZMod (2 (n + 1))`, and derives that a prime-order
 family fails `PrimeOrderGroupFamily.DDH` for any setup law that only produces groups of order `2`.
 
+For a linear feedback shift register ([bs23][bs23], Section 3.8, p. 75), `LFSR.output taps ℓ state`
+in [`PRG/LFSR.lean`](../../CslibFrontier/Crypto/Primitives/PRG/LFSR.lean) clocks it `ℓ` times with
+feedback bit [`listDot`](../../CslibFrontier/Foundations/Data/BitString/List/Dot.lean) `taps state`;
+`n` consecutive output bits determine all later ones (`drop_output_eq_output_take_drop`), and the
+feedback-bit predictor wins Attack Game 3.2 with probability `1` at every position `i ≥ n`.
+[`PseudorandomGenerator/LFSR.lean`](../../CslibFrontier/Crypto/Computational/PseudorandomGenerator/LFSR.lean)
+proves `LFSR.not_pseudorandomGenerator` with the polynomial-time `rerunDistinguisher`; only security
+fails (`computableInPolyTime_wordGenerator`). Taps are public, every seed is allowed (the book
+excludes the all-zero one), and the attack on CSS is not formalized.
+
 Inversion and prediction are each stated once, for a fixed function and input distribution, in
 [`Crypto/Game/Inversion.lean`](../../CslibFrontier/Crypto/Game/Inversion.lean):
 `inversionExperiment sample f A` draws `x`, gives `A` the image `f x` and accepts any preimage,

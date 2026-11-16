@@ -4736,6 +4736,7 @@ public import CslibFrontier.Crypto.Computational.PseudorandomFunction.MultiKey
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.RandomOracle
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.TruthTable
 public import CslibFrontier.Crypto.Computational.PseudorandomGenerator
+public import CslibFrontier.Crypto.Computational.PseudorandomGenerator.LFSR
 public import CslibFrontier.Crypto.Computational.PseudorandomPermutation
 public import CslibFrontier.Crypto.Computational.QuadraticResiduosity
 public import CslibFrontier.Crypto.Computational.Quantum
@@ -4916,6 +4917,7 @@ public import CslibFrontier.Crypto.Primitives.PRF.RandPrefixFreeEncoding
 public import CslibFrontier.Crypto.Primitives.PRF.RandomOracleModel
 public import CslibFrontier.Crypto.Primitives.PRG.Circuit
 public import CslibFrontier.Crypto.Primitives.PRG.Game
+public import CslibFrontier.Crypto.Primitives.PRG.LFSR
 public import CslibFrontier.Crypto.Primitives.PRG.NextBit
 public import CslibFrontier.Crypto.Primitives.PRG.Nisan
 public import CslibFrontier.Crypto.Primitives.PRG.Nisan.Bits
