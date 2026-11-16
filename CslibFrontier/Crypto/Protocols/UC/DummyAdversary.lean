@@ -110,13 +110,6 @@ section LiftNet
       ProbOracleComp.query (spec := protocolSpec n In Out NetQ NetR) (.inr q) :=
   OracleComp.interpret_query _ _
 
-/-- Private uniform index queries are unchanged. -/
-@[simp] theorem liftNet_unifFin (k : ℕ) :
-    liftNet (n := n) (In := In) (Out := Out)
-        (OracleComp.query (spec := probOracleSpec (netSpec NetQ NetR)) (Sum.inl k)) =
-      OracleComp.query (spec := probOracleSpec (protocolSpec n In Out NetQ NetR)) (Sum.inl k) :=
-  OracleComp.interpret_query _ _
-
 /-- Private samples are unchanged. -/
 @[simp] theorem liftNet_sample (program : ProbComp α) :
     liftNet (n := n) (In := In) (Out := Out)
