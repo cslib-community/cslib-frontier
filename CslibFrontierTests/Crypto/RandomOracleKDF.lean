@@ -16,8 +16,8 @@ import CslibFrontier.Probability.PMF.UniformPoint
 
 Clients of `CslibFrontier.Crypto.Computational.KeyDerivation.RandomOracle` under module
 encapsulation, including hypothesis counterexample probes and concrete positive instances of
-Attack Game 8.3 and Theorem 8.10 ([BonehShoup2023], §8.10.1–8.10.2, pp. 325–326, 331–332, and
-§11.5.2, p. 449).
+Attack Game 8.3 and the bounds of Theorem 8.10 ([BonehShoup2023], §8.10.1–8.10.2, pp. 325–326
+and 331–332, and §11.5.2 Attack Game 11.3, pp. 448–449).
 -/
 
 public section
@@ -159,6 +159,24 @@ theorem guessAdvantage_bitString128_take64_le
       (Fin.take 64 (Nat.le_add_right 64 64)) A ≤ 1 / 2 ^ 64 :=
   guessAdvantage_uniformOfFintype_take_le 64 64 A
 
+/-- **Test 3a ([BonehShoup2023], §8.10.1 third example, pp. 325–326)**: applying
+`guessAdvantage_le_card_mul_of_mass_le` directly to the uniform 128-bit secret with 64 bits
+leaked (`|BitString 64| * 2⁻¹²⁸ = 2⁻⁶⁴`). -/
+theorem guessAdvantage_bitString128_take64_le_of_mass_le
+    (A : GuessAdversary (BitString 64) (BitString (64 + 64))) :
+    guessAdvantage (uniformOfFintype (BitString (64 + 64)))
+      (Fin.take 64 (Nat.le_add_right 64 64)) A ≤ 1 / 2 ^ 64 := by
+  have h := guessAdvantage_le_card_mul_of_mass_le
+    (uniformOfFintype (BitString (64 + 64))) (Fin.take 64 (Nat.le_add_right 64 64))
+    (mass := (2 ^ 128 : ℝ≥0)⁻¹) (fun s => by
+      simp [PMF.uniformOfFintype_apply, BitString]
+      norm_num) A
+  refine h.trans_eq ?_
+  have hcard : Fintype.card (BitString 64) = 2 ^ 64 := by
+    simp [BitString, Fintype.card_pi]
+  rw [hcard]
+  norm_num
+
 theorem roAdvantage_bitString128_take64_le {T : Type} [Fintype T] [Nonempty T]
     {D : RODistinguisher (BitString 64) (BitString (64 + 64)) T} {Q : ℕ}
     (hQ : D.IsOracleQueryBounded Q) :
@@ -167,9 +185,9 @@ theorem roAdvantage_bitString128_take64_le {T : Type} [Fintype T] [Nonempty T]
   (roAdvantage_le_mul_guessAdvantage _ _ hQ).trans
     (mul_le_mul' le_rfl (guessAdvantage_bitString128_take64_le (roToGuess Q D)))
 
-/-- **Test 4 ([BonehShoup2023], §11.5.2, p. 449)**: On the family of uniform `(n + n)`-bit secrets
-with the first `n` bits leaked, every polynomially query-bounded family of random-oracle KDF
-distinguishers has negligible distinguishing advantage. -/
+/-- **Test 4 ([BonehShoup2023], §8.10.2, p. 331, and §11.5.2 Attack Game 11.3, pp. 448–449)**:
+on the family of uniform `(n + n)`-bit secrets with the first `n` bits leaked, every polynomially
+query-bounded family of random-oracle KDF distinguishers has negligible distinguishing advantage. -/
 theorem negligible_roAdvantage_bitString_take {T : ℕ → Type}
     [∀ n, Fintype (T n)] [∀ n, Nonempty (T n)]
     {D : ∀ n, RODistinguisher (BitString n) (BitString (n + n)) (T n)} {Q : ℕ → ℕ}

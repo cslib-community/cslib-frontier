@@ -307,37 +307,49 @@ side information, and transports `F.secureKDF_linearHashKDF` through `F.secureKD
 run `scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.KeyDerivation`.
 
 For key derivation in the random-oracle model ([bs23][bs23], Section 8.10.1–8.10.2, Attack Game 8.3
-and Theorem 8.10, pp. 325–326 and 331–332, and Section 11.5.2, p. 449), import
+and the advantage and list-size bounds of Theorem 8.10, pp. 325–326 and 331–332, together with Attack
+Game 11.3 in Section 11.5.2, pp. 448–449), import
 [`KeyDerivation/RandomOracle.lean`](../../CslibFrontier/Crypto/Computational/KeyDerivation/RandomOracle.lean)
 and open `Cslib.Crypto.KeyDerivation`. Attack Game 8.3 (`guessOutput`, `guessAdvantage`) plays
 against `GuessAdversary X S` given `info s : X` (with `guessAdvantage_le_pure_maxPosteriorGuess` and
 `guessAdvantage_le_one_sub_errorProb_maxPosteriorGuess` showing that
 `Cslib.Probability.PMF.maxPosteriorGuess` of
 [`Probability/Entropy/Guessing.lean`](../../CslibFrontier/Probability/Entropy/Guessing.lean)
-maximizes `guessAdvantage` among randomized adversaries whenever `S` is finite and nonempty), with
-the Section 8.10.1 bounds `guessAdvantage_le_card_mul_of_mass_le`,
-`guessAdvantage_uniformOfFintype_const` (`(Fintype.card S)⁻¹` when `info` is constant),
-`guessAdvantage_bind_uniformOfFintype_fst_le`, and `guessAdvantage_uniformOfFintype_take_le`
-(`≤ 1 / 2 ^ m` when `k` of `k + m` uniform bits are leaked). The list-guessing game
-(`listGuessOutput`, `listGuessAdvantage`, `listGuessToGuess`) gives
-`listGuessAdvantage_le_mul_guessAdvantage` whenever `l.length ≤ Q` on
-`(ProbComp.eval (B x)).support`. Over finite nonempty `S` and `T`, `roRealOutput`,
-`roIdealOutput`, and `roAdvantage` average `realOutput` and `idealOutput` over an eager random
-oracle `table ← PMF.uniformOfFintype (S → T)` against `RODistinguisher X S T`; for Theorem 8.10,
-`roAdvantage_le_listGuessAdvantage` requires no query bound for `roToListGuess D`, while under
-`RODistinguisher.IsOracleQueryBounded D Q`, `length_le_of_mem_support_roToListGuess` certifies
-`roToListGuess D` and `roAdvantage_le_mul_guessAdvantage` bounds `roAdvantage` by
-`Q * guessAdvantage` for `roToGuess Q D`, transferring asymptotically to
-`negligible_roAdvantage_of_negligible_guessAdvantage` for information-theoretically unpredictable
-sources (the bound holds for every adversary with the book's query bound and list size; the
-wrappers sample the whole oracle table `S → T` eagerly, so an efficient lazy-simulation wrapper with
-a polynomial-time certificate—needed to apply computational guessing assumptions such as CDH in
-Section 11.5.2—remains open). The
-[random-oracle KDF client](../../CslibFrontierTests/Crypto/RandomOracleKDF.lean) checks all three
-added hypotheses with explicit counterexamples (`guessAdvantage_uniformOfFintype_id_ne_inv`,
+maximizes `guessAdvantage` among randomized adversaries whenever `S` is finite and nonempty). For
+Section 8.10.1, when `X` is finite and every secret has probability at most `mass`,
+`guessAdvantage_le_card_mul_of_mass_le` bounds `guessAdvantage` by `Fintype.card X * mass`; when
+`S` is finite and nonempty, `sample = PMF.uniformOfFintype S`, and `info` is constant,
+`guessAdvantage_uniformOfFintype_const` equals `(Fintype.card S)⁻¹`; for a secret `(x, y)` with
+`x ← p` and `y` drawn uniformly from a finite nonempty `Y` independently of the leaked `x = Prod.fst (x, y)`
+(matching Attack Game 11.3 in Section 11.5.2, pp. 448–449),
+`guessAdvantage_bind_uniformOfFintype_fst_le` bounds `guessAdvantage` by `(Fintype.card Y)⁻¹`; and
+`guessAdvantage_uniformOfFintype_take_le` gives `≤ 1 / 2 ^ m` when `k` of `k + m` uniform bits are
+leaked. In the list-guessing game (`listGuessOutput`, `listGuessAdvantage`, `listGuessToGuess`),
+when `S` is nonempty (with `DecidableEq S`) and `l.length ≤ Q` for every `x` and
+`l ∈ (ProbComp.eval (B x)).support`, `listGuessAdvantage_le_mul_guessAdvantage` proves
+`listGuessAdvantage sample info B ≤ Q * guessAdvantage sample info (listGuessToGuess Q B)`. Over
+finite nonempty `S` and `T`, `roRealOutput`, `roIdealOutput`, and `roAdvantage` average
+`realOutput` and `idealOutput` over an eager random oracle `table ← PMF.uniformOfFintype (S → T)`
+against `RODistinguisher X S T`; `roAdvantage_le_listGuessAdvantage` requires no query bound for
+`roToListGuess D`, while under `RODistinguisher.IsOracleQueryBounded D Q`,
+`length_le_of_mem_support_roToListGuess` bounds the support lists of `roToListGuess D` by `Q` and
+`roAdvantage_le_mul_guessAdvantage` proves
+`roAdvantage sample info D ≤ Q * guessAdvantage sample info (roToGuess Q D)` (because
+`roToListGuess` and `roToGuess` sample `S → T` eagerly, these give the two bounds of Theorem 8.10
+without its claim that the wrappers are elementary). Given `PolynomiallyBounded Q`,
+`(D n).IsOracleQueryBounded (Q n)` for every `n` over finite nonempty `S n` and `T n`, and the
+premise that every family `A : ∀ n, GuessAdversary (X n) (S n)` (with no efficiency bound) has
+negligible guessing advantage, `negligible_roAdvantage_of_negligible_guessAdvantage` proves
+`Negligible fun n => roAdvantage (sample n) (info n) (D n)` (the bounds hold for every adversary
+meeting the printed query bound and list size; an efficient lazy-simulation wrapper with a
+polynomial-time certificate—needed to apply computational guessing assumptions such as the fourth
+example of Section 8.10.1, p. 326, or CDH in Theorem 11.4 of Section 11.5.1, p. 446—remains open).
+The [random-oracle KDF client](../../CslibFrontierTests/Crypto/RandomOracleKDF.lean) checks the
+constant-leakage condition and the added list-length and query-bound hypotheses with explicit
+counterexamples (`guessAdvantage_uniformOfFintype_id_ne_inv`,
 `not_listGuessAdvantage_le_mul_of_length_gt`, `mem_support_roToListGuess_queryFalseDistinguisher`,
-and `not_roAdvantage_le_mul_of_not_queryBounded`) alongside positive concrete and asymptotic
-instances; run
+and `not_roAdvantage_le_mul_of_not_queryBounded`) alongside `maxPosteriorGuess` bounds, the
+`guessAdvantage_le_card_mul_of_mass_le` check, and concrete and asymptotic positive instances; run
 `scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.RandomOracleKDF`.
 
 `dlToCDHAdversary` and `cdhToDDHDistinguisher` are the elementary reductions behind
