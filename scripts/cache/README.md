@@ -153,6 +153,58 @@ existing hard-linked cache objects. Merge groups do not publish to GCS: the norm
 `main` run remains the only public-cache writer. This makes its outputs available sooner to
 following builds while preserving the public cache's authorization boundary.
 
+### Later merge groups
+
+A merge-group build also restores a handoff: that of its **nearest first-parent ancestor that has
+one** (`scripts/cache_handoff.py restore --ancestor`, step *Restore nearest ancestor merge-group
+build outputs*). The step runs after the Actions `.lake` snapshot is restored and before the
+remote cache. It replaces `.lake/build` as a unit, so in this order `scripts/cache/get-missing.sh`
+compares its mapping with the installed build's traces and downloads only what that build still
+lacks, instead of outputs the handoff would replace; after a miss the remote cache and the build
+run as before. The other caches are published only when a build of `main` completes, one at a time,
+so they lag the queue; two merge groups inspected on November 14, 2026 started 20 and 32 commits
+behind and recompiled 908 and 2,292 modules. Every commit that lands through the queue has a
+handoff from its own merge-group run, so the nearest one is normally the tip of `main` when the
+group was formed, or a queue entry ahead of it whose run has already succeeded.
+
+- **Search.** The script reads the first-parent chain of the checked-out commit, deepening the
+  depth-1 checkout only when it holds fewer commits than it needs, and considers at most 20
+  ancestors (`ANCESTOR_LIMIT`), nearest first. The fetch runs under the cache scripts' process
+  supervisor (`scripts/cache/bounded.py`) with a 60-second limit: a timeout or failure, once the
+  fetch's processes are confirmed stopped, only leaves fewer ancestors to consider. An
+  unconfirmed shutdown is the one case in which this optional step fails the build: the script
+  exits 125 before anything is downloaded, the step records that status, and the next step
+  (*Stop after an unconfirmed ancestor-handoff shutdown*) fails the job, so that neither the
+  remote cache nor `lake build` runs beside a fetch that may still be writing. Rerun the job. An ancestor
+  with no merge-group run, a failed, cancelled or unfinished latest run, or a missing or expired
+  artifact is skipped at the cost of one run listing. The bound of 20 and the cost of a miss are
+  operational assumptions, not guarantees: a listing usually returns in about a second, each is
+  limited to 60 seconds, and only the step's 10-minute timeout bounds the whole search; a usable
+  build more than 20 commits back is not found, on the expectation, not yet measured, that the
+  `.lake` snapshot and the remote cache are then about as good.
+- **Validation.** Each candidate is checked exactly as the `main` restoration checks its own
+  commit, with the ancestor's SHA in place of the current one: the run must be the latest
+  successful `merge_group` attempt of `lean_action_ci.yml` in this repository for that ancestor,
+  on a `gh-readonly-queue/main/` branch, and the artifact and its metadata must name that run,
+  attempt and ancestor. The toolchain, dependency manifest and `lakefile.toml` digests, runner
+  platform and recovery generation recorded in the artifact must equal those of the *current*
+  checkout and runner, so a toolchain or dependency bump in between is a miss.
+- **Scope.** Only `merge_group` events may use this path; the script refuses any other event and
+  the step does not run on pull requests, whose code is unreviewed. The ancestors are commits the
+  current group contains, so the group reuses only builds of sources it already includes. It
+  reads a GitHub artifact with the job's read-only token and obtains no cloud credential.
+- **Outcome.** Restoration replaces the root `.lake/build` as a unit, like the `main`
+  restoration; Lake's artifact cache and `.lake/packages` are untouched, and Lake then recompiles
+  whatever the newer commits and the group changed. The log line is `Build handoff restored from
+  ancestor <sha> (<n> first-parent commits back), run …`. Any miss is a `Build handoff
+  unavailable` workflow warning with exit status 0, and the ordinary build runs. A failure after the ancestor is
+  chosen (download, archive, metadata, a rerun in progress) is a miss; the script does not then
+  try an older build, since the step has one download budget.
+- **Limits.** If the nearest ancestor's pack or upload failed, the build restored can be older than
+  the snapshot already in `.lake`, and replaces it; the remote cache then fills what it can, and
+  Lake's artifact cache, which is outside `.lake/build`, is not replaced. After two days without a
+  landed commit every handoff has expired and the step is a miss.
+
 - **Payload.** The archive keeps compiled outputs (including private/server OLeans, IR and native
   code), hashes and traces. It omits only `ir/**/*.setup.json` and `ir/**/*.irsetup.json`: Lake's
   transient compiler setup inputs. Lake writes these inside a compilation action and does not
@@ -163,10 +215,10 @@ following builds while preserving the public cache's authorization boundary.
   handoff. Packing reports retained and omitted counts/sizes, and in Actions a limit miss or any
   other unavailable handoff is a workflow warning on the run summary.
 - **Kill switch.** Setting the repository variable `DISABLE_BUILD_HANDOFF` to `1` or `true`
-  (`gh variable set DISABLE_BUILD_HANDOFF --body 1`) disables both merge-group staging and `main`
-  restoration without a commit; `scripts/cache_handoff.py` also honors `DISABLE_BUILD_HANDOFF` in
-  its environment (treating any value other than empty, `0`, `false`, or `no` as disabled) as a
-  defence in depth.
+  (`gh variable set DISABLE_BUILD_HANDOFF --body 1`) disables merge-group staging and both
+  restorations (on `main` and in later merge groups) without a commit; `scripts/cache_handoff.py`
+  also honors `DISABLE_BUILD_HANDOFF` in its environment (treating any value other than empty,
+  `0`, `false`, or `no` as disabled) as a defence in depth.
 - **Trace and warning retention.** The handoff archive preserves `.trace` files, which record both
   the input hashes and each module's build log. Lake replays a saved log when it treats a restored
   module as up to date, so `main` still shows the merge-group warnings and `lake build --wfail`
