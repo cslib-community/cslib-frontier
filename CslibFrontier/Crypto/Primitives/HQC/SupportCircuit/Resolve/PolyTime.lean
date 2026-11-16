@@ -237,8 +237,8 @@ private theorem polyBounded_supportScanCodeBound {α : Type} {enc : α ↪ List 
     (hc : ComputableInPolyTime count enc encUnary) :
     PolyBounded (fun a => (enc a).length)
       (fun a => supportScanCodeBound (bits a) (count a)) := by
-  have hb' := hb.tidy.polyBounded
-  have hc' := hc.tidy.polyBounded
+  have hb' := hb.polyBounded
+  have hc' := hc.polyBounded
   have hN := hc'.mul hb'
   have hG := (hc'.mul hc').mul (((PolyBounded.const 13).mul hb').add (.const 6))
   have hNG := hN.add hG

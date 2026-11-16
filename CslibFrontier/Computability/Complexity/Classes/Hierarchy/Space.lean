@@ -14,11 +14,12 @@ public import CslibFrontier.Computability.Complexity.Classes.LogSpace
 public import CslibFrontier.Computability.Complexity.Classes.Space.Time
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Run
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.SpaceBudget
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
 import CslibFrontier.Computability.Complexity.Classes.Constructible.Space
 import CslibFrontier.Computability.Complexity.Classes.Hierarchy.SpaceDiagonalBounds
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.TidyNormalForm
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigOLe
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LinearSpaceArith
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Composition.Recompute
@@ -175,16 +176,17 @@ theorem computableInTimeAndSpace_spaceDiagonal {G : ℕ → ℕ} (hG : SpaceCons
   have hclock := ((ComputableInDegree.two_pow_length encUnary).inO_one.comp_linear
     hGu).of_enc_eq (encC := encNat) (g := fun x : List Bool => 2 ^ G x.length) fun x => by
       simp only [Function.comp_apply, encUnary_apply, List.length_replicate]
-  obtain ⟨cC, hCt, -⟩ := ((hclock.prod hGu).tidy).mono (S' := fun x : List Bool => G x.length)
+  have hC := (hclock.prod hGu).mono (S' := fun x : List Bool => G x.length)
     (T' := fun x => TG x + (G x.length + 1) ^ 2 + (TG x + (G x.length + 1) ^ 2)) 4
     (fun x => by have := Nat.le_self_pow two_ne_zero (G x.length + 1); omega)
     (fun x => by omega)
+  obtain ⟨cC, hCt, -⟩ := Internal.NormalForm.inO hC
   -- the input of the budgeted universal machine, recomputed and never charged
   obtain ⟨kF, hF⟩ := hAB.append hCt (encOut := eInS) (g := universalInput G) fun x => by
     simp only [universalInput, eInS, encPair_apply, encBits_apply, List.append_assoc]; rfl
   -- the budgeted universal run and the verdict
   obtain ⟨cV, hV, -⟩ := computableInO_verdict.comp
-    computableTidilyInO_budgetedUniversal.computableInO
+    computableInO_budgetedUniversal
   obtain ⟨cU, hU⟩ := ComputableInTimeAndSpace.comp_space hF.computableInTimeAndSpace hV
   obtain ⟨dU, hU⟩ := hU.exists_computableTidilyInTimeAndSpace
   -- the test and the case distinction

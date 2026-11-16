@@ -5,7 +5,7 @@ Authors: Samuel Schlesinger
 -/
 
 import CslibFrontier.Computability.Complexity.Classes.Hierarchy
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 
 /-! Decoding descriptions from malformed, empty and padded words, the binary clock, the diagonal
 on the padded descriptions of concrete accepting and rejecting machines, and the exponential

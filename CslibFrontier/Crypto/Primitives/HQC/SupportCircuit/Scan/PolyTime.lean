@@ -197,8 +197,8 @@ private theorem polyBounded_collisionScanCodeBound {α : Type} {enc : α ↪ Lis
     (hc : ComputableInPolyTime count enc encUnary) :
     PolyBounded (fun a => (enc a).length)
       (fun a => collisionScanCodeBound (bits a) (count a)) := by
-  have hb' := hb.tidy.polyBounded
-  have hc' := hc.tidy.polyBounded
+  have hb' := hb.polyBounded
+  have hc' := hc.polyBounded
   have hN := hb'.add (hc'.mul hb')
   have hG := hc'.mul (((PolyBounded.const 13).mul hb').add (.const 6))
   have hNG := hN.add hG
@@ -246,7 +246,7 @@ parameters, with its complete encoded intermediate circuits charged by the loop 
     have hr : ComputableInPolyTime (fun a => List.range (count a)) enc (encList encNat) := by
       simpa only [Function.comp_def, List.map_id_fun', id_eq] using
         unary_to_binary.map.comp (range.comp hc)
-    exact .of_tidy (ComputableTidilyInPolyTime.listReverseWithInput hr.tidy)
+    exact (ComputableInPolyTime.listReverseWithInput hr)
   have hinit : ComputableInPolyTime
       (fun a => (([] : List (Op × List ℕ)), List.range (bits a + count a * bits a)))
       enc encCode := by

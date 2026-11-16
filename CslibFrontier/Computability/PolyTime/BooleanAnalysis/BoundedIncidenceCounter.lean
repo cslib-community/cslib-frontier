@@ -14,7 +14,7 @@ public import CslibFrontier.Computability.PolyTime.CNF.BranchedSparseCNFCounter
 import CslibFrontier.Tactic.EncLen
 import all CslibFrontier.Computability.PolyTime.BooleanAnalysis.BoundedIncidenceStepCert
 import CslibFrontier.Computability.Complexity.FineGrained.SparseBranchAsymptotics
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Fold
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Int.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List

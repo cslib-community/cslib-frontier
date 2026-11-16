@@ -17,6 +17,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
+
 /-!
 # `TQBF` in alternating prenex conjunctive normal form
 
@@ -279,14 +281,14 @@ normal form. -/
 theorem TQBFCNF_pspaceHard : PSPACEHard encPrenexCNF TQBFCNF := by
   intro α enc A hA
   obtain ⟨p, V, hV, h⟩ := exists_isGameVerifier_of_mem_PSPACE hA
-  obtain ⟨tV, sV, htV, -, kV, StateV, hfiniteV, tmV, htmV⟩ := hV.tidy
-  obtain ⟨cV, dV, htV⟩ := htV.exists_le
+  obtain ⟨cV, dV, kV, StateV, hfiniteV, tmV, htmV⟩ :=
+    Turing.MultiTapeTM.Internal.NormalForm.polyTime hV
   have := Fintype.ofFinite StateV
   classical
   exact ⟨TQBF.prenexReduce enc p tmV cV dV,
     (TQBF.computableInPolyTime_prenexReduce tmV cV dV),
     fun a => (h a).trans
-      ((TQBF.gameReduce_mem_TQBF_iff (htmV.mono htV fun _ => le_rfl) a).symm.trans
+      ((TQBF.gameReduce_mem_TQBF_iff htmV a).symm.trans
         (TQBF.prenexReduce_mem_TQBFCNF_iff tmV cV dV a).symm)⟩
 
 /-- **`TQBF` in alternating prenex conjunctive normal form is `PSPACE`-complete**

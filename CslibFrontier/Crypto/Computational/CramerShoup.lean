@@ -1063,9 +1063,9 @@ theorem DDH.cramerShoupADGroupINDCCA2
       (F.encDesc d).length ≤ c * (n + 1) ^ k) :
     F.cramerShoupADGroupINDCCA2 encAD setup H isElem := by
   have h := hDDH.cramerShoupMsgINDCCA2 true (encodeAD := fun p => encAD p.2)
-    (.of_tidy (ComputableTidilyInPolyTime.snd F.encDesc encBits))
-    (.of_tidy ((ComputableTidilyInPolyTime.encode encAD).comp
-      (ComputableTidilyInPolyTime.snd F.encDesc encAD)))
+    ((ComputableInPolyTime.snd F.encDesc encBits))
+    ((((ComputableInPolyTime.of_eq (encIn := encAD) (encOut := encBits) (fun _ => rfl))).comp
+      (ComputableInPolyTime.snd F.encDesc encAD)))
     hH hisElem hmem hCR hm0 hm hinv hdesc
   exact h
 
@@ -1091,8 +1091,8 @@ theorem DDH.cramerShoupGroupINDCCA2
       (F.encDesc d).length ≤ c * (n + 1) ^ k) :
     F.cramerShoupGroupINDCCA2 setup H isElem := by
   have h := hDDH.cramerShoupMsgINDCCA2 false (encodeAD := fun _ : F.Desc × Unit => [])
-    (.of_tidy (ComputableTidilyInPolyTime.snd F.encDesc encBits))
-    (.of_tidy (.const (encIn := encPair F.encDesc encUnit) []))
+    ((ComputableInPolyTime.snd F.encDesc encBits))
+    ((.const (encIn := encPair F.encDesc encUnit) []))
     hH hisElem hmem hCR hm0 hm hinv hdesc
   intro adversary hA
   exact h adversary.toADUnit hA.toADUnit
@@ -1121,8 +1121,8 @@ theorem DDH.cramerShoupADINDCCA2
     F.cramerShoupADINDCCA2 encAD setup H isElem := by
   have h := hDDH.cramerShoupMsgINDCCA2 true (encodeAD := fun p => encAD p.2)
     F.computableInPolyTime_encodeBit
-    (.of_tidy ((ComputableTidilyInPolyTime.encode encAD).comp
-      (ComputableTidilyInPolyTime.snd F.encDesc encAD)))
+    ((((ComputableInPolyTime.of_eq (encIn := encAD) (encOut := encBits) (fun _ => rfl))).comp
+      (ComputableInPolyTime.snd F.encDesc encAD)))
     hH hisElem hmem hCR hm0 hm hinv hdesc
   exact h
 
@@ -1149,7 +1149,7 @@ theorem DDH.cramerShoupINDCCA2
     F.cramerShoupINDCCA2 setup H isElem := by
   have h := hDDH.cramerShoupMsgINDCCA2 false (encodeAD := fun _ : F.Desc × Unit => [])
     F.computableInPolyTime_encodeBit
-    (.of_tidy (.const (encIn := encPair F.encDesc encUnit) []))
+    ((.const (encIn := encPair F.encDesc encUnit) []))
     hH hisElem hmem hCR hm0 hm hinv hdesc
   intro adversary hA
   exact h adversary.toADUnit hA.toADUnit
@@ -1364,8 +1364,8 @@ private theorem exists_length_encDesc_withKeySetup_le {d : ℕ → F.Desc} {keyL
     (hkeyLen : ComputableInPolyTime keyLen encUnary encUnary) :
     ∃ c k : ℕ, ∀ n, ∀ p ∈ (F.withKeySetup (fun n => PMF.pure (d n)) keyLen n).support,
       (F.withKey.encDesc p).length ≤ c * (n + 1) ^ k := by
-  obtain ⟨c₁, k₁, h₁⟩ := hd.tidy.polyBounded_length.exists_le
-  obtain ⟨c₂, k₂, h₂⟩ := hkeyLen.tidy.polyBounded_length.exists_le
+  obtain ⟨c₁, k₁, h₁⟩ := hd.polyBounded_length.exists_le
+  obtain ⟨c₂, k₂, h₂⟩ := hkeyLen.polyBounded_length.exists_le
   refine ⟨2 * c₁ + 1 + c₂, k₁ + k₂, fun n p hp => ?_⟩
   obtain ⟨hd', hk⟩ := F.mem_support_withKeySetup (d := p.1) (k := p.2) hp
   rw [PMF.support_pure, Set.mem_singleton_iff] at hd'

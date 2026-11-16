@@ -66,7 +66,7 @@ example : ComputableInPolyTime (fun p : ℕ × ℕ => (hittingList (p.1 + 1) (p.
 
 example : ComputableInPolyTime (fun p : ℕ × ℕ => (hittingList (p.1 + 1) (p.2 + 1)).dimension + 1)
     (encPair encUnary encUnary) encNat :=
-  (ComputableInPolyTime.of_tidy computableTidilyInPolyTime_succ).comp
+  (ComputableInPolyTime.binary_add' ComputableInPolyTime.id' (ComputableInPolyTime.const 1)).comp
     (computableInPolyTime_hittingList_dimension_binary.comp
       (g := fun p : ℕ × ℕ => (p.1 + 1, p.2 + 1)) (by fun_prop))
 

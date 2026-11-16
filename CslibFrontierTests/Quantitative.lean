@@ -119,11 +119,11 @@ example (f g : List Bool → List Bool)
 -- mapped bit uses no work-tape cells even though the output grows.
 example {σ : Type} [Finite σ] (enc : σ ↪ List Bool) (step : σ → Bool → σ) (init : σ)
     (f : Bool → Bool) :
-    ComputableTidilyInO (fun l : List Bool => l.foldl (· ^^ ·) false)
+    ComputableInO (fun l : List Bool => l.foldl (· ^^ ·) false)
       encBits encBool List.length (fun _ => 0) ∧
-    ComputableTidilyInO (List.foldl (fun state bit => state ^^ bit) false)
+    ComputableInO (List.foldl (fun state bit => state ^^ bit) false)
       encBits (encFramed encBool) (fun l => l.length) (fun _ => 0) ∧
-    ComputableTidilyInO (fun l => l.foldl step init) encBits enc List.length (fun _ => 0) ∧
+    ComputableInO (fun l => l.foldl step init) encBits enc List.length (fun _ => 0) ∧
     ComputableInTimeAndSpace (fun l : List Bool => l.map f) encBits encBits
       (fun l => 4 * l.length + 8) (fun _ => 0) ∧
     ComputableInTimeAndSpace (fun l : List Bool =>

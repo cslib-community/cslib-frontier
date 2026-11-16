@@ -182,8 +182,8 @@ theorem isPPTOn_sign
       (encPair encBits encBits) encBits) :
     IsPPTOn (encPair encBits encBits) encBits (fun ⟨sk, msg⟩ => sign S H sk msg) := by
   have hsign := S.sign_ppt
-  have hHt := hH.tidy
-  have hdec := keyDecoder.computableInPolyTime.tidy
+  have hHt := hH
+  have hdec := keyDecoder.computableInPolyTime
   unfold sign
   ppt
 

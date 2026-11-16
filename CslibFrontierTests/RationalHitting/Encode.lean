@@ -17,7 +17,7 @@ rational encodings; and composed clients of `binary_div`, `binary_mod`, `binary_
 
 namespace CslibFrontierTests.RationalHitting.Encode
 
-open Turing MultiTapeTM ComputableTidilyInPolyTime
+open Turing MultiTapeTM ComputableInPolyTime
 open Cslib.Circuits.Rational
 
 /-! ### Binary long division -/
@@ -91,7 +91,7 @@ example : ComputableInPolyTime
     (fun p : ℕ × ℕ => let qr := (p.1 / p.2, p.1 % p.2); encodeNat (qr.1 + qr.2))
     (encPair encNat encNat) encBits := by
   have hqr : ComputableInPolyTime (fun p : ℕ × ℕ => (p.1 / p.2, p.1 % p.2))
-      (encPair encNat encNat) (encPair encNat encNat) := .of_tidy binary_divMod
+      (encPair encNat encNat) (encPair encNat encNat) := binary_divMod
   have hadd : ComputableInPolyTime (fun qr : ℕ × ℕ => encodeNat (qr.1 + qr.2))
       (encPair encNat encNat) encBits := by fun_prop
   exact hadd.comp hqr

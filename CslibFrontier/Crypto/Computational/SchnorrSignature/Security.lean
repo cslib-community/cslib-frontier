@@ -178,14 +178,13 @@ theorem computableInPolyTime_schnorrForkOutput :
       (ℕ × List Bool × List Bool) × (ℕ × List Bool × List Bool) → List Bool}
       (hf : ComputableInPolyTime f E encBits) :
       ComputableInPolyTime (fun x => ofBits (f x)) E encNat :=
-    .of_tidy (ComputableTidilyInPolyTime.bitsToNat.comp hf.tidy)
+    (ComputableInPolyTime.bitsToNat.comp hf)
   have hextract := computableInPolyTime_extractNat hd
     (hnat (f := fun x => x.2.2.2.1.2.1) (by fun_prop))
     (hnat (f := fun x => x.2.2.2.1.2.2) (by fun_prop))
     (hnat (f := fun x => x.2.2.2.2.2.1) (by fun_prop))
     (hnat (f := fun x => x.2.2.2.2.2.2) (by fun_prop))
-  have hbits := ComputableInPolyTime.of_tidy
-    (ComputableTidilyInPolyTime.natBits.comp hextract.tidy)
+  have hbits := (ComputableInPolyTime.natBits.comp hextract)
   have hi : ComputableInPolyTime (fun x : F.Desc × List (List Bool) × List (List Bool) ×
       (ℕ × List Bool × List Bool) × (ℕ × List Bool × List Bool) => x.2.2.2.1.1 - 1)
       E encUnary := by

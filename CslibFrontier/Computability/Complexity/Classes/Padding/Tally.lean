@@ -104,7 +104,7 @@ theorem tallyOf_mem_TALLY (B : Set (List Bool)) : tallyOf B ∈ TALLY :=
 theorem computableInPolyTime_tallyDecode :
     ComputableInPolyTime tallyDecode encUnary encBits := by
   have hbits : ComputableInPolyTime (fun n : ℕ => n.bits) encUnary encBits :=
-    .of_tidy (ComputableTidilyInPolyTime.natBits.comp ComputableTidilyInPolyTime.unary_to_binary)
+    (ComputableInPolyTime.natBits.comp ComputableInPolyTime.unary_to_binary)
   have hu : ComputableInPolyTime (fun N : ℕ => N.unpair.1.bits.reverse.tail.reverse)
       encUnary encBits := by
     have hp : ComputableInPolyTime (fun N : ℕ => N.unpair.1) encUnary encUnary := by fun_prop

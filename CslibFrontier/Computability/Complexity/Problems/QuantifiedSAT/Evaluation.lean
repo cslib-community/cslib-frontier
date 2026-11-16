@@ -73,7 +73,7 @@ private theorem assigned_polyTime :
     ComputableInPolyTime (fun p : (List ℕ × List Bool) × ℕ => assigned p.1.1 p.1.2 p.2)
       (encPair (encPair (encList encNat) encBits) encNat) (encOption encBool) := by
   unfold assigned
-  have hzip := (ComputableTidilyInPolyTime.zip encNat encBool).computableInPolyTime.comp
+  have hzip := (ComputableInPolyTime.zip encNat encBool).comp
     ((fst _ _).prod ((bitsToList).comp (snd _ _)))
   have hfind : ComputableInPolyTime
       (fun p : (List ℕ × List Bool) × ℕ =>

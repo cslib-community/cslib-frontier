@@ -167,11 +167,11 @@ theorem computableInPolyTime_ctrWordCounter {α : Type} {input : α ↪ List Boo
   have hvalue : ComputableInPolyTime (fun a => BitString.lsbValue (iv a)) input encNat := by
     simp only [BitString.lsbValue_eq_binaryValue_reverse]
     exact ComputableInPolyTime.bitsBinaryValue.comp
-      ((ComputableInPolyTime.of_tidy ComputableTidilyInPolyTime.bitsReverse).comp hiv)
+      ((ComputableInPolyTime.bitsReverse).comp hiv)
   unfold ctrWordCounter
   exact ComputableInPolyTime.bitsLow hn
     (ComputableInPolyTime.binary_add' hvalue
-      ((ComputableInPolyTime.of_tidy ComputableTidilyInPolyTime.unary_to_binary).comp hj))
+      ((ComputableInPolyTime.unary_to_binary).comp hj))
 
 /-- The keystream is computable in polynomial time from the family's evaluator. -/
 theorem computableInPolyTime_ctrWordKeystream {family : List Bool → List Bool → List Bool}

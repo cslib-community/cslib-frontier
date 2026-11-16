@@ -106,7 +106,7 @@ framed description are written in unary, and the first is halved once per bit of
 theorem computableInO_shortDesc :
     ComputableInO shortDesc encBits encBool (fun x => x.length) fun x => x.length := by
   have hu : ComputableInO unframe encBits encBits (fun x => x.length) fun x => x.length :=
-    (ComputableTidilyInO.of_linear (.of_unframe fun _ => rfl)).computableInO
+    (ComputableInO.of_linear (.of_unframe fun _ => rfl))
   have hl := ComputableInO.lengthUnary
   have h := computableInO_two_pow_le.comp (hl.prod (hl.comp hu))
   refine h.mono 8 (fun x => ?_) fun x => ?_

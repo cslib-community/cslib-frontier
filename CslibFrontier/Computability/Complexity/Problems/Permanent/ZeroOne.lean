@@ -138,9 +138,8 @@ theorem computableInPolyTime_chainLevel :
     fun_prop
   have hbit : ComputableInPolyTime (fun x : (ℕ × ℕ × ℕ × ℕ) × ℕ =>
       if x.1.2.2.2.testBit x.2 then 1 else 0) encChainLevelInput encNat := by
-    have h := ComputableInPolyTime.of_tidy
-      ((ComputableTidilyInPolyTime.of_finite (encA := encBool) (encB := encNat)
-        Bool.toNat).comp (ComputableTidilyInPolyTime.binary_testBit hw.tidy hk.tidy))
+    have h := ((ComputableInPolyTime.of_finite (encA := encBool) (encB := encNat)
+        Bool.toNat).comp (ComputableInPolyTime.binary_testBit hw hk))
     convert h using 2 with x
     simp only [Function.comp_apply]
     cases x.1.2.2.2.testBit x.2 <;> rfl
@@ -151,11 +150,10 @@ theorem computableInPolyTime_chainLevel :
       ComputableInPolyTime a encChainLevelInput encUnary →
       ComputableInPolyTime b encChainLevelInput encUnary →
       ComputableInPolyTime c encChainLevelInput encNat →
-      ComputableTidilyInPolyTime (fun x => (⟨a x, b x, c x⟩ : WeightedEdge)) encChainLevelInput
-        encWeightedEdge := fun ha hb hc => (encWeightedEdge_mk_polyTime ha hb hc).tidy
-  refine ComputableInPolyTime.of_tidy ?_
+      ComputableInPolyTime (fun x => (⟨a x, b x, c x⟩ : WeightedEdge)) encChainLevelInput
+        encWeightedEdge := fun ha hb hc => (encWeightedEdge_mk_polyTime ha hb hc)
   unfold chainLevel
-  open ComputableTidilyInPolyTime in
+  open ComputableInPolyTime in
   exact cons' (he hu htgt hbit) (cons' (he hd hd hone) (cons' (he hd htgt hone)
     (cons' (he hr hr hone) (cons' (he hd hr hone) (cons' (he hr htgt hone) (const _))))))
 

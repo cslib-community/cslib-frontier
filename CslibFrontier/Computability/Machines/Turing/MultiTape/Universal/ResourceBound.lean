@@ -111,7 +111,7 @@ theorem computableInO_universal :
       ((length_le_encPair_left _ _ i.2).trans (length_le_encPair_right _ _ i))
       ((length_le_encPair_right _ _ i.2).trans (length_le_encPair_right _ _ i))
       (Nat.le_add_left 1 i.2.2)
-  refine computableTidilyInO_universal.computableInO.mono 100001 (fun i => ?_) (fun i => ?_)
+  refine computableInO_universal.mono 100001 (fun i => ?_) (fun i => ?_)
   · have hstep := stepBound_mono (D := descLen i.1) (N := (encList encUnary i.2.1).length)
       le_rfl le_rfl (Nat.le_add_right i.2.2 1)
     have hrun := runBound_mono (D := descLen i.1) (N := (encList encUnary i.2.1).length)

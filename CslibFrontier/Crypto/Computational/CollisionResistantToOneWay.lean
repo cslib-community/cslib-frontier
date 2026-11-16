@@ -109,7 +109,7 @@ theorem isPPT_finder {H : List Bool → List Bool → List Bool} {adversary : In
       (encPair encBits encBits) encBits)
     (hadversary : IsPPT encBits adversary) (r : ℕ) :
     IsPPT (encPair encBits encBits) (finder H adversary r) := by
-  have hHt := hH.tidy
+  have hHt := hH
   unfold finder
   ppt
 

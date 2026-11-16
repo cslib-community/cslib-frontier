@@ -289,7 +289,7 @@ private theorem computableInPolyTime_extractHistory {γ : Type} {encIn : γ ↪ 
     have hle : ComputableInPolyTime
         (fun q : (ℕ × ExtractState) × Bool =>
           decide (2 * q.1.1 + 3 ≤ q.1.2.rem.length)) encStep encBool :=
-      .of_tidy (ComputableTidilyInPolyTime.unary_le' h2t3.tidy hlen.tidy)
+      (ComputableInPolyTime.unary_le' h2t3 hlen)
     have hhead : ComputableInPolyTime
         (fun q : (ℕ × ExtractState) × Bool => q.1.2.rem.getD 0 false)
         encStep encBool :=

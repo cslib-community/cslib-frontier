@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Li
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Option
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Unary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.StreamFold
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.BinaryPrimitives
@@ -124,10 +125,10 @@ private theorem inputSymbol_pair_inO :
       (encPair encNat (encList encUnary)) (encOption encUnary)
       (fun q => ((encList encUnary q.2).length + 1) * ((encNat q.1).length + 1) ^ 2)
       (fun q => (encPair encNat (encList encUnary) q).length) := by
-  obtain ⟨cN, hN, -⟩ := inputNext_inO.tidy
-  obtain ⟨cE, hE, -⟩ := inputEmit_inO.tidy
-  obtain ⟨cF, hF, -⟩ := (ComputableInO.const (encIn := encNat)
-    (encMid := encOption encUnary) none).tidy
+  obtain ⟨cN, hN, -⟩ := Internal.NormalForm.inO inputNext_inO
+  obtain ⟨cE, hE, -⟩ := Internal.NormalForm.inO inputEmit_inO
+  obtain ⟨cF, hF, -⟩ := Internal.NormalForm.inO (ComputableInO.const (encIn := encNat)
+    (encMid := encOption encUnary) none)
   let B (q : ℕ × List ℕ) := (encNat q.1).length
   let N (q : ℕ × List ℕ) := (encList encUnary q.2).length
   let K := 3 * cN + 3 * cE + 3

@@ -89,7 +89,7 @@ theorem wireWidth_polyTime {γ : Type} {encIn : γ ↪ List Bool} {n q : γ → 
     (hn : ComputableInPolyTime n encIn encUnary) (hq : ComputableInPolyTime q encIn encUnary) :
     ComputableInPolyTime (fun a => wireWidth (n a) (q a)) encIn encUnary :=
   ComputableInPolyTime.binary_size.comp
-    (ComputableTidilyInPolyTime.unary_to_binary.computableInPolyTime.comp (by fun_prop))
+    (ComputableInPolyTime.unary_to_binary.comp (by fun_prop))
 
 /-- Permutation bits are read in polynomial time. -/
 theorem permOf_polyTime {γ : Type} {encIn : γ ↪ List Bool} {coins : γ → List Bool} {v : γ → ℕ}
@@ -188,9 +188,9 @@ private theorem evalWord_polyTime :
     polytime
   have hfin : ComputableInPolyTime (fun p : List (List Bool) × ℕ => (p.1.drop p.2).flatten)
       (encPair (encList encBits) encUnary) encBits :=
-    (ComputableTidilyInPolyTime.bitsFlatten (ComputableTidilyInPolyTime.listDropWithInput
-      (ComputableTidilyInPolyTime.fst _ _)
-        (ComputableTidilyInPolyTime.snd _ _))).computableInPolyTime
+    (ComputableInPolyTime.bitsFlatten (ComputableInPolyTime.listDropWithInput
+      (ComputableInPolyTime.fst _ _)
+        (ComputableInPolyTime.snd _ _)))
   exact hfin.comp (hfold.prod hc)
 
 /-! ### The body of a garbled function -/
@@ -349,7 +349,7 @@ private theorem q_polyTime :
       encGbInput encUnary := by
   have hg : ComputableInPolyTime (fun x : ℕ × ValidCircuit × List Bool => x.2.1.1.gateList)
       encGbInput (encList (encPair encNat (encPair encNat encBits))) := data_polyTime.snd'.snd'
-  exact (ComputableTidilyInPolyTime.length_list _).computableInPolyTime.comp hg
+  exact (ComputableInPolyTime.length_list _).comp hg
 
 private theorem q'_polyTime :
     ComputableInPolyTime (fun x : ℕ × ValidCircuit × List Bool => x.2.1.1.q) encGbInput encUnary :=
@@ -474,7 +474,7 @@ private theorem coins_polyTime :
   have hq : ComputableInPolyTime (fun x : ℕ × ValidCircuit => x.2.1.q)
       (encPair encUnary encValidCircuit) encUnary := by
     simpa only [Function.comp_def, ConventionalCircuit.length_gateList] using
-      (ComputableTidilyInPolyTime.length_list _).computableInPolyTime.comp hg
+      (ComputableInPolyTime.length_list _).comp hg
   have hn' : ComputableInPolyTime (fun x : ℕ × ValidCircuit => x.2.1.n)
       (encPair encUnary encValidCircuit) encUnary := hn
   have heq : (fun (k, f) => (scheme family).coins k f) = fun x : ℕ × ValidCircuit =>

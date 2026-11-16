@@ -164,12 +164,7 @@ theorem isPPTOn_frontierOracle {α : Type} {input : α ↪ List Bool}
     (hcache : ComputableInPolyTime cache input cacheEncoding) :
     IsPPTOn input (encPair encBits cacheEncoding)
       (fun a => frontierOracle generator (parameter a) (depth a) (query a) (cache a)) := by
-  have hgenerator := hgenerator.tidy
-  have hparameter := hparameter.tidy
-  have hdepth := hdepth.tidy
-  have hquery := hquery.tidy
-  have hcache := hcache.tidy
-  have heval := (computableInPolyTime_eval (.of_tidy hgenerator)).tidy
+  have heval := (computableInPolyTime_eval (hgenerator))
   unfold frontierOracle cacheEncoding
   fun_prop
 

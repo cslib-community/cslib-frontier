@@ -135,14 +135,14 @@ private theorem computableInPolyTime_amMoveCases {γ β : Type} {encIn : γ ↪ 
 
 private theorem computableInPolyTime_unaryOdd :
     ComputableInPolyTime (fun n : ℕ => decide (n % 2 = 1)) encUnary encBool := by
-  have hstep : ComputableTidilyInPolyTime (fun p : Bool × Bool => !p.1)
+  have hstep : ComputableInPolyTime (fun p : Bool × Bool => !p.1)
       (encPair encBool encBool) encBool := by fun_prop
-  have hf := ComputableTidilyInPolyTime.foldl_of_bounded_growth (encA := encBool)
+  have hf := ComputableInPolyTime.foldl_of_bounded_growth (encA := encBool)
     (encL := encBits) (encB := encBool)
     (list := encUnary) (init := fun _ => false) (step := fun acc _ => !acc)
-    (ComputableTidilyInPolyTime.encoded (ComputableTidilyInPolyTime.id' (encIn := encUnary)))
-    (ComputableTidilyInPolyTime.const false) hstep (growth := 1) (fun _ _ => by simp)
-  refine (ComputableInPolyTime.of_tidy hf).of_enc_eq fun n => congrArg encBool ?_
+    (ComputableInPolyTime.encoding_comp (ComputableInPolyTime.id' (encIn := encUnary)))
+    (ComputableInPolyTime.const false) hstep (growth := 1) (fun _ _ => by simp)
+  refine (hf).of_enc_eq fun n => congrArg encBool ?_
   have hacc : ∀ k (b : Bool), (List.replicate k true).foldl (fun acc _ => !acc) b =
       (if k % 2 = 1 then !b else b) := by
     intro k
@@ -159,13 +159,13 @@ private theorem computableInPolyTime_listAppend {α γ : Type}
     (hleft : ComputableInPolyTime left encIn (encList encA))
     (hright : ComputableInPolyTime right encIn (encList encA)) :
     ComputableInPolyTime (fun x => left x ++ right x) encIn (encList encA) :=
-  .of_tidy (ComputableTidilyInPolyTime.listAppend' hleft.tidy hright.tidy)
+  (ComputableInPolyTime.listAppend' hleft hright)
 
 private theorem computableInPolyTime_listReverseWithInput {α γ : Type}
     {encA : α ↪ List Bool} {encIn : γ ↪ List Bool} {list : γ → List α}
     (hlist : ComputableInPolyTime list encIn (encList encA)) :
     ComputableInPolyTime (fun x => (list x).reverse) encIn (encList encA) :=
-  .of_tidy (ComputableTidilyInPolyTime.listReverseWithInput hlist.tidy)
+  (ComputableInPolyTime.listReverseWithInput hlist)
 
 private theorem list_getLastD_eq_getD {α : Type} (l : List α) (d : α) :
     l.getLastD d = l.getD (l.length - 1) d := by
@@ -594,8 +594,8 @@ theorem computableInPolyTime_repeatMsg_dyn {γ : Type} {enc : α ↪ List Bool} 
   have htake : ComputableInPolyTime (fun y : γ × ℕ => toAM ((g y.1).take (j y.1)))
       (encPair encIn encUnary) encAMShape :=
     computableInPolyTime_toAM_dyn
-      (.of_tidy (ComputableTidilyInPolyTime.listTakeWithInput (hg.comp hx1).tidy
-        (hj.comp hx1).tidy))
+      ((ComputableInPolyTime.listTakeWithInput (hg.comp hx1)
+        (hj.comp hx1)))
   have hcopy := AMGame.computableInPolyTime_copyTranscript_dyn
     (hT.comp hx1) hi htake (hp.comp hx1)
   have hrow := ComputableInPolyTime.bitsRowWithInput (hρ.comp hx1) hi (hc.comp hx1)
@@ -1591,8 +1591,8 @@ private theorem computableInPolyTime_truncShape {g₀ : ℕ → List (IPMove × 
     computableInPolyTime_unaryOdd.comp hlen
   have htake : ComputableInPolyTime (fun n => (g₀ n).take ((g₀ n).length - 1))
       encUnary encIPShape :=
-    .of_tidy (ComputableTidilyInPolyTime.listTakeWithInput hgp₀.tidy
-      (ComputableInPolyTime.unary_sub' hlen (ComputableInPolyTime.const 1)).tidy)
+    (ComputableInPolyTime.listTakeWithInput hgp₀
+      (ComputableInPolyTime.unary_sub' hlen (ComputableInPolyTime.const 1)))
   exact (hodd.ite htake hgp₀).of_enc_eq fun n => by
     simp only [truncShape, decide_eq_true_eq]
 

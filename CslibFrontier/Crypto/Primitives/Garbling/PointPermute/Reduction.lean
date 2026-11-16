@@ -1067,8 +1067,8 @@ private theorem isOraclePPTOn_prvSimBranch {P : ℕ → ℕ}
       (ComputableInPolyTime.length_list _).comp hd.snd'.snd'
   have hcond : ComputableInPolyTime (fun p : (ℕ × List Bool) × (Query ValidCircuit × σ) =>
       decide (p.2.1.input.length = p.2.1.fn.1.n)) E encBool :=
-    (ComputableTidilyInPolyTime.decide_eq' (ComputableInPolyTime.length_bits_comp hx).tidy
-      hn.tidy).computableInPolyTime
+    (ComputableInPolyTime.decide_eq' (ComputableInPolyTime.length_bits_comp hx)
+      hn)
   have hnone := (hB.guess.preprocess (hk.prod (hstate.prod
     (ComputableInPolyTime.const (encIn := E) (encOut := encOption encPrvView) none)))).isOraclePPTOn
     (Operation := Unit)

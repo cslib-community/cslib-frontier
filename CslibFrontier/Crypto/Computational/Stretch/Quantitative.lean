@@ -11,13 +11,14 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.P
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.StreamFold
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Iteration
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Length
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Tactic.PolyTime.Init
 import CslibFrontier.Tactic.EncLen
 import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
 
 /-!
 # Quantitative certificates for polynomial PRG stretch
@@ -141,20 +142,20 @@ theorem polyTime_iterate {α : Type} {input : α ↪ List Bool}
     (hword : ComputableInPolyTime word input encBits) :
     ComputableInPolyTime (fun a => iterate (generator a) (seedBits a) (count a) (word a))
       input encBits := by
-  obtain ⟨c, d, hlength⟩ := hgenerator.tidy.polyBounded_length.exists_le
+  obtain ⟨c, d, hlength⟩ := hgenerator.polyBounded_length.exists_le
   have hpoly : PolyBounded (fun a => (input a).length)
       (fun a => c * (2 * (input a).length + seedBits a + 2) ^ d) := by growth_poly
-  have hfst := ComputableTidilyInPolyTime.fst input encBits
-  have hsnd := ComputableTidilyInPolyTime.snd input encBits
-  have hsb := hseedBits.tidy.comp hfst
-  have hstep : ComputableTidilyInPolyTime
+  have hfst := ComputableInPolyTime.fst input encBits
+  have hsnd := ComputableInPolyTime.snd input encBits
+  have hsb := hseedBits.comp hfst
+  have hstep : ComputableInPolyTime
       (fun p : α × List Bool => step (generator p.1) (seedBits p.1) p.2)
       (encPair input encBits) encBits :=
-    ComputableTidilyInPolyTime.bitsAppend
-      (hgenerator.tidy.comp (hfst.prod (ComputableTidilyInPolyTime.bitsTakeWithInput hsnd hsb)))
-      (ComputableTidilyInPolyTime.bitsDropWithInput hsnd hsb)
-  refine .of_tidy (ComputableTidilyInPolyTime.iterateWithInput_of_bounded_growth
-    hcount.tidy hword.tidy hstep ⟨hpoly, fun a state => ?_⟩)
+    ComputableInPolyTime.bitsAppend
+      (hgenerator.comp (hfst.prod (ComputableInPolyTime.bitsTakeWithInput hsnd hsb)))
+      (ComputableInPolyTime.bitsDropWithInput hsnd hsb)
+  refine (ComputableInPolyTime.iterateWithInput_of_bounded_growth
+    hcount hword hstep ⟨hpoly, fun a state => ?_⟩)
   have h := hlength (a, state.take (seedBits a))
   simp only [length_encPair, encBits_apply, List.length_take] at h
   have hbound : (generator a (state.take (seedBits a))).length ≤
@@ -169,7 +170,7 @@ theorem polyTime_stretch {generator : List Bool → List Bool} {count : ℕ → 
     (hgenerator : ComputableInPolyTime generator encBits encBits)
     (hcount : ComputableInPolyTime count encUnary encUnary) :
     ComputableInPolyTime (stretch generator count) encBits encBits :=
-  have hlen : ComputableInPolyTime List.length encBits encUnary := .of_tidy (.length encBool)
+  have hlen : ComputableInPolyTime List.length encBits encUnary := (.length encBool)
   polyTime_iterate (hgenerator.comp (.snd _ _)) hlen (hcount.comp hlen) .id'
 
 /-! ### Quantitative cumulative-time and workspace certificates -/
@@ -348,10 +349,7 @@ private theorem iterate_of_forwardIterate {γ : Type} {encIn : γ ↪ List Bool}
       (fun x => c' * T x) (fun x => c' * S x) := by
   have hcharged := hfwd.mono (fun _ => le_rfl) fun x =>
     (Nat.mul_le_mul_left c (hS₀ x)).trans (Nat.mul_le_mul_right (S x) (Nat.le_succ c))
-  obtain ⟨a, hclean, _⟩ := hcharged.computableTidilyInO fun x => by
-    rw [encBits_apply, length_forwardIterate_of_forall (hlen x), Nat.succ_mul]
-    have := hS x
-    omega
+  obtain ⟨a, _, hclean⟩ := Internal.NormalForm.exactBounds hcharged
   obtain ⟨b, hrev⟩ := ComputableTidilyInTimeAndSpace.reverse_bits.comp hclean
   have heq : (List.reverse ∘ fun x => forwardIterate (generator x) (count x) (seed x)) =
       fun x => iterate (generator x) (seed x).length (count x) (seed x) :=
@@ -391,9 +389,7 @@ theorem computableInTimeAndSpace_forwardIterate
       (fun p => c * (Q p + p.1.length + 1)) := by
   have hcharged := hgen.mono (fun _ => le_rfl)
     (fun seed => Nat.le_add_right (sGen seed) (seed.length + 1))
-  obtain ⟨a, hclean, _⟩ := hcharged.computableTidilyInO (fun seed => by
-    simp only [encBits_apply, hlen]
-    omega)
+  obtain ⟨a, _, hclean⟩ := Internal.NormalForm.exactBounds hcharged
   obtain ⟨c₁, (hnext₀ : ComputableTidilyInTimeAndSpace (seedStep generator) _ _ _ _)⟩ :=
     ComputableTidilyInTimeAndSpace.dropLast_bits.comp hclean
   obtain ⟨c₂, (hemit₀ : ComputableTidilyInTimeAndSpace (emitBit generator) _ _ _ _)⟩ :=
@@ -468,9 +464,7 @@ theorem computableInTimeAndSpace_stretch
       (fun seed => c * (sCount seed.length + Q seed + seed.length + count seed.length + 1)) := by
   have hcountCharged := hcount.mono (fun _ => le_rfl)
     (fun n => Nat.le_add_right (sCount n) (count n))
-  obtain ⟨a, hcountClean, _⟩ := hcountCharged.computableTidilyInO (fun n => by
-    simp only [encUnary_apply, List.length_replicate]
-    omega)
+  obtain ⟨a, _, hcountClean⟩ := Internal.NormalForm.exactBounds hcountCharged
   obtain ⟨c₁, hcnt_seed⟩ := hcountClean.comp ComputableTidilyInTimeAndSpace.length_bits
   obtain ⟨c₂, hpair⟩ := Internal.NormalForm.bigO
     (PairEncoding.pair_mono (enc := encPair encBits encUnary)
@@ -482,9 +476,7 @@ theorem computableInTimeAndSpace_stretch
       (Finset.mem_range.mpr hi))
   have hiterCharged := hiter.mono (fun _ => le_rfl)
     (fun p => Nat.mul_le_mul_right _ (Nat.le_add_right c₃ 1))
-  obtain ⟨b, hiterClean, _⟩ := hiterCharged.computableTidilyInO (fun p => by
-    simp only [encBits_apply, length_iterate hlen, Nat.succ_mul]
-    omega)
+  obtain ⟨b, _, hiterClean⟩ := Internal.NormalForm.exactBounds hiterCharged
   obtain ⟨c₄, hcomp⟩ := hiterClean.comp hpair
   have heq : ((fun p : List Bool × ℕ => iterate generator p.1.length p.2 p.1) ∘
       fun seed : List Bool => (id seed, (count ∘ List.length) seed)) =
@@ -610,13 +602,11 @@ theorem polyTime_stretch_of_length_eq {generator : List Bool → List Bool} {cou
     (hgenerator : ComputableInPolyTime generator encBits encBits)
     (hcount : ComputableInPolyTime count encUnary encUnary) :
     ComputableInPolyTime (stretch generator count) encBits encBits := by
-  have hgenerator := hgenerator.tidy
-  have hcount := hcount.tidy
-  obtain ⟨clG, dlG, hclG⟩ := (ComputableInPolyTime.of_tidy hgenerator).polyBounded_length.exists_le
+  obtain ⟨clG, dlG, hclG⟩ := (hgenerator).polyBounded_length.exists_le
   obtain ⟨tG, sG, htG, hsG, hgen_ts⟩ := hgenerator
   obtain ⟨ctG, dtG, hctG⟩ := htG.exists_le
   obtain ⟨csG, dsG, hcsG⟩ := hsG.exists_le
-  obtain ⟨clC, dlC, hclC⟩ := (ComputableInPolyTime.of_tidy hcount).polyBounded_length.exists_le
+  obtain ⟨clC, dlC, hclC⟩ := (hcount).polyBounded_length.exists_le
   obtain ⟨tC, sC, htC, hsC, hcount_ts⟩ := hcount
   obtain ⟨ctC, dtC, hctC⟩ := htC.exists_le
   obtain ⟨csC, dsC, hcsC⟩ := hsC.exists_le
@@ -654,9 +644,7 @@ theorem computableInTimeAndSpace_forwardIterate_captured {α : Type}
       (fun x => c * (Q x + (encParam x.1.1).length + x.1.2.length + 1)) := by
   have hcharged := hgen.mono (fun _ => le_rfl)
     (fun q => Nat.le_add_right (sGen q) ((encParam q.1).length + q.2.length + 1))
-  obtain ⟨a, hclean, _⟩ := hcharged.computableTidilyInO (fun q => by
-    simp only [encBits_apply, hlen]
-    omega)
+  obtain ⟨a, _, hclean⟩ := Internal.NormalForm.exactBounds hcharged
   let encS := encPair encParam encBits
   obtain ⟨cpar, hpar⟩ := Internal.NormalForm.linear
     (PairEncoding.fst (enc₁ := encParam) (enc₂ := encBits) (enc := encS))

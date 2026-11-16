@@ -15,7 +15,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Na
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.BitLength
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Run
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Exponential
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.EqualityPrimitives
 
 /-!
