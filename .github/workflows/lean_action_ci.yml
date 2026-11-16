@@ -147,7 +147,8 @@ jobs:
       publication: ${{ steps.upload-publication.outputs.artifact-id }}
     permissions:
       contents: read
-      # Main may download the exact landed revision's successful merge-group build artifact.
+      # Main may download the exact landed revision's successful merge-group build artifact, and
+      # a merge group that of its nearest first-parent ancestor.
       actions: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -189,6 +190,47 @@ jobs:
           scripts.test_check_cache_restores.RealLakeTests.test_parallel_real_lake_sigterm_cleans_up_descendant_process_tree
       - name: Test real Lake cache publication staging
         run: python3 -B -m unittest scripts.test_cache_publish.RealLakePublicationTests
+      # The `.lake` snapshot restored above and the remote cache below are published only when a
+      # build of `main` completes, one at a time, so they lag the queue: merge groups have started
+      # from snapshots 20 and 32 commits behind. Every commit that lands through the queue has a
+      # build handoff from its own merge-group run, so a merge group first installs the handoff of
+      # its nearest first-parent ancestor that has one, among at most 20 (scripts/cache/README.md).
+      # It runs before the remote-cache step because it replaces `.lake/build` as a unit: the
+      # remote cache then downloads only what the installed build still lacks, instead of outputs
+      # that this step would replace. Only that ancestor's latest successful merge-group run of
+      # this workflow is accepted, with the checks of the exact-revision step below, and its
+      # toolchain, manifest and lakefile must equal this checkout's. Lake reuses an output only
+      # where a module's input hash matches, so the build below still compiles everything the newer
+      # commits and this group change. Pull requests never run this step. A miss is a workflow
+      # warning and leaves the remote-cache step and the ordinary build unchanged; the variables
+      # that disable the exact-revision step disable this one. It needs no cloud credential.
+      # The script exits 0 after a restoration and after every miss, including a failed or timed-out
+      # history fetch whose processes were confirmed stopped. It exits 125 only when that shutdown
+      # could not be confirmed. `continue-on-error` would hide that from the steps below, which
+      # run Git, the remote cache and the build, so this step records its exit status and the
+      # next step fails the job on 125. Any other failure of this optional step, such as its
+      # timeout, still lets the job continue.
+      - name: Restore nearest ancestor merge-group build outputs
+        id: ancestor-handoff
+        if: >-
+          github.event_name == 'merge_group' &&
+          vars.DISABLE_CACHE_RESTORE != 'true' && vars.DISABLE_CACHE_RESTORE != '1' &&
+          vars.DISABLE_BUILD_HANDOFF != '1' && vars.DISABLE_BUILD_HANDOFF != 'true'
+        continue-on-error: true
+        timeout-minutes: 10
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DISABLE_BUILD_HANDOFF: ${{ vars.DISABLE_BUILD_HANDOFF }}
+        run: |
+          status=0
+          python3 -B scripts/cache_handoff.py restore --ancestor || status=$?
+          echo "exit-status=$status" >> "$GITHUB_OUTPUT"
+          exit "$status"
+      - name: Stop after an unconfirmed ancestor-handoff shutdown
+        if: steps.ancestor-handoff.outputs.exit-status == '125'
+        run: |
+          echo "::error title=Unconfirmed cache process shutdown::The ancestor handoff's history fetch may still be running; rerun the job."
+          exit 125
       # Download the outputs that `main` CI uploaded for the nearest uploaded ancestor of this
       # commit, skipping modules that `.lake` already has (scripts/cache/README.md). The script
       # deepens the depth-1 checkout to 100 generations to find that ancestor. Lake reuses an
