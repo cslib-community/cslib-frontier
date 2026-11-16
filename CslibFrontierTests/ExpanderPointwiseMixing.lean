@@ -4,6 +4,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Christian Reitwiessner
 -/
 
+module
+-- upstream: local-only (tests)
+
 import CslibFrontier.Foundations.Combinatorics.Expander.Connected
 
 /-!
@@ -15,6 +18,8 @@ The hypotheses of `Cslib.RotationMap.spectralExpansion_le_one_sub_of_preconnecte
 is connected and looped, so both apply to it. Corollary 7.30 also applies to a disconnected graph,
 three isolated vertices with a self-loop each, where it is about the component of the start vertex.
 -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.ExpanderPointwiseMixing
 

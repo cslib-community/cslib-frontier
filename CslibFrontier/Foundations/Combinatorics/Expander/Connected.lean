@@ -12,6 +12,8 @@ public import CslibFrontier.Foundations.Combinatorics.Expander.Hom
 public import CslibFrontier.Foundations.Combinatorics.Expander.Mixing
 public import Mathlib.Analysis.SpecialFunctions.Log.Basic
 
+import CslibFrontier.Foundations.Data.Finset.Variance
+
 /-!
 # Connectivity and spectral expansion
 
@@ -218,9 +220,8 @@ private theorem expect_expect_walk_sub_sq [Nonempty D] (f : V → ℝ) :
     𝔼 v, 𝔼 i, (G.walk f v - f (G.neighbor v i)) ^ 2 = 𝔼 v, f v ^ 2 - 𝔼 v, G.walk f v ^ 2 := by
   have h (v : V) : 𝔼 i, (G.walk f v - f (G.neighbor v i)) ^ 2 =
       𝔼 i, f (G.neighbor v i) ^ 2 - G.walk f v ^ 2 := by
-    simp only [sub_sq, expect_add_distrib, expect_sub_distrib, Fintype.expect_const,
-      ← mul_expect, ← walk_apply]
-    ring
+    simp_rw [sub_sq_comm (G.walk f v), walk_apply]
+    exact Fintype.expect_sub_expect_sq (fun i ↦ f (G.neighbor v i))
   simp only [h, expect_sub_distrib, G.expect_expect_neighbor fun w ↦ f w ^ 2]
 
 /-- The draft's argument for **Arora–Barak, Lemma 7.28**: if `G` is connected and has a self-loop
