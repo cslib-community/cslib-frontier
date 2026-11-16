@@ -10,6 +10,7 @@ module
 -- vendored: retire superseded tidy list combinators; plain rules live in BigO/Lists.
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Bounds
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigOLe
@@ -24,8 +25,9 @@ import Mathlib.Tactic.Ring
 
 `ComputableTidilyInO f encIn encOut T S`: `f` is tidily computable within time `O(T a)` and space
 `O(S a)` on the input `a`, and its encoded value has length `O(S a)`. The bounds are any
-functions of the input, not just of the length of its encoding, so that they can be stated in several measures of the input, such as the
-length of a description, the length of an input and a number of steps.
+functions of the input, not just of the length of its encoding, so that they can be stated in
+several measures of the input, such as the length of a description, the length of an input and a
+number of steps.
 
 The closure properties are exact up to constants: composition adds the bounds of the outer function
 at the intermediate value, a case distinction adds the bounds of the branch taken, and a left fold
