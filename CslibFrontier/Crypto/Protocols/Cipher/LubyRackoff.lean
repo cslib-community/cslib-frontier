@@ -2681,6 +2681,14 @@ theorem isQueryBounded_feistel3Reduction [Fintype K] [Nonempty K] [DecidableEq G
 
 variable [Fintype K] [Nonempty K] [Fintype G] [DecidableEq G]
 
+omit [Fintype K] [Nonempty K] [Fintype G] [DecidableEq G] in
+/-- The adapter's channel queries compute the three-round network. -/
+theorem run_feistel3ChannelQuery (f : Fin 3 → G → G) (p : G × G) :
+    (feistel3ChannelQuery p).run (fun request => pure (f request.1 request.2)) =
+      pure (feistel3 (f 0) (f 1) (f 2) p) := by
+  obtain ⟨l, r⟩ := p
+  simp [feistel3ChannelQuery, feistel3_apply]
+
 omit [Fintype G] [DecidableEq G] in
 /-- With keyed channels, the adapter plays the real chosen-plaintext experiment of the three-round
 cipher. -/
@@ -2701,11 +2709,8 @@ theorem eval_multiKeyIdealExperiment_feistel3MultiKeyAdversary
         OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
           (fun p => PMF.pure (feistel3 (tables 0) (tables 1) (tables 2) p))) A := by
   simp only [PRF.multiKeyIdealExperiment, feistel3MultiKeyAdversary, ProbOracleComp.run_simulate,
-    ProbComp.eval_bind, ProbComp.eval_uniform, ProbOracleComp.eval_run]
-  congr 1 with tables : 1
-  congr 2 with p : 1
-  obtain ⟨l, r⟩ := p
-  simp [feistel3ChannelQuery, feistel3_apply]
+    run_feistel3ChannelQuery, ProbComp.eval_bind, ProbComp.eval_uniform, ProbOracleComp.eval_run,
+    ProbComp.eval_pure]
 
 /-- **Three random rounds against a random function**, for adversaries with private coins
 ([BonehShoup2023], proof of Theorem 4.9): with independent uniform random round functions, a

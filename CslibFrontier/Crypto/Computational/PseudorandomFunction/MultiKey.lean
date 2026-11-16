@@ -418,12 +418,14 @@ private theorem uniformList_bind_keyBlock {β : Type} (t n : ℕ) (f : (Fin t �
     ring
 
 /-- Keyed replies to valid queries have the key's length. -/
-private theorem length_prfOracle_le (hfamily : PseudorandomFunction family) {n : ℕ}
+private theorem length_prfOracle_le
+    (hlength : ∀ key query, query.length = key.length → (family key query).length = key.length)
+    {n : ℕ}
     {key : List Bool} (hkey : key.length = n) (query : List Bool) :
     (prfOracle family n key query).length ≤ n := by
   unfold prfOracle
   split_ifs with hquery
-  · exact (hfamily.length_eq key query (hquery.trans hkey.symm)).trans hkey |>.le
+  · exact (hlength key query (hquery.trans hkey.symm)).trans hkey |>.le
   · exact Nat.zero_le _
 
 /-- Table replies have at most `n` bits. -/
@@ -469,7 +471,8 @@ private theorem eval_prfMultiIdealGame (family : List Bool → List Bool → Lis
     PMF.bind_const, ProbComp.eval_uniform, ProbOracleComp.eval_run]
 
 /-- Against the real PRF game, the `j`-th reduction is the `j`-th hybrid. -/
-private theorem eval_prfRealGame_prfMultiReduction (hfamily : PseudorandomFunction family)
+private theorem eval_prfRealGame_prfMultiReduction
+    (hlength : ∀ key query, query.length = key.length → (family key query).length = key.length)
     {j : ℕ} (hj : j < t) (adversary : MultiKeyDistinguisher t) (n : ℕ) :
     ProbComp.eval (prfRealGame id family (prfMultiReduction family t j adversary) n) =
       hybridGame family t j adversary n := by
@@ -493,13 +496,14 @@ private theorem eval_prfRealGame_prfMultiReduction (hfamily : PseudorandomFuncti
   · have hi : i = ⟨j, hj⟩ := Fin.ext heq
     subst hi
     rw [Function.update_self, List.take_of_length_le
-      (length_prfOracle_le hfamily List.length_ofFn query)]
+      (length_prfOracle_le hlength List.length_ofFn query)]
   · have hi : i ≠ ⟨j, hj⟩ := fun h => heq (congrArg Fin.val h)
     rw [Function.update_of_ne hi, List.take_of_length_le
-      (length_prfOracle_le hfamily List.length_ofFn query)]
+      (length_prfOracle_le hlength List.length_ofFn query)]
 
 /-- Against the ideal PRF game, the `j`-th reduction is the `(j + 1)`-st hybrid. -/
-private theorem eval_prfIdealGame_prfMultiReduction (hfamily : PseudorandomFunction family)
+private theorem eval_prfIdealGame_prfMultiReduction
+    (hlength : ∀ key query, query.length = key.length → (family key query).length = key.length)
     {j : ℕ} (hj : j < t) (adversary : MultiKeyDistinguisher t) (n : ℕ) :
     ProbComp.eval (prfIdealGame id id (prfMultiReduction family t j adversary) n) =
       hybridGame family t (j + 1) adversary n := by
@@ -535,16 +539,17 @@ private theorem eval_prfIdealGame_prfMultiReduction (hfamily : PseudorandomFunct
       rw [List.take_of_length_le (length_randomFunctionOracle_le _ _)]
     · have hlt' : ¬i.val < j + 1 := by omega
       simp only [hlt, heq, hlt', ↓reduceIte]
-      rw [List.take_of_length_le (length_prfOracle_le hfamily List.length_ofFn query)]
+      rw [List.take_of_length_le (length_prfOracle_le hlength List.length_ofFn query)]
 
-/-- **The word hybrid reduction is the finite one.** For a pseudorandom family, against every
+/-- **The word hybrid reduction is the finite one.** For a length-preserving family and every
 table `T` on `n`-bit strings, presented on the word channel as `randomFunctionOracle n T`, the
 `j`-th word reduction on `adversary n []` has the law of the finite hybrid reduction
 `PRF.multiKeyReduction` of `PRF.atLevel family n` on the adapted adversary, run against `T`. Both
 PRF games run the word reduction against such a table: `prfIdealGame` against a uniform one, and
 `prfRealGame` against `PRF.atLevel family n key` for a uniform key, whose word oracle is
 `prfOracle family n key`. -/
-theorem interpret_prfMultiReduction_eq_multiKeyReduction (hfamily : PseudorandomFunction family)
+theorem interpret_prfMultiReduction_eq_multiKeyReduction
+    (hlength : ∀ key query, query.length = key.length → (family key query).length = key.length)
     (j n : ℕ) (adversary : MultiKeyDistinguisher t) (T : BitString n → BitString n) :
     OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
         (fun request : Unit × List Bool => PMF.pure (randomFunctionOracle n T request.2)))
@@ -578,15 +583,17 @@ theorem interpret_prfMultiReduction_eq_multiKeyReduction (hfamily : Pseudorandom
     · rfl
     · exact List.take_of_length_le List.length_ofFn.le
     · have hlength : (family (List.ofFn (keys i)) query).length = n := by
-        simpa using hfamily.length_eq (List.ofFn (keys i)) query (by simp [hquery])
+        simpa using hlength (List.ofFn (keys i)) query (by simp [hquery])
       rw [List.take_of_length_le hlength.le, BitString.ofFn_ofList hlength]
   · simp only [OracleCodec.wordOracle, OracleCodec.bitString, hquery, ↓reduceIte, eagerOracle,
       randomFunctionOracle, prfOracle]
     split_ifs <;> simp
 
-/-- **Multi-key PRF hybrid** ([BonehShoup2023], Exercise 4.26): the advantage of a multi-key
-adversary is at most the sum of the PRF advantages of the `t` hybrid reductions. -/
-theorem advantage_prfMultiRealGame_prfMultiIdealGame_le (hfamily : PseudorandomFunction family)
+/-- **Multi-key PRF hybrid** ([BonehShoup2023], Exercise 4.26): for a length-preserving family,
+the advantage of a multi-key adversary is at most the sum of the PRF advantages of the `t`
+hybrid reductions. -/
+theorem advantage_prfMultiRealGame_prfMultiIdealGame_le
+    (hlength : ∀ key query, query.length = key.length → (family key query).length = key.length)
     (adversary : MultiKeyDistinguisher t) (n : ℕ) :
     Game.advantage (ProbComp.eval (prfMultiRealGame family t adversary n))
         (ProbComp.eval (prfMultiIdealGame t adversary n)) ≤
@@ -598,7 +605,7 @@ theorem advantage_prfMultiRealGame_prfMultiIdealGame_le (hfamily : PseudorandomF
   refine (Game.advantage_hybrid_le_sum (fun j => hybridGame family t j adversary n) t).trans
     (Finset.sum_le_sum fun j hj => le_of_eq ?_)
   have hj : j < t := Finset.mem_range.mp hj
-  rw [eval_prfRealGame_prfMultiReduction hfamily hj, eval_prfIdealGame_prfMultiReduction hfamily hj]
+  rw [eval_prfRealGame_prfMultiReduction hlength hj, eval_prfIdealGame_prfMultiReduction hlength hj]
 
 /-- **Independently keyed copies of a pseudorandom function are pseudorandom**
 ([BonehShoup2023], Exercise 4.26, for a constant number of keys): for every fixed number `t` of
@@ -613,7 +620,7 @@ theorem PseudorandomFunction.multiKey (hfamily : PseudorandomFunction family) (t
   refine negligible_of_le (Negligible.sum (Finset.range t) fun j _ =>
     hfamily.secure _ (isOraclePPT_prfMultiReduction hfamily t j hadversary)) fun n => ?_
   simpa only [Finset.sum_apply] using
-    advantage_prfMultiRealGame_prfMultiIdealGame_le hfamily adversary n
+    advantage_prfMultiRealGame_prfMultiIdealGame_le hfamily.length_eq adversary n
 
 end Correctness
 
