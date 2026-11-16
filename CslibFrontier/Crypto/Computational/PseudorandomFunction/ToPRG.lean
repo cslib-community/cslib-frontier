@@ -26,22 +26,23 @@ Evaluating a word-level keyed family `family` at `ℓ n` distinct `inLen n`-bit 
 gives `prgFromPRF family ℓ inLen x` of length `ℓ n * outLen n` ([BonehShoup2023], §4.4.4,
 Theorem 4.8, p. 138).
 
-The word reduction `prgWordReduction ℓ inLen outLen x A` wraps `PRF.prgReduction`, so certifying
-it via `isOraclePPT_prgWordReduction` also certifies `PRF.prgReduction`. Theorem
+The word reduction `prgFromPRFReduction ℓ inLen outLen x A` wraps `PRF.prgReduction`, so
+certifying it via `isOraclePPT_prgFromPRFReduction` also certifies `PRF.prgReduction`. Theorem
 `PseudorandomFunctionOver.toPRG` uses `PseudorandomFunctionOver` rather than the fixed-width
 `PseudorandomFunction` (`inLen = outLen = id`), which cannot expand at seed length `0`.
 
 ## Main definitions
 
 * `Cslib.Crypto.prgFromPRF`: word generator obtained by evaluating `family` at `x`.
-* `Cslib.Crypto.prgWordReduction`: word PRF distinguisher wrapping `PRF.prgReduction`.
+* `Cslib.Crypto.prgFromPRFReduction`: word PRF distinguisher wrapping `PRF.prgReduction`.
 
 ## Main results
 
 * `Cslib.Crypto.computableInPolyTime_prgFromPRF`: `prgFromPRF` is deterministic polynomial time.
-* `Cslib.Crypto.isOraclePPT_prgWordReduction`: `prgWordReduction` is uniform strict oracle PPT.
+* `Cslib.Crypto.isOraclePPT_prgFromPRFReduction`: `prgFromPRFReduction` is uniform strict
+  oracle PPT.
 * `Cslib.Crypto.advantage_prgFromPRF_eq`: PRG advantage of `A` equals PRF advantage of
-  `prgWordReduction`.
+  `prgFromPRFReduction`.
 * `Cslib.Crypto.indistinguishable_prgFromPRF`: computational indistinguishability without
   strict expansion.
 * `Cslib.Crypto.PseudorandomFunctionOver.toPRG`: Boneh–Shoup Theorem 4.8 as a
@@ -110,7 +111,7 @@ section Reduction
 /-- Word-level PRF reduction wrapping the finite reduction `PRF.prgReduction`: queries the word
 oracle at `x n 0, ..., x n (ℓ n - 1)`, truncating/padding each reply to `outLen n` bits via
 `BitString.ofList (outLen n)`, concatenates the replies, and passes them to `A n`. -/
-@[expose] def prgWordReduction (ℓ inLen outLen : ℕ → ℕ)
+@[expose] def prgFromPRFReduction (ℓ inLen outLen : ℕ → ℕ)
     (x : ∀ n, Fin (ℓ n) ↪ BitString (inLen n)) (A : Distinguisher) : OracleDistinguisher :=
   fun n _ =>
     ProbOracleComp.simulate
@@ -128,7 +129,7 @@ private def prgQueryStep (outLen : ℕ → ℕ) (n : ℕ) (state : List (List Bo
       ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool) ((), state.1.headD [])
     return (state.1.tail, state.2 ++ (reply ++ List.replicate (outLen n) false).take (outLen n))
 
-private def prgWordReductionLoop (ℓ inLen outLen : ℕ → ℕ)
+private def prgFromPRFReductionLoop (ℓ inLen outLen : ℕ → ℕ)
     (x : ∀ n, Fin (ℓ n) ↪ BitString (inLen n)) (A : Distinguisher) : OracleDistinguisher :=
   fun n _ => do
     let bits ← Prod.snd <$>
@@ -180,24 +181,12 @@ private theorem iterate_prgQueryStep {k a w : ℕ} (f : Fin k → BitString a) (
     simpa only [Functor.map_map, List.ofFn_succ, Fin.cons_zero, Fin.cons_succ, List.flatten_cons,
       List.append_assoc] using hrec
 
-private theorem simulate_pi {Query₁ Query₂ : Type} {spec₁ : Query₁ → Type} {spec₂ : Query₂ → Type}
-    (h : (q : Query₁) → ProbOracleComp spec₂ (spec₁ q)) :
-    {k : ℕ} → {α : Fin k → Type} → (p : (i : Fin k) → ProbOracleComp spec₁ (α i)) →
-      ProbOracleComp.simulate h (OracleComp.pi p) =
-        OracleComp.pi fun i => ProbOracleComp.simulate h (p i)
-  | 0, _, _ => by simp [OracleComp.pi_zero]
-  | k + 1, _, p => by
-    rw [OracleComp.pi_succ, OracleComp.pi_succ, ProbOracleComp.simulate_bind]
-    congr 1
-    funext first
-    rw [ProbOracleComp.simulate_map, simulate_pi h (fun i => p i.succ)]
-
-private theorem prgWordReductionLoop_eq (ℓ inLen outLen : ℕ → ℕ)
+private theorem prgFromPRFReductionLoop_eq (ℓ inLen outLen : ℕ → ℕ)
     (x : ∀ n, Fin (ℓ n) ↪ BitString (inLen n)) (A : Distinguisher) (n : ℕ) (input : List Bool) :
-    prgWordReductionLoop ℓ inLen outLen x A n input =
-      prgWordReduction ℓ inLen outLen x A n input := by
-  simp only [prgWordReductionLoop, prgWordReduction, PRF.prgReduction, PRF.queryPoints,
-    ProbOracleComp.simulate_bind, simulate_pi, ProbOracleComp.simulate_query,
+    prgFromPRFReductionLoop ℓ inLen outLen x A n input =
+      prgFromPRFReduction ℓ inLen outLen x A n input := by
+  simp only [prgFromPRFReductionLoop, prgFromPRFReduction, PRF.prgReduction, PRF.queryPoints,
+    ProbOracleComp.simulate_bind, ProbOracleComp.simulate_pi, ProbOracleComp.simulate_query,
     ProbOracleComp.simulate_sample]
   have hstep : prgQueryStep outLen n = prgQueryStep (fun _ => outLen n) 0 := rfl
   rw [hstep, iterate_prgQueryStep (x n) [], bind_map_left]
@@ -238,18 +227,19 @@ private theorem isOraclePPTOn_prgQueryStep {outLen : ℕ → ℕ}
   exact htail.prod (hacc.bitsAppend ((p2.bitsAppend hrep).bitsTakeWithInput hw))
 
 /-- **Efficiency of the word PRF-to-PRG reduction.** For every uniform strict PPT distinguisher `A`,
-`prgWordReduction` is uniform strict oracle PPT whenever the query list and output widths are
+`prgFromPRFReduction` is uniform strict oracle PPT whenever the query list and output widths are
 deterministic polynomial time. -/
-theorem isOraclePPT_prgWordReduction {ℓ inLen outLen : ℕ → ℕ}
+theorem isOraclePPT_prgFromPRFReduction {ℓ inLen outLen : ℕ → ℕ}
     {x : ∀ n, Fin (ℓ n) ↪ BitString (inLen n)} {A : Distinguisher}
     (hx : ComputableInPolyTime
       (fun n => List.ofFn fun i : Fin (ℓ n) => List.ofFn (x n i)) encUnary (encList encBits))
     (hout : ComputableInPolyTime outLen encUnary encUnary)
     (hA : IsPPT encBool A) :
-    IsOraclePPT encBool (prgWordReduction ℓ inLen outLen x A) := by
-  have heq : prgWordReductionLoop ℓ inLen outLen x A = prgWordReduction ℓ inLen outLen x A := by
+    IsOraclePPT encBool (prgFromPRFReduction ℓ inLen outLen x A) := by
+  have heq :
+      prgFromPRFReductionLoop ℓ inLen outLen x A = prgFromPRFReduction ℓ inLen outLen x A := by
     funext n input
-    exact prgWordReductionLoop_eq ℓ inLen outLen x A n input
+    exact prgFromPRFReductionLoop_eq ℓ inLen outLen x A n input
   rw [← heq]
   have hℓ : ComputableInPolyTime ℓ encUnary encUnary := by
     simpa only [Function.comp_def, List.length_ofFn] using
@@ -305,15 +295,16 @@ end Reduction
 
 section Security
 
-/-- Against a length-preserving keyed family, the word PRG real experiment equals the word PRF
-real experiment of `prgWordReduction`. -/
+/-- Against a keyed family whose answers to `inLen n`-bit queries under `n`-bit keys have
+`outLen n` bits, the word PRG real experiment equals the word PRF real experiment of
+`prgFromPRFReduction`. -/
 theorem eval_prgRealGame_prgFromPRF
     {family : List Bool → List Bool → List Bool} {ℓ inLen outLen : ℕ → ℕ}
     (hlength : ∀ key query, query.length = inLen key.length →
       (family key query).length = outLen key.length)
     (x : ∀ n, Fin (ℓ n) ↪ BitString (inLen n)) (A : Distinguisher) (n : ℕ) :
     ProbComp.eval (prgRealGame (prgFromPRF family ℓ inLen x) A n) =
-      ProbComp.eval (prfRealGame inLen family (prgWordReduction ℓ inLen outLen x A) n) := by
+      ProbComp.eval (prfRealGame inLen family (prgFromPRFReduction ℓ inLen outLen x A) n) := by
   simp only [prgRealGame, prfRealGame, ProbComp.eval_bind, BitString.eval_sampleList]
   refine PMF.ext fun b => ?_
   simp only [PMF.bind_apply]
@@ -341,9 +332,9 @@ theorem eval_prgRealGame_prgFromPRF
         ((hlength key _ (by rw [List.length_ofFn, hkeyLen])).trans (congrArg outLen hkeyLen))
     have hbody :
         ProbComp.eval (A n (prgFromPRF family ℓ inLen x key)) =
-          ProbComp.eval ((prgWordReduction ℓ inLen outLen x A n []).run
+          ProbComp.eval ((prgFromPRFReduction ℓ inLen outLen x A n []).run
             fun request => pure (prfOracle family (inLen n) key request.2)) := by
-      simp only [prgWordReduction, PRF.prgReduction, ProbOracleComp.run_simulate,
+      simp only [prgFromPRFReduction, PRF.prgReduction, ProbOracleComp.run_simulate,
         ProbOracleComp.run_bind, hquery, PRF.run_queryPoints, pure_bind, ProbOracleComp.run_sample,
         hconcat]
     rw [hbody]
@@ -351,18 +342,18 @@ theorem eval_prgRealGame_prgFromPRF
     simp [hmem]
 
 /-- The uniform-word PRG ideal experiment equals the word PRF ideal experiment of
-`prgWordReduction`. -/
-theorem eval_prgIdealGame_prgWordReduction
+`prgFromPRFReduction`. -/
+theorem eval_prgIdealGame_prgFromPRFReduction
     (ℓ inLen outLen : ℕ → ℕ) (x : ∀ n, Fin (ℓ n) ↪ BitString (inLen n))
     (A : Distinguisher) (n : ℕ) :
     ProbComp.eval (prgIdealGame (fun n => ℓ n * outLen n) A n) =
-      ProbComp.eval (prfIdealGame inLen outLen (prgWordReduction ℓ inLen outLen x A) n) := by
+      ProbComp.eval (prfIdealGame inLen outLen (prgFromPRFReduction ℓ inLen outLen x A) n) := by
   have hprf :
-      prfIdealGame inLen outLen (prgWordReduction ℓ inLen outLen x A) n =
+      prfIdealGame inLen outLen (prgFromPRFReduction ℓ inLen outLen x A) n =
         PRF.idealExperiment (PRF.prgReduction (x n)
           fun y : Fin (ℓ n) → BitString (outLen n) =>
             A n (List.ofFn fun i => List.ofFn (y i)).flatten) := by
-    simp only [prfIdealGame, PRF.idealExperiment, prgWordReduction, ProbOracleComp.run_simulate]
+    simp only [prfIdealGame, PRF.idealExperiment, prgFromPRFReduction, ProbOracleComp.run_simulate]
     congr 1
     funext table
     congr 1
@@ -384,9 +375,9 @@ theorem eval_prgIdealGame_prgWordReduction
   rfl
 
 /-- **Concrete word-level advantage identity** ([BonehShoup2023], Theorem 4.8, p. 138): for any
-length-preserving keyed family and any word distinguisher `A`, the PRG distinguishing advantage
-against `prgFromPRF family ℓ inLen x` equals the PRF distinguishing advantage of
-`prgWordReduction ℓ inLen outLen x A`. -/
+keyed family whose answers to `inLen n`-bit queries under `n`-bit keys have `outLen n` bits and any
+word distinguisher `A`, the PRG distinguishing advantage against `prgFromPRF family ℓ inLen x`
+equals the PRF distinguishing advantage of `prgFromPRFReduction ℓ inLen outLen x A`. -/
 theorem advantage_prgFromPRF_eq
     {family : List Bool → List Bool → List Bool} {ℓ inLen outLen : ℕ → ℕ}
     (hlength : ∀ key query, query.length = inLen key.length →
@@ -396,10 +387,10 @@ theorem advantage_prgFromPRF_eq
         (ProbComp.eval (prgRealGame (prgFromPRF family ℓ inLen x) A n))
         (ProbComp.eval (prgIdealGame (fun n => ℓ n * outLen n) A n)) =
       Game.advantage
-        (ProbComp.eval (prfRealGame inLen family (prgWordReduction ℓ inLen outLen x A) n))
-        (ProbComp.eval (prfIdealGame inLen outLen (prgWordReduction ℓ inLen outLen x A) n)) := by
+        (ProbComp.eval (prfRealGame inLen family (prgFromPRFReduction ℓ inLen outLen x A) n))
+        (ProbComp.eval (prfIdealGame inLen outLen (prgFromPRFReduction ℓ inLen outLen x A) n)) := by
   rw [eval_prgRealGame_prgFromPRF hlength x A n,
-    eval_prgIdealGame_prgWordReduction ℓ inLen outLen x A n]
+    eval_prgIdealGame_prgFromPRFReduction ℓ inLen outLen x A n]
 
 /-- The generated distribution `prgFromPRF` is computationally indistinguishable from uniform words
 of length `ℓ n * outLen n` whenever `family` is a `PseudorandomFunctionOver inLen outLen` and
@@ -418,30 +409,28 @@ theorem indistinguishable_prgFromPRF
       (distinguishingGame (generatorEnsemble (prgFromPRF family ℓ inLen x) n) (A n))
       (distinguishingGame (BitString.uniformList (ℓ n * outLen n)) (A n))) =
       fun n => Game.advantage
-        (ProbComp.eval (prfRealGame inLen family (prgWordReduction ℓ inLen outLen x A) n))
-        (ProbComp.eval (prfIdealGame inLen outLen (prgWordReduction ℓ inLen outLen x A) n)) := by
+        (ProbComp.eval (prfRealGame inLen family (prgFromPRFReduction ℓ inLen outLen x A) n))
+        (ProbComp.eval (prfIdealGame inLen outLen (prgFromPRFReduction ℓ inLen outLen x A) n)) := by
     funext n
     simpa only [eval_prgRealGame, eval_prgIdealGame] using
       advantage_prgFromPRF_eq hfamily.length_eq x A n
   rw [heq]
-  exact hfamily.secure _ (isOraclePPT_prgWordReduction hx hout hA)
+  exact hfamily.secure _ (isOraclePPT_prgFromPRFReduction hx hout hA)
 
-private theorem computableInPolyTime_outLen_of_stretch
+private theorem computableInPolyTime_outLen_of_pos
     {family : List Bool → List Bool → List Bool} {ℓ inLen outLen : ℕ → ℕ}
     (hfamily : PseudorandomFunctionOver inLen outLen family)
     (x : ∀ n, Fin (ℓ n) ↪ BitString (inLen n))
     (hx : ComputableInPolyTime
       (fun n => List.ofFn fun i : Fin (ℓ n) => List.ofFn (x n i)) encUnary (encList encBits))
-    (hstretch : ∀ n, n < ℓ n * outLen n) :
+    (hpos : ∀ n, 0 < ℓ n) :
     ComputableInPolyTime outLen encUnary encUnary := by
-  have hℓpos (n : ℕ) : 0 < ℓ n :=
-    Nat.pos_of_ne_zero fun h0 => by simpa [h0] using hstretch n
   have heq (n : ℕ) :
       outLen n = (family (List.replicate n false)
         ((List.ofFn fun i : Fin (ℓ n) => List.ofFn (x n i)).headD [])).length := by
     let q := (List.ofFn fun i : Fin (ℓ n) => List.ofFn (x n i)).headD []
     have hmem : q ∈ List.ofFn fun i : Fin (ℓ n) => List.ofFn (x n i) := by
-      have hpos := hℓpos n
+      have hn := hpos n
       dsimp only [q]
       cases hlist : (List.ofFn fun i : Fin (ℓ n) => List.ofFn (x n i)) with
       | nil =>
@@ -478,7 +467,8 @@ theorem PseudorandomFunctionOver.toPRG
     (length_prgFromPRF hfamily.length_eq x)
     hstretch
     (indistinguishable_prgFromPRF hfamily x hx
-      (computableInPolyTime_outLen_of_stretch hfamily x hx hstretch))
+      (computableInPolyTime_outLen_of_pos hfamily x hx fun n =>
+        Nat.pos_of_ne_zero fun h0 => by simpa [h0] using hstretch n))
 
 end Security
 

@@ -14,8 +14,8 @@ import CslibFrontier.Crypto.Primitives.PRF.ToPRG
 /-!
 # Tests for PRF-to-PRG constructions
 
-Concrete evaluation, length expansion, query budget, advantage identity, non-distinct query
-counterexample, and word-level security instantiation under module encapsulation.
+Concrete evaluation, length expansion, query budget, advantage identity, non-distinct query and
+output-length counterexamples, and word-level security instantiation under module encapsulation.
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
@@ -217,7 +217,7 @@ example :
 
 example :
     IsOraclePPT encBool
-      (prgWordReduction (fun _ => 2) (fun n => n + 1) (fun n => n + 1) twoWordPts
+      (prgFromPRFReduction (fun _ => 2) (fun n => n + 1) (fun n => n + 1) twoWordPts
         (fun _ _ => pure false)) := by
   have hzero :
       IsPPTOn (encPair encUnary encBits) encBool
@@ -225,7 +225,7 @@ example :
     (ComputableInPolyTime.const false :
       ComputableInPolyTime (fun _ : ℕ × List Bool => false)
         (encPair encUnary encBits) encBool).isPPTOn
-  exact isOraclePPT_prgWordReduction hx_twoWordPts (by fun_prop) hzero
+  exact isOraclePPT_prgFromPRFReduction hx_twoWordPts (by fun_prop) hzero
 
 -- Instantiating `PseudorandomFunctionOver.toPRG` yields a `PseudorandomGenerator` of
 -- output length `2 * (n + 1)`.
@@ -234,5 +234,54 @@ example (family : List Bool → List Bool → List Bool)
     PseudorandomGenerator (prgFromPRF family (fun _ => 2) (fun n => n + 1) twoWordPts)
       (fun n => 2 * (n + 1)) :=
   hfamily.toPRG twoWordPts hx_twoWordPts fun n => by omega
+
+-- One all-`false` point of `n` bits.
+private def zeroPt : ∀ n : ℕ, Fin 1 ↪ BitString n := fun _ =>
+  ⟨fun _ _ => false, fun _ _ _ => Subsingleton.elim _ _⟩
+
+private theorem hx_zeroPt :
+    ComputableInPolyTime (fun n => List.ofFn fun i : Fin 1 => List.ofFn (zeroPt n i))
+      encUnary (encList encBits) := by
+  have heq : (fun n => List.ofFn fun i : Fin 1 => List.ofFn (zeroPt n i)) =
+      fun n => [List.replicate n false] := by
+    funext n
+    have h : List.ofFn (zeroPt n 0) = List.replicate n false := List.ofFn_const n false
+    simp [List.ofFn_succ, h]
+  rw [heq]
+  have h0 : ComputableInPolyTime (fun n => List.replicate n false) encUnary encBits :=
+    ComputableInPolyTime.bitsReplicate false
+  exact ComputableInPolyTime.of_tidy (ComputableTidilyInPolyTime.cons' h0.tidy (.const []))
+
+-- A length-preserving `PseudorandomFunction` lacks stretch at `n = 0`, yet is covered by
+-- `indistinguishable_prgFromPRF`.
+example (family : List Bool → List Bool → List Bool) (hfamily : PseudorandomFunction family) :
+    ComputationallyIndistinguishable
+      (generatorEnsemble (prgFromPRF family (fun _ => 1) id zeroPt))
+      (fun n => BitString.uniformList (1 * id n)) :=
+  indistinguishable_prgFromPRF hfamily zeroPt hx_zeroPt (by fun_prop)
+
+-- `hlength` is needed in `eval_prgRealGame_prgFromPRF` and `advantage_prgFromPRF_eq`.
+private def pt0 : ∀ _ : ℕ, Fin 1 ↪ BitString 0 := fun _ =>
+  ⟨fun _ i => i.elim0, fun _ _ _ => Subsingleton.elim _ _⟩
+
+private def isEmptyTest : Distinguisher := fun _ w => pure w.isEmpty
+
+-- A family that answers with the empty word where one bit is declared: the generator outputs the
+-- empty word, the reduction pads the reply to `[false]`.
+example :
+    ProbComp.eval (prgRealGame (prgFromPRF (fun _ _ => []) (fun _ => 1) (fun _ => 0) pt0)
+        isEmptyTest 0) true = 1 ∧
+      ProbComp.eval (prfRealGame (fun _ => 0) (fun _ _ => [])
+        (prgFromPRFReduction (fun _ => 1) (fun _ => 0) (fun _ => 1) pt0 isEmptyTest) 0)
+        true = 0 := by
+  constructor
+  · simp [prgRealGame, prgFromPRF, isEmptyTest, List.ofFn_succ]
+  · have hrun (key : List Bool) :
+        (prgFromPRFReduction (fun _ => 1) (fun _ => 0) (fun _ => 1) pt0 isEmptyTest 0 []).run
+          (fun request => pure (prfOracle (fun _ _ => []) 0 key request.2)) = pure false := by
+      simp [prgFromPRFReduction, PRF.prgReduction, ProbOracleComp.run_simulate,
+        ProbOracleComp.run_map, ProbOracleComp.run_query, PRF.run_queryPoints, prfOracle,
+        isEmptyTest, List.ofFn_succ]
+    simp [prfRealGame, hrun]
 
 end CslibFrontierTests.Crypto.PRFToPRG

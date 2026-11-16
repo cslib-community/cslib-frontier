@@ -9,8 +9,7 @@ module
 
 public import Cslib.Crypto.Primitives.PRG.Defs
 public import CslibFrontier.Crypto.Primitives.PRF.Finite
-public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
-public import CslibFrontier.Languages.Probabilistic.Vector
+public import CslibFrontier.Languages.Probabilistic.Oracle.Vector
 import CslibFrontier.Crypto.Primitives.PRG.Game
 import CslibFrontier.Probability.PMF.Uniform
 
@@ -94,35 +93,13 @@ variable {Key D R : Type} {ℓ : ℕ}
 /-- Evaluating `queryPoints x` against a deterministic function `f : D → R` returns `f ∘ x`. -/
 theorem run_queryPoints {ℓ : ℕ} (x : Fin ℓ ↪ D) (f : D → R) :
     ProbOracleComp.run (queryPoints (R := R) x) (fun d => pure (f d)) =
-      pure (fun i => f (x i)) := by
-  induction ℓ with
-  | zero =>
-    change ProbOracleComp.run (OracleComp.pi _) _ = _
-    simp only [OracleComp.pi_zero, ProbOracleComp.run_pure]
-    exact congrArg pure (funext fun i => i.elim0)
-  | succ ℓ ih =>
-    let x' : Fin ℓ ↪ D := Function.Embedding.trans ⟨Fin.succ, Fin.succ_injective ℓ⟩ x
-    change ProbOracleComp.run (OracleComp.pi _) _ = _
-    rw [OracleComp.pi_succ, ProbOracleComp.run_bind, ProbOracleComp.run_query, pure_bind,
-      ProbOracleComp.run_map]
-    change (Fin.cons (α := fun _ => R) (f (x 0)) <$>
-      ProbOracleComp.run (queryPoints (R := R) x') (fun d => pure (f d))) = _
-    rw [ih x', map_pure]
-    exact congrArg pure (funext fun i => Fin.cases rfl (fun _ => rfl) i)
+      pure (fun i => f (x i)) :=
+  ProbOracleComp.run_pi_query (fun i => x i) f
 
 /-- `queryPoints x` makes at most `ℓ` queries on every execution path. -/
 theorem isQueryBounded_queryPoints {ℓ : ℕ} (x : Fin ℓ ↪ D) :
-    (queryPoints (R := R) x).IsQueryBounded ℓ := by
-  induction ℓ with
-  | zero => exact .pure _ 0
-  | succ ℓ ih =>
-    let x' : Fin ℓ ↪ D := Function.Embedding.trans ⟨Fin.succ, Fin.succ_injective ℓ⟩ x
-    change OracleComp.IsCostBounded _ (OracleComp.pi _) (ℓ + 1)
-    rw [OracleComp.pi_succ]
-    refine ((ProbOracleComp.IsQueryBounded.query (x 0)).bind fun first => ?_).mono
-      (Nat.add_comm 1 ℓ).le
-    exact (OracleComp.isCostBounded_map_iff (Fin.cons (α := fun _ => R) first)
-      (queryPoints (R := R) x') ℓ).mpr (ih x')
+    (queryPoints (R := R) x).IsQueryBounded ℓ :=
+  ProbOracleComp.isQueryBounded_pi_query (fun i => x i)
 
 /-- The PRF reduction `prgReduction x A` makes at most `ℓ` oracle queries regardless of private
 coins and oracle replies. -/
