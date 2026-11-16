@@ -209,6 +209,22 @@ theorem toNat_outputs_toCircuit (f : XorAndCircuit) (o : Fin f.circuit.m) :
   rw [← ConventionalCircuit.toNat_outputs_toCircuit f.1, ← mapOp_toCircuit]
   rfl
 
+/-- The value of wire `w` of `toCircuit f` on an `n`-bit input is wire `w` of the conventional
+evaluation, numbered from `0`. -/
+theorem trace_toCircuit (f : XorAndCircuit) (x : Fin f.circuit.n → Bool)
+    (w : Wire f.circuit.n (toCircuit f).size) :
+    (toCircuit f).program.trace interpretation x w =
+      (f.circuit.wires (List.ofFn x) f.circuit.q).getD w.toNat false := by
+  have h : ∀ (c : Circuit (fullSignature 2 Bool) f.circuit.n f.circuit.m),
+      c = ConventionalCircuit.toCircuit f.1 → ∀ w : Wire f.circuit.n c.size,
+        c.program.trace fullInterpretation x w =
+          (f.circuit.wires (List.ofFn x) f.circuit.q).getD w.toNat false := by
+    rintro c rfl w
+    exact ConventionalCircuit.trace_toCircuit f.1 x w
+  refine Eq.trans ?_ (h _ (mapOp_toCircuit f) w)
+  exact congrFun (congrArg (Wire.elim x) (Program.eval_mapOp (I := interpretation)
+    (J := fullInterpretation) (toCircuit f).program x).symm) w
+
 /-- **The translation computes the conventional semantics.** On every `n`-bit input, the outputs
 of `toCircuit f` are `evalCirc f`. -/
 theorem eval_toCircuit (f : XorAndCircuit) (x : Fin f.circuit.n → Bool) :

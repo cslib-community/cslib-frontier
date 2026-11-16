@@ -68,7 +68,7 @@ private theorem length_getD_le {k : ℕ} {ws : List (List Bool)}
   | some w => exact hws w (List.mem_of_getElem? h)
 
 /-- The evaluator's AND gate writes at most `k + 2` bits. -/
-private theorem length_andWord_le (k g : ℕ) (TG TE a b : List Bool) :
+theorem length_andWord_le (k g : ℕ) (TG TE a b : List Bool) :
     (andWord hash k g TG TE a b).length ≤ k + 2 := by
   simp only [andWord, List.length_zipWith, length_hashWord]
   omega
@@ -271,7 +271,7 @@ variable {hash : List Bool → List Bool → List Bool}
 
 include hf in
 /-- The hash on words is computed in polynomial time. -/
-private theorem hashWord_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k : γ → ℕ}
+theorem hashWord_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k : γ → ℕ}
     {x t : γ → List Bool} (hk : ComputableInPolyTime k encIn encUnary)
     (hx : ComputableInPolyTime x encIn encBits) (ht : ComputableInPolyTime t encIn encBits) :
     ComputableInPolyTime (fun a => hashWord hash (k a) (x a) (t a)) encIn encBits := by
@@ -281,7 +281,7 @@ private theorem hashWord_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k : γ
   exact h.comp (hk.prod (hx.prod ht))
 
 /-- Tweaks are computed in polynomial time. -/
-private theorem tweakWord_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k g : γ → ℕ}
+theorem tweakWord_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k g : γ → ℕ}
     {s : γ → Bool} (hk : ComputableInPolyTime k encIn encUnary)
     (hg : ComputableInPolyTime g encIn encUnary) (hs : ComputableInPolyTime s encIn encBool) :
     ComputableInPolyTime (fun a => tweakWord (k a) (g a) (s a)) encIn encBits := by
@@ -322,7 +322,7 @@ private theorem evWord_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k g : γ
 
 include hf in
 /-- The evaluator's AND gate is computed in polynomial time. -/
-private theorem andWord_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k g : γ → ℕ}
+theorem andWord_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k g : γ → ℕ}
     {TG TE a b : γ → List Bool} (hk : ComputableInPolyTime k encIn encUnary)
     (hg : ComputableInPolyTime g encIn encUnary) (hTG : ComputableInPolyTime TG encIn encBits)
     (hTE : ComputableInPolyTime TE encIn encBits) (ha : ComputableInPolyTime a encIn encBits)

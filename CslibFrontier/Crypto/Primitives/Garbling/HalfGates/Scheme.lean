@@ -359,7 +359,7 @@ theorem labelBits_inputLabels {n : ℕ} (k : ℕ) (coins : List Bool) (i : Fin n
   labelBits_labelOfWord (BitString.length_listRow _ _ _)
 
 /-- An entry of a prefix of the label words of a labelling. -/
-private theorem getD_take_labels {n s k : ℕ} (A : Wire n s → BitString (k + 1) × Bool) {j i : ℕ}
+theorem getD_take_labels {n s k : ℕ} (A : Wire n s → BitString (k + 1) × Bool) {j i : ℕ}
     (hij : i < j) (hj : j ≤ n + s) :
     ((List.ofFn fun v : Fin (n + s) =>
       labelBits (A (Wire.ofNat v v.isLt))).take j).getD i [] =
@@ -377,7 +377,7 @@ private theorem getD_ofFn_labels {n s k : ℕ} (A : Wire n s → BitString (k + 
   simp [hi]
 
 /-- The first argument of gate `g` of `toCircuit f` as a wire number. -/
-private theorem left_toCircuit (f : XorAndCircuit) (g : Fin (toCircuit f).size) :
+theorem left_toCircuit (f : XorAndCircuit) (g : Fin (toCircuit f).size) :
     left (toCircuit f) g = Wire.ofNat (f.circuit.A (g.cast (size_toCircuit f)) - 1) (by
       have h₁ := toNat_left_lt (toCircuit f) g
       have h₂ := toNat_left_toCircuit f g
@@ -385,7 +385,7 @@ private theorem left_toCircuit (f : XorAndCircuit) (g : Fin (toCircuit f).size) 
   Wire.toNat_injective (by simp only [Wire.toNat_ofNat]; exact toNat_left_toCircuit f g)
 
 /-- The second argument of gate `g` of `toCircuit f` as a wire number. -/
-private theorem right_toCircuit (f : XorAndCircuit) (g : Fin (toCircuit f).size) :
+theorem right_toCircuit (f : XorAndCircuit) (g : Fin (toCircuit f).size) :
     right (toCircuit f) g = Wire.ofNat (f.circuit.B (g.cast (size_toCircuit f)) - 1) (by
       have h₁ := toNat_right_lt (toCircuit f) g
       have h₂ := toNat_right_toCircuit f g
