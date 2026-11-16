@@ -441,13 +441,15 @@ theorem toOuterMeasure_bad_le {handler : (q : Query) → StateT State PMF (spec 
   simpa only [mul_zero, add_zero] using h
 
 /-- **Two-cost triangular bad-state union bound under `ProbOracleComp.runWith`.** When external
-calls carry budgets `k₁` for `cost₁` (charging `(cost₁ q * size s) * δ` and growing `size`) and `k₂`
-for `cost₂` (growing `size` passively), `runWith handler program s` reaches `bad` with probability
-at most `(k₁ * size s + k₁ * k₂ + k₁.choose 2) * δ`. -/
+calls carry budgets `k₁` for `cost₁` (charging `(cost₁ q * size s + (cost₁ q).choose 2) * δ` and
+growing `size`) and `k₂` for `cost₂` (growing `size` passively), `runWith handler program s`
+reaches `bad` with probability at most `(k₁ * size s + k₁ * k₂ + k₁.choose 2) * δ`. The
+`(cost₁ q).choose 2` term covers a call that adds several points and may collide among them. -/
 theorem toOuterMeasure_bad_choose_two_cost_le {handler : (q : Query) → StateT State PMF (spec q)}
     {bad : State → Prop} (cost₁ cost₂ : Query → ℕ) (size : State → ℕ) (δ : ℝ≥0∞)
     (hstep : ∀ q s, ¬bad s →
-      (handler q s).toOuterMeasure {x | bad x.2} ≤ (cost₁ q * size s : ℕ) * δ)
+      (handler q s).toOuterMeasure {x | bad x.2} ≤
+        (cost₁ q * size s + (cost₁ q).choose 2 : ℕ) * δ)
     (hgrow : ∀ q s, ¬bad s → ∀ x ∈ (handler q s).support, ¬bad x.2 →
       size x.2 ≤ size s + cost₁ q + cost₂ q)
     {program : ProbOracleComp spec α} {k₁ k₂ : ℕ}
@@ -485,7 +487,9 @@ theorem toOuterMeasure_bad_choose_two_le {handler : (q : Query) → StateT State
       (n * size s + n.choose 2 : ℕ) * δ := by
   simpa only [mul_zero, add_zero] using
     toOuterMeasure_bad_choose_two_cost_le (fun _ => 1) (fun _ => 0) size δ
-      (fun q s hs => by simpa only [one_mul, Nat.cast_id] using hstep q s hs)
+      (fun q s hs => by
+        simpa only [one_mul, Nat.choose_eq_zero_of_lt Nat.one_lt_two, add_zero, Nat.cast_id] using
+          hstep q s hs)
       (fun q s hs x hx hgood => by simpa only [add_zero] using hgrow q s hs x hx hgood)
       hn (IsCostBounded.of_forall_cost_eq_zero (fun q => by cases q <;> rfl) program) hs
 

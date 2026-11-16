@@ -21,7 +21,8 @@ Uses the public API of `CslibFrontier.Crypto.Computational.GenericGroup.Basic`,
 * the sharp bound for the adversary of `ZMod 5` that makes no query and guesses `1` when its two
   labels agree: success probability at most `2 / 5`;
 * both forms of the bound for an adversary that makes one query, with labels in `Fin 128` for a
-  group of order `101`: at most `11 / 101` and at most `27 / 202`;
+  group of order `101`: at most `11 / 101` and at most `27 / 202`; success probability one half is
+  out of reach for it;
 * relabelling a one-query program through `ZMod 5 ↪ Fin 8`: its query bound, and its run against a
   permutation `σ`;
 * precomposing a uniform embedding `ZMod 2 ↪ Fin 3` with an independent uniform permutation of
@@ -77,6 +78,12 @@ example : (dlogGame adv).succProbability ≤ 11 / 101 := by
 example : (dlogGame adv).succProbability ≤ 27 / 202 := by
   refine (succProbability_dlogGame_le (T := 1) (by norm_num) adv_bounded).trans_eq ?_
   norm_num
+
+/-- With one query in a group of order `101`, success probability one half is out of reach, since
+`(3 + 2)² + 2 < 101`. -/
+example : ¬ (1 / 2 ≤ (dlogGame adv).succProbability) := fun h => by
+  have h' := le_of_half_le_succProbability_dlogGame (T := 1) (by norm_num) adv_bounded h
+  norm_num at h'
 
 /-! ### Relabelling a concrete program -/
 
