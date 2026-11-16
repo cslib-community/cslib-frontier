@@ -384,8 +384,8 @@ theorem IsPPTOn.exists_multiTapePTM_iterate_binary {initial : α → σ} {count 
           ((fun final => encode (0, final)) <$> OracleComp.iterate (count a) step (initial a)) := by
       have hstart0 : start a = encode (0 + count a, initial a) := by simp only [start, Nat.zero_add]
       rw [hstart0, hloop_eq, ProbOracleComp.sample_map, ProbOracleComp.sample,
-        OracleComp.interpret_iterate]
-      rfl
+        OracleComp.substitute_eq_interpret, OracleComp.interpret_iterate]
+      simp only [ostep, ProbOracleComp.sample, ← OracleComp.substitute_eq_interpret]
     rw [hword_sample] at hboth
     exact hboth
   obtain ⟨kMid, MidControl, hfinMid, midM, hmidM⟩ :=

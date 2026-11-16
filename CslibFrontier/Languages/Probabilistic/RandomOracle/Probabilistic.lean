@@ -182,7 +182,7 @@ theorem run_interpret_answer_complete_prob [DecidableEq Query]
       simpa only [PMF.monad_bind_eq_bind, PMF.map, Function.comp_def, PMF.pure_bind] using
         answer_complete distribution cache q) program cache
   refine h.trans (congrArg ((complete distribution cache).bind) (funext fun table => ?_))
-  exact ProbOracleComp.runWith_readOnly
+  simpa only [OracleComp.evalWith_eq_interpret] using ProbOracleComp.runWith_readOnly
     (fun q (table : (q : Query) → Response q) => PMF.pure (table q)) program table
 
 /-- Lazy sampling from an empty cache implements the eager table experiment for randomized,
@@ -246,7 +246,7 @@ theorem interpret_prob_eq_memoize_map {Value Key' Value' : Type} [Finite Value]
   have houtput := congrArg (PMF.map Prod.fst) hrun
   simp only [PMF.map_comp, Function.comp_def, represent, List.map_nil] at houtput
   rw [← houtput]
-  simpa only [ProbOracleComp.runWith, OracleComp.runWith, OracleComp.interpret_interpret,
+  simpa only [ProbOracleComp.runWith_eq_run_interpret, OracleComp.interpret_interpret,
     OracleComp.interpret_sumHandler, interpret_sample, ProbComp.unifFin,
     OracleComp.interpret_query, OracleComp.interpret_map, interpret_query, PMF.monad_map_eq_map,
     PMF.pure_map] using interpret_prob_eq_memoize distribution
