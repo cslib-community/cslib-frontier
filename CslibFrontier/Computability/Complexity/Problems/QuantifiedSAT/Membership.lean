@@ -12,7 +12,9 @@ import CslibFrontier.Computability.Complexity.Classes.Alternation.Game
 public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT
 import CslibFrontier.Computability.Complexity.Classes.PH.Projection
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Foundations.Data.List.OfFnGetD
 import CslibFrontier.Tactic.EncLen
+import Mathlib.Data.List.FinRange
 
 /-!
 # Polynomial-hierarchy membership of grouped quantified SAT
@@ -47,14 +49,6 @@ theorem wellFormed_polyTime (i : ℕ) :
   simp only [wellFormed_iff]
   fun_prop
 
-private theorem map_range_getD {α : Type} (l : List α) (a : α) (i : ℕ) (hi : l.length = i) :
-    (List.range i).map (fun j => l.getD j a) = l := by
-  subst i
-  apply List.ext_getElem (by simp)
-  intro j hj hj'
-  simp only [List.getElem_map, List.getElem_range]
-  exact List.getD_eq_getElem _ _ hj'
-
 /-- The lengths of the first `i` variable blocks, paired with a common certificate length. -/
 private def lengths (i : ℕ) (a : PrenexQBF) (n : ℕ) : List (ℕ × ℕ) :=
   (List.range i).map fun j => ((a.blocks.getD j []).length, n)
@@ -64,7 +58,9 @@ private theorem lengths_fst (i : ℕ) (a : PrenexQBF) (n : ℕ) (hi : a.blocks.l
   calc
     _ = ((List.range i).map (fun j => a.blocks.getD j [])).map List.length := by
       simp only [lengths, List.map_map, Function.comp_def]
-    _ = _ := congrArg (List.map List.length) (map_range_getD a.blocks [] i hi)
+    _ = _ := congrArg (List.map List.length) (by
+      simpa only [List.ofFn_eq_pmap, List.pmap_eq_map] using
+        List.ofFn_getD_eq_of_length [] hi)
 
 private theorem block_length_le (a : PrenexQBF) (j : ℕ) :
     (a.blocks.getD j []).length ≤ a.blocks.flatten.length := by
