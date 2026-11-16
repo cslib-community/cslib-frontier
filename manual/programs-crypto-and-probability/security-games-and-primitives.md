@@ -2697,6 +2697,34 @@ in decryption, preserving `INDCPA` (`SymmetricCipher.INDCPA.extendCipher`) and `
 `echoMAC` as well as the PRF instantiation are in
 [`CslibFrontierTests/Crypto/MACThenEncrypt.lean`](../../CslibFrontierTests/Crypto/MACThenEncrypt.lean).
 
+For partial-tag Encrypt-then-MAC ([bs23][bs23], §9.4.1.1, printed pp. 368–369), import
+[`Encryption/EncryptThenMAC/PartialTag.lean`](../../CslibFrontier/Crypto/Computational/Encryption/EncryptThenMAC/PartialTag.lean).
+`prfCipherPartialTag` wraps `prfCipher family hpoly hlen` (`2 * n`-bit ciphertexts `r ++ c`)
+together with any `MACScheme M` authenticating `n`-bit messages (`∀ n, M.msgLen n = n`):
+encryption signs only the `n`-bit body `cFull.drop n` and outputs `encPair encBits encBits
+(cFull, tag)` while leaving the `n`-bit IV `r` unauthenticated, and decryption verifies canonical
+`encPair` framing, `(unframe ct).length == 2 * n`, and `M.verify` on `(unframe ct).drop n` before
+decrypting `unframe ct`. For every `n ≥ 1`, the explicit 1-query adversary
+`partialTagCIAdversary` (`isOraclePPT_partialTagCIAdversary`,
+`isQueryBounded_partialTagCIAdversary`) queries `0^n` and flips the first IV bit via
+`flipHeadBit`, winning `ciOneTimeGame` with probability `1`
+(`eval_ciOneTimeGame_prfCipherPartialTag`) and unconditionally refuting
+`OneTimeCiphertextIntegrity`, `CiphertextIntegrity`, `OneTimeAuthenticatedEncryption`, and
+`AuthenticatedEncryption` (`not_oneTimeCiphertextIntegrity_prfCipherPartialTag`,
+`not_ciphertextIntegrity_prfCipherPartialTag`,
+`not_oneTimeAuthenticatedEncryption_prfCipherPartialTag`,
+`not_authenticatedEncryption_prfCipherPartialTag`). By reduction `partialTagToCPAAdversary`
+(`isOraclePPT_partialTagToCPAAdversary`, `eval_cpaGame_partialTagToCPAAdversary`), any
+`PseudorandomFunction` keeps `prfCipherPartialTag` both `INDCPA`
+(`PseudorandomFunction.indcpa_prfCipherPartialTag`) and `OneTimeINDCPA`, yielding an explicit
+`INDCPA` yet non-AE counterexample via
+`PseudorandomFunction.prfCipherPartialTag_counterexample`. The randomized CBC plaintext-shift
+effect (`m'[0] = m[0] ⊕ Δ`) and chosen-ciphertext break of §9.4.1.1 are not covered here, since
+flipping the IV of `prfCipher` evaluates the PRF on a fresh nonce rather than XORing `Δ` into the
+plaintext. Concrete IV-flip vs body-tamper checks, the `n = 0` boundary failure, certificates, and
+the `prfMAC` instantiation are in
+[`CslibFrontierTests/Crypto/EncryptThenMACPartialTag.lean`](../../CslibFrontierTests/Crypto/EncryptThenMACPartialTag.lean).
+
 ## Authentication, signatures, and state
 
 To state a forgery experiment, import [Game/Forgery.lean](../../CslibFrontier/Crypto/Game/Forgery.lean). `forgeExperiment keyGen signer verify fresh A` draws a key pair, runs the forger `A` on the public key against a signing oracle, and accepts a candidate `(m, σ)` that verifies and is fresh. The oracle is a policy `Signer SK M Sig` that reads the log of answered queries. `Signer.ofSign` signs every query and `.oneTime` signs only the first; `Signer.indexed` and `Signer.counter` give the indexed and counter oracles. A refused query is answered with `default` and is not logged. `freshMessage` gives existential unforgeability and `freshPair` strong unforgeability; `succProbability_forgeExperiment_freshMessage_le` shows that strong implies existential. Verification also receives the secret key, so a MAC is the case `PK = Unit`. [Signature/Scheme.lean](../../CslibFrontier/Crypto/Computational/Signature/Scheme.lean) defines a typed `Signature.Scheme PK SK M Sig` with `eufCmaExperiment` (Boneh–Shoup Attack Game 13.1), `sufCmaExperiment` and `oneTimeEufCmaExperiment`; `restrict adm` makes verification accept only admissible messages. At each parameter `n`, the word games `SignatureScheme.eufCmaGame` and `eufOneTimeGame` equal these experiments for `S.toScheme n` and `adversary.toTyped n` ([Signature/Bridge.lean](../../CslibFrontier/Crypto/Computational/Signature/Bridge.lean), `eufCmaGame_eq_eufCmaExperiment`). `Signature.IndexedScheme` adds a capacity and passes an index to signing and verification. Its `eufCmaExperiment` uses `Signer.indexed` (Boneh–Shoup Definition 14.6) and `counterEufCmaExperiment` uses `Signer.counter` (Section 14.6.4). The word games `indexedEufCmaGame` and `counterEufCmaGame` equal them at each `n` (`indexedEufCmaGame_eq_eufCmaExperiment`, `counterEufCmaGame_eq_counterEufCmaExperiment`). For any typed scheme on words, `Forger.eval_eufCmaExperiment_toTyped` and its `restrict` form unfold the experiment played by a word forger into the word-level game; the tree signature games `TreeSignature.treeGame` and `treeGameWith` are experiments of the certificate-free `treeScheme` and use this form in the coin hybrid. The [checked clients](../../CslibFrontierTests/Crypto/Forgery.lean) cover the signing policies, a winning forger, a replay that loses, and the unique-signature equality.
