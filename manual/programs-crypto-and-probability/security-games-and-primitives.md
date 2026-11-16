@@ -30,6 +30,8 @@ For statistical indistinguishability of ensembles ([bs23][bs23], Definition 3.6 
 
 Pinned cslib also has the finite [Generator](https://github.com/leanprover/cslib/blob/254e30e6d4299c51323aaeaf5f51a4763b375d4a/Cslib/Crypto/Primitives/PRG/Defs.lean#L38) interface, whose `Secure` accepts any chosen predicate on randomized tests, while expansion is a separate cardinality property. cslib-frontier adds circuit-bounded tests and uniform machine tests on top. These are intentionally different quantifiers; the circuit version can select a new bounded circuit at each input length [cslib][cslib].
 
+For pseudorandom numbers modulo `m` from pseudorandom words ([bs23][bs23], Example 3.3, pp. 86–87), import [`PseudorandomGenerator/ModReduction.lean`](../../CslibFrontier/Crypto/Computational/PseudorandomGenerator/ModReduction.lean). `modWord m word` reads `word` most significant bit first and writes `binaryValue word % m` with `encNat`, least significant bit first; the ideal uniform residue is `(PMF.uniformOfFintype (Fin m)).map fun i => encNat i.val`. For a modulus with every `m n` nonzero, `ComputationallyIndistinguishable.map_modWord` derives computational indistinguishability of the reduced residues from indistinguishability from uniform `length n`-bit words, an efficiently computable modulus `hm : ComputableInPolyTime m encUnary encNat`, and negligibility of `m n / 2 ^ length n`; `PseudorandomGenerator.indistinguishable_map_modWord` specializes it to a `PseudorandomGenerator`. The reduction is `modDistinguisher m A`, which `isPPT_modDistinguisher` certifies PPT when `A` is PPT and `hm` holds; for any word function, `advantage_generatorEnsemble_map_modWord_le` bounds the advantage of `A` between the reduced outputs and uniform residues by the advantage of `modDistinguisher m A` in the generator's game plus `m n / 2 ^ length n`. The conclusion can fail when `m n / 2 ^ length n` is not negligible: it does for two fair bits modulo `3` (checked, with constant-modulus instances, an unconditional instance on `n` fair bits modulo `3`, and the other hypothesis probes, in [`PseudorandomResidues.lean`](../../CslibFrontierTests/Crypto/PseudorandomResidues.lean)); `hm` is the efficiency condition on the parameter for `isPPT_modDistinguisher`, with no failing case without it known. On finite types, [`PRG/ModReduction.lean`](../../CslibFrontier/Crypto/Primitives/PRG/ModReduction.lean) gives `PRG.Generator.modNat`, `PRG.Generator.advantage_modNat_le` (the same inequality with error `m / N` for nonzero `N` and `m`), and `PRG.Generator.Secure.modNat`; this layer has no cost model, so the efficiency of its reduction is the adversary-closure hypothesis `hred`. Nothing about rejection sampling or any exact value of the statistical distance is claimed.
+
 ### Security theorems and efficiency witnesses
 
 A security theorem says that every admitted adversary has negligible advantage, given a named hardness assumption. [AGENTS.md](../../AGENTS.md#security-theorems) fixes what such a theorem may assume: named hardness assumptions, stated relative to the setup sampler or component they concern; that the adversary is in the admitted class; and properties of components that the cited result itself takes as given. It may assume nothing about an object that its proof constructs, from the adversary or not (a reduction, distinguisher, simulator, extractor or hybrid), and it may not take from the caller an object whose existence or efficiency is what it should prove.
@@ -423,6 +425,35 @@ instead of writing another sampling block. The inner product of bit lists is
 Mathlib's `dotProduct` on `List.ofFn` inputs (`listDot_ofFn`); use it, and its polynomial-time rule
 `ComputableInPolyTime.bitsListDot`, instead of spelling out the zip-and-fold parity.
 
+For offline dictionary attacks against a hash oracle `H` ([bs23][bs23], §18.3.1.2–§18.3.1.3,
+(18.1)–(18.3), pp. 721–723, and §18.4.1–§18.4.2, pp. 724–726), import
+[`Computational/DictionarySearch.lean`](../../CslibFrontier/Crypto/Computational/DictionarySearch.lean).
+`dictionarySearch input accept D` searches a candidate list `D` in order by querying `H` at
+`input w` and testing replies with `accept`. Against `H` it returns the first candidate whose
+reply passes, or `none` (`evalPure_dictionarySearch`). If the secret `pw` is in `D` and its reply
+passes, the output is a candidate whose reply passes (`exists_evalPure_dictionarySearch_of_mem`),
+and `dictionaryPreimageSearch input (H (input pw)) D` returns `pw` itself when `pw ∈ D` and
+`w ↦ H (input w)` is injective on `D` (`evalPure_dictionaryPreimageSearch_of_injOn`; injectivity
+of `H` alone is not enough). The search queries only candidate inputs
+(`queriesSatisfy_dictionarySearch`) and makes at most `D.length` oracle calls on every path
+(`isQueryBounded_dictionarySearch`); when `accept` rejects some reply, no smaller number bounds
+it (`not_isQueryBounded_dictionarySearch`). The preprocessing table `dictionaryTable` makes at most
+`D.length` oracle calls (`isQueryBounded_dictionaryTable`) and matches `dictionaryPreimageSearch`
+via `List.lookup` (`lookup_evalPure_dictionaryTable`), so the batch search
+`dictionaryBatchSearch` answers a whole file `F` in at most `D.length` calls
+(`isQueryBounded_dictionaryBatchSearch`); separate searches are bounded by `F.length * D.length`
+(`isQueryBounded_mapM_dictionaryPreimageSearch`), an upper bound that is not shown to be attained.
+For any distribution `μ` of the secret, `dictionarySearch_inverts` states the bound of `D.length`
+calls together with a lower bound on success: `dictionaryInverter` (the preimage search, returning
+`default` on failure) wins `inversionExperiment` for `pw ↦ H (input pw)` with probability at
+least `μ.toOuterMeasure {pw | pw ∈ D}`. The probability form is this library's; the book states
+that a password in `D` is found, up to a collision (p. 722).
+The cost is a count of oracle evaluations of `H` and nothing else: comparisons, `accept`, and
+`List.lookup` are uncounted, and no running time in a machine model is stated. Salted and
+secret-salt instances, MAC-key and §21.11 search shapes, and failing cases showing each hypothesis
+is needed are in
+[`Crypto/DictionarySearch.lean`](../../CslibFrontierTests/Crypto/DictionarySearch.lean).
+
 For a one-bit expanding PRG, [Stretch/Prefix.lean](../../CslibFrontier/Crypto/Computational/Stretch/Prefix.lean)
 proves that `(forwardIterate g ℓ seed).take ℓ` has length `ℓ` and agrees with the first `ℓ`
 emitted bits of every longer run. The premise is global: `length (g seed) = length seed + 1`
@@ -470,12 +501,29 @@ path; private coins are free), `succProbability_dlogGame_le` bounds the success 
 sharper `((3T + 2).choose 2 + 1) / q`. The bound takes no hardness assumption and applies to
 adversaries that are otherwise unbounded, but it is about the model only: it says nothing about
 discrete logarithm in any specific group (p. 695). As in the book, `q` is prime; the bound is not
-claimed for composite `q`. The proof reduces labels in `S` to a uniform permutation of `ZMod q` with
+claimed for composite `q`. Both bounds are instances of the bound for games with linear inputs
+below. Its proof reduces labels in `S` to a uniform permutation of `ZMod q` with
 [`GenericGroup/Relabel.lean`](../../CslibFrontier/Crypto/Computational/GenericGroup/Relabel.lean):
 `relabel j A` answers each query of `A` with at most one query (`isQueryBounded_relabel`) and
 behaves against a permutation `σ` as `A` against `j ∘ σ` (`runLabeled_relabel`). Checked
 examples, including where the proof uses primality, are in
 [`GenericGroupDiscreteLog.lean`](../../CslibFrontierTests/Crypto/GenericGroupDiscreteLog.lean).
+
+The same argument bounds a family of games in which the adversary is given the labels of `1` and
+of uniform unknowns; the general statement is not in the book. In
+[`GenericGroup/LinearGame.lean`](../../CslibFrontier/Crypto/Computational/GenericGroup/LinearGame.lean),
+for finite `ι` and `κ`, `linearGame W A` draws `L` and a uniform point `x : ι → ZMod q`, gives the
+adversary `L 1` and the labels `L (x i)`, and lets it output a value `o : γ` and an element `w k`
+of `S` for each `k : κ`. It wins when every `w k` is a label `L (v k)` and `W x o v` holds. Suppose
+that for every `o` and every family of linear forms `F k = ∑ i, a k i X i + b k`, the test
+`W x o (F · (x))` holds at no more than `ε * q ^ |ι|` points `x`. Then, under the hypotheses of
+Theorem 16.3 above and with decidable equality on `ι`, `κ` and `S`,
+`succProbability_linearGame_le` bounds the success probability by
+`C(3T + |ι| + 1 + |κ|, 2) / q + ε`. Discrete logarithm is the instance with one unknown, no output
+labels and `ε = 1 / q`. To bound another game, state it as a `linearGame` and count the points at
+which `W` can hold;
+[`GenericGroupLinearGame.lean`](../../CslibFrontierTests/Crypto/GenericGroupLinearGame.lean) does
+this for square Diffie–Hellman, with `ε = 2 / q`.
 
 For a fixed keyed function or block cipher over finite types, import [`Primitives/PRF/Finite.lean`](../../CslibFrontier/Crypto/Primitives/PRF/Finite.lean) and [`Primitives/PRP/Finite.lean`](../../CslibFrontier/Crypto/Primitives/PRP/Finite.lean) (Boneh–Shoup §4.1–§4.4 [bs23][bs23]). A `PRF.Adversary D R` is an adaptive oracle program with private coins. `PRF.realExperiment F A` and `PRF.idealExperiment A` are `ProbComp Bool` programs answering its queries with `F key` for a uniform key or with a uniform function `D → R`, and `PRF.advantage` is the distance between their laws. For a block cipher `E : Key → Equiv.Perm D`, `PRP.realExperiment E` is the PRF experiment of `E` and `PRP.idealExperiment` samples a uniform permutation. The ideal-experiment switching lemma `PRP.advantage_idealExperiment_prfIdealExperiment_le` bounds the distance between the two ideal experiments by `Q.choose 2 / |D|` for a `Q`-query adversary ([bs23][bs23], Attack Game 4.3 and Theorem 4.6), `PRP.abs_advantage_sub_prfAdvantage_le` bounds the difference between the finite PRP and PRF advantages by `Q.choose 2 / |D|` (Theorem 4.4), and `PRP.prfAdvantage_le_advantage_add` is its PRP-to-PRF half. `PRP.strongRealExperiment` and `PRP.strongIdealExperiment` also answer inverse queries through `RandomPermutation.PermOracleSpec D`; `PRP.StrongAdversary.ofForward` runs a forward adversary there with the same advantage (`PRP.strongAdvantage_ofForward`). These statements are single-instance and track no running time. At the word level, `advantage_prpIdealGame_prfIdealGame_le` derives the ideal-experiment switching bound from the finite one, and `BlockCipher.prp_iff_pseudorandomFunctionOver` proves Corollary 4.5 (assuming `E.keyLen = id` and super-polynomial `2 ^ E.blockLen n`). [`Computational/PseudorandomFunction/Finite.lean`](../../CslibFrontier/Crypto/Computational/PseudorandomFunction/Finite.lean) connects the two levels: `PRF.atLevel family n` is a word family read as a keyed function on `n`-bit strings, and `PRF.advantage_atLevel_adapt` shows that, for a length-preserving family, the finite advantage against it of a word distinguisher `A` read through `OracleCodec.bitString n` is the advantage of `A` between `prfRealGame id family A n` and `prfIdealGame id id A n`. A finite argument therefore transfers to `PseudorandomFunction` once its adversary is exhibited as an adapted oracle-PPT word program. Checked examples of the finite experiments and the switching lemma are in [`CslibFrontierTests/Crypto/PseudorandomPermutation.lean`](../../CslibFrontierTests/Crypto/PseudorandomPermutation.lean); the bridge, `PRF.label` and `labelCodec` are checked on concrete families and tables in [`CslibFrontierTests/Crypto/PRFLabel.lean`](../../CslibFrontierTests/Crypto/PRFLabel.lean).
 
@@ -2836,6 +2884,21 @@ probability at most `(1 / 2) ^ n`. Composed with `OneWay.exists_eufCMA` and
 one-bit-per-block instance `merkleDamgard`, not the length-strengthened one),
 `CompressionFamily.exists_oneWay` and `CompressionFamily.exists_wordEUFCMA` give the same
 conclusions for `2 n → n` compression families. No converse is claimed.
+
+For the encoding behind Winternitz one-time signatures ([bs23][bs23], §14.3, pp. 591–593), import
+[`OneTimeSignature/DominationFree.lean`](../../CslibFrontier/Crypto/Computational/OneTimeSignature/DominationFree.lean).
+`DominationFree P` is Definition 14.4: no two distinct messages have `P m ≤ P m'` coordinatewise.
+`winternitzDigits d n0 n1 m` is the function `P` of §14.3.1: the `n0` base-`(d + 1)` digits of
+`m`, least significant first, then the `n1` digits of the checksum
+`∑ i : Fin n0, (d - (radixDigits d n0 m i).val)`. `winternitzDigits_dominationFree` is
+Lemma 14.5 for any injective `f : M → ℕ` with values below `(d + 1) ^ n0` and any `n1` with
+`d * n0 < (d + 1) ^ n1`; the book's `2 ^ v` messages with `2 ^ v ≤ (d + 1) ^ n0` and its
+`n1 = Nat.clog (d + 1) (d * n0) + 1` are an instance, and the table on p. 592 uses the least
+such `n1`. `winternitzDigitList` is the same encoding as a list (`winternitzDigitList_eq_ofFn`),
+with `winternitzDigitList_polyTime` for `d`, `m` in binary and `n0`, `n1` in unary. Not included:
+the signature scheme, the estimate (14.3), the `d = 1` comparison with `P_opt`, and the link
+to `SLHDSA.WOTS.digits`. Checks are in
+[`CslibFrontierTests/Crypto/DominationFree.lean`](../../CslibFrontierTests/Crypto/DominationFree.lean).
 
 Second-preimage resistance ([bs23][bs23], §8.11.1, Definition 8.6, p. 336, and Exercise 8.23(a)–(b),
 pp. 352–353) is split between the experiment with its finite bounds in
