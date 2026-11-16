@@ -16,9 +16,9 @@ namespace CslibFrontierTests.Combinatorics.BinaryTreeCover
 
 open Cslib.CompleteBinaryTree
 
-/-! Worked example from Boneh–Shoup Fig. 5.6 (p. 206): `n = 8`, `S = {1, 2, 4, 5, 6}`
-(0-indexed `{0, 1, 3, 4, 5}`), `r = 3` revoked leaves `{2, 6, 7}`. Also verifies minimality
-against the all-leaves cover of size `5`. -/
+/-! Worked example from Boneh–Shoup Fig. 5.6 (p. 208; p. 206 describes the example): `n = 8`,
+`S = {1, 2, 4, 5, 6}` (0-indexed `{0, 1, 3, 4, 5}`), `r = 3` revoked leaves `{2, 6, 7}`. Also
+verifies minimality against the all-leaves cover of size `5`. -/
 
 example :
     let S : Finset (Fin (2 ^ 3)) := {0, 1, 3, 4, 5}

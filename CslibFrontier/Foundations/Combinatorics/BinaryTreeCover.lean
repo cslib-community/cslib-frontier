@@ -139,40 +139,38 @@ private theorem Node.leftEmb_ne_rightEmb {h : ℕ} (u v : Node h) :
   rw [hl] at hlt
   omega
 
-/-- Left-half leaf embedding `Fin (2 ^ h) → Fin (2 ^ (h + 1))`. -/
-@[expose]
-def leftLeaf {h : ℕ} (i : Fin (2 ^ h)) : Fin (2 ^ (h + 1)) :=
-  ⟨i.1, i.2.trans (Nat.pow_lt_pow_right (by omega) (Nat.lt_succ_self h))⟩
-
-/-- Right-half leaf embedding `Fin (2 ^ h) → Fin (2 ^ (h + 1))`. -/
-@[expose]
-def rightLeaf {h : ℕ} (i : Fin (2 ^ h)) : Fin (2 ^ (h + 1)) :=
-  ⟨2 ^ h + i.1, by rw [pow_succ', two_mul]; exact Nat.add_lt_add_left i.2 _⟩
-
 private theorem nat_two_pow_add_div {a k h : ℕ} (hk : k ≤ h) :
     (2 ^ h + a) / 2 ^ k = 2 ^ (h - k) + a / 2 ^ k := by
   have hmul : 2 ^ h = 2 ^ k * 2 ^ (h - k) := by
     rw [← pow_add, Nat.add_sub_cancel' hk]
   rw [hmul, Nat.mul_add_div (Nat.pow_pos (by omega))]
 
-private theorem leftEmb_coversLeaf_leftLeaf {h : ℕ} (v : Node h) (i : Fin (2 ^ h)) :
-    (Node.leftEmb v).CoversLeaf (leftLeaf i) ↔ v.CoversLeaf i := by
-  simp [Node.CoversLeaf, leftLeaf]
+private theorem leftEmb_coversLeaf_castAdd {h : ℕ} (v : Node h) (i : Fin (2 ^ h)) :
+    (Node.leftEmb v).CoversLeaf
+      (Fin.cast (by rw [pow_succ', two_mul]) (Fin.castAdd (2 ^ h) i)) ↔ v.CoversLeaf i := by
+  simp [Node.CoversLeaf]
 
-private theorem rightEmb_coversLeaf_rightLeaf {h : ℕ} (v : Node h) (i : Fin (2 ^ h)) :
-    (Node.rightEmb v).CoversLeaf (rightLeaf i) ↔ v.CoversLeaf i := by
-  simp [Node.CoversLeaf, rightLeaf, nat_two_pow_add_div v.level_le]
+private theorem rightEmb_coversLeaf_natAdd {h : ℕ} (v : Node h) (i : Fin (2 ^ h)) :
+    (Node.rightEmb v).CoversLeaf
+      (Fin.cast (by rw [pow_succ', two_mul]) (Fin.natAdd (2 ^ h) i)) ↔ v.CoversLeaf i := by
+  simp only [Node.CoversLeaf, Node.level_rightEmb, Node.index_rightEmb]
+  change (2 ^ h + i.1) / 2 ^ v.level = 2 ^ (h - v.level) + v.index ↔ i.1 / 2 ^ v.level = v.index
+  rw [nat_two_pow_add_div v.level_le]
+  omega
 
-private theorem not_leftEmb_coversLeaf_rightLeaf {h : ℕ} (v : Node h) (i : Fin (2 ^ h)) :
-    ¬ (Node.leftEmb v).CoversLeaf (rightLeaf i) := by
+private theorem not_leftEmb_coversLeaf_natAdd {h : ℕ} (v : Node h) (i : Fin (2 ^ h)) :
+    ¬ (Node.leftEmb v).CoversLeaf
+      (Fin.cast (by rw [pow_succ', two_mul]) (Fin.natAdd (2 ^ h) i)) := by
   intro hcov
   have hval : (2 ^ h + i.1) / 2 ^ v.level = v.index := hcov
   rw [nat_two_pow_add_div v.level_le] at hval
   exact absurd hval (Nat.ne_of_gt (lt_of_lt_of_le v.index_lt (Nat.le_add_right _ _)))
 
-private theorem not_rightEmb_coversLeaf_leftLeaf {h : ℕ} (v : Node h) (i : Fin (2 ^ h)) :
-    ¬ (Node.rightEmb v).CoversLeaf (leftLeaf i) := by
-  simp only [Node.CoversLeaf, Node.level_rightEmb, Node.index_rightEmb, leftLeaf]
+private theorem not_rightEmb_coversLeaf_castAdd {h : ℕ} (v : Node h) (i : Fin (2 ^ h)) :
+    ¬ (Node.rightEmb v).CoversLeaf
+      (Fin.cast (by rw [pow_succ', two_mul]) (Fin.castAdd (2 ^ h) i)) := by
+  simp only [Node.CoversLeaf, Node.level_rightEmb, Node.index_rightEmb]
+  change ¬ i.1 / 2 ^ v.level = 2 ^ (h - v.level) + v.index
   have hdiv : i.1 / 2 ^ v.level < 2 ^ (h - v.level) := by
     rw [Nat.div_lt_iff_lt_mul (Nat.pow_pos (by omega)), ← pow_add, Nat.sub_add_cancel v.level_le]
     exact i.2
@@ -187,50 +185,54 @@ def Covers {h : ℕ} (W : Finset (Node h)) (S : Finset (Fin (2 ^ h))) : Prop :=
 /-- Left-half restriction of a leaf set `S : Finset (Fin (2 ^ (h + 1)))`. -/
 @[expose]
 def leftPart {h : ℕ} (S : Finset (Fin (2 ^ (h + 1)))) : Finset (Fin (2 ^ h)) :=
-  Finset.univ.filter fun i => leftLeaf i ∈ S
+  Finset.univ.filter fun i =>
+    Fin.cast (by rw [pow_succ', two_mul]) (Fin.castAdd (2 ^ h) i) ∈ S
 
 /-- Right-half restriction of a leaf set `S : Finset (Fin (2 ^ (h + 1)))`. -/
 @[expose]
 def rightPart {h : ℕ} (S : Finset (Fin (2 ^ (h + 1)))) : Finset (Fin (2 ^ h)) :=
-  Finset.univ.filter fun i => rightLeaf i ∈ S
+  Finset.univ.filter fun i =>
+    Fin.cast (by rw [pow_succ', two_mul]) (Fin.natAdd (2 ^ h) i) ∈ S
 
 private theorem mem_leftPart {h : ℕ} {S : Finset (Fin (2 ^ (h + 1)))} {i : Fin (2 ^ h)} :
-    i ∈ leftPart S ↔ leftLeaf i ∈ S := by
+    i ∈ leftPart S ↔ Fin.cast (by rw [pow_succ', two_mul]) (Fin.castAdd (2 ^ h) i) ∈ S := by
   simp [leftPart]
 
 private theorem mem_rightPart {h : ℕ} {S : Finset (Fin (2 ^ (h + 1)))} {i : Fin (2 ^ h)} :
-    i ∈ rightPart S ↔ rightLeaf i ∈ S := by
+    i ∈ rightPart S ↔ Fin.cast (by rw [pow_succ', two_mul]) (Fin.natAdd (2 ^ h) i) ∈ S := by
   simp [rightPart]
 
 private theorem card_leftPart_add_rightPart {h : ℕ} (S : Finset (Fin (2 ^ (h + 1)))) :
     (leftPart S).card + (rightPart S).card = S.card := by
-  let fL : Fin (2 ^ h) ↪ Fin (2 ^ (h + 1)) := ⟨leftLeaf, fun a b hEq => by
-    ext; simpa [leftLeaf] using congrArg Fin.val hEq⟩
-  let fR : Fin (2 ^ h) ↪ Fin (2 ^ (h + 1)) := ⟨rightLeaf, fun a b hEq => by
-    ext; have := congrArg Fin.val hEq; simp only [rightLeaf] at this; omega⟩
+  have he : 2 ^ h + 2 ^ h = 2 ^ (h + 1) := by rw [pow_succ', two_mul]
+  let fL : Fin (2 ^ h) ↪ Fin (2 ^ (h + 1)) :=
+    (Fin.castAddEmb (2 ^ h)).trans ⟨Fin.cast he, Fin.cast_injective he⟩
+  let fR : Fin (2 ^ h) ↪ Fin (2 ^ (h + 1)) :=
+    (Fin.natAddEmb (2 ^ h)).trans ⟨Fin.cast he, Fin.cast_injective he⟩
   have hdisj : Disjoint ((leftPart S).map fL) ((rightPart S).map fR) := by
     rw [Finset.disjoint_left]
     rintro x hxL hxR
     rw [Finset.mem_map] at hxL hxR
     rcases hxL with ⟨a, _, rfl⟩
     rcases hxR with ⟨b, _, hab⟩
-    have hval : (rightLeaf b).1 = (leftLeaf a).1 := congrArg Fin.val hab
-    dsimp only [leftLeaf, rightLeaf] at hval
+    have hval : (fR b).1 = (fL a).1 := congrArg Fin.val hab
+    change 2 ^ h + b.1 = a.1 at hval
     omega
   have hunion : (leftPart S).map fL ∪ (rightPart S).map fR = S := by
     ext x
-    simp only [Finset.mem_union, Finset.mem_map, mem_leftPart, mem_rightPart, fL, fR]
+    simp only [Finset.mem_union, Finset.mem_map, mem_leftPart, mem_rightPart]
     constructor
     · rintro (⟨a, ha, rfl⟩ | ⟨b, hb, rfl⟩) <;> assumption
     · intro hx
       by_cases hlt : x.1 < 2 ^ h
-      · left; exact ⟨⟨x.1, hlt⟩, by simpa [leftLeaf] using hx, by ext; rfl⟩
+      · left; exact ⟨⟨x.1, hlt⟩, by simpa [fL] using hx, by ext; rfl⟩
       · right
-        have hx2 : x.1 < 2 ^ h + 2 ^ h := by simpa [pow_succ', two_mul] using x.2
+        have hx2 : x.1 < 2 ^ h + 2 ^ h := he.symm ▸ x.2
         have hlt2 : x.1 - 2 ^ h < 2 ^ h := by omega
         refine ⟨⟨x.1 - 2 ^ h, hlt2⟩, ?_, ?_⟩
-        · have heq : rightLeaf ⟨x.1 - 2 ^ h, hlt2⟩ = x :=
-            Fin.ext (by dsimp [rightLeaf]; omega)
+        · have heq : Fin.cast (by rw [pow_succ', two_mul])
+              (Fin.natAdd (2 ^ h) ⟨x.1 - 2 ^ h, hlt2⟩) = x :=
+            Fin.ext (by change 2 ^ h + (x.1 - 2 ^ h) = x.1; omega)
           rw [heq]
           exact hx
         · exact Fin.ext (by change 2 ^ h + (x.1 - 2 ^ h) = x.1; omega)
@@ -296,29 +298,31 @@ theorem covers_cover {h : ℕ} (S : Finset (Fin (2 ^ h))) : Covers (cover S) S :
       rw [ite_eq_right_iff.2 (fun heq => absurd heq hS)]
       by_cases hlt : x.1 < 2 ^ h
       · let i : Fin (2 ^ h) := ⟨x.1, hlt⟩
-        have hx : x = leftLeaf i := by ext; rfl
+        have hx : x = Fin.cast (by rw [pow_succ', two_mul]) (Fin.castAdd (2 ^ h) i) := by
+          ext; rfl
         rw [hx, ← mem_leftPart, ih (leftPart S) i]
         simp only [Finset.mem_union, Finset.mem_map]
         constructor
         · rintro ⟨v, hv, hvc⟩
-          exact ⟨Node.leftEmb v, Or.inl ⟨v, hv, rfl⟩, (leftEmb_coversLeaf_leftLeaf v i).2 hvc⟩
+          exact ⟨Node.leftEmb v, Or.inl ⟨v, hv, rfl⟩, (leftEmb_coversLeaf_castAdd v i).2 hvc⟩
         · rintro ⟨w, hw, hwc⟩
           rcases hw with ⟨v, hv, rfl⟩ | ⟨v, _, rfl⟩
-          · exact ⟨v, hv, (leftEmb_coversLeaf_leftLeaf v i).1 hwc⟩
-          · exact False.elim (not_rightEmb_coversLeaf_leftLeaf v i hwc)
+          · exact ⟨v, hv, (leftEmb_coversLeaf_castAdd v i).1 hwc⟩
+          · exact False.elim (not_rightEmb_coversLeaf_castAdd v i hwc)
       · have hx2 : x.1 < 2 ^ h + 2 ^ h := by simpa [pow_succ', two_mul] using x.2
         have hlt2 : x.1 - 2 ^ h < 2 ^ h := by omega
         let i : Fin (2 ^ h) := ⟨x.1 - 2 ^ h, hlt2⟩
-        have hx : x = rightLeaf i := by ext; simp [rightLeaf, i]; omega
+        have hx : x = Fin.cast (by rw [pow_succ', two_mul]) (Fin.natAdd (2 ^ h) i) := by
+          ext; change x.1 = 2 ^ h + (x.1 - 2 ^ h); omega
         rw [hx, ← mem_rightPart, ih (rightPart S) i]
         simp only [Finset.mem_union, Finset.mem_map]
         constructor
         · rintro ⟨v, hv, hvc⟩
-          exact ⟨Node.rightEmb v, Or.inr ⟨v, hv, rfl⟩, (rightEmb_coversLeaf_rightLeaf v i).2 hvc⟩
+          exact ⟨Node.rightEmb v, Or.inr ⟨v, hv, rfl⟩, (rightEmb_coversLeaf_natAdd v i).2 hvc⟩
         · rintro ⟨w, hw, hwc⟩
           rcases hw with ⟨v, _, rfl⟩ | ⟨v, hv, rfl⟩
-          · exact False.elim (not_leftEmb_coversLeaf_rightLeaf v i hwc)
-          · exact ⟨v, hv, (rightEmb_coversLeaf_rightLeaf v i).1 hwc⟩
+          · exact False.elim (not_leftEmb_coversLeaf_natAdd v i hwc)
+          · exact ⟨v, hv, (rightEmb_coversLeaf_natAdd v i).1 hwc⟩
 
 private theorem Node.exists_leftEmb_or_rightEmb {h : ℕ} {w : Node (h + 1)} (hwl : w.level ≤ h) :
     (∃ u : Node h, Node.leftEmb u = w) ∨ (∃ u : Node h, Node.rightEmb u = w) := by
@@ -376,24 +380,24 @@ theorem card_cover_le_of_covers {h : ℕ} {W : Finset (Node h)} {S : Finset (Fin
           exact hnotRoot (this ▸ hw)
       have hcovL : Covers WL (leftPart S) := by
         intro i
-        rw [mem_leftPart, hW (leftLeaf i)]
+        rw [mem_leftPart, hW (Fin.cast (by rw [pow_succ', two_mul]) (Fin.castAdd (2 ^ h) i))]
         constructor
         · rintro ⟨w, hw, hwc⟩
           rcases Node.exists_leftEmb_or_rightEmb (hlevel_le hw) with ⟨u, rfl⟩ | ⟨u, rfl⟩
-          · exact ⟨u, by simpa [WL] using hw, (leftEmb_coversLeaf_leftLeaf u i).1 hwc⟩
-          · exact False.elim (not_rightEmb_coversLeaf_leftLeaf u i hwc)
+          · exact ⟨u, by simpa [WL] using hw, (leftEmb_coversLeaf_castAdd u i).1 hwc⟩
+          · exact False.elim (not_rightEmb_coversLeaf_castAdd u i hwc)
         · rintro ⟨u, hu, huc⟩
-          exact ⟨Node.leftEmb u, by simpa [WL] using hu, (leftEmb_coversLeaf_leftLeaf u i).2 huc⟩
+          exact ⟨Node.leftEmb u, by simpa [WL] using hu, (leftEmb_coversLeaf_castAdd u i).2 huc⟩
       have hcovR : Covers WR (rightPart S) := by
         intro i
-        rw [mem_rightPart, hW (rightLeaf i)]
+        rw [mem_rightPart, hW (Fin.cast (by rw [pow_succ', two_mul]) (Fin.natAdd (2 ^ h) i))]
         constructor
         · rintro ⟨w, hw, hwc⟩
           rcases Node.exists_leftEmb_or_rightEmb (hlevel_le hw) with ⟨u, rfl⟩ | ⟨u, rfl⟩
-          · exact False.elim (not_leftEmb_coversLeaf_rightLeaf u i hwc)
-          · exact ⟨u, by simpa [WR] using hw, (rightEmb_coversLeaf_rightLeaf u i).1 hwc⟩
+          · exact False.elim (not_leftEmb_coversLeaf_natAdd u i hwc)
+          · exact ⟨u, by simpa [WR] using hw, (rightEmb_coversLeaf_natAdd u i).1 hwc⟩
         · rintro ⟨u, hu, huc⟩
-          exact ⟨Node.rightEmb u, by simpa [WR] using hu, (rightEmb_coversLeaf_rightLeaf u i).2 huc⟩
+          exact ⟨Node.rightEmb u, by simpa [WR] using hu, (rightEmb_coversLeaf_natAdd u i).2 huc⟩
       have hcardW : WL.card + WR.card ≤ W.card := by
         rw [← Finset.card_map (f := Node.leftEmb) (s := WL),
             ← Finset.card_map (f := Node.rightEmb) (s := WR)]
