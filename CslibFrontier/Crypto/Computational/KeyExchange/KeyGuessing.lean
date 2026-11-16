@@ -8,8 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.KeyExchange
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
-import CslibFrontier.Computability.Probabilistic.PPT.Composition
 import CslibFrontier.Probability.PMF.Bind
 
 /-!
@@ -58,9 +56,10 @@ exchange satisfies this notion if and only if the Computational Diffie–Hellman
   connects the two keys under `protocol.Correct`. Honest-party efficiency is also unbundled.
 * **Terminology (`AnonKESecure` vs `EavSecure`):** [BonehShoup2023], Definition 10.1 (p. 400),
   calls key-guessing security "secure against an eavesdropper", whereas
-  `Cslib.Crypto.KeyExchange.EavSecure` in `KeyExchange.lean` is the stronger Katz–Lindell
-  real-versus-ideal indistinguishability notion (`realView` vs `idealView`). The name
-  `AnonKESecure` follows Boneh–Shoup's advantage notation `AnonKEadv[A, P]`.
+  `Cslib.Crypto.KeyExchange.EavSecure` in `KeyExchange.lean` is the Katz–Lindell
+  real-versus-ideal indistinguishability notion (`realView` vs `idealView`), which gives
+  key-guessing security only when the ideal key is hard to guess (no implication is proved here).
+  The name `AnonKESecure` follows Boneh–Shoup's advantage notation `AnonKEadv[A, P]`.
 * **Diffie–Hellman and CDH over a setup law:** [BonehShoup2023], Section 10.4.2 (pp. 407–408),
   fixes cyclic group parameters as system parameters and bounds concrete advantages (`AnonKEadv`
   and `CDHadv`). Here `DHTranscript` includes `groupParameters : F.Desc`, and `dhKeyExchange setup`
@@ -118,7 +117,8 @@ probability in `anonKEGame`.
 The book builds correctness into protocols, whereas `KeyExchange.Correct` is unbundled here, so the
 book's notion corresponds to `protocol.Correct ∧ protocol.AnonKESecure encT encK`. Called
 "secure against an eavesdropper" in Boneh–Shoup; distinct from `KeyExchange.EavSecure`, which is
-the stronger real-versus-ideal indistinguishability notion. -/
+the Katz–Lindell real-versus-ideal indistinguishability notion (it gives key-guessing security
+only when the ideal key is hard to guess, and no implication is proved here). -/
 @[expose]
 def AnonKESecure [∀ t, DecidableEq (K t)] (protocol : KeyExchange T K)
     (encT : T ↪ List Bool) (encK : (t : T) → K t ↪ List Bool) : Prop :=
@@ -146,20 +146,20 @@ open KeyExchange
 variable (F : PrimeOrderGroupFamily)
 
 /-- View a Diffie–Hellman key-guessing adversary as a CDH adversary over `F`
-([BonehShoup2023], Section 10.4.2, p. 407). -/
+([BonehShoup2023], Section 10.4.2, pp. 407–408). -/
 @[expose]
 def dhToCDHAdversary (adversary : KeyGuesser F.DHTranscript F.DHKey) : F.CDHAdversary :=
   fun n d u v => adversary n ⟨d, u, v⟩
 
 /-- View a CDH adversary over `F` as a Diffie–Hellman key-guessing adversary
-([BonehShoup2023], Section 10.4.2, p. 408). -/
+([BonehShoup2023], Section 10.4.2, pp. 407–408). -/
 @[expose]
 def cdhToDHKeyGuesser (adversary : F.CDHAdversary) : KeyGuesser F.DHTranscript F.DHKey :=
   fun n t => adversary n t.groupParameters t.aliceShare t.bobShare
 
 /-- Running `anonKEGame` on `F.dhKeyExchange setup` with `adversary` gives the exact same game
 as running `F.cdhGame setup` with `F.dhToCDHAdversary adversary`
-([BonehShoup2023], Section 10.4.2, p. 407). -/
+([BonehShoup2023], Section 10.4.2, pp. 407–408). -/
 theorem anonKEGame_dhKeyExchange (setup : ℕ → PMF F.Desc)
     (adversary : KeyGuesser F.DHTranscript F.DHKey) (n : ℕ) :
     (F.dhKeyExchange setup).anonKEGame adversary n =
