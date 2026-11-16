@@ -205,43 +205,12 @@ private theorem mem_rightPart {h : ℕ} {S : Finset (Fin (2 ^ (h + 1)))} {i : Fi
 private theorem card_leftPart_add_rightPart {h : ℕ} (S : Finset (Fin (2 ^ (h + 1)))) :
     (leftPart S).card + (rightPart S).card = S.card := by
   have he : 2 ^ h + 2 ^ h = 2 ^ (h + 1) := by rw [pow_succ', two_mul]
-  let fL : Fin (2 ^ h) ↪ Fin (2 ^ (h + 1)) :=
-    (Fin.castAddEmb (2 ^ h)).trans ⟨Fin.cast he, Fin.cast_injective he⟩
-  let fR : Fin (2 ^ h) ↪ Fin (2 ^ (h + 1)) :=
-    (Fin.natAddEmb (2 ^ h)).trans ⟨Fin.cast he, Fin.cast_injective he⟩
-  have hdisj : Disjoint ((leftPart S).map fL) ((rightPart S).map fR) := by
-    rw [Finset.disjoint_left]
-    rintro x hxL hxR
-    rw [Finset.mem_map] at hxL hxR
-    rcases hxL with ⟨a, _, rfl⟩
-    rcases hxR with ⟨b, _, hab⟩
-    have hval : (fR b).1 = (fL a).1 := congrArg Fin.val hab
-    change 2 ^ h + b.1 = a.1 at hval
-    omega
-  have hunion : (leftPart S).map fL ∪ (rightPart S).map fR = S := by
-    ext x
-    simp only [Finset.mem_union, Finset.mem_map, mem_leftPart, mem_rightPart]
-    constructor
-    · rintro (⟨a, ha, rfl⟩ | ⟨b, hb, rfl⟩) <;> assumption
-    · intro hx
-      by_cases hlt : x.1 < 2 ^ h
-      · left; exact ⟨⟨x.1, hlt⟩, by simpa [fL] using hx, by ext; rfl⟩
-      · right
-        have hx2 : x.1 < 2 ^ h + 2 ^ h := he.symm ▸ x.2
-        have hlt2 : x.1 - 2 ^ h < 2 ^ h := by omega
-        refine ⟨⟨x.1 - 2 ^ h, hlt2⟩, ?_, ?_⟩
-        · have heq : Fin.cast (by rw [pow_succ', two_mul])
-              (Fin.natAdd (2 ^ h) ⟨x.1 - 2 ^ h, hlt2⟩) = x :=
-            Fin.ext (by change 2 ^ h + (x.1 - 2 ^ h) = x.1; omega)
-          rw [heq]
-          exact hx
-        · exact Fin.ext (by change 2 ^ h + (x.1 - 2 ^ h) = x.1; omega)
   calc (leftPart S).card + (rightPart S).card
-      = ((leftPart S).map fL).card + ((rightPart S).map fR).card := by
-          rw [Finset.card_map, Finset.card_map]
-    _ = ((leftPart S).map fL ∪ (rightPart S).map fR).card :=
-          (Finset.card_union_of_disjoint hdisj).symm
-    _ = S.card := by rw [hunion]
+      = ∑ i : Fin (2 ^ h + 2 ^ h), if Fin.cast he i ∈ S then 1 else 0 := by
+        simp only [leftPart, rightPart, Finset.card_filter, Fin.sum_univ_add]
+    _ = ∑ j : Fin (2 ^ (h + 1)), if j ∈ S then 1 else 0 :=
+        Fintype.sum_equiv (finCongr he) _ _ fun _ => rfl
+    _ = S.card := by simp
 
 /-- The canonical optimal cover `cover S` of a leaf subset `S` in the complete binary tree of
 height `h` ([BonehShoup2023], Definition 5.4 and remark before Theorem 5.8). -/

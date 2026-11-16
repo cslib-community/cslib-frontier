@@ -61,17 +61,30 @@ example (h : ℕ) :
         (0 : ℝ) * Real.logb 2 ((2 ^ h : ℝ) / (0 : ℕ))) := by
   simp [cover_univ]
 
-/-! Necessity of `r ≤ 2 ^ h` (when stated with `ℕ` subtraction `S.card = 2 ^ h - r`):
-for `h = 0`, `r = 2`, `S = ∅` satisfies `S.card = 2 ^ 0 - 2 = 0`, yet
-`|cover(∅)| = 0 > 2 * log₂(1 / 2) = -2`. -/
+/-! Necessity of `r ≤ 2 ^ h` (`2 ^ h ≤ S.card + r` when stated with `ℕ` subtraction
+`S.card = 2 ^ h - r`): for `h = 0`, `r = 2`, `S = ∅` satisfies `S.card = 2 ^ 0 - 2 = 0` and
+`2 ^ 0 ≤ S.card + 2`, yet `|cover(∅)| = 0 > 2 * log₂(1 / 2) = -2`. -/
 
 example :
     let S : Finset (Fin (2 ^ 0)) := ∅
-    S.card = 2 ^ 0 - 2 ∧
+    S.card = 2 ^ 0 - 2 ∧ 2 ^ 0 ≤ S.card + 2 ∧
       ¬ (((cover S).card : ℝ) ≤ (2 : ℝ) * Real.logb 2 ((2 ^ 0 : ℝ) / 2)) := by
   intro S
-  refine ⟨rfl, ?_⟩
+  refine ⟨rfl, by decide, ?_⟩
   simp [S, cover]
+
+/-! `S.card + r = 2 ^ h` cannot be weakened to `S.card + r ≤ 2 ^ h`: for `h = 3` (`n = 8`) and
+`S = {0, 2, 4, 6}`, taking `r = 1` gives `|cover(S)| = 4 > 3 = 1 * log₂(8 / 1)`. -/
+
+example :
+    let S : Finset (Fin (2 ^ 3)) := {0, 2, 4, 6}
+    S.card + 1 ≤ 2 ^ 3 ∧
+      ¬ (((cover S).card : ℝ) ≤ (1 : ℝ) * Real.logb 2 ((2 ^ 3 : ℝ) / 1)) := by
+  intro S
+  have h4 : (cover S).card = 4 := by decide
+  refine ⟨by decide, ?_⟩
+  rw [h4, div_one, Real.logb_pow, Real.logb_self_eq_one (by norm_num)]
+  norm_num
 
 end CslibFrontierTests.Combinatorics.BinaryTreeCover
 
