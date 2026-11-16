@@ -17,6 +17,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.EraseDupsBy
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.Sampling
+import CslibFrontier.Crypto.Negligible.InversePolynomial
 import CslibFrontier.Languages.Probabilistic.Oracle.Substitution
 import CslibFrontier.Tactic.EncLen
 import CslibFrontier.Tactic.PolyTime
@@ -24,7 +25,50 @@ import CslibFrontier.Tactic.PolyTime
 /-!
 # ECB mode of a word-level block cipher
 
-draft
+The asymptotic form of Boneh–Shoup §4.1.4 ([BonehShoup2023], pp. 102–106) for a uniform block
+cipher `E : BlockCipher`. A message word is cut into `blockLen n`-bit blocks, each block is
+encrypted under the key, and the results are concatenated (`BlockCipher.ecbEncrypt`). Security is
+one-time semantic security, Attack Game 2.1 with a uniform `keyLen n`-bit key
+(`Encryption.DEMOneTimeKeyINDCPAOn`), against uniform strict PPT adversaries.
+
+* Theorem 4.1: if `E` is a secure block cipher (`BlockCipher.PRP`), ECB on messages of at most
+  `ℓ n` distinct blocks is semantically secure (`BlockCipher.PRP.ecb_demOneTimeKeyINDCPAOn`). The
+  reduction `BlockCipher.ecbToPrpDistinguisher` runs the typed reduction `ECB.reduction` of
+  `Crypto/Primitives/BlockCipher/ECB.lean` against the word oracle, and it is uniform strict
+  oracle PPT (`BlockCipher.isOraclePPT_ecbToPrpDistinguisher`). At each parameter the advantage is
+  exactly twice the block-cipher advantage of that reduction
+  (`BlockCipher.advantage_demKeyGameOn_ecbEncrypt`), from the typed equation (4.3).
+* ECB is not semantically secure on messages of up to `ℓ n` arbitrary blocks: the two-block attack
+  `BlockCipher.ecbTwoBlockAdversary` is uniform strict PPT and has advantage `1` at every
+  parameter with `1 ≤ blockLen n` and `2 ≤ ℓ n`
+  (`BlockCipher.not_demOneTimeKeyINDCPAOn_ecbAdmissible`), for every block cipher.
+
+The query loop of the reduction is certified through a word program
+(`ecbQueryStep`) shown equal to the typed reduction run against the word oracle.
+
+## Main definitions
+
+* `Cslib.Crypto.BlockCipher.ecbEncrypt`: ECB encryption of a message word.
+* `Cslib.Crypto.BlockCipher.ecbAdmissible`, `Cslib.Crypto.BlockCipher.ecbValid`: the challenge
+  pairs on `X^{≤ℓ}` (equal lengths, a multiple of the block length, at most `ℓ n` blocks) and on
+  `X_*^{≤ℓ}` (also distinct blocks in each message).
+* `Cslib.Crypto.BlockCipher.ecbTypedAdversary`, `Cslib.Crypto.BlockCipher.ecbToPrpDistinguisher`:
+  the typed adversary a word adversary induces, and the word block-cipher distinguisher.
+* `Cslib.Crypto.BlockCipher.ecbTwoBlockAdversary`: the two-block attack on words.
+
+## Main results
+
+* `Cslib.Crypto.BlockCipher.PRP.ecb_demOneTimeKeyINDCPAOn`: Theorem 4.1.
+* `Cslib.Crypto.BlockCipher.advantage_demKeyGameOn_ecbEncrypt`: equation (4.3) on words.
+* `Cslib.Crypto.BlockCipher.isOraclePPT_ecbToPrpDistinguisher`: efficiency of the reduction.
+* `Cslib.Crypto.BlockCipher.advantage_demKeyGameOn_ecbTwoBlockAdversary`,
+  `Cslib.Crypto.BlockCipher.not_demOneTimeKeyINDCPAOn_ecbAdmissible`,
+  `Cslib.Crypto.BlockCipher.isPPT_ecbTwoBlockAdversary`: the two-block attack.
+
+## References
+
+* [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023], version 0.6,
+  §4.1.4 and Theorem 4.1 (pp. 102–106).
 -/
 
 public section
@@ -48,16 +92,22 @@ concatenate. -/
 def ecbEncrypt (n : ℕ) (key m : List Bool) : ProbComp (List Bool) :=
   pure ((E.ecbBlocks n m).flatMap (E.encrypt n key))
 
-/-- The challenge pairs of Theorem 4.1 on words: two messages of the same length, a multiple of
-the block length (`blockPairValid`), of at most `ℓ n` blocks, each with distinct blocks. -/
+/-- The challenge pairs of Attack Game 2.1 for word ECB on `X^{≤ℓ}`: two messages of the same
+length, a multiple of the block length (`blockPairValid`), of at most `ℓ n` blocks. -/
 @[expose]
-def ecbValid (ℓ : ℕ → ℕ) (n : ℕ) (_pk : List Bool) (m₀ m₁ : List Bool) : Bool :=
-  blockPairValid (E.blockLen n) m₀ m₁ && decide (m₀.length ≤ ℓ n * E.blockLen n) &&
-    decide (E.ecbBlocks n m₀).Nodup && decide (E.ecbBlocks n m₁).Nodup
+def ecbAdmissible (ℓ : ℕ → ℕ) (n : ℕ) (_pk : List Bool) (m₀ m₁ : List Bool) : Bool :=
+  blockPairValid (E.blockLen n) m₀ m₁ && decide (m₀.length ≤ ℓ n * E.blockLen n)
+
+/-- The challenge pairs of Theorem 4.1 on words (`X_*^{≤ℓ}`): admissible pairs on `X^{≤ℓ}` whose
+two messages each consist of distinct blocks. -/
+@[expose]
+def ecbValid (ℓ : ℕ → ℕ) (n : ℕ) (pk : List Bool) (m₀ m₁ : List Bool) : Bool :=
+  E.ecbAdmissible ℓ n pk m₀ m₁ && decide (E.ecbBlocks n m₀).Nodup &&
+    decide (E.ecbBlocks n m₁).Nodup
 
 /-- The permutation of `blockLen n`-bit blocks of a `keyLen n`-bit key. -/
-@[expose]
-def ecbKeyPerm (n : ℕ) (k : BitString (E.keyLen n)) : Equiv.Perm (BitString (E.blockLen n)) :=
+private def ecbKeyPerm (n : ℕ) (k : BitString (E.keyLen n)) :
+    Equiv.Perm (BitString (E.blockLen n)) :=
   E.permEquiv n (List.ofFn k) List.length_ofFn
 
 /-- The typed one-time adversary that a word adversary induces at parameter `n`: its messages are
@@ -98,7 +148,8 @@ private theorem distinctAdmissible_of_ecbValid {ℓ : ℕ → ℕ} {n : ℕ} {m�
     (h : E.ecbValid ℓ n [] m₀ m₁ = true) :
     ECB.distinctAdmissible (ℓ n) ((E.ecbBlocks n m₀).map (BitString.ofList (E.blockLen n)))
       ((E.ecbBlocks n m₁).map (BitString.ofList (E.blockLen n))) = true := by
-  simp only [ecbValid, blockPairValid, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at h
+  simp only [ecbValid, ecbAdmissible, blockPairValid, Bool.and_eq_true, beq_iff_eq,
+    decide_eq_true_eq] at h
   obtain ⟨⟨⟨⟨hlen, -⟩, hℓ⟩, h₀⟩, h₁⟩ := h
   have hnodup {m : List Bool} (hm : (E.ecbBlocks n m).Nodup) :
       ((E.ecbBlocks n m).map (BitString.ofList (E.blockLen n))).Nodup :=
@@ -342,7 +393,7 @@ private theorem computableInPolyTime_ecbValid {α : Type} {input : α ↪ List B
   have h₁ := E.computableInPolyTime_ecbBlocks hn hm₁
   have hw := E.blockLen_polyTime.comp hn
   have hℓn := hℓ.comp hn
-  unfold ecbValid blockPairValid
+  unfold ecbValid ecbAdmissible blockPairValid
   fun_prop
 
 /-- The encoding of the distinguisher's state after the coin and the adversary's choice. -/
@@ -451,6 +502,131 @@ theorem isOraclePPT_ecbToPrpDistinguisher {ℓ : ℕ → ℕ}
         (ecbQueryStep (E.blockLen i.1)) (E.ecbBlocks i.1 (if b then c.1.2 else c.1.1), [])
       (· == b) <$> ProbOracleComp.sample (A.guess i.1 c.2 ct)
     else pure (false == b)) hstage).isOraclePPT
+
+/-! ### Theorem 4.1 and the two-block attack on words -/
+
+/-- **Theorem 4.1** ([BonehShoup2023], pp. 104–105): if `E` is a secure block cipher, its ECB
+cipher restricted to messages of at most `ℓ n` distinct blocks is semantically secure (Attack
+Game 2.1 with a uniform `keyLen n`-bit key), for every block bound `ℓ` computable in unary in
+polynomial time. -/
+theorem PRP.ecb_demOneTimeKeyINDCPAOn {E : BlockCipher} (hE : E.PRP) {ℓ : ℕ → ℕ}
+    (hℓ : ComputableInPolyTime ℓ encUnary encUnary) :
+    Encryption.DEMOneTimeKeyINDCPAOn (E.ecbValid ℓ) encBits E.keyLen E.ecbEncrypt := by
+  intro A hA
+  have h :=
+    (hE (E.ecbToPrpDistinguisher ℓ A) (E.isOraclePPT_ecbToPrpDistinguisher hℓ hA)).const_mul 2
+  have heq : (fun n => Game.advantage
+      (ProbComp.eval (Encryption.demKeyGameOn (E.ecbValid ℓ) E.keyLen E.ecbEncrypt A false n))
+      (ProbComp.eval (Encryption.demKeyGameOn (E.ecbValid ℓ) E.keyLen E.ecbEncrypt A true n))) =
+      fun n => 2 * Game.advantage (ProbComp.eval (E.prpRealGame (E.ecbToPrpDistinguisher ℓ A) n))
+        (ProbComp.eval (prpIdealGame E.blockLen (E.ecbToPrpDistinguisher ℓ A) n)) :=
+    funext fun n => E.advantage_demKeyGameOn_ecbEncrypt ℓ A n
+  exact (congrArg Negligible heq).mpr h
+
+/-- The two-block attack on word ECB ([BonehShoup2023], §4.1.4, pp. 103–104): with
+`m = blockLen n`, submit `0^m ‖ 0^m` against `0^m ‖ 1^m` and output `true` exactly when the first
+two `m`-bit blocks of the ciphertext are equal. -/
+@[expose]
+def ecbTwoBlockAdversary : Encryption.AdversaryOf (List Bool) where
+  choose n _ := pure ((List.replicate (E.blockLen n) false ++ List.replicate (E.blockLen n) false,
+    List.replicate (E.blockLen n) false ++ List.replicate (E.blockLen n) true), [])
+  guess n _ c := pure (decide (c.take (E.blockLen n) = (c.drop (E.blockLen n)).take (E.blockLen n)))
+
+/-- The two-block attack is uniform strict PPT. -/
+theorem isPPT_ecbTwoBlockAdversary : (E.ecbTwoBlockAdversary).IsPPT encBits where
+  choose := by
+    have hw := E.blockLen_polyTime.comp (ComputableInPolyTime.fst encUnary encBits)
+    refine ComputableInPolyTime.isPPTOn ?_
+    fun_prop
+  guess := by
+    have hw := E.blockLen_polyTime.comp
+      (ComputableInPolyTime.fst encUnary (encPair encBits encBits))
+    refine ComputableInPolyTime.isPPTOn ?_
+    fun_prop
+
+/-- The two blocks of `x ‖ y` for words `x`, `y` of one block each. -/
+private theorem ecbBlocks_append {n : ℕ} {x y : List Bool} (hx : x.length = E.blockLen n)
+    (hy : y.length = E.blockLen n) (hpos : 1 ≤ E.blockLen n) :
+    E.ecbBlocks n (x ++ y) = [x, y] := by
+  have hcount : (x ++ y).length / E.blockLen n = 2 := by
+    rw [List.length_append, hx, hy, ← two_mul, Nat.mul_div_cancel _ (by omega)]
+  have hflat : x ++ y = [x, y].flatten := by simp
+  have hwords : ∀ w ∈ [x, y], w.length = E.blockLen n := by simp [hx, hy]
+  have h₀ : BitString.listRow (E.blockLen n) 0 (x ++ y) = x := by
+    rw [hflat, BitString.listRow_flatten hwords (by simp)]
+    rfl
+  have h₁ : BitString.listRow (E.blockLen n) 1 (x ++ y) = y := by
+    rw [hflat, BitString.listRow_flatten hwords (by simp)]
+    rfl
+  simp only [ecbBlocks, hcount, BitString.listRows]
+  simpa [List.range_succ] using ⟨h₀, h₁⟩
+
+/-- The two-block attack has advantage `1` against word ECB at every parameter where blocks
+have at least one bit and two blocks are admissible. -/
+theorem advantage_demKeyGameOn_ecbTwoBlockAdversary {ℓ : ℕ → ℕ} {n : ℕ}
+    (hpos : 1 ≤ E.blockLen n) (hℓ : 2 ≤ ℓ n) :
+    Game.advantage
+        (ProbComp.eval (Encryption.demKeyGameOn (E.ecbAdmissible ℓ) E.keyLen E.ecbEncrypt
+          E.ecbTwoBlockAdversary false n))
+        (ProbComp.eval (Encryption.demKeyGameOn (E.ecbAdmissible ℓ) E.keyLen E.ecbEncrypt
+          E.ecbTwoBlockAdversary true n)) = 1 := by
+  have hx : (List.replicate (E.blockLen n) false).length = E.blockLen n := List.length_replicate
+  have hy : (List.replicate (E.blockLen n) true).length = E.blockLen n := List.length_replicate
+  have hxy : List.replicate (E.blockLen n) false ≠ List.replicate (E.blockLen n) true := by
+    intro h
+    have := congrArg (·[0]?) h
+    simp [show 0 < E.blockLen n by omega] at this
+  have hadm : E.ecbAdmissible ℓ n []
+      (List.replicate (E.blockLen n) false ++ List.replicate (E.blockLen n) false)
+      (List.replicate (E.blockLen n) false ++ List.replicate (E.blockLen n) true) = true := by
+    simp only [ecbAdmissible, blockPairValid, List.length_append, List.length_replicate,
+      Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq, true_and, ← two_mul, Nat.mul_mod_left]
+    exact Nat.mul_le_mul_right _ hℓ
+  have hguess (k : BitString (E.keyLen n)) (u v : List Bool) (hu : u.length = E.blockLen n)
+      (hv : v.length = E.blockLen n) :
+      decide ((E.encrypt n (List.ofFn k) u ++ E.encrypt n (List.ofFn k) v).take (E.blockLen n) =
+        ((E.encrypt n (List.ofFn k) u ++ E.encrypt n (List.ofFn k) v).drop
+          (E.blockLen n)).take (E.blockLen n)) = decide (u = v) := by
+    have heu := E.length_encrypt n (List.ofFn k) u List.length_ofFn hu
+    have hev := E.length_encrypt n (List.ofFn k) v List.length_ofFn hv
+    rw [List.take_left' heu, List.drop_left' heu, List.take_of_length_le hev.le]
+    refine decide_eq_decide.mpr ⟨fun h => ?_, fun h => h ▸ rfl⟩
+    rw [← E.decrypt_encrypt n (List.ofFn k) u List.length_ofFn hu, h,
+      E.decrypt_encrypt n (List.ofFn k) v List.length_ofFn hv]
+  have hk (b : Bool) (k : BitString (E.keyLen n)) :
+      ProbComp.eval (E.ecbTwoBlockAdversary.guess n []
+        ((E.ecbBlocks n (if b then
+            List.replicate (E.blockLen n) false ++ List.replicate (E.blockLen n) true
+          else List.replicate (E.blockLen n) false ++
+            List.replicate (E.blockLen n) false)).flatMap
+          (E.encrypt n (List.ofFn k)))) = PMF.pure (!b) := by
+    cases b
+    · simp only [ecbTwoBlockAdversary, Bool.false_eq_true, ↓reduceIte,
+        E.ecbBlocks_append hx hx hpos, List.flatMap_cons, List.flatMap_nil, List.append_nil,
+        hguess k _ _ hx hx, ProbComp.eval_pure, decide_true, Bool.not_false]
+    · simp only [ecbTwoBlockAdversary, ↓reduceIte, E.ecbBlocks_append hx hy hpos,
+        List.flatMap_cons, List.flatMap_nil, List.append_nil, hguess k _ _ hx hy, hxy,
+        ProbComp.eval_pure, decide_false, Bool.not_true]
+  have hgame (b : Bool) : ProbComp.eval (Encryption.demKeyGameOn (E.ecbAdmissible ℓ) E.keyLen
+      E.ecbEncrypt E.ecbTwoBlockAdversary b n) = PMF.pure (!b) := by
+    simp only [Encryption.demKeyGameOn, ecbTwoBlockAdversary, Encryption.ChoiceOut.msg₀,
+      Encryption.ChoiceOut.msg₁, Encryption.ChoiceOut.msgs, hadm, ProbComp.eval_bind,
+      BitString.eval_sampleList, BitString.uniformList, PMF.bind_map, ProbComp.eval_pure,
+      PMF.pure_bind, ↓reduceIte, ecbEncrypt]
+    simp only [Function.comp_def]
+    exact (congrArg _ (funext (hk b))).trans (PMF.bind_const _ _)
+  rw [hgame, hgame]
+  simp [Game.advantage, Game.succProbability]
+
+/-- **ECB is not semantically secure** ([BonehShoup2023], §4.1.4, pp. 103–104): on messages of at
+most `ℓ n` blocks, if eventually blocks have at least one bit and `2 ≤ ℓ n`, the two-block attack
+breaks one-time semantic security of word ECB for every block cipher. -/
+theorem not_demOneTimeKeyINDCPAOn_ecbAdmissible {ℓ : ℕ → ℕ}
+    (hpos : ∀ᶠ n in Filter.atTop, 1 ≤ E.blockLen n) (hℓ : ∀ᶠ n in Filter.atTop, 2 ≤ ℓ n) :
+    ¬ Encryption.DEMOneTimeKeyINDCPAOn (E.ecbAdmissible ℓ) encBits E.keyLen E.ecbEncrypt :=
+  fun h => not_negligible_of_eventually_eq_one ((hpos.and hℓ).mono fun _ hn =>
+      E.advantage_demKeyGameOn_ecbTwoBlockAdversary hn.1 hn.2)
+    (h _ E.isPPT_ecbTwoBlockAdversary)
 
 end BlockCipher
 

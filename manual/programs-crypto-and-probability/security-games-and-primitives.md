@@ -2541,11 +2541,21 @@ blocks against two distinct ones) has advantage `1` against every block cipher
 (`ECB.advantage_twoBlockAdversary`). On distinct blocks, equation (4.3) holds exactly for uniform
 keys over finite types: every one-time adversary `A` has advantage twice
 `PRP.advantage E (ECB.reduction ℓ A)` (`ECB.advantage_eq_two_mul_prpAdvantage`), and the reduction
-makes at most `ℓ` queries (`ECB.isQueryBounded_reduction`). The asymptotic form and an efficiency
-certificate for the reduction are not yet formalized.
+makes at most `ℓ` queries (`ECB.isQueryBounded_reduction`). The asymptotic form is in
+[`Encryption/ECB.lean`](../../CslibFrontier/Crypto/Computational/Encryption/ECB.lean) for a word-level
+`BlockCipher` `E`. `E.ecbEncrypt` cuts a message word into `blockLen n`-bit blocks. If `E.PRP`, ECB
+on messages of at most `ℓ n` distinct blocks is one-time semantically secure
+(`BlockCipher.PRP.ecb_demOneTimeKeyINDCPAOn`, for `ℓ` computable in unary in polynomial time). The
+proof goes through `E.ecbToPrpDistinguisher`, which runs `ECB.reduction` against the word oracle and
+is uniform strict oracle PPT (`BlockCipher.isOraclePPT_ecbToPrpDistinguisher`). On messages of up
+to `ℓ n` arbitrary blocks, the two-block attack `E.ecbTwoBlockAdversary` is uniform strict PPT and
+breaks ECB of every block cipher once `1 ≤ blockLen n` and `2 ≤ ℓ n` eventually
+(`BlockCipher.not_demOneTimeKeyINDCPAOn_ecbAdmissible`).
 [`CslibFrontierTests/Crypto/ECB.lean`](../../CslibFrontierTests/Crypto/ECB.lean) checks both
 hypotheses of the attack, an instance of (4.3) with both sides nonzero, and that Theorem 4.1 fails
-without distinct blocks.
+without distinct blocks;
+[`CslibFrontierTests/Crypto/ECBWord.lean`](../../CslibFrontierTests/Crypto/ECBWord.lean) applies the
+word-level attack to a concrete cipher.
 
 For the shared lazy-versus-fresh random-function hybrid and left-or-right block-mode CPA scaffolding
 used by both CTR and OFB mode, import
