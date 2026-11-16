@@ -281,6 +281,30 @@ views are their view words (`iknpSenderViewWords`, `iknpReceiverViewWords`), enc
 
 /-! ### Efficiency of the simulator families -/
 
+/-- The representation of coalition member `i`'s input, read from a simulator's input. -/
+private theorem simInput_input_polyTime {I : Finset (Fin 2)} (i : I) :
+    ComputableInPolyTime (fun x : SimInput (iknpFamily hash m) I =>
+      (iknpEncoding hash m).input.rep x.secParam x.desc i (x.inputs i))
+      (encSimInput (iknpEncoding hash m)) ((iknpEncoding hash m).input.enc i) := by
+  have hinputs : ComputableInPolyTime (fun x : SimInput (iknpFamily hash m) I =>
+      fun j : I => (iknpEncoding hash m).input.rep x.secParam x.desc j (x.inputs j))
+      (encSimInput (iknpEncoding hash m))
+      (encDPi fun j : I => (iknpEncoding hash m).input.enc j) :=
+    (encSimInput_inputs_polyTime (iknpEncoding hash m) .id').of_enc_eq fun _ => rfl
+  exact (ComputableInPolyTime.dpi_apply _ i).comp hinputs
+
+/-- The representation of coalition member `i`'s output, read from a simulator's input. -/
+private theorem simInput_output_polyTime {I : Finset (Fin 2)} (i : I) :
+    ComputableInPolyTime (fun x : SimInput (iknpFamily hash m) I =>
+      (iknpEncoding hash m).output.rep x.secParam x.desc i (x.outputs i))
+      (encSimInput (iknpEncoding hash m)) ((iknpEncoding hash m).output.enc i) := by
+  have houtputs : ComputableInPolyTime (fun x : SimInput (iknpFamily hash m) I =>
+      fun j : I => (iknpEncoding hash m).output.rep x.secParam x.desc j (x.outputs j))
+      (encSimInput (iknpEncoding hash m))
+      (encDPi fun j : I => (iknpEncoding hash m).output.enc j) :=
+    (encSimInput_outputs_polyTime (iknpEncoding hash m) .id').of_enc_eq fun _ => rfl
+  exact (ComputableInPolyTime.dpi_apply _ i).comp houtputs
+
 /-- The party `0` of the coalition `{0}`. -/
 private abbrev sender : ({0} : Finset (Fin 2)) := ⟨0, Finset.mem_singleton_self 0⟩
 
@@ -306,14 +330,8 @@ theorem isPPT_iknpSenderSim :
       fun n _ => iknpSenderSim n (m n) Bool := by
   have hpair : ComputableInPolyTime (fun x : SimInput (iknpFamily hash m) {0} =>
       (iknpEncoding hash m).input.rep x.secParam x.desc 0 (x.inputs sender))
-      (encSimInput (iknpEncoding hash m)) (encPair encBits encBits) := by
-    have hinputs : ComputableInPolyTime (fun x : SimInput (iknpFamily hash m) {0} =>
-        fun i : ({0} : Finset (Fin 2)) =>
-          (iknpEncoding hash m).input.rep x.secParam x.desc i (x.inputs i))
-        (encSimInput (iknpEncoding hash m))
-        (encDPi fun i : ({0} : Finset (Fin 2)) => (iknpEncoding hash m).input.enc i) :=
-      (encSimInput_inputs_polyTime (iknpEncoding hash m) .id').of_enc_eq fun _ => rfl
-    exact (ComputableInPolyTime.dpi_apply _ sender).comp hinputs
+      (encSimInput (iknpEncoding hash m)) (encPair encBits encBits) :=
+    simInput_input_polyTime hash m sender
   have hn : ComputableInPolyTime (fun x : SimInput (iknpFamily hash m) {0} => x.secParam)
       (encSimInput (iknpEncoding hash m)) encUnary :=
     encSimInput_secParam_polyTime (iknpEncoding hash m) .id'
@@ -414,24 +432,12 @@ theorem isPPT_iknpReceiverSim (hh : ComputableInPolyTime hash encBits encBool) :
       fun n _ => iknpReceiverSim (CorrelationRobust.atLevel hash n (m n)) := by
   have hr : ComputableInPolyTime (fun x : SimInput (iknpFamily hash m) {1} =>
       (iknpEncoding hash m).input.rep x.secParam x.desc 1 (x.inputs receiver))
-      (encSimInput (iknpEncoding hash m)) encBits := by
-    have hinputs : ComputableInPolyTime (fun x : SimInput (iknpFamily hash m) {1} =>
-        fun i : ({1} : Finset (Fin 2)) =>
-          (iknpEncoding hash m).input.rep x.secParam x.desc i (x.inputs i))
-        (encSimInput (iknpEncoding hash m))
-        (encDPi fun i : ({1} : Finset (Fin 2)) => (iknpEncoding hash m).input.enc i) :=
-      (encSimInput_inputs_polyTime (iknpEncoding hash m) .id').of_enc_eq fun _ => rfl
-    exact (ComputableInPolyTime.dpi_apply _ receiver).comp hinputs
+      (encSimInput (iknpEncoding hash m)) encBits :=
+    simInput_input_polyTime hash m receiver
   have hz : ComputableInPolyTime (fun x : SimInput (iknpFamily hash m) {1} =>
       (iknpEncoding hash m).output.rep x.secParam x.desc 1 (x.outputs receiver))
-      (encSimInput (iknpEncoding hash m)) encBits := by
-    have houtputs : ComputableInPolyTime (fun x : SimInput (iknpFamily hash m) {1} =>
-        fun i : ({1} : Finset (Fin 2)) =>
-          (iknpEncoding hash m).output.rep x.secParam x.desc i (x.outputs i))
-        (encSimInput (iknpEncoding hash m))
-        (encDPi fun i : ({1} : Finset (Fin 2)) => (iknpEncoding hash m).output.enc i) :=
-      (encSimInput_outputs_polyTime (iknpEncoding hash m) .id').of_enc_eq fun _ => rfl
-    exact (ComputableInPolyTime.dpi_apply _ receiver).comp houtputs
+      (encSimInput (iknpEncoding hash m)) encBits :=
+    simInput_output_polyTime hash m receiver
   have hn : ComputableInPolyTime (fun x : SimInput (iknpFamily hash m) {1} => x.secParam)
       (encSimInput (iknpEncoding hash m)) encUnary :=
     encSimInput_secParam_polyTime (iknpEncoding hash m) .id'
