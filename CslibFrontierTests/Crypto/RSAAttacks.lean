@@ -128,6 +128,32 @@ example : 1 < Nat.gcd (19 - 1) 45 ∧ Nat.gcd (19 - 1) 45 < 45 ∧
 
 example : Nat.gcd (10 - 1) 33 = 3 := by decide
 
+/-- General square-congruence factoring (`x ^ 2 ≡ y ^ 2 [MOD N]`, Boneh–Shoup §16.4.1, p. 697):
+`14 ^ 2 ≡ 4 ^ 2 [MOD 45]` with `14 ≢ 4` and `14 + 4 ≢ 0 [MOD 45]` produces `gcd(10, 45) = 5` and
+`gcd(18, 45) = 9`, while non-coprime `12 ^ 2 ≡ 3 ^ 2 [MOD 45]` produces `gcd(9, 45) = 9` and
+`gcd(15, 45) = 15`. -/
+example : 1 < Nat.gcd (14 - 4) 45 ∧ Nat.gcd (14 - 4) 45 < 45 ∧
+    1 < Nat.gcd (14 + 4) 45 ∧ Nat.gcd (14 + 4) 45 < 45 :=
+  ⟨(gcd_sub_proper_of_sq_modEq (by decide) (by decide) (by decide) (by decide)).1,
+   (gcd_sub_proper_of_sq_modEq (by decide) (by decide) (by decide) (by decide)).2,
+   (gcd_add_proper_of_sq_modEq (by decide) (by decide) (by decide)).1,
+   (gcd_add_proper_of_sq_modEq (by decide) (by decide) (by decide)).2⟩
+
+example : 1 < Nat.gcd (12 - 3) 45 ∧ Nat.gcd (12 - 3) 45 < 45 ∧
+    1 < Nat.gcd (12 + 3) 45 ∧ Nat.gcd (12 + 3) 45 < 45 :=
+  ⟨(gcd_sub_proper_of_sq_modEq (by decide) (by decide) (by decide) (by decide)).1,
+   (gcd_sub_proper_of_sq_modEq (by decide) (by decide) (by decide) (by decide)).2,
+   (gcd_add_proper_of_sq_modEq (by decide) (by decide) (by decide)).1,
+   (gcd_add_proper_of_sq_modEq (by decide) (by decide) (by decide)).2⟩
+
+/-- When `x < y` (`2 ^ 2 ≡ 5 ^ 2 [MOD 21]`), `gcd_add_proper_of_sq_modEq` still gives the proper
+factor `gcd(2 + 5, 21) = 7`, whereas truncated `ℕ` subtraction `2 - 5 = 0` gives `gcd = 21` (so
+`y ≤ x` is needed in `gcd_sub_proper_of_sq_modEq`). -/
+example : 1 < Nat.gcd (2 + 5) 21 ∧ Nat.gcd (2 + 5) 21 < 21 :=
+  gcd_add_proper_of_sq_modEq (by decide) (by decide) (by decide)
+
+example : ¬ (1 < Nat.gcd (2 - 5) 21 ∧ Nat.gcd (2 - 5) 21 < 21) := by decide
+
 /-! ### Binary modular inverse and the RSA-to-factoring hierarchy -/
 
 /-- `BinaryGcd.modInv 3 20 = 7` since `3 * 7 = 21 ≡ 1 [MOD 20]`. -/
