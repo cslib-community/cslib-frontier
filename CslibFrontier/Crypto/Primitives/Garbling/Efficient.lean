@@ -14,6 +14,11 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Li
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Option
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
+public import CslibFrontier.Crypto.Primitives.Garbling.Games
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+import CslibFrontier.Tactic.PolyTime
+import CslibFrontier.Foundations.Data.List.GetD
 
 /-!
 # Efficient garbling schemes
@@ -27,7 +32,14 @@ parameter in unary and the encoded arguments.
 
 For circuit garbling, `encConventionalCircuit` encodes a conventional circuit by `n` and `m` in
 unary followed by its gates, each the binary numbers of its two argument wires and its truth table
-as four bits; `encValidCircuit` restricts it to valid circuits.
+as four bits; `encValidCircuit` restricts it to valid circuits. `encValidTopo` encodes the
+topology `(n, m, q, A, B)` revealed by `phiTopo` in the same layout without the truth tables, and
+`encPrvView` encodes the view `(F, X, d)` of a privacy adversary.
+
+The plaintext wire values and the semantics `evalCirc` of a valid circuit are computed in
+polynomial time from its word (`wires_polyTime`, `evalCirc_polyTime`), by a fold over the gates
+whose state grows by one bit per gate. This is the `ev` field of `Scheme.IsEfficient` for every
+scheme whose semantics is `evalCirc`.
 
 ## Main definitions
 
@@ -36,6 +48,15 @@ as four bits; `encValidCircuit` restricts it to valid circuits.
 * `Cslib.Crypto.Garbling.ConventionalCircuit.gateList`,
   `Cslib.Crypto.Garbling.encConventionalCircuit`, `Cslib.Crypto.Garbling.encValidCircuit`:
   conventional circuits as data.
+* `Cslib.Crypto.Garbling.Topo.gateList`, `Cslib.Crypto.Garbling.encTopo`,
+  `Cslib.Crypto.Garbling.encValidTopo`: topologies, the side information of `phiTopo`, as data.
+* `Cslib.Crypto.Garbling.encPrvView`, `Cslib.Crypto.Garbling.encQuery`: the encodings of a
+  privacy view `(F, X, d)` and of a query `(f, x)`.
+
+## Main results
+
+* `Cslib.Crypto.Garbling.evalCirc_polyTime`: the semantics of valid circuits is computed in
+  polynomial time.
 
 ## References
 
@@ -136,10 +157,176 @@ def encConventionalCircuit : ConventionalCircuit ↪ List Bool :=
 def encValidCircuit : ValidCircuit ↪ List Bool :=
   (Function.Embedding.subtype _).trans encConventionalCircuit
 
+/-- A valid circuit's word has at least `n + q` bits: `n` in unary and at least one bit per
+gate. -/
+theorem n_add_q_le_length_encValidCircuit (f : ValidCircuit) :
+    f.1.n + f.1.q ≤ (encValidCircuit f).length := by
+  change f.1.n + f.1.q ≤ (encCircuitData (f.1.n, f.1.m, f.1.gateList)).length
+  have h := length_le_length_encList (encPair encNat (encPair encNat encBits)) f.1.gateList
+  simp only [ConventionalCircuit.length_gateList] at h
+  simp only [encCircuitData, length_encPair, encUnary_apply, List.length_replicate]
+  omega
+
 /-- The data of a valid circuit is read from its word in polynomial time. -/
 theorem circuitData_polyTime :
     ComputableInPolyTime (fun f : ValidCircuit => (f.1.n, f.1.m, f.1.gateList)) encValidCircuit
       encCircuitData :=
   .of_eq fun _ => rfl
+
+/-! ### Evaluating conventional circuits -/
+
+/-- The truth table of a gate read from its four bits, listed as in
+`ConventionalCircuit.gateList`. -/
+theorem getD_table (G : Bool → Bool → Bool) (x y : Bool) :
+    [G false false, G false true, G true false, G true true].getD
+      ((if x then 2 else 0) + (if y then 1 else 0)) false = G x y := by
+  cases x <;> cases y <;> rfl
+
+/-- One gate of the plaintext evaluation, from the gate's data. -/
+private def wireStep (ws : List Bool) (gate : ℕ × ℕ × List Bool) : List Bool :=
+  ws ++ [gate.2.2.getD ((if ws.getD (min (ws.length + 1) gate.1 - 1) false then 2 else 0) +
+    (if ws.getD (min (ws.length + 1) gate.2.1 - 1) false then 1 else 0)) false]
+
+private theorem wires_eq_foldl (f : ConventionalCircuit) (x : List Bool) {s : ℕ} (hs : s ≤ f.q) :
+    f.wires x s = (f.gateList.take s).foldl wireStep
+      (x.take f.n ++ List.replicate (f.n - x.length) false) := by
+  induction s with
+  | zero => simp [ConventionalCircuit.wires]
+  | succ s ih =>
+    have hsq : s < f.q := hs
+    rw [List.take_add_one, List.foldl_append, ← ih hsq.le, ConventionalCircuit.wires,
+      dite_eq_left hsq]
+    have hget : f.gateList[s]? = some (f.A ⟨s, hsq⟩, f.B ⟨s, hsq⟩,
+        [f.G ⟨s, hsq⟩ false false, f.G ⟨s, hsq⟩ false true, f.G ⟨s, hsq⟩ true false,
+          f.G ⟨s, hsq⟩ true true]) := by
+      simp [ConventionalCircuit.gateList, hsq]
+    rw [hget]
+    simp only [Option.toList_some, List.foldl_cons, List.foldl_nil, wireStep,
+      List.getD_min_length_succ_sub_one,
+      getD_table, ConventionalCircuit.wireVal, ← List.getD_eq_getElem?_getD]
+
+private theorem wireStep_polyTime :
+    ComputableInPolyTime (fun p : (Unit × List Bool) × (ℕ × ℕ × List Bool) => wireStep p.1.2 p.2)
+      (encPair (encPair encUnit encBits) (encPair encNat (encPair encNat encBits))) encBits := by
+  polytime [wireStep]
+
+/-- **The plaintext wire values** `f.wires x f.q` of a valid circuit on an input, the `n` input
+bits followed by the `q` gate values, are computed in polynomial time. -/
+theorem wires_polyTime :
+    ComputableInPolyTime (fun (f, x) => f.1.wires x f.1.q) (encPair encValidCircuit encBits)
+      encBits := by
+  have hd : ComputableInPolyTime (fun p : ValidCircuit × List Bool =>
+      (p.1.1.n, p.1.1.m, p.1.1.gateList)) (encPair encValidCircuit encBits) encCircuitData :=
+    circuitData_polyTime.comp (ComputableInPolyTime.fst _ _)
+  have hg : ComputableInPolyTime (fun p : ValidCircuit × List Bool => p.1.1.gateList)
+      (encPair encValidCircuit encBits) (encList (encPair encNat (encPair encNat encBits))) :=
+    hd.snd'.snd'
+  have hn : ComputableInPolyTime (fun p : ValidCircuit × List Bool => p.1.1.n)
+      (encPair encValidCircuit encBits) encUnary := hd.fst'
+  have hfold := ComputableInPolyTime.foldlWith_of_bounded_growth
+    (encP := encUnit) (encL := encList (encPair encNat (encPair encNat encBits)))
+    (encB := encBits) (encA := encPair encNat (encPair encNat encBits))
+    (encIn := encPair encValidCircuit encBits)
+    (step := fun (_ : Unit) ws gate => wireStep ws gate) (par := fun _ => ())
+    (list := fun p => p.1.1.gateList)
+    (init := fun p => p.2.take p.1.1.n ++ List.replicate (p.1.1.n - p.2.length) false)
+    (by polytime) hg (by polytime) wireStep_polyTime (growth := fun _ => 1)
+    (PolyBounded.const 1) (fun _ ws gate _ => by
+      change (wireStep ws gate).length ≤ ws.length + 1
+      simp [wireStep])
+  have heq : (fun (f, x) => f.1.wires x f.1.q) = fun p : ValidCircuit × List Bool =>
+      p.1.1.gateList.foldl wireStep (p.2.take p.1.1.n ++
+        List.replicate (p.1.1.n - p.2.length) false) := by
+    funext ⟨f, x⟩
+    dsimp only
+    rw [wires_eq_foldl _ _ le_rfl,
+      List.take_of_length_le (show f.1.gateList.length ≤ f.1.q by simp)]
+  rw [heq]
+  exact hfold
+
+/-- **The semantics** `evalCirc` of a valid circuit on an input, the semantics `ev` of the
+garbling schemes over conventional circuits, is computed in polynomial time. -/
+theorem evalCirc_polyTime :
+    ComputableInPolyTime (fun (f, x) => f.1.evalCirc x) (encPair encValidCircuit encBits)
+      encBits := by
+  have hd : ComputableInPolyTime (fun p : ValidCircuit × List Bool =>
+      (p.1.1.n, p.1.1.m, p.1.1.gateList)) (encPair encValidCircuit encBits) encCircuitData :=
+    circuitData_polyTime.comp (ComputableInPolyTime.fst _ _)
+  have hn : ComputableInPolyTime (fun p : ValidCircuit × List Bool => p.1.1.n)
+      (encPair encValidCircuit encBits) encUnary := hd.fst'
+  have hm : ComputableInPolyTime (fun p : ValidCircuit × List Bool => p.1.1.m)
+      (encPair encValidCircuit encBits) encUnary := hd.snd'.fst'
+  have hq := (ComputableInPolyTime.length_list _).comp
+    (hd.snd'.snd' : ComputableInPolyTime (fun p : ValidCircuit × List Bool => p.1.1.gateList)
+      (encPair encValidCircuit encBits) (encList (encPair encNat (encPair encNat encBits))))
+  have hc : ComputableInPolyTime (fun p : ValidCircuit × List Bool =>
+      p.1.1.n + p.1.1.gateList.length - p.1.1.m) (encPair encValidCircuit encBits) encUnary :=
+    ComputableTidilyInPolyTime.unary_sub.computableInPolyTime.comp
+      ((ComputableTidilyInPolyTime.unary_add.computableInPolyTime.comp (hn.prod hq)).prod hm)
+  have hdrop : ComputableInPolyTime (fun p : List Bool × ℕ => p.1.drop p.2)
+      (encPair encBits encUnary) encBits := by
+    polytime
+  have heq : (fun (f, x) => f.1.evalCirc x) = fun p : ValidCircuit × List Bool =>
+      (p.1.1.wires p.2 p.1.1.q).drop (p.1.1.n + p.1.1.gateList.length - p.1.1.m) := by
+    funext p
+    obtain ⟨f, x⟩ := p
+    simp only [ConventionalCircuit.evalCirc, ConventionalCircuit.length_gateList]
+  rw [heq]
+  exact hdrop.comp (wires_polyTime.prod hc)
+
+namespace Topo
+
+/-- The gates of a topology as data: for each gate its argument wires `A g` and `B g`. -/
+@[expose] def gateList (t : Topo) : List (ℕ × ℕ) := List.ofFn fun g => (t.A g, t.B g)
+
+@[simp] theorem length_gateList (t : Topo) : t.gateList.length = t.q := by
+  simp [gateList]
+
+/-- A topology is determined by `n`, `m` and its gates. -/
+theorem gateList_injective {t t' : Topo} (hn : t.n = t'.n) (hm : t.m = t'.m)
+    (h : t.gateList = t'.gateList) : t = t' := by
+  obtain ⟨n, m, q, A, B⟩ := t
+  obtain ⟨n', m', q', A', B'⟩ := t'
+  simp only at hn hm
+  subst hn hm
+  obtain ⟨rfl, hfun⟩ := Sigma.mk.inj_iff.mp (List.ofFn_inj'.mp h)
+  have hfun := eq_of_heq hfun
+  have hA : A = A' := funext fun g => congrArg Prod.fst (congrFun hfun g)
+  have hB : B = B' := funext fun g => congrArg Prod.snd (congrFun hfun g)
+  subst hA hB
+  rfl
+
+end Topo
+
+/-- The data of a topology: `n` and `m` in unary, then each gate's argument wires in binary. -/
+abbrev encTopoData : (ℕ × ℕ × List (ℕ × ℕ)) ↪ List Bool :=
+  encPair encUnary (encPair encUnary (encList (encPair encNat encNat)))
+
+/-- **Topologies as words**: `n` and `m` in unary, then the gates in order, each the binary numbers
+of its argument wires `A g` and `B g` (`encTopoData` of `(n, m, gateList t)`). This is the layout
+of `encConventionalCircuit` without the truth tables. -/
+def encTopo : Topo ↪ List Bool :=
+  ⟨fun t => encTopoData (t.n, t.m, t.gateList), fun t t' h => by
+    obtain ⟨hn, hrest⟩ := Prod.ext_iff.mp (encTopoData.injective h)
+    obtain ⟨hm, hg⟩ := Prod.ext_iff.mp hrest
+    exact Topo.gateList_injective hn hm hg⟩
+
+/-- Valid topologies, the side information of `phiTopo`, as words by `encTopo`. -/
+def encValidTopo : ValidTopo ↪ List Bool :=
+  (Function.Embedding.subtype _).trans encTopo
+
+/-- The data of a valid topology is read from its word in polynomial time. -/
+theorem topoData_polyTime :
+    ComputableInPolyTime (fun t : ValidTopo => (t.1.n, t.1.m, t.1.gateList)) encValidTopo
+      encTopoData :=
+  .of_eq fun _ => rfl
+
+/-- The encoding of a privacy view `(F, X, d)`: `F` and `X` framed, then `d`. -/
+enc_structure encPrvView : PrvView where
+  fn : encBits, input : encBits, decInfo : encBits
+
+/-- The encoding of a query `(f, x)`: `f` by `encFn`, framed, then `x`. -/
+enc_structure encQuery (Fn : Type) (encFn : Fn ↪ List Bool) : Query Fn where
+  fn : encFn, input : encBits
 
 end Cslib.Crypto.Garbling

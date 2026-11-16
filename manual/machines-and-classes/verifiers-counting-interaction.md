@@ -19,7 +19,7 @@ and the distinction between Toda’s bit-oracle endpoint and a fixed #SAT oracle
 
 [BPP](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/Complexity/Classes/BPP.lean#L163) and [RP](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/Complexity/Classes/RP.lean#L143) use the same native deterministic verifier with a uniform seed of exactly polynomial length. BPP's fractions are expressed through finite accepted-seed counts, with thresholds two thirds and one third. RP has no false positives and accepts a yes instance on at least half of its seeds. `coRP` complements the language. Explicit amplification and coin-tape/PTM bridges connect these presentations to probabilistic execution.
 
-A worked one-sided-error client is the Miller–Rabin test in [MillerRabin.lean](../../CslibFrontier/Computability/Complexity/Problems/Primes/MillerRabin.lean). Its verifier reads `2 |n|` random bits on the binary input `n` and reduces them to a base in `[1, n - 1]`. [decidesWithOneSidedError](../../CslibFrontier/Computability/Complexity/Problems/Primes/MillerRabin.lean#L267) charges the bias of reducing a uniform word modulo `n - 1` against the strong-liar bound [two_mul_card_isStrongLiar_le](../../CslibFrontier/Foundations/NumberTheory/Primality/StrongLiars.lean#L217), which gives [primes_mem_coRP](../../CslibFrontier/Computability/Complexity/Problems/Primes/MillerRabin.lean#L317). The sharper Rabin–Monier bound [four_mul_card_isStrongLiar_le](../../CslibFrontier/Foundations/NumberTheory/Primality/RabinMonier.lean#L334), at most `φ(n) / 4` strong liars for odd composite `n ≠ 9` (attributed in the module docstring to Rabin and to Monier, 1980), is not needed for the `1/2` error of `RP`. The same membership follows from AKS through `P_subset_coRP`; the client is there to exhibit the verifier and its error count, not to give a new route to the class membership.
+A worked one-sided-error client is the Miller–Rabin test in [MillerRabin.lean](../../CslibFrontier/Computability/Complexity/Problems/Primes/MillerRabin.lean). Its verifier reads `2 |n|` random bits on the binary input `n` and reduces them to a base in `[1, n - 1]`. [decidesWithOneSidedError](../../CslibFrontier/Computability/Complexity/Problems/Primes/MillerRabin.lean#L265) charges the bias of reducing a uniform word modulo `n - 1` against the strong-liar bound [two_mul_card_isStrongLiar_le](../../CslibFrontier/Foundations/NumberTheory/Primality/StrongLiars.lean#L217), which gives [primes_mem_coRP](../../CslibFrontier/Computability/Complexity/Problems/Primes/MillerRabin.lean#L315). The sharper Rabin–Monier bound [four_mul_card_isStrongLiar_le](../../CslibFrontier/Foundations/NumberTheory/Primality/RabinMonier.lean#L334), at most `φ(n) / 4` strong liars for odd composite `n ≠ 9` (attributed in the module docstring to Rabin and to Monier, 1980), is not needed for the `1/2` error of `RP`. The same membership follows from AKS through `P_subset_coRP`; the client is there to exhibit the verifier and its error count, not to give a new route to the class membership.
 
 The Solovay–Strassen test compares `a ^ ((n - 1) / 2)` with the Jacobi symbol `J(a | n)` modulo `n`; its Euler-liar bound is [two_mul_card_eulerLiars_le](../../CslibFrontier/Foundations/NumberTheory/Primality/EulerLiars.lean#L147). The symbol itself is certified by [binary_jacobiSym](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/PolyTime/Nat/Jacobi.lean#L287): Mathlib's `jacobiSym` on binary naturals, with a binary signed result, for every `a` and `n` (even `n` and `n = 0` included). The proof runs the reciprocity reductions as a counted loop of `2 * Nat.size n` steps, each of which at least halves `a * n` ([jacobiReadout_iterate_jacobiStep](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/PolyTime/Nat/Jacobi.lean#L244)), and `intBin_jacobiSym` extends it to a signed numerator. [JacobiPolyTime](../../CslibFrontierTests/JacobiPolyTime.lean) composes it into the Solovay–Strassen comparison and runs the loop on concrete inputs. The Solovay–Strassen `coRP` verifier is not yet stated ([#2958](https://github.com/cslib-community/cslib-frontier/issues/2958)).
 
@@ -150,9 +150,9 @@ the width of every `k ≤ Y * Y.size + 1` by `8 * Z.size + 8`, and the precision
 [ordinary-import client](../../CslibFrontierTests/PrimeWindowBounds.lean) combines the bounds
 at `Z = max 16 (max m L)` and checks open/closed and empty-window endpoints.
 
-The [development issue](https://github.com/cslib-community/cslib-frontier/issues/5619) retains
-the remaining CRT sign-recovery objectives. The product step is certified below;
-the downstream real-feasibility theorem is outside these components.
+The [development issue](https://github.com/cslib-community/cslib-frontier/issues/5619) tracks
+these arithmetic layers and their integration. The downstream real-feasibility theorem is
+outside these components.
 
 For binary interval endpoints, import `CountingHierarchy.Range`: `CountingFunction.sum_range`
 and `sum_range_int` sum over `0 ≤ i < r(w)` in one level. The endpoint is computed in binary;
@@ -231,6 +231,33 @@ modulus product. The [checked client](../../CslibFrontierTests/ResidueAccess.lea
 minus one, excluded moduli, first-event ordering, an empty interval and a concrete dyadic sum.
 These operations alone do not certify the complete sign-recovery procedure.
 
+`CountingHierarchy.DyadicSummation` certifies `dyadicRangeSum` in F_(a+1) from uniform F_a
+natural numerators and denominators. The precision is polynomial-time unary, paying for the
+binary scale `2^B`; the interval endpoint is polynomial-time binary. A zero denominator
+contributes zero. The finite-restriction bridge masks excluded numerators by zero and matches
+the mathematical CRT numerator exactly. `CountingHierarchy.FirstEventSign` returns `1`, `-1`
+or `0` using three F_a event/test evaluators in F_(a+2). Positive has priority if both tests
+hold; its name alone implies no integer-sign correctness. The
+[ordinary-module client](../../CslibFrontierTests/DyadicFirstEvent.lean) checks these defaults,
+masking, precision zero, empty ranges, ordering and priority.
+
+`CountingHierarchy.DyadicFirstFlag` specializes those tests to dyadic flag windows, with a
+binary margin denominator `d`, unary precision and binary exclusive endpoint. The first flagged
+value below one half gives `1`, above one half gives `-1`, and an exact half gives `0`.
+Its F_(a+2) certificate is uniform in all parameters; the semantic bridge to `FirstCircleFlag`
+requires `0 < d`. The [checked client](../../CslibFrontierTests/DyadicFirstFlag.lean) covers both
+sides, later flags, zero margin denominator, zero precision, exact half and empty ranges.
+
+`CountingHierarchy.PrimeCofactor` supplies the weighted coefficients. Its shared
+`primeWindowTest` is in F_1. `primeCofactor Y L p` takes the product of the other primes
+`L < q ≤ Y` modulo `p` in F_5; on every prime modulus that residue is nonzero. The
+coefficient operation combines its modular inverse, a binary modular power and an F_a supplied
+residue in F_max(a,5). Both operations return zero for nonprime moduli, including zero and one.
+`primeWindowCoefficient_modEq_subtype` consumes `IntegerResidueAccess.residue_modEq` directly
+and proves the congruence required by CRT correctness. Its full cofactor and represented integer
+occur only in the specification. The [checked client](../../CslibFrontierTests/PrimeCofactor.lean)
+covers negative residues, p=2, omitted/empty/reversed windows, defaults and uniform composition.
+
 ## Mathematical sign recovery from residues
 
 Import [`Foundations.NumberTheory.CRTSign`](../../CslibFrontier/Foundations/NumberTheory/CRTSign.lean)
@@ -270,8 +297,40 @@ precision and doubling-limit conditions for primes `L < p ≤ Y`, where
 `not_flag_zero_of_coefficients` handles zero. The
 [checked client](../../CslibFrontierTests/PrimeWindowSign.lean) uses supplied coefficient
 congruences for both signs of one, an unconditional zero instance and excluded-prime endpoints.
-Computing those
-coefficients and certifying a counting-level sign procedure remain separate obligations.
+The computational layer below constructs those coefficients and certifies sign recovery.
+
+## Computing signs from residue access
+
+Import `CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.ResidueSign`.
+`residueWindowNumerator` computes a dyadic numerator from the shared prime-window selector
+and weighted coefficients; `residueWindowSign` classifies its first flag. These operations
+accept general window, precision and doubling-limit parameters. Their certificate gives
+F_(max(a,5)+3) from an F_a residue evaluator, polynomial-time binary cutoffs/limit and unary
+precision, independently of the mathematical correctness conditions.
+
+For `R : IntegerResidueAccess X` and a polynomial-time **binary** excluded-prime bound `L`,
+`R.primeWindowSign L` chooses the manuscript parameters. `primeWindowSign_eq_sign` proves
+that its result is `Int.sign (X w)` whenever every prime in the chosen window is admissible.
+`IntegerResidueAccess.sign_mem_CountingFunction` therefore recovers Proposition 2.6:
+the sign belongs to F_(max(a,5)+3). The magnitude exponent and `L` have polynomial binary
+length but may have exponential values. `SignParameters` certifies cutoff, precision and
+doubling-limit preparation explicitly; `PrimeWindowBounds` gives their numerical width bounds.
+The algorithm constructs neither `X`, `2^m`, the full prime product nor an unreduced doubling
+power. Nonprime arithmetic inputs use the component defaults, while the selector excludes
+small and out-of-window primes. Zero and both signs use the same total uniform program.
+
+The [ordinary-module client](../../CslibFrontierTests/ResidueSign.lean) covers zero, negative
+integers, an exponentially large excluded bound, and the implicit family `2^(2^n)` on unary
+input. That family's residues are polynomial-time even though its binary expansion is
+exponentially long. Checked compositions illustrate conservative levels 8 → 13 → 21 and
+derive signs at 24, existential choice at 25 and language membership at 26 from an F_21
+residue component. They assert no characteristic-coefficient computation or ETR theorem.
+Run `LEAN_NUM_THREADS=2 scripts/build.sh CslibFrontierTests.ResidueSign --wfail --iofail`.
+
+Parameter preparation reuses the binary minimum/maximum certificates in
+`PolyTime.Nat.BinaryOrder`, shared by the existing IP/PSPACE and PacketPacking callers. The
+IP/PSPACE caller retains its local automation registration; PacketPacking invokes the rules
+explicitly without repeating the binary case and encoding-conversion proofs.
 
 ## Efficient oracle programs
 

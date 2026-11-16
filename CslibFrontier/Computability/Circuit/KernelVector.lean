@@ -35,6 +35,7 @@ The entries of the matrix may be arbitrary available functions of the circuit's 
 * `Cslib.Circuits.Synthesis.full_firstFlags`: the first nonzero entry.
 * `Cslib.Circuits.Synthesis.full_nonzero`: the indicator of a nonzero vector.
 * `Cslib.Circuits.Synthesis.full_kernelStep`: one elimination step.
+* `Cslib.Circuits.Synthesis.full_kernelBasis`: the spanning family.
 * `Cslib.Circuits.Synthesis.full_kernelVec`: a kernel vector.
 
 ## References
@@ -256,6 +257,16 @@ private theorem full_kernelBasisUpTo (A : Fin r → Fin n → (Fin N → F) → 
       rintro _ ⟨il, rfl⟩
       refine ⟨il, funext fun x => ?_⟩
       simp only [kernelBasisUpTo, dite_eq_right hk]
+
+/-- **The spanning family by a circuit.** If the entries of a matrix with `r` rows and `n` columns
+are available, the entries of `kernelBasis A` cost at most `(n + 1) ^ 2 + r * (8 * (n + 1) ^ 2)`
+gates of the full binary basis. -/
+theorem full_kernelBasis (A : Fin r → Fin n → (Fin N → F) → F) (hA : ∀ k l, A k l ∈ s) :
+    Synthesis (fullInterpretation (k := 2)) s
+      (Set.range fun il : Fin n × Fin n =>
+        fun x => kernelBasis (fun k l => A k l x) il.1 il.2)
+      ((n + 1) ^ 2 + r * (8 * (n + 1) ^ 2)) :=
+  full_kernelBasisUpTo A hA r
 
 /-- **A kernel vector by a circuit.** If the entries of a matrix with `r` rows and `n` columns are
 available, the entries of `kernelVec A` cost at most `kernelVecCost r n = 8 * (r + 1) * (n + 1) ^ 2`

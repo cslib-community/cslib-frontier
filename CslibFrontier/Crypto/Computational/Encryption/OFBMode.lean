@@ -256,7 +256,11 @@ private theorem toOuterMeasure_bad_freshQuery_le (ℓ : ℕ) (b : Bool) (q : Blo
   have hbad := toOuterMeasure_badChain_le (List.replicate (blockModeBlocks ℓ q) (0 : BitString n))
     (s.1.map Prod.fst)
   simp only [List.length_replicate, List.length_map] at hbad
-  refine le_trans (PMF.toOuterMeasure_mono _ ?_) hbad
+  refine le_trans (PMF.toOuterMeasure_mono _ ?_) (hbad.trans (by
+    gcongr
+    rw [Nat.mul_add, Nat.choose_two_right]
+    gcongr
+    exact (Nat.div_le_self _ _).trans (Nat.mul_le_mul_left _ (Nat.sub_le _ _))))
   rintro ⟨iv, us⟩ ⟨hflag, hp⟩
   have hlen : us.length = blockModeBlocks ℓ q := length_snd_of_mem_support_uniformDraws hp
   have hs' : s.2 = false := by simpa using hs
