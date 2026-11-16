@@ -121,8 +121,8 @@ example : ∃ t s, PolyBounded (fun n : ℕ => (encUnary n).length) s ∧
   have hedge : ComputableInPolyTime
       (fun q : Unit × List Bool × List Bool => decide (q.2.1 = q.2.2))
       (encPair encUnit (encPair encBits encBits)) encBool :=
-    (ComputableTidilyInDegree.eqWords.comp
-      (ComputableTidilyInDegree.snd encUnit _)).computableTidilyInPolyTime.computableInPolyTime
+    (ComputableInDegree.eqWords.comp
+      (ComputableInDegree.snd encUnit _)).computableInPolyTime
   have hin : ComputableInPolyTime (fun n : ℕ => ((), 1, n, [false], [true])) encUnary
       (encArgs encUnit) := by
     fun_prop

@@ -18,7 +18,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 The polynomial-time counterparts of Christian Reitwiessner's degree-bounded fold rules. A
 `SizedListEncoding` accounts for list lengths, elements and suffixes, leaving only a polynomial
 bound on the intermediate accumulator. The step may carry a fixed parameter. The basic folds
-come from the degree-bounded fold rules; the specification and growth contracts are the plain
+reuse the plain polynomial-time loop rules; the specification and growth contracts are the plain
 contracts of `Turing.MultiTapeTM.ComputableInPolyTime` (in `Internal.PolyTimeLoops`) with tidied
 conclusions.
 
@@ -68,13 +68,8 @@ theorem foldl' {list : γ → List α} {init : γ → β} {step : β → α → 
     (hstates : ∀ x, ∀ i ≤ (list x).length,
       (encB (((list x).take i).foldl step (init x))).length ≤ B x) :
     ComputableTidilyInPolyTime (fun x => (list x).foldl step (init x)) encIn encB := by
-  obtain ⟨_, _, hlist⟩ := hlist.exists_degree
-  obtain ⟨_, _, hinit⟩ := hinit.exists_degree
-  obtain ⟨_, _, hstep⟩ := hstep.exists_degree
-  obtain ⟨c, d, hB⟩ := hB.exists_le
-  exact (ComputableTidilyInDegree.foldl' hlist hinit hstep
-    (show DegreeBounded (fun x => (encIn x).length) B d from ⟨c, hB⟩)
-    hstates).computableTidilyInPolyTime
+  exact (ComputableInPolyTime.foldl' hlist.computableInPolyTime hinit.computableInPolyTime
+    hstep.computableInPolyTime hB hstates).tidy
 
 /-- A polynomial-time fold whose step also uses a fixed, polynomial-time computable parameter. -/
 theorem foldlWith {par : γ → π} {list : γ → List α} {init : γ → β}
@@ -88,14 +83,8 @@ theorem foldlWith {par : γ → π} {list : γ → List α} {init : γ → β}
     (hstates : ∀ x, ∀ i ≤ (list x).length,
       (encB (((list x).take i).foldl (step (par x)) (init x))).length ≤ B x) :
     ComputableTidilyInPolyTime (fun x => (list x).foldl (step (par x)) (init x)) encIn encB := by
-  obtain ⟨_, _, hpar⟩ := hpar.exists_degree
-  obtain ⟨_, _, hlist⟩ := hlist.exists_degree
-  obtain ⟨_, _, hinit⟩ := hinit.exists_degree
-  obtain ⟨_, _, hstep⟩ := hstep.exists_degree
-  obtain ⟨c, d, hB⟩ := hB.exists_le
-  exact (ComputableTidilyInDegree.foldlWith hpar hlist hinit hstep
-    (show DegreeBounded (fun x => (encIn x).length) B d from ⟨c, hB⟩)
-    hstates).computableTidilyInPolyTime
+  exact (ComputableInPolyTime.foldlWith hpar.computableInPolyTime hlist.computableInPolyTime
+    hinit.computableInPolyTime hstep.computableInPolyTime hB hstates).tidy
 
 /-- A prefix invariant supplies both the accumulator bound and the final postcondition for a
 fold with a captured parameter. The size bound may depend on the original input and need not be

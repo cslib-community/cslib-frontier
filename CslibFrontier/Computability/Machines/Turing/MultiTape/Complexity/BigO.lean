@@ -23,9 +23,8 @@ import Mathlib.Tactic.Ring
 # Tidy computability within given bounds, up to constants
 
 `ComputableTidilyInO f encIn encOut T S`: `f` is tidily computable within time `O(T a)` and space
-`O(S a)` on the input `a`, and its encoded value has length `O(S a)`. Unlike
-`Turing.MultiTapeTM.ComputableTidilyInDegree`, the bounds are any functions of the input, not of the
-length of its encoding, so that they can be stated in several measures of the input, such as the
+`O(S a)` on the input `a`, and its encoded value has length `O(S a)`. The bounds are any
+functions of the input, not just of the length of its encoding, so that they can be stated in several measures of the input, such as the
 length of a description, the length of an input and a number of steps.
 
 The closure properties are exact up to constants: composition adds the bounds of the outer function
@@ -42,7 +41,6 @@ space. The encoded value counts towards the space since a combinator keeps it on
 
 * `Turing.MultiTapeTM.ComputableTidilyInO.comp`, `.ite`, `.prod`: closure properties.
 * `Turing.MultiTapeTM.ComputableTidilyInO.foldl`, `.foldlWith`: left folds with a parameter.
-* `Turing.MultiTapeTM.ComputableTidilyInDegree.inO`: bounds of a given degree.
 -/
 
 namespace Turing.MultiTapeTM
@@ -289,26 +287,6 @@ public theorem snd' {β₁ β₂ : Type} {enc₁ : β₁ ↪ List Bool} {enc₂ 
   (snd enc₁ enc₂).comp_linear h
 
 end ComputableTidilyInO
-
-/-- Bounds of degree `d` in the length of the encoded input. -/
-public theorem ComputableTidilyInDegree.inO {α β : Type} {encIn : α ↪ List Bool}
-    {encOut : β ↪ List Bool} {f : α → β} {d e : ℕ}
-    (h : ComputableTidilyInDegree f encIn encOut d e) :
-    ComputableTidilyInO f encIn encOut (fun a => ((encIn a).length + 1) ^ d)
-      fun a => ((encIn a).length + 1) ^ d :=
-  let ⟨⟨_, _, ⟨ct, ht⟩, ⟨cs, hs⟩, hf⟩, _⟩ := h
-  .of_bounds hf (ct + cs)
-    (fun a => (ht a).trans (Nat.mul_le_mul (Nat.le_add_right _ _) (Nat.le_succ _)))
-    (fun a => (hs a).trans (Nat.mul_le_mul (Nat.le_add_left _ _) (Nat.le_succ _)))
-    (fun a => (hf.length_le a).trans
-      ((ht a).trans (Nat.mul_le_mul (Nat.le_add_right _ _) (Nat.le_succ _))))
-
-/-- Linear bounds in the length of the encoded input. -/
-public theorem ComputableTidilyInDegree.inO_one {α β : Type} {encIn : α ↪ List Bool}
-    {encOut : β ↪ List Bool} {f : α → β} {e : ℕ}
-    (h : ComputableTidilyInDegree f encIn encOut 1 e) :
-    ComputableTidilyInO f encIn encOut (fun a => (encIn a).length) fun a => (encIn a).length :=
-  h.inO.mono 1 (fun a => by simp) fun a => by simp
 
 namespace ComputableTidilyInO
 
