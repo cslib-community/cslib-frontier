@@ -122,7 +122,7 @@ def halfToLSBPredictor (H : RSAPredictor) : RSAPredictor := fun n pk y =>
 /-- **Where the inverter asks the half oracle.** For odd `N`, `lsbInverter (halfToLSBPredictor H)`
 on `y` calls `H` at the residues `2 ^ (k * e) * y % N` for `k = 0, …, N.size - 1`, in this order,
 and returns `lsbRecover N N.size` of the answers, reduced modulo `N`. When `y = w ^ e % N`, these
-residues are the RSA images of `2 ^ k * w % N`. -/
+residues are the RSA images of `2 ^ k * w % N` (`two_pow_mul_rsaEval`). -/
 theorem lsbInverter_halfToLSBPredictor {H : RSAPredictor} {n : ℕ} {pk : RSAPublicKey}
     (hN : Odd pk.N) (y : Fin pk.N) :
     lsbInverter (halfToLSBPredictor H) n pk y = (do
@@ -201,18 +201,13 @@ theorem isPPT_halfToLSBPredictor {H : RSAPredictor} (hH : H.IsPPT) :
         (RSAInput.computableInPolyTime_challenge_val (g := fun x : RSAInput => x)
           (by fun_prop)) hpow) hN
     simpa only [Nat.mul_mod_mod] using h
-  have hraw : ComputableInPolyTime
-      (fun x : RSAInput => (x.secParam, x.publicKey,
-        (x.challenge : ℕ) * ((x.publicKey.N + 1) / 2) ^ x.publicKey.e % x.publicKey.N))
-      encRSAInput (encPair encUnary (encPair encRSAPublicKey encNat)) :=
-    ComputableInPolyTime.prod (by fun_prop) (ComputableInPolyTime.prod (by fun_prop) hval)
   have hprepare : ComputableInPolyTime
       (fun x : RSAInput =>
         ({ secParam := x.secParam, publicKey := x.publicKey,
            challenge := ⟨(x.challenge : ℕ) * ((x.publicKey.N + 1) / 2) ^ x.publicKey.e %
              x.publicKey.N, Nat.mod_lt _ x.challenge.pos⟩ } : RSAInput))
       encRSAInput encRSAInput :=
-    hraw.of_enc_eq fun _ => rfl
+    encRSAInput_mk_polyTime (by fun_prop) (by fun_prop) hval
   exact hH.preprocess hprepare
 
 /-- Under `RSAOneWay gen` and eventually odd moduli, no uniform strict-PPT predictor says with
