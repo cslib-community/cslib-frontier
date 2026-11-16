@@ -260,10 +260,10 @@ private lemma toList_inO {δ : Type} {enc : δ ↪ List Bool} :
       (fun o => (encOption enc o).length) (fun o => (encOption enc o).length) := by
   have htail : ComputableTidilyInO List.tail encBits encBits (fun w => w.length)
       (fun w => w.length) :=
-    of_linear (.of_tail (f := List.tail) (encIn := encBits) (encOut := encBits) fun _ => rfl)
+    of_linear (.of_tail (f := List.tail) (encIn := encBits) (encMid := encBits) fun _ => rfl)
   have hframe : ComputableTidilyInO frame encBits encBits (fun w => w.length)
       (fun w => w.length) :=
-    of_linear (.of_frame (f := frame) (encIn := encBits) (encOut := encBits) fun _ => rfl)
+    of_linear (.of_frame (f := frame) (encIn := encBits) (encMid := encBits) fun _ => rfl)
   have hft : ComputableTidilyInO (fun w : List Bool => frame w.tail) encBits encBits
       (fun w => w.length) (fun w => w.length) :=
     (hframe.comp htail).mono 2 (fun w => by simp; omega) (fun w => by simp; omega)
@@ -431,7 +431,7 @@ private lemma halt_inO : ComputableTidilyInO D.loop.halt (encVal encA encB) encB
       encBits (encPair encBool encBool) (fun w => w.length) (fun w => w.length) :=
     ((ComputableTidilyInDegree.headD (enc₁ := encBool) (enc := encBits) false).inO_one.prod
       ((ComputableTidilyInDegree.headD (enc₁ := encBool) (enc := encBits) false).inO_one.comp
-        (of_linear (.of_tail (f := List.tail) (encIn := encBits) (encOut := encBits)
+        (of_linear (.of_tail (f := List.tail) (encIn := encBits) (encMid := encBits)
           fun _ => rfl)))).mono 3 (fun w => by simp [encBits]; omega)
       (fun w => by simp [encBits]; omega)
   refine (((ComputableTidilyInDegree.of_finite (encIn := encPair encBool encBool)
@@ -552,10 +552,10 @@ theorem ComputableInO.divConq {δ α β γ : Type} {encIn : δ ↪ List Bool}
       (fun v => (encV v).length) (fun v => (encV v).length) := by
     have htail : ComputableTidilyInO List.tail encBits encBits (fun w => w.length)
         (fun w => w.length) :=
-      ComputableTidilyInO.of_linear (ComputableTidilyInLinearTimeAndSpace.of_tail
-        (f := List.tail) (encIn := encBits) (encOut := encBits) fun _ => rfl)
+      ComputableTidilyInO.of_linear (ComputableInDegree.of_tail
+        (f := List.tail) (encIn := encBits) (encMid := encBits) fun _ => rfl)
     refine ((htail.comp htail).comp (ComputableTidilyInO.of_linear
-      (ComputableTidilyInLinearTimeAndSpace.of_eq (f := fun v => encV v) (encIn := encV)
+      (ComputableInDegree.of_eq (f := fun v => encV v) (encIn := encV)
         (encMid := encBits) fun _ => rfl))).of_enc_eq (fun v => ?_) |>.mono 3 (fun v => ?_)
         (fun v => ?_)
     · simp only [Function.comp_apply, encBits, Function.Embedding.refl_apply]

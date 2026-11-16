@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Crypto.Computational.GGM.Expansion
 public import CslibFrontier.Crypto.Computational.Hybrid.Sequence
 public import CslibFrontier.Computability.Probabilistic.Presample

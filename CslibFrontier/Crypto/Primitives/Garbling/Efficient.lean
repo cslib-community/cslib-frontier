@@ -57,6 +57,7 @@ scheme whose semantics is `evalCirc`.
 
 * `Cslib.Crypto.Garbling.evalCirc_polyTime`: the semantics of valid circuits is computed in
   polynomial time.
+* `Cslib.Crypto.Garbling.phiTopo_polyTime`: so is the side information `Φ_topo`.
 
 ## References
 
@@ -320,6 +321,18 @@ theorem topoData_polyTime :
     ComputableInPolyTime (fun t : ValidTopo => (t.1.n, t.1.m, t.1.gateList)) encValidTopo
       encTopoData :=
   .of_eq fun _ => rfl
+
+/-- The topology `Φ_topo(f)` of a valid circuit is computed in polynomial time from its word: drop
+the truth table of each gate. -/
+theorem phiTopo_polyTime : ComputableInPolyTime phiTopo.phi encValidCircuit encValidTopo := by
+  have hd := circuitData_polyTime
+  have hgates : ComputableInPolyTime (fun f : ValidCircuit =>
+      f.1.gateList.map fun t => (t.1, t.2.1)) encValidCircuit (encList (encPair encNat encNat)) :=
+    ComputableInPolyTime.mapWithInput hd.snd'.snd' (by fun_prop)
+  refine (hd.fst'.prod (hd.snd'.fst'.prod hgates)).of_enc_eq fun f => ?_
+  change encTopoData (f.1.n, f.1.m, f.1.topo.gateList) = encTopoData (f.1.n, f.1.m, _)
+  simp only [Topo.gateList, ConventionalCircuit.gateList, ConventionalCircuit.topo, List.map_ofFn]
+  rfl
 
 /-- The encoding of a privacy view `(F, X, d)`: `F` and `X` framed, then `d`. -/
 enc_structure encPrvView : PrvView where

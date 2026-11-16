@@ -465,7 +465,7 @@ private theorem runWith_logTable_map_fst (table : S → T) {α : Type}
   have h1 : (Prod.fst ∘ fun x : α × List (S × T) => (x.1, ())) = Prod.fst := rfl
   have h2 : (Prod.fst ∘ fun x : α => (x, ())) = id := rfl
   rw [h1, h2, PMF.map_id] at h'
-  exact h'.trans (by simp [ProbOracleComp.eval_run, OracleComp.evalWith])
+  exact h'.trans (by simp [ProbOracleComp.eval_run, OracleComp.evalWith_eq_interpret])
 
 variable [DecidableEq S]
 

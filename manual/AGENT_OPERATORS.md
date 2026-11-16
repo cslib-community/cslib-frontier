@@ -147,6 +147,11 @@ Make the scope and authority clear. A coordinator request can say:
 > manuals as part of every review, including any justified no-impact assessment. Arrange
 > non-author review for your own changes. Report what landed, remaining objectives and blockers.
 
+If you run several coordinators, name one existing coordinator the tender: it reviews, fixes and
+queues work in flight and starts no long program of its own. Its priorities, and the ceiling on
+each fleet's unfinished pull requests, are in
+[Backpressure and tending](../policy/workflow.md#backpressure-and-tending).
+
 Reviewers with write access queue the exact heads they approve using the
 [helper from trusted current main](workflows/agent-operations.md#queue-approved-work-and-keep-its-approval),
 so an approved PR does not wait for a coordinator ([Approve and queue](../AGENTS.md#approve-and-queue)).

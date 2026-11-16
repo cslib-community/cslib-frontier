@@ -32,6 +32,24 @@ and distinct ownership, branches and mutable build outputs. The delegating agent
 work and brings it to completion. When review or integration is the bottleneck, prioritize
 requested fixes, reviews and landing existing work before starting more PRs.
 
+### Backpressure and tending
+
+A coordinator does not start or commission new pull-request work, its own or a worker's, while
+more than ten of its fleet's open pull requests need the fleet's own action. A pull request needs
+the fleet's action when a review has requested changes and any requested item is still
+outstanding, when it conflicts with `main`, when a required check fails,
+or when it is approved for its current head, has no hold and is not queued. Drafts and pull
+requests waiting for someone else's review, including a delta review of a complete fix, do not
+count. The number is a ceiling, not a target;
+the point is that finishing work in flight comes before starting more.
+
+A person running several coordinators names one of them the fleet's **tender**. The tender works
+the reactive loop in short turns, so that new requests reach it promptly: ready pull requests
+with no reviewer, outside contributors' first; the fleet's pull requests with changes requested
+and no fix; approved pull requests that are not queued; and pull requests ejected from the
+queue or conflicting with `main`. It skips anything another coordinator has claimed and does not
+take on long program work in the same session.
+
 Use issues for substantial tasks, dependencies and remaining objectives; a small fix may use its
 PR as the durable task record. Search existing issues and PRs before creating a duplicate.
 Record smaller delegated subtasks in the parent task. Split work into independently useful,

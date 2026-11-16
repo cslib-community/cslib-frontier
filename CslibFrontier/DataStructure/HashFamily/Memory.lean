@@ -246,7 +246,7 @@ theorem isQueryBounded_fill (i n : ℕ) : OracleComp.IsQueryBounded (fill table 
   | succ n ih =>
     have hsample : OracleComp.IsQueryBounded
         (ProbOracleComp.sample (spec := Memory.Op.Result) (ProbComp.uniform (Fin (2 ^ b)))) 1 := by
-      rw [ProbComp.uniform, ProbOracleComp.sample_map]
+      rw [ProbComp.uniform, ProbOracleComp.sample_freeMMap]
       exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (OracleComp.IsCostBounded.query _)
     have hwrite (x : ℕ) : OracleComp.IsQueryBounded
         (OracleComp.liftRight (spec₁ := unifSpec) (table.set i x)) 1 :=

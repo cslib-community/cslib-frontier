@@ -12,16 +12,12 @@ public import CslibFrontier.Computability.Probabilistic.Oracle.Parameter
 public import CslibFrontier.Computability.Probabilistic.Parameter
 public import CslibFrontier.Crypto.Encoding
 public import CslibFrontier.Crypto.Game
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 import CslibFrontier.Probability.PMF.Bind
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
-import CslibFrontier.Computability.Probabilistic.Oracle.Composition
-import CslibFrontier.Computability.Probabilistic.Oracle.Tidy
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
-import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Tactic.PolyTime.Init
 
@@ -489,6 +485,7 @@ theorem length_le_one_of_mem_support_run_oneTimeSigningOracle (S : SignatureSche
       (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k))
         (fun q s => ProbComp.eval (S.oneTimeSigningOracle sk q s))) prog).run []).support) :
     queried.length ≤ 1 := by
+  rw [← ProbOracleComp.runWith_eq_run_interpret] at h
   refine ProbOracleComp.runWith_invariant
     (fun q s => ProbComp.eval (S.oneTimeSigningOracle sk q s))
     (fun s => s.length ≤ 1) ?_ prog [] (by simp) result queried h
@@ -571,7 +568,10 @@ theorem run_oneTimeSigningOracle_apply_eq_of_agree (S : SignatureScheme) {α : T
                 (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k))
                   (fun q s => ProbComp.eval (S.oneTimeSigningOracle sk q s)))
                 (cont sig)).run [msg]) (a, queried') = 0 :=
-            run_oneTimeSigningOracle_apply_eq_zero_of_not_agree S sk (cont sig) hnot hq' a
+            by
+              rw [← ProbOracleComp.runWith_eq_run_interpret]
+              exact run_oneTimeSigningOracle_apply_eq_zero_of_not_agree
+                S sk (cont sig) hnot hq' a
           simp [PMF.bind_apply, hzero]
       · simp only [ProbComp.eval_pure, PMF.pure_bind]
         exact ih [] s
@@ -680,6 +680,7 @@ theorem run_limitToOneQuery_eq_oneTimeSigningOracleOf
     (represent := fun queried => (!queried.isEmpty, queried))
     (step := by
       intro ⟨⟨⟩, msg⟩ queried
+      rw [ProbOracleComp.runWith_eq_run_interpret]
       change _ = ((OracleComp.interpret (m := StateT (List (List Bool)) PMF) _
         (oneTimeFilterHandler bound (n, pk) ((), msg) (!queried.isEmpty))).run queried).map _
       cases queried with

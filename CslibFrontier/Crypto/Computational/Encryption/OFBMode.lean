@@ -276,7 +276,8 @@ private theorem toOuterMeasure_bad_fresh_le (ℓ : ℕ) (b : Bool) {adversary : 
     (ProbOracleComp.runWith freshStep (ofbReduction ℓ b adversary) ([], false)).toOuterMeasure
         {x | x.2.2 = true} ≤
       ((K * (K + ℓ) : ℕ) : ℝ≥0∞) * ((2 : ℝ≥0∞) ^ n)⁻¹ := by
-  rw [ofbReduction, blockModeReduction, ProbOracleComp.runWith_simulate]
+  rw [ofbReduction, blockModeReduction, ProbOracleComp.runWith_simulate,
+    ProbOracleComp.runWith_eq_run_interpret]
   refine (OracleComp.toOuterMeasure_bad_le_two_budgets
     (handler := sumHandler (fun i => StateT.lift (ProbComp.unifOracle i))
       fun q => ProbOracleComp.runWith freshStep (ofbQueryProgram ℓ b q))

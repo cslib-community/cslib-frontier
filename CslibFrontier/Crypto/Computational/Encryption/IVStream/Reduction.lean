@@ -9,15 +9,14 @@ module
 
 public import CslibFrontier.Crypto.Computational.Encryption.BlockModeWord
 public import CslibFrontier.Crypto.Computational.Encryption.IVStream
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
-import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
 import CslibFrontier.Foundations.Data.BitString.List.Operations
 import CslibFrontier.Languages.Probabilistic.Oracle.Support
 import CslibFrontier.Languages.Probabilistic.QueryCount.Congr
@@ -202,13 +201,17 @@ theorem isOraclePPT_ivModeToPrfDistinguisher
     (hbodyLen : ∀ n iv msg reply, reply ∈ OracleComp.support (bodyQueries n iv msg) →
       reply.length ≤ msg.length)
     {adversary : OracleDistinguisher} (hadversary : IsOraclePPT encBool adversary) (bit : Bool) :
-    IsOraclePPT encBool (ivModeToPrfDistinguisher bodyQueries adversary bit) :=
-  (IsOraclePPTOn.interpret_preprocess_open' (operationEncoding := encFinEnum Unit)
+    IsOraclePPT encBool (ivModeToPrfDistinguisher bodyQueries adversary bit) := by
+  change IsOraclePPTOn (encPair encUnary encBits) encBool
+    (fun caller : ℕ × List Bool => ProbOracleComp.simulate
+      (ivModePrfHandler bodyQueries caller.1 bit) (adversary caller.1 []))
+  simp only [ProbOracleComp.simulate, OracleComp.substitute_eq_interpret]
+  exact IsOraclePPTOn.interpret_preprocess_open' (operationEncoding := encFinEnum Unit)
     (handler := fun caller : ℕ × List Bool => ivModePrfHandler bodyQueries caller.1 bit)
     (prepare := fun caller : ℕ × List Bool => (caller.1, ([] : List Bool)))
     (resources := fun caller request => caller.1 + request.length)
     hadversary (by fun_prop) (isOraclePPTOn_ivModePrfHandler hbody bit) (by fun_prop)
-    fun _ _ _ hreply => length_le_of_mem_support_ivModePrfHandler hbodyLen hreply).isOraclePPT
+    fun _ _ _ hreply => length_le_of_mem_support_ivModePrfHandler hbodyLen hreply
 
 /-! ### The real game -/
 
