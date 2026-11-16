@@ -28,18 +28,18 @@ exactly when some computation of `p` passes ends in a state whose answer `d` map
 Computations that get stuck (an empty set of successors) neither accept nor reject, as usual for
 nondeterministic machines; so $N^0(f)$ is $N^1$ of the negation of `f`.
 
-**Covers.** A computation on `u x ++ v y` is determined, as far as the two players are concerned,
-by the $2p-1$ memory states at the boundaries between `u x` and `v y`: the state after Alice's
-part of each pass, and the state at the start of each later pass. For a guess of these states, the
-inputs `x` whose parts of the passes connect them form a set, and so do the inputs `y`; their
-product is a rectangle on which `f` is `z`, and every pair with `f x y = z` lies in the rectangle of
-the boundary states of an accepting computation. So `f` has a `z`-cover by $2^{(2p-1)b}$
-rectangles, and nondeterministic complexity at most $(2p-1)b$
+**Covers.** For $p \ge 1$ passes, a computation on `u x ++ v y` is determined, as far as the two
+players are concerned, by the $2p-1$ memory states at the boundaries between `u x` and `v y`: the
+state after Alice's part of each pass, and the state at the start of each later pass. For a guess of
+these states, the inputs `x` whose parts of the passes connect them form a set, and so do the inputs
+`y`; their product is a rectangle on which `f` is `z`, and every pair with `f x y = z` lies in the
+rectangle of the boundary states of an accepting computation. So `f` has a `z`-cover by
+$2^{(2p-1)b}$ rectangles, and nondeterministic complexity at most $(2p-1)b$
 (`Cslib.Streaming.Nondeterministic.Algorithm.ecomplexityFun_le_of_spaceLE`). Unlike the
-deterministic simulation (`Cslib.Streaming.MultiPass.ecomplexityFun_le_of_spaceLE`), no final bit
-is needed: the cover is checked, not computed. This adapts the one-pass reduction of Alon, Matias
-and Szegedy [AlonMatiasSzegedy1999, Section 3] to `p` passes and to nondeterministic algorithms,
-with nondeterministic communication complexity defined by covers as in
+deterministic simulation (`Cslib.Streaming.MultiPass.ecomplexityFun_le_of_spaceLE`), no final bit is
+needed: the cover is checked, not computed. This adapts the one-pass reduction of Alon, Matias and
+Szegedy [AlonMatiasSzegedy1999, Section 3] to `p` passes and to nondeterministic algorithms, with
+nondeterministic communication complexity defined by covers as in
 `Cslib.Communication.Nondeterministic`. For one pass, Das, Fraigniaud, Paz and Rosén give the
 corresponding bound for streaming certification schemes, in which the algorithm receives a
 certificate before the stream [DasFraigniaudPazRosen2025, Lemma 7].
@@ -227,13 +227,13 @@ variable {X Y : Type*}
 
 open Communication Nondeterministic
 
-/-- **Nondeterministic multi-pass streaming space bounds nondeterministic communication**: if a
-nondeterministic `p`-pass streaming algorithm with `b` bits of memory on streams of length at most
-`m` decides `f` with answer `z` on the streams `u x ++ v y`, which have length at most `m`, that is,
-`f x y = z` exactly when some computation ends in a state whose answer `d` maps to `z`, then the
-`z`-nondeterministic complexity of `f` is at most $(2p-1)b$. For `z = true` the algorithm is
-nondeterministic and the bound is on `N¹`; for `z = false` it is co-nondeterministic and the bound
-is on `N⁰`. -/
+/-- **Nondeterministic multi-pass streaming space bounds nondeterministic communication**: if, for
+$p \ge 1$, a nondeterministic `p`-pass streaming algorithm with `b` bits of memory on streams of
+length at most `m` decides `f` with answer `z` on the streams `u x ++ v y`, which have length at
+most `m`, that is, `f x y = z` exactly when some computation ends in a state whose answer `d` maps
+to `z`, then the `z`-nondeterministic complexity of `f` is at most $(2p-1)b$. For `z = true` the
+algorithm is nondeterministic and the bound is on `N¹`; for `z = false` it is co-nondeterministic
+and the bound is on `N⁰`. -/
 theorem ecomplexityFun_le_of_spaceLE {p m b : ℕ} (hp : 0 < p) (hA : A.SpaceLE p m b)
     (u : X → List α) (v : Y → List α) (hm : ∀ x y, (u x ++ v y).length ≤ m) (d : β → Bool)
     (z : Bool) (f : X → Y → Bool)

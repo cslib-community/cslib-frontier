@@ -25,11 +25,12 @@ measured as for one pass: `A.SpaceLE p m b` says that the states it holds betwee
 the case `p = 1` (`Cslib.Streaming.Algorithm.run_toMultiPass`,
 `Cslib.Streaming.Algorithm.spaceLE_toMultiPass_iff`).
 
-**Simulation.** With the stream split as `u x ++ v y`, Alice runs each pass on `u x` and sends the
-`b`-bit encoding of the memory state to Bob, who continues the pass on `v y` and, except after the
-last pass, sends the encoding of the resulting state back (`Cslib.Streaming.MultiPass.toProtocol`).
-This takes `p` messages from Alice and $p-1$ from Bob, so if the answer on `u x ++ v y`
-determines `f x y`, then `f` has a deterministic protocol with $(2p-1)b+1$ bits
+**Simulation.** For $p \ge 1$ passes, with the stream split as `u x ++ v y`, Alice runs each pass
+on `u x` and sends the `b`-bit encoding of the memory state to Bob, who continues the pass on `v y`
+and, except after the last pass, sends the encoding of the resulting state back
+(`Cslib.Streaming.MultiPass.toProtocol`). This takes `p` messages from Alice and $p-1$ from Bob, so
+if the answer on `u x ++ v y` determines `f x y`, then `f` has a deterministic protocol with
+$(2p-1)b+1$ bits
 (`Cslib.Streaming.MultiPass.ecomplexityFun_le_of_spaceLE`), and, for randomized multi-pass
 algorithms with public randomness, a public-coin protocol with the same error
 (`Cslib.Streaming.MultiPass.Randomized.ecomplexityFun_le_of_spaceLE`). This extends the one-pass
@@ -51,21 +52,21 @@ needs this of `u x`; so for `p = 1` the one-pass theorem is slightly stronger.
 * `Cslib.Streaming.MultiPass.reachable`, `Cslib.Streaming.MultiPass.SpaceLE`: the states reached
   during `p` passes, and memory bounds.
 * `Cslib.Streaming.Algorithm.toMultiPass`: a one-pass algorithm as a multi-pass one.
-* `Cslib.Streaming.MultiPass.toProtocol`: the protocol simulating `p` passes.
+* `Cslib.Streaming.MultiPass.toProtocol`: the protocol simulating `p` passes, for $p \ge 1$.
 * `Cslib.Streaming.MultiPass.Randomized`, `Cslib.Streaming.MultiPass.Randomized.SpaceLE`:
   randomized multi-pass algorithms with public randomness, and their memory.
 
 ## Main results
 
-* `Cslib.Streaming.Algorithm.run_toMultiPass`, `Cslib.Streaming.Algorithm.spaceLE_toMultiPass_iff`:
-  one pass of a one-pass algorithm.
+* `Cslib.Streaming.Algorithm.spaceLE_toMultiPass_iff`: the memory of a one-pass algorithm is its
+  memory as a multi-pass algorithm making one pass.
 * `Cslib.Streaming.MultiPass.SpaceLE.mono`: memory bounds for longer streams and more passes give
   memory bounds for shorter streams and fewer passes.
 * `Cslib.Streaming.MultiPass.depth_toProtocol_le`, `Cslib.Streaming.MultiPass.run_toProtocol`: the
-  simulation sends $(2p-1)b+1$ bits and answers as the algorithm.
+  simulation of $p \ge 1$ passes sends $(2p-1)b+1$ bits and answers as the algorithm.
 * `Cslib.Streaming.MultiPass.ecomplexityFun_le_of_spaceLE`,
   `Cslib.Streaming.MultiPass.Randomized.ecomplexityFun_le_of_spaceLE`: `p`-pass streaming memory
-  bounds deterministic and public-coin communication.
+  bounds deterministic and public-coin communication, for $p \ge 1$.
 
 ## References
 
@@ -208,7 +209,10 @@ noncomputable def simFrom (p m b : ℕ) (enc : σ → BitString b) (u : X → Li
         fun w' => simFrom p m b enc u v d n (A.decode p m b enc w')
 
 /-- The protocol in which Alice and Bob simulate `p` passes of `A` over `u x ++ v y`, exchanging the
-`b`-bit encoding of the memory state, and Bob announces `d` of the answer. -/
+`b`-bit encoding of the memory state, and Bob announces `d` of the answer. This is meant for
+$p \ge 1$, which `Cslib.Streaming.MultiPass.run_toProtocol` and
+`Cslib.Streaming.MultiPass.depth_toProtocol_le` assume: for `p = 0` the truncated subtraction
+`p - 1 = 0` makes it the protocol for one pass, so it does not simulate `A.run 0`. -/
 noncomputable def toProtocol (p m b : ℕ) (enc : σ → BitString b) (u : X → List α)
     (v : Y → List α) (d : β → Bool) : Protocol X Y Bool :=
   A.simFrom p m b enc u v d (p - 1) A.init
@@ -259,10 +263,10 @@ theorem run_toProtocol {p m b : ℕ} (hp : 0 < p) {enc : σ → BitString b}
   rw [passes_zero, show 0 + (p - 1) + 1 = p by omega] at h
   exact h
 
-/-- **Multi-pass streaming space bounds communication** (deterministic): if a `p`-pass streaming
-algorithm with `b` bits of memory on streams of length at most `m` decides `f x y` from its answer
-on the stream `u x ++ v y`, which has length at most `m`, then `f` has a deterministic protocol with
-$(2p-1)b+1$ bits. -/
+/-- **Multi-pass streaming space bounds communication** (deterministic): if, for $p \ge 1$, a
+`p`-pass streaming algorithm with `b` bits of memory on streams of length at most `m` decides
+`f x y` from its answer on the stream `u x ++ v y`, which has length at most `m`, then `f` has a
+deterministic protocol with $(2p-1)b+1$ bits. -/
 theorem ecomplexityFun_le_of_spaceLE {p m b : ℕ} (hp : 0 < p) (hA : A.SpaceLE p m b)
     (u : X → List α) (v : Y → List α) (hm : ∀ x y, (u x ++ v y).length ≤ m) (d : β → Bool)
     (f : X → Y → Bool) (hf : ∀ x y, d (A.run p (u x ++ v y)) = f x y) :
@@ -285,10 +289,10 @@ of length at most `m`. -/
 @[expose] def Randomized.SpaceLE (μ : Randomized σ α β) (p m b : ℕ) : Prop :=
   ∀ A ∈ μ.support, A.SpaceLE p m b
 
-/-- **Multi-pass streaming space bounds communication** (public coins): if a randomized `p`-pass
-streaming algorithm `μ` whose algorithms use at most `b` bits of memory on streams of length at most
-`m` decides `f x y` with error `ε` from its answer on `u x ++ v y`, which has length at most `m`,
-then `f` has a public-coin protocol with error `ε` and $(2p-1)b+1$ bits. -/
+/-- **Multi-pass streaming space bounds communication** (public coins): if, for $p \ge 1$, a
+randomized `p`-pass streaming algorithm `μ` whose algorithms use at most `b` bits of memory on
+streams of length at most `m` decides `f x y` with error `ε` from its answer on `u x ++ v y`, which
+has length at most `m`, then `f` has a public-coin protocol with error `ε` and $(2p-1)b+1$ bits. -/
 theorem Randomized.ecomplexityFun_le_of_spaceLE (μ : Randomized σ α β) {p m b : ℕ} (hp : 0 < p)
     (hμ : μ.SpaceLE p m b) (u : X → List α) (v : Y → List α)
     (hm : ∀ x y, (u x ++ v y).length ≤ m) (d : β → Bool) (f : X → Y → Bool) {ε : ℝ}
