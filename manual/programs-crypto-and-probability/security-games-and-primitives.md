@@ -416,11 +416,14 @@ For a linear feedback shift register ([bs23][bs23], Section 3.8, p. 75), `LFSR.o
 in [`PRG/LFSR.lean`](../../CslibFrontier/Crypto/Primitives/PRG/LFSR.lean) clocks it `ℓ` times with
 feedback bit [`listDot`](../../CslibFrontier/Foundations/Data/BitString/List/Dot.lean) `taps state`;
 `n` consecutive output bits determine all later ones (`drop_output_eq_output_take_drop`), and the
-feedback-bit predictor wins Attack Game 3.2 with probability `1` at every position `i ≥ n`.
+feedback-bit predictor wins Attack Game 3.2 with probability `1` at every position `i ≥ n`
+(`predictionExperiment_predictor`).
 [`PseudorandomGenerator/LFSR.lean`](../../CslibFrontier/Crypto/Computational/PseudorandomGenerator/LFSR.lean)
-proves `LFSR.not_pseudorandomGenerator` with the polynomial-time `rerunDistinguisher`; only security
-fails (`computableInPolyTime_wordGenerator`). Taps are public, every seed is allowed (the book
-excludes the all-zero one), and the attack on CSS is not formalized.
+proves `LFSR.not_pseudorandomGenerator` for every family `LFSR.wordGenerator taps ℓ`; its
+distinguisher `rerunDistinguisher` is polynomial time whenever the generator is. When `taps` and
+`ℓ` are computable in polynomial time and `n < ℓ n`, security is the only condition that fails
+(`computableInPolyTime_wordGenerator`). Taps are public, every seed is allowed (the book excludes
+the all-zero one), and the attack on CSS is not formalized.
 
 Inversion and prediction are each stated once, for a fixed function and input distribution, in
 [`Crypto/Game/Inversion.lean`](../../CslibFrontier/Crypto/Game/Inversion.lean):

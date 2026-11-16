@@ -77,7 +77,7 @@ and then applies `step`. An empty register outputs `false`. -/
 theorem output_succ (taps : List Bool) (ℓ : ℕ) (state : List Bool) :
     output taps (ℓ + 1) state = state.headD false :: output taps ℓ (step taps state) := rfl
 
-theorem step_cons (taps : List Bool) (b : Bool) (state : List Bool) :
+private theorem step_cons (taps : List Bool) (b : Bool) (state : List Bool) :
     step taps (b :: state) = state ++ [listDot taps (b :: state)] := rfl
 
 /-- A clock cycle preserves the register length. -/

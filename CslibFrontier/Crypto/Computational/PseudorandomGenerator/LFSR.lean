@@ -45,8 +45,8 @@ is allowed, including the all-zero seed that [BonehShoup2023] excludes.
 * `Cslib.Crypto.PRG.LFSR.not_computationallyIndistinguishable`: for a polynomial-time family with
   `n < ℓ n`, the output is not computationally indistinguishable from uniform.
 * `Cslib.Crypto.PRG.LFSR.computableInPolyTime_wordGenerator`: the LFSR family is computable in
-  polynomial time when its tap masks and output length are, so security is the only condition
-  of a pseudorandom generator that fails.
+  polynomial time when its tap masks and output length are, so for a stretching `ℓ` security is
+  the only condition of a pseudorandom generator that fails.
 
 ## References
 
