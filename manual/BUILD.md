@@ -40,6 +40,12 @@ blank line before the list, or rewrap a prose line that merely starts with `-`, 
 number and a period. Items of an open list, nested ones included, need no blank line. Lists
 inside block quotes are not checked.
 
+It also reports a locator inside the label of a link into `sources.md`, such as
+`[Boneh and Shoup, Section 5.6][bs23]`. The PDF prints such a link as a citation number and drops
+its label, so the locator is lost. Write the locator after the link:
+`[Boneh and Shoup][bs23], Section 5.6`. Section, chapter, page and statement numbers count, in
+either case, and so does a bare dotted section number (`CLRS 15.5`); a year or a version does not.
+
 To produce the books, also install Pandoc, XeLaTeX and `pdfinfo` (Poppler).
 The main book's model diagrams require
 Graphviz (`dot`); the short agent manual does not invoke it. The TeX installation needs

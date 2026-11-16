@@ -6,7 +6,9 @@ ranges) section header, and an inline link whose text names a declaration of the
 (`[Ns.name](…#L<n>)`) must start on that declaration's header. Pass `--fix-anchors` to repoint
 drifted `[Ns.name](File.lean#Ln)` links at the declaration's current header start line before
 running the check. It also reports a list item directly after a paragraph line, which the PDF
-build's Pandoc reader absorbs into that paragraph. This does not fetch URLs, elaborate Lean, audit
+build's Pandoc reader absorbs into that paragraph, and a locator (`Section 5.6`, `p. 12`,
+`Theorem 4.17`) inside the label of a link into `sources.md`, which the PDF replaces by a citation
+number. This does not fetch URLs, elaborate Lean, audit
 mathematical meaning, check links whose text names no declaration of the linked file (prose, a
 file, a module, a declaration that moved elsewhere), or assert that historical evidence describes
 the current checkout. Run from any working directory.
@@ -100,6 +102,39 @@ BLOCK_LINE = re.compile(
 REFERENCE = re.compile(r" {0,3}\[[^\]]+\]:\s")
 LIST_AFTER_PARAGRAPH = ("list item directly after a paragraph line (add a blank line before the "
                         "list, or rewrap a line that only looks like an item)")
+
+# The PDF build prints a link into `sources.md#key` as a numbered citation and drops its label
+# (`manual/data/build_latex.py`), so `[Boneh and Shoup, Section 5.6][bs23]` prints as `[67]` and
+# the locator is lost. A label must not carry a section, chapter, page, statement, figure, table,
+# equation or bare dotted section number (`CLRS 15.5`), in either case (`equation (2)`); write
+# the locator after the link. A version (`v3.0`) or a year is not a locator.
+CITATION_LOCATOR = re.compile(
+    r"§|\bpp?\.\s*\d|(?<![\w.])\d+\.\d+|\b(?i:Sections?|Chapters?|Lectures?|Appendix|Theorems?"
+    r"|Lemmas?|Definitions?|Corollar(?:y|ies)|Propositions?|Remarks?|Claims?|Examples?|Exercises?"
+    r"|Problems?|Algorithms?|Constructions?|Attack Games?|Figures?|Fig\.|Tables?|Equations?|Eqs?\.)"
+    r"\s*\(?[0-9IVXA-Z]")
+LABEL_LOCATOR = ("locator inside a citation link label, which the PDF drops (write it after the "
+                 "link: `[Author][key], Section 5.6`)")
+REFERENCE_LINK = re.compile(r"\[([^\]\n]+)\]\[([^\]\n]*)\]")
+
+
+def labelled_links(text: str) -> list[tuple[int, str, str]]:
+    """`(line number, label, URL)` of each inline and full or collapsed reference link outside
+    code. Code spans are blanked in the label, so code showing a locator is not reported."""
+    definitions = {key.casefold(): url for key, url in re.findall(
+        r"^\s{0,3}\[([^\]]+)\]:\s*<?([^\s>]+)>?", prose(text), re.M)}
+    found = []
+    for number, line, fenced in fenced_lines(text):
+        if fenced:
+            continue
+        masked = CODE_SPAN.sub(lambda span: " " * len(span[0]), line)
+        for link in INLINE_LINK.finditer(masked):
+            found.append((number, link[1], link[2] or link[3]))
+        for link in REFERENCE_LINK.finditer(masked):
+            url = definitions.get((link[2] or link[1]).casefold())
+            if url is not None:
+                found.append((number, link[1], url))
+    return found
 
 
 def lists_after_paragraphs(text: str) -> list[int]:
@@ -357,6 +392,14 @@ def check(repo: Path, manual: Path | None = None) -> dict:
                       for number in lists_after_paragraphs(doc.read_text()))
         urls, undefined = links(doc.read_text())
         errors.extend(f"{doc.relative_to(manual)}: undefined reference [{key}]" for key in undefined)
+        for number, label, url in labelled_links(doc.read_text()):
+            parsed = urlsplit(html.unescape(url))
+            if parsed.scheme or parsed.netloc or not parsed.fragment or \
+                    not CITATION_LOCATOR.search(label):
+                continue
+            if (doc.parent / unquote(parsed.path)).resolve() == manual / "sources.md":
+                errors.append(f"{doc.relative_to(manual)}: Line {number}: {LABEL_LOCATOR}: "
+                              f"[{label}]")
         for url in urls:
             parsed = urlsplit(html.unescape(url))
             if parsed.scheme or parsed.netloc:
