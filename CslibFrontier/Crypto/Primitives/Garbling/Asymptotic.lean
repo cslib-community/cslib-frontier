@@ -32,9 +32,12 @@ weakens the notion beyond the change of formal setting:
   inputs `(1^k, y, φ)`, as the source's convention (§2.1, p. 4) requires.
 
 `Scheme.PrvSimSecureUniversal G Φ encFn encΛ` is the stronger form with one simulator for every
-adversary, `∃ S ∀ B`, as Zahur, Rosulek and Evans [ZahurRosulekEvans2015] state `prv.sim` (§2,
-p. 5): "there must exist a simulator `S` … whose output is indistinguishable from `(F, X, d)`
-generated the usual way". Simulation-based security of a protocol built on a garbling scheme needs
+adversary, `∃ S ∀ B`. With arbitrary side information it is novel to this library: no cited source
+states it. Zahur, Rosulek and Evans [ZahurRosulekEvans2015] (§2, p. 5) state `prv.sim` in this
+order for one side information, the circuit itself ("there must exist a simulator `S` that takes
+input `(1^k, f, f(x))` and whose output is indistinguishable from `(F, X, d)` generated the usual
+way"), so its instance at `Φ_circ` is theirs; [BellareHoangRogaway2012] allow any `Φ`, with
+`∀ B ∃ S`. Simulation-based security of a protocol built on a garbling scheme needs
 this order: a protocol's simulator must serve every environment (as in
 `Cslib.Crypto.Protocols.MPC.ProtocolFamily.SemiHonestSecure`), and a reduction builds one garbling
 adversary per environment, so a simulator chosen after the adversary would depend on the
@@ -83,16 +86,23 @@ differences from the source's formal setting. -/
 
 /-- **Simulation privacy with one simulator for every adversary**, with side information `Φ`: one
 simulator `S`, uniform strict PPT on `(1^k, y, φ)`, whose `prv.sim` advantage against every
-uniform strict PPT adversary is negligible. This is `prv.sim` as [ZahurRosulekEvans2015] state it
-(§2, p. 5: "there must exist a simulator `S` that takes input `(1^k, f, f(x))` and whose output is
-indistinguishable from `(F, X, d)` generated the usual way"), with any side information `Φ` in
-place of the circuit, and with the game `PrvSim` of [BellareHoangRogaway2012] (Fig. 5, p. 8) and
-the formal setting of `Scheme.PrvSimSecure`. It is stronger than `Scheme.PrvSimSecure`, whose
-quantifiers are those of [BellareHoangRogaway2012], §3.4 (p. 9): for every adversary there is a
-simulator (`Scheme.PrvSimSecureUniversal.prvSimSecure`). Point-and-permute and half-gates garbling
-satisfy it with their simulators `simWord`
-(`PseudorandomFunction.negligible_prvSimAdvantage_simWord`,
-`CircularCorrelationRobust.negligible_prvSimAdvantage_simWord`). -/
+uniform strict PPT adversary is negligible, in the game `PrvSim` of [BellareHoangRogaway2012]
+(Fig. 5, p. 8) and the formal setting of `Scheme.PrvSimSecure`.
+
+For arbitrary `Φ` this notion is novel to this library. It generalizes two sources:
+* [ZahurRosulekEvans2015] (§2, p. 5) state `prv.sim` with one simulator ("there must exist a
+  simulator `S` that takes input `(1^k, f, f(x))` and whose output is indistinguishable from
+  `(F, X, d)` generated the usual way") only for the side information `Φ_circ`, the circuit, so
+  its instance at `SideInfo.circ` is their notion;
+* [BellareHoangRogaway2012], §3.4 (p. 9), allow any `Φ`, but with a simulator for each adversary.
+
+It implies `Scheme.PrvSimSecure`, the notion of [BellareHoangRogaway2012]
+(`Scheme.PrvSimSecureUniversal.prvSimSecure`). It is plausible because the library's schemes meet
+it under standard assumptions: point-and-permute garbling with the topology `Φ_topo` from a
+pseudorandom function (`PseudorandomFunction.negligible_prvSimAdvantage_simWord`), and half-gates
+garbling with `Φ_circ` from circular correlation robustness
+(`CircularCorrelationRobust.negligible_prvSimAdvantage_simWord`). It fails for a scheme whose
+garbled input is its input (`CslibFrontierTests.Crypto.GarblingScheme`). -/
 @[expose] def Scheme.PrvSimSecureUniversal (G : Scheme Fn) (Φ : SideInfo Fn Λ)
     (encFn : Fn ↪ List Bool) (encΛ : Λ ↪ List Bool) : Prop :=
   ∃ S : ℕ → PrvSimulator Λ,
@@ -101,9 +111,8 @@ satisfy it with their simulators `simWord`
         TwoStage.IsPPT encUnit (encQuery Fn encFn) (encOption encPrvView) encBool encσ B →
           Negligible fun k => prvSimAdvantage G Φ k (S k) (B k)
 
-/-- **One simulator for every adversary gives a simulator for each adversary**: `prv.sim` security
-with one simulator (`∃ S ∀ B`, [ZahurRosulekEvans2015]) implies `prv.sim` security in the
-quantifier order of [BellareHoangRogaway2012], §3.4 (`∀ B ∃ S`). -/
+/-- One simulator for every adversary gives a simulator for each adversary:
+`Scheme.PrvSimSecureUniversal` (`∃ S ∀ B`) implies `Scheme.PrvSimSecure` (`∀ B ∃ S`). -/
 theorem Scheme.PrvSimSecureUniversal.prvSimSecure {G : Scheme Fn} {Φ : SideInfo Fn Λ}
     {encFn : Fn ↪ List Bool} {encΛ : Λ ↪ List Bool} (h : G.PrvSimSecureUniversal Φ encFn encΛ) :
     G.PrvSimSecure Φ encFn encΛ :=

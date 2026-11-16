@@ -31,16 +31,19 @@ import CslibFrontier.Tactic.PolyTime
 `CslibFrontier/Crypto/Protocols/MPC/Yao/Family.lean` runs Yao's protocol over a garbling scheme `G`
 as the protocol family `Yao.family G` and proves it secure against a corrupted garbler. This module
 proves it secure against a corrupted evaluator, from simulation privacy of `G`
-(`Yao.semiHonestSecure_evaluator`), and states security against either party:
-`Scheme.PrvSimSecureUniversal.yaoSemiHonestSecure`.
+(`Scheme.PrvSimSecureUniversal.yaoSemiHonestSecure_evaluator`), and states security against either
+party: `Scheme.PrvSimSecureUniversal.yaoSemiHonestSecure`.
 
 **The assumption.** `ProtocolFamily.SemiHonestSecure` asks for one simulator family for every
 environment, and the reduction below builds one garbling adversary per environment. So the scheme
-needs one `prv.sim` simulator for every adversary, `Scheme.PrvSimSecureUniversal`, the order in
-which [ZahurRosulekEvans2015] (§2, p. 5) state `prv.sim`. `Scheme.PrvSimSecure`, with the
-quantifiers `∀ B ∃ S` of [BellareHoangRogaway2012] (§3.4, p. 9), would give one simulator per
-environment. Point-and-permute and half-gates garbling satisfy the stronger form
-(`CslibFrontier/Crypto/Protocols/MPC/Yao/Instances.lean`).
+needs one `prv.sim` simulator for every adversary, `Scheme.PrvSimSecureUniversal`.
+`Scheme.PrvSimSecure`, with the quantifiers `∀ B ∃ S` of [BellareHoangRogaway2012] (§3.4, p. 9),
+would give one simulator per environment. For arbitrary side information the one-simulator form is
+novel to this library; [ZahurRosulekEvans2015] (§2, p. 5) state it for the side information
+`Φ_circ`. So the theorems of this module rest on a novel assumption and are steps, named after it.
+Point-and-permute and half-gates garbling satisfy it
+(`CslibFrontier/Crypto/Protocols/MPC/Yao/Instances.lean`), so the instances there rest only on the
+standard assumptions `PseudorandomFunction` and `CircularCorrelationRobust`.
 
 **The simulator.** `Yao.evaluatorSim G Φ S` runs a garbling simulator `S` on the security
 parameter, the evaluator's output and `Φ(f)`, and reads the evaluator's view from the simulated
@@ -107,8 +110,8 @@ that theorem:
 * `Cslib.Crypto.Protocols.MPC.Yao.isPPT_evaluatorSim`,
   `Cslib.Crypto.Protocols.MPC.Yao.isPPT_evaluatorToPrvSim`: the simulator and the reduction are
   PPT.
-* `Cslib.Crypto.Protocols.MPC.Yao.semiHonestSecure_evaluator`: security against a corrupted
-  evaluator.
+* `Cslib.Crypto.Garbling.Scheme.PrvSimSecureUniversal.yaoSemiHonestSecure_evaluator`: security
+  against a corrupted evaluator.
 * `Cslib.Crypto.Garbling.Scheme.PrvSimSecureUniversal.yaoSemiHonestSecure`: security against
   either party.
 
@@ -507,7 +510,8 @@ polynomial time, then for public parameters drawn by any PPT sampler the PPT sim
 from `n = 1` on, an environment's advantage is the `prv.sim` advantage of the certified reduction
 `evaluatorToPrvSim` (`advantage_evaluator_eq`, `isPPT_evaluatorToPrvSim`). The other deviations
 are those of the module documentation. -/
-theorem semiHonestSecure_evaluator {encFn : Fn ↪ List Bool} {encΛ : Λ ↪ List Bool}
+theorem _root_.Cslib.Crypto.Garbling.Scheme.PrvSimSecureUniversal.yaoSemiHonestSecure_evaluator
+    {encFn : Fn ↪ List Bool} {encΛ : Λ ↪ List Bool}
     {Φ : SideInfo Fn Λ} (hG : G.PrvSimSecureUniversal Φ encFn encΛ)
     (hinLen : ComputableInPolyTime G.inLen encFn encUnary)
     (hev : ComputableInPolyTime (fun (f, x) => G.ev f x) (encPair encFn encBits) encBits)
@@ -541,7 +545,8 @@ side information `Φ` computed in polynomial time; it has polynomial-time algori
 parameters are drawn by a PPT sampler `samp`. Then `Yao.family G` is semi-honest secure,
 in the sense of `ProtocolFamily.SemiHonestSecure`, against the corruption of the garbler
 (`Yao.semiHonestSecure_garbler`, which needs no assumption) and of the evaluator
-(`Yao.semiHonestSecure_evaluator`, through the certified reduction `Yao.evaluatorToPrvSim`). The
+(`Scheme.PrvSimSecureUniversal.yaoSemiHonestSecure_evaluator`, through the certified reduction
+`Yao.evaluatorToPrvSim`). The
 modular form over a garbling scheme follows [BellareHoangRogaway2012], §7.1 (Theorem 14, p. 35),
 whose quantifiers are `∀ B ∃ S` on both sides. -/
 theorem Scheme.PrvSimSecureUniversal.yaoSemiHonestSecure {encFn : Fn ↪ List Bool}
@@ -553,6 +558,6 @@ theorem Scheme.PrvSimSecureUniversal.yaoSemiHonestSecure {encFn : Fn ↪ List Bo
       (Yao.encoding G encFn) := by
   fin_cases i
   · exact Yao.semiHonestSecure_garbler heff.coins hproj hcorrect _
-  · exact Yao.semiHonestSecure_evaluator hG heff.inLen heff.ev hproj hcorrect hΦ hsamp
+  · exact hG.yaoSemiHonestSecure_evaluator heff.inLen heff.ev hproj hcorrect hΦ hsamp
 
 end Cslib.Crypto.Garbling

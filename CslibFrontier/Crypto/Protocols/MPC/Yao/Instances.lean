@@ -26,7 +26,9 @@ public import CslibFrontier.Crypto.Primitives.Garbling.PointPermute.Privacy
   `HalfGates.scheme hash` of XOR–AND circuits, with the circuit as side information, for every
   circular correlation robust hash family `hash`.
 
-Each rests only on its named assumption, with the public parameters drawn by a PPT sampler. Both
+Each rests only on its named assumption, `PseudorandomFunction` or `CircularCorrelationRobust`,
+both standard, with the public parameters drawn by a PPT sampler: the novel
+`Scheme.PrvSimSecureUniversal` is proved here for the scheme, not assumed. Both
 are steps towards Theorem 7 of [LindellPinkas2009] in the oblivious-transfer hybrid model, with the
 differences that `Scheme.PrvSimSecureUniversal.yaoSemiHonestSecure` lists. Neither scheme is the
 double-encryption construction of [LindellPinkas2009] (§4.1, p. 12): point-and-permute garbling is
