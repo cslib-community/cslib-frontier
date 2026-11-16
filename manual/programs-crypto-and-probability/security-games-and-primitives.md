@@ -1409,6 +1409,17 @@ by `decide` and build the instance as `⟨isUnit_iff_ne_zero.2 h⟩`.
   `#E(F) = #F + 1 - t`. (`WeierstrassCurve.Manin.twistPoly` in `ManinTwist.lean` is the instance
   `(ofCubic (C α) (C β) (C γ)).quadraticTwist (cubicPoly α β γ)` over `Polynomial k`, with
   `Manin.twist` its base change to `RatFunc k`, used internally in Manin's proof.)
+- **Variable change on affine points.** Import [`EllipticCurve/VariableChange.lean`](../../CslibFrontier/Foundations/AlgebraicGeometry/EllipticCurve/VariableChange.lean)
+  (`CslibFrontier.Foundations.AlgebraicGeometry.EllipticCurve.VariableChange`). Over a field `F`,
+  given a Mathlib admissible linear change of variables `C : WeierstrassCurve.VariableChange F`
+  acting on a Weierstrass curve `W : WeierstrassCurve F`,
+  `WeierstrassCurve.variableChange_equation_iff` relates `(C • W).toAffine.Equation x y` to
+  `W.toAffine.Equation (C.u ^ 2 * x + C.r) (C.u ^ 3 * y + C.u ^ 2 * C.s * x + C.t)`, and
+  `WeierstrassCurve.variableChangePointEquiv` packages that affine map (together with `0 ↦ 0`) as
+  an additive group equivalence `(C • W).toAffine.Point ≃+ W.toAffine.Point`. Its action on
+  finite points is given cleanly by `WeierstrassCurve.variableChangePointEquiv_some` (without
+  unfolding `variableChangePointEquiv`, which is kept un-exposed), as exercised over `ZMod 7` in the
+  [variable-change client](../../CslibFrontierTests/Foundations/AlgebraicGeometry/VariableChange.lean).
 
 The [checked client](../../CslibFrontierTests/Foundations/AlgebraicGeometry/EllipticCurveHasse.lean)
 (using [`EllipticCurve/Decidable.lean`](../../CslibFrontier/Foundations/AlgebraicGeometry/EllipticCurve/Decidable.lean)
