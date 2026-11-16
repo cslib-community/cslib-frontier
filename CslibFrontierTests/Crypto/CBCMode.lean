@@ -3,7 +3,12 @@ Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
+module
+
 import CslibFrontier.Crypto.Computational.Encryption.CBCMode
+import Mathlib.Data.Nat.Choose.Cast
+
+set_option linter.privateModule false
 
 /-!
 # Tests for CBC mode with a random IV
@@ -11,7 +16,7 @@ import CslibFrontier.Crypto.Computational.Encryption.CBCMode
 Concrete evaluations and non-vacuity witnesses for
 `CslibFrontier/Crypto/Computational/Encryption/CBCMode.lean`. The headline bounds are instantiated
 with a concrete adversary whose cost bound is proved, at parameters where they are strictly below
-`1`, and the ideal-cipher bound is compared with (5.22) of [BonehShoup2023].
+`1`, and the random-permutation bound is compared with (5.22) of [BonehShoup2023].
 -/
 
 namespace CslibFrontierTests.Crypto.CBCMode
@@ -46,13 +51,37 @@ theorem isCostBounded_cbcOneQueryAdversary :
 example : ProbOracleComp.IsQueryBounded (cbcReduction 2 true cbcOneQueryAdversary) 2 :=
   isQueryBounded_cbcReduction 2 true isCostBounded_cbcOneQueryAdversary
 
-/-- The keyed function `F k x = k + x` on 8-bit blocks. -/
-def xorKeyed (k x : BitString 8) : BitString 8 := k + x
+/-- A one-query adversary asking for one block: it outputs `true` when that ciphertext block is
+zero. -/
+def cbcOneBlockAdversary : BlockModeAdversary 8 := do
+  let r ← ProbOracleComp.query (spec := BlockModeSpec 8) (([0], [1]) : BlockModeQuery 8)
+  return decide (r.2.head? = some 0)
 
-/-- The CBC experiment for `xorKeyed` is the real PRF experiment for the reduction. -/
-example : cbcCpaGame xorKeyed 2 true cbcOneQueryAdversary =
-    ProbComp.eval (PRF.realExperiment xorKeyed (cbcReduction 2 true cbcOneQueryAdversary)) :=
-  cbcCpaGame_eq_realExperiment xorKeyed 2 true cbcOneQueryAdversary
+/-- The one-block adversary asks for one block in total (`K = 1`). -/
+theorem isCostBounded_cbcOneBlockAdversary :
+    OracleComp.IsCostBounded (blockModeCost 1) cbcOneBlockAdversary 1 := by
+  unfold cbcOneBlockAdversary ProbOracleComp.query
+  exact OracleComp.IsCostBounded.mono
+    (OracleComp.IsCostBounded.bind
+      (OracleComp.IsCostBounded.query (Sum.inr (([0], [1]) : BlockModeQuery 8))) fun _ =>
+        OracleComp.IsCostBounded.pure _ 0)
+    (by decide)
+
+/-- At `K = 1` both headline bounds are `0`: one query of one block has left-or-right advantage
+`0` against CBC mode with a uniform random function and with a uniform random permutation. -/
+example :
+    (Game.advantage
+        (cbcCpaGame (fun f : BitString 8 → BitString 8 => f) 1 false cbcOneBlockAdversary)
+        (cbcCpaGame (fun f : BitString 8 → BitString 8 => f) 1 true cbcOneBlockAdversary) :
+      ℝ) ≤ 0 ∧
+    (Game.advantage
+        (cbcCpaGame (fun π : Equiv.Perm (BitString 8) => ⇑π) 1 false cbcOneBlockAdversary)
+        (cbcCpaGame (fun π : Equiv.Perm (BitString 8) => ⇑π) 1 true cbcOneBlockAdversary) :
+      ℝ) ≤ 0 :=
+  ⟨(advantage_cbcCpaGame_randomFunction_le 1 isCostBounded_cbcOneBlockAdversary).trans_eq
+      (by norm_num),
+    (advantage_cbcCpaGame_randomPermutation_le 1 isCostBounded_cbcOneBlockAdversary).trans_eq
+      (by norm_num)⟩
 
 /-- With a uniform random function on 8-bit blocks, the reduction's view is within
 `(2 choose 2) / 2 ^ 8 = 1 / 256` of the ideal experiment. -/
@@ -84,9 +113,9 @@ example :
   (advantage_cbcCpaGame_randomPermutation_le 2 isCostBounded_cbcOneQueryAdversary).trans_eq
     (by norm_num)
 
-/-- The ideal-cipher bound in the book's form: for `Q` queries of at most `ℓ` blocks, `K ≤ Q ℓ`
-and `4 K.choose 2 / 2 ^ n ≤ 2 Q² ℓ² / 2 ^ n`, the bound (5.22) of [BonehShoup2023] with
-`BCadv = 0`. -/
+/-- The random-permutation bound in the book's form: for `Q` queries of at most `ℓ` blocks,
+`K ≤ Q ℓ` and `4 K.choose 2 / 2 ^ n ≤ 2 Q² ℓ² / 2 ^ n`, the first term of (5.22) of
+[BonehShoup2023]. -/
 example {n K Q ℓ : ℕ} (hK : K ≤ Q * ℓ) :
     4 * ((K.choose 2 : ℝ) / 2 ^ n) ≤ 2 * (Q : ℝ) ^ 2 * ℓ ^ 2 / 2 ^ n := by
   have hKQ : (K : ℝ) ≤ Q * ℓ := by exact_mod_cast hK

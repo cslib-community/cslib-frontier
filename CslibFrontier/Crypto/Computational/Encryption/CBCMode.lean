@@ -20,7 +20,7 @@ import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.RunWith
 import CslibFrontier.Probability.PMF.Support
 
 /-!
-# CBC mode with a random IV against a random function and an ideal cipher
+# CBC mode with a random IV against a random function and a random permutation
 
 Cipher block chaining with a random initialization vector ([BonehShoup2023], Section 5.4.3)
 encrypts the blocks `m₁, …, m_k` under a block function `f` as `c₀ = iv` uniform and
@@ -28,9 +28,10 @@ encrypts the blocks `m₁, …, m_k` under a block function `f` as `c₀ = iv` u
 CPA secure for a secure block cipher, with bound (5.22),
 `CPAadv ≤ 2 Q² ℓ² / N + 2 BCadv`, for `Q` queries of at most `ℓ` blocks over `N` blocks.
 
-This file proves the information-theoretic part of the proof: Games 1 to 3 and bound (5.28)
-against a uniform random function, and the resulting bound for the ideal block cipher, a uniform
-random permutation of `BitString n`. The security notion is the left-or-right experiment of
+This file proves steps of the proof of Theorem 5.4, not the theorem: Games 1 to 3 and bound (5.28)
+against a uniform random function, and the resulting bound with the block cipher replaced by a
+uniform random permutation of `BitString n`. The keyed bound (5.22), with `BCadv`, is not proved
+here. The security notion is the left-or-right experiment of
 `RandomFunctionHybrid.lean` (`blockModeCpaExperiment`), and the advantage is the distance between
 the experiments for the two challenge bits, the book's `CPAadv`.
 
@@ -50,12 +51,13 @@ The proof:
    block-cipher form, Theorem 4.4) for each bit, the advantage against a uniform random
    permutation is at most `4 K.choose 2 / 2 ^ n` (`advantage_cbcCpaGame_randomPermutation_le`).
 
-The bounds hold for every adversary, so the typed reduction needs no efficiency certificate here.
+The bounds hold for every adversary. The query bound of the reduction is proved
+(`isQueryBounded_cbcReduction`); no running-time certificate is claimed.
 
 Comparison with the book:
 * `K` counts the blocks of all queries. With `Q` queries of at most `ℓ` blocks, `K ≤ Q ℓ`, so the
   per-bit random-function bound `K.choose 2 / 2 ^ n` is at most (5.28)'s `Q² ℓ² / (2N)`, and
-  `4 K.choose 2 / 2 ^ n ≤ 2 Q² ℓ² / N` is (5.22) for the ideal cipher, where `BCadv` is zero.
+  `4 K.choose 2 / 2 ^ n ≤ 2 Q² ℓ² / N`, the first term of (5.22).
 * On p. 199 the book states the bit-guessing bound before the switching step as
   `CPAadv* ≤ Q² ℓ² / N + PRFadv[B, E]`. This is a misprint in one displayed line: the printed
   inequality is true but too weak; (5.22)/(5.23)/(5.28) stand. For a uniform random function the
@@ -331,12 +333,14 @@ theorem advantage_cbcCpaGame_randomFunction_le (ℓ : ℕ) {adversary : BlockMod
   refine (advantage_le_two _ (ProbComp.eval (blockModeIdealExperiment ℓ adversary)) _).trans ?_
   linarith
 
-/-- **CBC mode with a uniform random permutation** ([BonehShoup2023], Theorem 5.4, bound (5.22),
-for the ideal block cipher). If the queries of `adversary` ask at most `K` blocks in total, its
-left-or-right advantage against CBC mode with a uniform random permutation of `BitString n` is at
-most `4 K.choose 2 / 2 ^ n`: the PRP/PRF switching lemma (Theorem 4.6; the book's proof cites its
+/-- **CBC mode with a uniform random permutation: a step of the proof of [BonehShoup2023],
+Theorem 5.4, not the theorem.** The block cipher is replaced by a uniform random permutation of
+`BitString n`; the keyed bound (5.22), with `BCadv`, is not proved here. If the queries of
+`adversary` ask at most `K` blocks in total, its left-or-right advantage is at most
+`4 K.choose 2 / 2 ^ n`: the PRP/PRF switching lemma (Theorem 4.6; the book's proof cites its
 block-cipher form, Theorem 4.4) for each challenge bit and the random-function bound. With `Q`
-queries of at most `ℓ` blocks, `K ≤ Q ℓ` and `4 K.choose 2 ≤ 2 Q ^ 2 ℓ ^ 2`. -/
+queries of at most `ℓ` blocks, `K ≤ Q ℓ` and `4 K.choose 2 ≤ 2 Q ^ 2 ℓ ^ 2`, the first term of
+(5.22). -/
 theorem advantage_cbcCpaGame_randomPermutation_le (ℓ : ℕ) {adversary : BlockModeAdversary n}
     {K : ℕ} (h : OracleComp.IsCostBounded (blockModeCost ℓ) adversary K) :
     (Game.advantage (cbcCpaGame (fun π : Equiv.Perm (BitString n) => ⇑π) ℓ false adversary)

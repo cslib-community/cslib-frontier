@@ -2530,7 +2530,7 @@ and direct checks of the sampling lemmas are in
 [`CslibFrontierTests/BitStringCollision.lean`](../../CslibFrontierTests/BitStringCollision.lean).
 
 For the shared lazy-versus-fresh random-function hybrid and left-or-right block-mode CPA scaffolding
-used by both CTR and OFB mode, import
+used by CTR, OFB and CBC mode, import
 [`Encryption/RandomFunctionHybrid.lean`](../../CslibFrontier/Crypto/Computational/Encryption/RandomFunctionHybrid.lean):
 it packages `FlagState`, the caching/fresh step handlers `lazyStep` and `freshStep`, the game
 equivalence `idealExperiment_eq_runWith_lazyStep`, the bad-flag reduction bounds
@@ -2548,12 +2548,14 @@ experiments are `ProbComp Bool` runs of the adversary (`adversary.run`), and the
 `isCostBounded_simulate` and the CPA experiment equals `PRF.realExperiment` before evaluation.
 For a per-query program that is not a keystream followed by a mask, such as CBC encryption,
 `blockModeCpaExperiment_eq_realExperiment_simulate` gives the real experiment when the program
-computes the encryption oracle, and `freshGame_simulate_eq_blockModeIdealExperiment` and
-`advantage_idealExperiment_simulate_le` take three per-query facts under fresh sampling: the answer
-has the law of the ideal oracle (`eval_blockModeIdealOracle`), adds at most
-`k = blockModeBlocks ℓ q` table entries, and raises the flag with probability at most
-`(k * t + k.choose 2) / 2^n` from a table of `t` entries. They conclude that the program run under `PRF.idealExperiment` is within
-`K.choose 2 / 2^n` of `blockModeIdealExperiment` when the queries ask at most `K` blocks in total.
+computes the encryption oracle. Under fresh sampling,
+`freshGame_simulate_eq_blockModeIdealExperiment` gives exactly `blockModeIdealExperiment` when
+each answer has the law of the ideal oracle (`eval_blockModeIdealOracle`).
+`advantage_idealExperiment_simulate_le` takes two further per-query facts under fresh sampling:
+the program adds at most `k = blockModeBlocks ℓ q` table entries, and raises the flag with
+probability at most `(k * t + k.choose 2) / 2^n` from a table of `t` entries. It concludes that
+the program run under `PRF.idealExperiment` is within `K.choose 2 / 2^n` of
+`blockModeIdealExperiment` when the queries ask at most `K` blocks in total.
 
 For the chosen-plaintext security of random-IV counter (CTR) mode, import
 [`Encryption/CTRMode.lean`](../../CslibFrontier/Crypto/Computational/Encryption/CTRMode.lean)
@@ -2626,9 +2628,12 @@ it matches `ofbReduction`, so `advantage_ofbWordCPAGame_le` reuses the chain bou
 `PseudorandomFunction family` alone. Examples are in
 [`CslibFrontierTests/Crypto/OFBModeUniform.lean`](../../CslibFrontierTests/Crypto/OFBModeUniform.lean).
 
-For random-IV CBC mode against a uniform random function or an ideal cipher, import
-[`Encryption/CBCMode.lean`](../../CslibFrontier/Crypto/Computational/Encryption/CBCMode.lean)
-(Boneh–Shoup v0.6, §5.4.3, Theorem 5.4 [bs23][bs23]). `cbcCpaGame` is the left-or-right experiment
+For random-IV CBC mode with a uniform random function or a uniform random permutation in place
+of the block cipher, import
+[`Encryption/CBCMode.lean`](../../CslibFrontier/Crypto/Computational/Encryption/CBCMode.lean).
+These are steps of the proof of Theorem 5.4 (Boneh–Shoup v0.6, §5.4.3 [bs23][bs23]), not the
+theorem: the keyed bound (5.22) with `BCadv` and a certified word-level reduction are not yet
+formalized. `cbcCpaGame` is the left-or-right experiment
 for a keyed block function with the query convention of the OFB paragraph. `cbcReduction` computes
 each ciphertext with one oracle call per block (`cbcCpaGame_eq_realExperiment`,
 `isQueryBounded_cbcReduction`). If the queries ask at most `K` blocks in total,
@@ -2637,10 +2642,9 @@ each ciphertext with one oracle call per block (`cbcCpaGame_eq_realExperiment`,
 `advantage_cbcCpaGame_randomFunction_le` gives `2 * K.choose 2 / 2^n` for a uniform random
 function, and `advantage_cbcCpaGame_randomPermutation_le` gives `4 * K.choose 2 / 2^n` for a
 uniform random permutation, adding `PRP.advantage_idealExperiment_prfIdealExperiment_le`
-(Theorem 4.6) for each challenge bit. With `Q` queries of at most `ℓ` blocks, `K ≤ Q * ℓ`, so the last bound is at most
-the book's (5.22) for the ideal cipher, `2 * Q^2 * ℓ^2 / N`. The keyed bound with `BCadv` and a
-certified word-level reduction are not yet formalized, so Theorem 5.4 itself remains open; the
-module docstring records how these statements compare with the book's. Checks are in
+(Theorem 4.6) for each challenge bit. With `Q` queries of at most `ℓ` blocks, `K ≤ Q * ℓ`, so
+the last bound is at most `2 * Q^2 * ℓ^2 / N`, the first term of (5.22). The module docstring
+records how these statements compare with the book's. Checks are in
 [`CslibFrontierTests/Crypto/CBCMode.lean`](../../CslibFrontierTests/Crypto/CBCMode.lean).
 
 For hash functions built from a fixed permutation or block cipher, import

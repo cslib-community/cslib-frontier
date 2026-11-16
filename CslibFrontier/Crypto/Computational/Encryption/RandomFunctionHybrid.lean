@@ -27,7 +27,7 @@ import Mathlib.Tactic.Linarith
 # Lazy-vs-Fresh Random Function Hybrid and Shared Block-Mode CPA Utilities
 
 Shared random-function hybrid and left-or-right block-mode CPA experiment machinery for symmetric
-block-cipher modes of operation (such as OFB and CTR):
+block-cipher modes of operation (such as OFB, CTR and CBC):
 - replaces a lazily sampled random function (`PRF.idealExperiment`) by fresh independent uniform
   sampling (`freshStep`) up to the repetition bad event that an oracle query hits a previously
   sampled input;
@@ -82,11 +82,14 @@ block-cipher modes of operation (such as OFB and CTR):
   and `blockModeBlocks ℓ q` uniform blocks.
 * `Cslib.Crypto.blockModeCpaExperiment_eq_realExperiment_simulate`: a per-query program that
   computes the encryption oracle gives the real PRF experiment.
-* `Cslib.Crypto.freshGame_simulate_eq_blockModeIdealExperiment`,
-  `Cslib.Crypto.advantage_idealExperiment_simulate_le`: a per-query program whose fresh-sampling
-  answers have the ideal law is exactly `blockModeIdealExperiment` under fresh sampling, and
-  within `K.choose 2 / 2 ^ n` of it against a uniform random function when the queries ask at
-  most `K` blocks in total.
+* `Cslib.Crypto.freshGame_simulate_eq_blockModeIdealExperiment`: a per-query program whose
+  fresh-sampling answers have the ideal law gives exactly `blockModeIdealExperiment` under fresh
+  sampling.
+* `Cslib.Crypto.advantage_idealExperiment_simulate_le`: if in addition a query of `k` blocks adds
+  at most `k` table entries and, from a table of `t` entries, raises the flag with probability at
+  most `(k t + k.choose 2) / 2 ^ n`, the program run against a uniform random function is within
+  `K.choose 2 / 2 ^ n` of `blockModeIdealExperiment` when the queries ask at most `K` blocks in
+  total.
 * `Cslib.Crypto.advantage_le_two`, `Cslib.Crypto.advantage_le_four`: two-step and four-step
   triangle-inequality bounds for `Game.advantage`.
 
