@@ -86,8 +86,8 @@ Chapter 5 (Sections 5.3 and 5.10) and Chapter 9 (Sections 9.1 and 9.2.2–9.2.3)
    and `ccaRejectGame` (and between `ccaOneTimeGame` and `ccaOneTimeRejectGame`), we prove both
    `AE ⇒ CCA` (`AuthenticatedEncryption.indcca`) and `1AE ⇒ 1CCA`
    (`OneTimeAuthenticatedEncryption.oneTimeINDCCA`) with the book's bounds (9.3) and (9.4) in the
-   number `Qd` of decryption queries, as well as encryption-query count preservation for the
-   reductions $B_{\mathrm{cpa}}$ and $B_{\mathrm{ci}}$.
+   number `Qd` of decryption queries, up to a power-of-two factor (see below), as well as
+   encryption-query count preservation for the reductions $B_{\mathrm{cpa}}$ and $B_{\mathrm{ci}}$.
 
 The generic **Encrypt-then-MAC** composition ([BonehShoup2023], Section 9.4.1, Theorem 9.2,
 printed pp. 367–368) and its concrete non-vacuous PRF-based cipher instance ([BonehShoup2023],
