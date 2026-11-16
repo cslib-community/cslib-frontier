@@ -52,7 +52,7 @@ private lemma keepFrame_drop {σ : Type} {encS : σ ↪ List Bool} {h : σ → �
         obtain ⟨u, hs, -⟩ := hh s
         rw [hs, unframe_frame_append])
     refine ((of_linear (.of_frame (f := fun x : π => x) (encIn := encP)
-      (encOut := encFramed encP) fun _ => rfl)).comp hu).mono 2 (fun s => ?_) (fun s => ?_) <;>
+      (encMid := encFramed encP) fun _ => rfl)).comp hu).mono 2 (fun s => ?_) (fun s => ?_) <;>
     · have := hlen s
       omega
   -- the word after the frame, then `k` symbols dropped
@@ -65,9 +65,9 @@ private lemma keepFrame_drop {σ : Type} {encS : σ ↪ List Bool} {h : σ → �
     induction k with
     | zero => simpa using hd
     | succ k ih =>
-      refine (((of_linear (.of_tail (f := List.tail) (encIn := encBits) (encOut := encBits)
+      refine (((of_linear (.of_tail (f := List.tail) (encIn := encBits) (encMid := encBits)
         fun _ => rfl)).comp ih).of_enc_eq (g := fun s => (dropFrame (encS s)).drop (k + 1))
-        fun s => by simp [encBits, List.tail_drop]).mono 2 (fun s => ?_) (fun s => ?_) <;>
+        fun s => by simp [encBits]).mono 2 (fun s => ?_) (fun s => ?_) <;>
       · have : ((dropFrame (encS s)).drop k).length ≤ (encS s).length := by
           obtain ⟨u, hs, -⟩ := hh s
           rw [hs, dropFrame_frame_append, List.length_drop, List.length_append]
