@@ -757,7 +757,7 @@ theorem computableInPolyTime_encodeBit :
       (encPair F.encDesc encBool) encBits := by
   have hd := ComputableInPolyTime.fst F.encDesc encBool
   exact F.computableInPolyTime_smul.comp
-    (hd.prod (((ComputableInPolyTime.snd F.encDesc encBool).ite (.const 1) (.const 0)).prod
+    (hd.prod (((ComputableInPolyTime.snd F.encDesc encBool).ite' (.const 1) (.const 0)).prod
       (F.computableInPolyTime_generator.comp hd)))
 
 /-- The IND-CPA experiment for ElGamal bit encryption ([BonehShoup2023], Exercise 11.5, p. 459):
@@ -1218,7 +1218,7 @@ theorem isPPT_hashedElGamalToKDFDistinguisher {adversary : Encryption.WordAdvers
   have hm : ComputableInPolyTime
       (fun p : F.KDFInput × Encryption.ChoiceOut (List Bool) =>
         if bit then p.2.1.2 else p.2.1.1) E encBits :=
-    .ite (encC := encBool) (.const bit) (by fun_prop) (by fun_prop)
+    .ite' (encC := encBool) (.const bit) (by fun_prop) (by fun_prop)
   simp only [KDFDistinguisher.IsPPT, hashedElGamalToKDFDistinguisher]
   refine (hA.choose.on.preprocess
     (prepare := fun x : F.KDFInput =>
