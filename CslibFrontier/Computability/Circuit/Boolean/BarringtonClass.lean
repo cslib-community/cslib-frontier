@@ -114,7 +114,8 @@ theorem mem_NC_one_iff_formulaDepth_le :
     have hd' : F.depth ≤ (c + 1) * (Nat.log 2 n + 1) := by grind
     refine ⟨F.toCircuit, hF.toCircuit, F.depth_toCircuit_le.trans hd', ?_⟩
     rw [F.size_toCircuit]
-    exact (F.size_lt_pow_depth Boolean.arity_le_two le_rfl).le.trans
+    exact (Formula.size_lt_pow_depth (Formula.fanInAtMost_of_arity_le Boolean.arity_le_two F)
+      le_rfl).le.trans
       (Nat.pow_le_pow_right two_pos hd')
 
 /-- The formula depth of a Boolean function is at most `4 ⌈log₂ L(f)⌉`, where `L(f)` is its

@@ -115,49 +115,12 @@ def weightBefore {k : ℕ} (W : Fin k → Fin k → ℕ) (u v : Fin k) : ℕ :=
 def edgeOffset {k : ℕ} (W : Fin k → Fin k → ℕ) (u v : Fin k) : ℕ :=
   degBefore W u + weightBefore W u v
 
-theorem weightBefore_add_le_rowDeg {k : ℕ} (W : Fin k → Fin k → ℕ) (u v : Fin k) :
-    weightBefore W u v + W u v ≤ rowDeg W u := by
-  unfold weightBefore rowDeg
-  have hmem : v ∉ Finset.univ.filter (· < v) := by simp
-  calc
-    (∑ b ∈ Finset.univ.filter (· < v), W u b) + W u v
-      = ∑ b ∈ insert v (Finset.univ.filter (· < v)), W u b := by
-        rw [Finset.sum_insert hmem, add_comm]
-    _ ≤ ∑ b : Fin k, W u b :=
-        Finset.sum_le_univ_sum_of_nonneg fun _ => Nat.zero_le _
+/-! `degBefore` and `weightBefore` are both sums of some `f : Fin k → ℕ` over the indices below a
+cutoff. The three facts below about such prefix sums serve both of them. -/
 
-theorem weightBefore_le_of_lt {k : ℕ} (W : Fin k → Fin k → ℕ) (u : Fin k)
-    {v₁ v₂ : Fin k} (hlt : v₁ < v₂) :
-    weightBefore W u v₁ + W u v₁ ≤ weightBefore W u v₂ := by
-  unfold weightBefore
-  have hmem : v₁ ∉ Finset.univ.filter (· < v₁) := by simp
-  have hsub : insert v₁ (Finset.univ.filter (· < v₁)) ⊆ Finset.univ.filter (· < v₂) := by
-    intro b hb
-    simp only [Finset.mem_insert, Finset.mem_filter, Finset.mem_univ, true_and] at hb ⊢
-    rcases hb with rfl | hb
-    · exact hlt
-    · exact lt_trans hb hlt
-  calc
-    (∑ b ∈ Finset.univ.filter (· < v₁), W u b) + W u v₁
-      = ∑ b ∈ insert v₁ (Finset.univ.filter (· < v₁)), W u b := by
-        rw [Finset.sum_insert hmem, add_comm]
-    _ ≤ ∑ b ∈ Finset.univ.filter (· < v₂), W u b :=
-        Finset.sum_le_sum_of_subset_of_nonneg hsub fun _ _ _ => Nat.zero_le _
-
-theorem degBefore_add_le_totalDoubledWeight {k : ℕ} (W : Fin k → Fin k → ℕ) (u : Fin k) :
-    degBefore W u + rowDeg W u ≤ totalDoubledWeight W := by
-  unfold degBefore totalDoubledWeight
-  have hmem : u ∉ Finset.univ.filter (· < u) := by simp
-  calc
-    (∑ a ∈ Finset.univ.filter (· < u), rowDeg W a) + rowDeg W u
-      = ∑ a ∈ insert u (Finset.univ.filter (· < u)), rowDeg W a := by
-        rw [Finset.sum_insert hmem, add_comm]
-    _ ≤ ∑ a : Fin k, rowDeg W a :=
-        Finset.sum_le_univ_sum_of_nonneg fun _ => Nat.zero_le _
-
-theorem degBefore_le_of_lt {k : ℕ} (W : Fin k → Fin k → ℕ) {u₁ u₂ : Fin k} (hlt : u₁ < u₂) :
-    degBefore W u₁ + rowDeg W u₁ ≤ degBefore W u₂ := by
-  unfold degBefore
+/-- Adding the cutoff's own term to a prefix sum stays below any later prefix sum. -/
+private theorem sum_lt_add_le_of_lt {k : ℕ} (f : Fin k → ℕ) {u₁ u₂ : Fin k} (hlt : u₁ < u₂) :
+    (∑ a ∈ Finset.univ.filter (· < u₁), f a) + f u₁ ≤ ∑ a ∈ Finset.univ.filter (· < u₂), f a := by
   have hmem : u₁ ∉ Finset.univ.filter (· < u₁) := by simp
   have hsub : insert u₁ (Finset.univ.filter (· < u₁)) ⊆ Finset.univ.filter (· < u₂) := by
     intro a ha
@@ -165,12 +128,48 @@ theorem degBefore_le_of_lt {k : ℕ} (W : Fin k → Fin k → ℕ) {u₁ u₂ : 
     rcases ha with rfl | ha
     · exact hlt
     · exact lt_trans ha hlt
-  calc
-    (∑ a ∈ Finset.univ.filter (· < u₁), rowDeg W a) + rowDeg W u₁
-      = ∑ a ∈ insert u₁ (Finset.univ.filter (· < u₁)), rowDeg W a := by
-        rw [Finset.sum_insert hmem, add_comm]
-    _ ≤ ∑ a ∈ Finset.univ.filter (· < u₂), rowDeg W a :=
-        Finset.sum_le_sum_of_subset_of_nonneg hsub fun _ _ _ => Nat.zero_le _
+  rw [add_comm, ← Finset.sum_insert hmem]
+  exact Finset.sum_le_sum_of_subset_of_nonneg hsub fun _ _ _ => Nat.zero_le _
+
+/-- Adding the cutoff's own term to a prefix sum stays below the total. -/
+private theorem sum_lt_add_le_sum {k : ℕ} (f : Fin k → ℕ) (u : Fin k) :
+    (∑ a ∈ Finset.univ.filter (· < u), f a) + f u ≤ ∑ a, f a := by
+  have hmem : u ∉ Finset.univ.filter (· < u) := by simp
+  rw [add_comm, ← Finset.sum_insert hmem]
+  exact Finset.sum_le_univ_sum_of_nonneg fun _ => Nat.zero_le _
+
+/-- Every value below the total lies in the block `[prefix, prefix + f u)` of some index `u`. -/
+private theorem exists_sum_lt_le_lt {k : ℕ} (f : Fin k → ℕ) {r : ℕ} (hr : r < ∑ a, f a) :
+    ∃ u : Fin k, (∑ a ∈ Finset.univ.filter (· < u), f a) ≤ r ∧
+      r < (∑ a ∈ Finset.univ.filter (· < u), f a) + f u := by
+  obtain ⟨⟨u, j⟩, hj⟩ := finSigmaFinEquiv.surjective (⟨r, hr⟩ : Fin (∑ a, f a))
+  have hval := finSigmaFinEquiv_apply (n := f) ⟨u, j⟩
+  have hprefix : ∑ i : Fin u.val, f (Fin.castLE u.2.le i) =
+      ∑ a ∈ Finset.univ.filter (· < u), f a :=
+    Finset.sum_bij (fun i _ => Fin.castLE u.2.le i)
+      (fun i _ => Finset.mem_filter.mpr ⟨Finset.mem_univ _, i.isLt⟩)
+      (fun _ _ _ _ h => Fin.castLE_injective _ h)
+      (fun a ha => ⟨⟨a.val, (Finset.mem_filter.mp ha).2⟩, Finset.mem_univ _, rfl⟩) fun _ _ => rfl
+  rw [hj, hprefix] at hval
+  dsimp only at hval
+  exact ⟨u, by omega, by omega⟩
+
+theorem weightBefore_add_le_rowDeg {k : ℕ} (W : Fin k → Fin k → ℕ) (u v : Fin k) :
+    weightBefore W u v + W u v ≤ rowDeg W u :=
+  sum_lt_add_le_sum (W u) v
+
+theorem weightBefore_le_of_lt {k : ℕ} (W : Fin k → Fin k → ℕ) (u : Fin k)
+    {v₁ v₂ : Fin k} (hlt : v₁ < v₂) :
+    weightBefore W u v₁ + W u v₁ ≤ weightBefore W u v₂ :=
+  sum_lt_add_le_of_lt (W u) hlt
+
+theorem degBefore_add_le_totalDoubledWeight {k : ℕ} (W : Fin k → Fin k → ℕ) (u : Fin k) :
+    degBefore W u + rowDeg W u ≤ totalDoubledWeight W :=
+  sum_lt_add_le_sum (rowDeg W) u
+
+theorem degBefore_le_of_lt {k : ℕ} (W : Fin k → Fin k → ℕ) {u₁ u₂ : Fin k} (hlt : u₁ < u₂) :
+    degBefore W u₁ + rowDeg W u₁ ≤ degBefore W u₂ :=
+  sum_lt_add_le_of_lt (rowDeg W) hlt
 
 theorem edgeOffset_add_le_totalDoubledWeight {k : ℕ} (W : Fin k → Fin k → ℕ) (u v : Fin k) :
     edgeOffset W u v + W u v ≤ totalDoubledWeight W := by
@@ -229,77 +228,10 @@ theorem isSampledPair_unique {k : ℕ} (W : Fin k → Fin k → ℕ) {r : ℕ}
 theorem exists_isSampledPair {k : ℕ} (W : Fin k → Fin k → ℕ) {r : ℕ}
     (hr : r < totalDoubledWeight W) :
     ∃ u v : Fin k, IsSampledPair W r u v := by
-  have hk : 0 < k := by
-    by_contra hk0
-    have hk0' : k = 0 := by omega
-    subst hk0'
-    simp [totalDoubledWeight] at hr
-  have hu_ex : ∀ m ≤ k, r < (∑ a ∈ Finset.univ.filter (fun a : Fin k => a.val < m), rowDeg W a) →
-      ∃ u : Fin k, u.val < m ∧ degBefore W u ≤ r ∧ r < degBefore W u + rowDeg W u := by
-    intro m
-    induction m with
-    | zero =>
-      intro _ hlt
-      simp at hlt
-    | succ m ih =>
-      intro hm hlt
-      let u_m : Fin k := ⟨m, hm⟩
-      have hsplit : (Finset.univ.filter fun a : Fin k => a.val < m + 1) =
-          insert u_m (Finset.univ.filter fun a : Fin k => a.val < m) := by
-        ext a
-        simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_insert,
-          Fin.ext_iff, u_m]
-        omega
-      have hnotmem : u_m ∉ Finset.univ.filter fun a : Fin k => a.val < m := by simp [u_m]
-      rw [hsplit, Finset.sum_insert hnotmem] at hlt
-      have hdeg_eq : (∑ a ∈ Finset.univ.filter (fun a : Fin k => a.val < m), rowDeg W a) =
-          degBefore W u_m := by
-        unfold degBefore
-        refine Finset.sum_congr ?_ fun _ _ => rfl
-        ext a
-        simp [Fin.lt_def, u_m]
-      rw [hdeg_eq] at hlt
-      by_cases hge : degBefore W u_m ≤ r
-      · exact ⟨u_m, Nat.lt_succ_self m, hge, by omega⟩
-      · exact (ih (by omega) (by omega)).imp fun u ⟨hu1, hu2, hu3⟩ =>
-          ⟨Nat.lt_succ_of_lt hu1, hu2, hu3⟩
-  have hfull_u : (Finset.univ.filter fun a : Fin k => a.val < k) = Finset.univ := by
-    ext a
-    simp
-  rcases hu_ex k le_rfl (by simpa [hfull_u, totalDoubledWeight] using hr) with ⟨u, _, hu_le, hu_lt⟩
-  let rem := r - degBefore W u
-  have hrem : rem < rowDeg W u := by omega
-  have hv_ex : ∀ m ≤ k, rem < (∑ b ∈ Finset.univ.filter (fun b : Fin k => b.val < m), W u b) →
-      ∃ v : Fin k, v.val < m ∧ weightBefore W u v ≤ rem ∧ rem < weightBefore W u v + W u v := by
-    intro m
-    induction m with
-    | zero =>
-      intro _ hlt
-      simp at hlt
-    | succ m ih =>
-      intro hm hlt
-      let v_m : Fin k := ⟨m, hm⟩
-      have hsplit : (Finset.univ.filter fun b : Fin k => b.val < m + 1) =
-          insert v_m (Finset.univ.filter fun b : Fin k => b.val < m) := by
-        ext b
-        simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_insert,
-          Fin.ext_iff, v_m]
-        omega
-      have hnotmem : v_m ∉ Finset.univ.filter fun b : Fin k => b.val < m := by simp [v_m]
-      rw [hsplit, Finset.sum_insert hnotmem] at hlt
-      have hw_eq : (∑ b ∈ Finset.univ.filter (fun b : Fin k => b.val < m), W u b) =
-          weightBefore W u v_m := by
-        unfold weightBefore
-        refine Finset.sum_congr ?_ fun _ _ => rfl
-        ext b
-        simp [Fin.lt_def, v_m]
-      rw [hw_eq] at hlt
-      by_cases hge : weightBefore W u v_m ≤ rem
-      · exact ⟨v_m, Nat.lt_succ_self m, hge, by omega⟩
-      · exact (ih (by omega) (by omega)).imp fun v ⟨hv1, hv2, hv3⟩ =>
-          ⟨Nat.lt_succ_of_lt hv1, hv2, hv3⟩
-  rcases hv_ex k le_rfl (by simpa [hfull_u, rowDeg] using hrem) with ⟨v, _, hv_le, hv_lt⟩
-  exact ⟨u, v, by unfold IsSampledPair edgeOffset; omega⟩
+  obtain ⟨u, hu_le, hu_lt⟩ := exists_sum_lt_le_lt (rowDeg W) hr
+  obtain ⟨v, hv_le, hv_lt⟩ := exists_sum_lt_le_lt (W u) (r := r - degBefore W u)
+    (by unfold degBefore rowDeg at *; omega)
+  exact ⟨u, v, by unfold IsSampledPair edgeOffset degBefore weightBefore at *; omega⟩
 
 theorem card_sampledPair_fiber {k : ℕ} (W : Fin k → Fin k → ℕ) (u v : Fin k) :
     (Finset.univ.filter fun r : Fin (totalDoubledWeight W) =>
