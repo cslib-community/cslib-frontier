@@ -4937,6 +4937,7 @@ public import CslibFrontier.Crypto.Primitives.Hash.Sponge
 public import CslibFrontier.Crypto.Primitives.IdealCipher.Compression
 public import CslibFrontier.Crypto.Primitives.IdealCipher.CompressionVariants
 public import CslibFrontier.Crypto.Primitives.PRF.Finite
+public import CslibFrontier.Crypto.Primitives.PRF.HashThenPRF
 public import CslibFrontier.Crypto.Primitives.PRF.Invertible
 public import CslibFrontier.Crypto.Primitives.PRF.MultiKey
 public import CslibFrontier.Crypto.Primitives.PRF.RandPrefixFreeEncoding
@@ -4966,6 +4967,7 @@ public import CslibFrontier.Crypto.Primitives.SDitH.ExpandSeed
 public import CslibFrontier.Crypto.Primitives.SDitH.TweakSalt
 public import CslibFrontier.Crypto.Primitives.SLHDSA.Address
 public import CslibFrontier.Crypto.Primitives.SLHDSA.WOTS.Digits
+public import CslibFrontier.Crypto.Primitives.UHF.Finite
 public import CslibFrontier.Crypto.Protocols.BCS.Basic
 public import CslibFrontier.Crypto.Protocols.BCS.ROM
 public import CslibFrontier.Crypto.Protocols.Cipher.EvenMansour
