@@ -71,7 +71,6 @@ theorem isOraclePPT_cpaToCCAAdversary {ctBound : ℕ → ℕ}
     {adversary : OracleDistinguisher} (hadversary : IsOraclePPT encBool adversary) :
     IsOraclePPT encBool (cpaToCCAAdversary ctBound adversary) := by
   let EIn := encPair (encPair encUnary encBits) (encPair (encFinEnum Unit) encBits)
-  have hct := hctBound.tidy
   have hhandler : IsOraclePPTOn EIn encBits
       (fun p : (ℕ × List Bool) × (Unit × List Bool) =>
         cpaToCCAHandler (ctBound p.1.1) p.2) := by

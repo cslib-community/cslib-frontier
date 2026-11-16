@@ -2673,13 +2673,16 @@ evaluations and composed `IsPPT` / `IsOraclePPT` checks on `echoFamily` are in
 
 For the implication from chosen-ciphertext to chosen-plaintext security, import
 [`Encryption/CCAToCPA.lean`](../../CslibFrontier/Crypto/Computational/Encryption/CCAToCPA.lean)
-(Boneh–Shoup §9.2.2, p. 362 [bs23][bs23]). `SymmetricCipher.cpaToCCAAdversary` sends each query of
-a CPA adversary to the encryption channel of `ccaOracle`, cutting replies to a polynomial
-ciphertext-length bound, and makes no decryption query; `isOraclePPT_cpaToCCAAdversary` is its
-certificate. Under the bound (`CiphertextLengthLE`), `eval_ccaGame_cpaToCCAAdversary` equates its
-CCA game with the CPA game of the original adversary, and `SymmetricCipher.INDCCA.indcpa` derives
-`INDCPA` from `INDCCA`. The converse fails: `tailFallback` above keeps `INDCPA` and loses `INDCCA`.
-Examples are in
+(Boneh–Shoup §9.2.2, p. 362 [bs23][bs23]). `SymmetricCipher.cpaToCCAAdversary ctBound A` sends each
+query of the CPA adversary `A` to the encryption channel of `ccaOracle`, cuts each reply to
+`ctBound n` bits, and makes no decryption query. `isOraclePPT_cpaToCCAAdversary` certifies it as
+`IsOraclePPT encBool` when `A` is `IsOraclePPT encBool` and `ctBound` is polynomial-time computable
+(`ComputableInPolyTime ctBound encUnary encUnary`). When `E.CiphertextLengthLE n (ctBound n)`,
+`eval_ccaGame_cpaToCCAAdversary` equates the output distribution of its CCA game with that of the
+CPA game of `A`, for either challenge bit; `SymmetricCipher.INDCCA.indcpa` derives `INDCPA` from
+`INDCCA` with no further hypothesis. The converse fails for every cipher with `INDCPA` and
+`EncForge`: by `tailFallback_counterexample` above, its `tailFallback` keeps `INDCPA` and is not
+`INDCCA`. Examples are in
 [`CslibFrontierTests/Crypto/CCAToCPA.lean`](../../CslibFrontierTests/Crypto/CCAToCPA.lean).
 
 For generic MAC-then-Encrypt composition, its `INDCPA` preservation, and its chosen-ciphertext
