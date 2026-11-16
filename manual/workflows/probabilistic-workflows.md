@@ -373,7 +373,7 @@ surely. A tree that fails to halt with positive probability has `expectedFlips =
 
 Import [DDGTree/KnuthYao.lean](../../CslibFrontier/Probability/DDGTree/KnuthYao.lean) for the
 entropy bounds ([Knuth–Yao 1976](../sources.md#knuthyao76);
-[Cover–Thomas §5.11](../sources.md#coverthomas06)), stated for distributions on a finite type:
+[Cover–Thomas](../sources.md#coverthomas06), §5.11), stated for distributions on a finite type:
 
 - `entropy_le_expectedFlips hT : ENNReal.ofReal (PMF.entropy p) ≤ T.expectedFlips` for every
   `hT : T.Generates p`;
@@ -575,8 +575,8 @@ Run `scripts/build.sh CslibFrontierTests.StatisticalDifference` and
 
 For finite distributions (`PMF α` with `[Finite α]` / `[Fintype α]`), Hellinger distance and
 Pearson `χ²` divergence complement half-`L¹` statistical distance (`dist`) with exact product
-tensorization and comparison inequalities ([Tsybakov, Section 2.4](../sources.md#tsybakov09);
-[Canonne, §3.1 and Appendix B](../sources.md#canonne22)):
+tensorization and comparison inequalities ([Tsybakov](../sources.md#tsybakov09), Section 2.4;
+[Canonne](../sources.md#canonne22), §3.1 and Appendix B):
 
 - **Bhattacharyya coefficient and Hellinger distance.** Import
   [Hellinger.lean](../../CslibFrontier/Probability/Hellinger.lean). The definitions

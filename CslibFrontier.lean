@@ -4473,6 +4473,7 @@ public import CslibFrontier.Crypto.Computational.Encryption.KEMDEM
 public import CslibFrontier.Crypto.Computational.Encryption.KEMFromPKE
 public import CslibFrontier.Crypto.Computational.Encryption.KEMFromPKE.CCA
 public import CslibFrontier.Crypto.Computational.Encryption.LoRCPA
+public import CslibFrontier.Crypto.Computational.Encryption.LoRCPA.FromSingle
 public import CslibFrontier.Crypto.Computational.Encryption.MACThenEncrypt
 public import CslibFrontier.Crypto.Computational.Encryption.MessageRecovery
 public import CslibFrontier.Crypto.Computational.Encryption.Nested
@@ -4519,6 +4520,7 @@ public import CslibFrontier.Crypto.Computational.GeneratorReindex
 public import CslibFrontier.Crypto.Computational.GeneratorXor
 public import CslibFrontier.Crypto.Computational.GenericGroup.BabyStepGiantStep
 public import CslibFrontier.Crypto.Computational.GenericGroup.Basic
+public import CslibFrontier.Crypto.Computational.GenericGroup.DiffieHellman
 public import CslibFrontier.Crypto.Computational.GenericGroup.DiscreteLog
 public import CslibFrontier.Crypto.Computational.GenericGroup.LinearGame
 public import CslibFrontier.Crypto.Computational.GenericGroup.Relabel
@@ -4863,6 +4865,7 @@ public import CslibFrontier.Crypto.Negligible.Basic
 public import CslibFrontier.Crypto.Negligible.Dyadic
 public import CslibFrontier.Crypto.Negligible.InversePolynomial
 public import CslibFrontier.Crypto.Primitives.BlockCipher.CBCMAC
+public import CslibFrontier.Crypto.Primitives.BlockCipher.ECB
 public import CslibFrontier.Crypto.Primitives.BlockCipher.LengthPrependedCBCMAC
 public import CslibFrontier.Crypto.Primitives.BlockCipher.Modes
 public import CslibFrontier.Crypto.Primitives.ByteString
@@ -5082,6 +5085,7 @@ public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Composition
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Computational
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Efficient
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Efficient.Verifier
+public import CslibFrontier.Crypto.Protocols.SigmaProtocol.EqualPlaintexts
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.FiatShamir
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.FiatShamirNIZK
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.ForkingReduction
