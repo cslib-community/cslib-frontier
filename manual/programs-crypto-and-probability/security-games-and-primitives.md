@@ -2896,6 +2896,19 @@ gives the adversary `prfCipherCCAAdversary` with its certificate
 proves the cipher CPA-secure for a pseudorandom family. At `n = 0` the attack fails. The
 randomized CBC half of §9.2.1 is not covered. Examples are in
 [`CslibFrontierTests/Crypto/StreamMalleability.lean`](../../CslibFrontierTests/Crypto/StreamMalleability.lean).
+For §9.10 Attack 3,
+[`Encryption/LinearChecksum.lean`](../../CslibFrontier/Crypto/Computational/Encryption/LinearChecksum.lean)
+encrypts message ‖ checksum with `prfCipher` (`prfChecksumCipher`; `prfCipher` stands for WEP's RC4
+and the checksum for CRC-32). If `checksum (m ⊕ d) = checksum m ⊕ L d` for `m` and `d` of equal
+length, XORing `delta ++ L delta` into an encryption of an `n`-bit `msg` after its initial value
+gives an encryption of `msg ⊕ delta` for every `n`-bit `delta`
+(`ivStreamXorBody_mem_support_encrypt_prfChecksumCipher`). The adversary `prfChecksumCIAdversary`,
+with its certificate `isOraclePPT_prfChecksumCIAdversary`, therefore wins the ciphertext-integrity
+game with probability `1` for every `1 ≤ n` (`eval_ciOneTimeGame_prfChecksumCipher`), which gives
+`not_ciphertextIntegrity_prfChecksumCipher`. At `n = 0` the attack fails. WEP itself is not
+modelled, and nothing is proved about the chosen-plaintext security of `prfChecksumCipher`.
+Examples, with a one-bit parity checksum, are in
+[`CslibFrontierTests/Crypto/LinearChecksum.lean`](../../CslibFrontierTests/Crypto/LinearChecksum.lean).
 
 For the chosen-plaintext security of random-IV OFB mode, import
 [`Encryption/OFBMode.lean`](../../CslibFrontier/Crypto/Computational/Encryption/OFBMode.lean)
