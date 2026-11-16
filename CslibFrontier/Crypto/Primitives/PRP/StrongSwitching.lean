@@ -15,9 +15,10 @@ import CslibFrontier.Languages.Probabilistic.Oracle.CoinFixing
 
 A `PRP.StrongAdversary D` queries a permutation of a finite type `D` in both directions. This
 module bounds how well such an adversary, with private coins and at most `Q` queries, tells a
-uniformly random permutation from `RandomPermutation.forgetfulAnswer`, the lazy sampler that answers
-every query not yet asked, in either direction, with a fresh uniform point of `D`. The forgetful
-sampler is neither a random function nor a random permutation; it is the object that
+uniformly random permutation from `RandomPermutation.forgetfulAnswer`, the lazy sampler that keeps
+the pairs `(x, y)` it has answered, answers `.forward x` or `.inverse y` from a recorded pair when
+there is one, and otherwise with a fresh uniform point of `D`, which may repeat a recorded one. The
+forgetful sampler is neither a random function nor a random permutation; it is the object that
 `RandomPermutation.abs_sub_uniformPerm_forgetful_le` compares a uniform permutation with, for
 deterministic adversaries. The adversary's coins are fixed with
 `ProbOracleComp.coinLaw_bind_runWith_fixCoins`, which reduces the bound to that deterministic one.
@@ -26,8 +27,6 @@ The bound is information-theoretic: nothing is claimed about running time.
 
 ## Main results
 
-* `PRP.eval_strongIdealExperiment`: the law of `PRP.strongIdealExperiment`, a uniform permutation
-  queried in both directions.
 * `PRP.advantage_strongIdealExperiment_forgetful_le`: an adversary making at most `Q` queries has
   advantage at most `Q.choose 2 / |D|` between `PRP.strongIdealExperiment` and its run against the
   forgetful sampler.

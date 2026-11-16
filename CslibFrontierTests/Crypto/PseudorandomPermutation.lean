@@ -33,10 +33,14 @@ oracle's reply. The switching lemma gives it no advantage between a uniform perm
 uniform function, so its PRF and PRP advantages coincide up to zero. Lifted to the bidirectional
 interface it asks the forward direction.
 
-The bidirectional switching lemmas are applied at `D = Bool` and at the word level: one call
-cannot tell a uniform permutation from the forgetful sampler, and two calls have advantage at most
-`1 / 2`. The codec `strongPermCodec` answers a request of the wrong length with `[]` and reads a
-request of the block length as the typed query on the same channel.
+At `D = Bool`, the adversary that asks the permutation at `false` and at `true` and accepts when
+the replies differ always accepts against a uniform permutation, and accepts with probability
+`1 / 2` against the forgetful sampler, which answers both fresh queries independently. Its advantage
+`1 / 2` attains the bidirectional switching bound for two queries and exceeds the bound for one. The
+forgetful sampler answers an inverse query that was never asked from a recorded pair, so the round
+trip `.forward x ↦ y`, `.inverse y ↦ x` closes against it with probability `1`. The codec
+`strongPermCodec` answers a request of the wrong length with `[]` and reads a request of the block
+length as the typed query on the same channel.
 -/
 
 set_option linter.privateModule false
@@ -401,7 +405,7 @@ end OneBitCipher
 
 section Switching
 
-open RandomPermutation
+open Probability RandomPermutation
 
 -- The coin-fixing lemma in the form a client of `ProbOracleComp.runWith` meets.
 example {Query α State : Type} {spec : Query → Type} [∀ q, Fintype (spec q)]
@@ -412,17 +416,87 @@ example {Query α State : Type} {spec : Query → Type} [∀ q, Fintype (spec q)
       ProbOracleComp.runWith oracle prog s :=
   ProbOracleComp.coinLaw_bind_runWith_fixCoins oracle prog s
 
--- One call cannot tell a uniform permutation of `Bool` from the forgetful sampler.
-example {A : PRP.StrongAdversary Bool} (hQ : A.IsQueryBounded 1) :
-    (Game.advantage (ProbComp.eval (PRP.strongIdealExperiment A))
-      ((ProbOracleComp.runWith forgetfulAnswer A []).map Prod.fst) : ℝ) ≤ 0 := by
-  simpa using PRP.advantage_strongIdealExperiment_forgetful_le hQ
+/-- Ask the permutation of `Bool` at `false` and at `true`, and accept when the replies differ. -/
+private noncomputable def twoForward : ProbOracleComp (PermOracleSpec Bool) Bool := do
+  let y₀ ← ProbOracleComp.query (spec := PermOracleSpec Bool) (.forward false)
+  let y₁ ← ProbOracleComp.query (spec := PermOracleSpec Bool) (.forward true)
+  return y₀ != y₁
 
--- Two calls tell them apart with advantage at most `1 / 2`.
-example {A : PRP.StrongAdversary Bool} (hQ : A.IsQueryBounded 2) :
-    (Game.advantage (ProbComp.eval (PRP.strongIdealExperiment A))
-      ((ProbOracleComp.runWith forgetfulAnswer A []).map Prod.fst) : ℝ) ≤ 1 / 2 := by
-  simpa using PRP.advantage_strongIdealExperiment_forgetful_le hQ
+private theorem twoForward_isQueryBounded : twoForward.IsQueryBounded 2 := by
+  unfold twoForward
+  exact (ProbOracleComp.IsQueryBounded.query _).bind fun _ =>
+    (ProbOracleComp.IsQueryBounded.query _).bind fun _ => .pure _ 0
+
+/-- A permutation never repeats a reply, so `twoForward` accepts against every permutation. -/
+private theorem eval_strongIdealExperiment_twoForward :
+    ProbComp.eval (PRP.strongIdealExperiment twoForward) = PMF.pure true := by
+  have hne (π : Equiv.Perm Bool) : (π false != π true) = true := by
+    simp
+  rw [PRP.eval_strongIdealExperiment]
+  simp [twoForward, hne]
+
+/-- The forgetful sampler answers the two fresh queries with independent uniform points, so
+`twoForward` accepts with probability `1 / 2`. -/
+private theorem forgetful_twoForward :
+    (ProbOracleComp.runWith forgetfulAnswer twoForward []).map Prod.fst =
+      PMF.uniformOfFintype Bool := by
+  have hsecond (y₀ : Bool) :=
+    forgetfulAnswer_forward_of_none (x := true) (cache := [(false, y₀)]) rfl
+  have hmask (y₀ : Bool) :
+      ((PMF.uniformOfFintype Bool).bind fun y₁ => PMF.pure (y₀ != y₁)) =
+        PMF.uniformOfFintype Bool :=
+    (PMF.bind_pure_comp (bne y₀) _).trans <| PMF.uniformOfFintype_map_equiv
+      (Function.Involutive.toPerm (bne y₀) fun y => by cases y₀ <;> cases y <;> rfl)
+  unfold twoForward
+  simp only [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query,
+    ProbOracleComp.runWith_pure]
+  rw [forgetfulAnswer_forward_of_none rfl]
+  simp only [hsecond, PMF.bind_map, Function.comp_def, PMF.map_bind, PMF.pure_map, hmask,
+    PMF.bind_const]
+
+private theorem advantage_twoForward :
+    (Game.advantage (ProbComp.eval (PRP.strongIdealExperiment twoForward))
+      ((ProbOracleComp.runWith forgetfulAnswer twoForward []).map Prod.fst) : ℝ) = 1 / 2 := by
+  rw [eval_strongIdealExperiment_twoForward, forgetful_twoForward,
+    Game.coe_advantage_pure_true_left, PMF.uniformOfFintype_apply]
+  norm_num
+
+-- `twoForward` makes two queries and attains the bound `(2).choose 2 / |Bool|`.
+example :
+    (Game.advantage (ProbComp.eval (PRP.strongIdealExperiment twoForward))
+      ((ProbOracleComp.runWith forgetfulAnswer twoForward []).map Prod.fst) : ℝ) =
+      (Nat.choose 2 2 : ℝ) / Fintype.card Bool :=
+  le_antisymm (PRP.advantage_strongIdealExperiment_forgetful_le twoForward_isQueryBounded)
+    (by rw [advantage_twoForward]; norm_num)
+
+-- The bound for one query fails for `twoForward`, so the query bound is needed.
+example :
+    ¬ (Game.advantage (ProbComp.eval (PRP.strongIdealExperiment twoForward))
+      ((ProbOracleComp.runWith forgetfulAnswer twoForward []).map Prod.fst) : ℝ) ≤
+      (Nat.choose 1 2 : ℝ) / Fintype.card Bool := by
+  rw [advantage_twoForward]
+  norm_num
+
+/-- Ask the permutation of `Bool` at `false`, then its inverse at the reply, and accept when that
+returns `false`. -/
+private noncomputable def roundTrip : ProbOracleComp (PermOracleSpec Bool) Bool := do
+  let y ← ProbOracleComp.query (spec := PermOracleSpec Bool) (.forward false)
+  let x ← ProbOracleComp.query (spec := PermOracleSpec Bool) (.inverse y)
+  return x == false
+
+-- The forgetful sampler answers the inverse query, never asked, from the pair recorded for the
+-- forward one, so the round trip always closes.
+example :
+    (ProbOracleComp.runWith forgetfulAnswer roundTrip []).map Prod.fst = PMF.pure true := by
+  have hinverse (y : Bool) :=
+    forgetfulAnswer_inverse_of_some (y := y) (x := false) (cache := [(false, y)]) (by
+      simp [invLookup_cons])
+  unfold roundTrip
+  simp only [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query,
+    ProbOracleComp.runWith_pure]
+  rw [forgetfulAnswer_forward_of_none rfl]
+  simp only [hinverse, PMF.bind_map, Function.comp_def, PMF.pure_bind, PMF.map_bind, PMF.pure_map,
+    BEq.rfl, PMF.bind_const]
 
 -- A request of the wrong length is answered `[]` without a typed query.
 example (oracle : (q : PermQuery (BitString 2)) → PMF (BitString 2)) :
@@ -436,14 +510,12 @@ example (oracle : (q : PermQuery (BitString 2)) → PMF (BitString 2)) :
         oracle (.inverse (BitString.ofList 2 [true, false])) :=
   strongPermCodec_wordOracle_of_length oracle true rfl
 
--- A word-level distinguisher making one call cannot tell the ideal strong-PRP game from the
--- forgetful sampler.
-example (blockLen : ℕ → ℕ) (adversary : StrongPRPDistinguisher) (n : ℕ)
-    (hQ : (adversary n []).IsQueryBounded 1) :
-    (Game.advantage (ProbComp.eval (strongPRPIdealGame blockLen adversary n))
-      ((ProbOracleComp.runWith ((strongPermCodec (blockLen n)).wordOracle forgetfulAnswer)
-        (adversary n []) []).map Prod.fst) : ℝ) ≤ 0 := by
-  simpa using advantage_strongPRPIdealGame_forgetful_le blockLen adversary n 1 hQ
+-- On channel `false` it asks the forward query.
+example (oracle : (q : PermQuery (BitString 2)) → PMF (BitString 2)) :
+    (strongPermCodec 2).wordOracle oracle (false, [true, false]) =
+      (List.ofFn : BitString 2 → List Bool) <$>
+        oracle (.forward (BitString.ofList 2 [true, false])) :=
+  strongPermCodec_wordOracle_of_length oracle false rfl
 
 end Switching
 

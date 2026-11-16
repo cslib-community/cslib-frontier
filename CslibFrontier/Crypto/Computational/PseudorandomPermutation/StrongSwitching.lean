@@ -21,24 +21,21 @@ typed `PermQuery (BitString m)`, so that the ideal strong-PRP game `strongPRPIde
 typed experiment `PRP.strongIdealExperiment` (`strongPRPIdealGame_eq_strongIdealExperiment`). The
 bidirectional switching bound of `CslibFrontier.Crypto.Primitives.PRP.StrongSwitching` then
 compares the ideal game with its run against `RandomPermutation.forgetfulAnswer`, the lazy sampler
-that answers every new query, in either direction, with a fresh uniform block. The forgetful
-sampler is neither a random function nor a random permutation; it is the object that
+that keeps the pairs `(x, y)` it has answered, answers `.forward x` or `.inverse y` from a recorded
+pair when there is one, and otherwise with a fresh uniform block, which may repeat a recorded one.
+The forgetful sampler is neither a random function nor a random permutation; it is the object that
 `RandomPermutation.abs_sub_uniformPerm_forgetful_le` compares a uniform permutation with.
 
 The bound is information-theoretic: nothing is claimed about running time.
 
 ## Main definitions
 
-* `permQueryEquiv`: a bidirectional permutation query as a channel bit and a point.
 * `strongPermCodec`: the codec between word requests on two channels and typed permutation
   queries on `m`-bit blocks.
 
 ## Main results
 
-* `strongPermCodec_wordOracle_of_length`, `strongPermCodec_wordOracle_of_length_ne`: the word
-  oracle of `strongPermCodec` on requests of the block length and on all others.
 * `strongPermCodec_wordOracle_evalPerm`: a permutation table presents `strongRandomPermOracle`.
-* `strongPRPIdealGame_eq_strongIdealExperiment`: the ideal strong-PRP game as a typed experiment.
 * `advantage_strongPRPIdealGame_forgetful_le`: a distinguisher making at most `Q` calls has
   advantage at most `Q.choose 2 / 2 ^ blockLen n` between the ideal strong-PRP game and its run
   against the forgetful sampler.
@@ -51,7 +48,7 @@ namespace Cslib.Crypto
 open Probability RandomPermutation
 
 /-- Bidirectional permutation queries as channel-tagged points. -/
-def permQueryEquiv (α : Type) : PermQuery α ≃ Bool × α where
+private def permQueryEquiv (α : Type) : PermQuery α ≃ Bool × α where
   toFun q := match q with
     | .forward x => (false, x)
     | .inverse y => (true, y)
