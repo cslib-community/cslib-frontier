@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Primitives.Garbling.Conventional
 public import CslibFrontier.Crypto.Primitives.Garbling.Basic
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Label
+public import CslibFrontier.Crypto.Primitives.Garbling.LabelWord
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder.Basic
 public import CslibFrontier.Foundations.Data.BitString.List.Binary
 public import Mathlib.Data.Nat.Size
@@ -213,29 +214,6 @@ theorem scheme_isCircuitScheme : (scheme family).IsCircuitScheme :=
 
 /-! ### The typed garbling -/
 
-/-- The word of a label: the bits of its key, then its colour. It is the reply of `labelCodec k`,
-through which a label oracle answers on words; that reply does not depend on the tweak, so
-`labelBits label = (labelCodec k).encodeReply t label` by `rfl` for every tweak `t`. -/
-@[expose] def labelBits {k : ℕ} (label : BitString (k + 1) × Bool) : List Bool :=
-  (labelCodec k).encodeReply 0 label
-
-/-- A label word is the bits of its key followed by its colour. -/
-theorem labelBits_apply {k : ℕ} (label : BitString (k + 1) × Bool) :
-    labelBits label = List.ofFn label.1 ++ [label.2] :=
-  rfl
-
-/-- A label word has `k + 2` bits. -/
-@[simp] theorem length_labelBits {k : ℕ} (label : BitString (k + 1) × Bool) :
-    (labelBits label).length = k + 2 := by
-  simp [labelBits_apply]
-
-/-- The word of a sum of labels is the XOR of their words. -/
-theorem labelBits_add {k : ℕ} (x y : BitString (k + 1) × Bool) :
-    labelBits (x + y) = List.zipWith xor (labelBits x) (labelBits y) := by
-  simp only [labelBits_apply, Prod.fst_add, Prod.snd_add, BitString.ofFn_add]
-  rw [List.zipWith_append (by simp)]
-  simp [Bool.add_eq_xor]
-
 /-- On a `(k + 1)`-bit key and a `k`-bit tweak, `labelWord` is the label of
 `PRF.label (PRF.atLevel family (k + 1))`. -/
 theorem labelWord_ofFn (k : ℕ) (key : BitString (k + 1)) (t : BitString k) :
@@ -393,16 +371,6 @@ theorem gb_eq_encodeGarbled (k : ℕ) (f : ValidCircuit) (coins : List Bool) :
 private theorem length_flatten_ofFn {c L : ℕ} (word : Fin c → List Bool)
     (hword : ∀ j, (word j).length = L) : (List.ofFn word).flatten.length = c * L := by
   simp [List.length_flatten, List.sum_ofFn, hword]
-
-/-- The colour of a label word is its last bit. -/
-theorem getD_labelBits {k : ℕ} (label : BitString (k + 1) × Bool) :
-    (labelBits label).getD (k + 1) false = label.2 := by
-  simp [labelBits_apply, List.getD_eq_getElem?_getD]
-
-/-- The key of a label word is its first `k + 1` bits. -/
-@[simp] theorem take_labelBits {k : ℕ} (label : BitString (k + 1) × Bool) :
-    (labelBits label).take (k + 1) = List.ofFn label.1 := by
-  simp [labelBits_apply]
 
 /-- `En` on the words of a typed input encoding writes the label of each bit. -/
 theorem encodeWord_encInfo {k : ℕ} (e : Fin n → Bool → BitString (k + 1) × Bool)

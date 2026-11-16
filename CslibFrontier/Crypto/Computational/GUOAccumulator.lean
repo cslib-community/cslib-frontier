@@ -12,7 +12,10 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.In
 public import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 public import Mathlib.Data.Nat.Prime.Defs
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.EraseDupsBy
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Int.Binary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.ListProd
+import CslibFrontier.Foundations.Data.List.EraseDupsBy
 import Mathlib.Data.Nat.GCD.BigOperators
 import Mathlib.Data.Nat.Prime.Basic
 import Mathlib.Data.ZMod.Basic
@@ -48,7 +51,9 @@ The source's claims map to Lean as follows.
   `x` (`exists_collision_of_not_coprime_guoExponent`).
 * The two equations in the book's security argument (p. 422), `a ^ H(x) = c` and
   `b ^ H(x) * c ^ γ = g`, give `(b * a ^ γ) ^ H(x) = g`: `guoForgeryRoot` and
-  `powMod_guoForgeryRoot`. The security theorem itself is not stated here.
+  `powMod_guoForgeryRoot`. The security theorem, which uses them, is
+  `StrongRSA.negligible_guoAccumulatorGame` in
+  `CslibFrontier/Crypto/Computational/GUOAccumulator/Security.lean`.
 
 ## Main definitions
 
@@ -85,6 +90,10 @@ The source's claims map to Lean as follows.
   `Cslib.Crypto.computableInPolyTime_guoForgeryRoot`: both checks, Alice's non-membership proof
   and the root are computable in polynomial time from polynomial-time inputs, the integer `γ` on
   `encIntBin` and every natural number on `encNat`, with no condition on the values.
+* `Cslib.Crypto.computableInPolyTime_guoExponent_toFinset`,
+  `Cslib.Crypto.computableInPolyTime_guoCommit_toFinset`: Alice's exponent `E` and commitment for
+  the elements of a list read on `encList` are computable in polynomial time when `H` is (and, for
+  the commitment, when `N` and `g` are).
 
 ## Implementation notes
 
@@ -105,8 +114,13 @@ The statements differ from the book's as follows.
 * "Correctness relies on the collision resistance of `H`" (p. 422) is stated by the explicit
   collision of `exists_collision_of_not_coprime_guoExponent`, not as a game against a hash family.
 
-Alice's computing `E` from a list of elements is not certified: `guoCommit` and `guoSubsetWitness`
-take a `Finset`, and the certificates for her non-membership proof take `E` as an input.
+`guoCommit` and `guoSubsetWitness` take a `Finset`. Alice computes `E` from a list of elements as
+the product of their hashes, which for a list without duplicates is `guoExponent` of its elements
+(`List.prod_toFinset`). `computableInPolyTime_guoExponent_toFinset` and
+`computableInPolyTime_guoCommit_toFinset` certify `E` and the commitment from any list, whose
+duplicates they erase before multiplying; the certificates for her non-membership proof take `E`
+as an input and compose with the first. Her membership proofs `guoSubsetWitness` are not
+certified from a list.
 
 ## References
 
@@ -388,6 +402,40 @@ theorem computableInPolyTime_guoVerifyNonMem {N g c h b : α → ℕ} {γ : α �
       (ComputableInPolyTime.beq
         (ComputableInPolyTime.binary_mod' (ComputableInPolyTime.binary_mul' hbh hcγ) hN)
         (ComputableInPolyTime.binary_mod' hg hN)))
+
+/-- Alice's exponent `E` for the set of elements of a list is computable in polynomial time whenever
+the list is, on `encList encX`, and `H` is, with binary values. The machine erases the list's
+duplicates (`eraseDupsByWithInput`) and multiplies the hashes along the result (`binary_prod`);
+for a list without duplicates, `E` is that product (`List.prod_toFinset`). The list certificate
+comes first, so that `fun_prop` can infer the element encoding. -/
+theorem computableInPolyTime_guoExponent_toFinset {β : Type} [DecidableEq β]
+    {encX : β ↪ List Bool} {H : β → ℕ} {l : α → List β}
+    (hl : ComputableInPolyTime l enc (encList encX)) (hH : ComputableInPolyTime H encX encNat) :
+    ComputableInPolyTime (fun a => guoExponent H (l a).toFinset) enc encNat := by
+  have he : ComputableInPolyTime (fun a => (l a).eraseDupsBy fun x y => decide (x = y)) enc
+      (encList encX) :=
+    ComputableInPolyTime.eraseDupsByWithInput hl
+      (ComputableInPolyTime.decide_eq' (ComputableInPolyTime.fst _ _).snd'
+        (ComputableInPolyTime.snd _ _))
+  have hset (a : α) : ((l a).eraseDupsBy fun x y => decide (x = y)).toFinset = (l a).toFinset :=
+    Finset.ext fun x => by simp only [List.mem_toFinset, List.mem_eraseDupsBy_eq]
+  rw [show (fun a => guoExponent H (l a).toFinset) =
+      fun a => (((l a).eraseDupsBy fun x y => decide (x = y)).map H).prod from
+    funext fun a => by
+      rw [← hset a]
+      exact List.prod_toFinset H (List.nodup_eraseDupsBy_eq _)]
+  exact ComputableInPolyTime.binary_prod.comp ((ComputableInPolyTime.map hH).comp he)
+
+/-- Alice's commitment to the set of elements of a list is computable in polynomial time whenever
+`N` and `g` are, as natural numbers on `encNat`, the list is, on `encList encX`, and `H` is, with
+binary values: `computableInPolyTime_powMod` applied to
+`computableInPolyTime_guoExponent_toFinset`. -/
+theorem computableInPolyTime_guoCommit_toFinset {β : Type} [DecidableEq β]
+    {encX : β ↪ List Bool} {N g : α → ℕ} {H : β → ℕ} {l : α → List β}
+    (hN : ComputableInPolyTime N enc encNat) (hg : ComputableInPolyTime g enc encNat)
+    (hl : ComputableInPolyTime l enc (encList encX)) (hH : ComputableInPolyTime H encX encNat) :
+    ComputableInPolyTime (fun a => guoCommit (N a) (g a) H (l a).toFinset) enc encNat :=
+  computableInPolyTime_powMod hN hg (computableInPolyTime_guoExponent_toFinset hl hH)
 
 /-- Alice's non-membership coefficient `guoNonMemCoeff h E`, the natural number `-γ` on `encNat`,
 is computable in polynomial time whenever `h` and `E` are, as natural numbers on `encNat`. -/

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Basic
+public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Sources
 import CslibFrontier.Languages.Probabilistic.Sharing
 import CslibFrontier.Probability.Uniform
 
@@ -31,9 +32,10 @@ with `¬ A.authorized ∅` over an additive commutative group `G` (`[AddCommGrou
 - `genericReconstruct`: for an authorized coalition `s`, sums the `s`-coordinate of each member
   `j ∈ s`'s share (`∑ j : s, v j ⟨s, _⟩`), returning `0` on unauthorized coalitions.
 - `genericAccessScheme`: packages `genericShare` and `genericReconstruct` over translation-invariant
-  key distributions `genericSources A G`. For finite `G`, `genericSources A G = {uniformOfFintype}`;
-  for infinite `G`, `genericSources A G = ∅` once some authorized coalition has two members, so
-  privacy is vacuous and only correctness holds nontrivially.
+  key distributions `SourceClass.translationInvariant (GenericKey A G)`. For finite `G`,
+  `SourceClass.translationInvariant (GenericKey A G) = {uniformOfFintype}`; for infinite `G`,
+  `SourceClass.translationInvariant (GenericKey A G) = ∅` once some authorized coalition has two
+  members, so privacy is vacuous and only correctness holds nontrivially.
 - `genericUniformAccessScheme` and `genericUniform_viewDist_eq`: canonical finite-group instance
   with uniform pads, under which every unauthorized coalition's view distribution is uniform on
   `(i : s) → GenericShare A G i.1` and independent of the secret.
@@ -63,8 +65,7 @@ Differences from [BonehShoup2023], Section 22.5.1:
 * `Cslib.Crypto.Protocols.SecretSharing.genericShare`,
   `Cslib.Crypto.Protocols.SecretSharing.genericReconstruct`: sharing and reconstruction maps of
   Construction 22.1.
-* `Cslib.Crypto.Protocols.SecretSharing.genericSources`,
-  `Cslib.Crypto.Protocols.SecretSharing.genericAccessScheme`,
+* `Cslib.Crypto.Protocols.SecretSharing.genericAccessScheme`,
   `Cslib.Crypto.Protocols.SecretSharing.genericUniformAccessScheme`: translation-invariant and
   uniform `AccessScheme` instances for Construction 22.1.
 
@@ -183,19 +184,6 @@ theorem genericReconstruct_genericShare (A : AccessStructure Party) [DecidablePr
     (Cslib.ProbComp.completeShares s.card secret (r ⟨s, (A.mem_authorizedSets s).mpr hs⟩))
   rw [hsum, Cslib.ProbComp.sum_completeShares]
 
-/-- The class of translation-invariant key distributions on `GenericKey A G`. For finite `G`,
-`genericSources A G = {uniformOfFintype}`. For infinite `G`, `genericSources A G = ∅` once some
-authorized coalition has two members. -/
-@[expose] def genericSources (A : AccessStructure Party) [DecidablePred A.authorized]
-    (G : Type*) [AddCommGroup G] : SourceClass (GenericKey A G) :=
-  { P | ∀ δ : GenericKey A G, P.map (· + δ) = P }
-
-/-- The uniform distribution on `GenericKey A G` is translation-invariant. -/
-theorem uniformOfFintype_mem_genericSources (A : AccessStructure Party)
-    [DecidablePred A.authorized] (G : Type*) [AddCommGroup G] [Fintype G] [Nonempty G] :
-    uniformOfFintype (GenericKey A G) ∈ genericSources A G := fun δ =>
-  uniformOfFintype_map_add_right δ
-
 /-- For any unauthorized coalition `s`, any secrets `m₀, m₁`, and any desired view offset `c`,
 there exists a key shift `δ : GenericKey A G` translating the coalition view of `m₀` by `c` into
 the coalition view of `m₁`. -/
@@ -252,32 +240,28 @@ private theorem exists_genericKey_shift (A : AccessStructure Party) [DecidablePr
 
 private theorem genericView_eq_of_not_authorized (A : AccessStructure Party)
     [DecidablePred A.authorized] {G : Type*} [AddCommGroup G]
-    {P : PMF (GenericKey A G)} (hP : P ∈ genericSources A G)
+    {P : PMF (GenericKey A G)} (hP : P ∈ SourceClass.translationInvariant (GenericKey A G))
     {s : Finset Party} (hs : ¬ A.authorized s) (m₀ m₁ : G) :
     AccessStructure.viewDistOf P (genericShare A) s m₀ =
       AccessStructure.viewDistOf P (genericShare A) s m₁ := by
   obtain ⟨δ, hδ⟩ := exists_genericKey_shift A hs m₀ m₁ 0
-  have hcongr :
-      AccessStructure.viewDistOf P (genericShare A) s m₀ =
-        AccessStructure.viewDistOf (P.map (· + δ)) (genericShare A) s m₁ := by
-    simp only [AccessStructure.viewDistOf, PMF.map_comp]
-    congr 1
-    funext r
-    have hr := hδ r
-    rw [add_zero] at hr
-    exact hr.symm
-  rw [hcongr, hP δ]
+  refine AccessStructure.viewDistOf_eq_of_map_add_eq (hP δ) fun r => ?_
+  have hr := hδ r
+  rw [add_zero] at hr
+  exact hr.symm
 
 /-- **Construction 22.1** ([BonehShoup2023], Section 22.5.1, p. 977): the generic secret-sharing
-scheme over `genericSources A G` implementing any monotone access structure `A` with
-`¬ A.authorized ∅`. For finite `G`, `genericSources A G = {uniformOfFintype}`. For infinite `G`,
-`genericSources A G = ∅` once some authorized coalition has two members, so privacy is vacuous
-(only correctness holds nontrivially); use `genericUniformAccessScheme` for finite groups. -/
+scheme over `SourceClass.translationInvariant (GenericKey A G)` implementing any monotone access
+structure `A` with `¬ A.authorized ∅`. For finite `G`,
+`SourceClass.translationInvariant (GenericKey A G) = {uniformOfFintype}`. For infinite `G`,
+`SourceClass.translationInvariant (GenericKey A G) = ∅` once some authorized coalition has two
+members, so privacy is vacuous (only correctness holds nontrivially); use
+`genericUniformAccessScheme` for finite groups. -/
 @[expose] noncomputable def genericAccessScheme (A : AccessStructure Party)
     [DecidablePred A.authorized] (G : Type*) [AddCommGroup G] (hempty : ¬ A.authorized ∅) :
     AccessScheme G (GenericKey A G) Party (GenericShare A G) where
   access := A
-  sources := genericSources A G
+  sources := SourceClass.translationInvariant (GenericKey A G)
   share := genericShare A
   reconstruct := genericReconstruct A
   correct r secret _ hs := by exact genericReconstruct_genericShare A hempty r secret hs
@@ -291,22 +275,23 @@ theorem genericAccessScheme_access (A : AccessStructure Party) [DecidablePred A.
 
 /-- Canonical finite-group instance of Construction 22.1 with uniform key pads. -/
 @[expose] noncomputable def genericUniformAccessScheme (A : AccessStructure Party)
-    [DecidablePred A.authorized] (G : Type*) [AddCommGroup G] [Fintype G] [Nonempty G]
+    [DecidablePred A.authorized] (G : Type*) [AddCommGroup G] [Fintype G]
     (hempty : ¬ A.authorized ∅) :
     AccessScheme G (GenericKey A G) Party (GenericShare A G) :=
   (genericAccessScheme A G hempty).monoSources
-    (Set.singleton_subset_iff.mpr (uniformOfFintype_mem_genericSources A G))
+    (Set.singleton_subset_iff.mpr
+      (SourceClass.uniformOfFintype_mem_translationInvariant (GenericKey A G)))
 
 @[simp]
 theorem genericUniformAccessScheme_access (A : AccessStructure Party) [DecidablePred A.authorized]
-    (G : Type*) [AddCommGroup G] [Fintype G] [Nonempty G] (hempty : ¬ A.authorized ∅) :
+    (G : Type*) [AddCommGroup G] [Fintype G] (hempty : ¬ A.authorized ∅) :
     (genericUniformAccessScheme A G hempty).access = A :=
   rfl
 
 /-- Under uniform key pads, every unauthorized coalition's view distribution in Construction 22.1
 is uniform on `(i : s) → GenericShare A G i.1` and independent of `secret`. -/
 theorem genericUniform_viewDist_eq (A : AccessStructure Party) [DecidablePred A.authorized]
-    (G : Type*) [AddCommGroup G] [Fintype G] [Nonempty G] (hempty : ¬ A.authorized ∅)
+    (G : Type*) [AddCommGroup G] [Fintype G] (hempty : ¬ A.authorized ∅)
     {s : Finset Party} (hs : ¬ A.authorized s) (secret : G) :
     (genericUniformAccessScheme A G hempty).viewDist
         (uniformOfFintype (GenericKey A G)) s secret =
