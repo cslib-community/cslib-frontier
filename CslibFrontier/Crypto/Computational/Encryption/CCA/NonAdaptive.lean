@@ -58,7 +58,8 @@ open Probability Turing.MultiTapeTM
 /-- Non-adaptive 1CCA security ([BonehShoup2023], Exercise 12.28, printed p. 522): no decryption
 query after the encryption query. It is the 1CCA experiment `cca2GameOn` of `INDCCA2On` with
 challenge-pair admissibility predicate `valid`, against the uniform strict oracle PPT adversaries
-whose guessing stage makes no decryption query. -/
+whose guessing stage makes no decryption query, for every saved state word and ciphertext (as in
+`CCA2AdversaryOf.IsQueryBounded`), not only those the game produces. -/
 @[expose] def INDCCA1On {Msg Out : Type} (valid : ℕ → List Bool → Msg → Msg → Bool)
     (encMsg : Msg ↪ List Bool) (encOut : Out ↪ List Bool)
     (keyGen : ℕ → ProbComp (List Bool × List Bool))
@@ -81,7 +82,7 @@ theorem INDCCA2On.indcca1On {Msg Out : Type} {valid : ℕ → List Bool → Msg 
     {decrypt : ℕ → List Bool → List Bool → Option Out}
     (h : INDCCA2On valid encMsg encOut keyGen encrypt decrypt) :
     INDCCA1On valid encMsg encOut keyGen encrypt decrypt :=
-  fun adversary hA => h adversary hA.1
+  h.of_admissible fun _ hA => hA.1
 
 /-- **Non-adaptive 1CCA security implies IND-CPA security**: the lift `CCA2AdversaryOf.ofCPA` of
 a chosen-plaintext adversary makes no decryption query, and its game has the chosen-plaintext
