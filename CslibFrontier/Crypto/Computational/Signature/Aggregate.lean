@@ -60,7 +60,7 @@ theorem asigFresh_eq_true_iff (pk : PK) (pks : List PK) (ms : List M) (queried :
   · rintro ⟨hlen, j, hj, _, hpk, hm⟩
     exact ⟨hlen, (pks[j], ms[j]), ⟨j, by omega, rfl⟩, hpk, hm⟩
 
-/-- The success condition of Attack Game 15.3 ([BonehShoup2023], p. 633): the two pairs
+/-- The success condition of Attack Game 15.3 ([BonehShoup2023], p. 632): the two pairs
 `(pks, ms)` and `(pks', ms')` differ, each pair has vectors of equal lengths, and the aggregate
 signature verifies for both (the verdicts `b₁` and `b₂`). -/
 @[expose]
