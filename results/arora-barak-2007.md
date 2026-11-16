@@ -974,8 +974,8 @@ encoding and measurement of qubit zero. The draft permits arbitrary described el
 unitaries; the formal equivalence is still [#3350](https://github.com/cslib-community/cslib-frontier/issues/3350).
 Finite unitary or oracle-query semantics do not certify gate synthesis, uniformity or machine time.
 
-Disposition counts for Chapters 18–20: 15 Covered, 25 Partial, 3 Endpoint not located,
-4 Source issue and 1 Unverified (48 results). Chapter 20 contributes 4 Covered, 4 Partial,
+Disposition counts for Chapters 18–20: 16 Covered, 24 Partial, 3 Endpoint not located,
+4 Source issue and 1 Unverified (48 results). Chapter 20 contributes 5 Covered, 3 Partial,
 1 Endpoint not located and 3 Source issue (12 results).
 
 | Draft result | Printed / PDF page | Disposition and remaining endpoint |

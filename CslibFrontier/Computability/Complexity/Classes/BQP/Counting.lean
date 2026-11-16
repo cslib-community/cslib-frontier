@@ -56,6 +56,7 @@ uniform circuit families of `Cslib.Complexity.BQP`.
 
 * [L. Adleman, J. DeMarrais, M.-D. Huang, *Quantum computability*][AdlemanDeMarraisHuang1997]
 * [E. Bernstein, U. Vazirani, *Quantum complexity theory*][BernsteinVazirani1997]
+* [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*, 2007 web draft][AroraBarak07]
 * [L. Fortnow, J. Rogers, *Complexity limitations on quantum computation*][FortnowRogers1999]
 * [S. Fenner, *PP-Lowness and a Simple Definition of AWPP*][Fenner2003]
 -/
@@ -197,9 +198,9 @@ theorem BQP_subset_PP : BQP enc ⊆ PP enc :=
   fun _ hA => AWPP_subset_PP (BQP_subset_AWPP hA)
 
 /-- **`BQP ⊆ PSPACE`** [Bernstein, Vazirani][BernsteinVazirani1997], through `BQP ⊆ PP ⊆ PSPACE`.
-This is the library's `BQP`, over the fixed gate set of `Cslib.Complexity.BQP`; Arora and Barak
-(Theorem 20.25 of the 2007 draft) allow arbitrary elementary gates, whose equivalence with this
-gate set is not formalized. -/
+[Arora and Barak, Theorem 20.25][AroraBarak07]. This is the library's `BQP`, over the fixed gate
+set of `Cslib.Complexity.BQP`; the draft allows arbitrary elementary gates, whose equivalence with
+this gate set is not formalized. -/
 theorem BQP_subset_PSPACE : BQP enc ⊆ PSPACE enc :=
   fun _ hA => PP_subset_PSPACE (BQP_subset_PP hA)
 

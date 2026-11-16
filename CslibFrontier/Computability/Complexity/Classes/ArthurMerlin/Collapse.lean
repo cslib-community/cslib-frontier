@@ -52,6 +52,7 @@ The proof:
   proofs?*][BoppanaHastadZachos1987]
 * [L. Babai, *Trading group theory for randomness*][Babai1985]
 * [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*][AroraBarak09]
+* [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*, 2007 web draft][AroraBarak07]
 -/
 
 public section
@@ -114,7 +115,7 @@ theorem PH_eq_SigmaP_two_of_npComplete_GraphIsomorphism
   PH_eq_SigmaP_two_of_coNP_subset_AM (coNP_subset_AM_of_npComplete_GraphIsomorphism hGI)
 
 /-- **If graph isomorphism is `NP`-complete, then `Σ₂ = Π₂`** [BoppanaHastadZachos1987],
-[Arora and Barak, Theorem 8.16 of the 2007 draft][AroraBarak09]. -/
+[Arora and Barak, Theorem 8.16][AroraBarak07]. -/
 theorem SigmaP_two_eq_PiP_two_of_npComplete_GraphIsomorphism
     (hGI : NPComplete encGraphIsomorphism GraphIsomorphism) : SigmaP 2 enc = PiP 2 enc :=
   (PiP_two_eq_SigmaP_two_of_coNP_subset_AM

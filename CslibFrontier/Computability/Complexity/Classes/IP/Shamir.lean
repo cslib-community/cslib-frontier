@@ -97,9 +97,14 @@ theorem coNP_subset_IP : coNP enc ⊆ IP enc :=
   coNP_subset_PH.trans (PH_subset_IP enc)
 
 /-- **`#SAT_D ∈ IP`** [Lund, Fortnow, Karloff and Nisan][LundFortnowKarloffNisan1992],
-[Arora and Barak, Theorem 8.18 of the 2007 draft][AroraBarak09]: the pairs `(φ, K)` such that the
-CNF formula `φ` has exactly `K` satisfying assignments to its occurring variables have interactive
-proofs. The pair language is `C=P`-complete, and `C=P ⊆ PP ⊆ PSPACE = IP`. -/
+[Arora and Barak, Theorem 8.18][AroraBarak07]: the pairs `(φ, K)` such that the CNF formula `φ`
+has exactly `K` satisfying assignments to its occurring variables have interactive proofs. The
+pair language is `C=P`-complete, and `C=P ⊆ PP ⊆ PSPACE = IP`.
+
+The draft's `#SAT_D` restricts `φ` to 3CNF formulas of `n` variables and counts assignments to
+those `n` variables. `SharpSATExact` accepts any CNF formula and counts assignments to the
+variables that occur in it. The two agree on 3CNF instances in which all `n` variables occur.
+This proof does not use the draft's sumcheck protocol. -/
 theorem SharpSATExact_mem_IP : SharpSATExact ∈ IP encSharpSATTarget :=
   PSPACE_subset_IP _ (PP_subset_PSPACE (CeqP_subset_PP SharpSATExact_ceqPComplete.1))
 
