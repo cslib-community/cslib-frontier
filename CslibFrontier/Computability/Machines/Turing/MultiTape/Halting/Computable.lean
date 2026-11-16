@@ -13,7 +13,6 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pa
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.Bounds
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.TotalComputability
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.KernelComp
 
 /-!
 # Computable functions and decidable sets

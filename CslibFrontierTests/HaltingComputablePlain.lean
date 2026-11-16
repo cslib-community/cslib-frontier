@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Computable
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List
-import Lean.Elab.Command
+public import Lean.Exception
 
 /-!
 # Plain total-computability clients
