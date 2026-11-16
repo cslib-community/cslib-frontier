@@ -54,7 +54,7 @@ a hash with `polyTime`, Definition 1 implies `secure`.
 
 The bound on `m` is needed. With `m k = 2 ^ k` queries, a distinguisher whose clock is polynomial
 in its input length can try every `s` against all the outputs, so the condition without the bound
-would fail for every hash.
+would fail for every hash computed in polynomial time.
 
 The protocol of [IshaiKilianNissimPetrank2003] (Fig. 1, p. 152) hashes `(j, u)` with a random
 oracle `H : [m] × {0,1}^k → {0,1}^ℓ`; §5 (p. 157, with footnote 10) replaces it by a correlation

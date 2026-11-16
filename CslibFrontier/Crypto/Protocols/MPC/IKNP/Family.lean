@@ -50,21 +50,30 @@ and `isPPT_iknpReceiverSim` proves the receiver's simulator PPT; both use the as
 
 ## Comparison with [IshaiKilianNissimPetrank2003]
 
-`CorrelationRobust.iknpSemiHonestSecure` is the semi-honest case of what §3.1 (pp. 152–154) and
-§5 (p. 157) of the source state for Fig. 1 (p. 152) with a correlation robust hash. It differs
-from the source as follows.
+`CorrelationRobust.iknpSemiHonestSecure` formalizes the two Claims of §3.1 for Fig. 1 (p. 152),
+with the random oracle replaced by a correlation robust hash as §5 describes (p. 157):
+* the sender Claim (p. 153, the protocol "is perfectly secure with respect to an arbitrary
+  sender"), in its semi-honest case: the p. 153 simulator for the honest sender is
+  `iknpSenderSim`;
+* the receiver Claim (p. 154, a semi-honest receiver). Its random-oracle bound, Lemma 1 (p. 154),
+  is replaced by §5's argument that the masks of the unchosen entries are jointly pseudorandom
+  given the receiver's view; here that argument is an exact game equality.
+
+Theorems 2 (p. 147) and 3 (p. 157) are not formalized. They concern oblivious transfer in the
+source's default sense, secure against malicious parties (p. 146): the fully secure variant of
+§4 (p. 154), modified for correlation robustness in Theorem 3, composed with the reduction of
+`OT^k_m` to `OT^k_k` with a pseudorandom generator (§2.2, p. 151, and Appendix B). The
+formalized statement differs from the two Claims as follows.
 
 * **Protocol and parameters.** Fig. 1 with `ℓ = 1`, bit transfers, and `h(u)` in place of the
   random oracle's `H(j, u)`, which is how §5 (p. 157, footnote 10) instantiates it with a
   correlation robust `h`. There are `k = n` base transfers and `m n` extended ones, for any
-  polynomially bounded `m`; the source's Theorem 2 (p. 147) takes `m = k^c`.
-* **Hybrid model.** The base transfers are the ideal `ot^m_k` primitive (`batchOTSpec`), as in
-  Fig. 1 and the hybrid model of §2.1 (pp. 149–150). No composition theorem replaces them by a
-  protocol, and the reduction of `ot^m_k` to `ot^k_k` with a pseudorandom generator (§2.2, p. 151,
-  and Appendix B), which Theorem 2 uses, is not formalized.
-* **Corruption.** One static party at a time, semi-honest. §3.1 also simulates a malicious sender,
-  perfectly; that is not formalized. The source's definition (Appendix A, p. 160) is the
-  stand-alone one against a non-adaptive adversary, as here.
+  polynomially bounded `m`, the "polynomially many" of §5.
+* **Hybrid model.** The base transfers are the ideal primitive `OT^k_m` of Fig. 1, `k` transfers
+  of `m`-bit strings (`batchOTSpec`), in the hybrid model of §2.1 (pp. 149–150). No composition
+  theorem replaces them by a protocol.
+* **Corruption.** One static party at a time, semi-honest. The source's definition (Appendix A,
+  p. 160) is the stand-alone one against a non-adaptive adversary, as here.
 * **Environments.** Uniform strict PPT environments that choose the inputs, the uniform variant
   of `ProtocolFamily.SemiHonestSecure`; its module documentation lists the differences of the
   notion.
@@ -95,8 +104,8 @@ from the source as follows.
 ## References
 
 * [Y. Ishai, J. Kilian, K. Nissim, E. Petrank, *Extending Oblivious Transfers
-  Efficiently*][IshaiKilianNissimPetrank2003], Theorem 2 (p. 147), §2 (pp. 149–151), Fig. 1 and
-  §3.1 (pp. 152–154), §5 (Definition 1, p. 157) and Appendix A (p. 160).
+  Efficiently*][IshaiKilianNissimPetrank2003], §1.1–1.2 (pp. 146–147), §2 (pp. 149–151), Fig. 1
+  and §3.1 (pp. 152–154), §4 (p. 154), §5 (Definition 1, p. 157) and Appendix A (p. 160).
 -/
 
 public section
@@ -281,30 +290,6 @@ views are their view words (`iknpSenderViewWords`, `iknpReceiverViewWords`), enc
 
 /-! ### Efficiency of the simulator families -/
 
-/-- The representation of coalition member `i`'s input, read from a simulator's input. -/
-private theorem simInput_input_polyTime {I : Finset (Fin 2)} (i : I) :
-    ComputableInPolyTime (fun x : SimInput (iknpFamily hash m) I =>
-      (iknpEncoding hash m).input.rep x.secParam x.desc i (x.inputs i))
-      (encSimInput (iknpEncoding hash m)) ((iknpEncoding hash m).input.enc i) := by
-  have hinputs : ComputableInPolyTime (fun x : SimInput (iknpFamily hash m) I =>
-      fun j : I => (iknpEncoding hash m).input.rep x.secParam x.desc j (x.inputs j))
-      (encSimInput (iknpEncoding hash m))
-      (encDPi fun j : I => (iknpEncoding hash m).input.enc j) :=
-    (encSimInput_inputs_polyTime (iknpEncoding hash m) .id').of_enc_eq fun _ => rfl
-  exact (ComputableInPolyTime.dpi_apply _ i).comp hinputs
-
-/-- The representation of coalition member `i`'s output, read from a simulator's input. -/
-private theorem simInput_output_polyTime {I : Finset (Fin 2)} (i : I) :
-    ComputableInPolyTime (fun x : SimInput (iknpFamily hash m) I =>
-      (iknpEncoding hash m).output.rep x.secParam x.desc i (x.outputs i))
-      (encSimInput (iknpEncoding hash m)) ((iknpEncoding hash m).output.enc i) := by
-  have houtputs : ComputableInPolyTime (fun x : SimInput (iknpFamily hash m) I =>
-      fun j : I => (iknpEncoding hash m).output.rep x.secParam x.desc j (x.outputs j))
-      (encSimInput (iknpEncoding hash m))
-      (encDPi fun j : I => (iknpEncoding hash m).output.enc j) :=
-    (encSimInput_outputs_polyTime (iknpEncoding hash m) .id').of_enc_eq fun _ => rfl
-  exact (ComputableInPolyTime.dpi_apply _ i).comp houtputs
-
 /-- The party `0` of the coalition `{0}`. -/
 private abbrev sender : ({0} : Finset (Fin 2)) := ⟨0, Finset.mem_singleton_self 0⟩
 
@@ -331,7 +316,8 @@ theorem isPPT_iknpSenderSim :
   have hpair : ComputableInPolyTime (fun x : SimInput (iknpFamily hash m) {0} =>
       (iknpEncoding hash m).input.rep x.secParam x.desc 0 (x.inputs sender))
       (encSimInput (iknpEncoding hash m)) (encPair encBits encBits) :=
-    simInput_input_polyTime hash m sender
+    (iknpEncoding hash m).input.encCoalition_apply_polyTime
+      (encSimInput_inputs_polyTime (iknpEncoding hash m) .id') sender
   have hn : ComputableInPolyTime (fun x : SimInput (iknpFamily hash m) {0} => x.secParam)
       (encSimInput (iknpEncoding hash m)) encUnary :=
     encSimInput_secParam_polyTime (iknpEncoding hash m) .id'
@@ -433,11 +419,13 @@ theorem isPPT_iknpReceiverSim (hh : ComputableInPolyTime hash encBits encBool) :
   have hr : ComputableInPolyTime (fun x : SimInput (iknpFamily hash m) {1} =>
       (iknpEncoding hash m).input.rep x.secParam x.desc 1 (x.inputs receiver))
       (encSimInput (iknpEncoding hash m)) encBits :=
-    simInput_input_polyTime hash m receiver
+    (iknpEncoding hash m).input.encCoalition_apply_polyTime
+      (encSimInput_inputs_polyTime (iknpEncoding hash m) .id') receiver
   have hz : ComputableInPolyTime (fun x : SimInput (iknpFamily hash m) {1} =>
       (iknpEncoding hash m).output.rep x.secParam x.desc 1 (x.outputs receiver))
       (encSimInput (iknpEncoding hash m)) encBits :=
-    simInput_output_polyTime hash m receiver
+    (iknpEncoding hash m).output.encCoalition_apply_polyTime
+      (encSimInput_outputs_polyTime (iknpEncoding hash m) .id') receiver
   have hn : ComputableInPolyTime (fun x : SimInput (iknpFamily hash m) {1} => x.secParam)
       (encSimInput (iknpEncoding hash m)) encUnary :=
     encSimInput_secParam_polyTime (iknpEncoding hash m) .id'
@@ -648,11 +636,12 @@ open Cslib.Crypto.Protocols.MPC
 robust and the number `m n` of extended transfers is polynomially bounded, then
 `iknpFamily hash m` is semi-honest secure against a corrupted sender (`{0}`) and against a
 corrupted receiver (`{1}`), for the encoding `iknpEncoding` (`ProtocolFamily.SemiHonestSecure`).
-This is the semi-honest case of what [IshaiKilianNissimPetrank2003] §3.1 and §5 (p. 157) state
-for Fig. 1 with a correlation robust hash, in the hybrid model of `n` ideal base transfers of
-`(m n)`-bit strings, for bit transfers with one hash at every position; the source also simulates
-a malicious sender, and its Theorem 2 also reduces the base transfers to `k` transfers of `k`-bit
-strings, neither of which is formalized. Environments are uniform and choose the inputs, and
+These are the two Claims of [IshaiKilianNissimPetrank2003] §3.1 for Fig. 1, the sender's
+(p. 153) in its semi-honest case and the receiver's (p. 154), with the random oracle replaced by a
+correlation robust hash as §5 describes (p. 157): `n` ideal base transfers of `(m n)`-bit strings
+(the source's `OT^k_m` hybrid), and bit transfers with one hash at every position. Theorems 2 and
+3 of the source, which concern the fully secure variant of §4 composed with the reduction of
+`OT^k_m` to `OT^k_k`, are not formalized. Environments are uniform and choose the inputs, and
 corruption is static and of one party (module documentation). The simulators are
 `iknpSenderSim`, perfect, and `iknpReceiverSim`, certified by `isPPT_iknpSenderSim` and
 `isPPT_iknpReceiverSim`; the reduction is certified by `isPPT_iknpReceiverToCR`. -/

@@ -38,15 +38,17 @@ any finite additive commutative group.
 * **Privacy against the sender** (`idealJoint_iknp_sender`): the columns `tⁱ + sᵢ r` that the
   sender receives are uniform whatever `s` and `r` are, so the simulator `iknpSenderSim`, which
   samples them afresh, makes the ideal and real joint distributions equal.
-* **Privacy against the receiver** (`semiHonestAdvantage_iknp_receiver`): the entries the receiver
-  did not choose are masked by `H j (tⱼ + s)`, with `s` uniform and hidden from it, and the
-  receiver knows `tⱼ`. That is the correlation-robustness experiment, so the advantage of every
-  distinguisher `D` against the simulator `iknpReceiverSim` *equals* the correlation-robustness
-  advantage of the explicit reduction `iknpReduction H x D`.
+* **The receiver's advantage identity** (`semiHonestAdvantage_iknp_receiver`), a step for every
+  `H`: the entries the receiver did not choose are masked by `H j (tⱼ + s)`, with `s` uniform and
+  hidden from it, and the receiver knows `tⱼ`. That is the correlation-robustness experiment, so
+  the advantage of every distinguisher `D` against the simulator `iknpReceiverSim` *equals* the
+  correlation-robustness advantage of the explicit reduction `iknpReduction H x D`.
 
-These are the two cases of Goldreich's two-party semi-honest definition (Definition 7.2.1), one
-simulator per corrupted party, stated on the joint distribution of the corrupted party's view and
-both outputs, with a concrete advantage in place of computational indistinguishability.
+These statements are per instance and are not themselves security theorems: they are stated on
+the joint distribution of the corrupted party's view and both outputs, one simulator per corrupted
+party, with a concrete advantage in place of computational indistinguishability. The security
+theorem, semi-honest security of the protocol family against either party under correlation
+robustness, is `Cslib.Crypto.CorrelationRobust.iknpSemiHonestSecure`.
 
 Scope: the base transfers are the ideal oracle, and no composition theorem replaces them by a
 protocol. The statements are for a single instance (`H`, inputs and distinguisher fixed), with no
@@ -73,8 +75,9 @@ proves it semi-honest secure from the asymptotic correlation-robustness assumpti
   `Cslib.Crypto.Protocols.MPC.idealJoint_iknp_receiver_bind`: against the receiver, the real and
   the ideal joint distribution, tested by `D`, are the correlation-robustness games of
   `iknpReduction H x D`.
-* `Cslib.Crypto.Protocols.MPC.semiHonestAdvantage_iknp_receiver`: privacy against the receiver
-  from the correlation robustness of `H`.
+* `Cslib.Crypto.Protocols.MPC.semiHonestAdvantage_iknp_receiver`: against the receiver, every
+  distinguisher's advantage equals the correlation-robustness advantage of `iknpReduction H x D`,
+  for every `H`.
 
 ## References
 
