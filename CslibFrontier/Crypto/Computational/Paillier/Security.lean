@@ -192,7 +192,7 @@ modulus `N`, the typed adversary that `dcrDistinguisher` plays. It runs
 its saved state starts with the bit `validMessages n (encNat pk) m₀ m₁`. The chosen messages are
 read modulo `N`, and the guess receives a ciphertext as `encNat` of its least representative
 modulo `N ^ 2`; it is `false` when the saved bit is `false`. -/
-private noncomputable def typedAdversary (adversary : AdversaryOf ℕ) (n N : ℕ) [NeZero N] :
+private noncomputable def typedAdversary (adversary : AdversaryOf ℕ) (n N : ℕ) :
     TwoStage ℕ (MessagePair (ZMod N)) (ZMod (N ^ 2))ˣ Bool (List Bool) where
   choose pk := (fun choice : ChoiceOut ℕ =>
       (⟨((ChoiceOut.msg₀ choice : ℕ) : ZMod N), ((ChoiceOut.msg₁ choice : ℕ) : ZMod N)⟩,
