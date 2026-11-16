@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Circuit.SpanProgram.ChangeOfBasis
+public import CslibFrontier.Computability.Circuit.SpanProgram.Elimination
 public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Linear
 import Mathlib.LinearAlgebra.Matrix.NonsingularInverse
 
@@ -27,15 +27,28 @@ matrix `R` whose top row is `e₁` gives an equivalent program. For a key `k`, t
 `(M_i * R)_i` gives the shares that `P` gives for the key `tail (R * (secret, k))`, and that map
 of keys is a bijection, so a uniform key goes to a uniform key.
 
+Theorem 22.14 of [BonehShoup2023] is stated here for parties `Fin N` and a field with decidable
+equality, where elimination runs. Part (a): for an accepted coalition, the vectors of the
+algorithm `Lin` (`MonotoneSpanProgram.recombination`) recombine the members' shares to the
+secret, for every key. Part (b)(i): for a coalition that is not accepted, the program `P_L`
+(`MonotoneSpanProgram.normalForm`) is equivalent to `P`, by Lemma 22.15. The circuit bounds for
+both algorithms are in `CslibFrontier.Computability.Circuit.SpanProgram.EliminationSynthesis`.
+
 ## Main results
 
 * `Cslib.Crypto.Protocols.SecretSharing.shareDist_linearUniformAccessScheme_mulRight`:
   Lemma 22.15.
+* `Cslib.Crypto.Protocols.SecretSharing.sum_recombination_dotProduct_linearShare`:
+  Theorem 22.14(a).
+* `Cslib.Crypto.Protocols.SecretSharing.shareDist_linearUniformAccessScheme_normalForm`:
+  Theorem 22.14(b)(i).
+* `Cslib.Crypto.Protocols.SecretSharing.linearShare_eq_of_col_zero`: a share whose matrix has
+  first column zero does not depend on the secret.
 
 ## References
 
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023],
-  Definition 22.23 and Lemma 22.15, pp. 981–982.
+  Definition 22.23, Theorem 22.14 and Lemma 22.15, pp. 981–982.
 -/
 
 public section
@@ -90,5 +103,39 @@ theorem shareDist_linearUniformAccessScheme_mulRight (P : MonotoneSpanProgram F 
         uniformOfFintype_map_equiv (Equiv.ofBijective T (Finite.injective_iff_bijective.1 hT))]
     rfl
   exact h₁.trans h₂
+
+omit [Fintype F] in
+/-- A share whose matrix has left-most column zero does not depend on the secret
+([BonehShoup2023], discussion after Theorem 22.14, p. 981). -/
+theorem linearShare_eq_of_col_zero (P : MonotoneSpanProgram F Party) {i : Party}
+    (h : ∀ row, P.matrix i row 0 = 0) (k : LinearKey P) (secret₀ secret₁ : F) :
+    linearShare P k secret₀ i = linearShare P k secret₁ i := by
+  funext row
+  simp [linearShare, Matrix.mulVec, dotProduct, Fin.sum_univ_succ, h]
+
+variable [DecidableEq F] {N : ℕ}
+
+omit [Fintype F] in
+/-- **Theorem 22.14(a), linearity of the secret** ([BonehShoup2023], p. 981): for an accepted
+coalition `s`, the vectors `P.recombination s` of the algorithm `Lin` recombine the shares of the
+members of `s` to the secret, for every key. -/
+theorem sum_recombination_dotProduct_linearShare (P : MonotoneSpanProgram F (Fin N))
+    {s : Finset (Fin N)} (hs : P.Accepts s) (k : LinearKey P) (secret : F) :
+    ∑ i : s, P.recombination s i.1 ⬝ᵥ linearShare P k secret i.1 = secret :=
+  sum_dotProduct_linearShare_eq_secret P k secret (fun i => P.recombination s i.1)
+    (P.sum_vecMul_recombination hs)
+
+/-- **Theorem 22.14(b)(i)** ([BonehShoup2023], p. 981): for a coalition `s` that is not accepted,
+the program `P_L = P.normalForm s` is equivalent to `P`: it gives the same distribution of shares
+under a uniform key. Part (ii) is `MonotoneSpanProgram.normalForm_matrix_zero`, and with
+`linearShare_eq_of_col_zero` it says that the shares of the members of `s` do not depend on the
+secret. -/
+theorem shareDist_linearUniformAccessScheme_normalForm (P : MonotoneSpanProgram F (Fin N))
+    {s : Finset (Fin N)} (hs : ¬ P.Accepts s) (secret : F) :
+    (linearUniformAccessScheme (P.normalForm s)).shareDist
+        (uniformOfFintype (LinearKey (P.normalForm s))) secret =
+      (linearUniformAccessScheme P).shareDist (uniformOfFintype (LinearKey P)) secret :=
+  shareDist_linearUniformAccessScheme_mulRight P (P.shearMatrix_nullVector_of_not_accepts hs).1
+    (P.shearMatrix_nullVector_of_not_accepts hs).2 secret
 
 end Cslib.Crypto.Protocols.SecretSharing

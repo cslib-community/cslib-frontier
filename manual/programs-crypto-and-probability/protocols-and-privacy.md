@@ -1069,7 +1069,8 @@ scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.ShamirInterpolation
 ### Monotone span programs and linear secret sharing
 
 Boneh–Shoup Section 22.5.2 ([bs23][bs23], pp. 978–982, Definition 22.21, Construction 22.2,
-Theorem 22.13, Definition 22.22, Remark 22.15, Definition 22.23 and Lemma 22.15) derives linear
+Theorem 22.13, Definition 22.22, Remark 22.15, Definition 22.23, Theorem 22.14 and Lemma 22.15)
+derives linear
 secret sharing for the access structure that a monotone span program `MonotoneSpanProgram F Party`
 recognizes over a field `F`
 ([`SpanProgram/Basic.lean`](../../CslibFrontier/Computability/Circuit/SpanProgram/Basic.lean),
@@ -1088,20 +1089,37 @@ multiplies every matrix on the right by `R`, and for an invertible `R` with top 
 `accepts_mulRight` keeps the accepted coalitions and
 `shareDist_linearUniformAccessScheme_mulRight`
 ([`AccessStructure/LinearEquivalence.lean`](../../CslibFrontier/Crypto/Protocols/SecretSharing/AccessStructure/LinearEquivalence.lean))
-proves Lemma 22.15: the program is equivalent to `P`. The Example 22.3 generalization that every
-monotone access structure has a monotone span program, and Theorem 22.14, are not yet formalized.
-The
+proves Lemma 22.15: the program is equivalent to `P`. For parties `Fin N` over a field with
+decidable equality,
+[`SpanProgram/Elimination.lean`](../../CslibFrontier/Computability/Circuit/SpanProgram/Elimination.lean)
+computes the algorithm `Lin` of Theorem 22.14 as `recombination` and the program `P_L` as
+`normalForm` (`P` times the identity with first column a kernel vector of the coalition's rows),
+both by elimination; `sum_recombination_dotProduct_linearShare` is part (a),
+`shareDist_linearUniformAccessScheme_normalForm` part (b)(i) and `normalForm_matrix_zero` part
+(b)(ii). Outside their domains `recombination` returns zero vectors and `normalForm` zeroes the
+first column of every party.
+[`SpanProgram/EliminationSynthesis.lean`](../../CslibFrontier/Computability/Circuit/SpanProgram/EliminationSynthesis.lean)
+bounds circuits for both, one for each shape of program, whose inputs are the matrix entries and a
+membership value for each party: with `r` rows and `d` columns, `full_recombination` uses at most
+`kernelVecCost d (r + 1) + r * (d + 1) + 2` gates and `full_normalForm` at most
+`kernelVecCost r d + r * (3 * d + 1)`, where one gate computes any function of at most two field
+elements, so the bounds count field operations and zero tests. A bound in bit operations over an
+encoded field, uniform in the shape, is open. The Example 22.3 generalization that every monotone
+access structure has a monotone span program is not yet formalized. The
 [linear secret-sharing client](../../CslibFrontierTests/Crypto/LinearSecretSharing.lean) exercises
 Example 22.3 over `ZMod 5`, explicit row-weight recombination, additive and scalar linearity, and
 boundary probes including `ZMod 4`. The
 [equivalence client](../../CslibFrontierTests/Crypto/SpanProgramEquivalence.lean) applies
 Lemma 22.15 to the two-out-of-three program of Example 22.2 over `ZMod 5`, shows that each of its
-two hypotheses is needed, and compares programs with different numbers of columns. Check them
-with:
+two hypotheses is needed, and compares programs with different numbers of columns. The
+[elimination client](../../CslibFrontierTests/Crypto/SpanProgramElimination.lean) applies
+Theorem 22.14 to that program, derives the privacy of Theorem 22.13 from part (b), evaluates `Lin`
+(including the book's vectors for Example 22.3) and `P_L` by kernel reduction, turns both bounds
+into circuits for three parties, and shows that each hypothesis is needed. Check them with:
 
 ```bash
 scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.LinearSecretSharing \
-  CslibFrontierTests.Crypto.SpanProgramEquivalence
+  CslibFrontierTests.Crypto.SpanProgramEquivalence CslibFrontierTests.Crypto.SpanProgramElimination
 ```
 
 ## Differential privacy

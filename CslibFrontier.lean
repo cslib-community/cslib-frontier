@@ -1779,6 +1779,8 @@ public import CslibFrontier.Computability.Circuit.SimulationDepth
 public import CslibFrontier.Computability.Circuit.SourceComplexity
 public import CslibFrontier.Computability.Circuit.SpanProgram.Basic
 public import CslibFrontier.Computability.Circuit.SpanProgram.ChangeOfBasis
+public import CslibFrontier.Computability.Circuit.SpanProgram.Elimination
+public import CslibFrontier.Computability.Circuit.SpanProgram.EliminationSynthesis
 public import CslibFrontier.Computability.Circuit.StraightLine
 public import CslibFrontier.Computability.Circuit.SumOfTerms
 public import CslibFrontier.Computability.Circuit.SumOfTerms.Basic
