@@ -99,13 +99,8 @@ theorem ComputableInPolyTimeWithOracle.encoded_mem_SigmaP_two {f : α → β}
 
 /-- **`P^A ⊆ Σ₂` for `A ∈ NP`.** -/
 theorem PWithOracle_subset_SigmaP_two (hA : A ∈ NP encBits) :
-    PWithOracle A enc ⊆ SigmaP 2 enc := by
-  rintro L ⟨f, hf, hL⟩
-  have hP : ComputableInPolyTime (fun x : α × List Bool => decide (x.2 = [true]))
-      (encPair enc encBits) encBool := by fun_prop
-  convert hf.encoded_mem_SigmaP_two hA hP using 1
-  ext a
-  simp [hL a, encBool_apply]
+    PWithOracle A enc ⊆ SigmaP 2 enc :=
+  PWithOracle_subset_SigmaP_succ (k := 1) (SigmaP_one ▸ hA)
 
 /-- **`P^A ⊆ Π₂` for `A ∈ NP`**: `P^A` is closed under complement. -/
 theorem PWithOracle_subset_PiP_two (hA : A ∈ NP encBits) :
