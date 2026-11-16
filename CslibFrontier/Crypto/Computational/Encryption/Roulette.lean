@@ -479,9 +479,7 @@ theorem DEMOneTimeKeyINDCPAOf.negligible_rouletteDEMAdvantage
     hdem (rouletteToDEMAdversary id A)
       (isPPT_rouletteToDEMAdversary ComputableInPolyTime.id' hA)
   have hstat : Negligible (fun n => (74 : ℝ≥0) / 2 ^ id n) := by
-    have hpow : Negligible (fun n => ((2 : ℝ≥0) ^ id n)⁻¹) :=
-      negligible_inv_two_pow.comp_polynomiallyLowerBounded PolynomiallyLowerBounded.id
-    simpa [div_eq_mul_inv] using Negligible.const_div (74 : ℝ≥0) hpow
+    simpa only [Nat.cast_ofNat, id_eq] using negligible_const_div_two_pow 74
   exact negligible_of_le (hadv.add_fun hstat)
     (rouletteDEMAdvantage_le_demKeyGame_add id keyLen encryptSym A)
 
