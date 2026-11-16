@@ -417,7 +417,7 @@ theorem isPPTOn_run_cpaEncryptionOracle (E : SymmetricCipher) {adversary : Oracl
       (fun pair : (ℕ × List Bool) × ((Unit × List Bool) × Unit) =>
         E.cpaEncryptionOracle pair.1.1 pair.1.2 bit pair.2.1 pair.2.2) := by
     unfold cpaEncryptionOracle
-    exact IsPPTOn.cond' hcond hyes hno
+    exact IsPPTOn.cond hcond hyes hno
   apply hadversary.run_interpret_preprocess
     (prepare := fun caller : ℕ × List Bool => (caller.1, ([] : List Bool)))
     (initial := fun _ => ())
@@ -589,7 +589,7 @@ theorem isPPTOn_run_oneTimeCPAEncryptionOracle (E : SymmetricCipher)
       (fun pair : (ℕ × List Bool) × ((Unit × List Bool) × Bool) =>
         E.oneTimeCPAEncryptionOracle pair.1.1 pair.1.2 bit pair.2.1 pair.2.2) := by
     unfold oneTimeCPAEncryptionOracle
-    exact IsPPTOn.cond' hcond hyes hno
+    exact IsPPTOn.cond hcond hyes hno
   apply hadversary.run_interpret_preprocess
     (prepare := fun caller : ℕ × List Bool => (caller.1, ([] : List Bool)))
     (initial := fun _ => false)
@@ -708,7 +708,7 @@ theorem isOraclePPT_cpaLimitToOneQuery {ctBound : ℕ → ℕ}
       (fun pair : (ℕ × List Bool) × ((Unit × List Bool) × Bool) =>
         cpaOneTimeFilterHandler pair.1.1 (ctBound pair.1.1) pair.2.1 pair.2.2) := by
     unfold cpaOneTimeFilterHandler
-    exact IsOraclePPTOn.cond' hcond hquery hnoReply
+    exact IsOraclePPTOn.cond hcond hquery hnoReply
   have hres : ComputableInPolyTime
       (fun pair : (ℕ × List Bool) × List Bool => ctBound pair.1.1 + 1)
       (encPair (encPair encUnary encBits) encBits) encUnary :=
@@ -736,7 +736,7 @@ theorem isOraclePPT_cpaLimitToOneQuery {ctBound : ℕ → ℕ}
     · cases OracleComp.eq_of_mem_supportWith_pure hresult
       exact ⟨trivial, by simp, by simp [encBool_apply]⟩
   unfold cpaLimitToOneQuery
-  simpa only [bind_pure_comp] using (hrun.map' (ComputableInPolyTime.fst _ _)).isOraclePPT
+  simpa only [bind_pure_comp] using (hrun.map (ComputableInPolyTime.fst _ _)).isOraclePPT
 
 /-- When `ctBound n` bounds all ciphertext lengths produced by `E.encrypt n k` on `n`-bit messages,
 running `cpaLimitToOneQuery ctBound adversary` in `cpaGame` has the exact same output distribution
@@ -1041,7 +1041,7 @@ theorem isPPTOn_run_ciEncryptionOracle (E : SymmetricCipher) {adversary : CIAdve
       (fun pair : (ℕ × List Bool) × ((Unit × List Bool) × List (List Bool)) =>
         E.ciEncryptionOracle pair.1.1 pair.1.2 pair.2.1 pair.2.2) := by
     unfold ciEncryptionOracle
-    exact IsPPTOn.cond' hcond hyes hno
+    exact IsPPTOn.cond hcond hyes hno
   apply hadversary.run_interpret_preprocess
     (prepare := fun caller : ℕ × List Bool => (caller.1, ([] : List Bool)))
     (initial := fun _ => ([] : List (List Bool)))
@@ -1208,7 +1208,7 @@ theorem isPPTOn_run_oneTimeCIEncryptionOracle (E : SymmetricCipher) {adversary :
       (fun pair : (ℕ × List Bool) × ((Unit × List Bool) × List (List Bool)) =>
         E.oneTimeCIEncryptionOracle pair.1.1 pair.1.2 pair.2.1 pair.2.2) := by
     unfold oneTimeCIEncryptionOracle
-    exact IsPPTOn.cond' hcond hyes hno
+    exact IsPPTOn.cond hcond hyes hno
   apply hadversary.run_interpret_preprocess
     (prepare := fun caller : ℕ × List Bool => (caller.1, ([] : List Bool)))
     (initial := fun _ => ([] : List (List Bool)))
@@ -1324,7 +1324,7 @@ theorem isOraclePPT_ciLimitToOneQuery {ctBound : ℕ → ℕ}
       (fun pair : (ℕ × List Bool) × ((Unit × List Bool) × Bool) =>
         ciOneTimeFilterHandler pair.1.1 (ctBound pair.1.1) pair.2.1 pair.2.2) := by
     unfold ciOneTimeFilterHandler
-    exact IsOraclePPTOn.cond' hcond hquery hnoReply
+    exact IsOraclePPTOn.cond hcond hquery hnoReply
   have hres : ComputableInPolyTime
       (fun pair : (ℕ × List Bool) × List Bool => ctBound pair.1.1 + 1)
       (encPair (encPair encUnary encBits) encBits) encUnary :=
@@ -1351,7 +1351,7 @@ theorem isOraclePPT_ciLimitToOneQuery {ctBound : ℕ → ℕ}
     · cases OracleComp.eq_of_mem_supportWith_pure hresult
       exact ⟨trivial, by simp, by simp [encBool_apply]⟩
   unfold ciLimitToOneQuery
-  simpa only [bind_pure_comp] using (hrun.map' (ComputableInPolyTime.fst _ _)).isOraclePPT
+  simpa only [bind_pure_comp] using (hrun.map (ComputableInPolyTime.fst _ _)).isOraclePPT
 
 /-- When `ctBound n` bounds all ciphertext lengths produced by `E.encrypt n k` on `n`-bit messages,
 running `ciLimitToOneQuery ctBound adversary` in `ciGame` has the exact same output distribution as
@@ -1489,7 +1489,7 @@ private theorem isPPTOn_ccaDecryptBranch (E : SymmetricCipher) :
         pure ([], p.2.2)) :=
     (ComputableInPolyTime.prod (ComputableInPolyTime.const [])
       (by dsimp only [EIn]; fun_prop)).isPPTOn
-  exact IsPPTOn.cond' hcontains hnoReply
+  exact IsPPTOn.cond hcontains hnoReply
     ((ComputableInPolyTime.prod hdecWord (by dsimp only [EIn]; fun_prop)).isPPTOn)
 
 /-- Running an oracle-PPT CCA adversary against `ccaOracle` is uniformly strict PPT in `(n, k)` for
@@ -1563,12 +1563,12 @@ theorem isPPTOn_run_ccaOracle (E : SymmetricCipher) {adversary : CCAAdversary}
           return (ct, ct :: p.2.2)
         else
           pure ([], p.2.2)) :=
-    IsPPTOn.cond' hencCond hencYes hnoReply
+    IsPPTOn.cond hencCond hencYes hnoReply
   have hhandler : IsPPTOn EIn (encPair encBits (encList encBits))
       (fun pair : (ℕ × List Bool) × ((Bool × List Bool) × List (List Bool)) =>
         E.ccaOracle pair.1.1 pair.1.2 bit pair.2.1 pair.2.2) := by
     unfold ccaOracle
-    exact IsPPTOn.cond' hop (isPPTOn_ccaDecryptBranch E) hencBranch
+    exact IsPPTOn.cond hop (isPPTOn_ccaDecryptBranch E) hencBranch
   apply hadversary.run_interpret_preprocess
     (prepare := fun caller : ℕ × List Bool => (caller.1, ([] : List Bool)))
     (initial := fun _ => ([] : List (List Bool)))
@@ -1759,12 +1759,12 @@ theorem isPPTOn_run_oneTimeCCAOracle (E : SymmetricCipher) {adversary : CCAAdver
           return (ct, [ct])
         else
           pure ([], p.2.2)) :=
-    IsPPTOn.cond' hencCond hencYes hnoReply
+    IsPPTOn.cond hencCond hencYes hnoReply
   have hhandler : IsPPTOn EIn (encPair encBits (encList encBits))
       (fun pair : (ℕ × List Bool) × ((Bool × List Bool) × List (List Bool)) =>
         E.oneTimeCCAOracle pair.1.1 pair.1.2 bit pair.2.1 pair.2.2) := by
     unfold oneTimeCCAOracle
-    exact IsPPTOn.cond' hop (isPPTOn_ccaDecryptBranch E) hencBranch
+    exact IsPPTOn.cond hop (isPPTOn_ccaDecryptBranch E) hencBranch
   apply hadversary.run_interpret_preprocess
     (prepare := fun caller : ℕ × List Bool => (caller.1, ([] : List Bool)))
     (initial := fun _ => ([] : List (List Bool)))
@@ -1917,7 +1917,7 @@ theorem isOraclePPT_ccaLimitToOneEncryptionQuery {ctBound : ℕ → ℕ}
       (fun pair : (ℕ × List Bool) × ((Bool × List Bool) × Bool) =>
         ccaOneTimeFilterHandler pair.1.1 (ctBound pair.1.1) decBound pair.2.1 pair.2.2) := by
     unfold ccaOneTimeFilterHandler
-    exact IsOraclePPTOn.cond' hop hdecQuery (IsOraclePPTOn.cond' hencCond hencQuery hnoReply)
+    exact IsOraclePPTOn.cond hop hdecQuery (IsOraclePPTOn.cond hencCond hencQuery hnoReply)
   have hresCtArg : ComputableInPolyTime
       (fun pair : (ℕ × List Bool) × List Bool => pair.1.1)
       (encPair (encPair encUnary encBits) encBits) encUnary := by
@@ -1963,7 +1963,7 @@ theorem isOraclePPT_ccaLimitToOneEncryptionQuery {ctBound : ℕ → ℕ}
       obtain ⟨rawReply, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hreply
       exact ⟨trivial, (List.length_take_le _ _).trans (by lia), by simp [encBool_apply]⟩
   unfold ccaLimitToOneEncryptionQuery
-  simpa only [bind_pure_comp] using (hrun.map' (ComputableInPolyTime.fst _ _)).isOraclePPT
+  simpa only [bind_pure_comp] using (hrun.map (ComputableInPolyTime.fst _ _)).isOraclePPT
 
 /-- When `ctBound n` bounds all ciphertext lengths produced by `E.encrypt n k` on `n`-bit messages
 and `decBound n ct` bounds all encoded decryption replies `encOption encBits (E.decrypt n k ct)`,
@@ -2177,7 +2177,7 @@ theorem isOraclePPT_ccaToCPAAdversary {ctBound : ℕ → ℕ}
       cases OracleComp.eq_of_mem_supportWith_pure hresult
       exact ⟨trivial, by simp, by lia⟩
   unfold ccaToCPAAdversary
-  simpa only [bind_pure_comp] using (hrun.map' (ComputableInPolyTime.fst _ _)).isOraclePPT
+  simpa only [bind_pure_comp] using (hrun.map (ComputableInPolyTime.fst _ _)).isOraclePPT
 
 /-- When `ctBound n` bounds all ciphertext lengths produced by `E.encrypt n k` on `n`-bit messages,
 running `ccaToCPAAdversary ctBound adversary` in `cpaGame` has the exact same output distribution as
@@ -2418,17 +2418,17 @@ theorem isOraclePPT_ccaToCIAdversary {ctBound Qd : ℕ → ℕ}
         (fun ct => (ct, p.2.2)) <$>
           (List.take (ctBound p.1.1.1) <$>
             ProbOracleComp.query ((), if bit then dropFrame p.2.1.2 else unframe p.2.1.2))) :=
-    (IsOraclePPTOn.query_take' (Operation := Unit) () hmsg hlimit).map_with'
+    (IsOraclePPTOn.query_take (Operation := Unit) () hmsg hlimit).map_with
       (ComputableInPolyTime.prod (by fun_prop)
         (hstate.comp (ComputableInPolyTime.fst EIn encBits)))
   have hhandler : IsOraclePPTOn EIn (encPair encBits EState)
       (fun pair : ((ℕ × List Bool) × ℕ) × ((Bool × List Bool) × (ℕ × (Bool × List Bool))) =>
         ccaToCIHandler pair.1.1.1 (ctBound pair.1.1.1) bit pair.2.1 pair.2.2) := by
     unfold ccaToCIHandler
-    exact IsOraclePPTOn.cond' hcaptured hbranchKeep
-      (IsOraclePPTOn.cond' hop
-        (IsOraclePPTOn.cond' hremZero hbranchZeroDec hbranchStepDec)
-        (IsOraclePPTOn.cond' hencCond hbranchQuery hbranchKeep))
+    exact IsOraclePPTOn.cond hcaptured hbranchKeep
+      (IsOraclePPTOn.cond hop
+        (IsOraclePPTOn.cond hremZero hbranchZeroDec hbranchStepDec)
+        (IsOraclePPTOn.cond hencCond hbranchQuery hbranchKeep))
   have hres : ComputableInPolyTime
       (fun pair : ((ℕ × List Bool) × ℕ) × List Bool => ctBound pair.1.1.1 + pair.2.length + 4)
       (encPair ECaller encBits) encUnary := by
@@ -2504,7 +2504,7 @@ theorem isOraclePPT_ccaToCIAdversary {ctBound Qd : ℕ → ℕ}
       (encPair encBool EState) encBits := by
     dsimp only [EState]; fun_prop
   unfold ccaToCIAdversary ccaToCIAtIndexAdversary
-  simpa only [bind_pure_comp] using (hsample.bind_with (hrun.map' hpost)).isOraclePPT
+  simpa only [bind_pure_comp] using (hsample.bind_with (hrun.map hpost)).isOraclePPT
 
 /-- `ccaToCIHiddenBitAdversary` preserves strict oracle-PPT admissibility (`IsOraclePPT`). -/
 theorem isOraclePPT_ccaToCIHiddenBitAdversary {ctBound Qd : ℕ → ℕ}
@@ -2529,7 +2529,7 @@ theorem isOraclePPT_ccaToCIHiddenBitAdversary {ctBound Qd : ℕ → ℕ}
         ccaToCIAdversary ctBound Qd false adversary pair.1.1 pair.1.2) :=
     (isOraclePPT_ccaToCIAdversary hctBound hQd false hadversary).on.preprocess (by fun_prop)
   unfold ccaToCIHiddenBitAdversary
-  exact (hsample.bind_with (IsOraclePPTOn.cond' hcond htrue hfalse)).isOraclePPT
+  exact (hsample.bind_with (IsOraclePPTOn.cond hcond htrue hfalse)).isOraclePPT
 
 /-! #### Difference-Lemma Hop and Query-Budget Induction for Theorem 9.1 -/
 

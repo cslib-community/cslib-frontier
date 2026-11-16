@@ -96,7 +96,7 @@ public theorem isOraclePPT_oneBlockAdversary : IsOraclePPT encBool oneBlockAdver
       (encPair (encPair encUnary encBits) encBits) encBool := by
     polytime
   unfold oneBlockAdversary
-  exact ((IsOraclePPTOn.query_take' () hrequest hlimit).map_with' hout).isOraclePPT
+  exact ((IsOraclePPTOn.query_take () hrequest hlimit).map_with hout).isOraclePPT
 
 /-- The adversary makes one request. -/
 public theorem isQueryBounded_oneBlockAdversary (n : ℕ) :

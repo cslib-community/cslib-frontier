@@ -156,7 +156,7 @@ theorem isPPTOn_run_encForgeOracle (E : SymmetricCipher) {adversary : CIAdversar
       (fun pair : (ℕ × List Bool) × ((Unit × List Bool) × List (List Bool)) =>
         E.encForgeOracle pair.1.1 pair.1.2 pair.2.1 pair.2.2) := by
     unfold encForgeOracle
-    exact IsPPTOn.cond' hcond hyes hno
+    exact IsPPTOn.cond hcond hyes hno
   apply hadversary.run_interpret_preprocess
     (prepare := fun caller : ℕ × List Bool => (caller.1, ([] : List Bool)))
     (initial := fun _ => ([] : List (List Bool)))

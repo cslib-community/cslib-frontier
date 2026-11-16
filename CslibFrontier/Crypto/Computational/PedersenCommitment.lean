@@ -781,7 +781,7 @@ theorem isPPTOn_pedersenToDLAdversary
         (encPair encBits (encPair (encPair encBits encBits) (encPair encBits encBits))))
       encBits := by
     fun_prop
-  exact hextract.tidy.isPPTOn
+  exact hextract.isPPTOn
 
 /-- **Computational binding of Pedersen commitments under the discrete-logarithm assumption**
 ([Pedersen1991], Section 3, Theorem 3.1; [BonehShoup2023], Section 8.12, Definition 8.8, and

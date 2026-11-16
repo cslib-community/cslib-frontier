@@ -86,12 +86,12 @@ private theorem paddingStep_isOraclePPT :
   have hquery : IsOraclePPTOn (encPair (encPair encUnary (encFinite Unit)) encBits) encBits
       (fun _ => List.take 0 <$> ProbOracleComp.query
         (SenderOperation.table (table false false), [])) :=
-    IsOraclePPTOn.query_take' _ (.const []) (.const 0)
+    IsOraclePPTOn.query_take _ (.const []) (.const 0)
   have hout : ComputableInPolyTime
       (fun p : ((ℕ × Unit) × List Bool) × List Bool =>
         List.replicate p.1.1.1 false ++ p.1.2)
       (encPair (encPair (encPair encUnary (encFinite Unit)) encBits) encBits) encBits := by fun_prop
-  simpa only [paddingStep, map_eq_pure_bind] using hquery.map_with' hout
+  simpa only [paddingStep, map_eq_pure_bind] using hquery.map_with hout
 
 private theorem paddingStep_support (p : ℕ × Unit) (state next : List Bool)
     (h : next ∈ OracleComp.support (paddingStep p state)) :
@@ -109,7 +109,7 @@ private theorem paddingProgram_isOraclePPT :
     IsOraclePPTOn (encPair encUnary (encFinite Unit)) encBits paddingProgram := by
   have hloop : IsOraclePPTOn (encPair encUnary (encFinite Unit)) encBits
       (fun p => OracleComp.iterate p.1 (paddingStep p) []) :=
-    IsOraclePPTOn.iterateWith_of_bounded_growth' (by fun_prop) (.const [])
+    IsOraclePPTOn.iterateWith_of_bounded_growth (by fun_prop) (.const [])
       paddingStep_isOraclePPT
       ((ComputableInPolyTime.fst encUnary (encFinite Unit)).polyBounded)
       (fun p state next hnext => by
@@ -118,9 +118,9 @@ private theorem paddingProgram_isOraclePPT :
   unfold paddingProgram
   apply hloop.bind_with
   apply IsOraclePPTOn.bind_with (middle := encBits)
-  · exact IsOraclePPTOn.query_take' SenderOperation.seal (.const []) (.const 0)
+  · exact IsOraclePPTOn.query_take SenderOperation.seal (.const []) (.const 0)
   apply IsOraclePPTOn.bind_with (middle := encBits)
-  · exact IsOraclePPTOn.query_take' (SenderOperation.open false) (by fun_prop) (.const 0)
+  · exact IsOraclePPTOn.query_take (SenderOperation.open false) (by fun_prop) (.const 0)
   exact ComputableInPolyTime.isOraclePPTOn (by fun_prop)
 
 -- Both actual executions, on charged (unary k, unit) input, inherit this global certificate.

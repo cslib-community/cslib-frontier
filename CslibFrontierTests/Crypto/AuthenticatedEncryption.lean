@@ -410,7 +410,7 @@ theorem isOraclePPT_firstBitCPAAdversary : IsOraclePPT encBool firstBitCPAAdvers
       (encPair (encPair encUnary encBits) encBits) encBool := by
     polytime
   unfold firstBitCPAAdversary
-  exact ((IsOraclePPTOn.query_take' () hq hlim).bind_with hout.isOraclePPTOn).isOraclePPT
+  exact ((IsOraclePPTOn.query_take () hq hlim).bind_with hout.isOraclePPTOn).isOraclePPT
 
 /-- In the one-time game at a positive parameter, the single query is answered by the chosen
 plaintext itself, so the adversary outputs the challenge bit. -/
@@ -472,7 +472,7 @@ theorem isOraclePPT_firstBitCCAAdversary : IsOraclePPT encBool firstBitCCAAdvers
       (encPair (encPair encUnary encBits) encBits) encBool := by
     polytime
   unfold firstBitCCAAdversary
-  exact ((IsOraclePPTOn.query_take' false hq hlim).bind_with hout.isOraclePPTOn).isOraclePPT
+  exact ((IsOraclePPTOn.query_take false hq hlim).bind_with hout.isOraclePPTOn).isOraclePPT
 
 theorem eval_ccaOneTimeGame_firstBitCCAAdversary (bit : Bool) (n : ℕ) :
     ProbComp.eval (echoCipher.ccaOneTimeGame firstBitCCAAdversary bit (n + 1)) = PMF.pure bit := by

@@ -428,7 +428,7 @@ checked algorithms and the typed-ROM replay example in
 provides the actual `schnorrROMSign` and `schnorrROMVerify` oracle programs. The signer samples
 `sampleExp n d`, normalizes the nonce modulo the group order, and hashes the same encoded pair.
 The verifier uses the existing total outer-signature decoder and canonical commitment verifier.
-Both read at most `m` reply bits with `query_take'`; their `IsOraclePPTOn` certificates
+Both read at most `m` reply bits with `query_take`; their `IsOraclePPTOn` certificates
 (`isOraclePPTOn_schnorrROMSign`, `isOraclePPTOn_schnorrROMVerify`) charge all of their inputs—group
 description, unary challenge width `m`, and key, message or signature words, plus unary sampling
 accuracy `n` for the signer.

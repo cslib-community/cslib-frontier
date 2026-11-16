@@ -1170,7 +1170,7 @@ theorem isOraclePPT_prfPadDistinguisher
   have hq : IsOraclePPTOn (encPair encUnary encBits) encBits
       (fun p : ℕ × List Bool =>
         List.take p.1 <$> ProbOracleComp.query ((), List.replicate p.1 false)) :=
-    IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop)
+    IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop)
   apply IsOraclePPTOn.isOraclePPT
   exact hq.bind_with ((htest.preprocess
     (prepare := fun p : (ℕ × List Bool) × List Bool => (p.1.1, p.2))
@@ -1718,7 +1718,7 @@ theorem isOraclePPT_prfMultiPadDistinguisher
       encBits
       (fun p : (ℕ × List Bool) × List (List Bool) =>
         List.take p.1.1 <$> ProbOracleComp.query ((), nonce p.1.1 p.2.length)) :=
-    IsOraclePPTOn.query_take' ()
+    IsOraclePPTOn.query_take ()
       (hnonce.comp (g := fun p : (ℕ × List Bool) × List (List Bool) => (p.1.1, p.2.length))
         (by fun_prop))
       (by fun_prop)
@@ -1728,7 +1728,7 @@ theorem isOraclePPT_prfMultiPadDistinguisher
       (fun p : (ℕ × List Bool) × List (List Bool) =>
         prfPadCollectStep p.1.1 nonce p.2) := by
     unfold prfPadCollectStep
-    exact hq.map_with'
+    exact hq.map_with
       (f := fun (p : (ℕ × List Bool) × List (List Bool)) reply => p.2 ++ [reply])
       (by fun_prop)
   have hpoly : PolyBounded (fun p : ℕ × List Bool => (encPair encUnary encBits p).length)
@@ -1739,7 +1739,7 @@ theorem isOraclePPT_prfMultiPadDistinguisher
   have hiter : IsOraclePPTOn (encPair encUnary encBits) (encList encBits)
       (fun p : ℕ × List Bool =>
         OracleComp.iterate (Q p.1) (prfPadCollectStep p.1 nonce) []) := by
-    refine IsOraclePPTOn.iterateWith_of_bounded_growth'
+    refine IsOraclePPTOn.iterateWith_of_bounded_growth
       (initial := fun _ : ℕ × List Bool => ([] : List (List Bool)))
       (count := fun p : ℕ × List Bool => Q p.1)
       (step := fun (p : ℕ × List Bool) pads => prfPadCollectStep p.1 nonce pads)
@@ -2532,8 +2532,8 @@ theorem isOraclePPT_prfNonceToPrfDistinguisher
           ((Unit × List Bool) × List ((List Bool × List Bool) × List Bool)) =>
         cwNonceLogHandler msgLen hash p.1.1.1 p.1.2 p.2.1 p.2.2) := by
     unfold cwNonceLogHandler
-    exact IsOraclePPTOn.cond' (by fun_prop)
-      ((IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop)).map_with' (by fun_prop))
+    exact IsOraclePPTOn.cond (by fun_prop)
+      ((IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop)).map_with (by fun_prop))
       ((show ComputableInPolyTime
         (fun p : ((ℕ × List Bool) × List Bool) ×
             ((Unit × List Bool) × List ((List Bool × List Bool) × List Bool)) =>
@@ -2589,10 +2589,10 @@ theorem isOraclePPT_prfNonceToPrfDistinguisher
       (fun p : ((ℕ × List Bool) × List Bool) ×
           (((List Bool × List Bool) × List Bool) × List ((List Bool × List Bool) × List Bool)) =>
         List.take p.1.1.1 <$> ProbOracleComp.query ((), p.2.1.1.2)) :=
-    IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop)
+    IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop)
   unfold prfNonceToPrfDistinguisher
   apply IsOraclePPTOn.isOraclePPT
-  exact hk.bind_with (hrun.bind_with (hq.map_with' (by
+  exact hk.bind_with (hrun.bind_with (hq.map_with (by
     simp only [List.contains_eq_mem]
     fun_prop)))
 
@@ -3791,8 +3791,8 @@ private theorem isOraclePPTOn_cwRandomNonceLogHandler
           let fullTag := encPair encBits encBits (nonce, tag)
           (fullTag, (msg, fullTag) :: q.1.2.2)) <$>
           (List.take q.1.1.1.1 <$> ProbOracleComp.query ((), q.2))) :=
-    (IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop)).map_with' (by fun_prop)
-  exact IsOraclePPTOn.cond' (by fun_prop) (hsample.bind_with hquery)
+    (IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop)).map_with (by fun_prop)
+  exact IsOraclePPTOn.cond (by fun_prop) (hsample.bind_with hquery)
     ((show ComputableInPolyTime
       (fun p : ((ℕ × List Bool) × List Bool) ×
           ((Unit × List Bool) × List (List Bool × List Bool)) =>
@@ -3824,7 +3824,7 @@ private theorem isOraclePPTOn_cwRandomNonceCheck
             !p.2.2.contains p.2.1 &&
             (encPair encBits encBits (nonce, tag) == fullTag)) <$>
           (List.take p.1.1.1 <$> ProbOracleComp.query ((), unframe p.2.1.2))) :=
-  (IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop)).map_with' (by
+  (IsOraclePPTOn.query_take () (by fun_prop) (by fun_prop)).map_with (by
     simp only [List.contains_eq_mem]
     fun_prop)
 

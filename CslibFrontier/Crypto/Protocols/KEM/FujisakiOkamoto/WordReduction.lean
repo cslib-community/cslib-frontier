@@ -427,7 +427,7 @@ theorem IsEfficient.isPPTOn_simFilterWordHandler {P : WordPKE} (hP : P.IsEfficie
         pure (([] : List Bool), x.2.2)) :=
     ((ComputableInPolyTime.const ([] : List Bool)).prod hst).isPPTOn
   -- `G` requests
-  have hG := IsPPTOn.ite'
+  have hG := IsPPTOn.ite
     (condition := fun x : (ℕ × List Bool × List Bool) × (CCAOp × List Bool) × WState =>
       x.2.1.2.length = P.msgLen x.1.1)
     (ComputableInPolyTime.decide_eq' (ComputableInPolyTime.length_bits.comp hw)
@@ -449,7 +449,7 @@ theorem IsEfficient.isPPTOn_simFilterWordHandler {P : WordPKE} (hP : P.IsEfficie
     ComputableInPolyTime.decide_eq' (hP.encDet.comp ((hn.comp hfst).prod ((hpk.comp hfst).prod
       ((hdec.snd'.fst'.comp hfst).prod (ComputableInPolyTime.snd _ _).fst'))))
       (hdec.snd'.snd'.comp hfst)
-  have hafter := IsPPTOn.ite' hcheck
+  have hafter := IsPPTOn.ite hcheck
     (isPPTOn_simHashHq (hkeyLen.comp (hn.comp hfst)) (hdec.snd'.snd'.comp hfst)
       (ComputableInPolyTime.snd _ _).snd')
     (isPPTOn_simHashHRaw (hkeyLen.comp (hn.comp hfst))
@@ -468,8 +468,8 @@ theorem IsEfficient.isPPTOn_simFilterWordHandler {P : WordPKE} (hP : P.IsEfficie
         simHashHRaw (R := List Bool) (BitString.sampleList (keyLen x.1.1))
           (false, (hQueryDecoder.decode x.2.1.2).2.1, (hQueryDecoder.decode x.2.1.2).2.2) p.2)
     (isPPTOn_simHashG (hP.coinLen.comp hn) hdec.snd'.fst' hst) hafter
-  have hH := IsPPTOn.cond' (hP.computableInPolyTime_isHQuery.comp (hn.prod hw))
-    (IsPPTOn.cond' hdec.fst' hraw hfalse) hreject
+  have hH := IsPPTOn.cond (hP.computableInPolyTime_isHQuery.comp (hn.prod hw))
+    (IsPPTOn.cond hdec.fst' hraw hfalse) hreject
   -- decapsulation requests
   have hnone : IsPPTOn encSimCall (encPair encBits encSimState)
       (fun x : (ℕ × List Bool × List Bool) × (CCAOp × List Bool) × WState =>
@@ -480,18 +480,18 @@ theorem IsEfficient.isPPTOn_simFilterWordHandler {P : WordPKE} (hP : P.IsEfficie
   have hkey := (isPPTOn_simHashHq (hkeyLen.comp hn) hw hst).map
     (f := fun p => (encOption encBits (some p.1), p.2))
     (hsome.encoding_comp.prod (ComputableInPolyTime.snd _ _))
-  have hD := IsPPTOn.ite'
+  have hD := IsPPTOn.ite
     (condition := fun x : (ℕ × List Bool × List Bool) × (CCAOp × List Bool) × WState =>
       x.2.1.2.length ≤ P.ctLen x.1.1)
     (ComputableInPolyTime.unary_le' (ComputableInPolyTime.length_bits.comp hw)
       (hP.ctLen.comp hn))
-    (IsPPTOn.ite' (ComputableInPolyTime.decide_eq' hw hcs) hnone
-      (IsPPTOn.cond' (hd.comp (hpk.prod ((by fun_prop : ComputableInPolyTime
+    (IsPPTOn.ite (ComputableInPolyTime.decide_eq' hw hcs) hnone
+      (IsPPTOn.cond (hd.comp (hpk.prod ((by fun_prop : ComputableInPolyTime
         (fun x : (ℕ × List Bool × List Bool) × (CCAOp × List Bool) × WState => x.2.2.gCache)
         encSimCall (encMemoCache encBits encBits)).prod hw))) hkey hnone)) hreject
-  have hall := IsPPTOn.ite' (ComputableInPolyTime.decide_eq' hop
+  have hall := IsPPTOn.ite (ComputableInPolyTime.decide_eq' hop
       (ComputableInPolyTime.const CCAOp.G)) hG
-    (IsPPTOn.ite' (ComputableInPolyTime.decide_eq' hop (ComputableInPolyTime.const CCAOp.H))
+    (IsPPTOn.ite (ComputableInPolyTime.decide_eq' hop (ComputableInPolyTime.const CCAOp.H))
       hH hD)
   refine hall.congr fun x => ?_
   rw [simFilterWordHandler_eq_explicit]

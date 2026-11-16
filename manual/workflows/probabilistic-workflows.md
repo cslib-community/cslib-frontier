@@ -1649,7 +1649,7 @@ example (test : List Bool × Bool × ℕ → Bool)
 
 Also check the sampler itself. `ProbComp.uniform (Fin 3)` has exact uniform semantics, but a strictly bounded fair-coin machine cannot give each outcome probability one third. The client deliberately tests that `ppt` does not certify it for free. Use an applicable dyadic sampler or the library's approximate-sampling results, carrying the approximation error into the later probability proof.
 
-`ppt` pays a search cost at every call, even on small goals. When a file certifies many inverters or reductions, or `ppt` fails on an adversary call whose inputs need preparation, compose the rules directly. Start with `IsPPTOn.isPPT`, then bind each sampled word with `(ComputableInPolyTime.sampleList h).bind_with`. Call the adversary through `IsPPT.preprocess`, which takes separate tidy certificates for the parameter and auxiliary input; `ComputableInPolyTime.tidy` converts plain ones. Close the deterministic leaves with `fun_prop`. The more general `IsPPTOn.preprocess` takes one certificate for the pair. Given `.prod` of two projections, it cannot infer the preparation function, so `fun_prop` meets goals with unassigned metavariables. The [InaccessibleEntropy client](../../CslibFrontierTests/Crypto/InaccessibleEntropy.lean) checks this pattern on a small inverter:
+`ppt` pays a search cost at every call, even on small goals. When a file certifies many inverters or reductions, or `ppt` fails on an adversary call whose inputs need preparation, compose the rules directly. Start with `IsPPTOn.isPPT`, then bind each sampled word with `(ComputableInPolyTime.sampleList h).bind_with`. Call the adversary through `IsPPT.preprocess`, which takes separate plain `ComputableInPolyTime` certificates for the parameter and auxiliary input. Close the deterministic leaves with `fun_prop`. The more general `IsPPTOn.preprocess` takes one certificate for the pair. Given `.prod` of two projections, it cannot infer the preparation function, so `fun_prop` meets goals with unassigned metavariables. The [InaccessibleEntropy client](../../CslibFrontierTests/Crypto/InaccessibleEntropy.lean) checks this pattern on a small inverter:
 
 <!-- excerpt: ppt-explicit-adversary-call -->
 ```lean
@@ -1660,8 +1660,7 @@ example {A : ℕ → List Bool → ProbComp (List Bool)} (hA : IsPPT encBits A) 
       return raw.take n) := by
   apply IsPPTOn.isPPT
   refine (ComputableInPolyTime.sampleList (by fun_prop)).bind_with ?_
-  exact (hA.preprocess (ComputableInPolyTime.tidy (by fun_prop))
-    (ComputableInPolyTime.tidy (by fun_prop))).bind_with
+  exact (hA.preprocess (by fun_prop) (by fun_prop)).bind_with
     (ComputableInPolyTime.isPPTOn (by fun_prop))
 ```
 
@@ -1670,12 +1669,26 @@ The inverters in the [InaccessibleEntropy development](../../CslibFrontier/Crypt
 ### Plain certificates for closed adaptive loops
 
 Import [Adaptive.lean](../../CslibFrontier/Computability/Probabilistic/Adaptive.lean).
-`IsPPTOn.iterate_spec'` and `iterateWith_spec'` take plain `ComputableInPolyTime`
-certificates for the unary count and initial state. Use `iterate_of_bounded_growth'`
-for fixed additive encoded-state growth, `iterateWith_of_bounded_growth'` for growth
-polynomially bounded in the captured input, and `iterate_of_length_le'` when the
+`IsPPTOn.iterate_spec` and `iterateWith_spec` take plain `ComputableInPolyTime`
+certificates for the unary count and initial state. Use `iterate_of_bounded_growth`
+for fixed additive encoded-state growth, `iterateWith_of_bounded_growth` for growth
+polynomially bounded in the captured input, and `iterate_of_length_le` when the
 step never increases encoded size. The growth premises cover every supported result.
-The unprimed entry points retain their existing tidy premises during #862 migration.
+These canonical entry points use plain callback certificates; the redundant primed
+spellings and the tidy deterministic-to-PPT lift are removed. Close a deterministic
+probabilistic leaf with `ComputableInPolyTime.isPPTOn`, preserving its encoded
+result distribution and strict fair-coin clock.
+The retained-data rules `IsPPTOn.prefix` and `IsPPTOn.pair` likewise take plain
+certificates, while charging for the encoded data they copy.
+
+For a complete ordinary-import starting point, follow
+[`ClosedPPTCanonical.lean`](../../CslibFrontierTests/ClosedPPTCanonical.lean): it prepares nonempty
+captured words, selects sampled branches, proves an invariant at every supported loop prefix,
+and checks zero rounds and empty traversals. Run
+`scripts/build.sh CslibFrontierTests.ClosedPPTCanonical` to check the client.
+Parameter preprocessing keeps the unary parameter before the auxiliary word. The deterministic
+lift consumes independent time and workspace certificates; it does not infer a workspace bound
+from output length or alter the private-coin distribution.
 
 The [layered evaluator](../../CslibFrontier/Crypto/Computational/Homomorphic/Layered/PolyTime.lean)
 passes its existing `hcount` and `hinit` directly to the captured-growth rule. Its bound
@@ -1704,7 +1717,13 @@ supplies neither encryption correctness nor a security reduction.
 Import [Oracle/Composition.lean](../../CslibFrontier/Computability/Probabilistic/Oracle/Composition.lean)
 and use `IsOraclePPTOn` with explicit input and output encodings. The composition rules compile
 an internal clean phase as a proof implementation; ordinary clients do not import or construct
-that witness. The [ordinary-module client](../../CslibFrontierTests/OraclePhaseFacade.lean)
+that witness. The canonical `query_take`, `preprocess`, `map`, `map_with`, `cond`, `ite`,
+`finite_cases` and bounded-loop rules accept plain polynomial-time numerical certificates.
+Use `iterate_spec` for a state-only loop and `iterateWith_spec` when the step captures the
+original input; both retain the stated invariant at every reachable prefix and at termination.
+The [concrete canonical-rule client](../../CslibFrontierTests/OracleCompositionCanonical.lean)
+checks captured input, selected external calls, sampled iteration and zero rounds.
+The [ordinary-module client](../../CslibFrontierTests/OraclePhaseFacade.lean)
 composes plain deterministic preparation, sampled bits, selected branching and a bounded loop.
 It also checks that neither the former public tidy predicate nor the internal phase witness is
 available through the facade. The [internal machine tests](../../CslibFrontierTests/PlainCleanPhase.lean)

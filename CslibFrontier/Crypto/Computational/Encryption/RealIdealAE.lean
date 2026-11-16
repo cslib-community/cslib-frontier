@@ -252,7 +252,7 @@ theorem isOraclePPT_cpaToAEAdversary {ctBound : ℕ → ℕ}
   have hrun := isOraclePPTOn_run_unitHandler (handler := fun n => cpaToAEHandler n (ctBound n) bit)
     (bound := fun n _ => ctBound n) hadversary hhandler (hctBound.comp (by fun_prop)) hreply
   unfold cpaToAEAdversary
-  simpa only [bind_pure_comp] using (hrun.map' (ComputableInPolyTime.fst _ _)).isOraclePPT
+  simpa only [bind_pure_comp] using (hrun.map (ComputableInPolyTime.fst _ _)).isOraclePPT
 
 /-- One step of `cpaToAEHandler` against the real oracle, after forgetting all state, is one step
 of the left-or-right CPA encryption oracle. -/
@@ -414,7 +414,7 @@ theorem isOraclePPT_ciToAEAdversary {ctBound : ℕ → ℕ}
       encBool (fun pair : (ℕ × List Bool) × (List Bool × Unit) =>
         (fun reply => reply == [true]) <$>
           (List.take 1 <$> ProbOracleComp.query (true, pair.2.1))) :=
-    (IsOraclePPTOn.query_take' true (by fun_prop) (ComputableInPolyTime.const 1)).map'
+    (IsOraclePPTOn.query_take true (by fun_prop) (ComputableInPolyTime.const 1)).map
       (by fun_prop)
   unfold ciToAEAdversary
   simpa only [bind_pure_comp] using (hrun.bind_with hcont).isOraclePPT
@@ -571,7 +571,7 @@ private theorem isOraclePPTOn_aeToCCAHandler {ctBound : ℕ → ℕ} {decBound :
           ProbOracleComp.query (false, frame p.2.1.2 ++ List.replicate p.1.1 false))) := by
     ppt
   unfold aeToCCAHandler
-  exact IsOraclePPTOn.cond' hop hdecQuery hencQuery
+  exact IsOraclePPTOn.cond hop hdecQuery hencQuery
 
 /-- A reply of `aeToCCAHandler` at parameter `n` to a request `(op, word)` has length at most
 `ctBound n + decBound n word`. -/
@@ -612,7 +612,7 @@ theorem isOraclePPT_aeToCCAAdversary {ctBound : ℕ → ℕ} {decBound : ℕ →
     (ComputableInPolyTime.unary_add' (hctBound.comp hresCtArg) (hdecBound.comp hresDecArg))
     length_of_mem_support_aeToCCAHandler
   unfold aeToCCAAdversary
-  simpa only [bind_pure_comp] using (hrun.map' (ComputableInPolyTime.fst _ _)).isOraclePPT
+  simpa only [bind_pure_comp] using (hrun.map (ComputableInPolyTime.fst _ _)).isOraclePPT
 
 /-- One step of the real oracle, with its record paired with the handler's unit state, is one step
 of `aeToCCAHandler` against the CCA oracle with challenge bit `false`. -/

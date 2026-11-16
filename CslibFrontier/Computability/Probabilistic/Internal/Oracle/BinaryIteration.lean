@@ -546,7 +546,7 @@ theorem IsPPTOn.exists_multiTapePTM_iterateWith_binary {initial : α → σ} {co
   let packedStep (pair : α × σ) : ProbComp (α × σ) :=
     (fun next => (pair.1, next)) <$> step pair.1 pair.2
   have hpackedStep : IsPPTOn packedEnc packedEnc packedStep :=
-    hstep.pair (ComputableInPolyTime.fst input stateEncoding).tidy
+    hstep.pair (ComputableInPolyTime.fst input stateEncoding)
   obtain ⟨⟨kM, Mid, hfinM, midM, cM, eM, hmidM⟩, -⟩ :=
     IsPPTOn.exists_multiTapePTM_iterate_binary hcount
       (ComputableInPolyTime.id'.prod hinitial) hpackedStep

@@ -589,7 +589,7 @@ theorem isPPT_lamportInverter {f : List Bool → List Bool}
   have hj_proj := hq_j.comp (hp1.comp (ComputableInPolyTime.fst encCallIn encOut))
   have hpost := ComputableInPolyTime.listGetDWithInput (computableInPolyTime_frames hsig)
     ((ComputableInPolyTime.unary_div_const 2).comp hj_proj) []
-  exact (hj.bind_with (IsPPTOn.ite'
+  exact (hj.bind_with (IsPPTOn.ite
     (ComputableInPolyTime.unary_lt' hq_j (uConstMul 2 hq_n))
     (hkeys.bind_with ((hrun_base.preprocess hprep).bind_with hpost.isPPTOn))
     (ComputableInPolyTime.const []).isPPTOn)).isPPT

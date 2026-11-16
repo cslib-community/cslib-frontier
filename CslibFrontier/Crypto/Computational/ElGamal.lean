@@ -516,7 +516,7 @@ theorem isPPT_elGamalMsgToDDHDistinguisher {Msg : Type} {encMsg : Msg ↪ List B
     · exact hm₁
   have hvalidStep := (hvalid.comp (hn.prod
     ((hpk.comp (ComputableInPolyTime.fst F.encDDHInput (Encryption.encChoiceOut encMsg))).prod
-      (hm₀.prod hm₁)))).tidy
+      (hm₀.prod hm₁))))
   have hguessStep := hA.guess.preprocess
     (prepare := fun p : F.DDHInput × Encryption.ChoiceOut Msg =>
       (p.1.secParam, p.2.2, encPair encBits encBits
@@ -531,7 +531,7 @@ theorem isPPT_elGamalMsgToDDHDistinguisher {Msg : Type} {encMsg : Msg ↪ List B
       (x.secParam, encPair F.encDesc encBits (x.groupParameters, F.encode _ x.leftPublic)))
     ((show ComputableInPolyTime (fun x : F.DDHInput => x.secParam) _ encUnary by fun_prop).prod
       hpk)).bind_with ?_
-  exact IsPPTOn.cond hvalidStep hguessStep (ComputableTidilyInPolyTime.const false).isPPTOn
+  exact IsPPTOn.cond hvalidStep hguessStep (ComputableInPolyTime.const false).isPPTOn
 
 /-- **Typed-message ElGamal encryption is IND-CPA secure under the DDH assumption**
 ([BonehShoup2023], Exercise 11.5(a), p. 459): for a polynomial-time admissibility predicate `valid`

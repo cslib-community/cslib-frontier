@@ -142,17 +142,17 @@ private theorem isOraclePPTOn_ivStreamPrfHandler
   have hksIv : IsOraclePPTOn (Operation := Unit) EIv encBits
       (fun q : ((ℕ × List Bool) × (Unit × List Bool)) × List Bool =>
         keystreamQueries q.1.1.1 q.2 ((unframe q.1.2.2).length / q.1.1.1)) :=
-    hks.preprocess' ((hn.comp (ComputableInPolyTime.fst _ _)).prod
+    hks.preprocess ((hn.comp (ComputableInPolyTime.fst _ _)).prod
       ((ComputableInPolyTime.snd _ _).prod hblocks))
   have hyes : IsOraclePPTOn (Operation := Unit) EIv encBits
       (fun q : ((ℕ × List Bool) × (Unit × List Bool)) × List Bool =>
         (fun ks => q.2 ++ List.zipWith xor ks (if bit then dropFrame q.1.2.2 else unframe q.1.2.2))
           <$> keystreamQueries q.1.1.1 q.2 ((unframe q.1.2.2).length / q.1.1.1)) :=
-    hksIv.map_with' (ComputableInPolyTime.bitsAppend (by dsimp only [EIv]; fun_prop)
+    hksIv.map_with (ComputableInPolyTime.bitsAppend (by dsimp only [EIv]; fun_prop)
       (ComputableInPolyTime.bitsZipWithInput xor (ComputableInPolyTime.snd _ _)
         (hmsg.comp ((ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.fst _ _)))))
   unfold ivStreamPrfHandler
-  exact IsOraclePPTOn.cond' hcond
+  exact IsOraclePPTOn.cond hcond
     (IsOraclePPTOn.bind_with
       ((isPPTOn_sampleList.preprocess hn).isOraclePPTOn) hyes)
     (ComputableInPolyTime.isOraclePPTOn (ComputableInPolyTime.const []))

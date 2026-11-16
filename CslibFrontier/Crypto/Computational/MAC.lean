@@ -846,7 +846,7 @@ theorem isPPTOn_run_oneTimeSigningPairOracle (M : MACScheme) {adversary : Forger
       (fun pair : (ℕ × List Bool) × ((Unit × List Bool) × List (List Bool × List Bool)) =>
         M.oneTimeSigningPairOracle pair.1.2 pair.2.1 pair.2.2) := by
     unfold oneTimeSigningPairOracle
-    exact IsPPTOn.ite' (by fun_prop)
+    exact IsPPTOn.ite (by fun_prop)
       ((M.isPPTOn_sign_comp (by fun_prop) (by fun_prop)).bind_with
         (ComputableInPolyTime.isPPTOn (by fun_prop)))
       (ComputableInPolyTime.isPPTOn (by fun_prop))
