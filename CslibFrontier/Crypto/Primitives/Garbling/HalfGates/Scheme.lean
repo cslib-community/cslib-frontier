@@ -377,7 +377,7 @@ private theorem getD_ofFn_labels {n s k : ℕ} (A : Wire n s → BitString (k + 
   simp [hi]
 
 /-- The first argument of gate `g` of `toCircuit f` as a wire number. -/
-theorem left_toCircuit (f : XorAndCircuit) (g : Fin (toCircuit f).size) :
+private theorem left_toCircuit (f : XorAndCircuit) (g : Fin (toCircuit f).size) :
     left (toCircuit f) g = Wire.ofNat (f.circuit.A (g.cast (size_toCircuit f)) - 1) (by
       have h₁ := toNat_left_lt (toCircuit f) g
       have h₂ := toNat_left_toCircuit f g
@@ -385,7 +385,7 @@ theorem left_toCircuit (f : XorAndCircuit) (g : Fin (toCircuit f).size) :
   Wire.toNat_injective (by simp only [Wire.toNat_ofNat]; exact toNat_left_toCircuit f g)
 
 /-- The second argument of gate `g` of `toCircuit f` as a wire number. -/
-theorem right_toCircuit (f : XorAndCircuit) (g : Fin (toCircuit f).size) :
+private theorem right_toCircuit (f : XorAndCircuit) (g : Fin (toCircuit f).size) :
     right (toCircuit f) g = Wire.ofNat (f.circuit.B (g.cast (size_toCircuit f)) - 1) (by
       have h₁ := toNat_right_lt (toCircuit f) g
       have h₂ := toNat_right_toCircuit f g
@@ -473,10 +473,33 @@ private theorem zeroWords_q (k : ℕ) (f : XorAndCircuit) (coins : List Bool) :
   rw [zeroWords_eq hash k f coins le_rfl, List.take_of_length_le (by simp [size_toCircuit])]
 
 /-- Gate `g` of `toCircuit f` is an AND gate exactly when `G g 1 1` is set. -/
-theorem decide_op_toCircuit (f : XorAndCircuit) (g : Fin (toCircuit f).size) :
+private theorem decide_op_toCircuit (f : XorAndCircuit) (g : Fin (toCircuit f).size) :
     decide (op (toCircuit f) g = .and) = f.circuit.G (g.cast (size_toCircuit f)) true true := by
   rw [op_toCircuit, opOf]
   cases f.circuit.G (g.cast (size_toCircuit f)) true true <;> rfl
+
+/-- **Gate `g` of a typed garbled table over `toCircuit f`, as a word**: the argument wires
+`A g` and `B g` of `f` as `w`-bit numbers, `w` the bit length of `n + q`, the AND bit `G g 1 1`,
+and for an AND gate the words of its two ciphertexts, the generator half first. -/
+theorem encodeGate_toCircuit (k : ℕ) (f : XorAndCircuit)
+    (table : Slot (toCircuit f) → BitString (k + 1) × Bool) (g : Fin (toCircuit f).size) :
+    encodeGate k (PointPermute.wireWidth f.circuit.n (toCircuit f).size) (toCircuit f) table g =
+      BitString.lowBits (PointPermute.wireWidth f.circuit.n f.circuit.q)
+          (f.circuit.A (g.cast (size_toCircuit f))) ++
+        BitString.lowBits (PointPermute.wireWidth f.circuit.n f.circuit.q)
+          (f.circuit.B (g.cast (size_toCircuit f))) ++
+        [f.circuit.G (g.cast (size_toCircuit f)) true true] ++
+        if h : op (toCircuit f) g = .and then
+          labelBits (table (⟨g, h⟩, false)) ++ labelBits (table (⟨g, h⟩, true))
+        else [] := by
+  have hA₁ := f.isValid.one_le_A (g.cast (size_toCircuit f))
+  have hAB := f.isValid.A_lt_B (g.cast (size_toCircuit f))
+  simp only [ConventionalCircuit.topo] at hA₁ hAB
+  have hw : PointPermute.wireWidth f.circuit.n (toCircuit f).size =
+      PointPermute.wireWidth f.circuit.n f.circuit.q := by rw [size_toCircuit]
+  rw [hw]
+  simp only [encodeGate, toNat_left_toCircuit, toNat_right_toCircuit, Nat.sub_add_cancel hA₁,
+    Nat.sub_add_cancel (hA₁.trans hAB.le), decide_op_toCircuit]
 
 /-- The block of gate `g` of the typed garbled table, as a word, is `gateWord`. -/
 private theorem encodeGate_garbleTable (k : ℕ) (f : XorAndCircuit) (coins : List Bool)
@@ -498,11 +521,8 @@ private theorem encodeGate_garbleTable (k : ℕ) (f : XorAndCircuit) (coins : Li
   have hgs := g.isLt
   have hl := left_toCircuit f g
   have hr := right_toCircuit f g
-  have hw : PointPermute.wireWidth f.circuit.n (toCircuit f).size =
-      PointPermute.wireWidth f.circuit.n f.circuit.q := by rw [size_toCircuit]
-  rw [hw, zeroWords_q, ← hWdef]
-  simp only [encodeGate, gateWord, toNat_left_toCircuit, toNat_right_toCircuit,
-    Nat.sub_add_cancel hA₁, Nat.sub_add_cancel (hA₁.trans hAB.le), decide_op_toCircuit]
+  rw [encodeGate_toCircuit, zeroWords_q, ← hWdef]
+  simp only [gateWord]
   rw [getD_ofFn_labels W (by omega), getD_ofFn_labels W (by omega), ← hl, ← hr]
   cases hG : f.circuit.G (g.cast (size_toCircuit f)) true true
   · have hop : op (toCircuit f) g = .xor := by rw [op_toCircuit, opOf, hG]; rfl

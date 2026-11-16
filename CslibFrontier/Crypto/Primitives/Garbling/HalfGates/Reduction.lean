@@ -546,20 +546,13 @@ private theorem encodeGate_eq_ctRow (T : Slot (toCircuit f) → BitString (k + 1
         (List.ofFn fun i : Fin 4 => ctRow (blocksUpTo k f T f.circuit.q)
           (f.circuit.G (g.cast (size_toCircuit f)) true true) (g.cast (size_toCircuit f))
             i).flatten := by
-  have hA₁ := f.isValid.one_le_A (g.cast (size_toCircuit f))
-  have hAB := f.isValid.A_lt_B (g.cast (size_toCircuit f))
-  simp only [ConventionalCircuit.topo] at hA₁ hAB
-  have hw : PointPermute.wireWidth f.circuit.n (toCircuit f).size =
-      PointPermute.wireWidth f.circuit.n f.circuit.q := by rw [size_toCircuit]
   have hblock : (blocksUpTo k f T f.circuit.q).getD (g.cast (size_toCircuit f)) [] =
       ctBlock k f T g := by
     rw [blocksUpTo, List.take_of_length_le (by simp [size_toCircuit]),
       List.getD_eq_getElem?_getD, List.getElem?_ofFn]
     simp
-  rw [hw]
-  simp only [encodeGate, toNat_left_toCircuit, toNat_right_toCircuit, Nat.sub_add_cancel hA₁,
-    Nat.sub_add_cancel (hA₁.trans hAB.le), decide_op_toCircuit, List.ofFn_succ, List.ofFn_zero,
-    ctRow, hblock, ctBlock]
+  rw [encodeGate_toCircuit]
+  simp only [List.ofFn_succ, List.ofFn_zero, ctRow, Fin.val_zero, Fin.val_succ, hblock, ctBlock]
   simp
 
 /-- **The reduction's view is a typed simulated view.** When `E` is the labelling that the table
@@ -1032,23 +1025,12 @@ private theorem reductionView_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k
   have hm := hd.snd'.fst'
   have hgates := hd.snd'.snd'
   have hq := (ComputableInPolyTime.length_list _).comp hgates
-  have hx := ComputableInPolyTime.fst encIn
-    (encPair encUnary (encPair encUnary (encPair encUnary encUnary)))
-  have hrest := ComputableInPolyTime.snd encIn
-    (encPair encUnary (encPair encUnary (encPair encUnary encUnary)))
-  have hisAnd := ComputableInPolyTime.bitsGetDWithInput
-    (ComputableInPolyTime.listGetDWithInput (hgates.comp hx) hrest.fst' (0, 0, [])).snd'.snd'
-    (ComputableInPolyTime.const 3) false
-  have hrow := ctRow_polyTime (hst.snd'.comp hx) hisAnd hrest.fst' hrest.snd'.snd'.snd'
-  have hgate := ComputableInPolyTime.listGetDWithInput
-    (hgates.comp (ComputableInPolyTime.fst encIn encUnary)) (ComputableInPolyTime.snd _ _)
-    (0, 0, [])
-  have hbody := PointPermute.bodyWith_polyTime (n := fun x => (f x).n)
-    (q := fun x => (f x).gateList.length) (cap := fun _ => 0)
-    (A := fun x g => ((f x).gateList.getD g (0, 0, [])).1)
-    (B := fun x g => ((f x).gateList.getD g (0, 0, [])).2.1)
-    (row := fun x g _ _ i => ctRow (st x).2 (((f x).gateList.getD g (0, 0, [])).2.2.getD 3 false)
-      g i) hn hq (ComputableInPolyTime.const 0) hgate.fst' hgate.snd'.fst' hrow
+  have hx := ComputableInPolyTime.fst encIn (encPair encUnary (encPair encBool encUnary))
+  have hrest := ComputableInPolyTime.snd encIn (encPair encUnary (encPair encBool encUnary))
+  have hrow : ComputableInPolyTime (fun p : γ × ℕ × Bool × ℕ => ctRow (st p.1).2 p.2.2.1 p.2.1
+      p.2.2.2) (encPair encIn (encPair encUnary (encPair encBool encUnary))) encBits :=
+    ctRow_polyTime (hst.snd'.comp hx) hrest.snd'.fst' hrest.fst' hrest.snd'.snd'
+  have hbody := bodyWith_gateData_polyTime hn hgates hrow
   have henc : ComputableInPolyTime (fun z : (ℕ × ℕ × ℕ × ℕ) × List Bool => PointPermute.encFn z)
       PointPermute.encFn encBits := .of_eq fun _ => rfl
   have hF := henc.comp ((hk.prod (hn.prod (hm.prod hq))).prod hbody)
