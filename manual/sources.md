@@ -1143,7 +1143,6 @@ checked this manuscript's §1.1, Theorem 1, p. 2 and §3.3, Theorem 10, p. 29 di
 2026-11-16. Berger's memoir internal locator remains unverified, as recorded under
 [Berger1966](#berger1966). No aperiodicity theorem or co-RE completeness is claimed.
 
-
 <a id="johnsonlindenstrauss84"></a>
 ## johnsonlindenstrauss84
 

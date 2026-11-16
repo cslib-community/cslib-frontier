@@ -48,7 +48,7 @@ co-recursively-enumerable completeness result is asserted.
 * [Robinson1971], §7, printed pp. 201–205.
 * [Ollinger2008]. Internal locator not verified.
 * [JeandelVanier2020], §1.1, Theorem 1, manuscript p. 2; §3.3, Theorem 10, manuscript p. 29;
-  §3.4, pp. 29–30 attributes this proof route to Robinson and its presentation to Ollinger.
+  §3.4, pp. 29–30 attributes this proof route to Robinson and its underlying tile set to Ollinger.
 * [lean-wang, revision 64268a3, Robinson reduction](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Reduction.lean).
 -/
 
