@@ -195,8 +195,7 @@ theorem powMod_knownOrderRoot {N u v g : ℕ} (hu : 0 < u) (hg : g ^ u ≡ 1 [MO
       exact BinaryGcd.mul_modInv_modEq_one hu hv
     have hgu : (g : ZMod N) ^ u = 1 := by
       exact_mod_cast (ZMod.natCast_eq_natCast_iff _ _ _).mpr hg
-    rw [knownOrderRoot, powMod_of_ne_zero hN.ne', powMod_of_ne_zero hN.ne', ← Nat.pow_mod,
-      ← pow_mul, ← ZMod.natCast_eq_natCast_iff']
+    rw [knownOrderRoot, powMod_powMod, powMod_of_ne_zero hN.ne', ← ZMod.natCast_eq_natCast_iff']
     exact_mod_cast (pow_eq_pow_of_modEq hinv hgu).trans (pow_one _)
 
 /-- The adversary of [BonehShoup2023], §10.9, p. 421, for exponents `u` and `v` computed from the
