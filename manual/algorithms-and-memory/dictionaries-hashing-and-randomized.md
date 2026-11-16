@@ -141,7 +141,8 @@ The probability core is in [CslibFrontier/Probability/HashFamily/Collisions.lean
 
 - `sum_card_filter_sq`: the identity `∑_j b_j² = n + #ordered collisions`;
 - `IsUniversalHash.tsum_orderedCollisionCount_le`: at most `n(n - 1)ε` expected ordered colliding pairs, which is `2·C(n,2)ε`;
-- `IsTwoUniversal.toOuterMeasure_not_injOn_le`: `Pr[not injective] ≤ 1/2` when `n² ≤ m`;
+- `IsUniversalHash.toOuterMeasure_not_injOn_le`: `Pr[not injective on S] ≤ C(n,2)ε`, the union bound over pairs;
+- `IsTwoUniversal.toOuterMeasure_not_injOn_le`: `Pr[not injective] ≤ 1/2` when `n² ≤ m` (the bound above with `ε = 1/m`);
 - `IsTwoUniversal.toOuterMeasure_four_mul_lt_sum_card_filter_sq_le`: `Pr[4n < ∑_j b_j²] ≤ 1/2` when `n ≤ m`.
 
 CLRS states the last two for `m = n²` and `m = n` with strict bounds (`< 1/2`, and `≥ 4n`). The non-strict forms here are the ones the construction's tests use. Markov's inequality for a `PMF` is `Cslib.Probability.PMF.mul_toOuterMeasure_le_tsum` in [CslibFrontier/Probability/PMF/Markov.lean](../../CslibFrontier/Probability/PMF/Markov.lean).
