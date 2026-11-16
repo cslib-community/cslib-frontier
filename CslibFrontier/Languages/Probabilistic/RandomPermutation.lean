@@ -61,7 +61,8 @@ with polymorphic bidirectional query deduplication over arbitrary `[DecidableEq 
 
 ## Main definitions
 
-* `Cslib.RandomPermutation.PermQuery`, `PermQuery.ofBoolProd`, `PermQuery.toCacheEntry`,
+* `Cslib.RandomPermutation.PermQuery`, `PermQuery.ofBoolProd`, `PermQuery.equivBoolProd`,
+  `PermQuery.toCacheEntry`,
   `PermOracleSpec`, `evalPerm`, `liftForward`, `liftBoolProd`: bidirectional permutation queries,
   oracle specification, deterministic evaluation, and query liftings.
 * `Cslib.RandomPermutation.Cache`, `invLookup`, `AgreesWith`, `IsPartialBijection`, `extPerms`,
@@ -177,6 +178,25 @@ def PermQuery.ofBoolProd {α : Type} : Bool × α → PermQuery α
 /-- Tag `true` converts `(true, y)` into the inverse query `.inverse y`. -/
 @[simp] theorem PermQuery.ofBoolProd_true {α : Type} (y : α) :
     PermQuery.ofBoolProd (true, y) = .inverse y := rfl
+
+/-- Bidirectional queries as channel-tagged points: `.forward x` is `(false, x)` and `.inverse y` is
+`(true, y)`. The inverse is `PermQuery.ofBoolProd`. -/
+def PermQuery.equivBoolProd (α : Type) : PermQuery α ≃ Bool × α where
+  toFun
+    | .forward x => (false, x)
+    | .inverse y => (true, y)
+  invFun := PermQuery.ofBoolProd
+  left_inv := by rintro (x | y) <;> rfl
+  right_inv := by rintro ⟨_ | _, x⟩ <;> rfl
+
+@[simp] theorem PermQuery.equivBoolProd_forward {α : Type} (x : α) :
+    PermQuery.equivBoolProd α (.forward x) = (false, x) := rfl
+
+@[simp] theorem PermQuery.equivBoolProd_inverse {α : Type} (y : α) :
+    PermQuery.equivBoolProd α (.inverse y) = (true, y) := rfl
+
+@[simp] theorem PermQuery.equivBoolProd_symm_apply {α : Type} (p : Bool × α) :
+    (PermQuery.equivBoolProd α).symm p = PermQuery.ofBoolProd p := rfl
 
 /-- Lift a `Bool × α` bidirectional oracle program into a `PermOracleSpec α` program. -/
 def liftBoolProd {α β : Type} (program : OracleComp (fun _ : Bool × α => α) β) :
