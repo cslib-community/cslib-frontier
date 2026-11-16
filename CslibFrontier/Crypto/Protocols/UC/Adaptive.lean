@@ -345,7 +345,7 @@ variable {n : ℕ} {In Out Q R NetQ NetR View AdvQ AdvR : Type}
   rfl
 
 /-- Private uniform index queries are unchanged. -/
-@[simp] theorem liftAdaptiveNet_unifFin (k : ℕ) :
+theorem liftAdaptiveNet_unifFin (k : ℕ) :
     liftAdaptiveNet (n := n) (In := In) (Out := Out) (Q := Q) (R := R)
         (OracleComp.query (spec := probOracleSpec (netSpec Q R)) (Sum.inl k)) =
       ProbOracleComp.sample (ProbComp.unifFin k) := by
