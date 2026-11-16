@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+import Cslib.Computability.Machines.Turing.MultiTape.Combinators.AlmostConstant
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Complexity.FineGrained
 public import CslibFrontier.Computability.Complexity.Problems.Graph

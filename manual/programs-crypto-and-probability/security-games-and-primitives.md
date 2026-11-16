@@ -30,6 +30,8 @@ For statistical indistinguishability of ensembles ([bs23][bs23], Definition 3.6 
 
 Pinned cslib also has the finite [Generator](https://github.com/leanprover/cslib/blob/254e30e6d4299c51323aaeaf5f51a4763b375d4a/Cslib/Crypto/Primitives/PRG/Defs.lean#L38) interface, whose `Secure` accepts any chosen predicate on randomized tests, while expansion is a separate cardinality property. cslib-frontier adds circuit-bounded tests and uniform machine tests on top. These are intentionally different quantifiers; the circuit version can select a new bounded circuit at each input length [cslib][cslib].
 
+For pseudorandom numbers modulo `m` from pseudorandom words ([bs23][bs23], Example 3.3, pp. 86–87), import [`PseudorandomGenerator/ModReduction.lean`](../../CslibFrontier/Crypto/Computational/PseudorandomGenerator/ModReduction.lean). `modWord m word` reads `word` most significant bit first and writes `binaryValue word % m` with `encNat`, least significant bit first; the ideal uniform residue is `(PMF.uniformOfFintype (Fin m)).map fun i => encNat i.val`. For a modulus with every `m n` nonzero, `ComputationallyIndistinguishable.map_modWord` derives computational indistinguishability of the reduced residues from indistinguishability from uniform `length n`-bit words, an efficiently computable modulus `hm : ComputableInPolyTime m encUnary encNat`, and negligibility of `m n / 2 ^ length n`; `PseudorandomGenerator.indistinguishable_map_modWord` specializes it to a `PseudorandomGenerator`. The reduction is `modDistinguisher m A`, which `isPPT_modDistinguisher` certifies PPT when `A` is PPT and `hm` holds; for any word function, `advantage_generatorEnsemble_map_modWord_le` bounds the advantage of `A` between the reduced outputs and uniform residues by the advantage of `modDistinguisher m A` in the generator's game plus `m n / 2 ^ length n`. The conclusion can fail when `m n / 2 ^ length n` is not negligible: it does for two fair bits modulo `3` (checked, with constant-modulus instances, an unconditional instance on `n` fair bits modulo `3`, and the other hypothesis probes, in [`PseudorandomResidues.lean`](../../CslibFrontierTests/Crypto/PseudorandomResidues.lean)); `hm` is the efficiency condition on the parameter for `isPPT_modDistinguisher`, with no failing case without it known. On finite types, [`PRG/ModReduction.lean`](../../CslibFrontier/Crypto/Primitives/PRG/ModReduction.lean) gives `PRG.Generator.modNat`, `PRG.Generator.advantage_modNat_le` (the same inequality with error `m / N` for nonzero `N` and `m`), and `PRG.Generator.Secure.modNat`; this layer has no cost model, so the efficiency of its reduction is the adversary-closure hypothesis `hred`. Nothing about rejection sampling or any exact value of the statistical distance is claimed.
+
 ### Security theorems and efficiency witnesses
 
 A security theorem says that every admitted adversary has negligible advantage, given a named hardness assumption. [AGENTS.md](../../AGENTS.md#security-theorems) fixes what such a theorem may assume: named hardness assumptions, stated relative to the setup sampler or component they concern; that the adversary is in the admitted class; and properties of components that the cited result itself takes as given. It may assume nothing about an object that its proof constructs, from the adversary or not (a reduction, distinguisher, simulator, extractor or hybrid), and it may not take from the caller an object whose existence or efficiency is what it should prove.
@@ -40,10 +42,10 @@ Each named assumption belongs in the [assumptions inventory](assumptions.md), wh
 
 ElGamal bit encryption under DDH in [ElGamal.lean](../../CslibFrontier/Crypto/Computational/ElGamal.lean) is the reference pattern. It has four parts:
 
-1. **The reduction is a program.** [elGamalMsgToDDHDistinguisher](../../CslibFrontier/Crypto/Computational/ElGamal.lean#L378) turns an IND-CPA adversary into a DDH distinguisher, and `elGamalToDDHDistinguisher` specializes it to bit messages.
-2. **A concrete bound.** [advantage_elGamalCPAGame_le](../../CslibFrontier/Crypto/Computational/ElGamal.lean#L661) bounds the IND-CPA advantage of `adversary` by the DDH advantages of `elGamalToDDHDistinguisher adversary false` and `… true`. It holds for every adversary, efficient or not.
-3. **An efficiency witness.** [isPPT_elGamalToDDHDistinguisher](../../CslibFrontier/Crypto/Computational/ElGamal.lean#L677) proves that the distinguisher is uniform strict PPT whenever the adversary is.
-4. **The asymptotic theorem.** [DDH.elGamalINDCPA](../../CslibFrontier/Crypto/Computational/ElGamal.lean#L684) assumes only `hDDH : F.DDH setup`. For a PPT adversary it applies `hDDH` to both distinguishers through the witness of step 3, and concludes with the bound of step 2.
+1. **The reduction is a program.** [elGamalMsgToDDHDistinguisher](../../CslibFrontier/Crypto/Computational/ElGamal.lean#L578) turns an IND-CPA adversary into a DDH distinguisher, and `elGamalToDDHDistinguisher` specializes it to bit messages.
+2. **A concrete bound.** [advantage_elGamalCPAGame_le](../../CslibFrontier/Crypto/Computational/ElGamal.lean#L823) bounds the IND-CPA advantage of `adversary` by the DDH advantages of `elGamalToDDHDistinguisher adversary false` and `… true`. It holds for every adversary, efficient or not.
+3. **An efficiency witness.** [isPPT_elGamalToDDHDistinguisher](../../CslibFrontier/Crypto/Computational/ElGamal.lean#L839) proves that the distinguisher is uniform strict PPT whenever the adversary is.
+4. **The asymptotic theorem.** [DDH.elGamalINDCPA](../../CslibFrontier/Crypto/Computational/ElGamal.lean#L846) assumes only `hDDH : F.DDH setup`. For a PPT adversary it applies `hDDH` to both distinguishers through the witness of step 3, and concludes with the bound of step 2.
 
 In the non-uniform circuit model the efficiency witness is a circuit-size bound instead. `secure_truthTableGenerator_booleanFamily` in [GGM/Circuit.lean](../../CslibFrontier/Crypto/Computational/GGM/Circuit.lean) assumes that the generator is secure against tests with `t + 2 ^ n (n C + 1)` gates, a size that the file proves for its reduction.
 
@@ -70,11 +72,11 @@ Before review, check a new security theorem against this list:
 - the name and docstring state the model (standard, random-oracle, ideal, query-bounded or information-theoretic), the notion (single- or multi-challenge, one-time or many-time, honest-verifier or malicious zero knowledge, semi-honest, static) and any deviation from the cited source;
 - a theorem it replaces is deleted or demoted to an honestly named helper in the same change.
 
-CI checks the premise rule on pull requests. After `lake build`, run `python3 scripts/check_security_premises.py` (or `--list CslibFrontier/Crypto/…` for every hit in an area). It reads the elaborated statements of the public Crypto theorems and reports, for each flagged theorem in a changed module, the premise, the kind of claim and the constructed definitions it is about, for example `premise hreduction: negligible about Cslib.Crypto.PrimeOrderGroupFamily.schnorrFamilyROMSchemeReduction`. It also reports a *realization*: a theorem that takes the reduction from the caller as a variable, certifies the variable (`hD : IsOraclePPT encBool D`), and assumes in an equation that it computes the program the proof should build (`hreal : eval (prfRealGame family D n) = … nonceFnDistinguisher … (forger n)`, as in the Carter–Wegman theorems that #5347 deleted). Differences in other modules are printed as a notice, and a change to the checker or its baseline is checked against every module. To fix a report, prove the premise: certify the reduction and apply the named assumption to it. If the lemma is meant to be conditional, name and document it as an algebraic helper (`…_of_reduction_le`, `…_of_isPPTOn`), run `python3 scripts/check_security_premises.py --update-baseline`, and write the one-line `why` of its entry in [security_premises_baseline.json](../../scripts/security_premises_baseline.json). A named assumption about a component the scheme uses, or instantiated at a group or sampler that the library defines, is also flagged; the rule allows it, so its entry says so. When you delete or fix a theorem that has an entry, remove the entry in the same change; the check fails on an entry that no longer matches.
+CI checks the premise rule on pull requests. After `lake build`, run `python3 scripts/check_security_premises.py` (or `--list CslibFrontier/Crypto/…` for every hit in an area). It reads the elaborated statements of the public Crypto theorems and reports, for each flagged theorem in a changed module, the premise, the kind of claim and the constructed definitions it is about, for example `premise hinversion: negligible about Cslib.Crypto.GoldreichLevin.invertSigned` for the algebraic helper `negligible_prediction_of_negligible_inversion` described above. It also reports a *realization*: a theorem that takes the reduction from the caller as a variable, certifies the variable (`hD : IsOraclePPT encBool D`), and assumes in an equation that it computes the program the proof should build (`hreal : eval (prfRealGame family D n) = … nonceFnDistinguisher … (forger n)`, as in the Carter–Wegman theorems that #5347 deleted). Differences in other modules are printed as a notice, and a change to the checker or its baseline is checked against every module. To fix a report, prove the premise: certify the reduction and apply the named assumption to it. If the lemma is meant to be conditional, name and document it as an algebraic helper (`…_of_reduction_le`, `…_of_isPPTOn`), run `python3 scripts/check_security_premises.py --update-baseline`, and write the one-line `why` of its entry in [security_premises_baseline.json](../../scripts/security_premises_baseline.json). A named assumption about a component the scheme uses, or instantiated at a group or sampler that the library defines, is also flagged; the rule allows it, so its entry says so. When you delete or fix a theorem that has an entry, remove the entry in the same change; the check fails on an entry that no longer matches.
 
 The check supplements review; a clean run is not evidence that a security theorem is right. It does not judge vacuous or misdefined notions, games and assumptions; a wrong or nonstandard assumption, such as an MLWE variant without the short secrets that ML-KEM's security needs; anything outside `Cslib.Crypto`; or names and docstrings that overclaim. Its rules are syntactic, so it also misses a premise whose own definition builds the constructed object, a distribution applied only to numbers or functions (such as a key law at fixed parameters), a bound without an advantage-named constant, a caller-supplied object that the theorem ought to construct, such as the Σ-protocol extractor above, and a realization stated other than as an equation (an inequality, a predicate of the library or a bundled program). Review covers all of these.
 
-CI also checks the witness rule on pull requests. After `lake build`, `python3 scripts/check_reduction_witnesses.py --list CslibFrontier/Crypto/…` lists each reduction of an area with its certificate: a definition that yields a program and that a public theorem uses on the bounding side of an advantage bound, applied to a program variable of the bounded side, such as `B` in `Adv(scheme, A) ≤ Adv(problem, B A)`. A reduction is certified by a theorem that concludes an efficiency certificate mentioning it (`isPPT_elGamalMsgToDDHDistinguisher` for `elGamalMsgToDDHDistinguisher`), as an `abbrev` of certified reductions, or through a certified definition that applies it, such as its word-level program; a query bound is not a certificate. A pull request fails when a changed module has an uncertified reduction that [the baseline](../../scripts/reduction_witnesses_baseline.json) does not record, or a baseline entry that no longer matches. Prove the witness, or, when the bound is information-theoretic or the definition is not a reduction, add an `exempt` entry with its justification. The check does not see a reduction written inline in a bound, a bound without an advantage-named constant, a simulator or extractor on the bounded side, or an attack, and it does not judge whether the witness is the one the asymptotic theorem uses; review covers these.
+CI also checks the witness rule on pull requests. After `lake build`, `python3 scripts/check_reduction_witnesses.py --list CslibFrontier/Crypto/…` lists each reduction of an area with its certificate: a definition that yields a program and that a public theorem uses on the bounding side of an advantage bound, applied to a program variable of the bounded side, such as `B` in `Adv(scheme, A) ≤ Adv(problem, B A)`. A reduction is certified by a theorem that concludes an efficiency certificate mentioning it (`isPPT_elGamalMsgToDDHDistinguisher` for `elGamalMsgToDDHDistinguisher`), as an `abbrev` of certified reductions, or through a certified definition that applies it, such as its word-level program; a query bound is not a certificate. A pull request fails when a changed module has an uncertified reduction that [the baseline](../../scripts/reduction_witnesses_baseline.json) does not record, or a baseline entry that no longer matches. Prove the witness, or, when the bound is information-theoretic or the definition is not a reduction, add an `exempt` entry with its justification. When a certified program runs a typed reduction, as the word-level `hybridToKEMDistinguisher` in [Encryption/Hybrid.lean](../../CslibFrontier/Crypto/Computational/Encryption/Hybrid.lean) runs `KEM.hybridDistinguisher` on a framed challenge, a `via_certified_program` entry names the program, its efficiency witness, a theorem whose conclusion is an equation between the two laws (with the file that holds it), and the headline that applies the assumption to the program; the check verifies these declarations in Lean, and a step linked to its program only by a bound stays a `gap`. The check does not see a reduction written inline in a bound, a bound without an advantage-named constant, a simulator or extractor on the bounded side, or an attack, and it does not judge whether the witness is the one the asymptotic theorem uses; review covers these.
 
 ## Hardness and pseudorandomness
 
@@ -84,6 +86,7 @@ CI also checks the witness rule on pull requests. After `lake build`, `python3 s
 | Pseudorandom generator | [CslibFrontier/Crypto/Computational/PseudorandomGenerator.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/PseudorandomGenerator.lean) | Length schedule, expansion, native deterministic evaluation and indistinguishability |
 | Adaptive pseudorandom function | [CslibFrontier/Crypto/Computational/PseudorandomFunction.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/PseudorandomFunction.lean) | Oracle-PPT access, consistent ideal random function, explicit input/output widths and malformed-query convention |
 | Collision resistance | [CslibFrontier/Crypto/Computational/CollisionResistant.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/CollisionResistant.lean) | Public setup distribution/encoding and input-validity predicate; keyed word specialization; setup need not be efficiently sampleable in the general interface; [DiscreteLog/GroupHash.lean](../../CslibFrontier/Crypto/Computational/DiscreteLog/GroupHash.lean) instantiates it with the Katz–Lindell discrete-logarithm hash (`DiscreteLog.collisionResistantForOn_groupHash`, exact zero-loss reduction for the encoded outputs; fixed digest width, compression and efficient setup are not established), and [RSAHash.lean](../../CslibFrontier/Crypto/Computational/RSAHash.lean) with the Boneh–Shoup RSA hash `H_rsa` (`RSAOneWay.collisionResistantForOn_rsaHash`, when `e` is eventually prime on the key support) |
+| Second-preimage resistance | [CslibFrontier/Crypto/Game/SecondPreimage.lean](../../CslibFrontier/Crypto/Game/SecondPreimage.lean), [CslibFrontier/Crypto/Computational/SecondPreimageResistant.lean](../../CslibFrontier/Crypto/Computational/SecondPreimageResistant.lean), [CslibFrontier/Crypto/Computational/SecondPreimageResistant/Relations.lean](../../CslibFrontier/Crypto/Computational/SecondPreimageResistant/Relations.lean) | Finite-domain experiment, counting and (8.22) bounds; asymptotic `SecondPreimageResistantOn` (`valid` domain, exact Definition 8.6 on `{0,1}ⁿ`) and any-length `SecondPreimageResistant`; `(8.17)` implications and separations (`ignoreHeadBit`, `plantEasyBranch`) |
 | Target collision resistance | [CslibFrontier/Crypto/Computational/TargetCollisionResistant.lean](../../CslibFrontier/Crypto/Computational/TargetCollisionResistant.lean), [CslibFrontier/Crypto/Computational/NaorYungUOWHF.lean](../../CslibFrontier/Crypto/Computational/NaorYungUOWHF.lean), [CslibFrontier/Crypto/Computational/InaccessibleEntropy/TargetCollision.lean](../../CslibFrontier/Crypto/Computational/InaccessibleEntropy/TargetCollision.lean) | Two-stage pre-key target choice and post-key second-preimage search; polynomial key/block schedules, fixed-depth `2^n`-capacity tree extension, Naor–Yung UOWHFs from `OneWayPermutation`, and Rompel–HHRVW UOWHFs from `OneWay` |
 | Inaccessible entropy and shrinking collision grids | [CslibFrontier/Crypto/Computational/InaccessibleEntropy/Basic.lean](../../CslibFrontier/Crypto/Computational/InaccessibleEntropy/Basic.lean), [CslibFrontier/Crypto/Computational/InaccessibleEntropy/Amplify.lean](../../CslibFrontier/Crypto/Computational/InaccessibleEntropy/Amplify.lean), [CslibFrontier/Crypto/Computational/InaccessibleEntropy/TargetCollision.lean](../../CslibFrontier/Crypto/Computational/InaccessibleEntropy/TargetCollision.lean) | Fixed-width native polynomial evaluation, accessible preimage subsets with eventual `1 / denom n` entropy gap, polynomial-size grids of `1`-bit shrinking candidates with an existential random-collision-resistant sequence (`exists_good_candidate`), and uniform `gridCount n`-way cascade concatenation |
 | Discrete logarithm and DDH | [CslibFrontier/Crypto/Computational/DiscreteLog.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/DiscreteLog.lean), [CslibFrontier/Crypto/Computational/DiffieHellman.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/DiffieHellman.lean) | Encoded prime-order group families, exact ideal group laws; public operations and samplers require separate certificates |
@@ -216,10 +219,14 @@ For Diffie–Hellman games, import
 its element encodings and its algorithms. A value `d : F.Desc` supplies public group
 parameters selecting `F.Carrier d`, `F.order d` and `F.generator d`; `F.encDesc` encodes
 those parameters for algorithms. The established names `Desc` and `encDesc` refer to this
-parameter type and encoding. For
-[`schnorrGroups`](../../CslibFrontier/Crypto/Computational/DiscreteLog/SchnorrGroup.lean),
-a parameter bundle contains `(p, q, g)` and proofs of primality and generator validity.
+parameter type and encoding. For [`schnorrGroups`](../../CslibFrontier/Crypto/Computational/DiscreteLog/SchnorrGroup.lean),
+a parameter bundle contains `(p, q, g)` and proofs of primality and generator validity; its
+decodable extension
+[`schnorrDecodableGroups`](../../CslibFrontier/Crypto/Computational/DiscreteLog/SchnorrGroup/Decodable.lean)
+tests canonical binary encoding, reduced range `0 < a < p`, and `a ^ q % p = 1` in polynomial
+time (`mem_zpowers_of_pow_eq_one` via polynomial root counting over `ZMod p`).
 The concrete `d23` in the [DH client](../../CslibFrontierTests/Crypto/DiffieHellman.lean)
+and [decodable-group client](../../CslibFrontierTests/Crypto/DecodableGroupFamily.lean)
 uses `(23, 11, 2)`: the subgroup of order `11` modulo `23` generated by `2`.
 
 Each Diffie–Hellman game runs a fixed-group experiment from
@@ -259,9 +266,33 @@ The family games in `DiffieHellman.lean` draw public group parameters `d` from
 
 Adversaries receive and return group elements, so a CDH adversary must output a valid element of
 `F.Carrier d`. `F.CDH setup`, and with it the conclusion of `DDH.cdh`, is therefore the textbook
-CDH assumption, weaker than the word-level assumption against adversaries that may output any word;
-[#4783](https://github.com/cslib-community/cslib-frontier/issues/4783) tracks restoring the
-word-level form for families with decodable encodings. A DDH distinguisher outputs only a bit, so
+CDH assumption, weaker in general than the word-level assumption `F.WordCDH setup`
+([`DiffieHellman/Decodable.lean`](../../CslibFrontier/Crypto/Computational/DiffieHellman/Decodable.lean))
+against adversaries that may output any bit string (`WordCDH.cdh` still proves `WordCDH ⇒ CDH`
+for every `PrimeOrderGroupFamily`). Over a
+[`DecodablePrimeOrderGroupFamily`](../../CslibFrontier/Crypto/Computational/DiscreteLog/Decodable.lean),
+which supplies a canonical decoder `decode : ∀ d, List Bool → Option (Carrier d)` (`decode_encode`,
+`encode_eq_of_decode_eq_some`) with a polynomial-time domain test `isElem (d, w) = (decode d w).isSome`
+(`computableInPolyTime_isElem`, instantiated for `schnorrDecodableGroups` and
+[`DecodablePrimeOrderGroupFamily.withSeed`](../../CslibFrontier/Crypto/Computational/ElGamal/KDF.lean)),
+`wordToTypedCDHAdversary` turns any word-level CDH adversary into a typed one without losing PPT
+or success probability, establishing `CDH ↔ WordCDH` (`cdh_iff_encoded`). `DDH.wordCDH` then
+derives `F.WordCDH setup` from `F.DDH setup` under the hypotheses of `DDH.cdh`: every group in the
+support of `setup n` has order at least `m n > 0`, and `1 / m n` is negligible.
+For decodable families,
+[`ElGamal/Decodable.lean`](../../CslibFrontier/Crypto/Computational/ElGamal/Decodable.lean) and
+[`CramerShoup/Decodable.lean`](../../CslibFrontier/Crypto/Computational/CramerShoup/Decodable.lean)
+also specialize group-element ElGamal CPA (`elGamalGroupCPAGame`, `elGamalGroupValid`,
+`DDH.indcpaOn_elGamalGroupEncryptProb`) and Cramer–Shoup CCA2 without external `isElem` or
+group-membership `valid` stand-ins (the underlying `elGamalMsgCPAGameOn` /
+`hashedElGamalCipherCPAGameOn` and generic `CramerShoup` interfaces retain explicit predicates for
+arbitrary message encoders, extra constraints such as equal length, and non-decodable families).
+The native `DDH.indcpaOn_elGamalGroupEncryptProb`, like the generic
+`DDH.indcpaOn_elGamalEncryptProb`, assumes DDH for the point-mass setup `fun n => PMF.pure (d n)`;
+in place of `valid`, `hvalid` and `hsound` it takes a polynomial-time description family `d`
+(`hd : ComputableInPolyTime d encUnary F.encDesc`). The Cramer–Shoup wrappers drop only `isElem`,
+`hisElem` and `hmem`; `hd` and the point-mass setup are already premises of the generic theorems.
+A DDH distinguisher outputs only a bit, so
 `F.DDH setup` is equivalent to the word-level assumption over distinguishers reading the encoded
 tuple (`ddh_iff_encoded`), and likewise for `SecureKDF` (`secureKDF_iff_encoded`). To prove such
 an equivalence for a new typed adversary, obtain the word adversary with
@@ -305,6 +336,52 @@ information and for `F (x, y) = x + y` on `ZMod 3` with side information (exerci
 a constant derivation (`not_secure_const`) and an identity derivation whose key is also published as
 side information, and transports `F.secureKDF_linearHashKDF` through `F.secureKDF_iff_keyDerivation`;
 run `scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.KeyDerivation`.
+
+For key derivation in the random-oracle model ([bs23][bs23], Section 8.10.1–8.10.2, Attack Game 8.3
+and the advantage and list-size bounds of Theorem 8.10, pp. 325–326 and 331–332, together with Attack
+Game 11.3 in Section 11.5.2, pp. 448–449), import
+[`KeyDerivation/RandomOracle.lean`](../../CslibFrontier/Crypto/Computational/KeyDerivation/RandomOracle.lean)
+and open `Cslib.Crypto.KeyDerivation`. Attack Game 8.3 (`guessOutput`, `guessAdvantage`) plays
+against `GuessAdversary X S` given `info s : X` (with `guessAdvantage_le_pure_maxPosteriorGuess` and
+`guessAdvantage_le_one_sub_errorProb_maxPosteriorGuess` showing that
+`Cslib.Probability.PMF.maxPosteriorGuess` of
+[`Probability/Entropy/Guessing.lean`](../../CslibFrontier/Probability/Entropy/Guessing.lean)
+maximizes `guessAdvantage` among randomized adversaries whenever `S` is finite and nonempty). For
+Section 8.10.1, when `X` is finite and every secret has probability at most `mass`,
+`guessAdvantage_le_card_mul_of_mass_le` bounds `guessAdvantage` by `Fintype.card X * mass`; when
+`S` is finite and nonempty, `sample = PMF.uniformOfFintype S`, and `info` is constant,
+`guessAdvantage_uniformOfFintype_const` equals `(Fintype.card S)⁻¹`; for a secret `(x, y)` with
+`x ← p` and `y` drawn uniformly from a finite nonempty `Y` independently of the leaked `x = Prod.fst (x, y)`
+(matching Attack Game 11.3 in Section 11.5.2, pp. 448–449),
+`guessAdvantage_bind_uniformOfFintype_fst_le` bounds `guessAdvantage` by `(Fintype.card Y)⁻¹`; and
+`guessAdvantage_uniformOfFintype_take_le` gives `≤ 1 / 2 ^ m` when `k` of `k + m` uniform bits are
+leaked. In the list-guessing game (`listGuessOutput`, `listGuessAdvantage`, `listGuessToGuess`),
+when `S` is nonempty (with `DecidableEq S`) and `l.length ≤ Q` for every `x` and
+`l ∈ (ProbComp.eval (B x)).support`, `listGuessAdvantage_le_mul_guessAdvantage` proves
+`listGuessAdvantage sample info B ≤ Q * guessAdvantage sample info (listGuessToGuess Q B)`. Over
+finite nonempty `S` and `T`, `roRealOutput`, `roIdealOutput`, and `roAdvantage` average
+`realOutput` and `idealOutput` over an eager random oracle `table ← PMF.uniformOfFintype (S → T)`
+against `RODistinguisher X S T`; `roAdvantage_le_listGuessAdvantage` requires no query bound for
+`roToListGuess D`, while under `RODistinguisher.IsOracleQueryBounded D Q`,
+`length_le_of_mem_support_roToListGuess` bounds the support lists of `roToListGuess D` by `Q` and
+`roAdvantage_le_mul_guessAdvantage` proves
+`roAdvantage sample info D ≤ Q * guessAdvantage sample info (roToGuess Q D)` (because
+`roToListGuess` and `roToGuess` sample `S → T` eagerly, these give the two bounds of Theorem 8.10
+without its claim that the wrappers are elementary). Given `PolynomiallyBounded Q`,
+`(D n).IsOracleQueryBounded (Q n)` for every `n` over finite nonempty `S n` and `T n`, and the
+premise that every family `A : ∀ n, GuessAdversary (X n) (S n)` (with no efficiency bound) has
+negligible guessing advantage, `negligible_roAdvantage_of_negligible_guessAdvantage` proves
+`Negligible fun n => roAdvantage (sample n) (info n) (D n)` (the bounds hold for every adversary
+meeting the printed query bound and list size; an efficient lazy-simulation wrapper with a
+polynomial-time certificate—needed to apply computational guessing assumptions such as the fourth
+example of Section 8.10.1, p. 326, or CDH in Theorem 11.4 of Section 11.5.1, p. 446—remains open).
+The [random-oracle KDF client](../../CslibFrontierTests/Crypto/RandomOracleKDF.lean) checks the
+constant-leakage condition and the added list-length and query-bound hypotheses with explicit
+counterexamples (`guessAdvantage_uniformOfFintype_id_ne_inv`,
+`not_listGuessAdvantage_le_mul_of_length_gt`, `mem_support_roToListGuess_queryFalseDistinguisher`,
+and `not_roAdvantage_le_mul_of_not_queryBounded`) alongside `maxPosteriorGuess` bounds, the
+`guessAdvantage_le_card_mul_of_mass_le` check, and concrete and asymptotic positive instances; run
+`scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.RandomOracleKDF`.
 
 `dlToCDHAdversary` and `cdhToDDHDistinguisher` are the elementary reductions behind
 `CDH.discreteLog` and `DDH.cdh`. In one group they are `dlToCDH` and `cdhToDDH`, with the bounds
@@ -381,6 +458,26 @@ efficient identity test, and shows that constant composite, Blum, and RSA moduli
 scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.DiffieHellman CslibFrontierTests.Crypto.MultiDDH CslibFrontierTests.Crypto.AssumptionNonvacuity
 ```
 
+For the linear congruential generator ([bs23][bs23], Section 3.7.1, pp. 70–71), import
+[`Crypto/Primitives/PRG/LinearCongruential.lean`](../../CslibFrontier/Crypto/Primitives/PRG/LinearCongruential.lean).
+`LinearCongruential.generator` is the book's `G_lcg : S_q → R × S_q`, where `R` has
+`|R| = ⌊(q - 1) / w⌋ + 1` elements. When `a` is coprime to `q`, `LinearCongruential.test` is
+`Generator.rangeTest` (`LinearCongruential.rangeTest_generator`), and for `q ≠ 0` (the instance
+`NeZero P.q`) `LinearCongruential.advantage_generator_test` gives it advantage exactly
+`1 - 1 / |R|`: at least `1 / 2` when `0 < w < q`, and `0` when `w = 0` or `q ≤ w`, which includes
+the case `w = q` that the book allows. `LinearCongruential.computableInPolyTime_test` certifies
+`test` in polynomial time, with the parameters (`encLinearCongruential`) and the challenge in
+binary. `LinearCongruential.seedSearch` is the book's exhaustive search from three outputs.
+`LinearCongruential.seedSearch_eq` proves that it returns the seed `s < q` when `0 < w` and no
+nonzero `d` with `|d| < w` has `a * d` within less than `w` of a multiple of `q`; under these two
+conditions two outputs already determine the state
+(`LinearCongruential.eq_of_div_eq_of_next_div_eq`). `LinearCongruential.seedSearch_java8` proves
+the condition for the Java 8 parameters `LinearCongruential.java8`, so the search returns every
+seed `s < 2 ^ 48`. `LinearCongruential.computableInPolyTime_seedSearch` certifies the search in
+time polynomial in `w` itself, which the caller supplies in unary (`encUnary`), and in the binary
+length of the other inputs. The iterated generator `G_lcg^(n)` and Lemma 3.7 are not formalized;
+see the [LCG tests](../../CslibFrontierTests/Crypto/LinearCongruential.lean).
+
 In a group of even order, the parity test of [bs23][bs23], Section 16.1.3, distinguishes
 Diffie–Hellman triples from random ones. Import
 [`DiffieHellman/EvenOrder.lean`](../../CslibFrontier/Crypto/Computational/DiffieHellman/EvenOrder.lean).
@@ -410,6 +507,19 @@ conclusion that DDH does not hold in `Z_p^*` is proved only in the fixed-group f
 `not_ddh_of_even_order` to the residue groups `ZMod (2 (n + 1))`, and derives that a prime-order
 family fails `PrimeOrderGroupFamily.DDH` for any setup law that only produces groups of order `2`.
 
+For a linear feedback shift register ([bs23][bs23], Section 3.8, p. 75), `LFSR.output taps ℓ state`
+in [`PRG/LFSR.lean`](../../CslibFrontier/Crypto/Primitives/PRG/LFSR.lean) clocks it `ℓ` times with
+feedback bit [`listDot`](../../CslibFrontier/Foundations/Data/BitString/List/Dot.lean) `taps state`;
+`n` consecutive output bits determine all later ones (`drop_output_eq_output_take_drop`), and the
+feedback-bit predictor wins Attack Game 3.2 with probability `1` at every position `i ≥ n`
+(`predictionExperiment_predictor`).
+[`PseudorandomGenerator/LFSR.lean`](../../CslibFrontier/Crypto/Computational/PseudorandomGenerator/LFSR.lean)
+proves `LFSR.not_pseudorandomGenerator` for every family `LFSR.wordGenerator taps ℓ`; its
+distinguisher `rerunDistinguisher` is polynomial time whenever the generator is. When `taps` and
+`ℓ` are computable in polynomial time and `n < ℓ n`, security is the only condition that fails
+(`computableInPolyTime_wordGenerator`). Taps are public, every seed is allowed (the book excludes
+the all-zero one), and the attack on CSS is not formalized.
+
 Inversion and prediction are each stated once, for a fixed function and input distribution, in
 [`Crypto/Game/Inversion.lean`](../../CslibFrontier/Crypto/Game/Inversion.lean):
 `inversionExperiment sample f A` draws `x`, gives `A` the image `f x` and accepts any preimage,
@@ -422,6 +532,50 @@ instead of writing another sampling block. The inner product of bit lists is
 [`BitString.listDot`](../../CslibFrontier/Foundations/Data/BitString/List/Dot.lean), which is
 Mathlib's `dotProduct` on `List.ofFn` inputs (`listDot_ofFn`); use it, and its polynomial-time rule
 `ComputableInPolyTime.bitsListDot`, instead of spelling out the zip-and-fold parity.
+
+For offline dictionary attacks against a hash oracle `H` ([bs23][bs23], §18.3.1.2–§18.3.1.3,
+(18.1)–(18.3), pp. 721–723, and §18.4.1–§18.4.2, pp. 724–726), import
+[`Computational/DictionarySearch.lean`](../../CslibFrontier/Crypto/Computational/DictionarySearch.lean).
+`dictionarySearch input accept D` searches a candidate list `D` in order by querying `H` at
+`input w` and testing replies with `accept`. Against `H` it returns the first candidate whose
+reply passes, or `none` (`evalPure_dictionarySearch`). If the secret `pw` is in `D` and its reply
+passes, the output is a candidate whose reply passes (`exists_evalPure_dictionarySearch_of_mem`),
+and `dictionaryPreimageSearch input (H (input pw)) D` returns `pw` itself when `pw ∈ D` and
+`w ↦ H (input w)` is injective on `D` (`evalPure_dictionaryPreimageSearch_of_injOn`; injectivity
+of `H` alone is not enough). The search queries only candidate inputs
+(`queriesSatisfy_dictionarySearch`) and makes at most `D.length` oracle calls on every path
+(`isQueryBounded_dictionarySearch`); when `accept` rejects some reply, no smaller number bounds
+it (`not_isQueryBounded_dictionarySearch`). The preprocessing table `dictionaryTable` makes at most
+`D.length` oracle calls (`isQueryBounded_dictionaryTable`) and matches `dictionaryPreimageSearch`
+via `List.lookup` (`lookup_evalPure_dictionaryTable`), so the batch search
+`dictionaryBatchSearch` answers a whole file `F` in at most `D.length` calls
+(`isQueryBounded_dictionaryBatchSearch`); separate searches are bounded by `F.length * D.length`
+(`isQueryBounded_mapM_dictionaryPreimageSearch`), an upper bound that is not shown to be attained.
+For any distribution `μ` of the secret, `dictionarySearch_inverts` states the bound of `D.length`
+calls together with a lower bound on success: `dictionaryInverter` (the preimage search, returning
+`default` on failure) wins `inversionExperiment` for `pw ↦ H (input pw)` with probability at
+least `μ.toOuterMeasure {pw | pw ∈ D}`. The probability form is this library's; the book states
+that a password in `D` is found, up to a collision (p. 722).
+The cost is a count of oracle evaluations of `H` and nothing else: comparisons, `accept`, and
+`List.lookup` are uncounted, and no running time in a machine model is stated. Salted and
+secret-salt instances, MAC-key and §21.11 search shapes, and failing cases showing each hypothesis
+is needed are in
+[`Crypto/DictionarySearch.lean`](../../CslibFrontierTests/Crypto/DictionarySearch.lean).
+
+For parallel PRG composition ([bs23][bs23], §3.4.1, Theorem 3.2),
+[`PRG/Parallel.lean`](../../CslibFrontier/Crypto/Primitives/PRG/Parallel.lean) defines
+`G.parallel n` (`(s_1, ..., s_n) ↦ (G s_1, ..., G s_n)`) on finite-type generators and proves the
+exact relation `(G.parallel n).advantage A = n * G.advantage (G.parallelReduction n A)` for
+`[NeZero n]` and unrestricted `PMF`-kernel adversaries (no efficiency claim). On word ensembles,
+[`PseudorandomGenerator/Parallel.lean`](../../CslibFrontier/Crypto/Computational/PseudorandomGenerator/Parallel.lean)
+defines `parallelGenerator`, certifies its polynomial-time execution
+(`computableInPolyTime_parallelGenerator`), and proves
+`computationallyIndistinguishable_parallelGenerator`: for any `PseudorandomGenerator` and unary
+polynomial-time copy schedule `count`, concatenating `parallelGenerator` across `count n`
+independent uniform `n`-bit seeds is computationally indistinguishable from
+`BitString.uniformList (count n * length n)` via `ComputationallyIndistinguishable.replicate_bind`
+(using the certified `sequenceTest` reduction with loss `dyadicSize (count n)`). Checked in
+[`CslibFrontierTests/Crypto/PseudorandomGeneratorParallel.lean`](../../CslibFrontierTests/Crypto/PseudorandomGeneratorParallel.lean).
 
 For a one-bit expanding PRG, [Stretch/Prefix.lean](../../CslibFrontier/Crypto/Computational/Stretch/Prefix.lean)
 proves that `(forwardIterate g ℓ seed).take ℓ` has length `ℓ` and agrees with the first `ℓ`
@@ -470,16 +624,60 @@ path; private coins are free), `succProbability_dlogGame_le` bounds the success 
 sharper `((3T + 2).choose 2 + 1) / q`. The bound takes no hardness assumption and applies to
 adversaries that are otherwise unbounded, but it is about the model only: it says nothing about
 discrete logarithm in any specific group (p. 695). As in the book, `q` is prime; the bound is not
-claimed for composite `q`. The proof reduces labels in `S` to a uniform permutation of `ZMod q` with
+claimed for composite `q`. Both bounds are instances of the bound for games with linear inputs
+below. Its proof reduces labels in `S` to a uniform permutation of `ZMod q` with
 [`GenericGroup/Relabel.lean`](../../CslibFrontier/Crypto/Computational/GenericGroup/Relabel.lean):
 `relabel j A` answers each query of `A` with at most one query (`isQueryBounded_relabel`) and
 behaves against a permutation `σ` as `A` against `j ∘ σ` (`runLabeled_relabel`). Checked
 examples, including where the proof uses primality, are in
 [`GenericGroupDiscreteLog.lean`](../../CslibFrontierTests/Crypto/GenericGroupDiscreteLog.lean).
 
+The same argument bounds a family of games in which the adversary is given the labels of `1` and
+of uniform unknowns; the general statement is not in the book. In
+[`GenericGroup/LinearGame.lean`](../../CslibFrontier/Crypto/Computational/GenericGroup/LinearGame.lean),
+for finite `ι` and `κ`, `linearGame W A` draws `L` and a uniform point `x : ι → ZMod q`, gives the
+adversary `L 1` and the labels `L (x i)`, and lets it output a value `o : γ` and an element `w k`
+of `S` for each `k : κ`. It wins when every `w k` is a label `L (v k)` and `W x o v` holds. Suppose
+that for every `o` and every family of linear forms `F k = ∑ i, a k i X i + b k`, the test
+`W x o (F · (x))` holds at no more than `ε * q ^ |ι|` points `x`. Then, under the hypotheses of
+Theorem 16.3 above and with decidable equality on `ι`, `κ` and `S`,
+`succProbability_linearGame_le` bounds the success probability by
+`C(3T + |ι| + 1 + |κ|, 2) / q + ε`. Discrete logarithm is the instance with one unknown, no output
+labels and `ε = 1 / q`. To bound another game, state it as a `linearGame` and count the points at
+which `W` can hold;
+[`GenericGroupLinearGame.lean`](../../CslibFrontierTests/Crypto/GenericGroupLinearGame.lean) does
+this for square Diffie–Hellman, with `ε = 2 / q`.
+
+Computational Diffie–Hellman (CDH) in this model, Exercise 16.5(a) ([bs23][bs23], p. 708), is in
+[`GenericGroup/DiffieHellman.lean`](../../CslibFrontier/Crypto/Computational/GenericGroup/DiffieHellman.lean).
+`cdhGame A` draws `L` and uniform `α` and `β`, gives the adversary `L 1`, `L α` and `L β`, runs it
+against `answer L`, and is won when it outputs the label `L (α * β)`. Under the hypotheses of
+Theorem 16.3 (`hq : q.Prime` with `NeZero q`, a finite `S` with `Nonempty (ZMod q ↪ S)`, and
+`(A g u v).IsQueryBounded T` for all `g u v`), plus `DecidableEq S` to compare the output with
+`L (α * β)`, `succProbability_cdhGame_le` bounds the success probability by
+`((3T + 4)² / 2 + 2) / q`, and `succProbability_cdhGame_le_choose` by
+`((3T + 4).choose 2 + 2) / q`. The bound is not stated in the book: the exercise asks to adapt the
+proof of Theorem 16.3 and states none, and this is what the adapted proof gives, as the instance
+of `succProbability_linearGame_le` with two unknowns and one output label. It differs from (16.6)
+in two places. The table holds `3T + 4` forms, not `3T + 2`: one more for `L β`, and one for the
+output, which the challenger looks up because it is a label. The guess term is `2 / q`, not
+`1 / q`: `X Y = a X + b Y + c` holds at no more than `2q - 1` of the `q²` points. `q` is prime
+because both counts, collisions between distinct forms and the solutions of that equation, need a
+field; over `ZMod 4`, `X Y = 0` has `8` solutions. For success probability one half,
+`le_of_half_le_succProbability_cdhGame` gives `q ≤ (3T + 4)² + 4`, and
+`le_of_half_le_succProbability_dlogGame` gives `q ≤ (3T + 2)² + 2` for discrete logarithm: the
+book's remark that `T` must then be greater than about `√q / 3` (p. 695). As for discrete
+logarithm, the bound is about the model only. Part (b), the interactive CDH (ICDH) problem of
+Definition 12.4, is not formalized. Checked examples are in
+[`GenericGroupDiffieHellman.lean`](../../CslibFrontierTests/Crypto/GenericGroupDiffieHellman.lean).
+
 For a fixed keyed function or block cipher over finite types, import [`Primitives/PRF/Finite.lean`](../../CslibFrontier/Crypto/Primitives/PRF/Finite.lean) and [`Primitives/PRP/Finite.lean`](../../CslibFrontier/Crypto/Primitives/PRP/Finite.lean) (Boneh–Shoup §4.1–§4.4 [bs23][bs23]). A `PRF.Adversary D R` is an adaptive oracle program with private coins. `PRF.realExperiment F A` and `PRF.idealExperiment A` are `ProbComp Bool` programs answering its queries with `F key` for a uniform key or with a uniform function `D → R`, and `PRF.advantage` is the distance between their laws. For a block cipher `E : Key → Equiv.Perm D`, `PRP.realExperiment E` is the PRF experiment of `E` and `PRP.idealExperiment` samples a uniform permutation. The ideal-experiment switching lemma `PRP.advantage_idealExperiment_prfIdealExperiment_le` bounds the distance between the two ideal experiments by `Q.choose 2 / |D|` for a `Q`-query adversary ([bs23][bs23], Attack Game 4.3 and Theorem 4.6), `PRP.abs_advantage_sub_prfAdvantage_le` bounds the difference between the finite PRP and PRF advantages by `Q.choose 2 / |D|` (Theorem 4.4), and `PRP.prfAdvantage_le_advantage_add` is its PRP-to-PRF half. `PRP.strongRealExperiment` and `PRP.strongIdealExperiment` also answer inverse queries through `RandomPermutation.PermOracleSpec D`; `PRP.StrongAdversary.ofForward` runs a forward adversary there with the same advantage (`PRP.strongAdvantage_ofForward`). These statements are single-instance and track no running time. At the word level, `advantage_prpIdealGame_prfIdealGame_le` derives the ideal-experiment switching bound from the finite one, and `BlockCipher.prp_iff_pseudorandomFunctionOver` proves Corollary 4.5 (assuming `E.keyLen = id` and super-polynomial `2 ^ E.blockLen n`). [`Computational/PseudorandomFunction/Finite.lean`](../../CslibFrontier/Crypto/Computational/PseudorandomFunction/Finite.lean) connects the two levels: `PRF.atLevel family n` is a word family read as a keyed function on `n`-bit strings, and `PRF.advantage_atLevel_adapt` shows that, for a length-preserving family, the finite advantage against it of a word distinguisher `A` read through `OracleCodec.bitString n` is the advantage of `A` between `prfRealGame id family A n` and `prfIdealGame id id A n`. A finite argument therefore transfers to `PseudorandomFunction` once its adversary is exhibited as an adapted oracle-PPT word program. Checked examples of the finite experiments and the switching lemma are in [`CslibFrontierTests/Crypto/PseudorandomPermutation.lean`](../../CslibFrontierTests/Crypto/PseudorandomPermutation.lean); the bridge, `PRF.label` and `labelCodec` are checked on concrete families and tables in [`CslibFrontierTests/Crypto/PRFLabel.lean`](../../CslibFrontierTests/Crypto/PRFLabel.lean).
 
-Several independently keyed copies of a pseudorandom function are again pseudorandom: [`PseudorandomFunction.multiKey`](../../CslibFrontier/Crypto/Computational/PseudorandomFunction/MultiKey.lean) answers `t` word channels with the `n`-bit blocks of one `t * n`-bit key, against `t` independent random functions, for every fixed `t`. Its hybrid reduction `prfMultiReduction` simulates the already random channels with a lazy list cache and is itself oracle PPT; the concrete bound sums `t` PRF advantages (Boneh–Shoup, Exercise 4.26). The number of keys is a constant, not a function of the security parameter; the exercise also allows a polynomially bounded number of keys, which this theorem does not cover. The finite counterpart is [`Primitives/PRF/MultiKey.lean`](../../CslibFrontier/Crypto/Primitives/PRF/MultiKey.lean): for a keyed function `F : Key → D → R` on finite types and an adversary with private coins and `t` channels, `PRF.multiKeyAdvantage_le_sum` bounds the distance between `t` independent uniform keys and `t` independent uniform functions by `∑ j < t, PRF.advantage F (PRF.multiKeyReduction F j A)`. Each reduction is one randomized `PRF.Adversary D R` that samples its own keys, forwards channel `j`, and lazily samples the channels below `j` with a list cache; it makes at most as many queries as `A` (`PRF.isQueryBounded_multiKeyReduction`).
+For the birthday distinguisher attacking any block cipher `E : Key → Equiv.Perm D` with `[DecidableEq D]` viewed as a PRF ([bs23][bs23], §4.4.3, printed p. 134), import [`Primitives/PRP/BirthdayAttack.lean`](../../CslibFrontier/Crypto/Primitives/PRP/BirthdayAttack.lean). `PRP.birthdayDistinguisher x` non-adaptively queries a fixed tuple `x : Fin Q → D` (`PRP.isQueryBounded_birthdayDistinguisher`) and returns `true` iff two oracle replies collide. Whenever `Function.Injective x` (which forces `Q ≤ Fintype.card D` when `D` is finite), `PRP.eval_realExperiment_birthdayDistinguisher` gives probability `0` of outputting `true` in `PRP.realExperiment` for any finite nonempty `Key`; when `D` is also finite nonempty, `PRP.coe_advantage_birthdayDistinguisher` equates `PRF.advantage (fun key => ⇑(E key)) (PRP.birthdayDistinguisher x)` with `1 - (Fintype.card D).descFactorial Q / (Fintype.card D) ^ Q`, and `PRP.min_le_advantage_birthdayDistinguisher` bounds it below by `min (Q * (Q - 1) / (4 * Fintype.card D)) 0.63`. Whenever `x` enumerates a finite nonempty domain with `2 ≤ Fintype.card D` (`Function.Bijective x`), `PRP.half_le_advantage_birthdayDistinguisher_of_bijective` bounds the PRF advantage below by `1 / 2` (on a one-element domain the advantage is `0`). Only oracle query counts are certified (no machine running time), and the counter-mode attack of §4.4.4.1 is not formalized. Positive instances and refutations dropping injectivity of `x`, the permutation requirement on `E` (a constant keyed function on `Fin 4` has advantage `3 / 32`), or `2 ≤ Fintype.card D` are checked in [`CslibFrontierTests/Crypto/BirthdayAttack.lean`](../../CslibFrontierTests/Crypto/BirthdayAttack.lean).
+
+Several independently keyed copies of a pseudorandom function are again pseudorandom: [`PseudorandomFunction.multiKey`](../../CslibFrontier/Crypto/Computational/PseudorandomFunction/MultiKey.lean) answers `t` word channels with the `n`-bit blocks of one `t * n`-bit key, against `t` independent random functions, for every fixed `t`. Its hybrid reduction `prfMultiReduction` simulates the already random channels with a lazy list cache and is itself oracle PPT; the concrete bound sums `t` PRF advantages (Boneh–Shoup, Exercise 4.26). The number of keys is a constant, not a function of the security parameter; the exercise also allows a polynomially bounded number of keys, which this theorem does not cover. The finite counterpart is [`Primitives/PRF/MultiKey.lean`](../../CslibFrontier/Crypto/Primitives/PRF/MultiKey.lean): for a keyed function `F : Key → D → R` on finite types and an adversary with private coins and `t` channels, `PRF.multiKeyAdvantage_le_sum` bounds the distance between `t` independent uniform keys and `t` independent uniform functions by `∑ j < t, PRF.advantage F (PRF.multiKeyReduction F j A)`. Each reduction is one randomized `PRF.Adversary D R` that samples its own keys, forwards channel `j`, and lazily samples the channels below `j` with a list cache; it makes at most as many queries as `A` (`PRF.isQueryBounded_multiKeyReduction`). Against every table on `n`-bit strings, the word reduction `prfMultiReduction` has the law of `PRF.multiKeyReduction (PRF.atLevel family n) j` on the adapted adversary (`interpret_prfMultiReduction_eq_multiKeyReduction`), and both PRF games run it against such a table, so the certified word program is this finite reduction in both worlds.
+
+A pseudorandom function evaluated at `ℓ` distinct points is a pseudorandom generator ([bs23][bs23], §4.4.4, Theorem 4.8, p. 138). For a keyed function `F : Key → D → R` and points `x : Fin ℓ ↪ D`, import [`Primitives/PRF/ToPRG.lean`](../../CslibFrontier/Crypto/Primitives/PRF/ToPRG.lean): `PRF.toPRG F x` sends `key` to `fun i => F key (x i)`, and for a test `A : (Fin ℓ → R) → ProbComp Bool` the adversary `PRF.prgReduction x A` queries `x 0, …, x (ℓ - 1)` in order and runs `A` on the answers, making at most `ℓ` queries (`PRF.isQueryBounded_prgReduction`). For finite `Key`, `D` and `R`, with `Key` and `R` nonempty and decidable equality on `D`, `PRF.advantage_toPRG_eq` proves that `PRG.Generator.advantage (PRF.toPRG F x) (fun y => ProbComp.eval (A y))` equals `PRF.advantage F (PRF.prgReduction x A)`, the book's `PRGadv[A, G] = PRFadv[B, F]`. The test is a `ProbComp` program, not an arbitrary `PRG.Adversary` with values in `PMF Bool`, because the reduction runs it. For finite `Key` and `R` with `Fintype.card Key < Fintype.card R ^ ℓ`, `PRF.isExpanding_toPRG` gives `(PRF.toPRG F x).IsExpanding`. On words, [`PseudorandomFunction/ToPRG.lean`](../../CslibFrontier/Crypto/Computational/PseudorandomFunction/ToPRG.lean) defines `prgFromPRF family ℓ inLen x` for `x : ∀ n, Fin (ℓ n) ↪ BitString (inLen n)`: on a seed of `n` bits it evaluates `family seed` at the `ℓ n` points and concatenates the answers. The oracle distinguisher `prgFromPRFReduction ℓ inLen outLen x A` runs `PRF.prgReduction` over the word channel, cutting or padding each reply to `outLen n` bits. If every answer of `family` to an `inLen n`-bit query under an `n`-bit key has `outLen n` bits, `advantage_prgFromPRF_eq` equates, for every `n`, the advantage of `A` between `prgFromPRF family ℓ inLen x` on a uniform seed and a uniform word of `ℓ n * outLen n` bits with the advantage of `prgFromPRFReduction ℓ inLen outLen x A` between `prfRealGame` and `prfIdealGame`. If the list of points `fun n => List.ofFn fun i => List.ofFn (x n i)` is computable in polynomial time from `encUnary` to `encList encBits`, `outLen` is computable in polynomial time from `encUnary` to `encUnary`, and `IsPPT encBool A`, then `isOraclePPT_prgFromPRFReduction` gives `IsOraclePPT encBool (prgFromPRFReduction ℓ inLen outLen x A)`. With the same conditions on the points and on `outLen`, `indistinguishable_prgFromPRF` shows for `PseudorandomFunctionOver inLen outLen family` that the outputs of `prgFromPRF family ℓ inLen x` are computationally indistinguishable from uniform words of `ℓ n * outLen n` bits. If moreover `n < ℓ n * outLen n` for every `n`, `PseudorandomFunctionOver.toPRG` gives `PseudorandomGenerator (prgFromPRF family ℓ inLen x) (fun n => ℓ n * outLen n)`, and the condition on `outLen` is then derived, not assumed. A length-preserving `PseudorandomFunction` has answers of `0` bits at `n = 0`, so it never meets that last condition; use `indistinguishable_prgFromPRF` for it. [`CslibFrontierTests/Crypto/PRFToPRG.lean`](../../CslibFrontierTests/Crypto/PRFToPRG.lean) checks an instance with advantage `1 / 2` on both sides, a generator that repeats one point and has advantage `1 / 2` for a function with which two distinct points give advantage `0`, a word evaluation, the two certificates at concrete points, and that the width condition is needed.
 
 For keyed functions that call a random oracle, import [`Primitives/PRF/RandomOracleModel.lean`](../../CslibFrontier/Crypto/Primitives/PRF/RandomOracleModel.lean) ([bs23][bs23], §8.10.2, Attack Game 8.4 and Theorem 8.9, p. 329). A `PRF.ROAdversary X Y M T` is one adaptive program with private coins that asks for the keyed function at `x : X` with the query `Sum.inl x`, answered in `Y`, and for the random oracle at `m : M` with the query `Sum.inr m`, answered in `T`. For finite types `Key`, `X`, `Y`, `M` and `T`, with decidable equality on `X` and `M` and with `Key`, `Y` and `T` nonempty, `PRF.roRealExperiment F A` samples the whole oracle table `O : M → T` and one uniform key and answers the keyed queries with `F O key`, for `F : (M → T) → Key → X → Y`; `PRF.roIdealExperiment A` samples the whole table and one uniform function `X → Y`; both answer the oracle queries with `O`, and `PRF.roAdvantage F A` is their distinguishing advantage. `A.IsOracleQueryBounded Q` says that `A` makes at most `Q` random-oracle queries on every path, whatever its coins and the replies; it counts neither the queries `Sum.inl x` nor private samples. `PRF.roAdvantage_prependKey_le` proves Theorem 8.9: for finite types `Key`, `X`, `M` and `T`, with decidable equality on `X` and `M` and with `Key` and `T` nonempty, for `encode : Key → X → M` with `Function.Injective2 encode`, and for `A : PRF.ROAdversary X T M T` with `A.IsOracleQueryBounded Q`, the advantage `PRF.roAdvantage (PRF.prependKey encode) A` of the key-prepending function `PRF.prependKey encode O key x = O (encode key x)` is at most `Q / Fintype.card Key`, whatever the adversary's other queries, coins and running time. Both halves of injectivity are needed: [`RandomOraclePRF.lean`](../../CslibFrontierTests/Crypto/RandomOraclePRF.lean) checks a pairing that is constant in the input, against which an adversary without random-oracle queries has advantage `1 / 2` where the bound would be `0`, and a pairing that sends every key to the same point, against which one random-oracle query gives advantage `1 / 2` for every number of keys. `PRF.keyAppend κ L` gives the book's `k ‖ x`, a `κ`-bit key followed by a word of `shortWords L`, and `PRF.roAdvantage_prependKey_keyAppend_le` bounds the advantage of an adversary with `A.IsOracleQueryBounded Q` against it by `Q / 2 ^ κ` for every finite nonempty `T`. Over a security parameter `n`, with `Key n`, `X n`, `M n` and `T n` finite, decidable equality on `X n` and `M n`, and `Key n` and `T n` nonempty for every `n`, `PRF.negligible_roAdvantage_prependKey` makes the advantage negligible for every family of adversaries whose numbers of random-oracle queries are bounded by a polynomially bounded `Q`, provided that `encode n` is injective in the pair for every `n` and that `1 / Fintype.card (Key n)` is negligible; for finite nonempty `T n` at every `n`, `PRF.negligible_roAdvantage_prependKey_keyAppend` gives the same for `keyAppend (κ n) (L n)` when `n ≤ κ n` for every `n`. Neither statement asks the adversaries to be efficient. Nothing is claimed about `H(k ‖ x)` for a concrete hash function `H` (for a Merkle–Damgård hash the book shows it insecure, §8.7), Definition 8.5 is not a named predicate, and no lower bound on the advantage is proved.
 
@@ -632,20 +830,40 @@ not injective, and the checked client exhibits the discarded high tree word. Thi
 define the FIPS 205 hash instantiations, WOTS+, XMSS, FORS, the hypertree, signing or verification,
 nor does it prove classical or quantum security.
 
-FIPS 202 SHAKE256 and SHAKE128 ([fips202][fips202]) are implemented in
+FIPS 202 SHA3-512, SHAKE256 and SHAKE128 ([fips202][fips202]) are implemented in
 [`Hash/Keccak.lean`](../../CslibFrontier/Crypto/Primitives/Hash/Keccak.lean) and
 [`Hash/Keccak/SHAKE128.lean`](../../CslibFrontier/Crypto/Primitives/Hash/Keccak/SHAKE128.lean) on
 top of the existing generic sponge mechanics. The executable state uses 25 lanes in `5 * y + x`
-order and shares the standard's θ/ρ/π/χ/ι maps and 24-round permutation. `Keccak.shake256` uses the
-1088-bit rate and 512-bit capacity, while `Keccak.shake128` uses the 1344-bit rate and 256-bit
-capacity; both use the `1111` suffix, `pad10*1` and explicit least-significant-bit-first bytes. The
-byte/state views are proved inverse, and `take_shake256` and `take_shake128` prove prefix
-consistency. The [SHAKE256 client](../../CslibFrontierTests/Crypto/Keccak.lean) checks NIST's 0-bit
-and 1600-bit-message examples, both sides of its 136-byte rate boundary, and a Falcon-512 KAT
-prefix. The [SHAKE128 client](../../CslibFrontierTests/Crypto/SHAKE128.lean) checks NIST's 0-bit
-and 1600-bit-message examples, crosses its 168-byte rate boundary, and checks the prefix API.
-These are executable specifications, not collision/preimage results, constant-time implementations
-or FIPS validations.
+order and shares the standard's θ/ρ/π/χ/ι maps and 24-round permutation. `Keccak.sha3512` uses the
+576-bit rate, 1024-bit capacity, `01` suffix and 64-byte output. `Keccak.shake256` uses the 1088-bit
+rate and 512-bit capacity, while `Keccak.shake128` uses the 1344-bit rate and 256-bit capacity;
+both use the `1111` suffix. All three use `pad10*1` and explicit least-significant-bit-first bytes.
+The byte/state views are proved inverse, and the SHAKE functions prove prefix consistency.
+
+Import [`Hash/Keccak/Efficient.lean`](../../CslibFrontier/Crypto/Primitives/Hash/Keccak/Efficient.lean)
+for uniform multitape-Turing-machine polynomial-time certificates. SHAKE requests encode their
+output byte count in unary, so every requested byte and permutation block is charged. The direct
+De Morgan circuit in
+[`Hash/Keccak/Circuit.lean`](../../CslibFrontier/Crypto/Primitives/Hash/Keccak/Circuit.lean) agrees
+with Keccak-p[1600, 24] on every 1600-bit input. `keccakP1600Compiler` retains that construction's
+exact time, workspace, input, output and complete transition-table `staticBits`; the shared
+`NativeCompiler.staticBits_eq_descLen` theorem identifies the last coordinate with the retained
+first-order program-description length. The surrounding variable-length sponge certificate is
+asymptotic and does not claim a concrete cost for the whole sponge.
+
+The [Keccak client](../../CslibFrontierTests/Crypto/Keccak.lean) checks NIST's official SHA3-512
+and SHAKE256 0-bit and 1600-bit-message examples, both functions' rate boundaries, and a Falcon-512
+SHAKE prefix. The [SHAKE128 client](../../CslibFrontierTests/Crypto/SHAKE128.lean) checks NIST's
+0-bit and 1600-bit-message examples, crosses its 168-byte rate boundary, and checks the prefix API.
+These are executable specifications and machine certificates, not collision/preimage results,
+constant-time implementations, FIPS validations, or cryptographic security proofs.
+
+[`HQC/SeedExpansion.lean`](../../CslibFrontier/Crypto/Primitives/HQC/SeedExpansion.lean) applies
+this boundary to HQC v5.1: `pkeSeedDigest seed` is `SHA3-512(seed || 0x02)`, `pkeSeeds` splits its
+64 bytes into the two 32-byte PKE seeds, and `pkeSeedPrefixes` requests one SHAKE256 prefix from
+each seed. The two prefix lengths are unary and the functions carry uniform polynomial-time
+certificates. This is a one-shot prefix client, not an incremental sponge-cost theorem, a proof
+that HQC rejection sampling terminates, or an HQC security reduction.
 
 The shared byte and SHA-2 boundary used by the FIPS 205 SHA2 parameter sets is in
 [`ByteString.lean`](../../CslibFrontier/Crypto/Primitives/ByteString.lean) and
@@ -1153,7 +1371,7 @@ public construction and security endpoints.
 
 For two-party key exchange secure against passive eavesdroppers ([katzlindell20][katzlindell20], §11.3, Definition 11.1, Construction 11.2, Theorem 11.3, pp. 390–395, and Exercises 11.3–11.4, pp. 399–400), import [`KeyExchange.lean`](../../CslibFrontier/Crypto/Computational/KeyExchange.lean) and [`Encryption/PublicKeyCPA.lean`](../../CslibFrontier/Crypto/Computational/Encryption/PublicKeyCPA.lean) (checked in [`CslibFrontierTests/Crypto/KeyExchange.lean`](../../CslibFrontierTests/Crypto/KeyExchange.lean)). `KeyExchange T K` models a protocol by its honest-execution law `execute : ℕ → PMF (Outcome T K)`, with keys in a set `K transcript` named by the transcript (`KeyExchange.Correct`; honest-party efficiency is not bundled). An `Eavesdropper T K` is typed: it receives the security parameter and a `View T K` (a transcript and a candidate key), and its efficiency is `Eavesdropper.IsPPT encT encK`, read through the `enc_structure` encoding `encView`. `realGame` and `idealGame` draw the view `realView` (transcript and Alice's key) or `idealView` (transcript and a fresh ideal key) and run the eavesdropper on it (`EavSecure`, `EavSecureBits`); `withSetup_realView_bind` and `withSetup_idealView_bind` split off a setup draw. Over any `PrimeOrderGroupFamily`, the transcript is the record `DHTranscript` and the key a group element (`DHKey`, `encDHKey`). At a fixed group, `dhExecution` is correct (`dhKeyExchange_correct`) and its real and ideal experiments are the DDH experiments of the typed distinguisher `dhEavToDDH` (`withSetup_realView_dhExecution`, `withSetup_idealView_dhExecution`); `dhKeyExchange setup` draws the group first, which gives `realGame_dhKeyExchange`, `idealGame_dhKeyExchange` and `EavSecure` against the uniform group-element ideal key `dhIdealKey` under `DDH` (`DDH.dhKeyExchange_eavSecure`). The test derives the word-level statement for eavesdroppers on the encoded transcript and key. At a fixed group, the active man-in-the-middle execution `dhMitmExecution` shares keys with both parties while each party's view has the law of `realView` of an honest execution (`dhMitmExecution_keys`, `map_aliceView_dhMitmExecution`, `map_bobView_dhMitmExecution`), and the 3-message XOR protocol `xorKeyExchange`, whose transcript is the record `XorTranscript`, is correct yet broken with advantage at least `1 / 2` by `xorEavesdropper` (`isPPT_xorEavesdropper`, `not_eavSecureBits_xorKeyExchange`). In `Encryption/PublicKeyCPA.lean`, `cpaOracleGameOn`, `WordINDCPAOracleOn`, and `WordINDCPAOracle` equip both stages of a `WordCPAAdversary` with an explicit public-key encryption oracle `encryptionOracle`, and `INDCPAOn.wordINDCPAOracleOn` and `WordINDCPA.wordINDCPAOracle` prove that single-challenge eavesdropping security implies oracle-CPA security whenever `encrypt` is uniform strict PPT ([katzlindell20][katzlindell20], §12.2.1, Proposition 12.3, p. 406; the multi-message left-or-right Theorem 12.6 is not formalized).
 
-For the RSA least-significant-bit experiment and algebraic attacks on plain RSA, import [`RSALeastSignificantBit.lean`](../../CslibFrontier/Crypto/Computational/RSALeastSignificantBit.lean) and [`RSAAttacks.lean`](../../CslibFrontier/Crypto/Computational/RSAAttacks.lean) ([katzlindell20][katzlindell20], §9.2.5, pp. 334–336, §12.5.1, pp. 436–440, and §12.5.3, pp. 443–445; checked instances are in [`CslibFrontierTests/Crypto/RSALeastSignificantBit.lean`](../../CslibFrontierTests/Crypto/RSALeastSignificantBit.lean) and [`CslibFrontierTests/Crypto/RSAAttacks.lean`](../../CslibFrontierTests/Crypto/RSAAttacks.lean)). `rsaLSBGame` samples `desc ← gen n` and a uniform residue `x ← Fin desc.modulus` (matching `rsaInversionGame` rather than `(ZMod N)ˣ`) and asks an `RSAPredictor` (with `RSAPredictor.IsPPT`, reading `encRSAInput` and writing a bit) for `x.testBit 0` given `pk.eval x`. The library does not state the hard-core property of this bit as an assumption, since the literature proves it from the RSA assumption ([#5578](https://github.com/cslib-community/cslib-frontier/issues/5578)). For odd `N`, `two_pow_mul_mod_mod_two` equates the parity of `2 ^ k * x % N` (`k ≠ 0`) with that of `⌊2 ^ k * x / N⌋`, `lsbRecover_lsbQueries` recovers `x` from the parities of the preimages of the `m` doubling queries `2 ^ (k * e) * y % N` once `N ≤ 2 ^ m`, and `lsbInverter` wins `rsaInversionGame` with probability `1` given a predictor that is always correct on the modulus (`eval_lsbInverter`, `succProbability_rsaInversionGame_lsbInverter`). `computableInPolyTime_lsbQueries`, `computableInPolyTime_lsbRecover`, and `isPPT_lsbInverter` certify uniform strict-PPT efficiency for `lsbInverter` whenever the predictor is PPT, yielding `RSAOneWay.not_frequently_alwaysCorrect_lsbPredictor` on eventually odd moduli; the noisy reconstruction of Theorem 12.31 for predictors with small noticeable bias, and with it the hard-core theorem, remains open. `RSAAttacks.lean` proves plain-RSA multiplicative malleability (`rsaEval_mul`, `rsaInvert_rsaEval_mul`), common-modulus recovery of every message `m` coprime to `N` from its encryptions under coprime exponents `e₁`, `e₂` by Shamir's trick (`commonRoot_rsaEval`: `commonRoot N e₂ e₁ (rsaEval N e₁ m) (rsaEval N e₂ m) = m % N`), unreduced short-message and pairwise-coprime CRT broadcast `e`-th root recovery (`rsaEval_eq_pow_of_pow_lt`, `eq_of_pow_eq_rsaEval`, `chineseRemainderOfList_rsaEval_eq_pow`, `eq_of_pow_eq_chineseRemainderOfList_rsaEval`), factoring `N` from `(N, φ(N))` (`factorOfTotient_eq`, `RSADesc.factorOfTotient_eq`, `computableInPolyTime_factorOfTotient`), the polynomial-time equivalence `totientHard_iff_modulusFactoringHard` (`TotientHard.modulusFactoringHard`, `ModulusFactoringHard.totientHard`, after Theorem 9.49) between `TotientHard` (`totientGame`) and `ModulusFactoringHard` via `factorToTotient` and `totientToFactor`, the certified PPT hierarchy `RSAOneWay` $\Rightarrow$ `RSAKeyRecoveryHard` (`rsaKeyRecoveryGame`) $\Rightarrow$ `TotientHard` $\Leftrightarrow$ `ModulusFactoringHard` (`RSAOneWay.rsaKeyRecoveryHard`, `RSAOneWay.totientHard`, `RSAOneWay.modulusFactoringHard`, `RSAKeyRecoveryHard.totientHard`, `RSAKeyRecoveryHard.modulusFactoringHard`) via `totientToKeyRecovery`, `keyRecoveryToRSA`, and `factorToRSA` (using the polynomial-time binary modular inverse `BinaryGcd.modInv`, `BinaryGcd.modInv_eq_zmod_inv_val`, and `ComputableInPolyTime.binary_modInv` in [`PolyTime/Nat/Gcd.lean`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/PolyTime/Nat/Gcd.lean)), the general nontrivial-square-root factoring lemmas `gcd_sub_one_proper_of_sq_modEq_one` and `gcd_add_one_proper_of_sq_modEq_one` for any `N` and `y`, and the deterministic steps `RSADesc.pow_mul_sub_one_modEq_one`, `RSADesc.gcd_sub_one_proper`, and `RSADesc.gcd_add_one_proper` of Corollary 9.51; the reverse randomized reduction from factoring to `RSAKeyRecoveryHard` (Theorem 9.50 / Corollary 9.51) is not yet formalized.
+For the RSA least-significant-bit experiment and algebraic attacks on plain RSA, import [`RSALeastSignificantBit.lean`](../../CslibFrontier/Crypto/Computational/RSALeastSignificantBit.lean) and [`RSAAttacks.lean`](../../CslibFrontier/Crypto/Computational/RSAAttacks.lean) ([katzlindell20][katzlindell20], §9.2.5, pp. 334–336, §12.5.1, pp. 436–440, and §12.5.3, pp. 443–445; checked instances are in [`CslibFrontierTests/Crypto/RSALeastSignificantBit.lean`](../../CslibFrontierTests/Crypto/RSALeastSignificantBit.lean) and [`CslibFrontierTests/Crypto/RSAAttacks.lean`](../../CslibFrontierTests/Crypto/RSAAttacks.lean)). `rsaLSBGame` samples `desc ← gen n` and a uniform residue `x ← Fin desc.modulus` (matching `rsaInversionGame` rather than `(ZMod N)ˣ`) and asks an `RSAPredictor` (with `RSAPredictor.IsPPT`, reading `encRSAInput` and writing a bit) for `x.testBit 0` given `pk.eval x`. The library does not state the hard-core property of this bit as an assumption, since the literature proves it from the RSA assumption ([#5578](https://github.com/cslib-community/cslib-frontier/issues/5578)). For odd `N`, `two_pow_mul_mod_mod_two` equates the parity of `2 ^ k * x % N` (`k ≠ 0`) with that of `⌊2 ^ k * x / N⌋`, `lsbRecover_lsbQueries` recovers `x` from the parities of the preimages of the `m` doubling queries `2 ^ (k * e) * y % N` once `N ≤ 2 ^ m`, and `lsbInverter` wins `rsaInversionGame` with probability `1` given a predictor that is always correct on the modulus (`eval_lsbInverter`, `succProbability_rsaInversionGame_lsbInverter`). `computableInPolyTime_lsbQueries`, `computableInPolyTime_lsbRecover`, and `isPPT_lsbInverter` certify uniform strict-PPT efficiency for `lsbInverter` whenever the predictor is PPT, yielding `RSAOneWay.not_frequently_alwaysCorrect_lsbPredictor` on eventually odd moduli; the noisy reconstruction of Theorem 12.31 for predictors with small noticeable bias, and with it the hard-core theorem, remains open. [`RSAHalfPredicate.lean`](../../CslibFrontier/Crypto/Computational/RSAHalfPredicate.lean) treats the half predicate `[x · r mod N > N / 2]` (Boneh–Shoup v0.6, Exercise 12.21, pp. 519–520 [bs23][bs23]). For odd `N ≤ 2 ^ m` and `x < N`, its values at `r = 2 ^ k`, `k < m`, recover `x` through `lsbRecover` (`lsbRecover_map_decide_lt_two_mul`). For odd moduli and a half oracle `H` that is always correct on RSA images, `halfToLSBPredictor H` predicts the least significant bit (`eval_halfToLSBPredictor`), so `lsbInverter (halfToLSBPredictor H)` wins `rsaInversionGame` with probability `1` (`succProbability_rsaInversionGame_halfToLSBPredictor`); it asks `H` at the RSA images of `2 ^ k * x % N`, `k < N.size` (`lsbInverter_halfToLSBPredictor`), and is PPT whenever `H` is (`isPPT_halfToLSBPredictor` with `isPPT_lsbInverter`). Under `RSAOneWay` on eventually odd moduli, no PPT half predictor is always correct for infinitely many security parameters (`RSAOneWay.not_frequently_alwaysCorrect_halfPredictor`). Checked instances are in [`CslibFrontierTests/Crypto/RSAHalfPredicate.lean`](../../CslibFrontierTests/Crypto/RSAHalfPredicate.lean). `RSAAttacks.lean` proves plain-RSA multiplicative malleability (`rsaEval_mul`, `rsaInvert_rsaEval_mul`), common-modulus recovery of every message `m` coprime to `N` from its encryptions under coprime exponents `e₁`, `e₂` by Shamir's trick (`commonRoot_rsaEval`: `commonRoot N e₂ e₁ (rsaEval N e₁ m) (rsaEval N e₂ m) = m % N`), unreduced short-message and pairwise-coprime CRT broadcast `e`-th root recovery (`rsaEval_eq_pow_of_pow_lt`, `eq_of_pow_eq_rsaEval`, `chineseRemainderOfList_rsaEval_eq_pow`, `eq_of_pow_eq_chineseRemainderOfList_rsaEval`), factoring `N` from `(N, φ(N))` (`factorOfTotient_eq`, `RSADesc.factorOfTotient_eq`, `computableInPolyTime_factorOfTotient`), the polynomial-time equivalence `totientHard_iff_modulusFactoringHard` (`TotientHard.modulusFactoringHard`, `ModulusFactoringHard.totientHard`, after Theorem 9.49) between `TotientHard` (`totientGame`) and `ModulusFactoringHard` via `factorToTotient` and `totientToFactor`, the certified PPT hierarchy `RSAOneWay` $\Rightarrow$ `RSAKeyRecoveryHard` (`rsaKeyRecoveryGame`) $\Rightarrow$ `TotientHard` $\Leftrightarrow$ `ModulusFactoringHard` (`RSAOneWay.rsaKeyRecoveryHard`, `RSAOneWay.totientHard`, `RSAOneWay.modulusFactoringHard`, `RSAKeyRecoveryHard.totientHard`, `RSAKeyRecoveryHard.modulusFactoringHard`) via `totientToKeyRecovery`, `keyRecoveryToRSA`, and `factorToRSA` (using the polynomial-time binary modular inverse `BinaryGcd.modInv`, `BinaryGcd.modInv_eq_zmod_inv_val`, and `ComputableInPolyTime.binary_modInv` in [`PolyTime/Nat/Gcd.lean`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/PolyTime/Nat/Gcd.lean)), the general nontrivial-square-root factoring lemmas `gcd_sub_one_proper_of_sq_modEq_one` and `gcd_add_one_proper_of_sq_modEq_one` for any `N` and `y`, and the deterministic steps `RSADesc.pow_mul_sub_one_modEq_one`, `RSADesc.gcd_sub_one_proper`, and `RSADesc.gcd_add_one_proper` of Corollary 9.51; the reverse randomized reduction from factoring to `RSAKeyRecoveryHard` (Theorem 9.50 / Corollary 9.51) is not yet formalized.
 
 For RSA with a uniform unit preimage ([bs23][bs23], §10.6.2, Theorem 10.5, p. 416), import
 [`RSAUnitInversion.lean`](../../CslibFrontier/Crypto/Computational/RSAUnitInversion.lean).
@@ -1219,8 +1437,8 @@ accepts. Digests are natural numbers below `N`, not units modulo `N`. The book f
 whereas keys here come from any law on `RSADesc`, with no condition on `ℓ`, and the results assume
 that `e` is prime on its support; `e` coprime to `(p - 1) * (q - 1)` is not enough. Exercise 10.26
 (p. 431) and the use of `H_rsa` as a compression function in the Merkle–Damgård construction
-(p. 416) are not formalized. The accumulator of §10.9 is in `GUOAccumulator.lean` (below), without
-its security theorem. The
+(p. 416) are not formalized. The accumulator of §10.9 is in `GUOAccumulator.lean` (below), and its
+security under strong RSA in `GUOAccumulator/Security.lean`. The
 [checked examples](../../CslibFrontierTests/Crypto/RSAHash.lean) cover a collision at `N = 15`,
 `e = 3` and `y = 2` with its root `8`, a word that decodes to a valid pair but is not valid, and, at
 `e = 9`, which is coprime to `(3 - 1) * (5 - 1) = 8`, a collision that gives no ninth root of `2`.
@@ -1290,7 +1508,8 @@ congruence is the one §10.9 uses to recover each proof from an aggregate ([bs23
 p. 422). The book takes units `w` and `y` modulo `n`, whereas here `w` and `y` are natural numbers,
 not necessarily below `n`, and the two congruences assume only `Nat.Coprime w n`: for `f ≠ 0` it
 makes `y` coprime to `n`, and for `f = 0` they do not need it. The accumulator of §10.9 is in
-`GUOAccumulator.lean` (below), without its security theorem. In `RSAAttacks.lean`,
+`GUOAccumulator.lean` (below), and its security under strong RSA in
+`GUOAccumulator/Security.lean`. In `RSAAttacks.lean`,
 `commonRoot_rsaEval` applies the
 algorithm to the common-modulus attack on plain RSA: for `Nat.Coprime e₁ e₂` and
 `Nat.Coprime m N`, `commonRoot N e₂ e₁ (rsaEval N e₁ m) (rsaEval N e₂ m) = m % N`, so
@@ -1331,15 +1550,44 @@ proof and the root are computable in polynomial time, with `γ` on `encIntBin` a
 numbers on `encNat` (`computableInPolyTime_guoVerifySubset`,
 `computableInPolyTime_guoVerifyNonMem`, `computableInPolyTime_neg_guoNonMemCoeff`,
 `computableInPolyTime_guoNonMemWitness`, `computableInPolyTime_guoForgeryRoot`);
-`computableInPolyTime_guoNonMemCoeff` certifies the natural number `-γ` on `encNat`. The
-statements differ from the book's in two further places: the book's
+`computableInPolyTime_guoNonMemCoeff` certifies the natural number `-γ` on `encNat`. Alice
+computes `E` from a list `l` of elements as `(l.map H).prod`; when `l` has no duplicates, this is
+`guoExponent H l.toFinset` (Mathlib's `List.prod_toFinset`). For `N` and `g` computable in
+polynomial time on `encNat`, a list computable in polynomial time on `encList`, and `H` computable
+in polynomial time with binary values, `computableInPolyTime_guoExponent_toFinset` and
+`computableInPolyTime_guoCommit_toFinset` certify `E` and the commitment for any list: the
+machine erases duplicates before multiplying. The statements differ from the book's in two
+further places: the book's
 `π_T = g ^ (E / ∏ x ∈ T, H x)` equals `guoSubsetWitness` when `T ⊆ S` and no hash is `0`, and for
 `0 < H x` Alice's `γ` satisfies `|γ| < H x` where the book has `|γ| ≤ H(x)` (`guoNonMemCoeff_lt`).
-Security under strong RSA, a certificate for computing `E` from a list of elements, aggregated
-non-membership proofs and class groups are not formalized in this module. The
+Security under strong RSA is in the next paragraph. Certificates for membership proofs from a
+list, aggregated non-membership proofs and class groups are not formalized. The
 [checked examples](../../CslibFrontierTests/Crypto/GUOAccumulator.lean) work modulo `35` with
-`g = 2` and the hashes `3`, `5` and `7`, and include instances showing that the unit commitment,
-the unit base, `0 < h`, prime hashes and the unit check on `c` are needed.
+`g = 2` and the hashes `3`, `5` and `7`, compute the commitment from a list, show that the product
+along a list with a repeated element is not the commitment, and include instances showing that
+the unit commitment, the unit base, `0 < h`, prime hashes and the unit check on `c` are needed.
+
+For the accumulator's security under strong RSA ([bs23][bs23], §10.9, p. 422), import
+[`GUOAccumulator/Security.lean`](../../CslibFrontier/Crypto/Computational/GUOAccumulator/Security.lean).
+The elements are words, and the hash is any `H : List Bool → ℕ`. A `GUOForger` outputs a
+`GUOForgery`, encoded by `encGUOForgery`: a commitment `c`, an element `x`, a membership proof `a`
+and a non-membership proof `(b, γ)`. `GUOForger.IsPPT` states its efficiency.
+`guoAccumulatorGame setup H` draws `(N, g)` from `setup n` and accepts when the forgery passes both
+of Bob's checks for `H x` (`GUOForgery.isValid`). `StrongRSA.negligible_guoAccumulatorGame` is the
+book's security theorem: if `StrongRSA setup` holds and `H` is computable in polynomial time
+(`ComputableInPolyTime H encBits encNat`) with `H x ≠ 1` for every `x`, then every PPT adversary
+wins `guoAccumulatorGame setup H` with negligible probability. Its reduction `guoToStrongRSA H A`
+outputs `(guoForgeryRoot N a b γ, H x)`. When `H x ≠ 1` for every `x`,
+`succProbability_guoAccumulatorGame_le` bounds the success probability of every adversary `A` by
+that of `guoToStrongRSA H A` in the strong RSA game, and `isPPT_guoToStrongRSA` certifies that the
+reduction is PPT when `A` is and `H` is computable in polynomial time. The book's hash takes prime
+values and is collision resistant; the proof needs only `H x ≠ 1`, because the strong RSA game
+rejects the exponent `1`. The book calls a correct accumulator secure; the theorem concerns the
+security game alone, and correctness is in the paragraph above. The group comes from any law on
+`GUOParams`, as in `StrongRSA`, in place of the book's efficient `GGen`. The
+[checked examples](../../CslibFrontierTests/Crypto/GUOAccumulatorSecurity.lean) give a forgery
+modulo `15`, where the order of `2` is known, apply the theorem to it, and show that `H x ≠ 1` is
+needed.
 
 For weak RSA moduli ([bs23][bs23], §16.4.2, pp. 698–699), import
 [`Factoring/WeakModuli.lean`](../../CslibFrontier/Crypto/Computational/Factoring/WeakModuli.lean).
@@ -1359,7 +1607,25 @@ modulus with odd primes, `RSADesc.fermatFactor_eq` shows that it returns `(max p
 So moduli with close factors are factored in polynomial time; the theorems say nothing about
 other moduli. The [checked examples](../../CslibFrontierTests/Crypto/WeakModuli.lean) factor
 `10403 = 101 * 103` and two moduli sharing `101`, and show that `fermatFactor` does not factor
-`3 * 101` or `3 * 2`.
+`3 * 101` or `3 * 2`. For a known linear relation between the factors
+([bs23][bs23], §16.4.2.1, p. 699, and Exercise 16.14, p. 710), import
+[`LinearRelation.lean`](../../CslibFrontier/Crypto/Computational/Factoring/LinearRelation.lean).
+`fermatFactorLinear a b n` runs `fermatFactor` on `4 * a * b * n` and takes the gcd of each output
+with `n`; the factor `4` makes the sum of `2 * a * p` and `2 * b * q` even, so no parity condition
+is needed. For natural numbers `a`, `b`, `p`, `q` with `Nat.Coprime (2 * a) q`,
+`Nat.Coprime (2 * b) p` and `|a * p - b * q| < (4 * a * b * p * q) ^ (1 / 4)`,
+`fermatFactorLinear_mul_eq` shows that `fermatFactorLinear a b (p * q)` is `(p, q)` when
+`b * q ≤ a * p` and `(q, p)` otherwise; primality is not needed.
+`fermatFactorLinear_mul_eq_of_lt_rpow` gives the same under the book's bound
+`|a * p - b * q| < (p * q) ^ (1 / 4)` when `a` and `b` are positive, and
+`RSADesc.fermatFactorLinear_eq_of_lt_rpow` states it for an RSA modulus when `q` does not divide
+`2 * a` and `p` does not divide `2 * b`. `computableInPolyTime_fermatFactorLinear_prod` certifies
+`fermatFactorLinear` as a polynomial-time function of `((a, b), n)` on binary naturals. The book
+writes the relation as `|a * p + b * q| < n ^ (1 / 4)` with real `a` and `b`; only natural `a`
+and `b` are covered, with the book's `b` negated. The
+[checked examples](../../CslibFrontierTests/Crypto/FactoringLinearRelation.lean) factor Exercise
+16.14's 309-digit modulus with `a = 3`, `b = 2`, and show `fermatFactorLinear` failing without
+`Nat.Coprime (2 * a) q`, without `Nat.Coprime (2 * b) p`, without `0 < a`, and without the bound.
 
 For RSA-CRT inversion and the gcd identity behind its fault attack ([bs23][bs23], §16.4.3, pp. 701–702), import [`RSACRT.lean`](../../CslibFrontier/Crypto/Computational/RSACRT.lean) (checked instances are in [`CslibFrontierTests/Crypto/RSACRT.lean`](../../CslibFrontierTests/Crypto/RSACRT.lean)). `RSACRTKey` is the key `(p, q, d_p, d_q, q_inv)`, `RSADesc.crtKeyWith desc qInv` derives it from an `RSADesc` with `d_p = d % (p - 1)` and `d_q = d % (q - 1)`, and `RSADesc.crtKey` uses `q_inv = RSADesc.crtQInv`, computed by the extended Euclidean algorithm `BinaryGcd.modInv q p` of [`PolyTime/Nat/Gcd.lean`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/PolyTime/Nat/Gcd.lean); `RSADesc.crtQInv_eq_zmod_inv_val` proves that it is the representative `((q : ZMod p)⁻¹).val` of the inverse of `q` in `ZMod p`, and `RSADesc.crtQInv_mul_modEq_one` that `crtQInv * q ≡ 1 [MOD p]`. Recombination `RSACRTKey.combine` is `crtCombine` from [`Foundations/Data/Nat/ChineseRemainder.lean`](../../CslibFrontier/Foundations/Data/Nat/ChineseRemainder.lean). For odd `p` and `q` and any `q_inv` with `q_inv * q ≡ 1 [MOD p]`, `RSADesc.invert_crtKeyWith` proves that RSA-CRT inversion equals `rsaInvert n d` on every input; the tests show that it fails for `p = 2`. `RSADesc.gcd_val_pow_sub_combine_eq_q` states the gcd identity behind the fault attack: for any such `q_inv`, that is, any `q_inv` with `q_inv * q ≡ 1 [MOD p]` (oddness is not needed), recombining an `x_q` that is correct modulo `q` with an `x_p` that is wrong modulo `p` gives an output `σ` with `gcd(σ ^ e − h, n) = q`, where `σ ^ e − h` is computed in `ZMod n` and read in `[0, n)`, for any natural number `h` in place of the hash value. The polynomial-time certificates take component functions `α → ℕ`, each computable in polynomial time to `encNat`, as `computableInPolyTime_rsaInvert` does: `computableInPolyTime_crtInvert` certifies RSA-CRT inversion from the key components and the input when `p` and `q` are positive, `computableInPolyTime_crtKeyWith_invert` does the same for `RSADesc.crtKeyWith desc qInv` from `p`, `q`, `d`, `q_inv` and the input, and `computableInPolyTime_gcd_val_pow_sub` certifies the attack's gcd step `gcd(σ ^ e − h, n)` when `n` is positive. In `computableInPolyTime_crtInvert` and `computableInPolyTime_crtKeyWith_invert`, `q_inv` is an input, as in the book's precomputed key. `computableInPolyTime_crtQInv` certifies `RSADesc.crtQInv` from `p` and `q` with no further hypothesis, and `computableInPolyTime_crtKey_invert` certifies RSA-CRT inversion with `RSADesc.crtKey` from `p`, `q`, `d` and the input, with no positivity hypothesis because `p` and `q` are prime. Nothing is proved about an attacker as an adversary in a game, or about signing. The four-times speed-up and FDH-RSA signing are not formalized.
 
@@ -1409,6 +1675,20 @@ by `decide` and build the instance as `⟨isUnit_iff_ne_zero.2 h⟩`.
   `#E(F) = #F + 1 - t`. (`WeierstrassCurve.Manin.twistPoly` in `ManinTwist.lean` is the instance
   `(ofCubic (C α) (C β) (C γ)).quadraticTwist (cubicPoly α β γ)` over `Polynomial k`, with
   `Manin.twist` its base change to `RatFunc k`, used internally in Manin's proof.)
+- **Variable change on affine points.** Import [`EllipticCurve/VariableChange.lean`](../../CslibFrontier/Foundations/AlgebraicGeometry/EllipticCurve/VariableChange.lean)
+  (`CslibFrontier.Foundations.AlgebraicGeometry.EllipticCurve.VariableChange`). Over a field `F`,
+  for Mathlib's admissible change of variables `C : WeierstrassCurve.VariableChange F` (a unit
+  `C.u` and `C.r`, `C.s`, `C.t` in `F`) and any `W : WeierstrassCurve F`, singular or not,
+  `WeierstrassCurve.variableChange_equation_iff` states that `(x, y)` satisfies the equation of
+  `C • W` if and only if `(C.u ^ 2 * x + C.r, C.u ^ 3 * y + C.u ^ 2 * C.s * x + C.t)` satisfies
+  the equation of `W`, and `WeierstrassCurve.variableChange_nonsingular_iff` states the same for
+  nonsingular points. When `F` has decidable equality (`[DecidableEq F]`, which Mathlib's
+  addition of points needs), `WeierstrassCurve.variableChangePointEquiv C W` is the group
+  isomorphism `(C • W).toAffine.Point ≃+ W.toAffine.Point` that sends `0` to `0` and an affine
+  point to the point with those coordinates (`WeierstrassCurve.variableChangePointEquiv_some`),
+  so `C • W` and `W` have the same number of points (`Nat.card_congr` applied to its `toEquiv`).
+  The [variable-change client](../../CslibFrontierTests/Foundations/AlgebraicGeometry/VariableChange.lean)
+  moves an addition on a curve over `ZMod 7` through it.
 
 The [checked client](../../CslibFrontierTests/Foundations/AlgebraicGeometry/EllipticCurveHasse.lean)
 (using [`EllipticCurve/Decidable.lean`](../../CslibFrontier/Foundations/AlgebraicGeometry/EllipticCurve/Decidable.lean)
@@ -1421,6 +1701,26 @@ Equation (15.4), p. 618), and checks quadratic twists over `ZMod 11`, `ZMod 7`, 
 `IsCharNeTwoNF` is dropped (and why no `IsCharNeTwoNF` curve over `ZMod 2` is elliptic via
 `WeierstrassCurve.ringChar_ne_two_of_isCharNeTwoNF`). Build it with
 `lake build CslibFrontierTests.Foundations.AlgebraicGeometry.EllipticCurveHasse`.
+
+**Edwards curves.** Import
+[`EllipticCurve/Edwards.lean`](../../CslibFrontier/Foundations/AlgebraicGeometry/EllipticCurve/Edwards.lean)
+(`CslibFrontier.Foundations.AlgebraicGeometry.EllipticCurve.Edwards`) for Edwards curves
+`x² + y² = 1 + d x² y²` with `d ≠ 0` and `d ≠ 1` over a commutative ring `R` (`EdwardsCurve`,
+`EdwardsCurve.Equation`, `EdwardsCurve.Point`, with identity `EdwardsCurve.zero` = `(0, 1)`,
+negation `EdwardsCurve.neg` = `(-x, y)`, and `EdwardsCurve.order4Point` = `(1, 0)`;
+[bs23][bs23], §15.2.1, p. 619). Over a field `F`, `EdwardsCurve.equation_add` verifies closure
+under the unified addition formula whenever both denominators `1 ± d x₁ x₂ y₁ y₂` are nonzero, and
+for a non-square parameter (`¬ IsSquare E.d`), `EdwardsCurve.denom_ne_zero` shows those
+denominators never vanish in any characteristic (in characteristic two the hypothesis excludes every
+finite field and leaves only the points `(0, 1)` and `(1, 0)`), yielding the total law
+`EdwardsCurve.add` with `EdwardsCurve.zero_add`, `EdwardsCurve.add_zero`, `EdwardsCurve.add_comm`,
+and `EdwardsCurve.neg_add_cancel`. The textbook ([bs23][bs23], §15.2.1, p. 619) omits the
+sufficient non-square hypothesis `¬ IsSquare E.d`, and `d ≠ 0, 1` alone is not enough: modulo `11`
+with `d = 4 = 2²`, the
+[checked examples](../../CslibFrontierTests/Foundations/AlgebraicGeometry/EdwardsCurve.lean) show both
+denominators vanishing on the curve points `(2, 3)` and `(8, 2)`. Associativity, the `AddCommGroup`
+instance, and the equivalence with Montgomery and Weierstrass forms are left to follow-up modules.
+Build the tests with `lake build CslibFrontierTests.Foundations.AlgebraicGeometry.EdwardsCurve`.
 
 ### Lagrange interpolation in the exponent
 
@@ -2095,11 +2395,34 @@ words); Regev, dual Regev and GSW use the unrestricted one. A proof that unfolds
 
 For adaptive `Q`-query left-or-right chosen-plaintext attacks (Boneh–Shoup Section 11.3.2, Attack Game 11.2 and Definition 11.4, p. 439; cf. Attack Game 11.1, Section 11.2, p. 436 [bs23][bs23]), import [`Encryption/LoRCPA.lean`](../../CslibFrontier/Crypto/Computational/Encryption/LoRCPA.lean). `LoRAdversaryOf Msg` (`LoRAdversary := LoRAdversaryOf Bool`, `WordLoRAdversary := LoRAdversaryOf (List Bool)`) has `start`, `query` (which receives the saved state word and ciphertext transcript and returns the next challenge pair `(m₀, m₁)` together with the updated saved state word), and `guess`, with `LoRAdversaryOf.IsPPT` charging a polynomial per-step growth bound `state_growth` on the saved state across the `Q n` adaptive rounds (`lorStepOn`, `lorRunOn`, `lorDistinguisherOn`, `lorKeyDistinguisherOn`, `lorGameOn`, `LoRINDCPAOn`, `isPPT_lorDistinguisherOn`, `isPPT_lorKeyDistinguisherOn`, `advantage_lorDistinguisherOn_le`, their unrestricted specializations `lorStep`, `lorRun`, `lorDistinguisher`, `lorKeyDistinguisher`, `lorGame`, `LoRINDCPAOf`, `LoRINDCPA`, `isPPT_lorDistinguisher`, `isPPT_lorKeyDistinguisher`, `advantage_lorDistinguisher_le`, and `WordLoRINDCPA` under the equal-length rule `m₀.length == m₁.length`).
 
+[`Encryption/LoRCPA/FromSingle.lean`](../../CslibFrontier/Crypto/Computational/Encryption/LoRCPA/FromSingle.lean)
+proves the single-challenge semantic-security-to-many-query-CPA hybrid reduction
+([bs23][bs23], Section 11.3.2, Theorem 11.1, pp. 439–440). Given a `Q`-query `LoRAdversaryOf`,
+`lorToSingle` samples a uniform dyadic split index `j < dyadicSize (Q n)` with
+`ProbComp.sampleDyadicIndex (Q n)` (`Q n < dyadicSize (Q n) ≤ 2 * (Q n + 1)`) and simulates
+prefixes and suffixes from `lorToSingleAt` at fixed splits. Only `lorToSingle` is certified as
+a uniform strict-PPT single-challenge adversary (`isPPT_lorToSingle`), yielding
+`advantage_lorGameOn_eq` with factor `dyadicSize (Q n)`; separately,
+`advantage_lorGameOn_eq_uniform` (for `[NeZero (Q n)]`) gives the book's printed factor `Q n`
+between `lorGameOn` and the uniform mixture of `lorToSingleAt` over `Fin (Q n)` (not a single
+adversary, and uncertified). Asymptotically, `INDCPAOn.lorINDCPAOn` (`INDCPAOf.lorINDCPAOf`,
+`INDCPA.lorINDCPA`, `WordINDCPA.wordLoRINDCPA`) requires `valid` computable in polynomial time,
+`Q` computable in unary polynomial time, `encrypt` strict PPT, and every ciphertext of every
+message (admissible or not) to have length at most a polynomial in `n` alone — matching the
+length-bounded message spaces of Definition 11.3 (pp. 437–438), since on an infinite message type no
+scheme that decrypts every message satisfies that bound (`encrypt` must truncate or reject longer
+inputs). Concrete checks and endpoints live in
+[`CslibFrontierTests/Crypto/LoRCPAFromSingle.lean`](../../CslibFrontierTests/Crypto/LoRCPAFromSingle.lean).
+
 [CCA2AdversaryOf](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/Encryption/CCA.lean#L266) exposes adaptive decryption before and after the challenge; the second handler rejects the exact challenge ciphertext. The multi-challenge interface in [`CCA.lean`](../../CslibFrontier/Crypto/Computational/Encryption/CCA.lean) (`MultiCCA2AdversaryOf`, `INDCCA2MultiOn`) is a two-phase **batch** model, whereas [`CCA/Interleaved.lean`](../../CslibFrontier/Crypto/Computational/Encryption/CCA/Interleaved.lean) (`InterleavedCCA2AdversaryOf`, `interleavedCcaOracle`, `INDCCA2InterleavedOn`) formalizes Boneh–Shoup Attack Game 12.1 and Definition 12.1 ([bs23][bs23], §12.1, pp. 467–468) with a single stateful combined encryption-and-decryption oracle that tracks the list `S` of challenge ciphertexts generated so far, allowing arbitrary adaptive interleaving of `.challenge m₀ m₁` and `.decrypt c` queries (including decryption of a ciphertext `c` before a later challenge happens to produce `c`) and proving equivalence with both 1CCA and phased batch multi-challenge CCA (`indcca2InterleavedOn_iff_indcca2On`, `indcca2InterleavedOn_iff_indcca2MultiOn`, and `advantage_interleavedCca2GameOn`, with concrete checks in [`CslibFrontierTests/Crypto/CCAInterleaved.lean`](../../CslibFrontierTests/Crypto/CCAInterleaved.lean)). Encodings are part of the security boundary: the inspected Cramer–Shoup parser [decodeCramerShoup](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/CramerShoup/Scheme.lean#L876) requires canonical framing, so a different raw serialization of the challenge does not silently bypass the equality check.
 
-A malleable scheme is not CCA secure: an adversary maps the challenge to a different ciphertext with a related plaintext, asks the Phase 2 oracle to decrypt it, and reads off the hidden bit (Boneh–Shoup v0.6, Section 12.2.1, pp. 469–470 [bs23][bs23]). [`CCA/Malleability.lean`](../../CslibFrontier/Crypto/Computational/Encryption/CCA/Malleability.lean) packages this attack once. `maulAdversary msg₀ msg₁ maul target` chooses the pair, queries `maul n pk ct` once and compares the reply with `target n pk`. `isPPT_maulAdversary` certifies it from polynomial-time ingredients. `not_indcca2On_of_maulAdversary` refutes `INDCCA2On` when the pair is admissible under honest keys and, on every honest key pair and challenge ciphertext, the transformation changes the decryption and decrypts to `target` exactly in world `1`; the oracle then cannot reject the query, and the advantage is exactly `1` (`advantage_cca2GameOn_maulAdversary`). A scheme supplies only these conditions: [`GoldwasserMicali/Malleability.lean`](../../CslibFrontier/Crypto/Computational/GoldwasserMicali/Malleability.lean) multiplies the challenge by the public nonresidue, which flips the bit (`not_indcca2_goldwasserMicali`, unconditional, and `not_indcca2_blumGoldwasserMicali` under the Blum condition of `indcpa_blumGoldwasserMicali`), and [`Paillier/Malleability.lean`](../../CslibFrontier/Crypto/Computational/Paillier/Malleability.lean) multiplies it by `1 + N`, which adds `1` to the plaintext (`not_indcca2On_paillier`, unconditional, for the scheme and predicate of `DCR.indcpaOn_paillier`), and multiplicative ElGamal (below) adds `g` to the second ciphertext component. Each scheme's CCA decryptor is its never-rejecting `decryptOpt`, and the `INDCCA2Interleaved…` corollaries follow by `INDCCA2InterleavedOn.indcca2On`. The [checked clients](../../CslibFrontierTests/Crypto/CCAMalleability.lean) pair each IND-CPA theorem with its CCA failure and run both attacks on concrete moduli; run `scripts/build.sh CslibFrontierTests.Crypto.CCAMalleability`.
+Non-adaptive 1CCA security (Boneh–Shoup v0.6, Exercise 12.28, p. 522 [bs23][bs23]) is [`INDCCA1On`](../../CslibFrontier/Crypto/Computational/Encryption/CCA/NonAdaptive.lean): the single-challenge experiment `cca2GameOn` of `INDCCA2On`, played only by adversaries whose guessing stage makes no decryption query (`IsQueryBounded 0`), so that every decryption query comes before the encryption query. `INDCCA2On.indcca1On` and `INDCCA1On.indcpaOn` give CCA ⇒ non-adaptive 1CCA ⇒ CPA; the second plays a chosen-plaintext adversary through `CCA2AdversaryOf.ofCPA`. The exercise's further claim that one encryption query suffices, which a many-ciphertext use such as Boneh–Shoup's Remark 22.14 needs, is not formalized. [`NonAdaptiveCCAModule.lean`](../../CslibFrontierTests/Crypto/NonAdaptiveCCAModule.lean) applies `INDCCA1On` to an adversary under module encapsulation and derives it for keyed-hash Cramer–Shoup, and [`NonAdaptiveCCA.lean`](../../CslibFrontierTests/Crypto/NonAdaptiveCCA.lean) shows that sending the plaintext is not non-adaptive 1CCA secure.
 
-The endpoint [DDH.indcca2On_cramerShoup](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/CramerShoup.lean#L1688) (together with its batch multi-challenge lift `DDH.indcca2MultiOn_cramerShoup` and fully adaptive interleaved multi-challenge lift [`DDH.indcca2InterleavedOn_cramerShoup`](../../CslibFrontier/Crypto/Computational/CramerShoup/Interleaved.lean)) combines DDH, collision resistance, negligible inverse group order, and explicit efficient public operations. Key generation draws a uniform hash key and publishes it in the public key, as Cramer and Shoup do ([cs03][cs03], Section 6.1, Figure 1), so the collision-resistance premise is about a keyed family: its collision finders see the group and the key. A premise about one fixed hash per security parameter would not be the standard notion, since for a fixed function an adversary that just outputs a collision exists (Boneh–Shoup v0.6, Section 8.1, p. 290 [bs23][bs23]). The theorem assumes collision resistance, following Boneh–Shoup Theorem 12.9; the original papers need only target collision resistance (universal one-wayness) of the keyed hash ([cs03][cs03], Section 6.2, Theorem 1). Approximate modular sampling and its statistical error are accounted for. Other clients include ElGamal, hybrid encryption, authenticated encryption and encrypt-then-MAC; they instantiate the same staged/oracle security schemas. Homomorphic schemes add circuit functionality and are treated [separately](homomorphic-encryption.md).
+A malleable scheme is not CCA secure: an adversary maps the challenge to a different ciphertext with a related plaintext, asks the Phase 2 oracle to decrypt it, and reads off the hidden bit (Boneh–Shoup v0.6, Section 12.2.1, pp. 469–470 [bs23][bs23]). [`CCA/Malleability.lean`](../../CslibFrontier/Crypto/Computational/Encryption/CCA/Malleability.lean) packages this attack once. `maulAdversary msg₀ msg₁ maul target` chooses the pair, queries `maul n pk ct` once and compares the reply with `target n pk`. `isPPT_maulAdversary` certifies it from polynomial-time ingredients. `not_indcca2On_of_maulAdversary` refutes `INDCCA2On` when the pair is admissible under honest keys and, on every honest key pair and challenge ciphertext, the transformation changes the ciphertext and decrypts to `target` exactly in world `1`; the oracle then cannot reject the query, and the advantage is exactly `1` (`advantage_cca2GameOn_maulAdversary`). A scheme supplies only these conditions: [`GoldwasserMicali/Malleability.lean`](../../CslibFrontier/Crypto/Computational/GoldwasserMicali/Malleability.lean) multiplies the challenge by the public nonresidue, which flips the bit (`not_indcca2_goldwasserMicali`, unconditional, and `not_indcca2_blumGoldwasserMicali` under the Blum condition of `indcpa_blumGoldwasserMicali`), and [`Paillier/Malleability.lean`](../../CslibFrontier/Crypto/Computational/Paillier/Malleability.lean) multiplies it by `1 + N`, which adds `1` to the plaintext (`not_indcca2On_paillier`, unconditional, for the scheme and predicate of `DCR.indcpaOn_paillier`), and multiplicative ElGamal (below) adds `g` to the second ciphertext component. The plaintext need not change: [`CCA/Sloppy.lean`](../../CslibFrontier/Crypto/Computational/Encryption/CCA/Sloppy.lean) appends to each ciphertext of a correct scheme a bit that decryption ignores (`sloppyEncrypt`, `sloppyDecrypt`). The result is again correct (`sloppy_correct`), and it fails `INDCCA2On` whenever two polynomial-time challenge messages are distinct and admissible under every honest public key: `sloppyAdversary` flips the appended bit, which gives a new query with the challenge's plaintext (`isPPT_sloppyAdversary`, `advantage_cca2GameOn_sloppyAdversary`, `not_indcca2On_sloppy`; Boneh–Shoup v0.6, Exercise 12.2, p. 512 [bs23][bs23]; [checked clients](../../CslibFrontierTests/Crypto/SloppyCCA.lean)). The CCA security of the original scheme, which the exercise assumes, is not used, and the exercise's generalized CCA is not formalized. Each scheme's CCA decryptor is its never-rejecting `decryptOpt`, and the `INDCCA2Interleaved…` corollaries follow by `INDCCA2InterleavedOn.indcca2On`. The [checked clients](../../CslibFrontierTests/Crypto/CCAMalleability.lean) pair each IND-CPA theorem with its CCA failure and run both attacks on concrete moduli; run `scripts/build.sh CslibFrontierTests.Crypto.CCAMalleability`.
+
+The endpoint [DDH.indcca2On_cramerShoup](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/CramerShoup.lean#L1688) (together with its batch multi-challenge lift `DDH.indcca2MultiOn_cramerShoup`, fully adaptive interleaved multi-challenge lift [`DDH.indcca2InterleavedOn_cramerShoup`](../../CslibFrontier/Crypto/Computational/CramerShoup/Interleaved.lean), and decodable-family wrappers without external `isElem` premises in [`CramerShoup/Decodable.lean`](../../CslibFrontier/Crypto/Computational/CramerShoup/Decodable.lean)) combines DDH, collision resistance, negligible inverse group order, and explicit efficient public operations. Key generation draws a uniform hash key and publishes it in the public key, as Cramer and Shoup do ([cs03][cs03], Section 6.1, Figure 1), so the collision-resistance premise is about a keyed family: its collision finders see the group and the key. A premise about one fixed hash per security parameter would not be the standard notion, since for a fixed function an adversary that just outputs a collision exists (Boneh–Shoup v0.6, Section 8.1, p. 290 [bs23][bs23]). The theorem assumes collision resistance, following Boneh–Shoup Theorem 12.9; the original papers need only target collision resistance (universal one-wayness) of the keyed hash ([cs03][cs03], Section 6.2, Theorem 1). Approximate modular sampling and its statistical error are accounted for. Other clients include ElGamal, hybrid encryption, authenticated encryption and encrypt-then-MAC; they instantiate the same staged/oracle security schemas. Homomorphic schemes add circuit functionality and are treated [separately](homomorphic-encryption.md).
+
+Standalone universal and universal₂ projective-hash security games (Boneh–Shoup v0.6, Sections 12.5.1–12.5.2, pp. 484–488, with Attack Game 12.4 and Lemma 12.6 on p. 486 and Attack Game 12.5 and Lemma 12.8 on p. 488, plus the adaptive three-stage formulation of Exercise 12.26 on p. 521 [bs23][bs23]) are formalized over `F : PrimeOrderGroupFamily` and `d : F.Desc` (with prime group order `q = F.order d`). The Diffie–Hellman language predicate `IsDHTriple` and its fiber lemmas `projHash_fiber_eq_of_isDHTriple` and `projHash2_fiber_eq_of_isDHTriple` live in [`CramerShoup/ProjectiveHash.lean`](../../CslibFrontier/Crypto/Computational/CramerShoup/ProjectiveHash.lean), while [`CramerShoup/ProjectiveHash/Games.lean`](../../CslibFrontier/Crypto/Computational/CramerShoup/ProjectiveHash/Games.lean) defines the game interfaces and bounds. For universal distinguishing (`UniversalDistAdversary`, `universalDistExperiment`), `universalDistExperiment_false_eq_true` proves `universalDistExperiment F d A false = universalDistExperiment F d A true` whenever `UniversalDistAdversary.Admissible` holds: evaluation queries from `chooseChallenge` and `guess` must satisfy `IsDHTriple F d u v' w'` (`(v', w') ∈ L_u`) on every execution path regardless of oracle replies (`ProbOracleComp.QueriesSatisfy`), and every supported challenge `(v, w)` from `chooseChallenge` under honest keys must satisfy `¬ IsDHTriple F d u v w` (`(v, w) ∉ L_u`). For universal₂ guessing (`Universal2GuessAdversary`, `universal2GuessGame`), `succProbability_universal2GuessGame_le` bounds `Game.succProbability (universal2GuessGame F d A) ≤ (Q : ℝ≥0) / (F.order d : ℝ≥0)` (`Q / q`) whenever `Universal2GuessAdversary.Admissible Q` holds: evaluation queries must likewise lie in `L_u` along every path (`QueriesSatisfy`), every supported tuple list output by `guess` under honest keys has length at most `Q`, and the printed `(v, w) ∉ L_u` requirement on the challenge pair is intentionally omitted because the `Q / q` bound holds even when `(v, w) ∈ L_u`. Both theorems are information-theoretic for computationally unbounded adversaries and carry no efficiency hypothesis or reduction certificate. No library module calls these standalone games: [`CramerShoup/Scheme.lean`](../../CslibFrontier/Crypto/Computational/CramerShoup/Scheme.lean) retains its direct proofs for its two hybrid hops from the lower-level fiber and union-bound lemmas. Concrete instances and necessity probes live in [`CslibFrontierTests/Crypto/ProjectiveHash.lean`](../../CslibFrontierTests/Crypto/ProjectiveHash.lean); run `scripts/build.sh CslibFrontierTests.Crypto.ProjectiveHash`.
 
 IND-CPA security does not give CCA security. [`ElGamal/Malleability.lean`](../../CslibFrontier/Crypto/Computational/ElGamal/Malleability.lean) shows that multiplicative ElGamal, which is IND-CPA secure under DDH, is not CCA secure (Boneh–Shoup v0.6, Exercise 12.1, p. 512 [bs23][bs23]). The adversary `elGamalMaulAdversary` is `maulAdversary` with transformation `elGamalMaulCiphertext`, which maps the challenge `(v, e)` to `(v, e + g)`; it asks the Phase 2 oracle to decrypt that different ciphertext and compares the reply with `m₁ + g`. `isPPT_elGamalMaulAdversary` certifies it, and `advantage_cca2GameOn_elGamalMaulAdversary` gives advantage exactly `1` at every parameter. `not_indcca2Of_elGamalBitEncryptProb` needs only a polynomial-time group family; `not_indcca2On_elGamalGroupEncryptProb` covers group-element messages under any admissibility predicate that admits `(0, g)`, such as `cramerShoupValid`. In the CCA games the decryptor is `elGamalDecryptOpt`, which never rejects. The proofs supply only the malleability conditions to `not_indcca2On_of_maulAdversary`, which applies the `INDCCA2On` hypothesis to the adversary through `isPPT_maulAdversary` and contradicts negligibility with `not_negligible_const`. The [checked clients](../../CslibFrontierTests/Crypto/ElGamalMalleability.lean) run the attack on a Schnorr group; run `scripts/build.sh CslibFrontierTests.Crypto.ElGamalMalleability`.
 
@@ -2184,6 +2507,20 @@ advantage of `messageRecoveryReduction` when `valid` admits every pair. For a
 [tests](../../CslibFrontierTests/Crypto/MessageRecovery.lean) show that the conditions on
 `valid` and on the output length are needed.
 
+[`Encryption/ParityPrediction.lean`](../../CslibFrontier/Crypto/Computational/Encryption/ParityPrediction.lean)
+proves that semantic security implies security against parity prediction ([bs23][bs23], §2.2.3.2,
+Attack Game 2.3, Definition 2.4, and Theorem 2.8, pp. 20–22). On `BitString L` with `1 ≤ L`,
+`parityAdvantage E sampleKey A` is `|Pr[W] - 1 / 2|`, and
+`parityAdvantage_eq_half_mul_advantage_parityReduction` equates it with `(1 / 2)` times the
+one-time advantage of `parityReduction` when `valid` admits pairs flipping the last bit via
+`flipLastBitString`. On word messages `{0, 1}^{msgLen n}` with `∀ n, 1 ≤ msgLen n` and unary
+polynomial-time `msgLen`, when `encryptSym` satisfies `DEMOneTimeKeyWordINDCPA keyLen encryptSym`,
+`DEMOneTimeKeyWordINDCPA.negligible_parityWordAdvantage` shows that `parityWordAdvantage` is
+negligible against every PPT `A`; `isPPT_parityWordToDEMAdversary` certifies
+`parityWordToDEMAdversary`, which invokes `parityReduction`. The
+[tests](../../CslibFrontierTests/Crypto/ParityPrediction.lean) check concrete and word-level clients
+and show that `1 ≤ L`, `hvalid`, and `1 ≤ msgLen n` are all needed.
+
 [`Hybrid/DEMCCA.lean`](../../CslibFrontier/Crypto/Computational/Encryption/Hybrid/DEMCCA.lean)
 proves the exact DEM leg of Boneh–Shoup Exercise 12.5(a), p. 513 [bs23][bs23]. Its middle game
 retains the original KEM key/encapsulation correlation and independently samples the actual
@@ -2215,6 +2552,33 @@ Supported KEM correctness justifies the real-hop sampling commutation; perfect h
 additionally checks support of the postprocessed real key. Tests expose the failure without that
 KEM premise, and show that a perfect zero-width KEM with the insecure echo DEM remains insecure.
 Arbitrary message-space extension and stronger KEM query schedules remain separate.
+
+For `n`-way nested symmetric encryption ([bs23][bs23], Section 2.4, Theorem 2.12, p. 37), import
+[`Encryption/Nested.lean`](../../CslibFrontier/Crypto/Computational/Encryption/Nested.lean). For a
+cipher `E : Cipher K M M` whose ciphertexts lie in its message space, `E.nested n`
+(`Cipher.nested`) applies `n` keys `k 0, ..., k (n - 1)` sequentially with `k 0` innermost and
+`k (n - 1)` outermost (`Cipher.nested_correct` derives correctness from `E.Correct`), and
+`E.nestedExperiment sampleKey valid n A b` gives `A` (`NestedRequest` / `NestedChallenge`) every
+key drawn via `OracleComp.replicateFin` except the `0`-based index `req.withheld` (`revealKeys`;
+`n = 0` is vacuous because `Fin 0` is empty). When `E.PreservesValid sampleKey valid` holds—under
+every key in the support of `sampleKey`, encryptions of a `valid` pair form a `valid` pair (a
+condition the book leaves implicit)—for each bit `b`, `E.oneTimeExperiment` against
+`nestedToSingleAdversary E sampleKey valid n A` has the same output distribution as
+`E.nestedExperiment` against `A` (`eval_oneTimeExperiment_nestedToSingleAdversary`), hence equal
+advantages (`advantage_nestedExperiment_eq`). For a fixed `n`, when key sampling and encryption are
+strict PPT and `valid` is polynomial-time computable, each uniformly in the security parameter,
+`isPPT_nestedToSingleAdversary` shows that the reductions of a `TwoStage.IsPPT` family `A`
+(revealed keys encoded as an `encFinFn` table) form a `TwoStage.IsPPT` family. Under the same
+three hypotheses and `PreservesValid` at every security parameter,
+`indistinguishable_nestedExperiment_of_oneTimeExperiment` derives `Game.Indistinguishable` of the
+two `n`-way experiments against such families from `Game.Indistinguishable` of the two
+`E.oneTimeExperiment`s against `TwoStage.IsPPT` families, for every state type and state encoding.
+The depth `n` does not grow with the security parameter. Checked one-time-pad examples (`advantage_otp_nested_eq_zero`, `otp_nested_indistinguishable`), the `n = 0`
+check, a nontrivial `PreservesValid` witness (`firstBitCipher_preservesValid`), and counterexamples
+for `Cipher.PreservesValid` (`tagCipher_no_wrapper`) and the admissibility guard in
+`nestedToSingleAdversary.guess` (`padLeak_unguarded_oneTime_adv_eq_one`) are in
+[`CslibFrontierTests/Crypto/NestedEncryption.lean`](../../CslibFrontierTests/Crypto/NestedEncryption.lean);
+run `scripts/build.sh CslibFrontierTests.Crypto.NestedEncryption`.
 
 For strongly unpredictable ciphertexts ([bs23][bs23], Section 21.4.1, p. 872), import
 [`Encryption/StronglyUnpredictable.lean`](../../CslibFrontier/Crypto/Computational/Encryption/StronglyUnpredictable.lean).
@@ -2512,9 +2876,9 @@ counters), and `BitString.toOuterMeasure_addRight_mem_finset_eq` and
 `advantage_xorEvalPoints_eq_zero`, the uniform-block XOR and support-length helpers
 (`uniformBlocks_eq`, `length_snd_of_mem_support_uniformDraws`, `map_zipWith_uniformBlocks`,
 `map_iv_uniformBlocks_zipWith`), and the chain collision bound `toOuterMeasure_badChain_le`
-(`bs.length * (ks.length + bs.length) / 2^n`, over `uniformBlocks`, the `PMF.iid` uniform blocks read
-as a list) used when analyzing random-IV chaining. The indexed OFB and CTR masks decrypt the
-list-mode ciphertexts (`maskBlockDecrypt_ofbBlockMask_ofbEncryptBlocks`,
+(`(bs.length * ks.length + bs.length.choose 2) / 2^n`, over `uniformBlocks`, the `PMF.iid` uniform
+blocks read as a list) used when analyzing random-IV chaining. The indexed OFB and CTR masks decrypt
+the list-mode ciphertexts (`maskBlockDecrypt_ofbBlockMask_ofbEncryptBlocks`,
 `maskBlockDecrypt_ctrBlockMask_ctrEncryptBlocks`); indexed block `j ≥ 1` of `ctrBlockMask` uses
 counter value `j - 1`, matching list block `j - 1` of `ctrMaskBlocks`. The module
 also proves mode separations and counterexamples for same-IV reuse (`advantage_streamIVReuseGame_eq`,
@@ -2531,8 +2895,26 @@ nonconstant counter schedule, are in
 and direct checks of the sampling lemmas are in
 [`CslibFrontierTests/BitStringCollision.lean`](../../CslibFrontierTests/BitStringCollision.lean).
 
+Electronic codebook (ECB) mode is in
+[`BlockCipher/ECB.lean`](../../CslibFrontier/Crypto/Primitives/BlockCipher/ECB.lean) (Boneh–Shoup
+§4.1.4 and Theorem 4.1, pp. 102–106 [bs23][bs23]). `Cipher.ecb E` encrypts a list of blocks block
+by block under a keyed permutation `E : Key → Equiv.Perm D`, and decrypts every encryption
+(`Cipher.ecb_correct`). The book's message space `X^{≤ℓ}`
+enters through the admissible challenge pairs of `Cipher.oneTimeExperiment`: `ECB.admissible ℓ`
+asks for two messages of the same length at most `ℓ`, and `ECB.distinctAdmissible ℓ` also asks that
+each message consist of distinct blocks. On `X^{≤ℓ}` with `2 ≤ ℓ`, the two-block attack (two equal
+blocks against two distinct ones) has advantage `1` against every block cipher
+(`ECB.advantage_twoBlockAdversary`). On distinct blocks, equation (4.3) holds exactly for uniform
+keys over finite types: every one-time adversary `A` has advantage twice
+`PRP.advantage E (ECB.reduction ℓ A)` (`ECB.advantage_eq_two_mul_prpAdvantage`), and the reduction
+makes at most `ℓ` queries (`ECB.isQueryBounded_reduction`). The asymptotic form and an efficiency
+certificate for the reduction are not yet formalized.
+[`CslibFrontierTests/Crypto/ECB.lean`](../../CslibFrontierTests/Crypto/ECB.lean) checks both
+hypotheses of the attack, an instance of (4.3) with both sides nonzero, and that Theorem 4.1 fails
+without distinct blocks.
+
 For the shared lazy-versus-fresh random-function hybrid and left-or-right block-mode CPA scaffolding
-used by both CTR and OFB mode, import
+used by CTR, OFB and CBC mode, import
 [`Encryption/RandomFunctionHybrid.lean`](../../CslibFrontier/Crypto/Computational/Encryption/RandomFunctionHybrid.lean):
 it packages `FlagState`, the caching/fresh step handlers `lazyStep` and `freshStep`, the game
 equivalence `idealExperiment_eq_runWith_lazyStep`, the bad-flag reduction bounds
@@ -2548,6 +2930,16 @@ block-mode query, cost, oracle, reduction, and ideal-experiment interface (`Bloc
 experiments are `ProbComp Bool` runs of the adversary (`adversary.run`), and the reduction is
 `ProbOracleComp.simulate (blockModeQueryProgram keystream ℓ b) adversary`, so its query bound is
 `isCostBounded_simulate` and the CPA experiment equals `PRF.realExperiment` before evaluation.
+For a per-query program that is not a keystream followed by a mask, such as CBC encryption,
+`blockModeCpaExperiment_eq_realExperiment_simulate` gives the real experiment when the program
+computes the encryption oracle. Under fresh sampling,
+`freshGame_simulate_eq_blockModeIdealExperiment` gives exactly `blockModeIdealExperiment` when
+each answer has the law of the ideal oracle (`eval_blockModeIdealOracle`).
+`advantage_idealExperiment_simulate_le` takes two further per-query facts under fresh sampling:
+the program adds at most `k = blockModeBlocks ℓ q` table entries, and raises the flag with
+probability at most `(k * t + k.choose 2) / 2^n` from a table of `t` entries. It concludes that
+the program run under `PRF.idealExperiment` is within `K.choose 2 / 2^n` of
+`blockModeIdealExperiment` when the queries ask at most `K` blocks in total.
 
 For the chosen-plaintext security of random-IV counter (CTR) mode, import
 [`Encryption/CTRMode.lean`](../../CslibFrontier/Crypto/Computational/Encryption/CTRMode.lean)
@@ -2588,6 +2980,30 @@ is the many-query left-or-right game of Attack Game 5.2 with a challenge-pair pr
 `SymmetricCipher.INDCPA` is its `n`-bit case (`SymmetricCipher.indcpa_iff`). Examples are in
 [`CslibFrontierTests/Crypto/CTRModeUniform.lean`](../../CslibFrontierTests/Crypto/CTRModeUniform.lean).
 
+Stream encryption under a random initial value is malleable (Boneh–Shoup v0.6, §9.2.1 and §9.10
+Attack 3 [bs23][bs23]). In
+[`Encryption/IVStream/Malleability.lean`](../../CslibFrontier/Crypto/Computational/Encryption/IVStream/Malleability.lean),
+`ivStreamXorBody` XORs a mask into a ciphertext after its initial value. For every keystream and
+every mask at least as long as the message, this turns an encryption of `msg` by
+`ivStreamEncrypt keystream` into one of `msg ⊕ delta`
+(`ivStreamXorBody_mem_support_ivStreamEncrypt`). If `msg` is a whole number of `n`-bit blocks and
+the keystream from every `n`-bit initial value has `blocks * n` bits, the result decrypts to
+`msg ⊕ delta` (`ivStreamDecrypt_ivStreamXorBody`). Counter mode above and OFB mode below are the
+keystreams `ctrWordKeystream family` and `ofbWordKeystream family`: state the hypothesis for
+`ivStreamEncrypt (ctrWordKeystream family)`, as the test file does, since `ctrWordEncrypt` and
+`ofbWordEncrypt` do not unfold in a `module` client. The book's counter-mode step
+`ĉ[1] := c[1] ⊕ u ⊕ v` is the mask `(u ⊕ v) ‖ 0`. The book's chosen-ciphertext attack is carried
+out in a game only against the one-block cipher `prfCipher`, because the library has no
+chosen-ciphertext game for multi-block modes:
+[`Encryption/StreamMalleability.lean`](../../CslibFrontier/Crypto/Computational/Encryption/StreamMalleability.lean)
+gives the adversary `prfCipherCCAAdversary` with its certificate
+`isOraclePPT_prfCipherCCAAdversary`. It guesses the challenge bit with probability `1` for every
+`1 ≤ n` (`eval_ccaOneTimeGame_prfCipher`), so `not_oneTimeINDCCA_prfCipher` and
+`not_indcca_prfCipher` hold for every family, although `PseudorandomFunction.indcpa_prfCipher`
+proves the cipher CPA-secure for a pseudorandom family. At `n = 0` the attack fails. The
+randomized CBC half of §9.2.1 is not covered. Examples are in
+[`CslibFrontierTests/Crypto/StreamMalleability.lean`](../../CslibFrontierTests/Crypto/StreamMalleability.lean).
+
 For the chosen-plaintext security of random-IV OFB mode, import
 [`Encryption/OFBMode.lean`](../../CslibFrontier/Crypto/Computational/Encryption/OFBMode.lean)
 (Katz–Lindell 3rd ed., §3.6.3, Figure 3.8, Definition 3.22, following the proof of Theorem 3.33
@@ -2620,6 +3036,25 @@ it matches `ofbReduction`, so `advantage_ofbWordCPAGame_le` reuses the chain bou
 `PseudorandomFunction family` alone. Examples are in
 [`CslibFrontierTests/Crypto/OFBModeUniform.lean`](../../CslibFrontierTests/Crypto/OFBModeUniform.lean).
 
+For random-IV CBC mode with a uniform random function or a uniform random permutation in place
+of the block cipher, import
+[`Encryption/CBCMode.lean`](../../CslibFrontier/Crypto/Computational/Encryption/CBCMode.lean).
+These are steps of the proof of Theorem 5.4 (Boneh–Shoup v0.6, §5.4.3 [bs23][bs23]), not the
+theorem: the keyed bound (5.22) with `BCadv` and a certified word-level reduction are not yet
+formalized. `cbcCpaGame` is the left-or-right experiment
+for a keyed block function with the query convention of the OFB paragraph. `cbcReduction` computes
+each ciphertext with one oracle call per block (`cbcCpaGame_eq_realExperiment`,
+`isQueryBounded_cbcReduction`). If the queries ask at most `K` blocks in total,
+`advantage_idealExperiment_cbcReduction_le` bounds the distance from `blockModeIdealExperiment` by
+`K.choose 2 / 2^n` through `advantage_idealExperiment_simulate_le`;
+`advantage_cbcCpaGame_randomFunction_le` gives `2 * K.choose 2 / 2^n` for a uniform random
+function, and `advantage_cbcCpaGame_randomPermutation_le` gives `4 * K.choose 2 / 2^n` for a
+uniform random permutation, adding `PRP.advantage_idealExperiment_prfIdealExperiment_le`
+(Theorem 4.6) for each challenge bit. With `Q` queries of at most `ℓ` blocks, `K ≤ Q * ℓ`, so
+the last bound is at most `2 * Q^2 * ℓ^2 / N`, the first term of (5.22). The module docstring
+records how these statements compare with the book's. Checks are in
+[`CslibFrontierTests/Crypto/CBCMode.lean`](../../CslibFrontierTests/Crypto/CBCMode.lean).
+
 For hash functions built from a fixed permutation or block cipher, import
 [`Hash/Sponge.lean`](../../CslibFrontier/Crypto/Primitives/Hash/Sponge.lean) and
 [`Hash/BlockCipherCompression.lean`](../../CslibFrontier/Crypto/Primitives/Hash/BlockCipherCompression.lean)
@@ -2643,6 +3078,21 @@ Theorem 7.5 is proved in `daviesMeyer_collisionGame_le` and `daviesMeyer_collisi
 [`CslibFrontierTests/Crypto/Sponge.lean`](../../CslibFrontierTests/Crypto/Sponge.lean),
 [`CslibFrontierTests/Crypto/IdealCipherCompression.lean`](../../CslibFrontierTests/Crypto/IdealCipherCompression.lean), and
 [`CslibFrontierTests/Crypto/IdealCipherCompressionVariants.lean`](../../CslibFrontierTests/Crypto/IdealCipherCompressionVariants.lean).
+
+For Boneh–Shoup Theorem 9.1 (AE implies CCA, [bs23][bs23] §9.2.3, pp. 363–365), import
+[`Encryption/Authenticated.lean`](../../CslibFrontier/Crypto/Computational/Encryption/Authenticated.lean).
+The bounds are for a CCA adversary with
+`SymmetricCipher.IsDecryptionQueryBounded (adversary n []) (Qd n)`, at most `Qd n` decryption
+queries with encryption queries free, and a ciphertext-length bound
+`E.CiphertextLengthLE n (ctBound n)`. `advantage_ccaGame_le_two_mul` proves (9.3) and
+`guessingAdvantage_guessBit_ccaGame_le` proves (9.4), the latter for the bit-guessing game
+`Experiment.guessBit`, against the reductions `ccaToCPAAdversary ctBound` and
+`ccaToCIHiddenBitAdversary ctBound Qd`. The CI reduction draws its index with `sampleDyadicIndex`,
+so the CI term carries `dyadicSize (Qd n - 1)` where the book has `Qd`: `2` when `Qd n ≤ 1`, and
+otherwise the least power of two that is at least `Qd n`.
+`guessingAdvantage_guessBit_ccaGame_le_two_mul` states (9.4) with `2 * Qd n`. For `ccaOneTimeGame`
+the bounds are `advantage_ccaOneTimeGame_le_two_mul` and
+`guessingAdvantage_guessBit_ccaOneTimeGame_le`.
 
 For the single-oracle real-versus-ideal formulation of authenticated encryption ([katzlindell20][katzlindell20], §5.2, Definition 5.4 and Theorem 5.5, pp. 152–153), import [`Encryption/RealIdealAE.lean`](../../CslibFrontier/Crypto/Computational/Encryption/RealIdealAE.lean). `SymmetricCipher.aeRealGame` answers `n`-bit encryption queries honestly (recording returned ciphertexts and answering decryption queries on them with `[]`) and decrypts fresh ciphertexts via `encOption encBits (E.decrypt n k ct)`, whereas `aeIdealGame` encrypts `List.replicate n false` and answers every decryption query with `[]`; `RealIdealAE` asks every `IsOraclePPT encBool` adversary to have negligible advantage, and `realIdealAE_iff_indcca_and_ciphertextIntegrity` and `realIdealAE_iff_authenticatedEncryption` prove equivalence with `INDCCA ∧ CiphertextIntegrity` and `AuthenticatedEncryption` via `cpaToAEAdversary`, `ciToAEAdversary`, and `aeToCCAAdversary`. [`Encryption/HalfBlockPRP.lean`](../../CslibFrontier/Crypto/Computational/Encryption/HalfBlockPRP.lean) formalizes the half-block construction `BlockCipher.halfBlockCipher` (`F_k(r ‖ m)` on `2 n`-bit blocks, Exercises 5.8 and 5.9, p. 165) and shows via the zero-query `allOnesForger` that it fails `CiphertextIntegrity`, `AuthenticatedEncryption`, and `RealIdealAE` for every block cipher (its CCA security under a strong PRP is not formalized); checked instances over an identity cipher are in [`CslibFrontierTests/Crypto/RealIdealAEAndHalfBlock.lean`](../../CslibFrontierTests/Crypto/RealIdealAEAndHalfBlock.lean).
 
@@ -2671,6 +3121,20 @@ so `encryptThenMAC E M.redundantTag hctLen` satisfies `INDCPA` and `EncForge` ye
 evaluations and composed `IsPPT` / `IsOraclePPT` checks on `echoFamily` are in
 [`CslibFrontierTests/Crypto/CompositionCounterexamples.lean`](../../CslibFrontierTests/Crypto/CompositionCounterexamples.lean).
 
+For the implication from chosen-ciphertext to chosen-plaintext security, import
+[`Encryption/CCAToCPA.lean`](../../CslibFrontier/Crypto/Computational/Encryption/CCAToCPA.lean)
+(Boneh–Shoup §9.2.2, p. 362 [bs23][bs23]). `SymmetricCipher.cpaToCCAAdversary ctBound A` sends each
+query of the CPA adversary `A` to the encryption channel of `ccaOracle`, cuts each reply to
+`ctBound n` bits, and makes no decryption query. `isOraclePPT_cpaToCCAAdversary` certifies it as
+`IsOraclePPT encBool` when `A` is `IsOraclePPT encBool` and `ctBound` is polynomial-time computable
+(`ComputableInPolyTime ctBound encUnary encUnary`). When `E.CiphertextLengthLE n (ctBound n)`,
+`eval_ccaGame_cpaToCCAAdversary` equates the output distribution of its CCA game with that of the
+CPA game of `A`, for either challenge bit; `SymmetricCipher.INDCCA.indcpa` derives `INDCPA` from
+`INDCCA` with no further hypothesis. The converse fails for every cipher with `INDCPA` and
+`EncForge`: by `tailFallback_counterexample` above, its `tailFallback` keeps `INDCPA` and is not
+`INDCCA`. Examples are in
+[`CslibFrontierTests/Crypto/CCAToCPA.lean`](../../CslibFrontierTests/Crypto/CCAToCPA.lean).
+
 For generic MAC-then-Encrypt composition, its `INDCPA` preservation, and its chosen-ciphertext
 counterexample over `SymmetricCipher` and `MACScheme`, import
 [`Encryption/MACThenEncrypt.lean`](../../CslibFrontier/Crypto/Computational/Encryption/MACThenEncrypt.lean)
@@ -2697,6 +3161,26 @@ in decryption, preserving `INDCPA` (`SymmetricCipher.INDCPA.extendCipher`) and `
 `echoMAC` as well as the PRF instantiation are in
 [`CslibFrontierTests/Crypto/MACThenEncrypt.lean`](../../CslibFrontierTests/Crypto/MACThenEncrypt.lean).
 
+For the plaintext integrity of MAC-then-Encrypt, import
+[`Encryption/MACThenEncrypt/EncForge.lean`](../../CslibFrontier/Crypto/Computational/Encryption/MACThenEncrypt/EncForge.lean).
+`SymmetricCipher.EncForge` is the PI game of Boneh–Shoup [bs23][bs23], Exercise 9.15, p. 395.
+`encForge_macThenEncrypt` proves `(macThenEncrypt E M ptLen …).EncForge` from `M.EUFCMA` alone,
+for every cipher `E`. This is the argument of part (a) of the exercise from the library's
+`MACScheme.EUFCMA`, whose signing oracle also tags words outside the message space; a MAC that is
+secure in the book's sense need not satisfy it
+([#5686](https://github.com/cslib-community/cslib-frontier/issues/5686)). The reduction
+`mteToMACForger E M ptLen tagBound adversary` samples the encryption key itself, answers each
+encryption query on an `n`-bit message by asking the MAC signing oracle for a tag, cut to
+`tagBound n` bits, and encrypting the pair, and decrypts the adversary's ciphertext to obtain its
+forgery. `isOraclePPT_mteToMACForger` certifies it when the adversary is `IsOraclePPT` and `ptLen`
+and `tagBound` are polynomial-time computable. When `tagBound n` bounds the length of every tag on
+an `n`-bit message, `succProbability_encForgeGame_macThenEncrypt_le` bounds the adversary's
+success in `encForgeGame` by the forger's in `eufCmaGame`. With `indcpa_macThenEncrypt`, which
+needs `E.INDCPA` and `StrictMono ptLen`, the scheme is CPA-secure as well; over `E.extendCipher` it
+fails `INDCCA` and `CiphertextIntegrity`, the exercise's Note. Both, and an instance from a
+pseudorandom function, are checked in
+[`CslibFrontierTests/Crypto/MACThenEncryptEncForge.lean`](../../CslibFrontierTests/Crypto/MACThenEncryptEncForge.lean).
+
 ## Authentication, signatures, and state
 
 To state a forgery experiment, import [Game/Forgery.lean](../../CslibFrontier/Crypto/Game/Forgery.lean). `forgeExperiment keyGen signer verify fresh A` draws a key pair, runs the forger `A` on the public key against a signing oracle, and accepts a candidate `(m, σ)` that verifies and is fresh. The oracle is a policy `Signer SK M Sig` that reads the log of answered queries. `Signer.ofSign` signs every query and `.oneTime` signs only the first; `Signer.indexed` and `Signer.counter` give the indexed and counter oracles. A refused query is answered with `default` and is not logged. `freshMessage` gives existential unforgeability and `freshPair` strong unforgeability; `succProbability_forgeExperiment_freshMessage_le` shows that strong implies existential. Verification also receives the secret key, so a MAC is the case `PK = Unit`. [Signature/Scheme.lean](../../CslibFrontier/Crypto/Computational/Signature/Scheme.lean) defines a typed `Signature.Scheme PK SK M Sig` with `eufCmaExperiment` (Boneh–Shoup Attack Game 13.1), `sufCmaExperiment` and `oneTimeEufCmaExperiment`; `restrict adm` makes verification accept only admissible messages. At each parameter `n`, the word games `SignatureScheme.eufCmaGame` and `eufOneTimeGame` equal these experiments for `S.toScheme n` and `adversary.toTyped n` ([Signature/Bridge.lean](../../CslibFrontier/Crypto/Computational/Signature/Bridge.lean), `eufCmaGame_eq_eufCmaExperiment`). `Signature.IndexedScheme` adds a capacity and passes an index to signing and verification. Its `eufCmaExperiment` uses `Signer.indexed` (Boneh–Shoup Definition 14.6) and `counterEufCmaExperiment` uses `Signer.counter` (Section 14.6.4). The word games `indexedEufCmaGame` and `counterEufCmaGame` equal them at each `n` (`indexedEufCmaGame_eq_eufCmaExperiment`, `counterEufCmaGame_eq_counterEufCmaExperiment`). For any typed scheme on words, `Forger.eval_eufCmaExperiment_toTyped` and its `restrict` form unfold the experiment played by a word forger into the word-level game; the tree signature games `TreeSignature.treeGame` and `treeGameWith` are experiments of the certificate-free `treeScheme` and use this form in the coin hybrid. The [checked clients](../../CslibFrontierTests/Crypto/Forgery.lean) cover the signing policies, a winning forger, a replay that loses, and the unique-signature equality.
@@ -2709,6 +3193,8 @@ from `SignatureScheme.exists_sign_length_bound` (in the parameter and the messag
 `IndexedSignatureScheme.exists_sign_length_bound` (at indices below the capacity), and the bound
 on MAC tags from `NonceMACScheme.exists_sign_length_bound` (under `nonceLen n`-bit nonces), instead
 of re-deriving it from `keyGen_ppt.length_le` and `sign_ppt.length_le`.
+
+For the combinatorial containment-free subset encodings behind one-time signatures ([bs23][bs23], Sections 14.2, 14.2.1, and 14.4, pp. 587–589 and 593), import [`OneTimeSignature/ContainmentFree.lean`](../../CslibFrontier/Crypto/Computational/OneTimeSignature/ContainmentFree.lean) (`Cslib.Crypto.OneTimeSignature.ContainmentFree`, `containmentFree_iff`, `containmentFree_of_injective_of_card_eq`, the finite-cardinality Sperner upper bound `card_le_choose_half_of_containmentFree`, and the non-algorithmic existence converse `exists_containmentFree_of_card_le`). It supplies the checksum encoding `optWord` / `optSet` (`optSet_containmentFree` whenever `v < 2 ^ w`, appending checksum bits LSB-first unlike Figure 14.2's MSB-first display, certified polynomial time in unary `w` and `m` via `optWord_polyTime`) and the fixed-size encoding `horsWord` / `horsSet` (constant subset size `ℓ` via `card_horsSet` and `horsSet_containmentFree` whenever `2 ^ v ≤ n.choose ℓ`, certified polynomial time in unary `(n, ℓ)` and `m` via `horsWord_polyTime`), where `horsWord` uses `Cslib.BitString.unrankCombination` (`false` before `true`) rather than the specific loop of Exercise 14.3; no signature scheme or security reduction is included. Concrete instantiations and hypothesis counterexamples are checked in [`CslibFrontierTests/Crypto/ContainmentFree.lean`](../../CslibFrontierTests/Crypto/ContainmentFree.lean).
 
 [MACScheme](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/MAC.lean#L176) reuses `SignatureScheme.signingOracleOf` and `oneTimeSigningOracleOf` for fresh-message EUF-CMA while distinguishing it from fresh-pair SUF-CMA (`signingPairOracle`, `oneTimeSigningPairOracle`). A randomized signer can return more than one valid tag for a message, so the distinction is observable. `PseudorandomFunction.sufCma_prfMAC` proves a native PRF-based construction with forging probability bounded by reduction advantage plus `2^-n`. `NonceMACScheme` adds a nonce-respecting query condition. A stateful signer can choose the nonces itself with a counter (Boneh–Shoup §7.5): [`MAC/Counter.lean`](../../CslibFrontier/Crypto/Computational/MAC/Counter.lean) tags the `j`-th message under the `nonceLen n`-bit binary counter `BitString.lowBits (nonceLen n) j`, refuses after `2 ^ nonceLen n` tags, and states strong unforgeability as `NonceMACScheme.CounterSUFCMA`. `NonceMACScheme.SUFCMA.counterSufCma` derives it from `SUFCMA` with loss 1 through the explicit reduction `counterForger` and its certificate `isOraclePPT_counterForger`. The Carter–Wegman instance is `PseudorandomFunction.counterSufCma_carterWegmanNonceMAC` in [`MAC/CarterWegman.lean`](../../CslibFrontier/Crypto/Protocols/MAC/CarterWegman.lean).
 
@@ -2805,6 +3291,24 @@ accumulator and runtime index, before field-operation scratch; generic static co
 of `n`. An unrolled specialization uses `O(n)` field-operation nodes and can omit the runtime index.
 No polynomial-time claim is made without encoded field operations and a certified sampler.
 
+GHASH, the keyed hash of GCM ([bs23][bs23], §9.7, (9.18), p. 382), is
+[`ghash k z`](../../CslibFrontier/Crypto/Protocols/MAC/GHASH.lean) `= z[0] k ^ v + ⋯ + z[v-1] k`
+for `v` blocks over any field; `ghashBits e` is the same function on `w`-bit blocks, for a field
+with an additive bit encoding `e : F ≃+ BitString w`. An XOR-DUF (Remark 7.3, p. 269) is
+`IsDeltaUniversalHash` with digests in `BitString n`; there is no separate predicate. For a uniform
+key over a finite field `F`, `isDeltaUniversalHash_ghash` proves the bound `ℓ / |F|` on every
+injective family of inputs of at most `ℓ` blocks whose last block fixes the number of blocks (the
+empty input counts as ending in the block `0`). For a uniform 128-bit key,
+`isDeltaUniversalHash_ghashBits_gcmHashInput` proves `ℓ / 2 ^ 128` on GCM's input
+`gcmHashInput d c` (both fields padded with zeros to 128-bit blocks, then one block with the two
+bit lengths, each below `2 ^ 64`) when at most `ℓ` blocks are hashed, the length block included.
+On all inputs of at most `ℓ ≥ 1` blocks GHASH is not `ε`-universal for any `ε < 1`
+(`not_isUniversalHash_ghash`). The general criterion behind both bounds, and behind Katz–Lindell's
+Theorem 4.17 below, is `PolynomialEvaluation.isDeltaUniversalHash_ascendingEval`. The field with
+modulus `X^128 + X^7 + X^2 + X + 1` is not constructed, and no polynomial-time claim is made.
+Checks, including failing cases for the hypotheses, are in
+[`CslibFrontierTests/Crypto/GHASH.lean`](../../CslibFrontierTests/Crypto/GHASH.lean).
+
 For polynomial-evaluation hashing of messages shorter than `ℓ` over a finite field, import
 [`Protocols/MAC/PolynomialEvaluation.lean`](../../CslibFrontier/Crypto/Protocols/MAC/PolynomialEvaluation.lean)
 (Katz–Lindell 3rd ed., §4.5.2, Theorem 4.17 and Exercise 4.22). A message with its length code
@@ -2819,7 +3323,7 @@ is coded as zero. For `1 < ℓ` and `ε < 1`, the constant-term layout of Exerci
 `ZMod 5` and for the zero patch are in
 [`CslibFrontierTests/Crypto/WeakPRFAndPolyMAC.lean`](../../CslibFrontierTests/Crypto/WeakPRFAndPolyMAC.lean).
 
-[IndexedSignatureScheme](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/IndexedSignature.lean#L89) signs index/message pairs with polynomially bounded capacity; the oracle refuses repeated or out-of-range signing indices. The syntax is stateless but the game enforces single use. Counter wrappers and Merkle signature clients turn that contract into stateful signing, whereas [TreeSignature.scheme](../../CslibFrontier/Crypto/Computational/TreeSignature.lean#L576) and [TreeSignature/Security.lean](../../CslibFrontier/Crypto/Computational/TreeSignature/Security.lean#L4289) upgrade any indexed EUF-CMA scheme of capacity at least `2` plus a pseudorandom function (or one-way function) to a stateless `SignatureScheme` (`eufCMA_scheme`, `IndexedSignatureScheme.IndexedEUFCMA.exists_eufCMA_of_prf`, `exists_eufCMA_of_oneWay`) by sampling a uniform leaf and deriving internal node keys and signing coins from the PRF [bs23][bs23]; `TreeSignature.sign` returns `[]` outside the `n`-bit message domain. Composing Lamport, depth-`1` Merkle trees, PRFs from one-way functions, and stateless tree signatures gives [OneWay.exists_eufCMA_of_hashFamily](../../CslibFrontier/Crypto/Computational/TreeSignature/Security.lean#L4347) from a one-way function and a collision-resistant hash family. Without full collision resistance, [`TCRSignature.scheme`](../../CslibFrontier/Crypto/Computational/TCRSignature.lean) adapts Boneh–Shoup §13.2.1, construction `(13.2)` on p. 533 and Theorem 13.2 on p. 534 [bs23][bs23] to a capacity-`1` `IndexedSignatureScheme` over a one-time signature scheme `S` and an unrestricted target collision-resistant `KeyedHashFamily` `H` without storing a hash key in `pk` (`SignatureScheme.OneTimeEUFCMA.indexedEUFCMA_tcrSignature`; concrete checks and an explicit `1`-probability break against a constant hash family are in [`CslibFrontierTests/Crypto/TCRSignature.lean`](../../CslibFrontierTests/Crypto/TCRSignature.lean)), and [`IndexedSignatureScheme.double`](../../CslibFrontier/Crypto/Computational/IndexedSignature/Double.lean) doubles any indexed scheme of capacity at least `1` to constant capacity `2` with plug-and-pray loss `2` (Boneh–Shoup §14.6.1, construction `(14.4)` on p. 597, and Exercise 13.2 [bs23][bs23]; `IndexedSignatureScheme.IndexedEUFCMA.double`). Composing Lamport one-time signatures, `TCRSignature.scheme`, `IndexedSignatureScheme.double`, and `TreeSignature` yields `OneWay.exists_eufCMA_of_targetCollisionResistant`: instantiating `H` with `naorYungHash` proves `OneWayPermutation.exists_eufCMA` (Naor–Yung §4 / Theorem 2 [naoryung89][naoryung89]), while instantiating `H` with `rompelHash` in [`Rompel.lean`](../../CslibFrontier/Crypto/Computational/Rompel.lean) removes the permutation hypothesis to yield `OneWay.exists_indexedEUFCMA_two` and `OneWay.exists_counterEUFCMA_two` on arbitrary-length `List Bool` messages, `OneWay.exists_eufCMA` and `exists_oneWay_iff_exists_signature` on `SignatureScheme`'s `n`-bit message domain, and—after applying [`TCRSignature.wordScheme`](../../CslibFrontier/Crypto/Computational/TCRSignature/ManyTime.lean) (`SignatureScheme.EUFCMA.eufCMA_wordScheme`)—`OneWay.exists_wordEUFCMA` and `exists_oneWay_iff_exists_wordSignature` on unrestricted `List Bool` messages ([rompel90][rompel90]; client checks and message-space separation witnesses in [`CslibFrontierTests/Crypto/Rompel.lean`](../../CslibFrontierTests/Crypto/Rompel.lean)). Keep the indexed game's no-repeat invariant distinct from durable storage in a deployed stateful implementation: no filesystem or crash-recovery model is asserted here.
+[IndexedSignatureScheme](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Crypto/Computational/IndexedSignature.lean#L89) signs index/message pairs with polynomially bounded capacity; the oracle refuses repeated or out-of-range signing indices. The syntax is stateless but the game enforces single use. Counter wrappers and Merkle signature clients turn that contract into stateful signing, whereas [TreeSignature.scheme](../../CslibFrontier/Crypto/Computational/TreeSignature.lean#L576) and [TreeSignature/Security.lean](../../CslibFrontier/Crypto/Computational/TreeSignature/Security.lean#L4288) upgrade any indexed EUF-CMA scheme of capacity at least `2` plus a pseudorandom function (or one-way function) to a stateless `SignatureScheme` (`eufCMA_scheme`, `IndexedSignatureScheme.IndexedEUFCMA.exists_eufCMA_of_prf`, `exists_eufCMA_of_oneWay`) by sampling a uniform leaf and deriving internal node keys and signing coins from the PRF [bs23][bs23]; `TreeSignature.sign` returns `[]` outside the `n`-bit message domain. Composing Lamport, depth-`1` Merkle trees, PRFs from one-way functions, and stateless tree signatures gives [OneWay.exists_eufCMA_of_hashFamily](../../CslibFrontier/Crypto/Computational/TreeSignature/Security.lean#L4346) from a one-way function and a collision-resistant hash family. Without full collision resistance, [`TCRSignature.scheme`](../../CslibFrontier/Crypto/Computational/TCRSignature.lean) adapts Boneh–Shoup §13.2.1, construction `(13.2)` on p. 533 and Theorem 13.2 on p. 534 [bs23][bs23] to a capacity-`1` `IndexedSignatureScheme` over a one-time signature scheme `S` and an unrestricted target collision-resistant `KeyedHashFamily` `H` without storing a hash key in `pk` (`SignatureScheme.OneTimeEUFCMA.indexedEUFCMA_tcrSignature`; concrete checks and an explicit `1`-probability break against a constant hash family are in [`CslibFrontierTests/Crypto/TCRSignature.lean`](../../CslibFrontierTests/Crypto/TCRSignature.lean)), and [`IndexedSignatureScheme.double`](../../CslibFrontier/Crypto/Computational/IndexedSignature/Double.lean) doubles any indexed scheme of capacity at least `1` to constant capacity `2` with plug-and-pray loss `2` (Boneh–Shoup §14.6.1, construction `(14.4)` on p. 597, and Exercise 13.2 [bs23][bs23]; `IndexedSignatureScheme.IndexedEUFCMA.double`). Composing Lamport one-time signatures, `TCRSignature.scheme`, `IndexedSignatureScheme.double`, and `TreeSignature` yields `OneWay.exists_eufCMA_of_targetCollisionResistant`: instantiating `H` with `naorYungHash` proves `OneWayPermutation.exists_eufCMA` (Naor–Yung §4 / Theorem 2 [naoryung89][naoryung89]), while instantiating `H` with `rompelHash` in [`Rompel.lean`](../../CslibFrontier/Crypto/Computational/Rompel.lean) removes the permutation hypothesis to yield `OneWay.exists_indexedEUFCMA_two` and `OneWay.exists_counterEUFCMA_two` on arbitrary-length `List Bool` messages, `OneWay.exists_eufCMA` and `exists_oneWay_iff_exists_signature` on `SignatureScheme`'s `n`-bit message domain, and—after applying [`TCRSignature.wordScheme`](../../CslibFrontier/Crypto/Computational/TCRSignature/ManyTime.lean) (`SignatureScheme.EUFCMA.eufCMA_wordScheme`)—`OneWay.exists_wordEUFCMA` and `exists_oneWay_iff_exists_wordSignature` on unrestricted `List Bool` messages ([rompel90][rompel90]; client checks and message-space separation witnesses in [`CslibFrontierTests/Crypto/Rompel.lean`](../../CslibFrontierTests/Crypto/Rompel.lean)). Keep the indexed game's no-repeat invariant distinct from durable storage in a deployed stateful implementation: no filesystem or crash-recovery model is asserted here.
 
 Collision-resistant hashing alone gives these stateless signatures.
 [`HashFamily.oneWay_keyDigest`](../../CslibFrontier/Crypto/Computational/CollisionResistantToOneWay.lean)
@@ -2834,6 +3338,21 @@ probability at most `(1 / 2) ^ n`. Composed with `OneWay.exists_eufCMA` and
 one-bit-per-block instance `merkleDamgard`, not the length-strengthened one),
 `CompressionFamily.exists_oneWay` and `CompressionFamily.exists_wordEUFCMA` give the same
 conclusions for `2 n → n` compression families. No converse is claimed.
+
+For the encoding behind Winternitz one-time signatures ([bs23][bs23], §14.3, pp. 591–593), import
+[`OneTimeSignature/DominationFree.lean`](../../CslibFrontier/Crypto/Computational/OneTimeSignature/DominationFree.lean).
+`DominationFree P` is Definition 14.4: no two distinct messages have `P m ≤ P m'` coordinatewise.
+`winternitzDigits d n0 n1 m` is the function `P` of §14.3.1: the `n0` base-`(d + 1)` digits of
+`m`, least significant first, then the `n1` digits of the checksum
+`∑ i : Fin n0, (d - (radixDigits d n0 m i).val)`. `winternitzDigits_dominationFree` is
+Lemma 14.5 for any injective `f : M → ℕ` with values below `(d + 1) ^ n0` and any `n1` with
+`d * n0 < (d + 1) ^ n1`; the book's `2 ^ v` messages with `2 ^ v ≤ (d + 1) ^ n0` and its
+`n1 = Nat.clog (d + 1) (d * n0) + 1` are an instance, and the table on p. 592 uses the least
+such `n1`. `winternitzDigitList` is the same encoding as a list (`winternitzDigitList_eq_ofFn`),
+with `winternitzDigitList_polyTime` for `d`, `m` in binary and `n0`, `n1` in unary. Not included:
+the signature scheme, the estimate (14.3), the `d = 1` comparison with `P_opt`, and the link
+to `SLHDSA.WOTS.digits`. Checks are in
+[`CslibFrontierTests/Crypto/DominationFree.lean`](../../CslibFrontierTests/Crypto/DominationFree.lean).
 
 Second-preimage resistance ([bs23][bs23], §8.11.1, Definition 8.6, p. 336, and Exercise 8.23(a)–(b),
 pp. 352–353) is split between the experiment with its finite bounds in
@@ -2852,15 +3371,74 @@ probability that `A (H m)` returns `m` itself
 the success probabilities of `inversionExperiment` and `secondPreimageExperiment`; it weakens to
 (8.22), `OWadv[A, H] ≤ 2 · SPRadv[B, H] + 1 / s` when `|M| ≥ s · |T|` and `0 < s`
 (`succProbability_inversionExperiment_uniform_le_two_mul_add_div`). On bit strings,
-`SecondPreimageResistant f` requires polynomial-time evaluation and negligible success in
-`secondPreimageGame` for every uniform strict PPT `SecondPreimageFinder`: the finder receives a
-uniform `n`-bit `x` and `n` in unary, and wins with any `x' ≠ x` such that `f x' = f x`. Unlike
-Definition 8.6 (`m' ∈ M`), `x'` may have any length, as in `OneWay`. The certified reduction of
-Exercise 8.23(b) on bit strings, the separation of Exercise 8.23(c) on bit strings and
-Exercise 8.23(d) are not proved here; the
+`secondPreimageGameOn f valid adversary n` draws a uniform `n`-bit word `x`, hands `(n, x)`
+(`n` in unary) to `adversary`, and accepts `x'` when `valid n x' = true`, `x' ≠ x`, and
+`f x' = f x`; `SecondPreimageResistantOn f valid` requires deterministic polynomial-time
+evaluation of `f` and negligible winning probability for every uniform strict-PPT finder (with
+`valid n w := decide (w.length = n)`, this is Definition 8.6 on `{0,1}ⁿ`). The unindexed
+`SecondPreimageResistant f` abbreviates `SecondPreimageResistantOn f (fun _ _ => true)`, admitting
+any `x' ≠ x` of arbitrary length as in `OneWay`. The
 [tests](../../CslibFrontierTests/Crypto/SecondPreimageResistant.lean) check that the factor-one
 bound is an equality on `Bool → Unit`, probe `0 < s`, instantiate the finite `revealAtZero`
-construction of Exercise 8.23(c), and refute constant functions.
+construction of Exercise 8.23(c), and refute constant functions under both `SecondPreimageResistantOn`
+and `SecondPreimageResistant`.
+
+The implications and separations of [bs23][bs23], §8.11.1, equation (8.17), p. 337, and
+Exercise 8.23(b)–(d), p. 353, on bit strings live in
+[`SecondPreimageResistant/Relations.lean`](../../CslibFrontier/Crypto/Computational/SecondPreimageResistant/Relations.lean).
+Wrapping an `Inverter` via `inverterToSecondPreimage f adversary` (`isPPT_inverterToSecondPreimage`)
+gives `OWadv[A, f] ≤ SPRadvOn[B, f] + 2 ^ d / 2 ^ n`
+(`succProbability_inversionGame_le_secondPreimageGameOn_add`) and hence (8.22)'s factor-two form
+(`succProbability_inversionGame_le_two_mul_secondPreimageGameOn_add`) when `n`-bit inputs have
+`d`-bit digests and `f`-collisions with `n`-bit inputs satisfy `valid n` (`hpre`). Because `OneWay`
+accepts preimages of arbitrary length, `hpre` is required whenever `valid` restricts lengths; it
+holds automatically for any-length `SecondPreimageResistant` (`valid := fun _ _ => true`), whereas
+it fails on `{0,1}ⁿ` for functions with cross-length collisions such as
+`CollisionResistantToOneWay.keyDigest H`. Under `hpre`, `SecondPreimageResistantOn.oneWay_of_outputLength`
+derives `OneWay f` when `2 ^ outLen n / 2 ^ n` is negligible. Conversely, where [bs23][bs23] states
+the first arrow of (8.17) and Exercise 8.23(d) for an unkeyed hash, the library's `HashFamily H` is
+keyed with `(H key message).length = key.length`; for that invariant,
+`secondPreimageToCollisionFinder adversary r` (`isPPT_secondPreimageToCollisionFinder`) turns a
+second-preimage finder for `CollisionResistantToOneWay.keyDigest H` at length `3 * n + r` (`r < 3`)
+into a `CollisionFinder` for `H` at parameter `n` with zero loss
+(`succProbability_secondPreimageGame_keyDigest_le`), proving
+`HashFamily.secondPreimageResistant_keyDigest` (which specializes via `SecondPreimageResistantOn.mono`
+to any `valid`, while the `(8.17)` chain to `OneWay (keyDigest H)` uses the any-length
+`SecondPreimageResistant` conclusion). Two separations cover the boundary of (8.17) (the
+separation between second-preimage resistance and collision resistance is not proved here):
+`ignoreHeadBit f w = f w.tail` preserves `OneWay` (`OneWay.ignoreHeadBit`, via
+`ignoreHeadBitInverter` and `isPPT_ignoreHeadBitInverter`) while `flipHeadBit` breaks
+`SecondPreimageResistantOn` — both on `{0,1}ⁿ` and on `valid := fun _ _ => true`
+(`SecondPreimageResistant`) — with probability `1` (`not_secondPreimageResistantOn_ignoreHeadBit`);
+and `plantEasyBranch k H` (`length_plantEasyBranch`, mapping `n`-bit inputs to `(n - (k - 1))`-bit
+outputs when `H` compresses by `k` bits for `n ≥ k`) preserves `SecondPreimageResistantOn` and
+`SecondPreimageResistant` (`SecondPreimageResistantOn.plantEasyBranch`) while
+`plantEasyBranchInverter k` (`isPPT_plantEasyBranchInverter`) breaks `OneWay` with success at least
+`(1 / 2) ^ k` (`not_oneWay_plantEasyBranch`, Exercise 8.23(c) on bit strings). The
+[checked clients](../../CslibFrontierTests/Crypto/SecondPreimageResistantRelations.lean) verify
+`plantEasyBranch 2 id` and the compressing `k = 2` witness `exercise8_23c_compressing`, the composed
+`(8.17)` chain `HashFamily H → OneWay (keyDigest H)` alongside cross-length `hpre` refutation on
+`{0,1}ⁿ`, `ignoreHeadBit` (on `id` and a `OneWay f` hypothesis), `id` (`¬ OneWay` without
+compression), `stripFalseHead` separating `SecondPreimageResistantOn` on `{0,1}ⁿ` from
+`SecondPreimageResistant` and `OneWay`, and concrete `(n = 2, d = 1)` / `(n = 2, r = 1)` bounds.
+
+For the length-strengthened Merkle–Damgård padding of [bs23][bs23], §8.4, Fig. 8.5 (pp. 296–297),
+import
+[`MerkleDamgard/LengthPadding.lean`](../../CslibFrontier/Crypto/Computational/MerkleDamgard/LengthPadding.lean).
+With `n`-bit blocks, `mdLengthPad n msg` is `M ‖ 1 ‖ 0^k ‖ ⟨s⟩`, where
+`s = mdLengthBlockCount n msg` is the number of blocks of the padded message and `⟨s⟩` is its
+`(n / 2)`-bit big-endian encoding, and `mdLengthBlocks n msg` lists its first `s` blocks. When
+`s < 2 ^ (n / 2)` the padded message has exactly `s * n` bits (`length_mdLengthPad`) and the blocks
+concatenate to it (`flatten_mdLengthBlocks`); for larger `s` the count does not fit its field and
+bits are dropped. `mdLengthBlocks_suffix_iff`: if `mdLengthBlockCount n m₂ < 2 ^ (n / 2)`, then
+`mdLengthBlocks n m₁` is a suffix of `mdLengthBlocks n m₂` only when `m₁ = m₂`.
+`computableInPolyTime_mdLengthBlocks` is the polynomial-time certificate, with `n` in unary. The
+hash built from this padding and Theorem 8.3 (p. 297) for it are not yet library declarations. The
+[checked examples](../../CslibFrontierTests/Crypto/MerkleDamgardLengthPadding.lean) compute both
+cases of p. 297 at `n = 4`, show that suffix-freeness fails at the first count that does not fit,
+and derive collision resistance of the chain on the messages whose count fits from
+`CompressionFamily.collisionResistantOn_merkleDamgardChain`; run
+`scripts/build.sh CslibFrontierTests.Crypto.MerkleDamgardLengthPadding`.
 
 Merkle–Damgård chains have many messages with one digest at little more than the cost of one
 collision (Joux's attack, [bs23][bs23], §8.4.1, pp. 298–299). Import
@@ -2898,9 +3476,9 @@ function with one-bit chaining values and eight-bit blocks.
 
 To state a commitment scheme and its games as programs, import [Commitment/Scheme.lean](../../CslibFrontier/Crypto/Computational/Commitment/Scheme.lean). `Commitment.Scheme K M C O` has typed key, message, commitment and opening spaces, with key generation and commitment as `ProbComp` programs and a Boolean `verify`. `hidingExperiment` draws a key and runs `lrExperiment` on the commitment component. `bindingExperiment` asks for a `BindingCollision`, two distinct messages opened against one commitment. `PerfectlyHidingAt S k` makes every message's commitment law equal at key `k`. At such a key, the left-or-right advantage is zero (`Scheme.advantage_lrExperiment_eq_zero`). `Scheme.advantage_hidingExperiment_le` bounds the hiding advantage by the probability that key generation lands outside a perfectly hiding set. The Pedersen instance `pedersen d` at a fixed group description is correct (`pedersen_correct`) and perfectly hiding at every key `h ≠ 0` (`pedersen_perfectlyHidingAt`). The zero key, drawn with probability `1 / q`, is the only loss, so `advantage_pedersen_hidingExperiment_le` gives at most `1 / q`. `succProbability_pedersen_bindingExperiment_le` bounds binding by the discrete-logarithm advantage of the explicit reduction `pedersenToDL`, which reads off `α = (r₁ - r₀)⁻¹ * (m₀ - m₁)` from two openings. These are fixed-parameter statements and make no efficiency claim. The [checked clients](../../CslibFrontierTests/Crypto/CommitmentScheme.lean) cover a perfectly hiding scheme whose binding success is one; the [Pedersen clients](../../CslibFrontierTests/Crypto/PedersenCommitment.lean) instantiate both bounds on a group of order `11`.
 
-[CommitmentScheme](../../CslibFrontier/Crypto/Computational/Commitment/Basic.lean) is the older word-level interface and is intentionally distributional: it gives a faithful public-key encoding, valid messages, an exact `PMF` of commitment/opening pairs (`commitDist`), verification and correctness, and its keys come from an external setup law. For Pedersen, `pedersenHidingGame_eq` and `pedersenBindingGame_eq` state that its word-level games equal the typed experiments of `pedersen d` under `pedersenKeyDist`.
+[CommitmentScheme](../../CslibFrontier/Crypto/Computational/Commitment/Basic.lean) is the older word-level interface and is intentionally distributional: it gives a faithful public-key encoding, valid messages, an exact `PMF` of commitment/opening pairs (`commitDist`), verification and correctness, and its keys come from an external setup law. For Pedersen, `pedersenHidingGame_eq` and `pedersenBindingGame_eq` state that its word-level games equal the typed experiments of `pedersen d` under `pedersenKeyDist`. The certified discrete-logarithm reduction `pedersenToDLAdversary` is, on every key, the typed `pedersenToDL` run on the adversary read through `pedersenCollisionOf` (`pedersenToDLAdversary_encode`), so the word binding bound is the typed one at each group.
 
-[`Commitment/PublicOperations.lean`](../../CslibFrontier/Crypto/Computational/Commitment/PublicOperations.lean), [`PedersenCommitment/PublicOperations.lean`](../../CslibFrontier/Crypto/Computational/PedersenCommitment/PublicOperations.lean) (`validPedersenMessageBool`, `encodePedersenVerify`), and [`PedersenCommitment/ProbComp.lean`](../../CslibFrontier/Crypto/Computational/PedersenCommitment/ProbComp.lean) supply the strict-PPT public operations and bounded fair-coin samplers. Specifically, `pedersenCommitProb` and `pedersenKeyGenProb` sample their exponents via `sampleExp` (certified `IsPPTOn` by `isPPTOn_pedersenCommitProb` and `isPPTOn_pedersenKeyGenProb`), and `pedersenKeyDistProb` draws `d ← setup n` followed by `pedersenKeyGenProb n d`. Replacing ideal commitment sampling (`commitDist`) with `pedersenCommitProb` or ideal key generation (`pedersenKeyDist`) with `pedersenKeyDistProb` shifts any Boolean continuation by at most `1 / 2 ^ n` (`advantage_bind_pedersenCommitProb_le`, `advantage_bind_pedersenKeyGenProb_le`, `advantage_bind_pedersenKeyDistProb_le`).
+[`Commitment/PublicOperations.lean`](../../CslibFrontier/Crypto/Computational/Commitment/PublicOperations.lean), [`PedersenCommitment/PublicOperations.lean`](../../CslibFrontier/Crypto/Computational/PedersenCommitment/PublicOperations.lean) (with `validPedersenMessageBool` and `encodePedersenVerify` from [`PedersenCommitment.lean`](../../CslibFrontier/Crypto/Computational/PedersenCommitment.lean)), and [`PedersenCommitment/ProbComp.lean`](../../CslibFrontier/Crypto/Computational/PedersenCommitment/ProbComp.lean) supply the strict-PPT public operations and bounded fair-coin samplers. Specifically, `pedersenCommitProb` and `pedersenKeyGenProb` sample their exponents via `sampleExp` (certified `IsPPTOn` by `isPPTOn_pedersenCommitProb` and `isPPTOn_pedersenKeyGenProb`), and `pedersenKeyDistProb` draws `d ← setup n` followed by `pedersenKeyGenProb n d`. Replacing ideal commitment sampling (`commitDist`) with `pedersenCommitProb` or ideal key generation (`pedersenKeyDist`) with `pedersenKeyDistProb` shifts any Boolean continuation by at most `1 / 2 ^ n` (`advantage_bind_pedersenCommitProb_le`, `advantage_bind_pedersenKeyGenProb_le`, `advantage_bind_pedersenKeyDistProb_le`).
 
 Because `CommitmentScheme.commitDist` does not take the accuracy parameter `n : ℕ`, `pedersenScheme.hidingGame (F.pedersenKeyDistProb setup)` replaces only key generation with `sampleExp` (giving advantage at most `1 / m + 2 / 2 ^ n` via `advantage_pedersenHidingGame_pedersenKeyDistProb_le` and `pedersenScheme_statisticalHiding_pedersenKeyDistProb`), while `CommitmentScheme.bindingGame` never invokes `commitDist` (`DiscreteLog.pedersenScheme_binding_pedersenKeyDistProb`). For chosen-message hiding where the challenger also samples the challenge commitment with `pedersenCommitProb`, use `pedersenHidingProbForKey` at a fixed key `h ≠ 0` (advantage at most `2 / 2 ^ n`, `advantage_pedersenHidingProbForKey_le_of_ne_zero`) and `pedersenHidingProbGame` under `pedersenKeyDistProb` (advantage at most `1 / m + 4 / 2 ^ n`, `advantage_pedersenHidingProbGame_le`, `negligible_advantage_pedersenHidingProbGame`). At a fixed group description `d`, `pedersenHidingProbExperiment` is the executable `ProbComp Bool` realization of `pedersenHidingProbGame` (`bind_eval_pedersenHidingProbExperiment`, `isPPTOn_pedersenHidingProbExperiment`); see [`Crypto/PedersenSampling.lean`](../../CslibFrontierTests/Crypto/PedersenSampling.lean).
 
@@ -2908,7 +3486,7 @@ Because `CommitmentScheme.commitDist` does not take the accuracy parameter `n : 
 
 [Garbling/Scheme.lean](../../CslibFrontier/Crypto/Primitives/Garbling/Scheme.lean) is the abstract garbling-scheme syntax of Bellare, Hoang and Rogaway, Sections 3 and 4 [bhr12][bhr12]: `Scheme Fn` is `(Gb, En, De, Ev, ev)` over an abstract type of function descriptions with length readers, `Scheme.Garbled` is the output triple `(F, e, d)`, and `Query Fn` is a query `(f, x)`. `Gb` carries its coins explicitly (`coinLen` and a deterministic `gb`), and `Scheme.garble` samples them via `BitString.sampleList`, so non-degeneracy can quantify over the coins (`Scheme.eval_garble`, `Scheme.mem_support_eval_garble_iff`). `Scheme.IsValid` bundles `Scheme.LengthCondition`, `Scheme.NonDegenerate` and `Scheme.Correct`; `Scheme.WellTyped` fixes the output length of `ev` and of every successful decoding of an arbitrary string. A `SideInfo Fn Λ` is a side-information function `Φ` with length readers (`SideInfo.circ` is the identity side information `Φ_circ`), and `SideInfo.Compatible`, `SideInfo.IsEvInverter` and `SideInfo.IsInverter` are the compatibility condition of Section 3.3 and the inversion hypotheses of Section 4.1 (`SideInfo.Compatible.inLen_eq`, `SideInfo.circ_compatible`, `SideInfo.circ_isInverter`). For a concrete point-and-permute circuit garbling construction over `Cslib.Circuits.Circuit`, see [Protocols and privacy](protocols-and-privacy.md#garbled-circuits); `PointPermute.scheme` there is that construction as a valid `Scheme ValidCircuit`.
 
-[Garbling/Games.lean](../../CslibFrontier/Crypto/Primitives/Garbling/Games.lean) states the single-query games of Sections 3.4–3.6 as experiments at a fixed security parameter `k`: `prvIndExperiment`, `prvSimExperiment`, `obvIndExperiment`, `obvSimExperiment` and `autExperiment`. Their adversaries are `TwoStage` adversaries (`PrvIndAdversary`, `PrvSimAdversary`, `ObvIndAdversary`, `ObvSimAdversary`, `AutAdversary`) that choose a `Query` or a `MessagePair` of queries and keep a state; the views are the records `PrvView` `(F, X, d)` and `ObvView` `(F, X)`, the real views are `Scheme.prvView` and `Scheme.obvView`, and the simulators `PrvSimulator` and `ObvSimulator` work at the fixed parameter. The advantages (`prvIndAdvantage`, `prvSimAdvantage`, `obvIndAdvantage`, `obvSimAdvantage`, `autAdvantage`) are `Experiment.advantage` and `Experiment.succProbability`. An invalid pair (`prvIndValid`, `obvIndValid`) or query is answered by `⊥`, so these are not `lrExperiment` instances; `prvIndAdvantage_eq_zero_of_invalid` records that an always-invalid adversary has advantage `0`, and `prvIndAdvantage_eq_two_mul_guessingAdvantage` identifies the `prv.ind` advantage with twice the bias of `Experiment.guessBit (prvIndExperiment G Φ k A)`. [Garbling/Foundations.lean](../../CslibFrontier/Crypto/Primitives/Garbling/Foundations.lean) proves Propositions 2 and 3 (Section 4) as exact per-adversary identities: `prvIndAdvantage_eq_two_mul_prvSimAdvantage_prvIndToSim` for every simulator (`prvIndToSim`, state `IndToSimState`) and `prvSimAdvantage_prvSimFromInverter_eq` against the inverter simulator `prvSimFromInverter` (`prvSimToInd`, `eval_prvSimExperiment_prvSimFromInverter`) under an `ev`-inverter, together with the obliviousness analogues (`obvIndToSim`, `obvSimFromInverter`, `obvInverterQuery`, `obvSimToInd`, `obvIndAdvantage_eq_two_mul_obvSimAdvantage_obvIndToSim`, `obvSimAdvantage_obvSimFromInverter_eq`, `eval_obvSimExperiment_obvSimFromInverter`) under an inverter and `≤` corollaries (`prvIndAdvantage_le_two_mul_prvSimAdvantage_prvIndToSim`, `prvSimAdvantage_prvSimFromInverter_le`, `obvIndAdvantage_le_two_mul_obvSimAdvantage_obvIndToSim`, `obvSimAdvantage_obvSimFromInverter_le`). [Garbling/CircuitInverters.lean](../../CslibFrontier/Crypto/Primitives/Garbling/CircuitInverters.lean) specialises this framework to conventional Boolean circuits (`ConventionalCircuit`, `ValidCircuit`, `Topo`, the well-formedness structure `Topo.IsValid`, `ValidTopo` and the shape record `ValidShape` of Section 2.3; `Scheme.IsCircuitScheme`) and the three standard side-information functions `phiTopo`, `phiSize` and `phiCirc` (`phiTopo_compatible`, `phiSize_compatible`, `phiCirc_compatible`). It constructs the explicit deterministic `(Φ, ev)`-inverters `mTopo` and `mSize` (`mTopoGates`, `sizeTopo`) and `Φ`-inverters `mTopoInv` and `mSizeInv` of Section 4.1, Proposition 1 (`phiTopo_isEvInverter`, `phiSize_isEvInverter`, `phiTopo_isInverter`, `phiSize_isInverter`, `phiCirc_isInverter`), and derives Corollaries 1 and 2 of Sections 4.2–4.3 (`prvIndAdvantage_phiTopo_eq_two_mul_prvSimAdvantage`, `prvSimAdvantage_phiTopo_mTopo_eq`, `prvIndAdvantage_phiSize_eq_two_mul_prvSimAdvantage`, `prvSimAdvantage_phiSize_mSize_eq`, and the obliviousness analogues for `phiTopo`, `phiSize` and `phiCirc`). [Garbling/Adaptive.lean](../../CslibFrontier/Crypto/Primitives/Garbling/Adaptive.lean) adds the coarse-grained adaptive privacy game `Prv1` of Bellare, Hoang and Rogaway, Section 3.1, Figure 2 [bhr12b][bhr12b] (`GarbledFn`, `Prv1Adversary`, `Prv1Simulator`, `prv1Experiment`, `prv1Advantage`, `prv1Advantage_eq_two_mul_guessingAdvantage`); its adversary has three stages, so it is not a `TwoStage` adversary. The embedding `prvSimToPrv1` and induced simulator `prv1SimulatorToPrv` (`PrvSimToPrv1State`) show that adaptive `prv1` simulation security implies selective `prv.sim` security with exact advantage equality (`eval_prv1Experiment_prvSimToPrv1`, `prvSimAdvantage_prv1SimulatorToPrv_eq`) and selective `prv.ind` security with a factor of two (`prvIndAdvantage_eq_two_mul_prv1Advantage`). [Garbling/Efficient.lean](../../CslibFrontier/Crypto/Primitives/Garbling/Efficient.lean) defines `Scheme.IsEfficient G encFn` (polynomial-time length readers, coin count, `gb`, `En`, `Ev`, `De` and `ev` on encoded arguments; Section 3.1 asks for linear-time length readers) and the circuit encodings `encConventionalCircuit` and `encValidCircuit` (`n`, `m` in unary, wire numbers in binary, truth tables as four bits); `PointPermute.scheme_isEfficient` in [Garbling/PointPermute/Efficient.lean](../../CslibFrontier/Crypto/Primitives/Garbling/PointPermute/Efficient.lean) proves it for point-and-permute garbling over any polynomial-time family. [Garbling/Asymptotic.lean](../../CslibFrontier/Crypto/Primitives/Garbling/Asymptotic.lean) states the asymptotic notion `Scheme.PrvSimSecure` of Section 3.4: for every uniform PPT two-stage adversary there is a PPT simulator whose `prv.sim` advantage is negligible. `PseudorandomFunction.prvSim_pointPermute` in [Garbling/PointPermute/Privacy.lean](../../CslibFrontier/Crypto/Primitives/Garbling/PointPermute/Privacy.lean) proves it for point-and-permute garbling over `phiTopo` from a pseudorandom family; no other negligible-advantage statement is made. Projective schemes (`Π` of Section 3.2) and the authenticity relations of Section 4 are not part of these modules. [Garbling-scheme clients](../../CslibFrontierTests/Crypto/GarblingScheme.lean) and [inverter/adaptive clients](../../CslibFrontierTests/Crypto/GarblingInverters.lean) check valid schemes (`identityScheme`, `plainCircuitScheme`), verify zero advantage for an invalid-query adversary, separate `phiSize`, `phiTopo` and `phiCirc` on concrete valid circuits, execute `mTopo` and `mSize` by `decide`, and instantiate the `prv.sim`, `obv.sim` and `prv1` reductions.
+[Garbling/Games.lean](../../CslibFrontier/Crypto/Primitives/Garbling/Games.lean) states the single-query games of Sections 3.4–3.6 as experiments at a fixed security parameter `k`: `prvIndExperiment`, `prvSimExperiment`, `obvIndExperiment`, `obvSimExperiment` and `autExperiment`. Their adversaries are `TwoStage` adversaries (`PrvIndAdversary`, `PrvSimAdversary`, `ObvIndAdversary`, `ObvSimAdversary`, `AutAdversary`) that choose a `Query` or a `MessagePair` of queries and keep a state; the views are the records `PrvView` `(F, X, d)` and `ObvView` `(F, X)`, the real views are `Scheme.prvView` and `Scheme.obvView`, and the simulators `PrvSimulator` and `ObvSimulator` work at the fixed parameter. The advantages (`prvIndAdvantage`, `prvSimAdvantage`, `obvIndAdvantage`, `obvSimAdvantage`, `autAdvantage`) are `Experiment.advantage` and `Experiment.succProbability`. An invalid pair (`prvIndValid`, `obvIndValid`) or query is answered by `⊥`, so these are not `lrExperiment` instances; `prvIndAdvantage_eq_zero_of_invalid` records that an always-invalid adversary has advantage `0`, and `prvIndAdvantage_eq_two_mul_guessingAdvantage` identifies the `prv.ind` advantage with twice the bias of `Experiment.guessBit (prvIndExperiment G Φ k A)`. [Garbling/Foundations.lean](../../CslibFrontier/Crypto/Primitives/Garbling/Foundations.lean) proves Propositions 2 and 3 (Section 4) as exact per-adversary identities: `prvIndAdvantage_eq_two_mul_prvSimAdvantage_prvIndToSim` for every simulator (`prvIndToSim`, state `IndToSimState`) and `prvSimAdvantage_prvSimFromInverter_eq` against the inverter simulator `prvSimFromInverter` (`prvSimToInd`, `eval_prvSimExperiment_prvSimFromInverter`) under an `ev`-inverter, together with the obliviousness analogues (`obvIndToSim`, `obvSimFromInverter`, `obvInverterQuery`, `obvSimToInd`, `obvIndAdvantage_eq_two_mul_obvSimAdvantage_obvIndToSim`, `obvSimAdvantage_obvSimFromInverter_eq`, `eval_obvSimExperiment_obvSimFromInverter`) under an inverter and `≤` corollaries (`prvIndAdvantage_le_two_mul_prvSimAdvantage_prvIndToSim`, `prvSimAdvantage_prvSimFromInverter_le`, `obvIndAdvantage_le_two_mul_obvSimAdvantage_obvIndToSim`, `obvSimAdvantage_obvSimFromInverter_le`). [Garbling/CircuitInverters.lean](../../CslibFrontier/Crypto/Primitives/Garbling/CircuitInverters.lean) specialises this framework to conventional Boolean circuits (`ConventionalCircuit`, `ValidCircuit`, `Topo`, the well-formedness structure `Topo.IsValid`, `ValidTopo` and the shape record `ValidShape` of Section 2.3; `Scheme.IsCircuitScheme`) and the three standard side-information functions `phiTopo`, `phiSize` and `phiCirc` (`phiTopo_compatible`, `phiSize_compatible`, `phiCirc_compatible`). It constructs the explicit deterministic `(Φ, ev)`-inverters `mTopo` and `mSize` (`mTopoGates`, `sizeTopo`) and `Φ`-inverters `mTopoInv` and `mSizeInv` of Section 4.1, Proposition 1 (`phiTopo_isEvInverter`, `phiSize_isEvInverter`, `phiTopo_isInverter`, `phiSize_isInverter`, `phiCirc_isInverter`), and derives Corollaries 1 and 2 of Sections 4.2–4.3 (`prvIndAdvantage_phiTopo_eq_two_mul_prvSimAdvantage`, `prvSimAdvantage_phiTopo_mTopo_eq`, `prvIndAdvantage_phiSize_eq_two_mul_prvSimAdvantage`, `prvSimAdvantage_phiSize_mSize_eq`, and the obliviousness analogues for `phiTopo`, `phiSize` and `phiCirc`). [Garbling/Adaptive.lean](../../CslibFrontier/Crypto/Primitives/Garbling/Adaptive.lean) adds the coarse-grained adaptive privacy game `Prv1` of Bellare, Hoang and Rogaway, Section 3.1, Figure 2 [bhr12b][bhr12b] (`GarbledFn`, `Prv1Adversary`, `Prv1Simulator`, `prv1Experiment`, `prv1Advantage`, `prv1Advantage_eq_two_mul_guessingAdvantage`); its adversary has three stages, so it is not a `TwoStage` adversary. The embedding `prvSimToPrv1` and induced simulator `prv1SimulatorToPrv` (`PrvSimToPrv1State`) show that adaptive `prv1` simulation security implies selective `prv.sim` security with exact advantage equality (`eval_prv1Experiment_prvSimToPrv1`, `prvSimAdvantage_prv1SimulatorToPrv_eq`) and selective `prv.ind` security with a factor of two (`prvIndAdvantage_eq_two_mul_prv1Advantage`). [Garbling/Efficient.lean](../../CslibFrontier/Crypto/Primitives/Garbling/Efficient.lean) defines `Scheme.IsEfficient G encFn` (polynomial-time length readers, coin count, `gb`, `En`, `Ev`, `De` and `ev` on encoded arguments; Section 3.1 asks for linear-time length readers) and the circuit encodings `encConventionalCircuit` and `encValidCircuit` (`n`, `m` in unary, wire numbers in binary, truth tables as four bits); `PointPermute.scheme_isEfficient` in [Garbling/PointPermute/Efficient.lean](../../CslibFrontier/Crypto/Primitives/Garbling/PointPermute/Efficient.lean) proves it for point-and-permute garbling over any polynomial-time family. [Garbling/Asymptotic.lean](../../CslibFrontier/Crypto/Primitives/Garbling/Asymptotic.lean) states the asymptotic notion `Scheme.PrvSimSecure` of Section 3.4: for every uniform PPT two-stage adversary there is a PPT simulator whose `prv.sim` advantage is negligible. `PseudorandomFunction.prvSim_pointPermute` in [Garbling/PointPermute/Privacy.lean](../../CslibFrontier/Crypto/Primitives/Garbling/PointPermute/Privacy.lean) proves it for point-and-permute garbling over `phiTopo` from a pseudorandom family, and `CircularCorrelationRobust.prvSim_halfGates` for half-gates garbling over `Φ_circ`. `Scheme.PrvSimSecureUniversal` is the stronger form with one simulator for every adversary, novel to this library for arbitrary side information ([zre15][zre15], §2, p. 5, state it for the circuit as side information); it implies `PrvSimSecure` (`Scheme.PrvSimSecureUniversal.prvSimSecure`). Both schemes satisfy it with their simulators `simWord`, and Yao's protocol needs it ([Yao's two-party protocol](protocols-and-privacy.md#yaos-two-party-protocol)). [Garbling/Projective.lean](../../CslibFrontier/Crypto/Primitives/Garbling/Projective.lean) gives `projectiveEncode`, which both schemes use: an encoding that is projective in the sense of Section 3.2, in one word layout where `e` concatenates `2 n` tokens of one width (Section 3.2 allows different widths at different coordinates); the authenticity relations of Section 4 are not part of these modules. [Garbling-scheme clients](../../CslibFrontierTests/Crypto/GarblingScheme.lean) and [inverter/adaptive clients](../../CslibFrontierTests/Crypto/GarblingInverters.lean) check valid schemes (`identityScheme`, `plainCircuitScheme`), verify zero advantage for an invalid-query adversary, show that `Scheme.PrvSimSecureUniversal` holds for the trivial scheme and fails for a scheme whose garbled input is its input (`prvSimSecureUniversal_identityScheme`, `not_prvSimSecureUniversal_leakyScheme`), separate `phiSize`, `phiTopo` and `phiCirc` on concrete valid circuits, execute `mTopo` and `mSize` by `decide`, and instantiate the `prv.sim`, `obv.sim` and `prv1` reductions.
 
 ## Known Limitations
 
@@ -2940,3 +3518,4 @@ The finite query-only PRG/cipher results, semantic commitment interfaces and uni
 [naoryung89]: ../sources.md#naoryung89
 [rompel90]: ../sources.md#rompel90
 [uov26]: ../sources.md#uov26
+[zre15]: ../sources.md#zre15

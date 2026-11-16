@@ -517,6 +517,7 @@ theorem map_fst_interpret_bidirDedupStep_evalPerm {β : Type} (π : Equiv.Perm �
   | pure a =>
     simp [PMF.pure_map]
   | query_bind q cont ih =>
+    rw [PFunctor.FreeM.bind_eq_bind]
     simp only [OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind,
       Probability.PMF.monad_bind_eq_bind, PMF.pure_bind]
     change (((OracleComp.interpret (fun q => PMF.pure (evalPerm π q))
@@ -563,6 +564,7 @@ private theorem bidirDedupStep_transcript_inv {β σ : Type}
     rcases hmem with ⟨⟨_, rfl⟩, _, rfl⟩
     exact ⟨rfl, List.nodup_nil, fun _ h => False.elim (List.not_mem_nil h)⟩
   | query_bind q cont ih =>
+    rw [PFunctor.FreeM.bind_eq_bind] at hmem
     simp only [OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind] at hmem
     change ((result, cache'), (s', transcript)) ∈
       (((OracleComp.interpret (OracleComp.withTranscript oracle) (bidirDedupStep q cache)).run
@@ -718,6 +720,7 @@ theorem agreesWith_and_pairwise_of_mem_support_run_bidirDedupStep {β : Type} (�
     rcases hmem with ⟨_, rfl⟩
     exact ⟨hπ, hp1, hπ.pairwise_snd_of_pairwise_fst hp1⟩
   | query_bind q cont ih =>
+    rw [PFunctor.FreeM.bind_eq_bind] at hmem
     simp only [OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind,
       Probability.PMF.monad_bind_eq_bind] at hmem
     change (result, cache') ∈
@@ -1164,6 +1167,7 @@ theorem interpret_run_bidirDedupStep_uniformOfFintype {β : Type}
   induction program using OracleComp.induction generalizing cache with
   | pure a => rfl
   | query_bind q cont ih =>
+    rw [PFunctor.FreeM.bind_eq_bind]
     simp only [OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind]
     change ((OracleComp.interpret (fun _ : PermQuery α => PMF.uniformOfFintype α)
       (bidirDedupStep q cache)).bind fun p =>

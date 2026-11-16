@@ -370,6 +370,7 @@ theorem runFrom_fcom_committed (κ : ℕ) (b : Bool) {α : Type}
   induction program using OracleComp.induction generalizing recDel with
   | pure a => rfl
   | query_bind q cont ih =>
+    rw [PFunctor.FreeM.bind_eq_bind]
     rcases q with k | q
     · have h₁ : liftNet (n := 2) (In := CommitmentInput) (Out := CommitmentOutput)
           (OracleComp.query

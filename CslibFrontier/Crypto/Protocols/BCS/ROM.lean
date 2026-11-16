@@ -2263,13 +2263,15 @@ private theorem fst_eq_of_mem_support_bcsStickyMemoize_liftRight {γ : Type}
     rcases hmem with ⟨rfl, rfl⟩
     rfl
   | query_bind q cont ih =>
-    simp only [liftRight_bind, liftRight_query, run_interpret_bind, run_interpret_query,
-      PMF.monad_bind_eq_bind, PMF.mem_support_bind_iff] at hmem
+    rw [← OracleComp.runWith_eq_run_interpret] at hmem
+    simp only [liftRight_freeMBind, liftRight_query, OracleComp.runWith_freeMBind,
+      OracleComp.runWith_query, PMF.mem_support_bind_iff] at hmem
     rcases hmem with ⟨⟨c, p₁⟩, hc, hcont⟩
     rcases p with ⟨⟨tr_MT, tr_FS⟩, flag⟩
     obtain ⟨⟨c₂, st⟩, hc, hpair⟩ := (PMF.mem_support_map_iff _ _ _).mp hc
     obtain ⟨tr_FS₁, -, rfl⟩ := RandomOracle.mem_support_memoizeSum_inr.mp hc
     rcases Prod.mk.inj hpair with ⟨rfl, rfl⟩
+    rw [OracleComp.runWith_eq_run_interpret] at hcont
     exact (ih c₂ hcont :)
 
 /-- Along a `liftLeft` program run under `bcsStickyMemoize`, if the final sticky flag `p'.2` is
@@ -2296,9 +2298,11 @@ private theorem extractTable_eq_of_mem_support_bcsStickyMemoize_liftLeft {γ : T
     rcases hmem with ⟨rfl, rfl⟩
     exact ⟨hflag', rfl, fun _ _ => rfl⟩
   | query_bind msg cont ih =>
-    simp only [liftLeft_bind, liftLeft_query, run_interpret_bind, run_interpret_query,
-      PMF.monad_bind_eq_bind, PMF.mem_support_bind_iff] at hmem
+    rw [← OracleComp.runWith_eq_run_interpret] at hmem
+    simp only [liftLeft_freeMBind, liftLeft_query, OracleComp.runWith_freeMBind,
+      OracleComp.runWith_query, PMF.mem_support_bind_iff] at hmem
     rcases hmem with ⟨⟨ans, p₁⟩, hans, hcont⟩
+    rw [OracleComp.runWith_eq_run_interpret] at hcont
     obtain ⟨hflag₁, hfs_eq, hextract_tail⟩ := ih ans hcont
     rcases p with ⟨⟨tr_MT, tr_FS⟩, flag⟩
     obtain ⟨⟨ans₂, st⟩, hans, hpair⟩ := (PMF.mem_support_map_iff _ _ _).mp hans
