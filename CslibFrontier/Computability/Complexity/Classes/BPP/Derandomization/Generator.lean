@@ -72,7 +72,7 @@ decider `Cslib.Complexity.seedDecider` over it runs in polynomial time
 * [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*][AroraBarak09], Chapter 20
 -/
 
-@[expose] public section
+public section
 
 open Turing Turing.MultiTapeTM
 
