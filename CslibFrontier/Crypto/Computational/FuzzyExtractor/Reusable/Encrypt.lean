@@ -8,21 +8,45 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.FuzzyExtractor.Reusable
+public import CslibFrontier.Crypto.Computational.FuzzyExtractor.Reusable.Security
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.BitString
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 public import CslibFrontier.Probability.Product
 public import Mathlib.Data.ZMod.ValMinAbs
+public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
+public import CslibFrontier.Languages.Probabilistic.Oracle.RunState
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Matrix.Binary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
+import CslibFrontier.Computability.Probabilistic.Oracle.RunState
+import CslibFrontier.Computability.Probabilistic.PPT.Capture
+import CslibFrontier.Computability.Probabilistic.PPT.PairCapture
+import CslibFrontier.Computability.Probabilistic.Repeat
+import CslibFrontier.Computability.Probabilistic.Sampling.BitString
+import CslibFrontier.Computability.Probabilistic.UniformNat
+import CslibFrontier.Foundations.Data.List.Lookup
 import CslibFrontier.Languages.Probabilistic.Norm
+import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
+import CslibFrontier.Languages.Probabilistic.Presample
+import CslibFrontier.Languages.Probabilistic.UniformNat.Residue
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Uniform
 
 /-!
-# Encryption-based reusable fuzzy extractor from LWE: construction and reduction step
+# Encryption-based strongly reusable fuzzy extractor from LWE
 
-This file formalizes the encryption-based strongly reusable fuzzy extractor from
-Learning With Errors of Apon, Cho, Eldefrawy, and Katz ([AponChoEldefrawyKatz2017],
-Section 5), which the paper proves strongly reusable in the standard model without random
-oracles. We formalize the construction, its correctness, and the reduction step of the Section 5
-security argument as a concrete advantage inequality; the security theorem itself is future work
-(see below).
+This file formalizes the encryption-based fuzzy extractor from Learning With Errors of Apon, Cho,
+Eldefrawy, and Katz ([AponChoEldefrawyKatz2017], Section 5, pp. 11–12), which the paper shows
+strongly reusable in the standard model without random oracles. Section 5 has no numbered
+theorem: it sketches a proof of strong reusability "based on hardness of the `LWE_{n,(t+2)m,q,χ}`
+problem, where the adversary makes at most `t` oracle calls in the experiment of Definition 3"
+(p. 12), assuming that the coordinates of the reading are independent draws from `χ` and that
+the encryption error has the same law. We formalize the construction, its correctness, the
+reduction step as a concrete advantage inequality, and the security claim against efficient
+adversaries (`stronglyReusable_lweEncryptFuzzyExtractor`).
 
 ## Construction (Section 5)
 
@@ -54,10 +78,16 @@ Given a public matrix `A : Matrix (Fin m) (Fin n) (ZMod q)`, an encryption error
   `Cslib.Crypto.FuzzyExtractor.lweEncryptFuzzyExtractor`: helper structure `(c, B, h)` and
   the Section 5 encryption-based reusable fuzzy extractor.
 * `Cslib.Crypto.FuzzyExtractor.encryptLWEErrorLaw`,
-  `Cslib.Crypto.FuzzyExtractor.encryptSimQueryLoop`,
+  `Cslib.Crypto.FuzzyExtractor.encryptShiftOracle`,
+  `Cslib.Crypto.FuzzyExtractor.encryptSimRun`,
   `Cslib.Crypto.FuzzyExtractor.encryptRealReduction`,
   `Cslib.Crypto.FuzzyExtractor.encryptIdealReduction`: the combined `(m + (Q + 1) * l)`-row
-  LWE error distribution and the real/ideal LWE reductions simulating `Q` shift queries.
+  LWE error distribution, the simulated shift oracle that answers the `k`-th query from the `k`-th
+  `l`-row LWE block, and the real/ideal LWE reductions.
+* `Cslib.Crypto.FuzzyExtractor.encEncryptHelper`: the words of a helper at modulus `2 ^ w`.
+* `Cslib.Crypto.FuzzyExtractor.LWEFamily.encryptRealReduction`,
+  `Cslib.Crypto.FuzzyExtractor.LWEFamily.encryptIdealReduction`: the reductions at every security
+  parameter, as LWE distinguishers, against the typed adversary that a word adversary plays.
 
 ## Main results
 
@@ -75,10 +105,15 @@ Given a public matrix `A : Matrix (Fin m) (Fin n) (ZMod q)`, an encryption error
   `Cslib.Crypto.FuzzyExtractor.realGame_encryptIdealReduction`,
   `Cslib.Crypto.FuzzyExtractor.randomGame_encryptRealReduction_eq_ideal`: exact game
   identities linking the real and random LWE games of `encryptRealReduction` and
-  `encryptIdealReduction` to `strongReuseRealGame` and `strongReuseIdealGame`.
+  `encryptIdealReduction` to `strongReuseRealGame` and `strongReuseIdealGame`, for an adversary
+  that makes at most `Q` shift queries. Answering the queries from `Q` blocks drawn in advance
+  has the law of answering each from a fresh block, by the presampling theorem
+  `ProbOracleComp.IsQueryBounded.eval_presample`.
+* `Cslib.Crypto.FuzzyExtractor.encryptLWEErrorLaw_pi`: under assumptions (1) and (2) of Section 5
+  the combined error law has independent coordinates drawn from `χ`.
 * `Cslib.Crypto.FuzzyExtractor.strongReuseAdvantage_lweEncryptFuzzyExtractor_le`: the reduction
   step of the Section 5 argument. For every biometric source `W`, encryption error sampler `E`,
-  error bound `t`, query count `Q`, and strong-reusability adversary `adv`,
+  error bound `t`, and strong-reusability adversary `adv` making at most `Q` shift queries,
   `strongReuseAdvantage ≤ LWE.advantage uniform errs (encryptRealReduction t Q adv) +
     LWE.advantage uniform errs (encryptIdealReduction t Q adv)`,
   where the combined LWE instance has `m + (Q + 1) * l` rows and error law
@@ -86,16 +121,31 @@ Given a public matrix `A : Matrix (Fin m) (Fin n) (ZMod q)`, an encryption error
   this is the paper's `LWE_{n, (t + 2) m, q, χ}` ([AponChoEldefrawyKatz2017], Section 5).
   Here `Q` is the letter `t` of Section 5, the number of oracle calls the adversary makes. It is
   not the Hamming bound `t` of Definitions 1–3, which is the argument `t` of these lemmas.
+* `Cslib.Crypto.FuzzyExtractor.LWEFamily.isPPT_encryptRealReduction`,
+  `Cslib.Crypto.FuzzyExtractor.LWEFamily.isPPT_encryptIdealReduction`: the reductions are uniform
+  strict PPT LWE distinguishers when the word adversary is uniform strict oracle PPT.
+* `Cslib.Crypto.FuzzyExtractor.stronglyReusable_lweEncryptFuzzyExtractor`: the Section 5 claim,
+  `StronglyReusable` from `DecisionLWE`, against adversaries that make at most `Q κ` shift queries.
 
-## What is not proved
+## The reductions' word programs
 
-* The strong-reusability security theorem. The adversary in
-  `strongReuseAdvantage_lweEncryptFuzzyExtractor_le` is unrestricted. Concluding strong
-  reusability from `DecisionLWEWithErrors` needs an adversary class in the reuse experiments and
-  efficiency certificates for `encryptRealReduction` and `encryptIdealReduction`; this is future
-  work, recorded under "Reusable fuzzy extractors from LWE" in `roadmap/cryptography.md`. For
-  i.i.d. errors, `decisionLWE_iff_decisionLWEWithErrors` connects that conclusion to
-  `DecisionLWE`.
+At parameter `κ` a reduction reads the word of the LWE matrix `[b | M]` with `m + (Q + 1) * l`
+rows. Its word program writes the adversary's view from rows `0, …, m + l - 1` and answers the
+`k`-th well-formed shift request from rows `m + l + l k, …, m + l + l k + l - 1`, on fresh coins
+for `s'` (as `w`-bit naturals) and for the key bits. Its state is the index of the next unused
+block, which stands for the unused blocks that `encryptSimRun` keeps; past the last block the rows
+read as zero, as `encryptSimRun`'s fallback block. The program has the law of the typed reduction,
+so the certificate is proved for the program.
+
+## Deviations
+
+* The modulus is `2 ^ w κ`, the modulus of `DecisionLWE`; Definition 4 allows any integer `q ≥ 2`.
+  The fixed-parameter results allow any modulus `q`.
+* Adversaries are uniform strict oracle PPT programs on bit words (`WordReuseAdversary`) that make
+  at most `Q κ` shift queries.
+* A shift of Hamming weight above `t` is answered as the shift `0` (`clampShift`), where
+  Definition 3 admits only shifts of weight at most `t`.
+* The key length `l` may differ from `m`, which the source takes equal (p. 11).
 
 ## References
 
@@ -484,190 +534,194 @@ noncomputable def encryptLWEErrorLaw {m l q : ℕ} [NeZero q]
       (Probability.PMF.pi (fun _ : Fin Q => E)).bind fun eQ =>
         PMF.pure (joinRows w e₀ eQ)
 
-/-- With a uniform source and uniform encryption errors, the combined error law of
-`encryptLWEErrorLaw` is uniform on all `m + (Q + 1) * l` rows. Together with
-`LWE.advantage_uniform_error_eq_zero`, this shows that the right-hand side of
-`strongReuseAdvantage_lweEncryptFuzzyExtractor_le` can be `0`. -/
-theorem encryptLWEErrorLaw_uniform (Q : ℕ) :
-    encryptLWEErrorLaw (PMF.uniformOfFintype (Fin m → ZMod q))
-        (PMF.uniformOfFintype (Fin l → ZMod q)) Q =
-      PMF.uniformOfFintype (Fin (m + (Q + 1) * l) → ZMod q) := by
-  rw [encryptLWEErrorLaw, Probability.PMF.pi_uniformOfFintype,
-    ← uniform_bind_splitRows PMF.pure, PMF.bind_pure]
+/-- Under assumptions (1) and (2) of [AponChoEldefrawyKatz2017], Section 5, p. 12, the combined
+error law of `encryptLWEErrorLaw` is that of plain LWE: when every coordinate of the reading and
+of each encryption error is drawn independently from one law `χ`, all `m + (Q + 1) * l`
+coordinates are drawn independently from `χ`. -/
+theorem encryptLWEErrorLaw_pi (χ : PMF (ZMod q)) (Q : ℕ) :
+    encryptLWEErrorLaw (Probability.PMF.pi fun _ : Fin m => χ)
+        (Probability.PMF.pi fun _ : Fin l => χ) Q =
+      Probability.PMF.pi fun _ : Fin (m + (Q + 1) * l) => χ := by
+  set E := Probability.PMF.pi fun _ : Fin l => χ
+  have hlaw : encryptLWEErrorLaw (Probability.PMF.pi fun _ : Fin m => χ) E Q =
+      ((Probability.PMF.pi fun _ : Fin m => χ).bind fun w =>
+        (E.bind fun e₀ => (Probability.PMF.pi fun _ : Fin Q => E).map (e₀, ·)).map (w, ·)).map
+          (splitRowsEquiv m l Q (ZMod q)) := by
+    simp only [encryptLWEErrorLaw, PMF.map_bind, PMF.map_comp, Function.comp_def]
+    rfl
+  rw [hlaw]
+  ext f
+  rw [Probability.PMF.map_equiv_apply, Probability.PMF.bind_map_prodMk_apply,
+    Probability.PMF.bind_map_prodMk_apply]
+  change (∏ i, χ (headRows f i)) * ((∏ i, χ (challengeRows f i)) *
+      ∏ k, ∏ i, χ (queryRows f k i)) = ∏ r, χ (f r)
+  rw [← Fintype.prod_equiv (rowIndexEquiv m l Q) (fun x => χ (f (rowIndexEquiv m l Q x)))
+    (fun r => χ (f r)) fun _ => rfl, Fintype.prod_sum_type, Fintype.prod_sum_type,
+    Fintype.prod_prod_type]
+  rfl
 
-/-- Simulate `qRem` shift queries of a strong-reusability adversary `adv` using pre-allocated
-`l`-row LWE blocks `(B_k, b_k)` ([AponChoEldefrawyKatz2017], Section 5, step 2 of the
-simulation on p. 12): on shift `δ`, clamp `δ` to weight `≤ t`, sample fresh uniform
-`s' : Fin n → ZMod q` and key `r_i : Fin l → Bool`, form `c_i = c* + A s' + clampShift t δ` and
-`h_i = b_k + B_k s' + encodeHalfBits q r_i`, and pass `(⟨c_i, B_k, h_i⟩, r_i)` to
-`adv.observe`. The simulator never sees `s`, `w*`, or the LWE errors. -/
-noncomputable def encryptSimQueryLoop {m n l q : ℕ} [NeZero q] {St : Type}
-    (t : ℕ) (A : Matrix (Fin m) (Fin n) (ZMod q)) (cStar : Fin m → ZMod q)
+/-- The shift oracle of the Section 5 reduction ([AponChoEldefrawyKatz2017], Section 5, step 2 of
+the simulation on p. 12), answering a shift `δ` from one `l`-row LWE block `(B_k, b_k)`: sample a
+fresh uniform `s' : Fin n → ZMod q` and key `r_i : Fin l → Bool`, and return
+`(⟨c* + A s' + clampShift t δ, B_k, b_k + B_k s' + encodeHalfBits q r_i⟩, r_i)`. It never sees
+`s`, `w*` or the LWE errors. -/
+noncomputable def encryptShiftOracle (t : ℕ) (A : Matrix (Fin m) (Fin n) (ZMod q))
+    (cStar : Fin m → ZMod q) (B : Matrix (Fin l) (Fin n) (ZMod q)) (b : Fin l → ZMod q)
+    (δ : Fin m → ZMod q) : ProbComp (EncryptHelper m n l q × (Fin l → Bool)) := do
+  let s' ← ProbComp.uniform (Fin n → ZMod q)
+  let rᵢ ← ProbComp.uniform (Fin l → Bool)
+  return (⟨cStar + A.mulVec s' + clampShift t δ, B, b + B.mulVec s' + encodeHalfBits q rᵢ⟩, rᵢ)
+
+/-- Run the query stage of `adv` on public matrix `A` and challenge helper `pStar`, answering the
+`k`-th shift query from the `k`-th block `(B_k, b_k)` of `blocks` with `encryptShiftOracle` and
+returning the saved state. An exhausted list supplies the zero block. -/
+noncomputable def encryptSimRun {σ : Type} (t : ℕ) (A : Matrix (Fin m) (Fin n) (ZMod q))
+    (pStar : EncryptHelper m n l q)
     (adv : StrongReuseAdversary (Matrix (Fin m) (Fin n) (ZMod q)) m q
-      (Fin l → Bool) (EncryptHelper m n l q) St) :
-    (qRem : ℕ) →
-    (Fin qRem → Matrix (Fin l) (Fin n) (ZMod q)) →
-    (Fin qRem → Fin l → ZMod q) →
-    St → ProbComp St
-  | 0, _, _, st => return st
-  | qRem + 1, B_vec, b_vec, st => do
-    let (st', δ) ← adv.shift st
-    let δ' := clampShift t δ
-    let s' ← ProbComp.uniform (Fin n → ZMod q)
-    let r_i ← ProbComp.uniform (Fin l → Bool)
-    let B₀ := B_vec 0
-    let b₀ := b_vec 0
-    let c_i := cStar + A.mulVec s' + δ'
-    let h_i := b₀ + B₀.mulVec s' + encodeHalfBits q r_i
-    let st'' ← adv.observe st' (⟨c_i, B₀, h_i⟩, r_i)
-    encryptSimQueryLoop t A cStar adv qRem (Fin.tail B_vec) (Fin.tail b_vec) st''
+      (Fin l → Bool) (EncryptHelper m n l q) σ)
+    (blocks : List (Matrix (Fin l) (Fin n) (ZMod q) × (Fin l → ZMod q))) : ProbComp σ := do
+  let (st, _) ← (ProbOracleComp.runState (adv.query A pStar) (OracleComp.withSampleList (0, 0)
+    fun (B, b) δ => StateT.lift (encryptShiftOracle t A pStar.codeOffset B b δ))).run ((), blocks)
+  return st
 
 /-- The real-key LWE reduction of [AponChoEldefrawyKatz2017], Section 5 (simulation on p. 12):
-given an `(m + (Q + 1) * l)`-row LWE instance `(M, b)`, extract:
+given an `(m + (Q + 1) * l)`-row LWE instance `(M, b)`, read
 * `(A, c*) = (headMatrixRows M, headRows b)` for the public matrix and challenge code-offset vector,
 * `(B, b₁) = (challengeMatrixRows M, challengeRows b)` for the challenge encryption,
-* `(B_vec, b_vec) = (queryMatrixRows M, queryRows b)` for the `Q` shift queries;
-sample a uniform challenge key `r* : Fin l → Bool`, set `h* = b₁ + encodeHalfBits q r*`,
-run `adv` with `encryptSimQueryLoop`, and pass `r*` to `adv.guess`.
-The reduction never sees the secret `s`, reading `w*`, or encryption errors. -/
-noncomputable def encryptRealReduction {m n l q : ℕ} [NeZero q] {St : Type}
-    (t Q : ℕ)
+* the `Q` blocks `(queryMatrixRows M k, queryRows b k)` for the shift queries;
+sample a uniform challenge key `r* : Fin l → Bool`, give `adv` the helper
+`⟨c*, B, b₁ + encodeHalfBits q r*⟩`, answer its `k`-th shift query from the `k`-th block
+(`encryptSimRun`), and pass `r*` to `adv.guess`. The reduction never sees the secret `s`, reading
+`w*`, or encryption errors. -/
+noncomputable def encryptRealReduction {σ : Type} (t Q : ℕ)
     (adv : StrongReuseAdversary (Matrix (Fin m) (Fin n) (ZMod q)) m q
-      (Fin l → Bool) (EncryptHelper m n l q) St)
+      (Fin l → Bool) (EncryptHelper m n l q) σ)
     (M : Matrix (Fin (m + (Q + 1) * l)) (Fin n) (ZMod q))
     (b : Fin (m + (Q + 1) * l) → ZMod q) : Experiment := do
-  let A := headMatrixRows M
-  let cStar := headRows b
-  let B := challengeMatrixRows M
-  let b₁ := challengeRows b
   let rStar ← ProbComp.uniform (Fin l → Bool)
-  let hStar := b₁ + encodeHalfBits q rStar
-  let st₀ ← adv.start A ⟨cStar, B, hStar⟩
-  let st ← encryptSimQueryLoop t A cStar adv Q (queryMatrixRows M) (queryRows b) st₀
+  let st ← encryptSimRun t (headMatrixRows M)
+    ⟨headRows b, challengeMatrixRows M, challengeRows b + encodeHalfBits q rStar⟩ adv
+    (List.ofFn fun k => (queryMatrixRows M k, queryRows b k))
   adv.guess st rStar
 
 /-- The ideal-key LWE reduction of [AponChoEldefrawyKatz2017], Section 5 (simulation on p. 12):
 as `encryptRealReduction`, except `adv.guess` receives an independent uniform key
 `u ← ProbComp.uniform (Fin l → Bool)` in place of `r*`. -/
-noncomputable def encryptIdealReduction {m n l q : ℕ} [NeZero q] {St : Type}
-    (t Q : ℕ)
+noncomputable def encryptIdealReduction {σ : Type} (t Q : ℕ)
     (adv : StrongReuseAdversary (Matrix (Fin m) (Fin n) (ZMod q)) m q
-      (Fin l → Bool) (EncryptHelper m n l q) St)
+      (Fin l → Bool) (EncryptHelper m n l q) σ)
     (M : Matrix (Fin (m + (Q + 1) * l)) (Fin n) (ZMod q))
     (b : Fin (m + (Q + 1) * l) → ZMod q) : Experiment := do
-  let A := headMatrixRows M
-  let cStar := headRows b
-  let B := challengeMatrixRows M
-  let b₁ := challengeRows b
   let rStar ← ProbComp.uniform (Fin l → Bool)
-  let hStar := b₁ + encodeHalfBits q rStar
-  let st₀ ← adv.start A ⟨cStar, B, hStar⟩
-  let st ← encryptSimQueryLoop t A cStar adv Q (queryMatrixRows M) (queryRows b) st₀
+  let st ← encryptSimRun t (headMatrixRows M)
+    ⟨headRows b, challengeMatrixRows M, challengeRows b + encodeHalfBits q rStar⟩ adv
+    (List.ofFn fun k => (queryMatrixRows M k, queryRows b k))
   let u ← ProbComp.uniform (Fin l → Bool)
   adv.guess st u
 
 /-! ### Reduction Equivalence Lemmas -/
 
-private theorem eval_encryptSimQueryLoop_eq {m n l q : ℕ} [NeZero q] {St : Type}
+/-- One shift query answered from a fresh LWE block `(B, B s + e)`, with `B` uniform and `e ← E`,
+has the law of the honest strong-reusability oracle of `lweEncryptFuzzyExtractor` on reading `w`,
+when the challenge code offset is `A s + w`: the secret `s + s'` of the simulated answer is
+uniform. -/
+private theorem eval_encryptShiftOracle_eq {m n l q : ℕ} [NeZero q]
     (E : ProbComp (Fin l → ZMod q))
     (decode : Matrix (Fin m) (Fin n) (ZMod q) → (Fin m → ZMod q) →
       ProbComp (Option (Fin n → ZMod q)))
     (t : ℕ) (A : Matrix (Fin m) (Fin n) (ZMod q))
-    (s : Fin n → ZMod q) (w : Fin m → ZMod q)
+    (s : Fin n → ZMod q) (w δ : Fin m → ZMod q) :
+    ProbComp.eval (do
+      let B ← ProbComp.uniform (Matrix (Fin l) (Fin n) (ZMod q))
+      let e ← E
+      encryptShiftOracle t A (A.mulVec s + w) B (B.mulVec s + e) δ) =
+      ProbComp.eval (strongReuseOracle (lweEncryptFuzzyExtractor m n l q E decode) t A w δ) := by
+  simp only [encryptShiftOracle, strongReuseOracle, lweEncryptFuzzyExtractor, symEncrypt,
+    ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform, PMF.bind_bind, PMF.pure_bind]
+  conv_rhs => rw [← Probability.PMF.uniformOfFintype_bind_equiv (Equiv.addLeft s)]
+  conv_lhs =>
+    simp only [PMF.bind_comm (ProbComp.eval E) (PMF.uniformOfFintype (Fin n → ZMod q))]
+    rw [PMF.bind_comm (PMF.uniformOfFintype (Matrix (Fin l) (Fin n) (ZMod q)))
+      (PMF.uniformOfFintype (Fin n → ZMod q))]
+    simp only [PMF.bind_comm (ProbComp.eval E) (PMF.uniformOfFintype (Fin l → Bool)),
+      PMF.bind_comm (PMF.uniformOfFintype (Matrix (Fin l) (Fin n) (ZMod q)))
+        (PMF.uniformOfFintype (Fin l → Bool))]
+  congr 1 with s' : 1
+  congr 1 with r : 1
+  congr 1 with B' : 1
+  congr 1 with e : 1
+  simp only [Equiv.coe_addLeft, Matrix.mulVec_add]
+  congr 3 <;> abel
+
+/-- **The query stage of the Section 5 reduction.** If `adv` makes at most `Q` shift queries on
+the challenge helper `pStar`, whose code offset is `A s + w`, then answering them from `Q`
+independent blocks `(B_k, B_k s + e_k)`, with `B_k` uniform and `e_k ← E`, gives the saved state
+the law it has against the honest strong-reusability oracle. This is the presampling theorem
+`ProbOracleComp.IsQueryBounded.eval_presample` with `eval_encryptShiftOracle_eq` at each query. -/
+private theorem eval_encryptSimRun_eq {m n l q : ℕ} [NeZero q] {σ : Type}
+    (E : ProbComp (Fin l → ZMod q))
+    (decode : Matrix (Fin m) (Fin n) (ZMod q) → (Fin m → ZMod q) →
+      ProbComp (Option (Fin n → ZMod q)))
+    (t : ℕ) (A : Matrix (Fin m) (Fin n) (ZMod q))
+    (s : Fin n → ZMod q) (w : Fin m → ZMod q) (B : Matrix (Fin l) (Fin n) (ZMod q))
+    (h : Fin l → ZMod q)
     (adv : StrongReuseAdversary (Matrix (Fin m) (Fin n) (ZMod q)) m q
-      (Fin l → Bool) (EncryptHelper m n l q) St)
-    (Q : ℕ) (st : St) :
+      (Fin l → Bool) (EncryptHelper m n l q) σ) (Q : ℕ)
+    (hQ : ProbOracleComp.IsQueryBounded (adv.query A ⟨A.mulVec s + w, B, h⟩) Q) :
     ((PMF.uniformOfFintype (Fin Q → Matrix (Fin l) (Fin n) (ZMod q))).bind fun B_vec =>
       (Probability.PMF.pi (fun _ : Fin Q => ProbComp.eval E)).bind fun e_vec =>
-        ProbComp.eval (encryptSimQueryLoop t A (A.mulVec s + w) adv Q B_vec
-          (fun k => (B_vec k).mulVec s + e_vec k) st)) =
-      ProbComp.eval (reuseQueryLoop t (fun δ => do
-        let (r, p) ← (lweEncryptFuzzyExtractor m n l q E decode A).gen (w + δ)
-        return (p, r)) adv Q st) := by
-  induction Q generalizing st with
-  | zero =>
-    simp [encryptSimQueryLoop, reuseQueryLoop, ProbComp.eval_pure, PMF.bind_const]
-  | succ qRem ih =>
-    rw [← Probability.PMF.pi_uniformOfFintype, Probability.PMF.pi_fin_succ qRem,
-      Probability.PMF.pi_fin_succ qRem (ProbComp.eval E)]
-    simp only [encryptSimQueryLoop, reuseQueryLoop, lweEncryptFuzzyExtractor, symEncrypt,
-      ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform,
-      PMF.bind_bind, PMF.bind_map, PMF.pure_bind, Function.comp_def,
-      Fin.cons_zero, Fin.tail_cons]
-    have htail : ∀ (B₀ : Matrix (Fin l) (Fin n) (ZMod q))
-        (B_rest : Fin qRem → Matrix (Fin l) (Fin n) (ZMod q))
-        (e₀ : Fin l → ZMod q) (e_rest : Fin qRem → Fin l → ZMod q),
-        Fin.tail (fun k : Fin (qRem + 1) =>
-          Matrix.mulVec (@Fin.cons qRem (fun _ => Matrix (Fin l) (Fin n) (ZMod q)) B₀ B_rest k) s +
-            @Fin.cons qRem (fun _ => Fin l → ZMod q) e₀ e_rest k) =
-          fun k : Fin qRem => (B_rest k).mulVec s + e_rest k := by
-      intro B₀ B_rest e₀ e_rest
-      ext k
-      simp [Fin.tail]
-    simp_rw [htail, Probability.PMF.pi_uniformOfFintype]
-    simp_rw [PMF.bind_comm (Probability.PMF.pi (fun _ : Fin qRem => ProbComp.eval E))
-      (ProbComp.eval (adv.shift st))]
-    simp_rw [PMF.bind_comm (ProbComp.eval E) (ProbComp.eval (adv.shift st))]
-    simp_rw [PMF.bind_comm (PMF.uniformOfFintype (Fin qRem → Matrix (Fin l) (Fin n) (ZMod q)))
-      (ProbComp.eval (adv.shift st))]
-    rw [PMF.bind_comm (PMF.uniformOfFintype (Matrix (Fin l) (Fin n) (ZMod q)))
-      (ProbComp.eval (adv.shift st))]
-    congr 1 with p : 1
-    obtain ⟨st', δ⟩ := p
-    simp_rw [PMF.bind_comm (Probability.PMF.pi (fun _ : Fin qRem => ProbComp.eval E))
-      (PMF.uniformOfFintype (Fin n → ZMod q))]
-    simp_rw [PMF.bind_comm (ProbComp.eval E) (PMF.uniformOfFintype (Fin n → ZMod q))]
-    simp_rw [PMF.bind_comm (PMF.uniformOfFintype (Fin qRem → Matrix (Fin l) (Fin n) (ZMod q)))
-      (PMF.uniformOfFintype (Fin n → ZMod q))]
-    rw [PMF.bind_comm (PMF.uniformOfFintype (Matrix (Fin l) (Fin n) (ZMod q)))
-      (PMF.uniformOfFintype (Fin n → ZMod q))]
-    have hsec : ∀ (s' : Fin n → ZMod q) (B₀ : Matrix (Fin l) (Fin n) (ZMod q))
-        (e₀ : Fin l → ZMod q) (r_i : Fin l → Bool),
-        (⟨A.mulVec s + w + A.mulVec s' + clampShift t δ, B₀,
-          B₀.mulVec s + e₀ + B₀.mulVec s' + encodeHalfBits q r_i⟩ :
-          EncryptHelper m n l q) =
-        ⟨A.mulVec (s + s') + (w + clampShift t δ), B₀,
-          B₀.mulVec (s + s') + e₀ + encodeHalfBits q r_i⟩ := by
-      intro s' B₀ e₀ r_i
-      congr 1
-      · rw [Matrix.mulVec_add]
-        abel
-      · rw [Matrix.mulVec_add]
-        abel
-    simp_rw [hsec]
-    refine (Probability.PMF.uniformOfFintype_bind_equiv (Equiv.addLeft s) (fun s₁ =>
-      (PMF.uniformOfFintype (Matrix (Fin l) (Fin n) (ZMod q))).bind fun B₀ =>
-        (PMF.uniformOfFintype (Fin qRem → Matrix (Fin l) (Fin n) (ZMod q))).bind fun B_rest =>
-          (ProbComp.eval E).bind fun e₀ =>
-            (Probability.PMF.pi fun _ : Fin qRem => ProbComp.eval E).bind fun e_rest =>
-              (PMF.uniformOfFintype (Fin l → Bool)).bind fun r_i =>
-                (ProbComp.eval (adv.observe st'
-                        ({ codeOffset := A.mulVec s₁ + (w + clampShift t δ), encMatrix := B₀,
-                           ciphertext := B₀.mulVec s₁ + e₀ + encodeHalfBits q r_i },
-                          r_i))).bind
-                  fun st'' => ProbComp.eval (encryptSimQueryLoop t A (A.mulVec s + w) adv qRem
-                    B_rest (fun k => (B_rest k).mulVec s + e_rest k) st''))).trans ?_
-    congr 1 with s₁ : 1
-    simp_rw [PMF.bind_comm (Probability.PMF.pi (fun _ : Fin qRem => ProbComp.eval E))
-      (PMF.uniformOfFintype (Fin l → Bool))]
-    simp_rw [PMF.bind_comm (ProbComp.eval E) (PMF.uniformOfFintype (Fin l → Bool))]
-    simp_rw [PMF.bind_comm (PMF.uniformOfFintype (Fin qRem → Matrix (Fin l) (Fin n) (ZMod q)))
-      (PMF.uniformOfFintype (Fin l → Bool))]
-    rw [PMF.bind_comm (PMF.uniformOfFintype (Matrix (Fin l) (Fin n) (ZMod q)))
-      (PMF.uniformOfFintype (Fin l → Bool))]
-    congr 1 with r_i : 1
-    congr 1 with B₀ : 1
-    rw [PMF.bind_comm (PMF.uniformOfFintype (Fin qRem → Matrix (Fin l) (Fin n) (ZMod q)))
-      (ProbComp.eval E)]
-    congr 1 with e₀ : 1
-    simp_rw [PMF.bind_comm (Probability.PMF.pi (fun _ : Fin qRem => ProbComp.eval E))
-      (ProbComp.eval (adv.observe st' (⟨A.mulVec s₁ + (w + clampShift t δ), B₀,
-        B₀.mulVec s₁ + e₀ + encodeHalfBits q r_i⟩, r_i)))]
-    rw [PMF.bind_comm (PMF.uniformOfFintype (Fin qRem → Matrix (Fin l) (Fin n) (ZMod q)))
-      (ProbComp.eval (adv.observe st' (⟨A.mulVec s₁ + (w + clampShift t δ), B₀,
-        B₀.mulVec s₁ + e₀ + encodeHalfBits q r_i⟩, r_i)))]
-    congr 1 with st'' : 1
-    exact ih st''
+        ProbComp.eval (encryptSimRun t A ⟨A.mulVec s + w, B, h⟩ adv
+          (List.ofFn fun k => (B_vec k, (B_vec k).mulVec s + e_vec k)))) =
+      ProbComp.eval ((adv.query A ⟨A.mulVec s + w, B, h⟩).run
+        (strongReuseOracle (lweEncryptFuzzyExtractor m n l q E decode) t A w)) := by
+  let block : ProbComp (Matrix (Fin l) (Fin n) (ZMod q) × (Fin l → ZMod q)) := do
+    let B' ← ProbComp.uniform (Matrix (Fin l) (Fin n) (ZMod q))
+    let e ← E
+    return (B', B'.mulVec s + e)
+  let oracle : Matrix (Fin l) (Fin n) (ZMod q) × (Fin l → ZMod q) → (Fin m → ZMod q) →
+      StateT Unit ProbComp (EncryptHelper m n l q × (Fin l → Bool)) :=
+    fun (B', b) δ => StateT.lift (encryptShiftOracle t A (A.mulVec s + w) B' b δ)
+  have hpresample := hQ.eval_presample block (0, 0) oracle ()
+  -- The `Q` blocks `(B_k, B_k s + e_k)` are `Q` independent draws of `block`.
+  have hblocks : ∀ F : List (Matrix (Fin l) (Fin n) (ZMod q) × (Fin l → ZMod q)) → PMF σ,
+      ((PMF.uniformOfFintype (Fin Q → Matrix (Fin l) (Fin n) (ZMod q))).bind fun B_vec =>
+        (Probability.PMF.pi (fun _ : Fin Q => ProbComp.eval E)).bind fun e_vec =>
+          F (List.ofFn fun k => (B_vec k, (B_vec k).mulVec s + e_vec k))) =
+        (ProbComp.eval (OracleComp.replicate Q block)).bind F := by
+    intro F
+    have hblock : ProbComp.eval block =
+        (PMF.uniformOfFintype (Matrix (Fin l) (Fin n) (ZMod q))).bind fun B' =>
+          (ProbComp.eval E).map fun e => (B', B'.mulVec s + e) := by
+      simp only [block, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure]
+      rfl
+    rw [ProbComp.eval_replicate, hblock, Probability.PMF.pi_bind,
+      ← Probability.PMF.pi_uniformOfFintype]
+    simp only [Probability.PMF.pi_map, PMF.bind_map, PMF.map_bind, PMF.bind_bind,
+      Function.comp_def]
+  -- A fresh block per query is the honest oracle.
+  have hfresh : (fun δ (u : Unit) => block >>= fun value => oracle value δ u) =
+      fun δ => StateT.lift (block >>= fun value => encryptShiftOracle t A (A.mulVec s + w)
+        value.1 value.2 δ) := by
+    funext δ u
+    simp only [oracle, StateT.lift, bind_assoc]
+  have hhonest : ∀ δ, ProbComp.eval (block >>= fun value =>
+      encryptShiftOracle t A (A.mulVec s + w) value.1 value.2 δ) =
+      ProbComp.eval (strongReuseOracle (lweEncryptFuzzyExtractor m n l q E decode) t A w δ) := by
+    intro δ
+    rw [← eval_encryptShiftOracle_eq E decode t A s w δ]
+    simp only [block, bind_assoc, pure_bind]
+  rw [hblocks fun values => ProbComp.eval (encryptSimRun t A ⟨A.mulVec s + w, B, h⟩ adv values)]
+  have hmap := congrArg (PMF.map Prod.fst) hpresample
+  simp only [ProbComp.eval_bind, ProbComp.eval_map, PMF.map_bind, PMF.map_comp] at hmap
+  simp only [encryptSimRun, ProbComp.eval_bind, ProbComp.eval_pure]
+  refine Eq.trans ?_ (hmap.trans ?_)
+  · congr 1
+  · change PMF.map Prod.fst (ProbComp.eval ((ProbOracleComp.runState
+      (adv.query A ⟨A.mulVec s + w, B, h⟩) fun δ (u : Unit) =>
+        block >>= fun value => oracle value δ u).run ())) = _
+    rw [hfresh, ProbOracleComp.runState_lift, ProbComp.eval_map, PMF.map_comp]
+    simp only [Function.comp_def, ProbOracleComp.eval_run, hhonest]
+    exact PMF.map_id _
 
 private theorem realGame_encrypt_embed {St : Type}
     (E : ProbComp (Fin l → ZMod q))
@@ -676,6 +730,7 @@ private theorem realGame_encrypt_embed {St : Type}
     (W : PMF (Fin m → ZMod q)) (t Q : ℕ)
     (adv : StrongReuseAdversary (Matrix (Fin m) (Fin n) (ZMod q)) m q
       (Fin l → Bool) (EncryptHelper m n l q) St)
+    (hQ : ∀ A pStar, ProbOracleComp.IsQueryBounded (adv.query A pStar) Q)
     (K : St → (Fin l → Bool) → PMF Bool) :
     ((PMF.uniformOfFintype (Fin n → ZMod q)).bind fun s =>
       W.bind fun w =>
@@ -683,26 +738,22 @@ private theorem realGame_encrypt_embed {St : Type}
           (Probability.PMF.pi (fun _ : Fin Q => ProbComp.eval E)).bind fun eQ =>
             (PMF.uniformOfFintype (Matrix (Fin (m + (Q + 1) * l)) (Fin n) (ZMod q))).bind fun M =>
               (PMF.uniformOfFintype (Fin l → Bool)).bind fun rStar =>
-                (ProbComp.eval (adv.start (headMatrixRows M)
+                (ProbComp.eval (encryptSimRun t (headMatrixRows M)
                   ⟨headRows (M *ᵥ s + joinRows w e₀ eQ), challengeMatrixRows M,
-                    challengeRows (M *ᵥ s + joinRows w e₀ eQ) + encodeHalfBits q rStar⟩)).bind
-                  fun st₀ =>
-                    (ProbComp.eval (encryptSimQueryLoop t (headMatrixRows M)
-                      (headRows (M *ᵥ s + joinRows w e₀ eQ)) adv Q
-                      (queryMatrixRows M) (queryRows (M *ᵥ s + joinRows w e₀ eQ)) st₀)).bind
-                      fun st => K st rStar) =
+                    challengeRows (M *ᵥ s + joinRows w e₀ eQ) + encodeHalfBits q rStar⟩ adv
+                  (List.ofFn fun k =>
+                    (queryMatrixRows M k, queryRows (M *ᵥ s + joinRows w e₀ eQ) k)))).bind
+                  fun st => K st rStar) =
       (PMF.uniformOfFintype (Matrix (Fin m) (Fin n) (ZMod q))).bind fun A =>
         W.bind fun w =>
           (PMF.uniformOfFintype (Fin n → ZMod q)).bind fun s =>
             (PMF.uniformOfFintype (Fin l → Bool)).bind fun rStar =>
               (PMF.uniformOfFintype (Matrix (Fin l) (Fin n) (ZMod q))).bind fun B =>
                 (ProbComp.eval E).bind fun e₀ =>
-                  (ProbComp.eval (adv.start A
-                    ⟨A.mulVec s + w, B, B.mulVec s + e₀ + encodeHalfBits q rStar⟩)).bind
-                    fun st₀ =>
-                      (ProbComp.eval (reuseQueryLoop t (fun δ => do
-                        let (r, p) ← (lweEncryptFuzzyExtractor m n l q E decode A).gen (w + δ)
-                        return (p, r)) adv Q st₀)).bind fun st => K st rStar := by
+                  (ProbComp.eval ((adv.query A
+                    ⟨A.mulVec s + w, B, B.mulVec s + e₀ + encodeHalfBits q rStar⟩).run
+                      (strongReuseOracle (lweEncryptFuzzyExtractor m n l q E decode) t A w))).bind
+                    fun st => K st rStar := by
   simp_rw [uniform_bind_splitMatrixRows]
   simp only [headRows_mulVec_add, challengeRows_mulVec_add, queryRows_mulVec_add,
     headRows_joinRows, challengeRows_joinRows, queryRows_joinRows,
@@ -738,31 +789,29 @@ private theorem realGame_encrypt_embed {St : Type}
   rw [PMF.bind_comm (PMF.uniformOfFintype (Fin Q → Matrix (Fin l) (Fin n) (ZMod q)))
     (PMF.uniformOfFintype (Fin l → Bool))]
   congr 1 with rStar : 1
-  simp_rw [PMF.bind_comm (Probability.PMF.pi (fun _ : Fin Q => ProbComp.eval E))
-    (ProbComp.eval (adv.start A ⟨A.mulVec s + w, B, B.mulVec s + e₀ + encodeHalfBits q rStar⟩))]
-  rw [PMF.bind_comm (PMF.uniformOfFintype (Fin Q → Matrix (Fin l) (Fin n) (ZMod q)))
-    (ProbComp.eval (adv.start A ⟨A.mulVec s + w, B, B.mulVec s + e₀ + encodeHalfBits q rStar⟩))]
-  congr 1 with st₀ : 1
   have hloop := congrArg (fun p : PMF St => p.bind fun st => K st rStar)
-    (eval_encryptSimQueryLoop_eq E decode t A s w adv Q st₀)
+    (eval_encryptSimRun_eq E decode t A s w B (B.mulVec s + e₀ + encodeHalfBits q rStar) adv Q
+      (hQ _ _))
   simpa only [PMF.bind_bind] using hloop
 
 /-- The real LWE game against `encryptRealReduction t Q adv` is identically distributed to
-the strong-reusability real game `strongReuseRealGame` of `lweEncryptFuzzyExtractor`. -/
+the strong-reusability real game `strongReuseRealGame` of `lweEncryptFuzzyExtractor`, for an
+adversary that makes at most `Q` shift queries. -/
 theorem realGame_encryptRealReduction {St : Type}
     (E : ProbComp (Fin l → ZMod q))
     (decode : Matrix (Fin m) (Fin n) (ZMod q) → (Fin m → ZMod q) →
       ProbComp (Option (Fin n → ZMod q)))
     (W : PMF (Fin m → ZMod q)) (t Q : ℕ)
     (adv : StrongReuseAdversary (Matrix (Fin m) (Fin n) (ZMod q)) m q
-      (Fin l → Bool) (EncryptHelper m n l q) St) :
+      (Fin l → Bool) (EncryptHelper m n l q) St)
+    (hQ : ∀ A pStar, ProbOracleComp.IsQueryBounded (adv.query A pStar) Q) :
     LWE.realGame (PMF.uniformOfFintype (Fin n → ZMod q))
       (encryptLWEErrorLaw W (ProbComp.eval E) Q)
       (encryptRealReduction t Q adv) =
       strongReuseRealGame
         (ProbComp.uniform (Matrix (Fin m) (Fin n) (ZMod q)))
-        (lweEncryptFuzzyExtractor m n l q E decode) W t Q adv := by
-  have h := realGame_encrypt_embed E decode W t Q adv fun st rStar =>
+        (lweEncryptFuzzyExtractor m n l q E decode) W t adv := by
+  have h := realGame_encrypt_embed E decode W t Q adv hQ fun st rStar =>
     ProbComp.eval (adv.guess st rStar)
   simp only [LWE.realGame, LWE.eval_realExperiment, encryptLWEErrorLaw, encryptRealReduction,
     ProbComp.eval_bind, ProbComp.eval_uniform, PMF.monad_bind_eq_bind,
@@ -774,21 +823,23 @@ theorem realGame_encryptRealReduction {St : Type}
     PMF.bind_bind, PMF.pure_bind]
 
 /-- The real LWE game against `encryptIdealReduction t Q adv` is identically distributed to
-the strong-reusability ideal game `strongReuseIdealGame` of `lweEncryptFuzzyExtractor`. -/
+the strong-reusability ideal game `strongReuseIdealGame` of `lweEncryptFuzzyExtractor`, for an
+adversary that makes at most `Q` shift queries. -/
 theorem realGame_encryptIdealReduction {St : Type}
     (E : ProbComp (Fin l → ZMod q))
     (decode : Matrix (Fin m) (Fin n) (ZMod q) → (Fin m → ZMod q) →
       ProbComp (Option (Fin n → ZMod q)))
     (W : PMF (Fin m → ZMod q)) (t Q : ℕ)
     (adv : StrongReuseAdversary (Matrix (Fin m) (Fin n) (ZMod q)) m q
-      (Fin l → Bool) (EncryptHelper m n l q) St) :
+      (Fin l → Bool) (EncryptHelper m n l q) St)
+    (hQ : ∀ A pStar, ProbOracleComp.IsQueryBounded (adv.query A pStar) Q) :
     LWE.realGame (PMF.uniformOfFintype (Fin n → ZMod q))
       (encryptLWEErrorLaw W (ProbComp.eval E) Q)
       (encryptIdealReduction t Q adv) =
       strongReuseIdealGame
         (ProbComp.uniform (Matrix (Fin m) (Fin n) (ZMod q)))
-        (lweEncryptFuzzyExtractor m n l q E decode) W t Q adv := by
-  have h := realGame_encrypt_embed E decode W t Q adv fun st _ =>
+        (lweEncryptFuzzyExtractor m n l q E decode) W t adv := by
+  have h := realGame_encrypt_embed E decode W t Q adv hQ fun st _ =>
     (PMF.uniformOfFintype (Fin l → Bool)).bind fun u => ProbComp.eval (adv.guess st u)
   simp only [LWE.realGame, LWE.eval_realExperiment, encryptLWEErrorLaw, encryptIdealReduction,
     ProbComp.eval_bind, ProbComp.eval_uniform, PMF.monad_bind_eq_bind,
@@ -861,43 +912,741 @@ theorem randomGame_encryptRealReduction_eq_ideal {St : Type}
   symm
   congr 1 with b_vec : 1
   simpa only [PMF.bind_bind] using uniform_mask_encodeHalfBits_eq
-    (fun hStar =>
-      (ProbComp.eval (adv.start (headMatrixRows M)
-        ⟨cStar, challengeMatrixRows M, hStar⟩)).bind fun st₀ =>
-        ProbComp.eval (encryptSimQueryLoop t (headMatrixRows M) cStar adv Q
-          (queryMatrixRows M) b_vec st₀))
+    (fun hStar => ProbComp.eval (encryptSimRun t (headMatrixRows M)
+      ⟨cStar, challengeMatrixRows M, hStar⟩ adv
+      (List.ofFn fun k => (queryMatrixRows M k, b_vec k))))
     (fun st key => ProbComp.eval (adv.guess st key))
 
-/-- **Strong reusability of the Section 5 encryption-based fuzzy extractor from LWE**
-([AponChoEldefrawyKatz2017], Section 5): for every biometric source `W`, encryption error
-sampler `E`, error bound `t`, query count `Q`, and strong-reusability adversary `adv`,
-the strong-reusability advantage against `lweEncryptFuzzyExtractor` is bounded by the sum
-of the decisional LWE advantages of `encryptRealReduction t Q adv` and
-`encryptIdealReduction t Q adv` against `(m + (Q + 1) * l)`-sample LWE with uniform secret
-on `Fin n → ZMod q` and error distribution `encryptLWEErrorLaw W (ProbComp.eval E) Q`.
-When `W = χ^m`, `E = χ^l`, and `l = m`, this corresponds to the paper's `LWE_{n, (t + 2) m, q, χ}`,
-whose `t` is the number of oracle calls (our `Q`), not the Hamming bound `t` here. -/
+/-- A step of the strong-reusability argument of [AponChoEldefrawyKatz2017], Section 5, not the
+security claim, which is `stronglyReusable_lweEncryptFuzzyExtractor`: for every biometric source
+`W`, encryption error sampler `E`, error bound `t`, and strong-reusability adversary `adv` making
+at most `Q` shift queries, the strong-reusability advantage against `lweEncryptFuzzyExtractor` is
+bounded by the sum of the decisional LWE advantages of `encryptRealReduction t Q adv` and
+`encryptIdealReduction t Q adv` against `(m + (Q + 1) * l)`-sample LWE with uniform secret on
+`Fin n → ZMod q` and error distribution `encryptLWEErrorLaw W (ProbComp.eval E) Q`. When `W = χ^m`,
+`E = χ^l`, and `l = m`, this corresponds to the paper's `LWE_{n, (t + 2) m, q, χ}`, whose `t` is
+the number of oracle calls (our `Q`), not the Hamming bound `t` here. The bound holds for every
+adversary with the query bound; the efficiency certificates of the reductions are
+`LWEFamily.isPPT_encryptRealReduction` and `LWEFamily.isPPT_encryptIdealReduction`. -/
 theorem strongReuseAdvantage_lweEncryptFuzzyExtractor_le {St : Type}
     (E : ProbComp (Fin l → ZMod q))
     (decode : Matrix (Fin m) (Fin n) (ZMod q) → (Fin m → ZMod q) →
       ProbComp (Option (Fin n → ZMod q)))
     (W : PMF (Fin m → ZMod q)) (t Q : ℕ)
     (adv : StrongReuseAdversary (Matrix (Fin m) (Fin n) (ZMod q)) m q
-      (Fin l → Bool) (EncryptHelper m n l q) St) :
+      (Fin l → Bool) (EncryptHelper m n l q) St)
+    (hQ : ∀ A pStar, ProbOracleComp.IsQueryBounded (adv.query A pStar) Q) :
     strongReuseAdvantage
       (ProbComp.uniform (Matrix (Fin m) (Fin n) (ZMod q)))
-      (lweEncryptFuzzyExtractor m n l q E decode) W t Q adv ≤
+      (lweEncryptFuzzyExtractor m n l q E decode) W t adv ≤
       LWE.advantage (PMF.uniformOfFintype (Fin n → ZMod q))
         (encryptLWEErrorLaw W (ProbComp.eval E) Q) (encryptRealReduction t Q adv) +
       LWE.advantage (PMF.uniformOfFintype (Fin n → ZMod q))
         (encryptLWEErrorLaw W (ProbComp.eval E) Q) (encryptIdealReduction t Q adv) := by
   simp only [strongReuseAdvantage, LWE.advantage,
-    ← realGame_encryptRealReduction E decode W t Q adv,
-    ← realGame_encryptIdealReduction E decode W t Q adv,
+    ← realGame_encryptRealReduction E decode W t Q adv hQ,
+    ← realGame_encryptIdealReduction E decode W t Q adv hQ,
     ← randomGame_encryptRealReduction_eq_ideal t Q adv]
   rw [Game.advantage_comm
     (LWE.realGame (PMF.uniformOfFintype (Fin n → ZMod q))
       (encryptLWEErrorLaw W (ProbComp.eval E) Q) (encryptIdealReduction t Q adv))]
   exact Game.advantage_triangle _ _ _
+
+end Cslib.Crypto.FuzzyExtractor
+
+/-! ### Strong reusability against efficient adversaries -/
+
+namespace Cslib.Crypto.FuzzyExtractor
+
+open Probability Turing.MultiTapeTM
+open scoped _root_.Matrix
+
+/-- The encoding of a Section 5 helper `⟨c, B, h⟩` at modulus `2 ^ w`: the word `keyWord c` of the
+code offset, framed, then the row-major word of `B`, framed, then the word `keyWord h` of the
+ciphertext, each residue in `w` binary digits, least significant first
+(`encEncryptHelper_apply`). -/
+enc_structure encEncryptHelper (m : ℕ) (n : ℕ) (l : ℕ) (w : ℕ) : EncryptHelper m n l (2 ^ w) where
+  codeOffset : (LWEFamily.encVector m w), encMatrix : (Cslib.Matrix.encBinary l n w),
+  ciphertext : (LWEFamily.encVector l w)
+
+/-- The row of block `k`, entry `i`, of an `(m + (Q + 1) * l)`-row family is `m + l + l * k + i`. -/
+private theorem val_rowIndexEquiv_query {m l Q : ℕ} (k : Fin Q) (i : Fin l) :
+    (rowIndexEquiv m l Q (Sum.inr (Sum.inr (k, i)))).val = m + l + l * k.val + i.val := by
+  simp [rowIndexEquiv, finSumFinEquiv_apply_right, finProdFinEquiv]
+  omega
+
+namespace LWEFamily
+
+/-! ### The reductions at every parameter -/
+
+/-- The typed adversary that a word adversary `A` plays at parameter `κ` against the Section 5
+scheme: it reads the view `(A, p*)` as `encPair (Cslib.Matrix.encBinary …) (encEncryptHelper …)`,
+each leakage `(p, r)` as `encPair (encEncryptHelper …) (encBitString …)` and keys as
+`encBitString (l κ)`. -/
+private abbrev typedAdversary (m n l w : ℕ → ℕ) (A : WordReuseAdversary) (κ : ℕ) :
+    StrongReuseAdversary (_root_.Matrix (Fin (m κ)) (Fin (n κ)) (ZMod (2 ^ w κ))) (m κ)
+      (2 ^ w κ) (Fin (l κ) → Bool) (EncryptHelper (m κ) (n κ) (l κ) (2 ^ w κ)) (List Bool) :=
+  A.toReuseAdversary (m κ) (w κ)
+    (encPair (Cslib.Matrix.encBinary (m κ) (n κ) (w κ)) (encEncryptHelper (m κ) (n κ) (l κ) (w κ)))
+    (encPair (encEncryptHelper (m κ) (n κ) (l κ) (w κ)) (encBitString (l κ)))
+    (encBitString (l κ)) κ
+
+/-- `encryptRealReduction` at every security parameter: an LWE distinguisher with `n κ` secret
+coordinates and `m κ + (Q κ + 1) * l κ` samples. At `κ` it runs the typed adversary that the word
+adversary `A` plays, reading the view `(A, p*)` as `encPair (Cslib.Matrix.encBinary …)
+(encEncryptHelper …)`, each leakage `(p, r)` as `encPair (encEncryptHelper …) (encBitString …)`
+and keys as `encBitString (l κ)`. -/
+noncomputable def encryptRealReduction {m n l w : ℕ → ℕ} (t Q : ℕ → ℕ) (A : WordReuseAdversary) :
+    LWE.Distinguisher n (fun κ => m κ + (Q κ + 1) * l κ) w := fun κ =>
+  FuzzyExtractor.encryptRealReduction (t κ) (Q κ) (typedAdversary m n l w A κ)
+
+/-- `encryptIdealReduction` at every security parameter, with the encodings of
+`LWEFamily.encryptRealReduction`. -/
+noncomputable def encryptIdealReduction {m n l w : ℕ → ℕ} (t Q : ℕ → ℕ) (A : WordReuseAdversary) :
+    LWE.Distinguisher n (fun κ => m κ + (Q κ + 1) * l κ) w := fun κ =>
+  FuzzyExtractor.encryptIdealReduction (t κ) (Q κ) (typedAdversary m n l w A κ)
+
+/-! ### The reductions' word programs -/
+
+/-- The word of the matrix block in columns `1, …, n` of rows `offset, …, offset + rows - 1` of a
+word of an augmented matrix `[b | M]` with `n + 1` columns, row by row, in `w` bits per entry. -/
+private def matrixRowsWord (rows n w : ℕ) (word : List Bool) (offset : ℕ) : List Bool :=
+  (List.range rows).flatMap fun i => (List.range n).flatMap fun j =>
+    BitString.lowBits w (Cslib.Matrix.binaryEntry (n + 1) w word (offset + i) (j + 1))
+
+/-- The half-modulus residue `⌊2 ^ w / 2⌋` of a key bit `true`, and `0` of `false`. -/
+private def halfOf (w : ℕ) (b : Bool) : ℕ :=
+  if b then 2 ^ w / 2 else 0
+
+/-- The word of a ciphertext `b + M s' + ⌊2 ^ w / 2⌋ r`: entry `i` reads `b` and `M` from row
+`offset + i` of a word of `[b | M]` with `n + 1` columns, `s'` from the coins and `r` from the key
+bits, in `w` bits. Missing coins and key bits count as `0` and `false`. -/
+private def cipherRowsWord (rows n w : ℕ) (word : List Bool) (offset : ℕ) (coins : List ℕ)
+    (key : List Bool) : List Bool :=
+  (List.range rows).flatMap fun i =>
+    BitString.lowBits w (Cslib.Matrix.binaryEntry (n + 1) w word (offset + i) 0 +
+      ((List.range n).map fun j =>
+        Cslib.Matrix.binaryEntry (n + 1) w word (offset + i) (j + 1) * coins.getD j 0).sum +
+      halfOf w (key.getD i false))
+
+/-- The word of the view `(A, ⟨c*, B, b₁ + ⌊2 ^ w / 2⌋ r*⟩)` that the reductions give the
+adversary, from the LWE word `[b | M]` and the key bits of `r*`: `A` and `c*` are rows
+`0, …, m - 1` and `B` and `b₁` rows `m, …, m + l - 1`. -/
+private def viewWordOf (m n l w : ℕ) (word key : List Bool) : List Bool :=
+  encPair encBits (encPair encBits (encPair encBits encBits))
+    (matrixRowsWord m n w word 0, cipherRowsWord m n w word 0 [] [], matrixRowsWord l n w word m,
+      cipherRowsWord l n w word m [] key)
+
+/-- The word of the leakage `(⟨c* + A s' + δ', B_k, b_k + B_k s' + ⌊2 ^ w / 2⌋ r⟩, r)` that
+answers a shift request from block `k`, rows `m + l + l * k, …, m + l + l * k + l - 1` of the LWE
+word, with the coins of `s'` and the key bits of `r`. -/
+private def leakWordOf (m n l w t k : ℕ) (word : List Bool) (coins : List ℕ)
+    (key request : List Bool) : List Bool :=
+  encPair (encPair encBits (encPair encBits encBits)) encBits
+    ((replyWordOf m n w t word coins request,
+      matrixRowsWord l n w word (m + l + l * k),
+        cipherRowsWord l n w word (m + l + l * k) coins key),
+      key)
+
+/-- The shift oracle of the word programs, whose state is the index `k` of the next unused block:
+a request of `m * w` bits is answered by `leakWordOf` from block `k` on fresh coins and key bits,
+and moves to block `k + 1`; any other request is answered `[]`. -/
+private noncomputable def blockOracle (m n l w t : ℕ) (word : List Bool)
+    (request : Unit × List Bool) : StateT ℕ ProbComp (List Bool) := fun k =>
+  if request.2.length = m * w then do
+    let coins ← OracleComp.replicate n (ProbComp.sampleBinaryNat w)
+    let key ← encBitString l <$> ProbComp.uniform (BitString l)
+    return (leakWordOf m n l w t k word coins key request.2, k + 1)
+  else pure ([], k)
+
+variable {m n l w : ℕ → ℕ}
+
+/-- The query stage of the word programs on an LWE input and the key bits of `r*`. -/
+private noncomputable def queryWords (t Q : ℕ → ℕ) (A : WordReuseAdversary)
+    (x : LWE.Input n (fun κ => m κ + (Q κ + 1) * l κ) w) (key : List Bool) :
+    ProbComp (List Bool) :=
+  Prod.fst <$> ((A.query x.secParam (viewWordOf (m x.secParam) (n x.secParam) (l x.secParam)
+    (w x.secParam) (Cslib.Matrix.toBinary (LWE.augmentedMatrix x.matrix x.target)) key)).runState
+      (blockOracle (m x.secParam) (n x.secParam) (l x.secParam) (w x.secParam) (t x.secParam)
+        (Cslib.Matrix.toBinary (LWE.augmentedMatrix x.matrix x.target)))).run 0
+
+/-- The word program of `LWEFamily.encryptRealReduction`. -/
+private noncomputable def realWords (t Q : ℕ → ℕ) (A : WordReuseAdversary)
+    (x : LWE.Input n (fun κ => m κ + (Q κ + 1) * l κ) w) : Experiment := do
+  let key ← encBitString (l x.secParam) <$> ProbComp.uniform (BitString (l x.secParam))
+  let state ← queryWords t Q A x key
+  A.guess x.secParam state key
+
+/-- The word program of `LWEFamily.encryptIdealReduction`. -/
+private noncomputable def idealWords (t Q : ℕ → ℕ) (A : WordReuseAdversary)
+    (x : LWE.Input n (fun κ => m κ + (Q κ + 1) * l κ) w) : Experiment := do
+  let key ← encBitString (l x.secParam) <$> ProbComp.uniform (BitString (l x.secParam))
+  let state ← queryWords t Q A x key
+  let u ← encBitString (l x.secParam) <$> ProbComp.uniform (BitString (l x.secParam))
+  A.guess x.secParam state u
+
+/-! ### The word programs have the reductions' laws -/
+
+/-- `matrixRowsWord` is the word of the matrix whose entries it reads. -/
+private theorem toBinary_eq_matrixRowsWord {rows n w : ℕ}
+    (B : _root_.Matrix (Fin rows) (Fin n) (ZMod (2 ^ w))) (word : List Bool) (offset : ℕ)
+    (hB : ∀ (i : Fin rows) (j : Fin n),
+      (Cslib.Matrix.binaryEntry (n + 1) w word (offset + i.val) (j.val + 1) : ZMod (2 ^ w)) =
+        B i j) :
+    Cslib.Matrix.toBinary B = matrixRowsWord rows n w word offset := by
+  simp only [matrixRowsWord, Cslib.Matrix.toBinary_eq, List.flatMap_def, List.map_range_eq_ofFn,
+    BitString.lowBits_eq_ofFn_val, hB]
+
+/-- `halfOf` is the half-modulus encoding `encodeHalfBit`. -/
+private theorem natCast_halfOf (w : ℕ) (b : Bool) :
+    (halfOf w b : ZMod (2 ^ w)) = encodeHalfBit (2 ^ w) b := by
+  cases b <;> simp [halfOf, encodeHalfBit]
+
+/-- `cipherRowsWord` is the word of the ciphertext `b + B x + ⌊2 ^ w / 2⌋ r` whose parts it
+reads. -/
+private theorem keyWord_eq_cipherRowsWord {rows n w : ℕ} (b : Fin rows → ZMod (2 ^ w))
+    (B : _root_.Matrix (Fin rows) (Fin n) (ZMod (2 ^ w))) (x : Fin n → ZMod (2 ^ w))
+    (r : Fin rows → Bool) (word : List Bool) (offset : ℕ) (coins : List ℕ) (key : List Bool)
+    (hb : ∀ i : Fin rows,
+      (Cslib.Matrix.binaryEntry (n + 1) w word (offset + i.val) 0 : ZMod (2 ^ w)) = b i)
+    (hB : ∀ (i : Fin rows) (j : Fin n),
+      (Cslib.Matrix.binaryEntry (n + 1) w word (offset + i.val) (j.val + 1) : ZMod (2 ^ w)) =
+        B i j)
+    (hx : ∀ j : Fin n, (coins.getD j.val 0 : ZMod (2 ^ w)) = x j)
+    (hr : ∀ i : Fin rows, key.getD i.val false = r i) :
+    keyWord (b + B *ᵥ x + encodeHalfBits (2 ^ w) r) =
+      cipherRowsWord rows n w word offset coins key := by
+  simp only [keyWord, cipherRowsWord, Cslib.Matrix.toBinary_eq, _root_.Matrix.of_apply,
+    List.ofFn_succ, List.ofFn_zero, List.flatten_cons, List.flatten_nil, List.append_nil,
+    List.flatMap_def, List.map_range_eq_ofFn, BitString.lowBits_eq_ofFn_val]
+  congr 1
+  apply congrArg List.ofFn
+  funext i
+  congr 2
+  funext k
+  congr 2
+  simp only [Pi.add_apply, Nat.cast_add, Nat.cast_sum, List.sum_ofFn, Nat.cast_mul, hb, hB, hx,
+    hr, natCast_halfOf, _root_.Matrix.mulVec, dotProduct, encodeHalfBits]
+
+/-- Row `row` of the word of `[b | M]` reads `b r` in column `0` and `M r j` in column `j + 1`,
+where `r` is the row with index `row`. -/
+private theorem rowEntries {R n w : ℕ} (M : _root_.Matrix (Fin R) (Fin n) (ZMod (2 ^ w)))
+    (b : Fin R → ZMod (2 ^ w)) (r : Fin R) {row : ℕ} (hrow : r.val = row) :
+    (Cslib.Matrix.binaryEntry (n + 1) w (Cslib.Matrix.toBinary (LWE.augmentedMatrix M b)) row 0 :
+        ZMod (2 ^ w)) = b r ∧
+      ∀ j : Fin n, (Cslib.Matrix.binaryEntry (n + 1) w
+        (Cslib.Matrix.toBinary (LWE.augmentedMatrix M b)) row (j.val + 1) : ZMod (2 ^ w)) =
+          M r j := by
+  subst hrow
+  exact ⟨LWE.binaryEntry_toBinary_augmentedMatrix_zero M b r,
+    LWE.binaryEntry_toBinary_augmentedMatrix_succ M b r⟩
+
+/-- The view word of the reductions is the encoded view `(A, ⟨c*, B, b₁ + ⌊2 ^ w / 2⌋ r*⟩)`. -/
+private theorem viewWordOf_eq {m n l Q w : ℕ}
+    (M : _root_.Matrix (Fin (m + (Q + 1) * l)) (Fin n) (ZMod (2 ^ w)))
+    (b : Fin (m + (Q + 1) * l) → ZMod (2 ^ w)) (r : Fin l → Bool) :
+    viewWordOf m n l w (Cslib.Matrix.toBinary (LWE.augmentedMatrix M b)) (List.ofFn r) =
+      encPair (Cslib.Matrix.encBinary m n w) (encEncryptHelper m n l w)
+        (headMatrixRows M,
+          ⟨headRows b, challengeMatrixRows M, challengeRows b + encodeHalfBits (2 ^ w) r⟩) := by
+  have hhead (i : Fin m) := rowEntries M b (rowIndexEquiv m l Q (Sum.inl i)) (row := 0 + i.val)
+    (by simp [rowIndexEquiv])
+  have hchal (i : Fin l) := rowEntries M b (rowIndexEquiv m l Q (Sum.inr (Sum.inl i)))
+    (row := m + i.val) (by simp [rowIndexEquiv, finSumFinEquiv_apply_right])
+  have hzero : encodeHalfBits (2 ^ w) (fun _ : Fin m => false) = 0 := by
+    funext i
+    simp [encodeHalfBits, encodeHalfBit]
+  have hc := keyWord_eq_cipherRowsWord (headRows b) (headMatrixRows M) 0 (fun _ => false) _ 0 []
+    [] (fun i => (hhead i).1) (fun i j => (hhead i).2 j) (by simp) (by simp)
+  rw [_root_.Matrix.mulVec_zero, add_zero, hzero, add_zero] at hc
+  rw [viewWordOf, ← toBinary_eq_matrixRowsWord (headMatrixRows M) _ 0 fun i j => (hhead i).2 j,
+    ← hc, ← toBinary_eq_matrixRowsWord (challengeMatrixRows M) _ m fun i j => (hchal i).2 j,
+    ← keyWord_eq_cipherRowsWord (challengeRows b) (challengeMatrixRows M) 0 r _ m [] (List.ofFn r)
+      (fun i => (hchal i).1) (fun i j => (hchal i).2 j) (by simp)
+      (fun i => List.getD_ofFn r i false)]
+  simp only [_root_.Matrix.mulVec_zero, add_zero]
+  rfl
+
+/-- The block that `withSampleList` supplies after `k` queries: block `k` of the query rows, or
+the zero block once they are used up. -/
+private noncomputable def blockAt {m n l Q w : ℕ}
+    (M : _root_.Matrix (Fin (m + (Q + 1) * l)) (Fin n) (ZMod (2 ^ w)))
+    (b : Fin (m + (Q + 1) * l) → ZMod (2 ^ w)) (k : ℕ) :
+    _root_.Matrix (Fin l) (Fin n) (ZMod (2 ^ w)) × (Fin l → ZMod (2 ^ w)) :=
+  ((List.ofFn fun k => (queryMatrixRows M k, queryRows b k)).drop k).headD (0, 0)
+
+/-- Rows `m + l + l * k, …, m + l + l * k + l - 1` of the LWE word read `blockAt M b k`, including
+the zero block past the end of the word. -/
+private theorem blockAt_entries {m n l Q w : ℕ}
+    (M : _root_.Matrix (Fin (m + (Q + 1) * l)) (Fin n) (ZMod (2 ^ w)))
+    (b : Fin (m + (Q + 1) * l) → ZMod (2 ^ w)) (k : ℕ) :
+    (∀ i : Fin l, (Cslib.Matrix.binaryEntry (n + 1) w
+      (Cslib.Matrix.toBinary (LWE.augmentedMatrix M b)) (m + l + l * k + i.val) 0 :
+        ZMod (2 ^ w)) = (blockAt M b k).2 i) ∧
+    (∀ (i : Fin l) (j : Fin n), (Cslib.Matrix.binaryEntry (n + 1) w
+      (Cslib.Matrix.toBinary (LWE.augmentedMatrix M b)) (m + l + l * k + i.val) (j.val + 1) :
+        ZMod (2 ^ w)) = (blockAt M b k).1 i j) := by
+  by_cases hk : k < Q
+  · have hblk : blockAt M b k = (queryMatrixRows M ⟨k, hk⟩, queryRows b ⟨k, hk⟩) := by
+      simp [blockAt, hk]
+    rw [hblk]
+    exact ⟨fun i => (rowEntries M b _ (val_rowIndexEquiv_query ⟨k, hk⟩ i)).1,
+      fun i j => (rowEntries M b _ (val_rowIndexEquiv_query ⟨k, hk⟩ i)).2 j⟩
+  · have hblk : blockAt M b k = (0, 0) := by
+      simp [blockAt, hk]
+    rw [hblk]
+    have hzero (i : Fin l) (j : ℕ) : Cslib.Matrix.binaryEntry (n + 1) w
+        (Cslib.Matrix.toBinary (LWE.augmentedMatrix M b)) (m + l + l * k + i.val) j = 0 := by
+      apply Cslib.Matrix.binaryEntry_eq_zero_of_length_le
+      rw [Cslib.Matrix.length_toBinary]
+      have hrow : m + (Q + 1) * l ≤ m + l + l * k + i.val := by
+        have := Nat.mul_le_mul_left l (not_lt.mp hk)
+        nlinarith
+      exact Nat.mul_le_mul_right w
+        ((Nat.mul_le_mul_right (n + 1) hrow).trans (Nat.le_add_right _ _))
+    exact ⟨fun i => by simp [hzero], fun i j => by simp [hzero]⟩
+
+/-- The leakage word from block `k` is the encoded leakage
+`(⟨c* + A x + clampShift t δ, B_k, b_k + B_k x + ⌊2 ^ w / 2⌋ r⟩, r)`. -/
+private theorem leakWordOf_eq {m n l Q w : ℕ} (t k : ℕ)
+    (M : _root_.Matrix (Fin (m + (Q + 1) * l)) (Fin n) (ZMod (2 ^ w)))
+    (b : Fin (m + (Q + 1) * l) → ZMod (2 ^ w)) (x : Fin n → ZMod (2 ^ w)) (r : Fin l → Bool)
+    (request : List Bool) :
+    leakWordOf m n l w t k (Cslib.Matrix.toBinary (LWE.augmentedMatrix M b))
+        (List.ofFn fun j => (x j).val) (List.ofFn r) request =
+      encPair (encEncryptHelper m n l w) (encBitString l)
+        (⟨headRows b + headMatrixRows M *ᵥ x +
+            clampShift t (fun j => Cslib.Matrix.ofBinary 1 m w request 0 j),
+          (blockAt M b k).1, (blockAt M b k).2 + (blockAt M b k).1 *ᵥ x +
+            encodeHalfBits (2 ^ w) r⟩, r) := by
+  have hhead (i : Fin m) := rowEntries M b (rowIndexEquiv m l Q (Sum.inl i)) (row := i.val)
+    (by simp [rowIndexEquiv])
+  obtain ⟨hb, hB⟩ := blockAt_entries M b k
+  rw [leakWordOf, ← keyWord_eq_replyWordOf (headMatrixRows M) (headRows b) t x request _
+      (fun i => (hhead i).1) (fun i j => (hhead i).2 j),
+    ← toBinary_eq_matrixRowsWord (blockAt M b k).1 _ _ hB,
+    ← keyWord_eq_cipherRowsWord (blockAt M b k).2 (blockAt M b k).1 x r _ _ _ _ hb hB
+      (fun j => by rw [List.getD_ofFn, ZMod.natCast_zmod_val]) (fun i => List.getD_ofFn r i false)]
+  rfl
+
+/-- The query stage of the word programs has the law of `encryptSimRun` on the typed view and the
+query blocks of the LWE input. The block index of `blockOracle` stands for the unused suffix of
+the blocks that `withSampleList` keeps. -/
+private theorem eval_queryWords (t Q : ℕ → ℕ) (A : WordReuseAdversary)
+    (x : LWE.Input n (fun κ => m κ + (Q κ + 1) * l κ) w) (r : Fin (l x.secParam) → Bool) :
+    ProbComp.eval (queryWords t Q A x (List.ofFn r)) =
+      ProbComp.eval (encryptSimRun (t x.secParam) (headMatrixRows x.matrix)
+        ⟨headRows x.target, challengeMatrixRows x.matrix,
+          challengeRows x.target + encodeHalfBits (2 ^ w x.secParam) r⟩
+        (typedAdversary m n l w A x.secParam)
+        (List.ofFn fun k => (queryMatrixRows x.matrix k, queryRows x.target k))) := by
+  obtain ⟨κ, M, b⟩ := x
+  simp only [queryWords, encryptSimRun, typedAdversary, WordReuseAdversary.toReuseAdversary]
+  rw [viewWordOf_eq]
+  generalize A.query κ _ = P
+  set c := shiftCodec (m κ) (w κ)
+    (encPair (encEncryptHelper (m κ) (n κ) (l κ) (w κ)) (encBitString (l κ)))
+  set blocks := List.ofFn fun k => (queryMatrixRows M k, queryRows b k)
+  set O := OracleComp.withSampleList (m := ProbComp) (0, 0) fun x δ =>
+    StateT.lift (encryptShiftOracle (t κ) (headMatrixRows M) (headRows b) x.1 x.2 δ)
+  have hadapt : (c.adapt P).runState O = P.runState (c.wordOracle O) := by
+    simp only [ProbOracleComp.runState]
+    exact c.interpret_adapt _ _ _
+  have hstep : ∀ q k,
+      (ProbComp.eval ((blockOracle (m κ) (n κ) (l κ) (w κ) (t κ)
+        (Cslib.Matrix.toBinary (LWE.augmentedMatrix M b)) q).run k)).map
+          (fun (a, k') => (a, ((), blocks.drop k'))) =
+        ProbComp.eval ((c.wordOracle O q).run ((), blocks.drop k)) := by
+    rintro ⟨⟨⟩, word⟩ k
+    by_cases hlen : word.length = m κ * w κ
+    · simp only [OracleCodec.wordOracle, c, shiftCodec, hlen, ↓reduceIte, StateT.run_map]
+      simp only [blockOracle, StateT.run, hlen, ↓reduceIte, O, OracleComp.withSampleList,
+        StateT.lift, encryptShiftOracle, ProbComp.eval_map, ProbComp.eval_bind,
+        ProbComp.eval_pure, ProbComp.eval_replicate_sampleBinaryNat, ProbComp.eval_uniform,
+        PMF.map_bind, PMF.bind_map, PMF.pure_map, PMF.bind_bind, PMF.pure_bind, Function.comp_def]
+      congr 1 with x : 1
+      congr 1 with r' : 1
+      rw [encBitString_apply, leakWordOf_eq, List.tail_drop]
+      rfl
+    · simp only [blockOracle, StateT.run, hlen, ↓reduceIte, OracleCodec.wordOracle, c, shiftCodec,
+        ProbComp.eval_pure, PMF.pure_map]
+      exact (ProbComp.eval_pure _).symm
+  have h := ProbOracleComp.runWith_map_state
+    (fun q k => ProbComp.eval ((blockOracle (m κ) (n κ) (l κ) (w κ) (t κ)
+      (Cslib.Matrix.toBinary (LWE.augmentedMatrix M b)) q).run k))
+    (fun q s => ProbComp.eval ((c.wordOracle O q).run s)) (fun k => ((), blocks.drop k)) hstep P 0
+  simp only [StateT.run, List.drop_zero] at h
+  rw [hadapt]
+  simp only [ProbComp.eval_map, ProbComp.eval_bind, ProbComp.eval_pure,
+    ProbOracleComp.eval_runState]
+  rw [← h, PMF.bind_map]
+  rfl
+
+/-- The word program of `LWEFamily.encryptRealReduction` has its law. -/
+private theorem eval_realWords (t Q : ℕ → ℕ) (A : WordReuseAdversary)
+    (x : LWE.Input n (fun κ => m κ + (Q κ + 1) * l κ) w) :
+    ProbComp.eval (realWords t Q A x) =
+      ProbComp.eval (encryptRealReduction t Q A x.secParam x.matrix x.target) := by
+  simp only [realWords, encryptRealReduction, FuzzyExtractor.encryptRealReduction,
+    ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_uniform, PMF.bind_map,
+    Function.comp_def, encBitString_apply]
+  congr 1 with r : 1
+  rw [eval_queryWords]
+  rfl
+
+/-- The word program of `LWEFamily.encryptIdealReduction` has its law. -/
+private theorem eval_idealWords (t Q : ℕ → ℕ) (A : WordReuseAdversary)
+    (x : LWE.Input n (fun κ => m κ + (Q κ + 1) * l κ) w) :
+    ProbComp.eval (idealWords t Q A x) =
+      ProbComp.eval (encryptIdealReduction t Q A x.secParam x.matrix x.target) := by
+  simp only [idealWords, encryptIdealReduction, FuzzyExtractor.encryptIdealReduction,
+    ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_uniform, PMF.bind_map,
+    Function.comp_def, encBitString_apply]
+  congr 1 with r : 1
+  rw [eval_queryWords]
+  rfl
+
+/-! ### Polynomial-time computation of the words -/
+
+section PolyTime
+
+open ComputableInPolyTime
+
+variable {α : Type} {input : α ↪ List Bool}
+
+/-- `matrixRowsWord` is computed in polynomial time from polynomial-time inputs. -/
+private theorem computableInPolyTime_matrixRowsWord {rows n w offset : α → ℕ}
+    {word : α → List Bool} (hrows : ComputableInPolyTime rows input encUnary)
+    (hn : ComputableInPolyTime n input encUnary) (hw : ComputableInPolyTime w input encUnary)
+    (hword : ComputableInPolyTime word input encBits)
+    (hoffset : ComputableInPolyTime offset input encUnary) :
+    ComputableInPolyTime (fun a => matrixRowsWord (rows a) (n a) (w a) (word a) (offset a))
+      input encBits := by
+  unfold matrixRowsWord
+  apply flatMapToBitsWithInput (range.comp hrows)
+  apply flatMapToBitsWithInput (range.comp (hn.comp (fst input encUnary)))
+  apply bitsLow (hw.comp ((fst input encUnary).comp (fst _ encUnary)))
+  exact matrixBinaryEntry (by fun_prop) (hw.comp ((fst input encUnary).comp (fst _ encUnary)))
+    (hword.comp ((fst input encUnary).comp (fst _ encUnary))) (by fun_prop) (by fun_prop)
+
+/-- `cipherRowsWord` is computed in polynomial time from polynomial-time inputs. -/
+private theorem computableInPolyTime_cipherRowsWord {rows n w offset : α → ℕ}
+    {word key : α → List Bool} {coins : α → List ℕ}
+    (hrows : ComputableInPolyTime rows input encUnary)
+    (hn : ComputableInPolyTime n input encUnary) (hw : ComputableInPolyTime w input encUnary)
+    (hword : ComputableInPolyTime word input encBits)
+    (hoffset : ComputableInPolyTime offset input encUnary)
+    (hcoins : ComputableInPolyTime coins input (encList encNat))
+    (hkey : ComputableInPolyTime key input encBits) :
+    ComputableInPolyTime
+      (fun a => cipherRowsWord (rows a) (n a) (w a) (word a) (offset a) (coins a) (key a))
+      input encBits := by
+  unfold cipherRowsWord halfOf
+  apply flatMapToBitsWithInput (range.comp hrows)
+  apply bitsLow (hw.comp (fst input encUnary))
+  have hcols : ComputableInPolyTime (fun p : α × ℕ => n p.1 + 1) (encPair input encUnary)
+      encUnary := by fun_prop
+  have hrow : ComputableInPolyTime (fun p : α × ℕ => offset p.1 + p.2) (encPair input encUnary)
+      encUnary := by fun_prop
+  refine binary_add' (binary_add' ?_ ?_) ?_
+  · exact matrixBinaryEntry hcols (hw.comp (fst input encUnary))
+      (hword.comp (fst input encUnary)) hrow (const 0)
+  · have hterm : ComputableInPolyTime
+        (fun q : (α × ℕ) × ℕ => Cslib.Matrix.binaryEntry (n q.1.1 + 1) (w q.1.1) (word q.1.1)
+          (offset q.1.1 + q.1.2) (q.2 + 1) * (coins q.1.1).getD q.2 0)
+        (encPair (encPair input encUnary) encUnary) encNat :=
+      binary_mul' (matrixBinaryEntry (hcols.comp (fst _ encUnary))
+          (hw.comp ((fst input encUnary).comp (fst _ encUnary)))
+          (hword.comp ((fst input encUnary).comp (fst _ encUnary)))
+          (hrow.comp (fst _ encUnary)) (by fun_prop))
+        ((listGetD (encA := encNat) 0).comp
+          ((hcoins.comp ((fst input encUnary).comp (fst _ encUnary))).prod (snd _ encUnary)))
+    exact (show ComputableInPolyTime List.sum (encList encNat) encNat by fun_prop).comp
+      (mapWithInput (range.comp (hn.comp (fst input encUnary))) hterm)
+  · exact ite' (bitsGetDWithInput (hkey.comp (fst input encUnary)) (snd input encUnary) false)
+      (binary_div' (binary_two_pow.comp (hw.comp (fst input encUnary))) (const 2)) (const 0)
+
+end PolyTime
+
+/-! ### The certificates -/
+
+/-- Every leakage word has `4 m w + 4 l n w + 2 l w + l + 5` bits. -/
+private theorem length_leakWordOf_le (m n l w t k : ℕ) (word : List Bool) (coins : List ℕ)
+    (r : Fin l → Bool) (request : List Bool) :
+    (leakWordOf m n l w t k word coins (List.ofFn r) request).length ≤
+      4 * (m * w) + 4 * (l * (n * w)) + 2 * (l * w) + l + 5 := by
+  simp only [leakWordOf, encPair_apply, List.length_append, length_frame, encBits_apply,
+    replyWordOf, matrixRowsWord, cipherRowsWord, List.length_flatMap, BitString.length_lowBits,
+    List.length_ofFn, List.map_const', List.length_range, List.sum_replicate, smul_eq_mul]
+  exact le_of_eq (by ring)
+
+/-- The query stage of the word programs is strict PPT in the LWE input and the key word, when
+`m, n, l, w, t` are computable in polynomial time in unary and the adversary is uniform strict
+oracle PPT. -/
+private theorem isPPTOn_queryWords (hm : ComputableInPolyTime m encUnary encUnary)
+    (hn : ComputableInPolyTime n encUnary encUnary)
+    (hl : ComputableInPolyTime l encUnary encUnary)
+    (hw : ComputableInPolyTime w encUnary encUnary)
+    {t : ℕ → ℕ} (ht : ComputableInPolyTime t encUnary encUnary) {Q : ℕ → ℕ}
+    {A : WordReuseAdversary} (hA : A.IsPPT) :
+    IsPPTOn (encPair (LWE.encInput n (fun κ => m κ + (Q κ + 1) * l κ) w) encBits) encBits
+      fun p => queryWords t Q A p.1 p.2 := by
+  let R : ℕ → ℕ := fun κ => m κ + (Q κ + 1) * l κ
+  let input := encPair (LWE.encInput n R w) encBits
+  let Call := (LWE.Input n R w × List Bool) × (Unit × List Bool) × ℕ
+  let encCall : Call ↪ List Bool := encHandlerCall input (encFinEnum Unit) encUnary
+  have hκ : ComputableInPolyTime (fun p : LWE.Input n R w × List Bool => p.1.secParam) input
+      encUnary :=
+    LWE.computableInPolyTime_secParam.comp (ComputableInPolyTime.fst _ _)
+  have hword : ComputableInPolyTime
+      (fun p : LWE.Input n R w × List Bool =>
+        Cslib.Matrix.toBinary (LWE.augmentedMatrix p.1.matrix p.1.target)) input encBits :=
+    LWE.computableInPolyTime_augmentedWord.comp (ComputableInPolyTime.fst _ _)
+  have hκc : ComputableInPolyTime (fun call : Call => call.1.1.secParam) encCall encUnary :=
+    hκ.comp (ComputableInPolyTime.fst _ _)
+  have hwordc : ComputableInPolyTime
+      (fun call : Call =>
+        Cslib.Matrix.toBinary (LWE.augmentedMatrix call.1.1.matrix call.1.1.target))
+      encCall encBits :=
+    hword.comp (ComputableInPolyTime.fst _ _)
+  have hrequest : ComputableInPolyTime (fun call : Call => call.2.1.2) encCall encBits :=
+    (ComputableInPolyTime.snd _ _).fst'.snd'
+  have hblock : ComputableInPolyTime (fun call : Call => call.2.2) encCall encUnary :=
+    (ComputableInPolyTime.snd _ _).snd'
+  -- The block oracle is PPT.
+  let encCoins := encPair encCall (encList encNat)
+  let encKeyed := encPair encCoins encBits
+  have hcall : ComputableInPolyTime (fun p : (Call × List ℕ) × List Bool => p.1.1) encKeyed
+      encCall :=
+    (ComputableInPolyTime.fst encCall (encList encNat)).comp
+      (ComputableInPolyTime.fst encCoins encBits)
+  have hκk : ComputableInPolyTime (fun p : (Call × List ℕ) × List Bool => p.1.1.1.1.secParam)
+      encKeyed encUnary :=
+    hκc.comp hcall
+  have hleak : ComputableInPolyTime (fun p : (Call × List ℕ) × List Bool =>
+      (leakWordOf (m p.1.1.1.1.secParam) (n p.1.1.1.1.secParam) (l p.1.1.1.1.secParam)
+        (w p.1.1.1.1.secParam) (t p.1.1.1.1.secParam) p.1.1.2.2
+        (Cslib.Matrix.toBinary (LWE.augmentedMatrix p.1.1.1.1.matrix p.1.1.1.1.target)) p.1.2 p.2
+        p.1.1.2.1.2, p.1.1.2.2 + 1)) encKeyed (encPair encBits encUnary) := by
+    have hwordk := hwordc.comp hcall
+    have hblockk := hblock.comp hcall
+    have hcoinsk : ComputableInPolyTime (fun p : (Call × List ℕ) × List Bool => p.1.2) encKeyed
+        (encList encNat) := (ComputableInPolyTime.fst encCoins encBits).snd'
+    have hkeyk : ComputableInPolyTime (fun p : (Call × List ℕ) × List Bool => p.2) encKeyed
+        encBits := ComputableInPolyTime.snd encCoins encBits
+    have hoffset : ComputableInPolyTime (fun p : (Call × List ℕ) × List Bool =>
+        m p.1.1.1.1.secParam + l p.1.1.1.1.secParam + l p.1.1.1.1.secParam * p.1.1.2.2) encKeyed
+        encUnary :=
+      ComputableInPolyTime.unary_add' (ComputableInPolyTime.unary_add' (hm.comp hκk) (hl.comp hκk))
+        (ComputableInPolyTime.unary_mul' (hl.comp hκk) hblockk)
+    refine ComputableInPolyTime.prod ?_
+      (ComputableInPolyTime.unary_add' hblockk (ComputableInPolyTime.const 1))
+    unfold leakWordOf
+    exact (((computableInPolyTime_replyWordOf (hm.comp hκk) (hn.comp hκk) (hw.comp hκk)
+      (ht.comp hκk) hwordk hcoinsk
+      (hrequest.comp hcall)).prod
+        ((computableInPolyTime_matrixRowsWord (hl.comp hκk) (hn.comp hκk) (hw.comp hκk) hwordk
+          hoffset).prod
+        (computableInPolyTime_cipherRowsWord (hl.comp hκk) (hn.comp hκk) (hw.comp hκk) hwordk
+          hoffset hcoinsk hkeyk))).prod hkeyk).encoding_comp
+  have hcoins : IsPPTOn encCall (encList encNat) (fun call : Call =>
+      OracleComp.replicate (n call.1.1.secParam)
+        (ProbComp.sampleBinaryNat (w call.1.1.secParam))) :=
+    (hw.comp hκc).sampleBinaryNat.replicate (hn.comp hκc)
+  have hkey : IsPPTOn encCoins encBits (fun p : Call × List ℕ =>
+      encBitString (l p.1.1.1.secParam) <$> ProbComp.uniform (BitString (l p.1.1.1.secParam))) :=
+    (hl.comp (hκc.comp (ComputableInPolyTime.fst encCall (encList encNat)))).uniformBitString
+  have hyes := hcoins.bind_pair (hkey.bind_pair hleak.isPPTOn)
+  have hcond : ComputableInPolyTime
+      (fun call : Call => decide (call.2.1.2.length = m call.1.1.secParam * w call.1.1.secParam))
+      encCall encBool :=
+    ComputableInPolyTime.unary_eq' (by fun_prop)
+      (ComputableInPolyTime.unary_mul' (hm.comp hκc) (hw.comp hκc))
+  have hno : IsPPTOn encCall (encPair encBits encUnary) (fun call : Call =>
+      (pure ([], call.2.2) : ProbComp (List Bool × ℕ))) :=
+    ((ComputableInPolyTime.const []).prod hblock).isPPTOn
+  have horacle : IsPPTOn encCall (encPair encBits encUnary) (fun call : Call =>
+      blockOracle (m call.1.1.secParam) (n call.1.1.secParam) (l call.1.1.secParam)
+        (w call.1.1.secParam) (t call.1.1.secParam)
+        (Cslib.Matrix.toBinary (LWE.augmentedMatrix call.1.1.matrix call.1.1.target)) call.2.1
+        call.2.2) :=
+    (IsPPTOn.ite' hcond hyes hno).congr fun _ => rfl
+  -- The view word is computed in polynomial time.
+  have hview : ComputableInPolyTime (fun p : LWE.Input n R w × List Bool =>
+      (p.1.secParam, viewWordOf (m p.1.secParam) (n p.1.secParam) (l p.1.secParam)
+        (w p.1.secParam) (Cslib.Matrix.toBinary (LWE.augmentedMatrix p.1.matrix p.1.target)) p.2))
+      input (encPair encUnary encBits) := by
+    refine hκ.prod ?_
+    unfold viewWordOf
+    have hkey : ComputableInPolyTime (fun p : LWE.Input n R w × List Bool => p.2) input encBits :=
+      ComputableInPolyTime.snd _ _
+    exact ((computableInPolyTime_matrixRowsWord (hm.comp hκ) (hn.comp hκ) (hw.comp hκ) hword
+      (ComputableInPolyTime.const 0)).prod
+      ((computableInPolyTime_cipherRowsWord (hm.comp hκ) (hn.comp hκ) (hw.comp hκ) hword
+        (ComputableInPolyTime.const 0) (ComputableInPolyTime.const [])
+        (ComputableInPolyTime.const [])).prod
+      ((computableInPolyTime_matrixRowsWord (hl.comp hκ) (hn.comp hκ) (hw.comp hκ) hword
+        (hm.comp hκ)).prod
+      (computableInPolyTime_cipherRowsWord (hl.comp hκ) (hn.comp hκ) (hw.comp hκ) hword
+        (hm.comp hκ) (ComputableInPolyTime.const []) hkey)))).encoding_comp
+  have hresources : ComputableInPolyTime
+      (fun pair : (LWE.Input n R w × List Bool) × List Bool =>
+        4 * (m pair.1.1.secParam * w pair.1.1.secParam) +
+          4 * (l pair.1.1.secParam * (n pair.1.1.secParam * w pair.1.1.secParam)) +
+          2 * (l pair.1.1.secParam * w pair.1.1.secParam) + l pair.1.1.secParam + 5)
+      (encPair input encBits) encUnary := by
+    have hκp := hκ.comp (ComputableInPolyTime.fst input encBits)
+    have := hm.comp hκp
+    have := hn.comp hκp
+    have := hl.comp hκp
+    have := hw.comp hκp
+    fun_prop
+  have hrun := hA.query.isPPTOn_runState (input := input) (operationEncoding := encFinEnum Unit)
+    (stateEncoding := encUnary)
+    (oracle := fun p request => blockOracle (m p.1.secParam) (n p.1.secParam) (l p.1.secParam)
+      (w p.1.secParam) (t p.1.secParam)
+      (Cslib.Matrix.toBinary (LWE.augmentedMatrix p.1.matrix p.1.target)) request)
+    (initial := fun _ => 0)
+    (resources := fun p _ => 4 * (m p.1.secParam * w p.1.secParam) +
+      4 * (l p.1.secParam * (n p.1.secParam * w p.1.secParam)) +
+      2 * (l p.1.secParam * w p.1.secParam) + l p.1.secParam + 5)
+    hview (horacle.congr fun ⟨_, _, _⟩ => rfl) (ComputableInPolyTime.const 0) (fun _ _ => True)
+    (fun _ => trivial) hresources fun p request k _ result hresult => by
+      refine ⟨trivial, ?_⟩
+      simp only [blockOracle] at hresult
+      split_ifs at hresult with hlen
+      · simp only [ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure,
+          ProbComp.eval_uniform, PMF.support_bind, PMF.support_map, PMF.support_pure,
+          Set.mem_iUnion, Set.mem_image, Set.mem_singleton_iff] at hresult
+        obtain ⟨coins, _, key, ⟨r, _, rfl⟩, rfl⟩ := hresult
+        have := length_leakWordOf_le (m p.1.secParam) (n p.1.secParam) (l p.1.secParam)
+          (w p.1.secParam) (t p.1.secParam) k
+          (Cslib.Matrix.toBinary (LWE.augmentedMatrix p.1.matrix p.1.target)) coins r request.2
+        simp only [encBitString_apply, encUnary_apply, List.length_replicate]
+        omega
+      · simp only [ProbComp.eval_pure, PMF.support_pure, Set.mem_singleton_iff] at hresult
+        subst hresult
+        simp only [List.length_nil, encUnary_apply, List.length_replicate]
+        omega
+  exact (hrun.map (ComputableInPolyTime.fst encBits encUnary)).congr fun _ => rfl
+
+/-- **`LWEFamily.encryptRealReduction` is PPT.** When `m, n, l, w, t` are computable in polynomial
+time in unary, the real-key reduction of a uniform strict oracle PPT word adversary is a uniform
+strict PPT LWE distinguisher. -/
+theorem isPPT_encryptRealReduction (hm : ComputableInPolyTime m encUnary encUnary)
+    (hn : ComputableInPolyTime n encUnary encUnary)
+    (hl : ComputableInPolyTime l encUnary encUnary)
+    (hw : ComputableInPolyTime w encUnary encUnary)
+    {t : ℕ → ℕ} (ht : ComputableInPolyTime t encUnary encUnary) {Q : ℕ → ℕ}
+    {A : WordReuseAdversary} (hA : A.IsPPT) :
+    (encryptRealReduction (m := m) (n := n) (l := l) (w := w) t Q A).IsPPT := by
+  let input := LWE.encInput n (fun κ => m κ + (Q κ + 1) * l κ) w
+  have hκ : ComputableInPolyTime
+      (fun x : LWE.Input n (fun κ => m κ + (Q κ + 1) * l κ) w => x.secParam) input encUnary :=
+    LWE.computableInPolyTime_secParam
+  have hkey : IsPPTOn input encBits fun x : LWE.Input n (fun κ => m κ + (Q κ + 1) * l κ) w =>
+      encBitString (l x.secParam) <$> ProbComp.uniform (BitString (l x.secParam)) :=
+    (hl.comp hκ).uniformBitString
+  have hguess : IsPPTOn (encPair (encPair input encBits) encBits) encBool fun p =>
+      A.guess p.1.1.secParam p.2 p.1.2 :=
+    hA.guess.preprocess ((hκ.comp ((ComputableInPolyTime.fst _ _).comp
+      (ComputableInPolyTime.fst _ _))).prod
+        ((ComputableInPolyTime.snd _ _).prod (ComputableInPolyTime.fst _ _).snd'))
+  exact (hkey.bind_pair ((isPPTOn_queryWords hm hn hl hw ht hA).bind_pair hguess)).congr
+    (eval_realWords t Q A)
+
+/-- **`LWEFamily.encryptIdealReduction` is PPT.** When `m, n, l, w, t` are computable in
+polynomial time in unary, the ideal-key reduction of a uniform strict oracle PPT word adversary is
+a uniform strict PPT LWE distinguisher. -/
+theorem isPPT_encryptIdealReduction (hm : ComputableInPolyTime m encUnary encUnary)
+    (hn : ComputableInPolyTime n encUnary encUnary)
+    (hl : ComputableInPolyTime l encUnary encUnary)
+    (hw : ComputableInPolyTime w encUnary encUnary)
+    {t : ℕ → ℕ} (ht : ComputableInPolyTime t encUnary encUnary) {Q : ℕ → ℕ}
+    {A : WordReuseAdversary} (hA : A.IsPPT) :
+    (encryptIdealReduction (m := m) (n := n) (l := l) (w := w) t Q A).IsPPT := by
+  let input := LWE.encInput n (fun κ => m κ + (Q κ + 1) * l κ) w
+  have hκ : ComputableInPolyTime
+      (fun x : LWE.Input n (fun κ => m κ + (Q κ + 1) * l κ) w => x.secParam) input encUnary :=
+    LWE.computableInPolyTime_secParam
+  have hkey : IsPPTOn input encBits fun x : LWE.Input n (fun κ => m κ + (Q κ + 1) * l κ) w =>
+      encBitString (l x.secParam) <$> ProbComp.uniform (BitString (l x.secParam)) :=
+    (hl.comp hκ).uniformBitString
+  have hκ₂ := hκ.comp ((ComputableInPolyTime.fst input encBits).comp
+    (ComputableInPolyTime.fst (encPair input encBits) encBits))
+  have hu : IsPPTOn (encPair (encPair input encBits) encBits) encBits fun p =>
+      encBitString (l p.1.1.secParam) <$> ProbComp.uniform (BitString (l p.1.1.secParam)) :=
+    (hl.comp hκ₂).uniformBitString
+  have hguess : IsPPTOn (encPair (encPair (encPair input encBits) encBits) encBits) encBool
+      fun p => A.guess p.1.1.1.secParam p.1.2 p.2 :=
+    hA.guess.preprocess ((hκ₂.comp (ComputableInPolyTime.fst _ _)).prod
+      ((ComputableInPolyTime.fst _ _).snd'.prod (ComputableInPolyTime.snd _ _)))
+  exact (hkey.bind_pair ((isPPTOn_queryWords hm hn hl hw ht hA).bind_pair
+    (hu.bind_pair hguess))).congr (eval_idealWords t Q A)
+
+end LWEFamily
+
+/-! ### Strong reusability -/
+
+/-- **Strong reusability of the Section 5 fuzzy extractor** ([AponChoEldefrawyKatz2017],
+Section 5, pp. 11–12). Let `m, n, l, w, t` be computable in polynomial time in unary, let `χ κ` be
+a law on `ZMod (2 ^ w κ)`, and let the scheme's encryption errors `E κ` have independent
+coordinates drawn from `χ κ`. If decision LWE with `n κ` secret coordinates,
+`m κ + (Q κ + 1) * l κ` samples, modulus `2 ^ w κ` and error law `χ κ` holds
+(`DecisionLWE`), then the family `κ ↦ lweEncryptFuzzyExtractor (m κ) (n κ) (l κ) (2 ^ w κ) (E κ)
+(decode κ)`, whose public parameter is a uniform matrix, is `StronglyReusable` for the source
+`κ ↦ χ κ ^ m κ`, with shifts of Hamming weight at most `t κ`, against uniform strict oracle PPT
+word adversaries that make at most `Q κ` shift queries.
+
+Section 5 states no numbered theorem. It sketches a proof of strong reusability "based on
+hardness of the `LWE_{n,(t+2)m,q,χ}` problem, where the adversary makes at most `t` oracle calls
+in the experiment of Definition 3" (p. 12), assuming (1) that each coordinate of `w` is drawn
+independently from `χ` and (2) that the encryption error has the same law. Here `Q κ` is that
+number of calls and `l κ` the key length, which the source takes equal to `m` (p. 11), where the
+sample count is `(Q + 2) m`. The premise is `DecisionLWE`, the source's Definition 4 (p. 7) at
+modulus `q = 2 ^ w κ`, where Definition 4 allows any integer `q ≥ 2`; at `w κ = 0` the modulus is
+`1`, where the real and random games coincide. The reductions are `LWEFamily.encryptRealReduction`
+and `LWEFamily.encryptIdealReduction`, which are PPT by `LWEFamily.isPPT_encryptRealReduction` and
+`LWEFamily.isPPT_encryptIdealReduction`; the bound is
+`strongReuseAdvantage_lweEncryptFuzzyExtractor_le` with the error law `encryptLWEErrorLaw_pi`.
+
+Further deviations: adversaries are uniform strict oracle PPT programs, a shift of Hamming weight
+above `t κ` is answered as the shift `0` (`clampShift`), where Definition 3 admits only shifts of
+weight at most `t`, and the advantage is the distance between the real and ideal games, twice the
+source's `ε` in `1/2 + ε`. Definition 3 is stated for a fuzzy extractor, correctness included;
+this theorem concludes only the security half. Section 5 calls correctness immediate "for the same
+range of parameters as in the FMR scheme" (p. 12); averaged over the matrix it is
+`DecoderCorrectWithError.setupCorrect_lweEncryptFuzzyExtractor`. -/
+theorem stronglyReusable_lweEncryptFuzzyExtractor {m n l w : ℕ → ℕ}
+    (hm : ComputableInPolyTime m encUnary encUnary)
+    (hn : ComputableInPolyTime n encUnary encUnary)
+    (hl : ComputableInPolyTime l encUnary encUnary)
+    (hw : ComputableInPolyTime w encUnary encUnary)
+    {t : ℕ → ℕ} (ht : ComputableInPolyTime t encUnary encUnary) (Q : ℕ → ℕ)
+    (χ : (κ : ℕ) → PMF (ZMod (2 ^ w κ)))
+    (E : (κ : ℕ) → ProbComp (Fin (l κ) → ZMod (2 ^ w κ)))
+    (hE : ∀ κ, ProbComp.eval (E κ) = PMF.pi fun _ => χ κ)
+    (decode : (κ : ℕ) → _root_.Matrix (Fin (m κ)) (Fin (n κ)) (ZMod (2 ^ w κ)) →
+      (Fin (m κ) → ZMod (2 ^ w κ)) → ProbComp (Option (Fin (n κ) → ZMod (2 ^ w κ))))
+    (hLWE : DecisionLWE n (fun κ => m κ + (Q κ + 1) * l κ) w χ) :
+    StronglyReusable
+      (fun κ => ProbComp.uniform (_root_.Matrix (Fin (m κ)) (Fin (n κ)) (ZMod (2 ^ w κ))))
+      (fun κ => lweEncryptFuzzyExtractor (m κ) (n κ) (l κ) (2 ^ w κ) (E κ) (decode κ)) t
+      {fun κ => PMF.pi fun _ => χ κ}
+      (fun κ => encPair (Cslib.Matrix.encBinary (m κ) (n κ) (w κ))
+        (encEncryptHelper (m κ) (n κ) (l κ) (w κ)))
+      (fun κ => encEncryptHelper (m κ) (n κ) (l κ) (w κ)) (fun κ => encBitString (l κ))
+      (fun A => A.IsPPT ∧ ∀ κ view, (A.query κ view).IsQueryBounded (Q κ)) := by
+  intro source hsource A ⟨hA, hQ⟩
+  rw [Set.mem_singleton_iff] at hsource
+  subst hsource
+  have hreal := hLWE _ (LWEFamily.isPPT_encryptRealReduction hm hn hl hw ht (Q := Q) hA)
+  have hideal := hLWE _ (LWEFamily.isPPT_encryptIdealReduction hm hn hl hw ht (Q := Q) hA)
+  refine negligible_of_le (hreal.add hideal) fun κ => ?_
+  have h := strongReuseAdvantage_lweEncryptFuzzyExtractor_le (E κ) (decode κ)
+    (PMF.pi fun _ => χ κ) (t κ) (Q κ) (LWEFamily.typedAdversary m n l w A κ)
+    fun _ _ => OracleCodec.isQueryBounded_adapt _ (hQ κ _)
+  rw [hE, encryptLWEErrorLaw_pi] at h
+  exact h
 
 end Cslib.Crypto.FuzzyExtractor

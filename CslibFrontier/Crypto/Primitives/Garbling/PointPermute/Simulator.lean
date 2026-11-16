@@ -11,6 +11,7 @@ public import CslibFrontier.Crypto.Primitives.Garbling.PointPermute
 public import CslibFrontier.Crypto.Primitives.Garbling.Privacy
 public import CslibFrontier.Crypto.Primitives.Garbling.Games
 public import CslibFrontier.Crypto.Primitives.Garbling.PointPermute.Efficient
+public import CslibFrontier.Crypto.Primitives.Garbling.PointPermute.LabelWord
 public import CslibFrontier.Computability.Probabilistic.PPT
 import CslibFrontier.Probability.BitString.List
 import CslibFrontier.Computability.Probabilistic.Sampling
@@ -66,40 +67,6 @@ public section
 namespace Cslib.Crypto.Garbling.PointPermute
 
 open Cslib.Circuits Probability ConventionalCircuit
-
-/-! ### Labels as bit strings -/
-
-/-- A label as a `(k + 2)`-bit string: the `k + 1` bits of its key, then its colour. -/
-@[expose] def labelEquiv (k : ℕ) : BitString (k + 2) ≃ BitString (k + 1) × Bool where
-  toFun bits := (Fin.init bits, bits (Fin.last _))
-  invFun label := Fin.snoc label.1 label.2
-  left_inv bits := Fin.snoc_init_self bits
-  right_inv label := by simp
-
-/-- The word of the label of a bit string is the bit string. -/
-private theorem labelBits_labelEquiv {k : ℕ} (bits : BitString (k + 2)) :
-    labelBits (labelEquiv k bits) = List.ofFn bits := by
-  simp only [labelBits_apply, labelEquiv, Equiv.coe_fn_mk]
-  rw [List.ofFn_succ' bits, List.concat_eq_append]
-  rfl
-
-/-- The label of a `(k + 2)`-bit word. -/
-@[expose] def labelOfWord (k : ℕ) (word : List Bool) : BitString (k + 1) × Bool :=
-  labelEquiv k (BitString.ofList (k + 2) word)
-
-/-- The label of a `(k + 2)`-bit word has that word. -/
-theorem labelBits_labelOfWord {k : ℕ} {word : List Bool} (hword : word.length = k + 2) :
-    labelBits (labelOfWord k word) = word := by
-  rw [labelOfWord, labelBits_labelEquiv, BitString.ofFn_ofList hword]
-
-/-- The key of the label of a `(k + 2)`-bit word is its first `k + 1` bits. -/
-theorem ofFn_labelOfWord_fst {k : ℕ} {word : List Bool} (hword : word.length = k + 2) :
-    List.ofFn (labelOfWord k word).1 = word.take (k + 1) := by
-  rw [← take_labelBits, labelBits_labelOfWord hword]
-
-/-- The colour of the label of a word is its bit `k + 1`. -/
-theorem labelOfWord_snd (k : ℕ) (word : List Bool) :
-    (labelOfWord k word).2 = word.getD (k + 1) false := rfl
 
 /-! ### The simulator's coins -/
 
@@ -231,7 +198,7 @@ words of its input labels in order, and its decoding bits. -/
 /-! ### The simulated view is the typed simulator's -/
 
 /-- Row `i < 4` of a binary gate has number `i`. -/
-private theorem rowIndex_testBit_of_eq_two {r i : ℕ} (hr : r = 2) (hi : i < 4) :
+theorem rowIndex_testBit_of_eq_two {r i : ℕ} (hr : r = 2) (hi : i < 4) :
     rowIndex (fun a : Fin r => i.testBit (r - 1 - a)) = i := by
   subst hr
   exact rowIndex_testBit hi
@@ -328,10 +295,8 @@ theorem eval_simWord (k : ℕ) (f : ValidCircuit) (y : List Bool) :
   change ProbComp.eval (do
       let coins ← BitString.sampleList (simCoinLen k f.1.n f.1.q)
       return simViewWord family k y f.1.topo coins) = _
-  have hmap : ∀ {α β : Type} (p : PMF α) (g : α → β), p.bind (fun a => PMF.pure (g a)) = p.map g :=
-    fun p g => PMF.bind_pure_comp g p
-  simp only [simulate, ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform,
-    BitString.eval_sampleList, hcoins, hmap]
+  simp only [simulate, bind_pure_comp, ProbComp.eval_map, ProbComp.eval_bind,
+    ProbComp.eval_uniform, BitString.eval_sampleList, hcoins]
   rw [hview, ← PMF.map_comp, hsim, ← Cslib.Probability.PMF.uniformOfFintype_prod]
   simp only [PMF.map_bind, PMF.map_comp, Function.comp_def]
 
@@ -416,7 +381,7 @@ variable (hf : ComputableInPolyTime (fun p : List Bool × List Bool => family p.
 attribute [local fun_prop] labelWord_polyTime tweak_polyTime wireWidth_polyTime permOf_polyTime
 
 /-- Labels of the simulator's coins are read in polynomial time. -/
-private theorem simLabel_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k v : γ → ℕ}
+theorem simLabel_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k v : γ → ℕ}
     {coins : γ → List Bool} (hk : ComputableInPolyTime k encIn encUnary)
     (hcoins : ComputableInPolyTime coins encIn encBits)
     (hv : ComputableInPolyTime v encIn encUnary) :
