@@ -24,22 +24,22 @@ indistinguishability property.
 
 ## Main definitions
 
-- `Cslib.Crypto.Protocols.SigmaProtocol.guessingImpersonator`: the guessing impersonator built
-  from a transcript simulator `simulate : Y → C → PMF (T × Z)`.
+- `SigmaProtocol.guessingImpersonator`: the guessing impersonator built from a transcript
+  simulator `simulate : Y → C → PMF (T × Z)`.
 
 ## Main results
 
-- `SigmaProtocol.inv_card_le_succProbability_directAttack_guessingImpersonator`:
-  for any simulator always outputting accepting transcripts and any key generator `keyGen`,
+- `SigmaProtocol.inv_card_le_succProbability_directAttack_guessingImpersonator`: for any
+  simulator always outputting accepting transcripts and any key generator `keyGen`,
   `guessingImpersonator simulate` succeeds in `P.directAttack` with probability at least
   `(Fintype.card C : ℝ≥0)⁻¹`.
-- `Cslib.Crypto.Protocols.SigmaProtocol.SpecialHVZK.inv_card_le_succProbability_directAttack`:
-  specialization to a `SpecialHVZK` simulator (Exercise 19.7).
+- `SigmaProtocol.SpecialHVZK.inv_card_le_succProbability_directAttack`: specialization to a
+  `SpecialHVZK` simulator (Exercise 19.7).
 
 ## References
 
-* [BonehShoup2023] D. Boneh and V. Shoup, *A Graduate Course in Applied Cryptography*,
-  Version 0.6, Section 19.1.1 and Exercise 19.7.
+* [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*, Version 0.6][BonehShoup2023],
+  Section 19.1.1 and Exercise 19.7.
 -/
 
 public section
@@ -61,8 +61,9 @@ noncomputable def guessingImpersonator (simulate : Y → C → PMF (T × Z)) :
 
 /-- **Generic guessing bound** ([BonehShoup2023], Exercise 19.7): if `simulate y c` always
 outputs accepting `(t, z)`, then `guessingImpersonator simulate` wins `P.directAttack keyGen`
-with probability at least `(Fintype.card C : ℝ≥0)⁻¹`. Neither a valid witness in `keyGen` nor
-simulator indistinguishability is required. -/
+with probability at least `(Fintype.card C : ℝ≥0)⁻¹` (a lower bound where the exercise says
+"probability `1/|C|`"). Neither a valid witness in `keyGen` nor simulator indistinguishability is
+required. -/
 theorem inv_card_le_succProbability_directAttack_guessingImpersonator
     (P : SigmaProtocol X Y T C Z) {simulate : Y → C → PMF (T × Z)}
     (hsim : ∀ y c, ∀ tz ∈ (simulate y c).support, P.Accepts y tz.1 c tz.2)

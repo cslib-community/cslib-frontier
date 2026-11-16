@@ -9,8 +9,8 @@ module
 
 public import CslibFrontier.Crypto.Computational.SchnorrEavesdrop
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.OfBits
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.WordsRoundTrip
-import CslibFrontier.Foundations.Data.ZMod.NatCast
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bind
@@ -20,9 +20,9 @@ import CslibFrontier.Tactic.PPT
 # Guessing attacks on Schnorr identification
 
 This module formalizes the word-level guessing impersonator against Schnorr identification
-([BonehShoup2023], Section 19.1.1). Given a challenge-length schedule `k : ℕ → ℕ`, the
+([BonehShoup2023], Section 19.1.1). Given a challenge-length schedule `m : ℕ → ℕ`, the
 impersonator runs the word-level transcript simulator `schnorrSimulatedTranscript` on a uniform
-`k n`-bit challenge, outputs the resulting commitment, stores the simulated response, and
+`m n`-bit challenge, outputs the resulting commitment, stores the simulated response, and
 returns it for every challenge.
 
 ## Main definitions
@@ -33,22 +33,21 @@ returns it for every challenge.
 ## Main results
 
 - `Cslib.Crypto.PrimeOrderGroupFamily.inv_two_pow_le_succProbability_schnorrDirectGame`:
-  the guessing impersonator wins `schnorrDirectGame setup k` with probability at least
-  `1 / 2 ^ k n`, for every `setup` and without hypotheses on `k`.
-- `Cslib.Crypto.PrimeOrderGroupFamily.isPPT_schnorrGuessingImpersonator`: when `k` is
-  computable in polynomial time in unary, `schnorrGuessingImpersonator k` is uniform strict PPT.
-- `Cslib.Crypto.PrimeOrderGroupFamily.not_negligible_schnorrDirectGame_schnorrGuessingImpersonator`:
-  if `1 / 2 ^ k n` is not negligible, the guessing impersonator's success probability is not
-  negligible.
+  for every `setup`, `k`, `m`, and `n` with `m n ≤ k n`, `schnorrGuessingImpersonator m` wins
+  `schnorrDirectGame setup k` with probability at least `1 / 2 ^ k n` (a lower bound where
+  Section 19.1.1 / Exercise 19.7 states probability `1/|C|`).
+- `Cslib.Crypto.PrimeOrderGroupFamily.isPPT_schnorrGuessingImpersonator`: when `m` is
+  computable in polynomial time in unary (`ComputableInPolyTime m encUnary encUnary`),
+  `schnorrGuessingImpersonator m` is uniform strict PPT.
 - `Cslib.Crypto.PrimeOrderGroupFamily.negligible_inv_two_pow_of_negligible_schnorrDirectGame`:
-  if `k` is unary poly-time computable and every uniform strict PPT impersonator has negligible
-  success probability, then `1 / 2 ^ k n` is negligible (converse to the challenge-length
-  premise of `negligible_schnorrDirectGame`).
+  for every `setup` and `k : ℕ → ℕ`, if every uniform strict-PPT impersonator has negligible
+  success probability in `schnorrDirectGame setup k`, then `1 / 2 ^ k n` is negligible
+  (proved at `m := fun _ => 0`, requiring no efficiency hypothesis on `k`).
 
 ## References
 
-* [BonehShoup2023] D. Boneh and V. Shoup, *A Graduate Course in Applied Cryptography*,
-  Version 0.6, Section 19.1.1.
+* [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*, Version 0.6][BonehShoup2023],
+  Section 19.1.1.
 -/
 
 public section
@@ -72,13 +71,18 @@ noncomputable def schnorrGuessingImpersonator (k : ℕ → ℕ) : F.SchnorrImper
   respond _ input := pure input.1
 
 /-- **The guessing impersonator succeeds with probability at least `1 / 2 ^ k n`**
-([BonehShoup2023], Section 19.1.1), for every setup and with no condition on `k`. -/
-theorem inv_two_pow_le_succProbability_schnorrDirectGame (setup : ℕ → PMF F.Desc) (k : ℕ → ℕ)
-    (n : ℕ) :
+([BonehShoup2023], Section 19.1.1) whenever the prepared-challenge length satisfies `m n ≤ k n`
+(proved here as a lower bound where Exercise 19.7 says "probability `1/|C|`"). The bound allows a
+separate schedule `m` because `ofBits` zero-pads shorter simulated challenges so they match a
+verifier challenge with probability at least `1 / 2 ^ k n` even for `m = fun _ => 0`; when
+`m n > k n`, `ofBits` on an `m n`-bit simulated challenge can lie outside the range of `k n`-bit
+verifier challenges, so `hm` cannot be dropped. -/
+theorem inv_two_pow_le_succProbability_schnorrDirectGame (setup : ℕ → PMF F.Desc)
+    (k m : ℕ → ℕ) (n : ℕ) (hm : m n ≤ k n) :
     (1 : ℝ≥0) / 2 ^ k n ≤
-      Game.succProbability (F.schnorrDirectGame setup k (F.schnorrGuessingImpersonator k) n) := by
+      Game.succProbability (F.schnorrDirectGame setup k (F.schnorrGuessingImpersonator m) n) := by
   have key : (1 : ℝ≥0∞) / 2 ^ k n ≤
-      F.schnorrDirectGame setup k (F.schnorrGuessingImpersonator k) n true := by
+      F.schnorrDirectGame setup k (F.schnorrGuessingImpersonator m) n true := by
     simp only [schnorrDirectGame, schnorrGuessingImpersonator, pmf_norm]
     refine PMF.le_bind_apply_on_support _ fun d _ => ?_
     refine PMF.le_bind_apply_on_support _ fun α _ => ?_
@@ -88,48 +92,49 @@ theorem inv_two_pow_le_succProbability_schnorrDirectGame (setup : ℕ → PMF F.
     refine PMF.le_bind_apply_on_support _ fun z _ => ?_
     obtain ⟨r₀, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hc₀
     rw [BitString.uniformList, PMF.map, PMF.bind_bind, PMF.bind_apply]
-    refine le_trans ?_ (le_tsum _ r₀)
-    simp [PMF.uniformOfFintype_apply]
+    have hpad :
+        ofBits (List.ofFn fun i : Fin (k n) => if h : i.1 < m n then r₀ ⟨i, h⟩ else false) =
+          ofBits (List.ofFn r₀) := by
+      have hlist :
+          (List.ofFn fun i : Fin (k n) => if h : i.1 < m n then r₀ ⟨i, h⟩ else false) =
+            List.ofFn r₀ ++ List.replicate (k n - m n) false := by
+        refine List.ext_getElem (by simp; omega) fun i h₁ h₂ => ?_
+        by_cases hi : i < m n <;> simp [List.getElem_append, hi]
+      rw [hlist, ofBits_append, ofBits_replicate_false]
+      simp
+    refine le_trans ?_
+      (le_tsum _ fun i : Fin (k n) => if h : i.1 < m n then r₀ ⟨i, h⟩ else false)
+    simp [PMF.uniformOfFintype_apply, hpad]
   rw [Game.succProbability, ← ENNReal.toNNReal_coe ((1 : ℝ≥0) / 2 ^ k n)]
   refine ENNReal.toNNReal_mono (PMF.apply_ne_top _ _) ?_
   rwa [ENNReal.coe_div (by positivity), ENNReal.coe_one, ENNReal.coe_pow, ENNReal.coe_ofNat]
 
-/-- **The guessing impersonator is uniform strict PPT** when the challenge length is computable in
-polynomial time. -/
-theorem isPPT_schnorrGuessingImpersonator {k : ℕ → ℕ}
-    (hk : ComputableInPolyTime k encUnary encUnary) : (F.schnorrGuessingImpersonator k).IsPPT := by
-  have hk' := hk.tidy
+/-- **The guessing impersonator is uniform strict PPT** when its challenge length is computable in
+polynomial time (`ComputableInPolyTime m encUnary encUnary`). -/
+theorem isPPT_schnorrGuessingImpersonator {m : ℕ → ℕ}
+    (hm : ComputableInPolyTime m encUnary encUnary) : (F.schnorrGuessingImpersonator m).IsPPT := by
+  have hm' := hm.tidy
   refine ⟨?_, ?_⟩
   · have h := F.isPPTOn_schnorrSimulatedTranscript
       (encIn := encPair encUnary (encPair F.encDesc encBits))
-      (n := fun p => p.1) (d := fun p => p.2.1) (u := fun p => p.2.2) (m := fun p => k p.1)
+      (n := fun p => p.1) (d := fun p => p.2.1) (u := fun p => p.2.2) (m := fun p => m p.1)
       (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
     exact h.bind_with ((ComputableInPolyTime.tidy (by fun_prop)).isPPTOn)
   · exact (ComputableInPolyTime.tidy (by fun_prop)).isPPTOn
 
-/-- **Short challenges make Schnorr identification insecure** ([BonehShoup2023], Section 19.1.1):
-if `1 / 2 ^ k n` is not negligible, the guessing impersonator's success probability is not
-negligible. With `isPPT_schnorrGuessingImpersonator` this shows that the hypothesis `hchallenge`
-of `negligible_schnorrDirectGame` is necessary. -/
-theorem not_negligible_schnorrDirectGame_schnorrGuessingImpersonator (setup : ℕ → PMF F.Desc)
-    {k : ℕ → ℕ} (hchallenge : ¬ Negligible fun n => (1 : ℝ≥0) / 2 ^ k n) :
-    ¬ Negligible fun n =>
-      Game.succProbability (F.schnorrDirectGame setup k (F.schnorrGuessingImpersonator k) n) :=
-  fun h => hchallenge (negligible_of_le h
-    fun n => inv_two_pow_le_succProbability_schnorrDirectGame setup k n)
-
-/-- **Negligible `1 / 2 ^ k n` is necessary for security against direct attacks**: if every uniform
-strict PPT impersonator succeeds with negligible probability, the challenge space is of
-super-polynomial size. The proof instantiates the universal quantifier at
-`schnorrGuessingImpersonator k`, using `isPPT_schnorrGuessingImpersonator hk` to discharge its
-uniform strict-PPT hypothesis. The converse, under the discrete-logarithm assumption, is
+/-- **Negligible `1 / 2 ^ k n` is necessary for security against direct attacks**: for every
+`setup` and `k : ℕ → ℕ`, if every uniform strict-PPT impersonator wins
+`schnorrDirectGame setup k` with negligible probability, then `1 / 2 ^ k n` is negligible. The
+proof instantiates the universal quantifier at `schnorrGuessingImpersonator fun _ => 0` using
+`inv_two_pow_le_succProbability_schnorrDirectGame` and `isPPT_schnorrGuessingImpersonator` (no
+efficiency condition on `k` is needed). The converse, under the discrete-logarithm assumption, is
 `negligible_schnorrDirectGame`. -/
 theorem negligible_inv_two_pow_of_negligible_schnorrDirectGame (setup : ℕ → PMF F.Desc) {k : ℕ → ℕ}
-    (hk : ComputableInPolyTime k encUnary encUnary)
     (h : ∀ A : F.SchnorrImpersonator, A.IsPPT →
       Negligible fun n => Game.succProbability (F.schnorrDirectGame setup k A n)) :
     Negligible fun n => (1 : ℝ≥0) / 2 ^ k n :=
-  negligible_of_le (h _ (isPPT_schnorrGuessingImpersonator hk))
-    fun n => inv_two_pow_le_succProbability_schnorrDirectGame setup k n
+  negligible_of_le
+    (h _ (isPPT_schnorrGuessingImpersonator (m := fun _ => 0) (by fun_prop)))
+    fun n => inv_two_pow_le_succProbability_schnorrDirectGame setup k (fun _ => 0) n (Nat.zero_le _)
 
 end Cslib.Crypto.PrimeOrderGroupFamily

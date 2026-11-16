@@ -62,18 +62,26 @@ example (setup : ℕ → PMF F.Desc) (n : ℕ) :
     (1 : ℝ≥0) / 2 ≤ Game.succProbability
       (F.schnorrDirectGame setup (fun _ => 1) (F.schnorrGuessingImpersonator fun _ => 1) n) := by
   simpa [pow_one] using PrimeOrderGroupFamily.inv_two_pow_le_succProbability_schnorrDirectGame
-    (F := F) setup (fun _ => 1) n
+    (F := F) setup (fun _ => 1) (fun _ => 1) n le_rfl
+
+-- Checks the zero-bit prepared challenge bound (`m n = 0 ≤ k n`) used in the converse theorem.
+example (setup : ℕ → PMF F.Desc) (k : ℕ → ℕ) (n : ℕ) :
+    (1 : ℝ≥0) / 2 ^ k n ≤ Game.succProbability
+      (F.schnorrDirectGame setup k (F.schnorrGuessingImpersonator fun _ => 0) n) :=
+  PrimeOrderGroupFamily.inv_two_pow_le_succProbability_schnorrDirectGame
+    (F := F) setup k (fun _ => 0) n (Nat.zero_le _)
 
 -- Probe: checks that `schnorrGuessingImpersonator` is uniform strict PPT for constant `k n = 1`.
 example : (F.schnorrGuessingImpersonator fun _ => 1).IsPPT :=
   PrimeOrderGroupFamily.isPPT_schnorrGuessingImpersonator (by fun_prop)
 
--- Probe: checks necessity of `hchallenge` in `negligible_schnorrDirectGame` at `k n = 1`.
+-- Probe: checks necessity of `hchallenge` in `negligible_schnorrDirectGame` at `k n = 1` inside
+-- the uniform strict-PPT class.
 example (setup : ℕ → PMF F.Desc) :
-    ¬ Negligible fun n => Game.succProbability
-      (F.schnorrDirectGame setup (fun _ => 1) (F.schnorrGuessingImpersonator fun _ => 1) n) :=
-  PrimeOrderGroupFamily.not_negligible_schnorrDirectGame_schnorrGuessingImpersonator setup
-    (not_negligible_const (by norm_num))
+    ¬ ∀ A : F.SchnorrImpersonator, A.IsPPT →
+      Negligible fun n => Game.succProbability (F.schnorrDirectGame setup (fun _ => 1) A n) :=
+  fun h => not_negligible_const (by norm_num)
+    (PrimeOrderGroupFamily.negligible_inv_two_pow_of_negligible_schnorrDirectGame setup h)
 
 end WordLevel
 
