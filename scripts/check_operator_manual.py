@@ -106,35 +106,40 @@ LIST_AFTER_PARAGRAPH = ("list item directly after a paragraph line (add a blank 
 # The PDF build prints a link into `sources.md#key` as a numbered citation and drops its label
 # (`manual/data/build_latex.py`), so `[Boneh and Shoup, Section 5.6][bs23]` prints as `[67]` and
 # the locator is lost. A label must not carry a section, chapter, page, statement, figure, table,
-# equation or bare dotted section number (`CLRS 15.5`), in either case (`equation (2)`); write
-# the locator after the link. A version (`v3.0`) or a year is not a locator.
+# equation, part or step number, spelled out or abbreviated and in either case, nor a bare dotted
+# number (`CLRS 15.5`, also a version such as `TLS 1.3`, which `v1.3` avoids); write the locator
+# after the link. A year, or a title word after a keyword (`Algorithm Design`), is not a locator.
 CITATION_LOCATOR = re.compile(
-    r"§|\bpp?\.\s*\d|(?<![\w.])\d+\.\d+|\b(?i:Sections?|Chapters?|Lectures?|Appendix|Theorems?"
-    r"|Lemmas?|Definitions?|Corollar(?:y|ies)|Propositions?|Remarks?|Claims?|Examples?|Exercises?"
-    r"|Problems?|Algorithms?|Constructions?|Attack Games?|Figures?|Fig\.|Tables?|Equations?|Eqs?\.)"
-    r"\s*\(?[0-9IVXA-Z]")
+    r"§|\b(?:pp?\.|[Pp]ages?)\s*\d|(?<![\w.])\d+\.\d+|\b(?i:Sections?|Subsections?|Sec\.|Sect\."
+    r"|Chapters?|Ch\.|Chap\.|Parts?|Volumes?|Vol\.|Lectures?|Appendix|Theorems?|Thm\.|Lemmas?"
+    r"|Lem\.|Definitions?|Def\.|Corollar(?:y|ies)|Cor\.|Propositions?|Prop\.|Remarks?|Claims?"
+    r"|Facts?|Examples?|Exercises?|Problems?|Algorithms?|Protocols?|Constructions?|Games?|Steps?"
+    r"|Figures?|Fig\.|Tables?|Equations?|Eqs?\.)\s*\(?(?:[0-9]|[IVXLC]+\b|[A-Z]\b)")
 LABEL_LOCATOR = ("locator inside a citation link label, which the PDF drops (write it after the "
                  "link: `[Author][key], Section 5.6`)")
-REFERENCE_LINK = re.compile(r"\[([^\]\n]+)\]\[([^\]\n]*)\]")
+# A label may wrap over a line break, but not over a blank line.
+WRAPPED_LABEL = r"\[((?:[^\[\]\n]|\n(?![ \t]*\n))+)\]"
+WRAPPED_INLINE_LINK = re.compile(WRAPPED_LABEL + r"\(\s*(?:<([^>\n]+)>|([^\s)]+))")
+REFERENCE_LINK = re.compile(WRAPPED_LABEL + r"\[([^\]\n]*)\]")
 
 
 def labelled_links(text: str) -> list[tuple[int, str, str]]:
     """`(line number, label, URL)` of each inline and full or collapsed reference link outside
-    code. Code spans are blanked in the label, so code showing a locator is not reported."""
+    code, with the label's whitespace collapsed; a wrapped label reports its first line. Code
+    spans are blanked, so code showing a locator is not reported."""
     definitions = {key.casefold(): url for key, url in re.findall(
         r"^\s{0,3}\[([^\]]+)\]:\s*<?([^\s>]+)>?", prose(text), re.M)}
+    masked = "\n".join("" if fenced else CODE_SPAN.sub(lambda span: " " * len(span[0]), line)
+                       for _, line, fenced in fenced_lines(text))
     found = []
-    for number, line, fenced in fenced_lines(text):
-        if fenced:
-            continue
-        masked = CODE_SPAN.sub(lambda span: " " * len(span[0]), line)
-        for link in INLINE_LINK.finditer(masked):
-            found.append((number, link[1], link[2] or link[3]))
-        for link in REFERENCE_LINK.finditer(masked):
-            url = definitions.get((link[2] or link[1]).casefold())
-            if url is not None:
-                found.append((number, link[1], url))
-    return found
+    for link in WRAPPED_INLINE_LINK.finditer(masked):
+        found.append((link.start(), " ".join(link[1].split()), link[2] or link[3]))
+    for link in REFERENCE_LINK.finditer(masked):
+        label = " ".join(link[1].split())
+        url = definitions.get((link[2] or label).casefold())
+        if url is not None:
+            found.append((link.start(), label, url))
+    return [(masked.count("\n", 0, start) + 1, label, url) for start, label, url in sorted(found)]
 
 
 def lists_after_paragraphs(text: str) -> list[int]:
@@ -394,12 +399,13 @@ def check(repo: Path, manual: Path | None = None) -> dict:
         errors.extend(f"{doc.relative_to(manual)}: undefined reference [{key}]" for key in undefined)
         for number, label, url in labelled_links(doc.read_text()):
             parsed = urlsplit(html.unescape(url))
-            if parsed.scheme or parsed.netloc or not parsed.fragment or \
-                    not CITATION_LOCATOR.search(label):
+            locator = CITATION_LOCATOR.search(label)
+            if parsed.scheme or parsed.netloc or not parsed.fragment or not locator:
                 continue
-            if (doc.parent / unquote(parsed.path)).resolve() == manual / "sources.md":
+            target = (doc.parent / unquote(parsed.path)).resolve() if parsed.path else doc
+            if target == manual / "sources.md":
                 errors.append(f"{doc.relative_to(manual)}: Line {number}: {LABEL_LOCATOR}: "
-                              f"[{label}]")
+                              f"[{label}] (`{locator[0]}`)")
         for url in urls:
             parsed = urlsplit(html.unescape(url))
             if parsed.scheme or parsed.netloc:
