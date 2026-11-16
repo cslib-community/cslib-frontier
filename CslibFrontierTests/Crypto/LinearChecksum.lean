@@ -12,14 +12,17 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Finite
 public import CslibFrontier.Crypto.Computational.Encryption.LinearChecksum
 import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Probability.PMF.Support
+import Mathlib.Algebra.BigOperators.Group.List.Basic
+import Mathlib.Algebra.Ring.BooleanRing
 
 /-!
 # Tests for the stream cipher with a linear checksum
 
 Checks of `CslibFrontier/Crypto/Computational/Encryption/LinearChecksum.lean` as an ordinary
 `module` client: a one-bit parity checksum, which is linear with `L` the parity itself, makes
-`prfChecksumCipher` lose ciphertext integrity; with a checksum that is not linear the same
-adversary loses; and at `n = 0` it loses too, so `1 ≤ n` is needed.
+`prfChecksumCipher` lose ciphertext integrity; with the constant checksum `[false]`, which is
+linear for the constant-zero `L` but not for the adversary's `L = parity`, the same adversary
+loses; and at `n = 0` it loses too, so `1 ≤ n` is needed.
 -/
 
 public section
@@ -53,24 +56,12 @@ theorem parity_polyTime : ComputableInPolyTime parity encBits encBits := by
     ComputableInPolyTime.of_finite (fun b => [b])
   exact hsingleton.comp hfold
 
-theorem foldl_xor_zipWith (x y : Bool) (a b : List Bool) (hab : a.length = b.length) :
-    (List.zipWith xor a b).foldl xor (x ^^ y) = (a.foldl xor x ^^ b.foldl xor y) := by
-  induction a generalizing b x y with
-  | nil => cases b <;> simp_all
-  | cons u a ih =>
-    cases b with
-    | nil => simp at hab
-    | cons v b =>
-      simp only [List.length_cons, Nat.add_right_cancel_iff] at hab
-      simp only [List.zipWith_cons_cons, List.foldl_cons]
-      rw [show ((x ^^ y) ^^ (u ^^ v)) = ((x ^^ u) ^^ (y ^^ v)) by
-        cases x <;> cases y <;> cases u <;> cases v <;> rfl]
-      exact ih (x ^^ u) (y ^^ v) b hab
-
 /-- Parity is linear, with `L` the parity itself. -/
 theorem parity_linear (m d : List Bool) (h : m.length = d.length) :
     parity (List.zipWith xor m d) = List.zipWith xor (parity m) (parity d) := by
-  simpa [parity] using foldl_xor_zipWith false false m d h
+  have hsum := (List.sum_add_sum_eq_sum_zipWith_of_length_eq m d h).symm
+  simp only [List.sum_eq_foldl, Bool.add_eq_xor] at hsum
+  exact congrArg (fun b => [b]) hsum
 
 /-- With the parity checksum, `prfChecksumCipher` has no ciphertext integrity. -/
 example : ¬ (prfChecksumCipher xorFamily xorFamily_polyTime xorFamily_length parity
@@ -94,12 +85,13 @@ example {k ct : List Bool}
     (fun _ => rfl) parity parity_linear (msg := [false, true]) (delta := [true, false]) rfl rfl
     hct
 
-/-- The constant checksum `[false]`, which is not linear with `L = parity`. -/
+/-- The constant checksum `[false]`. It is linear for the constant-zero `L`, but not for
+`L = parity`. -/
 def constChecksum (_ : List Bool) : List Bool := [false]
 
-/-- Without linearity the attack fails: with the constant checksum and `L = parity`, the
-modified ciphertext carries checksum `[true]` and is rejected, so the adversary never wins at
-`n = 1`. -/
+/-- Without the linearity relation for the adversary's `L` the attack fails: with the constant
+checksum and `L = parity`, which do not satisfy it, the modified ciphertext carries checksum
+`[true]` and is rejected, so the adversary never wins at `n = 1`. -/
 example : ProbComp.eval ((prfChecksumCipher xorFamily xorFamily_polyTime xorFamily_length
       constChecksum (ComputableInPolyTime.const [false]) (fun _ => 1) (by fun_prop)
       (fun _ => rfl)).ciOneTimeGame (prfChecksumCIAdversary (fun _ => 1) parity) 1) =
