@@ -36,8 +36,9 @@ Differences from [BonehShoup2023], Theorem 3.2 (pp. 54–59):
 * Rather than instantiating a fresh `B` that draws `ω` uniformly from `{1, ..., count n}`,
   `computationallyIndistinguishable_parallelGenerator` delegates directly to
   `ComputationallyIndistinguishable.replicate_bind`, whose certified `sequenceTest` reduction
-  samples from a padded dyadic range and incurs loss `dyadicSize (count n)` (between `count n + 1`
-  and `2 * count n`; `Sequence.sequenceTest_advantage`).
+  samples from a padded dyadic range and incurs loss `dyadicSize (count n)` (with
+  `count n + 1 ≤ dyadicSize (count n) ≤ 2 * (count n + 1)` by `lt_dyadicSize` and `dyadicSize_le`;
+  `Sequence.sequenceTest_advantage`).
 * The expansion hypothesis `hG.stretch` (`∀ n, n < length n`) of `PseudorandomGenerator` is not
   needed by the computational indistinguishability proof.
 
@@ -118,29 +119,15 @@ private theorem eval_replicate_sampleList_bind_flatten (f : List Bool → List B
         let outs ← OracleComp.replicate count (BitString.sampleList width >>= fun s => pure (f s))
         pure outs.flatten) =
       (BitString.uniformList (count * width)).map (parallelGenerator f count width) := by
-  have hrep :
-      ProbComp.eval
-          (OracleComp.replicate count
-            (BitString.sampleList width >>= fun s => pure (f s))) =
-        (ProbComp.eval (OracleComp.replicate count (BitString.sampleList width))).map
-          (List.map f) := by
-    induction count with
-    | zero => simp
-    | succ k ih =>
-      simp only [OracleComp.replicate_succ, ProbComp.eval_bind, ProbComp.eval_map,
-        ProbComp.eval_pure, BitString.eval_sampleList, ih, PMF.map_bind, PMF.bind_bind,
-        PMF.pure_bind, PMF.map_comp, Function.comp_def, List.map_cons]
-  rw [ProbComp.eval_bind, hrep, ProbComp.eval_replicate_sampleList]
-  have hrows := BitString.uniformList_listRows count width
-  have hmap_fn :
-      (fun words : Fin count → BitString width => List.map List.ofFn (List.ofFn words)) =
-        fun rows => List.ofFn (fun i => List.ofFn (rows i)) := by
-    funext words
-    rw [List.map_ofFn]
-    rfl
-  simp only [hmap_fn, ← hrows, ProbComp.eval_pure]
-  rw [show (fun a : List (List Bool) => PMF.pure a.flatten) = PMF.pure ∘ List.flatten from rfl,
-    PMF.bind_pure_comp, PMF.map_comp, PMF.map_comp]
+  have hlaw :
+      ProbComp.eval (BitString.sampleList width >>= fun s => pure (f s)) =
+        (BitString.uniformList width).map f := by
+    simp only [ProbComp.eval_bind, BitString.eval_sampleList, ProbComp.eval_pure]
+    rw [show (fun s => PMF.pure (f s)) = PMF.pure ∘ f from rfl, PMF.bind_pure_comp]
+  rw [ProbComp.eval_bind, ProbComp.eval_replicate_of_uniformList count width _ f hlaw]
+  simp only [ProbComp.eval_pure,
+    show (fun a : List (List Bool) => PMF.pure a.flatten) = PMF.pure ∘ List.flatten from rfl,
+    PMF.bind_pure_comp, PMF.map_comp]
   rfl
 
 private theorem eval_replicate_sampleList_uniform_flatten (count width : ℕ) :
@@ -148,22 +135,17 @@ private theorem eval_replicate_sampleList_uniform_flatten (count width : ℕ) :
         let outs ← OracleComp.replicate count (BitString.sampleList width)
         pure outs.flatten) =
       BitString.uniformList (count * width) := by
-  rw [ProbComp.eval_bind, ProbComp.eval_replicate_sampleList]
-  have hrows := BitString.uniformList_listRows count width
-  have hmap_fn :
-      (fun words : Fin count → BitString width => List.map List.ofFn (List.ofFn words)) =
-        fun rows => List.ofFn (fun i => List.ofFn (rows i)) := by
-    funext words
-    rw [List.map_ofFn]
-    rfl
-  simp only [hmap_fn, ← hrows, ProbComp.eval_pure]
-  rw [show (fun a : List (List Bool) => PMF.pure a.flatten) = PMF.pure ∘ List.flatten from rfl,
+  have hlaw :
+      ProbComp.eval (BitString.sampleList width) = (BitString.uniformList width).map id := by
+    rw [BitString.eval_sampleList, PMF.map_id]
+  rw [ProbComp.eval_bind, ProbComp.eval_replicate_of_uniformList count width _ id hlaw]
+  simp only [ProbComp.eval_pure,
+    show (fun a : List (List Bool) => PMF.pure a.flatten) = PMF.pure ∘ List.flatten from rfl,
     PMF.bind_pure_comp, PMF.map_comp]
-  have hid : PMF.map (fun x => x) (BitString.uniformList (count * width)) =
-      BitString.uniformList (count * width) := PMF.map_id _
-  conv_rhs => rw [← hid]
+  conv_rhs => rw [← PMF.map_id (BitString.uniformList (count * width))]
   refine PMF.map_congr_on_support _ _ _ fun w hw => ?_
-  exact BitString.flatten_listRows_of_length (BitString.length_of_mem_support_uniformList hw)
+  simpa only [Function.comp_def, List.map_id, id_eq] using
+    BitString.flatten_listRows_of_length (BitString.length_of_mem_support_uniformList hw)
 
 /-- **Boneh–Shoup Theorem 3.2 (uniform strict-PPT word layer, pp. 54–59):** if `generator` is a
 `PseudorandomGenerator` with output length `length` and `count` is a unary polynomial-time copy
