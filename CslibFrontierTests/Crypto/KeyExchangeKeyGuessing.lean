@@ -13,6 +13,7 @@ import CslibFrontier.Crypto.Computational.KeyExchange.KeyGuessing
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Probability.PMF.UniformPoint
+import CslibFrontierTests.Crypto.PrimeOrderGroupFixture
 
 /-!
 # Key-guessing security for anonymous key exchange: checked instances
@@ -21,9 +22,8 @@ Checks for `CslibFrontier/Crypto/Computational/KeyExchange/KeyGuessing.lean`:
 
 * `dhToCDHAdversary` and `cdhToDHKeyGuesser` are definitionally mutually inverse.
 * For any fixed group of a `PrimeOrderGroupFamily`, Diffie–Hellman key exchange fails
-  `AnonKESecure` via `dhKeyExchange_anonKESecure_iff_cdh` and a private fixed-group CDH failure
-  witness (copied locally from `CslibFrontierTests/Crypto/AssumptionNonvacuity.lean`, which is not
-  a `module` file and so cannot be imported here).
+  `AnonKESecure` via `dhKeyExchange_anonKESecure_iff_cdh`, `CDH.discreteLog`, and the shared
+  constant-guesser fixture `PrimeOrderGroupFixture.guessZero`.
 * Over `schnorrGroups`, a concrete group-operation key guesser satisfies `KeyGuesser.IsPPT`.
 * The 3-message XOR protocol `KeyExchange.xorKeyExchange` fails `AnonKESecure`: `xorKeyGuesser`
   wins with probability `1` via `KeyExchange.realGame_xorEavesdropper`.
@@ -39,7 +39,8 @@ set_option linter.privateModule false
 
 namespace CslibFrontierTests.Crypto.KeyExchangeKeyGuessing
 
-open Cslib Cslib.Probability Cslib.Crypto Cslib.Crypto.PrimeOrderGroupFamily Turing.MultiTapeTM
+open Cslib Cslib.Probability Cslib.Crypto Cslib.Crypto.PrimeOrderGroupFamily
+  CslibFrontierTests.Crypto.PrimeOrderGroupFixture Turing.MultiTapeTM
 open scoped ENNReal NNReal
 
 open KeyExchange
@@ -56,36 +57,13 @@ example (F : PrimeOrderGroupFamily) (A : KeyGuesser F.DHTranscript F.DHKey) :
 
 /-! ### Fixed-group Diffie–Hellman nonvacuity and concrete PPT witness -/
 
-private noncomputable def guessZero (F : PrimeOrderGroupFamily) :
-    ℕ → F.Desc × List Bool → ProbComp (List Bool) :=
-  fun _ _ => pure []
-
-private theorem guessZero_isPPT (F : PrimeOrderGroupFamily) :
-    IsPPTOn (encPair encUnary (encPair F.encDesc encBits)) encBits
-      (fun input => guessZero F input.1 input.2) :=
-  (ComputableInPolyTime.const _).isPPTOn
-
-private theorem succProbability_discreteLogGame_guessZero (F : PrimeOrderGroupFamily) (d : F.Desc)
-    (n : ℕ) :
-    Game.succProbability (F.discreteLogGame (fun _ => PMF.pure d) (guessZero F) n) =
-      (F.order d : ℝ≥0)⁻¹ := by
-  have h := PMF.uniformOfFintype_bind_decide_eq_apply_true (0 : ZMod (F.order d))
-  rw [ZMod.card] at h
-  simp only [discreteLogGame, guessZero, ProbComp.eval_pure, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure, PMF.pure_bind] at h ⊢
-  simp only [ofBits, List.foldr_nil, Nat.cast_zero]
-  rw [Game.succProbability, h, ENNReal.toNNReal_inv, ENNReal.toNNReal_natCast]
-
-private theorem not_cdh_const (F : PrimeOrderGroupFamily) (d : F.Desc) :
-    ¬ F.CDH fun _ => PMF.pure d := by
+example (F : PrimeOrderGroupFamily) (d : F.Desc) :
+    ¬ (F.dhKeyExchange fun _ => PMF.pure d).AnonKESecure F.encDHTranscript F.encDHKey := by
   intro h
-  have hdl := h.discreteLog (guessZero F) (guessZero_isPPT F)
+  have hdl := ((F.dhKeyExchange_anonKESecure_iff_cdh _).mp h).discreteLog
+    (guessZero F) (guessZero_isPPT F)
   simp only [succProbability_discreteLogGame_guessZero] at hdl
   exact not_negligible_const (inv_ne_zero (Nat.cast_ne_zero.mpr (F.prime_order d).ne_zero)) hdl
-
-example (F : PrimeOrderGroupFamily) (d : F.Desc) :
-    ¬ (F.dhKeyExchange fun _ => PMF.pure d).AnonKESecure F.encDHTranscript F.encDHKey :=
-  fun h => not_cdh_const F d ((F.dhKeyExchange_anonKESecure_iff_cdh _).mp h)
 
 example :
     KeyGuesser.IsPPT schnorrGroups.encDHTranscript schnorrGroups.encDHKey
