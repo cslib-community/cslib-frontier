@@ -2211,6 +2211,7 @@ public import CslibFrontier.Computability.Complexity.Classes.ParityP
 public import CslibFrontier.Computability.Complexity.Classes.ParityP.Closure
 public import CslibFrontier.Computability.Complexity.Classes.Promise.Basic
 public import CslibFrontier.Computability.Complexity.Classes.Promise.Circuit
+public import CslibFrontier.Computability.Complexity.Classes.Promise.Oracle
 public import CslibFrontier.Computability.Complexity.Classes.Promise.PP
 public import CslibFrontier.Computability.Complexity.Classes.Promise.Probabilistic
 public import CslibFrontier.Computability.Complexity.Classes.Promise.Randomized
