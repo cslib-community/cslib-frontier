@@ -256,6 +256,21 @@ theorem publicMatrix_eq_augmentedMatrix {n m w : ℕ} (B : Matrix (Fin m) (Fin n
     publicMatrix B t e = augmentedMatrix B (B *ᵥ t + e) :=
   rfl
 
+/-- Column `0` of row `i` of the word of `[b | A]` is `b i`. -/
+theorem binaryEntry_toBinary_augmentedMatrix_zero {n m w : ℕ}
+    (A : Matrix (Fin m) (Fin n) (ZMod (2 ^ w))) (b : Fin m → ZMod (2 ^ w)) (i : Fin m) :
+    (Matrix.binaryEntry (n + 1) w (Matrix.toBinary (augmentedMatrix A b)) i.val 0 :
+      ZMod (2 ^ w)) = b i := by
+  simpa [augmentedMatrix] using Matrix.binaryEntry_toBinary (augmentedMatrix A b) i 0
+
+/-- Column `j + 1` of row `i` of the word of `[b | A]` is `A i j`. -/
+theorem binaryEntry_toBinary_augmentedMatrix_succ {n m w : ℕ}
+    (A : Matrix (Fin m) (Fin n) (ZMod (2 ^ w))) (b : Fin m → ZMod (2 ^ w)) (i : Fin m)
+    (j : Fin n) :
+    (Matrix.binaryEntry (n + 1) w (Matrix.toBinary (augmentedMatrix A b)) i.val (j.val + 1) :
+      ZMod (2 ^ w)) = A i j := by
+  simpa [augmentedMatrix] using Matrix.binaryEntry_toBinary (augmentedMatrix A b) i j.succ
+
 /-! ### Distinguishers at modulus `2 ^ w` -/
 
 variable (n m w : ℕ → ℕ)
@@ -301,6 +316,24 @@ theorem encInput_apply (x : Input n m w) :
     encInput n m w x =
       frame (encUnary x.secParam) ++ Matrix.toBinary (augmentedMatrix x.matrix x.target) := by
   simp [encInput, Input.words, encPair, encBits]
+
+variable {n m w} in
+/-- The security parameter of a decision-LWE input is computable in polynomial time from its
+encoding. -/
+theorem computableInPolyTime_secParam :
+    ComputableInPolyTime (fun x : Input n m w => x.secParam) (encInput n m w) encUnary :=
+  (ComputableInPolyTime.fst encUnary encBits).comp
+    (ComputableInPolyTime.of_eq (f := Input.words) fun _ => rfl)
+
+variable {n m w} in
+/-- The word of the matrix `[b | A]` of a decision-LWE input is computable in polynomial time from
+its encoding. -/
+theorem computableInPolyTime_augmentedWord :
+    ComputableInPolyTime
+      (fun x : Input n m w => Matrix.toBinary (augmentedMatrix x.matrix x.target))
+      (encInput n m w) encBits :=
+  (ComputableInPolyTime.snd encUnary encBits).comp
+    (ComputableInPolyTime.of_eq (f := Input.words) fun _ => rfl)
 
 /-- A decision-LWE distinguisher: given the security parameter `κ`, a matrix `A` and a vector `b`
 of the dimensions and modulus at `κ`, it outputs a bit. `Distinguisher.IsPPT` states its

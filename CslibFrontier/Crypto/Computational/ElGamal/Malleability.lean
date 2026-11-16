@@ -233,9 +233,9 @@ private theorem valid_of_mem_support_elGamalKeyGenProb {Msg : Type}
   exact hvalid _
 
 /-- The malleability conditions of `Encryption.eval_cca2GameOn_maulAdversary` for
-`elGamalMaulAdversary`: on every honest key pair and challenge ciphertext of world `bit`, mauling
-changes the decryption from `x_b` to `x_b + g`, which equals the target `x₁ + g` exactly when
-`bit = true`. -/
+`elGamalMaulAdversary`, with the stronger decryption inequality: on every honest key pair and
+challenge ciphertext of world `bit`, mauling changes the decryption from `x_b` to `x_b + g`, which
+equals the target `x₁ + g` exactly when `bit = true`. -/
 private theorem elGamalMaul_conditions {Msg : Type} {encodeMsg : F.Desc → Msg → List Bool}
     {d : ℕ → F.Desc} {msg₀ msg₁ : ℕ → Msg} {n : ℕ}
     {x₀ x₁ : F.Carrier (d n)} (hx₀ : encodeMsg (d n) (msg₀ n) = F.encode (d n) x₀)
@@ -285,7 +285,8 @@ theorem eval_cca2GameOn_elGamalMaulAdversary {Msg : Type}
       (F.elGamalMaulAdversary encodeMsg d msg₀ msg₁) bit n) = PMF.pure bit :=
   eval_cca2GameOn_maulAdversary
     (fun _ hkeys => F.valid_of_mem_support_elGamalKeyGenProb hvalid hkeys)
-    fun _ hkeys _ hct => F.elGamalMaul_conditions hx₀ hx₁ hne bit hkeys hct
+    fun _ hkeys _ hct =>
+      (F.elGamalMaul_conditions hx₀ hx₁ hne bit hkeys hct).imp_left (ne_of_apply_ne _)
 
 /-- **`elGamalMaulAdversary` has 1CCA advantage `1`** against multiplicative ElGamal
 ([BonehShoup2023], Exercise 12.1, p. 512), under the hypotheses of
@@ -305,7 +306,8 @@ theorem advantage_cca2GameOn_elGamalMaulAdversary {Msg : Type}
         (F.elGamalMaulAdversary encodeMsg d msg₀ msg₁) true n)) = 1 :=
   advantage_cca2GameOn_maulAdversary
     (fun _ hkeys => F.valid_of_mem_support_elGamalKeyGenProb hvalid hkeys)
-    fun bit _ hkeys _ hct => F.elGamalMaul_conditions hx₀ hx₁ hne bit hkeys hct
+    fun bit _ hkeys _ hct =>
+      (F.elGamalMaul_conditions hx₀ hx₁ hne bit hkeys hct).imp_left (ne_of_apply_ne _)
 
 /-- **Multiplicative ElGamal is not 1CCA secure, general form** ([BonehShoup2023], Exercise 12.1,
 p. 512): for a polynomial-time group family `d` and message encoder `encodeMsg`, if polynomial-time
@@ -335,7 +337,7 @@ theorem not_indcca2On_elGamalEncryptProb {Msg : Type} {encMsg : Msg ↪ List Boo
     (fun n _ hkeys => F.valid_of_mem_support_elGamalKeyGenProb (hvalid n) hkeys)
     fun n bit _ hkeys _ hct => by
       obtain ⟨_, _, hx₀, hx₁, hne⟩ := hdistinct n
-      exact F.elGamalMaul_conditions hx₀ hx₁ hne bit hkeys hct
+      exact (F.elGamalMaul_conditions hx₀ hx₁ hne bit hkeys hct).imp_left (ne_of_apply_ne _)
 
 /-- **Bit ElGamal is not 1CCA secure** ([BonehShoup2023], Exercise 12.1, p. 512, for the bit
 messages `0` and `g` of `encodeBit`): for every prime-order group family `F` and polynomial-time

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Label
 public import CslibFrontier.Crypto.Primitives.Garbling.CircularCorrelationRobust
+public import CslibFrontier.Crypto.Primitives.Garbling.LabelWord
 
 /-!
 # Circular correlation robust hash families
@@ -22,12 +23,14 @@ oracle `Circ_R(x, i, b) = H(x ⊕ R, i) ⊕ bR` must be indistinguishable from a
 polynomial-time adversaries that never query one `(x, i)` with both values of `b`.
 
 At level `k` a label is a `(k + 1)`-bit key and a colour bit, `(k + 2)` bits in all, and a tweak
-has `k` bits. `CCR.atLevel hash k` hashes the label's word (the key bits, then the colour) with the
-tweak's bits, and reads the first `k + 2` bits of the answer as a label, padding with `false`. The
-offset `CCR.offset R = (R, true)` has colour `true`: the colour is the least significant bit that
-Definition 1 fixes to `1`. A word distinguisher `W : OracleDistinguisher` sends a query
-`(x, t, b)` as the request of the `k + 2` bits of `x`, the `k` bits of `t` and the bit `b`, and
-reads a label as its `k + 2` bits (`CCR.codec k`).
+has `k` bits. Labels are read and written on words as the garbling schemes on words do it
+(`CslibFrontier.Crypto.Primitives.Garbling.LabelWord`): `labelBits` writes the key bits, then the
+colour, and `labelOfWord k` reads a label from the first `k + 2` bits of a word, padding with
+`false`. `CCR.atLevel hash k` hashes the label's word with the tweak's bits and reads the answer as
+a label. The offset `CCR.offset R = (R, true)` has colour `true`: the colour is the least
+significant bit that Definition 1 fixes to `1`. A word distinguisher `W : OracleDistinguisher`
+sends a query `(x, t, b)` as the request of the `k + 2` bits of `x`, the `k` bits of `t` and the
+bit `b`, and reads a label as its `k + 2` bits (`CCR.codec k`).
 
 `CircularCorrelationRobust hash` asks that the hash be computable in polynomial time and that
 every uniform strict oracle-PPT word distinguisher that never repeats a tweak, at any level, have
@@ -92,33 +95,35 @@ open Probability Turing.MultiTapeTM Garbling
 
 namespace Garbling.CCR
 
-/-- The hash of the word family `hash` at level `k`: the label `(key, colour)` and the tweak `t`
-are hashed as the word of the `k + 1` bits of `key` followed by `colour`, and the word of the `k`
-bits of `t`; the first `k + 1` bits of the answer are the key of the result and bit `k + 1` its
-colour, padding with `false`. -/
-@[expose] def atLevel (hash : List Bool → List Bool → List Bool) (k : ℕ) :
-    BitString (k + 1) × Bool → BitString k → BitString (k + 1) × Bool
-  | (key, colour), t =>
-    let word := hash (List.ofFn key ++ [colour]) (List.ofFn t)
-    (BitString.ofList (k + 1) word, word.getD (k + 1) false)
+/-- The hash of the word family `hash` at level `k`: the label `x` and the tweak `t` are hashed as
+the word `labelBits x`, the `k + 1` bits of its key followed by its colour, and the word of the
+`k` bits of `t`; the answer is read as a label by `labelOfWord k`, its first `k + 1` bits the key
+and bit `k + 1` the colour, padding with `false`. -/
+@[expose] def atLevel (hash : List Bool → List Bool → List Bool) (k : ℕ)
+    (x : BitString (k + 1) × Bool) (t : BitString k) : BitString (k + 1) × Bool :=
+  labelOfWord k (hash (labelBits x) (List.ofFn t))
 
-/-- Circular-oracle queries at level `k` on the single word channel. The query `(x, t, b)`, with
-`x = (key, colour)`, is the request of the `k + 1` bits of `key`, then `colour`, then the `k` bits
-of `t`, then `b`, `2 k + 3` bits in all; a request carries a query exactly when it has `2 k + 3`
-bits. A label reply is the bits of its key followed by its colour, the reply of `labelCodec k`. -/
+/-- Circular-oracle queries at level `k` on the single word channel. The query `(x, t, b)` is the
+request of the label word `labelBits x`, the `k + 1` bits of its key and then its colour, followed
+by the `k` bits of `t` and then `b`, `2 k + 3` bits in all; a request carries a query exactly when
+it has `2 k + 3` bits, and its label is read back by `labelOfWord k`. A label reply is the reply of
+`labelCodec k`, which is its label word `labelBits`. -/
 @[expose] def codec (k : ℕ) :
     OracleCodec Unit (Query (BitString (k + 1) × Bool) (BitString k))
       fun _ => BitString (k + 1) × Bool where
   encodeQuery
-    | ⟨(key, colour), t, b⟩ => ((), List.ofFn key ++ colour :: (List.ofFn t ++ [b]))
+    | ⟨x, t, b⟩ => ((), labelBits x ++ (List.ofFn t ++ [b]))
   decodeQuery
     | ((), word) =>
       if word.length = 2 * k + 3 then
-        some ⟨(BitString.ofList (k + 1) word, word.getD (k + 1) false),
-          BitString.ofList k (word.drop (k + 2)), word.getD (2 * k + 2) false⟩
+        some ⟨labelOfWord k word, BitString.ofList k (word.drop (k + 2)),
+          word.getD (2 * k + 2) false⟩
       else none
   decodeQuery_eq_some_iff := by
     rintro ⟨⟨⟩, word⟩ ⟨⟨key, colour⟩, t, b⟩
+    have hlabel : labelOfWord k word =
+        (BitString.ofList (k + 1) word, word.getD (k + 1) false) := rfl
+    simp only [hlabel, labelBits_apply, List.append_assoc, List.singleton_append]
     by_cases hlen : word.length = 2 * k + 3
     · simp only [hlen, ↓reduceIte, Option.some.injEq, Query.mk.injEq, Prod.mk.injEq, true_and]
       constructor

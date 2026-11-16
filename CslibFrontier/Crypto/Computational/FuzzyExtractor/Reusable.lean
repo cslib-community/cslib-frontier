@@ -40,9 +40,10 @@ experiments in the public-parameters model over the Hamming space `Fin m → ZMo
   `Game.advantage realGame idealGame = |Pr[real] - Pr[ideal]|`, which is equivalent up to a factor
   of `2` to the paper's `1/2 + ε` guessing-game formulation.
 
-This file defines the experiments and advantages at fixed parameters. The asymptotic notion
-`WeaklyReusable`, against efficient adversaries, and Theorem 1 in that form are in
-`FuzzyExtractor.Reusable.Security`.
+This file defines the experiments and advantages at fixed parameters. The asymptotic notions
+`WeaklyReusable` and `StronglyReusable`, against efficient adversaries, and Theorem 1 in that form
+are in `FuzzyExtractor.Reusable.Security`; the Section 5 scheme and its strong reusability are in
+`FuzzyExtractor.Reusable.Encrypt`.
 
 In Section 3.3 ([AponChoEldefrawyKatz2017], Theorem 1), Apon et al. modify the Fuller–Meng–Reyzin
 construction (`lweFuzzyExtractor`) by placing the random matrix `A ∈ Z_q^{m × (k + l)}` into the
@@ -107,9 +108,6 @@ strong-reuse advantage is at least `1 - δ - 1 / q ^ k`.
 
 ## What is not proved
 
-* Strong reusability of the Section 5 scheme against efficient adversaries: `Reusable.Encrypt` is
-  concrete-only, and the certificates for its reductions are tracked in
-  [#5293](https://github.com/cslib-community/cslib-frontier/issues/5293#issuecomment-6891722215).
 * The Section 3.2 attack on independent-matrix FMR (`lweFuzzyExtractor` with fresh `A_i` per
   enrollment), which relies on the concrete `Decode_t` algorithm analysis.
 * The Section 4 random-oracle transformation from weak to strong reusability (Theorem 2).

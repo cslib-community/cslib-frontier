@@ -45,14 +45,16 @@ stage (`IsOraclePPT`) and one uniform strict PPT machine for the guess (`IsPPTOn
 library's other oracle adversaries. At modulus `2 ^ w`, a shift `δ : Fin m → ZMod (2 ^ w)` travels
 as its binary word (`shiftCodec`); `WordReuseAdversary.toReuseAdversary` is the typed adversary
 that a word adversary plays at one parameter. `WeaklyReusable` says that every admissible
-adversary has negligible weak-reusability advantage on every source ensemble.
+adversary has negligible weak-reusability advantage on every source ensemble. `StronglyReusable`
+is the same for the strong-reusability experiment of Definition 3, whose leakage is the pair of
+helper and key words; `Reusable.Encrypt` proves it for the Section 5 scheme.
 
 The reduction of Theorem 1 is the simulator of `Reusable`, `commonMatrixSimulator`, run at every
 parameter: `LWEFamily.commonMatrixSimulator`, a distinguisher against the FMR family of
 `DecodeThenExtract.Security`. `LWEFamily.isPPT_commonMatrixSimulator` proves it uniform strict
 PPT from the adversary's certificate. Its word program samples the simulated secrets as `w`-bit
-naturals and writes each simulated helper `c* + A s' + δ'` entry by entry; that program has the
-law of the typed simulator.
+naturals and writes each simulated helper `c* + A s' + δ'` entry by entry (`replyWordOf`, which
+the Section 5 reductions also use); that program has the law of the typed simulator.
 
 ## Main definitions
 
@@ -62,11 +64,15 @@ law of the typed simulator.
 * `Cslib.Crypto.FuzzyExtractor.shiftCodec`,
   `Cslib.Crypto.FuzzyExtractor.WordReuseAdversary.toReuseAdversary`: binary shift words, and the
   typed adversary that a word adversary plays.
-* `Cslib.Crypto.FuzzyExtractor.WeaklyReusable`: asymptotic weak reusability.
+* `Cslib.Crypto.FuzzyExtractor.WeaklyReusable`, `Cslib.Crypto.FuzzyExtractor.StronglyReusable`:
+  asymptotic weak and strong reusability.
 * `Cslib.Crypto.FuzzyExtractor.LWEFamily.encView`,
   `Cslib.Crypto.FuzzyExtractor.LWEFamily.encVector`:
   the words the common-matrix adversary reads.
 * `Cslib.Crypto.FuzzyExtractor.LWEFamily.commonMatrixSimulator`: the simulator at every parameter.
+* `Cslib.Crypto.FuzzyExtractor.LWEFamily.lightShift`,
+  `Cslib.Crypto.FuzzyExtractor.LWEFamily.replyWordOf`: the word of a simulated code offset
+  `c + A s' + clampShift t δ` (`LWEFamily.keyWord_eq_replyWordOf`).
 
 ## Main results
 
@@ -93,7 +99,7 @@ law of the typed simulator.
 ## References
 
 * [D. Apon, C. Cho, K. Eldefrawy, and J. Katz, *Efficient, Reusable Fuzzy Extractors from
-  LWE*][AponChoEldefrawyKatz2017], Definition 2 (p. 6) and Theorem 1 (p. 9).
+  LWE*][AponChoEldefrawyKatz2017], Definitions 2 and 3 (p. 6) and Theorem 1 (p. 9).
 -/
 
 @[expose] public section
@@ -183,6 +189,26 @@ def WeaklyReusable {PP Key Helper : ℕ → Type} [∀ κ, Fintype (Key κ)] [�
       (A.toReuseAdversary (m κ) (w κ) (encView κ) (encHelper κ) (encKey κ) κ))
     Admissible
 
+/-- **Strong reusability** of a family of public-parameter fuzzy extractors at modulus `2 ^ w κ`
+([AponChoEldefrawyKatz2017], Definition 3, in asymptotic form): as `WeaklyReusable`, except that
+each shift query leaks the helper and the key of the fresh enrollment, written as the pair
+`encPair (encHelper κ) (encKey κ)` of their words. A bound on the number of queries, as in the
+Section 5 claim, is part of `Admissible`. -/
+def StronglyReusable {PP Key Helper : ℕ → Type} [∀ κ, Fintype (Key κ)] [∀ κ, Nonempty (Key κ)]
+    {m w : ℕ → ℕ} (setup : (κ : ℕ) → ProbComp (PP κ))
+    (fe : (κ : ℕ) → PP κ → FuzzyExtractor (Fin (m κ) → ZMod (2 ^ w κ)) (Key κ) (Helper κ))
+    (t : ℕ → ℕ) (sources : Set ((κ : ℕ) → PMF (Fin (m κ) → ZMod (2 ^ w κ))))
+    (encView : (κ : ℕ) → PP κ × Helper κ ↪ List Bool) (encHelper : (κ : ℕ) → Helper κ ↪ List Bool)
+    (encKey : (κ : ℕ) → Key κ ↪ List Bool) (Admissible : WordReuseAdversary → Prop) : Prop :=
+  ∀ source ∈ sources, Game.Indistinguishable
+    (fun A κ => strongReuseRealGame (setup κ) (fe κ) (source κ) (t κ)
+      (A.toReuseAdversary (m κ) (w κ) (encView κ) (encPair (encHelper κ) (encKey κ)) (encKey κ)
+        κ))
+    (fun A κ => strongReuseIdealGame (setup κ) (fe κ) (source κ) (t κ)
+      (A.toReuseAdversary (m κ) (w κ) (encView κ) (encPair (encHelper κ) (encKey κ)) (encKey κ)
+        κ))
+    Admissible
+
 namespace LWEFamily
 
 /-! ### The common-matrix adversary's words -/
@@ -217,15 +243,17 @@ noncomputable def commonMatrixSimulator (t : ℕ → ℕ) (A : WordReuseAdversar
 
 /-! ### The simulator's word program -/
 
-/-- Whether a shift word has at most `t` nonzero residues among its first `m`. -/
-private def lightShift (m w t : ℕ) (request : List Bool) : Bool :=
+/-- Whether a shift word has at most `t` nonzero residues among its first `m`, each read in `w`
+bits. A simulator answers a heavier shift as the shift `0`, as `clampShift` does. -/
+def lightShift (m w t : ℕ) (request : List Bool) : Bool :=
   decide (((List.range m).countP fun i =>
     decide (Cslib.Matrix.binaryEntry m w request 0 i ≠ 0)) ≤ t)
 
-/-- The simulated helper word: entry `i` is `c i + ∑ⱼ A i j * s' j + δ' i` in `w` bits, where `A`
-and `c` are read from the helper word, `s'` from the coins, and `δ'` from the request if
-`lightShift` holds and is `0` otherwise. -/
-private def replyWordOf (m n w t : ℕ) (helper : List Bool) (coins : List ℕ)
+/-- The word of a simulated code offset `c + A s' + δ'`: entry `i` is `c i + ∑ⱼ A i j * s' j + δ' i`
+in `w` bits, where `c` and `A` are read from rows `0, …, m - 1` of the word `helper` of a matrix
+`[c | A]` with `n + 1` columns, `s'` from the coins, and `δ'` from the request if `lightShift`
+holds and is `0` otherwise (`keyWord_eq_replyWordOf`). -/
+def replyWordOf (m n w t : ℕ) (helper : List Bool) (coins : List ℕ)
     (request : List Bool) : List Bool :=
   (List.range m).flatMap fun i =>
     BitString.lowBits w (Cslib.Matrix.binaryEntry (n + 1) w helper i 0 +
@@ -270,26 +298,20 @@ private theorem lightShift_eq (m w t : ℕ) (request : List Bool) :
     simp only [hzero]
   rw [lightShift, hcount]
 
-/-- The simulated helper word is the word of `c + A s' + clampShift t δ`, for the coins of `s'`
-and the shift `δ` decoded from the request. -/
-private theorem keyWord_reply {m n w : ℕ} (A : _root_.Matrix (Fin m) (Fin n) (ZMod (2 ^ w)))
-    (c : Fin m → ZMod (2 ^ w)) (t : ℕ) (x : Fin n → ZMod (2 ^ w)) (request : List Bool) :
+/-- `replyWordOf` computes the word of `c + A s' + clampShift t δ`, for the coins of `s'` and the
+shift `δ` decoded from the request, from any word `helper` whose row `i` holds `c i` in column `0`
+and `A i j` in column `j + 1`, as the word of `[c | A]` does. -/
+theorem keyWord_eq_replyWordOf {m n w : ℕ} (A : _root_.Matrix (Fin m) (Fin n) (ZMod (2 ^ w)))
+    (c : Fin m → ZMod (2 ^ w)) (t : ℕ) (x : Fin n → ZMod (2 ^ w)) (request : List Bool)
+    (helper : List Bool)
+    (hc : ∀ i : Fin m, (Cslib.Matrix.binaryEntry (n + 1) w helper i.val 0 : ZMod (2 ^ w)) = c i)
+    (hA : ∀ (i : Fin m) (j : Fin n),
+      (Cslib.Matrix.binaryEntry (n + 1) w helper i.val (j.val + 1) : ZMod (2 ^ w)) = A i j) :
     keyWord (c + A *ᵥ x + clampShift t fun j => Cslib.Matrix.ofBinary 1 m w request 0 j) =
-      replyWordOf m n w t (helperWord ⟨A, c, ()⟩) (List.ofFn fun j => (x j).val) request := by
-  have hc (i : Fin m) : (Cslib.Matrix.binaryEntry (n + 1) w
-      (Cslib.Matrix.toBinary (LWE.augmentedMatrix A c)) i.val 0 : ZMod (2 ^ w)) = c i := by
-    simpa [LWE.augmentedMatrix] using
-      Cslib.Matrix.binaryEntry_toBinary (LWE.augmentedMatrix A c) i 0
-  have hA (i : Fin m) (j : Fin n) : (Cslib.Matrix.binaryEntry (n + 1) w
-      (Cslib.Matrix.toBinary (LWE.augmentedMatrix A c)) i.val (j.val + 1) : ZMod (2 ^ w)) =
-        A i j := by
-    simpa [LWE.augmentedMatrix] using
-      Cslib.Matrix.binaryEntry_toBinary (LWE.augmentedMatrix A c) i j.succ
+      replyWordOf m n w t helper (List.ofFn fun j => (x j).val) request := by
   have hδ (i : Fin m) : Cslib.Matrix.ofBinary 1 m w request 0 i =
       (Cslib.Matrix.binaryEntry m w request 0 i.val : ZMod (2 ^ w)) := by
     rw [Cslib.Matrix.ofBinary_apply, Fin.val_zero]
-  change keyWord _ = replyWordOf m n w t (Cslib.Matrix.toBinary (LWE.augmentedMatrix A c)) _ request
-  generalize Cslib.Matrix.toBinary (LWE.augmentedMatrix A c) = word at hc hA ⊢
   simp only [keyWord, replyWordOf, Cslib.Matrix.toBinary_eq, _root_.Matrix.of_apply,
     List.ofFn_succ, List.ofFn_zero, List.flatten_cons, List.flatten_nil, List.append_nil,
     List.flatMap_def, List.map_range_eq_ofFn, BitString.lowBits_eq_ofFn_val]
@@ -320,7 +342,9 @@ private theorem eval_simHandler {m n w : ℕ} (A : _root_.Matrix (Fin m) (Fin n)
       ProbComp.eval_replicate_sampleBinaryNat, ProbComp.eval_uniform, PMF.bind_map,
       PMF.map_bind, Function.comp_def, PMF.pure_map]
     congr 1 with x : 1
-    rw [← keyWord_reply]
+    rw [← keyWord_eq_replyWordOf A c t x word (helperWord ⟨A, c, ()⟩)
+      (LWE.binaryEntry_toBinary_augmentedMatrix_zero A c)
+      (LWE.binaryEntry_toBinary_augmentedMatrix_succ A c)]
     rfl
   · simp [simHandler, OracleCodec.wordOracle, shiftCodec, hlen]
 
@@ -348,7 +372,7 @@ section PolyTime
 open ComputableInPolyTime
 
 /-- `replyWordOf` is computed in polynomial time from polynomial-time inputs. -/
-private theorem computableInPolyTime_replyWordOf {α : Type} {input : α ↪ List Bool}
+theorem computableInPolyTime_replyWordOf {α : Type} {input : α ↪ List Bool}
     {m n w t : α → ℕ} {helper request : α → List Bool} {coins : α → List ℕ}
     (hm : ComputableInPolyTime m input encUnary) (hn : ComputableInPolyTime n input encUnary)
     (hw : ComputableInPolyTime w input encUnary) (ht : ComputableInPolyTime t input encUnary)
