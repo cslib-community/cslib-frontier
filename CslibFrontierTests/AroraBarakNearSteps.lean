@@ -40,15 +40,18 @@ example : ∑ i, #(![({0, 1} : Finset ℕ), {1, 2}] i) ≤
 
 /-- Lemma 17.9 and Exercises 17.6 and 17.10(b) at `δ = 1 / 4`. -/
 example (n : ℕ) : True := by
-  obtain ⟨-, -, -⟩ := Cslib.Code.exists_linearMap_two_mul (δ := 1 / 4) (by norm_num) (by norm_num) n
-  obtain ⟨-, -, -⟩ := Cslib.Code.exists_linearMap_ceil_div (δ := 1 / 4) (by norm_num) (by norm_num) n
+  obtain ⟨-, -, -⟩ :=
+    Cslib.Code.exists_linearMap_two_mul (δ := 1 / 4) (by norm_num) (by norm_num) n
+  obtain ⟨-, -, -⟩ :=
+    Cslib.Code.exists_linearMap_ceil_div (δ := 1 / 4) (by norm_num) (by norm_num) n
   obtain ⟨-, -, -⟩ :=
     Cslib.Code.exists_linearMap_ceil_mul_div (δ := 1 / 4) (by norm_num) (by norm_num) n
   trivial
 
 /-- Exercise 16.11 with `ε = 1 / 2`: every agreement fraction is at most `1`. -/
 example (n m : ℕ) (f : BooleanFunction n) :
-    dist (Cslib.Probability.PMF.iid ((Cslib.Probability.PMF.uniformOfFintype (BitString n)).map f) m)
+    dist (Cslib.Probability.PMF.iid
+        ((Cslib.Probability.PMF.uniformOfFintype (BitString n)).map f) m)
       (Cslib.Probability.PMF.iid (Cslib.Probability.PMF.uniformOfFintype Bool) m) ≤ 1 / 2 * m := by
   refine Cslib.Circuits.Boolean.dist_iid_map_uniformOfFintype_le (S := 1) le_rfl
     (fun g _ => ?_) m
