@@ -381,6 +381,21 @@ efficient identity test, and shows that constant composite, Blum, and RSA moduli
 scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.DiffieHellman CslibFrontierTests.Crypto.MultiDDH CslibFrontierTests.Crypto.AssumptionNonvacuity
 ```
 
+For the linear congruential generator ([bs23][bs23], Section 3.7.1, pp. 70–71), import
+[`Crypto/Primitives/PRG/LinearCongruential.lean`](../../CslibFrontier/Crypto/Primitives/PRG/LinearCongruential.lean).
+`LinearCongruential.generator` is the book's `G_lcg`, and
+`LinearCongruential.advantage_generator_test` proves that `LinearCongruential.test` (which agrees
+with `Generator.rangeTest` via `LinearCongruential.rangeTest_generator` when `a` is coprime to `q`)
+has advantage `1 - 1 / |R|`, which is `0` when `w = q` (`w = 0 ∨ q ≤ w`);
+`LinearCongruential.computableInPolyTime_test` certifies `test` on binary inputs
+(`encLinearCongruential`). `LinearCongruential.seedSearch` recovers the seed under the lattice
+condition of `LinearCongruential.seedSearch_eq` (`LinearCongruential.eq_of_div_eq_of_next_div_eq`
+gives two-output uniqueness) and for every seed of `LinearCongruential.java8`
+(`LinearCongruential.seedSearch_java8`), with
+`LinearCongruential.computableInPolyTime_seedSearch` polynomial in `w` (`encUnary`) and binary
+inputs (`G_lcg^(n)` and Lemma 3.7 are omitted); see the
+[LCG tests](../../CslibFrontierTests/Crypto/LinearCongruential.lean).
+
 In a group of even order, the parity test of [bs23][bs23], Section 16.1.3, distinguishes
 Diffie–Hellman triples from random ones. Import
 [`DiffieHellman/EvenOrder.lean`](../../CslibFrontier/Crypto/Computational/DiffieHellman/EvenOrder.lean).
