@@ -44,7 +44,7 @@ simulation and state-representation rules.
   sampling request.
 * `Cslib.ProbOracleComp.runWith_pure`, `Cslib.ProbOracleComp.runWith_bind`,
   `Cslib.ProbOracleComp.runWith_map`, `Cslib.ProbOracleComp.runWith_query`,
-  `Cslib.ProbOracleComp.runWith_sample`: ordinary Type-0 structural rules for `runWith`;
+  `Cslib.ProbOracleComp.runWith_sample`: ordinary same-universe structural rules for `runWith`;
   `.runWith_freeMBind` and `.runWith_freeMMap` are the heterogeneous forms.
 * `Cslib.ProbOracleComp.eval_run_interpret_eq_runWith`: evaluating a closed run is `runWith`
   against the evaluated handler.
@@ -183,9 +183,10 @@ result from the oracle state it reached. -/
       (runWith oracle program s).bind fun x => runWith oracle (next x.1) x.2 :=
   OracleComp.runWith_freeMBind _ _ _ _
 
-/-- Running an ordinary Type-0 sequence runs the first program, then runs the continuation at its
-result from the oracle state it reached. -/
+/-- Running an ordinary same-universe sequence runs the first program, then runs the continuation
+at its result from the oracle state it reached. -/
 @[simp] theorem runWith_bind {Query : Type u} {spec : Query → Type} {State : Type s}
+    {α β : Type w}
     (oracle : (q : Query) → State → PMF (spec q × State))
     (program : ProbOracleComp spec α) (next : α → ProbOracleComp spec β) (s : State) :
     runWith oracle (program >>= next) s =
@@ -201,9 +202,10 @@ state. -/
       (runWith oracle program s).map (Prod.map f id) :=
   OracleComp.runWith_freeMMap _ _ _ _
 
-/-- Ordinarily mapping `f` over a Type-0 program maps it over the result and keeps the final
-oracle state. -/
+/-- Ordinarily mapping `f` over a same-universe program maps it over the result and keeps the
+final oracle state. -/
 @[simp] theorem runWith_map {Query : Type u} {spec : Query → Type} {State : Type s}
+    {α β : Type w}
     (oracle : (q : Query) → State → PMF (spec q × State))
     (f : α → β) (program : ProbOracleComp spec α) (s : State) :
     runWith oracle (f <$> program) s =
@@ -227,7 +229,9 @@ oracle state. -/
 
 /-- A private sample followed by a continuation averages the continuation's run over the sample,
 from the same oracle state. -/
-theorem runWith_sample_bind (program : ProbComp α) (next : α → ProbOracleComp spec β)
+theorem runWith_sample_bind {Query : Type u} {spec : Query → Type} {State : Type s}
+    {α β : Type w} (oracle : (q : Query) → State → PMF (spec q × State))
+    (program : ProbComp α) (next : α → ProbOracleComp spec β)
     (s : State) :
     runWith oracle (sample program >>= next) s =
       (ProbComp.eval program).bind fun a => runWith oracle (next a) s := by
@@ -235,7 +239,9 @@ theorem runWith_sample_bind (program : ProbComp α) (next : α → ProbOracleCom
   rfl
 
 /-- Private samples with the same law can be exchanged in front of any continuation. -/
-theorem runWith_sample_bind_congr {program program' : ProbComp α}
+theorem runWith_sample_bind_congr {Query : Type u} {spec : Query → Type} {State : Type s}
+    {α β : Type w} (oracle : (q : Query) → State → PMF (spec q × State))
+    {program program' : ProbComp α}
     (h : ProbComp.eval program = ProbComp.eval program') (next : α → ProbOracleComp spec β)
     (s : State) :
     runWith oracle (sample program >>= next) s = runWith oracle (sample program' >>= next) s := by
@@ -243,7 +249,9 @@ theorem runWith_sample_bind_congr {program program' : ProbComp α}
 
 /-- A private sample commutes with any program: since the draw neither reads nor changes the
 oracle state, drawing it before or after the program gives the same run. -/
-theorem runWith_sample_bind_comm {γ : Type} (program : ProbComp α)
+theorem runWith_sample_bind_comm {Query : Type u} {spec : Query → Type} {State : Type s}
+    {α β γ : Type w} (oracle : (q : Query) → State → PMF (spec q × State))
+    (program : ProbComp α)
     (other : ProbOracleComp spec β) (next : α → β → ProbOracleComp spec γ) (s : State) :
     runWith oracle (sample program >>= fun a => other >>= fun b => next a b) s =
       runWith oracle (other >>= fun b => sample program >>= fun a => next a b) s := by

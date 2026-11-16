@@ -345,7 +345,7 @@ noncomputable def eval (program : ProbComp α) : PMF α :=
       (eval program).bind (fun a => eval (next a)) := by
   exact OracleComp.evalWith_freeMBind _ _ _
 
-@[simp] theorem eval_bind {α β : Type} (program : ProbComp α) (next : α → ProbComp β) :
+@[simp] theorem eval_bind {α β : Type w} (program : ProbComp α) (next : α → ProbComp β) :
     eval (program >>= next) = (eval program).bind (fun a => eval (next a)) := by
   simpa only [PFunctor.FreeM.bind_eq_bind] using eval_freeMBind program next
 
@@ -353,7 +353,7 @@ noncomputable def eval (program : ProbComp α) : PMF α :=
     eval (PFunctor.FreeM.map f program) = (eval program).map f := by
   exact OracleComp.evalWith_freeMMap _ _ _
 
-@[simp] theorem eval_map {α β : Type} (f : α → β) (program : ProbComp α) :
+@[simp] theorem eval_map {α β : Type w} (f : α → β) (program : ProbComp α) :
     eval (f <$> program) = (eval program).map f := by
   simpa only [PFunctor.FreeM.map_eq_map] using eval_freeMMap f program
 

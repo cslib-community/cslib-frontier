@@ -111,16 +111,34 @@ private def highResultProgram : OracleComp lowReplySpec (ULift.{w} Bool) := do
 
 -- Ordinary monadic notation sequences high-universe results over a low-reply program.
 example : evalWith (fun _ => PMF.pure true) highResultProgram = PMF.pure (ULift.up false) := by
-  simp [highResultProgram, highReplyProgram]
+  rw [highResultProgram, OracleComp.evalWith_bind]
+  simp [highReplyProgram]
 
-private def highClosedProgram : ProbComp (ULift.{w} Bool) :=
+private def highClosedSample : ProbComp (ULift.{w} Bool) :=
   PFunctor.FreeM.bind (ProbComp.unifFin 1) fun _ => pure (ULift.up true)
 
+private def highClosedProgram : ProbComp (ULift.{w} Bool) := do
+  let result ← highClosedSample
+  return ULift.up !result.down
+
+-- The ordinary closed-program bind law applies above `Type 0`.
+example :
+    ProbComp.eval highClosedProgram = PMF.pure (ULift.up false) := by
+  rw [highClosedProgram, ProbComp.eval_bind]
+  simp [highClosedSample]
+
+-- The ordinary closed-program map law applies above `Type 0`.
+example :
+    ProbComp.eval ((fun result : ULift.{w} Bool => ULift.up !result.down) <$> highClosedSample) =
+      PMF.pure (ULift.up false) := by
+  rw [ProbComp.eval_map]
+  simp [highClosedSample]
+
 -- Closed-program support semantics also retain an independently chosen result universe.
-example : (ProbComp.eval highClosedProgram).support = {ULift.up true} := by
+example : (ProbComp.eval highClosedSample).support = {ULift.up true} := by
   rw [ProbComp.support_eval]
   ext result
-  simp [highClosedProgram]
+  simp [highClosedSample]
 
 -- The generalized nonemptiness theorem applies to a genuinely high-result program.
 example : ∃ result : ULift.{w} Bool, result ∈ (ProbComp.eval highClosedProgram).support := by
@@ -147,20 +165,34 @@ example (state : Type s) :
 
 private abbrev highQuerySpec : Type u → Type := fun _ => Bool
 
-private def highProbProgram : ProbOracleComp highQuerySpec (ULift.{w} Bool) :=
+private def highProbReplyProgram : ProbOracleComp highQuerySpec (ULift.{w} Bool) :=
   PFunctor.FreeM.bind (ProbOracleComp.query PUnit) fun reply => pure (ULift.up reply)
+
+private def highProbProgram : ProbOracleComp highQuerySpec (ULift.{w} Bool) := do
+  let reply ← highProbReplyProgram
+  return ULift.up !reply.down
 
 private def highSimHandler (_ : Type u) : ProbOracleComp lowReplySpec Bool :=
   pure true
 
--- Substitution changes the external interface while preserving a high-universe result.
+-- Ordinary substitution sequencing applies to a high result over a low-reply interface.
 example :
-    ProbOracleComp.simulate highSimHandler highProbProgram =
-      (pure (ULift.up true) : ProbOracleComp lowReplySpec (ULift.{w} Bool)) := by
-  change OracleComp.substitute
-    (OracleComp.sumHandler (fun n => ProbOracleComp.sample (ProbComp.unifFin n)) highSimHandler)
-      highProbProgram = _
-  simp [highProbProgram, highSimHandler, ProbOracleComp.query, OracleComp.sumHandler]
+    ProbOracleComp.simulate highSimHandler (do
+      let reply ← (pure (ULift.up true) :
+        ProbOracleComp highQuerySpec (ULift.{w} Bool))
+      return ULift.up !reply.down) =
+      (pure (ULift.up false) : ProbOracleComp lowReplySpec (ULift.{w} Bool)) := by
+  rw [ProbOracleComp.simulate_bind]
+  simp
+
+-- Ordinary substitution mapping applies to a high result over a low-reply interface.
+example :
+    ProbOracleComp.simulate highSimHandler
+        ((fun reply : ULift.{w} Bool => ULift.up !reply.down) <$>
+          (pure (ULift.up true) : ProbOracleComp highQuerySpec (ULift.{w} Bool))) =
+      (pure (ULift.up false) : ProbOracleComp lowReplySpec (ULift.{w} Bool)) := by
+  rw [ProbOracleComp.simulate_map]
+  simp
 
 private noncomputable def highProbOracle :
     (q : Type u) → Type s → PMF (highQuerySpec q × Type s) :=
@@ -169,12 +201,28 @@ private noncomputable def highProbOracle :
 -- The combined private-randomness interface separates query, result, and state universes.
 example (state : Type s) :
     ProbOracleComp.runWith highProbOracle highProbProgram state =
-      PMF.pure (ULift.up true, state) := by
-  rw [show highProbOracle = (fun _ state => (PMF.pure true).map (·, state)) by
-      funext q state
-      simp only [highProbOracle, PMF.pure_map],
-    ProbOracleComp.runWith_memoryless]
-  simp [highProbProgram, ProbOracleComp.query, OracleComp.sumHandler]
+      PMF.pure (ULift.up false, state) := by
+  rw [highProbProgram, ProbOracleComp.runWith_bind]
+  simp [highProbReplyProgram, highProbOracle]
+
+-- Sampling followed by a high-result continuation also retains independent query and state
+-- universes.
+example (state : Type s) :
+    ProbOracleComp.runWith highProbOracle
+        (ProbOracleComp.sample highClosedSample >>= fun result =>
+          (pure (ULift.up !result.down) :
+            ProbOracleComp highQuerySpec (ULift.{w} Bool))) state =
+      PMF.pure (ULift.up false, state) := by
+  rw [ProbOracleComp.runWith_sample_bind]
+  simp [highClosedSample]
+
+-- Ordinary stateful-run mapping applies to a high result over a low-reply interface.
+example (state : Type s) :
+    ProbOracleComp.runWith highProbOracle
+        ((fun reply : ULift.{w} Bool => ULift.up !reply.down) <$> highProbReplyProgram) state =
+      PMF.pure (ULift.up false, state) := by
+  rw [ProbOracleComp.runWith_map]
+  simp [highProbReplyProgram, highProbOracle]
 
 private def highAcceptProgram : ProbOracleComp highQuerySpec Bool := do
   let reply ← ProbOracleComp.query PUnit

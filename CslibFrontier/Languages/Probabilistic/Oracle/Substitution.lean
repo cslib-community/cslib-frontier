@@ -56,16 +56,16 @@ sample. Randomness is interpreted only when the resulting program is run. -/
     (handler : (q : Query) → ProbOracleComp spec' (spec q))
     (a : α) : simulate handler (pure a) = pure a := rfl
 
-/-- Substitution preserves sequential composition. -/
-@[simp] theorem simulate_bind {α β : Type}
+/-- Substitution preserves ordinary same-universe sequential composition. -/
+@[simp] theorem simulate_bind {α β : Type w}
     (handler : (q : Query) → ProbOracleComp spec' (spec q))
     (program : ProbOracleComp spec α) (next : α → ProbOracleComp spec β) :
     simulate handler (program >>= next) =
       (simulate handler program >>= fun a => simulate handler (next a)) :=
   OracleComp.substitute_bind _ _ _
 
-/-- Substitution preserves deterministic postprocessing. -/
-@[simp] theorem simulate_map {α β : Type}
+/-- Substitution preserves ordinary same-universe deterministic postprocessing. -/
+@[simp] theorem simulate_map {α β : Type w}
     (handler : (q : Query) → ProbOracleComp spec' (spec q))
     (f : α → β) (program : ProbOracleComp spec α) :
     simulate handler (f <$> program) = f <$> simulate handler program :=
