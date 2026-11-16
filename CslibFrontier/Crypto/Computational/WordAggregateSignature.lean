@@ -68,7 +68,8 @@ open Probability Turing.MultiTapeTM AggregateSignature
 aggregate verification algorithm, each with its efficiency certificate. Short aggregate signatures
 are not required. -/
 structure WordAggregateSignatureScheme where
-  /-- The system parameter generator on the unary security parameter (Definition 2.9, p. 30). -/
+  /-- The system parameter generator on the unary security parameter (Definition 2.9, p. 30; for
+  hash functions, Section 8.1.1, p. 290). -/
   setup : ℕ → ProbComp (List Bool)
   /-- `setup` is uniform strict PPT. -/
   setup_ppt : IsPPTOn encUnary encBits setup
