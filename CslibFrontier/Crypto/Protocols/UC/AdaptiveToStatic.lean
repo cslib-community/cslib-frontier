@@ -17,9 +17,10 @@ Derives static UC emulation from adaptive UC emulation by clamping adversaries
 (`AdaptiveEmulatesWithin.static_of_adaptive`, `AdaptiveEmulates.static_of_adaptive`).
 
 These reductions are a sanity bridge checking consistency between the `.adaptive` and `.static`
-modes (`UC.Adaptive`), rather than a theorem stated in [Canetti2020]: checking whether the
-simulator corrupted any party outside `A.initial κ` costs one environment query, shifting the
-environment-budget argument in `AdaptiveEmulatesWithin` from `pZ` to `pZ + 1`.
+modes in the snapshot corruption model (`UC.Adaptive`), rather than a theorem stated in
+[Canetti2020]: checking whether the simulator corrupted any party outside `A.initial κ` costs one
+environment query, shifting the environment-budget argument in `AdaptiveEmulatesWithin` from `pZ`
+to `pZ + 1`.
 -/
 
 public section
@@ -170,13 +171,26 @@ private theorem runFrom_adaptiveRouter_clampNetProgram_static {α β : Type}
     ((adaptiveRouter .static P κ C₀).runFrom (liftAdaptiveNet (clampNetProgram C₀ netProg)) rs >>=
         f) =
       ((adaptiveRouter .static P κ C₀).runFrom (liftAdaptiveNet netProg) rs >>= g) := by
-  rw [liftAdaptiveNet, clampNetProgram, interpret_sumHandler_comp]
-  refine runFrom_interpret_intertwine
+  rw [liftAdaptiveNet, clampNetProgram,
+    OracleComp.interpret_interpret, OracleComp.interpret_sumHandler]
+  have hleft :
+      (fun k => OracleComp.interpret
+        (sumHandler (fun k => OracleComp.query
+          (spec := probOracleSpec (adaptiveProtocolSpec n In Out NetQ NetR View)) (.inl k))
+          fun q => ProbOracleComp.query (.inr q))
+        (OracleComp.query
+          (spec := probOracleSpec (netSpec (AdaptiveNetQ n In NetQ) (AdaptiveNetR Out NetR View)))
+          (.inl k))) =
+      fun k => OracleComp.query
+        (spec := probOracleSpec (adaptiveProtocolSpec n In Out NetQ NetR View)) (.inl k) := rfl
+  rw [hleft]
+  refine Machine.runFrom_interpret_intertwine
     (adaptiveRouter .static P κ C₀) (adaptiveRouter .static P κ C₀)
     _ (fun q =>
       ProbOracleComp.query (spec := adaptiveProtocolSpec n In Out NetQ NetR View) (.inr q))
     (fun _ => True) (fun rs₁ rs₂ => rs₁ = rs₂ ∧ rs₁.corrupted = C₀)
-    netProg (queriesSatisfy_sumTrue _) rs rs ⟨rfl, hrs⟩ f g
+    netProg (OracleComp.QueriesSatisfy.of_forall (fun q => by cases q <;> trivial) _)
+    rs rs ⟨rfl, hrs⟩ f g
     (fun a rs₁ rs₂ hR => hR.1 ▸ hfg a rs₁ hR.2)
     fun q rs₁ rs₂ k₁ k₂ _ hR hcont => ?_
   rcases hR with ⟨rfl, hrs₁⟩
@@ -225,10 +239,11 @@ private theorem runFrom_adaptiveExecMachine_clampStatic {α : Type}
       ((adaptiveExecMachine .static P A.clampStatic κ).runFrom program (sA, rs) >>= pure) =
         ((adaptiveExecMachine .static P A κ).runFrom program (sA, rs) >>= pure) by
     simpa only [bind_pure] using h
-  refine runFrom_intertwine
+  refine Machine.runFrom_intertwine
     (adaptiveExecMachine .static P A.clampStatic κ) (adaptiveExecMachine .static P A κ)
     (fun _ => True) (fun x₁ x₂ => x₁ = x₂ ∧ x₁.2.corrupted = A.initial κ)
-    program (queriesSatisfy_sumTrue _) (sA, rs) (sA, rs) ⟨rfl, hrs⟩ pure pure
+    program (OracleComp.QueriesSatisfy.of_forall (fun q => by cases q <;> trivial) _)
+    (sA, rs) (sA, rs) ⟨rfl, hrs⟩ pure pure
     (fun _ _ _ hR => hR.1 ▸ rfl)
     fun q ⟨sA₁, rs₁⟩ ⟨sA₂, rs₂⟩ k₁ k₂ _ hR hcont => ?_
   rcases hR with ⟨hEq, hrs₁⟩
@@ -484,7 +499,8 @@ private theorem corrupted_rel_of_mem_support_execMachine {α : Type}
     R rs.corrupted x.2.2.corrupted := by
   refine mem_support_closeEval_runFrom_invariant (adaptiveExecMachine .adaptive P A κ)
     (fun _ => True) (fun s₁ s₂ => R s₁.2.corrupted s₂.2.corrupted)
-    (fun _ => hR_refl _) hR_trans program (queriesSatisfy_sumTrue _) (sA, rs) hx
+    (fun _ => hR_refl _) hR_trans program
+    (OracleComp.QueriesSatisfy.of_forall (fun q => by cases q <;> trivial) _) (sA, rs) hx
     fun q ⟨sA', rs'⟩ y _ hy => ?_
   rcases q with (⟨i, u⟩ | _) | a
   · erw [adaptiveExecMachine_handle_inl_party] at hy

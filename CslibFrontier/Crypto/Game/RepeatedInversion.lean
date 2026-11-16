@@ -150,20 +150,6 @@ theorem repeatedIterateExperiment_one (idx : Q → ℕ) (sample : ProbComp X) (f
 
 /-! ### The unrevealed winning condition -/
 
-/-- The law of the forgery experiment, as an event of the logged run. -/
-private theorem eval_forgeExperiment_eq {PK SK M Sig : Type} [Inhabited Sig]
-    (keyGen : ProbComp (PK × SK)) (signer : Signer SK M Sig)
-    (verify : PK → SK → M → Sig → Bool) (fresh : M → Sig → List (M × Sig) → Bool)
-    (A : PK → ProbOracleComp (fun _ : M => Sig) (M × Sig)) :
-    ProbComp.eval (forgeExperiment keyGen signer verify fresh A) =
-      (ProbComp.eval keyGen).bind fun ks =>
-        (ProbComp.eval ((A ks.1).runLogWith (signer ks.2))).map fun z =>
-          verify ks.1 ks.2 z.1.1 z.1.2 && fresh z.1.1 z.1.2 z.2 := by
-  change ProbComp.eval (keyGen >>= fun ks => (A ks.1).runLogWith (signer ks.2) >>= fun z =>
-    pure (verify ks.1 ks.2 z.1.1 z.1.2 && fresh z.1.1 z.1.2 z.2)) = _
-  simp only [ProbComp.eval_bind, ProbComp.eval_pure]
-  rfl
-
 /-- The chain-consistent condition is the stronger one. -/
 theorem succProbability_repeatedIterateExperiment_le_unrevealed (idx : Q → ℕ)
     (sample : ProbComp X) (f : X → X) (n d : ℕ)
@@ -223,9 +209,10 @@ theorem succProbability_repeatedIterateUnrevealedExperiment_of_injective (idx : 
     simp only [chainKeyGen, ProbComp.eval_bind, ProbComp.eval_pure, PMF.mem_support_bind_iff,
       PMF.mem_support_pure_iff] at hks
     obtain ⟨xs, -, rfl⟩ := hks
+    dsimp only
     rw [← PMF.bind_pure_comp, ← PMF.bind_pure_comp]
-    refine PMF.bind_congr_on_support _ _ _ fun z hz => ?_
-    have hlog : ∀ r ∈ z.2, r.2 = chainSlot f d xs (idx r.1) :=
+    refine PMF.bind_congr_on_support _ _ _ fun ⟨⟨q, x⟩, log⟩ hz => ?_
+    have hlog : ∀ r ∈ log, r.2 = chainSlot f d xs (idx r.1) :=
       ProbOracleComp.forall_mem_runLogWith (P := fun p => p.2 = chainSlot f d xs (idx p.1))
         (fun log q program hprog r hr => by
           simp only [chainSigner, Signer.ofSign_apply, Option.some.injEq] at hprog
@@ -233,7 +220,7 @@ theorem succProbability_repeatedIterateUnrevealedExperiment_of_injective (idx : 
           simpa using hr) _ hz
     simp only [Function.comp_apply]
     congr 1
-    rcases Bool.eq_false_or_eq_true (chainVerify f d (xs.map f^[d]) (idx z.1.1) z.1.2) with hv | hv
+    rcases Bool.eq_false_or_eq_true (chainVerify f d (xs.map f^[d]) (idx q) x) with hv | hv
     · rw [hv, Bool.true_and, Bool.true_and]
       exact chainUnrevealed_eq_chainConsistent hf hd hlog hv
     · rw [hv, Bool.false_and, Bool.false_and]

@@ -571,7 +571,8 @@ class LocalManualGateTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(prefix="cslib-frontier-manual-gates-")
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        for source in ("scripts/check.sh", "scripts/check_operator_manual.py", "manual/data/visuals.py"):
+        for source in ("scripts/check.sh", "scripts/check_operator_manual.py", "manual/data/build_latex.py",
+                       "manual/data/visuals.py"):
             self.write(source, (REPO / source).read_text())
         self.write("manual/README.md", "# Manual\n\n[Drivers](AGENT_OPERATORS.md)\n"
                    "[Example](workflows/example.md)\n")
