@@ -36,7 +36,9 @@ gates whose state grows by one label per gate. The semantics `ev` is that of val
 certificate `evalCirc_polyTime` is in `CslibFrontier.Crypto.Primitives.Garbling.Efficient`. The
 certificates for the keyed function on words, tweaks, keys, permutation bits and labels are stated
 compositionally for reuse, and so is that for the decoding information (`decInfoWord_polyTime`).
-The certificates for `En` and `De` (`encodeWord_polyTime`, `decodeWord_polyTime`) are public too:
+`En` is the projective encoding `projectiveEncode` of
+`CslibFrontier.Crypto.Primitives.Garbling.Projective`, certified there
+(`projectiveEncode_polyTime`). The certificate for `De` (`decodeWord_polyTime`) is public too:
 half-gates garbling has the same `En` and `De`.
 
 The body of a garbled function is written from gate data by `bodyWith`, which takes the rows as a
@@ -128,11 +130,6 @@ theorem decodeWord_polyTime :
     ComputableInPolyTime (fun (d, Y) => decodeWord d Y) (encPair encBits encBits)
       (encOption encBits) := by
   polytime [decodeWord]
-
-/-- `En` runs in polynomial time. -/
-theorem encodeWord_polyTime :
-    ComputableInPolyTime (fun (e, x) => encodeWord e x) (encPair encBits encBits) encBits := by
-  polytime [encodeWord, BitString.listRow]
 
 include hf in
 private theorem evalGate_step :
@@ -498,7 +495,7 @@ theorem scheme_isEfficient : (scheme family).IsEfficient encValidCircuit where
   outLen := circuitData_polyTime.snd'.fst'
   coins := coins_polyTime
   gb := gb_polyTime hf
-  encode := encodeWord_polyTime
+  encode := projectiveEncode_polyTime
   evalGarbled := evalWord_polyTime hf
   decode := decodeWord_polyTime
   ev := evalCirc_polyTime

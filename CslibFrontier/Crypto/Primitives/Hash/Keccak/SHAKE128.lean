@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Crypto.Primitives.Hash.Keccak
+public import CslibFrontier.Crypto.Primitives.Hash.Keccak.Efficient
 
 /-!
 # SHAKE128
@@ -17,8 +17,9 @@ This module supplies byte-aligned SHAKE128 on the checked Keccak-p[1600, 24] per
 Bytes use the same least-significant-bit-first convention as `shake256`; the only sponge-level
 difference is the rate/capacity split.
 
-This is an executable specification. It is not a constant-time implementation, an efficiency or
-security certificate, or a claim of FIPS validation.
+This is an executable specification with a uniform multitape-Turing-machine polynomial-time
+certificate. It is not a constant-time implementation, a concrete retained-machine cost bound,
+a security certificate, or a claim of FIPS validation.
 
 ## Main definitions
 
@@ -32,6 +33,8 @@ security certificate, or a claim of FIPS validation.
   views is exact.
 * `Cslib.Crypto.Keccak.length_shake128`: SHAKE128 returns the requested byte count.
 * `Cslib.Crypto.Keccak.take_shake128`: longer requests preserve the preceding XOF bytes.
+* `Cslib.Crypto.Keccak.computableInPolyTime_shake128`: uniform polynomial time when the requested
+  output length is unary.
 
 ## References
 
@@ -138,7 +141,15 @@ theorem take_shake128 (input : List (Fin 256)) {m n : ℕ} (h : m ≤ n) :
     (shake128 input n).take m = shake128 input m := by
   simpa [shake128] using take_byteXof shake128Layout input h
 
-/-- Requesting no SHAKE128 bytes returns the empty output. -/
-@[simp] theorem shake128_zero_output (input : List (Fin 256)) : shake128 input 0 = [] := rfl
+/-- SHAKE128 is uniformly polynomial-time when the requested number of output bytes is unary. -/
+@[fun_prop] theorem computableInPolyTime_shake128 :
+    Turing.MultiTapeTM.ComputableInPolyTime
+      (fun p : List (Fin 256) × ℕ => shake128 p.1 p.2)
+      encByteXofInput encByteStringLE := by
+  change Turing.MultiTapeTM.ComputableInPolyTime
+    (fun p : List (Fin 256) × ℕ => byteXof shake128Layout p.1 p.2)
+    encByteXofInput encByteStringLE
+  simpa only [byteXof] using
+    computableInPolyTime_byteSponge shake128Layout [true, true, true, true]
 
 end Cslib.Crypto.Keccak

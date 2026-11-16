@@ -251,7 +251,7 @@ private theorem runWith_tracked_map_fst (f : X → T) (O : M → T) {α : Type}
   rw [ProbOracleComp.runWith_lift] at h
   have h' := congrArg (PMF.map Prod.fst) h
   rw [PMF.map_comp, PMF.map_comp] at h'
-  exact h'.trans (PMF.map_id _)
+  exact h'.trans ((PMF.map_id _).trans (OracleComp.evalWith_eq_interpret _ _))
 
 /-- The recorded keys of a run number at most the `O`-queries of the program. -/
 private theorem card_le_of_mem_support_runWith_tracked (f : X → T) (O : M → T) {α : Type}
@@ -259,6 +259,7 @@ private theorem card_le_of_mem_support_runWith_tracked (f : X → T) (O : M → 
     (hQ : OracleComp.IsCostBounded (Sum.elim (fun _ => 0) (Sum.elim (fun _ => 0) (fun _ => 1))) A Q)
     {z : α × Finset Key} (hz : z ∈ (ProbOracleComp.runWith (tracked encode f O) A ∅).support) :
     z.2.card ≤ Q := by
+  rw [ProbOracleComp.runWith_eq_run_interpret] at hz
   have h := OracleComp.IsCostBounded.measure_le hQ
     (OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifOracle n)) (tracked encode f O))
     Finset.card (fun q S res S' hres => ?_) (s := ∅) (s' := z.2) (result := z.1) hz

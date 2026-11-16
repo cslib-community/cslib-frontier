@@ -17,8 +17,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.P
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
-import Mathlib.Data.Fintype.Lattice
-import Mathlib.Tactic.Ring
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
 
 /-!
 # Tidy computability with polynomial bounds of a given degree
@@ -92,9 +91,9 @@ public theorem computableTidilyInPolyTime {f : α → β}
   let ⟨⟨_, _, ht, hs, hf⟩, _⟩ := h
   ⟨_, _, ht.polyBounded, hs.polyBounded, hf⟩
 
-public theorem of_linear {f : α → β} (h : ComputableTidilyInLinearTimeAndSpace f encIn encMid) :
+public theorem of_linear {f : α → β} {e : ℕ} (h : ComputableInDegree f encIn encMid 1 e) :
     ComputableTidilyInDegree f encIn encMid 1 1 :=
-  let ⟨c, hc⟩ := h
+  let ⟨c, hc⟩ := Internal.NormalForm.linear h
   of_bounds ⟨c, fun _ => by simp⟩ ⟨c, fun _ => by simp⟩ hc
 
 public theorem comp {f : β → γ} {g : α → β} (hf : ComputableTidilyInDegree f encMid encOut d₂ e₂)
@@ -229,41 +228,36 @@ public theorem snd' {α β₁ β₂ : Type u} {encIn : α ↪ List Bool}
   ((snd enc₁ enc₂).comp h).mono
 
 /-- Functions on finite types, in linear time and zero space, with output of constant length. -/
-public theorem of_finite [Finite α] (f : α → β) : ComputableTidilyInDegree f encIn encMid 1 0 := by
-  obtain ⟨c, h⟩ := computableInTimeAndSpace_of_finite (encIn := encIn) (encOut := encMid) f
-  refine ⟨(of_linear ⟨2 * c + 2, h.computableTidilyInTimeAndSpace.mono
-    (fun _ => Nat.le_mul_of_pos_right _ (Nat.succ_pos _)) (fun _ => Nat.zero_le _)⟩).1, ?_⟩
-  rcases isEmpty_or_nonempty α with hα | hα
-  · exact ⟨0, fun a => isEmptyElim a⟩
-  · obtain ⟨a₀, ha₀⟩ := Finite.exists_max fun a => (encMid (f a)).length
-    exact ⟨_, fun a => by simpa using ha₀ a⟩
+public theorem of_finite [Finite α] (f : α → β) : ComputableTidilyInDegree f encIn encMid 1 0 :=
+  let h := ComputableInDegree.of_finite (encIn := encIn) (encMid := encMid) f
+  ⟨(of_linear h).1, h.2⟩
 
 variable {enc₁ : β ↪ List Bool}
 
 /-- `Option.some`. -/
 public theorem optionSome {enc : Option β ↪ List Bool} [OptionEncoding enc₁ enc] :
     ComputableTidilyInDegree some enc₁ enc 1 1 :=
-  of_linear (Internal.NormalForm.linear OptionEncoding.some)
+  of_linear OptionEncoding.some
 
 /-- `Option.getD`. -/
 public theorem getD {enc : Option β ↪ List Bool} [OptionEncoding enc₁ enc] (d : β) :
     ComputableTidilyInDegree (fun o => o.getD d) enc enc₁ 1 1 :=
-  of_linear (Internal.NormalForm.linear (OptionEncoding.getD d))
+  of_linear (OptionEncoding.getD d)
 
 /-- `List.headD`. -/
 public theorem headD {enc : List β ↪ List Bool} [ListEncoding enc₁ enc] (d : β) :
     ComputableTidilyInDegree (fun l => l.headD d) enc enc₁ 1 1 :=
-  of_linear (Internal.NormalForm.linear (ListEncoding.headD d))
+  of_linear (ListEncoding.headD d)
 
 /-- `List.tail`. -/
 public theorem tail {enc : List β ↪ List Bool} [ListEncoding enc₁ enc] :
     ComputableTidilyInDegree List.tail enc enc 1 1 :=
-  of_linear (Internal.NormalForm.linear (ListEncoding.tail (enc₁ := enc₁)))
+  of_linear (ListEncoding.tail (enc₁ := enc₁))
 
 /-- `List.isEmpty`. -/
 public theorem isEmpty {enc : List β ↪ List Bool} [ListEncoding enc₁ enc] :
     ComputableTidilyInDegree List.isEmpty enc encBool 1 1 :=
-  of_linear (Internal.NormalForm.linear (ListEncoding.isEmpty (enc₁ := enc₁)))
+  of_linear (ListEncoding.isEmpty (enc₁ := enc₁))
 
 end ComputableTidilyInDegree
 

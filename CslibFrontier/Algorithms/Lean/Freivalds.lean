@@ -247,7 +247,8 @@ theorem eval_verify (e : S → R) (k : ℕ) (A : Matrix (Fin l) (Fin m) R)
     (B : Matrix (Fin m) (Fin n) R) (C : Matrix (Fin l) (Fin n) R) :
     ProbComp.eval (verify e k A B C) = (PMF.uniformOfFintype (Fin k → Fin n → S)).map
       fun xs => decide (∀ t, (A * B) *ᵥ (e ∘ xs t) = C *ᵥ (e ∘ xs t)) := by
-  simp only [verify, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure, ret_checkAllM]
+  rw [verify, ProbComp.eval_bind, ProbComp.eval_uniform]
+  simp only [ProbComp.eval_pure, ret_checkAllM]
   rfl
 
 /-- Perfect completeness: a correct product is always accepted. -/

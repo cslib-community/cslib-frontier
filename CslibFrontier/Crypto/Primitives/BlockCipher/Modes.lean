@@ -62,7 +62,7 @@ standard self-synchronizing feedback mode (not covered in [KatzLindell2020]).
   counters) has zero distinguishing advantage, from the bit-string uniformity lemma
   `BitString.map_xorEvalPoints_uniformOfFintype`.
 * `toOuterMeasure_badChain_le`: lazy-sampling chain collision bound
-  `bs.length * (ks.length + bs.length) / 2 ^ n`, built from the per-step bound
+  `(bs.length * ks.length + bs.length.choose 2) / 2 ^ n`, built from the per-step bound
   `BitString.toOuterMeasure_addRight_mem_list_le`, used as a proof ingredient when analyzing
   random-IV chaining ([KatzLindell2020], Section 3.6.3).
 * `ofbEncryptBlocks_zipWith_add_same_iv`, `ctrEncryptBlocks_zipWith_add_same_iv`,
@@ -421,20 +421,22 @@ theorem map_iv_uniformBlocks_zipWith (ms : List (BitString n)) :
   the `bs.length` step outputs are drawn independently and uniformly from `BitString n`, the outer
   measure of the bad event `¬goodChain ks iv bs draws` (some step input `cᵢ₋₁ + bᵢ` collides with
   `ks` or an earlier step input in the same chain) is at most
-  `bs.length * (ks.length + bs.length) / 2 ^ n`. This bounds the bad-event probability in lazy
-  random-function sampling in the style of [KatzLindell2020], Section 3.6.3. -/
+  `(bs.length * ks.length + bs.length.choose 2) / 2 ^ n`: the `j`-th step input meets one of the
+  `ks.length + j` earlier inputs with probability at most `(ks.length + j) / 2 ^ n`. This bounds
+  the bad-event probability in lazy random-function sampling in the style of [KatzLindell2020],
+  Section 3.6.3. -/
 theorem toOuterMeasure_badChain_le :
     ∀ (bs : List (BitString n)) (ks : List (BitString n)),
       ((PMF.uniformOfFintype (BitString n)).bind fun iv =>
         (uniformBlocks (n := n) bs.length).map (iv, ·)).toOuterMeasure
         {p : BitString n × List (BitString n) | ¬goodChain ks p.1 bs p.2} ≤
-      ((bs.length * (ks.length + bs.length) : ℕ) : ℝ≥0∞) * ((2 : ℝ≥0∞) ^ n)⁻¹
+      ((bs.length * ks.length + bs.length.choose 2 : ℕ) : ℝ≥0∞) * ((2 : ℝ≥0∞) ^ n)⁻¹
   | [], ks => by simp [goodChain]
   | b :: bs, ks => by
     classical
     rw [List.length_cons]
     set C : ℝ≥0∞ :=
-      ((bs.length * (ks.length + 1 + bs.length) : ℕ) : ℝ≥0∞) * ((2 : ℝ≥0∞) ^ n)⁻¹
+      ((bs.length * (ks.length + 1) + bs.length.choose 2 : ℕ) : ℝ≥0∞) * ((2 : ℝ≥0∞) ^ n)⁻¹
     set S0 : Set (BitString n) := {iv | iv + b ∈ ks}
     refine le_trans (Probability.PMF.toOuterMeasure_bind_failure_le _ _ S0ᶜ _ C
       fun iv _ hiv => ?_) ?_
@@ -455,16 +457,18 @@ theorem toOuterMeasure_badChain_le :
         simp only [Set.mem_preimage, Function.comp_apply, Set.mem_ofPred_eq,
           goodChain, hnotMem, not_false_eq_true, true_and] at hus ⊢
         exact hus
-      exact hle.trans (by simpa [C, add_assoc, add_comm 1] using hih)
+      exact hle.trans (by simpa [C] using hih)
     · rw [compl_compl]
       calc (PMF.uniformOfFintype (BitString n)).toOuterMeasure S0 + C
           ≤ (ks.length : ℝ≥0∞) * ((2 : ℝ≥0∞) ^ n)⁻¹ + C :=
             add_le_add (BitString.toOuterMeasure_addRight_mem_list_le ks b) le_rfl
-        _ ≤ ((bs.length + 1) * (ks.length + (bs.length + 1)) : ℕ) * ((2 : ℝ≥0∞) ^ n)⁻¹ := by
+        _ = ((bs.length + 1) * ks.length + (bs.length + 1).choose 2 : ℕ) *
+              ((2 : ℝ≥0∞) ^ n)⁻¹ := by
+            rw [Nat.choose_succ_succ' bs.length 1, Nat.choose_one_right]
             simp only [C, ← add_mul]
-            gcongr
-            norm_cast
-            nlinarith
+            congr 1
+            push_cast
+            ring
 /-! ### IV-reuse, predictable-IV, and elementary encryption-mode counterexamples -/
 private theorem zipWith_add_zipWith_add_same :
     ∀ (ks ms₀ ms₁ : List (BitString n)),

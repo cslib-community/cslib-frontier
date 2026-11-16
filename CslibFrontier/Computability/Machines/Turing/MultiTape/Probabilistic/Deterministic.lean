@@ -107,6 +107,7 @@ theorem eval_runClosed_ofDeterministic (machine : MultiTapeTM k Symbol State)
   rw [PMF.monad_map_eq_map, PMF.map_comp, PMF.pure_map] at hout
   change PMF.map id _ = _ at hout
   rw [PMF.map_id] at hout
+  rw [← OracleComp.evalWith_eq_interpret] at hout
   exact hout
 
 end Turing.MultiTapePTM
