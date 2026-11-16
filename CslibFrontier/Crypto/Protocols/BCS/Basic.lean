@@ -1120,8 +1120,8 @@ theorem isPPT_bcsTableCollisionFinder {encStmt : Stmt ↪ List Bool} {encSym : S
   have hstmt := encBCSTableCommitOutput_stmt_polyTime r d Stmt Sym encStmt encSym hsnd
   have horacles := encBCSTableCommitOutput_oracles_polyTime r d Stmt Sym encStmt encSym hsnd
   have hprf := encBCSTableCommitOutput_proof_polyTime r d Stmt Sym encStmt encSym hsnd
-  have hpost := (computableInPolyTime_bcsExtractTableCollision hH hlen hqueries hhFS
-    hk hstmt horacles hprf).tidy
+  have hpost := computableInPolyTime_bcsExtractTableCollision hH hlen hqueries hhFS
+    hk hstmt horacles hprf
   change IsPPTOn (encPair encUnary encBits) (encPair encBits encBits)
     (fun p => bcsTableCollisionFinder iop H encSym hFS adversary p.1 p.2)
   exact hadversary.bind_with hpost.isPPTOn
