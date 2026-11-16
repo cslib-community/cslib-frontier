@@ -43,7 +43,7 @@ A scheme instantiates it by supplying its transformation and the reply that worl
   under every honest public key, and on every honest key pair and challenge ciphertext of world
   `bit` the transformation changes the ciphertext and its decryption encodes to `target` exactly
   when `bit = true`, then world `bit` outputs `bit` with probability `1`. The decryption need not
-  change, as in `Encryption.advantage_cca2GameOn_sloppy`.
+  change, as in `Encryption.advantage_cca2GameOn_sloppyAdversary`.
 * `Cslib.Crypto.Encryption.not_indcca2On_of_maulAdversary`: under these conditions at every
   parameter, the scheme fails `INDCCA2On`.
 

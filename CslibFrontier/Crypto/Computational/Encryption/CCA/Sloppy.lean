@@ -22,10 +22,11 @@ algorithm ignores this bit." The exercise asks to show that `E′` is not CCA se
 adversary of advantage `1` in the 1CCA attack game, even when `E` is CCA secure.
 
 `sloppyEncrypt encrypt` appends `false` to every ciphertext and `sloppyDecrypt decrypt` decrypts a
-ciphertext without its last bit (on ciphertexts of length `ℓ + 1`, this is `c[0 .. ℓ - 1]`). The
-adversary is `Encryption.maulAdversary` with transformation `ct ↦ ct.dropLast ++ [true]`: it flips
-the appended bit of the challenge, which yields a different ciphertext with the same decryption, so
-the Phase 2 oracle must answer it and reveals the challenge plaintext. The theorems assume that
+ciphertext without its last bit (on ciphertexts of length `ℓ + 1`, this is `c[0 .. ℓ - 1]`); the
+result is again correct. The adversary `sloppyAdversary` is `Encryption.maulAdversary` with
+transformation `ct ↦ ct.dropLast ++ [true]`: it flips the appended bit of the challenge, which
+yields a different ciphertext with the same decryption, so the Phase 2 oracle must answer it and
+reveals the challenge plaintext. The theorems assume that
 `(keyGen n, encrypt n, decrypt n)` is correct (`PKE.Correct`) and that the two challenge messages
 are distinct and admissible under every honest public key; security of the original scheme is not
 used.
@@ -37,12 +38,19 @@ queries equivalent to the challenge under a scheme-specific relation, is not for
 
 * `Cslib.Crypto.Encryption.sloppyEncrypt`, `Cslib.Crypto.Encryption.sloppyDecrypt`: the scheme
   `E′` of Exercise 12.2.
+* `Cslib.Crypto.Encryption.sloppyAdversary`: `maulAdversary` flipping the appended bit.
 
 ## Main results
 
-* `Cslib.Crypto.Encryption.advantage_cca2GameOn_sloppy`: the bit-flipping `maulAdversary` has
-  1CCA advantage exactly `1` against `E′` at every parameter where `E` is correct and the two
-  challenge messages are distinct and admissible.
+* `Cslib.Crypto.Encryption.eval_sloppyEncrypt`,
+  `Cslib.Crypto.Encryption.sloppyDecrypt_append_singleton`: the law of `E′`'s ciphertexts, and
+  decryption ignoring the last bit.
+* `Cslib.Crypto.Encryption.sloppy_correct`: `E′` is correct when `E` is.
+* `Cslib.Crypto.Encryption.isPPT_sloppyAdversary`: the adversary is strict oracle PPT when its
+  challenge messages are polynomial-time.
+* `Cslib.Crypto.Encryption.advantage_cca2GameOn_sloppyAdversary`: the adversary has 1CCA advantage
+  exactly `1` against `E′` at every parameter where `E` is correct and the two challenge messages
+  are distinct and admissible.
 * `Cslib.Crypto.Encryption.not_indcca2On_sloppy`: if this holds at every parameter and the
   challenge messages are polynomial-time, `E′` fails `INDCCA2On`.
 
@@ -66,9 +74,42 @@ def sloppyEncrypt {Msg : Type} (encrypt : ℕ → List Bool → Msg → ProbComp
 
 /-- **Sloppy decryption** ([BonehShoup2023], Exercise 12.2, p. 512): decrypt with `decrypt`
 after dropping the last ciphertext bit, whatever it is. -/
-@[expose] def sloppyDecrypt {Out : Type} (decrypt : ℕ → List Bool → List Bool → Option Out) :
+def sloppyDecrypt {Out : Type} (decrypt : ℕ → List Bool → List Bool → Option Out) :
     ℕ → List Bool → List Bool → Option Out :=
   fun n sk ct => decrypt n sk ct.dropLast
+
+/-- The law of a sloppy ciphertext: an encryption under `encrypt` followed by the bit `false`. -/
+@[simp] theorem eval_sloppyEncrypt {Msg : Type}
+    (encrypt : ℕ → List Bool → Msg → ProbComp (List Bool)) (n : ℕ) (pk : List Bool) (m : Msg) :
+    ProbComp.eval (sloppyEncrypt encrypt n pk m) =
+      PMF.map (· ++ [false]) (ProbComp.eval (encrypt n pk m)) := by
+  simp only [sloppyEncrypt, ProbComp.eval_map]
+
+/-- Sloppy decryption ignores the last bit. -/
+@[simp] theorem sloppyDecrypt_append_singleton {Out : Type}
+    (decrypt : ℕ → List Bool → List Bool → Option Out) (n : ℕ) (sk c : List Bool) (b : Bool) :
+    sloppyDecrypt decrypt n sk (c ++ [b]) = decrypt n sk c := by
+  simp only [sloppyDecrypt, List.dropLast_concat]
+
+/-- **The sloppy scheme is correct** when the original scheme is: decryption drops the appended
+bit and decrypts the original ciphertext. -/
+theorem sloppy_correct {Msg : Type} {keyGen : ProbComp (List Bool × List Bool)}
+    {encrypt : ℕ → List Bool → Msg → ProbComp (List Bool)}
+    {decrypt : ℕ → List Bool → List Bool → Option Msg} {n : ℕ}
+    (hcorrect : (PKE.mk keyGen (encrypt n) (decrypt n)).Correct) :
+    (PKE.mk keyGen (sloppyEncrypt encrypt n) (sloppyDecrypt decrypt n)).Correct := by
+  intro keys hkeys m ct hct
+  simp only [eval_sloppyEncrypt, PMF.support_map, Set.mem_image] at hct
+  obtain ⟨c, hc, rfl⟩ := hct
+  simpa only [sloppyDecrypt_append_singleton] using hcorrect keys hkeys m c hc
+
+/-- **The sloppy-CCA adversary** ([BonehShoup2023], Exercise 12.2, p. 512): `maulAdversary` with
+challenge messages `msg₀ msg₁`, transformation `ct ↦ ct.dropLast ++ [true]`, which flips the
+appended bit of a sloppy ciphertext, and target the encoding of `some (msg₁ n pk)`. -/
+def sloppyAdversary {Msg : Type} (encMsg : Msg ↪ List Bool) (msg₀ msg₁ : ℕ → List Bool → Msg) :
+    CCA2AdversaryOf Msg :=
+  maulAdversary msg₀ msg₁ (fun _ _ ct => ct.dropLast ++ [true])
+    (fun n pk => encOption encMsg (some (msg₁ n pk)))
 
 /-- Replacing the last bit of the ciphertext by `true` is computable in polynomial time. -/
 private theorem computableInPolyTime_setLastTrue :
@@ -79,6 +120,15 @@ private theorem computableInPolyTime_setLastTrue :
       encGuessInput encBits := by
     fun_prop
   simpa only [List.tail_reverse, List.reverse_cons, List.reverse_reverse] using h
+
+/-- `sloppyAdversary` is strict oracle PPT when its challenge messages are computable in
+polynomial time. -/
+theorem isPPT_sloppyAdversary {Msg : Type} {encMsg : Msg ↪ List Bool}
+    {msg₀ msg₁ : ℕ → List Bool → Msg}
+    (hmsg₀ : ComputableInPolyTime (fun ⟨n, pk⟩ => msg₀ n pk) (encPair encUnary encBits) encMsg)
+    (hmsg₁ : ComputableInPolyTime (fun ⟨n, pk⟩ => msg₁ n pk) (encPair encUnary encBits) encMsg) :
+    (sloppyAdversary encMsg msg₀ msg₁).IsPPT encMsg :=
+  isPPT_maulAdversary hmsg₀ hmsg₁ computableInPolyTime_setLastTrue (by fun_prop)
 
 /-- The malleability conditions of `eval_cca2GameOn_maulAdversary` for the sloppy scheme: on every
 honest key pair and challenge ciphertext of world `bit`, replacing the last bit by `true` changes
@@ -97,23 +147,24 @@ private theorem sloppy_conditions {Msg : Type} {encMsg : Msg ↪ List Bool}
     ct.dropLast ++ [true] ≠ ct ∧
       (encOption encMsg (sloppyDecrypt decrypt n keys.2 (ct.dropLast ++ [true])) =
         encOption encMsg (some (msg₁ n keys.1)) ↔ bit = true) := by
-  simp only [sloppyEncrypt, ProbComp.eval_map, PMF.support_map, Set.mem_image] at hct
+  simp only [eval_sloppyEncrypt, PMF.support_map, Set.mem_image] at hct
   obtain ⟨c, hc, rfl⟩ := hct
   have hdec := hcorrect keys hkeys _ c hc
   dsimp only at hdec
   refine ⟨by simp, ?_⟩
-  simp only [sloppyDecrypt, List.dropLast_concat, hdec, EmbeddingLike.apply_eq_iff_eq,
-    Option.some.injEq]
+  simp only [List.dropLast_concat, sloppyDecrypt_append_singleton, hdec,
+    EmbeddingLike.apply_eq_iff_eq, Option.some.injEq]
   cases bit
   · simpa using hne keys hkeys
   · simp
 
 /-- **The sloppy scheme loses the 1CCA game with certainty** ([BonehShoup2023], Exercise 12.2,
 p. 512). If `(keyGen n, encrypt n, decrypt n)` is correct and the messages `msg₀ n pk ≠ msg₁ n pk`
-are admissible under every honest public key `pk`, then `maulAdversary` with transformation
-`ct ↦ ct.dropLast ++ [true]` and target `some (msg₁ n pk)` has 1CCA advantage exactly `1` against
-`(keyGen, sloppyEncrypt encrypt, sloppyDecrypt decrypt)` at `n`. -/
-theorem advantage_cca2GameOn_sloppy {Msg : Type} {valid : ℕ → List Bool → Msg → Msg → Bool}
+are admissible under every honest public key `pk`, then `sloppyAdversary encMsg msg₀ msg₁` has
+1CCA advantage exactly `1` against `(keyGen, sloppyEncrypt encrypt, sloppyDecrypt decrypt)` at
+`n`. -/
+theorem advantage_cca2GameOn_sloppyAdversary {Msg : Type}
+    {valid : ℕ → List Bool → Msg → Msg → Bool}
     {encMsg : Msg ↪ List Bool} {keyGen : ℕ → ProbComp (List Bool × List Bool)}
     {encrypt : ℕ → List Bool → Msg → ProbComp (List Bool)}
     {decrypt : ℕ → List Bool → List Bool → Option Msg}
@@ -124,11 +175,9 @@ theorem advantage_cca2GameOn_sloppy {Msg : Type} {valid : ℕ → List Bool → 
     (hne : ∀ keys ∈ (ProbComp.eval (keyGen n)).support, msg₀ n keys.1 ≠ msg₁ n keys.1) :
     Game.advantage
       (ProbComp.eval (cca2GameOn valid encMsg keyGen (sloppyEncrypt encrypt)
-        (sloppyDecrypt decrypt) (maulAdversary msg₀ msg₁ (fun _ _ ct => ct.dropLast ++ [true])
-          (fun n pk => encOption encMsg (some (msg₁ n pk)))) false n))
+        (sloppyDecrypt decrypt) (sloppyAdversary encMsg msg₀ msg₁) false n))
       (ProbComp.eval (cca2GameOn valid encMsg keyGen (sloppyEncrypt encrypt)
-        (sloppyDecrypt decrypt) (maulAdversary msg₀ msg₁ (fun _ _ ct => ct.dropLast ++ [true])
-          (fun n pk => encOption encMsg (some (msg₁ n pk)))) true n)) = 1 :=
+        (sloppyDecrypt decrypt) (sloppyAdversary encMsg msg₀ msg₁) true n)) = 1 :=
   advantage_cca2GameOn_maulAdversary hvalid fun bit _ hkeys _ hct =>
     sloppy_conditions hcorrect hne bit hkeys hct
 
@@ -136,7 +185,7 @@ theorem advantage_cca2GameOn_sloppy {Msg : Type} {valid : ℕ → List Bool → 
 challenge messages `msg₀ msg₁` are computable in polynomial time and, at every parameter, the
 scheme `(keyGen n, encrypt n, decrypt n)` is correct and `msg₀ n pk ≠ msg₁ n pk` are admissible
 under every honest public key `pk`, then `(keyGen, sloppyEncrypt encrypt, sloppyDecrypt decrypt)`
-fails `INDCCA2On valid encMsg encMsg`. -/
+fails `INDCCA2On valid encMsg encMsg`, by `sloppyAdversary`. -/
 theorem not_indcca2On_sloppy {Msg : Type} {valid : ℕ → List Bool → Msg → Msg → Bool}
     {encMsg : Msg ↪ List Bool} {keyGen : ℕ → ProbComp (List Bool × List Bool)}
     {encrypt : ℕ → List Bool → Msg → ProbComp (List Bool)}
