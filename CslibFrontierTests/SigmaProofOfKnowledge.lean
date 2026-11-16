@@ -40,12 +40,12 @@ def echoProver (I : Type) : MaliciousProver I where
 
 /-- The echoing prover is uniform strict PPT for any index encoding. -/
 theorem isPPT_echoProver {I : Type} (encI : I ↪ List Bool) : (echoProver I).IsPPT encI where
-  commit := (ComputableInPolyTime.tidy (by fun_prop :
+  commit := (by fun_prop :
     ComputableInPolyTime (fun p : I × List Bool => (p.2, p.2)) (encPair encI encBits)
-      (encPair encBits encBits))).isPPTOn
-  respond := (ComputableInPolyTime.tidy (by fun_prop :
+      (encPair encBits encBits)).isPPTOn
+  respond := (by fun_prop :
     ComputableInPolyTime (fun p : I × List Bool × List Bool => p.2.2)
-      (encPair encI (encPair encBits encBits)) encBits)).isPPTOn
+      (encPair encI (encPair encBits encBits)) encBits).isPPTOn
 
 /-- Schnorr's knowledge extractor for the echoing prover is uniform strict PPT. -/
 example (F : PrimeOrderGroupFamily) :

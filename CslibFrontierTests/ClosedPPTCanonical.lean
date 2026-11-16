@@ -67,7 +67,7 @@ example : selected [false, true] = pure ([false, true], false) := rfl
 
 example (word : List Bool) :
     ProbComp.eval (Prod.fst <$> retainedBit word) = PMF.pure word := by
-  simp [retainedBit, ProbComp.eval_map]
+  simp [retainedBit, ProbComp.eval_map, PMF.map_const]
 
 /-- The captured first bit selects sampling or preservation of the one-bit state. -/
 noncomputable def sampledStep (word : List Bool) (state : Bool) : ProbComp Bool :=
@@ -89,7 +89,11 @@ example : IsPPTOn encBits encBool sampledLoop ∧
     sampledStep_isPPTOn (fun word _ state => word.headD false = false → state = false)
     (fun _ _ => rfl) (by
       intro word _ state _ hstate next hnext hfalse
-      have hnext : next = state := by simpa [sampledStep, hfalse] using hnext
+      have hstep : sampledStep word state = pure state := by
+        unfold sampledStep
+        rw [hfalse]
+        rfl
+      have hnext : next = state := by simpa [hstep] using hnext
       subst next
       exact hstate hfalse)
     (size := fun _ => 1) (.const 1) (fun _ _ _ _ _ => by simp)
