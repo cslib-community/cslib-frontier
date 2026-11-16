@@ -10,10 +10,10 @@ import CslibFrontier.Crypto.Computational.CramerShoup
 import CslibFrontier.Crypto.Computational.Encryption.CCA.NonAdaptive
 
 /-! Clients of non-adaptive 1CCA security (`Encryption.INDCCA1On`) under module encapsulation: a
-caller hands an adversary with its certificate and zero Phase 2 budget to `INDCCA1On`; an
-adversary that decrypts in Phase 1 only meets the budget, one that decrypts after the challenge
-does not; the two implications compose to the existing `INDCCA2On.indcpaOn`; and keyed-hash
-Cramer–Shoup is non-adaptive 1CCA secure under the hypotheses of `DDH.indcca2On_cramerShoup`. -/
+caller hands an adversary with its certificate and zero Phase 2 budget to `INDCCA1On`; a first
+stage that decrypts does not break the budget condition, a guessing stage that decrypts does;
+the two implications compose to the existing `INDCCA2On.indcpaOn`; and keyed-hash Cramer–Shoup
+is non-adaptive 1CCA secure under the hypotheses of `DDH.indcca2On_cramerShoup`. -/
 
 open Cslib Cslib.Probability Cslib.Crypto Cslib.Crypto.Encryption Turing.MultiTapeTM
 open scoped NNReal
@@ -36,9 +36,9 @@ example (h : INDCCA1On valid encMsg encOut keyGen encrypt decrypt)
       (ProbComp.eval (cca2GameOn valid encOut keyGen encrypt decrypt adversary true n)) :=
   h adversary ⟨hA, hguess⟩
 
--- Decryption queries before the challenge are allowed: an adversary that decrypts `c` in Phase 1
--- and guesses without the oracle meets the zero Phase 2 budget, so the class is larger than the
--- lifts of chosen-plaintext adversaries.
+-- The budget condition constrains only the guessing stage: a first stage that asks for a
+-- decryption, followed by a guessing stage that never queries the oracle, meets it. (This shows the
+-- budget half of the class condition only; the `IsPPT` half is not checked here.)
 example (c : List Bool) (g : ℕ → List Bool → List Bool → ProbComp Bool) (n : ℕ)
     (state ct : List Bool) :
     (({ choose := fun _ _ => do
