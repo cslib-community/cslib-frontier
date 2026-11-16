@@ -2878,7 +2878,7 @@ variable [Fintype K] [Nonempty K] [Fintype G] [DecidableEq G]
 
 omit [Fintype K] [Nonempty K] [Fintype G] [DecidableEq G] in
 /-- The adapter's channel queries compute the four-round network in both directions. -/
-private theorem run_feistel4StrongChannelQuery (f : Fin 4 → G → G) (q : PermQuery (G × G)) :
+theorem run_feistel4StrongChannelQuery (f : Fin 4 → G → G) (q : PermQuery (G × G)) :
     (feistel4StrongChannelQuery q).run (fun request => pure (f request.1 request.2)) =
       pure (evalPerm (feistel4 (f 0) (f 1) (f 2) (f 3)) q) := by
   rcases q with ⟨l, r⟩ | ⟨w, z⟩
