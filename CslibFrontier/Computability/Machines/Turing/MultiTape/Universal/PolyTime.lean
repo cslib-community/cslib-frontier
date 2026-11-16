@@ -139,7 +139,7 @@ theorem computableInDegree_map_eBit :
 theorem computableTidilyInPolyTime_map_eBit :
     ComputableTidilyInPolyTime (fun w : List Bool => w.map eBit) encBits (encList encUnary) :=
   (computableInDegree_map_eBit.inO_one.tidy).computableTidilyInPolyTime
-    (by fun_prop) (by fun_prop)
+    PolyBounded.self PolyBounded.self
 
 /-- The coding of bits as symbols is a finite computation. -/
 @[fun_prop]
