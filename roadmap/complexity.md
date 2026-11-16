@@ -91,6 +91,7 @@ Containments, separations, closure properties, complete problems and reductions 
 
 - **Another Solution Problem (ASP) framework:** ASP reductions with certified polynomial-time forward and inverse witness maps, starting from the parsimonious reductions to positive exact-one SAT and its planar three-occurrence variants.
   Exact count preservation alone does not supply the ASP runtime certificates.
+- **Goldreich Exercise 6.36** ([#5940](https://github.com/cslib-community/cslib-frontier/issues/5940)): the determinant-parity unique-versus-none promise solver is certified on Boolean biadjacency tables (`Permanent/MatchingParity`). Part (b) still needs an encoded matching search relation, its count identity and its `FPSearch` certificate, reusing the certified `BipartitePerfectMatching.maximumMatching`; part (a) remains open.
 - **Counting reductions and hierarchies:** further counting reductions and oracle results; modular and counting hierarchies; the oracle-algorithm form of Stockmeyer's approximate counting.
 - **Exact counting by determinants** ([#3081](https://github.com/cslib-community/cslib-frontier/issues/3081)): Kasteleyn's Pfaffian method for counting perfect matchings of planar graphs in polynomial time, in contrast with permanent #P-completeness (polynomial-time counting for unweighted and weighted spanning trees, simple and multi-digraph arborescences, and BEST Eulerian circuits, along with root independence for balanced graphs, are formalized).
 - **Target-relativized counting classes:** `LWPP^A`, `WPP^A` and `SBP^A` with `FP^A` targets; adaptive WPP closure and UP-oracle containment.
@@ -172,6 +173,7 @@ Define logspace and DLOGTIME uniformity with explicit gate-address, direct-conne
 
 ### Approximation and PCP
 
+- **Gap quadratic systems without PCP** ([#5940](https://github.com/cslib-community/cslib-frontier/issues/5940), Goldreich Exercise 10.6): starting from `QUADEQ_npComplete`, construct polynomially many constant-bias masks of width equal to the number of equations in uniform polynomial time, certify the quadratic linear-combination map and prove its 1/3-violation guarantee. The powering/Kane–Williams existence theorem has no efficient evaluator certificate; `InitialTestsSearch` checks all `2^m` characters and searches `2^(d*m)` candidate tables, so its bounds do not supply this construction.
 - **Håstad's optimal MAX-E3SAT hardness** ([#886](https://github.com/cslib-community/cslib-frontier/issues/886)): for `0 < ε < 1/8`, NP-hardness of distinguishing satisfiable E3-CNF formulas from those where every assignment satisfies at most `7/8 + ε` of the clauses.
   The route: parallel repetition with small-soundness Label Cover, the long-code 3-bit test for MAX-E3LIN hardness (Theorem 5.4), the four-clause reduction (Theorem 6.1, imperfect completeness), and the test for satisfiable formulas (Theorem 6.5).
 - **MAX 2-SAT** ([#3481](https://github.com/cslib-community/cslib-frontier/issues/3481)): NP-completeness of the decision problem by the Garey–Johnson–Stockmeyer ten-clause gadget, APX-hardness with explicit inapproximability constants, and a reduction from MAX 2-SAT to unweighted MAX CUT.
