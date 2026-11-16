@@ -206,13 +206,15 @@ theorem append {f₁ : α → β₁} {f₂ : α → β₂} {g : α → β}
   obtain ⟨t₂, c₂, h₂⟩ := h₂
   obtain ⟨d₁, _, k₁, Q₁, hfin₁, tm₁, h₁⟩ := Internal.NormalForm.exactBounds h₁
   obtain ⟨d₂, _, k₂, Q₂, hfin₂, tm₂, h₂⟩ := Internal.NormalForm.exactBounds h₂
-  letI := hfin₁
-  letI := hfin₂
-  refine ⟨_, d₁ * (c₁ + 1) + d₂ * (c₂ + 1) + 2 * max k₁ k₂,
-    max k₁ k₂, Q₁ ⊕ Q₂, inferInstance, appendTM tm₁ tm₂, fun a => ?_⟩
-  have h := ((h₁ a).append (h₂ a)).computesInTimeAndSpace
-  rw [← hg a] at h
-  refine h.mono le_rfl ?_
+  let := hfin₁
+  let := hfin₂
+  refine ⟨(fun a => d₁ * (t₁ a + 1) + d₂ * (t₂ a + 1)),
+    d₁ * (c₁ + 1) + d₂ * (c₂ + 1) + 2 * max k₁ k₂,
+    max k₁ k₂, Q₁ ⊕ Q₂, inferInstance, appendTM tm₁ tm₂, ?_⟩
+  have h a := ((h₁ a).append (h₂ a)).computesInTimeAndSpace
+  simp only [← hg] at h
+  refine ComputesFunInTimeAndSpace.mono h (fun _ => le_rfl) ?_
+  intro a
   generalize Nat.log2 (encIn a).length = l
   nlinarith [Nat.zero_le l, Nat.zero_le (d₁ * c₁ * l), Nat.zero_le (d₂ * c₂ * l)]
 
