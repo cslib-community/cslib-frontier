@@ -465,27 +465,6 @@ theorem adaptiveEmulates_erasing_witness :
   rw [P_coin_erasing_eq_F_coin]
   exact AdaptiveEmulatesWithin.refl .adaptive (F_coin.toAdaptive coinReveal)
 
-private noncomputable def evalClosed {α : Type}
-    (p : ProbOracleComp OracleSpec.empty α) : PMF α :=
-  (Machine.closeProgram p).eval
-
-private theorem evalClosed_pure {α : Type} (a : α) :
-    evalClosed (pure a) = PMF.pure a := by
-  simp [evalClosed, Machine.closeProgram_pure, ProbComp.eval_pure]
-
-private theorem evalClosed_bind {α β : Type} (p : ProbOracleComp OracleSpec.empty α)
-    (f : α → ProbOracleComp OracleSpec.empty β) :
-    evalClosed (p >>= f) = (evalClosed p).bind fun a => evalClosed (f a) := by
-  simp [evalClosed, Machine.closeProgram_bind, ProbComp.eval_bind]
-
-private theorem evalClosed_map {α β : Type} (f : α → β) (p : ProbOracleComp OracleSpec.empty α) :
-    evalClosed (f <$> p) = (evalClosed p).map f := by
-  simp [evalClosed, Machine.closeProgram_map, ProbComp.eval_map]
-
-private theorem evalClosed_sample {α : Type} (p : ProbComp α) :
-    evalClosed (ProbOracleComp.sample p) = p.eval := by
-  simp [evalClosed, Machine.closeProgram_sample]
-
 private theorem tsum_pmf_bind_mul {α β : Type} (p : PMF α) (q : α → PMF β) (f : β → ENNReal) :
     ∑' y, (p.bind q) y * f y = ∑' a, p a * ∑' y, q a y * f y := by
   simp_rw [PMF.bind_apply, ← ENNReal.tsum_mul_right, mul_assoc]
@@ -497,22 +476,22 @@ private theorem coin_router_corrupt_mono {α : Type} (κ : ℕ)
       (AdaptiveNetR Bool Unit (Option Bool))) α)
     (rs : AdaptiveRouterState CoinState (Option Bool) 2)
     {x : α × AdaptiveRouterState CoinState (Option Bool) 2}
-    (hx : x ∈ (evalClosed ((adaptiveRouter .adaptive (F_coin.toAdaptive coinReveal) κ ∅).runFrom
+    (hx : x ∈ (closeEval ((adaptiveRouter .adaptive (F_coin.toAdaptive coinReveal) κ ∅).runFrom
       (liftAdaptiveNet netProg) rs)).support) :
     rs.corrupted ⊆ x.2.corrupted := by
   induction netProg using OracleComp.induction generalizing rs with
   | pure a =>
-    erw [liftAdaptiveNet_pure, Machine.runFrom_pure, evalClosed_pure,
+    erw [liftAdaptiveNet_pure, Machine.runFrom_pure, closeEval_pure,
       PMF.mem_support_pure_iff] at hx
     rcases hx with rfl
     exact Finset.Subset.rfl
   | query_bind q cont ih =>
     rcases q with k | q
     · have hstep :
-          evalClosed ((adaptiveRouter .adaptive (F_coin.toAdaptive coinReveal) κ ∅).runFrom
+          closeEval ((adaptiveRouter .adaptive (F_coin.toAdaptive coinReveal) κ ∅).runFrom
             (liftAdaptiveNet (OracleComp.query (Sum.inl k) >>= cont)) rs) =
           (ProbComp.unifFin k).eval.bind fun a =>
-            evalClosed ((adaptiveRouter .adaptive (F_coin.toAdaptive coinReveal) κ ∅).runFrom
+            closeEval ((adaptiveRouter .adaptive (F_coin.toAdaptive coinReveal) κ ∅).runFrom
               (liftAdaptiveNet (cont a)) rs) := by
         have hk : liftAdaptiveNet (n := 2) (In := CoinIn) (Out := Bool)
             (OracleComp.query (spec := probOracleSpec
@@ -522,49 +501,49 @@ private theorem coin_router_corrupt_mono {α : Type} (κ : ℕ)
           simp only [liftAdaptiveNet, OracleComp.interpret_query, sumHandler,
             ProbOracleComp.sample, ProbComp.unifFin]
         rw [liftAdaptiveNet_bind, hk]
-        erw [Machine.runFrom_bind, Machine.runFrom_sample, bind_map_left, evalClosed_bind,
-          evalClosed_sample]
+        erw [Machine.runFrom_bind, Machine.runFrom_sample, bind_map_left, closeEval_bind,
+          closeEval_sample]
       erw [hstep, PMF.mem_support_bind_iff] at hx
       rcases hx with ⟨a, _, hx'⟩
       exact ih a rs hx'
     · have hbind :
-          evalClosed ((adaptiveRouter .adaptive (F_coin.toAdaptive coinReveal) κ ∅).runFrom
+          closeEval ((adaptiveRouter .adaptive (F_coin.toAdaptive coinReveal) κ ∅).runFrom
             (liftAdaptiveNet (OracleComp.query (Sum.inr q) >>= cont)) rs) =
-          (evalClosed (((adaptiveRouter .adaptive (F_coin.toAdaptive coinReveal) κ ∅).handle
+          (closeEval (((adaptiveRouter .adaptive (F_coin.toAdaptive coinReveal) κ ∅).handle
             (.inr q)).run rs)).bind fun y =>
-            evalClosed ((adaptiveRouter .adaptive (F_coin.toAdaptive coinReveal) κ ∅).runFrom
+            closeEval ((adaptiveRouter .adaptive (F_coin.toAdaptive coinReveal) κ ∅).runFrom
               (liftAdaptiveNet (cont y.1)) y.2) := by
         erw [liftAdaptiveNet_bind, liftAdaptiveNet_query, Machine.runFrom_bind,
-          Machine.runFrom_query, evalClosed_bind]
+          Machine.runFrom_query, closeEval_bind]
       erw [hbind, PMF.mem_support_bind_iff] at hx
       rcases hx with ⟨y, hy, hx'⟩
       cases q with
       | party i u =>
         simp only [adaptiveRouter, StateT.run] at hy
         split_ifs at hy
-        · erw [evalClosed_bind, PMF.mem_support_bind_iff] at hy
+        · erw [closeEval_bind, PMF.mem_support_bind_iff] at hy
           rcases hy with ⟨⟨out, s'⟩, _, hy'⟩
-          erw [evalClosed_pure, PMF.mem_support_pure_iff] at hy'
+          erw [closeEval_pure, PMF.mem_support_pure_iff] at hy'
           rcases hy' with rfl
           dsimp only at hx'
           exact ih (.party out)
             ((F_coin.toAdaptive coinReveal).recordSnapshot κ s' rs.corrupted rs.trace) hx'
-        · erw [evalClosed_pure, PMF.mem_support_pure_iff] at hy
+        · erw [closeEval_pure, PMF.mem_support_pure_iff] at hy
           rcases hy with rfl
           dsimp only at hx'
           exact ih (.party none) rs hx'
       | net u =>
         simp only [adaptiveRouter, StateT.run] at hy
-        erw [evalClosed_bind, PMF.mem_support_bind_iff] at hy
+        erw [closeEval_bind, PMF.mem_support_bind_iff] at hy
         rcases hy with ⟨⟨r, s'⟩, _, hy'⟩
-        erw [evalClosed_pure, PMF.mem_support_pure_iff] at hy'
+        erw [closeEval_pure, PMF.mem_support_pure_iff] at hy'
         rcases hy' with rfl
         dsimp only at hx'
         exact ih (.net r)
           ((F_coin.toAdaptive coinReveal).recordSnapshot κ s' rs.corrupted rs.trace) hx'
       | corrupt i =>
         simp only [adaptiveRouter, StateT.run] at hy
-        erw [evalClosed_pure, PMF.mem_support_pure_iff] at hy
+        erw [closeEval_pure, PMF.mem_support_pure_iff] at hy
         rcases hy with rfl
         dsimp only at hx'
         have hsub : rs.corrupted ⊆
@@ -583,20 +562,20 @@ private theorem router_F_coin_no1_indep {α : Type} (κ : ℕ) (b : Bool)
     (tr₁ tr₂ : Fin 2 → List (Option Bool))
     (g : α × Finset (Fin 2) → ENNReal)
     (hg : ∀ a C', (1 : Fin 2) ∈ C' → g (a, C') = 0) :
-    ∑' x, evalClosed ((adaptiveRouter .adaptive (F_coin.toAdaptive coinReveal) κ ∅).runFrom
+    ∑' x, closeEval ((adaptiveRouter .adaptive (F_coin.toAdaptive coinReveal) κ ∅).runFrom
         (liftAdaptiveNet netProg)
         { inner := { party0 := none, delivered1 := some b }
           corrupted := C, trace := tr₁ }) x *
         g (x.1, x.2.corrupted) =
-      ∑' x, evalClosed ((adaptiveRouter .adaptive (F_coin.toAdaptive coinReveal) κ ∅).runFrom
+      ∑' x, closeEval ((adaptiveRouter .adaptive (F_coin.toAdaptive coinReveal) κ ∅).runFrom
         (liftAdaptiveNet netProg)
         { inner := { party0 := none, delivered1 := some false }
           corrupted := C, trace := tr₂ }) x *
         g (x.1, x.2.corrupted) := by
   induction netProg using OracleComp.induction generalizing C tr₁ tr₂ with
   | pure a =>
-    erw [liftAdaptiveNet_pure, Machine.runFrom_pure, evalClosed_pure]
-    erw [Machine.runFrom_pure, evalClosed_pure]
+    erw [liftAdaptiveNet_pure, Machine.runFrom_pure, closeEval_pure]
+    erw [Machine.runFrom_pure, closeEval_pure]
     let rs₁ : AdaptiveRouterState CoinState (Option Bool) 2 :=
       { inner := { party0 := none, delivered1 := some b }, corrupted := C, trace := tr₁ }
     let rs₂ : AdaptiveRouterState CoinState (Option Bool) 2 :=
@@ -615,12 +594,12 @@ private theorem router_F_coin_no1_indep {α : Type} (κ : ℕ) (b : Bool)
   | query_bind q cont ih =>
     rcases q with k | q
     · have hstep (b' : Bool) (tr : Fin 2 → List (Option Bool)) :
-          evalClosed ((adaptiveRouter .adaptive (F_coin.toAdaptive coinReveal) κ ∅).runFrom
+          closeEval ((adaptiveRouter .adaptive (F_coin.toAdaptive coinReveal) κ ∅).runFrom
             (liftAdaptiveNet (OracleComp.query (Sum.inl k) >>= cont))
             { inner := { party0 := none, delivered1 := some b' }
               corrupted := C, trace := tr }) =
           (ProbComp.unifFin k).eval.bind fun a =>
-            evalClosed ((adaptiveRouter .adaptive (F_coin.toAdaptive coinReveal) κ ∅).runFrom
+            closeEval ((adaptiveRouter .adaptive (F_coin.toAdaptive coinReveal) κ ∅).runFrom
               (liftAdaptiveNet (cont a))
               { inner := { party0 := none, delivered1 := some b' }
                 corrupted := C, trace := tr }) := by
@@ -632,23 +611,23 @@ private theorem router_F_coin_no1_indep {α : Type} (κ : ℕ) (b : Bool)
           simp only [liftAdaptiveNet, OracleComp.interpret_query, sumHandler,
             ProbOracleComp.sample, ProbComp.unifFin]
         rw [liftAdaptiveNet_bind, hk]
-        erw [Machine.runFrom_bind, Machine.runFrom_sample, bind_map_left, evalClosed_bind,
-          evalClosed_sample]
+        erw [Machine.runFrom_bind, Machine.runFrom_sample, bind_map_left, closeEval_bind,
+          closeEval_sample]
       rw [hstep b tr₁, hstep false tr₂]
       simp only [tsum_pmf_bind_mul]
       exact tsum_congr fun a => congrArg ((ProbComp.unifFin k).eval a * ·) (ih a C h1 tr₁ tr₂)
     · have hbind (b' : Bool) (tr : Fin 2 → List (Option Bool)) :
-          evalClosed ((adaptiveRouter .adaptive (F_coin.toAdaptive coinReveal) κ ∅).runFrom
+          closeEval ((adaptiveRouter .adaptive (F_coin.toAdaptive coinReveal) κ ∅).runFrom
             (liftAdaptiveNet (OracleComp.query (Sum.inr q) >>= cont))
             { inner := { party0 := none, delivered1 := some b' }
               corrupted := C, trace := tr }) =
-          (evalClosed (((adaptiveRouter .adaptive (F_coin.toAdaptive coinReveal) κ ∅).handle
+          (closeEval (((adaptiveRouter .adaptive (F_coin.toAdaptive coinReveal) κ ∅).handle
             (.inr q)).run { inner := { party0 := none, delivered1 := some b' }
                             corrupted := C, trace := tr })).bind fun y =>
-            evalClosed ((adaptiveRouter .adaptive (F_coin.toAdaptive coinReveal) κ ∅).runFrom
+            closeEval ((adaptiveRouter .adaptive (F_coin.toAdaptive coinReveal) κ ∅).runFrom
               (liftAdaptiveNet (cont y.1)) y.2) := by
         erw [liftAdaptiveNet_bind, liftAdaptiveNet_query, Machine.runFrom_bind,
-          Machine.runFrom_query, evalClosed_bind]
+          Machine.runFrom_query, closeEval_bind]
       rw [hbind b tr₁, hbind false tr₂]
       cases q with
       | party i u =>
@@ -661,17 +640,17 @@ private theorem router_F_coin_no1_indep {α : Type} (κ : ℕ) (b : Bool)
           · cases u <;>
               (simp only [adaptiveRouter, F_coin, IdealFunctionality.toAdaptive, StateT.run, h0,
                 Fin.val_zero, Nat.zero_ne_one, ↓reduceIte, Option.isNone_none, Option.isNone_some,
-                Bool.true_and, Bool.false_eq_true, ProbOracleComp.sample_pure, evalClosed_bind,
-                evalClosed_pure, AdaptiveProtocol.recordSnapshot, PMF.pure_bind];
+                Bool.true_and, Bool.false_eq_true, ProbOracleComp.sample_pure, closeEval_bind,
+                closeEval_pure, AdaptiveProtocol.recordSnapshot, PMF.pure_bind];
                exact ih _ C h1 _ _)
-          · simp only [adaptiveRouter, StateT.run, h0, ↓reduceIte, evalClosed_pure, PMF.pure_bind]
+          · simp only [adaptiveRouter, StateT.run, h0, ↓reduceIte, closeEval_pure, PMF.pure_bind]
             exact ih _ C h1 tr₁ tr₂
-        · simp only [adaptiveRouter, StateT.run, h1, ↓reduceIte, evalClosed_pure, PMF.pure_bind]
+        · simp only [adaptiveRouter, StateT.run, h1, ↓reduceIte, closeEval_pure, PMF.pure_bind]
           exact ih _ C h1 tr₁ tr₂
       | net u =>
         cases u
         simp only [adaptiveRouter, F_coin, IdealFunctionality.toAdaptive, StateT.run,
-          ProbOracleComp.sample_pure, evalClosed_bind, evalClosed_pure,
+          ProbOracleComp.sample_pure, closeEval_bind, closeEval_pure,
           AdaptiveProtocol.recordSnapshot, PMF.pure_bind]
         exact ih _ C h1 _ _
       | corrupt i =>
@@ -685,31 +664,31 @@ private theorem router_F_coin_no1_indep {α : Type} (κ : ℕ) (b : Bool)
           split_ifs with h0
           · simp only [F_coin, IdealFunctionality.toAdaptive, coinReveal,
               AdaptiveProtocol.corruptionReport, Fin.val_zero, hmem_ne, ↓reduceIte,
-              evalClosed_pure, PMF.pure_bind]
+              closeEval_pure, PMF.pure_bind]
             exact ih _ C h1 tr₁ tr₂
           · simp only [F_coin, IdealFunctionality.toAdaptive, coinReveal,
               AdaptiveProtocol.corruptionReport, Fin.val_zero, hmem_ne, ↓reduceIte,
-              evalClosed_pure, PMF.pure_bind]
+              closeEval_pure, PMF.pure_bind]
             have h1' : (1 : Fin 2) ∉ insert 0 C := by simpa [Finset.mem_insert] using h1
             exact ih _ (insert 0 C) h1' tr₁ tr₂
         · simp only [adaptiveRouter, F_coin, IdealFunctionality.toAdaptive, coinReveal,
             AdaptiveProtocol.corruptionReport, StateT.run, Fin.val_one, Nat.one_ne_zero, hmem_ne,
-            ↓reduceIte, evalClosed_pure, PMF.pure_bind, h1]
+            ↓reduceIte, closeEval_pure, PMF.pure_bind, h1]
           have hzero (b' : Bool) (tr : Fin 2 → List (Option Bool)) :
-              ∑' x, evalClosed ((adaptiveRouter .adaptive
+              ∑' x, closeEval ((adaptiveRouter .adaptive
                   (F_coin.toAdaptive coinReveal) κ ∅).runFrom
                   (liftAdaptiveNet (cont (.corrupt (some { current := some b', history := none }))))
                   { inner := { party0 := none, delivered1 := some b' }
                     corrupted := insert 1 C, trace := tr }) x * g (x.1, x.2.corrupted) = 0 := by
             rw [tsum_eq_zero_iff]
             intro x
-            by_cases hx : evalClosed ((adaptiveRouter .adaptive
+            by_cases hx : closeEval ((adaptiveRouter .adaptive
                 (F_coin.toAdaptive coinReveal) κ ∅).runFrom
                 (liftAdaptiveNet (cont (.corrupt (some { current := some b', history := none }))))
                 { inner := { party0 := none, delivered1 := some b' }
                   corrupted := insert 1 C, trace := tr }) x = 0
             · exact mul_eq_zero_of_left hx _
-            · have hxsup : x ∈ (evalClosed ((adaptiveRouter .adaptive
+            · have hxsup : x ∈ (closeEval ((adaptiveRouter .adaptive
                   (F_coin.toAdaptive coinReveal) κ ∅).runFrom
                   (liftAdaptiveNet (cont (.corrupt (some { current := some b', history := none }))))
                   { inner := { party0 := none, delivered1 := some b' }
@@ -871,7 +850,7 @@ private theorem eval_F_coin_Z_star_le_half
           corrupted := C
           trace := fun j => tr j ++ [coinReveal 0 s j] } := rfl
   have hfalse_of_none (hc : ∀ sS,
-      evalClosed (Prod.fst <$>
+      closeEval (Prod.fst <$>
         (adaptiveExecMachine .adaptive (F_coin.toAdaptive coinReveal) S 0).runFrom
           (Z_star 0 [])
           (sS, { inner := { party0 := none, delivered1 := none }
@@ -880,14 +859,14 @@ private theorem eval_F_coin_Z_star_le_half
       (adaptiveExec .adaptive (F_coin.toAdaptive coinReveal) S Z_star 0 []).eval true ≤ 1 / 2 := by
     have hev : (adaptiveExec .adaptive (F_coin.toAdaptive coinReveal) S Z_star 0 []).eval =
         PMF.pure false := by
-      change evalClosed (ProbOracleComp.sample
+      change closeEval (ProbOracleComp.sample
           (adaptiveExecMachine .adaptive (F_coin.toAdaptive coinReveal) S 0).init >>= fun s =>
         Prod.fst <$> (adaptiveExecMachine .adaptive (F_coin.toAdaptive coinReveal) S 0).runFrom
           (Z_star 0 []) s) = PMF.pure false
       rw [hinit_exec]
-      erw [bind_assoc, evalClosed_bind]
+      erw [bind_assoc, closeEval_bind]
       have hbc :
-          (evalClosed (ProbOracleComp.sample (S.machine 0).init)).bind (fun _ => PMF.pure false) =
+          (closeEval (ProbOracleComp.sample (S.machine 0).init)).bind (fun _ => PMF.pure false) =
             PMF.pure false := PMF.bind_const _ _
       rw [← hbc]
       congr 1
@@ -900,11 +879,11 @@ private theorem eval_F_coin_Z_star_le_half
     erw [hrun_exec]
     simp only [h0, ↓reduceIte, pure_bind]
     split_ifs
-    · simp only [pure_bind, map_bind, map_pure, evalClosed_bind, evalClosed_pure, PMF.bind_const]
+    · simp only [pure_bind, map_bind, map_pure, closeEval_bind, closeEval_pure, PMF.bind_const]
     · erw [hpoll]
       dsimp only [getD1]
       simp only [pure_bind, map_bind, map_pure]
-      rw [evalClosed_bind, evalClosed_pure, PMF.bind_const]
+      rw [closeEval_bind, closeEval_pure, PMF.bind_const]
   · by_cases h1 : (1 : Fin 2) ∈ S.initial 0
     · refine hfalse_of_none fun sS => ?_
       erw [hrun_exec]
@@ -913,7 +892,7 @@ private theorem eval_F_coin_Z_star_le_half
       dsimp only [getP0, getD1, mkCS]
       simp only [Option.isNone_none, Bool.and_self, ↓reduceIte, bind_assoc, pure_bind,
         hsnap, h0, map_bind]
-      rw [evalClosed_bind, evalClosed_sample]
+      rw [closeEval_bind, closeEval_sample]
       have hbc :
           (ProbComp.unifFin 1).eval.bind (fun _ => PMF.pure false) = PMF.pure false :=
         PMF.bind_const _ _
@@ -923,7 +902,7 @@ private theorem eval_F_coin_Z_star_le_half
       erw [herase]
       dsimp only [getD1, mkCS]
       simp only [pure_bind, h1, ↓reduceIte, map_pure]
-      rw [evalClosed_bind, evalClosed_pure, PMF.bind_const]
+      rw [closeEval_bind, closeEval_pure, PMF.bind_const]
     · have hinit : S.initial 0 = ∅ := by
         ext i
         rcases i with ⟨i, hi⟩
@@ -952,23 +931,23 @@ private theorem eval_F_coin_Z_star_le_half
           if j.val = 0 then none else some (decide (c = 0))]
       have hexp :
           (adaptiveExec .adaptive (F_coin.toAdaptive coinReveal) S Z_star 0 []).eval true =
-            ∑' sS : (S.machine 0).State, evalClosed (ProbOracleComp.sample (S.machine 0).init) sS *
+            ∑' sS : (S.machine 0).State, closeEval (ProbOracleComp.sample (S.machine 0).init) sS *
               ∑' c : Fin 2, (ProbComp.unifFin 1).eval c *
-                ∑' x, evalClosed
+                ∑' x, closeEval
                     ((adaptiveRouter .adaptive (F_coin.toAdaptive coinReveal) 0 ∅).runFrom
                       (liftAdaptiveNet (((S.machine 0).handle (.corrupt 0)).run sS))
                       { inner := { party0 := none, delivered1 := some (decide (c = 0)) }
                         corrupted := ∅
                         trace := trC c }) x *
                   gMatch (decide (c = 0)) (x.1, x.2.corrupted) := by
-        change (evalClosed (ProbOracleComp.sample
+        change (closeEval (ProbOracleComp.sample
             (adaptiveExecMachine .adaptive (F_coin.toAdaptive coinReveal) S 0).init >>= fun s =>
           Prod.fst <$> (adaptiveExecMachine .adaptive (F_coin.toAdaptive coinReveal) S 0).runFrom
             (Z_star 0 []) s)) true = _
         rw [hinit_exec]
-        erw [bind_assoc, evalClosed_bind]
+        erw [bind_assoc, closeEval_bind]
         rw [PMF.bind_apply]
-        refine tsum_congr fun sS => congrArg (evalClosed (ProbOracleComp.sample (S.machine 0).init)
+        refine tsum_congr fun sS => congrArg (closeEval (ProbOracleComp.sample (S.machine 0).init)
           sS * ·) ?_
         erw [pure_bind, hrun_exec]
         simp only [hinit, h0_not, ↓reduceIte]
@@ -976,7 +955,7 @@ private theorem eval_F_coin_Z_star_le_half
         dsimp only [getP0, getD1, mkCS]
         simp only [Option.isNone_none, Bool.and_self, ↓reduceIte, bind_assoc, pure_bind, hsnap,
           h0_not, map_bind]
-        rw [evalClosed_bind, evalClosed_sample, PMF.bind_apply]
+        rw [closeEval_bind, closeEval_sample, PMF.bind_apply]
         refine tsum_congr fun c => congrArg ((ProbComp.unifFin 1).eval c * ·) ?_
         erw [herase]
         dsimp only [getD1, mkCS]
@@ -984,9 +963,9 @@ private theorem eval_F_coin_Z_star_le_half
         erw [hpoll]
         dsimp only [getD1]
         simp only [pure_bind, map_pure, coinReveal, List.cons_append, List.nil_append]
-        rw [evalClosed_bind, PMF.bind_apply]
+        rw [closeEval_bind, PMF.bind_apply]
         refine tsum_congr fun x => congrArg (_ * ·) ?_
-        rw [evalClosed_pure, PMF.pure_apply]
+        rw [closeEval_pure, PMF.pure_apply]
         rcases x with ⟨⟨netR, sS'⟩, rs'⟩
         cases netR with
         | party _ | net _ => simp [gMatch]
@@ -1000,7 +979,7 @@ private theorem eval_F_coin_Z_star_le_half
       rw [hexp]
       have hinner (sS : (S.machine 0).State) :
           ∑' c : Fin 2, (ProbComp.unifFin 1).eval c *
-              ∑' x, evalClosed
+              ∑' x, closeEval
                   ((adaptiveRouter .adaptive (F_coin.toAdaptive coinReveal) 0 ∅).runFrom
                     (liftAdaptiveNet (((S.machine 0).handle (.corrupt 0)).run sS))
                     { inner := { party0 := none, delivered1 := some (decide (c = 0)) }
@@ -1010,13 +989,13 @@ private theorem eval_F_coin_Z_star_le_half
             1 / 2 := by
         let μ : PMF ((AdaptiveNetR Bool Unit (Option Bool) × (S.machine 0).State) ×
             AdaptiveRouterState CoinState (Option Bool) 2) :=
-          evalClosed ((adaptiveRouter .adaptive (F_coin.toAdaptive coinReveal) 0 ∅).runFrom
+          closeEval ((adaptiveRouter .adaptive (F_coin.toAdaptive coinReveal) 0 ∅).runFrom
             (liftAdaptiveNet (((S.machine 0).handle (.corrupt 0)).run sS))
             { inner := { party0 := none, delivered1 := some false }
               corrupted := ∅
               trace := fun _ => [none] })
         have hind (c : Fin 2) :
-            ∑' x, evalClosed ((adaptiveRouter .adaptive (F_coin.toAdaptive coinReveal) 0 ∅).runFrom
+            ∑' x, closeEval ((adaptiveRouter .adaptive (F_coin.toAdaptive coinReveal) 0 ∅).runFrom
                 (liftAdaptiveNet (((S.machine 0).handle (.corrupt 0)).run sS))
                 { inner := { party0 := none, delivered1 := some (decide (c = 0)) }
                   corrupted := ∅
@@ -1071,9 +1050,9 @@ private theorem eval_F_coin_Z_star_le_half
             ≤ ∑' x, ((2 : ENNReal)⁻¹) * μ x := tsum_le_tsum hpt
           _ = ((2 : ENNReal)⁻¹) * ∑' x, μ x := ENNReal.tsum_mul_left
           _ = (1 : ENNReal) / 2 := by rw [PMF.tsum_coe, mul_one, one_div]
-      calc ∑' sS : (S.machine 0).State, evalClosed (ProbOracleComp.sample (S.machine 0).init) sS *
+      calc ∑' sS : (S.machine 0).State, closeEval (ProbOracleComp.sample (S.machine 0).init) sS *
               ∑' c : Fin 2, (ProbComp.unifFin 1).eval c *
-                ∑' x, evalClosed
+                ∑' x, closeEval
                     ((adaptiveRouter .adaptive (F_coin.toAdaptive coinReveal) 0 ∅).runFrom
                       (liftAdaptiveNet (((S.machine 0).handle (.corrupt 0)).run sS))
                       { inner := { party0 := none, delivered1 := some (decide (c = 0)) }
@@ -1081,9 +1060,9 @@ private theorem eval_F_coin_Z_star_le_half
                         trace := trC c }) x *
                   gMatch (decide (c = 0)) (x.1, x.2.corrupted)
           ≤ ∑' sS : (S.machine 0).State,
-              evalClosed (ProbOracleComp.sample (S.machine 0).init) sS * ((1 : ENNReal) / 2) :=
+              closeEval (ProbOracleComp.sample (S.machine 0).init) sS * ((1 : ENNReal) / 2) :=
             tsum_le_tsum fun sS => mul_le_mul_of_nonneg_left (hinner sS) zero_le
-        _ = (∑' sS, evalClosed (ProbOracleComp.sample (S.machine 0).init) sS) * (1 / 2) :=
+        _ = (∑' sS, closeEval (ProbOracleComp.sample (S.machine 0).init) sS) * (1 / 2) :=
             ENNReal.tsum_mul_right
         _ = 1 / 2 := by rw [PMF.tsum_coe, one_mul]
 

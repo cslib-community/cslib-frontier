@@ -74,46 +74,6 @@ variable {n : ℕ} {In Out Q R NetQ NetR View AdvQ AdvR : Type}
 
 section LiftAdaptiveNet
 
-@[simp] theorem liftAdaptiveNet_pure (a : α) :
-    liftAdaptiveNet (n := n) (In := In) (Out := Out)
-        (pure a : ProbOracleComp (netSpec Q R) α) = pure a := rfl
-
-@[simp] theorem liftAdaptiveNet_bind {β : Type} (program : ProbOracleComp (netSpec Q R) α)
-    (next : α → ProbOracleComp (netSpec Q R) β) :
-    liftAdaptiveNet (n := n) (In := In) (Out := Out) (program >>= next) =
-      liftAdaptiveNet program >>= fun a => liftAdaptiveNet (next a) :=
-  OracleComp.interpret_bind _ _ _
-
-@[simp] theorem liftAdaptiveNet_map {β : Type} (f : α → β)
-    (program : ProbOracleComp (netSpec Q R) α) :
-    liftAdaptiveNet (n := n) (In := In) (Out := Out) (f <$> program) =
-      f <$> liftAdaptiveNet program :=
-  OracleComp.interpret_map _ _ _
-
-/-- A network query becomes a query on the protocol's adaptive network port. -/
-@[simp] theorem liftAdaptiveNet_query (q : Q) :
-    liftAdaptiveNet (n := n) (In := In) (Out := Out)
-        (ProbOracleComp.query (spec := netSpec Q R) q) =
-      ProbOracleComp.query (spec := adaptivePartySpec n In Out ⊕ₒ netSpec Q R) (.inr q) :=
-  OracleComp.interpret_query _ _
-
-/-- Private samples are unchanged. -/
-@[simp] theorem liftAdaptiveNet_sample (program : ProbComp α) :
-    liftAdaptiveNet (n := n) (In := In) (Out := Out)
-        (ProbOracleComp.sample (spec := netSpec Q R) program) =
-      ProbOracleComp.sample program := by
-  simp only [liftAdaptiveNet, ProbOracleComp.interpret_sample]
-  rfl
-
-/-- Lifting to the adaptive network port preserves call count. -/
-theorem isQueryBounded_liftAdaptiveNet {program : ProbOracleComp (netSpec Q R) α} {m : ℕ}
-    (h : program.IsQueryBounded m) :
-    (liftAdaptiveNet (n := n) (In := In) (Out := Out) program).IsQueryBounded m := by
-  refine OracleComp.IsCostBounded.interpret (fun q => ?_) h
-  cases q with
-  | inl _ => exact OracleComp.IsCostBounded.query _
-  | inr _ => exact OracleComp.IsCostBounded.query _
-
 /-- Running a lifted network program against a lifted adversary equals lifting the run against
 the adversary. -/
 theorem runFrom_liftAdaptiveAdversary_liftAdaptiveNet
