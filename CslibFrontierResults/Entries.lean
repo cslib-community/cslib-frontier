@@ -691,7 +691,7 @@ register_result "sharp-cycle-fp-p-eq-np" where
   scope := "#CYCLE counts the simple directed cycles (Cycle values: nonempty, no repeated \
     vertex, declared vertices, arcs of the edge list; a self-loop is a cycle of length one) of \
     a graph under encGraph. FP is native polynomial-time computability with binary output \
-    encNat. The gadget reduction uses n*n+n+1 layers and threshold 2^(m*n) instead of the \
+    encNat. The gadget reduction uses n*n+n+3 layers and threshold 2^(m*n) instead of the \
     draft's n log n + 1 and n^(n^2). P = NP holds for every injective encoding."
 
 register_result "bqp-pp" where
