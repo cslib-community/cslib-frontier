@@ -192,7 +192,8 @@ theorem ite_decide {condition : α → Prop} [∀ a, Decidable (condition a)] {y
 theorem decide_eq [DecidableEq α] (enc : α ↪ List Bool) :
     ComputableTidilyInPolyTime (fun p : α × α => decide (p.1 = p.2))
       (encPair enc enc) encBool :=
-  (ComputableInO.eq enc).computableInPolyTime.tidy
+  ((ComputableInPolyTime.fst enc enc).decide_eq'
+    (ComputableInPolyTime.snd enc enc)).tidy
 
 /-- Compare computed values for equality, inferring their common encoding from the arguments. -/
 @[fun_prop]
