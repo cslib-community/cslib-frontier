@@ -66,10 +66,10 @@ about `evalWith`.
 ## Main results
 
 * `Cslib.OracleComp.evalWith_freeMBind`, `.mem_supportWith_freeMBind_iff`,
-  `.runWith_freeMBind`, `.freeMBind_congr_on_support`, and the corresponding `freeMMap`, `pure`
-  and `query` rules: heterogeneous structural rules of each semantics. The shorter `*_bind`,
-  `*_map` and `bind_congr_on_support` names are the ordinary same-universe forms used with
-  `do` and `<$>`.
+  `.runWith_freeMBind`, `.freeMBind_congr_on_support`, `.evalWith_freeMMap`,
+  `.supportWith_freeMMap`, and `.runWith_freeMMap`, together with the corresponding `pure` and
+  `query` rules: heterogeneous structural rules of each semantics. The shorter `*_bind`, `*_map`
+  and `bind_congr_on_support` names are the ordinary same-universe forms used with `do` and `<$>`.
 * `Cslib.OracleComp.isMonadHom_evalWith`: `evalWith h` is a monad morphism.
 * `Cslib.OracleComp.evalWith_substitute`, `.supportWith_substitute`, `.runWith_substitute`:
   heterogeneous replacement of calls composes with each semantics; the corresponding

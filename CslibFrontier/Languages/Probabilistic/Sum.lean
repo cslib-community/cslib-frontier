@@ -34,9 +34,9 @@ an embedded program uses only the corresponding handler (`interpret_sumHandler_l
   `Cslib.OracleComp.interpret_sumHandler_liftRight`: an embedded program uses only its own side's
   handler.
 * `Cslib.OracleComp.interpret_sumHandler`: interpretation distributes over the two sides.
-* `Cslib.OracleComp.liftLeft_freeMBind`, `.liftRight_freeMBind` and their `freeMMap` forms:
-  embedding commutes with heterogeneous sequencing and mapping. The corresponding shorter
-  `*_bind` and `*_map` names are the ordinary same-universe forms.
+* `Cslib.OracleComp.liftLeft_freeMBind`, `.liftRight_freeMBind`, `.liftLeft_freeMMap`, and
+  `.liftRight_freeMMap`: embedding commutes with heterogeneous sequencing and mapping. The
+  corresponding shorter `*_bind` and `*_map` names are the ordinary same-universe forms.
 
 ## References
 
