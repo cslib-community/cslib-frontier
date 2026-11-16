@@ -89,9 +89,11 @@ Theorems 8 and 11) are out of scope. Existing static definitions in `Execution`,
 ## References
 
 * [R. Canetti, *Universally Composable Security*][Canetti2020], J. ACM 67(5), Art. 28, 2020:
-  Section 7.1 (p. 28:69; ePrint p. 74) for corruption messages and the corruption-status query, and
-  Section 7.1.1 (p. 28:71) for Byzantine state exposure, non-erasing ("write once") protocols, and
-  static corruption as a restricted case.
+  Section 7.1 (pp. 28:69–70; ePrint 2000/067 of Feb 11, 2020, p. 74) for corruption messages,
+  the corruption aggregation ITI, and the identity-revealing (`f = id`) "Report corruption status"
+  query, Section 7.1.1 (p. 28:71) for Byzantine state exposure, non-erasing ("write once")
+  protocols, and static corruption as a restricted case, and Section 7.2 (pp. 28:73–74) for
+  standard PID-wise corruption of ideal functionalities.
 * [R. Canetti, M. Fischlin, *Universally Composable Commitments*][CanettiFischlin2001], CRYPTO 2001
   (ePrint 2001/055): p. 5, p. 13, Theorem 8 (p. 20), and Theorem 11 (p. 26), motivating the
   erasing vs non-erasing distinction (not formalized here).
@@ -157,7 +159,8 @@ structure AdaptiveRouterState (S View : Type) (n : ℕ) : Type where
 
 /-- Environment-side queries to the party and corruption-status interface: `.party i x` activates
 party `i` with input `x`, and `.status` queries the current set of corrupted parties
-([Canetti2020], Section 7.1, p. 28:69). -/
+([Canetti2020], Section 7.1, p. 28:70, the identity-revealing `f = id` case of standard
+`f`-revealing corruption on the corruption aggregation ITI). -/
 inductive AdaptivePartyQ (n : ℕ) (In : Type) : Type
   | party (i : Fin n) (x : In)
   | status

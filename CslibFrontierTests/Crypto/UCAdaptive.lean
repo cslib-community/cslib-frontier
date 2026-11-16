@@ -109,8 +109,8 @@ def P_coin (mem : PartyMemory) : AdaptiveProtocol 2 CoinIn Bool Unit Unit (Optio
           pure (none, s)
   onBackdoor _ s := pure ((), s)
 
-/-- Standard `f`-revealing leakage map for `F_coin`: party `0` exposes `party0` until `.erase`, and
-party `1` exposes its delivered output `delivered1`. -/
+/-- Local state-leakage view map `reveal` for `F_coin`: party `0` exposes `party0` until `.erase`,
+and party `1` exposes its delivered output `delivered1`. -/
 def coinReveal (_ : ℕ) (s : F_coin.State) (i : Fin 2) : Option Bool :=
   if i.val = 0 then s.party0 else s.delivered1
 

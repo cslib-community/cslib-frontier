@@ -352,7 +352,7 @@ Michael Burrows and David J. Wheeler. *A Block-sorting Lossless Data Compression
 <a id="canetti20"></a>
 ## canetti20
 
-Ran Canetti. *Universally Composable Security*. Journal of the ACM 67(5), Article 28, 2020; full version Cryptology ePrint Archive 2000/067. https://doi.org/10.1145/3402457 . Section 7.1 (p. 28:69), Section 7.1.1 (p. 28:71, JACM pagination; ePrint 2000/067 p. 74), p. 28:15, and Claim 11 (p. 28:43) were checked for adaptive corruptions, static-corruption restriction, the corruption-status query, and dummy-adversary completeness; `Protocols/UC/Adaptive.lean` and `Protocols/UC/AdaptiveDummyAdversary.lean` formalize a call-bounded statistical adaptation (erasure via activation-level state exposure rather than write-once memory cells, without PPT time bounds or composition under adaptive corruption).
+Ran Canetti. *Universally Composable Security*. Journal of the ACM 67(5), Article 28, 2020 (JACM pagination `28:1`–`28:76`); full version Cryptology ePrint Archive 2000/067 (ePrint pagination). https://doi.org/10.1145/3402457 . Section 7.1 (JACM pp. 28:69–70; ePrint p. 74), Section 7.1.1 (JACM p. 28:71), Section 7.2 (JACM pp. 28:73–74), JACM p. 28:15, and Claim 11 (JACM p. 28:43) were checked for adaptive corruptions, static-corruption restriction, the corruption-status query, standard PID-wise ideal-functionality corruption, and dummy-adversary completeness; `Protocols/UC/Adaptive.lean` and `Protocols/UC/AdaptiveDummyAdversary.lean` formalize a call-bounded statistical adaptation (erasure via activation-level state exposure rather than write-once memory cells, without PPT time bounds or composition under adaptive corruption).
 
 <a id="canonne22"></a>
 ## canonne22
