@@ -128,8 +128,7 @@ This module formalizes:
 7. **Full nonce-based Carter–Wegman MAC (`NonceForger`, `nonceFnHandler`, `nonceSimHandler`,
    `reconstructPadFn`, `checkNonceSUF`, `checkNonceEUF`, `nonceStrongGame`, `nonceGame`,
    `nonceStrongGame_le_max`, `nonceStrongGame_le`, `nonceGame_le_max`, `nonceGame_le`,
-   `maskedNonceStrongGame`, `maskedNonceGame`, `nonceFnDistinguisher`,
-   `maskedNonceStrongGame_toReal_le_add_advantage`, `carterWegmanNonceMAC`, `cwNonceLogHandler`,
+   `maskedNonceStrongGame`, `maskedNonceGame`, `carterWegmanNonceMAC`, `cwNonceLogHandler`,
    `prfNonceToPrfDistinguisher`, `isOraclePPT_prfNonceToPrfDistinguisher`,
    `eval_prfRealGame_prfNonceToPrfDistinguisher`,
    `eval_prfIdealGame_prfNonceToPrfDistinguisher_le`, `sufCmaGame_carterWegmanNonceMAC_toReal_le`,
@@ -151,8 +150,7 @@ This module formalizes:
 8. **Randomized Carter–Wegman MAC (`RandomNonceForger`, `randomNonceFnHandler`,
    `randomNonceSimHandler`, `checkRandomNonceSUF`, `checkRandomNonceEUF`,
    `randomNonceStrongGame`, `randomNonceGame`, `randomNonceStrongGame_le`, `randomNonceGame_le`,
-   `maskedRandomNonceStrongGame`, `maskedRandomNonceGame`, `randomNonceFnDistinguisher`,
-   `maskedRandomNonceStrongGame_toReal_le_add_advantage`, `carterWegmanRandomMAC`,
+   `maskedRandomNonceStrongGame`, `maskedRandomNonceGame`, `carterWegmanRandomMAC`,
    `cwRandomNonceLogHandler`, `prfRandomNonceToPrfDistinguisher`,
    `isOraclePPT_prfRandomNonceToPrfDistinguisher`,
    `eval_prfRealGame_prfRandomNonceToPrfDistinguisher`,
@@ -224,7 +222,6 @@ This module formalizes:
   `Cslib.Crypto.Protocols.CarterWegman.nonceGame`,
   `Cslib.Crypto.Protocols.CarterWegman.maskedNonceStrongGame`,
   `Cslib.Crypto.Protocols.CarterWegman.maskedNonceGame`,
-  `Cslib.Crypto.Protocols.CarterWegman.nonceFnDistinguisher`,
   `Cslib.Crypto.Protocols.CarterWegman.carterWegmanNonceMAC`,
   `Cslib.Crypto.Protocols.CarterWegman.cwNonceLogHandler`,
   `Cslib.Crypto.Protocols.CarterWegman.prfNonceToPrfDistinguisher`,
@@ -240,7 +237,6 @@ This module formalizes:
   `Cslib.Crypto.Protocols.CarterWegman.randomNonceGame`,
   `Cslib.Crypto.Protocols.CarterWegman.maskedRandomNonceStrongGame`,
   `Cslib.Crypto.Protocols.CarterWegman.maskedRandomNonceGame`,
-  `Cslib.Crypto.Protocols.CarterWegman.randomNonceFnDistinguisher`,
   `Cslib.Crypto.Protocols.CarterWegman.carterWegmanRandomMAC`,
   `Cslib.Crypto.Protocols.CarterWegman.cwRandomNonceLogHandler`,
   `Cslib.Crypto.Protocols.CarterWegman.prfRandomNonceToPrfDistinguisher`,
@@ -292,7 +288,6 @@ This module formalizes:
   `Cslib.Crypto.Protocols.CarterWegman.nonceStrongGame_le`,
   `Cslib.Crypto.Protocols.CarterWegman.nonceGame_le_max`,
   `Cslib.Crypto.Protocols.CarterWegman.nonceGame_le`,
-  `Cslib.Crypto.Protocols.CarterWegman.maskedNonceStrongGame_toReal_le_add_advantage`,
   `Cslib.Crypto.Protocols.CarterWegman.isOraclePPT_prfNonceToPrfDistinguisher`,
   `Cslib.Crypto.Protocols.CarterWegman.eval_prfRealGame_prfNonceToPrfDistinguisher`,
   `Cslib.Crypto.Protocols.CarterWegman.eval_prfIdealGame_prfNonceToPrfDistinguisher_le`,
@@ -311,7 +306,6 @@ This module formalizes:
   `Cslib.Crypto.Protocols.CarterWegman.randomNonceStrongGame_le_sum_add_max`,
   `Cslib.Crypto.Protocols.CarterWegman.randomNonceStrongGame_le`,
   `Cslib.Crypto.Protocols.CarterWegman.randomNonceGame_le`,
-  `Cslib.Crypto.Protocols.CarterWegman.maskedRandomNonceStrongGame_toReal_le_add_advantage`,
   `Cslib.Crypto.Protocols.CarterWegman.isOraclePPT_prfRandomNonceToPrfDistinguisher`,
   `Cslib.Crypto.Protocols.CarterWegman.eval_prfRealGame_prfRandomNonceToPrfDistinguisher`,
   `Cslib.Crypto.Protocols.CarterWegman.eval_prfIdealGame_prfRandomNonceToPrfDistinguisher_le`,
@@ -2174,20 +2168,6 @@ theorem maskedNonceGame_le_maskedNonceStrongGame (seed : PMF K) (rfDist : PMF (N
     (fun k rf res => checkNonceSUF hash k rf res.2 res.1)
     fun k rf res => checkNonceEUF_imp_checkNonceSUF hash k rf res.2 res.1
 
-/-- The induced pad-function distinguisher `(N → Y) → PMF Bool` for `maskedNonceStrongGame`. -/
-noncomputable def nonceFnDistinguisher (seed : PMF K) (hash : K → M → Y)
-    (forger : NonceForger M N Y) (rf : N → Y) : PMF Bool := do
-  let k ← seed
-  let s ← forger.coins
-  let res ← (OracleComp.interpret (nonceFnHandler hash k rf) (forger.forge s)).run []
-  return checkNonceSUF hash k rf res.2 res.1
-
-theorem maskedNonceStrongGame_eq_bind_nonceFnDistinguisher (seed : PMF K) (rfDist : PMF (N → Y))
-    (hash : K → M → Y) (forger : NonceForger M N Y) :
-    maskedNonceStrongGame seed rfDist hash forger =
-      rfDist.bind (nonceFnDistinguisher seed hash forger) :=
-  PMF.bind_comm seed rfDist _
-
 variable [Fintype N] [Fintype Y] [Nonempty Y]
 
 /-- Under `IsDeltaUniversalHash seed hash ε`, for any fixed transcript `tr` and candidate forgery
@@ -2346,32 +2326,6 @@ theorem nonceGame_le {seed : PMF K} {hash : K → M → Y} {ε : ℝ≥0∞}
     (hh : IsDeltaUniversalHash seed hash ε) (forger : NonceForger M N Y) :
     nonceGame seed hash forger true ≤ ε + (Fintype.card Y : ℝ≥0∞)⁻¹ :=
   (nonceGame_le_nonceStrongGame seed hash forger).trans (nonceStrongGame_le hh forger)
-
-/-- **Hybrid bound for `maskedNonceStrongGame`** ([BonehShoup2023], Section 7.5.1, Theorem 7.10,
-p. 274): under `IsDeltaUniversalHash seed hash ε` (`ε ≠ ⊤`), the real-valued SUF-CMA forgery
-probability under `rfDist` is at most `ε.toReal + ((Fintype.card Y : ℝ≥0∞)⁻¹).toReal` plus the
-distinguishing advantage of `nonceFnDistinguisher` between `rfDist` and
-`PMF.uniformOfFintype (N → Y)`. -/
-theorem maskedNonceStrongGame_toReal_le_add_advantage {seed : PMF K} {hash : K → M → Y} {ε : ℝ≥0∞}
-    (hh : IsDeltaUniversalHash seed hash ε) (hε : ε ≠ ⊤) (rfDist : PMF (N → Y))
-    (forger : NonceForger M N Y) :
-    (maskedNonceStrongGame seed rfDist hash forger true).toReal ≤
-      ε.toReal + ((Fintype.card Y : ℝ≥0∞)⁻¹).toReal +
-        (Game.advantage
-          (rfDist.bind (nonceFnDistinguisher seed hash forger))
-          ((PMF.uniformOfFintype (N → Y)).bind (nonceFnDistinguisher seed hash forger)) : ℝ) := by
-  have hunif : (PMF.uniformOfFintype (N → Y)).bind (nonceFnDistinguisher seed hash forger) =
-      nonceStrongGame seed hash forger :=
-    (maskedNonceStrongGame_eq_bind_nonceFnDistinguisher seed (PMF.uniformOfFintype (N → Y))
-      hash forger).symm
-  have hinv_ne_top : (Fintype.card Y : ℝ≥0∞)⁻¹ ≠ ⊤ := by simp
-  have hle : (nonceStrongGame seed hash forger true).toReal ≤
-      ε.toReal + ((Fintype.card Y : ℝ≥0∞)⁻¹).toReal :=
-    ENNReal.toReal_le_add (nonceStrongGame_le hh forger) hε hinv_ne_top
-  rw [maskedNonceStrongGame_eq_bind_nonceFnDistinguisher, hunif,
-    Game.coe_advantage, Game.coe_succProbability, Game.coe_succProbability]
-  linarith [le_abs_self (((rfDist.bind (nonceFnDistinguisher seed hash forger)) true).toReal -
-    (nonceStrongGame seed hash forger true).toReal)]
 
 private theorem interpret_deterministic_run_interpret {State α : Type}
     (g : List Bool → List Bool)
@@ -3463,22 +3417,6 @@ theorem maskedRandomNonceGame_le_maskedRandomNonceStrongGame (seed : PMF K) (rfD
     (fun k rf res => checkRandomNonceSUF hash k rf res.2 res.1)
     fun k rf res => checkRandomNonceEUF_imp_checkRandomNonceSUF hash k rf res.2 res.1
 
-/-- The induced pad-function distinguisher `(N → Y) → PMF Bool` for `maskedRandomNonceStrongGame`.
--/
-noncomputable def randomNonceFnDistinguisher (seed : PMF K) (hash : K → M → Y)
-    (forger : RandomNonceForger M N Y) (rf : N → Y) : PMF Bool := do
-  let k ← seed
-  let s ← forger.coins
-  let res ← (OracleComp.interpret (randomNonceFnHandler hash k rf) (forger.forge s)).run []
-  return checkRandomNonceSUF hash k rf res.2 res.1
-
-/-- Factoring `maskedRandomNonceStrongGame` through `randomNonceFnDistinguisher`. -/
-theorem maskedRandomNonceStrongGame_eq_bind_randomNonceFnDistinguisher (seed : PMF K)
-    (rfDist : PMF (N → Y)) (hash : K → M → Y) (forger : RandomNonceForger M N Y) :
-    maskedRandomNonceStrongGame seed rfDist hash forger =
-      rfDist.bind (randomNonceFnDistinguisher seed hash forger) :=
-  PMF.bind_comm seed rfDist _
-
 variable [Fintype Y] [Nonempty Y]
 
 /-- The ideal randomized Carter–Wegman SUF-CMA experiment ([BonehShoup2023], Section 7.4,
@@ -3654,42 +3592,6 @@ theorem randomNonceGame_le {seed : PMF K} {hash : K → M → Y} {ε : ℝ≥0�
       (Q : ℝ≥0∞) ^ 2 / (2 * Fintype.card N) + (Fintype.card Y : ℝ≥0∞)⁻¹ + ε :=
   (randomNonceGame_le_randomNonceStrongGame seed hash forger).trans
     (randomNonceStrongGame_le hh hforger)
-
-/-- **Hybrid bound for `maskedRandomNonceStrongGame`** ([BonehShoup2023], Section 7.4,
-Theorem 7.9, p. 270): under `IsDeltaUniversalHash seed hash ε` (`ε ≠ ⊤`), any `Q`-query-bounded
-`RandomNonceForger` wins `maskedRandomNonceStrongGame` with real-valued probability at most
-`((Q : ℝ≥0∞) ^ 2 / (2 * Fintype.card N)).toReal + ((Fintype.card Y : ℝ≥0∞)⁻¹).toReal + ε.toReal`
-plus the distinguishing advantage of `randomNonceFnDistinguisher`. -/
-theorem maskedRandomNonceStrongGame_toReal_le_add_advantage {seed : PMF K} {hash : K → M → Y}
-    {ε : ℝ≥0∞} (hh : IsDeltaUniversalHash seed hash ε) (hε : ε ≠ ⊤) (rfDist : PMF (N → Y))
-    {forger : RandomNonceForger M N Y} {Q : ℕ}
-    (hforger : ∀ s, (forger.forge s).IsQueryBounded Q) :
-    (maskedRandomNonceStrongGame seed rfDist hash forger true).toReal ≤
-      ((Q : ℝ≥0∞) ^ 2 / (2 * Fintype.card N)).toReal +
-        ((Fintype.card Y : ℝ≥0∞)⁻¹).toReal + ε.toReal +
-        (Game.advantage
-          (rfDist.bind (randomNonceFnDistinguisher seed hash forger))
-          ((PMF.uniformOfFintype (N → Y)).bind
-            (randomNonceFnDistinguisher seed hash forger)) : ℝ) := by
-  have hunif : (PMF.uniformOfFintype (N → Y)).bind (randomNonceFnDistinguisher seed hash forger) =
-      randomNonceStrongGame seed hash forger :=
-    (maskedRandomNonceStrongGame_eq_bind_randomNonceFnDistinguisher seed
-      (PMF.uniformOfFintype (N → Y)) hash forger).symm
-  have hcol_ne_top : (Q : ℝ≥0∞) ^ 2 / (2 * Fintype.card N) ≠ ⊤ :=
-    ENNReal.div_ne_top (ENNReal.pow_ne_top (ENNReal.natCast_ne_top Q))
-      (mul_ne_zero (by norm_num) (Nat.cast_ne_zero.mpr Fintype.card_ne_zero))
-  have hinv_ne_top : (Fintype.card Y : ℝ≥0∞)⁻¹ ≠ ⊤ := by simp
-  have hle : (randomNonceStrongGame seed hash forger true).toReal ≤
-      ((Q : ℝ≥0∞) ^ 2 / (2 * Fintype.card N)).toReal +
-        ((Fintype.card Y : ℝ≥0∞)⁻¹).toReal + ε.toReal := by
-    rw [← ENNReal.toReal_add hcol_ne_top hinv_ne_top]
-    exact ENNReal.toReal_le_add (randomNonceStrongGame_le hh hforger)
-      (ENNReal.add_ne_top.mpr ⟨hcol_ne_top, hinv_ne_top⟩) hε
-  rw [maskedRandomNonceStrongGame_eq_bind_randomNonceFnDistinguisher, hunif,
-    Game.coe_advantage, Game.coe_succProbability, Game.coe_succProbability]
-  linarith [le_abs_self
-    (((rfDist.bind (randomNonceFnDistinguisher seed hash forger)) true).toReal -
-      (randomNonceStrongGame seed hash forger true).toReal)]
 
 /-- **Ideal randomized Carter–Wegman SUF-CMA bound for `ProbOracleComp` programs**:
 under `IsDeltaUniversalHash seed hash ε`, any `Q`-query-bounded `ProbOracleComp` program `prog`

@@ -50,6 +50,27 @@ clock formulas charge copying, framing, rewinding and intermediate marshalling r
 a whole-code scan as finite-control work. Oracle handlers, query/service implementations and their
 codec/dispatch/interpreter costs remain outside this deterministic kernel.
 
+For retained Boolean-circuit evaluation, import
+[`Circuit/Boolean/NativeEvaluation.lean`](../../CslibFrontier/Computability/Circuit/Boolean/NativeEvaluation.lean).
+`bitsGetDNatCompiler` reads a binary `encNat` index from a raw `encBits` word and uses its supplied
+fallback outside the word. `evalCodeCompiler` accepts the gate list as runtime-framed
+`encList encGate` input; missing gate arguments and out-of-range wires read `false`, matching the
+total `evalCode interpretation false` semantics. A runtime-supplied circuit description remains
+framed input and is not also installed code. In contrast, `evalCircuitCompiler c` accepts only the
+`encBitString n` value at runtime and contains exactly one
+`installedCode := const (encBitString n) encCode c.code` subcompiler; callers must not add a
+second external `c.code` program charge. This source-level construction fact does not say that the
+generated transition table contains one literal encoded-code occurrence: `staticBits = descLen
+description` charges the complete generated machine description, including the composed lookup,
+evaluator and controller transitions. The compilers' `.computes` fields give all-input semantic
+refinement, their `.time` and `.workspace` fields are independent construction-derived maps,
+and `outputBits_evalCodeCompiler` and `outputBits_evalCircuitCompiler` give exact emitted lengths.
+`computableInPolyTime_evalFixedCircuit` forgets the retained fixed machine through maxima of those
+exact maps over its fixed-width input. The
+[13-bit population-count client](../../CslibFrontierTests/Computability/Circuit/Boolean/NativeEvaluation.lean)
+checks a nonconstant circuit's retained computation, exact output width, Hamming-weight semantics
+and ordinary polynomial-time interface.
+
 ## Abstract description methods
 
 [DescriptionMethod](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/Kolmogorov/Basic.lean#L82) is a function from binary programs to `Computation α`, a monotone clocked partial computation. A program produces at most one value. The structure imposes no computability condition on that function; it is an abstract semantic interface, not automatically an effective programming language.

@@ -1320,6 +1320,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.Modular.PartialProduct
 public import CslibFrontier.Computability.Circuit.Boolean.Modular.Subtract
 public import CslibFrontier.Computability.Circuit.Boolean.Modular.Subtract.PolyTime
 public import CslibFrontier.Computability.Circuit.Boolean.Multiplicity
+public import CslibFrontier.Computability.Circuit.Boolean.NativeEvaluation
 public import CslibFrontier.Computability.Circuit.Boolean.NaturalProof
 public import CslibFrontier.Computability.Circuit.Boolean.NaturalProof.ConstDepth
 public import CslibFrontier.Computability.Circuit.Boolean.NaturalProof.Generator
@@ -3578,6 +3579,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.Bin
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.BinaryNormalization
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.BinaryPrimitives
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.BinarySizeFacts
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.BitListCodec
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.CodecWordMachines
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.ConditionalMachine
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DecoderPrimitives
@@ -3607,6 +3609,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.Ker
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.LinearCodecPrimitives
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.LinearPrimitives
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NativeCompiler
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NativeCompiler.BitString
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NativeCompiler.Codec
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NativeCompiler.Comparison
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NativeCompiler.Conditional

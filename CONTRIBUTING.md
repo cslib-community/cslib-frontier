@@ -231,22 +231,32 @@ predicate of the library or a bundled program).
 **Reduction witnesses** ([#5293](https://github.com/cslib-community/cslib-frontier/issues/5293)).
 Each explicit reduction has an efficiency witness ([AGENTS.md](AGENTS.md#security-theorems)). After
 a build, `python3 scripts/check_reduction_witnesses.py` finds the *reductions*: the Crypto
-definitions that yield a program (a `ProbComp`, `OracleComp` or `PMF`, or a structure of these)
-and that a public theorem uses on the bounding side of an advantage bound, applied to a program
-variable of the bounded side, as `B` in `Adv(scheme, A) ≤ Adv(problem, B A)`. A reduction is
-certified when a theorem concludes an efficiency certificate that mentions it (`IsPPT…`,
-`IsOraclePPT…`, `ComputableIn…` and similar; a query bound does not count), when it is an `abbrev`
-of certified reductions, or when a certified definition such as its word-level program applies
-it. `scripts/reduction_witnesses_baseline.json` records the uncertified ones, one per line: a
-`gap` names the issue that tracks the missing witness, and an `exempt` entry says why none is
-needed (an information-theoretic bound, or a definition that is not a reduction, such as a scheme
-built from a component). CI treats it as it treats the premise check: a pull request fails when a
-changed module has an unrecorded uncertified reduction or a baseline entry that no longer
-matches, so the baseline only shrinks; merge groups only report. `--list` shows every reduction
-with its certificate, and `--update-baseline` adds entries whose `why` you then fill in. The
-check does not see a reduction written inline in a bound, a bound without an advantage-named
-constant, a simulator or extractor on the bounded side, or an attack, and it does not judge
-whether a witness assumes only the adversary's certificate; review covers these.
+definitions that yield a program (a `ProbComp`, `OracleComp` or `PMF`, or a structure of these) and
+that a public theorem uses on the bounding side of an advantage bound, applied to a program variable
+of the bounded side, as `B` in `Adv(scheme, A) ≤ Adv(problem, B A)`. A reduction is certified when a
+theorem concludes an efficiency certificate that mentions it (`IsPPT…`, `IsOraclePPT…`,
+`ComputableIn…` and similar; a query bound does not count), when it is an `abbrev` of certified
+reductions, or when a certified definition such as its word-level program applies it.
+`scripts/reduction_witnesses_baseline.json` records the uncertified ones, one per line: a `gap`
+names the issue that tracks the missing witness, and an `exempt` entry says why none is needed (an
+information-theoretic bound, or a definition that is not a reduction, such as a scheme built from a
+component). A `via_certified_program` entry records a typed reduction that a certified program runs:
+it names the program, the program's efficiency witness, a theorem whose conclusion is an equation
+between the program's law and the reduction's (a bound, or an equation for one world only, does not
+count) with the file that holds it, and the asymptotic headline that applies the hardness assumption
+to the program: a theorem other than the witness and the equality that concludes a negligibility or
+advantage claim and mentions the program or its witness in its statement or proof. All but the
+equality must be public; a private equality is named without its prefix and looked up in its
+recorded file. The conditions under which the equality holds are for the reviewer to read; the `why`
+states them by hand. The checker verifies these declarations in Lean, so a renamed one fails, and
+`--report` prints where each headline uses the program; it does not judge them, and review still
+does. CI treats it as it treats the premise check: a pull request fails when a changed module has an
+unrecorded uncertified reduction or a baseline entry that no longer matches, so the baseline only
+shrinks; merge groups only report. `--list` shows every reduction with its certificate, and
+`--update-baseline` adds entries whose `why` you then fill in. The check does not see a reduction
+written inline in a bound, a bound without an advantage-named constant, a simulator or extractor on
+the bounded side, or an attack, and it does not judge whether a witness assumes only the adversary's
+certificate; review covers these.
 
 **Named assumptions** ([#5578](https://github.com/cslib-community/cslib-frontier/issues/5578)). Each
 named assumption that a Crypto theorem takes belongs in the
