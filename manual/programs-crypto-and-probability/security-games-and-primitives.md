@@ -1228,7 +1228,7 @@ In [`RSAUnitInversion/Converse.lean`](../../CslibFrontier/Crypto/Computational/R
 Exercises 10.25–10.26 ([bs23][bs23], §10.11, p. 431) give the converse. The book's inequality
 names an adversary `B` that it does not introduce; here `A` itself runs in `rsaUnitInversionGame`,
 so no new reduction is defined: for any `N > 0`, uniform residues in `ZMod N` and uniform units
-have statistical distance at most `(N - φ(N)) / N` (`dist_uniformOfFintype_zmod_units_le`), and for
+have statistical distance `(N - φ(N)) / N` (`Cslib.Crypto.dist_uniformOfFintype_zmod_units`), and for
 distinct primes `p ≠ q` with `ℓ ≤ p.size` and `ℓ ≤ q.size` the distance is strictly less than
 `4 / 2 ^ ℓ` via `Cslib.Crypto.sub_totient_div_lt` (`dist_uniformOfFintype_zmod_units_lt`; for
 `ℓ ≥ 2`, `4 / 2 ^ ℓ = 2 ^ -(ℓ - 2)`). When every key in `(gen n).support` has non-unit fraction

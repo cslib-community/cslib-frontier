@@ -8,9 +8,7 @@ module
 
 import CslibFrontier.Crypto.Computational.RSAUnitInversion
 import CslibFrontier.Crypto.Computational.RSAUnitInversion.Converse
-import CslibFrontier.Crypto.Game.CloseTo
-import CslibFrontier.Foundations.Data.ZMod.Basic
-import CslibFrontier.Probability.StatisticalDistance.TotalVariation
+import CslibFrontier.Crypto.Computational.UnitSampling
 import Mathlib.Tactic.NormNum.Prime
 
 /-!
@@ -27,8 +25,8 @@ Checks for `CslibFrontier/Crypto/Computational/RSAUnitInversion.lean`:
 * RSA evaluation keeps units and non-units apart (`coprime_rsaEval_iff`).
 * Both certificates apply: `computableInPolyTime_rsaNonUnitRoot` on three inputs read as nested
   pairs on `encNat`, and `isPPT_unitRSAToRSA` on the inverter that returns its challenge.
-* Converse bounds (`RSAUnitInversion/Converse.lean`): `dist_uniformOfFintype_zmod_units_lt` at
-  `5 * 7`, `dist_uniformOfFintype_zmod_units_le` at `33`,
+* Converse bounds (`RSAUnitInversion/Converse.lean`, `UnitSampling.lean`):
+  `dist_uniformOfFintype_zmod_units_lt` at `5 * 7`, `dist_uniformOfFintype_zmod_units` at `33`,
   `succProbability_rsaInversionGame_le_of_nonUnitFrac_le` at `desc33` and `echo`,
   `succProbability_rsaInversionGame_le_of_size` at `desc35` (`e = d = 5`, `ℓ = 3`) and `echo`, a
   satisfiable `RSAGen` family with at least `n`-bit primes instantiating `RSAUnitOneWay.rsaOneWay`
@@ -132,9 +130,10 @@ example :
 
 example :
     dist (PMF.uniformOfFintype (ZMod 33))
-      ((PMF.uniformOfFintype (ZMod 33)ˣ).map Units.val) ≤
-      ((33 - Nat.totient 33 : ℕ) : ℝ) / 33 :=
-  dist_uniformOfFintype_zmod_units_le 33
+      ((PMF.uniformOfFintype (ZMod 33)ˣ).map Units.val) = 13 / 33 := by
+  have htot : Nat.totient 33 = 20 := by decide
+  rw [dist_uniformOfFintype_zmod_units 33, htot]
+  norm_num
 
 example (n : ℕ) :
     (rsaInversionGame (fun _ => PMF.pure desc33) echo n).succProbability ≤
@@ -285,72 +284,25 @@ example :
   rw [succProbability_rsa_nonUnitInverter6, succProbability_unit_nonUnitInverter6]
   norm_num
 
-private theorem nonCoprime_card_div_le_dist (N : ℕ) [NeZero N] :
-    ((Finset.univ.filter fun i : Fin N => ¬ Nat.Coprime i.val N).card : ℝ) / N ≤
-      dist (PMF.uniformOfFintype (ZMod N))
-        ((PMF.uniformOfFintype (ZMod N)ˣ).map Units.val) := by
-  let d : ℝ≥0 := ⟨dist (PMF.uniformOfFintype (ZMod N))
-    ((PMF.uniformOfFintype (ZMod N)ˣ).map Units.val), dist_nonneg⟩
-  have hclose : CloseTo (PMF.uniformOfFintype (ZMod N))
-      ((PMF.uniformOfFintype (ZMod N)ˣ).map Units.val) (d : ℝ≥0∞) :=
-    closeTo_coe_iff_dist_le.mpr le_rfl
-  rw [Game.closeTo_iff_forall_advantage_bind_le] at hclose
-  let k : ZMod N → Game := fun z => pure (decide (¬ Nat.Coprime z.val N))
-  have hadv := hclose k
-  have hg1 : Game.succProbability ((PMF.uniformOfFintype (ZMod N)).bind k) =
-      ((Finset.univ.filter fun i : Fin N => ¬ Nat.Coprime i.val N).card : ℝ≥0) / N := by
-    simp only [Game.succProbability, k, PMF.bind_apply, tsum_fintype, PMF.monad_pure_eq_pure]
-    have hsum : (∑ x : ZMod N,
-        (PMF.uniformOfFintype (ZMod N)) x *
-          (PMF.pure (decide (¬ Nat.Coprime x.val N))) true) =
-        ((Finset.univ.filter fun i : Fin N => ¬ Nat.Coprime i.val N).card : ℝ≥0∞) / N := by
-      have heq := Fintype.sum_equiv (ZMod.finEquiv N)
-        (fun i : Fin N =>
-          (N : ℝ≥0∞)⁻¹ * if ¬ Nat.Coprime i.val N then 1 else 0)
-        (fun x : ZMod N =>
-          (PMF.uniformOfFintype (ZMod N)) x *
-            (PMF.pure (decide (¬ Nat.Coprime x.val N))) true)
-        (fun i => by
-          simp [PMF.uniformOfFintype_apply, ZMod.card, PMF.pure_apply, ZMod.val_finEquiv])
-      rw [← heq, ← Finset.mul_sum, Finset.sum_boole, div_eq_mul_inv, mul_comm]
-    rw [hsum, ENNReal.toNNReal_div, ENNReal.toNNReal_natCast, ENNReal.toNNReal_natCast]
-  have hg2 :
-      Game.succProbability (((PMF.uniformOfFintype (ZMod N)ˣ).map Units.val).bind k) = 0 := by
-    simp only [Game.succProbability, k, PMF.bind_map, PMF.bind_apply, ENNReal.toNNReal_eq_zero_iff]
-    left
-    rw [tsum_eq_zero_iff]
-    intro u
-    simp [ZMod.val_coe_unit_coprime u]
-  have hreal : (Game.advantage ((PMF.uniformOfFintype (ZMod N)).bind k)
-      (((PMF.uniformOfFintype (ZMod N)ˣ).map Units.val).bind k) : ℝ) ≤ d := by
-    exact_mod_cast hadv
-  rw [Game.coe_advantage, hg1, hg2, NNReal.coe_zero, sub_zero,
-    abs_of_nonneg (NNReal.coe_nonneg _)] at hreal
-  exact hreal
-
 /-- Counterexample showing `ℓ ≤ p.size ∧ ℓ ≤ q.size` cannot be dropped in
 `dist_uniformOfFintype_zmod_units_lt` (or even weakened to `≤`): for `p = 2`, `q = 3`, and
 `ℓ = 3`, the statistical distance exceeds `4 / 2 ^ 3 = 1 / 2`. -/
 example :
     ¬ (dist (PMF.uniformOfFintype (ZMod (2 * 3)))
         ((PMF.uniformOfFintype (ZMod (2 * 3))ˣ).map Units.val) ≤ (4 : ℝ) / 2 ^ 3) := by
-  have hle := nonCoprime_card_div_le_dist (2 * 3)
-  have hcard : (Finset.univ.filter fun i : Fin (2 * 3) => ¬ Nat.Coprime i.val (2 * 3)).card = 4 :=
-    by decide
-  rw [hcard] at hle
-  linarith
+  have htot : Nat.totient (2 * 3) = 2 := by decide
+  rw [dist_uniformOfFintype_zmod_units (2 * 3), htot]
+  norm_num
 
 /-- Counterexample showing both prime bit-length bounds are required in
 `dist_uniformOfFintype_zmod_units_lt`: for `p = 2`, `q = 5`, and `ℓ = 3`, `3 ≤ q.size` holds while
-`3 ≤ p.size` fails, and the statistical distance is at least `6 / 10 > 4 / 2 ^ 3 = 1 / 2`. -/
+`3 ≤ p.size` fails, and the statistical distance is `6 / 10 > 4 / 2 ^ 3 = 1 / 2`. -/
 example :
     ¬ (dist (PMF.uniformOfFintype (ZMod (2 * 5)))
         ((PMF.uniformOfFintype (ZMod (2 * 5))ˣ).map Units.val) < (4 : ℝ) / 2 ^ 3) := by
-  have hle := nonCoprime_card_div_le_dist (2 * 5)
-  have hcard : (Finset.univ.filter fun i : Fin (2 * 5) => ¬ Nat.Coprime i.val (2 * 5)).card = 6 :=
-    by decide
-  rw [hcard] at hle
-  linarith
+  have htot : Nat.totient (2 * 5) = 4 := by decide
+  rw [dist_uniformOfFintype_zmod_units (2 * 5), htot]
+  norm_num
 
 end Converse
 

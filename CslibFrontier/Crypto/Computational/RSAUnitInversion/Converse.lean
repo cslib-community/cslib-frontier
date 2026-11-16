@@ -11,10 +11,8 @@ public import CslibFrontier.Init
 public import CslibFrontier.Crypto.Computational.RSAUnitInversion
 public import CslibFrontier.Probability.StatisticalDistance
 import CslibFrontier.Crypto.Computational.UnitSampling
-import CslibFrontier.Crypto.Game.CloseTo
 import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Foundations.Data.ZMod.Basic
-import CslibFrontier.Probability.StatisticalDistance.TotalVariation
 
 /-!
 # Converse reduction from unit RSA to full RSA (Exercises 10.25–10.26)
@@ -23,17 +21,14 @@ In [BonehShoup2023], §10.11 (printed p. 431), Exercises 10.25 and 10.26 ask for
 Theorem 10.5: when the modulus `N = p * q` is the product of two distinct `ℓ`-bit primes
 (`ℓ ≤ p.size` and `ℓ ≤ q.size`), uniform residues in `ZMod N` and uniform units in `(ZMod N)ˣ`
 have statistical distance strictly less than `4 / 2 ^ ℓ` (which equals `2 ^ -(ℓ - 2)` for `ℓ ≥ 2`).
-Here `dist_uniformOfFintype_zmod_units_le` bounds the distance by `(N - φ(N)) / N` for any
-positive `N`, and `dist_uniformOfFintype_zmod_units_lt` derives `< 4 / 2 ^ ℓ` via
-`Cslib.Crypto.sub_totient_div_lt`. The book's Exercise 10.26 inequality names an adversary `B` that
-it does not introduce; here the full-RSA inverter `A` itself runs in `rsaUnitInversionGame` (so no
-new reduction is defined), giving `RSAadv[A] ≤ uRSAadv[A] + 4 / 2 ^ ℓ`.
+Here `dist_uniformOfFintype_zmod_units_lt` derives `< 4 / 2 ^ ℓ` from the exact non-unit fraction
+`Cslib.Crypto.dist_uniformOfFintype_zmod_units` and `Cslib.Crypto.sub_totient_div_lt`. The book's
+Exercise 10.26 inequality names an adversary `B` that it does not introduce; here the full-RSA
+inverter `A` itself runs in `rsaUnitInversionGame` (so no new reduction is defined), giving
+`RSAadv[A] ≤ uRSAadv[A] + 4 / 2 ^ ℓ`.
 
 ## Main results
 
-* `Cslib.Crypto.dist_uniformOfFintype_zmod_units_le`: for any positive `N`,
-  `PMF.uniformOfFintype (ZMod N)` and `(PMF.uniformOfFintype (ZMod N)ˣ).map Units.val` have
-  statistical distance at most `(N - φ(N)) / N`.
 * `Cslib.Crypto.dist_uniformOfFintype_zmod_units_lt`: Exercise 10.25 — for distinct primes `p ≠ q`
   with `ℓ ≤ p.size` and `ℓ ≤ q.size`, `PMF.uniformOfFintype (ZMod (p * q))` and
   `(PMF.uniformOfFintype (ZMod (p * q))ˣ).map Units.val` have statistical distance strictly less
@@ -62,30 +57,16 @@ namespace Cslib.Crypto
 open Cslib.Probability
 open scoped NNReal ENNReal Cslib.Probability.PMF
 
-/-- For any positive modulus `N`, uniform residues in `ZMod N` and uniform units in `(ZMod N)ˣ`
-have statistical distance at most `(N - φ(N)) / N`, reusing `Game.advantage_bind_units_le`. -/
-theorem dist_uniformOfFintype_zmod_units_le (N : ℕ) [NeZero N] :
-    dist (PMF.uniformOfFintype (ZMod N))
-      ((PMF.uniformOfFintype (ZMod N)ˣ).map Units.val) ≤
-      ((N - N.totient : ℕ) : ℝ) / N := by
-  have hclose : CloseTo (PMF.uniformOfFintype (ZMod N))
-      ((PMF.uniformOfFintype (ZMod N)ˣ).map Units.val)
-      (((((N - N.totient : ℕ) : ℝ≥0) / N) : ℝ≥0) : ℝ≥0∞) := by
-    rw [Game.closeTo_iff_forall_advantage_bind_le]
-    intro k
-    simpa only [PMF.bind_map, Function.comp_def] using Game.advantage_bind_units_le N k
-  exact_mod_cast (closeTo_coe_iff_dist_le.mp hclose)
-
 /-- **Boneh–Shoup Exercise 10.25 (§10.11, printed p. 431):** for distinct primes `p ≠ q` with
 `ℓ ≤ p.size` and `ℓ ≤ q.size`, uniform residues modulo `p * q` and uniform units in
 `(ZMod (p * q))ˣ` have statistical distance strictly less than `4 / 2 ^ ℓ` (`2 ^ -(ℓ - 2)` for
-`ℓ ≥ 2`), reusing `sub_totient_div_lt`. -/
+`ℓ ≥ 2`), reusing `dist_uniformOfFintype_zmod_units` and `sub_totient_div_lt`. -/
 theorem dist_uniformOfFintype_zmod_units_lt {p q ℓ : ℕ} [NeZero (p * q)]
     (hp : p.Prime) (hq : q.Prime) (hpq : p ≠ q) (hpn : ℓ ≤ p.size) (hqn : ℓ ≤ q.size) :
     dist (PMF.uniformOfFintype (ZMod (p * q)))
-      ((PMF.uniformOfFintype (ZMod (p * q))ˣ).map Units.val) < (4 : ℝ) / 2 ^ ℓ :=
-  (dist_uniformOfFintype_zmod_units_le (p * q)).trans_lt
-    (by exact_mod_cast sub_totient_div_lt hp hq hpq hpn hqn)
+      ((PMF.uniformOfFintype (ZMod (p * q))ˣ).map Units.val) < (4 : ℝ) / 2 ^ ℓ := by
+  rw [dist_uniformOfFintype_zmod_units (p * q)]
+  exact_mod_cast sub_totient_div_lt hp hq hpq hpn hqn
 
 private theorem unitResidue_eq_finEquiv_symm (desc : RSADesc) (u : (ZMod desc.modulus)ˣ) :
     desc.unitResidue u = (ZMod.finEquiv desc.modulus).symm (u : ZMod desc.modulus) := by
@@ -151,7 +132,7 @@ theorem succProbability_rsaInversionGame_le_of_size
     (rsaInversionGame gen A n).succProbability ≤
       (rsaUnitInversionGame gen A n).succProbability + 4 / 2 ^ ℓ :=
   succProbability_rsaInversionGame_le_of_nonUnitFrac_le gen A fun desc hdesc =>
-    sub_totient_div_le desc.hp desc.hq desc.hpq (hsize desc hdesc).1 (hsize desc hdesc).2
+    (sub_totient_div_lt desc.hp desc.hq desc.hpq (hsize desc hdesc).1 (hsize desc hdesc).2).le
 
 /-- Asymptotic converse of Theorem 10.5 (`RSAOneWay.rsaUnitOneWay`): `RSAUnitOneWay gen` implies
 `RSAOneWay gen` whenever the non-unit fraction `(N - φ(N)) / N` on `(gen n).support` is
@@ -176,7 +157,7 @@ theorem RSAUnitOneWay.rsaOneWay {gen : RSAGen}
     (h : RSAUnitOneWay gen) : RSAOneWay gen :=
   h.rsaOneWay_of_nonUnitFrac_le (negligible_const_div_two_pow 4)
     (hsize.mono fun _ hn desc hdesc =>
-      sub_totient_div_le desc.hp desc.hq desc.hpq (hn desc hdesc).1 (hn desc hdesc).2)
+      (sub_totient_div_lt desc.hp desc.hq desc.hpq (hn desc hdesc).1 (hn desc hdesc).2).le)
 
 /-- Under `n`-bit primes (`n ≤ desc.p.size ∧ n ≤ desc.q.size`) eventually on `(gen n).support`,
 full-domain RSA one-wayness and unit-domain RSA one-wayness are equivalent. -/
