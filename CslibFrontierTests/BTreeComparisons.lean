@@ -71,14 +71,23 @@ example : (insertQ (t := 2) 10 "j" exampleTreeFull).countQueries falseOracle = 5
 
 /-! ### Erasure -/
 
-def trueOracle : {ι : Type} → LEQuery ℕ ι → ι :=
+private def trueOracle : {ι : Type} → LEQuery ℕ ι → ι :=
   LEQuery.oracleOf fun _ _ => true
 
-example : (eraseQ 2 4 exampleTree).eval orderOracle = erase 2 4 exampleTree := eval_eraseQ
+/-- Under the order's oracle the counted erasure returns the tree without the key. -/
+example :
+    ((eraseQ 2 4 exampleTree).eval orderOracle).toList =
+      [(1, "a"), (2, "b"), (3, "c"), (5, "e"), (6, "f"), (7, "g"), (8, "h")] := by
+  rw [eval_eraseQ]
+  decide
 
-example : (eraseMinQ 2 exampleTree).eval orderOracle = eraseMin? 2 exampleTree := eval_eraseMinQ
-
-example : (eraseMaxQ 2 exampleTree).eval orderOracle = eraseMax? 2 exampleTree := eval_eraseMaxQ
+/-- Under the order's oracle the counted extremal removals return the least and greatest
+entries. -/
+example :
+    ((eraseMinQ 2 exampleTree).eval orderOracle).map (·.1) = some (1, "a") ∧
+      ((eraseMaxQ 2 exampleTree).eval orderOracle).map (·.1) = some (8, "h") := by
+  rw [eval_eraseMinQ, eval_eraseMaxQ, eraseMin?_eq, eraseMax?_eq]
+  decide
 
 /-- Three comparisons at the root (`4 ≤ 3` fails, `4 ≤ 6` holds, `6 ≤ 4` fails) and two in the
 child holding the key. -/
@@ -86,8 +95,8 @@ example : (eraseQ 2 4 exampleTree).countQueries orderOracle = 5 := by
   simp [exampleTree, eraseQ_def, eraseM_def, eraseSubtreeM_node, eraseRestM_cons,
     popMinM_node, rebalanceRightM_def, rebalanceLastM_def, underflows]
 
-/-- An interior key costs the two comparisons that find it: fetching its successor and repairing
-the child ask nothing. -/
+/-- An interior key costs the two comparisons that find it: fetching its successor asks
+nothing. -/
 example : (eraseQ 2 3 exampleTree).countQueries orderOracle = 2 := by
   simp [exampleTree, eraseQ_def, eraseM_def, eraseSubtreeM_node, eraseRestM_cons,
     popMinM_node, rebalanceRightM_def, rebalanceLastM_def, underflows]
@@ -103,6 +112,29 @@ example : (eraseQ 2 4 exampleTree).countQueries trueOracle = 2 := by
     popMinM_node, rebalanceRightM_def, rebalanceLastM_def, underflows]
 
 example : (eraseQ 2 4 (.leaf : BTree ℕ String)).countQueries falseOracle = 0 := by simp
+
+/-- An absent key: two comparisons at the root and two in the first child, where the search ends
+in an empty subtree. -/
+example : (eraseQ 2 0 exampleTree).countQueries orderOracle = 4 := by
+  simp [exampleTree, eraseQ_def, eraseM_def, eraseSubtreeM_node, eraseRestM_cons, popMinM_node,
+    rebalanceRightM_def, rebalanceLastM_def, underflows]
+
+/-- A repair and a root collapse ask nothing: erasing `1` leaves its child empty, the child merges
+with its sibling and the root collapses, for the two comparisons at each of the two nodes
+scanned. -/
+example :
+    (eraseQ 2 1 (BTree.node (.node .leaf [(1, (), .leaf)])
+      [(2, (), .node .leaf [(3, (), .leaf)])] : BTree ℕ Unit)).countQueries orderOracle = 4 := by
+  simp [eraseQ_def, eraseM_def, eraseSubtreeM_node, eraseRestM_cons, popMinM_node,
+    rebalanceRightM_def, rebalanceLastM_def, underflows]
+
+/-- The bound is attained: erasing the last key of a full node at `t = 2` makes
+`2 * t * height = 4` comparisons. -/
+example :
+    (eraseQ 2 3 (BTree.node .leaf [(1, (), .leaf), (2, (), .leaf), (3, (), .leaf)] :
+      BTree ℕ Unit)).countQueries orderOracle = 4 := by
+  simp [eraseQ_def, eraseM_def, eraseSubtreeM_node, eraseRestM_cons, rebalanceRightM_def,
+    rebalanceLastM_def, underflows]
 
 /-- The bound `2 * t * height` at `t = 2` and height `2`, under every oracle. -/
 example (oracle : {ι : Type} → LEQuery ℕ ι → ι) :

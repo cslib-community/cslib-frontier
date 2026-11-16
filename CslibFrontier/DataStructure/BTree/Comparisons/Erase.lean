@@ -177,6 +177,21 @@ private theorem countQueries_eraseRestM_le (k : α) (B : ℕ) (rest : List (Trip
         simp [LEQuery.ask, hk]
         omega
 
+/-- Erasure from the empty tree makes no comparisons. -/
+@[simp] theorem countQueries_eraseQ_leaf :
+    (eraseQ t k (.leaf : BTree α β)).countQueries oracle = 0 := by
+  simp [eraseQ]
+
+/-- Removing the least entry of the empty tree makes no comparisons. -/
+@[simp] theorem countQueries_eraseMinQ_leaf :
+    (eraseMinQ t (.leaf : BTree α β)).countQueries oracle = 0 := by
+  simp [eraseMinQ]
+
+/-- Removing the greatest entry of the empty tree makes no comparisons. -/
+@[simp] theorem countQueries_eraseMaxQ_leaf :
+    (eraseMaxQ t (.leaf : BTree α β)).countQueries oracle = 0 := by
+  simp [eraseMaxQ]
+
 variable [LinearOrder α]
 
 /-- Erasure from a subtree of a well-formed tree makes at most `2 * t` comparisons per level. -/
@@ -192,24 +207,6 @@ private theorem countQueries_eraseSubtreeM_le (h : IsWF t tr) :
       simp only [eraseSubtreeM_node, FreeM.countQueries_bind, FreeM.countQueries_pure]
       omega)
     h.rootKeys_le h.occupied_of_mem_children
-
-omit [LinearOrder α] in
-/-- Erasure from the empty tree makes no comparisons. -/
-@[simp] theorem countQueries_eraseQ_leaf :
-    (eraseQ t k (.leaf : BTree α β)).countQueries oracle = 0 := by
-  simp [eraseQ]
-
-omit [LinearOrder α] in
-/-- Removing the least entry of the empty tree makes no comparisons. -/
-@[simp] theorem countQueries_eraseMinQ_leaf :
-    (eraseMinQ t (.leaf : BTree α β)).countQueries oracle = 0 := by
-  simp [eraseMinQ]
-
-omit [LinearOrder α] in
-/-- Removing the greatest entry of the empty tree makes no comparisons. -/
-@[simp] theorem countQueries_eraseMaxQ_leaf :
-    (eraseMaxQ t (.leaf : BTree α β)).countQueries oracle = 0 := by
-  simp [eraseMaxQ]
 
 /-- Erasure makes at most `2 * t * height` comparisons: it scans one node per level, and its
 repairs and the removal of a successor compare no keys. -/
@@ -262,7 +259,7 @@ section Bounds
 
 variable [LinearOrder α]
 
-/-- `UpperBound` packaging for `eraseQ`. -/
+/-- `UpperBound` packaging for `eraseQ`, on well-formed trees. -/
 theorem eraseQ_upperBound :
     UpperBound (fun p : WFInput α β t => eraseQ t p.val.2 p.val.1)
       (fun p => p.val.1.height) (fun h => 2 * t * h) :=
