@@ -1640,6 +1640,7 @@ public import CslibFrontier.Computability.Circuit.InnerSize
 public import CslibFrontier.Computability.Circuit.Inputization
 public import CslibFrontier.Computability.Circuit.Iteration
 public import CslibFrontier.Computability.Circuit.KernelVector
+public import CslibFrontier.Computability.Circuit.LinearSolve
 public import CslibFrontier.Computability.Circuit.Linearize
 public import CslibFrontier.Computability.Circuit.Local
 public import CslibFrontier.Computability.Circuit.MapLines
@@ -3402,6 +3403,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.P
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString.BinaryWord
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString.Dot
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString.Positions
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Bounds
@@ -4446,6 +4448,7 @@ public import CslibFrontier.Crypto.Computational.Encryption.BlockModeWord
 public import CslibFrontier.Crypto.Computational.Encryption.CCA
 public import CslibFrontier.Crypto.Computational.Encryption.CCA.Interleaved
 public import CslibFrontier.Crypto.Computational.Encryption.CCA.Malleability
+public import CslibFrontier.Crypto.Computational.Encryption.CCAToCPA
 public import CslibFrontier.Crypto.Computational.Encryption.CTRMode
 public import CslibFrontier.Crypto.Computational.Encryption.CTRMode.Uniform
 public import CslibFrontier.Crypto.Computational.Encryption.Cipher
@@ -4653,6 +4656,7 @@ public import CslibFrontier.Crypto.Computational.MLDSA.Hint
 public import CslibFrontier.Crypto.Computational.MLDSA.KeyOnly
 public import CslibFrontier.Crypto.Computational.MLDSA.Signing
 public import CslibFrontier.Crypto.Computational.MerkleDamgard
+public import CslibFrontier.Crypto.Computational.MerkleDamgard.LengthPadding
 public import CslibFrontier.Crypto.Computational.MerkleDamgard.Multicollision
 public import CslibFrontier.Crypto.Computational.MerkleSignature
 public import CslibFrontier.Crypto.Computational.MerkleSignature.Security
@@ -4740,8 +4744,10 @@ public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Finite
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Label
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.MultiKey
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.RandomOracle
+public import CslibFrontier.Crypto.Computational.PseudorandomFunction.ToPRG
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.TruthTable
 public import CslibFrontier.Crypto.Computational.PseudorandomGenerator
+public import CslibFrontier.Crypto.Computational.PseudorandomGenerator.LFSR
 public import CslibFrontier.Crypto.Computational.PseudorandomGenerator.ModReduction
 public import CslibFrontier.Crypto.Computational.PseudorandomPermutation
 public import CslibFrontier.Crypto.Computational.QuadraticResiduosity
@@ -4799,6 +4805,7 @@ public import CslibFrontier.Crypto.Computational.SchnorrSignature.Security
 public import CslibFrontier.Crypto.Computational.SchnorrSignature.StatisticalROM
 public import CslibFrontier.Crypto.Computational.SchnorrSignature.WordROM
 public import CslibFrontier.Crypto.Computational.SecondPreimageResistant
+public import CslibFrontier.Crypto.Computational.SecondPreimageResistant.Relations
 public import CslibFrontier.Crypto.Computational.Signature
 public import CslibFrontier.Crypto.Computational.Signature.Bridge
 public import CslibFrontier.Crypto.Computational.Signature.RandomOracle
@@ -4925,8 +4932,10 @@ public import CslibFrontier.Crypto.Primitives.PRF.Invertible
 public import CslibFrontier.Crypto.Primitives.PRF.MultiKey
 public import CslibFrontier.Crypto.Primitives.PRF.RandPrefixFreeEncoding
 public import CslibFrontier.Crypto.Primitives.PRF.RandomOracleModel
+public import CslibFrontier.Crypto.Primitives.PRF.ToPRG
 public import CslibFrontier.Crypto.Primitives.PRG.Circuit
 public import CslibFrontier.Crypto.Primitives.PRG.Game
+public import CslibFrontier.Crypto.Primitives.PRG.LFSR
 public import CslibFrontier.Crypto.Primitives.PRG.LinearCongruential
 public import CslibFrontier.Crypto.Primitives.PRG.ModReduction
 public import CslibFrontier.Crypto.Primitives.PRG.NextBit
@@ -4943,6 +4952,7 @@ public import CslibFrontier.Crypto.Primitives.PRG.NisanWigderson.MXCircuit
 public import CslibFrontier.Crypto.Primitives.PRG.NisanWigderson.Queries
 public import CslibFrontier.Crypto.Primitives.PRG.NisanWigderson.Reconstruction
 public import CslibFrontier.Crypto.Primitives.PRG.NisanWigderson.Sampling
+public import CslibFrontier.Crypto.Primitives.PRP.BirthdayAttack
 public import CslibFrontier.Crypto.Primitives.PRP.Finite
 public import CslibFrontier.Crypto.Primitives.SDitH.ExpandSeed
 public import CslibFrontier.Crypto.Primitives.SDitH.TweakSalt
@@ -4978,6 +4988,7 @@ public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.WordReduction
 public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.WordSecurity
 public import CslibFrontier.Crypto.Protocols.KEM.MLKEM
 public import CslibFrontier.Crypto.Protocols.MAC.CarterWegman
+public import CslibFrontier.Crypto.Protocols.MAC.GHASH
 public import CslibFrontier.Crypto.Protocols.MAC.PolynomialEvaluation
 public import CslibFrontier.Crypto.Protocols.MAC.VariableLength
 public import CslibFrontier.Crypto.Protocols.MPC.Advantage
@@ -5653,6 +5664,7 @@ public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.Li.Somewhe
 public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.Threshold
 public import CslibFrontier.Foundations.Combinatorics.ApproximateMajority
 public import CslibFrontier.Foundations.Combinatorics.BalancedSchedules
+public import CslibFrontier.Foundations.Combinatorics.BinaryTreeCover
 public import CslibFrontier.Foundations.Combinatorics.BinomialTail
 public import CslibFrontier.Foundations.Combinatorics.Bregman
 public import CslibFrontier.Foundations.Combinatorics.BudgetTuples
@@ -6353,6 +6365,7 @@ public import CslibFrontier.Foundations.LinearAlgebra.ImageSparsification
 public import CslibFrontier.Foundations.LinearAlgebra.Interpolation
 public import CslibFrontier.Foundations.LinearAlgebra.IsolatedBasis
 public import CslibFrontier.Foundations.LinearAlgebra.KernelVector
+public import CslibFrontier.Foundations.LinearAlgebra.LinearSolve
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Bareiss
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.BasicSolution
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.BlockEmbedding
@@ -6685,6 +6698,7 @@ public import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
 public import CslibFrontier.Languages.Probabilistic.RandomOracle.Programming
 public import CslibFrontier.Languages.Probabilistic.RandomOracle.Represented
 public import CslibFrontier.Languages.Probabilistic.RandomOracle.Sum
+public import CslibFrontier.Languages.Probabilistic.RandomOracle.Through
 public import CslibFrontier.Languages.Probabilistic.RandomPermutation
 public import CslibFrontier.Languages.Probabilistic.RandomPermutation.ExtPermsCard
 public import CslibFrontier.Languages.Probabilistic.Rational
@@ -7375,6 +7389,7 @@ public import CslibFrontier.Probability.HashFamily.IntegerBox
 public import CslibFrontier.Probability.HashFamily.Matrix
 public import CslibFrontier.Probability.HashFamily.MultiplyShift
 public import CslibFrontier.Probability.HashFamily.Polynomial
+public import CslibFrontier.Probability.HashFamily.Transport
 public import CslibFrontier.Probability.HashFamily.Uniform
 public import CslibFrontier.Probability.HashIsolation
 public import CslibFrontier.Probability.Hellinger
@@ -7390,6 +7405,7 @@ public import CslibFrontier.Probability.IID.Event
 public import CslibFrontier.Probability.IID.FirstAccepted
 public import CslibFrontier.Probability.IID.FirstSome
 public import CslibFrontier.Probability.IID.FunctionCollision
+public import CslibFrontier.Probability.IID.Marked
 public import CslibFrontier.Probability.IID.Occurrence
 public import CslibFrontier.Probability.Isolation
 public import CslibFrontier.Probability.JohnsonLindenstrauss
