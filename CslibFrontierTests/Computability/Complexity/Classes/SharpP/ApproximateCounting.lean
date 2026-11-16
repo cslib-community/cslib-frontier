@@ -10,9 +10,9 @@ import CslibFrontier.Computability.Complexity.Classes.SharpP.ApproximateCounting
 
 /-! # Clients of Stockmeyer's approximate counting
 
-Checked instances of the hypotheses of `SharpP.exists_approxCount_SAT` (a step toward
-Goldreich, Theorem 6.27), of the sieve query of Goldreich's Exercise 6.34, and the factor-`1 / 2`
-form of Arora–Barak's Exercise 9 §6(a) as the case `ε = 1 / 2` of
+Checked instances of the hypotheses of `FNP.exists_approxCount_SAT` (Goldreich, Theorem 6.27)
+and its `#P` step `SharpP.exists_approxCount_SAT`, of the sieve query of Goldreich's Exercise
+6.34, and the factor-`1 / 2` form of Arora–Barak's Exercise 9 §6(a) as the case `ε = 1 / 2` of
 `SharpP.exists_approx_of_NP_subset_P`.
 -/
 
@@ -31,6 +31,16 @@ example {f : α → ℕ} (hf : f ∈ SharpP enc) :
         (f a : ℚ) / (Polynomial.C 1 : Polynomial ℕ).eval (enc a).length <
           |(E (a, List.ofFn r) : ℚ) - f a|} ≤ (2 ^ (enc a).length)⁻¹ :=
   SharpP.exists_approxCount_SAT hf _ fun _ => by simp
+
+-- Goldreich, Theorem 6.27, for the witnesses of an exact-length NP relation, which form a
+-- balanced PC relation.
+example (R : NPRelation enc) :
+    ∃ (ℓ : Polynomial ℕ) (E : α × List Bool → ℕ),
+      ComputableInPolyTimeWithOracle (encCNF '' SAT) E (encPair enc encBits) encNat ∧
+      ∀ a, dens {r : BitString (ℓ.eval (enc a).length) |
+        (searchCount R.IsWitness a : ℚ) / (Polynomial.C 1 : Polynomial ℕ).eval (enc a).length <
+          |(E (a, List.ofFn r) : ℚ) - searchCount R.IsWitness a|} ≤ (2 ^ (enc a).length)⁻¹ :=
+  FNP.exists_approxCount_SAT R.isWitness_mem_FNP _ fun _ => by simp
 
 -- Goldreich, Exercise 6.34: the sieve queries are in `NP`.
 example (R : NPRelation enc) : R.sieveQuery.language ∈ NP (encHashQuery α enc) :=

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Classes.NP.Relation
 public import CslibFrontier.Computability.Complexity.Classes.Oracle
 public import CslibFrontier.Computability.Complexity.Classes.SharpP
+public import CslibFrontier.Computability.Complexity.Classes.SharpP.Relation
 public import CslibFrontier.Computability.Complexity.Problems.SAT
 public import CslibFrontier.Computability.Complexity.AcceptCount
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
@@ -40,13 +41,13 @@ import CslibFrontier.Probability.BitString.AffineHash
 Stockmeyer showed that the number `#R(a)` of witnesses of an NP relation `R` can be approximated
 within any factor `1 ± 1 / q(n)`, `q` a positive polynomial and `n` the encoded length of `a`, by
 a probabilistic polynomial-time algorithm with an `NP` oracle [Stockmeyer1983]
-[Goldreich, Theorem 6.27][Goldreich2007Draft]. This file proves it for `#P` functions, the
-counts of certificates of exactly the prescribed length, on the native oracle machines
-(`Cslib.Complexity.ComputableInPolyTimeWithOracle`) with the oracle fixed to the set
-`encCNF '' SAT` of encoded satisfiable formulas. It also proves Goldreich's Exercise 6.34, the
-membership in `NP` of the sieve query. Goldreich's theorem for every polynomially balanced PC
-relation additionally needs the count-preserving transport of such counts into `#P`, which is
-not on `main`.
+[Goldreich, Theorem 6.27][Goldreich2007Draft]. This file proves it for every polynomially
+balanced PC relation (`FNP`) on the native oracle machines
+(`Cslib.Complexity.ComputableInPolyTimeWithOracle`), with the oracle fixed to the set
+`encCNF '' SAT` of encoded satisfiable formulas: first for `#P` functions, the counts of
+certificates of exactly the prescribed length, then for all solution counts through the
+count-preserving transport `searchCount_mem_SharpP`. It also proves Goldreich's Exercise 6.34,
+the membership in `NP` of the sieve query.
 
 ## The algorithm
 
@@ -73,11 +74,11 @@ independent.
 
 ## Statement-to-source mapping
 
-* Goldreich's `R ∈ PC` is covered only through its count in `#P`: the estimator works on a
+* Goldreich's `R ∈ PC` is `R ∈ FNP enc` (solutions of length at most a polynomial, decided in
+  polynomial time) and `#R(a)` is `searchCount R a`. The estimator itself works on a
   `Cslib.Complexity.NPRelation` (witnesses of exactly the prescribed length) with
-  `#R(a) = acceptCount R.verifier a m`, and `SharpP.exists_approxCount_SAT` takes `f ∈ #P`.
-  Relations with solutions of varying length (`FNP`) need the missing count-preserving
-  transport.
+  `#R(a) = acceptCount R.verifier a m`; `searchCount_mem_SharpP` moves every `FNP` count into
+  `#P`, and `SharpP.exists_approxCount_SAT` approximates every `#P` function.
 * Goldreich's probabilistic polynomial-time oracle machine is a function `E` of the instance and
   a random string of `ℓ(n)` bits, `ℓ` a polynomial, computable in polynomial time relative to the
   oracle; probabilities are densities over the random strings. The output is a natural number,
@@ -112,7 +113,9 @@ independent.
 * `Cslib.Complexity.Stockmeyer.computableInPolyTimeWithOracle_estimator`: polynomial time with
   the `SAT` oracle.
 * `Cslib.Complexity.SharpP.exists_approxCount_SAT`: Stockmeyer's approximate counting for `#P`
-  functions with the `SAT` oracle, a step toward Goldreich's Theorem 6.27.
+  functions with the `SAT` oracle.
+* `Cslib.Complexity.FNP.exists_approxCount_SAT`: **Stockmeyer's approximate counting** for every
+  polynomially balanced PC relation (Goldreich, Theorem 6.27).
 * `Cslib.Complexity.SharpP.exists_approx_of_NP_subset_P`: approximate counting under `NP ⊆ P`.
 
 ## References
@@ -748,7 +751,8 @@ variable {enc : α ↪ List Bool}
 toward Goldreich's Theorem 6.27 [Goldreich2007Draft] [Stockmeyer1983], not the cited result: it
 approximates functions `f ∈ #P`, which count the accepted certificates of exactly the prescribed
 length, while the theorem counts the solutions of any polynomially balanced PC relation (`FNP`).
-The missing step is the count-preserving transport putting those counts in `#P`.
+The theorem itself is `FNP.exists_approxCount_SAT`, which transports those counts into `#P` by
+`searchCount_mem_SharpP`.
 
 For every positive polynomial `q`, a polynomial-time oracle algorithm with the `SAT` oracle,
 reading `ℓ(n)` random bits for a polynomial `ℓ`, outputs an estimate `E` that misses `f(a)` by
@@ -822,5 +826,29 @@ theorem exists_approx_of_NP_subset_P
       · nlinarith
 
 end SharpP
+
+namespace FNP
+
+variable {enc : α ↪ List Bool}
+
+/-- **Stockmeyer's approximate counting** [Goldreich, Theorem 6.27][Goldreich2007Draft]
+[Stockmeyer1983]: for every polynomially balanced, polynomial-time checkable search relation `R`
+(Goldreich's `PC`, here `FNP`) and every positive polynomial `q`, a polynomial-time oracle
+algorithm with the `SAT` oracle, reading `ℓ(n)` random bits for a polynomial `ℓ`, outputs an
+estimate `E` of the number `#R(a) = searchCount R a` of solutions of `a` that misses it by more
+than `#R(a) / q(n)` with probability at most `2 ^ (-n)`, `n` the encoded length of `a`. The
+oracle is the set of encoded satisfiable formulas, and the estimate is a natural number, a special
+case of Goldreich's rational output. Solutions of all lengths are counted: the count is moved
+into `#P` by `searchCount_mem_SharpP` and approximated by `SharpP.exists_approxCount_SAT`. -/
+theorem exists_approxCount_SAT {R : α → List Bool → Prop} (hR : R ∈ FNP enc)
+    (q : Polynomial ℕ) (hq : ∀ n, q.eval n ≠ 0) :
+    ∃ (ℓ : Polynomial ℕ) (E : α × List Bool → ℕ),
+      ComputableInPolyTimeWithOracle (encCNF '' SAT) E (encPair enc encBits) encNat ∧
+      ∀ a, dens {r : BitString (ℓ.eval (enc a).length) |
+        (searchCount R a : ℚ) / q.eval (enc a).length <
+          |(E (a, List.ofFn r) : ℚ) - searchCount R a|} ≤ (2 ^ (enc a).length)⁻¹ :=
+  SharpP.exists_approxCount_SAT (searchCount_mem_SharpP hR) q hq
+
+end FNP
 
 end Cslib.Complexity
