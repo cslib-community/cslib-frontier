@@ -16,15 +16,14 @@ import Mathlib.Tactic.NormNum.Prime
 
 Concrete regression checks for `CslibFrontier/Crypto/Computational/Factoring/LinearRelation.lean`:
 
-* Positive factorizations for `(a, b) = (3, 2)` and `(5, 3)`, both by kernel/norm_num evaluation
-  and via `fermatFactorLinear_mul_eq`, `fermatFactorLinear_mul_eq_of_lt_rpow`,
-  `ceilSqrt_four_mul_eq`, `abs_mul_add_mul_div_two_sub_sqrt_lt_half`, and
-  `RSADesc.fermatFactorLinear_eq_of_lt_rpow`.
+* Positive factorizations for `(a, b) = (3, 2)` and `(5, 3)`, both by evaluation and via
+  `fermatFactorLinear_mul_eq`, `fermatFactorLinear_mul_eq_of_lt_rpow`,
+  `abs_add_div_two_sub_sqrt_mul_lt_half`, and `RSADesc.fermatFactorLinear_eq_of_lt_rpow`.
 * Output ordering follows `b * q ≤ a * p` rather than `q ≤ p`, checked on `(3, 2, 7, 11)`.
 * Exercise 16.14's 309-digit challenge (`a = 3`, `b = 2`), verified both by `norm_num` evaluation
   and via `fermatFactorLinear_mul_eq_of_lt_rpow`.
-* Counterexamples showing necessity of `Nat.Coprime (2 * a) q`, `0 < a` in
-  `fermatFactorLinear_mul_eq_of_lt_rpow`, and the fourth-root closeness bound.
+* Counterexamples showing necessity of `Nat.Coprime (2 * a) q`, `Nat.Coprime (2 * b) p`, `0 < a`
+  in `fermatFactorLinear_mul_eq_of_lt_rpow`, and the fourth-root closeness bound.
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
@@ -64,43 +63,26 @@ example : fermatFactorLinear 3 2 (101 * 151) = (101, 151) := by
 /-- Checked via `RSADesc.fermatFactorLinear_eq_of_lt_rpow` on `rsa15251`. -/
 example : fermatFactorLinear 3 2 rsa15251.modulus = (101, 151) := by
   have hlt : |(3 : ℝ) * 101 - 2 * 151| < (rsa15251.modulus : ℝ) ^ (1 / 4 : ℝ) := by
-    have h4 : ((3 : ℝ) * 101 - 2 * 151) ^ 4 < (rsa15251.modulus : ℝ) := by
-      norm_num [RSADesc.modulus, rsa15251]
-    have ht4 : (((rsa15251.modulus : ℝ) ^ (1 / 4 : ℝ)) ^ 4) = rsa15251.modulus := by
-      rw [one_div, show (4 : ℝ) = ((4 : ℕ) : ℝ) by norm_num]
-      exact Real.rpow_inv_natCast_pow (by positivity) (by norm_num)
-    rw [← pow_lt_pow_iff_left₀ (abs_nonneg _) (by positivity) four_ne_zero,
-      Even.pow_abs (by decide), ht4]
-    exact h4
+    rw [one_div, Real.lt_rpow_inv_iff_of_pos (abs_nonneg _) (by positivity) (by norm_num)]
+    norm_num [RSADesc.modulus, rsa15251]
   simpa [rsa15251] using
-    rsa15251.fermatFactorLinear_eq_of_lt_rpow (a := 3) (b := 2) (by decide) (by decide)
-      (by decide) (by decide) hlt
+    rsa15251.fermatFactorLinear_eq_of_lt_rpow (a := 3) (b := 2) (by decide) (by decide) hlt
 
 /-- Non-unit closeness difference `|5 * 101 - 3 * 167| = 4` still recovers `(101, 167)`. -/
 example : fermatFactorLinear 5 3 (101 * 167) = (101, 167) := by
   have hlt : |(5 : ℝ) * 101 - 3 * 167| < (4 * (5 : ℝ) * 3 * 101 * 167) ^ (1 / 4 : ℝ) := by
-    simp only [mul_assoc]
-    rw [abs_sub_lt_four_mul_rpow_iff (by positivity)]
+    rw [one_div, Real.lt_rpow_inv_iff_of_pos (abs_nonneg _) (by positivity) (by norm_num)]
     norm_num
   simpa using fermatFactorLinear_mul_eq (a := 5) (b := 3) (p := 101) (q := 167)
     (by decide) (by decide) hlt
 
-/-- `ceilSqrt_four_mul_eq` gives `⌈√(4 * 3 * 2 * (101 * 151))⌉ = 3 * 101 + 2 * 151`. -/
-example : (4 * 3 * 2 * (101 * 151) - 1).sqrt + 1 = 3 * 101 + 2 * 151 := by
-  have hlt : |(3 : ℝ) * 101 - 2 * 151| < (4 * (3 : ℝ) * 2 * 101 * 151) ^ (1 / 4 : ℝ) := by
-    simp only [mul_assoc]
-    rw [abs_sub_lt_four_mul_rpow_iff (by positivity)]
-    norm_num
-  simpa using ceilSqrt_four_mul_eq (a := 3) (b := 2) (p := 101) (q := 151) hlt
-
 /-- Real Lemma 16.4 check: `(3 * 101 + 2 * 151) / 2` lies within `< 1 / 2` of
-`√(3 * 2 * (101 * 151))`. -/
-example : |((3 : ℝ) * 101 + 2 * 151) / 2 - Real.sqrt (3 * 2 * (101 * 151))| < 1 / 2 := by
+`√((3 * 101) * (2 * 151))`. -/
+example : |((3 : ℝ) * 101 + 2 * 151) / 2 - Real.sqrt ((3 * 101) * (2 * 151))| < 1 / 2 := by
   have h1 : |(3 : ℝ) * 101 - 2 * 151| < 2 := by norm_num
-  have h2 : (1 : ℝ) ≤ (3 * 2 * (101 * 151 : ℝ)) ^ (1 / 4 : ℝ) :=
+  have h2 : (1 : ℝ) ≤ ((3 * 101 : ℝ) * (2 * 151)) ^ (1 / 4 : ℝ) :=
     Real.one_le_rpow (by norm_num) (by norm_num)
-  exact abs_mul_add_mul_div_two_sub_sqrt_lt_half (by norm_num) (by norm_num)
-    (by norm_num) (by norm_num) (by linarith)
+  exact abs_add_div_two_sub_sqrt_mul_lt_half (by norm_num) (by norm_num) (by linarith)
 
 /-- Output order tracks `b * q ≤ a * p` rather than `q ≤ p`: for `p = 7 < q = 11` with
 `3 * 7 = 21 < 2 * 11 = 22`, `fermatFactorLinear 3 2 (7 * 11)` returns `(11, 7)`. -/
@@ -116,17 +98,10 @@ theorem challengeN_eq_mul : challengeP * challengeQ = challengeN := by
 /-- Exercise 16.14 (p. 710): `|3 * p - 2 * q| < n ^ (1 / 4)` holds for the 309-digit modulus,
 so `fermatFactorLinear_mul_eq_of_lt_rpow` factors `challengeN`. -/
 example : fermatFactorLinear 3 2 challengeN = (challengeQ, challengeP) := by
-  have h4 : (3 * (challengeP : ℝ) - 2 * challengeQ) ^ 4 < (challengeP : ℝ) * challengeQ := by
-    norm_num [challengeP, challengeQ]
-  have ht4 : ((((challengeP : ℝ) * challengeQ) ^ (1 / 4 : ℝ)) ^ 4) =
-      (challengeP : ℝ) * challengeQ := by
-    rw [one_div, show (4 : ℝ) = ((4 : ℕ) : ℝ) by norm_num]
-    exact Real.rpow_inv_natCast_pow (by positivity) (by norm_num)
   have hlt : |(3 : ℝ) * challengeP - 2 * challengeQ| <
       ((challengeP : ℝ) * challengeQ) ^ (1 / 4 : ℝ) := by
-    rw [← pow_lt_pow_iff_left₀ (abs_nonneg _) (by positivity) four_ne_zero,
-      Even.pow_abs (by decide), ht4]
-    exact h4
+    rw [one_div, Real.lt_rpow_inv_iff_of_pos (abs_nonneg _) (by positivity) (by norm_num)]
+    norm_num [challengeP, challengeQ]
   have hcop_a : Nat.Coprime (2 * 3) challengeQ := by norm_num [challengeQ]
   have hcop_b : Nat.Coprime (2 * 2) challengeP := by norm_num [challengeP]
   have hle : ¬ 2 * challengeQ ≤ 3 * challengeP := by norm_num [challengeP, challengeQ]
@@ -140,32 +115,50 @@ example : fermatFactorLinear 3 2 challengeN = (challengeQ, challengeP) := by
   unfold fermatFactorLinear fermatFactor factorOfTotient
   norm_num [challengeN, challengeP, challengeQ]
 
-/-- Necessity of `Nat.Coprime (2 * a) q`: when `a = 1`, `b = 5`, `p = 11`, `q = 2`, the closeness
-condition holds (`|1 * 11 - 5 * 2| = 1`) and `q ∣ 2 * a`, and `fermatFactorLinear 1 5 (11 * 2)`
-returns the trivial pair `(22, 2)`. -/
-example : |(1 : ℝ) * 11 - 5 * 2| < (4 * (1 : ℝ) * 5 * 11 * 2) ^ (1 / 4 : ℝ) ∧
+/-- Necessity of `Nat.Coprime (2 * a) q`: when `a = 1`, `b = 5`, `p = 11`, `q = 2`, the other
+hypotheses (`0 < a`, `0 < b`, `Nat.Coprime (2 * b) p`, and
+`|a * p - b * q| < (4 * a * b * p * q) ^ (1 / 4)`) hold, yet `q ∣ 2 * a` and
+`fermatFactorLinear 1 5 (11 * 2)` returns `(22, 2)`. -/
+example : Nat.Coprime (2 * 5) 11 ∧ ¬ Nat.Coprime (2 * 1) 2 ∧
+    |(1 : ℝ) * 11 - 5 * 2| < (4 * (1 : ℝ) * 5 * 11 * 2) ^ (1 / 4 : ℝ) ∧
     fermatFactorLinear 1 5 (11 * 2) = (22, 2) := by
-  refine ⟨?_, by unfold fermatFactorLinear fermatFactor factorOfTotient; norm_num⟩
-  simp only [mul_assoc]
-  rw [abs_sub_lt_four_mul_rpow_iff (by positivity)]
+  refine ⟨by decide, by decide, ?_,
+    by unfold fermatFactorLinear fermatFactor factorOfTotient; norm_num⟩
+  rw [one_div, Real.lt_rpow_inv_iff_of_pos (abs_nonneg _) (by positivity) (by norm_num)]
   norm_num
 
-/-- Necessity of `0 < a` in `fermatFactorLinear_mul_eq_of_lt_rpow`: when `a = 0`, `b = 1`,
-`p = 101`, `q = 2`, `|0 * 101 - 1 * 2| = 2 < (101 * 2) ^ (1 / 4)`, yet `fermatFactorLinear`
-returns `(202, 202)` (`Nat.gcd 0 n = n`). -/
-example : (|(0 : ℝ) * 101 - 1 * 2|) ^ 4 < (101 : ℝ) * 2 ∧
-    fermatFactorLinear 0 1 (101 * 2) = (202, 202) := by
-  constructor
-  · norm_num
-  · unfold fermatFactorLinear fermatFactor factorOfTotient; norm_num
+/-- Necessity of `Nat.Coprime (2 * b) p`: when `a = 1`, `b = 1`, `p = 2`, `q = 3`, the other
+hypotheses (`0 < a`, `0 < b`, `Nat.Coprime (2 * a) q`, and `|a * p - b * q| < (p * q) ^ (1 / 4)`)
+hold, yet `p ∣ 2 * b` and `fermatFactorLinear 1 1 (2 * 3)` returns `(6, 2)`. -/
+example : Nat.Coprime (2 * 1) 3 ∧ ¬ Nat.Coprime (2 * 1) 2 ∧
+    |(1 : ℝ) * 2 - 1 * 3| < ((2 : ℝ) * 3) ^ (1 / 4 : ℝ) ∧
+    fermatFactorLinear 1 1 (2 * 3) = (6, 2) := by
+  refine ⟨by decide, by decide, ?_,
+    by unfold fermatFactorLinear fermatFactor factorOfTotient; norm_num⟩
+  rw [one_div, Real.lt_rpow_inv_iff_of_pos (abs_nonneg _) (by positivity) (by norm_num)]
+  norm_num
 
-/-- Necessity of the closeness bound: for `a = 3`, `b = 2`, `p = 5`, `q = 53`
-(`|3 * 5 - 2 * 53| = 91`), `fermatFactorLinear 3 2 (5 * 53)` returns `(1, 1)` rather than
-`(5, 53)` or `(53, 5)`. -/
-example : fermatFactorLinear 3 2 (5 * 53) = (1, 1) ∧
-    fermatFactorLinear 3 2 (5 * 53) ≠ (5, 53) ∧
-    fermatFactorLinear 3 2 (5 * 53) ≠ (53, 5) := by
-  unfold fermatFactorLinear fermatFactor factorOfTotient
+/-- Necessity of `0 < a` in `fermatFactorLinear_mul_eq_of_lt_rpow`:
+for `(a, b, p, q) = (0, 1, 3, 1)`, every other hypothesis (`0 < b`, `Nat.Coprime (2 * a) q`,
+`Nat.Coprime (2 * b) p`, and `|a * p - b * q| < (p * q) ^ (1 / 4)`) holds, yet
+`fermatFactorLinear 0 1 (3 * 1)` returns `(3, 3)` (`Nat.gcd 0 n = n`). -/
+example : 0 < (1 : ℕ) ∧ Nat.Coprime (2 * 0) 1 ∧ Nat.Coprime (2 * 1) 3 ∧
+    |(0 : ℝ) * 3 - 1 * 1| < ((3 : ℝ) * 1) ^ (1 / 4 : ℝ) ∧
+    fermatFactorLinear 0 1 (3 * 1) = (3, 3) := by
+  refine ⟨by decide, by decide, by decide, ?_,
+    by unfold fermatFactorLinear fermatFactor factorOfTotient; norm_num⟩
+  rw [one_div, Real.lt_rpow_inv_iff_of_pos (abs_nonneg _) (by positivity) (by norm_num)]
+  norm_num
+
+/-- Necessity of the closeness bound: for `a = 3`, `b = 2`, `p = 5`, `q = 53`, the positivity and
+coprimality hypotheses hold (`|3 * 5 - 2 * 53| = 91`), yet `fermatFactorLinear 3 2 (5 * 53)` returns
+`(1, 1)` instead of `(5, 53)` or `(53, 5)`. -/
+example : Nat.Coprime (2 * 3) 53 ∧ Nat.Coprime (2 * 2) 5 ∧
+    ¬ |(3 : ℝ) * 5 - 2 * 53| < (4 * (3 : ℝ) * 2 * 5 * 53) ^ (1 / 4 : ℝ) ∧
+    fermatFactorLinear 3 2 (5 * 53) = (1, 1) := by
+  refine ⟨by decide, by decide, ?_,
+    by unfold fermatFactorLinear fermatFactor factorOfTotient; norm_num⟩
+  rw [one_div, Real.lt_rpow_inv_iff_of_pos (abs_nonneg _) (by positivity) (by norm_num)]
   norm_num
 
 /-- Polynomial-time certificate check in a `module` client. -/
