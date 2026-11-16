@@ -76,16 +76,23 @@ headline itself, or a constant of the library that its statement and proof use, 
 definition that uses the reduction. The Lean pass fails when the pinned consumers differ from the
 referrers, so a new one must be classified, or the entry made a `gap`; when a tag does not hold;
 and when a referring theorem other than the headline, in the reduction's module or outside it, is
-not *concrete*: a premise is headed by a named assumption, or a premise or the conclusion makes a
-negligibility claim, directly or through Prop-valued definitions unfolded at most five times.
-This checker fails when a definition among the referrers, tagged or in the reduction's module, has
-no baseline entry of its own, so that no definition wrapping the reduction carries an assumption
-past the pinned list. The referrers' modules join the modules where the entry is enforced. The
-pass does not see a theorem that reaches the reduction only through another public declaration (a
-theorem that consumes the headline, say), nor a premise that assumes a bound without
-`Negligible` or a named assumption, and it does not judge whether a `headline` consumer uses the
-reduction at the instance that the equality covers; review does. The summary prints the gap, via,
-instance-scoped via and exempt counts separately.
+not *concrete*: a premise (instance arguments included) is headed by a named assumption, or a
+premise or the conclusion makes a negligibility claim, directly or through Prop-valued definitions
+unfolded at most five times, an alias for the whole statement included. This checker fails when an
+uncertified definition among the referrers, tagged or in the reduction's module, has no baseline
+entry of its own: a `gap` or `exempt` entry, which it keeps even when no theorem states a bound
+with the definition (`tracked_definitions`). A certified definition has its own witness and needs
+no entry, and an entry for it is stale. So the baseline accounts for every definition that uses the
+reduction; that does not establish that every headline downstream of such a definition has its own
+certificate or via entry. The referrers' modules join the modules where the entry is enforced.
+The pass finds a referrer by name, and a public declaration stops the search, so it does not see a
+theorem that reaches the reduction only through another public declaration (a theorem that
+consumes the headline, or one about a definition that wraps the reduction), nor a premise that
+assumes a bound without `Negligible` or a named assumption, and it does not judge whether a
+`headline` consumer uses the reduction at the instance that the equality covers; review does.
+`--update-baseline` also adds `gap` entries for the unrecorded uncertified definitions and keeps
+the recorded ones. The summary prints the gap, via, instance-scoped via and exempt counts
+separately.
 
 In a module that the change touches (adds, modifies or deletes, against the merge base of
 `--base`, default `origin/main`, and the working tree, as `scripts/check_changed_files.py`
@@ -183,14 +190,16 @@ class ViaCheck:
     the paths of the modules of the declarations it found (for an entry scoped to one instance,
     those of the reduction's referrers too), the path of the equality's module (or the empty
     string), and the names it did not find. For an entry scoped to one instance, also the
-    reduction's referrers outside its module and the definitions among all its referrers."""
+    reduction's referrers outside its module, the uncertified definitions among all its referrers
+    with their paths, and the certified ones."""
     problems: tuple[str, ...]
     headline_at: str
     paths: tuple[str, ...]
     equality_path: str
     missing: tuple[str, ...]
     referrers: tuple[str, ...] = ()
-    definitions: tuple[str, ...] = ()
+    definitions: tuple[tuple[str, str], ...] = ()
+    certified_definitions: tuple[str, ...] = ()
 
 
 def parse(output: str) -> tuple[dict[str, Reduction], dict]:
@@ -220,7 +229,9 @@ def parse_checks(output: str) -> dict[str, ViaCheck]:
                                         tuple(csp.module_path(m) for m in row["vm"]),
                                         csp.module_path(row["em"]) if row["em"] else "",
                                         tuple(row["missing"]), tuple(row.get("refs", ())),
-                                        tuple(row.get("defs", ())))
+                                        tuple((d["n"], csp.module_path(d["m"]))
+                                              for d in row.get("defs", ())),
+                                        tuple(row.get("cdefs", ())))
     return checks
 
 
@@ -307,6 +318,13 @@ def baseline_text(entries: dict[str, dict]) -> str:
     return "{\n" + ",\n".join(lines) + ("\n" if lines else "") + "}\n"
 
 
+def tracked_definitions(checks: dict[str, ViaCheck]) -> dict[str, str]:
+    """The uncertified definitions that use a reduction of an instance-scoped entry, with their
+    paths. Each needs a baseline entry of its own, which stands even when no theorem states an
+    advantage bound with the definition."""
+    return {name: path for check in checks.values() for name, path in check.definitions}
+
+
 @dataclass(frozen=True)
 class Problems:
     """Differences from the baseline: unrecorded uncertified reductions, entries that no longer
@@ -329,6 +347,8 @@ def compare(reductions: dict[str, Reduction], baseline: dict[str, dict],
     def scoped(*candidates: str) -> bool:
         return paths is None or bool(paths.intersection(candidates))
     checks = checks or {}
+    tracked = tracked_definitions(checks)
+    certified_definitions = {d for check in checks.values() for d in check.certified_definitions}
     new, stale, unjustified, invalid = [], [], [], []
     for name, r in sorted(uncertified(reductions).items(),
                           key=lambda i: (i[1].path, i[1].line, i[0])):
@@ -345,7 +365,13 @@ def compare(reductions: dict[str, Reduction], baseline: dict[str, dict],
                                      *(check.paths if check else ()))):
             continue
         if r is None:
-            stale.append((name, entry, "no theorem states an advantage bound with it"))
+            if name in certified_definitions:
+                stale.append((name, entry, "certified, as a definition that uses an "
+                                           "instance-scoped reduction; it needs no entry"))
+            elif name not in tracked:
+                stale.append((name, entry, "no theorem states an advantage bound with it"))
+            elif tracked[name] != entry["module"]:
+                stale.append((name, entry, f"now defined in {tracked[name]}"))
         elif r.certificate:
             stale.append((name, entry, f"certified ({r.certificate}: {', '.join(r.certified_by)})"))
         elif r.path != entry["module"]:
@@ -361,11 +387,11 @@ def compare(reductions: dict[str, Reduction], baseline: dict[str, dict],
                 reasons.append(f"equality `{entry['equality']}` is in {check.equality_path}, not "
                                f"{recorded}; record its file as `{EQUALITY_MODULE}`, or omit "
                                "that field when it is the entry's `module`")
-            # A definition that uses the reduction could carry an assumption past the pinned
-            # consumers, unless the baseline tracks it as a reduction of its own.
-            reasons += [f"`{d}` is a definition that uses `{name}` but has no baseline entry; "
-                        "record it as a reduction, or make this entry a `gap`"
-                        for d in check.definitions if d not in baseline]
+            # An uncertified definition that uses the reduction is recorded, so that the baseline
+            # accounts for every definition that runs it; a certified one has its witness.
+            reasons += [f"`{d}` is an uncertified definition that uses `{name}` but has no "
+                        "baseline entry; record it (a `gap` or `exempt` entry), or make this entry "
+                        "a `gap`" for d, _ in check.definitions if d not in baseline]
             if reasons:
                 invalid.append((name, entry, "; ".join(reasons)))
     return Problems(new, stale, unjustified, invalid)
@@ -456,18 +482,25 @@ def listing(reductions: dict[str, Reduction], prefix: str) -> str:
                             "efficiency witness"])
 
 
-def update(reductions: dict[str, Reduction], baseline: dict[str, dict], paths: set[str] | None
-           ) -> dict[str, dict]:
+def update(reductions: dict[str, Reduction], baseline: dict[str, dict], paths: set[str] | None,
+           tracked: dict[str, str] | None = None) -> dict[str, dict]:
     """The baseline with the entries of the modules `paths` (all when `None`) matching the
-    uncertified reductions: existing entries are kept with their kinds, declarations and
-    justifications, new entries are gaps with an empty justification."""
+    uncertified reductions and the `tracked` definitions (`tracked_definitions`): existing entries
+    are kept with their kinds, declarations and justifications, new entries are gaps with an empty
+    justification."""
     def scoped(*candidates: str) -> bool:
         return paths is None or bool(paths.intersection(candidates))
+    tracked = {name: path for name, path in (tracked or {}).items() if name not in reductions}
     updated = {}
     for name, entry in baseline.items():
         r = reductions.get(name)
-        if not scoped(entry["module"], *(r.paths() if r else ())):
+        if not scoped(entry["module"], *(r.paths() if r else ()), tracked.get(name, "")):
             updated[name] = entry
+    for name, path in tracked.items():
+        if scoped(path):
+            old = baseline.get(name)
+            updated[name] = ({**old, "module": path} if old
+                             else {"module": path, "kind": "gap", "why": ""})
     for name, r in uncertified(reductions).items():
         if scoped(*r.paths()):
             old = baseline.get(name)
@@ -523,7 +556,7 @@ def main(argv: list[str] | None = None) -> int:
     paths = None if whole else cer.touched_modules(ROOT, args.base)
     scope_text = "every module" if whole else f"{len(paths)} changed module(s)"
     if args.update_baseline:
-        updated = update(reductions, baseline, paths)
+        updated = update(reductions, baseline, paths, tracked_definitions(checks))
         args.baseline.write_text(baseline_text(updated), encoding="utf-8")
         empty = sorted(n for n, e in updated.items() if not e["why"].strip())
         print(f"Wrote {args.baseline} for {scope_text}."

@@ -263,16 +263,21 @@ transitively); `concrete`, a theorem off that path, an exact bound that applies 
 `reduction`, a definition that uses the reduction. The check fails when the pinned list differs
 from the referrers, so a new referrer must be tagged or the entry made a `gap`; when a tag does not
 hold; when a referring theorem other than the headline, in the reduction's module or outside it,
-is not concrete, because a premise is headed by a named assumption (recognized as for the
-named-assumption check below) or a premise or the conclusion makes a negligibility claim, directly
-or through Prop-valued definitions unfolded at most five times (as for the headline); and when a
-referring definition has no baseline entry of its own, so that no definition wrapping the
-reduction carries an assumption past the list. These recognizers miss a premise that assumes a
-bound without `Negligible` or a named assumption (`Adv ≤ ε`, say) or reaches one only after more
-than five unfoldings, and a theorem that reaches the reduction only through another public
-declaration, such as one that consumes the headline; whether a `headline` consumer uses the
-reduction at the equality's instance is for review. The summary counts these entries apart from the
-other via entries. CI treats it as it treats the premise check: a pull request fails when a changed module has an
+is not concrete, because a premise (instance arguments included) is headed by a named assumption
+(recognized as for the named-assumption check below) or a premise or the conclusion makes a
+negligibility claim, directly or through Prop-valued definitions unfolded at most five times (as
+for the headline; an alias for the whole statement is unfolded too); and when an uncertified
+referring definition has no baseline entry of its own. That entry is a `gap` or `exempt` entry,
+kept even when no theorem states a bound with the definition; a certified definition has its own
+witness and needs none. So the baseline accounts for every definition that uses the reduction, but
+this does not establish that every headline downstream of such a definition has its own certificate
+or via entry: a referrer is found by name, and a public declaration stops the search, so a theorem
+that reaches the reduction only through another public declaration (one that consumes the
+headline, or one about a wrapping definition) is not a referrer. The recognizers also miss a premise
+that assumes a bound without `Negligible` or a named assumption (`Adv ≤ ε`, say) or reaches one only
+after more than five unfoldings; whether a `headline` consumer uses the reduction at the equality's
+instance is for review. The summary counts these entries apart from the other via entries. CI
+treats it as it treats the premise check: a pull request fails when a changed module has an
 unrecorded uncertified reduction or a baseline entry that no longer matches, so the baseline only
 shrinks; merge groups only report. `--list` shows every reduction with its certificate, and
 `--update-baseline` adds entries whose `why` you then fill in. The check does not see a reduction
