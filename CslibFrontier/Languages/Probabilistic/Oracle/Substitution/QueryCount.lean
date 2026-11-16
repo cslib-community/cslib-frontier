@@ -47,21 +47,11 @@ theorem isCostBounded_simulate {cost : Query → ℕ} {cost' : Query' → ℕ}
     {program : ProbOracleComp spec α} {n : ℕ}
     (h : IsCostBounded (Sum.elim (fun _ => 0) cost) program n) :
     IsCostBounded (Sum.elim (fun _ => 0) cost') (ProbOracleComp.simulate handler program) n := by
-  induction h with
-  | pure a n => exact .pure a n
-  | liftBind q cont n _ ih =>
-    cases q with
-    | inl k =>
-      rw [ProbOracleComp.simulate, ← PFunctor.FreeM.bind_eq_bind, OracleComp.substitute_bind,
-        OracleComp.substitute_query, Sum.elim_inl, Nat.add_zero]
-      simpa only [OracleComp.sumHandler, ProbOracleComp.simulate, Nat.zero_add,
-        PFunctor.FreeM.bind_eq_bind] using
-        (isCostBounded_sample cost' (ProbComp.unifFin k)).bind ih
-    | inr q =>
-      rw [ProbOracleComp.simulate, ← PFunctor.FreeM.bind_eq_bind, OracleComp.substitute_bind,
-        OracleComp.substitute_query, Sum.elim_inr, Nat.add_comm]
-      simpa only [OracleComp.sumHandler, ProbOracleComp.simulate,
-        PFunctor.FreeM.bind_eq_bind] using (hhandler q).bind ih
+  rw [ProbOracleComp.simulate, OracleComp.substitute_eq_interpret]
+  refine h.interpret fun q => ?_
+  cases q with
+  | inl k => exact isCostBounded_sample cost' (ProbComp.unifFin k)
+  | inr q => exact hhandler q
 
 /-- A substituted program makes at most `n` queries when the original program does and each
 handler program makes at most one. -/
