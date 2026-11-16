@@ -122,7 +122,7 @@ theorem ghash_cons_zero (k : F) (z : List F) : ghash k (0 :: z) = ghash k z := b
 
 /-- The hash of [KatzLindell2020], Theorem 4.17 is GHASH of the message followed by its length
 code. -/
-theorem hash_eq_ghash (encodeLength : Fin ℓ → F) (k : F) (m : Message F ℓ) :
+theorem PolynomialEvaluation.hash_eq_ghash (encodeLength : Fin ℓ → F) (k : F) (m : Message F ℓ) :
     hash encodeLength k m = ghash k (coefficients encodeLength m) := by
   rw [PolynomialEvaluation.hash, ghash]
 

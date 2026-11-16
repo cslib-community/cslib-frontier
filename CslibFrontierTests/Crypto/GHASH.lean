@@ -14,12 +14,13 @@ import CslibFrontier.Probability.HashFamily.Polynomial
 /-!
 # Tests for GHASH
 
-Checks (9.18) of [BonehShoup2023] for three blocks, the two readings of "XOR-DUF" (XOR on bit
-strings, subtraction in characteristic two), the relation of GHASH to `H_xpoly`, and Remark 7.4 as
-an instance. Each hypothesis of the positive results has a failing case: a constant encoding
-(`hinj`), a leading zero block (`hlast`), one-block inputs (the bound, and `hlen`), a two-element
-field (the bound at two blocks), lengths of `2 ^ 64` bits (`hd`, `hc`), and padding that merges
-bit strings of different lengths (lengths in bits). The XOR-DUF theorems are applied at the book's
+Checks (9.18) of [BonehShoup2023] for three blocks, that the difference on bit strings is XOR
+(the "XOR" of "XOR-DUF"), the relation of GHASH to `H_xpoly` and to the hash of Katz–Lindell's
+Theorem 4.17, and Remark 7.4 as an instance. The hypotheses of the positive results have failing
+cases: a constant encoding (`hinj`), a leading zero block (`hlast`), one-block inputs (the bound,
+and `hlen`), a two-element field (the bound at two blocks), `2 ^ 64` bits of associated data (`hd`;
+`hc` is the same with the fields exchanged), and padding that merges bit strings of different
+lengths (lengths in bits). The XOR-DUF theorems are applied at the book's
 `ℓ = 2 ^ 32 - 1`, at bit bounds on the two fields, at the field `BinaryField w` with its bit
 encoding, and through `nonceStrongGame_le`, the Carter–Wegman bound that takes them as hypothesis.
 -/
@@ -47,9 +48,6 @@ example {n : ℕ} (x y : BitString n) : x - y = fun i => xor (x i) (y i) := by
   rw [Pi.sub_apply]
   cases x i <;> cases y i <;> decide
 
--- In a field of characteristic two the difference is the sum (Remark 7.3).
-example {w : ℕ} (x y : BinaryField w) : x - y = x + y := CharTwo.sub_eq_add x y
-
 -- "Almost the same as `H_xpoly`": GHASH is `H_xpoly` of (7.23) without its leading term
 -- `k ^ (v + 1)`, the term that separates inputs of different lengths in `H_xpoly`.
 example (k : F) (z : List F) : xpolyHash k z = k ^ (z.length + 1) + ghash k z := by
@@ -61,6 +59,21 @@ example (k : F) (z : List F) : xpolyHash k z = k ^ (z.length + 1) + ghash k z :=
     rw [xpolyHash] at ih
     rw [xpolyHash, h, ghash_concat, List.length_append, List.length_singleton]
     linear_combination k * ih
+
+-- The GHASH criterion contains Katz–Lindell's Theorem 4.17: their hash is GHASH of the message
+-- followed by its length code (`hash_eq_ghash`), whose last block is that code.
+example [Fintype F] {ℓ : ℕ} {encodeLength : Fin ℓ → F} (hencode : Function.Injective encodeLength) :
+    IsDeltaUniversalHash (PMF.uniformOfFintype F) (hash encodeLength) (ℓ / Fintype.card F) := by
+  have h := isDeltaUniversalHash_ghash (ℓ := ℓ) (coefficients encodeLength)
+    (fun m m' h => Subtype.ext (List.append_inj_left' h rfl))
+    (fun m m' h => by
+      simp only [coefficients, List.getLastD_concat] at h
+      have h2 : m.1.length = m'.1.length := congrArg Fin.val (hencode h)
+      simp [coefficients, h2])
+    (fun m => by simp only [coefficients, List.length_append, List.length_singleton]; exact m.2)
+  have heq : hash encodeLength = fun k m => ghash k (coefficients encodeLength m) := by
+    funext k m; exact hash_eq_ghash encodeLength k m
+  rwa [heq]
 
 -- Remark 7.4: `H_xpoly` over the `2 ^ n`-element field is an `(ℓ + 1) / 2 ^ n`-XOR-DUF.
 example {n : ℕ} (hn : n ≠ 0) (ℓ : ℕ) :
