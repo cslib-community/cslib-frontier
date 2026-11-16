@@ -156,11 +156,14 @@ box `{u | ∀ i, u i ∈ E i}`. For `Fin k`-indexed tuples with different factor
 [IID.lean](../../CslibFrontier/Probability/IID.lean) generalizes `iid`, and
 [IID/Event.lean](../../CslibFrontier/Probability/IID/Event.lean) gives its box and union bounds
 `toOuterMeasure_piFin_forall` and `toOuterMeasure_toReal_piFin_exists_le`.
-[IID/Marked.lean](../../CslibFrontier/Probability/IID/Marked.lean) specializes the box bound to
-independent coin flips (`toOuterMeasure_iid_marked`) and bounds from below the probability that one
-designated index is marked and a set `R` of at most `a - 1` other indices are unmarked when each
-index is marked with probability `a⁻¹` (`exp_neg_one_div_le_toOuterMeasure_iid_marked`,
-`one_div_le_toOuterMeasure_iid_marked`).
+[IID/Marked.lean](../../CslibFrontier/Probability/IID/Marked.lean) applies the box formula to
+independent coins: for `μ : PMF Bool`, a finite set `R` of indices and an index `ν ∉ R`, the
+probability under `iid μ k` that `ν` shows `true` and every index in `R` shows `false` is
+`μ true * μ false ^ R.card` (`toOuterMeasure_iid_marked`). When `(μ true).toReal = a⁻¹` for a
+real `a` with `R.card + 1 ≤ a`, it is at least `exp (-1) / a`
+(`exp_neg_one_div_le_toOuterMeasure_iid_marked`) and hence at least `1 / (2.72 * a)`
+(`one_div_le_toOuterMeasure_iid_marked`); at `a = Q + 1` this is the Claim in the proof of Lemma
+13.6 of [bs23][bs23] (§13.4.1, p. 543).
 [IID/Birthday.lean](../../CslibFrontier/Probability/IID/Birthday.lean) bounds from below the
 probability that `k` samples of `iid μ k` contain two equal values, for any law `μ` on a set of size
 `n`: at least `1 - exp (-k (k - 1) / (2 n))` (`one_sub_exp_neg_le_iid_not_injective`) and at least

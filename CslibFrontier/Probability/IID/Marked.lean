@@ -7,9 +7,10 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Probability.IID.Event
+public import CslibFrontier.Probability.IID
 public import Mathlib.Analysis.Complex.Exponential
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpOneSubInvPow
+import CslibFrontier.Probability.IID.Event
 import CslibFrontier.Probability.PMF.Bool
 import Mathlib.Analysis.Complex.ExponentialBounds
 import Mathlib.Tactic.Linarith
@@ -24,10 +25,10 @@ unmarked (`false`) equals `μ true * μ false ^ R.card`
 and `R.card + 1 ≤ a`, this probability is at least `Real.exp (-1) / a`
 (`Cslib.Probability.PMF.exp_neg_one_div_le_toOuterMeasure_iid_marked`) and hence at least
 `1 / (2.72 * a)` (`Cslib.Probability.PMF.one_div_le_toOuterMeasure_iid_marked`), formalizing the
-Claim in the proof of Lemma 13.6 of [BonehShoup2023], §13.3.3 (p. 543, where `a = Q + 1`).
+Claim in the proof of Lemma 13.6 of [BonehShoup2023], §13.4.1 (p. 543, where `a = Q + 1`).
 
-No client on `main` uses these lemmas yet; Lemma 13.6 and Theorem 13.4 are the intended clients and
-stay open.
+No client on `main` uses these lemmas yet; Lemma 13.6 (§13.4.1, pp. 541–543) and Theorem 13.4
+(p. 538) are the intended clients and stay open.
 
 ## Main results
 
@@ -41,14 +42,12 @@ stay open.
 ## References
 
 * [D. Boneh and V. Shoup, *A Graduate Course in Applied Cryptography*,
-  Version 0.6][BonehShoup2023], Section 13.3.3, proof of Lemma 13.6 (p. 543).
+  Version 0.6][BonehShoup2023], Section 13.4.1, proof of Lemma 13.6 (p. 543).
 -/
 
 public section
 
 namespace Cslib.Probability.PMF
-
-open scoped ENNReal
 
 /-- Mark each of `k` indices independently with the coin `μ`. A designated index is marked and a
 set of other indices is unmarked with probability `μ true * μ false ^ |R|`. -/
@@ -56,7 +55,6 @@ theorem toOuterMeasure_iid_marked (μ : PMF Bool) {k : ℕ} (R : Finset (Fin k))
     (hν : ν ∉ R) :
     (iid μ k).toOuterMeasure {v | v ν = true ∧ ∀ i ∈ R, v i = false} =
       μ true * μ false ^ R.card := by
-  classical
   let E : Fin k → Set Bool := fun i => if i = ν then {true} else if i ∈ R then {false} else Set.univ
   have hset : {v : Fin k → Bool | v ν = true ∧ ∀ i ∈ R, v i = false} = {v | ∀ i, v i ∈ E i} := by
     ext v
@@ -96,9 +94,10 @@ theorem toOuterMeasure_iid_marked (μ : PMF Bool) {k : ℕ} (R : Finset (Fin k))
     simp only [hne, ↓reduceIte, hi]
   rw [Finset.prod_congr rfl hconst, Finset.prod_const]
 
-/-- **The Claim** in the proof of Lemma 13.6 ([BonehShoup2023], p. 543): with marking probability
-`a⁻¹` and at most `a - 1` indices to avoid, the designated index is the marked one and the others
-are not with probability at least `e⁻¹ / a`. The book has `a = Q + 1`. -/
+/-- Sharper bound passed through in the proof of the Claim in Lemma 13.6 ([BonehShoup2023],
+§13.4.1, p. 543): with marking probability `a⁻¹` and at most `a - 1` indices to avoid, the
+designated index is marked and no index of `R` is with probability at least `e⁻¹ / a`. The book
+has `a = Q + 1`. -/
 theorem exp_neg_one_div_le_toOuterMeasure_iid_marked (μ : PMF Bool) {a : ℝ}
     (hμ : (μ true).toReal = a⁻¹) {k : ℕ} (R : Finset (Fin k)) (hR : (R.card : ℝ) + 1 ≤ a)
     {ν : Fin k} (hν : ν ∉ R) :
@@ -111,7 +110,9 @@ theorem exp_neg_one_div_le_toOuterMeasure_iid_marked (μ : PMF Bool) {a : ℝ}
   exact mul_le_mul_of_nonneg_left
     (Real.exp_neg_one_le_one_sub_inv_pow hR) (inv_nonneg.mpr ha_nonneg)
 
-/-- The Claim with the book's constant `2.72`. -/
+/-- **The Claim** as printed in the proof of Lemma 13.6 ([BonehShoup2023], §13.4.1, p. 543, at
+`a = Q + 1`): with marking probability `a⁻¹` and at most `a - 1` indices to avoid, the designated
+index is marked and no index of `R` is with probability at least `1 / (2.72 * a)`. -/
 theorem one_div_le_toOuterMeasure_iid_marked (μ : PMF Bool) {a : ℝ}
     (hμ : (μ true).toReal = a⁻¹) {k : ℕ} (R : Finset (Fin k)) (hR : (R.card : ℝ) + 1 ≤ a)
     {ν : Fin k} (hν : ν ∉ R) :
