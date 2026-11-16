@@ -3,8 +3,13 @@ Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
-import CslibFrontier.Languages.Probabilistic.Oracle.Interaction
-import CslibFrontier.Languages.Probabilistic.Oracle.Support
+
+module
+-- upstream: candidate
+
+public import CslibFrontier.Languages.Probabilistic.Oracle.Interaction
+public import CslibFrontier.Languages.Probabilistic.Oracle.Substitution
+public import CslibFrontier.Languages.Probabilistic.Oracle.Support
 
 /-! # One semantics for oracle programs -/
 
@@ -93,10 +98,36 @@ universe of `unifSpec` in the sum interface. -/
 
 universe u v w s
 
+private abbrev lowReplySpec : Unit → Type := fun _ => Bool
+
+private def highResultProgram : OracleComp lowReplySpec (Type w) := do
+  let reply ← query ()
+  return if reply then PUnit else Empty
+
+-- Ordinary monadic notation permits a high-universe result independently of low replies.
+example : evalWith (fun _ => PMF.pure true) highResultProgram = PMF.pure PUnit := by
+  simp [highResultProgram]
+
+private def highClosedProgram : ProbComp (Type w) := do
+  let _ ← ProbComp.unifFin 1
+  return PUnit
+
+-- Closed-program support semantics also retain an independently chosen result universe.
+example : (ProbComp.eval highClosedProgram).support = {PUnit} := by
+  rw [ProbComp.support_eval]
+  simp [highClosedProgram]
+
+-- The generalized nonemptiness theorem applies to a genuinely high-result program.
+example : ∃ result : Type w, result ∈ (ProbComp.eval highClosedProgram).support := by
+  rw [ProbComp.support_eval]
+  exact ProbComp.support_nonempty highClosedProgram
+
 private abbrev highSpec : OracleSpec.{u + 1, v + 1} (Type u) := fun _ => Type v
 
 private def highProgram : OracleComp highSpec (Type w) :=
-  PFunctor.FreeM.bind (query (spec := highSpec) PUnit) fun _ => pure PUnit
+  do
+    let _ ← query (spec := highSpec) PUnit
+    return PUnit
 
 private noncomputable def highOracle :
     (q : Type u) → Type s → PMF (highSpec q × Type s) :=
@@ -114,7 +145,21 @@ example (state : Type s) :
 private abbrev highQuerySpec : Type u → Type := fun _ => Bool
 
 private def highProbProgram : ProbOracleComp highQuerySpec (Type w) :=
-  PFunctor.FreeM.bind (ProbOracleComp.query PUnit) fun _ => pure PUnit
+  do
+    let _ ← ProbOracleComp.query PUnit
+    return PUnit
+
+private def highSimHandler (_ : Type u) : ProbOracleComp lowReplySpec Bool :=
+  pure true
+
+-- Substitution changes the external interface while preserving a high-universe result.
+example :
+    ProbOracleComp.simulate highSimHandler highProbProgram =
+      (pure PUnit : ProbOracleComp lowReplySpec (Type w)) := by
+  change OracleComp.substitute
+    (OracleComp.sumHandler (fun n => ProbOracleComp.sample (ProbComp.unifFin n)) highSimHandler)
+      highProbProgram = _
+  simp [highProbProgram, highSimHandler]
 
 private noncomputable def highProbOracle :
     (q : Type u) → Type s → PMF (highQuerySpec q × Type s) :=
@@ -129,5 +174,14 @@ example (state : Type s) :
       simp only [highProbOracle, PMF.pure_map],
     ProbOracleComp.runWith_memoryless]
   simp [highProbProgram]
+
+private def highAcceptProgram : ProbOracleComp highQuerySpec Bool := do
+  let reply ← ProbOracleComp.query PUnit
+  return reply
+
+-- Acceptance permits high-universe queries and raw state while replies remain small.
+example (state : Type s) :
+    ProbOracleComp.acceptProbWith highProbOracle highAcceptProgram state = 1 := by
+  simp [highAcceptProgram, highProbOracle]
 
 end CslibFrontierTests.OracleSemantics
