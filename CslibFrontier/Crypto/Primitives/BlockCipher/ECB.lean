@@ -8,8 +8,9 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.Encryption.Cipher
-public import CslibFrontier.Crypto.Game.HiddenBit
 public import CslibFrontier.Crypto.Primitives.PRP.Finite
+import CslibFrontier.Crypto.Computational.Encryption.Cipher.Perfect
+import CslibFrontier.Crypto.Game.HiddenBit
 import CslibFrontier.Languages.Probabilistic.Traverse.SupportWith
 import Mathlib.GroupTheory.GroupAction.MultipleTransitivity
 
@@ -43,6 +44,7 @@ pp. 102–106). This file gives the two facts the book proves about it.
 
 ## Main results
 
+* `Cslib.Crypto.Cipher.ecb_correct`: ECB decrypts every encryption.
 * `Cslib.Crypto.ECB.advantage_twoBlockAdversary`: the two-block attack has advantage `1`, for
   `2 ≤ ℓ` and two distinct blocks `x ≠ y`.
 * `Cslib.Crypto.ECB.advantage_eq_two_mul_prpAdvantage`: `SSadv[A, E′] = 2 · BCadv[B, E]` for
@@ -76,6 +78,11 @@ challenge pairs (`ECB.admissible`). -/
 def Cipher.ecb (E : Key → Equiv.Perm D) : Cipher Key (List D) (List D) where
   encrypt k m := pure (m.map (E k))
   decrypt k c := some (c.map (E k).symm)
+
+/-- ECB decrypts every encryption. -/
+theorem Cipher.ecb_correct (E : Key → Equiv.Perm D) : (Cipher.ecb E).Correct :=
+  Cipher.ofPure_correct (fun k (m : List D) => m.map (E k)) (fun k c => c.map (E k).symm)
+    fun k m => by simp
 
 namespace ECB
 
@@ -235,27 +242,6 @@ private theorem map_uniform_perm_map_eq [Fintype D] {m₀ m₁ : List D} (h₀ :
       funext π
       simp [Function.comp_def]
 
-/-- In the ideal experiment the challenge carries no information about the hidden bit: for an
-admissible pair, both messages consist of distinct blocks and have the same length, so their images
-under a uniform permutation have the same law ([BonehShoup2023], p. 106, (4.8)). -/
-private theorem eval_oneTimeExperiment_perm_false_eq_true [Fintype D] (ℓ : ℕ) {σ : Type}
-    (A : TwoStage Unit (MessagePair (List D)) (List D) Bool σ) :
-    ProbComp.eval ((Cipher.ecb fun π : Equiv.Perm D => π).oneTimeExperiment
-        (ProbComp.uniform (Equiv.Perm D)) (distinctAdmissible ℓ) A false) =
-      ProbComp.eval ((Cipher.ecb fun π : Equiv.Perm D => π).oneTimeExperiment
-        (ProbComp.uniform (Equiv.Perm D)) (distinctAdmissible ℓ) A true) := by
-  simp only [Cipher.oneTimeExperiment, ProbComp.eval_bind, ProbComp.eval_uniform,
-    eval_lrExperiment]
-  rw [PMF.bind_comm, PMF.bind_comm (PMF.uniformOfFintype _)]
-  refine congrArg _ (funext fun p => ?_)
-  by_cases h : distinctAdmissible ℓ p.1.msg₀ p.1.msg₁ = true
-  · have hp := h
-    simp only [distinctAdmissible, decide_eq_true_eq] at hp
-    have key := congrArg (fun μ => μ.bind fun c => ProbComp.eval (A.guess p.2 c))
-      (map_uniform_perm_map_eq hp.2.2.1 hp.2.2.2 hp.1)
-    simpa [h, Cipher.ecb, PMF.bind_map, Function.comp_def] using key
-  · simp [h]
-
 /-- **Theorem 4.1, equation (4.3)** ([BonehShoup2023], pp. 104–105): for the ECB cipher of a
 block cipher `E` over finite types, with challenge pairs restricted to sequences of at most `ℓ`
 distinct blocks, every one-time adversary `A` has semantic-security advantage exactly twice the
@@ -269,20 +255,21 @@ theorem advantage_eq_two_mul_prpAdvantage [Fintype Key] [Nonempty Key] [Fintype 
         ((Cipher.ecb E).oneTimeExperiment (ProbComp.uniform Key) (distinctAdmissible ℓ) A false)
         ((Cipher.ecb E).oneTimeExperiment (ProbComp.uniform Key) (distinctAdmissible ℓ) A true) =
       2 * PRP.advantage E (reduction ℓ A) := by
+  have hlaw (b : Bool) : ProbComp.eval ((Cipher.ecb fun π : Equiv.Perm D => π).oneTimeExperiment
+        (ProbComp.uniform (Equiv.Perm D)) (distinctAdmissible ℓ) A b) =
+      ProbComp.eval ((Cipher.ecb fun π : Equiv.Perm D => π).oneTimeExperiment
+        (ProbComp.uniform (Equiv.Perm D)) (distinctAdmissible ℓ) A false) :=
+    Cipher.eval_oneTimeExperiment_eq_of_ciphertextDist_eq _ _ _ (fun m₀ m₁ h => by
+      simp only [distinctAdmissible, decide_eq_true_eq] at h
+      simpa [Cipher.ciphertextDist, Cipher.ecb, PMF.map, Function.comp_def] using
+        map_uniform_perm_map_eq h.2.2.1 h.2.2.2 h.1) A b false
   have hideal : ProbComp.eval (PRP.idealExperiment (reduction ℓ A)) =
       PMF.uniformOfFintype Bool := by
     rw [show PRP.idealExperiment (reduction ℓ A) =
         PRP.realExperiment (fun π : Equiv.Perm D => π) (reduction ℓ A) from rfl,
       eval_realExperiment_reduction, Experiment.eval_guessBit]
-    calc (PMF.uniformOfFintype Bool).bind (fun b => (ProbComp.eval
-          ((Cipher.ecb fun π : Equiv.Perm D => π).oneTimeExperiment
-            (ProbComp.uniform (Equiv.Perm D)) (distinctAdmissible ℓ) A b)).map (· == b))
-        = (PMF.uniformOfFintype Bool).bind (fun b => (ProbComp.eval
-          ((Cipher.ecb fun π : Equiv.Perm D => π).oneTimeExperiment
-            (ProbComp.uniform (Equiv.Perm D)) (distinctAdmissible ℓ) A false)).map (· == b)) :=
-          congrArg _ (funext fun b => by
-            cases b <;> simp only [eval_oneTimeExperiment_perm_false_eq_true])
-      _ = PMF.uniformOfFintype Bool := Game.uniform_bool_bind_map_beq_const _
+    simp only [hlaw]
+    exact Game.uniform_bool_bind_map_beq_const _
   rw [Experiment.advantage_eq_two_mul_guessingAdvantage_guessBit, PRP.advantage,
     eval_realExperiment_reduction, hideal]
 
