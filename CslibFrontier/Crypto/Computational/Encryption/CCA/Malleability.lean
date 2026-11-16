@@ -41,8 +41,9 @@ A scheme instantiates it by supplying its transformation and the reply that worl
   message choices, transformation and target are polynomial-time.
 * `Cslib.Crypto.Encryption.eval_cca2GameOn_maulAdversary`: if the challenge pair is admissible
   under every honest public key, and on every honest key pair and challenge ciphertext of world
-  `bit` the transformation changes the decryption and yields `target` exactly when `bit = true`,
-  then world `bit` outputs `bit` with probability `1`.
+  `bit` the transformation changes the ciphertext and its decryption encodes to `target` exactly
+  when `bit = true`, then world `bit` outputs `bit` with probability `1`. The decryption need not
+  change, as in `Encryption.advantage_cca2GameOn_sloppyAdversary`.
 * `Cslib.Crypto.Encryption.not_indcca2On_of_maulAdversary`: under these conditions at every
   parameter, the scheme fails `INDCCA2On`.
 
@@ -112,7 +113,7 @@ private theorem take_length_succ_beq (l r : List Bool) :
 /-- **A malleable scheme loses the 1CCA game with certainty** ([BonehShoup2023],
 Section 12.2.1, pp. 469–470). Suppose the challenge pair of `maulAdversary` is admissible under
 every honest public key and that, for every honest key pair and every challenge ciphertext `ct` of
-world `bit`, the transformation `maul` changes the decryption of `ct` and its decryption encodes to
+world `bit`, the transformation `maul` changes `ct` and the decryption of `maul n pk ct` encodes to
 `target` exactly when `bit = true`. Then world `bit` outputs `bit` with probability `1`. -/
 theorem eval_cca2GameOn_maulAdversary {Msg Out : Type} {valid : ℕ → List Bool → Msg → Msg → Bool}
     {encOut : Out ↪ List Bool} {keyGen : ℕ → ProbComp (List Bool × List Bool)}
@@ -125,7 +126,7 @@ theorem eval_cca2GameOn_maulAdversary {Msg Out : Type} {valid : ℕ → List Boo
     (hmaul : ∀ keys ∈ (ProbComp.eval (keyGen n)).support,
       ∀ ct ∈ (ProbComp.eval
         (encrypt n keys.1 (if bit then msg₁ n keys.1 else msg₀ n keys.1))).support,
-        decrypt n keys.2 (maul n keys.1 ct) ≠ decrypt n keys.2 ct ∧
+        maul n keys.1 ct ≠ ct ∧
           (encOption encOut (decrypt n keys.2 (maul n keys.1 ct)) = target n keys.1 ↔
             bit = true)) :
     ProbComp.eval (cca2GameOn valid encOut keyGen encrypt decrypt
@@ -138,8 +139,7 @@ theorem eval_cca2GameOn_maulAdversary {Msg Out : Type} {valid : ℕ → List Boo
   rw [← PMF.bind_const (ProbComp.eval (encrypt n keys.1 _)) (PMF.pure bit)]
   refine PMF.bind_congr_on_support _ _ _ fun ct hct => ?_
   obtain ⟨hne, hiff⟩ := hmaul keys hkeys ct hct
-  have hct' : (maul n keys.1 ct == ct) = false :=
-    beq_eq_false_iff_ne.mpr fun h => hne (by rw [h])
+  have hct' : (maul n keys.1 ct == ct) = false := beq_eq_false_iff_ne.mpr hne
   simp only [cca2Phase2Oracle, hct', Bool.false_eq_true, ↓reduceIte, ProbComp.eval_pure,
     runWith_norm, pmf_norm, take_length_succ_beq]
   exact congrArg PMF.pure (Bool.eq_iff_iff.mpr (by simpa only [decide_eq_true_eq] using hiff))
@@ -158,7 +158,7 @@ theorem advantage_cca2GameOn_maulAdversary {Msg Out : Type}
     (hmaul : ∀ bit, ∀ keys ∈ (ProbComp.eval (keyGen n)).support,
       ∀ ct ∈ (ProbComp.eval
         (encrypt n keys.1 (if bit then msg₁ n keys.1 else msg₀ n keys.1))).support,
-        decrypt n keys.2 (maul n keys.1 ct) ≠ decrypt n keys.2 ct ∧
+        maul n keys.1 ct ≠ ct ∧
           (encOption encOut (decrypt n keys.2 (maul n keys.1 ct)) = target n keys.1 ↔
             bit = true)) :
     Game.advantage
@@ -191,7 +191,7 @@ theorem not_indcca2On_of_maulAdversary {Msg Out : Type}
     (hmaul : ∀ n bit, ∀ keys ∈ (ProbComp.eval (keyGen n)).support,
       ∀ ct ∈ (ProbComp.eval
         (encrypt n keys.1 (if bit then msg₁ n keys.1 else msg₀ n keys.1))).support,
-        decrypt n keys.2 (maul n keys.1 ct) ≠ decrypt n keys.2 ct ∧
+        maul n keys.1 ct ≠ ct ∧
           (encOption encOut (decrypt n keys.2 (maul n keys.1 ct)) = target n keys.1 ↔
             bit = true)) :
     ¬ INDCCA2On valid encMsg encOut keyGen encrypt decrypt := by
