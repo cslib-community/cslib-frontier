@@ -130,13 +130,13 @@ def relativeHashEstimate {k : ℕ} (h : ∀ j, ι j → (Fin k → X) → Y j) (
 
 variable [∀ j, Nonempty (ι j)]
 
-/-- **The failure probability of Stockmeyer's estimate**: if every `h j` is a pairwise independent
-hash family into a set of `2 ^ j` elements, with seeds from a nonempty type `ι j`, and
+/-- **The failure probability of Stockmeyer's estimate**: if every `h j` with `j ≤ n` is a pairwise
+independent hash family into a set of `2 ^ j` elements, with seeds from a nonempty type `ι j`, and
 `#S ≤ 2 ^ n`, then for `2 r` independent uniform seeds per level `j ≤ n`, the estimate from the
 majority answers fails to lie between `#S / 16` and `8 #S` with probability at most
 `(n + 1) (8 / 9) ^ r`. -/
 theorem dens_filter_not_hashEstimate_le (h : ∀ j, ι j → X → Y j) (y : ∀ j, Y j) (S : Finset X)
-    (hh : ∀ j, IsPairwiseIndependentHash (h j)) (hY : ∀ j, Fintype.card (Y j) = 2 ^ j)
+    (hh : ∀ j ≤ n, IsPairwiseIndependentHash (h j)) (hY : ∀ j, Fintype.card (Y j) = 2 ^ j)
     (hS : #S ≤ 2 ^ n) :
     dens {ω : ∀ j : Fin (n + 1), Fin (2 * r) → ι j |
       ¬ (hashEstimate h y S ω ≤ 8 * #S ∧ #S ≤ 16 * hashEstimate h y S ω)} ≤
@@ -145,14 +145,14 @@ theorem dens_filter_not_hashEstimate_le (h : ∀ j, ι j → X → Y j) (y : ∀
   simp only [mem_filter, mem_univ, true_and] at hω ⊢
   exact fun ha => hω ⟨ha.estimate_le, ha.le_estimate hS⟩
 
-omit [∀ j, Nonempty (ι j)] in
-/-- **Approximate counting with relative error**: if every `h j` is a pairwise independent hash
-family on `k`-tuples into a set of `2 ^ j` elements, `#S ^ k ≤ 2 ^ n`, and
+/-- **Approximate counting with relative error**: if every `h j` with `j ≤ n` is a pairwise
+independent hash family on `k`-tuples into a set of `2 ^ j` elements, with seeds from a nonempty
+type `ι j`, `#S ^ k ≤ 2 ^ n`, and
 `128 ≤ (1 + 1 / p) ^ k`, then for `2 r` independent uniform seeds per level `j ≤ n`, the relative
 estimate fails to lie between `#S` and `(1 + 1 / p) #S` with probability at most
 `(n + 1) (8 / 9) ^ r`. -/
 theorem dens_filter_not_relativeHashEstimate_le {k p : ℕ} (h : ∀ j, ι j → (Fin k → X) → Y j)
-    (y : ∀ j, Y j) (S : Finset X) (hh : ∀ j, IsPairwiseIndependentHash (h j))
+    (y : ∀ j, Y j) (S : Finset X) (hh : ∀ j ≤ n, IsPairwiseIndependentHash (h j))
     (hY : ∀ j, Fintype.card (Y j) = 2 ^ j) (hS : #S ^ k ≤ 2 ^ n)
     (hp : 128 * p ^ k ≤ (p + 1) ^ k) :
     dens {ω : ∀ j : Fin (n + 1), Fin (2 * r) → ι j |
@@ -162,9 +162,7 @@ theorem dens_filter_not_relativeHashEstimate_le {k p : ℕ} (h : ∀ j, ι j →
     rintro rfl
     simp at hp
   by_cases hX : Nonempty X
-  · obtain ⟨x⟩ := hX
-    have : ∀ j, Nonempty (ι j) := fun j => (hh j).nonempty (fun _ => x) (y j)
-    have hcard : #(Fintype.piFinset fun _ : Fin k => S) = #S ^ k := Fintype.card_piFinset_const S k
+  · have hcard : #(Fintype.piFinset fun _ : Fin k => S) = #S ^ k := Fintype.card_piFinset_const S k
     refine (dens_le_dens fun ω hω => ?_).trans
       (dens_filter_not_hashEstimate_le h y _ hh hY (hcard ▸ hS))
     simp only [mem_filter, mem_univ, true_and, hcard] at hω ⊢
@@ -196,13 +194,12 @@ theorem dens_filter_not_relativeHashEstimate_le {k p : ℕ} (h : ∀ j, ι j →
     positivity
 
 /-- **Approximate counting with relative error and small failure probability**: under the
-hypotheses of `dens_filter_not_relativeHashEstimate_le` with nonempty seed types `ι j`, for
-`12 (n + 1 + t)` independent uniform seeds per level `j ≤ n`, the relative estimate lies between
-`#S` and `(1 + 1 / p) #S` with probability at least `1 - 2 ^ (-t)`; at least `3 / 4` for
-`t = 2`. -/
+hypotheses of `dens_filter_not_relativeHashEstimate_le`, for `12 (n + 1 + t)` independent uniform
+seeds per level `j ≤ n`, the relative estimate lies between `#S` and `(1 + 1 / p) #S` with
+probability at least `1 - 2 ^ (-t)`; at least `3 / 4` for `t = 2`. -/
 theorem one_sub_inv_two_pow_le_dens_filter_relativeHashEstimate {k p : ℕ}
     (h : ∀ j, ι j → (Fin k → X) → Y j) (y : ∀ j, Y j) (S : Finset X)
-    (hh : ∀ j, IsPairwiseIndependentHash (h j)) (hY : ∀ j, Fintype.card (Y j) = 2 ^ j)
+    (hh : ∀ j ≤ n, IsPairwiseIndependentHash (h j)) (hY : ∀ j, Fintype.card (Y j) = 2 ^ j)
     (hS : #S ^ k ≤ 2 ^ n) (hp : 128 * p ^ k ≤ (p + 1) ^ k) (t : ℕ) :
     1 - (2 ^ t)⁻¹ ≤ dens {ω : ∀ j : Fin (n + 1), Fin (2 * (6 * (n + 1 + t))) → ι j |
       #S ≤ relativeHashEstimate h y S ω ∧ p * relativeHashEstimate h y S ω ≤ (p + 1) * #S} := by
@@ -231,9 +228,10 @@ theorem one_sub_inv_two_pow_le_dens_filter_affineRelativeHashEstimate {m p : ℕ
       #S ≤ relativeHashEstimate (fun _ A x => affineHash A (Function.uncurry x)) (fun _ => 0) S ω ∧
         p * relativeHashEstimate (fun _ A x => affineHash A (Function.uncurry x)) (fun _ => 0) S ω
           ≤ (p + 1) * #S} := by
-  have hh : ∀ j, IsPairwiseIndependentHash fun (A : Matrix (Fin j) (Fin (7 * p) × Fin m) (ZMod 2) ×
-      (Fin j → ZMod 2)) (x : Fin (7 * p) → Fin m → ZMod 2) => affineHash A (Function.uncurry x) :=
-    fun _ => isPairwiseIndependentHash_affineHash.comp Function.uncurry_injective
+  have hh : ∀ j ≤ 7 * p * m, IsPairwiseIndependentHash fun (A : Matrix (Fin j)
+      (Fin (7 * p) × Fin m) (ZMod 2) × (Fin j → ZMod 2)) (x : Fin (7 * p) → Fin m → ZMod 2) =>
+        affineHash A (Function.uncurry x) :=
+    fun _ _ => isPairwiseIndependentHash_affineHash.comp Function.uncurry_injective
   have hY : ∀ j, Fintype.card (Fin j → ZMod 2) = 2 ^ j := fun j => by
     rw [Fintype.card_fun, ZMod.card, Fintype.card_fin]
   have hS : #S ^ (7 * p) ≤ 2 ^ (7 * p * m) := by

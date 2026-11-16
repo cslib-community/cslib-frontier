@@ -213,7 +213,7 @@ private def wrongSeeds (j : Fin (n + 1)) : Finset (∀ j : Fin (n + 1), Fin (2 *
 variable [∀ j, Nonempty (ι j)]
 
 /-- Each level answers incorrectly with probability at most `(8 / 9) ^ r`. -/
-private theorem dens_wrongSeeds_le (hh : ∀ j, IsPairwiseIndependentHash (h j))
+private theorem dens_wrongSeeds_le (hh : ∀ j ≤ n, IsPairwiseIndependentHash (h j))
     (hY : ∀ j, Fintype.card (Y j) = 2 ^ j) (j : Fin (n + 1)) :
     dens (wrongSeeds h y S (r := r) j) ≤ (8 / 9) ^ r := by
   classical
@@ -234,7 +234,7 @@ private theorem dens_wrongSeeds_le (hh : ∀ j, IsPairwiseIndependentHash (h j))
     have hG : 2 / 3 ≤ G.dens := by
       refine le_of_add_eq_one (q := 1 / 8) (dens_filter_add_dens_filter_not_eq_dens
         (s := (univ : Finset (ι j))) _ |>.trans dens_univ) ?_ (by norm_num [← NNRat.coe_le_coe])
-      refine ((hh j).dens_filter_notMem_image_le hS (y j)).trans ?_
+      refine ((hh j j.is_le).dens_filter_notMem_image_le hS (y j)).trans ?_
       rw [hYj, div_le_div_iff₀ (by exact_mod_cast hS.card_pos) (by norm_num)]
       exact_mod_cast (by omega : 2 ^ (j : ℕ) * 8 ≤ 1 * #S)
     refine le_trans (dens_le_dens fun v hv => ?_) (dens_filter_card_filter_le_le hG r)
@@ -249,7 +249,7 @@ private theorem dens_wrongSeeds_le (hh : ∀ j, IsPairwiseIndependentHash (h j))
       refine le_of_add_eq_one (q := 1 / 8) ((add_comm _ _).trans
         (dens_filter_add_dens_filter_not_eq_dens (s := (univ : Finset (ι j))) _ |>.trans
           dens_univ)) ?_ (by norm_num [← NNRat.coe_le_coe])
-      refine ((hh j).dens_filter_mem_image_le S (y j)).trans ?_
+      refine ((hh j j.is_le).dens_filter_mem_image_le S (y j)).trans ?_
       rw [hYj, div_le_div_iff₀ (by positivity) (by norm_num)]
       exact_mod_cast (by omega : #S * 8 ≤ 1 * 2 ^ (j : ℕ))
     refine le_trans (dens_le_dens fun v hv => ?_) (dens_filter_card_filter_le_le hGc r)
@@ -268,11 +268,11 @@ private theorem dens_wrongSeeds_le (hh : ∀ j, IsPairwiseIndependentHash (h j))
     simp only [mem_filter, mem_univ, true_and] at hv
     exact hv ⟨fun h' => absurd h' hhigh, fun h' => absurd h' hlow⟩
 
-/-- **The answers from hashing are correct with high probability**: if every `h j` is a pairwise
-independent hash family into a set of `2 ^ j` elements, with seeds from a nonempty type `ι j`, then
-for `2 r` independent uniform seeds per level `j ≤ n`, the majority answers are correct for `S`
-except with probability at most `(n + 1) (8 / 9) ^ r`. -/
-theorem dens_filter_not_answersCorrect_le (hh : ∀ j, IsPairwiseIndependentHash (h j))
+/-- **The answers from hashing are correct with high probability**: if every `h j` with `j ≤ n` is
+a pairwise independent hash family into a set of `2 ^ j` elements, with seeds from a nonempty
+type `ι j`, then for `2 r` independent uniform seeds per level `j ≤ n`, the majority answers are
+correct for `S` except with probability at most `(n + 1) (8 / 9) ^ r`. -/
+theorem dens_filter_not_answersCorrect_le (hh : ∀ j ≤ n, IsPairwiseIndependentHash (h j))
     (hY : ∀ j, Fintype.card (Y j) = 2 ^ j) :
     dens {ω : ∀ j : Fin (n + 1), Fin (2 * r) → ι j |
       ¬ AnswersCorrect n #S (hashAnswer h y S ω)} ≤ (n + 1) * (8 / 9) ^ r := by
@@ -317,11 +317,12 @@ private theorem four_mul_mul_eight_pow_le (n : ℕ) :
     _ ≤ (9 ^ 12) ^ (n + 1) := Nat.pow_le_pow_left (by norm_num) _
     _ = 9 ^ (12 * (n + 1)) := by rw [pow_mul]
 
-/-- **Stockmeyer's approximate counting**: if every `h j` is a pairwise independent hash family
-into a set of `2 ^ j` elements, with seeds from a nonempty type `ι j`, and `#S ≤ 2 ^ n`, then for
-`24 (n + 1)` independent uniform seeds per level `j ≤ n`, the estimate from the majority answers is
-between `#S / 16` and `8 #S` with probability at least `3 / 4`. -/
-theorem three_quarters_le_dens_filter_hashEstimate (hh : ∀ j, IsPairwiseIndependentHash (h j))
+/-- **Stockmeyer's approximate counting**: if every `h j` with `j ≤ n` is a pairwise independent
+hash family into a set of `2 ^ j` elements, with seeds from a nonempty type `ι j`, and
+`#S ≤ 2 ^ n`, then for `24 (n + 1)` independent uniform seeds per level `j ≤ n`, the estimate from
+the majority answers is between `#S / 16` and `8 #S` with probability at least `3 / 4`. -/
+theorem three_quarters_le_dens_filter_hashEstimate
+    (hh : ∀ j ≤ n, IsPairwiseIndependentHash (h j))
     (hY : ∀ j, Fintype.card (Y j) = 2 ^ j) (hS : #S ≤ 2 ^ n) :
     3 / 4 ≤ dens {ω : ∀ j : Fin (n + 1), Fin (2 * (12 * (n + 1))) → ι j |
       hashEstimate h y S ω ≤ 8 * #S ∧ #S ≤ 16 * hashEstimate h y S ω} := by
@@ -357,9 +358,9 @@ theorem three_quarters_le_dens_filter_affineHashEstimate {n : ℕ} (S : Finset (
         Matrix (Fin j) (Fin n) (ZMod 2) × (Fin j → ZMod 2) |
       hashEstimate (fun _ => affineHash) (fun _ => 0) S ω ≤ 8 * #S ∧
         #S ≤ 16 * hashEstimate (fun _ => affineHash) (fun _ => 0) S ω} := by
-  have hh : ∀ j, IsPairwiseIndependentHash
+  have hh : ∀ j ≤ n, IsPairwiseIndependentHash
       (affineHash : Matrix (Fin j) (Fin n) (ZMod 2) × (Fin j → ZMod 2) → _) :=
-    fun _ => isPairwiseIndependentHash_affineHash
+    fun _ _ => isPairwiseIndependentHash_affineHash
   have hY : ∀ j, Fintype.card (Fin j → ZMod 2) = 2 ^ j := fun j => by
     rw [Fintype.card_fun, ZMod.card, Fintype.card_fin]
   have hS : #S ≤ 2 ^ n := by
