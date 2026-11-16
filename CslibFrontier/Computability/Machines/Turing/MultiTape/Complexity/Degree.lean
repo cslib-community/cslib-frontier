@@ -18,8 +18,6 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBoun
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
-import Mathlib.Data.Fintype.Lattice
-import Mathlib.Tactic.Ring
 
 /-!
 # Tidy computability with polynomial bounds of a given degree
