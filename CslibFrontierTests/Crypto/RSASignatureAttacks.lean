@@ -205,7 +205,6 @@ example : ComputableInPolyTime
 
 /-! ### Failing cases of the hypotheses, and the conventions of the scheme -/
 
-
 -- For a digest below `N`, `verify` is the printed test `σ ^ e = H m` on a residue `σ`.
 example (desc : RSADesc) {M : Type} (H : M → ℕ) (pk : RSAPublicKey) (m : M) (σ : ℕ)
     (h : H m < pk.N) :

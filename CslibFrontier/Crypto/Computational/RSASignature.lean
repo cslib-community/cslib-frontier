@@ -32,7 +32,6 @@ and compares `σ ^ e` with `H(m)`, whose range it describes as "embedded in `ℤ
 
 ## Main results
 
-* `Cslib.Crypto.rsaSignature_verify_iff`: the verification test as a proposition.
 * `Cslib.Crypto.rsaSignature_correct`: every signature verifies.
 
 ## References
@@ -48,15 +47,6 @@ namespace Cslib.Crypto
 open Probability
 
 variable {M : Type}
-
-/-- RSA evaluation undoes trapdoor inversion modulo `N`, for every natural number `y`. -/
-theorem rsaEval_rsaInvert_mod (desc : RSADesc) (y : ℕ) :
-    rsaEval desc.modulus desc.e (rsaInvert desc.modulus desc.d y) = y % desc.modulus := by
-  have h : rsaInvert desc.modulus desc.d y = rsaInvert desc.modulus desc.d (y % desc.modulus) := by
-    unfold rsaInvert
-    exact Nat.pow_mod y desc.d desc.modulus
-  rw [h]
-  exact rsaEval_rsaInvert desc (Nat.mod_lt _ desc.modulus_pos)
 
 /-- RSA signatures on a digest, for the key `desc` and the digest function `H`
 ([BonehShoup2023], Section 13.3.1): the signature on `m` is `H m ^ d % N`, and `σ` is accepted

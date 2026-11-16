@@ -34,15 +34,17 @@ exact success law and a bound on its signing queries:
   outputs their product as a signature on `m₃`, when `H m₃ ≡ H m₁ * H m₂` modulo `N`.
 
 The forgers carry query bounds, and the blinding and unblinding maps are certified polynomial
-time (`computableInPolyTime_rsaBlind`, `computableInPolyTime_rsaUnblind`). No forger is certified
-as a polynomial-time program: the game here is typed, `main` has no polynomial-time predicate for
-typed oracle adversaries (#4894), and the word-coded form of the forgers is not in this module.
+time (`computableInPolyTime_rsaBlind`, for a positive modulus, and
+`computableInPolyTime_rsaUnblind`). No forger is certified as a polynomial-time program: the game
+here is typed, the library has no polynomial-time predicate for typed oracle adversaries yet
+(#4894), and the word-coded form of the forgers is not in this module.
 
 Where the book is silent:
 
 * Equation (13.4) holds for every unit `r`. For `r ≡ 1` the signing query is `m` itself, so the
   output is a valid signature that Attack Game 13.1 does not count; the book does not mention this
-  case. With the book's uniform unit the forger loses with probability exactly `1 / φ(N)`.
+  case. With the book's uniform unit the forger loses on a message that is a unit with probability
+  exactly `1 / φ(N)`.
 * The book assumes that `m` is a unit and leaves the other case to the reader. Here the forger
   signs a non-unit itself with `rsaNonUnitRoot`, with no query; blinding does not work there.
 * The book says "three messages" for (13.9) and does not state `m₃ ≠ m₁` and `m₃ ≠ m₂`. The game
@@ -86,17 +88,6 @@ open Probability Turing.MultiTapeTM
 variable {M : Type}
 
 /-! ### Blinding -/
-
-/-- The signature on a message that is not a unit modulo `N` is computed from the public key
-alone: it is `rsaNonUnitRoot N e m` ([BonehShoup2023], p. 537, where the reader is asked to check
-that the message may be assumed to be a unit). -/
-theorem rsaNonUnitRoot_eq_rsaInvert (desc : RSADesc) {m : ℕ} (hm : m < desc.modulus)
-    (hcop : ¬ Nat.Coprime m desc.modulus) :
-    rsaNonUnitRoot desc.modulus desc.e m = rsaInvert desc.modulus desc.d m := by
-  have hσ : rsaInvert desc.modulus desc.d m < desc.modulus := Nat.mod_lt _ desc.modulus_pos
-  have hev := rsaEval_rsaInvert desc hm
-  have h := rsaNonUnitRoot_rsaEval desc hσ (by rwa [← coprime_rsaEval_iff desc, hev])
-  rwa [hev] at h
 
 /-- The blinded message `m * r ^ e % N` of the attack on unhashed RSA signatures. -/
 @[expose]
@@ -287,7 +278,8 @@ theorem eval_eufCmaExperiment_unhashedRSAUniversalForger_uniform (desc : RSADesc
 
 /-- **Unhashed RSA signatures are universally forgeable** ([BonehShoup2023], p. 537): with the
 blinding factor `N - 1`, the forger wins Attack Game 13.1 with probability `1`, for every key and
-every message. -/
+every message. It makes at most one signing query (`isQueryBounded_unhashedRSAUniversalForger`),
+and it is not certified as a polynomial-time program. -/
 theorem eval_eufCmaExperiment_unhashedRSAUniversalForger_sub_one (desc : RSADesc)
     (m : Fin desc.modulus) :
     ProbComp.eval ((unhashedRSASignature desc).eufCmaExperiment
