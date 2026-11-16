@@ -13,7 +13,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Permanent.Matching
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Int.BinaryDiv
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Foundations.Data.Matrix.Permanent.Blocks
-import CslibFrontier.Foundations.LinearAlgebra.Matrix.Moore
+import CslibFrontier.Foundations.Data.Matrix.Permanent.Determinant
 import Mathlib.Data.List.GetD
 import Mathlib.Data.ZMod.Basic
 
