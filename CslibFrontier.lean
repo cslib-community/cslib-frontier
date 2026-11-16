@@ -4476,6 +4476,7 @@ public import CslibFrontier.Crypto.Computational.Encryption.PublicKeyCPA
 public import CslibFrontier.Crypto.Computational.Encryption.PublicKeyReplacement
 public import CslibFrontier.Crypto.Computational.Encryption.RandomFunctionHybrid
 public import CslibFrontier.Crypto.Computational.Encryption.RealIdealAE
+public import CslibFrontier.Crypto.Computational.Encryption.Roulette
 public import CslibFrontier.Crypto.Computational.Encryption.Scheme
 public import CslibFrontier.Crypto.Computational.Encryption.StronglyUnpredictable
 public import CslibFrontier.Crypto.Computational.Encryption.SymmetricCPA
