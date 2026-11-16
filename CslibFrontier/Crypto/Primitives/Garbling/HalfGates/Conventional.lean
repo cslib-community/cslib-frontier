@@ -86,6 +86,13 @@ theorem XorAndCircuit.isXorAnd (f : XorAndCircuit) : f.circuit.IsXorAnd := f.2
 def encXorAndCircuit : XorAndCircuit ↪ List Bool :=
   (Function.Embedding.subtype _).trans encValidCircuit
 
+/-- An XOR–AND circuit is written as its valid circuit, so reading the valid circuit costs
+nothing. -/
+theorem XorAndCircuit.val_polyTime :
+    Turing.MultiTapeTM.ComputableInPolyTime (fun f : XorAndCircuit => f.1) encXorAndCircuit
+      encValidCircuit :=
+  .of_eq fun _ => rfl
+
 namespace HalfGates
 
 /-- The XOR–AND basis inside the full binary basis: XOR and AND as their truth tables. -/
