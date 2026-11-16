@@ -4880,6 +4880,8 @@ public import CslibFrontier.Crypto.Primitives.Garbling.HalfGates
 public import CslibFrontier.Crypto.Primitives.Garbling.HalfGates.Conventional
 public import CslibFrontier.Crypto.Primitives.Garbling.HalfGates.Efficient
 public import CslibFrontier.Crypto.Primitives.Garbling.HalfGates.Privacy
+public import CslibFrontier.Crypto.Primitives.Garbling.HalfGates.PrvSim
+public import CslibFrontier.Crypto.Primitives.Garbling.HalfGates.Reduction
 public import CslibFrontier.Crypto.Primitives.Garbling.HalfGates.Scheme
 public import CslibFrontier.Crypto.Primitives.Garbling.HalfGates.Simulator
 public import CslibFrontier.Crypto.Primitives.Garbling.LabelWord

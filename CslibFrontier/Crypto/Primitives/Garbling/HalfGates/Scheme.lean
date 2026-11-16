@@ -18,10 +18,10 @@ import CslibFrontier.Foundations.Data.List.Flatten
 # Half-gates garbling as a garbling scheme
 
 Definitions and correctness only. The efficiency certificates of the scheme
-(`CslibFrontier.Crypto.Primitives.Garbling.HalfGates.Efficient`) and its word simulator
-(`CslibFrontier.Crypto.Primitives.Garbling.HalfGates.Simulator`) build on it. Simulation privacy
-(`prv.sim`) by a reduction to `CircularCorrelationRobust` with a certified efficiency witness is
-the next step of [#5293](https://github.com/cslib-community/cslib-frontier/issues/5293) (B4, H3).
+(`CslibFrontier.Crypto.Primitives.Garbling.HalfGates.Efficient`), its word simulator
+(`CslibFrontier.Crypto.Primitives.Garbling.HalfGates.Simulator`) and its simulation privacy
+(`prv.sim`) under `CircularCorrelationRobust`, by a certified reduction
+(`CslibFrontier.Crypto.Primitives.Garbling.HalfGates.PrvSim`), build on it.
 
 The half-gates garbling of `CslibFrontier.Crypto.Primitives.Garbling.HalfGates`, after Zahur,
 Rosulek and Evans [ZahurRosulekEvans2015] (Figure 2, p. 9), as a garbling scheme in the sense of
@@ -473,7 +473,7 @@ private theorem zeroWords_q (k : ℕ) (f : XorAndCircuit) (coins : List Bool) :
   rw [zeroWords_eq hash k f coins le_rfl, List.take_of_length_le (by simp [size_toCircuit])]
 
 /-- Gate `g` of `toCircuit f` is an AND gate exactly when `G g 1 1` is set. -/
-private theorem decide_op_toCircuit (f : XorAndCircuit) (g : Fin (toCircuit f).size) :
+theorem decide_op_toCircuit (f : XorAndCircuit) (g : Fin (toCircuit f).size) :
     decide (op (toCircuit f) g = .and) = f.circuit.G (g.cast (size_toCircuit f)) true true := by
   rw [op_toCircuit, opOf]
   cases f.circuit.G (g.cast (size_toCircuit f)) true true <;> rfl
