@@ -9,9 +9,10 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Crypto.Computational.PseudorandomGenerator
-public import CslibFrontier.Crypto.Game.CloseTo
 public import CslibFrontier.Languages.Probabilistic.UniformNat
+public import CslibFrontier.Probability.StatisticalDistance.CloseTo
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
+import CslibFrontier.Crypto.Game.CloseTo
 import CslibFrontier.Crypto.Game.CloseTo.UniformNat
 import CslibFrontier.Tactic.PPT
 
@@ -25,6 +26,12 @@ uniform when `m / 2 ^ L` is negligible.
 Here `modWord m word` reads `word` most significant bit first (`BitString.binaryValue`) and
 encodes the residue modulo `m` with `encNat`. The reduction `modDistinguisher m adversary`
 evaluates `modWord (m n)` on its challenge word before running `adversary n`.
+
+Compared with [BonehShoup2023], pp. 86–87: `2 ^ L ≥ m` is not assumed (for `m > 2 ^ L` the bound
+exceeds `1`); the bound is `≤ m / 2 ^ L` where Example 3.2 proves `<`; the modulus `m` may depend
+on the security parameter `n` and must then be computable in polynomial time (`hm`), which is what
+makes the reduction `modDistinguisher` efficient; and the generator's security is used only as
+indistinguishability of its output from uniform words.
 
 ## Main definitions
 
@@ -59,14 +66,16 @@ open Cslib.Probability Turing.MultiTapeTM
 open scoped NNReal
 
 /-- As naturals, `sampleModNat width M` is within `M / 2 ^ width` of a uniform value below `M`. -/
-theorem closeTo_sampleModNat_fin (width M : ℕ) [NeZero M] :
+private theorem closeTo_sampleModNat_fin (width M : ℕ) [NeZero M] :
     CloseTo (ProbComp.eval (ProbComp.sampleModNat width M))
       ((PMF.uniformOfFintype (Fin M)).map Fin.val) ((M : ℝ≥0) / 2 ^ width : ℝ≥0) := by
   refine Game.closeTo_iff_forall_advantage_bind_le.mpr fun test => ?_
   rw [PMF.bind_map]
   exact Game.advantage_bind_sampleModNat_fin_le width M test
 
-/-- Read a word as a binary number and write its residue modulo `m` in binary. -/
+/-- Read `word` as a binary number, most significant bit first (`BitString.binaryValue`), and write
+its residue modulo `m` with `encNat`, least significant bit first. For `m = 0` the value is not
+reduced. -/
 @[expose] def modWord (m : ℕ) (word : List Bool) : List Bool :=
   encNat (BitString.binaryValue word % m)
 
@@ -88,7 +97,7 @@ theorem closeTo_uniformList_map_modWord (L m : ℕ) [NeZero m] :
 
 /-- The reduction of [BonehShoup2023], Example 3.3, p. 86: reduce the challenge word modulo
 `m n`, then run the given distinguisher on the residue. -/
-@[expose] def modDistinguisher (m : ℕ → ℕ) (adversary : Distinguisher) : Distinguisher :=
+def modDistinguisher (m : ℕ → ℕ) (adversary : Distinguisher) : Distinguisher :=
   fun n word => adversary n (modWord (m n) word)
 
 /-- Reduction modulo a modulus computed from the unary parameter is polynomial time. -/
@@ -133,7 +142,7 @@ theorem advantage_distinguishingGame_map_modWord_le (m : ℕ → ℕ) [∀ n, Ne
   · exact Game.advantage_bind_le_of_closeTo (closeTo_uniformList_map_modWord L (m n))
       fun word => ProbComp.eval (adversary n word)
 
-/-- **Example 3.3** ([BonehShoup2023], pp. 86--87): if an ensemble of words is computationally
+/-- **Example 3.3** ([BonehShoup2023], pp. 86–87): if an ensemble of words is computationally
 indistinguishable from uniform words of `length n` bits, the modulus is efficiently computable
 and `m n / 2 ^ length n` is negligible, then the residues modulo `m n` are computationally
 indistinguishable from uniform residues. The efficiency hypothesis `hm` is present for the PPT

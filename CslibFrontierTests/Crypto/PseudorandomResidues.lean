@@ -9,7 +9,6 @@ module
 import CslibFrontier.Crypto.Computational.PseudorandomGenerator.ModReduction
 import CslibFrontier.Crypto.Primitives.PRG.ModReduction
 import CslibFrontier.Crypto.Negligible.Basic
-import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Tactic.Negligible
 import CslibFrontier.Tactic.PPT
@@ -109,6 +108,20 @@ example : ComputationallyIndistinguishable (fun _ : ℕ => BitString.uniformList
     (fun _ : ℕ => BitString.uniformList 2) ∧
     ComputableInPolyTime (fun _ : ℕ => 3) encUnary encNat :=
   ⟨.refl _, by fun_prop⟩
+
+/-- In the `hX` probe above, the modulus and negligibility hypotheses hold: only `hX` is
+missing. -/
+example : ComputableInPolyTime (fun _ : ℕ => 3) encUnary encNat ∧
+    Negligible fun n : ℕ => (3 : ℝ≥0) / 2 ^ n :=
+  ⟨by fun_prop, by negligible⟩
+
+/-- All three hypotheses of `ComputationallyIndistinguishable.map_modWord` hold together, with no
+assumption: `n` fair bits and the modulus `3`. -/
+example : ComputationallyIndistinguishable
+    (fun n => (BitString.uniformList n).map (modWord 3))
+    (fun _ => (PMF.uniformOfFintype (Fin 3)).map fun i => encNat i.val) :=
+  (ComputationallyIndistinguishable.refl _).map_modWord (m := fun _ => 3) (by fun_prop)
+    (by negligible)
 
 /-- Example 3.3 for any pseudorandom generator and a constant modulus `c` (`NeZero c`), the book's
 constant-`m` case: the stretch of the generator supplies the negligible error. -/
