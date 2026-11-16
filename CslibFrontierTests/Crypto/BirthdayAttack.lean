@@ -12,7 +12,8 @@ import CslibFrontier.Crypto.Primitives.PRP.BirthdayAttack
 # Tests for `CslibFrontier.Crypto.Primitives.PRP.BirthdayAttack`
 
 Checked positive instances and hypothesis-necessity counterexamples for
-`Cslib.Crypto.PRP.birthdayDistinguisher` and `Cslib.Crypto.PRP.fullBirthdayDistinguisher`.
+`Cslib.Crypto.PRP.birthdayDistinguisher` and
+`Cslib.Crypto.PRP.half_le_advantage_birthdayDistinguisher_of_bijective`.
 -/
 
 set_option linter.privateModule false
@@ -24,33 +25,24 @@ open scoped NNReal
 
 private def boolQueries : Fin 2 → Bool := ![false, true]
 
-private theorem injective_boolQueries : Function.Injective boolQueries := by
+private theorem bijective_boolQueries : Function.Bijective boolQueries := by
   decide
 
 private def boolFlipCipher : Bool → Equiv.Perm Bool
   | false => Equiv.refl Bool
   | true => Equiv.swap false true
 
--- Exact `1/2` advantage and query bound `2` on `Bool` for both distinguishers.
-example : (PRP.birthdayDistinguisher boolQueries).IsQueryBounded 2 :=
-  PRP.isQueryBounded_birthdayDistinguisher boolQueries
-
-example : ProbComp.eval (PRP.realExperiment boolFlipCipher
-    (PRP.birthdayDistinguisher boolQueries)) = PMF.pure false :=
-  PRP.eval_realExperiment_birthdayDistinguisher boolFlipCipher injective_boolQueries
-
+-- Exact `1/2` advantage and bijective `1/2` lower bound on `Bool`.
 example : (PRF.advantage (fun k => ⇑(boolFlipCipher k))
     (PRP.birthdayDistinguisher boolQueries) : ℝ) = 1 / 2 := by
-  rw [PRP.coe_advantage_birthdayDistinguisher boolFlipCipher injective_boolQueries,
+  rw [PRP.coe_advantage_birthdayDistinguisher boolFlipCipher bijective_boolQueries.injective,
     Fintype.card_bool]
   norm_num [Nat.descFactorial]
 
-example : (PRP.fullBirthdayDistinguisher Bool).IsQueryBounded 2 := by
-  simpa [Fintype.card_bool] using PRP.isQueryBounded_fullBirthdayDistinguisher Bool
-
-example : (1 / 2 : ℝ≥0) ≤ PRF.advantage (fun k => ⇑(boolFlipCipher k))
-    (PRP.fullBirthdayDistinguisher Bool) :=
-  PRP.half_le_advantage_fullBirthdayDistinguisher boolFlipCipher (by simp)
+example : (1 / 2 : ℝ) ≤ PRF.advantage (fun k => ⇑(boolFlipCipher k))
+    (PRP.birthdayDistinguisher boolQueries) :=
+  PRP.half_le_advantage_birthdayDistinguisher_of_bijective boolFlipCipher bijective_boolQueries
+    (by simp)
 
 -- Sub-domain `Q = 3` and full `Q = 4` on `Fin 4` exercise both branches of `min (_ / _) 0.63`.
 private def fin4Triple : Fin 3 → Fin 4 := Fin.castLE (by omega)
@@ -123,8 +115,9 @@ example : (PRF.advantage (fun (_ : Unit) (_ : Fin 4) => (0 : Fin 4))
 
 -- Hypothesis necessity: `2 ≤ Fintype.card D` is required for `1/2 ≤ PRF.advantage`.
 example : PRF.advantage (fun (_ : Unit) => ⇑(Equiv.refl Unit))
-    (PRP.fullBirthdayDistinguisher Unit) = 0 := by
-  rw [← NNReal.coe_inj, PRP.coe_advantage_fullBirthdayDistinguisher, Fintype.card_unit]
-  norm_num
+    (PRP.birthdayDistinguisher (fun _ : Fin 1 => ())) = 0 := by
+  rw [← NNReal.coe_inj, PRP.coe_advantage_birthdayDistinguisher _
+    (Function.injective_of_subsingleton _), Fintype.card_unit]
+  norm_num [Nat.descFactorial]
 
 end CslibFrontierTests.Crypto.BirthdayAttack
