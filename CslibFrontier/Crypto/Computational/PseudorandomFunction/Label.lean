@@ -8,9 +8,10 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Finite
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
-import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 import CslibFrontier.Crypto.Negligible.Basic
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import Mathlib.Algebra.Ring.BooleanRing
 import CslibFrontier.Probability.Uniform
 
 /-!

@@ -7,6 +7,7 @@ Authors: Karn Seth
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder
 public import CslibFrontier.Crypto.Computational.MAC
 public import CslibFrontier.Crypto.Negligible.Dyadic
@@ -38,8 +39,8 @@ import CslibFrontier.Languages.Probabilistic.Oracle.Support
 import CslibFrontier.Languages.Probabilistic.Traverse.SupportWith
 import CslibFrontier.Probability.BitString
 import CslibFrontier.Probability.PMF.Bind
-import CslibFrontier.Tactic.Negligible
 import CslibFrontier.Tactic.PolyTime.Init
+import Mathlib.Tactic.Positivity
 import CslibFrontier.Tactic.SuppCases
 
 /-!
@@ -1267,6 +1268,8 @@ theorem isPPTOn_blockwiseWordSigningOracle (hE : IsPolyTimeEncoder E) :
       (encPair encBits encLog)
       (fun call : (ℕ × List Bool) × (Unit × List Bool) × List (List Bool × Tag) =>
         M.blockwiseWordSigningOracle E call.1.1 call.1.2 call.2.1 call.2.2) := by
+  have hencode : ComputableInPolyTime encTag encTag encBits :=
+    ComputableInPolyTime.of_eq (fun _ => rfl)
   have hsign := (M.isPPTOn_blockwiseSign hE).preprocess
     (input := encPair (encPair encUnary encBits)
       (encPair (encPair (encFinEnum Unit) encBits) encLog))
@@ -1471,6 +1474,8 @@ theorem isOraclePPTOn_blockwiseBoundedSimulator (hE : IsPolyTimeEncoder E)
       (encPair encBits encLog)
       (fun call : (ℕ × List Bool) × (Unit × List Bool) × List (List Bool × Tag) =>
         M.blockwiseBoundedSimulator E tagBound call.1.1 call.2.1 call.2.2) := by
+  have hencode : ComputableInPolyTime encTag encTag encBits :=
+    ComputableInPolyTime.of_eq (fun _ => rfl)
   let encCall :=
     encPair (encPair encUnary encBits) (encPair (encPair (encFinEnum Unit) encBits) encLog)
   have hmsgLen := M.msgLen_polyTime
