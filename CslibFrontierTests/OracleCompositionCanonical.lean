@@ -83,7 +83,11 @@ example : IsOraclePPTOn encBits encBool sampledLoop := by
     (fun word _ state => word.headD false = false → state = false)
     (fun _ _ => rfl) (by
       intro word _ state _ hstate next hnext hfalse
-      have hnext : next = state := by simpa [sampledStep, hfalse] using hnext
+      have hstep : sampledStep word state = pure state := by
+        unfold sampledStep
+        rw [hfalse]
+        rfl
+      have hnext : next = state := by simpa [hstep] using hnext
       subst next
       exact hstate hfalse)
     (size := fun _ => 1) (.const 1) (fun _ _ _ _ _ => by simp)).1
