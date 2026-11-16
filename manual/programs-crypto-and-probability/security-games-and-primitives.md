@@ -2986,12 +2986,42 @@ concatenate to it (`flatten_mdLengthBlocks`); for larger `s` the count does not 
 bits are dropped. `mdLengthBlocks_suffix_iff`: if `mdLengthBlockCount n m₂ < 2 ^ (n / 2)`, then
 `mdLengthBlocks n m₁` is a suffix of `mdLengthBlocks n m₂` only when `m₁ = m₂`.
 `computableInPolyTime_mdLengthBlocks` is the polynomial-time certificate, with `n` in unary. The
-hash built from this padding and Theorem 8.3 (p. 297) for it are not yet library declarations. The
 [checked examples](../../CslibFrontierTests/Crypto/MerkleDamgardLengthPadding.lean) compute both
 cases of p. 297 at `n = 4`, show that suffix-freeness fails at the first count that does not fit,
 and derive collision resistance of the chain on the messages whose count fits from
 `CompressionFamily.collisionResistantOn_merkleDamgardChain`; run
 `scripts/build.sh CslibFrontierTests.Crypto.MerkleDamgardLengthPadding`.
+
+For the length-strengthened Merkle–Damgård hash of [bs23][bs23], §8.4 (pp. 295–297), import
+[`MerkleDamgard/LengthStrengthened.lean`](../../CslibFrontier/Crypto/Computational/MerkleDamgard/LengthStrengthened.lean).
+`lengthStrengthenedMD h k msg` runs `merkleDamgardChain` on `mdLengthBlocks k.length msg` starting
+from the all-zero `k.length`-bit IV `List.replicate k.length false`; when `h` maps `2 * k.length`-bit
+inputs to `k.length`-bit digests, the hash output also has `k.length` bits
+(`length_lengthStrengthenedMD`), and together with polynomial-time `h` this certifies
+`lengthStrengthenedMD h` in deterministic polynomial time
+(`computableInPolyTime_lengthStrengthenedMD`). Unlike the textbook
+construction with independent block length `ℓ`, arbitrary fixed `IV`, and a fixed (typically 64-bit)
+message-length block, `lengthStrengthenedMD` sets `ℓ = n = k.length` and `IV = 0^n` to match
+`CompressionFamily`, samples the key `k` uniformly at each parameter `n`, and encodes the block
+count in `n / 2` bits (so messages with `mdLengthBlockCount n msg ≥ 2 ^ (n / 2)` truncate). For
+Theorem 8.3 (p. 297), `lengthStrengthenedWrapper h valid adversary` runs `adversary`, tests
+`isCollision (lengthStrengthenedMD h) valid`, and extracts a compression collision via
+`extractChainCollision`, certified uniformly strict PPT by `isPPT_lengthStrengthenedWrapper` (from
+polynomial-time `h` and `valid`, `2 * k.length`-to-`k.length` length preservation, and strict PPT
+`adversary`).
+Assuming `h` preserves `n`-bit output lengths and `∀ m, valid n m = true → mdLengthBlockCount n m < 2 ^ (n / 2)`,
+`succProbability_collisionGame_lengthStrengthenedMD_eq` proves exact equality of collision-finding
+probabilities against `h` on `validCompressionInput`. Because every strict PPT adversary outputs
+messages of polynomially bounded length while `2 ^ (n / 2)` grows exponentially, any
+`CompressionFamily h` yields `CollisionResistant (lengthStrengthenedMD h)`
+(`CompressionFamily.collisionResistant_lengthStrengthenedMD`) and `HashFamily (lengthStrengthenedMD h)`
+(`CompressionFamily.hashFamily_lengthStrengthenedMD`). The
+[checked examples](../../CslibFrontierTests/Crypto/MerkleDamgardLengthStrengthened.lean) demonstrate
+both padding length-bound failures (`length_mdLengthPad` and `flatten_mdLengthBlocks`) at `n = 4`
+on a ten-zero-bit message (`mdLengthBlockCount 4 msg = 4`), check the valid-domain advantage equality
+of `succProbability_collisionGame_lengthStrengthenedMD_eq`, and build an explicit `n = 4` overflow
+collision under `zeroCompress` (`1` vs `0`); run
+`scripts/build.sh CslibFrontierTests.Crypto.MerkleDamgardLengthStrengthened`.
 
 Merkle–Damgård chains have many messages with one digest at little more than the cost of one
 collision (Joux's attack, [bs23][bs23], §8.4.1, pp. 298–299). Import

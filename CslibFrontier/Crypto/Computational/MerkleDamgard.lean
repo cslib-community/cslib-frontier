@@ -51,7 +51,8 @@ We formalize the transform and its collision-extraction reduction at two levels:
    `CompressionFamily.hashFamily_merkleDamgard`).
    This is not textbook length-strengthened Merkle–Damgård, which packs `n` message bits into each
    block and ends with a length block: `merkleDamgard` spends one block, and so one compression
-   call, per message bit. A length-strengthened instance is not formalized.
+   call, per message bit. For the length-strengthened instance, see
+   `CslibFrontier/Crypto/Computational/MerkleDamgard/LengthStrengthened.lean`.
 
 ## Main definitions
 
@@ -208,7 +209,7 @@ private theorem chainTrace_concat (h : List Bool → List Bool → List Bool) (k
 
 /-- On valid `k.length`-bit chains, the first component of `chainTrace` agrees with
 `merkleDamgardChain`. -/
-private theorem fst_chainTrace_eq_merkleDamgardChain {h : List Bool → List Bool → List Bool}
+theorem fst_chainTrace_eq_merkleDamgardChain {h : List Bool → List Bool → List Bool}
     {k iv : List Bool} {blocks : List (List Bool)}
     (hlen : ∀ x, x.length = 2 * k.length → (h k x).length = k.length)
     (hiv : iv.length = k.length)
