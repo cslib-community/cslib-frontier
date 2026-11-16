@@ -4803,6 +4803,7 @@ public import CslibFrontier.Crypto.Computational.SchnorrSignature.StatisticalROM
 public import CslibFrontier.Crypto.Computational.SchnorrSignature.WordROM
 public import CslibFrontier.Crypto.Computational.SecondPreimageResistant
 public import CslibFrontier.Crypto.Computational.Signature
+public import CslibFrontier.Crypto.Computational.Signature.Aggregate
 public import CslibFrontier.Crypto.Computational.Signature.Bridge
 public import CslibFrontier.Crypto.Computational.Signature.RandomOracle
 public import CslibFrontier.Crypto.Computational.Signature.Scheme
@@ -4822,6 +4823,8 @@ public import CslibFrontier.Crypto.Computational.TwoStage
 public import CslibFrontier.Crypto.Computational.UniformChoice
 public import CslibFrontier.Crypto.Computational.UnitSampling
 public import CslibFrontier.Crypto.Computational.WeakPRF
+public import CslibFrontier.Crypto.Computational.WordAggregateSignature
+public import CslibFrontier.Crypto.Computational.WordAggregateSignature.AppendHash
 public import CslibFrontier.Crypto.Computational.WordSignature
 public import CslibFrontier.Crypto.Computational.ZeroKnowledge
 public import CslibFrontier.Crypto.Computational.ZeroKnowledge.Amplification
