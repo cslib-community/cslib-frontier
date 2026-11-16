@@ -17,10 +17,10 @@ import Mathlib.LinearAlgebra.Matrix.NonsingularInverse
 Two monotone span programs are *equivalent* when, for every secret, the linear secret sharing
 schemes derived from them give the same distribution of shares
 [Boneh and Shoup, Definition 22.23, p. 981][BonehShoup2023]. Here that is the equation
-`(linearUniformAccessScheme P').shareDist (uniformOfFintype (LinearKey P)) secret =
+`(linearUniformAccessScheme P').shareDist (uniformOfFintype (LinearKey P')) secret =
 (linearUniformAccessScheme P).shareDist (uniformOfFintype (LinearKey P)) secret` for every
 `secret`, over a finite field, with no separate predicate: the two sides have the same type only
-when the programs have the same row dimensions and number of columns, as they do below.
+when the programs have the same row dimensions. Their numbers of columns may differ.
 
 Lemma 22.15 of [BonehShoup2023] says that multiplying every matrix on the right by an invertible
 matrix `R` whose top row is `e₁` gives an equivalent program. For a key `k`, the program
@@ -55,7 +55,8 @@ Definition 22.23 (p. 981). -/
 theorem shareDist_linearUniformAccessScheme_mulRight (P : MonotoneSpanProgram F Party)
     {R : Matrix (Fin (P.tailDim + 1)) (Fin (P.tailDim + 1)) F} (hR : IsUnit R.det)
     (htop : R 0 = Pi.single 0 1) (secret : F) :
-    (linearUniformAccessScheme (P.mulRight R)).shareDist (uniformOfFintype (LinearKey P)) secret =
+    (linearUniformAccessScheme (P.mulRight R)).shareDist
+        (uniformOfFintype (LinearKey (P.mulRight R))) secret =
       (linearUniformAccessScheme P).shareDist (uniformOfFintype (LinearKey P)) secret := by
   have hhead : ∀ x : Fin (P.tailDim + 1) → F, (R *ᵥ x) 0 = x 0 := by
     intro x

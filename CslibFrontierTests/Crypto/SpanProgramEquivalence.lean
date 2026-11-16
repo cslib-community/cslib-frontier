@@ -19,7 +19,8 @@ Checks of Lemma 22.15 and Definition 22.23 ([BonehShoup2023], pp. 981–982) ove
 * the two-out-of-three program of Example 22.2 multiplied by an invertible matrix with top row
   `e₁` accepts the same coalition and gives the same distribution of shares;
 * each hypothesis of Lemma 22.15 is needed: an invertible `R` whose top row is not `e₁`, and a
-  singular `R` whose top row is `e₁`, each change the distribution of shares;
+  singular `R` whose top row is `e₁`, each change the distribution of shares, and each changes
+  the accepted coalitions of some program;
 * Definition 22.23 compares programs with different numbers of columns.
 -/
 
@@ -74,7 +75,7 @@ example : (shamir23.mulRight shear).Accepts {0, 1} :=
 program. -/
 example (secret : ZMod 5) :
     (linearUniformAccessScheme (shamir23.mulRight shear)).shareDist
-        (uniformOfFintype (LinearKey shamir23)) secret =
+        (uniformOfFintype (LinearKey (shamir23.mulRight shear))) secret =
       (linearUniformAccessScheme shamir23).shareDist (uniformOfFintype (LinearKey shamir23))
         secret :=
   shareDist_linearUniformAccessScheme_mulRight shamir23 isUnit_det_shear shear_zero secret
@@ -123,7 +124,7 @@ example (secret : ZMod 5) :
 `ZMod 5` the share is `2 * secret` instead of `secret`. -/
 example : IsUnit (!![2] : Matrix (Fin 1) (Fin 1) (ZMod 5)).det ∧
     (linearUniformAccessScheme (unitProgram.mulRight !![2])).shareDist
-        (uniformOfFintype (LinearKey unitProgram)) 1 ≠
+        (uniformOfFintype (LinearKey (unitProgram.mulRight !![2]))) 1 ≠
       (linearUniformAccessScheme unitProgram).shareDist
         (uniformOfFintype (LinearKey unitProgram)) 1 := by
   refine ⟨?_, fun h => ?_⟩
@@ -152,7 +153,7 @@ example : IsUnit (!![2] : Matrix (Fin 1) (Fin 1) (ZMod 5)).det ∧
 with rows `e₁` and `0` over `ZMod 5` the share is `0` instead of the uniform `ρ₂`. -/
 example : (!![1, 0; 0, 0] : Matrix (Fin 2) (Fin 2) (ZMod 5)) 0 = Pi.single 0 1 ∧
     (linearUniformAccessScheme (maskProgram.mulRight !![1, 0; 0, 0])).shareDist
-        (uniformOfFintype (LinearKey maskProgram)) 0 ≠
+        (uniformOfFintype (LinearKey (maskProgram.mulRight !![1, 0; 0, 0]))) 0 ≠
       (linearUniformAccessScheme maskProgram).shareDist
         (uniformOfFintype (LinearKey maskProgram)) 0 := by
   refine ⟨?_, fun h => ?_⟩
@@ -176,5 +177,35 @@ example : (!![1, 0; 0, 0] : Matrix (Fin 2) (Fin 2) (ZMod 5)) 0 = Pi.single 0 1 �
       intro k'
       simp [Matrix.mulVec, dotProduct, Matrix.mul_apply, Fin.sum_univ_succ]
     exact absurd ((e k).symm.trans h2) (by decide)
+
+/-- One party holding the row `(1, 1)`. -/
+def onesProgram : MonotoneSpanProgram (ZMod 5) (Fin 1) := ⟨1, fun _ => 1, fun _ => !![1, 1]⟩
+
+/-- `accepts_mulRight` needs an invertible `R`: with the singular `R` of rows `e₁` and `0`, the
+program `(1, 1) * R = (1, 0)` accepts `{0}` and `(1, 1)` does not. -/
+example : (!![1, 0; 0, 0] : Matrix (Fin 2) (Fin 2) (ZMod 5)) 0 = Pi.single 0 1 ∧
+    (onesProgram.mulRight !![1, 0; 0, 0]).Accepts {0} ∧ ¬ onesProgram.Accepts {0} := by
+  refine ⟨?_, ?_, ?_⟩
+  · funext c
+    fin_cases c <;> rfl
+  · rw [MonotoneSpanProgram.accepts_iff_exists_vecMul]
+    refine ⟨fun _ => ![1], ?_⟩
+    ext j
+    fin_cases j <;> decide
+  · exact onesProgram.not_accepts_of_exists_nullVector ![1, 4] rfl (by decide)
+
+/-- `accepts_mulRight` needs the top row `e₁`: with the invertible swap matrix, `(1, 0)` accepts
+`{0}` and `(1, 0) * R = (0, 1)` does not. -/
+example : IsUnit (!![0, 1; 1, 0] : Matrix (Fin 2) (Fin 2) (ZMod 5)).det ∧
+    paddedProgram.Accepts {0} ∧ ¬ (paddedProgram.mulRight !![0, 1; 1, 0]).Accepts {0} := by
+  refine ⟨?_, ?_, ?_⟩
+  · rw [Matrix.det_fin_two_of]
+    exact IsUnit.mk0 _ (by decide)
+  · rw [MonotoneSpanProgram.accepts_iff_exists_vecMul]
+    refine ⟨fun _ => ![1], ?_⟩
+    ext j
+    fin_cases j <;> decide
+  · exact (paddedProgram.mulRight !![0, 1; 1, 0]).not_accepts_of_exists_nullVector ![1, 0] rfl
+      (by decide)
 
 end CslibFrontierTests.SpanProgramEquivalence
