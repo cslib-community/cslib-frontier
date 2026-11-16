@@ -2531,7 +2531,7 @@ private noncomputable def ccaBadOracleOn (E : SymmetricCipher)
       else
         return ([], state)
 
-private theorem run_ccaWithBadOracleOn_map_fst (E : SymmetricCipher)
+private theorem run_ccaBadOracleOn_true_map_fst (E : SymmetricCipher)
     (allow : List (List Bool) → Bool) (n : ℕ) (k : List Bool) (bit : Bool)
     (program : WordOracleComp Bool Bool) (queried : List (List Bool)) (bad : Bool) :
     (ProbOracleComp.runWith (fun q s => ProbComp.eval (E.ccaBadOracleOn allow true n k bit q s))
@@ -2552,7 +2552,7 @@ private theorem run_ccaWithBadOracleOn_map_fst (E : SymmetricCipher)
   · simp only [ccaBadOracleOn, ccaOracleOn, hreq, ↓reduceIte]
     split_ifs <;> simp [PMF.pure_map]
 
-private theorem run_ccaRejectWithBadOracleOn_map_fst (E : SymmetricCipher)
+private theorem run_ccaBadOracleOn_false_map_fst (E : SymmetricCipher)
     (allow : List (List Bool) → Bool) (n : ℕ) (k : List Bool) (bit : Bool)
     (program : WordOracleComp Bool Bool) (queried : List (List Bool)) (bad : Bool) :
     (ProbOracleComp.runWith
@@ -2600,7 +2600,7 @@ private theorem ccaBadOracleOn_absorb (E : SymmetricCipher)
       subst x <;>
       simp [hs]
 
-private theorem identicalUntilBad_ccaRejectWithBadOn_ccaWithBadOn (E : SymmetricCipher)
+private theorem identicalUntilBad_ccaBadOracleOn (E : SymmetricCipher)
     (allow : List (List Bool) → Bool) (n : ℕ) (k : List Bool) (bit : Bool) :
     OracleComp.IdenticalUntilBad
       (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifOracle m))
@@ -2755,7 +2755,7 @@ at most `Qd` decryption queries, the probability of reaching `bad = true` under
 `ccaBadOracleOn allow false` from `(queried, false)` is bounded by the sum over
 decryption-query indices `j ∈ Finset.range Qd` of the CI winning probability under
 `ccaToCICombinedOracleOn allow` from `((j, (false, [])), queried)`. -/
-private theorem bad_ccaRejectWithBadOn_le_sum_ciCombinedOn {α : Type} (E : SymmetricCipher)
+private theorem bad_ccaBadOracleOn_le_sum_ciCombinedOn {α : Type} (E : SymmetricCipher)
     (allow : List (List Bool) → Bool) (n : ℕ) (k : List Bool) (bit : Bool)
     {program : WordOracleComp Bool α} {Qd : ℕ}
     (hq : IsDecryptionQueryBounded program Qd) (queried : List (List Bool)) :
@@ -2916,7 +2916,7 @@ private theorem advantage_ccaGameOn_ccaRejectGameOn_le_sum (E : SymmetricCipher)
           (adversary n []) []).bind (fun out => PMF.pure out.1) =
       (ProbOracleComp.runWith (fun q s => ProbComp.eval (E.ccaBadOracleOn allow true n k bit q s))
           (adversary n []) ([], false)).bind (fun out => PMF.pure out.1) := by
-    rw [← run_ccaWithBadOracleOn_map_fst E allow n k bit (adversary n []) [] false,
+    rw [← run_ccaBadOracleOn_true_map_fst E allow n k bit (adversary n []) [] false,
       PMF.bind_map, Function.comp_def]
   have hrejEq (k : List Bool) :
       (ProbOracleComp.runWith (fun q s => ProbComp.eval (E.ccaRejectOracleOn allow n k bit q s))
@@ -2924,7 +2924,7 @@ private theorem advantage_ccaGameOn_ccaRejectGameOn_le_sum (E : SymmetricCipher)
       (ProbOracleComp.runWith
           (fun q s => ProbComp.eval (E.ccaBadOracleOn allow false n k bit q s))
           (adversary n []) ([], false)).bind (fun out => PMF.pure out.1) := by
-    rw [← run_ccaRejectWithBadOracleOn_map_fst E allow n k bit (adversary n []) [] false,
+    rw [← run_ccaBadOracleOn_false_map_fst E allow n k bit (adversary n []) [] false,
       PMF.bind_map, Function.comp_def]
   set pCCA := ProbComp.eval (E.ccaGameOn allow adversary bit n) true
   set pRej := ProbComp.eval (E.ccaRejectGameOn allow adversary bit n) true
@@ -2967,13 +2967,13 @@ private theorem advantage_ccaGameOn_ccaRejectGameOn_le_sum (E : SymmetricCipher)
               (ccaToCIAtIndexAdversary ctBound j bit adversary n []) []).bind
             (fun out => PMF.pure (!out.2.contains out.1 && (E.decrypt n k out.1).isSome))
             true := by
-    have h := bad_ccaRejectWithBadOn_le_sum_ciCombinedOn E allow n k bit hq []
+    have h := bad_ccaBadOracleOn_le_sum_ciCombinedOn E allow n k bit hq []
     rw [← ProbOracleComp.runWith_eq_run_interpret] at h
     refine h.trans (le_of_eq ?_)
     refine Finset.sum_congr rfl fun j _ => ?_
     rw [eval_ciGameOn_ccaToCIAtIndexAdversary_key E allow ctBound j bit adversary n k hk hctBound,
       ProbOracleComp.runWith_eq_run_interpret]
-  have hiub (k : List Bool) := identicalUntilBad_ccaRejectWithBadOn_ccaWithBadOn E allow n k bit
+  have hiub (k : List Bool) := identicalUntilBad_ccaBadOracleOn E allow n k bit
   have hle1 : pCCA ≤ pRej + pSum := by
     rw [hCCA_eq, hRej_eq, hsum_eq, ← tsum_add]
     refine tsum_le_tsum fun k => ?_
