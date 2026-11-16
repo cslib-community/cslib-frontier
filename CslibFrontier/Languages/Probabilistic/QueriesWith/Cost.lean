@@ -62,7 +62,7 @@ theorem queriesWith_liftLeft (o₁ : (q : ι₁) → spec₁ q) (o₂ : (q : ι�
   induction prog using OracleComp.induction with
   | pure a => rfl
   | query_bind q cont ih =>
-    simp only [liftLeft_bind, liftLeft_query, queriesWith_query_bind, sumPure_inl, List.map_cons]
+    simp only [liftLeft_freeMBind, liftLeft_query]
     exact congrArg (Sum.inl q :: ·) (ih (o₁ q))
 
 end Lift
