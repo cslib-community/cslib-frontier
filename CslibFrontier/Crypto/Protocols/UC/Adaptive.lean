@@ -303,13 +303,20 @@ abbrev AdaptiveEnvironment (n : ℕ) (In Out AdvQ AdvR : Type) : Type :=
     AdaptiveEnvironment n In Out AdvQ AdvR :=
   fun κ z => liftPartyQuery (Z κ z)
 
-/-- Embed an `IdealFunctionality` as an `AdaptiveProtocol` with `memory := .erasing` and
-`f`-revealing leakage `reveal` ([Canetti2020], Section 7.1, p. 28:69). Marking ideal protocols
-`.erasing` models that `F`'s internal state belongs to no party and only `reveal` is exposed on
-corruption. -/
+/-- Embed an `IdealFunctionality` as an `AdaptiveProtocol` with `memory := .erasing`,
+view-leakage map `reveal`, and optional corruption-notification state hook `onCorrupt`
+([Canetti2020], Section 7.2, pp. 28:73–74, standard PID-wise corruption). Marking ideal
+functionalities `.erasing` models that `F`'s internal state belongs to no party and only
+`reveal` is exposed on corruption. When `onCorrupt` is supplied, `F` learns of both initial
+corruptions (via `applyInitialCorruptions`) and mid-run corruptions (via `adaptiveRouter`), so
+`(F.toAdaptive reveal onCorrupt).toStatic = F.toProtocol` whenever `F.init κ C` factors as
+`applyInitialCorruptions κ C <$> F.init κ ∅` (e.g., `C`-independent or deterministically tracked
+initial corruptions; arbitrary `C`-dependent probabilistic sampling inside `F.init κ C` cannot be
+reconstructed after `init` and remains outside `AdaptiveProtocol`). -/
 @[expose] def IdealFunctionality.toAdaptive {BackQ BackR : Type}
     (F : IdealFunctionality n In Out BackQ BackR)
-    (reveal : (κ : ℕ) → F.State → Fin n → View) :
+    (reveal : (κ : ℕ) → F.State → Fin n → View)
+    (onCorrupt : (κ : ℕ) → Fin n → F.State → F.State := fun _ _ s => s) :
     AdaptiveProtocol n In Out BackQ BackR View where
   machine κ := {
     State := F.State
@@ -318,7 +325,7 @@ corruption. -/
       | .inl (i, x) => fun s => ProbOracleComp.sample ((F.onInput i x).run s)
       | .inr q => fun s => ProbOracleComp.sample ((F.onBackdoor q).run s) }
   view κ i s := reveal κ s i
-  onCorrupt _ _ s := s
+  onCorrupt := onCorrupt
   memory := .erasing
 
 end Router
@@ -642,6 +649,39 @@ initialization. -/
 theorem AdaptiveProtocol.PolyBounded.toStatic {P : AdaptiveProtocol n In Out NetQ NetR View}
     {p : Polynomial ℕ} (h : P.PolyBounded p) : P.toStatic.PolyBounded p := fun κ _C =>
   ⟨(OracleComp.isCostBounded_map_iff _ _ _).mpr (h κ).1, (h κ).2⟩
+
+/-- When `F.init κ C` factors as `applyInitialCorruptions κ C <$> F.init κ ∅`, converting
+`F.toAdaptive reveal onCorrupt` back to a static `Protocol` recovers `F.toProtocol` identically. -/
+theorem IdealFunctionality.toStatic_toAdaptive {BackQ BackR : Type}
+    (F : IdealFunctionality n In Out BackQ BackR)
+    (reveal : (κ : ℕ) → F.State → Fin n → View)
+    (onCorrupt : (κ : ℕ) → Fin n → F.State → F.State)
+    (hinit : ∀ κ C,
+      (F.toAdaptive reveal onCorrupt).applyInitialCorruptions κ C <$> F.init κ ∅ = F.init κ C) :
+    (F.toAdaptive reveal onCorrupt).toStatic = F.toProtocol := by
+  funext κ C
+  simp only [AdaptiveProtocol.toStatic, IdealFunctionality.toAdaptive,
+    IdealFunctionality.toProtocol]
+  congr 1
+  exact hinit κ C
+
+/-- Specialization of `IdealFunctionality.toStatic_toAdaptive` for `IdealFunctionality`
+instances whose initial state ignores `C` and with default trivial `onCorrupt`. -/
+theorem IdealFunctionality.toStatic_toAdaptive_of_initIndep {BackQ BackR : Type}
+    (F : IdealFunctionality n In Out BackQ BackR)
+    (reveal : (κ : ℕ) → F.State → Fin n → View)
+    (hinit : ∀ κ C, F.init κ C = F.init κ ∅) :
+    (F.toAdaptive reveal).toStatic = F.toProtocol := by
+  refine F.toStatic_toAdaptive reveal (fun _ _ s => s) fun κ C => ?_
+  have hid : (F.toAdaptive reveal).applyInitialCorruptions κ C = id := by
+    funext s
+    simp only [AdaptiveProtocol.applyInitialCorruptions, IdealFunctionality.toAdaptive, ite_self]
+    clear hinit
+    induction List.finRange n generalizing s with
+    | nil => rfl
+    | cons _ _ ih => exact ih s
+  rw [hid]
+  exact (id_map _).trans (hinit κ C).symm
 
 /-- Project an `AdaptiveNetR` reply back to `RoutedNetR` (ignoring `.corrupt`, which static
 adversaries never send). -/

@@ -439,6 +439,63 @@ theorem static_embedding_check (κ : ℕ) (z : List Bool) :
   simp [Machine.closeProgram_pure, ProbComp.eval_pure, PMF.pure_apply,
     Probability.PMF.uniformOfFintype, one_div]
 
+/-! ### Ideal-functionality corruption notification check (`Canetti2020`, pp. 28:73–74) -/
+
+/-- Ideal functionality whose state tracks its corrupted party set (`C`-dependent `init`, backdoor
+readout). -/
+def F_corrTrack : IdealFunctionality 2 Unit Unit Unit (Finset (Fin 2)) where
+  State := Finset (Fin 2)
+  init _ C := pure C
+  onInput _ _ := pure none
+  onBackdoor _ := get
+
+/-- Embedding `F_corrTrack` with `onCorrupt := insert` recovers `F_corrTrack.toProtocol` via
+`toStatic` and records mid-run corruptions in `F`'s state. -/
+def P_corrTrack : AdaptiveProtocol 2 Unit Unit Unit (Finset (Fin 2)) (Finset (Fin 2)) :=
+  F_corrTrack.toAdaptive (fun _ s _ => s) fun _ i s =>
+    insert (α := Fin 2) (γ := Finset (Fin 2)) i s
+
+theorem P_corrTrack_toStatic_eq :
+    P_corrTrack.toStatic = F_corrTrack.toProtocol := by
+  refine F_corrTrack.toStatic_toAdaptive _ _ fun κ C => ?_
+  dsimp only [IdealFunctionality.toAdaptive, F_corrTrack]
+  erw [map_pure]
+  apply congrArg pure
+  ext j
+  have hfr : List.finRange 2 = [0, 1] := rfl
+  dsimp only [AdaptiveProtocol.applyInitialCorruptions]
+  rw [hfr]
+  by_cases h0 : (0 : Fin 2) ∈ C <;> by_cases h1 : (1 : Fin 2) ∈ C <;>
+    fin_cases j <;> simp [h0, h1]
+
+theorem F_corrTrack_midRun_corrupt (κ : ℕ) (z : List Bool) :
+    let Z : AdaptiveEnvironment 2 Unit Unit
+        (AdaptiveNetQ 2 Unit Unit) (AdaptiveNetR Unit (Finset (Fin 2)) (Finset (Fin 2))) :=
+      fun _ _ => do
+        let _ ← ProbOracleComp.query
+          (spec := adaptiveExecSpec 2 Unit Unit _ _) (.inr (.corrupt 1))
+        let res ← ProbOracleComp.query
+          (spec := adaptiveExecSpec 2 Unit Unit _ _) (.inr (.net ()))
+        pure (decide (res = .net {1}))
+    (adaptiveExec .adaptive P_corrTrack
+        (adaptiveDummyAdversary (View := Finset (Fin 2)) (fun _ => ∅) Unit (Finset (Fin 2)))
+        Z κ z).eval true = 1 := by
+  intro Z
+  have hfold : List.foldl (fun acc (_ : Fin 2) => acc) (∅ : Finset (Fin 2)) (List.finRange 2) = ∅ :=
+    rfl
+  rw [adaptiveExec_dummyAdversary]
+  dsimp only [Machine.run, Machine.link, adaptiveRouter, P_corrTrack, IdealFunctionality.toAdaptive,
+    F_corrTrack, AdaptiveProtocol.applyInitialCorruptions, Z]
+  simp only [Finset.notMem_empty, ↓reduceIte, hfold, ProbOracleComp.sample_pure, pure_bind]
+  erw [Machine.runFrom_bind, Machine.runFrom_query]
+  dsimp only [adaptiveRouter, StateT.run, F_corrTrack]
+  simp only [Finset.notMem_empty, ↓reduceIte, pure_bind]
+  erw [Machine.runFrom_bind, Machine.runFrom_query]
+  dsimp only [adaptiveRouter, StateT.run, F_corrTrack, get, getThe,
+    MonadStateOf.get, StateT.get]
+  erw [ProbOracleComp.sample_pure, pure_bind, Machine.runFrom_pure]
+  simp [Machine.closeProgram_pure, ProbComp.eval_pure, PMF.pure_apply]
+
 /-! ### Erasing vs non-erasing separation -/
 
 private theorem P_coin_erasing_eq_F_coin :
