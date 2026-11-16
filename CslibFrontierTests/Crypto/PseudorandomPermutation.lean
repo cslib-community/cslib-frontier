@@ -39,8 +39,8 @@ the replies differ always accepts against a uniform permutation, and accepts wit
 `1 / 2` attains the bidirectional switching bound for two queries and exceeds the bound for one. The
 forgetful sampler answers an inverse query that was never asked from a recorded pair, so the round
 trip `.forward x ↦ y`, `.inverse y ↦ x` closes against it with probability `1`. The codec
-`strongPermCodec` answers a request of the wrong length with `[]` and reads a request of the block
-length as the typed query on the same channel.
+`strongBitStringCodec` answers a request of the wrong length with `[]` and reads a request of the
+block length as the typed query on the same channel.
 -/
 
 set_option linter.privateModule false
@@ -491,22 +491,22 @@ example :
 
 -- A request of the wrong length is answered `[]` without a typed query.
 example (oracle : (q : PermQuery (BitString 2)) → PMF (BitString 2)) :
-    (strongPermCodec 2).wordOracle oracle (true, [true]) = pure [] :=
-  strongPermCodec_wordOracle_of_length_ne oracle true (by decide)
+    (strongBitStringCodec 2).wordOracle oracle (true, [true]) = pure [] :=
+  strongBitStringCodec_wordOracle_of_length_ne oracle true (by decide)
 
 -- A request of the block length asks the typed query on the same channel.
 example (oracle : (q : PermQuery (BitString 2)) → PMF (BitString 2)) :
-    (strongPermCodec 2).wordOracle oracle (true, [true, false]) =
+    (strongBitStringCodec 2).wordOracle oracle (true, [true, false]) =
       (List.ofFn : BitString 2 → List Bool) <$>
         oracle (.inverse (BitString.ofList 2 [true, false])) :=
-  strongPermCodec_wordOracle_of_length oracle true rfl
+  strongBitStringCodec_wordOracle_of_length oracle true rfl
 
 -- On channel `false` it asks the forward query.
 example (oracle : (q : PermQuery (BitString 2)) → PMF (BitString 2)) :
-    (strongPermCodec 2).wordOracle oracle (false, [true, false]) =
+    (strongBitStringCodec 2).wordOracle oracle (false, [true, false]) =
       (List.ofFn : BitString 2 → List Bool) <$>
         oracle (.forward (BitString.ofList 2 [true, false])) :=
-  strongPermCodec_wordOracle_of_length oracle false rfl
+  strongBitStringCodec_wordOracle_of_length oracle false rfl
 
 end Switching
 
