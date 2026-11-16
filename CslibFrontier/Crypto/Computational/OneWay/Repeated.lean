@@ -303,9 +303,8 @@ theorem isPPT_repeatedInverter {f : List Bool → List Bool} {t : ℕ → ℕ}
     else return []
   have hbody : IsPPT encBits body := by
     refine (hg.bind_with (IsPPTOn.ite'
-      (ComputableInPolyTime.of_tidy (ComputableTidilyInPolyTime.unary_lt'
-        (ComputableInPolyTime.snd encNY encUnary).tidy
-        (ht_ny.comp (ComputableInPolyTime.fst encNY encUnary)).tidy))
+      (ComputableInPolyTime.unary_lt' (ComputableInPolyTime.snd encNY encUnary)
+        (ht_ny.comp (ComputableInPolyTime.fst encNY encUnary)))
       (hfront.bind_with (hback.bind_with (hrun.bind_with hpost.isPPTOn)))
       (ComputableInPolyTime.const []).isPPTOn)).isPPT
   refine hbody.congr fun n y => ?_
@@ -356,7 +355,9 @@ theorem succProbability_repeatedInversionGame_le (f : List Bool → List Bool) (
   exact Bool.eq_iff_iff.mpr (by simp only [beq_iff_eq])
 
 /-- **Lemma 13.5** ([BonehShoup2023], p. 539), asymptotic form: a one-way function is repeatedly
-one-way for every polynomial number of instances. -/
+one-way for every number of instances `t n` that is computable in polynomial time from unary `n`.
+The book's `t` is a parameter of the game; its computability is this formal setting's addition,
+needed because the uniform reduction `repeatedInverter` computes `t n` to draw its guess. -/
 theorem OneWay.repeatedInversion_negligible {f : List Bool → List Bool} (hf : OneWay f)
     {t : ℕ → ℕ} (ht : ComputableInPolyTime t encUnary encUnary)
     (adversary : RevealInverter) (hadversary : IsOraclePPT (encPair encBits encBits) adversary) :

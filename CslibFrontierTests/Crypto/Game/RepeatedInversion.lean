@@ -462,11 +462,6 @@ example :
   rw [Finset.range_zero, Finset.sum_empty]
   simp [Experiment.succProbability, Game.succProbability, eval_game_zero]
 
-/-- Decision 3 check: with `M = ℕ`, `Sig = Bool`, and `idx = id`, `freshMessage` agrees
-definitionally with the freshness predicate of `repeatedInversionExperiment`. -/
-example (q : ℕ) (x : Bool) (log : List (ℕ × Bool)) :
-    freshMessage q x log = decide (id q ∉ log.map fun r => id r.1) := rfl
-
 private def secondSlotAttack : List Bool → ProbOracleComp (fun _ : ℕ => Bool) (ℕ × Bool)
   | ys => pure (1, ys.getD 1 false)
 

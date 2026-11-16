@@ -24,7 +24,8 @@ signs the next query or refuses it; a refused query is answered with `default` a
 as in `ProbOracleComp.runLogWith`. Full, one-time, indexed and counter signing oracles are policies,
 so the experiment is written once (`forgeExperiment`). Freshness is a parameter too: `freshMessage`
 asks for a message that was never signed (existential unforgeability) and `freshPair` for a pair
-that was never answered (strong unforgeability).
+that was never answered (strong unforgeability). The evaluation law `eval_forgeExperiment_eq`
+writes the experiment's law as an event of the logged run.
 
 ## Main definitions
 
@@ -37,8 +38,6 @@ that was never answered (strong unforgeability).
 
 ## Main results
 
-* `Cslib.Crypto.eval_forgeExperiment_eq`: the law of the forgery experiment as an event of the
-  logged run.
 * `Cslib.Crypto.succProbability_forgeExperiment_mono`: a weaker freshness test does not decrease
   the success probability. In particular a forger succeeds at least as often in the strong
   experiment as in the existential one (`succProbability_forgeExperiment_freshMessage_le`), so

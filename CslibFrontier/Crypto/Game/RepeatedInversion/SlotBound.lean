@@ -19,25 +19,34 @@ import CslibFrontier.Probability.PMF.Bind
 A win of the repeated chain game `repeatedIterateExperiment` names a chain and, on it, a slot below
 every revealed one. Planting an inversion challenge above slot `g` (`slotInverter`) therefore
 inverts `f` on the law of that slot, and summing over the `n * d` slots bounds the repeated game
-(`succProbability_repeatedIterateExperiment_le_sum`). At `d = 1`, with the slot drawn uniformly
-(`plantInverter`), this is [BonehShoup2023], Lemma 13.5, (13.6), p. 539:
+(`succProbability_repeatedIterateExperiment_le_sum`). At `d = 1`, with the slot drawn exactly
+uniformly below `t` as by the adversary `B` in the proof of [BonehShoup2023], Lemma 13.5,
+pp. 539–540 (`plantInverter`), this gives that lemma's inequality (13.6) for the typed game,
 `rOWadv[A, f, t] ≤ t · OWadv[B, f]` (`succProbability_repeatedInversionExperiment_le`).
 
-The statements are about typed games and say nothing about running time: `slotInverter` and
-`plantInverter` are programs, and their efficiency certificate belongs to the word-level module
-that instantiates them.
+The statements are about typed games and say nothing about running time. `slotInverter` is
+certified inside the word-level reduction `repeatedInverter`
+(`Crypto/Computational/OneWay/Repeated.lean`), which draws a dyadic index and, when it is below
+`t n`, runs `slotInverter` at it.
+`plantInverter` has no efficiency certificate: a strict PPT sampler draws an exactly uniform index
+below `t` only when `t` is a power of two. So (13.6) here is not Lemma 13.5 itself, whose `B` is
+efficient. The efficient form is `OneWay.repeatedInversion_negligible`, through
+`succProbability_repeatedInversionGame_le`, which loses the dyadic range `dyadicSize (t n)` in
+place of `t`.
 
 ## Main definitions
 
 * `Cslib.Crypto.slotInverter`: the inverter that plants its challenge above one slot.
-* `Cslib.Crypto.plantInverter`: the inverter of Lemma 13.5, planting at a uniform index.
+* `Cslib.Crypto.plantInverter`: the book's inverter for (13.6), planting at an exactly uniform
+  index; it has no efficiency certificate.
 
 ## Main results
 
 * `Cslib.Crypto.succProbability_repeatedIterateExperiment_le_sum`: the chain game is bounded by
   the sum over slots of the inversion games of `slotInverter`.
 * `Cslib.Crypto.succProbability_repeatedInversionExperiment_le_sum`: the `d = 1` case.
-* `Cslib.Crypto.succProbability_repeatedInversionExperiment_le`: Lemma 13.5, (13.6).
+* `Cslib.Crypto.succProbability_repeatedInversionExperiment_le`: the inequality (13.6) for the
+  typed game.
 
 ## References
 
@@ -301,7 +310,7 @@ theorem succProbability_repeatedIterateExperiment_le_sum (idx : Q → ℕ) (samp
         ENNReal.toNNReal_mono (ENNReal.sum_ne_top.mpr htop) hsum
     _ = _ := ENNReal.toNNReal_sum htop
 
-/-- Lemma 13.5 in slot form: the `d = 1` case. -/
+/-- The slot sum behind (13.6): the `d = 1` case. -/
 theorem succProbability_repeatedInversionExperiment_le_sum (idx : Q → ℕ) (sample : ProbComp X)
     (f : X → X) (t : ℕ) (A : List X → ProbOracleComp (fun _ : Q => X) (Q × X)) :
     Experiment.succProbability (repeatedInversionExperiment idx sample f t A) ≤
@@ -311,15 +320,22 @@ theorem succProbability_repeatedInversionExperiment_le_sum (idx : Q → ℕ) (sa
   simpa only [repeatedIterateExperiment_one, mul_one, Nat.mod_one, Function.iterate_zero,
     id_map] using h
 
-/-- The inverter of Lemma 13.5: plant the challenge at a uniform index. -/
+/-- The adversary `B` in the proof of [BonehShoup2023], Lemma 13.5, on the typed game: plant the
+challenge at an exactly uniform index below `t`. It has no efficiency certificate, since a strict
+PPT sampler draws an exactly uniform index below `t` only when `t` is a power of two; the certified
+word-level reduction `repeatedInverter` draws a dyadic index instead. -/
 @[expose] def plantInverter (idx : Q → ℕ) (sample : ProbComp X) (f : X → X) (t : ℕ)
     (A : List X → ProbOracleComp (fun _ : Q => X) (Q × X)) (c : X) : ProbComp X := do
   let ω ← ProbComp.unifFin (t - 1)
   slotInverter idx sample f t 1 ω A c
 
-/-! ### The factor-`t` form of Lemma 13.5 -/
+/-! ### The factor-`t` inequality (13.6) -/
 
-/-- **Lemma 13.5**, (13.6): `rOWadv[A, f, t] ≤ t · OWadv[B, f]`. -/
+/-- The inequality (13.6) of [BonehShoup2023], Lemma 13.5, p. 539, for the typed game and every
+typed adversary `A`: `rOWadv[A, f, t] ≤ t · OWadv[B, f]` with `B = plantInverter`. This is not
+Lemma 13.5 itself, whose `B` is efficient: `plantInverter` has no efficiency certificate. The
+efficient form is `OneWay.repeatedInversion_negligible`, with the factor `dyadicSize (t n)` in
+place of `t`. -/
 theorem succProbability_repeatedInversionExperiment_le (idx : Q → ℕ) (sample : ProbComp X)
     (f : X → X) (t : ℕ) (A : List X → ProbOracleComp (fun _ : Q => X) (Q × X)) :
     Experiment.succProbability (repeatedInversionExperiment idx sample f t A) ≤
