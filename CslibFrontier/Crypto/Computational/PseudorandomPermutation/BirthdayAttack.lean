@@ -270,44 +270,23 @@ private theorem run_iterate_wordBirthdayStep (blockLen : ℕ → ℕ) (n : ℕ)
         simp only [Fin.val_succ]
         congr 3
         omega
-    · rw [Bool.eq_iff_iff]
-      simp only [Bool.or_eq_true, decide_eq_true_eq, List.any_eq_true, List.mem_ofFn]
-      constructor
-      · rintro (hninj | ⟨_, ⟨j, rfl⟩, heq⟩)
-        · intro hinj
-          exact hninj fun a b hab => Fin.castSucc_injective k (hinj (by simpa using hab))
-        · intro hinj
-          have hlt := congrArg Fin.val
-            (@hinj ⟨k - 1 - j.val, by omega⟩ ⟨k, by omega⟩ (by simpa using heq))
-          simp only at hlt
-          omega
-      · intro hninj
-        by_cases hprev : Function.Injective
-            (fun j : Fin k => (f (BitString.lowBits (blockLen n) j)).take (blockLen n))
-        · right
-          suffices h : ∃ j : Fin k,
-              (f (BitString.lowBits (blockLen n) (k - 1 - j.val))).take (blockLen n) =
-                (f (BitString.lowBits (blockLen n) k)).take (blockLen n) by
-            obtain ⟨j, hj⟩ := h
-            exact ⟨_, ⟨j, rfl⟩, hj⟩
-          by_contra hnone
-          push Not at hnone
-          apply hninj
-          intro a b hab
-          rcases Nat.lt_or_eq_of_le (Nat.lt_succ_iff.mp a.isLt) with ha | ha <;>
-            rcases Nat.lt_or_eq_of_le (Nat.lt_succ_iff.mp b.isLt) with hb | hb
-          · exact Fin.ext (congrArg (Fin.val : Fin k → ℕ)
-              (@hprev ⟨a.val, ha⟩ ⟨b.val, hb⟩ (by simpa using hab)))
-          · exfalso
-            refine hnone ⟨k - 1 - a.val, by omega⟩ ?_
-            have hsub : k - 1 - (k - 1 - a.val) = a.val := by omega
-            simpa [hsub, hb] using hab
-          · exfalso
-            refine hnone ⟨k - 1 - b.val, by omega⟩ ?_
-            have hsub : k - 1 - (k - 1 - b.val) = b.val := by omega
-            simpa [hsub, ha] using hab.symm
-          · exact Fin.ext (ha.trans hb.symm)
-        · left; exact hprev
+    · -- The new reply extends the earlier ones (`Fin.snoc`), which the state stores in reverse.
+      have hg : (fun j : Fin (k + 1) => (f (BitString.lowBits (blockLen n) j)).take (blockLen n)) =
+          Fin.snoc (fun j : Fin k => (f (BitString.lowBits (blockLen n) j)).take (blockLen n))
+            ((f (BitString.lowBits (blockLen n) k)).take (blockLen n)) :=
+        (Fin.snoc_init_self _).symm
+      have hrev : (fun j : Fin k =>
+            (f (BitString.lowBits (blockLen n) (k - 1 - j))).take (blockLen n)) =
+          (fun j : Fin k => (f (BitString.lowBits (blockLen n) j)).take (blockLen n)) ∘
+            Fin.rev := by
+        funext j
+        simp only [Function.comp_apply, Fin.val_rev]
+        congr 3
+        omega
+      rw [Bool.eq_iff_iff]
+      simp only [Bool.or_eq_true, decide_eq_true_eq, List.any_eq_true, hrev, List.mem_ofFn',
+        Fin.rev_surjective.range_comp, exists_eq_right, hg, Fin.snoc_injective_iff, not_and_or,
+        not_not]
 
 /-- Deterministic execution of `wordBirthdayDistinguisher` against an arbitrary word oracle `f`. -/
 theorem run_wordBirthdayDistinguisher (blockLen Q : ℕ → ℕ) (n : ℕ)
@@ -485,17 +464,6 @@ end Semantics
 
 section Asymptotics
 
-private theorem polyBounded_pow_const (c d : ℕ) :
-    ComputableInPolyTime (fun n => c * (n + 1) ^ d) encUnary encUnary := by
-  have hbase : ∀ k : ℕ, ComputableInPolyTime (fun n : ℕ => (n + 1) ^ k) encUnary encUnary := by
-    intro k
-    induction k with
-    | zero => simpa using ComputableInPolyTime.const 1
-    | succ k ih =>
-      simp_rw [pow_succ]
-      exact ComputableInPolyTime.unary_mul' ih (by polytime)
-  exact ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const c) (hbase d)
-
 private theorem exists_freq_le_poly_of_not_negligible_inv_two_pow {f : ℕ → ℕ}
     (hf : ¬ Negligible fun n => if f n = 0 then (0 : ℝ≥0) else ((2 : ℝ≥0) ^ f n)⁻¹) :
     ∃ k c : ℕ, 0 < c ∧ ∃ᶠ n in atTop, 1 ≤ f n ∧ 2 ^ f n ≤ c * (n + 1) ^ k := by
@@ -525,8 +493,10 @@ private theorem exists_freq_le_poly_of_not_negligible_inv_two_pow {f : ℕ → �
       exact hpow.trans (mul_le_mul' hc (pow_le_pow_left' hnn k))
     exact_mod_cast hreal
 
-/-- If `((2 : ℝ≥0) ^ E.blockLen n)⁻¹` on nonzero blocks is not negligible, no PPT adversary fails
-to distinguish `E.prpRealGame` from `prfIdealGame` — witnessed by `wordBirthdayDistinguisher`. -/
+/-- If `((2 : ℝ≥0) ^ E.blockLen n)⁻¹` on nonzero blocks is not negligible, `E.prpRealGame` and
+`prfIdealGame` are not indistinguishable for PPT adversaries: some PPT adversary distinguishes them,
+namely `wordBirthdayDistinguisher` with a polynomial query count, whose advantage is at least
+`1 / 2` for infinitely many `n`. -/
 theorem BlockCipher.not_indistinguishable_prpRealGame_prfIdealGame {E : BlockCipher}
     (hnot : ¬ Negligible fun n =>
       if E.blockLen n = 0 then (0 : ℝ≥0) else ((2 : ℝ≥0) ^ E.blockLen n)⁻¹) :
@@ -537,7 +507,9 @@ theorem BlockCipher.not_indistinguishable_prpRealGame_prfIdealGame {E : BlockCip
   obtain ⟨k, c, -, hfreq⟩ := exists_freq_le_poly_of_not_negligible_inv_two_pow hnot
   let Q : ℕ → ℕ := fun n => c * (n + 1) ^ k
   intro hind
-  have hadv := isOraclePPT_wordBirthdayDistinguisher E.blockLen_polyTime (polyBounded_pow_const c k)
+  have hadv := isOraclePPT_wordBirthdayDistinguisher (Q := Q) E.blockLen_polyTime
+    (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const c)
+      ((ComputableInPolyTime.unary_pow k).comp (by polytime)))
   refine not_negligible_of_frequently_ge (by norm_num : (1 / 2 : ℝ≥0) ≠ 0) ?_
     (hind (wordBirthdayDistinguisher E.blockLen Q) hadv)
   exact hfreq.mono fun n ⟨hpos, hQ⟩ =>
