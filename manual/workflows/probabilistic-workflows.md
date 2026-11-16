@@ -292,7 +292,9 @@ run `scripts/build.sh CslibFrontierTests.PMFSupport`.
 
 For a guessing bound, import
 [PMF/UniformPoint.lean](../../CslibFrontier/Probability/PMF/UniformPoint.lean) instead of summing
-over the uniform law by hand. For any law `μ`, `PMF.bind_pure_decide_eq_apply_true μ a` (and its
+over the uniform law by hand. For an arbitrary decidable predicate `P`,
+`PMF.bind_pure_decide_apply_true p P` equates `(p.bind fun x => PMF.pure (decide (P x))) true`
+with `p.toOuterMeasure {x | P x}`. For any law `μ`, `PMF.bind_pure_decide_eq_apply_true μ a` (and its
 `'` and `map_` forms for the other comparison order and for `μ.map`) says an equality test against
 `a` accepts with probability `μ a`. `PMF.uniformOfFintype_bind_decide_eq_apply_true a` specializes
 it: a uniform draw equals `a` with probability `(Fintype.card α)⁻¹`, and
