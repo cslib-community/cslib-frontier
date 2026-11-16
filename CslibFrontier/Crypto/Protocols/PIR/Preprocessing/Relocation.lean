@@ -51,8 +51,8 @@ relocation graph ([WangRen2025], Definition 3.6, p. 15) supporting:
 * `existsUnique_access_eq` ([WangRen2025], Lemma 3.13, p. 15): for every valid state $s$ and
   element $e \in \text{Fin } m$, there is a unique unconsumed position $c \notin C$ with
   `access s c = some e`.
-* `locate_eq_iff_access_eq`, `access_locate`, `locate_injective` ([WangRen2025], Lemma 3.14,
-  p. 15): `locate` and `access` are mutually inverse on unconsumed positions.
+* `access_eq_some_iff_locate_eq`, `access_locate`, `locate_injective` ([WangRen2025],
+  Lemma 3.14, p. 15): `locate` and `access` are mutually inverse on unconsumed positions.
 * `locate_relocate_of_ne`, `locate_relocate_self_eq`, `locate_relocate`,
   `relocate_destination_empty` ([WangRen2025], Lemma 3.15, p. 16): relocating $c \notin C$ leaves
   the positions of all elements not at $c$ unchanged, and moves any element at $c$ to an
@@ -61,10 +61,10 @@ relocation graph ([WangRen2025], Definition 3.6, p. 15) supporting:
   ([WangRen2025], Experiments 3.1 and 3.2, p. 13; Lemma 3.16, pp. 16–17): when $\pi$ is sampled
   uniformly at random, for any sequence of $Q \le m' - m$ distinct relocated positions fixed in
   advance, the real and ideal relocation experiments have identical output distributions.
-* `CorrectAndSecure`, `correctAndSecure`: the correctness and perfect-security part of
-  [WangRen2025] Theorem 3.3 (p. 13) for Construction 3.5 with an ideal uniformly random
-  permutation and fixed relocation positions. This is not Theorem 3.3 in full: its efficiency
-  bullets are not formalized.
+
+Together, Lemmas 3.13–3.16 above are the correctness and perfect-security part of [WangRen2025]
+Theorem 3.3 (p. 13) for Construction 3.5 with an ideal uniformly random permutation and fixed
+relocation positions. This is not Theorem 3.3 in full: its efficiency bullets are not formalized.
 
 ## Modelling notes
 
@@ -86,6 +86,15 @@ relocation graph ([WangRen2025], Definition 3.6, p. 15) supporting:
   says "For 3.1, we see that the initial positions are (P (0), P (1), . . . , P (m − 1))". We
   follow Experiment 3.2 and the proof: `realExperiment` outputs `fun e => locate s₀ e hm`, the
   positions of the elements, as the paper's DS.Locate would.
+* **Experiment 3.2 output on an empty queried cell:** The pseudocode of Experiment 3.2
+  ([WangRen2025], p. 13) reads "Find a random position c′ ∈ \[m′\] satisfying A\[c′\] = ⊥.",
+  then "Update A\[c′\] ← A\[ci\] and A\[ci\] ← ∅.", then "If A\[c′\] ≠ ⊥, output c′.
+  Otherwise, output ⊥." If $c_i$ is empty and the sampled destination is $c' = c_i$ itself, the
+  second update leaves $A[c'] = ∅ \ne ⊥$, so the literal pseudocode outputs $c'$ for an empty
+  query. The proof of Lemma 3.16 (p. 16) instead says "For the t-th position ct , no element
+  resides in position ct , then the output of both Experiments 3.1 and 3.2 will be ⊥." We follow
+  the proof: `idealUpdate` decides the output from the content of $c$ before the update, so an
+  empty query outputs `none` even when it selects itself as destination.
 * **Fixed relocation positions:** As in Experiments 3.1 and 3.2, the relocated positions
   $c_1, \ldots, c_Q$ are fixed in advance (`c : Fin Q → Fin m'`). They must be distinct
   (Section 3.1, p. 12: "each time is called on a distinct position") and $Q \le m' - m$. An
@@ -578,13 +587,6 @@ theorem access_eq_some_iff_locate_eq {m m' : ℕ} {s : RelocationState m m'} (hv
   rw [locate, (access_eq_some_iff s c e hm).mp h,
     endOfChain_startOfChain hv.1 (outEdge?_eq_none_of_not_mem hc)]
 
-/-- **Lemma 3.14** of [WangRen2025] (p. 15): for any valid state `s`, unconsumed position
-`c ∉ s.history`, and logical element `e`, `locate s e hm = c ↔ access s c = some e`. -/
-theorem locate_eq_iff_access_eq {m m' : ℕ} {s : RelocationState m m'} (hv : s.Valid)
-    {c : Fin m'} (hc : c ∉ s.history) (e : Fin m) (hm : m ≤ m' := by omega) :
-    locate s e hm = c ↔ access s c = some e :=
-  (access_eq_some_iff_locate_eq hv hc e hm).symm
-
 /-- **Lemma 3.13** of [WangRen2025] (p. 15): for any valid state `s` and logical element
 `e ∈ Fin m`, there exists a unique unconsumed physical position `c ∉ s.history` such that
 `access s c = some e`. -/
@@ -726,14 +728,6 @@ theorem locate_relocate {m m' : ℕ} {s : RelocationState m m'} (hv : s.Valid)
   · exact locate_relocate_self_eq hv hc hlen hm heq
   · exact locate_relocate_of_ne hv hc hlen hm heq
 
-/-- **Lemma 3.15 (ii, Part a)** of [WangRen2025] (p. 16): after relocating `c`, the new position
-`locate (relocate s c) e hm` is not in `s.history ++ [c]`. -/
-theorem locate_relocate_self_not_mem {m m' : ℕ} {s : RelocationState m m'} (hv : s.Valid)
-    {c : Fin m'} (hc : c ∉ s.history) (hlen : m + s.history.length < m' := by omega)
-    {e : Fin m} (hm : m ≤ m' := by omega) :
-    locate (relocate s c) e hm ∉ (relocate s c).history :=
-  locate_not_mem_history (valid_relocate hv hc hlen) e hm
-
 private theorem access_endOfChain_perm_add_eq_none {m m' : ℕ} {s : RelocationState m m'}
     (hnd : s.history.Nodup) (hlen : m + s.history.length < m') :
     access s (endOfChain s (s.perm ⟨m + s.history.length, hlen⟩)) = none := by
@@ -761,7 +755,7 @@ theorem relocate_destination_empty {m m' : ℕ} {s : RelocationState m m'} (hv :
     {e : Fin m} (hm : m ≤ m' := by omega) (heq : locate s e hm = c) :
     locate (relocate s c) e hm ∉ (relocate s c).history ∧
       access s (locate (relocate s c) e hm) = none :=
-  ⟨locate_relocate_self_not_mem hv hc hlen hm,
+  ⟨locate_not_mem_history (valid_relocate hv hc hlen) e hm,
     access_locate_relocate_self_eq_none hv hc hlen hm heq⟩
 
 /-! ### Ideal Relocation Process and Security Experiments (Experiments 3.1–3.2, Lemma 3.16) -/
@@ -790,8 +784,10 @@ def emptyPositions {m m' : ℕ} (A : Fin m' → IdealCell m) : Finset (Fin m') :
   Finset.univ.filter (fun p => A p = .empty)
 
 /-- Pure array update when relocating position `c` to destination `c'` in the ideal experiment
-([WangRen2025], Experiment 3.2, p. 13). -/
-def idealUpdate {m m' : ℕ} (A : Fin m' → IdealCell m) (c c' : Fin m') :
+([WangRen2025], Experiment 3.2, p. 13). The output is read from `A c` before the update, as in the
+proof of Lemma 3.16 (p. 16): an empty `c` outputs `none` even when `c' = c`, where the literal
+pseudocode would test the updated cell, which then holds `∅`, and output `c'`. -/
+@[expose] def idealUpdate {m m' : ℕ} (A : Fin m' → IdealCell m) (c c' : Fin m') :
     (Fin m' → IdealCell m) × Option (Fin m') :=
   let A' := Function.update (Function.update A c' (A c)) c .consumed
   let out := match A c with
@@ -1386,47 +1382,6 @@ theorem eval_realExperiment_eq_idealExperiment {m m' Q : ℕ} {c : Fin Q → Fin
     (realJointPMF_eq_idealJointPMF (List.ofFn c) hm hnd hlen)
   simpa [realJointPMF, idealJointPMF, realExperiment, idealExperiment,
     PMF.map_comp, PMF.map_bind, Function.comp_def, PMF.bind_pure_comp] using hjoint
-
-/-- Correctness (Lemmas 3.13–3.15) and perfect security (Lemma 3.16) of Construction 3.5 with an
-ideal uniformly random permutation and fixed relocation positions: the correctness and security
-part of [WangRen2025] Theorem 3.3 (p. 13). Theorem 3.3's efficiency bullets are not included. -/
-structure CorrectAndSecure (m m' : ℕ) (hm : m ≤ m' := by omega) : Prop where
-  /-- Lemma 3.13: for every valid state `s` and element `e`, there is a unique unconsumed
-  position `c ∉ s.history` with `access s c = some e`. -/
-  existsUnique_access : ∀ {s : RelocationState m m'}, s.Valid → ∀ e : Fin m,
-    ∃! c : Fin m', c ∉ s.history ∧ access s c = some e
-  /-- Lemma 3.14: for every valid state `s`, unconsumed position `c`, and element `e`,
-  `locate` and `access` are mutually inverse. -/
-  locate_iff_access : ∀ {s : RelocationState m m'} {c : Fin m'},
-    s.Valid → c ∉ s.history → ∀ e : Fin m, locate s e hm = c ↔ access s c = some e
-  /-- Lemma 3.15 (i): relocating `c` leaves the position of every element not at `c` unchanged. -/
-  locate_relocate_ne : ∀ {s : RelocationState m m'} {c : Fin m'} {e : Fin m},
-    s.Valid → c ∉ s.history → m + s.history.length < m' →
-    locate s e hm ≠ c → locate (relocate s c) e hm = locate s e hm
-  /-- Lemma 3.15 (ii): relocating `c` moves any element at `c` to an unconsumed position that
-  was empty prior to the relocation. -/
-  relocate_dest_empty : ∀ {s : RelocationState m m'} {c : Fin m'} {e : Fin m},
-    s.Valid → c ∉ s.history → m + s.history.length < m' →
-    locate s e hm = c →
-    locate (relocate s c) e hm ∉ (relocate s c).history ∧
-      access s (locate (relocate s c) e hm) = none
-  /-- Lemma 3.16: for any `Q ≤ m' - m` and injective sequence `c : Fin Q → Fin m'`, the real and
-  ideal relocation experiments have identical output distributions. -/
-  perfect_security : ∀ {Q : ℕ} {c : Fin Q → Fin m'},
-    Function.Injective c → Q ≤ m' - m →
-    (realExperiment m m' Q c hm).eval = (idealExperiment m m' Q c hm).eval
-
-/-- Construction 3.5 is a correct and perfectly secure relocation data structure, with an ideal
-uniformly random permutation and fixed relocation positions. This is the correctness and security
-part of [WangRen2025] Theorem 3.3 (p. 13), not Theorem 3.3 in full: the expected-time bullets are
-not formalized. -/
-theorem correctAndSecure (m m' : ℕ) (hm : m ≤ m' := by omega) :
-    CorrectAndSecure m m' hm where
-  existsUnique_access hv e := existsUnique_access_eq hv e hm
-  locate_iff_access hv hc e := locate_eq_iff_access_eq hv hc e hm
-  locate_relocate_ne hv hc hlen hne := locate_relocate_of_ne hv hc hlen hm hne
-  relocate_dest_empty hv hc hlen heq := relocate_destination_empty hv hc hlen hm heq
-  perfect_security hc hQ := eval_realExperiment_eq_idealExperiment hc hQ hm
 
 end Cslib.Crypto.Protocols.PIR.Preprocessing.Relocation
 

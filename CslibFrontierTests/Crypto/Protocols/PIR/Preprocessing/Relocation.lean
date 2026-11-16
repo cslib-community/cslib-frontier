@@ -107,16 +107,16 @@ example : stateToIdealArray s₁ 0 = .elem 1 ∧ stateToIdealArray s₁ 1 = .con
 example : stateToIdealArray s₂ 0 = .elem 1 ∧ stateToIdealArray s₂ 1 = .consumed ∧
     stateToIdealArray s₂ 2 = .elem 0 ∧ stateToIdealArray s₂ 3 = .consumed := ⟨rfl, rfl, rfl, rfl⟩
 
-/-! ### Concrete Instantiations of Lemmas 3.13–3.16 and Theorem 3.3 -/
+/-! ### Concrete Instantiations of Lemmas 3.13–3.16 -/
 
 /-- Concrete instantiation of Lemma 3.13 (`existsUnique_access_eq`) on `s₂`. -/
 example (e : Fin 2) : ∃! c : Fin 4, c ∉ s₂.history ∧ access s₂ c = some e :=
   existsUnique_access_eq valid_s₂ e
 
-/-- Concrete instantiation of Lemma 3.14 (`locate_eq_iff_access_eq`) on `s₂` and unconsumed
+/-- Concrete instantiation of Lemma 3.14 (`access_eq_some_iff_locate_eq`) on `s₂` and unconsumed
 position `2`. -/
-example (e : Fin 2) : locate s₂ e = 2 ↔ access s₂ 2 = some e :=
-  locate_eq_iff_access_eq valid_s₂ (by decide) e
+example (e : Fin 2) : access s₂ 2 = some e ↔ locate s₂ e = 2 :=
+  access_eq_some_iff_locate_eq valid_s₂ (by decide) e
 
 /-- Concrete instantiation of Lemma 3.15 (i) (`locate_relocate_of_ne`) on `s₁` relocating `3` for
 element `1`. -/
@@ -137,9 +137,6 @@ theorem testQueries_injective : Function.Injective testQueries := by decide
 `m = 2, m' = 4, Q = 2`. -/
 example : (realExperiment 2 4 2 testQueries).eval = (idealExperiment 2 4 2 testQueries).eval :=
   eval_realExperiment_eq_idealExperiment testQueries_injective (by decide)
-
-/-- Concrete instantiation of Theorem 3.3 (`correctAndSecure`) for `m = 2, m' = 4`. -/
-example : CorrectAndSecure 2 4 := correctAndSecure 2 4
 
 /-- Concrete output produced by `realExperiment 2 4 2 testQueries` when the sampled permutation is
 `testPerm`; both relocation steps take the occupied (`some _`) branch. -/
@@ -169,5 +166,21 @@ theorem not_valid_s₁_dup : ¬ s₁_dup.Valid := by
 example : (2 : Fin 4) ∉ s₁_dup.history ∧ (3 : Fin 4) ∉ s₁_dup.history := by decide
 example : access s₁_dup 2 = some 0 ∧ access s₁_dup 3 = some 0 := ⟨rfl, rfl⟩
 example : locate s₁_dup 0 = 3 ∧ access s₁_dup 2 = some 0 ∧ locate s₁_dup 0 ≠ 2 := by decide
+
+/-! ### Empty Queried Cell Selecting Itself (Experiment 3.2) -/
+
+/-- Ideal array for `m = 1, m' = 2`: element `0` at position `0`, position `1` empty. -/
+def selfA : Fin 2 → IdealCell 1 := ![.elem 0, .empty]
+
+/-- Querying the empty position `1` when the only empty destination is `1` itself: the cell ends
+up consumed, and the output is `none`, read from the cell before the update (proof of
+Lemma 3.16, p. 16). The literal pseudocode of Experiment 3.2 would output `some 1` here. -/
+example : (idealUpdate selfA 1 1).2 = none := rfl
+example : (idealUpdate selfA 1 1).1 1 = .consumed ∧ (idealUpdate selfA 1 1).1 0 = .elem 0 :=
+  ⟨rfl, rfl⟩
+
+/-- The real experiment agrees: with the identity permutation on `Fin 2` and `m = 1`, relocating
+the empty position `1` outputs `none`. -/
+example : (realRunSteps (init (m := 1) (1 : Equiv.Perm (Fin 2))) [1]).2 = [none] := rfl
 
 end CslibTests.Crypto.Protocols.PIR.Preprocessing.Relocation
