@@ -2649,6 +2649,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Graph.SpanningTree
 public import CslibFrontier.Computability.Complexity.Problems.Graph.VertexColors
 public import CslibFrontier.Computability.Complexity.Problems.Graph.WeightedSpanningTrees
 public import CslibFrontier.Computability.Complexity.Problems.GraphIsomorphism
+public import CslibFrontier.Computability.Complexity.Problems.Halting
 public import CslibFrontier.Computability.Complexity.Problems.Hamiltonian
 public import CslibFrontier.Computability.Complexity.Problems.Hamiltonian.AnyEndpoints
 public import CslibFrontier.Computability.Complexity.Problems.Hamiltonian.Diamond
@@ -2681,6 +2682,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Permanent.Basic
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.Lipton
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.Matching
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.Membership
+public import CslibFrontier.Computability.Complexity.Problems.Permanent.SharpSAT
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.ThreeSAT
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.ThreeSAT.Construction
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.ThreeSAT.Elimination
