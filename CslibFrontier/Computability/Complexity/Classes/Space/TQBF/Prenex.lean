@@ -178,7 +178,7 @@ theorem eval_prenex (tab : CNF (CookLevin.Var k State)) (w : ℕ) (σ : ℕ → 
       (gameFormula tab w).eval σ := by
   rw [prenexPairs, QBF.rounds_append, gameFormula]
   refine QBF.eval_rounds_congr (fun τ => ?_) _ σ
-  rw [QBF.eval_rounds_map_pair (dummyVar_notMem_freeVars tab w), baseFormula]
+  rw [QBF.eval_rounds_map_pair (dummyVar_notMem_freeVars tab w), baseFormula, baseMatrix]
   refine QBF.eval_exs_congr (fun τ => ?_) _ τ
   rw [QBF.eval_ofCNF, prenexMatrix, CNF.eval_append, eval_certLinkCNF, QBF.eval_and,
     QBF.eval_ofCNF]
