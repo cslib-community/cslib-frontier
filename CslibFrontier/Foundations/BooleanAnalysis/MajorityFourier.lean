@@ -9,10 +9,10 @@ module
 
 public import CslibFrontier.Foundations.BooleanAnalysis.LevelWeight
 public import CslibFrontier.Foundations.BooleanAnalysis.LongCode
-public import CslibFrontier.Foundations.BooleanAnalysis.Noise
 public import CslibFrontier.Foundations.Data.BitString.Threshold
 import CslibFrontier.Foundations.BooleanAnalysis.TransitiveSymmetric
 import CslibFrontier.Foundations.Data.BitString.AgreeExpect
+import CslibFrontier.Foundations.Data.Nat.Choose.Vandermonde
 import Mathlib.Algebra.Polynomial.Expand
 import Mathlib.RingTheory.Polynomial.Vieta
 
@@ -40,8 +40,15 @@ other `2 m` coordinates, the characters of these sets sum to the coefficient of 
 (`BitString.expect_ite_card_filter_eq` in `Data.BitString.AgreeExpect`). The book instead compares
 two expansions of the noise operator applied to the tie indicator.
 
-From the explicit formula, the coefficients on sets `S`, `T` with `|S| + |T| = n + 1` agree up to
-the sign `(-1) ^ ((n - 1) / 2)`, so `(n - k + 1) W^{n-k+1} = k W^k`
+From the explicit formula, no coefficient exceeds the one on a singleton, `C(2 m, m) / 4 ^ m`,
+since `C(m, j) ≤ C(2 m, 2 j)`, and up to size `m` the coefficients decrease in size, by the ratio
+`|S| / (2 m - |S|)` from `|S|` to `|S| + 2`
+(`BitString.fourierCoeff_signVal_majority_singleton`,
+`BitString.abs_fourierCoeff_signVal_majority_le_singleton`,
+`BitString.abs_fourierCoeff_signVal_majority_le_of_card_le`)
+[O'Donnell, Exercise 5.21][ODonnell2014]. The exercise's asymptotic
+`C(2 m, m) / 4 ^ m ∼ √(2 / (n π))` is not formalized. The coefficients on sets `S`, `T` with
+`|S| + |T| = n + 1` agree up to the sign `(-1) ^ ((n - 1) / 2)`, so `(n - k + 1) W^{n-k+1} = k W^k`
 (`BitString.fourierCoeff_signVal_majority_of_card_add_card`,
 `BitString.card_mul_levelWeight_signVal_majority`)
 [O'Donnell, Corollary 5.20][ODonnell2014]. The weight `W^k` on each odd level `k` strictly
@@ -53,6 +60,23 @@ moves to the new top level `n + 2`, where `ρ ^ k` is smaller
 [O'Donnell, Theorem 5.18][ODonnell2014]. The asymptotic bounds of Theorem 5.18 are not
 formalized.
 
+## Usage
+
+Majority of `n = 2 m + 1` bits read as signs is `fun x => signVal (majority (2 * m + 1) x)` on
+`Fin (2 * m + 1) → Bool`, the book's `Maj_n` with `true` read as `−1`; the statements write odd set
+sizes as `2 * j + 1`. On a concrete set, discharge the size hypothesis of
+`BitString.fourierCoeff_signVal_majority_of_card_eq` by `decide` or `simp` and evaluate the right
+side with `norm_num [Nat.choose]`. Level weights are `levelWeight k f` from
+`BooleanAnalysis.LevelWeight`, and `BitString.noiseStability_eq_sum_levelWeight` there turns noise
+stability into a sum over levels. Import `BooleanAnalysis.TransitiveSymmetric` as well to use
+`BitString.fourierCoeff_eq_of_card_eq`, which this module imports privately. The checked clients
+in
+[CslibFrontierTests/BooleanAnalysisMajorityFourier.lean](https://github.com/cslib-community/cslib-frontier/blob/main/CslibFrontierTests/BooleanAnalysisMajorityFourier.lean)
+compute the coefficients of majority of three and five bits, check two of them by brute force,
+check each step of the proof on small cases, compare the level weights and noise stability of
+majority of three and five bits, and follow the size of the coefficients of majority of seven bits
+across the levels.
+
 ## Main results
 
 * `Cslib.BitString.sum_powersetCard_chi`: the sum of the characters of the `2 j`-subsets at a
@@ -61,6 +85,10 @@ formalized.
   odd number of bits is odd, and its derivative is the tie indicator.
 * `Cslib.BitString.fourierCoeff_signVal_majority_of_even`,
   `Cslib.BitString.fourierCoeff_signVal_majority_of_card_eq`: the Fourier coefficients of majority.
+* `Cslib.BitString.fourierCoeff_signVal_majority_singleton`,
+  `Cslib.BitString.abs_fourierCoeff_signVal_majority_le_singleton`,
+  `Cslib.BitString.abs_fourierCoeff_signVal_majority_le_of_card_le`: the largest coefficients of
+  majority are on singletons, and the odd coefficients decrease in size up to level `m + 2`.
 * `Cslib.BitString.levelWeight_signVal_majority_of_odd`,
   `Cslib.BitString.levelWeight_signVal_majority_of_even`: the level weights of majority.
 * `Cslib.BitString.fourierCoeff_signVal_majority_of_card_add_card`,
@@ -222,6 +250,77 @@ theorem levelWeight_signVal_majority_of_even (m : ℕ) {k : ℕ} (hk : Even k) :
   sum_eq_zero fun S hS => by
     rw [fourierCoeff_signVal_majority_of_even m ((mem_filter.1 hS).2 ▸ hk)]
     norm_num
+
+/-- The Fourier coefficient of majority of `2 m + 1` bits, read as signs, on a singleton is
+`C(2 m, m) / 4 ^ m`. -/
+theorem fourierCoeff_signVal_majority_singleton (m : ℕ) (i : Fin (2 * m + 1)) :
+    fourierCoeff (fun x => signVal (majority (2 * m + 1) x)) {i} = (2 * m).choose m / 4 ^ m := by
+  rw [fourierCoeff_signVal_majority_of_card_eq m 0 (card_singleton i)]
+  simp
+
+/-- **The largest Fourier coefficients of majority are on singletons**
+[O'Donnell, Exercise 5.21][ODonnell2014]: `‖Maĵ‖_∞ = Maĵ({i})`. Every coefficient of majority of
+`2 m + 1` bits, read as signs, is at most the coefficient `C(2 m, m) / 4 ^ m` on a singleton in
+absolute value, since `C(m, j) ≤ C(2 m, 2 j)`. The exercise's asymptotic `√(2 / (n π))` is not
+formalized. -/
+theorem abs_fourierCoeff_signVal_majority_le_singleton (m : ℕ) (S : Finset (Fin (2 * m + 1)))
+    (i : Fin (2 * m + 1)) :
+    |fourierCoeff (fun x => signVal (majority (2 * m + 1) x)) S| ≤
+      fourierCoeff (fun x => signVal (majority (2 * m + 1) x)) {i} := by
+  rw [fourierCoeff_signVal_majority_singleton]
+  rcases Nat.even_or_odd #S with he | ⟨j, hj⟩
+  · rw [fourierCoeff_signVal_majority_of_even m he, abs_zero]; positivity
+  rw [fourierCoeff_signVal_majority_of_card_eq m j hj, mul_div_assoc, abs_mul, abs_mul,
+    abs_pow, abs_neg, abs_one, one_pow, one_mul, abs_of_nonneg (by positivity),
+    abs_of_nonneg (by positivity)]
+  refine mul_le_of_le_one_left (by positivity) (div_le_one_of_le₀ ?_ (by positivity))
+  exact_mod_cast Nat.choose_le_choose_two_mul m j
+
+/-- One step of the decrease: from level `2 j + 1 ≤ m` to level `2 j + 3`, the coefficients of
+majority shrink by the factor `(2 j + 1) / (2 m - 2 j - 1) ≤ 1`. -/
+private theorem choose_div_choose_succ_le {m j : ℕ} (hjm : 2 * j + 1 ≤ m) :
+    (m.choose (j + 1) : ℝ) / (2 * m).choose (2 * (j + 1)) ≤
+      (m.choose j : ℝ) / (2 * m).choose (2 * j) := by
+  have hc : (0 : ℝ) < (2 * m).choose m / 4 ^ m := by
+    have := Nat.choose_pos (by omega : m ≤ 2 * m); positivity
+  rw [← mul_le_mul_iff_of_pos_right hc]
+  obtain ⟨r, rfl⟩ : ∃ r, m = j + 1 + r := ⟨m - j - 1, by omega⟩
+  rw [choose_div_choose_mul_choose_div (by omega), choose_div_choose_mul_choose_div (by omega),
+    show j + 1 + r - (j + 1) = r by omega, show j + 1 + r - j = r + 1 by omega]
+  simp only [mul_add, mul_one, Nat.factorial_succ]
+  push_cast
+  have hq : (2 * (j : ℝ) + 1) / (2 * r + 1) ≤ 1 := by
+    rw [div_le_one (by positivity)]
+    have : (j : ℝ) ≤ r := by exact_mod_cast (by omega : j ≤ r)
+    linarith
+  refine le_of_eq_of_le ?_ (mul_le_of_le_one_right (by positivity) hq)
+  field_simp
+  ring
+
+/-- **The Fourier coefficients of majority decrease in size**
+[O'Donnell, Exercise 5.21][ODonnell2014]: for majority of `2 m + 1` bits and sets `S`, `T` of odd
+sizes `|S| ≤ |T| ≤ m + 2`, the coefficient on `T` is at most the one on `S` in absolute value. Each
+step from `|S|` to `|S| + 2` multiplies the size by `|S| / (2 m - |S|)`, so the book's range
+`|T| ≤ m` extends to `m + 2`, with equality at the last step from `m`. -/
+theorem abs_fourierCoeff_signVal_majority_le_of_card_le (m : ℕ)
+    {S T : Finset (Fin (2 * m + 1))} (hS : Odd #S) (hT : Odd #T) (hST : #S ≤ #T)
+    (hTm : #T ≤ m + 2) :
+    |fourierCoeff (fun x => signVal (majority (2 * m + 1) x)) T| ≤
+      |fourierCoeff (fun x => signVal (majority (2 * m + 1) x)) S| := by
+  obtain ⟨j, hj⟩ := hS
+  obtain ⟨k, hk⟩ := hT
+  rw [fourierCoeff_signVal_majority_of_card_eq m k hk,
+    fourierCoeff_signVal_majority_of_card_eq m j hj]
+  simp only [mul_div_assoc, abs_mul, abs_pow, abs_neg, abs_one, one_pow, one_mul]
+  rw [abs_of_nonneg (by positivity), abs_of_nonneg (by positivity),
+    abs_of_nonneg (by positivity)]
+  refine mul_le_mul_of_nonneg_right ?_ (by positivity)
+  have hjk : j ≤ k := by omega
+  have hkm : 2 * k ≤ m + 1 := by omega
+  clear hk hST hTm
+  induction k, hjk using Nat.le_induction with
+  | base => rfl
+  | succ k hjk ih => exact (choose_div_choose_succ_le (by omega)).trans (ih (by omega))
 
 /-- **Complementary levels of majority** [O'Donnell, Corollary 5.20][ODonnell2014]: for majority of
 `n = 2 m + 1` bits read as signs, the coefficients on sets `S`, `T` with `|S| + |T| = n + 1` agree

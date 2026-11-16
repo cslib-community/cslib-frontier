@@ -113,6 +113,8 @@ import CslibFrontier.Computability.Circuit.Boolean.Razborov.Useful
 import CslibFrontier.Computability.Circuit.Boolean.Smolensky
 import CslibFrontier.Foundations.BooleanAnalysis.Fourier
 import CslibFrontier.Foundations.BooleanAnalysis.TransitiveSymmetric
+import CslibFrontier.Foundations.BooleanAnalysis.LevelWeight
+import CslibFrontier.Foundations.BooleanAnalysis.MajorityFourier
 import CslibFrontier.Foundations.BooleanAnalysis.OrDegree
 import CslibFrontier.Computability.Circuit.NNF.Negation.Separation
 import CslibFrontier.Computability.Communication.CliqueIndependentSet
@@ -11113,3 +11115,89 @@ register_result "odonnell-transitive-symmetric-influence" where
     functions by the n equal influences, instead of the book's route through f̂(i) and Parseval. \
     Monotone is for Bool's order false < true; under true ↦ −1 this is the book's \
     coordinatewise order on inputs and outputs."
+
+register_result "odonnell-noise-stability-by-level" where
+  title := "Noise stability as a sum over Fourier levels"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Theorem 2.49",
+      locator := "arXiv:2105.10386v1, §2.4, printed p. 56" }
+  ]
+  theorems := [
+    Cslib.BitString.noiseStability_eq_sum_levelWeight]
+  scope := "For a real function f on a finite cube and any real ρ, Stab_ρ[f] = Σ_k ρ^k W^k[f], \
+    with W^k[f] = levelWeight k f. This is the level form of the theorem; its form over sets, Σ_S \
+    ρ^|S| f̂(S)², is the earlier noiseStability_eq_sum and is not listed here. Outside [−1, 1], \
+    noiseStability is the polynomial extension of the noise operator."
+
+register_result "odonnell-majority-fourier-coefficients" where
+  title := "The Fourier coefficients of majority"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Theorem 5.19",
+      locator := "arXiv:2105.10386v1, §5.3, printed p. 122" }
+  ]
+  theorems := [
+    Cslib.BitString.fourierCoeff_signVal_majority_of_even,
+    Cslib.BitString.fourierCoeff_signVal_majority_of_card_eq]
+  scope := "For n = 2m + 1, majority n read as signs through signVal (true ↦ −1) is the book's \
+    Maj_n. Its coefficient is 0 on sets of even size and (−1)^j C(m, j)/C(2m, 2j) · C(2m, m)/4^m \
+    on sets of size 2j + 1, which is the book's formula with k = 2j + 1. Odd n only, as in the \
+    book."
+
+register_result "odonnell-majority-complementary-levels" where
+  title := "Complementary levels of majority"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Corollary 5.20",
+      locator := "arXiv:2105.10386v1, §5.3, printed p. 123" }
+  ]
+  theorems := [
+    Cslib.BitString.fourierCoeff_signVal_majority_of_card_add_card,
+    Cslib.BitString.card_mul_levelWeight_signVal_majority]
+  scope := "For n = 2m + 1 and majority read as signs, the coefficients on S and T with |S| + |T| \
+    = n + 1 agree up to the sign (−1)^m, and (n − k + 1) W^{n−k+1} = k W^k for odd k = 2j + 1 ≤ n. \
+    The weight identity is the book's W^{n−k+1} = k/(n − k + 1) W^k multiplied out and stated for \
+    odd k only; for even k both levels carry no weight."
+
+register_result "odonnell-majority-level-weights-decrease" where
+  title := "The level weights of majority decrease in n"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Corollary 5.21",
+      locator := "arXiv:2105.10386v1, §5.3, printed p. 123" }
+  ]
+  theorems := [
+    Cslib.BitString.levelWeight_signVal_majority_succ_lt]
+  scope := "For odd k = 2j + 1 ≤ n = 2m + 1, W^k[Maj_{n+2}] < W^k[Maj_n], with majority read as \
+    signs. This is the one-step form; strict decrease along all odd n ≥ k follows by induction and \
+    is not stated separately."
+
+register_result "odonnell-majority-noise-stability-decreases" where
+  title := "The noise stability of majority decreases in n"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Theorem 5.18 (monotonicity in n)",
+      locator := "arXiv:2105.10386v1, §5.2, printed p. 121" }
+  ]
+  theorems := [
+    Cslib.BitString.noiseStability_signVal_majority_succ_lt]
+  scope := "Only the monotonicity claim: for 0 < ρ < 1 and n = 2m + 1, Stab_ρ[Maj_{n+2}] < \
+    Stab_ρ[Maj_n], with majority read as signs. This one-step strict form gives the book's \
+    decrease along odd n for ρ ∈ (0, 1); at ρ = 0 every Stab_0[Maj_n] is 0. The bounds (2/π) \
+    arcsin ρ ≤ Stab_ρ[Maj_n] ≤ (2/π) arcsin ρ + O(1/(√(1 − ρ²) √n)) are not covered."
+
+register_result "odonnell-majority-largest-coefficients" where
+  title := "The largest Fourier coefficients of majority"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Exercise 5.21 (without the asymptotic)",
+      locator := "arXiv:2105.10386v1, §5.6, printed p. 136" }
+  ]
+  theorems := [
+    Cslib.BitString.abs_fourierCoeff_signVal_majority_le_singleton,
+    Cslib.BitString.abs_fourierCoeff_signVal_majority_le_of_card_le]
+  scope := "For n = 2m + 1 and majority read as signs, every coefficient is at most the \
+    coefficient C(2m, m)/4^m on a singleton in absolute value, and the odd coefficients decrease \
+    in size for odd |S| ≤ |T| ≤ m + 2, which contains the book's range |T| ≤ (n − 1)/2 = m. The \
+    asymptotic Maĵ_n({1}) ∼ √(2/(nπ)) is not covered."

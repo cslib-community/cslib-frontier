@@ -188,10 +188,10 @@ theorem fourierCoeff_map_of_mem_aut {g : (ι → Bool) → ℝ} {π : Equiv.Perm
     (S : Finset ι) : fourierCoeff g (S.map π.toEmbedding) = fourierCoeff g S := by
   rw [← fourierCoeff_comp_arrowCongr π g S, comp_symm_of_mem_aut hπ]
 
-/-- **Symmetric functions have symmetric spectra**: a function of the weight has the same Fourier
-coefficient on any two sets of the same size, as [O'Donnell, Section 5.3][ODonnell2014] deduces
-from Exercise 1.30(a). A permutation matching `S` with `S'` and their complements with each other
-carries one set to the other, and every permutation is an automorphism. -/
+/-- A function of the weight has the same Fourier coefficient on any two sets of the same size,
+the observation O'Donnell uses to open Section 5.3 (after Exercise 1.30(a))
+[O'Donnell, Section 5.3][ODonnell2014]. A permutation matching `S` with `S'` and their complements
+with each other carries one set to the other, and every permutation is an automorphism. -/
 theorem fourierCoeff_eq_of_card_eq {f : (ι → Bool) → ℝ}
     (hf : ∀ x y, weight x = weight y → f x = f y) {S S' : Finset ι} (h : #S = #S') :
     fourierCoeff f S = fourierCoeff f S' := by

@@ -11,6 +11,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.MajorityFourier
 public import CslibFrontier.Foundations.BooleanAnalysis.TransitiveSymmetric
 import CslibFrontier.Foundations.Data.BitString.AgreeExpect
 import CslibFrontier.Foundations.Data.Finset.Expect
+import CslibFrontier.Foundations.Data.Nat.Choose.Vandermonde
 import Mathlib.Algebra.BigOperators.Fin
 
 /-! # Tests for the Fourier coefficients of majority
@@ -29,7 +30,9 @@ Complementary levels of majority of three bits have opposite coefficients. The l
 majority drops from `3 / 4` on three bits to `45 / 64` on five, majority of five bits has no
 weight on level two, the noise stability of majority of three bits is `3 / 4 ρ + 1 / 4 ρ ^ 3`, and
 majority of five bits is strictly less noise-stable. On five bits the top weight `W^5` is `1 / 5`
-of the level-one weight `W^1`.
+of the level-one weight `W^1`. No coefficient exceeds the singleton coefficient, and on seven bits
+the coefficients drop from `5 / 16` on a singleton to `1 / 16` on three and five bits, then rise to
+`5 / 16` on all seven.
 -/
 
 public section
@@ -182,5 +185,38 @@ example : levelWeight (2 * (2 - 0) + 1) (fun x => signVal (majority (2 * 2 + 1) 
   rw [levelWeight_signVal_majority_of_odd 2 0] at h
   norm_num [Nat.choose] at h ⊢
   linarith
+
+-- The binomial inequality behind it, on numbers too large to check by hand: `C(30, 7) ≤ C(60, 14)`.
+example : (30 : ℕ).choose 7 ≤ (60 : ℕ).choose 14 :=
+  Nat.choose_le_choose_two_mul 30 7
+
+-- No coefficient of majority of five bits exceeds the singleton coefficient `C(4, 2) / 16 = 3 / 8`.
+example (S : Finset (Fin (2 * 2 + 1))) :
+    |fourierCoeff (fun x => signVal (majority (2 * 2 + 1) x)) S| ≤ 3 / 8 := by
+  refine (abs_fourierCoeff_signVal_majority_le_singleton 2 S 0).trans_eq ?_
+  rw [fourierCoeff_signVal_majority_singleton]
+  norm_num [Nat.choose]
+
+-- On seven bits the coefficient is `5 / 16` on a singleton and `-1 / 16` on three bits.
+example : fourierCoeff (fun x => signVal (majority (2 * 3 + 1) x)) {0} = 5 / 16 := by
+  rw [fourierCoeff_signVal_majority_singleton]
+  norm_num [Nat.choose]
+
+example : fourierCoeff (fun x => signVal (majority (2 * 3 + 1) x)) {0, 1, 2} = -1 / 16 := by
+  rw [fourierCoeff_signVal_majority_of_card_eq 3 1 (by decide)]
+  norm_num [Nat.choose]
+
+-- The odd coefficients do not grow in size up to level `m + 2 = 5`.
+example : |fourierCoeff (fun x => signVal (majority (2 * 3 + 1) x)) {0, 1, 2, 3, 4}| ≤
+    |fourierCoeff (fun x => signVal (majority (2 * 3 + 1) x)) {0, 1, 2}| :=
+  abs_fourierCoeff_signVal_majority_le_of_card_le 3 (by decide) (by decide) (by decide)
+    (by decide)
+
+-- Beyond level `m + 2` they grow again: the whole set has `5 / 16 > 1 / 16`.
+example : |fourierCoeff (fun x => signVal (majority (2 * 3 + 1) x)) {0, 1, 2, 3, 4}| <
+    |fourierCoeff (fun x => signVal (majority (2 * 3 + 1) x)) univ| := by
+  rw [fourierCoeff_signVal_majority_of_card_eq 3 2 (by decide),
+    fourierCoeff_signVal_majority_of_card_eq 3 3 (by simp)]
+  norm_num [Nat.choose, abs_div]
 
 end CslibFrontierTests.BooleanAnalysisMajorityFourier
