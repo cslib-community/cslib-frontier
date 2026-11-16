@@ -4409,6 +4409,7 @@ public import CslibFrontier.Crypto.Computational.CompositeResiduosity.Finite
 public import CslibFrontier.Crypto.Computational.CramerShoup
 public import CslibFrontier.Crypto.Computational.CramerShoup.Interleaved
 public import CslibFrontier.Crypto.Computational.CramerShoup.ProjectiveHash
+public import CslibFrontier.Crypto.Computational.CramerShoup.ProjectiveHash.Games
 public import CslibFrontier.Crypto.Computational.CramerShoup.Reductions
 public import CslibFrontier.Crypto.Computational.CramerShoup.Scheme
 public import CslibFrontier.Crypto.Computational.DictionarySearch
@@ -5041,6 +5042,7 @@ public import CslibFrontier.Crypto.Protocols.MPC.PolyTime.Encoding
 public import CslibFrontier.Crypto.Protocols.MPC.PolyTime.InputProgEquiv
 public import CslibFrontier.Crypto.Protocols.MPC.PolyTime.RunEncoded
 public import CslibFrontier.Crypto.Protocols.MPC.PolyTime.Runner
+public import CslibFrontier.Crypto.Protocols.MPC.ProductRelation
 public import CslibFrontier.Crypto.Protocols.MPC.SPDZ
 public import CslibFrontier.Crypto.Protocols.MPC.SharedMul
 public import CslibFrontier.Crypto.Protocols.MPC.Yao
