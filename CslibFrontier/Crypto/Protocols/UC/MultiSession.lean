@@ -80,6 +80,20 @@ hypothesis that `ρ`, `π`, and `φ` are all bounded protocols.
 * `Cslib.Crypto.Protocols.UC.eval_exec_composeFamily_multiHybridSim`: running `composeFamily ρ φ`
   with `multiHybridSim S` has the same output distribution as running `m` parallel ideal-world
   executions against `absorbMultiHybrid`.
+* `Cslib.Crypto.Protocols.UC.advantage_composeFamily_le_sum`: telescoping hybrid bound reducing
+  the `m`-session distinguishing advantage to the sum of `m` single-session advantages against
+  `sessionHopEnv`.
+* `Cslib.Crypto.Protocols.UC.EmulatesDummyWithin.composeFamily`,
+  `Cslib.Crypto.Protocols.UC.EmulatesDummyWithin.composeMulti`: quantitative dummy-adversary
+  multi-session composition theorems.
+* `Cslib.Crypto.Protocols.UC.EmulatesWithin.composeMulti`: full quantitative multi-session
+  composition theorem with polynomial overhead `(C m * g.comp (X + 1) + 1)`-wrapped.
+* `Cslib.Crypto.Protocols.UC.Emulates.composeFamily`,
+  `Cslib.Crypto.Protocols.UC.Emulates.composeMulti`: asymptotic heterogeneous and homogeneous
+  fixed-arity multi-session UC composition theorems.
+* `Cslib.Crypto.Protocols.UC.Realizes.composeMulti`,
+  `Cslib.Crypto.Protocols.UC.Realizes.composeMulti_trans`: multi-session ideal-functionality
+  realization and hybrid replacement.
 
 ## References
 
@@ -846,5 +860,358 @@ theorem eval_exec_composeFamily_multiHybridSim {m n : ℕ}
     (sessionRouter C fun j => φ j κ C) (Z κ z)).trans ?_
   rw [Machine.link_comp, ← Machine.run_comp]
   exact eval_run_parLiftAdversary_comp_sessionRouter C (fun j => φ j κ C) (fun j => S j κ C) _
+
+/-! ### Hybrid telescoping advantage bound and polynomial call budgets -/
+
+/-- Hybrid telescoping bound for `m` fixed sessions: the dummy-adversary distinguishing advantage
+between `composeFamily ρ π` and `composeFamily ρ φ` (under `multiHybridSim S`) is at most the
+sum over `j : Fin m` of the single-session dummy-adversary distinguishing advantages between `π j`
+and `φ j` against `sessionHopEnv C ρ π φ S Z j`. -/
+theorem advantage_composeFamily_le_sum {m n : ℕ}
+    {In Out NetQ NetR SubIn SubOut NQ₁ NR₁ NQ₂ NR₂ : Type}
+    (ρ : MultiHybridProtocol m n In Out NetQ NetR SubIn SubOut)
+    (π : Fin m → Protocol n SubIn SubOut NQ₁ NR₁)
+    (φ : Fin m → Protocol n SubIn SubOut NQ₂ NR₂)
+    (S : (j : Fin m) →
+      Adversary n (RoutedNetQ n SubIn NQ₁) (RoutedNetR SubOut NR₁)
+        (RoutedNetQ n SubIn NQ₂) (RoutedNetR SubOut NR₂))
+    (C : Finset (Fin n))
+    (Z : Environment n In Out
+      (RoutedNetQ n In (MultiNetQ m NetQ (RoutedNetQ n SubIn NQ₁)))
+      (RoutedNetR Out (MultiNetR NetR (RoutedNetR SubOut NR₁))))
+    (κ : ℕ) (z : List Bool) :
+    advantage (composeFamily ρ π) (composeFamily ρ φ)
+        (dummyAdversary n _ _) (multiHybridSim S) C Z κ z ≤
+      ∑ j : Fin m,
+        advantage (π j) (φ j) (dummyAdversary n _ _) (S j) C
+          (sessionHopEnv C ρ π φ S Z j) κ z := by
+  have hcongr :
+      advantage (composeFamily ρ π) (composeFamily ρ φ)
+          (dummyAdversary n _ _) (multiHybridSim S) C Z κ z =
+        SSP.advantage (absorbMultiHybrid C ρ Z κ z)
+          (sessionRouter C fun j => π j κ C)
+          (SSP.parFin fun j => execMachine (φ j) (S j) κ C) := by
+    simp only [advantage, SSP.advantage]
+    rw [exec_composeFamily_dummy, eval_exec_composeFamily_multiHybridSim]
+  rw [hcongr]
+  refine (SSP.advantage_parFin_le_sum
+    (fun j => corruptRouter C (π j κ C))
+    (fun j => execMachine (φ j) (S j) κ C)
+    (absorbMultiHybrid C ρ Z κ z)).trans_eq ?_
+  refine Finset.sum_congr rfl fun j _ => ?_
+  simp only [advantage, SSP.advantage, sessionHopEnv, exec, execMachine, dummyAdversary,
+    liftAdversary_id, Machine.run_comp, Machine.link_id]
+
+private theorem isQueryBounded_liftMultiParty {m n : ℕ} {SubIn SubOut NQ NR α : Type}
+    {program : ProbOracleComp (multiPartySpec m n SubIn SubOut) α} {t : ℕ}
+    (h : OracleComp.IsQueryBounded program t) :
+    OracleComp.IsQueryBounded (liftMultiParty (NQ := NQ) (NR := NR) program) t := by
+  refine OracleComp.IsCostBounded.interpret (fun q => ?_) h
+  cases q with
+  | inl k => exact OracleComp.IsCostBounded.query (Sum.inl k)
+  | inr c => exact OracleComp.IsCostBounded.query (Sum.inr (c.session, Sum.inl (c.party, c.input)))
+
+/-- Wrapping a `t`-bounded multi-session hybrid machine yields a `(t + 1)`-bounded machine
+(accounting for `1`-query forwarding of `.inr (.sub j q)`). -/
+theorem isBounded_multiHybridWrap {m n : ℕ} {In Out NetQ NetR SubIn SubOut NQ NR : Type}
+    {M : Machine (multiPartySpec m n SubIn SubOut) (protocolSpec n In Out NetQ NetR)}
+    {t : ℕ} (h : M.IsBounded t) :
+    (multiHybridWrap (NQ := NQ) (NR := NR) M).IsBounded (t + 1) := by
+  refine ⟨h.1.mono (Nat.le_succ t), fun q s => ?_⟩
+  rcases q with p | outer | ⟨j, q⟩
+  · exact (isQueryBounded_liftMultiParty (h.2 (.inl p) s)).mono (Nat.le_succ t)
+  · dsimp only [multiHybridWrap] at s ⊢
+    change OracleComp.IsQueryBounded
+      (liftMultiParty ((MultiNetR.outer <$> M.handle (.inr outer)).run s)) (t + 1)
+    rw [StateT.run_map, liftMultiParty_map, ← bind_pure_comp]
+    refine ((isQueryBounded_liftMultiParty (h.2 (.inr outer) s)).bind fun _ =>
+      OracleComp.IsCostBounded.pure _ 0).mono (Nat.le_succ t)
+  · change OracleComp.IsQueryBounded ((StateT.lift (MultiNetR.sub <$>
+      ProbOracleComp.query (spec := SSP.sessionSpec m (protocolSpec n SubIn SubOut NQ NR))
+        (j, Sum.inr q))).run s) (t + 1)
+    rw [StateT.run_lift, bind_pure_comp, Functor.map_map, ← bind_pure_comp]
+    refine ((OracleComp.IsCostBounded.query (Sum.inr (j, Sum.inr q))).bind fun _ =>
+      OracleComp.IsCostBounded.pure _ 0).mono ?_
+    exact Nat.le_add_left 1 t
+
+/-- Absorbing a `pρ`-bounded multi-session hybrid protocol into a `pZ`-bounded environment gives
+query bound `(absorbPoly pZ pρ).eval κ`. -/
+theorem absorbMultiHybrid_polyBounded {m n : ℕ} {In Out NetQ NetR SubIn SubOut NQ NR : Type}
+    (C : Finset (Fin n))
+    {ρ : MultiHybridProtocol m n In Out NetQ NetR SubIn SubOut}
+    {Z : Environment n In Out
+      (RoutedNetQ n In (MultiNetQ m NetQ (RoutedNetQ n SubIn NQ)))
+      (RoutedNetR Out (MultiNetR NetR (RoutedNetR SubOut NR)))}
+    {pρ pZ : Polynomial ℕ} (hρ : ρ.PolyBounded pρ) (hZ : Z.PolyBounded pZ) :
+    ∀ κ z, (absorbMultiHybrid C ρ Z κ z).IsQueryBounded ((absorbPoly pZ pρ).eval κ) := by
+  intro κ z
+  have hM : (routeCorrupt C
+      (multiHybridWrap (NQ := RoutedNetQ n SubIn NQ) (NR := RoutedNetR SubOut NR)
+        (ρ κ C))).IsBounded (pρ.eval κ + 1) :=
+    isBounded_routeCorrupt C (isBounded_multiHybridWrap (hρ κ C))
+  refine (Machine.isQueryBounded_link hM (hZ κ z)).mono (le_of_eq ?_)
+  simp [absorbPoly, Polynomial.eval_ofNat]
+
+/-- Composing a `pρ`-bounded multi-session hybrid protocol with a family of `pσ`-bounded
+protocols yields a `((pρ + 1) * (Polynomial.C m * pσ + 1) + Polynomial.C m * pσ)`-bounded
+composed protocol. -/
+theorem composeFamily_polyBounded {m n : ℕ} {In Out NetQ NetR SubIn SubOut NQ NR : Type}
+    {ρ : MultiHybridProtocol m n In Out NetQ NetR SubIn SubOut}
+    {σ : Fin m → Protocol n SubIn SubOut NQ NR} {pρ pσ : Polynomial ℕ}
+    (hρ : ρ.PolyBounded pρ) (hσ : ∀ j, (σ j).PolyBounded pσ) :
+    (composeFamily ρ σ).PolyBounded
+      ((pρ + 1) * (Polynomial.C m * pσ + 1) + Polynomial.C m * pσ) := by
+  intro κ C
+  have hwrap :
+      (multiHybridWrap (NQ := RoutedNetQ n SubIn NQ) (NR := RoutedNetR SubOut NR)
+        (ρ κ C)).IsBounded (pρ.eval κ + 1) :=
+    isBounded_multiHybridWrap (hρ κ C)
+  have hrouter : (sessionRouter C fun j => σ j κ C).IsBounded (m * pσ.eval κ) :=
+    SSP.isBounded_parFin fun j => isBounded_routeCorrupt C (hσ j κ C)
+  refine (hwrap.comp hrouter).mono (le_of_eq ?_)
+  simp [Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_one]
+
+/-- Parallel composition `multiHybridSim S` of `pS`-bounded simulators has polynomial call budget
+`Polynomial.C m * pS + 1`. -/
+theorem multiHybridSim_polyBounded {m n : ℕ}
+    {In Out NetQ NetR SubIn SubOut NQ₁ NR₁ NQ₂ NR₂ : Type}
+    {S : (j : Fin m) →
+      Adversary n (RoutedNetQ n SubIn NQ₁) (RoutedNetR SubOut NR₁)
+        (RoutedNetQ n SubIn NQ₂) (RoutedNetR SubOut NR₂)}
+    {pS : Polynomial ℕ} (hS : ∀ j, (S j).PolyBounded pS) :
+    (multiHybridSim (In := In) (Out := Out) (NetQ := NetQ) (NetR := NetR) S).PolyBounded
+      (Polynomial.C m * pS + 1) := by
+  intro κ C
+  refine ⟨?_, fun q s => ?_⟩
+  · have hpi := OracleComp.isCostBounded_pi (fun j => (hS j κ C).1)
+    dsimp only [multiHybridSim, multiHybridSimMachine]
+    convert hpi.mono (Nat.le_succ (m * pS.eval κ)) using 1
+    simp [Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_one]
+  · rcases q with p | outer | ⟨j, q⟩
+    · dsimp only [multiHybridSim, multiHybridSimMachine] at s ⊢
+      rw [StateT.run_lift, bind_pure_comp, Functor.map_map, ← bind_pure_comp]
+      refine ((OracleComp.IsCostBounded.query
+          (Sum.inr (Sum.inl p : RoutedNetQ n In (MultiNetQ m NetQ (RoutedNetQ n SubIn NQ₂))))).bind
+        fun _ => OracleComp.IsCostBounded.pure _ 0).mono ?_
+      simp [Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_one]
+    · dsimp only [multiHybridSim, multiHybridSimMachine] at s ⊢
+      rw [StateT.run_lift, bind_pure_comp, Functor.map_map, ← bind_pure_comp]
+      refine ((OracleComp.IsCostBounded.query
+          (Sum.inr (Sum.inr (MultiNetQ.outer outer) :
+            RoutedNetQ n In (MultiNetQ m NetQ (RoutedNetQ n SubIn NQ₂))))).bind
+        fun _ => OracleComp.IsCostBounded.pure _ 0).mono ?_
+      simp [Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_one]
+    · dsimp only [multiHybridSim, multiHybridSimMachine, StateT.run] at s ⊢
+      rw [liftMultiSubNet_map, ← bind_pure_comp]
+      have hsub : OracleComp.IsQueryBounded
+          (liftMultiSubNet (In := In) (Out := Out) (NetQ := NetQ) (NetR := NetR) j
+            (((S j κ C).handle q).run (s j))) (pS.eval κ) := by
+        refine OracleComp.IsCostBounded.interpret (fun r => ?_) ((hS j κ C).2 q (s j))
+        cases r with
+        | inl k => exact OracleComp.IsCostBounded.query (Sum.inl k)
+        | inr q' =>
+          dsimp only [sumHandler]
+          rw [← bind_pure_comp]
+          exact (OracleComp.IsCostBounded.query
+            (Sum.inr (Sum.inr (MultiNetQ.sub j q') :
+              RoutedNetQ n In (MultiNetQ m NetQ (RoutedNetQ n SubIn NQ₂))))).bind
+            fun _ => OracleComp.IsCostBounded.pure _ 0
+      refine (hsub.bind fun _ => OracleComp.IsCostBounded.pure _ 0).mono ?_
+      have hmpos : 0 < m := Nat.lt_of_le_of_lt (Nat.zero_le _) j.isLt
+      have hle : pS.eval κ ≤ m * pS.eval κ := Nat.le_mul_of_pos_left (pS.eval κ) hmpos
+      simpa [Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_one] using
+        hle.trans (Nat.le_succ _)
+
+/-- Pointwise monotonicity of `sessionHopPoly` in the simulator polynomial bound `pD`. -/
+theorem eval_sessionHopPoly_mono {m : ℕ} {pZ pρ pπ pφ pD pD' : Polynomial ℕ}
+    (hpD : ∀ κ, pD.eval κ ≤ pD'.eval κ) (κ : ℕ) :
+    (sessionHopPoly m pZ pρ pπ pφ pD).eval κ ≤ (sessionHopPoly m pZ pρ pπ pφ pD').eval κ := by
+  simp only [sessionHopPoly, sessionUnitPoly, absorbPoly, Polynomial.eval_add, Polynomial.eval_mul,
+    Polynomial.eval_one, Polynomial.eval_C, Polynomial.eval_ofNat]
+  gcongr <;> exact hpD κ
+
+/-- Each single-hop hybrid distinguisher `sessionHopEnv C ρ π φ S Z j₀` has polynomial call budget
+`sessionHopPoly m pZ pρ pπ pφ pD`. -/
+theorem sessionHopEnv_polyBounded {m n : ℕ}
+    {In Out NetQ NetR SubIn SubOut NQ₁ NR₁ NQ₂ NR₂ : Type}
+    (C : Finset (Fin n))
+    {ρ : MultiHybridProtocol m n In Out NetQ NetR SubIn SubOut}
+    {π : Fin m → Protocol n SubIn SubOut NQ₁ NR₁}
+    {φ : Fin m → Protocol n SubIn SubOut NQ₂ NR₂}
+    {S : (j : Fin m) →
+      Adversary n (RoutedNetQ n SubIn NQ₁) (RoutedNetR SubOut NR₁)
+        (RoutedNetQ n SubIn NQ₂) (RoutedNetR SubOut NR₂)}
+    {Z : Environment n In Out
+      (RoutedNetQ n In (MultiNetQ m NetQ (RoutedNetQ n SubIn NQ₁)))
+      (RoutedNetR Out (MultiNetR NetR (RoutedNetR SubOut NR₁)))}
+    {pρ pπ pφ pD pZ : Polynomial ℕ}
+    (hρ : ρ.PolyBounded pρ) (hπ : ∀ j, (π j).PolyBounded pπ)
+    (hφ : ∀ j, (φ j).PolyBounded pφ) (hS : ∀ j, (S j).PolyBounded pD)
+    (hZ : Z.PolyBounded pZ) (j₀ : Fin m) :
+    (sessionHopEnv C ρ π φ S Z j₀).PolyBounded (sessionHopPoly m pZ pρ pπ pφ pD) := by
+  intro κ z
+  have hreal : ∀ j : Fin m,
+      (corruptRouter C (π j κ C)).IsBounded ((sessionUnitPoly pπ pφ pD).eval κ) := fun j =>
+    (isBounded_routeCorrupt C (hπ j κ C)).mono (by simp [sessionUnitPoly])
+  have hideal : ∀ j : Fin m,
+      (execMachine (φ j) (S j) κ C).IsBounded ((sessionUnitPoly pπ pφ pD).eval κ) := fun j => by
+    have hcomp := (isBounded_liftAdversary (hS j κ C)).comp (isBounded_routeCorrupt C (hφ j κ C))
+    refine hcomp.mono ?_
+    simp [sessionUnitPoly, Polynomial.eval_add, Polynomial.eval_mul, Polynomial.eval_one]
+  have habs := absorbMultiHybrid_polyBounded C hρ hZ κ z
+  have hdist := SSP.isQueryBounded_hybridDistinguisher
+    (fun j => corruptRouter C (π j κ C))
+    (fun j => execMachine (φ j) (S j) κ C)
+    j₀ hreal hideal habs
+  refine hdist.mono (le_of_eq ?_)
+  simp only [sessionHopPoly, sessionUnitPoly, absorbPoly, Polynomial.eval_add, Polynomial.eval_mul,
+    Polynomial.eval_one, Polynomial.eval_C, Polynomial.eval_ofNat]
+
+/-! ### Multi-session UC composition theorems -/
+
+private theorem emulatesDummyWithin_mono_bound {n : ℕ} {In Out NQ₁ NR₁ NQ₂ NR₂ : Type}
+    {π : Protocol n In Out NQ₁ NR₁} {φ : Protocol n In Out NQ₂ NR₂}
+    {pD pD' : Polynomial ℕ} {ε : Polynomial ℕ → ℕ → ℝ≥0}
+    (h : EmulatesDummyWithin π φ pD ε) (hp : ∀ κ, pD.eval κ ≤ pD'.eval κ) :
+    EmulatesDummyWithin π φ pD' ε := by
+  rcases h with ⟨S_D, hSD, hadv⟩
+  exact ⟨S_D, hSD.mono hp, hadv⟩
+
+/-- Quantitative multi-session composition for a heterogeneous family of protocols in the dummy
+adversary model. -/
+theorem EmulatesDummyWithin.composeFamily {m n : ℕ}
+    {In Out NetQ NetR SubIn SubOut NQ₁ NR₁ NQ₂ NR₂ : Type}
+    {ρ : MultiHybridProtocol m n In Out NetQ NetR SubIn SubOut}
+    {π : Fin m → Protocol n SubIn SubOut NQ₁ NR₁}
+    {φ : Fin m → Protocol n SubIn SubOut NQ₂ NR₂}
+    {pρ pπ pφ pD : Polynomial ℕ} {ε : Fin m → Polynomial ℕ → ℕ → ℝ≥0}
+    (hρ : ρ.PolyBounded pρ) (hπ : ∀ j, (π j).PolyBounded pπ) (hφ : ∀ j, (φ j).PolyBounded pφ)
+    (h : ∀ j, EmulatesDummyWithin (π j) (φ j) pD (ε j)) :
+    EmulatesDummyWithin (composeFamily ρ π) (composeFamily ρ φ)
+      (Polynomial.C m * pD + 1)
+      (fun pZ κ => ∑ j : Fin m, ε j (sessionHopPoly m pZ pρ pπ pφ pD) κ) := by
+  choose S_D hSD hadv using h
+  refine ⟨multiHybridSim S_D, multiHybridSim_polyBounded hSD, fun C Z pZ hZ κ z => ?_⟩
+  refine (advantage_composeFamily_le_sum ρ π φ S_D C Z κ z).trans ?_
+  refine Finset.sum_le_sum fun j _ => ?_
+  exact hadv j C (sessionHopEnv C ρ π φ S_D Z j) (sessionHopPoly m pZ pρ pπ pφ pD)
+    (sessionHopEnv_polyBounded C hρ hπ hφ hSD hZ j) κ z
+
+/-- Quantitative multi-session composition for homogeneous subroutine instances in the dummy
+adversary model. -/
+theorem EmulatesDummyWithin.composeMulti {m n : ℕ}
+    {In Out NetQ NetR SubIn SubOut NQ₁ NR₁ NQ₂ NR₂ : Type}
+    {ρ : MultiHybridProtocol m n In Out NetQ NetR SubIn SubOut}
+    {π : Protocol n SubIn SubOut NQ₁ NR₁} {φ : Protocol n SubIn SubOut NQ₂ NR₂}
+    {pρ pπ pφ pD : Polynomial ℕ} {ε : Polynomial ℕ → ℕ → ℝ≥0}
+    (hρ : ρ.PolyBounded pρ) (hπ : π.PolyBounded pπ) (hφ : φ.PolyBounded pφ)
+    (h : EmulatesDummyWithin π φ pD ε) :
+    EmulatesDummyWithin (composeMulti ρ π) (composeMulti ρ φ)
+      (Polynomial.C m * pD + 1)
+      (fun pZ κ => m • ε (sessionHopPoly m pZ pρ pπ pφ pD) κ) := by
+  simpa [composeMulti, Finset.sum_const, Finset.card_fin] using
+    EmulatesDummyWithin.composeFamily hρ (fun _ => hπ) (fun _ => hφ) (fun _ => h)
+
+/-- Full quantitative multi-session UC composition theorem (fixed-arity adaptation of Canetti 2020,
+Theorem 22 / Corollary 23): replacing `m` subroutines `π` with `φ` in `composeMulti ρ` preserves
+concrete security with `m • ε 1 (sessionHopPoly m (absorbPoly pZ pA) pρ pπ pφ (g.comp (X + 1)))`
+distinguishing error. -/
+theorem EmulatesWithin.composeMulti {m n : ℕ}
+    {In Out NetQ NetR SubIn SubOut NQ₁ NR₁ NQ₂ NR₂ : Type}
+    {ρ : MultiHybridProtocol m n In Out NetQ NetR SubIn SubOut}
+    {π : Protocol n SubIn SubOut NQ₁ NR₁} {φ : Protocol n SubIn SubOut NQ₂ NR₂}
+    {pρ pπ pφ g : Polynomial ℕ} {ε : Polynomial ℕ → Polynomial ℕ → ℕ → ℝ≥0}
+    (hρ : ρ.PolyBounded pρ) (hπ : π.PolyBounded pπ) (hφ : φ.PolyBounded pφ)
+    (h : EmulatesWithin π φ g ε) :
+    EmulatesWithin (composeMulti ρ π) (composeMulti ρ φ)
+      (Polynomial.X * (Polynomial.C m * g.comp (Polynomial.X + 1) + 1 + 1) +
+        (Polynomial.C m * g.comp (Polynomial.X + 1) + 1))
+      (fun pA pZ κ =>
+        m • ε 1 (sessionHopPoly m (absorbPoly pZ pA) pρ pπ pφ
+          (g.comp (Polynomial.X + 1))) κ) := by
+  rcases h.emulatesDummyWithin with ⟨pD, hpD, hD⟩
+  have hD' : EmulatesDummyWithin π φ (g.comp (Polynomial.X + 1)) (fun pZ => ε 1 pZ) :=
+    emulatesDummyWithin_mono_bound hD fun κ => by
+      simpa [Polynomial.eval_comp, Polynomial.eval_add, Polynomial.eval_X, Polynomial.eval_one]
+        using hpD κ
+  exact (EmulatesDummyWithin.composeMulti hρ hπ hφ hD').emulatesWithin
+
+/-- Asymptotic multi-session UC composition theorem for a heterogeneous family of subroutine
+protocols (fixed-arity adaptation of Canetti 2020, Section 6.3). -/
+theorem Emulates.composeFamily {m n : ℕ}
+    {In Out NetQ NetR SubIn SubOut NQ₁ NR₁ NQ₂ NR₂ : Type}
+    {ρ : MultiHybridProtocol m n In Out NetQ NetR SubIn SubOut}
+    {π : Fin m → Protocol n SubIn SubOut NQ₁ NR₁}
+    {φ : Fin m → Protocol n SubIn SubOut NQ₂ NR₂}
+    {pρ pπ pφ : Polynomial ℕ}
+    (hρ : ρ.PolyBounded pρ) (hπ : ∀ j, (π j).PolyBounded pπ) (hφ : ∀ j, (φ j).PolyBounded pφ)
+    (h : ∀ j, Emulates (π j) (φ j)) :
+    Emulates (composeFamily ρ π) (composeFamily ρ φ) := by
+  choose S_D pD hSD hadv using
+    fun j => h j _ _ (dummyAdversary n _ _) 1 (dummyAdversary_polyBounded n _ _)
+  let pD_max : Polynomial ℕ := ∑ j : Fin m, pD j
+  have hdummy : ∀ j : Fin m, ∃ ε : Polynomial ℕ → ℕ → ℝ≥0,
+      (∀ pZ, Negligible (ε pZ)) ∧ EmulatesDummyWithin (π j) (φ j) pD_max ε := by
+    intro j
+    choose ε hε hε_adv using hadv j
+    refine ⟨ε, hε, S_D j, (hSD j).mono fun κ => ?_, fun C Z pZ hZ κ z => hε_adv pZ C Z hZ κ z⟩
+    have heval : pD_max.eval κ = ∑ i : Fin m, (pD i).eval κ :=
+      map_sum (Polynomial.evalRingHom κ) pD Finset.univ
+    rw [heval]
+    exact Finset.single_le_sum (f := fun i => (pD i).eval κ) (fun _ _ => Nat.zero_le _)
+      (Finset.mem_univ j)
+  choose ε hε hD using hdummy
+  have hwithin := (EmulatesDummyWithin.composeFamily hρ hπ hφ hD).emulatesWithin
+  intro AdvQ AdvR A pA hA
+  rcases hwithin AdvQ AdvR A pA hA with ⟨S, pS, hpS, _, hSadv⟩
+  refine ⟨S, pS, hpS, fun pZ => ⟨fun κ =>
+    ∑ j : Fin m, ε j (sessionHopPoly m (absorbPoly pZ pA) pρ pπ pφ pD_max) κ, ?_, ?_⟩⟩
+  · have hsum :
+        (fun κ => ∑ j : Fin m, ε j (sessionHopPoly m (absorbPoly pZ pA) pρ pπ pφ pD_max) κ) =
+          ∑ j : Fin m, fun κ => ε j (sessionHopPoly m (absorbPoly pZ pA) pρ pπ pφ pD_max) κ := by
+      funext κ
+      simp [Finset.sum_apply]
+    rw [hsum]
+    exact Negligible.sum Finset.univ fun j _ => hε j _
+  · exact fun C Z hZ κ z => hSadv C Z pZ hZ κ z
+
+/-- Asymptotic multi-session UC composition theorem for homogeneous subroutine instances
+(fixed-arity adaptation of Canetti 2020, Theorem 22). -/
+theorem Emulates.composeMulti {m n : ℕ}
+    {In Out NetQ NetR SubIn SubOut NQ₁ NR₁ NQ₂ NR₂ : Type}
+    {ρ : MultiHybridProtocol m n In Out NetQ NetR SubIn SubOut}
+    {π : Protocol n SubIn SubOut NQ₁ NR₁} {φ : Protocol n SubIn SubOut NQ₂ NR₂}
+    {pρ pπ pφ : Polynomial ℕ}
+    (hρ : ρ.PolyBounded pρ) (hπ : π.PolyBounded pπ) (hφ : φ.PolyBounded pφ)
+    (h : Emulates π φ) :
+    Emulates (composeMulti ρ π) (composeMulti ρ φ) :=
+  Emulates.composeFamily hρ (fun _ => hπ) (fun _ => hφ) (fun _ => h)
+
+/-- Multi-session ideal-functionality realization: replacing `m` instances of `F` with `π` inside
+`composeMulti ρ` yields a protocol emulating `composeMulti ρ F.toProtocol`. -/
+theorem Realizes.composeMulti {m n : ℕ}
+    {In Out NetQ NetR SubIn SubOut NQ NR BackQ BackR : Type}
+    {ρ : MultiHybridProtocol m n In Out NetQ NetR SubIn SubOut}
+    {π : Protocol n SubIn SubOut NQ NR}
+    {F : IdealFunctionality n SubIn SubOut BackQ BackR}
+    {pρ pπ pF : Polynomial ℕ}
+    (hρ : ρ.PolyBounded pρ) (hπ : π.PolyBounded pπ) (hF : F.toProtocol.PolyBounded pF)
+    (h : Realizes π F) :
+    Emulates (composeMulti ρ π) (composeMulti ρ F.toProtocol) :=
+  Emulates.composeMulti hρ hπ hF h
+
+/-- Transitive multi-session hybrid replacement: if `π` realizes `F` and
+`composeMulti ρ F.toProtocol` realizes `G`, then `composeMulti ρ π` realizes `G`. -/
+theorem Realizes.composeMulti_trans {m n : ℕ}
+    {In Out NetQ NetR SubIn SubOut NQ NR BackQ BackR GQ GR : Type}
+    {ρ : MultiHybridProtocol m n In Out NetQ NetR SubIn SubOut}
+    {π : Protocol n SubIn SubOut NQ NR}
+    {F : IdealFunctionality n SubIn SubOut BackQ BackR}
+    {G : IdealFunctionality n In Out GQ GR}
+    {pρ pπ pF : Polynomial ℕ}
+    (hρ : ρ.PolyBounded pρ) (hπ : π.PolyBounded pπ) (hF : F.toProtocol.PolyBounded pF)
+    (hπF : Realizes π F) (hρG : Realizes (UC.composeMulti ρ F.toProtocol) G) :
+    Realizes (UC.composeMulti ρ π) G :=
+  Emulates.trans (Realizes.composeMulti hρ hπ hF hπF) hρG
 
 end Cslib.Crypto.Protocols.UC
