@@ -8,8 +8,8 @@ module
 
 public import CslibFrontier.Crypto.Computational.DiffieHellman.SelfReduction.Family
 import CslibFrontier.Crypto.Negligible.Basic
-import CslibFrontier.Probability.PMF.UniformPoint
 import CslibFrontier.Tactic.PPT
+import CslibFrontierTests.Crypto.PrimeOrderGroupFixture
 
 /-!
 # The DL and CDH self-reductions over a prime-order group family: checked instances
@@ -39,42 +39,19 @@ discrete-logarithm game in a group of order `q` with probability `1 / q`.
   assumptions they imply do. The CDH reduction of the derived CDH adversary is within `2 / 2 ^ n`
   of that adversary on every pair and in the worst-case game.
 
-`guessZero` and its two facts are private copies of the fixture in
-`CslibFrontierTests/Crypto/AssumptionNonvacuity.lean`, which is not a `module` file and so cannot
-be imported here.
+`guessZero` and its two facts are imported from the shared fixture in
+`CslibFrontierTests/Crypto/PrimeOrderGroupFixture.lean`.
 -/
 
 public section
 
 namespace CslibFrontierTests.Crypto.DiffieHellmanSelfReductionFamily
 
-open Cslib Cslib.Probability Cslib.Crypto Cslib.Crypto.PrimeOrderGroupFamily Turing.MultiTapeTM
+open Cslib Cslib.Probability Cslib.Crypto Cslib.Crypto.PrimeOrderGroupFamily
+  CslibFrontierTests.Crypto.PrimeOrderGroupFixture Turing.MultiTapeTM
 open scoped NNReal ENNReal
 
 variable (F : PrimeOrderGroupFamily) (d : F.Desc)
-
-/-! ### The adversary that always guesses `0` -/
-
-/-- Always guess the exponent `0`. -/
-private noncomputable def guessZero : ℕ → F.Desc × List Bool → ProbComp (List Bool) :=
-  fun _ _ => pure []
-
-/-- Guessing `0` is uniform strict PPT: it is a constant. -/
-private theorem guessZero_isPPT :
-    IsPPTOn F.encDiscreteLogInput encBits
-      (fun input => guessZero F input.1 input.2) :=
-  (ComputableInPolyTime.const _).isPPTOn
-
-/-- Guessing `0` against a fixed group of order `q` succeeds with probability exactly `1 / q`. -/
-private theorem succProbability_discreteLogGame_guessZero (n : ℕ) :
-    Game.succProbability (F.discreteLogGame (fun _ => PMF.pure d) (guessZero F) n) =
-      (F.order d : ℝ≥0)⁻¹ := by
-  have h := PMF.uniformOfFintype_bind_decide_eq_apply_true (0 : ZMod (F.order d))
-  rw [ZMod.card] at h
-  simp only [discreteLogGame, guessZero, ProbComp.eval_pure, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure, PMF.pure_bind] at h ⊢
-  simp only [ofBits, List.foldr_nil, Nat.cast_zero]
-  rw [Game.succProbability, h, ENNReal.toNNReal_inv, ENNReal.toNNReal_natCast]
 
 /-! ### Certificates -/
 

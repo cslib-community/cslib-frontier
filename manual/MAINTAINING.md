@@ -1,4 +1,4 @@
-# Maintain and review both manuals
+# Maintain the manuals
 
 The Operator's Manual serves humans and agents working in the codebase. Its acceptance goal
 is operational: a Lean-literate human can select the intended
@@ -12,16 +12,25 @@ acceptance goal is that the human can assign a clear task, obtain trustworthy re
 when to intervene and preserve a useful handoff. It links to codebase procedures in the
 Operator's Manual rather than repeating them.
 
-## Assess the change
+## What is maintained
 
-For every PR, assess both manuals and identify affected reader tasks and pages. Changes to public declarations,
-models, encodings, hypotheses, resource bounds, automation, imports, dependency setup,
-validation, review or upstream procedures can change what a reader must do or may claim.
-Update affected manuals and canonical examples alongside the implementation. For each manual
-whose readers are unaffected, record a specific no-impact reason, such as a proof-only refactor
-with identical statements, imports and automation behavior. The [repository policy](../CONTRIBUTING.md)
-defines the required assessment, mandatory coordinator review of both manuals and independent
-review of affected content.
+The [repository policy](../CONTRIBUTING.md#maintaining-the-manuals) sorts the pages into three
+groups.
+
+- Registries are kept current: the
+  [assumptions inventory](programs-crypto-and-probability/assumptions.md), the
+  [bibliography](sources.md) and the [results inventory](../results/README.md). A change to a
+  fact one of them records updates it in the same PR.
+- Procedure pages are updated only when a procedure or role changes: the
+  [workflows](workflows/index.md), [README.md](README.md), [BUILD.md](BUILD.md),
+  [COMMANDS.md](COMMANDS.md), this page and the [Agent Operator's Manual](AGENT_OPERATORS.md).
+- The reference chapters are frozen: the [reference index](index.md), the
+  [model map](model-map.md) and the other pages of the five chapter directories. PRs do not
+  update or review them. The Lean source, its docstrings and the API documentation are
+  authoritative.
+
+A change to a theorem, model, encoding or API explains itself in its docstrings and PR
+description. The rest of this page applies to procedure pages and registries.
 
 Keep one source of truth. Explain the task here; link to current [policy](../AGENTS.md),
 [cache documentation](../scripts/cache/README.md), [guide](../guide/CslibFrontierGuide.lean),
@@ -30,18 +39,16 @@ into this manual without a checked source client. The workflow snippets are cont
 excerpts, each declared in `workflows/data/*-excerpts.json`. They retain source authorship
 and require the linked client's imports, namespace and local assumptions.
 
-A new page also needs a place in the book. Add a reference or history chapter to `ORDER` in
-[build_latex.py](data/build_latex.py), or a workflow or appendix page to `WORKFLOWS` or
-`APPENDICES` in [build_manual.py](data/build_manual.py), and link it from an existing page.
-A new reference section goes before the final `history` entry of `ORDER`; a page
-deliberately kept out of the book belongs in `NON_CHAPTER_DOCUMENTS` in `build_manual.py`.
-Chapter order is an editorial choice, so the lists are maintained by hand; the checker
-reports any page missing from them.
+A new page also needs a place in the book. Add a workflow or appendix page to `WORKFLOWS` or
+`APPENDICES` in [build_manual.py](data/build_manual.py), and link it from an existing page. A
+page deliberately kept out of the book belongs in `NON_CHAPTER_DOCUMENTS` in `build_manual.py`.
+The reference and history chapters are listed in `ORDER` in [build_latex.py](data/build_latex.py),
+and the frozen pages in `FROZEN` beside it. Chapter order is an editorial choice, so the lists
+are maintained by hand; the checker reports any page missing from them.
 
-Model diagrams and worked-example panels are part of the maintained account. Review the
-meaning of every changed arrow and resource label against the referenced definitions; keep
-missing implementation or uniformity obligations visible. Panels should make the goal, context,
-result and recovery easy to find while preserving the canonical excerpt. Follow the
+Worked-example panels should make the goal, context, result and recovery easy to find while
+preserving the canonical excerpt. Review the meaning of every changed arrow and resource label
+of a diagram against the referenced definitions. Follow the
 [source conventions](BUILD.md#maintain-diagrams-and-worked-examples); generated graphics stay
 with the untracked book products.
 
@@ -57,7 +64,10 @@ with the untracked book products.
    markup, lists that would print as running text (a list item directly after a paragraph line),
    locators inside citation link labels (which the PDF drops),
    the book's chapter lists, excerpt registration and unique exact excerpt matches in
-   current source; its controls exercise failure and recovery.
+   current source; its controls exercise failure and recovery. In a frozen page it checks the
+   page's own markup and its links to other frozen pages, but not its links to Lean source or
+   to maintained pages, and `--fix-anchors` leaves frozen pages alone. Links from maintained
+   pages into frozen ones are checked.
    Both are required in CI and run before Lean work in full and quick `scripts/check.sh` modes.
    They need only Python, without publishing tools or regenerated research data. Inserting unrelated
    lines above an excerpt is allowed. Changing, removing or duplicating its text needs attention.
@@ -80,28 +90,23 @@ with the untracked book products.
    inspect the affected rendered pages and check the build log. A prose edit need not force a
    whole-library rebuild or a new full-book layout review.
 
-The coordinator checks both manual-impact assessments and ensures independent review covers
-the final change against the source and affected tasks, including the evidence for each
-no-impact decision. Review the human agent-driving route when roles, task assignment, review,
-handoffs, intervention or permissions change; review the codebase route when its APIs or
-operating procedures change. A passing link check cannot approve
-mathematical meaning, usability, completeness or whether a no-impact reason is sound.
+Review a changed procedure page with the change that alters the procedure: the human
+agent-driving route when roles, task assignment, review, handoffs, intervention or permissions
+change, and the codebase route when its operating procedures change. A passing link check
+cannot approve usability or completeness.
 Record any missing route or prerequisite as a concrete defect, not an instruction to ask an
 agent to fill it in.
 
 ## Preserve the research record
 
-The model reference began as a source survey at `13e6a319`. Keep its pinned evidence when it
-still supports the claim; revise a changed claim with a current source link and scope note.
-Source identity is evidence, not agreement with a textbook definition. Preserve source credit,
-conditional hypotheses, bounded milestones and unresolved broader objectives.
+The model reference began as a source survey at `13e6a319` and is now frozen with its pinned
+evidence. Source identity is evidence, not agreement with a textbook definition.
 
 The [history](history/index.md) measurements and quantitative census are historical. New
 measurements belong to a separately dated observation with defined coverage, units and denominators. Keep
 their scripts and methods in the repository; write generated exports, API responses, dependency
 copies and plots to ignored directories, as described in [BUILD.md](BUILD.md#regenerating-research-outputs).
-The small excerpt registrations are handwritten source inputs and stay versioned. Maintain
-semantic judgments in the chapters and model map rather than in generated inventories.
+The small excerpt registrations are handwritten source inputs and stay versioned.
 
 The optional fixed-snapshot audit is described with the
 [survey's supplementary code](history/survey.md#supplementary-code). It is not a merge check

@@ -63,9 +63,9 @@ local search, the numerical cost values through fixed-width binary words with le
 ## Main definitions
 
 * `Cslib.Complexity.PLS`, `Cslib.Complexity.PPP`, `Cslib.Complexity.PPAD`, `Cslib.Complexity.PPA`.
-* `Cslib.Complexity.padBits`, `Cslib.Complexity.evalCircuitOutputs`,
-  `Cslib.Complexity.evalCircuitCode`: circuit-code evaluation normalized to `n`-bit strings.
-* `Cslib.Complexity.CircuitCode`, `Cslib.Complexity.encPigeon`, `Cslib.Complexity.encLocalOpt`,
+* `Cslib.Complexity.padBits`, `Cslib.Complexity.evalCircuitCode`: shared circuit-code evaluation
+  normalized to `n`-bit strings.
+* `Cslib.Complexity.encPigeon`, `Cslib.Complexity.encLocalOpt`,
   `Cslib.Complexity.encEndOfLine`, `Cslib.Complexity.encLeaf`.
 * `Cslib.Complexity.LocalOpt`, `Cslib.Complexity.Pigeon`, `Cslib.Complexity.EndOfLine`,
   `Cslib.Complexity.Leaf`: the canonical circuit-presented total search problems.
@@ -521,39 +521,6 @@ theorem computableInPolyTime_padBits {encIn : α ↪ List Bool} {n : α → ℕ}
     ComputableInPolyTime (fun a => padBits (n a) (w a)) encIn encBits := by
   unfold padBits
   fun_prop
-
-/-- The raw code of a De Morgan circuit: its gate list and output wire numbers. -/
-abbrev CircuitCode : Type := List (Op × List ℕ) × List ℕ
-
-/-- Evaluate all output wires listed in `code.2` after running the gate list `code.1` on `u`. -/
-def evalCircuitOutputs (code : CircuitCode) (u : List Bool) : List Bool :=
-  let vals := evalCode interpretation false u code.1
-  code.2.map (fun o => vals.getD o false)
-
-private theorem evalCircuitOutputs_eq_map (code : CircuitCode) (u : List Bool) :
-    evalCircuitOutputs code u =
-      code.2.map fun o => (evalCode interpretation false u code.1).getD o false :=
-  rfl
-
-/-- On the code of a De Morgan circuit, `evalCircuitOutputs` computes the list of output bits. -/
-theorem evalCircuitOutputs_code {n m : ℕ} (c : Circuit signature n m) (x : Fin n → Bool) :
-    evalCircuitOutputs c.code (List.ofFn x) = List.ofFn (c.eval interpretation x) := by
-  rw [evalCircuitOutputs_eq_map]
-  refine List.ext_getElem (by simp [Circuit.code]) fun j hj₁ hj₂ => ?_
-  simp only [List.getElem_map, Circuit.code, List.getElem_ofFn]
-  exact (c.eval_eq_getD interpretation false x ⟨j, by simpa using hj₂⟩).symm
-
-@[fun_prop]
-theorem computableInPolyTime_evalCircuitOutputs {encIn : α ↪ List Bool}
-    {code : α → CircuitCode} {u : α → List Bool}
-    (hcode : ComputableInPolyTime code encIn encCode)
-    (hu : ComputableInPolyTime u encIn encBits) :
-    ComputableInPolyTime (fun a => evalCircuitOutputs (code a) (u a)) encIn encBits := by
-  have hvals : ComputableInPolyTime
-      (fun a => evalCode interpretation false (u a) (code a).1) encIn encBits :=
-    computableInPolyTime_evalCode hu hcode.fst'
-  exact listToBits.comp (mapWithInput hcode.snd'
-    (listGetD_binary false (hvals.comp (fst encIn encNat)) (snd encIn encNat)))
 
 /-- Evaluate a circuit code on `u` and normalize the output to `n` bits. -/
 def evalCircuitCode (n : ℕ) (code : CircuitCode) (u : List Bool) : List Bool :=

@@ -28,6 +28,7 @@ function at distinct inputs, gives a uniform list.
 * `Cslib.BitString.uniformList_listRows`: the same law for the ordinary list-of-lists program.
 * `Cslib.BitString.uniformList_map_listRow_equiv`: rows read at enumerated positions form a
   uniform function.
+* `Cslib.BitString.uniformList_map_listRow`: each single row is uniform.
 * `Cslib.BitString.uniformList_replaceRow`: replacing one row with an independent uniform row
   preserves uniformity.
 * `Cslib.BitString.uniformList_map_listXor`,
@@ -87,6 +88,17 @@ theorem uniformList_map_listRow_equiv {ι : Type*} [Fintype ι] [DecidableEq ι]
     simp [listRow_eq_ofFn width (e i) word, Equiv.arrowCongr]
   rw [h, ← PMF.map_comp, uniformList_blocks]
   exact PMF.uniformOfFintype_map_equiv _
+
+/-- Each fixed-width row of a uniform list of `count` rows is uniform. -/
+theorem uniformList_map_listRow {count width row : ℕ} (hrow : row < count) :
+    (uniformList (count * width)).map (listRow width row) = uniformList width := by
+  have h : listRow width row =
+      (List.ofFn ∘ fun rows : Fin count → BitString width => rows ⟨row, hrow⟩) ∘
+        fun word => block (ofList (count * width) word) :=
+    funext fun word => listRow_eq_ofFn width ⟨row, hrow⟩ word
+  rw [h, ← PMF.map_comp, uniformList_blocks, ← PMF.pi_uniformOfFintype, ← PMF.map_comp,
+    PMF.pi_map_eval]
+  rfl
 
 /-- XORing a uniform `m`-bit word with any word `r` preserves the uniform distribution; see
 `uniformList_map_zipWith_xor` and `uniformList_map_take_zipWith_xor` for the direct

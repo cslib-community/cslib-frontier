@@ -8,11 +8,14 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Unary
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Option
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Basic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Computable
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Reduction
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Bit
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimePrimitives
 public import Mathlib.Computability.Partrec
 public import Mathlib.Computability.Primrec.List
 public import Mathlib.Computability.Reduce
@@ -41,7 +44,7 @@ and mapping reductions with Mathlib's `Partrec`, `Computable`, `ComputablePred`,
   is `Partrec`.
 * `Turing.MultiTapeTM.IsComputable.computable`, `IsComputable.computable_bits`,
   `IsComputable.computable_bool`, `IsComputable.computable_option`,
-  `IsComputable.computable_option_bits`, and `ComputableInPolyTime.isComputable`: every function
+  `IsComputable.computable_option_bits`: every function
   satisfying `IsComputable f encIn encOut` (with computable `encIn` and a computable left inverse
   of `encOut`) is `Computable` in Mathlib's sense, and polynomial-time functions are
   `IsComputable`.
@@ -687,18 +690,9 @@ theorem IsComputable.computable_bool {α : Type*} [Primcodable α]
     (Primrec.option_getD.comp Primrec.list_head? (Primrec.const false)).to_comp
     (fun _ => rfl)
 
-/-- Functions computable in polynomial time are computable (`IsComputable`). -/
-theorem ComputableInPolyTime.isComputable {α β : Type*} {f : α → β}
-    {encIn : α ↪ List Bool} {encMid : β ↪ List Bool}
-    (h : ComputableInPolyTime f encIn encMid) : IsComputable f encIn encMid :=
-  let ⟨_, _, _, h⟩ := h
-  h.2.isComputable
-
 /-- Bit-word framing (`frame`) is `Computable` in Mathlib's sense. -/
 theorem computable_frame : Computable frame :=
-  let ⟨_, h⟩ := ComputableTidilyInLinearTimeAndSpace.of_frame (f := frame) (encIn := encBits)
-    (encOut := encBits) (fun _ => rfl)
-  h.computableInTimeAndSpace.isComputable.computable_bits
+  ComputableInPolyTime.frame.isComputable.computable_bits
 
 /-- Unary natural-number encoding (`encUnary`) is primitive recursive (`Primrec`). -/
 theorem primrec_encUnary : Primrec encUnary :=

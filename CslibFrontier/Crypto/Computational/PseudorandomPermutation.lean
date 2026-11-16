@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
 import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
@@ -21,6 +21,7 @@ import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Crypto.Primitives.PRP.Finite
 import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.QueryCount
 import CslibFrontier.Languages.Probabilistic.Sum.Lift
+import CslibFrontier.Foundations.Data.BitString.Basic
 import CslibFrontier.Probability.PMF.Bind
 
 /-!
@@ -556,7 +557,8 @@ theorem indistinguishable_prpIdealGame_prfIdealGame {blockLen : ℕ → ℕ}
     NNReal.coe_pow, NNReal.coe_ofNat] using
     advantage_prpIdealGame_prfIdealGame_le blockLen adversary n Q hQ
 
-private theorem eval_prpRealGame_eq_eval_prfRealGame {E : BlockCipher} (hkey : E.keyLen = id)
+/-- When `E.keyLen = id`, `E.prpRealGame` agrees in distribution with the PRF real game of `E`. -/
+theorem eval_prpRealGame_eq_eval_prfRealGame {E : BlockCipher} (hkey : E.keyLen = id)
     (adversary : OracleDistinguisher) (n : ℕ) :
     ProbComp.eval (E.prpRealGame adversary n) =
       ProbComp.eval

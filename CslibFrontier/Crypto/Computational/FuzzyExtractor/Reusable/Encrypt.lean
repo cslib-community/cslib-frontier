@@ -7,6 +7,7 @@ Authors: Karn Seth
 module
 -- upstream: candidate
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Crypto.Computational.FuzzyExtractor.Reusable
 public import CslibFrontier.Crypto.Computational.FuzzyExtractor.Reusable.Security
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.BitString
