@@ -7,8 +7,11 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Configuration
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Finite
 public import CslibFrontier.Computability.Probabilistic.Oracle.Composition
+import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Tactic.SuppCases
 import Mathlib.Tactic.Linarith
@@ -125,7 +128,7 @@ theorem isOraclePPTOn_step [Fintype Operation] {input : α ↪ List Bool}
     cases control with
     | none => fun_prop
     | some control =>
-      apply ((IsTidyOraclePPTOn.uniform_bool _).isOraclePPTOn).bind_with
+      apply (isPPTOn_uniform_bool _).isOraclePPTOn.bind_with
       apply IsOraclePPTOn.finite_cases
         (tag := fun pair : (α × (FiniteConfig k Bool Control Operation × State)) × Bool =>
           (pair.1.2.1.tapes.inputSymbol, pair.1.2.1.tapes.workTapeSymbols,

@@ -15,8 +15,7 @@ import CslibFrontier.Crypto.Computational.MerkleDamgard
 import CslibFrontier.Crypto.Computational.Rompel
 import CslibFrontier.Crypto.Negligible
 import CslibFrontier.Crypto.Negligible.Basic
-import CslibFrontier.Foundations.Data.BitString.WordsOfLength
-import CslibFrontier.Probability.Guessing.Leakage
+import CslibFrontier.Probability.Guessing.UniformList
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.UniformPoint
 import CslibFrontier.Tactic.PolyTime
@@ -183,14 +182,11 @@ theorem succProbability_inversionGame_le {H : List Bool → List Bool → List B
     have hklen := BitString.length_of_mem_support_uniformList hkey
     rw [PMF.bind_apply]
     simp only [bind_pure_beq_apply]
-    refine (PMF.tsum_mul_apply_le_card_mul _ (BitString.uniformList_apply_le _) (H key)
-      (BitString.wordsOfLength n)
-      (fun message => BitString.mem_wordsOfLength.mpr ((hlen key message).trans hklen))
+    exact (PMF.tsum_uniformList_mul_apply_le (H key)
+      (fun message _ => (hlen key message).trans hklen)
       (fun digest => (ProbComp.eval (adversary (3 * n + r) (key ++ digest))).map
-        fun candidate => candidate.drop (candidate.length / 3))).trans ?_
-    refine le_trans ?_ (two_pow_mul_one_div_two_pow_le n r)
-    gcongr
-    exact_mod_cast (BitString.card_wordsOfLength n).le
+        fun candidate => candidate.drop (candidate.length / 3))).trans
+      (two_pow_mul_one_div_two_pow_le n r)
   have key : ProbComp.eval (inversionGame (keyDigest H) adversary (3 * n + r)) true ≤
       ProbComp.eval (collisionGame H (fun _ _ => true) (finder H adversary r) n) true +
         ((1 / 2 : ℝ≥0) ^ n : ℝ≥0) := by

@@ -136,7 +136,7 @@ theorem prfIdealGame_eq_lazy (inLen outLen : ℕ → ℕ) (adversary : OracleDis
           (randomFunctionQuery (inLen n) query) =
         PMF.pure (randomFunctionOracle (inLen n) table query) :=
     interpret_randomFunctionQuery ProbComp.unifOracle (inLen n) table query
-  simpa only [ProbOracleComp.runWith, OracleComp.runWith, adapted, prfIdealGame,
+  simpa only [ProbOracleComp.runWith_eq_run_interpret, adapted, prfIdealGame,
     ProbComp.eval_bind, ProbComp.eval_uniform, ProbOracleComp.eval_run, ProbComp.eval_pure,
     OracleComp.interpret_interpret, OracleComp.interpret_sumHandler,
     ProbOracleComp.interpret_sample, ProbComp.unifFin, OracleComp.interpret_query, heager,

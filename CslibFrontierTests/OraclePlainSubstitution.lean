@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Computability.Probabilistic.Oracle.Parameter
 public import CslibFrontier.Computability.Probabilistic.Oracle.RunState
 public import CslibFrontier.Computability.Probabilistic.Oracle.Memoize
@@ -124,7 +125,7 @@ example :
         (twoLevel 3)).run 0 =
       PMF.pure (([false, false, false, true, true, true],
         [([true, true, true], [false, false, false]), ([], [true, true, true])]), 2) := by
-  change ProbOracleComp.runWith firstOnes (twoLevel 3) 0 = _
+  rw [← ProbOracleComp.runWith_eq_run_interpret]
   rw [twoLevel, ProbOracleComp.runWith_run_interpret]
   simp [client, cached, memoize, StateT.run, firstOnes, List.lookup]
 

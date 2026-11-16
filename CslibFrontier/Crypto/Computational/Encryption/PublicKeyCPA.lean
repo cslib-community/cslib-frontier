@@ -10,16 +10,14 @@ module
 public import CslibFrontier.Computability.Probabilistic.Oracle.Parameter
 public import CslibFrontier.Crypto.Computational.Encryption.Basic
 public import CslibFrontier.Languages.Probabilistic.Oracle.Run
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
-import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.PPT.PairCapture
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle
 import CslibFrontier.Probability.PMF
-import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Tactic.EncLen
 
 /-!

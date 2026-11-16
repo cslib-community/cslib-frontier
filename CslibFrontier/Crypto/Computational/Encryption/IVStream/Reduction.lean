@@ -9,15 +9,14 @@ module
 
 public import CslibFrontier.Crypto.Computational.Encryption.BlockModeWord
 public import CslibFrontier.Crypto.Computational.Encryption.IVStream
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
-import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
 import CslibFrontier.Foundations.Data.BitString.List.Operations
 import CslibFrontier.Languages.Probabilistic.Oracle.Support
 import CslibFrontier.Languages.Probabilistic.QueryCount.Congr
@@ -191,13 +190,17 @@ theorem isOraclePPT_ivStreamToPrfDistinguisher
     (hks : IsOraclePPTOn (encPair encUnary (encPair encBits encUnary)) encBits
       (fun ((n, iv, blocks) : ℕ × List Bool × ℕ) => keystreamQueries n iv blocks))
     {adversary : OracleDistinguisher} (hadversary : IsOraclePPT encBool adversary) (bit : Bool) :
-    IsOraclePPT encBool (ivStreamToPrfDistinguisher keystreamQueries adversary bit) :=
-  (IsOraclePPTOn.interpret_preprocess_open' (operationEncoding := encFinEnum Unit)
+    IsOraclePPT encBool (ivStreamToPrfDistinguisher keystreamQueries adversary bit) := by
+  change IsOraclePPTOn (encPair encUnary encBits) encBool
+    (fun caller : ℕ × List Bool => ProbOracleComp.simulate
+      (ivStreamPrfHandler keystreamQueries caller.1 bit) (adversary caller.1 []))
+  simp only [ProbOracleComp.simulate, OracleComp.substitute_eq_interpret]
+  exact (IsOraclePPTOn.interpret_preprocess_open' (operationEncoding := encFinEnum Unit)
     (handler := fun caller : ℕ × List Bool => ivStreamPrfHandler keystreamQueries caller.1 bit)
     (prepare := fun caller : ℕ × List Bool => (caller.1, ([] : List Bool)))
     (resources := fun caller request => caller.1 + request.length)
     hadversary (by fun_prop) (isOraclePPTOn_ivStreamPrfHandler hks bit) (by fun_prop)
-    fun _ _ _ hreply => length_le_of_mem_support_ivStreamPrfHandler hreply).isOraclePPT
+    fun _ _ _ hreply => length_le_of_mem_support_ivStreamPrfHandler hreply)
 
 /-! ### The real game -/
 

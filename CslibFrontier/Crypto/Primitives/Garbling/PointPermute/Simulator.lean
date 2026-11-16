@@ -11,7 +11,7 @@ public import CslibFrontier.Crypto.Primitives.Garbling.PointPermute
 public import CslibFrontier.Crypto.Primitives.Garbling.Privacy
 public import CslibFrontier.Crypto.Primitives.Garbling.Games
 public import CslibFrontier.Crypto.Primitives.Garbling.PointPermute.Efficient
-public import CslibFrontier.Crypto.Primitives.Garbling.PointPermute.LabelWord
+public import CslibFrontier.Crypto.Primitives.Garbling.LabelWord
 public import CslibFrontier.Computability.Probabilistic.PPT
 import CslibFrontier.Probability.BitString.List
 import CslibFrontier.Computability.Probabilistic.Sampling

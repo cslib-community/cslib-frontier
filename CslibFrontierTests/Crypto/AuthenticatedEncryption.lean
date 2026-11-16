@@ -14,7 +14,9 @@ Provides concrete instantiations of `SymmetricCipher`, verifies oracle behavior 
 proves that `echoCipher` fails both `INDCPA` (via `not_indcpa_of_ciphertext_length_eq`,
 Boneh–Shoup Example 5.1 / Exercise 5.10(a)) and `CiphertextIntegrity` (via an explicit zero-query
 oracle-PPT adversary), and exercises the composed runtime certificates (`IsPPT`, `IsOraclePPT`) and
-quantitative security bounds for Boneh–Shoup Theorem 9.1 (`AE ⇒ CCA`) on `echoCipher`.
+quantitative security bounds for Boneh–Shoup Theorem 9.1 (`AE ⇒ CCA`, displays (9.1)–(9.4)) on
+`echoCipher`, including the decryption-query budgets `Qd = 0` and `Qd = 1`, the latter for an
+adversary that makes one decryption query and so does not fit the budget `0`.
 
 The one-time notions fail for `echoCipher` too: one encryption query of `(0ⁿ, 1ⁿ)` reveals the
 challenge bit, so it is neither `OneTimeINDCPA` nor `OneTimeINDCCA`, and a zero-query adversary
@@ -154,6 +156,13 @@ theorem isQueryBounded_zeroCCAAdversary (n : ℕ) :
     (zeroCCAAdversary n []).IsQueryBounded 0 :=
   ProbOracleComp.IsQueryBounded.sample (pure false)
 
+theorem isDecryptionQueryBounded_zeroCCAAdversary (n : ℕ) :
+    SymmetricCipher.IsDecryptionQueryBounded (zeroCCAAdversary n []) 0 :=
+  SymmetricCipher.isDecryptionQueryBounded_of_isQueryBounded (isQueryBounded_zeroCCAAdversary n)
+
+theorem echoCipher_ctLenLE (n : ℕ) : echoCipher.CiphertextLengthLE n (id n) :=
+  fun k hk msg hmsg ct hct => (echoCipher_ctLen n k hk msg hmsg ct hct).le
+
 -- Composed closed-game `IsPPT` and Theorem 9.1 reduction `IsOraclePPT` certificates on
 -- `echoCipher` with `ctBound = id` and `Q = 0`.
 example (bit : Bool) :
@@ -211,35 +220,112 @@ example (n : ℕ) :
   have hd : (dyadicSize 0 : ℝ) = 2 := by exact_mod_cast h0
   simpa [hd] using
     echoCipher.advantage_ccaGame_le id (fun _ => 0) zeroCCAAdversary n
-      (isQueryBounded_zeroCCAAdversary n) hct
+      (isDecryptionQueryBounded_zeroCCAAdversary n) hct
 
 example (n : ℕ) :
     (Game.advantage (ProbComp.eval (echoCipher.ccaGame zeroCCAAdversary false n))
         (ProbComp.eval (echoCipher.ccaGame zeroCCAAdversary true n)) : ℝ) ≤
-      4 *
-        (Game.succProbability
-          (ProbComp.eval
-            (echoCipher.ciGame
-              (SymmetricCipher.ccaToCIHiddenBitAdversary id (fun _ => 0) zeroCCAAdversary) n)) :
-            ℝ) +
       (Game.advantage
         (ProbComp.eval
           (echoCipher.cpaGame (SymmetricCipher.ccaToCPAAdversary id zeroCCAAdversary) false n))
         (ProbComp.eval
           (echoCipher.cpaGame (SymmetricCipher.ccaToCPAAdversary id zeroCCAAdversary) true n)) :
-          ℝ) := by
-  have hct (k : List Bool) (hk : k ∈ (ProbComp.eval (echoCipher.keyGen n)).support)
-      (msg : List Bool) (hmsg : msg.length = n)
-      (ct : List Bool) (hct : ct ∈ (ProbComp.eval (echoCipher.encrypt n k msg)).support) :
-      ct.length ≤ id n :=
-    (echoCipher_ctLen n k hk msg hmsg ct hct).le
+          ℝ) +
+      4 *
+        (Game.succProbability
+          (ProbComp.eval
+            (echoCipher.ciGame
+              (SymmetricCipher.ccaToCIHiddenBitAdversary id (fun _ => 0) zeroCCAAdversary) n)) :
+            ℝ) := by
   have hd : 2 * (dyadicSize 0 : ℝ) = 4 := by
     have h0 : dyadicSize 0 = 2 := by decide
     rw [h0]
     norm_num
   simpa [hd] using
     echoCipher.advantage_ccaGame_le_two_mul id (fun _ => 0) zeroCCAAdversary n
-      (isQueryBounded_zeroCCAAdversary n) hct
+      (isDecryptionQueryBounded_zeroCCAAdversary n) (echoCipher_ctLenLE n)
+
+-- Boneh–Shoup (9.1), printed p. 363: the CCA advantage is twice the guessing advantage of the
+-- bit-guessing game `Experiment.guessBit`, in which (9.4) is stated.
+example (E : SymmetricCipher) (adversary : CCAAdversary) (n : ℕ) :
+    Game.advantage (ProbComp.eval (E.ccaGame adversary false n))
+        (ProbComp.eval (E.ccaGame adversary true n)) =
+      2 * Game.guessingAdvantage
+        (ProbComp.eval (Experiment.guessBit fun b => E.ccaGame adversary b n)) :=
+  Experiment.advantage_eq_two_mul_guessingAdvantage_guessBit fun b => E.ccaGame adversary b n
+
+-- Bound (9.4) with factor `dyadicSize (Qd n - 1)`, instantiated at `Qd = 0`, where that factor is
+-- `dyadicSize 0 = 2`.
+example (n : ℕ) :
+    (Game.guessingAdvantage (ProbComp.eval
+        (Experiment.guessBit fun b => echoCipher.ccaGame zeroCCAAdversary b n)) : ℝ) ≤
+      (Game.guessingAdvantage (ProbComp.eval (Experiment.guessBit fun b =>
+        echoCipher.cpaGame (SymmetricCipher.ccaToCPAAdversary id zeroCCAAdversary) b n)) : ℝ) +
+      2 *
+        (Game.succProbability
+          (ProbComp.eval
+            (echoCipher.ciGame
+              (SymmetricCipher.ccaToCIHiddenBitAdversary id (fun _ => 0) zeroCCAAdversary) n)) :
+            ℝ) := by
+  have hd : (dyadicSize (0 - 1) : ℝ) = 2 := by
+    have h0 : dyadicSize (0 - 1) = 2 := by decide
+    exact_mod_cast h0
+  simpa only [hd] using
+    echoCipher.guessingAdvantage_guessBit_ccaGame_le id (fun _ => 0) zeroCCAAdversary n
+      (isDecryptionQueryBounded_zeroCCAAdversary n) (echoCipher_ctLenLE n)
+
+-- The factor-`2 * Qd` form of (9.4) at `Qd = 0`: the CI term vanishes, although the dyadic factor
+-- above is `2`, so an adversary without decryption queries keeps exactly its CPA guessing advantage
+-- as an upper bound.
+example (n : ℕ) :
+    (Game.guessingAdvantage (ProbComp.eval
+        (Experiment.guessBit fun b => echoCipher.ccaGame zeroCCAAdversary b n)) : ℝ) ≤
+      Game.guessingAdvantage (ProbComp.eval (Experiment.guessBit fun b =>
+        echoCipher.cpaGame (SymmetricCipher.ccaToCPAAdversary id zeroCCAAdversary) b n)) := by
+  simpa using
+    echoCipher.guessingAdvantage_guessBit_ccaGame_le_two_mul id (fun _ => 0) zeroCCAAdversary n
+      (isDecryptionQueryBounded_zeroCCAAdversary n) (echoCipher_ctLenLE n)
+
+-- The deviation from the book's factor `Qd`: at `Qd = 3` the index range `dyadicSize (Qd - 1)` is
+-- `4`, above `Qd` and within `2 * Qd`.
+example : dyadicSize (3 - 1) = 4 ∧ 3 < dyadicSize (3 - 1) ∧ dyadicSize (3 - 1) ≤ 2 * 3 := by
+  decide
+
+/-- One decryption query on the empty ciphertext, then a constant guess. -/
+def decOnceCCAAdversary : CCAAdversary :=
+  fun _ _ => do
+    let _ ← ProbOracleComp.query (true, ([] : List Bool))
+    return false
+
+theorem isDecryptionQueryBounded_decOnceCCAAdversary (n : ℕ) :
+    SymmetricCipher.IsDecryptionQueryBounded (decOnceCCAAdversary n []) 1 := by
+  unfold decOnceCCAAdversary
+  exact OracleComp.IsCostBounded.bind (n := 1) (m := 0)
+    (OracleComp.IsCostBounded.query _) fun _ => OracleComp.IsCostBounded.pure _ 0
+
+-- The decryption budget can fail: one decryption query does not fit in the budget `0`.
+example (n : ℕ) : ¬ SymmetricCipher.IsDecryptionQueryBounded (decOnceCCAAdversary n []) 0 := by
+  intro h
+  have h' := (OracleComp.IsCostBounded.liftBind_iff
+    (q := (Sum.inr (true, ([] : List Bool)) : ℕ ⊕ (Bool × List Bool)))).mp h
+  simp at h'
+
+-- Bound (9.4) with factor `2 * Qd` at `Qd = 1`, for an adversary that spends its one decryption
+-- query.
+example (n : ℕ) :
+    (Game.guessingAdvantage (ProbComp.eval
+        (Experiment.guessBit fun b => echoCipher.ccaGame decOnceCCAAdversary b n)) : ℝ) ≤
+      (Game.guessingAdvantage (ProbComp.eval (Experiment.guessBit fun b =>
+        echoCipher.cpaGame (SymmetricCipher.ccaToCPAAdversary id decOnceCCAAdversary) b n)) : ℝ) +
+      2 *
+        (Game.succProbability
+          (ProbComp.eval
+            (echoCipher.ciGame
+              (SymmetricCipher.ccaToCIHiddenBitAdversary id (fun _ => 1) decOnceCCAAdversary) n)) :
+            ℝ) := by
+  simpa only [Nat.cast_one, mul_one] using
+    echoCipher.guessingAdvantage_guessBit_ccaGame_le_two_mul id (fun _ => 1) decOnceCCAAdversary n
+      (isDecryptionQueryBounded_decOnceCCAAdversary n) (echoCipher_ctLenLE n)
 
 /-! ### One-Time Oracles, Games, and 1AE ⇒ 1CCA Bounds on `echoCipher` -/
 
@@ -440,12 +526,6 @@ example (bit : Bool) (n : ℕ) :
 example (n : ℕ) :
     (Game.advantage (ProbComp.eval (echoCipher.ccaOneTimeGame zeroCCAAdversary false n))
         (ProbComp.eval (echoCipher.ccaOneTimeGame zeroCCAAdversary true n)) : ℝ) ≤
-      4 *
-        (Game.succProbability
-          (ProbComp.eval
-            (echoCipher.ciOneTimeGame
-              (SymmetricCipher.ccaToCIHiddenBitAdversary id (fun _ => 0) zeroCCAAdversary) n)) :
-            ℝ) +
       (Game.advantage
         (ProbComp.eval
           (echoCipher.cpaOneTimeGame
@@ -453,18 +533,57 @@ example (n : ℕ) :
         (ProbComp.eval
           (echoCipher.cpaOneTimeGame
             (SymmetricCipher.ccaToCPAAdversary id zeroCCAAdversary) true n)) :
-          ℝ) := by
-  have hct (k : List Bool) (hk : k ∈ (ProbComp.eval (echoCipher.keyGen n)).support)
-      (msg : List Bool) (hmsg : msg.length = n)
-      (ct : List Bool) (hct : ct ∈ (ProbComp.eval (echoCipher.encrypt n k msg)).support) :
-      ct.length ≤ id n :=
-    (echoCipher_ctLen n k hk msg hmsg ct hct).le
+          ℝ) +
+      4 *
+        (Game.succProbability
+          (ProbComp.eval
+            (echoCipher.ciOneTimeGame
+              (SymmetricCipher.ccaToCIHiddenBitAdversary id (fun _ => 0) zeroCCAAdversary) n)) :
+            ℝ) := by
   have hd : 2 * (dyadicSize 0 : ℝ) = 4 := by
     have h0 : dyadicSize 0 = 2 := by decide
     rw [h0]
     norm_num
   simpa [hd] using
     echoCipher.advantage_ccaOneTimeGame_le_two_mul id (fun _ => 0) zeroCCAAdversary n
-      (isQueryBounded_zeroCCAAdversary n) hct
+      (isDecryptionQueryBounded_zeroCCAAdversary n) (echoCipher_ctLenLE n)
+
+-- Boneh–Shoup (9.2), printed p. 363: the one-time CCA advantage is twice the guessing advantage of
+-- the one-time bit-guessing game.
+example (E : SymmetricCipher) (adversary : CCAAdversary) (n : ℕ) :
+    Game.advantage (ProbComp.eval (E.ccaOneTimeGame adversary false n))
+        (ProbComp.eval (E.ccaOneTimeGame adversary true n)) =
+      2 * Game.guessingAdvantage
+        (ProbComp.eval (Experiment.guessBit fun b => E.ccaOneTimeGame adversary b n)) :=
+  Experiment.advantage_eq_two_mul_guessingAdvantage_guessBit fun b => E.ccaOneTimeGame adversary b n
+
+-- One-time bound (9.4) with factor `dyadicSize (Qd n - 1)` at `Qd = 0`.
+example (n : ℕ) :
+    (Game.guessingAdvantage (ProbComp.eval
+        (Experiment.guessBit fun b => echoCipher.ccaOneTimeGame zeroCCAAdversary b n)) : ℝ) ≤
+      (Game.guessingAdvantage (ProbComp.eval (Experiment.guessBit fun b =>
+        echoCipher.cpaOneTimeGame (SymmetricCipher.ccaToCPAAdversary id zeroCCAAdversary) b n)) :
+        ℝ) +
+      2 *
+        (Game.succProbability
+          (ProbComp.eval
+            (echoCipher.ciOneTimeGame
+              (SymmetricCipher.ccaToCIHiddenBitAdversary id (fun _ => 0) zeroCCAAdversary) n)) :
+            ℝ) := by
+  have hd : (dyadicSize (0 - 1) : ℝ) = 2 := by
+    have h0 : dyadicSize (0 - 1) = 2 := by decide
+    exact_mod_cast h0
+  simpa only [hd] using
+    echoCipher.guessingAdvantage_guessBit_ccaOneTimeGame_le id (fun _ => 0) zeroCCAAdversary n
+      (isDecryptionQueryBounded_zeroCCAAdversary n) (echoCipher_ctLenLE n)
+
+-- Encryption queries cost nothing in the decryption budget: the one-query attack
+-- `firstBitCCAAdversary` is decryption-query bounded by `0`.
+example (n : ℕ) : SymmetricCipher.IsDecryptionQueryBounded (firstBitCCAAdversary n []) 0 := by
+  unfold firstBitCCAAdversary
+  refine OracleComp.IsCostBounded.bind (n := 0) (m := 0) ?_ fun _ =>
+    OracleComp.IsCostBounded.pure _ 0
+  simp only [OracleComp.isCostBounded_map_iff]
+  exact OracleComp.IsCostBounded.query _
 
 end CslibFrontierTests.Crypto.AuthenticatedEncryption

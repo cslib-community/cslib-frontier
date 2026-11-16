@@ -86,7 +86,8 @@ orders the pair instead: it takes `f = b' - b` and `w = a * a'⁻¹` when `b < b
 
 Exercise 10.26 (p. 431) and the use of `H_rsa` as a compression function in the Merkle–Damgård
 construction (p. 416) are not formalized. The accumulator of §10.9 is in `GUOAccumulator.lean`,
-without its security theorem.
+and its security under strong RSA in
+`CslibFrontier/Crypto/Computational/GUOAccumulator/Security.lean`.
 
 ## References
 

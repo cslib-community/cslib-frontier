@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
 import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
@@ -21,6 +21,7 @@ import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Crypto.Primitives.PRP.Finite
 import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.QueryCount
 import CslibFrontier.Languages.Probabilistic.Sum.Lift
+import CslibFrontier.Foundations.Data.BitString.Basic
 import CslibFrontier.Probability.PMF.Bind
 
 /-!
