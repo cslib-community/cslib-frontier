@@ -40,9 +40,15 @@ In both folds a new label is cut to `k + 2` bits, which changes nothing since no
 and which bounds the growth of the state; and wire numbers read in binary are capped at one past
 the number of labels so far, which changes no lookup (`List.getD_min_length_succ_sub_one`).
 
+A body whose rows read only the gate, its AND bit and the row number, as the bodies written by
+the simulator and by the privacy reduction do, is certified once from gate data
+(`HalfGates.bodyWith_gateData_polyTime`).
+
 ## Main results
 
 * `Cslib.Crypto.Garbling.HalfGates.scheme_isEfficient`: half-gates garbling is efficient.
+* `Cslib.Crypto.Garbling.HalfGates.bodyWith_gateData_polyTime`: bodies from gate data whose rows
+  read the gate, its AND bit and the row number are computed in polynomial time.
 -/
 
 public section
@@ -487,6 +493,36 @@ private theorem evalWord_polyTime :
       (ComputableTidilyInPolyTime.fst _ _)
         (ComputableTidilyInPolyTime.snd _ _))).computableInPolyTime
   exact hfin.comp (hfold.fst'.prod hc)
+
+/-! ### Bodies from gate data -/
+
+/-- **A garbled function body from gate data** is computed in polynomial time when each row
+reads only the number of its gate, the gate's AND bit and its own number, and is computed in
+polynomial time from them. -/
+theorem bodyWith_gateData_polyTime {γ : Type} {encIn : γ ↪ List Bool} {n : γ → ℕ}
+    {gates : γ → List (ℕ × ℕ × List Bool)} {row : γ × ℕ × Bool × ℕ → List Bool}
+    (hn : ComputableInPolyTime n encIn encUnary)
+    (hgates : ComputableInPolyTime gates encIn (encList (encPair encNat (encPair encNat encBits))))
+    (hrow : ComputableInPolyTime row
+      (encPair encIn (encPair encUnary (encPair encBool encUnary))) encBits) :
+    ComputableInPolyTime (fun x => PointPermute.bodyWith (n x) (gates x).length 0
+      (fun g => ((gates x).getD g (0, 0, [])).1) (fun g => ((gates x).getD g (0, 0, [])).2.1)
+      (fun g _ _ i => row (x, g, ((gates x).getD g (0, 0, [])).2.2.getD 3 false, i))) encIn
+      encBits := by
+  have hx := ComputableInPolyTime.fst encIn
+    (encPair encUnary (encPair encUnary (encPair encUnary encUnary)))
+  have hrest := ComputableInPolyTime.snd encIn
+    (encPair encUnary (encPair encUnary (encPair encUnary encUnary)))
+  have hisAnd := ComputableInPolyTime.bitsGetDWithInput
+    (ComputableInPolyTime.listGetDWithInput (hgates.comp hx) hrest.fst' (0, 0, [])).snd'.snd'
+    (ComputableInPolyTime.const 3) false
+  have hgate := ComputableInPolyTime.listGetDWithInput
+    (hgates.comp (ComputableInPolyTime.fst encIn encUnary)) (ComputableInPolyTime.snd _ _)
+    (0, 0, [])
+  exact PointPermute.bodyWith_polyTime
+    (row := fun x g _ _ i => row (x, g, ((gates x).getD g (0, 0, [])).2.2.getD 3 false, i)) hn
+    ((ComputableInPolyTime.length_list _).comp hgates) (ComputableInPolyTime.const 0) hgate.fst'
+    hgate.snd'.fst' (hrow.comp (hx.prod (hrest.fst'.prod (hisAnd.prod hrest.snd'.snd'.snd'))))
 
 /-! ### Garbling -/
 

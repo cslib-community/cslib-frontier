@@ -87,55 +87,69 @@ open Cslib.Circuits Probability
 
 section Words
 
+/-- The data that the gate loop of the reduction reads. -/
+private structure GateLoopData where
+  /-- The parameter `k`: labels have `k + 2` bits and tweaks `k` bits. -/
+  param : ℕ
+  /-- The number `n` of inputs of the circuit. -/
+  inputCount : ℕ
+  /-- The data `(A, B, table)` of the gates of the circuit, in order. -/
+  gates : List (ℕ × ℕ × List Bool)
+  /-- The plaintext values of all wires of the circuit on the chosen input. -/
+  wireValues : List Bool
+
+/-- The state of the gate loop of the reduction. -/
+private structure GateLoopState where
+  /-- The words of the labels that the evaluator holds on the wires so far. -/
+  labels : List (List Bool)
+  /-- The ciphertext block of each gate so far. -/
+  blocks : List (List Bool)
+
 variable (hash : List Bool → List Bool → List Bool)
 
 /-- The data `(A, B, table)` of the next gate after the labels `labels`, gate `|labels| - n`. -/
-private def nextGate (n : ℕ) (gates : List (ℕ × ℕ × List Bool)) (labels : List (List Bool)) :
-    ℕ × ℕ × List Bool :=
-  gates.getD (labels.length - n) (0, 0, [])
+private def nextGate (d : GateLoopData) (labels : List (List Bool)) : ℕ × ℕ × List Bool :=
+  d.gates.getD (labels.length - d.inputCount) (0, 0, [])
 
 /-- The 0-indexed first argument wire of the next gate, capped at the labels so far. -/
-private def leftArg (n : ℕ) (gates : List (ℕ × ℕ × List Bool)) (labels : List (List Bool)) : ℕ :=
-  min (labels.length + 1) (nextGate n gates labels).1 - 1
+private def leftArg (d : GateLoopData) (labels : List (List Bool)) : ℕ :=
+  min (labels.length + 1) (nextGate d labels).1 - 1
 
 /-- The 0-indexed second argument wire of the next gate, capped at the labels so far. -/
-private def rightArg (n : ℕ) (gates : List (ℕ × ℕ × List Bool)) (labels : List (List Bool)) :
-    ℕ :=
-  min (labels.length + 1) (nextGate n gates labels).2.1 - 1
+private def rightArg (d : GateLoopData) (labels : List (List Bool)) : ℕ :=
+  min (labels.length + 1) (nextGate d labels).2.1 - 1
 
 /-- The state after AND gate `g` with argument labels `a` and `b`, from the oracle's replies
 `rG` and `rE`: the ciphertexts are `TG = H(a, t) ⊕ rG` and `TE = H(b, t') ⊕ a ⊕ rE`, the label is
 the evaluator's AND gate on them, and the block is `TG ‖ TE`. -/
-private def andState (k g : ℕ) (a b rG rE : List Bool) (st : List (List Bool) × List (List Bool)) :
-    List (List Bool) × List (List Bool) :=
+private def andState (k g : ℕ) (a b rG rE : List Bool) (st : GateLoopState) : GateLoopState :=
   let tg := List.zipWith xor (hashWord hash k a (tweakWord k g false)) rG
   let te := List.zipWith xor (List.zipWith xor (hashWord hash k b (tweakWord k g true)) a) rE
-  (st.1 ++ [andWord hash k g tg te a b], st.2 ++ [tg ++ te])
+  ⟨st.labels ++ [andWord hash k g tg te a b], st.blocks ++ [tg ++ te]⟩
 
-/-- One gate of the reduction at parameter `k`, for a circuit with `n` inputs, gate data `gates`
-and plaintext wire values `ws`. The state is the labels the evaluator holds on the wires so far
-and the ciphertext block of each gate so far. Gate `g = |labels| - n` reads the labels `a` and
-`b` of its argument wires `i` and `j`. An AND gate asks the oracle `(a, t, col(b) ⊕ v_j)` and
+/-- One gate of the reduction on the loop data `d`. Gate `g = |labels| - n` reads the labels `a`
+and `b` of its argument wires `i` and `j`. An AND gate asks the oracle `(a, t, col(b) ⊕ v_j)` and
 `(b, t', v_i)` at the tweaks `t`, `t'` of its two slots, keeps the first `k + 2` bits of each
 reply, and continues with `andState`. An XOR gate appends the sum of its argument labels, cut to
 `k + 2` bits, and an empty block. -/
-private def reductionStep (k n : ℕ) (gates : List (ℕ × ℕ × List Bool)) (ws : List Bool)
-    (st : List (List Bool) × List (List Bool)) :
-    WordOracleComp Unit (List (List Bool) × List (List Bool)) :=
-  if (nextGate n gates st.1).2.2.getD 3 false then do
-    let rG ← List.take (k + 2) <$> ProbOracleComp.query
+private def reductionStep (d : GateLoopData) (st : GateLoopState) :
+    WordOracleComp Unit GateLoopState :=
+  if (nextGate d st.labels).2.2.getD 3 false then do
+    let rG ← List.take (d.param + 2) <$> ProbOracleComp.query
       (spec := fun _ : Unit × List Bool => List Bool)
-      ((), st.1.getD (leftArg n gates st.1) [] ++ (tweakWord k (st.1.length - n) false ++
-        [colourWord k (st.1.getD (rightArg n gates st.1) []) ^^
-          ws.getD (rightArg n gates st.1) false]))
-    let rE ← List.take (k + 2) <$> ProbOracleComp.query
+      ((), st.labels.getD (leftArg d st.labels) [] ++
+        (tweakWord d.param (st.labels.length - d.inputCount) false ++
+          [colourWord d.param (st.labels.getD (rightArg d st.labels) []) ^^
+            d.wireValues.getD (rightArg d st.labels) false]))
+    let rE ← List.take (d.param + 2) <$> ProbOracleComp.query
       (spec := fun _ : Unit × List Bool => List Bool)
-      ((), st.1.getD (rightArg n gates st.1) [] ++ (tweakWord k (st.1.length - n) true ++
-        [ws.getD (leftArg n gates st.1) false]))
-    pure (andState hash k (st.1.length - n) (st.1.getD (leftArg n gates st.1) [])
-      (st.1.getD (rightArg n gates st.1) []) rG rE st)
-  else pure (st.1 ++ [(List.zipWith xor (st.1.getD (leftArg n gates st.1) [])
-      (st.1.getD (rightArg n gates st.1) [])).take (k + 2)], st.2 ++ [[]])
+      ((), st.labels.getD (rightArg d st.labels) [] ++
+        (tweakWord d.param (st.labels.length - d.inputCount) true ++
+          [d.wireValues.getD (leftArg d st.labels) false]))
+    pure (andState hash d.param (st.labels.length - d.inputCount)
+      (st.labels.getD (leftArg d st.labels) []) (st.labels.getD (rightArg d st.labels) []) rG rE st)
+  else pure ⟨st.labels ++ [(List.zipWith xor (st.labels.getD (leftArg d st.labels) [])
+      (st.labels.getD (rightArg d st.labels) [])).take (d.param + 2)], st.blocks ++ [[]]⟩
 
 /-- Row `i` of gate `g` of the reduction's garbled function in the layout of
 `PointPermute.bodyWith`: row `0` is the AND bit, row `1` the gate's ciphertext block, and the
@@ -148,14 +162,14 @@ plaintext wire values `ws`, the coins of the input labels and the final state of
 `F` has the header and gates of `f` with the blocks as ciphertexts, `X` lists the input labels,
 and the decoding bit of each output is the colour of its label plus its value. -/
 private def reductionView (k : ℕ) (f : ConventionalCircuit) (ws coins : List Bool)
-    (st : List (List Bool) × List (List Bool)) : PrvView where
+    (st : GateLoopState) : PrvView where
   fn := PointPermute.encFn ((k, f.n, f.m, f.gateList.length),
     PointPermute.bodyWith f.n f.gateList.length 0 (fun g => (f.gateList.getD g (0, 0, [])).1)
       (fun g => (f.gateList.getD g (0, 0, [])).2.1)
-      (fun g _ _ i => ctRow st.2 ((f.gateList.getD g (0, 0, [])).2.2.getD 3 false) g i))
+      (fun g _ _ i => ctRow st.blocks ((f.gateList.getD g (0, 0, [])).2.2.getD 3 false) g i))
   input := ((List.range f.n).map fun i => BitString.listRow (k + 2) i coins).flatten
   decInfo := (List.range f.m).map fun o =>
-    colourWord k (st.1.getD (f.n + f.gateList.length - f.m + o) []) ^^
+    colourWord k (st.labels.getD (f.n + f.gateList.length - f.m + o) []) ^^
       ws.getD (f.n + f.gateList.length - f.m + o) false
 
 /-- **The CCR reduction** for a `prv.sim` adversary `B` against half-gates garbling, at parameter
@@ -169,9 +183,9 @@ noncomputable def prvSimReduction {σ : Type} (B : ℕ → PrvSimAdversary XorAn
     if query.input.length = query.fn.circuit.n ∧ 2 * query.fn.circuit.q ≤ 2 ^ k then do
       let coins ← ProbOracleComp.sample (BitString.sampleList (query.fn.circuit.n * (k + 2)))
       let st ← OracleComp.iterate query.fn.circuit.q
-        (reductionStep hash k query.fn.circuit.n query.fn.circuit.gateList
-          (query.fn.circuit.wires query.input query.fn.circuit.q))
-        (BitString.listRows query.fn.circuit.n (k + 2) coins, [])
+        (reductionStep hash ⟨k, query.fn.circuit.n, query.fn.circuit.gateList,
+          query.fn.circuit.wires query.input query.fn.circuit.q⟩)
+        ⟨BitString.listRows query.fn.circuit.n (k + 2) coins, []⟩
       ProbOracleComp.sample ((B k).guess state (some (reductionView k query.fn.circuit
         (query.fn.circuit.wires query.input query.fn.circuit.q) coins st)))
     else ProbOracleComp.sample ((B k).guess state none)
@@ -224,34 +238,34 @@ private theorem tweakCost_request_le (k : ℕ) (t : BitString k) (a : List Bool)
 /-- One gate of the reduction asks at the tweaks of the two slots of gate `|labels| - n`, and
 only there. -/
 private theorem isCostBounded_reductionStep (k n : ℕ) (gates : List (ℕ × ℕ × List Bool))
-    (ws : List Bool) (t : BitString k) (st : List (List Bool) × List (List Bool)) :
+    (ws : List Bool) (t : BitString k) (st : GateLoopState) :
     OracleComp.IsCostBounded (Sum.elim (fun _ => 0) (tweakCost k t))
-      (reductionStep hash k n gates ws st)
-      ((if tweakWord k (st.1.length - n) false = List.ofFn t then 1 else 0) +
-        (if tweakWord k (st.1.length - n) true = List.ofFn t then 1 else 0)) := by
+      (reductionStep hash ⟨k, n, gates, ws⟩ st)
+      ((if tweakWord k (st.labels.length - n) false = List.ofFn t then 1 else 0) +
+        (if tweakWord k (st.labels.length - n) true = List.ofFn t then 1 else 0)) := by
   unfold reductionStep
+  dsimp only
   split
   · refine (((OracleComp.isCostBounded_map_iff _ _ _).mpr
       (ProbOracleComp.isCostBounded_query _ _)).bind fun _ =>
         ((OracleComp.isCostBounded_map_iff _ _ _).mpr
           (ProbOracleComp.isCostBounded_query _ _)).bind fun _ =>
             OracleComp.IsCostBounded.pure _ 0).mono ?_
-    have h₁ := tweakCost_request_le k t (st.1.getD (leftArg n gates st.1) []) (st.1.length - n)
-      false (colourWord k (st.1.getD (rightArg n gates st.1) []) ^^
-        ws.getD (rightArg n gates st.1) false)
-    have h₂ := tweakCost_request_le k t (st.1.getD (rightArg n gates st.1) []) (st.1.length - n)
-      true (ws.getD (leftArg n gates st.1) false)
+    have h₁ := tweakCost_request_le k t (st.labels.getD (leftArg ⟨k, n, gates, ws⟩ st.labels) [])
+      (st.labels.length - n) false
+      (colourWord k (st.labels.getD (rightArg ⟨k, n, gates, ws⟩ st.labels) []) ^^
+        ws.getD (rightArg ⟨k, n, gates, ws⟩ st.labels) false)
+    have h₂ := tweakCost_request_le k t (st.labels.getD (rightArg ⟨k, n, gates, ws⟩ st.labels) [])
+      (st.labels.length - n) true (ws.getD (leftArg ⟨k, n, gates, ws⟩ st.labels) false)
     omega
   · exact OracleComp.IsCostBounded.pure _ _
 
 /-- Every possible step appends one label of at most `k + 2` bits and one block of at most
 `2 (k + 2)` bits. -/
-private theorem exists_of_mem_support_reductionStep {k n : ℕ}
-    {gates : List (ℕ × ℕ × List Bool)} {ws : List Bool}
-    {st next : List (List Bool) × List (List Bool)}
-    (hnext : next ∈ (reductionStep hash k n gates ws st).support) :
-    ∃ label block, next = (st.1 ++ [label], st.2 ++ [block]) ∧ label.length ≤ k + 2 ∧
-      block.length ≤ 2 * (k + 2) := by
+private theorem exists_of_mem_support_reductionStep {d : GateLoopData} {st next : GateLoopState}
+    (hnext : next ∈ (reductionStep hash d st).support) :
+    ∃ label block, next = ⟨st.labels ++ [label], st.blocks ++ [block]⟩ ∧
+      label.length ≤ d.param + 2 ∧ block.length ≤ 2 * (d.param + 2) := by
   unfold reductionStep at hnext
   split at hnext
   · obtain ⟨rG, -, hnext⟩ := OracleComp.mem_supportWith_bind_iff.mp hnext
@@ -267,13 +281,12 @@ private theorem exists_of_mem_support_reductionStep {k n : ℕ}
 `lowBits k j`, `j < 2 c`, is asked at most once. -/
 private theorem isCostBounded_iterate_reductionStep (k n : ℕ)
     (gates : List (ℕ × ℕ × List Bool)) (ws : List Bool) (t : BitString k)
-    (init : List (List Bool) × List (List Bool)) (hinit : init.1.length = n) (c : ℕ)
-    (hc : 2 * c ≤ 2 ^ k) :
+    (init : GateLoopState) (hinit : init.labels.length = n) (c : ℕ) (hc : 2 * c ≤ 2 ^ k) :
     OracleComp.IsCostBounded (Sum.elim (fun _ => 0) (tweakCost k t))
-      (OracleComp.iterate c (reductionStep hash k n gates ws) init)
+      (OracleComp.iterate c (reductionStep hash ⟨k, n, gates, ws⟩) init)
       (if ∃ j < 2 * c, BitString.lowBits k j = List.ofFn t then 1 else 0) ∧
-    ∀ st ∈ (OracleComp.iterate c (reductionStep hash k n gates ws) init).support,
-      st.1.length = n + c := by
+    ∀ st ∈ (OracleComp.iterate c (reductionStep hash ⟨k, n, gates, ws⟩) init).support,
+      st.labels.length = n + c := by
   induction c with
   | zero =>
     refine ⟨OracleComp.IsCostBounded.pure _ _, fun st hst => ?_⟩
@@ -389,10 +402,10 @@ private theorem run_reductionStep {x : List Bool} (hx : x.length = f.circuit.n)
     (hT : T = entry (toCircuit f) (CCR.atLevel hash k) (slotTweak _ k)
       (BitString.ofList f.circuit.n x) O E)
     {s : ℕ} (hs : s < f.circuit.q) :
-    ProbOracleComp.run (reductionStep hash k f.circuit.n f.circuit.gateList
-        (f.circuit.wires x f.circuit.q) (labelsUpTo k f E s, blocksUpTo k f T s))
+    ProbOracleComp.run (reductionStep hash ⟨k, f.circuit.n, f.circuit.gateList,
+        f.circuit.wires x f.circuit.q⟩ ⟨labelsUpTo k f E s, blocksUpTo k f T s⟩)
         ((CCR.codec k).wordOracle fun q => pure (O q)) =
-      pure (labelsUpTo k f E (s + 1), blocksUpTo k f T (s + 1)) := by
+      pure ⟨labelsUpTo k f E (s + 1), blocksUpTo k f T (s + 1)⟩ := by
   have hsize := size_toCircuit f
   set g : Fin (toCircuit f).size := ⟨s, by omega⟩ with hg
   have hgs : (g : ℕ) = s := rfl
@@ -406,17 +419,20 @@ private theorem run_reductionStep {x : List Bool} (hx : x.length = f.circuit.n)
   have hlen : (labelsUpTo k f E s).length = f.circuit.n + s := by
     simp only [labelsUpTo, List.length_take, List.length_ofFn]
     omega
-  have hnext : nextGate f.circuit.n f.circuit.gateList (labelsUpTo k f E s) =
+  have hnext : nextGate ⟨k, f.circuit.n, f.circuit.gateList, f.circuit.wires x f.circuit.q⟩
+      (labelsUpTo k f E s) =
       (f.circuit.A ⟨s, hs⟩, f.circuit.B ⟨s, hs⟩, [f.circuit.G ⟨s, hs⟩ false false,
         f.circuit.G ⟨s, hs⟩ false true, f.circuit.G ⟨s, hs⟩ true false,
         f.circuit.G ⟨s, hs⟩ true true]) := by
     simp [nextGate, hlen, ConventionalCircuit.gateList, List.getD_eq_getElem?_getD, hs]
-  have hleft : leftArg f.circuit.n f.circuit.gateList (labelsUpTo k f E s) =
+  have hleft : leftArg ⟨k, f.circuit.n, f.circuit.gateList, f.circuit.wires x f.circuit.q⟩
+      (labelsUpTo k f E s) =
       (left (toCircuit f) g).toNat := by
     rw [leftArg, hnext, hlen, toNat_left_toCircuit, hgcast]
     dsimp only
     omega
-  have hright : rightArg f.circuit.n f.circuit.gateList (labelsUpTo k f E s) =
+  have hright : rightArg ⟨k, f.circuit.n, f.circuit.gateList, f.circuit.wires x f.circuit.q⟩
+      (labelsUpTo k f E s) =
       (right (toCircuit f) g).toNat := by
     rw [rightArg, hnext, hlen, toNat_right_toCircuit, hgcast]
     dsimp only
@@ -512,10 +528,11 @@ private theorem run_iterate_reductionStep {x : List Bool} (hx : x.length = f.cir
     (hT : T = entry (toCircuit f) (CCR.atLevel hash k) (slotTweak _ k)
       (BitString.ofList f.circuit.n x) O E)
     {s : ℕ} (hs : s ≤ f.circuit.q) :
-    ProbOracleComp.run (OracleComp.iterate s (reductionStep hash k f.circuit.n f.circuit.gateList
-        (f.circuit.wires x f.circuit.q)) (BitString.listRows f.circuit.n (k + 2) coins, []))
+    ProbOracleComp.run (OracleComp.iterate s (reductionStep hash ⟨k, f.circuit.n,
+        f.circuit.gateList, f.circuit.wires x f.circuit.q⟩)
+        ⟨BitString.listRows f.circuit.n (k + 2) coins, []⟩)
         ((CCR.codec k).wordOracle fun q => pure (O q)) =
-      pure (labelsUpTo k f E s, blocksUpTo k f T s) := by
+      pure ⟨labelsUpTo k f E s, blocksUpTo k f T s⟩ := by
   induction s with
   | zero =>
     rw [OracleComp.iterate_zero, ProbOracleComp.run_pure]
@@ -565,7 +582,7 @@ private theorem reductionView_eq {x : List Bool} (hx : x.length = f.circuit.n)
     (hE : evalLabels (toCircuit f) (CCR.atLevel hash k) (slotTweak _ k) T
       (fun i => labelOfWord k (BitString.listRow (k + 2) i coins)) = E) :
     reductionView k f.circuit (f.circuit.wires x f.circuit.q) coins
-        (labelsUpTo k f E f.circuit.q, blocksUpTo k f T f.circuit.q) =
+        ⟨labelsUpTo k f E f.circuit.q, blocksUpTo k f T f.circuit.q⟩ =
       viewWord k (toCircuit f) (simulateWith (toCircuit f) (CCR.atLevel hash k) (slotTweak _ k)
         ((toCircuit f).eval interpretation (BitString.ofList f.circuit.n x))
         (fun i => labelOfWord k (BitString.listRow (k + 2) i coins)) T) := by
@@ -865,26 +882,36 @@ variable {hash : List Bool → List Bool → List Bool}
 
 attribute [local fun_prop] hashWord_polyTime tweakWord_polyTime andWord_polyTime
 
-/-- The state of the gate loop: the labels so far, framed, then the blocks so far. -/
-private abbrev encLoop : (List (List Bool) × List (List Bool)) ↪ List Bool :=
-  encPair (encList encBits) (encList encBits)
+/-- The data of the gate loop as words: the parameter and the input count in unary, the gate
+data, framed, and the wire values; each field but the last is framed. -/
+private enc_structure encGateLoopData : GateLoopData where
+  param : encUnary, inputCount : encUnary,
+  gates : (encList (encPair encNat (encPair encNat encBits))), wireValues : encBits
 
-/-- The data the gate loop reads: the parameter `k` and the input count `n` in unary, the gate
-data, framed, and the plaintext wire values. -/
-private abbrev encLoopData : (ℕ × ℕ × List (ℕ × ℕ × List Bool) × List Bool) ↪ List Bool :=
-  encPair encUnary (encPair encUnary (encPair (encList (encPair encNat (encPair encNat encBits)))
-    encBits))
+/-- The state of the gate loop as words: the labels so far, framed, then the blocks so far. -/
+private enc_structure encGateLoopState : GateLoopState where
+  labels : (encList encBits), blocks : (encList encBits)
+
+/-! The records are written as the right-nested tuples of their fields. -/
+
+example (d : GateLoopData) : encGateLoopData d = encPair encUnary (encPair encUnary
+    (encPair (encList (encPair encNat (encPair encNat encBits))) encBits))
+    (d.param, d.inputCount, d.gates, d.wireValues) := rfl
+
+example (st : GateLoopState) :
+    encGateLoopState st = encPair (encList encBits) (encList encBits) (st.labels, st.blocks) :=
+  rfl
 
 include hf in
 /-- The state after an AND gate is computed in polynomial time. -/
 private theorem andState_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k g : γ → ℕ}
-    {a b rG rE : γ → List Bool} {st : γ → List (List Bool) × List (List Bool)}
+    {a b rG rE : γ → List Bool} {st : γ → GateLoopState}
     (hk : ComputableInPolyTime k encIn encUnary) (hg : ComputableInPolyTime g encIn encUnary)
     (ha : ComputableInPolyTime a encIn encBits) (hb : ComputableInPolyTime b encIn encBits)
     (hrG : ComputableInPolyTime rG encIn encBits) (hrE : ComputableInPolyTime rE encIn encBits)
-    (hst : ComputableInPolyTime st encIn encLoop) :
+    (hst : ComputableInPolyTime st encIn encGateLoopState) :
     ComputableInPolyTime (fun x => andState hash (k x) (g x) (a x) (b x) (rG x) (rE x) (st x))
-      encIn encLoop := by
+      encIn encGateLoopState := by
   have hTG : ComputableInPolyTime (fun x => List.zipWith xor (hashWord hash (k x) (a x)
       (tweakWord (k x) (g x) false)) (rG x)) encIn encBits := by
     polytime
@@ -893,45 +920,44 @@ private theorem andState_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k g : 
     polytime
   have hnil : ComputableInPolyTime (fun _ : γ => ([] : List (List Bool))) encIn
       (encList encBits) := ComputableInPolyTime.const _
-  exact (ComputableInPolyTime.listAppend' hst.fst' (ComputableInPolyTime.cons'
-    (andWord_polyTime hf hk hg hTG hTE ha hb) hnil)).prod
-    (ComputableInPolyTime.listAppend' hst.snd' (ComputableInPolyTime.cons'
-      (ComputableInPolyTime.bitsAppend hTG hTE) hnil))
+  exact encGateLoopState_mk_polyTime
+    (ComputableInPolyTime.listAppend' (encGateLoopState_labels_polyTime hst)
+      (ComputableInPolyTime.cons' (andWord_polyTime hf hk hg hTG hTE ha hb) hnil))
+    (ComputableInPolyTime.listAppend' (encGateLoopState_blocks_polyTime hst)
+      (ComputableInPolyTime.cons' (ComputableInPolyTime.bitsAppend hTG hTE) hnil))
 
 include hf in
 /-- One gate of the reduction is strict oracle PPT. -/
 private theorem isOraclePPTOn_reductionStep :
-    IsOraclePPTOn (encPair encLoopData encLoop) encLoop
-      (fun p : (ℕ × ℕ × List (ℕ × ℕ × List Bool) × List Bool) ×
-          (List (List Bool) × List (List Bool)) =>
-        reductionStep hash p.1.1 p.1.2.1 p.1.2.2.1 p.1.2.2.2 p.2) := by
-  let E := encPair encLoopData encLoop
-  have hk : ComputableInPolyTime (fun p : (ℕ × ℕ × List (ℕ × ℕ × List Bool) × List Bool) ×
-      (List (List Bool) × List (List Bool)) => p.1.1) E encUnary := by polytime
-  have hn : ComputableInPolyTime (fun p : (ℕ × ℕ × List (ℕ × ℕ × List Bool) × List Bool) ×
-      (List (List Bool) × List (List Bool)) => p.1.2.1) E encUnary := by polytime
-  have hgates : ComputableInPolyTime (fun p : (ℕ × ℕ × List (ℕ × ℕ × List Bool) × List Bool) ×
-      (List (List Bool) × List (List Bool)) => p.1.2.2.1) E
-      (encList (encPair encNat (encPair encNat encBits))) := by polytime
-  have hws : ComputableInPolyTime (fun p : (ℕ × ℕ × List (ℕ × ℕ × List Bool) × List Bool) ×
-      (List (List Bool) × List (List Bool)) => p.1.2.2.2) E encBits := by polytime
-  have hlabels : ComputableInPolyTime (fun p : (ℕ × ℕ × List (ℕ × ℕ × List Bool) × List Bool) ×
-      (List (List Bool) × List (List Bool)) => p.2.1) E (encList encBits) := by polytime
-  have hblocks : ComputableInPolyTime (fun p : (ℕ × ℕ × List (ℕ × ℕ × List Bool) × List Bool) ×
-      (List (List Bool) × List (List Bool)) => p.2.2) E (encList encBits) := by polytime
-  have hg : ComputableInPolyTime (fun p : (ℕ × ℕ × List (ℕ × ℕ × List Bool) × List Bool) ×
-      (List (List Bool) × List (List Bool)) => p.2.1.length - p.1.2.1) E encUnary := by polytime
-  have hnext : ComputableInPolyTime (fun p : (ℕ × ℕ × List (ℕ × ℕ × List Bool) × List Bool) ×
-      (List (List Bool) × List (List Bool)) => nextGate p.1.2.1 p.1.2.2.1 p.2.1) E
-      (encPair encNat (encPair encNat encBits)) :=
+    IsOraclePPTOn (encPair encGateLoopData encGateLoopState) encGateLoopState
+      (fun p : GateLoopData × GateLoopState => reductionStep hash p.1 p.2) := by
+  let E := encPair encGateLoopData encGateLoopState
+  have hd := ComputableInPolyTime.fst encGateLoopData encGateLoopState
+  have hst := ComputableInPolyTime.snd encGateLoopData encGateLoopState
+  have hk := encGateLoopData_param_polyTime hd
+  have hn := encGateLoopData_inputCount_polyTime hd
+  have hgates := encGateLoopData_gates_polyTime hd
+  have hws := encGateLoopData_wireValues_polyTime hd
+  have hlabels := encGateLoopState_labels_polyTime hst
+  have hblocks := encGateLoopState_blocks_polyTime hst
+  have hg : ComputableInPolyTime (fun p : GateLoopData × GateLoopState =>
+      p.2.labels.length - p.1.inputCount) E encUnary :=
+    ComputableInPolyTime.unary_sub.comp
+      (((ComputableInPolyTime.length_list _).comp hlabels).prod hn)
+  have hnext : ComputableInPolyTime (fun p : GateLoopData × GateLoopState =>
+      nextGate p.1 p.2.labels) E (encPair encNat (encPair encNat encBits)) :=
     ComputableInPolyTime.listGetDWithInput hgates hg (0, 0, [])
-  have hi : ComputableInPolyTime (fun p : (ℕ × ℕ × List (ℕ × ℕ × List Bool) × List Bool) ×
-      (List (List Bool) × List (List Bool)) => leftArg p.1.2.1 p.1.2.2.1 p.2.1) E encUnary := by
+  have hcap : ComputableInPolyTime (fun p : GateLoopData × GateLoopState =>
+      p.2.labels.length + 1) E encUnary :=
+    ComputableInPolyTime.unary_add' ((ComputableInPolyTime.length_list _).comp hlabels)
+      (ComputableInPolyTime.const 1)
+  have hi : ComputableInPolyTime (fun p : GateLoopData × GateLoopState =>
+      leftArg p.1 p.2.labels) E encUnary := by
     have hA := hnext.fst'
     unfold leftArg
     polytime
-  have hj : ComputableInPolyTime (fun p : (ℕ × ℕ × List (ℕ × ℕ × List Bool) × List Bool) ×
-      (List (List Bool) × List (List Bool)) => rightArg p.1.2.1 p.1.2.2.1 p.2.1) E encUnary := by
+  have hj : ComputableInPolyTime (fun p : GateLoopData × GateLoopState =>
+      rightArg p.1 p.2.labels) E encUnary := by
     have hB := hnext.snd'.fst'
     unfold rightArg
     polytime
@@ -941,26 +967,37 @@ private theorem isOraclePPTOn_reductionStep :
   have hvb := ComputableInPolyTime.bitsGetDWithInput hws hj false
   have hcond := ComputableInPolyTime.bitsGetDWithInput hnext.snd'.snd'
     (ComputableInPolyTime.const 3) false
-  have hlim : ComputableInPolyTime (fun p : (ℕ × ℕ × List (ℕ × ℕ × List Bool) × List Bool) ×
-      (List (List Bool) × List (List Bool)) => p.1.1 + 2) E encUnary := by polytime
-  have hreqG : ComputableInPolyTime (fun p : (ℕ × ℕ × List (ℕ × ℕ × List Bool) × List Bool) ×
-      (List (List Bool) × List (List Bool)) =>
-      p.2.1.getD (leftArg p.1.2.1 p.1.2.2.1 p.2.1) [] ++ (tweakWord p.1.1 (p.2.1.length - p.1.2.1)
-        false ++ [colourWord p.1.1 (p.2.1.getD (rightArg p.1.2.1 p.1.2.2.1 p.2.1) []) ^^
-          p.1.2.2.2.getD (rightArg p.1.2.1 p.1.2.2.1 p.2.1) false])) E encBits := by
-    unfold colourWord
+  have hlim : ComputableInPolyTime (fun p : GateLoopData × GateLoopState => p.1.param + 2) E
+      encUnary := ComputableInPolyTime.unary_add' hk (ComputableInPolyTime.const 2)
+  have hcolour : ComputableInPolyTime (fun p : GateLoopData × GateLoopState =>
+      colourWord p.1.param (p.2.labels.getD (rightArg p.1 p.2.labels) [])) E encBool :=
+    ComputableInPolyTime.bitsGetDWithInput hb
+      (ComputableInPolyTime.unary_add' hk (ComputableInPolyTime.const 1)) false
+  have hreqG : ComputableInPolyTime (fun p : GateLoopData × GateLoopState =>
+      p.2.labels.getD (leftArg p.1 p.2.labels) [] ++
+        (tweakWord p.1.param (p.2.labels.length - p.1.inputCount) false ++
+          [colourWord p.1.param (p.2.labels.getD (rightArg p.1 p.2.labels) []) ^^
+            p.1.wireValues.getD (rightArg p.1 p.2.labels) false])) E encBits := by
     polytime
-  have hreqE : ComputableInPolyTime (fun p : (ℕ × ℕ × List (ℕ × ℕ × List Bool) × List Bool) ×
-      (List (List Bool) × List (List Bool)) =>
-      p.2.1.getD (rightArg p.1.2.1 p.1.2.2.1 p.2.1) [] ++ (tweakWord p.1.1 (p.2.1.length - p.1.2.1)
-        true ++ [p.1.2.2.2.getD (leftArg p.1.2.1 p.1.2.2.1 p.2.1) false])) E encBits := by
+  have hreqE : ComputableInPolyTime (fun p : GateLoopData × GateLoopState =>
+      p.2.labels.getD (rightArg p.1 p.2.labels) [] ++
+        (tweakWord p.1.param (p.2.labels.length - p.1.inputCount) true ++
+          [p.1.wireValues.getD (leftArg p.1 p.2.labels) false])) E encBits := by
     polytime
-  have hxor : ComputableInPolyTime (fun p : (ℕ × ℕ × List (ℕ × ℕ × List Bool) × List Bool) ×
-      (List (List Bool) × List (List Bool)) =>
-      (p.2.1 ++ [(List.zipWith xor (p.2.1.getD (leftArg p.1.2.1 p.1.2.2.1 p.2.1) [])
-        (p.2.1.getD (rightArg p.1.2.1 p.1.2.2.1 p.2.1) [])).take (p.1.1 + 2)], p.2.2 ++ [[]]))
-      E encLoop := by
+  have hnil : ComputableInPolyTime (fun _ : GateLoopData × GateLoopState =>
+      ([] : List (List Bool))) E (encList encBits) := ComputableInPolyTime.const _
+  have hxorLabel : ComputableInPolyTime (fun p : GateLoopData × GateLoopState =>
+      (List.zipWith xor (p.2.labels.getD (leftArg p.1 p.2.labels) [])
+        (p.2.labels.getD (rightArg p.1 p.2.labels) [])).take (p.1.param + 2)) E encBits := by
     polytime
+  have hxor : ComputableInPolyTime (fun p : GateLoopData × GateLoopState =>
+      (⟨p.2.labels ++ [(List.zipWith xor (p.2.labels.getD (leftArg p.1 p.2.labels) [])
+        (p.2.labels.getD (rightArg p.1 p.2.labels) [])).take (p.1.param + 2)],
+          p.2.blocks ++ [[]]⟩ : GateLoopState)) E encGateLoopState :=
+    encGateLoopState_mk_polyTime
+      (ComputableInPolyTime.listAppend' hlabels (ComputableInPolyTime.cons' hxorLabel hnil))
+      (ComputableInPolyTime.listAppend' hblocks (ComputableInPolyTime.cons'
+        (ComputableInPolyTime.const (encIn := E) (encOut := encBits) []) hnil))
   have hfst₁ := ComputableInPolyTime.fst E encBits
   have hfst₂ := (ComputableInPolyTime.fst E encBits).comp
     (ComputableInPolyTime.fst (encPair E encBits) encBits)
@@ -968,36 +1005,30 @@ private theorem isOraclePPTOn_reductionStep :
     (ComputableInPolyTime.fst (encPair E encBits) encBits)
   have hrE := ComputableInPolyTime.snd (encPair E encBits) encBits
   have hand := andState_polyTime hf (hk.comp hfst₂) (hg.comp hfst₂) (ha.comp hfst₂)
-    (hb.comp hfst₂) hrG hrE ((ComputableInPolyTime.snd encLoopData encLoop).comp hfst₂)
+    (hb.comp hfst₂) hrG hrE (hst.comp hfst₂)
   refine IsOraclePPTOn.cond' hcond ?_ hxor.isOraclePPTOn
   refine IsOraclePPTOn.bind_with (IsOraclePPTOn.query_take' () hreqG hlim) ?_
   exact IsOraclePPTOn.bind_with (IsOraclePPTOn.query_take' () (hreqE.comp hfst₁)
     (hlim.comp hfst₁)) hand.isOraclePPTOn
 
 include hf in
-/-- One gate of the reduction is strict oracle PPT on any input from which its parameter, input
-count, gate data and wire values are computed in polynomial time. -/
+/-- One gate of the reduction is strict oracle PPT on any input from which its loop data is
+computed in polynomial time. -/
 private theorem isOraclePPTOn_reductionStep_comp {γ : Type} {encIn : γ ↪ List Bool}
-    {k n : γ → ℕ} {gates : γ → List (ℕ × ℕ × List Bool)} {ws : γ → List Bool}
-    (hk : ComputableInPolyTime k encIn encUnary) (hn : ComputableInPolyTime n encIn encUnary)
-    (hgates : ComputableInPolyTime gates encIn (encList (encPair encNat (encPair encNat encBits))))
-    (hws : ComputableInPolyTime ws encIn encBits) :
-    IsOraclePPTOn (encPair encIn encLoop) encLoop
-      (fun p : γ × (List (List Bool) × List (List Bool)) =>
-        reductionStep hash (k p.1) (n p.1) (gates p.1) (ws p.1) p.2) := by
-  have hfst := ComputableInPolyTime.fst encIn encLoop
-  exact (isOraclePPTOn_reductionStep hf).preprocess'
-    (((hk.comp hfst).prod ((hn.comp hfst).prod ((hgates.comp hfst).prod (hws.comp hfst)))).prod
-      (ComputableInPolyTime.snd encIn encLoop))
+    {d : γ → GateLoopData} (hd : ComputableInPolyTime d encIn encGateLoopData) :
+    IsOraclePPTOn (encPair encIn encGateLoopState) encGateLoopState
+      (fun p : γ × GateLoopState => reductionStep hash (d p.1) p.2) :=
+  (isOraclePPTOn_reductionStep hf).preprocess'
+    ((hd.comp (ComputableInPolyTime.fst encIn encGateLoopState)).prod
+      (ComputableInPolyTime.snd encIn encGateLoopState))
 
 /-- A step of the gate loop grows its encoded state by at most `8 (k + 2) + 8` bits. -/
-private theorem length_encLoop_le_of_mem_support {k n : ℕ} {gates : List (ℕ × ℕ × List Bool)}
-    {ws : List Bool} {st next : List (List Bool) × List (List Bool)}
-    (hnext : next ∈ (reductionStep hash k n gates ws st).support) :
-    (encLoop next).length ≤ (encLoop st).length + (8 * (k + 2) + 8) := by
+private theorem length_encGateLoopState_le_of_mem_support {d : GateLoopData}
+    {st next : GateLoopState} (hnext : next ∈ (reductionStep hash d st).support) :
+    (encGateLoopState next).length ≤ (encGateLoopState st).length + (8 * (d.param + 2) + 8) := by
   obtain ⟨label, block, rfl, hl, hb⟩ := exists_of_mem_support_reductionStep hash hnext
-  simp only [length_encPair, length_encList, List.map_append, List.sum_append, List.map_cons,
-    List.map_nil, List.sum_cons, List.sum_nil, encBits_apply]
+  simp only [encGateLoopState_apply, length_encPair, length_encList, List.map_append,
+    List.sum_append, List.map_cons, List.map_nil, List.sum_cons, List.sum_nil, encBits_apply]
   omega
 
 /-- A row of the reduction's garbled function is computed in polynomial time. -/
@@ -1013,12 +1044,12 @@ private theorem ctRow_polyTime {γ : Type} {encIn : γ ↪ List Bool}
 circuit, the wire values, the coins and the state of the gate loop. -/
 private theorem reductionView_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k : γ → ℕ}
     {f : γ → ConventionalCircuit} {ws coins : γ → List Bool}
-    {st : γ → List (List Bool) × List (List Bool)}
+    {st : γ → GateLoopState}
     (hk : ComputableInPolyTime k encIn encUnary)
     (hd : ComputableInPolyTime (fun x => ((f x).n, (f x).m, (f x).gateList)) encIn encCircuitData)
     (hws : ComputableInPolyTime ws encIn encBits)
     (hcoins : ComputableInPolyTime coins encIn encBits)
-    (hst : ComputableInPolyTime st encIn encLoop) :
+    (hst : ComputableInPolyTime st encIn encGateLoopState) :
     ComputableInPolyTime (fun x => reductionView (k x) (f x) (ws x) (coins x) (st x)) encIn
       encPrvView := by
   have hn := hd.fst'
@@ -1027,9 +1058,10 @@ private theorem reductionView_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k
   have hq := (ComputableInPolyTime.length_list _).comp hgates
   have hx := ComputableInPolyTime.fst encIn (encPair encUnary (encPair encBool encUnary))
   have hrest := ComputableInPolyTime.snd encIn (encPair encUnary (encPair encBool encUnary))
-  have hrow : ComputableInPolyTime (fun p : γ × ℕ × Bool × ℕ => ctRow (st p.1).2 p.2.2.1 p.2.1
-      p.2.2.2) (encPair encIn (encPair encUnary (encPair encBool encUnary))) encBits :=
-    ctRow_polyTime (hst.snd'.comp hx) hrest.snd'.fst' hrest.fst' hrest.snd'.snd'
+  have hrow : ComputableInPolyTime (fun p : γ × ℕ × Bool × ℕ => ctRow (st p.1).blocks p.2.2.1
+      p.2.1 p.2.2.2) (encPair encIn (encPair encUnary (encPair encBool encUnary))) encBits :=
+    ctRow_polyTime ((encGateLoopState_blocks_polyTime hst).comp hx) hrest.snd'.fst' hrest.fst'
+      hrest.snd'.snd'
   have hbody := bodyWith_gateData_polyTime hn hgates hrow
   have henc : ComputableInPolyTime (fun z : (ℕ × ℕ × ℕ × ℕ) × List Bool => PointPermute.encFn z)
       PointPermute.encFn encBits := .of_eq fun _ => rfl
@@ -1046,7 +1078,8 @@ private theorem reductionView_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k
   have hs : ComputableInPolyTime (fun x => (f x).n + (f x).gateList.length - (f x).m) encIn
       encUnary :=
     ComputableInPolyTime.unary_sub.comp ((ComputableInPolyTime.unary_add' hn hq).prod hm)
-  exact encPrvView_mk_polyTime hF hX (hrange.comp (hk.prod (hm.prod (hs.prod (hst.fst'.prod hws)))))
+  exact encPrvView_mk_polyTime hF hX (hrange.comp
+    (hk.prod (hm.prod (hs.prod ((encGateLoopState_labels_polyTime hst).prod hws)))))
 
 variable {σ : Type} {encσ : σ ↪ List Bool} {B : ℕ → PrvSimAdversary XorAndCircuit σ}
   (hB : TwoStage.IsPPT encUnit (encQuery XorAndCircuit encXorAndCircuit) (encOption encPrvView)
@@ -1064,9 +1097,9 @@ private theorem isOraclePPTOn_prvSimGuess :
     IsOraclePPTOn (encPair (encChosen encσ) encBits) encBool
       (fun p : ((ℕ × List Bool) × (Query XorAndCircuit × σ)) × List Bool => do
         let st ← OracleComp.iterate p.1.2.1.fn.circuit.q
-          (reductionStep hash p.1.1.1 p.1.2.1.fn.circuit.n p.1.2.1.fn.circuit.gateList
-            (p.1.2.1.fn.circuit.wires p.1.2.1.input p.1.2.1.fn.circuit.q))
-          (BitString.listRows p.1.2.1.fn.circuit.n (p.1.1.1 + 2) p.2, [])
+          (reductionStep hash ⟨p.1.1.1, p.1.2.1.fn.circuit.n, p.1.2.1.fn.circuit.gateList,
+            p.1.2.1.fn.circuit.wires p.1.2.1.input p.1.2.1.fn.circuit.q⟩)
+          ⟨BitString.listRows p.1.2.1.fn.circuit.n (p.1.1.1 + 2) p.2, []⟩
         ProbOracleComp.sample ((B p.1.1.1).guess p.1.2.2 (some (reductionView p.1.1.1
           p.1.2.1.fn.circuit (p.1.2.1.fn.circuit.wires p.1.2.1.input p.1.2.1.fn.circuit.q) p.2
           st)))) := by
@@ -1094,15 +1127,17 @@ private theorem isOraclePPTOn_prvSimGuess :
       (encList encBits) := by
     polytime [BitString.listRows, BitString.listRow]
   have hinit : ComputableInPolyTime (fun p : ((ℕ × List Bool) × (Query XorAndCircuit × σ)) ×
-      List Bool => (BitString.listRows p.1.2.1.fn.circuit.n (p.1.1.1 + 2) p.2,
-        ([] : List (List Bool)))) E encLoop :=
-    (hrows.comp (hn.prod (hk.prod hcoins))).prod
+      List Bool => (⟨BitString.listRows p.1.2.1.fn.circuit.n (p.1.1.1 + 2) p.2, []⟩ :
+        GateLoopState)) E encGateLoopState :=
+    encGateLoopState_mk_polyTime (hrows.comp (hn.prod (hk.prod hcoins)))
       (ComputableInPolyTime.const (encIn := E) (encOut := encList encBits) [])
-  have hfst := ComputableInPolyTime.fst E encLoop
-  have hstep := isOraclePPTOn_reductionStep_comp hf (encIn := E)
-    (k := fun p => p.1.1.1) (n := fun p => p.1.2.1.fn.circuit.n)
-    (gates := fun p => p.1.2.1.fn.circuit.gateList)
-    (ws := fun p => p.1.2.1.fn.circuit.wires p.1.2.1.input p.1.2.1.fn.circuit.q) hk hn hgates hws
+  have hfst := ComputableInPolyTime.fst E encGateLoopState
+  have hdata : ComputableInPolyTime (fun p : ((ℕ × List Bool) × (Query XorAndCircuit × σ)) ×
+      List Bool => (⟨p.1.1.1, p.1.2.1.fn.circuit.n, p.1.2.1.fn.circuit.gateList,
+        p.1.2.1.fn.circuit.wires p.1.2.1.input p.1.2.1.fn.circuit.q⟩ : GateLoopData)) E
+      encGateLoopData :=
+    encGateLoopData_mk_polyTime hk hn hgates hws
+  have hstep := isOraclePPTOn_reductionStep_comp hf hdata
   have hgrowth : ComputableInPolyTime (fun k : ℕ => 8 * (k + 2) + 8) encUnary encUnary := by
     polytime
   have hloop := IsOraclePPTOn.iterateWith_of_bounded_growth'
@@ -1110,11 +1145,11 @@ private theorem isOraclePPTOn_prvSimGuess :
       8 * (p.1.1.1 + 2) + 8) hq hinit hstep
     ((hgrowth.comp hk).polyBounded_length.mono fun p => by simp)
     (fun (p : ((ℕ × List Bool) × (Query XorAndCircuit × σ)) × List Bool) _ _ hnext =>
-      length_encLoop_le_of_mem_support (k := p.1.1.1)
-      (n := p.1.2.1.fn.circuit.n) (gates := p.1.2.1.fn.circuit.gateList)
-      (ws := p.1.2.1.fn.circuit.wires p.1.2.1.input p.1.2.1.fn.circuit.q) hnext)
+      length_encGateLoopState_le_of_mem_support (d := ⟨p.1.1.1, p.1.2.1.fn.circuit.n,
+        p.1.2.1.fn.circuit.gateList, p.1.2.1.fn.circuit.wires p.1.2.1.input
+          p.1.2.1.fn.circuit.q⟩) hnext)
   have hview := reductionView_polyTime (f := fun p => p.1.1.2.1.fn.circuit) (hk.comp hfst)
-    (hd.comp hfst) (hws.comp hfst) (hcoins.comp hfst) (ComputableInPolyTime.snd E encLoop)
+    (hd.comp hfst) (hws.comp hfst) (hcoins.comp hfst) (ComputableInPolyTime.snd E encGateLoopState)
   have hprep := (hk.comp hfst).prod ((hstate.comp hfst).prod
     ((ComputableInPolyTime.optionSome encPrvView).comp hview))
   exact hloop.bind_with (hB.guess.preprocess hprep).isOraclePPTOn
@@ -1129,9 +1164,9 @@ private theorem isOraclePPTOn_prvSimBranch :
           let coins ← ProbOracleComp.sample
             (BitString.sampleList (p.2.1.fn.circuit.n * (p.1.1 + 2)))
           let st ← OracleComp.iterate p.2.1.fn.circuit.q
-            (reductionStep hash p.1.1 p.2.1.fn.circuit.n p.2.1.fn.circuit.gateList
-              (p.2.1.fn.circuit.wires p.2.1.input p.2.1.fn.circuit.q))
-            (BitString.listRows p.2.1.fn.circuit.n (p.1.1 + 2) coins, [])
+            (reductionStep hash ⟨p.1.1, p.2.1.fn.circuit.n, p.2.1.fn.circuit.gateList,
+              p.2.1.fn.circuit.wires p.2.1.input p.2.1.fn.circuit.q⟩)
+            ⟨BitString.listRows p.2.1.fn.circuit.n (p.1.1 + 2) coins, []⟩
           ProbOracleComp.sample ((B p.1.1).guess p.2.2 (some (reductionView p.1.1
             p.2.1.fn.circuit (p.2.1.fn.circuit.wires p.2.1.input p.2.1.fn.circuit.q) coins st)))
         else ProbOracleComp.sample ((B p.1.1).guess p.2.2 none)) := by

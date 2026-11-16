@@ -120,7 +120,10 @@ with uniform adversaries and a single `Garble` query, as in `Scheme.PrvSimSecure
 This is this library's theorem under [ZahurRosulekEvans2015] Definition 1 (§4.1, p. 10), in the
 form `CircularCorrelationRobust` states. It is not a formalization of Theorem 1 there (p. 12),
 which assumes only the weaker Definition 3 (p. 11), circular correlation robustness for naturally
-derived keys, and the scheme differs from Figure 2 (p. 9) as `HalfGates.scheme` lists. -/
+derived keys. The scheme also differs from Figure 2 (p. 9) in three ways: slot `s` of gate `g`
+has the tweak `2 g + s` modulo `2 ^ k`, where Figure 2 takes its indices from `NextIndex`; the
+encoding information `e` is projective, listing both labels of each input; and labels have
+`k + 2` bits, where Figure 2 has `k`. -/
 theorem CircularCorrelationRobust.prvSim_halfGates (h : CircularCorrelationRobust hash) :
     (HalfGates.scheme hash).PrvSimSecure (SideInfo.circ (HalfGates.scheme hash)) encXorAndCircuit
       encXorAndCircuit :=
