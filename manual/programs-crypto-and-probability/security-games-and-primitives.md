@@ -306,6 +306,40 @@ a constant derivation (`not_secure_const`) and an identity derivation whose key 
 side information, and transports `F.secureKDF_linearHashKDF` through `F.secureKDF_iff_keyDerivation`;
 run `scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.KeyDerivation`.
 
+For key derivation in the random-oracle model ([bs23][bs23], Section 8.10.1–8.10.2, Attack Game 8.3
+and Theorem 8.10, pp. 325–326 and 331–332, and Section 11.5.2, p. 449), import
+[`KeyDerivation/RandomOracle.lean`](../../CslibFrontier/Crypto/Computational/KeyDerivation/RandomOracle.lean)
+and open `Cslib.Crypto.KeyDerivation`. Attack Game 8.3 (`guessOutput`, `guessAdvantage`) plays
+against `GuessAdversary X S` given `info s : X` (with `guessAdvantage_le_pure_maxPosteriorGuess` and
+`guessAdvantage_le_one_sub_errorProb_maxPosteriorGuess` showing that
+`Cslib.Probability.PMF.maxPosteriorGuess` of
+[`Probability/Entropy/Guessing.lean`](../../CslibFrontier/Probability/Entropy/Guessing.lean)
+maximizes `guessAdvantage` among randomized adversaries whenever `S` is finite and nonempty), with
+the Section 8.10.1 bounds `guessAdvantage_le_card_mul_of_mass_le`,
+`guessAdvantage_uniformOfFintype_const` (`(Fintype.card S)⁻¹` when `info` is constant),
+`guessAdvantage_bind_uniformOfFintype_fst_le`, and `guessAdvantage_uniformOfFintype_take_le`
+(`≤ 1 / 2 ^ m` when `k` of `k + m` uniform bits are leaked). The list-guessing game
+(`listGuessOutput`, `listGuessAdvantage`, `listGuessToGuess`) gives
+`listGuessAdvantage_le_mul_guessAdvantage` whenever `l.length ≤ Q` on
+`(ProbComp.eval (B x)).support`. Over finite nonempty `S` and `T`, `roRealOutput`,
+`roIdealOutput`, and `roAdvantage` average `realOutput` and `idealOutput` over an eager random
+oracle `table ← PMF.uniformOfFintype (S → T)` against `RODistinguisher X S T`; for Theorem 8.10,
+`roAdvantage_le_listGuessAdvantage` requires no query bound for `roToListGuess D`, while under
+`RODistinguisher.IsOracleQueryBounded D Q`, `length_le_of_mem_support_roToListGuess` certifies
+`roToListGuess D` and `roAdvantage_le_mul_guessAdvantage` bounds `roAdvantage` by
+`Q * guessAdvantage` for `roToGuess Q D`, transferring asymptotically to
+`negligible_roAdvantage_of_negligible_guessAdvantage` for information-theoretically unpredictable
+sources (the bound holds for every adversary with the book's query bound and list size; the
+wrappers sample the whole oracle table `S → T` eagerly, so an efficient lazy-simulation wrapper with
+a polynomial-time certificate—needed to apply computational guessing assumptions such as CDH in
+Section 11.5.2—remains open). The
+[random-oracle KDF client](../../CslibFrontierTests/Crypto/RandomOracleKDF.lean) checks all three
+added hypotheses with explicit counterexamples (`guessAdvantage_uniformOfFintype_id_ne_inv`,
+`not_listGuessAdvantage_le_mul_of_length_gt`, `mem_support_roToListGuess_queryFalseDistinguisher`,
+and `not_roAdvantage_le_mul_of_not_queryBounded`) alongside positive concrete and asymptotic
+instances; run
+`scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.RandomOracleKDF`.
+
 `dlToCDHAdversary` and `cdhToDDHDistinguisher` are the elementary reductions behind
 `CDH.discreteLog` and `DDH.cdh`. In one group they are `dlToCDH` and `cdhToDDH`, with the bounds
 `dlAdvantage_le_cdhAdvantage_dlToCDH` and `cdhAdvantage_le_ddhAdvantage_cdhToDDH_add`. The

@@ -4618,6 +4618,7 @@ public import CslibFrontier.Crypto.Computational.IndexedSignature.Counter
 public import CslibFrontier.Crypto.Computational.IndexedSignature.Double
 public import CslibFrontier.Crypto.Computational.IndexedSignature.Seeded
 public import CslibFrontier.Crypto.Computational.KeyDerivation
+public import CslibFrontier.Crypto.Computational.KeyDerivation.RandomOracle
 public import CslibFrontier.Crypto.Computational.KeyExchange
 public import CslibFrontier.Crypto.Computational.Kilian
 public import CslibFrontier.Crypto.Computational.Kilian.Micali
