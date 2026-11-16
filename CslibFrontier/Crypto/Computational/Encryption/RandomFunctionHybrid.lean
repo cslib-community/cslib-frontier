@@ -18,7 +18,6 @@ import CslibFrontier.Crypto.Game.UntilBad
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.QueryCount
 import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.RunWith
-import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Support
 import Mathlib.Tactic.Linarith
@@ -214,13 +213,7 @@ private theorem identicalUntilBad_lazyStep_freshStep :
 theorem idealExperiment_eq_runWith_lazyStep (program : PRF.Adversary (BitString n) (BitString n)) :
     ProbComp.eval (PRF.idealExperiment program) =
       (ProbOracleComp.runWith lazyStep program ([], false)).map Prod.fst := by
-  rw [← runWith_memoize_eq]
-  have h := RandomOracle.interpret_prob_eq_memoize
-    (fun _ : BitString n => PMF.uniformOfFintype (BitString n)) program
-  rw [← h]
-  simp only [PRF.idealExperiment, ProbOracleComp.run, ProbComp.eval_bind, ProbComp.eval_uniform,
-    ProbOracleComp.eval_interpret, ProbComp.eval_pure, PMF.pi_uniformOfFintype,
-    Probability.PMF.monad_bind_eq_bind]
+  rw [← runWith_memoize_eq, PRF.eval_idealExperiment_eq_runWith_memoize]
 
 /-- The advantage between `lazyStep` and `freshStep` is bounded by the probability of raising the
 repetition flag under `freshStep`. -/
