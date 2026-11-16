@@ -1291,7 +1291,13 @@ and the asymptotic games `dcrRealGame` and `dcrRandomGame` are `Game.withSetup` 
 adversary `A : TwoStage ℕ (MessagePair (ZMod N)) (ZMod (N ^ 2))ˣ Bool σ` that receives the public
 key `N`. `paillierCPAAdvantage_le_dcrAdvantage` bounds its
 advantage by `dcrAdvantage N (paillierToDCR N A false) + dcrAdvantage N (paillierToDCR N A true)`,
-with no sampling loss. Connecting this bound to `DCR` and to the word scheme is a separate step.
+with no sampling loss. The certified word distinguisher of the IND-CPA theorem below runs this
+reduction: on every DCR challenge, `dcrDistinguisher adversary b n` is, as a program,
+`paillierToDCR` for bit `b`, played by the word adversary at parameter `n` read at the challenge
+modulus, with an inadmissible pair answered by `false` (the private
+`dcrDistinguisher_eq_paillierToDCR` in `Paillier/Security.lean`). That theorem takes its
+random-world step from `eval_dcrRandomExperiment_paillierToDCR`. The typed bound itself is not
+transferred to the word scheme, whose encryption randomness is dyadic.
 
 IND-CPA security (Katz–Lindell Theorem 15.13) is in
 [`Paillier/Security.lean`](../../CslibFrontier/Crypto/Computational/Paillier/Security.lean).
