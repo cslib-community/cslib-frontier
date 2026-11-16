@@ -8,9 +8,10 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Finite
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
-import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 import CslibFrontier.Crypto.Negligible.Basic
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import Mathlib.Algebra.Ring.BooleanRing
 import CslibFrontier.Probability.Uniform
 
 /-!
@@ -182,13 +183,17 @@ private theorem length_le_of_mem_support_labelHandler {m : ℕ} {request : Unit 
 /-- **Efficiency of the reduction.** For every uniform strict oracle-PPT label distinguisher `W`,
 `labelReduction W` is uniform strict oracle PPT. -/
 theorem isOraclePPT_labelReduction {W : OracleDistinguisher} (hW : IsOraclePPT encBool W) :
-    IsOraclePPT encBool (labelReduction W) :=
-  (IsOraclePPTOn.interpret_preprocess_open' (operationEncoding := encFinEnum Unit)
+    IsOraclePPT encBool (labelReduction W) := by
+  change IsOraclePPTOn (encPair encUnary encBits) encBool
+    (fun caller : ℕ × List Bool =>
+      ProbOracleComp.simulate (labelHandler caller.1) (W (caller.1 - 1) []))
+  simp only [ProbOracleComp.simulate, OracleComp.substitute_eq_interpret]
+  exact (IsOraclePPTOn.interpret_preprocess_open' (operationEncoding := encFinEnum Unit)
     (handler := fun caller : ℕ × List Bool => labelHandler caller.1)
     (prepare := fun caller : ℕ × List Bool => (caller.1 - 1, ([] : List Bool)))
     (resources := fun caller _ => caller.1 + 1)
     hW (by fun_prop) isOraclePPTOn_labelHandler (by fun_prop)
-    fun _ _ _ hreply => length_le_of_mem_support_labelHandler hreply).isOraclePPT
+    fun _ _ _ hreply => length_le_of_mem_support_labelHandler hreply)
 
 /-! ### Security -/
 

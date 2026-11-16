@@ -116,7 +116,7 @@ section LiftNet
         (ProbOracleComp.sample (spec := netSpec NetQ NetR) program) =
       ProbOracleComp.sample program := by
   simp only [liftNet, ProbOracleComp.interpret_sample]
-  rfl
+  exact (OracleComp.substitute_eq_interpret _ _).symm
 
 /-- Lifting to the network port makes the same number of calls. -/
 theorem isQueryBounded_liftNet {program : ProbOracleComp (netSpec NetQ NetR) α} {m : ℕ}
@@ -136,6 +136,7 @@ theorem runFrom_liftAdversary_liftNet (S : Machine (netSpec NetQ NetR) (netSpec 
   induction program using OracleComp.induction generalizing s with
   | pure a => rfl
   | query_bind q cont ih =>
+    simp only [PFunctor.FreeM.bind_eq_bind]
     cases q with
     | inl k =>
       have h₁ : liftNet (n := n) (In := In) (Out := Out)

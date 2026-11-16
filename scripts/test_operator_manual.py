@@ -12,9 +12,10 @@ from pathlib import Path
 from unittest import mock
 
 from build_operator_manual import main as build_main
-from check_operator_manual import (LIST_AFTER_PARAGRAPH, MISNAMED_SOURCE_ANCHOR, STALE_SOURCE_ANCHOR,
-                                   book_input_errors, check, comment_depths, fix_anchors,
-                                   lists_after_paragraphs, main as check_main, source_anchor_error)
+from check_operator_manual import (LABEL_LOCATOR, LIST_AFTER_PARAGRAPH, MISNAMED_SOURCE_ANCHOR,
+                                   STALE_SOURCE_ANCHOR, book_input_errors, check, comment_depths,
+                                   fix_anchors, lists_after_paragraphs, main as check_main,
+                                   source_anchor_error)
 
 DATA = Path(__file__).resolve().parents[1] / "manual/data"
 with mock.patch.object(sys, "path", [str(DATA), *sys.path]):
@@ -156,6 +157,56 @@ class ManualChecks(unittest.TestCase):
     def test_unregistered_lean_block_is_reported(self):
         self.doc.write_text(self.doc.read_text() + "\n```lean\nexample : True := .intro\n```\n")
         self.assertTrue(any("unregistered Lean block" in e for e in self.errors()))
+
+    def test_locator_inside_a_citation_label_is_reported(self):
+        # The PDF prints a link into `sources.md#key` as a citation number and drops its label.
+        sources = self.manual / "sources.md"
+        sources.write_text('# Sources\n\n<a id="book"></a>\nA book.\n')
+        readme = self.manual / "README.md"
+        readme.write_text(readme.read_text() + "[Sources](sources.md)\n")
+        original = self.doc.read_text()
+        reported = [
+            "[Author, Section 5.6][book]", "[Author, Sections 2–3][book]", "[Author, Sec. 5][book]",
+            "[Author, Chapter 18][book]", "[Author, Ch. 3][book]", "[Author, §5.11][book]",
+            "[Author, p. 12][book]", "[Author, pp. 56–57][book]", "[Author, page 12][book]",
+            "[Author, pages 12–15][book]", "[Author's Definition 4.1][book]",
+            "[Author, Def. 2][book]", "[Author, Theorem 4.17][book]", "[Author, Thm. 4][book]",
+            "[Author Lemma 1.11][book]", "[Author, Prop. 2][book]", "[Author, Cor. 3][book]",
+            "[Author, Exercise 2.1(b)][book]", "[Author, Problem 15-5][book]",
+            "[Author, Figure 3][book]", "[Author, Eq. (4.4)][book]",
+            "[Author, equation (2) there][book]", "[Author's notes, Lecture 3][book]",
+            "[Author, Part II][book]", "[Author, Game 2][book]", "[Author, Appendix B][book]",
+            "[CLRS 15.5][book]", "[Knuth 5.3.3][book]", "[TLS 1.3][book]",
+            "[Author, §1 and Appendix B][Book]", "[Author, Section 5.6][]",
+            "[Author, Theorem 4.1](../sources.md#book)", "[Author,\nSection 5.6][book]"]
+        accepted = [
+            "[Author][book], Section 5.6", "[Author 2009][book]", "[UOV v3.0][book]",
+            "[Author (2002)][book]", "[Problems in Algebra][book]",
+            "[Kleinberg and Tardos, Algorithm Design][book]", "[Theorem Proving in Lean][book]",
+            "[Author, Section 5.6](https://example.org/paper)",
+            "[Author, Section 5.6](first.md#first-client)", "[`Section 5.6`][book]",
+            "`[Author, Section 5.6][book]`", "```\n[Author, Section 5.6][book]\n```"]
+        line = len(original.splitlines()) + 2
+        definitions = ("\n\n[book]: ../sources.md#book\n"
+                       "[author, section 5.6]: ../sources.md#book\n")
+        for text in reported + accepted:
+            with self.subTest(text=text):
+                self.doc.write_text(original + "\n" + text + definitions)
+                found = [e for e in self.errors() if LABEL_LOCATOR in e]
+                if text in reported:
+                    label = " ".join(text[1:text.index("]")].split())
+                    prefix = f"workflows/first.md: Line {line}: {LABEL_LOCATOR}: [{label}] (`"
+                    self.assertEqual(len(found), 1)
+                    self.assertTrue(found[0].startswith(prefix), found[0])
+                else:
+                    self.assertEqual(found, [])
+        self.doc.write_text(original)
+        self.assertEqual(self.errors(), [])
+        # A link inside `sources.md` itself is a citation too.
+        sources.write_text(sources.read_text() + "\nSee [Author, Section 5.6](#book).\n")
+        self.assertEqual([e for e in self.errors() if LABEL_LOCATOR in e],
+                         [f"sources.md: Line 6: {LABEL_LOCATOR}: [Author, Section 5.6] "
+                          "(`Section 5`)"])
 
     def test_context_requires_link_to_complete_client(self):
         self.doc.write_text(self.doc.read_text().replace(

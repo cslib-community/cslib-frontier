@@ -3,13 +3,21 @@ Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
-import CslibFrontier.Tactic.SuppCases
+
+module
+-- upstream: candidate
+
+public import CslibFrontier.Tactic.SuppCases
 
 /-! # Inverting support memberships with `supp_cases` and `supp_norm` -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.SuppCases
 
 open Cslib
+
+universe u v w
 
 /-! ### `PMF` -/
 
@@ -120,6 +128,42 @@ example (p : ProbComp ℕ) (x : ℕ) (hp : ∀ a ∈ (ProbComp.eval p).support, 
   supp_cases h with ⟨a, ha, rfl⟩
   have := hp a ha
   omega
+
+-- Explicit heterogeneous bind and map have the same support decomposition.
+example {α : Type u} {β : Type v} {γ : Type w} (p : ProbComp α)
+    (next : α → ProbComp β) (f : β → γ) (x : γ)
+    (h : x ∈ (ProbComp.eval
+      (PFunctor.FreeM.bind p fun a => PFunctor.FreeM.map f (next a))).support) :
+    ∃ a ∈ (ProbComp.eval p).support,
+      ∃ b ∈ (ProbComp.eval (next a)).support, f b = x := by
+  supp_cases h with ⟨a, ha, b, hb, hbx⟩
+  exact ⟨a, ha, b, hb, hbx⟩
+
+-- The oracle-program support normalizer also follows explicit heterogeneous bind and map.
+example {ι : Type} {spec : OracleSpec ι} {α : Type u} {β : Type v} {γ : Type w}
+    (possible : (q : ι) → Set (spec q)) (p : OracleComp spec α)
+    (next : α → OracleComp spec β) (f : β → γ) (x : γ)
+    (h : x ∈ OracleComp.supportWith possible
+      (PFunctor.FreeM.bind p fun a => PFunctor.FreeM.map f (next a))) :
+    ∃ a ∈ OracleComp.supportWith possible p,
+      ∃ b ∈ OracleComp.supportWith possible (next a), f b = x := by
+  supp_cases h with ⟨a, ha, b, hb, hbx⟩
+  exact ⟨a, ha, b, hb, hbx⟩
+
+private abbrev lowReplySpec : Unit → Type := fun _ => Bool
+
+-- Ordinary bind sequences high-universe results while the underlying oracle replies stay low.
+example (possible : (q : Unit) → Set (lowReplySpec q))
+    (next : ULift.{u} Bool → OracleComp lowReplySpec (ULift.{u} Bool)) (x : ULift.{u} Bool)
+    (h : x ∈ OracleComp.supportWith possible (do
+      let reply ← PFunctor.FreeM.bind (OracleComp.query ()) fun answer =>
+        pure (ULift.up answer)
+      next reply)) :
+    ∃ reply ∈ possible (),
+      x ∈ OracleComp.supportWith possible (next (ULift.up reply)) := by
+  supp_cases h with ⟨lifted, hlifted, hx⟩
+  obtain ⟨reply, hreply, rfl⟩ := hlifted
+  exact ⟨reply, hreply, hx⟩
 
 -- A decided condition selects its branch even under `ProbComp.eval`, which does not split `if`.
 example (p : ProbComp ℕ) (n x : ℕ) (hn : n = 3) (hp : ∀ a ∈ (ProbComp.eval p).support, a < 4)
