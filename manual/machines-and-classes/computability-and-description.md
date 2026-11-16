@@ -49,8 +49,7 @@ generated transition table contains one literal encoded-code occurrence: `static
 description` charges the complete generated machine description, including the composed lookup,
 evaluator and controller transitions. The compilers' `.computes` fields give all-input semantic
 refinement, their `.time` and `.workspace` fields are independent construction-derived maps,
-`time_evalCodeCompiler` and `workspace_evalCodeCompiler` expose the raw evaluator formulas, and
-`outputBits_evalCodeCompiler` and `outputBits_evalCircuitCompiler` give exact emitted lengths.
+and `outputBits_evalCodeCompiler` and `outputBits_evalCircuitCompiler` give exact emitted lengths.
 `computableInPolyTime_evalFixedCircuit` forgets the retained fixed machine through maxima of those
 exact maps over its fixed-width input. The
 [13-bit population-count client](../../CslibFrontierTests/Computability/Circuit/Boolean/NativeEvaluation.lean)

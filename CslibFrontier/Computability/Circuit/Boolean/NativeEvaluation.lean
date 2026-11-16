@@ -33,8 +33,6 @@ transition-table description, including all composed evaluator and controller co
 
 ## Main results
 
-* `Cslib.Circuits.Boolean.time_evalCodeCompiler`, `.workspace_evalCodeCompiler`: explicit raw
-  evaluator resource formulas.
 * `Cslib.Circuits.Boolean.computableInPolyTime_evalFixedCircuit`: the fixed evaluator's ordinary
   polynomial-time abstraction.
 -/
@@ -191,21 +189,6 @@ not installed code; every framed gate is scanned by the concrete stream machine.
           if hj : j < input.2.length then (encGate input.2[j]).length else 0 := by
       simpa only [hj, dite_true] using hsup
     exact hbound.trans (Nat.le_max_right _ _)
-
-/-- The raw evaluator's clock is the explicit construction-derived stream clock. -/
-theorem time_evalCodeCompiler (input : List Bool × List (Op × List ℕ)) :
-    evalCodeCompiler.time input =
-      streamFoldPairTime evalCodeStepCompiler
-        (const (encPair encBits encGate) encUnit ()) (identity encBits) input :=
-  rfl
-
-/-- The raw evaluator's workspace is the explicit construction-derived stream bound. -/
-theorem workspace_evalCodeCompiler (input : List Bool × List (Op × List ℕ)) :
-    evalCodeCompiler.workspace input =
-      streamFoldPairWorkspace evalCodeStepCompiler
-        (const (encPair encBits encGate) encUnit ()) (identity encBits)
-        evalCodeSMax evalCodeLMax input :=
-  rfl
 
 /-- The raw evaluator emits the initial bits followed by exactly one bit per gate. -/
 @[simp] theorem outputBits_evalCodeCompiler

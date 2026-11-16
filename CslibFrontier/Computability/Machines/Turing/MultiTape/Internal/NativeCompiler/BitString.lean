@@ -13,19 +13,15 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.Nat
 /-!
 # Named native raw-bit lookup
 
-This module retains binary-indexed access to a raw bit word. The concrete compiler first inserts
-the standard Boolean-list framing with the shared finite-state codec, then reuses the retained
-single-pass binary list lookup. Out-of-range indices return the caller-supplied fallback.
+This definitions-only module retains binary-indexed access to a raw bit word. The concrete
+compiler first inserts the standard Boolean-list framing with the shared finite-state codec, then
+reuses the retained single-pass binary list lookup. Out-of-range indices return the caller-supplied
+fallback.
 
 ## Main definitions
 
 * `Turing.MultiTapeTM.Internal.NativeCompiler.bitsGetDNatCompiler`: total binary-indexed lookup in
   a raw bit word.
-
-## Main results
-
-* `Turing.MultiTapeTM.Internal.NativeCompiler.time_bitsGetDNatCompiler`,
-  `.workspace_bitsGetDNatCompiler`: expose the construction-derived resource maps.
 -/
 
 public section
@@ -51,45 +47,5 @@ retains the framing conversion and the complete framed-list scan. -/
       simpa only [id_eq, encBits_apply] using (bitsToBoolListT_run word).symm)
   let listedInput := listed.comp bits
   exact (listGetDNatCompiler fallback encBool).comp (listedInput.pair index)
-
-/-- The raw-bit lookup clock is exactly the resource map obtained by composing the shared framing
-codec, the input projections, and the retained framed-list lookup. -/
-theorem time_bitsGetDNatCompiler (fallback : Bool) (input : List Bool × ℕ) :
-    (bitsGetDNatCompiler fallback).time input =
-      let bits := first encBits encNat
-      let index := second encBits encNat
-      let convert : NativeCompiler (fun word : List Bool =>
-          bitsToBoolListT.run bitsToBoolListT.q₀ word)
-          encBits encBits :=
-        ofTransducer bitsToBoolListT Universal.eBit fun _ => rfl
-      let listed : NativeCompiler (id : List Bool → List Bool) encBits (encList encBool) :=
-        ((convert.comp (encodeFrame encBits)).ofOutputEq fun word => by
-          simpa only [id_eq, encBits_apply] using (bitsToBoolListT_run word).symm)
-      let marshalled := (listed.comp bits).pair index
-      marshalled.time input +
-        (listGetDNatCompiler fallback encBool).time (input.1, input.2) +
-        4 * (encPair (encList encBool) encNat (input.1, input.2)).length + 9 :=
-  rfl
-
-/-- The raw-bit lookup workspace is exactly the resource map obtained by composing the shared
-framing codec, the input projections, and the retained framed-list lookup. -/
-theorem workspace_bitsGetDNatCompiler (fallback : Bool) (input : List Bool × ℕ) :
-    (bitsGetDNatCompiler fallback).workspace input =
-      let bits := first encBits encNat
-      let index := second encBits encNat
-      let convert : NativeCompiler (fun word : List Bool =>
-          bitsToBoolListT.run bitsToBoolListT.q₀ word)
-          encBits encBits :=
-        ofTransducer bitsToBoolListT Universal.eBit fun _ => rfl
-      let listed : NativeCompiler (id : List Bool → List Bool) encBits (encList encBool) :=
-        ((convert.comp (encodeFrame encBits)).ofOutputEq fun word => by
-          simpa only [id_eq, encBits_apply] using (bitsToBoolListT_run word).symm)
-      let marshalled := (listed.comp bits).pair index
-      marshalled.workspace input +
-        (listGetDNatCompiler fallback encBool).workspace (input.1, input.2) +
-        5 * (encPair (encList encBool) encNat (input.1, input.2)).length +
-        (6 * max marshalled.tapeCount
-          (listGetDNatCompiler fallback encBool).tapeCount + 20) :=
-  rfl
 
 end Turing.MultiTapeTM.Internal.NativeCompiler
