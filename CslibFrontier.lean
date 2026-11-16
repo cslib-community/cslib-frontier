@@ -2238,12 +2238,14 @@ public import CslibFrontier.Computability.Complexity.Classes.Selective.Ko
 public import CslibFrontier.Computability.Complexity.Classes.Selective.LeftCut
 public import CslibFrontier.Computability.Complexity.Classes.Selective.Selman
 public import CslibFrontier.Computability.Complexity.Classes.SharpP
+public import CslibFrontier.Computability.Complexity.Classes.SharpP.AdditiveApproximation
 public import CslibFrontier.Computability.Complexity.Classes.SharpP.Aggregation
 public import CslibFrontier.Computability.Complexity.Classes.SharpP.Characterization
 public import CslibFrontier.Computability.Complexity.Classes.SharpP.Choose
 public import CslibFrontier.Computability.Complexity.Classes.SharpP.Closure
 public import CslibFrontier.Computability.Complexity.Classes.SharpP.Combinators
 public import CslibFrontier.Computability.Complexity.Classes.SharpP.Completeness
+public import CslibFrontier.Computability.Complexity.Classes.SharpP.EasySearch
 public import CslibFrontier.Computability.Complexity.Classes.SharpP.GapMachine
 public import CslibFrontier.Computability.Complexity.Classes.SharpP.Lowness
 public import CslibFrontier.Computability.Complexity.Classes.SharpP.Machine
@@ -2258,7 +2260,9 @@ public import CslibFrontier.Computability.Complexity.Classes.SharpP.PolyTime
 public import CslibFrontier.Computability.Complexity.Classes.SharpP.Power
 public import CslibFrontier.Computability.Complexity.Classes.SharpP.Probability
 public import CslibFrontier.Computability.Complexity.Classes.SharpP.Products
+public import CslibFrontier.Computability.Complexity.Classes.SharpP.Relation
 public import CslibFrontier.Computability.Complexity.Classes.SharpP.Space
+public import CslibFrontier.Computability.Complexity.Classes.SharpP.Threshold
 public import CslibFrontier.Computability.Complexity.Classes.SharpP.Time
 public import CslibFrontier.Computability.Complexity.Classes.SharpP.WeightedReplay
 public import CslibFrontier.Computability.Complexity.Classes.Space
