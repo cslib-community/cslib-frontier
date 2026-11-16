@@ -47,8 +47,10 @@ comparison of the activations uses the state-representation lemma
 As in `CslibFrontier.Crypto.Protocols.UC.Execution`, corruptions are static and budgets count calls,
 not running time, so these are composition theorems for interaction-bounded, computationally
 unbounded participants. The composition replaces one subroutine instance whose parties are the
-parties of `ρ`, with the same corrupted parties; multiple or dynamically created subroutine
-sessions, and the hybrid argument that replaces them one at a time, are not covered. The corrupted
+parties of `ρ`, with the same corrupted parties. A fixed number of sessions chosen in advance, and
+the hybrid argument that replaces them one at a time, are in
+`CslibFrontier/Crypto/Protocols/UC/MultiSession.lean`; dynamically created sessions are not
+covered. The corrupted
 parties of the composed protocol act through the outer router `UC.corruptRouter C`, and the
 adversary reaches their subroutine inputs through the routed network port of the subroutine.
 
@@ -307,7 +309,7 @@ adversary of `π` against `φ`. -/
 section Swap
 
 /-- A private sample of a program run against a machine stays a private sample. -/
-private theorem runFrom_query_sample {ιI ιE : Type} {I : ιI → Type} {E : ιE → Type}
+theorem runFrom_query_sample {ιI ιE : Type} {I : ιI → Type} {E : ιE → Type}
     (M : Machine I E) (k : ℕ) (s : M.State) :
     M.runFrom (OracleComp.query (spec := probOracleSpec E) (Sum.inl k)) s =
       (fun a => (a, s)) <$> OracleComp.query (spec := probOracleSpec I) (Sum.inl k) := by
@@ -333,7 +335,7 @@ private theorem runFrom_liftAdversary_liftParty {AdvQ AdvR : Type}
 
 /-! #### Activations, one case at a time -/
 
-private theorem liftAdversary_handle_inl {AdvQ AdvR : Type}
+theorem liftAdversary_handle_inl {AdvQ AdvR : Type}
     (A : Machine (netSpec NetQ NetR) (netSpec AdvQ AdvR)) (p : Fin n × In) (s : A.State) :
     ((liftAdversary (n := n) (In := In) (Out := Out) A).handle (.inl p)).run s =
       (fun a => (a, s)) <$>
@@ -341,12 +343,12 @@ private theorem liftAdversary_handle_inl {AdvQ AdvR : Type}
   change (StateT.lift _).run s = _
   rw [StateT.run_lift, bind_pure_comp]
 
-private theorem liftAdversary_handle_inr {AdvQ AdvR : Type}
+theorem liftAdversary_handle_inr {AdvQ AdvR : Type}
     (A : Machine (netSpec NetQ NetR) (netSpec AdvQ AdvR)) (q : AdvQ) (s : A.State) :
     ((liftAdversary (n := n) (In := In) (Out := Out) A).handle (.inr q)).run s =
       liftNet ((A.handle q).run s) := rfl
 
-private theorem routeCorrupt_handle_inl {ιI : Type} {I : ιI → Type} (C : Finset (Fin n))
+theorem routeCorrupt_handle_inl {ιI : Type} {I : ιI → Type} (C : Finset (Fin n))
     (P : Machine I (protocolSpec n In Out NetQ NetR)) (i : Fin n) (x : In) (s : P.State) :
     ((routeCorrupt C P).handle (.inl (i, x))).run s =
       if i ∈ C then pure (none, s) else (P.handle (.inl (i, x))).run s := by
@@ -354,7 +356,7 @@ private theorem routeCorrupt_handle_inl {ιI : Type} {I : ιI → Type} (C : Fin
     StateT P.State (ProbOracleComp I) (Option Out)).run s = _
   split_ifs <;> rfl
 
-private theorem routeCorrupt_handle_inr_inl {ιI : Type} {I : ιI → Type} (C : Finset (Fin n))
+theorem routeCorrupt_handle_inr_inl {ιI : Type} {I : ιI → Type} (C : Finset (Fin n))
     (P : Machine I (protocolSpec n In Out NetQ NetR)) (i : Fin n) (x : In) (s : P.State) :
     ((routeCorrupt C P).handle (.inr (.inl (i, x)))).run s =
       if i ∈ C then (fun p => (Sum.inl p.1, p.2)) <$> (P.handle (.inl (i, x))).run s
@@ -365,7 +367,7 @@ private theorem routeCorrupt_handle_inr_inl {ιI : Type} {I : ιI → Type} (C :
   · exact StateT.run_map _ _ _
   · rfl
 
-private theorem routeCorrupt_handle_inr_inr {ιI : Type} {I : ιI → Type} (C : Finset (Fin n))
+theorem routeCorrupt_handle_inr_inr {ιI : Type} {I : ιI → Type} (C : Finset (Fin n))
     (P : Machine I (protocolSpec n In Out NetQ NetR)) (q : NetQ) (s : P.State) :
     ((routeCorrupt C P).handle (.inr (.inr q))).run s =
       (fun p => (Sum.inr p.1, p.2)) <$> (P.handle (.inr q)).run s :=
@@ -439,7 +441,7 @@ private theorem hybridSimMachine_handle_inr_inr
 
 /-- Behind a closed machine, the order in which two independent initial states are sampled does
 not change the output distribution. -/
-private theorem eval_run_sample_bind_swap {ιJ : Type} {J : ιJ → Type} {σ τ : Type}
+theorem eval_run_sample_bind_swap {ιJ : Type} {J : ιJ → Type} {σ τ : Type}
     (R : Machine OracleSpec.empty J) (p : ProbComp σ) (q : ProbComp τ)
     (k : τ × σ → ProbOracleComp J α) :
     (R.run (ProbOracleComp.sample (do
