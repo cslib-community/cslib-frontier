@@ -2697,18 +2697,24 @@ in decryption, preserving `INDCPA` (`SymmetricCipher.INDCPA.extendCipher`) and `
 `echoMAC` as well as the PRF instantiation are in
 [`CslibFrontierTests/Crypto/MACThenEncrypt.lean`](../../CslibFrontierTests/Crypto/MACThenEncrypt.lean).
 
-For the plaintext integrity of MAC-then-Encrypt (Boneh–Shoup Exercise 9.15(a), p. 395
-[bs23][bs23]), import
+For the plaintext integrity of MAC-then-Encrypt, import
 [`Encryption/MACThenEncrypt/EncForge.lean`](../../CslibFrontier/Crypto/Computational/Encryption/MACThenEncrypt/EncForge.lean).
-The exercise's PI game is `SymmetricCipher.EncForge`. `encForge_macThenEncrypt` proves
-`(macThenEncrypt E M ptLen …).EncForge` from `M.EUFCMA` alone, for every cipher `E`. The reduction
-`mteToMACForger` samples the encryption key itself, answers encryption queries through the MAC
-signing oracle, and decrypts the adversary's ciphertext to obtain its forgery;
-`isOraclePPT_mteToMACForger` is its certificate and
-`succProbability_encForgeGame_macThenEncrypt_le` its bound. With `indcpa_macThenEncrypt` this gives
-both halves of (a); over `E.extendCipher` the scheme also fails `INDCCA` and
-`CiphertextIntegrity`, the exercise's Note. Both, and an instance from a pseudorandom function, are
-checked in
+`SymmetricCipher.EncForge` is the PI game of Boneh–Shoup [bs23][bs23], Exercise 9.15, p. 395.
+`encForge_macThenEncrypt` proves `(macThenEncrypt E M ptLen …).EncForge` from `M.EUFCMA` alone,
+for every cipher `E`. This is the argument of part (a) of the exercise from the library's
+`MACScheme.EUFCMA`, whose signing oracle also tags words outside the message space; a MAC that is
+secure in the book's sense need not satisfy it
+([#5686](https://github.com/cslib-community/cslib-frontier/issues/5686)). The reduction
+`mteToMACForger E M ptLen tagBound adversary` samples the encryption key itself, answers each
+encryption query on an `n`-bit message by asking the MAC signing oracle for a tag, cut to
+`tagBound n` bits, and encrypting the pair, and decrypts the adversary's ciphertext to obtain its
+forgery. `isOraclePPT_mteToMACForger` certifies it when the adversary is `IsOraclePPT` and `ptLen`
+and `tagBound` are polynomial-time computable. When `tagBound n` bounds the length of every tag on
+an `n`-bit message, `succProbability_encForgeGame_macThenEncrypt_le` bounds the adversary's
+success in `encForgeGame` by the forger's in `eufCmaGame`. With `indcpa_macThenEncrypt`, which
+needs `E.INDCPA` and `StrictMono ptLen`, the scheme is CPA-secure as well; over `E.extendCipher` it
+fails `INDCCA` and `CiphertextIntegrity`, the exercise's Note. Both, and an instance from a
+pseudorandom function, are checked in
 [`CslibFrontierTests/Crypto/MACThenEncryptEncForge.lean`](../../CslibFrontierTests/Crypto/MACThenEncryptEncForge.lean).
 
 ## Authentication, signatures, and state

@@ -24,7 +24,10 @@ identical to the CI game except that the winning condition is relaxed to: D(k, c
 D(k, c) ∉ {m₁, m₂, …}". The library's notion `SymmetricCipher.EncForge` is this game. Part (a)
 asks to "Show that MAC-then-Encrypt is both CPA and PI secure." `indcpa_macThenEncrypt` gives the
 CPA half; this module gives the PI half: `encForge_macThenEncrypt` proves `EncForge` for
-`macThenEncrypt E M …` from `M.EUFCMA` alone, with no hypothesis on the cipher `E`.
+`macThenEncrypt E M …` from `M.EUFCMA` alone, with no hypothesis on the cipher `E`. This is the
+argument of part (a) from the library's `MACScheme.EUFCMA`, which is not yet the book's notion: its
+signing oracle also tags words outside the message space, so a MAC that is secure in the sense of
+Definition 6.2 need not satisfy it (#5686).
 
 The reduction `mteToMACForger` samples the encryption key itself, answers each encryption query by
 asking the MAC signing oracle for a tag and encrypting the encoded pair, and decrypts the
@@ -102,8 +105,6 @@ private theorem isOraclePPTOn_mteToMACHandler (E : SymmetricCipher)
       (fun pair : ((ℕ × List Bool) × List Bool) × ((Unit × List Bool) × Unit) =>
         mteToMACHandler E pair.1.1.1 (ptLen pair.1.1.1) (tagBound pair.1.1.1) pair.1.2
           pair.2.1 pair.2.2) := by
-  have hpt := hptLen.tidy
-  have htag := htagBound.tidy
   ppt [mteToMACHandler]
 
 private theorem computableInPolyTime_mteMACResources (ce de : ℕ)
@@ -115,8 +116,6 @@ private theorem computableInPolyTime_mteMACResources (ce de : ℕ)
         ce * (2 * ptLen pair.1.1.1 + 2 * pair.1.2.length +
           (2 * pair.2.length + tagBound pair.1.1.1 + 3) + 3) ^ de)
       (encPair (encPair (encPair encUnary encBits) encBits) encBits) encUnary := by
-  have hpt := hptLen.tidy
-  have htag := htagBound.tidy
   polytime
 
 private theorem computableInPolyTime_mteMACPost {S : Type} (encS : S ↪ List Bool)
@@ -367,58 +366,9 @@ theorem succProbability_encForgeGame_macThenEncrypt_le (E : SymmetricCipher) (M 
         (ProbComp.eval (M.eufCmaGame (mteToMACForger E M ptLen tagBound adversary) n)) := by
   simp only [Game.succProbability, SymmetricCipher.encForgeGame, MACScheme.eufCmaGame,
     mteToMACForger, ProbComp.eval_bind, ProbComp.eval_pure, ProbOracleComp.eval_run_interpret]
-  have hinner (km : List Bool) :
-      ((OracleComp.interpret
-        (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifOracle m))
-          (fun q s => ProbComp.eval (M.signingOracle km q s)))
-        (do
-          let ke ← ProbOracleComp.sample (E.keyGen (ptLen n))
-          (fun out : List Bool × Unit =>
-            let dec := E.decrypt (ptLen n) ke out.1
-            let pt := dec.getD []
-            let msg := unframe pt
-            let tag := dropFrame pt
-            if dec.isSome && (encPair encBits encBits (msg, tag) == pt) &&
-                (msg.length == M.msgLen n) then
-              (msg, tag)
-            else
-              (if M.msgLen n == 0 then [false] else [], [])) <$>
-            (OracleComp.interpret
-              (OracleComp.sumHandler
-                (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
-                (mteToMACHandler E n (ptLen n) (tagBound n) ke))
-              (adversary n [])).run ())).run []).bind
-        (fun out => PMF.pure
-          ((out.1.1.length == M.msgLen n) && !out.2.contains out.1.1 &&
-            M.verify km out.1.1 out.1.2)) =
-      (ProbComp.eval (E.keyGen (ptLen n))).bind (fun ke =>
-        ((OracleComp.interpret
-          (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifOracle m))
-            (fun q s => ProbComp.eval (M.signingOracle km q s)))
-          ((OracleComp.interpret
-            (OracleComp.sumHandler
-              (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
-              (mteToMACHandler E n (ptLen n) (tagBound n) ke))
-            (adversary n [])).run ())).run []).bind
-          (fun out => PMF.pure
-            (let dec := E.decrypt (ptLen n) ke out.1.1
-             let pt := dec.getD []
-             let msg := unframe pt
-             let tag := dropFrame pt
-             let pair :=
-               if dec.isSome && (encPair encBits encBits (msg, tag) == pt) &&
-                   (msg.length == M.msgLen n) then
-                 (msg, tag)
-               else
-                 (if M.msgLen n == 0 then [false] else [], [])
-             (pair.1.length == M.msgLen n) && !out.2.contains pair.1 &&
-               M.verify km pair.1 pair.2))) := by
-    rw [OracleComp.interpret_bind, StateT.run_bind, ProbOracleComp.run_interpret_sample]
-    simp only [Probability.PMF.monad_bind_eq_bind, PMF.bind_map, Function.comp_def, PMF.bind_bind]
-    congr 1; funext ke
-    rw [OracleComp.interpret_map, StateT.run_map]
-    simp only [_root_.PMF.monad_map_eq_map, PMF.bind_map, Function.comp_def]
-  simp only [hinner]
+  simp only [OracleComp.interpret_bind, StateT.run_bind, ProbOracleComp.run_interpret_sample,
+    OracleComp.interpret_map, StateT.run_map, Probability.PMF.monad_bind_eq_bind,
+    _root_.PMF.monad_map_eq_map, PMF.bind_map, Function.comp_def, PMF.bind_bind]
   rw [PMF.bind_comm (ProbComp.eval (M.keyGen n))]
   have hkeyGen : ProbComp.eval ((macThenEncrypt E M ptLen hptLenPoly hmsgLen hpairLen).keyGen n) =
       (ProbComp.eval (E.keyGen (ptLen n))).bind (fun ke =>
@@ -428,39 +378,35 @@ theorem succProbability_encForgeGame_macThenEncrypt_le (E : SymmetricCipher) (M 
   rw [hkeyGen]
   simp only [PMF.bind_bind, PMF.pure_bind]
   refine ENNReal.toNNReal_mono (PMF.apply_ne_top _ true) ?_
-  rw [PMF.bind_apply, PMF.bind_apply]
-  refine tsum_le_tsum fun ke => ?_
-  by_cases hke : ke ∈ (ProbComp.eval (E.keyGen (ptLen n))).support
-  · refine mul_le_mul_of_nonneg_left ?_ zero_le
-    rw [PMF.bind_apply, PMF.bind_apply]
-    refine tsum_le_tsum fun km => ?_
-    by_cases hkm : km ∈ (ProbComp.eval (M.keyGen n)).support
-    · refine mul_le_mul_of_nonneg_left ?_ zero_le
-      rw [← ProbOracleComp.eval_run_interpret,
-        eval_run_mteToMACHandler_signingOracle_eq E M ptLen hptLenPoly hmsgLen hpairLen n tagBound
-          ke km hkm htagBound (adversary n []),
-        PMF.bind_map]
-      refine Probability.PMF.map_true_mono _ fun out _ hwin => ?_
-      dsimp only [Function.comp_def, macThenEncrypt] at hwin ⊢
-      rw [unframe_encPair_encBits, dropFrame_encPair_encBits] at hwin
-      cases hdec : E.decrypt (ptLen n) ke out.1 with
-      | none => simp [hdec] at hwin
-      | some pt =>
-        simp only [hdec, Option.elim_some, Option.getD_some, Option.isSome_some,
-          Bool.true_and] at hwin ⊢
-        split_ifs at hwin with hcond
-        · simp only [Bool.and_eq_true] at hcond
-          have hc1 : (encPair encBits encBits (unframe pt, dropFrame pt) == pt) = true := hcond.1.1
-          have hc2 : ((unframe pt).length == M.msgLen n) = true := hcond.1.2
-          have hc3 : M.verify km (unframe pt) (dropFrame pt) = true := hcond.2
-          simp only [hc1, hc2, Bool.and_self, ↓reduceIte, hc3, Bool.true_and, Bool.and_true]
-          simpa using hwin
-        · simp at hwin
-    · simp [(ProbComp.eval (M.keyGen n)).apply_eq_zero_iff km |>.mpr hkm]
-  · simp [(ProbComp.eval (E.keyGen (ptLen n))).apply_eq_zero_iff ke |>.mpr hke]
+  refine PMF.bind_apply_mono_on_support _ true fun ke _ =>
+    PMF.bind_apply_mono_on_support _ true fun km hkm => ?_
+  rw [← ProbOracleComp.eval_run_interpret,
+    eval_run_mteToMACHandler_signingOracle_eq E M ptLen hptLenPoly hmsgLen hpairLen n tagBound
+      ke km hkm htagBound (adversary n []),
+    PMF.bind_map]
+  refine Probability.PMF.map_true_mono _ fun out _ hwin => ?_
+  dsimp only [Function.comp_def, macThenEncrypt] at hwin ⊢
+  rw [unframe_encPair_encBits, dropFrame_encPair_encBits] at hwin
+  cases hdec : E.decrypt (ptLen n) ke out.1 with
+  | none => simp [hdec] at hwin
+  | some pt =>
+    simp only [hdec, Option.elim_some, Option.getD_some, Option.isSome_some,
+      Bool.true_and] at hwin ⊢
+    split_ifs at hwin with hcond
+    · simp only [Bool.and_eq_true] at hcond
+      have hc1 : (encPair encBits encBits (unframe pt, dropFrame pt) == pt) = true := hcond.1.1
+      have hc2 : ((unframe pt).length == M.msgLen n) = true := hcond.1.2
+      have hc3 : M.verify km (unframe pt) (dropFrame pt) = true := hcond.2
+      simp only [hc1, hc2, Bool.and_self, ↓reduceIte, hc3, Bool.true_and, Bool.and_true]
+      simpa using hwin
+    · simp at hwin
 
-/-- **Exercise 9.15(a), plaintext integrity.** MAC-then-Encrypt with an existentially unforgeable
-MAC has plaintext integrity (`EncForge`), for every cipher `E`. -/
+/-- **Plaintext integrity of MAC-then-Encrypt.** If `M` satisfies the library's `MACScheme.EUFCMA`,
+then `macThenEncrypt E M …` has plaintext integrity (`EncForge`), for every cipher `E`. This is the
+argument of [BonehShoup2023], Exercise 9.15(a) (p. 395), from a hypothesis that is not yet the
+book's: the signing oracle of `MACScheme.EUFCMA` also tags words outside the message space, so a
+MAC secure in the sense of Definition 6.2 need not satisfy it (#5686). The reduction asks for tags
+on `n`-bit messages only. -/
 theorem encForge_macThenEncrypt (E : SymmetricCipher) (M : MACScheme)
     (ptLen : ℕ → ℕ) (hptLenPoly : ComputableInPolyTime ptLen encUnary encUnary)
     (hmsgLen : ∀ n, M.msgLen n = n)
