@@ -111,6 +111,7 @@ private theorem router_F_coin_no1_indep {α : Type} (κ : ℕ) (b : Bool)
       rfl
     exact hL.trans hR.symm
   | query_bind q cont ih =>
+    simp only [PFunctor.FreeM.bind_eq_bind]
     rcases q with k | q
     · have hstep (b' : Bool) (tr : Fin 2 → List (Option Bool)) :
           closeEval ((adaptiveRouter .adaptive (F_coin.toAdaptive coinReveal) κ ∅).runFrom
@@ -128,7 +129,7 @@ private theorem router_F_coin_no1_indep {α : Type} (κ : ℕ) (b : Bool)
               (Sum.inl k)) =
             ProbOracleComp.sample (ProbComp.unifFin k) := by
           simp only [liftAdaptiveNet, OracleComp.interpret_query, sumHandler,
-            ProbOracleComp.sample, ProbComp.unifFin]
+            ProbOracleComp.sample, ProbComp.unifFin, OracleComp.substitute_query]
         rw [liftAdaptiveNet_bind, hk]
         erw [Machine.runFrom_bind, Machine.runFrom_sample, bind_map_left, closeEval_bind,
           closeEval_sample]
