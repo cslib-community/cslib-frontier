@@ -2919,8 +2919,8 @@ theorem isPPT_bcsTraceCollisionFinder {encStmt : Stmt ↪ List Bool} {encSym : S
   have htr := encBCSTraceOutput_trace_polyTime r Stmt Sym encStmt encSym hsnd
   have hstmt := encBCSTraceOutput_stmt_polyTime r Stmt Sym encStmt encSym hsnd
   have hprf := encBCSTraceOutput_proof_polyTime r Stmt Sym encStmt encSym hsnd
-  have hpost := (computableInPolyTime_bcsExtractTraceCollision hH hlen hqueries hhFS
-    hk htr hstmt hprf).tidy
+  have hpost := computableInPolyTime_bcsExtractTraceCollision hH hlen hqueries hhFS
+    hk htr hstmt hprf
   change IsPPTOn (encPair encUnary encBits) (encPair encBits encBits)
     (fun p => bcsTraceCollisionFinder iop H encSym hFS adversary p.1 p.2)
   exact hadversary.bind_with hpost.isPPTOn
