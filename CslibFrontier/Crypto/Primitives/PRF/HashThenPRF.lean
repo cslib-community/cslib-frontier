@@ -40,7 +40,7 @@ This module stays at the finite query-bound level without running-time certifica
 (`Cslib.Crypto.PRF.isQueryBounded_hashReduction`,
 `Cslib.Crypto.PRF.length_le_of_mem_support_idealQueries`), not `IsPPT` or `IsOraclePPT`
 certificates, and `IsUniversalHash` is statistical rather than a computational UHF
-(Definition 7.3). No asymptotic negligible-advantage theorem is proved here. Conversely,
+(Definition 7.2). No asymptotic negligible-advantage theorem is proved here. Conversely,
 `Cslib.Crypto.PRF.toOuterMeasure_collision_le_advantage_collisionDistinguisher` formalizes the
 observation of Section 7.3 (p. 263) that two distinct messages colliding with probability `δ` give a
 two-query distinguisher (`Cslib.Crypto.PRF.collisionDistinguisher`) of advantage at least
@@ -57,17 +57,22 @@ two-query distinguisher (`Cslib.Crypto.PRF.collisionDistinguisher`) of advantage
 
 * `Cslib.Crypto.PRF.isQueryBounded_hashReduction`: `B_F` preserves query budgets.
 * `Cslib.Crypto.PRF.length_le_of_mem_support_idealQueries`: `B'_H` outputs at most `Q` messages.
-* `Cslib.Crypto.PRF.eval_realExperiment_hashThenPRF`: Game 0, `(7.21)`.
+* `Cslib.Crypto.PRF.eval_realExperiment_hashThenPRF`: Game 0 is the real experiment of `B_F`, a
+  step toward `(7.21)`.
 * `Cslib.Crypto.PRF.advantage_idealExperiment_hashReduction_le`: Game 1 to Game 2, `(7.22)`.
 * `Cslib.Crypto.PRF.advantage_hashThenPRF_le_add_multiQuery`: equation `(7.20)`.
 * `Cslib.Crypto.PRF.advantage_hashThenPRF_le`: Theorem 7.7 for a statistical `ε`-UHF.
 * `Cslib.Crypto.PRF.isQueryBounded_collisionDistinguisher`: the collision distinguisher makes `2`
   queries.
-* `Cslib.Crypto.PRF.eval_realExperiment_collisionDistinguisher`,
-  `Cslib.Crypto.PRF.eval_idealExperiment_collisionDistinguisher`: evaluation rules for
-  `collisionDistinguisher`.
 * `Cslib.Crypto.PRF.toOuterMeasure_collision_le_advantage_collisionDistinguisher`: collision lower
   bound on advantage against `hashThenPRF H F`.
+
+## Implementation notes
+
+`collisionDistinguisher` is not exposed. For `module` callers,
+`Cslib.Crypto.PRF.eval_realExperiment_collisionDistinguisher` and
+`Cslib.Crypto.PRF.eval_idealExperiment_collisionDistinguisher` give its output laws in the two
+experiments.
 
 ## References
 
@@ -136,9 +141,9 @@ private theorem eval_idealQueries [DecidableEq M] [Fintype Z] [Nonempty Z] (A : 
   simp only [idealQueries, ProbComp.eval_map, ProbOracleComp.eval_runState,
     ProbComp.eval_memoize, ProbComp.eval_uniform]
 
-/-- Game 0, equation (7.21) ([BonehShoup2023], Version 0.6, Section 7.3, pp. 263–264): the real
-experiment of `A` against `hashThenPRF H F` has the same distribution as the real experiment of
-`hashReduction H A` (`B_F`) against `F`. -/
+/-- Game 0 of the proof of Theorem 7.7 ([BonehShoup2023], Version 0.6, Section 7.3, pp. 263–264),
+a step toward equation (7.21): the real experiment of `A` against `hashThenPRF H F` has the same
+distribution as the real experiment of `hashReduction H A` (`B_F`) against `F`. -/
 theorem eval_realExperiment_hashThenPRF [Fintype K₁] [Nonempty K₁] [Fintype K₂] [Nonempty K₂]
     (H : K₁ → M → Y) (F : K₂ → Y → Z) (A : Adversary M Z) :
     ProbComp.eval (realExperiment (hashThenPRF H F) A) =
@@ -156,16 +161,6 @@ theorem eval_realExperiment_hashThenPRF [Fintype K₁] [Nonempty K₁] [Fintype 
   rw [OracleComp.interpret_bind, ProbOracleComp.interpret_sample]
   simp only [Probability.PMF.monad_bind_eq_bind, hunif, ProbOracleComp.interpret_simulate,
     ProbOracleComp.interpret_query, hashThenPRF]
-
-/-- The ideal experiment of `A` evaluated via lazy list memoization. -/
-private theorem eval_idealExperiment_eq_runWith_memoize [Fintype M] [DecidableEq M] [Fintype Z]
-    [Nonempty Z] (A : Adversary M Z) :
-    ProbComp.eval (idealExperiment A) =
-      (ProbOracleComp.runWith (memoize fun _ : M => PMF.uniformOfFintype Z) A
-        []).map Prod.fst := by
-  rw [eval_idealExperiment]
-  simpa only [PMF.pi_uniformOfFintype, Probability.PMF.monad_bind_eq_bind] using
-    RandomOracle.interpret_prob_eq_memoize (fun _ : M => PMF.uniformOfFintype Z) A
 
 /-- The ideal experiment of `B_F` evaluated via `RandomOracle.answer` on the simulated program. -/
 private theorem eval_idealExperiment_hashReduction [Fintype K₁] [Nonempty K₁] [Fintype Y]
@@ -315,15 +310,11 @@ theorem toOuterMeasure_collision_le_advantage_collisionDistinguisher [Fintype K�
           PMF.pure (decide (g true = g false))) := by
       rw [← Probability.PMF.uniformOfFintype_pi_map_comp_embedding e, PMF.bind_map]
       rfl
-    let eBool : (Bool → Z) ≃ Z × Z :=
-      ⟨fun g => (g true, g false),
-       fun p b => bif b then p.1 else p.2,
-       fun g => funext fun b => by cases b <;> rfl,
-       fun _ => rfl⟩
     have hpair : ((PMF.uniformOfFintype (Bool → Z)).bind fun g =>
         PMF.pure (decide (g true = g false))) =
         (PMF.uniformOfFintype (Z × Z)).bind fun p => PMF.pure (decide (p.1 = p.2)) := by
-      rw [← Probability.PMF.uniformOfFintype_map_equiv eBool, PMF.bind_map]
+      rw [← Probability.PMF.uniformOfFintype_map_equiv
+        ((Equiv.boolArrowEquivProd Z).trans (Equiv.prodComm Z Z)), PMF.bind_map]
       rfl
     rw [hmap, hpair, ← Probability.PMF.uniformOfFintype_prod, PMF.bind_bind]
     refine Probability.PMF.bind_apply_of_forall _ fun z₀ => ?_

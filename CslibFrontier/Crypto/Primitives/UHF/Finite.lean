@@ -22,10 +22,11 @@ This module formalizes only the multi-query universal-hash game
 p. 254) for finite key types and the statistical collision union bound for `ε`-universal hash
 (`Cslib.Crypto.UHF.eval_multiQueryExperiment_le`, the statistical finite case of Lemma 7.1).
 
-Attack Game 7.1 (`UHFadv`), Definition 7.3 (`efficient` / computational UHF), the Δ-universal game
-(Attack Game 7.3), and the computational reduction of Lemma 7.1 are not formalized here. No
-running-time certificate is attached to the adversary `B`: it is an arbitrary closed probabilistic
-program outputting a finite list of messages.
+Attack Game 7.1 (`UHFadv`), computational UHFs (Definition 7.2), multi-query UHFs against
+efficient adversaries (Definition 7.3), the difference-unpredictability game (Attack Game 7.3), and
+the computational reduction of Lemma 7.1 are not formalized here. No running-time certificate is
+attached to the adversary `B`: it is an arbitrary closed probabilistic program outputting a finite
+list of messages.
 
 ## Main definitions
 

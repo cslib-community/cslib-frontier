@@ -20,7 +20,7 @@ set_option linter.privateModule false
 Checks the API and hypotheses of `CslibFrontier.Crypto.PRF.HashThenPRF` and
 `CslibFrontier.Crypto.UHF.Finite` as a `module` client:
 - instantiating `PRF.advantage_hashThenPRF_le` with `coeffPolyHash`;
-- equation `(6.17)` on `hashThenPRF`;
+- equation `(6.17)` (§6.5, p. 231) on `hashThenPRF`;
 - `UHF.multiQueryExperiment` on constant hashes, repeated lists, two-query lists, and
   `collisionDistinguisher`;
 - tightness/necessity on constant hashes, counterexample when `m₀ = m₁` (`Z = Bool`), comparison
@@ -33,7 +33,7 @@ namespace Cslib.Crypto.PRF.Tests
 open Cslib.Probability
 open scoped ENNReal NNReal
 
-/-! ### Instantiation with `coeffPolyHash` and equation (6.17) -/
+/-! ### Instantiation with `coeffPolyHash` and equation (6.17) (§6.5, p. 231) -/
 
 example {K₂ F Z : Type} [Field F] [Fintype F] [DecidableEq F] [Fintype K₂] [Nonempty K₂]
     [Fintype Z] [Nonempty Z] [DecidableEq Z] (n : ℕ) (f : K₂ → F → Z)
@@ -48,8 +48,9 @@ example {K₁ K₂ M Y Z : Type} (H : K₁ → M → Y) (F : K₂ → Y → Z) (
 
 /-! ### Multi-query UHF game checks -/
 
-example {K₁ M Y : Type} [Fintype K₁] [Nonempty K₁] [DecidableEq M] [DecidableEq Y]
-    (y₀ : Y) {m₀ m₁ : M} (hm : m₀ ≠ m₁) :
+/-- A constant hash wins Attack Game 7.2 on any two distinct messages. -/
+private theorem eval_multiQueryExperiment_const_pair {K₁ M Y : Type} [Fintype K₁] [Nonempty K₁]
+    [DecidableEq M] [DecidableEq Y] (y₀ : Y) {m₀ m₁ : M} (hm : m₀ ≠ m₁) :
     ProbComp.eval (UHF.multiQueryExperiment (fun (_ : K₁) (_ : M) => y₀) (pure [m₀, m₁])) true =
       1 := by
   have hcol : decide (∃ m ∈ [m₀, m₁], ∃ m' ∈ [m₀, m₁], m ≠ m' ∧ True) = true :=
@@ -140,12 +141,8 @@ example {K₁ M Y : Type} [Fintype K₁] [Nonempty K₁] [DecidableEq M] [Decida
     (y₀ : Y) {m₀ m₁ : M} (hm : m₀ ≠ m₁) :
     ¬ ([m₀, m₁].length ≤ 1) ∧
       ProbComp.eval (UHF.multiQueryExperiment (fun (_ : K₁) (_ : M) => y₀) (pure [m₀, m₁])) true =
-        1 := by
-  refine ⟨by simp, ?_⟩
-  have hcol : decide (∃ m ∈ [m₀, m₁], ∃ m' ∈ [m₀, m₁], m ≠ m' ∧ True) = true :=
-    decide_eq_true ⟨m₀, by simp, m₁, by simp, hm, trivial⟩
-  simp only [UHF.multiQueryExperiment, ProbComp.eval_bind, ProbComp.eval_pure,
-    ProbComp.eval_uniform, PMF.pure_bind, hcol, PMF.bind_const, PMF.pure_apply, ↓reduceIte]
+        1 :=
+  ⟨by simp, eval_multiQueryExperiment_const_pair y₀ hm⟩
 
 /-! ### Asymptotic negligible composition (via `Negligible` and `PolynomiallyBounded`) -/
 
