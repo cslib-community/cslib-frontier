@@ -6163,6 +6163,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.SpectralSample
 public import CslibFrontier.Foundations.BooleanAnalysis.StableInfluence
 public import CslibFrontier.Foundations.BooleanAnalysis.SubsetZeta
 public import CslibFrontier.Foundations.BooleanAnalysis.Symmetrization
+public import CslibFrontier.Foundations.BooleanAnalysis.TransitiveSymmetric
 public import CslibFrontier.Foundations.BooleanAnalysis.Tribes
 public import CslibFrontier.Foundations.BooleanAnalysis.TribesInfluence
 public import CslibFrontier.Foundations.BooleanAnalysis.TribesJunta
