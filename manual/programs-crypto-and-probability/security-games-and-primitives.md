@@ -1588,6 +1588,29 @@ by `decide` and build the instance as `⟨isUnit_iff_ne_zero.2 h⟩`.
   so `C • W` and `W` have the same number of points (`Nat.card_congr` applied to its `toEquiv`).
   The [variable-change client](../../CslibFrontierTests/Foundations/AlgebraicGeometry/VariableChange.lean)
   moves an addition on a curve over `ZMod 7` through it.
+- **Montgomery curves.** Import
+  [`EllipticCurve/Montgomery.lean`](../../CslibFrontier/Foundations/AlgebraicGeometry/EllipticCurve/Montgomery.lean)
+  (`CslibFrontier.Foundations.AlgebraicGeometry.EllipticCurve.Montgomery`). Over a commutative ring
+  `R`, `MontgomeryCurve R` models `B v² = u³ + A u² + u` with `B * (A ^ 2 - 4) ≠ 0`
+  ([bs23][bs23], §15.2.1, p. 618). Over a field `F`, `M.Equation u v` and `M.Point` define its
+  affine equation and points, with `M.natCard_point_eq_one_add` counting `1` plus affine solutions
+  over finite `F`. Substituting `(u, v) = (B x, B y)` gives `M.toWeierstrass` (equal to
+  `(WeierstrassCurve.ofCubic M.A 1 0).quadraticTwist M.B⁻¹` by
+  `MontgomeryCurve.toWeierstrass_eq_quadraticTwist`), with discriminant `16 (A² - 4) / B⁶`
+  (`MontgomeryCurve.toWeierstrass_Δ`) and `M.toWeierstrass.IsElliptic` when `2 ≠ 0`
+  (`MontgomeryCurve.isElliptic_toWeierstrass`). When `2 ≠ 0`, `M.toWeierstrassEquiv` identifies
+  `M.Point ≃ M.toWeierstrass.toAffine.Point` (`MontgomeryCurve.toWeierstrassEquiv_zero`,
+  `MontgomeryCurve.toWeierstrassEquiv_some`). Shifting `X ↦ X - A / (3 B)` gives
+  `M.toShortWeierstrass` (`MontgomeryCurve.isShortNF_toShortWeierstrass` when `3 ≠ 0`,
+  `MontgomeryCurve.toShortWeierstrass_eq_toShortNF` matching `WeierstrassCurve.toShortNF` under
+  `Invertible (2 : F)` and `Invertible (3 : F)`, `MontgomeryCurve.not_isShortNF_toShortWeierstrass`
+  when `3 = 0` and `A ≠ 0`, and `MontgomeryCurve.equation_iff_toShortWeierstrass` without `3 ≠ 0`).
+  Over a finite field with `ringChar F ≠ 2`, `4` divides `#M.toWeierstrass(F)` and `#M.Point`
+  (`MontgomeryCurve.four_dvd_natCard_toWeierstrass_point`, `MontgomeryCurve.four_dvd_natCard_point`),
+  so no variable change relates `M` to an odd-order curve
+  (`MontgomeryCurve.not_variableChange_of_odd`). Check the
+  [Montgomery-curve client](../../CslibFrontierTests/Foundations/AlgebraicGeometry/MontgomeryCurve.lean)
+  with `lake build CslibFrontierTests.Foundations.AlgebraicGeometry.MontgomeryCurve`.
 
 The [checked client](../../CslibFrontierTests/Foundations/AlgebraicGeometry/EllipticCurveHasse.lean)
 (using [`EllipticCurve/Decidable.lean`](../../CslibFrontier/Foundations/AlgebraicGeometry/EllipticCurve/Decidable.lean)
