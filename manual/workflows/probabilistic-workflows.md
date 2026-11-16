@@ -1776,9 +1776,13 @@ whose queries each run `handler q` against `oracle`. The block-mode reduction
 [blockModeReduction](../../CslibFrontier/Crypto/Computational/Encryption/RandomFunctionHybrid.lean)
 uses it for its fresh-sampling hop and in the CTR and OFB collision bounds.
 
-If an existing proof needs the underlying interpreter, unfold `ProbOracleComp.simulate` to
-reuse its laws and native efficiency certificates. Substitution preserves the free program;
-it does not by itself certify its runtime. This separation follows VCVio's treatment of
+If an existing proof needs generic monadic interpreter laws, note that unfolding
+`ProbOracleComp.simulate` exposes `OracleComp.substitute`, not an interpreter. The public
+`OracleComp.substitute_eq_interpret` bridge rewrites it as `OracleComp.interpret` only when the
+source replies and the program result inhabit the same monad object universe; outside that
+boundary use the heterogeneous substitution laws or the specialized state-run and query-budget
+laws above. Substitution preserves the free program; it does not by itself certify its runtime.
+This separation follows VCVio's treatment of
 [untouched oracle effects](https://github.com/Verified-zkEVM/VCVio/blob/87bc1892fff1982e97cfd8c7303c9d1f2bfdc2f9/VCVio/OracleComp/SimSemantics/Append/Core.lean).
 
 ## Run a word adversary against a typed oracle

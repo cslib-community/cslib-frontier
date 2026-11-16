@@ -11,6 +11,9 @@ public import CslibFrontier.Languages.Probabilistic.Oracle.Interaction
 public import CslibFrontier.Languages.Probabilistic.Oracle.Substitution
 public import CslibFrontier.Languages.Probabilistic.Oracle.Support
 
+import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.QueryCount
+import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.RunWith
+
 /-! # One semantics for oracle programs -/
 
 set_option linter.privateModule false
@@ -233,5 +236,34 @@ example (state : Type s) :
     ProbOracleComp.acceptProbWith highProbOracle highAcceptProgram state = 0 := by
   rw [highAcceptProgram, ProbOracleComp.acceptProbWith_query_bind]
   simp [highProbOracle, ProbOracleComp.acceptProbWith_pure]
+
+private abbrev highSourceQuerySpec : Type u → Type := fun _ => Bool
+
+private abbrev highTargetQuerySpec : Type v → Type := fun _ => Bool
+
+private def highQueryProgram : ProbOracleComp highSourceQuerySpec Bool :=
+  ProbOracleComp.query Bool
+
+private def highQueryHandler (_ : Type u) : ProbOracleComp highTargetQuerySpec Bool :=
+  ProbOracleComp.query Bool
+
+private noncomputable def highQueryOracle :
+    (q : Type v) → StateT ℕ PMF (highTargetQuerySpec q) :=
+  fun _ state => PMF.pure (true, state + 1)
+
+-- The public simulation run law applies when both query carriers are in independent higher
+-- universes, while replies, results, and state remain concrete small types.
+example :
+    ProbOracleComp.runWith highQueryOracle
+        (ProbOracleComp.simulate highQueryHandler highQueryProgram) 0 =
+      PMF.pure (true, 1) := by
+  rw [ProbOracleComp.runWith_simulate]
+  simp [highQueryProgram, highQueryHandler, highQueryOracle]
+
+-- The public simulation budget law applies to the same genuinely high-query client.
+example :
+    (ProbOracleComp.simulate highQueryHandler highQueryProgram).IsQueryBounded 1 := by
+  exact (ProbOracleComp.IsQueryBounded.query Bool).simulate
+    (fun _ => ProbOracleComp.IsQueryBounded.query Bool)
 
 end CslibFrontierTests.OracleSemantics
