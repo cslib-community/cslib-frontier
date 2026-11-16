@@ -37,8 +37,9 @@ Sections 22.5 and 22.5.1, pp. 975–977):
      `genericReconstruct` on `∅` returns `0 ≠ 1`;
    - `[Nontrivial Secret]`: when `Secret = Unit` (`|Z| = 1`), `recognizeCoalitionDist` accepts with
      probability `1` even on unauthorized `∅`;
-   - `hP : P ∈ scheme.sources`: under `P = PMF.pure 0 ∉ additiveSources 1 (ZMod 5)`, unauthorized
-     coalition `{1}` guesses a uniform secret in `ZMod 5` with probability `1`;
+   - `hP : P ∈ scheme.sources`: under
+     `P = PMF.pure 0 ∉ SourceClass.translationInvariant (Fin 1 → ZMod 5)`, unauthorized coalition
+     `{1}` guesses a uniform secret in `ZMod 5` with probability `1`;
    - `hs : ¬ A.authorized s`: on authorized `{0, 1, 2}`, `recognizeCoalitionDist` accepts with
      probability `1 ≠ (5 : ℝ≥0∞)⁻¹`.
 -/
