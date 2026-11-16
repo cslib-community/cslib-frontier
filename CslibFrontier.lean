@@ -6308,6 +6308,7 @@ public import CslibFrontier.Foundations.Data.Nat.LogStar
 public import CslibFrontier.Foundations.Data.Nat.LogTwoRpow
 public import CslibFrontier.Foundations.Data.Nat.MasterTheorem
 public import CslibFrontier.Foundations.Data.Nat.MasterTheoremAsymptotics
+public import CslibFrontier.Foundations.Data.Nat.Min
 public import CslibFrontier.Foundations.Data.Nat.Morton
 public import CslibFrontier.Foundations.Data.Nat.MultiplyHigh
 public import CslibFrontier.Foundations.Data.Nat.OddMulMod

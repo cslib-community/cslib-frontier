@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Complexity.Problems.BoundedSTCON
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.CounterProgram.Boolean
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.CounterProgram.Output
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame
+import CslibFrontier.Foundations.Data.Nat.Min
 
 /-!
 # Writing the bounded-connectivity layered graph
@@ -171,9 +172,6 @@ private def scan (n : ℕ) : ℕ → ℕ → List Bool → ℕ
   | a, _, [] => a
   | a, p, b :: bs => scan n (min n (a + p * b.toNat)) (min n (2 * p)) bs
 
-private theorem min_add_cap (n a b : ℕ) : min n (min n a + b) = min n (a + b) := by
-  omega
-
 private theorem min_mul_cap (n a b : ℕ) : min n (min n a * b) = min n (a * b) := by
   cases b with
   | zero => simp
@@ -188,11 +186,11 @@ private theorem scan_eq (n a p : ℕ) (bs : List Bool) (ha : a ≤ n) :
   induction bs generalizing a p with
   | nil => simp [scan, Nat.min_eq_right ha]
   | cons b bs ih =>
-    rw [scan, ih _ _ (Nat.min_le_left _ _), min_add_cap]
+    rw [scan, ih _ _ (Nat.min_le_left _ _), Nat.min_min_add]
     have hcap : min n (a + p * b.toNat + min n (2 * p) * bs.foldr Nat.bit 0) =
         min n (a + p * b.toNat + 2 * p * bs.foldr Nat.bit 0) := by
-      rw [Nat.add_comm (a + p * b.toNat), ← min_add_cap,
-        min_mul_cap, min_add_cap, Nat.add_comm]
+      rw [Nat.add_comm (a + p * b.toNat), ← Nat.min_min_add,
+        min_mul_cap, Nat.min_min_add, Nat.add_comm]
     rw [hcap]
     congr 1
     cases b <;> simp [Nat.bit] <;> ring
