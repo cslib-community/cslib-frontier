@@ -2395,6 +2395,30 @@ negligible, as DDH implies (`DDH.negligible_expected_inv_order`); the
 [tests](../../CslibFrontierTests/Crypto/StronglyUnpredictable.lean) show that a group of constant
 order fails.
 
+For `ε`-unpredictable and asymptotically unpredictable public-key encryption ([bs23][bs23],
+Section 12.6, Definition 12.6, pp. 494–495), import
+[`PKE/Unpredictable.lean`](../../CslibFrontier/Crypto/Protocols/PKE/Unpredictable.lean).
+`PKE.EpsilonUnpredictable E ε` requires `Pr[E.encrypt pk m = y] ≤ ε` for every key pair `(pk, sk)`
+in the support of `E.keyGen`, ciphertext `y`, and plaintext `m` accepted by `E.decrypt sk y = some m`
+(rejected ciphertexts impose no bound), and `Encryption.Unpredictable E` asks for a negligible
+`ε : ℕ → ℝ≥0` across `n`. Under `E.Correct`, `PKE.epsilonUnpredictable_iff_forall_of_correct` proves
+equivalence with bounding every `(pk, sk)` in `E.keyGen`'s support, message `m`, and ciphertext
+`y`, and `PKE.epsilonUnpredictable_iff_getD_of_correct` proves equivalence with default-message
+decryption `(E.decrypt sk y).getD m₀`; without `E.Correct`, both converses fail.
+`PKE.ciphertextHitBound_implies_epsilonUnpredictable` embeds `CiphertextHitBound` (honest-key
+unpredictability does not imply adversarial-key `CiphertextHitBound`). For explicit-coin schemes
+(`ExplicitCoinPKE`), `ExplicitCoinPKE.eval_encrypt_eq_toOuterMeasure` equates encryption mass to
+coin outer measure, `ExplicitCoinPKE.GammaSpread.epsilonUnpredictable` proves
+`(2 : ℝ≥0) ^ (-γ)`-unpredictability unconditionally from `GammaSpread γ`, and
+`ExplicitCoinPKE.gammaSpread_iff_epsilonUnpredictable_of_correct` proves equivalence under
+`P.toPKE.Correct`. In
+[`DiffieHellman/Order.lean`](../../CslibFrontier/Crypto/Computational/DiffieHellman/Order.lean),
+`CDH.negligible_expected_inv_order` and deterministic-schedule `CDH.negligible_inv_order` deduce
+negligibility of `(F.order (d n) : ℝ≥0)⁻¹` from `F.CDH` ([bs23][bs23], Section 12.6.2, p. 500) via
+the constant-identity CDH adversary, independent of `DDH.negligible_expected_inv_order`. Positive
+and negative witnesses, hypothesis counterexamples, and constant-order CDH failure are in the
+[unpredictable PKE tests](../../CslibFrontierTests/Crypto/Unpredictable.lean).
+
 For the Diffie–Hellman random-oracle KEM of [katzlindell20][katzlindell20] (Construction 12.19,
 Theorem 12.22), import
 [`DiffieHellman/GapCDH.lean`](../../CslibFrontier/Crypto/Computational/DiffieHellman/GapCDH.lean).

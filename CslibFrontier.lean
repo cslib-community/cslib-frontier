@@ -5056,6 +5056,7 @@ public import CslibFrontier.Crypto.Protocols.PIR.SmoothCode
 public import CslibFrontier.Crypto.Protocols.PIR.SmoothConverse
 public import CslibFrontier.Crypto.Protocols.PIR.Statistical
 public import CslibFrontier.Crypto.Protocols.PKE.ExplicitCoin
+public import CslibFrontier.Crypto.Protocols.PKE.Unpredictable
 public import CslibFrontier.Crypto.Protocols.PerfectSecrecy.Characterization
 public import CslibFrontier.Crypto.Protocols.PerfectSecrecy.ShannonCiphers
 public import CslibFrontier.Crypto.Protocols.PolynomialCommitment.Basic
