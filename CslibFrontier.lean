@@ -5159,6 +5159,8 @@ public import CslibFrontier.Crypto.Protocols.SigmaProtocol.UniqueResponses
 public import CslibFrontier.Crypto.Protocols.Signature.RandomOracle
 public import CslibFrontier.Crypto.Protocols.Signature.RandomOracle.Simulation
 public import CslibFrontier.Crypto.Protocols.UC.Adaptive
+public import CslibFrontier.Crypto.Protocols.UC.AdaptiveDummyAdversary
+public import CslibFrontier.Crypto.Protocols.UC.AdaptiveToStatic
 public import CslibFrontier.Crypto.Protocols.UC.Commitment
 public import CslibFrontier.Crypto.Protocols.UC.Composition
 public import CslibFrontier.Crypto.Protocols.UC.DummyAdversary
