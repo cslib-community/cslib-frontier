@@ -371,11 +371,15 @@ in `schnorrGroups`.
 [CslibFrontier/Crypto/Computational/SchnorrLeakedNonce.lean](../../CslibFrontier/Crypto/Computational/SchnorrLeakedNonce.lean)
 specializes that extractor to the leaked-randomness case `a = 0`, `b = r`
 ([bs23][bs23], Section 21.2, p. 861) and supplies the first word-level game for
-`schnorrRelatedNonceExtractWord`: `schnorrLeakedNonceWordGame` samples `(pk, sk)` with
-`schnorrSigKeyGen` and `r` with `sampleExp`, signs a fixed message `msg` using the reduced nonce
-word `rBits := (r % F.order d).bits` via the signing steps of `schnorrROMSign` against an `m`-bit
-stateful random oracle, and passes `(d, m, msg, sig, rBits)` (without `pk`) to the adversary.
-`schnorrLeakedNonceWordAdversary` makes one random-oracle query to recover the secret-key word via
+`schnorrRelatedNonceExtractWord`: `schnorrRelatedNonceExtractWord_schnorrSignCoins` shows that on
+an honest signature whose challenge word is nonzero modulo `F.order d`, the extractor recovers
+the canonical secret-key word `F.encScalar d α` (resting on the canonical-word characterization
+`schnorrRelatedNonceExtractWord_eq_encScalar` in `SchnorrRelatedNonce.lean`).
+`schnorrLeakedNonceWordGame` samples `(pk, sk)` with `schnorrSigKeyGen` and `r` with
+`sampleExp`, signs a fixed message `msg` using the reduced nonce word `rBits := (r % F.order d).bits`
+via the signing steps of `schnorrROMSign` against an `m`-bit stateful random oracle, and passes
+`(d, m, msg, sig, rBits)` (without `pk`) to the adversary. `schnorrLeakedNonceWordAdversary`
+makes one random-oracle query to recover the secret-key word via
 `schnorrRelatedNonceExtractWord`, `isOraclePPTOn_schnorrLeakedNonceWordAdversary` certifies its
 uniform strict oracle-PPT complexity with `m` encoded in unary, and
 `one_sub_inv_two_pow_le_succProbability_schnorrLeakedNonceWordGame` proves success probability at

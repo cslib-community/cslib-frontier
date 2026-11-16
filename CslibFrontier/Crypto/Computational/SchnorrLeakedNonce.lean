@@ -10,16 +10,9 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Crypto.Computational.SchnorrRelatedNonce
 public import CslibFrontier.Crypto.Computational.SchnorrSignature.NativeROM
--- Reads the unexposed body of `schnorrRelatedNonceExtractWord` to prove key recovery.
-import all CslibFrontier.Crypto.Computational.SchnorrRelatedNonce
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.WordsRoundTrip
-import CslibFrontier.Crypto.Computational.DiscreteLog.Extract
-import CslibFrontier.Crypto.Game.CloseTo
-import CslibFrontier.Computability.Probabilistic.Oracle.Composition
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.OfBits
-import CslibFrontier.Foundations.Control.Monad.Memoize
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.UniformPoint
 
@@ -51,25 +44,26 @@ game and bound.
 
 ## Main definitions
 
-* `Cslib.Crypto.PrimeOrderGroupFamily.schnorrLeakedNonceWordAdversary`: one-query word-level
-  random-oracle adversary recovering the secret-key word from a signature and leaked nonce word.
-* `Cslib.Crypto.PrimeOrderGroupFamily.schnorrLeakedNonceWordGame`: native `WordOracleComp`
-  leaked-randomness key-recovery game over an `m`-bit stateful random oracle.
+* `schnorrLeakedNonceWordAdversary`: one-query word-level random-oracle adversary recovering the
+  secret-key word from a signature and leaked nonce word.
+* `schnorrLeakedNonceWordGame`: native `WordOracleComp` leaked-randomness key-recovery game over an
+  `m`-bit stateful random oracle.
 
 ## Main results
 
-* `Cslib.Crypto.PrimeOrderGroupFamily.schnorrRelatedNonceExtractWord_schnorrSignCoins`:
-  `schnorrRelatedNonceExtractWord` at `a = 0`, `b = r` recovers `F.encScalar d α` on an honest
-  signature when the challenge word is nonzero modulo `F.order d`.
-* `Cslib.Crypto.PrimeOrderGroupFamily.isOraclePPTOn_schnorrLeakedNonceWordAdversary`:
-  `schnorrLeakedNonceWordAdversary` is uniform strict oracle PPT with unary `m`.
-* `one_sub_inv_two_pow_le_succProbability_schnorrLeakedNonceWordGame`:
-  against an `m`-bit stateful random oracle with `2 ^ m ≤ F.order d`,
-  `schnorrLeakedNonceWordAdversary` succeeds with probability at least `1 - (2 ^ m : ℝ≥0)⁻¹`.
+* `schnorrRelatedNonceExtractWord_schnorrSignCoins`: `schnorrRelatedNonceExtractWord` at `a = 0`,
+  `b = r` recovers `F.encScalar d α` on an honest signature when the challenge word is nonzero
+  modulo `F.order d`.
+* `isOraclePPTOn_schnorrLeakedNonceWordAdversary`: `schnorrLeakedNonceWordAdversary` is uniform
+  strict oracle PPT with unary `m`.
+* `one_sub_inv_two_pow_le_succProbability_schnorrLeakedNonceWordGame`: against an `m`-bit stateful
+  random oracle with `2 ^ m ≤ F.order d`, `schnorrLeakedNonceWordAdversary` succeeds with
+  probability at least `1 - (2 ^ m : ℝ≥0)⁻¹`.
 
 ## References
 
-* [BonehShoup2023], Section 21.2 (p. 861) and Section 19.2 (pp. 762–763).
+* [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*,
+  Version 0.6][BonehShoup2023], Section 21.2 (p. 861) and Section 19.2 (pp. 762–763).
 -/
 
 public section
@@ -89,32 +83,21 @@ theorem schnorrRelatedNonceExtractWord_schnorrSignCoins (F : PrimeOrderGroupFami
       (d, [], F.encScalar d r, [], [], roOut,
         (F.schnorrSignCoins (d, F.encScalar d α, msg, F.encScalar d r, roOut)).2) =
       F.encScalar d α := by
-  have hofNil : ofBits [] = 0 := rfl
-  have hlt : extractNat (F.order d) 0 (ofBits (F.encScalar d r)) (ofBits roOut)
-      (ofBits (F.schnorrSignCoins (d, F.encScalar d α, msg, F.encScalar d r, roOut)).2) <
-      F.order d :=
-    Nat.mod_lt _ (F.prime_order d).pos
-  have hc' : ((0 : ℕ) : ZMod (F.order d)) ≠ (ofBits roOut : ZMod (F.order d)) := by
-    rw [Nat.cast_zero]
+  have hnil : (ofBits ([] : List Bool) : ZMod (F.order d)) = 0 := Nat.cast_zero
+  have hc' : (ofBits ([] : List Bool) : ZMod (F.order d)) *
+      (ofBits ([] : List Bool) : ZMod (F.order d)) ≠ (ofBits roOut : ZMod (F.order d)) := by
+    rw [hnil, zero_mul]
     exact hc.symm
-  have hmod : ((extractNat (F.order d) 0 (ofBits (F.encScalar d r)) (ofBits roOut)
-      (ofBits (F.schnorrSignCoins (d, F.encScalar d α, msg, F.encScalar d r, roOut)).2) : ℕ) :
-      ZMod (F.order d)) = α := by
-    rw [extractNat_cast (q := F.order d) hc', F.schnorrSignCoins_encScalar]
-    simp only [encScalar, Function.Embedding.coeFn_mk, encNat_apply, ofBits_bits,
-      ZMod.natCast_zmod_val, Nat.cast_zero, zero_sub, inv_neg]
-    have hring : -(ofBits roOut : ZMod (F.order d))⁻¹ *
-        (r - (r + (ofBits roOut : ZMod (F.order d)) * α)) =
-        (ofBits roOut : ZMod (F.order d))⁻¹ * (ofBits roOut : ZMod (F.order d)) * α := by ring
-    rw [hring, inv_mul_cancel₀ hc, one_mul]
-  have hval : extractNat (F.order d) 0 (ofBits (F.encScalar d r)) (ofBits roOut)
-      (ofBits (F.schnorrSignCoins (d, F.encScalar d α, msg, F.encScalar d r, roOut)).2) =
-      α.val := by
-    have hv := congrArg ZMod.val hmod
-    rwa [ZMod.val_natCast, Nat.mod_eq_of_lt hlt] at hv
-  simp only [schnorrRelatedNonceExtractWord, hofNil, Nat.mul_zero, Nat.zero_add]
-  rw [hval]
-  rfl
+  rw [F.schnorrRelatedNonceExtractWord_eq_encScalar d [] (F.encScalar d r) [] [] roOut
+    ((F.schnorrSignCoins (d, F.encScalar d α, msg, F.encScalar d r, roOut)).2) hc',
+    F.schnorrSignCoins_encScalar]
+  refine congrArg (F.encScalar d) ?_
+  simp only [encScalar, Function.Embedding.coeFn_mk, encNat_apply, ofBits_bits,
+    ZMod.natCast_zmod_val, relatedNonceExtract, hnil, mul_zero, zero_add, zero_sub, inv_neg]
+  have hring : -(ofBits roOut : ZMod (F.order d))⁻¹ *
+      (r - (r + (ofBits roOut : ZMod (F.order d)) * α)) =
+      (ofBits roOut : ZMod (F.order d))⁻¹ * (ofBits roOut : ZMod (F.order d)) * α := by ring
+  rw [hring, inv_mul_cancel₀ hc, one_mul]
 
 /-- One-query word-level ROM adversary taking `(d, m, msg, sig, rBits)` and recovering the
 secret-key word from `sig` and the leaked reduced randomness word `rBits`. -/
@@ -214,21 +197,11 @@ theorem one_sub_inv_two_pow_le_succProbability_schnorrLeakedNonceWordGame
   unfold schnorrLeakedNonceWordGame
   refine PMF.le_bind_apply_on_support _ fun keys hkeys =>
     PMF.le_bind_apply_on_support _ fun r _ => ?_
-  have hsk : ∃ α : ZMod (F.order d), keys.2 = F.encScalar d α := by
-    simp only [schnorrSigKeyGen, ProbComp.eval_bind, ProbComp.eval_pure, PMF.mem_support_bind_iff,
-      PMF.mem_support_pure_iff] at hkeys
-    obtain ⟨s, _, rfl⟩ := hkeys
-    refine ⟨(s : ZMod (F.order d)), ?_⟩
-    simp only [encScalar, Function.Embedding.coeFn_mk, encNat_apply, ZMod.val_natCast]
-  obtain ⟨α, hα⟩ := hsk
+  rw [F.eval_schnorrSigKeyGen, PMF.mem_support_map_iff] at hkeys
+  obtain ⟨α, _, rfl⟩ := hkeys
   let rZ : ZMod (F.order d) := r
   have hrBits : (r % F.order d).bits = F.encScalar d rZ := by
     simp only [rZ, encScalar, Function.Embedding.coeFn_mk, encNat_apply, ZMod.val_natCast]
-  have hcommit :
-      F.schnorrCommitBits (d, F.encScalar d rZ) = F.encode d (rZ • F.generator d) := by
-    have h0 := congrArg Prod.fst (F.schnorrSignCoins_encScalar d α rZ msg [])
-    dsimp only [schnorrSignCoins] at h0
-    exact h0
   let g : Game :=
     (PMF.uniformOfFintype (BitString m)).bind fun c =>
       PMF.pure (decide (F.schnorrRelatedNonceExtractWord
@@ -242,20 +215,26 @@ theorem one_sub_inv_two_pow_le_succProbability_schnorrLeakedNonceWordGame
         let t := F.schnorrCommitBits (d, (r % F.order d).bits)
         let answer ← ProbOracleComp.query ((), encPair encBits encBits (msg, t))
         let sig := encPair encBits encBits
-          (F.schnorrSignCoins (d, keys.2, msg, (r % F.order d).bits, answer.take m))
+          (F.schnorrSignCoins (d, F.encScalar d α, msg, (r % F.order d).bits, answer.take m))
         let sk' ← F.schnorrLeakedNonceWordAdversary
           (d, m, msg, sig, (r % F.order d).bits)
-        return decide (sk' = keys.2))
+        return decide (sk' = F.encScalar d α))
       []).bind (fun res => PMF.pure res.1) = g := by
-    simp only [g, hrBits, hα, schnorrLeakedNonceWordAdversary, ProbOracleComp.runWith_bind,
-      ProbOracleComp.runWith_map, ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure,
-      ROMSignature.oracle]
-    rw [@memoize_of_none (List Bool) (BitString m) PMF _ instBEqOfDecidableEq _ _ _ (by simp)]
-    simp only [Bind.bind, Pure.pure, PMF.map_bind, PMF.pure_map, PMF.bind_bind, PMF.pure_bind]
+    have hor1 (q : List Bool) : oracle (BitString m) q [] =
+        (PMF.uniformOfFintype (BitString m)).bind fun c => PMF.pure (c, [(q, c)]) :=
+      ROMSignature.run_oracle_of_lookup_eq_none rfl
+    have hor2 (q : List Bool) (c : BitString m) : oracle (BitString m) q [(q, c)] =
+        PMF.pure (c, [(q, c)]) :=
+      ROMSignature.run_oracle_of_lookup_eq_some (by simp [List.lookup])
+    simp only [g, hrBits, schnorrLeakedNonceWordAdversary, ProbOracleComp.runWith_bind,
+      ProbOracleComp.runWith_map, ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure]
+    rw [hor1]
+    simp only [PMF.map_bind, PMF.pure_map, PMF.bind_bind, PMF.pure_bind]
     congr 1 with c
-    simp only [Prod.map, id_eq, Decoder.decode_enc, hcommit, F.schnorrSignCoins_encScalar]
-    rw [@memoize_of_some (List Bool) (BitString m) PMF _ instBEqOfDecidableEq _ _ _ c (by simp)]
-    simp only [Pure.pure, PMF.pure_map, PMF.pure_bind, Prod.map, id_eq,
+    simp only [Prod.map, id_eq, Decoder.decode_enc, F.schnorrCommitBits_encScalar,
+      F.schnorrSignCoins_encScalar]
+    rw [hor2]
+    simp only [PMF.pure_map, PMF.pure_bind, Prod.map, id_eq,
       List.take_of_length_le (List.length_ofFn (f := c)).le]
   dsimp only [Bind.bind, Pure.pure] at hrun ⊢
   rw [hrun]
@@ -299,11 +278,7 @@ theorem one_sub_inv_two_pow_le_succProbability_schnorrLeakedNonceWordGame
       (F.schnorrSignCoins (d, F.encScalar d α, msg, F.encScalar d rZ, List.ofFn c)).2) =
         F.encScalar d α) <;> simp
   have hsum : g true + g false = 1 := by
-    have h := congrArg ((↑) : ℝ≥0 → ℝ≥0∞) (Game.succProbability_add_failProbability g)
-    rw [ENNReal.coe_add, ENNReal.coe_one, Game.succProbability, Game.failProbability,
-      ENNReal.coe_toNNReal (PMF.apply_ne_top g true),
-      ENNReal.coe_toNNReal (PMF.apply_ne_top g false)] at h
-    exact h
+    simpa [tsum_bool, add_comm] using PMF.tsum_coe g
   rw [← hfalse] at hfail
   calc
     (1 - (2 ^ m : ℝ≥0∞)⁻¹ : ℝ≥0∞) ≤ 1 - g false := tsub_le_tsub_left hfail 1
