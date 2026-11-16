@@ -12,8 +12,8 @@ public import CslibFrontier.Computability.Circuit.Quantum.Output
 public import CslibFrontier.Computability.Circuit.Quantum.Reversible.Sampling.Prefix
 public import CslibFrontier.Crypto.Game.AttackResources
 public import CslibFrontier.Crypto.Primitives.HQC.SupportCircuit.PolyTime
+import Mathlib.Data.List.GetD
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Foundations.Data.List.UnaryCode
 
 /-!

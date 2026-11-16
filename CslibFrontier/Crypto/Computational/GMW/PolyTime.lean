@@ -14,13 +14,13 @@ public import CslibFrontier.Crypto.Computational.GMW.Protocol
 public import CslibFrontier.Crypto.Encoding
 public import CslibFrontier.Crypto.Game.Retry
 public import CslibFrontier.Logics.Propositional.CNF.Encoding
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
-import CslibFrontier.Computability.Probabilistic.Repeat
 import CslibFrontier.Logics.Propositional.CNF.PolyTime
 
 /-!

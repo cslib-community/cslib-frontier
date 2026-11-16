@@ -12,6 +12,7 @@ module
 -- author's request (#2179) so that composition depends on the universal machine; `eBit` is in
 -- `Universal/Bit.lean` and two halting lemmas are in `HaltsAt.lean`
 
+import Cslib.Computability.Machines.Turing.MultiTape.Combinators.AlmostConstant
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.HaltsAt
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.TapeLemmas
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Bit

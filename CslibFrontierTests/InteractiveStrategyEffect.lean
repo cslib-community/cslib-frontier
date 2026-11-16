@@ -5,6 +5,7 @@ Authors: Samuel Schlesinger
 -/
 
 import CslibFrontier.Computability.Interactive.StrategyEffect
+import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 
 /-!
 # Stateful clients of strategy effect translation
@@ -116,14 +117,16 @@ example : roleWorld.eval roleProgram = (PMF.uniformOfFintype Bool).map (fun coin
   change (ProbOracleComp.runWith (State := Nat) roleWorld.impl roleProgram 0).map Prod.fst = _
   have hcoin : OracleComp.interpret ProbComp.unifOracle (ProbComp.uniform Bool) =
       PMF.uniformOfFintype Bool := ProbComp.eval_uniform Bool
-  have hpure {α : Type} (f : Nat → α × Nat) (i : Nat) :
-      (StateT.run (fun j => PMF.pure (f j)) i) = PMF.pure (f i) := rfl
-  simp [roleProgram, roleSender, roleReceiver, liftProver, liftVerifier,
+  simp only [roleProgram, roleSender, roleReceiver, liftProver, liftVerifier,
     ProverStrategy.hoist, VerifierStrategy.hoist, runAgainst, roleWorld,
+    ProbOracleComp.runWith_interpret, runWith_norm, pmf_norm]
+  simp only [OracleComp.sumHandler,
     ProbOracleComp.runWith, ProbOracleComp.query, ProbOracleComp.sample,
-    OracleComp.interpret_bind, OracleComp.interpret_pure, OracleComp.interpret_query,
-    OracleComp.interpret_interpret, OracleComp.sumHandler, OracleComp.runWith,
-    StateT.run_bind, hpure,
-    OracleComp.run_interpret_lift, hcoin, PMF.map, Function.comp_def]
+    OracleComp.runWith_substitute, OracleComp.runWith_memoryless,
+    OracleComp.evalWith_eq_interpret,
+    runWith_norm, pmf_norm]
+  rw [hcoin]
+  simp only [pmf_norm, Nat.reduceAdd]
+  exact PMF.bind_pure_comp _ _
 
 end CslibFrontierTests.InteractiveStrategyEffect

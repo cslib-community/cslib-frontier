@@ -553,7 +553,8 @@ theorem mem_iff_two_pow_lt_value {V : α → WordOracleComp Unit Bool} {A : Set 
   have hbounded := isBounded_coinFamily M t (enc a)
   have hacc (P : Prover Unit) : acceptProb (V a) P =
       (2 ^ t : ENNReal)⁻¹ * ∑ r, acceptFrom P P.init (some (coinFamily M t (enc a) r)) :=
-    acceptProb_eq_sum M (hV a) P
+    acceptProb_eq_sum M (by
+      simpa only [ProbOracleComp.runWith_eq_run_interpret] using hV a) P
   have hpos : 2 ^ t ≠ 0 := by positivity
   have hcast : ((2 ^ t : ℕ) : ENNReal) = 2 ^ t := by push_cast; rfl
   have hupper (P : Prover Unit) : acceptProb (V a) P ≤ (W : ENNReal) / (2 ^ t : ℕ) := by

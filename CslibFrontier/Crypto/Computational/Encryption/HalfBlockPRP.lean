@@ -12,7 +12,7 @@ public import CslibFrontier.Crypto.Computational.PseudorandomPermutation
 public import CslibFrontier.Languages.Probabilistic.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
-import CslibFrontier.Computability.Probabilistic.Oracle.Tidy
+import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Probability.BitString
@@ -127,8 +127,7 @@ def allOnesForger (F : BlockCipher) : CIAdversary :=
 theorem isOraclePPT_allOnesForger (F : BlockCipher) : IsOraclePPT encBits F.allOnesForger := by
   have hlen := ComputableInPolyTime.encoding_comp
     (F.blockLen_polyTime.comp (ComputableInPolyTime.fst encUnary encBits))
-  have htidy := IsTidyOraclePPTOn.of_computableInPolyTime (Operation := Unit) hlen
-  exact htidy.isOraclePPTOn.isOraclePPT
+  exact (hlen.isOraclePPTOn (Operation := Unit)).isOraclePPT
 
 /-- Every word of length `F.blockLen n` decrypts and the forger makes no queries, so it wins
 `ciGame` against the half-block scheme with probability `1`. -/
