@@ -23,7 +23,7 @@ set_option linter.privateModule false
 
 open Cslib.WangTile Cslib.WangTile.Robinson
 
-example (f : List WangTile → Bool) (hf : Computable f) :
+example (f : List Cslib.WangTile → Bool) (hf : Computable f) :
     ¬ ∀ τ, f τ = true ↔ TilesPlane τ := by
   intro decides
   apply not_computablePred_tilesPlane
