@@ -2742,6 +2742,21 @@ Theorem 7.5 is proved in `daviesMeyer_collisionGame_le` and `daviesMeyer_collisi
 [`CslibFrontierTests/Crypto/IdealCipherCompression.lean`](../../CslibFrontierTests/Crypto/IdealCipherCompression.lean), and
 [`CslibFrontierTests/Crypto/IdealCipherCompressionVariants.lean`](../../CslibFrontierTests/Crypto/IdealCipherCompressionVariants.lean).
 
+For Boneh–Shoup Theorem 9.1 (AE implies CCA, [bs23][bs23] §9.2.3, pp. 363–365), import
+[`Encryption/Authenticated.lean`](../../CslibFrontier/Crypto/Computational/Encryption/Authenticated.lean).
+The bounds are for a CCA adversary with
+`SymmetricCipher.IsDecryptionQueryBounded (adversary n []) (Qd n)`, at most `Qd n` decryption
+queries with encryption queries free, and a ciphertext-length bound
+`E.CiphertextLengthLE n (ctBound n)`. `advantage_ccaGame_le_two_mul` proves (9.3) and
+`guessingAdvantage_guessBit_ccaGame_le` proves (9.4), the latter for the bit-guessing game
+`Experiment.guessBit`, against the reductions `ccaToCPAAdversary ctBound` and
+`ccaToCIHiddenBitAdversary ctBound Qd`. The CI reduction draws its index with `sampleDyadicIndex`,
+so the CI term carries `dyadicSize (Qd n - 1)` where the book has `Qd`: `2` when `Qd n ≤ 1`, and
+otherwise the least power of two that is at least `Qd n`.
+`guessingAdvantage_guessBit_ccaGame_le_two_mul` states (9.4) with `2 * Qd n`. For `ccaOneTimeGame`
+the bounds are `advantage_ccaOneTimeGame_le_two_mul` and
+`guessingAdvantage_guessBit_ccaOneTimeGame_le`.
+
 For the single-oracle real-versus-ideal formulation of authenticated encryption ([katzlindell20][katzlindell20], §5.2, Definition 5.4 and Theorem 5.5, pp. 152–153), import [`Encryption/RealIdealAE.lean`](../../CslibFrontier/Crypto/Computational/Encryption/RealIdealAE.lean). `SymmetricCipher.aeRealGame` answers `n`-bit encryption queries honestly (recording returned ciphertexts and answering decryption queries on them with `[]`) and decrypts fresh ciphertexts via `encOption encBits (E.decrypt n k ct)`, whereas `aeIdealGame` encrypts `List.replicate n false` and answers every decryption query with `[]`; `RealIdealAE` asks every `IsOraclePPT encBool` adversary to have negligible advantage, and `realIdealAE_iff_indcca_and_ciphertextIntegrity` and `realIdealAE_iff_authenticatedEncryption` prove equivalence with `INDCCA ∧ CiphertextIntegrity` and `AuthenticatedEncryption` via `cpaToAEAdversary`, `ciToAEAdversary`, and `aeToCCAAdversary`. [`Encryption/HalfBlockPRP.lean`](../../CslibFrontier/Crypto/Computational/Encryption/HalfBlockPRP.lean) formalizes the half-block construction `BlockCipher.halfBlockCipher` (`F_k(r ‖ m)` on `2 n`-bit blocks, Exercises 5.8 and 5.9, p. 165) and shows via the zero-query `allOnesForger` that it fails `CiphertextIntegrity`, `AuthenticatedEncryption`, and `RealIdealAE` for every block cipher (its CCA security under a strong PRP is not formalized); checked instances over an identity cipher are in [`CslibFrontierTests/Crypto/RealIdealAEAndHalfBlock.lean`](../../CslibFrontierTests/Crypto/RealIdealAEAndHalfBlock.lean).
 
 For fresh-message encryption unforgeability ([katzlindell20][katzlindell20], §5.2, Definition 5.2,
@@ -2768,6 +2783,20 @@ so `encryptThenMAC E M.redundantTag hctLen` satisfies `INDCPA` and `EncForge` ye
 `PseudorandomFunction.prfEncryptThenMACRedundantTag_counterexample`, Exercise 5.4). Concrete
 evaluations and composed `IsPPT` / `IsOraclePPT` checks on `echoFamily` are in
 [`CslibFrontierTests/Crypto/CompositionCounterexamples.lean`](../../CslibFrontierTests/Crypto/CompositionCounterexamples.lean).
+
+For the implication from chosen-ciphertext to chosen-plaintext security, import
+[`Encryption/CCAToCPA.lean`](../../CslibFrontier/Crypto/Computational/Encryption/CCAToCPA.lean)
+(Boneh–Shoup §9.2.2, p. 362 [bs23][bs23]). `SymmetricCipher.cpaToCCAAdversary ctBound A` sends each
+query of the CPA adversary `A` to the encryption channel of `ccaOracle`, cuts each reply to
+`ctBound n` bits, and makes no decryption query. `isOraclePPT_cpaToCCAAdversary` certifies it as
+`IsOraclePPT encBool` when `A` is `IsOraclePPT encBool` and `ctBound` is polynomial-time computable
+(`ComputableInPolyTime ctBound encUnary encUnary`). When `E.CiphertextLengthLE n (ctBound n)`,
+`eval_ccaGame_cpaToCCAAdversary` equates the output distribution of its CCA game with that of the
+CPA game of `A`, for either challenge bit; `SymmetricCipher.INDCCA.indcpa` derives `INDCPA` from
+`INDCCA` with no further hypothesis. The converse fails for every cipher with `INDCPA` and
+`EncForge`: by `tailFallback_counterexample` above, its `tailFallback` keeps `INDCPA` and is not
+`INDCCA`. Examples are in
+[`CslibFrontierTests/Crypto/CCAToCPA.lean`](../../CslibFrontierTests/Crypto/CCAToCPA.lean).
 
 For generic MAC-then-Encrypt composition, its `INDCPA` preservation, and its chosen-ciphertext
 counterexample over `SymmetricCipher` and `MACScheme`, import
@@ -2903,6 +2932,24 @@ accumulator and runtime index, before field-operation scratch; generic static co
 of `n`. An unrolled specialization uses `O(n)` field-operation nodes and can omit the runtime index.
 No polynomial-time claim is made without encoded field operations and a certified sampler.
 
+GHASH, the keyed hash of GCM ([bs23][bs23], §9.7, (9.18), p. 382), is
+[`ghash k z`](../../CslibFrontier/Crypto/Protocols/MAC/GHASH.lean) `= z[0] k ^ v + ⋯ + z[v-1] k`
+for `v` blocks over any field; `ghashBits e` is the same function on `w`-bit blocks, for a field
+with an additive bit encoding `e : F ≃+ BitString w`. An XOR-DUF (Remark 7.3, p. 269) is
+`IsDeltaUniversalHash` with digests in `BitString n`; there is no separate predicate. For a uniform
+key over a finite field `F`, `isDeltaUniversalHash_ghash` proves the bound `ℓ / |F|` on every
+injective family of inputs of at most `ℓ` blocks whose last block fixes the number of blocks (the
+empty input counts as ending in the block `0`). For a uniform 128-bit key,
+`isDeltaUniversalHash_ghashBits_gcmHashInput` proves `ℓ / 2 ^ 128` on GCM's input
+`gcmHashInput d c` (both fields padded with zeros to 128-bit blocks, then one block with the two
+bit lengths, each below `2 ^ 64`) when at most `ℓ` blocks are hashed, the length block included.
+On all inputs of at most `ℓ ≥ 1` blocks GHASH is not `ε`-universal for any `ε < 1`
+(`not_isUniversalHash_ghash`). The general criterion behind both bounds, and behind Katz–Lindell's
+Theorem 4.17 below, is `PolynomialEvaluation.isDeltaUniversalHash_ascendingEval`. The field with
+modulus `X^128 + X^7 + X^2 + X + 1` is not constructed, and no polynomial-time claim is made.
+Checks, including failing cases for the hypotheses, are in
+[`CslibFrontierTests/Crypto/GHASH.lean`](../../CslibFrontierTests/Crypto/GHASH.lean).
+
 For polynomial-evaluation hashing of messages shorter than `ℓ` over a finite field, import
 [`Protocols/MAC/PolynomialEvaluation.lean`](../../CslibFrontier/Crypto/Protocols/MAC/PolynomialEvaluation.lean)
 (Katz–Lindell 3rd ed., §4.5.2, Theorem 4.17 and Exercise 4.22). A message with its length code
@@ -2974,6 +3021,24 @@ Exercise 8.23(d) are not proved here; the
 [tests](../../CslibFrontierTests/Crypto/SecondPreimageResistant.lean) check that the factor-one
 bound is an equality on `Bool → Unit`, probe `0 < s`, instantiate the finite `revealAtZero`
 construction of Exercise 8.23(c), and refute constant functions.
+
+For the length-strengthened Merkle–Damgård padding of [bs23][bs23], §8.4, Fig. 8.5 (pp. 296–297),
+import
+[`MerkleDamgard/LengthPadding.lean`](../../CslibFrontier/Crypto/Computational/MerkleDamgard/LengthPadding.lean).
+With `n`-bit blocks, `mdLengthPad n msg` is `M ‖ 1 ‖ 0^k ‖ ⟨s⟩`, where
+`s = mdLengthBlockCount n msg` is the number of blocks of the padded message and `⟨s⟩` is its
+`(n / 2)`-bit big-endian encoding, and `mdLengthBlocks n msg` lists its first `s` blocks. When
+`s < 2 ^ (n / 2)` the padded message has exactly `s * n` bits (`length_mdLengthPad`) and the blocks
+concatenate to it (`flatten_mdLengthBlocks`); for larger `s` the count does not fit its field and
+bits are dropped. `mdLengthBlocks_suffix_iff`: if `mdLengthBlockCount n m₂ < 2 ^ (n / 2)`, then
+`mdLengthBlocks n m₁` is a suffix of `mdLengthBlocks n m₂` only when `m₁ = m₂`.
+`computableInPolyTime_mdLengthBlocks` is the polynomial-time certificate, with `n` in unary. The
+hash built from this padding and Theorem 8.3 (p. 297) for it are not yet library declarations. The
+[checked examples](../../CslibFrontierTests/Crypto/MerkleDamgardLengthPadding.lean) compute both
+cases of p. 297 at `n = 4`, show that suffix-freeness fails at the first count that does not fit,
+and derive collision resistance of the chain on the messages whose count fits from
+`CompressionFamily.collisionResistantOn_merkleDamgardChain`; run
+`scripts/build.sh CslibFrontierTests.Crypto.MerkleDamgardLengthPadding`.
 
 Merkle–Damgård chains have many messages with one digest at little more than the cost of one
 collision (Joux's attack, [bs23][bs23], §8.4.1, pp. 298–299). Import
