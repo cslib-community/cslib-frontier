@@ -8,8 +8,10 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
+public import Mathlib.Data.Set.Card
 public import Mathlib.Data.Set.Finite.List
-import CslibFrontier.Foundations.Data.BitString.ShortWords
+import Mathlib.Data.Fintype.BigOperators
+import Mathlib.Data.Vector.Basic
 
 /-!
 # Binary words of one length
@@ -20,6 +22,7 @@ import CslibFrontier.Foundations.Data.BitString.ShortWords
 
 ## Main results
 
+* `Cslib.BitString.encard_setOf_length_eq`: there are `2 ^ n` words of length `n`.
 * `Cslib.BitString.mem_wordsOfLength`: its members are the words of length `n`.
 * `Cslib.BitString.card_wordsOfLength`: it has `2 ^ n` members.
 -/
@@ -27,6 +30,12 @@ import CslibFrontier.Foundations.Data.BitString.ShortWords
 public section
 
 namespace Cslib.BitString
+
+/-- There are `2 ^ n` binary strings of length `n`. -/
+theorem encard_setOf_length_eq (n : ℕ) : {p : List Bool | p.length = n}.encard = 2 ^ n := by
+  change ENat.card (List.Vector Bool n) = _
+  rw [ENat.card_eq_coe_fintype_card, card_vector]
+  simp
 
 /-- The binary words of length `n`. -/
 noncomputable def wordsOfLength (n : ℕ) : Finset (List Bool) :=
