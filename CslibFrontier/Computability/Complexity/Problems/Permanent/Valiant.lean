@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Classes.SharpP.MetricOracle
+public import CslibFrontier.Computability.Complexity.Classes.SharpP.EasySearch
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.Matching
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.Membership
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.ThreeSAT
@@ -34,6 +35,10 @@ single-query strengthening, and `zeroOnePermanent_computableInPolyTimeWithOracle
 and Barak's Definition 9.5 from it: every function in #P lies in `FP^perm`, computed by one
 polynomial-time oracle program that reads the bits of the 0/1 permanent from its bit graph.
 
+Adjoining one distinguished solution to its counting verifier also gives an easy search
+problem with a metric-complete count (Goldreich, Theorem 6.19). This uses the artificial-problem
+route permitted by the source, rather than identifying the new witnesses with matchings.
+
 ## Main results
 
 * `Cslib.Complexity.zeroOnePermanent_sharpPMetricComplete`: Valiant's theorem for the 0/1
@@ -45,6 +50,9 @@ polynomial-time oracle program that reads the bits of the 0/1 permanent from its
   6.20, counting perfect matchings of bipartite graphs.
 * `Cslib.Complexity.bipartitePerfectMatchingCount_computableInPolyTimeWithOracle`: the
   corresponding oracle form for bipartite perfect-matching counts.
+
+* `Cslib.Complexity.exists_mem_FPSearch_sharpPMetricComplete`: Goldreich's Theorem 6.19,
+  an easy search relation whose count is #P-complete under metric reductions.
 
 ## References
 
@@ -95,5 +103,15 @@ theorem bipartitePerfectMatchingCount_computableInPolyTimeWithOracle {α : Type}
     ComputableInPolyTimeWithOracle (bitGraph encBoolTable BipartitePerfectMatchingCount) f enc
       encNat :=
   bipartitePerfectMatchingCount_sharpPMetricComplete.computableInPolyTimeWithOracle hf
+
+/-- [Goldreich2007Draft], Theorem 6.19 (printed p. 225): there is a polynomial-time solvable
+search relation with a #P-complete count under metric (one-query Cook) reductions. Starting
+with Valiant's count, adjoining one distinguished solution gives a trivial search algorithm;
+subtracting one recovers the original count. This is the artificial-problem route allowed by
+the source, not a search certificate for the perfect-matching relation itself. -/
+theorem exists_mem_FPSearch_sharpPMetricComplete :
+    ∃ R : List (List Bool) → List Bool → Prop, R ∈ FPSearch encBoolTable ∧
+      SharpPMetricComplete encBoolTable (searchCount R) :=
+  bipartitePerfectMatchingCount_sharpPMetricComplete.exists_mem_FPSearch
 
 end Cslib.Complexity
