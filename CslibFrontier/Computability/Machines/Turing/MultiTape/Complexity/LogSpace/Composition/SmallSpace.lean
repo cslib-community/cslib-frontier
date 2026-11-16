@@ -639,7 +639,7 @@ machines, and the positions of their input heads in binary. -/
     (2 * descLen df + 1 + cfgSpace df x uf)) + 1 + (2 * (encNat (y.length + 1)).length + 1 + 1)) +
       1 + (2 * (encNat (x.length + 1)).length + 1 + 1)
 
-lemma length_eCfg_le_cfgSpace (d : Desc) (x : List ℕ) {j t : ℕ} (h : j ≤ t) :
+public lemma length_eCfg_le_cfgSpace (d : Desc) (x : List ℕ) {j t : ℕ} (h : j ≤ t) :
     (eCfg (run d x j)).length ≤ cfgSpace d x t :=
   (length_eCfg_le_space d x j).trans (by
     have := simSpace_mono d x h
@@ -818,7 +818,8 @@ section Machines
 variable {k : ℕ} {S : Type} [Fintype S] (eS : S ↪ ℕ) (tm : MultiTapeTM k Bool S)
 
 /-- The simulation of a machine has halted exactly from the halting time of the machine on. -/
-lemma run_desc_halted (x : List Bool) {u : ℕ} (hh : tm.HaltsAt (tm.initCfg x) u) (r : ℕ) :
+public lemma run_desc_halted (x : List Bool) {u : ℕ} (hh : tm.HaltsAt (tm.initCfg x) u)
+    (r : ℕ) :
     (run (desc eS eBit tm) (x.map eBit) r).state = none ↔ u ≤ r := by
   have h := congrArg Prod.snd (simulate_desc eS eBit tm x r)
   change (run (desc eS eBit tm) (x.map eBit) r).state.isNone = _ at h
@@ -826,13 +827,13 @@ lemma run_desc_halted (x : List Bool) {u : ℕ} (hh : tm.HaltsAt (tm.initCfg x) 
   exact ⟨hh.le_of_halted, fun hr => (hh.runFrom_eq hr).symm ▸ hh.halted⟩
 
 /-- The simulation of a machine emits its output by its halting time. -/
-lemma simulate_desc_output (x : List Bool) {out : List Bool} (hc : tm.Computes x out) {u : ℕ}
-    (hh : tm.HaltsAt (tm.initCfg x) u) :
+public lemma simulate_desc_output (x : List Bool) {out : List Bool} (hc : tm.Computes x out)
+    {u : ℕ} (hh : tm.HaltsAt (tm.initCfg x) u) :
     (simulate (desc eS eBit tm) (x.map eBit) u).1 = out.map eBit := by
   rw [simulate_desc, output_haltsAt hc hh]
 
 /-- The space of the simulation of a machine within its space bound. -/
-lemma cfgSpace_desc_le (x : List Bool) {s : ℕ} (hs : tm.RunsInSpace x s) (t : ℕ) :
+public lemma cfgSpace_desc_le (x : List Bool) {s : ℕ} (hs : tm.RunsInSpace x s) (t : ℕ) :
     cfgSpace (desc eS eBit tm) (x.map eBit) t ≤ (12 * descLen (desc eS eBit tm) + 40) *
       (s + (encNat (x.length + 1)).length + 1) := by
   have hS : simSpace (desc eS eBit tm) (x.map eBit) t ≤ s :=
