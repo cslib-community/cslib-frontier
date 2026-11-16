@@ -553,7 +553,8 @@ theorem toOuterMeasure_bad_flaggedLazyProgramHandler_choose_two_le
   OracleComp.toOuterMeasure_bad_choose_two_cost_le
     (Sum.elim (fun _ => 1) (fun _ => 0)) (Sum.elim (fun _ => 0) (fun _ => 1))
     (fun st : (List (Query × Digest) × Log) × Bool => st.1.1.length) δ
-    (step_bad_flaggedLazyProgramHandler_le dist active inactive samplePre point finish hminEnt)
+    (fun q st hst => (step_bad_flaggedLazyProgramHandler_le dist active inactive samplePre point
+      finish hminEnt q st hst).trans (by gcongr; exact Nat.le_add_right _ _))
     (fun q st _ x hx _ => by
       have hlen := length_cache_flaggedLazyProgramHandler_le dist active inactive samplePre point
         finish q st x hx
@@ -754,7 +755,8 @@ theorem closeTo_runWith_lazyProgramHandler_overwriteProgramHandler_choose_two
   exact ProbOracleComp.toOuterMeasure_bad_choose_two_cost_le
     (Sum.elim (fun _ => 1) (fun _ => 0)) (Sum.elim (fun _ => 0) (fun _ => 1))
     (fun st : (List (Query × Digest) × Log) × Bool => st.1.1.length) δ
-    (step_bad_flaggedLazyProgramHandler_le dist active inactive samplePre point finish hminEnt)
+    (fun q st hst => (step_bad_flaggedLazyProgramHandler_le dist active inactive samplePre point
+      finish hminEnt q st hst).trans (by gcongr; exact Nat.le_add_right _ _))
     (fun q st _ x hx _ => by
       have hlen := length_cache_flaggedLazyProgramHandler_le dist active inactive samplePre point
         finish q st x hx
