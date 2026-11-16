@@ -12,11 +12,25 @@ public import CslibFrontier.Crypto.Game
 public import CslibFrontier.Computability.Probabilistic.Oracle.Parameter
 
 /-!
-# Authenticated key exchange: static security
+# Authenticated key exchange: static security in a guarded, bounded-message model
 
 Defines the active AKE adversary type, experiment execution (`Protocol.run`), advantage
-(`Protocol.staticAdvantage`), and static security (`Protocol.StaticallySecure`, Definition 21.1 of
-[BonehShoup2023], §21.9, p. 888).
+(`Protocol.staticAdvantage`), and static security (`Protocol.StaticallySecure`). This is a
+milestone toward Definition 21.1 of [BonehShoup2023] (§21.9, p. 888), not that definition. It
+differs from it in three ways:
+
+* **The guard is part of the protocol's semantics.** The challenger refuses any query that would
+  hand a protocol algorithm a user identity or message longer than `P.sizeBound n`
+  (`Protocol.TooLong`) before the algorithm runs. `StaticallySecure P` is therefore the security
+  of `P` behind this guard, which need not be the security of the unguarded algorithms. An
+  algorithm that misbehaves only on refused inputs is never exposed.
+* **Messages are bounded.** The size bound also limits the TTP's growth per call, long-term keys
+  and instance states; the module defining `Protocol` compares these bounds with the book's
+  efficient interface (Definition 2.12, p. 33) and poly-bounded configurations (§18.1.1, p. 718).
+* **Rounds are unbounded.** `Protocol` does not require the polynomial terminal-round condition of
+  §18.1.1 (p. 718), to which §21.9 refers: a session that stays `running` forever is admitted.
+
+The textbook definition, with the §18.1.1 conditions, remains open (#5670).
 
 As in [BonehShoup2023], §21.9, static security carries no correctness requirement: the protocol
 that always aborts satisfies `Protocol.StaticallySecure` (verified in the test suite by
@@ -30,7 +44,8 @@ secure here. `Protocol.staticAdvantage` and `Protocol.StaticallySecure` leave
 * `Cslib.Crypto.AKE.Protocol.run`: execution in Experiment 0 (`ideal = none`) or Experiment 1
   (`ideal = some idl`).
 * `Cslib.Crypto.AKE.Protocol.staticAdvantage`: distinguishing advantage `|Pr[W₀] − Pr[W₁]|`.
-* `Cslib.Crypto.AKE.Protocol.StaticallySecureWith`, `Protocol.StaticallySecure`: Definition 21.1.
+* `Cslib.Crypto.AKE.Protocol.StaticallySecureWith`, `Protocol.StaticallySecure`: static security in
+  the guarded, bounded-message model, a milestone toward Definition 21.1.
 
 ## References
 
@@ -69,7 +84,9 @@ noncomputable def Protocol.staticAdvantage (P : Protocol) (pf : PartnerFunction)
     (ProbComp.eval (P.run (some { partner := pf n }) adversary n))
 
 /-- Static security of `P` with respect to a fixed partner function `pf` against all uniform
-strict oracle-PPT adversaries ([BonehShoup2023], §21.9, p. 888). -/
+strict oracle-PPT adversaries, in the guarded, bounded-message model of this module: the
+experiments of [BonehShoup2023], §21.9, p. 888, with over-long words refused before any protocol
+algorithm runs. -/
 @[expose]
 def Protocol.StaticallySecureWith (P : Protocol) (pf : PartnerFunction) : Prop :=
   Game.Indistinguishable
@@ -77,15 +94,20 @@ def Protocol.StaticallySecureWith (P : Protocol) (pf : PartnerFunction) : Prop :
     (fun adversary n => ProbComp.eval (P.run (some { partner := pf n }) adversary n))
     (IsOraclePPT encBool)
 
-/-- An AKE protocol `P` is statically secure if there exists a polynomial-time partner function
-`pf` such that `P.StaticallySecureWith pf` ([BonehShoup2023], §21.9, Definition 21.1, p. 888).
+/-- An AKE protocol `P` is statically secure in the guarded, bounded-message model if there exists a
+polynomial-time partner function `pf` such that `P.StaticallySecureWith pf`. The shape is that of
+Definition 21.1 ([BonehShoup2023], §21.9, p. 888), but the notion is novel to this library and is
+not Definition 21.1:
 
-`P` ranges over `Protocol`, whose algorithms are polynomial time on each call and whose size bound
-makes the TTP an efficient interface and keeps instance configurations polynomial in `n`, with
-narrowings that the module defining `Protocol` lists.
-As in the book, this definition includes no correctness clause; the protocol `abortProtocol` that
-immediately aborts every session satisfies `Protocol.StaticallySecure`
-(`abortProtocol_staticallySecure`). -/
+* the challenger refuses over-long user identities and messages before any protocol algorithm
+  runs, so this is the security of `P` behind that guard, not of its unguarded algorithms;
+* identities, messages, long-term keys and states are bounded by `P.sizeBound n`;
+* `P` need not reach a terminal state within polynomially many rounds, as §18.1.1 (p. 718)
+  requires.
+
+The textbook definition remains open (#5670). As in the book, there is no
+correctness clause; the protocol `abortProtocol` that immediately aborts every session satisfies
+`Protocol.StaticallySecure` (`abortProtocol_staticallySecure`). -/
 @[expose]
 def Protocol.StaticallySecure (P : Protocol) : Prop :=
   ∃ pf : PartnerFunction,

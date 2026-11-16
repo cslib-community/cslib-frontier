@@ -52,17 +52,18 @@ every input of a session step has length polynomial in `n`. So the TTP runs in t
 time polynomial in `n`, as §18.1.1 requires. A certificate that running the whole experiment is
 PPT is not proved here.
 
-These conditions narrow the book's in three ways, and leave out one of its requirements:
+The resulting model differs from the book's, so `Protocol.StaticallySecure` is a milestone toward
+Definition 21.1, not that definition:
 
-* Each call may add at most `sizeBound n` to the TTP state. Definition 2.12 only bounds the
-  cumulative running time, so it also admits interfaces whose growth per call increases with the
-  number of earlier calls.
-* Over-long words are refused. The book's interface instead reads as much of a word as its time
-  budget allows.
-* The bound is worst-case. Definition 2.12 allows the time bound to fail with negligible
-  probability.
-* The polynomial round complexity of §18.1.1 is not required. It does not affect the
-  experiments, since the adversary decides how many messages to deliver.
+* **The guard is part of the semantics.** Over-long words are refused before any protocol
+  algorithm runs, whereas the book's interface reads as much of a word as its time budget allows.
+  Security behind the guard need not be security of the unguarded algorithms.
+* **The bounds are narrower than Definition 2.12.** Each call may add at most `sizeBound n` to the
+  TTP state, whereas Definition 2.12 bounds only the cumulative running time, and so also admits
+  interfaces whose growth per call increases with the number of earlier calls. The bound is also
+  worst-case, where Definition 2.12 lets it fail with negligible probability.
+* **Rounds are unbounded.** The polynomial terminal-round condition of §18.1.1 is not required: a
+  session may stay `running` forever.
 
 ## Main definitions
 
