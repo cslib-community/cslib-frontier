@@ -67,6 +67,7 @@ VIA_ENTRY = {"module": GARBLING_PATH, "kind": c.VIA,
                     "table"}
 
 
+WORD_MODULE = "CslibFrontier.Crypto.GarblingWord"
 # The same entry scoped to one instance, with the reduction's consumers outside its module pinned.
 WRAPPER = "Cslib.Crypto.GarblingWord.wrappedStep"
 SCOPED_ENTRY = {**{key: value for key, value in VIA_ENTRY.items() if key != "why"},
@@ -79,12 +80,15 @@ SCOPED_ENTRY = {**{key: value for key, value in VIA_ENTRY.items() if key != "why
 
 def check_row(problems: list[str] | None = None, missing: list[str] | None = None,
               equality_module: str = "CslibFrontier.Crypto.GarblingWord",
-              definitions: list[str] | None = None) -> str:
-    """A line of the reader's output for the request of `VIA_ENTRY`."""
+              definitions: list[tuple[str, str]] | None = None,
+              certified: list[str] | None = None) -> str:
+    """A line of the reader's output for the request of `VIA_ENTRY`, with the uncertified
+    definitions among the reduction's referrers as `(name, module)` and the certified ones."""
     return json.dumps({"v": VIA_REDUCTION, "p": problems or [], "at": "" if problems else "proof",
                        "vm": ["CslibFrontier.Crypto.Garbling", "CslibFrontier.Crypto.GarblingWord"],
                        "em": equality_module, "missing": missing or [], "refs": [],
-                       "defs": definitions or []})
+                       "defs": [{"n": n, "m": m} for n, m in definitions or []],
+                       "cdefs": certified or []})
 
 
 VIA_OUTPUT = "\n".join([
@@ -223,33 +227,91 @@ class ViaTests(unittest.TestCase):
 
     def test_an_instance_scoped_request_pins_the_consumers(self) -> None:
         request = c.via_requests({VIA_REDUCTION: SCOPED_ENTRY})[0].split("\t")
-        self.assertEqual(request[8:], ["instance", "concrete:Cslib.Crypto.Garbling.otherInstance_le",
+        self.assertEqual(request[8:], ["instance",
+                                       "concrete:Cslib.Crypto.Garbling.otherInstance_le",
                                        "headline:Cslib.Crypto.GarblingWord.prvSim",
                                        f"reduction:{WRAPPER}"])
         # A full entry sends no scope.
         self.assertEqual(len(c.via_requests(self.baseline)[0].split("\t")), 8)
 
     def test_parse_reads_the_referrers_and_definitions(self) -> None:
-        row = json.loads(check_row(definitions=[WRAPPER]))
+        row = json.loads(check_row(definitions=[(WRAPPER, WORD_MODULE)], certified=[CERTIFIED]))
         row["refs"] = ["Cslib.Crypto.GarblingWord.prvSim"]
         check = c.parse_checks(json.dumps(row))[VIA_REDUCTION]
-        self.assertEqual((check.referrers, check.definitions),
-                         (("Cslib.Crypto.GarblingWord.prvSim",), (WRAPPER,)))
+        self.assertEqual((check.referrers, check.definitions, check.certified_definitions),
+                         (("Cslib.Crypto.GarblingWord.prvSim",), ((WRAPPER, WORD_PATH),),
+                          (CERTIFIED,)))
         # Output without these fields, as for a full entry, reads as empty.
-        legacy = {key: value for key, value in row.items() if key not in ("refs", "defs")}
+        legacy = {key: value for key, value in row.items() if key not in ("refs", "defs", "cdefs")}
         self.assertEqual(c.parse_checks(json.dumps(legacy))[VIA_REDUCTION].definitions, ())
 
-    def test_a_definition_that_uses_the_reduction_needs_a_baseline_entry(self) -> None:
-        # A definition wrapping the reduction could carry an assumption past the pinned consumers.
-        checks = c.parse_checks(check_row(definitions=[WRAPPER]))
+    def test_an_uncertified_definition_that_uses_the_reduction_needs_an_entry(self) -> None:
+        # The wrapper is no reduction: no theorem states an advantage bound with it.
+        self.assertNotIn(WRAPPER, self.reductions)
+        checks = c.parse_checks(check_row(definitions=[(WRAPPER, WORD_MODULE)]))
         baseline = {**BASELINE, VIA_REDUCTION: SCOPED_ENTRY}
-        invalid = c.compare(self.reductions, baseline, None, checks).invalid
-        self.assertEqual([(name, reason) for name, _, reason in invalid], [
-            (VIA_REDUCTION, f"`{WRAPPER}` is a definition that uses `{VIA_REDUCTION}` but has no "
-                            "baseline entry; record it as a reduction, or make this entry a "
-                            "`gap`")])
+        problems = c.compare(self.reductions, baseline, None, checks)
+        self.assertEqual([(name, reason) for name, _, reason in problems.invalid], [
+            (VIA_REDUCTION, f"`{WRAPPER}` is a definition that uses `{VIA_REDUCTION}` without an "
+                            "efficiency witness of its own but has no baseline entry; record it (a "
+                            "`gap` or `exempt` entry), or make this entry a `gap`")])
+        # Recorded, as a `gap` or an `exempt` entry, it passes completely: the entry is not stale
+        # although no theorem states a bound with the wrapper.
+        for kind in ("gap", "exempt"):
+            recorded = {**baseline, WRAPPER: entry(WORD_PATH, kind)}
+            self.assertFalse(c.compare(self.reductions, recorded, None, checks), kind)
+        # The same entry is stale once nothing needs it, or when the wrapper has moved.
         recorded = {**baseline, WRAPPER: entry(WORD_PATH)}
-        self.assertFalse(c.compare(self.reductions, recorded, None, checks).invalid)
+        self.assertEqual([(name, reason) for name, _, reason in
+                          c.compare(self.reductions, recorded, None, {}).stale],
+                         [(WRAPPER, "no theorem states an advantage bound with it")])
+        moved = {**baseline, WRAPPER: entry(GARBLING_PATH)}
+        self.assertEqual([(name, reason) for name, _, reason in
+                          c.compare(self.reductions, moved, None, checks).stale],
+                         [(WRAPPER, f"now defined in {WORD_PATH}")])
+
+    def test_an_uncertified_reduction_that_uses_the_reduction_keeps_its_entry(self) -> None:
+        checks = c.parse_checks(check_row(definitions=[(UNCERTIFIED,
+                                                        "CslibFrontier.Crypto.Schnorr")]))
+        self.assertFalse(c.compare(self.reductions, {**BASELINE, VIA_REDUCTION: SCOPED_ENTRY}, None,
+                                   checks))
+
+    def test_a_certified_definition_that_uses_the_reduction_needs_no_entry(self) -> None:
+        # A certified wrapper has its own efficiency witness; an entry for it would be stale.
+        checks = c.parse_checks(check_row(certified=[WRAPPER]))
+        baseline = {**BASELINE, VIA_REDUCTION: SCOPED_ENTRY}
+        self.assertFalse(c.compare(self.reductions, baseline, None, checks))
+        stale = c.compare(self.reductions, {**baseline, WRAPPER: entry(WORD_PATH)}, None,
+                          checks).stale
+        self.assertEqual([(name, reason) for name, _, reason in stale], [
+            (WRAPPER, "has an efficiency witness of its own, as a definition that uses an "
+                      "instance-scoped reduction; it needs no entry")])
+
+    def test_a_reduction_certified_only_through_another_definition_keeps_its_entry(self) -> None:
+        # Mentioned in a certified program's body but without a witness of its own, it is still
+        # tracked, so its entry stands; with a witness of its own, the entry is stale.
+        wrapped = c.Reduction(WRAPPER, WORD_PATH, 50, ("Cslib.Crypto.GarblingWord.bound",),
+                              (WORD_PATH,), "wrapper", ("Cslib.Crypto.GarblingWord.program",))
+        reductions = {**self.reductions, WRAPPER: wrapped}
+        baseline = {**BASELINE, VIA_REDUCTION: SCOPED_ENTRY, WRAPPER: entry(WORD_PATH)}
+        tracked = c.parse_checks(check_row(definitions=[(WRAPPER, WORD_MODULE)]))
+        self.assertFalse(c.compare(reductions, baseline, None, tracked))
+        self.assertEqual(c.update(reductions, baseline, None, c.tracked_definitions(tracked))
+                         [WRAPPER], entry(WORD_PATH))
+        stale = c.compare(reductions, baseline, None, {}).stale
+        self.assertEqual([name for name, _, _ in stale], [WRAPPER])
+
+    def test_update_records_the_tracked_definitions(self) -> None:
+        checks = c.parse_checks(check_row(definitions=[(WRAPPER, WORD_MODULE)]))
+        baseline = {**BASELINE, VIA_REDUCTION: SCOPED_ENTRY}
+        tracked = c.tracked_definitions(checks)
+        added = c.update(self.reductions, baseline, None, tracked)
+        self.assertEqual(added[WRAPPER], entry(WORD_PATH, "gap", ""))
+        kept = c.update(self.reductions, {**baseline, WRAPPER: entry(WORD_PATH, "exempt")}, None,
+                        tracked)
+        self.assertEqual(kept[WRAPPER], entry(WORD_PATH, "exempt"))
+        # Without an instance-scoped entry that needs it, the entry is dropped.
+        self.assertNotIn(WRAPPER, c.update(self.reductions, kept, None, {}))
 
     def test_an_entry_stays_stale_once_the_reduction_is_certified(self) -> None:
         reductions, _ = c.parse(OUTPUT)
@@ -740,6 +802,29 @@ theorem otherHeadline (h : IsPPT A) (hw : Wrapped G) : Negligible fun n => schem
   (fun _ _ => stepHeadline S A h) (isPPT_stepProgram A h) (wrappedOther G A hw)
 /-- A definition that wraps `otherStep`. -/
 def otherWrapper (A : Adversary) : Adversary := otherStep A
+/-- A certified definition that wraps `otherStep`, and its certificate. -/
+def certifiedOther (A : Adversary) : Adversary := certified (otherStep A)
+theorem isPPT_certifiedOther (h : IsPPT A) : IsPPT (certifiedOther A) :=
+  isPPT_certified (A := otherStep A) h
+/-- A generic wrapper of `otherStep`, which a certified definition runs but which has no witness of
+its own. -/
+def genericOther (A : Adversary) : Adversary := otherStep A
+def certifiedGeneric (A : Adversary) : Adversary := certified (genericOther A)
+theorem isPPT_certifiedGeneric (h : IsPPT A) : IsPPT (certifiedGeneric A) :=
+  isPPT_certified (A := genericOther A) h
+/-- A class that packages the assumption. -/
+class WrappedClass (G : Group) : Prop where
+  hard : Hard G
+/-- Rests on the assumption through an instance argument. -/
+theorem classOther [WrappedClass G] : otherStep A = A := rfl
+/-- An ordinary instance argument is not an assumption. -/
+theorem plainInstance [Nonempty Adversary] : otherStep A = A := rfl
+/-- An alias for a whole statement, whose premise is the wrapped assumption. A module's public
+statement cannot name a private alias, so this one is public, which makes it a definition that uses
+`otherStep` too. -/
+def WrappedType (G : Group) (A : Adversary) : Prop := Wrapped G → otherStep A = A
+/-- Rests on the assumption through the alias of its statement. -/
+theorem aliasOther : WrappedType G A := fun _ => rfl
 
 end Cslib.Crypto.Fixture
 """
@@ -788,7 +873,10 @@ SCOPED_REQUESTS = {
     "theorem as reduction": {"pathBound": "reduction"},
 }
 NOT_CONCRETE = {"otherHeadline": "headline", "wrappedOther": "headline",
-                "otherWrapper": "reduction"}
+                "otherWrapper": "reduction", "certifiedOther": "reduction",
+                "isPPT_certifiedOther": "concrete", "classOther": "concrete",
+                "plainInstance": "concrete", "aliasOther": "concrete",
+                "WrappedType": "reduction", "genericOther": "reduction"}
 
 
 def via_request(changes: dict[str, str], consumers: dict[str, str] | None = None,
@@ -969,7 +1057,6 @@ class CompiledFixtureTests(unittest.TestCase):
         verdict = self.verdicts["scoped"]
         self.assertEqual(verdict.problems, ())
         self.assertEqual(set(verdict.referrers), {PREFIX + name for name in SCOPED_VALID})
-        self.assertEqual(verdict.definitions, (PREFIX + "wrappedStep",))
         self.assertEqual(verdict.headline_at, "proof")
         self.assertEqual(set(verdict.paths), {FIXTURE_PATH, CONSUMERS_PATH})
 
@@ -988,8 +1075,8 @@ class CompiledFixtureTests(unittest.TestCase):
                                     "`concrete`",
             "definition as theorem": f"consumer `{PREFIX}wrappedStep` is tagged `concrete` but is "
                                      "not a theorem",
-            "theorem as reduction": f"consumer `{PREFIX}pathBound` is tagged `reduction` but is not "
-                                    "a definition",
+            "theorem as reduction": f"consumer `{PREFIX}pathBound` is tagged `reduction` but is "
+                                    "not a definition",
         }
         for label, problem in expected.items():
             problems = self.verdicts[label].problems
@@ -998,18 +1085,36 @@ class CompiledFixtureTests(unittest.TestCase):
         self.assertEqual(self.verdicts["missing consumer"].missing, (PREFIX + "goneConsumer",))
 
     def test_every_other_referring_theorem_must_be_concrete(self) -> None:
-        # A premise that wraps an assumption in a defined predicate, and a conclusion that unfolds
-        # to a negligibility claim in the step's own module, are both seen; the headline is not
-        # held to this.
+        # The assumption is seen however it is packaged: a defined predicate that wraps it, a
+        # class instance argument, an alias for the whole statement, and a conclusion that unfolds
+        # to a negligibility claim in the step's own module. The headline is not held to this,
+        # and an ordinary instance argument or an efficiency premise is no assumption.
         verdict = self.verdicts["not concrete"]
         step = f"`{PREFIX}otherStep`"
-        self.assertEqual(len(verdict.problems), 2, verdict.problems)
-        self.assertIn(f"`{PREFIX}otherStep_secure` refers to {step} in its module and is not "
-                      "concrete (its conclusion makes a negligibility claim)", verdict.problems[0])
-        self.assertIn(f"`{PREFIX}wrappedOther` refers to {step} and is not concrete (a premise "
-                      f"rests on the named assumption `{PREFIX}Wrapped`", verdict.problems[1])
-        # The wrapping definition is reported, for its baseline entry.
-        self.assertEqual(verdict.definitions, (PREFIX + "otherWrapper",))
+        expected = [
+            f"`{PREFIX}aliasOther` refers to {step} and is not concrete (a premise rests on the "
+            f"named assumption `{PREFIX}Wrapped`",
+            f"`{PREFIX}classOther` refers to {step} and is not concrete (a premise rests on the "
+            f"named assumption `{PREFIX}WrappedClass`",
+            f"`{PREFIX}otherStep_secure` refers to {step} in its module and is not concrete (its "
+            "conclusion makes a negligibility claim)",
+            f"`{PREFIX}wrappedOther` refers to {step} and is not concrete (a premise rests on the "
+            f"named assumption `{PREFIX}Wrapped`",
+        ]
+        self.assertEqual(len(verdict.problems), len(expected), verdict.problems)
+        for problem in expected:
+            self.assertTrue(any(problem in p for p in verdict.problems), problem)
+
+    def test_definitions_that_use_the_step_are_reported_with_their_certification(self) -> None:
+        # A wrapper without a witness of its own needs a baseline entry, even when a certified
+        # definition runs it (`genericOther`); one with a witness of its own needs none.
+        verdict = self.verdicts["not concrete"]
+        self.assertEqual(verdict.definitions, ((PREFIX + "WrappedType", CONSUMERS_PATH),
+                                               (PREFIX + "genericOther", CONSUMERS_PATH),
+                                               (PREFIX + "otherWrapper", CONSUMERS_PATH)))
+        self.assertEqual(verdict.certified_definitions, (PREFIX + "certifiedOther",))
+        self.assertEqual(self.verdicts["scoped"].definitions,
+                         ((PREFIX + "wrappedStep", CONSUMERS_PATH),))
 
 
 class CommittedFilesTests(unittest.TestCase):

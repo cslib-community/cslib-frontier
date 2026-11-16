@@ -1,11 +1,12 @@
 # Reference index
 
+> **Frozen in November 2026.** The reference chapters are not kept current. The Lean source, its docstrings and the API documentation are authoritative.
+
 [Operator's Manual](README.md) · [Task routes](workflows/index.md) · [Build the documentation](BUILD.md)
 
 The reference chapters describe the library's models, major theorems and bridges, resource
 conventions and design. Read them once a [workflow](workflows/index.md) has shown you how to
-state and prove a claim, or when you need the exact model behind a theorem. They are maintained
-with the code: update the affected descriptions when an interface or theorem contract changes.
+state and prove a claim, or when you need the exact model behind a theorem.
 The chapters grew from the [2 November 2026 source survey](history/survey.md), and some still
 cite source at that pinned revision; a changed claim needs a current source link.
 
