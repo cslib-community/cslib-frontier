@@ -3558,7 +3558,7 @@ has no `(ε, δ)`-notable coordinates when every `aᵢ² ≤ ε`; for the normal
 For distribution functions, import
 [`CslibFrontier.Foundations.Probability.Multilinear.InvarianceLevy`](../../CslibFrontier/Foundations/Probability/Multilinear/InvarianceLevy.lean),
 or [`CslibFrontier.Foundations.BooleanAnalysis.InvarianceLevy`](../../CslibFrontier/Foundations/BooleanAnalysis/InvarianceLevy.lean)
-on the cube. They prove the first statement of [O'Donnell, Corollary 11.70][odonnell14], the
+on the cube. They prove the first statement of [O'Donnell][odonnell14], Corollary 11.70, the
 Lévy-distance bound `O(2ᵏ ε^(1/5))` in the setting of Corollary 11.67, with explicit constants.
 Take the hypotheses of `abs_integral_comp_multilinearEval_sub_le_of_influence_le` without a test
 function, add `u : ℝ`, and write `δ = 4 * 2 ^ k * ε ^ (1 / 5 : ℝ)`.
@@ -3652,7 +3652,7 @@ Is Stablest.
 Import
 [`CslibFrontier.Foundations.Probability.InvarianceSums`](../../CslibFrontier/Foundations/Probability/InvarianceSums.lean)
 and open `ProbabilityTheory`. It proves the Invariance Principle for Sums of Random Variables of
-[O'Donnell, §11.5][odonnell14] and Corollaries 11.59, 11.61 and 11.62. The variables are the coordinates under product laws: `X` has law `Measure.pi μ` and `Y`
+[O'Donnell][odonnell14], §11.5 and Corollaries 11.59, 11.61 and 11.62. The variables are the coordinates under product laws: `X` has law `Measure.pi μ` and `Y`
 has law `Measure.pi ν`, for `μ ν : ι → Measure ℝ` with `[Fintype ι]` and
 `[∀ i, IsProbabilityMeasure (μ i)]` (and likewise for `ν`). The two families need not live on one
 probability space. Take `hμ : ∀ i, MemLp id 3 (μ i)`, `hν : ∀ i, MemLp id 3 (ν i)`,
