@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.NativeEvaluation
 public import CslibFrontier.Computability.Circuit.Boolean.Parity
 public import CslibFrontier.Computability.Circuit.Pi
 import CslibFrontier.Foundations.Data.BitString.Block
+import Batteries.Data.Vector.Lemmas
 
 /-!
 # Retained Boolean circuit for Keccak-p[1600, 24]
