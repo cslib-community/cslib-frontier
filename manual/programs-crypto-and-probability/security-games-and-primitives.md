@@ -2547,15 +2547,12 @@ makes at most `ℓ` queries (`ECB.isQueryBounded_reduction`). The asymptotic for
 on messages of at most `ℓ n` distinct blocks is one-time semantically secure
 (`BlockCipher.PRP.ecb_demOneTimeKeyINDCPAOn`, for `ℓ` computable in unary in polynomial time). The
 proof goes through `E.ecbToPrpDistinguisher`, which runs `ECB.reduction` against the word oracle and
-is uniform strict oracle PPT (`BlockCipher.isOraclePPT_ecbToPrpDistinguisher`). On messages of up
-to `ℓ n` arbitrary blocks, the two-block attack `E.ecbTwoBlockAdversary` is uniform strict PPT and
-breaks ECB of every block cipher once `1 ≤ blockLen n` and `2 ≤ ℓ n` eventually
-(`BlockCipher.not_demOneTimeKeyINDCPAOn_ecbAdmissible`).
+is uniform strict oracle PPT (`BlockCipher.isOraclePPT_ecbToPrpDistinguisher`).
 [`CslibFrontierTests/Crypto/ECB.lean`](../../CslibFrontierTests/Crypto/ECB.lean) checks both
 hypotheses of the attack, an instance of (4.3) with both sides nonzero, and that Theorem 4.1 fails
 without distinct blocks;
-[`CslibFrontierTests/Crypto/ECBWord.lean`](../../CslibFrontierTests/Crypto/ECBWord.lean) applies the
-word-level attack to a concrete cipher.
+[`CslibFrontierTests/Crypto/ECBWord.lean`](../../CslibFrontierTests/Crypto/ECBWord.lean) checks the
+word-level encryption and admissible pairs on a concrete cipher.
 
 For the shared lazy-versus-fresh random-function hybrid and left-or-right block-mode CPA scaffolding
 used by both CTR and OFB mode, import

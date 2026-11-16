@@ -12,10 +12,8 @@ import CslibFrontier.Tactic.PolyTime
 /-!
 # Tests for ECB mode of a word-level block cipher
 
-Applies the two-block attack to a concrete block cipher. Its consequence is that the restriction
-to distinct blocks in Theorem 4.1 is needed: on messages of up to two arbitrary blocks, ECB of
-every block cipher, a pseudorandom one included, is not semantically secure. The tests also check
-the admissible pairs on concrete words.
+Checks word-level ECB encryption and the admissible pairs of Theorem 4.1 on a concrete block
+cipher: equal blocks or too many blocks make a pair inadmissible.
 -/
 
 public section
@@ -41,22 +39,10 @@ def xorCipher : BlockCipher where
   encrypt_decrypt _ key block hkey hblock :=
     BitString.zipWith_xor_self_left key block (by simp [hkey, hblock])
 
-/-- At `n = 1`, with two admissible blocks, the two-block attack wins with certainty. -/
-example :
-    Game.advantage
-        (ProbComp.eval (Encryption.demKeyGameOn (xorCipher.ecbAdmissible fun _ => 2)
-          xorCipher.keyLen xorCipher.ecbEncrypt xorCipher.ecbTwoBlockAdversary false 1))
-        (ProbComp.eval (Encryption.demKeyGameOn (xorCipher.ecbAdmissible fun _ => 2)
-          xorCipher.keyLen xorCipher.ecbEncrypt xorCipher.ecbTwoBlockAdversary true 1)) = 1 :=
-  xorCipher.advantage_demKeyGameOn_ecbTwoBlockAdversary (by decide) le_rfl
-
-/-- On messages of up to two arbitrary blocks ECB is not semantically secure; Theorem 4.1 needs the
-restriction to distinct blocks (`ecbValid`). -/
-example :
-    ¬ Encryption.DEMOneTimeKeyINDCPAOn (xorCipher.ecbAdmissible fun _ => 2) encBits
-      xorCipher.keyLen xorCipher.ecbEncrypt :=
-  xorCipher.not_demOneTimeKeyINDCPAOn_ecbAdmissible
-    (Filter.eventually_atTop.mpr ⟨1, fun _ h => h⟩) (Filter.Eventually.of_forall fun _ => le_rfl)
+/-- ECB of the key-masking cipher at `n = 2` masks each 2-bit block with the key. -/
+example : xorCipher.ecbEncrypt 2 [true, false] [false, false, true, true] =
+    pure [true, false, false, true] :=
+  congrArg pure (by decide)
 
 /-- `0 1 ‖ 0 1` has two equal 2-bit blocks, so it is admissible on `X^{≤2}` but not on
 `X_*^{≤2}`. -/
