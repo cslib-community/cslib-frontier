@@ -11,7 +11,13 @@ public import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization
 public import CslibFrontier.Computability.Complexity.Classes.Time
 public import CslibFrontier.Crypto.Primitives.PRG.Circuit
 public import CslibFrontier.Crypto.Primitives.PRG.Deterministic
+public import CslibFrontier.Crypto.Computational.PseudorandomGenerator
+public import CslibFrontier.Crypto.Computational.Nonuniform.Basic
 import CslibFrontier.Computability.Circuit.Boolean.PolynomialTime
+import CslibFrontier.Computability.Circuit.Boolean.Advice
+import CslibFrontier.Computability.Circuit.Boolean.Hierarchy
+import CslibFrontier.Crypto.Computational.Stretch
+import CslibFrontier.Crypto.Primitives.PRG.Game
 import CslibFrontier.Computability.Circuit.Boolean.Substitution
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Search
@@ -21,18 +27,27 @@ import CslibFrontier.Foundations.Data.BitString.WordCount
 import CslibFrontier.Foundations.Data.List.OfFnGetD
 
 /-!
-# Polynomial-stretch circuit-secure generators derandomize `BPP`
+# Pseudorandom generators against circuits derandomize `BPP`
 
 Arora and Barak [Arora and Barak, Theorem 10.17][AroraBarak07] (draft of 2007-01-08, printed page
 201, PDF page 217): *if for every `c > 1` there is a pseudorandom generator that is secure against
-circuits of size `n ^ c`, then `BPP ⊆ ⋂_{ε > 0} DTIME (2 ^ (n ^ ε))`.* This file proves that
-conclusion under a stronger hypothesis: the `c`-th generator also has output length at least
-`k ^ c` on seeds of `k` bits
-(`Cslib.Complexity.BPP_subset_DTIME_two_pow_rpow_of_polyStretch_circuitSecurePRG`). Arora and
-Barak's generators only need output length `m(n) > n`, and their proof stretches seeds of `n ^ ε`
-bits to `n ^ k` bits without saying how. Deriving polynomial stretch from one bit of stretch
-against circuits (iterating the generator, with a hybrid argument) is not formalized, so
-Theorem 10.17 itself remains open.
+circuits of size `n ^ c`, then `BPP ⊆ ⋂_{ε > 0} DTIME (2 ^ (n ^ ε))`.* Goldreich
+[Goldreich, Theorem 8.13][Goldreich2007DraftR4] (draft r4, printed page 334): *if there exist
+non-uniformly strong pseudorandom generators, then `BPP ⊆ ⋂_{ε > 0} DTIME (2 ^ (n ^ ε))`.*
+
+This file proves the conclusion first under a polynomial-stretch hypothesis: for every `c > 1`, a
+generator fooling circuits of size `k ^ c` with output length at least `k ^ c`
+(`Cslib.Complexity.BPP_subset_DTIME_two_pow_rpow_of_polyStretch_circuitSecurePRG`). Goldreich's
+Theorem 8.13 follows (`Cslib.Complexity.BPP_subset_DTIME_two_pow_rpow_of_nonuniformPRG`): a
+non-uniformly strong generator (`Cslib.Crypto.NonuniformPRG`) of any stretch is amplified to every
+polynomial stretch by the library's `Cslib.Crypto.NonuniformPRG.amplify`, and every such generator
+fools circuits of every polynomial size (`Cslib.Crypto.NonuniformPRG.circuitSecurePRG`).
+
+Arora and Barak's Theorem 10.17 itself is not proved. Its `c`-th generator need only have output
+length `m(n) > n` and fool circuits of the fixed size `n ^ c`. Amplifying the stretch of such a
+generator by the hybrid argument produces distinguishers that also evaluate the generator, whose
+circuits may be larger than `n ^ c`, so fixed-size security does not survive the amplification;
+`NonuniformPRG.amplify` applies only to generators secure against every polynomial size.
 
 Their pseudorandom generators are those of [Arora and Barak, Definition 10.11][AroraBarak07]
 (printed pages 193–194): a polynomial-time computable family `g_n : {0,1}^n → {0,1}^{m(n)}` with
@@ -42,7 +57,7 @@ probabilistic algorithms running in time `s(n)`; Theorem 10.17 asks for security
 of size `n ^ c` instead, which this file reads as security against every nonuniform family of De
 Morgan circuits with at most `s(n)` gates. That is `Cslib.Complexity.CircuitSecurePRG G ℓ s`: the
 generator is a polynomial-time map on words with output length `ℓ k` on seeds of `k` bits, and its
-restriction to seeds of `k` bits (`Cslib.Crypto.PRG.Generator.ofWordsAt`) is secure in the sense
+restriction to seeds of `k` bits (`Cslib.Crypto.PRG.wordFamily`) is secure in the sense
 of `Cslib.Crypto.PRG.Generator.Secure` against the tests computed by De Morgan circuits with at
 most `s k` gates (`Cslib.Crypto.PRG.IsCircuitTest`).
 
@@ -69,11 +84,16 @@ finitely many instances need to be patched.
 * `Cslib.Complexity.BPP_subset_DTIME_two_pow_rpow_of_polyStretch_circuitSecurePRG`: the
   conclusion of Theorem 10.17 of Arora and Barak, from generators of polynomial stretch; not
   Theorem 10.17 itself.
+* `Cslib.Crypto.NonuniformPRG.circuitSecurePRG`: non-uniformly strong generators fool circuits of
+  every polynomial size.
+* `Cslib.Complexity.BPP_subset_DTIME_two_pow_rpow_of_nonuniformPRG`: Theorem 8.13 of Goldreich.
 
 ## References
 
 * [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*, draft][AroraBarak07],
   Section 10.2
+* [O. Goldreich, *Computational Complexity: A Conceptual Perspective*, draft
+  r4][Goldreich2007DraftR4], Section 8.2.6
 -/
 
 @[expose] public section
@@ -109,7 +129,7 @@ structure CircuitSecurePRG (G : List Bool → List Bool) (ℓ s : ℕ → ℕ) :
   /-- For every `c`, eventually every circuit with at most `s k` gates has advantage at most
   `1 / k ^ c`. -/
   secure : ∀ c : ℕ, ∀ᶠ k in atTop,
-    (Generator.ofWordsAt G ℓ k).Secure (IsCircuitTest (s k)) ((k : ℝ≥0) ^ c)⁻¹
+    (wordFamily G ℓ k).Secure (IsCircuitTest (s k)) ((k : ℝ≥0) ^ c)⁻¹
 
 section Arithmetic
 
@@ -163,7 +183,10 @@ every encoding `enc` of instances.
 
 [Arora and Barak, Theorem 10.17][AroraBarak07] (draft of 2007-01-08, printed page 201) assumes only
 the output length `m(n) > n` of Definition 10.11; its proof stretches seeds of `n ^ ε` bits to
-`n ^ k` bits, which needs stretch amplification against circuits, not formalized here. The bound
+`n ^ k` bits, which needs stretch amplification. The library's `Cslib.Crypto.NonuniformPRG.amplify`
+needs security against every polynomial size, while the `c`-th generator here fools only circuits
+of size `k ^ c`, and the hybrid distinguishers also evaluate the generator. Goldreich's Theorem
+8.13, with that stronger security, is `BPP_subset_DTIME_two_pow_rpow_of_nonuniformPRG`. The bound
 `2 ^ ⌈n ^ ε⌉` is the draft's `2 ^ (n ^ ε)`, rounded up to a natural exponent. -/
 theorem BPP_subset_DTIME_two_pow_rpow_of_polyStretch_circuitSecurePRG
     (h : ∀ c : ℕ, 1 < c → ∃ (G : List Bool → List Bool) (ℓ : ℕ → ℕ),
@@ -244,12 +267,11 @@ theorem BPP_subset_DTIME_two_pow_rpow_of_polyStretch_circuitSecurePRG
     have hadv := hsec _ htest
     rw [Generator.advantage_pure_eq] at hadv
     -- the generated strings and the uniform strings, counted
-    have hseeds : #{z : BitString k | test (Generator.ofWordsAt G ℓ k z) = true} =
+    have hseeds : #{z : BitString k | test (wordFamily G ℓ k z) = true} =
         #{z : Fin k → Bool | V (x, gen x (List.ofFn z)) = true} := by
       refine congrArg _ (filter_congr fun z _ => ?_)
-      simp only [test, Generator.ofWordsAt, gen]
-      rw [show (Generator.mk fun z (i : Fin (ℓ k)) => (G (List.ofFn z)).getD i false) z =
-          fun i : Fin (ℓ k) => (G (List.ofFn z)).getD i false from rfl,
+      simp only [test, gen]
+      rw [show wordFamily G ℓ k z = fun i : Fin (ℓ k) => (G (List.ofFn z)).getD i false from rfl,
         List.ofFn_getD_eq_of_length false (by rw [hG.length_eq, List.length_ofFn])]
     have hstrings : (#{y : BitString (ℓ k) | test y = true} : ℝ) / 2 ^ ℓ k =
         #{r : Fin (p.eval (enc x).length) → Bool | V (x, List.ofFn r) = true} /
@@ -302,5 +324,149 @@ theorem BPP_subset_DTIME_two_pow_rpow_of_polyStretch_circuitSecurePRG
           Nat.mul_le_mul_left _ (Nat.pow_le_pow_right two_pos (hexp.trans hsq))
   exact DTIME_mono_of_le_mul_add (C := C * 2 ^ (D * (K + 1))) (fun n => Nat.le_add_right _ _)
     (DTIME_mono_of_eventually_le hev hmem)
+
+/-! ### Nonuniform pseudorandom generators fool circuits -/
+
+section Nonuniform
+
+open Cslib.Crypto Cslib.Probability
+
+/-- A test on `ℓ k` bits, extended to every input length `m` by the constant `false`. -/
+private noncomputable def paddedTest (L : ℕ) (g : BooleanFunction L) (m : ℕ) :
+    BooleanFunction m :=
+  if h : m = L then cast (by rw [h]) g else fun _ => false
+
+private theorem paddedTest_of_eq {L : ℕ} (g : BooleanFunction L) {m : ℕ} (hm : m = L)
+    (x : Fin m → Bool) : paddedTest L g m x = g fun i => x (Fin.cast hm.symm i) := by
+  subst hm
+  simp [paddedTest]
+
+private theorem complexity_paddedTest_le {L : ℕ} (g : BooleanFunction L) (m : ℕ) :
+    complexity interpretation (single (paddedTest L g m)) ≤
+      complexity interpretation (single g) + 1 := by
+  by_cases hm : m = L
+  · subst hm
+    simp [paddedTest]
+  · simp only [paddedTest, hm, dite_false, complexity_const]
+    omega
+
+/-- **Nonuniform pseudorandom generators are circuit-secure.** A generator secure against
+polynomial-time tests with polynomially bounded advice (`Cslib.Crypto.NonuniformPRG`) is secure,
+for every `c`, against De Morgan circuits with `k ^ c` gates in the sense of
+`Cslib.Complexity.CircuitSecurePRG`. The advice at seed length `k` lists a circuit of largest
+advantage for every input length up to `ℓ k` (`Cslib.Circuits.Boolean.familyAdvice`), and the
+advised test evaluates it on the challenge (`Cslib.Circuits.Boolean.evalAdvice`) in polynomial
+time; if circuits of size `k ^ c` had advantage above `1 / k ^ c'` infinitely often, this test
+would have non-negligible advantage. -/
+theorem _root_.Cslib.Crypto.NonuniformPRG.circuitSecurePRG {G : List Bool → List Bool}
+    {ℓ : ℕ → ℕ} (hG : Crypto.NonuniformPRG G ℓ) (c : ℕ) : CircuitSecurePRG G ℓ (· ^ c) := by
+  refine ⟨hG.polyTime, hG.length_eq, hG.stretch, fun c' => ?_⟩
+  by_contra hbad
+  rw [Filter.not_eventually] at hbad
+  -- at each seed length, a circuit test of largest concern
+  have hex (k : ℕ) : ∃ f : BooleanFunction (ℓ k), complexity interpretation (single f) ≤ k ^ c ∧
+      (¬ (wordFamily G ℓ k).Secure (IsCircuitTest (k ^ c)) ((k : ℝ≥0) ^ c')⁻¹ →
+        (((k : ℝ≥0) ^ c')⁻¹ : ℝ) < (wordFamily G ℓ k).advantage fun y => PMF.pure (f y)) := by
+    by_cases hk : (wordFamily G ℓ k).Secure (IsCircuitTest (k ^ c)) ((k : ℝ≥0) ^ c')⁻¹
+    · exact ⟨fun y => y ⟨0, by have := hG.stretch k; omega⟩, by simp, fun h => absurd hk h⟩
+    · simp only [Generator.Secure, not_forall, not_le] at hk
+      obtain ⟨adv, ⟨f, hf, rfl⟩, hlt⟩ := hk
+      exact ⟨f, hf, fun _ => hlt⟩
+  choose f hf hbreak using hex
+  -- circuits for the tests at every input length
+  have hcirc (k m : ℕ) : ∃ C : Circuit signature m 1, C.size ≤ k ^ c + 1 ∧
+      ∀ x, C.eval interpretation x 0 = paddedTest (ℓ k) (f k) m x := by
+    obtain ⟨C, hC, hsize⟩ := exists_computes_size_eq_complexity (I := interpretation)
+      (f := single (paddedTest (ℓ k) (f k) m))
+    exact ⟨C, hsize ▸ (complexity_paddedTest_le _ m).trans (by have := hf k; omega),
+      Circuit.computes_single_iff.1 hC⟩
+  choose C hCsize hCeval using hcirc
+  set advice : ℕ → List Bool := fun k => familyAdvice (ℓ k) (k ^ c + 1) (C k)
+  -- the output length is polynomial-time and polynomially bounded
+  have hℓ : ComputableInPolyTime ℓ encUnary encUnary := by
+    have h : ℓ = fun k => (G (List.replicate k false)).length :=
+      funext fun k => by rw [hG.length_eq, List.length_replicate]
+    rw [h]
+    exact ComputableInPolyTime.length_bits.comp
+      (hG.polyTime.comp (ComputableInPolyTime.bitsReplicate false))
+  have hℓpoly : PolynomiallyBounded ℓ := ComputableTidilyInPolyTime.polynomiallyBounded hℓ.tidy
+  have hadvice : PolynomiallyBounded fun k => (advice k).length := by
+    have hlen : (fun k => (advice k).length) =
+        fun k => (ℓ k + 1) * certLength (ℓ k) (k ^ c + 1) :=
+      funext fun k => length_familyAdvice fun m _ => hCsize k m
+    rw [hlen]
+    simp only [certLength]
+    fun_prop
+  -- the advised test evaluates the listed circuit on the challenge
+  set test : (ℕ × List Bool) × List Bool → ProbComp Bool := fun q =>
+    pure (evalAdvice (q.1.1 ^ c + 1) (certLength (ℓ q.1.1) (q.1.1 ^ c + 1)) q.1.2 q.2)
+  have htest : IsPPTOn encAdvisedInput encBool test := by
+    have hk : ComputableInPolyTime (fun q : (ℕ × List Bool) × List Bool => q.1.1)
+        encAdvisedInput encUnary :=
+      (ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.fst _ _)
+    have hw : ComputableInPolyTime (fun q : (ℕ × List Bool) × List Bool => q.1.2)
+        encAdvisedInput encBits :=
+      (ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.fst _ _)
+    have hℓk := hℓ.comp hk
+    refine (computableInPolyTime_evalAdvice (by fun_prop) ?_ hw
+      (ComputableInPolyTime.snd _ _)).isPPTOn
+    simp only [certLength]
+    fun_prop
+  have hneg := hG.secure advice hadvice test htest
+  -- its advantage at seed length `k` is that of the circuit test
+  have hadv (k : ℕ) : (Game.advantage
+      (distinguishingGame (generatorEnsemble G k) fun w => test ((k, advice k), w))
+      (distinguishingGame (BitString.uniformList (ℓ k)) fun w => test ((k, advice k), w)) : ℝ) =
+        (wordFamily G ℓ k).advantage fun y => PMF.pure (f k y) := by
+    rw [← PRG.wordFamily_realExperiment hG.length_eq (fun n w => test ((n, advice n), w)),
+      ← PRG.wordFamily_idealExperiment ℓ (fun n w => test ((n, advice n), w)),
+      ← Generator.advantage_eq_game]
+    congr 1
+    funext bits
+    simp only [test, advice]
+    rw [ProbComp.eval_pure, evalAdvice_familyAdvice (fun m _ => hCsize k m) (by simp),
+      hCeval, paddedTest_of_eq _ (List.length_ofFn)]
+    congr 2
+    funext i
+    simp
+  -- negligible advantage contradicts the frequent breaks
+  obtain ⟨m, hm⟩ := (Crypto.negligible_iff _).1 hneg c' 1 one_pos
+  obtain ⟨k, hk, hkm⟩ := (hbad.and_eventually (eventually_ge_atTop (m + 1))).exists
+  have hk1 : (1 : ℝ) ≤ k := by exact_mod_cast (show 1 ≤ k by omega)
+  have hlt := hbreak k hk
+  rw [← hadv k] at hlt
+  have hmk := hm k (by omega)
+  have hmk' : (k : ℝ) ^ c' * (Game.advantage
+      (distinguishingGame (generatorEnsemble G k) fun w => test ((k, advice k), w))
+      (distinguishingGame (BitString.uniformList (ℓ k)) fun w => test ((k, advice k), w)) : ℝ) <
+        1 := by
+    exact_mod_cast hmk
+  have hpos : (0 : ℝ) < (k : ℝ) ^ c' := by positivity
+  rw [NNReal.coe_natCast, inv_lt_iff_one_lt_mul₀ hpos] at hlt
+  linarith
+
+/-- **Goldreich, Theorem 8.13** [Goldreich, Theorem 8.13][Goldreich2007DraftR4] (draft r4, printed
+page 334, PDF page 70): *if there exist non-uniformly strong pseudorandom generators, then
+`BPP ⊆ ⋂_{ε > 0} DTIME (2 ^ (n ^ ε))`*, for every encoding `enc` of instances.
+
+The non-uniformly strong generators of Definition 8.12 are `Cslib.Crypto.NonuniformPRG`, whose
+tests are polynomial-time machines with polynomially bounded advice in place of polynomial-size
+circuit families (the model of that record; compare `Cslib.Circuits.Boolean.PPoly_eq_PAdvice`).
+Any stretch `ℓ k > k` suffices: truncating to one bit of stretch (`NonuniformPRG.truncate`) and
+amplifying (`NonuniformPRG.amplify`) gives, for every `c`, a generator of stretch `k ^ c + k + 1`,
+which fools circuits of size `k ^ c` (`Cslib.Crypto.NonuniformPRG.circuitSecurePRG`), and
+`Cslib.Complexity.BPP_subset_DTIME_two_pow_rpow_of_polyStretch_circuitSecurePRG` concludes. The
+bound `2 ^ ⌈n ^ ε⌉` is the source's `2 ^ (n ^ ε)`, rounded up to a natural exponent. -/
+theorem BPP_subset_DTIME_two_pow_rpow_of_nonuniformPRG {G : List Bool → List Bool}
+    {ℓ : ℕ → ℕ} (hG : Crypto.NonuniformPRG G ℓ) {α : Type} (enc : α ↪ List Bool) :
+    BPP enc ⊆ ⋂ (ε : ℝ) (_ : 0 < ε), DTIME enc fun n => 2 ^ ⌈(n : ℝ) ^ ε⌉₊ := by
+  refine BPP_subset_DTIME_two_pow_rpow_of_polyStretch_circuitSecurePRG (fun c _ => ?_) enc
+  have h₁ := hG.truncate (fun n => n + 1) (by fun_prop) (fun n => hG.stretch n)
+    fun n => Nat.lt_succ_self n
+  have h₂ := Crypto.NonuniformPRG.amplify h₁ (fun n => n ^ c + n + 1) (by fun_prop)
+    fun n => by omega
+  exact ⟨_, _, Eventually.of_forall fun k => by omega, h₂.circuitSecurePRG c⟩
+
+end Nonuniform
 
 end Cslib.Complexity

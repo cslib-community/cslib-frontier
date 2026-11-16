@@ -26,14 +26,6 @@ uniform string with the density of the strings it accepts
 difference of the two counts, scaled by the numbers of seeds and strings
 (`Cslib.Crypto.PRG.Generator.advantage_pure_eq`).
 
-A generator on words of every length restricts to a finite generator at each seed length
-(`Cslib.Crypto.PRG.Generator.ofWordsAt`), so the finite security notions apply to it length by
-length.
-
-## Main definitions
-
-* `Cslib.Crypto.PRG.Generator.ofWordsAt`: a generator on words, restricted to seeds of `k` bits.
-
 ## Main results
 
 * `Cslib.Crypto.PRG.Generator.toReal_realExperiment_pure`,
@@ -99,13 +91,6 @@ theorem Generator.toReal_realExperiment_sub_toReal_idealExperiment_not [Fintype 
   linarith
 
 end Deterministic
-
-/-- The generator of seed length `k` of a generator `G` on words: a seed `z` of `k` bits is mapped
-to the first `ℓ k` bits of `G z`, padded with `false` if `G z` is shorter. For a generator whose
-outputs on seeds of `k` bits have exactly `ℓ k` bits, no padding occurs. -/
-def Generator.ofWordsAt (G : List Bool → List Bool) (ℓ : ℕ → ℕ) (k : ℕ) :
-    Generator (BitString k) (BitString (ℓ k)) :=
-  ⟨fun z i => (G (List.ofFn z)).getD i false⟩
 
 /-- The advantage of a deterministic test is the difference of the fractions of seeds and of
 strings it accepts. -/

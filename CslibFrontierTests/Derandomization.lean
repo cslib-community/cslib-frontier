@@ -141,9 +141,9 @@ example : ¬ Complexity.CircuitSecurePRG (fun z => true :: z) (· + 1) fun _ => 
   have hadv := hsec _ htest
   rw [Generator.advantage_pure_eq] at hadv
   have hseeds : #{z : BitString k |
-      Generator.ofWordsAt (fun z => true :: z) (· + 1) k z 0 = true} = 2 ^ k := by
+      wordFamily (fun z => true :: z) (· + 1) k z 0 = true} = 2 ^ k := by
     have hall (z : BitString k) :
-        Generator.ofWordsAt (fun z => true :: z) (· + 1) k z 0 = true := rfl
+        wordFamily (fun z => true :: z) (· + 1) k z 0 = true := rfl
     simp [hall, BitString]
   have hstrings : #{y : BitString (k + 1) | y 0 = true} = 2 ^ k := by
     have hcount := BitString.card_filter_take (k := 1) (K := k + 1) (by omega)
