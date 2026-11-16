@@ -247,15 +247,16 @@ count) with the file that holds it, and the asymptotic headline that applies the
 to the program: a theorem other than the witness and the equality that concludes a negligibility or
 advantage claim and mentions the program or its witness in its statement or proof. All but the
 equality must be public; a private equality is named without its prefix and looked up in its
-recorded file. When the equality has premises, the `why` states them. The checker verifies these
-declarations in Lean, so a renamed one fails, and `--report` prints where each headline uses the
-program; it does not judge them, and review still does. CI treats it as it treats the premise check:
-a pull request fails when a changed module has an unrecorded uncertified reduction or a baseline
-entry that no longer matches, so the baseline only shrinks; merge groups only report. `--list` shows
-every reduction with its certificate, and `--update-baseline` adds entries whose `why` you then fill
-in. The check does not see a reduction written inline in a bound, a bound without an advantage-named
-constant, a simulator or extractor on the bounded side, or an attack, and it does not judge whether
-a witness assumes only the adversary's certificate; review covers these.
+recorded file. The conditions under which the equality holds are for the reviewer to read; the `why`
+states them by hand. The checker verifies these declarations in Lean, so a renamed one fails, and
+`--report` prints where each headline uses the program; it does not judge them, and review still
+does. CI treats it as it treats the premise check: a pull request fails when a changed module has an
+unrecorded uncertified reduction or a baseline entry that no longer matches, so the baseline only
+shrinks; merge groups only report. `--list` shows every reduction with its certificate, and
+`--update-baseline` adds entries whose `why` you then fill in. The check does not see a reduction
+written inline in a bound, a bound without an advantage-named constant, a simulator or extractor on
+the bounded side, or an attack, and it does not judge whether a witness assumes only the adversary's
+certificate; review covers these.
 
 **Named assumptions** ([#5578](https://github.com/cslib-community/cslib-frontier/issues/5578)). Each
 named assumption that a Crypto theorem takes belongs in the

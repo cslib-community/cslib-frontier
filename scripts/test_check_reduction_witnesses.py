@@ -63,16 +63,16 @@ VIA_ENTRY = {"module": GARBLING_PATH, "kind": c.VIA,
              "equality": "Cslib.Crypto.GarblingWord.eval_run_wordReduction",
              "equality_module": WORD_PATH,
              "headline": "Cslib.Crypto.GarblingWord.prvSim",
-             "why": "per-instance step that the certified word reduction runs; the equality "
-                    "has no premises"}
+             "why": "per-instance step that the certified word reduction runs on every label "
+                    "table"}
 
 
 def check_row(problems: list[str] | None = None, missing: list[str] | None = None,
-              equality_module: str = "CslibFrontier.Crypto.GarblingWord", premises: int = 0) -> str:
+              equality_module: str = "CslibFrontier.Crypto.GarblingWord") -> str:
     """A line of the reader's output for the request of `VIA_ENTRY`."""
     return json.dumps({"v": VIA_REDUCTION, "p": problems or [], "at": "" if problems else "proof",
                        "vm": ["CslibFrontier.Crypto.Garbling", "CslibFrontier.Crypto.GarblingWord"],
-                       "em": equality_module, "pc": premises, "missing": missing or []})
+                       "em": equality_module, "missing": missing or []})
 
 
 VIA_OUTPUT = "\n".join([
@@ -147,7 +147,7 @@ class ViaTests(unittest.TestCase):
 
     def test_parse_reads_verdicts_apart_from_reductions(self) -> None:
         self.assertEqual(c.parse_checks(VIA_OUTPUT), {VIA_REDUCTION: c.ViaCheck(
-            (), "proof", (GARBLING_PATH, WORD_PATH), WORD_PATH, 0, ())})
+            (), "proof", (GARBLING_PATH, WORD_PATH), WORD_PATH, ())})
         self.assertEqual(set(c.uncertified(self.reductions)), {UNCERTIFIED, EXEMPT, VIA_REDUCTION})
 
     def test_requests_name_the_declarations_and_where_to_find_private_ones(self) -> None:
@@ -160,16 +160,6 @@ class ViaTests(unittest.TestCase):
         self.assertIn(f"{VIA_ENTRY['equality']}\tCslibFrontier.Crypto.Garbling\t"
                       f"{VIA_ENTRY['headline']}", c.via_requests({VIA_REDUCTION: unrecorded})[0])
         self.assertEqual(c.via_requests(BASELINE), [])
-
-    def test_the_why_states_the_premises_of_the_equality(self) -> None:
-        checks = c.parse_checks(check_row(premises=2))
-        invalid = c.compare(self.reductions, self.baseline, None, checks).invalid
-        self.assertEqual(len(invalid), 1)
-        self.assertIn(f"equality `{VIA_ENTRY['equality']}` has 2 premise(s); state them in `why`",
-                      invalid[0][2])
-        stated = {**VIA_ENTRY, "why": "the equality has 2 premises: distinct tweaks, short keys"}
-        self.assertFalse(c.compare(self.reductions, {**BASELINE, VIA_REDUCTION: stated}, None,
-                                   checks))
 
     def test_a_verified_entry_passes(self) -> None:
         self.assertFalse(c.compare(self.reductions, self.baseline, None, self.checks()))
@@ -222,7 +212,7 @@ class ViaTests(unittest.TestCase):
     def test_an_entry_stays_stale_once_the_reduction_is_certified(self) -> None:
         reductions, _ = c.parse(OUTPUT)
         baseline = {**BASELINE, CERTIFIED: {**VIA_ENTRY, "module": ELGAMAL_PATH}}
-        checks = {CERTIFIED: c.ViaCheck((), "proof", (ELGAMAL_PATH,), WORD_PATH, 0, ())}
+        checks = {CERTIFIED: c.ViaCheck((), "proof", (ELGAMAL_PATH,), WORD_PATH, ())}
         stale = c.compare(reductions, baseline, None, checks).stale
         self.assertEqual([name for name, _, _ in stale], [CERTIFIED])
 
@@ -348,8 +338,7 @@ class MainTests(unittest.TestCase):
             code, out, _ = self.run_main(baseline, "--report")
         self.assertEqual(code, 0)
         self.assertIn(f"{GARBLING_PATH}: {VIA_REDUCTION}: headline `{VIA_ENTRY['headline']}` uses "
-                      f"the program in its proof; equality `{VIA_ENTRY['equality']}` has 0 "
-                      "premise(s)", out)
+                      "the program in its proof", out)
 
     def test_pull_request_mode_reports_untouched_modules(self) -> None:
         code, out, err = self.run_main({UNCERTIFIED: BASELINE[UNCERTIFIED]})
@@ -559,8 +548,6 @@ theorem typedStep_le : schemeAdvantage S A n ≤ advantage G (typedStep A) n := 
 theorem isPPT_stepProgram (_h : IsPPT A) : IsPPT (stepProgram A) := trivial
 theorem eval_stepProgram : stepProgram A = typedStep A := rfl
 private theorem eval_stepProgram_private : typedStep A = stepProgram A := rfl
-/-- An equation under a premise. -/
-theorem eval_stepProgram_of (_h : IsPPT A) : stepProgram A = typedStep A := rfl
 /-- A bound, not an equation. -/
 theorem stepProgram_le : advantage G (stepProgram A) n ≤ advantage G (typedStep A) n :=
   Nat.le_refl _
@@ -605,6 +592,19 @@ private theorem eval_stepProgram_private : (1 : Nat) = 1 := rfl
 end Cslib.Crypto.Fixture
 """
 
+# A third module with a public declaration of the same name as the fixture's private equality.
+PUBLIC_MODULE = "CslibFrontier.Crypto.FixturePublic"
+FIXTURE_PUBLIC = """module
+public import Init
+public section
+
+namespace Cslib.Crypto.Fixture
+
+theorem eval_stepProgram_private : (1 : Nat) = 1 := rfl
+
+end Cslib.Crypto.Fixture
+"""
+
 # `via_certified_program` requests for the fixture, all for the reduction `typedStep`: a valid
 # request, and the changes each label makes to it. Names are without `PREFIX`.
 VALID_REQUEST = {"program": "stepProgram", "certificate": "isPPT_stepProgram",
@@ -614,9 +614,9 @@ VIA_REQUESTS = {
     "valid": {},
     "statement": {"headline": "stepStatement"},
     "notion": {"headline": "stepNotion"},
-    "premise": {"equality": "eval_stepProgram_of"},
     "private": {"equality": "eval_stepProgram_private"},
     "private elsewhere": {"equality": "eval_stepProgram_private", "equality_module": OTHER_MODULE},
+    "public elsewhere": {"equality": "eval_stepProgram_private", "equality_module": PUBLIC_MODULE},
     "bogus private": {"equality": "eval_stepProgram_privat"},
     "private program": {"program": "privateProgram"},
     "private certificate": {"certificate": "isPPT_stepProgram_private"},
@@ -650,7 +650,8 @@ class CompiledFixtureTests(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         cls.addClassCleanup(tmp.cleanup)
         root = pathlib.Path(tmp.name)
-        for module, text in ((FIXTURE_MODULE, FIXTURE), (OTHER_MODULE, FIXTURE_OTHER)):
+        for module, text in ((FIXTURE_MODULE, FIXTURE), (OTHER_MODULE, FIXTURE_OTHER),
+                             (PUBLIC_MODULE, FIXTURE_PUBLIC)):
             source = root / "src" / c.csp.module_path(module)
             olean = (root / "build" / c.csp.module_path(module)).with_suffix(".olean")
             source.parent.mkdir(parents=True, exist_ok=True)
@@ -661,7 +662,8 @@ class CompiledFixtureTests(unittest.TestCase):
         requests = [via_request(changes) for changes in VIA_REQUESTS.values()]
         out = subprocess.run(["lake", "env", "lean", "--run", c.csp.TOOL, str(root / "build"),
                               "--reductions"], cwd=c.ROOT,
-                             input="\n".join([FIXTURE_MODULE, OTHER_MODULE, *requests]) + "\n",
+                             input="\n".join([FIXTURE_MODULE, OTHER_MODULE, PUBLIC_MODULE,
+                                              *requests]) + "\n",
                              capture_output=True, text=True, check=True).stdout
         reductions, cls.summary = c.parse(out)
         cls.reductions = {name.removeprefix(PREFIX): r for name, r in reductions.items()}
@@ -719,27 +721,25 @@ class CompiledFixtureTests(unittest.TestCase):
     def test_a_valid_via_request_passes(self) -> None:
         self.assertEqual(self.certificate("typedStep"), ("", ()))
         self.assertEqual(self.verdicts["valid"],
-                         c.ViaCheck((), "proof", (FIXTURE_PATH,), FIXTURE_PATH, 0, ()))
+                         c.ViaCheck((), "proof", (FIXTURE_PATH,), FIXTURE_PATH, ()))
         # A headline may mention the program in its statement, and state a notion that unfolds
         # to a negligibility claim.
         for label in ("statement", "notion"):
             self.assertEqual(self.verdicts[label].problems, (), label)
             self.assertEqual(self.verdicts[label].headline_at, "statement", label)
 
-    def test_the_premises_of_the_equality_are_counted(self) -> None:
-        self.assertEqual(self.verdicts["premise"],
-                         c.ViaCheck((), "proof", (FIXTURE_PATH,), FIXTURE_PATH, 1, ()))
-
     def test_a_private_equality_resolves_in_its_recorded_module(self) -> None:
+        # Another module has a private declaration of the same name, and a third a public one;
+        # the entry's recorded module decides.
         self.assertEqual(self.verdicts["private"],
-                         c.ViaCheck((), "proof", (FIXTURE_PATH,), FIXTURE_PATH, 0, ()))
-        # The private declaration of the same name in another module is a different theorem.
-        elsewhere = self.verdicts["private elsewhere"]
-        other_path = c.csp.module_path(OTHER_MODULE)
-        self.assertEqual(elsewhere.equality_path, other_path)
-        self.assertEqual(len(elsewhere.problems), 1)
-        self.assertIn(f"equality `{PREFIX}eval_stepProgram_private` does not equate",
-                      elsewhere.problems[0])
+                         c.ViaCheck((), "proof", (FIXTURE_PATH,), FIXTURE_PATH, ()))
+        for label, module in (("private elsewhere", OTHER_MODULE),
+                              ("public elsewhere", PUBLIC_MODULE)):
+            elsewhere = self.verdicts[label]
+            self.assertEqual(elsewhere.equality_path, c.csp.module_path(module), label)
+            self.assertEqual(len(elsewhere.problems), 1, label)
+            self.assertIn(f"equality `{PREFIX}eval_stepProgram_private` does not equate",
+                          elsewhere.problems[0], label)
         bogus = self.verdicts["bogus private"]
         self.assertEqual(bogus.problems, (f"equality `{PREFIX}eval_stepProgram_privat` does not "
                                           "exist, publicly or as a private declaration of "

@@ -40,28 +40,29 @@ X's law or evaluation equals the reduction's; and `"headline"` H, the asymptotic
 applies the hardness assumption to X. X, Y and H must be public. E may be private, named without its
 private prefix. The entry records the file that holds E, so that a reviewer can open it:
 `"equality_module"`, written after `equality`, when E is not in the entry's `module`; a private E is
-looked up only in that file. `scripts/SecurityPremises.lean --reductions` verifies that all four
-exist in the compiled modules; that X is a definition that yields a program; that Y is a theorem
-whose conclusion is an efficiency certificate, as recognized above, that mentions X; that E is a
-theorem whose conclusion, after its `∀`s and premises, is an equation `a = b`, not of propositions,
-with X in one side and the reduction in the other, such as an equality of `PMF`s or `eval`s or
-`Game.advantage … = …`; and that H is a theorem other than Y and E whose conclusion makes a
-negligibility or advantage claim (directly or through the notions it states) and whose statement
-mentions X or Y or, failing that, whose proof term does (together with the auxiliary proofs Lean
-generates under H's name). This checker then compares E's module with the recorded file, and when E
-has N > 0 premises it requires the `why` to state them, starting with "N premise", since an equation
-that holds only under hypotheses links X to the reduction only there. E's conclusion must be an
-equation: a bound (`≤`, `<`) or a simulation predicate does not link X to the reduction, and such a
-step stays a `gap`, as do an equation that covers only one world (the ideal experiment, say) and a
-reduction whose program no headline consumes yet. `--report` prints, for each entry, whether H
-mentions X or Y in its statement or only in its proof, and how many premises E has. A missing,
-renamed, misplaced or private-where-public declaration fails the check. An entry is enforced in the
-modules of its reduction and of the four declarations, and in every module while one of them is
-missing, since the change that renamed or deleted it can be in any module. The status supplements
-review and does not replace it: the pass checks names and the shape of statements, not that Y
-assumes only the adversary's certificate, that E holds at the arguments where H uses X, or that H is
-the headline the reduction's result needs. The entry names the declarations so that a reviewer can
-open them. The summary prints the three counts separately.
+looked up in that file first, so a declaration of the same name elsewhere is not taken for it.
+`scripts/SecurityPremises.lean --reductions` verifies that all four exist in the compiled modules;
+that X is a definition that yields a program; that Y is a theorem whose conclusion is an efficiency
+certificate, as recognized above, that mentions X; that E is a theorem whose conclusion, after its
+`∀`s and premises, is an equation `a = b`, not of propositions, with X in one side and the reduction
+in the other, such as an equality of `PMF`s or `eval`s or `Game.advantage … = …`; and that H is a
+theorem other than Y and E whose conclusion makes a negligibility or advantage claim (directly or
+through the notions it states) and whose statement mentions X or Y or, failing that, whose proof
+term does (together with the auxiliary proofs Lean generates under H's name). This checker then
+compares E's module with the recorded file. The conditions under which E holds (its hypotheses, and
+the arguments and branches at which it is stated) are for the reviewer to read: the entry's `why`
+states them by hand, and the pass does not check them. E's conclusion must be an equation: a bound
+(`≤`, `<`) or a simulation predicate does not link X to the reduction, and such a step stays a
+`gap`, as do an equation that covers only one world (the ideal experiment, say) and a reduction
+whose program no headline consumes yet. `--report` prints, for each entry, whether H mentions X or Y
+in its statement or only in its proof. A missing, renamed, misplaced or private-where-public
+declaration fails the check. An entry is enforced in the modules of its reduction and of the four
+declarations, and in every module while one of them is missing, since the change that renamed or
+deleted it can be in any module. The status supplements review and does not replace it: the pass
+checks names and the shape of statements, not that Y assumes only the adversary's certificate, that
+E holds at the arguments where H uses X, or that H is the headline the reduction's result needs. The
+entry names the declarations so that a reviewer can open them. The summary prints the three counts
+separately.
 
 In a module that the change touches (adds, modifies or deletes, against the merge base of
 `--base`, default `origin/main`, and the working tree, as `scripts/check_changed_files.py`
@@ -151,12 +152,11 @@ class ViaCheck:
     """The Lean pass's verdict on a `via_certified_program` entry: its problems, where the
     headline mentions the program or its certificate (`statement`, `proof`, or the empty string),
     the paths of the modules of the declarations it found, the path of the equality's module (or
-    the empty string), the number of the equality's premises, and the names it did not find."""
+    the empty string), and the names it did not find."""
     problems: tuple[str, ...]
     headline_at: str
     paths: tuple[str, ...]
     equality_path: str
-    premises: int
     missing: tuple[str, ...]
 
 
@@ -186,7 +186,7 @@ def parse_checks(output: str) -> dict[str, ViaCheck]:
             checks[row["v"]] = ViaCheck(tuple(row["p"]), row["at"],
                                         tuple(csp.module_path(m) for m in row["vm"]),
                                         csp.module_path(row["em"]) if row["em"] else "",
-                                        row["pc"], tuple(row["missing"]))
+                                        tuple(row["missing"]))
     return checks
 
 
@@ -314,10 +314,6 @@ def compare(reductions: dict[str, Reduction], baseline: dict[str, dict],
                 reasons.append(f"equality `{entry['equality']}` is in {check.equality_path}, not "
                                f"{recorded}; record its file as `{EQUALITY_MODULE}`, or omit "
                                "that field when it is the entry's `module`")
-            if check.premises and f"{check.premises} premise" not in entry["why"]:
-                reasons.append(f"equality `{entry['equality']}` has {check.premises} "
-                               f"premise(s); state them in `why` (\"{check.premises} "
-                               "premise…\", then what they are)")
             if reasons:
                 invalid.append((name, entry, "; ".join(reasons)))
     return Problems(new, stale, unjustified, invalid)
@@ -377,7 +373,7 @@ def report(problems: Problems) -> str:
 
 def via_listing(baseline: dict[str, dict], checks: dict[str, ViaCheck]) -> str:
     """For each `via_certified_program` entry, where its headline mentions the program or the
-    certificate and how many premises its equality has."""
+    certificate."""
     out = []
     for name, entry in sorted(baseline.items(), key=lambda i: (i[1]["module"], i[0])):
         if entry["kind"] != VIA:
@@ -385,9 +381,8 @@ def via_listing(baseline: dict[str, dict], checks: dict[str, ViaCheck]) -> str:
         check = checks.get(name)
         where = (f"in its {check.headline_at}" if check and check.headline_at
                  else "nowhere the pass could verify")
-        premises = f"{check.premises} premise(s)" if check else "unverified premises"
         out.append(f"  {entry['module']}: {name}: headline `{entry['headline']}` uses the program "
-                   f"{where}; equality `{entry['equality']}` has {premises}")
+                   f"{where}")
     return "\n".join([f"`{VIA}` entries:", *out] if out else [])
 
 
