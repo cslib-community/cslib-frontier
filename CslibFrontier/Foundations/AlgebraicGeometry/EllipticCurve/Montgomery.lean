@@ -16,7 +16,7 @@ import Mathlib.GroupTheory.OrderOfElement
 # Montgomery elliptic curves
 
 A Montgomery curve over a commutative ring `R` is given by `B v² = u³ + A u² + u` with
-`B (A² - 4) ≠ 0` ([BonehShoup2023], Section 15.2.1, p. 618). Over a field `F`, the coordinate
+`B (A² - 4) ≠ 0` ([BonehShoup2023], Section 15.2.1, p. 619). Over a field `F`, the coordinate
 substitution `(u, v) = (B x, B y)` transforms this equation into the Weierstrass curve
 `M.toWeierstrass` (`Y² = X³ + (A/B) X² + (1/B²) X`), which is the quadratic twist
 `(ofCubic M.A 1 0).quadraticTwist M.B⁻¹`. When `2 ≠ 0` in `F`, `M.toWeierstrass` is elliptic and
@@ -61,7 +61,7 @@ change of variables to a Weierstrass curve of odd order.
 ## References
 
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023], Section 15.2.1
-  (p. 618).
+  (p. 619).
 -/
 
 public section
@@ -69,7 +69,7 @@ public section
 open WeierstrassCurve
 
 /-- A Montgomery elliptic curve `B v² = u³ + A u² + u` over a commutative ring `R`, with
-non-degeneracy condition `B (A² - 4) ≠ 0` ([BonehShoup2023], Section 15.2.1, p. 618). -/
+non-degeneracy condition `B (A² - 4) ≠ 0` ([BonehShoup2023], Section 15.2.1, p. 619). -/
 structure MontgomeryCurve (R : Type*) [CommRing R] where
   /-- The quadratic coefficient `A` in `B v² = u³ + A u² + u`. -/
   A : R
@@ -131,8 +131,10 @@ theorem natCard_point_eq_one_add [Finite F] :
   exact Finite.card_option
 
 /-- The Weierstrass model `Y² = X³ + (A/B) X² + (1/B²) X` of `M`, obtained by substituting
-`(u, v) = (B X, B Y)` ([BonehShoup2023], Section 15.2.1, p. 618). This coincides with the
-quadratic twist `(ofCubic M.A 1 0).quadraticTwist M.B⁻¹`. -/
+`(u, v) = (B X, B Y)`. This coincides with the quadratic twist
+`(ofCubic M.A 1 0).quadraticTwist M.B⁻¹`. The change of variables of [BonehShoup2023],
+Section 15.2.1, p. 619, `u := B x - A/3` and `v := B y`, also removes the quadratic term; it is
+`toShortWeierstrass`. -/
 def toWeierstrass : WeierstrassCurve F :=
   ofCubic (M.A / M.B) (1 / M.B ^ 2) 0
 
@@ -155,18 +157,9 @@ theorem isElliptic_toWeierstrass (h2 : (2 : F) ≠ 0) : M.toWeierstrass.IsEllipt
   have h16 : (16 : F) ≠ 0 := by
     rw [show (16 : F) = 2 ^ 4 by norm_num]
     exact pow_ne_zero 4 h2
-  have hΔ : (ofCubic M.A 1 0).Δ ≠ 0 := by
-    rw [Δ_of_isCharNeTwoNF]
-    simp only [ofCubic_a₂, ofCubic_a₄, ofCubic_a₆]
-    have hmul :
-        -64 * M.A ^ 3 * 0 + 16 * M.A ^ 2 * 1 ^ 2 - 64 * 1 ^ 3 - 432 * 0 ^ 2 +
-            288 * M.A * 1 * 0 =
-          16 * (M.A ^ 2 - 4) := by ring
-    rw [hmul]
-    exact mul_ne_zero h16 M.discr_ne_zero
-  have : (ofCubic M.A 1 0).IsElliptic := ⟨isUnit_iff_ne_zero.mpr hΔ⟩
-  rw [toWeierstrass_eq_quadraticTwist]
-  exact (ofCubic M.A 1 0).isElliptic_quadraticTwist (inv_ne_zero M.B_ne_zero).isUnit
+  refine ⟨isUnit_iff_ne_zero.mpr ?_⟩
+  rw [toWeierstrass_Δ]
+  exact div_ne_zero (mul_ne_zero h16 M.discr_ne_zero) (pow_ne_zero 6 M.B_ne_zero)
 
 /-- Affine solutions `(B x, B y)` of `M.Equation` correspond to affine solutions `(x, y)` of
 `M.toWeierstrass`. -/
@@ -202,7 +195,7 @@ theorem toWeierstrass_nonsingular_div (h2 : (2 : F) ≠ 0) {u v : F} (h : M.Equa
   Affine.equation_iff_nonsingular.mp (M.toWeierstrass_equation_div h)
 
 /-- Equivalence between `M.Point` and the affine points of `M.toWeierstrass` when `2 ≠ 0`
-([BonehShoup2023], Section 15.2.1, p. 618). -/
+([BonehShoup2023], Section 15.2.1, p. 619). -/
 noncomputable def toWeierstrassEquiv (h2 : (2 : F) ≠ 0) :
     M.Point ≃ M.toWeierstrass.toAffine.Point where
   toFun
@@ -244,7 +237,7 @@ noncomputable def toWeierstrassEquiv (h2 : (2 : F) ≠ 0) :
   rfl
 
 /-- Shift `X ↦ X - A / (3 B)` transforming `M.toWeierstrass` into short Weierstrass form when
-`3 ≠ 0` ([BonehShoup2023], Section 15.2.1, p. 618). -/
+`3 ≠ 0` ([BonehShoup2023], Section 15.2.1, p. 619). -/
 noncomputable def toShortWeierstrass : WeierstrassCurve F :=
   VariableChange.mk 1 (-M.A / (3 * M.B)) 0 0 • M.toWeierstrass
 
@@ -462,7 +455,6 @@ private lemma four_dvd_of_fourTorsion (M : MontgomeryCurve F) (h2 : (2 : F) ≠ 
   let _ : M.toWeierstrass.IsElliptic := M.isElliptic_toWeierstrass h2
   have hB : M.B ≠ 0 := M.B_ne_zero
   have hs' : M.B * s ^ 2 = M.A + 2 * ε := by rw [hs, mul_div_cancel₀ _ hB]
-  have hε0 : ε ≠ 0 := fun h ↦ one_ne_zero (by rw [← hε, h]; norm_num)
   have hAε : M.A + 2 * ε ≠ 0 := by
     intro h
     have hA : M.A = -2 * ε := by linear_combination h
@@ -517,30 +509,17 @@ private lemma four_dvd_of_fourTorsion (M : MontgomeryCurve F) (h2 : (2 : F) ≠ 
     field_simp
     linear_combination s * hε
   have hord : addOrderOf P = 4 := by
-    apply addOrderOf_eq_iff (by norm_num) |>.mpr
-    refine ⟨?_, fun m hm0 hm4 ↦ ?_⟩
-    · rw [show (4 : ℕ) • P = (P + P) + (P + P) by abel, hP2]
+    refine (addOrderOf_eq_prime_pow (p := 2) (n := 1) ?_ ?_).trans (by norm_num)
+    · rw [pow_one, two_nsmul, hP2]
+      exact Affine.Point.some_ne_zero _
+    · rw [show (2 ^ (1 + 1) : ℕ) • P = (P + P) + (P + P) by
+        rw [show (2 ^ (1 + 1) : ℕ) = 2 + 2 by norm_num, add_nsmul, two_nsmul], hP2]
       exact Affine.Point.add_of_Y_eq rfl (by rw [toWeierstrass_negY, neg_zero])
-    · rcases (by omega : m = 1 ∨ m = 2 ∨ m = 3) with rfl | rfl | rfl
-      · exact Affine.Point.some_ne_zero _
-      · rw [two_nsmul, hP2]
-        exact Affine.Point.some_ne_zero _
-      · intro h3
-        have hP1 : P + (P + P) = 0 := by rwa [show (3 : ℕ) • P = P + (P + P) by abel] at h3
-        have hPe : P = -(P + P) := eq_neg_of_add_eq_zero_left hP1
-        rw [hP2] at hPe
-        have hneg0 : -P₀ = P₀ := by
-          change -Affine.Point.some 0 0 _ = Affine.Point.some 0 0 _
-          rw [Affine.Point.neg_some]
-          congr 1
-          rw [toWeierstrass_negY, neg_zero]
-        rw [hneg0] at hPe
-        exact hε0 (div_eq_zero_iff.mp (Affine.Point.some.inj hPe).1 |>.resolve_right hB)
   rw [← hord]
   exact addOrderOf_dvd_natCard P
 
 /-- Over a finite field of characteristic `≠ 2`, `4 ∣ #M.toWeierstrass(F)` ([BonehShoup2023],
-Section 15.2.1, p. 618). -/
+Section 15.2.1, p. 619). -/
 theorem four_dvd_natCard_toWeierstrass_point (M : MontgomeryCurve F) [Finite F]
     (hF : ringChar F ≠ 2) : 4 ∣ Nat.card M.toWeierstrass.toAffine.Point := by
   classical
@@ -577,7 +556,7 @@ theorem four_dvd_natCard_toWeierstrass_point (M : MontgomeryCurve F) [Finite F]
         (by rw [sq, ← hs]; dsimp [b]; ring)
 
 /-- Over a finite field of characteristic `≠ 2`, the order of any Montgomery curve is divisible by
-`4` ([BonehShoup2023], Section 15.2.1, p. 618). -/
+`4` ([BonehShoup2023], Section 15.2.1, p. 619). -/
 theorem four_dvd_natCard_point (M : MontgomeryCurve F) [Finite F] (hF : ringChar F ≠ 2) :
     4 ∣ Nat.card M.Point := by
   rw [Nat.card_congr (M.toWeierstrassEquiv (Ring.two_ne_zero hF))]

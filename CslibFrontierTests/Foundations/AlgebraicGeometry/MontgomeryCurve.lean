@@ -16,6 +16,8 @@ import Mathlib.FieldTheory.Finite.GaloisField
 Client tests over `ZMod 7`, `ZMod 3`, `GaloisField 3 2`, and `ZMod 2`.
 -/
 
+set_option linter.privateModule false
+
 namespace CslibFrontierTests.Montgomery
 
 open WeierstrassCurve _root_.MontgomeryCurve
@@ -58,11 +60,6 @@ example : testM7.toShortWeierstrass.IsShortNF :=
 
 example : testM7.toShortWeierstrass = testM7.toWeierstrass.toShortNF • testM7.toWeierstrass :=
   testM7.toShortWeierstrass_eq_toShortNF
-
-public theorem generic_toShortWeierstrass_eq_toShortNF {F : Type*} [Field F] [Invertible (2 : F)]
-    [Invertible (3 : F)] (M : MontgomeryCurve F) :
-    M.toShortWeierstrass = M.toWeierstrass.toShortNF • M.toWeierstrass :=
-  M.toShortWeierstrass_eq_toShortNF
 
 example : Nonempty (testM7.Point ≃ testM7.toShortWeierstrass.toAffine.Point) := by
   refine ⟨(testM7.toWeierstrassEquiv (by decide)).trans ?_⟩
@@ -152,14 +149,15 @@ section CharTwo
 
 private local instance : Fact (Nat.Prime 2) := ⟨by decide⟩
 
--- Characteristic 2 breaks Montgomery non-singularity and 4-divisibility (`#M(ZMod 2) = 5`),
--- while `natCard_point_eq_one_add` still holds.
+-- Characteristic 2 breaks Montgomery non-singularity and 4-divisibility: over `ZMod 2` the
+-- equation of `badM2` is `v = u`, so its points are infinity, `(0, 0)` and `(1, 1)`, and
+-- `natCard_point_eq_one_add` counts three.
 private def badM2 : MontgomeryCurve (ZMod 2) where
   A := 1
   B := 1
   nondegenerate := by decide
 
-example : badM2.toWeierstrass.Δ = 0 ∧ ¬ 4 ∣ Nat.card badM2.Point := by
+example : badM2.toWeierstrass.Δ = 0 ∧ Nat.card badM2.Point = 3 := by
   refine ⟨?_, ?_⟩
   · rw [badM2.toWeierstrass_Δ, show (16 : ZMod 2) = 0 by decide, zero_mul, zero_div]
   · rw [badM2.natCard_point_eq_one_add, Nat.card_eq_fintype_card]
