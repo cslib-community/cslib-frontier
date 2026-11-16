@@ -28,13 +28,19 @@ the case `p = 1` (`Cslib.Streaming.Algorithm.run_toMultiPass`,
 **Simulation.** With the stream split as `u x ++ v y`, Alice runs each pass on `u x` and sends the
 `b`-bit encoding of the memory state to Bob, who continues the pass on `v y` and, except after the
 last pass, sends the encoding of the resulting state back (`Cslib.Streaming.MultiPass.toProtocol`).
-This takes `p` messages from Alice and `p - 1` from Bob, so if the answer on `u x ++ v y`
-determines `f x y`, then `f` has a deterministic protocol with `(2 p - 1) b + 1` bits
+This takes `p` messages from Alice and $p-1$ from Bob, so if the answer on `u x ++ v y`
+determines `f x y`, then `f` has a deterministic protocol with $(2p-1)b+1$ bits
 (`Cslib.Streaming.MultiPass.ecomplexityFun_le_of_spaceLE`), and, for randomized multi-pass
 algorithms with public randomness, a public-coin protocol with the same error
 (`Cslib.Streaming.MultiPass.Randomized.ecomplexityFun_le_of_spaceLE`). This extends the one-pass
 reduction of Alon, Matias and Szegedy [AlonMatiasSzegedy1999, Section 3]
-(`CslibFrontier.Computability.Streaming.Communication`) to `p` passes. Since later passes depend on
+(`CslibFrontier.Computability.Streaming.Communication`) to `p` passes. The `p`-pass simulation
+itself is standard: Bar-Yossef, Jayram, Kumar and Sivakumar carry it out for several players
+[BarYossefJayramKumarSivakumar2004, proof of Theorem 3.1], Chang and Kannan describe it with
+$2p-1$ messages of at most $b$ bits each [ChangKannan2006, proof of Theorem 5.1], and Abboud,
+Censor-Hillel, Khoury and Paz state it as a theorem, with the asymptotic bound
+$pb = \Omega(\mathrm{CC}(f))$ [AbboudCensorHillelKhouryPaz2021, Theorem 14]. The exact constants
+here are proved directly. Since later passes depend on
 the whole stream, the whole stream `u x ++ v y` must have at most `m` items, whereas one pass only
 needs this of `u x`; so for `p = 1` the one-pass theorem is slightly stronger.
 
@@ -56,7 +62,7 @@ needs this of `u x`; so for `p = 1` the one-pass theorem is slightly stronger.
 * `Cslib.Streaming.MultiPass.SpaceLE.mono`: memory bounds for longer streams and more passes give
   memory bounds for shorter streams and fewer passes.
 * `Cslib.Streaming.MultiPass.depth_toProtocol_le`, `Cslib.Streaming.MultiPass.run_toProtocol`: the
-  simulation sends `(2 p - 1) b + 1` bits and answers as the algorithm.
+  simulation sends $(2p-1)b+1$ bits and answers as the algorithm.
 * `Cslib.Streaming.MultiPass.ecomplexityFun_le_of_spaceLE`,
   `Cslib.Streaming.MultiPass.Randomized.ecomplexityFun_le_of_spaceLE`: `p`-pass streaming memory
   bounds deterministic and public-coin communication.
@@ -65,6 +71,13 @@ needs this of `u x`; so for `p = 1` the one-pass theorem is slightly stronger.
 
 * [N. Alon, Y. Matias, M. Szegedy, *The space complexity of approximating the frequency
   moments*, Section 3][AlonMatiasSzegedy1999]
+* [Z. Bar-Yossef, T. S. Jayram, R. Kumar, D. Sivakumar, *An information statistics approach to
+  data stream and communication complexity*, proof of Theorem 3.1,
+  pp. 708–709][BarYossefJayramKumarSivakumar2004]
+* [K. L. Chang, R. Kannan, *The space complexity of pass-efficient algorithms for clustering*,
+  proof of Theorem 5.1, p. 1165][ChangKannan2006]
+* [A. Abboud, K. Censor-Hillel, S. Khoury, A. Paz, *Smaller cuts, higher lower bounds*,
+  Theorem 14][AbboudCensorHillelKhouryPaz2021]
 -/
 
 public section
@@ -210,7 +223,7 @@ theorem depth_simFrom_le (p m b : ℕ) (enc : σ → BitString b) (u : X → Lis
     exact (Protocol.depth_aliceSend_le fun _ => Protocol.depth_bobSend_le fun _ => ih _).trans
       (le_of_eq (by ring))
 
-/-- The simulation of `p` passes sends `(2 p - 1) b + 1` bits. -/
+/-- The simulation of `p` passes sends $(2p-1)b+1$ bits. -/
 theorem depth_toProtocol_le {p : ℕ} (hp : 0 < p) (m b : ℕ) (enc : σ → BitString b)
     (u : X → List α) (v : Y → List α) (d : β → Bool) :
     (A.toProtocol p m b enc u v d).depth ≤ (2 * p - 1) * b + 1 := by
@@ -249,7 +262,7 @@ theorem run_toProtocol {p m b : ℕ} (hp : 0 < p) {enc : σ → BitString b}
 /-- **Multi-pass streaming space bounds communication** (deterministic): if a `p`-pass streaming
 algorithm with `b` bits of memory on streams of length at most `m` decides `f x y` from its answer
 on the stream `u x ++ v y`, which has length at most `m`, then `f` has a deterministic protocol with
-`(2 p - 1) b + 1` bits. -/
+$(2p-1)b+1$ bits. -/
 theorem ecomplexityFun_le_of_spaceLE {p m b : ℕ} (hp : 0 < p) (hA : A.SpaceLE p m b)
     (u : X → List α) (v : Y → List α) (hm : ∀ x y, (u x ++ v y).length ≤ m) (d : β → Bool)
     (f : X → Y → Bool) (hf : ∀ x y, d (A.run p (u x ++ v y)) = f x y) :
@@ -275,7 +288,7 @@ of length at most `m`. -/
 /-- **Multi-pass streaming space bounds communication** (public coins): if a randomized `p`-pass
 streaming algorithm `μ` whose algorithms use at most `b` bits of memory on streams of length at most
 `m` decides `f x y` with error `ε` from its answer on `u x ++ v y`, which has length at most `m`,
-then `f` has a public-coin protocol with error `ε` and `(2 p - 1) b + 1` bits. -/
+then `f` has a public-coin protocol with error `ε` and $(2p-1)b+1$ bits. -/
 theorem Randomized.ecomplexityFun_le_of_spaceLE (μ : Randomized σ α β) {p m b : ℕ} (hp : 0 < p)
     (hμ : μ.SpaceLE p m b) (u : X → List α) (v : Y → List α)
     (hm : ∀ x y, (u x ++ v y).length ≤ m) (d : β → Bool) (f : X → Y → Bool) {ε : ℝ}

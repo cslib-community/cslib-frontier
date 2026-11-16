@@ -20,11 +20,11 @@ public import CslibFrontier.Computability.Streaming.Nondeterministic
 Verifies non-vacuity and concrete behavior of:
 1. the multi-pass model: a two-pass counter, and one pass of a one-pass algorithm;
 2. `Cslib.Streaming.MultiPass.ecomplexityFun_le_of_spaceLE`: a deterministic `p`-pass algorithm
-   deciding whether at most `2 n` items of `Fin n` are distinct needs `n ≤ (2 p - 1) b`, the
+   deciding whether at most $2n$ items of `Fin n` are distinct needs $n \le (2p-1)b$, the
    multi-pass form of `Cslib.Streaming.Algorithm.le_of_run_eq_decide_nodup`;
 3. `Cslib.Streaming.Nondeterministic.Algorithm.ecomplexityFun_le_of_spaceLE`: so does a
-   nondeterministic one, from `N¹(DISJ_n) = n`, with no extra bit; and an algorithm with one memory
-   state has a `1`-cover by one rectangle.
+   nondeterministic one, from $N^1(\mathrm{DISJ}_n) = n$, with no extra bit; and an algorithm
+   with one memory state has a `1`-cover by one rectangle.
 -/
 
 public section
@@ -56,8 +56,8 @@ example : counter₁.toMultiPass.run 1 [0, 1, 2] = counter₁.run [0, 1, 2] := b
 
 /-! ## 2. Deterministic multi-pass distinctness -/
 
-/-- A deterministic `p`-pass algorithm deciding whether at most `2 n` items of `Fin n` are
-distinct, with `b` bits of memory, has `n ≤ (2 p - 1) b`. -/
+/-- A deterministic `p`-pass algorithm deciding whether at most $2n$ items of `Fin n` are
+distinct, with `b` bits of memory, has $n \le (2p-1)b$. -/
 theorem le_of_run_eq_decide_nodup {σ : Type*} {n p b : ℕ} (hp : 0 < p)
     (A : MultiPass σ (Fin n) Bool)
     (hA : ∀ s : List (Fin n), s.length ≤ 2 * n → A.run p s = decide s.Nodup)
@@ -81,7 +81,7 @@ theorem le_of_run_eq_decide_nodup {σ : Type*} {n p b : ℕ} (hp : 0 < p)
 /-! ## 3. Nondeterministic multi-pass algorithms -/
 
 /-- A nondeterministic `p`-pass algorithm that accepts exactly the streams of at most `2 n`
-distinct items of `Fin n`, with `b` bits of memory, has `n ≤ (2 p - 1) b`. -/
+distinct items of `Fin n`, with `b` bits of memory, has $n \le (2p-1)b$. -/
 theorem le_of_answers_nodup {σ : Type*} {n p b : ℕ} (hp : 0 < p)
     (A : Nondeterministic.Algorithm σ (Fin n) Bool)
     (hA : ∀ s : List (Fin n), s.length ≤ 2 * n → (s.Nodup ↔ true ∈ A.answers p s))
