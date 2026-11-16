@@ -23,6 +23,7 @@ Checks for `CslibFrontier/Crypto/Computational/CollisionResistant/GenericAttacks
   and digests of other lengths (the brute-force `hlen`) give no collision; the identity hash has
   none at all (the birthday `hlen` and `hM`); a domain predicate that rejects every message
   (`hvalid`) leaves no collision; and `ℓ n = n` fails `hN`.
+* `collidingPairList?` skips a repeated message and returns the next pair with equal digests.
 * The book's example: 16-bit digests are not collision resistant, by brute force and by the
   birthday attack on 23-bit messages, whose count is the book's `⌈2 √(2 ^ 16)⌉ + 1 = 513`.
 * Logarithmic digests `ℓ n = Nat.clog 2 n` satisfy `hN`, and both refutations apply to them.
@@ -39,6 +40,12 @@ open Cslib Cslib.Crypto Turing.MultiTapeTM
 /-- `hnd`: three copies of one message under a constant 1-bit hash are not a collision, although
 `3 > 2 ^ 1`. -/
 example : collidingPairList? (fun _ : List Bool => [false]) [[], [], []] = none := by
+  decide
+
+/-- The first pair with equal digests is the repeated message `[]`. Steps 4 and 5 of Algorithm
+BirthdayAttack would stop there and fail; the search skips it and returns the next pair. -/
+example :
+    collidingPairList? (fun _ : List Bool => [false]) [[], [], [true]] = some ([], [true]) := by
   decide
 
 /-- `hlt` is strict: `2 ^ ℓ` distinct messages need not collide (`ℓ = 1`). -/

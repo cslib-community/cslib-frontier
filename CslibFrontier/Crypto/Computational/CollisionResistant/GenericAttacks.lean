@@ -35,9 +35,10 @@ as an oracle program and counts its oracle calls; here each finder is a probabil
 polynomial-time program that evaluates the keyed hash itself.
 
 `collidingPairList? h ms` is the first pair of different messages of `ms` with equal digests. Brute
-force (`bruteForceCollisionFinder`) searches a fixed list of more than `2 ^ ℓ(n)` distinct messages
-and always succeeds; the birthday finder (`birthdayCollisionFinder`) with the book's `⌈2 √N⌉ + 1`
-samples, `N = 2 ^ ℓ(n)`, succeeds with probability at least `1/2` (Lemma 8.2).
+force (`bruteForceCollisionFinder`) searches a fixed list of more than `2 ^ ℓ(n)` distinct valid
+messages and always succeeds; the birthday finder (`birthdayCollisionFinder`) with the book's
+`⌈2 √N⌉ + 1` samples, `N = 2 ^ ℓ(n)`, succeeds with probability at least `1/2` when
+`100 N ≤ 2 ^ msgLen(n)` and `valid` accepts every `msgLen(n)`-bit message (Lemma 8.2).
 
 Every refutation needs `2 ^ ℓ(n)` to be polynomial in `n` (the birthday statements and
 `not_collisionResistant_of_two_pow_polyTime` assume that it is computable in unary in polynomial
@@ -230,8 +231,8 @@ private theorem computableInPolyTime_birthdayCount {N : ℕ → ℕ}
   have hs := ComputableInPolyTime.unary_sqrt.comp h4
   fun_prop
 
-/-- The birthday finder with the book's count `⌈2 √N⌉ + 1`, `N = 2 ^ ℓ(n)`, is PPT when `2 ^ ℓ(n)`
-is computable in unary in polynomial time. -/
+/-- The birthday finder with the book's count `⌈2 √N⌉ + 1`, `N = 2 ^ ℓ(n)`, is PPT when `msgLen(n)`
+and `2 ^ ℓ(n)` are computable in unary in polynomial time. -/
 theorem isPPT_birthdayCollisionFinder_book {H : List Bool → List Bool → List Bool}
     (hH : ComputableInPolyTime (fun p : List Bool × List Bool => H p.1 p.2)
       (encPair encBits encBits) encBits)
@@ -283,7 +284,8 @@ theorem succProbability_bruteForceCollisionFinder {H : List Bool → List Bool �
 
 /-- **Lemma 8.2 for the birthday finder** ([BonehShoup2023], §8.3, printed p. 294): with
 `⌈2 √N⌉ + 1` uniform `msgLen(n)`-bit messages, `N = 2 ^ ℓ(n)` and `100 N ≤ 2 ^ msgLen(n)`, the
-finder outputs a collision with probability at least `1/2`. -/
+finder outputs a collision with probability at least `1/2` when `valid` accepts every
+`msgLen(n)`-bit message. -/
 theorem half_le_succProbability_birthdayCollisionFinder {H : List Bool → List Bool → List Bool}
     {valid : ℕ → List Bool → Bool} {ℓ msgLen : ℕ → ℕ}
     (hlen : ∀ k m, m.length = msgLen k.length → (H k m).length = ℓ k.length)
@@ -346,7 +348,8 @@ theorem half_le_succProbability_birthdayCollisionFinder {H : List Bool → List 
 
 /-- **The birthday attack** ([BonehShoup2023], §8.3, Lemma 8.2): a polynomial-time keyed hash with
 `ℓ(n)`-bit digests on `msgLen(n)`-bit messages, `100 * 2 ^ ℓ(n) ≤ 2 ^ msgLen(n)`, is not collision
-resistant when `2 ^ ℓ(n)` is computable in unary in polynomial time. -/
+resistant on a domain `valid` that accepts every `msgLen(n)`-bit message, when `msgLen(n)` and
+`2 ^ ℓ(n)` are computable in unary in polynomial time. -/
 theorem not_collisionResistantOn_of_birthday {H : List Bool → List Bool → List Bool}
     {valid : ℕ → List Bool → Bool} {ℓ msgLen : ℕ → ℕ}
     (hH : ComputableInPolyTime (fun p : List Bool × List Bool => H p.1 p.2)

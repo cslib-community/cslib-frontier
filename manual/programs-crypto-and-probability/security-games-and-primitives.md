@@ -2905,10 +2905,11 @@ always finds one (`isSome_collidingPairList?_of_two_pow_lt`). Let `H` be polynom
 polynomial-time list `msgs n` has more than `2 ^ ℓ(n)` distinct messages that `valid` accepts
 (`succProbability_bruteForceCollisionFinder`, `not_collisionResistantOn_of_bruteForce`). With the
 book's `⌈2 √(2 ^ ℓ(n))⌉₊ + 1` uniform `msgLen(n)`-bit messages, `birthdayCollisionFinder` succeeds
-with probability at least `1/2` when `100 * 2 ^ ℓ n ≤ 2 ^ msgLen n`
-(`half_le_succProbability_birthdayCollisionFinder`). It is PPT when `2 ^ ℓ(n)` is computable in
-unary in polynomial time (`isPPT_birthdayCollisionFinder_book`), and then `H` is not
-`CollisionResistantOn` (`not_collisionResistantOn_of_birthday`); under the same condition,
+with probability at least `1/2` when `valid` accepts every `msgLen(n)`-bit message and
+`100 * 2 ^ ℓ n ≤ 2 ^ msgLen n` (`half_le_succProbability_birthdayCollisionFinder`). It is PPT when
+`msgLen(n)` and `2 ^ ℓ(n)` are computable in unary in polynomial time
+(`isPPT_birthdayCollisionFinder_book`), and then `H` is not `CollisionResistantOn`
+(`not_collisionResistantOn_of_birthday`); when `2 ^ ℓ(n)` is so computable,
 `not_collisionResistant_of_two_pow_polyTime` refutes `CollisionResistant` by brute force. Each
 refutation needs `2 ^ ℓ(n)` to be polynomial in `n`, which holds for constant and logarithmic digest
 lengths only; there brute force alone refutes collision resistance, and the birthday refutation adds
@@ -2916,8 +2917,8 @@ a certified finder with success `1/2` on `msgLen(n)`-bit messages. Nothing compa
 of the birthday attack with the `N + 1` messages of brute force in machine time. The `2 ^ ℓ + 1`
 hash evaluations of brute force are not counted; the oracle-call count of `Birthday.lean` is for the
 birthday finder. The [tests](../../CslibFrontierTests/Crypto/CollisionResistantGenericAttacks.lean)
-probe each hypothesis, refute 16-bit digests both ways as in the book, and apply both refutations
-to digests of `Nat.clog 2 n` bits.
+show that `hnd`, `hlt`, `hlen`, `hM`, `hvalid` and `hN` cannot be dropped, refute 16-bit digests
+both ways as in the book, and apply both refutations to digests of `Nat.clog 2 n` bits.
 
 ## Commitments and ideal distributions
 
