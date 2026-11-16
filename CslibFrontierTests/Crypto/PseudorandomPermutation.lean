@@ -7,8 +7,10 @@ Authors: Samuel Schlesinger
 module
 
 import CslibFrontier.Crypto.Computational.PseudorandomPermutation
+import CslibFrontier.Crypto.Computational.PseudorandomPermutation.StrongSwitching
 import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Crypto.Primitives.PRP.Finite
+import CslibFrontier.Crypto.Primitives.PRP.StrongSwitching
 import CslibFrontier.Foundations.Data.BitString.List.Operations
 import CslibFrontier.Languages.Probabilistic.Oracle.CoinFixing
 import CslibFrontier.Probability.PMF.Bind
@@ -30,6 +32,11 @@ For the finite experiments, a one-query adversary run against a deterministic or
 oracle's reply. The switching lemma gives it no advantage between a uniform permutation and a
 uniform function, so its PRF and PRP advantages coincide up to zero. Lifted to the bidirectional
 interface it asks the forward direction.
+
+The bidirectional switching lemmas are applied at `D = Bool` and at the word level: one call
+cannot tell a uniform permutation from the forgetful sampler, and two calls have advantage at most
+`1 / 2`. The codec `strongPermCodec` answers a request of the wrong length with `[]` and reads a
+request of the block length as the typed query on the same channel.
 -/
 
 set_option linter.privateModule false
@@ -389,5 +396,55 @@ example :
   exact not_pseudorandomFunctionOver_oneBitCipher (hiff.mp oneBitCipher_prp)
 
 end OneBitCipher
+
+/-! ### The switching lemmas -/
+
+section Switching
+
+open RandomPermutation
+
+-- The coin-fixing lemma in the form a client of `ProbOracleComp.runWith` meets.
+example {Query α State : Type} {spec : Query → Type} [∀ q, Fintype (spec q)]
+    (oracle : (q : Query) → StateT State PMF (spec q)) (prog : ProbOracleComp spec α)
+    (s : State) :
+    (ProbOracleComp.coinLaw prog).bind
+        (fun ω => OracleComp.runWith oracle (ProbOracleComp.fixCoins prog ω) s) =
+      ProbOracleComp.runWith oracle prog s :=
+  ProbOracleComp.coinLaw_bind_runWith_fixCoins oracle prog s
+
+-- One call cannot tell a uniform permutation of `Bool` from the forgetful sampler.
+example {A : PRP.StrongAdversary Bool} (hQ : A.IsQueryBounded 1) :
+    (Game.advantage (ProbComp.eval (PRP.strongIdealExperiment A))
+      ((ProbOracleComp.runWith forgetfulAnswer A []).map Prod.fst) : ℝ) ≤ 0 := by
+  simpa using PRP.advantage_strongIdealExperiment_forgetful_le hQ
+
+-- Two calls tell them apart with advantage at most `1 / 2`.
+example {A : PRP.StrongAdversary Bool} (hQ : A.IsQueryBounded 2) :
+    (Game.advantage (ProbComp.eval (PRP.strongIdealExperiment A))
+      ((ProbOracleComp.runWith forgetfulAnswer A []).map Prod.fst) : ℝ) ≤ 1 / 2 := by
+  simpa using PRP.advantage_strongIdealExperiment_forgetful_le hQ
+
+-- A request of the wrong length is answered `[]` without a typed query.
+example (oracle : (q : PermQuery (BitString 2)) → PMF (BitString 2)) :
+    (strongPermCodec 2).wordOracle oracle (true, [true]) = pure [] :=
+  strongPermCodec_wordOracle_of_length_ne oracle true (by decide)
+
+-- A request of the block length asks the typed query on the same channel.
+example (oracle : (q : PermQuery (BitString 2)) → PMF (BitString 2)) :
+    (strongPermCodec 2).wordOracle oracle (true, [true, false]) =
+      (List.ofFn : BitString 2 → List Bool) <$>
+        oracle (.inverse (BitString.ofList 2 [true, false])) :=
+  strongPermCodec_wordOracle_of_length oracle true rfl
+
+-- A word-level distinguisher making one call cannot tell the ideal strong-PRP game from the
+-- forgetful sampler.
+example (blockLen : ℕ → ℕ) (adversary : StrongPRPDistinguisher) (n : ℕ)
+    (hQ : (adversary n []).IsQueryBounded 1) :
+    (Game.advantage (ProbComp.eval (strongPRPIdealGame blockLen adversary n))
+      ((ProbOracleComp.runWith ((strongPermCodec (blockLen n)).wordOracle forgetfulAnswer)
+        (adversary n []) []).map Prod.fst) : ℝ) ≤ 0 := by
+  simpa using advantage_strongPRPIdealGame_forgetful_le blockLen adversary n 1 hQ
+
+end Switching
 
 end CslibFrontierTests.Crypto.PseudorandomPermutation
