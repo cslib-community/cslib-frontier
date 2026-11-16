@@ -37,8 +37,7 @@ function: the PRF distinguisher runs the CPA adversary and answers each admissib
 request itself, drawing the initial value and computing the body with queries to its own function
 oracle. The modes differ only in the program `bodyQueries n iv msg` that computes the body of
 message `msg` from initial value `iv`; the program may depend on the message, as CBC mode's does.
-`ivModePrfHandler bodyQueries` and `ivModeToPrfDistinguisher bodyQueries` are the reduction for
-any such program.
+`ivModeToPrfDistinguisher bodyQueries` is the reduction for any such program.
 
 1. The distinguisher is uniform strict oracle PPT whenever the adversary is, `bodyQueries` is
    strict oracle PPT on `(1ⁿ, iv, msg)` and no output of `bodyQueries` is longer than the message
@@ -59,7 +58,6 @@ The stream case `ivStreamToPrfDistinguisher keystreamQueries` takes a program
 
 ## Main definitions
 
-* `Cslib.Crypto.ivModePrfHandler`: the reduction's answer to one request.
 * `Cslib.Crypto.ivModeToPrfDistinguisher`: the PRF distinguisher built from a CPA adversary.
 * `Cslib.Crypto.ivStreamToPrfDistinguisher`: the stream case, for keystream queries.
 
@@ -92,7 +90,7 @@ computes the body of `msg` from initial value `iv` with queries to the function 
 ([BonehShoup2023], proof of Theorem 5.3): on an admissible pair, draw a uniform `n`-bit initial
 value and output it followed by the body of the message selected by `bit`; answer inadmissible
 requests with `[]` and no query. -/
-noncomputable def ivModePrfHandler
+private noncomputable def ivModePrfHandler
     (bodyQueries : ℕ → List Bool → List Bool → WordOracleComp Unit (List Bool)) (n : ℕ)
     (bit : Bool) (request : Unit × List Bool) : WordOracleComp Unit (List Bool) :=
   let m0 := unframe request.2
@@ -105,7 +103,10 @@ noncomputable def ivModePrfHandler
 
 /-- The PRF distinguisher built from a left-or-right CPA adversary against a random-IV mode with
 body queries `bodyQueries` ([BonehShoup2023], proof of Theorem 5.3): run the adversary and answer
-every request with `ivModePrfHandler bodyQueries n bit`. -/
+every request itself. On an admissible pair it draws a uniform `n`-bit initial value and answers
+with that value followed by the body that `bodyQueries` computes, with queries to the function
+oracle, for the message selected by `bit`; it answers an inadmissible request with `[]` and no
+query. -/
 noncomputable def ivModeToPrfDistinguisher
     (bodyQueries : ℕ → List Bool → List Bool → WordOracleComp Unit (List Bool))
     (adversary : OracleDistinguisher) (bit : Bool) : OracleDistinguisher :=
@@ -215,16 +216,15 @@ theorem isOraclePPT_ivModeToPrfDistinguisher
 
 /-! ### The real game -/
 
-/-- The message that an admissible pair selects has the left message's length and whole
-blocks. -/
-private theorem length_select_of_blockPairValid {n : ℕ} {m₀ m₁ : List Bool}
+/-- The message that an admissible pair selects has whole blocks. -/
+private theorem length_select_mod_of_blockPairValid {n : ℕ} {m₀ m₁ : List Bool}
     (hvalid : blockPairValid n m₀ m₁ = true) (bit : Bool) :
-    (if bit then m₁ else m₀).length = m₀.length ∧ (if bit then m₁ else m₀).length % n = 0 := by
+    (if bit then m₁ else m₀).length % n = 0 := by
   simp only [blockPairValid, Bool.and_eq_true, beq_iff_eq] at hvalid
   obtain ⟨hlenEq, hmod⟩ := hvalid
   cases bit
-  · exact ⟨rfl, hmod⟩
-  · exact ⟨hlenEq.symm, by simp [← hlenEq, hmod]⟩
+  · exact hmod
+  · simp [← hlenEq, hmod]
 
 /-- Under a key `k`, if the body queries answered by the keyed oracle compute `body n k iv msg`
 from every `n`-bit initial value `iv` on whole-block messages, the handler answers each request
@@ -244,7 +244,7 @@ private theorem eval_run_ivModePrfHandler
   unfold ivModePrfHandler symmetricCPAReplyOn
   dsimp only
   by_cases hvalid : blockPairValid n (unframe request.2) (dropFrame request.2) = true
-  · have hmod := (length_select_of_blockPairValid hvalid bit).2
+  · have hmod := length_select_mod_of_blockPairValid hvalid bit
     simp only [hvalid, ↓reduceIte, ProbOracleComp.run_bind, ProbOracleComp.run_sample,
       ProbOracleComp.run_map, ivModeEncrypt, ProbComp.eval_bind, ProbComp.eval_map,
       ProbComp.eval_pure, BitString.eval_sampleList]
@@ -304,7 +304,7 @@ private theorem eval_run_ivModePrfHandler_randomFunction
   unfold ivModePrfHandler blockModeWordQuery
   dsimp only
   by_cases hvalid : blockPairValid n (unframe request.2) (dropFrame request.2) = true
-  · have hmod := (length_select_of_blockPairValid hvalid bit).2
+  · have hmod := length_select_mod_of_blockPairValid hvalid bit
     have hsel := blockModeSelect_padBlocks bit hvalid hℓ
     simp only [hvalid, ↓reduceIte, ProbOracleComp.run_bind, ProbOracleComp.run_sample,
       ProbOracleComp.run_map, ProbOracleComp.run_query, hprogram, blockModeOracle, hsel,

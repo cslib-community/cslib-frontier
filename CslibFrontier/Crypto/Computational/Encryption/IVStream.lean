@@ -33,7 +33,8 @@ Randomized counter mode ([BonehShoup2023], Section 5.4.2) and output feedback mo
 (Exercise 5.15(b)) are the stream case: derive a keystream of whole `n`-bit blocks from the key
 and `iv`, and XOR it with the message. They differ only in the keystream. `ivStreamEncrypt
 keystream` and `ivStreamDecrypt keystream` are this construction for a keystream generator
-`keystream n k iv blocks`; `ivStreamEncrypt keystream` is `ivModeEncrypt` with the XOR body.
+`keystream n k iv blocks`; `ivStreamEncrypt keystream` is defined as `ivModeEncrypt` with the XOR
+body.
 Decryption accepts an `n`-bit initial value followed by whole blocks.
 
 Decryption inverts encryption on whole-block messages whenever the keystream has `blocks * n` bits
@@ -73,13 +74,13 @@ noncomputable def ivModeEncrypt (body : ℕ → List Bool → List Bool → List
   let iv ← BitString.sampleList n
   return iv ++ body n k iv msg
 
-/-- Stream encryption under a random initial value: draw a uniform `n`-bit `iv` and output `iv`
-followed by the message XORed with the keystream `keystream n k iv (msg.length / n)`. -/
+/-- Stream encryption under a random initial value: the random-IV mode `ivModeEncrypt` whose body
+is the message XORed with the keystream `keystream n k iv (msg.length / n)`. -/
 @[expose]
 noncomputable def ivStreamEncrypt (keystream : ℕ → List Bool → List Bool → ℕ → List Bool)
-    (n : ℕ) (k msg : List Bool) : ProbComp (List Bool) := do
-  let iv ← BitString.sampleList n
-  return iv ++ List.zipWith xor (keystream n k iv (msg.length / n)) msg
+    (n : ℕ) (k msg : List Bool) : ProbComp (List Bool) :=
+  ivModeEncrypt (fun n k iv msg => List.zipWith xor (keystream n k iv (msg.length / n)) msg)
+    n k msg
 
 /-- Stream decryption: accept an `n`-bit initial value followed by whole blocks, and XOR the blocks
 with the keystream from that initial value. -/
@@ -99,8 +100,8 @@ theorem ivStreamDecrypt_ivStreamEncrypt {keystream : ℕ → List Bool → List 
     (hmsg : msg.length % n = 0) {ct : List Bool}
     (hct : ct ∈ (ProbComp.eval (ivStreamEncrypt keystream n k msg)).support) :
     ivStreamDecrypt keystream n k ct = some msg := by
-  simp only [ivStreamEncrypt, ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList,
-    PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hct
+  simp only [ivStreamEncrypt, ivModeEncrypt, ProbComp.eval_bind, ProbComp.eval_pure,
+    BitString.eval_sampleList, PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hct
   obtain ⟨iv, hiv, rfl⟩ := hct
   have hivLen : iv.length = n := BitString.length_of_mem_support_uniformList hiv
   have hksLen : (keystream n k iv (msg.length / n)).length = msg.length := by

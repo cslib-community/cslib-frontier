@@ -2972,10 +2972,16 @@ with one PRF query per counter block. Its certificate `isOraclePPT_ctrToPrfDisti
 real- and ideal-game identities are instances of the shared ones
 (`isOraclePPT_ivStreamToPrfDistinguisher`, `eval_prfRealGame_ivStreamToPrfDistinguisher`,
 `eval_prfIdealGame_ivStreamToPrfDistinguisher`). These are in turn instances of the reduction
-`ivModeToPrfDistinguisher` for any random-IV mode `ivModeEncrypt body`, given oracle queries that
-compute the body from the initial value and the message (`isOraclePPT_ivModeToPrfDistinguisher`,
-`eval_prfRealGame_ivModeToPrfDistinguisher`, `eval_prfIdealGame_ivModeToPrfDistinguisher`); a body
-that is not a keystream XOR is checked in
+`ivModeToPrfDistinguisher bodyQueries` for any random-IV mode `ivModeEncrypt body`, where the
+program `bodyQueries n iv msg` computes the body with queries to the function oracle. Its
+certificate `isOraclePPT_ivModeToPrfDistinguisher` needs `bodyQueries` to be strict oracle PPT and
+to output no more bits than the message has, so a mode whose body is longer than the message is
+not covered. The real-game identity `eval_prfRealGame_ivModeToPrfDistinguisher` needs the queries,
+answered under an `n`-bit key, to compute `body` from every `n`-bit initial value on messages of
+whole `n`-bit blocks. The ideal-game identity `eval_prfIdealGame_ivModeToPrfDistinguisher` is for a
+typed per-query program that answers as the block-mode oracle of a typed body whose bits the
+queries compute, and needs every request's left message to have at most `ℓ` blocks. A body that is
+not a keystream XOR is checked in
 [`CslibFrontierTests/Crypto/IVModeReduction.lean`](../../CslibFrontierTests/Crypto/IVModeReduction.lean).
 `advantage_ctrWordCPAGame_le` reuses the typed collision bound above, and
 `PseudorandomFunction.indcpa_ctrWordEncrypt` proves `SymmetricINDCPAOn blockPairValid` from
