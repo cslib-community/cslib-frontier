@@ -104,8 +104,12 @@ theorem exists_computableInTimeAndSpace_iterateWhile {init : α → β} {step : 
     refine ⟨_, _, inferInstance, tmf.comp main true, ?_⟩
     exact ComputesFunInTimeAndSpace.mono
       (fun a => (hraw a).computesInTimeAndSpace)
-      (fun a => by dsimp only [c₀]; omega)
-      (fun a => by dsimp only [c₀, kMain, main]; omega)
+      (fun a => by
+        dsimp only [hmainTime, c₀]
+        nlinarith)
+      (fun a => by
+        dsimp only [hmainSpace, c₀, kMain, main]
+        nlinarith)
   -- the bounds, with `P = (l a + |encIn a| + 1) ^ D` bounding every polynomial term
   obtain ⟨E, hE⟩ : ∃ E, E = 2 * (ks + 3) := ⟨_, rfl⟩
   set D := di + di' + ds + ds' + df + df' + 1

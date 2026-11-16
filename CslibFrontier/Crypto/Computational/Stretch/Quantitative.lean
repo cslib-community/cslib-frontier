@@ -11,6 +11,8 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.P
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.StreamFold
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Comp
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Iteration
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Length
@@ -356,7 +358,7 @@ private theorem iterate_of_forwardIterate {γ : Type} {encIn : γ ↪ List Bool}
     funext fun x => reverse_forwardIterate_eq_iterate_of_forall (hlen x) (seed x) (count x)
   rw [heq] at hrev
   refine ⟨a * c + 2 * a + b + 13,
-    hrev.computableInTimeAndSpace.mono (fun x => ?_) (fun x => ?_)⟩
+    (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace hrev).mono (fun x => ?_) (fun x => ?_)⟩
   · have ht := hT x
     have ha := Nat.mul_le_mul_left a (show 1 ≤ T x by omega)
     simp only [encBits_apply, length_forwardIterate_of_forall (hlen x),
@@ -412,7 +414,8 @@ theorem computableInTimeAndSpace_forwardIterate
       rfl)
   refine ⟨c * (4 * a + c₁ + c₂ + 54), ?_⟩
   simp only [forwardIterate_eq]
-  refine h.computableInTimeAndSpace.mono (fun p => ?_) (fun p => ?_) <;>
+  refine (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h).mono
+    (fun p => ?_) (fun p => ?_) <;>
     simp only [iterate_seedStep, length_seedAt_of_forall hlen,
       ← Finset.mul_sum, Nat.mul_assoc] <;>
     refine Nat.mul_le_mul_left c ?_
@@ -468,8 +471,9 @@ theorem computableInTimeAndSpace_stretch
   obtain ⟨c₁, hcnt_seed⟩ := hcountClean.comp ComputableTidilyInTimeAndSpace.length_bits
   obtain ⟨c₂, hpair⟩ := Internal.NormalForm.bigO
     (PairEncoding.pair_mono (enc := encPair encBits encUnary)
-      (computableTidilyInTimeAndSpace_id (enc := encBits)).computableInTimeAndSpace
-      hcnt_seed.computableInTimeAndSpace)
+      (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace
+        (computableTidilyInTimeAndSpace_id (enc := encBits)))
+      (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace hcnt_seed))
   obtain ⟨c₃, hiter⟩ := computableInTimeAndSpace_iterate_pair hlen hgen
     (Q := fun p => Finset.sup (Finset.range p.2) (fun i => sGen (seedAt generator p.1 i)))
     (fun p i hi => Finset.le_sup (f := fun j => sGen (seedAt generator p.1 j))
@@ -483,7 +487,8 @@ theorem computableInTimeAndSpace_stretch
       stretch generator count := rfl
   rw [heq] at hcomp
   let C := c₂ * a + c₂ * c₁ + 22 * c₂ + b * c₃ + 2 * b + c₄ + 15
-  refine ⟨C, hcomp.computableInTimeAndSpace.mono (fun seed => ?_) (fun seed => ?_)⟩
+  refine ⟨C, (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace hcomp).mono
+    (fun seed => ?_) (fun seed => ?_)⟩
   · let T := tCount seed.length + seed.length + count seed.length +
         (∑ i ∈ Finset.range (count seed.length),
           (tGen (seedAt generator seed i) + seed.length + 1)) + 1
@@ -613,11 +618,11 @@ theorem polyTime_stretch_of_length_eq {generator : List Bool → List Bool} {cou
   have hgen_deg : ComputableInDegree generator encBits encBits (max dtG dsG) dlG :=
     ⟨⟨tG, sG, DegreeBounded.mono_deg ⟨ctG, hctG⟩ (le_max_left _ _),
       DegreeBounded.mono_deg ⟨csG, hcsG⟩ (le_max_right _ _),
-      hgen_ts.computableInTimeAndSpace⟩, ⟨clG, hclG⟩⟩
+      (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace hgen_ts)⟩, ⟨clG, hclG⟩⟩
   have hcount_deg : ComputableInDegree count encUnary encUnary (max dtC dsC) dlC :=
     ⟨⟨tC, sC, DegreeBounded.mono_deg ⟨ctC, hctC⟩ (le_max_left _ _),
       DegreeBounded.mono_deg ⟨csC, hcsC⟩ (le_max_right _ _),
-      hcount_ts.computableInTimeAndSpace⟩, ⟨clC, hclC⟩⟩
+      (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace hcount_ts)⟩, ⟨clC, hclC⟩⟩
   exact (computableInDegree_stretch hlen hgen_deg hcount_deg).computableInPolyTime
 
 /-- **Quantitative streaming certificate for `forwardIterate` with a captured parameter.** On input
@@ -656,7 +661,7 @@ theorem computableInTimeAndSpace_forwardIterate_captured {α : Type}
     Internal.NormalForm.bigO
       (PairEncoding.pair_mono (enc := encS)
         (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace hpar)
-        hdrop.computableInTimeAndSpace)
+        (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace hdrop))
   obtain ⟨c₂, (hemit₀ : ComputableTidilyInTimeAndSpace
       (fun q : α × List Bool => emitBit (generator q.1) q.2) encS encBits _ _)⟩ :=
     ComputableTidilyInTimeAndSpace.getLast?_toList_bits.comp hclean
@@ -696,7 +701,8 @@ theorem computableInTimeAndSpace_forwardIterate_captured {α : Type}
   simp only [iterate_seedStep_captured, hS] at h
   refine ⟨c * (KT + KS + 2 * csnd + c₃ + 14), ?_⟩
   simp only [forwardIterate_eq]
-  refine h.computableInTimeAndSpace.mono (fun x => ?_) (fun x => ?_) <;>
+  refine (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h).mono
+    (fun x => ?_) (fun x => ?_) <;>
     simp only [← Finset.mul_sum, Nat.mul_assoc] <;> refine Nat.mul_le_mul_left c ?_
   · generalize ∑ i ∈ Finset.range x.2, (tGen (x.1.1, seedAt (generator x.1.1) x.1.2 i) +
       (encParam x.1.1).length + x.1.2.length + 1) = S

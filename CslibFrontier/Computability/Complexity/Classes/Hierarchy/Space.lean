@@ -14,6 +14,7 @@ public import CslibFrontier.Computability.Complexity.Classes.LogSpace
 public import CslibFrontier.Computability.Complexity.Classes.Space.Time
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Run
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.SpaceBudget
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
 import CslibFrontier.Computability.Complexity.Classes.Constructible.Space
 import CslibFrontier.Computability.Complexity.Classes.Hierarchy.SpaceDiagonalBounds
@@ -187,7 +188,8 @@ theorem computableInTimeAndSpace_spaceDiagonal {G : ℕ → ℕ} (hG : SpaceCons
   -- the budgeted universal run and the verdict
   obtain ⟨cV, hV, -⟩ := computableInO_verdict.comp
     computableInO_budgetedUniversal
-  obtain ⟨cU, hU⟩ := ComputableInTimeAndSpace.comp_space hF.computableInTimeAndSpace hV
+  obtain ⟨cU, hU⟩ := ComputableInTimeAndSpace.comp_space
+    (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace hF) hV
   obtain ⟨dU, hU⟩ := hU.exists_computableTidilyInTimeAndSpace
   -- the test and the case distinction
   obtain ⟨tc, cc, hc⟩ := computableInLogSpace_tinyDesc
@@ -251,7 +253,8 @@ theorem computableInTimeAndSpace_spaceDiagonal {G : ℕ → ℕ} (hG : SpaceCons
     have h₃ : (encNat (x.length + 1)).length ≤ Nat.log2 x.length + 2 :=
       length_encNat_le_log2_add_two le_rfl
     nlinarith [Nat.zero_le (cD * G x.length)]
-  obtain ⟨K, hK⟩ := exists_space_of_bigOLe h.computableInTimeAndSpace
+  obtain ⟨K, hK⟩ := exists_space_of_bigOLe
+    (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h)
     (V := fun x : List Bool => G x.length + Nat.log2 x.length) (by
       simp only [encBits_apply]
       bigO)

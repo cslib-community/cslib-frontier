@@ -12,6 +12,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Translate
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Machine
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Space
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Transducer
 import Mathlib.Tactic.GCongr
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
@@ -80,7 +81,7 @@ public theorem ComputableInO.of_transducer {Q : Type} [Finite Q] (τ : Transduce
     (hf : ∀ a, encOut (f a) = τ.run τ.q₀ (encIn a)) :
     ComputableInO f encIn encOut (fun a => (encIn a).length)
       fun a => (encOut (f a)).length :=
-  .of_bounds (τ.computableTidilyInTimeAndSpace hf).computableInTimeAndSpace 8 (fun a => by omega)
+  .of_bounds (τ.computableInTimeAndSpace hf) 8 (fun a => by omega)
     (fun _ => Nat.zero_le _) (fun a => by omega)
 
 namespace Universal

@@ -109,7 +109,7 @@ private lemma toUnary_inO : ComputableInO (fun t : ℕ => t) encNat encUnary
     (fun t => (t + 1) * ((encNat t).length + 1)) fun t => (t + 1) * ((encNat t).length + 1) := by
   have hrev : ComputableInO (fun t : ℕ => (encNat t).reverse) encNat encBits
       (fun t => (encNat t).length) fun t => (encNat t).length :=
-    ComputableInO.of_bounds (computableTidilyInTimeAndSpace_reverse fun _ => rfl).computableInTimeAndSpace 4
+    ComputableInO.of_bounds (computableInTimeAndSpace_reverse fun _ => rfl) 4
       (fun _ => by omega) (fun _ => Nat.zero_le _)
       (fun _ => by simp only [encBits_apply, List.length_reverse]; omega)
   refine ((foldl (encA := encBool) (encL := encBits) (list := fun t : ℕ => (encNat t).reverse)

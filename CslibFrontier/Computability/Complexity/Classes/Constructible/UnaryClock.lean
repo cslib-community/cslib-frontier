@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Classes.Constructible
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.OutputToTape
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Streaming
 import CslibFrontier.Foundations.Data.Nat.Doubling
 import Mathlib.Algebra.Order.Ring.GeomSum
@@ -80,7 +81,8 @@ private theorem mul_two_pow_length (c : ℕ) :
     (fun l i hi => by
       rw [hstate l i hi]
       exact Nat.mul_le_mul_left c (Nat.pow_le_pow_right (by norm_num) hi))
-  refine of_bounds (hK.computableInTimeAndSpace.of_enc_eq (g := fun l : List Bool => c * 2 ^ l.length)
+  refine of_bounds ((ComputableTidilyInTimeAndSpace.computableInTimeAndSpace hK).of_enc_eq
+    (g := fun l : List Bool => c * 2 ^ l.length)
     fun l => by rw [List.foldl_add_self_eq_mul_two_pow])
     (K * (5 * c₀ + 5) + K * (3 * c₀ + 3) + 1) (fun l => ?_) (fun l => ?_) fun l => ?_
   · have hsum : ∑ i ∈ Finset.range l.length, 2 ^ i < 2 ^ l.length :=

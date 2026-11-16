@@ -14,7 +14,6 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OCombinators
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OPrimitives
-
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 
 /-!
@@ -110,7 +109,7 @@ private theorem run_unpadT (y : List Bool) : unpadT.run false y = unpad y := by
 private theorem computableInO_unpad :
     ComputableInO unpad encBits encBits (fun y => y.length) fun y => y.length := by
   refine (ComputableInO.of_bounds
-    (unpadT.computableTidilyInTimeAndSpace fun y => (run_unpadT y).symm).computableInTimeAndSpace 12
+    (unpadT.computableInTimeAndSpace fun y => (run_unpadT y).symm) 12
     (fun y => ?_) (fun _ => Nat.zero_le _) fun y => ?_)
   · simp only [encBits_apply]
     omega

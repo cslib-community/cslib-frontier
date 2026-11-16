@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.InPlace
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
@@ -647,7 +648,8 @@ public theorem computableInO_budgetedUniversal :
       (fun i => (i.2.2.1 + 1) * ((eInS i).length + 1) ^ 2 * (budgetSpace i + 1) ^ 3)
       budgetSpace := by
   obtain ⟨c, h⟩ := computableTidilyInTimeAndSpace_budgetedUniversal
-  refine .of_bounds h.computableInTimeAndSpace (c + 1) (fun i => ?_) (fun i => ?_) fun i => ?_
+  refine .of_bounds (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h) (c + 1)
+    (fun i => ?_) (fun i => ?_) fun i => ?_
   · exact Nat.mul_le_mul (Nat.le_succ c) (Nat.le_succ _)
   · exact Nat.mul_le_mul (Nat.le_succ c) le_rfl
   · obtain ⟨d, x, t, b⟩ := i

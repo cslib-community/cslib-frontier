@@ -12,11 +12,12 @@ module
 -- author's request (#2179) so that composition depends on the universal machine; `eBit` is in
 -- `Universal/Bit.lean` and two halting lemmas are in `HaltsAt.lean`
 
-import Cslib.Computability.Machines.Turing.MultiTape.Combinators.AlmostConstant
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.HaltsAt
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.TapeLemmas
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Bit
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.InPlace
+import Cslib.Computability.Machines.Turing.MultiTape.Combinators.AlmostConstant
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
 import CslibFrontier.Foundations.Data.List.Countdown
 import Mathlib.Basic.Countable.Defs
 import Mathlib.Data.Nat.Size
@@ -903,7 +904,8 @@ public theorem ComputableInTimeAndSpace.comp_space {α β γ : Type} {encIn : α
     have := composeSpace_le (descLen dg) (descLen df) _ _ _ _ _ _ _ _ hg hf
     simp only [composeSpace, List.length_map] at this ⊢
     omega
-  refine ⟨c * K ^ 3, hc.computableInTimeAndSpace.mono (fun a => ?_) fun a => ?_⟩
+  refine ⟨c * K ^ 3, (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace hc).mono
+    (fun a => ?_) fun a => ?_⟩
   · exact final_time_le c K _ _ _ _ _ (Nat.mul_le_mul (by have := hug_le a; omega)
       (by have := huf_le a; omega)) (hK a)
   · exact final_space_le c K _ _ (hK a)

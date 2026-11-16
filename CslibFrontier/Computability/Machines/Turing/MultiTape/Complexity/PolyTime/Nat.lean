@@ -14,8 +14,8 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.P
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
 public import Mathlib.Algebra.Polynomial.Eval.Defs
 public import Mathlib.Data.Nat.Pairing
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.EqualityPrimitives
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
-
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Lists
 import Mathlib.Data.Nat.Size
 
@@ -119,7 +119,7 @@ theorem unary_beq {α : Type} {input : α ↪ List Bool} {left right : α → �
     (hleft : ComputableInPolyTime left input encUnary)
     (hright : ComputableInPolyTime right input encUnary) :
     ComputableInPolyTime (fun a => left a == right a) input encBool :=
-  hleft.beq hright
+  ComputableInPolyTime.beq hleft hright
 
 /-- The natural-number pairing function, with both arguments and the result in unary. -/
 @[fun_prop]

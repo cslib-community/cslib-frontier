@@ -21,9 +21,6 @@ time-hierarchy construction.
 
 ## Main results
 
-* `Turing.MultiTapeTM.Universal.computableInO_universal`: a plain native machine certificate
-  for the strengthened time and space bounds, including a zero clock.
-
 * `Turing.MultiTapeTM.Universal.runBound_mono`: the space bound grows with the number of steps.
 * `Turing.MultiTapeTM.Universal.universal_bounds_le`: for `D, N, L ≤ B` and `1 ≤ J`, the time
   expression is at most `100000 * (B + 1) ^ 4 * J ^ 2` and the space bound is at most
@@ -94,43 +91,5 @@ theorem universal_bounds_le {D N J B L : ℕ} (hD : D ≤ B) (hN : N ≤ B) (hL 
     _ = 782 * (M ^ 4 * J ^ 2) := by ring
     _ ≤ 100000 * (M ^ 4 * J ^ 2) := by omega
     _ = 100000 * M ^ 4 * J ^ 2 := by ring
-
-
-/-- A plain native machine computes the clocked universal function within a quartic factor in
-the complete encoded input length and a quadratic factor in the number of simulated steps.
-The statement includes a zero clock. Its size factor includes the simulated input and binary
-clock, so it does not assert fixed-machine quadratic simulation as those inputs vary. -/
-theorem computableInO_universal :
-    ComputableInO universal eIn eOut
-      (fun i => ((eIn i).length + 1) ^ 4 * (i.2.2 + 1) ^ 2)
-      (fun i => ((eIn i).length + 1) ^ 2 * (i.2.2 + 1)) := by
-  have hbounds (i : Desc × List ℕ × ℕ) :=
-    universal_bounds_le (D := descLen i.1) (N := (encList encUnary i.2.1).length)
-      (L := (encNat i.2.2).length) (B := (eIn i).length) (J := i.2.2 + 1)
-      (length_le_encPair_left _ _ i)
-      ((length_le_encPair_left _ _ i.2).trans (length_le_encPair_right _ _ i))
-      ((length_le_encPair_right _ _ i.2).trans (length_le_encPair_right _ _ i))
-      (Nat.le_add_left 1 i.2.2)
-  refine computableInO_universal.mono 100001 (fun i => ?_) (fun i => ?_)
-  · have hstep := stepBound_mono (D := descLen i.1) (N := (encList encUnary i.2.1).length)
-      le_rfl le_rfl (Nat.le_add_right i.2.2 1)
-    have hrun := runBound_mono (D := descLen i.1) (N := (encList encUnary i.2.1).length)
-      (Nat.le_add_right i.2.2 1)
-    have htime := (Nat.mul_le_mul (show i.2.2 + 1 ≤ i.2.2 + 1 + 1 by omega)
-      (Nat.add_le_add_right (Nat.add_le_add hstep hrun) _)).trans (hbounds i).1
-    have hinput : ((eIn i).length + 1) ^ 2 ≤ ((eIn i).length + 1) ^ 4 * (i.2.2 + 1) ^ 2 :=
-      (Nat.pow_le_pow_right (by omega) (by omega : 2 ≤ 4)).trans
-        (Nat.le_mul_of_pos_right _ (by positivity))
-    have : 100000 * ((eIn i).length + 1) ^ 4 * (i.2.2 + 1) ^ 2 =
-      100000 * (((eIn i).length + 1) ^ 4 * (i.2.2 + 1) ^ 2) := by ring
-    omega
-  · have hrun := (runBound_mono (D := descLen i.1) (N := (encList encUnary i.2.1).length)
-      (Nat.le_add_right i.2.2 1)).trans (hbounds i).2
-    have hinput : (eIn i).length ≤ ((eIn i).length + 1) ^ 2 * (i.2.2 + 1) :=
-      (Nat.le_succ _).trans ((Nat.le_self_pow two_ne_zero _).trans
-        (Nat.le_mul_of_pos_right _ (by omega)))
-    have : 200 * ((eIn i).length + 1) ^ 2 * (i.2.2 + 1) =
-      200 * (((eIn i).length + 1) ^ 2 * (i.2.2 + 1)) := by ring
-    omega
 
 end Turing.MultiTapeTM.Universal

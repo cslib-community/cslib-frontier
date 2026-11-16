@@ -7,11 +7,12 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-import Cslib.Computability.Machines.Turing.MultiTape.Combinators.AlmostConstant
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpaceLib
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Option
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.MultiPass
+import Cslib.Computability.Machines.Turing.MultiTape.Combinators.AlmostConstant
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.SpaceNormalForm
 import Mathlib.Data.List.GetD
@@ -505,7 +506,7 @@ theorem computableInSpace {α β : Type} {enc : α ↪ List Bool} {encOut : β �
     nlinarith
   obtain ⟨c, h⟩ := key
   refine ⟨_, c * (cF * (K + 1) + (2 * cN + cPE + cPN + cC + 4) * (2 * K + 3) + (K + 1) + 1),
-    h.computableInTimeAndSpace.mono (fun _ => le_rfl) fun a => ?_⟩
+    (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h).mono (fun _ => le_rfl) fun a => ?_⟩
   have h₁ := hlenP a (time a - 1 + 1)
   have hL := hS1 a
   generalize S a = L at *
