@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.MultiKey
 public import CslibFrontier.Crypto.Computational.PseudorandomPermutation
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString

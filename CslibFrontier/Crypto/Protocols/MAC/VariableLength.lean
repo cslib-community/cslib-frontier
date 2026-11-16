@@ -7,6 +7,7 @@ Authors: Karn Seth
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder
 public import CslibFrontier.Crypto.Computational.MAC
 public import CslibFrontier.Crypto.Negligible.Dyadic
@@ -28,6 +29,7 @@ import CslibFrontier.Computability.Probabilistic.Oracle.Parameter
 import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.Sampling
+import CslibFrontier.Crypto.Negligible.InversePolynomial
 import CslibFrontier.Computability.Probabilistic.Traverse
 import CslibFrontier.Foundations.Data.BitString.List.LowBits
 import CslibFrontier.Foundations.Data.Nat.Power
@@ -37,8 +39,8 @@ import CslibFrontier.Languages.Probabilistic.Oracle.Support
 import CslibFrontier.Languages.Probabilistic.Traverse.SupportWith
 import CslibFrontier.Probability.BitString
 import CslibFrontier.Probability.PMF.Bind
-import CslibFrontier.Tactic.Negligible
 import CslibFrontier.Tactic.PolyTime.Init
+import Mathlib.Tactic.Positivity
 import CslibFrontier.Tactic.SuppCases
 
 /-!
@@ -1266,6 +1268,8 @@ theorem isPPTOn_blockwiseWordSigningOracle (hE : IsPolyTimeEncoder E) :
       (encPair encBits encLog)
       (fun call : (ℕ × List Bool) × (Unit × List Bool) × List (List Bool × Tag) =>
         M.blockwiseWordSigningOracle E call.1.1 call.1.2 call.2.1 call.2.2) := by
+  have hencode : ComputableInPolyTime encTag encTag encBits :=
+    ComputableInPolyTime.of_eq (fun _ => rfl)
   have hsign := (M.isPPTOn_blockwiseSign hE).preprocess
     (input := encPair (encPair encUnary encBits)
       (encPair (encPair (encFinEnum Unit) encBits) encLog))
@@ -1470,6 +1474,8 @@ theorem isOraclePPTOn_blockwiseBoundedSimulator (hE : IsPolyTimeEncoder E)
       (encPair encBits encLog)
       (fun call : (ℕ × List Bool) × (Unit × List Bool) × List (List Bool × Tag) =>
         M.blockwiseBoundedSimulator E tagBound call.1.1 call.2.1 call.2.2) := by
+  have hencode : ComputableInPolyTime encTag encTag encBits :=
+    ComputableInPolyTime.of_eq (fun _ => rfl)
   let encCall :=
     encPair (encPair encUnary encBits) (encPair (encPair (encFinEnum Unit) encBits) encLog)
   have hmsgLen := M.msgLen_polyTime
@@ -1695,7 +1701,7 @@ theorem EUFCMA.blockwiseEUFCMA (h : M.EUFCMA)
   have hw : PolynomiallyLowerBounded (fun n => fieldWidth (M.msgLen n)) :=
     hmsgLen.div_const (by decide)
   have hpow : Negligible (fun n => ((2 : ℝ≥0) ^ fieldWidth (M.msgLen n))⁻¹) :=
-    negligible_inv_two_pow.comp_polynomiallyLowerBounded hw
+    negligible_inv_two_pow_of_polynomiallyLowerBounded hw
   have hcol : Negligible (fun n =>
       ((∑ i ∈ Finset.range (Q n), i : ℕ) : ℝ≥0) / 2 ^ fieldWidth (M.msgLen n)) := by
     refine negligible_of_le (Negligible.polynomiallyBounded_div (hQpoly.mul hQpoly) hpow)
@@ -1846,11 +1852,6 @@ theorem isOraclePPT_toForger_mixBlocksAdversary {replyBound : ℕ → ℕ → �
               List.replicate (fieldWidth (M.msgLen q.1.1)) true)) :=
     IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop)
   exact (hq1.bind_with (hq2.map_with' (by fun_prop))).isOraclePPT
-
-private theorem not_negligible_of_eventually_eq_one {f : ℕ → ℝ≥0}
-    (hf : ∀ᶠ n in Filter.atTop, f n = 1) : ¬ Negligible f := fun hneg =>
-  not_negligible_const one_ne_zero
-    (negligible_of_eventually_le hneg (hf.mono fun _ hn => hn.symm.le))
 
 /-- Without the block index (`noIndexEncoder`), the blockwise construction is not
 `BlockwiseEUFCMA`-secure whenever `3 ≤ fieldWidth (M.msgLen n)` eventually. -/

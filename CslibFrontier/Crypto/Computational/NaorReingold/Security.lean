@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Crypto.Computational.NaorReingold
 public import CslibFrontier.Crypto.Computational.DiffieHellman.Order
 public import CslibFrontier.Crypto.Computational.ElGamal.KDF
@@ -21,13 +22,11 @@ import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Computability.Probabilistic.UniformNat
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Crypto.Game.Hybrid
 import CslibFrontier.Crypto.Game.Statistical
 import CslibFrontier.Crypto.Negligible.Basic
-import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Languages.Probabilistic.Presample
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
 import CslibFrontier.Probability.PMF.Bind
