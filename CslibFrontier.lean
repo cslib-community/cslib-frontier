@@ -5007,6 +5007,7 @@ public import CslibFrontier.Crypto.Primitives.PRF.RandPrefixFreeEncoding
 public import CslibFrontier.Crypto.Primitives.PRF.RandomOracleModel
 public import CslibFrontier.Crypto.Primitives.PRF.ToPRG
 public import CslibFrontier.Crypto.Primitives.PRG.Circuit
+public import CslibFrontier.Crypto.Primitives.PRG.Deterministic
 public import CslibFrontier.Crypto.Primitives.PRG.Game
 public import CslibFrontier.Crypto.Primitives.PRG.LFSR
 public import CslibFrontier.Crypto.Primitives.PRG.LinearCongruential

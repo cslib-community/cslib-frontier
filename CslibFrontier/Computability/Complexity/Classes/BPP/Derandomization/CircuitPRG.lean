@@ -10,31 +10,41 @@ module
 public import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.SeedEnumeration
 public import CslibFrontier.Computability.Complexity.Classes.Time
 public import CslibFrontier.Crypto.Primitives.PRG.Circuit
+public import CslibFrontier.Crypto.Primitives.PRG.Deterministic
 import CslibFrontier.Computability.Circuit.Boolean.PolynomialTime
 import CslibFrontier.Computability.Circuit.Boolean.Substitution
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Search
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
-import CslibFrontier.Crypto.Primitives.PRG.NisanWigderson.Sampling
 import CslibFrontier.Foundations.Data.BitString.WordCount
+import CslibFrontier.Foundations.Data.List.OfFnGetD
 
 /-!
-# Circuit-secure pseudorandom generators derandomize `BPP`
+# Polynomial-stretch circuit-secure generators derandomize `BPP`
 
 Arora and Barak [Arora and Barak, Theorem 10.17][AroraBarak07] (draft of 2007-01-08, printed page
 201, PDF page 217): *if for every `c > 1` there is a pseudorandom generator that is secure against
-circuits of size `n ^ c`, then `BPP ⊆ ⋂_{ε > 0} DTIME (2 ^ (n ^ ε))`.*
+circuits of size `n ^ c`, then `BPP ⊆ ⋂_{ε > 0} DTIME (2 ^ (n ^ ε))`.* This file proves that
+conclusion under a stronger hypothesis: the `c`-th generator also has output length at least
+`k ^ c` on seeds of `k` bits
+(`Cslib.Complexity.BPP_subset_DTIME_two_pow_rpow_of_polyStretch_circuitSecurePRG`). Arora and
+Barak's generators only need output length `m(n) > n`, and their proof stretches seeds of `n ^ ε`
+bits to `n ^ k` bits without saying how. Deriving polynomial stretch from one bit of stretch
+against circuits (iterating the generator, with a hybrid argument) is not formalized, so
+Theorem 10.17 itself remains open.
 
 Their pseudorandom generators are those of [Arora and Barak, Definition 10.11][AroraBarak07]
-(printed page 193–194): a polynomial-time computable family `g_n : {0,1}^n → {0,1}^{m(n)}` with
+(printed pages 193–194): a polynomial-time computable family `g_n : {0,1}^n → {0,1}^{m(n)}` with
 `m(n) > n` such that, for every `c'`, for all large `n` no test of the admitted class distinguishes
-`g_n(U_n)` from `U_{m(n)}` with advantage more than `1 / n ^ c'`. Read with circuits of size `s(n)`
-as the tests, this is `Cslib.Complexity.CircuitSecurePRG G ℓ s`: the generator is a polynomial-time
-map on words with output length `ℓ k` on seeds of `k` bits, and its restriction to seeds of `k`
-bits (`Cslib.Crypto.PRG.Generator.ofWordsAt`) is secure in the sense of
-`Cslib.Crypto.PRG.Generator.Secure` against the tests computed by De Morgan circuits with at most
-`s k` gates (`Cslib.Crypto.PRG.IsCircuitTest`).
+`g_n(U_n)` from `U_{m(n)}` with advantage more than `1 / n ^ c'`. Definition 10.11 admits uniform
+probabilistic algorithms running in time `s(n)`; Theorem 10.17 asks for security against circuits
+of size `n ^ c` instead, which this file reads as security against every nonuniform family of De
+Morgan circuits with at most `s(n)` gates. That is `Cslib.Complexity.CircuitSecurePRG G ℓ s`: the
+generator is a polynomial-time map on words with output length `ℓ k` on seeds of `k` bits, and its
+restriction to seeds of `k` bits (`Cslib.Crypto.PRG.Generator.ofWordsAt`) is secure in the sense
+of `Cslib.Crypto.PRG.Generator.Secure` against the tests computed by De Morgan circuits with at
+most `s k` gates (`Cslib.Crypto.PRG.IsCircuitTest`).
 
 The proof enumerates seeds (`Cslib.Complexity.seedDecider`). For a verifier `V` reading `p(n)`
 random bits on instances of length `n`, seeds of `k ≈ n ^ (1 / d)` bits are stretched to at least
@@ -51,14 +61,14 @@ finitely many instances need to be patched.
 
 ## Main definitions
 
-* `Cslib.Crypto.PRG.Generator.ofWordsAt`: a generator on words, restricted to seeds of `k` bits.
 * `Cslib.Complexity.CircuitSecurePRG`: Arora and Barak's pseudorandom generators, with circuits
   of a given size as the tests.
 
 ## Main results
 
-* `Cslib.Complexity.BPP_subset_DTIME_two_pow_rpow_of_circuitSecurePRG`: Theorem 10.17 of Arora and
-  Barak.
+* `Cslib.Complexity.BPP_subset_DTIME_two_pow_rpow_of_polyStretch_circuitSecurePRG`: the
+  conclusion of Theorem 10.17 of Arora and Barak, from generators of polynomial stretch; not
+  Theorem 10.17 itself.
 
 ## References
 
@@ -71,27 +81,6 @@ finitely many instances need to be patched.
 open Turing Turing.MultiTapeTM Filter Finset
 open scoped NNReal
 
-namespace Cslib.Crypto.PRG
-
-/-- The generator of seed length `k` of a generator `G` on words: a seed `z` of `k` bits is mapped
-to the first `ℓ k` bits of `G z`, padded with `false` if `G z` is shorter. For a generator whose
-outputs on seeds of `k` bits have exactly `ℓ k` bits, no padding occurs. -/
-def Generator.ofWordsAt (G : List Bool → List Bool) (ℓ : ℕ → ℕ) (k : ℕ) :
-    Generator (BitString k) (BitString (ℓ k)) :=
-  ⟨fun z i => (G (List.ofFn z)).getD i false⟩
-
-/-- The advantage of a deterministic test is the difference of the fractions of seeds and of
-strings it accepts. -/
-theorem Generator.advantage_pure_eq {k L : ℕ} (Gk : Generator (BitString k) (BitString L))
-    (test : BitString L → Bool) :
-    Gk.advantage (fun y => PMF.pure (test y)) =
-      |(#{z | test (Gk z) = true} : ℝ) / 2 ^ k - #{y | test y = true} / 2 ^ L| := by
-  rw [Generator.advantage, Generator.toReal_realExperiment_pure,
-    Generator.toReal_idealExperiment_pure, nnratCast_dens, nnratCast_dens]
-  simp [BitString]
-
-end Cslib.Crypto.PRG
-
 namespace Cslib.Complexity
 
 open Cslib.Circuits Cslib.Circuits.Boolean Cslib.Crypto.PRG
@@ -103,10 +92,13 @@ of `k` bits have `ℓ k > k` bits, and for every `c`, for all large `k`, no circ
 `s k` gates distinguishes `G` on a uniform seed of `k` bits from a uniform string of `ℓ k` bits
 with advantage more than `1 / k ^ c`.
 
-The source quantifies "for every test, for all large `n`"; here the threshold is uniform over the
-finitely many circuits of size `s k` on `ℓ k` inputs, which is equivalent: a family choosing a
-circuit of largest advantage at each length is one test. No generator satisfying this record is
-known to exist unconditionally; the record is a hypothesis. -/
+The tests are nonuniform: the threshold `k₀` past which every circuit with at most `s k` gates
+has advantage at most `1 / k ^ c` is uniform over all circuits of each size. This is security
+against every nonuniform family of circuits of size `s`, quantified "for every family, for all
+large `k`": a family choosing a circuit of largest advantage at each length is one such family, so
+the two orders of quantifiers agree. It is not Definition 10.11's security against uniform
+probabilistic algorithms, for which this exchange of quantifiers is not available. No generator
+satisfying this record is known to exist unconditionally; the record is a hypothesis. -/
 structure CircuitSecurePRG (G : List Bool → List Bool) (ℓ s : ℕ → ℕ) : Prop where
   /-- One deterministic polynomial-time machine evaluates the generator. -/
   polyTime : ComputableInPolyTime G encBits encBits
@@ -120,13 +112,6 @@ structure CircuitSecurePRG (G : List Bool → List Bool) (ℓ s : ℕ → ℕ) :
     (Generator.ofWordsAt G ℓ k).Secure (IsCircuitTest (s k)) ((k : ℝ≥0) ^ c)⁻¹
 
 section Arithmetic
-
-/-- The words of length `ℓ k` are read back from their bits. -/
-private theorem ofFn_getD_of_length {w : List Bool} {n : ℕ} (h : w.length = n) :
-    List.ofFn (fun i : Fin n => w.getD i false) = w := by
-  subst h
-  refine List.ext_getElem (by simp) fun i h₁ h₂ => ?_
-  simp [List.getD_eq_getElem?_getD]
 
 /-- With `r ^ (2 e) ≤ n` and `1 / e ≤ ε`, `r ^ 2 ≤ n ^ ε`. -/
 private theorem sq_le_rpow {r n e : ℕ} (he : 0 < e) (hr : r ^ (2 * e) ≤ n) {ε : ℝ}
@@ -170,19 +155,17 @@ private theorem le_findGreatest_root {d R n : ℕ} (hd : 1 ≤ d) (hn : R ^ d �
 
 end Arithmetic
 
-/-- **Circuit-secure pseudorandom generators derandomize `BPP`**
-[Arora and Barak, Theorem 10.17][AroraBarak07] (draft of 2007-01-08, printed page 201): if for
+/-- **Not Arora–Barak Theorem 10.17: its conclusion under an extra stretch hypothesis.** If for
 every `c > 1` there is a pseudorandom generator secure against circuits of size `k ^ c` on seeds of
-`k` bits, with output length at least `k ^ c` for all large `k`, then for every `ε > 0` every
-problem in `BPP enc` is in `DTIME enc (2 ^ ⌈n ^ ε⌉)`, for every encoding `enc` of instances.
+`k` bits (`Cslib.Complexity.CircuitSecurePRG`) *and with output length at least `k ^ c` for all
+large `k`*, then for every `ε > 0` every problem in `BPP enc` is in `DTIME enc (2 ^ ⌈n ^ ε⌉)`, for
+every encoding `enc` of instances.
 
-The generators are `Cslib.Complexity.CircuitSecurePRG`, Definition 10.11 of the source with De
-Morgan circuits as the tests, as the theorem's name in the source says. The draft does not state
-the output length of the `c`-th generator; its proof stretches seeds of `n ^ ε` bits to `n ^ k`
-bits, and its Figure 10.2 pictures generators `{0,1}^n → {0,1}^(n ^ c)`. The hypothesis here asks
-for output length at least `k ^ c`, as the proof uses. The bound `2 ^ ⌈n ^ ε⌉` is the draft's
-`2 ^ (n ^ ε)`, rounded up to a natural exponent. -/
-theorem BPP_subset_DTIME_two_pow_rpow_of_circuitSecurePRG
+[Arora and Barak, Theorem 10.17][AroraBarak07] (draft of 2007-01-08, printed page 201) assumes only
+the output length `m(n) > n` of Definition 10.11; its proof stretches seeds of `n ^ ε` bits to
+`n ^ k` bits, which needs stretch amplification against circuits, not formalized here. The bound
+`2 ^ ⌈n ^ ε⌉` is the draft's `2 ^ (n ^ ε)`, rounded up to a natural exponent. -/
+theorem BPP_subset_DTIME_two_pow_rpow_of_polyStretch_circuitSecurePRG
     (h : ∀ c : ℕ, 1 < c → ∃ (G : List Bool → List Bool) (ℓ : ℕ → ℕ),
       (∀ᶠ k in atTop, k ^ c ≤ ℓ k) ∧ CircuitSecurePRG G ℓ (· ^ c))
     {α : Type} (enc : α ↪ List Bool) :
@@ -267,7 +250,7 @@ theorem BPP_subset_DTIME_two_pow_rpow_of_circuitSecurePRG
       simp only [test, Generator.ofWordsAt, gen]
       rw [show (Generator.mk fun z (i : Fin (ℓ k)) => (G (List.ofFn z)).getD i false) z =
           fun i : Fin (ℓ k) => (G (List.ofFn z)).getD i false from rfl,
-        ofFn_getD_of_length (by rw [hG.length_eq, List.length_ofFn])]
+        List.ofFn_getD_eq_of_length false (by rw [hG.length_eq, List.length_ofFn])]
     have hstrings : (#{y : BitString (ℓ k) | test y = true} : ℝ) / 2 ^ ℓ k =
         #{r : Fin (p.eval (enc x).length) → Bool | V (x, List.ofFn r) = true} /
           2 ^ p.eval (enc x).length := by

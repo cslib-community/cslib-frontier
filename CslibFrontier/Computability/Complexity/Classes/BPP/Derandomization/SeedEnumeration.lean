@@ -41,9 +41,10 @@ properties.
   polynomial-time on the instance padded by `2 ^ k(x)`
   (`Turing.MultiTapeTM.ComputableInPolyTime.exists_computableInO_pad`).
 
-The Nisan–Wigderson derandomization (`Cslib.Complexity.BPP_subset_P_of_isAverageCaseHard`) and the
-derandomization from circuit-secure generators
-(`Cslib.Complexity.BPP_subset_DTIME_two_pow_rpow_of_circuitSecurePRG`) are its instances.
+Its instances are the Nisan–Wigderson derandomization
+(`Cslib.Complexity.BPP_subset_P_of_isAverageCaseHard`) and the derandomization from circuit-secure
+generators of polynomial stretch
+(`Cslib.Complexity.BPP_subset_DTIME_two_pow_rpow_of_polyStretch_circuitSecurePRG`).
 
 ## Main definitions
 
@@ -52,8 +53,6 @@ derandomization from circuit-secure generators
 
 ## Main results
 
-* `Turing.MultiTapeTM.ComputableInPolyTime.bitsEnumList_of_polyBounded`: enumeration of the
-  words of a computed length `ℓ` when `2 ^ ℓ` is polynomially bounded.
 * `Cslib.Complexity.seedDecider_eq_true_iff`: correctness from a gap below `1 / 6`.
 * `Cslib.Complexity.computableInPolyTime_seedDecider`: polynomial time for logarithmic seeds.
 * `Cslib.Complexity.exists_computableInO_seedDecider`: time `2 ^ O(k)` times a polynomial.
@@ -69,31 +68,6 @@ derandomization from circuit-secure generators
 @[expose] public section
 
 open Turing Turing.MultiTapeTM
-
-namespace Turing.MultiTapeTM.ComputableInPolyTime
-
-variable {γ : Type} {encIn : γ ↪ List Bool}
-
-/-- Enumerate the words of a computed length `count x` when `2 ^ count x` is polynomially
-bounded. -/
-theorem bitsEnumList_of_polyBounded {count : γ → ℕ}
-    (hcount : ComputableInPolyTime count encIn encUnary)
-    (hbudget : PolyBounded (fun x => (encIn x).length) fun x => 2 ^ count x) :
-    ComputableInPolyTime (fun x => Cslib.BitString.enumList (count x)) encIn
-      (encList encBits) := by
-  obtain ⟨c, d, h⟩ := hbudget.exists_le
-  refine bitsEnumList hcount
-    (size := fun n => 3 * (c * (n + 1) ^ d) ^ 2) (by fun_prop) fun x => ?_
-  have h₁ : 2 * count x + 1 ≤ 3 * 2 ^ count x := by
-    have := Nat.lt_two_pow_self (n := count x)
-    omega
-  calc 2 ^ count x * (2 * count x + 1) ≤ 2 ^ count x * (3 * 2 ^ count x) :=
-        Nat.mul_le_mul_left _ h₁
-    _ = 3 * (2 ^ count x) ^ 2 := by ring
-    _ ≤ 3 * (c * ((encIn x).length + 1) ^ d) ^ 2 :=
-        Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (h x) 2)
-
-end Turing.MultiTapeTM.ComputableInPolyTime
 
 namespace Cslib.Complexity
 
