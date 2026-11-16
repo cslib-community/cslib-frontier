@@ -1975,7 +1975,8 @@ private theorem run_interpret_bind_of_not_nodup {ι : Type} {spec : OracleSpec �
   | pure a =>
     simp [hg a tr hnot, PMF.monad_pure_eq_pure]
   | query_bind q cont ih =>
-    simp only [OracleComp.run_interpret_bind, OracleComp.run_interpret_query,
+    simp only [PFunctor.FreeM.bind_eq_bind, OracleComp.run_interpret_bind,
+      OracleComp.run_interpret_query,
       PMF.monad_bind_eq_bind, PMF.bind_bind]
     have hcongr : ∀ res ∈ (oracle q tr).support,
         ((OracleComp.interpret oracle (cont res.1)).run res.2).bind
@@ -2022,11 +2023,12 @@ theorem probOracleComp_uniform_bind_run_interpret_nonceFnHandler {α β : Type}
         post a tr' (reconstructPadFn hash k tr' table)) = c := by
     intro a tr' hnot
     simp only [hpost a tr' _ hnot, PMF.bind_const]
-  unfold ProbOracleComp.runWith OracleComp.runWith
+  simp only [ProbOracleComp.runWith_eq_run_interpret]
   induction prog using OracleComp.induction generalizing tr with
   | pure a =>
     simp [PMF.monad_pure_eq_pure]
   | query_bind q cont ih =>
+    simp only [PFunctor.FreeM.bind_eq_bind]
     by_cases hnodup : (tr.map (fun e => e.1.2)).Nodup
     · cases q with
       | inl m =>
@@ -2098,7 +2100,7 @@ theorem uniform_bind_run_interpret_nonceFnHandler {α β : Type} [Fintype N] [De
     (((OracleComp.interpret nonceSimHandler prog).run tr).bind fun res =>
       (PMF.uniformOfFintype (N → Y)).bind fun table =>
         post res.1 res.2 (reconstructPadFn hash k res.2 table)) := by
-  simpa only [ProbOracleComp.runWith_liftRight, OracleComp.runWith] using
+  simpa only [ProbOracleComp.runWith_liftRight, OracleComp.runWith_eq_run_interpret] using
     probOracleComp_uniform_bind_run_interpret_nonceFnHandler hash k (OracleComp.liftRight prog)
       tr post c hpost
 
@@ -2826,7 +2828,8 @@ private theorem eval_cwNonceLogHandler_randomFunctionOracle_le
     · rw [h, cwNonceIdealCheck_imp_checkNonceSUF msgLen hash n k table hsub h]
     · simp [Bool.eq_false_iff.mpr h]
   | query_bind q cont ih =>
-    rw [OracleComp.run_interpret_bind, OracleComp.run_interpret_query,
+    rw [PFunctor.FreeM.bind_eq_bind, OracleComp.run_interpret_bind,
+      OracleComp.run_interpret_query,
       OracleComp.run_interpret_bind, OracleComp.run_interpret_query,
       OracleComp.run_interpret_bind]
     cases q with
@@ -2933,8 +2936,10 @@ theorem eval_prfIdealGame_prfNonceToPrfDistinguisher_le
     refine bind_apply_mono_on_support (PMF.uniformOfFintype (BitString n → BitString n)) true
       fun table _ => ?_
     rw [interpret_deterministic_run_interpret, ProbOracleComp.eval_run_interpret_eq_runWith]
-    exact eval_cwNonceLogHandler_randomFunctionOracle_le msgLen hash n k table
-      (adversary n []) [] [] (List.Sublist.refl [])
+    simpa only [ProbOracleComp.runWith_eq_run_interpret, hashBit, adaptProg,
+      cwNonceIdealCheck] using
+      eval_cwNonceLogHandler_randomFunctionOracle_le msgLen hash n k table
+        (adversary n []) [] [] (List.Sublist.refl [])
   refine hle.trans ?_
   have hsim (k : List Bool) :
       ((PMF.uniformOfFintype (BitString n → BitString n)).bind fun table =>
@@ -3153,11 +3158,12 @@ theorem probOracleComp_uniform_bind_run_interpret_randomNonceFnHandler {α β : 
         post a tr' (reconstructPadFn hash k tr' table)) = c := by
     intro a tr' hnot
     simp only [hpost a tr' _ hnot, PMF.bind_const]
-  unfold ProbOracleComp.runWith OracleComp.runWith
+  simp only [ProbOracleComp.runWith_eq_run_interpret]
   induction prog using OracleComp.induction generalizing tr with
   | pure a =>
     simp [PMF.monad_pure_eq_pure]
   | query_bind q cont ih =>
+    simp only [PFunctor.FreeM.bind_eq_bind]
     cases q with
     | inl num =>
       simp only [pmf_norm, OracleComp.run_interpret_bind, OracleComp.run_interpret_query,
@@ -3233,7 +3239,7 @@ theorem uniform_bind_run_interpret_randomNonceFnHandler {α β : Type}
     (((OracleComp.interpret randomNonceSimHandler prog).run tr).bind fun res =>
       (PMF.uniformOfFintype (N → Y)).bind fun table =>
         post res.1 res.2 (reconstructPadFn hash k res.2 table)) := by
-  simpa only [ProbOracleComp.runWith_liftRight, OracleComp.runWith] using
+  simpa only [ProbOracleComp.runWith_liftRight, OracleComp.runWith_eq_run_interpret] using
     probOracleComp_uniform_bind_run_interpret_randomNonceFnHandler hash k
       (OracleComp.liftRight prog) tr post c hpost
 
@@ -3252,7 +3258,7 @@ theorem probOracleComp_randomNonceSimHandler_not_nodup_le {α : Type}
       if (tr.map (fun ((_, x), _) => x)).Nodup then
         ((∑ i ∈ Finset.range Q, (tr.length + i) : ℕ) : ℝ≥0∞) / Fintype.card N
       else 1 := by
-  unfold ProbOracleComp.runWith OracleComp.runWith
+  rw [ProbOracleComp.runWith_eq_run_interpret]
   induction hprog generalizing tr with
   | pure a Q =>
     by_cases hnodup : (tr.map (fun e => e.1.2)).Nodup <;>
@@ -3374,9 +3380,12 @@ theorem randomNonceSimHandler_not_nodup_le {α : Type} [Fintype N] [Nonempty N] 
         ((∑ i ∈ Finset.range Q, (tr.length + i) : ℕ) : ℝ≥0∞) / Fintype.card N
       else 1 := by
   have h := probOracleComp_randomNonceSimHandler_not_nodup_le hprog.probOracleComp tr
-  rwa [show OracleComp.interpret (fun q => ProbOracleComp.query q) prog =
-    OracleComp.liftRight prog from rfl, ProbOracleComp.runWith_liftRight,
-    OracleComp.runWith] at h
+  have hinterp : OracleComp.interpret (fun q => ProbOracleComp.query q) prog =
+      OracleComp.liftRight prog := by
+    rw [OracleComp.liftRight, OracleComp.substitute_eq_interpret]
+    rfl
+  rwa [hinterp, ProbOracleComp.runWith_liftRight,
+    OracleComp.runWith_eq_run_interpret] at h
 
 variable [DecidableEq M] [DecidableEq N] [DecidableEq Y]
 
@@ -3627,9 +3636,12 @@ theorem randomNonceStrongGame_le_sum_add_max {seed : PMF K} {hash : K → M → 
   refine tsum_mul_le_of_forall_le forger.coins fun s => ?_
   have h := seed_uniform_probOracleComp_checkRandomNonceSUF_le_sum_add_max hh
     (hforger s).probOracleComp (fun x => x)
-  simpa only [show OracleComp.interpret (fun q => ProbOracleComp.query q) (forger.forge s) =
-    OracleComp.liftRight (forger.forge s) from rfl, ProbOracleComp.runWith_liftRight,
-    OracleComp.runWith] using h
+  have hinterp : OracleComp.interpret (fun q => ProbOracleComp.query q) (forger.forge s) =
+      OracleComp.liftRight (forger.forge s) := by
+    rw [OracleComp.liftRight, OracleComp.substitute_eq_interpret]
+    rfl
+  simpa only [hinterp, ProbOracleComp.runWith_liftRight,
+    OracleComp.runWith_eq_run_interpret] using h
 
 /-- **Ideal randomized Carter–Wegman SUF-CMA security** ([BonehShoup2023], Section 7.4,
 Theorem 7.9, p. 270): under `IsDeltaUniversalHash seed hash ε`, any `Q`-query-bounded
@@ -4190,7 +4202,8 @@ private theorem eval_cwRandomNonceLogHandler_randomFunctionOracle_le
         hsub h]
     · simp [Bool.eq_false_iff.mpr h]
   | query_bind q cont ih =>
-    rw [OracleComp.run_interpret_bind, OracleComp.run_interpret_query,
+    rw [PFunctor.FreeM.bind_eq_bind, OracleComp.run_interpret_bind,
+      OracleComp.run_interpret_query,
       OracleComp.run_interpret_bind, OracleComp.run_interpret_query,
       OracleComp.run_interpret_bind]
     cases q with
@@ -4305,8 +4318,10 @@ theorem eval_prfIdealGame_prfRandomNonceToPrfDistinguisher_le
     refine bind_apply_mono_on_support (PMF.uniformOfFintype (BitString n → BitString n)) true
       fun table _ => ?_
     rw [interpret_deterministic_run_interpret, ProbOracleComp.eval_run_interpret_eq_runWith]
-    exact eval_cwRandomNonceLogHandler_randomFunctionOracle_le msgLen hash n k table
-      (adversary n []) [] [] (List.Sublist.refl [])
+    simpa only [ProbOracleComp.runWith_eq_run_interpret, hashBit, adaptProg,
+      cwRandomNonceIdealCheck] using
+      eval_cwRandomNonceLogHandler_randomFunctionOracle_le msgLen hash n k table
+        (adversary n []) [] [] (List.Sublist.refl [])
   refine hle.trans ?_
   have hq_adapt : adaptProg.IsQueryBounded Q :=
     isQueryBounded_adaptRandomNonceStep msgLen n hq []
