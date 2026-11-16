@@ -2642,6 +2642,16 @@ Theorem 7.5 is proved in `daviesMeyer_collisionGame_le` and `daviesMeyer_collisi
 [`CslibFrontierTests/Crypto/IdealCipherCompression.lean`](../../CslibFrontierTests/Crypto/IdealCipherCompression.lean), and
 [`CslibFrontierTests/Crypto/IdealCipherCompressionVariants.lean`](../../CslibFrontierTests/Crypto/IdealCipherCompressionVariants.lean).
 
+For Boneh–Shoup Theorem 9.1 (AE implies CCA, [bs23][bs23] §9.2.3, pp. 363–365), import
+[`Encryption/Authenticated.lean`](../../CslibFrontier/Crypto/Computational/Encryption/Authenticated.lean).
+The budget is the number `Qd n` of decryption queries (`SymmetricCipher.IsDecryptionQueryBounded`);
+encryption queries are free. `advantage_ccaGame_le_two_mul` and
+`guessingAdvantage_guessBit_ccaGame_le` prove the bounds (9.3) and (9.4), the latter for the
+bit-guessing game `Experiment.guessBit`, with dyadic index sampling `sampleDyadicIndex`, scaling
+the CI term by `dyadicSize (Qd n - 1)` in place of the book's `Qd`.
+`guessingAdvantage_guessBit_ccaGame_le_two_mul` states (9.4) with `2 * Qd n`; the one-time
+counterparts are stated for `ccaOneTimeGame`.
+
 For the single-oracle real-versus-ideal formulation of authenticated encryption ([katzlindell20][katzlindell20], §5.2, Definition 5.4 and Theorem 5.5, pp. 152–153), import [`Encryption/RealIdealAE.lean`](../../CslibFrontier/Crypto/Computational/Encryption/RealIdealAE.lean). `SymmetricCipher.aeRealGame` answers `n`-bit encryption queries honestly (recording returned ciphertexts and answering decryption queries on them with `[]`) and decrypts fresh ciphertexts via `encOption encBits (E.decrypt n k ct)`, whereas `aeIdealGame` encrypts `List.replicate n false` and answers every decryption query with `[]`; `RealIdealAE` asks every `IsOraclePPT encBool` adversary to have negligible advantage, and `realIdealAE_iff_indcca_and_ciphertextIntegrity` and `realIdealAE_iff_authenticatedEncryption` prove equivalence with `INDCCA ∧ CiphertextIntegrity` and `AuthenticatedEncryption` via `cpaToAEAdversary`, `ciToAEAdversary`, and `aeToCCAAdversary`. [`Encryption/HalfBlockPRP.lean`](../../CslibFrontier/Crypto/Computational/Encryption/HalfBlockPRP.lean) formalizes the half-block construction `BlockCipher.halfBlockCipher` (`F_k(r ‖ m)` on `2 n`-bit blocks, Exercises 5.8 and 5.9, p. 165) and shows via the zero-query `allOnesForger` that it fails `CiphertextIntegrity`, `AuthenticatedEncryption`, and `RealIdealAE` for every block cipher (its CCA security under a strong PRP is not formalized); checked instances over an identity cipher are in [`CslibFrontierTests/Crypto/RealIdealAEAndHalfBlock.lean`](../../CslibFrontierTests/Crypto/RealIdealAEAndHalfBlock.lean).
 
 For fresh-message encryption unforgeability ([katzlindell20][katzlindell20], §5.2, Definition 5.2,

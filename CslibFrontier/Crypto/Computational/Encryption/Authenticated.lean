@@ -2487,7 +2487,7 @@ theorem isOraclePPT_ccaToCIAdversary {ctBound Q : ℕ → ℕ}
           cases OracleComp.eq_of_mem_supportWith_pure hresult
           refine ⟨trivial, by simp, ?_⟩
           simp only [EState, length_encPair, encUnary_apply, List.length_replicate,
-            encBool_apply, List.length_singleton, encBits_apply, List.length_nil]
+            encBool_apply, List.length_singleton, encBits_apply]
           lia
         · simp only [hzero, Bool.false_eq_true, ↓reduceIte] at hresult
           cases OracleComp.eq_of_mem_supportWith_pure hresult
@@ -4177,12 +4177,13 @@ theorem advantage_ccaOneTimeGame_le (E : SymmetricCipher) (ctBound Qd : ℕ → 
         (ProbComp.eval (E.cpaOneTimeGame (ccaToCPAAdversary ctBound adversary) true n)) : ℝ) +
       (dyadicSize (Qd n - 1) : ℝ) *
         (Game.succProbability
-          (ProbComp.eval (E.ciOneTimeGame (ccaToCIAdversary ctBound Qd true adversary) n)) : ℝ) := by
-  have hfalse := (advantage_ccaOneTimeGame_ccaOneTimeRejectGame_le_sum E ctBound Qd adversary false n
-    hq hctBound).trans
+          (ProbComp.eval (E.ciOneTimeGame (ccaToCIAdversary ctBound Qd true adversary) n)) :
+          ℝ) := by
+  have hfalse := (advantage_ccaOneTimeGame_ccaOneTimeRejectGame_le_sum E ctBound Qd adversary false
+    n hq hctBound).trans
     (sum_succProbability_ciOneTimeGame_ccaToCIAtIndexAdversary_le E ctBound Qd false adversary n)
-  have htrue := (advantage_ccaOneTimeGame_ccaOneTimeRejectGame_le_sum E ctBound Qd adversary true n
-    hq hctBound).trans
+  have htrue := (advantage_ccaOneTimeGame_ccaOneTimeRejectGame_le_sum E ctBound Qd adversary true
+    n hq hctBound).trans
     (sum_succProbability_ciOneTimeGame_ccaToCIAtIndexAdversary_le E ctBound Qd true adversary n)
   rw [eval_cpaOneTimeGame_ccaToCPAAdversary E ctBound adversary false n hctBound,
     eval_cpaOneTimeGame_ccaToCPAAdversary E ctBound adversary true n hctBound]
@@ -4224,10 +4225,11 @@ theorem eval_ciOneTimeGame_ccaToCIHiddenBitAdversary (E : SymmetricCipher) (ctBo
 
 /-- **Single-adversary quantitative 1AE $\Rightarrow$ 1CCA bound** ([BonehShoup2023],
 Section 9.2.3, Theorem 9.1, equation (9.3) for one-time security, printed pp. 363–364): for any
-`CCAAdversary` making at most `Qd n` decryption queries,
-`1CCAadv ≤ 1CPAadv[ccaToCPAAdversary] + 2 * dyadicSize (Qd n - 1) * 1CIadv[ccaToCIHiddenBitAdversary]`
-in the one-time games. As in `advantage_ccaGame_le_two_mul`, the book's factor `2 Qd` becomes
-`2 * dyadicSize (Qd n - 1)` because the CI adversary samples its index from fair coins. -/
+`CCAAdversary` making at most `Qd n` decryption queries, the one-time games satisfy
+`1CCAadv ≤ 1CPAadv + 2 * dyadicSize (Qd n - 1) * 1CIadv`, where the CPA and CI adversaries are
+`ccaToCPAAdversary` and `ccaToCIHiddenBitAdversary`.
+As in `advantage_ccaGame_le_two_mul`, the book's factor `2 Qd` becomes `2 * dyadicSize (Qd n - 1)`
+because the CI adversary samples its index from fair coins. -/
 theorem advantage_ccaOneTimeGame_le_two_mul (E : SymmetricCipher) (ctBound Qd : ℕ → ℕ)
     (adversary : CCAAdversary) (n : ℕ)
     (hq : IsDecryptionQueryBounded (adversary n []) (Qd n))
