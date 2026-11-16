@@ -32,7 +32,11 @@ original input are certified here. General loop invariants use `IsPPTOn.iterate_
 
 Strict oracle PPT goals (`IsOraclePPTOn`, `IsOraclePPT`) search with the `OraclePPT`, `PPT` and
 `PolyTime` Aesop rule sets while keeping `simp` disabled on oracle goals so charged reply prefixes
-(`List.take _ <$> ProbOracleComp.query _`) are never fused into surrounding maps or binds. Local
+(`List.take _ <$> ProbOracleComp.query _`) are never fused into surrounding maps or binds. Closed
+PPT goals (`IsPPTOn`, `IsPPT`) likewise disable Aesop's built-in `norm simp` so `PolyTime`'s
+`simp_all` rules normalize definitions, projections and match clauses while erasing monad-map
+fusion lemmas (`bind_map_left`, `Functor.map_map`, `map_bind`, `bind_pure_comp`) so encoded
+samplers (`enc _ <$> sample _`) stay intact. Local
 and structure-field oracle routine calls prepare tuple arguments with `IsOraclePPTOn.preprocess'`;
 `pure`, `ProbOracleComp.sample` and `query_take'` bridge to deterministic `PolyTime`, closed `PPT`
 and plain request/limit bounds; sequencing, captured maps, plain conditionals and bounded-growth
@@ -391,9 +395,7 @@ private meta def unfoldOracleParameter : TacticM Unit := withMainContext do
       goal := next
   replaceMainGoal [goal]
 
-/-- Whether `type` is an oracle PPT goal (possibly under binders or conjunctions) whose `List.take`
-reply prefixes must not be rewritten by `@[simp]` lemmas such as `Functor.map_map` or
-`bind_map_left`. -/
+/-- Whether `type` is an oracle PPT goal (possibly under binders or conjunctions). -/
 private meta partial def hasOraclePPTGoal (type : Expr) : Bool :=
   match type.consumeMData with
   | .forallE _ _ body _ => hasOraclePPTGoal body
@@ -469,7 +471,8 @@ syntax (name := pptTactic) "ppt" (" [" ident,* "]")? : tactic
 
 /-- Elaborate `ppt`: prepare the goal and unfold `IsOraclePPT` before and after exposing structure
 fields, then search with `[OraclePPT, PPT, PolyTime]` (preserving query syntax) on oracle goals or
-`[PPT, PolyTime]` on closed goals. -/
+`[PPT, PolyTime]` on closed goals (with built-in `norm simp` disabled so monad-map fusion does not
+rewrite encoded samplers). -/
 @[tactic pptTactic] meta def evalPPT : Tactic := fun stx => do
   let hints := match stx with
     | `(tactic| ppt [$hints,*]) => hints.getElems
@@ -492,7 +495,11 @@ fields, then search with `[OraclePPT, PPT, PolyTime]` (preserving query syntax) 
             (rule_sets := [OraclePPT, PPT, PolyTime])))
     else
       evalTactic (← `(tactic| solve |
-        aesop (config := { terminal := true, assumptionTransparency := .reducible })
+        aesop
+          (config :=
+            { terminal := true
+              enableSimp := false
+              assumptionTransparency := .reducible })
           (rule_sets := [PPT, PolyTime])))
 
 end Cslib.Tactic.PPT
