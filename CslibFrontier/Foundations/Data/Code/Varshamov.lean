@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Data.Code.BallVolume
 public import CslibFrontier.Foundations.Data.Code.ParityCheck
-import CslibFrontier.Foundations.Data.Code.OddCircuit
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.Lindsey
 import Mathlib.LinearAlgebra.Dimension.Free
 
 /-!
@@ -57,33 +57,24 @@ open Finset Matrix Real
 
 variable {ι : Type*} [Fintype ι] [DecidableEq ι]
 
-/-- A nonzero word of `𝔽₂^ι` is orthogonal to exactly half of the words. -/
+/-- A nonzero word of `𝔽₂^ι` is orthogonal to exactly half of the words: the signs
+`(-1) ^ (r ⬝ᵥ x)` cancel (`Matrix.sum_neg_one_pow_val_dotProduct`). -/
 private theorem card_filter_dotProduct_eq_zero_mul_two {x : ι → ZMod 2} (hx : x ≠ 0) :
     #{r : ι → ZMod 2 | r ⬝ᵥ x = 0} * 2 = 2 ^ Fintype.card ι := by
-  obtain ⟨j, hj⟩ : ∃ j, x j ≠ 0 := by
-    by_contra! h
-    exact hx (funext h)
-  have hxj : x j = 1 := by
-    revert hj; generalize x j = a; revert a; decide
-  set e : ι → ZMod 2 := Pi.single j 1
-  have he : e ⬝ᵥ x = 1 := by simp [e, hxj]
-  have htwo : ∀ a : ZMod 2, a + 1 + 1 = a := by decide
-  have hee : e + e = 0 := funext fun i => by
-    simp only [Pi.add_apply, Pi.zero_apply]; generalize e i = a; revert a; decide
-  have hflip : #{r : ι → ZMod 2 | r ⬝ᵥ x = 0} = #{r : ι → ZMod 2 | r ⬝ᵥ x = 1} :=
-    card_bij' (fun r _ => r + e) (fun r _ => r + e)
-      (fun r hr => by simp_all [add_dotProduct]) (fun r hr => by
-        simp only [mem_filter, mem_univ, true_and] at hr ⊢
-        rw [add_dotProduct, he, ← htwo (r ⬝ᵥ x), hr]; decide)
-      (fun r _ => by rw [add_assoc, hee, add_zero]) (fun r _ => by rw [add_assoc, hee, add_zero])
+  have hsign (z : ZMod 2) : (-1 : ℝ) ^ z.val = if z = 0 then 1 else -1 := by
+    obtain rfl | rfl : z = 0 ∨ z = 1 := by revert z; decide
+    · simp
+    · simp [ZMod.val_one]
+  have h := sum_neg_one_pow_val_dotProduct x
+  simp only [hx, ite_false, hsign, sum_ite, sum_const, nsmul_eq_mul, mul_one, mul_neg] at h
   have hsplit := card_filter_add_card_filter_not (s := (univ : Finset (ι → ZMod 2)))
     fun r => r ⬝ᵥ x = 0
-  have hne : (univ.filter fun r : ι → ZMod 2 => ¬ r ⬝ᵥ x = 0) =
-      univ.filter fun r => r ⬝ᵥ x = 1 := by
-    ext r; simp only [mem_filter, mem_univ, true_and]
-    generalize r ⬝ᵥ x = a; revert a; decide
-  rw [hne, ← hflip, card_univ, Fintype.card_fun, ZMod.card] at hsplit
-  omega
+  rw [card_univ, Fintype.card_fun, ZMod.card] at hsplit
+  have hR : (#{r : ι → ZMod 2 | r ⬝ᵥ x = 0} : ℝ) * 2 = 2 ^ Fintype.card ι := by
+    have := congrArg (Nat.cast (R := ℝ)) hsplit
+    push_cast at this
+    linarith
+  exact_mod_cast hR
 
 omit [DecidableEq ι] in
 /-- **Varshamov's union bound** [Varshamov1957]. If a set `B` of nonzero words of `𝔽₂^ι` has fewer

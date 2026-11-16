@@ -19,14 +19,15 @@ public import CslibFrontier.Probability.StatisticalDistance.Product
 If no circuit of size `S` predicts a Boolean function `f` with advantage more than `ε`, then the
 values `f(x₁) ⋯ f(xₘ)` on independent uniform inputs are within statistical distance `ε m` of
 `m` uniform bits (`Cslib.Circuits.Boolean.dist_iid_map_uniformOfFintype_le`)
-[Arora and Barak, Exercise 16.11][AroraBarak09]. The constant circuits already show that `f` is
+[Arora and Barak, Exercise 16.11][AroraBarak09], reading the exercise's undefined
+"`(S, ε)`-hard" this way. The constant circuits already show that `f` is
 `ε`-close to balanced, and independent coordinates add their distances
 (`Cslib.Probability.PMF.dist_iid_le`).
 
 ## Main results
 
-* `Cslib.Circuits.Boolean.dist_iid_map_uniformOfFintype_le`: Arora–Barak Exercise 16.11, in the
-  corrected form below.
+* `Cslib.Circuits.Boolean.dist_iid_map_uniformOfFintype_le`: Arora–Barak Exercise 16.11, under
+  the interpretation of "`(S, ε)`-hard" stated below.
 
 ## References
 
@@ -48,9 +49,13 @@ Boolean function of De Morgan circuit complexity at most `S` agree with `f` on a
 are among them. Then `f(x₁) ⋯ f(xₘ)`, for independent uniform `x₁, …, xₘ`, is within statistical
 distance `ε m` of `m` uniform bits.
 
-The draft does not define "`(S, ε)`-hard"; this is the reading the exercise needs, the
-complement of Definition 16.2's `(S, ε)`-pseudorandomness for the distinguisher that outputs its
-guess of `f`, with `S` at least the size of a constant circuit. -/
+The draft does not define "`(S, ε)`-hard". The premise is this file's interpretation of it, with
+two parameters: every function of complexity at most `S` agrees with `f` on at most a `1 / 2 + ε`
+fraction of the inputs, and `S ≥ 1`. It is not derived from Definition 16.2, which concerns the
+indistinguishability of distributions. With `ε = 1 / S` it is `IsAverageCaseHard f S`, the draft's
+average-case hardness `H_avg(f) ≥ S` (Definition 16.7) with the strict bound `< 1 / 2 + 1 / S`
+relaxed to `≤`; the relaxed premise is weaker, so the bound applies to every `f` with
+`H_avg(f) ≥ S`. Separating `ε` from `S` allows advantages other than `1 / S`. -/
 theorem dist_iid_map_uniformOfFintype_le {f : BooleanFunction n} {S : ℕ} {ε : ℝ} (hS : 1 ≤ S)
     (hf : ∀ g : BooleanFunction n, complexity interpretation (single g) ≤ S →
       (#{x | g x = f x} : ℝ) / 2 ^ n ≤ 1 / 2 + ε) (m : ℕ) :

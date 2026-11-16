@@ -4,7 +4,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Christian Reitwiessner
 -/
 
--- upstream: candidate
+module
+-- upstream: local-only (tests)
+
 import CslibFrontier.Computability.Circuit.Boolean.FanInTwo
 import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.Samples
 import CslibFrontier.Foundations.Combinatorics.Expander.AffineTower
@@ -15,7 +17,8 @@ import CslibFrontier.Foundations.Data.Code.Varshamov
 /-! # Satisfying instances for the Arora–Barak short steps
 
 Each hypothesis of the theorems for Arora–Barak Theorem 16.35, Lemma 17.9, Claim 18.34 and
-Exercises 13.2, 16.11, 17.6 and 17.10(b) holds in a concrete case.
+Exercises 13.2, 16.11, 17.6 and 17.10(b) holds in a concrete case. The file is a `module`
+client with ordinary imports, so it checks the public API as downstream modules see it.
 -/
 
 set_option linter.privateModule false
@@ -59,6 +62,22 @@ example (n m : ℕ) (f : BooleanFunction n) :
   have : (#{x : BitString n | g x = f x} : ℝ) ≤ 2 ^ n := by
     exact_mod_cast (card_le_univ _).trans_eq (by simp)
   linarith
+
+/-- Exercise 16.11 from average-case hardness: with `ε = 1 / S`, `IsAverageCaseHard f S` is the
+premise. -/
+example (n S m : ℕ) (f : BooleanFunction n) (hS : 1 ≤ S)
+    (hf : Cslib.Circuits.Boolean.IsAverageCaseHard f S) :
+    dist (Cslib.Probability.PMF.iid
+        ((Cslib.Probability.PMF.uniformOfFintype (BitString n)).map f) m)
+      (Cslib.Probability.PMF.iid (Cslib.Probability.PMF.uniformOfFintype Bool) m) ≤ 1 / S * m :=
+  Cslib.Circuits.Boolean.dist_iid_map_uniformOfFintype_le hS hf m
+
+/-- The shared incidence count on two overlapping sets inside `{0,1,2}`:
+`(2 + 2)² ≤ 3 · (2 + 1 + 1 + 2)`. -/
+example : (∑ c ∈ univ, #(![({0, 1} : Finset ℕ), {1, 2}] c)) ^ 2 ≤
+    #({0, 1, 2} : Finset ℕ) * ∑ c ∈ univ, ∑ c' ∈ univ,
+      #(![({0, 1} : Finset ℕ), {1, 2}] c ∩ ![({0, 1} : Finset ℕ), {1, 2}] c') :=
+  sq_sum_card_le_card_mul_sum_sum_card_inter _ _ (by decide)
 
 /-- Exercise 13.2 for every circuit of unbounded fan-in. -/
 example {n m : ℕ} (C : Cslib.Circuits.Circuit Cslib.Circuits.Boolean.Unbounded.signature n m)
