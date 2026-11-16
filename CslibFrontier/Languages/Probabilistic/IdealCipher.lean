@@ -78,6 +78,7 @@ noncomputable def forgetfulAnswer (q : Query Key Block) :
 
 /-- Generates a complete tuple of independent random permutations extending the given cache
 function. -/
+@[expose]
 noncomputable def complete (st : Key → Cache Block) : PMF (Key → Equiv.Perm Block) :=
   PMF.pi (fun k => RandomPermutation.complete (st k))
 

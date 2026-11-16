@@ -68,8 +68,9 @@ encryptions end in `true`. -/
 example : ∃ ct ∈ (ProbComp.eval (ivStreamEncrypt blockCountKeystream 1 [] [false, false])).support,
     ivStreamXorBody 1 [false] ct ∉ (ProbComp.eval (ivStreamEncrypt blockCountKeystream 1 []
       (List.zipWith xor [false, false] [false]))).support := by
-  simp only [ivStreamEncrypt, ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList,
-    PMF.mem_support_bind_iff, PMF.mem_support_pure_iff, BitString.mem_support_uniformList_iff]
+  simp only [ivStreamEncrypt, ivModeEncrypt, ProbComp.eval_bind, ProbComp.eval_pure,
+    BitString.eval_sampleList, PMF.mem_support_bind_iff, PMF.mem_support_pure_iff,
+    BitString.mem_support_uniformList_iff]
   refine ⟨[false, false, false], ⟨[false], rfl, rfl⟩, ?_⟩
   rintro ⟨iv, -, h⟩
   simp only [ivStreamXorBody, blockCountKeystream] at h

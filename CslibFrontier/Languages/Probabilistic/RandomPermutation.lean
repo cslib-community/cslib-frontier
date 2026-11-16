@@ -61,7 +61,8 @@ with polymorphic bidirectional query deduplication over arbitrary `[DecidableEq 
 
 ## Main definitions
 
-* `Cslib.RandomPermutation.PermQuery`, `PermQuery.ofBoolProd`, `PermQuery.toCacheEntry`,
+* `Cslib.RandomPermutation.PermQuery`, `PermQuery.ofBoolProd`, `PermQuery.equivBoolProd`,
+  `PermQuery.toCacheEntry`,
   `PermOracleSpec`, `evalPerm`, `liftForward`, `liftBoolProd`: bidirectional permutation queries,
   oracle specification, deterministic evaluation, and query liftings.
 * `Cslib.RandomPermutation.Cache`, `invLookup`, `AgreesWith`, `IsPartialBijection`, `extPerms`,
@@ -177,6 +178,25 @@ def PermQuery.ofBoolProd {α : Type} : Bool × α → PermQuery α
 /-- Tag `true` converts `(true, y)` into the inverse query `.inverse y`. -/
 @[simp] theorem PermQuery.ofBoolProd_true {α : Type} (y : α) :
     PermQuery.ofBoolProd (true, y) = .inverse y := rfl
+
+/-- Bidirectional queries as channel-tagged points: `.forward x` is `(false, x)` and `.inverse y` is
+`(true, y)`. The inverse is `PermQuery.ofBoolProd`. -/
+def PermQuery.equivBoolProd (α : Type) : PermQuery α ≃ Bool × α where
+  toFun
+    | .forward x => (false, x)
+    | .inverse y => (true, y)
+  invFun := PermQuery.ofBoolProd
+  left_inv := by rintro (x | y) <;> rfl
+  right_inv := by rintro ⟨_ | _, x⟩ <;> rfl
+
+@[simp] theorem PermQuery.equivBoolProd_forward {α : Type} (x : α) :
+    PermQuery.equivBoolProd α (.forward x) = (false, x) := rfl
+
+@[simp] theorem PermQuery.equivBoolProd_inverse {α : Type} (y : α) :
+    PermQuery.equivBoolProd α (.inverse y) = (true, y) := rfl
+
+@[simp] theorem PermQuery.equivBoolProd_symm_apply {α : Type} (p : Bool × α) :
+    (PermQuery.equivBoolProd α).symm p = PermQuery.ofBoolProd p := rfl
 
 /-- Lift a `Bool × α` bidirectional oracle program into a `PermOracleSpec α` program. -/
 def liftBoolProd {α β : Type} (program : OracleComp (fun _ : Bool × α => α) β) :
@@ -373,7 +393,7 @@ theorem AgreesWith.pairwise_snd_of_pairwise_fst {cache : Cache α} {π : Equiv.P
 
 /-! Most arguments below treat forward and inverse queries alike: a query either hits `cache`,
 or misses it and records the cache entry `PermQuery.toCacheEntry ⟨q, a⟩` for its answer `a`. The
-private `cachedAnswer` and the facts about it below put both directions in this form. -/
+recorded answer `cachedAnswer` and the facts about it below put both directions in this form. -/
 
 /-- The recorded answer to `q` in `cache`: its image for a forward query, its preimage for an
 inverse query. -/
@@ -381,7 +401,16 @@ def cachedAnswer (cache : Cache α) : PermQuery α → Option α
   | .forward x => cache.lookup x
   | .inverse y => invLookup cache y
 
-private theorem AgreesWith.evalPerm_eq_of_cachedAnswer_eq_some {cache : Cache α}
+/-- A recorded answer `a` to `q` is stored in `cache` as the entry
+`PermQuery.toCacheEntry ⟨q, a⟩`. -/
+theorem toCacheEntry_mem_of_cachedAnswer_eq_some {cache : Cache α} {q : PermQuery α} {a : α}
+    (h : cachedAnswer cache q = some a) : PermQuery.toCacheEntry ⟨q, a⟩ ∈ cache := by
+  cases q with
+  | forward x => exact mem_of_lookup_eq_some h
+  | inverse y => exact mem_of_invLookup_eq_some h
+
+/-- A permutation that agrees with `cache` gives every query the answer recorded in `cache`. -/
+theorem AgreesWith.evalPerm_eq_of_cachedAnswer_eq_some {cache : Cache α}
     {π : Equiv.Perm α} (hπ : AgreesWith cache π) {q : PermQuery α} {a : α}
     (h : cachedAnswer cache q = some a) : evalPerm π q = a := by
   cases q with
@@ -856,7 +885,8 @@ private theorem AgreesWith.evalPerm_mem_freshAnswers {cache : Cache α} {π : Eq
   | forward x => exact mem_unusedRange_iff.mpr (hπ.invLookup_apply_eq_none hq)
   | inverse y => exact mem_unusedDomain_iff.mpr (hπ.lookup_symm_apply_eq_none hq)
 
-private theorem IsPartialBijection.freshAnswers_nonempty {cache : Cache α}
+/-- A query that misses a partial bijection still has a fresh answer available. -/
+theorem IsPartialBijection.freshAnswers_nonempty {cache : Cache α}
     (h : IsPartialBijection cache) {q : PermQuery α} (hq : cachedAnswer cache q = none) :
     (freshAnswers cache q).Nonempty :=
   let ⟨_, hπ⟩ := h
@@ -864,7 +894,7 @@ private theorem IsPartialBijection.freshAnswers_nonempty {cache : Cache α}
 
 /-- Recording a fresh answer `a` to a query `q` that misses `cache` adds an entry whose input and
 output are both new to `cache`. -/
-private theorem lookup_and_invLookup_toCacheEntry_eq_none {cache : Cache α} {q : PermQuery α}
+theorem lookup_and_invLookup_toCacheEntry_eq_none {cache : Cache α} {q : PermQuery α}
     (hq : cachedAnswer cache q = none) {a : α} (ha : a ∈ freshAnswers cache q) :
     cache.lookup (PermQuery.toCacheEntry ⟨q, a⟩).1 = none ∧
       invLookup cache (PermQuery.toCacheEntry ⟨q, a⟩).2 = none := by
@@ -872,7 +902,9 @@ private theorem lookup_and_invLookup_toCacheEntry_eq_none {cache : Cache α} {q 
   | forward x => exact ⟨hq, mem_unusedRange_iff.mp ha⟩
   | inverse y => exact ⟨mem_unusedDomain_iff.mp ha, hq⟩
 
-private theorem IsPartialBijection.cons_toCacheEntry {cache : Cache α}
+/-- Recording a fresh answer to a query that misses a partial bijection keeps it a partial
+bijection. -/
+theorem IsPartialBijection.cons_toCacheEntry {cache : Cache α}
     (h : IsPartialBijection cache) {q : PermQuery α} (hq : cachedAnswer cache q = none) {a : α}
     (ha : a ∈ freshAnswers cache q) :
     IsPartialBijection (PermQuery.toCacheEntry ⟨q, a⟩ :: cache) :=
@@ -955,11 +987,13 @@ omit [Nonempty α] in
   ext π
   simp [complete, PMF.uniformOfFinset_apply, PMF.uniformOfFintype_apply]
 
-private theorem answer_of_cachedAnswer_eq_some {q : PermQuery α} {cache : Cache α} {a : α}
+/-- `answer` returns a recorded answer and leaves the cache unchanged. -/
+theorem answer_of_cachedAnswer_eq_some {q : PermQuery α} {cache : Cache α} {a : α}
     (h : cachedAnswer cache q = some a) : answer q cache = PMF.pure (a, cache) := by
   cases q <;> simp_all [answer, cachedAnswer]
 
-private theorem answer_of_cachedAnswer_eq_none {q : PermQuery α} {cache : Cache α}
+/-- On a query that misses the cache, `answer` samples a fresh answer uniformly and records it. -/
+theorem answer_of_cachedAnswer_eq_none {q : PermQuery α} {cache : Cache α}
     (h : cachedAnswer cache q = none) (hne : (freshAnswers cache q).Nonempty) :
     answer q cache = (PMF.uniformOfFinset _ hne).map fun a =>
       (a, PermQuery.toCacheEntry ⟨q, a⟩ :: cache) := by
