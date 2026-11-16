@@ -14,8 +14,8 @@ public import CslibFrontier.Crypto.Primitives.PRG.Deterministic
 public import CslibFrontier.Crypto.Computational.PseudorandomGenerator
 public import CslibFrontier.Crypto.Computational.Nonuniform.Basic
 import CslibFrontier.Computability.Circuit.Boolean.PolynomialTime
-import CslibFrontier.Computability.Circuit.Boolean.Advice
-import CslibFrontier.Computability.Circuit.Boolean.Hierarchy
+import CslibFrontier.Computability.Circuit.Boolean.Encoding.Certificate
+import CslibFrontier.Computability.Circuit.Boolean.EvaluationTime
 import CslibFrontier.Crypto.Computational.Stretch
 import CslibFrontier.Crypto.Primitives.PRG.Game
 import CslibFrontier.Computability.Circuit.Boolean.Substitution
@@ -44,10 +44,11 @@ polynomial stretch by the library's `Cslib.Crypto.NonuniformPRG.amplify`, and ev
 fools circuits of every polynomial size (`Cslib.Crypto.NonuniformPRG.circuitSecurePRG`).
 
 Arora and Barak's Theorem 10.17 itself is not proved. Its `c`-th generator need only have output
-length `m(n) > n` and fool circuits of the fixed size `n ^ c`. Amplifying the stretch of such a
-generator by the hybrid argument produces distinguishers that also evaluate the generator, whose
-circuits may be larger than `n ^ c`, so fixed-size security does not survive the amplification;
-`NonuniformPRG.amplify` applies only to generators secure against every polynomial size.
+length `m(n) > n` and fool circuits of the fixed size `n ^ c`. Amplifying the stretch by the hybrid
+argument produces distinguishers that also evaluate the generator, and the generator's circuits
+need not have size at most `n ^ c`. So the available fixed-size premise does not justify the
+amplification. `NonuniformPRG.amplify` applies only to generators secure against every polynomial
+size.
 
 Their pseudorandom generators are those of [Arora and Barak, Definition 10.11][AroraBarak07]
 (printed pages 193–194): a polynomial-time computable family `g_n : {0,1}^n → {0,1}^{m(n)}` with
@@ -331,57 +332,43 @@ section Nonuniform
 
 open Cslib.Crypto Cslib.Probability
 
-/-- A test on `ℓ k` bits, extended to every input length `m` by the constant `false`. -/
-private noncomputable def paddedTest (L : ℕ) (g : BooleanFunction L) (m : ℕ) :
-    BooleanFunction m :=
-  if h : m = L then cast (by rw [h]) g else fun _ => false
-
-private theorem paddedTest_of_eq {L : ℕ} (g : BooleanFunction L) {m : ℕ} (hm : m = L)
-    (x : Fin m → Bool) : paddedTest L g m x = g fun i => x (Fin.cast hm.symm i) := by
-  subst hm
-  simp [paddedTest]
-
-private theorem complexity_paddedTest_le {L : ℕ} (g : BooleanFunction L) (m : ℕ) :
-    complexity interpretation (single (paddedTest L g m)) ≤
-      complexity interpretation (single g) + 1 := by
-  by_cases hm : m = L
-  · subst hm
-    simp [paddedTest]
-  · simp only [paddedTest, hm, dite_false, complexity_const]
-    omega
-
 /-- **Nonuniform pseudorandom generators are circuit-secure.** A generator secure against
 polynomial-time tests with polynomially bounded advice (`Cslib.Crypto.NonuniformPRG`) is secure,
 for every `c`, against De Morgan circuits with `k ^ c` gates in the sense of
-`Cslib.Complexity.CircuitSecurePRG`. The advice at seed length `k` lists a circuit of largest
-advantage for every input length up to `ℓ k` (`Cslib.Circuits.Boolean.familyAdvice`), and the
-advised test evaluates it on the challenge (`Cslib.Circuits.Boolean.evalAdvice`) in polynomial
-time; if circuits of size `k ^ c` had advantage above `1 / k ^ c'` infinitely often, this test
-would have non-negligible advantage. -/
+`Cslib.Complexity.CircuitSecurePRG`. Suppose circuits with `k ^ c` gates had advantage above
+`1 / k ^ c'` for infinitely many `k`. At each such `k`, choose one violating circuit and give its
+certificate (`Cslib.Circuits.Boolean.certificate`) as advice. The advised test reads the
+certificate back (`Cslib.Circuits.Boolean.readCertificate`) and evaluates it on the challenge
+(`Cslib.Circuits.Boolean.evalOutput`) in polynomial time, so it has the circuit's advantage at
+those `k`, which contradicts negligibility. -/
 theorem _root_.Cslib.Crypto.NonuniformPRG.circuitSecurePRG {G : List Bool → List Bool}
     {ℓ : ℕ → ℕ} (hG : Crypto.NonuniformPRG G ℓ) (c : ℕ) : CircuitSecurePRG G ℓ (· ^ c) := by
   refine ⟨hG.polyTime, hG.length_eq, hG.stretch, fun c' => ?_⟩
   by_contra hbad
   rw [Filter.not_eventually] at hbad
-  -- at each seed length, a circuit test of largest concern
-  have hex (k : ℕ) : ∃ f : BooleanFunction (ℓ k), complexity interpretation (single f) ≤ k ^ c ∧
+  -- at each seed length, a circuit with `k ^ c` gates, violating security if security fails
+  have hex (k : ℕ) : ∃ C : Circuit signature (ℓ k) 1, C.size ≤ k ^ c ∧
       (¬ (wordFamily G ℓ k).Secure (IsCircuitTest (k ^ c)) ((k : ℝ≥0) ^ c')⁻¹ →
-        (((k : ℝ≥0) ^ c')⁻¹ : ℝ) < (wordFamily G ℓ k).advantage fun y => PMF.pure (f y)) := by
+        (((k : ℝ≥0) ^ c')⁻¹ : ℝ) < (wordFamily G ℓ k).advantage
+          fun y => PMF.pure (C.eval interpretation y 0)) := by
+    have hcirc (f : BooleanFunction (ℓ k)) : ∃ C : Circuit signature (ℓ k) 1,
+        C.size = complexity interpretation (single f) ∧ ∀ y, C.eval interpretation y 0 = f y := by
+      obtain ⟨C, hC, hsize⟩ := exists_computes_size_eq_complexity (I := interpretation)
+        (f := single f)
+      exact ⟨C, hsize, Circuit.computes_single_iff.1 hC⟩
     by_cases hk : (wordFamily G ℓ k).Secure (IsCircuitTest (k ^ c)) ((k : ℝ≥0) ^ c')⁻¹
-    · exact ⟨fun y => y ⟨0, by have := hG.stretch k; omega⟩, by simp, fun h => absurd hk h⟩
+    · obtain ⟨C, hC, -⟩ := hcirc fun y => y ⟨0, by have := hG.stretch k; omega⟩
+      exact ⟨C, by simp [hC], fun h => absurd hk h⟩
     · simp only [Generator.Secure, not_forall, not_le] at hk
       obtain ⟨adv, ⟨f, hf, rfl⟩, hlt⟩ := hk
-      exact ⟨f, hf, fun _ => hlt⟩
-  choose f hf hbreak using hex
-  -- circuits for the tests at every input length
-  have hcirc (k m : ℕ) : ∃ C : Circuit signature m 1, C.size ≤ k ^ c + 1 ∧
-      ∀ x, C.eval interpretation x 0 = paddedTest (ℓ k) (f k) m x := by
-    obtain ⟨C, hC, hsize⟩ := exists_computes_size_eq_complexity (I := interpretation)
-      (f := single (paddedTest (ℓ k) (f k) m))
-    exact ⟨C, hsize ▸ (complexity_paddedTest_le _ m).trans (by have := hf k; omega),
-      Circuit.computes_single_iff.1 hC⟩
-  choose C hCsize hCeval using hcirc
-  set advice : ℕ → List Bool := fun k => familyAdvice (ℓ k) (k ^ c + 1) (C k)
+      obtain ⟨C, hC, hCf⟩ := hcirc f
+      refine ⟨C, hC ▸ hf, fun _ => ?_⟩
+      rw [show (fun y => PMF.pure (C.eval interpretation y 0)) = fun y => PMF.pure (f y) from
+        funext fun y => by rw [hCf]]
+      exact hlt
+  choose C hCsize hbreak using hex
+  set advice : ℕ → List Bool := fun k =>
+    certificate (ℓ k) (k ^ c) (C k).code.1 ((C k).outputs 0).toNat
   -- the output length is polynomial-time and polynomially bounded
   have hℓ : ComputableInPolyTime ℓ encUnary encUnary := by
     have h : ℓ = fun k => (G (List.replicate k false)).length :=
@@ -391,15 +378,15 @@ theorem _root_.Cslib.Crypto.NonuniformPRG.circuitSecurePRG {G : List Bool → Li
       (hG.polyTime.comp (ComputableInPolyTime.bitsReplicate false))
   have hℓpoly : PolynomiallyBounded ℓ := ComputableTidilyInPolyTime.polynomiallyBounded hℓ.tidy
   have hadvice : PolynomiallyBounded fun k => (advice k).length := by
-    have hlen : (fun k => (advice k).length) =
-        fun k => (ℓ k + 1) * certLength (ℓ k) (k ^ c + 1) :=
-      funext fun k => length_familyAdvice fun m _ => hCsize k m
+    have hlen : (fun k => (advice k).length) = fun k => certLength (ℓ k) (k ^ c) :=
+      funext fun k => length_certificate_code (C k) (hCsize k)
     rw [hlen]
     simp only [certLength]
     fun_prop
-  -- the advised test evaluates the listed circuit on the challenge
+  -- the advised test reads the certificate and evaluates its circuit on the challenge
   set test : (ℕ × List Bool) × List Bool → ProbComp Bool := fun q =>
-    pure (evalAdvice (q.1.1 ^ c + 1) (certLength (ℓ q.1.1) (q.1.1 ^ c + 1)) q.1.2 q.2)
+    pure (evalOutput q.2 (readCertificate q.2.length (q.1.1 ^ c) q.1.2).1
+      (readCertificate q.2.length (q.1.1 ^ c) q.1.2).2)
   have htest : IsPPTOn encAdvisedInput encBool test := by
     have hk : ComputableInPolyTime (fun q : (ℕ × List Bool) × List Bool => q.1.1)
         encAdvisedInput encUnary :=
@@ -407,32 +394,30 @@ theorem _root_.Cslib.Crypto.NonuniformPRG.circuitSecurePRG {G : List Bool → Li
     have hw : ComputableInPolyTime (fun q : (ℕ × List Bool) × List Bool => q.1.2)
         encAdvisedInput encBits :=
       (ComputableInPolyTime.snd _ _).comp (ComputableInPolyTime.fst _ _)
-    have hℓk := hℓ.comp hk
-    refine (computableInPolyTime_evalAdvice (by fun_prop) ?_ hw
-      (ComputableInPolyTime.snd _ _)).isPPTOn
-    simp only [certLength]
-    fun_prop
+    have hx : ComputableInPolyTime (fun q : (ℕ × List Bool) × List Bool => q.2)
+        encAdvisedInput encBits := ComputableInPolyTime.snd _ _
+    have hread := computableInPolyTime_readCertificate (ComputableInPolyTime.length_bits.comp hx)
+      (by fun_prop : ComputableInPolyTime (fun q : (ℕ × List Bool) × List Bool => q.1.1 ^ c)
+        encAdvisedInput encUnary) hw
+    exact (computableInPolyTime_evalOutput hx ((ComputableInPolyTime.fst _ _).comp hread)
+      ((ComputableInPolyTime.snd _ _).comp hread)).isPPTOn
   have hneg := hG.secure advice hadvice test htest
-  -- its advantage at seed length `k` is that of the circuit test
+  -- its advantage at seed length `k` is that of the chosen circuit
   have hadv (k : ℕ) : (Game.advantage
       (distinguishingGame (generatorEnsemble G k) fun w => test ((k, advice k), w))
       (distinguishingGame (BitString.uniformList (ℓ k)) fun w => test ((k, advice k), w)) : ℝ) =
-        (wordFamily G ℓ k).advantage fun y => PMF.pure (f k y) := by
+        (wordFamily G ℓ k).advantage fun y => PMF.pure ((C k).eval interpretation y 0) := by
     rw [← PRG.wordFamily_realExperiment hG.length_eq (fun n w => test ((n, advice n), w)),
       ← PRG.wordFamily_idealExperiment ℓ (fun n w => test ((n, advice n), w)),
       ← Generator.advantage_eq_game]
     congr 1
     funext bits
-    simp only [test, advice]
-    rw [ProbComp.eval_pure, evalAdvice_familyAdvice (fun m _ => hCsize k m) (by simp),
-      hCeval, paddedTest_of_eq _ (List.length_ofFn)]
-    congr 2
-    funext i
-    simp
+    simp only [test, advice, List.length_ofFn]
+    rw [ProbComp.eval_pure, ← List.append_nil (certificate _ _ _ _),
+      readCertificate_certificate_code_append (C k) (hCsize k), ← Circuit.eval_eq_evalOutput]
   -- negligible advantage contradicts the frequent breaks
   obtain ⟨m, hm⟩ := (Crypto.negligible_iff _).1 hneg c' 1 one_pos
   obtain ⟨k, hk, hkm⟩ := (hbad.and_eventually (eventually_ge_atTop (m + 1))).exists
-  have hk1 : (1 : ℝ) ≤ k := by exact_mod_cast (show 1 ≤ k by omega)
   have hlt := hbreak k hk
   rw [← hadv k] at hlt
   have hmk := hm k (by omega)
@@ -441,7 +426,9 @@ theorem _root_.Cslib.Crypto.NonuniformPRG.circuitSecurePRG {G : List Bool → Li
       (distinguishingGame (BitString.uniformList (ℓ k)) fun w => test ((k, advice k), w)) : ℝ) <
         1 := by
     exact_mod_cast hmk
-  have hpos : (0 : ℝ) < (k : ℝ) ^ c' := by positivity
+  have hpos : (0 : ℝ) < (k : ℝ) ^ c' := by
+    have : (1 : ℝ) ≤ k := by exact_mod_cast (show 1 ≤ k by omega)
+    positivity
   rw [NNReal.coe_natCast, inv_lt_iff_one_lt_mul₀ hpos] at hlt
   linarith
 

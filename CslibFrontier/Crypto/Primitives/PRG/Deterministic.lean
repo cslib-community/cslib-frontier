@@ -41,7 +41,7 @@ difference of the two counts, scaled by the numbers of seeds and strings
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023], Section 3.1
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Crypto.PRG
 
