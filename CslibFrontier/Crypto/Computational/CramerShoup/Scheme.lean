@@ -20,8 +20,10 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Crypto.Game.Statistical
+import CslibFrontier.Foundations.Data.ZMod.NatCast
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.StatisticalDistance
+import CslibFrontier.Probability.Uniform.Translate
 import CslibFrontier.Tactic.EncLen
 import CslibFrontier.Tactic.GameHop
 
@@ -710,9 +712,7 @@ def encodeGroupNeg (d : F.Desc) (z : List Bool) : List Bool :=
 @[simp]
 theorem encodeGroupNeg_encode (d : F.Desc) (x : F.Carrier d) :
     F.encodeGroupNeg d (F.encode d x) = F.encode d (-x) := by
-  have hneg : ((F.order d - 1 : ℕ) : ZMod (F.order d)) = -1 := by
-    rw [Nat.cast_sub (F.prime_order d).pos, ZMod.natCast_self, Nat.cast_one, zero_sub]
-  simp only [encodeGroupNeg, F.smul_encode, hneg, neg_one_smul]
+  simp only [encodeGroupNeg, F.smul_encode, ZMod.natCast_self_sub_one, neg_one_smul]
 
 /-- Word-level universal projective hash `f_{s,t}(v, w) = s • v + t • w`. -/
 def encodeProjHash (d : F.Desc) (s t : ℕ) (v w : List Bool) : List Bool :=
@@ -1043,30 +1043,6 @@ theorem computableInPolyTime_decodeCramerShoup
   let hmsg := (ComputableTidilyInPolyTime.optionSome encBits).computableInPolyTime.comp'
     (F.computableInPolyTime_add.comp' (hd.prod (he.prod hneg)))
   .ite hcond hmsg (.const none)
-
-/-- Change of variables `σ ↦ δ - α * τ` under two independent uniform draws in `ZMod q`. -/
-private theorem uniform_sub_mul_bind {α_out : Type*} (q : ℕ) [NeZero q] (α : ZMod q)
-    (f : ZMod q → ZMod q → PMF α_out) :
-    ((PMF.uniformOfFintype (ZMod q)).bind fun σ =>
-      (PMF.uniformOfFintype (ZMod q)).bind fun τ => f σ τ) =
-    ((PMF.uniformOfFintype (ZMod q)).bind fun δ =>
-      (PMF.uniformOfFintype (ZMod q)).bind fun τ => f (δ - α * τ) τ) := by
-  rw [PMF.bind_comm]
-  conv_rhs => rw [PMF.bind_comm]
-  refine congrArg _ (funext fun τ => ?_)
-  change (PMF.uniformOfFintype (ZMod q)).bind (fun σ => f σ τ) =
-    (PMF.uniformOfFintype (ZMod q)).bind ((fun σ => f σ τ) ∘ Equiv.subRight (α * τ))
-  rw [← PMF.bind_map, PMF.uniformOfFintype_map_equiv]
-
-/-- Change of variables `τ ↦ ξ - c` under a uniform draw in `ZMod q`. -/
-private theorem uniform_sub_bind {α_out : Type*} (q : ℕ) [NeZero q] (c : ZMod q)
-    (f : ZMod q → PMF α_out) :
-    ((PMF.uniformOfFintype (ZMod q)).bind fun τ => f τ) =
-    ((PMF.uniformOfFintype (ZMod q)).bind fun ξ => f (ξ - c)) := by
-  change (PMF.uniformOfFintype (ZMod q)).bind f =
-    (PMF.uniformOfFintype (ZMod q)).bind (f ∘ Equiv.subRight c)
-  rw [← PMF.bind_map, PMF.uniformOfFintype_map_equiv]
-
 
 /-! ### Collision detection and decryption oracle replies -/
 
@@ -1592,11 +1568,12 @@ theorem advantage_cramerShoupGame3_game3Half_le
       (Q₁ : ℝ≥0) / (m : ℝ≥0) := by
   dsimp only [cramerShoupGame3, cramerShoupGame3Half, PMF.monad_bind_eq_bind]
   peel_binds d α β γ
-  rw [uniform_sub_mul_bind (F.order d) α]
+  rw [← PMF.uniformOfFintype_bind_bind_sub_right _ (fun τ => α * τ)]
   peel_binds δ τ
-  rw [uniform_sub_mul_bind (F.order d) α]
+  rw [← PMF.uniformOfFintype_bind_bind_sub_right _ (fun τ => α * τ)]
   peel_binds δ₁
-  conv_lhs => enter [1, 2, τ₁]; rw [uniform_sub_mul_bind (F.order d) α]
+  conv_lhs =>
+    enter [1, 2, τ₁]; rw [← PMF.uniformOfFintype_bind_bind_sub_right _ (fun τ => α * τ)]
   simp only [F.encodeCramerShoupPublicKey_fiber_eq]
   let U := PMF.uniformOfFintype (ZMod (F.order d))
   rw [advantage_bind_comm U U]; peel_binds δ₂
@@ -1699,7 +1676,8 @@ theorem advantage_cramerShoupGame3Half_game4_le
         (U.bind fun τ₁ => U.bind fun τ₂ => f τ₁ τ₂) =
         U.bind fun ξ => U.bind fun τ₂ => f (ξ - ρ * τ₂) τ₂ := by
       rw [PMF.bind_comm]; conv_rhs => rw [PMF.bind_comm]
-      exact congrArg _ (funext fun τ₂ => uniform_sub_bind (F.order d) (ρ * τ₂) (fun τ₁ => f τ₁ τ₂))
+      exact congrArg _ (funext fun τ₂ =>
+        (PMF.uniformOfFintype_bind_sub_right (ρ * τ₂) (fun τ₁ => f τ₁ τ₂)).symm)
     conv_lhs => enter [1]; rw [hshift_one]
     conv_lhs => enter [2]; rw [hshift_one]
     peel_binds ξ

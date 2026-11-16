@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Crypto.Computational.GGM.Hybrid
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF.Bind
@@ -17,7 +18,6 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.BitString
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Languages.Probabilistic.Oracle.Norm
-import CslibFrontier.Languages.Probabilistic.Oracle.Substitution
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
 import CslibFrontier.Tactic.SuppCases
 
@@ -145,9 +145,6 @@ theorem isPPTOn_expansionGame {Caller : Type} {input : Caller ↪ List Bool}
     {adversary : OracleDistinguisher} (hadversary : IsOraclePPT encBool adversary) :
     IsPPTOn input encBool
       (fun a => expansionGame generator (sample a) adversary (width a) (depth a)) := by
-  have hgenerator := hgenerator.tidy
-  have hwidth := hwidth.tidy
-  have hdepth := hdepth.tidy
   have hrun : IsPPTOn input (encPair encBool cacheEncoding) (fun a =>
       (OracleComp.interpret
         (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))

@@ -286,8 +286,8 @@ theorem isPPTOn_runSeq_honest {α Caller : Type} {enc : α ↪ List Bool}
     (prepare := fun c => (n c, a c, z c)) (initial := fun c => (false, coinsList c))
     (resources := fun c _ => (encList encProverCoins (coinsList c)).length * m c +
       (encList encProverCoins (coinsList c)).length * (s c + 1))
-    (hn.prod (ha.prod hz)).tidy hstep.isPPTOn ((ComputableInPolyTime.const false).prod hcoins).tidy
-    (fun c st => List.Sublist st.2 (coinsList c)) (fun _ => List.Sublist.refl _) hbound.tidy
+    (hn.prod (ha.prod hz)) hstep.isPPTOn ((ComputableInPolyTime.const false).prod hcoins)
+    (fun c st => List.Sublist st.2 (coinsList c)) (fun _ => List.Sublist.refl _) hbound
     (fun c request state hstate result hresult => ?_)
   simp only [ProbComp.eval_pure, PMF.support_pure, Set.mem_singleton_iff] at hresult
   subst hresult
@@ -658,25 +658,19 @@ theorem spaceBound_of_encFiniteConfig {k : ℕ} {Control : Type} [Finite Control
     have hL := hstack tape.left
     have hR := hstack tape.right
     simp only [Cslib.Turing.BiTape.spaceUsed, encBiTape_apply, length_encPair]; omega
-  have hpi {Index Value : Type} [Fintype Index] (enc : Value ↪ List Bool)
-      (values : Index → Value) (i : Index) :
-      (enc (values i)).length ≤ (encPi enc values).length := by
-    rw [encPi_apply]
-    apply SizedListEncoding.length_elem_le (encA := enc) (encL := encList enc)
-    rw [List.mem_ofFn]; exact ⟨Fintype.equivFin Index i, by simp⟩
   refine ⟨?_, ?_, ?_, ?_, ?_⟩
   · simp only [encFiniteConfig_apply, encFiniteCfg_apply, length_encPair, encBits_apply]; omega
   · intro tape
     have h1 := htape (cfg.tapes.workTapes tape)
-    have h2 := hpi (encBiTape encBool) cfg.tapes.workTapes tape
+    have h2 := length_le_encPi (encBiTape encBool) cfg.tapes.workTapes tape
     simp only [encFiniteConfig_apply, encFiniteCfg_apply, length_encPair]; omega
   · simp only [encFiniteConfig_apply, encFiniteCfg_apply, length_encPair, encBits_apply]; omega
   · intro channel
-    have h1 := hpi (encPair encBits (encBiTape encBool)) cfg.channels channel
+    have h1 := length_le_encPi (encPair encBits (encBiTape encBool)) cfg.channels channel
     simp only [encFiniteConfig_apply, length_encPair, encBits_apply] at h1 ⊢; omega
   · intro channel
     have h1 := htape (cfg.channels channel).2
-    have h2 := hpi (encPair encBits (encBiTape encBool)) cfg.channels channel
+    have h2 := length_le_encPi (encPair encBits (encBiTape encBool)) cfg.channels channel
     simp only [encFiniteConfig_apply, length_encPair] at h2 ⊢; omega
 
 /-- One step of `oneSessionStep` preserves the countdown and `FiniteConfig.SpaceBound`. -/
@@ -875,9 +869,9 @@ theorem isPPTOn_runEmptyOracle {α β : Type} {input : α ↪ List Bool} {output
   have hsub := h.run_interpret_preprocess (Caller := α) (State := Unit)
     (operationEncoding := encFinEnum Unit) (stateEncoding := encFinEnum Unit)
     (handler := fun _ _ _ => pure ([], ())) (prepare := id) (initial := fun _ => ())
-    (resources := fun _ _ => 0) ComputableTidilyInPolyTime.id'
-    (ComputableInPolyTime.const ([], ())).isPPTOn (ComputableTidilyInPolyTime.const ())
-    (fun _ _ => True) (fun _ => trivial) (ComputableTidilyInPolyTime.const 0)
+    (resources := fun _ _ => 0) ComputableInPolyTime.id'
+    (ComputableInPolyTime.const ([], ())).isPPTOn (ComputableInPolyTime.const ())
+    (fun _ _ => True) (fun _ => trivial) (ComputableInPolyTime.const 0)
     (fun _ _ _ _ result hres => by
       simp only [ProbComp.eval_pure, PMF.support_pure, Set.mem_singleton_iff] at hres
       subst hres; exact ⟨trivial, by simp, by simp⟩)

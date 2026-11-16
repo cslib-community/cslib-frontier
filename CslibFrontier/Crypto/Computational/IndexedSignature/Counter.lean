@@ -7,15 +7,13 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Crypto.Computational.IndexedSignature
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Computability.Probabilistic.Oracle.Composition
-import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
-import CslibFrontier.Languages.Probabilistic.Oracle.Support
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Tactic.PolyTime.Init
@@ -204,8 +202,8 @@ theorem isPPTOn_run_counterSigningOracle {adversary : Forger}
     (resources := fun caller query =>
       c * (2 * caller.2.2.length + 2 * S.capacity caller.1 + query.length + 3) ^ d +
         2 * S.capacity caller.1 + 2 * query.length + 4)
-    (ComputableInPolyTime.tidy (by fun_prop)) hhandler (ComputableTidilyInPolyTime.const (0, []))
-    (fun _ _ => True) (fun _ => trivial) (ComputableInPolyTime.tidy (by fun_prop))
+    (by fun_prop) hhandler (ComputableInPolyTime.const (0, []))
+    (fun _ _ => True) (fun _ => trivial) (by fun_prop)
   intro caller request state _ result hresult
   obtain ⟨j, signed⟩ := state
   unfold counterSigningOracle at hresult
@@ -499,7 +497,7 @@ theorem isOraclePPT_counterForger {bound : ℕ → ℕ → ℕ}
     (encIn := encPair (encPair encUnary encBits) encBits)
     (u := fun pair => pair.1.1) (v := fun pair => pair.2.length)
     hboundPoly (by fun_prop) (by fun_prop)
-  refine ((hadversary.run_interpret_preprocess_open' (prepare := fun c => c)
+  refine ((hadversary.run_interpret_preprocess_open (prepare := fun c => c)
       (initial := fun _ => (0 : ℕ))
       (resources := fun c w => bound c.1 w.length + 2 * S.capacity c.1 + 1)
       ComputableInPolyTime.id' (isOraclePPTOn_counterHandler hboundPoly)

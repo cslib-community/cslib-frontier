@@ -9,9 +9,9 @@ module
 
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
-import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Languages.Probabilistic.Oracle.Support
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Tactic.PolyTime
@@ -181,8 +181,8 @@ private theorem interpret_coinDistinguisher (oracle : Unit × List Bool → Prob
 /-- The real coin game is the real PRF game of the forwarded adversary. -/
 theorem eval_coinRealGame (adversary : OracleDistinguisher) (N : ℕ) :
     ProbComp.eval (coinRealGame family adversary N) =
-      ProbComp.eval (prfRealGame family (coinDistinguisher adversary) N) := by
-  simp only [coinRealGame, prfRealGame, ProbOracleComp.run, ProbComp.eval_bind,
+      ProbComp.eval (prfRealGame id family (coinDistinguisher adversary) N) := by
+  simp only [coinRealGame, prfRealGame, id_eq, ProbOracleComp.run, ProbComp.eval_bind,
     BitString.eval_sampleList]
   refine PMF.bind_congr_on_support _ _ _ fun key hkey => ?_
   have hlen := BitString.length_of_mem_support_uniformList hkey
@@ -194,8 +194,8 @@ theorem eval_coinRealGame (adversary : OracleDistinguisher) (N : ℕ) :
 /-- The ideal coin game is the ideal PRF game of the forwarded adversary. -/
 theorem eval_coinIdealGame (adversary : OracleDistinguisher) (N : ℕ) :
     ProbComp.eval (coinIdealGame adversary N) =
-      ProbComp.eval (prfIdealGame (coinDistinguisher adversary) N) := by
-  simp only [coinIdealGame, prfIdealGame, ProbOracleComp.run, ProbComp.eval_bind]
+      ProbComp.eval (prfIdealGame id id (coinDistinguisher adversary) N) := by
+  simp only [coinIdealGame, prfIdealGame, id_eq, ProbOracleComp.run, ProbComp.eval_bind]
   refine PMF.bind_congr_on_support _ _ _ fun table _ => ?_
   rw [interpret_coinDistinguisher]
   refine congrArg (fun h => ProbComp.eval (OracleComp.interpret

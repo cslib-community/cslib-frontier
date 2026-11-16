@@ -12,16 +12,12 @@ public import CslibFrontier.Computability.Probabilistic.Oracle.Parameter
 public import CslibFrontier.Computability.Probabilistic.Parameter
 public import CslibFrontier.Crypto.Encoding
 public import CslibFrontier.Crypto.Game
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 import CslibFrontier.Probability.PMF.Bind
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
-import CslibFrontier.Computability.Probabilistic.Oracle.Composition
-import CslibFrontier.Computability.Probabilistic.Oracle.Tidy
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
-import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Tactic.PolyTime.Init
 
@@ -261,7 +257,7 @@ theorem isPPTOn_run_signingOracleOf {sign : List Bool → List Bool → ProbComp
   have hstate := ComputableTidilyInPolyTime.snd
     (encPair encUnary (encPair encBits encBits))
     (encPair (encPair (encFinEnum Unit) encBits) (encList encBits))
-  apply hadversary.run_interpret_preprocess' (operationEncoding := encFinEnum Unit)
+  apply hadversary.run_interpret_preprocess (operationEncoding := encFinEnum Unit)
     (handler := fun caller : ℕ × (List Bool × List Bool) => signingOracleOf sign caller.2.2)
     (prepare := fun caller : ℕ × (List Bool × List Bool) => (caller.1, caller.2.1))
     (initial := fun _ => ([] : List (List Bool)))
@@ -316,7 +312,10 @@ theorem isPPT_eufCmaGame (S : SignatureScheme) {adversary : Forger}
   ((S.isPPTOn_eufCmaGame hadversary).preprocess (ComputableInPolyTime.fst _ _)).isPPT
 
 /-- Existential unforgeability under adaptive chosen-message attack (EUF-CMA) against uniform
-strict oracle-PPT adversaries. -/
+strict oracle-PPT adversaries: [BonehShoup2023], Attack Game 13.1 and Definition 13.2
+(pp. 529–530), for the message space of `n`-bit words. The signing oracle signs words of any
+length, while a forgery counts only on an `n`-bit message; in the source, signing queries lie in
+the message space. -/
 def EUFCMA (S : SignatureScheme) : Prop :=
   Game.Indistinguishable
     (fun adversary n => ProbComp.eval (S.eufCmaGame adversary n))
@@ -388,7 +387,7 @@ theorem isPPTOn_run_oneTimeSigningOracleOf {sign : List Bool → List Bool → P
   have hstate := ComputableTidilyInPolyTime.snd
     (encPair encUnary (encPair encBits encBits))
     (encPair (encPair (encFinEnum Unit) encBits) (encList encBits))
-  apply hadversary.run_interpret_preprocess' (operationEncoding := encFinEnum Unit)
+  apply hadversary.run_interpret_preprocess (operationEncoding := encFinEnum Unit)
     (handler := fun caller : ℕ × (List Bool × List Bool) => oneTimeSigningOracleOf sign caller.2.2)
     (prepare := fun caller : ℕ × (List Bool × List Bool) => (caller.1, caller.2.1))
     (initial := fun _ => ([] : List (List Bool)))
@@ -453,7 +452,11 @@ theorem isPPT_eufOneTimeGame (S : SignatureScheme) {adversary : Forger}
   ((S.isPPTOn_eufOneTimeGame hadversary).preprocess (ComputableInPolyTime.fst _ _)).isPPT
 
 /-- Existential unforgeability under one-time adaptive chosen-message attack against uniform strict
-oracle-PPT adversaries. -/
+oracle-PPT adversaries: a secure one-time signature in the sense of [BonehShoup2023],
+Definition 14.1 (p. 583), that is, Attack Game 13.1 (pp. 529–530) with at most one signing query,
+for the message space of `n`-bit words. The oracle answers only the first query. It signs a word of
+any length, while a forgery counts only on an `n`-bit message; in the source, signing queries lie
+in the message space. -/
 def OneTimeEUFCMA (S : SignatureScheme) : Prop :=
   Game.Indistinguishable
     (fun adversary n => ProbComp.eval (S.eufOneTimeGame adversary n))
@@ -609,7 +612,7 @@ theorem isOraclePPT_limitToOneQuery {bound : ℕ → ℕ → ℕ}
             (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
             (oneTimeFilterHandler bound caller))
           (adversary caller.1 caller.2)).run false) := by
-    apply hadversary.run_interpret_preprocess_open' (operationEncoding := encFinEnum Unit)
+    apply hadversary.run_interpret_preprocess_open (operationEncoding := encFinEnum Unit)
       (handler := oneTimeFilterHandler bound)
       (prepare := id)
       (initial := fun _ => false)
