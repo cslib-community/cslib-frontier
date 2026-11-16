@@ -17,6 +17,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.HaltsAt
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.TapeLemmas
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Bit
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.InPlace
+import CslibFrontier.Foundations.Data.List.Countdown
 import Mathlib.Basic.Countable.Defs
 import Mathlib.Data.Nat.Size
 import Mathlib.Tactic.GCongr
@@ -95,26 +96,16 @@ public lemma bitTr_events (w : List Bool) : bitTr.events w = w := by
   (p.1 - 1, if p.1 = 1 then eBit b else p.2)
 
 lemma bitScan_zero (l : List Bool) (cur : ℕ) : l.foldl bitScan (0, cur) = (0, cur) := by
-  induction l with
-  | nil => rfl
-  | cons c l ih => simpa [bitScan] using ih
+  unfold bitScan
+  simpa only [Nat.zero_sub, Nat.lt_irrefl, false_and, ↓reduceIte] using
+    List.foldl_countdown eBit l 0 cur false
 
 lemma bitScan_all (l : List Bool) (k cur : ℕ) (hk : 1 ≤ k) :
     l.foldl bitScan (k, cur) =
       (k - l.length, if k ≤ l.length then eBit (l.getD (k - 1) false) else cur) := by
-  induction l generalizing k cur with
-  | nil => simp; omega
-  | cons b l ih =>
-    rcases Nat.eq_or_lt_of_le hk with rfl | hk'
-    · simp [bitScan, bitScan_zero]
-    · rw [List.foldl_cons, bitScan]
-      simp only [show k ≠ 1 by omega, ↓reduceIte]
-      rw [ih _ _ (by omega)]
-      refine Prod.ext (by simp only [List.length_cons]; omega) ?_
-      simp only [List.length_cons]
-      split_ifs <;> try omega
-      obtain ⟨j, rfl⟩ : ∃ j, k = j + 2 := ⟨k - 2, by omega⟩
-      simp
+  unfold bitScan
+  simpa only [show 0 < k by omega, true_and] using
+    List.foldl_countdown eBit l k cur false
 
 /-- **The countdown over bits finds the symbol under the input head.** -/
 public lemma inputSymbol_bitScan (w : List Bool) (p : ℕ) :

@@ -13,6 +13,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.BinarySizeFacts
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.EqualityPrimitives
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
+import CslibFrontier.Foundations.Data.List.Countdown
 
 /-!
 # Nondeterministic query machines on a recomputed input
@@ -89,23 +90,9 @@ having read `l[k - 1]` as a bit. -/
 theorem foldl_tick (l : List ℕ) (k : ℕ) (b : Bool) (hk : 1 ≤ k) :
     l.foldl tick (k, b) =
       (k - l.length, if k ≤ l.length then decide (l.getD (k - 1) 0 ≠ 0) else b) := by
-  induction l generalizing k b with
-  | nil => simp; omega
-  | cons n l ih =>
-    rw [List.foldl_cons, tick]
-    rcases Nat.eq_or_lt_of_le hk with rfl | hk'
-    · have hz (l : List ℕ) (c : Bool) : l.foldl tick (0, c) = (0, c) := by
-        induction l generalizing c with
-        | nil => rfl
-        | cons _ _ ih => exact ih c
-      simp [hz]
-    · rw [ih _ _ (by omega)]
-      simp only [show k ≠ 1 by omega, ↓reduceIte, List.length_cons]
-      refine Prod.ext (by simp only; omega) ?_
-      simp only
-      obtain ⟨j, rfl⟩ : ∃ j, k = j + 2 := ⟨k - 2, by omega⟩
-      simp only [show j + 2 - 1 = j + 1 by omega, List.getD_cons_succ]
-      split_ifs <;> first | rfl | omega
+  unfold tick
+  simpa only [show 0 < k by omega, true_and] using
+    List.foldl_countdown (fun n => decide (n ≠ 0)) l k b 0
 
 /-! ### The machine -/
 
