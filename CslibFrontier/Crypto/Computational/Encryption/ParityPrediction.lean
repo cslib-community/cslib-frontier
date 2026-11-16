@@ -12,7 +12,9 @@ public import CslibFrontier.Crypto.Computational.Encryption.Hybrid
 public import CslibFrontier.Crypto.Computational.Encryption.PolyTime
 public import CslibFrontier.Foundations.Data.BitString.ListParity
 public import CslibFrontier.Foundations.Data.BitString.List.Operations
-import CslibFrontier.Probability.BitString
+import CslibFrontier.Foundations.Data.BitString.Flip
+import CslibFrontier.Foundations.Data.BitString.DeltaMatroid.Basic
+import CslibFrontier.Probability.BitString.List
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
@@ -20,15 +22,15 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Tactic.PPT
 
 /-!
-# Parity-prediction security from semantic security (Boneh–Shoup §2.2.4)
+# Parity-prediction security from semantic security (Boneh–Shoup §2.2.3.2)
 
 A semantically secure cipher over non-empty bit strings is secure against parity prediction
-([BonehShoup2023], Section 2.2.4, Attack Game 2.3, Definition 2.4, and Theorem 2.8, pp. 21–22).
+([BonehShoup2023], Section 2.2.3.2, Attack Game 2.3, Definition 2.4, and Theorem 2.8, pp. 20–22).
 We formalize both the concrete exact advantage identity for a typed symmetric cipher
 `Cipher K (BitString L) C` and the asymptotic word-level statement over `{0, 1}^{msgLen n}`
 against `DEMOneTimeKeyWordINDCPA` together with its uniform strict PPT certificate.
 
-Relative to [BonehShoup2023], §2.2.4, pp. 21–22, this formalization makes two hypotheses explicit:
+Relative to [BonehShoup2023], §2.2.3.2, pp. 20–22, this formalization makes two hypotheses explicit:
 * On a concrete `Cipher K (BitString L) C`,
   `parityAdvantage_eq_half_mul_advantage_parityReduction` requires `hL : 1 ≤ L` so messages have a
   last bit to flip via `flipLastBitString hL` (`m₀ ↦ m₀ ⊕ (0^{L-1} ‖ 1)`), and
@@ -68,7 +70,7 @@ Relative to [BonehShoup2023], §2.2.4, pp. 21–22, this formalization makes two
 ## References
 
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023],
-  Section 2.2.4, Attack Game 2.3, Definition 2.4, Theorem 2.8, pp. 21–22.
+  Section 2.2.3.2, Attack Game 2.3, Definition 2.4, Theorem 2.8, pp. 20–22.
 -/
 
 public section
@@ -83,21 +85,16 @@ section ParityPrediction
 variable {K C : Type} {L : ℕ}
 
 /-- Flip the last bit of an `L`-bit string (`m ↦ m ⊕ (0^{L-1} ‖ 1)`), requiring `1 ≤ L`. -/
-@[expose] def flipLastBitString {L : ℕ} (hL : 1 ≤ L) (m : BitString L) : BitString L :=
-  Function.update m ⟨L - 1, Nat.sub_lt hL Nat.one_pos⟩
-    (!m ⟨L - 1, Nat.sub_lt hL Nat.one_pos⟩)
+def flipLastBitString {L : ℕ} (hL : 1 ≤ L) (m : BitString L) : BitString L :=
+  BitString.flipOn {⟨L - 1, Nat.sub_lt hL Nat.one_pos⟩} m
 
 theorem flipLastBitString_involutive {L : ℕ} (hL : 1 ≤ L) :
-    Function.Involutive (flipLastBitString hL) := by
-  intro m; ext i
-  by_cases hi : i = ⟨L - 1, Nat.sub_lt hL Nat.one_pos⟩
-  · subst hi; simp [flipLastBitString]
-  · simp [flipLastBitString, Function.update_of_ne hi]
+    Function.Involutive (flipLastBitString hL) :=
+  BitString.flipOn_involutive _
 
 theorem parity_flipLastBitString {L : ℕ} (hL : 1 ≤ L) (m : BitString L) :
-    parity L (flipLastBitString hL m) = !(parity L m) := by
-  simpa [flipLastBitString] using
-    parity_update_not (n := L) m ⟨L - 1, Nat.sub_lt hL Nat.one_pos⟩
+    parity L (flipLastBitString hL m) = !(parity L m) :=
+  BitString.parityOn_univ_flipOn_singleton m ⟨L - 1, Nat.sub_lt hL Nat.one_pos⟩
 
 /-- Parity-prediction attack game ([BonehShoup2023], Attack Game 2.3, p. 21). -/
 @[expose] noncomputable def parityExperiment (E : Cipher K (BitString L) C)
@@ -128,12 +125,11 @@ parity predicate so the typed and word-level theorems share one reduction progra
     return (bHat == p₀)
 
 private theorem parityReduction_advantage_eq {K M C : Type} (E : Cipher K M C)
-    (sampleKey : ProbComp K) (sampleMessage : ProbComp M) (flip flipBij : M → M)
+    (sampleKey : ProbComp K) (sampleMessage : ProbComp M) (flip : M → M)
     (par : M → Bool) {valid : M → M → Bool}
     (hvalid : ∀ m₀ ∈ (ProbComp.eval sampleMessage).support, valid m₀ (flip m₀) = true)
-    (hflip_eq : ∀ m₀ ∈ (ProbComp.eval sampleMessage).support, flipBij m₀ = flip m₀)
-    (hflip_map : (ProbComp.eval sampleMessage).map flipBij = ProbComp.eval sampleMessage)
-    (hpar_flip : ∀ m₀ ∈ (ProbComp.eval sampleMessage).support, par (flipBij m₀) = !(par m₀))
+    (hflip_map : (ProbComp.eval sampleMessage).map flip = ProbComp.eval sampleMessage)
+    (hpar_flip : ∀ m₀ ∈ (ProbComp.eval sampleMessage).support, par (flip m₀) = !(par m₀))
     (A : C → ProbComp Bool) :
     let exp : Experiment := do
       let m ← sampleMessage
@@ -169,17 +165,17 @@ private theorem parityReduction_advantage_eq {K M C : Type} (E : Cipher K M C)
     have heq :
         ProbComp.eval (E.oneTimeExperiment sampleKey valid
           (parityReduction sampleMessage flip par A) true) =
-          (ProbComp.eval sampleMessage).bind fun m₀ => body (flipBij m₀) := by
+          (ProbComp.eval sampleMessage).bind fun m₀ => body (flip m₀) := by
       simp only [Cipher.oneTimeExperiment, parityReduction, lrExperiment, MessagePair.select_true,
         ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
       rw [PMF.bind_comm]
       refine Probability.PMF.bind_congr_on_support _ _ _ fun m₀ hm₀ => ?_
-      have hp : par m₀ = !(par (flipBij m₀)) := by
+      have hp : par m₀ = !(par (flip m₀)) := by
         rw [hpar_flip m₀ hm₀, Bool.not_not]
       simp only [hvalid m₀ hm₀, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure, hp, hnot_beq,
-        hflip_eq m₀ hm₀, body]
+        body]
     have hmap :
-        (ProbComp.eval sampleMessage).bind (fun m₀ => body (flipBij m₀)) =
+        (ProbComp.eval sampleMessage).bind (fun m₀ => body (flip m₀)) =
           (ProbComp.eval sampleMessage).bind body := by
       nth_rw 2 [← hflip_map]
       rw [PMF.bind_map]
@@ -218,9 +214,8 @@ theorem parityAdvantage_eq_half_mul_advantage_parityReduction (E : Cipher K (Bit
     simpa [Function.comp_def] using Probability.PMF.uniformOfFintype_bind_bijective
       (flipLastBitString_involutive hL).bijective (k := PMF.pure) (fun _ => rfl)
   exact parityReduction_advantage_eq E sampleKey (ProbComp.uniform (BitString L))
-    (flipLastBitString hL) (flipLastBitString hL) (parity L)
-    (fun m₀ _ => hvalid m₀) (fun _ _ => rfl) hflip_map
-    (fun m₀ _ => parity_flipLastBitString hL m₀) A
+    (flipLastBitString hL) (parity L)
+    (fun m₀ _ => hvalid m₀) hflip_map (fun m₀ _ => parity_flipLastBitString hL m₀) A
 
 end ParityPrediction
 
@@ -228,7 +223,7 @@ section ParityPredictionWord
 
 /-- Flip the last bit of a word of length `L` via XOR with `0^{L-1} ‖ 1`
 ([BonehShoup2023], p. 21: `m₀ ⊕ (0^{L-1} ‖ 1)`). -/
-@[expose] def flipLastBitWord (L : ℕ) (w : List Bool) : List Bool :=
+def flipLastBitWord (L : ℕ) (w : List Bool) : List Bool :=
   BitString.listXor L [w, List.replicate (L - 1) false ++ [true]]
 
 theorem length_flipLastBitWord (L : ℕ) (w : List Bool) : (flipLastBitWord L w).length = L :=
@@ -259,31 +254,6 @@ theorem wordParity_flipLastBitWord {L : ℕ} (hL : 1 ≤ L) {w : List Bool} (hw 
   nth_rw 2 [hw_of]
   rw [BitString.wordParity_ofFn, ← parity]
   cases parity L (BitString.ofList L w) <;> rfl
-
-/-- Bijective extension of `flipLastBitWord L` to all of `List Bool`, coinciding with
-`flipLastBitWord L` on words of length `L`. -/
-private def flipLastBitWordBij (L : ℕ) (w : List Bool) : List Bool :=
-  if w.length = L then flipLastBitWord L w else w
-
-private theorem flipLastBitWordBij_involutive (L : ℕ) :
-    Function.Involutive (flipLastBitWordBij L) := by
-  intro w
-  by_cases hw : w.length = L
-  · simp only [flipLastBitWordBij, hw, ↓reduceIte, length_flipLastBitWord]
-    rw [flipLastBitWord, flipLastBitWord, BitString.listXor_pair, BitString.listXor_pair,
-      BitString.ofList_ofFn, add_assoc]
-    have hself : ∀ x : BitString L, x + x = 0 := fun x => funext fun i => by
-      change (x i != x i) = false; simp
-    have hzero : ∀ x : BitString L, x + 0 = x := fun x => funext fun i => by
-      change (x i != false) = x i; simp
-    rw [hself, hzero, BitString.ofFn_ofList hw]
-  · simp [flipLastBitWordBij, hw]
-
-private theorem length_flipLastBitWordBij (L : ℕ) (w : List Bool) :
-    (flipLastBitWordBij L w).length = w.length := by
-  by_cases hw : w.length = L
-  · simp [flipLastBitWordBij, hw, length_flipLastBitWord]
-  · simp [flipLastBitWordBij, hw]
 
 /-- Word-level parity-prediction experiment over `{0, 1}^{msgLen n}`. -/
 @[expose] noncomputable def parityWordExperiment (msgLen keyLen : ℕ → ℕ)
@@ -336,6 +306,8 @@ private theorem computableInPolyTime_flipLastBitWord {α : Type} {enc : α ↪ L
     hw.cons' (hpad.cons' (ComputableInPolyTime.const []))
   exact ComputableInPolyTime.bitsXorWithInput hL hwords
 
+attribute [local fun_prop] computableInPolyTime_wordParity computableInPolyTime_flipLastBitWord
+
 /-- Uniform strict PPT certificate for `parityWordToDEMAdversary`. -/
 theorem isPPT_parityWordToDEMAdversary {msgLen : ℕ → ℕ}
     (hmsgLen : ComputableInPolyTime msgLen encUnary encUnary)
@@ -344,45 +316,9 @@ theorem isPPT_parityWordToDEMAdversary {msgLen : ℕ → ℕ}
     AdversaryOf.IsPPT encBits (parityWordToDEMAdversary msgLen A) := by
   refine ⟨?_, ?_⟩
   · dsimp only [parityWordToDEMAdversary, parityReduction]
-    have hpost : ComputableInPolyTime
-        (fun p : (ℕ × List Bool) × List Bool =>
-          ((p.2, flipLastBitWord (msgLen p.1.1) p.2), [BitString.wordParity p.2]))
-        (encPair (encPair encUnary encBits) encBits)
-        (encPair (encPair encBits encBits) encBits) := by
-      have hp1 : ComputableInPolyTime (fun p : (ℕ × List Bool) × List Bool => p.1.1)
-          (encPair (encPair encUnary encBits) encBits) encUnary :=
-        (ComputableInPolyTime.fst encUnary encBits).comp'
-          (ComputableInPolyTime.fst (encPair encUnary encBits) encBits)
-      have hp2 : ComputableInPolyTime (fun p : (ℕ × List Bool) × List Bool => p.2)
-          (encPair (encPair encUnary encBits) encBits) encBits := .snd _ _
-      exact (hp2.prod (computableInPolyTime_flipLastBitWord (hmsgLen.comp' hp1) hp2)).prod
-        (ComputableInPolyTime.listToBits.comp
-          ((computableInPolyTime_wordParity hp2).cons' (.const [])))
-    refine IsPPTOn.congr
-      ((isPPTOn_sampleList.preprocess (hmsgLen.comp' (.fst _ _))).map_with
-        (f := fun (a : ℕ × List Bool) (m₀ : List Bool) =>
-          ((m₀, flipLastBitWord (msgLen a.1) m₀), [BitString.wordParity m₀])) hpost) ?_
-    intro a; simp [ProbComp.eval_map, ← PMF.bind_pure_comp, Function.comp_def]
+    ppt
   · dsimp only [parityWordToDEMAdversary, parityReduction]
-    have hpar := computableInPolyTime_wordParity
-      (ComputableInPolyTime.id' (encIn := encBits))
-    have hpost : ComputableInPolyTime
-        (fun p : (ℕ × List Bool × List Bool) × Bool => p.2 == BitString.wordParity p.1.2.1)
-        (encPair (encPair encUnary (encPair encBits encBits)) encBool) encBool := by
-      have hpst : ComputableInPolyTime
-          (fun p : (ℕ × List Bool × List Bool) × Bool => p.1.2.1)
-          (encPair (encPair encUnary (encPair encBits encBits)) encBool) encBits :=
-        (ComputableInPolyTime.fst encBits encBits).comp'
-          ((ComputableInPolyTime.snd encUnary (encPair encBits encBits)).comp'
-            (ComputableInPolyTime.fst (encPair encUnary (encPair encBits encBits)) encBool))
-      exact ComputableInPolyTime.beq (ComputableInPolyTime.snd _ _) (hpar.comp hpst)
-    refine IsPPTOn.congr
-      ((hA.preprocess ((ComputableInPolyTime.fst encUnary (encPair encBits encBits)).prod
-        ((ComputableInPolyTime.snd encBits encBits).comp'
-          (ComputableInPolyTime.snd encUnary (encPair encBits encBits))))).map_with
-        (f := fun (p : ℕ × List Bool × List Bool) (bHat : Bool) =>
-          bHat == BitString.wordParity p.2.1) hpost) ?_
-    intro a; simp [ProbComp.eval_map, ← PMF.bind_pure_comp, Function.comp_def]
+    ppt
 
 /-- Exact word-level advantage identity for Theorem 2.8 at each `n` with `1 ≤ msgLen n`,
 derived from `parityReduction_advantage_eq`. -/
@@ -414,23 +350,16 @@ theorem parityWordAdvantage_eq_half_mul_demKeyGameOn (msgLen keyLen : ℕ → �
         Bool.xor_false, PMF.bind_bind, PMF.pure_bind]
   rw [parityWordAdvantage, Game.advantage, hgame false, hgame true]
   exact parityReduction_advantage_eq E_word (BitString.sampleList (keyLen n))
-    (BitString.sampleList (msgLen n)) (flipLastBitWord (msgLen n))
-    (flipLastBitWordBij (msgLen n)) BitString.wordParity
+    (BitString.sampleList (msgLen n)) (flipLastBitWord (msgLen n)) BitString.wordParity
     (fun m₀ hm₀ => by
       rw [BitString.eval_sampleList] at hm₀
       simp [valid, BitString.length_of_mem_support_uniformList hm₀, length_flipLastBitWord])
-    (fun m₀ hm₀ => by
-      rw [BitString.eval_sampleList] at hm₀
-      simp [flipLastBitWordBij, BitString.length_of_mem_support_uniformList hm₀])
     (by
       rw [BitString.eval_sampleList]
-      exact BitString.uniformList_map_of_bijective (flipLastBitWordBij (msgLen n))
-        (flipLastBitWordBij_involutive _).bijective (length_flipLastBitWordBij _) (msgLen n))
+      exact BitString.uniformList_map_listXor (msgLen n) _)
     (fun m₀ hm₀ => by
       rw [BitString.eval_sampleList] at hm₀
-      have hm₀l := BitString.length_of_mem_support_uniformList hm₀
-      simp only [flipLastBitWordBij, hm₀l, ↓reduceIte]
-      exact wordParity_flipLastBitWord hn hm₀l)
+      exact wordParity_flipLastBitWord hn (BitString.length_of_mem_support_uniformList hm₀))
     (A n)
 
 /-- **Theorem 2.8 (asymptotic word-level statement)** ([BonehShoup2023], Theorem 2.8, pp. 21–22):

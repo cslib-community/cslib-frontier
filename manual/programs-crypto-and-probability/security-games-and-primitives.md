@@ -2185,17 +2185,18 @@ advantage of `messageRecoveryReduction` when `valid` admits every pair. For a
 `valid` and on the output length are needed.
 
 [`Encryption/ParityPrediction.lean`](../../CslibFrontier/Crypto/Computational/Encryption/ParityPrediction.lean)
-proves that semantic security implies security against parity prediction ([bs23][bs23], Attack
-Game 2.3, Definition 2.4, and Theorem 2.8, pp. 21–22). On `BitString L` with `1 ≤ L`,
+proves that semantic security implies security against parity prediction ([bs23][bs23], §2.2.3.2,
+Attack Game 2.3, Definition 2.4, and Theorem 2.8, pp. 20–22). On `BitString L` with `1 ≤ L`,
 `parityAdvantage E sampleKey A` is `|Pr[W] - 1 / 2|`, and
 `parityAdvantage_eq_half_mul_advantage_parityReduction` equates it with `(1 / 2)` times the
 one-time advantage of `parityReduction` when `valid` admits pairs flipping the last bit via
 `flipLastBitString`. On word messages `{0, 1}^{msgLen n}` with `∀ n, 1 ≤ msgLen n` and unary
-polynomial-time `msgLen`, `DEMOneTimeKeyWordINDCPA.negligible_parityWordAdvantage` shows that
-`parityWordAdvantage` is negligible against every PPT `A`; `isPPT_parityWordToDEMAdversary`
-certifies `parityWordToDEMAdversary`, which invokes `parityReduction`. The
-[tests](../../CslibFrontierTests/Crypto/ParityPrediction.lean) show that `1 ≤ L`, `hvalid`, and
-`1 ≤ msgLen n` are all needed.
+polynomial-time `msgLen`, when `encryptSym` satisfies `DEMOneTimeKeyWordINDCPA keyLen encryptSym`,
+`DEMOneTimeKeyWordINDCPA.negligible_parityWordAdvantage` shows that `parityWordAdvantage` is
+negligible against every PPT `A`; `isPPT_parityWordToDEMAdversary` certifies
+`parityWordToDEMAdversary`, which invokes `parityReduction`. The
+[tests](../../CslibFrontierTests/Crypto/ParityPrediction.lean) check concrete and word-level clients
+and show that `1 ≤ L`, `hvalid`, and `1 ≤ msgLen n` are all needed.
 
 [`Hybrid/DEMCCA.lean`](../../CslibFrontier/Crypto/Computational/Encryption/Hybrid/DEMCCA.lean)
 proves the exact DEM leg of Boneh–Shoup Exercise 12.5(a), p. 513 [bs23][bs23]. Its middle game
