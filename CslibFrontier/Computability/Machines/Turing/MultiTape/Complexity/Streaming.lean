@@ -14,6 +14,8 @@ import CslibFrontier.Foundations.Data.List.Fold
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.StreamFold
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.WordTransducers
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.WordMachines
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Comp
 import Mathlib.Tactic.TypeStar
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
 
@@ -238,7 +240,8 @@ theorem ComputableInO.foldl_bits_finite {σ : Type} [Finite σ]
   obtain ⟨c, h⟩ := hk.computableTidilyInTimeAndSpace.foldl_bits_stream init
     (R := fun _ => 2 * k + 2) (Q := fun _ => 0) (B := fun _ => b)
     (fun _ _ _ => le_rfl) (fun _ _ _ => le_rfl) (fun _ _ _ => hb _)
-  refine ComputableInO.of_bounds h.computableInTimeAndSpace (c * (2 * k + 2 * b + 4) + b) ?_ ?_ ?_
+  refine ComputableInO.of_bounds (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h)
+    (c * (2 * k + 2 * b + 4) + b) ?_ ?_ ?_
   · intro l
     have hr : l.length * (2 * k + 2 + b + 1) + b + 1 ≤
         (2 * k + 2 * b + 4) * (l.length + 1) := by nlinarith
@@ -381,8 +384,8 @@ theorem ComputableTidilyInTimeAndSpace.iterate_unary_stream_sum {σ : Type} {enc
   -- each round reads its state from the stream state paired with the token bit
   obtain ⟨cfst, hfst⟩ := Internal.NormalForm.linear
     (PairEncoding.fst (enc₁ := enc) (enc₂ := encBool) (enc := encPair enc encBool))
-  obtain ⟨cN, hN⟩ := hnext.comp_linear hfst
-  obtain ⟨cE, hE⟩ := hemit.comp_linear hfst
+  obtain ⟨cN, hN⟩ := ComputableTidilyInTimeAndSpace.comp_linear hnext hfst
+  obtain ⟨cE, hE⟩ := ComputableTidilyInTimeAndSpace.comp_linear hemit hfst
   obtain ⟨D, hD⟩ : ∃ D, D = 6 * cfst + cN + cE + 2 := ⟨_, rfl⟩
   have hst (x : σ × ℕ) (j : ℕ) (hj : j ≤ x.2) :
       streamState x.1 (f ∘ Prod.fst) (List.replicate x.2 true) j = f^[j] x.1 :=
@@ -411,7 +414,8 @@ theorem ComputableTidilyInTimeAndSpace.iterate_unary_stream_sum {σ : Type} {enc
         _ ≤ _ := Finset.sum_le_sum fun i hi => by
           have := hcost x i (Finset.mem_range.mp hi)
           omega
-    refine ⟨c * (D + 4), h.mono (fun x => ?_) (fun x => ?_)⟩ <;>
+    refine ⟨c * (D + 4), h.mono (fun x => ?_)
+    (fun x => ?_)⟩ <;>
       simp only [List.length_replicate, hst x x.2 le_rfl, ← Finset.mul_sum, Nat.mul_assoc] <;>
       refine Nat.mul_le_mul_left c ?_
     · have h₀ := hstate x 0 (Nat.zero_le _)
@@ -514,7 +518,8 @@ theorem ComputableInTimeAndSpace.foldl_bits_stream_sum {σ : Type}
       nlinarith)
     (fun l i hi => Nat.mul_le_mul_left C (Nat.succ_le_succ (hspace l i hi)))
     hstate
-  refine ⟨c * (C + 1), h.computableInTimeAndSpace.mono (fun l => ?_)
+  have hplain := ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h
+  refine ⟨c * (C + 1), hplain.mono (fun l => ?_)
     (fun l => ?_)⟩
   · rw [← Finset.mul_sum, Nat.mul_assoc]
     apply Nat.mul_le_mul_left c
@@ -640,7 +645,8 @@ theorem ComputableInTimeAndSpace.foldl_bits_pair_stream_sum {σ : Type}
       nlinarith)
     (fun p i hi => Nat.mul_le_mul_left C (Nat.succ_le_succ (hspace p i hi)))
     hstate
-  refine ⟨c * (C + 1), h.computableInTimeAndSpace.mono (fun p => ?_)
+  have hplain := ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h
+  refine ⟨c * (C + 1), hplain.mono (fun p => ?_)
     (fun p => ?_)⟩
   · rw [← Finset.mul_sum, Nat.mul_assoc]
     apply Nat.mul_le_mul_left c
@@ -720,7 +726,9 @@ theorem ComputableInTimeAndSpace.iterate_unary_stream_sum {σ : Type} {enc : σ 
       have hm := Nat.mul_le_mul_left D hs
       dsimp only [D] at hm ⊢
       nlinarith) hstate
-  refine ⟨c * (3 * D + 3), h.computableInTimeAndSpace.mono (fun x => ?_) (fun x => ?_)⟩
+  have hplain := ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h
+  refine ⟨c * (3 * D + 3), hplain.mono (fun x => ?_)
+    (fun x => ?_)⟩
   · rw [← Finset.mul_sum, Nat.mul_assoc]
     apply Nat.mul_le_mul_left c
     have hF : cF ≤ 3 * D + 3 := by dsimp [D]; omega

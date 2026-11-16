@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Li
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Option
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Unary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.StreamFold
@@ -161,7 +162,7 @@ private theorem inputSymbol_pair_inO :
       rw [← Finset.mul_sum, ← Finset.mul_sum, hsum]
       ring
     let C := c * (cF + K + 2 * (cN + cE) + 16) + 1
-    refine ComputableInO.of_bounds h.computableInTimeAndSpace C
+    refine ComputableInO.of_bounds (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h) C
       (fun q => ?_) (fun q => ?_) (fun q => ?_)
     · let Z := (N q + 1) * (B q + 1) ^ 2
       have hb : B q + 1 ≤ (B q + 1) ^ 2 := Nat.le_self_pow two_ne_zero _

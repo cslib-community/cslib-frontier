@@ -49,15 +49,6 @@ theorem decidableInTimeAndSpace_iff {A : Set α} {enc : α ↪ List Bool} {t s :
   rw [DecidableInTimeAndSpace, indicator_eq_iff.mpr hA]
   exact hg
 
-/-- A polynomial time bound suffices for plain polynomial time: the machine's actual run
-visits at most linearly many work cells in its time bound. -/
-theorem ComputableInTimeAndSpace.computableInPolyTime {t : ℕ → ℕ} {s : α → ℕ}
-    (ht : PolynomiallyBounded t)
-    (h : ComputableInTimeAndSpace f encIn encOut (fun a => t (encIn a).length) s) :
-    ComputableInPolyTime f encIn encOut := by
-  obtain ⟨c, hc⟩ := h.exists_space_linear
-  exact ⟨t, fun n => c * t n + c, ht, by fun_prop, hc⟩
-
 end Turing.MultiTapeTM
 
 namespace Turing.MultiTapeTM.ComputableInPolyTime
