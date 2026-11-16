@@ -12,8 +12,9 @@ import CslibFrontier.Crypto.Computational.GenericGroup.RecursiveDlog
 # Recursive discrete logarithm: an ordinary client
 
 Exercises the public API of `Power`, `BabyStepGiantStep.subgroupDlog`, and `RecursiveDlog` through
-ordinary imports (no `import all`), plus counterexamples showing why `Function.Injective L`,
-`2 ≤ q`, and `1 ≤ e` are needed in the correctness and query-bound formulas.
+ordinary imports (no `import all`), plus a counterexample showing why `Function.Injective L` is
+needed in `evalPure_subgroupDlog`, and the values of the query-bound formula of
+`isQueryBounded_recursiveDlog` at `q = 1` and `e = 0`.
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
@@ -84,8 +85,10 @@ example (β : ZMod 11) :
 
 /-! ### Hypotheses are needed -/
 
-/-- Constant labeling collapses `α = 0` and `α = 1`, so `Function.Injective L` is needed for
-`evalPure_recursiveDlog` even though `O` satisfies `hO`. -/
+/-- `Function.Injective L` is needed in `evalPure_subgroupDlog`: the constant labeling of `ZMod 4`
+satisfies `hO` but collapses `α = 0` and `α = 1`, so no program, `subgroupDlog 4` included,
+recovers every `α < 4` from the labels of `1` and `α`. `evalPure_recursiveDlog` has no
+injectivity premise; under this labeling no `base` satisfies its premise `hbase` at `q = 4`. -/
 example :
     ∃ (L : ZMod 4 → ℕ) (O : (q : GroupQuery 4 ℕ) → GroupOracleSpec 4 ℕ q),
       (∀ β₁ β₂, O (.op (L β₁) (L β₂) 1 1) = some (L (β₁ + β₂))) ∧

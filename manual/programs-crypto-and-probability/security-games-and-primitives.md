@@ -502,26 +502,6 @@ time in a machine model is stated. Runs and instances showing that each hypothes
 [`GenericGroup.lean`](../../CslibFrontierTests/Crypto/GenericGroup.lean) and
 [`GenericGroupRuns.lean`](../../CslibFrontierTests/Crypto/GenericGroupRuns.lean).
 
-For prime-power-order discrete logarithms ([bs23][bs23], §16.1.2.1, pp. 684–686),
-[`GenericGroup/Power.lean`](../../CslibFrontier/Crypto/Computational/GenericGroup/Power.lean)
-implements repeated squaring (`power`, `evalPure_power` for `1 ≤ k`, `isQueryBounded_power` with
-at most `2 * Nat.log 2 k` product calls),
-[`GenericGroup/BabyStepGiantStep.lean`](../../CslibFrontier/Crypto/Computational/GenericGroup/BabyStepGiantStep.lean)
-adds the order-`w` subgroup solver (`subgroupDlog`, `evalPure_subgroupDlog`,
-`isQueryBounded_subgroupDlog` with `2 * Nat.sqrt (w - 1)` product calls), and
-[`GenericGroup/RecursiveDlog.lean`](../../CslibFrontier/Crypto/Computational/GenericGroup/RecursiveDlog.lean)
-implements Algorithm RDL (`recursiveDlog`), proving correctness (`evalPure_recursiveDlog`,
-`recursiveDlog_two_pow`, `evalPure_groupAnswer_recursiveDlog`) and a worst-case product-query
-bound `e * T + 6 * e * Nat.clog 2 e * Nat.clog 2 q` when `2 ≤ q`, `1 ≤ e`, and the base-case
-solver uses at most `T` product calls (`queriesSatisfy_recursiveDlog`,
-`isQueryBounded_recursiveDlog`). Constants `2` and `6` are this library's; only
-`GroupQuery.IsProduct` oracle calls are counted, exponent arithmetic and base-case table search are
-not costed, and no machine-model bound is claimed. Ordinary clients and evaluated runs showing why
-each side condition is needed are in
-[`GenericGroupRecursiveDlog.lean`](../../CslibFrontierTests/Crypto/GenericGroupRecursiveDlog.lean)
-and
-[`GenericGroupRecursiveDlogRuns.lean`](../../CslibFrontierTests/Crypto/GenericGroupRecursiveDlogRuns.lean).
-
 The lower bound for discrete logarithm in this model, Theorem 16.3 ([bs23][bs23], §16.3,
 pp. 693–695), is in
 [`GenericGroup/DiscreteLog.lean`](../../CslibFrontier/Crypto/Computational/GenericGroup/DiscreteLog.lean).

@@ -89,11 +89,28 @@ private meta def runCount {q : Type} {spec : OracleSpec q} {α : Type}
     (recursiveDlog (subgroupDlog (q := 8) 2) 2 3 (2 : ZMod 8) (5 • 2))).1
   out == 3 && ((out : ℕ) • (2 : ZMod 8) != 5 • (2 : ZMod 8))
 
--- `1 ≤ e` is needed for correctness in `evalPure_recursiveDlog`: when `e = 0`, `α = 0 < 3 ^ 0`,
--- and a base returning `1` outputs `1 ≠ 0`.
-#guard
-  (runCount (groupAnswer 9 1)
-    (recursiveDlog (fun _ _ => pure 1) 3 0 (1 : ZMod 9) (0 • (1 : ZMod 9)))).1 == 1
+/-- A base-case solver for order `3` in `ZMod 9` that answers `1` at the label of `0`. -/
+private def zeroBase (g u : ZMod 9) : OracleComp (GroupOracleSpec 9 (ZMod 9)) ℕ :=
+  if g = 0 then pure 1 else subgroupDlog 3 g u
+
+/-- `1 ≤ e` is needed in `evalPure_recursiveDlog`: with `L = id` and `O = answer id`, every other
+premise holds at `q = 3`, `e = 0`, `s = 0` (of order `3 ^ 0`) and `α = 0 < 3 ^ 0`, including
+correctness of `zeroBase` on every element of order `3`, yet the output is `1 ≠ 0`. -/
+example :
+    (∀ β₁ β₂ : ZMod 9, answer id (.op (id β₁) (id β₂) 1 1) = some (id (β₁ + β₂))) ∧
+    (∀ t : ZMod 9, addOrderOf t = 3 → ∀ a : ℕ, a < 3 →
+      (zeroBase (id t) (id (a * t))).evalPure (answer id) = a) ∧
+    addOrderOf (0 : ZMod 9) = 3 ^ 0 ∧ 0 < 3 ^ 0 ∧
+    (recursiveDlog zeroBase 3 0 (id 0) (id ((0 : ℕ) * 0))).evalPure (answer id) = 1 := by
+  have hO : ∀ β₁ β₂ : ZMod 9, answer id (.op (id β₁) (id β₂) 1 1) = some (id (β₁ + β₂)) :=
+    fun β₁ β₂ => by rw [answer_op_label Function.injective_id, one_mul, one_mul]
+  refine ⟨hO, fun t ht a ha => ?_, by simp, by norm_num, ?_⟩
+  · have ht0 : t ≠ 0 := by rintro rfl; simp at ht
+    dsimp only [zeroBase, id]
+    rw [ite_eq_right ht0]
+    exact evalPure_subgroupDlog Function.injective_id hO ht ha
+  · rw [recursiveDlog_of_le_one _ _ (by omega)]
+    simp [zeroBase, OracleComp.evalPure_pure]
 
 -- `1 ≤ e` is needed in `isQueryBounded_recursiveDlog`: at `e = 0`, `subgroupDlog 3` makes
 -- `2` oracle queries, contradicting the `0` value of the bound formula.

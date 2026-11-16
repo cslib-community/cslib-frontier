@@ -152,27 +152,19 @@ private theorem not_mem_of_firstMatch_eq_none [DecidableEq S] {baby giant : List
   have := List.findSome?_eq_none_iff.mp h (ℓ, γ) (List.mem_zipIdx_iff_getElem?.mpr hγ)
   simp [hb] at this
 
-private theorem addOrderOf_zmod_pos [NeZero q] (t : ZMod q) : 0 < addOrderOf t :=
-  Nat.pos_of_dvd_of_pos
-    (addOrderOf_dvd_iff_nsmul_eq_zero.mpr (by simp [nsmul_eq_mul] : q • t = 0))
-    (Nat.pos_of_neZero q)
-
 /-- When `addOrderOf t ≤ m * n`, `(1 + β) * t = (α + γ * m) * t` for some `β < m` and `γ < n`. -/
 private theorem exists_add_one_mul_eq_add_mul [NeZero q] {m n : ℕ} (t : ZMod q)
     (hmn : addOrderOf t ≤ m * n) (α : ZMod q) :
     ∃ β < m, ∃ γ < n, ((1 + β : ℕ) : ZMod q) * t = (α + γ * m) * t := by
   set w := addOrderOf t with hw_def
-  have hw := addOrderOf_zmod_pos t
+  have hw := addOrderOf_pos t
   have : NeZero w := ⟨hw.ne'⟩
   have hm : 0 < m := Nat.pos_of_mul_pos_right (hw.trans_le hmn)
   set s := ((m : ZMod w) - (α.val : ZMod w)).val with hs_def
   have hs : s < w := ZMod.val_lt _
   refine ⟨m - 1 - s % m, by omega, s / m, (Nat.div_lt_iff_lt_mul hm).mpr (by nlinarith), ?_⟩
   have hmod_mul (k : ℕ) : (k : ZMod q) * t = ((k % w : ℕ) : ZMod q) * t := by
-    conv_lhs => rw [← Nat.div_add_mod k w]
-    have hwt : (w : ZMod q) * t = 0 := by rw [← nsmul_eq_mul, hw_def, addOrderOf_nsmul_eq_zero]
-    push_cast
-    rw [add_mul, mul_assoc, mul_left_comm _ ((k / w : ℕ) : ZMod q), hwt, mul_zero, zero_add]
+    rw [← nsmul_eq_mul, ← nsmul_eq_mul, hw_def, mod_addOrderOf_nsmul]
   have h₁ : ((1 + (m - 1 - s % m) + s % m : ℕ) : ZMod w) = m := by
     congr 1; have := Nat.mod_lt s hm; omega
   have h₂ : ((s : ℕ) : ZMod w) = ((s % m + m * (s / m) : ℕ) : ZMod w) := by rw [Nat.mod_add_div]
@@ -191,7 +183,7 @@ private theorem evalPure_babyStepGiantStep_mul_of_op [NeZero q] [DecidableEq S]
     (hL : Function.Injective L) (hO : ∀ β₁ β₂, O (.op (L β₁) (L β₂) 1 1) = some (L (β₁ + β₂)))
     {m n : ℕ} (t : ZMod q) (hmn : addOrderOf t ≤ m * n) (α : ZMod q) :
     (babyStepGiantStep m n (L t) (L (α * t))).evalPure O * t = α * t := by
-  have hmn' := (addOrderOf_zmod_pos t).trans_le hmn
+  have hmn' := (addOrderOf_pos t).trans_le hmn
   have hm := Nat.pos_of_mul_pos_right hmn'
   have hn := Nat.pos_of_mul_pos_left hmn'
   have hbaby : (walk (L t) (L t) (m - 1)).evalPure O =
@@ -328,30 +320,15 @@ theorem evalPure_subgroupDlog [NeZero q] [DecidableEq S] {L : ZMod q → S}
     (hO : ∀ β₁ β₂, O (.op (L β₁) (L β₂) 1 1) = some (L (β₁ + β₂)))
     {w : ℕ} {t : ZMod q} (ht : addOrderOf t = w) {a : ℕ} (ha : a < w) :
     (subgroupDlog w (L t) (L (a * t))).evalPure O = a := by
-  have hw : 0 < w := ht ▸ addOrderOf_zmod_pos t
+  have hw : 0 < w := ht ▸ addOrderOf_pos t
   have hsq : addOrderOf t ≤ (Nat.sqrt (w - 1) + 1) * (Nat.sqrt (w - 1) + 1) := by
     have := Nat.lt_succ_sqrt (w - 1); rw [Nat.succ_eq_add_one] at this; omega
   have hmul := evalPure_babyStepGiantStep_mul_of_op hL hO t hsq a
-  set x :=
-    (babyStepGiantStep (Nat.sqrt (w - 1) + 1) (Nat.sqrt (w - 1) + 1) (L t) (L (a * t))).evalPure O
-  have hmod : (x.val % w) • t = a • t := by
-    have hdiv : (w * (x.val / w) + x.val % w) • t = x.val • t := by rw [Nat.div_add_mod]
-    have hwt : (w * (x.val / w)) • t = 0 := by
-      rw [mul_comm, mul_nsmul, ← ht, smul_comm, addOrderOf_nsmul_eq_zero, smul_zero]
-    rw [add_nsmul, hwt, zero_add] at hdiv
-    rw [hdiv, nsmul_eq_mul, ZMod.natCast_zmod_val, hmul, ← nsmul_eq_mul]
   rw [subgroupDlog, OracleComp.evalPure_map]
-  change x.val % w = a
-  have hlt_inj : ∀ u v : ℕ, u < v → v < w → u • t ≠ v • t := by
-    intro u v huv hv heq
-    have hsub : (v - u) • t = 0 :=
-      add_right_cancel (b := u • t) (by rw [← add_nsmul, Nat.sub_add_cancel huv.le, heq, zero_add])
-    have := Nat.eq_zero_of_dvd_of_lt (ht ▸ addOrderOf_dvd_iff_nsmul_eq_zero.mpr hsub) (by omega)
-    omega
-  rcases lt_trichotomy (x.val % w) a with h | h | h
-  · exact absurd hmod (hlt_inj _ _ h ha)
-  · exact h
-  · exact absurd hmod.symm (hlt_inj _ _ h (Nat.mod_lt _ hw))
+  subst ht
+  refine nsmul_injOn_Iio_addOrderOf (Nat.mod_lt _ hw) ha ?_
+  beta_reduce
+  rw [mod_addOrderOf_nsmul, nsmul_eq_mul, nsmul_eq_mul, ZMod.natCast_zmod_val, hmul]
 
 /-- Every query made by `subgroupDlog` is a product (`GroupQuery.IsProduct`). -/
 theorem queriesSatisfy_subgroupDlog [DecidableEq S] (w : ℕ) (g u : S) :
