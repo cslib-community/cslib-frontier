@@ -12,6 +12,7 @@ public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Correctness
 public import CslibFrontier.Languages.Probabilistic.UntilBad.Flag
 public import CslibFrontier.Languages.Probabilistic.UntilBad.TwoCost
 public import CslibFrontier.Probability.StatisticalDistance.CloseTo
+import CslibFrontier.Foundations.Control.Monad.StateT
 import CslibFrontier.Foundations.Data.List.Lookup
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Represented
 import CslibFrontier.Probability.PMF.Bind
@@ -252,16 +253,6 @@ private def completionCache {JointPrefix M Salt RejectPrefix Sigma CT K R : Type
         (RandomOracle.ofList (offTargetKeyCache S pk st.jointCache)))
       (RandomOracle.ofList st.decapsCache))
     (RandomOracle.ofList st.rejectionCache)
-
-/-- `StateT.run_bind` for a `StateT` program applied directly to its initial state. -/
-private theorem stateT_bind_apply {σ α β : Type} (x : StateT σ PMF α) (f : α → StateT σ PMF β)
-    (s : σ) : (x >>= f) s = x s >>= fun p => f p.1 p.2 :=
-  StateT.run_bind x f s
-
-/-- `StateT.run_map` for a `StateT` program applied directly to its initial state. -/
-private theorem stateT_map_apply {σ α β : Type} (f : α → β) (x : StateT σ PMF α) (s : σ) :
-    (f <$> x) s = (fun p => (f p.1, p.2)) <$> x s :=
-  StateT.run_map f x s
 
 namespace Scheme
 
@@ -926,7 +917,7 @@ private theorem prefetchDecaps_map_completionCache
   | some message =>
     unfold prefetchDecaps
     simp only [hdec]
-    rw [stateT_bind_apply, PMF.monad_bind_eq_bind]
+    rw [StateT.bind_apply, PMF.monad_bind_eq_bind]
     rw [PMF.map_bind]
     simp only [completionPrefetchDecapsProgram, hdec, OracleComp.run_interpret_bind,
       PMF.monad_bind_eq_bind]
@@ -941,7 +932,7 @@ private theorem prefetchDecaps_map_completionCache
         (PMF.pure (some z.1.key, z.2)) =
           PMF.pure (some z.1.key, completionCache S pk z.2)
       exact PMF.pure_map _ _
-    · rw [stateT_map_apply, PMF.monad_map_eq_map]
+    · rw [StateT.map_apply, PMF.monad_map_eq_map]
       simpa only [henc, ↓reduceIte, OracleComp.run_interpret_map,
         OracleComp.run_interpret_query, PMF.map_comp, Function.comp_def, Prod.map_apply, id_eq,
         PMF.monad_map_eq_map] using
@@ -969,7 +960,7 @@ private theorem Linked.of_prefetchDecaps
   | some message =>
     unfold prefetchDecaps at hz
     simp only [hdec] at hz
-    rw [stateT_bind_apply, PMF.monad_bind_eq_bind] at hz
+    rw [StateT.bind_apply, PMF.monad_bind_eq_bind] at hz
     rw [PMF.mem_support_bind_iff] at hz
     obtain ⟨reply, hreply, hz⟩ := hz
     have hmiddle := hlinked.of_simJoint hreply
@@ -978,7 +969,7 @@ private theorem Linked.of_prefetchDecaps
       rw [PMF.mem_support_pure_iff] at hz
       subst z
       exact hmiddle
-    · rw [stateT_map_apply, PMF.monad_map_eq_map, PMF.mem_support_map_iff] at hz
+    · rw [StateT.map_apply, PMF.monad_map_eq_map, PMF.mem_support_map_iff] at hz
       obtain ⟨key, hkey, rfl⟩ := hz
       exact hmiddle.of_decapsKey hkey
 
@@ -1566,7 +1557,7 @@ private theorem decapsContinuation_jointCache_eq
     rw [PMF.mem_support_pure_iff] at hy
     subst y
     rfl
-  · rw [stateT_map_apply, PMF.monad_map_eq_map] at hy
+  · rw [StateT.map_apply, PMF.monad_map_eq_map] at hy
     exact S.mapDecapsKey_jointCache_eq ciphertext hy
 
 /-- Real decapsulation and proof-only prefetch decapsulation assign the same mass to outcomes
@@ -1612,13 +1603,13 @@ private theorem realDecaps_jointCache_subset
   | none =>
     unfold realDecaps at hy
     simp only [hdec] at hy
-    rw [stateT_map_apply, PMF.monad_map_eq_map] at hy
+    rw [StateT.map_apply, PMF.monad_map_eq_map] at hy
     intro entry hentry
     rwa [S.mapDecapsKey_jointCache_eq ciphertext hy]
   | some message =>
     unfold realDecaps at hy
     simp only [hdec] at hy
-    rw [stateT_bind_apply, PMF.monad_bind_eq_bind] at hy
+    rw [StateT.bind_apply, PMF.monad_bind_eq_bind] at hy
     rw [PMF.mem_support_bind_iff] at hy
     obtain ⟨z, hz, hy⟩ := hy
     have hsub := S.cacheJoint_jointCache_subset pk
@@ -1641,13 +1632,13 @@ private theorem prefetchDecaps_jointCache_subset
   | none =>
     unfold prefetchDecaps at hy
     simp only [hdec] at hy
-    rw [stateT_map_apply, PMF.monad_map_eq_map] at hy
+    rw [StateT.map_apply, PMF.monad_map_eq_map] at hy
     intro entry hentry
     rwa [S.mapDecapsKey_jointCache_eq ciphertext hy]
   | some message =>
     unfold prefetchDecaps at hy
     simp only [hdec] at hy
-    rw [stateT_bind_apply, PMF.monad_bind_eq_bind] at hy
+    rw [StateT.bind_apply, PMF.monad_bind_eq_bind] at hy
     rw [PMF.mem_support_bind_iff] at hy
     obtain ⟨z, hz, hy⟩ := hy
     have hsub := S.cacheJoint_jointCache_subset pk (fun _ _ => True)
@@ -1744,7 +1735,7 @@ private theorem realDecaps_bad_eq_realJoint_bad
   classical
   unfold realDecaps
   simp only [hdec]
-  rw [stateT_bind_apply, PMF.monad_bind_eq_bind, PMF.toOuterMeasure_bind_apply]
+  rw [StateT.bind_apply, PMF.monad_bind_eq_bind, PMF.toOuterMeasure_bind_apply]
   rw [PMF.toOuterMeasure_apply]
   refine tsum_congr fun z => ?_
   by_cases hbad : ¬S.GoodCache pk sk z.2
@@ -1877,7 +1868,7 @@ private theorem realDecaps_bad_le [Fintype M] [Nonempty M]
   | some message =>
     unfold realDecaps
     simp only [hdec]
-    rw [stateT_bind_apply, PMF.monad_bind_eq_bind]
+    rw [StateT.bind_apply, PMF.monad_bind_eq_bind]
     refine (Probability.PMF.toOuterMeasure_bind_le_add _ _ {z | ¬S.GoodCache pk sk z.2} _ 0
       fun z _ hgood => by
         refine le_of_eq (toOuterMeasure_notGood_eq_zero (of_not_not hgood) ?_)
