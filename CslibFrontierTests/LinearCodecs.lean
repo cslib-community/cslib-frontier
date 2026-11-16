@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: local-only (ordinary-import regression client)
 
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Basic
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DegreeClosure
 import Lean.Elab.Command
 

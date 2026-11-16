@@ -149,7 +149,8 @@ example : (∃ c, ComputableInTimeAndSpace (fun l : List Bool =>
     hfst.append
       hsnd (fun _ => rfl)
   obtain ⟨k, hk⟩ := Internal.NormalForm.linear hstep
-  obtain ⟨⟨c, h⟩, hpost⟩ := hk.foldl_bits_stream_sum_spec (step := fun acc b => acc ++ [b]) []
+  obtain ⟨⟨c, h⟩, hpost⟩ := ComputableTidilyInTimeAndSpace.foldl_bits_stream_sum_spec
+    (hstep := hk) (step := fun acc b => acc ++ [b]) []
     (fun _ i state => state.length = i) (by simp)
     (by intro l i hi state hs; simpa using hs)
     (R := fun _ i => k * (2 * i + 3) + 2 * i + 2)
@@ -208,7 +209,8 @@ example : ∃ c, ComputableTidilyInTimeAndSpace (fun l => l.foldl resetStep []) 
     hsnd.ite
       ((ComputableInDegree.const []).restrict _) (happend.restrict _)
   obtain ⟨k, hk⟩ := Internal.NormalForm.linear hstep
-  obtain ⟨c, h⟩ := hk.foldl_bits_stream_sum (step := resetStep) []
+  obtain ⟨c, h⟩ := ComputableTidilyInTimeAndSpace.foldl_bits_stream_sum
+    (hstep := hk) (step := resetStep) []
     (R := fun l i => (3 * k + 2) * (((l.take i).foldl resetStep []).length + 1))
     (Q := fun l => k * (2 * l.length + 3)) (B := List.length)
     (fun l i hi => by
