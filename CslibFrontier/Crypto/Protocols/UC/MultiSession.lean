@@ -30,10 +30,8 @@ not the full Theorem 22**. Specifically:
    spawns `poly(κ)` subroutine sessions indexed by bitstring session identifiers across a recursive
    ITI call tree. Here `m : ℕ` is a fixed finite arity (`Fin m`) of depth-1 subroutine sessions,
    universally quantified over `{m : ℕ}` in every theorem (so concrete `EmulatesWithin` bounds
-   instantiate `m := q.eval κ` at any fixed security parameter `κ`). Informally (not formalised
-   here), eager initialization of all `m` states in `SSP.parFin` should match lazy first-touch
-   spawning of at most `m` sessions; dynamic session identifiers spawned on first use are left to
-   a follow-up.
+   instantiate `m := q.eval κ` at any fixed security parameter `κ`). Lazy first-touch spawning
+   and dynamic session identifiers are not formalised here and are left to a follow-up.
 2. **Call-bounded statistical participants vs. PPT ITMs.** `MultiHybridProtocol.PolyBounded`,
    `Protocol.PolyBounded`, `Adversary.PolyBounded`, and `Environment.PolyBounded` bound only the
    number of oracle and randomness calls per activation (or total for `Z`) by a `Polynomial ℕ`, as

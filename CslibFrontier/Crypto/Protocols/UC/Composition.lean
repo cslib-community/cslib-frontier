@@ -47,10 +47,8 @@ comparison of the activations uses the state-representation lemma
 As in `CslibFrontier.Crypto.Protocols.UC.Execution`, corruptions are static and budgets count calls,
 not running time, so these are composition theorems for interaction-bounded, computationally
 unbounded participants. The composition replaces one subroutine instance whose parties are the
-parties of `ρ`, with the same corrupted parties. A fixed number of sessions chosen in advance, and
-the hybrid argument that replaces them one at a time, are in
-`CslibFrontier/Crypto/Protocols/UC/MultiSession.lean`; dynamically created sessions are not
-covered. The corrupted
+parties of `ρ`, with the same corrupted parties; a fixed number of sessions is handled in
+`CslibFrontier.Crypto.Protocols.UC.MultiSession` and dynamic ones are not covered. The corrupted
 parties of the composed protocol act through the outer router `UC.corruptRouter C`, and the
 adversary reaches their subroutine inputs through the routed network port of the subroutine.
 
