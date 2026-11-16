@@ -61,16 +61,18 @@ VIA_ENTRY = {"module": GARBLING_PATH, "kind": c.VIA,
              "program": "Cslib.Crypto.GarblingWord.wordReduction",
              "certificate": "Cslib.Crypto.GarblingWord.isOraclePPT_wordReduction",
              "equality": "Cslib.Crypto.GarblingWord.eval_run_wordReduction",
+             "equality_module": WORD_PATH,
              "headline": "Cslib.Crypto.GarblingWord.prvSim",
              "why": "per-instance step that the certified word reduction runs; the headline "
                     "applies the assumption in its proof"}
 
 
-def check_row(problems: list[str] | None = None, missing: list[str] | None = None) -> str:
+def check_row(problems: list[str] | None = None, missing: list[str] | None = None,
+              equality_module: str = "CslibFrontier.Crypto.GarblingWord") -> str:
     """A line of the reader's output for the request of `VIA_ENTRY`."""
     return json.dumps({"v": VIA_REDUCTION, "p": problems or [], "at": "" if problems else "proof",
                        "vm": ["CslibFrontier.Crypto.Garbling", "CslibFrontier.Crypto.GarblingWord"],
-                       "missing": missing or []})
+                       "em": equality_module, "missing": missing or []})
 
 
 VIA_OUTPUT = "\n".join([
@@ -145,7 +147,7 @@ class ViaTests(unittest.TestCase):
 
     def test_parse_reads_verdicts_apart_from_reductions(self) -> None:
         self.assertEqual(c.parse_checks(VIA_OUTPUT), {VIA_REDUCTION: c.ViaCheck(
-            (), "proof", (GARBLING_PATH, WORD_PATH), ())})
+            (), "proof", (GARBLING_PATH, WORD_PATH), WORD_PATH, ())})
         self.assertEqual(set(c.uncertified(self.reductions)), {UNCERTIFIED, EXEMPT, VIA_REDUCTION})
 
     def test_requests_name_the_four_declarations_in_order(self) -> None:
@@ -156,6 +158,21 @@ class ViaTests(unittest.TestCase):
 
     def test_a_verified_entry_passes(self) -> None:
         self.assertFalse(c.compare(self.reductions, self.baseline, None, self.checks()))
+
+    def test_the_entry_records_the_file_of_the_equality(self) -> None:
+        # Without `equality_module`, the equality must be in the entry's `module`.
+        unrecorded = {key: value for key, value in VIA_ENTRY.items() if key != "equality_module"}
+        for value, equality_module in ((unrecorded, "CslibFrontier.Crypto.GarblingWord"),
+                                       (VIA_ENTRY, "CslibFrontier.Crypto.Other")):
+            checks = c.parse_checks(check_row(equality_module=equality_module))
+            invalid = c.compare(self.reductions, {**BASELINE, VIA_REDUCTION: value}, None,
+                                checks).invalid
+            self.assertEqual(len(invalid), 1)
+            self.assertIn(f"equality `{VIA_ENTRY['equality']}` is in "
+                          f"{equality_module.replace('.', '/')}.lean, not ", invalid[0][2])
+        checks = c.parse_checks(check_row(equality_module="CslibFrontier.Crypto.Garbling"))
+        self.assertFalse(c.compare(self.reductions, {**BASELINE, VIA_REDUCTION: unrecorded}, None,
+                                   checks))
 
     def test_a_renamed_declaration_fails_in_every_module(self) -> None:
         checks = self.checks("equality `Cslib.Crypto.GarblingWord.eval_run_wordReduction` does "
@@ -190,7 +207,7 @@ class ViaTests(unittest.TestCase):
     def test_an_entry_stays_stale_once_the_reduction_is_certified(self) -> None:
         reductions, _ = c.parse(OUTPUT)
         baseline = {**BASELINE, CERTIFIED: {**VIA_ENTRY, "module": ELGAMAL_PATH}}
-        checks = {CERTIFIED: c.ViaCheck((), "proof", (ELGAMAL_PATH,), ())}
+        checks = {CERTIFIED: c.ViaCheck((), "proof", (ELGAMAL_PATH,), WORD_PATH, ())}
         stale = c.compare(reductions, baseline, None, checks).stale
         self.assertEqual([name for name, _, _ in stale], [CERTIFIED])
 
@@ -208,22 +225,27 @@ class BaselineTests(unittest.TestCase):
         self.assertEqual(len(text.splitlines()), len(BASELINE) + 3)
         line = next(line for line in text.splitlines() if VIA_REDUCTION in line)
         self.assertEqual(list(json.loads(line.split(": ", 1)[1].rstrip(","))),
-                         ["module", "kind", *c.VIA_FIELDS, "why"])
-        self.assertEqual(c.VIA_FIELDS, ("program", "certificate", "equality", "headline"))
+                         ["module", "kind", "program", "certificate", "equality",
+                          "equality_module", "headline", "why"])
 
     def test_kind_is_gap_via_certified_program_or_exempt(self) -> None:
         bad = (entry(SCHNORR_PATH, "later"),
                {key: value for key, value in VIA_ENTRY.items() if key != "headline"},
                {**VIA_ENTRY, "program": " "},
-               {**entry(SCHNORR_PATH), "program": VIA_ENTRY["program"]})
+               {**VIA_ENTRY, "equality_module": ""},
+               {**entry(SCHNORR_PATH), "program": VIA_ENTRY["program"]},
+               {**entry(SCHNORR_PATH), "equality_module": WORD_PATH})
         with tempfile.TemporaryDirectory() as tmp:
             path = pathlib.Path(tmp) / "baseline.json"
             for value in bad:
                 path.write_text(json.dumps({UNCERTIFIED: value}))
                 with self.assertRaises(SystemExit, msg=value):
                     c.load_baseline(path)
-            path.write_text(json.dumps({UNCERTIFIED: VIA_ENTRY}))
-            self.assertEqual(c.load_baseline(path), {UNCERTIFIED: VIA_ENTRY})
+            unrecorded = {key: value for key, value in VIA_ENTRY.items()
+                          if key != "equality_module"}
+            for value in (VIA_ENTRY, unrecorded):
+                path.write_text(json.dumps({UNCERTIFIED: value}))
+                self.assertEqual(c.load_baseline(path), {UNCERTIFIED: value})
 
     def test_update_keeps_justifications_and_drops_stale_entries(self) -> None:
         reductions, _ = c.parse(OUTPUT)
@@ -529,8 +551,12 @@ PREFIX = "Cslib.Crypto.Fixture."
 # equality, headline)`, without `PREFIX`.
 VIA_REQUESTS = (
     ("valid", "typedStep", "stepProgram", "isPPT_stepProgram", "eval_stepProgram", "stepHeadline"),
-    ("statement", "typedStep", "stepProgram", "isPPT_stepProgram", "eval_stepProgram_private",
+    ("statement", "typedStep", "stepProgram", "isPPT_stepProgram", "eval_stepProgram",
      "stepStatement"),
+    ("private", "typedStep", "stepProgram", "isPPT_stepProgram", "eval_stepProgram_private",
+     "stepHeadline"),
+    ("bogus private", "typedStep", "stepProgram", "isPPT_stepProgram",
+     "eval_stepProgram_privat", "stepHeadline"),
     ("renamed", "typedStep", "stepProgramRenamed", "isPPT_stepProgram", "eval_stepProgram",
      "stepHeadline"),
     ("inequality", "typedStep", "stepProgram", "isPPT_stepProgram", "stepProgram_le",
@@ -622,11 +648,20 @@ class CompiledFixtureTests(unittest.TestCase):
 
     def test_a_valid_via_request_passes(self) -> None:
         self.assertEqual(self.certificate("typedStep"), ("", ()))
-        self.assertEqual(self.verdicts["valid"],
-                         c.ViaCheck((), "proof", ("CslibFrontier/Crypto/Fixture.lean",), ()))
-        # A headline may mention the program in its statement; a private equality counts.
+        path = "CslibFrontier/Crypto/Fixture.lean"
+        self.assertEqual(self.verdicts["valid"], c.ViaCheck((), "proof", (path,), path, ()))
+        # A headline may mention the program in its statement.
         self.assertEqual(self.verdicts["statement"].problems, ())
         self.assertEqual(self.verdicts["statement"].headline_at, "statement")
+
+    def test_a_private_equality_resolves_without_its_prefix(self) -> None:
+        path = "CslibFrontier/Crypto/Fixture.lean"
+        self.assertEqual(self.verdicts["private"], c.ViaCheck((), "proof", (path,), path, ()))
+        bogus = self.verdicts["bogus private"]
+        self.assertEqual(bogus.problems,
+                         (f"equality `{PREFIX}eval_stepProgram_privat` does not exist",))
+        self.assertEqual((bogus.missing, bogus.equality_path),
+                         ((PREFIX + "eval_stepProgram_privat",), ""))
 
     def test_invalid_via_requests_fail(self) -> None:
         expected = {

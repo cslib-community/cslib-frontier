@@ -157,10 +157,13 @@ whose conclusion, after its `∀`s and premises, is an equation `a = b` between 
 propositions, one side of which mentions `X` and the other `R` (so a bound `≤`/`<`, an `↔` or a
 simulation predicate is rejected); and the headline `H` is a theorem whose statement mentions `X`
 or `Y` or, failing that, whose proof does: the constants of its value and, at most three deep, of
-the auxiliary declarations that Lean generates under its name. It prints `{"v": reduction, "p":
-[problems], "at": "statement" | "proof" | "", "vm": [modules of the declarations found],
-"missing": [names not found]}` for each request, before the summary line. Mentioning a constant
-is a syntactic test: the checks do not judge which arguments `E` equates or what `Y` assumes.
+the auxiliary declarations that Lean generates under its name. A name that resolves to no
+declaration of the compiled modules, private or not, fails. It prints `{"v": reduction, "p":
+[problems], "at": "statement" | "proof" | "", "vm": [modules of the declarations found], "em":
+module of `E` or "", "missing": [names not found]}` for each request, before the summary line;
+`scripts/check_reduction_witnesses.py` compares `em` with the file the entry records for `E`.
+Mentioning a constant is a syntactic test: the checks do not judge which arguments `E` equates or
+what `Y` assumes.
 
 **Named assumptions.** With `--assumptions` (`lake env lean --run scripts/SecurityPremises.lean
 <lib-dir> --assumptions`), for `scripts/check_hardness_assumptions.py`, it reports the named
@@ -889,14 +892,20 @@ partial def proofConstants (env : Env) (fuel : Nat) (h : Name) : Array Name :=
 `via_certified_program` baseline entry (see the module docstring), with `resolve` finding a
 declaration by its name, private ones without their prefix. Returns
 `{"v": reduction, "p": [problems], "at": "statement" | "proof" | "", "vm": [modules of the
-declarations found], "missing": [names not found]}`, where `at` says whether the headline's
-statement or only its proof mentions the program or the certificate. -/
+declarations found], "em": module of the equality or "", "missing": [names not found]}`, where
+`at` says whether the headline's statement or only its proof mentions the program or the
+certificate. -/
 def checkVia (env : Env) (resolve : String → Option Name) (fields : Array String) : Json :=
     Id.run do
   let roles := #["reduction", "program", "certificate", "equality", "headline"]
+  -- The module of the equality, which the entry records so that a reviewer can open it.
+  let equalityModule : String :=
+    match fields[3]?.bind resolve |>.bind (env.moduleOf[·]?) with
+    | some m => m.toString
+    | none => ""
   let result (problems : Array String) (at_ : String) (modules absent : Array String) : Json :=
     Json.mkObj [("v", toJson (fields[0]?.getD "")), ("p", toJson problems), ("at", toJson at_),
-      ("vm", toJson modules), ("missing", toJson absent)]
+      ("vm", toJson modules), ("em", toJson equalityModule), ("missing", toJson absent)]
   if fields.size != roles.size then
     return result #[s!"malformed request with {fields.size} fields"] "" #[] #[]
   let mut problems : Array String := #[]

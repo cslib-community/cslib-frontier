@@ -37,24 +37,27 @@ A `via_certified_program` entry records a typed reduction, often a per-instance 
 certified program runs. Between `kind` and `why` it names four declarations: `"program"` X, the
 certified program; `"certificate"` Y, X's efficiency witness; `"equality"` E, a theorem stating
 that X's law or evaluation equals the reduction's; and `"headline"` H, the asymptotic theorem that
-applies the hardness assumption to X. `scripts/SecurityPremises.lean --reductions` verifies, on
-the built library, that all four exist (a private one is named without its private prefix); that
-X is a definition that yields a program; that Y is a theorem whose conclusion is an efficiency
+applies the hardness assumption to X. A private declaration is named without its private prefix.
+The entry also records the file that holds E, so that a reviewer can open it: `"equality_module"`,
+written after `equality`, when E is not in the entry's `module`. `scripts/SecurityPremises.lean
+--reductions` resolves the names in the compiled modules and verifies that all four exist; that X
+is a definition that yields a program; that Y is a theorem whose conclusion is an efficiency
 certificate, as recognized above, that mentions X; that E is a theorem whose conclusion, after its
 `∀`s and premises, is an equation `a = b`, not of propositions, with X in one side and the
 reduction in the other, such as an equality of `PMF`s or `eval`s or `Game.advantage … = …`; and
 that H is a theorem whose statement mentions X or Y or, failing that, whose proof term does
-(together with the auxiliary proofs Lean generates under H's name). E's conclusion must be an
-equation: a bound (`≤`, `<`) or a simulation predicate does not link X to the reduction, and such
-a step stays a `gap`, as does a reduction whose program no headline consumes yet. The `why`
-says whether H applies the assumption in its statement or only in its proof. A missing or renamed
-declaration fails the check. An entry is enforced in the modules of its reduction and of the four
-declarations, and in every module while one of them is missing, since the change that renamed or
-deleted it can be in any module. The status supplements review and does not replace it: the pass
-checks names and the shape of statements, not that Y assumes only the adversary's certificate,
-that E holds at the arguments where H uses X, or that H is the headline the reduction's result
-needs. The entry names the declarations so that a reviewer can open them. The summary prints the
-three counts separately.
+(together with the auxiliary proofs Lean generates under H's name). This checker then compares
+E's module with the recorded file. E's conclusion must be an equation: a bound (`≤`, `<`) or a
+simulation predicate does not link X to the reduction, and such a step stays a `gap`, as does a
+reduction whose program no headline consumes yet. The `why` says whether H applies the assumption
+in its statement or only in its proof. A missing, renamed or misplaced declaration fails the
+check. An entry is enforced in the modules of its reduction and of the four declarations, and in
+every module while one of them is missing, since the change that renamed or deleted it can be in
+any module. The status supplements review and does not replace it: the pass checks names and the
+shape of statements, not that Y assumes only the adversary's certificate, that E holds at the
+arguments where H uses X, or that H is the headline the reduction's result needs. The entry names
+the declarations so that a reviewer can open them. The summary prints the three counts
+separately.
 
 In a module that the change touches (adds, modifies or deletes, against the merge base of
 `--base`, default `origin/main`, and the working tree, as `scripts/check_changed_files.py`
@@ -115,9 +118,12 @@ VIA = "via_certified_program"
 # The declarations that a `via_certified_program` entry names, in the order of the reader's request
 # `via\t<reduction>\t<program>\t<certificate>\t<equality>\t<headline>`.
 VIA_FIELDS = ("program", "certificate", "equality", "headline")
-# The fields of an entry of each kind, in the order they are written.
+# The file that holds the equality, when it is not the entry's `module`.
+EQUALITY_MODULE = "equality_module"
+# The fields of an entry of each kind, in the order they are written; `EQUALITY_MODULE` is optional.
 FIELDS = {"gap": ("module", "kind", "why"), "exempt": ("module", "kind", "why"),
-          VIA: ("module", "kind", *VIA_FIELDS, "why")}
+          VIA: ("module", "kind", "program", "certificate", "equality", EQUALITY_MODULE,
+                "headline", "why")}
 
 
 @dataclass(frozen=True)
@@ -141,10 +147,12 @@ class Reduction:
 class ViaCheck:
     """The Lean pass's verdict on a `via_certified_program` entry: its problems, where the
     headline mentions the program or its certificate (`statement`, `proof`, or the empty string),
-    the paths of the modules of the declarations it found, and the names it did not find."""
+    the paths of the modules of the declarations it found, the path of the equality's module (or
+    the empty string), and the names it did not find."""
     problems: tuple[str, ...]
     headline_at: str
     paths: tuple[str, ...]
+    equality_path: str
     missing: tuple[str, ...]
 
 
@@ -173,6 +181,7 @@ def parse_checks(output: str) -> dict[str, ViaCheck]:
         if "v" in row:
             checks[row["v"]] = ViaCheck(tuple(row["p"]), row["at"],
                                         tuple(csp.module_path(m) for m in row["vm"]),
+                                        csp.module_path(row["em"]) if row["em"] else "",
                                         tuple(row["missing"]))
     return checks
 
@@ -206,13 +215,14 @@ def uncertified(reductions: dict[str, Reduction]) -> dict[str, Reduction]:
 
 
 def valid_entry(value: object) -> bool:
-    """Whether a baseline value has exactly the fields of its kind, as strings, and a
-    `via_certified_program` entry names its four declarations."""
+    """Whether a baseline value has the fields of its kind, the optional `equality_module` aside,
+    as strings, and a `via_certified_program` entry names its four declarations."""
     if not isinstance(value, dict) or value.get("kind") not in KINDS:
         return False
-    fields = FIELDS[value["kind"]]
-    return (set(value) == set(fields) and all(isinstance(value[f], str) for f in fields)
-            and all(value[f].strip() for f in fields if f in VIA_FIELDS))
+    fields = set(FIELDS[value["kind"]])
+    return (fields - {EQUALITY_MODULE} <= set(value) <= fields
+            and all(isinstance(v, str) for v in value.values())
+            and all(value[f].strip() for f in (*VIA_FIELDS, EQUALITY_MODULE) if f in value))
 
 
 def load_baseline(path: Path) -> dict[str, dict]:
@@ -220,9 +230,10 @@ def load_baseline(path: Path) -> dict[str, dict]:
     if not (isinstance(data, dict) and all(valid_entry(v) for v in data.values())):
         sys.exit(f"{path}: expected a JSON object from reduction names to "
                  '{"module": path, "kind": "gap" or "exempt", "why": justification} or '
-                 f'{{"module": path, "kind": "{VIA}", '
-                 + ", ".join(f'"{f}": declaration' for f in VIA_FIELDS)
-                 + ', "why": justification}')
+                 f'{{"module": path, "kind": "{VIA}", "program": declaration, '
+                 '"certificate": declaration, "equality": declaration, '
+                 f'optionally "{EQUALITY_MODULE}": path, "headline": declaration, '
+                 '"why": justification}')
     return data
 
 
@@ -230,8 +241,8 @@ def baseline_text(entries: dict[str, dict]) -> str:
     """One entry per line, grouped by module, so concurrent edits rarely touch the same lines."""
     order = sorted(entries, key=lambda n: (entries[n]["module"], n))
     lines = [f" {json.dumps(n, ensure_ascii=False)}: "
-             + json.dumps({f: entries[n][f] for f in FIELDS[entries[n]["kind"]]},
-                          ensure_ascii=False)
+             + json.dumps({f: entries[n][f] for f in FIELDS[entries[n]["kind"]]
+                           if f in entries[n]}, ensure_ascii=False)
              for n in order]
     return "{\n" + ",\n".join(lines) + ("\n" if lines else "") + "}\n"
 
@@ -269,7 +280,8 @@ def compare(reductions: dict[str, Reduction], baseline: dict[str, dict],
         check = checks.get(name) if via else None
         # A declaration the pass cannot find may have been renamed or deleted in any module.
         everywhere = via and (check is None or bool(check.missing))
-        if not (everywhere or scoped(entry["module"], *(r.paths() if r else ()),
+        if not (everywhere or scoped(entry["module"], entry.get(EQUALITY_MODULE, ""),
+                                     *(r.paths() if r else ()),
                                      *(check.paths if check else ()))):
             continue
         if r is None:
@@ -282,8 +294,15 @@ def compare(reductions: dict[str, Reduction], baseline: dict[str, dict],
             unjustified.append(name)
         if via and check is None:
             invalid.append((name, entry, "the Lean pass did not verify it"))
-        elif check is not None and check.problems:
-            invalid.append((name, entry, "; ".join(check.problems)))
+        elif check is not None:
+            reasons = list(check.problems)
+            recorded = entry.get(EQUALITY_MODULE, entry["module"])
+            if check.equality_path and check.equality_path != recorded:
+                reasons.append(f"equality `{entry['equality']}` is in {check.equality_path}, not "
+                               f"{recorded}; record its file as `{EQUALITY_MODULE}`, or omit "
+                               "that field when it is the entry's `module`")
+            if reasons:
+                invalid.append((name, entry, "; ".join(reasons)))
     return Problems(new, stale, unjustified, invalid)
 
 

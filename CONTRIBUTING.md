@@ -242,16 +242,17 @@ it. `scripts/reduction_witnesses_baseline.json` records the uncertified ones, on
 needed (an information-theoretic bound, or a definition that is not a reduction, such as a scheme
 built from a component). A `via_certified_program` entry records a typed reduction that a
 certified program runs: it names the program, the program's efficiency witness, a theorem whose
-conclusion is an equation between the program's law and the reduction's (a bound does not count),
-and the asymptotic headline that applies the hardness assumption to the program, in its statement
-or proof. The checker verifies these four declarations in Lean, so a renamed one fails; it does not
-judge them, and review still does. CI treats it as it treats the premise check: a pull request
-fails when a changed module has an unrecorded uncertified reduction or a baseline entry that no
-longer matches, so the baseline only shrinks; merge groups only report. `--list` shows every reduction
-with its certificate, and `--update-baseline` adds entries whose `why` you then fill in. The
-check does not see a reduction written inline in a bound, a bound without an advantage-named
-constant, a simulator or extractor on the bounded side, or an attack, and it does not judge
-whether a witness assumes only the adversary's certificate; review covers these.
+conclusion is an equation between the program's law and the reduction's (a bound does not count)
+with the file that holds it, and the asymptotic headline that applies the hardness assumption to
+the program, in its statement or proof. Private declarations are named without their prefix. The
+checker verifies these four declarations in Lean, so a renamed one fails; it does not judge them,
+and review still does. CI treats it as it treats the premise check: a pull request fails when a
+changed module has an unrecorded uncertified reduction or a baseline entry that no longer matches,
+so the baseline only shrinks; merge groups only report. `--list` shows every reduction with its
+certificate, and `--update-baseline` adds entries whose `why` you then fill in. The check does not
+see a reduction written inline in a bound, a bound without an advantage-named constant, a simulator
+or extractor on the bounded side, or an attack, and it does not judge whether a witness assumes
+only the adversary's certificate; review covers these.
 
 **Named assumptions** ([#5578](https://github.com/cslib-community/cslib-frontier/issues/5578)). Each
 named assumption that a Crypto theorem takes belongs in the
