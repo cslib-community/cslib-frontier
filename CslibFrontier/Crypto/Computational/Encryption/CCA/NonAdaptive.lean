@@ -24,12 +24,12 @@ automatically. As in the rest of the library, the digit in `INDCCA1On` and `INDC
 name of the attack, not the number of encryption queries; both are one-query notions.
 
 The source calls the notion weaker than CCA security and proves neither of the implications
-CCA ⇒ non-adaptive CCA ⇒ CPA. The first restricts the class of adversaries. The second plays a
+CCA ⇒ non-adaptive 1CCA ⇒ CPA. The first restricts the class of adversaries. The second plays a
 chosen-plaintext adversary through the existing lift `CCA2AdversaryOf.ofCPA`, which makes no
 decryption query.
 
-Not formalized here: the multi-query non-adaptive notion and the source's statement that one
-encryption query suffices (the non-adaptive analogue of Theorem 12.1), and parts (a) and (b) of the
+Not formalized here: the multi-query form of the notion and the source's statement that one
+encryption query suffices (the analogue of Theorem 12.1), and parts (a) and (b) of the
 exercise.
 
 ## Main definitions
