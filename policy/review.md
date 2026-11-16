@@ -82,9 +82,15 @@ output is close to the real view) and whether this PR proves it. Unfoldings, `rf
 listed under "Main results". If the property is missing, request it, or have the PR title, body
 and module documentation say plainly that the change provides definitions only.
 
-Before a published theorem enters the [results inventory](../results/README.md), a human maintainer
-checks the statement against the source and records that check in a comment written by the human,
-not by an agent posting from their account. Agent review alone does not admit an entry.
+Before a published theorem enters the [results inventory](../results/README.md), its statement is
+checked against the source by a reviewer, human or agent, from outside the authoring fleet. The
+checker reads the cited passages in the source itself, not locators copied from the PR, reads the
+definitions the statement rests on, and records the check in a comment that says who made it,
+what was read, which deviations were accepted and what was not checked. An agent's check says
+that it is an agent's and is never presented as a human one. The check is a step of its own,
+separate from the ordinary independent review, which is still required. A maintainer may require
+a human check for entries from their own fleet by saying so on the entry's PR or tracking issue;
+that requirement then holds for those entries.
 
 Before approving library changes, read the **Parallel-definition**, **Duplicate-statement** and
 **Repeated-proof-block** notices in the CI job summary or step logs for the reviewed revision. Inspect both

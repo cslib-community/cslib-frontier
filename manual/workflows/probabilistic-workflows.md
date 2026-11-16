@@ -180,6 +180,14 @@ box `{u | ∀ i, u i ∈ E i}`. For `Fin k`-indexed tuples with different factor
 [IID.lean](../../CslibFrontier/Probability/IID.lean) generalizes `iid`, and
 [IID/Event.lean](../../CslibFrontier/Probability/IID/Event.lean) gives its box and union bounds
 `toOuterMeasure_piFin_forall` and `toOuterMeasure_toReal_piFin_exists_le`.
+[IID/Marked.lean](../../CslibFrontier/Probability/IID/Marked.lean) applies the box formula to
+independent coins: for `μ : PMF Bool`, a finite set `R` of indices and an index `ν ∉ R`, the
+probability under `iid μ k` that `ν` shows `true` and every index in `R` shows `false` is
+`μ true * μ false ^ R.card` (`toOuterMeasure_iid_marked`). When `(μ true).toReal = a⁻¹` for a
+real `a` with `R.card + 1 ≤ a`, it is at least `exp (-1) / a`
+(`exp_neg_one_div_le_toOuterMeasure_iid_marked`) and hence at least `1 / (2.72 * a)`
+(`one_div_le_toOuterMeasure_iid_marked`); at `a = Q + 1` this is the Claim in the proof of Lemma
+13.6 of [bs23][bs23] (§13.4.1, p. 543).
 [IID/Birthday.lean](../../CslibFrontier/Probability/IID/Birthday.lean) bounds from below the
 probability that `k` samples of `iid μ k` contain two equal values, for any law `μ` on a set of size
 `n`: at least `1 - exp (-k (k - 1) / (2 n))` (`one_sub_exp_neg_le_iid_not_injective`) and at least
@@ -365,7 +373,7 @@ surely. A tree that fails to halt with positive probability has `expectedFlips =
 
 Import [DDGTree/KnuthYao.lean](../../CslibFrontier/Probability/DDGTree/KnuthYao.lean) for the
 entropy bounds ([Knuth–Yao 1976](../sources.md#knuthyao76);
-[Cover–Thomas §5.11](../sources.md#coverthomas06)), stated for distributions on a finite type:
+[Cover–Thomas](../sources.md#coverthomas06), §5.11), stated for distributions on a finite type:
 
 - `entropy_le_expectedFlips hT : ENNReal.ofReal (PMF.entropy p) ≤ T.expectedFlips` for every
   `hT : T.Generates p`;
@@ -567,8 +575,8 @@ Run `scripts/build.sh CslibFrontierTests.StatisticalDifference` and
 
 For finite distributions (`PMF α` with `[Finite α]` / `[Fintype α]`), Hellinger distance and
 Pearson `χ²` divergence complement half-`L¹` statistical distance (`dist`) with exact product
-tensorization and comparison inequalities ([Tsybakov, Section 2.4](../sources.md#tsybakov09);
-[Canonne, §3.1 and Appendix B](../sources.md#canonne22)):
+tensorization and comparison inequalities ([Tsybakov](../sources.md#tsybakov09), Section 2.4;
+[Canonne](../sources.md#canonne22), §3.1 and Appendix B):
 
 - **Bhattacharyya coefficient and Hellinger distance.** Import
   [Hellinger.lean](../../CslibFrontier/Probability/Hellinger.lean). The definitions
@@ -1959,6 +1967,7 @@ When two stateful oracle handlers agree until an internal collision or guessing 
 - **Monotone Boolean bad flags (`withBadFlag`, `IdenticalUntilBad.of_flag`).** Given one-step kernels `step₁ step₂ : (q : Query) → State → PMF (spec q × (State × Bool))` returning an answer, next state and per-call bad indicator, `OracleComp.withBadFlag stepᵢ` latches the flag with `||` on `State × Bool` under `FlagBad st := st.2 = true`. `OracleComp.identicalUntilBad_withBadFlag` (and `ProbOracleComp.identicalUntilBad_withBadFlag`) discharges flag absorption automatically and asks only for pointwise agreement on unflagged outcomes `step₁ q s (a, (s', false)) = step₂ q s (a, (s', false))`. When a handler already acts on `State × Bool`, use `IsFlagMonotone` with `IdenticalUntilBad.of_flag`.
 - **Recovering unflagged `ProbOracleComp.runWith` executions.** `ProbOracleComp.IdenticalUntilBad` lifts `OracleComp.IdenticalUntilBad` across `ProbComp.unifOracle` coin draws, providing `run_apply`, `bind_apply_le`, `bad_eq`, `abs_sub_le`, `closeTo_run`, `closeTo_bind` and `ProbOracleComp.IdenticalUntilBad.advantage_le` directly on `ProbOracleComp.runWith`. Apply `ProbOracleComp.runWith_withBadFlag_map_fst` (or `ProbOracleComp.runWith_map_fst`) to project away the Boolean flag whenever each step's `(a, s')` marginal matches the unflagged handler.
 - **Linear vs. triangular (`choose 2`) bad-event union bounds.** Use `ProbOracleComp.toOuterMeasure_bad_le` when each call's bad probability is bounded against a real-valued budget growth. When each call from a good state `s` triggers `bad` with probability proportional to an integer table size (`size s * δ`) and grows `size` by at most `1`, import [UntilBad/ChooseTwo.lean](../../CslibFrontier/Languages/Probabilistic/UntilBad/ChooseTwo.lean) and apply `OracleComp.toOuterMeasure_bad_choose_two_le` or `ProbOracleComp.toOuterMeasure_bad_choose_two_le` for the sharp triangular sum `(n * size s + n.choose 2) * δ`. When active calls (`cost₁`, budget `k₁`) risk `bad` and grow `size` while passive calls (`cost₂`, budget `k₂`) only grow `size`, `OracleComp.toOuterMeasure_bad_choose_two_cost_le` and `ProbOracleComp.toOuterMeasure_bad_choose_two_cost_le` give `(k₁ * size s + k₁ * k₂ + k₁.choose 2) * δ`.
+- **A lazily sampled function called through a map.** When each query `m : M` of a program is answered by a lazily sampled function on `Y` at `φ m`, import [RandomOracle/Through.lean](../../CslibFrontier/Languages/Probabilistic/RandomOracle/Through.lean). For `φ : M → Y` with decidable equality on `M` and `Y`, one distribution `dist : PMF Z` for every fresh answer, and `program : ProbOracleComp (fun _ : M => Z) α`, `RandomOracle.closeTo_runWith_memoize_simulate_query` bounds the statistical distance between the result of `program` against `memoize fun _ : M => dist` and the result of `ProbOracleComp.simulate (fun m => ProbOracleComp.query (φ m)) program` against `RandomOracle.answer fun _ : Y => dist`, both from an empty cache. The error is the probability that the final cache of the first run holds two distinct queries with the same image (`RandomOracle.HasImageCollision φ`; `RandomOracle.hasImageCollision_iff` restates it on the list of queries). The statement compares results, not final caches. Use it when a collision has no per-call probability, for example when `φ` is a keyed hash and the bound comes from averaging over the key afterwards; when each call has its own bound, use the `choose 2` lemma above. Checked examples, including a constant map for which the error cannot be dropped: [RandomOracleThrough.lean](../../CslibFrontierTests/RandomOracleThrough.lean).
 - **Random-oracle min-entropy programming and birthday collisions.** Import [RandomOracle/Programming.lean](../../CslibFrontier/Languages/Probabilistic/RandomOracle/Programming.lean) (and [CloseTo/RandomOracle.lean](../../CslibFrontier/Crypto/Game/CloseTo/RandomOracle.lean) for `Game.advantage` wrappers):
   - `RandomOracle.toOuterMeasure_exists_mem_fst_eq_le` bounds `μ.toOuterMeasure {a | ∃ e ∈ cache, e.1 = f a}` by `cache.length * δ` whenever `∀ q, (μ.map f) q ≤ δ`, and `RandomOracle.map_comp_apply_le_of_injective` transports that guessing bound through an injective key embedding.
   - `RandomOracle.lazyProgramHandler` and `RandomOracle.overwriteProgramHandler` (with flagged counterparts `flaggedLazyProgramHandler` and `flaggedOverwriteProgramHandler` used in [FiatShamir.lean](../../CslibFrontier/Crypto/Protocols/SigmaProtocol/FiatShamir.lean) and [FiatShamirNIZK.lean](../../CslibFrontier/Crypto/Protocols/SigmaProtocol/FiatShamirNIZK.lean)) model a two-channel experiment (`Req ⊕ Query`) whose active `.inl req` calls sample `ts ← samplePre req` with guessing bound `δ` at `point req ts` and either query `memoize (fun _ => dist)` lazily or overwrite `(point req ts, c)` with a fresh `c ← dist`. `closeTo_run_lazyProgramHandler_overwriteProgramHandler_choose_two` and `closeTo_runWith_lazyProgramHandler_overwriteProgramHandler_choose_two` (plus `advantage_runWith_lazyProgramHandler_overwriteProgramHandler_choose_two_le`) bound the programming-collision error by `(q_S * cache.length + q_S * q_H + q_S.choose 2) * δ`, with rectangular corollaries `q_S * (cache.length + q_S + q_H) * δ`.

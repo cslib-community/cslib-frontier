@@ -8,15 +8,11 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.Encryption.EncryptThenMAC
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
+public import CslibFrontier.Crypto.Computational.FlipHeadBit
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair.Projections
-import CslibFrontier.Computability.Probabilistic.Oracle.Tidy
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Languages.Probabilistic.Oracle.Norm
-import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Support
-import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.PPT
 
 /-!
@@ -31,8 +27,8 @@ We construct `partialTagMAC M hmsgLen` (wrapping any `MACScheme M` with `∀ n, 
 into a `2 * n`-bit `MACScheme` that authenticates only the second half `msg.drop (msg.length / 2)`)
 and define `prfCipherPartialTag` directly via `encryptThenMAC (prfCipher ...) (partialTagMAC ...)`.
 The explicit 1-query `IsOraclePPT` adversary `partialTagCIAdversary ctBound` queries `0^n`,
-truncates the reply to `ctBound n`, and flips the first IV bit via `flipHeadBit`, winning
-`ciOneTimeGame` with probability `1` for every `n ≥ 1` and unconditionally refuting
+truncates the reply to `ctBound n`, and flips the first IV bit via `Cslib.Crypto.flipHeadBit`,
+winning `ciOneTimeGame` with probability `1` for every `n ≥ 1` and unconditionally refuting
 `OneTimeCiphertextIntegrity`, `CiphertextIntegrity`, and `AuthenticatedEncryption`, while
 `indcpa_encryptThenMAC` immediately preserves `INDCPA` under any `PseudorandomFunction`.
 
@@ -49,7 +45,6 @@ proved nor refuted here.
 
 ## Main definitions
 
-* `Cslib.Crypto.flipHeadBit`: flips the leading bit of a non-empty bit string.
 * `Cslib.Crypto.partialTagMAC`: lifts any `n`-bit `MACScheme` to `2 * n`-bit messages by
   signing and verifying only `msg.drop (msg.length / 2)`.
 * `Cslib.Crypto.prfCipherPartialTag`: `encryptThenMAC` over `prfCipher` and `partialTagMAC`.
@@ -58,7 +53,6 @@ proved nor refuted here.
 
 ## Main results
 
-* `Cslib.Crypto.flipHeadBit_cons`: `simp` rule for `flipHeadBit (b :: rest)`.
 * `Cslib.Crypto.isOraclePPT_partialTagCIAdversary`,
   `Cslib.Crypto.isQueryBounded_partialTagCIAdversary`: strict oracle-PPT admissibility and 1-query
   bound for `partialTagCIAdversary`.
@@ -84,50 +78,23 @@ public section
 namespace Cslib.Crypto
 
 open Probability Turing.MultiTapeTM
-open scoped NNReal ENNReal
+open scoped NNReal
 
-/-- Flip the leading bit of a bit string, returning `[]` on `[]`. -/
-@[expose]
-def flipHeadBit (xs : List Bool) : List Bool :=
-  if xs.isEmpty then []
-  else if xs.take 1 == [true] then [false] ++ xs.tail else [true] ++ xs.tail
-
-@[fun_prop]
-private theorem computableInPolyTime_flipHeadBit :
-    ComputableInPolyTime flipHeadBit encBits encBits := by
-  unfold flipHeadBit
-  fun_prop
-
-/-- Simplification rule for `flipHeadBit` on a non-empty bit string. -/
-@[simp]
-theorem flipHeadBit_cons (b : Bool) (rest : List Bool) :
-    flipHeadBit (b :: rest) = (!b) :: rest := by
-  cases b <;> rfl
-
-private theorem flipHeadBit_ne {xs : List Bool} (hne : xs ≠ []) :
-    flipHeadBit xs ≠ xs := by
-  cases xs with
-  | nil => exact (hne rfl).elim
-  | cons b rest =>
-    rw [flipHeadBit_cons]
-    intro h
-    exact Bool.not_ne_self b (List.cons.inj h).1
-
-private theorem length_flipHeadBit (xs : List Bool) :
+private theorem length_flipHeadBit {xs : List Bool} (hne : xs ≠ []) :
     (flipHeadBit xs).length = xs.length := by
   cases xs with
-  | nil => rfl
-  | cons b rest => simp
+  | nil => exact (hne rfl).elim
+  | cons _ _ => rfl
 
 private theorem drop_flipHeadBit {n : ℕ} (hn : 1 ≤ n) (xs : List Bool) (hxs : n ≤ xs.length) :
     (flipHeadBit xs).drop n = xs.drop n := by
   cases xs with
   | nil =>
     simp only [List.length_nil] at hxs
-    lia
-  | cons b rest =>
-    obtain ⟨m, rfl⟩ := Nat.exists_eq_succ_of_ne_zero (by lia : n ≠ 0)
-    simp
+    omega
+  | cons _ _ =>
+    obtain ⟨m, rfl⟩ := Nat.exists_eq_succ_of_ne_zero (by omega : n ≠ 0)
+    rfl
 
 /-- Lifts any `MACScheme M` on `n`-bit messages (`∀ n, M.msgLen n = n`) to a `MACScheme` on
 `2 * n`-bit messages that signs and verifies only the second half `msg.drop (msg.length / 2)`,
@@ -194,7 +161,6 @@ computable in plain polynomial time. -/
 theorem isOraclePPT_partialTagCIAdversary {ctBound : ℕ → ℕ}
     (hctBound : ComputableInPolyTime ctBound encUnary encUnary) :
     IsOraclePPT encBits (partialTagCIAdversary ctBound) := by
-  have hct := hctBound.tidy
   ppt [partialTagCIAdversary]
 
 /-- `partialTagCIAdversary` makes at most `1` encryption query. -/
@@ -247,9 +213,9 @@ private theorem malleate_prfCipherPartialTag_ciphertext
   · intro hEq
     have hUnframe := congrArg unframe hEq
     rw [unframe_encPair_encBits, unframe_encPair_encBits] at hUnframe
-    exact flipHeadBit_ne hcFullNe hUnframe
+    exact flipHeadBit_ne_self cFull hUnframe
   · have hLenFlip : (flipHeadBit cFull).length = 2 * n := by
-      rw [length_flipHeadBit, hcFullLen]
+      rw [length_flipHeadBit hcFullNe, hcFullLen]
     have hDropFlip : (flipHeadBit cFull).drop n = cFull.drop n :=
       drop_flipHeadBit hn cFull (by omega)
     simp only [prfCipherPartialTag, encryptThenMAC, partialTagMAC,

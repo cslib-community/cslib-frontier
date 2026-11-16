@@ -9,7 +9,6 @@ module
 public import CslibFrontier.Crypto.Computational.Encryption.EncryptThenMAC.PartialTag
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair.Projections
 import CslibFrontier.Languages.Probabilistic.Oracle.Norm
-import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Support
 import CslibFrontier.Tactic.PolyTime
 
@@ -64,11 +63,9 @@ private noncomputable def echoPrfPartialTag : SymmetricCipher :=
 
 /-! ### Concrete checks: `flipHeadBit`, IV-bit-flip forgery, and body tamper rejection -/
 
--- `flipHeadBit` returns `[]` on the empty bit string and flips the leading bit otherwise.
-example :
-    flipHeadBit [] = [] ∧
-    flipHeadBit [false, true, true, false] = [true, true, true, false] := by
-  decide
+-- `flipHeadBit` flips the leading bit of a non-empty bit string.
+example : flipHeadBit [false, true, true, false] = [true, true, true, false] :=
+  rfl
 
 -- Flipping the first bit of the unauthenticated IV changes the framed ciphertext while still
 -- passing `echoPrfPartialTag.decrypt`, whereas tampering with the MAC-protected body fails.
@@ -113,8 +110,9 @@ private theorem echoPrfPartialTag_ctBound (n : ℕ) :
   simp only [length_encPair, encBits_apply, List.length_drop, hcFullLen]
   omega
 
--- At `n = 0` (`1 ≤ n` violated), `flipHeadBit [] = []`, so `partialTagCIAdversary` outputs the
--- queried ciphertext unchanged and loses `ciOneTimeGame` with probability `1`.
+-- At `n = 0` (`1 ≤ n` violated), `flipHeadBit [] = [true]`, so `partialTagCIAdversary`
+-- outputs a `1`-bit candidate that fails the `2 * 0`-bit length check in decryption, losing
+-- `ciOneTimeGame` with probability `1`.
 example :
     ProbComp.eval
         (echoPrfPartialTag.ciOneTimeGame (partialTagCIAdversary (fun m => 5 * m + 1)) 0) =
@@ -139,8 +137,11 @@ example :
       [] rfl cFull hcFull
   have hNil : cFull = [] := List.eq_nil_of_length_eq_zero (by omega)
   subst hNil
-  rw [unframe_encPair_encBits, dropFrame_encPair_encBits]
-  simp [flipHeadBit]
+  rw [unframe_encPair_encBits, dropFrame_encPair_encBits,
+    show flipHeadBit [] = [true] from rfl]
+  simp only [echoPrfPartialTag, prfCipherPartialTag, encryptThenMAC, partialTagMAC,
+    unframe_encPair_encBits, dropFrame_encPair_encBits]
+  simp
 
 -- When `ctBound` violates `CiphertextLengthLE` (`ctBound _ = 0` at `n = 2`), the reply is cut to
 -- `[]`, producing an ill-sized forgery that fails decryption, so the adversary loses
