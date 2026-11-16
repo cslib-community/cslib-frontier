@@ -1039,6 +1039,28 @@ Sandy Irani. "Two Results on the List Update Problem." *Information Processing L
 
 Svante Janson, Tomasz Łuczak and Andrzej Ruciński. *Random Graphs*. Wiley-Interscience Series in Discrete Mathematics and Optimization, Wiley, 2000. https://doi.org/10.1002/9781118032718 . Bibliographic data from secondary records of the DOI. The chapter locator (Chapter 3, small subgraphs and the threshold `n ^ (-1 / m(H))`) was taken from secondary descriptions; the book was not inspected in this pass, and no theorem number is claimed.
 
+<a id="jeandelvanier2020"></a>
+## jeandelvanier2020
+
+Emmanuel Jeandel and Pascal Vanier. *The Undecidability of the Domino Problem*. In Shigeki
+Akiyama and Pierre Arnoux (eds.), *Substitution and Tiling Dynamics*, Lecture Notes in Mathematics
+2273, 293–357, Springer, 2020. [Publisher record](https://doi.org/10.1007/978-3-030-57666-0_6);
+[authors' manuscript](https://www.lacl.fr/pvanier/rech/cirm.pdf). Read on 2026-11-16 by the
+authoring Codex workers: §3.2 (beginning on manuscript p. 22), Definition 10 and Theorem 9
+(p. 23), Proposition 8 (p. 24), and Figures 13–16 (pp. 25–26). The tile set is attributed to
+[Ollinger](#ollinger2008) on p. 24. The Robinson modules use
+[lean-wang](https://github.com/edemaine/lean-wang/tree/64268a3aaaef3eac65559352ef94f62ab9c00482)
+at that revision, retaining its authors and Apache-2.0 credit. “Corrected” identifies its
+Figure 13 component transcription and the second thick-layer summand at `L2b` in Figure 16(c),
+whose southeast extension uses `R1` rather than `R3`
+([plan, lines 94–98](https://github.com/edemaine/lean-wang/blob/64268a3/plan.md#L94-L98)).
+Both thick-layer boundary lanes are retained. This records lean-wang's correction, not a
+verified erratum to the printed figures; historical correction: locator not verified.
+Full agreement with those figures is not checked in Lean. The formalized endpoint is matching
+substitution, local recognition, parent towers, recurrence and nonempty plane tilings;
+it does not include Proposition 8's aperiodicity conclusion or domino undecidability.
+This source check is authoring evidence, not independent review.
+
 <a id="johnsonlindenstrauss84"></a>
 ## johnsonlindenstrauss84
 
@@ -1498,6 +1520,20 @@ Igor Carboni Oliveira and Rahul Santhanam. *Conspiracies Between Learning Algori
 ## oliveirasanthanam2018
 
 Igor Carboni Oliveira and Rahul Santhanam. *Hardness Magnification for Natural Problems*. FOCS 2018, 65–76. https://doi.org/10.1109/FOCS.2018.00016 . Full version ECCC TR18-139. Bibliographic data comes from the repository bibliography; the paper was not inspected for this chapter. The Lean module documentation quotes Theorems 1, 5, 17 and 27 and Lemma 16 from the ECCC full version with page locators.
+
+<a id="ollinger2008"></a>
+## ollinger2008
+
+Nicolas Ollinger. *Two-by-Two Substitution Systems and the Undecidability of the
+Domino Problem*. In Arnold Beckmann, Costas Dimitracopoulos and Benedikt Löwe
+(eds.), *Logic and Theory of Algorithms*, Lecture Notes in Computer Science 5028,
+476–485, Springer, 2008. [Publisher record](https://doi.org/10.1007/978-3-540-69407-6_51).
+Bibliographic metadata checked at the publisher on 2026-11-16 by an authoring Codex
+agent. Cited as the origin of the tile set attributed to Ollinger in
+[Jeandel–Vanier](#jeandelvanier2020), manuscript p. 24 and Figure 13 on p. 25.
+The paper's full text was not available in this pass: internal theorem/figure
+locator not verified. The concrete formalization follows the pinned lean-wang
+transcription described in that registry entry.
 
 <a id="openaich26"></a>
 ## openaich26

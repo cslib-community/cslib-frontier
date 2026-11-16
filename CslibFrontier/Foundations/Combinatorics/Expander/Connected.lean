@@ -50,8 +50,8 @@ at `v` with probability within `λ(G) ^ t (1 - 1 / |V|)` of `1 / |V|` (`abs_walk
 So if `λ(G) ^ t (|V| - 1) < 1`, then for any two vertices `u` and `v` some walk of length exactly
 `t` leads from `u` to `v` (`exists_neighbor_pow_eq`): the probability is at least
 `(1 - λ(G) ^ t (|V| - 1)) / |V| > 0`. So an expander with `λ(G) ≤ c < 1` has diameter
-`O(log |V|)`; Reingold derives this from vertex expansion instead
-[Reingold, Proposition 2.2][Reingold2008].
+`O(log |V|)` (`exists_walk_length_le_clog_of_spectralExpansion_lt`); Reingold derives this from
+vertex expansion instead [Reingold, Proposition 2.2][Reingold2008].
 
 ## Main results
 
@@ -72,6 +72,8 @@ So if `λ(G) ^ t (|V| - 1) < 1`, then for any two vertices `u` and `v` some walk
 * `Cslib.RotationMap.card_pow_lt_two_mul_card_mul_card_filter_neighbor_pow_eq`: with a self-loop at
   every vertex, a walk of `T ≥ 10 d n³ log n` steps from `s` ends at every vertex connected to `s`
   with probability greater than `1 / (2 n)` (Arora–Barak draft, Corollary 7.30).
+* `Cslib.RotationMap.exists_walk_length_le_clog_of_spectralExpansion_lt`: if `λ(G) < 1 / 4`, the
+  simple graph of `G` has diameter at most `⌈log₄ |V|⌉` [Arora and Barak, Theorem 16.35].
 
 ## References
 
@@ -380,6 +382,19 @@ theorem spectralExpansion_le_one_sub_of_preconnected_of_loop
   linarith
 
 end OneLoop
+/-- A walk along the labels `k` in `G` gives a walk of at most `t` steps in the simple graph of
+`G`; self-loops are skipped. -/
+private theorem exists_walk_length_le_neighbor_pow (t : ℕ) (u : V) (k : Fin t → D) :
+    ∃ w : G.toSimpleGraph.Walk u ((G.pow t).neighbor u k), w.length ≤ t := by
+  induction t generalizing u with
+  | zero => exact ⟨.nil, le_rfl⟩
+  | succ t ih =>
+    obtain ⟨w, hw⟩ := ih (G.neighbor u (k 0)) (Fin.tail k)
+    rw [neighbor_pow_succ]
+    by_cases hu : u = G.neighbor u (k 0)
+    · exact ⟨w.copy hu.symm rfl, by rw [SimpleGraph.Walk.length_copy]; omega⟩
+    · exact ⟨.cons (G.toSimpleGraph_adj.2 ⟨hu, k 0, rfl⟩) w,
+        by rw [SimpleGraph.Walk.length_cons]; omega⟩
 
 section Walks
 
@@ -441,6 +456,25 @@ theorem exists_neighbor_pow_eq {t : ℕ} (h : G.spectralExpansion ^ t * (Fintype
       field_simp,
     div_le_div_iff_of_pos_right hN0] at hmix
   linarith
+
+/-- **Expanders have logarithmic diameter** [Arora and Barak, Theorem 16.35][AroraBarak09]. If
+`λ(G) < 1 / 4`, any two vertices are joined by a walk of at most `⌈log₄ |V|⌉` steps in the
+simple graph of `G`. The draft states the bound `O(d log n)` for `d`-regular `n`-vertex graphs;
+this bound does not depend on the degree `d = |D|`, so it is stronger. -/
+theorem exists_walk_length_le_clog_of_spectralExpansion_lt (h : G.spectralExpansion < 1 / 4)
+    (u v : V) : ∃ w : G.toSimpleGraph.Walk u v, w.length ≤ Nat.clog 4 (Fintype.card V) := by
+  set t := Nat.clog 4 (Fintype.card V)
+  have hN : (Fintype.card V : ℝ) ≤ 4 ^ t := by exact_mod_cast Nat.le_pow_clog (by norm_num) _
+  have hlam : G.spectralExpansion ^ t ≤ (1 / 4) ^ t :=
+    pow_le_pow_left₀ G.spectralExpansion_nonneg h.le t
+  have hpos : (0 : ℝ) ≤ Fintype.card V - 1 := by
+    rw [sub_nonneg]; exact Nat.one_le_cast.2 (Fintype.card_pos_iff.2 ⟨u⟩)
+  obtain ⟨k, rfl⟩ := G.exists_neighbor_pow_eq (t := t) (by
+    calc G.spectralExpansion ^ t * (Fintype.card V - 1) ≤ (1 / 4) ^ t * (Fintype.card V - 1) :=
+          mul_le_mul_of_nonneg_right hlam hpos
+      _ < (1 / 4) ^ t * 4 ^ t := by gcongr; linarith
+      _ = 1 := by rw [← mul_pow]; norm_num) u v
+  exact G.exists_walk_length_le_neighbor_pow t u k
 
 end Walks
 

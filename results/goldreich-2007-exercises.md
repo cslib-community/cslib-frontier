@@ -24,7 +24,7 @@ Coverage of the chapters:
 - Chapter 3's twelve exercises are inventoried in the
   [chapter audit](goldreich-2007.md#theory-exercises-chapter-3). Exercises 3.7 and 3.10(1)
   are covered by [quantified SAT completeness](../CslibFrontier/Computability/Complexity/Problems/QuantifiedSAT/Completeness.lean);
-  Exercise 3.10(2)'s oracle identities remain [#5451](https://github.com/cslib-community/cslib-frontier/issues/5451).
+  Exercise 3.10(2)'s oracle identities are covered by [quantified SAT oracles](../CslibFrontier/Computability/Complexity/Problems/QuantifiedSAT/Oracle.lean).
   The rows are not repeated here.
 - Chapter 4's twelve exercises are inventoried in the
   [#4772 Chapter 4 pass](https://github.com/cslib-community/cslib-frontier/issues/4772#issuecomment-6841285129).

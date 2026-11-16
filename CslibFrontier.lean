@@ -1210,6 +1210,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.
 public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.GLAmpCircuit
 public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.GLAmpDecode
 public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.GLSynthesis
+public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.Samples
 public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.Schedule
 public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.Stages
 public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.WorstCase
@@ -2150,6 +2151,7 @@ public import CslibFrontier.Computability.Complexity.Classes.Oracle.BoundedQuery
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.CanonicalReplay
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.Closure
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.Collapse
+public import CslibFrontier.Computability.Complexity.Classes.Oracle.Complement
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.Counting
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.CountingEquivalence
 public import CslibFrontier.Computability.Complexity.Classes.Oracle.Deterministic
@@ -2183,12 +2185,16 @@ public import CslibFrontier.Computability.Complexity.Classes.PCP.NP
 public import CslibFrontier.Computability.Complexity.Classes.PCP.Robustness
 public import CslibFrontier.Computability.Complexity.Classes.PCP.ZeroRandomness
 public import CslibFrontier.Computability.Complexity.Classes.PH
+public import CslibFrontier.Computability.Complexity.Classes.PH.BoundedConjunction
 public import CslibFrontier.Computability.Complexity.Classes.PH.Closure
 public import CslibFrontier.Computability.Complexity.Classes.PH.Collapse
 public import CslibFrontier.Computability.Complexity.Classes.PH.Complete
+public import CslibFrontier.Computability.Complexity.Classes.PH.Image
 public import CslibFrontier.Computability.Complexity.Classes.PH.Kannan
 public import CslibFrontier.Computability.Complexity.Classes.PH.KarpLipton
+public import CslibFrontier.Computability.Complexity.Classes.PH.Oracle
 public import CslibFrontier.Computability.Complexity.Classes.PH.OracleNP
+public import CslibFrontier.Computability.Complexity.Classes.PH.OracleTranscript
 public import CslibFrontier.Computability.Complexity.Classes.PH.Projection
 public import CslibFrontier.Computability.Complexity.Classes.PH.QBF
 public import CslibFrontier.Computability.Complexity.Classes.PH.Reduction
@@ -2712,6 +2718,7 @@ public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.Comp
 public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.Evaluation
 public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.Hardness
 public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.Membership
+public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.Oracle
 public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.Parsing
 public import CslibFrontier.Computability.Complexity.Problems.QuantifiedSAT.Tableau
 public import CslibFrontier.Computability.Complexity.Problems.SAT
@@ -4312,6 +4319,9 @@ public import CslibFrontier.Computability.WangTile.Basic
 public import CslibFrontier.Computability.WangTile.Compactness
 public import CslibFrontier.Computability.WangTile.OfTM0
 public import CslibFrontier.Computability.WangTile.Pointed
+public import CslibFrontier.Computability.WangTile.Robinson.Hierarchy
+public import CslibFrontier.Computability.WangTile.Robinson.Recognizability
+public import CslibFrontier.Computability.WangTile.Robinson.Tiles
 public import CslibFrontier.Computability.WangTile.SeededUndecidable
 public import CslibFrontier.Computability.WordRAM.Admission
 public import CslibFrontier.Computability.WordRAM.Allocation
@@ -4438,6 +4448,9 @@ public import CslibFrontier.Computability.WordRAM.Turing.ListOutput
 public import CslibFrontier.Computability.WordRAM.Turing.Overhead
 public import CslibFrontier.Computability.WordRAM.Width
 public import CslibFrontier.Computability.WordRAM.Word
+public import CslibFrontier.Crypto.Computational.AuthenticatedKeyExchange.Experiment
+public import CslibFrontier.Crypto.Computational.AuthenticatedKeyExchange.Protocol
+public import CslibFrontier.Crypto.Computational.AuthenticatedKeyExchange.Static
 public import CslibFrontier.Crypto.Computational.Basic
 public import CslibFrontier.Crypto.Computational.ChaumPedersenProtocol
 public import CslibFrontier.Crypto.Computational.ChaumPedersenProtocol.Verifier
@@ -5919,6 +5932,7 @@ public import CslibFrontier.Foundations.Combinatorics.PowersetTail
 public import CslibFrontier.Foundations.Combinatorics.ReplacementCounting
 public import CslibFrontier.Foundations.Combinatorics.ReplacementDesignBridge
 public import CslibFrontier.Foundations.Combinatorics.SetFamily.Oddtown
+public import CslibFrontier.Foundations.Combinatorics.SetFamily.PairwiseIntersection
 public import CslibFrontier.Foundations.Combinatorics.SetFamily.RayChaudhuriWilson
 public import CslibFrontier.Foundations.Combinatorics.SetPartition.Basic
 public import CslibFrontier.Foundations.Combinatorics.SetPartition.JoinMatrix
@@ -6138,6 +6152,7 @@ public import CslibFrontier.Foundations.Data.Code.SelfCorrection
 public import CslibFrontier.Foundations.Data.Code.Singleton
 public import CslibFrontier.Foundations.Data.Code.Sudan
 public import CslibFrontier.Foundations.Data.Code.SudanInterpolant
+public import CslibFrontier.Foundations.Data.Code.Varshamov
 public import CslibFrontier.Foundations.Data.ENat.IInf
 public import CslibFrontier.Foundations.Data.Fin.AddFlip
 public import CslibFrontier.Foundations.Data.Fin.Append
