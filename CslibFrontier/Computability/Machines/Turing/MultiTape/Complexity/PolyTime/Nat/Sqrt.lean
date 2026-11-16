@@ -33,7 +33,7 @@ polynomial time over `Turing.MultiTapeTM.encNat` by the integer root
   polynomial-time integer ceiling square root `if m = 0 then 0 else (m - 1).sqrt + 1` over `encNat`.
 -/
 
-@[expose] public section
+public section
 
 namespace Turing.MultiTapeTM
 
