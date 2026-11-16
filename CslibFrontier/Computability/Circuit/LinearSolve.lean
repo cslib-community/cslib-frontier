@@ -96,9 +96,9 @@ theorem full_vecMulSolve (M : Fin r → Fin n → (Fin N → F) → F) (b : Fin 
     · exact hb l
     · exact hM k l
   have hBx (x : Fin N → F) :
-      (fun l c => B l c x) = solveMatrix (fun k l => M k l x) (fun l => b l x) := by
+      (fun l c => B l c x) = vecMulSolveMatrix (fun k l => M k l x) (fun l => b l x) := by
     funext l c
-    refine Fin.cases ?_ (fun k => ?_) c <;> simp [B, solveMatrix]
+    refine Fin.cases ?_ (fun k => ?_) c <;> simp [B, vecMulSolveMatrix]
   let build := Builder.start (fullInterpretation (k := 2)) s
   let build := build.add (full_kernelVecAt B hB 0)
   let out : Fin r → (Fin N → F) → F := fun k x => -kernelVecAt (fun l c => B l c x) 0 k.succ

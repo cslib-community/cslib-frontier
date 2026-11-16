@@ -70,12 +70,15 @@ example :
     vecMul_vecMulSolve vandermonde12 ![1, 0] ⟨![2, 4], by decide +kernel⟩⟩
 
 /-- When `![1, 0]` is outside the row span of `!![1, 1; 2, 2]` over `ZMod 5`, `vecMulSolve` returns
-`0`, and no `w` satisfies `w ᵥ* M = ![1, 0]` (necessity of `∃ w, w ᵥ* M = b`). -/
+`0` (`vecMulSolve_eq_zero`), and no `w` satisfies `w ᵥ* M = ![1, 0]` (exercising
+`vecMul_vecMulSolve_iff`). -/
 example :
     vecMulSolve singular1122 ![1, 0] = 0 ∧
     (¬ ∃ w : Fin 2 → ZMod 5, w ᵥ* singular1122 = ![1, 0]) ∧
-    vecMulSolve singular1122 ![1, 0] ᵥ* singular1122 ≠ ![1, 0] :=
-  ⟨by decide +kernel, by decide +kernel, by decide +kernel⟩
+    vecMulSolve singular1122 ![1, 0] ᵥ* singular1122 ≠ ![1, 0] := by
+  have hno : ¬ ∃ w : Fin 2 → ZMod 5, w ᵥ* singular1122 = ![1, 0] := by decide +kernel
+  exact ⟨vecMulSolve_eq_zero singular1122 ![1, 0] hno, hno,
+    (vecMul_vecMulSolve_iff singular1122 ![1, 0]).not.2 hno⟩
 
 private abbrev wireInputs (N : ℕ) : Set ((Fin N → ZMod 5) → ZMod 5) :=
   Set.range fun i x => x i
