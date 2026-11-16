@@ -55,6 +55,7 @@ with the untracked book products.
    The checker validates local paths and Markdown anchors, source line anchors (each starts a
    declaration and, when its link text names a declaration of the linked file, that one), visual
    markup, lists that would print as running text (a list item directly after a paragraph line),
+   locators inside citation link labels (which the PDF drops),
    the book's chapter lists, excerpt registration and unique exact excerpt matches in
    current source; its controls exercise failure and recovery.
    Both are required in CI and run before Lean work in full and quick `scripts/check.sh` modes.
