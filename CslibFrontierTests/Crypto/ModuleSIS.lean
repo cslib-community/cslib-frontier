@@ -19,7 +19,7 @@ Concrete evaluations and nonvacuity checks for:
 2. Negacyclic convolution `negacyclicMul` and `rotMatrix` in `R[X] / (X^n + 1)`.
 3. `ModuleSIS.IsSolution`, `expandModuleMatrix`, `flattenPolyVec`,
    `ModuleSIS.isSolution_expandModuleMatrix_iff`, `ModuleLWE.flattenPolyVec_sample`, and
-   nonvacuity of `ModuleSIS`.
+   nonvacuity of `ModuleSIS`, `RingSIS` and `DecisionModuleLWE`.
 -/
 
 namespace CslibFrontierTests.Crypto.ModuleSIS
@@ -135,10 +135,47 @@ theorem not_moduleSIS_zeroRankModuleSIS : ¬ModuleSIS zeroRankModuleSIS := fun h
   exact (ComputableInPolyTime.const
     (ModuleSIS.encodeVec (1 : Fin 1 → Fin 1 → ℤ))).isPPTOn.congr fun _ => rfl
 
+/-- Degenerate `RingSISParams` with `n = 1`, `k = 1`, modulus `q = 2` and bound `β = 2`, so the
+bound reaches the modulus. -/
+def boundAtModulusRingSIS : RingSISParams where
+  n _ := 1
+  k _ := 1
+  q _ := 2
+  β _ := 2
+  hq _ := inferInstance
+
+/-- When `β ≥ q`, the constant polynomial vector `q` is short, nonzero and reduces to `0` mod `q`,
+so it solves every instance. The Ring-SIS solver that always answers `2` therefore wins
+`moduleSISExperiment` with probability `1`. It is a constant PPT machine, so `RingSIS` is not
+vacuous. -/
+theorem not_ringSIS_boundAtModulus : ¬RingSIS boundAtModulusRingSIS := fun h => by
+  let S : boundAtModulusRingSIS.toModuleSISParams.Solver := fun _ _ => pure 2
+  have hwin (κ : ℕ) :
+      moduleSISAdvantage (boundAtModulusRingSIS.q κ) (boundAtModulusRingSIS.β κ) (S κ) = 1 := by
+    have hsol (A : Matrix (Fin 1) (Fin 1) (Fin 1 → ZMod 2)) : ModuleSIS.IsSolution A 2 2 := by
+      refine ⟨by decide, by decide, ?_⟩
+      rw [show (fun j s => ((2 : Fin 1 → Fin 1 → ℤ) j s : ZMod 2)) = 0 by decide]
+      exact moduleSISMap_zero A
+    change Game.succProbability (ProbComp.eval (do
+      let A ← ProbComp.uniform (Matrix (Fin 1) (Fin 1) (Fin 1 → ZMod 2))
+      let z ← pure (2 : Fin 1 → Fin 1 → ℤ)
+      return decide (ModuleSIS.IsSolution A 2 z))) = 1
+    simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind, hsol, decide_true,
+      PMF.bind_const, Game.succProbability, PMF.pure_apply_self, ENNReal.toNNReal_one]
+  refine not_negligible_const one_ne_zero ((h S ?_).congr hwin)
+  exact (ComputableInPolyTime.const
+    (ModuleSIS.encodeVec (2 : Fin 1 → Fin 1 → ℤ))).isPPTOn.congr fun _ => rfl
+
 /-- Zero polynomial noise for `n = 1`, `q = 2`. -/
 noncomputable def moduleZeroNoise :
     (security : ℕ) → PMF (Fin ((fun _ : ℕ => 1) security) → ZMod ((fun _ : ℕ => 2) security)) :=
   fun _ => PMF.pure 0
+
+/-- The encoded real Module-LWE samples of `DecisionModuleLWE` with `m = 1, d = 0, n = 1, q = 2`
+and zero noise: a uniform secret and the zero error vector. -/
+noncomputable abbrev moduleZeroNoiseReal : ℕ → PMF (List Bool) :=
+  ModuleLWE.realEnsemble (fun _ => 1) (fun _ => 0) (fun _ => 1) (fun _ => 2)
+    (fun _ => PMF.uniformOfFintype _) fun security => PMF.pi fun _ => moduleZeroNoise security
 
 /-- Test whether the fourth bit of the encoded Module-LWE sample is `false`. -/
 def fourthBitFalse : Distinguisher :=
@@ -151,8 +188,7 @@ theorem fourthBitFalse_ppt : IsPPT encBool fourthBitFalse := by
 /-- With `d = 0` and zero noise, every real Module-LWE sample encodes `(0, 0)` as
 `[true, false, false, false]`. -/
 theorem eq_of_mem_support_moduleLWEReal {security : ℕ} {word : List Bool}
-    (h : word ∈ (ModuleLWE.realEnsemble (fun _ => 1) (fun _ => 0) (fun _ => 1) (fun _ => 2)
-      moduleZeroNoise security).support) :
+    (h : word ∈ (moduleZeroNoiseReal security).support) :
     word = [true, false, false, false] := by
   obtain ⟨pair, hpair, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp h
   simp only [ModuleLWE.sampleLaw, moduleZeroNoise, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
@@ -172,13 +208,10 @@ theorem eq_of_mem_support_moduleLWEReal {security : ℕ} {word : List Bool}
 /-- The real `DecisionModuleLWE` experiment with `d = 0` and zero noise accepts with probability
 `1`. -/
 theorem distinguishingGame_moduleLWEReal (security : ℕ) :
-    distinguishingGame
-      (ModuleLWE.realEnsemble (fun _ => 1) (fun _ => 0) (fun _ => 1) (fun _ => 2)
-        moduleZeroNoise security)
-      (fourthBitFalse security) = PMF.pure true := by
+    distinguishingGame (moduleZeroNoiseReal security) (fourthBitFalse security) =
+      PMF.pure true := by
   rw [distinguishingGame_eq_bind, PMF.monad_bind_eq_bind]
-  trans (ModuleLWE.realEnsemble (fun _ => 1) (fun _ => 0) (fun _ => 1) (fun _ => 2)
-    moduleZeroNoise security).bind fun _ => PMF.pure true
+  trans (moduleZeroNoiseReal security).bind fun _ => PMF.pure true
   · refine PMF.bind_congr_on_support _ _ _ fun word hword => ?_
     rw [eq_of_mem_support_moduleLWEReal hword]
     simp [fourthBitFalse]
@@ -215,10 +248,7 @@ theorem not_decisionModuleLWE_zeroNoise :
   intro h
   have hneg := h.encoded fourthBitFalse fourthBitFalse_ppt
   have hadv (security : ℕ) : Game.advantage
-      (distinguishingGame
-        (ModuleLWE.realEnsemble (fun _ => 1) (fun _ => 0) (fun _ => 1) (fun _ => 2)
-          moduleZeroNoise security)
-        (fourthBitFalse security))
+      (distinguishingGame (moduleZeroNoiseReal security) (fourthBitFalse security))
       (distinguishingGame
         (ModuleLWE.uniformEnsemble (fun _ => 1) (fun _ => 0) (fun _ => 1) (fun _ => 2) security)
         (fourthBitFalse security)) = 2⁻¹ := by

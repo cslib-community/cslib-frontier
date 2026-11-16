@@ -172,7 +172,7 @@ import CslibFrontier.Crypto.Computational.GoldreichLevin.HardCore
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.OneWay
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.TargetCollision
 import CslibFrontier.Crypto.Computational.MLDSA.KeyOnly
-import CslibFrontier.Crypto.Computational.NaorYung
+import CslibFrontier.Crypto.Computational.NaorYungUOWHF
 import CslibFrontier.Crypto.Computational.Nonuniform.ZeroKnowledge
 import CslibFrontier.Crypto.Computational.OneWay.LiuPass
 import CslibFrontier.Crypto.Computational.OneWay.MCSP
@@ -181,7 +181,7 @@ import CslibFrontier.Crypto.Computational.OneWayToPRG
 import CslibFrontier.Crypto.Computational.SIS.Ajtai
 import CslibFrontier.Crypto.Primitives.PRP.Finite
 import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Bot
-import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.NotBot
+import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.WordSecurity
 import CslibFrontier.Crypto.Protocols.PIR.Block
 import CslibFrontier.Crypto.Protocols.PIR.Collusion
 import CslibFrontier.Crypto.Protocols.PIR.GeneralCover
@@ -5228,48 +5228,68 @@ register_result "quantum-general-adversaries" where
     hierarchy λ(f) ≤ ADV(f) ≤ ADV±(f) and Alb₃ ≤ ADV(f), and the Hamming-distance barrier \
     ADV(f) ≤ N / k. Non-Boolean input alphabets (value queries / permutation inversion) and \
     general composition theorems are not formalized here."
-register_result "fujisaki-okamoto-notbot-ind-cca" where
-  title := "ROM IND-CCA security of the implicit-rejection Fujisaki–Okamoto transform FO-notbot"
-  topic := "cryptography"
-  sources := [
-    { paper := HofheinzHoevelmannsKiltz2017, theorem := unverified,
-      locator := "§3.1 and §3.2.2 (IACR ePrint 2017/604, full version of 2 November 2021)" }
-  ]
-  theorems := [
-    Cslib.Crypto.Protocols.FujisakiOkamoto.Scheme.indCcaRomAdvantage_le
-  ]
-  scope := "Domain-separated FO-notbot = U-notbot ∘ T over an explicit-coin PKE: for uniform \
-    messages, a δ-correct and γ-spread PKE, and a deterministic oracle adversary making at most \
-    qG queries to G and qH queries to H (decapsulation queries unbounded), the ROM IND-CCA \
-    advantage is at most 2·Adv^{IND-CPA}(romCpaReduction) + (2qH + 2(qG + qH))/|M| + \
-    2(qG + qH + 1)δ + 2(qG + qH)2^{-γ} for some distinct fixed challenge messages. The proof \
-    composes the T and U-notbot hops directly instead of through OW-PCA; roIndCcaGame draws both \
-    real (H) and ideal challenge keys from the arbitrary sampler S.sampleKey (uniform sampleKey \
-    recovers HHK17 §2.2 Def. 2.4 / Fig. 4); information-theoretic games with no running-time \
-    accounting for the reduction; FO^⊥ is registered separately as fujisaki-okamoto-bot-ind-cca."
 
 register_result "fujisaki-okamoto-bot-ind-cca" where
   title := "ROM IND-CCA security of the explicit-rejection Fujisaki–Okamoto transform FO^⊥"
   topic := "cryptography"
   sources := [
-    { paper := HofheinzHoevelmannsKiltz2017, theorem := unverified,
-      locator := "§3.1 and §3.2.1 (IACR ePrint 2017/604, full version of 2 November 2021)" }
+    { paper := HofheinzHoevelmannsKiltz2017, theorem := "Theorems 3.2 and 3.3",
+      locator := "§3.1, §3.2.1 and the §3.3 bounds table (IACR ePrint 2017/604, full version of \
+        2 November 2021)" }
   ]
   theorems := [
     Cslib.Crypto.Protocols.FujisakiOkamoto.Scheme.indCcaBotAdvantage_le
   ]
-  scope := "Explicit-rejection FO^⊥ = U^⊥ ∘ T over an explicit-coin PKE: for uniform messages, \
-    a δ-correct and γ-spread PKE, and a deterministic oracle adversary making at most qG queries \
-    to G, qH queries to H, and qD queries to decapsulation (ROFullQueryBounds A qG qH qD), the \
-    ROM IND-CCA advantage is at most 2·Adv^{IND-CPA}(romBotCpaReduction) + 2(qG + qH)/|M| + \
-    2(qG + qH + 1)δ + 2(qG + qH + qD)2^{-γ} for some distinct fixed challenge messages. \
-    Necessity of the qD·2^{-γ} ciphertext-validity spreadness term is proved in \
-    FujisakiOkamoto.SpreadNecessity (advantage_eagerIndCcaBotGame_simBotGame_probeDecapsAdv). \
+  scope := "Explicit-rejection FO^⊥ = U^⊥ ∘ T over one fixed explicit-coin PKE: for uniform \
+    messages, a δ-correct and γ-spread PKE, and a randomized adversary with explicit coins each \
+    of whose coin values makes at most qG queries to G, qH queries to H, and qD queries to \
+    decapsulation (FullQueryBounds A qG qH qD), the ROM IND-CCA advantage is at most \
+    2·Adv^{IND-CPA}(romBotCpaReduction A) + 2(qG + qH)/|M| + 2(qG + qH + 1)δ + \
+    2(qG + qH + qD)2^{-γ}, against two-stage IND-CPA (HHK17 Def. 2.2) and one reduction that \
+    draws its own challenge messages. Concrete bound only: no security parameter and no \
+    running-time certificate for the reduction. Necessity of the qD·2^{-γ} ciphertext-validity \
+    spreadness term is proved in FujisakiOkamoto.SpreadNecessity \
+    (advantage_eagerIndCcaBotGame_simBotGame_probeDecapsAdv). \
     Composes the T and U^⊥ hops directly instead of through standalone OW-PCVA; \
     roIndCcaBotGame and eagerIndCcaBotGame draw both real (H) replies and the independent ideal \
     challenge key from the arbitrary sampler S.sampleKey (uniform sampleKey recovers the \
-    standard uniform-ideal-key experiment of HHK17 §2.2 Def. 2.4 / Fig. 4); information-\
-    theoretic games with no running-time accounting for the reduction."
+    standard uniform-ideal-key experiment of HHK17 §2.2 Def. 2.4 / Fig. 4)."
+
+register_result "fujisaki-okamoto-notbot-word-rom-ind-cca" where
+  title := "ROM IND-CCA security of the word-level FO-notbot KEM from IND-CPA of the PKE family"
+  topic := "cryptography"
+  sources := [
+    { paper := HofheinzHoevelmannsKiltz2017, theorem := "Theorems 3.2 and 3.4",
+      locator := "§3.1 (Theorem 3.2, p. 12; remark closing its proof, p. 13), §3.2.2 \
+        (Theorem 3.4, p. 16), §1.1.2 table (p. 6) and KEM-notbot row of the §3.3 bounds table \
+        (p. 22) (IACR ePrint 2017/604, version of 2 November 2021)" }
+  ]
+  theorems := [
+    Cslib.Crypto.Protocols.FujisakiOkamoto.WordPKE.INDCPA.romINDCCA
+  ]
+  scope := "Asymptotic, random oracle model; implicit-rejection FO-notbot = U-notbot ∘ T only. \
+    Let P be a word-level PKE family (at parameter n: messages of length msgLen n, uniform coins \
+    of length coinLen n, ciphertext space the words of length at most ctLen n) that is \
+    efficient (uniform strict PPT key generation; polynomial-time encryption, decryption and \
+    lengths), whose ciphertexts lie in its ciphertext space (CiphertextFits), and that is \
+    δ-correct (HHK17 §2.1) with δ negligible and 2^{-msgLen n} negligible; let keyLen be \
+    polynomial-time. If P is IND-CPA secure against uniform strict PPT adversaries \
+    (single-challenge two-stage game of HHK17 Def. 2.2, both challenge messages of length \
+    msgLen n), its FO-notbot KEM with keys of length keyLen n is IND-CCA secure (HHK17 Def. 2.4 \
+    / Fig. 4) against uniform strict oracle PPT adversaries with oracles G, H and \
+    decapsulation; no premise bounds the number of decapsulation queries. G and H are lazily \
+    sampled random oracles on word domains, and a request outside a domain gets the empty word. \
+    H is domain-separated (H(false, m, c) for keys, H(true, s, c) for implicit rejection) in \
+    place of HHK17's untagged H(m, c) and H(s, c). Decapsulation refuses the challenge \
+    ciphertext, rejects words longer than ctLen n with ⊥, and treats decryption results of the \
+    wrong length as ⊥. The advantage is the two-world difference between b = 0 and b = 1, twice \
+    HHK17's |Pr[b' = b] - 1/2|. As in the source, no γ-spreadness is assumed (§1.1.2 table, \
+    p. 6; KEM-notbot row of the §3.3 table, p. 22): the composition uses Theorem 3.2 in its \
+    OW-PCA form (remark closing its proof, p. 13). The proof composes the T and U-notbot hops \
+    directly instead of through standalone OW-PCA, and applies IND-CPA to the explicit reduction \
+    romCpaReductionWord, certified uniform strict PPT (IsEfficient.isPPT_romCpaReductionWord); \
+    it gives no concrete runtime map. FO^⊥ has no word-level theorem; its fixed-scheme concrete \
+    bound is fujisaki-okamoto-bot-ind-cca."
 
 register_result "cgks-pir-coalition-lower-bound" where
   title := "Chor–Goldreich–Kushilevitz–Sudan: coalition t-privacy and full-coalition \
@@ -5540,7 +5560,9 @@ register_result "mldsa-key-only-forgery" where
     probability is at most the advantage of forgeryDistinguisher between honest and uniform \
     keys plus the success probability of selfTargetReduction against a uniform [A | t]. \
     Hardness of self-target MSIS is the assumption, not reduced to Module-SIS; the honest-key \
-    term is not routed through the uniform-secret DecisionModuleLWE. Chosen-message security \
+    term is the Module-LWE advantage for the short laws, the quantity of the short-secret \
+    assumption DecisionModuleLWEWith rather than the uniform-secret DecisionModuleLWE. \
+    Chosen-message security \
     (signing-oracle simulation in the random-oracle model) and asymptotic packaging are not \
     formalized; no running time is charged."
 

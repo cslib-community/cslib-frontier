@@ -58,6 +58,7 @@ silently dropped.
 * `Cslib.SQL.Expr.filterRows`, `Cslib.SQL.Expr.evalRow`: `WHERE` and `SELECT` lists on a list of
   rows and on one row.
 * `Cslib.SQL.Row.product`: the rows of a cross join.
+* `Cslib.SQL.Expr.eqCols`: the equijoin predicate `q₁.i = q₂.j` over a joined row.
 * `Cslib.SQL.Query.typeOf`: the typing context of a query's result.
 * `Cslib.SQL.Query.divSafe`, `Cslib.SQL.Query.IsSafe`: the decidable safety check.
 
@@ -66,7 +67,13 @@ silently dropped.
 * `Cslib.SQL.Expr.toOption_filterRows`, `Cslib.SQL.Expr.evalRow_eq_ok_iff`: what `WHERE` and a
   `SELECT` list compute when they succeed, and when they do.
 * `Cslib.SQL.Expr.mem_of_filterRows_eq_ok`: `WHERE` keeps some of its input rows.
-* `Cslib.SQL.Query.eval_ok_or_divisionByZero`: type soundness.
+* `Cslib.SQL.Query.eval_join_eq_ok_of_forall`: a join whose predicate succeeds on every pair
+  returns the joined pairs on which it is `TRUE`.
+* `Cslib.SQL.Expr.evalTruth_eqCols_eq_ok_true_iff`, `Cslib.SQL.Expr.isSafePredicate_eqCols_iff`:
+  the equijoin predicate keeps the pairs with the same non-null key, and is safe exactly when the
+  key columns have the same type.
+* `Cslib.SQL.Query.eval_ok_or_divisionByZero`, `Cslib.SQL.Query.eval_spec`: type soundness, also
+  as a postcondition.
 * `Cslib.SQL.Query.eval_ne_typeMismatch`, `Cslib.SQL.Query.conforms_of_eval_eq_ok`: a well-typed
   query never raises a type error, and its rows have its types.
 * `Cslib.SQL.Query.IsSafe.exists_eval_eq_ok`: a safe query succeeds on every conforming instance.
@@ -158,7 +165,7 @@ theorem exists_eval_eq_error_of_evalRow_eq_error {es : Fin k → Expr n} {r : Ro
       · simp only [evalRow, h₀, hs, Except.ok_bind, Except.error_bind, Except.error.injEq] at h
         obtain ⟨i, hi⟩ := ih (h ▸ hs)
         exact ⟨i.succ, hi⟩
-      · simp [evalRow, h₀, hs, pure, Except.pure] at h
+      · simp [evalRow, h₀, hs] at h
 
 /-- `SELECT` lists whose expressions have the same observations on a row have the same
 observation on it. -/
@@ -203,54 +210,69 @@ theorem mem_of_filterRows_eq_ok {p : Expr n} {rs rs' : List (Row n)}
     exact (List.mem_filter.mp (h' ▸ hr)).1
   · simp at h'
 
-/-- When `WHERE` fails, the predicate fails with that error on one of the rows. -/
-theorem exists_evalTruth_eq_error_of_filterRows_eq_error {p : Expr n} {rs : List (Row n)}
-    {e : EvalError} (h : p.filterRows rs = .error e) : ∃ r ∈ rs, p.evalTruth r = .error e := by
-  obtain ⟨r, hr, he⟩ := Except.exists_mem_eq_error_of_filterMapM_eq_error h
-  refine ⟨r, hr, ?_⟩
-  rcases ht : p.evalTruth r with e' | t
-  · simpa [ht] using he
-  · simp [ht, pure, Except.pure] at he
+/-- Type soundness for predicates: on a conforming row, a boolean predicate has a truth value, or
+divides by zero, which requires a division that is not `divSafe`. -/
+theorem evalTruth_spec {Γ : Fin n → SqlType} {r : Row n} (hr : r.Conforms Γ) {p : Expr n}
+    (hp : p.typeOf Γ = some .bool) :
+    (p.evalTruth r).Spec (fun _ => True) fun err => err = .divisionByZero ∧ p.divSafe = false :=
+  (eval_spec hr hp).bind fun d _ hd => by
+    obtain ⟨t, ht⟩ := Datum.exists_toTruth_eq_ok_iff.mpr hd
+    simp [ht]
 
-/-- Type soundness for predicates: on a conforming row, a boolean predicate either has a truth
-value or divides by zero, which requires a division that is not `divSafe`. -/
-theorem evalTruth_ok_or_divisionByZero {Γ : Fin n → SqlType} {r : Row n} (hr : r.Conforms Γ)
-    {p : Expr n} (hp : p.typeOf Γ = some .bool) :
-    (∃ t, p.evalTruth r = .ok t) ∨
-      (p.evalTruth r = .error .divisionByZero ∧ p.divSafe = false) := by
-  rcases eval_ok_or_divisionByZero hr hp with ⟨d, hd, hdτ⟩ | ⟨hd, hs⟩
-  · obtain ⟨t, ht⟩ := Datum.exists_toTruth_eq_ok_iff.mpr hdτ
-    exact .inl ⟨t, by simp [evalTruth, hd, ht]⟩
-  · exact .inr ⟨by simp [evalTruth, hd], hs⟩
-
-/-- On rows conforming to `Γ`, `WHERE` with a boolean predicate keeps some of the rows, or divides
+/-- On rows conforming to `Γ`, `WHERE` with a boolean predicate keeps conforming rows, or divides
 by zero. -/
-private theorem filterRows_ok_or_divisionByZero {Γ : Fin n → SqlType} {rs : List (Row n)}
+private theorem filterRows_spec {Γ : Fin n → SqlType} {rs : List (Row n)}
     (hrs : ∀ r ∈ rs, r.Conforms Γ) {p : Expr n} (hp : p.typeOf Γ = some .bool) :
-    (∃ rs', p.filterRows rs = .ok rs' ∧ ∀ r ∈ rs', r ∈ rs) ∨
-      (p.filterRows rs = .error .divisionByZero ∧ p.divSafe = false) := by
-  rcases h : p.filterRows rs with e | rs'
-  · obtain ⟨r, hr, he⟩ := exists_evalTruth_eq_error_of_filterRows_eq_error h
-    rcases evalTruth_ok_or_divisionByZero (hrs r hr) hp with ⟨t, ht⟩ | ⟨ht, hs⟩
-    · simp [ht] at he
-    · rw [he, Except.error.injEq] at ht
-      exact .inr ⟨by rw [ht], hs⟩
-  · exact .inl ⟨rs', rfl, fun _ => mem_of_filterRows_eq_ok h⟩
+    (p.filterRows rs).Spec (fun rs' => ∀ r ∈ rs', r.Conforms Γ)
+      fun err => err = .divisionByZero ∧ p.divSafe = false :=
+  (Except.Spec.filterMapM (R := fun r r' => r' = r) fun r hr =>
+    (evalTruth_spec (hrs r hr) hp).bind fun t _ _ => by split <;> simp).mono
+    (fun _ h r' hr' => by obtain ⟨r, hr, rfl⟩ := h r' hr'; exact hrs _ hr) fun _ => id
 
 /-- Type soundness for `SELECT` lists: on a conforming row, well-typed expressions give a row of
 their types, or one of them divides by zero. -/
-private theorem evalRow_ok_or_divisionByZero {Γ : Fin n → SqlType} {Δ : Fin k → SqlType}
-    {r : Row n} (hr : r.Conforms Γ) {es : Fin k → Expr n}
-    (hes : ∀ i, (es i).typeOf Γ = some (Δ i)) :
-    (∃ d, evalRow es r = .ok d ∧ d.Conforms Δ) ∨
-      (evalRow es r = .error .divisionByZero ∧ ∃ i, (es i).divSafe = false) := by
+private theorem evalRow_spec {Γ : Fin n → SqlType} {Δ : Fin k → SqlType} {r : Row n}
+    (hr : r.Conforms Γ) {es : Fin k → Expr n} (hes : ∀ i, (es i).typeOf Γ = some (Δ i)) :
+    (evalRow es r).Spec (·.Conforms Δ)
+      fun err => err = .divisionByZero ∧ ∃ i, (es i).divSafe = false := by
   rcases h : evalRow es r with e | d
   · obtain ⟨i, hi⟩ := exists_eval_eq_error_of_evalRow_eq_error h
-    rcases eval_ok_or_divisionByZero hr (hes i) with ⟨d, hd, -⟩ | ⟨hd, hs⟩
-    · simp [hd] at hi
-    · rw [hi, Except.error.injEq] at hd
-      exact .inr ⟨by rw [hd], i, hs⟩
-  · exact .inl ⟨d, rfl, fun i => hasType_of_eval_eq_ok hr (hes i) (evalRow_eq_ok_iff.mp h i)⟩
+    have hi' := (eval_spec hr (hes i)).of_eq_error hi
+    exact ⟨hi'.1, i, hi'.2⟩
+  · exact fun i => (eval_spec hr (hes i)).of_eq_ok (evalRow_eq_ok_iff.mp h i)
+
+/-! ### Equijoin predicates -/
+
+/-- The equijoin predicate `q₁.i = q₂.j` over the joined row of an `n`-column left input and an
+`m`-column right input: column `i` of the left input (`Fin.castAdd m i`) equals column `j` of the
+right input (`Fin.natAdd n j`). -/
+def eqCols (i : Fin n) (j : Fin m) : Expr (n + m) :=
+  binary (.cmp .eq) (col (Fin.castAdd m i)) (col (Fin.natAdd n j))
+
+/-- The equijoin predicate on a joined row is the three-valued comparison of the two keys. -/
+theorem evalTruth_eqCols (i : Fin n) (j : Fin m) (r : Row n) (s : Row m) :
+    (eqCols i j).evalTruth (Fin.append r s) = CmpOp.eq.eval (r i) (s j) := by
+  simp only [evalTruth, eqCols, eval_binary, eval_col, Fin.append_left, Fin.append_right,
+    Except.ok_bind, evalBinOp]
+  rcases CmpOp.eq.eval (r i) (s j) with e | t
+  · rfl
+  · exact Datum.toTruth_toDatum t
+
+/-- The equijoin predicate keeps a pair of rows exactly when both keys are the same non-null
+value. -/
+theorem evalTruth_eqCols_eq_ok_true_iff {i : Fin n} {j : Fin m} {r : Row n} {s : Row m} :
+    (eqCols i j).evalTruth (Fin.append r s) = .ok .true ↔ ∃ v, r i = some v ∧ s j = some v := by
+  rw [evalTruth_eqCols, CmpOp.eval_eq_ok_true_iff]
+  cases r i <;> cases s j <;> simp [eq_comm]
+
+/-- The equijoin predicate is a safe predicate on the joined rows exactly when the two key
+columns have the same type. -/
+theorem isSafePredicate_eqCols_iff {Γ : Fin n → SqlType} {Δ : Fin m → SqlType} {i : Fin n}
+    {j : Fin m} : (eqCols i j).IsSafePredicate (Fin.append Γ Δ) ↔ Γ i = Δ j := by
+  simp only [IsSafePredicate, eqCols, typeOf, Fin.append_left, Fin.append_right, BinOp.typeOf,
+    divSafe, BinOp.isDivision, Bool.not_false, Bool.true_or, Bool.and_self, and_true,
+    Option.bind_eq_bind, Option.bind_some]
+  split_ifs with h <;> simp [h]
 
 end Expr
 
@@ -317,6 +339,24 @@ theorem eval_distinct (q : Query S n) :
     (distinct q).eval D = (do return (← q.eval D).dedup) := rfl
 
 end Eval
+
+/-- When the join predicate `θ` succeeds on every pair of input rows, the join succeeds and
+returns the joined rows of the pairs on which `θ` is `TRUE`, in the order of `rs ×ˢ ss`. -/
+theorem eval_join_eq_ok_of_forall {D : Database S} {θ : Expr (n + m)} {q₁ : Query S n}
+    {q₂ : Query S m} {rs : List (Row n)} {ss : List (Row m)} (h₁ : q₁.eval D = .ok rs)
+    (h₂ : q₂.eval D = .ok ss)
+    (hθ : ∀ r ∈ rs, ∀ s ∈ ss, ∃ t, θ.evalTruth (Fin.append r s) = .ok t) :
+    (join θ q₁ q₂).eval D =
+      .ok (((rs ×ˢ ss).filter fun (r, s) => (θ.evalTruth (Fin.append r s)).toOption = some .true)
+        |>.map fun (r, s) => Fin.append r s) := by
+  have hall : ∀ t ∈ Row.product rs ss, (θ.evalTruth t).toOption.isSome := by
+    intro t ht
+    obtain ⟨r, hr, s, hs, rfl⟩ := Row.mem_product.mp ht
+    obtain ⟨u, hu⟩ := hθ r hr s hs
+    simp [hu]
+  rw [eval_join, h₁, h₂, Except.ok_bind, Except.ok_bind, ← Except.toOption_eq_some_iff,
+    Expr.toOption_filterRows, ite_eq_left hall, Row.product, List.filter_map]
+  rfl
 
 /-! ### Typing and safety -/
 
@@ -411,95 +451,64 @@ def IsSafe (q : Query S n) : Prop := q.typeOf.isSome ∧ q.divSafe
 instance (q : Query S n) : Decidable q.IsSafe :=
   inferInstanceAs (Decidable (q.typeOf.isSome ∧ q.divSafe))
 
+/-- Type soundness as a postcondition: on a conforming instance, a well-typed query returns rows of
+its type, or divides by zero, which requires a division that is not `divSafe`. -/
+theorem eval_spec {D : Database S} (hD : D.Conforms) {q : Query S n} {Γ : Fin n → SqlType}
+    (hq : q.typeOf = some Γ) :
+    (q.eval D).Spec (fun rs => ∀ r ∈ rs, r.Conforms Γ)
+      fun err => err = .divisionByZero ∧ q.divSafe = false := by
+  induction q with
+  | table t => cases hq; exact hD t
+  | select p q ih =>
+    obtain ⟨hq, hp⟩ := typeOf_select_eq_some.mp hq
+    exact ((ih hq).imp_error fun hs => by simp [divSafe, hs]).bind fun rs _ hrs =>
+      (Expr.filterRows_spec hrs hp).imp_error fun hs => by simp [divSafe, hs]
+  | project es q ih =>
+    obtain ⟨Γ₀, hq, hes⟩ := typeOf_project_eq_some.mp hq
+    refine ((ih hq).imp_error fun hs => by simp [divSafe, hs]).bind fun rs _ hrs =>
+      (Except.Spec.mapM fun r hr => Expr.evalRow_spec (hrs r hr) hes).mono
+        (fun _ h d hd => by obtain ⟨_, _, h⟩ := h d hd; exact h) fun _ h => ⟨h.1, ?_⟩
+    obtain ⟨i, hi⟩ := h.2
+    simp only [divSafe, Bool.and_eq_false_iff, decide_eq_false_iff_not, not_forall]
+    exact .inl ⟨i, by simp [hi]⟩
+  | join θ q₁ q₂ ih₁ ih₂ =>
+    obtain ⟨Γ₁, Γ₂, h₁, h₂, hθ, rfl⟩ := typeOf_join_eq_some.mp hq
+    exact ((ih₁ h₁).imp_error fun hs => by simp [divSafe, hs]).bind fun rs _ hrs =>
+      ((ih₂ h₂).imp_error fun hs => by simp [divSafe, hs]).bind fun ss _ hss =>
+      (Expr.filterRows_spec (fun _ => Row.conforms_of_mem_product hrs hss) hθ).imp_error
+        fun hs => by simp [divSafe, hs]
+  | unionAll q₁ q₂ ih₁ ih₂ =>
+    obtain ⟨h₁, h₂⟩ := typeOf_unionAll_eq_some.mp hq
+    exact ((ih₁ h₁).imp_error fun hs => by simp [divSafe, hs]).bind fun rs _ hrs =>
+      ((ih₂ h₂).imp_error fun hs => by simp [divSafe, hs]).bind fun ss _ hss r hr =>
+      (List.mem_append.mp hr).elim (hrs r) (hss r)
+  | distinct q ih => exact (ih hq).bind fun rs _ hrs r hr => hrs r (List.mem_dedup.mp hr)
+
 /-- Type soundness: on a conforming instance, a well-typed query returns rows of its type, or
 divides by zero, which requires a division that is not `divSafe`. -/
 theorem eval_ok_or_divisionByZero {D : Database S} (hD : D.Conforms) {q : Query S n}
     {Γ : Fin n → SqlType} (hq : q.typeOf = some Γ) :
     (∃ rs, q.eval D = .ok rs ∧ ∀ r ∈ rs, r.Conforms Γ) ∨
-      (q.eval D = .error .divisionByZero ∧ q.divSafe = false) := by
-  induction q with
-  | table t =>
-    cases hq
-    exact .inl ⟨D t, rfl, hD t⟩
-  | select p q ih =>
-    obtain ⟨hq, hp⟩ := typeOf_select_eq_some.mp hq
-    rcases ih hq with ⟨rs, hrs, hconf⟩ | ⟨he, hs⟩
-    · rcases Expr.filterRows_ok_or_divisionByZero hconf hp with ⟨rs', h, hsub⟩ | ⟨h, hs⟩
-      · exact .inl ⟨rs', by simp [eval_select, hrs, h], fun r hr => hconf r (hsub r hr)⟩
-      · exact .inr ⟨by simp [eval_select, hrs, h], by simp [divSafe, hs]⟩
-    · exact .inr ⟨by simp [eval_select, he], by simp [divSafe, hs]⟩
-  | project es q ih =>
-    obtain ⟨Γ₀, hq, hes⟩ := typeOf_project_eq_some.mp hq
-    rcases ih hq with ⟨rs, hrs, hconf⟩ | ⟨he, hs⟩
-    · rcases h : rs.mapM (Expr.evalRow es) with e | ds
-      · obtain ⟨r, hr, he⟩ := Except.exists_mem_eq_error_of_mapM_eq_error h
-        rcases Expr.evalRow_ok_or_divisionByZero (hconf r hr) hes with ⟨d, hd, -⟩ | ⟨hd, i, hi⟩
-        · simp [hd] at he
-        · rw [he, Except.error.injEq] at hd
-          refine .inr ⟨by simp [eval_project, hrs, h, hd], ?_⟩
-          simp only [divSafe, Bool.and_eq_false_iff, decide_eq_false_iff_not, not_forall]
-          exact .inl ⟨i, by simp [hi]⟩
-      · refine .inl ⟨ds, by simp [eval_project, hrs, h], fun d hd => ?_⟩
-        have h' := congrArg Except.toOption h
-        rw [Except.toOption_mapM] at h'
-        split_ifs at h' with hall
-        · simp only [Except.toOption_ok, Option.some.injEq] at h'
-          obtain ⟨r, hr, hrd⟩ := List.mem_filterMap.mp (h' ▸ hd)
-          rcases Expr.evalRow_ok_or_divisionByZero (hconf r hr) hes with ⟨d', hd', hd'Δ⟩ | ⟨hd', -⟩
-          · rw [hd', Except.toOption_ok, Option.some.injEq] at hrd
-            exact hrd ▸ hd'Δ
-          · simp [hd'] at hrd
-        · simp at h'
-    · exact .inr ⟨by simp [eval_project, he], by simp [divSafe, hs]⟩
-  | join θ q₁ q₂ ih₁ ih₂ =>
-    obtain ⟨Γ₁, Γ₂, h₁, h₂, hθ, rfl⟩ := typeOf_join_eq_some.mp hq
-    rcases ih₁ h₁ with ⟨rs, hrs, hconf₁⟩ | ⟨he, hs⟩
-    · rcases ih₂ h₂ with ⟨ss, hss, hconf₂⟩ | ⟨he, hs⟩
-      · have hconf : ∀ t ∈ Row.product rs ss, t.Conforms (Fin.append Γ₁ Γ₂) :=
-          fun _ => Row.conforms_of_mem_product hconf₁ hconf₂
-        rcases Expr.filterRows_ok_or_divisionByZero hconf hθ with ⟨ts, h, hsub⟩ | ⟨h, hs⟩
-        · exact .inl ⟨ts, by simp [eval_join, hrs, hss, h], fun t ht => hconf t (hsub t ht)⟩
-        · exact .inr ⟨by simp [eval_join, hrs, hss, h], by simp [divSafe, hs]⟩
-      · exact .inr ⟨by simp [eval_join, hrs, he], by simp [divSafe, hs]⟩
-    · exact .inr ⟨by simp [eval_join, he], by simp [divSafe, hs]⟩
-  | unionAll q₁ q₂ ih₁ ih₂ =>
-    obtain ⟨h₁, h₂⟩ := typeOf_unionAll_eq_some.mp hq
-    rcases ih₁ h₁ with ⟨rs, hrs, hconf₁⟩ | ⟨he, hs⟩
-    · rcases ih₂ h₂ with ⟨ss, hss, hconf₂⟩ | ⟨he, hs⟩
-      · refine .inl ⟨rs ++ ss, by simp [eval_unionAll, hrs, hss, pure, Except.pure], ?_⟩
-        intro r hr
-        rcases List.mem_append.mp hr with hr | hr
-        · exact hconf₁ r hr
-        · exact hconf₂ r hr
-      · exact .inr ⟨by simp [eval_unionAll, hrs, he], by simp [divSafe, hs]⟩
-    · exact .inr ⟨by simp [eval_unionAll, he], by simp [divSafe, hs]⟩
-  | distinct q ih =>
-    rcases ih hq with ⟨rs, hrs, hconf⟩ | ⟨he, hs⟩
-    · exact .inl ⟨rs.dedup, by simp [eval_distinct, hrs, pure, Except.pure],
-        fun r hr => hconf r (List.mem_dedup.mp hr)⟩
-    · exact .inr ⟨by simp [eval_distinct, he], by simp [divSafe, hs]⟩
+      (q.eval D = .error .divisionByZero ∧ q.divSafe = false) :=
+  (eval_spec hD hq).eq_ok_or_eq_error
 
 /-- A well-typed query never raises a type error on a conforming instance. -/
 theorem eval_ne_typeMismatch {D : Database S} (hD : D.Conforms) {q : Query S n}
-    {Γ : Fin n → SqlType} (hq : q.typeOf = some Γ) : q.eval D ≠ .error .typeMismatch := by
-  rcases eval_ok_or_divisionByZero hD hq with ⟨rs, h, -⟩ | ⟨h, -⟩ <;> simp [h]
+    {Γ : Fin n → SqlType} (hq : q.typeOf = some Γ) : q.eval D ≠ .error .typeMismatch :=
+  (eval_spec hD hq).ne_error (by simp)
 
 /-- The rows of a well-typed query on a conforming instance conform to its type. -/
 theorem conforms_of_eval_eq_ok {D : Database S} (hD : D.Conforms) {q : Query S n}
     {Γ : Fin n → SqlType} (hq : q.typeOf = some Γ) {rs : List (Row n)} (h : q.eval D = .ok rs) :
-    ∀ r ∈ rs, r.Conforms Γ := by
-  rcases eval_ok_or_divisionByZero hD hq with ⟨rs', h', hconf⟩ | ⟨h', -⟩
-  · rw [h, Except.ok.injEq] at h'
-    exact h' ▸ hconf
-  · simp [h] at h'
+    ∀ r ∈ rs, r.Conforms Γ :=
+  (eval_spec hD hq).of_eq_ok h
 
 /-- A safe query succeeds on every conforming instance. -/
 theorem IsSafe.exists_eval_eq_ok {q : Query S n} (hs : q.IsSafe) {D : Database S}
     (hD : D.Conforms) : ∃ rs, q.eval D = .ok rs := by
   obtain ⟨Γ, hΓ⟩ := Option.isSome_iff_exists.mp hs.1
-  rcases eval_ok_or_divisionByZero hD hΓ with ⟨rs, h, -⟩ | ⟨-, h⟩
-  · exact ⟨rs, h⟩
-  · simp [hs.2] at h
+  obtain ⟨rs, h, -⟩ := (eval_spec hD hΓ).exists_eq_ok (by simp [hs.2])
+  exact ⟨rs, h⟩
 
 end Query
 

@@ -191,6 +191,114 @@ argument can read `CNF V` on one side and `List (List (V × Bool))` on the other
 Improving an interface never weakens the mathematics: keep the models, encodings, independent
 resource bounds and nonvacuity of the results it touches.
 
+**Security premises** ([#5293](https://github.com/cslib-community/cslib-frontier/issues/5293)).
+A security theorem assumes nothing about an object that its proof constructs, from the adversary
+or not ([AGENTS.md](AGENTS.md#security-theorems)). After a build,
+`python3 scripts/check_security_premises.py` reads the elaborated statements of the public Crypto
+theorems from the `.olean` files. It flags each premise that is `Negligible …`, an advantage
+inequality, a class membership (`… ∈ 𝒟` or `Admissible …`), an `IsPPT…` predicate or an
+indistinguishability predicate about a reduction, distinguisher, simulator, extractor, key
+generator or other program defined in the Crypto tree, or about a distribution or game that such
+a definition builds from an adversary or scheme structure, directly or through a predicate applied
+to it. It also flags an advantage bound that holds only for parameters an `∃` chooses for such a
+program, and a *realization*: an equation saying that a variable which another premise makes
+efficient or admissible computes such a program applied to another variable. That is how a
+theorem takes the reduction from the caller, as the Carter–Wegman theorems that #5347 deleted did
+with `hD : IsOraclePPT encBool D` and
+`hreal : eval (prfRealGame family D n) = … nonceFnDistinguisher … (forger n)`. Games,
+experiments, advantages, ideal laws, encodings and the theorem's own variables never count.
+`scripts/security_premises_baseline.json` records the allowed hits, one per line with a
+justification: algebraic helpers whose names and docstrings say so (`…_of_reduction_le`,
+`…_of_isPPTOn`), premises that the rule allows but the checker cannot tell apart (a named
+assumption about a component the scheme uses, the hypothesis of a cited generic theorem), and the
+§1 items of #5293 that are being fixed. CI fails a pull request whose changed modules have an
+unrecorded hit or a baseline entry that no longer matches, and prints such differences in other
+modules as a notice; a change to the checker or its baseline is checked against every module, and
+merge groups only report. To add a deliberately conditional helper, name and document it as such,
+run `python3 scripts/check_security_premises.py --update-baseline` and fill in its `why`; `--list`
+shows every hit.
+
+The check supplements review: a clean run is not evidence that a security theorem is right. It
+does not judge vacuous or misdefined notions, games and assumptions; a wrong or nonstandard
+assumption, such as an MLWE variant without the short secrets that ML-KEM's security needs;
+anything outside `Cslib.Crypto`; or names and docstrings that overclaim. Its rules are syntactic
+over elaborated terms, so it also misses a premise whose definition builds the constructed object
+in its own body, a distribution applied only to numbers or functions (such as a key law at fixed
+parameters), a bound without an advantage-named constant, a caller-supplied object whose existence
+the theorem should prove, and a realization stated other than as an equation (an inequality, a
+predicate of the library or a bundled program).
+
+**Reduction witnesses** ([#5293](https://github.com/cslib-community/cslib-frontier/issues/5293)).
+Each explicit reduction has an efficiency witness ([AGENTS.md](AGENTS.md#security-theorems)). After
+a build, `python3 scripts/check_reduction_witnesses.py` finds the *reductions*: the Crypto
+definitions that yield a program (a `ProbComp`, `OracleComp` or `PMF`, or a structure of these) and
+that a public theorem uses on the bounding side of an advantage bound, applied to a program variable
+of the bounded side, as `B` in `Adv(scheme, A) ≤ Adv(problem, B A)`. A reduction is certified when a
+theorem concludes an efficiency certificate that mentions it (`IsPPT…`, `IsOraclePPT…`,
+`ComputableIn…` and similar; a query bound does not count), when it is an `abbrev` of certified
+reductions, or when a certified definition such as its word-level program applies it.
+`scripts/reduction_witnesses_baseline.json` records the uncertified ones, one per line: a `gap`
+names the issue that tracks the missing witness, and an `exempt` entry says why none is needed (an
+information-theoretic bound, or a definition that is not a reduction, such as a scheme built from a
+component). A `via_certified_program` entry records a typed reduction that a certified program runs:
+it names the program, the program's efficiency witness, a theorem whose conclusion is an equation
+between the program's law and the reduction's (a bound, or an equation for one world only, does not
+count) with the file that holds it, and the asymptotic headline that applies the hardness assumption
+to the program: a theorem other than the witness and the equality that concludes a negligibility or
+advantage claim and mentions the program or its witness in its statement or proof. All but the
+equality must be public; a private equality is named without its prefix and looked up in its
+recorded file. The conditions under which the equality holds are for the reviewer to read; the `why`
+states them by hand. The checker verifies these declarations in Lean, so a renamed one fails, and
+`--report` prints where each headline uses the program; it does not judge them, and review still
+does. CI treats it as it treats the premise check: a pull request fails when a changed module has an
+unrecorded uncertified reduction or a baseline entry that no longer matches, so the baseline only
+shrinks; merge groups only report. `--list` shows every reduction with its certificate, and
+`--update-baseline` adds entries whose `why` you then fill in. The check does not see a reduction
+written inline in a bound, a bound without an advantage-named constant, a simulator or extractor on
+the bounded side, or an attack, and it does not judge whether a witness assumes only the adversary's
+certificate; review covers these.
+
+**Named assumptions** ([#5578](https://github.com/cslib-community/cslib-frontier/issues/5578)). Each
+named assumption that a Crypto theorem takes belongs in the
+[assumptions inventory](manual/programs-crypto-and-probability/assumptions.md) as *standard* (its
+docstring cites the source definition with a checked locator and names every deviation), *novel*
+(its docstring says "novel to this library" and how it relates to standard assumptions) or
+*vocabulary* (a generic notion parameterized by the objects whose security it states, never a
+primitive's own security notion) ([AGENTS.md](AGENTS.md#security-theorems)). After a build,
+`python3 scripts/check_hardness_assumptions.py` finds every premise of a public Crypto theorem
+headed by a Prop-valued declaration whose definition mentions negligibility, an advantage or
+indistinguishability, whatever the declaration's own name, and checks it against the inventory. It
+fails on an unlisted assumption, a malformed or duplicate row, a standard row without a
+`references.bib` key, and a missing nonvacuity test that a row links. It also fails on a standard
+assumption whose docstring cites none of its row's keys, a novel one whose docstring does not say
+"novel to this library", a row of any status whose locator is "not verified", a theorem resting on a
+novel assumption whose name does not mention it or whose docstring presents a cited result (cites a
+key, or says "theorem" or opens with a bold title in its first sentence) without its first sentence
+saying "step" or "helper", and a results-inventory entry that lists such a theorem. The existing
+gaps of these kinds are recorded, each with a justification, in
+`scripts/hardness_assumptions_baseline.json`, which only shrinks: an entry that no longer matches
+fails as well. The check covers the whole library, so pull requests and merge groups both enforce
+it, and a merge group in which two pull requests conflict only in meaning (say, both register the
+same assumption) ejects the later one instead of landing it; pushes to `main` only report. To
+register a new assumption, add its row, cite its source in its docstring, and link a nonvacuity test
+where one is easy; `--list` prints the theorems that rest on each assumption. A row drops "locator
+not verified" only in a pull request whose body records the source check, confirmed by its reviewer.
+The check does not judge whether a definition matches its source, whether a locator is right, or
+whether a theorem that claims a cited result rests on the source's assumption with the source's
+instance; review does. Nor does it see a cited result named without a bibliography key, the word
+"theorem" or a bold title in the docstring's first sentence, or one claimed only by a theorem's
+name. Conversely, an original result on a novel assumption, which the rule allows, is flagged when
+its docstring cites a key, or says "theorem" or opens with a bold title in its first sentence; it
+then passes only through a justified baseline entry. The inventory is not complete, because the
+reader misses two kinds of assumption: a premise written inline (a hypothesis
+`∀ A, Negligible (advantage A)`), and an assumption whose definition reaches no security atom
+through Prop-valued declarations within five levels, such as a bound on a quantity not named like
+an advantage or an advantage behind a helper that is not Prop-valued. A row for one fails, so these
+are not listed. The known cases are `MildlyHardOnAverage` and `MildlyHardOnAverageENat` (the
+Liu–Pass converse), `Pseudoentropy.SamplablePair.HasGap` and `HasGapWithAdvice`, and
+`Circuits.Boolean.IsAverageCaseHard` (Nisan–Wigderson); the inventory page names them in full
+(#5578 finding 9).
+
 ### Algorithms are programs
 
 Probabilistic algorithms, such as key generation, signing, provers, verifiers, simulators,
@@ -383,7 +491,8 @@ findings without requiring a duplicate local run.
 
 Keep each fact in one maintained location. The README explains the purpose and points to useful
 entry points; module docstrings explain the mathematics and API; checked Lean examples show usage.
-ROADMAP lists accepted directions only, grouped by area.
+ROADMAP lists accepted directions only: `ROADMAP.md` holds the programs and an index, and each area
+has its own file under `roadmap/`, so that changes in different areas do not conflict.
 Each entry states one direction's scope in a few sentences, one sentence per line, with its issue
 linked inline as `[#N](https://github.com/cslib-community/cslib-frontier/issues/N)`.
 Status and progress live on issues and PRs, so a PR edits ROADMAP only when it opens or closes a

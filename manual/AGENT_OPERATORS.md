@@ -5,8 +5,8 @@ what to ask for, and how to judge the handoff. The substantial [Operator's Manua
 explains how to work in the codebase: its tactics, models, proof patterns, examples and procedures.
 Both humans and agents use that reference. You do not need an agent to follow it.
 
-The current [project instructions](../AGENTS.md) and [contribution policy](../CONTRIBUTING.md)
-govern the work. This manual explains how to use that process; it does not grant an agent
+The current [project instructions](../AGENTS.md), the policy files under `policy/` that they
+summarize, and the [contribution policy](../CONTRIBUTING.md) govern the work. This manual explains how to use that process; it does not grant an agent
 permission to merge, publish, or change another contributor's work.
 
 ## Choose the right assignment
@@ -49,8 +49,8 @@ For an investigation, ask for a decision you can use:
 > complete existing client, identify the main difficulty, and propose a bounded next step. State
 > which conclusions come from source inspection and which were checked by running Lean.
 
-For orientation, it is useful to ask an agent to summarize `AGENTS.md` for its assigned role and
-point to the relevant manual sections. Require source locations for substantive claims. The
+For orientation, it is useful to ask an agent to summarize `AGENTS.md` and the `policy/` file for
+its task, for its assigned role, and point to the relevant manual sections. Require source locations for substantive claims. The
 manuals provide a shared reference when a summary omits something or two agents disagree.
 
 ## Read a progress report
@@ -77,8 +77,23 @@ failure. The [codebase troubleshooting chapter](workflows/troubleshooting.md) ex
 Assign review to an agent that did not design or implement the change. For example:
 
 > Independently review PR `<number>` at its current revision. Read the actual definitions and
-> statements. Check the mathematical claim, API and representative client, including the model,
-> encodings, hypotheses and resource bounds.
+> statements. Start with each headline: quote it and compare its name, docstring, title and any
+> inventory entry with what the statement proves. For a cited result, classify every hypothesis as
+> a source-named assumption, the admitted class, a generic component the source takes as given, or
+> something else (such as a proof step or a property of an object the proof builds); for original
+> mathematics or internal infrastructure, an absent source is not a defect—check instead that it
+> is non-vacuous, genuinely reusable, accurately named for its actual hypotheses and scope, and
+> does not imply a cited endpoint was proved. Any vacuous hypothesis, or any hypothesis in the
+> last class, undisclosed deviation or stand-in presented as the cited endpoint or advertised
+> headline, blocks approval; do not offer "document it as a milestone" instead. A useful,
+> non-vacuous step honestly named (`…_of_reduction_le`, `…_of_realization`) and documented as a
+> helper—leaving the published theorem open and out of its name, title and inventory entry—is
+> permitted, and any stand-in superseded by a faithful theorem must be removed or demoted. Check
+> the mathematical claim, API and representative client, including the model, encodings,
+> hypotheses and resource bounds. Say what in the change should not exist: for each new public
+> declaration, whether it has a caller and is more than a restatement of its neighbour. For each
+> new definition or transcribed algorithm, name its first non-trivial property and say whether
+> the change proves it.
 > Check public API usability in a representative `module` client with ordinary imports of the API.
 > Read new and changed proofs against the rest of
 > their files, and report any substantial argument the change repeats that another proof or an
@@ -108,6 +123,21 @@ checks. An approval must cover the final revision; substantive
 fixes require review of the affected reasoning. Unchanged evidence can be reused after checking
 its identity.
 
+A faithful statement matters more than a milestone. Agent reviews have approved theorems that
+assumed something about their own reduction because the PR disclosed it
+([#5293](https://github.com/cslib-community/cslib-frontier/issues/5293); in `Cslib.Crypto`,
+`scripts/check_security_premises.py` catches common elaborated premise shapes under
+[security theorems](../AGENTS.md#security-theorems), while review owns semantic fidelity). Ask
+also which assumption a cited result rests on: the
+[assumptions inventory](programs-crypto-and-probability/assumptions.md) records whether each one
+is the source's or novel to this library, and a novel one may not stand in for the source's
+([#5578](https://github.com/cslib-community/cslib-frontier/issues/5578)). When a
+report says a result landed "with limitations", ask whether the theorem is named and documented as
+a step ([faithful headlines](../AGENTS.md#faithful-headlines)) and whether the cited result is
+still open. Before a published theorem enters the [results inventory](../results/README.md), check
+its statement against the source yourself and say so in your own comment; agent review alone does
+not admit an entry.
+
 ## Direct a coordinator
 
 Make the scope and authority clear. A coordinator request can say:
@@ -124,7 +154,9 @@ To keep a PR for your own review, say so in the PR or its linked issue: agents t
 without queueing, and you or someone you name queues it. Agents without write access can prepare
 and review work but cannot queue it. Coordinators queue approved heads still waiting and monitor
 the merge queue through
-landing. [Coordinator duties](../AGENTS.md#coordinators) define the details.
+landing. [Coordinator duties](../AGENTS.md#coordinators) define the details. Every merge to `main`
+goes through the merge queue; an agent merges directly only when you explicitly ask for that on
+the PR concerned.
 
 An approval with review still pending is conditional. Ask for a final handoff that links the
 earlier proof/API/caller judgment and resolves the named source, notice and manual-review holds.
@@ -191,13 +223,15 @@ the useful work, state the remaining objective and return to a concrete next ste
 agents overlap, have the coordinator resolve ownership before either overwrites the other's work.
 
 Ask for a PR description that explains the setting, central idea and result to someone who has
-not followed the task. Use the [writing guidance and example](../AGENTS.md#writing-in-issues-and-prs)
+not followed the task. Use the [writing guidance](../AGENTS.md#writing-in-issues-and-prs)
 to judge whether the explanation gives you enough context to understand the change.
 
 For a handoff, request the issue and PR, branch and revision, actual validation, review state,
 remaining work and the next action. Put that record in the issue/PR or commit, according to the
 [durable-record rules](../AGENTS.md#durable-records). A new agent should inspect those records
-and the current source before resuming. Silence alone does not release another agent's task.
+and the current source before resuming. A claim with no open PR and no activity is released 24 hours after a notice to its owner; a PR
+awaiting review is never released by silence
+([ownership rules](../AGENTS.md#workers)). Tell an agent if you want a stricter rule for its work.
 
 To stop, specify which task or session should stop and ask for a preserved checkpoint and
 handoff. Agents should stop only processes they own. An ended session cannot promise unattended

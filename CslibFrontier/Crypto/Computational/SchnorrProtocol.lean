@@ -11,10 +11,12 @@ public import CslibFrontier.Crypto.Computational.DiffieHellman
 public import CslibFrontier.Crypto.Computational.SchnorrIdentification
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Computational
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Linear
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
-import CslibFrontier.Crypto.Negligible.Basic
+import CslibFrontier.Foundations.Data.ZMod.NatCast
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Tactic.PPT
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.WordsRoundTrip
@@ -57,6 +59,14 @@ The protocol does not depend on the security parameter; only the simulator's sam
 * `Cslib.Crypto.PrimeOrderGroupFamily.schnorrSimulator`: the simulator with `sampleExp`.
 * `Cslib.Crypto.PrimeOrderGroupFamily.schnorrSimulateWord`: the simulator as a strict PPT program
   on words.
+* `Cslib.Crypto.PrimeOrderGroupFamily.schnorrIdealKeyGen`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.schnorrSigKeyGen`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.schnorrCommitBits`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.encSchnorrBitsInput`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.schnorrRespondBits`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.schnorrRecoverCommitBits`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.encodeSchnorrVerify`: shared bit-encoded Schnorr key
+  generation, commitment, response, commitment recovery, and verification.
 
 ## Main results
 
@@ -76,6 +86,18 @@ The protocol does not depend on the security parameter; only the simulator's sam
 * `Cslib.Crypto.PrimeOrderGroupFamily.accepts_schnorrSimulator`,
   `Cslib.Crypto.PrimeOrderGroupFamily.computationalSpecialHVZK_schnorr`: exact acceptance (`δ = 0`)
   and computational special HVZK (Definition 20.6).
+* `Cslib.Crypto.PrimeOrderGroupFamily.eval_schnorrSigKeyGen`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.closeTo_schnorrSigKeyGen`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.advantage_bind_schnorrSigKeyGen_le`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.isPPTOn_schnorrSigKeyGen`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.computableInPolyTime_schnorrCommitBits`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.computableInPolyTime_schnorrRespondBits`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.computableInPolyTime_schnorrRecoverCommitBits`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.encodeSchnorrVerify_encode`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.encodeSchnorrVerify_eq_true_iff`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.computableInPolyTime_encodeSchnorrVerify`: strict-PPT and
+  polynomial-time certificates and canonical-key characterizations for the shared bit-encoded
+  Schnorr operations.
 
 ## References
 
@@ -179,13 +201,13 @@ theorem computableInPolyTime_schnorrExtractWord :
   have hword {k : (ℕ × F.Desc) × List Bool × List Bool × List Bool × List Bool × List Bool ×
       List Bool → List Bool} (hk : ComputableInPolyTime k encIn encBits) :
       ComputableInPolyTime (fun p => ofBits (k p)) encIn encNat :=
-    .of_tidy (ComputableTidilyInPolyTime.bitsToNat.comp hk.tidy)
+    (ComputableInPolyTime.bitsToNat.comp hk)
   have hext := computableInPolyTime_extractNat hd
     (hword (k := fun p => p.2.2.2.1) (by fun_prop))
     (hword (k := fun p => p.2.2.2.2.1) (by fun_prop))
     (hword (k := fun p => p.2.2.2.2.2.1) (by fun_prop))
     (hword (k := fun p => p.2.2.2.2.2.2) (by fun_prop))
-  exact .of_tidy (ComputableTidilyInPolyTime.natBits.comp hext.tidy)
+  exact hext.encoding_comp
 
 /-- `schnorrExtractWord` computes Schnorr's extractor `schnorrExtract` on encodings. -/
 theorem extractorRealizedBy_schnorrExtractWord :
@@ -201,12 +223,9 @@ theorem efficientSpecialSoundness_schnorr :
     EfficientSpecialSoundness F.schnorrFamily (fun i α u => α • F.generator i.2 = u)
       F.schnorrEncoding (fun i => F.encScalar i.2) F.schnorrExtract where
   specialSoundness i u t c z c' z' hc hz hz' := by
-    have hcast : ((c.val : ℕ) : ZMod (F.order i.2)) ≠ (c'.val : ℕ) := by
-      simpa only [ZMod.natCast_zmod_val] using hc
     have h := schnorr_specialSoundness (ι := Function.Embedding.refl _) u t c z c' z' hc hz hz'
     simp only [linearExtract, Function.Embedding.refl_apply, smul_eq_mul] at h
-    simp only [schnorrExtract, extractNat_cast hcast, ZMod.natCast_zmod_val]
-    exact h
+    simpa only [schnorrExtract, extractNat_zmod_val hc] using h
   polyTime := ⟨F.schnorrExtractWord, F.computableInPolyTime_schnorrExtractWord,
     F.extractorRealizedBy_schnorrExtractWord⟩
 
@@ -224,6 +243,20 @@ theorem closeTo_uniform_sampleExp (n : ℕ) (d : F.Desc) :
   have h := F.advantage_bind_sampleExp_le n d fun a => PMF.pure (decide (a ∈ E))
   rw [PMF.map_comp, ← PMF.bind_pure_comp, ← PMF.bind_pure_comp]
   exact h
+
+open Classical in
+/-- Post-processing the modular cast of `sampleExp n d` by `f` is within `ℝ≥0∞`-distance
+`1 / 2 ^ n` of `f` applied to a uniform scalar in `ZMod q`. -/
+theorem closeTo_map_uniform_sampleExp {α : Type} (n : ℕ) (d : F.Desc)
+    (f : ZMod (F.order d) → α) :
+    CloseTo ((PMF.uniformOfFintype (ZMod (F.order d))).map f)
+      (ProbComp.eval (f <$> ((Nat.cast : ℕ → ZMod (F.order d)) <$> F.sampleExp n d)))
+      (1 / 2 ^ n : ℝ≥0∞) := by
+  have hδ : (((1 / 2 ^ n : ℝ≥0)) : ℝ≥0∞) = 1 / 2 ^ n := by
+    rw [ENNReal.coe_div (pow_ne_zero _ two_ne_zero), ENNReal.coe_one, ENNReal.coe_pow,
+      ENNReal.coe_ofNat]
+  rw [ProbComp.eval_map, ProbComp.eval_map, ← hδ]
+  exact (F.closeTo_uniform_sampleExp n d).map f
 
 /-- A challenge sampler for `schnorrFamily` with fair coins: at index `(n, d)`, sample `s` with
 `sampleExp n d` and read it modulo the group order. It is within statistical distance `1 / 2 ^ n`
@@ -278,8 +311,7 @@ theorem eval_schnorrSimulateWord (i : ℕ × F.Desc) (u : F.Carrier i.2) (c : ZM
         (Prod.map (F.schnorrEncoding.commitment i) (F.schnorrEncoding.response i)) := by
   obtain ⟨n, d⟩ := i
   have hneg : ((F.order d - c.val % F.order d : ℕ) : ZMod (F.order d)) = -c := by
-    rw [Nat.mod_eq_of_lt (ZMod.val_lt c), Nat.cast_sub (ZMod.val_lt c).le, ZMod.natCast_self,
-      ZMod.natCast_zmod_val, zero_sub]
+    rw [ZMod.natCast_sub_mod_eq_neg, ZMod.natCast_zmod_val]
   rw [show (F.schnorrEncoding.statement (n, d)) u = F.encode d u from rfl,
     show (F.schnorrEncoding.challenge (n, d)) c = encNat c.val from rfl,
     schnorrSimulateWord, ProbComp.eval_bind, schnorrSimulator, ProbComp.eval_map,
@@ -290,6 +322,27 @@ theorem eval_schnorrSimulateWord (i : ℕ × F.Desc) (u : F.Carrier i.2) (c : ZM
   congr 1 with a : 1
   simp only [Function.comp_apply, Prod.map, schnorrEncoding, encodeEmbedding, encScalar,
     Function.Embedding.coeFn_mk, encNat_apply, ZMod.val_natCast]
+
+/-- A word-level commitment step `k • b + (q - c % q) • x` computed with the family's word
+operations is computable in polynomial time from polynomial-time components. -/
+theorem computableInPolyTime_add_smul_sub_mod {α : Type} {encIn : α ↪ List Bool}
+    {d : α → F.Desc} {k : α → ℕ} {b c x : α → List Bool}
+    (hd : ComputableInPolyTime d encIn F.encDesc)
+    (hk : ComputableInPolyTime k encIn encNat)
+    (hb : ComputableInPolyTime b encIn encBits)
+    (hc : ComputableInPolyTime c encIn encBits)
+    (hx : ComputableInPolyTime x encIn encBits) :
+    ComputableInPolyTime
+      (fun p => F.add (d p, F.smul (d p, k p, b p),
+        F.smul (d p, F.order (d p) - ofBits (c p) % F.order (d p), x p)))
+      encIn encBits := by
+  have hq := F.computableInPolyTime_order.comp hd
+  have hneg : ComputableInPolyTime
+      (fun p => F.order (d p) - ofBits (c p) % F.order (d p)) encIn encNat :=
+    .binary_sub' hq (.binary_mod' (ComputableInPolyTime.bitsToNat.comp hc) hq)
+  exact F.computableInPolyTime_add.comp
+    (hd.prod ((F.computableInPolyTime_smul.comp (hd.prod (hk.prod hb))).prod
+      (F.computableInPolyTime_smul.comp (hd.prod (hneg.prod hx)))))
 
 /-- `schnorrSimulateWord` is uniform strict PPT in the security parameter, the description and the
 encoded statement and challenge. -/
@@ -316,19 +369,12 @@ theorem isPPTOn_schnorrSimulateWord :
   have hc : ComputableInPolyTime (fun p : ((ℕ × F.Desc) × List Bool × List Bool) × ℕ =>
       p.1.2.2) encMid encBits := by fun_prop
   have hq := F.computableInPolyTime_order.comp hd'
-  have hg := F.computableInPolyTime_generator.comp hd'
-  have hsg := F.computableInPolyTime_smul.comp (hd'.prod (hs.prod hg))
-  have hneg : ComputableInPolyTime
-      (fun p : ((ℕ × F.Desc) × List Bool × List Bool) × ℕ =>
-        F.order p.1.1.2 - ofBits p.1.2.2 % F.order p.1.1.2) encMid encNat :=
-    .of_tidy (.binary_sub' hq.tidy (.binary_mod'
-      (ComputableTidilyInPolyTime.bitsToNat.comp hc.tidy) hq.tidy))
-  have hcu := F.computableInPolyTime_smul.comp (hd'.prod (hneg.prod hu))
-  have ht := F.computableInPolyTime_add.comp (hd'.prod (hsg.prod hcu))
+  have ht := F.computableInPolyTime_add_smul_sub_mod hd' hs
+    (F.computableInPolyTime_generator.comp hd') hc hu
   have hz : ComputableInPolyTime
       (fun p : ((ℕ × F.Desc) × List Bool × List Bool) × ℕ =>
         (p.2 % F.order p.1.1.2).bits) encMid encBits :=
-    .of_tidy (ComputableTidilyInPolyTime.natBits.comp (.binary_mod' hs.tidy hq.tidy))
+    (ComputableInPolyTime.binary_mod' hs hq).encoding_comp
   exact (ht.prod hz).isPPTOn
 
 /-- `schnorrSimulator` is uniform strict PPT, certified by `schnorrSimulateWord`. -/
@@ -342,14 +388,8 @@ theorem simulatorRealizedBy_schnorrSimulator :
     SimulatorRealizedBy
       (fun i : ℕ × F.Desc => linearSimulate (fun _ => LinearMap.toSpanSingleton
         (ZMod (F.order i.2)) (F.Carrier i.2) (F.generator i.2)) id (Function.Embedding.refl _))
-      F.schnorrSimulator (fun i => 1 / 2 ^ i.1) := by
-  intro i u c
-  have hδ : (((1 / 2 ^ i.1 : ℝ≥0)) : ℝ≥0∞) = 1 / 2 ^ i.1 := by
-    rw [ENNReal.coe_div (pow_ne_zero _ two_ne_zero), ENNReal.coe_one, ENNReal.coe_pow,
-      ENNReal.coe_ofNat]
-  simp only [schnorrSimulator, ProbComp.eval_map]
-  rw [← hδ]
-  exact (F.closeTo_uniform_sampleExp i.1 i.2).map _
+      F.schnorrSimulator (fun i => 1 / 2 ^ i.1) :=
+  fun i _ _ => F.closeTo_map_uniform_sampleExp i.1 i.2 _
 
 /-- **Schnorr's protocol has efficient special HVZK** ([BonehShoup2023], Example 19.3), with
 statistical error `1 / 2 ^ n` at security parameter `n`: the perfect simulator `linearSimulate` is
@@ -379,14 +419,262 @@ paired with the security parameter. -/
 theorem computationalSpecialHVZK_schnorr (setup : ℕ → PMF F.Desc) :
     ComputationalSpecialHVZK F.schnorrFamily (fun i α u => α • F.generator i.2 = u)
       F.schnorrEncoding (fun i => F.encScalar i.2) (fun n => (setup n).map (n, ·))
-      F.schnorrSimulator (fun _ => 0) := by
-  refine F.simulatorRealizedBy_schnorrSimulator.computationalSpecialHVZK_of_accepts
+      F.schnorrSimulator (fun _ => 0) :=
+  F.simulatorRealizedBy_schnorrSimulator.computationalSpecialHVZK_of_accepts
     (fun _ => schnorr_specialHVZK) F.isPPT_schnorrSimulator
     (fun i u c => by rw [F.accepts_schnorrSimulator i u c, tsub_zero])
-    ⟨fun n => (1 / 2 : ℝ≥0) ^ n, negligible_geometric (by norm_num), fun n i hi => ?_⟩
-  obtain ⟨d, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hi
-  dsimp only
-  rw [one_div_pow, ENNReal.coe_div (pow_ne_zero _ two_ne_zero), ENNReal.coe_one, ENNReal.coe_pow,
-    ENNReal.coe_ofNat]
+    (exists_negligible_inv_two_pow_map setup)
+
+/-! ### Shared bit-encoded Schnorr key generation, commitment, response, and verification -/
+
+/-- Ideal encoded Schnorr key generation for group description `d`: sample a uniform secret scalar
+`α : ZMod (F.order d)` and output the encoded public key `F.encode d (α • F.generator d)` paired
+with the binary-encoded secret key `F.encScalar d α`. -/
+noncomputable def schnorrIdealKeyGen (d : F.Desc) : PMF (List Bool × List Bool) :=
+  (PMF.uniformOfFintype (ZMod (F.order d))).map
+    fun α => (F.encode d (α • F.generator d), F.encScalar d α)
+
+/-- Bit-encoded Schnorr key generation at security parameter `n` and group description `d`
+([BonehShoup2023], Sections 19.1–19.2): sample an approximate uniform exponent
+`sk ← F.sampleExp n d` and output the encoded public key
+`F.smul (d, sk, F.encode d (F.generator d))` together with the binary secret key
+`(sk % F.order d).bits`. -/
+noncomputable def schnorrSigKeyGen (n : ℕ) (d : F.Desc) : ProbComp (List Bool × List Bool) := do
+  let sk ← F.sampleExp n d
+  return (F.smul (d, sk, F.encode d (F.generator d)), (sk % F.order d).bits)
+
+/-- Output distribution of `schnorrSigKeyGen`: the sampled exponent modulo `F.order d` determines
+the encoded public key `α • g` and secret scalar `α`. -/
+theorem eval_schnorrSigKeyGen (n : ℕ) (d : F.Desc) :
+    ProbComp.eval (F.schnorrSigKeyGen n d) =
+      ((ProbComp.eval (F.sampleExp n d)).map (Nat.cast : ℕ → ZMod (F.order d))).map
+        fun α => (F.encode d (α • F.generator d), F.encScalar d α) := by
+  rw [schnorrSigKeyGen, ProbComp.eval_bind, PMF.map_comp]
+  simp only [ProbComp.eval_pure, F.smul_encode, encScalar, Function.Embedding.coeFn_mk,
+    encNat_apply]
+  rw [← PMF.bind_pure_comp]
+  congr 1 with s : 1
+  simp only [Function.comp_apply, ZMod.val_natCast]
+
+/-- `schnorrSigKeyGen n d` is within statistical distance `1 / 2 ^ n` of the ideal encoded Schnorr
+key generator `schnorrIdealKeyGen d`. -/
+theorem closeTo_schnorrSigKeyGen (n : ℕ) (d : F.Desc) :
+    CloseTo (F.schnorrIdealKeyGen d) (ProbComp.eval (F.schnorrSigKeyGen n d))
+      (1 / 2 ^ n : ℝ≥0) := by
+  rw [schnorrIdealKeyGen, eval_schnorrSigKeyGen]
+  exact (F.closeTo_uniform_sampleExp n d).map _
+
+/-- Replacing `schnorrSigKeyGen n d` with an exact uniform secret key
+`α ← PMF.uniformOfFintype (ZMod (F.order d))` changes any Boolean continuation on the encoded
+public key and secret scalar `(ofBits sk : ZMod (F.order d))` by at most `1 / 2 ^ n`. -/
+theorem advantage_bind_schnorrSigKeyGen_le (n : ℕ) (d : F.Desc)
+    (continuation : List Bool → ZMod (F.order d) → Game) :
+    Game.advantage
+      ((ProbComp.eval (F.schnorrSigKeyGen n d)).bind fun pksk =>
+        continuation pksk.1 (ofBits pksk.2 : ZMod (F.order d)))
+      ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun α =>
+        continuation (F.encode d (α • F.generator d)) α) ≤ 1 / 2 ^ n := by
+  simp only [schnorrSigKeyGen, ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind,
+    PMF.pure_bind, F.smul_encode, ofBits_bits, ZMod.natCast_mod]
+  exact F.advantage_bind_sampleExp_le n d
+    (fun α => continuation (F.encode d (α • F.generator d)) α)
+
+/-- **Schnorr key generation is uniform strict PPT** in the unary security parameter and the group
+description. -/
+theorem isPPTOn_schnorrSigKeyGen :
+    IsPPTOn (encPair encUnary F.encDesc) (encPair encBits encBits)
+      (fun input => F.schnorrSigKeyGen input.1 input.2) := by
+  let encIn := encPair encUnary F.encDesc
+  have hn : ComputableInPolyTime (fun p : ℕ × F.Desc => p.1) encIn encUnary := by fun_prop
+  have hd : ComputableInPolyTime (fun p : ℕ × F.Desc => p.2) encIn F.encDesc := by fun_prop
+  change IsPPTOn encIn (encPair encBits encBits) fun p =>
+    F.sampleExp p.1 p.2 >>= fun sk =>
+      pure (F.smul (p.2, sk, F.encode p.2 (F.generator p.2)), (sk % F.order p.2).bits)
+  refine (F.isPPTOn_sampleExp hn hd).bind_with ?_
+  let encMid := encPair encIn encNat
+  have hd' : ComputableInPolyTime (fun p : (ℕ × F.Desc) × ℕ => p.1.2) encMid F.encDesc := by
+    fun_prop
+  have hsk : ComputableInPolyTime (fun p : (ℕ × F.Desc) × ℕ => p.2) encMid encNat := by
+    fun_prop
+  have hq := F.computableInPolyTime_order.comp hd'
+  have hg := F.computableInPolyTime_generator.comp hd'
+  have hpk := F.computableInPolyTime_smul.comp (hd'.prod (hsk.prod hg))
+  have hsk_bits : ComputableInPolyTime
+      (fun p : (ℕ × F.Desc) × ℕ => (p.2 % F.order p.1.2).bits) encMid encBits :=
+    (ComputableInPolyTime.binary_mod' hsk hq).encoding_comp
+  exact (hpk.prod hsk_bits).isPPTOn
+
+/-- Bit-level Schnorr commitment: given `(d, r)` where `r` is the binary-encoded commitment
+exponent, compute the encoded group element `r • g`. -/
+def schnorrCommitBits (input : F.Desc × List Bool) : List Bool :=
+  let (d, r) := input
+  F.smul (d, ofBits r, F.encode d (F.generator d))
+
+/-- On an encoded scalar `r : ZMod (F.order d)`, `schnorrCommitBits` produces
+`F.encode d (r • g)`. -/
+@[simp] theorem schnorrCommitBits_encScalar (d : F.Desc) (r : ZMod (F.order d)) :
+    F.schnorrCommitBits (d, F.encScalar d r) = F.encode d (r • F.generator d) := by
+  simp only [schnorrCommitBits, encScalar, Function.Embedding.coeFn_mk, encNat_apply, ofBits_bits,
+    F.smul_encode, ZMod.natCast_zmod_val]
+
+/-- **Bit-level Schnorr commitment is computable in polynomial time**. -/
+theorem computableInPolyTime_schnorrCommitBits :
+    ComputableInPolyTime F.schnorrCommitBits (encPair F.encDesc encBits) encBits := by
+  let encIn := encPair F.encDesc encBits
+  have hd : ComputableInPolyTime (fun p : F.Desc × List Bool => p.1) encIn F.encDesc := by fun_prop
+  have hr : ComputableInPolyTime (fun p : F.Desc × List Bool => p.2) encIn encBits := by fun_prop
+  have hr_nat : ComputableInPolyTime (fun p : F.Desc × List Bool => ofBits p.2) encIn encNat :=
+    (ComputableInPolyTime.bitsToNat.comp hr)
+  have hg := F.computableInPolyTime_generator.comp hd
+  exact F.computableInPolyTime_smul.comp (hd.prod (hr_nat.prod hg))
+
+/-- `schnorrCommitBits` lifted to `ProbComp` is uniform strict PPT. -/
+theorem isPPTOn_schnorrCommitBits :
+    IsPPTOn (encPair F.encDesc encBits) encBits (fun input => pure (F.schnorrCommitBits input)) :=
+  F.computableInPolyTime_schnorrCommitBits.isPPTOn
+
+/-- Input `(d, a, b, c)` of the bit-level Schnorr response and commitment-recovery maps: a group
+description `d`, then three bit words. The description and the first two words are framed. -/
+abbrev encSchnorrBitsInput : F.Desc × List Bool × List Bool × List Bool ↪ List Bool :=
+  encPair F.encDesc (encPair encBits (encPair encBits encBits))
+
+/-- Bit-level Schnorr response: given `(d, sk, r, roOut)` where `sk` is the encoded secret key, `r`
+is the encoded commitment randomness, and `roOut` is the challenge bit string, compute
+`((ofBits r + ofBits roOut * ofBits sk) % F.order d).bits`. -/
+def schnorrRespondBits (input : F.Desc × List Bool × List Bool × List Bool) : List Bool :=
+  let (d, sk, r, roOut) := input
+  ((ofBits r + ofBits roOut * ofBits sk) % F.order d).bits
+
+/-- On encoded scalars `α, r : ZMod (F.order d)`, `schnorrRespondBits` computes the encoded scalar
+`r + (ofBits roOut : ZMod (F.order d)) * α`. -/
+@[simp] theorem schnorrRespondBits_encScalar (d : F.Desc) (α r : ZMod (F.order d))
+    (roOut : List Bool) :
+    F.schnorrRespondBits (d, F.encScalar d α, F.encScalar d r, roOut) =
+      F.encScalar d (r + (ofBits roOut : ZMod (F.order d)) * α) := by
+  simp only [schnorrRespondBits, encScalar, Function.Embedding.coeFn_mk, encNat_apply, ofBits_bits]
+  congr 1
+  rw [← ZMod.val_natCast (F.order d), Nat.cast_add, Nat.cast_mul, ZMod.natCast_zmod_val,
+    ZMod.natCast_zmod_val]
+
+/-- **Bit-level Schnorr response is computable in polynomial time**. -/
+theorem computableInPolyTime_schnorrRespondBits :
+    ComputableInPolyTime F.schnorrRespondBits F.encSchnorrBitsInput encBits := by
+  let encIn := encPair F.encDesc (encPair encBits (encPair encBits encBits))
+  have hd : ComputableInPolyTime
+      (fun p : F.Desc × List Bool × List Bool × List Bool => p.1) encIn F.encDesc := by fun_prop
+  have hsk : ComputableInPolyTime
+      (fun p : F.Desc × List Bool × List Bool × List Bool => p.2.1) encIn encBits := by fun_prop
+  have hr : ComputableInPolyTime
+      (fun p : F.Desc × List Bool × List Bool × List Bool => p.2.2.1) encIn encBits := by fun_prop
+  have hro : ComputableInPolyTime
+      (fun p : F.Desc × List Bool × List Bool × List Bool => p.2.2.2) encIn encBits := by fun_prop
+  have hq := (F.computableInPolyTime_order.comp hd)
+  have hsk_nat := ComputableInPolyTime.bitsToNat.comp hsk
+  have hr_nat := ComputableInPolyTime.bitsToNat.comp hr
+  have hro_nat := ComputableInPolyTime.bitsToNat.comp hro
+  exact (ComputableInPolyTime.binary_mod'
+    (.binary_add' hr_nat (.binary_mul' hro_nat hsk_nat)) hq).encoding_comp
+
+/-- `schnorrRespondBits` lifted to `ProbComp` is uniform strict PPT. -/
+theorem isPPTOn_schnorrRespondBits :
+    IsPPTOn F.encSchnorrBitsInput encBits (fun input => pure (F.schnorrRespondBits input)) :=
+  F.computableInPolyTime_schnorrRespondBits.isPPTOn
+
+/-- Bit-level Schnorr commitment recovery ([BonehShoup2023], Sections 19.1 and 19.2.1): given
+`(d, pk, c, z)`, compute the encoded group element `z • g - c • pk`. -/
+def schnorrRecoverCommitBits (input : F.Desc × List Bool × List Bool × List Bool) : List Bool :=
+  let (d, pk, roOut, z) := input
+  F.add (d, F.smul (d, ofBits z, F.encode d (F.generator d)),
+    F.smul (d, F.order d - ofBits roOut % F.order d, pk))
+
+/-- **Bit-level Schnorr commitment recovery is computable in polynomial time**. -/
+theorem computableInPolyTime_schnorrRecoverCommitBits :
+    ComputableInPolyTime F.schnorrRecoverCommitBits F.encSchnorrBitsInput encBits := by
+  let encIn := encPair F.encDesc (encPair encBits (encPair encBits encBits))
+  have hd : ComputableInPolyTime
+      (fun p : F.Desc × List Bool × List Bool × List Bool => p.1) encIn F.encDesc := by fun_prop
+  have hpk : ComputableInPolyTime
+      (fun p : F.Desc × List Bool × List Bool × List Bool => p.2.1) encIn encBits := by fun_prop
+  have hro : ComputableInPolyTime
+      (fun p : F.Desc × List Bool × List Bool × List Bool => p.2.2.1) encIn encBits := by fun_prop
+  have hz : ComputableInPolyTime
+      (fun p : F.Desc × List Bool × List Bool × List Bool => p.2.2.2) encIn encBits := by fun_prop
+  exact F.computableInPolyTime_add_smul_sub_mod hd (ComputableInPolyTime.bitsToNat.comp hz)
+    (F.computableInPolyTime_generator.comp hd) hro hpk
+
+/-- On an encoded public key `pk = F.encode d u`, `schnorrRecoverCommitBits` computes the encoding
+of `z • g - roOut • u`. -/
+@[simp] theorem schnorrRecoverCommitBits_encode (d : F.Desc) (u : F.Carrier d)
+    (roOut z : List Bool) :
+    F.schnorrRecoverCommitBits (d, F.encode d u, roOut, z) =
+      F.encode d ((ofBits z : ZMod (F.order d)) • F.generator d -
+        (ofBits roOut : ZMod (F.order d)) • u) := by
+  simp only [schnorrRecoverCommitBits, F.smul_encode, F.add_encode, ZMod.natCast_sub_mod_eq_neg,
+    neg_smul, ← sub_eq_add_neg]
+
+/-- Polynomial-time Schnorr verification on an encoded public key `pk`, commitment word `t`,
+challenge word `c`, and response word `z`: compares `t` with the canonical commitment recovery
+`schnorrRecoverCommitBits (d, pk, c, z)`. -/
+def encodeSchnorrVerify (d : F.Desc) (pk t c z : List Bool) : Bool :=
+  t == F.schnorrRecoverCommitBits (d, pk, c, z)
+
+/-- On a canonical encoded public key `F.encode d u`, `encodeSchnorrVerify` agrees with the
+algebraic Schnorr verification check `t = encode (z • g - c • u)`. -/
+@[simp]
+theorem encodeSchnorrVerify_encode (d : F.Desc) (u : F.Carrier d) (t c z : List Bool) :
+    F.encodeSchnorrVerify d (F.encode d u) t c z =
+      decide (t = F.encode d ((ofBits z : ZMod (F.order d)) • F.generator d -
+        (ofBits c : ZMod (F.order d)) • u)) := by
+  simp only [encodeSchnorrVerify, schnorrRecoverCommitBits_encode, beq_eq_decide]
+
+/-- Under a canonical public key `F.encode d u`, `encodeSchnorrVerify` accepts if and only if `t`
+equals the canonical encoding of `z • g - c • u`. -/
+theorem encodeSchnorrVerify_eq_true_iff (d : F.Desc) (u : F.Carrier d) (t c z : List Bool) :
+    F.encodeSchnorrVerify d (F.encode d u) t c z = true ↔
+      t = F.encode d ((ofBits z : ZMod (F.order d)) • F.generator d -
+        (ofBits c : ZMod (F.order d)) • u) := by
+  simp only [encodeSchnorrVerify, schnorrRecoverCommitBits_encode, beq_iff_eq]
+
+/-- `encodeSchnorrVerify` is computable in polynomial time. -/
+theorem computableInPolyTime_encodeSchnorrVerify :
+    ComputableInPolyTime
+      (fun p : F.Desc × List Bool × List Bool × List Bool × List Bool =>
+        F.encodeSchnorrVerify p.1 p.2.1 p.2.2.1 p.2.2.2.1 p.2.2.2.2)
+      (encPair F.encDesc (encPair encBits (encPair encBits (encPair encBits encBits))))
+      encBool := by
+  let encIn := encPair F.encDesc (encPair encBits (encPair encBits (encPair encBits encBits)))
+  have hd : ComputableInPolyTime
+      (fun p : F.Desc × List Bool × List Bool × List Bool × List Bool => p.1)
+      encIn F.encDesc := by fun_prop
+  have hpk : ComputableInPolyTime
+      (fun p : F.Desc × List Bool × List Bool × List Bool × List Bool => p.2.1)
+      encIn encBits := by fun_prop
+  have ht : ComputableInPolyTime
+      (fun p : F.Desc × List Bool × List Bool × List Bool × List Bool => p.2.2.1)
+      encIn encBits := by fun_prop
+  have hc : ComputableInPolyTime
+      (fun p : F.Desc × List Bool × List Bool × List Bool × List Bool => p.2.2.2.1)
+      encIn encBits := by fun_prop
+  have hz : ComputableInPolyTime
+      (fun p : F.Desc × List Bool × List Bool × List Bool × List Bool => p.2.2.2.2)
+      encIn encBits := by fun_prop
+  have hrecover := F.computableInPolyTime_schnorrRecoverCommitBits.comp
+    (hd.prod (hpk.prod (hc.prod hz)))
+  have hbeq : ComputableInPolyTime (fun q : List Bool × List Bool => q.1 == q.2)
+      (encPair encBits encBits) encBool := by fun_prop
+  exact hbeq.comp (ht.prod hrecover)
+
+/-- Composition rule for `encodeSchnorrVerify`. -/
+@[fun_prop]
+theorem computableInPolyTime_encodeSchnorrVerify_comp {γ : Type} {encIn : γ ↪ List Bool}
+    {d : γ → F.Desc} {pk t c z : γ → List Bool}
+    (hd : ComputableInPolyTime d encIn F.encDesc)
+    (hpk : ComputableInPolyTime pk encIn encBits)
+    (ht : ComputableInPolyTime t encIn encBits)
+    (hc : ComputableInPolyTime c encIn encBits)
+    (hz : ComputableInPolyTime z encIn encBits) :
+    ComputableInPolyTime (fun a => F.encodeSchnorrVerify (d a) (pk a) (t a) (c a) (z a))
+      encIn encBool :=
+  F.computableInPolyTime_encodeSchnorrVerify.comp (hd.prod (hpk.prod (ht.prod (hc.prod hz))))
 
 end Cslib.Crypto.PrimeOrderGroupFamily

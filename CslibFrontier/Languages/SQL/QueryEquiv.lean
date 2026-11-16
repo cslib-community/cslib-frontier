@@ -35,7 +35,9 @@ Every query constructor is a congruence at every level, unconditionally in its q
 `Query.Equiv.distinct`). In its expression arguments it is a congruence for expression
 equivalence in the typing context of its input (`Query.Equiv.select_expr`,
 `Query.Equiv.project_expr`, `Query.Equiv.join_expr`), which needs the input to be well-typed, so
-that its rows conform to that context. `DISTINCT` sees only sets: set-equivalent inputs give
+that its rows conform to that context. Over `WHERE c`, an outer predicate can be replaced in the
+typing context of the inner input whatever the type of `c`, since `c` keeps some of the input's
+rows (`Query.Equiv.select_select_expr`). `DISTINCT` sees only sets: set-equivalent inputs give
 bag-equivalent `DISTINCT` (`Query.Equiv.distinct_of_set`).
 
 It adapts and redesigns the equivalence levels of `sql_equiv` (revision `38030a6b`) by Evelyn
@@ -58,6 +60,8 @@ failure distinct from every result.
   arguments.
 * `Cslib.SQL.Query.Equiv.select_expr`, `Cslib.SQL.Query.Equiv.project_expr`,
   `Cslib.SQL.Query.Equiv.join_expr`: congruence in the expression arguments.
+* `Cslib.SQL.Query.Equiv.select_select_expr`: congruence in the outer predicate of `WHERE` over
+  `WHERE`, in the typing context of the inner input.
 * `Cslib.SQL.Query.Equiv.distinct_of_set`: set-equivalent inputs give bag-equivalent `DISTINCT`.
 -/
 
@@ -83,10 +87,16 @@ def rank : EquivLevel → ℕ
   | bag => 1
   | set => 2
 
-/-- `ℓ ≤ ℓ'` when `ℓ` observes at least as much as `ℓ'`: `ordered ≤ bag ≤ set`. -/
-instance : LE EquivLevel := ⟨fun ℓ ℓ' => ℓ.rank ≤ ℓ'.rank⟩
+/-- Distinct levels have distinct ranks. -/
+theorem rank_injective : Function.Injective rank := by
+  intro a b h
+  cases a <;> cases b <;> first | rfl | exact absurd h (by decide)
 
-instance : DecidableLE EquivLevel := fun ℓ ℓ' => inferInstanceAs (Decidable (ℓ.rank ≤ ℓ'.rank))
+/-- The order `ordered < bag < set`, transported along `rank`: `ℓ ≤ ℓ'` when `ℓ` observes at least
+as much as `ℓ'`. -/
+instance : LinearOrder EquivLevel := LinearOrder.lift' rank rank_injective
+
+theorem le_iff_rank_le {ℓ ℓ' : EquivLevel} : ℓ ≤ ℓ' ↔ ℓ.rank ≤ ℓ'.rank := Iff.rfl
 
 theorem ordered_le (ℓ : EquivLevel) : ordered ≤ ℓ := Nat.zero_le _
 
@@ -138,29 +148,23 @@ theorem Rel.append (h₁ : ℓ.Rel l₁ l₂) (h₂ : ℓ.Rel l₃ l₄) : ℓ.R
   · intro a
     simp only [List.mem_append, h₁ a, h₂ a]
 
-theorem Rel.filter (p : α → Bool) (h : ℓ.Rel l₁ l₂) : ℓ.Rel (l₁.filter p) (l₂.filter p) := by
+/-- A list operation that respects permutations, and whose members depend only on the members of
+its input, relates related lists at every level. -/
+theorem Rel.lift {F : List α → List β} (hperm : ∀ {l₁ l₂ : List α}, l₁.Perm l₂ → (F l₁).Perm (F l₂))
+    (hmem : ∀ {l₁ l₂ : List α}, (∀ a, a ∈ l₁ ↔ a ∈ l₂) → ∀ b, b ∈ F l₁ ↔ b ∈ F l₂)
+    (h : ℓ.Rel l₁ l₂) : ℓ.Rel (F l₁) (F l₂) := by
   cases ℓ
-  · exact h ▸ rfl
-  · exact List.Perm.filter p h
-  · intro a
-    simp only [List.mem_filter, h a]
+  exacts [h ▸ rfl, hperm h, hmem h]
+
+theorem Rel.filter (p : α → Bool) (h : ℓ.Rel l₁ l₂) : ℓ.Rel (l₁.filter p) (l₂.filter p) :=
+  h.lift (List.Perm.filter p) fun h a => by simp only [List.mem_filter, h a]
 
 theorem Rel.filterMap (f : α → Option β) (h : ℓ.Rel l₁ l₂) :
-    ℓ.Rel (l₁.filterMap f) (l₂.filterMap f) := by
-  cases ℓ
-  · exact h ▸ rfl
-  · exact List.Perm.filterMap f h
-  · intro b
-    simp only [List.mem_filterMap]
-    exact exists_congr fun a => and_congr_left' (h a)
+    ℓ.Rel (l₁.filterMap f) (l₂.filterMap f) :=
+  h.lift (List.Perm.filterMap f) fun h _ => by simp only [List.mem_filterMap, h]
 
-theorem Rel.map (f : α → β) (h : ℓ.Rel l₁ l₂) : ℓ.Rel (l₁.map f) (l₂.map f) := by
-  cases ℓ
-  · exact h ▸ rfl
-  · exact List.Perm.map f h
-  · intro b
-    simp only [List.mem_map]
-    exact exists_congr fun a => and_congr_left' (h a)
+theorem Rel.map (f : α → β) (h : ℓ.Rel l₁ l₂) : ℓ.Rel (l₁.map f) (l₂.map f) :=
+  h.lift (List.Perm.map f) fun h _ => by simp only [List.mem_map, h]
 
 theorem Rel.product {t₁ t₂ : List β} (h : ℓ.Rel l₁ l₂) (h' : ℓ.Rel t₁ t₂) :
     ℓ.Rel (l₁ ×ˢ t₁) (l₂ ×ˢ t₂) := by
@@ -170,12 +174,8 @@ theorem Rel.product {t₁ t₂ : List β} (h : ℓ.Rel l₁ l₂) (h' : ℓ.Rel 
   · rintro ⟨a, b⟩
     simp only [List.mem_product, h a, h' b]
 
-theorem Rel.dedup [DecidableEq α] (h : ℓ.Rel l₁ l₂) : ℓ.Rel l₁.dedup l₂.dedup := by
-  cases ℓ
-  · exact h ▸ rfl
-  · exact List.Perm.dedup h
-  · intro a
-    simp only [List.mem_dedup, h a]
+theorem Rel.dedup [DecidableEq α] (h : ℓ.Rel l₁ l₂) : ℓ.Rel l₁.dedup l₂.dedup :=
+  h.lift List.Perm.dedup fun h a => by simp only [List.mem_dedup, h a]
 
 /-- Lists with the same members, related at any level, have permuted deduplications. -/
 theorem Rel.perm_dedup [DecidableEq α] (h : ℓ.Rel l₁ l₂) : l₁.dedup.Perm l₂.dedup :=
@@ -327,6 +327,23 @@ theorem select_expr {q : Query S n} {Γ : Fin n → SqlType} (hq : q.typeOf = so
     · exact .none
     · exact (EquivLevel.Rel.refl ℓ rs).filterRows fun r hr =>
         hp.evalTruth (conforms_of_eval_eq_ok hD hq h r hr)
+
+/-- Replacing the outer predicate of `WHERE` over `WHERE c` by an equivalent one in the typing
+context of the inner input gives an equivalent query, whatever the type of `c`: the rows that `c`
+keeps are rows of the input, so they conform to that context. `Query.Equiv.select_expr` would need
+`WHERE c` itself to be well-typed. -/
+theorem select_select_expr {q : Query S n} {Γ : Fin n → SqlType} (hq : q.typeOf = some Γ)
+    {p p' : Expr n} (hp : p.Equiv Γ p') (c : Expr n) :
+    Equiv ℓ (Query.select p (Query.select c q)) (Query.select p' (Query.select c q)) :=
+  fun D hD => by
+    simp only [eval_select]
+    rcases h : q.eval D with e | rs
+    · exact .none
+    rw [Except.ok_bind]
+    rcases hc : c.filterRows rs with e | rs'
+    · exact .none
+    exact (EquivLevel.Rel.refl ℓ rs').filterRows fun r hr =>
+      hp.evalTruth (conforms_of_eval_eq_ok hD hq h r (Expr.mem_of_filterRows_eq_ok hc hr))
 
 /-- Replacing the expressions of a `SELECT` list by equivalent ones in the typing context of the
 input gives an equivalent query. -/
