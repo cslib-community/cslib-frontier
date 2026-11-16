@@ -871,7 +871,9 @@ theorem lookup_and_invLookup_toCacheEntry_eq_none {cache : Cache α} {q : PermQu
   | forward x => exact ⟨hq, mem_unusedRange_iff.mp ha⟩
   | inverse y => exact ⟨mem_unusedDomain_iff.mp ha, hq⟩
 
-private theorem IsPartialBijection.cons_toCacheEntry {cache : Cache α}
+/-- Recording a fresh answer to a query that misses a partial bijection keeps it a partial
+bijection. -/
+theorem IsPartialBijection.cons_toCacheEntry {cache : Cache α}
     (h : IsPartialBijection cache) {q : PermQuery α} (hq : cachedAnswer cache q = none) {a : α}
     (ha : a ∈ freshAnswers cache q) :
     IsPartialBijection (PermQuery.toCacheEntry ⟨q, a⟩ :: cache) :=

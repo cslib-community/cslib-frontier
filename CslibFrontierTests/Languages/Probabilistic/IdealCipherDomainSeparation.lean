@@ -39,8 +39,10 @@ example (f : U → V) (A : ProbOracleComp (IdealCipher.Spec U X) Bool) :
       (splitExperiment A).toOuterMeasure {x | DomainOverlap f x.2} :=
   Game.closeTo_iff_coe_advantage_le.mp (coalescedExperiment_closeTo_splitExperiment f A)
 
+omit [Fintype V] [Nonempty X] in
 /-- For injective `f` no two distinct keys share an image, so `Z` has probability `0`. -/
-example {f : U → V} (hf : Function.Injective f) (A : ProbOracleComp (IdealCipher.Spec U X) α) :
+theorem failureProb_eq_zero_of_injective {f : U → V} (hf : Function.Injective f)
+    (A : ProbOracleComp (IdealCipher.Spec U X) α) :
     (splitExperiment A).toOuterMeasure {x | DomainOverlap f x.2} = 0 := by
   rw [PMF.toOuterMeasure_apply_eq_zero_iff, Set.disjoint_left]
   rintro ⟨_, dom⟩ _ ⟨μ, μ', hne, hfeq, _⟩
@@ -50,11 +52,7 @@ example {f : U → V} (hf : Function.Injective f) (A : ProbOracleComp (IdealCiph
 example {f : U → V} (hf : Function.Injective f) (A : ProbOracleComp (IdealCipher.Spec U X) Bool) :
     Game.advantage (coalescedExperiment f A) ((splitExperiment A).map Prod.fst) = 0 := by
   have h := Game.closeTo_iff_coe_advantage_le.mp (coalescedExperiment_closeTo_splitExperiment f A)
-  have hz : (splitExperiment A).toOuterMeasure {x | DomainOverlap f x.2} = 0 := by
-    rw [PMF.toOuterMeasure_apply_eq_zero_iff, Set.disjoint_left]
-    rintro ⟨_, dom⟩ _ ⟨μ, μ', hne, hfeq, _⟩
-    exact hne (hf hfeq)
-  rw [hz] at h
+  rw [failureProb_eq_zero_of_injective hf] at h
   exact_mod_cast nonpos_iff_eq_zero.mp h
 
 /-- A forward query `(μ, +1, x)` answered with `a` adds `x` to `Dom_μ^(+1)` and `a` to

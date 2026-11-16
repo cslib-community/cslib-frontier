@@ -194,11 +194,31 @@ private lemma mem_cacheDomains_snd {cache : Cache X} {y : X} :
   simp [cacheDomains]
 
 omit [DecidableEq U] [Fintype U] [DecidableEq V] [Fintype V] [Fintype X] [Nonempty X] in
-private lemma cacheDomains_toCacheEntry_cons {cache : Cache X} {q : PermQuery X} {a : X} :
-    cacheDomains (PermQuery.toCacheEntry ⟨q, a⟩ :: cache) =
-      (insert (PermQuery.toCacheEntry ⟨q, a⟩).1 (cacheDomains cache).1,
-       insert (PermQuery.toCacheEntry ⟨q, a⟩).2 (cacheDomains cache).2) := by
-  ext z <;> simp [cacheDomains, or_comm]
+private lemma cacheDomains_cons {cache : Cache X} {e : X × X} :
+    cacheDomains (e :: cache) =
+      (insert e.1 (cacheDomains cache).1, insert e.2 (cacheDomains cache).2) := by
+  ext z <;> simp [cacheDomains]
+
+omit [DecidableEq U] [Fintype U] [DecidableEq V] [Fintype V] [Fintype X] [Nonempty X] in
+private lemma mem_cacheDomains_fst_iff {cache : Cache X} {x : X} :
+    x ∈ (cacheDomains cache).1 ↔ cache.lookup x ≠ none := by
+  simp [mem_cacheDomains_fst]
+
+omit [DecidableEq U] [Fintype U] [DecidableEq V] [Fintype V] [Fintype X] [Nonempty X] in
+private lemma mem_cacheDomains_snd_iff {cache : Cache X} {y : X} :
+    y ∈ (cacheDomains cache).2 ↔ invLookup cache y ≠ none := by
+  simp [mem_cacheDomains_snd, invLookup_eq_none_iff]
+
+omit [DecidableEq U] [Fintype U] [DecidableEq V] [Fintype V] [Nonempty X] in
+/-- The flag condition of Game 2 on a miss: the entry recording the answer `c` to `q` has its input
+in the recorded domain of `cache` or its output in the recorded range. -/
+private lemma cachedAnswer_ne_none_or_not_mem_freshAnswers_iff {cache : Cache X}
+    {q : PermQuery X} {c : X} :
+    (cachedAnswer cache q ≠ none ∨ c ∉ freshAnswers cache q) ↔
+      ((PermQuery.toCacheEntry ⟨q, c⟩).1 ∈ (cacheDomains cache).1 ∨
+        (PermQuery.toCacheEntry ⟨q, c⟩).2 ∈ (cacheDomains cache).2) := by
+  cases q <;> simp [cachedAnswer, freshAnswers, mem_cacheDomains_fst_iff,
+    mem_cacheDomains_snd_iff, or_comm]
 
 omit [Fintype U] [DecidableEq V] [Fintype V] [Fintype X] [Nonempty X] in
 private lemma recordQueryDomain_of_cacheDomains_mem {uCache : U → Cache X}
@@ -250,6 +270,17 @@ private lemma agreesWith_fiberCache_iff {f : U → V} {uCache : U → Cache X} {
   · rintro h e ⟨μ, hμ, he⟩; exact h μ hμ e he
 
 omit [DecidableEq U] [Fintype V] [Fintype X] [Nonempty X] in
+/-- The recorded domain and range of a pooled cache are the unions over the fiber. -/
+private lemma mem_cacheDomains_fiberCache {f : U → V} {uCache : U → Cache X} {ν : V} {x : X} :
+    (x ∈ (cacheDomains (fiberCache f uCache ν)).1 ↔
+        ∃ μ, f μ = ν ∧ x ∈ (cacheDomains (uCache μ)).1) ∧
+      (x ∈ (cacheDomains (fiberCache f uCache ν)).2 ↔
+        ∃ μ, f μ = ν ∧ x ∈ (cacheDomains (uCache μ)).2) := by
+  simp only [mem_cacheDomains_fst, mem_cacheDomains_snd, mem_fiberCache_iff]
+  exact ⟨⟨fun ⟨y, μ, hμ, h⟩ => ⟨μ, hμ, y, h⟩, fun ⟨μ, hμ, y, h⟩ => ⟨y, μ, hμ, h⟩⟩,
+    ⟨fun ⟨y, μ, hμ, h⟩ => ⟨μ, hμ, y, h⟩, fun ⟨μ, hμ, y, h⟩ => ⟨y, μ, hμ, h⟩⟩⟩
+
+omit [DecidableEq U] [Fintype V] [Fintype X] [Nonempty X] in
 private lemma cachedAnswer_fiber_of_uCache {f : U → V} {uCache : U → Cache X}
     (hbij : ∀ ν, IsPartialBijection (fiberCache f uCache ν))
     {μ : U} {q : PermQuery X} {a : X}
@@ -283,78 +314,63 @@ private lemma freshAnswers_fiber_subset {f : U → V} {uCache : U → Cache X}
     intro e he
     exact ha e (mem_fiberCache_iff.mpr ⟨μ, rfl, he⟩)
 
+omit [Fintype V] [DecidableEq X] [Fintype X] [Nonempty X] in
+/-- Recording an entry under the key `μ` adds it to the pooled cache of the fiber of `f μ` and
+leaves the other pooled caches unchanged, up to the order of entries. -/
+private lemma mem_fiberCache_update_iff {f : U → V} {uCache : U → Cache X} {μ : U}
+    {e e' : X × X} {ν : V} :
+    e' ∈ fiberCache f (Function.update uCache μ (e :: uCache μ)) ν ↔
+      e' ∈ Function.update (fiberCache f uCache) (f μ) (e :: fiberCache f uCache (f μ)) ν := by
+  rw [mem_fiberCache_iff]
+  by_cases hν : ν = f μ
+  · subst hν
+    rw [Function.update_self, List.mem_cons, mem_fiberCache_iff]
+    constructor
+    · rintro ⟨μ', hμ', he'⟩
+      by_cases h : μ' = μ
+      · rw [h, Function.update_self, List.mem_cons] at he'
+        exact he'.imp_right fun he' => ⟨μ, rfl, he'⟩
+      · exact Or.inr ⟨μ', hμ', by rwa [Function.update_of_ne h] at he'⟩
+    · rintro (rfl | ⟨μ', hμ', he'⟩)
+      · exact ⟨μ, rfl, by simp⟩
+      · refine ⟨μ', hμ', ?_⟩
+        by_cases h : μ' = μ
+        · rw [h, Function.update_self]
+          exact List.mem_cons_of_mem _ (h ▸ he')
+        · rwa [Function.update_of_ne h]
+  · rw [Function.update_of_ne hν, mem_fiberCache_iff]
+    refine exists_congr fun μ' => and_congr_right fun hμ' => ?_
+    rw [Function.update_of_ne fun h => hν (hμ'.symm.trans (congrArg f h))]
+
 omit [Fintype V] [Nonempty X] in
 private lemma isPartialBijection_fiber_update {f : U → V} {uCache : U → Cache X}
     (hbij : ∀ ν, IsPartialBijection (fiberCache f uCache ν))
     {μ : U} {q : PermQuery X}
     (hq : cachedAnswer (fiberCache f uCache (f μ)) q = none)
-    {a : X} (ha : a ∈ freshAnswers (fiberCache f uCache (f μ)) q) :
-    ∀ ν, IsPartialBijection
+    {a : X} (ha : a ∈ freshAnswers (fiberCache f uCache (f μ)) q) (ν : V) :
+    IsPartialBijection
       (fiberCache f (Function.update uCache μ (PermQuery.toCacheEntry ⟨q, a⟩ :: uCache μ)) ν) := by
-  intro ν
-  by_cases hν : ν = f μ
-  · subst hν
-    obtain ⟨hlookup, hinv⟩ := lookup_and_invLookup_toCacheEntry_eq_none hq ha
-    obtain ⟨π, hπ⟩ := (hbij (f μ)).cons_of_lookup_eq_none hlookup hinv
-    rw [agreesWith_cons] at hπ
-    refine ⟨π, agreesWith_fiberCache_iff.mpr fun μ' hμ' => ?_⟩
-    by_cases heq : μ' = μ
-    · subst heq
-      rw [Function.update_self, agreesWith_cons]
-      exact ⟨hπ.1, agreesWith_fiberCache_iff.mp hπ.2 μ' rfl⟩
-    · simp only [Function.update_of_ne heq]
-      exact agreesWith_fiberCache_iff.mp hπ.2 μ' hμ'
-  · obtain ⟨π, hπ⟩ := hbij ν
-    refine ⟨π, agreesWith_fiberCache_iff.mpr fun μ' hμ' => ?_⟩
-    have hne : μ' ≠ μ := fun h => hν (hμ'.symm.trans (congrArg f h))
-    simp only [Function.update_of_ne hne]
-    exact agreesWith_fiberCache_iff.mp hπ μ' hμ'
+  have h : IsPartialBijection (Function.update (fiberCache f uCache) (f μ)
+      (PermQuery.toCacheEntry ⟨q, a⟩ :: fiberCache f uCache (f μ)) ν) := by
+    by_cases hν : ν = f μ
+    · rw [hν, Function.update_self]
+      exact (hbij (f μ)).cons_toCacheEntry hq ha
+    · rw [Function.update_of_ne hν]
+      exact hbij ν
+  obtain ⟨π, hπ⟩ := h
+  exact ⟨π, fun e he => hπ e (mem_fiberCache_update_iff.mp he)⟩
 
 omit [Nonempty X] in
 private lemma complete_fiber_update_eq {f : U → V} {uCache : U → Cache X}
-    {μ : U} {q : PermQuery X} {a : X} :
-    IdealCipher.complete
-        (fiberCache f (Function.update uCache μ (PermQuery.toCacheEntry ⟨q, a⟩ :: uCache μ))) =
+    {μ : U} {e : X × X} :
+    IdealCipher.complete (fiberCache f (Function.update uCache μ (e :: uCache μ))) =
       IdealCipher.complete
-        (Function.update (fiberCache f uCache) (f μ)
-          (PermQuery.toCacheEntry ⟨q, a⟩ :: fiberCache f uCache (f μ))) := by
-  have hext (ν : V) :
+        (Function.update (fiberCache f uCache) (f μ) (e :: fiberCache f uCache (f μ))) := by
+  have hext (ν : V) : extPerms (fiberCache f (Function.update uCache μ (e :: uCache μ)) ν) =
       extPerms
-          (fiberCache f (Function.update uCache μ (PermQuery.toCacheEntry ⟨q, a⟩ :: uCache μ)) ν) =
-        extPerms
-          (Function.update (fiberCache f uCache) (f μ)
-            (PermQuery.toCacheEntry ⟨q, a⟩ :: fiberCache f uCache (f μ)) ν) := by
+        (Function.update (fiberCache f uCache) (f μ) (e :: fiberCache f uCache (f μ)) ν) := by
     ext π
-    simp only [mem_extPerms_iff]
-    by_cases hν : ν = f μ
-    · subst hν
-      rw [Function.update_self, agreesWith_fiberCache_iff, agreesWith_cons]
-      constructor
-      · intro h
-        have hself := h μ rfl
-        rw [Function.update_self, agreesWith_cons] at hself
-        refine ⟨hself.1, agreesWith_fiberCache_iff.mpr fun μ' hμ' => ?_⟩
-        by_cases hμ'' : μ' = μ
-        · subst hμ''; exact hself.2
-        · have hm := h μ' hμ'
-          rwa [Function.update_of_ne hμ''] at hm
-      · rintro ⟨hhead, htail⟩ μ' hμ'
-        by_cases hμ'' : μ' = μ
-        · subst hμ''
-          rw [Function.update_self, agreesWith_cons]
-          exact ⟨hhead, agreesWith_fiberCache_iff.mp htail μ' rfl⟩
-        · rw [Function.update_of_ne hμ'']
-          exact agreesWith_fiberCache_iff.mp htail μ' hμ'
-    · have hne (μ' : U) (hμ' : f μ' = ν) : μ' ≠ μ :=
-        fun h => hν (hμ'.symm.trans (congrArg f h))
-      rw [Function.update_of_ne hν, agreesWith_fiberCache_iff, agreesWith_fiberCache_iff]
-      constructor
-      · intro h μ' hμ'
-        have hm := h μ' hμ'
-        rwa [Function.update_of_ne (hne μ' hμ')] at hm
-      · intro h μ' hμ'
-        rw [Function.update_of_ne (hne μ' hμ')]
-        exact h μ' hμ'
+    simp only [mem_extPerms_iff, AgreesWith, mem_fiberCache_update_iff]
   simp only [IdealCipher.complete, RandomPermutation.complete, hext]
 
 /-! ### The coupled handlers of Game 1 and Game 2 -/
@@ -595,7 +611,7 @@ private lemma splitExperiment_eq_answer (A : ProbOracleComp (IdealCipher.Spec U 
             funext μ
             by_cases hμ : μ = q.1
             · rw [hμ]
-              simp [recordQueryDomain, cacheDomains_toCacheEntry_cons]
+              simp [recordQueryDomain, cacheDomains_cons]
             · simp [recordQueryDomain, hμ]
         simp only [PMF.map_comp, Function.comp_def, hdom]
       have hrhs : (IdealCipher.answer q uCache).bind (fun (a, u') =>
@@ -709,166 +725,75 @@ private lemma game2_bad_iff_domainOverlap_inv (f : U → V) (q : IdealCipher.Que
     rw [PMF.mem_support_uniformOfFinset_iff] at hc_mem
     rcases Prod.mk.inj heq with ⟨rfl, rfl⟩
     by_cases hprev : st.2 = true
-    · have hsub : ∀ μ e, e ∈ st.1 μ →
-          e ∈ Function.update st.1 q.1 (PermQuery.toCacheEntry ⟨q.2, c⟩ :: st.1 q.1) μ := by
-        intro μ e he
+    · have hsub (μ : U) : (cacheDomains (st.1 μ)).1 ⊆ (cacheDomains (Function.update st.1 q.1
+            (PermQuery.toCacheEntry ⟨q.2, c⟩ :: st.1 q.1) μ)).1 ∧
+          (cacheDomains (st.1 μ)).2 ⊆ (cacheDomains (Function.update st.1 q.1
+            (PermQuery.toCacheEntry ⟨q.2, c⟩ :: st.1 q.1) μ)).2 := by
         by_cases hμ : μ = q.1
-        · rw [hμ, Function.update_self]
-          exact List.mem_cons_of_mem _ (hμ ▸ he)
-        · rwa [Function.update_of_ne hμ]
+        · rw [hμ, Function.update_self, cacheDomains_cons]
+          exact ⟨Finset.subset_insert _ _, Finset.subset_insert _ _⟩
+        · rw [Function.update_of_ne hμ]
+          exact ⟨subset_rfl, subset_rfl⟩
+      obtain ⟨μ₁, μ₂, hne, hf, hov⟩ := hiff.mp hprev
       have hdom_new : DomainOverlap f (fun μ => cacheDomains
-          (Function.update st.1 q.1 (PermQuery.toCacheEntry ⟨q.2, c⟩ :: st.1 q.1) μ)) := by
-        rcases hiff.mp hprev with ⟨μ₁, μ₂, hne, hf, ⟨x, hx⟩ | ⟨y, hy⟩⟩
-        · refine ⟨μ₁, μ₂, hne, hf, Or.inl ⟨x, Finset.mem_inter.mpr ?_⟩⟩
-          rw [Finset.mem_inter, mem_cacheDomains_fst, mem_cacheDomains_fst] at hx
-          exact ⟨mem_cacheDomains_fst.mpr ⟨hx.1.choose, hsub μ₁ _ hx.1.choose_spec⟩,
-            mem_cacheDomains_fst.mpr ⟨hx.2.choose, hsub μ₂ _ hx.2.choose_spec⟩⟩
-        · refine ⟨μ₁, μ₂, hne, hf, Or.inr ⟨y, Finset.mem_inter.mpr ?_⟩⟩
-          rw [Finset.mem_inter, mem_cacheDomains_snd, mem_cacheDomains_snd] at hy
-          exact ⟨mem_cacheDomains_snd.mpr ⟨hy.1.choose, hsub μ₁ _ hy.1.choose_spec⟩,
-            mem_cacheDomains_snd.mpr ⟨hy.2.choose, hsub μ₂ _ hy.2.choose_spec⟩⟩
+          (Function.update st.1 q.1 (PermQuery.toCacheEntry ⟨q.2, c⟩ :: st.1 q.1) μ)) :=
+        ⟨μ₁, μ₂, hne, hf, hov.imp
+          (·.mono (Finset.inter_subset_inter (hsub μ₁).1 (hsub μ₂).1))
+          (·.mono (Finset.inter_subset_inter (hsub μ₁).2 (hsub μ₂).2))⟩
       simp [FlagBad, hprev, hdom_new]
-    · have hfalse : st.2 = false := Bool.eq_false_iff.mpr hprev
-      have hno_old : ¬DomainOverlap f (fun μ => cacheDomains (st.1 μ)) :=
+    · have hno_old : ¬DomainOverlap f (fun μ => cacheDomains (st.1 μ)) :=
         fun h => hprev (hiff.mpr h)
-      simp only [FlagBad, Prod.map, id_eq, hfalse, Bool.false_or, ↓reduceIte]
-      rw [decide_eq_true_eq]
+      simp only [FlagBad, Prod.map, id_eq, Bool.eq_false_iff.mpr hprev, Bool.false_or,
+        ↓reduceIte]
+      rw [decide_eq_true_eq, cachedAnswer_ne_none_or_not_mem_freshAnswers_iff,
+        mem_cacheDomains_fiberCache.1, mem_cacheDomains_fiberCache.2]
+      have hfresh := lookup_and_invLookup_toCacheEntry_eq_none hhit hc_mem
+      have hx₀ : (PermQuery.toCacheEntry ⟨q.2, c⟩).1 ∉ (cacheDomains (st.1 q.1)).1 :=
+        fun h => mem_cacheDomains_fst_iff.mp h hfresh.1
+      have hy₀ : (PermQuery.toCacheEntry ⟨q.2, c⟩).2 ∉ (cacheDomains (st.1 q.1)).2 :=
+        fun h => mem_cacheDomains_snd_iff.mp h hfresh.2
+      generalize PermQuery.toCacheEntry ⟨q.2, c⟩ = e at hx₀ hy₀ ⊢
       constructor
-      · intro hbad
-        rcases hbad with hfib | hnotfresh
-        · obtain ⟨b, hfib_eq⟩ := Option.ne_none_iff_exists'.mp hfib
-          have hmem_fib := toCacheEntry_mem_of_cachedAnswer_eq_some hfib_eq
-          obtain ⟨μ', hμ', hmem'⟩ := mem_fiberCache_iff.mp hmem_fib
-          have hne_μ : q.1 ≠ μ' := by
-            rintro rfl
-            cases hqq : q.2 with
-            | forward x =>
-              rw [hqq] at hhit hmem'
-              exact lookup_eq_none_iff.mp hhit _ hmem' rfl
-            | inverse y =>
-              rw [hqq] at hhit hmem'
-              exact invLookup_eq_none_iff.mp hhit _ hmem' rfl
-          refine ⟨q.1, μ', hne_μ, hμ'.symm, ?_⟩
-          cases hqq : q.2 with
-          | forward x =>
-            rw [hqq] at hmem'
-            exact Or.inl ⟨x, Finset.mem_inter.mpr
-              ⟨by simp [cacheDomains, PermQuery.toCacheEntry],
-                by simp only [Function.update_of_ne hne_μ.symm]
-                   exact mem_cacheDomains_fst.mpr ⟨b, hmem'⟩⟩⟩
-          | inverse y =>
-            rw [hqq] at hmem'
-            exact Or.inr ⟨y, Finset.mem_inter.mpr
-              ⟨by simp [cacheDomains, PermQuery.toCacheEntry],
-                by simp only [Function.update_of_ne hne_μ.symm]
-                   exact mem_cacheDomains_snd.mpr ⟨b, hmem'⟩⟩⟩
-        · cases hqq : q.2 with
-          | forward x =>
-            rw [hqq, freshAnswers, mem_unusedRange_iff] at hnotfresh
-            have hne_inv : invLookup (fiberCache f st.1 (f q.1)) c ≠ none := hnotfresh
-            obtain ⟨b, hinv⟩ := Option.ne_none_iff_exists'.mp hne_inv
-            have hmem_fib := mem_of_invLookup_eq_some hinv
-            obtain ⟨μ', hμ', hmem'⟩ := mem_fiberCache_iff.mp hmem_fib
-            rw [hqq, freshAnswers, mem_unusedRange_iff] at hc_mem
-            have hne_μ : q.1 ≠ μ' := by
-              rintro rfl
-              exact invLookup_eq_none_iff.mp hc_mem _ hmem' rfl
-            refine ⟨q.1, μ', hne_μ, hμ'.symm, Or.inr ⟨c, Finset.mem_inter.mpr ⟨?_, ?_⟩⟩⟩
-            · simp [cacheDomains, PermQuery.toCacheEntry]
-            · dsimp only
-              rw [Function.update_of_ne hne_μ.symm]
-              exact mem_cacheDomains_snd.mpr ⟨b, hmem'⟩
-          | inverse y =>
-            rw [hqq, freshAnswers, mem_unusedDomain_iff] at hnotfresh
-            have hne_lk : (fiberCache f st.1 (f q.1)).lookup c ≠ none := hnotfresh
-            obtain ⟨b, hlk⟩ := Option.ne_none_iff_exists'.mp hne_lk
-            have hmem_fib := mem_of_lookup_eq_some hlk
-            obtain ⟨μ', hμ', hmem'⟩ := mem_fiberCache_iff.mp hmem_fib
-            rw [hqq, freshAnswers, mem_unusedDomain_iff] at hc_mem
-            have hne_μ : q.1 ≠ μ' := by
-              rintro rfl
-              exact lookup_eq_none_iff.mp hc_mem _ hmem' rfl
-            refine ⟨q.1, μ', hne_μ, hμ'.symm, Or.inl ⟨c, Finset.mem_inter.mpr ⟨?_, ?_⟩⟩⟩
-            · simp [cacheDomains, PermQuery.toCacheEntry]
-            · dsimp only
-              rw [Function.update_of_ne hne_μ.symm]
-              exact mem_cacheDomains_fst.mpr ⟨b, hmem'⟩
+      · rintro (⟨μ', hμ', hx⟩ | ⟨μ', hμ', hy⟩)
+        · have hne : q.1 ≠ μ' := by rintro rfl; exact hx₀ hx
+          refine ⟨q.1, μ', hne, hμ'.symm, Or.inl ⟨e.1, Finset.mem_inter.mpr ⟨?_, ?_⟩⟩⟩
+          · simp [cacheDomains_cons]
+          · simpa [Function.update_of_ne hne.symm] using hx
+        · have hne : q.1 ≠ μ' := by rintro rfl; exact hy₀ hy
+          refine ⟨q.1, μ', hne, hμ'.symm, Or.inr ⟨e.2, Finset.mem_inter.mpr ⟨?_, ?_⟩⟩⟩
+          · simp [cacheDomains_cons]
+          · simpa [Function.update_of_ne hne.symm] using hy
       · rintro ⟨μ₁, μ₂, hne, hf, hov⟩
+        -- An overlap between the new cache of `q.1` and the cache of another key `μ'` of its
+        -- fiber is either at the new entry, or an overlap that existed before.
         have hstep (μ' : U) (hne' : μ' ≠ q.1) (hf' : f μ' = f q.1)
-            (hov' : (((cacheDomains (PermQuery.toCacheEntry ⟨q.2, c⟩ :: st.1 q.1)).1 ∩
-              (cacheDomains (st.1 μ')).1).Nonempty) ∨
-              (((cacheDomains (PermQuery.toCacheEntry ⟨q.2, c⟩ :: st.1 q.1)).2 ∩
-                (cacheDomains (st.1 μ')).2).Nonempty)) :
-            cachedAnswer (fiberCache f st.1 (f q.1)) q.2 ≠ none ∨
-              c ∉ freshAnswers (fiberCache f st.1 (f q.1)) q.2 := by
+            (hov' : (insert e.1 (cacheDomains (st.1 q.1)).1 ∩ (cacheDomains (st.1 μ')).1).Nonempty ∨
+              (insert e.2 (cacheDomains (st.1 q.1)).2 ∩ (cacheDomains (st.1 μ')).2).Nonempty) :
+            (∃ μ, f μ = f q.1 ∧ e.1 ∈ (cacheDomains (st.1 μ)).1) ∨
+              ∃ μ, f μ = f q.1 ∧ e.2 ∈ (cacheDomains (st.1 μ)).2 := by
           rcases hov' with ⟨x, hx⟩ | ⟨y, hy⟩
-          · rw [Finset.mem_inter, cacheDomains_toCacheEntry_cons, Finset.mem_insert] at hx
-            rcases hx with ⟨hx_eq | hx_old, hxμ'⟩
-            · cases hqq : q.2 with
-              | forward x₀ =>
-                rw [hqq, PermQuery.toCacheEntry] at hx_eq
-                dsimp only at hx_eq
-                rw [hx_eq] at hxμ'
-                left
-                obtain ⟨b, hb⟩ := mem_cacheDomains_fst.mp hxμ'
-                have hmem_fib : (x₀, b) ∈ fiberCache f st.1 (f q.1) :=
-                  mem_fiberCache_iff.mpr ⟨μ', hf', hb⟩
-                intro hnone
-                exact lookup_eq_none_iff.mp hnone _ hmem_fib rfl
-              | inverse y₀ =>
-                rw [hqq, PermQuery.toCacheEntry] at hx_eq
-                dsimp only at hx_eq
-                rw [hx_eq] at hxμ'
-                right
-                rw [freshAnswers, mem_unusedDomain_iff]
-                obtain ⟨b, hb⟩ := mem_cacheDomains_fst.mp hxμ'
-                have hmem_fib : (c, b) ∈ fiberCache f st.1 (f q.1) :=
-                  mem_fiberCache_iff.mpr ⟨μ', hf', hb⟩
-                intro hmem_dom
-                exact lookup_eq_none_iff.mp hmem_dom _ hmem_fib rfl
-            · exfalso
-              exact hno_old ⟨q.1, μ', hne'.symm, hf'.symm,
-                Or.inl ⟨x, Finset.mem_inter.mpr ⟨hx_old, hxμ'⟩⟩⟩
-          · rw [Finset.mem_inter, cacheDomains_toCacheEntry_cons, Finset.mem_insert] at hy
-            rcases hy with ⟨hy_eq | hy_old, hyμ'⟩
-            · cases hqq : q.2 with
-              | forward x₀ =>
-                rw [hqq, PermQuery.toCacheEntry] at hy_eq
-                dsimp only at hy_eq
-                rw [hy_eq] at hyμ'
-                right
-                rw [freshAnswers, mem_unusedRange_iff]
-                obtain ⟨b, hb⟩ := mem_cacheDomains_snd.mp hyμ'
-                have hmem_fib : (b, c) ∈ fiberCache f st.1 (f q.1) :=
-                  mem_fiberCache_iff.mpr ⟨μ', hf', hb⟩
-                intro hmem_ran
-                exact invLookup_eq_none_iff.mp hmem_ran _ hmem_fib rfl
-              | inverse y₀ =>
-                rw [hqq, PermQuery.toCacheEntry] at hy_eq
-                dsimp only at hy_eq
-                rw [hy_eq] at hyμ'
-                left
-                obtain ⟨b, hb⟩ := mem_cacheDomains_snd.mp hyμ'
-                have hmem_fib : (b, y₀) ∈ fiberCache f st.1 (f q.1) :=
-                  mem_fiberCache_iff.mpr ⟨μ', hf', hb⟩
-                intro hnone
-                exact invLookup_eq_none_iff.mp hnone _ hmem_fib rfl
-            · exfalso
-              exact hno_old ⟨q.1, μ', hne'.symm, hf'.symm,
-                Or.inr ⟨y, Finset.mem_inter.mpr ⟨hy_old, hyμ'⟩⟩⟩
+          · rw [Finset.mem_inter, Finset.mem_insert] at hx
+            rcases hx with ⟨rfl | hx_old, hxμ'⟩
+            · exact Or.inl ⟨μ', hf', hxμ'⟩
+            · exact (hno_old ⟨q.1, μ', hne'.symm, hf'.symm,
+                Or.inl ⟨x, Finset.mem_inter.mpr ⟨hx_old, hxμ'⟩⟩⟩).elim
+          · rw [Finset.mem_inter, Finset.mem_insert] at hy
+            rcases hy with ⟨rfl | hy_old, hyμ'⟩
+            · exact Or.inr ⟨μ', hf', hyμ'⟩
+            · exact (hno_old ⟨q.1, μ', hne'.symm, hf'.symm,
+                Or.inr ⟨y, Finset.mem_inter.mpr ⟨hy_old, hyμ'⟩⟩⟩).elim
         dsimp only at hov
-        by_cases h1' : μ₁ = q.1
-        · rw [h1', Function.update_self,
-            Function.update_of_ne (by rw [← h1']; exact hne.symm)] at hov
-          exact hstep μ₂ (by rw [← h1']; exact hne.symm) (by rw [← h1']; exact hf.symm) hov
-        · by_cases h2' : μ₂ = q.1
-          · rw [h2', Function.update_self, Function.update_of_ne h1',
+        by_cases h1 : μ₁ = q.1
+        · have h2 : μ₂ ≠ q.1 := by rw [← h1]; exact hne.symm
+          rw [h1, Function.update_self, cacheDomains_cons, Function.update_of_ne h2] at hov
+          exact hstep μ₂ h2 (by rw [← h1]; exact hf.symm) hov
+        · by_cases h2 : μ₂ = q.1
+          · rw [h2, Function.update_self, cacheDomains_cons, Function.update_of_ne h1,
               Finset.inter_comm (cacheDomains (st.1 μ₁)).1,
               Finset.inter_comm (cacheDomains (st.1 μ₁)).2] at hov
-            exact hstep μ₁ h1' (by rw [← h2']; exact hf) hov
-          · exfalso
-            rw [Function.update_of_ne h1', Function.update_of_ne h2'] at hov
-            exact hno_old ⟨μ₁, μ₂, hne, hf, hov⟩
+            exact hstep μ₁ h1 (by rw [← h2]; exact hf) hov
+          · rw [Function.update_of_ne h1, Function.update_of_ne h2] at hov
+            exact (hno_old ⟨μ₁, μ₂, hne, hf, hov⟩).elim
 
 /-! ### Theorem 4.15 (Domain Separation Lemma) -/
 
