@@ -27,6 +27,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.Oracle.Parameter
 import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
+import CslibFrontier.Computability.Probabilistic.Oracle.Traverse
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Crypto.Negligible.InversePolynomial
@@ -1359,69 +1360,6 @@ theorem isPPT_blockwiseGame (hE : IsPolyTimeEncoder E) {F : BlockwiseMACForger}
 
 /-! ### Truncated oracle-PPT simulator and reduction -/
 
-private def mapQueryTakeStep (limit : ℕ) (state : List (List Bool) × List (List Bool)) :
-    WordOracleComp Unit (List (List Bool) × List (List Bool)) :=
-  (fun tag => (state.1.tail, state.2 ++ [tag])) <$>
-    (List.take limit <$>
-      (ProbOracleComp.query ((), state.1.headD []) : WordOracleComp Unit (List Bool)))
-
-private theorem iterate_mapQueryTakeStep (limit : ℕ) (xs acc : List (List Bool)) :
-    Prod.snd <$> OracleComp.iterate xs.length (mapQueryTakeStep limit) (xs, acc) =
-      (acc ++ ·) <$> xs.mapM (fun x =>
-        List.take limit <$>
-          (ProbOracleComp.query ((), x) : WordOracleComp Unit (List Bool))) := by
-  induction xs generalizing acc with
-  | nil => simp
-  | cons x xs ih =>
-    simp only [List.length_cons, OracleComp.iterate_succ_bind, mapQueryTakeStep,
-      List.headD_cons, List.tail_cons, List.mapM_cons, map_bind, bind_map_left, ih,
-      List.append_assoc, List.singleton_append]
-    simp only [map_pure, bind_pure_comp]
-
-private theorem isOraclePPTOn_mapM_query_take {α : Type} {input : α ↪ List Bool}
-    {list : α → List (List Bool)} {limit : α → ℕ}
-    (hlist : ComputableInPolyTime list input (encList encBits))
-    (hlimit : ComputableInPolyTime limit input encUnary) :
-    IsOraclePPTOn input (encList encBits) (fun a =>
-      (list a).mapM fun x =>
-        List.take (limit a) <$>
-          (ProbOracleComp.query ((), x) : WordOracleComp Unit (List Bool))) := by
-  let stateEncoding : List (List Bool) × List (List Bool) ↪ List Bool :=
-    encPair (encList encBits) (encList encBits)
-  have hcount : ComputableInPolyTime (fun a => (list a).length) input encUnary :=
-    (ComputableInPolyTime.length_list encBits).comp hlist
-  have hinitial : ComputableInPolyTime (fun a => (list a, ([] : List (List Bool))))
-      input stateEncoding :=
-    hlist.prod (ComputableInPolyTime.const [])
-  have htail : ComputableInPolyTime
-      (fun p : α × List (List Bool) × List (List Bool) => p.2.1.tail)
-      (encPair input stateEncoding) (encList encBits) := by fun_prop
-  have hstep : IsOraclePPTOn (encPair input stateEncoding) stateEncoding
-      (fun p : α × List (List Bool) × List (List Bool) => mapQueryTakeStep (limit p.1) p.2) := by
-    unfold mapQueryTakeStep
-    exact (IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop)).map_with'
-      (f := fun (p : α × List (List Bool) × List (List Bool)) tag =>
-        (p.2.1.tail, p.2.2 ++ [tag]))
-      (by fun_prop)
-  have hpoly : PolyBounded (fun a => (input a).length) (fun a => 2 * limit a + 2) := by
-    have h1 : ComputableInPolyTime (fun a => 2 * limit a + 2) input encUnary := by fun_prop
-    simpa only [encUnary_apply, List.length_replicate] using h1.polyBounded_length
-  have hloop : IsOraclePPTOn input stateEncoding
-      (fun a => OracleComp.iterate (list a).length (mapQueryTakeStep (limit a)) (list a, [])) := by
-    refine IsOraclePPTOn.iterateWith_of_bounded_growth' hcount hinitial hstep hpoly ?_
-    intro a state next hnext
-    unfold mapQueryTakeStep at hnext
-    obtain ⟨tag, htag, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hnext
-    obtain ⟨raw, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp htag
-    have htailLen : (encList encBits state.1.tail).length ≤ (encList encBits state.1).length :=
-      ((List.tail_sublist state.1).flatMap (frame ∘ encBits)).length_le
-    have htake : (raw.take (limit a)).length ≤ limit a := List.length_take_le _ _
-    simp only [stateEncoding, length_encPair, encList_append, encList_cons, encList_nil,
-      List.append_nil, List.length_append, length_frame, encBits_apply]
-    omega
-  simpa only [iterate_mapQueryTakeStep, List.nil_append, id_map'] using
-    hloop.map' (ComputableInPolyTime.snd (encList encBits) (encList encBits))
-
 private theorem length_encList_of_mem_support_mapM_query_take (k : ℕ) (xs : List (List Bool))
     {tags : List (List Bool)}
     (htags : tags ∈ OracleComp.support
@@ -1488,7 +1426,7 @@ theorem isOraclePPTOn_blockwiseBoundedSimulator (hE : IsPolyTimeEncoder E)
         (blockInputs E (M.msgLen p.1.1.1) p.2 p.1.2.1.2).mapM fun x =>
           List.take (tagBound p.1.1.1) <$>
             (ProbOracleComp.query ((), x) : WordOracleComp Unit (List Bool))) :=
-    isOraclePPTOn_mapM_query_take (by fun_prop) (by fun_prop)
+    IsOraclePPTOn.mapM_query_take () (by fun_prop) (by fun_prop)
   unfold blockwiseBoundedSimulator
   simpa only [bind_pure_comp] using
     hsample.bind_with
