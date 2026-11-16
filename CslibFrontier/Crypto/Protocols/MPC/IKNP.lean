@@ -492,10 +492,11 @@ theorem idealJoint_iknp_receiver_bind [Fintype L] (H : Fin m → BitString κ �
   exact congrArg (fun Y => ProbComp.eval (D (singletonView (iknpReceiverView (x 1) T Y),
     batchOTAnswer x))) (iknp_simulated_pairs H (x 0) (x 1) T w)
 
-/-- **Privacy against the receiver** (the security theorem of [IshaiKilianNissimPetrank2003] for
-a corrupted receiver): every distinguisher's advantage between the ideal joint distribution with
+/-- A step of the receiver's case of [IshaiKilianNissimPetrank2003], §5, at one instance, not the
+security theorem: every distinguisher's advantage between the ideal joint distribution with
 `iknpReceiverSim` and the real one equals the correlation-robustness advantage of the reduction
-`iknpReduction` against `H`. -/
+`iknpReduction` against `H`. The asymptotic theorem, with PPT simulators and a PPT reduction, is
+`Cslib.Crypto.CorrelationRobust.iknpSemiHonestSecure`. -/
 theorem semiHonestAdvantage_iknp_receiver [Fintype L] (H : Fin m → BitString κ → L)
     (x : (i : Fin 2) → (batchOTSpec m L).Query () i)
     (D : ((i : ({1} : Finset (Fin 2))) →
