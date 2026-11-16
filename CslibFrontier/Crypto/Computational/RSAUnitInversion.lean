@@ -54,8 +54,10 @@ the proof uses only that `N = p * q` for distinct primes `p` and `q` and that `e
 `(p - 1) * (q - 1)`, so `p = 2` and `e = 1` are allowed. The challenge `x ^ e % N` is given to
 the inverter as a residue in `Fin N`, as in `rsaInversionGame`, and the inverter wins when it
 returns `x`; the two games differ only in the law of `x`. The bound compares success
-probabilities at each security parameter. Exercise 10.26 (p. 431), the converse with a loss of
-`2 ^ -(ℓ - 2)`, is not formalized.
+probabilities at each security parameter. Exercises 10.25–10.26 (§10.11, p. 431), the converse
+with statistical distance strictly less than `4 / 2 ^ ℓ` and additive security loss `4 / 2 ^ ℓ`
+(`2 ^ -(ℓ - 2)` for `ℓ ≥ 2`), are formalized in
+`CslibFrontier.Crypto.Computational.RSAUnitInversion.Converse`.
 
 The wrapper finds the exponent as the book's proof describes. For a challenge `y ≠ 0` that is not
 a unit, `g = gcd(y, N)` is `p` or `q`, so `(g - 1) * (N / g - 1)` is `(p - 1) * (q - 1)` and its
