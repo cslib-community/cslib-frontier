@@ -53,6 +53,31 @@ def entry(path: str, kind: str = "gap", why: str = "tracked in #5293 section 2")
 BASELINE = {UNCERTIFIED: entry(SCHNORR_PATH),
             EXEMPT: entry(SIGNATURE_PATH, "exempt", "not a reduction: a typed scheme")}
 
+# A typed reduction that a certified program runs, and the modules of the declarations it names.
+VIA_REDUCTION = "Cslib.Crypto.Garbling.stepReduction"
+GARBLING_PATH = "CslibFrontier/Crypto/Garbling.lean"
+WORD_PATH = "CslibFrontier/Crypto/GarblingWord.lean"
+VIA_ENTRY = {"module": GARBLING_PATH, "kind": c.VIA,
+             "program": "Cslib.Crypto.GarblingWord.wordReduction",
+             "certificate": "Cslib.Crypto.GarblingWord.isOraclePPT_wordReduction",
+             "equality": "Cslib.Crypto.GarblingWord.eval_run_wordReduction",
+             "headline": "Cslib.Crypto.GarblingWord.prvSim",
+             "why": "per-instance step that the certified word reduction runs; the headline "
+                    "applies the assumption in its proof"}
+
+
+def check_row(problems: list[str] | None = None, missing: list[str] | None = None) -> str:
+    """A line of the reader's output for the request of `VIA_ENTRY`."""
+    return json.dumps({"v": VIA_REDUCTION, "p": problems or [], "at": "" if problems else "proof",
+                       "vm": ["CslibFrontier.Crypto.Garbling", "CslibFrontier.Crypto.GarblingWord"],
+                       "missing": missing or []})
+
+
+VIA_OUTPUT = "\n".join([
+    row(VIA_REDUCTION, "CslibFrontier.Crypto.Garbling", 40,
+        ["Cslib.Crypto.Garbling.advantage_le_sum"], ["CslibFrontier.Crypto.Garbling"]),
+    check_row(), OUTPUT])
+
 
 class ParseTests(unittest.TestCase):
     def test_rows_and_summary(self) -> None:
@@ -108,6 +133,68 @@ class CompareTests(unittest.TestCase):
         self.assertEqual(c.compare(self.reductions, baseline, None).unjustified, [UNCERTIFIED])
 
 
+class ViaTests(unittest.TestCase):
+    """`via_certified_program` entries, on synthetic verdicts of the Lean pass."""
+
+    def setUp(self) -> None:
+        self.reductions, _ = c.parse(VIA_OUTPUT)
+        self.baseline = {**BASELINE, VIA_REDUCTION: VIA_ENTRY}
+
+    def checks(self, *problems: str, missing: list[str] | None = None) -> dict[str, c.ViaCheck]:
+        return c.parse_checks(check_row(list(problems), missing))
+
+    def test_parse_reads_verdicts_apart_from_reductions(self) -> None:
+        self.assertEqual(c.parse_checks(VIA_OUTPUT), {VIA_REDUCTION: c.ViaCheck(
+            (), "proof", (GARBLING_PATH, WORD_PATH), ())})
+        self.assertEqual(set(c.uncertified(self.reductions)), {UNCERTIFIED, EXEMPT, VIA_REDUCTION})
+
+    def test_requests_name_the_four_declarations_in_order(self) -> None:
+        self.assertEqual(c.via_requests(self.baseline), ["\t".join([
+            "via", VIA_REDUCTION, VIA_ENTRY["program"], VIA_ENTRY["certificate"],
+            VIA_ENTRY["equality"], VIA_ENTRY["headline"]])])
+        self.assertEqual(c.via_requests(BASELINE), [])
+
+    def test_a_verified_entry_passes(self) -> None:
+        self.assertFalse(c.compare(self.reductions, self.baseline, None, self.checks()))
+
+    def test_a_renamed_declaration_fails_in_every_module(self) -> None:
+        checks = self.checks("equality `Cslib.Crypto.GarblingWord.eval_run_wordReduction` does "
+                             "not exist", missing=[VIA_ENTRY["equality"]])
+        for paths in (None, {SIGNATURE_PATH}):
+            invalid = c.compare(self.reductions, self.baseline, paths, checks).invalid
+            self.assertEqual([(name, reason) for name, _, reason in invalid], [
+                (VIA_REDUCTION, "equality `Cslib.Crypto.GarblingWord.eval_run_wordReduction` "
+                                "does not exist")])
+
+    def test_an_inequality_or_an_unrelated_headline_fails(self) -> None:
+        for problem in ("equality `E` is not an equation (its conclusion is headed by "
+                        "`LE.le`); a step linked by a bound or a simulation stays a `gap`",
+                        "headline `H` mentions neither `X` nor `Y` in its statement or proof"):
+            problems = c.compare(self.reductions, self.baseline, None, self.checks(problem))
+            self.assertEqual([reason for _, _, reason in problems.invalid], [problem])
+
+    def test_a_failing_entry_is_enforced_in_the_modules_of_its_declarations(self) -> None:
+        checks = self.checks("headline `H` mentions neither `X` nor `Y` in its statement or proof")
+        for paths in ({GARBLING_PATH}, {WORD_PATH}):
+            self.assertTrue(c.compare(self.reductions, self.baseline, paths, checks).invalid)
+        self.assertFalse(c.compare(self.reductions, self.baseline, {SIGNATURE_PATH}, checks))
+        everywhere = c.compare(self.reductions, self.baseline, None, checks)
+        here = c.compare(self.reductions, self.baseline, {SIGNATURE_PATH}, checks)
+        self.assertEqual(len(c.outside(everywhere, here).invalid), 1)
+
+    def test_an_entry_the_pass_did_not_verify_fails(self) -> None:
+        invalid = c.compare(self.reductions, self.baseline, {SIGNATURE_PATH}).invalid
+        self.assertEqual([(name, reason) for name, _, reason in invalid],
+                         [(VIA_REDUCTION, "the Lean pass did not verify it")])
+
+    def test_an_entry_stays_stale_once_the_reduction_is_certified(self) -> None:
+        reductions, _ = c.parse(OUTPUT)
+        baseline = {**BASELINE, CERTIFIED: {**VIA_ENTRY, "module": ELGAMAL_PATH}}
+        checks = {CERTIFIED: c.ViaCheck((), "proof", (ELGAMAL_PATH,), ())}
+        stale = c.compare(reductions, baseline, None, checks).stale
+        self.assertEqual([name for name, _, _ in stale], [CERTIFIED])
+
+
 class BaselineTests(unittest.TestCase):
     def test_text_round_trips_one_entry_per_line(self) -> None:
         text = c.baseline_text(BASELINE)
@@ -115,12 +202,28 @@ class BaselineTests(unittest.TestCase):
         self.assertEqual(len(text.splitlines()), len(BASELINE) + 2)
         self.assertEqual(c.baseline_text({}), "{\n}\n")
 
-    def test_kind_is_gap_or_exempt(self) -> None:
+    def test_via_entries_keep_their_field_order(self) -> None:
+        text = c.baseline_text({**BASELINE, VIA_REDUCTION: VIA_ENTRY})
+        self.assertEqual(json.loads(text)[VIA_REDUCTION], VIA_ENTRY)
+        self.assertEqual(len(text.splitlines()), len(BASELINE) + 3)
+        line = next(line for line in text.splitlines() if VIA_REDUCTION in line)
+        self.assertEqual(list(json.loads(line.split(": ", 1)[1].rstrip(","))),
+                         ["module", "kind", *c.VIA_FIELDS, "why"])
+        self.assertEqual(c.VIA_FIELDS, ("program", "certificate", "equality", "headline"))
+
+    def test_kind_is_gap_via_certified_program_or_exempt(self) -> None:
+        bad = (entry(SCHNORR_PATH, "later"),
+               {key: value for key, value in VIA_ENTRY.items() if key != "headline"},
+               {**VIA_ENTRY, "program": " "},
+               {**entry(SCHNORR_PATH), "program": VIA_ENTRY["program"]})
         with tempfile.TemporaryDirectory() as tmp:
             path = pathlib.Path(tmp) / "baseline.json"
-            path.write_text(json.dumps({UNCERTIFIED: entry(SCHNORR_PATH, "later")}))
-            with self.assertRaises(SystemExit):
-                c.load_baseline(path)
+            for value in bad:
+                path.write_text(json.dumps({UNCERTIFIED: value}))
+                with self.assertRaises(SystemExit, msg=value):
+                    c.load_baseline(path)
+            path.write_text(json.dumps({UNCERTIFIED: VIA_ENTRY}))
+            self.assertEqual(c.load_baseline(path), {UNCERTIFIED: VIA_ENTRY})
 
     def test_update_keeps_justifications_and_drops_stale_entries(self) -> None:
         reductions, _ = c.parse(OUTPUT)
@@ -132,6 +235,12 @@ class BaselineTests(unittest.TestCase):
         # Outside the changed modules, entries stay as they are.
         self.assertEqual(c.update(reductions, baseline, {SCHNORR_PATH}),
                          {**baseline, UNCERTIFIED: entry(SCHNORR_PATH, "gap", "")})
+
+    def test_update_keeps_via_entries(self) -> None:
+        reductions, _ = c.parse(VIA_OUTPUT)
+        baseline = {**BASELINE, VIA_REDUCTION: {**VIA_ENTRY, "module": "CslibFrontier/Old.lean"}}
+        self.assertEqual(c.update(reductions, baseline, None),
+                         {**BASELINE, VIA_REDUCTION: VIA_ENTRY})
 
 
 class CheckerChangedTests(unittest.TestCase):
@@ -151,7 +260,7 @@ class MainTests(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         self.baseline = pathlib.Path(tmp.name) / "baseline.json"
         reductions, _ = c.parse(OUTPUT)
-        for patcher in (mock.patch.object(c, "scan", return_value=reductions),
+        for patcher in (mock.patch.object(c, "scan", return_value=(reductions, {})),
                         mock.patch.object(c.cer, "touched_modules", return_value={SCHNORR_PATH}),
                         mock.patch.object(c, "checker_changed", return_value=False)):
             patcher.start()
@@ -178,7 +287,22 @@ class MainTests(unittest.TestCase):
         code, out, err = self.run_main(BASELINE)
         self.assertEqual((code, err), (0, ""))
         self.assertIn("3 reduction(s), 2 without an efficiency witness; 2 baseline entries "
-                      "(1 gap(s), 1 exempt), checking 1 changed module(s)", out)
+                      "(1 gap(s), 0 via certified program, 1 exempt), checking 1 changed "
+                      "module(s)", out)
+
+    def test_main_counts_and_checks_via_entries(self) -> None:
+        reductions, _ = c.parse(VIA_OUTPUT)
+        baseline = {**BASELINE, VIA_REDUCTION: VIA_ENTRY}
+        with mock.patch.object(c, "scan", return_value=(reductions, c.parse_checks(VIA_OUTPUT))):
+            code, out, err = self.run_main(baseline, "--all")
+        self.assertEqual((code, err), (0, ""))
+        self.assertIn("3 baseline entries (1 gap(s), 1 via certified program, 1 exempt)", out)
+        problem = "headline `H` mentions neither `X` nor `Y` in its statement or proof"
+        with mock.patch.object(c, "scan", return_value=(reductions,
+                                                        c.parse_checks(check_row([problem])))):
+            code, _, err = self.run_main(baseline, "--all")
+        self.assertEqual(code, 1)
+        self.assertIn(f"{GARBLING_PATH}: {VIA_REDUCTION}: {problem}", err)
 
     def test_pull_request_mode_reports_untouched_modules(self) -> None:
         code, out, err = self.run_main({UNCERTIFIED: BASELINE[UNCERTIFIED]})
@@ -372,10 +496,52 @@ def privatelyStated (A : Adversary) : Adversary := A
 private theorem privatelyStated_le :
     schemeAdvantage S A n ≤ advantage G (privatelyStated A) n := Nat.le_refl _
 
+/-! A typed reduction that a certified program runs (`via_certified_program` requests). -/
+
+/-- The typed step: uncertified. -/
+@[expose] def typedStep (A : Adversary) : Adversary := A
+theorem typedStep_le : schemeAdvantage S A n ≤ advantage G (typedStep A) n := Nat.le_refl _
+
+/-- The certified program, whose body does not mention the step (else it would be a wrapper). -/
+@[expose] def stepProgram (A : Adversary) : Adversary := fun k => A k
+theorem isPPT_stepProgram (_h : IsPPT A) : IsPPT (stepProgram A) := trivial
+theorem eval_stepProgram : stepProgram A = typedStep A := rfl
+private theorem eval_stepProgram_private : typedStep A = stepProgram A := rfl
+/-- A bound, not an equation. -/
+theorem stepProgram_le : advantage G (stepProgram A) n ≤ advantage G (typedStep A) n :=
+  Nat.le_refl _
+/-- An equation that does not mention the step. -/
+theorem stepProgram_eq_self : stepProgram A = fun k => A k := rfl
+
+/-- A headline that applies the certificate in its proof only. -/
+theorem stepHeadline (h : IsPPT A) : 0 ≤ n := (fun _ => Nat.zero_le n) (isPPT_stepProgram A h)
+/-- A headline that mentions the program in its statement. -/
+theorem stepStatement (h : IsPPT A) : IsPPT (stepProgram A) ∧ 0 ≤ n :=
+  ⟨isPPT_stepProgram A h, Nat.zero_le n⟩
+/-- A theorem that mentions neither. -/
+theorem unrelatedHeadline : 0 ≤ n := Nat.zero_le n
+
 end Cslib.Crypto.Fixture
 """
 
 PREFIX = "Cslib.Crypto.Fixture."
+# `via_certified_program` requests for the fixture, as `(label, reduction, program, certificate,
+# equality, headline)`, without `PREFIX`.
+VIA_REQUESTS = (
+    ("valid", "typedStep", "stepProgram", "isPPT_stepProgram", "eval_stepProgram", "stepHeadline"),
+    ("statement", "typedStep", "stepProgram", "isPPT_stepProgram", "eval_stepProgram_private",
+     "stepStatement"),
+    ("renamed", "typedStep", "stepProgramRenamed", "isPPT_stepProgram", "eval_stepProgram",
+     "stepHeadline"),
+    ("inequality", "typedStep", "stepProgram", "isPPT_stepProgram", "stepProgram_le",
+     "stepHeadline"),
+    ("one side", "typedStep", "stepProgram", "isPPT_stepProgram", "stepProgram_eq_self",
+     "stepHeadline"),
+    ("unrelated", "typedStep", "stepProgram", "isPPT_stepProgram", "eval_stepProgram",
+     "unrelatedHeadline"),
+    ("not a certificate", "typedStep", "stepProgram", "eval_stepProgram", "eval_stepProgram",
+     "stepHeadline"),
+)
 
 
 @unittest.skipUnless(shutil.which("lake") and (c.ROOT / ".lake/packages").is_dir(),
@@ -395,12 +561,19 @@ class CompiledFixtureTests(unittest.TestCase):
         source.write_text(FIXTURE)
         subprocess.run(["lake", "env", "lean", f"--root={root / 'src'}", "-o", str(olean),
                         str(source)], cwd=c.ROOT, check=True, capture_output=True)
+        requests = ["\t".join(["via", *(PREFIX + name for name in request[1:])])
+                    for request in VIA_REQUESTS]
         out = subprocess.run(["lake", "env", "lean", "--run", c.csp.TOOL, str(root / "build"),
                               "--reductions"], cwd=c.ROOT,
-                             input="CslibFrontier.Crypto.Fixture\n",
+                             input="\n".join(["CslibFrontier.Crypto.Fixture", *requests]) + "\n",
                              capture_output=True, text=True, check=True).stdout
         reductions, cls.summary = c.parse(out)
         cls.reductions = {name.removeprefix(PREFIX): r for name, r in reductions.items()}
+        # One verdict per request, in order; they share a reduction, so `parse_checks` would
+        # keep only the last.
+        verdicts = [c.parse_checks(line)[PREFIX + "typedStep"] for line in out.splitlines()
+                    if '"v"' in line]
+        cls.verdicts = {request[0]: v for request, v in zip(VIA_REQUESTS, verdicts, strict=True)}
 
     def certificate(self, name: str) -> tuple[str, tuple[str, ...]]:
         r = self.reductions[name]
@@ -443,9 +616,36 @@ class CompiledFixtureTests(unittest.TestCase):
                          [t for r in self.reductions.values() for t in r.theorems])
 
     def test_exactly_the_expected_reductions(self) -> None:
-        self.assertEqual(len(self.reductions), 13)
-        self.assertEqual(len(c.uncertified(self.reductions)), 8)
+        self.assertEqual(len(self.reductions), 14)
+        self.assertEqual(len(c.uncertified(self.reductions)), 9)
         self.assertEqual(self.summary["missing"], [])
+
+    def test_a_valid_via_request_passes(self) -> None:
+        self.assertEqual(self.certificate("typedStep"), ("", ()))
+        self.assertEqual(self.verdicts["valid"],
+                         c.ViaCheck((), "proof", ("CslibFrontier/Crypto/Fixture.lean",), ()))
+        # A headline may mention the program in its statement; a private equality counts.
+        self.assertEqual(self.verdicts["statement"].problems, ())
+        self.assertEqual(self.verdicts["statement"].headline_at, "statement")
+
+    def test_invalid_via_requests_fail(self) -> None:
+        expected = {
+            "renamed": f"program `{PREFIX}stepProgramRenamed` does not exist",
+            "inequality": f"equality `{PREFIX}stepProgram_le` is not an equation (its conclusion "
+                          "is headed by `LE.le`)",
+            "one side": f"equality `{PREFIX}stepProgram_eq_self` does not equate a term that "
+                        f"mentions `{PREFIX}stepProgram` with one that mentions "
+                        f"`{PREFIX}typedStep`",
+            "unrelated": f"headline `{PREFIX}unrelatedHeadline` mentions neither "
+                         f"`{PREFIX}stepProgram` nor `{PREFIX}isPPT_stepProgram`",
+            "not a certificate": f"certificate `{PREFIX}eval_stepProgram` does not conclude an "
+                                 "efficiency certificate",
+        }
+        for label, problem in expected.items():
+            problems = self.verdicts[label].problems
+            self.assertEqual(len(problems), 1, (label, problems))
+            self.assertIn(problem, problems[0], label)
+        self.assertEqual(self.verdicts["renamed"].missing, (PREFIX + "stepProgramRenamed",))
 
 
 class CommittedFilesTests(unittest.TestCase):
