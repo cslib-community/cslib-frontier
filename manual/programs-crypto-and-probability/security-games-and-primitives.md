@@ -358,6 +358,26 @@ wins with negligible probability. The
 where `0 < ε`, injectivity of `c ↦ c • g` and masking both CDH inputs are needed; the
 [family client](../../CslibFrontierTests/Crypto/DiffieHellmanSelfReductionFamily.lean) applies the
 family results to the adversary that always guesses `0`.
+
+In a fixed `ZMod q`-module `G`,
+[`DiffieHellman/Equivalents.lean`](../../CslibFrontier/Crypto/Computational/DiffieHellman/Equivalents.lean)
+formalizes the deterministic oracle reductions among **(a) CDH** (`SolvesCDH`), **(b) Square-DH**
+(`SolvesSqDH`), **(c) Inverse-DH** (`SolvesInvDH`), and **(d) Divisible-DH** (`SolvesDivDH`)
+([bs23][bs23], Exercise 10.17, p. 429): `cdhFromSqProg` in `2` queries
+(`solvesCDH_evalPure_cdhFromSqProg`), `sqFromCDHProg` in `1` query
+(`solvesSqDH_evalPure_sqFromCDHProg`), `sqFromInvProg` in `3` nonzero queries
+(`solvesSqDH_evalPure_sqFromInvProg`, `queriesSatisfy_sqFromInvProg`), `invFromDivProg` in `1`
+query with nonzero divisor (`solvesInvDH_evalPure_invFromDivProg`, `queriesSatisfy_invFromDivProg`),
+`invFromCDHProg` by square-and-multiply for `q - 2` in `2 * (q - 2).bits.length` queries
+(`solvesInvDH_evalPure_invFromCDHProg`), and `divFromCDHProg` in `2 * (q - 2).bits.length + 1`
+queries (`solvesDivDH_evalPure_divFromCDHProg`). The reductions are `OracleComp` programs proved
+correct under `OracleComp.evalPure` with `OracleComp.IsQueryBounded` query bounds; group
+operations, scalar multiplications, and running time are not certified. The
+[equivalents client](../../CslibFrontierTests/Crypto/DiffieHellmanEquivalents.lean) composes the
+four-step cycle over `ZMod 5`, evaluates the programs by `decide` at `q = 5` and `q = 2`, probes
+failure without the `q = 2` branch or primality (`q = 4`), and tests `sqFromInvProg` against a
+solver wrong at `0`.
+
 Fixed-first-coordinate rerandomization, single-exponent shifting, and Multi-DDH (I) ([bs23][bs23],
 Exercises 10.8, 10.9, and 10.11) live in
 [`DiffieHellman/MultiDDH.lean`](../../CslibFrontier/Crypto/Computational/DiffieHellman/MultiDDH.lean),
