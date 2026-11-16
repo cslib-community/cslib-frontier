@@ -26,13 +26,12 @@ pp. 539–540 (`plantInverter`), this gives that lemma's inequality (13.6) for t
 
 The statements are about typed games and say nothing about running time. `slotInverter` is
 certified inside the word-level reduction `repeatedInverter`
-(`Crypto/Computational/OneWay/Repeated.lean`), which draws a dyadic index and, when it is below
-`t n`, runs `slotInverter` at it.
-`plantInverter` has no efficiency certificate: a strict PPT sampler draws an exactly uniform index
-below `t` only when `t` is a power of two. So (13.6) here is not Lemma 13.5 itself, whose `B` is
-efficient. The efficient form is `OneWay.repeatedInversion_negligible`, through
-`succProbability_repeatedInversionGame_le`, which loses the dyadic range `dyadicSize (t n)` in
-place of `t`.
+(`CslibFrontier/Crypto/Computational/OneWay/Repeated.lean`), which draws a dyadic index and,
+when it is below `t n`, runs `slotInverter` at it. `plantInverter` has no efficiency certificate:
+a strict PPT sampler draws an exactly uniform index below `t` only when `t` is a power of two. So
+(13.6) here is not Lemma 13.5 itself, whose `B` is efficient. The efficient form is
+`OneWay.repeatedInversion_negligible`, through `succProbability_repeatedInversionGame_le`, which
+loses the dyadic range `dyadicSize (t n)` in place of `t`.
 
 ## Main definitions
 
