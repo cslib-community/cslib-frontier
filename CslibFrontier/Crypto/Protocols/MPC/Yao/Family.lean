@@ -401,9 +401,12 @@ theorem realJoint_evaluator (n : ℕ) (c : Params G) (x : (i : Fin 2) → Input 
 
 /-! ### Correctness -/
 
+variable {G}
+
 /-- The garbler's tokens followed by the evaluator's are the tokens of the bits of the function's
 input. -/
-private theorem tokens_append (e : List Bool) (c : Params G) (x : (i : Fin 2) → Input c i) :
+theorem ofFn_projectiveToken_append (e : List Bool) (c : Params G)
+    (x : (i : Fin 2) → Input c i) :
     List.ofFn (fun i : Fin c.garblerLen => projectiveToken e (G.inLen c.fn) i (x 0 i)) ++
         List.ofFn (fun j : Fin c.evaluatorLen =>
           projectiveToken e (G.inLen c.fn) (c.garblerLen + j) (x 1 j)) =
@@ -430,8 +433,6 @@ private theorem tokens_append (e : List Bool) (c : Params G) (x : (i : Fin 2) �
       omega
     · simp only [List.length_ofFn, h₀]
 
-variable {G}
-
 /-- In a run at a parameter `n ≥ 1` with coins of the right length, the evaluator decodes the
 function's output, when `G` is correct and its encoding is projective. -/
 theorem runOutput_eq (hproj : G.encode = projectiveEncode) (hcorrect : G.Correct) {n : ℕ}
@@ -441,7 +442,7 @@ theorem runOutput_eq (hproj : G.encode = projectiveEncode) (hcorrect : G.Correct
   have hX : ((garblerMessage G n c (x 0) coins).labels ++
       List.ofFn fun j => garblerOffer G n c coins j (x 1 j)).flatten =
         G.encode (G.gb n c.fn coins).encInfo (circuitInput x) := by
-    rw [hproj, projectiveEncode_eq_flatten_ofFn, ← tokens_append]
+    rw [hproj, projectiveEncode_eq_flatten_ofFn, ← ofFn_projectiveToken_append]
     rfl
   have hmem : G.gb n c.fn coins ∈ (ProbComp.eval (G.garble n c.fn)).support :=
     G.mem_support_eval_garble_iff.mpr ⟨coins, hcoins, rfl⟩
