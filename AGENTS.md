@@ -91,7 +91,8 @@ documentation, manual page, PR title or [results inventory](results/README.md) e
 3. **No vacuous headlines.** Hypotheses that cannot hold together, or a conclusion that follows
    trivially, are a misformalization even when documented. Check a satisfying instance.
 4. **The faithful statement supersedes its stand-ins.** The change that proves it deletes or
-   demotes them, with their docstrings, manual text, `ROADMAP.md` lines and inventory entries.
+   demotes them, with their docstrings, maintained manual text, `ROADMAP.md` lines and inventory
+   entries.
 
 Stand-ins already on `main` are defects to fix, not precedents (#5293 for cryptography).
 
@@ -190,8 +191,8 @@ to reach a count. A review does the following, in this order.
    the Parallel-definition, Duplicate-statement and Repeated-proof-block notices in CI for the
    reviewed revision. Record each relevant candidate's resolution. An empty report is not
    evidence of uniqueness.
-6. **Check the documentation the change affects**, including both manuals
-   ([Maintaining the manuals](CONTRIBUTING.md#maintaining-the-manuals)).
+6. **Check the documentation the change affects:** docstrings, the PR description and any changed
+   procedure page or registry ([manuals](CONTRIBUTING.md#maintaining-the-manuals)).
 7. **Give a clear verdict** for an identified revision: a short approval or a specific request
    for changes, with the limits of the review. A clean review needs no checklist of everything
    inspected. Lean acceptance does not establish that a definition matches its intended
@@ -218,9 +219,8 @@ queues the approved head with `scripts/queue_pr.py`, run from a trusted checkout
 `main` ([command](manual/workflows/agent-operations.md#queue-approved-work-and-keep-its-approval)).
 Authors do not queue their own PRs. Approve without queueing, and say why, when human review has
 been requested or the approval names a hold (an unlanded lower PR, a migration, or pending
-source, advisory-notice or rendered-manual review). A passing check does not release a review
-hold; do not start `queue_pr.py --wait` while running CI will still produce notices or rendered
-pages that need review.
+source or advisory-notice review). A passing check does not release a review hold; do not start
+`queue_pr.py --wait` while running CI will still produce notices that need review.
 
 **Every merge to `main` goes through the merge queue.** Never call a direct merge endpoint: the
 REST merge API, a GitHub connector's `merge_pull_request` tool, or `gh pr merge --admin`. With
@@ -281,7 +281,8 @@ Full text: [policy/workflow.md](policy/workflow.md). Each agent works as a **coo
 Changing roles does not make an author eligible to approve their own changes. Give parallel
 agents distinct scope, branches and build outputs; the delegating agent brings their work to
 completion. When review or integration is the bottleneck, do requested fixes, reviews and landing
-before starting more PRs. Use issues for substantial tasks and search for existing ones first; do
+before starting more PRs; a coordinator starts or commissions no new PR work while more than ten
+of its fleet's need its own action ([backpressure](policy/workflow.md#backpressure-and-tending)). Use issues for substantial tasks and search for existing ones first; do
 not open an issue or PR for each incidental cleanup.
 
 ### Completion and scope
@@ -312,8 +313,8 @@ remains.
    takeover and proceed. A PR that needs author action (changes requested, a conflict or failing
    CI) may be reassigned by a coordinator after the same notice and 24 hours; a PR awaiting
    review is never released by silence. Preserve the earlier work and its credit.
-4. Implement, self-review and validate. Assess both manuals and update affected instructions,
-   reference sections and checked examples in the same change.
+4. Implement, self-review and validate. Explain the change in its docstrings and the PR
+   description; the manual's reference chapters are frozen.
 5. Open a PR with validation and limitations and request coordinator review.
 6. Address requested changes before starting more work. Do not approve or merge your own PR.
 
@@ -382,7 +383,7 @@ private. The handoff names the caller and what it no longer has to repeat.
 
 Full text: [policy/workflow.md](policy/workflow.md#writing-in-issues-and-prs). Write for a human
 who has not followed the task. Start with the point: the problem or mathematical setting, the
-central idea, and what the change enables, then validation, manual impact and AI disclosure.
+central idea, and what the change enables, then validation and AI disclosure.
 Small PRs need a paragraph or two. Keep evidence in one place and link to it. Comments add a
 finding, answer, decision, blocker or handoff; keep CI polling and internal agent discussion out
 of public threads. Do not imply that an agent review is human review.

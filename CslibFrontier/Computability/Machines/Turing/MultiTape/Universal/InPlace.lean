@@ -381,7 +381,7 @@ public lemma foldNext_inO : ComputableTidilyInO foldNext (encPair eSt encBool) e
   have hk := hn.snd'.fst'
   have hcur := hn.snd'.snd'
   have hk1 := (ComputableInO.eq encNat).tidy.comp (hk.prod (const (encMid := encNat) 1))
-  have hsucc := (of_linear (.of_cons_true (f := (· + 1)) (encIn := encUnary) (encOut := encUnary)
+  have hsucc := (of_linear (.of_cons_true (f := (· + 1)) (encIn := encUnary) (encMid := encUnary)
     fun n => rfl)).comp_linear hcur
   have hkpred := ComputableInO.natPred.tidy.comp hk
   have hdigit := hdc.prod (hr.prod (hk.prod (hk1.ite hsucc hcur)))
@@ -503,8 +503,8 @@ public lemma foldEmit_inO : ComputableTidilyInO foldEmit eSt encBits
     ho
   have hdbl : ComputableTidilyInO (fun n => doubled (frame (encUnary n))) encUnary encBits
       (fun n => (encUnary n).length) fun n => (encUnary n).length :=
-    (of_linear (doubledT.computableTidilyInLinearTimeAndSpace (f := doubled) (encIn := encBits)
-      (encOut := encBits) fun w => (doubledT_run w).symm)).comp_linear
+    (of_linear (ComputableInDegree.of_transducer doubledT (f := doubled) (encIn := encBits)
+      (encMid := encBits) fun w => (doubledT_run w).symm)).comp_linear
       (of_linear (.of_frame (f := fun n => frame (encUnary n)) fun _ => rfl))
   refine ((hsome.ite (hdbl.comp_linear hn) (const (encMid := encBits) [])).of_enc_eq
     (g := foldEmit) fun s => ?_).mono 100 (fun s => ?_) fun s => ?_

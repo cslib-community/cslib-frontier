@@ -28,8 +28,9 @@ Given key `k : Fin P.tailDim → F` and `secret : F`, `linearShare P k secret i`
 `∑ i : s, dotProduct (w i) (linearShare P k secret i.1)` (`sum_dotProduct_linearShare_eq_secret`).
 The total function `linearReconstruct` selects one such `w` via `Classical.choose` when
 `P.Accepts s` and outputs `0` otherwise; it supplies the deterministic `reconstruct` field of
-`AccessScheme` and carries no algorithmic or efficiency claim (computing `w` is linear algebra
-not formalized here).
+`AccessScheme` and carries no algorithmic or efficiency claim. For parties `Fin N` over a field
+with decidable equality, `Cslib.Circuits.MonotoneSpanProgram.recombination` computes such a `w`
+by elimination, and `Cslib.Circuits.Synthesis.full_recombination` bounds its circuits.
 
 Privacy (`linearView_eq_of_not_accepts`) holds for every translation-invariant key distribution
 `Q ∈ SourceClass.translationInvariant (LinearKey P)`. Note that when `F` is infinite and

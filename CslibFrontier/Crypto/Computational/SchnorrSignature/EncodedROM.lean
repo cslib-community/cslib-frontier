@@ -214,21 +214,21 @@ theorem runWith_schnorrDecodedForger
   unfold schnorrDecodedForger
   rw [runWith_map]
   congr 1
-  unfold runWith
-  rw [interpret_interpret]
+  rw [← OracleComp.substitute_eq_interpret, OracleComp.runWith_substitute]
   congr 2 with q : 1
   cases q with
   | inl msg =>
     funext st
-    simp only [sumHandler, interpret_map, interpret_query]
+    simp only [sumHandler]
     change ((encPair encBits encBits <$>
       handler (F.schnorrWordROMScheme d hm) (x, u) (Sum.inl msg)).run st) = _
     rw [StateT.run_map]
     have h := F.runWith_schnorrEncodedROMScheme_sign_ideal d hm keyLaw x u
       (oracle (BitString m)) msg st.1
     have hlog := congrArg (PMF.map (fun out => (out.1, (out.2, msg :: st.2)))) h.symm
-    simpa only [pmf_norm, StateT.run, handler, PMF.map, Prod.map, id_eq, runWith] using hlog
-  | inr word => simp [sumHandler, interpret_query, handler]
+    simpa only [pmf_norm, StateT.run, handler, PMF.map, Prod.map, id_eq,
+      OracleComp.runWith_eq_run_interpret] using hlog
+  | inr word => simp [sumHandler, handler]
 
 /-- Exact equality of the existing ideal EUF-CMA games after changing key and signature
 representations. All outer signature words are total-decoded, every hash word remains distinct,
@@ -246,8 +246,13 @@ theorem eufCmaGame_schnorrEncodedROMScheme_eq
   intro keys _
   apply PMF.bind_congr_on_support
   intro coins _
-  change (runWith _ (A.forge (F.encode d keys.1) coins) ([], [])).bind _ =
-    (runWith _ ((F.schnorrDecodedForger d A).forge keys.1 coins) ([], [])).bind _
+  rw [← OracleComp.runWith_eq_run_interpret
+    (handler (F.schnorrEncodedROMScheme d m (F.schnorrIdealKeyGen d)
+      (PMF.uniformOfFintype (ZMod (F.order d)))) (F.encScalar d keys.2.1))
+    (A.forge (F.encode d keys.1) coins) ([], [])]
+  rw [← OracleComp.runWith_eq_run_interpret
+    (handler (F.schnorrWordROMScheme d hm) keys.2)
+    ((F.schnorrDecodedForger d A).forge keys.1 coins) ([], [])]
   rw [F.runWith_schnorrDecodedForger d hm (F.schnorrIdealKeyGen d) A
     keys.2.1 keys.2.2 keys.1 coins ([], []), PMF.bind_map]
   apply PMF.bind_congr_on_support

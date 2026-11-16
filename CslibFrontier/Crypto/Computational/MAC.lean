@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Crypto.Computational.GeneratorReindex
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction
 public import CslibFrontier.Crypto.Computational.Signature
@@ -20,10 +21,9 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
-import CslibFrontier.Computability.Probabilistic.Oracle.Tidy
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.Sampling
-import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
+import CslibFrontier.Languages.Probabilistic.Oracle.Simulation.Handler
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Tactic.EncLen
 import CslibFrontier.Tactic.Negligible
@@ -935,17 +935,15 @@ private theorem run_limitToOneQuery_eq_oneTimeSigningPairOracle (M : MACScheme)
       (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
         (M.oneTimeSigningPairOracle sk)) prog).run []) := by
   rw [ProbComp.eval_map, ProbOracleComp.eval_run_interpret_eq_runWith,
-    ProbOracleComp.eval_run_interpret_eq_runWith, ProbOracleComp.runWith_run_interpret,
-    PMF.map_comp]
-  have hsim := ProbOracleComp.runWith_map_state
-    (oracle := fun q s => ProbComp.eval (M.oneTimeSigningPairOracle sk q s))
-    (oracle' := fun q (state : Bool × List (List Bool × List Bool)) =>
-      (ProbOracleComp.runWith (fun q s => ProbComp.eval (M.signingPairOracle sk q s))
-          ((SignatureScheme.oneTimeFilterHandler bound (n, []) q).run state.1) state.2).map
-          (fun result => (result.1.1, result.1.2, result.2)))
-    (represent := fun queriedPairs => (!queriedPairs.isEmpty, queriedPairs))
-    (step := by
+    ProbOracleComp.eval_run_interpret_eq_runWith]
+  -- The filter flag is read off the query log: it is set exactly when the log is nonempty.
+  refine (congrArg (PMF.map _) (ProbOracleComp.runWith_run_interpret_map
+    (SignatureScheme.oneTimeFilterHandler bound (n, []))
+    (fun q s => ProbComp.eval (M.signingPairOracle sk q s))
+    (fun q s => ProbComp.eval (M.oneTimeSigningPairOracle sk q s))
+    (fun queriedPairs => !queriedPairs.isEmpty) (fun queriedPairs => queriedPairs) (by
       intro ⟨⟨⟩, msg⟩ queriedPairs
+      rw [ProbOracleComp.runWith_eq_run_interpret]
       change _ = ((OracleComp.interpret (m := StateT (List (List Bool × List Bool)) PMF) _
         (SignatureScheme.oneTimeFilterHandler bound (n, []) ((), msg)
           (!queriedPairs.isEmpty))).run queriedPairs).map _
@@ -962,10 +960,9 @@ private theorem run_limitToOneQuery_eq_oneTimeSigningPairOracle (M : MACScheme)
       | cons head tail =>
         simp [oneTimeSigningPairOracle, SignatureScheme.oneTimeFilterHandler,
           OracleComp.interpret_pure, StateT.run_pure, ProbComp.eval_pure])
-    prog []
-  have hproj := congrArg (PMF.map (fun result => (result.1, result.2.2))) hsim
-  rw [PMF.map_comp] at hproj
-  exact hproj.symm.trans (PMF.map_id _)
+    prog [])).trans ?_
+  rw [PMF.map_comp]
+  exact (congrArg (PMF.map · _) (funext fun _ => rfl : _ = id)).trans (PMF.map_id _)
 
 /-- Full strong unforgeability (`SUFCMA`) implies one-time strong unforgeability (`OneTimeSUFCMA`)
 for any `MACScheme`. -/
@@ -1380,11 +1377,12 @@ private theorem run_macLogHandler_eq_signingOracle
         (macLogHandler n))
       prog).run []) ()
   have hfst := congrArg (PMF.map Prod.fst) hread
-  simp only [PMF.map_comp, Function.comp_def, OracleComp.evalWith] at hfst
+  simp only [PMF.map_comp, Function.comp_def] at hfst
   rw [show (fun x : (List Bool × List Bool) × List (List Bool) => x) = id from rfl,
     PMF.map_id] at hfst
   simp only [ProbOracleComp.eval_interpret, ProbComp.eval_pure]
-  rw [← hfst, ProbOracleComp.runWith_run_interpret, ProbOracleComp.eval_run_interpret_eq_runWith]
+  rw [← OracleComp.evalWith_eq_interpret, ← hfst, ProbOracleComp.runWith_run_interpret,
+    ProbOracleComp.eval_run_interpret_eq_runWith]
   have hsim := ProbOracleComp.runWith_map_state
     (oracle := fun q (state : List (List Bool) × Unit) =>
       (ProbOracleComp.runWith
@@ -1504,6 +1502,8 @@ theorem succProbability_prfIdealGame_macToPrfDistinguisher_le (adversary : Forge
       (result, state) ∈ phase1.support →
       ∀ x : BitString n, state.2 x ≠ none → List.ofFn x ∈ state.1 := by
     intro result state hmem
+    dsimp only [phase1] at hmem
+    rw [← ProbOracleComp.runWith_eq_run_interpret] at hmem
     refine ProbOracleComp.runWith_invariant combinedOracle
       (fun s => ∀ x : BitString n, s.2 x ≠ none → List.ofFn x ∈ s.1)
       ?_ (adversary n []) ([], fun _ => none) (by simp) result state hmem

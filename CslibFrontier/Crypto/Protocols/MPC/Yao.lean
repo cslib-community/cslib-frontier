@@ -52,7 +52,11 @@ protocol. The bounds are for a single instance (circuit, inputs and distinguishe
 security parameter; running time is not tracked, and neither the simulators nor the reductions are
 certified efficient. Both the one-sided output protocol (`yaoProtocol`, where only the evaluator
 receives the circuit output) and the symmetric two-output protocol (`yaoBothProtocol`, where the
-evaluator sends the decoded output back to the garbler via `Steps.append`) are covered.
+evaluator sends the decoded output back to the garbler via `Steps.append`) are covered. The
+asymptotic two-output protocol over word-level garbling schemes, with PPT simulators and a
+certified reduction, is the protocol family `Yao.family` of
+`CslibFrontier.Crypto.Protocols.MPC.Yao.Family` and
+`CslibFrontier.Crypto.Protocols.MPC.Yao.Security`.
 
 ## Main definitions
 

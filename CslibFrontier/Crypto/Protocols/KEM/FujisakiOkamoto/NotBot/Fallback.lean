@@ -60,12 +60,13 @@ private theorem map_fst_run_interpret_log {ι σ α : Type} {spec : ι → Type}
     (h : (q : ι) → PMF (spec q)) (upd : ι → σ → σ) (prog : OracleComp spec α) (st : σ) :
     ((OracleComp.interpret (m := StateT σ PMF) (fun q st => (h q).map (·, upd q st))
       prog).run st).map Prod.fst = OracleComp.interpret h prog := by
+  rw [← OracleComp.runWith_eq_run_interpret, ← OracleComp.evalWith_eq_interpret]
   induction prog using OracleComp.induction generalizing st with
   | pure a => simp
   | query_bind q cont ih =>
-    rw [OracleComp.run_interpret_bind, OracleComp.run_interpret_query]
-    simp only [OracleComp.interpret_bind, OracleComp.interpret_query,
-      Probability.PMF.monad_bind_eq_bind, PMF.map_bind, PMF.bind_map, Function.comp_def]
+    rw [OracleComp.runWith_freeMBind, OracleComp.runWith_query]
+    simp only [OracleComp.evalWith_freeMBind, OracleComp.evalWith_query, PMF.map_bind,
+      PMF.bind_map, Function.comp_def]
     exact congrArg _ (funext fun a => ih a _)
 
 /-! ### Splitting the key-derivation table at the seed -/

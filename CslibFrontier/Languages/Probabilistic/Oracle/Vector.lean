@@ -25,7 +25,8 @@ Execution (`ProbOracleComp.run`), simulation (`ProbOracleComp.simulate`), syntac
 * `Cslib.OracleComp.isCostBounded_pi`: cost budgets add along `OracleComp.pi`.
 * `Cslib.ProbOracleComp.run_pi`, `Cslib.ProbOracleComp.run_pi_query`: running `OracleComp.pi`
   against a probabilistic or deterministic oracle.
-* `Cslib.ProbOracleComp.simulate_pi`: simulating `OracleComp.pi` distributes over coordinates.
+* `Cslib.ProbOracleComp.simulate_pi`, `Cslib.ProbOracleComp.simulate_mapM`: simulating
+  `OracleComp.pi` or a list traversal `List.mapM` distributes over its steps.
 * `Cslib.ProbOracleComp.isQueryBounded_pi_query`,
   `Cslib.ProbOracleComp.length_transcript_pi_query`: a tuple of `m` external queries makes at most
   `m` (and on every supported transcript, exactly `m`) external queries.
@@ -84,6 +85,15 @@ theorem simulate_pi {Query₁ Query₂ : Type} {spec₁ : Query₁ → Type} {sp
     congr 1
     funext first
     rw [ProbOracleComp.simulate_map, simulate_pi h (fun i => p i.succ)]
+
+/-- Simulating a list traversal under an oracle simulation `h` simulates each step in order. -/
+theorem simulate_mapM {Query₁ Query₂ β γ : Type} {spec₁ : Query₁ → Type}
+    {spec₂ : Query₂ → Type} (h : (q : Query₁) → ProbOracleComp spec₂ (spec₁ q))
+    (f : β → ProbOracleComp spec₁ γ) (l : List β) :
+    ProbOracleComp.simulate h (l.mapM f) = l.mapM fun b => ProbOracleComp.simulate h (f b) := by
+  induction l with
+  | nil => simp
+  | cons b l ih => simp [List.mapM_cons, ih]
 
 /-- Running a tuple of external queries against a deterministic oracle returns the tuple of
 answers. -/

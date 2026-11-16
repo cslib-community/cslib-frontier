@@ -167,7 +167,8 @@ theorem runWith_adapt {State : Type} (oracle : (q : Q) → StateT State PMF (spe
     (program : ProbOracleComp (fun _ : Op × List Bool => List Bool) α) (s : State) :
     ProbOracleComp.runWith oracle (c.adapt program) s =
       ProbOracleComp.runWith (c.wordOracle oracle) program s := by
-  simp only [ProbOracleComp.runWith, OracleComp.runWith, interpret_adapt]
+  rw [ProbOracleComp.runWith_eq_run_interpret, ProbOracleComp.runWith_eq_run_interpret]
+  exact congrArg (fun p : StateT State PMF α => p.run s) (c.interpret_adapt _ _ _)
 
 /-- Adapting keeps a cost budget when each query costs at most its request. -/
 theorem isCostBounded_adapt {wordCost : Op × List Bool → ℕ} {cost : Q → ℕ}
@@ -208,7 +209,7 @@ theorem isQueryBounded_adapt {program : ProbOracleComp (fun _ : Op × List Bool 
     rcases q with n | request
     · exact ProbOracleComp.sample_unifFin n
     · simp [wordOracle, OracleCodec.id, ProbOracleComp.query, Function.Embedding.coe_refl]
-  rw [adapt, ProbOracleComp.simulate, hhandler, OracleComp.interpret_query_eq_self]
+  rw [adapt, ProbOracleComp.simulate, hhandler, OracleComp.substitute_query_eq_self]
 
 /-- `n`-bit strings on the single word channel: a request carries a query exactly when it has
 `n` bits. -/

@@ -8,10 +8,12 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.CollisionResistantToOneWay
+public import CslibFrontier.Crypto.Computational.FlipHeadBit
 public import CslibFrontier.Crypto.Computational.OneWay
 public import CslibFrontier.Crypto.Computational.SecondPreimageResistant
 import CslibFrontier.Crypto.Game.Order
 import CslibFrontier.Crypto.Negligible
+import CslibFrontier.Probability.Guessing.UniformList
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.PPT
@@ -66,8 +68,9 @@ p. 353, and the two strict-separation constructions on bit strings:
 * `Cslib.Crypto.inverterToSecondPreimage`: wrap an `Inverter` into a `SecondPreimageFinder`.
 * `Cslib.Crypto.secondPreimageToCollisionFinder`: reduction from
   `secondPreimageGame (keyDigest H)` to `collisionGame H`.
-* `Cslib.Crypto.ignoreHeadBit`, `Cslib.Crypto.flipHeadBit`, `Cslib.Crypto.ignoreHeadBitInverter`:
-  the Section 8.11.1 separation construction and its reductions.
+* `Cslib.Crypto.ignoreHeadBit`, `Cslib.Crypto.ignoreHeadBitInverter`:
+  the Section 8.11.1 separation construction and its reductions (re-exporting
+  `Cslib.Crypto.flipHeadBit` from `CslibFrontier.Crypto.Computational.FlipHeadBit`).
 * `Cslib.Crypto.plantEasyBranch`, `Cslib.Crypto.plantEasyBranchInverter`: the bit-string form of
   Exercise 8.23(c) and its inverter.
 
@@ -145,7 +148,7 @@ theorem succProbability_inversionGame_le_secondPreimageGameOn_add
   have hguess :
       ∑' m, BitString.uniformList n m * ProbComp.eval (adversary n (f m)) m ≤
         (((2 : ℝ≥0) ^ d / (2 : ℝ≥0) ^ n : ℝ≥0) : ℝ≥0∞) := by
-    refine (CollisionResistantToOneWay.tsum_uniformList_mul_apply_le f hlen
+    refine (PMF.tsum_uniformList_mul_apply_le f hlen
       (fun y => ProbComp.eval (adversary n y))).trans_eq ?_
     rw [ENNReal.coe_div (pow_ne_zero n two_ne_zero), ENNReal.coe_pow, ENNReal.coe_pow,
       ENNReal.coe_ofNat, one_div, div_eq_mul_inv]
@@ -326,28 +329,11 @@ theorem HashFamily.secondPreimageResistant_keyDigest
 def ignoreHeadBit (f : List Bool → List Bool) (w : List Bool) : List Bool :=
   f w.tail
 
-/-- Flip the first bit of a word (mapping `[]` to `[true]`), producing a distinct word with the
-same tail. -/
-@[expose]
-def flipHeadBit (w : List Bool) : List Bool :=
-  (!w.headD false) :: w.tail
-
-theorem flipHeadBit_ne_self (w : List Bool) : flipHeadBit w ≠ w := by
-  intro h
-  have hhead := congrArg (fun l => l.headD false) h
-  simp [flipHeadBit] at hhead
-
 @[fun_prop]
 theorem computableInPolyTime_ignoreHeadBit {f : List Bool → List Bool}
     (hf : ComputableInPolyTime f encBits encBits) :
     ComputableInPolyTime (ignoreHeadBit f) encBits encBits := by
   unfold ignoreHeadBit
-  polytime
-
-@[fun_prop]
-theorem computableInPolyTime_flipHeadBit :
-    ComputableInPolyTime flipHeadBit encBits encBits := by
-  unfold flipHeadBit
   polytime
 
 /-- **Section 8.11.1 separation, negative half** ([BonehShoup2023], p. 337) for

@@ -7,12 +7,13 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
+import Mathlib.Data.List.GetD
 public import CslibFrontier.Crypto.Computational.IndexedSignature.Counter
 public import CslibFrontier.Crypto.Computational.MerkleSignature
 public import CslibFrontier.Foundations.Data.BitString.List.Binary
 public import CslibFrontier.Crypto.Computational.OneWay
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
@@ -23,13 +24,12 @@ import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.Repeat
 import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Crypto.Computational.OneWayToSignature
-import CslibFrontier.Crypto.Game.Hybrid
-import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Foundations.Data.List.Lookup
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Probability.UniformNat
+import CslibFrontier.Tactic.PolyTime.Init
 import CslibFrontier.Tactic.EncLen
 
 /-!
@@ -232,10 +232,10 @@ private theorem eval_run_plantedHandler
             (OracleComp.sumHandler (fun j => StateT.lift (ProbComp.unifOracle j))
               (fun q s => ProbComp.eval (S.oneTimeSigningOracle x.2 q s)))
             (ProbOracleComp.sample p)) state = (ProbComp.eval p).map (·, state) :=
-        fun p state => ProbOracleComp.runWith_sample _ p state
+        fun p state => ProbOracleComp.run_interpret_sample _ p state
       rintro ⟨⟨⟩, w⟩ signed -
       unfold IndexedSignatureScheme.indexedSigningOracle plantedHandler
-      simp only [scheme, StateT.run, ProbOracleComp.runWith, OracleComp.runWith]
+      simp only [scheme, StateT.run, ProbOracleComp.runWith_eq_run_interpret]
       generalize IndexedSignatureScheme.requestDecoder.decode w = r
       obtain ⟨u, m⟩ := r
       dsimp only

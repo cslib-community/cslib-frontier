@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Crypto.Computational.NaorReingold.Security
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction
 public import CslibFrontier.Crypto.Computational.PseudorandomGenerator
@@ -19,7 +20,6 @@ import CslibFrontier.Crypto.Computational.GGM.Security
 import CslibFrontier.Crypto.Computational.GeneratorReindex
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.TruthTable
 import CslibFrontier.Crypto.Computational.Stretch
-import CslibFrontier.Crypto.Game.Statistical
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.BitString
@@ -966,7 +966,7 @@ theorem DDH.exists_pseudorandomGenerator {F : PrimeOrderGroupFamily} {desc : ℕ
       rw [OracleComp.interpret_bind,
         KabanetsCai.interpret_queryTable ProbComp.unifOracle oracle (queries n),
         pure_bind, ProbOracleComp.interpret_sample]
-      rfl
+      exact (OracleComp.evalWith_eq_interpret ProbComp.unifOracle _).symm
     have hreal_eq :
         distinguishingGame ((BitString.uniformList (seedLen n)).map (core n)) (D n) =
         (BitString.uniformList
