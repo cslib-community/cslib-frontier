@@ -111,9 +111,10 @@ Section 5.4.1, Example 5.2 and Theorem 5.2, printed pp. 183–187) are formalize
   (printed pp. 363–364), the CI term has coefficients `2 * Qd` and `Qd`, where `Qd` bounds the
   decryption queries (`IsDecryptionQueryBounded`), and $B_{\mathrm{ci}}$ guesses the forging
   decryption query uniformly in `{1, ..., Qd}`. Here `ccaToCIAdversary` uses dyadic index sampling
-  `sampleDyadicIndex (Qd n - 1)`, scaling the CI term by `dyadicSize (Qd n - 1)`, the least power
-  of two that is at least `Qd n`, because a strict PPT sampler with fair coins and a fixed running
-  time has dyadic probabilities. The bounds (9.3') `advantage_ccaGame_le_two_mul` and (9.4')
+  `sampleDyadicIndex (Qd n - 1)`, scaling the CI term by `dyadicSize (Qd n - 1)`: `2` when
+  `Qd n ≤ 1`, and otherwise the least power of two that is at least `Qd n`. This is because a
+  strict PPT sampler with fair coins and a fixed running time has dyadic probabilities. The bounds
+  (9.3') `advantage_ccaGame_le_two_mul` and (9.4')
   `guessingAdvantage_guessBit_ccaGame_le` carry `2 * dyadicSize (Qd n - 1)` and
   `dyadicSize (Qd n - 1)`; `guessingAdvantage_guessBit_ccaGame_le_two_mul` restates (9.4') with
   `2 * Qd n`, since `dyadicSize (Qd n - 1) ≤ 2 * Qd n` once `Qd n ≥ 1`. Encryption queries cost
@@ -2325,11 +2326,11 @@ noncomputable def ccaToCIHiddenBitAdversary (ctBound Qd : ℕ → ℕ)
       ccaToCIAdversary ctBound Qd false adversary n aux
 
 /-- `ccaToCIAdversary` preserves strict oracle-PPT admissibility (`IsOraclePPT`). -/
-theorem isOraclePPT_ccaToCIAdversary {ctBound Q : ℕ → ℕ}
+theorem isOraclePPT_ccaToCIAdversary {ctBound Qd : ℕ → ℕ}
     (hctBound : ComputableInPolyTime ctBound encUnary encUnary)
-    (hQ : ComputableInPolyTime Q encUnary encUnary) (bit : Bool)
+    (hQd : ComputableInPolyTime Qd encUnary encUnary) (bit : Bool)
     {adversary : CCAAdversary} (hadversary : IsOraclePPT encBool adversary) :
-    IsOraclePPT encBits (ccaToCIAdversary ctBound Q bit adversary) := by
+    IsOraclePPT encBits (ccaToCIAdversary ctBound Qd bit adversary) := by
   let ECaller := encPair (encPair encUnary encBits) encUnary
   let EState := encPair encUnary (encPair encBool encBits)
   let EIn := encPair ECaller (encPair (encPair encBool encBits) EState)
@@ -2495,9 +2496,9 @@ theorem isOraclePPT_ccaToCIAdversary {ctBound Q : ℕ → ℕ}
           enc_len [EState, List.length_singleton]
   have hsample : IsOraclePPTOn (encPair encUnary encBits) encUnary
       (fun caller : ℕ × List Bool =>
-        ProbOracleComp.sample (ProbComp.sampleDyadicIndex (Q caller.1 - 1))) :=
+        ProbOracleComp.sample (ProbComp.sampleDyadicIndex (Qd caller.1 - 1))) :=
     (isPPTOn_sampleDyadicIndex (ComputableInPolyTime.unary_sub.comp
-      (ComputableInPolyTime.prod (hQ.comp (by fun_prop))
+      (ComputableInPolyTime.prod (hQd.comp (by fun_prop))
         (ComputableInPolyTime.const 1)))).isOraclePPTOn (Operation := Unit)
   have hpost : ComputableInPolyTime
       (fun out : Bool × (ℕ × (Bool × List Bool)) => out.2.2.2)
@@ -2507,11 +2508,11 @@ theorem isOraclePPT_ccaToCIAdversary {ctBound Q : ℕ → ℕ}
   simpa only [bind_pure_comp] using (hsample.bind_with (hrun.map' hpost)).isOraclePPT
 
 /-- `ccaToCIHiddenBitAdversary` preserves strict oracle-PPT admissibility (`IsOraclePPT`). -/
-theorem isOraclePPT_ccaToCIHiddenBitAdversary {ctBound Q : ℕ → ℕ}
+theorem isOraclePPT_ccaToCIHiddenBitAdversary {ctBound Qd : ℕ → ℕ}
     (hctBound : ComputableInPolyTime ctBound encUnary encUnary)
-    (hQ : ComputableInPolyTime Q encUnary encUnary)
+    (hQd : ComputableInPolyTime Qd encUnary encUnary)
     {adversary : CCAAdversary} (hadversary : IsOraclePPT encBool adversary) :
-    IsOraclePPT encBits (ccaToCIHiddenBitAdversary ctBound Q adversary) := by
+    IsOraclePPT encBits (ccaToCIHiddenBitAdversary ctBound Qd adversary) := by
   have hsample : IsOraclePPTOn (encPair encUnary encBits) encBits
       (fun _ : ℕ × List Bool => ProbOracleComp.sample (BitString.sampleList 1)) :=
     (ComputableInPolyTime.sampleList
@@ -2522,12 +2523,12 @@ theorem isOraclePPT_ccaToCIHiddenBitAdversary {ctBound Q : ℕ → ℕ}
     ComputableInPolyTime.beq (by fun_prop) (ComputableInPolyTime.const [true])
   have htrue : IsOraclePPTOn (encPair (encPair encUnary encBits) encBits) encBits
       (fun pair : (ℕ × List Bool) × List Bool =>
-        ccaToCIAdversary ctBound Q true adversary pair.1.1 pair.1.2) :=
-    (isOraclePPT_ccaToCIAdversary hctBound hQ true hadversary).on.preprocess (by fun_prop)
+        ccaToCIAdversary ctBound Qd true adversary pair.1.1 pair.1.2) :=
+    (isOraclePPT_ccaToCIAdversary hctBound hQd true hadversary).on.preprocess (by fun_prop)
   have hfalse : IsOraclePPTOn (encPair (encPair encUnary encBits) encBits) encBits
       (fun pair : (ℕ × List Bool) × List Bool =>
-        ccaToCIAdversary ctBound Q false adversary pair.1.1 pair.1.2) :=
-    (isOraclePPT_ccaToCIAdversary hctBound hQ false hadversary).on.preprocess (by fun_prop)
+        ccaToCIAdversary ctBound Qd false adversary pair.1.1 pair.1.2) :=
+    (isOraclePPT_ccaToCIAdversary hctBound hQd false hadversary).on.preprocess (by fun_prop)
   unfold ccaToCIHiddenBitAdversary
   exact (hsample.bind_with (IsOraclePPTOn.cond' hcond htrue hfalse)).isOraclePPT
 
@@ -2784,6 +2785,18 @@ private theorem eval_ccaToCICombinedOracle_false (E : SymmetricCipher) (n : ℕ)
     · have hj' : (j == 0) = false := beq_eq_false_iff_ne.mpr hj
       simp only [Bool.false_eq_true, ↓reduceIte, hj, hj', ProbComp.eval_pure]
 
+/-- Weighted continuation of a finite-sum bound: if `bad a ≤ ∑ j ∈ s, win j a` for every outcome
+`a`, then averaging with weights `μ` gives `∑' a, μ a * bad a ≤ ∑ j ∈ s, ∑' a, μ a * win j a`.
+The random-coin and encryption steps of the decryption-query inductions below use it. -/
+private theorem tsum_mul_le_sum_tsum_mul {β ι : Type*} (μ : β → ℝ≥0∞) (s : Finset ι)
+    {bad : β → ℝ≥0∞} {win : ι → β → ℝ≥0∞} (h : ∀ a, bad a ≤ ∑ j ∈ s, win j a) :
+    ∑' a, μ a * bad a ≤ ∑ j ∈ s, ∑' a, μ a * win j a := by
+  calc ∑' a, μ a * bad a ≤ ∑' a, μ a * ∑ j ∈ s, win j a :=
+        tsum_le_tsum fun a => mul_le_mul_of_nonneg_left (h a) zero_le
+    _ = ∑ j ∈ s, ∑' a, μ a * win j a := by
+        simp only [Finset.mul_sum]
+        exact Summable.tsum_finsetSum fun _ _ => CompleteLattice.summable
+
 /-- Decryption-query induction for [BonehShoup2023], Theorem 9.1: for any program `program` making
 at most `Qd` decryption queries, the probability of reaching `bad = true` under
 `ccaRejectWithBadOracle` from `(queried, false)` is bounded by the sum over decryption-query
@@ -2814,26 +2827,8 @@ private theorem bad_ccaRejectWithBad_le_sum_ciCombined {α : Type} (E : Symmetri
         OracleComp.run_interpret_query, OracleComp.sumHandler, StateT.lift,
         Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure,
         PMF.bind_bind, PMF.pure_bind, PMF.toOuterMeasure_bind_apply, PMF.bind_apply]
-      calc ∑' a : Fin (m + 1), ProbComp.unifOracle m a *
-            ((OracleComp.interpret
-              (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifOracle m))
-                (fun q s => ProbComp.eval (E.ccaRejectWithBadOracle n k bit q s)))
-              (cont a)).run (queried, false)).toOuterMeasure {x | x.2.2 = true}
-          ≤ ∑' a : Fin (m + 1), ProbComp.unifOracle m a *
-              ∑ j ∈ Finset.range Q,
-                ((OracleComp.interpret
-                  (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifOracle m))
-                    (fun q s => ProbComp.eval (E.ccaToCICombinedOracle n k bit q s)))
-                  (cont a)).run ((j, (false, [])), queried)).bind
-                  (fun x =>
-                    PMF.pure (!x.2.2.contains x.2.1.2.2 && (E.decrypt n k x.2.1.2.2).isSome))
-                  true :=
-            tsum_le_tsum fun a => mul_le_mul_of_nonneg_left (ih a queried) zero_le
-        _ = _ := by
-          simp only [Finset.mul_sum]
-          rw [Summable.tsum_finsetSum fun _ _ => CompleteLattice.summable]
-          refine Finset.sum_congr rfl fun j _ => ?_
-          simp only [← PMF.bind_apply]
+      exact (tsum_mul_le_sum_tsum_mul _ _ fun a => ih a queried).trans_eq
+        (Finset.sum_congr rfl fun j _ => by simp only [PMF.bind_apply])
     | inr request =>
       simp only [Sum.elim_inr, OracleComp.run_interpret_bind, OracleComp.run_interpret_query,
         OracleComp.sumHandler]
@@ -2846,32 +2841,8 @@ private theorem bad_ccaRejectWithBad_le_sum_ciCombined {α : Type} (E : Symmetri
         · simp only [hlenEq, ↓reduceIte,
             Probability.PMF.monad_bind_eq_bind,
             PMF.bind_bind, PMF.pure_bind, PMF.toOuterMeasure_bind_apply]
-          calc ∑' ct : List Bool,
-                ProbComp.eval
-                  (E.encrypt n k (if bit then dropFrame request.2 else unframe request.2)) ct *
-                  ((OracleComp.interpret
-                    (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifOracle m))
-                      (fun q s => ProbComp.eval (E.ccaRejectWithBadOracle n k bit q s)))
-                    (cont ct)).run (ct :: queried, false)).toOuterMeasure {x | x.2.2 = true}
-              ≤ ∑' ct : List Bool,
-                  ProbComp.eval
-                    (E.encrypt n k (if bit then dropFrame request.2 else unframe request.2)) ct *
-                    ∑ j ∈ Finset.range Q,
-                      ((OracleComp.interpret
-                        (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifOracle m))
-                          (fun q s => ProbComp.eval (E.ccaToCICombinedOracle n k bit q s)))
-                        (cont ct)).run ((j, (false, [])), ct :: queried)).bind
-                        (fun x =>
-                          PMF.pure (!x.2.2.contains x.2.1.2.2 &&
-                            (E.decrypt n k x.2.1.2.2).isSome))
-                        true :=
-                tsum_le_tsum fun ct =>
-                  mul_le_mul_of_nonneg_left (ih ct (ct :: queried)) zero_le
-            _ = _ := by
-              simp only [Finset.mul_sum]
-              rw [Summable.tsum_finsetSum fun _ _ => CompleteLattice.summable]
-              refine Finset.sum_congr rfl fun j _ => ?_
-              simp only [PMF.bind_apply]
+          exact (tsum_mul_le_sum_tsum_mul _ _ fun ct => ih ct (ct :: queried)).trans_eq
+            (Finset.sum_congr rfl fun j _ => by simp only [PMF.bind_apply])
         · simp only [hlenEq, Bool.false_eq_true, ↓reduceIte,
             Probability.PMF.monad_bind_eq_bind, PMF.pure_bind]
           exact ih [] queried
@@ -3101,6 +3072,32 @@ theorem sum_succProbability_ccaToCIAtIndexAdversary_le (E : SymmetricCipher)
     exact Finset.mem_range.mpr (by lia)
   exact Finset.sum_le_sum_of_subset_of_nonneg hsub fun _ _ _ => NNReal.coe_nonneg _
 
+/-- The CCA advantage bound in sum form: the CPA advantage of `ccaToCPAAdversary` plus, for each
+bit, the sum over `j < Qd n` of the CI winning probabilities of `ccaToCIAtIndexAdversary`. Both
+`advantage_ccaGame_le` and the `Qd n = 0` case of `guessingAdvantage_guessBit_ccaGame_le_two_mul`
+use it. -/
+private theorem advantage_ccaGame_le_sum (E : SymmetricCipher) (ctBound Qd : ℕ → ℕ)
+    (adversary : CCAAdversary) (n : ℕ)
+    (hq : IsDecryptionQueryBounded (adversary n []) (Qd n))
+    (hctBound : E.CiphertextLengthLE n (ctBound n)) :
+    (Game.advantage (ProbComp.eval (E.ccaGame adversary false n))
+        (ProbComp.eval (E.ccaGame adversary true n)) : ℝ) ≤
+      (∑ j ∈ Finset.range (Qd n), (Game.succProbability (ProbComp.eval
+        (E.ciGame (ccaToCIAtIndexAdversary ctBound j false adversary) n)) : ℝ)) +
+      (Game.advantage
+        (ProbComp.eval (E.cpaGame (ccaToCPAAdversary ctBound adversary) false n))
+        (ProbComp.eval (E.cpaGame (ccaToCPAAdversary ctBound adversary) true n)) : ℝ) +
+      ∑ j ∈ Finset.range (Qd n), (Game.succProbability (ProbComp.eval
+        (E.ciGame (ccaToCIAtIndexAdversary ctBound j true adversary) n)) : ℝ) := by
+  have hfalse := advantage_ccaGame_ccaRejectGame_le_sum E ctBound Qd adversary false n hq hctBound
+  have htrue := advantage_ccaGame_ccaRejectGame_le_sum E ctBound Qd adversary true n hq hctBound
+  rw [eval_cpaGame_ccaToCPAAdversary E ctBound adversary false n hctBound,
+    eval_cpaGame_ccaToCPAAdversary E ctBound adversary true n hctBound]
+  game_trans
+    [ProbComp.eval (E.ccaRejectGame adversary false n),
+     ProbComp.eval (E.ccaRejectGame adversary true n)]
+    using [hfalse, le_rfl, htrue]
+
 /-- **Quantitative AE $\Rightarrow$ CCA bound with one CI adversary per bit** ([BonehShoup2023],
 Section 9.2.3, Theorem 9.1, printed pp. 363–365): for any `CCAAdversary` making at most `Qd n`
 decryption queries at security parameter `n`, the adaptive CCA distinguishing advantage is bounded
@@ -3122,16 +3119,10 @@ theorem advantage_ccaGame_le (E : SymmetricCipher) (ctBound Qd : ℕ → ℕ)
       (dyadicSize (Qd n - 1) : ℝ) *
         (Game.succProbability
           (ProbComp.eval (E.ciGame (ccaToCIAdversary ctBound Qd true adversary) n)) : ℝ) := by
-  have hfalse := (advantage_ccaGame_ccaRejectGame_le_sum E ctBound Qd adversary false n hq
-    hctBound).trans (sum_succProbability_ccaToCIAtIndexAdversary_le E ctBound Qd false adversary n)
-  have htrue := (advantage_ccaGame_ccaRejectGame_le_sum E ctBound Qd adversary true n hq
-    hctBound).trans (sum_succProbability_ccaToCIAtIndexAdversary_le E ctBound Qd true adversary n)
-  rw [eval_cpaGame_ccaToCPAAdversary E ctBound adversary false n hctBound,
-    eval_cpaGame_ccaToCPAAdversary E ctBound adversary true n hctBound]
-  game_trans
-    [ProbComp.eval (E.ccaRejectGame adversary false n),
-     ProbComp.eval (E.ccaRejectGame adversary true n)]
-    using [hfalse, le_rfl, htrue]
+  have h := advantage_ccaGame_le_sum E ctBound Qd adversary n hq hctBound
+  have hfalse := sum_succProbability_ccaToCIAtIndexAdversary_le E ctBound Qd false adversary n
+  have htrue := sum_succProbability_ccaToCIAtIndexAdversary_le E ctBound Qd true adversary n
+  linarith
 
 /-- Running `ccaToCIHiddenBitAdversary` in `ciGame` averages `ccaToCIAdversary` uniformly over
 `bit : Bool`. -/
@@ -3168,8 +3159,8 @@ equation (9.3), printed p. 363): for any `CCAAdversary` making at most `Qd n` de
 security parameter `n`,
 `CCAadv ≤ CPAadv[ccaToCPAAdversary] + 2 * dyadicSize (Qd n - 1) * CIadv[ccaToCIHiddenBitAdversary]`.
 The book's factor `2 Qd` becomes `2 * dyadicSize (Qd n - 1)`: `ccaToCIHiddenBitAdversary` draws
-its decryption-query index uniformly from fair coins, so the range is the least power of two that
-is at least `Qd n` (at most `2 * Qd n` once `Qd n ≥ 1`). -/
+its decryption-query index uniformly from fair coins, so the range is `2` when `Qd n ≤ 1`, and
+otherwise the least power of two that is at least `Qd n` (at most `2 * Qd n` once `Qd n ≥ 1`). -/
 theorem advantage_ccaGame_le_two_mul (E : SymmetricCipher) (ctBound Qd : ℕ → ℕ)
     (adversary : CCAAdversary) (n : ℕ)
     (hq : IsDecryptionQueryBounded (adversary n []) (Qd n))
@@ -3204,13 +3195,30 @@ theorem advantage_ccaGame_le_two_mul (E : SymmetricCipher) (ctBound Qd : ℕ →
   rw [hd, havg]
   linarith
 
+/-- Halving a two-sided advantage bound: if the advantage between `e false` and `e true` is at most
+the advantage between `e' false` and `e' true` plus `2 * c`, then the guessing advantage of
+`Experiment.guessBit e` is at most that of `Experiment.guessBit e'` plus `c`, by
+`Experiment.advantage_eq_two_mul_guessingAdvantage_guessBit` on both sides. -/
+private theorem guessingAdvantage_guessBit_le_of_advantage_le {e e' : Bool → Experiment} {c : ℝ}
+    (h : (Experiment.advantage (e false) (e true) : ℝ) ≤
+      Experiment.advantage (e' false) (e' true) + 2 * c) :
+    (Game.guessingAdvantage (ProbComp.eval (Experiment.guessBit e)) : ℝ) ≤
+      Game.guessingAdvantage (ProbComp.eval (Experiment.guessBit e')) + c := by
+  have he : (Experiment.advantage (e false) (e true) : ℝ) =
+      2 * Game.guessingAdvantage (ProbComp.eval (Experiment.guessBit e)) :=
+    mod_cast Experiment.advantage_eq_two_mul_guessingAdvantage_guessBit e
+  have he' : (Experiment.advantage (e' false) (e' true) : ℝ) =
+      2 * Game.guessingAdvantage (ProbComp.eval (Experiment.guessBit e')) :=
+    mod_cast Experiment.advantage_eq_two_mul_guessingAdvantage_guessBit e'
+  linarith
+
 /-- **Bit-guessing AE $\Rightarrow$ CCA bound** ([BonehShoup2023], Section 9.2.3, Theorem 9.1,
 equation (9.4), printed p. 364): for any `CCAAdversary` making at most `Qd n` decryption queries at
 security parameter `n`, `CCAadv* ≤ CPAadv*[ccaToCPAAdversary] +
 dyadicSize (Qd n - 1) * CIadv[ccaToCIHiddenBitAdversary]`, where the starred advantages are the
 guessing advantages of the bit-guessing games `Experiment.guessBit`. The book's factor `Qd`
-becomes `dyadicSize (Qd n - 1)`, the least power of two that is at least `Qd n`, because the CI
-adversary draws its index uniformly from fair coins. -/
+becomes `dyadicSize (Qd n - 1)`, which is `2` when `Qd n ≤ 1`, and otherwise the least power of two
+that is at least `Qd n`, because the CI adversary draws its index uniformly from fair coins. -/
 theorem guessingAdvantage_guessBit_ccaGame_le (E : SymmetricCipher) (ctBound Qd : ℕ → ℕ)
     (adversary : CCAAdversary) (n : ℕ)
     (hq : IsDecryptionQueryBounded (adversary n []) (Qd n))
@@ -3221,20 +3229,9 @@ theorem guessingAdvantage_guessBit_ccaGame_le (E : SymmetricCipher) (ctBound Qd 
         (Experiment.guessBit fun b => E.cpaGame (ccaToCPAAdversary ctBound adversary) b n)) : ℝ) +
       (dyadicSize (Qd n - 1) : ℝ) *
         (Game.succProbability
-          (ProbComp.eval (E.ciGame (ccaToCIHiddenBitAdversary ctBound Qd adversary) n)) : ℝ) := by
-  have h93 := advantage_ccaGame_le_two_mul E ctBound Qd adversary n hq hctBound
-  rw [show (Game.advantage (ProbComp.eval (E.ccaGame adversary false n))
-        (ProbComp.eval (E.ccaGame adversary true n)) : ℝ) = 2 * Game.guessingAdvantage
-          (ProbComp.eval (Experiment.guessBit fun b => E.ccaGame adversary b n)) by
-      exact_mod_cast Experiment.advantage_eq_two_mul_guessingAdvantage_guessBit
-        fun b => E.ccaGame adversary b n,
-    show (Game.advantage (ProbComp.eval (E.cpaGame (ccaToCPAAdversary ctBound adversary) false n))
-        (ProbComp.eval (E.cpaGame (ccaToCPAAdversary ctBound adversary) true n)) : ℝ) =
-        2 * Game.guessingAdvantage (ProbComp.eval
-          (Experiment.guessBit fun b => E.cpaGame (ccaToCPAAdversary ctBound adversary) b n)) by
-      exact_mod_cast Experiment.advantage_eq_two_mul_guessingAdvantage_guessBit
-        fun b => E.cpaGame (ccaToCPAAdversary ctBound adversary) b n] at h93
-  linarith
+          (ProbComp.eval (E.ciGame (ccaToCIHiddenBitAdversary ctBound Qd adversary) n)) : ℝ) :=
+  guessingAdvantage_guessBit_le_of_advantage_le
+    ((advantage_ccaGame_le_two_mul E ctBound Qd adversary n hq hctBound).trans_eq (by ring))
 
 /-- **Bit-guessing AE $\Rightarrow$ CCA bound with factor `2 * Qd`**: equation (9.4) of
 [BonehShoup2023], Theorem 9.1 (printed p. 364), with the book's factor `Qd` replaced by `2 * Qd n`,
@@ -3254,40 +3251,14 @@ theorem guessingAdvantage_guessBit_ccaGame_le_two_mul (E : SymmetricCipher) (ctB
       2 * (Qd n : ℝ) *
         (Game.succProbability
           (ProbComp.eval (E.ciGame (ccaToCIHiddenBitAdversary ctBound Qd adversary) n)) : ℝ) := by
-  have hci := NNReal.coe_nonneg (Game.succProbability
-    (ProbComp.eval (E.ciGame (ccaToCIHiddenBitAdversary ctBound Qd adversary) n)))
   rcases Nat.eq_zero_or_pos (Qd n) with h0 | hpos
-  · have hfalse := advantage_ccaGame_ccaRejectGame_le_sum E ctBound Qd adversary false n hq
-      hctBound
-    have htrue := advantage_ccaGame_ccaRejectGame_le_sum E ctBound Qd adversary true n hq
-      hctBound
-    rw [h0, Finset.range_zero, Finset.sum_empty] at hfalse htrue
-    have hadv : (Game.advantage (ProbComp.eval (E.ccaGame adversary false n))
-        (ProbComp.eval (E.ccaGame adversary true n)) : ℝ) ≤
-        0 + (Game.advantage
-          (ProbComp.eval (E.cpaGame (ccaToCPAAdversary ctBound adversary) false n))
-          (ProbComp.eval (E.cpaGame (ccaToCPAAdversary ctBound adversary) true n)) : ℝ) + 0 := by
-      rw [eval_cpaGame_ccaToCPAAdversary E ctBound adversary false n hctBound,
-        eval_cpaGame_ccaToCPAAdversary E ctBound adversary true n hctBound]
-      game_trans
-        [ProbComp.eval (E.ccaRejectGame adversary false n),
-         ProbComp.eval (E.ccaRejectGame adversary true n)]
-        using [hfalse, le_rfl, htrue]
-    rw [show (Game.advantage (ProbComp.eval (E.ccaGame adversary false n))
-          (ProbComp.eval (E.ccaGame adversary true n)) : ℝ) = 2 * Game.guessingAdvantage
-            (ProbComp.eval (Experiment.guessBit fun b => E.ccaGame adversary b n)) by
-        exact_mod_cast Experiment.advantage_eq_two_mul_guessingAdvantage_guessBit
-          fun b => E.ccaGame adversary b n,
-      show (Game.advantage
-          (ProbComp.eval (E.cpaGame (ccaToCPAAdversary ctBound adversary) false n))
-          (ProbComp.eval (E.cpaGame (ccaToCPAAdversary ctBound adversary) true n)) : ℝ) =
-          2 * Game.guessingAdvantage (ProbComp.eval
-            (Experiment.guessBit fun b => E.cpaGame (ccaToCPAAdversary ctBound adversary) b n)) by
-        exact_mod_cast Experiment.advantage_eq_two_mul_guessingAdvantage_guessBit
-          fun b => E.cpaGame (ccaToCPAAdversary ctBound adversary) b n] at hadv
-    rw [h0, Nat.cast_zero, mul_zero, zero_mul, add_zero]
-    linarith
-  · have hd : (dyadicSize (Qd n - 1) : ℝ) ≤ 2 * (Qd n : ℝ) := by
+  · have h := advantage_ccaGame_le_sum E ctBound Qd adversary n hq hctBound
+    rw [h0, Finset.range_zero, Finset.sum_empty, Finset.sum_empty, zero_add, add_zero] at h
+    rw [h0, Nat.cast_zero, mul_zero, zero_mul]
+    exact guessingAdvantage_guessBit_le_of_advantage_le (by simpa only [mul_zero, add_zero] using h)
+  · have hci := NNReal.coe_nonneg (Game.succProbability
+      (ProbComp.eval (E.ciGame (ccaToCIHiddenBitAdversary ctBound Qd adversary) n)))
+    have hd : (dyadicSize (Qd n - 1) : ℝ) ≤ 2 * (Qd n : ℝ) := by
       exact_mod_cast (dyadicSize_le (Qd n - 1)).trans_eq (by lia)
     have h94 := guessingAdvantage_guessBit_ccaGame_le E ctBound Qd adversary n hq hctBound
     nlinarith
@@ -3839,26 +3810,8 @@ private theorem bad_oneTimeCCARejectWithBad_le_sum_oneTimeCICombined {α : Type}
         OracleComp.run_interpret_query, OracleComp.sumHandler, StateT.lift,
         Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure,
         PMF.bind_bind, PMF.pure_bind, PMF.toOuterMeasure_bind_apply, PMF.bind_apply]
-      calc ∑' a : Fin (m + 1), ProbComp.unifOracle m a *
-            ((OracleComp.interpret
-              (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifOracle m))
-                (fun q s => ProbComp.eval (E.oneTimeCCARejectWithBadOracle n k bit q s)))
-              (cont a)).run (queried, false)).toOuterMeasure {x | x.2.2 = true}
-          ≤ ∑' a : Fin (m + 1), ProbComp.unifOracle m a *
-              ∑ j ∈ Finset.range Q,
-                ((OracleComp.interpret
-                  (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifOracle m))
-                    (fun q s => ProbComp.eval (E.oneTimeCCAToCICombinedOracle n k bit q s)))
-                  (cont a)).run ((j, (false, [])), queried)).bind
-                  (fun x =>
-                    PMF.pure (!x.2.2.contains x.2.1.2.2 && (E.decrypt n k x.2.1.2.2).isSome))
-                  true :=
-            tsum_le_tsum fun a => mul_le_mul_of_nonneg_left (ih a queried) zero_le
-        _ = _ := by
-          simp only [Finset.mul_sum]
-          rw [Summable.tsum_finsetSum fun _ _ => CompleteLattice.summable]
-          refine Finset.sum_congr rfl fun j _ => ?_
-          simp only [← PMF.bind_apply]
+      exact (tsum_mul_le_sum_tsum_mul _ _ fun a => ih a queried).trans_eq
+        (Finset.sum_congr rfl fun j _ => by simp only [PMF.bind_apply])
     | inr request =>
       simp only [Sum.elim_inr, OracleComp.run_interpret_bind, OracleComp.run_interpret_query,
         OracleComp.sumHandler]
@@ -3871,51 +3824,8 @@ private theorem bad_oneTimeCCARejectWithBad_le_sum_oneTimeCICombined {α : Type}
         · simp only [hlenEq, ↓reduceIte,
             Probability.PMF.monad_bind_eq_bind,
             PMF.bind_bind, PMF.pure_bind, PMF.toOuterMeasure_bind_apply]
-          have hle : ∑' ct : List Bool,
-              ProbComp.eval
-                (E.encrypt n k (if bit then dropFrame request.2 else unframe request.2)) ct *
-                ((OracleComp.interpret
-                  (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifOracle m))
-                    (fun q s => ProbComp.eval (E.oneTimeCCARejectWithBadOracle n k bit q s)))
-                  (cont ct)).run ([ct], false)).toOuterMeasure {x | x.2.2 = true} ≤
-              ∑ j ∈ Finset.range Q,
-                (ProbComp.eval (E.encrypt n k
-                  (if bit then dropFrame request.2 else unframe request.2))).bind (fun ct =>
-                    ((OracleComp.interpret
-                      (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifOracle m))
-                        (fun q s => ProbComp.eval (E.oneTimeCCAToCICombinedOracle n k bit q s)))
-                      (cont ct)).run ((j, (false, [])), [ct])).bind
-                      (fun x =>
-                        PMF.pure (!x.2.2.contains x.2.1.2.2 &&
-                          (E.decrypt n k x.2.1.2.2).isSome)))
-                  true := by
-            calc ∑' ct : List Bool,
-                  ProbComp.eval
-                    (E.encrypt n k (if bit then dropFrame request.2 else unframe request.2)) ct *
-                    ((OracleComp.interpret
-                      (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifOracle m))
-                        (fun q s => ProbComp.eval (E.oneTimeCCARejectWithBadOracle n k bit q s)))
-                      (cont ct)).run ([ct], false)).toOuterMeasure {x | x.2.2 = true}
-                ≤ ∑' ct : List Bool,
-                    ProbComp.eval
-                      (E.encrypt n k (if bit then dropFrame request.2 else unframe request.2)) ct *
-                      ∑ j ∈ Finset.range Q,
-                        ((OracleComp.interpret
-                          (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifOracle m))
-                            (fun q s => ProbComp.eval (E.oneTimeCCAToCICombinedOracle n k bit q s)))
-                          (cont ct)).run ((j, (false, [])), [ct])).bind
-                          (fun x =>
-                            PMF.pure (!x.2.2.contains x.2.1.2.2 &&
-                              (E.decrypt n k x.2.1.2.2).isSome))
-                          true :=
-                  tsum_le_tsum fun ct =>
-                    mul_le_mul_of_nonneg_left (ih ct [ct]) zero_le
-              _ = _ := by
-                simp only [Finset.mul_sum]
-                rw [Summable.tsum_finsetSum fun _ _ => CompleteLattice.summable]
-                refine Finset.sum_congr rfl fun j _ => ?_
-                simp only [PMF.bind_apply]
-          exact hle
+          exact (tsum_mul_le_sum_tsum_mul _ _ fun ct => ih ct [ct]).trans_eq
+            (Finset.sum_congr rfl fun j _ => by simp only [PMF.bind_apply])
         · simp only [hlenEq, Bool.false_eq_true, ↓reduceIte,
             Probability.PMF.monad_bind_eq_bind, PMF.pure_bind]
           exact ih [] queried
@@ -4282,21 +4192,9 @@ theorem guessingAdvantage_guessBit_ccaOneTimeGame_le (E : SymmetricCipher) (ctBo
       (dyadicSize (Qd n - 1) : ℝ) *
         (Game.succProbability
           (ProbComp.eval (E.ciOneTimeGame (ccaToCIHiddenBitAdversary ctBound Qd adversary) n)) :
-          ℝ) := by
-  have h93 := advantage_ccaOneTimeGame_le_two_mul E ctBound Qd adversary n hq hctBound
-  rw [show (Game.advantage (ProbComp.eval (E.ccaOneTimeGame adversary false n))
-        (ProbComp.eval (E.ccaOneTimeGame adversary true n)) : ℝ) = 2 * Game.guessingAdvantage
-          (ProbComp.eval (Experiment.guessBit fun b => E.ccaOneTimeGame adversary b n)) by
-      exact_mod_cast Experiment.advantage_eq_two_mul_guessingAdvantage_guessBit
-        fun b => E.ccaOneTimeGame adversary b n,
-    show (Game.advantage
-        (ProbComp.eval (E.cpaOneTimeGame (ccaToCPAAdversary ctBound adversary) false n))
-        (ProbComp.eval (E.cpaOneTimeGame (ccaToCPAAdversary ctBound adversary) true n)) : ℝ) =
-        2 * Game.guessingAdvantage (ProbComp.eval (Experiment.guessBit fun b =>
-          E.cpaOneTimeGame (ccaToCPAAdversary ctBound adversary) b n)) by
-      exact_mod_cast Experiment.advantage_eq_two_mul_guessingAdvantage_guessBit
-        fun b => E.cpaOneTimeGame (ccaToCPAAdversary ctBound adversary) b n] at h93
-  linarith
+          ℝ) :=
+  guessingAdvantage_guessBit_le_of_advantage_le
+    ((advantage_ccaOneTimeGame_le_two_mul E ctBound Qd adversary n hq hctBound).trans_eq (by ring))
 
 /-- **One-time authenticated encryption implies one-time adaptive CCA security**
 ([BonehShoup2023], Section 9.2.3, Theorem 9.1, printed pp. 363–365): every symmetric cipher
