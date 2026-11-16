@@ -18,6 +18,7 @@ import CslibFrontier.Languages.Probabilistic.UntilBad.Flag
 import CslibFrontier.Probability.LinearCombination
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.EmbeddingPerm
+import CslibFrontier.Probability.PMF.UniformPoint
 import CslibFrontier.Probability.PMF.UniformSubset
 import CslibFrontier.Probability.Product
 import Mathlib.Algebra.Field.ZMod
@@ -934,14 +935,6 @@ private theorem interpret_evalPerm_permGame (σ : Equiv.Perm (ZMod q)) (x : ι �
   simp only [Finset.mem_toList, Finset.mem_univ, ite_true, startVal]
   exact PMF.bind_pure_comp _ _
 
-/-- The probability that a Boolean test accepts is the probability of the event it tests. -/
-private theorem bind_pure_decide_apply_true {β : Type} (p : PMF β) (P : β → Prop)
-    [DecidablePred P] :
-    (p.bind fun y => PMF.pure (decide (P y))) true = p.toOuterMeasure {y | P y} := by
-  rw [PMF.bind_apply, PMF.toOuterMeasure_apply]
-  refine tsum_congr fun y => ?_
-  by_cases hy : P y <;> simp [hy]
-
 section Games
 
 variable [NeZero q]
@@ -1127,7 +1120,7 @@ private theorem real_le (x : ι → ZMod q) (W : (ι → ZMod q) → γ → (κ 
     (symStep_map_fst x) (primGame D) [] false
   refine (hiub.bind_apply_le (primGame D) ([], false) _ true).trans ?_
   rw [hiub.bad_eq, ← hfst, PMF.bind_map, PMF.bind_map]
-  refine add_le_add le_rfl (le_of_le_of_eq ?_ (bind_pure_decide_apply_true _
+  refine add_le_add le_rfl (le_of_le_of_eq ?_ (PMF.bind_pure_decide_apply_true _
     (fun y : (γ × (κ → (ι → ZMod q) × ZMod q)) × (Tab ι q × Bool) => Collides x y.2.1)).symm)
   refine PMF.toOuterMeasure_mono _ fun y hy => ?_
   exact OracleComp.run_interpret_invariant (withBadFlag (symStep x))
@@ -1192,7 +1185,7 @@ private theorem uniform_bind_apply_true_le [NeZero q] {E : (ι → ZMod q) → B
   have hq0 : (q : ℝ≥0∞) ^ Fintype.card ι ≠ 0 :=
     pow_ne_zero _ (Nat.cast_ne_zero.mpr (NeZero.ne q))
   have hqt : (q : ℝ≥0∞) ^ Fintype.card ι ≠ ⊤ := ENNReal.pow_ne_top (ENNReal.natCast_ne_top q)
-  have hE := bind_pure_decide_apply_true (PMF.uniformOfFintype (ι → ZMod q)) fun x => E x = true
+  have hE := PMF.bind_pure_decide_apply_true (PMF.uniformOfFintype (ι → ZMod q)) fun x => E x = true
   simp only [Bool.decide_eq_true] at hE
   rw [hE, PMF.toOuterMeasure_uniformOfFintype, Fintype.card_fun, ZMod.card, Nat.cast_pow,
     ← div_eq_mul_inv, ENNReal.div_le_iff hq0 hqt]
@@ -1232,7 +1225,7 @@ private theorem detGame_apply_le [NeZero q] (hq : q.Prime) {T : ℕ}
         refine add_le_add (PMF.bind_apply_le_on_support _ fun y _ => ?_)
           (PMF.bind_apply_le_on_support _ fun y hy => ?_)
         · exact uniform_bind_apply_true_le (hW y.1.1 y.1.2)
-        · rw [bind_pure_decide_apply_true _ (fun x : ι → ZMod q => Collides x y.2)]
+        · rw [PMF.bind_pure_decide_apply_true _ (fun x : ι → ZMod q => Collides x y.2)]
           refine (toOuterMeasure_collides_le hq y.2).trans ?_
           gcongr
           exact hlen y hy
