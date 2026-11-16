@@ -7402,6 +7402,7 @@ public import CslibFrontier.Probability.Forking
 public import CslibFrontier.Probability.Freivalds
 public import CslibFrontier.Probability.Guessing
 public import CslibFrontier.Probability.Guessing.Leakage
+public import CslibFrontier.Probability.Guessing.UniformList
 public import CslibFrontier.Probability.HashFamily
 public import CslibFrontier.Probability.HashFamily.Collisions
 public import CslibFrontier.Probability.HashFamily.IntegerBox
