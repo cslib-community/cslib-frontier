@@ -29,38 +29,45 @@ corrupt party `P₂`, using the dealer and verification definitions of
   corrupting `P₁` (chooses inputs, chooses challenge `r` from `d₁`, receives `none` on abort or
   `P₂`'s opening `(α₂, β₂, γ₂)`, sends opening `(α₁, β₁, γ₁)`, and outputs a guess given
   `Option Bool`).
-* `Cslib.Crypto.Protocols.MPC.ProductRelation.sim1Deal`,
-  `Cslib.Crypto.Protocols.MPC.ProductRelation.sim1Eval`: simulator `S_D^(1)` generating `P₁`'s
-  Step 1 deal from `t₁` alone and simulating `P₂`'s Step 3/5 evaluation response from `(d₁, r)`.
-* `Cslib.Crypto.Protocols.MPC.ProductRelation.experiment0`,
-  `Cslib.Crypto.Protocols.MPC.ProductRelation.experiment1`: real and simulated privacy
+* `Cslib.Crypto.Protocols.MPC.ProductRelation.simDeal`: the simulated Step 1 deal of the
+  corrupt party, generated from that party's triple shares alone; `S_D^(1)` uses it for `P₁`'s
+  deal and `S_D^(2)` for `P₂`'s.
+* `Cslib.Crypto.Protocols.MPC.ProductRelation.sim1Eval`: the rest of simulator `S_D^(1)`, playing
+  `P₂` in Steps 4–5 of Protocol 23.5 from `(d₁, r)`: the abort check on `r` and `P₂`'s opening.
+* `Cslib.Crypto.Protocols.MPC.ProductRelation.experiment0P1`,
+  `Cslib.Crypto.Protocols.MPC.ProductRelation.experiment1P1`: real and simulated privacy
   experiments for corrupt `P₁`.
 * `Cslib.Crypto.Protocols.MPC.ProductRelation.CorruptP2Adversary`: interactive adversary
   corrupting `P₂`.
-* `Cslib.Crypto.Protocols.MPC.ProductRelation.sim2Eval`,
-  `Cslib.Crypto.Protocols.MPC.ProductRelation.experiment0P2`,
-  `Cslib.Crypto.Protocols.MPC.ProductRelation.experiment1P2`: simulator `S_D^(2)` and real/ideal
+* `Cslib.Crypto.Protocols.MPC.ProductRelation.sim2Eval`: the rest of simulator `S_D^(2)`, playing
+  `P₁` in Steps 3 and 5 from `d₂`: it chooses `r` and supplies `P₁`'s opening.
+* `Cslib.Crypto.Protocols.MPC.ProductRelation.experiment0P2`,
+  `Cslib.Crypto.Protocols.MPC.ProductRelation.experiment1P2`: real and simulated privacy
   experiments for corrupt `P₂`.
 
 ## Main results
 
-* `Cslib.Crypto.Protocols.MPC.ProductRelation.eval_honestOpening_eq_sim1Eval`: conditional
+* `Cslib.Crypto.Protocols.MPC.ProductRelation.bind_honestOpening_eq_bind_uniform`: conditional
   marginal law of `(A₂(r), B₂(r), C₂(r))` given `d₁` and valid `r ∉ {0, ..., m}` matches
   `S_D^(1)`'s uniform `(α₂, β₂)` and derived `γ₂`.
-* `Cslib.Crypto.Protocols.MPC.ProductRelation.eval_experiment0_eq_experiment1`: exact equality of
-  Boolean output laws between `experiment0` and `experiment1` when `2 * m < q` and chosen inputs
-  satisfy `ProductRelations`. Equal laws on `Bool` give equal probability of outputting
-  `true`/`1`, formalizing Fact 23.2 for corrupt `P₁`.
-* `Cslib.Crypto.Protocols.MPC.ProductRelation.productRelations_comm`,
-  `Cslib.Crypto.Protocols.MPC.ProductRelation.eval_deal_swap`: symmetry between `P₁` and `P₂`
-  for `(23.7)` and `deal`.
+* `Cslib.Crypto.Protocols.MPC.ProductRelation.eval_experiment0P1_eq_experiment1P1`: exact
+  equality of Boolean output laws between `experiment0P1` and `experiment1P1` when `2 * m < q`
+  and chosen inputs satisfy `ProductRelations`. Equal laws on `Bool` give equal probability of
+  outputting `true`/`1`, formalizing Fact 23.2 for corrupt `P₁`.
+* `Cslib.Crypto.Protocols.MPC.ProductRelation.eval_deal_swap`: symmetry of `deal` between `P₁`
+  and `P₂`.
 * `Cslib.Crypto.Protocols.MPC.ProductRelation.eval_experiment0P2_eq_experiment1P2`: exact
   equality of Boolean output laws between `experiment0P2` and `experiment1P2` under `2 * m < q`
   and `ProductRelations`, formalizing Fact 23.2 for corrupt `P₂`.
 
+In every experiment the corrupt party chooses its Step 5 opening after it has received the
+other party's, which only strengthens the adversary relative to the simultaneous exchange of Step 5.
+
 All simulators and experiments are `noncomputable` (evaluating Lagrange interpolants over
 `ZMod q`) and establish distributional (information-theoretic) equality only, with no
-running-time claim for `S_D^(1)` or `S_D^(2)`. The standing prime modulus condition from
+running-time claim for `S_D^(1)` or `S_D^(2)`; any later running-time certificate for them
+belongs to [#5829](https://github.com/cslib-community/cslib-frontier/issues/5829), whose
+milestone 1 excludes them. The standing prime modulus condition from
 Section 23.2.1 (`[Fact (Nat.Prime q)]`), the book's valid-input condition (`ProductRelations`),
 and the added bound `2 * m < q` (ensuring `{0, ..., 2m}` are distinct in `ZMod q` and
 `Challenge q m` is nonempty) are explicit parameters.
@@ -99,10 +106,12 @@ private theorem eval_interpPoly_decompose {q m : ℕ} [Fact (Nat.Prime q)]
   simp only [map_mul, Polynomial.coe_evalRingHom, Polynomial.eval_C, basisZeroAt,
     restLinearEval, mul_comm (v 0)]
 
-/-- Conditional on `d₁ = e₁.toDeal t₁`, valid inputs `ProductRelations t₁ t₂`, `2 * m < q`, and
-any valid challenge `r ∉ {0, ..., m}`, the joint distribution of `P₂`'s evaluation response
-`(A₂(r), B₂(r), C₂(r))` matches `S_D^(1)`: uniform independent `(α₂, β₂)` and derived `γ₂`. -/
-theorem eval_honestOpening_eq_sim1Eval {q m : ℕ} [Fact (Nat.Prime q)] (hm : 2 * m < q)
+/-- Binding over `P₂`'s honest opening equals binding over a uniform opening: conditional on
+`d₁ = e₁.toDeal t₁`, valid inputs `ProductRelations t₁ t₂`, `2 * m < q`, and any valid challenge
+`r ∉ {0, ..., m}`, the joint distribution of `P₂`'s evaluation response
+`(A₂(r), B₂(r), C₂(r))` over the dealer's `(a₀₂, b₀₂)` is that of `S_D^(1)`: uniform independent
+`(α₂, β₂)` and `γ₂` determined by `(23.9)`. -/
+theorem bind_honestOpening_eq_bind_uniform {q m : ℕ} [Fact (Nat.Prime q)] (hm : 2 * m < q)
     {t₁ t₂ : Fin m → TripleShare (ZMod q)} (hrel : ProductRelations t₁ t₂)
     (e₁ : DealerExtra q m) {r : ZMod q} (hr : ∀ k : Fin (m + 1), r ≠ (k.1 : ZMod q))
     {β : Type} (g : ZMod q × ZMod q × ZMod q → PMF β) :
@@ -196,7 +205,7 @@ structure CorruptP1Adversary (q m : ℕ) (σ : Type) where
 
 /-- Real privacy experiment against corrupt `P₁` for Protocol 23.5. -/
 @[expose]
-noncomputable def experiment0 (q m : ℕ) [Fact (Nat.Prime q)] {σ : Type}
+noncomputable def experiment0P1 (q m : ℕ) [Fact (Nat.Prime q)] {σ : Type}
     (A : CorruptP1Adversary q m σ) : ProbComp Bool := do
   let (t₁, t₂, st) ← A.chooseInputs
   let (d₁, d₂) ← deal t₁ t₂
@@ -211,17 +220,19 @@ noncomputable def experiment0 (q m : ℕ) [Fact (Nat.Prime q)] {σ : Type}
   else
     A.finish st none
 
-/-- Simulator `S_D^(1)` Step 1: generates `P₁`'s deal `d₁` uniformly from `t₁` alone.
-`noncomputable`, with no running-time claim. -/
+/-- The simulated Step 1 deal of the corrupt party, generated from that party's triple shares `t`
+alone: `S_D^(1)` uses it for `P₁`'s deal and `S_D^(2)` for `P₂`'s. `noncomputable`, with no
+running-time claim. -/
 @[expose]
-noncomputable def sim1Deal (q m : ℕ) [NeZero q] (t₁ : Fin m → TripleShare (ZMod q)) :
+noncomputable def simDeal (q m : ℕ) [NeZero q] (t : Fin m → TripleShare (ZMod q)) :
     ProbComp (PartyDeal q m) := do
-  let e₁ ← ProbComp.uniform (DealerExtra q m)
-  return e₁.toDeal t₁
+  let e ← ProbComp.uniform (DealerExtra q m)
+  return e.toDeal t
 
-/-- Simulator `S_D^(1)` Step 3/5: given `d₁` and challenge `r`, aborts (`none`) when
-`r ∈ {0, ..., m}` and otherwise samples uniform `(α₂, β₂)` and solves `(23.9)` for `γ₂`.
-`noncomputable`, with no running-time claim. -/
+/-- Simulator `S_D^(1)` playing `P₂` in Steps 4–5 of Protocol 23.5: given `d₁` and the
+adversary's challenge `r`, aborts (`none`) when `r ∈ {0, ..., m}` (Step 4) and otherwise samples
+uniform `(α₂, β₂)` and solves `(23.9)` for `γ₂` (Step 5). `noncomputable`, with no running-time
+claim. -/
 @[expose]
 noncomputable def sim1Eval (q m : ℕ) [Fact (Nat.Prime q)]
     (d₁ : PartyDeal q m) (r : ZMod q) : ProbComp (Option (ZMod q × ZMod q × ZMod q)) :=
@@ -236,10 +247,10 @@ noncomputable def sim1Eval (q m : ℕ) [Fact (Nat.Prime q)]
 /-- Simulated privacy experiment against corrupt `P₁` using `S_D^(1)` (`t₂` is unused by the
 simulator). `noncomputable`, with no running-time claim. -/
 @[expose]
-noncomputable def experiment1 (q m : ℕ) [Fact (Nat.Prime q)] {σ : Type}
+noncomputable def experiment1P1 (q m : ℕ) [Fact (Nat.Prime q)] {σ : Type}
     (A : CorruptP1Adversary q m σ) : ProbComp Bool := do
   let (t₁, _, st) ← A.chooseInputs
-  let d₁ ← sim1Deal q m t₁
+  let d₁ ← simDeal q m t₁
   let (r, st) ← A.chooseChallenge st d₁
   let open₂Opt ← sim1Eval q m d₁ r
   match open₂Opt with
@@ -264,14 +275,14 @@ private theorem bind_uniform_uniform_bind_comm {q : ℕ} [NeZero q] {γ δ : Typ
     _ = _ := PMF.bind_comm _ _ _
 
 /-- **Fact 23.2 (corrupt `P₁`)**: under `2 * m < q` and valid inputs satisfying
-`ProductRelations`, `experiment0` and `experiment1` induce identical output distributions on
+`ProductRelations`, `experiment0P1` and `experiment1P1` induce identical output distributions on
 `Bool` (and hence equal probabilities of outputting `true`/`1`). -/
-theorem eval_experiment0_eq_experiment1 {q m : ℕ} [Fact (Nat.Prime q)] (hm : 2 * m < q)
+theorem eval_experiment0P1_eq_experiment1P1 {q m : ℕ} [Fact (Nat.Prime q)] (hm : 2 * m < q)
     {σ : Type} (A : CorruptP1Adversary q m σ)
     (hrel : ∀ t₁ t₂ st, (t₁, t₂, st) ∈ (ProbComp.eval A.chooseInputs).support →
       ProductRelations t₁ t₂) :
-    ProbComp.eval (experiment0 q m A) = ProbComp.eval (experiment1 q m A) := by
-  simp only [experiment0, experiment1, deal, sim1Deal, sim1Eval, pmf_norm, ProbComp.eval_uniform]
+    ProbComp.eval (experiment0P1 q m A) = ProbComp.eval (experiment1P1 q m A) := by
+  simp only [experiment0P1, experiment1P1, deal, simDeal, sim1Eval, pmf_norm, ProbComp.eval_uniform]
   refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun ⟨t₁, t₂, st⟩ hx => ?_
   have htx : ProductRelations t₁ t₂ := hrel t₁ t₂ st hx
   congr 1 with e₁ : 1
@@ -280,7 +291,7 @@ theorem eval_experiment0_eq_experiment1 {q m : ℕ} [Fact (Nat.Prime q)] (hm : 2
   by_cases hr : ∀ k : Fin (m + 1), r ≠ (k.1 : ZMod q)
   · simp_rw [eq_true hr, ite_true]
     simp only [pmf_norm, ProbComp.eval_uniform]
-    exact eval_honestOpening_eq_sim1Eval hm htx e₁ hr fun (α₂, β₂, γ₂) =>
+    exact bind_honestOpening_eq_bind_uniform hm htx e₁ hr fun (α₂, β₂, γ₂) =>
       (ProbComp.eval (A.sendOpening st' (α₂, β₂, γ₂))).bind fun ((α₁, β₁, γ₁), st'') =>
         ProbComp.eval (A.finish st'' (some (decide ((α₁ + α₂) * (β₁ + β₂) = γ₁ + γ₂))))
   · simp_rw [eq_false hr, ite_false]
@@ -373,8 +384,9 @@ noncomputable def experiment0P2 (q m : ℕ) [Fact (Nat.Prime q)] (hm : 2 * m < q
     let acc := decide ((α₁ + α₂) * (β₁ + β₂) = γ₁ + γ₂)
     A.finish st acc
 
-/-- Simulator `S_D^(2)` Step 2/5: given `d₂`, samples uniform `r ∈ Challenge q m` and uniform
-`(α₁, β₁)` and solves `(23.10)` for `γ₁`. `noncomputable`, with no running-time claim. -/
+/-- Simulator `S_D^(2)` playing `P₁` in Steps 3 and 5 of Protocol 23.5: given `d₂`, samples
+uniform `r ∈ Challenge q m` (Step 3) and uniform `(α₁, β₁)`, and solves `(23.9)`, with the roles
+of `P₁` and `P₂` swapped, for `γ₁` (Step 5). `noncomputable`, with no running-time claim. -/
 @[expose]
 noncomputable def sim2Eval (q m : ℕ) [Fact (Nat.Prime q)] (hm : 2 * m < q)
     (d₂ : PartyDeal q m) : ProbComp (ZMod q × ZMod q × ZMod q × ZMod q) :=
@@ -392,7 +404,7 @@ simulator). `noncomputable`, with no running-time claim. -/
 noncomputable def experiment1P2 (q m : ℕ) [Fact (Nat.Prime q)] (hm : 2 * m < q) {σ : Type}
     (A : CorruptP2Adversary q m σ) : ProbComp Bool := do
   let (_, t₂, st) ← A.chooseInputs
-  let d₂ ← sim1Deal q m t₂
+  let d₂ ← simDeal q m t₂
   let (r, α₁, β₁, γ₁) ← sim2Eval q m hm d₂
   let ((α₂, β₂, γ₂), st) ← A.sendOpening st d₂ r (α₁, β₁, γ₁)
   let acc := decide ((α₁ + α₂) * (β₁ + β₂) = γ₁ + γ₂)
@@ -407,7 +419,7 @@ theorem eval_experiment0P2_eq_experiment1P2 {q m : ℕ} [Fact (Nat.Prime q)] (hm
       ProductRelations t₁ t₂) :
     ProbComp.eval (experiment0P2 q m hm A) = ProbComp.eval (experiment1P2 q m hm A) := by
   have : Nonempty (Challenge q m) := nonempty_challenge q m (succ_lt_of_two_mul_lt hm)
-  simp only [experiment0P2, experiment1P2, sim2Eval, sim1Deal, pmf_norm, ProbComp.eval_uniform]
+  simp only [experiment0P2, experiment1P2, sim2Eval, simDeal, pmf_norm, ProbComp.eval_uniform]
   refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun ⟨t₁, t₂, st⟩ hx => ?_
   have htx : ProductRelations t₂ t₁ := productRelations_comm.mp (hrel t₁ t₂ st hx)
   have hswap : ProbComp.eval (deal t₁ t₂) = (ProbComp.eval (deal t₂ t₁)).map Prod.swap := by
@@ -419,7 +431,7 @@ theorem eval_experiment0P2_eq_experiment1P2 {q m : ℕ} [Fact (Nat.Prime q)] (hm
   congr 1 with e₂ : 1
   rw [bind_uniform_uniform_bind_comm]
   congr 1 with r : 1
-  have h1 := eval_honestOpening_eq_sim1Eval hm htx e₂ r.2 fun (α₁, β₁, γ₁) =>
+  have h1 := bind_honestOpening_eq_bind_uniform hm htx e₂ r.2 fun (α₁, β₁, γ₁) =>
     (ProbComp.eval (A.sendOpening st (e₂.toDeal t₂) r.1 (α₁, β₁, γ₁))).bind
       fun ((α₂, β₂, γ₂), st') =>
         ProbComp.eval (A.finish st' (decide ((α₁ + α₂) * (β₁ + β₂) = γ₁ + γ₂)))

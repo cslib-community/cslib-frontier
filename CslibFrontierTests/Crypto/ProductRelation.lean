@@ -33,11 +33,10 @@ Checks `Cslib.Crypto.Protocols.MPC.ProductRelation` on finite instances over `ZM
    polynomial), and `q = 5, m = 3` shows `(23.8)` failing when `m + 1 < q` holds (`Challenge 5 3`
    nonempty) but `2 * m < q` fails.
 5. **Fact 23.2 privacy (`q = 5, m = 1`):** positive checks for `Lagrange.eval_basis_ne_zero`,
-   `productRelations_comm`, `eval_honestOpening_eq_sim1Eval`, `eval_deal_swap`,
-   `eval_experiment0_eq_experiment1`, `eval_experiment0P2_eq_experiment1P2`, and their
-   `true`-probability corollaries via `congrArg (fun p => p true)`.
+   `productRelations_comm`, `bind_honestOpening_eq_bind_uniform`, `eval_deal_swap`,
+   `eval_experiment0P1_eq_experiment1P1`, and `eval_experiment0P2_eq_experiment1P2`.
 6. **Necessity of `ProductRelations` (`hrel`):** `counterAdversaryNoRel_separates` separates
-   `experiment0` (`0`) from `experiment1` (`1`) when chosen inputs violate `(23.7)`.
+   `experiment0P1` (`0`) from `experiment1P1` (`1`) when chosen inputs violate `(23.7)`.
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
@@ -334,7 +333,7 @@ example :
         let d₁ := (⟨1, 2, 3, ![4]⟩ : DealerExtra 5 1).toDeal sampleT1
         let γ₂ := (d₁.polyA.eval 2 + α₂) * (d₁.polyB.eval 2 + β₂) - d₁.polyC.eval 2
         PMF.pure (α₂, β₂, γ₂))) :=
-  eval_honestOpening_eq_sim1Eval (by decide) (by decide : ProductRelations sampleT1 sampleT2)
+  bind_honestOpening_eq_bind_uniform (by decide) (by decide : ProductRelations sampleT1 sampleT2)
     ⟨1, 2, 3, ![4]⟩ (fun k => by fin_cases k <;> decide) PMF.pure
 
 example :
@@ -349,22 +348,13 @@ private def sampleP1Adv : CorruptP1Adversary 5 1 Unit where
   finish _ res := return (res == some true)
 
 example :
-    ProbComp.eval (experiment0 5 1 sampleP1Adv) = ProbComp.eval (experiment1 5 1 sampleP1Adv) := by
-  refine eval_experiment0_eq_experiment1 (by decide) sampleP1Adv fun t₁ t₂ _ hx => ?_
+    ProbComp.eval (experiment0P1 5 1 sampleP1Adv) =
+      ProbComp.eval (experiment1P1 5 1 sampleP1Adv) := by
+  refine eval_experiment0P1_eq_experiment1P1 (by decide) sampleP1Adv fun t₁ t₂ _ hx => ?_
   simp only [sampleP1Adv, ProbComp.eval_pure, PMF.support_pure, Set.mem_singleton_iff,
     Prod.mk.injEq] at hx
   rcases hx with ⟨rfl, rfl, _⟩
   decide
-
-example :
-    (ProbComp.eval (experiment0 5 1 sampleP1Adv)) true =
-      (ProbComp.eval (experiment1 5 1 sampleP1Adv)) true :=
-  congrArg (fun p : PMF Bool => p true) <| by
-    refine eval_experiment0_eq_experiment1 (by decide) sampleP1Adv fun t₁ t₂ _ hx => ?_
-    simp only [sampleP1Adv, ProbComp.eval_pure, PMF.support_pure, Set.mem_singleton_iff,
-      Prod.mk.injEq] at hx
-    rcases hx with ⟨rfl, rfl, _⟩
-    decide
 
 private def sampleP2Adv : CorruptP2Adversary 5 1 Unit where
   chooseInputs := return (sampleT1, sampleT2, ())
@@ -380,16 +370,6 @@ example :
   rcases hx with ⟨rfl, rfl, _⟩
   decide
 
-example :
-    (ProbComp.eval (experiment0P2 5 1 (by decide) sampleP2Adv)) true =
-      (ProbComp.eval (experiment1P2 5 1 (by decide) sampleP2Adv)) true :=
-  congrArg (fun p : PMF Bool => p true) <| by
-    refine eval_experiment0P2_eq_experiment1P2 (by decide) sampleP2Adv fun t₁ t₂ _ hx => ?_
-    simp only [sampleP2Adv, ProbComp.eval_pure, PMF.support_pure, Set.mem_singleton_iff,
-      Prod.mk.injEq] at hx
-    rcases hx with ⟨rfl, rfl, _⟩
-    decide
-
 /-! ### 6. Separating adversary when `ProductRelations` (`hrel`) fails -/
 
 private def badRelT1 : Fin 1 → TripleShare (ZMod 5) := ![⟨1, 1, 0⟩]
@@ -403,16 +383,16 @@ private noncomputable def counterAdversaryNoRel : CorruptP1Adversary 5 1 (PartyD
 
 example : ¬ ProductRelations badRelT1 badRelT2 := by decide
 
-/-- Dropping `hrel` breaks Fact 23.2: on inputs violating `(23.7)`, `experiment0` outputs `true`
-with probability `0` whereas `experiment1` outputs `true` with probability `1`. -/
+/-- Dropping `hrel` breaks Fact 23.2: on inputs violating `(23.7)`, `experiment0P1` outputs `true`
+with probability `0` whereas `experiment1P1` outputs `true` with probability `1`. -/
 theorem counterAdversaryNoRel_separates :
-    (ProbComp.eval (experiment0 5 1 counterAdversaryNoRel)) true = 0 ∧
-    (ProbComp.eval (experiment1 5 1 counterAdversaryNoRel)) true = 1 ∧
-    (ProbComp.eval (experiment0 5 1 counterAdversaryNoRel)) true ≠
-      (ProbComp.eval (experiment1 5 1 counterAdversaryNoRel)) true := by
+    (ProbComp.eval (experiment0P1 5 1 counterAdversaryNoRel)) true = 0 ∧
+    (ProbComp.eval (experiment1P1 5 1 counterAdversaryNoRel)) true = 1 ∧
+    (ProbComp.eval (experiment0P1 5 1 counterAdversaryNoRel)) true ≠
+      (ProbComp.eval (experiment1P1 5 1 counterAdversaryNoRel)) true := by
   have hr : ∀ k : Fin (1 + 1), (3 : ZMod 5) ≠ (k.1 : ZMod 5) := by decide
-  have hexp0 : ProbComp.eval (experiment0 5 1 counterAdversaryNoRel) = PMF.pure false := by
-    simp only [experiment0, counterAdversaryNoRel, deal, pmf_norm, ProbComp.eval_uniform]
+  have hexp0 : ProbComp.eval (experiment0P1 5 1 counterAdversaryNoRel) = PMF.pure false := by
+    simp only [experiment0P1, counterAdversaryNoRel, deal, pmf_norm, ProbComp.eval_uniform]
     simp only [eq_true hr, ite_true, pmf_norm]
     have hacc : ∀ (e₁ : DealerExtra 5 1) (a02 b02 : ZMod 5),
         let d₁ := e₁.toDeal badRelT1
@@ -535,8 +515,8 @@ theorem counterAdversaryNoRel_separates :
       simp [hne]
     have hbool : (some false == some true) = false := rfl
     simp only [hacc, hbool, PMF.bind_const]
-  have hexp1 : ProbComp.eval (experiment1 5 1 counterAdversaryNoRel) = PMF.pure true := by
-    simp only [experiment1, counterAdversaryNoRel, sim1Deal, sim1Eval, pmf_norm,
+  have hexp1 : ProbComp.eval (experiment1P1 5 1 counterAdversaryNoRel) = PMF.pure true := by
+    simp only [experiment1P1, counterAdversaryNoRel, simDeal, sim1Eval, pmf_norm,
       ProbComp.eval_uniform]
     simp only [eq_true hr, ite_true, pmf_norm]
     have hacc : ∀ (e₁ : DealerExtra 5 1) (α₂ β₂ : ZMod 5),
