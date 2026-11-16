@@ -55,6 +55,6 @@ theorem liftM_eq_eval {α : Type} (program : ProbComp α) :
 
 instance instLawfulMonadLiftPMF : LawfulMonadLift ProbComp PMF where
   monadLift_pure := eval_pure
-  monadLift_bind := eval_bind
+  monadLift_bind := eval_freeMBind
 
 end Cslib.ProbComp

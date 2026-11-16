@@ -264,7 +264,7 @@ theorem evalRand_zero (w : ℕ) (p : Program B r) (s : State r) :
 theorem evalRand_succ (w : ℕ) (p : Program B r) (T : ℕ) (s : State r) :
     evalRand w p (T + 1) s =
       (stepRand w p (.running s)).eval.bind fun cfg => (runRand w p T cfg).eval := by
-  simp only [evalRand, runRand_succ, ProbComp.eval_bind]
+  rw [evalRand, runRand_succ, ProbComp.eval_bind]
 
 theorem support_evalRand (w : ℕ) (p : Program B r) (T : ℕ) (s : State r) :
     (evalRand w p T s).support = (runRand w p T (.running s)).support :=

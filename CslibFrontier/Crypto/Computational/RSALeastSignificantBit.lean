@@ -37,7 +37,7 @@ recovers `x` exactly whenever the predictor is always correct on the modulus (`e
 ## Main definitions
 
 * `Cslib.Crypto.RSAPredictor`, `Cslib.Crypto.RSAPredictor.IsPPT`, `Cslib.Crypto.rsaLSBGame`:
-  least-significant-bit predictors and the prediction experiment.
+  one-bit predictors and the least-significant-bit prediction experiment.
 * `Cslib.Crypto.lsbQueries`, `Cslib.Crypto.lsbRecover`: the doubling queries, and the final
   rounding of the most-significant-first value of the answered parities.
 * `Cslib.Crypto.lsbInverter`: the inverter that queries a predictor on the `N.size` doubling
@@ -88,9 +88,10 @@ open Probability Turing.MultiTapeTM
 
 /-! ### The prediction experiment -/
 
-/-- A least-significant-bit predictor for RSA: given the security parameter, a public key
-`(N, e)` and a residue modulo `N`, it outputs a bit. `RSAPredictor.IsPPT` states its efficiency
-on encodings. -/
+/-- A one-bit predictor for RSA: given the security parameter, a public key `(N, e)` and a residue
+modulo `N`, it outputs a bit, whose meaning is fixed by the experiment (the least significant bit
+of the preimage in `rsaLSBGame`) or by a correctness hypothesis. `RSAPredictor.IsPPT` states its
+efficiency on encodings. -/
 abbrev RSAPredictor : Type :=
   ℕ → (pk : RSAPublicKey) → Fin pk.N → ProbComp Bool
 

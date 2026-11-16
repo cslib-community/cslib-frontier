@@ -358,7 +358,7 @@ theorem runWith_world_liftVerify (scheme : Scheme PK SK M Sig Query Digest) (sk 
     (cache : List (Query × Digest)) :
     ProbOracleComp.runWith (world scheme sk).impl (liftVerify (M := M) (Sig := Sig) prog) cache =
     (interpret (oracle Digest) prog).run cache := by
-  rw [liftVerify, ProbOracleComp.runWith_interpret, OracleComp.runWith]
+  rw [liftVerify, ProbOracleComp.runWith_interpret, OracleComp.runWith_eq_run_interpret]
   congr 2 with x s : 2
   simp [world, sumHandler]
 
@@ -375,6 +375,7 @@ theorem runWith_world_runLoggedForger_liftOracleForger
     (interpret (handler scheme sk) prog).run (cache, []) := by
   rw [runLoggedForger, ProbOracleComp.runWith_run_interpret, PMF.map_comp, liftOracleForger,
     ProbOracleComp.runWith_interpret]
+  rw [OracleComp.runWith_eq_run_interpret]
   refine OracleComp.run_interpret_map_state (oracle' := handler scheme sk)
     (represent := fun (state : List (M × Sig) × List (Query × Digest)) =>
       (state.2, state.1.map Prod.fst)) (step := fun q ⟨pairs, curCache⟩ => ?_) (program := prog)

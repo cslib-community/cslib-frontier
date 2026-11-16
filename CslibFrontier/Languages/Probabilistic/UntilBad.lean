@@ -88,7 +88,7 @@ theorem bad_of_mem_support_run {handler : (q : ι) → StateT σ PMF (spec q)} {
     exact hx ▸ hs
   | query_bind q cont ih =>
     intro x hx
-    simp only [run_interpret_bind, run_interpret_query,
+    simp only [PFunctor.FreeM.bind_eq_bind, run_interpret_bind, run_interpret_query,
       Probability.PMF.monad_bind_eq_bind, PMF.mem_support_bind_iff] at hx
     obtain ⟨y, hy, hxy⟩ := hx
     exact ih y.1 (habsorb q s hs y hy) x hxy
@@ -105,7 +105,7 @@ theorem run_apply (h : IdenticalUntilBad first second bad) (program : OracleComp
   induction program using OracleComp.induction generalizing s with
   | pure b => rfl
   | query_bind q cont ih =>
-    simp only [run_interpret_bind, run_interpret_query,
+    simp only [PFunctor.FreeM.bind_eq_bind, run_interpret_bind, run_interpret_query,
       Probability.PMF.monad_bind_eq_bind, PMF.bind_apply]
     refine tsum_congr fun y => ?_
     by_cases hy : bad y.2
