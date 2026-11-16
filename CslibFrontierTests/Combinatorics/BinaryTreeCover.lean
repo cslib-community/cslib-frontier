@@ -61,9 +61,9 @@ example (h : ℕ) :
         (0 : ℝ) * Real.logb 2 ((2 ^ h : ℝ) / (0 : ℕ))) := by
   simp [cover_univ]
 
-/-! Necessity of `r ≤ 2 ^ h` (`2 ^ h ≤ S.card + r` when stated with `ℕ` subtraction
-`S.card = 2 ^ h - r`): for `h = 0`, `r = 2`, `S = ∅` satisfies `S.card = 2 ^ 0 - 2 = 0` and
-`2 ^ 0 ≤ S.card + 2`, yet `|cover(∅)| = 0 > 2 * log₂(1 / 2) = -2`. -/
+/-! `S.card + r = 2 ^ h` cannot be weakened to `2 ^ h ≤ S.card + r`, nor replaced by the truncated
+subtraction `S.card = 2 ^ h - r`: for `h = 0`, `r = 2`, `S = ∅` satisfies both, yet
+`|cover(∅)| = 0 > 2 * log₂(1 / 2) = -2`. -/
 
 example :
     let S : Finset (Fin (2 ^ 0)) := ∅
