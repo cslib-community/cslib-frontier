@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Crypto.Computational.Encryption.MACThenEncrypt
 public import CslibFrontier.Crypto.Computational.Encryption.EncryptThenMAC
+import CslibFrontier.Crypto.Game.Order
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.RandomOracle
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Programming
 import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.RunWith
@@ -151,7 +152,7 @@ private theorem mteFaithfulOracle_apply (M : MACScheme) (n m : ℕ) (km : List B
   by_cases hlen : (request.2.length == n) = true
   · simp only [hlen, ↓reduceDIte, ↓reduceIte, mteCoins, mteFinish,
       Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure, PMF.bind_bind,
-      PMF.bind_map, PMF.map, Function.comp_def, PMF.pure_bind]
+      PMF.map, Function.comp_def, PMF.pure_bind]
   · simp [hlen]
 
 /-! ## The random-function step -/
@@ -174,20 +175,20 @@ private theorem mteFaithful_bind_apply_le (M : MACScheme) (n m : ℕ) (km : List
       ((mteCoins M m km req).map fun coins => coins.2) r ≤ (1 : ℝ≥0∞) / 2 ^ m := by
     intro req _ r
     have hmap : ((mteCoins M m km req).map fun coins => coins.2) = BitString.uniformList m := by
-      simp only [mteCoins, PMF.map_bind, PMF.map_comp, Function.comp_def, PMF.map_id']
-      exact PMF.bind_const _ _
+      simp only [mteCoins, PMF.map_bind, PMF.map_comp, Function.comp_def]
+      exact (congrArg _ (funext fun _ => PMF.map_id _)).trans (PMF.bind_const _ _)
     rw [hmap]
     exact BitString.uniformList_apply_le m r
   have hqS : IsCostBounded (Sum.elim (fun _ => 0) (Sum.elim (fun _ => 1) (fun _ => 0)))
       (ProbOracleComp.simulate embed program) Q :=
     ProbOracleComp.isCostBounded_simulate (cost := fun _ => 1)
-      (fun q => by simpa using ProbOracleComp.isCostBounded_query
-        (Sum.elim (fun _ => 1) (fun _ => 0)) (Sum.inl q)) hq
+      (cost' := Sum.elim (fun _ => 1) (fun _ => 0)) (handler := embed)
+      (fun q => ProbOracleComp.isCostBounded_query _ (Sum.inl q)) hq
   have hqH : IsCostBounded (Sum.elim (fun _ => 0) (Sum.elim (fun _ => 0) (fun _ => 1)))
       (ProbOracleComp.simulate embed program) 0 :=
     ProbOracleComp.isCostBounded_simulate (cost := fun _ => 0)
-      (fun q => by simpa using ProbOracleComp.isCostBounded_query
-        (Sum.elim (fun _ => 0) (fun _ => 1)) (Sum.inl q))
+      (cost' := Sum.elim (fun _ => 0) (fun _ => 1)) (handler := embed)
+      (fun q => ProbOracleComp.isCostBounded_query _ (Sum.inl q))
       (IsCostBounded.of_forall_cost_eq_zero (fun q => by cases q <;> rfl) program)
   have hclose := RandomOracle.closeTo_runWith_lazyProgramHandler_overwriteProgramHandler_choose_two
     (Reply := fun _ : Unit × List Bool => List Bool)
@@ -200,10 +201,13 @@ private theorem mteFaithful_bind_apply_le (M : MACScheme) (n m : ℕ) (km : List
       ProbOracleComp.runWith oracle (ProbOracleComp.simulate embed program) ([], []) =
         ProbOracleComp.runWith (fun q => oracle (.inl q)) program ([], []) := by
     rw [ProbOracleComp.runWith_simulate]
-    simp [embed]
+    exact congrArg (fun handler => ProbOracleComp.runWith handler program ([], []))
+      (funext fun q => funext fun s => ProbOracleComp.runWith_query oracle (Sum.inl q) s)
   rw [hrun, hrun] at hclose
   have h := (hclose.bind_left next) {true}
-  simpa [PMF.toOuterMeasure_apply_singleton] using h
+  rw [PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_apply_singleton] at h
+  simp only [List.length_nil, Nat.mul_zero, Nat.zero_add] at h
+  exact h
 
 /-! ## The PRF step -/
 
