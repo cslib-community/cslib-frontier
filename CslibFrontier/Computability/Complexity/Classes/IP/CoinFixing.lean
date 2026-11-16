@@ -203,7 +203,7 @@ theorem acceptProb_eq_sum {V : WordOracleComp Operation Bool} {t : ℕ} {x : Lis
       (fun n => StateT.lift (ProbComp.unifOracle n)) P.respond) V).run P.init).map
         ((fun z => decide (z.1 = [true])) ∘ fun p => (Turing.MultiTapeTM.encBool p.1, p.2))
           true := by
-    rw [acceptProb]
+    rw [acceptProb, Prover.run_eq_runWith, ProbOracleComp.runWith_eq_run_interpret]
     congr 2 with z : 1
     obtain ⟨_ | _, _⟩ := z <;> rfl
   rw [hl, h, PMF.map_bind, BitString.uniformList, PMF.bind_map, PMF.bind_apply, tsum_fintype,

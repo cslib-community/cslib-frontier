@@ -73,7 +73,7 @@ one. We establish:
    order at least `m`.
 3. **Computational binding under the discrete-logarithm assumption (`pedersenVerify`,
    `inv_mul_eq_of_pedersenCommit_eq`, `succProbability_pedersen_bindingExperiment_le`,
-   `extractNat_eq_of_pedersenCommit_eq`, `pedersenToDLAdversary`,
+   `extractNat_eq_of_pedersenCommit_eq`, `pedersenToDLAdversary`, `pedersenToDLAdversary_encode`,
    `succProbability_pedersenBindingGame_le_discreteLogGame`, `isPPTOn_pedersenToDLAdversary`,
    `DiscreteLog.pedersenBinding`, `DiscreteLog.pedersenScheme_binding`)**: any verified double
    opening `(c, (m₀, o₀), (m₁, o₁))` with `m₀ ≠ m₁` and `pedersenVerify d h mᵢ c oᵢ = true` for
@@ -83,6 +83,10 @@ one. We establish:
    Theorem 10.4), computed in polynomial time via Fermat's little theorem as
    `extractNat (F.order d) o₁ m₀ o₀ m₁` (`CslibFrontier.Crypto.Computational.DiscreteLog.Extract`).
    This gives an exact zero-loss reduction from `F.pedersenScheme.bindingGame` to `discreteLogGame`.
+   The word reduction `pedersenToDLAdversary` checks the collision with the encoded verifier
+   `encodePedersenVerify` and is, on every key, the typed reduction `pedersenToDL` run on the
+   adversary read through `pedersenCollisionOf` (`pedersenToDLAdversary_encode`), so the word bound
+   is the typed one at each group.
 
 ## Main definitions
 
@@ -100,6 +104,9 @@ one. We establish:
 * `Cslib.Crypto.PrimeOrderGroupFamily.ValidPedersenMessage`,
   `Cslib.Crypto.PrimeOrderGroupFamily.pedersenVerify`: canonical message space and verification
   algorithm `V(m, c, o)`.
+* `Cslib.Crypto.PrimeOrderGroupFamily.validPedersenMessageBool`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.encodePedersenVerify`: the polynomial-time message check and
+  verification on encoded public group elements and message, commitment and opening words.
 * `Cslib.Crypto.PrimeOrderGroupFamily.PedersenKey`,
   `Cslib.Crypto.PrimeOrderGroupFamily.pedersenKeyDist`,
   `Cslib.Crypto.PrimeOrderGroupFamily.pedersenScheme`: Pedersen commitment packaged as a
@@ -117,6 +124,9 @@ one. We establish:
   `Cslib.Crypto.PrimeOrderGroupFamily.encodePedersenCommit_encode`,
   `Cslib.Crypto.PrimeOrderGroupFamily.computableInPolyTime_encodePedersenCommit`: homomorphic laws
   and polynomial-time encoded commitment evaluation.
+* `Cslib.Crypto.PrimeOrderGroupFamily.encodePedersenVerify_encode`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.computableInPolyTime_encodePedersenVerify`: encoded
+  verification computes `pedersenVerify` in polynomial time.
 * `Cslib.Crypto.PrimeOrderGroupFamily.pedersen_correct`,
   `Cslib.Crypto.PrimeOrderGroupFamily.pedersen_perfectlyHidingAt`,
   `Cslib.Crypto.PrimeOrderGroupFamily.advantage_pedersen_hidingExperiment_le`,
@@ -136,6 +146,8 @@ one. We establish:
 * `Cslib.Crypto.PrimeOrderGroupFamily.extractNat_eq_of_pedersenCommit_eq`: two distinct openings
   of one commitment under `h = α • g` recover `α` with `extractNat`; shared with the
   discrete-logarithm hash reduction in `CslibFrontier.Crypto.Computational.DiscreteLog.GroupHash`.
+* `Cslib.Crypto.PrimeOrderGroupFamily.pedersenToDLAdversary_encode`: the word reduction is the
+  typed reduction `pedersenToDL` on the adversary read through `pedersenCollisionOf`.
 * `Cslib.Crypto.PrimeOrderGroupFamily.succProbability_pedersenBindingGame_le_discreteLogGame`,
   `Cslib.Crypto.PrimeOrderGroupFamily.isPPTOn_pedersenToDLAdversary`,
   `Cslib.Crypto.PrimeOrderGroupFamily.DiscreteLog.pedersenBinding`,
@@ -480,6 +492,60 @@ theorem pedersenVerify_of_mem_support_pedersenCommitPairLaw (d : F.Desc) (h : F.
     rw [ofBits_bits, ZMod.natCast_zmod_val]
   simp only [pedersenVerify, Bool.and_eq_true, decide_eq_true_eq, hm.1, hm.2, hr, true_and]
 
+/-- Boolean decision procedure for `ValidPedersenMessage d m` (`ofBits m < F.order d` and
+`(ofBits m).bits = m`). -/
+def validPedersenMessageBool (d : F.Desc) (m : List Bool) : Bool :=
+  decide (ofBits m < F.order d) && decide ((ofBits m).bits = m)
+
+@[simp]
+theorem validPedersenMessageBool_eq_true_iff (d : F.Desc) (m : List Bool) :
+    F.validPedersenMessageBool d m = true ↔ F.ValidPedersenMessage d m := by
+  simp [validPedersenMessageBool, ValidPedersenMessage]
+
+/-- `validPedersenMessageBool` is computable in polynomial time from `(d, m)`. -/
+@[fun_prop]
+theorem computableInPolyTime_validPedersenMessageBool :
+    ComputableInPolyTime (fun p : F.Desc × List Bool => F.validPedersenMessageBool p.1 p.2)
+      (encPair F.encDesc encBits) encBool := by
+  have horder := F.computableInPolyTime_order
+  unfold validPedersenMessageBool
+  fun_prop
+
+/-- Composition rule for `validPedersenMessageBool`. -/
+@[fun_prop]
+theorem computableInPolyTime_validPedersenMessageBool_comp {γ : Type} {encIn : γ ↪ List Bool}
+    {d : γ → F.Desc} {m : γ → List Bool}
+    (hd : ComputableInPolyTime d encIn F.encDesc)
+    (hm : ComputableInPolyTime m encIn encBits) :
+    ComputableInPolyTime (fun a => F.validPedersenMessageBool (d a) (m a)) encIn encBool :=
+  F.computableInPolyTime_validPedersenMessageBool.comp (hd.prod hm)
+
+/-- Pedersen verification from `(description, encoded public element)`, message, commitment and
+opening words. The public element is already encoded; no discrete logarithm or semantic group
+value is supplied to this algorithm. -/
+def encodePedersenVerify
+    (input : (F.Desc × List Bool) × List Bool × List Bool × List Bool) : Bool :=
+  let ((d, h), m, c, o) := input
+  F.validPedersenMessageBool d m &&
+    decide (F.encodePedersenCommit (d, h, ofBits m, ofBits o) = c)
+
+/-- The encoded verifier computes exactly the verifier used by `pedersenScheme`. -/
+@[simp]
+theorem encodePedersenVerify_encode (d : F.Desc) (h : F.Carrier d) (m c o : List Bool) :
+    F.encodePedersenVerify ((d, F.encode d h), m, c, o) = F.pedersenVerify d h m c o := by
+  simp only [encodePedersenVerify, validPedersenMessageBool, pedersenVerify,
+    encodePedersenCommit_encode]
+
+/-- Encoded Pedersen verification is polynomial-time in all of its input words. -/
+theorem computableInPolyTime_encodePedersenVerify :
+    ComputableInPolyTime F.encodePedersenVerify
+      (encPair (encPair F.encDesc encBits) (encPair encBits (encPair encBits encBits)))
+      encBool := by
+  have horder := F.computableInPolyTime_order
+  have hcommit := F.computableInPolyTime_encodePedersenCommit
+  unfold encodePedersenVerify
+  fun_prop
+
 /-- A Pedersen commitment key over `F`: a group description `d : F.Desc` together with a public
 group element `h : F.Carrier d`. -/
 abbrev PedersenKey : Type := Σ d : F.Desc, F.Carrier d
@@ -714,10 +780,13 @@ theorem pedersenBindingGame_eq (setup : ℕ → PMF F.Desc)
     ProbComp.eval_uniform, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_bind,
     PMF.pure_bind]
 
-/-- Turn a `pedersenScheme` binding adversary into a discrete-logarithm adversary by passing the
-encoded Pedersen key `encPair F.encDesc encBits input` and extracting `α` with `extractNat` in
-binary from the two candidate openings ([BonehShoup2023], Section 10.6.1, Theorem 10.4,
-pp. 414–415). -/
+/-- Turn a `pedersenScheme` binding adversary into a discrete-logarithm adversary
+([BonehShoup2023], Section 10.6.1, Theorem 10.4, pp. 414–415). It gives the adversary the
+encoded Pedersen key `encPair F.encDesc encBits input`. When the reply `(c, (m₀, o₀), (m₁, o₁))`
+is a binding collision, checked with `encodePedersenVerify` on the encoded key, it outputs `α` in
+binary, computed with `extractNat` from the two openings; otherwise it outputs `[]`, the binary
+word of `0`. On every key it is the typed reduction `pedersenToDL` run on the adversary read
+through `pedersenCollisionOf` (`pedersenToDLAdversary_encode`). -/
 def pedersenToDLAdversary
     (adversary : ℕ → List Bool →
       ProbComp (List Bool × (List Bool × List Bool) × (List Bool × List Bool)))
@@ -726,15 +795,55 @@ def pedersenToDLAdversary
   let openings := out.2
   let open₀ := openings.1
   let open₁ := openings.2
-  return (extractNat (F.order input.1)
-    (ofBits open₁.2) (ofBits open₀.1)
-    (ofBits open₀.2) (ofBits open₁.1)).bits
+  return if decide (open₀.1 ≠ open₁.1) && F.encodePedersenVerify (input, open₀.1, out.1, open₀.2) &&
+      F.encodePedersenVerify (input, open₁.1, out.1, open₁.2) then
+    (extractNat (F.order input.1)
+      (ofBits open₁.2) (ofBits open₀.1)
+      (ofBits open₀.2) (ofBits open₁.1)).bits
+  else []
+
+/-- **The word reduction is the typed one**: on the encoded key of any `h`,
+`pedersenToDLAdversary` runs the typed reduction `pedersenToDL` on the binding adversary read
+through `pedersenCollisionOf`, the reading of `pedersenBindingGame_eq`, and writes the exponent it
+outputs as the binary word of its canonical value. -/
+theorem pedersenToDLAdversary_encode
+    (adversary : ℕ → List Bool →
+      ProbComp (List Bool × (List Bool × List Bool) × (List Bool × List Bool)))
+    (n : ℕ) (d : F.Desc) (h : F.Carrier d) :
+    F.pedersenToDLAdversary adversary n (d, F.encode d h) =
+      (fun α : ZMod (F.order d) => α.val.bits) <$>
+        F.pedersenToDL (fun h => F.pedersenCollisionOf d h <$>
+          adversary n (F.pedersenScheme.encodeKey ⟨d, h⟩)) h := by
+  simp only [pedersenToDLAdversary, pedersenToDL, pedersenScheme_encodeKey, map_bind,
+    bind_map_left, map_pure]
+  congr 1
+  funext out
+  obtain ⟨c, ⟨m₀, o₀⟩, ⟨m₁, o₁⟩⟩ := out
+  have hcoll : (decide (m₀ ≠ m₁) && F.encodePedersenVerify ((d, F.encode d h), m₀, c, o₀) &&
+      F.encodePedersenVerify ((d, F.encode d h), m₁, c, o₁)) =
+        F.pedersenScheme.isBindingCollision ⟨d, h⟩ (c, (m₀, o₀), (m₁, o₁)) := by
+    simp only [encodePedersenVerify_encode]
+    rfl
+  simp only [hcoll]
+  obtain ⟨α, rfl⟩ := F.smul_generator_surjective d h
+  cases hb : F.pedersenScheme.isBindingCollision ⟨d, α • F.generator d⟩ (c, (m₀, o₀), (m₁, o₁))
+  · simp [pedersenCollisionOf, hb]
+  · have htyped := F.inv_mul_eq_of_isBindingCollision_pedersen
+      ((F.isBindingCollision_pedersenCollisionOf d _ _).trans hb)
+    have hword := F.extractNat_eq_of_isBindingCollision_pedersenScheme d α hb
+    dsimp only at hword
+    have hlt : extractNat (F.order d) (ofBits o₁) (ofBits m₀) (ofBits o₀) (ofBits m₁) <
+        F.order d := Nat.mod_lt _ (F.prime_order d).pos
+    simp only [↓reduceIte, htyped]
+    rw [← hword, ZMod.val_cast_of_lt hlt]
 
 /-- **Exact binding-to-discrete-logarithm reduction** ([BonehShoup2023], Section 10.6.1,
 Theorem 10.4, pp. 414–415; [Pedersen1991], Section 3, Theorem 3.1): for every security parameter
 `n`, the success probability of `adversary` in
 `F.pedersenScheme.bindingGame (F.pedersenKeyDist setup)` is at most the discrete-logarithm success
-probability of `pedersenToDLAdversary adversary`. -/
+probability of `pedersenToDLAdversary adversary`. At each group `d` this is the typed bound
+`succProbability_pedersen_bindingExperiment_le`, through `pedersenBindingGame_eq` and
+`pedersenToDLAdversary_encode`. -/
 theorem succProbability_pedersenBindingGame_le_discreteLogGame (setup : ℕ → PMF F.Desc)
     (adversary : ℕ → List Bool →
       ProbComp (List Bool × (List Bool × List Bool) × (List Bool × List Bool)))
@@ -742,20 +851,19 @@ theorem succProbability_pedersenBindingGame_le_discreteLogGame (setup : ℕ → 
     Game.succProbability
       (F.pedersenScheme.bindingGame (F.pedersenKeyDist setup) adversary n) ≤
       Game.succProbability (F.discreteLogGame setup (F.pedersenToDLAdversary adversary) n) := by
-  refine ENNReal.toNNReal_mono (PMF.apply_ne_top _ _) ?_
-  dsimp only [CommitmentScheme.bindingGame, pedersenKeyDist,
-    discreteLogGame, pedersenToDLAdversary, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
-  simp only [pedersenScheme_encodeKey, ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind,
-    PMF.pure_bind]
-  refine PMF.bind_apply_mono_on_support (setup n) true fun d _ => ?_
-  refine PMF.bind_apply_mono_on_support (PMF.uniformOfFintype (ZMod (F.order d))) true fun α _ => ?_
-  refine PMF.bind_apply_mono_on_support
-    (ProbComp.eval (adversary n (encPair F.encDesc encBits (d, F.encode d (α • F.generator d)))))
-    true fun out _ => ?_
-  by_cases hcoll : F.pedersenScheme.isBindingCollision ⟨d, α • F.generator d⟩ out = true
-  · have hextract := F.extractNat_eq_of_isBindingCollision_pedersenScheme d α hcoll
-    simp [hcoll, hextract]
-  · simp [Bool.eq_false_iff.mpr hcoll]
+  have hDL : F.discreteLogGame setup (F.pedersenToDLAdversary adversary) n =
+      Game.withSetup (setup n) fun d =>
+        dlExperiment (F.order d) (F.generator d) (F.pedersenToDL fun h =>
+          F.pedersenCollisionOf d h <$> adversary n (F.pedersenScheme.encodeKey ⟨d, h⟩)) := by
+    simp only [discreteLogGame, Game.withSetup, dlExperiment, pedersenToDLAdversary_encode,
+      ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure, ProbComp.eval_uniform,
+      PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_map, Function.comp_def,
+      ofBits_bits, ZMod.natCast_zmod_val]
+  rw [pedersenBindingGame_eq, hDL]
+  refine ENNReal.toNNReal_mono (PMF.apply_ne_top _ _)
+    (PMF.bind_apply_mono_on_support (setup n) true fun d _ => ?_)
+  exact (ENNReal.toNNReal_le_toNNReal (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _)).mp
+    (F.succProbability_pedersen_bindingExperiment_le _)
 
 /-- `pedersenToDLAdversary` is uniform strict PPT whenever the binding adversary is. -/
 theorem isPPTOn_pedersenToDLAdversary
@@ -770,13 +878,18 @@ theorem isPPTOn_pedersenToDLAdversary
   refine (hA.preprocess
     (prepare := fun input : ℕ × F.Desc × List Bool =>
       (input.1, encPair F.encDesc encBits input.2)) (by fun_prop)).bind_with ?_
+  have hverify := F.computableInPolyTime_encodePedersenVerify
   have hextract : ComputableInPolyTime
       (fun p :
           (ℕ × F.Desc × List Bool) ×
             (List Bool × (List Bool × List Bool) × (List Bool × List Bool)) =>
-        (extractNat (F.order p.1.2.1)
-          (ofBits p.2.2.2.2) (ofBits p.2.2.1.1)
-          (ofBits p.2.2.1.2) (ofBits p.2.2.2.1)).bits)
+        if decide (p.2.2.1.1 ≠ p.2.2.2.1) &&
+            F.encodePedersenVerify (p.1.2, p.2.2.1.1, p.2.1, p.2.2.1.2) &&
+            F.encodePedersenVerify (p.1.2, p.2.2.2.1, p.2.1, p.2.2.2.2) then
+          (extractNat (F.order p.1.2.1)
+            (ofBits p.2.2.2.2) (ofBits p.2.2.1.1)
+            (ofBits p.2.2.1.2) (ofBits p.2.2.2.1)).bits
+        else [])
       (encPair (encPair encUnary (encPair F.encDesc encBits))
         (encPair encBits (encPair (encPair encBits encBits) (encPair encBits encBits))))
       encBits := by

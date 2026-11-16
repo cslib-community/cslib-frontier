@@ -6,48 +6,22 @@ Authors: Samuel Schlesinger, Mayank Rathee
 
 module
 
-public import CslibFrontierTests.Crypto.MPC
 public import CslibFrontier.Crypto.Protocols.MPC.Yao
 public import Cslib.Computability.Circuit.Boolean.Basic
 
-/-! # Yao's protocol and the semi-honest advantage: checked instances
+/-! # Yao's protocol: checked instances
 
-* `semiHonestAdvantage`: zero for the perfectly private XOR protocol of
-  `CslibFrontierTests.Crypto.MPC`, and positive for some distinguisher for every simulator of its
-  leaky
-  protocol.
-* Yao's protocol for a one-gate AND circuit with the garbler's bit as input `0` and the evaluator's
-  bit as input `1`, garbled with one-bit keys: the evaluator's decoding by computation on every
-  input; the correctness theorem; perfect privacy against the garbler; and the evaluator bound with
-  injective tweaks (`id`), which checks that its hypothesis is satisfiable. -/
+Yao's protocol for a one-gate AND circuit with the garbler's bit as input `0` and the evaluator's
+bit as input `1`, garbled with one-bit keys: the evaluator's decoding by computation on every
+input; the correctness theorem; perfect privacy against the garbler; and the evaluator bound with
+injective tweaks (`id`), which checks that its hypothesis is satisfiable. The checks of
+`semiHonestAdvantage` on the XOR and leaky protocols are in `CslibFrontierTests.Crypto.MPC`. -/
 
 @[expose] public section
 
 namespace CslibFrontierTests.Crypto.Yao
 
 open Cslib Cslib.Circuits Cslib.Crypto Cslib.Crypto.Garbling Cslib.Crypto.Protocols.MPC
-open CslibFrontierTests.Crypto.MPC
-
-/-! ### The semi-honest advantage -/
-
--- Perfect privacy gives advantage zero against every distinguisher.
-example (I : Finset (Fin 2)) (x : Fin 2 → Bool)
-    (D : ((i : I) → PartyView (fun _ => Bool) (fun _ => Unit) xorSchedule i) × (Fin 2 → Bool) →
-      ProbComp Bool) :
-    semiHonestAdvantage xorProtocol noOracleWorld (Functionality.ofDeterministic xorFunc) I
-      (xorSim I) x D = 0 :=
-  perfectSemiHonestPrivate_xorProtocol.semiHonestAdvantage_eq_zero I x D
-
--- Against every simulator for the leaky protocol, some coalition, input and distinguisher have
--- positive advantage.
-example (S : (I : Finset (Fin 2)) →
-      CoalitionSimulator leakySchedule (fun _ => Bool) (fun _ => Unit) (fun _ => Bool) I) :
-    ∃ I x D, semiHonestAdvantage leakyProtocol noOracleWorld
-      (Functionality.ofDeterministic constFalseFunc) I (S I) x D ≠ 0 := by
-  by_contra h
-  exact not_perfectSemiHonestPrivate_leakyProtocol S fun I x =>
-    (semiHonestAdvantage_eq_zero_iff _ _ _ _ _ x).mp fun D =>
-      not_not.mp fun hD => h ⟨I, x, D, hD⟩
 
 /-! ### Yao's protocol for one AND gate -/
 

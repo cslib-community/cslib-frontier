@@ -147,8 +147,8 @@ says "locator not verified" until a reviewer has confirmed the locator at the so
 claiming a cited result rests on the source's assumption, on one review accepts as the same in
 another formal setting, or on one the source's implies; otherwise it is a stand-in. A novel
 assumption may support a result presented as original and named for it.
-`scripts/check_security_premises.py` and `scripts/check_hardness_assumptions.py` supplement these
-rules; they do not replace semantic review.
+`scripts/check_security_premises.py`, `scripts/check_reduction_witnesses.py` and
+`scripts/check_hardness_assumptions.py` supplement these rules; they do not replace semantic review.
 
 ## Review cycle
 
@@ -208,8 +208,9 @@ review context, reaching its own verdict. Anyone who took part in the implementa
 design cannot supply that review. If a shared GitHub account prevents formal approval, use one
 brief PR comment naming the reviewer agent or session, revision and verdict. Agent review is
 never presented as human review. Before a published theorem enters the
-[results inventory](results/README.md), a human maintainer checks the statement against the
-source and records that in a comment the human writes.
+[results inventory](results/README.md), its statement is checked against the source by a
+reviewer, human or agent, from outside the authoring fleet, who records the check in a comment
+that says who made it ([policy/review.md](policy/review.md#review-cycle)).
 
 ### Approve and queue
 
@@ -280,7 +281,8 @@ Full text: [policy/workflow.md](policy/workflow.md). Each agent works as a **coo
 Changing roles does not make an author eligible to approve their own changes. Give parallel
 agents distinct scope, branches and build outputs; the delegating agent brings their work to
 completion. When review or integration is the bottleneck, do requested fixes, reviews and landing
-before starting more PRs. Use issues for substantial tasks and search for existing ones first; do
+before starting more PRs; a coordinator starts or commissions no new PR work while more than ten
+of its fleet's need its own action ([backpressure](policy/workflow.md#backpressure-and-tending)). Use issues for substantial tasks and search for existing ones first; do
 not open an issue or PR for each incidental cleanup.
 
 ### Completion and scope

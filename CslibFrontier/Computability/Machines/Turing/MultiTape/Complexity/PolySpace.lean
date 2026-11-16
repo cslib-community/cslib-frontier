@@ -68,7 +68,7 @@ private theorem incrementT_run (w : List Bool) :
 /-- **The binary counter in linear time.** -/
 theorem ComputableTidilyInDegree.increment :
     ComputableTidilyInDegree Cslib.BitString.increment encBits encBits 1 1 :=
-  .of_linear (incrementT.computableTidilyInLinearTimeAndSpace fun w => by
+  .of_linear (ComputableInDegree.of_transducer incrementT fun w => by
     rw [show incrementT.q₀ = true from rfl, incrementT_run]; rfl)
 
 /-- The binary counter in polynomial time. -/

@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 public import CslibFrontier.Computability.Probabilistic.Oracle.Parameter
@@ -15,6 +16,7 @@ public import CslibFrontier.Computability.Probabilistic.UniformNat
 public import CslibFrontier.Crypto.Computational.Encryption.Basic
 public import CslibFrontier.Crypto.Game.Hybrid
 public import CslibFrontier.Crypto.Encoding
+import Mathlib.Data.List.GetD
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
@@ -22,12 +24,9 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Crypto.Computational.Encryption.DecryptionBound
-import CslibFrontier.Crypto.Negligible.Basic
-import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.BindCompare
-import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.PPT
@@ -323,7 +322,8 @@ theorem CCA2AdversaryOf.IsPPT.query_bounds {Msg : Type} {encMsg : Msg ↪ List B
     have hpoly := Nat.mul_le_mul_left c₂ (Nat.pow_le_pow_left hsize d₂)
     rw [Nat.mul_pow, ← Nat.mul_assoc] at hpoly
     exact (hguess (n, state, ct)).1.mono hpoly
-  · have hbound := hlen (n, pk) State oracle s s' choice hmem
+  · rw [← ProbOracleComp.runWith_eq_run_interpret] at hmem
+    have hbound := hlen (n, pk) State oracle s s' choice hmem
     have hstate : choice.2.length ≤ (encPair (encPair encMsg encMsg) encBits choice).length := by
       enc_len
     have hsize : (encPair encUnary encBits (n, pk)).length + 1 ≤
@@ -434,14 +434,19 @@ abbrev INDCCA2Of {Msg Out : Type} (encMsg : Msg ↪ List Bool) (encOut : Out ↪
     (decrypt : ℕ → List Bool → List Bool → Option Out) : Prop :=
   INDCCA2On (fun _ _ _ _ => true) encMsg encOut keyGen encrypt decrypt
 
-/-- Single-challenge 1CCA security for bit encryption (`Msg = Bool`, `Out = Bool`). -/
+/-- Single-challenge 1CCA security for bit encryption (`Msg = Bool`, `Out = Bool`):
+[BonehShoup2023], Definition 12.2 (p. 468), that is, Attack Game 12.1 (pp. 467–468) with one
+encryption query, for the message space of single bits. A Phase 2 decryption query on the
+challenge ciphertext is answered with rejection, where the source forbids it. -/
 abbrev INDCCA2 (keyGen : ℕ → ProbComp (List Bool × List Bool))
     (encrypt : ℕ → List Bool → Bool → ProbComp (List Bool))
     (decrypt : ℕ → List Bool → List Bool → Option Bool) : Prop :=
   INDCCA2Of encBool encBool keyGen encrypt decrypt
 
 /-- Single-challenge 1CCA security for bit-string encryption (`Msg = List Bool`, `Out = List Bool`)
-under Attack Game 12.1's equal-length challenge rule `m₀.length == m₁.length`. -/
+under Attack Game 12.1's equal-length challenge rule `m₀.length == m₁.length`: [BonehShoup2023],
+Definition 12.2 (p. 468), with every bit string a message. A Phase 2 decryption query on the
+challenge ciphertext is answered with rejection, where the source forbids it. -/
 abbrev WordINDCCA2 (keyGen : ℕ → ProbComp (List Bool × List Bool))
     (encrypt : ℕ → List Bool → List Bool → ProbComp (List Bool))
     (decrypt : ℕ → List Bool → List Bool → Option (List Bool)) : Prop :=
@@ -1051,7 +1056,8 @@ theorem MultiCCA2AdversaryOf.IsPPT.query_bounds {Msg : Type} {encMsg : Msg ↪ L
     have hpoly := Nat.mul_le_mul_left c₂ (Nat.pow_le_pow_left hsize d₂)
     rw [Nat.mul_pow, ← Nat.mul_assoc] at hpoly
     exact (hguess (n, state, cts)).1.mono hpoly
-  · have hbound := hlen (n, pk) State oracle s s' choice hmem
+  · rw [← ProbOracleComp.runWith_eq_run_interpret] at hmem
+    have hbound := hlen (n, pk) State oracle s s' choice hmem
     have hchallenges :
         choice.1.length ≤ (encPair (encList (encPair encMsg encMsg)) encBits choice).length := by
       have hlist := length_le_length_encList (encPair encMsg encMsg) choice.1
@@ -1172,7 +1178,12 @@ abbrev INDCCA2MultiOf {Msg Out : Type} (encMsg : Msg ↪ List Bool) (encOut : Ou
     (decrypt : ℕ → List Bool → List Bool → Option Out) : Prop :=
   INDCCA2MultiOn (fun _ _ _ _ => true) encMsg encOut keyGen encrypt decrypt
 
-/-- Batch-challenge multi-challenge CCA security for bit encryption (`Msg = Bool`, `Out = Bool`). -/
+/-- Batch-challenge multi-challenge CCA security for bit encryption (`Msg = Bool`, `Out = Bool`).
+It restricts the adversaries of [BonehShoup2023], Attack Game 12.1 and Definition 12.1
+(pp. 467–468): all encryption queries come in one batch between the two phases of decryption
+queries, instead of being interleaved with them. For efficient algorithms it is equivalent to
+`INDCCA2` (`indcca2Multi_iff_indcca2`), as CCA security is to 1CCA security by Theorem 12.1
+(p. 468). -/
 abbrev INDCCA2Multi (keyGen : ℕ → ProbComp (List Bool × List Bool))
     (encrypt : ℕ → List Bool → Bool → ProbComp (List Bool))
     (decrypt : ℕ → List Bool → List Bool → Option Bool) : Prop :=
@@ -1180,7 +1191,9 @@ abbrev INDCCA2Multi (keyGen : ℕ → ProbComp (List Bool × List Bool))
 
 /-- Batch-challenge multi-challenge CCA security for bit-string encryption (`Msg = List Bool`,
 `Out = List Bool`) under Attack Game 12.1's equal-length challenge rule
-`m₀.length == m₁.length`. -/
+`m₀.length == m₁.length`. It restricts the adversaries of [BonehShoup2023], Attack Game 12.1 and
+Definition 12.1 (pp. 467–468): all encryption queries come in one batch between the two phases of
+decryption queries, instead of being interleaved with them. -/
 abbrev WordINDCCA2Multi (keyGen : ℕ → ProbComp (List Bool × List Bool))
     (encrypt : ℕ → List Bool → List Bool → ProbComp (List Bool))
     (decrypt : ℕ → List Bool → List Bool → Option (List Bool)) : Prop :=
@@ -2685,6 +2698,7 @@ theorem INDCCA2On.indcca2MultiOn {Msg Out : Type} [Inhabited Msg]
     have hk := hlenKey n keys hkeys
     simp only [length_encPair, encUnary_apply, List.length_replicate, encBits_apply] at hk
     rw [ProbOracleComp.eval_run_interpret_eq_runWith] at hchoice
+    rw [ProbOracleComp.runWith_eq_run_interpret] at hchoice
     have hch := (hlenCh n keys.1 Unit _ () () (challenges, stateA) hchoice).1
     exact hch.trans (Nat.mul_le_mul_left cq (Nat.pow_le_pow_left (by omega) dq))
   have hsingleNeg := h (cca2MultiToSingle valid encrypt decBound Q adversary)

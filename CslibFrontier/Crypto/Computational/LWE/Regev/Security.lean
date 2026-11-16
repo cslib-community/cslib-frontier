@@ -539,6 +539,20 @@ theorem eval_lorDistinguisherSerialized_toBinary (n m w Q : ℕ → ℕ)
   rw [eval_lorRunSerialized_toBinary n m w adversary security A bit (Q security) (st₀, [])]
   rfl
 
+/-- On canonical public-matrix words, the hidden-bit reduction `lorLweDistinguisher` draws a fair
+challenge bit `bit` and outputs the guess of typed `Regev.lorDistinguisher` at `bit`, XOR `bit`. -/
+theorem eval_lorLweDistinguisher_toBinary (n m w Q : ℕ → ℕ)
+    (adversary : Encryption.LoRAdversary) (security : ℕ)
+    (A : PublicKey (n security) (m security) (w security)) :
+    ProbComp.eval (lorLweDistinguisher n m w Q adversary security (Cslib.Matrix.toBinary A)) =
+      (PMF.uniformOfFintype Bool).bind fun bit =>
+        (lorDistinguisher (Q security) (typedLoRAdversary adversary security) bit A).map
+          fun guess => guess ^^ bit := by
+  simp only [← eval_lorDistinguisherSerialized_toBinary, lorLweDistinguisher,
+    Encryption.lorKeyDistinguisher, Encryption.lorKeyDistinguisherOn, ProbComp.eval_bind,
+    ProbComp.eval_uniform, ProbComp.eval_pure]
+  rfl
+
 /-- Under the real `DecisionLWE` ensemble, `lorDistinguisherSerialized` realizes the real side of
 `Regev.lorGame_advantage_le`. -/
 theorem distinguishingGame_realEnsemble_lorDistinguisherSerialized (n m w η Q : ℕ → ℕ)
