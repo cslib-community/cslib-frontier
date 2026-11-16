@@ -2860,17 +2860,22 @@ Exercise 8.23(d) are not proved here; the
 bound is an equality on `Bool → Unit`, probe `0 < s`, instantiate the finite `revealAtZero`
 construction of Exercise 8.23(c), and refute constant functions.
 
-For length-strengthened Merkle–Damgård padding (Boneh–Shoup v0.6, Section 8.4, Fig. 8.5,
-pp. 296–297 [bs23][bs23]), import
+For the length-strengthened Merkle–Damgård padding of [bs23][bs23], §8.4, Fig. 8.5 (pp. 296–297),
+import
 [`MerkleDamgard/LengthPadding.lean`](../../CslibFrontier/Crypto/Computational/MerkleDamgard/LengthPadding.lean).
-`mdLengthBlocks` partitions `mdLengthPad` (`M ‖ 1 ‖ 0^k ‖ ⟨s⟩` with `n`-bit blocks and an
-`(n / 2)`-bit big-endian padded block count `s = mdLengthBlockCount n msg`) into `s` blocks;
-`mdLengthBlocks_suffix_iff` proves suffix-freeness whenever the longer message satisfies
-`mdLengthBlockCount n m₂ < 2 ^ (n / 2)`, and `computableInPolyTime_mdLengthBlocks` certifies
-polynomial-time computation. The
-[checked examples](../../CslibFrontierTests/Crypto/MerkleDamgardLengthPadding.lean) verify
-single-block and extra-block padding, an overflow suffix counterexample, and bounded-message
-collision resistance via `CompressionFamily.collisionResistantOn_merkleDamgardChain`; run
+With `n`-bit blocks, `mdLengthPad n msg` is `M ‖ 1 ‖ 0^k ‖ ⟨s⟩`, where
+`s = mdLengthBlockCount n msg` is the number of blocks of the padded message and `⟨s⟩` is its
+`(n / 2)`-bit big-endian encoding, and `mdLengthBlocks n msg` lists its first `s` blocks. When
+`s < 2 ^ (n / 2)` the padded message has exactly `s * n` bits (`length_mdLengthPad`) and the blocks
+concatenate to it (`flatten_mdLengthBlocks`); for larger `s` the count does not fit its field and
+bits are dropped. `mdLengthBlocks_suffix_iff`: if `mdLengthBlockCount n m₂ < 2 ^ (n / 2)`, then
+`mdLengthBlocks n m₁` is a suffix of `mdLengthBlocks n m₂` only when `m₁ = m₂`.
+`computableInPolyTime_mdLengthBlocks` is the polynomial-time certificate, with `n` in unary. The
+hash built from this padding and Theorem 8.3 (p. 297) for it are not yet library declarations. The
+[checked examples](../../CslibFrontierTests/Crypto/MerkleDamgardLengthPadding.lean) compute both
+cases of p. 297 at `n = 4`, show that suffix-freeness fails at the first count that does not fit,
+and derive collision resistance of the chain on the messages whose count fits from
+`CompressionFamily.collisionResistantOn_merkleDamgardChain`; run
 `scripts/build.sh CslibFrontierTests.Crypto.MerkleDamgardLengthPadding`.
 
 Merkle–Damgård chains have many messages with one digest at little more than the cost of one

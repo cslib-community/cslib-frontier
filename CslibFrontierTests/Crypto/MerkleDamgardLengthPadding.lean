@@ -31,12 +31,13 @@ example :
       [[true, false, true, false], [false, false, true, false]] := by
   decide
 
-/-- Necessity of the non-overflow hypothesis `hs₂` in `mdLengthBlocks_suffix_iff`: at `n = 4`
-(`2 ^ (n / 2) = 4`), `m₂ = List.replicate 26 false` has `mdLengthBlockCount 4 m₂ = 8 ≥ 4`,
-truncating its final block to `[false, false, true, false]` and making
-`mdLengthBlocks 4 [false, false]` a suffix of `mdLengthBlocks 4 m₂`. -/
+/-- The bound `hs₂` in `mdLengthBlocks_suffix_iff` cannot be weakened to `≤`: at `n = 4`,
+`m₂ = List.replicate 13 false` has `mdLengthBlockCount 4 m₂ = 4 = 2 ^ (4 / 2)`, the first count
+that does not fit in two bits, and the blocks of the different message `List.replicate 5 false` are
+a suffix of its blocks. -/
 example :
-    mdLengthBlocks 4 [false, false] <:+ mdLengthBlocks 4 (List.replicate 26 false) := by
+    mdLengthBlockCount 4 (List.replicate 13 false) = 2 ^ (4 / 2) ∧
+      mdLengthBlocks 4 (List.replicate 5 false) <:+ mdLengthBlocks 4 (List.replicate 13 false) := by
   decide
 
 /-- Collision resistance on messages whose padded block count fits in the `(n / 2)`-bit field,
