@@ -29,8 +29,9 @@ applies, and it keeps columns `2, …, d` of every matrix unchanged. `shearMatri
 span-program namespace because `normalForm` is its only client; it moves to
 `Foundations/LinearAlgebra/Matrix/` when a second client appears.
 
-The three algorithms are total. Outside their domains they return what elimination returns, as
-their docstrings say. The circuit-size bounds are in
+The three algorithms are total. Outside their domains they return what elimination returns:
+`recombination_eq_zero_of_not_accepts`, `nullVector_eq_zero_of_accepts` and
+`not_accepts_normalForm_of_accepts`. The circuit-size bounds are in
 `CslibFrontier.Computability.Circuit.SpanProgram.EliminationSynthesis`; that the shares and the
 secret behave as Theorem 22.14 says is in
 `CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.LinearEquivalence`.
@@ -146,7 +147,7 @@ variable [DecidableEq F]
 the coalition `s`, by elimination on the stacked rows. Party `i` gets the vector
 `P.recombination s i`. The rows of a party outside `s` are zero in `stack`, and its vector does
 not enter `sum_vecMul_recombination`. When `s` is not accepted, elimination finds no solution
-and returns the zero vector for every party. -/
+and returns the zero vector for every party (`recombination_eq_zero_of_not_accepts`). -/
 @[expose] def recombination (P : MonotoneSpanProgram F (Fin N)) (s : Finset (Fin N)) (i : Fin N) :
     Fin (P.rowDim i) → F :=
   fun row => Cslib.LinearAlgebra.vecMulSolve (P.stack s) P.target (finSigmaFinEquiv ⟨i, row⟩)
@@ -170,9 +171,20 @@ theorem sum_vecMul_recombination (P : MonotoneSpanProgram F (Fin N)) {s : Finset
   rw [Equiv.symm_apply_apply]
   exact dite_eq_left i.2
 
+/-- On a coalition that is not accepted, `recombination` gives every party the zero vector. -/
+theorem recombination_eq_zero_of_not_accepts (P : MonotoneSpanProgram F (Fin N))
+    {s : Finset (Fin N)} (hs : ¬ P.Accepts s) (i : Fin N) : P.recombination s i = 0 := by
+  have h : Cslib.LinearAlgebra.vecMulSolve (P.stack s) P.target = 0 := by
+    refine Cslib.LinearAlgebra.vecMulSolve_eq_zero _ _ fun ⟨W, hW⟩ => hs ?_
+    refine (P.accepts_iff_exists_vecMul s).2 ⟨fun i row => W (finSigmaFinEquiv ⟨i.1, row⟩), ?_⟩
+    rw [Finset.sum_coe_sort s fun i => (fun row => W (finSigmaFinEquiv ⟨i, row⟩)) ᵥ* P.matrix i,
+      ← vecMul_stack, hW]
+  funext row
+  exact congrFun h _
+
 /-- A kernel vector of the matrices of the members of `s` with first entry one, by elimination.
 It exists exactly when `s` is not accepted (`nullVector_zero_eq_one_iff`); when `s` is accepted,
-elimination returns the zero vector. -/
+elimination returns the zero vector (`nullVector_eq_zero_of_accepts`). -/
 @[expose] def nullVector (P : MonotoneSpanProgram F (Fin N)) (s : Finset (Fin N)) :
     Fin (P.tailDim + 1) → F :=
   Cslib.LinearAlgebra.kernelVecAt (P.stack s) 0
@@ -192,6 +204,13 @@ theorem nullVector_zero_eq_one_iff (P : MonotoneSpanProgram F (Fin N)) (s : Fins
     exact (Cslib.LinearAlgebra.kernelVecAt_apply_self_eq_one_iff _ _).2
       ⟨v, (P.stack_mulVec_eq_zero_iff s v).2 hv, by rw [hv0]; exact one_ne_zero⟩
 
+/-- On an accepted coalition, `nullVector` is the zero vector. -/
+theorem nullVector_eq_zero_of_accepts (P : MonotoneSpanProgram F (Fin N)) {s : Finset (Fin N)}
+    (hs : P.Accepts s) : P.nullVector s = 0 := by
+  refine Cslib.LinearAlgebra.kernelVecAt_eq_zero _ _ fun v hv => by_contra fun hv0 => ?_
+  refine P.not_accepts_of_exists_nullVector ((v 0)⁻¹ • v) (by simp [hv0]) (fun i hi => ?_) hs
+  rw [Matrix.mulVec_smul, (P.stack_mulVec_eq_zero_iff s v).1 hv i hi, smul_zero]
+
 /-- For a coalition that is not accepted, `shearMatrix (P.nullVector s)` satisfies the two
 hypotheses of Lemma 22.15: it is invertible and its top row is `e₁`. -/
 theorem shearMatrix_nullVector_of_not_accepts (P : MonotoneSpanProgram F (Fin N))
@@ -204,7 +223,8 @@ theorem shearMatrix_nullVector_of_not_accepts (P : MonotoneSpanProgram F (Fin N)
 /-- **The program `P_L`** ([BonehShoup2023], Theorem 22.14(b), p. 981): the matrices of `P`
 multiplied on the right by the identity matrix with first column `P.nullVector s`. For an
 accepted `s` the kernel vector is zero, so every matrix of `P.normalForm s` has first column
-zero, for members and non-members alike, and the program accepts no coalition. -/
+zero, for members and non-members alike, and the program accepts no coalition
+(`not_accepts_normalForm_of_accepts`). -/
 @[expose] def normalForm (P : MonotoneSpanProgram F (Fin N)) (s : Finset (Fin N)) :
     MonotoneSpanProgram F (Fin N) :=
   P.mulRight (shearMatrix (P.nullVector s))
@@ -231,6 +251,17 @@ theorem accepts_normalForm (P : MonotoneSpanProgram F (Fin N)) {s : Finset (Fin 
     (hs : ¬ P.Accepts s) (t : Finset (Fin N)) : (P.normalForm s).Accepts t ↔ P.Accepts t :=
   P.accepts_mulRight (P.shearMatrix_nullVector_of_not_accepts hs).1
     (P.shearMatrix_nullVector_of_not_accepts hs).2 t
+
+/-- For an accepted coalition `s`, every matrix of `P.normalForm s` has first column zero, so the
+program accepts no coalition. -/
+theorem not_accepts_normalForm_of_accepts (P : MonotoneSpanProgram F (Fin N))
+    {s : Finset (Fin N)} (hs : P.Accepts s) (t : Finset (Fin N)) :
+    ¬ (P.normalForm s).Accepts t := by
+  rw [normalForm, P.nullVector_eq_zero_of_accepts hs]
+  refine not_accepts_of_exists_nullVector _ (Pi.single 0 1) (by simp) fun i _ => ?_
+  rw [Matrix.mulVec_single_one]
+  exact funext fun row => (mulRight_shearMatrix_matrix_zero P 0 i row).trans
+    (congrFun (Matrix.mulVec_zero _) row)
 
 end MonotoneSpanProgram
 

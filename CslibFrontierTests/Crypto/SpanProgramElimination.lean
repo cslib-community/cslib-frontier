@@ -97,6 +97,15 @@ example : (shamir23.normalForm {1}).Accepts {0, 1} ∧ ¬ (shamir23.normalForm {
   ⟨(shamir23.accepts_normalForm shamir23_not_accepts_1 {0, 1}).mpr shamir23_accepts_01,
     fun h => shamir23_not_accepts_1 ((shamir23.accepts_normalForm shamir23_not_accepts_1 {1}).mp h)⟩
 
+/-- Outside the domains: `Lin` of the rejected coalition `{1}` is zero for every party, the kernel
+vector of the accepted coalition `{0, 1}` is zero, and its normal form accepts no coalition. -/
+example (i : Fin 3) (t : Finset (Fin 3)) :
+    shamir23.recombination {1} i = 0 ∧ shamir23.nullVector {0, 1} = 0 ∧
+      ¬ (shamir23.normalForm {0, 1}).Accepts t :=
+  ⟨shamir23.recombination_eq_zero_of_not_accepts shamir23_not_accepts_1 i,
+    shamir23.nullVector_eq_zero_of_accepts shamir23_accepts_01,
+    shamir23.not_accepts_normalForm_of_accepts shamir23_accepts_01 t⟩
+
 /-- "clearly implies Theorem 22.13" ([BonehShoup2023], p. 981): the privacy theorem for uniform
 keys follows from Theorem 22.14(b). -/
 example {F : Type*} [Field F] [Fintype F] [DecidableEq F] {N : ℕ}
@@ -139,13 +148,8 @@ example : (fun row : Fin 1 => shamir23.recombination {0, 1} 0 row) = ![2] ∧
     (fun row : Fin 1 => shamir23.recombination {0, 1} 2 row) = ![0] := by
   decide +kernel
 
-/-- On a coalition that is not accepted `Lin` returns zero vectors. -/
-example : (fun row : Fin 1 => shamir23.recombination {1} 1 row) = ![0] := by
-  decide +kernel
-
-/-- The kernel vector of the coalition `{1}`, and the zero vector for the accepted `{0, 1}`. -/
-example : (fun c : Fin 2 => shamir23.nullVector {1} c) = ![1, 2] ∧
-    (fun c : Fin 2 => shamir23.nullVector {0, 1} c) = ![0, 0] := by
+/-- The kernel vector of the coalition `{1}`. -/
+example : (fun c : Fin 2 => shamir23.nullVector {1} c) = ![1, 2] := by
   decide +kernel
 
 /-- `P_L` for `L = {1}`: the row of party `1` becomes `(0, 2)`; the second column is kept. -/

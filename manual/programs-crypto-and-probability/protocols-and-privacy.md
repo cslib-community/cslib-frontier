@@ -1099,7 +1099,8 @@ to the secret, for every key. For a coalition with `¬ P.Accepts s`,
 `shareDist_linearUniformAccessScheme_normalForm` is part (b)(i), over a finite field, and
 `accepts_normalForm` says that `P_L` accepts the same coalitions as `P`. `normalForm_matrix_zero`
 is part (b)(ii) and holds for every coalition. `recombination` of a coalition that is not accepted
-is zero, and `normalForm` of an accepted coalition has first column zero for every party.
+is zero (`recombination_eq_zero_of_not_accepts`), and `normalForm` of an accepted coalition has
+first column zero for every party and accepts no coalition (`not_accepts_normalForm_of_accepts`).
 [`SpanProgram/EliminationSynthesis.lean`](../../CslibFrontier/Computability/Circuit/SpanProgram/EliminationSynthesis.lean)
 bounds circuits for both, one for each shape of program, whose inputs are the matrix entries and a
 membership value for each party: with `r` rows and `d` columns, `full_recombination` uses at most
