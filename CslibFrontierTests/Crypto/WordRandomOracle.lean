@@ -77,8 +77,6 @@ private def nativeForger (fresh : Bool) (_ : ℕ) (_ : List Bool) :
 private theorem nativeForger_ppt (fresh : Bool) :
     IsOraclePPT (encPair encBits encBits) (nativeForger fresh) := by
   unfold IsOraclePPT nativeForger interaction
-  simp only [OracleComp.liftRight, OracleComp.interpret_bind, OracleComp.interpret_map,
-    OracleComp.interpret_query, OracleComp.interpret_pure]
   change IsOraclePPTOn _ _ (fun _ => do
     let signed ← List.take 1 <$> ProbOracleComp.query (false, [])
     let signedAgain ← List.take 1 <$> ProbOracleComp.query (false, [])

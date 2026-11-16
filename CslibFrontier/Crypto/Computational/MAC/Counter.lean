@@ -296,6 +296,7 @@ private theorem nodup_of_mem_support_run_counterSigningOracle {n : ℕ} {sk : Li
         (fun q state => ProbComp.eval (M.counterSigningOracle n sk q state)))
           (adversary n [])).run (0, [])).support) :
     (issued.map (fun ((_, issuedNonce), _) => issuedNonce)).Nodup := by
+  rw [← ProbOracleComp.runWith_eq_run_interpret] at hr
   have hinv : counter ≤ 2 ^ M.nonceLen n ∧
       issued.map (fun ((_, issuedNonce), _) => issuedNonce) =
         ((List.range counter).map (BitString.lowBits (M.nonceLen n))).reverse := by

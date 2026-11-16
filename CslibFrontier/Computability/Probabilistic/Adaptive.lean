@@ -79,7 +79,8 @@ theorem IsPPTOn.iterateWith_spec {initial : α → State} {count : α → ℕ}
     (invariant a) (hbase a)
     (fun i hi state hinvariant => hpreserve a i state hi hinvariant)⟩
   apply IsOraclePPTOn.isPPTOn
-  simpa only [ProbOracleComp.sample, OracleComp.interpret_iterate] using hloop.1
+  simpa only [ProbOracleComp.sample, OracleComp.substitute_eq_interpret,
+    OracleComp.interpret_iterate] using hloop.1
 
 /-- One invariant proves both a polynomial resource bound and the final supported postcondition.
 The resource invariant must hold on every possible execution, not just with high probability.
@@ -123,7 +124,8 @@ theorem IsPPTOn.iterateWith_of_bounded_growth {initial : α → State} {count : 
       (fun (a : α) (state next : State) hnext => hgrowth a state next
         ((ProbOracleComp.support_sample _).subset hnext))
   apply IsOraclePPTOn.isPPTOn
-  simpa only [ProbOracleComp.sample, OracleComp.interpret_iterate] using hloop
+  simpa only [ProbOracleComp.sample, OracleComp.substitute_eq_interpret,
+    OracleComp.interpret_iterate] using hloop
 
 /-- A strict PPT step with constant growth can be repeated a polynomial number of times. -/
 theorem IsPPTOn.iterate_of_bounded_growth {initial : α → State} {count : α → ℕ}

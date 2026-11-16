@@ -1018,7 +1018,7 @@ private theorem isOraclePPTOn_reductionStep_comp {γ : Type} {encIn : γ ↪ Lis
     {d : γ → GateLoopData} (hd : ComputableInPolyTime d encIn encGateLoopData) :
     IsOraclePPTOn (encPair encIn encGateLoopState) encGateLoopState
       (fun p : γ × GateLoopState => reductionStep hash (d p.1) p.2) :=
-  (isOraclePPTOn_reductionStep hf).preprocess'
+  (isOraclePPTOn_reductionStep hf).preprocess
     ((hd.comp (ComputableInPolyTime.fst encIn encGateLoopState)).prod
       (ComputableInPolyTime.snd encIn encGateLoopState))
 

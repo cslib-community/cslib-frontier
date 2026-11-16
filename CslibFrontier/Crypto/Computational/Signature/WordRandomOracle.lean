@@ -110,9 +110,13 @@ theorem run_interpret_routeWordProgram (digestEncoding : Digest ↪ List Bool)
         program s := by
   have hlift
       (p : OracleComp (ForgerSpec (List Bool) (List Bool) (List Bool) Digest) (List Bool)) :
-      liftOracleForger p = OracleComp.liftRight p := rfl
+      liftOracleForger p = OracleComp.liftRight p := by
+    unfold liftOracleForger OracleComp.liftRight ProbOracleComp.query
+    exact (OracleComp.substitute_eq_interpret _ p).symm
   simp only [routeWordProgram, hlift, runWith_norm]
-  rfl
+  apply congrArg (fun oracle => ProbOracleComp.runWith oracle program s)
+  funext request state
+  exact OracleComp.runWith_eq_run_interpret handler _ state
 
 /-- Native replay and typed routing commute as programs, before choosing any oracle world. -/
 theorem routeWordProgram_runCoins {k : ℕ} {Control : Type}

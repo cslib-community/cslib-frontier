@@ -97,7 +97,7 @@ theorem evalWith_pure_oracle (h : (q : ι) → spec q) (prog : OracleComp spec �
   induction prog using OracleComp.induction with
   | pure a => rfl
   | query_bind q cont ih =>
-    simp only [evalWith_bind, evalWith_query, PMF.pure_bind, evalPure_bind, evalPure_query]
+    simp only [evalWith_freeMBind, evalWith_query, PMF.pure_bind]
     exact ih (h q)
 
 /-- Combine two deterministic oracles into a deterministic oracle for `spec₁ ⊕ₒ spec₂`. -/
@@ -125,7 +125,7 @@ theorem evalPure_liftLeft {ι₁ : Type u} {ι₂ : Type u} {spec₁ : OracleSpe
   induction prog using OracleComp.induction with
   | pure a => rfl
   | query_bind q cont ih =>
-    simp only [liftLeft_bind, liftLeft_query, evalPure_bind, evalPure_query, sumPure_inl]
+    simp only [liftLeft_freeMBind, liftLeft_query]
     exact ih (h₁ q)
 
 @[simp]
@@ -136,7 +136,7 @@ theorem evalPure_liftRight {ι₁ : Type u} {ι₂ : Type u} {spec₁ : OracleSp
   induction prog using OracleComp.induction with
   | pure a => rfl
   | query_bind q cont ih =>
-    simp only [liftRight_bind, liftRight_query, evalPure_bind, evalPure_query, sumPure_inr]
+    simp only [liftRight_freeMBind, liftRight_query]
     exact ih (h₂ q)
 
 end OracleComp

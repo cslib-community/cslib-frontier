@@ -27,9 +27,9 @@ namespace CslibFrontierTests.OracleCompositionCanonical
 open Cslib Cslib.Probability Turing Turing.MultiTapeTM
 
 -- No transitional callback spelling is part of this ordinary-module facade.
-#check_failure IsOraclePPTOn.query_take'
-#check_failure IsOraclePPTOn.map_with'
-#check_failure IsOraclePPTOn.iterateWith_spec'
+#check_failure IsOraclePPTOn.query_take
+#check_failure IsOraclePPTOn.map_with
+#check_failure IsOraclePPTOn.iterateWith_spec
 #check_failure Cslib.Probability.IsTidyOraclePPTOn
 #check_failure Turing.MultiTapePTM.Internal.Oracle.IsTidyOraclePPTOn
 

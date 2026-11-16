@@ -101,7 +101,7 @@ theorem hybridGame_zero (generator : List Bool → List Bool) (adversary : Oracl
   have houtput := congrArg (PMF.map Prod.fst) h
   simpa [hybridGame, prfRealGame, ProbOracleComp.run, ProbOracleComp.eval_run_interpret_eq_runWith,
     ProbOracleComp.eval_interpret, BitString.eval_sampleList, root, PMF.map,
-    Function.comp_def, OracleComp.evalWith] using houtput
+    Function.comp_def, OracleComp.evalWith_eq_interpret] using houtput
 
 /-- The final level caches full query answers directly. There is no suffix left to evaluate. -/
 theorem frontierOracle_self (generator : List Bool → List Bool) (n : ℕ) :

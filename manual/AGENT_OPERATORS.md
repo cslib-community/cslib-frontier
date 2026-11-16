@@ -39,9 +39,9 @@ A bounded implementation request can be as simple as:
 
 > Act as a worker on issue `<number>`. Read the current project instructions and inspect existing
 > work first. Implement `<concrete result>` with a representative checked client. Preserve the
-> intended model and hypotheses; report a narrower milestone as such. Update the affected
-> Operator's Manual sections and assess the Agent Operator's Manual. Validate the change and
-> prepare it for independent review.
+> intended model and hypotheses; report a narrower milestone as such. Update any procedure
+> page or registry the change affects. Validate the change and prepare it for independent
+> review.
 
 For an investigation, ask for a decision you can use:
 
@@ -100,10 +100,10 @@ Assign review to an agent that did not design or implement the change. For examp
 > existing lemma already makes. Follow a representative caller: check whether named accessors,
 > matcher/range facts and generated certificates remove representation work, and compare any
 > sibling implementation or conversion bridge. Assess whether the proof strategy, invariant and
-> helper statements fit that use. Review the impact on both manuals and any affected
+> helper statements fit that use. Check any changed procedure page or registry and any affected
 > results-inventory entry. Report concrete findings and a verdict, stating what you checked and
 > what remains uncertain. If queueing is authorized, first verify that named review holds are
-> cleared and required CI/manual material is reviewed. Use the helper from trusted current `main` for the approved
+> cleared and required CI material is reviewed. Use the helper from trusted current `main` for the approved
 > PR head; do not start `--wait` while completing CI will produce material still needing review.
 
 Ask the reviewer to consider whether a different statement, API, invariant or proof strategy
@@ -143,9 +143,13 @@ not admit an entry.
 Make the scope and authority clear. A coordinator request can say:
 
 > Coordinate `<issues or PRs>`. Inspect current ownership and existing reviews before assigning
-> work. Prioritize reviewing and landing ready changes over starting more tasks. Check both
-> manuals as part of every review, including any justified no-impact assessment. Arrange
+> work. Prioritize reviewing and landing ready changes over starting more tasks. Arrange
 > non-author review for your own changes. Report what landed, remaining objectives and blockers.
+
+If you run several coordinators, name one existing coordinator the tender: it reviews, fixes and
+queues work in flight and starts no long program of its own. Its priorities, and the ceiling on
+each fleet's unfinished pull requests, are in
+[Backpressure and tending](../policy/workflow.md#backpressure-and-tending).
 
 Reviewers with write access queue the exact heads they approve using the
 [helper from trusted current main](workflows/agent-operations.md#queue-approved-work-and-keep-its-approval),
@@ -159,9 +163,9 @@ goes through the merge queue; an agent merges directly only when you explicitly 
 the PR concerned.
 
 An approval with review still pending is conditional. Ask for a final handoff that links the
-earlier proof/API/caller judgment and resolves the named source, notice and manual-review holds.
+earlier proof/API/caller judgment and resolves the named source and notice holds.
 The queue helper's `--wait` option queues automatically when CI passes; do not start it while
-newly produced reports or pages still need inspection. A green check alone does not release
+newly produced reports still need inspection. A green check alone does not release
 those holds. Updating `main` does not upgrade an already-running copy; have its owner stop an
 old waiter before replacing it after hold clearance. This needs a coverage decision, not another
 full review of unchanged code.
@@ -210,10 +214,9 @@ Include Actions cache and handoff transfer costs, and distinguish a successful h
 fallback build; a faster publication stage alone does not establish a faster complete cycle
 ([profiling](workflows/troubleshooting.md#profile-slow-cache-publication)).
 
-The manuals are part of this workflow. Changes to library usage belong in the Operator's Manual;
-changes to roles, delegation, review or human direction may affect this Agent Operator's Manual.
-Coordinators check both against the final change. A reasoned finding of no impact is valid;
-an unchecked box or a passing build is not a usability review.
+A change to roles, delegation, review or human direction updates this manual, and a change to a
+codebase procedure updates the Operator's Manual page that describes it. The Operator's Manual's
+reference chapters are frozen: agents do not update or review them.
 
 ## Correct course and hand work over
 
@@ -237,7 +240,7 @@ To stop, specify which task or session should stop and ask for a preserved check
 handoff. Agents should stop only processes they own. An ended session cannot promise unattended
 progress. You can resume from the recorded state with a new assignment.
 
-Both manuals are maintained with the library under
+The procedure pages of both manuals are maintained under
 [Maintaining the manuals](../CONTRIBUTING.md#maintaining-the-manuals). If an instruction here
 cannot be followed, treat that as a documentation defect for the responsible worker and
 coordinator to fix and review.

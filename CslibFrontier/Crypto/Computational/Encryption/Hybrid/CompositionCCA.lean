@@ -423,6 +423,7 @@ private theorem isOraclePPTOn_hybridKEMCCAInterpret (E : SymmetricCipher)
     exact ComputableInPolyTime.unary_add'
       (ComputableInPolyTime.length_bits.comp hlocal.encoding_comp)
       (by fun_prop)
+  simp only [ProbOracleComp.simulate, OracleComp.substitute_eq_interpret]
   apply IsOraclePPTOn.interpret_preprocess_open' hprogram ComputableInPolyTime.id' hhandler hres
   intro a request reply hreply
   split_ifs at hreply with hr

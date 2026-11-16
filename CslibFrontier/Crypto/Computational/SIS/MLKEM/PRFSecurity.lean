@@ -253,7 +253,7 @@ theorem isOraclePPTOn_queryNoise {P : α → Params} {count : α → ℕ} {width
   have hpoly : PolyBounded (fun a => (input a).length) (fun a => 2 * bound a + 4) :=
     ((PolyBounded.const 2).mul (ComputableInPolyTime.polyBounded hbound)).add (PolyBounded.const 4)
   exact (IsOraclePPTOn.iterateWith_of_bounded_growth hcount (ComputableInPolyTime.const (0, []))
-    hstep hpoly hgrowth).map' (ComputableInPolyTime.snd encUnary encBits)
+    hstep hpoly hgrowth).map (ComputableInPolyTime.snd encUnary encBits)
 
 end PolyTime
 

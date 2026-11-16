@@ -377,6 +377,7 @@ private theorem isOraclePPTOn_hybridDEMInterpret (E : SymmetricCipher)
     exact ComputableInPolyTime.unary_add'
       (hdecBound.comp ((hn.comp hp).prod (ComputableInPolyTime.dropFrame.comp hq)))
       (ComputableInPolyTime.length_bits.comp hlocal.encoding_comp)
+  simp only [ProbOracleComp.simulate, OracleComp.substitute_eq_interpret]
   apply hprogram.interpret_preprocess_open' ComputableInPolyTime.id' hhandler hres
   intro a request reply hreply
   unfold hybridDEMHandler at hreply

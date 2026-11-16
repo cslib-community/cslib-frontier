@@ -61,8 +61,39 @@ declarations, and in every module while one of them is missing, since the change
 deleted it can be in any module. The status supplements review and does not replace it: the pass
 checks names and the shape of statements, not that Y assumes only the adversary's certificate, that
 E holds at the arguments where H uses X, or that H is the headline the reduction's result needs. The
-entry names the declarations so that a reviewer can open them. The summary prints the three counts
-separately.
+entry names the declarations so that a reviewer can open them.
+
+An entry for a generic reduction whose equality holds only at the instance that the headline uses
+adds `"scope": "instance"` and `"consumers"`, after `headline`: an object from each *referrer* of
+the reduction outside its module to its tag. The baseline is keyed on the reduction, so without the
+pinned list a later theorem that applied an assumption through the reduction at another instance
+would pass unseen. A referrer is a public declaration that names the reduction in its statement or
+proof, directly, through the declarations Lean generates under a name, or through private
+declarations; only the reduction's module and the modules that import it, directly or through other
+modules, are read. The tags are `headline`, a theorem on the headline's proof path (the headline
+itself, or a constant of the library that its statement and proof use, transitively); `concrete`, a
+theorem elsewhere, an exact bound that applies no assumption; and `reduction`, a definition that
+uses the reduction. The Lean pass fails when the pinned consumers differ from the referrers, so a
+new one must be classified, or the entry made a `gap`; when a tag does not hold; and when a
+referring theorem other than the headline, in the reduction's module or outside it, is not
+*concrete*: a premise (instance arguments included) is headed by a named assumption, or a premise or
+the conclusion makes a negligibility claim, directly or through Prop-valued definitions unfolded at
+most five times, an alias for the whole statement included. This checker fails when a definition
+among the referrers, tagged or in the reduction's module, has no efficiency witness of its own and
+no baseline entry: a `gap` or `exempt` entry, which it keeps even when no theorem states a bound
+with the definition, or when the definition is a reduction certified only through another definition
+(`tracked_definitions`). Being mentioned in a certified definition's body, which certifies a
+reduction, does not count as a witness here. A definition with a witness of its own needs no entry,
+and an entry for it is stale. So the baseline accounts for every definition that uses the reduction;
+that does not establish that every headline downstream of such a definition has its own certificate
+or via entry. The referrers' modules join the modules where the entry is enforced. The pass finds a
+referrer by name, and a public declaration stops the search, so it does not see a theorem that
+reaches the reduction only through another public declaration (a theorem that consumes the headline,
+or one about a definition that wraps the reduction), nor a premise that assumes a bound without
+`Negligible` or a named assumption, and it does not judge whether a `headline` consumer uses the
+reduction at the instance that the equality covers; review does. `--update-baseline` also adds `gap`
+entries for the unrecorded uncertified definitions and keeps the recorded ones. The summary prints
+the gap, via, instance-scoped via and exempt counts separately.
 
 In a module that the change touches (adds, modifies or deletes, against the merge base of
 `--base`, default `origin/main`, and the working tree, as `scripts/check_changed_files.py`
@@ -124,10 +155,16 @@ VIA = "via_certified_program"
 VIA_FIELDS = ("program", "certificate", "equality", "headline")
 # The file that holds the equality, when it is not the entry's `module`.
 EQUALITY_MODULE = "equality_module"
-# The fields of an entry of each kind, in the order they are written; `EQUALITY_MODULE` is optional.
+# An entry whose equality holds only at the headline's instance: `"scope": "instance"`, with the
+# reduction's consumers outside its module pinned by name, each with one of `TAGS`.
+SCOPE, INSTANCE, CONSUMERS = "scope", "instance", "consumers"
+TAGS = ("headline", "concrete", "reduction")
+# The fields of an entry of each kind, in the order they are written; `EQUALITY_MODULE` is
+# optional, and so are `SCOPE` and `CONSUMERS`, which come together.
 FIELDS = {"gap": ("module", "kind", "why"), "exempt": ("module", "kind", "why"),
           VIA: ("module", "kind", "program", "certificate", "equality", EQUALITY_MODULE,
-                "headline", "why")}
+                "headline", SCOPE, CONSUMERS, "why")}
+OPTIONAL = frozenset({EQUALITY_MODULE, SCOPE, CONSUMERS})
 
 
 @dataclass(frozen=True)
@@ -151,13 +188,19 @@ class Reduction:
 class ViaCheck:
     """The Lean pass's verdict on a `via_certified_program` entry: its problems, where the
     headline mentions the program or its certificate (`statement`, `proof`, or the empty string),
-    the paths of the modules of the declarations it found, the path of the equality's module (or
-    the empty string), and the names it did not find."""
+    the paths of the modules of the declarations it found (for an entry scoped to one instance,
+    those of the reduction's referrers too), the path of the equality's module (or the empty
+    string), and the names it did not find. For an entry scoped to one instance, also the
+    reduction's referrers outside its module, the uncertified definitions among all its referrers
+    with their paths, and the certified ones."""
     problems: tuple[str, ...]
     headline_at: str
     paths: tuple[str, ...]
     equality_path: str
     missing: tuple[str, ...]
+    referrers: tuple[str, ...] = ()
+    definitions: tuple[tuple[str, str], ...] = ()
+    certified_definitions: tuple[str, ...] = ()
 
 
 def parse(output: str) -> tuple[dict[str, Reduction], dict]:
@@ -186,7 +229,10 @@ def parse_checks(output: str) -> dict[str, ViaCheck]:
             checks[row["v"]] = ViaCheck(tuple(row["p"]), row["at"],
                                         tuple(csp.module_path(m) for m in row["vm"]),
                                         csp.module_path(row["em"]) if row["em"] else "",
-                                        tuple(row["missing"]))
+                                        tuple(row["missing"]), tuple(row.get("refs", ())),
+                                        tuple((d["n"], csp.module_path(d["m"]))
+                                              for d in row.get("defs", ())),
+                                        tuple(row.get("cdefs", ())))
     return checks
 
 
@@ -198,10 +244,14 @@ def module_name(path: str) -> str:
 def via_requests(baseline: dict[str, dict]) -> list[str]:
     """The reader's input lines that ask it to verify the `via_certified_program` entries: the
     reduction and its module, the program, the certificate, the equality and its module, and the
-    headline."""
+    headline; for an entry scoped to one instance, then `instance` and each pinned consumer as
+    `tag:name`."""
     return ["\t".join(["via", name, module_name(entry["module"]), entry["program"],
                        entry["certificate"], entry["equality"],
-                       module_name(entry.get(EQUALITY_MODULE, entry["module"])), entry["headline"]])
+                       module_name(entry.get(EQUALITY_MODULE, entry["module"])), entry["headline"],
+                       *([INSTANCE, *(f"{tag}:{consumer}" for consumer, tag
+                                      in sorted(entry[CONSUMERS].items()))]
+                         if SCOPE in entry else [])])
             for name, entry in sorted(baseline.items()) if entry["kind"] == VIA]
 
 
@@ -228,14 +278,20 @@ def uncertified(reductions: dict[str, Reduction]) -> dict[str, Reduction]:
 
 
 def valid_entry(value: object) -> bool:
-    """Whether a baseline value has the fields of its kind, the optional `equality_module` aside,
-    as strings, and a `via_certified_program` entry names its four declarations."""
+    """Whether a baseline value has the fields of its kind, the optional ones aside, as strings,
+    a `via_certified_program` entry names its four declarations, and an entry scoped to one
+    instance has `"scope": "instance"` with its consumers, an object from names to `TAGS`."""
     if not isinstance(value, dict) or value.get("kind") not in KINDS:
         return False
     fields = set(FIELDS[value["kind"]])
-    return (fields - {EQUALITY_MODULE} <= set(value) <= fields
-            and all(isinstance(v, str) for v in value.values())
-            and all(value[f].strip() for f in (*VIA_FIELDS, EQUALITY_MODULE) if f in value))
+    consumers = value.get(CONSUMERS, {})
+    return (fields - OPTIONAL <= set(value) <= fields
+            and (SCOPE in value) == (CONSUMERS in value)
+            and all(isinstance(v, str) for f, v in value.items() if f != CONSUMERS)
+            and all(value[f].strip() for f in (*VIA_FIELDS, EQUALITY_MODULE) if f in value)
+            and value.get(SCOPE, INSTANCE) == INSTANCE
+            and isinstance(consumers, dict)
+            and all(isinstance(n, str) and n.strip() and t in TAGS for n, t in consumers.items()))
 
 
 def load_baseline(path: Path) -> dict[str, dict]:
@@ -246,18 +302,29 @@ def load_baseline(path: Path) -> dict[str, dict]:
                  f'{{"module": path, "kind": "{VIA}", "program": declaration, '
                  '"certificate": declaration, "equality": declaration, '
                  f'optionally "{EQUALITY_MODULE}": path, "headline": declaration, '
-                 '"why": justification}')
+                 f'optionally "{SCOPE}": "{INSTANCE}" and "{CONSUMERS}": {{declaration: '
+                 f'{" or ".join(repr(t) for t in TAGS)}}}, "why": justification}}')
     return data
 
 
 def baseline_text(entries: dict[str, dict]) -> str:
     """One entry per line, grouped by module, so concurrent edits rarely touch the same lines."""
     order = sorted(entries, key=lambda n: (entries[n]["module"], n))
+    def value(entry: dict, f: str) -> object:
+        return dict(sorted(entry[f].items())) if f == CONSUMERS else entry[f]
     lines = [f" {json.dumps(n, ensure_ascii=False)}: "
-             + json.dumps({f: entries[n][f] for f in FIELDS[entries[n]["kind"]]
+             + json.dumps({f: value(entries[n], f) for f in FIELDS[entries[n]["kind"]]
                            if f in entries[n]}, ensure_ascii=False)
              for n in order]
     return "{\n" + ",\n".join(lines) + ("\n" if lines else "") + "}\n"
+
+
+def tracked_definitions(checks: dict[str, ViaCheck]) -> dict[str, str]:
+    """The definitions without a witness of their own that use a reduction of an instance-scoped
+    entry, with their paths. Each needs a baseline entry of its own, which stands even when no
+    theorem states an advantage bound with the definition, or when the definition is a reduction
+    certified only through another definition."""
+    return {name: path for check in checks.values() for name, path in check.definitions}
 
 
 @dataclass(frozen=True)
@@ -282,6 +349,8 @@ def compare(reductions: dict[str, Reduction], baseline: dict[str, dict],
     def scoped(*candidates: str) -> bool:
         return paths is None or bool(paths.intersection(candidates))
     checks = checks or {}
+    tracked = tracked_definitions(checks)
+    certified_definitions = {d for check in checks.values() for d in check.certified_definitions}
     new, stale, unjustified, invalid = [], [], [], []
     for name, r in sorted(uncertified(reductions).items(),
                           key=lambda i: (i[1].path, i[1].line, i[0])):
@@ -298,8 +367,17 @@ def compare(reductions: dict[str, Reduction], baseline: dict[str, dict],
                                      *(check.paths if check else ()))):
             continue
         if r is None:
-            stale.append((name, entry, "no theorem states an advantage bound with it"))
-        elif r.certificate:
+            if name in certified_definitions:
+                stale.append((name, entry, "has an efficiency witness of its own, as a definition "
+                                           "that uses an instance-scoped reduction; it needs no "
+                                           "entry"))
+            elif name not in tracked:
+                stale.append((name, entry, "no theorem states an advantage bound with it"))
+            elif tracked[name] != entry["module"]:
+                stale.append((name, entry, f"now defined in {tracked[name]}"))
+        elif r.certificate and name not in tracked:
+            # A reduction certified only through another definition (`wrapper`, `abbrev`) keeps
+            # its entry while an instance-scoped entry needs it.
             stale.append((name, entry, f"certified ({r.certificate}: {', '.join(r.certified_by)})"))
         elif r.path != entry["module"]:
             stale.append((name, entry, f"now defined in {r.path}"))
@@ -314,6 +392,12 @@ def compare(reductions: dict[str, Reduction], baseline: dict[str, dict],
                 reasons.append(f"equality `{entry['equality']}` is in {check.equality_path}, not "
                                f"{recorded}; record its file as `{EQUALITY_MODULE}`, or omit "
                                "that field when it is the entry's `module`")
+            # A definition that uses the reduction is recorded unless it has a witness of its own,
+            # so that the baseline accounts for every definition that runs it.
+            reasons += [f"`{d}` is a definition that uses `{name}` without an efficiency witness "
+                        "of its own but has no baseline entry; record it (a `gap` or `exempt` "
+                        "entry), or make this entry a `gap`"
+                        for d, _ in check.definitions if d not in baseline]
             if reasons:
                 invalid.append((name, entry, "; ".join(reasons)))
     return Problems(new, stale, unjustified, invalid)
@@ -381,8 +465,13 @@ def via_listing(baseline: dict[str, dict], checks: dict[str, ViaCheck]) -> str:
         check = checks.get(name)
         where = (f"in its {check.headline_at}" if check and check.headline_at
                  else "nowhere the pass could verify")
+        scope = ""
+        if SCOPE in entry:
+            tags = Counter(entry[CONSUMERS].values())
+            scope = (f"; scoped to one instance, with {len(entry[CONSUMERS])} pinned consumer(s) ("
+                     + ", ".join(f"{tags[t]} {t}" for t in TAGS) + ")")
         out.append(f"  {entry['module']}: {name}: headline `{entry['headline']}` uses the program "
-                   f"{where}")
+                   f"{where}{scope}")
     return "\n".join([f"`{VIA}` entries:", *out] if out else [])
 
 
@@ -399,18 +488,26 @@ def listing(reductions: dict[str, Reduction], prefix: str) -> str:
                             "efficiency witness"])
 
 
-def update(reductions: dict[str, Reduction], baseline: dict[str, dict], paths: set[str] | None
-           ) -> dict[str, dict]:
+def update(reductions: dict[str, Reduction], baseline: dict[str, dict], paths: set[str] | None,
+           tracked: dict[str, str] | None = None) -> dict[str, dict]:
     """The baseline with the entries of the modules `paths` (all when `None`) matching the
-    uncertified reductions: existing entries are kept with their kinds, declarations and
-    justifications, new entries are gaps with an empty justification."""
+    uncertified reductions and the `tracked` definitions (`tracked_definitions`): existing entries
+    are kept with their kinds, declarations and justifications, new entries are gaps with an empty
+    justification."""
     def scoped(*candidates: str) -> bool:
         return paths is None or bool(paths.intersection(candidates))
+    unrecorded = uncertified(reductions)
+    tracked = {name: path for name, path in (tracked or {}).items() if name not in unrecorded}
     updated = {}
     for name, entry in baseline.items():
         r = reductions.get(name)
-        if not scoped(entry["module"], *(r.paths() if r else ())):
+        if not scoped(entry["module"], *(r.paths() if r else ()), tracked.get(name, "")):
             updated[name] = entry
+    for name, path in tracked.items():
+        if scoped(path):
+            old = baseline.get(name)
+            updated[name] = ({**old, "module": path} if old
+                             else {"module": path, "kind": "gap", "why": ""})
     for name, r in uncertified(reductions).items():
         if scoped(*r.paths()):
             old = baseline.get(name)
@@ -421,10 +518,11 @@ def update(reductions: dict[str, Reduction], baseline: dict[str, dict], paths: s
 
 def status(reductions: dict[str, Reduction], baseline: dict[str, dict], scope_text: str) -> str:
     kinds = Counter(entry["kind"] for entry in baseline.values())
+    scoped = sum(entry["kind"] == VIA and SCOPE in entry for entry in baseline.values())
     return (f"{len(reductions)} reduction(s), {len(uncertified(reductions))} without an efficiency "
             f"witness; {len(baseline)} baseline entries ({kinds['gap']} gap(s), "
-            f"{kinds[VIA]} via certified program, {kinds['exempt']} exempt), "
-            f"checking {scope_text}")
+            f"{kinds[VIA] - scoped} via certified program, {scoped} instance-scoped via, "
+            f"{kinds['exempt']} exempt), checking {scope_text}")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -465,7 +563,7 @@ def main(argv: list[str] | None = None) -> int:
     paths = None if whole else cer.touched_modules(ROOT, args.base)
     scope_text = "every module" if whole else f"{len(paths)} changed module(s)"
     if args.update_baseline:
-        updated = update(reductions, baseline, paths)
+        updated = update(reductions, baseline, paths, tracked_definitions(checks))
         args.baseline.write_text(baseline_text(updated), encoding="utf-8")
         empty = sorted(n for n, e in updated.items() if not e["why"].strip())
         print(f"Wrote {args.baseline} for {scope_text}."

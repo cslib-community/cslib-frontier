@@ -880,14 +880,11 @@ private theorem eval_gmwSeqInteract_eq_machine_of_isOraclePPTOn {α : Type} {enc
     (machine : _root_.Turing.MultiTapePTM tapes Bool Control Unit) (c d : ℕ)
     (hspec : ∀ (p : ℕ × α × List Bool) (State : Type)
       (oracle : Unit × List Bool → StateT State PMF (List Bool)) st,
-      (OracleComp.interpret
-        (OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifOracle n)) oracle)
-          (encBits <$> Vstar p.1 p.2.1 p.2.2)).run st =
-      (OracleComp.interpret
-        (OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifOracle n)) oracle)
-          (machine.runOracle
-            (c * ((encInstanceAuxInput enc p).length + 1) ^ d)
-            (encInstanceAuxInput enc p))).run st)
+      ProbOracleComp.runWith oracle (encBits <$> Vstar p.1 p.2.1 p.2.2) st =
+      ProbOracleComp.runWith oracle
+        (machine.runOracle
+          (c * ((encInstanceAuxInput enc p).length + 1) ^ d)
+          (encInstanceAuxInput enc p)) st)
     (n : ℕ) (a : α) (z : List Bool) :
     ProbComp.eval (gmwSeqInteract generator s m φ w K (Vstar n a z)) =
       ProbComp.eval (gmwSeqInteract generator s m φ w K
@@ -899,8 +896,7 @@ private theorem eval_gmwSeqInteract_eq_machine_of_isOraclePPTOn {α : Type} {enc
   have h := hspec (n, a, z) (Bool × List ProverCoins)
     (fun q state => PMF.pure (seqStep (honestReply1 generator m φ) (honestReply2 s φ) q.2 state))
     (false, coinsList)
-  simpa only [encBits, Function.Embedding.coe_refl, id_map, ProbOracleComp.runWith,
-    OracleComp.runWith] using h
+  simpa only [encBits, Function.Embedding.coe_refl, id_map] using h
 
 /-- **Pointwise finite multi-session GMW view reduction** for every valid instance, witness, and
 auxiliary word. Across `k n` sequential executions, the distinguishing advantage between the real

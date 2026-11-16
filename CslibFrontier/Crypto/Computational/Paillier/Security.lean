@@ -18,6 +18,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.Words
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.PPT.Composition
 import CslibFrontier.Computability.Probabilistic.UniformNat
+import CslibFrontier.Crypto.Computational.Paillier.Finite
 import CslibFrontier.Crypto.Computational.UnitSampling
 import CslibFrontier.Crypto.Game.Statistical
 import CslibFrontier.Crypto.Negligible.Basic
@@ -52,6 +53,12 @@ hops:
 3. The DCR random games for `b = false` and `b = true` are equal: multiplying a uniform unit by
    the unit `(1 + N) ^ m` gives a uniform unit, whatever `m` is.
 4. Hops 1 and 2 again, for the other bit.
+
+On every input that the DCR games give it, the modulus `N` and the least representative of a unit
+`y` modulo `N ^ 2`, `dcrDistinguisher A b` is the typed reduction `paillierToDCR` of
+`CslibFrontier.Crypto.Computational.Paillier.Finite` for bit `b` on `y`, played by `A` read at
+modulus `N`, with an inadmissible pair answered by `false`. Hop 3 is that reduction's
+`eval_dcrRandomExperiment_paillierToDCR`.
 
 The book's encryption samples `r` uniformly from `ℤ*_N`. Our encryption samples from
 `ProbComp.sampleModNat` and replaces a non-unit by `1`; the extra statistical distance
@@ -177,6 +184,43 @@ private theorem powMod_mul_val_pow_eq_ciphertext (N : ℕ) [NeZero N] (m : ℕ)
   · unfold ciphertext
     exact Nat.mod_lt _ (Nat.pos_of_ne_zero hN2)
 
+/-! ### The typed reduction -/
+
+/-- The word adversary at parameter `n` as a two-stage adversary against Paillier encryption at
+modulus `N`, the typed adversary that `dcrDistinguisher` plays. It runs
+`adversary.restrict validMessages`: message selection receives the public key as `encNat pk`, and
+its saved state starts with the bit `validMessages n (encNat pk) m₀ m₁`. The chosen messages are
+read modulo `N`, and the guess receives a ciphertext as `encNat` of its least representative
+modulo `N ^ 2`; it is `false` when the saved bit is `false`. -/
+private noncomputable def typedAdversary (adversary : AdversaryOf ℕ) (n N : ℕ) :
+    TwoStage ℕ (MessagePair (ZMod N)) (ZMod (N ^ 2))ˣ Bool (List Bool) where
+  choose pk := (fun choice : ChoiceOut ℕ =>
+      (⟨((ChoiceOut.msg₀ choice : ℕ) : ZMod N), ((ChoiceOut.msg₁ choice : ℕ) : ZMod N)⟩,
+        ChoiceOut.state choice)) <$>
+    (adversary.restrict validMessages).choose n (encNat pk)
+  guess state c := (adversary.restrict validMessages).guess n state (encNat (c : ZMod (N ^ 2)).val)
+
+/-- **The certified distinguisher runs the typed reduction.** On the modulus `N` and the least
+representative of any unit `y` modulo `N ^ 2`, the word distinguisher `dcrDistinguisher adversary
+bit n` is, as a program, the experiment `paillierToDCR N A bit y` of the typed reduction, where
+`A` is the word adversary at parameter `n` read at modulus `N` (`typedAdversary`). The typed
+reduction admits every pair of `ZMod N`; an inadmissible word pair (`m₀ ≥ N` or `m₁ ≥ N`) makes the
+typed guess `false`, which is the word distinguisher's answer. Both DCR games run the word
+distinguisher only on such inputs. -/
+private theorem dcrDistinguisher_eq_paillierToDCR (adversary : AdversaryOf ℕ) (bit : Bool)
+    (n N : ℕ) [NeZero N] (y : (ZMod (N ^ 2))ˣ) :
+    dcrDistinguisher adversary bit n (N, (y : ZMod (N ^ 2)).val) =
+      paillierToDCR N (typedAdversary adversary n N) bit y := by
+  simp only [dcrDistinguisher, paillierToDCR, lrExperiment, typedAdversary, AdversaryOf.restrict,
+    map_bind, map_pure, bind_assoc, pure_bind, ↓reduceIte, ChoiceOut.state_mk, ChoiceOut.msg₀_mk,
+    ChoiceOut.msg₁_mk, List.headD_cons, List.tail_cons]
+  refine congrArg _ (funext fun choice => ?_)
+  by_cases hv : validMessages n (encNat N) (ChoiceOut.msg₀ choice) (ChoiceOut.msg₁ choice)
+  · cases bit <;> simp only [hv, ↓reduceIte, Bool.false_eq_true, MessagePair.select_false,
+      MessagePair.select_true, oneAddPowHom_apply, toAdd_ofAdd, ZMod.val_natCast,
+      ← oneAddUnit_pow_mod, powMod_mul_val_eq]
+  · simp only [hv, Bool.false_eq_true, ↓reduceIte]
+
 /-! ### The hops -/
 
 /-- Ingredient of the proof of [KatzLindell2020], Theorem 15.13: once the adversary has chosen
@@ -236,32 +280,14 @@ private theorem advantage_gameOn_dcrRealGame_le {gen : ℕ → ProbComp Desc}
   · simp only [hv, Bool.false_eq_true, ↓reduceIte, PMF.bind_const, Game.advantage_self, zero_le]
 
 /-- Ingredient of the proof of [KatzLindell2020], Theorem 15.13 (the case `y` uniform): the DCR
-random games of the two reduction distinguishers are equal. -/
+random games of the two reduction distinguishers are equal, because they run the typed reduction,
+whose random experiment does not depend on the challenge bit. -/
 private theorem dcrRandomGame_dcrDistinguisher_false_eq_true (setup : ℕ → PMF Desc)
     (adversary : AdversaryOf ℕ) (n : ℕ) :
     dcrRandomGame setup (dcrDistinguisher adversary false) n =
       dcrRandomGame setup (dcrDistinguisher adversary true) n := by
-  simp only [dcrRandomGame, Game.withSetup, dcrRandomExperiment, dcrDistinguisher,
-    ProbComp.eval_bind, ProbComp.eval_uniform, apply_ite ProbComp.eval, ProbComp.eval_pure,
-    Bool.false_eq_true, ↓reduceIte]
-  refine congrArg (PMF.bind _) (funext fun d => ?_)
-  rw [PMF.bind_comm, PMF.bind_comm (PMF.uniformOfFintype (ZMod (d.modulus ^ 2))ˣ)]
-  refine congrArg (PMF.bind _) (funext fun choice => ?_)
-  have key (m : ℕ) : ((PMF.uniformOfFintype (ZMod (d.modulus ^ 2))ˣ).bind fun r =>
-        ProbComp.eval (adversary.guess n choice.2
-          (encNat (powMod (d.modulus ^ 2) (1 + d.modulus) m * (r : ZMod (d.modulus ^ 2)).val %
-            d.modulus ^ 2)))) =
-      (PMF.uniformOfFintype (ZMod (d.modulus ^ 2))ˣ).bind fun u =>
-        ProbComp.eval (adversary.guess n choice.2 (encNat (u : ZMod (d.modulus ^ 2)).val)) := by
-    simp only [powMod_mul_val_eq]
-    conv_rhs => rw [← Probability.PMF.uniformOfFintype_map_equiv
-      (Equiv.mulLeft (oneAddUnit d.modulus ^ m))]
-    rw [PMF.bind_map]
-    rfl
-  by_cases hv : validMessages n (encNat d.modulus) choice.1.1 choice.1.2 = true
-  · simp only [hv, ↓reduceIte]
-    rw [key, key]
-  · simp only [hv, Bool.false_eq_true, ↓reduceIte]
+  simp only [dcrRandomGame, Game.withSetup, dcrDistinguisher_eq_paillierToDCR]
+  exact congrArg _ (funext fun d => eval_dcrRandomExperiment_paillierToDCR _ false true)
 
 /-- **Paillier encryption is IND-CPA secure under DCR** ([KatzLindell2020], Theorem 15.13): if
 the decisional composite residuosity problem is hard relative to the generator's law, then

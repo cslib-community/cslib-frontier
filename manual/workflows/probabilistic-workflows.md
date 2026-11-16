@@ -1649,7 +1649,7 @@ example (test : List Bool × Bool × ℕ → Bool)
 
 Also check the sampler itself. `ProbComp.uniform (Fin 3)` has exact uniform semantics, but a strictly bounded fair-coin machine cannot give each outcome probability one third. The client deliberately tests that `ppt` does not certify it for free. Use an applicable dyadic sampler or the library's approximate-sampling results, carrying the approximation error into the later probability proof.
 
-`ppt` pays a search cost at every call, even on small goals. When a file certifies many inverters or reductions, or `ppt` fails on an adversary call whose inputs need preparation, compose the rules directly. Start with `IsPPTOn.isPPT`, then bind each sampled word with `(ComputableInPolyTime.sampleList h).bind_with`. Call the adversary through `IsPPT.preprocess`, which takes separate plain `ComputableInPolyTime` certificates for the parameter and auxiliary input. Close the deterministic leaves with `fun_prop`. The more general `IsPPTOn.preprocess` takes one certificate for the pair. Given `.prod` of two projections, it cannot infer the preparation function, so `fun_prop` meets goals with unassigned metavariables. The [InaccessibleEntropy client](../../CslibFrontierTests/Crypto/InaccessibleEntropy.lean) checks this pattern on a small inverter:
+`ppt` pays a search cost at every call, even on small goals. When a file certifies many inverters or reductions, or `ppt` fails on an adversary call whose inputs need preparation, compose the rules directly. Start with `IsPPTOn.isPPT`, then bind each sampled word with `(ComputableInPolyTime.sampleList h).bind_with`. Call the adversary through `IsPPT.preprocess`, which takes separate tidy certificates for the parameter and auxiliary input; `ComputableInPolyTime.tidy` converts plain ones. Close the deterministic leaves with `fun_prop`. The more general `IsPPTOn.preprocess` takes one certificate for the pair. Given `.prod` of two projections, it cannot infer the preparation function, so `fun_prop` meets goals with unassigned metavariables. The [InaccessibleEntropy client](../../CslibFrontierTests/Crypto/InaccessibleEntropy.lean) checks this pattern on a small inverter:
 
 <!-- excerpt: ppt-explicit-adversary-call -->
 ```lean
@@ -1669,26 +1669,12 @@ The inverters in the [InaccessibleEntropy development](../../CslibFrontier/Crypt
 ### Plain certificates for closed adaptive loops
 
 Import [Adaptive.lean](../../CslibFrontier/Computability/Probabilistic/Adaptive.lean).
-`IsPPTOn.iterate_spec` and `iterateWith_spec` take plain `ComputableInPolyTime`
-certificates for the unary count and initial state. Use `iterate_of_bounded_growth`
-for fixed additive encoded-state growth, `iterateWith_of_bounded_growth` for growth
-polynomially bounded in the captured input, and `iterate_of_length_le` when the
+`IsPPTOn.iterate_spec'` and `iterateWith_spec'` take plain `ComputableInPolyTime`
+certificates for the unary count and initial state. Use `iterate_of_bounded_growth'`
+for fixed additive encoded-state growth, `iterateWith_of_bounded_growth'` for growth
+polynomially bounded in the captured input, and `iterate_of_length_le'` when the
 step never increases encoded size. The growth premises cover every supported result.
-These canonical entry points use plain callback certificates; the redundant primed
-spellings and the tidy deterministic-to-PPT lift are removed. Close a deterministic
-probabilistic leaf with `ComputableInPolyTime.isPPTOn`, preserving its encoded
-result distribution and strict fair-coin clock.
-The retained-data rules `IsPPTOn.prefix` and `IsPPTOn.pair` likewise take plain
-certificates, while charging for the encoded data they copy.
-
-For a complete ordinary-import starting point, follow
-[`ClosedPPTCanonical.lean`](../../CslibFrontierTests/ClosedPPTCanonical.lean): it prepares nonempty
-captured words, selects sampled branches, proves an invariant at every supported loop prefix,
-and checks zero rounds and empty traversals. Run
-`scripts/build.sh CslibFrontierTests.ClosedPPTCanonical` to check the client.
-Parameter preprocessing keeps the unary parameter before the auxiliary word. The deterministic
-lift consumes independent time and workspace certificates; it does not infer a workspace bound
-from output length or alter the private-coin distribution.
+The unprimed entry points retain their existing tidy premises during #862 migration.
 
 The [layered evaluator](../../CslibFrontier/Crypto/Computational/Homomorphic/Layered/PolyTime.lean)
 passes its existing `hcount` and `hinit` directly to the captured-growth rule. Its bound
@@ -1717,17 +1703,18 @@ supplies neither encryption correctness nor a security reduction.
 Import [Oracle/Composition.lean](../../CslibFrontier/Computability/Probabilistic/Oracle/Composition.lean)
 and use `IsOraclePPTOn` with explicit input and output encodings. The composition rules compile
 an internal clean phase as a proof implementation; ordinary clients do not import or construct
-that witness. The canonical `query_take`, `preprocess`, `map`, `map_with`, `cond`, `ite`,
-`finite_cases` and bounded-loop rules accept plain polynomial-time numerical certificates.
-Use `iterate_spec` for a state-only loop and `iterateWith_spec` when the step captures the
-original input; both retain the stated invariant at every reachable prefix and at termination.
-The [concrete canonical-rule client](../../CslibFrontierTests/OracleCompositionCanonical.lean)
-checks captured input, selected external calls, sampled iteration and zero rounds.
-The [ordinary-module client](../../CslibFrontierTests/OraclePhaseFacade.lean)
+that witness. The [ordinary-module client](../../CslibFrontierTests/OraclePhaseFacade.lean)
 composes plain deterministic preparation, sampled bits, selected branching and a bounded loop.
 It also checks that neither the former public tidy predicate nor the internal phase witness is
 available through the facade. The [internal machine tests](../../CslibFrontierTests/PlainCleanPhase.lean)
 import the compiler explicitly to exercise phase composition.
+
+To send every word of an efficiently computed list to the oracle and keep an efficiently computed
+prefix of each reply, import [Oracle/Traverse.lean](../../CslibFrontier/Computability/Probabilistic/Oracle/Traverse.lean)
+and apply `IsOraclePPTOn.mapM_query_take` to the `List.mapM` traversal; no loop or state invariant
+is needed. The word-level ECB distinguisher (`BlockCipher.isOraclePPT_ecbToPrpDistinguisher`), the
+PRF-to-PRG reduction (`isOraclePPT_prgFromPRFReduction`) and the blockwise MAC simulator
+(`isOraclePPTOn_blockwiseBoundedSimulator`) use it.
 
 For a finite-control oracle machine with an efficiently computed unary clock, import
 [Oracle/Normalization.lean](../../CslibFrontier/Computability/Probabilistic/Oracle/Normalization.lean)
@@ -1795,9 +1782,13 @@ whose queries each run `handler q` against `oracle`. The block-mode reduction
 [blockModeReduction](../../CslibFrontier/Crypto/Computational/Encryption/RandomFunctionHybrid.lean)
 uses it for its fresh-sampling hop and in the CTR and OFB collision bounds.
 
-If an existing proof needs the underlying interpreter, unfold `ProbOracleComp.simulate` to
-reuse its laws and native efficiency certificates. Substitution preserves the free program;
-it does not by itself certify its runtime. This separation follows VCVio's treatment of
+If an existing proof needs generic monadic interpreter laws, note that unfolding
+`ProbOracleComp.simulate` exposes `OracleComp.substitute`, not an interpreter. The public
+`OracleComp.substitute_eq_interpret` bridge rewrites it as `OracleComp.interpret` only when the
+source replies and the program result inhabit the same monad object universe; outside that
+boundary use the heterogeneous substitution laws or the specialized state-run and query-budget
+laws above. Substitution preserves the free program; it does not by itself certify its runtime.
+This separation follows VCVio's treatment of
 [untouched oracle effects](https://github.com/Verified-zkEVM/VCVio/blob/87bc1892fff1982e97cfd8c7303c9d1f2bfdc2f9/VCVio/OracleComp/SimSemantics/Append/Core.lean).
 
 ## Run a word adversary against a typed oracle

@@ -669,6 +669,7 @@ private theorem isBounded_coinFamily_of_isQueryBounded {k : ℕ} {Control : Type
             have htrV : trV = tr := congrArg (·.2.2) hres
             have hsV : sV = s' := congrArg (·.2.1) hres
             subst htrV hsV
+            rw [← ProbOracleComp.runWith_eq_run_interpret] at hmemV
             have hlen := hbound.length_transcript_le oracle hmemV
             omega
   message := (Interaction.isBounded_coinFamily MUnit t x).message
@@ -1292,7 +1293,7 @@ private theorem sim_verifier_bounds {enc : α ↪ List Bool} {A : Set α}
       (OracleComp.interpret
         (OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifOracle n)) oracle)
         (MUnit.runOracle t_n (enc a))).run s := fun S oracle s => by
-    simpa [t_n, htEval, ProbOracleComp.runWith, OracleComp.runWith, Prod.map, encBool_apply] using
+    simpa only [t_n, htEval, ProbOracleComp.runWith_eq_run_interpret] using
       hreal a S oracle s
   have hF : Interaction.IsBounded F (q (enc a).length) t_n :=
     isBounded_coinFamily_of_isQueryBounded MUnit (hq a) hreal_a

@@ -8,6 +8,7 @@ import CslibFrontier.Crypto.Computational.Rompel
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Tactic.PPT
+import CslibFrontierTests.Crypto.KeyedHashFixture
 
 /-!
 # Tests for Rompel target collision-resistant hashing and digital signatures
@@ -312,19 +313,6 @@ theorem exists_toSignatureScheme_eufCMA_and_not_wordEUFCMA {f : List Bool → Li
 
 /-! ### 6. Concrete `TCRSignature.wordScheme` and adaptive multi-query `replayCfg` checks -/
 
-/-- Constant `KeyedHashFamily` with `keyLen n = n` and `digestLen n = n + 1` for concrete checks. -/
-def testHash : KeyedHashFamily where
-  keyLen n := n
-  digestLen n := n + 1
-  eval n _ _ := List.replicate (n + 1) false
-  keyLen_polyTime := .id'
-  digestLen_polyTime := ComputableInPolyTime.id'.unary_add' (.const 1)
-  le_digestLen _ := Nat.le_succ _
-  polyTime :=
-    (((ComputableInPolyTime.fst encUnary (encPair encBits encBits)).unary_add' (.const 1)).trans
-      (ComputableInPolyTime.bitsReplicate false)).of_enc_eq fun _ => rfl
-  length_eq _ _ _ _ := List.length_replicate
-
 /-- Toy deterministic `SignatureScheme` checking `pk.length == msg.length` and
 `sig.length == msg.length`. -/
 noncomputable def testFixedSig : SignatureScheme where
@@ -351,23 +339,27 @@ noncomputable def testFixedSig : SignatureScheme where
     simp [hmsg]
 
 def sampleWordPk : List Bool :=
-  encPair encUnary encBits (2, List.replicate (TCRSignature.otsParam testHash 2) false)
+  encPair encUnary encBits
+    (2, List.replicate (TCRSignature.otsParam zeroKeyedHashFamily 2) false)
 
 def sampleWordSig : List Bool :=
-  let m := TCRSignature.otsMsg testHash 2 [true, false] [false, false, false]
+  let m := TCRSignature.otsMsg zeroKeyedHashFamily 2 [true, false] [false, false, false]
   encPair encBits encBits ([true, false], m)
 
 -- `TCRSignature.wordScheme` verifies 0-bit, 1-bit, and 5-bit messages at `n = 2`, and rejects
 -- malformed hash-key lengths:
 example :
-    (TCRSignature.wordScheme testFixedSig testHash).verify sampleWordPk [] sampleWordSig = true ∧
-    (TCRSignature.wordScheme testFixedSig testHash).verify sampleWordPk [true] sampleWordSig =
-      true ∧
-    (TCRSignature.wordScheme testFixedSig testHash).verify sampleWordPk
+    (TCRSignature.wordScheme testFixedSig zeroKeyedHashFamily).verify
+      sampleWordPk [] sampleWordSig = true ∧
+    (TCRSignature.wordScheme testFixedSig zeroKeyedHashFamily).verify
+      sampleWordPk [true] sampleWordSig = true ∧
+    (TCRSignature.wordScheme testFixedSig zeroKeyedHashFamily).verify sampleWordPk
       [true, false, true, true, false] sampleWordSig = true ∧
-    (TCRSignature.wordScheme testFixedSig testHash).verify sampleWordPk [true]
+    (TCRSignature.wordScheme testFixedSig zeroKeyedHashFamily).verify sampleWordPk [true]
       (encPair encBits encBits
-        ([true], TCRSignature.otsMsg testHash 2 [true, false] [false, false, false])) = false := by
+        ([true],
+          TCRSignature.otsMsg zeroKeyedHashFamily 2 [true, false] [false, false, false])) =
+      false := by
   decide +kernel
 
 /-- Control states for a concrete 2-query adaptive `MultiTapePTM` whose second query copies the

@@ -20,12 +20,14 @@ the distribution relating two state representations. These are specializations o
 `OracleComp` rules to the disjoint-sum interface, with no additional program induction.
 
 Each rule is stated twice: for the spelled-out interpretation of the sum handler, and for its name
-`Cslib.ProbOracleComp.runWith` (`runWith_invariant`, `runWith_simulation`, …). The two statements
-are definitionally equal.
+`Cslib.ProbOracleComp.runWith` (`runWith_invariant`, `runWith_simulation`, …). The second follows
+from the first by `Cslib.ProbOracleComp.runWith_eq_run_interpret`.
 
 ## Main results
 
 * `Cslib.ProbOracleComp.run_interpret_invariant`: external invariants survive private sampling.
+* `Cslib.ProbOracleComp.run_interpret_simulation_of_invariant`: joint-state simulation on an
+  invariant.
 * `Cslib.ProbOracleComp.run_interpret_simulation`: local joint-state simulation suffices.
 * `Cslib.ProbOracleComp.run_interpret_map_state_of_invariant`: state representation on an invariant.
 * `Cslib.ProbOracleComp.run_interpret_map_state`: deterministic representation of oracle state.
@@ -35,6 +37,7 @@ are definitionally equal.
 * `Cslib.ProbOracleComp.run_interpret_run_interpret`: a handler with private coins and external
   calls, followed by the external oracle, is one stateful handler on the joint state.
 * `Cslib.ProbOracleComp.runWith_readOnly`, `Cslib.ProbOracleComp.runWith_invariant`,
+  `Cslib.ProbOracleComp.runWith_simulation_of_invariant`,
   `Cslib.ProbOracleComp.runWith_simulation`, `Cslib.ProbOracleComp.runWith_map_state_of_invariant`,
   `Cslib.ProbOracleComp.runWith_map_state`, `Cslib.ProbOracleComp.runWith_map_response_state`,
   `Cslib.ProbOracleComp.runWith_run_interpret`: the same rules for `Cslib.ProbOracleComp.runWith`.
@@ -70,8 +73,9 @@ theorem runWith_readOnly (oracle : (q : Query) → State → PMF (spec q))
     (program : ProbOracleComp spec α) (s : State) :
     runWith (fun q state => (oracle q state).map (·, state)) program s =
       (OracleComp.evalWith (sumHandler ProbComp.unifOracle (fun q => oracle q s)) program).map
-        (·, s) :=
-  run_interpret_readOnly oracle program s
+        (·, s) := by
+  rw [runWith_eq_run_interpret, run_interpret_readOnly,
+    OracleComp.evalWith_eq_interpret]
 
 /-- An external oracle's invariant is unaffected by the client's private sampling. -/
 theorem run_interpret_invariant (oracle : (q : Query) → StateT State PMF (spec q))
@@ -96,8 +100,66 @@ theorem runWith_invariant (oracle : (q : Query) → StateT State PMF (spec q))
     (step : ∀ q s, invariant s → ∀ a s', (a, s') ∈ (oracle q s).support → invariant s')
     (program : ProbOracleComp spec α) (s : State) (hs : invariant s) (result : α) (s' : State)
     (h : (result, s') ∈ (runWith oracle program s).support) :
-    invariant s' :=
-  run_interpret_invariant oracle invariant step program s hs result s' h
+    invariant s' := by
+  rw [runWith_eq_run_interpret] at h
+  exact run_interpret_invariant oracle invariant step program s hs result s' h
+
+/-- A probabilistic state simulation that holds on invariant states extends to clients with fresh
+private samples. Only supported transitions of `oracle` must preserve the invariant. -/
+theorem run_interpret_simulation_of_invariant
+    (oracle : (q : Query) → StateT State PMF (spec q))
+    (oracle' : (q : Query) → StateT State' PMF (spec q))
+    (relate : State → PMF State') (invariant : State → Prop)
+    (preserve : ∀ q s, invariant s → ∀ a s', (a, s') ∈ (oracle q s).support → invariant s')
+    (step : ∀ q s, invariant s →
+      (oracle q s).bind (fun (a, s') => (relate s').map (a, ·)) =
+        (relate s).bind (oracle' q))
+    (program : ProbOracleComp spec α) (s : State) (hs : invariant s) :
+    ((OracleComp.interpret
+      (sumHandler (fun n => StateT.lift (ProbComp.unifOracle n)) oracle) program).run s).bind
+        (fun (a, s') => (relate s').map (a, ·)) =
+      (relate s).bind (fun state => (OracleComp.interpret
+        (sumHandler (fun n => StateT.lift (ProbComp.unifOracle n)) oracle') program).run
+          state) := by
+  apply OracleComp.run_interpret_simulation_of_invariant _ _ relate invariant ?_ ?_ program s hs
+  · intro q state hstate a next hnext
+    cases q with
+    | inl n =>
+      change (a, next) ∈ ((ProbComp.unifOracle n).map (·, state)).support at hnext
+      obtain ⟨_, _, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hnext
+      exact (Prod.mk.inj heq).2 ▸ hstate
+    | inr q => exact preserve q state hstate a next hnext
+  · intro q state hstate
+    cases q with
+    | inl n =>
+      change ((ProbComp.unifOracle n).map (·, state)).bind
+        (fun (a, next) => (relate next).map (a, ·)) =
+          (relate state).bind (fun next => (ProbComp.unifOracle n).map (·, next))
+      simp only [PMF.map, Function.comp_def, PMF.bind_bind, PMF.pure_bind]
+      exact PMF.bind_comm _ _ _
+    | inr q => exact step q state hstate
+
+/-- A probabilistic state simulation that holds on invariant states extends to `runWith`. -/
+theorem runWith_simulation_of_invariant
+    (oracle : (q : Query) → StateT State PMF (spec q))
+    (oracle' : (q : Query) → StateT State' PMF (spec q))
+    (relate : State → PMF State') (invariant : State → Prop)
+    (preserve : ∀ q s, invariant s → ∀ a s', (a, s') ∈ (oracle q s).support → invariant s')
+    (step : ∀ q s, invariant s →
+      (oracle q s).bind (fun (a, s') => (relate s').map (a, ·)) =
+        (relate s).bind (oracle' q))
+    (program : ProbOracleComp spec α) (s : State) (hs : invariant s) :
+    (runWith oracle program s).bind (fun (a, s') => (relate s').map (a, ·)) =
+      (relate s).bind (runWith oracle' program) := by
+  calc
+    _ = (relate s).bind (fun state => (OracleComp.interpret
+          (sumHandler (fun n => StateT.lift (ProbComp.unifOracle n)) oracle') program).run
+            state) := by
+      rw [runWith_eq_run_interpret]
+      exact run_interpret_simulation_of_invariant oracle oracle' relate invariant preserve step
+        program s hs
+    _ = _ := congrArg (PMF.bind (relate s)) (funext fun state =>
+      (runWith_eq_run_interpret oracle' program state).symm)
 
 /-- A local probabilistic state simulation extends to clients with fresh private samples. -/
 theorem run_interpret_simulation (oracle : (q : Query) → StateT State PMF (spec q))
@@ -109,17 +171,9 @@ theorem run_interpret_simulation (oracle : (q : Query) → StateT State PMF (spe
         (fun (a, s') => (relate s').map (a, ·)) =
       (relate s).bind (fun state => (OracleComp.interpret
         (sumHandler (fun n => StateT.lift (ProbComp.unifOracle n)) oracle') program).run
-          state) := by
-  apply OracleComp.run_interpret_simulation
-  intro q state
-  cases q with
-  | inl n =>
-    change ((ProbComp.unifOracle n).map (·, state)).bind
-      (fun (a, next) => (relate next).map (a, ·)) =
-        (relate state).bind (fun next => (ProbComp.unifOracle n).map (·, next))
-    simp only [PMF.map, Function.comp_def, PMF.bind_bind, PMF.pure_bind]
-    exact PMF.bind_comm _ _ _
-  | inr q => exact step q state
+          state) :=
+  run_interpret_simulation_of_invariant oracle oracle' relate (fun _ => True) (by simp)
+    (fun q s _ => step q s) program s trivial
 
 /-- A local probabilistic state simulation extends to `runWith`. -/
 theorem runWith_simulation (oracle : (q : Query) → StateT State PMF (spec q))
@@ -128,7 +182,8 @@ theorem runWith_simulation (oracle : (q : Query) → StateT State PMF (spec q))
       (relate s).bind (oracle' q)) (program : ProbOracleComp spec α) (s : State) :
     (runWith oracle program s).bind (fun (a, s') => (relate s').map (a, ·)) =
       (relate s).bind (runWith oracle' program) :=
-  run_interpret_simulation oracle oracle' relate step program s
+  runWith_simulation_of_invariant oracle oracle' relate (fun _ => True) (by simp)
+    (fun q s _ => step q s) program s trivial
 
 /-- Re-encode private state on invariant states while retaining independent private samples. -/
 theorem run_interpret_map_state_of_invariant
@@ -145,21 +200,11 @@ theorem run_interpret_map_state_of_invariant
       (OracleComp.interpret
         (sumHandler (fun n => StateT.lift (ProbComp.unifOracle n)) oracle') program).run
           (represent s) := by
-  apply OracleComp.run_interpret_map_state_of_invariant _ _ represent invariant ?_ ?_ program s hs
-  · intro q state hstate value next hnext
-    cases q with
-    | inl n =>
-      change (value, next) ∈ ((ProbComp.unifOracle n).map (·, state)).support at hnext
-      obtain ⟨_, _, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hnext
-      exact (Prod.mk.inj heq).2 ▸ hstate
-    | inr q => exact preserve q state hstate value next hnext
-  · intro q state hstate
-    cases q with
-    | inl n =>
-      change ((ProbComp.unifOracle n).map (·, state)).map
-        (fun (a, next) => (a, represent next)) = (ProbComp.unifOracle n).map (·, represent state)
-      simp only [PMF.map_comp, Function.comp_def]
-    | inr q => exact step q state hstate
+  simpa only [PMF.pure_map, PMF.pure_bind, PMF.map, Function.comp_def] using
+    run_interpret_simulation_of_invariant oracle oracle' (fun s => PMF.pure (represent s))
+      invariant preserve
+      (by simpa only [PMF.pure_map, PMF.pure_bind, PMF.map, Function.comp_def] using step)
+      program s hs
 
 /-- A state representation commuting with external calls on invariant states commutes with
 `runWith`. -/
@@ -172,9 +217,10 @@ theorem runWith_map_state_of_invariant
       (oracle q s).map (fun (a, s') => (a, represent s')) = oracle' q (represent s))
     (program : ProbOracleComp spec α) (s : State) (hs : invariant s) :
     (runWith oracle program s).map (fun (a, s') => (a, represent s')) =
-      runWith oracle' program (represent s) :=
-  run_interpret_map_state_of_invariant oracle oracle' represent invariant preserve step program s
-    hs
+      runWith oracle' program (represent s) := by
+  rw [runWith_eq_run_interpret, runWith_eq_run_interpret]
+  exact run_interpret_map_state_of_invariant oracle oracle' represent invariant preserve step
+    program s hs
 
 /-- A deterministic state representation commuting with external calls commutes with the whole
 randomized adaptive program, retaining the result and represented private state. -/
@@ -198,8 +244,9 @@ theorem runWith_map_state (oracle : (q : Query) → StateT State PMF (spec q))
     (step : ∀ q s, (oracle q s).map (fun (a, s') => (a, represent s')) =
       oracle' q (represent s)) (program : ProbOracleComp spec α) (s : State) :
     (runWith oracle program s).map (fun (a, s') => (a, represent s')) =
-      runWith oracle' program (represent s) :=
-  run_interpret_map_state oracle oracle' represent step program s
+      runWith oracle' program (represent s) := by
+  rw [runWith_eq_run_interpret, runWith_eq_run_interpret]
+  exact run_interpret_map_state oracle oracle' represent step program s
 
 /-- Reply and state representations preserve randomized adaptive execution. Private samples
 are forwarded unchanged; only external replies and the oracle's state are represented. -/
@@ -246,8 +293,9 @@ theorem runWith_map_response_state {spec' : Query → Type}
       oracle' q (represent s)) (program : ProbOracleComp spec' α) (s : State) :
     (runWith oracle (OracleComp.interpret (sumHandler (fun n => sample (ProbComp.unifFin n))
       (fun q => response q <$> query q)) program) s).map (fun (a, s') => (a, represent s')) =
-      runWith oracle' program (represent s) :=
-  run_interpret_map_response_state response oracle oracle' represent step program s
+      runWith oracle' program (represent s) := by
+  rw [runWith_eq_run_interpret, runWith_eq_run_interpret]
+  exact run_interpret_map_response_state response oracle oracle' represent step program s
 
 /-- A stateful handler that draws private coins and calls an external oracle, followed by that
 oracle, is one stateful handler on the joint state. Private draws stay fresh, and the result, the
@@ -291,7 +339,8 @@ theorem runWith_run_interpret {Query' : Type} {spec' : Query' → Type}
         external =
       (runWith (fun q state => (runWith oracle ((inner q).run state.1) state.2).map
           (fun ⟨⟨a, b⟩, c⟩ => (a, b, c))) program (hidden, external)).map
-        (fun ⟨a, b, c⟩ => ((a, b), c)) :=
-  run_interpret_run_interpret inner oracle program hidden external
+        (fun ⟨a, b, c⟩ => ((a, b), c)) := by
+  simpa only [runWith_eq_run_interpret] using
+    run_interpret_run_interpret inner oracle program hidden external
 
 end Cslib.ProbOracleComp
