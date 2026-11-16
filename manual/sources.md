@@ -352,7 +352,7 @@ Michael Burrows and David J. Wheeler. *A Block-sorting Lossless Data Compression
 <a id="canetti20"></a>
 ## canetti20
 
-Ran Canetti. *Universally Composable Security*. Journal of the ACM 67(5), Article 28, 2020; full version Cryptology ePrint Archive 2000/067. https://doi.org/10.1145/3402457 .
+Ran Canetti. *Universally Composable Security*. Journal of the ACM 67(5), Article 28, 2020 (JACM pagination `28:1`–`28:94`); full version Cryptology ePrint Archive 2000/067 (ePrint pagination). https://doi.org/10.1145/3402457 . Section 7.1 (JACM pp. 28:69–70; ePrint p. 74), Section 7.1.1 (JACM p. 28:71), Section 7.2 (JACM pp. 28:73–74), and JACM p. 28:15 were checked for adaptive corruptions, static-corruption restriction, the corruption-status query, and standard PID-wise ideal-functionality corruption; `Protocols/UC/Adaptive.lean` formalizes the call-bounded statistical model (erasure via activation-level state exposure rather than write-once memory cells, without PPT time bounds or composition under adaptive corruption).
 
 <a id="canonne22"></a>
 ## canonne22
@@ -377,7 +377,7 @@ Ran Canetti, Yevgeniy Dodis, Rafael Pass and Shabsi Walfish. *Universally Compos
 <a id="cf01"></a>
 ## cf01
 
-Ran Canetti and Marc Fischlin. *Universally Composable Commitments*. CRYPTO 2001, Lecture Notes in Computer Science 2139, 19–40, 2001; full version Cryptology ePrint Archive 2001/055. https://doi.org/10.1007/3-540-44647-8_2 . Section 2.2, Figure 2 (`F_com`, p. 10) and Section 3, Theorem 6 (p. 12) were checked against the full version, Cryptology ePrint Archive 2001/055. The library proves an adaptation and special case of Theorem 6: one commitment message and one opening message, a constant completeness gap, a single simulator fixed before the environment, and call-counted (not machine-efficiency) bounds. Theorem 6 for general bilateral protocols and the computational setting is not formalized.
+Ran Canetti and Marc Fischlin. *Universally Composable Commitments*. CRYPTO 2001, Lecture Notes in Computer Science 2139, 19–40, 2001; full version Cryptology ePrint Archive 2001/055. https://doi.org/10.1007/3-540-44647-8_2 . Section 2.2, Figure 2 (`F_com`, p. 10) and Section 3, Theorem 6 (p. 12) were checked against the full version, Cryptology ePrint Archive 2001/055. The library proves an adaptation and special case of Theorem 6: one commitment message and one opening message, a constant completeness gap, a single simulator fixed before the environment, and call-counted (not machine-efficiency) bounds. Theorem 6 for general bilateral protocols and the computational setting is not formalized. Theorem 8 (p. 20, erasing parties) and Theorem 11 (p. 26, `UCCReUse`/`NotErase`, non-erasing parties) motivate the erasing vs. non-erasing distinction in `Protocols/UC/Adaptive.lean`; neither computational theorem is formalized.
 
 <a id="cgks98"></a>
 ## cgks98
