@@ -200,21 +200,11 @@ theorem run_interpret_map_state_of_invariant
       (OracleComp.interpret
         (sumHandler (fun n => StateT.lift (ProbComp.unifOracle n)) oracle') program).run
           (represent s) := by
-  apply OracleComp.run_interpret_map_state_of_invariant _ _ represent invariant ?_ ?_ program s hs
-  · intro q state hstate value next hnext
-    cases q with
-    | inl n =>
-      change (value, next) ∈ ((ProbComp.unifOracle n).map (·, state)).support at hnext
-      obtain ⟨_, _, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hnext
-      exact (Prod.mk.inj heq).2 ▸ hstate
-    | inr q => exact preserve q state hstate value next hnext
-  · intro q state hstate
-    cases q with
-    | inl n =>
-      change ((ProbComp.unifOracle n).map (·, state)).map
-        (fun (a, next) => (a, represent next)) = (ProbComp.unifOracle n).map (·, represent state)
-      simp only [PMF.map_comp, Function.comp_def]
-    | inr q => exact step q state hstate
+  simpa only [PMF.pure_map, PMF.pure_bind, PMF.map, Function.comp_def] using
+    run_interpret_simulation_of_invariant oracle oracle' (fun s => PMF.pure (represent s))
+      invariant preserve
+      (by simpa only [PMF.pure_map, PMF.pure_bind, PMF.map, Function.comp_def] using step)
+      program s hs
 
 /-- A state representation commuting with external calls on invariant states commutes with
 `runWith`. -/
