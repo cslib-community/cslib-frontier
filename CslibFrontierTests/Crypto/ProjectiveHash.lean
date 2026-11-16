@@ -9,6 +9,7 @@ module
 public import CslibFrontier.Crypto.Computational.DiscreteLog.SchnorrGroup
 import CslibFrontier.Crypto.Computational.CramerShoup.ProjectiveHash
 import CslibFrontier.Crypto.Computational.CramerShoup.ProjectiveHash.Games
+import CslibFrontier.Probability.PMF.Bind
 import Mathlib.Tactic.NormNum.Prime
 
 /-!
@@ -148,12 +149,18 @@ example [DecidableEq (schnorrGroups.Carrier d23)] (δ₁ δ₂ ξ : ZMod (schnor
 
 /-! ### Standalone security games and necessity probes -/
 
-private theorem smul_gen_eq_add_apply (c : schnorrGroups.Carrier d23) :
-    ((PMF.uniformOfFintype (ZMod (schnorrGroups.order d23))).bind fun ζ =>
-      PMF.pure (decide (ζ • schnorrGroups.generator d23 = c))) true =
+private theorem d23_bind3_uniform_decide_smul_eq_inv11
+    (c : ZMod (schnorrGroups.order d23) → ZMod (schnorrGroups.order d23) →
+      schnorrGroups.Carrier d23) :
+    ((PMF.uniformOfFintype (ZMod (schnorrGroups.order d23))).bind fun σ =>
+      (PMF.uniformOfFintype (ZMod (schnorrGroups.order d23))).bind fun τ =>
+        (PMF.uniformOfFintype (ZMod (schnorrGroups.order d23))).bind fun ζ =>
+          PMF.pure (decide (ζ • schnorrGroups.generator d23 = c σ τ))) true =
       ((11 : ℝ≥0∞)⁻¹) := by
+  refine PMF.bind_apply_of_forall _ fun σ => PMF.bind_apply_of_forall _ fun τ => ?_
   classical
-  obtain ⟨γ, rfl⟩ := schnorrGroups.smul_generator_surjective d23 c
+  obtain ⟨γ, hγ⟩ := schnorrGroups.smul_generator_surjective d23 (c σ τ)
+  rw [← hγ]
   have hinj : ∀ ζ : ZMod (schnorrGroups.order d23),
       (ζ • schnorrGroups.generator d23 = γ • schnorrGroups.generator d23) ↔ ζ = γ :=
     fun ζ => ⟨fun h => schnorrGroups.smul_generator_injective d23 h, fun h => by subst h; rfl⟩
@@ -162,11 +169,6 @@ private theorem smul_gen_eq_add_apply (c : schnorrGroups.Carrier d23) :
   simp only [decide_true, ↓reduceIte, PMF.uniformOfFintype_apply]
   have hord : schnorrGroups.order d23 = 11 := rfl
   simp [hord]
-
-private theorem pmf_bind_uniform_apply_const {α β : Type*} [Fintype α] [Nonempty α]
-    (f : α → PMF β) (b : β) (c : ℝ≥0∞) (h : ∀ a, (f a) b = c) :
-    ((PMF.uniformOfFintype α).bind f) b = c := by
-  simp only [PMF.bind_apply, h, ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
 
 private theorem d23_zero_gen_nonDHTriple :
     ¬ IsDHTriple schnorrGroups d23
@@ -213,9 +215,9 @@ example (δ δ₁ δ₂ τ τ₁ τ₂ ρ : ZMod (schnorrGroups.order d23)) :
     projHash_fiber_eq_of_isDHTriple schnorrGroups d23 hdh,
     projHash2_fiber_eq_of_isDHTriple schnorrGroups d23 hdh⟩
 
-/-- Concrete non-adaptive Attack Game 12.4 / Lemma 12.6 instance (`chooseChallenge` ignores `h`
-and returns `pure`): an admissible adversary with an evaluation query in `L_u` (`(g, g)`) and
-non-DH `(v, w) = (0, g)` has advantage `0`. -/
+/-- Concrete non-adaptive Attack Game 12.4 / Lemma 12.6 instance (pure `chooseChallenge`
+returning `(0, g)` independently of `h`): an admissible adversary with an evaluation query in
+`L_u` (`(g, g)`) and non-DH `(v, w) = (0, g)` has advantage `0`. -/
 example :
     let g := schnorrGroups.generator d23
     let A : UniversalDistAdversary schnorrGroups d23 Unit Unit :=
@@ -269,9 +271,9 @@ example :
   rcases hchal with ⟨rfl, rfl, rfl⟩
   exact ⟨d23_zero_gen_nonDHTriple, fun _ => .bind (.query ⟨3, rfl, rfl⟩) fun _ => .pure _⟩
 
-/-- Concrete non-adaptive Attack Game 12.5 / Lemma 12.8 instance (`chooseChallenge` ignores `hh`
-and returns `pure`) for both non-DH `(v, w) = (0, g)` and DH `(v, w) = (g, g)`: both satisfy
-`succProbability ≤ 2 / 11`. -/
+/-- Concrete non-adaptive Attack Game 12.5 / Lemma 12.8 instance (pure `chooseChallenge`
+returning `(v, w, 0)` independently of `(h₁, h₂)`) for both non-DH `(v, w) = (0, g)` and DH
+`(v, w) = (g, g)`: both satisfy `succProbability ≤ 2 / 11`. -/
 example :
     let g := schnorrGroups.generator d23
     let mkAdv (v w : schnorrGroups.Carrier d23) :
@@ -356,9 +358,7 @@ example :
   have htrue : (universalDistExperiment schnorrGroups d23 A true) true = (11 : ℝ≥0∞)⁻¹ := by
     simp only [universalDistExperiment, A, g, ProbComp.eval_pure, ProbOracleComp.run_pure,
       PMF.pure_bind, ↓reduceIte, PMF.monad_bind_eq_bind]
-    exact pmf_bind_uniform_apply_const (α := ZMod (schnorrGroups.order d23)) _ _ _ fun σ =>
-      pmf_bind_uniform_apply_const (α := ZMod (schnorrGroups.order d23)) _ _ _ fun τ =>
-        smul_gen_eq_add_apply _
+    exact d23_bind3_uniform_decide_smul_eq_inv11 _
   exact advantage_pos_of_eq_pure_true_eq_inv11 _ _ hfalse htrue
 
 /-- Probe 2 (Lemma 12.6 / Exercise 12.26(a)): dropping the `guess` query restriction
@@ -380,9 +380,7 @@ example :
     simp only [universalDistExperiment, A, g, ProbComp.eval_pure, ↓reduceIte,
       ProbOracleComp.run_bind, ProbOracleComp.run_query, ProbOracleComp.run_pure,
       ProbComp.eval_bind, PMF.pure_bind, PMF.monad_bind_eq_bind]
-    exact pmf_bind_uniform_apply_const (α := ZMod (schnorrGroups.order d23)) _ _ _ fun σ =>
-      pmf_bind_uniform_apply_const (α := ZMod (schnorrGroups.order d23)) _ _ _ fun τ =>
-        smul_gen_eq_add_apply _
+    exact d23_bind3_uniform_decide_smul_eq_inv11 _
   exact advantage_pos_of_eq_pure_true_eq_inv11 _ _ hfalse htrue
 
 /-- Probe 3 (Exercise 12.26(a)): dropping the `chooseChallenge` query restriction
@@ -404,9 +402,7 @@ example :
     simp only [universalDistExperiment, A, g, ProbComp.eval_pure, ↓reduceIte,
       ProbOracleComp.run_bind, ProbOracleComp.run_query, ProbOracleComp.run_pure,
       ProbComp.eval_bind, PMF.pure_bind, PMF.monad_bind_eq_bind]
-    exact pmf_bind_uniform_apply_const (α := ZMod (schnorrGroups.order d23)) _ _ _ fun σ =>
-      pmf_bind_uniform_apply_const (α := ZMod (schnorrGroups.order d23)) _ _ _ fun τ =>
-        smul_gen_eq_add_apply _
+    exact d23_bind3_uniform_decide_smul_eq_inv11 _
   exact advantage_pos_of_eq_pure_true_eq_inv11 _ _ hfalse htrue
 
 /-- Probe 4 (Lemma 12.8 / Exercise 12.26(b)): dropping the output-length bound `guesses.length ≤ Q`

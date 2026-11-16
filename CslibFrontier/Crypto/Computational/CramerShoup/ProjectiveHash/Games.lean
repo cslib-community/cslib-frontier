@@ -14,7 +14,6 @@ public import CslibFrontier.Languages.Probabilistic.Oracle.Run
 
 import CslibFrontier.Languages.Probabilistic.QueryCount.Congr
 import CslibFrontier.Probability.PMF.Bind
-import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.Uniform.Translate
 
 /-!
@@ -30,8 +29,9 @@ hybrid hops from `uniform_projHash_fiber_add` and `uniform_projHash2_fiber_any_l
 
 ## Differences from printed statements
 
-* Setting `chooseChallenge` to return `pure` (ignoring `h`, or `(h₁, h₂)`) recovers the
-  non-adaptive Attack Games 12.4 and 12.5.
+* Returning `pure (v, w, st₁)` (or `pure (v, w, ρ, st₁)`) from `chooseChallenge` with `(v, w)`
+  (or `(v, w, ρ)`) independent of `h` (or `(h₁, h₂)`) recovers the non-adaptive Attack Games 12.4
+  and 12.5; the output state `st₁` may still carry `h` (or `(h₁, h₂)`) to `guess`.
 * `ProbOracleComp.QueriesSatisfy` constrains evaluation queries in `L_u` along every execution
   path of `chooseChallenge` and `guess` regardless of oracle replies, whereas the book constrains
   queries made along an execution of the game.
@@ -66,7 +66,7 @@ hybrid hops from `uniform_projHash_fiber_add` and `uniform_projHash2_fiber_any_l
 ## References
 
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*,
-  Version 0.6][BonehShoup2023], Sections 12.5.1–12.5.2 (printed pp. 485–488) and Exercise 12.26
+  Version 0.6][BonehShoup2023], Sections 12.5.1–12.5.2 (printed pp. 484–488) and Exercise 12.26
   (printed p. 521).
 -/
 
@@ -92,15 +92,18 @@ abbrev UniversalEvalSpec (d : F.Desc) : OracleSpec (F.Carrier d × F.Carrier d) 
 /-- Adaptive three-stage adversary for Attack Game 12.4 / Exercise 12.26(a) ([BonehShoup2023],
 Section 12.5.1, printed p. 486, and Exercise 12.26(a), printed p. 521). `chooseU` selects `u ∈ G`,
 `chooseChallenge` receives `h` and makes evaluation queries before choosing `(v, w)`, and `guess`
-receives `z_b` and continues making evaluation queries before outputting a bit. Choosing
-`chooseChallenge _ _ := pure ...` recovers the non-adaptive Attack Game 12.4. -/
+receives `z_b` and continues making evaluation queries before outputting a bit. Returning
+`pure (v, w, st₁)` with `(v, w)` independent of `h` (which may still be kept in `st₁`) recovers
+the non-adaptive Attack Game 12.4. -/
 structure UniversalDistAdversary (d : F.Desc) (State₀ State₁ : Type) where
   /-- Stage 1: sample the base group element `u ∈ G` and initial state. -/
   chooseU : ProbComp (F.Carrier d × State₀)
-  /-- Stage 2: given `State₀` and projection key `h`, query `Π_L(sk, ·)` and emit `(v, w, st₁)`. -/
+  /-- Stage 2: given saved state `st₀` and auxiliary information `h`, make evaluation queries and
+  emit `(v, w, st₁)`. -/
   chooseChallenge : State₀ → F.Carrier d →
     ProbOracleComp (UniversalEvalSpec F d) (F.Carrier d × F.Carrier d × State₁)
-  /-- Stage 3: given `State₁` and challenge `z_b`, query `Π_L(sk, ·)` and guess `b`. -/
+  /-- Stage 3: given saved state `st₁` and challenge `z_b`, make evaluation queries and output a
+  Boolean guess. -/
   guess : State₁ → F.Carrier d → ProbOracleComp (UniversalEvalSpec F d) Bool
 
 /-- Admissibility for `UniversalDistAdversary`: for every `(u, st₀)` in `chooseU`'s support, every
@@ -206,16 +209,19 @@ printed p. 488): some tuple `(ẑ, v̂, ŵ, ρ̂)` in the output list has `(v̂
       zHat = projHash2 F d σ₁ τ₁ σ₂ τ₂ ρHat vHat wHat)
 
 /-- Adaptive three-stage adversary for Attack Game 12.5 / Exercise 12.26(b) ([BonehShoup2023],
-Section 12.5.2, printed p. 488, and Exercise 12.26(b), printed p. 521). Choosing
-`chooseChallenge _ _ := pure ...` recovers the non-adaptive Attack Game 12.5. -/
+Section 12.5.2, printed p. 488, and Exercise 12.26(b), printed p. 521). Returning
+`pure (v, w, ρ, st₁)` with `(v, w, ρ)` independent of `(h₁, h₂)` (which may still be kept in
+`st₁`) recovers the non-adaptive Attack Game 12.5. -/
 structure Universal2GuessAdversary (d : F.Desc) (State₀ State₁ : Type) where
   /-- Stage 1: sample the base group element `u ∈ G` and initial state. -/
   chooseU : ProbComp (F.Carrier d × State₀)
-  /-- Stage 2: given `State₀` and `(h₁, h₂)`, query `Π₂(sk, ·)` and emit `(v, w, ρ, st₁)`. -/
+  /-- Stage 2: given saved state `st₀` and auxiliary information `(h₁, h₂)`, make evaluation
+  queries and emit `(v, w, ρ, st₁)`. -/
   chooseChallenge : State₀ → F.Carrier d × F.Carrier d →
     ProbOracleComp (Universal2EvalSpec F d)
       (F.Carrier d × F.Carrier d × ZMod (F.order d) × State₁)
-  /-- Stage 3: given `State₁` and challenge `z`, query `Π₂(sk, ·)` and output guess tuples. -/
+  /-- Stage 3: given saved state `st₁` and challenge `z`, make evaluation queries and output guess
+  tuples. -/
   guess : State₁ → F.Carrier d →
     ProbOracleComp (Universal2EvalSpec F d)
       (List (F.Carrier d × F.Carrier d × F.Carrier d × ZMod (F.order d)))
