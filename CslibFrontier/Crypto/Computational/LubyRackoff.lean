@@ -720,28 +720,24 @@ private theorem interpret_adapt_lubyRackoffAdversary (adversary : OracleDistingu
         fun q => PMF.pure (f q.1 q.2)) program =
         ProbComp.eval (program.run fun q => pure (f q.1 q.2)) :=
     (ProbOracleComp.eval_run program fun q => pure (f q.1 q.2)).symm
-  have hquery (p : BitString n × BitString n) :
-      (LubyRackoff.feistel3ChannelQuery p).run (fun q => pure (f q.1 q.2)) =
-        pure (LubyRackoff.feistel3 (f 0) (f 1) (f 2) p) := by
-    obtain ⟨l, r⟩ := p
-    simp [LubyRackoff.feistel3ChannelQuery, LubyRackoff.feistel3_apply]
   rw [OracleCodec.interpret_adapt, wordOracle_withOp_bitString, interpret_lubyRackoffAdversary,
     hrun, LubyRackoff.feistel3MultiKeyAdversary, ProbOracleComp.run_simulate]
-  simp only [hquery, ProbOracleComp.eval_run, ProbComp.eval_pure, OracleCodec.interpret_adapt,
-    pairCodec_wordOracle]
+  simp only [LubyRackoff.run_feistel3ChannelQuery, ProbOracleComp.eval_run, ProbComp.eval_pure,
+    OracleCodec.interpret_adapt, pairCodec_wordOracle]
   congr 2; funext request; congr 1
   exact feistel3Word_randomFunctionOracle f request.2
 
-/-- **The word reduction for three rounds is the finite one.** For a pseudorandom family, against
-every table `T` on `n`-bit strings, presented on the word channel as `randomFunctionOracle n T`,
-the `j`-th hybrid reduction of the three-key adapter `lubyRackoffAdversary adversary` has the law
-of the finite reduction `LubyRackoff.feistel3Reduction` of `PRF.atLevel family n` on the adversary
-adapted along `pairCodec n`, run against `T`. As for
-`interpret_prfMultiReduction_eq_multiKeyReduction`, both PRF games run the word reduction against
-such a table: `prfIdealGame` against a uniform one, `prfRealGame` against
-`PRF.atLevel family n key` for a uniform key. -/
+/-- **The word reduction for three rounds is the finite one.** For a length-preserving family
+and every table `T` on `n`-bit strings, presented on the word channel as
+`randomFunctionOracle n T`, the `j`-th hybrid reduction of the three-key adapter
+`lubyRackoffAdversary adversary` has the law of the finite reduction
+`LubyRackoff.feistel3Reduction` of `PRF.atLevel family n` on the adversary adapted along
+`pairCodec n`, run against `T`. As for `interpret_prfMultiReduction_eq_multiKeyReduction`, both
+PRF games run the word reduction against such a table: `prfIdealGame` against a uniform one,
+`prfRealGame` against `PRF.atLevel family n key` for a uniform key. -/
 theorem interpret_prfMultiReduction_lubyRackoffAdversary
-    {family : List Bool → List Bool → List Bool} (hfamily : PseudorandomFunction family)
+    {family : List Bool → List Bool → List Bool}
+    (hlength : ∀ key query, query.length = key.length → (family key query).length = key.length)
     (j n : ℕ) (adversary : OracleDistinguisher) (T : BitString n → BitString n) :
     OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
         (fun request : Unit × List Bool => PMF.pure (randomFunctionOracle n T request.2)))
@@ -749,7 +745,7 @@ theorem interpret_prfMultiReduction_lubyRackoffAdversary
       OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle fun x => PMF.pure (T x))
         (LubyRackoff.feistel3Reduction (PRF.atLevel family n) j
           ((pairCodec n).adapt (adversary n []))) := by
-  rw [interpret_prfMultiReduction_eq_multiKeyReduction hfamily, LubyRackoff.feistel3Reduction,
+  rw [interpret_prfMultiReduction_eq_multiKeyReduction hlength, LubyRackoff.feistel3Reduction,
     PRF.interpret_multiKeyReduction_eq_bind, PRF.interpret_multiKeyReduction_eq_bind]
   congr 1 with keys : 1
   congr 1 with tables : 1
@@ -1157,16 +1153,17 @@ private theorem interpret_adapt_strongLubyRackoffAdversary (adversary : StrongPR
   congr 2; funext request; congr 1
   exact feistel4Word_randomFunctionOracle f request
 
-/-- **The word reduction for four rounds is the finite one.** For a pseudorandom family, against
-every table `T` on `n`-bit strings, presented on the word channel as `randomFunctionOracle n T`,
-the `j`-th hybrid reduction of the bidirectional adapter `strongLubyRackoffAdversary adversary`
-has the law of the finite reduction `LubyRackoff.feistel4StrongReduction` of
-`PRF.atLevel family n` on the adversary adapted along `strongPermCodec n`, run against `T`. As for
-`interpret_prfMultiReduction_eq_multiKeyReduction`, both PRF games run the word reduction against
-such a table: `prfIdealGame` against a uniform one, `prfRealGame` against
-`PRF.atLevel family n key` for a uniform key. -/
+/-- **The word reduction for four rounds is the finite one.** For a length-preserving family
+and every table `T` on `n`-bit strings, presented on the word channel as
+`randomFunctionOracle n T`, the `j`-th hybrid reduction of the bidirectional adapter
+`strongLubyRackoffAdversary adversary` has the law of the finite reduction
+`LubyRackoff.feistel4StrongReduction` of `PRF.atLevel family n` on the adversary adapted along
+`strongPermCodec n`, run against `T`. As for `interpret_prfMultiReduction_eq_multiKeyReduction`,
+both PRF games run the word reduction against such a table: `prfIdealGame` against a uniform one,
+`prfRealGame` against `PRF.atLevel family n key` for a uniform key. -/
 theorem interpret_prfMultiReduction_strongLubyRackoffAdversary
-    {family : List Bool → List Bool → List Bool} (hfamily : PseudorandomFunction family)
+    {family : List Bool → List Bool → List Bool}
+    (hlength : ∀ key query, query.length = key.length → (family key query).length = key.length)
     (j n : ℕ) (adversary : StrongPRPDistinguisher) (T : BitString n → BitString n) :
     OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
         (fun request : Unit × List Bool => PMF.pure (randomFunctionOracle n T request.2)))
@@ -1174,7 +1171,7 @@ theorem interpret_prfMultiReduction_strongLubyRackoffAdversary
       OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle fun x => PMF.pure (T x))
         (LubyRackoff.feistel4StrongReduction (PRF.atLevel family n) j
           ((strongPermCodec n).adapt (adversary n []))) := by
-  rw [interpret_prfMultiReduction_eq_multiKeyReduction hfamily,
+  rw [interpret_prfMultiReduction_eq_multiKeyReduction hlength,
     LubyRackoff.feistel4StrongReduction, PRF.interpret_multiKeyReduction_eq_bind,
     PRF.interpret_multiKeyReduction_eq_bind]
   congr 1 with keys : 1

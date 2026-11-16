@@ -40,7 +40,7 @@ theorem liftAdaptiveNet_unifFin {Q R : Type} (k : ℕ) :
         (OracleComp.query (spec := probOracleSpec (netSpec Q R)) (Sum.inl k)) =
       ProbOracleComp.sample (ProbComp.unifFin k) := by
   simp only [liftAdaptiveNet, ProbOracleComp.sample, ProbComp.unifFin, OracleComp.interpret_query,
-    sumHandler]
+    sumHandler, OracleComp.substitute_query]
 
 private theorem adaptiveRouter_handle_inl_party (mode : CorruptionMode)
     (P : AdaptiveProtocol n In Out NetQ NetR View) (κ : ℕ) (C₀ : Finset (Fin n))
@@ -128,6 +128,7 @@ private theorem noNewCorrupt_clampNetProgram (C₀ : Finset (Fin n)) {α : Type}
   induction program using OracleComp.induction with
   | pure _ => exact .pure _
   | query_bind q _ ih =>
+    simp only [PFunctor.FreeM.bind_eq_bind]
     rcases q with k | (⟨i, x⟩ | i | nq)
     · exact .bind (.query trivial) ih
     · exact .bind (.query trivial) ih
@@ -328,6 +329,7 @@ theorem mem_support_closeEval_runFrom_invariant {ιE α : Type} {E : ιE → Typ
     rcases hx with rfl
     exact hR_refl s
   | query_bind q cont ih =>
+    simp only [PFunctor.FreeM.bind_eq_bind] at hinv hx
     rcases q with k | q
     · erw [Machine.runFrom_bind, Machine.runFrom_call, StateT.run_lift, bind_pure_comp,
         closeEval_bind, PMF.mem_support_bind_iff] at hx
@@ -409,6 +411,7 @@ private theorem queriesSatisfy_liftAdaptiveNet {C₀ : Finset (Fin n)} {α : Typ
   induction netProg using OracleComp.induction with
   | pure _ => exact .pure _
   | query_bind q _ ih =>
+    simp only [PFunctor.FreeM.bind_eq_bind] at hno ⊢
     have hq := OracleComp.QueriesSatisfy.liftBind_iff.mp hno
     rcases q with k | (⟨i, x⟩ | i | nq)
     · rw [liftAdaptiveNet_bind, liftAdaptiveNet_unifFin]
@@ -508,6 +511,7 @@ private theorem queriesSatisfy_liftAdaptiveNet_true {α : Type}
   induction netProg using OracleComp.induction with
   | pure _ => exact .pure _
   | query_bind q _ ih =>
+    simp only [PFunctor.FreeM.bind_eq_bind]
     rcases q with k | (⟨i, x⟩ | i | nq)
     · rw [liftAdaptiveNet_bind, liftAdaptiveNet_unifFin]; exact .bind (.query trivial) ih
     · rw [liftAdaptiveNet_bind]; erw [liftAdaptiveNet_query]; exact .bind (.query trivial) ih
@@ -578,6 +582,7 @@ private theorem closeEval_router_adaptive_le_clamp {α β : Type}
     change closeEval (f (a, rs)) y ≤ closeEval (g (a, rs)) y
     exact hfg a rs hrs
   | query_bind q cont ih =>
+    simp only [PFunctor.FreeM.bind_eq_bind]
     rcases q with k | q
     · have hcall :
           liftAdaptiveNet (n := n) (In := In) (Out := Out)
@@ -688,6 +693,7 @@ private theorem closeEval_execMachine_adaptive_le_clampStatic {α : Type}
     change closeEval (pure (a, (sA, rs))) y ≤ closeEval (pure (a, (sA, rs))) y
     exact le_rfl
   | query_bind q cont ih =>
+    simp only [PFunctor.FreeM.bind_eq_bind]
     rcases q with k | q
     · erw [Machine.runFrom_bind, Machine.runFrom_bind, Machine.runFrom_call,
         StateT.run_lift, bind_pure_comp, bind_map_left, bind_map_left]

@@ -343,7 +343,7 @@ variable {n : ℕ} {In Out Q R NetQ NetR View AdvQ AdvR : Type}
         (ProbOracleComp.sample (spec := netSpec Q R) program) =
       ProbOracleComp.sample program := by
   simp only [liftAdaptiveNet, ProbOracleComp.interpret_sample]
-  rfl
+  exact (OracleComp.substitute_eq_interpret _ _).symm
 
 /-- Mirror of `UC.liftAdversary` for `adaptivePartySpec n In Out`. -/
 @[expose] def liftAdaptiveAdversary (A : Machine (netSpec Q R) (netSpec AdvQ AdvR)) :
@@ -687,6 +687,7 @@ private theorem noNewCorrupt_liftStaticNetProgram (C₀ : Finset (Fin n)) {α : 
   induction program using OracleComp.induction with
   | pure a => exact .pure a
   | query_bind q _ ih =>
+    simp only [PFunctor.FreeM.bind_eq_bind]
     rcases q with k | (⟨i, x⟩ | nq) <;>
       rw [liftStaticNetProgram, OracleComp.interpret_bind, OracleComp.interpret_query] <;>
       refine .bind ?_ ih
@@ -772,6 +773,7 @@ theorem interpret_sumHandler_id {ι α : Type} {E : ι → Type} (p : ProbOracle
   induction p using OracleComp.induction with
   | pure a => rfl
   | query_bind q _ ih =>
+    simp only [PFunctor.FreeM.bind_eq_bind]
     rcases q with k | q <;>
       simp only [OracleComp.interpret_bind, OracleComp.interpret_query, sumHandler] <;>
       exact congrArg (_ >>= ·) (funext ih)
@@ -794,6 +796,7 @@ theorem interpret_sumHandler_comp {ι₀ ι₁ ι₂ α : Type}
   induction p using OracleComp.induction with
   | pure a => rfl
   | query_bind q _ ih =>
+    simp only [PFunctor.FreeM.bind_eq_bind]
     rcases q with k | q <;>
       simp only [OracleComp.interpret_bind, OracleComp.interpret_query, sumHandler] <;>
       exact congrArg (_ >>= ·) (funext ih)
@@ -835,6 +838,7 @@ theorem runFrom_interpret_intertwine {ι₁ ι₂ ι α β : Type}
   induction prog using OracleComp.induction generalizing s₁ s₂ with
   | pure a => exact hfg a s₁ s₂ hR
   | query_bind q _ ih =>
+    simp only [PFunctor.FreeM.bind_eq_bind] at hinv ⊢
     rcases q with k | q
     · rw [OracleComp.interpret_bind, OracleComp.interpret_bind,
         OracleComp.interpret_query, OracleComp.interpret_query]

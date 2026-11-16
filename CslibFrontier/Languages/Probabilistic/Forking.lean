@@ -134,7 +134,7 @@ theorem runWithAnswers_bind {β : Type} (default : H) (program : OracleComp (fun
   induction program using OracleComp.induction generalizing answers with
   | pure a => rfl
   | query_bind q cont ih =>
-    rw [bind_assoc, runWithAnswers_query_bind, ih]
+    rw [PFunctor.FreeM.bind_eq_bind, bind_assoc, runWithAnswers_query_bind, ih]
     cases answers with
     | nil => simp
     | cons a rest => rfl
@@ -186,7 +186,8 @@ theorem runWithAnswers_run_interpret_invariant {ι σ β : Type} {spec : ι → 
   induction program using OracleComp.induction generalizing s queries with
   | pure b => simpa using hs
   | query_bind q cont ih =>
-    simp only [interpret_bind, interpret_query, StateT.run_bind, runWithAnswers_bind,
+    simp only [PFunctor.FreeM.bind_eq_bind, interpret_bind, interpret_query, StateT.run_bind,
+      runWithAnswers_bind,
       List.drop_drop]
     have hstep := step q s queries hs
     have hnext := ih (runWithAnswers default ((handler q).run s)
@@ -208,7 +209,8 @@ private theorem eval_run_withSampleList (default : H)
   induction program using OracleComp.induction generalizing answers with
   | pure a => rfl
   | query_bind q cont ih =>
-    rw [runWithAnswers_query_bind, ← ih (answers.headD default) answers.tail]
+    rw [PFunctor.FreeM.bind_eq_bind, runWithAnswers_query_bind,
+      ← ih (answers.headD default) answers.tail]
     rfl
 
 /-- Answering lifted queries uniformly as they come is answering them uniformly. -/
@@ -288,7 +290,7 @@ private theorem eval_run_withSampleList_count (default : H)
   induction program using OracleComp.induction generalizing count answers with
   | pure a => rfl
   | query_bind q cont ih =>
-    rw [runWithAnswers_query_bind, List.length_cons,
+    rw [PFunctor.FreeM.bind_eq_bind, runWithAnswers_query_bind, List.length_cons,
       show count + ((runWithAnswers default (cont (answers.headD default)) answers.tail).2.length
         + 1) = (count + 1) +
           (runWithAnswers default (cont (answers.headD default)) answers.tail).2.length by omega,

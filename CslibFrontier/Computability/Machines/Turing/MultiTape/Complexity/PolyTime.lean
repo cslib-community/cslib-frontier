@@ -9,11 +9,14 @@ module
 
 public import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Append
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Ite
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Foldl
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Basic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.TidyNormalForm
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
 /-!
 # Tidy computability in polynomial time
 
@@ -63,9 +66,9 @@ public theorem polyBounded_length {f : α → β} (h : ComputableTidilyInPolyTim
   let ⟨_, _, ht, _, hf⟩ := h
   ht.mono hf.length_le
 
-public theorem of_linear {f : α → β} (h : ComputableTidilyInLinearTimeAndSpace f encIn encMid) :
+public theorem of_linear {f : α → β} {e : ℕ} (h : ComputableInDegree f encIn encMid 1 e) :
     ComputableTidilyInPolyTime f encIn encMid :=
-  let ⟨c, hc⟩ := h
+  let ⟨c, hc⟩ := Internal.NormalForm.linear h
   ⟨_, _, .of_forall_le c 1 (fun _ => by simp), .of_forall_le c 1 (fun _ => by simp), hc⟩
 
 public theorem comp {f : β → γ} {g : α → β} (hf : ComputableTidilyInPolyTime f encMid encOut)

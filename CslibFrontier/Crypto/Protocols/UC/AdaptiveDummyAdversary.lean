@@ -85,6 +85,7 @@ theorem runFrom_liftAdaptiveAdversary_liftAdaptiveNet
   induction program using OracleComp.induction generalizing s with
   | pure a => rfl
   | query_bind q cont ih =>
+    simp only [PFunctor.FreeM.bind_eq_bind]
     cases q with
     | inl k =>
       have h₁ : liftAdaptiveNet (n := n) (In := In) (Out := Out)
