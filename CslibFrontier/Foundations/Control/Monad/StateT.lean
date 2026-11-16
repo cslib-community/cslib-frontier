@@ -17,7 +17,7 @@ reasoned about as applications `x s` rather than through `StateT.run`. Lean's `S
 `StateT.run_map` and `StateT.run_pure` are stated with `.run`, so `rw` cannot use them on such
 applications. This file restates them for the applied form.
 
-## Main results
+## Rewrite interface
 
 * `Cslib.StateT.bind_apply`, `Cslib.StateT.map_apply`, `Cslib.StateT.pure_apply`: the applied
   forms of `StateT.run_bind`, `StateT.run_map` and `StateT.run_pure`.
