@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Computational.Encryption.Cipher
 public import CslibFrontier.Crypto.Game.HiddenBit
 public import CslibFrontier.Crypto.Primitives.PRP.Finite
+import CslibFrontier.Languages.Probabilistic.Traverse.SupportWith
 import Mathlib.GroupTheory.GroupAction.MultipleTransitivity
 
 /-!
@@ -125,16 +126,6 @@ theorem advantage_twoBlockAdversary [DecidableEq D] (E : Key → Equiv.Perm D)
 
 /-! ### Theorem 4.1 -/
 
-/-- Querying the oracle on every block of a list makes one query per block. -/
-private theorem isQueryBounded_mapM_query (l : List D) :
-    (l.mapM (ProbOracleComp.query (spec := fun _ : D => D))).IsQueryBounded l.length := by
-  induction l with
-  | nil => exact OracleComp.IsCostBounded.pure _ _
-  | cons a l ih =>
-    simpa [List.mapM_cons, Nat.add_comm] using
-      (ProbOracleComp.IsQueryBounded.query (spec := fun _ : D => D) a).bind fun c =>
-        ih.bind fun cs => OracleComp.IsCostBounded.pure (c :: cs) 0
-
 /-- Against a fixed function, querying every block of a list returns the image of the list. -/
 private theorem run_mapM_query (f : D → D) (l : List D) :
     (l.mapM (ProbOracleComp.query (spec := fun _ : D => D))).run (fun x => pure (f x)) =
@@ -175,7 +166,10 @@ theorem isQueryBounded_reduction (ℓ : ℕ) {σ : Type}
     · have hlen : (p.1.select b).length ≤ ℓ := by
         simp only [distinctAdmissible, decide_eq_true_eq] at h
         cases b <;> simp only [MessagePair.select_false, MessagePair.select_true] <;> omega
-      exact ((isQueryBounded_mapM_query (p.1.select b)).bind fun c =>
+      have hq : ((p.1.select b).mapM ProbOracleComp.query).IsQueryBounded ℓ :=
+        (OracleComp.IsCostBounded.mapM fun x _ =>
+          ProbOracleComp.IsQueryBounded.query (spec := fun _ : D => D) x).mono (by simpa using hlen)
+      exact (hq.bind fun c =>
         (OracleComp.isCostBounded_map_iff (· == b) _ _).mpr
           (ProbOracleComp.IsQueryBounded.sample (A.guess p.2 c))).mono (by omega)
     · exact (OracleComp.IsCostBounded.pure _ 0).mono (Nat.zero_le _)
