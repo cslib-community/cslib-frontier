@@ -158,6 +158,7 @@ The assumption has two parts. The premise `polyTime`, deterministic polynomial-t
 | `Encryption.INDCCA2Of` | standard | [BonehShoup2023] Attack Game 12.1 and Definition 12.2, pp. 467–468 | 1CCA; every challenge pair admissible. | — |
 | `Encryption.INDCCA2On` | standard | [BonehShoup2023] Attack Game 12.1 and Definition 12.2, pp. 467–468 | 1CCA; an admissibility predicate. | — |
 | `Encryption.WordINDCCA2` | standard | [BonehShoup2023] Attack Game 12.1 and Definition 12.2, pp. 467–468 | 1CCA; equal-length messages. | — |
+| `Encryption.INDCCA1On` | standard | [BonehShoup2023] Exercise 12.28, p. 522, with Attack Game 12.1 and Definition 12.2, pp. 467–468 | Non-adaptive 1CCA: no decryption query after the single encryption query; an admissibility predicate. | [NonAdaptiveCCA.lean](../../CslibFrontierTests/Crypto/NonAdaptiveCCA.lean) `not_indcca1On_plaintext` |
 | `Encryption.INDCCA2Multi` | standard | [BonehShoup2023] Attack Game 12.1 and Definition 12.1, pp. 467–468 | Challenges in one batch, not adaptively; bit messages. | — |
 | `Encryption.INDCCA2MultiOf` | standard | [BonehShoup2023] Attack Game 12.1 and Definition 12.1, pp. 467–468 | Challenges in one batch, not adaptively. | — |
 | `Encryption.INDCCA2MultiOn` | standard | [BonehShoup2023] Attack Game 12.1 and Definition 12.1, pp. 467–468 | Challenges in one batch, not adaptively. | — |
