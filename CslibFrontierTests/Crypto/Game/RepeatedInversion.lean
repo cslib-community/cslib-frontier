@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Crypto.Game.RepeatedInversion
+public import CslibFrontier.Crypto.Game.RepeatedInversion.SlotBound
 public import CslibFrontier.Crypto.Game.Inversion
 public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
 
@@ -447,5 +447,66 @@ example : ProbComp.eval (repeatedIterateExperiment id (pure true) not 1 0 zeroAt
     chainVerify, chainConsistent, zeroAttack, ProbOracleComp.runLogWith,
     ProbOracleComp.runState_query, ProbOracleComp.logOracle_run, OracleComp.replicate_succ,
     OracleComp.replicate_zero]
+
+/-! ### Guessing step (`SlotBound`) checks and boundary probes -/
+
+/-- Probe of `0 < d` in `succProbability_repeatedIterateExperiment_le_sum`: at `d = 0`, the slot
+sum over `Finset.range (n * 0)` is zero while `eval_game_zero` gives success probability `1`. -/
+example :
+    (∑ g ∈ Finset.range (1 * 0), Experiment.succProbability
+      (inversionExperiment (Bool.not^[g % 0] <$> (pure true : ProbComp Bool)) Bool.not
+        (slotInverter (Q := ℕ) id (pure true) Bool.not 1 0 g (fun ys => pure (0, ys.headI))))) <
+    Experiment.succProbability
+      (repeatedIterateExperiment (Q := ℕ) id (pure true) Bool.not 1 0
+        fun ys => pure (0, ys.headI)) := by
+  rw [Finset.range_zero, Finset.sum_empty]
+  simp [Experiment.succProbability, Game.succProbability, eval_game_zero]
+
+private def secondSlotAttack : List Bool → ProbOracleComp (fun _ : ℕ => Bool) (ℕ × Bool)
+  | ys => pure (1, ys.getD 1 false)
+
+/-- Concrete two-slot check of `slotInverter` and `plantInverter`: targeting slot `1` on
+`id` with seed `true`, a planted challenge at `g = 1` succeeds with probability `1` while
+`g = 0` returns `default = false` and fails (`0`), so `plantInverter` succeeds with `1 / 2`
+while `repeatedInversionExperiment` succeeds with `1` (tight for the factor `2` bound). -/
+example :
+    Experiment.succProbability (inversionExperiment (pure true) id
+      (slotInverter (Q := ℕ) id (pure true) id 2 1 1 secondSlotAttack)) = 1 := by
+  simp [Experiment.succProbability, Game.succProbability, inversionExperiment, slotInverter,
+    secondSlotAttack, OracleComp.replicate_succ, OracleComp.replicate_zero]
+
+example :
+    Experiment.succProbability (inversionExperiment (pure true) id
+      (plantInverter (Q := ℕ) id (pure true) id 2 secondSlotAttack)) = 1 / 2 := by
+  have h0 :
+      ProbComp.eval (inversionExperiment (pure true) id
+        (slotInverter (Q := ℕ) id (pure true) id 2 1 0 secondSlotAttack)) = PMF.pure false := by
+    simp [inversionExperiment, slotInverter, secondSlotAttack, OracleComp.replicate_succ,
+      OracleComp.replicate_zero]
+  have h1 :
+      ProbComp.eval (inversionExperiment (pure true) id
+        (slotInverter (Q := ℕ) id (pure true) id 2 1 1 secondSlotAttack)) = PMF.pure true := by
+    simp [inversionExperiment, slotInverter, secondSlotAttack, OracleComp.replicate_succ,
+      OracleComp.replicate_zero]
+  have h :
+      ProbComp.eval (inversionExperiment (pure true) id
+        (plantInverter (Q := ℕ) id (pure true) id 2 secondSlotAttack)) =
+      (PMF.uniformOfFintype (Fin 2)).bind fun ω =>
+        ProbComp.eval (inversionExperiment (pure true) id
+          (slotInverter (Q := ℕ) id (pure true) id 2 1 ω secondSlotAttack)) := by
+    simp only [inversionExperiment, plantInverter, ProbComp.eval_bind, ProbComp.eval_pure,
+      ProbComp.eval_unifFin, PMF.pure_bind, PMF.bind_bind]
+  rw [Experiment.succProbability, h]
+  simp only [Game.succProbability, PMF.bind_apply, PMF.uniformOfFintype_apply, Fintype.card_fin]
+  rw [tsum_fintype, Fin.sum_univ_two]
+  simp only [Fin.val_zero, Fin.val_one, h0, h1, PMF.pure_apply]
+  norm_num [ENNReal.toNNReal_ofNat]
+
+example :
+    Experiment.succProbability (repeatedInversionExperiment (Q := ℕ) id (pure true) id 2
+      secondSlotAttack) = 1 := by
+  simp [Experiment.succProbability, Game.succProbability, repeatedInversionExperiment,
+    forgeExperiment, secondSlotAttack, ProbOracleComp.runLogWith, ProbOracleComp.runState_pure,
+    StateT.run_pure, OracleComp.replicate_succ, OracleComp.replicate_zero]
 
 end CslibFrontierTests.RepeatedInversion

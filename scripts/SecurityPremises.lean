@@ -170,6 +170,46 @@ Mentioning a constant is a syntactic test: the checks do not judge which argumen
 under which hypotheses it holds, or what `Y` assumes. The conditions under which `E` holds are for
 the reviewer to read, and the entry's `why` states them by hand.
 
+**Entries scoped to one instance.** When `E` holds only at the instance of a generic `R` that `H`
+uses, the request ends with `instance` and the entry's pinned consumers, each as `tag:name`
+(`checkVia`). The pass then also computes the *referrers* of `R` (`referrersOf`): the public
+declarations other than `R` whose statement or proof mentions `R` directly, through the
+declarations that Lean generates under a name (a mention by `foo.proof_1` is one by `foo`, and a
+mention of `R.eq_1` is one of `R`), or through private declarations, which are followed to the
+declarations that mention them. A mention through another public declaration does not count, since
+that declaration is a referrer itself. Only `R`'s module and the modules that import it, directly
+or through other modules, can mention `R`, and only they are read. The checks are:
+
+* the pinned consumers are exactly the referrers outside `R`'s module, so a new one fails;
+* a consumer tagged `reduction` is a definition, and one tagged `headline` or `concrete` is a
+  theorem;
+* a `headline` consumer is on `H`'s *proof path*: `H` itself, or a constant of the scanned modules
+  that `H`'s statement and proof use, directly or through other such constants (`proofPath`); `H`
+  is not tagged `concrete`;
+* every referring theorem other than `H`, in `R`'s module or outside it, is *concrete*
+  (`notConcrete`): no premise, instance arguments included, has a claim atom headed by a named
+  assumption (`assumptionHeads`, as for `--assumptions`), and neither a premise nor the conclusion
+  makes a negligibility claim, directly or inside Prop-valued definitions unfolded at most five
+  times (`securityConclusion`, as for `H`); an alias heading the whole statement is unfolded to
+  collect its premises. Another theorem that rests on an assumption would be a second headline,
+  which `E` was not checked against.
+
+The verdict adds `"refs"`, the referrers outside `R`'s module; `"defs"`, the definitions among all
+referrers that have no efficiency witness of their own, with their modules; and `"cdefs"`, the ones
+that have. Unlike a reduction, such a definition is not certified by being mentioned in a certified
+definition's body (`certificate?`'s `wrapper` kind): a generic wrapper of `R` run inside one
+certified program at one instance would otherwise need no entry. `vm` includes the referrers'
+modules. `scripts/check_reduction_witnesses.py` requires each definition in `defs` to have a
+baseline entry of its own, a `gap` or `exempt` entry, which it keeps even when no theorem states a
+bound with the definition; a definition with a witness of its own needs none. So the baseline
+accounts for every definition that uses `R`. That does not establish that every headline downstream
+of such a definition has its own certificate or via entry: a referrer is found by name, and a public
+declaration stops the search, so a theorem that reaches `R` only through another public declaration
+(a theorem that consumes `H`, or one about a definition that wraps `R`) is not a referrer.
+Concreteness is recognized as above, so a premise that assumes a bound without `Negligible` or a
+named assumption, such as `Adv ≤ ε`, or reaches one only after more than five unfoldings, is not
+seen. Whether a `headline` consumer uses `R` at the instance that `E` covers is for the reviewer.
+
 **Named assumptions.** With `--assumptions` (`lake env lean --run scripts/SecurityPremises.lean
 <lib-dir> --assumptions`), for `scripts/check_hardness_assumptions.py`, it reports the named
 assumptions instead. A *named assumption* is a Prop-valued definition or `structure` whose
@@ -618,10 +658,9 @@ unsafe def reducibles (entries : Array (Name × Array EnvExtensionEntry)) : Arra
 /-- Read the modules listed on standard input, one per line. A line `<dir>\t<module>` reads a
 *context* module from another build directory, such as CSLib's: its constants are in the
 environment, so definitions can be followed into it, but its theorems are not scanned. A line
-`via\t<reduction>\t<program>\t<certificate>\t<equality>\t<headline>` is a request of the
-`--reductions` mode (`runReductions`), not a module. Returns the environment, the scanned modules,
-the compacted regions (to keep reachable while their expressions are used), the modules without
-build outputs and the requests. -/
+that starts with `via\t` is a request of the `--reductions` mode (`checkVia`), not a module.
+Returns the environment, the scanned modules, the compacted regions (to keep reachable while their
+expressions are used), the modules without build outputs and the requests. -/
 unsafe def load (libDir : System.FilePath) :
     IO (Env × Array (Name × ModuleData) × Array CompactedRegion × Array String ×
       Array (Array String)) := do
@@ -893,32 +932,161 @@ partial def proofConstants (env : Env) (fuel : Nat) (h : Name) : Array Name :=
         acc ++ proofConstants env (fuel - 1) c
       else acc
 
-/-- Whether a conclusion has a claim atom of the kind `negligible` or `advantage` (`classify`),
-directly or inside Prop-valued definitions of the environment unfolded at most `fuel` times, as
-`INDCPAOf …` unfolds through `Game.Indistinguishable` to a negligibility claim for every admitted
-adversary. -/
-partial def securityConclusion (env : Env) (fuel : Nat) (e : Expr) : Bool :=
+/-- Whether a proposition has a claim atom of one of the `kinds` of `classify`, directly or inside
+Prop-valued definitions of the environment unfolded at most `fuel` times, as `INDCPAOf …` unfolds
+through `Game.Indistinguishable` to a negligibility claim for every admitted adversary. -/
+partial def securityConclusion (env : Env) (kinds : List String) (fuel : Nat) (e : Expr) : Bool :=
   (atoms e).any fun a =>
-    match classify env a with
-    | some ("negligible", _) | some ("advantage", _) => true
-    | _ =>
+    (classify env a).any (kinds.contains ·.1) ||
       match fuel, unfoldProp? env a with
-      | fuel + 1, some u => securityConclusion env fuel u
+      | fuel + 1, some u => securityConclusion env kinds fuel u
       | _, _ => false
 
+/-- The declaration that owns `c`: `c` itself, or, for a declaration that Lean generates under
+another's name (`foo.proof_1`, `foo.eq_1`, `foo.match_1`), the nearest prefix of its name that Lean
+does not generate. -/
+partial def ownerOf (c : Name) : Name :=
+  if isGenerated c && !c.getPrefix.isAnonymous then ownerOf c.getPrefix else c
+
+/-- The scanned modules that import `m`, directly or through other modules, and `m` itself: the
+only modules whose declarations can mention a declaration of `m`. -/
+def importersOf (mods : Array (Name × ModuleData)) (m : Name) : NameSet := Id.run do
+  let mut found : NameSet := ({} : NameSet).insert m
+  let mut changed := true
+  while changed do
+    changed := false
+    for (n, data) in mods do
+      if found.contains n then continue
+      if data.imports.any fun i => found.contains i.module then
+        found := found.insert n
+        changed := true
+  return found
+
+/-- The *referrers* of `r`, a declaration of the module `rm`: the public declarations other than
+`r` whose statement or proof mentions `r`, directly, through the declarations that Lean generates
+(`ownerOf`: a mention by `foo.proof_1` is one by `foo`, and a mention of `r.eq_1` or `r.match_1`
+is one of `r`), or through private declarations, which are followed to the declarations that
+mention them. A mention through another public declaration does not count: that declaration is a
+referrer itself. Only `rm` and the modules that import it, directly or through other modules, are
+read. -/
+def referrersOf (mods : Array (Name × ModuleData)) (r : Name) (rm : Name) :
+    NameSet := Id.run do
+  let scope := importersOf mods rm
+  -- The declarations a mention of which is a mention of `r`: `r`, the declarations it owns, and
+  -- private declarations that mention one of these.
+  let mut targets : Array Name := #[r]
+  for (m, data) in mods do
+    if m == rm then
+      for c in data.constants do
+        if c.name != r && ownerOf c.name == r then targets := targets.push c.name
+  let mut seen : NameSet := targets.foldl (·.insert ·) {}
+  let mut found : NameSet := {}
+  let mut changed := true
+  while changed do
+    changed := false
+    for (m, data) in mods do
+      unless scope.contains m do continue
+      for c in data.constants do
+        if seen.contains c.name then continue
+        let used := c.type.getUsedConstants ++
+          ((c.value? (allowOpaque := true)).map (·.getUsedConstants)).getD #[]
+        unless targets.any used.contains do continue
+        seen := seen.insert c.name
+        let owner := ownerOf c.name
+        if owner == r || isPrivateName owner then
+          targets := targets.push c.name
+          changed := true
+        else found := found.insert owner
+  return found
+
+/-- The constants of the scanned modules that the statement and proof of `h` use, directly or
+through other such constants, with `h` itself: `h`'s proof path. -/
+def proofPath (env : Env) (scanned : NameSet) (h : Name) : NameSet := Id.run do
+  let mut seen : NameSet := ({} : NameSet).insert h
+  let mut stack := #[h]
+  while !stack.isEmpty do
+    let c := stack.back!
+    stack := stack.pop
+    let some info := env.consts[c]? | continue
+    let used := info.type.getUsedConstants ++
+      ((info.value? (allowOpaque := true)).map (·.getUsedConstants)).getD #[]
+    for u in used do
+      if seen.contains u then continue
+      unless (env.moduleOf[u]?).any scanned.contains do continue
+      seen := seen.insert u
+      stack := stack.push u
+  return seen
+
+/-- Why a theorem type is not *concrete*, or nothing when it is: a premise whose claim atoms are
+headed by a named assumption (`assumptionHeads`, which sees through the Prop-valued definitions of
+`securityShaped`), or a premise or conclusion that makes a negligibility claim, directly or inside
+Prop-valued definitions unfolded at most five times (`securityConclusion`), as a conclusion
+`IsEUFCMA …` does. Every premise counts, instance arguments included, so a class that packages an
+assumption is seen. A Prop-valued definition heading the type after its leading premises, such as an
+alias `P → Q` for the whole statement, is unfolded (at most five times, and never a claim atom
+that `classify` recognizes) and its own premises are collected too. -/
+def notConcrete (env : Env) (type : Expr) : Array String := Id.run do
+  let mut out : Array String := #[]
+  let mut t := type
+  let mut fuel := 5
+  repeat
+    match t with
+    | .mdata _ b => t := b
+    | .forallE _ ty b _ =>
+      for a in assumptionHeads env ty do
+        let s := s!"a premise rests on the named assumption `{a}`"
+        unless out.contains s do out := out.push s
+      if securityConclusion env ["negligible"] 5 ty then
+        let s := "a premise makes a negligibility claim"
+        unless out.contains s do out := out.push s
+      t := b
+    | _ =>
+      -- A claim atom the checker recognizes, such as `Negligible …`, is not an alias.
+      if (classify env t).isSome then break
+      match fuel, unfoldProp? env t with
+      | k + 1, some u => fuel := k; t := u
+      | _, _ => break
+  if securityConclusion env ["negligible"] 5 t then
+    out := out.push "its conclusion makes a negligibility claim"
+  return out
+
+/-- The tags of a pinned consumer of an instance-scoped `via_certified_program` entry. -/
+def consumerTags : List String := ["headline", "concrete", "reduction"]
+
 /-- Verify a request `#[reduction, its module, program, certificate, equality, the equality's
-module, headline]` for a `via_certified_program` baseline entry (see the module docstring).
-`privateNames` holds the names of the private declarations without their prefix, used only to
-explain a failure. Returns `{"v": reduction, "p": [problems], "at": "statement" | "proof" | "",
-"vm": [modules of the declarations found], "em": module of the equality or "", "missing": [names
-not found]}`, where `at` says whether the headline's statement or only its proof mentions the
-program or the certificate. -/
-def checkVia (env : Env) (privateNames : NameSet) (fields : Array String) : Json := Id.run do
-  let result (problems : Array String) (at_ em : String) (modules absent : Array String) : Json :=
+module, headline]` for a `via_certified_program` baseline entry (see the module docstring),
+followed, for an entry scoped to one instance, by `instance` and its pinned consumers as
+`tag:name`. `privateNames` holds the names of the private declarations without their prefix, used
+only to explain a failure; `mods` are the scanned modules; `witnessed` says whether a definition
+has an efficiency witness of its own. Being mentioned in a certified definition's body, which
+certifies a reduction as a `wrapper` (`certificate?`), does not count here: a generic wrapper of `R`
+run inside one certified program at one instance would otherwise need no entry, and a headline
+through it at another instance would go unseen. Returns `{"v": reduction, "p":
+[problems], "at": "statement" | "proof" | "", "vm": [modules of the declarations found], "em":
+module of the equality or "", "missing": [names not found], "refs": [referrers of the reduction
+outside its module], "defs": [{"n": definition among the referrers without a witness of its own,
+"m": its module}], "cdefs": [definitions among the referrers with one]}`, the last three for an
+instance-scoped request, where `at` says whether the headline's statement or only its proof mentions
+the program or the certificate. -/
+def checkVia (env : Env) (privateNames : NameSet) (mods : Array (Name × ModuleData))
+    (witnessed : Name → Bool) (fields : Array String) : Json := Id.run do
+  let result (problems : Array String) (at_ em : String) (modules absent : Array String)
+      (refs : Array String := #[]) (defs : Array Json := #[]) (cdefs : Array String := #[]) :
+      Json :=
     Json.mkObj [("v", toJson (fields[0]?.getD "")), ("p", toJson problems), ("at", toJson at_),
-      ("vm", toJson modules), ("em", toJson em), ("missing", toJson absent)]
-  let #[sr, rmod, sx, sy, se, emod, sh] := fields |
-    return result #[s!"malformed request with {fields.size} fields"] "" "" #[] #[]
+      ("vm", toJson modules), ("em", toJson em), ("missing", toJson absent),
+      ("refs", toJson refs), ("defs", Json.arr defs), ("cdefs", toJson cdefs)]
+  let malformed := result #[s!"malformed request with {fields.size} fields"] "" "" #[] #[]
+  let #[sr, rmod, sx, sy, se, emod, sh] := fields.extract 0 7 | return malformed
+  -- The pinned consumers of an entry scoped to one instance, as `(tag, name)`.
+  let extra := (fields.extract 7).toList
+  unless extra.isEmpty || extra.head? == some "instance" do return malformed
+  let pinned? : Option (Array (String × String)) := match extra with
+    | "instance" :: cs => some <| cs.toArray.map fun c =>
+        match c.splitOn ":" with
+        | tag :: rest => (tag, ":".intercalate rest)
+        | [] => ("", c)
+    | _ => none
   -- A public declaration by its name. The reduction and the equality may also be private
   -- declarations of their recorded modules: a private declaration of that module comes first,
   -- so a public declaration of the same name in another module is not taken for it.
@@ -1007,14 +1175,77 @@ def checkVia (env : Env) (privateNames : NameSet) (fields : Array String) : Json
   else
     match hi with
     | .thmInfo _ =>
-      unless securityConclusion env 5 hi.type do
+      unless securityConclusion env ["negligible", "advantage"] 5 hi.type do
         problems := problems.push s!"headline `{sh}` does not conclude a negligibility or \
           advantage claim, directly or through the notions it states"
       if at_.isEmpty then
         problems := problems.push s!"headline `{sh}` mentions neither `{sx}` nor `{sy}` in its \
           statement or proof"
     | _ => problems := problems.push s!"headline `{sh}` is not a theorem"
-  return result problems at_ em modules absent
+  let some pinned := pinned? | return result problems at_ em modules absent
+  -- An entry scoped to one instance (see the module docstring): the pinned consumers must be
+  -- exactly the referrers of the reduction outside its module, each with a tag that holds; every
+  -- referring theorem other than the headline must be concrete; and the Python checker requires
+  -- every uncertified referring definition to have a baseline entry.
+  let rm := (env.moduleOf[r]?).getD rmod.toName
+  let refs := (referrersOf mods r rm).toArray.qsort Name.lt
+  let outside := refs.filter fun c => (env.moduleOf[c]?).all (· != rm)
+  let scanned : NameSet := mods.foldl (fun s (m, _) => s.insert m) {}
+  let path := proofPath env scanned h
+  let addModule (modules : Array String) (n : Name) : Array String :=
+    match env.moduleOf[n]? with
+    | some m => if modules.contains m.toString then modules else modules.push m.toString
+    | none => modules
+  let pinnedNames := pinned.map (·.2.toName)
+  let mut defs : Array Json := #[]
+  let mut cdefs : Array String := #[]
+  for c in refs do
+    modules := addModule modules c
+    let isOutside := outside.contains c
+    if isOutside && !pinnedNames.contains c then
+      problems := problems.push s!"`{c}` refers to `{sr}` outside its module but is not a pinned \
+        consumer; pin it with its tag (`headline`, `concrete` or `reduction`), or make the \
+        entry a `gap`"
+    match env.consts[c]? with
+    | some (.thmInfo v) =>
+      let reasons := if c == h then #[] else notConcrete env v.type
+      unless reasons.isEmpty do
+        problems := problems.push s!"`{c}` refers to `{sr}`{if isOutside then "" else
+          " in its module"} and is not concrete ({"; ".intercalate reasons.toList}): a second \
+          headline, which the equality was not checked against; make the entry a `gap`"
+    | some (.defnInfo _) | some (.opaqueInfo _) =>
+      if witnessed c then cdefs := cdefs.push c.toString
+      else defs := defs.push <| Json.mkObj [("n", toJson c.toString),
+        ("m", toJson ((env.moduleOf[c]?).getD .anonymous).toString)]
+    | _ =>
+      problems := problems.push s!"`{c}` refers to `{sr}` and is neither a theorem nor a \
+        definition"
+  for (tag, s) in pinned do
+    let n := s.toName
+    let some info := env.consts[n]? |
+      absent := absent.push s
+      problems := problems.push s!"consumer `{s}` does not exist"
+      continue
+    modules := addModule modules n
+    if !consumerTags.contains tag then
+      problems := problems.push s!"consumer `{s}` has the tag `{tag}`, not one of `headline`, \
+        `concrete` or `reduction`"
+    else if !outside.contains n then
+      problems := problems.push s!"consumer `{s}` does not refer to `{sr}` outside `{sr}`'s \
+        module; unpin it"
+    else if tag == "reduction" then
+      unless info matches .defnInfo _ | .opaqueInfo _ do
+        problems := problems.push s!"consumer `{s}` is tagged `reduction` but is not a definition"
+    else if !(info matches .thmInfo _) then
+      problems := problems.push s!"consumer `{s}` is tagged `{tag}` but is not a theorem; a \
+        definition that uses `{sr}` is tagged `reduction`"
+    else if tag == "headline" && !path.contains n then
+      problems := problems.push s!"consumer `{s}` is tagged `headline` but is not on the proof \
+        path of `{sh}`"
+    else if tag == "concrete" && n == h then
+      problems := problems.push s!"consumer `{s}` is the headline but is tagged `concrete`; tag \
+        it `headline`"
+  return result problems at_ em modules absent (outside.map (·.toString)) defs cdefs
 
 /-- The `--reductions` mode (see the module docstring): every reduction that a public theorem
 states an advantage bound with, and how it is certified. -/
@@ -1084,13 +1315,16 @@ unsafe def runReductions (libDir : System.FilePath) : IO Unit := do
       ("l", toJson ((env.lines.get? r).getD 0)), ("t", names theorems),
       ("tm", toJson (modules.toList.eraseDups.toArray.qsort (· < ·))),
       ("k", toJson kind), ("w", names by_)]
+  -- A definition among the referrers of an instance-scoped request counts as certified only by a
+  -- witness of its own (see `checkVia`).
+  let witnessed (c : Name) : Bool := witnesses.contains c
   -- The names of private declarations without their prefix, to explain a failure.
   let mut privateNames : NameSet := {}
   unless requests.isEmpty do
     for (c, _) in env.consts do
       if isPrivateName c then privateNames := privateNames.insert (privateToUserName c)
   for fields in requests do
-    stdout.putStrLn <| Json.compress <| checkVia env privateNames fields
+    stdout.putStrLn <| Json.compress <| checkVia env privateNames mods witnessed fields
   stdout.putStrLn <| Json.compress <| Json.mkObj [("theorems", toJson scanned),
     ("modules", toJson mods.size), ("missing", toJson missing)]
   if regions.isEmpty then stdout.flush
