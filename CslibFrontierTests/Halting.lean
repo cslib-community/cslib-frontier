@@ -25,6 +25,14 @@ namespace CslibFrontierTests.Halting
 
 open Turing Turing.MultiTapeTM Turing.MultiTapeTM.Universal
 
+/-- Rice's native clean-machine premises remain behind its proof-only kernel dependency. -/
+example : True := by
+  fail_if_success
+    have hidden := @Turing.MultiTapeTM.Universal.Desc.computes_dispatch
+  fail_if_success
+    have hidden := @Turing.MultiTapeTM.Universal.Dispatch.exists_run_of_computesTidily
+  trivial
+
 /-! ### A machine that halts and a machine that loops -/
 
 /-- Halt at once with output `[b]`. -/
@@ -143,16 +151,16 @@ example :
     MappingReducible encBits (encPair encBits encBits) selfHaltingProblem haltingProblem ∧
     MappingReducible encBits encBits selfHaltingProblem selfHaltingProblem :=
   ⟨isDecidable_iff.mpr ⟨List.isEmpty,
-     (ComputableTidilyInDegree.isEmpty (enc₁ := encBool) (enc := encBits)).isComputable,
+     (ListEncoding.isEmpty (enc₁ := encBool) (enc := encBits)).isComputable,
      fun _ => Iff.rfl⟩,
-   isDecidable_iff.mpr ⟨fun _ => false, (ComputableTidilyInDegree.const false).isComputable,
+   isDecidable_iff.mpr ⟨fun _ => false, (ComputableInPolyTime.const false).isComputable,
      fun _ => by simp⟩,
    by rw [isDecidable_compl_iff]; exact not_isDecidable_haltingProblem,
    not_isDecidable_acceptanceProblem,
    selfHaltingProblem_mappingReducible.compl,
    (MappingReducible.refl encBits _).trans selfHaltingProblem_mappingReducible,
    let ⟨f, hf, hself⟩ := Cslib.Complexity.PolyTimeReducible.refl encBits selfHaltingProblem
-   ⟨f, hf.tidy.isComputable, hself⟩⟩
+   ⟨f, hf.isComputable, hself⟩⟩
 
 /-! ### Input prefixes built into descriptions -/
 
@@ -239,7 +247,7 @@ theorem not_behavior_spin (x : List Bool) (o : List ℕ) :
 example : ∃ e : List Bool, ∀ (x : List Bool) (o : List ℕ),
     (decodeDesc e).Computes (x.map eBit) o ↔
       (desc unitNum eBit (answer true)).Computes (x.map eBit) o :=
-  exists_behavior_eq (f := fun _ => true) (ComputableTidilyInDegree.const true).isComputable
+  exists_behavior_eq (f := fun _ => true) (ComputableInPolyTime.const true).isComputable
     fun _ => desc unitNum eBit (answer true)
 
 /-- **Rice's theorem** for the nontrivial property of halting on the empty input: the description
@@ -261,3 +269,15 @@ example : ¬IsDecidable {w | (decodeDesc w).Halts (([] : List Bool).map eBit)} e
   not_isDecidable_halts []
 
 end CslibFrontierTests.Halting
+
+-- General description lookup remains available through the public Rice facade.
+namespace Turing.MultiTapeTM.Universal
+
+example {k : ℕ} {S Y : Type} [Fintype S] [Fintype Y] (eS : S ↪ ℕ) (eY : Y ↪ ℕ)
+    (tm : MultiTapeTM k Y S) (q : S) (inp : Option Y) (work : Fin k → Option Y) :
+    (desc eS eY tm).table.find? (·.1 = key (eS q) (inp.map eY) (Option.map eY ∘ work)) =
+      some (key (eS q) (inp.map eY) (Option.map eY ∘ work),
+        .ofAction ((tm.tr q inp work).map eS eY)) :=
+  find?_desc eS eY tm q inp work
+
+end Turing.MultiTapeTM.Universal

@@ -38,8 +38,6 @@
  "CslibFrontier/Computability/Machines/Turing/MultiTape/Encodings/MultiPass.lean": 1,
  "CslibFrontier/Computability/Machines/Turing/MultiTape/Encodings/NatPower.lean": 1,
  "CslibFrontier/Computability/Machines/Turing/MultiTape/Encodings/StreamFold.lean": 4,
- "CslibFrontier/Computability/Machines/Turing/MultiTape/Halting/Computable.lean": 4,
- "CslibFrontier/Computability/Machines/Turing/MultiTape/Halting/Rice.lean": 2,
  "CslibFrontier/Computability/Machines/Turing/MultiTape/Probabilistic/QueryTake.lean": 2,
  "CslibFrontier/Computability/Machines/Turing/MultiTape/Universal/InPlace.lean": 9,
  "CslibFrontier/Computability/Machines/Turing/MultiTape/Universal/Machine.lean": 2,

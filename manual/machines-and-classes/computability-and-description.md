@@ -14,6 +14,21 @@ Within a space budget `b`, [BAccepts](../../CslibFrontier/Computability/Machines
 
 [IsComputable](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/Machines/Turing/MultiTape/Halting/Computable/Defs.lean#L29) existentially quantifies arbitrary time and workspace bounds for one finite binary machine. It is equivalent to one such machine halting with the encoded result on every valid encoded input. [IsDecidable](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/Machines/Turing/MultiTape/Halting/Computable.lean#L127) asks for a computable Boolean indicator. “Total” here is relative to encoded instances: an arbitrary embedding need not have a decidable image, and no contract is silently added on malformed words.
 
+The ordinary [total-computability facade](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Halting/Computable.lean)
+forgets plain polynomial-time or degree bounds through `ComputableInPolyTime.isComputable` and
+`ComputableInDegree.isComputable`. Composition, pairing and Boolean conditional selection accept
+`IsComputable` directly; callers do not establish or import a numerical tidy contract. The
+[ordinary-module client](../../CslibFrontierTests/HaltingComputablePlain.lean) combines nonconstant
+projections, composition, a conditional and pairing, and also pairs an arbitrarily long word with
+a constant. Rice's self-reference compiler still uses a normalized finite machine: its native
+clean-configuration witness lives in
+[Internal.TotalComputability](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/TotalComputability.lean),
+which the facade imports only for its proof. The existing dispatch machine and native run laws
+are preserved in
+[Internal.RiceDispatch](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/RiceDispatch.lean);
+the Rice facade uses them without exporting their clean-machine premise. The normalization neither
+changes encoded outputs nor adds a requirement on malformed words.
+
 Native partial evaluation returns a `Part` value and is connected to Mathlib's `Partrec` by [partrec_eval](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/Machines/Turing/MultiTape/Halting/Partrec.lean#L648). More generally [IsComputable.computable_enc](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/Machines/Turing/MultiTape/Halting/Partrec.lean#L657) needs a computable input encoding to conclude that the encoded result is Mathlib-computable. Recovering the typed function additionally needs a computable left inverse for its output encoding. On plain bit strings these side conditions are immediate. This is a stated one-way bridge, not an unrestricted equivalence of arbitrary typed encodings.
 
 The single-tape/TM0/TM1 path supplies primitive-recursive operations on the finite tape representations, clocked runs, and partial-recursive eventual evaluation. [SingleTape/Partrec.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/Machines/Turing/SingleTape/Partrec.lean#L16) connects those models to the same Mathlib framework. Mathlib's typed [Primrec](https://github.com/leanprover-community/mathlib4/blob/69552756cd8a2d2d48763cf7279fd814d6a1224d/Mathlib/Computability/Primrec/Basic.lean#L174) lifts primitive recursion through `Primcodable` encodings; [Computable](https://github.com/leanprover-community/mathlib4/blob/69552756cd8a2d2d48763cf7279fd814d6a1224d/Mathlib/Computability/Partrec.lean#L242) is the total-function subfamily of `Partrec`. Neither predicate imposes a native time bound. They justify effective data transformations and eventual evaluation, not a polynomial-time characterization. [mathlib][mathlib]
