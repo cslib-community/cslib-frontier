@@ -84,8 +84,8 @@ theorem ivStreamXorBody_mem_support_ivStreamEncrypt
     (hct : ct ∈ (ProbComp.eval (ivStreamEncrypt keystream n k msg)).support) :
     ivStreamXorBody n delta ct ∈
       (ProbComp.eval (ivStreamEncrypt keystream n k (List.zipWith xor msg delta))).support := by
-  simp only [ivStreamEncrypt, ProbComp.eval_bind, ProbComp.eval_pure, BitString.eval_sampleList,
-    PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hct ⊢
+  simp only [ivStreamEncrypt, ivModeEncrypt, ProbComp.eval_bind, ProbComp.eval_pure,
+    BitString.eval_sampleList, PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hct ⊢
   obtain ⟨iv, hiv, rfl⟩ := hct
   have hivLen : iv.length = n := BitString.length_of_mem_support_uniformList hiv
   refine ⟨iv, hiv, ?_⟩

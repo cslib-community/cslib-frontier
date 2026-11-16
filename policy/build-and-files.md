@@ -38,7 +38,7 @@ lake exe checkInitImports
 `scripts/check.sh` runs every locally reproducible step of CI's `source-checks` and `lean-checks`
 jobs, whose results feed the required `ci-checks` aggregator. `scripts/full_check.py` lists the
 steps and records why the remaining ones stay CI-only. The manual checks catch source and link
-drift; they do not replace review of the manuals' meaning and usability.
+drift in the maintained manual pages.
 For Lean, dependency or build changes, all of these must pass on the final source revision before
 integration. A successful hosted run covering that revision supplies full validation; do not
 repeat it locally merely to satisfy a second reporting requirement. Run local full validation

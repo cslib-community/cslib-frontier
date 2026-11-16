@@ -43,7 +43,8 @@ private theorem coin_router_corrupt_mono {α : Type} (κ : ℕ)
     (adaptiveRouter .adaptive (F_coin.toAdaptive coinReveal) κ ∅)
     (fun _ => True) (fun s₁ s₂ => s₁.corrupted ⊆ s₂.corrupted)
     (fun _ => Finset.Subset.rfl) Finset.Subset.trans (liftAdaptiveNet netProg)
-    (queriesSatisfy_sumTrue _) rs hx fun q s' y _ hy => ?_
+    (OracleComp.QueriesSatisfy.of_forall (fun q => by cases q <;> trivial) _) rs hx
+    fun q s' y _ hy => ?_
   rcases q with (⟨i, u⟩ | _) | (⟨i, u⟩ | i | u)
   · simp only [adaptiveRouter, StateT.run] at hy
     split_ifs at hy

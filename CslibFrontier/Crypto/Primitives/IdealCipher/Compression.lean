@@ -230,35 +230,10 @@ private theorem mem_of_mem_support_forgetfulAnswer {Key Block : Type}
   by_cases hk : k = q.1
   · subst hk
     simp only [Function.update_self]
-    cases hq2 : q.2 with
-    | forward x =>
-      rw [hq2] at hbc
-      cases hlook : (st q.1).lookup x with
-      | some v =>
-        rw [Cslib.RandomPermutation.forgetfulAnswer_forward_of_some hlook,
-          PMF.mem_support_pure_iff] at hbc
-        cases hbc
-        exact he
-      | none =>
-        rw [Cslib.RandomPermutation.forgetfulAnswer_forward_of_none hlook,
-          PMF.mem_support_map_iff] at hbc
-        obtain ⟨y, -, hy⟩ := hbc
-        cases hy
-        exact List.mem_cons_of_mem _ he
-    | inverse y =>
-      rw [hq2] at hbc
-      cases hlook : Cslib.RandomPermutation.invLookup (st q.1) y with
-      | some v =>
-        rw [Cslib.RandomPermutation.forgetfulAnswer_inverse_of_some hlook,
-          PMF.mem_support_pure_iff] at hbc
-        cases hbc
-        exact he
-      | none =>
-        rw [Cslib.RandomPermutation.forgetfulAnswer_inverse_of_none hlook,
-          PMF.mem_support_map_iff] at hbc
-        obtain ⟨x, -, hx⟩ := hbc
-        cases hx
-        exact List.mem_cons_of_mem _ he
+    rcases Cslib.RandomPermutation.mem_support_forgetfulAnswer hbc with ⟨-, hc⟩ | ⟨-, hc⟩ <;>
+      dsimp only at hc <;> rw [hc]
+    · exact he
+    · exact List.mem_cons_of_mem _ he
   · simp [Function.update_of_ne hk, he]
 
 private theorem mem_of_mem_support_forgetfulAnswer_forward {Key Block : Type}
@@ -270,18 +245,10 @@ private theorem mem_of_mem_support_forgetfulAnswer_forward {Key Block : Type}
   obtain ⟨⟨b, c⟩, hbc, h_eq⟩ := hmem
   cases h_eq
   simp only [Function.update_self]
-  cases hlook : (st k).lookup x with
-  | some v =>
-    rw [Cslib.RandomPermutation.forgetfulAnswer_forward_of_some hlook,
-      PMF.mem_support_pure_iff] at hbc
-    cases hbc
-    exact Cslib.RandomPermutation.mem_of_lookup_eq_some hlook
-  | none =>
-    rw [Cslib.RandomPermutation.forgetfulAnswer_forward_of_none hlook,
-      PMF.mem_support_map_iff] at hbc
-    obtain ⟨y0, -, hy0⟩ := hbc
-    cases hy0
-    exact List.mem_cons_self
+  rcases Cslib.RandomPermutation.mem_support_forgetfulAnswer hbc with ⟨hhit, hc⟩ | ⟨-, hc⟩ <;>
+    dsimp only at hc <;> rw [hc]
+  · exact Cslib.RandomPermutation.toCacheEntry_mem_of_cachedAnswer_eq_some hhit
+  · exact List.mem_cons_self
 
 private theorem hasDMCollision_of_mem_support_daviesMeyerCollisionProgram {Key Block : Type}
     [DecidableEq Key] [DecidableEq Block] [Fintype Block] [Nonempty Block] [Add Block]
@@ -452,35 +419,8 @@ private theorem forgetfulAnswer_size_grow {Key Block : Type}
   obtain ⟨⟨b, c⟩, hbc, h_eq⟩ := hmem
   cases h_eq
   have hc_len : c.length ≤ (st q.1).length + 1 := by
-    cases hq2 : q.2 with
-    | forward x0 =>
-      rw [hq2] at hbc
-      cases hlook : (st q.1).lookup x0 with
-      | some v =>
-        rw [Cslib.RandomPermutation.forgetfulAnswer_forward_of_some hlook,
-          PMF.mem_support_pure_iff] at hbc
-        cases hbc
-        exact Nat.le_succ _
-      | none =>
-        rw [Cslib.RandomPermutation.forgetfulAnswer_forward_of_none hlook,
-          PMF.mem_support_map_iff] at hbc
-        obtain ⟨y0, -, hy0⟩ := hbc
-        cases hy0
-        simp
-    | inverse y0 =>
-      rw [hq2] at hbc
-      cases hlook : Cslib.RandomPermutation.invLookup (st q.1) y0 with
-      | some v =>
-        rw [Cslib.RandomPermutation.forgetfulAnswer_inverse_of_some hlook,
-          PMF.mem_support_pure_iff] at hbc
-        cases hbc
-        exact Nat.le_succ _
-      | none =>
-        rw [Cslib.RandomPermutation.forgetfulAnswer_inverse_of_none hlook,
-          PMF.mem_support_map_iff] at hbc
-        obtain ⟨x0, -, hx0⟩ := hbc
-        cases hx0
-        simp
+    rcases Cslib.RandomPermutation.mem_support_forgetfulAnswer hbc with ⟨-, hc⟩ | ⟨-, hc⟩ <;>
+      dsimp only at hc <;> simp [hc]
   have hsum1 : ∑ k : Key, (Function.update st q.1 c k).length =
       c.length + ∑ k ∈ Finset.univ.erase q.1, (st k).length := by
     rw [← Finset.add_sum_erase Finset.univ

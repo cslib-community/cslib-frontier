@@ -24,7 +24,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Crypto.Computational.Encryption.DecryptionBound
-import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
+import CslibFrontier.Languages.Probabilistic.Oracle.Simulation.Handler
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.BindCompare
 import CslibFrontier.Probability.PMF
@@ -1748,16 +1748,10 @@ theorem eval_run_multiPhase2FilterHandler {Out α : Type}
       prog).run ()) := by
   rw [OracleComp.interpret_map, StateT.run_map, ProbComp.eval_map,
     ProbOracleComp.eval_run_interpret_eq_runWith, ProbOracleComp.eval_run_interpret_eq_runWith,
-    ProbOracleComp.runWith_run_interpret, PMF.map_comp]
-  have hsim := ProbOracleComp.runWith_map_state
-    (oracle := fun q s => ProbComp.eval (cca2MultiPhase2Oracle encOut decrypt n sk cts q s))
-    (oracle' := fun q (state : Unit × Unit) =>
-      (ProbOracleComp.runWith
-          (fun q s => ProbComp.eval (cca2Phase2Oracle encOut decrypt n sk ct q s))
-          ((multiPhase2FilterHandler decBound cts q).run state.1) state.2).map
-          (fun result => (result.1.1, result.1.2, result.2)))
-    (represent := fun _ : Unit => ((), ()))
-    (step := by
+    ProbOracleComp.runWith_run_interpret_map (multiPhase2FilterHandler decBound cts)
+      (fun q s => ProbComp.eval (cca2Phase2Oracle encOut decrypt n sk ct q s))
+      (fun q s => ProbComp.eval (cca2MultiPhase2Oracle encOut decrypt n sk cts q s))
+      (fun _ => ()) (fun _ => ()) (by
       intro ⟨⟨⟩, req⟩ ⟨⟩
       change (ProbComp.eval (cca2MultiPhase2Oracle encOut decrypt n sk cts ((), req) ())).map
           (fun x => (x.1, (), ())) =
@@ -1774,11 +1768,8 @@ theorem eval_run_multiPhase2FilterHandler {Out α : Type}
           ProbOracleComp.runWith_map, ProbOracleComp.runWith_query, cca2Phase2Oracle, hne,
           ProbComp.eval_pure, PMF.pure_map]
         simp only [Prod.map_apply, id_eq, List.take_of_length_le (hdecBound req)])
-    prog ()
-  have hfst := congrArg (PMF.map fun x => (x.1, ())) hsim.symm
-  have hid1 : (fun x : α × (Unit × Unit) => (x.1, ())) = fun x => (x.1, x.2.2) := rfl
-  have hid2 : (fun x : α × Unit => (x.1, ())) = id := rfl
-  simpa only [PMF.map_comp, Function.comp_def, hid1, hid2, PMF.map_id] using hfst
+      prog (), PMF.map_comp]
+  exact (congrArg (PMF.map · _) (funext fun _ => rfl : _ = id)).trans (PMF.map_id _)
 
 /-- Continuation of the multi-challenge hybrid experiment at index `split : ℕ` after
 `(keys, choice)` have been sampled. -/

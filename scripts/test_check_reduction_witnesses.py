@@ -67,12 +67,28 @@ VIA_ENTRY = {"module": GARBLING_PATH, "kind": c.VIA,
                     "table"}
 
 
+WORD_MODULE = "CslibFrontier.Crypto.GarblingWord"
+# The same entry scoped to one instance, with the reduction's consumers outside its module pinned.
+WRAPPER = "Cslib.Crypto.GarblingWord.wrappedStep"
+SCOPED_ENTRY = {**{key: value for key, value in VIA_ENTRY.items() if key != "why"},
+                "scope": "instance",
+                "consumers": {"Cslib.Crypto.GarblingWord.prvSim": "headline",
+                              "Cslib.Crypto.Garbling.otherInstance_le": "concrete",
+                              WRAPPER: "reduction"},
+                "why": "generic step whose equality holds only at the word instance"}
+
+
 def check_row(problems: list[str] | None = None, missing: list[str] | None = None,
-              equality_module: str = "CslibFrontier.Crypto.GarblingWord") -> str:
-    """A line of the reader's output for the request of `VIA_ENTRY`."""
+              equality_module: str = "CslibFrontier.Crypto.GarblingWord",
+              definitions: list[tuple[str, str]] | None = None,
+              certified: list[str] | None = None) -> str:
+    """A line of the reader's output for the request of `VIA_ENTRY`, with the uncertified
+    definitions among the reduction's referrers as `(name, module)` and the certified ones."""
     return json.dumps({"v": VIA_REDUCTION, "p": problems or [], "at": "" if problems else "proof",
                        "vm": ["CslibFrontier.Crypto.Garbling", "CslibFrontier.Crypto.GarblingWord"],
-                       "em": equality_module, "missing": missing or []})
+                       "em": equality_module, "missing": missing or [], "refs": [],
+                       "defs": [{"n": n, "m": m} for n, m in definitions or []],
+                       "cdefs": certified or []})
 
 
 VIA_OUTPUT = "\n".join([
@@ -209,6 +225,94 @@ class ViaTests(unittest.TestCase):
         self.assertEqual([(name, reason) for name, _, reason in invalid],
                          [(VIA_REDUCTION, "the Lean pass did not verify it")])
 
+    def test_an_instance_scoped_request_pins_the_consumers(self) -> None:
+        request = c.via_requests({VIA_REDUCTION: SCOPED_ENTRY})[0].split("\t")
+        self.assertEqual(request[8:], ["instance",
+                                       "concrete:Cslib.Crypto.Garbling.otherInstance_le",
+                                       "headline:Cslib.Crypto.GarblingWord.prvSim",
+                                       f"reduction:{WRAPPER}"])
+        # A full entry sends no scope.
+        self.assertEqual(len(c.via_requests(self.baseline)[0].split("\t")), 8)
+
+    def test_parse_reads_the_referrers_and_definitions(self) -> None:
+        row = json.loads(check_row(definitions=[(WRAPPER, WORD_MODULE)], certified=[CERTIFIED]))
+        row["refs"] = ["Cslib.Crypto.GarblingWord.prvSim"]
+        check = c.parse_checks(json.dumps(row))[VIA_REDUCTION]
+        self.assertEqual((check.referrers, check.definitions, check.certified_definitions),
+                         (("Cslib.Crypto.GarblingWord.prvSim",), ((WRAPPER, WORD_PATH),),
+                          (CERTIFIED,)))
+        # Output without these fields, as for a full entry, reads as empty.
+        legacy = {key: value for key, value in row.items() if key not in ("refs", "defs", "cdefs")}
+        self.assertEqual(c.parse_checks(json.dumps(legacy))[VIA_REDUCTION].definitions, ())
+
+    def test_an_uncertified_definition_that_uses_the_reduction_needs_an_entry(self) -> None:
+        # The wrapper is no reduction: no theorem states an advantage bound with it.
+        self.assertNotIn(WRAPPER, self.reductions)
+        checks = c.parse_checks(check_row(definitions=[(WRAPPER, WORD_MODULE)]))
+        baseline = {**BASELINE, VIA_REDUCTION: SCOPED_ENTRY}
+        problems = c.compare(self.reductions, baseline, None, checks)
+        self.assertEqual([(name, reason) for name, _, reason in problems.invalid], [
+            (VIA_REDUCTION, f"`{WRAPPER}` is a definition that uses `{VIA_REDUCTION}` without an "
+                            "efficiency witness of its own but has no baseline entry; record it (a "
+                            "`gap` or `exempt` entry), or make this entry a `gap`")])
+        # Recorded, as a `gap` or an `exempt` entry, it passes completely: the entry is not stale
+        # although no theorem states a bound with the wrapper.
+        for kind in ("gap", "exempt"):
+            recorded = {**baseline, WRAPPER: entry(WORD_PATH, kind)}
+            self.assertFalse(c.compare(self.reductions, recorded, None, checks), kind)
+        # The same entry is stale once nothing needs it, or when the wrapper has moved.
+        recorded = {**baseline, WRAPPER: entry(WORD_PATH)}
+        self.assertEqual([(name, reason) for name, _, reason in
+                          c.compare(self.reductions, recorded, None, {}).stale],
+                         [(WRAPPER, "no theorem states an advantage bound with it")])
+        moved = {**baseline, WRAPPER: entry(GARBLING_PATH)}
+        self.assertEqual([(name, reason) for name, _, reason in
+                          c.compare(self.reductions, moved, None, checks).stale],
+                         [(WRAPPER, f"now defined in {WORD_PATH}")])
+
+    def test_an_uncertified_reduction_that_uses_the_reduction_keeps_its_entry(self) -> None:
+        checks = c.parse_checks(check_row(definitions=[(UNCERTIFIED,
+                                                        "CslibFrontier.Crypto.Schnorr")]))
+        self.assertFalse(c.compare(self.reductions, {**BASELINE, VIA_REDUCTION: SCOPED_ENTRY}, None,
+                                   checks))
+
+    def test_a_certified_definition_that_uses_the_reduction_needs_no_entry(self) -> None:
+        # A certified wrapper has its own efficiency witness; an entry for it would be stale.
+        checks = c.parse_checks(check_row(certified=[WRAPPER]))
+        baseline = {**BASELINE, VIA_REDUCTION: SCOPED_ENTRY}
+        self.assertFalse(c.compare(self.reductions, baseline, None, checks))
+        stale = c.compare(self.reductions, {**baseline, WRAPPER: entry(WORD_PATH)}, None,
+                          checks).stale
+        self.assertEqual([(name, reason) for name, _, reason in stale], [
+            (WRAPPER, "has an efficiency witness of its own, as a definition that uses an "
+                      "instance-scoped reduction; it needs no entry")])
+
+    def test_a_reduction_certified_only_through_another_definition_keeps_its_entry(self) -> None:
+        # Mentioned in a certified program's body but without a witness of its own, it is still
+        # tracked, so its entry stands; with a witness of its own, the entry is stale.
+        wrapped = c.Reduction(WRAPPER, WORD_PATH, 50, ("Cslib.Crypto.GarblingWord.bound",),
+                              (WORD_PATH,), "wrapper", ("Cslib.Crypto.GarblingWord.program",))
+        reductions = {**self.reductions, WRAPPER: wrapped}
+        baseline = {**BASELINE, VIA_REDUCTION: SCOPED_ENTRY, WRAPPER: entry(WORD_PATH)}
+        tracked = c.parse_checks(check_row(definitions=[(WRAPPER, WORD_MODULE)]))
+        self.assertFalse(c.compare(reductions, baseline, None, tracked))
+        self.assertEqual(c.update(reductions, baseline, None, c.tracked_definitions(tracked))
+                         [WRAPPER], entry(WORD_PATH))
+        stale = c.compare(reductions, baseline, None, {}).stale
+        self.assertEqual([name for name, _, _ in stale], [WRAPPER])
+
+    def test_update_records_the_tracked_definitions(self) -> None:
+        checks = c.parse_checks(check_row(definitions=[(WRAPPER, WORD_MODULE)]))
+        baseline = {**BASELINE, VIA_REDUCTION: SCOPED_ENTRY}
+        tracked = c.tracked_definitions(checks)
+        added = c.update(self.reductions, baseline, None, tracked)
+        self.assertEqual(added[WRAPPER], entry(WORD_PATH, "gap", ""))
+        kept = c.update(self.reductions, {**baseline, WRAPPER: entry(WORD_PATH, "exempt")}, None,
+                        tracked)
+        self.assertEqual(kept[WRAPPER], entry(WORD_PATH, "exempt"))
+        # Without an instance-scoped entry that needs it, the entry is dropped.
+        self.assertNotIn(WRAPPER, c.update(self.reductions, kept, None, {}))
+
     def test_an_entry_stays_stale_once_the_reduction_is_certified(self) -> None:
         reductions, _ = c.parse(OUTPUT)
         baseline = {**BASELINE, CERTIFIED: {**VIA_ENTRY, "module": ELGAMAL_PATH}}
@@ -232,6 +336,35 @@ class BaselineTests(unittest.TestCase):
         self.assertEqual(list(json.loads(line.split(": ", 1)[1].rstrip(","))),
                          ["module", "kind", "program", "certificate", "equality",
                           "equality_module", "headline", "why"])
+
+    def test_scoped_entries_keep_their_field_order_and_sort_consumers(self) -> None:
+        shuffled = {**SCOPED_ENTRY, "consumers": dict(reversed(SCOPED_ENTRY["consumers"].items()))}
+        text = c.baseline_text({**BASELINE, VIA_REDUCTION: shuffled})
+        self.assertEqual(json.loads(text)[VIA_REDUCTION], SCOPED_ENTRY)
+        line = next(line for line in text.splitlines() if VIA_REDUCTION in line)
+        value = json.loads(line.split(": ", 1)[1].rstrip(","))
+        self.assertEqual(list(value), ["module", "kind", "program", "certificate", "equality",
+                                       "equality_module", "headline", "scope", "consumers", "why"])
+        self.assertEqual(list(value["consumers"]), sorted(SCOPED_ENTRY["consumers"]))
+
+    def test_a_scope_needs_its_consumers_and_known_tags(self) -> None:
+        unscoped = {key: value for key, value in SCOPED_ENTRY.items() if key != "scope"}
+        bad = (unscoped,
+               {key: value for key, value in SCOPED_ENTRY.items() if key != "consumers"},
+               {**SCOPED_ENTRY, "scope": "global"},
+               {**SCOPED_ENTRY, "consumers": [WRAPPER]},
+               {**SCOPED_ENTRY, "consumers": {WRAPPER: "exact"}},
+               {**SCOPED_ENTRY, "consumers": {" ": "concrete"}},
+               {**entry(SCHNORR_PATH), "scope": "instance", "consumers": {}})
+        with tempfile.TemporaryDirectory() as tmp:
+            path = pathlib.Path(tmp) / "baseline.json"
+            for value in bad:
+                path.write_text(json.dumps({UNCERTIFIED: value}))
+                with self.assertRaises(SystemExit, msg=value):
+                    c.load_baseline(path)
+            for value in (SCOPED_ENTRY, {**SCOPED_ENTRY, "consumers": {}}):
+                path.write_text(json.dumps({UNCERTIFIED: value}))
+                self.assertEqual(c.load_baseline(path), {UNCERTIFIED: value})
 
     def test_kind_is_gap_via_certified_program_or_exempt(self) -> None:
         bad = (entry(SCHNORR_PATH, "later"),
@@ -314,8 +447,8 @@ class MainTests(unittest.TestCase):
         code, out, err = self.run_main(BASELINE)
         self.assertEqual((code, err), (0, ""))
         self.assertIn("3 reduction(s), 2 without an efficiency witness; 2 baseline entries "
-                      "(1 gap(s), 0 via certified program, 1 exempt), checking 1 changed "
-                      "module(s)", out)
+                      "(1 gap(s), 0 via certified program, 0 instance-scoped via, 1 exempt), "
+                      "checking 1 changed module(s)", out)
 
     def test_main_counts_and_checks_via_entries(self) -> None:
         reductions, _ = c.parse(VIA_OUTPUT)
@@ -323,13 +456,27 @@ class MainTests(unittest.TestCase):
         with mock.patch.object(c, "scan", return_value=(reductions, c.parse_checks(VIA_OUTPUT))):
             code, out, err = self.run_main(baseline, "--all")
         self.assertEqual((code, err), (0, ""))
-        self.assertIn("3 baseline entries (1 gap(s), 1 via certified program, 1 exempt)", out)
+        self.assertIn("3 baseline entries (1 gap(s), 1 via certified program, 0 instance-scoped "
+                      "via, 1 exempt)", out)
         problem = "headline `H` mentions neither `X` nor `Y` in its statement or proof"
         with mock.patch.object(c, "scan", return_value=(reductions,
                                                         c.parse_checks(check_row([problem])))):
             code, _, err = self.run_main(baseline, "--all")
         self.assertEqual(code, 1)
         self.assertIn(f"{GARBLING_PATH}: {VIA_REDUCTION}: {problem}", err)
+
+    def test_instance_scoped_entries_are_counted_apart(self) -> None:
+        reductions, _ = c.parse(VIA_OUTPUT)
+        baseline = {**BASELINE, VIA_REDUCTION: SCOPED_ENTRY}
+        with mock.patch.object(c, "scan", return_value=(reductions, c.parse_checks(VIA_OUTPUT))):
+            code, out, err = self.run_main(baseline, "--all")
+            self.assertEqual((code, err), (0, ""))
+            self.assertIn("3 baseline entries (1 gap(s), 0 via certified program, 1 "
+                          "instance-scoped via, 1 exempt)", out)
+            out = self.run_main(baseline, "--report")[1]
+        self.assertIn(f"{GARBLING_PATH}: {VIA_REDUCTION}: headline `{VIA_ENTRY['headline']}` uses "
+                      "the program in its proof; scoped to one instance, with 3 pinned "
+                      "consumer(s) (1 headline, 1 concrete, 1 reduction)", out)
 
     def test_report_prints_where_the_headline_uses_the_program(self) -> None:
         reductions, _ = c.parse(VIA_OUTPUT)
@@ -572,6 +719,12 @@ theorem atomlessHeadline (h : IsPPT A) : 0 ≤ n := (fun _ => Nat.zero_le n) (is
 private theorem privateHeadline (h : IsPPT A) : Negligible fun n => schemeAdvantage S A n :=
   (fun _ => trivial) (isPPT_stepProgram A h)
 
+/-- A second typed step, whose consumers in `FixtureConsumers` are not concrete. -/
+@[expose] def otherStep (A : Adversary) : Adversary := A
+theorem eval_otherStep : stepProgram A = otherStep A := rfl
+/-- A theorem of the step's own module whose conclusion is a negligibility claim. -/
+theorem otherStep_secure (h : IsPPT A) : Secure (otherStep (stepProgram A)) := stepNotion A h
+
 end Cslib.Crypto.Fixture
 """
 
@@ -605,6 +758,77 @@ theorem eval_stepProgram_private : (1 : Nat) = 1 := rfl
 end Cslib.Crypto.Fixture
 """
 
+# A fourth module, which imports the fixture: consumers of its typed steps outside their module.
+CONSUMERS_MODULE = "CslibFrontier.Crypto.FixtureConsumers"
+CONSUMERS_PATH = "CslibFrontier/Crypto/FixtureConsumers.lean"
+FIXTURE_CONSUMERS = """module
+public import CslibFrontier.Crypto.Fixture
+public section
+
+namespace Cslib.Crypto.Fixture
+
+variable (G : Group) (S : Scheme) (A : Adversary) (n : Nat)
+
+/-! Consumers of `typedStep`, for requests scoped to one instance. -/
+
+/-- On the headline's proof path: a bound through the typed step. -/
+theorem pathBound : schemeAdvantage S A n ≤ advantage G (typedStep A) n := typedStep_le G S A n
+/-- The headline: it applies the certificate and uses `pathBound`, under a negligibility
+premise. -/
+theorem scopedHeadline (h : IsPPT A) (_hn : Negligible fun n => advantage G A n) :
+    Negligible fun n => schemeAdvantage S A n :=
+  (fun _ _ => stepHeadline S A h) (isPPT_stepProgram A h) (pathBound G S A 0)
+/-- An exact bound at another instance, off the headline's proof path. -/
+theorem concreteBound :
+    schemeAdvantage S (typedStep A) n ≤ advantage G (typedStep (typedStep A)) n :=
+  typedStep_le G S (typedStep A) n
+/-- Mentions the typed step only through a private definition. -/
+private def privateWrap (A : Adversary) : Adversary := typedStep A
+theorem throughPrivate (A : Adversary) : n ≤ n :=
+  (fun (_ : Adversary) => Nat.le_refl n) (privateWrap A)
+/-- A definition that wraps the typed step. -/
+def wrappedStep (A : Adversary) : Adversary := typedStep A
+
+/-! Consumers of `otherStep` that are not concrete. -/
+
+/-- An assumption. -/
+def Hard (G : Group) : Prop := ∀ A : Adversary, IsPPT A → Negligible fun n => advantage G A n
+/-- A defined predicate that wraps the assumption. -/
+def Wrapped (G : Group) : Prop := Hard G
+/-- On the headline's proof path, but resting on the wrapped assumption. -/
+theorem wrappedOther (_h : Wrapped G) : otherStep A = A := rfl
+/-- The headline for `otherStep`. -/
+theorem otherHeadline (h : IsPPT A) (hw : Wrapped G) : Negligible fun n => schemeAdvantage S A n :=
+  (fun _ _ => stepHeadline S A h) (isPPT_stepProgram A h) (wrappedOther G A hw)
+/-- A definition that wraps `otherStep`. -/
+def otherWrapper (A : Adversary) : Adversary := otherStep A
+/-- A certified definition that wraps `otherStep`, and its certificate. -/
+def certifiedOther (A : Adversary) : Adversary := certified (otherStep A)
+theorem isPPT_certifiedOther (h : IsPPT A) : IsPPT (certifiedOther A) :=
+  isPPT_certified (A := otherStep A) h
+/-- A generic wrapper of `otherStep`, which a certified definition runs but which has no witness of
+its own. -/
+def genericOther (A : Adversary) : Adversary := otherStep A
+def certifiedGeneric (A : Adversary) : Adversary := certified (genericOther A)
+theorem isPPT_certifiedGeneric (h : IsPPT A) : IsPPT (certifiedGeneric A) :=
+  isPPT_certified (A := genericOther A) h
+/-- A class that packages the assumption. -/
+class WrappedClass (G : Group) : Prop where
+  hard : Hard G
+/-- Rests on the assumption through an instance argument. -/
+theorem classOther [WrappedClass G] : otherStep A = A := rfl
+/-- An ordinary instance argument is not an assumption. -/
+theorem plainInstance [Nonempty Adversary] : otherStep A = A := rfl
+/-- An alias for a whole statement, whose premise is the wrapped assumption. A module's public
+statement cannot name a private alias, so this one is public, which makes it a definition that uses
+`otherStep` too. -/
+def WrappedType (G : Group) (A : Adversary) : Prop := Wrapped G → otherStep A = A
+/-- Rests on the assumption through the alias of its statement. -/
+theorem aliasOther : WrappedType G A := fun _ => rfl
+
+end Cslib.Crypto.Fixture
+"""
+
 # `via_certified_program` requests for the fixture, all for the reduction `typedStep`: a valid
 # request, and the changes each label makes to it. Names are without `PREFIX`.
 VALID_REQUEST = {"program": "stepProgram", "certificate": "isPPT_stepProgram",
@@ -632,12 +856,50 @@ VIA_REQUESTS = {
 }
 
 
-def via_request(changes: dict[str, str]) -> str:
-    """The reader's input line for the valid request with `changes`."""
+# Requests scoped to one instance: the consumers of `typedStep` outside its module, with the
+# headline `scopedHeadline`, and the changes each label makes to them; and a request for
+# `otherStep`, whose referring theorems are not concrete.
+SCOPED_VALID = {"pathBound": "headline", "scopedHeadline": "headline",
+                "concreteBound": "concrete", "throughPrivate": "concrete",
+                "wrappedStep": "reduction"}
+SCOPED_REQUESTS = {
+    "scoped": {},
+    "unpinned": {"concreteBound": None},
+    "pinned in its module": {"typedStep_le": "concrete"},
+    "missing consumer": {"goneConsumer": "concrete"},
+    "off the path": {"concreteBound": "headline"},
+    "headline as concrete": {"scopedHeadline": "concrete"},
+    "definition as theorem": {"wrappedStep": "concrete"},
+    "theorem as reduction": {"pathBound": "reduction"},
+}
+NOT_CONCRETE = {"otherHeadline": "headline", "wrappedOther": "headline",
+                "otherWrapper": "reduction", "certifiedOther": "reduction",
+                "isPPT_certifiedOther": "concrete", "classOther": "concrete",
+                "plainInstance": "concrete", "aliasOther": "concrete",
+                "WrappedType": "reduction", "genericOther": "reduction"}
+
+
+def via_request(changes: dict[str, str], consumers: dict[str, str] | None = None,
+                reduction: str = "typedStep") -> str:
+    """The reader's input line for the valid request with `changes`, scoped to one instance with
+    the pinned `consumers` when they are given."""
     r = {**VALID_REQUEST, **changes}
-    return "\t".join(["via", PREFIX + "typedStep", FIXTURE_MODULE, PREFIX + r["program"],
+    scope = ([] if consumers is None else
+             ["instance", *(f"{tag}:{PREFIX}{name}" for name, tag in sorted(consumers.items()))])
+    return "\t".join(["via", PREFIX + reduction, FIXTURE_MODULE, PREFIX + r["program"],
                       PREFIX + r["certificate"], PREFIX + r["equality"], r["equality_module"],
-                      PREFIX + r["headline"]])
+                      PREFIX + r["headline"], *scope])
+
+
+def scoped_requests() -> dict[str, str]:
+    """The reader's input lines for the requests scoped to one instance, by label."""
+    out = {}
+    for label, changes in SCOPED_REQUESTS.items():
+        consumers = {name: tag for name, tag in {**SCOPED_VALID, **changes}.items() if tag}
+        out[label] = via_request({"headline": "scopedHeadline"}, consumers)
+    out["not concrete"] = via_request({"equality": "eval_otherStep", "headline": "otherHeadline"},
+                                      NOT_CONCRETE, "otherStep")
+    return out
 
 
 @unittest.skipUnless(shutil.which("lake") and (c.ROOT / ".lake/packages").is_dir(),
@@ -650,28 +912,35 @@ class CompiledFixtureTests(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         cls.addClassCleanup(tmp.cleanup)
         root = pathlib.Path(tmp.name)
-        for module, text in ((FIXTURE_MODULE, FIXTURE), (OTHER_MODULE, FIXTURE_OTHER),
-                             (PUBLIC_MODULE, FIXTURE_PUBLIC)):
+        # The fixture's own build directory comes first, so that `FixtureConsumers` finds the
+        # fixture rather than the library's `CslibFrontier`.
+        lean = ["lake", "env", "sh", "-c", 'LEAN_PATH="$0:$LEAN_PATH" exec lean "$@"',
+                str(root / "build")]
+        modules = ((FIXTURE_MODULE, FIXTURE), (OTHER_MODULE, FIXTURE_OTHER),
+                   (PUBLIC_MODULE, FIXTURE_PUBLIC), (CONSUMERS_MODULE, FIXTURE_CONSUMERS))
+        for module, text in modules:
             source = root / "src" / c.csp.module_path(module)
             olean = (root / "build" / c.csp.module_path(module)).with_suffix(".olean")
             source.parent.mkdir(parents=True, exist_ok=True)
             olean.parent.mkdir(parents=True, exist_ok=True)
             source.write_text(text)
-            subprocess.run(["lake", "env", "lean", f"--root={root / 'src'}", "-o", str(olean),
-                            str(source)], cwd=c.ROOT, check=True, capture_output=True)
-        requests = [via_request(changes) for changes in VIA_REQUESTS.values()]
+            subprocess.run([*lean, f"--root={root / 'src'}", "-o", str(olean), str(source)],
+                           cwd=c.ROOT, check=True, capture_output=True)
+        scoped = scoped_requests()
+        requests = [via_request(changes) for changes in VIA_REQUESTS.values()] + list(
+            scoped.values())
         out = subprocess.run(["lake", "env", "lean", "--run", c.csp.TOOL, str(root / "build"),
                               "--reductions"], cwd=c.ROOT,
-                             input="\n".join([FIXTURE_MODULE, OTHER_MODULE, PUBLIC_MODULE,
+                             input="\n".join([*(module for module, _ in modules),
                                               *requests]) + "\n",
                              capture_output=True, text=True, check=True).stdout
         reductions, cls.summary = c.parse(out)
         cls.reductions = {name.removeprefix(PREFIX): r for name, r in reductions.items()}
-        # One verdict per request, in order; they share a reduction, so `parse_checks` would
+        # One verdict per request, in order; most share a reduction, so `parse_checks` would
         # keep only the last.
-        verdicts = [c.parse_checks(line)[PREFIX + "typedStep"] for line in out.splitlines()
+        verdicts = [next(iter(c.parse_checks(line).values())) for line in out.splitlines()
                     if '"v"' in line]
-        cls.verdicts = dict(zip(VIA_REQUESTS, verdicts, strict=True))
+        cls.verdicts = dict(zip([*VIA_REQUESTS, *scoped], verdicts, strict=True))
 
     def certificate(self, name: str) -> tuple[str, tuple[str, ...]]:
         r = self.reductions[name]
@@ -781,6 +1050,71 @@ class CompiledFixtureTests(unittest.TestCase):
             self.assertEqual(len(problems), 1, (label, problems))
             self.assertIn(problem, problems[0], label)
         self.assertEqual(self.verdicts["renamed"].missing, (PREFIX + "stepProgramRenamed",))
+
+    def test_a_scoped_request_pins_exactly_the_referrers(self) -> None:
+        # The referrers outside the step's module: directly, through a private definition, and a
+        # definition that wraps the step; not the theorems of the step's own module.
+        verdict = self.verdicts["scoped"]
+        self.assertEqual(verdict.problems, ())
+        self.assertEqual(set(verdict.referrers), {PREFIX + name for name in SCOPED_VALID})
+        self.assertEqual(verdict.headline_at, "proof")
+        self.assertEqual(set(verdict.paths), {FIXTURE_PATH, CONSUMERS_PATH})
+
+    def test_scoped_requests_fail_on_a_new_referrer_or_a_wrong_tag(self) -> None:
+        step, headline = f"`{PREFIX}typedStep`", f"`{PREFIX}scopedHeadline`"
+        expected = {
+            # The regression: a pinned list that misses a referrer fails.
+            "unpinned": f"`{PREFIX}concreteBound` refers to {step} outside its module but is not "
+                        "a pinned consumer",
+            "pinned in its module": f"consumer `{PREFIX}typedStep_le` does not refer to {step} "
+                                    "outside",
+            "missing consumer": f"consumer `{PREFIX}goneConsumer` does not exist",
+            "off the path": f"consumer `{PREFIX}concreteBound` is tagged `headline` but is not on "
+                            f"the proof path of {headline}",
+            "headline as concrete": f"consumer {headline} is the headline but is tagged "
+                                    "`concrete`",
+            "definition as theorem": f"consumer `{PREFIX}wrappedStep` is tagged `concrete` but is "
+                                     "not a theorem",
+            "theorem as reduction": f"consumer `{PREFIX}pathBound` is tagged `reduction` but is "
+                                    "not a definition",
+        }
+        for label, problem in expected.items():
+            problems = self.verdicts[label].problems
+            self.assertEqual(len(problems), 1, (label, problems))
+            self.assertIn(problem, problems[0], label)
+        self.assertEqual(self.verdicts["missing consumer"].missing, (PREFIX + "goneConsumer",))
+
+    def test_every_other_referring_theorem_must_be_concrete(self) -> None:
+        # The assumption is seen however it is packaged: a defined predicate that wraps it, a
+        # class instance argument, an alias for the whole statement, and a conclusion that unfolds
+        # to a negligibility claim in the step's own module. The headline is not held to this,
+        # and an ordinary instance argument or an efficiency premise is no assumption.
+        verdict = self.verdicts["not concrete"]
+        step = f"`{PREFIX}otherStep`"
+        expected = [
+            f"`{PREFIX}aliasOther` refers to {step} and is not concrete (a premise rests on the "
+            f"named assumption `{PREFIX}Wrapped`",
+            f"`{PREFIX}classOther` refers to {step} and is not concrete (a premise rests on the "
+            f"named assumption `{PREFIX}WrappedClass`",
+            f"`{PREFIX}otherStep_secure` refers to {step} in its module and is not concrete (its "
+            "conclusion makes a negligibility claim)",
+            f"`{PREFIX}wrappedOther` refers to {step} and is not concrete (a premise rests on the "
+            f"named assumption `{PREFIX}Wrapped`",
+        ]
+        self.assertEqual(len(verdict.problems), len(expected), verdict.problems)
+        for problem in expected:
+            self.assertTrue(any(problem in p for p in verdict.problems), problem)
+
+    def test_definitions_that_use_the_step_are_reported_with_their_certification(self) -> None:
+        # A wrapper without a witness of its own needs a baseline entry, even when a certified
+        # definition runs it (`genericOther`); one with a witness of its own needs none.
+        verdict = self.verdicts["not concrete"]
+        self.assertEqual(verdict.definitions, ((PREFIX + "WrappedType", CONSUMERS_PATH),
+                                               (PREFIX + "genericOther", CONSUMERS_PATH),
+                                               (PREFIX + "otherWrapper", CONSUMERS_PATH)))
+        self.assertEqual(verdict.certified_definitions, (PREFIX + "certifiedOther",))
+        self.assertEqual(self.verdicts["scoped"].definitions,
+                         ((PREFIX + "wrappedStep", CONSUMERS_PATH),))
 
 
 class CommittedFilesTests(unittest.TestCase):
