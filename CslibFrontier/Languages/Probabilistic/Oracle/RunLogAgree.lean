@@ -9,14 +9,15 @@ module
 
 public import CslibFrontier.Languages.Probabilistic.Oracle.RunState
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
+import CslibFrontier.Languages.Probabilistic.UntilBad.Flag
 
 /-!
 # Run-log agreement until a marked query
 
 Two stateless probabilistic oracles that have the same output distribution away from a predicate
-`bad` assign the same probability to every outcome of `ProbOracleComp.runLog` whose log mentions
-no query satisfying `bad`. This is the game-hopping step ("identical until bad") in its exact
-logged form.
+`bad` induce logging oracles satisfying `ProbOracleComp.IdenticalUntilBad` (until the log names a
+`bad` query), so they assign the same probability to every outcome of `ProbOracleComp.runLog` whose
+log mentions no query satisfying `bad`.
 
 ## Main results
 
@@ -36,56 +37,30 @@ private noncomputable abbrev logStep (O : Q → ProbComp R) (q : Q) :
     StateT (List (Q × R)) PMF R :=
   fun log => ProbComp.eval ((fun r => (r, log ++ [(q, r)])) <$> O q)
 
-/-- Every supported run of the logging oracle from the log `s` ends in a log that extends `s`. -/
-private theorem prefix_of_mem_support_runWith_logStep (O : Q → ProbComp R)
-    (A : ProbOracleComp (fun _ : Q => R) α) (s : List (Q × R)) {z : α × List (Q × R)}
-    (hz : z ∈ (runWith (logStep O) A s).support) : s <+: z.2 := by
-  induction A using ProbOracleComp.induction generalizing s with
-  | pure a =>
-    rw [runWith_pure, PMF.mem_support_pure_iff] at hz
-    subst hz
-    exact List.prefix_refl s
-  | sample_bind n cont ih =>
-    rw [runWith_sample_bind, PMF.mem_support_bind_iff] at hz
-    obtain ⟨i, -, hi⟩ := hz
-    exact ih i s hi
-  | query_bind q cont ih =>
-    rw [runWith_bind, runWith_query, PMF.mem_support_bind_iff] at hz
-    obtain ⟨x, hx, hcont⟩ := hz
+/-- The logging oracles of two oracles that agree away from `bad` are identical until the log
+names a `bad` query. -/
+private theorem identicalUntilBad_logStep {O O' : Q → ProbComp R} {bad : Q → Prop}
+    (h : ∀ q, ¬ bad q → ProbComp.eval (O q) = ProbComp.eval (O' q)) :
+    ProbOracleComp.IdenticalUntilBad (logStep O) (logStep O') fun log => ∃ p ∈ log, bad p.1 := by
+  have habsorb : ∀ (O'' : Q → ProbComp R) (q : Q) (s : List (Q × R)), (∃ p ∈ s, bad p.1) →
+      ∀ x ∈ (logStep O'' q s).support, ∃ p ∈ x.2, bad p.1 := by
+    intro O'' q s ⟨p, hp, hb⟩ x hx
     simp only [logStep, ProbComp.eval_map, PMF.mem_support_map_iff] at hx
     obtain ⟨r, -, rfl⟩ := hx
-    exact (List.prefix_append s _).trans (ih r _ hcont)
-
-/-- `eval_runLog_apply_eq_of_agree` from an arbitrary starting log. -/
-private theorem runWith_logStep_apply_eq_of_agree {O O' : Q → ProbComp R} {bad : Q → Prop}
-    (h : ∀ q, ¬ bad q → ProbComp.eval (O q) = ProbComp.eval (O' q))
-    (A : ProbOracleComp (fun _ : Q => R) α) (s : List (Q × R)) {z : α × List (Q × R)}
-    (hz : ∀ p ∈ z.2, ¬ bad p.1) :
-    runWith (logStep O) A s z = runWith (logStep O') A s z := by
-  induction A using ProbOracleComp.induction generalizing s with
-  | pure a => rw [runWith_pure, runWith_pure]
-  | sample_bind n cont ih =>
-    rw [runWith_sample_bind, runWith_sample_bind, PMF.bind_apply, PMF.bind_apply]
-    exact tsum_congr fun i => by rw [ih i s]
-  | query_bind q cont ih =>
-    rw [runWith_bind, runWith_bind, runWith_query, runWith_query, PMF.bind_apply, PMF.bind_apply]
-    by_cases hq : bad q
-    · -- A marked query is logged, so no run through it ends in `z`.
-      have hzero : ∀ (O'' : Q → ProbComp R) (x : R × List (Q × R)),
-          logStep O'' q s x * runWith (logStep O'') (cont x.1) x.2 z = 0 := by
-        intro O'' x
-        by_contra hne
-        obtain ⟨hx, hcont⟩ := mul_ne_zero_iff.mp hne
-        rw [← PMF.mem_support_iff] at hx hcont
-        simp only [logStep, ProbComp.eval_map, PMF.mem_support_map_iff] at hx
-        obtain ⟨r, -, rfl⟩ := hx
-        have hpre := prefix_of_mem_support_runWith_logStep O'' (cont r) _ hcont
-        exact hz (q, r) (hpre.subset (by simp)) hq
-      simp only [hzero]
-    · have hstep : logStep O q s = logStep O' q s := by
-        simp only [logStep, ProbComp.eval_map, h q hq]
-      rw [hstep]
-      exact tsum_congr fun x => by rw [ih x.1 x.2]
+    exact ⟨p, List.mem_append_left _ hp, hb⟩
+  refine OracleComp.IdenticalUntilBad.probOracleComp
+    ⟨fun q s _ a s' hs' => ?_, habsorb O, habsorb O'⟩
+  by_cases hq : bad q
+  · -- A marked query is logged, so neither oracle reaches the good log `s'`.
+    have hzero : ∀ O'' : Q → ProbComp R, logStep O'' q s (a, s') = 0 := by
+      intro O''
+      rw [PMF.apply_eq_zero_iff]
+      intro hmem
+      simp only [logStep, ProbComp.eval_map, PMF.mem_support_map_iff, Prod.mk.injEq] at hmem
+      obtain ⟨r, -, -, rfl⟩ := hmem
+      exact hs' ⟨(q, r), by simp, hq⟩
+    rw [hzero, hzero]
+  · simp only [logStep, ProbComp.eval_map, h q hq]
 
 /-- Two oracles that agree away from `bad` give the same probability to every outcome whose log
 names no `bad` query. -/
@@ -95,7 +70,7 @@ theorem eval_runLog_apply_eq_of_agree {O O' : Q → ProbComp R} {bad : Q → Pro
     (hz : ∀ p ∈ z.2, ¬ bad p.1) :
     ProbComp.eval (A.runLog O) z = ProbComp.eval (A.runLog O') z := by
   rw [runLog, runLog, eval_runState, eval_runState]
-  exact runWith_logStep_apply_eq_of_agree h A [] hz
+  exact (identicalUntilBad_logStep h).run_apply A [] z.1 z.2 (by simpa using hz)
 
 /-- Forgetting the log of `runLog` gives `run`. -/
 theorem map_fst_eval_runLog (A : ProbOracleComp (fun _ : Q => R) α) (O : Q → ProbComp R) :
@@ -109,12 +84,5 @@ theorem map_fst_eval_runLog (A : ProbOracleComp (fun _ : Q => R) α) (O : Q → 
   have h' := congrArg (PMF.map Prod.fst) h
   rw [PMF.map_comp, PMF.map_comp] at h'
   exact h'.trans (PMF.map_id _)
-
-/-- The hypothesis on the log is needed: one query, two different constant oracles. -/
-example : ProbComp.eval ((ProbOracleComp.query (spec := fun _ : Unit => Bool) ()).runLog
-      fun _ => pure true) (true, [((), true)]) ≠
-    ProbComp.eval ((ProbOracleComp.query (spec := fun _ : Unit => Bool) ()).runLog
-      fun _ => pure false) (true, [((), true)]) := by
-  simp [runLog, StateT.run]
 
 end Cslib.ProbOracleComp

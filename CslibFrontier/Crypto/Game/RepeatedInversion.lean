@@ -18,35 +18,43 @@ The repeated one-way game (`repeatedInversionExperiment`, [BonehShoup2023], Atta
 p. 539) draws `t` independent inputs, publishes their images, answers reveal queries with the
 corresponding seeds, and asks for a preimage of an unrevealed image. It coincides with the `d = 1`
 case (`repeatedIterateExperiment_one`) of `repeatedIterateExperiment`, which treats `n` chains of
-`d` iterates (`d > 0`) as in the iterated generalization of [BonehShoup2023], Exercise 14.15
-(p. 612). This formalization diverges from the printed text of Exercise 14.15 in two respects
-(checked in `CslibFrontierTests.Crypto.Game.RepeatedInversion`):
-1. A claim `f^[b](x) = y_a` corresponds to seed-indexed slot `d - b`, so forbidding reveals on
-   chain `a` at or below the claimed slot compares `b'` against `d - b` rather than `b' ≤ b`.
-2. For non-injective `f`, a revealed value above the claimed slot can sit past a merge with a
-   side chain, so `chainConsistent` additionally requires the claimed `x` to iterate to every
-   revealed value above it on chain `a` (coinciding with `chainUnrevealed` when `f` is injective,
-   `succProbability_repeatedIterateBookExperiment_of_injective`).
+`d` iterates as in the iterated generalization of [BonehShoup2023], Exercise 14.15 (p. 612).
+
+Relative to [BonehShoup2023], both games take arbitrary `t, n, d : ℕ` (at `d = 0`, `idx q % 0 = 0`
+collapses chain positions), any seed sampler `sample : ProbComp X` rather than uniform, and
+0-based indices `idx q : ℕ`; out-of-range reveals return `default` (or `f^[idx q % d] default`) and
+out-of-range claims lose (`none`). On top of that, `repeatedIterateExperiment` and
+`repeatedIterateUnrevealedExperiment` diverge from Exercise 14.15 in three respects (checked in
+`CslibFrontierTests.Crypto.Game.RepeatedInversion`):
+1. A claim for slot `(i, j)` (`0 ≤ j < d`) checks `f^[d - j] x = y_i`, so only `1 ≤ b ≤ d` is
+   modeled (`b > d` is not analysed); forbidding reveals at or below the claimed slot compares
+   `idx q % d < idx r.1 % d` rather than the printed `b' ≤ b`.
+2. Reveals address `0 ≤ j < d`, so the book's `j = d` (the public value) cannot be requested (slot
+   `i * d + d` is the next chain's seed, or out-of-range for the last chain).
+3. For non-injective `f`, a revealed value above the claimed slot can sit past a merge with a
+   side chain, so `chainConsistent` additionally requires `x` to iterate to every revealed value
+   above it on its chain (coinciding with `chainUnrevealed` when `f` is injective and `0 < d`,
+   `succProbability_repeatedIterateUnrevealedExperiment_of_injective`).
 
 ## Main definitions
 
 * `Cslib.Crypto.chainSlot`, `chainKeyGen`, `chainVerify`, `chainUnrevealed`, `chainConsistent`,
   `chainSigner`: chain-game components.
-* `Cslib.Crypto.repeatedIterateExperiment`, `repeatedIterateBookExperiment`: the repeated chain
-  game with the chain-consistent and index-corrected conditions.
+* `Cslib.Crypto.repeatedIterateExperiment`, `repeatedIterateUnrevealedExperiment`: the repeated
+  chain game with the chain-consistent and index-corrected unrevealed conditions.
 * `Cslib.Crypto.repeatedInversionExperiment`: Attack Game 13.3.
 
 ## Main results
 
 * `Cslib.Crypto.repeatedIterateExperiment_one`: the `d = 1` chain game is Attack Game 13.3.
-* `Cslib.Crypto.succProbability_repeatedIterateExperiment_le_book`,
-  `succProbability_repeatedIterateBookExperiment_of_injective`: comparison with the corrected
-  book winning condition.
+* `Cslib.Crypto.succProbability_repeatedIterateExperiment_le_unrevealed`,
+  `succProbability_repeatedIterateUnrevealedExperiment_of_injective`: comparison with the
+  index-corrected unrevealed winning condition.
 
 ## References
 
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023],
-  Section 13.4.1, Attack Game 13.3, pp. 539–540; Exercise 14.15, p. 612.
+  Section 13.4.1, Attack Game 13.3, p. 539; Exercise 14.15, p. 612.
 -/
 
 public section
@@ -74,7 +82,7 @@ is, `f^[k % d]` of the seed. A slot outside the range holds the iterate of `defa
 @[expose] def chainVerify (f : X → X) (d : ℕ) (ys : List X) (k : ℕ) (x : X) : Bool :=
   ys[k / d]? == some (f^[d - k % d] x)
 
-/-- No slot at or below slot `k` on its chain was revealed (the condition of
+/-- No slot at or below slot `idx q` on its chain was revealed (the condition of
 [BonehShoup2023], Exercise 14.15, with the index corrected). -/
 @[expose] def chainUnrevealed (idx : Q → ℕ) (d : ℕ) (q : Q) (_ : X) (log : List (Q × X)) : Bool :=
   log.all fun r => idx r.1 / d != idx q / d || decide (idx q % d < idx r.1 % d)
@@ -96,13 +104,15 @@ condition. -/
   forgeExperiment (chainKeyGen sample f n d) (chainSigner idx f d)
     (fun ys _ q => chainVerify f d ys (idx q)) (chainConsistent idx f d) A
 
-/-- The same game with the winning condition of Exercise 14.15 (index corrected). -/
-@[expose] def repeatedIterateBookExperiment (idx : Q → ℕ) (sample : ProbComp X) (f : X → X)
+/-- The same game with the unrevealed winning condition of Exercise 14.15 (index corrected). -/
+@[expose] def repeatedIterateUnrevealedExperiment (idx : Q → ℕ) (sample : ProbComp X) (f : X → X)
     (n d : ℕ) (A : List X → ProbOracleComp (fun _ : Q => X) (Q × X)) : Experiment :=
   forgeExperiment (chainKeyGen sample f n d) (chainSigner idx f d)
     (fun ys _ q => chainVerify f d ys (idx q)) (chainUnrevealed idx d) A
 
-/-- Attack Game 13.3: `t` images, reveal queries by index, any preimage at an unrevealed index. -/
+/-- Attack Game 13.3 ([BonehShoup2023], p. 539), generalized to arbitrary `t : ℕ`, any seed
+sampler `sample`, and 0-based reveal/claim indices `idx q` (out-of-range reveals return `default`
+and out-of-range claims lose). -/
 @[expose] def repeatedInversionExperiment {Y : Type} [DecidableEq Y] (idx : Q → ℕ)
     (sample : ProbComp X) (f : X → Y) (t : ℕ)
     (A : List Y → ProbOracleComp (fun _ : Q => X) (Q × X)) : Experiment :=
@@ -137,7 +147,7 @@ theorem repeatedIterateExperiment_one (idx : Q → ℕ) (sample : ProbComp X) (f
   simp only [repeatedIterateExperiment, repeatedInversionExperiment, hfresh, hsign, hver,
     chainKeyGen, Function.iterate_one]
 
-/-! ### The book's winning condition -/
+/-! ### The unrevealed winning condition -/
 
 /-- The law of the forgery experiment, as an event of the logged run. -/
 private theorem eval_forgeExperiment_eq {PK SK M Sig : Type} [Inhabited Sig]
@@ -154,10 +164,11 @@ private theorem eval_forgeExperiment_eq {PK SK M Sig : Type} [Inhabited Sig]
   rfl
 
 /-- The chain-consistent condition is the stronger one. -/
-theorem succProbability_repeatedIterateExperiment_le_book (idx : Q → ℕ) (sample : ProbComp X)
-    (f : X → X) (n d : ℕ) (A : List X → ProbOracleComp (fun _ : Q => X) (Q × X)) :
+theorem succProbability_repeatedIterateExperiment_le_unrevealed (idx : Q → ℕ)
+    (sample : ProbComp X) (f : X → X) (n d : ℕ)
+    (A : List X → ProbOracleComp (fun _ : Q => X) (Q × X)) :
     Experiment.succProbability (repeatedIterateExperiment idx sample f n d A) ≤
-      Experiment.succProbability (repeatedIterateBookExperiment idx sample f n d A) :=
+      Experiment.succProbability (repeatedIterateUnrevealedExperiment idx sample f n d A) :=
   succProbability_forgeExperiment_mono (fun q x log h => by
     simp only [chainConsistent, chainUnrevealed, List.all_eq_true] at h ⊢
     intro r hr
@@ -197,15 +208,15 @@ private theorem chainUnrevealed_eq_chainConsistent {idx : Q → ℕ} {f : X → 
   · intro h r hr
     exact (h r hr).imp id And.left
 
-/-- For an injective `f` the two conditions give the same success probability. -/
-theorem succProbability_repeatedIterateBookExperiment_of_injective (idx : Q → ℕ)
+/-- For an injective `f` and `0 < d`, the two conditions give the same success probability. -/
+theorem succProbability_repeatedIterateUnrevealedExperiment_of_injective (idx : Q → ℕ)
     (sample : ProbComp X) {f : X → X} (hf : Function.Injective f) (n : ℕ) {d : ℕ} (hd : 0 < d)
     (A : List X → ProbOracleComp (fun _ : Q => X) (Q × X)) :
-    Experiment.succProbability (repeatedIterateBookExperiment idx sample f n d A) =
+    Experiment.succProbability (repeatedIterateUnrevealedExperiment idx sample f n d A) =
       Experiment.succProbability (repeatedIterateExperiment idx sample f n d A) := by
-  have h : ProbComp.eval (repeatedIterateBookExperiment idx sample f n d A) =
+  have h : ProbComp.eval (repeatedIterateUnrevealedExperiment idx sample f n d A) =
       ProbComp.eval (repeatedIterateExperiment idx sample f n d A) := by
-    rw [repeatedIterateBookExperiment, repeatedIterateExperiment, eval_forgeExperiment_eq,
+    rw [repeatedIterateUnrevealedExperiment, repeatedIterateExperiment, eval_forgeExperiment_eq,
       eval_forgeExperiment_eq]
     refine PMF.bind_congr_on_support _ _ _ fun ks hks => ?_
     simp only [chainKeyGen, ProbComp.eval_bind, ProbComp.eval_pure, PMF.mem_support_bind_iff,

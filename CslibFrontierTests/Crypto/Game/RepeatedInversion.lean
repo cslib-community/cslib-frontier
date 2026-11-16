@@ -12,21 +12,21 @@ public import CslibFrontier.Crypto.Game.Inversion
 public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
 
 import CslibFrontier.Probability.PMF.Bind
-import CslibFrontier.Probability.PMF.UniformPoint
 
 /-!
 # Tests for `RepeatedInversion`
 
-Checks the three test obligations of the repeated-inversion development:
 * **T1**: the printed winning condition of [BonehShoup2023], Exercise 14.15 (p. 612) is met with
   probability one by a single reveal query (`eval_printed_game`, `printedAttack_isQueryBounded`).
-* **T2**: even with the index corrected, the book winning condition `chainUnrevealed` fails on a
-  function with a side chain (`eval_book_game_sideChain`, `sideChainAttack_isQueryBounded`), while
-  the chain-consistent condition succeeds only when the seed has tag `1`
+* **T2**: even with the index corrected, one reveal query wins the `chainUnrevealed` game on a
+  function with a side chain with probability one (`eval_unrevealed_game_sideChain`,
+  `sideChainAttack_isQueryBounded`), while `chainConsistent` succeeds only when the seed has tag `1`
   (`succProbability_consistent_game_sideChain`) and inverting `sideChain g` reduces to inverting
   `g` up to `1 / (m + 3)` (`sideChain_preimage`, `succProbability_inversion_sideChain_le`).
-* **T3**: at `d = 0` (`0 < d` fails), returning the first public seed wins with probability one
-  while the bound's sum is empty (`eval_game_zero`).
+* **T3**: at `d = 0`, returning the first public seed wins `repeatedIterateExperiment` with
+  probability one (`eval_game_zero`), and `0 < d` is necessary in
+  `succProbability_repeatedIterateUnrevealedExperiment_of_injective` (`zeroAttack`,
+  `zeroAttack_isQueryBounded`).
 -/
 
 public section
@@ -35,20 +35,6 @@ namespace CslibFrontierTests.RepeatedInversion
 
 open Cslib Cslib.Crypto Cslib.Probability
 open scoped ENNReal NNReal
-
-private theorem length_mem_replicate {X : Type} {sample : ProbComp X} {n : ℕ} {xs : List X}
-    (hxs : xs ∈ (ProbComp.eval (OracleComp.replicate n sample)).support) :
-    xs.length = n := by
-  induction n generalizing xs with
-  | zero =>
-    simp only [OracleComp.replicate_zero, ProbComp.eval_pure, PMF.support_pure,
-      Set.mem_singleton_iff] at hxs
-    simp [hxs]
-  | succ n ih =>
-    simp only [OracleComp.replicate_succ, ProbComp.eval_bind, ProbComp.eval_map,
-      PMF.mem_support_bind_iff, PMF.mem_support_map_iff] at hxs
-    obtain ⟨x, _, xs', hxs', rfl⟩ := hxs
-    simp [ih hxs']
 
 /-! ### T1: the winning condition as printed is met with probability one -/
 
@@ -77,7 +63,7 @@ theorem eval_printed_game {X : Type} [Inhabited X] [DecidableEq X] (sample : Pro
     (fun _ => PMF.pure true)]
   · simp
   · intro xs hxs
-    have hlen : 0 < xs.length := (length_mem_replicate hxs).symm ▸ hn
+    have hlen : 0 < xs.length := ((ProbComp.mem_support_replicate_iff _ _ _).mp hxs).1.symm ▸ hn
     have h0 : (xs.map f^[d])[0]? = some (f^[d] (xs.getD 0 default)) := by
       cases xs with
       | nil => simp at hlen
@@ -119,13 +105,14 @@ def sideChainAttack (_ : List (G × Fin (m + 3))) :
   let u ← ProbOracleComp.query (spec := fun _ : ℕ => G × Fin (m + 3)) 1
   return (0, (u.1, 1))
 
-/-- The attack wins the game of Exercise 14.15 (index corrected) with probability one, for
-every `g` and every input law. -/
-theorem eval_book_game_sideChain [DecidableEq G] [Inhabited G]
+/-- The attack wins the index-corrected `chainUnrevealed` game of Exercise 14.15 with probability
+one, for every `g` and every input law. -/
+theorem eval_unrevealed_game_sideChain [DecidableEq G] [Inhabited G]
     (sample : ProbComp (G × Fin (m + 3))) (g : G → G) :
-    ProbComp.eval (repeatedIterateBookExperiment id sample (sideChain g) 1 2 sideChainAttack) =
+    ProbComp.eval
+        (repeatedIterateUnrevealedExperiment id sample (sideChain g) 1 2 sideChainAttack) =
       PMF.pure true := by
-  simp only [repeatedIterateBookExperiment, forgeExperiment, chainKeyGen,
+  simp only [repeatedIterateUnrevealedExperiment, forgeExperiment, chainKeyGen,
     ProbOracleComp.runLogWith, sideChainAttack, ProbOracleComp.runState_bind,
     ProbOracleComp.runState_query, ProbOracleComp.runState_pure, bind_assoc, pure_bind,
     StateT.run_bind, ProbOracleComp.logOracle_run, chainSigner, Signer.ofSign_apply, map_pure,
@@ -134,7 +121,7 @@ theorem eval_book_game_sideChain [DecidableEq G] [Inhabited G]
     (fun _ => PMF.pure true)]
   · simp
   · intro xs hxs
-    have hlen : xs.length = 1 := length_mem_replicate hxs
+    have hlen : xs.length = 1 := ((ProbComp.mem_support_replicate_iff _ _ _).mp hxs).1
     cases xs with
     | nil => simp at hlen
     | cons x xs' =>
@@ -163,11 +150,11 @@ theorem sideChainAttack_isQueryBounded (ys : List (G × Fin (m + 3))) :
       (cost := Sum.elim (fun _ => 0) (fun _ => 1))).bind
         fun u => .pure (0, (u.1, 1)) 0
 
-/-- The smallest instance of `num/iterates.py` (`k = 2`, three tags): `G = Fin 2`, `g = (· + 1)`. -/
+/-- Concrete `m = 0`, `G = Fin 2`, `g = (· + 1)` instance of `eval_unrevealed_game_sideChain`. -/
 example (sample : ProbComp (Fin 2 × Fin 3)) :
-    ProbComp.eval (repeatedIterateBookExperiment id sample
+    ProbComp.eval (repeatedIterateUnrevealedExperiment id sample
       (sideChain (m := 0) fun a : Fin 2 => a + 1) 1 2 sideChainAttack) = PMF.pure true :=
-  eval_book_game_sideChain sample _
+  eval_unrevealed_game_sideChain sample _
 
 /-- Its claim is chain-consistent only when the seed has tag `1`. -/
 theorem succProbability_consistent_game_sideChain [DecidableEq G] [Inhabited G] [Fintype G]
@@ -256,15 +243,8 @@ theorem succProbability_inversion_sideChain_le [DecidableEq G] [Inhabited G] [Fi
       1 / (m + 3) + Experiment.succProbability
         (inversionExperiment sampleG g fun z => Prod.fst <$> A (z, 0)) := by
   have hgk : Function.Bijective (g^[k]) := hg.iterate k
-  have hmapG : (PMF.uniformOfFintype G).map (g^[k]) = PMF.uniformOfFintype G := by
-    ext z
-    rw [PMF.map_apply, tsum_fintype]
-    obtain ⟨a, ha, huniq⟩ := hgk.existsUnique z
-    rw [Finset.sum_eq_single a]
-    · simp [ha]
-    · intro b _ hba
-      simp [show z ≠ g^[k] b from fun h => hba (huniq b h.symm)]
-    · simp
+  have hmapG : (PMF.uniformOfFintype G).map (g^[k]) = PMF.uniformOfFintype G :=
+    PMF.uniformOfFintype_map_equiv (Equiv.ofBijective _ hgk)
   have h1 : (((1 / (m + 3)) : ℝ≥0) : ℝ≥0∞) = 1 / (m + 3 : ℝ≥0∞) := by simp
   rw [← ENNReal.coe_le_coe, ENNReal.coe_add, h1]
   simp only [Experiment.succProbability, Game.succProbability,
@@ -412,13 +392,13 @@ theorem succProbability_inversion_sideChain_le [DecidableEq G] [Inhabited G] [Fi
             ENNReal.mul_inv_cancel hG0 (by simp), one_mul, one_div]
         · rw [← mul_assoc, ENNReal.mul_inv_cancel hm0 hmtop, one_mul]
 
-/-- The smallest instance of the numeric check: `G = Fin 2`, three tags. -/
+/-- Evaluating `sideChain` on `(0, 1)` when `m = 0`, `G = Fin 2`, and `g = (· + 1)`. -/
 example : sideChain (m := 0) (fun a : Fin 2 => a + 1) (0, 1) = (0, 2) := by decide
 
-/-! ### T3: the hypothesis `0 < d` of the plug-and-pray step -/
+/-! ### T3: behavior at `d = 0` and necessity of `0 < d` -/
 
-/-- At `d = 0` the public value of a chain is its seed, and returning it wins: the left-hand side
-of the bound is `1`. -/
+/-- At `d = 0` the public value of a chain is its seed, and returning it without reveal queries
+wins `repeatedIterateExperiment` with probability one. -/
 theorem eval_game_zero {X : Type} [Inhabited X] [DecidableEq X] (sample : ProbComp X)
     (f : X → X) {n : ℕ} (hn : 0 < n) :
     ProbComp.eval (repeatedIterateExperiment (Q := ℕ) id sample f n 0
@@ -430,13 +410,42 @@ theorem eval_game_zero {X : Type} [Inhabited X] [DecidableEq X] (sample : ProbCo
     (fun _ => PMF.pure true)]
   · simp
   · intro xs hxs
-    have hlen : 0 < xs.length := (length_mem_replicate hxs).symm ▸ hn
+    have hlen : 0 < xs.length := ((ProbComp.mem_support_replicate_iff _ _ _).mp hxs).1.symm ▸ hn
     cases xs with
     | nil => simp at hlen
     | cons x xs' =>
       simp [chainVerify, chainConsistent]
 
-/-- At `d = 0` the right-hand side of the bound is an empty sum. -/
-example (n : ℕ) : Finset.range (n * 0) = ∅ := by simp
+/-- At `d = 0` with the injective `f = not`: reveal slot `2`, then claim the public value for
+slot `1`. -/
+def zeroAttack (ys : List Bool) : ProbOracleComp (fun _ : ℕ => Bool) (ℕ × Bool) := do
+  let _ ← ProbOracleComp.query (spec := fun _ : ℕ => Bool) 2
+  return (1, ys.headI)
+
+/-- `zeroAttack` makes one reveal query: its efficiency certificate. -/
+theorem zeroAttack_isQueryBounded (ys : List Bool) :
+    (zeroAttack ys).IsQueryBounded 1 := by
+  simpa [zeroAttack, ProbOracleComp.IsQueryBounded, ProbOracleComp.query] using
+    (OracleComp.IsCostBounded.query (Sum.inr 2)
+      (cost := Sum.elim (fun _ => 0) (fun _ => 1))).bind
+        fun _ => .pure (1, ys.headI) 0
+
+/-- Probe of `0 < d` in `succProbability_repeatedIterateUnrevealedExperiment_of_injective`:
+at `d = 0`, `zeroAttack` wins `repeatedIterateUnrevealedExperiment` with probability one. -/
+example : ProbComp.eval (repeatedIterateUnrevealedExperiment id (pure true) not 1 0 zeroAttack) =
+    PMF.pure true := by
+  simp [repeatedIterateUnrevealedExperiment, forgeExperiment, chainKeyGen, chainSigner, chainSlot,
+    chainVerify, chainUnrevealed, zeroAttack, ProbOracleComp.runLogWith,
+    ProbOracleComp.runState_query, ProbOracleComp.logOracle_run, OracleComp.replicate_succ,
+    OracleComp.replicate_zero]
+
+/-- Probe of `0 < d` in `succProbability_repeatedIterateUnrevealedExperiment_of_injective`:
+at `d = 0`, `zeroAttack` loses `repeatedIterateExperiment` with probability one. -/
+example : ProbComp.eval (repeatedIterateExperiment id (pure true) not 1 0 zeroAttack) =
+    PMF.pure false := by
+  simp [repeatedIterateExperiment, forgeExperiment, chainKeyGen, chainSigner, chainSlot,
+    chainVerify, chainConsistent, zeroAttack, ProbOracleComp.runLogWith,
+    ProbOracleComp.runState_query, ProbOracleComp.logOracle_run, OracleComp.replicate_succ,
+    OracleComp.replicate_zero]
 
 end CslibFrontierTests.RepeatedInversion
