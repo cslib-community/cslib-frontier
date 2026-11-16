@@ -16,6 +16,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Run
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.SpaceBudget
 import CslibFrontier.Computability.Complexity.Classes.Constructible.Space
 import CslibFrontier.Computability.Complexity.Classes.Hierarchy.SpaceDiagonalBounds
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.TidyNormalForm
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigOLe

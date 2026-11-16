@@ -534,6 +534,21 @@ secret-salt instances, MAC-key and §21.11 search shapes, and failing cases show
 is needed are in
 [`Crypto/DictionarySearch.lean`](../../CslibFrontierTests/Crypto/DictionarySearch.lean).
 
+For parallel PRG composition ([bs23][bs23], §3.4.1, Theorem 3.2),
+[`PRG/Parallel.lean`](../../CslibFrontier/Crypto/Primitives/PRG/Parallel.lean) defines
+`G.parallel n` (`(s_1, ..., s_n) ↦ (G s_1, ..., G s_n)`) on finite-type generators and proves the
+exact relation `(G.parallel n).advantage A = n * G.advantage (G.parallelReduction n A)` for
+`[NeZero n]` and unrestricted `PMF`-kernel adversaries (no efficiency claim). On word ensembles,
+[`PseudorandomGenerator/Parallel.lean`](../../CslibFrontier/Crypto/Computational/PseudorandomGenerator/Parallel.lean)
+defines `parallelGenerator`, certifies its polynomial-time execution
+(`computableInPolyTime_parallelGenerator`), and proves
+`computationallyIndistinguishable_parallelGenerator`: for any `PseudorandomGenerator` and unary
+polynomial-time copy schedule `count`, concatenating `parallelGenerator` across `count n`
+independent uniform `n`-bit seeds is computationally indistinguishable from
+`BitString.uniformList (count n * length n)` via `ComputationallyIndistinguishable.replicate_bind`
+(using the certified `sequenceTest` reduction with loss `dyadicSize (count n)`). Checked in
+[`CslibFrontierTests/Crypto/PseudorandomGeneratorParallel.lean`](../../CslibFrontierTests/Crypto/PseudorandomGeneratorParallel.lean).
+
 For a one-bit expanding PRG, [Stretch/Prefix.lean](../../CslibFrontier/Crypto/Computational/Stretch/Prefix.lean)
 proves that `(forwardIterate g ℓ seed).take ℓ` has length `ℓ` and agrees with the first `ℓ`
 emitted bits of every longer run. The premise is global: `length (g seed) = length seed + 1`
@@ -1638,6 +1653,26 @@ Equation (15.4), p. 618), and checks quadratic twists over `ZMod 11`, `ZMod 7`, 
 `IsCharNeTwoNF` is dropped (and why no `IsCharNeTwoNF` curve over `ZMod 2` is elliptic via
 `WeierstrassCurve.ringChar_ne_two_of_isCharNeTwoNF`). Build it with
 `lake build CslibFrontierTests.Foundations.AlgebraicGeometry.EllipticCurveHasse`.
+
+**Edwards curves.** Import
+[`EllipticCurve/Edwards.lean`](../../CslibFrontier/Foundations/AlgebraicGeometry/EllipticCurve/Edwards.lean)
+(`CslibFrontier.Foundations.AlgebraicGeometry.EllipticCurve.Edwards`) for Edwards curves
+`x² + y² = 1 + d x² y²` with `d ≠ 0` and `d ≠ 1` over a commutative ring `R` (`EdwardsCurve`,
+`EdwardsCurve.Equation`, `EdwardsCurve.Point`, with identity `EdwardsCurve.zero` = `(0, 1)`,
+negation `EdwardsCurve.neg` = `(-x, y)`, and `EdwardsCurve.order4Point` = `(1, 0)`;
+[bs23][bs23], §15.2.1, p. 619). Over a field `F`, `EdwardsCurve.equation_add` verifies closure
+under the unified addition formula whenever both denominators `1 ± d x₁ x₂ y₁ y₂` are nonzero, and
+for a non-square parameter (`¬ IsSquare E.d`), `EdwardsCurve.denom_ne_zero` shows those
+denominators never vanish in any characteristic (in characteristic two the hypothesis excludes every
+finite field and leaves only the points `(0, 1)` and `(1, 0)`), yielding the total law
+`EdwardsCurve.add` with `EdwardsCurve.zero_add`, `EdwardsCurve.add_zero`, `EdwardsCurve.add_comm`,
+and `EdwardsCurve.neg_add_cancel`. The textbook ([bs23][bs23], §15.2.1, p. 619) omits the
+sufficient non-square hypothesis `¬ IsSquare E.d`, and `d ≠ 0, 1` alone is not enough: modulo `11`
+with `d = 4 = 2²`, the
+[checked examples](../../CslibFrontierTests/Foundations/AlgebraicGeometry/EdwardsCurve.lean) show both
+denominators vanishing on the curve points `(2, 3)` and `(8, 2)`. Associativity, the `AddCommGroup`
+instance, and the equivalence with Montgomery and Weierstrass forms are left to follow-up modules.
+Build the tests with `lake build CslibFrontierTests.Foundations.AlgebraicGeometry.EdwardsCurve`.
 
 ### Lagrange interpolation in the exponent
 
