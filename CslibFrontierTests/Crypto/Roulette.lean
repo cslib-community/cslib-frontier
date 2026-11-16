@@ -4,19 +4,19 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+
 import CslibFrontier.Crypto.Computational.Encryption.Roulette
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
 import CslibFrontier.Probability.PMF.Expect
 
 /-!
 # Internet roulette tests
 
-Concrete and asymptotic clients of `CslibFrontier.Crypto.Computational.Encryption.Roulette`:
-a concrete upper-bound client, ciphertext-reading uniform strict PPT clients of
-`DEMOneTimeKeyINDCPAOf.negligible_rouletteDEMAdvantage`, and a counterexample showing that the
-challenge admissibility assumption `hvalid` cannot be dropped.
+Asymptotic clients of `CslibFrontier.Crypto.Computational.Encryption.Roulette`:
+uniform strict PPT clients of `DEMOneTimeKeyINDCPAOf.negligible_rouletteDEMAdvantage`, and a
+counterexample showing that challenge admissibility on `(r, 0)` pairs cannot be dropped.
 -/
 
 namespace CslibFrontierTests.Crypto.Roulette
@@ -24,20 +24,7 @@ namespace CslibFrontierTests.Crypto.Roulette
 open Cslib Cslib.Crypto Cslib.Crypto.Encryption Cslib.Probability Turing.MultiTapeTM
 open scoped NNReal
 
-section ConcreteAndWordClients
-
-/-- Concrete inequality form (`≤`) checked as a client of
-`rouletteAdvantage_eq_advantage_rouletteReduction`. -/
-example {K C : Type} (E : Cipher K (Fin 37) C) (sampleKey : ProbComp K)
-    {valid : Fin 37 → Fin 37 → Bool} (hvalid : ∀ m₀ m₁, valid m₀ m₁ = true)
-    (A : C → ProbComp RouletteBet) :
-    rouletteAdvantage E sampleKey A ≤
-      Experiment.advantage
-        (E.oneTimeExperiment sampleKey valid
-          (rouletteReduction (ProbComp.uniform (Fin 37)) A) false)
-        (E.oneTimeExperiment sampleKey valid
-          (rouletteReduction (ProbComp.uniform (Fin 37)) A) true) :=
-  (rouletteAdvantage_eq_advantage_rouletteReduction E sampleKey hvalid A).le
+section AsymptoticClients
 
 /-- A constant-bet PPT adversary has negligible DEM Internet roulette advantage. -/
 example {encIndex : Fin 37 ↪ List Bool} {encBet : RouletteBet ↪ List Bool}
@@ -46,11 +33,9 @@ example {encIndex : Fin 37 ↪ List Bool} {encBet : RouletteBet ↪ List Bool}
     Negligible (rouletteDEMAdvantage keyLen encryptSym fun _ _ => pure .high) := by
   have hA : Probability.IsPPT encBet fun _ _ => pure RouletteBet.high :=
     (ComputableInPolyTime.const (encIn := encBits) (encOut := encBet) RouletteBet.high).isPPT
-  exact hdem.negligible_rouletteDEMAdvantage ComputableInPolyTime.id'
-    PolynomiallyLowerBounded.id hA
+  exact hdem.negligible_rouletteDEMAdvantage hA
 
-/-- A ciphertext-reading PPT adversary with shifted modular width `fun n => n + 8` has
-negligible DEM Internet roulette advantage. -/
+/-- A ciphertext-reading PPT adversary has negligible DEM Internet roulette advantage. -/
 example {encIndex : Fin 37 ↪ List Bool} {encBet : RouletteBet ↪ List Bool}
     {keyLen : ℕ → ℕ} {encryptSym : ℕ → List Bool → Fin 37 → ProbComp (List Bool)}
     (hdem : DEMOneTimeKeyINDCPAOf encIndex keyLen encryptSym) :
@@ -64,18 +49,16 @@ example {encIndex : Fin 37 ↪ List Bool} {encBet : RouletteBet ↪ List Bool}
     ComputableInPolyTime.of_finite _
   have hA : Probability.IsPPT encBet fun _ ct => pure (chooseBet ct) :=
     (hmap.comp hbit).isPPT
-  have hwidth : ComputableInPolyTime (fun n => n + 8) encUnary encUnary := by fun_prop
-  have hwidthLB : PolynomiallyLowerBounded (fun n => n + 8) :=
-    PolynomiallyLowerBounded.id.add_right (fun _ => 8)
-  exact hdem.negligible_rouletteDEMAdvantage hwidth hwidthLB hA
+  exact hdem.negligible_rouletteDEMAdvantage hA
 
-end ConcreteAndWordClients
+end AsymptoticClients
 
 section Counterexamples
 
-/-- Necessity of `hvalid`: for a transparent cipher and an admissibility predicate requiring
-equal challenge messages (`decide (m₀ = m₁)`), the semantic-security reduction's advantage is `0`
-while the concrete Internet roulette advantage is `18 / 37`. -/
+/-- Necessity of admitting `(r, 0)` pairs: for a transparent cipher and an admissibility predicate
+requiring equal challenge messages (`decide (m₀ = m₁)`, which rejects `(1, 0)`), the
+semantic-security reduction's advantage is `0` while the concrete Internet roulette advantage is
+`18 / 37`. -/
 example :
     ∃ (E : Cipher Unit (Fin 37) (Fin 37)) (sampleKey : ProbComp Unit)
       (valid : Fin 37 → Fin 37 → Bool) (A : Fin 37 → ProbComp RouletteBet),

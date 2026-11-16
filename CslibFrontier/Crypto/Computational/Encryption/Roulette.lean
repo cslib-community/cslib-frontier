@@ -9,8 +9,8 @@ module
 
 public import CslibFrontier.Crypto.Computational.Encryption.Cipher
 public import CslibFrontier.Crypto.Computational.Encryption.Hybrid
-public import CslibFrontier.Crypto.Negligible.Dyadic
 public import CslibFrontier.Languages.Probabilistic.UniformNat
+import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
@@ -28,33 +28,37 @@ import CslibFrontier.Probability.PMF.Expect
 # Security against guessing Internet roulette outcomes
 
 Semantic security gives security for single-zero Internet roulette (`Fin 37`, outcomes `0..36`)
-against any of the six standard even-money bets (`[BonehShoup2023]`, Section 2.2.4, pp. 22–25). Each
-bet wins on `18` nonzero wheel outcomes and loses on `0` and the remaining `18` outcomes, so an
-adversary betting against an encrypted wheel outcome has concrete Internet roulette advantage
-`nndist Pr[W(r, bet) = 1] (18 / 37)` (`|Pr[W(r, bet) = 1] - 18 / 37|`, `p. 22`).
+([BonehShoup2023], Section 2.2.4, pp. 22–25). The book defines four even-money bets (`high`,
+`low`, `even`, `odd`, p. 22); `RouletteBet` includes those four and adds `red` and `black`,
+making the universal statements over all players strictly stronger. Each bet wins on `18` nonzero
+wheel outcomes and loses on `0` and the remaining `18` outcomes, so an adversary betting against an
+encrypted wheel outcome has concrete Internet roulette advantage
+`nndist Pr[W(r, bet) = 1] (18 / 37)` (`|Pr[W(r, bet) = 1] - 18 / 37|`, p. 22).
 
 In the concrete single-cipher model (`Cipher.oneTimeExperiment`), the explicit `TwoStage` reduction
 `rouletteReduction` asks to distinguish a uniform `r : Fin 37` from `0`, equating the roulette
-advantage with the semantic-security distinguishing advantage whenever `valid` admits all pairs
-on `Fin 37` (`rouletteAdvantage_eq_advantage_rouletteReduction`, capturing Theorem 2.9, `(2.7)`,
-`(2.8)` on p. 23 and `(2.9)` on p. 25). The hypothesis
-`hvalid : ∀ m₀ m₁ : Fin 37, valid m₀ m₁ = true` is required because `Cipher.oneTimeExperiment`
-rejects pairs where `valid` returns `false`, whereas Attack Game 2.1 admits every fixed-size
-message pair on `Fin 37`.
+advantage with the semantic-security distinguishing advantage whenever `valid` admits every pair
+`(r, 0)` on `Fin 37` (`rouletteAdvantage_eq_advantage_rouletteReduction`, capturing (2.7) and (2.8)
+on p. 23, and cf. (2.9) on p. 25; without an efficiency claim). The hypothesis
+`∀ r : Fin 37, valid r 0 = true` is required because `Cipher.oneTimeExperiment` rejects pairs where
+`valid` returns `false`, whereas Attack Game 2.1 admits every fixed-size message pair on `Fin 37`.
 
 In the uniform asymptotic `DEMOneTimeKeyINDCPAOf` model (`keyLen`, `encryptSym`),
 `rouletteToDEMAdversary` uses `rouletteReduction` with modular residue sampling
 `ProbComp.sampleModNat (width n) 37` in place of exact uniform `Fin 37` sampling, saving the residue
 encoded in unary length in the adversary state (`isPPT_rouletteToDEMAdversary`). Consequently,
 `rouletteDEMAdvantage_le_demKeyGame_add` incurs a `(74 : ℝ≥0) / 2 ^ width n` statistical-distance
-overhead (one `37 / 2 ^ width n` term on each side of the two-experiment bound), and
-`DEMOneTimeKeyINDCPAOf.negligible_rouletteDEMAdvantage` concludes negligibility whenever
-`ComputableInPolyTime width encUnary encUnary` and `PolynomiallyLowerBounded width`.
+overhead (one `37 / 2 ^ width n` term on each side of the two-experiment bound) where the book has
+an equality. Fixing `width := id` internally,
+`DEMOneTimeKeyINDCPAOf.negligible_rouletteDEMAdvantage` proves Theorem 2.9 (p. 23):
+`rouletteDEMAdvantage keyLen encryptSym A` is negligible for every uniform strict PPT adversary
+`A : ℕ → List Bool → ProbComp RouletteBet`.
 
 ## Main definitions
 
-* `Cslib.Crypto.Encryption.RouletteBet`, `Cslib.Crypto.Encryption.rouletteWin`: the six even-money
-  bets on `Fin 37` and winning predicate `W(r, bet)`.
+* `Cslib.Crypto.Encryption.RouletteBet`, `Cslib.Crypto.Encryption.rouletteWin`: the four book
+  even-money bets (`even`, `odd`, `low`, `high`) plus `red` and `black` on `Fin 37`, and the
+  winning predicate `W(r, bet)`.
 * `Cslib.Crypto.Encryption.rouletteExperiment`,
   `Cslib.Crypto.Encryption.idealRouletteExperiment`, `Cslib.Crypto.Encryption.rouletteAdvantage`:
   the real and ideal roulette experiments and concrete roulette advantage.
@@ -62,7 +66,8 @@ overhead (one `37 / 2 ^ width n` term on each side of the two-experiment bound),
   reduction.
 * `Cslib.Crypto.Encryption.rouletteDEMExperiment`,
   `Cslib.Crypto.Encryption.rouletteDEMAdvantage`, `Cslib.Crypto.Encryption.rouletteToDEMAdversary`:
-  the parameterized DEM-style roulette experiment, advantage, and uniform adversary reduction.
+  the parameterized DEM-style roulette experiment, advantage defined from it, and uniform adversary
+  reduction.
 
 ## Main results
 
@@ -70,12 +75,12 @@ overhead (one `37 / 2 ^ width n` term on each side of the two-experiment bound),
   `18 / 37` under uniform `Fin 37`.
 * `Cslib.Crypto.Encryption.succProbability_idealRouletteExperiment`: the ideal roulette experiment
   wins with probability `18 / 37`.
-* `Cslib.Crypto.Encryption.rouletteAdvantage_eq_advantage_rouletteReduction`: concrete Theorem 2.9.
+* `Cslib.Crypto.Encryption.rouletteAdvantage_eq_advantage_rouletteReduction`: display (2.7) (p. 23).
 * `Cslib.Crypto.Encryption.isPPT_rouletteToDEMAdversary`: strict uniform PPT certification of
   `rouletteToDEMAdversary`.
 * `Cslib.Crypto.Encryption.rouletteDEMAdvantage_le_demKeyGame_add`: concrete DEM reduction bound.
 * `Cslib.Crypto.Encryption.DEMOneTimeKeyINDCPAOf.negligible_rouletteDEMAdvantage`: asymptotic
-  negligibility of `rouletteDEMAdvantage` from `DEMOneTimeKeyINDCPAOf`.
+  Theorem 2.9 from `DEMOneTimeKeyINDCPAOf`.
 
 ## References
 
@@ -91,8 +96,9 @@ open Probability Turing.MultiTapeTM
 open scoped NNReal
 
 /-- Even-money bets on a 37-pocket single-zero roulette wheel `Fin 37` ([BonehShoup2023],
-Section 2.2.4, p. 22). Each bet wins on `18` nonzero outcomes and loses on `0` and the remaining
-`18` outcomes. -/
+Section 2.2.4, p. 22). Includes the book's four bets (`even`, `odd`, `low`, `high`) together with
+the additional bets `red` and `black`; each wins on `18` nonzero outcomes and loses on `0` and the
+remaining `18` outcomes. -/
 inductive RouletteBet : Type where
   | red
   | black
@@ -214,25 +220,25 @@ with `r ← sampleIndex` and save `r`, then on challenge ciphertext `ct` run `A 
 
 private theorem eval_oneTimeExperiment_rouletteReduction {K C : Type}
     (E : Cipher K (Fin 37) C) (sampleKey : ProbComp K)
-    {valid : Fin 37 → Fin 37 → Bool} (hvalid : ∀ m₀ m₁, valid m₀ m₁ = true)
+    {valid : Fin 37 → Fin 37 → Bool} (hvalid : ∀ r : Fin 37, valid r 0 = true)
     (A : C → ProbComp RouletteBet) (b : Bool) :
     ProbComp.eval (E.oneTimeExperiment sampleKey valid
       (rouletteReduction (ProbComp.uniform (Fin 37)) A) b) =
       ProbComp.eval (if b then idealRouletteExperiment E sampleKey A
         else rouletteExperiment E sampleKey A) := by
   simp only [Cipher.oneTimeExperiment, lrExperiment, rouletteReduction,
-    ProbComp.eval_bind, ProbComp.eval_pure, hvalid, ↓reduceIte, PMF.bind_bind]
+    ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind]
   rw [PMF.bind_comm]
   cases b <;>
     simp [idealRouletteExperiment, rouletteExperiment, ProbComp.eval_bind, PMF.map,
-      Function.comp_def]
+      Function.comp_def, hvalid]
 
-/-- Concrete Theorem 2.9 ([BonehShoup2023], Section 2.2.4, p. 23, `(2.7)` and `(2.8)`): whenever
-`valid` admits all pairs on `Fin 37`, `rouletteAdvantage` equals the semantic-security
-distinguishing advantage of `rouletteReduction (ProbComp.uniform (Fin 37)) A`. -/
+/-- Display (2.7) ([BonehShoup2023], Section 2.2.4, p. 23, and cf. (2.8)): whenever `valid` admits
+every pair `(r, 0)` on `Fin 37`, `rouletteAdvantage` equals the semantic-security distinguishing
+advantage of `rouletteReduction (ProbComp.uniform (Fin 37)) A`. -/
 theorem rouletteAdvantage_eq_advantage_rouletteReduction {K C : Type}
     (E : Cipher K (Fin 37) C) (sampleKey : ProbComp K)
-    {valid : Fin 37 → Fin 37 → Bool} (hvalid : ∀ m₀ m₁, valid m₀ m₁ = true)
+    {valid : Fin 37 → Fin 37 → Bool} (hvalid : ∀ r : Fin 37, valid r 0 = true)
     (A : C → ProbComp RouletteBet) :
     rouletteAdvantage E sampleKey A =
       Experiment.advantage
@@ -246,23 +252,23 @@ theorem rouletteAdvantage_eq_advantage_rouletteReduction {K C : Type}
 /-! ### Uniform asymptotic DEM reduction -/
 
 /-- Parameterized symmetric-cipher Internet roulette experiment using a `keyLen n`-bit key and
-`encryptSym n`. -/
+`encryptSym n` via `wordCipher`. -/
 @[expose] noncomputable def rouletteDEMExperiment (keyLen : ℕ → ℕ)
     (encryptSym : ℕ → List Bool → Fin 37 → ProbComp (List Bool))
     (A : ℕ → List Bool → ProbComp RouletteBet) (n : ℕ) : Experiment :=
-  rouletteExperiment ⟨fun k r => encryptSym n k r, fun _ _ => pure 0⟩
+  rouletteExperiment (wordCipher encryptSym (fun _ _ _ => none) n)
     (BitString.sampleList (keyLen n)) (A n)
 
-/-- Parameterized symmetric-cipher Internet roulette advantage `|Pr[W(r, bet) = 1] - 18 / 37|`. -/
+/-- Parameterized symmetric-cipher Internet roulette advantage `|Pr[W(r, bet) = 1] - 18 / 37|`,
+defined directly through `rouletteDEMExperiment`. -/
 @[expose] noncomputable def rouletteDEMAdvantage (keyLen : ℕ → ℕ)
     (encryptSym : ℕ → List Bool → Fin 37 → ProbComp (List Bool))
     (A : ℕ → List Bool → ProbComp RouletteBet) (n : ℕ) : ℝ≥0 :=
-  rouletteAdvantage ⟨fun k r => encryptSym n k r, fun _ _ => pure 0⟩
-    (BitString.sampleList (keyLen n)) (A n)
+  nndist Pr[rouletteDEMExperiment keyLen encryptSym A n] (18 / 37 : ℝ)
 
 /-- Word-level `AdversaryOf (Fin 37)` wrapper around `rouletteReduction`: phase 1 invokes
 `rouletteReduction` with `sampleModNat (width n) 37` and stores `r.val` in the unary state length;
-phase 2 recovers `r` from `state.length % 37` and delegates to `rouletteReduction.guess`. -/
+phase 2 recovers `r` from `state.length % 37`, runs `A n ct`, and evaluates `rouletteWin`. -/
 @[expose] noncomputable def rouletteToDEMAdversary (width : ℕ → ℕ)
     (A : ℕ → List Bool → ProbComp RouletteBet) : AdversaryOf (Fin 37) where
   choose n _ := do
@@ -270,9 +276,9 @@ phase 2 recovers `r` from `state.length % 37` and delegates to `rouletteReductio
       (ProbComp.sampleModNat (width n) 37 >>= fun x =>
         pure ⟨x % 37, Nat.mod_lt _ (by decide)⟩) (A n)).choose ()
     pure ((choice.1.msg₀, choice.1.msg₁), encUnary choice.2.val)
-  guess n state ct :=
-    (rouletteReduction (ProbComp.uniform (Fin 37)) (A n)).guess
-      ⟨state.length % 37, Nat.mod_lt _ (by decide)⟩ ct
+  guess n state ct := do
+    let bet ← A n ct
+    pure (rouletteWin ⟨state.length % 37, Nat.mod_lt _ (by decide)⟩ bet)
 
 private theorem isPPT_rouletteToDEMAdversary_choose {encIndex : Fin 37 ↪ List Bool}
     {width : ℕ → ℕ} (hwidth : ComputableInPolyTime width encUnary encUnary)
@@ -339,7 +345,7 @@ private theorem isPPT_rouletteToDEMAdversary_guess (width : ℕ → ℕ)
       ComputableInPolyTime (fun q : Fin 37 × RouletteBet => rouletteWin q.1 q.2)
         (encPair encFin37 encBet) encBool :=
     ComputableInPolyTime.of_finite _
-  simpa [rouletteToDEMAdversary, rouletteReduction] using
+  simpa [rouletteToDEMAdversary] using
     hfirst.map_with (hwin.comp (hidx.prod hbet))
 
 /-- Whenever `width` is polynomial-time computable in unary and `A` is uniform strict PPT,
@@ -388,7 +394,7 @@ private theorem eval_uniform_rouletteModGame (keyLen : ℕ → ℕ)
     ((PMF.uniformOfFintype (Fin 37)).bind
       fun r => rouletteModGame keyLen encryptSym A n b r.val) =
       ProbComp.eval (if b then
-        idealRouletteExperiment ⟨fun k r => encryptSym n k r, fun _ _ => pure 0⟩
+        idealRouletteExperiment (wordCipher encryptSym (fun _ _ _ => none) n)
           (BitString.sampleList (keyLen n)) (A n)
       else
         rouletteDEMExperiment keyLen encryptSym A n) := by
@@ -405,7 +411,7 @@ private theorem eval_uniform_rouletteModGame (keyLen : ℕ → ℕ)
     simp only [rouletteModGame, hr]
   rw [hcongr]
   cases b <;>
-    simp [rouletteDEMExperiment, rouletteExperiment, idealRouletteExperiment,
+    simp [rouletteDEMExperiment, rouletteExperiment, idealRouletteExperiment, wordCipher,
       ProbComp.eval_bind, ProbComp.eval_uniform, PMF.map, Function.comp_def]
 
 private theorem advantage_demKeyGame_rouletteMod_le (width keyLen : ℕ → ℕ)
@@ -415,7 +421,7 @@ private theorem advantage_demKeyGame_rouletteMod_le (width keyLen : ℕ → ℕ)
         (ProbComp.eval
           (demKeyGame keyLen encryptSym (rouletteToDEMAdversary width A) b n))
         (ProbComp.eval (if b then
-          idealRouletteExperiment ⟨fun k r => encryptSym n k r, fun _ _ => pure 0⟩
+          idealRouletteExperiment (wordCipher encryptSym (fun _ _ _ => none) n)
             (BitString.sampleList (keyLen n)) (A n)
         else
           rouletteDEMExperiment keyLen encryptSym A n)) ≤
@@ -436,8 +442,7 @@ theorem rouletteDEMAdvantage_le_demKeyGame_add (width keyLen : ℕ → ℕ)
         (demKeyGame keyLen encryptSym (rouletteToDEMAdversary width A) false n)
         (demKeyGame keyLen encryptSym (rouletteToDEMAdversary width A) true n) +
         (74 : ℝ≥0) / 2 ^ width n := by
-  let E : Cipher (List Bool) (Fin 37) (List Bool) :=
-    ⟨fun k r => encryptSym n k r, fun _ _ => pure 0⟩
+  let E : Cipher (List Bool) (Fin 37) (List Bool) := wordCipher encryptSym (fun _ _ _ => none) n
   let sampleKey := BitString.sampleList (keyLen n)
   let realExp := rouletteExperiment E sampleKey (A n)
   let idealExp := idealRouletteExperiment E sampleKey (A n)
@@ -453,7 +458,9 @@ theorem rouletteDEMAdvantage_le_demKeyGame_add (width keyLen : ℕ → ℕ)
     rw [Game.advantage_comm]
     simpa [idealExp, dem1, E, sampleKey] using
       advantage_demKeyGame_rouletteMod_le width keyLen encryptSym A true n
-  rw [rouletteDEMAdvantage, rouletteAdvantage_eq_advantage_ideal]
+  have hrew : rouletteDEMAdvantage keyLen encryptSym A n = rouletteAdvantage E sampleKey (A n) :=
+    rfl
+  rw [hrew, rouletteAdvantage_eq_advantage_ideal]
   exact (Game.advantage_four_hop_le h0 h1).trans_eq (by ring)
 
 /-- Asymptotic Theorem 2.9 ([BonehShoup2023], Section 2.2.4, p. 23): under
@@ -463,20 +470,19 @@ theorem DEMOneTimeKeyINDCPAOf.negligible_rouletteDEMAdvantage
     {encIndex : Fin 37 ↪ List Bool} {encBet : RouletteBet ↪ List Bool}
     {keyLen : ℕ → ℕ} {encryptSym : ℕ → List Bool → Fin 37 → ProbComp (List Bool)}
     (hdem : DEMOneTimeKeyINDCPAOf encIndex keyLen encryptSym)
-    {width : ℕ → ℕ} (hwidth : ComputableInPolyTime width encUnary encUnary)
-    (hwidthLB : PolynomiallyLowerBounded width)
     {A : ℕ → List Bool → ProbComp RouletteBet} (hA : Probability.IsPPT encBet A) :
     Negligible (rouletteDEMAdvantage keyLen encryptSym A) := by
   have hadv :
       Negligible (fun n => Experiment.advantage
-        (demKeyGame keyLen encryptSym (rouletteToDEMAdversary width A) false n)
-        (demKeyGame keyLen encryptSym (rouletteToDEMAdversary width A) true n)) :=
-    hdem (rouletteToDEMAdversary width A) (isPPT_rouletteToDEMAdversary hwidth hA)
-  have hstat : Negligible (fun n => (74 : ℝ≥0) / 2 ^ width n) := by
-    have hpow : Negligible (fun n => ((2 : ℝ≥0) ^ width n)⁻¹) :=
-      negligible_inv_two_pow.comp_polynomiallyLowerBounded hwidthLB
+        (demKeyGame keyLen encryptSym (rouletteToDEMAdversary id A) false n)
+        (demKeyGame keyLen encryptSym (rouletteToDEMAdversary id A) true n)) :=
+    hdem (rouletteToDEMAdversary id A)
+      (isPPT_rouletteToDEMAdversary ComputableInPolyTime.id' hA)
+  have hstat : Negligible (fun n => (74 : ℝ≥0) / 2 ^ id n) := by
+    have hpow : Negligible (fun n => ((2 : ℝ≥0) ^ id n)⁻¹) :=
+      negligible_inv_two_pow.comp_polynomiallyLowerBounded PolynomiallyLowerBounded.id
     simpa [div_eq_mul_inv] using Negligible.const_div (74 : ℝ≥0) hpow
   exact negligible_of_le (hadv.add_fun hstat)
-    (rouletteDEMAdvantage_le_demKeyGame_add width keyLen encryptSym A)
+    (rouletteDEMAdvantage_le_demKeyGame_add id keyLen encryptSym A)
 
 end Cslib.Crypto.Encryption
