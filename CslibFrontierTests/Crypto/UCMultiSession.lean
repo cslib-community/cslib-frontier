@@ -226,11 +226,19 @@ theorem composeMulti_orOuter_realizes :
   Realizes.composeMulti orOuter_polyBounded faultyRelay_polyBounded idealRelay_polyBounded
     faultyRelay_realizes
 
+/-- `EmulatesDummyWithin.composeMulti` at `m = 2`, with its explicit `2 • ε` bound. -/
+theorem composeMulti_orOuter_emulatesDummyWithin :
+    EmulatesDummyWithin (composeMulti orOuter faultyRelay)
+      (composeMulti orOuter idealRelay.toProtocol) (Polynomial.C 2 * 1 + 1) (fun pZ κ =>
+        2 • ((((sessionHopPoly 2 pZ 2 1 1 1).eval κ : ℕ) : ℝ≥0) / 2 ^ (κ + 1))) :=
+  EmulatesDummyWithin.composeMulti orOuter_polyBounded faultyRelay_polyBounded
+    idealRelay_polyBounded faultyRelay_emulatesDummyWithin
+
 /-- Non-vacuity witness at `κ = 0`, `C = ∅`, and `C = {0}`: `3 / 4 > 1 / 2` and `≤ 2 • (1 / 2)`. -/
 theorem composeMulti_orOuter_nonvacuity (C : Finset (Fin 2)) (p : Fin 2) (hp : p ∉ C) :
     let adv := advantage (composeMulti orOuter faultyRelay) (composeMulti orOuter
-      idealRelay.toProtocol) (dummyAdversary 2 _ _) (multiHybridSimConst (dummyAdversary 2 _ _)) C
-      (Z_or p) 0 []
+      idealRelay.toProtocol) (dummyAdversary 2 _ _) (multiHybridSim fun _ => dummyAdversary 2 _ _)
+      C (Z_or p) 0 []
     adv = 3 / 4 ∧ (1 / 2 : ℝ≥0) < adv ∧ adv ≤ 2 • (1 / 2 : ℝ≥0) := by
   have habs : absorbMultiHybrid C orOuter (Z_or p) 0 [] = (ProbOracleComp.query ((0 : Fin 2),
       Sum.inl (p, true)) >>= fun x₀ => ProbOracleComp.query ((1 : Fin 2), Sum.inl (p, true)) >>=
@@ -241,8 +249,8 @@ theorem composeMulti_orOuter_nonvacuity (C : Finset (Fin 2)) (p : Fin 2) (hp : p
     dsimp only [StateT.run]; simp only [hp, ↓reduceIte, map_bind]
     erw [OracleComp.interpret_bind, OracleComp.interpret_query]
     dsimp only [OracleComp.sumHandler]; erw [bind_assoc]
-  have hid : (exec (composeMulti orOuter idealRelay.toProtocol) (multiHybridSimConst
-      (dummyAdversary 2 _ _)) C (Z_or p) 0 []).eval true = 0 := by
+  have hid : (exec (composeMulti orOuter idealRelay.toProtocol) (multiHybridSim
+      fun _ => dummyAdversary 2 _ _) C (Z_or p) 0 []).eval true = 0 := by
     rw [eval_exec_composeFamily_multiHybridSim, habs]
     dsimp only [Machine.run, Machine.link, SSP.parFin, execMachine, dummyAdversary]
     rw [liftAdversary_id]
@@ -268,18 +276,19 @@ theorem composeMulti_orOuter_nonvacuity (C : Finset (Fin 2)) (p : Fin 2) (hp : p
       simpa [ENNReal.coe_div] using congrArg ((↑) : ℝ≥0 → ENNReal)
         (by norm_num : (2⁻¹ + 2⁻¹ * 2⁻¹ : ℝ≥0) = 3 / 4)
   have hadv : advantage (composeMulti orOuter faultyRelay) (composeMulti orOuter
-      idealRelay.toProtocol) (dummyAdversary 2 _ _) (multiHybridSimConst (dummyAdversary 2 _ _)) C
-      (Z_or p) 0 [] = 3 / 4 := by
+      idealRelay.toProtocol) (dummyAdversary 2 _ _) (multiHybridSim fun _ => dummyAdversary 2 _ _)
+      C (Z_or p) 0 [] = 3 / 4 := by
     simp only [advantage, Game.advantage, Game.succProbability, hid, hreal, ENNReal.toNNReal_div,
       ENNReal.toNNReal_ofNat]; norm_num
   exact ⟨hadv, by rw [hadv]; norm_num, by rw [hadv, ← NNReal.coe_le_coe]; norm_num⟩
 
 example : advantage (composeMulti orOuter faultyRelay) (composeMulti orOuter idealRelay.toProtocol)
-    (dummyAdversary 2 _ _) (multiHybridSimConst (dummyAdversary 2 _ _)) ∅ (Z_or 0) 0 [] = 3 / 4 :=
+    (dummyAdversary 2 _ _) (multiHybridSim fun _ => dummyAdversary 2 _ _) ∅ (Z_or 0) 0 [] = 3 / 4 :=
   (composeMulti_orOuter_nonvacuity ∅ 0 (by simp)).1
 
 example : advantage (composeMulti orOuter faultyRelay) (composeMulti orOuter idealRelay.toProtocol)
-    (dummyAdversary 2 _ _) (multiHybridSimConst (dummyAdversary 2 _ _)) {0} (Z_or 1) 0 [] = 3 / 4 :=
+    (dummyAdversary 2 _ _) (multiHybridSim fun _ => dummyAdversary 2 _ _) {0} (Z_or 1) 0 [] =
+      3 / 4 :=
   (composeMulti_orOuter_nonvacuity {0} 1 (by simp)).1
 
 end CslibFrontierTests.Crypto.UCMultiSession
