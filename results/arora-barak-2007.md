@@ -253,10 +253,10 @@ are not counted. The PDF itself was inspected for the formulas in 7.5, 7.11, 7.1
 7.35–7.36 and 7.41. Searches covered randomized classes, probabilistic computation, concentration,
 coins and expander modules, pinned CSLib, and targeted pinned Mathlib searches for coin extraction
 and expander Chernoff results. Negative findings retain those search limits. No new Lean client
-or build was run for this documentation audit. Chapters 6–7 total 17 Covered (including four corrected source statements), 11 Partial,
-3 Endpoint not located, 2 other Source issue and 0 Unverified results. The four corrected
+or build was run for this documentation audit. Chapters 6–7 total 18 Covered (including five corrected source statements), 11 Partial,
+3 Endpoint not located, 1 other Source issue and 0 Unverified results. The five corrected
 rows retain their source-error notes. Rows 7.14 and 7.15 were
-updated after the snapshot by [#5144](https://github.com/cslib-community/cslib-frontier/issues/5144).
+updated after the snapshot by [#5144](https://github.com/cslib-community/cslib-frontier/issues/5144), and row 7.41 by [#5942](https://github.com/cslib-community/cslib-frontier/issues/5942).
 
 Unless otherwise qualified, complexity declarations below are in `Cslib.Complexity`.
 `BPP` and `RP` use native deterministic polynomial-time verifiers on framed instance/random-word
@@ -291,7 +291,7 @@ probability space. Simple graphs are a specialization; parallel edges/loops carr
 | 7.37, expander mixing lemma | 141 / 157 | **Covered.** `Cslib.RotationMap.abs_card_interedges_sub_le_mul_sqrt` in [Mixing.lean](../CslibFrontier/Foundations/Combinatorics/Expander/Mixing.lean) states the displayed bound exactly, counting directed ports from $S$ to $T$ with multiplicity and using normalized absolute spectral expansion. |
 | 7.38, expander walks stay in a set | 143 / 159 | **Covered by a stronger bound.** `Cslib.RotationMap.dens_filter_forall_walkAt_mem_le` in [Hitting.lean](../CslibFrontier/Foundations/Combinatorics/Expander/Hitting.lean) gives $\beta(\beta+\lambda(1-\beta))^{k-1}$ for $k\ge1$, even for varying bad sets. Since $\beta\le\sqrt\beta$ for $0\le\beta\le1$, this implies the draft's $((1-\lambda)\sqrt\beta+\lambda)^{k-1}$. Uniform start and port sampling match the draft's walk distribution. |
 | 7.40, adjacency decomposition | 144 / 160 | **Partial; auxiliary lemma not separately formalized.** The orthogonal mean/mean-zero split and spectral contraction used by the draft are present in `Cslib.RotationMap.expect_walk_pow_sub_expect_sq_le` and its proof in [Mixing.lean](../CslibFrontier/Foundations/Combinatorics/Expander/Mixing.lean). No inspected public statement exposes $A=(1-\lambda)J+\lambda C$ with $\|C\|\le1$. The case $\lambda=0$ needs its own branch rather than the draft proof's division by $\lambda$. The stronger 7.38 proof does not require this named matrix decomposition. |
-| 7.41, expander Chernoff | 145 / 161 | **Source issue; intended endpoint not located.** The PDF prints $2e^{+(1-\lambda)\delta^2k/60}$: this exceeds one, so it gives no concentration. A useful target needs a negative exponent. Searches of expander walks, hitting, mixing, probability concentration and pinned upstream sources found no tail bound for the fraction of bad vertices with that corrected exponent. Independent-sample Chernoff and the all-vertices-bad hitting bound do not establish this occupation-time concentration. |
+| 7.41, expander Chernoff | 145 / 161 | **Covered (corrected statement); source issue.** The PDF prints $2e^{+(1-\lambda)\delta^2k/60}$, which is at least $2$, so it gives no concentration; the intended bound has a negative exponent. `Cslib.RotationMap.dens_filter_abs_visitCount_div_sub_gt_lt` in [Expander/Chernoff.lean](../CslibFrontier/Foundations/Combinatorics/Expander/Chernoff.lean) proves the draft's statement with that sign corrected: for spectral expansion at most $\lambda$, a set $B$ of density $\beta$, the $k=t+1$ vertices of a uniformly started $t$-step walk and every $\delta>0$, $\Pr[\vert\sum_i B_i/k-\beta\vert>\delta]<2e^{-(1-\lambda)\delta^2k/60}$, strictly as printed. `dens_filter_abs_visitCount_div_sub_dens_gt_le` gives the sharper constant $36$ ($\le$), and `dens_filter_le_abs_sum_walkAt_le` the same bound for any $g$ with mean zero and $\vert g\vert\le1$. The draft omits the proof; this one bounds the moment-generating function through `weightedWalk` (`expect_exp_mul_sum_walkAt_le`). |
 
 ### What the existing randomized API establishes
 

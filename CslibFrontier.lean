@@ -5792,6 +5792,7 @@ public import CslibFrontier.Foundations.Combinatorics.Expander.BipartiteTanner
 public import CslibFrontier.Foundations.Combinatorics.Expander.BoxProduct
 public import CslibFrontier.Foundations.Combinatorics.Expander.Cayley
 public import CslibFrontier.Foundations.Combinatorics.Expander.Cheeger
+public import CslibFrontier.Foundations.Combinatorics.Expander.Chernoff
 public import CslibFrontier.Foundations.Combinatorics.Expander.Connected
 public import CslibFrontier.Foundations.Combinatorics.Expander.Contraction
 public import CslibFrontier.Foundations.Combinatorics.Expander.CutRank
