@@ -48,7 +48,9 @@ The source's claims map to Lean as follows.
   `x` (`exists_collision_of_not_coprime_guoExponent`).
 * The two equations in the book's security argument (p. 422), `a ^ H(x) = c` and
   `b ^ H(x) * c ^ γ = g`, give `(b * a ^ γ) ^ H(x) = g`: `guoForgeryRoot` and
-  `powMod_guoForgeryRoot`. The security theorem itself is not stated here.
+  `powMod_guoForgeryRoot`. The security theorem, which uses them, is
+  `StrongRSA.negligible_guoAccumulatorGame` in
+  `CslibFrontier/Crypto/Computational/GUOAccumulator/Security.lean`.
 
 ## Main definitions
 
