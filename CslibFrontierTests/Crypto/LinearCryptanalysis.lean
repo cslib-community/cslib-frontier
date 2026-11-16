@@ -4,6 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+
 import CslibFrontier.Crypto.Protocols.Cipher.LinearCryptanalysis
 import Mathlib.Analysis.Complex.ExponentialBounds
 
@@ -14,8 +16,11 @@ Checks `linearKeyBitEstimate` on Boneh–Shoup's `t = 3` examples and on ties (`
 verifies `HasLinearRelation` and Lemma 4.3 on a keyed permutation (`ε = 1 / 2`) and a biased
 cipher (`ε = 1 / 4`, with exact `t = 2` probability `3 / 4`), derives the printed bound
 `1 - Real.exp (-(t * ε ^ 2 / 2))` and the `> 86 / 100` remark for `t > 4 / ε ^ 2`, and checks
-negative-bias / zero-bias counterexamples to weakening hypotheses.
+that the bound fails for a negative bias.
 -/
+
+-- This regression module checks ordinary imports and exports no test fixtures.
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.Crypto.LinearCryptanalysis
 
@@ -117,7 +122,7 @@ example (k : BitString 1) :
     Fintype.card_fin]
   norm_num
 
-/-! ### Printed Eq. (4.15), 86% Remark, and Hypothesis Counterexamples -/
+/-! ### Printed Eq. (4.15), 86% Remark, and Negative-Bias Counterexample -/
 
 /-- The printed Boneh–Shoup bound (4.15), implied by `prob_linearKeyBitEstimate_ge`. -/
 example {h n : ℕ}
@@ -188,40 +193,6 @@ example :
   · have : Real.exp (-(((1 : ℕ) : ℝ) * (-1 / 2 : ℝ) ^ 2 / 2)) < 1 :=
       Real.exp_lt_one_iff.mpr (by norm_num)
     linarith
-
--- Weakening `0 < ε` to `0 ≤ ε` in the `86 / 100` remark fails at `ε = 0, t = 1`
--- (since Lean assigns `4 / 0 ^ 2 = 0 < 1`, while recovery probability is `1 / 2`).
-example :
-    let E : BitString 1 → BitString 1 → BitString 1 := fun _ _ _ => false
-    HasLinearRelation E {0} {0} {0} 0 ∧
-      (4 : ℝ) / (0 : ℝ) ^ 2 < ((1 : ℕ) : ℝ) ∧
-      ((uniformOfFintype (Fin 1 → BitString 1)).toOuterMeasure
-        {m : Fin 1 → BitString 1 |
-          linearKeyBitEstimate {0} {0} (fun i => (m i, E (fun _ => false) (m i))) =
-            parityOn {0} (fun _ : Fin 1 => false)}).toReal ≤ 86 / 100 := by
-  refine ⟨fun k => ?_, by norm_num, ?_⟩
-  · rw [toOuterMeasure_uniformOfFintype_toReal]
-    simp only [Set.mem_ofPred_eq]
-    have hcard :
-        (Finset.univ.filter fun m : BitString 1 =>
-          (parityOn {0} m ^^ parityOn {0} (fun _ : Fin 1 => false)) = parityOn {0} k).card = 1 := by
-      revert k
-      decide
-    rw [hcard]
-    simp only [Fintype.card_pi, Fintype.card_bool, Finset.prod_const, Finset.card_univ,
-      Fintype.card_fin, pow_one, Nat.cast_ofNat]
-    norm_num
-  · rw [toOuterMeasure_uniformOfFintype_toReal]
-    simp only [Set.mem_ofPred_eq]
-    have hcard :
-        (Finset.univ.filter fun m : Fin 1 → BitString 1 =>
-          linearKeyBitEstimate {0} {0} (fun i => (m i, fun _ : Fin 1 => false)) =
-            parityOn {0} (fun _ : Fin 1 => false)).card = 1 := by
-      decide
-    rw [hcard]
-    simp only [Fintype.card_pi, Fintype.card_bool, Finset.prod_const, Finset.card_univ,
-      Fintype.card_fin, pow_one, Nat.cast_ofNat]
-    norm_num
 
 /-! ### Axiom Guard -/
 

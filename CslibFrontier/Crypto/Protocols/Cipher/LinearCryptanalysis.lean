@@ -10,13 +10,12 @@ module
 public import CslibFrontier.Foundations.Data.BitString.Parity
 public import CslibFrontier.Languages.Probabilistic.Plurality
 public import CslibFrontier.Probability.PMF.Uniform
-import CslibFrontier.Probability.PMF.Event
 
 /-!
 # Linear cryptanalysis by majority vote
 
-A block cipher `E : BitString h → BitString n → BitString n` satisfies a linear relation for masks
-`(S₀, S₁, S₂)` and bias `ε` ([BonehShoup2023], Section 4.3.1, eq. (4.14)) when for every key
+A keyed function `E : BitString h → BitString n → BitString n` satisfies a linear relation for
+masks `(S₀, S₁, S₂)` and bias `ε` ([BonehShoup2023], Section 4.3.1, eq. (4.14)) when for every key
 `k : BitString h`, the parity relation `parityOn S₀ m ^^ parityOn S₁ (E k m) = parityOn S₂ k` holds
 with probability at least `1 / 2 + ε` over uniform plaintexts `m : BitString n`. Evaluating
 `linearKeyBitEstimate` on `t` independent uniform plaintext/ciphertext pairs recovers
@@ -24,13 +23,14 @@ with probability at least `1 / 2 + ε` over uniform plaintexts `m : BitString n`
 (`HasLinearRelation.prob_linearKeyBitEstimate_ge`), strengthening the printed bound
 `1 - Real.exp (-(t * ε ^ 2 / 2))` of Lemma 4.3 / eq. (4.15).
 
-Boneh–Shoup defines `Majority` only when `t` is odd. Here `linearKeyBitEstimate` uses
-`Cslib.ProbComp.plurality false`, which coincides with `Majority` on all odd `t` (and whenever one
-bit has strictly more than `t / 2` votes), and resolves ties in favor of the earliest vote achieving
-the maximum count (returning `false` when `t = 0`). The non-negativity hypothesis `0 ≤ ε` is a
-premise of `HasLinearRelation.prob_linearKeyBitEstimate_ge` rather than part of `HasLinearRelation`.
-This module models only the estimator function and its recovery probability, making no running-time
-or query-cost claim and recovering only the single key parity bit `parityOn S₂ k`.
+Differences from the book. Boneh–Shoup does not say how `Majority` resolves a tied vote (its two
+examples have three bits); `linearKeyBitEstimate` uses `Cslib.ProbComp.plurality false`, which
+returns the majority bit whenever one bit has more than `t / 2` votes, the first vote on a tie,
+and `false` when `t = 0`. The function `E` need not be a permutation, and decryption is not used.
+The book's attack assumes `ε > 0`; here `0 ≤ ε` is a hypothesis of
+`HasLinearRelation.prob_linearKeyBitEstimate_ge` rather than part of `HasLinearRelation`, and the
+bound fails for negative `ε`. The module makes no running-time or query-cost claim and recovers
+only the single key parity bit `parityOn S₂ k`.
 
 ## Main definitions
 
@@ -45,17 +45,16 @@ or query-cost claim and recovering only the single key parity bit `parityOn S₂
 
 ## References
 
-* [BonehShoup2023] D. Boneh and V. Shoup, *A Graduate Course in Applied Cryptography*, Version 0.6,
-  Section 4.3.1, eqs. (4.14)–(4.15) and Lemma 4.3, pp. 123–124.
+* [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*,
+  Version 0.6][BonehShoup2023], Section 4.3.1 (eq. (4.14), Lemma 4.3 and eq. (4.15),
+  pp. 123–124).
 -/
 
 public section
 
 namespace Cslib.Crypto.LinearCryptanalysis
 
-open Cslib.Probability
-
-/-- A block cipher `E : BitString h → BitString n → BitString n` satisfies a linear relation with
+/-- A keyed function `E : BitString h → BitString n → BitString n` satisfies a linear relation with
 masks `(S₀, S₁, S₂)` and bias `ε` ([BonehShoup2023], Section 4.3.1, eq. (4.14)) if for every key
 `k : BitString h`, `parityOn S₀ m ^^ parityOn S₁ (E k m) = parityOn S₂ k` holds for at least
 `1 / 2 + ε` of plaintexts `m : BitString n`. -/
@@ -67,9 +66,8 @@ def HasLinearRelation {h n : ℕ} (E : BitString h → BitString n → BitString
       {m : BitString n | (parityOn S₀ m ^^ parityOn S₁ (E k m)) = parityOn S₂ k}).toReal
 
 /-- Majority-vote estimator for the key parity bit `parityOn S₂ k` from `t` plaintext/ciphertext
-pairs, implemented with `Cslib.ProbComp.plurality false`. It agrees with Boneh–Shoup's
-`Majority` for odd `t` and breaks ties in favor of the earliest maximally frequent vote (`false`
-for `t = 0`). -/
+pairs, implemented with `Cslib.ProbComp.plurality false`. It returns the majority bit whenever one
+bit has more than `t / 2` votes, the first vote on a tie, and `false` when `t = 0`. -/
 @[expose]
 def linearKeyBitEstimate {n t : ℕ} (S₀ S₁ : Finset (Fin n))
     (pairs : Fin t → BitString n × BitString n) : Bool :=
