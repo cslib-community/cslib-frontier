@@ -179,13 +179,13 @@ noncomputable def ciToCCAAdversary (ctBound Q : ℕ → ℕ) (adversary : CIAdve
     CCAAdversary :=
   fun n _ => do
     let rawBits ← ProbOracleComp.sample (BitString.sampleList (Q n * n))
-    let out ← (OracleComp.interpret
+    let (forgery, _, rUsed) ← (OracleComp.interpret
       (OracleComp.sumHandler
         (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
         (ciToCCAHandler n (ctBound n) rawBits))
       (adversary n [])).run (0, [])
-    let dec ← List.take (n + 2) <$> ProbOracleComp.query (true, out.1)
-    return (dec.take 1 == [true]) && !out.2.2.contains (dec.drop 1)
+    let dec ← List.take (n + 2) <$> ProbOracleComp.query (true, forgery)
+    return (dec.take 1 == [true]) && !rUsed.contains (dec.drop 1)
 
 /-- Handler of `ciToRandEncForgeAdversary`: in state `idx`, answers an encryption query for an
 `n`-bit message by asking the plaintext-integrity oracle to encrypt `chunkAt rawBits n idx`. -/
