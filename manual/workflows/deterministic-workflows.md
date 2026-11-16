@@ -129,6 +129,8 @@ uses `foldlWith` instead.
 
 For a step capturing a parameter, use `iterateWith_spec` and certify the joint `(parameter, state)` operation. `iterateWith_of_bounded_growth` handles additive encoded-state growth bounded polynomially in the original input. A separate efficient procedure for each fixed parameter does not provide the required uniform joint certificate. A polynomial number of efficient steps also does not bound a state that doubles each time. The [plain loop regression client](../../CslibFrontierTests/Machines/Turing/MultiTape/Internal/PolyTimeLoops.lean) exercises both positive contracts and a failed constant-state bound. When the size obligation fails, inspect the representation and growth argument before changing tactics.
 
+At the machine layer, [the sequential plumbing](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Plumbing/Sequential.lean) provides `MultiTapeTM.relabel` and `TransformsTapes.relabel` for changing control-state names along an equivalence. This retains each instruction and both resource bounds, including the visited cells; it adds no handoff step. [Iterate-while preparation](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Internal/KernelIterateWhile.lean) uses this to share clear/copy/clear preparation with the probabilistic round while retaining the deterministic round's nested sum of states. Use this bridge when only the state association differs, rather than rebuilding the tape certificates.
+
 For a space bound on a loop whose number of rounds is not computable, or would cost too much to compute, import `CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.IterateUntil` and apply [ComputableInSpace.iterateUntil](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/InSpace/IterateUntil.lean). Supply space certificates for the initial state, the step and a Boolean `done` test, and give the number of rounds `n x` as a function with no certificate. Show that `done` holds after `n x` rounds and fails before. Then bound the space of the step and the test, and the encoded state, at every round up to `n x`. The loop stops when the test first holds, and its space is that of the start, the rounds and the states, with no counter. `ComputableInSpace.iterate` instead charges a binary counter, and it needs a certificate for the count. The [BitGame client](../../CslibFrontierTests/BitGame.lean) counts down from `n` in `n` rounds within `O(|encNat n|)` space.
 
 ## Build a course-of-values stage table
@@ -169,6 +171,23 @@ uses the fact that setting a variable does not lengthen the encoded formula. The
 [JohnsonMaxSAT client](../../CslibFrontierTests/JohnsonMaxSAT.lean) checks a tight `7 / 8`
 instance and a formula with an empty clause, where the `1 / 2` bound fails without its
 hypothesis. Build it with `scripts/build.sh CslibFrontierTests.JohnsonMaxSAT`.
+
+For a fold with a captured parameter and a known bound on reachable states, use
+`ComputableInPolyTime.foldlWith` from
+[`PolyTime/Fold.lean`](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/PolyTime/Fold.lean).
+Certify the step jointly on `(parameter, accumulator, element)` with encoding
+`encPair (encPair encP encB) encA`; separate certificates for each fixed parameter do not
+supply this uniform callback. Then bound the encoded accumulator after every consumed prefix.
+The size bound may depend on the original input and need only be polynomially bounded, not
+computable. In
+[`computableInPolyTime_naorYungCascade`](../../CslibFrontier/Crypto/Computational/NaorYungUOWHF.lean),
+the accumulator contains a state word and an unconsumed suffix. The state length is at most
+its initial length plus `n + 1`, and the suffix never grows. This handles arbitrary initial
+words, including ones longer than the final width; replacing the prefix bound by the final
+output length would miss those inputs. The compression and adversary certificates consume
+this plain fold certificate directly. Existing concrete clients are in
+[`Crypto/NaorYungUOWHF.lean`](../../CslibFrontierTests/Crypto/NaorYungUOWHF.lean); check them with
+`scripts/build.sh CslibFrontierTests.Crypto.NaorYungUOWHF`.
 
 To charge estimator and branch evaluations explicitly or package the Turing-machine transfer once,
 use [Algorithms/Lean/PessimisticEstimator.lean](../../CslibFrontier/Algorithms/Lean/PessimisticEstimator.lean)
@@ -309,6 +328,17 @@ example (f : List Bool → Bool) (hf : ComputableInLogSpace f encBits encBool) :
 <!-- /worked-example -->
 
 This conclusion is different from `ComputableInO`, which additionally charges encoded output against its space bound. A long output is compatible with logarithmic *workspace*. For sharper independent bounds, state `ComputableInTimeAndSpace` or `ComputableInBigO` directly and retain both functions. When only polynomial time is needed downstream, use `ComputableInLogSpace.computableInPolyTime`; the same client demonstrates that transition. See the [resource table](../machines-and-classes/native-and-resources.md).
+
+The [plain word-transducer facade](../../CslibFrontier/Computability/Machines/Turing/MultiTape/Complexity/WordTransducers.lean)
+registers `ComputableInTimeAndSpace` for `fun_prop` directly, without a mixed streaming import.
+It provides `ComputableInTimeAndSpace.map_bits`, `length_bits`, `dropLast_bits`,
+`getLast?_toList_bits` and `getLast?_bits` with time `4 * l.length + 8` and zero workspace.
+`reverse_bits` keeps time `2 * l.length + 2` and zero workspace. These reuse the existing
+machines; the transducer witness includes input rewind. Workspace excludes emitted output:
+map and reverse therefore need a separate linear output bound for output-charged space,
+while last-bit extraction has constant output size. The
+[plain-import regression](../../CslibFrontierTests/WordTransducers.lean) exercises automation
+and the obstruction to charging arbitrary map output to constant space.
 
 ## Turn computation into P, NP and hardness
 

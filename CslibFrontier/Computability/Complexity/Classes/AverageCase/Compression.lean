@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Classes.AverageCase.Ensemble
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString.BinaryWord
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
@@ -58,19 +59,6 @@ namespace Cslib.Complexity
 
 open scoped ENNReal
 open Turing.MultiTapeTM
-
-/-- The fixed-width binary word of a computed number is computable in polynomial time. -/
-theorem binaryWord_polyTime {α : Type} {input : α ↪ List Bool} {w a : α → ℕ}
-    (hw : ComputableInPolyTime w input encUnary) (ha : ComputableInPolyTime a input encNat) :
-    ComputableInPolyTime (fun x => BitString.binaryWord (w x) (a x)) input encBits := by
-  have hbits := (ComputableInPolyTime.of_eq (f := Nat.bits)
-    (encIn := encNat) (encOut := encBits) fun _ => rfl).comp ha
-  have hpadding := ComputableInPolyTime.unary_sub.comp
-    (hw.prod (ComputableInPolyTime.length_bits.comp hbits))
-  have hplain := ComputableInPolyTime.bitsAppend
-    ((ComputableInPolyTime.bitsReplicate false).comp hpadding)
-    (ComputableInPolyTime.bitsReverse.comp hbits)
-  simpa only [BitString.binaryWord, Function.comp_def] using hplain
 
 namespace Compression
 
