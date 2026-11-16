@@ -529,31 +529,35 @@ run the documentation checks and builds.
 
 ### Maintaining the manuals
 
-Every change must assess its effect on both manuals. Changes to a model,
-encoding, theorem hypothesis or bound, public API, import, tactic, dependency, build command or
-development procedure must update the affected instructions and reference material in the same
-change. Changes to agent roles, delegation, review, coordination or human direction must update
-the affected Agent Operator's Manual instructions too. If no edit is needed for one or both
-manuals, give a short, concrete reason in the PR's Manual impact
-section, or in the commit description when there is no PR. This assessment is required; needless
-text changes are not. Update the assessment when the scope changes, and keep its evidence in one
-place.
+The manuals' pages fall into three groups.
 
-Write the Operator's Manual as a user manual in the ordinary sense: a human with basic Lean,
-editor and terminal skills
-should be able to set up the library, complete a first example, choose an appropriate model,
-apply its API, diagnose a failed attempt, validate a change and prepare it for review. Assume no
-agent tools or prior conversation. Each procedure should state its prerequisites and starting
-point, give the necessary commands or code with their context, describe the expected result,
-and explain how to check it and recover from likely failures. Include the model, encoding and
-resource conventions that affect the user's choice, and explain particular proof considerations
-where they teach a reusable method or a model boundary. Agents should be able to consult this
-maintained account without repeating the investigation or relying on earlier conversations.
-Keep the Agent Operator's Manual short and directed at the person driving the agents; put
-participant procedures in the Operator's Manual and historical evidence in its supplement.
-Place a new section where its topic belongs in a chapter rather than at the end: sections that
-concurrent PRs append at the same place conflict in the merge queue. Put a new algorithm endpoint
-on the matching topic page listed under `manual/algorithms-and-memory/index.md`, in topic order.
+- **Registries** are kept current: the
+  [assumptions inventory](manual/programs-crypto-and-probability/assumptions.md), checked by
+  `scripts/check_hardness_assumptions.py`; the
+  [bibliography and pinned revisions](manual/sources.md); and the
+  [results inventory](results/README.md). A PR that changes a fact a registry records updates
+  the registry in the same change.
+- **Procedure pages** are updated only when a procedure or role changes: `manual/workflows/` and
+  `README.md`, `BUILD.md`, `COMMANDS.md`, `MAINTAINING.md` and `AGENT_OPERATORS.md` in `manual/`.
+  A PR that changes a build or validation command, a development or review procedure, or an agent
+  role, delegation or handoff rule updates the page that describes it in the same change.
+- **Reference chapters** are frozen: `manual/index.md`, `manual/model-map.md` and every other page
+  of `manual/design-and-assurance/`, `manual/machines-and-classes/`,
+  `manual/circuits-logic-and-other-models/`, `manual/programs-crypto-and-probability/` and
+  `manual/algorithms-and-memory/`. PRs do not update or review them and nobody keeps them current;
+  the Lean source, its docstrings and the API documentation are authoritative. `manual/history/`
+  is a dated record.
+
+A change explains itself in the docstring's mapping from statement to source and in the PR
+description ([policy/statements.md](policy/statements.md),
+[policy/workflow.md](policy/workflow.md#writing-in-issues-and-prs)), not in the manual.
+
+Write a procedure so that a human with basic Lean, editor and terminal skills can follow it
+without agent tools or prior conversation: state its prerequisites and starting point, give the
+commands or code with their context, describe the expected result, and explain how to check it
+and recover from likely failures. Keep the Agent Operator's Manual short and directed at the
+person driving the agents; put participant procedures in the Operator's Manual. Review of a
+changed procedure page follows it from its documented starting point.
 
 Keep executable Lean examples in `CslibFrontierTests/` or the checked Verso guide and link their
 complete source, including imports and local context. Use checked excerpts rather than a second
@@ -561,24 +565,14 @@ independently maintained copy. Check new or changed examples with Lean; source c
 does not establish that an example elaborates. The live checker and its controls are required
 in CI and in both full and quick `scripts/check.sh` runs. For documentation-only validation, run
 `python3 scripts/check_operator_manual.py` and `python3 scripts/test_operator_manual.py`
-directly; they use only Python and need no generated data or publishing tools. See the manual's
-build instructions for PDF generation; inspect affected rendered pages when changing its content
-or rendering. The **Operator's Manual PDFs** workflow builds both books for pull requests that
-change the manual or its scripts, so rendered pages can be inspected without local TeX tools.
+directly; they use only Python and need no generated data or publishing tools. The checker does
+not check a frozen chapter's links to Lean source or to maintained pages, so no edit elsewhere
+forces a change to one. See the manual's build instructions for PDF generation; inspect rendered
+pages when changing the converter or layout. The **Operator's Manual PDFs** workflow builds both
+books for pull requests that change the manual or its scripts.
 Generated LaTeX, PDFs and research exports stay untracked; retain their scripts and
 maintained source inputs. Keep historical measurements and transcript evidence explicitly dated;
 do not present their frozen counts as current library state.
-
-Impact on both manuals is a mandatory part of independent review before integration, and
-coordinators are responsible for ensuring that this review happens. The reviewer checks
-the assessment against the final revision, including the reason for no edit when applicable.
-For an affected procedure, follow the documented starting point, inspect or run the example and
-its validation as appropriate, and check that a human can understand the outcome and next step.
-Check relevant API names, imports, assumptions, resource bounds, source credit and recovery
-instructions, as well as affected role, delegation and handoff guidance. Record the verdict with
-the existing code review; an additional reviewer is needed
-only for an uncovered question. Compilation, excerpt checks and a completed PR field do not by
-themselves establish that the manual is usable or correct.
 
 ## Upstreaming
 

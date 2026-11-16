@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.DiscreteLog
+public import CslibFrontier.Crypto.Computational.SchnorrProtocol
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.RelatedNonce
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.Words
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
@@ -26,8 +27,10 @@ c₁, z₁`, runs in polynomial time (`computableInPolyTime_schnorrRelatedNonceE
 recovers `relatedNonceExtract` modulo `F.order d` whenever `a * c₀ ≠ c₁` modulo `F.order d`
 (`ofBits_schnorrRelatedNonceExtractWord`).
 
-**Scope.** This module covers only the polynomial-time deterministic word extraction step; there is
-no word-level attack game or PPT reduction over `PrimeOrderGroupFamily`.
+**Scope.** This module covers the polynomial-time deterministic word extraction step; the
+leaked-nonce special case (`a = 0`, `b = r`) has its word-level game and PPT adversary in
+`CslibFrontier.Crypto.Computational.SchnorrLeakedNonce`, while general `(a, b)` word-level games
+remain open.
 
 ## Main definitions
 
@@ -40,6 +43,8 @@ no word-level attack game or PPT reduction over `PrimeOrderGroupFamily`.
   `schnorrRelatedNonceExtractWord` is computable in polynomial time.
 * `Cslib.Crypto.PrimeOrderGroupFamily.ofBits_schnorrRelatedNonceExtractWord`: decoded `ZMod`
   agreement with `relatedNonceExtract` when `a * c₀ ≠ c₁` modulo `F.order d`.
+* `Cslib.Crypto.PrimeOrderGroupFamily.schnorrRelatedNonceExtractWord_eq_encScalar`: canonical
+  `F.encScalar d` equality with `relatedNonceExtract` when `a * c₀ ≠ c₁` modulo `F.order d`.
 
 ## References
 
@@ -102,5 +107,26 @@ theorem ofBits_schnorrRelatedNonceExtractWord (d : F.Desc) (a b c₀ z₀ c₁ z
   rw [schnorrRelatedNonceExtractWord, ofBits_bits,
     extractNat_cast (by rw [Nat.cast_mul]; exact hc)]
   simp [relatedNonceExtract]
+
+/-- Under the non-degeneracy hypothesis of `ofBits_schnorrRelatedNonceExtractWord`,
+`schnorrRelatedNonceExtractWord` returns the canonical encoded scalar `F.encScalar d` of
+`relatedNonceExtract`. -/
+theorem schnorrRelatedNonceExtractWord_eq_encScalar (d : F.Desc) (a b c₀ z₀ c₁ z₁ : List Bool)
+    (hc : (ofBits a : ZMod (F.order d)) * (ofBits c₀ : ZMod (F.order d)) ≠
+      (ofBits c₁ : ZMod (F.order d))) :
+    F.schnorrRelatedNonceExtractWord (d, a, b, c₀, z₀, c₁, z₁) =
+      F.encScalar d
+        (relatedNonceExtract (ofBits a : ZMod (F.order d)) (ofBits b : ZMod (F.order d))
+          (ofBits c₀ : ZMod (F.order d)) (ofBits z₀ : ZMod (F.order d))
+          (ofBits c₁ : ZMod (F.order d)) (ofBits z₁ : ZMod (F.order d))) := by
+  have hlt :
+      extractNat (F.order d) (ofBits a * ofBits c₀) (ofBits a * ofBits z₀ + ofBits b)
+        (ofBits c₁) (ofBits z₁) < F.order d :=
+    Nat.mod_lt _ (F.prime_order d).pos
+  have hval := congrArg ZMod.val (F.ofBits_schnorrRelatedNonceExtractWord d a b c₀ z₀ c₁ z₁ hc)
+  rw [schnorrRelatedNonceExtractWord, ofBits_bits, ZMod.val_natCast,
+    Nat.mod_eq_of_lt hlt] at hval
+  simp only [schnorrRelatedNonceExtractWord, encScalar, Function.Embedding.coeFn_mk,
+    encNat_apply, hval]
 
 end Cslib.Crypto.PrimeOrderGroupFamily

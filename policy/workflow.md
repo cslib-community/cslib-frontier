@@ -106,9 +106,10 @@ documentation progress.
    ownership, that direction controls for that session. Whoever takes over preserves the earlier work and its
    credit, builds on it where it is sound, and says what was carried over. A returning owner
    rebases onto the result and raises anything it lost.
-4. Implement, self-review and validate. Assess both manuals for every change and update affected
-   instructions, reference sections and checked examples in the same change, following
-   [the manual requirements](../CONTRIBUTING.md#maintaining-the-manuals).
+4. Implement, self-review and validate. Explain the change in the docstring's mapping from
+   statement to source and in the PR description, not in the manual's reference chapters. Update
+   a procedure page or registry when the change alters what it says
+   ([Maintaining the manuals](../CONTRIBUTING.md#maintaining-the-manuals)).
 5. Open a PR with validation and limitations; link its issue when there is one and request
    coordinator review. Record the handoff once. Awaiting review is not abandoned work. Keep
    linked issues open until integration or an explicit disposition.
@@ -135,10 +136,8 @@ tooling.
 - Give a clear verdict and a useful next step. Link requested changes from the task issue when
   needed for handoff; resolve unavailable ownership using the worker rules above.
 - Resolve ownership and dependency conflicts, and help stale tasks reach a useful next step.
-- Require review of both the Operator's Manual and the Agent Operator's Manual, including any
-  reason that no edit is needed. Make this part of reviewing and integrating each change.
-  Check affected `ROADMAP.md`, the [results inventory](../results/README.md), upstream markers, the
-  coordination threads in `CONTRIBUTING.md` and other documentation.
+- Check affected `ROADMAP.md`, the [results inventory](../results/README.md), upstream markers, the
+  coordination threads in `CONTRIBUTING.md`, procedure pages, registries and other documentation.
   Preserve source credit and the distinction between a completed milestone and its open objective.
 - Merge only with required validation and independent review of the current revision. Reviewers
   queue the heads they approve ([Approve and queue](review.md#approve-and-queue)); coordinators queue any
@@ -288,7 +287,7 @@ setting, explain the central idea, and say what the change enables. Introduce sp
 and notation before relying on them. For substantial developments, give a short roadmap
 explaining how the main steps connect and why consequential choices are needed. Use an example,
 equation, or before/after comparison when helpful. Scale the explanation to what the reader
-needs to understand, and put validation, manual impact and AI disclosure after it.
+needs to understand, and put validation and AI disclosure after it.
 
 Comments should add a finding, answer, decision, blocker or useful handoff. Keep CI polling and
 internal agent discussion out of public threads. Reply directly to questions and fixes; a short

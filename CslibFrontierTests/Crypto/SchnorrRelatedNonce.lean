@@ -134,6 +134,17 @@ example :
   rw [relatedNonceExtract, inv_mul_eq_iff_eq_mul₀ (by decide)]
   decide
 
+/-- `schnorrRelatedNonceExtractWord_eq_encScalar` produces the canonical scalar word directly. -/
+example :
+    schnorrGroups.schnorrRelatedNonceExtractWord
+      (d23, Nat.bits 2, Nat.bits 5, Nat.bits 1, Nat.bits 5, Nat.bits 4, Nat.bits 10) =
+      schnorrGroups.encScalar d23 3 := by
+  rw [schnorrGroups.schnorrRelatedNonceExtractWord_eq_encScalar d23 _ _ _ _ _ _ (by decide)]
+  congr 1
+  change relatedNonceExtract (2 : ZMod 11) 5 1 5 4 10 = 3
+  rw [relatedNonceExtract, inv_mul_eq_iff_eq_mul₀ (by decide)]
+  decide
+
 end WordExtraction
 
 end CslibFrontierTests.Crypto.SchnorrRelatedNonce

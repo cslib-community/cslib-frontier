@@ -17,6 +17,7 @@ import CslibFrontier.Probability.PMF.UniformPoint
 import CslibFrontier.Probability.Product
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Tactic.PPT
+import CslibFrontierTests.Crypto.PrimeOrderGroupFixture
 
 /-!
 # The group, encryption and pseudorandom-function assumptions are not vacuous
@@ -53,31 +54,13 @@ pseudorandom generators and hard-core predicates are elsewhere.
 
 namespace CslibFrontierTests.Crypto.AssumptionNonvacuity
 
-open Cslib Cslib.Probability Cslib.Crypto Cslib.Crypto.PrimeOrderGroupFamily Turing.MultiTapeTM
+open Cslib Cslib.Probability Cslib.Crypto Cslib.Crypto.PrimeOrderGroupFamily
+  CslibFrontierTests.Crypto.PrimeOrderGroupFixture Turing.MultiTapeTM
 open scoped NNReal ENNReal
 
 variable (F : PrimeOrderGroupFamily) (d : F.Desc)
 
 /-! ### Discrete logarithm and CDH -/
-
-/-- Always guess the exponent `0`. -/
-noncomputable def guessZero : ℕ → F.Desc × List Bool → ProbComp (List Bool) :=
-  fun _ _ => pure []
-
-theorem guessZero_isPPT : IsPPTOn (encPair encUnary (encPair F.encDesc encBits)) encBits
-    (fun input => guessZero F input.1 input.2) :=
-  (ComputableInPolyTime.const _).isPPTOn
-
-/-- Guessing `0` against a fixed group of order `q` succeeds with probability exactly `1 / q`. -/
-theorem succProbability_discreteLogGame_guessZero (n : ℕ) :
-    Game.succProbability (F.discreteLogGame (fun _ => PMF.pure d) (guessZero F) n) =
-      (F.order d : ℝ≥0)⁻¹ := by
-  have h := PMF.uniformOfFintype_bind_decide_eq_apply_true (0 : ZMod (F.order d))
-  rw [ZMod.card] at h
-  simp only [discreteLogGame, guessZero, ProbComp.eval_pure, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure, PMF.pure_bind] at h ⊢
-  simp only [ofBits, List.foldr_nil, Nat.cast_zero]
-  rw [Game.succProbability, h, ENNReal.toNNReal_inv, ENNReal.toNNReal_natCast]
 
 /-- **The discrete-logarithm assumption fails for a fixed group.** -/
 theorem not_discreteLog_const : ¬ F.DiscreteLog fun _ => PMF.pure d := by
