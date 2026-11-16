@@ -461,7 +461,7 @@ theorem toOuterMeasure_bad_choose_two_cost_le {handler : (q : Query) → StateT 
     (fun q st hst => by
       cases q with
       | inl m => simp [toOuterMeasure_lift_unif_bad_eq_zero hst m]
-      | inr q => exact hstep q st hst)
+      | inr q => exact (hstep q st hst).trans (by gcongr; exact Nat.le_add_right _ _))
     (fun q st hst x hx hgood => by
       cases q with
       | inl m =>

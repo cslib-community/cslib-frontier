@@ -143,7 +143,7 @@ example :
     ((PMF.uniformOfFintype (BitString 4)).bind fun iv =>
       (uniformBlocks (n := 4) [0, sampleMask4].length).map (iv, ·)).toOuterMeasure
       {p : BitString 4 × List (BitString 4) | ¬goodChain [0] p.1 [0, sampleMask4] p.2} ≤
-    6 * ((2 : ℝ≥0∞) ^ 4)⁻¹ := by
+    3 * ((2 : ℝ≥0∞) ^ 4)⁻¹ := by
   simpa using toOuterMeasure_badChain_le [0, sampleMask4] [0]
 example :
     Game.advantage
