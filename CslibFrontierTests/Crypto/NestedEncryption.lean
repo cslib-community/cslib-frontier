@@ -141,6 +141,22 @@ theorem firstBitCipher_preservesValid :
   subst hc₀ hc₁
   exact hm
 
+/-- Applying `advantage_nestedExperiment_eq` at the nontrivial predicate `tagValid` via
+`firstBitCipher_preservesValid`. -/
+example {σ : Type} (n : ℕ)
+    (A : TwoStage Unit (NestedRequest (Bool × Bool) n)
+      (NestedChallenge Bool (Bool × Bool) n) Bool σ) :
+    Experiment.advantage
+        (firstBitCipher.nestedExperiment (ProbComp.uniform Bool) tagValid n A false)
+        (firstBitCipher.nestedExperiment (ProbComp.uniform Bool) tagValid n A true) =
+      Experiment.advantage
+        (firstBitCipher.oneTimeExperiment (ProbComp.uniform Bool) tagValid
+          (nestedToSingleAdversary firstBitCipher (ProbComp.uniform Bool) tagValid n A) false)
+        (firstBitCipher.oneTimeExperiment (ProbComp.uniform Bool) tagValid
+          (nestedToSingleAdversary firstBitCipher (ProbComp.uniform Bool) tagValid n A) true) :=
+  advantage_nestedExperiment_eq firstBitCipher (ProbComp.uniform Bool) tagValid
+    firstBitCipher_preservesValid n A
+
 /-! ### Counterexample 1: necessity of `Cipher.PreservesValid` -/
 
 /-- One-time pad on the payload; the ciphertext's tag is the plaintext's tag XOR the padded

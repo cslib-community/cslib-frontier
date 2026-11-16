@@ -2226,11 +2226,15 @@ every key in the support of `sampleKey`, encryptions of a `valid` pair form a `v
 condition the book leaves implicit)—for each bit `b`, `E.oneTimeExperiment` against
 `nestedToSingleAdversary E sampleKey valid n A` has the same output distribution as
 `E.nestedExperiment` against `A` (`eval_oneTimeExperiment_nestedToSingleAdversary`), hence equal
-advantages (`advantage_nestedExperiment_eq`). `isPPT_nestedToSingleAdversary` proves uniform strict
-polynomial-time efficiency of this reduction over computable `encFinFn` key tables, and
-`indistinguishable_nestedExperiment_of_oneTimeExperiment` derives `Game.Indistinguishable` for
-`n`-way nesting from single-key semantic security against `E.oneTimeExperiment`. Checked
-one-time-pad examples (`advantage_otp_nested_eq_zero`, `otp_nested_indistinguishable`), the `n = 0`
+advantages (`advantage_nestedExperiment_eq`). For a fixed `n`, when key sampling and encryption are
+strict PPT and `valid` is polynomial-time computable, each uniformly in the security parameter,
+`isPPT_nestedToSingleAdversary` shows that the reductions of a `TwoStage.IsPPT` family `A`
+(revealed keys encoded as an `encFinFn` table) form a `TwoStage.IsPPT` family. Under the same
+three hypotheses and `PreservesValid` at every security parameter,
+`indistinguishable_nestedExperiment_of_oneTimeExperiment` derives `Game.Indistinguishable` of the
+two `n`-way experiments against such families from `Game.Indistinguishable` of the two
+`E.oneTimeExperiment`s against `TwoStage.IsPPT` families, for every state type and state encoding.
+The depth `n` does not grow with the security parameter. Checked one-time-pad examples (`advantage_otp_nested_eq_zero`, `otp_nested_indistinguishable`), the `n = 0`
 check, a nontrivial `PreservesValid` witness (`firstBitCipher_preservesValid`), and counterexamples
 for `Cipher.PreservesValid` (`tagCipher_no_wrapper`) and the admissibility guard in
 `nestedToSingleAdversary.guess` (`padLeak_unguarded_oneTime_adv_eq_one`) are in

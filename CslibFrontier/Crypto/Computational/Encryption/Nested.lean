@@ -18,6 +18,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Probabilistic.Finite
 import CslibFrontier.Computability.Probabilistic.PPT.PairCapture
+import CslibFrontier.Computability.Probabilistic.Repeat
 import CslibFrontier.Probability.PMF.Bind
 
 /-!
@@ -415,23 +416,15 @@ private theorem computable_revealKeys {α K : Type} {encIn : α ↪ List Bool} {
   simpa only [← revealKeys_apply] using h
 
 private theorem isPPTOn_replicateFin {α K : Type} {encIn : α ↪ List Bool} {encK : K ↪ List Bool}
-    {sampleKey : α → ProbComp K} (hsampleKey : IsPPTOn encIn encK sampleKey) :
-    ∀ n : ℕ, IsPPTOn encIn (encFinFn n encK) fun a => OracleComp.replicateFin n (sampleKey a)
-  | 0 => (ComputableInPolyTime.finFn fun i => i.elim0).isPPTOn
-  | n + 1 => by
-    have ih : IsPPTOn (encPair encIn encK) (encFinFn n encK) fun p =>
-        OracleComp.replicateFin n (sampleKey p.1) :=
-      (isPPTOn_replicateFin hsampleKey n).preprocess (ComputableInPolyTime.fst _ _)
-    have hcons : ComputableInPolyTime
-        (fun p : (α × K) × (Fin n → K) => (Fin.cons p.1.2 p.2 : Fin (n + 1) → K))
-        (encPair (encPair encIn encK) (encFinFn n encK)) (encFinFn (n + 1) encK) := by
-      refine ComputableInPolyTime.finFn fun i => ?_
-      induction i using Fin.cases with
-      | zero => exact (ComputableInPolyTime.snd encIn encK).comp (ComputableInPolyTime.fst _ _)
-      | succ j =>
-        exact (ComputableInPolyTime.finFn_apply encK j).comp (ComputableInPolyTime.snd _ _)
-    refine (IsPPTOn.bind_pair hsampleKey (IsPPTOn.bind_pair ih hcons.isPPTOn)).congr fun a => ?_
-    simp [OracleComp.replicateFin_succ, map_eq_bind_pure_comp]
+    {sampleKey : α → ProbComp K} (hsampleKey : IsPPTOn encIn encK sampleKey) (n : ℕ) :
+    IsPPTOn encIn (encFinFn n encK) fun a => OracleComp.replicateFin n (sampleKey a) := by
+  obtain ⟨k, State, hfin, machine, c, d, hm⟩ :=
+    hsampleKey.replicate (count := fun _ => n) (ComputableInPolyTime.const n)
+  refine ⟨k, State, hfin, machine, c, d, fun a => ?_⟩
+  rw [← hm a]
+  beta_reduce
+  rw [← OracleComp.map_ofFn_replicateFin, ProbComp.eval_map, PMF.map_comp]
+  rfl
 
 private theorem isPPTOn_nestedEncrypt {α K M : Type} {encIn : α ↪ List Bool}
     {encK : K ↪ List Bool} {encM : M ↪ List Bool} {E : α → Cipher K M M}
@@ -521,7 +514,10 @@ private theorem isPPTOn_nestedSuffix {α K M : Type} {n : ℕ} {encIn : α ↪ L
   IsPPTOn.finite_cases hd fun choice =>
     isPPTOn_nestedSuffix_const hencrypt choice ComputableInPolyTime.id' hks hc
 
-/-- Uniform strict polynomial-time efficiency of `nestedToSingleAdversary`. -/
+/-- Uniform strict polynomial-time efficiency of `nestedToSingleAdversary`: for a fixed `n`, when
+`sampleKey` and `encrypt` are strict PPT and `valid` is computable in polynomial time (each
+uniformly in the security parameter), the reductions of any uniform strict PPT family `A` (with
+revealed keys encoded as an `encFinFn` table) form a uniform strict PPT family. -/
 theorem isPPT_nestedToSingleAdversary {K M σ : Type} {encK : K ↪ List Bool}
     {encM : M ↪ List Bool} {encσ : σ ↪ List Bool}
     {E : ℕ → Cipher K M M} {sampleKey : ℕ → ProbComp K} {valid : ℕ → M → M → Bool}
@@ -675,10 +671,12 @@ theorem isPPT_nestedToSingleAdversary {K M σ : Type} {encK : K ↪ List Bool}
     refine hcond.congr fun ⟨sec, st, chal⟩ => ?_
     simp only [nestedToSingleAdversary]
 
-/-- Theorem 2.12 ([BonehShoup2023], §2.4, p. 37): for every constant `n : ℕ`, if `E` is one-time
-semantically secure (across all uniform strict PPT `TwoStage` adversaries) and preserves
-admissibility (`PreservesValid`), then `E` is semantically secure for `n`-way nesting with all keys
-but one revealed. -/
+/-- Theorem 2.12 ([BonehShoup2023], §2.4, p. 37): for every constant `n : ℕ`, if `sampleKey` and
+`encrypt` are strict PPT, `valid` is computable in polynomial time (each uniformly in the security
+parameter), `E` preserves admissibility (`PreservesValid`) at every security parameter, and `E` is
+one-time semantically secure (`Game.Indistinguishable` against uniform strict PPT `TwoStage`
+adversaries for every state type and encoding), then `E` is semantically secure for `n`-way nesting
+with all keys but one revealed. -/
 theorem indistinguishable_nestedExperiment_of_oneTimeExperiment
     {K M : Type} {encK : K ↪ List Bool} {encM : M ↪ List Bool}
     (E : ℕ → Cipher K M M) (sampleKey : ℕ → ProbComp K) (valid : ℕ → M → M → Bool)
