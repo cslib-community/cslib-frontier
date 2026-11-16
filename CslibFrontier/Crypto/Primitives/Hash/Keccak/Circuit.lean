@@ -54,12 +54,6 @@ open Turing.MultiTapeTM.Internal.NativeCompiler
   change (Vector.ofFn f)[i.val] = f i
   simp
 
-/-- Reading an in-range bit of a lane packed by `laneOfBits` returns that input bit. -/
-private theorem getLsbD_laneOfBits' (bits : BitString 64) (i : ℕ) (hi : i < 64) :
-    (laneOfBits bits).getLsbD i = bits ⟨i, hi⟩ := by
-  rw [laneOfBits, BitVec.getLsbD_ofFin]
-  exact BitString.testBit_equivFin bits ⟨i, hi⟩
-
 /-- Flatten a Keccak-p[1600] lane array in FIPS 202 order: lane `5 * y + x`, then its 64
 least-significant-bit-first coordinates. -/
 @[expose] def stateBits (A : State) : BitString 1600 := fun i =>
@@ -87,7 +81,7 @@ least-significant-bit-first coordinates. -/
   apply (BitString.blocksEquiv (α := Bool) (m := 25) (k := 64)).injective
   funext lane z
   change BitString.block (stateBits (stateOfBits bits)) lane z = BitString.block bits lane z
-  simp only [block_stateBits, get_stateOfBits, getLsbD_laneOfBits' _ _ z.isLt]
+  simp only [block_stateBits, get_stateOfBits, getLsbD_laneOfBits _ _ z.isLt]
 
 /-- Reconstructing a flattened Keccak state returns every lane. -/
 @[simp] theorem stateOfBits_stateBits (A : State) : stateOfBits (stateBits A) = A := by
@@ -96,7 +90,7 @@ least-significant-bit-first coordinates. -/
   intro z hz
   change ((stateOfBits (stateBits A)).get ⟨lane, hlane⟩).getLsbD z =
     (A.get ⟨lane, hlane⟩).getLsbD z
-  rw [get_stateOfBits, getLsbD_laneOfBits' _ _ hz, block_stateBits]
+  rw [get_stateOfBits, getLsbD_laneOfBits _ _ hz, block_stateBits]
 
 local macro "keccakBitIndex%(" x:term "," y:term "," z:term ")" : term =>
   `((⟨64 * (5 * ($y).val + ($x).val) + ($z).val, by omega⟩ : Fin 1600))

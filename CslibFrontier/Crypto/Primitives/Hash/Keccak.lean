@@ -190,7 +190,7 @@ abbrev SpongeState := SpongeView shake256Layout
   BitVec.ofFin (BitString.equivFin 64 bits)
 
 /-- Reading an in-range coordinate of `laneOfBits` returns the corresponding input bit. -/
-private theorem getLsbD_laneOfBits (bits : BitString 64) (i : ℕ) (hi : i < 64) :
+theorem getLsbD_laneOfBits (bits : BitString 64) (i : ℕ) (hi : i < 64) :
     (laneOfBits bits).getLsbD i = bits ⟨i, hi⟩ := by
   rw [laneOfBits, BitVec.getLsbD_ofFin]
   exact BitString.testBit_equivFin bits ⟨i, hi⟩

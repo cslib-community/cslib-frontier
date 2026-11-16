@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Li
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Unary
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
+import CslibFrontier.Crypto.Primitives.Hash.Keccak.Circuit
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Fold
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Iteration
@@ -30,16 +31,19 @@ bits in the same least-significant-bit-first order as the executable specificati
 use the ordinary framed list encoding, and an XOF request pairs that string with a unary output
 length. The unary length charges every requested output byte.
 
-The fixed Keccak-p[1600, 24] transformation is certified here as a function on a finite 1600-bit
-state. Thus these are uniform asymptotic certificates, not concrete-cost claims about the size of
-that finite program. A retained Boolean-circuit realization and its static program-size accounting
-belong to the concrete certificate layer.
+The fixed Keccak-p[1600, 24] transformation is realized by the direct retained Boolean circuit in
+`CslibFrontier.Crypto.Primitives.Hash.Keccak.Circuit`: the uniform certificate below is derived
+from that construction, not from a finite-function table. Its named compiler separately retains
+exact time, workspace, input, output, and complete generated transition-table size. The surrounding
+variable-length sponge proofs in this module are asymptotic certificates; they do not claim a
+concrete bound for the whole sponge.
 
 ## Main definitions
 
 * `Cslib.Crypto.Keccak.encByteLE`: the exact eight-bit, least-significant-bit-first byte encoding.
 * `Cslib.Crypto.Keccak.encByteStringLE`: framed lists of encoded bytes.
 * `Cslib.Crypto.Keccak.encByteXofInput`: a byte string followed by a unary output-byte count.
+* `Cslib.Crypto.Keccak.encSpongeView`: framed rate bits followed by framed capacity bits.
 
 ## Main results
 
@@ -72,7 +76,9 @@ abbrev encByteStringLE : List (Fin 256) ↪ List Bool := encList encByteLE
 abbrev encByteXofInput : (List (Fin 256) × ℕ) ↪ List Bool :=
   encPair encByteStringLE encUnary
 
-private abbrev encSpongeView (layout : SpongeLayout) : SpongeView layout ↪ List Bool :=
+/-- A split Keccak state as a framed pair: the `64 * rateLanes` rate bits first, then the
+`64 * capacityLanes` capacity bits. -/
+abbrev encSpongeView (layout : SpongeLayout) : SpongeView layout ↪ List Bool :=
   encPair (encBitString (64 * layout.rateLanes))
     (encBitString (64 * layout.capacityLanes))
 
@@ -111,10 +117,78 @@ private theorem computableInPolyTime_toBlocks (rate : ℕ) :
     (range.comp hcount) hblock
   exact hblocks.of_enc_eq fun _ => rfl
 
+private theorem computableInPolyTime_keccakP1600Bits : ComputableInPolyTime
+    (fun bits : BitString 1600 => stateBits (keccakP1600Rounds24 (stateOfBits bits)))
+    (encBitString 1600) (encBitString 1600) :=
+  (Cslib.Circuits.Boolean.computableInPolyTime_evalFixedCircuit
+    keccakP1600Circuit).of_enc_eq fun bits =>
+      congrArg (encBitString 1600) (eval_keccakP1600Circuit bits).symm
+
+/-- Keccak-p[1600, 24] is polynomial-time on every fixed rate/capacity split, by encoding the
+split as the exact flat state consumed by the retained circuit and converting the result back. -/
+theorem computableInPolyTime_keccakP1600Rounds24View (layout : SpongeLayout) :
+    ComputableInPolyTime (keccakP1600Rounds24View layout)
+      (encSpongeView layout) (encSpongeView layout) := by
+  have hflatten : ComputableInPolyTime
+      (fun state : SpongeView layout => stateBits (ofSpongeView layout state))
+      (encSpongeView layout) (encBitString 1600) :=
+    ComputableInPolyTime.of_finite _
+  have hunflatten : ComputableInPolyTime
+      (fun bits : BitString 1600 => toSpongeView layout (stateOfBits bits))
+      (encBitString 1600) (encSpongeView layout) :=
+    ComputableInPolyTime.of_finite _
+  exact (hunflatten.comp (computableInPolyTime_keccakP1600Bits.comp hflatten)).of_enc_eq
+    fun state => by
+    simp only [Function.comp_apply, keccakP1600Rounds24View, stateOfBits_stateBits]
+
 private theorem computableInPolyTime_absorb (layout : SpongeLayout) :
     ComputableInPolyTime
       (Sponge.absorb (keccakP1600Rounds24View layout))
       (encList (encBitString (64 * layout.rateLanes))) (encSpongeView layout) := by
+  have hpreprocess : ComputableInPolyTime
+      (fun p : SpongeView layout × BitString (64 * layout.rateLanes) =>
+        (p.1.1 + p.2, p.1.2))
+      (encPair (encSpongeView layout) (encBitString (64 * layout.rateLanes)))
+      (encSpongeView layout) := by
+    let encStep := encPair (encSpongeView layout)
+      (encBitString (64 * layout.rateLanes))
+    have hstate : ComputableInPolyTime
+        (fun p : SpongeView layout × BitString (64 * layout.rateLanes) => p.1)
+        encStep (encSpongeView layout) :=
+      fst (encSpongeView layout) (encBitString (64 * layout.rateLanes))
+    have hrate : ComputableInPolyTime
+        (fun p : SpongeView layout × BitString (64 * layout.rateLanes) => p.1.1)
+        encStep (encBitString (64 * layout.rateLanes)) :=
+      (fst (encBitString (64 * layout.rateLanes))
+        (encBitString (64 * layout.capacityLanes))).comp hstate
+    have hcapacity : ComputableInPolyTime
+        (fun p : SpongeView layout × BitString (64 * layout.rateLanes) => p.1.2)
+        encStep (encBitString (64 * layout.capacityLanes)) :=
+      (snd (encBitString (64 * layout.rateLanes))
+        (encBitString (64 * layout.capacityLanes))).comp hstate
+    have hblock : ComputableInPolyTime
+        (fun p : SpongeView layout × BitString (64 * layout.rateLanes) => p.2)
+        encStep (encBitString (64 * layout.rateLanes)) :=
+      snd (encSpongeView layout) (encBitString (64 * layout.rateLanes))
+    have hrateList : ComputableInPolyTime
+        (fun p : SpongeView layout × BitString (64 * layout.rateLanes) => List.ofFn p.1.1)
+        encStep encBits := hrate.of_enc_eq fun _ => rfl
+    have hblockList : ComputableInPolyTime
+        (fun p : SpongeView layout × BitString (64 * layout.rateLanes) => List.ofFn p.2)
+        encStep encBits := hblock.of_enc_eq fun _ => rfl
+    have hsumList := bitsZipWithInput Bool.xor hrateList hblockList
+    have hsum : ComputableInPolyTime
+        (fun p : SpongeView layout × BitString (64 * layout.rateLanes) => p.1.1 + p.2)
+        encStep (encBitString (64 * layout.rateLanes)) :=
+      hsumList.of_enc_eq fun p => Cslib.BitString.ofFn_add p.1.1 p.2
+    exact hsum.prod hcapacity
+  have hstep : ComputableInPolyTime
+      (fun p : SpongeView layout × BitString (64 * layout.rateLanes) =>
+        Sponge.absorbStep (keccakP1600Rounds24View layout) p.1 p.2)
+      (encPair (encSpongeView layout) (encBitString (64 * layout.rateLanes)))
+      (encSpongeView layout) := by
+    unfold Sponge.absorbStep
+    exact (computableInPolyTime_keccakP1600Rounds24View layout).comp hpreprocess
   apply ComputableInPolyTime.of_tidy
   apply Turing.MultiTapeTM.ComputableTidilyInPolyTime.foldl_of_bounded_growth
     (encA := encBitString (64 * layout.rateLanes))
@@ -123,7 +197,7 @@ private theorem computableInPolyTime_absorb (layout : SpongeLayout) :
     (step := Sponge.absorbStep (keccakP1600Rounds24View layout))
     (id' (encIn := encList (encBitString (64 * layout.rateLanes)))).tidy
     (const (0 : SpongeView layout)).tidy
-    (ComputableInPolyTime.of_finite _).tidy
+    hstep.tidy
     (growth := 0)
   intro state block
   simp [encSpongeView]
@@ -137,7 +211,7 @@ private theorem computableInPolyTime_iteratePermutation (layout : SpongeLayout) 
   apply Turing.MultiTapeTM.ComputableTidilyInPolyTime.iterate_of_bounded_growth
     (snd (encSpongeView layout) encUnary |>.tidy)
     (fst (encSpongeView layout) encUnary |>.tidy)
-    (ComputableInPolyTime.of_finite _).tidy
+    (computableInPolyTime_keccakP1600Rounds24View layout).tidy
     (growth := 0)
   intro state
   simp [encSpongeView]

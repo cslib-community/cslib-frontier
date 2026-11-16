@@ -802,20 +802,40 @@ not injective, and the checked client exhibits the discarded high tree word. Thi
 define the FIPS 205 hash instantiations, WOTS+, XMSS, FORS, the hypertree, signing or verification,
 nor does it prove classical or quantum security.
 
-FIPS 202 SHAKE256 and SHAKE128 ([fips202][fips202]) are implemented in
+FIPS 202 SHA3-512, SHAKE256 and SHAKE128 ([fips202][fips202]) are implemented in
 [`Hash/Keccak.lean`](../../CslibFrontier/Crypto/Primitives/Hash/Keccak.lean) and
 [`Hash/Keccak/SHAKE128.lean`](../../CslibFrontier/Crypto/Primitives/Hash/Keccak/SHAKE128.lean) on
 top of the existing generic sponge mechanics. The executable state uses 25 lanes in `5 * y + x`
-order and shares the standard's θ/ρ/π/χ/ι maps and 24-round permutation. `Keccak.shake256` uses the
-1088-bit rate and 512-bit capacity, while `Keccak.shake128` uses the 1344-bit rate and 256-bit
-capacity; both use the `1111` suffix, `pad10*1` and explicit least-significant-bit-first bytes. The
-byte/state views are proved inverse, and `take_shake256` and `take_shake128` prove prefix
-consistency. The [SHAKE256 client](../../CslibFrontierTests/Crypto/Keccak.lean) checks NIST's 0-bit
-and 1600-bit-message examples, both sides of its 136-byte rate boundary, and a Falcon-512 KAT
-prefix. The [SHAKE128 client](../../CslibFrontierTests/Crypto/SHAKE128.lean) checks NIST's 0-bit
-and 1600-bit-message examples, crosses its 168-byte rate boundary, and checks the prefix API.
-These are executable specifications, not collision/preimage results, constant-time implementations
-or FIPS validations.
+order and shares the standard's θ/ρ/π/χ/ι maps and 24-round permutation. `Keccak.sha3_512` uses the
+576-bit rate, 1024-bit capacity, `01` suffix and 64-byte output. `Keccak.shake256` uses the 1088-bit
+rate and 512-bit capacity, while `Keccak.shake128` uses the 1344-bit rate and 256-bit capacity;
+both use the `1111` suffix. All three use `pad10*1` and explicit least-significant-bit-first bytes.
+The byte/state views are proved inverse, and the SHAKE functions prove prefix consistency.
+
+Import [`Hash/Keccak/Efficient.lean`](../../CslibFrontier/Crypto/Primitives/Hash/Keccak/Efficient.lean)
+for uniform multitape-Turing-machine polynomial-time certificates. SHAKE requests encode their
+output byte count in unary, so every requested byte and permutation block is charged. The direct
+De Morgan circuit in
+[`Hash/Keccak/Circuit.lean`](../../CslibFrontier/Crypto/Primitives/Hash/Keccak/Circuit.lean) agrees
+with Keccak-p[1600, 24] on every 1600-bit input. `keccakP1600Compiler` retains that construction's
+exact time, workspace, input, output and complete transition-table `staticBits`; the shared
+`NativeCompiler.staticBits_eq_descLen` theorem identifies the last coordinate with the retained
+first-order program-description length. The surrounding variable-length sponge certificate is
+asymptotic and does not claim a concrete cost for the whole sponge.
+
+The [Keccak client](../../CslibFrontierTests/Crypto/Keccak.lean) checks NIST's official SHA3-512
+and SHAKE256 0-bit and 1600-bit-message examples, both functions' rate boundaries, and a Falcon-512
+SHAKE prefix. The [SHAKE128 client](../../CslibFrontierTests/Crypto/SHAKE128.lean) checks NIST's
+0-bit and 1600-bit-message examples, crosses its 168-byte rate boundary, and checks the prefix API.
+These are executable specifications and machine certificates, not collision/preimage results,
+constant-time implementations, FIPS validations, or cryptographic security proofs.
+
+[`HQC/SeedExpansion.lean`](../../CslibFrontier/Crypto/Primitives/HQC/SeedExpansion.lean) applies
+this boundary to HQC v5.1: `pkeSeedDigest seed` is `SHA3-512(seed || 0x02)`, `pkeSeeds` splits its
+64 bytes into the two 32-byte PKE seeds, and `pkeSeedPrefixes` requests one SHAKE256 prefix from
+each seed. The two prefix lengths are unary and the functions carry uniform polynomial-time
+certificates. This is a one-shot prefix client, not an incremental sponge-cost theorem, a proof
+that HQC rejection sampling terminates, or an HQC security reduction.
 
 The shared byte and SHA-2 boundary used by the FIPS 205 SHA2 parameter sets is in
 [`ByteString.lean`](../../CslibFrontier/Crypto/Primitives/ByteString.lean) and
