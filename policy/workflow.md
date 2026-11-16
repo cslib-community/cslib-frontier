@@ -34,11 +34,13 @@ requested fixes, reviews and landing existing work before starting more PRs.
 
 ### Backpressure and tending
 
-A coordinator opens no new pull request while more than ten of its fleet's open pull requests
-need the fleet's own action. A pull request needs the fleet's action when a review has requested
-changes and no fix has been pushed, when it conflicts with `main`, when a required check fails,
+A coordinator does not start or commission new pull-request work, its own or a worker's, while
+more than ten of its fleet's open pull requests need the fleet's own action. A pull request needs
+the fleet's action when a review has requested changes and any requested item is still
+outstanding, when it conflicts with `main`, when a required check fails,
 or when it is approved for its current head, has no hold and is not queued. Drafts and pull
-requests waiting for someone else's review do not count. The number is a ceiling, not a target;
+requests waiting for someone else's review, including a delta review of a complete fix, do not
+count. The number is a ceiling, not a target;
 the point is that finishing work in flight comes before starting more.
 
 A person running several coordinators names one of them the fleet's **tender**. The tender works
