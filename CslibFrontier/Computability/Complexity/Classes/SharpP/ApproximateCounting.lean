@@ -371,6 +371,22 @@ abbrev trials (n : ℕ) : ℕ := 2 * majority R q n
 /-- The number of random bits per trial, enough for an affine seed at every level `j ≤ M(n)`. -/
 abbrev seedLength (n : ℕ) : ℕ := tupleLength R q n * tupleLength R q n + tupleLength R q n
 
+/-- The seed length of level `j`: `M(n) M(n) + M(n)` up to level `M(n)`, read from a block of
+the random string, and exactly `j M(n) + j` above, where no level is asked. -/
+abbrev seedLevelLength (n j : ℕ) : ℕ :=
+  if j ≤ tupleLength R q n then seedLength R q n else j * tupleLength R q n + j
+
+theorem seedLength_eq_seedLevelLength {n j : ℕ} (hj : j ≤ tupleLength R q n) :
+    seedLength R q n = seedLevelLength R q n j := by
+  simp only [seedLevelLength, ite_eq_left_iff.mpr (fun h => absurd hj h)]
+
+theorem le_seedLevelLength (n j : ℕ) :
+    j * tupleLength R q n + j ≤ seedLevelLength R q n j := by
+  unfold seedLevelLength
+  split_ifs with hj
+  · exact Nat.add_le_add (Nat.mul_le_mul_right _ hj) hj
+  · exact le_rfl
+
 /-- The number of random bits: one seed for each of the `trials` trials of the `M(n) + 1`
 levels. -/
 abbrev randomLength (n : ℕ) : ℕ := (tupleLength R q n + 1) * trials R q n * seedLength R q n
@@ -404,14 +420,22 @@ noncomputable def estimator (x : α × List Bool) : ℕ :=
   estimateOf R q x.1 (answers R q x)
 
 /-- The hash of tuples of witnesses at level `j`, seeded by a block of random bits. -/
-private abbrev tupleHash (n j : ℕ) (s : BitString (seedLength R q n))
+private abbrev tupleHash (n j : ℕ) (s : BitString (seedLevelLength R q n j))
     (x : Fin (copies q n) → BitString (R.certLength.eval n)) : BitString j :=
-  levelHash (tupleLength R q n) (seedLength R q n) j s (blocksEquiv.symm x)
+  levelHash (tupleLength R q n) (seedLevelLength R q n j) j s (blocksEquiv.symm x)
 
 /-- The random string cut into one seed per level and trial. -/
 private def seeds (n : ℕ) : BitString (randomLength R q n) ≃
-    (Fin (tupleLength R q n + 1) → Fin (trials R q n) → BitString (seedLength R q n)) :=
-  blocksEquiv.trans blocksEquiv
+    (∀ j : Fin (tupleLength R q n + 1), Fin (trials R q n) →
+      BitString (seedLevelLength R q n j)) :=
+  (blocksEquiv.trans blocksEquiv).trans (Equiv.piCongrRight fun j =>
+    Equiv.arrowCongr (Equiv.refl _) (Equiv.arrowCongr
+      (finCongr (seedLength_eq_seedLevelLength R q j.is_le)) (Equiv.refl Bool)))
+
+private theorem ofFn_cast {m n : ℕ} (h : m = n) (f : BitString m) :
+    List.ofFn (fun i : Fin n => f (Fin.cast h.symm i)) = List.ofFn f := by
+  subst h
+  rfl
 
 private theorem count_true_ofFn {n : ℕ} (g : Fin n → Bool) :
     (List.ofFn g).count true = #{i | g i = true} := by
@@ -432,7 +456,8 @@ private theorem estimate_congr {n : ℕ} {a b : ℕ → Prop} [DecidablePred a] 
 random string. -/
 private theorem estimator_ofFn (a : α) (r : BitString (randomLength R q (enc a).length)) :
     estimator R q (a, List.ofFn r) =
-      Probability.ApproximateCounting.relativeHashEstimate (tupleHash R q (enc a).length)
+      Probability.ApproximateCounting.relativeHashEstimate (ι := fun j => BitString
+        (seedLevelLength R q (enc a).length j)) (tupleHash R q (enc a).length)
         (fun _ => 0) (R.witnessSet a) (seeds R q (enc a).length r) := by
   unfold estimator estimateOf Probability.ApproximateCounting.relativeHashEstimate
     Probability.ApproximateCounting.hashEstimate
@@ -458,7 +483,8 @@ private theorem estimator_ofFn (a : α) (r : BitString (randomLength R q (enc a)
           trials R q (enc a).length) (seedLength R q (enc a).length)
           (finProdFinEquiv ((⟨j, hj⟩ : Fin (_ + 1)), i)) (List.ofFn r)
         rw [finProdFinEquiv_apply_val, ofList_ofFn] at this
-        exact this.symm
+        exact (ofFn_cast (seedLength_eq_seedLevelLength R q (Nat.lt_succ_iff.mp hj)) _).trans
+          this.symm
       simp only [block_apply, ofList, finProdFinEquiv_apply_val, answers,
         List.getD_eq_getElem?_getD,
         List.getElem?_map, List.getElem?_range hidx, Option.map_some, Option.getD_some,
@@ -493,9 +519,9 @@ theorem one_sub_inv_two_pow_le_dens_estimator (a : α) (hq : q.eval (enc a).leng
       q.eval (enc a).length * Probability.ApproximateCounting.relativeHashEstimate
         (tupleHash R q (enc a).length) (fun _ => 0) (R.witnessSet a) ω ≤
         (q.eval (enc a).length + 1) * #(R.witnessSet a)]
-  have hh : ∀ j ≤ tupleLength R q (enc a).length,
-      Probability.IsPairwiseIndependentHash (tupleHash R q (enc a).length j) := fun j hj =>
-    (isPairwiseIndependentHash_levelHash (Nat.add_le_add (Nat.mul_le_mul_right _ hj) hj)).comp
+  have hh : ∀ j,
+      Probability.IsPairwiseIndependentHash (tupleHash R q (enc a).length j) := fun j =>
+    (isPairwiseIndependentHash_levelHash (le_seedLevelLength R q _ j)).comp
       blocksEquiv.symm.injective
   have hS : #(R.witnessSet a) ^ copies q (enc a).length ≤ 2 ^ tupleLength R q (enc a).length := by
     have : #(R.witnessSet a) ≤ 2 ^ R.certLength.eval (enc a).length := by
@@ -508,7 +534,7 @@ theorem one_sub_inv_two_pow_le_dens_estimator (a : α) (hq : q.eval (enc a).leng
       (q.eval (enc a).length + 1) ^ copies q (enc a).length :=
     Probability.ApproximateCounting.two_pow_mul_pow_le_add_one_pow 7 hq
   exact Probability.ApproximateCounting.one_sub_inv_two_pow_le_dens_filter_relativeHashEstimate
-    (ι := fun _ => BitString (seedLength R q (enc a).length)) (Y := fun j => BitString j)
+    (ι := fun j => BitString (seedLevelLength R q (enc a).length j)) (Y := fun j => BitString j)
     (tupleHash R q (enc a).length) (fun _ => 0) (R.witnessSet a) hh (fun _ => BitString.card) hS
     hp ((enc a).length + 2)
 
