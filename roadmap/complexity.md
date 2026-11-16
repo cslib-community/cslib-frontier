@@ -90,7 +90,7 @@ Containments, separations, closure properties, complete problems and reductions 
 
 - **Another Solution Problem (ASP) framework:** ASP reductions with certified polynomial-time forward and inverse witness maps, starting from the parsimonious reductions to positive exact-one SAT and its planar three-occurrence variants.
   Exact count preservation alone does not supply the ASP runtime certificates.
-- **Counting reductions and hierarchies:** counting reductions and further oracle results preserving exact multiplicities; modular and counting hierarchies; the oracle-algorithm form of Stockmeyer's approximate counting.
+- **Counting reductions and hierarchies:** further counting reductions and oracle results; modular and counting hierarchies; the oracle-algorithm form of Stockmeyer's approximate counting.
 - **Exact counting by determinants** ([#3081](https://github.com/cslib-community/cslib-frontier/issues/3081)): Kasteleyn's Pfaffian method for counting perfect matchings of planar graphs in polynomial time, in contrast with permanent #P-completeness (polynomial-time counting for unweighted and weighted spanning trees, simple and multi-digraph arborescences, and BEST Eulerian circuits, along with root independence for balanced graphs, are formalized).
 - **Target-relativized counting classes:** `LWPP^A`, `WPP^A` and `SBP^A` with `FP^A` targets; adaptive WPP closure and UP-oracle containment.
 - **Native oracle counting machines:** efficient encoded oracle checking, response-access costs and oracle-machine characterizations, with resource bounds uniform over admissible oracles.
@@ -113,7 +113,7 @@ In dependency order:
 - **Restricted-domain numeric certificates:** numeric certificates for further restricted-domain families; canonical BIT on a restricted domain need not be first-order definable.
 - **Order-free reductions:** SAT-to-3SAT, graph-property hardness, and bridges to the separately encoded problems.
 - **Synthesis rules and regular-language quantifiers:** extend the synthesis rules to nested operator bodies and give regular-language quantifiers their ordered characteristic-word semantics.
-- **Native NL closure facts:** the closure properties that the in-compiler inductive counting of FO(TC) ⊆ NL bypasses: intersection, union, logspace reductions and NL^NL = NL.
+- **Native NL closure facts:** NL^NL = NL.
 - **Further logical characterizations:** on ordered structures, DLOGTIME-uniform AC⁰ = FO(≤, BIT) (Barrington–Immerman–Straubing); then order-invariant and fixed-point queries and uniform translations between syntax, structures and algorithms.
 - **Witness-carrying reductions:** a witness-carrying reduction structure once a client needs one, for example size bounds for Cook–Levin.
 - **Logical lower-bound methods** ([locality track](https://github.com/cslib-community/cslib-frontier/issues/3015)): Ehrenfeucht–Fraïssé games (also with constants), Hanf and Gaifman locality with Gaifman's normal form and the exact locality ranks `2 ^ (n - 1) - 1` and `2 ^ n - 1` (Libkin, Exercises 4.10 and 4.11), and counting and fixed-point expressiveness with Cai–Fürer–Immerman separations, linked to the ordered capture theorems, where FO(≤, BIT) defines EVEN.
