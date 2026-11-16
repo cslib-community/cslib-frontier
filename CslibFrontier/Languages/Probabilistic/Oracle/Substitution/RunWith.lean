@@ -27,7 +27,10 @@ public section
 
 namespace Cslib.ProbOracleComp
 
-variable {Query Query' State α : Type} {spec : Query → Type} {spec' : Query' → Type}
+universe u v w
+
+variable {Query : Type u} {Query' : Type v} {State : Type} {α : Type w}
+  {spec : Query → Type} {spec' : Query' → Type}
 
 /-- Running a substituted program against `oracle` runs the original program against the oracle
 that runs each handler program against `oracle`. -/
@@ -36,7 +39,14 @@ theorem runWith_simulate (oracle : (q : Query) → StateT State PMF (spec q))
     (s : State) :
     runWith oracle (simulate handler program) s =
       runWith (fun q => runWith oracle (handler q)) program s := by
-  rw [simulate, OracleComp.substitute_eq_interpret]
-  exact runWith_interpret_sumHandler oracle handler program s
+  rw [simulate, runWith, OracleComp.runWith_substitute, runWith]
+  congr 1 with q state : 2
+  cases q with
+  | inl n =>
+    change runWith oracle (sample (ProbComp.unifFin n)) state =
+      (ProbComp.unifOracle n).map (·, state)
+    rw [runWith_sample, ProbComp.eval_unifFin]
+    rfl
+  | inr q => rfl
 
 end Cslib.ProbOracleComp

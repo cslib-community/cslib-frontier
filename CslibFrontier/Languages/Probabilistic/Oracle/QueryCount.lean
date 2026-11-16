@@ -55,7 +55,11 @@ namespace Cslib.ProbOracleComp
 
 open OracleComp
 
-variable {Query α β : Type} {spec : Query → Type}
+universe u
+
+section
+
+variable {Query : Type u} {α β : Type} {spec : Query → Type}
 
 /-- The program makes at most `n` external queries on every path, whatever its private samples and
 the replies. Private samples are free. -/
@@ -131,7 +135,11 @@ theorem QueriesSatisfy.of_forall {p : Query → Prop} (hp : ∀ q, p q)
     (program : ProbOracleComp spec α) : program.QueriesSatisfy p :=
   OracleComp.QueriesSatisfy.of_forall (fun q => by cases q <;> simp [hp]) program
 
+end
+
 /-! ### Logged executions -/
+
+variable {Query α β : Type} {spec : Query → Type}
 
 /-- Against every stateful oracle, the external queries recorded on a supported run cost at most
 the budget. Private samples are not recorded. -/

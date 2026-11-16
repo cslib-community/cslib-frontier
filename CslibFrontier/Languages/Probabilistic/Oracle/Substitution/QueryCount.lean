@@ -34,7 +34,10 @@ namespace Cslib.ProbOracleComp
 
 open OracleComp
 
-variable {Query Query' α : Type} {spec : Query → Type} {spec' : Query' → Type}
+universe u v
+
+variable {Query : Type u} {Query' : Type v} {α : Type}
+  {spec : Query → Type} {spec' : Query' → Type}
 
 /-- A substituted program costs at most `n` when the original program does and each handler
 program costs at most the cost of the query it replaces. -/
@@ -44,10 +47,21 @@ theorem isCostBounded_simulate {cost : Query → ℕ} {cost' : Query' → ℕ}
     {program : ProbOracleComp spec α} {n : ℕ}
     (h : IsCostBounded (Sum.elim (fun _ => 0) cost) program n) :
     IsCostBounded (Sum.elim (fun _ => 0) cost') (ProbOracleComp.simulate handler program) n := by
-  rw [ProbOracleComp.simulate, OracleComp.substitute_eq_interpret]
-  exact h.interpret fun
-    | .inl k => isCostBounded_sample cost' (ProbComp.unifFin k)
-    | .inr q => hhandler q
+  induction h with
+  | pure a n => exact .pure a n
+  | liftBind q cont n _ ih =>
+    cases q with
+    | inl k =>
+      rw [ProbOracleComp.simulate, ← PFunctor.FreeM.bind_eq_bind, OracleComp.substitute_bind,
+        OracleComp.substitute_query, Sum.elim_inl, Nat.add_zero]
+      simpa only [OracleComp.sumHandler, ProbOracleComp.simulate, Nat.zero_add,
+        PFunctor.FreeM.bind_eq_bind] using
+        (isCostBounded_sample cost' (ProbComp.unifFin k)).bind ih
+    | inr q =>
+      rw [ProbOracleComp.simulate, ← PFunctor.FreeM.bind_eq_bind, OracleComp.substitute_bind,
+        OracleComp.substitute_query, Sum.elim_inr, Nat.add_comm]
+      simpa only [OracleComp.sumHandler, ProbOracleComp.simulate,
+        PFunctor.FreeM.bind_eq_bind] using (hhandler q).bind ih
 
 /-- A substituted program makes at most `n` queries when the original program does and each
 handler program makes at most one. -/
