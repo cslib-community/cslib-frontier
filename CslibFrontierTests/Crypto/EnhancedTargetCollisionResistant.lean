@@ -9,8 +9,10 @@ module
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Crypto.Computational.EnhancedTargetCollisionResistant
+import CslibFrontier.Crypto.Computational.SecondPreimageResistant.Relations
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Tactic.PolyTime
+import CslibFrontierTests.Crypto.KeyedHashFixture
 
 /-!
 # Tests for enhanced target collision resistance
@@ -19,8 +21,9 @@ Checks for `CslibFrontier/Crypto/Computational/EnhancedTargetCollisionResistant.
 `module` client:
 
 * Nonvacuity witnesses for `EnhancedTargetCollisionResistantOn` / `EnhancedTargetCollisionResistant`
-  (`not_enhancedTargetCollisionResistant_snd_msg`, using `flipHeadEnhancedAdversary` to flip the
-  first bit of an `(n + 1)`-bit key) and for `KeyedHashFamily.EnhancedTargetCollisionResistant`
+  (`not_enhancedTargetCollisionResistant_snd_msg`, using `flipHeadBit` via
+  `flipHeadEnhancedAdversary` to flip the first bit of an `(n + 1)`-bit key) and for
+  `KeyedHashFamily.EnhancedTargetCollisionResistant`
   (`not_enhancedTargetCollisionResistant_zeroKeyedHashFamily`), plus positive nonvacuity for
   zero-length keys (`enhancedTargetCollisionResistant_zeroKey_id`).
 * Concrete `appendKeyHash` and `isEnhancedTargetCollision` evaluations plus consumer examples
@@ -42,10 +45,10 @@ open scoped NNReal
 /-! ## Nonvacuity witnesses and positive instance -/
 
 /-- Explicit PPT adversary refuting `EnhancedTargetCollisionResistant` for `fun _ _ m => m` when
-`keyLen n = n + 1`: flip the first bit of `k` and return `(k', [])`. -/
+`keyLen n = n + 1`: apply `flipHeadBit` to `k` and return `(k', [])`. -/
 noncomputable def flipHeadEnhancedAdversary : EnhancedTargetCollisionFinder where
   choose _ := pure ([], [])
-  find _ _ key := pure (match key with | b :: rest => (!b) :: rest | [] => [], [])
+  find _ _ key := pure (flipHeadBit key, [])
 
 theorem isPPT_flipHeadEnhancedAdversary : flipHeadEnhancedAdversary.IsPPT where
   choose := (ComputableInPolyTime.const (([], []) : List Bool × List Bool)).isPPTOn
@@ -53,15 +56,8 @@ theorem isPPT_flipHeadEnhancedAdversary : flipHeadEnhancedAdversary.IsPPT where
     let E := encPair encUnary (encPair encBits encBits)
     have hk : ComputableInPolyTime (fun p : ℕ × List Bool × List Bool => p.2.2) E encBits := by
       polytime
-    have hflip : ComputableInPolyTime
-        (fun k : List Bool => match k with | b :: rest => (!b) :: rest | [] => [])
-        encBits encBits := by
-      have h : (fun k : List Bool => match k with | b :: rest => (!b) :: rest | [] => []) =
-          fun k => if k.isEmpty then [] else (!(k.headD false)) :: k.tail := by
-        funext k; cases k <;> rfl
-      rw [h]
-      polytime
-    exact ((hflip.comp hk).prod (ComputableInPolyTime.const ([] : List Bool))).isPPTOn
+    exact ((computableInPolyTime_flipHeadBit.comp hk).prod
+      (ComputableInPolyTime.const ([] : List Bool))).isPPTOn
 
 /-- Nonvacuity witness for `EnhancedTargetCollisionResistant` and
 `EnhancedTargetCollisionResistantOn` (at `valid := fun _ _ => true`): ignoring the key
@@ -80,29 +76,15 @@ theorem not_enhancedTargetCollisionResistant_snd_msg :
     trans (BitString.uniformList (n + 1)).bind fun _ => PMF.pure true
     · apply PMF.bind_congr_on_support; intro k hk
       have hkLen : k.length = n + 1 := BitString.length_of_mem_support_uniformList hk
-      cases k with
-      | nil => simp at hkLen
-      | cons b rest =>
-        congr 1
-        rw [isEnhancedTargetCollision_eq_true_iff]
-        refine ⟨rfl, rfl, hkLen, ?_, rfl⟩
-        intro heq
-        have hb : b = !b := (List.cons.inj (Prod.mk.inj heq).1).1.symm
-        cases b <;> cases hb
+      have hflipLen : (flipHeadBit k).length = n + 1 := by
+        cases k with
+        | nil => simp at hkLen
+        | cons _ _ => simpa [flipHeadBit] using hkLen
+      congr 1
+      rw [isEnhancedTargetCollision_eq_true_iff]
+      exact ⟨rfl, rfl, hflipLen, fun heq => flipHeadBit_ne_self k (Prod.mk.inj heq).1, rfl⟩
     · simp [PMF.bind_const]
   rw [heval, Game.succProbability, PMF.pure_apply_self, ENNReal.toNNReal_one]
-
-/-- Minimal `KeyedHashFamily` mapping every message to `0^n`, refuting
-`KeyedHashFamily.EnhancedTargetCollisionResistant` for `assumptions.md` nonvacuity. -/
-def zeroKeyedHashFamily : KeyedHashFamily where
-  keyLen := id
-  digestLen := id
-  eval n _ _ := List.replicate n false
-  keyLen_polyTime := ComputableInPolyTime.id'
-  digestLen_polyTime := ComputableInPolyTime.id'
-  polyTime := by polytime
-  le_digestLen _ := le_rfl
-  length_eq _ _ _ _ := List.length_replicate
 
 noncomputable def zeroKeyedFinder : EnhancedTargetCollisionFinder where
   choose _ := pure ([], [])
@@ -116,7 +98,8 @@ theorem isPPT_zeroKeyedFinder : zeroKeyedFinder.IsPPT where
       polytime
     exact (hk.prod (ComputableInPolyTime.const ([true] : List Bool))).isPPTOn
 
-/-- Nonvacuity witness for `KeyedHashFamily.EnhancedTargetCollisionResistant`. -/
+/-- Nonvacuity witness for `KeyedHashFamily.EnhancedTargetCollisionResistant` using the shared
+constant `zeroKeyedHashFamily`. -/
 theorem not_enhancedTargetCollisionResistant_zeroKeyedHashFamily :
     ¬ zeroKeyedHashFamily.EnhancedTargetCollisionResistant := by
   refine not_enhancedTargetCollisionResistantOn_of_eventually_le_succProbability one_ne_zero
@@ -124,8 +107,8 @@ theorem not_enhancedTargetCollisionResistant_zeroKeyedHashFamily :
   have heval :
       ProbComp.eval (enhancedTargetCollisionGame zeroKeyedHashFamily.keyLen
         zeroKeyedHashFamily.eval (fun _ _ => true) zeroKeyedFinder n) = PMF.pure true := by
-    simp only [enhancedTargetCollisionGame, zeroKeyedFinder, zeroKeyedHashFamily,
-      ProbComp.eval_bind, ProbComp.eval_pure, pure_bind, BitString.eval_sampleList, id_eq]
+    simp only [enhancedTargetCollisionGame, zeroKeyedFinder, zeroKeyedHashFamily_keyLen,
+      ProbComp.eval_bind, ProbComp.eval_pure, pure_bind, BitString.eval_sampleList]
     trans (BitString.uniformList n).bind fun _ => PMF.pure true
     · apply PMF.bind_congr_on_support; intro k hk
       have hkLen : k.length = n := BitString.length_of_mem_support_uniformList hk
