@@ -20,10 +20,11 @@ corresponding seeds, and asks for a preimage of an unrevealed image. It coincide
 case (`repeatedIterateExperiment_one`) of `repeatedIterateExperiment`, which treats `n` chains of
 `d` iterates as in the iterated generalization of [BonehShoup2023], Exercise 14.15 (p. 612).
 
-Relative to [BonehShoup2023], both games take arbitrary `t, n, d : ℕ` (at `d = 0`, `idx q % 0 = 0`
-collapses chain positions), any seed sampler `sample : ProbComp X` rather than uniform, and
-0-based indices `idx q : ℕ`; out-of-range reveals return `default` (or `f^[idx q % d] default`) and
-out-of-range claims lose (`none`). On top of that, `repeatedIterateExperiment` and
+Relative to [BonehShoup2023], both games take arbitrary `t, n, d : ℕ`, any seed sampler
+`sample : ProbComp X` rather than uniform, and 0-based indices `idx q : ℕ`; out-of-range reveals
+return `default` (or `f^[idx q % d] default`) and out-of-range claims lose (`none`). At `d = 0`
+the chain game is degenerate: `idx q / 0 = 0` and `idx q % 0 = idx q`, so every slot lies on
+chain `0` and the published values are the seeds. On top of that, `repeatedIterateExperiment` and
 `repeatedIterateUnrevealedExperiment` diverge from Exercise 14.15 in three respects (checked in
 `CslibFrontierTests.Crypto.Game.RepeatedInversion`):
 1. A claim for slot `(i, j)` (`0 ≤ j < d`) checks `f^[d - j] x = y_i`, so only `1 ≤ b ≤ d` is
