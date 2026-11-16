@@ -20,6 +20,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Iteration
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Max
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.PowMod
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Prime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
@@ -447,7 +448,8 @@ private theorem polyTime_polyDivModStep :
   have hbt := ComputableInPolyTime.fst encBits (encPair encBits encBits)
   have hst := ComputableInPolyTime.snd encBits (encPair encBits encBits)
   have hq := (ComputableInPolyTime.fst encBits encBits).comp hst
-  have hr := computableInPolyTime_polyTrim.comp ((ComputableInPolyTime.snd encBits encBits).comp hst)
+  have hr := computableInPolyTime_polyTrim.comp
+    ((ComputableInPolyTime.snd encBits encBits).comp hst)
   have hlenR := ComputableInPolyTime.length_bits.comp hr
   have hlenBt := ComputableInPolyTime.length_bits.comp hbt
   have hcond : ComputableInPolyTime
@@ -678,8 +680,9 @@ private theorem polyTime_kernelStepBits :
       (encPair (encPair (encList encBits) encBits) encBits) encBool :=
     (ComputableInPolyTime.bitsListDot
       (ComputableInPolyTime.fst encBits encBits)
-      (ComputableInPolyTime.snd encBits encBits)).comp ((ha.comp (ComputableInPolyTime.fst (encPair (encList encBits) encBits)
-      encBits)).prod (ComputableInPolyTime.snd (encPair (encList encBits) encBits) encBits))
+      (ComputableInPolyTime.snd encBits encBits)).comp
+      ((ha.comp (ComputableInPolyTime.fst (encPair (encList encBits) encBits) encBits)).prod
+        (ComputableInPolyTime.snd (encPair (encList encBits) encBits) encBits))
   have hvals : ComputableInPolyTime
       (fun p : List (List Bool) × List Bool => p.1.map (listDot p.2))
       (encPair (encList encBits) encBits) (encList encBool) :=
@@ -761,14 +764,16 @@ theorem computableInPolyTime_kernelVecBits :
   have hany : ComputableInPolyTime
       (fun x : (ℕ × List (List Bool)) × List Bool => x.2.any id)
       (encPair (encPair encUnary (encList encBits)) encBits) encBool :=
-    (ComputableInPolyTime.bitsAnyWithInput ComputableInPolyTime.id'
+    (ComputableInPolyTime.bitsAnyWithInput (test := fun _ b => b)
+      ComputableInPolyTime.id'
       (ComputableInPolyTime.snd encBits encBool)).comp
       (ComputableInPolyTime.snd (encPair encUnary (encList encBits)) encBits)
   have hfind := ComputableInPolyTime.findWithInput
     (test := fun (_ : ℕ × List (List Bool)) (v : List Bool) => v.any id)
     polyTime_kernelBasisBits hany
   exact ComputableInPolyTime.optionGetDWithInput hfind
-    ((ComputableInPolyTime.bitsReplicate false).comp (ComputableInPolyTime.fst encUnary (encList encBits)))
+    ((ComputableInPolyTime.bitsReplicate false).comp
+      (ComputableInPolyTime.fst encUnary (encList encBits)))
 
 private def berlekampCell (x : List Bool × ℕ) (k : ℕ) : Bool :=
   ((powerTable x.1).getD (2 * (k + 1)) []).getD x.2 false ^^ decide ((x.2 == k + 1) = true)
@@ -847,7 +852,8 @@ private theorem polyTime_berlekampStep :
       (fun g : List Bool =>
         (kernelVecBits ((polyTrim g).length - 2) (berlekampMatrix (polyTrim g))).any id)
       encBits encBool :=
-    (ComputableInPolyTime.bitsAnyWithInput ComputableInPolyTime.id'
+    (ComputableInPolyTime.bitsAnyWithInput (test := fun _ b => b)
+      ComputableInPolyTime.id'
       (ComputableInPolyTime.snd encBits encBool)).comp hvec
   have hgcd := computableInPolyTime_polyGcd.comp
     (hgt.prod (ComputableInPolyTime.bitsCons (.const false) hvec))
@@ -1003,7 +1009,8 @@ private theorem polyTime_shoupLAdd :
       (encPair (encList encBits) (encList encBits))).comp hxpar
     have hxa := (ComputableInPolyTime.fst (encList encBits) (encList encBits)).comp hxs
     have hxb := (ComputableInPolyTime.snd (encList encBits) (encList encBits)).comp hxs
-    exact computableInPolyTime_polyAdd.comp ((hget.comp (hxa.prod hxi)).prod (hget.comp (hxb.prod hxi)))
+    exact computableInPolyTime_polyAdd.comp
+      ((hget.comp (hxa.prod hxi)).prod (hget.comp (hxb.prod hxi)))
   have hres := ComputableInPolyTime.mapWithInput
     (f := fun p i => polyAdd (p.2.1.getD i []) (p.2.2.getD i []))
     (ComputableInPolyTime.range.comp
@@ -1075,7 +1082,8 @@ private theorem polyTime_shoupLMulSum :
     have hidx2 := ComputableInPolyTime.unary_sub.comp (ho2.prod ht)
     have haGet := hget.comp (ha.prod hidx1)
     have hbGet := hget.comp (hb.prod hidx2)
-    exact computableInPolyTime_polyAdd.comp (hacc.prod (computableInPolyTime_polyMul.comp (haGet.prod hbGet)))
+    exact computableInPolyTime_polyAdd.comp
+      (hacc.prod (computableInPolyTime_polyMul.comp (haGet.prod hbGet)))
   have hparFn : ComputableInPolyTime
       (fun p : (List (List Bool) × List (List Bool)) × (ℕ × ℕ × ℕ) => (p.1, p.2.2))
       (encPair (encPair (encList encBits) (encList encBits))
@@ -1103,10 +1111,10 @@ private theorem polyTime_shoupLMulSum :
     have hab := ComputableInPolyTime.fst (encPair (encList encBits) (encList encBits))
       (encPair encUnary (encPair encUnary encUnary))
     have ha := ComputableInPolyTime.length_bits.comp
-      ((ComputableInPolyTime.encode (encList encBits)).comp
+      (ComputableInPolyTime.encoding_comp
         ((ComputableInPolyTime.fst (encList encBits) (encList encBits)).comp hab))
     have hb := ComputableInPolyTime.length_bits.comp
-      ((ComputableInPolyTime.encode (encList encBits)).comp
+      (ComputableInPolyTime.encoding_comp
         ((ComputableInPolyTime.snd (encList encBits) (encList encBits)).comp hab))
     exact ComputableInPolyTime.polyBounded
       (ComputableInPolyTime.unary_add.comp (ha.prod hb))
@@ -1233,7 +1241,7 @@ private theorem polyTime_shoupLFrobQBounded :
       (encList encBits) encUnary := by fun_prop
   have haLen := haLenPlain.comp ha
   have haBits := ComputableInPolyTime.length_bits.comp
-    ((ComputableInPolyTime.encode (encList encBits)).comp ha)
+    (ComputableInPolyTime.encoding_comp ha)
   have hfLen := ComputableInPolyTime.length_bits.comp hf
   have hsizeFn : ComputableInPolyTime
       (fun p : (ℕ × List Bool) × List (List Bool) =>
