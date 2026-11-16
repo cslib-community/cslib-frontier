@@ -163,7 +163,9 @@ is at most the native measure, with no overhead (as used in 4.18).
 
 - General Savitch and nondeterministic-space complementation are stronger than just the
   polynomial-space or NL corollaries. Their hypotheses use visited-cell workspace; no equivalence to the draft's ever-nonblank-space classes is claimed.
-- General-syntax TQBF completeness and PATH completeness have certified native reductions. Neither theorem
+- General-syntax TQBF completeness, `SPACETM` completeness (`SPACETM.pspaceComplete` in
+  [SPACETM.lean](../CslibFrontier/Computability/Complexity/Problems/SPACETM.lean), Exercise 4 §3),
+  and PATH completeness have certified native reductions. Neither theorem
   by itself proves every formula-size assertion about configurations used in the draft's proofs.
 
 ## Chapter 5: the polynomial hierarchy and alternations
