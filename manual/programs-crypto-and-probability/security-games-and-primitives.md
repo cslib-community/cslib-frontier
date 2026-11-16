@@ -1470,6 +1470,25 @@ Equation (15.4), p. 618), and checks quadratic twists over `ZMod 11`, `ZMod 7`, 
 `WeierstrassCurve.ringChar_ne_two_of_isCharNeTwoNF`). Build it with
 `lake build CslibFrontierTests.Foundations.AlgebraicGeometry.EllipticCurveHasse`.
 
+**Edwards curves.** Import
+[`EllipticCurve/Edwards.lean`](../../CslibFrontier/Foundations/AlgebraicGeometry/EllipticCurve/Edwards.lean)
+(`CslibFrontier.Foundations.AlgebraicGeometry.EllipticCurve.Edwards`) for Edwards curves
+`x² + y² = 1 + d x² y²` with `d ≠ 0` and `d ≠ 1` over a commutative ring `R` (`EdwardsCurve`,
+`EdwardsCurve.Equation`, `EdwardsCurve.Point`, with identity `EdwardsCurve.zero` = `(0, 1)`,
+negation `EdwardsCurve.neg` = `(-x, y)`, and `EdwardsCurve.order4Point` = `(1, 0)`;
+[bs23][bs23], §15.2.1, p. 619). Over a field `F`, `EdwardsCurve.add_equation` verifies closure
+under the unified addition formula whenever both denominators `1 ± d x₁ x₂ y₁ y₂` are nonzero, and
+for a non-square parameter (`¬ IsSquare E.d`), `EdwardsCurve.denom_ne_zero` shows those
+denominators never vanish in any characteristic (including characteristic two, where every point
+satisfies `x * y = 0`), yielding the total law `EdwardsCurve.add` with `EdwardsCurve.zero_add`,
+`EdwardsCurve.add_zero`, `EdwardsCurve.add_comm`, and `EdwardsCurve.neg_add_cancel`. The textbook
+([bs23][bs23], §15.2.1, p. 619) omits the non-square hypothesis `¬ IsSquare E.d`, which the
+[checked examples](../../CslibFrontierTests/Foundations/AlgebraicGeometry/EdwardsCurve.lean) show
+is required modulo `11` (`d = 4 = 2²`, where both denominators vanish on curve points `(2, 3)` and
+`(8, 2)`). Associativity, the `AddCommGroup` instance, and the equivalence with Montgomery and
+Weierstrass forms are left to follow-up modules. Build the tests with
+`lake build CslibFrontierTests.Foundations.AlgebraicGeometry.EdwardsCurve`.
+
 ### Lagrange interpolation in the exponent
 
 Boneh–Shoup Lemma 22.1 and Corollary 22.2 ([bs23][bs23], Section 22.1.1, pp. 928–929) say that
