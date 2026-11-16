@@ -5,22 +5,20 @@ Authors: Samuel Schlesinger
 -/
 
 module
--- upstream: local-only (test driver)
 
 import CslibFrontier.Crypto.Computational.MerkleDamgard.LengthStrengthened
-import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Probability.PMF.Support
 
 /-!
 # Tests for length-strengthened Merkle–Damgård and Theorem 8.3
 
-Exercises the padding length-bound boundary at `n = 4`
-(`mdLengthBlockCount 4 (List.replicate 10 false) = 4`), the valid-domain advantage equality of
-`succProbability_collisionGame_lengthStrengthenedMD_eq`, and an explicit `n = 4` overflow
-collision where `lengthStrengthenedMD` fails suffix-freeness while `lengthStrengthenedWrapper`
-fails to extract a compression collision (`1` vs `0`).
+Exercises known-answer digests of `lengthStrengthenedMD` under an input-dependent compression
+function (`xorCompress`), a concrete application of
+`succProbability_collisionGame_lengthStrengthenedMD_eq` with proved `hlen` and `hbound`, the
+suffix collision behind the `n = 4` overflow example, and the resulting `n = 4` separation (`1`
+vs `0`) against `lengthStrengthenedWrapper`.
 -/
 
--- Test suite consisting only of private helpers and anonymous `example` checks.
 set_option linter.privateModule false
 
 namespace CslibFrontierTests.Crypto.MerkleDamgardLengthStrengthened
@@ -28,35 +26,33 @@ namespace CslibFrontierTests.Crypto.MerkleDamgardLengthStrengthened
 open Cslib Cslib.Crypto Cslib.Probability
 open scoped NNReal
 
--- Boundary counterexample for `length_mdLengthPad` and `flatten_mdLengthBlocks` at `n = 4`:
--- a ten-zero-bit message has block count `4 = 2 ^ (4 / 2)`, so replacing `<` with `≤` fails.
+/-- Concrete `2n → n` XOR compression function splitting its `2n`-bit input into two
+`k.length`-bit halves. -/
+private def xorCompress (k x : List Bool) : List Bool :=
+  (padOrTake k.length (x.take k.length)).zipWith Bool.xor
+    (padOrTake k.length (x.drop k.length))
+
+private theorem length_xorCompress (k x : List Bool) : (xorCompress k x).length = k.length := by
+  simp [xorCompress]
+
+/-- Known-answer digest on the empty message at `n = 4`: one padding block `1001` XORed with
+`IV = 0000`. -/
 example :
-    mdLengthBlockCount 4 (List.replicate 10 false) = 2 ^ (4 / 2) ∧
-      (mdLengthPad 4 (List.replicate 10 false)).length ≠
-        mdLengthBlockCount 4 (List.replicate 10 false) * 4 ∧
-      (mdLengthBlocks 4 (List.replicate 10 false)).flatten ≠
-        mdLengthPad 4 (List.replicate 10 false) := by
+    lengthStrengthenedMD xorCompress [false, false, false, false] [] =
+      [true, false, false, true] := by
   decide
 
--- Theorem 8.3 advantage equality holds on any domain satisfying
--- `mdLengthBlockCount n m < 2 ^ (n / 2)`.
-example (h : List Bool → List Bool → List Bool) (valid : ℕ → List Bool → Bool)
-    (adversary : CollisionFinder) (n : ℕ)
-    (hlen : ∀ k x, k.length = n → x.length = 2 * n → (h k x).length = n)
-    (hbound : ∀ m, valid n m = true → mdLengthBlockCount n m < 2 ^ (n / 2)) :
-    Game.succProbability
-        (ProbComp.eval (collisionGame (lengthStrengthenedMD h) valid adversary n)) =
-      Game.succProbability
-        (ProbComp.eval
-          (collisionGame h validCompressionInput
-            (lengthStrengthenedWrapper h valid adversary) n)) :=
-  succProbability_collisionGame_lengthStrengthenedMD_eq h valid adversary n hlen hbound
+/-- Known-answer digest on a 5-bit message at `n = 4`: two blocks `[1011, 0110]` XORed with `IV`. -/
+example :
+    lengthStrengthenedMD xorCompress [false, false, false, false] [true, false, true, true, false] =
+      [true, true, false, true] := by
+  decide
 
-private def zeroCompress (k _ : List Bool) : List Bool :=
-  List.replicate k.length false
+private def validFive (_ : ℕ) (m : List Bool) : Bool :=
+  decide (m.length = 5)
 
-private noncomputable def overflowAdversary : CollisionFinder :=
-  fun _ _ => pure ([false, false], List.replicate 26 false)
+private noncomputable def fiveBitCollider : CollisionFinder :=
+  fun _ _ => pure ([true, false, false, false, false], [false, false, false, false, true])
 
 private theorem forall_length_eq_four {P : List Bool → Prop}
     (h : ∀ a b c d : Bool, P [a, b, c, d]) : ∀ k : List Bool, k.length = 4 → P k := by
@@ -65,9 +61,70 @@ private theorem forall_length_eq_four {P : List Bool → Prop}
     | (simp only [List.length_nil, List.length_cons] at hk; omega)
     | exact h a b c d
 
--- Under `zeroCompress` at `n = 4` with all bit strings valid, `[false, false]` and
--- `List.replicate 26 false` collide in `lengthStrengthenedMD` (`1`), while their padded block lists
--- share the same final two blocks so `lengthStrengthenedWrapper` finds no collision (`0`).
+private theorem eval_collisionGame_four_eq_pure
+    (H : List Bool → List Bool → List Bool) (valid : ℕ → List Bool → Bool)
+    (m₁ m₂ : List Bool) (b : Bool)
+    (hb : ∀ a c d e : Bool, isCollision H valid 4 [a, c, d, e] m₁ m₂ = b) :
+    ProbComp.eval (collisionGame H valid (fun _ _ => pure (m₁, m₂)) 4) = PMF.pure b := by
+  unfold collisionGame
+  simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind]
+  refine Cslib.Probability.PMF.bind_eq_pure_of_forall_mem_support fun k hk => ?_
+  rw [BitString.eval_sampleList] at hk
+  have hklen : k.length = 4 := BitString.length_of_mem_support_uniformList hk
+  refine congrArg PMF.pure ?_
+  clear hk
+  revert k hklen
+  exact forall_length_eq_four hb
+
+/-- Concrete application of `succProbability_collisionGame_lengthStrengthenedMD_eq` at `n = 4`
+for `xorCompress` and `validFive`: both `hlen` and `hbound` hold, the hash collision game has
+success probability `1`, and the wrapper's compression collision game has equal probability `1`. -/
+example :
+    Game.succProbability
+        (ProbComp.eval
+          (collisionGame (lengthStrengthenedMD xorCompress) validFive fiveBitCollider 4)) =
+      Game.succProbability
+        (ProbComp.eval
+          (collisionGame xorCompress validCompressionInput
+            (lengthStrengthenedWrapper xorCompress validFive fiveBitCollider) 4)) ∧
+      Game.succProbability
+          (ProbComp.eval
+            (collisionGame (lengthStrengthenedMD xorCompress) validFive fiveBitCollider 4)) =
+        1 := by
+  have hlen : ∀ k x, k.length = 4 → x.length = 2 * 4 → (xorCompress k x).length = 4 :=
+    fun k x hk _ => (length_xorCompress k x).trans hk
+  have hbound : ∀ m, validFive 4 m = true → mdLengthBlockCount 4 m < 2 ^ (4 / 2) := by
+    intro m hm
+    unfold validFive at hm
+    simp only [decide_eq_true_eq] at hm
+    unfold mdLengthBlockCount
+    omega
+  refine ⟨succProbability_collisionGame_lengthStrengthenedMD_eq xorCompress validFive
+    fiveBitCollider 4 hlen hbound, ?_⟩
+  have htrue :
+      ProbComp.eval
+          (collisionGame (lengthStrengthenedMD xorCompress) validFive fiveBitCollider 4) =
+        PMF.pure true :=
+    eval_collisionGame_four_eq_pure (lengthStrengthenedMD xorCompress) validFive
+      [true, false, false, false, false] [false, false, false, false, true] true
+      fun a b c d => by cases a <;> cases b <;> cases c <;> cases d <;> decide
+  simp only [htrue, Game.succProbability, PMF.pure_apply, ↓reduceIte, ENNReal.toNNReal_one]
+
+private def zeroCompress (k _ : List Bool) : List Bool :=
+  List.replicate k.length false
+
+private noncomputable def overflowAdversary : CollisionFinder :=
+  fun _ _ => pure ([false, false], List.replicate 26 false)
+
+/-- At `n = 4` (`2 ^ (4 / 2) = 4`), `List.replicate 26 false` overflows the `2`-bit block-count
+field and its padded blocks have `mdLengthBlocks 4 [false, false]` as a suffix. -/
+example :
+    mdLengthBlocks 4 [false, false] <:+ mdLengthBlocks 4 (List.replicate 26 false) := by
+  decide
+
+/-- Under `zeroCompress` at `n = 4` with all bit strings valid, `[false, false]` and
+`List.replicate 26 false` collide in `lengthStrengthenedMD` (`1`), while their padded block lists
+share the same suffix blocks so `lengthStrengthenedWrapper` finds no collision (`0`). -/
 example :
     Game.succProbability
         (ProbComp.eval
@@ -78,35 +135,15 @@ example :
           (collisionGame zeroCompress validCompressionInput
             (lengthStrengthenedWrapper zeroCompress (fun _ _ => true) overflowAdversary) 4)) =
         0 := by
-  have hblocks :
-      mdLengthBlocks 4 [false, false] <:+ mdLengthBlocks 4 (List.replicate 26 false) := by
-    decide
   constructor
   · have htrue :
         ProbComp.eval
             (collisionGame (lengthStrengthenedMD zeroCompress) (fun _ _ => true)
               overflowAdversary 4) =
-          PMF.pure true := by
-      unfold collisionGame overflowAdversary
-      simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind]
-      calc
-        (ProbComp.eval (BitString.sampleList 4)).bind
-            (fun k =>
-              PMF.pure
-                (isCollision (lengthStrengthenedMD zeroCompress) (fun _ _ => true) 4 k
-                  [false, false] (List.replicate 26 false)))
-            =
-          (ProbComp.eval (BitString.sampleList 4)).bind (fun _ => PMF.pure true) := by
-            refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun k hk => ?_
-            rw [BitString.eval_sampleList] at hk
-            have hklen : k.length = 4 := BitString.length_of_mem_support_uniformList hk
-            refine congrArg PMF.pure ?_
-            clear hk
-            revert k hklen
-            refine forall_length_eq_four ?_
-            intro a b c d
-            cases a <;> cases b <;> cases c <;> cases d <;> decide
-        _ = PMF.pure true := by simp only [PMF.bind_const]
+          PMF.pure true :=
+      eval_collisionGame_four_eq_pure (lengthStrengthenedMD zeroCompress) (fun _ _ => true)
+        [false, false] (List.replicate 26 false) true
+        fun a b c d => by cases a <;> cases b <;> cases c <;> cases d <;> decide
     simp only [htrue, Game.succProbability, PMF.pure_apply, ↓reduceIte, ENNReal.toNNReal_one]
   · have hfalse :
         ProbComp.eval
@@ -115,19 +152,15 @@ example :
           PMF.pure false := by
       unfold collisionGame lengthStrengthenedWrapper overflowAdversary
       simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.pure_bind]
-      calc
-        (ProbComp.eval (BitString.sampleList 4)).bind _ =
-          (ProbComp.eval (BitString.sampleList 4)).bind (fun _ => PMF.pure false) := by
-            refine Cslib.Probability.PMF.bind_congr_on_support _ _ _ fun k hk => ?_
-            rw [BitString.eval_sampleList] at hk
-            have hklen : k.length = 4 := BitString.length_of_mem_support_uniformList hk
-            refine congrArg PMF.pure ?_
-            clear hk
-            revert k hklen
-            refine forall_length_eq_four ?_
-            intro a b c d
-            cases a <;> cases b <;> cases c <;> cases d <;> decide
-        _ = PMF.pure false := by simp only [PMF.bind_const]
+      refine Cslib.Probability.PMF.bind_eq_pure_of_forall_mem_support fun k hk => ?_
+      rw [BitString.eval_sampleList] at hk
+      have hklen : k.length = 4 := BitString.length_of_mem_support_uniformList hk
+      refine congrArg PMF.pure ?_
+      clear hk
+      revert k hklen
+      refine forall_length_eq_four ?_
+      intro a b c d
+      cases a <;> cases b <;> cases c <;> cases d <;> decide
     simp only [hfalse, Game.succProbability, PMF.pure_apply, Bool.true_eq_false, ↓reduceIte,
       ENNReal.toNNReal_zero]
 
