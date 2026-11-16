@@ -1,0 +1,457 @@
+/-
+Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: Samuel Schlesinger
+-/
+
+module
+-- upstream: candidate
+
+public import CslibFrontier.Crypto.Computational.Encryption.Hybrid
+public import CslibFrontier.Crypto.Computational.Encryption.SymmetricCPA
+public import CslibFrontier.Crypto.Computational.PseudorandomPermutation
+public import CslibFrontier.Crypto.Primitives.BlockCipher.ECB
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.EraseDupsBy
+import CslibFrontier.Computability.Probabilistic.Oracle.Composition
+import CslibFrontier.Computability.Probabilistic.Sampling
+import CslibFrontier.Languages.Probabilistic.Oracle.Substitution
+import CslibFrontier.Tactic.EncLen
+import CslibFrontier.Tactic.PolyTime
+
+/-!
+# ECB mode of a word-level block cipher
+
+draft
+-/
+
+public section
+
+namespace Cslib.Crypto
+
+open Probability Turing.MultiTapeTM
+
+namespace BlockCipher
+
+variable (E : BlockCipher)
+
+/-- The `blockLen n`-bit blocks of a message word: the rows of `BitString.listRows`, dropping a
+final partial block. -/
+abbrev ecbBlocks (n : ℕ) (m : List Bool) : List (List Bool) :=
+  BitString.listRows (m.length / E.blockLen n) (E.blockLen n) m
+
+/-- ECB encryption of a message word: encrypt each `blockLen n`-bit block under the key and
+concatenate. -/
+@[expose]
+def ecbEncrypt (n : ℕ) (key m : List Bool) : ProbComp (List Bool) :=
+  pure ((E.ecbBlocks n m).flatMap (E.encrypt n key))
+
+/-- The challenge pairs of Theorem 4.1 on words: two messages of the same length, a multiple of
+the block length (`blockPairValid`), of at most `ℓ n` blocks, each with distinct blocks. -/
+@[expose]
+def ecbValid (ℓ : ℕ → ℕ) (n : ℕ) (_pk : List Bool) (m₀ m₁ : List Bool) : Bool :=
+  blockPairValid (E.blockLen n) m₀ m₁ && decide (m₀.length ≤ ℓ n * E.blockLen n) &&
+    decide (E.ecbBlocks n m₀).Nodup && decide (E.ecbBlocks n m₁).Nodup
+
+/-- The permutation of `blockLen n`-bit blocks of a `keyLen n`-bit key. -/
+@[expose]
+def ecbKeyPerm (n : ℕ) (k : BitString (E.keyLen n)) : Equiv.Perm (BitString (E.blockLen n)) :=
+  E.permEquiv n (List.ofFn k) List.length_ofFn
+
+/-- The typed one-time adversary that a word adversary induces at parameter `n`: its messages are
+read as lists of `blockLen n`-bit blocks, an inadmissible word pair becomes a pair of different
+lengths, and the challenge is flattened back into a word. -/
+@[expose]
+noncomputable def ecbTypedAdversary (ℓ : ℕ → ℕ) (A : Encryption.AdversaryOf (List Bool))
+    (n : ℕ) :
+    TwoStage Unit (MessagePair (List (BitString (E.blockLen n))))
+      (List (BitString (E.blockLen n))) Bool (List Bool) where
+  choose _ := (fun c => (if E.ecbValid ℓ n [] c.1.1 c.1.2 then
+      ⟨(E.ecbBlocks n c.1.1).map (BitString.ofList _),
+        (E.ecbBlocks n c.1.2).map (BitString.ofList _)⟩
+    else ⟨[], [fun _ => false]⟩, c.2)) <$> A.choose n []
+  guess st c := A.guess n st (c.flatMap List.ofFn)
+
+/-- The block-cipher distinguisher of Theorem 4.1 on words: the typed reduction `ECB.reduction`
+run against the word oracle, each block query sent as its `blockLen n` bits and each reply read
+back as a block. -/
+@[expose]
+noncomputable def ecbToPrpDistinguisher (ℓ : ℕ → ℕ) (A : Encryption.AdversaryOf (List Bool)) :
+    OracleDistinguisher := fun n _ =>
+  ProbOracleComp.simulate
+    (fun x : BitString (E.blockLen n) =>
+      BitString.ofList _ <$> ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool)
+        ((), List.ofFn x))
+    (ECB.reduction (ℓ n) (E.ecbTypedAdversary ℓ A n))
+
+/-! ### Admissible pairs -/
+
+/-- Reading words of `w` bits as bit strings is injective. -/
+private theorem ofList_injOn {w : ℕ} {x y : List Bool} (hx : x.length = w) (hy : y.length = w)
+    (h : BitString.ofList w x = BitString.ofList w y) : x = y := by
+  rw [← BitString.ofFn_ofList hx, ← BitString.ofFn_ofList hy, h]
+
+/-- An admissible word pair gives an admissible pair of block lists. -/
+private theorem distinctAdmissible_of_ecbValid {ℓ : ℕ → ℕ} {n : ℕ} {m₀ m₁ : List Bool}
+    (h : E.ecbValid ℓ n [] m₀ m₁ = true) :
+    ECB.distinctAdmissible (ℓ n) ((E.ecbBlocks n m₀).map (BitString.ofList (E.blockLen n)))
+      ((E.ecbBlocks n m₁).map (BitString.ofList (E.blockLen n))) = true := by
+  simp only [ecbValid, blockPairValid, Bool.and_eq_true, beq_iff_eq, decide_eq_true_eq] at h
+  obtain ⟨⟨⟨⟨hlen, -⟩, hℓ⟩, h₀⟩, h₁⟩ := h
+  have hnodup {m : List Bool} (hm : (E.ecbBlocks n m).Nodup) :
+      ((E.ecbBlocks n m).map (BitString.ofList (E.blockLen n))).Nodup :=
+    hm.map_on fun x hx y hy hxy => ofList_injOn (BitString.length_of_mem_listRows hx)
+      (BitString.length_of_mem_listRows hy) hxy
+  simp only [ECB.distinctAdmissible, List.length_map, BitString.length_listRows, hlen,
+    decide_eq_true_eq, true_and]
+  exact ⟨Nat.div_le_of_le_mul (by rw [← hlen]; simpa [Nat.mul_comm] using hℓ), hnodup h₀,
+    hnodup h₁⟩
+
+/-- Encrypting the blocks of a word with the induced permutation and flattening is encrypting the
+word block by block. -/
+private theorem flatMap_ofFn_ecbKeyPerm (n : ℕ) (k : BitString (E.keyLen n)) (m : List Bool) :
+    ((E.ecbBlocks n m).map (⇑(E.ecbKeyPerm n k) ∘ BitString.ofList _)).flatMap List.ofFn =
+      (E.ecbBlocks n m).flatMap (E.encrypt n (List.ofFn k)) := by
+  simp only [List.flatMap_map]
+  refine List.flatMap_congr fun r hr => ?_
+  have hr' := BitString.length_of_mem_listRows hr
+  simp only [Function.comp_apply, ecbKeyPerm, permEquiv, Equiv.coe_fn_mk,
+    BitString.ofFn_ofList hr']
+  exact BitString.ofFn_ofList (E.length_encrypt n _ r List.length_ofFn hr')
+
+/-! ### The real and ideal experiments -/
+
+/-- The one-time experiment of word ECB is the typed one-time experiment of `Cipher.ecb` against
+the induced permutations and the induced typed adversary. -/
+private theorem eval_demKeyGameOn_ecbEncrypt (ℓ : ℕ → ℕ) (A : Encryption.AdversaryOf (List Bool))
+    (b : Bool) (n : ℕ) :
+    ProbComp.eval (Encryption.demKeyGameOn (E.ecbValid ℓ) E.keyLen E.ecbEncrypt A b n) =
+      ProbComp.eval ((Cipher.ecb (E.ecbKeyPerm n)).oneTimeExperiment
+        (ProbComp.uniform (BitString (E.keyLen n))) (ECB.distinctAdmissible (ℓ n))
+        (E.ecbTypedAdversary ℓ A n) b) := by
+  simp only [Encryption.demKeyGameOn, Cipher.oneTimeExperiment, ProbComp.eval_bind,
+    BitString.eval_sampleList, ProbComp.eval_uniform, eval_lrExperiment, BitString.uniformList,
+    PMF.bind_map, ecbTypedAdversary, ProbComp.eval_map]
+  refine congrArg _ (funext fun k => ?_)
+  simp only [Function.comp_apply]
+  refine congrArg _ (funext fun c => ?_)
+  by_cases hv : E.ecbValid ℓ n [] c.1.1 c.1.2 = true
+  · have hadm := distinctAdmissible_of_ecbValid E hv
+    cases b <;> simp [Encryption.ChoiceOut.msg₀, Encryption.ChoiceOut.msg₁,
+      Encryption.ChoiceOut.msgs, hv, hadm, ecbEncrypt, Cipher.ecb, MessagePair.select,
+      flatMap_ofFn_ecbKeyPerm]
+  · simp [Encryption.ChoiceOut.msg₀, Encryption.ChoiceOut.msg₁, Encryption.ChoiceOut.msgs, hv,
+      ECB.distinctAdmissible]
+
+/-- Against the word oracle of a key, the distinguisher runs the typed reduction against the
+induced permutation. -/
+private theorem eval_prpRealGame_ecbToPrpDistinguisher (ℓ : ℕ → ℕ)
+    (A : Encryption.AdversaryOf (List Bool)) (n : ℕ) :
+    ProbComp.eval (E.prpRealGame (E.ecbToPrpDistinguisher ℓ A) n) =
+      ProbComp.eval (PRP.realExperiment (E.ecbKeyPerm n)
+        (ECB.reduction (ℓ n) (E.ecbTypedAdversary ℓ A n))) := by
+  simp only [prpRealGame, PRP.realExperiment, PRF.realExperiment, ProbComp.eval_bind,
+    BitString.eval_sampleList, ProbComp.eval_uniform, BitString.uniformList, PMF.bind_map]
+  refine congrArg _ (funext fun k => ?_)
+  simp only [Function.comp_apply, ecbToPrpDistinguisher, ProbOracleComp.run_simulate,
+    ProbOracleComp.run_map, ProbOracleComp.run_query, map_pure]
+  congr 2
+  funext x
+  rw [E.prpOracle_eq_randomPermOracle List.length_ofFn]
+  simp [randomPermOracle, randomFunctionOracle, ecbKeyPerm]
+
+/-- Against a uniform permutation, the distinguisher runs the typed reduction against it. -/
+private theorem prpIdealGame_ecbToPrpDistinguisher (ℓ : ℕ → ℕ)
+    (A : Encryption.AdversaryOf (List Bool)) (n : ℕ) :
+    prpIdealGame E.blockLen (E.ecbToPrpDistinguisher ℓ A) n =
+      PRP.idealExperiment (ECB.reduction (ℓ n) (E.ecbTypedAdversary ℓ A n)) := by
+  simp only [prpIdealGame, PRP.idealExperiment, ecbToPrpDistinguisher,
+    ProbOracleComp.run_simulate, ProbOracleComp.run_map, ProbOracleComp.run_query, map_pure]
+  congr 1
+  funext π
+  congr 1
+  funext x
+  simp [randomPermOracle, randomFunctionOracle]
+
+/-- **Theorem 4.1, equation (4.3), on words**: at each parameter, the one-time advantage of a word
+adversary against word ECB with challenge pairs `ecbValid E ℓ` is twice the block-cipher advantage
+of `ecbToPrpDistinguisher E ℓ A`. -/
+theorem advantage_demKeyGameOn_ecbEncrypt (ℓ : ℕ → ℕ) (A : Encryption.AdversaryOf (List Bool))
+    (n : ℕ) :
+    Game.advantage
+        (ProbComp.eval (Encryption.demKeyGameOn (E.ecbValid ℓ) E.keyLen E.ecbEncrypt A false n))
+        (ProbComp.eval (Encryption.demKeyGameOn (E.ecbValid ℓ) E.keyLen E.ecbEncrypt A true n)) =
+      2 * Game.advantage (ProbComp.eval (E.prpRealGame (E.ecbToPrpDistinguisher ℓ A) n))
+        (ProbComp.eval (prpIdealGame E.blockLen (E.ecbToPrpDistinguisher ℓ A) n)) := by
+  rw [eval_demKeyGameOn_ecbEncrypt, eval_demKeyGameOn_ecbEncrypt,
+    eval_prpRealGame_ecbToPrpDistinguisher, prpIdealGame_ecbToPrpDistinguisher]
+  exact ECB.advantage_eq_two_mul_prpAdvantage (E.ecbKeyPerm n) (ℓ n) (E.ecbTypedAdversary ℓ A n)
+
+/-! ### Efficiency of the distinguisher -/
+
+/-- One step of the word query loop: send the next block and append the reply, read as a
+`w`-bit block. -/
+private def ecbQueryStep (w : ℕ) (state : List (List Bool) × List Bool) :
+    WordOracleComp Unit (List (List Bool) × List Bool) :=
+  if state.1.isEmpty then pure state
+  else do
+    let reply ← List.take w <$>
+      ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool) ((), state.1.headD [])
+    return (state.1.tail, state.2 ++ (reply ++ List.replicate w false).take w)
+
+/-- The distinguisher written as a word program with an explicit query loop. -/
+private noncomputable def ecbToPrpLoop (ℓ : ℕ → ℕ) (A : Encryption.AdversaryOf (List Bool)) :
+    OracleDistinguisher := fun n _ => do
+  let b ← ProbOracleComp.sample (ProbComp.uniform Bool)
+  let c ← ProbOracleComp.sample (A.choose n [])
+  if E.ecbValid ℓ n [] c.1.1 c.1.2 then do
+    let ct ← Prod.snd <$> OracleComp.iterate (E.ecbBlocks n (if b then c.1.2 else c.1.1)).length
+      (ecbQueryStep (E.blockLen n)) (E.ecbBlocks n (if b then c.1.2 else c.1.1), [])
+    (· == b) <$> ProbOracleComp.sample (A.guess n c.2 ct)
+  else
+    pure (false == b)
+
+/-- The query loop on the bits of a list of blocks returns the replies read as blocks, appended. -/
+private theorem iterate_ecbQueryStep {w : ℕ} (rows : List (BitString w)) (acc : List Bool) :
+    (Prod.snd <$> OracleComp.iterate rows.length (ecbQueryStep w) (rows.map List.ofFn, acc)) =
+      ((fun ys : List (BitString w) => acc ++ ys.flatMap List.ofFn) <$>
+        rows.mapM fun q => BitString.ofList w <$>
+          ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool)
+            ((), List.ofFn q)) := by
+  induction rows generalizing acc with
+  | nil => simp
+  | cons q rows ih =>
+    rw [List.length_cons, OracleComp.iterate_succ_bind, List.mapM_cons, List.map_cons, map_bind]
+    have hstep : ecbQueryStep w (List.ofFn q :: rows.map List.ofFn, acc) =
+        ((fun y0 : BitString w => (rows.map List.ofFn, acc ++ List.ofFn y0)) <$>
+          (BitString.ofList w <$>
+            ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool)
+              ((), List.ofFn q))) := by
+      simp only [ecbQueryStep, List.isEmpty_cons, Bool.false_eq_true, ite_false,
+        List.headD_cons, List.tail_cons, Functor.map_map, bind_pure_comp]
+      congr 1
+      funext reply
+      rw [← BitString.ofFn_ofList_eq_take, BitString.ofList_take]
+    rw [hstep, bind_map_left, map_bind]
+    congr 1
+    funext y0
+    rw [ih (acc ++ List.ofFn y0)]
+    simp [Functor.map_map, List.append_assoc]
+
+/-- The query loop followed by a continuation on the appended replies. -/
+private theorem iterate_ecbQueryStep_bind {w : ℕ} {β : Type} (rows : List (BitString w))
+    (acc : List Bool) (k : List Bool → WordOracleComp Unit β) :
+    (OracleComp.iterate rows.length (ecbQueryStep w) (rows.map List.ofFn, acc) >>=
+        fun s => k s.2) =
+      (rows.mapM fun q => BitString.ofList w <$>
+          ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool)
+            ((), List.ofFn q)) >>= fun ys => k (acc ++ ys.flatMap List.ofFn) := by
+  rw [← bind_map_left Prod.snd _ k, iterate_ecbQueryStep, bind_map_left]
+
+/-- Substitution commutes with traversal. -/
+private theorem simulate_mapM {Query₁ Query₂ α β : Type} {spec₁ : Query₁ → Type}
+    {spec₂ : Query₂ → Type} (h : (q : Query₁) → ProbOracleComp spec₂ (spec₁ q))
+    (f : α → ProbOracleComp spec₁ β) (l : List α) :
+    ProbOracleComp.simulate h (l.mapM f) = l.mapM fun a => ProbOracleComp.simulate h (f a) := by
+  induction l with
+  | nil => simp
+  | cons a l ih => simp [List.mapM_cons, ih]
+
+/-- The blocks of a word, read as bit strings and back, are the blocks. -/
+private theorem map_ofFn_ofList_ecbBlocks (n : ℕ) (m : List Bool) :
+    (E.ecbBlocks n m).map (List.ofFn ∘ BitString.ofList (E.blockLen n)) = E.ecbBlocks n m := by
+  conv_rhs => rw [← List.map_id (E.ecbBlocks n m)]
+  exact List.map_congr_left fun r hr =>
+    BitString.ofFn_ofList (BitString.length_of_mem_listRows hr)
+
+private theorem ecbToPrpLoop_eq (ℓ : ℕ → ℕ) (A : Encryption.AdversaryOf (List Bool)) (n : ℕ)
+    (input : List Bool) :
+    E.ecbToPrpLoop ℓ A n input = E.ecbToPrpDistinguisher ℓ A n input := by
+  simp only [ecbToPrpLoop, ecbToPrpDistinguisher, ECB.reduction, ecbTypedAdversary,
+    ProbOracleComp.simulate_bind, ProbOracleComp.simulate_sample, ProbOracleComp.sample_map,
+    bind_map_left]
+  refine bind_congr fun b => bind_congr fun c => ?_
+  by_cases hv : E.ecbValid ℓ n [] c.1.1 c.1.2 = true
+  · have hadm := E.distinctAdmissible_of_ecbValid hv
+    have hsel : (E.ecbBlocks n (if b then c.1.2 else c.1.1)) =
+        ((MessagePair.mk ((E.ecbBlocks n c.1.1).map (BitString.ofList (E.blockLen n)))
+          ((E.ecbBlocks n c.1.2).map (BitString.ofList (E.blockLen n)))).select b).map
+            List.ofFn := by
+      cases b <;> simp [MessagePair.select, map_ofFn_ofList_ecbBlocks]
+    have hlen : (E.ecbBlocks n (if b then c.1.2 else c.1.1)).length =
+        ((MessagePair.mk ((E.ecbBlocks n c.1.1).map (BitString.ofList (E.blockLen n)))
+          ((E.ecbBlocks n c.1.2).map (BitString.ofList (E.blockLen n)))).select b).length := by
+      rw [hsel, List.length_map]
+    simp only [hv, ↓reduceIte, hadm, ProbOracleComp.simulate_bind, simulate_mapM,
+      ProbOracleComp.simulate_query, ProbOracleComp.simulate_map, ProbOracleComp.simulate_sample]
+    rw [hlen]
+    conv_lhs => rw [hsel]
+    refine (iterate_ecbQueryStep_bind _ []
+      fun ct => (· == b) <$> ProbOracleComp.sample (A.guess n c.2 ct)).trans ?_
+    simp
+  · simp [hv, ECB.distinctAdmissible]
+
+/-- One step of the query loop is strict oracle PPT, for a polynomial-time block length. -/
+private theorem isOraclePPTOn_ecbQueryStep {α : Type} {input : α ↪ List Bool} {w : α → ℕ}
+    (hw : ComputableInPolyTime w input encUnary) :
+    IsOraclePPTOn (encPair input (encPair (encList encBits) encBits))
+      (encPair (encList encBits) encBits)
+      (fun pair : α × (List (List Bool) × List Bool) => ecbQueryStep (w pair.1) pair.2) := by
+  let inp := encPair input (encPair (encList encBits) encBits)
+  have hfst := ComputableInPolyTime.fst input (encPair (encList encBits) encBits)
+  have hsnd := ComputableInPolyTime.snd input (encPair (encList encBits) encBits)
+  have hquery : ComputableInPolyTime
+      (fun p : α × (List (List Bool) × List Bool) => p.2.1.headD []) inp encBits :=
+    (ComputableInPolyTime.headD []).comp hsnd.fst'
+  have hw0 : ComputableInPolyTime (fun p : α × (List (List Bool) × List Bool) => w p.1)
+      inp encUnary := hw.comp hfst
+  unfold ecbQueryStep
+  refine IsOraclePPTOn.cond' (by fun_prop) hsnd.isOraclePPTOn ?_
+  refine (IsOraclePPTOn.query_take' () hquery hw0).map_with'
+    (f := fun pair reply =>
+      (pair.2.1.tail, pair.2.2 ++ (reply ++ List.replicate (w pair.1) false).take (w pair.1))) ?_
+  have p1 := ComputableInPolyTime.fst inp encBits
+  have p2 := ComputableInPolyTime.snd inp encBits
+  have htail : ComputableInPolyTime
+      (fun p : (α × (List (List Bool) × List Bool)) × List Bool => p.1.2.1.tail)
+      (encPair inp encBits) (encList encBits) := by
+    fun_prop
+  have hw1 := hw0.comp p1
+  have hacc := hsnd.snd'.comp p1
+  have hrep := (ComputableInPolyTime.bitsReplicate false).comp hw1
+  exact htail.prod (hacc.bitsAppend ((p2.bitsAppend hrep).bitsTakeWithInput hw1))
+
+/-- The blocks of a computed word are computed in polynomial time. -/
+private theorem computableInPolyTime_ecbBlocks {α : Type} {input : α ↪ List Bool}
+    {n : α → ℕ} {m : α → List Bool} (hn : ComputableInPolyTime n input encUnary)
+    (hm : ComputableInPolyTime m input encBits) :
+    ComputableInPolyTime (fun a => E.ecbBlocks (n a) (m a)) input (encList encBits) := by
+  have hw := E.blockLen_polyTime.comp hn
+  unfold ecbBlocks
+  polytime [BitString.listRows, BitString.listRow]
+
+/-- Admissibility of a computed pair is decided in polynomial time. -/
+private theorem computableInPolyTime_ecbValid {α : Type} {input : α ↪ List Bool} {ℓ : ℕ → ℕ}
+    (hℓ : ComputableInPolyTime ℓ encUnary encUnary) {n : α → ℕ} {m₀ m₁ : α → List Bool}
+    (hn : ComputableInPolyTime n input encUnary) (hm₀ : ComputableInPolyTime m₀ input encBits)
+    (hm₁ : ComputableInPolyTime m₁ input encBits) :
+    ComputableInPolyTime (fun a => E.ecbValid ℓ (n a) [] (m₀ a) (m₁ a)) input encBool := by
+  have h₀ := E.computableInPolyTime_ecbBlocks hn hm₀
+  have h₁ := E.computableInPolyTime_ecbBlocks hn hm₁
+  have hw := E.blockLen_polyTime.comp hn
+  have hℓn := hℓ.comp hn
+  unfold ecbValid blockPairValid
+  fun_prop
+
+/-- The encoding of the distinguisher's state after the coin and the adversary's choice. -/
+private abbrev ecbStateEnc : ((ℕ × List Bool) × Bool) × Encryption.ChoiceOut (List Bool) ↪
+    List Bool :=
+  encPair (encPair (encPair encUnary encBits) encBool) (Encryption.encChoiceOut encBits)
+
+/-- The challenge phase of the distinguisher is strict oracle PPT. -/
+private theorem isOraclePPTOn_ecbChallenge {ℓ : ℕ → ℕ}
+    (hℓ : ComputableInPolyTime ℓ encUnary encUnary) {A : Encryption.AdversaryOf (List Bool)}
+    (hA : A.IsPPT encBits) :
+    IsOraclePPTOn (Operation := Unit) ecbStateEnc encBool
+      (fun q : ((ℕ × List Bool) × Bool) × Encryption.ChoiceOut (List Bool) =>
+        if E.ecbValid ℓ q.1.1.1 [] q.2.1.1 q.2.1.2 then do
+          let ct ← Prod.snd <$> OracleComp.iterate
+            (E.ecbBlocks q.1.1.1 (if q.1.2 then q.2.1.2 else q.2.1.1)).length
+            (ecbQueryStep (E.blockLen q.1.1.1))
+            (E.ecbBlocks q.1.1.1 (if q.1.2 then q.2.1.2 else q.2.1.1), [])
+          (· == q.1.2) <$> ProbOracleComp.sample (A.guess q.1.1.1 q.2.2 ct)
+        else pure (false == q.1.2)) := by
+  have hn : ComputableInPolyTime
+      (fun q : ((ℕ × List Bool) × Bool) × Encryption.ChoiceOut (List Bool) => q.1.1.1)
+        ecbStateEnc encUnary := by fun_prop
+  have hc0 : ComputableInPolyTime
+      (fun q : ((ℕ × List Bool) × Bool) × Encryption.ChoiceOut (List Bool) => q.2.1.1)
+        ecbStateEnc encBits := by fun_prop
+  have hc1 : ComputableInPolyTime
+      (fun q : ((ℕ × List Bool) × Bool) × Encryption.ChoiceOut (List Bool) => q.2.1.2)
+        ecbStateEnc encBits := by fun_prop
+  have hsel : ComputableInPolyTime
+      (fun q : ((ℕ × List Bool) × Bool) × Encryption.ChoiceOut (List Bool) =>
+        if q.1.2 then q.2.1.2 else q.2.1.1) ecbStateEnc encBits := by fun_prop
+  have hw := E.blockLen_polyTime.comp hn
+  have hblocks := E.computableInPolyTime_ecbBlocks hn hsel
+  have hcount := (ComputableInPolyTime.length_list encBits).comp hblocks
+  have hpoly : PolyBounded (fun q => (ecbStateEnc q).length) (fun q => E.blockLen q.1.1.1) := by
+    simpa only [encUnary_apply, List.length_replicate, Function.comp_def] using
+      hw.polyBounded_length
+  have hgrowth : ∀ (q : ((ℕ × List Bool) × Bool) × Encryption.ChoiceOut (List Bool))
+      (state next : List (List Bool) × List Bool),
+      next ∈ OracleComp.support (ecbQueryStep (E.blockLen q.1.1.1) state) →
+      (encPair (encList encBits) encBits next).length ≤
+        (encPair (encList encBits) encBits state).length + E.blockLen q.1.1.1 := by
+    intro q state next hnext
+    obtain ⟨words, acc⟩ := state
+    cases words with
+    | nil =>
+      simp only [ecbQueryStep, List.isEmpty_nil, ite_true] at hnext
+      rw [OracleComp.eq_of_mem_supportWith_pure hnext]
+      omega
+    | cons word words =>
+      simp only [ecbQueryStep, List.isEmpty_cons, Bool.false_eq_true, ite_false] at hnext
+      obtain ⟨reply, -, hreply⟩ := OracleComp.mem_supportWith_bind_iff.mp hnext
+      rcases OracleComp.eq_of_mem_supportWith_pure hreply with rfl
+      enc_len [List.tail_cons, List.length_append, List.length_take]
+  have hloop := IsOraclePPTOn.iterateWith_of_bounded_growth' hcount
+    (hblocks.prod (.const [])) (isOraclePPTOn_ecbQueryStep hw) hpoly hgrowth
+  have hct := hloop.map' (ComputableInPolyTime.snd (encList encBits) encBits)
+  have hguessIn : ComputableInPolyTime
+      (fun p : (((ℕ × List Bool) × Bool) × Encryption.ChoiceOut (List Bool)) × List Bool =>
+        (p.1.1.1.1, p.1.2.2, p.2)) (encPair ecbStateEnc encBits) Encryption.encGuessInput := by
+    fun_prop
+  have hguess : IsOraclePPTOn (Operation := Unit) (encPair ecbStateEnc encBits) encBool
+      (fun p : (((ℕ × List Bool) × Bool) × Encryption.ChoiceOut (List Bool)) × List Bool =>
+        (· == p.1.1.2) <$> ProbOracleComp.sample (A.guess p.1.1.1.1 p.1.2.2 p.2)) :=
+    ((hA.guess.preprocess hguessIn).isOraclePPTOn).map_with' (by fun_prop)
+  have hyes := hct.bind_with (second := fun q ct =>
+    (· == q.1.2) <$> ProbOracleComp.sample (A.guess q.1.1.1 q.2.2 ct)) hguess
+  have hno : IsOraclePPTOn (Operation := Unit) ecbStateEnc encBool
+      (fun q : ((ℕ × List Bool) × Bool) × Encryption.ChoiceOut (List Bool) =>
+        pure (false == q.1.2)) :=
+    ComputableInPolyTime.isOraclePPTOn (by fun_prop)
+  exact IsOraclePPTOn.cond' (E.computableInPolyTime_ecbValid hℓ hn hc0 hc1) hyes hno
+
+/-- **Efficiency of the distinguisher.** For a polynomial-time block bound `ℓ` and every uniform
+strict PPT one-time adversary `A`, `ecbToPrpDistinguisher E ℓ A` is uniform strict oracle PPT. -/
+theorem isOraclePPT_ecbToPrpDistinguisher {ℓ : ℕ → ℕ}
+    (hℓ : ComputableInPolyTime ℓ encUnary encUnary) {A : Encryption.AdversaryOf (List Bool)}
+    (hA : A.IsPPT encBits) : IsOraclePPT encBool (E.ecbToPrpDistinguisher ℓ A) := by
+  have heq : E.ecbToPrpLoop ℓ A = E.ecbToPrpDistinguisher ℓ A := by
+    funext n input
+    exact E.ecbToPrpLoop_eq ℓ A n input
+  rw [← heq]
+  have hchooseIn : ComputableInPolyTime
+      (fun p : (ℕ × List Bool) × Bool => (p.1.1, ([] : List Bool)))
+      (encPair (encPair encUnary encBits) encBool) (encPair encUnary encBits) := by fun_prop
+  have hchoose : IsOraclePPTOn (Operation := Unit) (encPair (encPair encUnary encBits) encBool)
+      (Encryption.encChoiceOut encBits)
+      (fun p : (ℕ × List Bool) × Bool => ProbOracleComp.sample (A.choose p.1.1 [])) :=
+    (hA.choose.on.preprocess hchooseIn).isOraclePPTOn
+  have hstage := hchoose.bind_with (second := fun p c =>
+    if E.ecbValid ℓ p.1.1 [] c.1.1 c.1.2 then do
+      let ct ← Prod.snd <$> OracleComp.iterate
+        (E.ecbBlocks p.1.1 (if p.2 then c.1.2 else c.1.1)).length
+        (ecbQueryStep (E.blockLen p.1.1)) (E.ecbBlocks p.1.1 (if p.2 then c.1.2 else c.1.1), [])
+      (· == p.2) <$> ProbOracleComp.sample (A.guess p.1.1 c.2 ct)
+    else pure (false == p.2)) (E.isOraclePPTOn_ecbChallenge hℓ hA)
+  have hcoin : IsOraclePPTOn (Operation := Unit) (encPair encUnary encBits) encBool
+      (fun _ => ProbOracleComp.sample (ProbComp.uniform Bool)) :=
+    (isPPTOn_uniform_bool _).isOraclePPTOn
+  exact (hcoin.bind_with (second := fun i b => do
+    let c ← ProbOracleComp.sample (A.choose i.1 [])
+    if E.ecbValid ℓ i.1 [] c.1.1 c.1.2 then do
+      let ct ← Prod.snd <$> OracleComp.iterate
+        (E.ecbBlocks i.1 (if b then c.1.2 else c.1.1)).length
+        (ecbQueryStep (E.blockLen i.1)) (E.ecbBlocks i.1 (if b then c.1.2 else c.1.1), [])
+      (· == b) <$> ProbOracleComp.sample (A.guess i.1 c.2 ct)
+    else pure (false == b)) hstage).isOraclePPT
+
+end BlockCipher
+
+end Cslib.Crypto
