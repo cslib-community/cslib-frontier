@@ -1176,9 +1176,25 @@ is at most that of `unitRSAToRSA A` in `rsaInversionGame`. Hence `RSAOneWay gen`
 `e > 2`, the inputs of its key generator `RSAGen(ℓ, e)`. Here keys come from any law on
 `RSADesc` with no hypothesis on it: the proof uses only that `N = p * q` for distinct primes `p`
 and `q` and that `e * d ≡ 1` modulo `(p - 1) * (q - 1)`, so `p = 2` and `e = 1` are allowed.
-Exercise 10.26 (p. 431), the converse with a loss of `2 ^ -(ℓ - 2)`, is not formalized. The
+In [`RSAUnitInversion/Converse.lean`](../../CslibFrontier/Crypto/Computational/RSAUnitInversion/Converse.lean),
+Exercises 10.25–10.26 ([bs23][bs23], §10.6.2, p. 431) give the converse without defining a new
+reduction (`B = A` in the book's exercise statement, i.e., running the full-RSA inverter `A`
+directly in `rsaUnitInversionGame`): for distinct primes `p ≠ q` with `ℓ ≤ p.size` and
+`ℓ ≤ q.size`, uniform residues in `ZMod (p * q)` and uniform units have statistical distance
+at most `4 / 2 ^ ℓ` via `Cslib.Crypto.sub_totient_div_le` (the book writes `< 2 ^ -(ℓ - 2)`;
+for `ℓ ≥ 2` both use the same threshold `4 / 2 ^ ℓ = 2 ^ -(ℓ - 2)` up to strictness,
+`dist_uniformOfFintype_zmod_units_le`). When every key in `(gen n).support` has non-unit
+fraction `(N - φ(N)) / N ≤ δ`, `rsaInversionGame` succeeds with probability at most
+`rsaUnitInversionGame` plus `δ` (`succProbability_rsaInversionGame_le_of_nonUnitFrac_le`),
+giving additive loss `4 / 2 ^ ℓ` under `ℓ ≤ desc.p.size ∧ ℓ ≤ desc.q.size`
+(`succProbability_rsaInversionGame_le_of_size`). Asymptotically, if `n ≤ desc.p.size ∧ n ≤
+desc.q.size` (or a negligible non-unit-fraction bound) holds eventually on `(gen n).support`,
+then `RSAUnitOneWay gen` implies `RSAOneWay gen` (`RSAUnitOneWay.rsaOneWay_of_nonUnitFrac_le`,
+`RSAUnitOneWay.rsaOneWay`, `rsaOneWay_iff_rsaUnitOneWay`). The
 [checked examples](../../CslibFrontierTests/Crypto/RSAUnitInversion.lean) cover `N = 33`, the
-cases `p = 2` and `e = 1`, and an instance showing that the branch for `y = 0` is needed, and
+cases `p = 2` and `e = 1`, an instance showing that the branch for `y = 0` is needed, the
+converse bounds on `5 * 7` and `desc33`, and `N = 6` (`p = 2`, `q = 3`, `ℓ = 3`)
+counterexamples showing why the prime bit-length hypothesis is required, and
 [`AssumptionNonvacuity.lean`](../../CslibFrontierTests/Crypto/AssumptionNonvacuity.lean) shows
 that `RSAUnitOneWay` fails for a fixed key (`not_rsaUnitOneWay_const`).
 

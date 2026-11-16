@@ -45,6 +45,8 @@ is always a unit, and the replacement is computable in polynomial time.
 
 * `Cslib.Crypto.Game.advantage_bind_units_le`: restricting a uniform residue modulo `N` to the
   units changes the advantage of any continuation by at most `(N - φ(N)) / N`.
+* `Cslib.Crypto.sub_totient_div_le`: for distinct `n`-bit primes `p` and `q`, the non-units
+  modulo `p * q` are at most a `4 / 2 ^ n` fraction of the residues.
 * `Cslib.Crypto.Game.advantage_sampleModNat_units_le`: for `N = p * q` with `n`-bit primes,
   replacing `ProbComp.sampleModNat (n + |N|) N` by a uniform unit changes the advantage of any
   continuation by at most `5 / 2 ^ n`.
@@ -110,7 +112,7 @@ theorem Game.advantage_bind_units_le (N : ℕ) [NeZero N] (k : ZMod N → Game) 
 
 /-- For distinct primes `p` and `q` of at least `n` bits, the non-units modulo `p * q` are at most
 a `4 / 2 ^ n` fraction of the residues. -/
-private theorem sub_totient_div_le {p q n : ℕ} (hp : p.Prime) (hq : q.Prime) (hpq : p ≠ q)
+theorem sub_totient_div_le {p q n : ℕ} (hp : p.Prime) (hq : q.Prime) (hpq : p ≠ q)
     (hpn : n ≤ p.size) (hqn : n ≤ q.size) :
     ((p * q - (p * q).totient : ℕ) : ℝ≥0) / (p * q : ℕ) ≤ 4 / 2 ^ n := by
   have hpow {x m : ℕ} (hx : x.Prime) (hm : m ≤ x.size) : 2 ^ m ≤ 2 * x := by

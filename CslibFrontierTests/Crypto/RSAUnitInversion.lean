@@ -7,6 +7,10 @@ Authors: Samuel Schlesinger
 module
 
 import CslibFrontier.Crypto.Computational.RSAUnitInversion
+import CslibFrontier.Crypto.Computational.RSAUnitInversion.Converse
+import CslibFrontier.Crypto.Game.CloseTo
+import CslibFrontier.Foundations.Data.ZMod.Basic
+import CslibFrontier.Probability.StatisticalDistance.TotalVariation
 import Mathlib.Tactic.NormNum.Prime
 
 /-!
@@ -23,6 +27,12 @@ Checks for `CslibFrontier/Crypto/Computational/RSAUnitInversion.lean`:
 * RSA evaluation keeps units and non-units apart (`coprime_rsaEval_iff`).
 * Both certificates apply: `computableInPolyTime_rsaNonUnitRoot` on three inputs read as nested
   pairs on `encNat`, and `isPPT_unitRSAToRSA` on the inverter that returns its challenge.
+* Converse bounds (`RSAUnitInversion/Converse.lean`): `dist_uniformOfFintype_zmod_units_le` at
+  `5 * 7`, `succProbability_rsaInversionGame_le_of_nonUnitFrac_le` and
+  `succProbability_rsaInversionGame_le_of_size` at `desc33` and `echo`,
+  `RSAUnitOneWay.rsaOneWay` and `rsaOneWay_iff_rsaUnitOneWay` under `n`-bit primes, and `N = 6`
+  (`p = 2`, `q = 3`, `ℓ = 3`) counterexamples showing why the prime bit-length hypothesis is
+  required.
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
@@ -106,5 +116,173 @@ theorem isPPT_echo : echo.IsPPT :=
     (by fun_prop))).congr fun _ => by simp [echo]
 
 example : (unitRSAToRSA echo).IsPPT := isPPT_unitRSAToRSA isPPT_echo
+
+section Converse
+
+open Cslib.Probability
+open scoped NNReal ENNReal Cslib.Probability.PMF
+
+/-! ### Exercises 10.25–10.26 converse bounds and counterexamples -/
+
+example :
+    dist (PMF.uniformOfFintype (ZMod (5 * 7)))
+      ((PMF.uniformOfFintype (ZMod (5 * 7))ˣ).map Units.val) ≤ (4 : ℝ) / 2 ^ 3 :=
+  dist_uniformOfFintype_zmod_units_le (by decide) (by decide) (by decide) (by decide) (by decide)
+
+example (n : ℕ) :
+    (rsaInversionGame (fun _ => PMF.pure desc33) echo n).succProbability ≤
+      (rsaUnitInversionGame (fun _ => PMF.pure desc33) echo n).succProbability + 13 / 33 :=
+  succProbability_rsaInversionGame_le_of_nonUnitFrac_le _ echo fun desc hdesc => by
+    simp only [PMF.support_pure, Set.mem_singleton_iff] at hdesc
+    subst hdesc
+    have htot : Nat.totient 33 = 20 := by decide
+    norm_num [desc33, htot]
+
+example (n : ℕ) :
+    (rsaInversionGame (fun _ => PMF.pure desc33) echo n).succProbability ≤
+      (rsaUnitInversionGame (fun _ => PMF.pure desc33) echo n).succProbability + 4 / 2 ^ 2 :=
+  succProbability_rsaInversionGame_le_of_size _ echo fun desc hdesc => by
+    simp only [PMF.support_pure, Set.mem_singleton_iff] at hdesc
+    subst hdesc
+    decide
+
+example {gen : RSAGen}
+    (hsize : ∀ᶠ n in Filter.atTop, ∀ desc ∈ (gen n).support,
+      n ≤ desc.p.size ∧ n ≤ desc.q.size)
+    (h : RSAUnitOneWay gen) :
+    RSAOneWay gen ∧ (RSAOneWay gen ↔ RSAUnitOneWay gen) :=
+  ⟨h.rsaOneWay hsize, rsaOneWay_iff_rsaUnitOneWay hsize⟩
+
+private def desc6 : RSADesc where
+  p := 2
+  q := 3
+  e := 1
+  d := 1
+  hp := by decide
+  hq := by decide
+  hpq := by decide
+  he := by decide
+  hed := by decide
+
+private def nonUnitInverter6 : RSAInverter :=
+  fun _ _ y => pure (if y.val = 1 ∨ y.val = 5 then ⟨0, Nat.lt_of_le_of_lt (Nat.zero_le _) y.isLt⟩
+    else y)
+
+private theorem heval6 (x : Fin desc6.modulus) : desc6.publicKey.eval x = x := by
+  ext
+  change x.val ^ 1 % 6 = x.val
+  rw [pow_one]
+  exact Nat.mod_eq_of_lt x.isLt
+
+private theorem zmod6_unit_val (u : (ZMod 6)ˣ) :
+    (u : ZMod 6).val = 1 ∨ (u : ZMod 6).val = 5 := by
+  have hcop : Nat.Coprime (u : ZMod 6).val 6 := ZMod.val_coe_unit_coprime u
+  have hlt : (u : ZMod 6).val < 6 := ZMod.val_lt _
+  interval_cases h : (u : ZMod 6).val <;>
+    first
+    | exact absurd hcop (by decide)
+    | exact Or.inl rfl
+    | exact Or.inr rfl
+
+private theorem succProbability_unit_nonUnitInverter6 (n : ℕ) :
+    (rsaUnitInversionGame (fun _ => PMF.pure desc6) nonUnitInverter6 n).succProbability = 0 := by
+  rw [rsaUnitInversionGame_eq]
+  simp only [Game.succProbability, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
+    PMF.pure_bind, ProbComp.eval_pure, nonUnitInverter6, heval6, ENNReal.toNNReal_eq_zero_iff]
+  left
+  rw [PMF.bind_apply, tsum_eq_zero_iff]
+  intro u
+  have hval15 : (desc6.unitResidue u).val = 1 ∨ (desc6.unitResidue u).val = 5 :=
+    zmod6_unit_val u
+  have hne0 : (0 : Fin desc6.modulus) ≠ desc6.unitResidue u := by
+    intro h0
+    have hv : (desc6.unitResidue u).val = 0 := by rw [← h0]; rfl
+    rcases hval15 with h | h <;> omega
+  simp [hval15, hne0]
+
+private theorem succProbability_rsa_nonUnitInverter6 (n : ℕ) :
+    (rsaInversionGame (fun _ => PMF.pure desc6) nonUnitInverter6 n).succProbability = 2 / 3 := by
+  rw [rsaInversionGame_eq]
+  simp only [Game.succProbability, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
+    PMF.pure_bind, ProbComp.eval_pure, nonUnitInverter6, heval6]
+  rw [PMF.bind_apply, tsum_fintype]
+  have hsum : (∑ x : Fin desc6.modulus,
+      (PMF.uniformOfFintype (Fin desc6.modulus)) x *
+        (PMF.pure (decide ((if x.val = 1 ∨ x.val = 5 then
+          (⟨0, Nat.lt_of_le_of_lt (Nat.zero_le _) x.isLt⟩ : Fin desc6.modulus)
+          else x) = x))) true) =
+      (4 : ℝ≥0∞) / 6 := by
+    change (∑ x : Fin 6,
+      (PMF.uniformOfFintype (Fin 6)) x *
+        (PMF.pure (decide ((if x.val = 1 ∨ x.val = 5 then (0 : Fin 6) else x) = x))) true) =
+      (4 : ℝ≥0∞) / 6
+    simp only [PMF.uniformOfFintype_apply, Fintype.card_fin, Nat.cast_ofNat, PMF.pure_apply]
+    trans (6 : ℝ≥0∞)⁻¹ + 6⁻¹ + 6⁻¹ + 6⁻¹
+    · rw [Fin.sum_univ_six]
+      simp [Fin.ext_iff]
+    rw [div_eq_mul_inv]
+    ring
+  rw [hsum, ENNReal.toNNReal_div, ENNReal.toNNReal_ofNat, ENNReal.toNNReal_ofNat]
+  norm_num
+
+/-- Counterexample showing `ℓ ≤ p.size ∧ ℓ ≤ q.size` cannot be dropped in
+`succProbability_rsaInversionGame_le_of_size`: for `N = 6 = 2 * 3` (`p.size = q.size = 2`) and
+`ℓ = 3`, `nonUnitInverter6` achieves advantage `2 / 3 > 0 + 4 / 2 ^ 3`. -/
+example :
+    ¬ ((rsaInversionGame (fun _ => PMF.pure desc6) nonUnitInverter6 0).succProbability ≤
+      (rsaUnitInversionGame (fun _ => PMF.pure desc6) nonUnitInverter6 0).succProbability +
+        (4 : ℝ≥0) / 2 ^ 3) := by
+  rw [succProbability_rsa_nonUnitInverter6, succProbability_unit_nonUnitInverter6]
+  norm_num
+
+/-- Counterexample showing `ℓ ≤ p.size ∧ ℓ ≤ q.size` cannot be dropped in
+`dist_uniformOfFintype_zmod_units_le`: for `p = 2`, `q = 3`, and `ℓ = 3`, the statistical distance
+exceeds `4 / 2 ^ 3 = 1 / 2`. -/
+example :
+    ¬ (dist (PMF.uniformOfFintype (ZMod (2 * 3)))
+        ((PMF.uniformOfFintype (ZMod (2 * 3))ˣ).map Units.val) ≤ (4 : ℝ) / 2 ^ 3) := by
+  intro hdist
+  have hclose : CloseTo (PMF.uniformOfFintype (ZMod 6))
+      ((PMF.uniformOfFintype (ZMod 6)ˣ).map Units.val) (((4 : ℝ≥0) / 2 ^ 3 : ℝ≥0) : ℝ≥0∞) :=
+    closeTo_coe_iff_dist_le.mpr (by exact_mod_cast hdist)
+  rw [Game.closeTo_iff_forall_advantage_bind_le] at hclose
+  let k : ZMod 6 → Game := fun z => pure (decide (z.val ≠ 1 ∧ z.val ≠ 5))
+  have hadv := hclose k
+  have hg1 : Game.succProbability ((PMF.uniformOfFintype (ZMod 6)).bind k) = 2 / 3 := by
+    simp only [Game.succProbability, k, PMF.bind_apply, tsum_fintype, PMF.monad_pure_eq_pure]
+    have hsum : (∑ x : ZMod 6,
+        (PMF.uniformOfFintype (ZMod 6)) x *
+          (PMF.pure (decide (x.val ≠ 1 ∧ x.val ≠ 5))) true) = (4 : ℝ≥0∞) / 6 := by
+      have heq := Fintype.sum_equiv (ZMod.finEquiv 6)
+        (fun i : Fin 6 =>
+          (6 : ℝ≥0∞)⁻¹ * if true = decide (i.val ≠ 1 ∧ i.val ≠ 5) then 1 else 0)
+        (fun x : ZMod 6 =>
+          (PMF.uniformOfFintype (ZMod 6)) x *
+            (PMF.pure (decide (x.val ≠ 1 ∧ x.val ≠ 5))) true)
+        (fun i => by
+          simp [PMF.uniformOfFintype_apply, ZMod.card, PMF.pure_apply, ZMod.val_finEquiv])
+      have hfin : (∑ i : Fin 6, (6 : ℝ≥0∞)⁻¹ *
+          if true = decide (i.val ≠ 1 ∧ i.val ≠ 5) then 1 else 0) =
+          (6 : ℝ≥0∞)⁻¹ + 6⁻¹ + 6⁻¹ + 6⁻¹ := by
+        rw [Fin.sum_univ_six]
+        simp
+      rw [← heq, hfin, div_eq_mul_inv]
+      ring
+    rw [hsum, ENNReal.toNNReal_div, ENNReal.toNNReal_ofNat, ENNReal.toNNReal_ofNat]
+    norm_num
+  have hg2 :
+      Game.succProbability (((PMF.uniformOfFintype (ZMod 6)ˣ).map Units.val).bind k) = 0 := by
+    simp only [Game.succProbability, k, PMF.bind_map, PMF.bind_apply, ENNReal.toNNReal_eq_zero_iff]
+    left
+    rw [tsum_eq_zero_iff]
+    intro u
+    rcases zmod6_unit_val u with h | h <;> simp [h]
+  have hreal : (Game.advantage ((PMF.uniformOfFintype (ZMod 6)).bind k)
+      (((PMF.uniformOfFintype (ZMod 6)ˣ).map Units.val).bind k) : ℝ) ≤ 4 / 2 ^ 3 := by
+    exact_mod_cast hadv
+  rw [Game.coe_advantage, hg1, hg2] at hreal
+  norm_num at hreal
+
+end Converse
 
 end CslibFrontierTests.Crypto.RSAUnitInversion
