@@ -523,10 +523,9 @@ theorem computableInPolyTime_polyMod :
       (encPair encBits encBits) encBits :=
   (ComputableInPolyTime.snd encBits encBits).comp polyTime_polyDivMod
 
-/-- `polyGcd` is computable in polynomial time. -/
-theorem computableInPolyTime_polyGcd :
-    ComputableInPolyTime (fun p : List Bool × List Bool => polyGcd p.1 p.2)
-      (encPair encBits encBits) encBits := by
+private theorem polyTime_polyGcdStep :
+    ComputableInPolyTime (fun p : List Bool × List Bool => polyGcdStep p)
+      (encPair encBits encBits) (encPair encBits encBits) := by
   have hcond := ComputableInPolyTime.bitsIsEmpty.comp
     (ComputableInPolyTime.snd encBits encBits)
   have hres : ComputableInPolyTime
@@ -545,7 +544,8 @@ private theorem length_polyGcdStep_le (a b : List Bool) {n : ℕ}
   · exact ⟨ha, hb⟩
   · exact ⟨hb, (polyDivMod_iterate_bounds a (polyTrim b) a.length).2.1.trans ha⟩
 
-private theorem computableInPolyTime_polyGcd :
+/-- `polyGcd` is computable in polynomial time. -/
+theorem computableInPolyTime_polyGcd :
     ComputableInPolyTime (fun p : List Bool × List Bool => polyGcd p.1 p.2)
       (encPair encBits encBits) encBits := by
   have hpar : ComputableInPolyTime (fun _ : List Bool × List Bool => true)
@@ -1338,26 +1338,8 @@ private theorem polyTime_shoupBetaBounded :
       ComputableInPolyTime.range hbit
   have hinit1 : ComputableInPolyTime
       (fun p : ℕ × List Bool => List.replicate p.1 ([] : List Bool))
-      (encPair encUnary encBits) (encList encBits) := by
-    let repEmpty : ℕ → ℕ → List Bool := fun _ _ => []
-    have hconst : ComputableInPolyTime (fun x : ℕ × ℕ => repEmpty x.1 x.2)
-        (encPair encUnary encUnary) encBits :=
-      ComputableInPolyTime.const ([] : List Bool)
-    have hmap := ComputableInPolyTime.mapWithInput (f := repEmpty)
-      ComputableInPolyTime.range hconst
-    have hres := hmap.comp hq
-    have hrep : ∀ n m : ℕ,
-        List.replicate n ([] : List Bool) = (List.range n).map (repEmpty m) := by
-      intro n m
-      induction n with
-      | zero => rfl
-      | succ k ih =>
-        rw [List.replicate_succ', List.range_succ, List.map_append]
-        exact congrArg (· ++ [[]]) ih
-    convert hres using 1
-    funext p
-    simp only [Function.comp_def]
-    exact hrep p.1 p.1
+      (encPair encUnary encBits) (encList encBits) :=
+    ComputableInPolyTime.replicate hq (ComputableInPolyTime.const ([] : List Bool))
   have hinit := hinit1.prod (hinitY.comp hq)
   have hstep : ComputableInPolyTime
       (fun x : (ℕ × List Bool) × (List (List Bool) × List (List Bool)) =>
