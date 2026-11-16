@@ -36,8 +36,9 @@ the experiments for the two challenge bits, the book's `CPAadv`.
 
 The proof:
 1. The CBC experiment is the real PRF experiment for the reduction `cbcReduction`, which computes
-   each ciphertext with its oracle (`cbcCpaGame_eq_realExperiment`); the reduction makes one
-   oracle call per block (`isQueryBounded_cbcReduction`).
+   each ciphertext with its oracle (`cbcCpaGame_eq_realExperiment`, an application of
+   `blockModeCpaExperiment_eq_realExperiment_simulate`); the reduction makes one oracle call per
+   block (`isQueryBounded_cbcReduction`).
 2. Against a uniform random function sampled afresh, every ciphertext block is uniform, and a
    query of `k` blocks against a table of `t` inputs repeats an input with probability at most
    `(k t + k.choose 2) / 2 ^ n` (`toOuterMeasure_badChain_le`). The generic step
@@ -45,9 +46,9 @@ The proof:
    to `blockModeIdealExperiment` by `K.choose 2 / 2 ^ n` when the queries ask at most `K` blocks in
    total (`advantage_idealExperiment_cbcReduction_le`).
 3. The ideal experiment does not depend on the challenge bit. With the PRP/PRF switching bound
-   `PRP.advantage_idealExperiment_prfIdealExperiment_le` (the step of Theorem 4.4 that the book's
-   proof uses) for each bit, the advantage against a uniform random permutation is at most
-   `4 K.choose 2 / 2 ^ n` (`advantage_cbcCpaGame_randomPermutation_le`).
+   `PRP.advantage_idealExperiment_prfIdealExperiment_le` (Theorem 4.6; the book's proof cites its
+   block-cipher form, Theorem 4.4) for each bit, the advantage against a uniform random
+   permutation is at most `4 K.choose 2 / 2 ^ n` (`advantage_cbcCpaGame_randomPermutation_le`).
 
 The bounds hold for every adversary, so the typed reduction needs no efficiency certificate here.
 
@@ -56,9 +57,10 @@ Comparison with the book:
   per-bit random-function bound `K.choose 2 / 2 ^ n` is at most (5.28)'s `Q² ℓ² / (2N)`, and
   `4 K.choose 2 / 2 ^ n ≤ 2 Q² ℓ² / N` is (5.22) for the ideal cipher, where `BCadv` is zero.
 * On p. 199 the book states the bit-guessing bound before the switching step as
-  `CPAadv* ≤ Q² ℓ² / N + PRFadv[B, E]`. For a uniform random function the bound proved here gives
-  `CPAadv* = CPAadv / 2 ≤ K.choose 2 / 2 ^ n ≤ Q² ℓ² / (2N)`, half that constant, as (5.28)
-  gives.
+  `CPAadv* ≤ Q² ℓ² / N + PRFadv[B, E]`. This is a misprint in one displayed line: the printed
+  inequality is true but too weak; (5.22)/(5.23)/(5.28) stand. For a uniform random function the
+  bound proved here gives `CPAadv* = CPAadv / 2 ≤ K.choose 2 / 2 ^ n ≤ Q² ℓ² / (2N)`, the
+  constant that steps (5.24)–(5.29) give.
 * The bit-guessing form (5.23) is half of (5.22) and is not stated separately.
 * A query whose two messages differ in length, or exceed `ℓ` blocks, encrypts the empty message
   and costs nothing (`blockModeSelect`); the book requires equal-length messages of at most `ℓ`
@@ -86,7 +88,7 @@ Comparison with the book:
 ## References
 
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023],
-  Section 5.4.3, Theorem 5.4 and its proof, (5.22) and (5.28); Theorem 4.4.
+  Section 5.4.3, Theorem 5.4 and its proof, (5.22) and (5.28); Theorems 4.4 and 4.6.
 -/
 
 public section
@@ -148,14 +150,11 @@ the reduction `cbcReduction ℓ b adversary`. -/
 theorem cbcCpaGame_eq_realExperiment {Key : Type} [Fintype Key] [Nonempty Key]
     (F : Key → BitString n → BitString n) (ℓ : ℕ) (b : Bool) (adversary : BlockModeAdversary n) :
     cbcCpaGame F ℓ b adversary =
-      ProbComp.eval (PRF.realExperiment F (cbcReduction ℓ b adversary)) := by
-  unfold cbcCpaGame blockModeCpaExperiment PRF.realExperiment cbcReduction
-  refine congrArg ProbComp.eval (bind_congr fun key => ?_)
-  rw [ProbOracleComp.run_simulate]
-  congr 1
-  funext q
-  simp only [blockModeOracle, cbcQueryProgram, ProbOracleComp.run_bind,
-    ProbOracleComp.run_sample, run_cbcChainQueries, pure_bind, ProbOracleComp.run_pure]
+      ProbComp.eval (PRF.realExperiment F (cbcReduction ℓ b adversary)) :=
+  congrArg ProbComp.eval <| blockModeCpaExperiment_eq_realExperiment_simulate _ _ F ℓ b adversary
+    fun key q => by
+      simp only [blockModeOracle, cbcQueryProgram, ProbOracleComp.run_bind,
+        ProbOracleComp.run_sample, run_cbcChainQueries, pure_bind, ProbOracleComp.run_pure]
 
 /-- The chain makes one oracle call per block. -/
 theorem isQueryBounded_cbcChainQueries (c : BitString n) (ms : List (BitString n)) :
@@ -335,9 +334,9 @@ theorem advantage_cbcCpaGame_randomFunction_le (ℓ : ℕ) {adversary : BlockMod
 /-- **CBC mode with a uniform random permutation** ([BonehShoup2023], Theorem 5.4, bound (5.22),
 for the ideal block cipher). If the queries of `adversary` ask at most `K` blocks in total, its
 left-or-right advantage against CBC mode with a uniform random permutation of `BitString n` is at
-most `4 K.choose 2 / 2 ^ n`: the PRP/PRF switching lemma (Theorem 4.4) for each challenge bit and
-the random-function bound. With `Q` queries of at most `ℓ` blocks, `K ≤ Q ℓ` and
-`4 K.choose 2 ≤ 2 Q ^ 2 ℓ ^ 2`. -/
+most `4 K.choose 2 / 2 ^ n`: the PRP/PRF switching lemma (Theorem 4.6; the book's proof cites its
+block-cipher form, Theorem 4.4) for each challenge bit and the random-function bound. With `Q`
+queries of at most `ℓ` blocks, `K ≤ Q ℓ` and `4 K.choose 2 ≤ 2 Q ^ 2 ℓ ^ 2`. -/
 theorem advantage_cbcCpaGame_randomPermutation_le (ℓ : ℕ) {adversary : BlockModeAdversary n}
     {K : ℕ} (h : OracleComp.IsCostBounded (blockModeCost ℓ) adversary K) :
     (Game.advantage (cbcCpaGame (fun π : Equiv.Perm (BitString n) => ⇑π) ℓ false adversary)
@@ -345,36 +344,23 @@ theorem advantage_cbcCpaGame_randomPermutation_le (ℓ : ℕ) {adversary : Block
       4 * ((K.choose 2 : ℝ) / 2 ^ n) := by
   have hswitch (b : Bool) :
       (Game.advantage (cbcCpaGame (fun π : Equiv.Perm (BitString n) => ⇑π) ℓ b adversary)
-        (cbcCpaGame (fun f : BitString n → BitString n => f) ℓ b adversary) : ℝ) ≤
+        (ProbComp.eval (PRF.idealExperiment (cbcReduction ℓ b adversary))) : ℝ) ≤
         (K.choose 2 : ℝ) / 2 ^ n := by
-    have e₁ : cbcCpaGame (fun π : Equiv.Perm (BitString n) => ⇑π) ℓ b adversary =
+    have e : cbcCpaGame (fun π : Equiv.Perm (BitString n) => ⇑π) ℓ b adversary =
         ProbComp.eval (PRP.idealExperiment (cbcReduction ℓ b adversary)) := by
       rw [cbcCpaGame_eq_realExperiment]
       rfl
-    have e₂ : cbcCpaGame (fun f : BitString n → BitString n => f) ℓ b adversary =
-        ProbComp.eval (PRF.idealExperiment (cbcReduction ℓ b adversary)) := by
-      rw [cbcCpaGame_eq_realExperiment]
-      rfl
-    rw [e₁, e₂]
+    rw [e]
     simpa [BitString.card] using
       PRP.advantage_idealExperiment_prfIdealExperiment_le (isQueryBounded_cbcReduction ℓ b h)
-  have hrf := advantage_cbcCpaGame_randomFunction_le ℓ h
   have hs₀ := hswitch false
   have hs₁ := hswitch true
-  set P : Bool → Game := fun b => cbcCpaGame (fun π : Equiv.Perm (BitString n) => ⇑π) ℓ b adversary
-  set F : Bool → Game := fun b => cbcCpaGame (fun f : BitString n → BitString n => f) ℓ b adversary
-  have t₁ : (Game.advantage (P false) (P true) : ℝ) ≤
-      Game.advantage (P false) (F false) + Game.advantage (F false) (P true) := by
-    exact_mod_cast Game.advantage_triangle _ _ _
-  have t₂ : (Game.advantage (F false) (P true) : ℝ) ≤
-      Game.advantage (F false) (F true) + Game.advantage (F true) (P true) := by
-    exact_mod_cast Game.advantage_triangle _ _ _
-  have c : (Game.advantage (F true) (P true) : ℝ) = Game.advantage (P true) (F true) := by
-    rw [Game.advantage_comm]
-  change (Game.advantage (P false) (F false) : ℝ) ≤ _ at hs₀
-  change (Game.advantage (P true) (F true) : ℝ) ≤ _ at hs₁
-  change (Game.advantage (F false) (F true) : ℝ) ≤ _ at hrf
-  change (Game.advantage (P false) (P true) : ℝ) ≤ _
+  have h₀ := advantage_idealExperiment_cbcReduction_le ℓ false h
+  have h₁ := advantage_idealExperiment_cbcReduction_le ℓ true h
+  refine (advantage_le_four _
+    (ProbComp.eval (PRF.idealExperiment (cbcReduction ℓ false adversary)))
+    (ProbComp.eval (blockModeIdealExperiment ℓ adversary))
+    (ProbComp.eval (PRF.idealExperiment (cbcReduction ℓ true adversary))) _).trans ?_
   linarith
 
 end Cslib.Crypto

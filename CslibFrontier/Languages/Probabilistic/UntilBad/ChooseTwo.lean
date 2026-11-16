@@ -162,7 +162,9 @@ theorem toOuterMeasure_bad_choose_two_le {ι σ α : Type} {spec : ι → Type}
     ((interpret handler program).run s).toOuterMeasure {x | bad x.2} ≤
       (n * size s + n.choose 2 : ℕ) * δ :=
   toOuterMeasure_bad_choose_two_of_isCostBounded (fun _ => 1) size δ
-    (fun q s hs => (hstep q s hs).trans_eq (by simp))
+    (fun q s hs => by
+      simpa only [one_mul, Nat.choose_eq_zero_of_lt Nat.one_lt_two, add_zero, Nat.cast_id] using
+        hstep q s hs)
     hgrow hn hs
 
 end Cslib.OracleComp

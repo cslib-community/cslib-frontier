@@ -19,7 +19,6 @@ import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.QueryCount
 import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.RunWith
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
-import CslibFrontier.Languages.Probabilistic.UntilBad.ChooseTwo
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Support
 import Mathlib.Tactic.Linarith
@@ -40,10 +39,12 @@ block-cipher modes of operation (such as OFB and CTR):
   ideal-experiment lifting lemmas (`blockModeCpaExperiment_eq_realExperiment`,
   `isQueryBounded_blockModeReduction`, `freshGame_eq_blockModeIdealExperiment`), and advantage
   triangle helpers;
-- for an arbitrary per-query program run by `ProbOracleComp.simulate`, reduces the
-  random-function step to three per-query facts under fresh sampling: each answer has the law of
-  `blockModeIdealOracle`, and a query of `k` blocks against a table of `t` entries adds at most `k`
-  entries and raises the flag with probability at most `(k t + k.choose 2) / 2 ^ n`
+- for an arbitrary per-query program run by `ProbOracleComp.simulate`, identifies the real
+  experiment when each program computes the encryption oracle
+  (`blockModeCpaExperiment_eq_realExperiment_simulate`), and reduces the random-function step to
+  three per-query facts under fresh sampling: each answer has the law of `blockModeIdealOracle`,
+  and a query of `k` blocks against a table of `t` entries adds at most `k` entries and raises the
+  flag with probability at most `(k t + k.choose 2) / 2 ^ n`
   (`freshGame_simulate_eq_blockModeIdealExperiment`, `advantage_idealExperiment_simulate_le`).
 
 ## Main definitions
@@ -79,6 +80,8 @@ block-cipher modes of operation (such as OFB and CTR):
   lemmas.
 * `Cslib.Crypto.eval_blockModeIdealOracle`: the ideal oracle is a uniform initialization vector
   and `blockModeBlocks ℓ q` uniform blocks.
+* `Cslib.Crypto.blockModeCpaExperiment_eq_realExperiment_simulate`: a per-query program that
+  computes the encryption oracle gives the real PRF experiment.
 * `Cslib.Crypto.freshGame_simulate_eq_blockModeIdealExperiment`,
   `Cslib.Crypto.advantage_idealExperiment_simulate_le`: a per-query program whose fresh-sampling
   answers have the ideal law is exactly `blockModeIdealExperiment` under fresh sampling, and
@@ -357,6 +360,25 @@ noncomputable def blockModeReduction
     PRF.Adversary (BitString n) (BitString n) :=
   ProbOracleComp.simulate (blockModeQueryProgram keystream ℓ b) adversary
 
+/-- **The real experiment of a block-mode query program.** If `program q`, run with `F key` as its
+oracle, is the encryption oracle `blockModeOracle (enc key) ℓ b q`, then
+`blockModeCpaExperiment enc` is `PRF.realExperiment F` for the adversary run with `program`. -/
+theorem blockModeCpaExperiment_eq_realExperiment_simulate {Key : Type} [Fintype Key] [Nonempty Key]
+    (enc : Key → BitString n → List (BitString n) → List (BitString n))
+    (program : BlockModeQuery n →
+      ProbOracleComp (fun _ : BitString n => BitString n) (BitString n × List (BitString n)))
+    (F : Key → BitString n → BitString n) (ℓ : ℕ) (b : Bool) (adversary : BlockModeAdversary n)
+    (hprogram : ∀ key q,
+      (program q).run (fun y => pure (F key y)) = blockModeOracle (enc key) ℓ b q) :
+    blockModeCpaExperiment enc ℓ b adversary =
+      PRF.realExperiment F (ProbOracleComp.simulate program adversary) := by
+  unfold blockModeCpaExperiment PRF.realExperiment
+  refine bind_congr fun key => ?_
+  rw [ProbOracleComp.run_simulate]
+  congr 1
+  funext q
+  exact (hprogram key q).symm
+
 /-- When `keystream iv ms.length` evaluates with `F key` to the mask XORed by `enc key iv ms`,
 `blockModeCpaExperiment enc` is `PRF.realExperiment F (blockModeReduction keystream ℓ b adversary)`.
 -/
@@ -371,17 +393,13 @@ theorem blockModeCpaExperiment_eq_realExperiment {Key : Type} [Fintype Key] [Non
         (keystream iv ms.length).run (fun y => pure (F key y)) = pure raw ∧
         List.zipWith (· + ·) raw ms = enc key iv ms) :
     blockModeCpaExperiment enc ℓ b adversary =
-      PRF.realExperiment F (blockModeReduction keystream ℓ b adversary) := by
-  unfold blockModeCpaExperiment PRF.realExperiment blockModeReduction
-  refine bind_congr fun key => ?_
-  rw [ProbOracleComp.run_simulate]
-  congr 1
-  funext q
-  simp only [blockModeOracle, blockModeQueryProgram, ProbOracleComp.run_bind,
-    ProbOracleComp.run_sample, ProbOracleComp.run_pure]
-  refine bind_congr fun iv => ?_
-  obtain ⟨raw, hraw, henc⟩ := hks key iv (blockModeSelect ℓ b q)
-  rw [hraw, pure_bind, henc]
+      PRF.realExperiment F (blockModeReduction keystream ℓ b adversary) :=
+  blockModeCpaExperiment_eq_realExperiment_simulate enc _ F ℓ b adversary fun key q => by
+    simp only [blockModeOracle, blockModeQueryProgram, ProbOracleComp.run_bind,
+      ProbOracleComp.run_sample, ProbOracleComp.run_pure]
+    refine bind_congr fun iv => ?_
+    obtain ⟨raw, hraw, henc⟩ := hks key iv (blockModeSelect ℓ b q)
+    rw [hraw, pure_bind, henc]
 
 /-- If `keystream iv k` makes at most `k` oracle calls for every `k ≤ ℓ`, and `adversary` asks
 at most `K` blocks in total, then `blockModeReduction keystream ℓ b adversary` makes at most `K`
@@ -514,26 +532,14 @@ private theorem toOuterMeasure_repeated_freshStep_simulate_le
         ([], false)).toOuterMeasure {x | x.2.repeated = true} ≤
       ((K.choose 2 : ℕ) : ℝ≥0∞) * ((2 : ℝ≥0∞) ^ n)⁻¹ := by
   rw [ProbOracleComp.runWith_simulate]
-  refine (OracleComp.toOuterMeasure_bad_choose_two_of_isCostBounded
-    (handler := sumHandler (fun i => StateT.lift (ProbComp.unifOracle i))
-      fun q => ProbOracleComp.runWith freshStep (program q))
-    (bad := fun s : FlagState n => s.2 = true) (blockModeCost ℓ) (fun s => s.1.length)
-    ((2 : ℝ≥0∞) ^ n)⁻¹ ?_ ?_ h (s := ([], false)) (by simp)).trans (le_of_eq ?_)
-  · intro q s hs
-    cases q with
-    | inl i =>
-      exact (PMF.toOuterMeasure_lift_eq_zero (bad := fun s : FlagState n => s.2 = true)
-        (ProbComp.unifOracle i) s hs).trans_le zero_le
-    | inr q => exact hbad q s hs
-  · intro q s _ x hx _
-    cases q with
-    | inl i =>
-      rw [PMF.snd_eq_of_mem_support_lift hx]
-      exact Nat.le_add_right _ _
-    | inr q =>
-      obtain ⟨y, t, f⟩ := x
-      exact hlen q s y t f hx
-  · simp
+  simpa using
+    ProbOracleComp.toOuterMeasure_bad_choose_two_cost_le
+      (handler := fun q => ProbOracleComp.runWith freshStep (program q))
+      (bad := fun s : FlagState n => s.repeated = true) (blockModeBlocks ℓ) (fun _ => 0)
+      (fun s => s.1.length) ((2 : ℝ≥0∞) ^ n)⁻¹ hbad
+      (fun q s _ x hx _ => by obtain ⟨y, t, f⟩ := x; exact hlen q s y t f hx) h
+      (OracleComp.IsCostBounded.of_forall_cost_eq_zero (fun q => by cases q <;> rfl) adversary)
+      (s := ([], false)) (by simp)
 
 /-- **A block-mode query program against a uniform random function.** Suppose that under fresh
 sampling every answer of `program` has the law of the ideal oracle, adds at most

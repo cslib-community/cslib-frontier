@@ -2547,12 +2547,13 @@ experiments are `ProbComp Bool` runs of the adversary (`adversary.run`), and the
 `ProbOracleComp.simulate (blockModeQueryProgram keystream ℓ b) adversary`, so its query bound is
 `isCostBounded_simulate` and the CPA experiment equals `PRF.realExperiment` before evaluation.
 For a per-query program that is not a keystream followed by a mask, such as CBC encryption,
-`freshGame_simulate_eq_blockModeIdealExperiment` and `advantage_idealExperiment_simulate_le` take
-three per-query facts under fresh sampling: the answer has the law of the ideal oracle
-(`eval_blockModeIdealOracle`), adds at most `k = blockModeBlocks ℓ q` table entries, and raises
-the flag with probability at most `(k * t + k.choose 2) / 2^n` from a table of `t` entries. They
-conclude that the program run under `PRF.idealExperiment` is within `K.choose 2 / 2^n` of
-`blockModeIdealExperiment` when the queries ask at most `K` blocks in total.
+`blockModeCpaExperiment_eq_realExperiment_simulate` gives the real experiment when the program
+computes the encryption oracle, and `freshGame_simulate_eq_blockModeIdealExperiment` and
+`advantage_idealExperiment_simulate_le` take three per-query facts under fresh sampling: the answer
+has the law of the ideal oracle (`eval_blockModeIdealOracle`), adds at most
+`k = blockModeBlocks ℓ q` table entries, and raises the flag with probability at most
+`(k * t + k.choose 2) / 2^n` from a table of `t` entries. They conclude that the program run under `PRF.idealExperiment` is within
+`K.choose 2 / 2^n` of `blockModeIdealExperiment` when the queries ask at most `K` blocks in total.
 
 For the chosen-plaintext security of random-IV counter (CTR) mode, import
 [`Encryption/CTRMode.lean`](../../CslibFrontier/Crypto/Computational/Encryption/CTRMode.lean)
@@ -2635,8 +2636,8 @@ each ciphertext with one oracle call per block (`cbcCpaGame_eq_realExperiment`,
 `K.choose 2 / 2^n` through `advantage_idealExperiment_simulate_le`;
 `advantage_cbcCpaGame_randomFunction_le` gives `2 * K.choose 2 / 2^n` for a uniform random
 function, and `advantage_cbcCpaGame_randomPermutation_le` gives `4 * K.choose 2 / 2^n` for a
-uniform random permutation, adding `PRP.advantage_idealExperiment_prfIdealExperiment_le` for each
-challenge bit. With `Q` queries of at most `ℓ` blocks, `K ≤ Q * ℓ`, so the last bound is at most
+uniform random permutation, adding `PRP.advantage_idealExperiment_prfIdealExperiment_le`
+(Theorem 4.6) for each challenge bit. With `Q` queries of at most `ℓ` blocks, `K ≤ Q * ℓ`, so the last bound is at most
 the book's (5.22) for the ideal cipher, `2 * Q^2 * ℓ^2 / N`. The keyed bound with `BCadv` and a
 certified word-level reduction are not yet formalized, so Theorem 5.4 itself remains open; the
 module docstring records how these statements compare with the book's. Checks are in
