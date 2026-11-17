@@ -108,6 +108,10 @@ instance : Finite FramesState :=
     cases q
     exacts [⟨0, rfl⟩, ⟨1, rfl⟩, ⟨2, rfl⟩]
 
+/-- Constructive enumeration of the three list-frame parser states. -/
+instance : Fintype FramesState :=
+  ⟨{FramesState.between, .marker, .symbol}, fun state => by cases state <;> simp⟩
+
 /-- Splits a word into framed words, closing a final incomplete frame. -/
 @[simps q₀ step final]
 def framesT : Transducer Bool FramesState where

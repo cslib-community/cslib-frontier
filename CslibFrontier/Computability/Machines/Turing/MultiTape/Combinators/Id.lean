@@ -8,6 +8,7 @@ module
 -- upstream: vendored crei:crei/tidy-universal @7f7c0696 (unsubmitted)
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Deterministic
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Equivalence
 
 /-!
 # The copy machine, public
@@ -32,17 +33,26 @@ outputs `w` after `w.length + 1` steps, and having no work tapes it uses zero sp
   input symbol and zero space.
 -/
 
+namespace Turing.MultiTapeMachine
+
+/-- The copy machine as an explicit effect-free transition table. -/
+@[expose] public def copyInput (Symbol : Type*) : MultiTapeMachine 0 Symbol Unit Empty Id :=
+  ofTr () fun _ symbol _ =>
+    match symbol with
+    | some bit =>
+      { inputTape := 1, workTapes := Fin.elim0, output := some bit, state := some () }
+    | none => { inputTape := 0, workTapes := Fin.elim0, output := none, state := none }
+
+end Turing.MultiTapeMachine
+
 namespace Turing.MultiTapeTM
 
 variable {Symbol : Type*} {input : List Symbol}
 
 /-- The copy machine: a single state and no work tapes. It copies every input symbol to the output
 tape while moving right, and halts on reading the blank at the right end of the input. -/
-public def copyInput : MultiTapeTM 0 Symbol Unit :=
-  ofTr () fun _ s _ =>
-    match s with
-    | some b => { inputTape := 1, workTapes := Fin.elim0, output := some b, state := some () }
-    | none => { inputTape := 0, workTapes := Fin.elim0, output := none, state := none }
+@[expose] public def copyInput : MultiTapeTM 0 Symbol Unit :=
+  (MultiTapeMachine.copyInput Symbol).toTM
 
 namespace CopyInput
 
@@ -57,7 +67,9 @@ lemma step_scan {n : ℕ} (hn : n < input.length) :
     copyInput.step (cfg input (some ()) n) = cfg input (some ()) (n + 1) := by
   have hsym : (cfg input (some ()) n).inputSymbol = some input[n] :=
     inputSymbolInner n (by simp [cfg]; omega) hn
-  rw [step_of_state rfl, hsym, copyInput, tr_ofTr]
+  rw [step_of_state rfl, hsym]
+  simp only [copyInput, MultiTapeMachine.copyInput, MultiTapeMachine.toTM,
+    MultiTapeMachine.ofTr, tr_ofTr, MultiTapeMachine.Action.emptyOracleEquiv_step]
   apply Cfg.ext_zero_tapes (by rfl)
   · simp [cfg, moveInputPos]
     grind
@@ -69,7 +81,9 @@ lemma step_halt :
     copyInput.step (cfg input (some ()) input.length) = cfg input none input.length := by
   have hsym : (cfg input (some ()) input.length).inputSymbol = none :=
     inputSymbol_eq_none_of_boundary (Or.inr (by simp [cfg]))
-  rw [step_of_state rfl, hsym, copyInput, tr_ofTr]
+  rw [step_of_state rfl, hsym]
+  simp only [copyInput, MultiTapeMachine.copyInput, MultiTapeMachine.toTM,
+    MultiTapeMachine.ofTr, tr_ofTr, MultiTapeMachine.Action.emptyOracleEquiv_step]
   apply Cfg.ext_zero_tapes <;> simp [cfg, Action.apply]
 
 /-- After `n ≤ input.length` steps, the copy machine has copied the first `n` input symbols. -/

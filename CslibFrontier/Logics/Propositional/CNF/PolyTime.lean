@@ -16,6 +16,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.P
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 
@@ -63,6 +64,8 @@ needed separately when transferring satisfiability.
   a polynomial-time assignment, as `fun_prop` rules.
 * `Cslib.Logic.PL.CNF.computableInPolyTime_eval_bitsAssignment`: evaluating a formula under a
   numbered assignment.
+* `Cslib.Logic.PL.computableInPolyTime_countUnsat_mem`: counting the clauses falsified by the
+  assignment setting the listed variables to `true`.
 * `Cslib.Logic.PL.CNF.isPolyTime_compact`: compact unary indices for arbitrary variable names.
 
 ## References
@@ -231,6 +234,14 @@ theorem CNF.computableInPolyTime_eval_bitsAssignment [DecidableEq V] (enc : V �
     congr 1 with v : 1
     exact bitsAssignment_eq_getD ..
   rw [e]
+  fun_prop
+
+/-- Counting the clauses falsified by the assignment setting the listed variables to `true` is
+polynomial-time. -/
+theorem computableInPolyTime_countUnsat_mem [DecidableEq V] (enc : V ↪ List Bool) :
+    ComputableInPolyTime (fun p : CNF V × List V => p.1.countUnsat fun v => decide (v ∈ p.2))
+      (encPair (encCNFOver enc) (encList enc)) encUnary := by
+  unfold CNF.countUnsat
   fun_prop
 
 /-- Construct the clause requiring at least one listed variable to hold. -/
