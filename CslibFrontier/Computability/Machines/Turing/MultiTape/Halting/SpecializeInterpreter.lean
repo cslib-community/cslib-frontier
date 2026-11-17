@@ -110,11 +110,11 @@ theorem specializeInterpreterResources_certifies (controller program : Desc) (x 
     ?_, ?_, ?_⟩
   · exact length_eInUnary_specialize_le controller program x t
   · simp only [encodedUniversalInterpreterTime, specializeInterpreterRequest,
-      universalImplementationTime, specializeInterpreterResources]
+      specializeInterpreterResources]
     exact Nat.mul_le_mul_left encodedUniversalInterpreterFactor
       (Nat.add_le_add_right hformulas.1 1)
   · simp only [encodedUniversalInterpreterSpace, specializeInterpreterRequest,
-      universalImplementationSpace, specializeInterpreterResources]
+      specializeInterpreterResources]
     exact Nat.mul_le_mul_left encodedUniversalInterpreterFactor
       (Nat.add_le_add_right hformulas.2 1)
 

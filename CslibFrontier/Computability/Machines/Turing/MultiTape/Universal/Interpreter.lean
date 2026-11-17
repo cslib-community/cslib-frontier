@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.DescriptionSize
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.PolyTime
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Space
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Run
 
 /-!
@@ -39,6 +40,8 @@ run clock.
 
 * `Turing.MultiTapeTM.Universal.descLen_encodedUniversalInterpreter_le`: the static interpreter
   description satisfies its arithmetic bound.
+* `Turing.MultiTapeTM.Universal.simSpace_encodedUniversalInterpreter_le`: every observed run
+  prefix respects the actual workspace bound.
 * `Turing.MultiTapeTM.Universal.universal_encodedUniversalInterpreter`: the description realizes
   the encoded output of `universal` at every clock at least its certified native runtime.
 -/
@@ -46,22 +49,6 @@ run clock.
 public section
 
 namespace Turing.MultiTapeTM.Universal
-
-/-- The resource expression used by the native universal-machine implementation before its
-constant-factor machine compilation. -/
-@[expose] def universalImplementationTime (i : Desc × List ℕ × ℕ) : ℕ :=
-  let (description, input, clock) := i
-  (clock + 1) *
-      (stepBound (descLen description) (encList encUnary input).length clock +
-        runBound (descLen description) (encList encUnary input).length clock +
-          ((encNat clock).length + 1) ^ 2) +
-    ((eIn i).length + 1) ^ 2
-
-/-- The workspace expression used by the native universal-machine implementation before its
-constant-factor machine compilation. -/
-@[expose] def universalImplementationSpace (i : Desc × List ℕ × ℕ) : ℕ :=
-  let (description, input, clock) := i
-  runBound (descLen description) (encList encUnary input).length clock + (eIn i).length
 
 private structure NativeInterpreter where
   factor : ℕ
@@ -163,6 +150,17 @@ private theorem encodedUniversalInterpreter_computes :
     (fun i => nativeInterpreter.factor * (universalImplementationTime i + 1))
     (fun i => nativeInterpreter.factor * (universalImplementationSpace i + 1))
   exact nativeInterpreter.computes
+
+/-- Every finite prefix of the encoded interpreter visits at most its certified number of work
+cells. This directly connects the public description to the selected native machine's workspace
+certificate, independently of the observation clock. -/
+theorem simSpace_encodedUniversalInterpreter_le (i : Desc × List ℕ × ℕ) (clock : ℕ) :
+    simSpace encodedUniversalInterpreter ((eIn i).map eBit) clock ≤
+      encodedUniversalInterpreterSpace i := by
+  unfold encodedUniversalInterpreter
+  rw [simSpace_desc]
+  obtain ⟨_, _, hspace⟩ := (encodedUniversalInterpreter_computes i).computesInTimeAndSpace
+  exact space_le_of_runsInSpace hspace clock
 
 /-- **The encoded interpreter realizes the existing universal function.** At any outer clock at
 least the selected native interpreter's certified runtime, it has halted and emitted the encoded

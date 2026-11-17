@@ -40,6 +40,15 @@ example (i : Desc × List ℕ × ℕ) :
   ⟨descLen_encodedUniversalInterpreter_le,
     universal_encodedUniversalInterpreter i _ le_rfl⟩
 
+/-- The workspace coordinate bounds actual visited cells at every observation prefix, through
+public semantic contracts without exposing the selected machine's private state type. -/
+example (controller program : Desc) (x : List Bool) (t clock : ℕ) :
+    simSpace encodedUniversalInterpreter
+        ((eIn (specializeInterpreterRequest controller program x t)).map eBit) clock ≤
+      (specializeInterpreterResources controller program x t).workspaceCells := by
+  have hresources := specializeInterpreterResources_certifies controller program x t
+  exact (simSpace_encodedUniversalInterpreter_le _ clock).trans hresources.workspaceCells
+
 /-- Even with zero controller steps, the generated program and unary request are nonconstant in
 the embedded program; the selected native online bound therefore changes as well. -/
 example :
