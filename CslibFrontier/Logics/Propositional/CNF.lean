@@ -100,7 +100,8 @@ def CNF.Satisfiable (φ : CNF V) : Prop := ∃ σ : V → Bool, φ.eval σ = tru
 /-- A clause holds when some literal does. -/
 theorem Clause.eval_eq_true_iff (σ : V → Bool) (c : Clause V) :
     c.eval σ = true ↔ ∃ l ∈ c, σ l.1 = l.2 := by
-  simp [Clause.eval, Literal.eval]
+  -- `Bool.beq_to_eq` rather than `beq_iff_eq`, whose `LawfulBEq Bool` instance now uses choice
+  simp only [Clause.eval, Literal.eval, List.any_eq_true, Bool.beq_to_eq]
 
 /-- The empty clause evaluates to `false`. -/
 @[simp] theorem Clause.eval_nil (σ : V → Bool) : Clause.eval σ [] = false := rfl
