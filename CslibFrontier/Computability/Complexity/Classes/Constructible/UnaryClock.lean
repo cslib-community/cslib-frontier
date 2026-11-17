@@ -81,9 +81,8 @@ private theorem mul_two_pow_length (c : ℕ) :
     (fun l i hi => by
       rw [hstate l i hi]
       exact Nat.mul_le_mul_left c (Nat.pow_le_pow_right (by norm_num) hi))
-  refine of_bounds ((ComputableTidilyInTimeAndSpace.computableInTimeAndSpace hK).of_enc_eq
-    (g := fun l : List Bool => c * 2 ^ l.length)
-    fun l => by rw [List.foldl_add_self_eq_mul_two_pow])
+  simp only [List.foldl_add_self_eq_mul_two_pow] at hK
+  refine of_bounds (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace hK)
     (K * (5 * c₀ + 5) + K * (3 * c₀ + 3) + 1) (fun l => ?_) (fun l => ?_) fun l => ?_
   · have hsum : ∑ i ∈ Finset.range l.length, 2 ^ i < 2 ^ l.length :=
       Nat.geomSum_lt le_rfl fun _ => Finset.mem_range.1
@@ -135,7 +134,7 @@ theorem TimeConstructible.computableInO_unaryClock {T : ℕ → ℕ}
     hT.computableInO.of_enc_eq fun _ => rfl
   have hclock := ((ComputableInO.mul_two_pow_length c).comp hbits).of_enc_eq
     (g := fun x : List Bool => List.replicate (c * 2 ^ Nat.size (T x.length)) true)
-    (encOut := encBits) fun x => by
+    (encC := encBits) fun x => by
       simp [encUnary_apply, encNat_apply, Nat.size_eq_bits_len]
   have hdigits (m : ℕ) : (encNat m).length = Nat.size m := by
     rw [encNat_apply, Nat.size_eq_bits_len]
@@ -162,7 +161,8 @@ theorem TimeConstructible.exists_prepare_unaryClock {T : ℕ → ℕ} (hT : Time
       machine.runFrom (machine.initCfg input) (C * T input.length + C) =
         wordsCfg input none (Function.update (fun _ => []) (Fin.last r)
           (List.replicate (c * 2 ^ Nat.size (T input.length)) true)) [] := by
-  obtain ⟨c₁, ⟨r, State, hfinite, machine, hmachine⟩, -⟩ := Internal.NormalForm.inO (hT.computableInO_unaryClock c)
+  obtain ⟨c₁, ⟨r, State, hfinite, machine, hmachine⟩, -⟩ :=
+    Internal.NormalForm.inO (hT.computableInO_unaryClock c)
   refine ⟨r, State ⊕ RewindWorkState, inferInstance, machine.outputToWord, c₁ + 2 * c + 2,
     fun input => ?_⟩
   have hbound : c₁ * (T input.length + 1) +

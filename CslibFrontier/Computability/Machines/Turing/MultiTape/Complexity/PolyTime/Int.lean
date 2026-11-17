@@ -15,6 +15,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.LinearCodecPrimitives
 
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Primitives
+
 /-!
 # Polynomial-time operations on signed unary integers
 

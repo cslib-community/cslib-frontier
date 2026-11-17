@@ -105,11 +105,23 @@ theorem exists_computableInTimeAndSpace_iterateWhile {init : α → β} {step : 
     exact ComputesFunInTimeAndSpace.mono
       (fun a => (hraw a).computesInTimeAndSpace)
       (fun a => by
-        dsimp only [hmainTime, c₀]
-        nlinarith)
+        have ho : 4 * (encState (step^[r a] (init a))).length + 9 ≤
+            c₀ * ((encState (step^[r a] (init a))).length + 1) := by
+          calc _ ≤ 29 * ((encState (step^[r a] (init a))).length + 1) := by omega
+               _ ≤ _ := Nat.mul_le_mul_right _ (by dsimp only [c₀]; omega)
+        dsimp only [hmainTime] at ⊢
+        omega)
       (fun a => by
-        dsimp only [hmainSpace, c₀, kMain, main]
-        nlinarith)
+        have ho : 5 * (encState (step^[r a] (init a))).length +
+            (6 * max kMain kf + 20) ≤
+            c₀ * ((encState (step^[r a] (init a))).length + 1) := by
+          have hm := Nat.mul_le_mul_right (encState (step^[r a] (init a))).length
+            (show 5 ≤ c₀ by dsimp only [c₀]; omega)
+          dsimp only [c₀] at hm ⊢
+          rw [Nat.mul_add, Nat.mul_one]
+          omega
+        dsimp only [hmainSpace, ci', di', cf', df', kMain, main] at ho ⊢
+        omega)
   -- the bounds, with `P = (l a + |encIn a| + 1) ^ D` bounding every polynomial term
   obtain ⟨E, hE⟩ : ∃ E, E = 2 * (ks + 3) := ⟨_, rfl⟩
   set D := di + di' + ds + ds' + df + df' + 1

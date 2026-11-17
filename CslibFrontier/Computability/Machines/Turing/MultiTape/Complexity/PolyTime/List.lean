@@ -7,6 +7,7 @@ Authors: Erik Demaine, Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeNatFrontends
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListMap
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListBinaryLookup
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Fold
@@ -21,6 +22,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Foundations.Data.BitString.List.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.BitString.Cut
+import CslibFrontier.Tactic.PolyTime.Init
 import Mathlib.Data.List.GetD
 
 /-!
@@ -109,13 +111,16 @@ theorem headD {encL : List α ↪ List Bool} [ListEncoding encA encL] (fallback 
     ComputableInPolyTime (fun list => list.headD fallback) encL encA :=
   (ListEncoding.headD (enc₁ := encA) (enc := encL) fallback).computableInPolyTime
 
-/-- Read a computed framed list's head, inferring the element encoding from the list before
-composing with a later field projection. -/
-@[fun_prop]
-theorem listHeadDWithInput {list : γ → List α} (fallback : α)
-    (hlist : ComputableInPolyTime list encIn (encList encA)) :
-    ComputableInPolyTime (fun a => (list a).headD fallback) encIn encA :=
-  (headD fallback).comp hlist
+/-- Read the head of a computed framed list with a computed fallback, inferring the element
+encoding from the list before checking the fallback or composing with an outer projection. -/
+@[fun_prop, program_certificate hlist]
+theorem listHeadDWithInput {α γ : Type} {encA : α ↪ List Bool} {encIn : γ ↪ List Bool}
+    {list : γ → List α} {fallback : γ → α}
+    (hlist : ComputableInPolyTime list encIn (encList encA))
+    (hfallback : ComputableInPolyTime fallback encIn encA) :
+    ComputableInPolyTime (fun a => (list a).headD (fallback a)) encIn encA :=
+  (optionGetDWithInput ((head? encA).comp hlist) hfallback).of_enc_eq fun a => by
+    cases list a <;> rfl
 
 /-- Test a framed list's emptiness, determining its element encoding for automation. -/
 @[fun_prop]
@@ -369,7 +374,7 @@ theorem countPWithInput {test : γ → α → Bool} {list : γ → List α}
   countPWith htest id' hlist
 
 /-- Count occurrences of a computed value using lawful Boolean equality. -/
-@[fun_prop]
+@[fun_prop, program_certificate hlist]
 theorem countWithInput [BEq α] [LawfulBEq α] {list : γ → List α} {value : γ → α}
     (hlist : ComputableInPolyTime list encIn (encList encA))
     (hvalue : ComputableInPolyTime value encIn encA) :
@@ -445,7 +450,7 @@ theorem anyWithInput {test : γ → α → Bool} {list : γ → List α}
 
 /-- Test whether any element of a fixed list satisfies its input-dependent predicate.
 The fixed list needs no element encoding or uniform certificate over all possible elements. -/
-@[fun_prop]
+@[fun_prop, program_certificate]
 theorem anyConst {ι : Type*} (l : List ι) {test : γ → ι → Bool}
     (htest : ∀ i ∈ l, ComputableInPolyTime (fun x => test x i) encIn encBool) :
     ComputableInPolyTime (fun x => l.any (test x)) encIn encBool := by
@@ -504,13 +509,6 @@ theorem bitsTakeWithInput {list : γ → List Bool} {count : γ → ℕ}
     ComputableInPolyTime (fun x => (list x).take (count x)) encIn encBits :=
   bitsTake.comp (hlist.prod hcount)
 
-/-- Read a bit at a unary index with a fixed fallback. Fixing the raw encoding avoids
-guessing a list-encoding instance during compositional proof search. -/
-@[fun_prop]
-theorem bitsGetD (fallback : Bool) :
-    ComputableInPolyTime (fun p : List Bool × ℕ => p.1.getD p.2 fallback)
-      (encPair encBits encUnary) encBool := listGetD (encA := encBool) fallback
-
 /-- Read a computed bit string at a computed unary index. -/
 @[fun_prop]
 theorem bitsGetDWithInput {list : γ → List Bool} {index : γ → ℕ}
@@ -553,7 +551,6 @@ theorem zip {α β : Type} (encA : α ↪ List Bool) (encB : β ↪ List Bool) :
       List.getD_eq_getElem _ _ hleft, List.getD_eq_getElem _ _ hright]
   simp_rw [heq, List.getD_eq_getElem?_getD]
   fun_prop
-
 
 /-- Read a computed framed list at a computed unary index with a fixed fallback, inferring the
 element encoding from the list. -/
@@ -639,7 +636,8 @@ theorem trans_encList_polyTime {α : Type} (encIn : α ↪ List Bool)
       ComputableInPolyTime (fun a => a) (encIn.trans (encList enc)) encIn := by
   obtain ⟨hforward, hreverse⟩ := bits_encList_polyTime enc
   constructor
-  · exact (hforward.comp (of_eq (f := encIn) (encOut := encBits) fun _ => rfl)).of_enc_eq fun _ => rfl
+  · exact (hforward.comp (of_eq (f := encIn) (encOut := encBits) fun _ => rfl)).of_enc_eq
+      fun _ => rfl
   · have hexpose : ComputableInPolyTime encIn (encIn.trans (encList enc))
         (encList enc) := of_eq fun _ => rfl
     exact (hreverse.comp hexpose).of_enc_eq fun _ => rfl

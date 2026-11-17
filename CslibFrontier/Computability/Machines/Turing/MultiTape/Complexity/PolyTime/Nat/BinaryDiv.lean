@@ -65,8 +65,8 @@ theorem binary_div' {α : Type} {input : α ↪ List Bool} {left right : α → 
     ComputableInPolyTime (fun a => left a / right a) input encNat :=
   binary_div.comp (hleft.prod hright)
 
-/-- Remainder of computed binary values, fixing their intermediate encodings for proof search. -/
-@[fun_prop, program_certificate]
+/-- Remainder of computed binary values. Applied explicitly so unary remainder proof search
+does not select the binary encoding. -/
 theorem binary_mod' {α : Type} {input : α ↪ List Bool} {left right : α → ℕ}
     (hleft : ComputableInPolyTime left input encNat)
     (hright : ComputableInPolyTime right input encNat) :

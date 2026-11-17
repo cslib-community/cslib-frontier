@@ -148,11 +148,6 @@ end Turing.MultiTapeTM.BinarySub
 
 namespace Turing.MultiTapeTM.ComputableInPolyTime
 
-/-- Decode arbitrary little-endian bit words to binary naturals. -/
-@[fun_prop]
-theorem bitsToNat : ComputableInPolyTime ofBits encBits encNat :=
-  ComputableInO.bitsToNat.computableInPolyTime .self .self
-
 /-- The binary digits of a natural number, as a raw bit string. -/
 @[fun_prop]
 theorem natBits : ComputableInPolyTime Nat.bits encNat encBits := of_eq fun _ => rfl
