@@ -67,8 +67,8 @@ example : selected [false, true] = pure ([false, true], false) := rfl
 
 example (word : List Bool) :
     ProbComp.eval (Prod.fst <$> retainedBit word) = PMF.pure word := by
-  simpa [retainedBit, ProbComp.eval_map] using
-    PMF.map_const (PMF.uniformOfFintype Bool) word
+  simp only [retainedBit, ProbComp.eval_map, PMF.map_comp, Function.comp_def]
+  exact PMF.map_const _ _
 
 /-- The captured first bit selects sampling or preservation of the one-bit state. -/
 noncomputable def sampledStep (word : List Bool) (state : Bool) : ProbComp Bool :=
