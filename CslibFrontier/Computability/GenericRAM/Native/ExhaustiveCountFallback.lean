@@ -178,15 +178,7 @@ theorem computableInPolyTime_countStep {pred : P → List Bool → Bool}
     ComputableInPolyTime (countStep pred)
       (BooleanFold.encCallbackInput (encPair (encPair encUnary encP) encNat))
       (encPair (encPair encUnary encP) encNat) := by
-  have hacc := snd (encPair encUnary encBits) (encPair (encPair encUnary encP) encNat)
-  have hx := (fst (encPair encUnary encP) encNat).comp hacc
-  have hp := (snd encUnary encP).comp hx
-  have hw := (snd encUnary encBits).comp
-    (fst (encPair encUnary encBits) (encPair (encPair encUnary encP) encNat))
-  have hz := (snd (encPair encUnary encP) encNat).comp hacc
-  have htest := hpred.comp (hp.prod hw)
-  have hinc := binary_add.comp (hz.prod (const 1))
-  exact hx.prod (htest.ite' hinc hz)
+  fun_prop [countStep]
 
 /-- Generic `NativeCertificate` for counting `n`-bit assignments satisfying `pred` via
 `BooleanFold.certificate` without materializing `enumList n`. -/

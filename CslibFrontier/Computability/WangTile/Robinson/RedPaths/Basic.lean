@@ -407,6 +407,22 @@ private theorem refinedVerticalLane
     (fun y => refineIndexGrid_even_odd grid column y)
     parentLane (fun _ h => children h) boundary
 
+/-- An oriented red cycle transfers across grids agreeing from the origin through its
+northeast corner. -/
+theorem CycleOn.congr {g h : ℕ → ℕ → Index} {w e b t : ℕ}
+    (c : CycleOn g w e b t) (eq : ∀ x y, x ≤ e → y ≤ t → g x y = h x y) :
+    CycleOn h w e b t where
+  west_lt_east := c.west_lt_east
+  south_lt_north := c.south_lt_north
+  southwest := by rw [← eq w b c.west_lt_east.le c.south_lt_north.le]; exact c.southwest
+  southeast := by rw [← eq e b le_rfl c.south_lt_north.le]; exact c.southeast
+  northwest := by rw [← eq w t c.west_lt_east.le le_rfl]; exact c.northwest
+  northeast := by rw [← eq e t le_rfl le_rfl]; exact c.northeast
+  southLane x hl hu := by rw [← eq x b hu.le c.south_lt_north.le]; exact c.southLane x hl hu
+  northLane x hl hu := by rw [← eq x t hu.le le_rfl]; exact c.northLane x hl hu
+  westLane y hl hu := by rw [← eq w y c.west_lt_east.le hu.le]; exact c.westLane y hl hu
+  eastLane y hl hu := by rw [← eq e y le_rfl hu.le]; exact c.eastLane y hl hu
+
 /-- Substitution doubles an oriented red cycle and preserves all four lanes. -/
 theorem CycleOn.refine {grid : Nat → Nat → Index}
     {west east south north : Nat}

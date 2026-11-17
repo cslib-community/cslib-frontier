@@ -55,12 +55,6 @@ theorem computableInPolyTime_padTo {inputCount target : α → ℕ}
     (hlayers : ComputableInPolyTime layers input (encList (encList encNode))) :
     ComputableInPolyTime (fun a => padTo (inputCount a) (target a) (layers a))
       input (encList (encList encNode)) := by
-  have hcopies := computableInPolyTime_identityLayer
-    (computableInPolyTime_outputWidth hn hlayers)
-  have hrep : ComputableInPolyTime
-      (fun a => List.replicate (target a - (layers a).length)
-        (identityLayer (outputWidth (inputCount a) (layers a))))
-      input (encList (encList encNode)) := by fun_prop
-  exact hlayers.listAppend' hrep
+  fun_prop [padTo]
 
 end Cslib.Circuits.Boolean.Layered

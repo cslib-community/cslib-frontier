@@ -52,11 +52,11 @@ theorem oneRoot_preserves {r : ℕ} (solver : Code .standard (r + 7))
   let stack := stackBase
   have hinit : ∀ i : Fin 128, 109 ≤ i.val →
       (ram[ z ← #0; o ← #1; ptr ← stack; len ← #0 ] :
-        Code .standard 128).Preserves i := by decide
-  have hpush : ∀ i : Fin 128, 109 ≤ i.val → pushFrame.Preserves i := by decide
-  have hpop : ∀ i : Fin 128, 109 ≤ i.val → popFrame.Preserves i := by decide
-  have hlocal : ∀ i : Fin 128, 109 ≤ i.val → localVisit.Preserves i := by decide
-  have hchildren : ∀ i : Fin 128, 109 ≤ i.val → pushChildren.Preserves i := by decide
+        Code .standard 128).Preserves i := by decide +kernel
+  have hpush : ∀ i : Fin 128, 109 ≤ i.val → pushFrame.Preserves i := by decide +kernel
+  have hpop : ∀ i : Fin 128, 109 ≤ i.val → popFrame.Preserves i := by decide +kernel
+  have hlocal : ∀ i : Fin 128, 109 ≤ i.val → localVisit.Preserves i := by decide +kernel
+  have hchildren : ∀ i : Fin 128, 109 ≤ i.val → pushChildren.Preserves i := by decide +kernel
   have lift {code : Code .standard 128} (hp : code.Preserves i) :
       (code.rename (preprocessingRegisters r)).Preserves (preprocessingRegisters r i) :=
     Code.preserves_rename (preprocessing_injective r) hp

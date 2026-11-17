@@ -159,10 +159,25 @@ Saugata Basu, Richard Pollack and Marie-Françoise Roy. *Algorithms in Real Alge
 
 Eric T. Bax. “Inclusion and Exclusion Algorithm for the Hamiltonian Path Problem.” *Information Processing Letters* 47(4), 203–207, 1993. https://doi.org/10.1016/0020-0190(93)90033-6 . Bibliographic metadata checked via DOI/DBLP on 2026-11-11; the article body (paywalled) was not inspected, so the manual cites it for the inclusion–exclusion walk-counting algorithm without a theorem or page locator.
 
+<a id="bbhr18"></a>
+## bbhr18
+
+Eli Ben-Sasson, Iddo Bentov, Yinon Horesh and Michael Riabzev. "Fast Reed–Solomon Interactive Oracle Proofs of Proximity." *45th International Colloquium on Automata, Languages, and Programming (ICALP 2018)*, LIPIcs 107, 14:1–14:17, Schloss Dagstuhl, 2018. https://doi.org/10.4230/LIPIcs.ICALP.2018.14 . The library's key is `BenSassonBentovHoreshRiabzev2018`. Bibliographic metadata checked against `references.bib`. Multi-round 2-to-1 coset folding over arbitrary fields of characteristic `≠ 2`, the `PublicCoinIOP` `friIOP`, perfect completeness, and exact query accounting—`kFinal + q * (3 * m + 2)` committed-proof-oracle openings (`FRIParams.proofOracleQueries`, via `PublicCoinIOP.queries`) plus `q` direct input-word reads (`FRIParams.inputWordReads`, via `friInputQueries`), for `kFinal + q * (3 * m + 3)` total word queries (`FRIParams.totalWordQueries`, matching the paper's counting of both input-word and prover-table queries on pp. 14:3–14:4)—are formalized in [FRI/Folding.lean](../CslibFrontier/Crypto/Protocols/FRI/Folding.lean) and [FRI/Protocol.lean](../CslibFrontier/Crypto/Protocols/FRI/Protocol.lean). [FRI/Soundness.lean](../CslibFrontier/Crypto/Protocols/FRI/Soundness.lean) establishes the unconditional round-by-round invariant (`friIOP_rbrSound`) and query-round escape bound (`friQueryRound_escape_le`), together with conditional commit-round escape and two-channel BCS random-oracle compilation steps ([bcs16](#bcs16)) parameterized by `WeightedLineGapBound` / `UniqueLineGapHypothesis`; [FRI/JohnsonSoundness.lean](../CslibFrontier/Crypto/Protocols/FRI/JohnsonSoundness.lean) discharges those per-round line-gap hypotheses in the unique-decoding regime and up to the Johnson bound (`friJohnsonCommitBound`) for this single-word FRI model (paired with [bciks20](#bciks20)).
+
 <a id="bcgl92"></a>
 ## bcgl92
 
 Shai Ben-David, Benny Chor, Oded Goldreich and Michael Luby. *On the Theory of Average Case Complexity*. Journal of Computer and System Sciences 44(2), 193–219, 1992; preliminary version in STOC 1989. https://doi.org/10.1016/0022-0000(92)90019-F . Bibliographic metadata checked against the Crossref record on 2026-11-08. The primary text was not inspected, and no theorem number is claimed. The manual attributes to this paper only the implication `DistNP ⊆ AvgP ⇒ NE = E`, as reported by [bm15](#bm15), §5.
+
+<a id="bciks20"></a>
+## bciks20
+
+Eli Ben-Sasson, Dan Carmon, Yuval Ishai, Swastik Kopparty and Shubhangi Saraf. "Proximity Gaps for Reed–Solomon Codes." *Journal of the ACM* 70(5), 31:1–31:57, 2023; accepted author/NSF manuscript https://par.nsf.gov/servlets/purl/10467091 ; preliminary version FOCS 2020; IACR Cryptology ePrint Archive 2020/654, https://eprint.iacr.org/2020/654 . https://doi.org/10.1145/3614423 . The library's key is `BenSassonCarmonIshaiKoppartySaraf2020`. Bibliographic metadata checked against `references.bib`; section and theorem locators follow the accepted *Journal of the ACM* (2023) manuscript (where Theorem 1.2 treats affine-space proximity gaps across both the unique-decoding and Johnson-bound regimes, Theorem 1.4 treats line correlated agreement across both regimes, Theorem 1.5 treats parameterized curves, Theorem 1.6 on printed p. 6 treats affine-space correlated agreement, Theorem 4.1 treats unique-decoding lines, Theorem 5.1 on p. 17 treats unweighted Johnson-bound lines, Theorems 6.1–6.2 treat unique-decoding and Johnson-bound degree-`r` curves, Theorem 7.1 treats weighted correlated agreement on curves, Version I, in the `α > √ρ` range, Theorem 7.2 treats weighted correlated agreement on lines/curves, and Theorem 7.4 on printed p. 32 treats weighted correlated agreement over affine spaces; by contrast, Theorem 7.2 of the July 2020 ePrint 2020/654 author version concerns FRI soundness). Formalized across:
+
+- [Unique.lean](../CslibFrontier/Foundations/Data/Code/ProximityGap/Unique.lean): unique-decoding correlated agreement and proximity gaps for affine lines and degree-`d` parameterized curves (unique-decoding cases of Theorems 1.2 and 1.4, together with Theorems 4.1 and 6.1);
+- [Johnson.lean](../CslibFrontier/Foundations/Data/Code/ProximityGap/Johnson.lean): explicit-parameter Guruswami–Sudan correlated-agreement steps for lines and integer-weighted degree-`r` curves over arbitrary fields of arbitrary characteristic (steps toward Theorems 5.1, 6.2 and 7.2) together with original explicit-constant line proximity-gap variants (`1800 * (m + 1)^6 * n^2 / (ρ * |F|)` and `115200 * n^2 / (ρ * η^6 * |F|)`) in the setting of Theorem 1.4 (not uniformly smaller at small `m` than the displayed `(m + 1/2)^7 / (3 * ρ^(3/2))` finite constant of Theorem 5.1, p. 17 in the accepted NSF/JACM manuscript);
+- [Curve.lean](../CslibFrontier/Foundations/Data/Code/ProximityGap/Curve.lean): sharp unique-decoding `ℕ`/`ℚ`-weighted correlated agreement (a unique-decoding specialization and signed-weight extension of Section 7 / Theorem 7.1, where source Theorem 7.1 treats weighted curves, Version I, in the `α > √ρ` range), original explicit-constant Johnson-bound curve proximity-gap variants and `ℚ`-weighted curve/line steps (toward Theorems 1.5, 6.2, 7.1 and 7.2), pointwise close-or-sparse affine-space dichotomy lifts (`proximityGap_affine_of_line` and unique/Johnson instantiations in the setting of Theorem 1.2), and parameterized list-size affine correlated-agreement steps (assuming `2 ≤ ℓ → maxYDeg (k - 1) D * B_line < |F|` or absorbing that factor into the density threshold; matching the exact displayed finite thresholds and exact affine correlated-agreement source endpoints of Theorem 1.6 on printed p. 6 and Theorem 7.4 on printed p. 32 without the list-size premise, as well as the unconditional FRI soundness endpoint of Section 8 / Theorem 8.3, remain tracked in #5968);
+- [FRI/Folding.lean](../CslibFrontier/Crypto/Protocols/FRI/Folding.lean), [FRI/Protocol.lean](../CslibFrontier/Crypto/Protocols/FRI/Protocol.lean), [FRI/Soundness.lean](../CslibFrontier/Crypto/Protocols/FRI/Soundness.lean) and [FRI/JohnsonSoundness.lean](../CslibFrontier/Crypto/Protocols/FRI/JohnsonSoundness.lean): single-word 2-to-1 FRI coset folding, the unconditional FRI IOP round-by-round invariant and query-round escape bound, and conditional commit-phase escape / BCS random-oracle compilation steps, together with unconditional derivation of the per-round `WeightedLineGapBound` in the unique-decoding regime and up to the Johnson bound (`friJohnsonCommitBound`) in [FRI/JohnsonSoundness.lean](../CslibFrontier/Crypto/Protocols/FRI/JohnsonSoundness.lean). Theorem 8.3 of the accepted JACM manuscript treats batched FRI with correlated agreement of the initial functions and its stated quantitative error (and is an IOP theorem, not a BCS random-oracle theorem): batched initial-function correlated agreement and exact quantitative Theorem 8.3 error correspondence remain open (tracked in #5968), while the non-interactive random-oracle bounds in [FRI/JohnsonSoundness.lean](../CslibFrontier/Crypto/Protocols/FRI/JohnsonSoundness.lean) follow by composing the single-word FRI IOP escape bounds with the two-channel BCS compiler ([bcs16](#bcs16)).
 
 <a id="bcs16"></a>
 ## bcs16
@@ -208,6 +223,16 @@ Claude Berge. *Two Theorems in Graph Theory*. Proceedings of the National Academ
 ## berge58
 
 Claude Berge. *Sur le couplage maximum d'un graphe*. Comptes Rendus Hebdomadaires des Séances de l'Académie des Sciences 247, 258–259, 1958. Bibliographic data from secondary bibliographies; the note was not inspected, and no theorem number is claimed. The manual attributes to it the Tutte–Berge formula, following [schrijver17](#schrijver17), Section 5.1.
+
+<a id="berger1966"></a>
+## berger1966
+
+Robert Berger. *The Undecidability of the Domino Problem*. Memoirs of the American
+Mathematical Society 66, 1966. [Publisher record](https://doi.org/10.1090/memo/0066).
+Bibliographic metadata checked on 2026-11-16 against the publisher record and its Crossref
+deposit. The book's full text was inaccessible in this pass: internal locator not verified.
+The formalization uses the later Robinson–Ollinger route described under
+[Jeandel–Vanier](#jeandelvanier2020), ported from the pinned lean-wang revision there.
 
 <a id="bermanhartmanis75"></a>
 ## bermanhartmanis75
@@ -352,7 +377,7 @@ Michael Burrows and David J. Wheeler. *A Block-sorting Lossless Data Compression
 <a id="canetti20"></a>
 ## canetti20
 
-Ran Canetti. *Universally Composable Security*. Journal of the ACM 67(5), Article 28, 2020; full version Cryptology ePrint Archive 2000/067. https://doi.org/10.1145/3402457 .
+Ran Canetti. *Universally Composable Security*. Journal of the ACM 67(5), Article 28, 2020; full version Cryptology ePrint Archive 2000/067. https://doi.org/10.1145/3402457 . Locators for the static-UC definitions refer to the ePrint revision of February 11, 2020 (106 pages; printed page = PDF page − 3), read through the Internet Archive copy https://web.archive.org/web/20260904164957id_/https://eprint.iacr.org/2000/067.pdf (SHA-256 `0466f041f546ce6db5e86c7ec81ea12604c4bea6c944b73b4eeac8457564703a`, first recorded in [#5680](https://github.com/cslib-community/cslib-frontier/pull/5680); its SHA-1 matches the archive's digest for that capture); the JACM version was not inspected for those static-UC locators, and its numbering may differ. For adaptive corruptions in `Protocols/UC/Adaptive.lean`, the JACM version (pagination `28:1`–`28:94`) Section 7.1 (JACM pp. 28:69–70; ePrint p. 74), Section 7.1.1 (JACM p. 28:71), Section 7.2 (JACM pp. 28:73–74), and JACM p. 28:15 were checked for adaptive corruptions, static-corruption restriction, the corruption-status query, and standard PID-wise ideal-functionality corruption; `Protocols/UC/Adaptive.lean` formalizes a call-bounded statistical snapshot corruption model (`P.view` snapshots of every party after each inner activation, where `P.view` is arbitrary and may hide stored coins, and global inner-activation counts are exposed; Canetti §7.1.1's write-once storage restriction, mandatory coin exposure, per-party activation granularity, PPT time bounds, and adaptive composition stay open).
 
 <a id="canonne22"></a>
 ## canonne22
@@ -377,7 +402,7 @@ Ran Canetti, Yevgeniy Dodis, Rafael Pass and Shabsi Walfish. *Universally Compos
 <a id="cf01"></a>
 ## cf01
 
-Ran Canetti and Marc Fischlin. *Universally Composable Commitments*. CRYPTO 2001, Lecture Notes in Computer Science 2139, 19–40, 2001; full version Cryptology ePrint Archive 2001/055. https://doi.org/10.1007/3-540-44647-8_2 . Section 2.2, Figure 2 (`F_com`, p. 10) and Section 3, Theorem 6 (p. 12) were checked against the full version, Cryptology ePrint Archive 2001/055. The library proves an adaptation and special case of Theorem 6: one commitment message and one opening message, a constant completeness gap, a single simulator fixed before the environment, and call-counted (not machine-efficiency) bounds. Theorem 6 for general bilateral protocols and the computational setting is not formalized.
+Ran Canetti and Marc Fischlin. *Universally Composable Commitments*. CRYPTO 2001, Lecture Notes in Computer Science 2139, 19–40, 2001; full version Cryptology ePrint Archive 2001/055. https://doi.org/10.1007/3-540-44647-8_2 . Section 2.2, Figure 2 (`F_com`, p. 10) and Section 3, Theorem 6 (p. 12) were checked against the full version, Cryptology ePrint Archive 2001/055. The library proves an adaptation and special case of Theorem 6: one commitment message and one opening message, a constant completeness gap, a single simulator fixed before the environment, and call-counted (not machine-efficiency) bounds. Theorem 6 for general bilateral protocols and the computational setting is not formalized. Theorem 8 (p. 20, erasing parties) and Theorem 11 (p. 26, `UCCReUse`/`NotErase`, non-erasing parties) motivate the erasing vs. non-erasing distinction in `Protocols/UC/Adaptive.lean`; neither computational theorem is formalized.
 
 <a id="cgks98"></a>
 ## cgks98
@@ -839,6 +864,17 @@ Venkatesan Guruswami, Atri Rudra and Madhu Sudan. *Essential Coding Theory*. Dra
 
 The draft does not name Wolfowitz. The manual's attribution of the strong converse for discrete memoryless channels to him is standard background and was not checked against his paper.
 
+Multiplicity list decoding of Reed–Solomon codes (the Guruswami–Sudan algorithm) appears in Chapter 12 of this 26 August 2025 draft (checked correspondence, printed pp. 253–259):
+
+- §§12.2.3–12.2.4: adding multiplicities to Sudan's algorithm, with Definitions 12.2.8–9 (multiplicity vanishing via shifted polynomials and Hasse derivatives, formalized in [Bivariate.lean](../CslibFrontier/Foundations/Algebra/Polynomial/Bivariate.lean) as `Polynomial.Bivariate.shift`, `Polynomial.Bivariate.hasseDerivBiv`, and `Polynomial.Bivariate.VanishesToOrder`);
+- Algorithm 12.2.3 and Lemmas 12.2.10–11: multiplicity interpolation and root-divisibility (formalized in [GuruswamiSudan.lean](../CslibFrontier/Foundations/Data/Code/GuruswamiSudan.lean) as `Cslib.Code.GuruswamiSudan.IsWeightedInterpolant`, `Cslib.Code.GuruswamiSudan.IsInterpolant`, `Cslib.Code.GuruswamiSudan.weightedInterpolant`, `Cslib.Code.GuruswamiSudan.interpolant`, `Cslib.Code.GuruswamiSudan.IsInterpolant.X_sub_C_dvd`, and `Cslib.Code.guruswamiSudan`);
+- Theorem 12.2.12: list decoding of Reed–Solomon codes up to the Johnson radius `1 - √ρ` (formalized as `Cslib.Code.mem_guruswamiSudan_johnson_iff` and `Cslib.Code.exists_guruswamiSudan_of_eps`).
+
+<a id="guruswamisudan99"></a>
+## guruswamisudan99
+
+Venkatesan Guruswami and Madhu Sudan. "Improved Decoding of Reed–Solomon and Algebraic-Geometry Codes." *IEEE Transactions on Information Theory* 45(6), 1757–1767, 1999; preliminary version FOCS 1998. https://doi.org/10.1109/18.782097 . The library's key is `GuruswamiSudan1999`. Bibliographic metadata checked against `references.bib`; the paywalled IEEE article body was not inspected directly, so no journal theorem or page locator is claimed. The formalized exposition follows [Essential Coding Theory](#guruswamirudrasudan25), §§12.2.3–12.2.4, Definitions 12.2.8–9, Algorithm 12.2.3, Lemmas 12.2.10–11, and Theorem 12.2.12 (pp. 253–259), with characteristic-independent bivariate polynomial algebra (`Polynomial.Bivariate.VanishesToOrder`, `Polynomial.Bivariate.weightedDegree`) in [Bivariate.lean](../CslibFrontier/Foundations/Algebra/Polynomial/Bivariate.lean) and Reed–Solomon multiplicity interpolation and Johnson-radius decoding (`Cslib.Code.GuruswamiSudan.IsWeightedInterpolant`, `Cslib.Code.GuruswamiSudan.IsInterpolant`, `Cslib.Code.guruswamiSudan`, `Cslib.Code.mem_guruswamiSudan_johnson_iff`, `Cslib.Code.exists_guruswamiSudan_of_eps`) in [GuruswamiSudan.lean](../CslibFrontier/Foundations/Data/Code/GuruswamiSudan.lean).
+
 <a id="gusfield90"></a>
 ## gusfield90
 
@@ -887,7 +923,7 @@ Christopher Henson and Fabrizio Montesi. *Computer Science as Infrastructure: th
 <a id="hhk17"></a>
 ## hhk17
 
-Dennis Hofheinz, Kathrin Hövelmanns, Eike Kiltz. “A Modular Analysis of the Fujisaki–Okamoto Transformation.” *Theory of Cryptography (TCC 2017)*, LNCS 10677, 341–371, 2017. https://doi.org/10.1007/978-3-319-70500-2_12 ; full version https://eprint.iacr.org/2017/604 (dated 2 November 2021). Checked against the 2 November 2021 ePrint PDF (§2.1 correctness/spreadness and Def. 2.2 / Fig. 4 IND-CPA; §3.1 Fig. 5 transform `T`; §3.2.1 Fig. 9 `FO^⊥`; §3.2.2 Fig. 12 `FO-notbot`), with model adaptations (`ExplicitCoinPKE`/`Scheme` fixed types and arbitrary `sampleCoins`/`sampleMsg`/`sampleKey` samplers, two-stage IND-CPA `cpaAdvantage` via `PKE.cpaExperiment` on `ExplicitCoinPKE.toPKE`, with the single-stage fixed-message `indCpaGame`/`indCpaAdvantage` kept only for the spread-necessity example, and domain-separated `H : Bool × M × CT → K`) documented in the Lean modules and chapter text.
+Dennis Hofheinz, Kathrin Hövelmanns, Eike Kiltz. “A Modular Analysis of the Fujisaki–Okamoto Transformation.” *Theory of Cryptography (TCC 2017)*, LNCS 10677, 341–371, 2017. https://doi.org/10.1007/978-3-319-70500-2_12 ; full version https://eprint.iacr.org/2017/604 (dated 2 November 2021). The pinned copy is the Internet Archive's https://web.archive.org/web/20250427001626id_/https://eprint.iacr.org/2017/604.pdf (38 pages; printed page = PDF page; SHA-256 `056ef846e047ec1e7f69629c839e9160312338d330d27f292e40d595a9c73fff`, first recorded in [#5675](https://github.com/cslib-community/cslib-frontier/pull/5675); its SHA-1 matches the archive's digest for that capture). Checked against the 2 November 2021 ePrint PDF (§2.1 correctness/spreadness and Def. 2.2 / Fig. 4 IND-CPA; §3.1 Fig. 5 transform `T`; §3.2.1 Fig. 9 `FO^⊥`; §3.2.2 Fig. 12 `FO-notbot`), with model adaptations (`ExplicitCoinPKE`/`Scheme` fixed types and arbitrary `sampleCoins`/`sampleMsg`/`sampleKey` samplers, two-stage IND-CPA `cpaAdvantage` via `PKE.cpaExperiment` on `ExplicitCoinPKE.toPKE`, with the single-stage fixed-message `indCpaGame`/`indCpaAdvantage` kept only for the spread-necessity example, and domain-separated `H : Bool × M × CT → K`) documented in the Lean modules and chapter text.
 
 <a id="hhrvw20"></a>
 ## hhrvw20
@@ -1056,9 +1092,38 @@ whose southeast extension uses `R1` rather than `R3`
 ([plan, lines 94–98](https://github.com/edemaine/lean-wang/blob/64268a3/plan.md#L94-L98)).
 Both thick-layer boundary lanes are retained. This records lean-wang's correction, not a
 verified erratum to the printed figures; historical correction: locator not verified.
-Full agreement with those figures is not checked in Lean. The formalized endpoint is matching
-substitution, local recognition, parent towers, recurrence and nonempty plane tilings;
-it does not include Proposition 8's aperiodicity conclusion or domino undecidability.
+Full agreement with those figures is not checked in Lean. The hierarchy modules formalize
+matching substitution, local recognition, parent towers, recurrence and nonempty plane tilings;
+they do not include Proposition 8's aperiodicity conclusion or domino undecidability.
+The routing worker additionally read §3.3, pp. 26–29, on 2026-11-16: light/dark separation,
+obstruction signals, free-grid transmission and the two directions of seed removal.
+Routing formalizes the generic conditional step, including its finite-grid/addressed-patch
+consumers. Signals constructs the finite decorated scaffold, decodes arbitrary scaffold planes,
+and characterizes roles by clear signal edges. Canonical certificates retain 312 selected
+decorated nodes from that same lean-wang revision's
+[ShadedSubstitutionStateWitnesses](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/ShadedSubstitutionStateWitnesses.lean).
+Nodes are reindexed in source-list order; semantic seam certificates replace repeated
+decoding of the source tables.
+Canonical patches assign nearest-border obstruction signals to matching decorated
+substitutions and establish that the resulting finite scaffold tiles the plane.
+Carrier/BorderCertificates retains the 376-state invariant from
+[ShadedCarrierBorderHierarchyData](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/ShadedCarrierBorderHierarchyData.lean).
+Each state records a decorated node, coordinate parities and a three-by-three border halo.
+Indexed witnesses certify all sixteen child refinements, visible border observations and
+index-zero child configurations. Carrier/Borders gives these certificates their recursive
+frame interpretation.
+Carrier/Borders, Carrier/Addresses, Carrier/Corners and Realization port the pinned
+revision's ShadedCarrierHierarchy, ShadedCarrierBorderHierarchy, ShadedCarrierBorderGeometry,
+ShadedCarrierBorderIntervals, ShadedCarrierSquareGeometry, ShadedCarrierHierarchyAddressing,
+ShadedCarrierConcreteRoles and ShadedCarrierCornerAddressing. Recursive owner frames identify
+the canonical carriers, their integer addresses satisfy wire equations, and every corner has
+address zero. Thus the concrete scaffold realizes every pointed payload plane, as in
+ShadedCarrierCornerAddressing.lean:435–440. The named border halo and `AddressedSquare`
+replace the source's raw halo lists and `SquareAddressing`; the carrier arithmetic and
+centered-marker induction closely follow the source.
+The backward authoring worker also read Theorem 10 on manuscript p. 29 and the proof-route
+attribution in §3.4, pp. 29–30, plus [Robinson's primary paper](https://lipn.univ-paris13.fr/~fernique/qc/robinson.pdf),
+§7, printed pp. 201–205, on 2026-11-16.
 The red-path and shading modules are after §3.3, Figures 17–18, manuscript
 pp. 24, 26–28, read directly on 2026-11-16: light red wires cross dark ones, and squares
 emit signals on their exterior borders. The exact opposite-shade crossing rule (also
@@ -1066,6 +1131,49 @@ forbidding dark–dark crossings), quarter-port connectivity, and nearest outwar
 light-boundary invariant come from lean-wang's red-graph and oriented-light modules at
 the same pinned revision; the discrete-height argument is not attributed to the manuscript. These are scaffold ingredients, not Theorem 10's endpoint.
 This source check is authoring evidence, not independent review.
+
+FreeGrid proves that every decoded scaffold plane contains a light consecutive marked grid
+for each requested number of rows and columns. Its
+canonical free-line inductions follow `coordinate_free_lines` in
+[CanonicalEvenFreeLines, line 417](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/CanonicalEvenFreeLines.lean#L417)
+and [CanonicalOddFreeLines, line 449](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/CanonicalOddFreeLines.lean#L449).
+Transfer to arbitrary shades follows `freeCoordinates` in
+[CanonicalShadeComparison, line 284](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/CanonicalShadeComparison.lean#L284)
+and [CanonicalOddShadeComparison, line 361](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/CanonicalOddShadeComparison.lean#L361),
+sharing one comparison proof and using closed coordinate formulas instead of branch lists.
+Marker transport follows
+[ShadedMarkedFreeGrid, line 64](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/ShadedMarkedFreeGrid.lean#L64);
+the arbitrary-plane assembly and gap filling follow
+[SparseFreeLineDecodedMarkedGrid, line 43](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/SparseFreeLineDecodedMarkedGrid.lean#L43)
+and [ShadedConsecutiveFreeGrid, line 220](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/ShadedConsecutiveFreeGrid.lean#L220).
+The `RedPaths/Certificates` module supplies the odd-phase finite base after
+[CanonicalOddShadeBase.exists_boundedPath, line 22](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/CanonicalOddShadeBase.lean#L22),
+using the [oddNodes witnesses, line 5412](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/RedShadeGraphPathWitnesses.lean#L5412)
+with shared path prefixes and semantic-side certificates.
+
+FreeGrid/Obstruction turns these grids into routed grids: the outward-facing light boundary
+rules out extra crossings. It retains the signal-corridor argument and
+[ShadedObstructionGeometry.Geometry.crossingObstruction, line 252](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/ShadedObstructionGeometry.lean#L252),
+while separating the payload propagation of
+[ShadedPayloadCorridors.tileableFixedCornerSquare_of_consecutive, line 229](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/ShadedPayloadCorridors.lean#L229)
+into generic Routing. Forcing then proves `scaffold_forces : Forces scaffold`, after
+[OrientedLightForward.closed104_forcesRoutedFixedCornerSquares, line 32](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/OrientedLightForward.lean#L32):
+for every seeded payload and every combined plane tiling, there is a seeded payload square
+of each positive side length. There is no extra premise about the scaffold.
+The lean-wang declarations and locators above were checked against the pinned source by an
+authoring Codex worker on 2026-11-16; this is authoring evidence, not independent review.
+
+Robinson/Reduction discharges both concrete obligations and proves
+`TilesPlane (removeSeed I) ↔ TilesQuadrant I`, with a primitive-recursive map.
+Undecidable then proves Berger's theorem `¬ ComputablePred TilesPlane`, using the existing
+`List WangTile` instance encoding through `(top, bottom, left, right)`.
+This is after Robinson's proof in the Ollinger form presented here, ported and restructured
+from lean-wang's Robinson/Reduction.lean at the same revision. Its `(n, s, e, w)` record and
+`Fin 4 → ℕ` tiles encode the same fixed-orientation matching problem: our top/bottom/left/right
+correspond to n/s/w/e, reordering the last two coded components. The assembly authoring helper
+checked this manuscript's §1.1, Theorem 1, p. 2 and §3.3, Theorem 10, p. 29 directly on
+2026-11-16. Berger's memoir internal locator remains unverified, as recorded under
+[Berger1966](#berger1966). No aperiodicity theorem or co-RE completeness is claimed.
 
 <a id="johnsonlindenstrauss84"></a>
 ## johnsonlindenstrauss84
@@ -1120,7 +1228,7 @@ Tadao Kasami. *An Efficient Recognition and Syntax-Analysis Algorithm for Contex
 <a id="katzlindell20"></a>
 ## katzlindell20
 
-Jonathan Katz and Yehuda Lindell. *Introduction to Modern Cryptography*, 3rd edition. CRC Press, 2020. Bibliographic metadata and section titles checked against the authors' 3rd-edition table of contents and preface: https://www.cs.umd.edu/~jkatz/imc/toc-preface-3rd.pdf (Sections 9.2.3–9.2.4 on the factoring and RSA assumptions; Section 15.1.1 on trapdoor permutations; Section 15.2 on Paillier encryption; Sections 15.4.1–15.4.3 on quadratic residues and the quadratic residuosity assumption; and Sections 15.5.1–15.5.2 on modular square roots and the Rabin trapdoor permutation). Detailed numbered locators (Definitions, Claims, Propositions, Lemmas, Constructions, Examples, Exercises, and Theorems) remain attributed to the Lean source docstrings, as the textbook body was not independently audited; the Lean modules adapt the parameter generators, RSA challenge domain, Rabin sampling distribution, and the Paillier encryption-randomness sampler (dyadic sampling with `unitOrOne` in place of uniform `ℤ_N^*`) as documented in their module docstrings and implementation notes.
+Jonathan Katz and Yehuda Lindell. *Introduction to Modern Cryptography*, 3rd edition. CRC Press, 2020. Bibliographic metadata and section titles checked against the authors' 3rd-edition table of contents and preface: https://www.cs.umd.edu/~jkatz/imc/toc-preface-3rd.pdf (Sections 9.2.3–9.2.4 on the factoring and RSA assumptions; Section 15.1.1 on trapdoor permutations; Section 15.2 on Paillier encryption; Sections 15.4.1–15.4.3 on quadratic residues and the quadratic residuosity assumption; and Sections 15.5.1–15.5.2 on modular square roots and the Rabin trapdoor permutation). Checked against a PDF of the 3rd edition (CRC Press, 2020), Chapter 12, pp. 423–437, directly inspected on 2026-11-16 for §12.3.2 Definition 12.13 (p. 425, `KEM^cca` with `n`-bit keys and decapsulation oracle rejecting the challenge ciphertext), §12.4.2 Construction 12.19 (p. 431, Diffie–Hellman KEM with `H : G → {0, 1}^{ℓ(n)}`), §12.4.4 gap-CDH prose definition with fixed-base DDH oracle `O_y(U, V) = 1 ↔ V = U^y` (p. 434), Theorem 12.22 (p. 435, ROM CCA security of Construction 12.19 under gap-CDH), and Construction 12.23's `c ∈ G` decryption validation remark (pp. 435–436). Other numbered locators outside pp. 423–437 remain attributed to the Lean source docstrings, as those chapters were not independently audited; the Lean modules adapt the parameter generators, RSA challenge domain, Rabin sampling distribution, and the Paillier encryption-randomness sampler (dyadic sampling with `unitOrOne` in place of uniform `ℤ_N^*`) as documented in their module docstrings and implementation notes.
 
 <a id="kdw04"></a>
 ## kdw04
@@ -1510,7 +1618,7 @@ Piergiorgio Odifreddi. *Classical Recursion Theory, Volume II*. Studies in Logic
 <a id="odonnell14"></a>
 ## odonnell14
 
-Ryan O'Donnell. *Analysis of Boolean Functions*. Cambridge University Press, 2014; arXiv edition, arXiv:2105.10386v1, May 2021, https://arxiv.org/abs/2105.10386 . Library bibliography key `ODonnell2014`. Read in the arXiv edition on 2026-11-08: §1.7, p. 38, Exercise 1.28 (a) `|f̂(S)| ≤ 2δ` for `S ≠ S*` when `dist(f, χ_{S*}) = δ`, (b) the BLR test rejects with probability at least `3δ − 10δ² + 8δ³`, (c) this cannot be improved to `cδ − O(δ²)` for any `c > 3`; and Exercise 1.29 (a) the characterization of affine functions by `f(x) + f(y) + f(z) = f(x + y + z)`, (b) `E[f(x) f(y) f(z) f(x + y + z)] = Σ_S f̂(S)⁴`, (c) a four-query affinity test with uniform queries whose acceptance probability `1 − ε` gives `ε`-closeness to affine, (d) an alternate test with three uniform queries and one fixed query. Theorem 1.30 (BLR soundness) is in §1.6 of the same edition. In [LinearityRejection](../CslibFrontier/Foundations/BooleanAnalysis/LinearityRejection.lean), part (b) is proved for every parity, not only the nearest, and part (c) is stated as the failure of every bound `cδ − Cδ²` for `c > 3` over functions at distance `δ ≤ δ₀` from their nearest parity. The anchored test in [Affinity](../CslibFrontier/Foundations/BooleanAnalysis/Affinity.lean) is one answer to part (d); the exercise asks for some such test and does not specify it. Read on 2026-11-14: §2.3, p. 49, Proposition 2.28 (`I[f] = E[sens_f(x)]`, where `sens_f(x)` is the number of pivotal coordinates for `f` on input `x`); p. 51, equation (2.4) (`I[f] = E[Σᵢ Dᵢf(x)²]`), Definition 2.34 (the discrete gradient of `f` at `x` is `(D₁f(x), D₂f(x), …, Dₙf(x))`), the note after it (for `f : {−1, 1}ⁿ → {−1, 1}` the squared Euclidean norm of the gradient at `x` is `sens_f(x)`) and Proposition 2.35 (`I[f]` is the mean over `x` of the squared Euclidean norm of the gradient). [Influence](../CslibFrontier/Foundations/BooleanAnalysis/Influence.lean) proves Proposition 2.35 and the note for an arbitrary finite coordinate type, writing that squared norm as `∑ i, gradient f x i ^ 2` because the norm on `ι → ℝ` is the sup norm.
+Ryan O'Donnell. *Analysis of Boolean Functions*. Cambridge University Press, 2014; arXiv edition, arXiv:2105.10386v1, May 2021, https://arxiv.org/abs/2105.10386 . Library bibliography key `ODonnell2014`. Read in the arXiv edition on 2026-11-08: §1.7, p. 38, Exercise 1.28 (a) `|f̂(S)| ≤ 2δ` for `S ≠ S*` when `dist(f, χ_{S*}) = δ`, (b) the BLR test rejects with probability at least `3δ − 10δ² + 8δ³`, (c) this cannot be improved to `cδ − O(δ²)` for any `c > 3`; and Exercise 1.29 (a) the characterization of affine functions by `f(x) + f(y) + f(z) = f(x + y + z)`, (b) `E[f(x) f(y) f(z) f(x + y + z)] = Σ_S f̂(S)⁴`, (c) a four-query affinity test with uniform queries whose acceptance probability `1 − ε` gives `ε`-closeness to affine, (d) an alternate test with three uniform queries and one fixed query. Theorem 1.30 (BLR soundness) is in §1.6 of the same edition. In [LinearityRejection](../CslibFrontier/Foundations/BooleanAnalysis/LinearityRejection.lean), part (b) is proved for every parity, not only the nearest, and part (c) is stated as the failure of every bound `cδ − Cδ²` for `c > 3` over functions at distance `δ ≤ δ₀` from their nearest parity. The anchored test in [Affinity](../CslibFrontier/Foundations/BooleanAnalysis/Affinity.lean) is one answer to part (d); the exercise asks for some such test and does not specify it. Read on 2026-11-12: §2.1, p. 43, Definition 2.1 (`Majₙ(x) = sgn(x₁ + ⋯ + xₙ)` for odd `n`; for even `n`, a majority function is any `f` equal to that sign wherever the sum is nonzero); §2.3, p. 50, Proposition 2.31 (`I[f] = Σᵢ f̂(i)` for monotone `f`), Proposition 2.32 (`E[w] = n/2 + ½ Σᵢ f̂(i)` for the number `w` of votes agreeing with the outcome) and equation (2.3) in its proof (`Σᵢ f̂(i) = E[f(x)(x₁ + ⋯ + xₙ)]`); p. 51, Theorem 2.33 (the majority functions are the unique maximizers of `Σᵢ f̂(i)`, and `I[f] ≤ I[Majₙ] = √(2/π)√n + O(n^{−1/2})` for monotone `f`). [Majority](../CslibFrontier/Foundations/BooleanAnalysis/Majority.lean) proves the characterization for every `n`, reading the book's restriction to odd `n` through `Cslib.majority n`, which breaks ties towards `true` (the book's −1) and is a majority function in the book's even-`n` sense, and proves the inequality of Theorem 2.33 but not its asymptotic value. Read on 2026-11-14: §2.3, p. 49, Proposition 2.28 (`I[f] = E[sens_f(x)]`, where `sens_f(x)` is the number of pivotal coordinates for `f` on input `x`); p. 51, equation (2.4) (`I[f] = E[Σᵢ Dᵢf(x)²]`), Definition 2.34 (the discrete gradient of `f` at `x` is `(D₁f(x), D₂f(x), …, Dₙf(x))`), the note after it (for `f : {−1, 1}ⁿ → {−1, 1}` the squared Euclidean norm of the gradient at `x` is `sens_f(x)`) and Proposition 2.35 (`I[f]` is the mean over `x` of the squared Euclidean norm of the gradient). [Influence](../CslibFrontier/Foundations/BooleanAnalysis/Influence.lean) proves Proposition 2.35 and the note for an arbitrary finite coordinate type, writing that squared norm as `∑ i, gradient f x i ^ 2` because the norm on `ι → ℝ` is the sup norm.
 
 <a id="oliveirapichsanthanam2019"></a>
 ## oliveirapichsanthanam2019

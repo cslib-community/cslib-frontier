@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.Lean.PessimisticEstimator
 public import CslibFrontier.Computability.Complexity.Problems.MaxCut
 public import CslibFrontier.Foundations.Data.List.EraseDupsBy
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # Deterministic `1/2`-approximation for weighted `MaxCut` via conditional expectations
@@ -513,8 +514,7 @@ theorem cutWeight_le_two_mul_derandomizedCutSide (edges : List WeightedEdge) (σ
 
 @[simp] theorem ret_scaledUncutM (edges : List WeightedEdge) (s : PartialCut) :
     (scaledUncutM edges s).ret = scaledUncut edges s := by
-  rw [scaledUncutM, TimeM.ret_foldlM, scaledUncut, List.sum_eq_foldl, List.foldl_map]
-  rfl
+  time_spec scaledUncutM [scaledUncut, List.sum_eq_foldl, List.foldl_map]
 
 @[simp] theorem time_scaledUncutM (edges : List WeightedEdge) (s : PartialCut) :
     (scaledUncutM edges s).time = edges.length := by

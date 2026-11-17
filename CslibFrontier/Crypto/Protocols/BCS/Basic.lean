@@ -849,40 +849,15 @@ theorem computableInPolyTime_bcsFindConflict {r d : ℕ} {Stmt Wit Sym Chal γ :
     ComputableInPolyTime
       (fun a => bcsFindConflict iop encSym hFS (x a) (oracles a) (prf a))
       encIn
-      (encOption (encPair (encIOPQuery r d) (encMerkleOpeningOf Sym encSym))) := by
-  have hroots : ComputableInPolyTime (fun a => (prf a).roots) encIn (encFinFn r encBits) :=
-    encBCSProof_roots_polyTime r Sym encSym hprf
-  have hopenings : ComputableInPolyTime (fun a => (prf a).openings) encIn
-      (encList (encMerkleOpeningOf Sym encSym)) :=
-    encBCSProof_openings_polyTime r Sym encSym hprf
-  have hchals := computableInPolyTime_bcsChallenge hhFS hx hroots
-  have hqs := hqueries.comp (hx.prod hchals)
-  have hzip := (ComputableInPolyTime.zip
-    (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp (hqs.prod hopenings)
-  let encElem : ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) ↪ List Bool :=
-    encPair (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)
-  have hfst := ComputableInPolyTime.fst encIn encElem
-  have hsnd := ComputableInPolyTime.snd encIn encElem
-  have hqpair := (ComputableInPolyTime.fst
-    (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp hsnd
-  have ho := (ComputableInPolyTime.snd
-    (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp hsnd
-  have hj := (ComputableInPolyTime.fst
-    (encFinEnum (Fin r)) (encFinEnum (Fin (2 ^ d)))).comp hqpair
-  have hidx := (ComputableInPolyTime.snd
-    (encFinEnum (Fin r)) (encFinEnum (Fin (2 ^ d)))).comp hqpair
-  have hval : ComputableInPolyTime
-      (fun p : γ × ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) => encSym p.2.2.leaf)
-      (encPair encIn encElem) encBits :=
-    (encMerkleOpeningOf_leaf_polyTime Sym encSym ho).of_enc_eq fun _ => rfl
-  have htableVal := computableInPolyTime_encode_oracles_apply (horacles.comp hfst) hj hidx
-  have htest : ComputableInPolyTime
-      (fun p : γ × ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) =>
-        encSym p.2.2.leaf != encSym (oracles p.1 p.2.1.1 p.2.1.2))
-      (encPair encIn encElem) encBool :=
-    (ComputableInPolyTime.bool_not.comp (ComputableInPolyTime.beq hval htableVal)).of_enc_eq
-      fun _ => rfl
-  exact ComputableInPolyTime.findWithInput hzip htest
+      (encOption (encPair (encIOPQuery r d) (encMerkleOpeningOf Sym encSym))) :=
+  ComputableInPolyTime.findWithInput
+    ((ComputableInPolyTime.zip (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp
+      ((hqueries.comp (hx.prod (computableInPolyTime_bcsChallenge hhFS hx
+        (encBCSProof_roots_polyTime r Sym encSym hprf)))).prod
+        (encBCSProof_openings_polyTime r Sym encSym hprf)))
+    (ComputableInPolyTime.bne (encB := encBits) (by fun_prop)
+      (computableInPolyTime_encode_oracles_apply
+        (horacles.comp (.fst _ _)) (by fun_prop) (by fun_prop)))
 
 /-- Deterministic Merkle collision extraction for the BCS transform (`bcsExtractTableCollision`)
 runs in polynomial time. -/
@@ -908,31 +883,28 @@ theorem computableInPolyTime_bcsExtractTableCollision {r d : ℕ} {Stmt Wit Sym 
     ComputableInPolyTime
       (fun a => bcsExtractTableCollision iop H (k a) encSym hFS (x a) (oracles a) (prf a))
       encIn (encPair encBits encBits) := by
-  have hfind := computableInPolyTime_bcsFindConflict hqueries hhFS hx horacles hprf
   let encElem : ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) ↪ List Bool :=
     encPair (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)
+  have hfind := computableInPolyTime_bcsFindConflict hqueries hhFS hx horacles hprf
   have hfst := ComputableInPolyTime.fst encIn encElem
-  have hsnd := ComputableInPolyTime.snd encIn encElem
-  have hqpair := (ComputableInPolyTime.fst
-    (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp hsnd
-  have ho := (ComputableInPolyTime.snd
-    (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp hsnd
-  have hj := (ComputableInPolyTime.fst
-    (encFinEnum (Fin r)) (encFinEnum (Fin (2 ^ d)))).comp hqpair
-  have hidx := (ComputableInPolyTime.snd
-    (encFinEnum (Fin r)) (encFinEnum (Fin (2 ^ d)))).comp hqpair
-  have hidxVal := ComputableInPolyTime.finVal hidx
-  have hval : ComputableInPolyTime
-      (fun p : γ × ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) => encSym p.2.2.leaf)
-      (encPair encIn encElem) encBits :=
-    (encMerkleOpeningOf_leaf_polyTime Sym encSym ho).of_enc_eq fun _ => rfl
-  have hpath := encMerkleOpeningOf_path_polyTime Sym encSym ho
-  have htableVal := computableInPolyTime_encode_oracles_apply (horacles.comp hfst) hj hidx
-  have hleaves := computableInPolyTime_oracleLeaves_apply (horacles.comp hfst) hj
+  have hj : ComputableInPolyTime
+      (fun p : γ × ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) => p.2.1.1)
+      (encPair encIn encElem) (encFinEnum (Fin r)) := by fun_prop
+  have hidx : ComputableInPolyTime
+      (fun p : γ × ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) => p.2.1.2)
+      (encPair encIn encElem) (encFinEnum (Fin (2 ^ d))) := by fun_prop
   have hhonestPath := (computableInPolyTime_merklePath hH hlen).comp
-    ((hk.comp hfst).prod (hleaves.prod hidxVal))
+    ((hk.comp hfst).prod
+      ((computableInPolyTime_oracleLeaves_apply (horacles.comp hfst) hj).prod hidx.finVal))
   have hcol := (computableInPolyTime_extractMerkleCollision hH hlen).comp
-    ((hk.comp hfst).prod ((hval.prod htableVal).prod (hidxVal.prod (hpath.prod hhonestPath))))
+    ((hk.comp hfst).prod
+      ((((by fun_prop : ComputableInPolyTime
+          (fun p : γ × ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) => encSym p.2.2.leaf)
+          (encPair encIn encElem) encBits)).prod
+        (computableInPolyTime_encode_oracles_apply (horacles.comp hfst) hj hidx)).prod
+        (hidx.finVal.prod
+          ((encMerkleOpeningOf_path_polyTime Sym encSym
+            ((ComputableInPolyTime.snd _ _).comp (.snd encIn encElem))).prod hhonestPath))))
   convert hfind.optionElimWithInput
     (body := fun a (e : (Fin r × Fin (2 ^ d)) × MerkleOpening Sym) =>
       extractMerkleCollision H (k a) (encSym e.2.leaf) (encSym (oracles a e.1.1 e.1.2))
@@ -1076,25 +1048,14 @@ theorem succProbability_bcsTableKnowledgeGame_le {iop : PublicCoinIOP r d Stmt W
   intro k _
   apply PMF.bind_apply_mono_on_support
   intro out _
-  by_cases hwin :
-      ((List.finRange r).all (fun j =>
-        out.proof.roots j == merkleRoot H k (oracleLeaves encSym d (out.oracles j))) &&
-        bcsVerify iop H k encSym hFS out.stmt out.proof &&
-        decide (¬ rel out.stmt (iopExtract out.stmt out.oracles))) = true
-  · rw [hwin]
-    simp only [Bool.and_eq_true, decide_eq_true_eq] at hwin
-    obtain ⟨⟨hroots, hver⟩, hnot_rel⟩ := hwin
-    have hrej :
-        iopVerify iop out.stmt (bcsChallenge hFS out.stmt out.proof.roots) out.oracles = false := by
-      cases hiop : iopVerify iop out.stmt (bcsChallenge hFS out.stmt out.proof.roots) out.oracles
-      · rfl
-      · exact False.elim (hnot_rel (hks out.stmt _ out.oracles hiop))
-    have hbreak : bcsBreaksTableBinding iop H k encSym hFS out = true := by
-      simp [bcsBreaksTableBinding, hroots, hver, hrej]
-    rw [hbreak]
-  · rw [Bool.not_eq_true] at hwin
-    rw [hwin]
-    simp
+  by_cases hrel : rel out.stmt (iopExtract out.stmt out.oracles)
+  · simp [hrel]
+  · unfold bcsBreaksTableBinding
+    cases (List.finRange r).all fun j =>
+        out.proof.roots j == merkleRoot H k (oracleLeaves encSym d (out.oracles j)) <;>
+      cases hver : bcsVerify iop H k encSym hFS out.stmt out.proof <;>
+      simp [hrel,
+        Bool.eq_false_iff.mpr fun hiop => hrel (hks out.stmt _ out.oracles hiop)]
 
 /-- **Efficiency of `bcsTableCollisionFinder`**: for a polynomial-time hash `H` with `k.length`-bit
 digests, polynomial-time `iop.queries`, and polynomial-time `hFS`, the collision finder of any
@@ -1112,19 +1073,10 @@ theorem isPPT_bcsTableCollisionFinder {encStmt : Stmt ↪ List Bool} {encSym : S
       (encFSTranscript encStmt) encChal)
     {adversary : BCSTableCommitAdversary r d Stmt Sym}
     (hadversary : IsPPT (encBCSTableCommitOutput r d Stmt Sym encStmt encSym) adversary) :
-    IsPPT (encPair encBits encBits) (bcsTableCollisionFinder iop H encSym hFS adversary) := by
-  let encOut := encBCSTableCommitOutput r d Stmt Sym encStmt encSym
-  have hfst := ComputableInPolyTime.fst (encPair encUnary encBits) encOut
-  have hsnd := ComputableInPolyTime.snd (encPair encUnary encBits) encOut
-  have hk := (ComputableInPolyTime.snd encUnary encBits).comp hfst
-  have hstmt := encBCSTableCommitOutput_stmt_polyTime r d Stmt Sym encStmt encSym hsnd
-  have horacles := encBCSTableCommitOutput_oracles_polyTime r d Stmt Sym encStmt encSym hsnd
-  have hprf := encBCSTableCommitOutput_proof_polyTime r d Stmt Sym encStmt encSym hsnd
-  have hpost := (computableInPolyTime_bcsExtractTableCollision hH hlen hqueries hhFS
-    hk hstmt horacles hprf).tidy
-  change IsPPTOn (encPair encUnary encBits) (encPair encBits encBits)
-    (fun p => bcsTableCollisionFinder iop H encSym hFS adversary p.1 p.2)
-  exact hadversary.bind_with hpost.isPPTOn
+    IsPPT (encPair encBits encBits) (bcsTableCollisionFinder iop H encSym hFS adversary) :=
+  IsPPTOn.bind_with hadversary
+    (computableInPolyTime_bcsExtractTableCollision hH hlen hqueries hhFS
+      (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)).isPPTOn
 
 /-- **Standard-model committed-table BCS binding from collision resistance**: if `H` is
 collision-resistant (`CollisionResistant H`), every uniform strict PPT committed-table BCS adversary

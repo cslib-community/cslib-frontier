@@ -14,19 +14,13 @@ public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Linear
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.SchnorrSignature
 public import CslibFrontier.Crypto.Protocols.Signature.RandomOracle
 public import CslibFrontier.Languages.Probabilistic.Forking
-import CslibFrontier.Foundations.Data.List.Lookup
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Programming
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.Presample
-import CslibFrontier.Languages.Probabilistic.RandomOracle
 import CslibFrontier.Languages.Probabilistic.Simulation
-import CslibFrontier.Languages.Probabilistic.UntilBad
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bind
-import CslibFrontier.Probability.PMF.BindFailure
-import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Uniform
-import CslibFrontier.Probability.PMF.Union
 
 /-!
 # Fiat–Shamir non-interactive zero-knowledge proofs of knowledge in the random-oracle model
@@ -63,8 +57,9 @@ probability laws over `OracleComp`:
    `advantage_fiatShamirNIZKRealGame_simGame_le`). Concrete adaptation: whereas Figure 20.2 in
    [BonehShoup2023] outputs `fail` when a sampled commitment point `(y, t)` is already programmed in
    the random-oracle table, `nizkSimProve` overwrites `(y, t)` at the head of the association-list
-   cache; the `IdenticalUntilBad` / `toOuterMeasure_bad_le` collision hop directly justifies this
-   overwrite simulator.
+   cache; the programming collision hop
+   `RandomOracle.closeTo_run_lazyProgramHandler_overwriteProgramHandler_of_isQueryBounded`
+   directly justifies this overwrite simulator.
 3. **ROM proof of knowledge and derived simulation-extractability**:
    * *Plain ROM proof of knowledge* (`fiatShamirNIZKExtract`,
      `succProbability_fiatShamirNIZKPokGame_le`; [BonehShoup2023], Section 20.3.4, proved via the
@@ -375,7 +370,7 @@ theorem nizkSimHandler_inl_congr [DecidableEq Y] [DecidableEq T] [Fintype C] [No
   let (b, _) ← (interpret (nizkSimHandler simulate valid) D).run []
   return b
 
-/-! ### Shared game-hop handlers (logging proved `(y, t)` pairs and collision flag) -/
+/-! ### Shared game-hop handlers (logging proved `(y, t)` pairs via `RandomOracle.Programming`) -/
 
 /-- State of the logged adaptive experiment: the random-oracle cache paired with the list of
 statement-commitment pairs `(y, t)` returned by valid prove queries. -/
@@ -410,35 +405,6 @@ query. -/
       PMF.pure (none, (cache, proved))
   | .inr yt => fun (cache, proved) =>
     (oracle C yt cache).map fun (c, cache') => (c, (cache', proved))
-
-/-- Flagged real handler raising `bad` when a valid prove commitment hits an existing cache
-entry. -/
-private noncomputable def realFlaggedHandler [DecidableEq Y] [DecidableEq T] [Fintype C]
-    [Nonempty C] (P : SigmaProtocol X Y T C Z) (valid : X → Y → Bool) :
-    (q : (X × Y) ⊕ (Y × T)) →
-      StateT (ExtGameState Y T C × Bool) PMF (NIZKDistinguisherSpec X Y T C Z q)
-  | .inl (x, y) => fun st =>
-    if valid x y then
-      (P.commit x y).bind fun ts =>
-        (oracle C (y, ts.1) st.1.1).map fun r =>
-          (some (ts.1, P.respond x y ts.2 r.1),
-            ((r.2, (y, ts.1) :: st.1.2), st.2 || (st.1.1.lookup (y, ts.1)).isSome))
-    else
-      PMF.pure (none, st)
-  | .inr yt => fun st =>
-    (oracle C yt st.1.1).map fun r => (r.1, ((r.2, st.1.2), st.2))
-
-/-- Flagged programming handler setting `(y, t) ↦ c` to a fresh uniform challenge on valid prove
-queries, raising the same `bad` flag on cache collisions. -/
-private noncomputable def programFlaggedHandler [DecidableEq Y] [DecidableEq T] [Fintype C]
-    [Nonempty C] (P : SigmaProtocol X Y T C Z) (valid : X → Y → Bool) :
-    (q : (X × Y) ⊕ (Y × T)) →
-      StateT (ExtGameState Y T C × Bool) PMF (NIZKDistinguisherSpec X Y T C Z q) :=
-  RandomOracle.flaggedOverwriteProgramHandler (Reply := fun _ : X × Y => Option (T × Z))
-    (PMF.uniformOfFintype C) (fun xy => valid xy.1 xy.2)
-    (fun _ _ proved => PMF.pure (none, proved)) (fun xy => P.commit xy.1 xy.2)
-    (fun xy ts => (xy.2, ts.1))
-    (fun xy ts c proved => (some (ts.1, P.respond xy.1 xy.2 ts.2 c), (xy.2, ts.1) :: proved))
 
 /-- Projecting away the proved-pair log from `nizkRealExtHandler` recovers `nizkRealHandler`. -/
 private theorem nizkRealExtHandler_map_cache [DecidableEq Y] [DecidableEq T] [Fintype C]
@@ -484,27 +450,6 @@ private theorem nizkSimExtHandler_map_cache [DecidableEq Y] [DecidableEq T] [Fin
   | inr yt =>
     simp only [nizkSimExtHandler, nizkSimHandler, PMF.map_comp]
     exact PMF.map_id _
-
-private theorem realFlaggedHandler_eq_flaggedLazyProgramHandler [DecidableEq Y] [DecidableEq T]
-    [Fintype C] [Nonempty C] (P : SigmaProtocol X Y T C Z) (valid : X → Y → Bool) :
-    realFlaggedHandler P valid =
-      RandomOracle.flaggedLazyProgramHandler (Reply := fun _ : X × Y => Option (T × Z))
-        (PMF.uniformOfFintype C) (fun xy => valid xy.1 xy.2)
-        (fun _ _ proved => PMF.pure (none, proved)) (fun xy => P.commit xy.1 xy.2)
-        (fun xy ts => (xy.2, ts.1))
-        (fun xy ts c proved =>
-          (some (ts.1, P.respond xy.1 xy.2 ts.2 c), (xy.2, ts.1) :: proved)) := by
-  funext q ⟨⟨cache, proved⟩, b⟩
-  cases q with
-  | inl xy =>
-    obtain ⟨x, y⟩ := xy
-    rw [RandomOracle.flaggedLazyProgramHandler_apply_inl]
-    by_cases hv : valid x y = true
-    · simp only [realFlaggedHandler, hv, ↓reduceIte, ↓reduceDIte, oracle]
-    · simp only [realFlaggedHandler, hv, Bool.false_eq_true, ↓reduceIte, ↓reduceDIte, PMF.pure_map]
-  | inr yt =>
-    rw [RandomOracle.flaggedLazyProgramHandler_apply_inr]
-    rfl
 
 private theorem nizkRealExtHandler_eq_lazyProgramHandler [DecidableEq Y] [DecidableEq T] [Fintype C]
     [Nonempty C] (P : SigmaProtocol X Y T C Z) (valid : X → Y → Bool) :
@@ -558,95 +503,32 @@ private theorem nizkSimExtHandler_eq_overwriteProgramHandler [DecidableEq Y] [De
   | inr yt =>
     rfl
 
-/-- `realFlaggedHandler` and `programFlaggedHandler` are identical until the collision flag is
-raised. -/
-private theorem identicalUntilBad_flaggedHandlers [DecidableEq Y] [DecidableEq T] [Fintype C]
-    [Nonempty C] (P : SigmaProtocol X Y T C Z) (valid : X → Y → Bool) :
-    IdenticalUntilBad (realFlaggedHandler P valid) (programFlaggedHandler P valid)
-      fun st => st.2 = true := by
-  rw [realFlaggedHandler_eq_flaggedLazyProgramHandler, programFlaggedHandler]
-  exact RandomOracle.identicalUntilBad_flaggedProgramHandlers _ _ _ _ _ _
-
-/-- Union bound for a commitment hitting an existing cache entry at `(y, ·)`. -/
-private theorem toOuterMeasure_lookup_commit_le [DecidableEq Y] [DecidableEq T]
-    (P : SigmaProtocol X Y T C Z) {x : X} {y : Y} {δ : ℝ≥0∞}
-    (hcommit : ∀ t, (P.commit x y).map Prod.fst t ≤ δ) (cache : List ((Y × T) × C)) :
-    (P.commit x y).toOuterMeasure {ts | (cache.lookup (y, ts.1)).isSome} ≤
-      cache.length * δ := by
-  refine Probability.PMF.toOuterMeasure_lookup_isSome_le _ _ (fun k => ?_) cache
-  calc (P.commit x y).toOuterMeasure {ts | (y, ts.1) = k}
-      ≤ (P.commit x y).toOuterMeasure (Prod.fst ⁻¹' {k.2}) :=
-        (P.commit x y).toOuterMeasure.mono fun ts (hts : (y, ts.1) = k) =>
-          (congrArg Prod.snd hts : ts.1 = k.2)
-    _ ≤ δ := by
-        rw [← PMF.toOuterMeasure_map_apply, PMF.toOuterMeasure_apply_singleton]
-        exact hcommit k.2
-
-/-- Under `UnpredictableCommitments R δ` and `hvalid`, a program with budgets `(Qp, Qro)` raises
-the collision flag of `realFlaggedHandler` with probability at most `Qp * (Qp + Qro) * δ`. -/
-private theorem toOuterMeasure_flag_le_nizk [DecidableEq Y] [DecidableEq T] [Fintype C]
-    [Nonempty C] {P : SigmaProtocol X Y T C Z} {R : X → Y → Prop} {valid : X → Y → Bool}
-    {δ : ℝ≥0} (hvalid : ∀ x y, valid x y = true → R x y)
+/-- Statistical closeness between `nizkRealExtHandler` and `nizkSimExtHandler` for any bounded
+program. -/
+private theorem closeTo_nizkExtHandlers [DecidableEq Y] [DecidableEq T] [Fintype C] [Nonempty C]
+    {P : SigmaProtocol X Y T C Z} {R : X → Y → Prop} {simulate : Y → C → PMF (T × Z)}
+    {valid : X → Y → Bool} {δ : ℝ≥0}
+    (hvalid : ∀ x y, valid x y = true → R x y)
+    (hHVZK : P.SpecialHVZK R simulate)
     (hUnpred : P.UnpredictableCommitments R δ) {α : Type}
     {program : OracleComp (NIZKDistinguisherSpec X Y T C Z) α} {Qp Qro : ℕ}
     (hcall : NIZKCallBounded program Qp Qro) :
-    ((interpret (realFlaggedHandler P valid) program).run (([], []), false)).toOuterMeasure
-      {x | x.2.2 = true} ≤ (Qp * (Qp + Qro) : ℕ) * (δ : ℝ≥0∞) := by
-  have h := toOuterMeasure_bad_le (handler := realFlaggedHandler P valid)
-    (bad := fun st => st.2 = true)
-    (Sum.elim (fun _ => 1) (fun _ => 0))
-    (fun st => st.1.1.length * (δ : ℝ≥0∞)) (δ : ℝ≥0∞) ?_ ?_
-    hcall.isQueryBounded hcall.1 (s := (([], []), false)) (by simp)
-  · calc _ ≤ (Qp : ℝ≥0∞) * (0 + (Qp + Qro : ℕ) * (δ : ℝ≥0∞)) := by simpa using h
-      _ = (Qp * (Qp + Qro) : ℕ) * (δ : ℝ≥0∞) := by push_cast; ring
-  · intro q st hst
-    cases q with
-    | inl xy =>
-      obtain ⟨x, y⟩ := xy
-      rw [Sum.elim_inl, Nat.cast_one, one_mul]
-      by_cases hv : valid x y = true
-      · simp only [realFlaggedHandler, hv, ↓reduceIte]
-        refine (Probability.PMF.toOuterMeasure_bind_le_add _ _
-          {ts : T × P.State | (st.1.1.lookup (y, ts.1)).isSome} _ 0
-          fun ts _ hts => le_of_eq ((PMF.toOuterMeasure_apply_eq_zero_iff _ _).mpr
-            (Set.disjoint_left.mpr fun out hout hbad => ?_))).trans ?_
-        · obtain ⟨r, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hout
-          simp_all
-        · rw [add_zero]
-          exact toOuterMeasure_lookup_commit_le P (hUnpred x y (hvalid x y hv)) st.1.1
-      · simp only [Bool.not_eq_true] at hv
-        simp only [realFlaggedHandler, hv, Bool.false_eq_true, ↓reduceIte,
-          PMF.toOuterMeasure_pure_apply]
-        split_ifs with hbad
-        · exact absurd hbad hst
-        · exact zero_le
-    | inr yt =>
-      refine le_of_eq_of_le ((PMF.toOuterMeasure_apply_eq_zero_iff _ _).mpr ?_) zero_le
-      refine Set.disjoint_left.mpr fun out hout hbad => hst ?_
-      obtain ⟨r, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hout
-      exact hbad
-  · intro q st _ out hout _
-    have hlen : out.2.1.1.length ≤ st.1.1.length + 1 := by
-      cases q with
-      | inl xy =>
-        obtain ⟨x, y⟩ := xy
-        by_cases hv : valid x y = true
-        · simp only [realFlaggedHandler, hv, ↓reduceIte] at hout
-          obtain ⟨ts, -, hout⟩ := (PMF.mem_support_bind_iff _ _ _).mp hout
-          obtain ⟨r, hr, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hout
-          exact length_le_of_mem_support_oracle hr
-        · simp only [Bool.not_eq_true] at hv
-          simp only [realFlaggedHandler, hv, Bool.false_eq_true, ↓reduceIte,
-            PMF.mem_support_pure_iff] at hout
-          subst hout
-          exact Nat.le_succ _
-      | inr yt =>
-        obtain ⟨r, hr, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hout
-        exact length_le_of_mem_support_oracle hr
-    calc (out.2.1.1.length : ℝ≥0∞) * (δ : ℝ≥0∞)
-        ≤ ((st.1.1.length + 1 : ℕ) : ℝ≥0∞) * (δ : ℝ≥0∞) := by gcongr
-      _ = st.1.1.length * (δ : ℝ≥0∞) + (δ : ℝ≥0∞) := by
-          rw [Nat.cast_add, Nat.cast_one, add_mul, one_mul]
+    CloseTo
+      ((interpret (nizkRealExtHandler P valid) program).run ([], []))
+      ((interpret (nizkSimExtHandler simulate valid) program).run ([], []))
+      ((Qp * (Qp + Qro) : ℕ) * (δ : ℝ≥0∞)) := by
+  rw [nizkRealExtHandler_eq_lazyProgramHandler,
+    nizkSimExtHandler_eq_overwriteProgramHandler hvalid hHVZK]
+  have h := RandomOracle.closeTo_run_lazyProgramHandler_overwriteProgramHandler_of_isQueryBounded
+    (Reply := fun _ : X × Y => Option (T × Z))
+    (PMF.uniformOfFintype C) (fun xy => valid xy.1 xy.2)
+    (fun _ _ proved => PMF.pure (none, proved)) (fun xy => P.commit xy.1 xy.2)
+    (fun xy ts => (xy.2, ts.1))
+    (fun xy ts c proved => (some (ts.1, P.respond xy.1 xy.2 ts.2 c), (xy.2, ts.1) :: proved))
+    (fun xy hv k => RandomOracle.map_comp_apply_le_of_injective
+      (fun _ _ h => (Prod.mk.inj h).2) (hUnpred xy.1 xy.2 (hvalid xy.1 xy.2 hv)) k)
+    hcall.1 hcall.isQueryBounded [] []
+  rwa [List.length_nil, zero_add] at h
 
 /-- Two-sided difference bound between continuing from `nizkRealExtHandler` and continuing from
 `nizkSimExtHandler`. -/
@@ -662,26 +544,16 @@ private theorem abs_sub_extHandlers_bind_le [DecidableEq Y] [DecidableEq T] [Fin
         (((interpret (nizkSimExtHandler simulate valid) program).run ([], [])).bind
           next b).toReal| ≤
       Qp * (Qp + Qro) * δ := by
-  have hreal : ((interpret (realFlaggedHandler P valid) program).run (([], []), false)).map
-      (Prod.map id Prod.fst) =
-      (interpret (nizkRealExtHandler P valid) program).run ([], []) := by
-    rw [realFlaggedHandler_eq_flaggedLazyProgramHandler, nizkRealExtHandler_eq_lazyProgramHandler]
-    exact RandomOracle.run_flaggedLazyProgramHandler_map_fst _ _ _ _ _ _ _ _ false
-  have hsim : ((interpret (programFlaggedHandler P valid) program).run (([], []), false)).map
-      (Prod.map id Prod.fst) =
-      (interpret (nizkSimExtHandler simulate valid) program).run ([], []) := by
-    rw [programFlaggedHandler, nizkSimExtHandler_eq_overwriteProgramHandler hvalid hHVZK]
-    exact RandomOracle.run_flaggedOverwriteProgramHandler_map_fst _ _ _ _ _ _ _ _ false
-  rw [← hreal, ← hsim, PMF.bind_map, PMF.bind_map]
-  have hdiff := (identicalUntilBad_flaggedHandlers P valid).abs_sub_le program (([], []), false)
-    (next ∘ Prod.map id Prod.fst) b
-  have hflag := toOuterMeasure_flag_le_nizk hvalid hUnpred hcall
-  have htop : ((Qp * (Qp + Qro) : ℕ) : ℝ≥0∞) * (δ : ℝ≥0∞) ≠ ⊤ :=
-    ENNReal.mul_ne_top (ENNReal.natCast_ne_top _) ENNReal.coe_ne_top
-  refine hdiff.trans ((ENNReal.toReal_mono htop hflag).trans_eq ?_)
-  rw [ENNReal.toReal_mul, ENNReal.toReal_natCast, ENNReal.coe_toReal]
-  push_cast
-  ring
+  have hclose := (closeTo_nizkExtHandlers hvalid hHVZK hUnpred hcall).bind_left next
+  have hε : (0 : ℝ) ≤ (Qp : ℝ) * (Qp + Qro) * δ := by positivity
+  have heq : ((Qp * (Qp + Qro) : ℕ) : ℝ≥0∞) * (δ : ℝ≥0∞) =
+      ENNReal.ofReal ((Qp : ℝ) * (Qp + Qro) * δ) := by
+    rw [← ENNReal.coe_natCast, ← ENNReal.coe_mul, ← ENNReal.ofReal_coe_nnreal]
+    push_cast
+    rfl
+  rw [heq] at hclose
+  have h := hclose.abs_toReal_sub_le hε {b}
+  rwa [PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_apply_singleton] at h
 
 /-- One-sided `ℝ≥0∞` bound between continuing from `nizkRealExtHandler` and continuing from
 `nizkSimExtHandler`. -/
@@ -696,27 +568,17 @@ private theorem extHandlers_bind_apply_le [DecidableEq Y] [DecidableEq T] [Finty
     ((interpret (nizkRealExtHandler P valid) program).run ([], [])).bind next b ≤
       ((interpret (nizkSimExtHandler simulate valid) program).run ([], [])).bind next b +
         (Qp * (Qp + Qro) : ℕ) * (δ : ℝ≥0∞) := by
-  have hreal : ((interpret (realFlaggedHandler P valid) program).run (([], []), false)).map
-      (Prod.map id Prod.fst) =
-      (interpret (nizkRealExtHandler P valid) program).run ([], []) := by
-    rw [realFlaggedHandler_eq_flaggedLazyProgramHandler, nizkRealExtHandler_eq_lazyProgramHandler]
-    exact RandomOracle.run_flaggedLazyProgramHandler_map_fst _ _ _ _ _ _ _ _ false
-  have hsim : ((interpret (programFlaggedHandler P valid) program).run (([], []), false)).map
-      (Prod.map id Prod.fst) =
-      (interpret (nizkSimExtHandler simulate valid) program).run ([], []) := by
-    rw [programFlaggedHandler, nizkSimExtHandler_eq_overwriteProgramHandler hvalid hHVZK]
-    exact RandomOracle.run_flaggedOverwriteProgramHandler_map_fst _ _ _ _ _ _ _ _ false
-  rw [← hreal, ← hsim, PMF.bind_map, PMF.bind_map]
-  exact ((identicalUntilBad_flaggedHandlers P valid).bind_apply_le program (([], []), false)
-    (next ∘ Prod.map id Prod.fst) b).trans
-      (add_le_add le_rfl (toOuterMeasure_flag_le_nizk hvalid hUnpred hcall))
+  have h := ((closeTo_nizkExtHandlers hvalid hHVZK hUnpred hcall).bind_left next) {b}
+  rwa [PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_apply_singleton] at h
 
 /-- **Adaptive multi-theorem zero knowledge** of Fiat–Shamir NIZK proofs in the programmable
-random-oracle model ([BonehShoup2023], Section 20.3.5, Theorem 20.3 / Equation (20.9), adapted via
-`IdenticalUntilBad` to the overwrite simulator `nizkSimProve`): under `SpecialHVZK` and
-`δ`-unpredictable commitments, any adaptive distinguisher making at most `Qp` prove calls and `Qro`
-direct hash calls distinguishes `fiatShamirNIZKRealGame` from `fiatShamirNIZKSimGame` with
-acceptance-probability difference at most `Qp * (Qp + Qro) * δ`. -/
+random-oracle model ([BonehShoup2023], Section 20.3.5, Theorem 20.3 / Equation (20.9)), adapted via
+the programming hop
+`RandomOracle.closeTo_run_lazyProgramHandler_overwriteProgramHandler_of_isQueryBounded`
+to the overwrite simulator `nizkSimProve`: under `SpecialHVZK` and `δ`-unpredictable commitments,
+any adaptive distinguisher making at most `Qp` prove calls and `Qro` direct hash calls distinguishes
+`fiatShamirNIZKRealGame` from `fiatShamirNIZKSimGame` with acceptance-probability difference at most
+`Qp * (Qp + Qro) * δ`. -/
 theorem abs_sub_fiatShamirNIZKRealGame_simGame_le [DecidableEq Y] [DecidableEq T] [Fintype C]
     [Nonempty C] {P : SigmaProtocol X Y T C Z} {R : X → Y → Prop}
     {simulate : Y → C → PMF (T × Z)} {valid : X → Y → Bool} {δ : ℝ≥0}

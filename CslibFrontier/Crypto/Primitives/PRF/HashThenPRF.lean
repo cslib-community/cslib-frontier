@@ -12,6 +12,7 @@ public import CslibFrontier.Crypto.Primitives.UHF.Finite
 public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
 import CslibFrontier.Crypto.Game.CloseTo
 import CslibFrontier.Languages.Probabilistic.Memoize
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Languages.Probabilistic.Oracle.RunState
 import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.QueryCount
 import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.RunWith
@@ -157,14 +158,8 @@ theorem eval_realExperiment_hashThenPRF [Fintype K₁] [Nonempty K₁] [Fintype 
   simp only [PMF.bind_map, Function.comp_def]
   rw [PMF.bind_comm]
   refine congrArg ((PMF.uniformOfFintype K₂).bind) (funext fun k₂ => ?_)
-  have hunif : OracleComp.interpret ProbComp.unifOracle (ProbComp.uniform K₁) =
-      PMF.uniformOfFintype K₁ := by
-    have h := ProbComp.eval_uniform (α := K₁)
-    rw [ProbComp.eval_eq_evalWith, OracleComp.evalWith] at h
-    exact h
-  rw [OracleComp.interpret_bind, ProbOracleComp.interpret_sample]
-  simp only [Probability.PMF.monad_bind_eq_bind, hunif, ProbOracleComp.interpret_simulate,
-    ProbOracleComp.interpret_query, hashThenPRF]
+  simp only [interp_norm, pmf_norm, ProbComp.eval_uniform, ProbOracleComp.interpret_simulate,
+    hashThenPRF]
 
 /-- The ideal experiment of `B_F` evaluated via `RandomOracle.answer` on the simulated program. -/
 private theorem eval_idealExperiment_hashReduction [Fintype K₁] [Nonempty K₁] [Fintype Y]
@@ -278,9 +273,7 @@ theorem eval_realExperiment_collisionDistinguisher [Fintype K₁] [Nonempty K₁
       (PMF.uniformOfFintype (K₁ × K₂)).bind fun k =>
         PMF.pure (decide (F k.2 (H k.1 m₀) = F k.2 (H k.1 m₁))) := by
   rw [eval_realExperiment, collisionDistinguisher]
-  simp only [OracleComp.interpret_bind, ProbOracleComp.interpret_query, OracleComp.interpret_pure,
-    Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure, PMF.pure_bind,
-    hashThenPRF]
+  simp only [interp_norm, pmf_norm, hashThenPRF]
 
 /-- Output distribution of `collisionDistinguisher m₀ m₁` in the ideal PRF experiment. -/
 theorem eval_idealExperiment_collisionDistinguisher [Fintype M] [DecidableEq M] [Fintype Z]
@@ -288,8 +281,7 @@ theorem eval_idealExperiment_collisionDistinguisher [Fintype M] [DecidableEq M] 
     ProbComp.eval (idealExperiment (collisionDistinguisher (Z := Z) m₀ m₁)) =
       (PMF.uniformOfFintype (M → Z)).bind fun f => PMF.pure (decide (f m₀ = f m₁)) := by
   rw [eval_idealExperiment, collisionDistinguisher]
-  simp only [OracleComp.interpret_bind, ProbOracleComp.interpret_query, OracleComp.interpret_pure,
-    Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure, PMF.pure_bind]
+  simp only [interp_norm, pmf_norm]
 
 /-- If `m₀ ≠ m₁` collide under `H` with probability `δ` over the uniform hash key, the two-query
 distinguisher `collisionDistinguisher m₀ m₁` achieves advantage at least `δ - 1 / |Z|` against

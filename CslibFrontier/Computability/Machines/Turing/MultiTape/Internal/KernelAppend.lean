@@ -10,12 +10,48 @@ module
 public import Mathlib.Basic.Finite.Sum
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Sequential
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.KernelFacts
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Sequential
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.ExtendTapes
 
 /-! # The existing concatenation machine and its run theorem
 
 Machine declarations are moved from their original module without changing programs or resource
 formulas. Higher computability-calculus theorems remain in the original facade.
 -/
+
+public section
+
+namespace Turing.MultiTapeMachine
+
+variable {k₁ k₂ : ℕ} {Symbol State₁ State₂ : Type}
+
+/-- Choice-free sequential concatenation of two explicit tables on a common input. -/
+def append (first : MultiTapeMachine k₁ Symbol State₁ Empty Id)
+    (second : MultiTapeMachine k₂ Symbol State₂ Empty Id) :
+    MultiTapeMachine (max k₁ k₂) Symbol (State₁ ⊕ State₂) Empty Id :=
+  (first.extendTapes (Fin.castLEEmb (le_max_left k₁ k₂))).seq
+    (second.extendTapes (Fin.castLEEmb (le_max_right k₁ k₂)))
+
+/-- Exact tidy semantics and resources of explicit output concatenation. -/
+theorem computesTidilyInTimeAndSpace_append
+    {first : MultiTapeMachine k₁ Symbol State₁ Empty Id}
+    {second : MultiTapeMachine k₂ Symbol State₂ Empty Id}
+    {input output₁ output₂ : List Symbol} {time₁ space₁ time₂ space₂ : ℕ}
+    (h₁ : first.toTM.ComputesTidilyInTimeAndSpace input output₁ time₁ space₁)
+    (h₂ : second.toTM.ComputesTidilyInTimeAndSpace input output₂ time₂ space₂) :
+    (first.append second).toTM.ComputesTidilyInTimeAndSpace input (output₁ ++ output₂)
+      (time₁ + time₂) (space₁ + space₂ + 2 * max k₁ k₂) := by
+  rw [append, toTM_seq, toTM_extendTapes, toTM_extendTapes]
+  exact (MultiTapeTM.transformsTapes_seq (h₁.extendTapes _) (h₂.extendTapes _)
+    fun _ _ _ _ hfirst hsecond => ⟨hfirst.1, hsecond.1⟩).imp (fun _ _ h => h)
+    (by
+      rintro _ _ _ _ _ ⟨_, _, _, ⟨-, rfl⟩, ⟨htapes, rfl⟩, rfl⟩
+      exact ⟨htapes, rfl⟩)
+    le_rfl (by omega)
+
+end Turing.MultiTapeMachine
+
+end
 
 namespace Turing.MultiTapeTM
 
