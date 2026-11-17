@@ -319,6 +319,20 @@ class AncestorHandoffFailurePolicyTests(unittest.TestCase):
                       "Restore validated merge-group build outputs", "lake build"):
             self.assertGreater(names.index(later), self.index + 1)
 
+    def test_pr_handoff_is_an_optional_reader_before_the_remote_cache(self):
+        names = [step.get("name") for step in self.steps]
+        index = names.index("Restore PR base merge-group build outputs")
+        self.assertLess(self.index + 1, index)
+        self.assertLess(index, names.index("Restore build outputs from the remote cache"))
+        step = self.steps[index]
+        self.assertEqual(step["run"], "python3 -B scripts/cache_handoff.py restore --pr-base")
+        self.assertEqual(step["continue-on-error"], "true")
+        self.assertIn("github.event_name == 'pull_request' && github.base_ref == 'main'", step["if"])
+        self.assertIn("vars.DISABLE_PR_BUILD_HANDOFF", step["if"])
+        self.assertIn("RESTORED_LAKE_KEY: ${{ steps.lake-cache.outputs.cache-matched-key }}", step["env"])
+        for name in ("Stage merge-group build outputs", "Upload merge-group build outputs"):
+            self.assertIn("github.event_name == 'merge_group' &&", self.steps[names.index(name)]["if"])
+
     def test_no_later_step_runs_after_the_guard_fails(self):
         # A failed step skips every later step whose condition has no status function. Those that
         # have one must require a completed build or explicitly exclude the guard failure.

@@ -162,7 +162,11 @@ The handoff accepts only the latest run's current successful attempt of `lean_ac
 this repository, triggered by `merge_group` for the exact landed commit. It checks the source,
 run and attempt, toolchain, Lake configuration, dependency manifest and runner platform before
 installing outputs. Native validation tools are included, so unlike the public per-module cache,
-this handoff requires a matching runner OS, architecture and image version. A missing artifact, a rerun
+this handoff requires a matching runner OS, architecture and image version. The artifact name
+includes a hash of the expected source, configuration, platform and recovery generation. Readers
+select a compatible artifact before downloading it and independently check the downloaded
+metadata and archive. Artifacts produced before this naming change miss until they expire.
+A missing artifact, a rerun
 still in progress, a changed commit or incompatible metadata leaves the normal build in place.
 It never waits for another run to finish and does not reuse artifacts from pull-request runs.
 
@@ -172,10 +176,19 @@ existing hard-linked cache objects. Merge groups do not publish to GCS: the norm
 `main` run remains the only public-cache writer. This makes its outputs available sooner to
 following builds while preserving the public cache's authorization boundary.
 
+### Pull requests targeting main
+
+Before the remote-cache restore, Lean CI reads the main parent directly from GitHub's synthetic
+PR merge commit. If the restored Actions snapshot already matches that parent, it keeps the
+snapshot. Otherwise it looks up the compatible handoff of that exact parent and checks the
+producer just as a main push does. A miss leaves the snapshot in place. The PR build retains
+all validation and compiles its changes. Stacked PRs targeting another branch skip this step.
+Set the repository variable `DISABLE_PR_BUILD_HANDOFF=1` to disable only this consumer.
+
 ### Later merge groups
 
-A merge-group build also restores a handoff: that of its **nearest first-parent ancestor that has
-one** (`scripts/cache_handoff.py restore --ancestor`, step *Restore nearest ancestor merge-group
+A merge-group build also restores a handoff: that of its **nearest first-parent ancestor with a
+compatible artifact** (`scripts/cache_handoff.py restore --ancestor`, step *Restore nearest ancestor merge-group
 build outputs*). The step runs after the Actions `.lake` snapshot is restored and before the
 remote cache. It replaces `.lake/build` as a unit, so in this order `scripts/cache/get-missing.sh`
 compares its mapping with the installed build's traces and downloads only what that build still
@@ -195,8 +208,8 @@ group was formed, or a queue entry ahead of it whose run has already succeeded.
   exits 125 before anything is downloaded, the step records that status, and the next step
   (*Stop after an unconfirmed ancestor-handoff shutdown*) fails the job, so that neither the
   remote cache nor `lake build` runs beside a fetch that may still be writing. Rerun the job. An ancestor
-  with no merge-group run, a failed, cancelled or unfinished latest run, or a missing or expired
-  artifact is skipped at the cost of one run listing. The bound of 20 and the cost of a miss are
+  with no merge-group run, a failed, cancelled or unfinished latest run, or a missing, expired
+  or incompatible artifact is skipped without downloading a payload. The bound of 20 and the cost of a miss are
   operational assumptions, not guarantees: a listing usually returns in about a second, each is
   limited to 60 seconds, and only the step's 10-minute timeout bounds the whole search; a usable
   build more than 20 commits back is not found, on the expectation, not yet measured, that the
@@ -234,8 +247,8 @@ group was formed, or a queue entry ahead of it whose run has already succeeded.
   handoff. Packing reports retained and omitted counts/sizes, and in Actions a limit miss or any
   other unavailable handoff is a workflow warning on the run summary.
 - **Kill switch.** Setting the repository variable `DISABLE_BUILD_HANDOFF` to `1` or `true`
-  (`gh variable set DISABLE_BUILD_HANDOFF --body 1`) disables merge-group staging and both
-  restorations (on `main` and in later merge groups) without a commit; `scripts/cache_handoff.py`
+  (`gh variable set DISABLE_BUILD_HANDOFF --body 1`) disables merge-group staging and all handoff
+  restorations without a commit; `scripts/cache_handoff.py`
   also honors `DISABLE_BUILD_HANDOFF` in its environment (treating any value other than empty,
   `0`, `false`, or `no` as disabled) as a defence in depth.
 - **Trace and warning retention.** The handoff archive preserves `.trace` files, which record both

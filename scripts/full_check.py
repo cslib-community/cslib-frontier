@@ -149,6 +149,8 @@ CI_ONLY = {
         "merge groups only; downloads an ancestor's merge-group artifact through the GitHub API",
     "Stop after an unconfirmed ancestor-handoff shutdown":
         "merge groups only; fails the job when the ancestor handoff step exits 125",
+    "Restore PR base merge-group build outputs":
+        "main-targeting PRs only; restores the merge-group artifact for the checked-out base parent",
     "Restore build outputs from the remote cache":
         "CI cache; check.sh runs scripts/cache/ensure.sh",
     "Restore validated merge-group build outputs":

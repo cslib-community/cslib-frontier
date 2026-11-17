@@ -168,8 +168,7 @@ jobs:
       publication: ${{ steps.upload-publication.outputs.artifact-id }}
     permissions:
       contents: read
-      # Main may download the exact landed revision's successful merge-group build artifact, and
-      # a merge group that of its nearest first-parent ancestor.
+      # Each consumer reads only successful main merge-group build artifacts.
       actions: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -258,6 +257,22 @@ jobs:
         run: |
           echo "::error title=Unconfirmed cache process shutdown::The ancestor handoff's history fetch may still be running; rerun the job."
           exit 125
+      # PR and merge-group reads precede the remote-cache top-up because a handoff
+      # replaces the root build as a unit. A PR uses only its merge commit's main parent.
+      - name: Restore PR base merge-group build outputs
+        if: >-
+          github.event_name == 'pull_request' && github.base_ref == 'main' &&
+          vars.DISABLE_CACHE_RESTORE != 'true' && vars.DISABLE_CACHE_RESTORE != '1' &&
+          vars.DISABLE_BUILD_HANDOFF != 'true' && vars.DISABLE_BUILD_HANDOFF != '1' &&
+          vars.DISABLE_PR_BUILD_HANDOFF != 'true' && vars.DISABLE_PR_BUILD_HANDOFF != '1'
+        continue-on-error: true
+        timeout-minutes: 10
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DISABLE_BUILD_HANDOFF: ${{ vars.DISABLE_BUILD_HANDOFF }}
+          DISABLE_PR_BUILD_HANDOFF: ${{ vars.DISABLE_PR_BUILD_HANDOFF }}
+          RESTORED_LAKE_KEY: ${{ steps.lake-cache.outputs.cache-matched-key }}
+        run: python3 -B scripts/cache_handoff.py restore --pr-base
       # Download the outputs that `main` CI uploaded for the nearest uploaded ancestor of this
       # commit, skipping modules that `.lake` already has (scripts/cache/README.md). The script
       # deepens the depth-1 checkout to 100 generations to find that ancestor. Lake reuses an
