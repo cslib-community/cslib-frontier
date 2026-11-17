@@ -14,6 +14,7 @@ import CslibFrontier.Languages.Probabilistic.Notation
 import CslibFrontier.Languages.Probabilistic.UntilBad.ChooseTwo
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Uniform
+import CslibFrontier.Tactic.ENNRealToReal
 import Mathlib.Data.Finset.Card
 import Mathlib.Data.Nat.Choose.Cast
 import Mathlib.Tactic.Linarith
@@ -475,11 +476,7 @@ private theorem forgetful_daviesMeyer_collision_le {Key Block : Type}
   have h_enn : (p.map Prod.fst) true ≤
       ((Q + 2).choose 2 : ℕ) * (Fintype.card Block : ℝ≥0∞)⁻¹ :=
     h_apply.trans hbad
-  have htop : ((Q + 2).choose 2 : ℕ) * (Fintype.card Block : ℝ≥0∞)⁻¹ ≠ ⊤ :=
-    ENNReal.mul_ne_top (ENNReal.natCast_ne_top _)
-      (ENNReal.inv_ne_top.mpr (Nat.cast_ne_zero.mpr Fintype.card_ne_zero))
-  simpa only [ENNReal.toReal_mul, ENNReal.toReal_natCast, ENNReal.toReal_inv] using
-    ENNReal.toReal_mono htop h_enn
+  ennreal_to_real using h_enn
 
 end Helpers
 

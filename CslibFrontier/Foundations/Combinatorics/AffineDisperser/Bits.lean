@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Foundations.FieldTheory.Finite.Coordinates
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Combinatorics.AffineDisperser
 public import CslibFrontier.Foundations.Data.BitString.ZModTwo
@@ -37,7 +38,6 @@ least `d - (N - r n)`, and `Cslib.AffineDisperser.exists_traceSym_ne` transfers 
 
 ## Main definitions
 
-* `Cslib.AffineDisperser.ofBits`: the field element with given bit coordinates in a basis.
 * `Cslib.AffineDisperser.readField`: `r` field elements read from a bit string.
 * `Cslib.AffineDisperser.traceSymBits`: `traceSym` on bit strings.
 
@@ -54,15 +54,13 @@ least `d - (N - r n)`, and `Cslib.AffineDisperser.exists_traceSym_ne` transfers 
 
 @[expose] public section
 
+open Cslib.BinaryField
+
 namespace Cslib.AffineDisperser
 
 open BitString Module
 
 variable {F : Type*} [Field F] [Algebra (ZMod 2) F] {ι : Type*} [Fintype ι] {r N : ℕ}
-
-/-- The element of `F` whose coordinates in the basis `b` are the bits `v j`. -/
-noncomputable def ofBits (b : Basis ι (ZMod 2) F) (v : ι → Bool) : F :=
-  ∑ j, bitEquiv.symm (v j) • b j
 
 /-- The `r` elements of `F` read from the bits of `x`: element `i` has coordinate `x (pos (i, j))`
 on the basis vector `b j`. -/
