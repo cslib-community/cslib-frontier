@@ -261,6 +261,7 @@ structure CycleSearchState (n : ℕ) where
     ({ current := x, hit := false } : CycleSearchState n)
   pure st.hit
 
+@[time_simps]
 private theorem time_hasCycleFromM (x : Fin n) (f : ParentTable n) :
     (hasCycleFromM x f).time = n := by
   time_spec hasCycleFromM
@@ -304,50 +305,13 @@ private theorem ret_hasCycleFromM (x : Fin n) (f : ParentTable n) :
 private theorem time_findCycleM (r : Fin n) (f : ParentTable n) :
     (findCycleM r f).time ≤ n ^ 2 + n := by
   unfold findCycleM
-  have hstep : ∀ (l : List (Fin n)) (acc : Option (Fin n)),
-      (l.foldlM
-        (fun acc x => do
-          ✓
-          match acc with
-          | some x0 => pure (some x0)
-          | none =>
-            if x == r then pure none
-            else do
-              let hit ← hasCycleFromM x f
-              pure (if hit then some x else none))
-        acc).time ≤ l.length * (n + 1) := by
-    intro l
-    induction l with
-    | nil => intro acc; simp
-    | cons x l ih =>
-      intro acc
-      rw [List.foldlM_cons, time_bind]
-      let inner : TimeM ℕ (Option (Fin n)) := do
-        ✓
-        match acc with
-        | some x0 => pure (some x0)
-        | none =>
-          if x == r then pure none
-          else do
-            let hit ← hasCycleFromM x f
-            pure (if hit then some x else none)
-      have hhd : inner.time ≤ n + 1 := by
-        dsimp only [inner]
-        cases acc with
-        | some x0 => simp
-        | none =>
-          by_cases hxr : (x == r) = true
-          · simp [hxr]
-          · simp only [hxr, Bool.false_eq_true, ↓reduceIte, time_bind, time_tick,
-              time_hasCycleFromM, time_pure, add_zero]
-            omega
-      have htl := ih inner.ret
-      have hle : inner.time + _ ≤ _ := Nat.add_le_add hhd htl
-      simp only [List.length_cons, Nat.succ_mul, Nat.add_comm (l.length * (n + 1))] at hle ⊢
-      exact hle
-  have h := hstep (List.finRange n) none
-  rw [List.length_finRange] at h
-  exact h.trans_eq (by ring)
+  refine (time_foldlM_le (c := n + 1) _ _ _ fun acc x _ => ?_).trans_eq ?_
+  · cases acc with
+    | some _ => simp only [time_simps]; omega
+    | none =>
+      simp only [time_simps]
+      split <;> simp only [time_simps] <;> omega
+  · rw [List.length_finRange]; ring
 
 private def findStep {α : Type*} (p : α → Bool) (a : Option α) (x : α) : Option α :=
   match a with
