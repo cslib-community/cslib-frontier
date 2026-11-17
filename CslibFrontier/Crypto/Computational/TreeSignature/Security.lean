@@ -38,7 +38,7 @@ import CslibFrontier.Languages.Probabilistic.Oracle.QueryBoundedSimulation
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Languages.Probabilistic.Oracle.Support
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
-import CslibFrontier.Languages.Probabilistic.UntilBad
+import CslibFrontier.Languages.Probabilistic.UntilBad.Flag
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.BindFailure
 import CslibFrontier.Probability.PMF.Coupling
@@ -1317,261 +1317,117 @@ private noncomputable def coinSignBody (S : IndexedSignatureScheme) (T : S.Seede
       return encodeSignature leaf certs σ)).run cc
 
 private abbrev GuardedCoinState :=
-  CoinCache × (List (List Bool) × List (List Bool) × Bool)
+  (CoinCache × List (List Bool) × List (List Bool)) × Bool
 
 private noncomputable def unguardedCoinHandler (S : IndexedSignatureScheme) (T : S.Seeded)
     (depth : ℕ → ℕ) (M n : ℕ) (request : Unit × List Bool) :
     StateT GuardedCoinState PMF (List Bool) := fun state =>
   let msg := request.2
-  let (cc, (queried, seenLeaves, bad)) := state
+  let ((cc, queried, seenLeaves), bad) := state
   if msg.length = n then do
     let leaf ← BitString.uniformList (depth n)
     let bad' := bad || seenLeaves.contains leaf
     let seen' := if bad' then seenLeaves else leaf :: seenLeaves
     (coinSignBody S T depth M n leaf msg cc).map fun out =>
-      (out.1, (out.2, (msg :: queried, seen', bad')))
+      (out.1, ((out.2, msg :: queried, seen'), bad'))
   else
-    PMF.pure ([], (cc, (msg :: queried, seenLeaves, bad)))
+    PMF.pure ([], ((cc, msg :: queried, seenLeaves), bad))
 
 private noncomputable def guardedCoinHandler (S : IndexedSignatureScheme) (T : S.Seeded)
     (depth : ℕ → ℕ) (M n : ℕ) (request : Unit × List Bool) :
     StateT GuardedCoinState PMF (List Bool) := fun state =>
   let msg := request.2
-  let (cc, (queried, seenLeaves, bad)) := state
+  let ((cc, queried, seenLeaves), bad) := state
   if msg.length = n then
     if bad then
-      PMF.pure ([], (cc, (msg :: queried, seenLeaves, true)))
+      PMF.pure ([], ((cc, msg :: queried, seenLeaves), true))
     else do
       let leaf ← BitString.uniformList (depth n)
       if seenLeaves.contains leaf then
-        pure ([], (cc, (msg :: queried, seenLeaves, true)))
+        pure ([], ((cc, msg :: queried, seenLeaves), true))
       else
         (coinSignBody S T depth M n leaf msg cc).map fun out =>
-          (out.1, (out.2, (msg :: queried, leaf :: seenLeaves, false)))
+          (out.1, ((out.2, msg :: queried, leaf :: seenLeaves), false))
   else
-    PMF.pure ([], (cc, (msg :: queried, seenLeaves, bad)))
+    PMF.pure ([], ((cc, msg :: queried, seenLeaves), bad))
 
 private theorem identicalUntilBad_coinHandlers (S : IndexedSignatureScheme) (T : S.Seeded)
     (depth : ℕ → ℕ) (M n : ℕ) :
-    OracleComp.IdenticalUntilBad
-      (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k))
-        (unguardedCoinHandler S T depth M n))
-      (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k))
-        (guardedCoinHandler S T depth M n))
-      (fun s => s.2.2.2 = true) where
-  agree q s hs a s' hs' := by
-    cases q with
-    | inl k => rfl
-    | inr req =>
-      obtain ⟨cc, queried, seenLeaves, bad⟩ := s
-      have hbad : bad = false := Bool.eq_false_iff.mpr hs
-      subst hbad
-      change unguardedCoinHandler S T depth M n req (cc, queried, seenLeaves, false) (a, s') =
-        guardedCoinHandler S T depth M n req (cc, queried, seenLeaves, false) (a, s')
-      simp only [unguardedCoinHandler, guardedCoinHandler, PMF.monad_bind_eq_bind,
-        PMF.monad_pure_eq_pure, Bool.false_or, Bool.false_eq_true, ↓reduceIte]
-      split_ifs with hmsg
-      · simp only [PMF.bind_apply]
-        refine tsum_congr fun leaf => ?_
-        cases hmem : seenLeaves.contains leaf
-        · rfl
-        · simp only [↓reduceIte]
-          have h1 : ((coinSignBody S T depth M n leaf req.2 cc).map fun out =>
-              (out.1, (out.2, (req.2 :: queried, seenLeaves, true)))) (a, s') = 0 := by
-            rw [PMF.apply_eq_zero_iff]
-            intro hsupp
-            obtain ⟨out, -, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hsupp
-            exact hs' (congrArg (fun x => x.2.2.2.2) heq.symm)
-          have h2 : (PMF.pure ([], (cc, (req.2 :: queried, seenLeaves, true))) :
-              PMF (List Bool × GuardedCoinState)) (a, s') = 0 := by
-            rw [PMF.apply_eq_zero_iff]
-            intro hsupp
-            have heq := (PMF.mem_support_pure_iff _ _).mp hsupp
-            exact hs' (congrArg (fun x => x.2.2.2.2) heq)
-          rw [h1, h2]
-      · rfl
-  absorb_first q s hs x hx := by
-    cases q with
-    | inl k =>
-      change x ∈ ((ProbComp.unifOracle k).map (·, s)).support at hx
+    ProbOracleComp.IdenticalUntilBad
+      (unguardedCoinHandler S T depth M n)
+      (guardedCoinHandler S T depth M n)
+      OracleComp.FlagBad := by
+  refine ProbOracleComp.IdenticalUntilBad.of_flag ?_ ?_ ?_
+  · rintro req ⟨cc, queried, seenLeaves⟩ x hx
+    simp only [unguardedCoinHandler, PMF.monad_bind_eq_bind, Bool.true_or, ↓reduceIte] at hx
+    split_ifs at hx with hmsg
+    · obtain ⟨_, -, hx⟩ := (PMF.mem_support_bind_iff _ _ _).mp hx
       obtain ⟨_, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-      exact hs
-    | inr req =>
-      obtain ⟨cc, queried, seenLeaves, bad⟩ := s
-      dsimp only at hs
-      subst hs
-      change x ∈ (unguardedCoinHandler S T depth M n req (cc, queried, seenLeaves, true)).support
-        at hx
-      simp only [unguardedCoinHandler, PMF.monad_bind_eq_bind, Bool.true_or, ↓reduceIte] at hx
-      split_ifs at hx with hmsg
-      · obtain ⟨leaf, -, hx⟩ := (PMF.mem_support_bind_iff _ _ _).mp hx
-        obtain ⟨out, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-        rfl
+      rfl
+    · obtain rfl := (PMF.mem_support_pure_iff _ _).mp hx
+      rfl
+  · rintro req ⟨cc, queried, seenLeaves⟩ x hx
+    simp only [guardedCoinHandler, ↓reduceIte] at hx
+    split_ifs at hx <;>
       · obtain rfl := (PMF.mem_support_pure_iff _ _).mp hx
         rfl
-  absorb_second q s hs x hx := by
-    cases q with
-    | inl k =>
-      change x ∈ ((ProbComp.unifOracle k).map (·, s)).support at hx
-      obtain ⟨_, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-      exact hs
-    | inr req =>
-      obtain ⟨cc, queried, seenLeaves, bad⟩ := s
-      dsimp only at hs
-      subst hs
-      change x ∈ (guardedCoinHandler S T depth M n req (cc, queried, seenLeaves, true)).support
-        at hx
-      simp only [guardedCoinHandler, ↓reduceIte] at hx
-      split_ifs at hx with hmsg <;>
-        · obtain rfl := (PMF.mem_support_pure_iff _ _).mp hx
-          rfl
-
-private theorem toOuterMeasure_bad_queryBounded_le {α σ : Type}
-    (extHandler : Unit × List Bool → StateT σ PMF (List Bool))
-    (bad : σ → Prop) (seen : σ → ℕ) (d : ℕ)
-    (hstep : ∀ q s, ¬ bad s →
-      (extHandler q s).toOuterMeasure {x | bad x.2} ≤
-        (seen s : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ d))
-    (hgrow : ∀ q s, ¬ bad s → ∀ x ∈ (extHandler q s).support, ¬ bad x.2 →
-      seen x.2 ≤ seen s + 1)
-    {prog : WordOracleComp Unit α} {Q : ℕ} (hq : prog.IsQueryBounded Q)
-    {s : σ} (hs : ¬ bad s) :
-    ((OracleComp.interpret
-      (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k)) extHandler)
-      prog).run s).toOuterMeasure {x | bad x.2} ≤
-      ((2 * Q * seen s + Q ^ 2 : ℕ) : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ (d + 1)) := by
-  classical
-  set ε : ℝ≥0∞ := (1 : ℝ≥0∞) / 2 ^ (d + 1)
-  have htwo : (1 : ℝ≥0∞) / 2 ^ d = 2 * ε := by
-    simp only [ε, one_div, pow_succ']
-    rw [ENNReal.mul_inv (Or.inl (by norm_num)) (Or.inl (by norm_num)), ← mul_assoc,
-      ENNReal.mul_inv_cancel (by norm_num) (by norm_num), one_mul]
-  induction hq generalizing s with
-  | pure a Q =>
-    simp only [OracleComp.run_interpret_pure, Probability.PMF.monad_pure_eq_pure,
-      PMF.toOuterMeasure_pure_apply]
-    have hnot : (a, s) ∉ {x : α × σ | bad x.2} := hs
-    simp only [hnot, ↓reduceIte]
-    exact zero_le
-  | liftBind q cont rem hcont ih =>
-    cases q with
-    | inl k =>
-      simp only [Sum.elim_inl, Nat.add_zero]
-      simp only [OracleComp.run_interpret_bind, OracleComp.run_interpret_query,
-        Probability.PMF.monad_bind_eq_bind]
-      change (((ProbComp.unifOracle k).map (·, s)).bind fun x =>
-        (OracleComp.interpret
-          (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k)) extHandler)
-          (cont x.1)).run x.2).toOuterMeasure {x | bad x.2} ≤ _
-      rw [PMF.bind_map, Function.comp_def, PMF.toOuterMeasure_bind_apply]
-      calc ∑' i, ProbComp.unifOracle k i *
-            ((OracleComp.interpret
-              (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k)) extHandler)
-              (cont i)).run s).toOuterMeasure {x | bad x.2}
-          ≤ ∑' i, ProbComp.unifOracle k i *
-              (((2 * rem * seen s + rem ^ 2 : ℕ) : ℝ≥0∞) * ε) :=
-            tsum_le_tsum fun i => mul_le_mul_of_nonneg_left (ih i hs) zero_le
-        _ = ((2 * rem * seen s + rem ^ 2 : ℕ) : ℝ≥0∞) * ε := by
-            rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
-    | inr req =>
-      simp only [Sum.elim_inr]
-      simp only [OracleComp.run_interpret_bind, OracleComp.run_interpret_query,
-        Probability.PMF.monad_bind_eq_bind]
-      change ((extHandler req s).bind fun y =>
-        (OracleComp.interpret
-          (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k)) extHandler)
-          (cont y.1)).run y.2).toOuterMeasure {x | bad x.2} ≤ _
-      set K : ℝ≥0∞ := ((2 * rem * (seen s + 1) + rem ^ 2 : ℕ) : ℝ≥0∞) * ε
-      calc _ ≤ (extHandler req s).toOuterMeasure {x | bad x.2} + K := by
-            refine Probability.PMF.toOuterMeasure_bind_le_add _ _ _ _ K fun y hmem hy => ?_
-            have hnat : 2 * rem * seen y.2 + rem ^ 2 ≤ 2 * rem * (seen s + 1) + rem ^ 2 := by
-              have := hgrow req s hs y hmem hy
-              nlinarith
-            exact (ih y.1 hy).trans (mul_le_mul_of_nonneg_right (Nat.cast_le.mpr hnat) zero_le)
-        _ ≤ (seen s : ℝ≥0∞) * (2 * ε) + K := by
-            rw [← htwo]
-            exact add_le_add_left (hstep req s hs) K
-        _ = ((2 * seen s + (2 * rem * (seen s + 1) + rem ^ 2) : ℕ) : ℝ≥0∞) * ε := by
-            simp only [K, Nat.cast_add, Nat.cast_mul, Nat.cast_ofNat]
-            ring
-        _ ≤ ((2 * (rem + 1) * seen s + (rem + 1) ^ 2 : ℕ) : ℝ≥0∞) * ε := by
-            have hnat : 2 * seen s + (2 * rem * (seen s + 1) + rem ^ 2) ≤
-                2 * (rem + 1) * seen s + (rem + 1) ^ 2 := by nlinarith
-            exact mul_le_mul_of_nonneg_right (Nat.cast_le.mpr hnat) zero_le
+  · rintro req ⟨cc, queried, seenLeaves⟩ a s'
+    simp only [unguardedCoinHandler, guardedCoinHandler, PMF.monad_bind_eq_bind,
+      PMF.monad_pure_eq_pure, Bool.false_or, Bool.false_eq_true, ↓reduceIte]
+    split_ifs with hmsg
+    · simp only [PMF.bind_apply]
+      refine tsum_congr fun leaf => ?_
+      cases seenLeaves.contains leaf
+      · rfl
+      · simp only [↓reduceIte]
+        have h1 : ((coinSignBody S T depth M n leaf req.2 cc).map fun out =>
+            (out.1, ((out.2, req.2 :: queried, seenLeaves), true))) (a, (s', false)) = 0 :=
+          (PMF.apply_eq_zero_iff _ _).mpr fun hsupp => by
+            obtain ⟨_, -, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hsupp
+            cases heq
+        have h2 : (PMF.pure ([], ((cc, req.2 :: queried, seenLeaves), true)) :
+            PMF (List Bool × GuardedCoinState)) (a, (s', false)) = 0 :=
+          (PMF.apply_eq_zero_iff _ _).mpr fun hsupp => by
+            cases (PMF.mem_support_pure_iff _ _).mp hsupp
+        rw [h1, h2]
+    · rfl
 
 private theorem step_bad_guardedCoinHandler (S : IndexedSignatureScheme) (T : S.Seeded)
     (depth : ℕ → ℕ) (M n : ℕ) (req : Unit × List Bool) (s : GuardedCoinState)
-    (hs : ¬ s.2.2.2 = true) :
-    (guardedCoinHandler S T depth M n req s).toOuterMeasure {x | x.2.2.2.2 = true} ≤
-      (s.2.2.1.length : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ depth n) := by
-  obtain ⟨cc, queried, seenLeaves, bad⟩ := s
-  have hbad : bad = false := Bool.eq_false_iff.mpr hs
-  subst hbad
+    (hs : ¬ OracleComp.FlagBad s) :
+    (guardedCoinHandler S T depth M n req s).toOuterMeasure {x | OracleComp.FlagBad x.2} ≤
+      (s.1.2.2.length : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ depth n) := by
+  obtain ⟨⟨cc, queried, seenLeaves⟩, bad⟩ := s
+  obtain rfl : bad = false := Bool.eq_false_iff.mpr hs
   simp only [guardedCoinHandler, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
     Bool.false_eq_true, ↓reduceIte]
   split_ifs with hmsg
   · classical
-    rw [PMF.toOuterMeasure_bind_apply]
-    have hpt (leaf : List Bool) :
-        ((if seenLeaves.contains leaf = true then
-          PMF.pure ([], (cc, req.2 :: queried, seenLeaves, true))
-        else
-          (coinSignBody S T depth M n leaf req.2 cc).map fun out =>
-            (out.1, (out.2, req.2 :: queried, leaf :: seenLeaves, false))).toOuterMeasure
-          {x | x.2.2.2.2 = true}) ≤
-        ((seenLeaves.toFinset : Set (List Bool)).indicator 1 leaf : ℝ≥0∞) := by
-      cases hmem : seenLeaves.contains leaf
-      · simp only [Bool.false_eq_true, ↓reduceIte]
-        have hzero : ((coinSignBody S T depth M n leaf req.2 cc).map fun out =>
-            (out.1, (out.2, req.2 :: queried, leaf :: seenLeaves, false))).toOuterMeasure
-            {x | x.2.2.2.2 = true} = 0 := by
-          rw [PMF.toOuterMeasure_apply, tsum_eq_zero_iff]
-          intro x
-          by_cases hx : x ∈ {x : List Bool × GuardedCoinState | x.2.2.2.2 = true}
-          · rw [Set.indicator_of_mem hx, (PMF.apply_eq_zero_iff _ _).mpr]
-            intro hsupp
-            obtain ⟨out, -, heq⟩ := (PMF.mem_support_map_iff _ _ _).mp hsupp
-            have hfalse : x.2.2.2.2 = false := congrArg (fun z => z.2.2.2.2) heq.symm
-            exact Bool.false_ne_true (hfalse.symm.trans hx)
-          · rw [Set.indicator_of_notMem hx]
-        rw [hzero]
-        exact zero_le
-      · simp only [↓reduceIte]
-        have hin : leaf ∈ (seenLeaves.toFinset : Set (List Bool)) := by
-          rw [Finset.mem_coe, List.mem_toFinset]
-          exact List.contains_iff_mem.mp hmem
-        rw [Set.indicator_of_mem hin, Pi.one_apply]
-        exact Probability.PMF.toOuterMeasure_le_one _ _
-    calc ∑' leaf, BitString.uniformList (depth n) leaf * _
-        ≤ ∑' leaf, BitString.uniformList (depth n) leaf *
-            ((seenLeaves.toFinset : Set (List Bool)).indicator 1 leaf : ℝ≥0∞) :=
-          tsum_le_tsum fun leaf => mul_le_mul_of_nonneg_left (hpt leaf) zero_le
-      _ = (BitString.uniformList (depth n)).toOuterMeasure
-            (seenLeaves.toFinset : Set (List Bool)) := by
-          rw [PMF.toOuterMeasure_apply]
-          refine tsum_congr fun leaf => ?_
-          by_cases hl : leaf ∈ (seenLeaves.toFinset : Set (List Bool))
-          · rw [Set.indicator_of_mem hl, Set.indicator_of_mem hl, Pi.one_apply, mul_one]
-          · rw [Set.indicator_of_notMem hl, Set.indicator_of_notMem hl, mul_zero]
-      _ ≤ (seenLeaves.toFinset.card : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ depth n) :=
-          BitString.toOuterMeasure_uniformList_finset_le (depth n) seenLeaves.toFinset
-      _ ≤ (seenLeaves.length : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ depth n) := by
-          gcongr
-          exact_mod_cast List.toFinset_card_le seenLeaves
-  · simp only [PMF.toOuterMeasure_pure_apply]
-    have hnot : (([], (cc, req.2 :: queried, seenLeaves, false)) : List Bool × GuardedCoinState) ∉
-        {x : List Bool × GuardedCoinState | x.2.2.2.2 = true} := Bool.false_ne_true
-    simp only [hnot, ↓reduceIte]
-    exact zero_le
+    refine (Probability.PMF.toOuterMeasure_bind_le_add (BitString.uniformList (depth n)) _
+      (seenLeaves.toFinset : Set (List Bool))
+      {x : List Bool × GuardedCoinState | OracleComp.FlagBad x.2} 0 ?_).trans ?_
+    · intro leaf _ hnotMem
+      have hmem : seenLeaves.contains leaf = false :=
+        Bool.eq_false_iff.mpr fun hc =>
+          hnotMem (Finset.mem_coe.mpr (List.mem_toFinset.mpr (List.contains_iff_mem.mp hc)))
+      simp only [hmem, Bool.false_eq_true, ↓reduceIte, le_zero_iff,
+        PMF.toOuterMeasure_apply_eq_zero_iff]
+      refine Set.disjoint_left.mpr fun x hx hbad => ?_
+      obtain ⟨_, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
+      exact Bool.false_ne_true hbad
+    · rw [add_zero]
+      exact (BitString.toOuterMeasure_uniformList_finset_le (depth n)
+        seenLeaves.toFinset).trans (by gcongr; exact_mod_cast List.toFinset_card_le seenLeaves)
+  · simp [PMF.toOuterMeasure_pure_apply, OracleComp.FlagBad]
 
 private theorem grow_seen_guardedCoinHandler (S : IndexedSignatureScheme) (T : S.Seeded)
     (depth : ℕ → ℕ) (M n : ℕ) (req : Unit × List Bool) (s : GuardedCoinState)
-    (hs : ¬ s.2.2.2 = true) (x : List Bool × GuardedCoinState)
-    (hx : x ∈ (guardedCoinHandler S T depth M n req s).support) (hxbad : ¬ x.2.2.2.2 = true) :
-    x.2.2.2.1.length ≤ s.2.2.1.length + 1 := by
-  obtain ⟨cc, queried, seenLeaves, bad⟩ := s
-  have hbad : bad = false := Bool.eq_false_iff.mpr hs
-  subst hbad
+    (hs : ¬ OracleComp.FlagBad s) (x : List Bool × GuardedCoinState)
+    (hx : x ∈ (guardedCoinHandler S T depth M n req s).support)
+    (hxbad : ¬ OracleComp.FlagBad x.2) :
+    x.2.1.2.2.length ≤ s.1.2.2.length + 1 := by
+  obtain ⟨⟨cc, queried, seenLeaves⟩, bad⟩ := s
+  obtain rfl : bad = false := Bool.eq_false_iff.mpr hs
   simp only [guardedCoinHandler, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
     Bool.false_eq_true, ↓reduceIte] at hx
   split_ifs at hx with hmsg
@@ -1579,7 +1435,7 @@ private theorem grow_seen_guardedCoinHandler (S : IndexedSignatureScheme) (T : S
     split_ifs at hx with hmem
     · obtain rfl := (PMF.mem_support_pure_iff _ _).mp hx
       exact False.elim (hxbad rfl)
-    · obtain ⟨out, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
+    · obtain ⟨_, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
       exact le_rfl
   · obtain rfl := (PMF.mem_support_pure_iff _ _).mp hx
     exact Nat.le_succ _
@@ -1808,8 +1664,9 @@ private theorem map_dropCaches_jointCertify (S : IndexedSignatureScheme) (T : S.
 
 private theorem map_dropCaches_jointCoinHandler (S : IndexedSignatureScheme) (T : S.Seeded)
     (depth : ℕ → ℕ) (M n : ℕ) (req : Unit × List Bool) (s : JointLazyState) :
-    (jointCoinHandler S T depth M n req s).map (fun (a, s') => (a, (s'.1, s'.2.2))) =
-      guardedCoinHandler S T depth M n req (s.1, s.2.2) := by
+    (jointCoinHandler S T depth M n req s).map
+        (fun (a, s') => (a, ((s'.1, s'.2.2.1, s'.2.2.2.1), s'.2.2.2.2))) =
+      guardedCoinHandler S T depth M n req ((s.1, s.2.2.1, s.2.2.2.1), s.2.2.2.2) := by
   obtain ⟨cc, ⟨nodes, edges⟩, queried, seenLeaves, bad⟩ := s
   simp only [jointCoinHandler, guardedCoinHandler, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
   split_ifs with hmsg hbad
@@ -2218,8 +2075,8 @@ private theorem run_interpret_signHandler (S : IndexedSignatureScheme) (T : S.Se
     (((OracleComp.interpret
       (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k)) (lazyCoinHandler M))
       (signHandler S T depth n req queried)).run cc)).map (fun ⟨⟨a, b⟩, c⟩ => (a, b, c)) =
-      (unguardedCoinHandler S T depth M n req (cc, (queried, [], false))).map
-        (fun (a, s') => (a, (s'.2.1, s'.1))) := by
+      (unguardedCoinHandler S T depth M n req ((cc, queried, []), false)).map
+        (fun (a, s') => (a, (s'.1.2.1, s'.1.1))) := by
   simp only [signHandler, unguardedCoinHandler, signO, PMF.monad_bind_eq_bind]
   split_ifs with hmsg
   · rw [bind_assoc, OracleComp.run_interpret_bind, ProbOracleComp.run_interpret_sample,
@@ -2254,10 +2111,10 @@ theorem succProbability_treeIdealGame_le_lazy (S : IndexedSignatureScheme) (T : 
       (w₀ : List Bool) : PMF Bool :=
     let root := T.keyGenWith n (w₀.take (T.keyGenBudget n))
     let pk := encPair encUnary encBits (n, root.1)
-    let init : GuardedCoinState := ([(padRequest M (keyInput []), w₀)], ([], [], false))
+    let init : GuardedCoinState := (([(padRequest M (keyInput []), w₀)], [], []), false)
     ((OracleComp.interpret
       (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k)) h)
-      (adversary n pk)).run init).bind fun (msig, (_, (queried, _, _))) =>
+      (adversary n pk)).run init).bind fun (msig, ((_, queried, _), _)) =>
         PMF.pure ((msig.1.length == n) && !queried.contains msig.1 &&
           verify S depth pk msig.1 msig.2)
   -- Step 1: rewrite treeIdealGame as w₀ ← uniformList M followed by unguardedCoinHandler
@@ -2296,15 +2153,15 @@ theorem succProbability_treeIdealGame_le_lazy (S : IndexedSignatureScheme) (T : 
           (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k))
             (lazyCoinHandler M))
           (signHandler S T depth n q st.1)).run st.2)).map (fun ⟨⟨a, b⟩, c⟩ => (a, b, c)))
-      (fun (s : GuardedCoinState) => (s.2.1, s.1))
+      (fun (s : GuardedCoinState) => (s.1.2.1, s.1.1))
       (fun req s => by
-        obtain ⟨cc, queried, seenLeaves, bad⟩ := s
+        obtain ⟨⟨cc, queried, seenLeaves⟩, bad⟩ := s
         rw [run_interpret_signHandler S T depth M n req queried cc]
         simp only [unguardedCoinHandler, PMF.monad_bind_eq_bind]
         split_ifs with hmsg
         · simp only [PMF.map_bind, PMF.map_comp, Function.comp_def]
         · simp only [PMF.pure_map])
-      (adversary n pk) (cc₀, ([], [], false))
+      (adversary n pk) ((cc₀, [], []), false)
     have hcomb := hflat.trans (congrArg (PMF.map fun ⟨a, b, c⟩ => ((a, b), c)) hunguard.symm)
     have hwin := congrArg (fun d => d.bind fun out : ((List Bool × List Bool) × List (List Bool)) ×
         CoinCache =>
@@ -2363,13 +2220,13 @@ theorem succProbability_treeIdealGame_le_lazy (S : IndexedSignatureScheme) (T : 
     have hprojGuard := ProbOracleComp.run_interpret_map_state
       (jointCoinHandler S T depth M n)
       (guardedCoinHandler S T depth M n)
-      (fun s => (s.1, s.2.2))
+      (fun s => ((s.1, s.2.2.1, s.2.2.2.1), s.2.2.2.2))
       (map_dropCaches_jointCoinHandler S T depth M n)
       (adversary n pk) jInit
     have hwinLazy := congrArg (fun d => d.bind fun (msig, (_, (queried, _, _))) =>
       PMF.pure ((msig.1.length == n) && !queried.contains msig.1 &&
         verify S depth pk msig.1 msig.2)) hprojLazy.symm
-    have hwinGuard := congrArg (fun d => d.bind fun (msig, (_, (queried, _, _))) =>
+    have hwinGuard := congrArg (fun d => d.bind fun (msig, ((_, queried, _), _)) =>
       PMF.pure ((msig.1.length == n) && !queried.contains msig.1 &&
         verify S depth pk msig.1 msig.2)) hprojGuard
     simp only [PMF.bind_map, Function.comp_def] at hwinLazy hwinGuard
@@ -2381,6 +2238,13 @@ theorem succProbability_treeIdealGame_le_lazy (S : IndexedSignatureScheme) (T : 
     rw [ENNReal.coe_div (by positivity), div_eq_mul_inv, one_div]
     push_cast
     ring
+  have htwo : (1 : ℝ≥0∞) / 2 ^ depth n = 2 * ((1 : ℝ≥0∞) / 2 ^ (depth n + 1)) := by
+    simp only [one_div, pow_succ']
+    rw [ENNReal.mul_inv (Or.inl (by norm_num)) (Or.inl (by norm_num)), ← mul_assoc,
+      ENNReal.mul_inv_cancel (by norm_num) (by norm_num), one_mul]
+  have hchoose_le : 2 * Q.choose 2 ≤ Q ^ 2 := by
+    rw [Nat.choose_two_right, pow_two]
+    exact (Nat.mul_div_le _ 2).trans (Nat.mul_le_mul_left Q (Nat.sub_le Q 1))
   have hle_enn : ProbComp.eval (treeIdealGame S T depth N adversary n) true ≤
       ProbComp.eval (lazyTreeGame S depth adversary n) true + (err : ℝ≥0∞) := by
     rw [hstep1, hstep2, PMF.bind_apply, PMF.bind_apply]
@@ -2393,23 +2257,32 @@ theorem succProbability_treeIdealGame_le_lazy (S : IndexedSignatureScheme) (T : 
       dsimp only [gameWith]
       set root := T.keyGenWith n (w₀.take (T.keyGenBudget n))
       set pk := encPair encUnary encBits (n, root.1)
-      set init : GuardedCoinState := ([(padRequest M (keyInput []), w₀)], ([], [], false))
+      set init : GuardedCoinState := (([(padRequest M (keyInput []), w₀)], [], []), false)
       have hiub := identicalUntilBad_coinHandlers S T depth M n
-      have hdiff := hiub.bind_apply_le (adversary n pk) init
-        (fun (msig, (_, (queried, _, _))) =>
+      have hdiff := OracleComp.IdenticalUntilBad.bind_apply_le hiub (adversary n pk) init
+        (fun (msig, ((_, queried, _), _)) =>
           PMF.pure ((msig.1.length == n) && !queried.contains msig.1 &&
             verify S depth pk msig.1 msig.2)) true
-      rw [hiub.bad_eq] at hdiff
+      rw [OracleComp.IdenticalUntilBad.bad_eq hiub] at hdiff
       have hq_root : (adversary n pk).IsQueryBounded Q :=
         hq root (T.keyGenWith_mem_support n _)
-      have hbad_le := toOuterMeasure_bad_queryBounded_le
-        (guardedCoinHandler S T depth M n)
-        (fun s => s.2.2.2 = true) (fun s => s.2.2.1.length) (depth n)
+      have hbad_le := ProbOracleComp.toOuterMeasure_bad_choose_two_le
+        (handler := guardedCoinHandler S T depth M n) (bad := OracleComp.FlagBad)
+        (fun s => s.1.2.2.length) ((1 : ℝ≥0∞) / 2 ^ depth n)
         (step_bad_guardedCoinHandler S T depth M n)
         (grow_seen_guardedCoinHandler S T depth M n)
         hq_root (s := init) Bool.false_ne_true
-      simp only [init, List.length_nil, mul_zero, zero_add] at hbad_le
-      exact hdiff.trans (add_le_add le_rfl (hbad_le.trans_eq herr.symm))
+      rw [ProbOracleComp.runWith_eq_run_interpret] at hbad_le
+      simp only [init, List.length_nil, mul_zero, zero_add, htwo, ← mul_assoc] at hbad_le
+      have hbad_err : ((OracleComp.interpret
+            (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k))
+              (guardedCoinHandler S T depth M n))
+            (adversary n pk)).run init).toOuterMeasure {x | OracleComp.FlagBad x.2} ≤
+          (err : ℝ≥0∞) := by
+        refine hbad_le.trans ?_
+        rw [herr, mul_comm (Q.choose 2 : ℝ≥0∞) 2, ← Nat.cast_ofNat, ← Nat.cast_mul]
+        exact mul_le_mul_of_nonneg_right (Nat.cast_le.mpr hchoose_le) zero_le
+      exact hdiff.trans (add_le_add le_rfl hbad_err)
     calc ∑' w₀, _
         ≤ ∑' w₀, BitString.uniformList M w₀ * _ := tsum_le_tsum hpt
       _ = _ := by

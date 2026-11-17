@@ -47,15 +47,11 @@ bounds on `2 ^ ℓ` and on `T n` as functions of the instance:
   `Cslib.Crypto.PRG.NisanWigderson.restrictMask` and evaluates the hard function
   (`Cslib.Crypto.PRG.NisanWigderson.computableInPolyTime_listGenerator`).
 
-The decider `Cslib.Complexity.nwDecider` combines them: it runs a verifier on the output of the
-generator for each of the `2 ^ ℓ` seeds and takes the strict majority of the answers
-(`Cslib.Complexity.computableInPolyTime_nwDecider`). Its correctness is the subject of
+On pairs of an instance and a seed, the generator with computed parameters is polynomial-time
+(`Cslib.Complexity.computableInPolyTime_listGenerator_greedyMasks`), so the seed-enumeration
+decider `Cslib.Complexity.seedDecider` over it runs in polynomial time
+(`Cslib.Complexity.computableInPolyTime_seedDecider`). Its correctness is the subject of
 `Cslib.Complexity.BPP_subset_P_of_isAverageCaseHard`.
-
-## Main definitions
-
-* `Cslib.Complexity.nwDecider`: the majority of a verifier over the outputs of the
-  Nisan–Wigderson generator on all seeds.
 
 ## Main results
 
@@ -63,13 +59,11 @@ generator for each of the `2 ^ ℓ` seeds and takes the strict majority of the a
   deciders within the same time and space bound, up to constant factors.
 * `Turing.MultiTapeTM.ComputableInO.computableInPolyTime_take`: evaluation of a
   function computable in time `T n` on words of polynomially bounded `T n`.
-* `Turing.MultiTapeTM.ComputableInPolyTime.bitsEnumList_of_polyBounded`: enumeration of the
-  words of a computed length `ℓ` when `2 ^ ℓ` is polynomially bounded.
 * `Cslib.Crypto.PRG.NisanWigderson.computableInPolyTime_greedyMasks`,
   `Cslib.Crypto.PRG.NisanWigderson.computableInPolyTime_listGenerator`: the greedy design
   and the generator in polynomial time, when `2 ^ ℓ` and `T n` are polynomially bounded.
-* `Cslib.Complexity.computableInPolyTime_nwDecider`: the majority over all seeds in
-  polynomial time.
+* `Cslib.Complexity.computableInPolyTime_listGenerator_greedyMasks`: the generator with computed
+  parameters, on pairs of an instance and a seed, in polynomial time.
 
 ## References
 
@@ -77,7 +71,7 @@ generator for each of the `2 ^ ℓ` seeds and takes the strict majority of the a
 * [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*][AroraBarak09], Chapter 20
 -/
 
-@[expose] public section
+public section
 
 open Turing Turing.MultiTapeTM
 
@@ -134,31 +128,6 @@ theorem ComputableInO.computableInPolyTime_take {γ : Type} {encIn : γ ↪ List
     hfst.mono fun p => hT (List.length_take_le _ _)
   exact (hg.comp h₁).computableInPolyTime (hT₁.add hTcut) (hS₁.add hTcut)
 
-namespace ComputableInPolyTime
-
-variable {γ : Type} {encIn : γ ↪ List Bool}
-
-/-- Enumerate the words of a computed length `count x` when `2 ^ count x` is polynomially
-bounded. -/
-theorem bitsEnumList_of_polyBounded {count : γ → ℕ}
-    (hcount : ComputableInPolyTime count encIn encUnary)
-    (hbudget : PolyBounded (fun x => (encIn x).length) fun x => 2 ^ count x) :
-    ComputableInPolyTime (fun x => Cslib.BitString.enumList (count x)) encIn
-      (encList encBits) := by
-  obtain ⟨c, d, h⟩ := hbudget.exists_le
-  refine bitsEnumList hcount
-    (size := fun n => 3 * (c * (n + 1) ^ d) ^ 2) (by fun_prop) fun x => ?_
-  have h₁ : 2 * count x + 1 ≤ 3 * 2 ^ count x := by
-    have := Nat.lt_two_pow_self (n := count x)
-    omega
-  calc 2 ^ count x * (2 * count x + 1) ≤ 2 ^ count x * (3 * 2 ^ count x) :=
-        Nat.mul_le_mul_left _ h₁
-    _ = 3 * (2 ^ count x) ^ 2 := by ring
-    _ ≤ 3 * (c * ((encIn x).length + 1) ^ d) ^ 2 :=
-        Nat.mul_le_mul_left _ (Nat.pow_le_pow_left (h x) 2)
-
-end ComputableInPolyTime
-
 end Turing.MultiTapeTM
 
 namespace Cslib.Crypto.PRG.NisanWigderson
@@ -210,7 +179,7 @@ theorem computableInPolyTime_greedyMasks {seed block overlap : γ → ℕ}
   refine foldlWith_of_bounded_growth (encA := encBits) (par := fun x => (block x, overlap x))
     (step := fun p kept w => greedyStep p.1 p.2 kept w) (growth := fun x => 2 * seed x + 1)
     (hblock.prod hoverlap)
-    (ComputableInPolyTime.bitsEnumList_of_polyBounded hseed hbudget) (.const [])
+    (bitsEnumList_of_polyBounded hseed hbudget) (.const [])
     computableInPolyTime_greedyStep
     ((hseed.polyBounded.mul (.const 2)).add (.const 1) |>.mono fun x => by simp [Nat.mul_comm])
     fun x kept w hw => ?_
@@ -255,23 +224,16 @@ open Cslib.Crypto.PRG.NisanWigderson Turing.MultiTapeTM.ComputableInPolyTime
 
 variable {α : Type} {enc : α ↪ List Bool}
 
-/-- The decider obtained from a verifier `V` and the Nisan–Wigderson generator of a function `g`
-on words: on an instance `x`, it runs `V` on `x` and the output of the generator on each of the
-`2 ^ seed x` seeds of `seed x` bits, with the first `out x` masks of the greedy design with blocks
-of `block x` positions sharing at most `overlap x` of them, and returns the strict majority of the
-answers. -/
-def nwDecider (V : α × List Bool → Bool) (g : List Bool → Bool) (seed block overlap out : α → ℕ)
-    (x : α) : Bool :=
-  BitString.listStrictMajority ((BitString.enumList (seed x)).map fun z =>
-    V (x, listGenerator g (block x) ((greedyMasks (seed x) (block x) (overlap x)).take (out x)) z))
-
-/-- **The Nisan–Wigderson decider in polynomial time.** Let `V` be polynomial-time and let `g` be
-computable within time and space `O(T n)` on words of length `n`, for a monotone `T`. With
-polynomial-time unary parameters, `nwDecider` is polynomial-time when `2 ^ seed x` and
-`T (block x)` are polynomially bounded in the length of the instance. -/
-theorem computableInPolyTime_nwDecider {V : α × List Bool → Bool} {g : List Bool → Bool}
-    {T : ℕ → ℕ} {seed block overlap out : α → ℕ}
-    (hV : ComputableInPolyTime V (encPair enc encBits) encBool) (hT : Monotone T)
+/-- **The Nisan–Wigderson generator with computed parameters in polynomial time.** Let `g` be
+computable within time and space `O(T n)` on words of length `n`, for a monotone `T`. On pairs of
+an instance `x` and a seed, the generator with blocks of `block x` positions, the first `out x`
+masks of the greedy design with seeds of `seed x` bits and overlaps at most `overlap x`, is
+polynomial-time when the parameters are polynomial-time in unary and `2 ^ seed x` and `T (block x)`
+are polynomially bounded in the length of the instance. With
+`Cslib.Complexity.computableInPolyTime_seedDecider` this runs the Nisan–Wigderson derandomization
+in polynomial time. -/
+theorem computableInPolyTime_listGenerator_greedyMasks {g : List Bool → Bool}
+    {T : ℕ → ℕ} {seed block overlap out : α → ℕ} (hT : Monotone T)
     (hg : ComputableInO g encBits encBool (fun y => T y.length) fun y => T y.length)
     (hseed : ComputableInPolyTime seed enc encUnary)
     (hblock : ComputableInPolyTime block enc encUnary)
@@ -279,7 +241,9 @@ theorem computableInPolyTime_nwDecider {V : α × List Bool → Bool} {g : List 
     (hout : ComputableInPolyTime out enc encUnary)
     (hseedBudget : PolyBounded (fun x => (enc x).length) fun x => 2 ^ seed x)
     (hblockBudget : PolyBounded (fun x => (enc x).length) fun x => T (block x)) :
-    ComputableInPolyTime (nwDecider V g seed block overlap out) enc encBool := by
+    ComputableInPolyTime (fun p : α × List Bool => listGenerator g (block p.1)
+      ((greedyMasks (seed p.1) (block p.1) (overlap p.1)).take (out p.1)) p.2)
+      (encPair enc encBits) encBits := by
   have hfst : ∀ {u : α → ℕ}, PolyBounded (fun x => (enc x).length) u →
       PolyBounded (fun p : α × List Bool => (encPair enc encBits p).length) fun p => u p.1 :=
     fun hu => hu.comp (PolyBounded.self.mono fun p => by simp [length_frame]; omega)
@@ -289,15 +253,7 @@ theorem computableInPolyTime_nwDecider {V : α × List Bool → Bool} {g : List 
     have := computableInPolyTime_greedyMasks (hseed.comp (.fst enc encBits))
       (hblock.comp (.fst enc encBits)) (hoverlap.comp (.fst enc encBits)) (hfst hseedBudget)
     fun_prop
-  have hgen := computableInPolyTime_listGenerator hT hg (hblock.comp (.fst enc encBits))
+  exact computableInPolyTime_listGenerator hT hg (hblock.comp (.fst enc encBits))
     hmasks (.snd enc encBits) (hfst hblockBudget)
-  have hvote : ComputableInPolyTime (fun p : α × List Bool => V (p.1,
-      listGenerator g (block p.1) ((greedyMasks (seed p.1) (block p.1) (overlap p.1)).take
-        (out p.1)) p.2)) (encPair enc encBits) encBool :=
-    hV.comp ((fst enc encBits).prod hgen)
-  exact bitsStrictMajorityWithInput (mapToBitsWithInput
-    (f := fun x z => V (x, listGenerator g (block x)
-      ((greedyMasks (seed x) (block x) (overlap x)).take (out x)) z))
-    (bitsEnumList_of_polyBounded hseed hseedBudget) hvote)
 
 end Cslib.Complexity

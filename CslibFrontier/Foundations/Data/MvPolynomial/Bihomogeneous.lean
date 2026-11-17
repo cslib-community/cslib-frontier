@@ -187,7 +187,7 @@ private theorem mixedOp_monomial_mem (d : σ →₀ ℕ) : ∀ (a b : ℕ) (p : 
     intro a b p hp
     have h : (monomial (f + g) 1 : MvPolynomial σ R) = monomial f 1 * monomial g 1 := by
       simp
-    rw [h, map_mul, Module.End.mul_apply]
+    rw [h, map_mul, mul_apply_eq_comp]
     rw [map_add, Prod.fst_add, ← add_assoc] at hp
     rw [map_add, Prod.snd_add, add_comm _ (weight (bidegWeight s) g).2, ← add_assoc]
     exact hf _ _ _ (hg _ _ _ hp)
@@ -199,7 +199,7 @@ private theorem mixedOp_monomial_mem (d : σ →₀ ℕ) : ∀ (a b : ℕ) (p : 
       have h : (monomial (single i (n + 1)) 1 : MvPolynomial σ R) =
           monomial (single i n) 1 * X i := by
         simp [X, ← single_add]
-      rw [h, map_mul, Module.End.mul_apply]
+      rw [h, map_mul, mul_apply_eq_comp]
       by_cases hi : s i
       · have hw : weight (bidegWeight s) (single i (n + 1)) = (n + 1, 0) := by
           simp [weight_single, bidegWeight, hi]
