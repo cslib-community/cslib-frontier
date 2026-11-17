@@ -32,33 +32,38 @@ parameterized correlated-agreement steps for Reed–Solomon codes in both the un
 Johnson-bound regimes, following Ben-Sasson, Carmon, Ishai, Kopparty, and Saraf
 [BenSassonCarmonIshaiKoppartySaraf2020]. All theorem and section locators below follow the accepted
 *Journal of the ACM* (2023) manuscript (`https://par.nsf.gov/servlets/purl/10467091`, where
-Theorem 1.5 treats parameterized curves, Theorem 1.6 treats affine spaces, Theorems 6.1–6.2 treat
-unique-decoding and Johnson-bound degree-`r` curves, Theorem 7.1 treats unique-decoding weighted
-correlated agreement, Theorem 7.2 treats Johnson-bound weighted correlated agreement on lines and
-curves, and Theorem 7.4 on printed p. 32 treats weighted correlated agreement over affine spaces;
-by contrast, Theorem 7.2 of the July 2020 ePrint 2020/654 version concerns FRI soundness).
+Theorem 1.2 treats affine-space proximity gaps across both the unique-decoding and Johnson-bound
+regimes, Theorem 1.4 treats line correlated agreement across both regimes, Theorem 1.5 treats
+parameterized curves, Theorem 1.6 on printed p. 6 treats affine-space correlated agreement,
+Theorems 6.1–6.2 treat unique-decoding and Johnson-bound degree-`r` curves, Theorem 7.1 treats
+weighted correlated agreement on curves, Version I, in the `α > √ρ` range, Theorem 7.2 treats
+weighted correlated agreement on lines and curves, and Theorem 7.4 on printed p. 32 treats weighted
+correlated agreement over affine spaces; by contrast, Theorem 7.2 of the July 2020 ePrint 2020/654
+version concerns FRI soundness).
 
 ## Scope and relationship to the source theorems
 
 * **Unique-decoding weighted & affine theorems:**
   `Cslib.Code.exists_ratWeighted_correlatedAgreement_curve_unique`,
   `Cslib.Code.exists_weighted_correlatedAgreement_curve_unique`, and their line/dichotomy
-  counterparts formalize unique-decoding weighted correlated agreement (Theorem 7.1, allowing
-  signed rational weights bounded above by `1` in correlated agreement) with zero dependence on
-  weight denominators. `Cslib.Code.exists_correlatedAgreement_affine_unique_sharp` and its
-  `ℕ`/`ℚ`-weighted and dichotomy counterparts formalize the unique-decoding case of Theorems 1.6
-  and 7.4 with dimension-independent threshold `|ι| * (|F| ^ ℓ - 1) < (|F| - 1) * #T` (alongside
-  the generic `(Fˣ)^ℓ × Fˣ` curve reduction `Cslib.Code.exists_correlatedAgreement_affine_of_curve`
-  with linear-in-`ℓ` overhead).
+  counterparts give a unique-decoding specialization and signed-weight extension (`μ i ≤ 1`) of
+  weighted curve correlated agreement (whereas source Theorem 7.1 treats weighted curves,
+  Version I, across the `α > √ρ` range), achieving the sharp `d * |ι| < #S` threshold with zero
+  dependence on weight denominators. `Cslib.Code.exists_correlatedAgreement_affine_unique_sharp`
+  and its `ℕ`/`ℚ`-weighted and dichotomy counterparts formalize the unique-decoding cases of
+  Theorem 1.2, Theorem 1.6 (printed p. 6), and Theorem 7.4 (printed p. 32) with
+  dimension-independent threshold `|ι| * (|F| ^ ℓ - 1) < (|F| - 1) * #T` (alongside the generic
+  `(Fˣ)^ℓ × Fˣ` curve reduction `Cslib.Code.exists_correlatedAgreement_affine_of_curve` with
+  linear-in-`ℓ` overhead).
 * **Johnson-bound curves (`ℚ`-weighted steps and explicit-constant dichotomies):**
   `Cslib.Code.exists_ratWeighted_correlatedAgreement_curve_johnson` and
   `Cslib.Code.exists_ratWeighted_correlatedAgreement_line_johnson` are **explicit-parameter
-  `ℚ`-weighted correlated-agreement steps** toward Theorems 6.2 and 7.2 parameterized directly by
-  `(m, D)` and weight denominator `M` via `Cslib.Code.ProximityGap.johnsonCurveBound`.
+  `ℚ`-weighted correlated-agreement steps** toward Theorems 6.2, 7.1, and 7.2 parameterized directly
+  by `(m, D)` and weight denominator `M` via `Cslib.Code.ProximityGap.johnsonCurveBound`.
   `Cslib.Code.proximityGap_curve_johnson`, `Cslib.Code.proximityGap_curve_johnson_of_eta`,
   `Cslib.Code.weighted_proximityGap_curve_johnson`, and
   `Cslib.Code.ratWeighted_proximityGap_curve_johnson` are **original explicit-constant variants**
-  toward Theorems 1.5, 6.2, and 7.2 with exceptional fraction
+  toward Theorems 1.5, 6.2, 7.1, and 7.2 with exceptional fraction
   `1800 * r * (m + 1) ^ 6 * n ^ 2 / (ρ * |F|)` (respectively
   `115200 * r * n ^ 2 / (ρ * η ^ 6 * |F|)` and factor `M` in weighted forms); while
   `(m + 1) ^ 6 / ρ` is asymptotically smaller in `m` and `1 / ρ` than the paper's displayed
@@ -69,11 +74,11 @@ by contrast, Theorem 7.2 of the July 2020 ePrint 2020/654 version concerns FRI s
     `Cslib.Code.exists_correlatedAgreement_affine_johnson`,
     `Cslib.Code.exists_ratWeighted_correlatedAgreement_affine_johnson`, and their `_single`
     counterparts are **original parameterized / list-size correlated-agreement steps** toward
-    Theorems 1.6 and 7.4 (printed p. 32): they assume the additional list-size / field-size premise
-    `2 ≤ ℓ → maxYDeg (k - 1) D * B_line < |F|` (or absorb `max 1 (maxYDeg (k - 1) D)` into the
-    `_single` density threshold). Deriving the source manuscript's exact displayed affine
-    correlated-agreement endpoints from its density thresholds alone without this extra list-size
-    premise remains open.
+    Theorem 1.6 (printed p. 6) and Theorem 7.4 (printed p. 32): they assume the additional
+    list-size / field-size premise `2 ≤ ℓ → maxYDeg (k - 1) D * B_line < |F|` (or absorb
+    `max 1 (maxYDeg (k - 1) D)` into the `_single` density threshold). Deriving the source
+    manuscript's exact displayed affine correlated-agreement endpoints from its density thresholds
+    alone without this extra list-size premise remains open.
   - `Cslib.Code.proximityGap_affine_johnson_exact`,
     `Cslib.Code.weighted_proximityGap_affine_johnson_exact`,
     `Cslib.Code.ratWeighted_proximityGap_affine_johnson_exact`,
@@ -83,14 +88,16 @@ by contrast, Theorem 7.2 of the July 2020 ePrint 2020/654 version concerns FRI s
     `maxYDeg (k - 1) D * B_line < |F|` premise via `Cslib.Code.proximityGap_affine_of_line` (with
     original explicit constants `1800 * (m + 1) ^ 6 * n ^ 2 / (ρ * (|F| - 1))` and
     `115200 * n ^ 2 / (ρ * η ^ 6 * (|F| - 1))` in the real-density corollaries, not uniformly
-    smaller at small finite `m`), but establish a **pointwise close-or-sparse dichotomy** on
-    `u₀ + ∑ j, z j • u j` rather than simultaneous correlated agreement of the affine generators
-    `u₀, u_j` on a single shared coordinate set `D'`.
+    smaller at small finite `m`), but establish a **pointwise close-or-sparse dichotomy** (in the
+    setting of Theorem 1.2) on `u₀ + ∑ j, z j • u j` rather than simultaneous correlated agreement
+    of the affine generators `u₀, u_j` on a single shared coordinate set `D'`.
 
 ## Mathematical overview
 
 1. **Sharp weighted correlated agreement in the unique-decoding regime**
-   ([BenSassonCarmonIshaiKoppartySaraf2020, Theorem 7.1]):
+   (unique-decoding specialization and signed-weight extension of
+   [BenSassonCarmonIshaiKoppartySaraf2020, Section 7 / Theorem 7.1], where source Theorem 7.1
+   treats weighted curves, Version I, in the `α > √ρ` range):
    Given `d + 1` words `u : Fin (d + 1) → (ι → F)` over an arbitrary field `F`, any weight
    function `μ : ι → ℚ` bounded above by `1`, and a threshold `θ : ℚ` strictly above
    `(|ι| - e : ℕ) - 1` where `2 * e + k ≤ |ι|`: if more than `d * |ι|` scalars `z ∈ S` have
@@ -199,7 +206,8 @@ by contrast, Theorem 7.2 of the July 2020 ePrint 2020/654 version concerns FRI s
   `Cslib.Code.exists_ratWeighted_correlatedAgreement_line_johnson`, &
   `Cslib.Code.ratWeighted_proximityGap_curve_johnson`: explicit-parameter `ℚ`-weighted steps and
   original explicit-constant `ℕ`/`ℚ`-weighted curve dichotomies toward
-  [BenSassonCarmonIshaiKoppartySaraf2020, Theorems 6.2 and 7.2] (accepted JACM 2023 manuscript).
+  [BenSassonCarmonIshaiKoppartySaraf2020, Theorems 6.2, 7.1, and 7.2] (accepted JACM 2023
+  manuscript).
 * `Cslib.Code.exists_weighted_correlatedAgreement_affine_johnson`,
   `Cslib.Code.exists_weighted_correlatedAgreement_affine_johnson_single`,
   `Cslib.Code.exists_correlatedAgreement_affine_johnson`,
@@ -207,8 +215,8 @@ by contrast, Theorem 7.2 of the July 2020 ePrint 2020/654 version concerns FRI s
   `Cslib.Code.exists_ratWeighted_correlatedAgreement_affine_johnson`, &
   `Cslib.Code.exists_ratWeighted_correlatedAgreement_affine_johnson_single`: original parameterized
   list-size unweighted, `ℕ`-weighted, and `ℚ`-weighted Johnson-bound correlated-agreement steps on
-  affine spaces toward [BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.6 and 7.4] (accepted JACM
-  2023 manuscript, printed p. 32).
+  affine spaces toward [BenSassonCarmonIshaiKoppartySaraf2020], Theorem 1.6 (printed p. 6) and
+  Theorem 7.4 (printed p. 32) of the accepted JACM 2023 manuscript.
 * `Cslib.Code.proximityGap_affine_johnson_exact`,
   `Cslib.Code.weighted_proximityGap_affine_johnson_exact`,
   `Cslib.Code.ratWeighted_proximityGap_affine_johnson_exact`,
@@ -216,7 +224,8 @@ by contrast, Theorem 7.2 of the July 2020 ePrint 2020/654 version concerns FRI s
   `Cslib.Code.proximityGap_affine_johnson_of_eta`,
   `Cslib.Code.weighted_proximityGap_affine_johnson`, &
   `Cslib.Code.ratWeighted_proximityGap_affine_johnson`: pointwise close-or-sparse finite-field
-  Johnson-bound affine dichotomy lifts (explicit-parameter and original explicit-constant variants).
+  Johnson-bound affine dichotomy lifts in the setting of Theorem 1.2 (explicit-parameter and
+  original explicit-constant variants).
 
 ## References
 
@@ -442,7 +451,9 @@ theorem ratWeightedAgree_affine_ge_of_eq_on
 /-! ### Part 1: Sharp weighted correlated agreement in the unique-decoding regime -/
 
 /-- **Weighted correlated agreement on parameterized curves in the unique-decoding regime**
-(`ℚ`-weights, [BenSassonCarmonIshaiKoppartySaraf2020, Section 7 & Theorem 6.1]):
+(`ℚ`-weights; unique-decoding specialization and signed-weight extension of
+[BenSassonCarmonIshaiKoppartySaraf2020, Theorem 6.1 & Section 7], where source Theorem 7.1 treats
+weighted curves, Version I, in the `α > √ρ` range):
 
 Over an arbitrary field `F`, let `α : ι → F` be distinct evaluation points, `2 * e + k ≤ |ι|`,
 and `μ : ι → ℚ` any weight function bounded above by `1` (in particular, any `[0, 1]`-valued
@@ -568,7 +579,9 @@ theorem exists_ratWeighted_correlatedAgreement_curve_unique
   omega
 
 /-- **Weighted correlated agreement on affine lines in the unique-decoding regime**
-(`ℚ`-weights, [BenSassonCarmonIshaiKoppartySaraf2020, Theorem 7.1]):
+(`ℚ`-weights; unique-decoding line specialization and signed-weight extension of
+[BenSassonCarmonIshaiKoppartySaraf2020, Theorem 4.1 & Section 7], where source Theorem 7.1 treats
+weighted curves, Version I, in the `α > √ρ` range):
 Line specialization (`d = 1`) of `Cslib.Code.exists_ratWeighted_correlatedAgreement_curve_unique`,
 with exact threshold `|ι| < #S`. -/
 theorem exists_ratWeighted_correlatedAgreement_unique
@@ -603,7 +616,8 @@ theorem exists_ratWeighted_correlatedAgreement_unique
     by simpa only [u, Matrix.cons_val_one, Matrix.cons_val_fin_one] using hagree i hi 1⟩
 
 /-- **Integer-weighted correlated agreement on parameterized curves in the unique-decoding regime**
-([BenSassonCarmonIshaiKoppartySaraf2020, Section 7 & Theorem 6.1]):
+(unique-decoding specialization of [BenSassonCarmonIshaiKoppartySaraf2020, Theorem 6.1 & Section 7],
+where source Theorem 7.1 treats weighted curves, Version I, in the `α > √ρ` range):
 
 Given integer weights `W : ι → ℕ` bounded by `M > 0` (`∀ i, W i ≤ M`) and weighted agreement
 threshold `B : ℕ`, let `e := |ι| - (B + M - 1) / M` be the implied unweighted error bound.
@@ -662,7 +676,8 @@ theorem exists_weighted_correlatedAgreement_curve_unique
   exact Nat.cast_le.1 hq
 
 /-- **Integer-weighted correlated agreement on affine lines in the unique-decoding regime**
-([BenSassonCarmonIshaiKoppartySaraf2020, Theorem 7.1]):
+(unique-decoding line specialization of [BenSassonCarmonIshaiKoppartySaraf2020, Theorem 4.1 &
+Section 7], where source Theorem 7.1 treats weighted curves, Version I, in the `α > √ρ` range):
 Line specialization (`d = 1`) of `Cslib.Code.exists_weighted_correlatedAgreement_curve_unique`
 with exact threshold `|ι| < #S`, directly discharging FRI unique-decoding commit-round soundness
 with zero total-weight loss. -/
@@ -2781,8 +2796,8 @@ theorem ratWeighted_proximityGap_curve_johnson
 /-! #### 5.2 Johnson-bound affine spaces: parameterized list-size steps and pointwise dichotomies -/
 
 /-- **Original parameterized list-size `ℕ`-weighted correlated-agreement step on affine spaces up to
-the Johnson bound** (toward [BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.6 and 7.4], accepted
-JACM 2023 manuscript, printed p. 32).
+the Johnson bound** (toward [BenSassonCarmonIshaiKoppartySaraf2020], Theorem 1.6 on printed p. 6 and
+Theorem 7.4 on printed p. 32 of the accepted JACM 2023 manuscript).
 
 If `B_line * (|F| ^ ℓ - 1) < (|F| - 1) * #T` (where
 `B_line = johnsonCurveBound |ι| m (k - 1) D 1 W_tot`) and the list-size / field-size premise
@@ -2824,8 +2839,8 @@ theorem exists_weighted_correlatedAgreement_affine_johnson
     hLB u₀ u T hT hclose
 
 /-- **Single-inequality list-size `ℕ`-weighted correlated-agreement step on affine spaces up to the
-Johnson bound** (toward [BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.6 and 7.4], accepted JACM
-2023 manuscript, printed p. 32).
+Johnson bound** (toward [BenSassonCarmonIshaiKoppartySaraf2020], Theorem 1.6 on printed p. 6 and
+Theorem 7.4 on printed p. 32 of the accepted JACM 2023 manuscript).
 
 Packages both hypotheses of `Cslib.Code.exists_weighted_correlatedAgreement_affine_johnson` by
 absorbing the list-size factor `max 1 (maxYDeg (k - 1) D)` into the stronger density threshold
@@ -2946,8 +2961,8 @@ theorem exists_correlatedAgreement_affine_johnson_single
   exact ⟨D', hD', v₀, hv₀, v, hvRS, hagree⟩
 
 /-- **Original parameterized list-size `ℚ`-weighted correlated-agreement step on affine spaces up to
-the Johnson bound** (toward [BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.6 and 7.4], accepted
-JACM 2023 manuscript, printed p. 32).
+the Johnson bound** (toward [BenSassonCarmonIshaiKoppartySaraf2020], Theorem 1.6 on printed p. 6 and
+Theorem 7.4 on printed p. 32 of the accepted JACM 2023 manuscript).
 
 Assumes `2 ≤ ℓ → maxYDeg (k - 1) D * B_line < |F|`; deriving the exact source endpoint of
 Theorem 7.4 without this extra list-size premise remains open. -/
@@ -2994,9 +3009,9 @@ theorem exists_ratWeighted_correlatedAgreement_affine_johnson
   exact ⟨D', (hsum_iff D').2 hD', v₀, hv₀, v, hvRS, hagree⟩
 
 /-- **Single-inequality list-size `ℚ`-weighted correlated-agreement step on affine spaces up to the
-Johnson bound** (toward [BenSassonCarmonIshaiKoppartySaraf2020, Theorems 1.6 and 7.4], accepted JACM
-2023 manuscript, printed p. 32, absorbing `max 1 (maxYDeg (k - 1) D)` into the density
-threshold). -/
+Johnson bound** (toward [BenSassonCarmonIshaiKoppartySaraf2020], Theorem 1.6 on printed p. 6 and
+Theorem 7.4 on printed p. 32 of the accepted JACM 2023 manuscript, absorbing
+`max 1 (maxYDeg (k - 1) D)` into the density threshold). -/
 theorem exists_ratWeighted_correlatedAgreement_affine_johnson_single
     {F ι : Type*} [Field F] [Fintype F] [Fintype ι] [DecidableEq F]
     {α : ι → F} (hα : Function.Injective α)
