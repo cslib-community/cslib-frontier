@@ -30,10 +30,10 @@ first key that is not below it, then one question against the upper bound per en
 same key up to and including the first key above the upper bound. The first entry that is not
 below the lower bound is therefore compared twice, once in each phase.
 
-With the comparator `leI` of a linear order, the identity-monad instance of each scan is the
-corresponding function of `Cslib.SortedAssoc` on a sorted list (`idRun_lookupM` and its
-siblings). The scan for the successor needs no sortedness. The others do, because they stop
-early: on an unsorted list they may miss entries that the model function, a filter, finds.
+With the comparator `Cslib.SortedAssoc.leI` of a linear order, the identity-monad instance of
+each scan is the corresponding function of `Cslib.SortedAssoc` on a sorted list (`idRun_lookupM`
+and its siblings). The scan for the successor needs no sortedness. The others do, because they
+stop early: on an unsorted list they may miss entries that the model function, a filter, finds.
 
 `map_lookupM` and its siblings say that a monad morphism commutes with each scan, which is how
 an instrumented instance is related to the pure one.
@@ -42,7 +42,6 @@ A leaf of a B+-tree is a sorted association list, and these scans are its querie
 
 ## Main definitions
 
-* `Cslib.SortedAssoc.leI`: the decidable comparator of a linear order, in the identity monad.
 * `Cslib.SortedAssoc.lookupM`, `rankM`, `predM`, `succM`: lookup, rank, strict predecessor and
   strict successor.
 * `Cslib.SortedAssoc.takeUpToM`, `rangeM`: the prefix of keys up to a bound, and restriction to a
@@ -165,9 +164,6 @@ end Transfer
 section Pure
 
 variable {α β : Type} [LinearOrder α] {l : List (α × β)} {k k' lo hi : α} {v : β} {p : α × β}
-
-/-- The decidable comparator of a linear order, in the identity monad. -/
-abbrev leI (a b : α) : Id Bool := pure (decide (a ≤ b))
 
 /-- The pure lookup scan at an entry: stop at a key not below `k`, and move on otherwise. -/
 theorem idRun_lookupM_cons :
