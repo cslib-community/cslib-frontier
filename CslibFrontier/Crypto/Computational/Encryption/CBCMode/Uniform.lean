@@ -18,6 +18,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Foundations.Data.BitString.List.Operations
+import CslibFrontier.Foundations.Data.BitString.List.Rows
 import CslibFrontier.Languages.Probabilistic.QueryCount.Congr
 import CslibFrontier.Probability.BitString
 import CslibFrontier.Probability.PMF.Bind
@@ -165,13 +166,6 @@ private theorem listRows_eq_map_ofFn_padBlocks (n L : ℕ) (x : List Bool) :
   rw [BitString.getElem_listRow (by simpa using hj₂), List.getElem_ofFn,
     BitString.padBlocks_getElem_apply n L x i (by simpa using h₁) ⟨j, by simpa using hj₂⟩]
 
-/-- A word whose length is a multiple of `n` is the concatenation of its `msg.length / n` width-`n`
-rows. -/
-private theorem flatten_listRows_of_mod_eq_zero {n : ℕ} {x : List Bool} (hx : x.length % n = 0) :
-    (BitString.listRows (x.length / n) n x).flatten = x := by
-  rw [listRows_eq_map_ofFn_padBlocks, ← List.flatMap_def,
-    BitString.flatMap_ofFn_padBlocks (Nat.dvd_of_mod_eq_zero hx)]
-
 /-- Block-list representation of the CBC encryption chain under `g`. -/
 private def cbcChainWords (g : List Bool → List Bool) (n : ℕ) :
     List Bool → List (List Bool) → List (List Bool)
@@ -224,14 +218,6 @@ private theorem length_of_mem_cbcChainWords {g : List Bool → List Bool} {n : �
     · exact hc'
     · exact ih hc' (fun b hb => hms b (List.mem_cons_of_mem _ hb)) hc
 
-private theorem length_flatten_of_forall_length {n : ℕ} :
-    ∀ {ws : List (List Bool)}, (∀ w ∈ ws, w.length = n) → ws.flatten.length = ws.length * n
-  | [], _ => by simp
-  | w :: ws, hws => by
-    rw [List.flatten_cons, List.length_append, hws w List.mem_cons_self,
-      length_flatten_of_forall_length fun u hu => hws u (List.mem_cons_of_mem _ hu),
-      List.length_cons, Nat.succ_mul, Nat.add_comm]
-
 private theorem foldl_cbcDecStep_cbcChainWords {g gInv : List Bool → List Bool} {n : ℕ}
     (hg : ∀ x : List Bool, x.length = n → (g x).length = n)
     (hinv : ∀ x : List Bool, x.length = n → gInv (g x) = x)
@@ -276,8 +262,8 @@ theorem cbcWordDecrypt_cbcWordEncrypt {encFamily decFamily : List Bool → List 
   have hbodyEq : cbcWordBody encFamily n k iv msg = cs.flatten :=
     cbcWordBody_eq_flatten_cbcChainWords encFamily n k iv msg
   have hbodyLen : cs.flatten.length = msg.length := by
-    rw [length_flatten_of_forall_length hcs, hcsLen,
-      Nat.div_mul_cancel (Nat.dvd_of_mod_eq_zero hmsg)]
+    rw [List.length_flatten, List.map_congr_left hcs, List.map_const', List.sum_replicate_nat,
+      hcsLen, Nat.div_mul_cancel (Nat.dvd_of_mod_eq_zero hmsg)]
   have hctLen : (iv ++ cbcWordBody encFamily n k iv msg).length = n + msg.length := by
     rw [hbodyEq, List.length_append, hivLen, hbodyLen]
   have hcond : (decide (n ≤ (iv ++ cbcWordBody encFamily n k iv msg).length) &&
@@ -288,7 +274,7 @@ theorem cbcWordDecrypt_cbcWordEncrypt {encFamily decFamily : List Bool → List 
   rw [hctLen, Nat.add_sub_cancel_left, hbodyEq, ← hivLen, List.take_left, List.drop_left, hivLen,
     ← hcsLen, BitString.listRows_flatten cs hcs,
     foldl_cbcDecStep_cbcChainWords hlen hinv hivLen [] hms, List.nil_append]
-  exact flatten_listRows_of_mod_eq_zero hmsg
+  exact BitString.flatten_listRows_of_length (Nat.div_mul_cancel (Nat.dvd_of_mod_eq_zero hmsg)).symm
 
 /-- For a `BlockCipher` with `keyLen = id` and `blockLen = id`, `cbcWordDecrypt` with `E.decrypt`
 inverts `cbcWordEncrypt` with `E.encrypt` on whole-block messages under `n`-bit keys. -/

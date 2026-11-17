@@ -153,27 +153,4 @@ example :
   (advantage_cbcCpaGame_le Equiv.addLeft 2 isCostBounded_cbcOneQueryAdversary).trans_eq
     (by norm_num)
 
-/-! ### Axiom guards -/
-
-/--
-info: 'Cslib.Crypto.advantage_idealExperiment_cbcReduction_le' depends on axioms:
-[propext, Classical.choice, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.Crypto.advantage_idealExperiment_cbcReduction_le
-
-/--
-info: 'Cslib.Crypto.advantage_cbcCpaGame_prf_le' depends on axioms:
-[propext, Classical.choice, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.Crypto.advantage_cbcCpaGame_prf_le
-
-/--
-info: 'Cslib.Crypto.advantage_cbcCpaGame_le' depends on axioms:
-[propext, Classical.choice, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.Crypto.advantage_cbcCpaGame_le
-
 end CslibFrontierTests.Crypto.CBCMode
