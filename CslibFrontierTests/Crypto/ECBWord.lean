@@ -136,14 +136,14 @@ example {E : BlockCipher} (_hE : E.PRP) (hblock : E.blockLen = id) :
         ⟨le_rfl, by simp only [hblock, id_eq]; exact hn⟩).frequently)⟩
 
 /-- Necessity of `2 ≤ ℓ n`: at `ℓ = fun _ => 1`, ECB of any secure block cipher is one-time
-semantically secure on `ecbAdmissible` (§4.1.4, p. 102). -/
+semantically secure on `ecbAdmissible` (§4.1.4, pp. 102, 104). -/
 example {E : BlockCipher} (hE : E.PRP) :
     Encryption.DEMOneTimeKeyINDCPAOn (E.ecbAdmissible fun _ => 1) encBits E.keyLen E.ecbEncrypt :=
   hE.ecb_demOneTimeKeyINDCPAOn_one
 
 /-- The degenerate block cipher on `0`-bit blocks, demonstrating necessity of `1 ≤ E.blockLen n` in
 `not_demOneTimeKeyINDCPAOn_ecbEncrypt`. -/
-def zeroBlockCipher : BlockCipher where
+private def zeroBlockCipher : BlockCipher where
   keyLen := id
   blockLen := fun _ => 0
   keyLen_polyTime := ComputableInPolyTime.id'

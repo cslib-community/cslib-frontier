@@ -41,7 +41,8 @@ one-time semantic security, Attack Game 2.1 with a uniform `keyLen n`-bit key
   (`BlockCipher.isOraclePPT_ecbToPrpDistinguisher`). At each parameter the advantage is exactly
   twice the block-cipher advantage of that reduction
   (`BlockCipher.advantage_demKeyGameOn_ecbEncrypt`), from the typed equation (4.3).
-* Single-block security (p. 102): when `ℓ n ≤ 1`, every admissible message has at most one block,
+* Single-block security (pp. 102, 104): when `ℓ n ≤ 1`, every admissible message has at most one
+  block,
   so `ecbValid` coincides with `ecbAdmissible` (`BlockCipher.ecbValid_eq_ecbAdmissible_of_le_one`),
   and at `ℓ = 1` a secure block cipher gives semantically secure ECB encryption on `X^{≤1}`
   (`BlockCipher.PRP.ecb_demOneTimeKeyINDCPAOn_one`).
@@ -70,7 +71,7 @@ challenge message to the oracle in one list traversal, certified by
 
 * `Cslib.Crypto.BlockCipher.PRP.ecb_demOneTimeKeyINDCPAOn`: Theorem 4.1.
 * `Cslib.Crypto.BlockCipher.PRP.ecb_demOneTimeKeyINDCPAOn_one`: single-block (`ℓ = 1`) ECB
-  semantic security (§4.1.4, p. 102).
+  semantic security (§4.1.4, pp. 102, 104).
 * `Cslib.Crypto.BlockCipher.advantage_demKeyGameOn_ecbEncrypt`: equation (4.3) on words.
 * `Cslib.Crypto.BlockCipher.isOraclePPT_ecbToPrpDistinguisher`: efficiency of the reduction.
 * `Cslib.Crypto.BlockCipher.isPPT_ecbTwoBlockAdversary`: efficiency of `ecbTwoBlockAdversary`.
@@ -460,7 +461,8 @@ theorem PRP.ecb_demOneTimeKeyINDCPAOn {E : BlockCipher} (hE : E.PRP) {ℓ : ℕ 
     funext fun n => E.advantage_demKeyGameOn_ecbEncrypt ℓ A n
   exact (congrArg Negligible heq).mpr h
 
-/-- **Single-block ECB semantic security** ([BonehShoup2023], §4.1.4, p. 102): if `E` is a secure
+/-- **Single-block ECB semantic security** ([BonehShoup2023], §4.1.4, pp. 102, 104): if `E` is a
+secure
 block cipher, its ECB cipher on messages of at most one `blockLen n`-bit block
 (`ecbAdmissible E (fun _ => 1)`) is semantically secure. Here `X^{≤1}` admits pairs of empty
 messages (which are equal) and pairs of single `blockLen n`-bit blocks (the data block space). -/
