@@ -8,16 +8,16 @@ import CslibFrontier.Crypto.Protocols.UC.Composition
 import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
 /-!
-# Tests for subroutine replacement and the UC composition theorem
+# Tests for subroutine replacement and call-bounded UC composition
 
 The one-party hybrid protocol `relay` answers every input by asking its subroutine. Composed with
 the functionality `bitFunc b`, which answers every input with `b`, the environment `askParty` sees
 `b` whatever the adversary (`eval_exec_compose_relay`): the composed protocol really runs the
 subroutine. Consequently, `relay` composed with `bitFunc true` does not emulate `relay` composed
-with `bitFunc false` (`not_emulatesDummyWithin_compose_relay`), so the conclusion of the composition
-theorem is not trivially true. The composition theorem itself is instantiated on self-emulation,
-with the explicit simulator budget and error it produces, and the budgets of the composed protocol
-and of the absorbed environment are checked on `relay`.
+with `bitFunc false` (`not_emulatesDummyWithin_compose_relay`), so the conclusion of the
+call-bounded composition theorem (`UC.Emulates.compose`, #6043) is not trivially true. That theorem
+is instantiated on self-emulation, with the explicit simulator budget and error it produces, and the
+budgets of the composed protocol and of the absorbed environment are checked on `relay`.
 -/
 
 namespace CslibFrontierTests.Crypto.UCComposition
