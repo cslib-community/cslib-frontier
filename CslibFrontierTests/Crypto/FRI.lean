@@ -24,23 +24,28 @@ and `Soundness`) from an ordinary `module` client (no `import all`) over the pri
 
 1. **Concrete parameter construction & coset folding (`Folding.lean`).** Certifies
    `Fact (Nat.Prime 257)`, `IsPrimitiveRoot (4 : ZMod 257) 8`, fiber-representative invariance
-   `fold2Fiber_swap`, codeword preservation `fold2_mem_reedSolomon`, binary symbol encoding
-   `encNatBits`/`decNatBits`/`encZMod`/`decZMod`, and Lagrange recovery
-   `evalLagrange_eq_of_mem_reedSolomon` on an explicit cubic Reed–Solomon codeword `honestWord`.
+   `fold2Fiber_swap`, codeword preservation `fold2_mem_reedSolomon`, unsigned little-endian binary
+   symbol encoding `encZMod`/`decZMod` (built on `Nat.bits`/`Turing.MultiTapeTM.ofBits`), and
+   Lagrange recovery `evalLagrange_eq_of_mem_reedSolomon` (bridged to `Lagrange.interpolate`) on
+   an explicit cubic Reed–Solomon codeword `honestWord`.
 2. **Multi-round `PublicCoinIOP` completeness & BCS instantiation (`Protocol.lean`).** Evaluates
-   query count `49` by `rfl`, certifies honest IOP acceptance (`friIOP_complete`), deterministic
-   BCS verification (`friBCS_verify_prove_eq_true`), perfect BCS ROM completeness
-   (`friBCS_honestROMGame_eq_pure_true`), and verifier Merkle query cost bounds
-   (`isCostBounded_bcsMTCost_friVerifyROM`).
+   committed-proof-oracle openings (`49`), direct input-word reads (`6`), and total word queries
+   (`55`) by `rfl`, checks `friDecide_congr_inputQueries`, and certifies honest IOP acceptance
+   (`friIOP_complete`), deterministic BCS verification (`friBCS_verify_prove_eq_true`), perfect
+   BCS ROM completeness (`friBCS_honestROMGame_eq_pure_true`), and verifier Merkle query cost
+   bounds (`isCostBounded_bcsMTCost_friVerifyROM`).
 3. **Far-from-Reed–Solomon rejection & nonvacuity.** Proves that `farWord` (evaluating `X ^ 4` on
    the 8-point coset) has Hamming distance at least `4 > 2` from every codeword in
    `params257.initialCode` (hence `farWord ∉ params257.proximityLang 2`), and proves concrete
    verifier rejection `iopVerify (friIOP params257) farWord sampleChals ... = false`.
 4. **Unconditional quantitative BCS-FRI ROM soundness `< 1 / 3 < 1` (`Soundness.lean`).** Proves
-   `UniqueLineGapHypothesis params257 2` unconditionally by finite-field pigeonhole and discharges
-   `leftInverse_decZMod_encZMod 257`, yielding:
+   `UniqueLineGapHypothesis params257 2` unconditionally for the fixed `params257` client by
+   finite-field pigeonhole and discharges `leftInverse_decZMod_encZMod 257`, yielding:
    * an unconditional adaptive BCS-FRI ROM soundness bound strictly `< 1 / 3 < 1` for every bounded
-     adversary (`t_FS = 2`, `Q_MT = 4`, `σ = 16`) via `friBCS_romSoundness_bound_of_uniqueLineGap`;
+     adversary (`t_FS = 2`, whole-game `Q_MT = 1000`, `σ = 32`) via
+     `friBCS_romSoundness_bound_of_uniqueLineGap` — where `Q_MT = 1000` strictly exceeds the
+     `49 * (3 + 1) = 196` verifier Merkle hash queries required for depth-3 accepting-shaped proofs
+     (directly witnessed by instantiating the universal bound on `friCheater257`);
    * an explicit out-of-order adaptive cheating prover `friCheater257` (`t_FS = 2`, `t_MT = 2`,
      `L_path = 3`) certified strictly `< 1 / 2 < 1` at `σ = 20` via
      `friBCS_romSoundness_bound_of_prover_verifier_of_weightedLineGap`.
@@ -95,16 +100,13 @@ def params257 : FRIParams (ZMod 257) where
 example : params257.dim 0 = 4 := rfl
 example : params257.dim 1 = 2 := rfl
 example : params257.dim 2 = 1 := rfl
-example : params257.queryCount = 49 := rfl
+example : params257.proofOracleQueries = 49 := rfl
+example : params257.inputWordReads = 6 := rfl
+example : params257.totalWordQueries = 55 := rfl
 
--- Concrete binary symbol encoding round-trip evaluations.
-example : encNatBits 0 = [] := encNatBits.eq_1
-example : encNatBits 42 = [false, true, false, true, false, true] := by
-  simp only [encNatBits.eq_2]
-  rw [show (0 + 1) / 2 = 0 from rfl, encNatBits.eq_1]
-  decide
-example : decNatBits (encNatBits 42) = 42 := decNatBits_encNatBits 42
-example : decNatBits (encNatBits 256) = 256 := decNatBits_encNatBits 256
+-- Concrete binary symbol encoding word-layout and round-trip evaluations.
+example : encZMod (0 : ZMod 257) = [] := by decide
+example : encZMod (42 : ZMod 257) = [false, true, false, true, false, true] := by decide
 example : decZMod 257 (encZMod (42 : ZMod 257)) = 42 := leftInverse_decZMod_encZMod 257 42
 example : decZMod 257 (encZMod (256 : ZMod 257)) = 256 := leftInverse_decZMod_encZMod 257 256
 
@@ -180,9 +182,18 @@ def sampleChals : Fin 3 → FRIChal (ZMod 257) 3 6
   | ⟨1, _⟩ => ⟨19, fun a => ⟨(a.val + 2) % 8, Nat.mod_lt _ (by omega)⟩⟩
   | ⟨2, _⟩ => ⟨23, fun a => ⟨(a.val + 1) % 8, Nat.mod_lt _ (by omega)⟩⟩
 
--- Concrete succinct query list length check (`kFinal + q * (3 * m + 2) = 49`).
+-- Concrete succinct query list length checks: 49 committed-proof-oracle openings plus 6 direct
+-- input-word reads (55 total word queries).
 example : ((friIOP params257).queries honestWord sampleChals).length = 49 :=
   length_friIOP_queries params257 honestWord sampleChals
+example : (friInputQueries params257 sampleChals).length = 6 :=
+  length_friInputQueries params257 sampleChals
+example (stmt' : OracleTable 3 (ZMod 257))
+    (hagree : ∀ s ∈ friInputQueries params257 sampleChals, honestWord s = stmt' s)
+    (answers : List (ZMod 257)) :
+    friDecide params257 honestWord sampleChals answers =
+      friDecide params257 stmt' sampleChals answers :=
+  friDecide_congr_inputQueries params257 sampleChals hagree answers
 
 -- Concrete honest IOP acceptance on `honestWord` and `sampleChals`.
 example :
@@ -221,7 +232,7 @@ example (j : Fin 2) :
       (params257.eval 2 j) =
     friHonestWord params257 honestWord 2 le_rfl
       (fun i => (sampleChals ⟨i.val, by omega⟩).foldScalar) j :=
-  evalLagrange_eq_of_mem_reedSolomon params257.hkPos params257.hkLe
+  evalLagrange_eq_of_mem_reedSolomon params257.hkLe
     (cosetEval_injective params257.hg params257.hω params257.hm)
     (friHonestWord_mem_rsCode params257 honestWord_mem_initialCode 2 le_rfl _) j
 
@@ -534,12 +545,13 @@ private theorem fri257_universal_rhs_lt_one_third :
         (friRBRError params257 2 (2 ^ (params257.d - 1)) +
           ((2 + (params257.m + 1) : ℕ) : ℝ≥0∞) *
             ((1 : ℝ≥0∞) / Fintype.card (FRIChal (ZMod 257) params257.d params257.q))) +
-      ((4 : ℕ) : ℝ≥0∞) *
-        (((3 * 4 + (params257.m + 1) * (2 + (params257.m + 1)) : ℕ) : ℝ≥0∞) *
-          ((1 : ℝ≥0∞) / 2 ^ 16)) < 1 / 3 := by
+      ((1000 : ℕ) : ℝ≥0∞) *
+        (((3 * 1000 + (params257.m + 1) * (2 + (params257.m + 1)) : ℕ) : ℝ≥0∞) *
+          ((1 : ℝ≥0∞) / 2 ^ 32)) < 1 / 3 := by
   rw [fri257_rbrError_eq, card_friChal257]
   have hnn :
-      (5 * (15625 / 262144 + 5 * (1 / 67371008)) + 4 * (27 * (1 / 65536)) : ℝ≥0) < 1 / 3 := by
+      (5 * (15625 / 262144 + 5 * (1 / 67371008)) +
+        1000 * (3015 * (1 / 4294967296)) : ℝ≥0) < 1 / 3 := by
     rw [← NNReal.coe_lt_coe]
     push_cast
     norm_num
@@ -547,30 +559,33 @@ private theorem fri257_universal_rhs_lt_one_third :
   simp only [ENNReal.coe_add, ENNReal.coe_mul, ENNReal.coe_ofNat, ENNReal.coe_one,
     ENNReal.coe_div (by norm_num : (262144 : ℝ≥0) ≠ 0),
     ENNReal.coe_div (by norm_num : (67371008 : ℝ≥0) ≠ 0),
-    ENNReal.coe_div (by norm_num : (65536 : ℝ≥0) ≠ 0),
+    ENNReal.coe_div (by norm_num : (4294967296 : ℝ≥0) ≠ 0),
     ENNReal.coe_div (by norm_num : (3 : ℝ≥0) ≠ 0)] at hcast
   simpa only [params257,
     (by norm_num : ((2 + (2 + 1) : ℕ) : ℝ≥0∞) = 5),
-    (by norm_num : ((4 : ℕ) : ℝ≥0∞) = 4),
-    (by norm_num : ((3 * 4 + (2 + 1) * (2 + (2 + 1)) : ℕ) : ℝ≥0∞) = 27),
-    (by norm_num : (2 : ℝ≥0∞) ^ 16 = 65536)] using hcast
+    (by norm_num : ((1000 : ℕ) : ℝ≥0∞) = 1000),
+    (by norm_num : ((3 * 1000 + (2 + 1) * (2 + (2 + 1)) : ℕ) : ℝ≥0∞) = 3015),
+    (by norm_num : (2 : ℝ≥0∞) ^ 32 = 4294967296)] using hcast
 
 /-- **Unconditional quantitative BCS-FRI ROM soundness (`< 1 / 3 < 1`)**: for every adaptive
-prover `P` making at most `2` Fiat–Shamir queries and total `4` Merkle queries in the soundness
-game over `ZMod 257` with digest length `σ = 16`, the adaptive soundness error against
-`params257.proximityLang 2` is strictly less than `1 / 3`. -/
+prover `P` making at most `2` Fiat–Shamir queries and whole-game `1000` Merkle queries in the
+soundness game over `ZMod 257` with digest length `σ = 32`, the adaptive soundness error against
+`params257.proximityLang 2` is strictly less than `1 / 3`. The whole-game budget `1000` strictly
+exceeds the `49 * (3 + 1) = 196` verifier Merkle hash queries required for depth-3 accepting-shaped
+proofs, leaving `804` prover Merkle queries. -/
 theorem fri257_romSoundness_lt_one_third
     (P : OracleComp (BCSROMSpec (OracleTable 3 (ZMod 257)) (FRIChal (ZMod 257) 3 6))
       (OracleTable 3 (ZMod 257) × BCSProof 3 (ZMod 257)))
     (hFS : IsCostBounded bcsFSCost P 2)
     (hMT : IsCostBounded bcsMTCost
-      (bcsSoundnessProg (friIOP params257) (encZMod (p := 257)) (params257.proximityLang 2) P) 4) :
-    bcsSoundnessGame (friIOP params257) (encZMod (p := 257)) (params257.proximityLang 2) P 16
+      (bcsSoundnessProg (friIOP params257) (encZMod (p := 257)) (params257.proximityLang 2) P)
+        1000) :
+    bcsSoundnessGame (friIOP params257) (encZMod (p := 257)) (params257.proximityLang 2) P 32
       true < 1 / 3 :=
   lt_of_le_of_lt
     (friBCS_romSoundness_bound_of_uniqueLineGap params257
       (by decide : 2 * 2 + params257.dim 0 ≤ 2 ^ params257.d)
-      uniqueLineGap_params257 (leftInverse_decZMod_encZMod 257) 16 hFS hMT)
+      uniqueLineGap_params257 (leftInverse_decZMod_encZMod 257) 32 hFS hMT)
     fri257_universal_rhs_lt_one_third
 
 /-- Default zero challenge used inside the explicit out-of-order cheating prover. -/
@@ -592,7 +607,7 @@ def friCheater257 :
     (.inl [decide (c₀.foldScalar = c₁.foldScalar)])
   return (farWord,
     { roots := fun _ => d₀
-      openings := List.replicate params257.queryCount ⟨0, [sib, sib, sib]⟩ })
+      openings := List.replicate params257.proofOracleQueries ⟨0, [sib, sib, sib]⟩ })
 
 theorem isCostBounded_FS_friCheater257 :
     IsCostBounded bcsFSCost friCheater257 2 :=
@@ -632,17 +647,29 @@ theorem friCheater257_openings_le
 example (x : OracleTable 3 (ZMod 257)) (prf : BCSProof 3 (ZMod 257))
     (hmem : (x, prf) ∈ friCheater257.support) :
     IsCostBounded bcsMTCost (bcsVerifyROM (friIOP params257) (encZMod (p := 257)) x prf)
-      (params257.queryCount * (3 + 1)) :=
+      (params257.proofOracleQueries * (3 + 1)) :=
   isCostBounded_bcsMTCost_friVerifyROM params257 (encZMod (p := 257)) x prf
     (friCheater257_openings_le x prf hmem)
+
+-- Direct witness that `fri257_romSoundness_lt_one_third` admits accepting-shaped proofs (49 depth-3
+-- openings costing 196 verifier Merkle queries plus prover queries `2 + 196 = 198 ≤ 1000`).
+example :
+    bcsSoundnessGame (friIOP params257) (encZMod (p := 257)) (params257.proximityLang 2)
+      friCheater257 32 true < 1 / 3 :=
+  fri257_romSoundness_lt_one_third friCheater257 isCostBounded_FS_friCheater257
+    ((isCostBounded_bcsMTCost_bcsSoundnessProg (friIOP params257) (encZMod (p := 257))
+      (params257.proximityLang 2) isCostBounded_MT_friCheater257 fun x prf hmem =>
+        isCostBounded_bcsMTCost_friVerifyROM params257 (encZMod (p := 257)) x prf
+          (friCheater257_openings_le x prf hmem)).mono
+      (by decide : 2 + params257.proofOracleQueries * (3 + 1) ≤ 1000))
 
 private theorem fri257_cheater_rhs_lt_half :
     ((2 + (params257.m + 1) : ℕ) : ℝ≥0∞) *
         (friRBRError params257 2 (2 ^ (params257.d - 1)) +
           ((2 + (params257.m + 1) : ℕ) : ℝ≥0∞) *
             ((1 : ℝ≥0∞) / Fintype.card (FRIChal (ZMod 257) params257.d params257.q))) +
-      ((2 + params257.queryCount * (3 + 1) : ℕ) : ℝ≥0∞) *
-        (((3 * (2 + params257.queryCount * (3 + 1)) +
+      ((2 + params257.proofOracleQueries * (3 + 1) : ℕ) : ℝ≥0∞) *
+        (((3 * (2 + params257.proofOracleQueries * (3 + 1)) +
             (params257.m + 1) * (2 + (params257.m + 1)) : ℕ) : ℝ≥0∞) *
           ((1 : ℝ≥0∞) / 2 ^ 20)) < 1 / 2 := by
   rw [fri257_rbrError_eq, card_friChal257]
@@ -657,7 +684,7 @@ private theorem fri257_cheater_rhs_lt_half :
     ENNReal.coe_div (by norm_num : (67371008 : ℝ≥0) ≠ 0),
     ENNReal.coe_div (by norm_num : (1048576 : ℝ≥0) ≠ 0),
     ENNReal.coe_div (by norm_num : (2 : ℝ≥0) ≠ 0)] at hcast
-  simpa only [params257, FRIParams.queryCount,
+  simpa only [params257, FRIParams.proofOracleQueries,
     (by norm_num : ((2 + (2 + 1) : ℕ) : ℝ≥0∞) = 5),
     (by norm_num : ((2 + (1 + 6 * (3 * 2 + 2)) * (3 + 1) : ℕ) : ℝ≥0∞) = 198),
     (by norm_num :
