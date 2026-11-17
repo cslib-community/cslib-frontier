@@ -84,7 +84,7 @@ local notation "ℤ₍₂₎" => Valuation.integer (Rat.padicValuation 2)
 
 /-- The tapered multiplicity `q_t = h max(0, u - v₂ t)` of Lemma D.5, with natural
 subtraction. -/
-@[expose] def taperMult (u h : ℕ) (t : ℤ) : ℕ :=
+@[expose] noncomputable def taperMult (u h : ℕ) (t : ℤ) : ℕ :=
   h * (u - padicValInt 2 t)
 
 /-- The grid of `2 ^ a` slots is `[-2 ^ a, 2 ^ a)`. -/
@@ -227,7 +227,7 @@ theorem hermiteBasis_comp_eq_map (a u h : ℕ) {t : ℤ} (ht : t ∈ recoveryNod
     rw [hE, hermiteBasis_comp_rat]
   refine ⟨E, ?_, ?_⟩
   · apply Subtype.val_injective
-    have h0 := congrArg (fun P => Polynomial.coeff P 0) hEq
+    have h0 := congrArg (fun P => P.coeff 0) hEq
     simp only [coeff_map, Subring.coe_subtype] at h0
     rw [h0, coeff_zero_eq_eval_zero, eval_comp, eval_add, eval_C, eval_mul, eval_C, eval_X,
       mul_zero, add_zero, eval_hermiteBasis_self (pairwise_isUnit_sub _) ht]

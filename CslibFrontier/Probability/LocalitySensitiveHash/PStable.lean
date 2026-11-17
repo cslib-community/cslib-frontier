@@ -128,7 +128,7 @@ private theorem volume_real_Ico_inter_eq_intervalIntegral {r : ℝ} (hr : 0 ≤ 
     (hS : MeasurableSet S) :
     volume.real (Set.Ico 0 r ∩ S) = ∫ b in (0 : ℝ)..r, S.indicator (fun _ => (1 : ℝ)) b := by
   have hcongr : volume (Set.Ico 0 r ∩ S) = volume (Set.Ioc 0 r ∩ S) :=
-    measure_congr (Ico_ae_eq_Ioc.inter Filter.EventuallyEq.rfl)
+    measure_congr (Ico_ae_eq_Ioc.inter .rfl)
   rw [measureReal_def, hcongr, ← measureReal_def, intervalIntegral.integral_of_le hr,
     setIntegral_indicator hS, setIntegral_const, smul_eq_mul, mul_one, Set.inter_comm]
 
@@ -800,7 +800,7 @@ theorem measureCollisionProb_p1StableHash {ι : Type*} [Fintype ι] {r : ℝ} (h
   rw [hsub, pi_cauchyMeasure_map_dotProduct, cauchyMeasure_map_const_mul, mul_zero, mul_one]
   congr 1
   apply NNReal.coe_injective
-  simp only [NNReal.coe_sum, coe_nnnorm, Real.norm_eq_abs, Pi.sub_apply]
+  simp only [NNReal.coe_sum, coe_nnNorm, Real.norm_eq_abs, Pi.sub_apply]
   exact (abs_of_nonneg (Finset.sum_nonneg fun _ _ => abs_nonneg _)).symm
 
 /-- Cauchy `p = 1` LSH is `(d₁, d₂, p1StableProb r d₁, p1StableProb r d₂)`-sensitive for the
