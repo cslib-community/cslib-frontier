@@ -9,6 +9,7 @@ import CslibFrontierResults.Registry
 import CslibFrontier.Foundations.Algebra.Group.HomomorphismTesting
 import CslibFrontier.Probability.MarkovChain.RandomWalk
 import CslibFrontier.Probability.MarkovChain.RotationMap
+import CslibFrontier.Probability.SmallBias.Degree
 import CslibFrontier.Foundations.Combinatorics.Expander.Visits
 import CslibFrontier.Foundations.Combinatorics.Expander.HittingProduct
 import CslibFrontier.Foundations.Combinatorics.Expander.VisitCount
@@ -170,6 +171,7 @@ import CslibFrontier.Crypto.Computational.Encryption.CTRMode.Uniform
 import CslibFrontier.Crypto.Computational.Encryption.OFBMode.Uniform
 import CslibFrontier.Crypto.Computational.GoldreichLevin.HardCore
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.OneWay
+import CslibFrontier.Crypto.Primitives.PRG.ReadOnceBias
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.TargetCollision
 import CslibFrontier.Crypto.Computational.MLDSA.KeyOnly
 import CslibFrontier.Crypto.Computational.NaorYungUOWHF
@@ -5965,6 +5967,50 @@ register_result "goldreich-expander-varying-density-hitting" where
     and independent uniform slot choices. Length counts t+1 vertices. Individual densities \
     retained, with explicit transport to lambda/d and the constant-set real half-length power. \
     No machine uniformity, runtime or Exercise 8.44 concentration claim."
+
+register_result "goldreich-small-bias-stretch-limits" where
+  title := "Small-bias generators: stretch limits for low-degree and linear generators"
+  topic := "pseudorandomness"
+  sources := [
+    { paper := Goldreich2007DraftR4, theorem := "Exercise 8.37",
+      locator := "March 2007 draft, printed pp. 379–380 / PDF pp. 115–116" }
+  ]
+  theorems := [
+    Cslib.BitString.le_sum_choose_of_isSmallBias,
+    Cslib.BitString.card_lt_card_of_isSmallBias,
+    Cslib.BitString.not_exists_linearMap_of_isSmallBias
+  ]
+  scope := "Uniform seeds; IsSmallBias ε of the output distribution with ε < 1. If every output \
+    bit of G : {0,1}^k → {0,1}^ℓ is a GF(2) polynomial of total degree at most d in the seed \
+    bits, then ℓ ≤ ∑_{i=1}^d C(k,i). Corollaries: fewer output bits than seeds for any finite \
+    seed space (so ℓ < 2^k), and no GF(2)-linear G with ℓ > k."
+
+register_result "goldreich-read-once-prg-small-bias" where
+  title := "Space-bounded pseudorandom generators are 2ε-bias generators"
+  topic := "pseudorandomness"
+  sources := [
+    { paper := Goldreich2007DraftR4, theorem := "Exercise 8.38 (corrected: 2ε-bias)",
+      locator := "March 2007 draft, printed p. 380 / PDF p. 116" }
+  ]
+  theorems := [Cslib.Crypto.PRG.Generator.Secure.isSmallBias]
+  scope := "A generator G : {0,1}^k → {0,1}^ℓ fooling the read-once programs of width 2^s, \
+    s ≥ 1, with error ε is a 2ε-bias generator. The printed conclusion ε-bias is false: \
+    exists_secure_not_isSmallBias gives σ ↦ σσ on one seed bit, which fools every test with \
+    error 1/2 but has bias 1. Under the source's Eq. (8.18) bias is twice the parity \
+    automaton's distinguishing gap."
+
+register_result "goldreich-read-once-prg-stretch" where
+  title := "Space-bounded pseudorandom generators with error below 1/2 have ℓ < 2^k"
+  topic := "pseudorandomness"
+  sources := [
+    { paper := Goldreich2007DraftR4, theorem := "Exercise 8.25(2) (corrected: ε < 1/2)",
+      locator := "March 2007 draft, printed p. 376 / PDF p. 112" }
+  ]
+  theorems := [Cslib.Crypto.PRG.Generator.Secure.lt_two_pow]
+  scope := "A generator G : {0,1}^k → {0,1}^ℓ fooling the read-once programs of width 2^s, \
+    s ≥ 1, with error ε < 1/2 has ℓ < 2^k, via the 2ε-bias bound and Exercise 8.37. The \
+    printed hypothesis ε < 1 does not suffice: σ ↦ σσ has ℓ = 2 = 2^1 with error 1/2 \
+    (exists_secure_not_isSmallBias)."
 
 register_result "finite-abelian-homomorphism-testing" where
   title := "Finite abelian homomorphism testing and plurality correction"
