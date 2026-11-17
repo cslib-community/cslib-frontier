@@ -219,7 +219,7 @@ example :
         (smallDepth3Sched.idBits 1) ≤
         (4 * smallDepth3Sched.delta 2 + 1) * smallDepth3Sched.idBits 1 :=
   ⟨smallDepth3Sched.idCompressorSeedBits_le_of_two_le le_rfl (by decide),
-    smallDepth3Sched.waitingListBits_le_of_two_le le_rfl (by decide) (by decide)⟩
+    smallDepth3Sched.waitingListBits_le_of_two_le le_rfl (by decide)⟩
 
 -- Positive capacity on small schedule.
 example : 0 < smallDepth3Sched.cap := by decide

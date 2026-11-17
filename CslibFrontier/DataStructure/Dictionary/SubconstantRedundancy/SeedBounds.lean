@@ -327,10 +327,10 @@ theorem TreeSchedule.idCompressorSeedBits_le_of_two_le (P : TreeSchedule) {ℓ :
     (Nat.mul_le_mul_left 6 (max_le hcl_rem hid_le))
 
 theorem TreeSchedule.waitingListBits_le_of_two_le (P : TreeSchedule) {ℓ : ℕ}
-    (h2 : 2 ≤ ℓ) (hℓ : ℓ ≤ P.depth) (hhd : 2 * P.delta ℓ ≤ P.nFloor ℓ) :
+    (h2 : 2 ≤ ℓ) (hℓ : ℓ ≤ P.depth) :
     waitingListBits (P.waitCap ℓ) (P.idBits ℓ) (P.idBits (ℓ - 1)) ≤
       (4 * P.delta ℓ + 1) * P.idBits (ℓ - 1) := by
-  have hnf_pos := P.nFloor_pos ℓ hℓ
+  have hd_lt := P.delta_lt_nFloor ℓ (by omega) hℓ
   have hnh_id := P.nHigh_le_two_pow_idBits ℓ (by omega) hℓ
   have hstep := P.idBits_step_le (ℓ - 1) (by omega) (by omega)
   rw [Nat.sub_add_cancel (by omega : 1 ≤ ℓ)] at hstep

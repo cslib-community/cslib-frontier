@@ -262,8 +262,7 @@ private theorem dfs_of_schedule (P : TreeSchedule) {n r L t : ℕ}
       P.idBits (j - 1) ≤ 444 * t ∧ P.idBits j ≤ 444 * t)
     (hnf_j : 3 ≤ P.depth → ∀ j, 3 ≤ j → j ≤ P.depth → P.nFloor j ≤ t ^ 11)
     (hrat_j : 3 ≤ P.depth → ∀ j, 3 ≤ j → j ≤ P.depth → P.numNodes j / P.numNodes 3 ≤ t ^ 11)
-    (hsq_j : ∀ j < P.depth, (P.routerSeedBits j) ^ 2 ≤ P.nFloor j)
-    (hhd_j : ∀ j ≤ P.depth, 2 * P.delta j ≤ P.nFloor j) :
+    (hsq_j : ∀ j < P.depth, (P.routerSeedBits j) ^ 2 ≤ P.nFloor j) :
     (if 3 ≤ P.depth then
       2 ^ (P.subtreeMetaBits 3 + P.idBits 3) * (Nat.clog 2 (P.cap + P.depth + 2) + P.idBits 3)
     else 0) * r ≤ n := by
@@ -327,7 +326,7 @@ private theorem dfs_of_schedule (P : TreeSchedule) {n r L t : ℕ}
         have ht11 : 1 ≤ t ^ 11 := Nat.one_le_pow 11 t (by omega)
         calc waitingListBits (P.waitCap j) (P.idBits j) (P.idBits (j - 1))
             ≤ (4 * P.delta j + 1) * P.idBits (j - 1) :=
-              P.waitingListBits_le_of_two_le (by omega) hjk (hhd_j j hjk)
+              P.waitingListBits_le_of_two_le (by omega) hjk
           _ ≤ (5 * t ^ 11) * (444 * t) := Nat.mul_le_mul (by omega) hid_prev
           _ = 2220 * t ^ 12 := by rw [show t ^ 12 = t ^ 11 * t from pow_succ t 11]; ring
           _ ≤ 2500 * t ^ 12 := by omega
@@ -602,7 +601,6 @@ theorem sharedTables_slack_le {U V n R p_min q_min p_max q_max : ℕ}
       rw [targetSize_eq_levelScale_pow (by decide : 1 ≤ 3)] at hrat2
       exact hrat2.trans (hscale_t11 h3 3 le_rfl h3'))
     (fun j hlt => routerSeedBits_sq_le_nFloor h hlt)
-    (fun j hj => canonicalSchedule_two_mul_delta_le_nFloor h hj)
   have hadd : ((canonicalSchedule h).sharedTablesBits) * redundancyRatio n R ≤ 3 * n + n := by
     have hsum := Nat.add_le_add h1 h2
     rwa [← Nat.add_mul] at hsum

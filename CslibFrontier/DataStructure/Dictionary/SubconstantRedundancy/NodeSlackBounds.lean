@@ -541,7 +541,6 @@ private theorem waitingLists_and_hashSeeds_of_schedule (P : TreeSchedule) {n U r
     (hpad_s1 : P.paddedUniv ≤ 2 ^ (s1 ^ 2))
     (hsq_all : ∀ ℓ < P.depth, (P.routerSeedBits ℓ) ^ 2 ≤ P.nFloor ℓ)
     (hd_pos_all : ∀ j ≤ P.depth, 1 ≤ P.delta j)
-    (hhd_all : ∀ j ≤ P.depth, 2 * P.delta j ≤ P.nFloor j)
     (hid_pred_all : ∀ ℓ, 2 ≤ ℓ → ℓ ≤ P.depth → P.idBits (ℓ - 1) ≤ 148 * levelScale U r P.depth ℓ)
     (hcub_all : ∀ ℓ, 1 ≤ ℓ → ℓ ≤ P.depth →
       P.numNodes ℓ * P.delta ℓ * (levelScale U r P.depth ℓ) ^ 3 ≤ n)
@@ -561,7 +560,7 @@ private theorem waitingLists_and_hashSeeds_of_schedule (P : TreeSchedule) {n U r
         740 * P.delta ℓ * s := by
       calc waitingListBits (P.waitCap ℓ) (P.idBits ℓ) (P.idBits (ℓ - 1))
           ≤ (4 * P.delta ℓ + 1) * P.idBits (ℓ - 1) :=
-            P.waitingListBits_le_of_two_le h2 hle (hhd_all ℓ hle)
+            P.waitingListBits_le_of_two_le h2 hle
         _ ≤ (5 * P.delta ℓ) * (148 * s) :=
             Nat.mul_le_mul (by omega) (hid_pred_all ℓ h2 hle)
         _ = 740 * P.delta ℓ * s := by ring
@@ -712,8 +711,7 @@ theorem waitingLists_and_hashSeeds_slack_le {U V n R p_min q_min p_max q_max : �
     ((canonicalSchedule_depth h).symm ▸ h.treeDepth_le_redundancyRatio)
     ((paddedUniv_le_two_pow_mul_log h).trans (Nat.pow_le_pow_right Nat.two_pos h2p_s1))
     (fun ℓ hlt => routerSeedBits_sq_le_nFloor h hlt)
-    (fun j hj => delta_pos_of_le_depth h hj)
-    (fun j hj => canonicalSchedule_two_mul_delta_le_nFloor h hj) ?_ ?_ ?_
+    (fun j hj => delta_pos_of_le_depth h hj) ?_ ?_ ?_
   · intro ℓ h2 hle
     have hle_k : ℓ ≤ treeDepth U (redundancyRatio n R) := by rwa [← canonicalSchedule_depth h]
     rw [canonicalSchedule_idBits_eq h (ℓ - 1), canonicalSchedule_depth]
