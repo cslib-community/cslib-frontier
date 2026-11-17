@@ -165,3 +165,38 @@ adopting merged work, advance the pin past it and, in the same commit, replace t
 local file with its deprecated shim ([file rule 3](#file-rules)). Record unresolved decisions in
 the module's marker or docstring, the coordination threads in `CONTRIBUTING.md`, or a linked issue
 instead of expanding an unrelated PR.
+
+### Upstream changes labelled for adaptation
+
+cslib maintainers put the label
+[`cslib-frontier-adaptation`](https://github.com/leanprover/cslib/pulls?q=label%3Acslib-frontier-adaptation)
+on a pull request whose change this library has to adapt to, such as a new or more general
+definition, a reworked API or a changed convention. Repairing the proofs that the bump breaks
+does not discharge such a change: code here can keep compiling against a local parallel notion or
+the older, narrower form.
+
+Every PR that moves the pin checks the range it crosses for labelled PRs. With `OLD` the pin on
+current `main` and `NEW` the proposed one:
+
+```bash
+range=$(gh api "repos/leanprover/cslib/compare/OLD...NEW" --paginate --jq '.commits[].sha')
+gh pr list -R leanprover/cslib --label cslib-frontier-adaptation --state merged --limit 200 \
+  --json number,title,mergeCommit --jq '.[] | "\(.mergeCommit.oid) #\(.number) \(.title)"' \
+  | grep -F "$range"
+```
+
+No output means that no labelled PR merged in the range. Run the query when preparing the bump
+and again before queueing, since the label can be added after its PR has merged. For the same
+reason, drop the `grep` to see every labelled PR, and treat one that an earlier bump crossed
+without a record here as in scope.
+
+For each PR found, read its description and diff, then search this library for what it affects:
+uses of the changed declarations, local definitions that it generalizes or supersedes, and
+`submitted`, `vendored` and `candidate` modules destined for the files it changes. Adapt in the
+bump PR by moving to the new definition, deleting the local parallel and restating results at
+the new generality. When the adaptation is too large for a focused dependency PR, fix only the
+breakage there and open a linked issue that names the upstream PR and the affected modules.
+
+The bump PR's description lists each labelled PR with what was done or the issue that tracks it,
+or says that the query found none. Its reviewers rerun the query and check that list against the
+diff.
