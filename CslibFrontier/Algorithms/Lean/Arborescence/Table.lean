@@ -157,6 +157,7 @@ private theorem foldl_argAux_skip {α : Type*} (r : α → α → Prop) [Decidab
       simp only [List.foldl_cons, h, ↓reduceIte]
       exact ih (List.argAux r acc i)
 
+@[time_simps]
 private theorem ret_argMinFinM {β : Type*} [LinearOrder β] (n : ℕ) (pred : Fin n → Bool)
     (val : Fin n → β) :
     (argMinFinM n pred val).ret = ((List.finRange n).filter pred).argmin val := by
@@ -481,7 +482,7 @@ private theorem ret_bestEntryTableM (a : AdjTable n) (c : CostTable β n)
     (bestEntryTableM a c inCycle).ret[u.1] =
       ((List.finRange n).filter fun y => inCycle[y.1] && a[u.1][y.1]).argmin
         (fun y => c[u.1][y.1]) := by
-  time_spec bestEntryTableM [ret_argMinFinM]
+  time_spec bestEntryTableM
 
 section AddMonoidLevel
 
@@ -564,7 +565,7 @@ private theorem ret_bestExitTableM (a : AdjTable n) (c : CostTable β n)
     (bestExitTableM a c inCycle otherCycleCost).ret[w.1] =
       ((List.finRange n).filter fun x => inCycle[x.1] && a[x.1][w.1]).argmin
         (fun x => c[x.1][w.1] + otherCycleCost[x.1]) := by
-  time_spec bestExitTableM [ret_argMinFinM]
+  time_spec bestExitTableM
 
 end AddMonoidLevel
 

@@ -520,6 +520,7 @@ theorem isSCCCondensation_sccs {vs : List V} (hvs : ∀ v, v ∈ vs) :
       obtain ⟨r, hr⟩ := hscc c hc
       exact ⟨c, hc, hu, (hr v).2 (((hr u).1 hu).trans huv)⟩
 
+@[time_simps]
 theorem ret_sccsM (adj : V → List V) (vs : List V) :
     (sccsM adj vs).ret = sccs adj vs := by
   simp only [sccsM, sccs, TimeM.ret_bind, ret_topologicalSortM, ret_transposeAdjM,
@@ -663,6 +664,7 @@ private theorem indexComponentsAuxM_spec :
       true_and]
     omega
 
+@[time_simps]
 theorem ret_indexComponentsM (comps : List (List V)) :
     (indexComponentsM comps).ret = indexComponents comps :=
   (indexComponentsAuxM_spec 0 comps (fun _ => 0)).1

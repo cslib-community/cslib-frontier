@@ -781,6 +781,7 @@ private theorem mem_extractMatchingRowM_ret {m r : ℕ} {G : Fin m × Fin r → 
       e ∈ acc ∨ (e.1 = u ∧ e.2 ∈ vs ∧ 0 < f (.left u) (.right e.2)) := by
   time_spec extractMatchingRowM
 
+@[time_simps]
 private theorem extractMatchingRowM_time {m r : ℕ} {G : Fin m × Fin r → Bool}
     (f : (bipartiteNetwork G).Flow) (u : Fin m) (vs : List (Fin r))
     (acc : Finset (Fin m × Fin r)) :
@@ -807,7 +808,7 @@ private theorem mem_extractMatchingLoopM_ret {m r : ℕ} {G : Fin m × Fin r →
 private theorem extractMatchingLoopM_time {m r : ℕ} {G : Fin m × Fin r → Bool}
     (f : (bipartiteNetwork G).Flow) (us : List (Fin m)) (acc : Finset (Fin m × Fin r)) :
     (extractMatchingLoopM f us acc).time = us.length * (r + 1) := by
-  time_spec extractMatchingLoopM [extractMatchingRowM_time]
+  time_spec extractMatchingLoopM
 
 /-- Extract `flowToMatching f` in `m * (r + 1)` charged `TimeM` ticks. -/
 @[expose] def extractMatchingM {m r : ℕ} {G : Fin m × Fin r → Bool}

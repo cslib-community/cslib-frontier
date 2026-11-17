@@ -343,6 +343,7 @@ theorem ret_addM {α : Type*} [AddCommMonoid α]
     (t : FenwickTree α) (pos : ℕ) (δ : α) :
     (addM t pos δ).ret = add t pos δ := rfl
 
+@[time_simps]
 private theorem addLoopM_time_eq {α : Type*} [AddCommMonoid α]
     (n m : ℕ) (δ : α) (tree : Array α) :
     (addLoopM n m δ tree).time = (upChain n m).length := by
@@ -363,7 +364,7 @@ bounds. -/
 theorem addM_time_eq_upChain {α : Type*} [AddCommMonoid α]
     (t : FenwickTree α) (pos : ℕ) (δ : α) :
     (addM t pos δ).time = if pos < t.size then (upChain t.size (pos + 1)).length else 0 := by
-  time_spec addM [addLoopM_time_eq, size]
+  time_spec addM [size]
 
 /-- `addM t pos δ` updates at most `⌈log₂ (t.size + 1)⌉` Fenwick nodes (`0` when `t.size = 0`). -/
 theorem addM_time_le_clog {α : Type*} [AddCommMonoid α]
@@ -532,6 +533,7 @@ private theorem buildLoopM_time_eq {α : Type*} [AddCommMonoid α]
   time_spec buildLoopM
 
 /-- `ofArrayM a` performs exactly `a.size` parent-propagation steps (`0` on `#[]`). -/
+@[time_simps]
 theorem ofArrayM_time_eq {α : Type*} [AddCommMonoid α] (a : Array α) :
     (ofArrayM a).time = a.size := by
   unfold ofArrayM
@@ -541,7 +543,7 @@ theorem ofArrayM_time_eq {α : Type*} [AddCommMonoid α] (a : Array α) :
 
 theorem ofListM_time_eq {α : Type*} [AddCommMonoid α] (s : List α) :
     (ofListM s).time = s.length := by
-  time_spec ofListM [ofArrayM_time_eq]
+  time_spec ofListM
 
 private structure BuildInv {α : Type*} [AddCommMonoid α]
     (s : List α) (m : ℕ) (tree : Array α) : Prop where

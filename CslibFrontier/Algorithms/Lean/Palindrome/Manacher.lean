@@ -180,6 +180,7 @@ def manacherM (w : Array α) : TimeM ℕ (Array ℕ) :=
 @[expose] def manacher (w : Array α) : Array ℕ :=
   (manacherM w).ret
 
+@[time_simps]
 theorem ret_manacherM (w : Array α) : (manacherM w).ret = manacher w := rfl
 
 private theorem loopM_time_le (w : Array α) (fuel c C R : ℕ) (rad : Array ℕ) (hR : R ≤ w.size)
@@ -293,7 +294,7 @@ palindromic factor of `w` (`length_le_longestPalindrome`). -/
 theorem extract_longestPalindromeM (w : Array α) :
     w.toList.extract (longestPalindromeM w).ret.1 (longestPalindromeM w).ret.2 =
       longestPalindrome w.toList := by
-  time_spec longestPalindromeM [ret_manacherM, getD_manacher, size_manacher]
+  time_spec longestPalindromeM [getD_manacher, size_manacher]
 
 theorem longestPalindromeM_time_le (w : Array α) : (longestPalindromeM w).time ≤ 3 * w.size := by
   simp only [longestPalindromeM, TimeM.time_bind, TimeM.time_pure, Nat.add_zero]

@@ -389,32 +389,35 @@ the weight of the subset and `3`. -/
 
 variable {V : Type*} [DecidableEq V] (G : SimpleGraph V) [DecidableRel G.Adj]
 
+@[time_simps]
 theorem time_childPassM (w : V → ℕ) (LB LP : List V) (f init : Array ℕ) (c : ℕ) :
     (childPassM G w LB LP f init c).time = c * (indepCost LB.length +
       LP.length * (LB.length + 1) + LB.length * (LP.length + 1) + 4) := by
-  time_spec childPassM [time_indepM, time_keyM, time_forgetWeightM]
+  time_spec childPassM
 
 omit [DecidableRel G.Adj] in
+@[time_simps]
 theorem time_parentPassM (LB LP : List V) (old best : Array ℕ) (c : ℕ) :
     (parentPassM LB LP old best c).time = c * (LP.length * (LB.length + 1) + 3) := by
-  time_spec parentPassM [time_restrictM]
+  time_spec parentPassM
 
 theorem time_rootPassM (w : V → ℕ) (L : List V) (tbl : Array ℕ) (c : ℕ) :
     (rootPassM G w L tbl c).time = c * (indepCost L.length + L.length + 3) := by
-  time_spec rootPassM [time_indepM, time_forgetWeightM]
+  time_spec rootPassM
 
 variable {G} {n : ℕ}
 
+@[time_simps]
 theorem time_processM (R : G.RootedTreeDecomposition n) (w : V → ℕ) (L : Fin (n + 1) → List V)
     (st : Vector (Array ℕ) (n + 1)) (j : Fin (n + 1)) :
     (processM R w L st j).time = processTime (L j).length (L (R.parent j)).length := by
-  time_spec processM [time_zerosM, time_childPassM, time_parentPassM, processTime]
+  time_spec processM [processTime]
 
 theorem time_tablesFPT (R : G.RootedTreeDecomposition n) (w : V → ℕ) (L : Fin (n + 1) → List V)
     (t : ℕ) : (tablesFPT R w L t).time = (n + 1) + ∑ s ∈ Finset.range t,
       processTime (L (Fin.ofNat (n + 1) (n - s))).length
         (L (R.parent (Fin.ofNat (n + 1) (n - s)))).length := by
-  time_spec tablesFPT [time_processM, Finset.sum_range_succ]
+  time_spec tablesFPT [Finset.sum_range_succ]
 
 private theorem sum_range_ofNat_sub (g : Fin (n + 1) → ℕ) :
     ∑ s ∈ Finset.range n, g (Fin.ofNat (n + 1) (n - s)) = ∑ i : Fin n, g i.succ := by

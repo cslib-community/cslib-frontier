@@ -582,7 +582,7 @@ section ExecutableFin
 @[simp]
 theorem attachRet_val {T α : Type*} (m : TimeM T α) : (attachRet m).ret.1 = m.ret := rfl
 
-@[simp]
+@[simp, time_simps]
 theorem attachRet_time {T α : Type*} (m : TimeM T α) : (attachRet m).time = m.time := rfl
 
 /-- Total `Fin n`-indexed lookup on `Vector α n`. -/
@@ -733,6 +733,7 @@ private theorem foldMinArcsM_ret {V : Type*} [Fintype V] {N : Network V} (f : N.
     (foldMinArcsM f es acc).ret = es.foldl (fun m b => min m (f.resCap b.1 b.2)) acc := by
   time_spec foldMinArcsM
 
+@[time_simps]
 private theorem foldMinArcsM_time {V : Type*} [Fintype V] {N : Network V} (f : N.Flow)
     (es : List (V × V)) (acc : ℕ) :
     (foldMinArcsM f es acc).time = es.length := by
@@ -746,10 +747,10 @@ theorem bottleneckM_ret {V : Type*} [Fintype V] {N : Network V} (f : N.Flow) (p 
   · rfl
   · exact foldMinArcsM_ret f es (f.resCap e.1 e.2)
 
-@[simp]
+@[simp, time_simps]
 theorem bottleneckM_time {V : Type*} [Fintype V] {N : Network V} (f : N.Flow) (p : List V) :
     (bottleneckM f p).time = (pathArcs p).length := by
-  time_spec bottleneckM [foldMinArcsM_time]
+  time_spec bottleneckM
 
 /-- Candidate neighbor lists `adj` cover `N` when every non-loop pair `(u, v)` with positive
 capacity in either direction appears in `adj u`. -/
@@ -830,10 +831,12 @@ theorem card_symArcs_le_adjSteps {n : ℕ} {N : Network (Fin n)} {adj : Fin n �
     ✓
     countListM xs (acc + 1)
 
+@[time_simps]
 private theorem countListM_ret {α : Type*} (xs : List α) (acc : ℕ) :
     (countListM xs acc).ret = acc + xs.length := by
   time_spec countListM
 
+@[time_simps]
 private theorem countListM_time {α : Type*} (xs : List α) (acc : ℕ) :
     (countListM xs acc).time = xs.length := by
   time_spec countListM
@@ -848,15 +851,17 @@ neighbor entry. -/
     let acc' ← countListM (adj u) acc
     countAdjLoopM adj us acc'
 
+@[time_simps]
 private theorem countAdjLoopM_ret {n : ℕ} (adj : Fin n → List (Fin n))
     (us : List (Fin n)) (acc : ℕ) :
     (countAdjLoopM adj us acc).ret = acc + (us.map fun u => (adj u).length).sum := by
-  time_spec countAdjLoopM [countListM_ret]
+  time_spec countAdjLoopM
 
+@[time_simps]
 private theorem countAdjLoopM_time {n : ℕ} (adj : Fin n → List (Fin n))
     (us : List (Fin n)) (acc : ℕ) :
     (countAdjLoopM adj us acc).time = us.length + (us.map fun u => (adj u).length).sum := by
-  time_spec countAdjLoopM [countListM_time]
+  time_spec countAdjLoopM
 
 /-- Compute `adjSteps adj` in `n + adjSteps adj` `TimeM` ticks without `Fin n × Fin n` scans. -/
 @[expose] def countAdjM {n : ℕ} (adj : Fin n → List (Fin n)) : TimeM ℕ ℕ :=
@@ -865,12 +870,12 @@ private theorem countAdjLoopM_time {n : ℕ} (adj : Fin n → List (Fin n))
 @[simp]
 theorem countAdjM_ret {n : ℕ} (adj : Fin n → List (Fin n)) :
     (countAdjM adj).ret = adjSteps adj := by
-  time_spec countAdjM [countAdjLoopM_ret]
+  time_spec countAdjM
 
 @[simp]
 theorem countAdjM_time {n : ℕ} (adj : Fin n → List (Fin n)) :
     (countAdjM adj).time = n + adjSteps adj := by
-  time_spec countAdjM [countAdjLoopM_time, List.length_finRange]
+  time_spec countAdjM [List.length_finRange]
 
 /-! #### Reversed-walk validity and executable BFS -/
 
@@ -1076,6 +1081,7 @@ private structure StepInv {n : ℕ} {N : Network (Fin n)} (f : N.Flow) (d : ℕ)
   valid_entry : ∀ w rp, vget st.revPath w = some rp →
     ValidRevPath f w rp ∧ f.resDist w < n ∧ f.resDist w ≤ d + 1
 
+@[time_simps]
 private theorem scanNeighborsM_time {n : ℕ} {N : Network (Fin n)} (f : N.Flow)
     (u : Fin n) (rp_u : List (Fin n)) (hu_walk : IsRevWalkTo f u rp_u)
     (vs : List (Fin n)) (st : BfsState f)
@@ -1086,7 +1092,7 @@ private theorem scanNeighborsM_time {n : ℕ} {N : Network (Fin n)} (f : N.Flow)
 private theorem expandLayerM_time_le {n : ℕ} {N : Network (Fin n)} (f : N.Flow)
     (adj : Fin n → List (Fin n)) (us : List (Fin n)) (st : BfsState f) :
     (expandLayerM f adj us st).time ≤ (us.map fun u => 1 + (adj u).length).sum := by
-  time_spec expandLayerM [scanNeighborsM_time]
+  time_spec expandLayerM
 
 private theorem scanNeighborsM_preserves {n : ℕ} {N : Network (Fin n)} {f : N.Flow} {d : ℕ}
     {baseTbl : Vector (Option (List (Fin n))) n}
@@ -1456,7 +1462,7 @@ theorem bfsM_spec {n : ℕ} {N : Network (Fin n)} {adj : Fin n → List (Fin n)}
 /-- Every `bfsM` call charges at least `n` ticks (table initialization). -/
 theorem n_le_bfsM_time {n : ℕ} (N : Network (Fin n)) (adj : Fin n → List (Fin n)) (f : N.Flow) :
     n ≤ (bfsM N adj f).time := by
-  time_spec bfsM [attachRet_time]
+  time_spec bfsM
 
 /-- Each `bfsM` call takes at most `adjSteps adj + 3 * n` charged `TimeM` ticks. -/
 theorem bfsM_time_le {n : ℕ} {N : Network (Fin n)} {adj : Fin n → List (Fin n)}
@@ -1519,7 +1525,7 @@ theorem initFlowMatrixM_toFlow {n : ℕ} (N : Network (Fin n)) :
 @[simp]
 theorem initFlowMatrixM_time {n : ℕ} (N : Network (Fin n)) :
     (initFlowMatrixM N).time = 2 * n := by
-  time_spec initFlowMatrixM [attachRet_time]
+  time_spec initFlowMatrixM
 
 /-- Push `δ` units along directed arcs `es` in `mat`, charging `1` tick per arc. -/
 @[expose] def updateArcsMatM {n : ℕ} (δ : ℕ) :
@@ -1532,7 +1538,7 @@ theorem initFlowMatrixM_time {n : ℕ} (N : Network (Fin n)) :
     let mat₂ := fset mat₁ a b (fget mat a b + (δ - cancel))
     updateArcsMatM δ es mat₂
 
-@[simp]
+@[simp, time_simps]
 theorem updateArcsMatM_time {n : ℕ} (δ : ℕ) (es : List (Fin n × Fin n))
     (mat : Vector (Vector ℕ n) n) :
     (updateArcsMatM δ es mat).time = es.length := by
@@ -1626,7 +1632,7 @@ theorem augmentFlowMatrixM_toFlow {n : ℕ} {N : Network (Fin n)} (M : FlowMatri
 theorem augmentFlowMatrixM_time {n : ℕ} {N : Network (Fin n)} (M : FlowMatrix N)
     (p : List (Fin n)) (hp : M.toFlow.IsAugmentingPath p) :
     (augmentFlowMatrixM M p hp).time = 2 * (pathArcs p).length := by
-  time_spec augmentFlowMatrixM [attachRet_time, bottleneckM_time, updateArcsMatM_time]
+  time_spec augmentFlowMatrixM
 
 /-- Output of the Edmonds–Karp algorithm on `N : Network (Fin n)`. -/
 structure Output {n : ℕ} (N : Network (Fin n)) where

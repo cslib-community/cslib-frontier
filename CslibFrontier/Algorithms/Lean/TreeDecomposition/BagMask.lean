@@ -387,6 +387,7 @@ variable {V : Type*} [DecidableEq V]
 /-- The ticks of the independence test on a bag with `b` entries: one per pair `i ≤ j`. -/
 @[expose] def indepCost (b : ℕ) : ℕ := b * (b + 1) / 2
 
+@[time_simps]
 theorem time_zerosM (c : ℕ) : (zerosM c).time = c := by
   simp [zerosM]
 
@@ -398,14 +399,17 @@ theorem time_memM (x : V) (L : List V) : (memM x L).time = L.length := by
 theorem time_selMemM (x : V) (L : List V) (m : ℕ) : (selMemM x L m).time = L.length := by
   time_spec selMemM
 
+@[time_simps]
 theorem time_keyM (LB LP : List V) (t : ℕ) :
     (keyM LB LP t).time = LP.length * (LB.length + 1) := by
   time_spec keyM
 
+@[time_simps]
 theorem time_restrictM (LB LP : List V) (s : ℕ) :
     (restrictM LB LP s).time = LP.length * (LB.length + 1) := by
   time_spec restrictM
 
+@[time_simps]
 theorem time_forgetWeightM (w : V → ℕ) (LP LB : List V) (t : ℕ) :
     (forgetWeightM w LP LB t).time = LB.length * (LP.length + 1) := by
   time_spec forgetWeightM
@@ -428,6 +432,7 @@ theorem indepCost_le (b : ℕ) : indepCost b ≤ b * b :=
   Nat.div_le_of_le_mul (by nlinarith)
 
 omit [DecidableEq V] in
+@[time_simps]
 theorem time_indepM (G : SimpleGraph V) [DecidableRel G.Adj] (L : List V) (m : ℕ) :
     (indepM G L m).time = indepCost L.length := by
   time_spec indepM [indepCost_succ]

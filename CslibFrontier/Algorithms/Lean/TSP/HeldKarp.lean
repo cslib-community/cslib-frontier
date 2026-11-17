@@ -108,7 +108,7 @@ variable [LinearOrder W]
   | acc, [] => pure acc
   | acc, i :: l => do ✓ minFoldM g (min acc (g i)) l
 
-@[simp] theorem time_minFoldM (g : α → W) (acc : W) (l : List α) :
+@[simp, time_simps] theorem time_minFoldM (g : α → W) (acc : W) (l : List α) :
     (minFoldM g acc l).time = l.length := by
   time_spec minFoldM
 
@@ -426,10 +426,10 @@ namespace HeldKarp
 
 variable {n : ℕ} [Add W] [LinearOrder W]
 
-@[simp] theorem time_entryM (d : Fin (n + 1) → Fin (n + 1) → W) (T : Table n W)
+@[simp, time_simps] theorem time_entryM (d : Fin (n + 1) → Fin (n + 1) → W) (T : Table n W)
     (S : Finset (Fin n)) (t : Fin (n + 1)) (l : List (Fin n)) :
     (entryM d T S t l).time = l.length := by
-  time_spec entryM [time_minFoldM]
+  time_spec entryM
 
 omit [Add W] [LinearOrder W] in
 theorem length_targets (S : Finset (Fin n)) : (targets S).length = 1 + (n - S.card) := by
@@ -446,15 +446,15 @@ theorem length_targets (S : Finset (Fin n)) : (targets S).length = 1 + (n - S.ca
   simp only [targets, List.length_cons, List.length_map, hc]
   omega
 
-@[simp] theorem time_fillM (d : Fin (n + 1) → Fin (n + 1) → W) (S : Finset (Fin n))
+@[simp, time_simps] theorem time_fillM (d : Fin (n + 1) → Fin (n + 1) → W) (S : Finset (Fin n))
     (l : List (Fin n)) (T : Table n W) (ts : List (Fin (n + 1))) :
     (fillM d S l T ts).time = ts.length * l.length := by
-  time_spec fillM [time_entryM]
+  time_spec fillM
 
 theorem time_layerM (d : Fin (n + 1) → Fin (n + 1) → W) (T : Table n W)
     (ls : List (List (Fin n))) :
     (layerM d T ls).time = (ls.map fun l => (1 + (n - l.toFinset.card)) * l.length).sum := by
-  time_spec layerM [time_fillM, length_targets]
+  time_spec layerM [length_targets]
 
 /-- The layers `1, …, k` take at most `n²` ticks for each set of at most `k` cities. -/
 theorem time_tableM_le (d : Fin (n + 1) → Fin (n + 1) → W) (k : ℕ) :

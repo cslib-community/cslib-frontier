@@ -128,7 +128,7 @@ open Cslib.Algorithms.Lean.TimeM
       subst this
       simp
 
-@[simp] theorem ofFnTickM_time {α : Type*} (n : ℕ) (f : Fin n → α) :
+@[simp, time_simps] theorem ofFnTickM_time {α : Type*} (n : ℕ) (f : Fin n → α) :
     (ofFnTickM n f).time = n := by
   time_spec ofFnTickM
 
@@ -406,7 +406,7 @@ private theorem hgDualM_minv (s : HgState n) (δ : ℤ) (j : Fin n) :
   simp [hgDualM]
 
 private theorem hgDualM_time (s : HgState n) (δ : ℤ) : (hgDualM s δ).time = 3 * n := by
-  time_spec hgDualM [ofFnTickM_time]
+  time_spec hgDualM
 
 private theorem hgRelaxM_y (s : HgState n) (i j₁ : Fin n) : (hgRelaxM s c i j₁).ret.y = s.y := rfl
 private theorem hgRelaxM_z (s : HgState n) (i j₁ : Fin n) : (hgRelaxM s c i j₁).ret.z = s.z := rfl
@@ -432,9 +432,10 @@ private theorem hgRelaxM_path (s : HgState n) (i j₁ j : Fin n) :
   by_cases h1 : vget s.used j = false <;> by_cases h2 : hgRed c s.y s.z i j < vget s.minv j <;>
     simp [h1, h2]
 
+@[time_simps]
 private theorem hgRelaxM_time (s : HgState n) (i j₁ : Fin n) :
     (hgRelaxM s c i j₁).time = 2 * n := by
-  time_spec hgRelaxM [ofFnTickM_time]
+  time_spec hgRelaxM
 
 private theorem hgInitM_y (y z : Vector ℤ n) (mate : Vector (Option (Fin n)) n) (r : Fin n) :
     (hgInitM c y z mate r).ret.y = y := rfl
@@ -461,7 +462,7 @@ private theorem hgInitM_path (y z : Vector ℤ n) (mate : Vector (Option (Fin n)
 
 private theorem hgInitM_time (y z : Vector ℤ n) (mate : Vector (Option (Fin n)) n) (r : Fin n) :
     (hgInitM c y z mate r).time = 4 * n := by
-  time_spec hgInitM [ofFnTickM_time]
+  time_spec hgInitM
 
 /-! #### Invariants -/
 
@@ -842,7 +843,7 @@ private theorem hgExtendM_used (s : HgState n) (j₁ i₀ : Fin n) :
 
 private theorem hgExtendM_time (s : HgState n) (j₁ i₀ : Fin n) :
     (hgExtendM c s j₁ i₀).time = 2 * n + 1 := by
-  time_spec hgExtendM [hgRelaxM_time]
+  time_spec hgExtendM
 
 /-! #### Counting tree columns -/
 

@@ -689,6 +689,7 @@ private theorem time_buildOutEntriesM [Semiring R] [DecidableEq V] (d : ℕ) (x 
   time_spec buildOutEntriesM [time_sumVarValuesM]
 
 /-- The executable `elimVarM` step computes `elimVar`. -/
+@[time_simps]
 theorem ret_elimVarM [Semiring R] [DecidableEq V] (d : ℕ) (x : V) (s : ElimState R V) :
     (elimVarM d x s).ret = elimVar d x s := by
   time_spec elimVarM [elimVar, ret_buildOutEntriesM]
@@ -697,7 +698,7 @@ theorem ret_elimVarM [Semiring R] [DecidableEq V] (d : ℕ) (x : V) (s : ElimSta
 theorem ret_eliminateOrderM [Semiring R] [DecidableEq V] (d : ℕ) :
     ∀ (order : List V) (s : ElimState R V),
       (eliminateOrderM d order s).ret = eliminateOrder d order s := by
-  time_spec eliminateOrderM [ret_elimVarM]
+  time_spec eliminateOrderM
 
 /-- The executable `eliminateOrderM` returns `F.partitionFunctionOn wt declared.toFinset` when
 `order` covers `declared`. -/

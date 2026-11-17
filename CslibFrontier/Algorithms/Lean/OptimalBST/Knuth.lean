@@ -174,6 +174,7 @@ theorem ret_scanM (c : ℕ → β) (lo hi : ℕ) :
   time_spec scanM
 
 /-- Scanning `lo, …, hi` costs `hi - lo + 1`. -/
+@[time_simps]
 theorem time_scanM (c : ℕ → β) (lo hi : ℕ) : (scanM c lo hi).time = hi - lo + 1 := by
   time_spec scanM
 
@@ -231,9 +232,10 @@ def Window.Valid (W : Window β) (w : ℕ → ℕ → β) (n : ℕ) : Prop :=
     i < W.lo T i (i + d + 1) ∧ W.lo T i (i + d + 1) ≤ optRoot w i (i + d + 1) ∧
       optRoot w i (i + d + 1) ≤ W.hi T i (i + d + 1) ∧ W.hi T i (i + d + 1) ≤ i + d + 1
 
+@[time_simps]
 theorem time_cellM (w : ℕ → ℕ → β) (T : Table β) (i j lo hi : ℕ) :
     (cellM w T i j lo hi).time = hi - lo + 1 := by
-  time_spec cellM [time_scanM]
+  time_spec cellM
 
 /-- A scan over a window containing the largest optimal root computes the correct entry. -/
 theorem ret_cellM {w : ℕ → ℕ → β} {n d : ℕ} {T : Table β} (hT : Agrees w n d T) {i lo hi : ℕ}
@@ -279,7 +281,7 @@ theorem ret_diagM (w : ℕ → ℕ → β) (W : Window β) (n d : ℕ) (T : Tabl
 theorem time_diagM (w : ℕ → ℕ → β) (W : Window β) (n d : ℕ) (T : Table β) :
     (diagM w W n d T).time =
       ∑ i ∈ range (n + 1 - d), (W.hi T i (i + d) - W.lo T i (i + d) + 1) := by
-  time_spec diagM [time_cellM]
+  time_spec diagM
 
 theorem agrees_diagM {w : ℕ → ℕ → β} {W : Window β} {n d : ℕ} (hW : W.Valid w n) {T : Table β}
     (hT : Agrees w n d T) : Agrees w n (d + 1) (diagM w W n (d + 1) T).ret := by

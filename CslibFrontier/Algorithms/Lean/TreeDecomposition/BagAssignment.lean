@@ -204,6 +204,7 @@ theorem ret_lookupM (q : ℕ) (x : V) (L : List V) (m : ℕ) :
     (lookupM q x L m).ret = ofRadix q L m x := by
   time_spec lookupM
 
+@[time_simps]
 theorem time_lookupM (q : ℕ) (x : V) (L : List V) (m : ℕ) :
     (lookupM q x L m).time = L.length := by
   time_spec lookupM
@@ -218,8 +219,9 @@ theorem ret_projectM {q : ℕ} (hq : 0 < q) (LB LP : List V) (t : ℕ) :
 
 theorem time_projectM (q : ℕ) (LB LP : List V) (t : ℕ) :
     (projectM q LB t LP).time = LP.length * (LB.length + 1) := by
-  time_spec projectM [time_lookupM]
+  time_spec projectM
 
+@[time_simps]
 theorem ret_evalScopeM {q : ℕ} (hq : 0 < q) (LB : List V) (t : ℕ) (scope : List V) :
     (evalScopeM q hq LB t scope).ret = scope.map (ofRadixFin q hq LB t) := by
   induction scope with
@@ -229,9 +231,10 @@ theorem ret_evalScopeM {q : ℕ} (hq : 0 < q) (LB : List V) (t : ℕ) (scope : L
       List.map_cons, Nat.mod_eq_of_lt (ofRadix_lt hq LB t x)]
     rfl
 
+@[time_simps]
 theorem time_evalScopeM {q : ℕ} (hq : 0 < q) (LB : List V) (t : ℕ) (scope : List V) :
     (evalScopeM q hq LB t scope).time = scope.length * (LB.length + 1) := by
-  time_spec evalScopeM [time_lookupM]
+  time_spec evalScopeM
 
 end Loops
 

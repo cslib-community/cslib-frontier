@@ -107,23 +107,23 @@ coefficient evaluations across all Sturm polynomials plus scanning the resulting
   pure (sturmVariationsList seq x)
 
 /-- Pure value returned by `evalListM t x`. -/
-@[simp]
+@[simp, time_simps]
 theorem evalListM_ret (t : List ℚ) (x : ℚ) : (evalListM t x).ret = evalCoeffList x t := by
   time_spec evalListM
 
 /-- Time cost charged by `evalListM t x`: `t.length`. -/
-@[simp]
+@[simp, time_simps]
 theorem evalListM_time (t : List ℚ) (x : ℚ) : (evalListM t x).time = t.length := by
   time_spec evalListM
 
 /-- Pure value returned by `sturmVariationsM seq x`. -/
-@[simp]
+@[simp, time_simps]
 theorem sturmVariationsM_ret (seq : List (List ℚ)) (x : ℚ) :
     (sturmVariationsM seq x).ret = sturmVariationsList seq x := by
   time_spec sturmVariationsM
 
 /-- Time cost charged by `sturmVariationsM seq x`: `sturmSeqOpCost seq`. -/
-@[simp]
+@[simp, time_simps]
 theorem sturmVariationsM_time (seq : List (List ℚ)) (x : ℚ) :
     (sturmVariationsM seq x).time = sturmSeqOpCost seq := by
   time_spec sturmVariationsM
@@ -240,7 +240,7 @@ theorem isolateRootsM_ret (cs : List ℚ) : (isolateRootsM cs).ret = isolateRoot
 private theorem refineLeftLoopM_time_le (t : List ℚ) (seq : List (List ℚ)) (fuel : ℕ)
     (u v : ℚ) (vu : ℕ) :
     (refineLeftLoopM t seq fuel u v vu).time ≤ fuel * (sturmSeqOpCost seq + t.length) := by
-  time_spec refineLeftLoopM [sturmVariationsM_time, evalListM_time]
+  time_spec refineLeftLoopM
 
 private theorem refineLeftRootM_time_le (t : List ℚ) (seq : List (List ℚ)) (fuel : ℕ)
     (u v : ℚ) (vu : ℕ) :

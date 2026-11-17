@@ -116,8 +116,7 @@ open Polynomial Cslib.Algorithms.Lean
 theorem refineLeftLoopTotalM_ret (t : List ℚ) (seq : List (List ℚ)) :
     ∀ (fuel : ℕ) (u v : ℚ) (vu : ℕ),
       (refineLeftLoopTotalM t seq fuel u v vu).ret = (refineLeftLoopM t seq fuel u v vu).ret := by
-  time_spec refineLeftLoopTotalM [refineLeftLoopM, sturmVariationsListM_ret, sturmVariationsM_ret,
-    evalCoeffListM_ret, evalListM_ret]
+  time_spec refineLeftLoopTotalM [refineLeftLoopM]
 
 theorem refineLeftLoopTotalM_time_le (t : List ℚ) (seq : List (List ℚ)) :
     ∀ (fuel : ℕ) (u v : ℚ) (vu : ℕ),

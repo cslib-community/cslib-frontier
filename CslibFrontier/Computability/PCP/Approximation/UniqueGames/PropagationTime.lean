@@ -264,6 +264,7 @@ theorem bucketsM_time (n : ℕ) (l : List (Edge (α → α))) :
   time_spec bucketsM
 
 /-- `visitAllM` visits the edges in order. -/
+@[time_simps]
 theorem visitAllM_ret (labels : List α) (l : List (Edge (α → α))) (S : State α) :
     (visitAllM labels S l).ret = l.foldl (visit labels) S := by
   time_spec visitAllM
@@ -272,7 +273,7 @@ theorem visitAllM_ret (labels : List α) (l : List (Edge (α → α))) (S : Stat
 theorem scanM_ret (labels : List α) {g : Graph (α → α)} {bs : List (List (Edge (α → α)))}
     (hbs : ∀ u, bs.getD u [] = adj g u) (S : State α) :
     (scanM labels bs S).ret = scan labels g S := by
-  time_spec scanM [visitAllM_ret, scan]
+  time_spec scanM [scan]
 
 /-- `exploreM` computes the iterated `scan`, given the incidence lists. -/
 theorem exploreM_ret (labels : List α) {g : Graph (α → α)} {bs : List (List (Edge (α → α)))}
@@ -290,6 +291,7 @@ theorem exploreM_ret (labels : List α) {g : Graph (α → α)} {bs : List (List
 
 omit [DecidableEq α] in
 /-- `freezeAllM` freezes the listed slots in order. -/
+@[time_simps]
 theorem freezeAllM_ret (labels : List α) (c : α) (l : List ℕ) (t : List (Option (α → α))) :
     (freezeAllM labels c t l).ret =
       l.foldl (fun t v => t.set v (freeze c (t.getD v none))) t := by
@@ -299,7 +301,7 @@ omit [DecidableEq α] in
 /-- `settleM` computes `settle`. -/
 theorem settleM_ret [Inhabited α] (labels : List α) (S : State α) :
     (settleM labels S).ret = settle labels S := by
-  time_spec settleM [freezeAllM_ret]
+  time_spec settleM
 
 /-- `stepM` computes `step`, given the incidence lists. -/
 theorem stepM_ret [Inhabited α] (labels : List α) {g : Graph (α → α)}

@@ -71,7 +71,7 @@ open Polynomial Cslib.Algorithms.Lean
     let n ← lengthM xs
     pure (n + 1)
 
-@[simp]
+@[simp, time_simps]
 theorem lengthM_ret {α : Type*} (xs : List α) : (lengthM xs).ret = xs.length := by
   time_spec lengthM
 
@@ -83,11 +83,11 @@ theorem lengthM_time {α : Type*} (xs : List α) : (lengthM xs).time = xs.length
   TimeM.tick 1
   pure xs.isEmpty
 
-@[simp]
+@[simp, time_simps]
 theorem isEmptyM_ret {α : Type*} (xs : List α) : (isEmptyM xs).ret = xs.isEmpty := by
   time_spec isEmptyM
 
-@[simp]
+@[simp, time_simps]
 theorem isEmptyM_time {α : Type*} (xs : List α) : (isEmptyM xs).time = 1 := by
   time_spec isEmptyM
 
@@ -101,10 +101,11 @@ theorem isEmptyM_time {α : Type*} (xs : List α) : (isEmptyM xs).time = 1 := by
     let zs ← appendM xs ys
     pure (x :: zs)
 
-@[simp]
+@[simp, time_simps]
 theorem appendM_ret {α : Type*} (xs ys : List α) : (appendM xs ys).ret = xs ++ ys := by
   time_spec appendM
 
+@[time_simps]
 theorem appendM_time {α : Type*} (xs ys : List α) : (appendM xs ys).time = xs.length + 1 := by
   time_spec appendM
 
@@ -118,10 +119,11 @@ theorem appendM_time {α : Type*} (xs ys : List α) : (appendM xs ys).time = xs.
     let zs ← replicateZeroM k
     pure (0 :: zs)
 
-@[simp]
+@[simp, time_simps]
 theorem replicateZeroM_ret (k : ℕ) : (replicateZeroM k).ret = List.replicate k 0 := by
   time_spec replicateZeroM
 
+@[time_simps]
 theorem replicateZeroM_time (k : ℕ) : (replicateZeroM k).time = k + 1 := by
   time_spec replicateZeroM
 
@@ -199,12 +201,12 @@ theorem dropLastM_time_le {α : Type*} : ∀ (xs : List α), (dropLastM xs).time
     else
       pure (a :: t)
 
-@[simp]
+@[simp, time_simps]
 theorem trimM_ret (cs : List ℚ) : (trimM cs).ret = trim cs := by
-  time_spec trimM [trim, isEmptyM_ret]
+  time_spec trimM [trim]
 
 theorem trimM_time_le (cs : List ℚ) : (trimM cs).time ≤ 3 * cs.length + 1 := by
-  time_spec trimM [isEmptyM_time]
+  time_spec trimM
 
 /-- `TimeM ℕ`-charged pointwise coefficient-list addition. -/
 @[expose] def addListM : List ℚ → List ℚ → TimeM ℕ (List ℚ)
@@ -219,7 +221,7 @@ theorem trimM_time_le (cs : List ℚ) : (trimM cs).time ≤ 3 * cs.length + 1 :=
     let cs ← addListM as bs
     pure ((a + b) :: cs)
 
-@[simp]
+@[simp, time_simps]
 theorem addListM_ret (as bs : List ℚ) : (addListM as bs).ret = addList as bs := by
   time_spec addListM
 
@@ -245,7 +247,7 @@ private theorem addList_length (as bs : List ℚ) :
     let bs ← negListM as
     pure ((-a) :: bs)
 
-@[simp]
+@[simp, time_simps]
 theorem negListM_ret (as : List ℚ) : (negListM as).ret = negList as := by
   time_spec negListM
 
@@ -259,7 +261,7 @@ theorem negListM_time (as : List ℚ) : (negListM as).time = as.length + 1 := by
 
 @[simp]
 theorem subListM_ret (as bs : List ℚ) : (subListM as bs).ret = subList as bs := by
-  time_spec subListM [negListM_ret, addListM_ret]
+  time_spec subListM
 
 theorem subListM_time_le (as bs : List ℚ) : (subListM as bs).time ≤ 2 * bs.length + 2 := by
   simp only [subListM, TimeM.time_bind, negListM_time, negListM_ret]
@@ -291,10 +293,10 @@ theorem scaleListM_time (c : ℚ) (bs : List ℚ) : (scaleListM c bs).time = bs.
 
 @[simp]
 theorem shiftZeroM_ret (k : ℕ) (bs : List ℚ) : (shiftZeroM k bs).ret = shiftZero k bs := by
-  time_spec shiftZeroM [replicateZeroM_ret, appendM_ret]
+  time_spec shiftZeroM
 
 theorem shiftZeroM_time (k : ℕ) (bs : List ℚ) : (shiftZeroM k bs).time = 2 * k + 2 := by
-  time_spec shiftZeroM [replicateZeroM_time, replicateZeroM_ret, appendM_time]
+  time_spec shiftZeroM
 
 /-- `TimeM ℕ`-charged `derivAux`. -/
 @[expose] def derivAuxM (k : ℕ) : List ℚ → TimeM ℕ (List ℚ)
@@ -306,7 +308,7 @@ theorem shiftZeroM_time (k : ℕ) (bs : List ℚ) : (shiftZeroM k bs).time = 2 *
     let ds ← derivAuxM (k + 1) as
     pure (((k : ℚ) * a) :: ds)
 
-@[simp]
+@[simp, time_simps]
 theorem derivAuxM_ret (k : ℕ) (as : List ℚ) : (derivAuxM k as).ret = derivAux k as := by
   time_spec derivAuxM
 
@@ -323,9 +325,9 @@ theorem derivAuxM_time (k : ℕ) (as : List ℚ) : (derivAuxM k as).time = 2 * a
     let ds ← derivAuxM 1 as
     trimM ds
 
-@[simp]
+@[simp, time_simps]
 theorem derivListM_ret (cs : List ℚ) : (derivListM cs).ret = derivList cs := by
-  time_spec derivListM [derivAuxM_ret, trimM_ret]
+  time_spec derivListM
 
 theorem derivListM_time_le (cs : List ℚ) : (derivListM cs).time ≤ 5 * cs.length + 3 := by
   cases cs with
@@ -496,9 +498,9 @@ theorem divModAuxM_time_le :
   let lu ← lengthM u'
   divModAuxM lu u' v'
 
-@[simp]
+@[simp, time_simps]
 theorem divModListM_ret (u v : List ℚ) : (divModListM u v).ret = divModList u v := by
-  time_spec divModListM [trimM_ret, lengthM_ret, divModAuxM_ret]
+  time_spec divModListM [divModAuxM_ret]
 
 theorem divModListM_time_le (u v : List ℚ) :
     (divModListM u v).time ≤ (u.length + 2) * (20 * max u.length v.length + 26) := by
@@ -528,9 +530,9 @@ theorem divModListM_time_le (u v : List ℚ) :
   TimeM.tick 1
   pure qr.2
 
-@[simp]
+@[simp, time_simps]
 theorem negModListM_ret (u v : List ℚ) : (negModListM u v).ret = negModList u v := by
-  time_spec negModListM [negListM_ret, divModListM_ret]
+  time_spec negModListM
 
 theorem negModListM_time_le (u v : List ℚ) :
     (negModListM u v).time ≤ (u.length + 2) * (20 * max u.length v.length + 28) := by
@@ -568,7 +570,7 @@ private theorem negModList_length_le (u v : List ℚ) : (negModList u v).length 
 @[simp]
 theorem sturmSeqAuxM_ret :
     ∀ (n : ℕ) (p q : List ℚ), (sturmSeqAuxM n p q).ret = sturmSeqAux n p q := by
-  time_spec sturmSeqAuxM [sturmSeqAux, isEmptyM_ret, negModListM_ret]
+  time_spec sturmSeqAuxM [sturmSeqAux]
 
 theorem sturmSeqAuxM_time_le :
     ∀ (n : ℕ) (p q : List ℚ),
@@ -622,8 +624,7 @@ theorem sturmSeqAuxM_time_le :
 
 @[simp]
 theorem sturmSeqListM_ret (cs : List ℚ) : (sturmSeqListM cs).ret = sturmSeqList cs := by
-  time_spec sturmSeqListM [sturmSeqList, trimM_ret, isEmptyM_ret, derivListM_ret, lengthM_ret,
-    sturmSeqAuxM_ret]
+  time_spec sturmSeqListM [sturmSeqList, sturmSeqAuxM_ret]
 
 /-- Cubic operation-count bound on `sturmSeqListM cs` in terms of `cs.length`. -/
 theorem sturmSeqListM_time_le (cs : List ℚ) :
@@ -659,11 +660,12 @@ theorem sturmSeqListM_time_le (cs : List ℚ) :
     TimeM.tick 2
     pure (a + z * acc)
 
-@[simp]
+@[simp, time_simps]
 theorem evalCoeffListM_ret (z : ℚ) (l : List ℚ) :
     (evalCoeffListM z l).ret = evalCoeffList z l := by
   time_spec evalCoeffListM
 
+@[time_simps]
 theorem evalCoeffListM_time (z : ℚ) (l : List ℚ) :
     (evalCoeffListM z l).time = 2 * l.length + 1 := by
   time_spec evalCoeffListM
@@ -678,6 +680,7 @@ theorem evalCoeffListM_time (z : ℚ) (l : List ℚ) :
     let ss ← mapSignM qs
     pure (SignType.sign q :: ss)
 
+@[time_simps]
 private theorem mapSignM_ret (qs : List ℚ) : (mapSignM qs).ret = qs.map SignType.sign := by
   time_spec mapSignM
 
@@ -694,6 +697,7 @@ private theorem mapSignM_time (qs : List ℚ) : (mapSignM qs).time = qs.length +
     let fs ← filterNonzeroSignM ss
     if decide (s ≠ 0) then pure (s :: fs) else pure fs
 
+@[time_simps]
 private theorem filterNonzeroSignM_ret (ss : List SignType) :
     (filterNonzeroSignM ss).ret = ss.filter (fun x => decide (x ≠ 0)) := by
   time_spec filterNonzeroSignM
@@ -715,6 +719,7 @@ private theorem filterNonzeroSignM_time (ss : List SignType) :
     else
       destutterNeAuxM b l
 
+@[time_simps]
 private theorem destutterNeAuxM_ret (b : SignType) (l : List SignType) :
     (destutterNeAuxM b l).ret = List.destutter' (· ≠ ·) b l := by
   induction l generalizing b with
@@ -726,6 +731,7 @@ private theorem destutterNeAuxM_ret (b : SignType) (l : List SignType) :
         List.destutter'_cons_pos l hne]
     · simp only [eq_false hne, ↓reduceIte, ih b, List.destutter'_cons_neg l hne]
 
+@[time_simps]
 private theorem destutterNeAuxM_time (b : SignType) (l : List SignType) :
     (destutterNeAuxM b l).time = l.length + 1 := by
   time_spec destutterNeAuxM
@@ -739,13 +745,14 @@ private theorem destutterNeAuxM_time (b : SignType) (l : List SignType) :
     TimeM.tick 1
     destutterNeAuxM a l
 
+@[time_simps]
 private theorem destutterNeM_ret (l : List SignType) :
     (destutterNeM l).ret = List.destutter (· ≠ ·) l := by
-  time_spec destutterNeM [destutterNeAuxM_ret]
+  time_spec destutterNeM
 
 private theorem destutterNeM_time_le (l : List SignType) :
     (destutterNeM l).time ≤ l.length + 2 := by
-  time_spec destutterNeM [destutterNeAuxM_time]
+  time_spec destutterNeM
 
 /-- `TimeM ℕ`-charged `List.signVariations` (`≤ 4 * xs.length + 6` ticks). -/
 @[expose] def signVariationsM (xs : List ℚ) : TimeM ℕ ℕ := do
@@ -756,9 +763,9 @@ private theorem destutterNeM_time_le (l : List SignType) :
   TimeM.tick 1
   pure (len - 1)
 
-@[simp]
+@[simp, time_simps]
 theorem signVariationsM_ret (xs : List ℚ) : (signVariationsM xs).ret = xs.signVariations := by
-  time_spec signVariationsM [mapSignM_ret, filterNonzeroSignM_ret, destutterNeM_ret, lengthM_ret]
+  time_spec signVariationsM
 
 theorem signVariationsM_time_le (xs : List ℚ) :
     (signVariationsM xs).time ≤ 4 * xs.length + 6 := by
@@ -786,23 +793,24 @@ theorem signVariationsM_time_le (xs : List ℚ) :
     let vs ← mapEvalCoeffListM x fs
     pure (v :: vs)
 
+@[time_simps]
 private theorem mapEvalCoeffListM_ret (x : ℚ) (seq : List (List ℚ)) :
     (mapEvalCoeffListM x seq).ret = seq.map (evalCoeffList x) := by
-  time_spec mapEvalCoeffListM [evalCoeffListM_ret]
+  time_spec mapEvalCoeffListM
 
 private theorem mapEvalCoeffListM_time (x : ℚ) (seq : List (List ℚ)) :
     (mapEvalCoeffListM x seq).time = 2 * (seq.map List.length).sum + 2 * seq.length + 1 := by
-  time_spec mapEvalCoeffListM [evalCoeffListM_time]
+  time_spec mapEvalCoeffListM
 
 /-- Fully step-charged Sturm sign-variation count `sturmVariationsList seq x`. -/
 @[expose] def sturmVariationsListM (seq : List (List ℚ)) (x : ℚ) : TimeM ℕ ℕ := do
   let vs ← mapEvalCoeffListM x seq
   signVariationsM vs
 
-@[simp]
+@[simp, time_simps]
 theorem sturmVariationsListM_ret (seq : List (List ℚ)) (x : ℚ) :
     (sturmVariationsListM seq x).ret = sturmVariationsList seq x := by
-  time_spec sturmVariationsListM [mapEvalCoeffListM_ret, signVariationsM_ret]
+  time_spec sturmVariationsListM
 
 theorem sturmVariationsListM_time_le (seq : List (List ℚ)) (x : ℚ) :
     (sturmVariationsListM seq x).time ≤ 2 * (seq.map List.length).sum + 6 * seq.length + 7 := by
@@ -835,7 +843,7 @@ theorem sturmVariationsListM_sturmSeq_time_le (cs : List ℚ) (x : ℚ) :
     let m ← maxAbsListM as
     pure (max |a| m)
 
-@[simp]
+@[simp, time_simps]
 theorem maxAbsListM_ret (cs : List ℚ) : (maxAbsListM cs).ret = maxAbsList cs := by
   time_spec maxAbsListM
 
@@ -858,10 +866,9 @@ theorem maxAbsListM_time (cs : List ℚ) : (maxAbsListM cs).time = 2 * cs.length
     let b := m / |lc| + 1
     pure (Int.natAbs b.num / b.den + 1)
 
-@[simp]
+@[simp, time_simps]
 theorem cauchyBoundNatM_ret (cs : List ℚ) : (cauchyBoundNatM cs).ret = cauchyBoundNat cs := by
-  time_spec cauchyBoundNatM [cauchyBoundNat, trimM_ret, lengthM_ret, getLast?M_ret, dropLastM_ret,
-    maxAbsListM_ret]
+  time_spec cauchyBoundNatM [cauchyBoundNat, getLast?M_ret, dropLastM_ret]
 
 theorem cauchyBoundNatM_time_le (cs : List ℚ) :
     (cauchyBoundNatM cs).time ≤ 8 * cs.length + 12 := by
@@ -888,10 +895,11 @@ theorem cauchyBoundNatM_time_le (cs : List ℚ) :
     TimeM.tick 2
     pure (Nat.lcm q.den d)
 
-@[simp]
+@[simp, time_simps]
 theorem lcmDensM_ret (cs : List ℚ) : (lcmDensM cs).ret = lcmDens cs := by
   time_spec lcmDensM
 
+@[time_simps]
 theorem lcmDensM_time (cs : List ℚ) : (lcmDensM cs).time = 2 * cs.length + 1 := by
   time_spec lcmDensM
 
@@ -905,10 +913,12 @@ theorem lcmDensM_time (cs : List ℚ) : (lcmDensM cs).time = 2 * cs.length + 1 :
     let ns ← mapClearEntryM D qs
     pure ((q.num * ((D / q.den : ℕ) : ℤ)) :: ns)
 
+@[time_simps]
 private theorem mapClearEntryM_ret (D : ℕ) (cs : List ℚ) :
     (mapClearEntryM D cs).ret = cs.map (fun q => q.num * ((D / q.den : ℕ) : ℤ)) := by
   time_spec mapClearEntryM
 
+@[time_simps]
 private theorem mapClearEntryM_time (D : ℕ) (cs : List ℚ) :
     (mapClearEntryM D cs).time = 2 * cs.length + 1 := by
   time_spec mapClearEntryM
@@ -919,14 +929,14 @@ private theorem mapClearEntryM_time (D : ℕ) (cs : List ℚ) :
   let ns ← mapClearEntryM D cs
   pure (D, ns)
 
-@[simp]
+@[simp, time_simps]
 theorem clearDenomsListM_ret (cs : List ℚ) :
     (clearDenomsListM cs).ret = clearDenomsList cs := by
-  time_spec clearDenomsListM [lcmDensM_ret, mapClearEntryM_ret]
+  time_spec clearDenomsListM
 
 theorem clearDenomsListM_time (cs : List ℚ) :
     (clearDenomsListM cs).time = 4 * cs.length + 2 := by
-  time_spec clearDenomsListM [lcmDensM_time, mapClearEntryM_time]
+  time_spec clearDenomsListM
 
 /-- `TimeM ℕ`-charged accumulator fold for `sqNormList`. -/
 @[expose] def sqNormFoldM (acc : ℕ) : List ℤ → TimeM ℕ ℕ
@@ -949,7 +959,7 @@ private theorem sqNormFoldM_time (acc : ℕ) (ns : List ℤ) :
 @[expose] def sqNormListM (ns : List ℤ) : TimeM ℕ ℕ :=
   sqNormFoldM 0 ns
 
-@[simp]
+@[simp, time_simps]
 theorem sqNormListM_ret (ns : List ℤ) : (sqNormListM ns).ret = sqNormList ns :=
   sqNormFoldM_ret 0 ns
 
@@ -966,7 +976,7 @@ theorem sqNormListM_time (ns : List ℤ) : (sqNormListM ns).time = 2 * ns.length
     TimeM.tick 1
     pure (p * base)
 
-@[simp]
+@[simp, time_simps]
 theorem powNatM_ret (base exp : ℕ) : (powNatM base exp).ret = base ^ exp := by
   time_spec powNatM
 
@@ -985,7 +995,7 @@ theorem powNatM_time (base exp : ℕ) : (powNatM base exp).time = exp + 1 := by
 termination_by n
 decreasing_by omega
 
-@[simp]
+@[simp, time_simps]
 theorem clog4M_ret (n : ℕ) : (clog4M n).ret = Nat.clog 4 n := by
   induction n using Nat.strongRecOn with
   | ind n ih =>
@@ -1034,11 +1044,10 @@ theorem clog4M_time (n : ℕ) : (clog4M n).time = Nat.clog 4 n + 1 := by
   TimeM.tick 1
   pure (p1 * p2)
 
-@[simp]
+@[simp, time_simps]
 theorem mignotteSepSqInvM_ret (cs : List ℚ) :
     (mignotteSepSqInvM cs).ret = mignotteSepSqInv cs := by
-  time_spec mignotteSepSqInvM [trimM_ret, lengthM_ret, clearDenomsListM_ret, sqNormListM_ret,
-    powNatM_ret]
+  time_spec mignotteSepSqInvM
 
 theorem mignotteSepSqInvM_time_le (cs : List ℚ) :
     (mignotteSepSqInvM cs).time ≤ 12 * cs.length + 14 := by
@@ -1068,8 +1077,7 @@ theorem mignotteSepSqInvM_time_le (cs : List ℚ) :
 @[simp]
 theorem mignotteBisectionDepthM_ret (cs : List ℚ) :
     (mignotteBisectionDepthM cs).ret = mignotteBisectionDepth cs := by
-  time_spec mignotteBisectionDepthM [mignotteBisectionDepth, trimM_ret, lengthM_ret,
-    cauchyBoundNatM_ret, mignotteSepSqInvM_ret, clog4M_ret]
+  time_spec mignotteBisectionDepthM [mignotteBisectionDepth]
 
 theorem mignotteBisectionDepthM_time_le (cs : List ℚ) :
     (mignotteBisectionDepthM cs).time ≤ 24 * cs.length + mignotteBisectionDepth cs + 34 := by

@@ -142,10 +142,12 @@ variable {Rel V : Type*} [DecidableEq V]
     TimeM.tick 1
     pure (b1 && b2)
 
+@[time_simps]
 theorem ret_subsetListM (xs LB : List V) :
     (subsetListM xs LB).ret = decide (xs.toFinset ⊆ LB.toFinset) := by
   time_spec subsetListM [List.toFinset_cons, Finset.insert_subset_iff, List.mem_toFinset]
 
+@[time_simps]
 theorem time_subsetListM (xs LB : List V) :
     (subsetListM xs LB).time = xs.length * (LB.length + 1) := by
   time_spec subsetListM
@@ -191,13 +193,13 @@ theorem ret_checkIntroScopeM {q : ℕ} (hq : 0 < q) (sem : Rel → List (Fin q) 
       F.all fun c =>
         !(decide (c.scope.toFinset ⊆ LB.toFinset) && decide (v ∈ c.scope)) ||
           c.eval sem (ofRadixFin q hq LB m) := by
-  time_spec checkIntroScopeM [ret_subsetListM, ret_evalScopeM]
+  time_spec checkIntroScopeM
 
 theorem time_checkIntroScopeM (q : ℕ) (hq : 0 < q) (sem : Rel → List (Fin q) → Bool)
     (v : V) (LB : List V) (m : ℕ) (F : CSP Rel V) :
     (checkIntroScopeM q hq sem v LB m F).time =
       F.length + F.vars.length * (2 * LB.length + 3) := by
-  time_spec checkIntroScopeM [CSP.vars, time_subsetListM, time_evalScopeM]
+  time_spec checkIntroScopeM [CSP.vars]
 
 /-- Encode `Function.update (ofRadix q LB m) v d` along `LP`. -/
 @[expose] def projectUpdateM (q : ℕ) (v : V) (d : ℕ) (LB : List V) (m : ℕ) :
@@ -222,7 +224,7 @@ theorem ret_projectUpdateM {q : ℕ} (hq : 0 < q) (v : V) (d : ℕ) (LB LP : Lis
 
 theorem time_projectUpdateM_le (q : ℕ) (v : V) (d : ℕ) (LB LP : List V) (m : ℕ) :
     (projectUpdateM q v d LB m LP).time ≤ LP.length * (LB.length + 1) := by
-  time_spec projectUpdateM [time_lookupM]
+  time_spec projectUpdateM
 
 /-- Build a length-`n` array table entry by entry in `TimeM ℕ`. -/
 @[expose] def tableLoopM {β : Type} : ℕ → (ℕ → TimeM ℕ β) → TimeM ℕ (Array β)
