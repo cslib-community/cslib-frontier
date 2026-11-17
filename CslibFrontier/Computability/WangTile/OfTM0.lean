@@ -307,9 +307,11 @@ private theorem localNextCell?_cellAt_or_halt {M : OneMachine S Q} {c : Config S
             | zero => omega
             | succ pred =>
                 cases move <;>
-                  (simp_all [Config.cellAt, Config.cellAtLeft, OneMachine.nextID,
-                    localNextCell?, Move.apply]
-                   try omega)
+                  first
+                    | (simp_all [Config.cellAt, Config.cellAtLeft, OneMachine.nextID,
+                        localNextCell?, Move.apply]; omega)
+                    | simp_all [Config.cellAt, Config.cellAtLeft, OneMachine.nextID,
+                        localNextCell?, Move.apply]
         | succ posPred =>
             cases hhead : c.head with
             | zero =>
@@ -1406,7 +1408,7 @@ private theorem activeAbs_moveHead (side : Side) (head : ℕ) (dir : Turing.Dir)
   all_goals subst_vars
   all_goals simp_all [nextSide, moveHead, Side.isInward, Side.isOutward,
     Side.opposite, activeAbs, leftAbs, rightAbs]
-  all_goals try omega
+  all_goals omega
 
 private theorem sourceOffset_moveHead (side : Side) (head : ℕ) (dir : Turing.Dir)
     (absolute : Int) :

@@ -135,7 +135,7 @@ private theorem sum_mul_exp_sub_mean_le {β : Type*} [Fintype β] (q : PMF β) (
     (measurable_of_countable g).aemeasurable (ae_of_all _ hg)).mgf_le t
   simp only [mgf, PMF.integral_eq_sum, smul_eq_mul] at h
   refine h.trans_eq (congrArg Real.exp ?_)
-  simp only [NNReal.coe_pow, NNReal.coe_div, coe_nnnorm, Real.norm_eq_abs, NNReal.coe_ofNat,
+  simp only [NNReal.coe_pow, NNReal.coe_div, coe_nnNorm, Real.norm_eq_abs, NNReal.coe_ofNat,
     div_pow, sq_abs]
   ring
 
@@ -249,7 +249,7 @@ theorem hasSubgaussianMGF_pi [∀ i, MeasurableSpace (α i)] [∀ i, MeasurableS
   mgf_le t := by
     rw [mgf, PMF.integral_eq_sum]
     refine (hf.sum_pi_mul_exp_le p t).trans_eq (congrArg Real.exp ?_)
-    simp only [NNReal.coe_sum, NNReal.coe_pow, NNReal.coe_div, coe_nnnorm,
+    simp only [NNReal.coe_sum, NNReal.coe_pow, NNReal.coe_div, coe_nnNorm,
       Real.norm_eq_abs, NNReal.coe_ofNat, div_pow, sq_abs, ← Finset.sum_div]
     ring
 
@@ -270,7 +270,7 @@ theorem pi_ge_mean_add (hf : HasBoundedDifferences f c) (p : ∀ i, PMF (α i)) 
   rw [hevent, measureReal_def, PMF.toMeasure_apply_eq_toOuterMeasure_apply _
     ((Set.to_countable _).measurableSet)] at h
   refine h.trans_eq (congrArg Real.exp ?_)
-  simp only [NNReal.coe_sum, NNReal.coe_pow, NNReal.coe_div, coe_nnnorm, Real.norm_eq_abs,
+  simp only [NNReal.coe_sum, NNReal.coe_pow, NNReal.coe_div, coe_nnNorm, Real.norm_eq_abs,
     NNReal.coe_ofNat, div_pow, sq_abs, ← Finset.sum_div]
   ring
 
