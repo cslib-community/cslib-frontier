@@ -120,7 +120,7 @@ theorem listHeadDWithInput {α γ : Type} {encA : α ↪ List Bool} {encIn : γ 
     (hfallback : ComputableInPolyTime fallback encIn encA) :
     ComputableInPolyTime (fun a => (list a).headD (fallback a)) encIn encA :=
   (optionGetDWithInput ((head? encA).comp hlist) hfallback).of_enc_eq fun a => by
-    cases list a <;> rfl
+    simp only [Function.comp_apply, List.headD_eq_head?_getD]
 
 /-- Test a framed list's emptiness, determining its element encoding for automation. -/
 @[fun_prop]
