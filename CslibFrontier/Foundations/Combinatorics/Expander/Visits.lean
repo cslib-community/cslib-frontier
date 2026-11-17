@@ -77,7 +77,7 @@ theorem abs_walk_pow_le {f : V → ℝ} {c : ℝ} (hf : ∀ x, |f x| ≤ c) (j :
     |(G.walk ^ j) f x| ≤ c := by
   induction j generalizing x with
   | zero => exact hf x
-  | succ j ih => rw [pow_succ', Module.End.mul_apply]; exact abs_walk_le ih x
+  | succ j ih => rw [pow_succ', mul_apply_eq_comp]; exact abs_walk_le ih x
 
 omit [DecidableEq V] in
 /-- **Uniform Cesàro convergence.** On a connected regular multigraph, for a function `f` of total
@@ -116,7 +116,7 @@ theorem exists_abs_sum_walk_pow_le (hG : G.toSimpleGraph.Preconnected) {f : V �
     | zero => intro x; rfl
     | succ j ih =>
       intro x
-      rw [Function.iterate_succ_apply', pow_succ', Module.End.mul_apply, ← ih]
+      rw [Function.iterate_succ_apply', pow_succ', mul_apply_eq_comp, ← ih]
       rfl
   have hcoord := (PiLp.norm_apply_le (birkhoffAverage ℝ W _root_.id N (WithLp.toLp 2 f)) v).trans
     h.le
@@ -169,7 +169,7 @@ private theorem expect_visitSum (f : V → ℝ) :
       pow_one, add_comm]
     congr 1
     refine sum_congr rfl fun j _ => ?_
-    rw [pow_succ' G.walk (j + 1), Module.End.mul_apply]
+    rw [pow_succ' G.walk (j + 1), mul_apply_eq_comp]
 
 omit [Fintype V] [DecidableEq V] in
 private theorem expect_visitSum_sq_succ (f : V → ℝ) (t : ℕ) (u : V) :

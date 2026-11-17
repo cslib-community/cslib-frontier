@@ -98,7 +98,7 @@ private theorem coordVal_smul_le (hf : f.Monic) (r : ℚ)
     (x : AdjoinRoot (f.map (Int.castRingHom ℚ))) :
     coordVal p hf (r • x) ≤ Rat.padicValuation p r * coordVal p hf x := by
   refine Finset.sup_le fun i hi => ?_
-  rw [LinearMap.map_smul_of_tower, coeff_smul, smul_eq_mul, map_mul]
+  rw [LinearMap.map_smul_of_tower, AddMonoidAlgebra.coeff_smul_apply, smul_eq_mul, map_mul]
   exact mul_le_mul_right (Finset.le_sup (f := fun i => Rat.padicValuation p
     ((modByMonicHom (hf.map (Int.castRingHom ℚ)) x).coeff i)) hi) _
 
