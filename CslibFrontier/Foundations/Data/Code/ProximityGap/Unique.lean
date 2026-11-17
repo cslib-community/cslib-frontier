@@ -119,27 +119,63 @@ private lemma coeff_swap (p : F[X][Y]) (a b : ℕ) :
     | add f g hf hg =>
       rw [map_add (monomial n), map_add, coeff_add, coeff_add, coeff_add, coeff_add, hf, hg]
     | monomial m r =>
-      rw [Bivariate.swap_monomial_monomial, coeff_monomial, coeff_monomial]
+      rw [Bivariate.swap_monomial_monomial, coeff_monomial_apply, coeff_monomial_apply]
       split_ifs with ha hb hb'
-      · simp only [coeff_monomial, ha, hb, ↓reduceIte]
-      · simp only [coeff_monomial, hb, ↓reduceIte, coeff_zero]
-      · simp only [coeff_monomial, ha, ↓reduceIte, coeff_zero]
+      · simp only [coeff_monomial_apply, ha, hb, ↓reduceIte]
+      · simp only [coeff_monomial_apply, hb, ↓reduceIte, coeff_zero]
+      · simp only [coeff_monomial_apply, ha, ↓reduceIte, coeff_zero]
       · simp only [coeff_zero]
 
 private lemma eval_C_eq_map_swap (p : F[X][Y]) (x : F) :
     p.eval (C x) = (Bivariate.swap p).map (evalRingHom x) := by
-  induction p using Polynomial.induction_on' with
-  | add p q hp hq =>
-    simp only [eval_add, map_add, Polynomial.map_add, hp, hq]
-  | monomial n f =>
-    induction f using Polynomial.induction_on' with
-    | add f g hf hg =>
-      rw [map_add (monomial n), eval_add, map_add, Polynomial.map_add, hf, hg]
-    | monomial m r =>
-      rw [Bivariate.swap_monomial_monomial, eval_monomial, Polynomial.map_monomial,
-        coe_evalRingHom, eval_monomial, ← C_pow, ← C_mul_X_pow_eq_monomial,
-        ← C_mul_X_pow_eq_monomial, C_mul, mul_comm (C r), mul_assoc]
-      ring
+  have h := Bivariate.aeval_eq_map_swap (R := F) (A := F) x p
+  have halg : Polynomial.algebra F F = Algebra.id F[X] :=
+    Algebra.algebra_ext _ _ fun _ => Polynomial.map_id
+  rw [halg, coe_aeval_eq_eval, coe_mapAlgHom, coe_aeval_eq_evalRingHom] at h
+  exact h
+
+private lemma card_filter_eval_ne_zero_ge {R : Type*} [CommRing R] [IsDomain R]
+    [Fintype ι] [DecidableEq R] {β : ι → R} (hβ : Function.Injective β)
+    {p : R[X]} (hp : p ≠ 0) :
+    Fintype.card ι - p.natDegree ≤ (Finset.univ.filter fun i => p.eval (β i) ≠ 0).card := by
+  have hcompl : (Finset.univ.filter fun i => p.eval (β i) = 0).card ≤ p.natDegree := by
+    rw [← card_image_of_injective _ hβ]
+    refine card_le_degree_of_subset_roots fun y hy => ?_
+    obtain ⟨i, hi, rfl⟩ := mem_image.1 hy
+    exact (mem_roots hp).2 (mem_filter.1 hi).2
+  have htot := Finset.card_filter_add_card_filter_not (s := (Finset.univ : Finset ι))
+    (fun i => p.eval (β i) = 0)
+  rw [card_univ] at htot
+  change _ + (Finset.univ.filter fun i => p.eval (β i) ≠ 0).card = Fintype.card ι at htot
+  omega
+
+private noncomputable def curveCoordPoly {d : ℕ} (u : Fin (d + 1) → (ι → F)) (i : ι) : F[X] :=
+  ∑ j : Fin (d + 1), C (u j i) * X ^ (j : ℕ)
+
+private lemma eval_curveCoordPoly {d : ℕ} (u : Fin (d + 1) → (ι → F)) (i : ι) (z : F) :
+    (curveCoordPoly u i).eval z = (∑ j : Fin (d + 1), z ^ (j : ℕ) • u j) i := by
+  simp only [curveCoordPoly, eval_finsetSum, eval_mul, eval_C, eval_pow, eval_X,
+    Finset.sum_apply, Pi.smul_apply, smul_eq_mul]
+  exact Finset.sum_congr rfl fun j _ => mul_comm _ _
+
+private lemma natDegree_curveCoordPoly_le {d : ℕ} (u : Fin (d + 1) → (ι → F)) (i : ι) :
+    (curveCoordPoly u i).natDegree ≤ d := by
+  refine (natDegree_sum_le _ _).trans ?_
+  rw [Finset.fold_max_le]
+  refine ⟨Nat.zero_le _, fun j _ => ?_⟩
+  refine (natDegree_C_mul_le _ _).trans ?_
+  rw [natDegree_X_pow]
+  exact Nat.lt_succ_iff.1 j.isLt
+
+private lemma coeff_curveCoordPoly {d : ℕ} (u : Fin (d + 1) → (ι → F)) (i : ι)
+    (j : Fin (d + 1)) : (curveCoordPoly u i).coeff (j : ℕ) = u j i := by
+  simp only [curveCoordPoly, finsetSum_coeff, coeff_C_mul, coeff_X_pow]
+  rw [Finset.sum_eq_single j]
+  · simp only [↓reduceIte, mul_one]
+  · intro b _ hbj
+    have hne : (j : ℕ) ≠ (b : ℕ) := fun h => hbj (Fin.ext h.symm)
+    simp only [hne, ↓reduceIte, mul_zero]
+  · intro hmem; exact absurd (mem_univ j) hmem
 
 private lemma natDegree_coeff_le_natDegree_swap (p : F[X][Y]) (t : ℕ) :
     (p.coeff t).natDegree ≤ (Bivariate.swap p).natDegree := by
@@ -259,28 +295,11 @@ private lemma resultant_ne_zero_of_isRelPrime {f g : F[X][Y]} {M : ℕ}
 
 private lemma C_X_sub_C_dvd_of_map_evalRingHom_eq_zero {H : F[X][Y]} {w : F}
     (hH : H.map (evalRingHom w) = 0) : C (X - C w) ∣ H := by
-  have hdvd : ∀ t, (X - C w) ∣ H.coeff t := fun t => by
-    rw [dvd_iff_isRoot, IsRoot.def]
-    have ht := congrArg (fun p : F[X] => p.coeff t) hH
-    simpa only [coeff_map, coeff_zero, coe_evalRingHom] using ht
-  choose q hq using hdvd
-  refine ⟨∑ t ∈ H.support, monomial t (q t), ?_⟩
-  apply Polynomial.ext
+  rw [C_dvd_iff_dvd_coeff]
   intro t
-  rw [coeff_C_mul, finsetSum_coeff]
-  by_cases ht : t ∈ H.support
-  · rw [Finset.sum_eq_single t]
-    · rw [coeff_monomial_same, hq t]
-    · intro b _ hbt
-      simp only [coeff_monomial, hbt, ↓reduceIte]
-    · intro hnt
-      exact absurd ht hnt
-  · have hct : H.coeff t = 0 := notMem_support_iff.1 ht
-    rw [Finset.sum_eq_zero]
-    · rw [mul_zero, hct]
-    · intro b hb
-      have hbt : b ≠ t := fun h => ht (h ▸ hb)
-      simp only [coeff_monomial, hbt, ↓reduceIte]
+  rw [dvd_iff_isRoot, IsRoot.def]
+  have ht := congrArg (fun p : F[X] => p.coeff t) hH
+  simpa only [coeff_map, coeff_zero, coe_evalRingHom] using ht
 
 private lemma X_sub_C_pow_dvd_resultant_of_map_eq_mul {f g : F[X][Y]} {M : ℕ} {w : F} {p : F[X]}
     (hpM : p.natDegree + g.natDegree ≤ M)
@@ -366,15 +385,8 @@ private lemma card_mul_natDegree_le_of_isRelPrime_resultant {f g : F[X][Y]} {M a
     obtain ⟨p, hpM, hmap⟩ := hW w hw
     exact X_sub_C_pow_dvd_resultant_of_map_eq_mul hpM hmap
   have hpair : (W : Set F).Pairwise fun w₁ w₂ =>
-      IsCoprime ((X - C w₁) ^ g.natDegree) ((X - C w₂) ^ g.natDegree) := by
-    intro w₁ _ w₂ _ hne
-    refine IsCoprime.pow ?_
-    refine ⟨C (w₂ - w₁)⁻¹, -C (w₂ - w₁)⁻¹, ?_⟩
-    have hsub : w₂ - w₁ ≠ 0 := sub_ne_zero.2 hne.symm
-    calc
-      C (w₂ - w₁)⁻¹ * (X - C w₁) + -C (w₂ - w₁)⁻¹ * (X - C w₂)
-        = C ((w₂ - w₁)⁻¹ * (w₂ - w₁)) := by rw [C_mul, C_sub]; ring
-      _ = 1 := by rw [inv_mul_cancel₀ hsub, C_1]
+      IsCoprime ((X - C w₁) ^ g.natDegree) ((X - C w₂) ^ g.natDegree) := fun _ _ _ _ hne =>
+    (isCoprime_X_sub_C_of_isUnit_sub (sub_ne_zero.2 hne).isUnit).pow
   have hprod_dvd : (∏ w ∈ W, (X - C w) ^ g.natDegree) ∣ R :=
     Finset.prod_dvd_of_coprime hpair hdvd_each
   have hprod_deg : (∏ w ∈ W, (X - C w) ^ g.natDegree).natDegree = g.natDegree * W.card := by
@@ -455,42 +467,14 @@ private lemma exists_det_ne_zero_submatrix_of_linearIndependent_cols {κ ι' : T
   choose ρ hρ using hmem
   refine ⟨ρ, ?_⟩
   let B : Matrix κ κ K := A.submatrix ρ id
-  have hrows : LinearIndependent K (fun j : κ => B j) := by
-    have heq : (fun j : κ => B j) = fun j : κ => (e j : κ → K) := by
+  have hrows : LinearIndependent K B.row := by
+    have heq : B.row = fun j : κ => (e j : κ → K) := by
       ext j c
       exact congrFun (hρ j) c
     rw [heq]
     exact hs_li.comp e e.injective
-  have hinj : Function.Injective (B.transpose).mulVecLin := by
-    rw [← LinearMap.ker_eq_bot, Submodule.eq_bot_iff]
-    intro v hv
-    have hsum : ∑ j : κ, v j • B j = 0 := by
-      ext c
-      have hvc := congrFun hv c
-      simp only [Matrix.mulVecLin_apply, Matrix.mulVec, dotProduct, Matrix.transpose_apply,
-        Pi.zero_apply] at hvc
-      simp only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul, Pi.zero_apply]
-      calc
-        ∑ j : κ, v j * B j c = ∑ j : κ, B j c * v j :=
-          Finset.sum_congr rfl fun j _ => mul_comm _ _
-        _ = 0 := hvc
-    exact funext (Fintype.linearIndependent_iff.1 hrows v hsum)
-  have hsurj : Function.Surjective (B.transpose).mulVecLin :=
-    LinearMap.injective_iff_surjective.1 hinj
-  let eB : (κ → K) ≃ₗ[K] (κ → K) := LinearEquiv.ofBijective (B.transpose).mulVecLin ⟨hinj, hsurj⟩
-  let Cmat : Matrix κ κ K := LinearMap.toMatrix' eB.symm.toLinearMap
-  have hBC : B.transpose * Cmat = 1 := by
-    apply Matrix.toLin'.injective
-    apply LinearMap.ext
-    intro v
-    funext c
-    simp only [Matrix.toLin'_mul, Matrix.toLin'_one, LinearMap.comp_apply, LinearMap.id_apply,
-      Cmat, Matrix.toLin'_toMatrix']
-    exact congrFun (eB.apply_symm_apply v) c
-  intro hdet
-  have h1 : (B.transpose * Cmat).det = 1 := by rw [hBC, Matrix.det_one]
-  rw [Matrix.det_mul, Matrix.det_transpose, hdet, zero_mul] at h1
-  exact zero_ne_one h1
+  exact isUnit_iff_ne_zero.1
+    ((Matrix.isUnit_iff_isUnit_det B).1 (Matrix.linearIndependent_row_iff_isUnit.1 hrows))
 
 private lemma exists_cramer_kernel_vec {ι' : Type*} [Finite ι']
     {e k d : ℕ}
@@ -531,57 +515,15 @@ private lemma exists_cramer_kernel_vec {ι' : Type*} [Finite ι']
   have hspan_j₀ : (fun r : ι' => MK r j₀) ∈
       Submodule.span K (Set.range fun c : C => fun r : ι' => MK r c.1) := by
     by_contra hnot
+    have hC_on : LinearIndepOn K (fun j r => MK r j) (C : Set Col) := hC_li
+    have hnot' : (fun r => MK r j₀) ∉
+        Submodule.span K ((fun j r => MK r j) '' (C : Set Col)) := by
+      rwa [Set.image_eq_range]
     have hC'_li : LinearIndependent K fun c : (insert j₀ C : Finset Col) => fun r : ι' =>
         MK r c.1 := by
-      rw [Fintype.linearIndependent_iff]
-      intro g hg
-      have hg' : g ⟨j₀, mem_insert_self j₀ C⟩ • (fun r : ι' => MK r j₀) +
-          ∑ c : C, g ⟨c.1, mem_insert_of_mem c.2⟩ • (fun r : ι' => MK r c.1) = 0 := by
-        rw [← hg]
-        symm
-        let eIns : Option C ≃ (insert j₀ C : Finset Col) :=
-          { toFun := fun o => match o with
-              | none => ⟨j₀, mem_insert_self j₀ C⟩
-              | some c => ⟨c.1, mem_insert_of_mem c.2⟩
-            invFun := fun x =>
-              if h : x.1 = j₀ then none
-              else some ⟨x.1, (mem_insert.1 x.2).resolve_left h⟩
-            left_inv := fun o => by
-              cases o with
-              | none => simp only [↓reduceDIte]
-              | some c =>
-                have hne : c.1 ≠ j₀ := fun h => hj₀ (h ▸ c.2)
-                simp only [hne, ↓reduceDIte]
-            right_inv := fun x => by
-              by_cases h : x.1 = j₀
-              · simp only [h, ↓reduceDIte]; ext; exact h.symm
-              · simp only [h, ↓reduceDIte] }
-        rw [← Equiv.sum_comp eIns, Fintype.sum_option]
-        rfl
-      have hgj₀ : g ⟨j₀, mem_insert_self j₀ C⟩ = 0 := by
-        by_contra hnz
-        apply hnot
-        have heq : (fun r : ι' => MK r j₀) =
-            ∑ c : C, (-(g ⟨j₀, mem_insert_self j₀ C⟩)⁻¹ * g ⟨c.1, mem_insert_of_mem c.2⟩) •
-              (fun r : ι' => MK r c.1) := by
-          have h1 := eq_neg_of_add_eq_zero_left hg'
-          have h2 := congrArg ((g ⟨j₀, mem_insert_self j₀ C⟩)⁻¹ • ·) h1
-          simp only [smul_smul, inv_mul_cancel₀ hnz, one_smul, smul_neg, Finset.smul_sum,
-            ← Finset.sum_neg_distrib] at h2
-          rw [h2]
-          refine Finset.sum_congr rfl fun c _ => ?_
-          rw [← neg_smul, neg_mul]
-        rw [heq]
-        exact Submodule.sum_mem _ fun c _ =>
-          Submodule.smul_mem _ _ (Submodule.subset_span ⟨c, rfl⟩)
-      intro x
-      by_cases hx : x.1 = j₀
-      · rw [show x = ⟨j₀, mem_insert_self j₀ C⟩ from Subtype.ext hx]
-        exact hgj₀
-      · have hxC : x.1 ∈ C := (mem_insert.1 x.2).resolve_left hx
-        rw [hgj₀, zero_smul, zero_add] at hg'
-        exact Fintype.linearIndependent_iff.1 hC_li
-          (fun c : C => g ⟨c.1, mem_insert_of_mem c.2⟩) hg' ⟨x.1, hxC⟩
+      have h := hC_on.insert hnot'
+      rw [← Finset.coe_insert] at h
+      exact h
     have hmem' : insert j₀ C ∈ indepSets := mem_filter.2 ⟨mem_univ _, hC'_li⟩
     have hle := hC_max (insert j₀ C) hmem'
     rw [card_insert_of_notMem hj₀] at hle
@@ -775,36 +717,22 @@ private lemma exists_primitive_bivariate_solution [Fintype ι] [DecidableEq F]
     ∃ A B : F[X][Y], B.IsPrimitive ∧ A.degree < (k + e : ℕ) ∧ B.natDegree ≤ e ∧
       (Bivariate.swap A).natDegree ≤ d * (e + 1) ∧
       (Bivariate.swap B).natDegree ≤ d * e ∧
-      ∀ i : ι, A.eval (C (α i)) =
-        (∑ j : Fin (d + 1), C (u j i) * X ^ (j : ℕ)) * B.eval (C (α i)) := by
+      ∀ i : ι, A.eval (C (α i)) = curveCoordPoly u i * B.eval (C (α i)) := by
   classical
   let n := Fintype.card ι
-  let wPoly : ι → F[X] := fun i => ∑ j : Fin (d + 1), C (u j i) * X ^ (j : ℕ)
-  have hwPoly_eval : ∀ i z, (wPoly i).eval z = (∑ j : Fin (d + 1), z ^ (j : ℕ) • u j) i := by
-    intro i z
-    simp only [wPoly, eval_finsetSum, eval_mul, eval_C, eval_pow, eval_X, Finset.sum_apply,
-      Pi.smul_apply, smul_eq_mul]
-    exact Finset.sum_congr rfl fun j _ => mul_comm _ _
-  have hwPoly_deg : ∀ i, (wPoly i).natDegree ≤ d := by
-    intro i
-    refine (natDegree_sum_le _ _).trans ?_
-    rw [Finset.fold_max_le]
-    refine ⟨Nat.zero_le _, fun j _ => ?_⟩
-    refine (natDegree_C_mul_le _ _).trans ?_
-    rw [natDegree_X_pow]
-    exact Nat.lt_succ_iff.1 j.isLt
   have hde_lt_S : d * (e + 1) < S.card := by
     have h1 : e + 1 < n := by omega
     exact (Nat.mul_lt_mul_of_pos_left h1 (by omega)).trans hS
   let Col := Fin (k + e) ⊕ Fin (e + 1)
   let M : Matrix ι Col F[X] := fun i j => match j with
     | Sum.inl t => C (α i ^ (t : ℕ))
-    | Sum.inr t => -(wPoly i * C (α i ^ (t : ℕ)))
+    | Sum.inr t => -(curveCoordPoly u i * C (α i ^ (t : ℕ)))
   have hM_l : ∀ i j, (M i (Sum.inl j)).natDegree = 0 := fun i j => natDegree_C _
   have hM_r : ∀ i j, (M i (Sum.inr j)).natDegree ≤ d := by
     intro i j
     simp only [M, natDegree_neg]
-    exact natDegree_mul_le.trans (by rw [natDegree_C, add_zero]; exact hwPoly_deg i)
+    exact natDegree_mul_le.trans
+      (by rw [natDegree_C, add_zero]; exact natDegree_curveCoordPoly_le u i)
   have hdep : ¬ LinearIndependent (FractionRing F[X])
       fun j => fun i => algebraMap F[X] (FractionRing F[X]) (M i j) := by
     intro hli
@@ -869,9 +797,9 @@ private lemma exists_primitive_bivariate_solution [Fintype ι] [DecidableEq F]
           rw [eval_eq_sum_range' hdegE, ← Fin.sum_univ_eq_sum_range, Finset.mul_sum,
             ← Finset.sum_neg_distrib]
           refine Finset.sum_congr rfl fun t _ => ?_
-          change eval z (-(wPoly (ρ a) * C (α (ρ a) ^ (t : ℕ)))) * E.coeff (t : ℕ) =
+          change eval z (-(curveCoordPoly u (ρ a) * C (α (ρ a) ^ (t : ℕ)))) * E.coeff (t : ℕ) =
             -((∑ j : Fin (d + 1), z ^ (j : ℕ) • u j) (ρ a) * (E.coeff (t : ℕ) * α (ρ a) ^ (t : ℕ)))
-          rw [eval_neg, eval_mul, eval_C, hwPoly_eval]
+          rw [eval_neg, eval_mul, eval_C, eval_curveCoordPoly]
           ring
         rw [hQsum, hEsum, hsol.eval_eq (ρ a), add_neg_cancel]
       have hdet0 : (N.map (evalRingHom z)).det = 0 := by
@@ -897,7 +825,7 @@ private lemma exists_primitive_bivariate_solution [Fintype ι] [DecidableEq F]
   let Braw : F[X][Y] := ∑ t : Fin (e + 1), monomial (t : ℕ) (x (Sum.inr t))
   have hAraw_coeff : ∀ t, Araw.coeff t = if h : t < k + e then x (Sum.inl ⟨t, h⟩) else 0 := by
     intro t
-    simp only [Araw, finsetSum_coeff, coeff_monomial]
+    simp only [Araw, finsetSum_coeff, coeff_monomial_apply]
     by_cases ht : t < k + e
     · simp only [ht, ↓reduceDIte]
       rw [Finset.sum_eq_single ⟨t, ht⟩]
@@ -912,7 +840,7 @@ private lemma exists_primitive_bivariate_solution [Fintype ι] [DecidableEq F]
       simp only [hne, ↓reduceIte]
   have hBraw_coeff : ∀ t, Braw.coeff t = if h : t < e + 1 then x (Sum.inr ⟨t, h⟩) else 0 := by
     intro t
-    simp only [Braw, finsetSum_coeff, coeff_monomial]
+    simp only [Braw, finsetSum_coeff, coeff_monomial_apply]
     by_cases ht : t < e + 1
     · simp only [ht, ↓reduceDIte]
       rw [Finset.sum_eq_single ⟨t, ht⟩]
@@ -947,21 +875,21 @@ private lemma exists_primitive_bivariate_solution [Fintype ι] [DecidableEq F]
     split_ifs with ht
     · exact hx_deg_r ⟨t, ht⟩
     · simp only [natDegree_zero, Nat.zero_le]
-  have hraw_eval : ∀ i : ι, Araw.eval (C (α i)) = wPoly i * Braw.eval (C (α i)) := by
+  have hraw_eval : ∀ i : ι, Araw.eval (C (α i)) = curveCoordPoly u i * Braw.eval (C (α i)) := by
     intro i
     have hi := congrFun hMx i
     simp only [Matrix.mulVec, dotProduct, Fintype.sum_sum_type, M, Pi.zero_apply] at hi
     have hAeval : Araw.eval (C (α i)) = ∑ t : Fin (k + e), C (α i ^ (t : ℕ)) * x (Sum.inl t) := by
       simp only [Araw, eval_finsetSum, eval_monomial, ← C_pow]
       exact Finset.sum_congr rfl fun t _ => mul_comm _ _
-    have hBeval : wPoly i * Braw.eval (C (α i)) =
-        ∑ t : Fin (e + 1), wPoly i * C (α i ^ (t : ℕ)) * x (Sum.inr t) := by
+    have hBeval : curveCoordPoly u i * Braw.eval (C (α i)) =
+        ∑ t : Fin (e + 1), curveCoordPoly u i * C (α i ^ (t : ℕ)) * x (Sum.inr t) := by
       simp only [Braw, eval_finsetSum, eval_monomial, ← C_pow, Finset.mul_sum]
       refine Finset.sum_congr rfl fun t _ => ?_
       ring
     rw [hAeval, hBeval]
-    have hneg : ∑ t : Fin (e + 1), -(wPoly i * C (α i ^ (t : ℕ))) * x (Sum.inr t) =
-        -(∑ t : Fin (e + 1), wPoly i * C (α i ^ (t : ℕ)) * x (Sum.inr t)) := by
+    have hneg : ∑ t : Fin (e + 1), -(curveCoordPoly u i * C (α i ^ (t : ℕ))) * x (Sum.inr t) =
+        -(∑ t : Fin (e + 1), curveCoordPoly u i * C (α i ^ (t : ℕ)) * x (Sum.inr t)) := by
       rw [← Finset.sum_neg_distrib]
       exact Finset.sum_congr rfl fun t _ => neg_mul _ _
     rw [hneg] at hi
@@ -1034,7 +962,7 @@ private lemma exists_primitive_bivariate_solution [Fintype ι] [DecidableEq F]
       rw [hAeval, sub_self]
   have hB_deg : B.natDegree ≤ e := by
     rwa [← natDegree_primPart Braw] at hBraw_deg
-  have hAB_eval : ∀ i : ι, A.eval (C (α i)) = wPoly i * B.eval (C (α i)) := by
+  have hAB_eval : ∀ i : ι, A.eval (C (α i)) = curveCoordPoly u i * B.eval (C (α i)) := by
     intro i
     have h1 := hraw_eval i
     rw [hAraw_eq, hBraw_eq, eval_mul, eval_mul, eval_C] at h1
@@ -1174,27 +1102,8 @@ private lemma exists_quotient_of_bivariate_solution [Fintype ι]
       have hB₀z_le : (B₀.map (evalRingHom z)).natDegree ≤ bX := natDegree_map_le
       exact (natDegree_mul_le.trans (Nat.add_le_add hB₀z_le hPz_le)).trans_lt (by omega)
   let I : Finset ι := Finset.univ.filter fun i => g.eval (C (α i)) ≠ 0
-  have hI_card : n - cX ≤ I.card := by
-    have hcompl : (Finset.univ.filter fun i => g.eval (C (α i)) = 0).card ≤ cX := by
-      have hsub : (Finset.univ.filter fun i => g.eval (C (α i)) = 0).image
-          (fun i => (C (α i) : F[X])) ⊆ g.roots.toFinset := by
-        intro y hy
-        obtain ⟨i, hi, rfl⟩ := mem_image.1 hy
-        rw [Multiset.mem_toFinset, mem_roots hg_ne, IsRoot.def]
-        exact (mem_filter.1 hi).2
-      have hinjC : Function.Injective (fun i : ι => (C (α i) : F[X])) := C_injective.comp hα
-      calc
-        (Finset.univ.filter fun i => g.eval (C (α i)) = 0).card
-          = ((Finset.univ.filter fun i => g.eval (C (α i)) = 0).image
-              (fun i => (C (α i) : F[X]))).card := (card_image_of_injective _ hinjC).symm
-        _ ≤ g.roots.toFinset.card := card_le_card hsub
-        _ ≤ g.roots.card := Multiset.toFinset_card_le _
-        _ ≤ cX := card_roots' g
-    have htot := Finset.card_filter_add_card_filter_not (s := (Finset.univ : Finset ι))
-      (fun i => g.eval (C (α i)) = 0)
-    rw [card_univ] at htot
-    change _ + I.card = n at htot
-    omega
+  have hI_card : n - cX ≤ I.card :=
+    card_filter_eval_ne_zero_ge (C_injective.comp hα) hg_ne
   have hI_eval : ∀ i ∈ I, A₀.eval (C (α i)) = B₀.eval (C (α i)) * wPoly i := by
     intro i hi
     have hgi : g.eval (C (α i)) ≠ 0 := (mem_filter.1 hi).2
@@ -1310,62 +1219,21 @@ private lemma exists_correlatedAgreement_curve_unique_pos [Fintype ι] [Decidabl
         ∀ i ∈ D', ∀ j, u j i = v j i := by
   classical
   let n := Fintype.card ι
-  let wPoly : ι → F[X] := fun i => ∑ j : Fin (d + 1), C (u j i) * X ^ (j : ℕ)
-  have hwPoly_eval : ∀ i z, (wPoly i).eval z = (∑ j : Fin (d + 1), z ^ (j : ℕ) • u j) i := by
-    intro i z
-    simp only [wPoly, eval_finsetSum, eval_mul, eval_C, eval_pow, eval_X, Finset.sum_apply,
-      Pi.smul_apply, smul_eq_mul]
-    exact Finset.sum_congr rfl fun j _ => mul_comm _ _
-  have hwPoly_deg : ∀ i, (wPoly i).natDegree ≤ d := by
-    intro i
-    refine (natDegree_sum_le _ _).trans ?_
-    rw [Finset.fold_max_le]
-    refine ⟨Nat.zero_le _, fun j _ => ?_⟩
-    refine (natDegree_C_mul_le _ _).trans ?_
-    rw [natDegree_X_pow]
-    exact Nat.lt_succ_iff.1 j.isLt
-  have hwPoly_coeff : ∀ i (j : Fin (d + 1)), (wPoly i).coeff (j : ℕ) = u j i := by
-    intro i j
-    simp only [wPoly, finsetSum_coeff, coeff_C_mul, coeff_X_pow]
-    rw [Finset.sum_eq_single j]
-    · simp only [↓reduceIte, mul_one]
-    · intro b _ hbj
-      have hne : (j : ℕ) ≠ (b : ℕ) := fun h => hbj (Fin.ext h.symm)
-      simp only [hne, ↓reduceIte, mul_zero]
-    · intro hmem; exact absurd (mem_univ j) hmem
   obtain ⟨A, B, hB_prim, hA_deg, hB_deg, hA_degZ, _, hAB_eval⟩ :=
     exists_primitive_bivariate_solution hα he hd he1 hk1 u S hS hclose
   have hB_ne : B ≠ 0 := hB_prim.ne_zero
   let D' : Finset ι := Finset.univ.filter fun i => B.eval (C (α i)) ≠ 0
-  have hD'_card : n - e ≤ D'.card := by
-    have hcompl : (Finset.univ.filter fun i => B.eval (C (α i)) = 0).card ≤ B.natDegree := by
-      have hsub : (Finset.univ.filter fun i => B.eval (C (α i)) = 0).image
-          (fun i => (C (α i) : F[X])) ⊆ B.roots.toFinset := by
-        intro y hy
-        obtain ⟨i, hi, rfl⟩ := mem_image.1 hy
-        rw [Multiset.mem_toFinset, mem_roots hB_ne, IsRoot.def]
-        exact (mem_filter.1 hi).2
-      have hinjC : Function.Injective (fun i : ι => (C (α i) : F[X])) := C_injective.comp hα
-      calc
-        (Finset.univ.filter fun i => B.eval (C (α i)) = 0).card
-          = ((Finset.univ.filter fun i => B.eval (C (α i)) = 0).image
-              (fun i => (C (α i) : F[X]))).card := (card_image_of_injective _ hinjC).symm
-        _ ≤ B.roots.toFinset.card := card_le_card hsub
-        _ ≤ B.roots.card := Multiset.toFinset_card_le _
-        _ ≤ B.natDegree := card_roots' B
-    have htot := Finset.card_filter_add_card_filter_not (s := (Finset.univ : Finset ι))
-      (fun i => B.eval (C (α i)) = 0)
-    rw [card_univ] at htot
-    change _ + D'.card = n at htot
-    omega
+  have hD'_card : n - e ≤ D'.card :=
+    (Nat.sub_le_sub_left hB_deg n).trans
+      (card_filter_eval_ne_zero_ge (C_injective.comp hα) hB_ne)
   by_cases hA0 : A = 0
   · refine ⟨D', hD'_card, fun _ => 0, fun _ => Submodule.zero_mem _, fun i hi j => ?_⟩
     have hBi : B.eval (C (α i)) ≠ 0 := (mem_filter.1 hi).2
-    have hw0 : wPoly i = 0 := by
+    have hw0 : curveCoordPoly u i = 0 := by
       have h1 := hAB_eval i
       rw [hA0, eval_zero] at h1
       exact (mul_eq_zero.1 h1.symm).resolve_right hBi
-    rw [← hwPoly_coeff i j, hw0, coeff_zero]
+    rw [← coeff_curveCoordPoly u i j, hw0, coeff_zero]
     rfl
   have hslice : ∀ z ∈ S, ∃ Pz : F[X], Pz.degree < k ∧
       A.map (evalRingHom z) = Pz * B.map (evalRingHom z) := by
@@ -1401,20 +1269,21 @@ private lemma exists_correlatedAgreement_curve_unique_pos [Fintype ι] [Decidabl
         rw [Polynomial.map_evalRingHom_eval, Polynomial.evalEval]
       have hBz_eval : Bz.eval (α i) = (B.eval (C (α i))).eval z := by
         rw [Polynomial.map_evalRingHom_eval, Polynomial.evalEval]
-      rw [hAz_eval, hBz_eval, hAB_eval i, eval_mul, hwPoly_eval i z, (mem_filter.1 hi).2, sub_self]
+      rw [hAz_eval, hBz_eval, hAB_eval i, eval_mul, eval_curveCoordPoly, (mem_filter.1 hi).2,
+        sub_self]
   obtain ⟨P, hP_deg, hA_eq_PB⟩ :=
-    exists_quotient_of_bivariate_solution hα he hd he1 hk1 wPoly hwPoly_deg S hS hA0 hB_prim
-      hB_deg hA_degZ hAB_eval hslice
+    exists_quotient_of_bivariate_solution hα he hd he1 hk1 (curveCoordPoly u)
+      (natDegree_curveCoordPoly_le u) S hS hA0 hB_prim hB_deg hA_degZ hAB_eval hslice
   let v : Fin (d + 1) → (ι → F) := fun j i => ((Bivariate.swap P).coeff (j : ℕ)).eval (α i)
   refine ⟨D', hD'_card, v, fun j => eval_mem_reedSolomon α (degree_coeff_swap_lt hP_deg j), ?_⟩
   intro i hi j
   have hBi : B.eval (C (α i)) ≠ 0 := (mem_filter.1 hi).2
-  have hPi : P.eval (C (α i)) = wPoly i := by
+  have hPi : P.eval (C (α i)) = curveCoordPoly u i := by
     have h1 := hAB_eval i
     rw [hA_eq_PB, eval_mul] at h1
     exact mul_right_cancel₀ hBi h1
   have hcoeff := congrArg (fun q : F[X] => q.coeff (j : ℕ)) hPi
-  rw [eval_C_eq_map_swap, coeff_map, coe_evalRingHom, hwPoly_coeff i j] at hcoeff
+  rw [eval_C_eq_map_swap, coeff_map, coe_evalRingHom, coeff_curveCoordPoly] at hcoeff
   exact hcoeff.symm
 
 end Helpers
@@ -1498,8 +1367,7 @@ theorem exists_correlatedAgreement_curve_unique {α : ι → F} {e k d : ℕ}
     by_contra hlt
     push Not at hlt
     let bad : Finset ι := Finset.univ.filter fun i => ¬ ∀ j, u j i = 0
-    let wPoly : ι → F[X] := fun i => ∑ j : Fin (d + 1), C (u j i) * X ^ (j : ℕ)
-    have hS_sub : S ⊆ bad.biUnion fun i => (wPoly i).roots.toFinset := by
+    have hS_sub : S ⊆ bad.biUnion fun i => (curveCoordPoly u i).roots.toFinset := by
       intro z hz
       obtain ⟨c, hcRS, hdist⟩ := hclose z hz
       have hc0 : c = 0 := by
@@ -1518,37 +1386,21 @@ theorem exists_correlatedAgreement_curve_unique {α : ι → F} {e k d : ℕ}
       obtain ⟨i, hiZ, hiD'⟩ := Finset.not_subset.1 hnot_sub
       refine mem_biUnion.2 ⟨i, ?_, ?_⟩
       · exact mem_filter.2 ⟨mem_univ i, fun hall => hiD' (mem_filter.2 ⟨mem_univ i, hall⟩)⟩
-      · have hw_ne : wPoly i ≠ 0 := by
+      · have hw_ne : curveCoordPoly u i ≠ 0 := by
           intro h0
           apply hiD'
           refine mem_filter.2 ⟨mem_univ i, fun j => ?_⟩
-          have hc := congrArg (fun p : F[X] => p.coeff (j : ℕ)) h0
-          simp only [wPoly, finsetSum_coeff, coeff_C_mul, coeff_X_pow, coeff_zero] at hc
-          rw [Finset.sum_eq_single j] at hc
-          · simpa only [↓reduceIte, mul_one] using hc
-          · intro b _ hbj
-            have hne : (j : ℕ) ≠ (b : ℕ) := fun h => hbj (Fin.ext h.symm)
-            simp only [hne, ↓reduceIte, mul_zero]
-          · intro hmem; exact absurd (mem_univ j) hmem
-        rw [Multiset.mem_toFinset, mem_roots hw_ne, IsRoot.def]
-        have hev := (mem_filter.1 hiZ).2
-        simp only [wPoly, eval_finsetSum, eval_mul, eval_C, eval_pow, eval_X]
-        simp only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul, Pi.zero_apply] at hev
-        calc
-          ∑ j : Fin (d + 1), u j i * z ^ (j : ℕ) = ∑ j : Fin (d + 1), z ^ (j : ℕ) * u j i :=
-            Finset.sum_congr rfl fun j _ => mul_comm _ _
-          _ = 0 := hev
+          rw [← coeff_curveCoordPoly u i j, h0, coeff_zero]
+        rw [Multiset.mem_toFinset, mem_roots hw_ne, IsRoot.def, eval_curveCoordPoly]
+        exact (mem_filter.1 hiZ).2
     have hcard_le : S.card ≤ d * Fintype.card ι := by
       calc
-        S.card ≤ (bad.biUnion fun i => (wPoly i).roots.toFinset).card := card_le_card hS_sub
-        _ ≤ ∑ i ∈ bad, (wPoly i).roots.toFinset.card := card_biUnion_le
-        _ ≤ ∑ _i ∈ bad, d := Finset.sum_le_sum fun i _ => by
-            refine (Multiset.toFinset_card_le _).trans ((card_roots' _).trans ?_)
-            refine (natDegree_sum_le _ _).trans ?_
-            rw [Finset.fold_max_le]
-            refine ⟨Nat.zero_le _, fun j _ => (natDegree_C_mul_le _ _).trans ?_⟩
-            rw [natDegree_X_pow]
-            exact Nat.lt_succ_iff.1 j.isLt
+        S.card ≤ (bad.biUnion fun i => (curveCoordPoly u i).roots.toFinset).card :=
+          card_le_card hS_sub
+        _ ≤ ∑ i ∈ bad, (curveCoordPoly u i).roots.toFinset.card := card_biUnion_le
+        _ ≤ ∑ _i ∈ bad, d := Finset.sum_le_sum fun i _ =>
+            (Multiset.toFinset_card_le _).trans
+              ((card_roots' _).trans (natDegree_curveCoordPoly_le u i))
         _ = bad.card * d := by simp only [Finset.sum_const, smul_eq_mul]
         _ ≤ Fintype.card ι * d := Nat.mul_le_mul_right d (by
             simpa only [card_univ] using card_le_card (subset_univ bad))
@@ -1571,19 +1423,15 @@ theorem exists_correlatedAgreement_curve_unique {α : ι → F} {e k d : ℕ}
       have hu_eq : u j = ∑ z ∈ T, ((Lagrange.basis T id z).coeff (j : ℕ)) •
           (∑ j' : Fin (d + 1), z ^ (j' : ℕ) • u j') := by
         ext i
-        let pi : F[X] := ∑ j' : Fin (d + 1), C (u j' i) * X ^ (j' : ℕ)
         let qi : F[X] := ∑ z ∈ T, C ((∑ j' : Fin (d + 1), z ^ (j' : ℕ) • u j') i) *
           Lagrange.basis T id z
-        have hpq : pi = qi := by
+        have hpq : curveCoordPoly u i = qi := by
           refine sub_eq_zero.1 (eq_zero_of_degree_lt_of_eval_finset_eq_zero T ?_ ?_)
           · refine (degree_sub_le _ _).trans_lt (max_lt ?_ ?_)
-            · refine (degree_sum_le _ _).trans_lt ?_
-              rw [Finset.sup_lt_iff (WithBot.bot_lt_coe _)]
-              intro j' _
-              refine (degree_mul_le _ _).trans_lt ?_
-              refine (add_le_add degree_C_le (degree_X_pow_le _)).trans_lt ?_
-              rw [zero_add, hT_card, Nat.cast_lt]
-              exact j'.isLt
+            · by_cases hp0 : curveCoordPoly u i = 0
+              · rw [hp0, degree_zero]; exact WithBot.bot_lt_coe _
+              · rw [degree_eq_natDegree hp0, hT_card, Nat.cast_lt]
+                exact Nat.lt_succ_of_le (natDegree_curveCoordPoly_le u i)
             · refine (degree_sum_le _ _).trans_lt ?_
               rw [Finset.sup_lt_iff (WithBot.bot_lt_coe _)]
               intro z hz
@@ -1592,11 +1440,7 @@ theorem exists_correlatedAgreement_curve_unique {α : ι → F} {e k d : ℕ}
               rw [zero_add, Lagrange.degree_basis (Function.injective_id.injOn) hz, hT_card]
               exact Nat.cast_lt.2 (by omega)
           · intro z hz
-            rw [eval_sub]
-            have hpi : pi.eval z = (∑ j' : Fin (d + 1), z ^ (j' : ℕ) • u j') i := by
-              simp only [pi, eval_finsetSum, eval_mul, eval_C, eval_pow, eval_X,
-                Finset.sum_apply, Pi.smul_apply, smul_eq_mul]
-              exact Finset.sum_congr rfl fun j' _ => mul_comm _ _
+            rw [eval_sub, eval_curveCoordPoly]
             have hqi : qi.eval z = (∑ j' : Fin (d + 1), z ^ (j' : ℕ) • u j') i := by
               simp only [qi, eval_finsetSum, eval_mul, eval_C]
               rw [Finset.sum_eq_single z]
@@ -1608,17 +1452,9 @@ theorem exists_correlatedAgreement_curve_unique {α : ι → F} {e k d : ℕ}
                   Lagrange.eval_basis_of_ne (v := id) hne hz
                 rw [hb, mul_zero]
               · intro hnz; exact absurd hz hnz
-            rw [hpi, hqi, sub_self]
+            rw [hqi, sub_self]
         have hcoeff := congrArg (fun p : F[X] => p.coeff (j : ℕ)) hpq
-        have hpi_c : pi.coeff (j : ℕ) = u j i := by
-          simp only [pi, finsetSum_coeff, coeff_C_mul, coeff_X_pow]
-          rw [Finset.sum_eq_single j]
-          · simp only [↓reduceIte, mul_one]
-          · intro b _ hbj
-            have hne : (j : ℕ) ≠ (b : ℕ) := fun h => hbj (Fin.ext h.symm)
-            simp only [hne, ↓reduceIte, mul_zero]
-          · intro hmem; exact absurd (mem_univ j) hmem
-        rw [hpi_c] at hcoeff
+        rw [coeff_curveCoordPoly] at hcoeff
         simp only [qi, finsetSum_coeff, coeff_C_mul] at hcoeff
         simp only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul] at hcoeff ⊢
         rw [hcoeff]
