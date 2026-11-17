@@ -332,7 +332,7 @@ theorem realizes_prependIfIndexedGen :
       (fun _ _ => 0) := by
   have hp := realizes_lmPrependGen
   realize
-  all_goals (
+  (
     rcases d with ⟨⟨dp, d1⟩, d2⟩
     obtain ⟨⟨U, V, w₀, n_max, h_space, hw, hnU, hU, hV, rfl⟩, henv⟩ := h.1
     simpDictParamsWith [prependIfIndexedGenPre_mk, PrependIfIndexedPre, prependIfIndexedGenProg_mk,
@@ -481,7 +481,7 @@ theorem realizes_unlinkIfIndexedGen :
       (fun _ _ => 0) := by
   have hu := realizes_lmUnlinkGen
   realize
-  all_goals (
+  (
     rcases d with ⟨⟨dp, d1⟩, d2⟩
     obtain ⟨⟨U, V, w₀, n_max, h_space, hw, hnU, hU, hV, rfl⟩, henv⟩ := h.1
     simpDictParamsWith [unlinkIfIndexedGenPre_mk, UnlinkIfIndexedPre, unlinkIfIndexedGenProg_mk,

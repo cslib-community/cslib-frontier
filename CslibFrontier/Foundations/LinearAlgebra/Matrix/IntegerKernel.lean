@@ -14,14 +14,16 @@ import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
 /-!
-# Bounded integer kernel vectors for wide integer matrices
+# Bounded integer kernel vectors
 
 An integer matrix `A : Matrix m n ℤ` with fewer rows than columns (`card m < card n`) admits a
 nonzero integer kernel vector whose entries satisfy an explicit Siegel-style determinant bound
-inherited from `Matrix.exists_int_nonneg_mulVec_eq`.
+inherited from `Matrix.exists_int_nonneg_mulVec_eq`. Rationally dependent tall matrices also
+have bounded integer kernel vectors, with a separate parameter bounding the column count.
 
 ## Main results
 
+* `Matrix.exists_int_mulVec_eq_zero_of_not_injective`: bounded integer dependencies for any shape.
 * `Matrix.exists_int_mulVec_eq_zero_of_card_lt`: existence of a bounded nonzero integer solution to
   `A *ᵥ c = 0` whenever `Fintype.card m < Fintype.card n`.
 -/
@@ -47,23 +49,22 @@ private lemma sum_ne_eq_sum_erase {n α : Type*} [Fintype n] [DecidableEq n] [Ad
     (fun _ => rfl)]
   exact Finset.sum_coe_sort (Finset.univ.erase j₀) f
 
-private lemma exists_int_mulVec_eq_zero_of_succ {m n : Type*} [Fintype m] [Fintype n]
-    (A : Matrix m n ℤ) {B : ℕ} (hA : ∀ i j, |A i j| ≤ B)
-    (hcard : Fintype.card n = Fintype.card m + 1) :
-    ∃ c : n → ℤ, c ≠ 0 ∧ A *ᵥ c = 0 ∧ ∀ j, |c j| ≤ kernelVecBound (Fintype.card m) B := by
+/-- A rationally dependent family of integer columns has a bounded nonzero integer kernel
+vector. The parameter `r` bounds the number of columns minus one, independently of the number
+of rows; this also applies to dependent tall matrices. -/
+theorem exists_int_mulVec_eq_zero_of_not_injective {m n : Type*} [Fintype m] [Fintype n]
+    (A : Matrix m n ℤ) {B r : ℕ} (hA : ∀ i j, |A i j| ≤ B)
+    (hcard : Fintype.card n ≤ r + 1)
+    (hnot_inj : ¬ Function.Injective (A.map (Int.cast : ℤ → ℚ)).mulVecLin) :
+    ∃ c : n → ℤ, c ≠ 0 ∧ A *ᵥ c = 0 ∧
+      ∀ j, |c j| ≤ (r.factorial * (Fintype.card m * ((r + 1) * B) ^ 2 + 1) ^ r : ℕ) := by
   classical
-  have hlt : Fintype.card m < Fintype.card n := by omega
-  have hnot_inj : ¬ Function.Injective (A.map (Int.cast : ℤ → ℚ)).mulVecLin := by
-    intro hinj
-    have hrank := LinearMap.finrank_le_finrank_of_injective hinj
-    rw [Module.finrank_fintype_fun_eq_card, Module.finrank_fintype_fun_eq_card] at hrank
-    omega
   rw [← LinearMap.ker_eq_bot, LinearMap.ker_eq_bot'] at hnot_inj
   push Not at hnot_inj
   obtain ⟨v, hv_eq, hv0⟩ := hnot_inj
   have hne_univ : (Finset.univ : Finset n).Nonempty := by
-    rw [Finset.univ_nonempty_iff, ← Fintype.card_pos_iff]
-    omega
+    obtain ⟨j, _⟩ := Function.ne_iff.1 hv0
+    exact ⟨j, Finset.mem_univ j⟩
   obtain ⟨j₀, -, hj₀⟩ := Finset.exists_max_image (Finset.univ : Finset n) (fun j => |v j|) hne_univ
   have hvj₀ : v j₀ ≠ 0 := fun h => hv0 (funext fun j => by
     have := hj₀ j (Finset.mem_univ j)
@@ -105,7 +106,11 @@ private lemma exists_int_mulVec_eq_zero_of_succ {m n : Type*} [Fintype m] [Finty
           rw [hw_j₀, mul_one] at hsplit
           rw [heq_sub]
           linarith [hsplit, hrow]
-  let B' : ℕ := (Fintype.card m + 1) * B
+  let B' : ℕ := (r + 1) * B
+  have hn' : Fintype.card n' ≤ r := by
+    rw [Fintype.card_subtype, Finset.filter_ne', Finset.card_erase_of_mem (Finset.mem_univ _),
+      Finset.card_univ]
+    omega
   have hA'_bd : ∀ i (j : n'), |A' i j| ≤ B' := fun i j =>
     (hA i j.1).trans (by exact_mod_cast Nat.le_mul_of_pos_left B (Nat.succ_pos _))
   have hb'_bd : ∀ i, |b' i| ≤ B' := fun i => by
@@ -114,24 +119,23 @@ private lemma exists_int_mulVec_eq_zero_of_succ {m n : Type*} [Fintype m] [Finty
           ≤ ∑ _j : n', (B : ℤ) :=
             (Finset.abs_sum_le_sum_abs _ _).trans (Finset.sum_le_sum fun j _ => hA i j.1)
         _ = (Fintype.card n' : ℤ) * B := by simp
-    have hn' : Fintype.card n' = Fintype.card m := by
-      rw [Fintype.card_subtype, Finset.filter_ne', Finset.card_erase_of_mem (Finset.mem_univ _),
-        Finset.card_univ]
-      omega
     calc |b' i| = |-A i j₀ + ∑ j : n', A i j.1| := rfl
       _ ≤ |-A i j₀| + |∑ j : n', A i j.1| := abs_add_le _ _
       _ ≤ B + (Fintype.card n' : ℤ) * B := add_le_add (by simpa [abs_neg] using hA i j₀) hsum_bd
-      _ = (B' : ℤ) := by
-        rw [hn']
-        push_cast [B']
-        ring
+      _ ≤ (B' : ℤ) := by
+        dsimp only [B']
+        push_cast
+        have : (Fintype.card n' : ℤ) ≤ r := by exact_mod_cast hn'
+        nlinarith [Int.natCast_nonneg B]
   obtain ⟨d, p', hd_pos, hp'_nonneg, hAp', hd_le, hp'_le⟩ :=
     Matrix.exists_int_nonneg_mulVec_eq hA'_bd hb'_bd hx'_nonneg hAx'
-  have hn' : Fintype.card n' = Fintype.card m := by
-    rw [Fintype.card_subtype, Finset.filter_ne', Finset.card_erase_of_mem (Finset.mem_univ _),
-      Finset.card_univ]
-    omega
-  rw [hn'] at hd_le hp'_le
+  have hbound : (Fintype.card n').factorial *
+      (Fintype.card m * B' ^ 2 + 1) ^ Fintype.card n' ≤
+      r.factorial * (Fintype.card m * B' ^ 2 + 1) ^ r :=
+    Nat.mul_le_mul (Nat.factorial_le hn')
+      (Nat.pow_le_pow_right (by omega) hn')
+  have hd_bound := hd_le.trans (Int.ofNat_le.mpr hbound)
+  have hp_bound := fun j => (hp'_le j).trans (Int.ofNat_le.mpr hbound)
   let c : n → ℤ := fun j => if h : j = j₀ then d else p' ⟨j, h⟩ - d
   refine ⟨c, ?_, ?_, ?_⟩
   · intro hc0
@@ -160,13 +164,22 @@ private lemma exists_int_mulVec_eq_zero_of_succ {m n : Type*} [Fintype m] [Finty
     by_cases hj : j = j₀
     · subst hj
       simp only [c, dite_eq_left rfl, abs_of_pos hd_pos]
-      exact hd_le
+      exact hd_bound
     · simp only [c, dite_eq_right hj]
       have h0 : 0 ≤ p' ⟨j, hj⟩ := hp'_nonneg ⟨j, hj⟩
-      have hp_le := hp'_le ⟨j, hj⟩
+      have hp_le := hp_bound ⟨j, hj⟩
       rw [abs_le]
-      dsimp only [kernelVecBound, B']
       exact ⟨by linarith, by linarith⟩
+
+private lemma exists_int_mulVec_eq_zero_of_succ {m n : Type*} [Fintype m] [Fintype n]
+    (A : Matrix m n ℤ) {B : ℕ} (hA : ∀ i j, |A i j| ≤ B)
+    (hcard : Fintype.card n = Fintype.card m + 1) :
+    ∃ c : n → ℤ, c ≠ 0 ∧ A *ᵥ c = 0 ∧ ∀ j, |c j| ≤ kernelVecBound (Fintype.card m) B := by
+  apply exists_int_mulVec_eq_zero_of_not_injective A hA hcard.le
+  intro hinj
+  have hrank := LinearMap.finrank_le_finrank_of_injective hinj
+  rw [Module.finrank_fintype_fun_eq_card, Module.finrank_fintype_fun_eq_card] at hrank
+  omega
 
 /-- An integer matrix `A : Matrix m n ℤ` with `Fintype.card m < Fintype.card n` and entry bound `B`
 admits a nonzero integer kernel vector bounded in magnitude by `kernelVecBound (card m) B`. -/

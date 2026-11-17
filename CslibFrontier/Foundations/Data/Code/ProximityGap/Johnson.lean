@@ -144,7 +144,7 @@ private theorem coeff_coeff_swapPolyRingEquiv {R : Type*} [CommSemiring R] (p : 
     (((swapPolyRingEquiv R) p).coeff a).coeff b = (p.coeff b).coeff a := by
   induction p using Polynomial.induction_on' with
   | add p q hp hq =>
-    simp [map_add, coeff_add, hp, hq]
+    simp [map_add, hp, hq]
   | monomial n c =>
     change (((swapPolyHom R) (monomial n c)).coeff a).coeff b =
       ((monomial n c).coeff b).coeff a
@@ -714,10 +714,7 @@ private theorem card_filter_evZ₂_eq_zero_le [DecidableEq F] {Q : F[X][X][X]} (
     by_contra hall
     push Not at hall
     apply hQ
-    apply Polynomial.ext
-    intro b
-    apply Polynomial.ext
-    intro a
+    ext b a : 4
     simpa using hall b a
   rcases hex with ⟨b, a, hab⟩
   set c₀ : F[X] := (Q.coeff b).coeff a
@@ -886,7 +883,7 @@ private theorem exists_irreducible_factor_pigeonhole {ι : Type*} [Fintype ι] [
     have hcard_P : t ≤ #(Finset.univ.filter fun i => P.eval (α i) = (curveWord u i).eval z) :=
       ceil_div_le_card_of_sum_le hM hW_le hW_P
     have hQz_interp : IsInterpolant α (fun i => (curveWord u i).eval z) m d D (evZ₂ z Q) := by
-      refine ⟨hQz_ne, Sudan.weightedDegree_le_iff_weightedDegreeLE.1
+      refine ⟨hQz_ne, Polynomial.Bivariate.weightedDegree_le_iff.1
         ((weightedDegree_evZ₂_le z Q).trans hQwd), fun i => ?_⟩
       have hmap := (hQvan i).map (evZ z)
       have hαi : evZ z (C (α i)) = α i := by simp [evZ]
@@ -1034,15 +1031,13 @@ private theorem exists_separable_contraction_and_bezout {d D B_Z : ℕ}
     apply hι_E_inj
     rw [map_zero, ← coeff_map, ← hS_E_exp, coeff_expand_eq_zero_of_not_dvd hμ_pos S_E hb]
   have hexp_S : Polynomial.expand (F[X][X]) μ S = R := by
-    apply Polynomial.ext
-    intro b
+    ext b : 2
     rw [Polynomial.coeff_expand hμ_pos]
     split_ifs with hdiv
     · rw [Polynomial.coeff_contract hμ_ne, Nat.div_mul_cancel hdiv]
     · exact (hR_coeff_zero b hdiv).symm
   have hS_map : S.map ι_E = S_E := by
-    apply Polynomial.ext
-    intro b
+    ext b
     rw [coeff_map, Polynomial.coeff_contract hμ_ne, ← coeff_map, ← hS_E_exp,
       Polynomial.coeff_expand_mul hμ_pos]
   have hdeg_mul : μ * S.natDegree = R.natDegree := by
@@ -1065,7 +1060,7 @@ private theorem exists_separable_contraction_and_bezout {d D B_Z : ℕ}
     have hex : ∃ a, (S.coeff S.natDegree).coeff a ≠ 0 := by
       by_contra hall
       push Not at hall
-      exact hlc (Polynomial.ext hall)
+      exact hlc (by ext a : 2; simpa using hall a)
     rcases hex with ⟨a, ha⟩
     have h1 := hS_wd a S.natDegree ha
     have h2 : μ * d * 1 ≤ μ * d * S.natDegree := Nat.mul_le_mul_left _ hS_deg
@@ -1220,7 +1215,7 @@ private theorem exists_good_shift_and_factor
     have hex_j : ∃ j, (swapPolyRingEquiv F H).coeff j ≠ 0 := by
       by_contra hall
       push Not at hall
-      exact hswap_ne (Polynomial.ext hall)
+      exact hswap_ne (by ext j : 2; simpa using hall j)
     rcases hex_j with ⟨j, hj_ne⟩
     set hj : F[X] := (swapPolyRingEquiv F H).coeff j
     have hdeg_hj : hj.natDegree ≤ 2 * s * D := by
@@ -1555,8 +1550,7 @@ private theorem coeff_shiftedCoeff (S : F[X][X][X]) (x₀ : F) (a b : ℕ) :
 
 private theorem shiftedCoeff_zero (S : F[X][X][X]) (x₀ : F) :
     shiftedCoeff S x₀ 0 = S.map (Polynomial.evalRingHom (C x₀)) := by
-  apply Polynomial.ext
-  intro b
+  ext b : 2
   rw [coeff_shiftedCoeff, taylor_coeff_zero, coeff_map]
   rfl
 
@@ -1593,8 +1587,7 @@ private theorem shiftedCoeff_eq_zero_of_gt {S : F[X][X][X]} {x₀ : F} {w D : �
     (hS_wd : ∀ a b, ((S.coeff b).coeff a) ≠ 0 → a + w * b ≤ D)
     {a : ℕ} (ha : D < a) :
     shiftedCoeff S x₀ a = 0 := by
-  apply Polynomial.ext
-  intro b
+  ext b : 2
   rw [coeff_zero]
   by_contra hne
   have hle := shiftedCoeff_weighted_le hS_wd hne
@@ -1929,8 +1922,7 @@ private theorem coeff_eq_map_recPoly {A : Type*} [CommRing A] [IsDomain A]
       refine Finset.sum_eq_zero fun j _ => ?_
       rw [coeff_C_mul, coeff_X_pow, ite_eq_right (by omega), mul_zero]
   have hW_comp : W.comp (C (g ^ 2) * X) = C (φ X) + C g * U_W := by
-    apply Polynomial.ext
-    intro k
+    ext k
     have hlhs : (W.comp (C (g ^ 2) * X)).coeff k = W.coeff k * (g ^ 2) ^ k := by
       rw [Polynomial.comp, Polynomial.eval₂_eq_sum_range, coeff_finset_sum]
       by_cases hk : k < W.natDegree + 1
@@ -2197,7 +2189,7 @@ private theorem coeff_pow_prime_pow_eq_zero_of_not_dvd {R : Type*} [CommRing R] 
   | monomial k c =>
     rw [monomial_pow, coeff_monomial]
     have hne : k * p ^ e ≠ n := fun h => hndiv ⟨k, by rw [← h, mul_comm]⟩
-    rw [ite_eq_right hne]
+    exact Finsupp.single_eq_of_ne hne.symm
 
 /-- In a domain whose characteristic matches `μ`, `a ^ μ = b ^ μ → a = b`. -/
 private theorem eq_of_pow_eq_of_char_pow {A : Type*} [CommRing A] [IsDomain A] {μ : ℕ}
@@ -2666,8 +2658,7 @@ private theorem exists_lifted_poly_and_mismatch_bound {ι : Type*} [Fintype ι] 
           simp only [iterateFrobenius_def] at hm
           exact hm
         rw [hsum_pow]
-        apply Polynomial.ext
-        intro k
+        ext k
         rw [coeff_finset_sum]
         by_cases hdiv : μ ∣ k
         · rcases hdiv with ⟨m, rfl⟩
