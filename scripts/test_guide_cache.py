@@ -171,6 +171,16 @@ class GuideCacheTests(unittest.TestCase):
         self.assertNotIn("restore-keys:", (ACTION / "action.yml").read_text())
         self.assertLess(docs.index("run: python3 scripts/check_docs.py --trim --guide"), docs.index("- name: Save Guide"))
 
+    def test_backup_switch_is_passed_to_the_composite(self):
+        action = (ACTION / "action.yml").read_text()
+        fallback = step(action, "Recover evicted Guide dependencies from nightly docs")
+        self.assertNotIn("vars.", action)
+        self.assertIn("inputs.disable-artifact != 'true'", fallback)
+        self.assertIn("inputs.disable-artifact != '1'", fallback)
+        guide = (ROOT / ".github/workflows/guide.yml").read_text()
+        self.assertIn("disable-artifact: ${{ vars.DISABLE_GUIDE_ARTIFACT }}",
+                      step(guide, "Restore Guide dependencies"))
+
     def test_cache_never_conditions_guide_validation(self):
         for name in ("guide.yml", "docs.yml"):
             workflow = (ROOT / ".github/workflows" / name).read_text()
