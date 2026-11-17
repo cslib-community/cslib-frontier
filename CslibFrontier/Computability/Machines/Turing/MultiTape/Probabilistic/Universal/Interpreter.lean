@@ -10,9 +10,9 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Universal.FirstOrder
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.QueryBounds
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder
-public import CslibFrontier.Computability.Probabilistic.Oracle.Iteration
 public import CslibFrontier.Computability.Probabilistic.Oracle.Time
 public import CslibFrontier.Languages.Probabilistic.Oracle.Codec
+public import CslibFrontier.Languages.Probabilistic.Iteration
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Bound
 import CslibFrontier.Languages.Probabilistic.QueryCount.Support
 
