@@ -759,6 +759,17 @@ theorem Verifier.outputOn_seqProd_eq_some_iff (V₁ : Verifier OracleSpec.empty 
     cases h₂ : V₂.outputOn x.2 (Transcript.split s₁ s₂ τ).2 <;>
     simp [Prod.ext_iff]
 
+private theorem Verifier.plainLaw_run_seqProd
+    (V₁ : Verifier OracleSpec.empty s₁ S₁ S₁') (V₂ : Verifier OracleSpec.empty s₂ S₂ S₂')
+    {α : Type}
+    (P : ProbOracleComp OracleSpec.empty
+      (ProverStrategy (ProbOracleComp OracleSpec.empty) (s₁ ++ s₂) α)) :
+    plainLaw (P >>= runStrategy (s₁ ++ s₂) (V₁.seqProd V₂).samplers) =
+      (plainLaw ((ProverStrategy.split s₁ s₂ ·) <$> P >>= runStrategy s₁ V₁.samplers)).bind
+        fun (τ₁, st) => (plainLaw (runStrategy s₂ V₂.samplers st)).map
+          fun (τ₂, a) => (Transcript.append s₁ s₂ τ₁ τ₂, a) :=
+  (V₁.liftFirst (S₂ := S₂)).plainLaw_run_append (V₂.liftSecond (S₁' := S₁')) P
+
 /-- Plain-model execution law of `R₁.liftFirst`. -/
 theorem Reduction.plainLaw_run_liftFirst
     (R₁ : Reduction OracleSpec.empty OracleSpec.empty s₁ S₁ W₁ S₁' W₁')
@@ -857,11 +868,7 @@ theorem Verifier.Sound.seqProd
       (max ε₁ ε₂) := by
   rintro ⟨x₁, x₂⟩ hx α P
   rw [Set.mem_prod, not_and_or] at hx
-  rw [World.plain_eval_execute, PMF.toOuterMeasure_map_apply,
-    show (V₁.seqProd V₂).samplers =
-      ((V₁.liftFirst (S₂ := S₂)).append (V₂.liftSecond (S₁' := S₁'))).samplers from rfl,
-    plainLaw_run_verifierAppend]
-  dsimp only [Verifier.liftFirst, Verifier.liftSecond]
+  rw [World.plain_eval_execute, PMF.toOuterMeasure_map_apply, Verifier.plainLaw_run_seqProd]
   rcases hx with hx₁ | hx₂
   · have hl₁ := h₁ x₁ hx₁ _ ((ProverStrategy.split s₁ s₂ ·) <$> P)
     rw [World.plain_eval_execute, PMF.toOuterMeasure_map_apply] at hl₁
@@ -913,11 +920,7 @@ theorem Verifier.KnowledgeSound.seqProd
     (V₁.seqProd V₂).KnowledgeSound (relProd relIn₁ relIn₂) (relProd relOut₁ relOut₂)
       (Verifier.extractSeqProd E₁ E₂) (κ₁ + κ₂) := by
   rintro ⟨x₁, x₂⟩ P
-  rw [World.plain_eval_execute, PMF.toOuterMeasure_map_apply,
-    show (V₁.seqProd V₂).samplers =
-      ((V₁.liftFirst (S₂ := S₂)).append (V₂.liftSecond (S₁' := S₁'))).samplers from rfl,
-    plainLaw_run_verifierAppend]
-  dsimp only [Verifier.liftFirst, Verifier.liftSecond]
+  rw [World.plain_eval_execute, PMF.toOuterMeasure_map_apply, Verifier.plainLaw_run_seqProd]
   let T₁ : Set (Transcript (s₁ ++ s₂) × (W₁' × W₂')) := {r |
     (∃ y₁, V₁.outputOn x₁ (Transcript.split s₁ s₂ r.1).1 = some y₁ ∧ relOut₁ y₁ r.2.1) ∧
       ¬ relIn₁ x₁ (E₁ x₁ (Transcript.split s₁ s₂ r.1).1 r.2.1)}
@@ -985,7 +988,7 @@ theorem Reduction.honestTranscript_seqProd
         (R₂.honestTranscript x.2 w.2).map fun τ₂ =>
           Transcript.append s₁ s₂ τ₁ τ₂ := by
   rw [Reduction.honestTranscript_eq_plainLaw, Reduction.honestTranscript_eq_plainLaw,
-    Reduction.honestTranscript_eq_plainLaw, Reduction.seqProd, plainLaw_run_reductionAppend,
+    Reduction.honestTranscript_eq_plainLaw, Reduction.seqProd, Reduction.plainLaw_run_append,
     Reduction.plainLaw_run_liftFirst, PMF.bind_map, PMF.map_bind, PMF.bind_map]
   congr 1
   funext ⟨τ, y₁, w₁⟩
