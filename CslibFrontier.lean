@@ -5424,6 +5424,7 @@ public import CslibFrontier.DataStructure.BPlusTree.Height
 public import CslibFrontier.DataStructure.BPlusTree.Lookup
 public import CslibFrontier.DataStructure.BPlusTree.MinMax
 public import CslibFrontier.DataStructure.BPlusTree.PredSucc
+public import CslibFrontier.DataStructure.BPlusTree.Range
 public import CslibFrontier.DataStructure.BPlusTree.Rank
 public import CslibFrontier.DataStructure.BTree.Basic
 public import CslibFrontier.DataStructure.BTree.BinarySearch
@@ -6422,6 +6423,7 @@ public import CslibFrontier.Foundations.Data.List.RowMajor
 public import CslibFrontier.Foundations.Data.List.SelectDistinct
 public import CslibFrontier.Foundations.Data.List.Sort
 public import CslibFrontier.Foundations.Data.List.SortedAssoc
+public import CslibFrontier.Foundations.Data.List.SortedAssoc.Flatten
 public import CslibFrontier.Foundations.Data.List.SortedAssoc.Scan
 public import CslibFrontier.Foundations.Data.List.SortedCount
 public import CslibFrontier.Foundations.Data.List.SumIndicator
