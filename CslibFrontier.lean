@@ -1949,6 +1949,7 @@ public import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization
 public import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.CircuitPRG
 public import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.GeneralTime
 public import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.Generator
+public import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.NonExplicitPRG
 public import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.SeedEnumeration
 public import CslibFrontier.Computability.Complexity.Classes.BPP.KarpLipton
 public import CslibFrontier.Computability.Complexity.Classes.BPP.RandomizedReduction
