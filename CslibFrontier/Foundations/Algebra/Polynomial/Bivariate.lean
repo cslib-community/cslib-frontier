@@ -168,8 +168,7 @@ theorem hasseDerivX_add (i : ℕ) (P Q : R[X][Y]) :
 theorem hasseDerivX_monomial (i b : ℕ) (p : R[X]) :
     hasseDerivX i (monomial b p) = monomial b (hasseDeriv i p) := by
   ext b' a
-  simp only [coeff_hasseDerivX, coeff_monomial]
-  split_ifs <;> simp
+  by_cases h : b = b' <;> simp [h]
 
 /-- Evaluating `hasseDerivX i Q` at `Y = C y` commutes with `hasseDeriv i`. -/
 theorem eval_C_hasseDerivX (i : ℕ) (Q : R[X][Y]) (y : R) :
@@ -508,11 +507,11 @@ private theorem exists_max_weightedDegree_monomial {d : ℕ} {Q : R[X][Y]} (hQ :
     obtain ⟨b, hb⟩ : ∃ b, Q.coeff b ≠ 0 := by
       by_contra h
       push Not at h
-      exact hQ (Polynomial.ext fun b => by rw [h b, coeff_zero])
+      exact hQ (by ext b : 2; rw [h b, coeff_zero])
     obtain ⟨a, ha⟩ : ∃ a, (Q.coeff b).coeff a ≠ 0 := by
       by_contra h
       push Not at h
-      exact hb (Polynomial.ext fun a => by rw [h a, coeff_zero])
+      exact hb (by ext a; rw [h a, coeff_zero])
     exact ⟨(a, b), (hmem a b).1 ha⟩
   set M₀ := supp.sup' hne fun p => p.1 + d * p.2
   have hM₀_eq : M₀ = weightedDegree d Q := by
@@ -625,7 +624,7 @@ theorem weightedDegree_X_sub_C {R : Type*} [CommRing R] [Nontrivial R] {d : ℕ}
       simp only [h1, h2, ↓reduceIte, sub_self, coeff_zero] at hab
       exact absurd rfl hab
   · have h1 : (((Y - C P : R[X][Y]).coeff 1).coeff 0) ≠ 0 := by
-      simp [coeff_sub, coeff_X]
+      simp
     simpa using le_weightedDegree (d := d) h1
 
 /-- Powers `(Y - C P) ^ r` have `(1, d)`-weighted degree `r * d` whenever `P.natDegree ≤ d`. -/
