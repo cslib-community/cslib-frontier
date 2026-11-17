@@ -2876,6 +2876,7 @@ public import CslibFrontier.Computability.Complexity.Problems.TSP.Christofides
 public import CslibFrontier.Computability.Complexity.Problems.TSP.HeldKarp
 public import CslibFrontier.Computability.Complexity.Problems.TSP.Symmetric
 public import CslibFrontier.Computability.Complexity.Problems.Tautology
+public import CslibFrontier.Computability.Complexity.Problems.ThreeExactCover
 public import CslibFrontier.Computability.Complexity.Problems.ThreeSAT
 public import CslibFrontier.Computability.Complexity.Problems.ThreeSAT.Collapse
 public import CslibFrontier.Computability.Complexity.Problems.ThreeSAT.Levin
