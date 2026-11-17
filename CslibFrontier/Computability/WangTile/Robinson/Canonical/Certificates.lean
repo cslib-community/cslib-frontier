@@ -86,7 +86,7 @@ structure Node where
 end
 
 /-- Decide universal node predicates through the finite node enumeration. -/
-@[expose] instance (predicate : Node → Prop) [DecidablePred predicate] :
+instance (predicate : Node → Prop) [DecidablePred predicate] :
     Decidable (∀ node : Node, predicate node) :=
   match (inferInstance : Decidable (∀ code : Fin 312, predicate ⟨code⟩)) with
   | .isTrue valid => .isTrue (fun node => valid node.code)
