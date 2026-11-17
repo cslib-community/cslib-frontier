@@ -7,10 +7,10 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Probabilistic.Memoize
 public import CslibFrontier.Computability.Probabilistic.Oracle
 public import CslibFrontier.Computability.Probabilistic.Sampling
 public import CslibFrontier.Crypto.Computational.KeyDerivation.RandomOracle
+public import CslibFrontier.Crypto.Computational.PseudorandomFunction.RandomOracle
 public import CslibFrontier.Foundations.Data.BitString.List
 public import CslibFrontier.Languages.Probabilistic.Oracle.Substitution
 public import CslibFrontier.Languages.Probabilistic.UniformNat.ModIndex
@@ -18,6 +18,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
+import CslibFrontier.Computability.Probabilistic.Memoize
 import CslibFrontier.Computability.Probabilistic.Oracle.RunState
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.QueryBounds
@@ -40,12 +41,13 @@ fourth motivating example, computational unpredictability of a secret source, pp
 Section 8.10.2 (Theorem 8.10, pp. 331–332) over `secLen n`-bit secrets and `outLen n`-bit keys.
 
 Whereas `CslibFrontier.Crypto.Computational.KeyDerivation.RandomOracle` states the eager-table
-(`uniformOfFintype (S → T)`) and information-theoretic (unbounded-guesser) bounds of Theorem 8.10
-for arbitrary finite nonempty `S` and `T`, this module constructs the elementary lazy-simulation
-wrappers `lazyROToListGuess` and `lazyROToGuess` over associative-list caches (`memoize`), proves
-their uniform strict PPT certificates from a word-oracle distinguisher's `IsOraclePPTOn`
-certificate, and derives the asymptotic random-oracle KDF security transfer under the standard
-computational unpredictability assumption `SecretGuessHard`.
+(`uniformOfFintype (S → T)`) concrete bounds and the information-theoretic (unbounded-guesser)
+asymptotic transfer of Theorem 8.10 for arbitrary finite nonempty `S` and `T`, this module
+constructs the elementary lazy-simulation wrappers `lazyROToListGuess` and `lazyROToGuess` over
+associative-list caches (`cachedRandomFunctionOracle`), proves their uniform strict PPT
+certificates from a word-oracle distinguisher's `IsOraclePPTOn` certificate, and derives the
+asymptotic random-oracle KDF security transfer under the standard computational unpredictability
+assumption `SecretGuessHard`.
 
 ## Differences from the printed book
 
@@ -75,9 +77,9 @@ computational unpredictability assumption `SecretGuessHard`.
   given side information ([BonehShoup2023], Attack Game 8.3 and §8.10.1, p. 326).
 * `Cslib.Crypto.KeyDerivation.WordRODistinguisher`, `WordRODistinguisher.IsPPT`,
   `toRODistinguisher`: word-oracle KDF distinguishers and their typed random-oracle adapter.
-* `Cslib.Crypto.KeyDerivation.cachedROStep`, `lazyROToListGuess`, `lazyROToGuess`: the lazy
-  associative-list random-oracle step and the list-guessing and singleton-guessing wrappers of
-  Theorem 8.10.
+* `Cslib.Crypto.KeyDerivation.lazyROToListGuess`, `lazyROToGuess`: the elementary lazy-simulation
+  list-guessing and singleton-guessing wrappers of Theorem 8.10 (built on
+  `Cslib.Crypto.cachedRandomFunctionOracle`).
 
 ## Main results
 
@@ -174,50 +176,26 @@ with `List.ofFn`, and answer queries of any other length with `[]`. -/
 
 /-! ### 3. Lazy list-guessing wrapper and certified reduction -/
 
-/-- One step of lazy random-oracle simulation for input length `inLen` and output length `outLen`:
-memoize uniform `outLen`-bit samples on `inLen`-bit queries, and return `[]` without modifying the
-cache on queries of any other length. -/
-noncomputable def cachedROStep (inLen outLen : ℕ) (query : List Bool) :
-    StateT (List (List Bool × List Bool)) ProbComp (List Bool) := fun cache =>
-  if query.length = inLen then memoize (fun _ => BitString.sampleList outLen) query cache
-  else pure ([], cache)
-
 /-- The elementary lazy-simulation list-guessing wrapper `B` of Theorem 8.10 ([BonehShoup2023],
 §8.10.2, pp. 331–332): draw an independent `outLen n`-bit key `z`, run `D n x z` against
-`cachedROStep (secLen n) (outLen n)` starting from `[]`, and output the cached `secLen n`-bit
-queries. -/
+`cachedRandomFunctionOracle (secLen n) (outLen n)` starting from `[]`, and output the cached
+`secLen n`-bit queries. -/
 @[expose] noncomputable def lazyROToListGuess {X : Type} (secLen outLen : ℕ → ℕ)
     (D : WordRODistinguisher X) : ListGuessFamilyAdversary X secLen :=
   fun n x => do
     let z ← BitString.sampleList (outLen n)
     let (_, cache) ←
-      ((D n x z).runState fun ⟨_, q⟩ => cachedROStep (secLen n) (outLen n) q).run []
+      ((D n x z).runState fun ⟨_, q⟩ =>
+        cachedRandomFunctionOracle (secLen n) (outLen n) q).run []
     return cache.map fun ⟨q, _⟩ => BitString.ofList (secLen n) q
 
-@[fun_prop]
-private theorem isPPTOn_cachedROStep {α : Type} {input : α ↪ List Bool}
-    {inLen outLen : α → ℕ} {query : α → List Bool}
-    {cache : α → List (List Bool × List Bool)}
-    (hin : ComputableInPolyTime inLen input encUnary)
-    (hout : ComputableInPolyTime outLen input encUnary)
-    (hquery : ComputableInPolyTime query input encBits)
-    (hcache : ComputableInPolyTime cache input (encMemoCache encBits encBits)) :
-    IsPPTOn input (encPair encBits (encMemoCache encBits encBits))
-      (fun a => cachedROStep (inLen a) (query := query a) (outLen := outLen a) (cache a)) := by
-  have hin := hin.tidy
-  have hout := hout.tidy
-  have hquery := hquery.tidy
-  have hcache := hcache.tidy
-  unfold cachedROStep
-  fun_prop
-
-private theorem cachedROStep_support {inLen outLen : ℕ} {q : List Bool}
+private theorem cachedRandomFunctionOracle_support {inLen outLen : ℕ} {q : List Bool}
     {cache : List (List Bool × List Bool)} {res : List Bool × List (List Bool × List Bool)}
-    (hres : res ∈ (ProbComp.eval (cachedROStep inLen outLen q cache)).support) :
+    (hres : res ∈ (ProbComp.eval (cachedRandomFunctionOracle inLen outLen q cache)).support) :
     res.2.length ≤ cache.length + 1 ∧
       ((∀ entry ∈ cache, entry.1.length = inLen) → ∀ entry ∈ res.2, entry.1.length = inLen) := by
   by_cases hq : q.length = inLen
-  · simp only [cachedROStep, hq, ↓reduceIte, ProbComp.eval_memoize] at hres
+  · simp only [cachedRandomFunctionOracle, hq, ↓reduceIte, ProbComp.eval_memoize] at hres
     rcases (RandomOracle.mem_support_memoize_iff _ _ _ _).mp hres with
       ⟨_, hnext⟩ | ⟨_, _, hnext⟩
     · rw [hnext]
@@ -227,20 +205,22 @@ private theorem cachedROStep_support {inLen outLen : ℕ} {q : List Bool}
       rcases List.mem_cons.mp hentry with rfl | hmem
       · exact hq
       · exact hcache entry hmem
-  · simp only [cachedROStep, hq, ↓reduceIte, ProbComp.eval_pure, PMF.mem_support_pure_iff] at hres
+  · simp only [cachedRandomFunctionOracle, hq, ↓reduceIte, ProbComp.eval_pure,
+      PMF.mem_support_pure_iff] at hres
     subst hres
     exact ⟨Nat.le_succ _, id⟩
 
-private theorem key_length_of_mem_runState_cachedROStep {α : Type} (inLen outLen : ℕ)
-    (P : WordOracleComp Unit α) {res : α × List (List Bool × List Bool)}
+private theorem key_length_of_mem_runState_cachedRandomFunctionOracle {α : Type}
+    (inLen outLen : ℕ) (P : WordOracleComp Unit α) {res : α × List (List Bool × List Bool)}
     (hres : res ∈ (ProbComp.eval
-      ((P.runState fun ⟨_, q⟩ => cachedROStep inLen outLen q).run [])).support) :
+      ((P.runState fun ⟨_, q⟩ => cachedRandomFunctionOracle inLen outLen q).run [])).support) :
     ∀ entry ∈ res.2, entry.1.length = inLen := by
   rw [ProbOracleComp.eval_runState] at hres
   exact ProbOracleComp.runWith_invariant
-    (fun ⟨_, q⟩ cache => ProbComp.eval (cachedROStep inLen outLen q cache))
+    (fun ⟨_, q⟩ cache => ProbComp.eval (cachedRandomFunctionOracle inLen outLen q cache))
     (fun cache => ∀ entry ∈ cache, entry.1.length = inLen)
-    (fun ⟨_, q⟩ cache hcache a cache' hstep => (cachedROStep_support hstep).2 hcache)
+    (fun ⟨_, q⟩ cache hcache a cache' hstep =>
+      (cachedRandomFunctionOracle_support hstep).2 hcache)
     P [] (by simp) res.1 res.2 hres
 
 /-- **Lazy output-size bound** ([BonehShoup2023], Theorem 8.10, §8.10.2, p. 331): if `D n x z`
@@ -258,8 +238,8 @@ theorem length_le_of_mem_support_lazyROToListGuess {X : Type} {secLen outLen : �
   rw [BitString.eval_sampleList] at hz
   have hzlen := BitString.length_of_mem_support_uniformList hz
   have hbound := ProbOracleComp.measure_runState_le (cost := fun _ => 1) (hQ z hzlen)
-    (fun ⟨_, q⟩ => cachedROStep (secLen n) (outLen n) q) List.length
-    (fun ⟨_, q⟩ s res hres => (cachedROStep_support hres).1) [] (b, cache) hrun
+    (fun ⟨_, q⟩ => cachedRandomFunctionOracle (secLen n) (outLen n) q) List.length
+    (fun ⟨_, q⟩ s res hres => (cachedRandomFunctionOracle_support hres).1) [] (b, cache) hrun
   simpa using hbound
 
 section LazyEquivalence
@@ -267,17 +247,9 @@ section LazyEquivalence
 private theorem lookup_isSome_eq_decide_mem_map_fst {Q V : Type} [DecidableEq Q]
     (c : List (Q × V)) (s : Q) :
     (c.lookup s).isSome = decide (s ∈ c.map Prod.fst) := by
-  cases h : c.lookup s with
-  | none =>
-    have hnot : s ∉ c.map Prod.fst := by
-      intro hmem
-      obtain ⟨p, hp, rfl⟩ := List.mem_map.mp hmem
-      exact absurd (List.lookup_eq_none_iff.mp h p hp) (by simp)
-    simp [hnot]
-  | some v =>
-    obtain ⟨before, after, hlist, _⟩ := List.lookup_eq_some_iff.mp h
-    have hmem : s ∈ c.map Prod.fst := List.mem_map.mpr ⟨(s, v), by simp [hlist], rfl⟩
-    simp [hmem]
+  apply Bool.eq_iff_iff.mpr
+  simp only [List.lookup_isSome_iff, beq_iff_eq, decide_eq_true_eq, List.mem_map]
+  exact ⟨fun ⟨p, hp, h⟩ => ⟨p, hp, h.symm⟩, fun ⟨p, hp, h⟩ => ⟨p, hp, h.symm⟩⟩
 
 private theorem isSome_of_mem_support_answer {Q V : Type} [DecidableEq Q]
     (d : Q → PMF V) (q s : Q) (c : RandomOracle.Cache (fun _ : Q => V))
@@ -413,16 +385,17 @@ private theorem eval_lazyROToListGuess_eq_memoize {X : Type} (secLen outLen : �
   let represent : List (BitString k × BitString m) → List (List Bool × List Bool) :=
     List.map fun (q, v) => (List.ofFn q, List.ofFn v)
   have hmap := ProbOracleComp.runWith_map_state O_typed
-    (fun ⟨_, q⟩ cache => ProbComp.eval (cachedROStep k m q cache)) represent
+    (fun ⟨_, q⟩ cache => ProbComp.eval (cachedRandomFunctionOracle k m q cache)) represent
     (fun ⟨_, q⟩ cache => by
       by_cases hq : q.length = k
-      · simp only [O_typed, cachedROStep, hq, ↓reduceIte, PMF.map_comp, Function.comp_def,
-          ProbComp.eval_memoize, BitString.eval_sampleList]
+      · simp only [O_typed, cachedRandomFunctionOracle, hq, ↓reduceIte, PMF.map_comp,
+          Function.comp_def, ProbComp.eval_memoize, BitString.eval_sampleList]
         have hm := Cslib.memoize_map (encBitString k) List.ofFn d
           (fun _ => BitString.uniformList m) (fun _ => rfl) (BitString.ofList k q) cache
         simpa only [encBitString_apply, BitString.ofFn_ofList hq, PMF.monad_map_eq_map,
           represent] using hm
-      · simp only [O_typed, cachedROStep, hq, ↓reduceIte, PMF.pure_map, ProbComp.eval_pure])
+      · simp only [O_typed, cachedRandomFunctionOracle, hq, ↓reduceIte, PMF.pure_map,
+          ProbComp.eval_pure])
     P []
   simp only [represent, List.map_nil] at hmap
   rw [Function.comp_apply, ← hmap, ← hsim, PMF.bind_map]
@@ -475,7 +448,7 @@ theorem isPPT_lazyROToListGuess {X : Type} {encX : X ↪ List Bool} {secLen outL
   have hrun : IsPPTOn E₁ (encPair encBool (encMemoCache encBits encBits))
       (fun c : (ℕ × X) × List Bool =>
         (((D c.1.1 c.1.2 c.2).runState
-          fun ⟨_, q⟩ => cachedROStep (secLen c.1.1) (outLen c.1.1) q).run [])) := by
+          fun ⟨_, q⟩ => cachedRandomFunctionOracle (secLen c.1.1) (outLen c.1.1) q).run [])) := by
     have hsec' := hsec.tidy
     have hout' := hout.tidy
     apply hD.isPPTOn_runState (operationEncoding := encFinEnum Unit)
@@ -485,7 +458,7 @@ theorem isPPT_lazyROToListGuess {X : Type} {encX : X ↪ List Bool} {secLen outL
       (fun c cache => ∀ entry ∈ cache, entry.2.length ≤ outLen c.1.1) (by simp) (by fun_prop)
     intro c request cache hcache result hresult
     by_cases hquery : request.2.length = secLen c.1.1
-    · simp only [cachedROStep, hquery, ↓reduceIte] at hresult
+    · simp only [cachedRandomFunctionOracle, hquery, ↓reduceIte] at hresult
       rw [ProbComp.eval_memoize] at hresult
       obtain ⟨hreply, hcache', hgrowth⟩ := memoize_call_size_le encBits encBits
         (fun _ => ProbComp.eval (BitString.sampleList (outLen c.1.1))) request.2 cache
@@ -494,7 +467,7 @@ theorem isPPT_lazyROToListGuess {X : Type} {encX : X ↪ List Bool} {secLen outL
           exact (BitString.length_of_mem_support_uniformList hvalue).le) result hresult
       exact ⟨hcache', by simpa only [encBits_apply] using hreply.trans (by lia),
         by simpa only [encBits_apply, Nat.add_assoc] using hgrowth⟩
-    · simp only [cachedROStep, hquery, ↓reduceIte, ProbComp.eval_pure,
+    · simp only [cachedRandomFunctionOracle, hquery, ↓reduceIte, ProbComp.eval_pure,
         PMF.mem_support_pure_iff] at hresult
       subst hresult
       exact ⟨hcache, by simp, by lia⟩
@@ -506,7 +479,7 @@ theorem isPPT_lazyROToListGuess {X : Type} {encX : X ↪ List Bool} {secLen outL
       let z ← BitString.sampleList (outLen p.1)
       (fun r : Bool × List (List Bool × List Bool) => r.2.map Prod.fst) <$>
         (((D p.1 p.2 z).runState
-          fun ⟨_, q⟩ => cachedROStep (secLen p.1) (outLen p.1) q).run [])) :=
+          fun ⟨_, q⟩ => cachedRandomFunctionOracle (secLen p.1) (outLen p.1) q).run [])) :=
     hz.bind_with (hrun.map hpost)
   refine hprog.congr fun p => ?_
   simp only [lazyROToListGuess, ProbComp.eval_map, ProbComp.eval_bind, ProbComp.eval_pure,
@@ -514,7 +487,7 @@ theorem isPPT_lazyROToListGuess {X : Type} {encX : X ↪ List Bool} {secLen outL
   refine congrArg ((ProbComp.eval (BitString.sampleList (outLen p.1))).bind ·) (funext fun z => ?_)
   rw [PMF.map]
   refine PMF.bind_congr_on_support _ _ _ fun rc hrc => ?_
-  have hkeys := key_length_of_mem_runState_cachedROStep (secLen p.1) (outLen p.1)
+  have hkeys := key_length_of_mem_runState_cachedRandomFunctionOracle (secLen p.1) (outLen p.1)
     (D p.1 p.2 z) hrc
   rw [Function.comp_apply]
   congr 1
@@ -584,20 +557,6 @@ theorem isPPT_lazyROToGuess {X : Type} {encX : X ↪ List Bool} {width Q secLen 
   simp only [lazyROToGuess, ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure,
     PMF.map, PMF.bind_bind, PMF.pure_bind, Function.comp_def, ofFn_getD, hrep]
 
-private theorem bind_apply_le_mul_bind_apply_add_on_support {α β : Type*} (p : PMF α)
-    {f g : α → PMF β} {c ε : ℝ≥0∞} {b : β}
-    (h : ∀ a ∈ p.support, f a b ≤ c * g a b + ε) :
-    p.bind f b ≤ c * p.bind g b + ε := by
-  simp only [PMF.bind_apply]
-  calc ∑' a, p a * f a b ≤ ∑' a, (c * (p a * g a b) + p a * ε) := tsum_le_tsum fun a => by
-        by_cases ha : a ∈ p.support
-        · calc p a * f a b ≤ p a * (c * g a b + ε) := mul_le_mul' le_rfl (h a ha)
-            _ = c * (p a * g a b) + p a * ε := by rw [mul_add, mul_left_comm]
-        · rw [PMF.mem_support_iff, not_not] at ha
-          simp [ha]
-    _ = c * ∑' a, p a * g a b + ε := by
-        rw [tsum_add, ENNReal.tsum_mul_left, ENNReal.tsum_mul_right, p.tsum_coe, one_mul]
-
 /-- **Lazy singleton-guessing inequality of Theorem 8.10** ([BonehShoup2023], §8.10.2,
 pp. 331–332): when `D n (info n s) z` makes at most `Q n` oracle queries on every supported secret
 `s` and `outLen n`-bit key `z`, the random-oracle KDF distinguishing advantage is at most
@@ -620,8 +579,8 @@ theorem roAdvantage_toRODistinguisher_le_mul_guessAdvantage_add {X : Type}
           (Q n : ℝ≥0∞) / 2 ^ width n := by
     unfold listGuessOutput guessOutput lazyROToGuess
     simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
-    refine bind_apply_le_mul_bind_apply_add_on_support (sample n) fun s hs => ?_
-    refine bind_apply_le_mul_bind_apply_add_on_support _ fun l hl => ?_
+    refine PMF.bind_apply_le_mul_bind_apply_add_on_support (sample n) fun s hs => ?_
+    refine PMF.bind_apply_le_mul_bind_apply_add_on_support _ fun l hl => ?_
     have hlen : l.length ≤ Q n := length_le_of_mem_support_lazyROToListGuess (hQ s hs) hl
     have hmap : ((ProbComp.eval (ProbComp.sampleModIndex (width n) (Q n))).bind fun i =>
         PMF.pure (decide (l.getD i fallback = s))) =

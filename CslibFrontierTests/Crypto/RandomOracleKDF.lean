@@ -375,20 +375,4 @@ theorem negligible_roAdvantage_word_bitString_take {outLen : ℕ → ℕ}
   secretGuessHard_bitString_take.negligible_roAdvantage
     (.of_tidy (by fun_prop)) hout ⟨1, 1, fun n _ _ => by simp⟩ hD
 
-/--
-info: 'Cslib.Crypto.KeyDerivation.SecretGuessHard.negligible_roAdvantage' depends on axioms: [propext,
- Classical.choice,
- Quot.sound]
--/
-#guard_msgs in
-#print axioms Cslib.Crypto.KeyDerivation.SecretGuessHard.negligible_roAdvantage
-
-/-- info: 'Cslib.Crypto.KeyDerivation.isPPT_lazyROToListGuess' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Cslib.Crypto.KeyDerivation.isPPT_lazyROToListGuess
-
-/-- info: 'Cslib.Crypto.KeyDerivation.isPPT_lazyROToGuess' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms Cslib.Crypto.KeyDerivation.isPPT_lazyROToGuess
-
 end CslibFrontierTests.Crypto.RandomOracleKDF

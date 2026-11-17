@@ -25,14 +25,16 @@ import CslibFrontier.Probability.PMF.UniformPoint
 /-!
 # Guessing advantage and key derivation in the random-oracle model
 
-Formalizes the eager-table (`uniformOfFintype (S → T)`), information-theoretic (unbounded-guesser)
-form of [BonehShoup2023], Section 8.10.1 (Attack Game 8.3 and its first and third motivating
-examples, pp. 325–326, together with the independent uniform-component case matching Attack Game
-11.3 in Section 11.5.2, pp. 448–449) and Section 8.10.2 (the list-guessing game, the
-list-to-singleton reduction, and the advantage and list-length bounds of Theorem 8.10 on
-pp. 331–332), built on top of `Cslib.Crypto.KeyDerivation.realOutput` and `idealOutput`; see
-`CslibFrontier.Crypto.Computational.KeyDerivation.RandomOracle.Computational` for the certified
-lazy-simulation bit-string wrapper and #6039 for general non-bit-string finite oracle domains.
+Formalizes the eager-table (`uniformOfFintype (S → T)`) concrete bounds and the
+information-theoretic (unbounded-guesser) asymptotic transfer of [BonehShoup2023], Section 8.10.1
+(Attack Game 8.3 and its first and third motivating examples, pp. 325–326, together with the
+independent uniform-component case matching Attack Game 11.3 in Section 11.5.2, pp. 448–449) and
+Section 8.10.2 (the list-guessing game, the list-to-singleton reduction, and the advantage and
+list-length bounds of Theorem 8.10 on pp. 331–332), built on top of
+`Cslib.Crypto.KeyDerivation.realOutput` and `idealOutput`; see
+`CslibFrontier.Crypto.Computational.KeyDerivation.RandomOracle.Computational` for the elementary
+lazy-simulation bit-string wrappers `lazyROToListGuess` and `lazyROToGuess`, and #6039 for general
+non-bit-string finite oracle domains.
 
 ## Relation to `CslibFrontier/Probability/Entropy/Guessing.lean`
 
@@ -71,14 +73,16 @@ nonempty (with no finiteness assumption on `X`).
 4. **Information-theoretic asymptotic bound over query budgets; computational companion.**
    The book's Theorem 8.10 states that `B` and `B'` are elementary wrappers around `D`. Here
    `roToListGuess` and `roToGuess` sample the whole oracle table `S → T` eagerly in `ProbComp`,
-   which is not polynomial time when `S` is exponential. Accordingly,
-   `negligible_roAdvantage_of_negligible_guessAdvantage` takes `PolynomiallyBounded Q`,
-   `(D n).IsOracleQueryBounded (Q n)`, and a guessing assumption `∀ A, Negligible …` ranging over
-   all guessers with no efficiency bound, covering information-theoretically unpredictable sources
-   (including Attack Game 11.3 in §11.5.2, pp. 448–449). The certified lazy-simulation wrapper for
-   bit-string secrets and outputs against computational unpredictability (§8.10.1, fourth example,
-   p. 326) is in `CslibFrontier.Crypto.Computational.KeyDerivation.RandomOracle.Computational`;
-   general non-bit-string finite oracle domains remain open (#6039).
+   which is not polynomial time when `S` is exponential, so they are not the elementary wrappers of
+   Theorem 8.10. Accordingly, `negligible_roAdvantage_of_negligible_guessAdvantage` takes
+   `PolynomiallyBounded Q`, `(D n).IsOracleQueryBounded (Q n)`, and a guessing assumption
+   `∀ A, Negligible …` ranging over all guessers with no efficiency bound, covering
+   information-theoretically unpredictable sources (including Attack Game 11.3 in §11.5.2,
+   pp. 448–449). The certified elementary lazy-simulation wrappers `lazyROToListGuess` and
+   `lazyROToGuess` for bit-string secrets and outputs against computational unpredictability
+   (§8.10.1, fourth example, p. 326) are in
+   `CslibFrontier.Crypto.Computational.KeyDerivation.RandomOracle.Computational`; general
+   non-bit-string finite oracle domains remain open (#6039).
 
 ## Main definitions
 
@@ -91,7 +95,8 @@ nonempty (with no finiteness assumption on `X`).
   `roRealOutput`, `roIdealOutput`, `roAdvantage`: key derivation in the random-oracle model and
   `Dist^{ro}adv[D, sample, info]`.
 * `Cslib.Crypto.KeyDerivation.roToListGuess`, `roToGuess`: the eager-table list-guessing and
-  singleton-guessing wrappers of Theorem 8.10.
+  singleton-guessing wrappers for Theorem 8.10 (not the elementary wrappers; see
+  `lazyROToListGuess` and `lazyROToGuess` in `RandomOracle.Computational`).
 
 ## Main results
 
@@ -108,9 +113,9 @@ nonempty (with no finiteness assumption on `X`).
   `roAdvantage_le_listGuessAdvantage`, `roAdvantage_le_mul_guessAdvantage`,
   `negligible_roAdvantage_of_negligible_guessAdvantage`: the output-size, list-guessing,
   singleton-guessing, and information-theoretic asymptotic bounds of Theorem 8.10 for eager-table
-  wrappers (see `CslibFrontier.Crypto.Computational.KeyDerivation.RandomOracle.Computational` for
-  the certified lazy-simulation bit-string wrapper and #6039 for general non-bit-string finite
-  oracle domains).
+  wrappers (see `lazyROToListGuess` and `lazyROToGuess` in
+  `CslibFrontier.Crypto.Computational.KeyDerivation.RandomOracle.Computational` for the elementary
+  lazy-simulation bit-string wrappers and #6039 for general non-bit-string finite oracle domains).
 
 ## References
 
@@ -409,12 +414,14 @@ advantage of `D` between `(info s, O(s))` and `(info s, t)` when `O : S → T` i
     (sample : PMF S) (info : S → X) (D : RODistinguisher X S T) : ℝ≥0 :=
   Game.advantage (roRealOutput sample info D) (roIdealOutput sample info D)
 
-/-- Eager-table (`uniformOfFintype (S → T)`), information-theoretic (unbounded-guesser)
-list-guessing wrapper `B` for Theorem 8.10 ([BonehShoup2023], §8.10.2, pp. 331–332; see
-`CslibFrontier.Crypto.Computational.KeyDerivation.RandomOracle.Computational` for the certified
-lazy-simulation bit-string wrapper and #6039 for general non-bit-string finite oracle domains).
-Given `x = info s`, sample a random oracle `table : S → T` and an independent key `t : T`, run
-`D x t` against `table`, and output the list of points at which `D x t` queried `table`. -/
+/-- Eager-table (`uniformOfFintype (S → T)`) list-guessing wrapper `B` for Theorem 8.10
+([BonehShoup2023], §8.10.2, pp. 331–332): given `x = info s`, sample a random oracle
+`table : S → T` and an independent key `t : T`, run `D x t` against `table`, and output the list of
+points at which `D x t` queried `table`. Because it samples the whole oracle table `S → T` eagerly
+in `ProbComp`, this is not the elementary wrapper of Theorem 8.10; `lazyROToListGuess` (and
+`lazyROToGuess`) in `CslibFrontier.Crypto.Computational.KeyDerivation.RandomOracle.Computational`
+are the elementary lazy-simulation wrappers for bit-string domains (#6039 tracks general
+non-bit-string finite oracle domains). -/
 @[expose] noncomputable def roToListGuess [Fintype S] [DecidableEq S] [Fintype T] [Nonempty T]
     (D : RODistinguisher X S T) (x : X) : ProbComp (List S) := do
   let table ← ProbComp.uniform (S → T)
@@ -422,11 +429,14 @@ Given `x = info s`, sample a random oracle `table : S → T` and an independent 
   let z ← (D x t).runLog fun q => pure (table q)
   return z.2.map Prod.fst
 
-/-- Eager-table (`uniformOfFintype (S → T)`), information-theoretic (unbounded-guesser)
-singleton-guessing wrapper `B'` for Theorem 8.10 ([BonehShoup2023], §8.10.2, p. 331; see
-`CslibFrontier.Crypto.Computational.KeyDerivation.RandomOracle.Computational` for the certified
-lazy-simulation bit-string wrapper and #6039 for general non-bit-string finite oracle domains).
-Run `roToListGuess D x` and select one of its first `Q` queried points uniformly at random. -/
+/-- Eager-table (`uniformOfFintype (S → T)`) singleton-guessing wrapper `B'` for Theorem 8.10
+([BonehShoup2023], §8.10.2, p. 331): run `roToListGuess D x` and select one of its first `Q`
+queried points uniformly at random. Because `roToListGuess D` samples the whole oracle table
+`S → T` eagerly in `ProbComp`, this is not the elementary wrapper of Theorem 8.10; `lazyROToGuess`
+(built on `lazyROToListGuess`) in
+`CslibFrontier.Crypto.Computational.KeyDerivation.RandomOracle.Computational` is the elementary
+lazy-simulation wrapper for bit-string domains (#6039 tracks general non-bit-string finite oracle
+domains). -/
 noncomputable abbrev roToGuess [Fintype S] [DecidableEq S] [Nonempty S] [Fintype T] [Nonempty T]
     (Q : ℕ) (D : RODistinguisher X S T) : GuessAdversary X S :=
   listGuessToGuess Q (roToListGuess D)
@@ -510,12 +520,14 @@ private theorem toOuterMeasure_bad_eq_bind (s : S) (table : S → T)
 
 end Tracking
 
-/-- Eager-table (`uniformOfFintype (S → T)`), information-theoretic (unbounded-guesser) form of
-the list-guessing inequality of Theorem 8.10 ([BonehShoup2023], §8.10.2, pp. 331–332; see
-`CslibFrontier.Crypto.Computational.KeyDerivation.RandomOracle.Computational` for the certified
-lazy-simulation bit-string wrapper and #6039 for general non-bit-string finite oracle domains).
-In the random-oracle model, a KDF distinguisher's advantage is at most the list-guessing advantage
-of `roToListGuess D`. -/
+/-- Eager-table (`uniformOfFintype (S → T)`) form of the list-guessing inequality of Theorem 8.10
+([BonehShoup2023], §8.10.2, pp. 331–332): in the random-oracle model, a KDF distinguisher's
+advantage is at most the list-guessing advantage of `roToListGuess D`. Because `roToListGuess D`
+samples the whole oracle table `S → T` eagerly in `ProbComp`, it is not the elementary wrapper of
+Theorem 8.10; `lazyROToListGuess` (and `lazyROToGuess`) in
+`CslibFrontier.Crypto.Computational.KeyDerivation.RandomOracle.Computational` are the elementary
+lazy-simulation wrappers for bit-string domains (#6039 tracks general non-bit-string finite oracle
+domains). -/
 theorem roAdvantage_le_listGuessAdvantage [Fintype S] [DecidableEq S] [Fintype T] [Nonempty T]
     (sample : PMF S) (info : S → X) (D : RODistinguisher X S T) :
     roAdvantage sample info D ≤ listGuessAdvantage sample info (roToListGuess D) := by
@@ -558,12 +570,15 @@ theorem roAdvantage_le_listGuessAdvantage [Fintype S] [DecidableEq S] [Fintype T
   rw [runWith_logTable_map_fst, runWith_logTable_map_fst] at h1 h2
   exact ⟨h1, h2⟩
 
-/-- Eager-table (`uniformOfFintype (S → T)`), information-theoretic (unbounded-guesser) form of
-the singleton-guessing inequality of Theorem 8.10 ([BonehShoup2023], §8.10.2, p. 331; see
-`CslibFrontier.Crypto.Computational.KeyDerivation.RandomOracle.Computational` for the certified
-lazy-simulation bit-string wrapper and #6039 for general non-bit-string finite oracle domains).
-If `D` makes at most `Q` random-oracle queries on every path, its KDF distinguishing advantage in
-the random-oracle model is at most `Q * guessAdvantage sample info (roToGuess Q D)`. -/
+/-- Eager-table (`uniformOfFintype (S → T)`) form of the singleton-guessing inequality of Theorem
+8.10 ([BonehShoup2023], §8.10.2, p. 331): if `D` makes at most `Q` random-oracle queries on every
+path, its KDF distinguishing advantage in the random-oracle model is at most
+`Q * guessAdvantage sample info (roToGuess Q D)`. Because `roToGuess Q D` samples the whole oracle
+table `S → T` eagerly in `ProbComp`, it is not the elementary wrapper of Theorem 8.10;
+`lazyROToGuess` (built on `lazyROToListGuess`) in
+`CslibFrontier.Crypto.Computational.KeyDerivation.RandomOracle.Computational` is the elementary
+lazy-simulation wrapper for bit-string domains (#6039 tracks general non-bit-string finite oracle
+domains). -/
 theorem roAdvantage_le_mul_guessAdvantage [Fintype S] [DecidableEq S] [Nonempty S]
     [Fintype T] [Nonempty T] (sample : PMF S) (info : S → X)
     {D : RODistinguisher X S T} {Q : ℕ} (hQ : D.IsOracleQueryBounded Q) :
@@ -574,9 +589,10 @@ theorem roAdvantage_le_mul_guessAdvantage [Fintype S] [DecidableEq S] [Nonempty 
 
 /-- Eager-table (`uniformOfFintype (S → T)`), information-theoretic (unbounded-guesser) form of
 the asymptotic random-oracle KDF transfer of Theorem 8.10 ([BonehShoup2023], §8.10.2, p. 331,
-and Attack Game 11.3 in §11.5.2, pp. 448–449; see
-`CslibFrontier.Crypto.Computational.KeyDerivation.RandomOracle.Computational` for the certified
-lazy-simulation bit-string wrapper and #6039 for general non-bit-string finite oracle domains).
+and Attack Game 11.3 in §11.5.2, pp. 448–449; see `lazyROToListGuess`, `lazyROToGuess`, and
+`SecretGuessHard.negligible_roAdvantage` in
+`CslibFrontier.Crypto.Computational.KeyDerivation.RandomOracle.Computational` for the elementary
+lazy-simulation bit-string wrappers and #6039 for general non-bit-string finite oracle domains).
 If a family of random-oracle KDF distinguishers makes polynomially many random-oracle queries and
 every family of unbounded guessing adversaries has negligible guessing advantage against the
 source, then the KDF distinguishing advantage is negligible. -/
