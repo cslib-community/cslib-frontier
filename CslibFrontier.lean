@@ -6996,7 +6996,6 @@ public import CslibFrontier.Foundations.Quantum.DensityMatrix.Linear
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.Normalize
 public import CslibFrontier.Foundations.Quantum.DensityMatrix.Pure
 public import CslibFrontier.Foundations.Quantum.Fourier
-public import CslibFrontier.Foundations.Quantum.GowersHatami
 public import CslibFrontier.Foundations.Quantum.HadamardTransform
 public import CslibFrontier.Foundations.Quantum.Measurement
 public import CslibFrontier.Foundations.Quantum.Measurement.Basis
@@ -7013,6 +7012,7 @@ public import CslibFrontier.Foundations.Quantum.POVM.Mixture
 public import CslibFrontier.Foundations.Quantum.Pauli
 public import CslibFrontier.Foundations.Quantum.PauliTwirl
 public import CslibFrontier.Foundations.Quantum.Register
+public import CslibFrontier.Foundations.Quantum.RegularCompression
 public import CslibFrontier.Foundations.Quantum.TensorPower
 public import CslibFrontier.Foundations.Relation.Acyclic
 public import CslibFrontier.Foundations.Relation.InductiveCounting
