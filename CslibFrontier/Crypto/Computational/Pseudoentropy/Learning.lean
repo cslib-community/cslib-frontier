@@ -12,28 +12,26 @@ public import CslibFrontier.Crypto.Computational.Pseudoentropy.Boosting.Learner
 import CslibFrontier.Languages.Probabilistic.Notation
 
 /-!
-# From sequence distinguishers to a learned predictor
+# From sequence distinguishers to validation bias
 
 Saved coordinate predictors turn a sequence distinguishing gap into the average bias of a
-weighted validation trial. The explicit learner then samples descriptions, chooses an orientation,
-and estimates their validation rates. Its output has positive weighted correlation with high
-probability. All target predictions receive only the public observation.
+weighted validation trial. All target predictions receive only the public observation.
 
-The replay law is an explicit hypothesis. `SequenceLearner` constructs saved descriptions and
-obtains replay from a certified sequence test. Choosing uniform asymptotic parameters remains a
+The replay law is an explicit hypothesis. `SequenceLearner` constructs saved descriptions, obtains
+replay from a certified sequence test, and learns a predictor from this bias
+(`SequenceLearner.learn_goodPredictor_error`). Choosing uniform asymptotic parameters remains a
 separate step in the final cryptographic reduction.
 
 ## Main results
 
 * `maskedSequence_validation_gap`: exact transfer from a sequence gap to weighted validation bias.
-* `maskedSequence_learn_error_pow`: sample a correlated predictor from that gap.
 
 ## References
 
 * Thomas Holenstein, *Pseudorandom Generators from One-Way Functions: A Simple Construction for
   Any Hardness*, TCC 2006, Section 5, Games 3--5 and the following prediction reduction.
   [Holenstein2006].
-  This combines the fresh-mask adaptation with explicit sampling and empirical selection.
+  This uses the fresh-mask adaptation.
 
 Adapted from the cslib `crypto` branch at
 `5ff69ca93402e7c947208dc56396d6d86203ccd8`.
@@ -88,39 +86,5 @@ theorem maskedSequence_validation_gap [Finite α]
   · have hzero : ProbComp.eval source value = 0 := by
       simpa only [PMF.mem_support_iff, not_not] using hsupport
     simp [hzero]
-
-/-- A noticeable sequence gap of either sign gives an explicitly sampled predictor with
-positive weighted correlation. Its failure probability includes discovery and estimation. -/
-theorem maskedSequence_learn_error_pow [Fintype α]
-    (source : ProbComp α) (observe : α → β) (truth : α → Bool)
-    (mask : α → ProbComp Bool) (count : ℕ) (test : List (β × Bool) → ProbComp Bool)
-    (candidates : ProbComp (List Bool)) (predict : List Bool → β → Bool)
-    (hrealize : ∀ value ∈ (ProbComp.eval source).support,
-      ProbComp.eval ((fun code => predict code (observe value)) <$> candidates) =
-        ProbComp.eval
-          (maskedSequencePredictor source observe truth mask count test (observe value)))
-    (confidence inverseGap : ℕ) (hgap : 0 < inverseGap)
-    (hdistinguish : (dyadicSize count : ℝ) / inverseGap ≤
-      |Pr[OracleComp.replicate count ((fun value => (observe value, truth value)) <$>
-        source) >>= test] -
-          Pr[OracleComp.replicate count (maskedSample source observe truth mask) >>=
-            test]|) :
-    ((ProbComp.eval (learn candidates (fun code => weightedTrial source mask
-      (fun value => pure (predict code (observe value) == truth value)))
-        confidence inverseGap)).toOuterMeasure
-      {code | ¬ 1 / (2 * inverseGap) ≤ ∑ value, (ProbComp.eval source value).toReal *
-        (Pr[mask value] * signedVote (signedPredict predict code (observe value))
-          (truth value))}).toReal ≤
-      (((confidence + 1) * (4 * inverseGap) ^ 2 : ℕ) + 1) * (1 / 2 : ℝ) ^ confidence := by
-  apply learn_correlation_error_pow candidates source mask
-    (fun code value => predict code (observe value)) truth confidence inverseGap hgap
-  have hcount : (0 : ℝ) < dyadicSize count := by exact_mod_cast dyadicSize_pos count
-  rw [maskedSequence_validation_gap source observe truth mask count test candidates predict
-      hrealize,
-    abs_mul, abs_of_pos hcount] at hdistinguish
-  have hfactor : (dyadicSize count : ℝ) / inverseGap =
-      dyadicSize count * (1 / inverseGap : ℝ) := by ring
-  rw [hfactor] at hdistinguish
-  nlinarith
 
 end Cslib.Crypto.Pseudoentropy
