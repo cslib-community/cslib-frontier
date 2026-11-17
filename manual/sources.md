@@ -1059,6 +1059,18 @@ verified erratum to the printed figures; historical correction: locator not veri
 Full agreement with those figures is not checked in Lean. The formalized endpoint is matching
 substitution, local recognition, parent towers, recurrence and nonempty plane tilings;
 it does not include Proposition 8's aperiodicity conclusion or domino undecidability.
+The routing worker additionally read §3.3, pp. 26–29, on 2026-11-16: light/dark separation,
+obstruction signals, free-grid transmission and the two directions of seed removal.
+Routing formalizes the generic conditional step, including its finite-grid/addressed-patch
+consumers. Signals constructs the finite decorated scaffold, decodes arbitrary scaffold planes,
+and characterizes roles by clear signal edges. Canonical certificates retain 312 selected
+decorated nodes from that same lean-wang revision's
+[ShadedSubstitutionStateWitnesses](https://github.com/edemaine/lean-wang/blob/64268a3/LeanWang/Robinson/Closed104/ShadedSubstitutionStateWitnesses.lean).
+Nodes are reindexed in source-list order; semantic seam certificates replace repeated
+decoding of the source tables.
+Canonical patches assign nearest-border obstruction signals to matching decorated
+substitutions and establish that the resulting finite scaffold tiles the plane.
+The concrete forcing/realization obligations and Theorem 10 remain outstanding.
 The red-path and shading modules are after §3.3, Figures 17–18, manuscript
 pp. 24, 26–28, read directly on 2026-11-16: light red wires cross dark ones, and squares
 emit signals on their exterior borders. The exact opposite-shade crossing rule (also
