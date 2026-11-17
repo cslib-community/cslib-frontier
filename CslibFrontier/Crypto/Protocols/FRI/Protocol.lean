@@ -10,9 +10,8 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Crypto.Protocols.BCS.ROM
 public import CslibFrontier.Crypto.Protocols.FRI.Folding
+public import CslibFrontier.Foundations.Data.Polynomial.LagrangeEval
 import Mathlib.Algebra.BigOperators.Fin
-import Mathlib.Algebra.Polynomial.BigOperators
-import Mathlib.Algebra.Polynomial.Roots
 import Mathlib.Data.List.FinRange
 import Mathlib.Data.List.GetD
 import Mathlib.Data.List.OfFn
@@ -39,38 +38,50 @@ Reed–Solomon dimension `1 ≤ kFinal ≤ 2 ^ (d - m)`, and `q` independent que
   final round `m` uses `queryIdxs`. Bundling all `q` independent query positions into the single
   final round preserves exponential `(1 - δ) ^ q` query-phase soundness under the uniform
   per-round escape bound of `Cslib.Crypto.Protocols.BCS.bcsROMSoundness_bound`.
-* **Round-0 binding and succinct verification.** The verifier reads the first `kFinal` entries of
-  the final oracle `π_m` to define a degree-`< kFinal` Reed–Solomon codeword by Lagrange
-  interpolation, and for each of the `q` queried starting positions `s : Fin (2 ^ d)` checks:
+* **Round-0 binding and query accounting.** The verifier reads the first `kFinal` entries of the
+  final oracle `π_m` to define a degree-`< kFinal` Reed–Solomon codeword by Lagrange interpolation,
+  and for each of the `q` queried starting positions `s : Fin (2 ^ d)` checks:
   1. explicit round-0 binding `π_0(s) = stmt(s)` against the input word `stmt`,
   2. all `m` 2-to-1 coset folding equations along the squaring path of `s`, and
   3. agreement of `π_m(s % 2 ^ (d - m))` with the interpolated final codeword.
-  The total query count is `kFinal + q * (3 * m + 2)`, independent of `2 ^ d`.
+  The committed-proof-oracle opening count exposed through `PublicCoinIOP.queries` is
+  `params.proofOracleQueries = kFinal + q * (3 * m + 2)` (which governs BCS Merkle verification
+  cost). Separately, `friCheckSingle` reads `stmt s` once per repetition outside
+  `PublicCoinIOP.queries`, contributing `params.inputWordReads = q` direct input-word reads
+  (tracked by `friInputQueries` and certified by `friDecide_congr_inputQueries`). Counting both
+  input-word and prover-table reads as in [BenSassonBentovHoreshRiabzev2018] (pp. 14:3–14:4) gives
+  `params.totalWordQueries = kFinal + q * (3 * m + 3)` total word queries, independent of `2 ^ d`.
 
 ## Main definitions
 
 * `Cslib.Crypto.Protocols.FRI.FRIParams`, `Cslib.Crypto.Protocols.FRI.FRIChal`: parameter bundle
-  and public-coin challenge structure for multi-round 2-to-1 FRI.
-* `Cslib.Crypto.Protocols.FRI.lagrangeBasisEval`, `Cslib.Crypto.Protocols.FRI.evalLagrange`,
-  `Cslib.Crypto.Protocols.FRI.lagrangePoly`: computable Lagrange evaluation and polynomial
-  interpolation for the final low-degree check.
+  (including `proofOracleQueries`, `inputWordReads`, and `totalWordQueries`) and public-coin
+  challenge structure for multi-round 2-to-1 FRI.
+* `Cslib.Crypto.Protocols.FRI.evalLagrange`: computable Lagrange interpolation evaluator bridged
+  to Mathlib's `Lagrange.interpolate` via `Lagrange.eval_basis`.
 * `Cslib.Crypto.Protocols.FRI.padOracle`, `Cslib.Crypto.Protocols.FRI.restrictOracle`,
   `Cslib.Crypto.Protocols.FRI.friHonestWord`: active-domain oracle padding and iterated 2-to-1
   honest prover folding.
+* `Cslib.Crypto.Protocols.FRI.friQueries`, `Cslib.Crypto.Protocols.FRI.friInputQueries`:
+  committed-proof-oracle openings and direct input-word read positions.
 * `Cslib.Crypto.Protocols.FRI.friFinalCodeword`, `Cslib.Crypto.Protocols.FRI.friSingleAccepts`:
   interpolated final-round codeword and single-query verifier acceptance predicate.
 * `Cslib.Crypto.Protocols.FRI.friIOP`: the `(m + 1)`-round `PublicCoinIOP` instantiation of FRI.
 
 ## Main results
 
-* `Cslib.Crypto.Protocols.FRI.evalLagrange_mem_reedSolomon`,
-  `Cslib.Crypto.Protocols.FRI.evalLagrange_eq_of_mem_reedSolomon`: Reed–Solomon membership and
-  exact recovery of the final Lagrange interpolant.
+* `Cslib.Crypto.Protocols.FRI.evalLagrange_eq_eval_interpolate`,
+  `Cslib.Crypto.Protocols.FRI.evalLagrange_mem_reedSolomon`,
+  `Cslib.Crypto.Protocols.FRI.evalLagrange_eq_of_mem_reedSolomon`: bridge to `Lagrange.interpolate`,
+  Reed–Solomon membership, and exact recovery of the final Lagrange interpolant.
 * `Cslib.Crypto.Protocols.FRI.friHonestWord_mem_rsCode`: iterated honest folding preserves
   Reed–Solomon membership across all `m` rounds.
 * `Cslib.Crypto.Protocols.FRI.length_friIOP_queries`,
-  `Cslib.Crypto.Protocols.FRI.iopVerify_friIOP_eq_true_iff`: exact query complexity
-  `kFinal + q * (3 * m + 2)` and exact characterization of `iopVerify` acceptance.
+  `Cslib.Crypto.Protocols.FRI.length_friInputQueries`,
+  `Cslib.Crypto.Protocols.FRI.friDecide_congr_inputQueries`,
+  `Cslib.Crypto.Protocols.FRI.iopVerify_friIOP_eq_true_iff`: exact committed-proof-oracle opening
+  count `kFinal + q * (3 * m + 2)`, exact input-word read count `q` (total
+  `kFinal + q * (3 * m + 3)` word queries), and exact characterization of `iopVerify` acceptance.
 * `Cslib.Crypto.Protocols.FRI.friIOP_complete`,
   `Cslib.Crypto.Protocols.FRI.friBCS_verify_prove_eq_true`,
   `Cslib.Crypto.Protocols.FRI.friBCS_honestROMGame_eq_pure_true`: perfect completeness of FRI as
@@ -159,9 +170,28 @@ noncomputable abbrev initialCode (params : FRIParams F) : Submodule F (OracleTab
 @[expose] def completenessRel (params : FRIParams F) : OracleTable params.d F → Unit → Prop :=
   fun f₀ _ => f₀ ∈ params.initialCode
 
-/-- Total number of oracle queries issued by the FRI verifier: `kFinal + q * (3 * m + 2)`. -/
-abbrev queryCount (params : FRIParams F) : ℕ :=
+/-- Number of committed-proof-oracle openings issued by the FRI verifier via
+`PublicCoinIOP.queries`: `kFinal + q * (3 * m + 2)`. This excludes the `q` direct input-word reads
+of `stmt` performed in `friCheckSingle` (tracked separately by `inputWordReads`) and is the opening
+count that governs BCS Merkle verification cost. -/
+abbrev proofOracleQueries (params : FRIParams F) : ℕ :=
   params.kFinal + params.q * (3 * params.m + 2)
+
+/-- Number of direct input-word reads of `stmt` performed by the FRI verifier (`q`, one per query
+repetition in `friCheckSingle`, outside `PublicCoinIOP.queries`). -/
+abbrev inputWordReads (params : FRIParams F) : ℕ :=
+  params.q
+
+/-- Total number of word queries made by the FRI verifier across the input word `stmt` and the
+committed prover oracles: `inputWordReads + proofOracleQueries = kFinal + q * (3 * m + 3)`
+([BenSassonBentovHoreshRiabzev2018], pp. 14:3–14:4). -/
+abbrev totalWordQueries (params : FRIParams F) : ℕ :=
+  params.inputWordReads + params.proofOracleQueries
+
+theorem totalWordQueries_eq (params : FRIParams F) :
+    params.totalWordQueries = params.kFinal + params.q * (3 * params.m + 3) := by
+  simp only [totalWordQueries, inputWordReads, proofOracleQueries]
+  ring
 
 /-- First `kFinal` evaluation points of the final coset `L_m`. -/
 @[expose] def finalAnchorPoints (params : FRIParams F) : Fin params.kFinal → F :=
@@ -224,121 +254,37 @@ section LagrangeInterpolation
 
 variable {F : Type} [Field F]
 
-/-- Computable evaluation of the `t`-th Lagrange basis polynomial for nodes `pts : Fin k → F` at
-`x : F`. -/
-@[expose] def lagrangeBasisEval {k : ℕ} (pts : Fin k → F) (t : Fin k) (x : F) : F :=
-  ∏ u ∈ Finset.univ.erase t, (x - pts u) / (pts t - pts u)
-
 /-- Computable Lagrange interpolation evaluation at `x : F` from nodes `pts` and values `vals`. -/
 @[expose] def evalLagrange {k : ℕ} (pts vals : Fin k → F) (x : F) : F :=
-  ∑ t : Fin k, vals t * lagrangeBasisEval pts t x
+  ∑ t : Fin k, vals t * ∏ u ∈ Finset.univ.erase t, (x - pts u) / (pts t - pts u)
 
-/-- The `t`-th Lagrange basis polynomial for nodes `pts : Fin k → F`. -/
-@[expose] noncomputable def lagrangeBasisPoly {k : ℕ} (pts : Fin k → F) (t : Fin k) : F[X] :=
-  ∏ u ∈ Finset.univ.erase t, C (pts t - pts u)⁻¹ * (X - C (pts u))
-
-/-- The Lagrange interpolating polynomial of degree `< k` for nodes `pts` and values `vals`. -/
-@[expose] noncomputable def lagrangePoly {k : ℕ} (pts vals : Fin k → F) : F[X] :=
-  ∑ t : Fin k, C (vals t) * lagrangeBasisPoly pts t
-
-theorem eval_lagrangeBasisPoly {k : ℕ} (pts : Fin k → F) (t : Fin k) (x : F) :
-    (lagrangeBasisPoly pts t).eval x = lagrangeBasisEval pts t x := by
-  simp only [lagrangeBasisPoly, lagrangeBasisEval, eval_prod, eval_mul, eval_C, eval_sub, eval_X]
-  refine Finset.prod_congr rfl fun u _ => ?_
-  rw [div_eq_inv_mul]
-
-theorem eval_lagrangePoly {k : ℕ} (pts vals : Fin k → F) (x : F) :
-    (lagrangePoly pts vals).eval x = evalLagrange pts vals x := by
-  simp only [lagrangePoly, evalLagrange, eval_finsetSum, eval_mul, eval_C, eval_lagrangeBasisPoly]
-
-theorem degree_lagrangePoly_lt {k : ℕ} (hk : 1 ≤ k) (pts vals : Fin k → F) :
-    (lagrangePoly pts vals).degree < k := by
-  have hnat : (lagrangePoly pts vals).natDegree ≤ k - 1 := by
-    refine natDegree_sum_le_of_forall_le _ _ fun t _ => ?_
-    refine (natDegree_mul_le).trans ?_
-    rw [natDegree_C, zero_add]
-    calc (lagrangeBasisPoly pts t).natDegree
-        ≤ ∑ u ∈ Finset.univ.erase t, (C (pts t - pts u)⁻¹ * (X - C (pts u))).natDegree := by
-          dsimp only [lagrangeBasisPoly]
-          exact natDegree_prod_le _ _
-      _ ≤ ∑ _u ∈ Finset.univ.erase t, 1 := by
-          refine Finset.sum_le_sum fun u _ => ?_
-          refine (natDegree_mul_le).trans ?_
-          rw [natDegree_C, zero_add]
-          exact natDegree_X_sub_C_le (pts u)
-      _ = (Finset.univ.erase t).card := by simp
-      _ = k - 1 := by rw [Finset.card_erase_of_mem (Finset.mem_univ t), Finset.card_univ,
-          Fintype.card_fin]
-  rw [degree_lt_iff_coeff_zero]
-  intro n hn
-  exact coeff_eq_zero_of_natDegree_lt (by omega)
-
-/-- Evaluating `evalLagrange pts vals` on any evaluation map `α : Fin n → F` always produces a
-Reed–Solomon codeword of dimension `k` (provided `1 ≤ k`). -/
-theorem evalLagrange_mem_reedSolomon {k n : ℕ} (hk : 1 ≤ k) (pts vals : Fin k → F)
-    (α : Fin n → F) :
-    (fun j => evalLagrange pts vals (α j)) ∈ reedSolomon α k := by
-  refine mem_reedSolomon.mpr ⟨lagrangePoly pts vals, degree_lagrangePoly_lt hk pts vals, ?_⟩
-  ext j
-  exact eval_lagrangePoly pts vals (α j)
-
-private theorem lagrangeBasisEval_self {k : ℕ} {pts : Fin k → F}
-    (hpts : Function.Injective pts) (t : Fin k) :
-    lagrangeBasisEval pts t (pts t) = 1 := by
-  unfold lagrangeBasisEval
-  refine Finset.prod_eq_one fun u hu => ?_
-  have hne : u ≠ t := (Finset.mem_erase.mp hu).1
-  have hsub : pts t - pts u ≠ 0 := sub_ne_zero.mpr (fun h => hne (hpts h.symm))
-  exact div_self hsub
-
-private theorem lagrangeBasisEval_of_ne {k : ℕ} {pts : Fin k → F} {t s : Fin k} (hst : s ≠ t) :
-    lagrangeBasisEval pts t (pts s) = 0 := by
-  unfold lagrangeBasisEval
-  refine Finset.prod_eq_zero (Finset.mem_erase.mpr ⟨hst, Finset.mem_univ s⟩) ?_
-  simp only [sub_self, zero_div]
+/-- Bridge between the computable evaluator `evalLagrange` and Mathlib's `Lagrange.interpolate`,
+via `Lagrange.eval_basis`. -/
+theorem evalLagrange_eq_eval_interpolate {k : ℕ} (pts vals : Fin k → F) (x : F) :
+    evalLagrange pts vals x = (Lagrange.interpolate Finset.univ pts vals).eval x := by
+  simp only [evalLagrange, Lagrange.interpolate_apply, eval_finsetSum, eval_mul, eval_C,
+    Lagrange.eval_basis]
 
 theorem evalLagrange_node {k : ℕ} {pts : Fin k → F} (hpts : Function.Injective pts)
     (vals : Fin k → F) (s : Fin k) :
     evalLagrange pts vals (pts s) = vals s := by
-  unfold evalLagrange
-  have hterm : ∀ t : Fin k, vals t * lagrangeBasisEval pts t (pts s) =
-      if t = s then vals s else 0 := by
-    intro t
-    by_cases hts : t = s
-    · subst hts
-      simp only [lagrangeBasisEval_self hpts, mul_one, ↓reduceIte]
-    · simp only [lagrangeBasisEval_of_ne (Ne.symm hts), mul_zero, hts, ↓reduceIte]
-  simp only [hterm, Finset.sum_ite_eq', Finset.mem_univ, ↓reduceIte]
+  rw [evalLagrange_eq_eval_interpolate]
+  exact Lagrange.eval_interpolate_at_node vals (Set.injOn_of_injective hpts) (Finset.mem_univ s)
 
-/-- For injective nodes `pts : Fin k → F` and any polynomial `p` of degree `< k`, Lagrange
-interpolation from `(pts t, p.eval (pts t))` recovers `p` identically. -/
-theorem lagrangePoly_eq_of_degree_lt {k : ℕ} (hk : 1 ≤ k) {pts : Fin k → F}
-    (hpts : Function.Injective pts) {p : F[X]} (hp : p.degree < k) :
-    lagrangePoly pts (fun t => p.eval (pts t)) = p := by
-  classical
-  set q : F[X] := lagrangePoly pts (fun t => p.eval (pts t)) - p
-  have hq_deg : q.degree < k :=
-    lt_of_le_of_lt (degree_sub_le _ _) (max_lt (degree_lagrangePoly_lt hk _ _) hp)
-  by_contra hne
-  have hq_ne : q ≠ 0 := sub_ne_zero.mpr hne
-  have hsub : Finset.univ.image pts ⊆ q.roots.toFinset := by
-    intro x hx
-    rcases Finset.mem_image.mp hx with ⟨s, -, rfl⟩
-    rw [Multiset.mem_toFinset, mem_roots hq_ne, IsRoot.def]
-    simp only [q, eval_sub, eval_lagrangePoly, evalLagrange_node hpts, sub_self]
-  have hcard_img : (Finset.univ.image pts).card = k := by
-    rw [Finset.card_image_of_injective _ hpts, Finset.card_univ, Fintype.card_fin]
-  have hnat_lt : q.natDegree < k := natDegree_lt_iff_degree_lt hq_ne |>.mpr hq_deg
-  have hle : k ≤ q.natDegree := by
-    calc k = (Finset.univ.image pts).card := hcard_img.symm
-      _ ≤ q.roots.toFinset.card := Finset.card_le_card hsub
-      _ ≤ q.roots.card := Multiset.toFinset_card_le _
-      _ ≤ q.natDegree := card_roots' q
-  omega
+/-- Evaluating `evalLagrange pts vals` on any evaluation map `α : Fin n → F` always produces a
+Reed–Solomon codeword of dimension `k` for injective nodes `pts : Fin k → F`. -/
+theorem evalLagrange_mem_reedSolomon {k n : ℕ} {pts : Fin k → F} (hpts : Function.Injective pts)
+    (vals : Fin k → F) (α : Fin n → F) :
+    (fun j => evalLagrange pts vals (α j)) ∈ reedSolomon α k := by
+  refine mem_reedSolomon.mpr ⟨Lagrange.interpolate Finset.univ pts vals, ?_, ?_⟩
+  · simpa only [Finset.card_univ, Fintype.card_fin] using
+      Lagrange.degree_interpolate_lt (s := Finset.univ) vals (Set.injOn_of_injective hpts)
+  · ext j
+    exact (evalLagrange_eq_eval_interpolate pts vals (α j)).symm
 
 /-- Exact recovery for codewords of `reedSolomon α k` interpolated from the first `k` nodes of `α`.
 -/
-theorem evalLagrange_eq_of_mem_reedSolomon {k n : ℕ} (hk : 1 ≤ k) (hkn : k ≤ n)
+theorem evalLagrange_eq_of_mem_reedSolomon {k n : ℕ} (hkn : k ≤ n)
     {α : Fin n → F} (hα : Function.Injective α) {f : Fin n → F} (hf : f ∈ reedSolomon α k)
     (j : Fin n) :
     evalLagrange (fun t : Fin k => α ⟨t.val, lt_of_lt_of_le t.isLt hkn⟩)
@@ -347,7 +293,11 @@ theorem evalLagrange_eq_of_mem_reedSolomon {k n : ℕ} (hk : 1 ≤ k) (hkn : k �
   have hpts_inj : Function.Injective (fun t : Fin k => α ⟨t.val, lt_of_lt_of_le t.isLt hkn⟩) := by
     intro t₁ t₂ h
     exact Fin.ext (Fin.mk.inj (hα h))
-  rw [← eval_lagrangePoly, lagrangePoly_eq_of_degree_lt hk hpts_inj hp]
+  rw [evalLagrange_eq_eval_interpolate]
+  have hdeg : p.degree < (Finset.univ : Finset (Fin k)).card := by
+    simpa only [Finset.card_univ, Fintype.card_fin] using hp
+  have hrec := Lagrange.eq_interpolate (Set.injOn_of_injective hpts_inj) hdeg
+  exact congrArg (fun q : F[X] => q.eval (α j)) hrec.symm
 
 end LagrangeInterpolation
 
@@ -577,8 +527,9 @@ theorem length_friRepQueriesList (params : FRIParams F)
     simp only [friRepQueriesList, List.length_append, length_friSingleQueries, ih, List.length_cons]
     ring
 
-/-- Full query list of the FRI verifier: `kFinal` final-oracle interpolation anchors followed by `q`
-query repetitions. -/
+/-- Full committed-proof-oracle opening list of the FRI verifier: `kFinal` final-oracle
+interpolation anchors followed by `q` query repetitions. This excludes the `q` direct input-word
+reads of `stmt` tracked by `friInputQueries`. -/
 @[expose] def friQueries (params : FRIParams F)
     (chals : Fin (params.m + 1) → FRIChal F params.d params.q) :
     List (Fin (params.m + 1) × Fin (2 ^ params.d)) :=
@@ -586,9 +537,21 @@ query repetitions. -/
 
 theorem length_friQueries (params : FRIParams F)
     (chals : Fin (params.m + 1) → FRIChal F params.d params.q) :
-    (friQueries params chals).length = params.queryCount := by
+    (friQueries params chals).length = params.proofOracleQueries := by
   simp only [friQueries, List.length_append, length_friHeaderQueries, length_friRepQueriesList,
-    List.length_finRange, FRIParams.queryCount]
+    List.length_finRange, FRIParams.proofOracleQueries]
+
+/-- List of input-word positions of `stmt` read directly by the FRI verifier (one per query
+repetition in `friCheckSingle`, outside `PublicCoinIOP.queries`). -/
+@[expose] def friInputQueries (params : FRIParams F)
+    (chals : Fin (params.m + 1) → FRIChal F params.d params.q) :
+    List (Fin (2 ^ params.d)) :=
+  (List.finRange params.q).map (chals (Fin.last params.m)).queryIdxs
+
+theorem length_friInputQueries (params : FRIParams F)
+    (chals : Fin (params.m + 1) → FRIChal F params.d params.q) :
+    (friInputQueries params chals).length = params.inputWordReads := by
+  simp only [friInputQueries, List.length_map, List.length_finRange, FRIParams.inputWordReads]
 
 /-- Final-round Reed–Solomon codeword interpolated from the first `kFinal` entries of `πFinal`. -/
 @[expose] def friFinalCodeword (params : FRIParams F) (πFinal : OracleTable params.d F) :
@@ -606,7 +569,7 @@ theorem friFinalCodeword_mem_rsCode (params : FRIParams F) (πFinal : OracleTabl
     friFinalCodeword params πFinal ∈ params.rsCode params.m := by
   have hdim : params.dim params.m = params.kFinal := by simp [FRIParams.dim]
   rw [FRIParams.rsCode, hdim]
-  exact evalLagrange_mem_reedSolomon params.hkPos _ _ _
+  exact evalLagrange_mem_reedSolomon params.finalAnchorPoints_injective _ _
 
 /-- Check the folding chain and final Lagrange equation against the answer list for a single
 repetition starting at `s`. -/
@@ -647,20 +610,64 @@ final-codeword checks. -/
       friCheckRepsList params stmt headerVals chals as (ans.drop blockLen)
   | _, _ => false
 
-/-- FRI verifier decision procedure operating purely on `stmt`, `chals`, and the flat list of
-queried oracle answers. -/
+/-- FRI verifier decision procedure operating purely on `stmt` (read only at the `q` positions in
+`friInputQueries params chals`), `chals`, and the flat list of `params.proofOracleQueries` queried
+prover-oracle answers. -/
 @[expose] def friDecide [DecidableEq F] (params : FRIParams F) (stmt : OracleTable params.d F)
     (chals : Fin (params.m + 1) → FRIChal F params.d params.q) (answers : List F) : Bool :=
-  decide (answers.length = params.queryCount) &&
+  decide (answers.length = params.proofOracleQueries) &&
     let headerVals : Fin params.kFinal → F := fun t => (answers.take params.kFinal).getD t.val 0
     friCheckRepsList params stmt headerVals chals (List.finRange params.q)
       (answers.drop params.kFinal)
 
+private theorem friCheckSingle_congr_stmt [DecidableEq F] (params : FRIParams F)
+    {stmt₁ stmt₂ : OracleTable params.d F} (headerVals : Fin params.kFinal → F)
+    (chals : Fin (params.m + 1) → FRIChal F params.d params.q)
+    (s : Fin (2 ^ params.d)) (hs : stmt₁ s = stmt₂ s) (ans : List F) :
+    friCheckSingle params stmt₁ headerVals chals s ans =
+      friCheckSingle params stmt₂ headerVals chals s ans := by
+  cases ans with
+  | nil => rfl
+  | cons y0 rest => simp only [friCheckSingle, hs]
+
+private theorem friCheckRepsList_congr_stmt [DecidableEq F] (params : FRIParams F)
+    {stmt₁ stmt₂ : OracleTable params.d F} (headerVals : Fin params.kFinal → F)
+    (chals : Fin (params.m + 1) → FRIChal F params.d params.q)
+    (reps : List (Fin params.q))
+    (hagree : ∀ a ∈ reps,
+      stmt₁ ((chals (Fin.last params.m)).queryIdxs a) =
+        stmt₂ ((chals (Fin.last params.m)).queryIdxs a))
+    (ans : List F) :
+    friCheckRepsList params stmt₁ headerVals chals reps ans =
+      friCheckRepsList params stmt₂ headerVals chals reps ans := by
+  induction reps generalizing ans with
+  | nil => cases ans <;> rfl
+  | cons a as ih =>
+    simp only [friCheckRepsList]
+    rw [friCheckSingle_congr_stmt params headerVals chals _ (hagree a List.mem_cons_self),
+      ih (fun b hb => hagree b (List.mem_cons_of_mem a hb))]
+
+/-- `friDecide` depends on the input word `stmt` only at the `params.inputWordReads = q` positions
+in `friInputQueries params chals`. -/
+theorem friDecide_congr_inputQueries [DecidableEq F] (params : FRIParams F)
+    {stmt₁ stmt₂ : OracleTable params.d F}
+    (chals : Fin (params.m + 1) → FRIChal F params.d params.q)
+    (hagree : ∀ s ∈ friInputQueries params chals, stmt₁ s = stmt₂ s)
+    (answers : List F) :
+    friDecide params stmt₁ chals answers = friDecide params stmt₂ chals answers := by
+  simp only [friDecide]
+  congr 1
+  exact friCheckRepsList_congr_stmt params _ chals (List.finRange params.q)
+    (fun a ha => hagree _ (List.mem_map.mpr ⟨a, ha, rfl⟩)) _
+
 /-- **Multi-round 2-to-1 FRI as a `PublicCoinIOP`**:
 * `m + 1` rounds over depth-`d` oracle tables `OracleTable d F`.
 * Honest prover sends `padOracle (friHonestWord ...)` using the previous rounds' `foldScalar`s.
-* Verifier queries `kFinal + q * (3 * m + 2)` entries and checks round-0 binding to `stmt`,
-  all `m` folding checks, and the final degree-`< kFinal` Lagrange check. -/
+* Verifier opens `params.proofOracleQueries = kFinal + q * (3 * m + 2)` entries in the committed
+  prover oracles (via `queries`), reads `params.inputWordReads = q` entries of the input word `stmt`
+  (tracked by `friInputQueries`, for `params.totalWordQueries = kFinal + q * (3 * m + 3)` total
+  word queries), and checks round-0 binding to `stmt`, all `m` folding checks, and the final
+  degree-`< kFinal` Lagrange check. -/
 @[expose] def friIOP [DecidableEq F] (params : FRIParams F) :
     PublicCoinIOP (params.m + 1) params.d (OracleTable params.d F) Unit F
       (FRIChal F params.d params.q) where
@@ -670,12 +677,13 @@ queried oracle answers. -/
   queries _ chals := friQueries params chals
   decide stmt chals answers := friDecide params stmt chals answers
 
-/-- Exact query length of `friIOP`: `kFinal + q * (3 * m + 2)` for every statement and challenge
-vector. -/
+/-- Exact committed-proof-oracle opening count of `friIOP`:
+`params.proofOracleQueries = kFinal + q * (3 * m + 2)` for every statement and challenge vector
+(excluding the `params.inputWordReads = q` direct reads of `stmt` in `friCheckSingle`). -/
 theorem length_friIOP_queries [DecidableEq F] (params : FRIParams F)
     (stmt : OracleTable params.d F)
     (chals : Fin (params.m + 1) → FRIChal F params.d params.q) :
-    ((friIOP params).queries stmt chals).length = params.queryCount :=
+    ((friIOP params).queries stmt chals).length = params.proofOracleQueries :=
   length_friQueries params chals
 
 /-- Clean mathematical acceptance predicate for a single query starting index `s : Fin (2 ^ d)`:
@@ -783,7 +791,8 @@ theorem iopVerify_friIOP_eq_true_iff [DecidableEq F] (params : FRIParams F)
     rw [List.getD_eq_getElem _ _ hlt]
     simp [friHeaderQueries]
   have hlen_all :
-      ((friQueries params chals).map fun p => oracles p.1 p.2).length = params.queryCount := by
+      ((friQueries params chals).map fun p => oracles p.1 p.2).length =
+        params.proofOracleQueries := by
     simp [length_friQueries]
   simp only [iopVerify, iopAnswers, friIOP, friDecide, hlen_all, decide_true, Bool.true_and]
   simp only [friQueries, List.map_append, List.take_left' hhdr_len, List.drop_left' hhdr_len,
@@ -850,7 +859,7 @@ theorem friIOP_complete [DecidableEq F] (params : FRIParams F) :
       funext t
       exact padOracle_apply_of_lt _ _ (lt_of_lt_of_le t.isLt params.hkLe)
     rw [hhdr]
-    exact (evalLagrange_eq_of_mem_reedSolomon params.hkPos params.hkLe
+    exact (evalLagrange_eq_of_mem_reedSolomon params.hkLe
       (cosetEval_injective params.hg params.hω params.hm) hmem (friFinalFin params s)).symm
 
 /-- **Perfect deterministic BCS completeness for FRI**: for any hash function `H k`, any
@@ -875,14 +884,15 @@ theorem friBCS_honestROMGame_eq_pure_true [DecidableEq F] [Fintype F] (params : 
 
 /-- **Succinct verifier Merkle query cost bound for BCS-compiled FRI**: for any proof `prf` whose
 opening paths have length at most `L_path`, `bcsVerifyROM` makes at most
-`params.queryCount * (L_path + 1) = (kFinal + q * (3 * m + 2)) * (L_path + 1)` Merkle hash queries.
--/
+`params.proofOracleQueries * (L_path + 1) = (kFinal + q * (3 * m + 2)) * (L_path + 1)` Merkle hash
+queries (reflecting the committed-proof-oracle openings; the `q` direct input-word reads of `stmt`
+are not Merkle-authenticated). -/
 theorem isCostBounded_bcsMTCost_friVerifyROM [DecidableEq F] (params : FRIParams F)
     (encSym : F → List Bool) (stmt : OracleTable params.d F)
     (prf : BCSProof (params.m + 1) F) {L_path : ℕ}
     (hops : ∀ op ∈ prf.openings, op.path.length ≤ L_path) :
     IsCostBounded bcsMTCost (bcsVerifyROM (friIOP params) encSym stmt prf)
-      (params.queryCount * (L_path + 1)) :=
+      (params.proofOracleQueries * (L_path + 1)) :=
   isCostBounded_bcsMTCost_bcsVerifyROM_of_queries_le (friIOP params) encSym stmt prf
     (fun chals => (length_friIOP_queries params stmt chals).le) hops
 

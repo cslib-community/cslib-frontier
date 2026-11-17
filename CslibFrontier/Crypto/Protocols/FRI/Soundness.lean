@@ -8,19 +8,21 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.Words
 public import CslibFrontier.Crypto.Protocols.FRI.Protocol
 public import CslibFrontier.Probability.PMF.Uniform
 public import CslibFrontier.Probability.PMF.UniformBound
 public import Mathlib.Data.ZMod.Basic
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.WordsRoundTrip
 
 /-!
 # FRI Round-by-Round Soundness and BCS Random-Oracle Composition
 
-This module proves round-by-round soundness (`Cslib.Crypto.Protocols.BCS.IOPRoundByRoundSoundness`)
-for the multi-round 2-to-1 FRI IOP `Cslib.Crypto.Protocols.FRI.friIOP`
-([BenSassonBentovHoreshRiabzev2018], [BenSassonCarmonIshaiKoppartySaraf2020]) and composes it with
-the two-channel BCS random-oracle compiler `Cslib.Crypto.Protocols.BCS.bcsROMSoundness_bound` and
-`Cslib.Crypto.Protocols.BCS.bcsROMSoundness_bound_of_prover_verifier`
+This module proves unconditional round-by-round soundness
+(`Cslib.Crypto.Protocols.BCS.IOPRoundByRoundSoundness`) and query-round escape bounds for the
+multi-round 2-to-1 FRI IOP `Cslib.Crypto.Protocols.FRI.friIOP` ([BenSassonBentovHoreshRiabzev2018],
+[BenSassonCarmonIshaiKoppartySaraf2020]), together with conditional commit-round escape and
+two-channel BCS random-oracle composition steps parameterized by a line proximity-gap hypothesis
 ([BenSassonChiesaSpooner2016], [ChiesaYogev2024]).
 
 ## Overview of the integer-weight round-by-round invariant
@@ -31,11 +33,16 @@ For an input word `stmt : OracleTable params.d F` and any partial verifier trans
 * `friTargetWord params stmt pref i hi : Fin (2 ^ (d - i)) → F` is the expected round-`i` word:
   `stmt` at `i = 0`, and the 2-to-1 coset folding of the `(i - 1)`-th prover oracle `π_{i-1}` at
   the `(i - 1)`-th folding scalar `z_{i-1}` for `i ≥ 1`.
-* `friPreWeight params stmt pref i hi : Fin (2 ^ (d - i)) → ℕ` tracks the exact number of initial
-  query starting points `s : Fin (2 ^ d)` in the fiber above `j : Fin (2 ^ (d - i))` that pass
-  round-0 binding `π_0(s) = stmt(s)` and all folding checks `0, ..., i - 1`. It satisfies
-  `friPreWeight ... j ≤ 2 ^ i` and `∑ j, friPreWeight ... j ≤ 2 ^ d` unconditionally for arbitrary
-  malicious oracles.
+* `friPreWeight params stmt pref i hi : Fin (2 ^ (d - i)) → ℕ` is the pre-filter integer fiber
+  weight before applying the round-`i` oracle check `π_i(j) = friTargetWord ... i j`: identically
+  `1` at `i = 0`, and for `i ≥ 1` the fiberwise sum of the previous round's filtered weight
+  `friOracleFilterWeight` (counting initial starting points above `j` satisfying
+  `friPrefixPasses ... (i - 1)`, i.e., round-0 binding and folding checks `k < i - 1`, before
+  enforcing round `i`). It satisfies `friPreWeight ... j ≤ 2 ^ i` and
+  `∑ j, friPreWeight ... j ≤ 2 ^ d` unconditionally for arbitrary malicious oracles, while applying
+  the round-`i` oracle check yields `friOracleFilterWeight`, which counts the exact number of
+  initial starting points above `j` satisfying `friPrefixPasses ... i`
+  (`card_filter_friPrefixPasses_eq`).
 * A transcript prefix of length `i ≤ m` is **doomed** (`friDoomed params B stmt pref`) if every
   codeword `c ∈ params.rsCode i` has `friPreWeight`-weighted agreement at most `B` with
   `friTargetWord`. A complete transcript of length `m + 1` is doomed if at least one of the `q`
@@ -44,15 +51,20 @@ For an input word `stmt : OracleTable params.d F` and any partial verifier trans
 This yields:
 1. Unconditional `IOPRoundByRoundSoundness` (`friIOP_rbrSound`).
 2. Unconditional query-round escape bound `≤ (B / 2 ^ d) ^ q` (`friQueryRound_escape_le`).
-3. Commit-round escape bound `≤ B_commit / |F|` and uniform RBR escape bound parameterized by
-   `WeightedLineGapBound params B B_commit` (`friRBREscape_of_weightedLineGap`), matching both
-   unique-decoding proximity gaps (via `weightedLineGapBound_of_uniqueLineGap` with sharp
-   `B_commit = 2 ^ (d - 1)`) and Johnson-regime weighted correlated agreement
-   ([BenSassonCarmonIshaiKoppartySaraf2020], Section 7).
-4. End-to-end adaptive BCS ROM soundness bounds (`friBCS_romSoundness_bound_of_weightedLineGap`,
-   `friBCS_romSoundness_bound_of_prover_verifier_of_weightedLineGap`, and unique-decoding
-   specializations) together with a computable binary encoder/decoder (`encZMod`, `decZMod`) with
-   proved `Function.LeftInverse`.
+3. **Conditional steps** assuming a line proximity-gap theorem (`WeightedLineGapBound` or
+   `UniqueLineGapHypothesis`): commit-round escape `≤ B_commit / |F|`
+   (`friCommitRound_escape_le_of_weightedLineGap`), uniform per-round escape
+   (`friRBREscape_of_weightedLineGap`), and the unique-decoding weighted upgrade
+   (`weightedLineGapBound_of_uniqueLineGap` with `B_commit = 2 ^ (d - 1)`). These do not by
+   themselves discharge the general unconditional proximity-gap theorems of
+   [BenSassonCarmonIshaiKoppartySaraf2020].
+4. **Conditional BCS ROM composition steps** (`friBCS_romSoundness_bound_of_weightedLineGap`,
+   `friBCS_romSoundness_bound_of_prover_verifier_of_weightedLineGap`, and
+   `friBCS_romSoundness_bound_of_uniqueLineGap`) composing the conditional RBR escape bounds with
+   `Cslib.Crypto.Protocols.BCS.bcsROMSoundness_bound` and
+   `Cslib.Crypto.Protocols.BCS.bcsROMSoundness_bound_of_prover_verifier`, together with an unsigned
+   little-endian binary symbol codec (`encZMod`, `decZMod`) built directly on `Nat.bits` and
+   `Turing.MultiTapeTM.ofBits` (`leftInverse_decZMod_encZMod`).
 -/
 
 public section
@@ -170,8 +182,10 @@ coset folding of `prefOracle pref i` at `prefFoldScalar pref i` for round `i + 1
       (prefFoldScalar pref i)
 
 /-- Pre-filter integer fiber weight `W̃_i : Fin (2 ^ (d - i)) → ℕ` along a transcript prefix `pref`,
-counting initial query positions above each coordinate that pass round-0 binding and folding checks
-`0, ..., i - 1`. -/
+prior to applying the round-`i` oracle consistency check `π_i = friTargetWord ... i`: identically
+`1` at `i = 0`, and for `i ≥ 1` the fiber sum of the round-`(i - 1)` filtered weight
+`friOracleFilterWeight` (which itself carries the complete `friPrefixPasses` count via
+`card_filter_friPrefixPasses_eq`). -/
 @[expose] def friPreWeight [DecidableEq F] (params : FRIParams F)
     (stmt : OracleTable params.d F)
     (pref : List (OracleTable params.d F × FRIChal F params.d params.q)) :
@@ -1037,10 +1051,10 @@ sharp `B_commit = 2 ^ (d - 1)`) and by Johnson-regime weighted correlated agreem
           B < ∑ j ∈ Finset.univ.filter (fun j => (u₀ + z • u₁) j = v j), W j) →
         Z.card ≤ B_commit
 
-/-- **Step (commit-round escape bound from `WeightedLineGapBound`)**: when `pref.length < m` and
-`pref` is doomed at threshold `B`, the probability over a uniform `FRIChal` that the folded target
-escapes to `> B` weighted agreement with `params.rsCode (pref.length + 1)` is at most
-`B_commit / Fintype.card F`. -/
+/-- **Conditional step (commit-round escape bound assuming `WeightedLineGapBound`)**: when
+`pref.length < m` and `pref` is doomed at threshold `B`, the probability over a uniform `FRIChal`
+that the folded target escapes to `> B` weighted agreement with `params.rsCode (pref.length + 1)`
+is at most `B_commit / Fintype.card F`. This does not discharge `WeightedLineGapBound` itself. -/
 theorem friCommitRound_escape_le_of_weightedLineGap [Fintype F] [DecidableEq F]
     (params : FRIParams F) {B B_commit : ℕ}
     (hgap : WeightedLineGapBound params B B_commit)
@@ -1159,10 +1173,11 @@ theorem friCommitRound_escape_le_of_weightedLineGap [Fintype F] [DecidableEq F]
   max ((B_commit : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞))
     ((((2 ^ params.d - e - 1 : ℕ) : ℝ≥0∞) / (2 ^ params.d : ℝ≥0∞)) ^ params.q)
 
-/-- **Step (uniform round-by-round escape bound from `WeightedLineGapBound`)**: across ALL
-transcript prefixes `pref` (commit rounds `pref.length < m`, query round `pref.length = m`, and
-unreachable lengths `pref.length > m`), the per-round escape probability is at most
-`friRBRError params e B_commit`. -/
+/-- **Conditional step (uniform round-by-round escape bound assuming `WeightedLineGapBound`)**:
+across ALL transcript prefixes `pref` (commit rounds `pref.length < m`, query round
+`pref.length = m`, and unreachable lengths `pref.length > m`), the per-round escape probability is
+at most `friRBRError params e B_commit`. Discharging `WeightedLineGapBound` is left to the caller.
+-/
 theorem friRBREscape_of_weightedLineGap [Fintype F] [DecidableEq F] (params : FRIParams F)
     {e B_commit : ℕ}
     (hgap : WeightedLineGapBound params (2 ^ params.d - e - 1) B_commit) :
@@ -1194,27 +1209,44 @@ section UniqueDecodingUpgrade
 
 variable {F : Type} [Field F]
 
-/-- Uniqueness of Reed–Solomon decoding inside the unique-decoding radius `2 * e + k ≤ n`. -/
-theorem eq_of_hammingDist_le_reedSolomon {ι : Type*} [Fintype ι] [DecidableEq F]
-    {α : ι → F} (hα : Function.Injective α) {k e : ℕ} (huniq : 2 * e + k ≤ Fintype.card ι)
-    {f c₁ c₂ : ι → F} (hc₁ : c₁ ∈ reedSolomon α k) (hc₂ : c₂ ∈ reedSolomon α k)
-    (hd₁ : hammingDist f c₁ ≤ e) (hd₂ : hammingDist f c₂ ≤ e) :
-    c₁ = c₂ := by
-  by_contra hne
-  have hsub_mem : c₁ - c₂ ∈ reedSolomon α k := (reedSolomon α k).sub_mem hc₁ hc₂
-  have hsub_ne : c₁ - c₂ ≠ 0 := sub_ne_zero.mpr hne
-  have hmin : Fintype.card ι - k + 1 ≤ hammingNorm (c₁ - c₂) :=
-    le_hammingNorm_of_mem_reedSolomon hα hsub_mem hsub_ne
-  have hnorm_eq : hammingNorm (c₁ - c₂) = hammingDist c₁ c₂ := by
-    simp only [hammingNorm, hammingDist, Pi.sub_apply, sub_ne_zero]
-  have htri : hammingNorm (c₁ - c₂) ≤ 2 * e := by
-    rw [hnorm_eq]
-    calc hammingDist c₁ c₂
-        ≤ hammingDist c₁ f + hammingDist f c₂ := hammingDist_triangle c₁ f c₂
-      _ = hammingDist f c₁ + hammingDist f c₂ := by rw [hammingDist_comm]
-      _ ≤ e + e := Nat.add_le_add hd₁ hd₂
-      _ = 2 * e := by omega
-  omega
+/-- Fiber-size product identity `2 ^ (i + 1) * 2 ^ (d - (i + 1)) = 2 ^ d` for a folding round
+`i : Fin params.m`. -/
+theorem FRIParams.fiber_mul_domainSize (params : FRIParams F) (i : Fin params.m) :
+    2 ^ (i.val + 1) * 2 ^ (params.d - (i.val + 1)) = 2 ^ params.d := by
+  have hle : i.val + 1 ≤ params.d := Nat.le_trans i.isLt params.hm
+  rw [← pow_add, Nat.add_sub_of_le hle]
+
+/-- Round-dimension scaling identity `2 ^ (i + 1) * params.dim (i + 1) = params.dim 0` for a
+folding round `i : Fin params.m`. -/
+theorem FRIParams.fiber_mul_dim (params : FRIParams F) (i : Fin params.m) :
+    2 ^ (i.val + 1) * params.dim (i.val + 1) = params.dim 0 := by
+  have hle : i.val + 1 ≤ params.m := i.isLt
+  simp only [FRIParams.dim, Nat.sub_zero]
+  calc 2 ^ (i.val + 1) * (params.kFinal * 2 ^ (params.m - (i.val + 1)))
+      = params.kFinal * (2 ^ (i.val + 1) * 2 ^ (params.m - (i.val + 1))) := by ring
+    _ = params.kFinal * 2 ^ params.m := by rw [← pow_add, Nat.add_sub_of_le hle]
+
+/-- Every round Reed–Solomon dimension `params.dim r` is at least `1`. -/
+theorem FRIParams.one_le_dim (params : FRIParams F) (r : ℕ) : 1 ≤ params.dim r := by
+  simp only [FRIParams.dim]
+  exact Nat.mul_pos params.hkPos (Nat.pow_pos (by omega))
+
+/-- Transport the initial unique-decoding bound `2 * e + params.dim 0 ≤ 2 ^ params.d` to the
+scaled round-`(i + 1)` unique-decoding bound
+`2 * (e / 2 ^ (i + 1)) + params.dim (i + 1) ≤ 2 ^ (params.d - (i + 1))`. -/
+theorem FRIParams.two_mul_div_add_dim_le (params : FRIParams F) {e : ℕ}
+    (huniq : 2 * e + params.dim 0 ≤ 2 ^ params.d) (i : Fin params.m) :
+    2 * (e / 2 ^ (i.val + 1)) + params.dim (i.val + 1) ≤ 2 ^ (params.d - (i.val + 1)) := by
+  have hM_pos : 0 < 2 ^ (i.val + 1) := Nat.pow_pos (by omega)
+  refine Nat.le_of_mul_le_mul_left ?_ hM_pos
+  calc 2 ^ (i.val + 1) * (2 * (e / 2 ^ (i.val + 1)) + params.dim (i.val + 1))
+      = 2 * (2 ^ (i.val + 1) * (e / 2 ^ (i.val + 1))) +
+          2 ^ (i.val + 1) * params.dim (i.val + 1) := by ring
+    _ ≤ 2 * e + params.dim 0 := by
+        rw [params.fiber_mul_dim i]
+        exact Nat.add_le_add_right (Nat.mul_le_mul_left 2 (Nat.mul_div_le e _)) _
+    _ ≤ 2 ^ params.d := huniq
+    _ = 2 ^ (i.val + 1) * 2 ^ (params.d - (i.val + 1)) := (params.fiber_mul_domainSize i).symm
 
 /-- Unweighted line proximity-gap hypothesis across all `m` FRI folding rounds at unique-decoding
 radii `e / 2 ^ (i + 1)` (matching [BenSassonCarmonIshaiKoppartySaraf2020], Theorem 4.1). -/
@@ -1228,10 +1260,10 @@ radii `e / 2 ^ (i + 1)` (matching [BenSassonCarmonIshaiKoppartySaraf2020], Theor
         2 ^ (params.d - (i.val + 1)) - e / 2 ^ (i.val + 1) ≤ D'.card ∧
         ∀ j ∈ D', u₀ j = v₀ j ∧ u₁ j = v₁ j
 
-/-- **Step (unique-decoding weighted upgrade)**: inside the unique-decoding regime
-`2 * e + params.dim 0 ≤ 2 ^ d`, any unweighted line proximity gap `UniqueLineGapHypothesis params e`
-upgrades directly via `weighted_agree_of_line_many` to `WeightedLineGapBound` with the sharp
-bad-scalar bound `B_commit = 2 ^ (d - 1)`. -/
+/-- **Conditional step (unique-decoding weighted upgrade)**: inside the unique-decoding regime
+`2 * e + params.dim 0 ≤ 2 ^ d`, assuming `UniqueLineGapHypothesis params e` yields
+`WeightedLineGapBound` via `weighted_agree_of_line_many` with `B_commit = 2 ^ (d - 1)`. This does
+not itself prove the unweighted line proximity-gap theorem. -/
 theorem weightedLineGapBound_of_uniqueLineGap [DecidableEq F]
     (params : FRIParams F) {e : ℕ} (huniq : 2 * e + params.dim 0 ≤ 2 ^ params.d)
     (hgap : UniqueLineGapHypothesis params e) :
@@ -1240,35 +1272,11 @@ theorem weightedLineGapBound_of_uniqueLineGap [DecidableEq F]
   let N := 2 ^ (params.d - (i.val + 1))
   let M := 2 ^ (i.val + 1)
   have hM_pos : 0 < M := Nat.pow_pos (by omega)
-  have hMN : M * N = 2 ^ params.d := by
-    have hadd : (i.val + 1) + (params.d - (i.val + 1)) = params.d := by
-      have := i.isLt
-      have := params.hm
-      omega
-    dsimp only [M, N]
-    rw [← pow_add, hadd]
-  have hdim_mul : M * params.dim (i.val + 1) = params.dim 0 := by
-    simp only [FRIParams.dim, M, Nat.sub_zero]
-    have hadd : (i.val + 1) + (params.m - (i.val + 1)) = params.m := by
-      have := i.isLt
-      omega
-    calc 2 ^ (i.val + 1) * (params.kFinal * 2 ^ (params.m - (i.val + 1)))
-        = params.kFinal * (2 ^ (i.val + 1) * 2 ^ (params.m - (i.val + 1))) := by ring
-      _ = params.kFinal * 2 ^ params.m := by rw [← pow_add, hadd]
-  have huniq_i : 2 * (e / M) + params.dim (i.val + 1) ≤ N := by
-    have h1 : M * (2 * (e / M) + params.dim (i.val + 1)) ≤ M * N := by
-      calc M * (2 * (e / M) + params.dim (i.val + 1))
-          = 2 * (M * (e / M)) + M * params.dim (i.val + 1) := by ring
-        _ ≤ 2 * e + params.dim 0 := by
-            rw [hdim_mul]
-            exact Nat.add_le_add_right (Nat.mul_le_mul_left 2 (Nat.mul_div_le e M)) _
-        _ ≤ 2 ^ params.d := huniq
-        _ = M * N := hMN.symm
-    exact Nat.le_of_mul_le_mul_left h1 hM_pos
+  have hMN : M * N = 2 ^ params.d := params.fiber_mul_domainSize i
+  have huniq_i : 2 * (e / M) + params.dim (i.val + 1) ≤ N :=
+    params.two_mul_div_add_dim_le huniq i
   have he_lt : e < 2 ^ params.d := by
-    have hdim_pos : 1 ≤ params.dim 0 := by
-      simp only [FRIParams.dim, Nat.sub_zero]
-      exact Nat.mul_pos params.hkPos (Nat.pow_pos (by omega))
+    have hdim_pos : 1 ≤ params.dim 0 := params.one_le_dim 0
     omega
   have hN_le : N ≤ 2 ^ (params.d - 1) :=
     Nat.pow_le_pow_right (by omega) (Nat.sub_le_sub_left (Nat.succ_le_succ (Nat.zero_le _)) _)
@@ -1340,42 +1348,21 @@ end UniqueDecodingUpgrade
 
 section SymbolEncoding
 
-/-- Little-endian binary encoding of a natural number into `List Bool`. -/
-@[expose] def encNatBits : ℕ → List Bool
-  | 0 => []
-  | n + 1 => ((n + 1) % 2 == 1) :: encNatBits ((n + 1) / 2)
-
-/-- Little-endian binary decoding of `List Bool` into a natural number. -/
-@[expose] def decNatBits : List Bool → ℕ
-  | [] => 0
-  | b :: bs => (if b then 1 else 0) + 2 * decNatBits bs
-
-theorem decNatBits_encNatBits (n : ℕ) : decNatBits (encNatBits n) = n := by
-  induction n using Nat.strong_induction_on with
-  | ind n ih =>
-    cases n with
-    | zero => simp [encNatBits, decNatBits]
-    | succ k =>
-      simp only [encNatBits, decNatBits]
-      rw [ih ((k + 1) / 2) (Nat.div_lt_self (Nat.succ_pos k) (by omega))]
-      rcases Nat.mod_two_eq_zero_or_one (k + 1) with h0 | h1
-      · simp only [h0, beq_iff_eq, zero_ne_one, ↓reduceIte, zero_add]
-        omega
-      · simp only [h1, beq_self_eq_true, ↓reduceIte]
-        omega
-
-/-- Computable binary symbol encoding for `ZMod p`. -/
+/-- Computable unsigned little-endian binary symbol encoding for `ZMod p` via `Nat.bits`,
+preserving the minimal bit-list word layout `Nat.bits x.val` (distinct from the sign-magnitude
+`ZMod` encoding in `Turing.MultiTapeTM.encZMod`). -/
 @[expose] def encZMod {p : ℕ} (x : ZMod p) : List Bool :=
-  encNatBits x.val
+  Nat.bits x.val
 
-/-- Computable binary symbol decoding for `ZMod p`. -/
+/-- Computable unsigned little-endian binary symbol decoding for `ZMod p` via
+`Turing.MultiTapeTM.ofBits`. -/
 @[expose] def decZMod (p : ℕ) (bs : List Bool) : ZMod p :=
-  (decNatBits bs : ZMod p)
+  (Turing.MultiTapeTM.ofBits bs : ZMod p)
 
 theorem leftInverse_decZMod_encZMod (p : ℕ) [NeZero p] :
     Function.LeftInverse (decZMod p) (encZMod (p := p)) := by
   intro x
-  simp only [decZMod, encZMod, decNatBits_encNatBits, ZMod.natCast_zmod_val]
+  simp only [decZMod, encZMod, Turing.MultiTapeTM.ofBits_bits, ZMod.natCast_zmod_val]
 
 end SymbolEncoding
 
@@ -1383,10 +1370,11 @@ section BCSROMComposition
 
 variable {F : Type} [Field F] [Fintype F] [DecidableEq F]
 
-/-- **Step (adaptive two-channel BCS-FRI ROM soundness from `WeightedLineGapBound`)**:
-composes `friIOP_rbrSound` and `friRBREscape_of_weightedLineGap` with
+/-- **Conditional step (adaptive two-channel BCS-FRI ROM soundness assuming
+`WeightedLineGapBound`)**: composes `friIOP_rbrSound` and `friRBREscape_of_weightedLineGap` with
 `Cslib.Crypto.Protocols.BCS.bcsROMSoundness_bound` ([BenSassonChiesaSpooner2016],
-[BenSassonCarmonIshaiKoppartySaraf2020]). -/
+[BenSassonCarmonIshaiKoppartySaraf2020]); discharging `WeightedLineGapBound` is left to the caller.
+-/
 theorem friBCS_romSoundness_bound_of_weightedLineGap (params : FRIParams F)
     {e B_commit : ℕ}
     (hgap : WeightedLineGapBound params (2 ^ params.d - e - 1) B_commit)
@@ -1409,10 +1397,11 @@ theorem friBCS_romSoundness_bound_of_weightedLineGap (params : FRIParams F)
   bcsROMSoundness_bound (friIOP_rbrSound params e)
     (friRBREscape_of_weightedLineGap params hgap) hdec 0 σ hFS hMT
 
-/-- **Step (adaptive two-channel BCS-FRI ROM soundness with separate prover/verifier Merkle
-budgets from `WeightedLineGapBound`)**: bounds verifier Merkle cost via
-`isCostBounded_bcsMTCost_friVerifyROM` (`q_V = params.queryCount * (L_path + 1)`) and composes
-with `Cslib.Crypto.Protocols.BCS.bcsROMSoundness_bound_of_prover_verifier`. -/
+/-- **Conditional step (adaptive two-channel BCS-FRI ROM soundness with separate prover/verifier
+Merkle budgets assuming `WeightedLineGapBound`)**: bounds verifier Merkle cost via
+`isCostBounded_bcsMTCost_friVerifyROM` (`q_V = params.proofOracleQueries * (L_path + 1)`) and
+composes with `Cslib.Crypto.Protocols.BCS.bcsROMSoundness_bound_of_prover_verifier`; discharging
+`WeightedLineGapBound` is left to the caller. -/
 theorem friBCS_romSoundness_bound_of_prover_verifier_of_weightedLineGap (params : FRIParams F)
     {e B_commit : ℕ}
     (hgap : WeightedLineGapBound params (2 ^ params.d - e - 1) B_commit)
@@ -1429,17 +1418,18 @@ theorem friBCS_romSoundness_bound_of_prover_verifier_of_weightedLineGap (params 
           (friRBRError params e B_commit +
             ((t_FS + (params.m + 1) : ℕ) : ℝ≥0∞) *
               ((1 : ℝ≥0∞) / Fintype.card (FRIChal F params.d params.q))) +
-        ((t_MT + params.queryCount * (L_path + 1) : ℕ) : ℝ≥0∞) *
-          (((3 * (t_MT + params.queryCount * (L_path + 1)) +
+        ((t_MT + params.proofOracleQueries * (L_path + 1) : ℕ) : ℝ≥0∞) *
+          (((3 * (t_MT + params.proofOracleQueries * (L_path + 1)) +
               (params.m + 1) * (t_FS + (params.m + 1)) : ℕ) : ℝ≥0∞) *
             ((1 : ℝ≥0∞) / 2 ^ σ)) :=
   bcsROMSoundness_bound_of_prover_verifier (friIOP_rbrSound params e)
     (friRBREscape_of_weightedLineGap params hgap) hdec 0 σ hMT hFS
     (fun x prf hmem => isCostBounded_bcsMTCost_friVerifyROM params encSym x prf (hops x prf hmem))
 
-/-- **Step (unique-decoding BCS-FRI ROM soundness)**: combines
-`weightedLineGapBound_of_uniqueLineGap` (`B_commit = 2 ^ (d - 1)`) with
-`friBCS_romSoundness_bound_of_weightedLineGap`. -/
+/-- **Conditional step (unique-decoding BCS-FRI ROM soundness assuming `UniqueLineGapHypothesis`)**:
+combines `weightedLineGapBound_of_uniqueLineGap` (`B_commit = 2 ^ (d - 1)`) with
+`friBCS_romSoundness_bound_of_weightedLineGap`; discharging `UniqueLineGapHypothesis` is left to
+the caller. -/
 theorem friBCS_romSoundness_bound_of_uniqueLineGap (params : FRIParams F)
     {e : ℕ} (huniq : 2 * e + params.dim 0 ≤ 2 ^ params.d)
     (hgap : UniqueLineGapHypothesis params e)
