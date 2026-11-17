@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.MachineLearning.PACLearning.SRM
+import CslibFrontier.Tactic.ENNRealToReal
 
 /-! # Nonuniform learnability
 
@@ -138,9 +139,7 @@ theorem isNonuniformLearnable_iUnion [DecidableEq β] [Nonempty (α → β)] {ι
   replace hS : error D h + ↑ε₀.val < error D (A m S) := hS
   refine ⟨i, h, hi, ?_⟩
   have hfin : ∀ g : α → β, error D g ≠ ⊤ := fun g => measure_ne_top _ _
-  have hS' := (ENNReal.toReal_lt_toReal (ENNReal.add_ne_top.2 ⟨hfin h, ENNReal.coe_ne_top⟩)
-    (hfin _)).2 hS
-  rw [ENNReal.toReal_add (hfin h) ENNReal.coe_ne_top, ENNReal.coe_toReal] at hS'
+  ennreal_to_real at hS
   linarith [hm₀ m (le_of_max_le_left hmm)]
 
 /-- **Countable classes are nonuniformly learnable** [ShalevShwartzBenDavid2014, Section 7.3]:
