@@ -115,8 +115,18 @@ open Polynomial Cslib.Algorithms.Lean
 @[simp]
 theorem refineLeftLoopTotalM_ret (t : List ℚ) (seq : List (List ℚ)) :
     ∀ (fuel : ℕ) (u v : ℚ) (vu : ℕ),
-      (refineLeftLoopTotalM t seq fuel u v vu).ret = (refineLeftLoopM t seq fuel u v vu).ret := by
-  time_spec refineLeftLoopTotalM [refineLeftLoopM]
+      (refineLeftLoopTotalM t seq fuel u v vu).ret = (refineLeftLoopM t seq fuel u v vu).ret
+  | 0, u, v, _ => by
+    simp only [refineLeftLoopTotalM, refineLeftLoopM, TimeM.ret_bind, TimeM.ret_pure]
+  | fuel + 1, u, v, vu => by
+    simp only [refineLeftLoopTotalM, refineLeftLoopM, TimeM.ret_bind, sturmVariationsListM_ret,
+      sturmVariationsM_ret]
+    split_ifs with hvm
+    · simp only [TimeM.ret_pure]
+    · simp only [TimeM.ret_bind, evalCoeffListM_ret, evalListM_ret]
+      split_ifs with hem
+      · simp only [TimeM.ret_pure]
+      · exact refineLeftLoopTotalM_ret t seq fuel u ((u + v) / 2) vu
 
 theorem refineLeftLoopTotalM_time_le (t : List ℚ) (seq : List (List ℚ)) :
     ∀ (fuel : ℕ) (u v : ℚ) (vu : ℕ),

@@ -1081,7 +1081,6 @@ private structure StepInv {n : ℕ} {N : Network (Fin n)} (f : N.Flow) (d : ℕ)
   valid_entry : ∀ w rp, vget st.revPath w = some rp →
     ValidRevPath f w rp ∧ f.resDist w < n ∧ f.resDist w ≤ d + 1
 
-@[time_simps]
 private theorem scanNeighborsM_time {n : ℕ} {N : Network (Fin n)} (f : N.Flow)
     (u : Fin n) (rp_u : List (Fin n)) (hu_walk : IsRevWalkTo f u rp_u)
     (vs : List (Fin n)) (st : BfsState f)

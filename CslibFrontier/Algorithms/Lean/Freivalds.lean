@@ -126,8 +126,7 @@ theorem ret_mulVecM {k : ℕ} (l : ℕ) (M : Matrix (Fin l) (Fin k) R) (v : Fin 
     · rfl
     · rfl
 
-@[simp, time_simps]
-theorem time_mulVecM {k : ℕ} (l : ℕ) (M : Matrix (Fin l) (Fin k) R) (v : Fin k → R) :
+@[simp] theorem time_mulVecM {k : ℕ} (l : ℕ) (M : Matrix (Fin l) (Fin k) R) (v : Fin k → R) :
     (mulVecM l M v).time = 2 * k * l := by
   time_spec mulVecM [Nat.mul_succ]
 
@@ -156,7 +155,7 @@ omit [Ring R] in
       fun h => ⟨congrFun h 0, by rw [h]⟩⟩
 
 omit [Ring R] in
-@[simp, time_simps] theorem time_vecEqM (l : ℕ) (u v : Fin l → R) : (vecEqM l u v).time = l := by
+@[simp] theorem time_vecEqM (l : ℕ) (u v : Fin l → R) : (vecEqM l u v).time = l := by
   time_spec vecEqM
 
 variable {l m n : ℕ}
@@ -176,8 +175,7 @@ def checkM (A : Matrix (Fin l) (Fin m) R) (B : Matrix (Fin m) (Fin n) R)
   time_spec checkM [Matrix.mulVec_mulVec]
 
 /-- One check costs `2 * (m * n + l * m + l * n) + l`, independently of the vector. -/
-@[simp, time_simps]
-theorem time_checkM (A : Matrix (Fin l) (Fin m) R) (B : Matrix (Fin m) (Fin n) R)
+@[simp] theorem time_checkM (A : Matrix (Fin l) (Fin m) R) (B : Matrix (Fin m) (Fin n) R)
     (C : Matrix (Fin l) (Fin n) R) (x : Fin n → R) :
     (checkM A B C x).time = 2 * (m * n + l * m + l * n) + l := by
   simp only [checkM, TimeM.time_bind, time_mulVecM, time_vecEqM]
@@ -202,7 +200,11 @@ def checkAllM (A : Matrix (Fin l) (Fin m) R) (B : Matrix (Fin m) (Fin n) R)
 @[simp] theorem time_checkAllM (A : Matrix (Fin l) (Fin m) R) (B : Matrix (Fin m) (Fin n) R)
     (C : Matrix (Fin l) (Fin n) R) (k : ℕ) (xs : Fin k → Fin n → R) :
     (checkAllM A B C k xs).time = k * (2 * (m * n + l * m + l * n) + l) := by
-  time_spec checkAllM [Nat.succ_mul]
+  induction k with
+  | zero => simp only [checkAllM, TimeM.time_pure, zero_mul]
+  | succ k ih =>
+    simp only [checkAllM, TimeM.time_bind, TimeM.time_pure, time_checkM, ih]
+    ring
 
 /-- For square `n × n` matrices, `k` checks cost `k * (6 * n ^ 2 + n)`. -/
 theorem time_checkAllM_square (A B C : Matrix (Fin n) (Fin n) R) (k : ℕ)

@@ -147,7 +147,6 @@ theorem ret_subsetListM (xs LB : List V) :
     (subsetListM xs LB).ret = decide (xs.toFinset ⊆ LB.toFinset) := by
   time_spec subsetListM [List.toFinset_cons, Finset.insert_subset_iff, List.mem_toFinset]
 
-@[time_simps]
 theorem time_subsetListM (xs LB : List V) :
     (subsetListM xs LB).time = xs.length * (LB.length + 1) := by
   time_spec subsetListM [Nat.succ_mul]
@@ -165,6 +164,7 @@ theorem time_subsetListM (xs LB : List V) :
     pure (ok && r)
 
 omit [DecidableEq V] in
+@[time_simps]
 theorem ret_checkNilScopeM {q : ℕ} (hq : 0 < q) (sem : Rel → List (Fin q) → Bool) (F : CSP Rel V) :
     (checkNilScopeM hq sem F).ret =
       F.all fun c => !decide (c.scope = []) || c.eval sem (fun _ => ⟨0, hq⟩) := by
@@ -236,7 +236,16 @@ theorem ret_projectUpdateM {q : ℕ} (hq : 0 < q) (v : V) (d : ℕ) (LB LP : Lis
 
 theorem time_projectUpdateM_le (q : ℕ) (v : V) (d : ℕ) (LB LP : List V) (m : ℕ) :
     (projectUpdateM q v d LB m LP).time ≤ LP.length * (LB.length + 1) := by
-  time_spec projectUpdateM
+  induction LP with
+  | nil => simp [projectUpdateM]
+  | cons u LP ih =>
+    by_cases huv : u = v
+    · simp only [projectUpdateM, huv, ite_true, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure,
+        List.length_cons]
+      nlinarith
+    · simp only [projectUpdateM, huv, ite_false, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure,
+        time_lookupM, List.length_cons]
+      nlinarith
 
 /-- Build a length-`n` array table entry by entry in `TimeM ℕ`. -/
 @[expose] def tableLoopM {β : Type} : ℕ → (ℕ → TimeM ℕ β) → TimeM ℕ (Array β)
@@ -742,7 +751,7 @@ private theorem getD_dpTreeM {β : Type} (A : DPAlg β) (q : ℕ) (hq : 0 < q)
       omega
     subst hm0
     simp only [dpTreeM, time_simps, Array.getD_eq_getD_getElem?, List.getElem?_toArray,
-      List.getElem?_cons_zero, Option.getD_some, ret_checkNilScopeM hq sem F, dpSpec]
+      List.getElem?_cons_zero, Option.getD_some, dpSpec]
   | .introduce v child, hval, m, hm => by
     have hm' : m < q * q ^ (bagList child).length := by
       rw [Nat.mul_comm]

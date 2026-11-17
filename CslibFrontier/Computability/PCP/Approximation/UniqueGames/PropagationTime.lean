@@ -264,7 +264,6 @@ theorem bucketsM_time (n : ℕ) (l : List (Edge (α → α))) :
   time_spec bucketsM
 
 /-- `visitAllM` visits the edges in order. -/
-@[time_simps]
 theorem visitAllM_ret (labels : List α) (l : List (Edge (α → α))) (S : State α) :
     (visitAllM labels S l).ret = l.foldl (visit labels) S := by
   time_spec visitAllM
@@ -273,7 +272,10 @@ theorem visitAllM_ret (labels : List α) (l : List (Edge (α → α))) (S : Stat
 theorem scanM_ret (labels : List α) {g : Graph (α → α)} {bs : List (List (Edge (α → α)))}
     (hbs : ∀ u, bs.getD u [] = adj g u) (S : State α) :
     (scanM labels bs S).ret = scan labels g S := by
-  time_spec scanM [scan]
+  unfold scanM scan
+  cases S.stack with
+  | nil => rfl
+  | cons u rest => simp only [TimeM.ret_bind, visitAllM_ret, hbs]
 
 /-- `exploreM` computes the iterated `scan`, given the incidence lists. -/
 theorem exploreM_ret (labels : List α) {g : Graph (α → α)} {bs : List (List (Edge (α → α)))}
@@ -324,7 +326,13 @@ theorem stepsM_ret [Inhabited α] (labels : List α) {g : Graph (α → α)}
 /-- `checkAllM` checks every edge. -/
 theorem checkAllM_ret (σ : ℕ → α) (l : List (Edge (α → α))) :
     (checkAllM σ l).ret = l.all fun e => decide (e.constraint (σ e.src) = σ e.dst) := by
-  time_spec checkAllM
+  induction l with
+  | nil => rfl
+  | cons e l ih =>
+    simp only [checkAllM, TimeM.ret_bind, List.all_cons]
+    split_ifs with h
+    · simp [h, ih]
+    · simp [h]
 
 /-- The costed algorithm returns `solve`. -/
 theorem solveM_ret [Inhabited α] (labels : List α) (g : Graph (α → α)) :

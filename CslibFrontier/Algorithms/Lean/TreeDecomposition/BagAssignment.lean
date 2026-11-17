@@ -230,7 +230,6 @@ theorem ret_evalScopeM {q : ℕ} (hq : 0 < q) (LB : List V) (t : ℕ) (scope : L
     simp only [evalScopeM, time_simps, ih, Nat.mod_eq_of_lt (ofRadix_lt hq LB t x)]
     rfl
 
-@[time_simps]
 theorem time_evalScopeM {q : ℕ} (hq : 0 < q) (LB : List V) (t : ℕ) (scope : List V) :
     (evalScopeM q hq LB t scope).time = scope.length * (LB.length + 1) := by
   time_spec evalScopeM [Nat.succ_mul]

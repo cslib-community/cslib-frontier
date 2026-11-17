@@ -106,7 +106,7 @@ writing into `acc` and charging `1` tick per scanned vertex. -/
     ✓
     rehangM p s t X zs (if vget p z = t ∧ z ∈ X then vset acc z s else acc)
 
-@[simp, time_simps]
+@[simp]
 theorem rehangM_time (p : Vector (Fin n) n) (s t : Fin n) (X : Finset (Fin n)) :
     ∀ (zs : List (Fin n)) (acc : Vector (Fin n) n), (rehangM p s t X zs acc).time = zs.length := by
   time_spec rehangM

@@ -418,7 +418,6 @@ theorem time_memM (x : V) (L : List V) : (memM x L).time = L.length := by
 theorem time_selMemM (x : V) (L : List V) (m : ℕ) : (selMemM x L m).time = L.length := by
   time_spec selMemM
 
-@[time_simps]
 theorem time_keyM (LB LP : List V) (t : ℕ) :
     (keyM LB LP t).time = LP.length * (LB.length + 1) := by
   time_spec keyM [Nat.succ_mul]
@@ -428,7 +427,6 @@ theorem time_restrictM (LB LP : List V) (s : ℕ) :
     (restrictM LB LP s).time = LP.length * (LB.length + 1) := by
   time_spec restrictM [Nat.succ_mul]
 
-@[time_simps]
 theorem time_forgetWeightM (w : V → ℕ) (LP LB : List V) (t : ℕ) :
     (forgetWeightM w LP LB t).time = LB.length * (LP.length + 1) := by
   time_spec forgetWeightM [Nat.succ_mul]
@@ -451,7 +449,6 @@ theorem indepCost_le (b : ℕ) : indepCost b ≤ b * b :=
   Nat.div_le_of_le_mul (by nlinarith)
 
 omit [DecidableEq V] in
-@[time_simps]
 theorem time_indepM (G : SimpleGraph V) [DecidableRel G.Adj] (L : List V) (m : ℕ) :
     (indepM G L m).time = indepCost L.length := by
   time_spec indepM [indepCost_succ]

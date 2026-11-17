@@ -208,7 +208,13 @@ variable {V : Type*} [DecidableEq V] (G : SimpleGraph V) [DecidableRel G.Adj]
 
 theorem size_childPassM (w : V → ℕ) (LB LP : List V) (f init : Array ℕ) (c : ℕ) :
     (childPassM G w LB LP f init c).ret.size = init.size := by
-  time_spec childPassM
+  induction c with
+  | zero => rfl
+  | succ c ih =>
+    simp only [childPassM, TimeM.ret_bind, TimeM.ret_pure]
+    split_ifs
+    · rw [Array.size_setIfInBounds, ih]
+    · exact ih
 
 /-- After the child masks `t < c`, the entry of `best` at a parent mask `k` is the best value over
 the independent child subsets with parent mask `k`. -/
@@ -392,7 +398,12 @@ variable {V : Type*} [DecidableEq V] (G : SimpleGraph V) [DecidableRel G.Adj]
 theorem time_childPassM (w : V → ℕ) (LB LP : List V) (f init : Array ℕ) (c : ℕ) :
     (childPassM G w LB LP f init c).time = c * (indepCost LB.length +
       LP.length * (LB.length + 1) + LB.length * (LP.length + 1) + 4) := by
-  time_spec childPassM [Nat.succ_mul]
+  induction c with
+  | zero => simp [childPassM]
+  | succ c ih =>
+    simp only [childPassM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih, time_indepM,
+      time_keyM, time_forgetWeightM]
+    ring
 
 omit [DecidableRel G.Adj] in
 @[time_simps]
@@ -402,7 +413,12 @@ theorem time_parentPassM (LB LP : List V) (old best : Array ℕ) (c : ℕ) :
 
 theorem time_rootPassM (w : V → ℕ) (L : List V) (tbl : Array ℕ) (c : ℕ) :
     (rootPassM G w L tbl c).time = c * (indepCost L.length + L.length + 3) := by
-  time_spec rootPassM [Nat.succ_mul]
+  induction c with
+  | zero => simp [rootPassM]
+  | succ c ih =>
+    simp only [rootPassM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih, time_indepM,
+      time_forgetWeightM, List.length_nil]
+    ring
 
 variable {G} {n : ℕ}
 

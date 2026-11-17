@@ -663,6 +663,7 @@ private theorem ret_sumVarValuesM_eq_fin [Semiring R] [DecidableEq V] (d : ℕ) 
       ∑ a : Fin d, (bucket.map fun f => f.evalAt d fun v => if v = x then a.1 else σ v).prod := by
   rw [ret_sumVarValuesM, ← Fin.sum_univ_eq_sum_range]
 
+@[time_simps]
 private theorem ret_buildOutEntriesM [Semiring R] [DecidableEq V] (d : ℕ) (x : V)
     (outScope : List V) (bucket : List (FactorTable R V)) :
     ∀ m : ℕ,
@@ -696,7 +697,7 @@ private theorem time_buildOutEntriesM [Semiring R] [DecidableEq V] (d : ℕ) (x 
 @[time_simps]
 theorem ret_elimVarM [Semiring R] [DecidableEq V] (d : ℕ) (x : V) (s : ElimState R V) :
     (elimVarM d x s).ret = elimVar d x s := by
-  time_spec elimVarM [elimVar, ret_buildOutEntriesM]
+  time_spec elimVarM [elimVar]
 
 /-- The executable `eliminateOrderM` algorithm returns the exact state of `eliminateOrder`. -/
 theorem ret_eliminateOrderM [Semiring R] [DecidableEq V] (d : ℕ) :

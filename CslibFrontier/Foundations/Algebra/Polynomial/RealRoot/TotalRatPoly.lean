@@ -698,7 +698,11 @@ private theorem mapSignM_time (qs : List ℚ) : (mapSignM qs).time = qs.length +
 @[time_simps]
 private theorem filterNonzeroSignM_ret (ss : List SignType) :
     (filterNonzeroSignM ss).ret = ss.filter (fun x => decide (x ≠ 0)) := by
-  time_spec filterNonzeroSignM
+  induction ss with
+  | nil => simp only [filterNonzeroSignM, List.filter_nil, TimeM.ret_bind, TimeM.ret_pure]
+  | cons s ss ih =>
+    simp only [filterNonzeroSignM, List.filter_cons, TimeM.ret_bind, ih]
+    split_ifs <;> simp only [TimeM.ret_pure]
 
 @[time_simps]
 private theorem filterNonzeroSignM_time (ss : List SignType) :

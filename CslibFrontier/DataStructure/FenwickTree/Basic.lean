@@ -364,7 +364,10 @@ bounds. -/
 theorem addM_time_eq_upChain {α : Type*} [AddCommMonoid α]
     (t : FenwickTree α) (pos : ℕ) (δ : α) :
     (addM t pos δ).time = if pos < t.size then (upChain t.size (pos + 1)).length else 0 := by
-  time_spec addM [size]
+  unfold addM size
+  split_ifs with hpos
+  · simp only [TimeM.time_bind, TimeM.time_pure, Nat.add_zero, addLoopM_time_eq]
+  · simp only [TimeM.time_pure]
 
 /-- `addM t pos δ` updates at most `⌈log₂ (t.size + 1)⌉` Fenwick nodes (`0` when `t.size = 0`). -/
 theorem addM_time_le_clog {α : Type*} [AddCommMonoid α]

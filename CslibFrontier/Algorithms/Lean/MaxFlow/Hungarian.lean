@@ -155,7 +155,14 @@ open Cslib.Algorithms.Lean.TimeM
 
 theorem ofFnM_time_le {α : Type*} (n : ℕ) (f : Fin n → TimeM ℕ α) {t : ℕ}
     (h : ∀ i, (f i).time ≤ t) : (ofFnM n f).time ≤ n * t := by
-  time_spec ofFnM
+  induction n with
+  | zero => simp [ofFnM]
+  | succ n ih =>
+    simp only [ofFnM, TimeM.time_bind, TimeM.time_pure]
+    have h1 := ih (fun i => f i.castSucc) (fun i => h _)
+    have h2 := h (Fin.last n)
+    rw [Nat.succ_mul]
+    omega
 
 /-! ### Algorithm -/
 

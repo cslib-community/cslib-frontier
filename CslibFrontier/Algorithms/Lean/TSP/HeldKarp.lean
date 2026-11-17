@@ -129,7 +129,15 @@ theorem ret_minFoldM_le (g : α → W) (acc : W) {l : List α} {i : α} (hi : i 
 
 theorem ret_minFoldM_eq (g : α → W) (acc : W) (l : List α) :
     (minFoldM g acc l).ret = acc ∨ ∃ i ∈ l, (minFoldM g acc l).ret = g i := by
-  time_spec minFoldM
+  induction l generalizing acc with
+  | nil => exact Or.inl rfl
+  | cons j l ih =>
+    rcases ih (min acc (g j)) with h | ⟨i, hi, h⟩
+    · change (minFoldM g (min acc (g j)) l).ret = acc ∨ _
+      rcases min_choice acc (g j) with h' | h'
+      · exact Or.inl (h.trans h')
+      · exact Or.inr ⟨j, List.mem_cons_self .., h.trans h'⟩
+    · exact Or.inr ⟨i, List.mem_cons_of_mem _ hi, h⟩
 
 end MinFold
 

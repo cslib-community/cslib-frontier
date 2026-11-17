@@ -385,7 +385,11 @@ theorem ret_roundsM (adj : Fin n → Fin n → Bool) (k r : ℕ) :
 
 @[simp, time_simps] theorem ret_subsetWalksM (adj : Fin n → Fin n → Bool) (k : ℕ) :
     (subsetWalksM adj k).ret = totalWalkCount adj (maskSet n k) := by
-  time_spec subsetWalksM [ret_sumVecM, totalWalkCount]
+  cases n with
+  | zero => rfl
+  | succ m =>
+    simp only [subsetWalksM, ret_bind, ret_roundsM, ret_sumVecM, Vector.getElem_ofFn,
+      totalWalkCount]
 
 @[time_simps]
 theorem time_subsetWalksM (adj : Fin n → Fin n → Bool) (k : ℕ) :

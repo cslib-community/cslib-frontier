@@ -164,7 +164,15 @@ theorem ret_findSomeM {α β : Type*} (f : α → TimeM ℕ (Option β)) (l : Li
 
 theorem time_findSomeM_le {α β : Type*} (f : α → TimeM ℕ (Option β)) (l : List α) {C : ℕ}
     (hf : ∀ a ∈ l, (f a).time ≤ C) : (findSomeM f l).time ≤ l.length * C := by
-  time_spec findSomeM
+  induction l with
+  | nil => simp only [findSomeM, TimeM.time_pure, List.length_nil, Nat.zero_mul, le_refl]
+  | cons a l ih =>
+    rw [findSomeM, TimeM.time_bind, List.length_cons, Nat.succ_mul]
+    have ha := hf a List.mem_cons_self
+    have hl := ih fun b hb => hf b (List.mem_cons_of_mem a hb)
+    cases (f a).ret with
+    | some b => simp only [TimeM.time_pure]; omega
+    | none => simp only; omega
 
 /-! ### Guesses -/
 

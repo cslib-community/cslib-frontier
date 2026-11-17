@@ -75,7 +75,7 @@ It runs three steps.
    is used. The `*` also takes the hypotheses of the theorem; after `fun_cases` there is no `*`.
 3. Close each goal by `rfl` or `omega`. If neither does, `split` the first `if` or `match` in the
    goal, repeat step 2 and close every case by `rfl` or `omega`. If that fails too, try `grind` on
-   the goal, and last on its cases after the same `split`.
+   the goal.
 
 `grind` is the last resort. When the goal is arithmetic that `omega` does not do, pass the fact in
 the list and `omega` closes it: `time_spec p [Nat.succ_mul]` for `(k + 1) * c = k * c + c`,
@@ -122,13 +122,11 @@ macro_rules
     -- `grind` is the last resort: it runs on a goal only after `rfl` and `omega` have failed on it
     -- and on its cases.
     let arith ← `(tactic| first | rfl | omega)
-    let close ← `(tactic| first | rfl | omega | grind)
     let finish (simpStep : TSyntax `tactic) : MacroM (TSyntax `tactic) :=
       `(tactic| first
         | $arith:tactic
         | (split <;> ($simpStep:tactic) <;> $arith:tactic)
         | grind
-        | (split <;> ($simpStep:tactic) <;> $close:tactic)
         | skip)
     let finishInd ← finish simpInd
     let finishCases ← finish simpCases

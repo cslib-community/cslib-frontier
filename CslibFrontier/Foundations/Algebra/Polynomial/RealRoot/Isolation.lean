@@ -240,7 +240,23 @@ theorem isolateRootsM_ret (cs : List ℚ) : (isolateRootsM cs).ret = isolateRoot
 private theorem refineLeftLoopM_time_le (t : List ℚ) (seq : List (List ℚ)) (fuel : ℕ)
     (u v : ℚ) (vu : ℕ) :
     (refineLeftLoopM t seq fuel u v vu).time ≤ fuel * (sturmSeqOpCost seq + t.length) := by
-  time_spec refineLeftLoopM
+  induction fuel generalizing u v vu with
+  | zero => simp only [refineLeftLoopM, TimeM.time_pure, zero_mul, le_refl]
+  | succ fuel ih =>
+    simp only [refineLeftLoopM, TimeM.time_bind, sturmVariationsM_time, sturmVariationsM_ret]
+    by_cases hvm : sturmVariationsList seq ((u + v) / 2) = vu
+    · simp only [hvm, ↓reduceIte, TimeM.time_pure, add_zero]
+      rw [Nat.succ_mul]
+      omega
+    · simp only [hvm, ↓reduceIte, TimeM.time_bind, evalListM_time, evalListM_ret]
+      by_cases hem : evalCoeffList ((u + v) / 2) t = 0
+      · simp only [hem, ↓reduceIte, TimeM.time_pure, add_zero]
+        rw [Nat.succ_mul]
+        omega
+      · simp only [hem, ↓reduceIte]
+        have hrec := ih u ((u + v) / 2) vu
+        rw [Nat.succ_mul]
+        omega
 
 private theorem refineLeftRootM_time_le (t : List ℚ) (seq : List (List ℚ)) (fuel : ℕ)
     (u v : ℚ) (vu : ℕ) :
