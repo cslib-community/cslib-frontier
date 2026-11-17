@@ -14,6 +14,7 @@ public import CslibFrontier.Languages.Probabilistic.UntilBad.TwoCost
 public import CslibFrontier.Probability.StatisticalDistance.CloseTo
 import CslibFrontier.Foundations.Control.Monad.StateT
 import CslibFrontier.Foundations.Data.List.Lookup
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Represented
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.BindFailure
@@ -432,17 +433,13 @@ private theorem interpret_completionPrefetchProgram_eq_simProgram
       | none => simp only [completionPrefetchDecapsProgram, hdec]
       | some message =>
         simp only [completionPrefetchDecapsProgram, completionJointProgram, jointInput, hdec,
-          OracleComp.interpret_bind, OracleComp.interpret_map, OracleComp.interpret_query,
-          PMF.monad_bind_eq_bind, PMF.monad_map_eq_map, PMF.pure_map, PMF.pure_bind]
+          interp_norm, pmf_norm]
         simp only [ite_true]
-        simp only [OracleComp.interpret_bind, OracleComp.interpret_query,
-          OracleComp.interpret_pure, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
-          PMF.pure_bind]
+        simp only [interp_norm, pmf_norm]
         split_ifs with h
         · rw [h]
           simp only [OracleComp.interpret_pure, PMF.monad_pure_eq_pure]
-        · simp only [OracleComp.interpret_map, OracleComp.interpret_query,
-            PMF.monad_map_eq_map, PMF.pure_map]
+        · simp only [interp_norm, pmf_norm]
 
 private noncomputable def cacheJoint [DecidableEq (JointInput JointPrefix M Salt)]
     [DecidableEq (Ciphertext CT Salt)]
@@ -992,8 +989,7 @@ private theorem prefetchDecaps_map_completionCache
     apply PMF.bind_congr_on_support
     intro z _
     split <;> rename_i henc
-    · simp only [Function.comp_def, henc, ↓reduceIte, OracleComp.run_interpret_pure,
-        PMF.monad_pure_eq_pure]
+    · simp only [henc, ↓reduceIte, interp_norm, pmf_norm]
       change PMF.map (fun y => (y.1, completionCache S pk y.2))
         (PMF.pure (some z.1.key, z.2)) =
           PMF.pure (some z.1.key, completionCache S pk z.2)
@@ -1122,8 +1118,8 @@ private theorem simHandler_map_completionCache
       change PMF.map (fun z => (z.1, completionCache S pk z.2)) (PMF.pure (none, st)) =
         PMF.pure (none, completionCache S pk st)
       exact PMF.pure_map _ _
-    · simp only [simHandler, completionSimProgram, Query.dispatch, hc, ↓reduceIte,
-        simDecaps, OracleComp.run_interpret_map, OracleComp.run_interpret_query]
+    · simp only [simHandler, completionSimProgram, Query.dispatch, hc, ↓reduceIte, simDecaps,
+        interp_norm]
       change PMF.map (fun z => (z.1, completionCache S pk z.2))
         (PMF.map (fun x => (some x.1, x.2)) (S.decapsKey ciphertext st)) =
           PMF.map (fun y => (some y.1, y.2))

@@ -894,10 +894,7 @@ theorem computableInPolyTime_plsPpadsPotential
     (hn₂ : ComputableInPolyTime n₂ enc encUnary)
     (hB : ComputableInPolyTime B enc encNat) :
     ComputableInPolyTime (plsPpadsPotential n₁ C₁ n₂ B) (encPair enc encBits) encNat := by
-  change ComputableInPolyTime (fun p => plsPpadsPotential n₁ C₁ n₂ B p)
-    (encPair enc encBits) encNat
-  dsimp only [plsPpadsPotential]
-  fun_prop
+  fun_prop [plsPpadsPotential]
 
 end Computability
 

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxQuery.Program
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Actual native query addends
@@ -140,8 +141,7 @@ theorem exec_leaf {w D V AA BB T c e d t r : ℕ} {a b v z : ℤ} (x : Data regi
       (by simpa only [hBB, hc] using (hlow hdt).2)
       (hfit.of_le (by rw [hAA, hc]; omega))
       (hfit.of_le (by rw [hBB, hc]; omega))
-    have hua : u.regs Reg.answer = Signed.encode z := by
-      exact (hu.regs_eq (by decide : lowAddend.Preserves Reg.answer)).trans hacc
+    have hua : u.regs Reg.answer = Signed.encode z := by regs_frame
     obtain ⟨y, hy, hya, hym, _⟩ := exec_addAnswer u hz hab hua hvu
     have he : ExecWithin (w + 2) leaf x y 39 :=
       ((hu.branch_pos (by simpa only [Cond.holds_lt, hd, ht] using hdt)).seq hy).mono (by omega)
@@ -149,8 +149,7 @@ theorem exec_leaf {w D V AA BB T c e d t r : ℕ} {a b v z : ℤ} (x : Data regi
       fun i hi => he.regs_eq (leaf_preserves i hi)⟩
   · obtain ⟨u, hu, hvu, hum, _⟩ := exec_boxAddend x hD hV hT hc he h1
       (hhigh hdt).1 (hhigh hdt).2 (hfit.of_le (by omega))
-    have hua : u.regs Reg.answer = Signed.encode z := by
-      exact (hu.regs_eq (by decide : boxAddend.Preserves Reg.answer)).trans hacc
+    have hua : u.regs Reg.answer = Signed.encode z := by regs_frame
     obtain ⟨y, hy, hya, hym, _⟩ := exec_addAnswer u hz hv hua hvu
     have hex : ExecWithin (w + 2) leaf x y 39 :=
       ((hu.branch_neg (by simpa only [Cond.holds_lt, hd, ht] using hdt)).seq hy).mono (by omega)

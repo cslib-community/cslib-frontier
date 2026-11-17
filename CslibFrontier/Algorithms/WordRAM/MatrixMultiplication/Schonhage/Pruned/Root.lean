@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Scan
 public import CslibFrontier.Computability.WordRAM.Heap
 import CslibFrontier.Computability.WordRAM.MemoryView
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Initialization of the actual root stack frame
@@ -139,8 +140,7 @@ theorem exec_rootList {w N capacity : ℕ} (x : Data registers) (input : ℕ →
   have hvf := fixed frames (by decide) (by decide) (by decide) (by decide)
   have hvs := fixed stamps (by decide) (by decide) (by decide) (by decide)
   obtain ⟨y, hy, hyl, hym, hya, hmem, hfinishFrame, _⟩ := exec_rootFinish v
-    ((fixed nil (by decide) (by decide) (by decide) (by decide)).trans h0)
-    ((fixed one (by decide) (by decide) (by decide) (by decide)).trans h1)
+    (by regs_frame) (by regs_frame)
     (hw.of_le (by rw [hvf]; omega))
   have he : ExecWithin w rootList x y (20 * N + 19) := by
     exact (hu.seq (hv.seq hy)).mono (by omega)

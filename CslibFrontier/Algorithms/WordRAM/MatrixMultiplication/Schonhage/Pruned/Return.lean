@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Node
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Accumulate
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # The actual controller phase after a child returns
@@ -76,24 +77,20 @@ theorem exec_node_return {w L f a0 b0 d N k : ℕ} (x : Data registers)
     (by simpa only [huch', humem, hut'] using hchild) hV hB
     (Or.inl (by rw [hul', huv']; dsimp [vb]; nlinarith only [hcap, hpow]))
     (Or.inl (by rw [huv', huch']; dsimp [vb]; nlinarith only []))
-    ((fixed one (by decide)).trans hregs.one_eq)
-    ((fixed nine (by decide)).trans hregs.nine_eq)
-    ((fixed ten (by decide)).trans hregs.ten_eq)
+    (by regs_frame) (by regs_frame) (by regs_frame)
     (hw.of_le (by
       rw [hul', huv', huch']
       dsimp [vb]
       nlinarith only [hcap, hpow, hmul, hL]))
-  have hvf : v.regs frame = f + 4 * d := (hvreg frame (by decide)).trans huf'
-  have hvt : v.regs term = k := (hvreg term (by decide)).trans hut'
+  have hvf : v.regs frame = f + 4 * d := by regs_frame
+  have hvt : v.regs term = k := by regs_frame
   obtain ⟨y, hy, _, hym, hymem, _⟩ := exec_advance v
-    ((hvreg one (by decide)).trans ((fixed one (by decide)).trans hregs.one_eq))
-    ((hvreg frameWidth (by decide)).trans
-      ((fixed frameWidth (by decide)).trans hregs.frameWidth_eq))
+    (by regs_frame) (by regs_frame)
     (hw.of_le (by rw [hvt]; omega)) (hw.of_le (by rw [hvf]; nlinarith only [hL, hdL]))
   have hacc : ExecWithin (w + 2) accumulate u y (31 * N + 8) := (hv.seq hy).mono (by omega)
-  have hum : u.regs mode = 2 := (fixed mode (by decide)).trans hm
-  have hu0 := (fixed nil (by decide)).trans hregs.nil_eq
-  have hu1 := (fixed one (by decide)).trans hregs.one_eq
+  have hum : u.regs mode = 2 := by regs_frame
+  have hu0 : u.regs nil = 0 := by regs_frame
+  have hu1 : u.regs one = 1 := by regs_frame
   have hbranch : ExecWithin (w + 2)
       (ram[ if mode = nil then [ ⟪enter⟫ ] else [
         if mode = one then [ ⟪dispatch⟫ ] else [ ⟪accumulate⟫ ] ] ]) u y (31 * N + 12) :=
@@ -113,12 +110,9 @@ theorem exec_node_return {w L f a0 b0 d N k : ℕ} (x : Data registers)
     simpa only [huv', humem] using hvFrame
   have frameBeforeValue : f + 4 * d + 4 ≤ vb := by dsimp [vb]; omega
   refine ⟨y, he, hregs.of_step he, ?_, hym, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · exact (hy.regs_eq (by decide : advance.Preserves level)).trans
-      ((hvreg level (by decide)).trans ((fixed level (by decide)).trans hd))
-  · exact (hy.regs_eq (by decide : advance.Preserves active)).trans
-      ((hvreg active (by decide)).trans (fixed active (by decide)))
-  · exact (hy.regs_eq (by decide : advance.Preserves epoch)).trans
-      ((hvreg epoch (by decide)).trans (fixed epoch (by decide)))
+  · regs_frame
+  · regs_frame
+  · regs_frame
   · intro i hi
     change y.mem (vb + input i) = _
     have haway : ¬(Block.mk (f + 4 * d) 4).Owns (vb + input i) := by

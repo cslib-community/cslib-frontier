@@ -62,7 +62,7 @@ theorem selectedRequest_mem_Icc {V : Type*} [Fintype V] {k : ℕ}
       HP.toHierarchyParams.atomCutoff_le HP.ρ_nonneg HP.ρ_le_one
       HP.incomingCutoff_nonneg HP.incomingCutoff_le_one HP.γ_nonneg HP.γ_le_one
       _ _ _ _ _ _
-  · exact ⟨le_rfl, mul_nonneg (by norm_num) (HP.Q_nonneg _)⟩
+  · exact ⟨le_rfl, by positivity⟩
 
 /-- The actual correction's row support is bounded on its rank channel. -/
 theorem selectedRequest_row_support {k : ℕ}

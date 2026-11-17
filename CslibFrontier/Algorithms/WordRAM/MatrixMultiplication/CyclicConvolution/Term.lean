@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.CyclicConvolution.Program
 public import CslibFrontier.Foundations.RingTheory.CyclicIntRing.Coefficients
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Charged native cyclic-coefficient multiplication and accumulation
@@ -99,8 +100,7 @@ theorem exec_term {w : ℕ} (x : Data 32) (a b s : ℤ)
   obtain ⟨v, hv, hvresult, hvframe⟩ := Signed.exec_multiply (r := 23) ha hb hp u
     (by simp +decide [u, left, right, Reg.address]) (by simp [u])
   have hprod : ExecWithin (w + 2) productTerm x v 21 := hz.seq (hu.seq hv)
-  have hvs : v.regs Reg.accumulator = encode s :=
-    (hprod.regs_eq (by decide : productTerm.Preserves Reg.accumulator)).trans hacc
+  have hvs : v.regs Reg.accumulator = encode s := by regs_frame
   change v.regs result = encode (a * b) at hvresult
   let q := (v.set right (encode (a * b))).set left (encode s)
   have hq : ExecWithin (w + 2) addArguments v q 2 := by
@@ -112,7 +112,7 @@ theorem exec_term {w : ℕ} (x : Data 32) (a b s : ℤ)
     hprod.seq (hq.seq ht)
   have hti : t.regs Reg.index = x.regs Reg.index :=
     he.regs_eq (by decide)
-  have hto : t.regs Reg.one = 1 := (he.regs_eq (by decide)).trans hone
+  have hto : t.regs Reg.one = 1 := by regs_frame
   change t.regs result = encode (s + a * b) at htresult
   let y := (t.set Reg.accumulator (encode (s + a * b))).set Reg.index
     (x.regs Reg.index + 1)
