@@ -1472,17 +1472,11 @@ private theorem size_forgetChain (vs : List V) (t : NiceTree V) :
 
 private theorem bag_introduceChain (vs : List V) (t : NiceTree V) :
     (introduceChain vs t).bag = vs.toFinset ∪ t.bag := by
-  induction vs with
-  | nil => simp [introduceChain]
-  | cons v vs ih =>
-    simp only [introduceChain, bag, ih, List.toFinset_cons, Finset.insert_union]
+  fun_induction introduceChain vs t <;> simp_all [bag]
 
 private theorem subtreeVerts_introduceChain (vs : List V) (t : NiceTree V) :
     (introduceChain vs t).subtreeVerts = vs.toFinset ∪ t.subtreeVerts := by
-  induction vs with
-  | nil => simp [introduceChain]
-  | cons v vs ih =>
-    simp only [introduceChain, subtreeVerts, ih, List.toFinset_cons, Finset.insert_union]
+  fun_induction introduceChain vs t <;> simp_all [subtreeVerts]
 
 private theorem localValid_introduceChain {vs : List V} {t : NiceTree V}
     (hnd : vs.Nodup) (hdisj : ∀ v ∈ vs, v ∉ t.subtreeVerts) (ht : t.LocalValid) :
@@ -1528,9 +1522,7 @@ private theorem bag_forgetChain (vs : List V) (t : NiceTree V) :
 
 private theorem subtreeVerts_forgetChain (vs : List V) (t : NiceTree V) :
     (forgetChain vs t).subtreeVerts = t.subtreeVerts := by
-  induction vs with
-  | nil => rfl
-  | cons v vs ih => simp [forgetChain, subtreeVerts, ih]
+  fun_induction forgetChain vs t <;> simp_all [subtreeVerts]
 
 private theorem localValid_forgetChain {vs : List V} {t : NiceTree V}
     (hnd : vs.Nodup) (hsub : ∀ v ∈ vs, v ∈ t.bag) (ht : t.LocalValid) :
@@ -1569,11 +1561,7 @@ private theorem bag_joinTrees (t : NiceTree V) (ts : List (NiceTree V)) :
 
 private theorem mem_subtreeVerts_joinTrees {t : NiceTree V} {ts : List (NiceTree V)} {v : V} :
     v ∈ (joinTrees t ts).subtreeVerts ↔ v ∈ t.subtreeVerts ∨ ∃ u ∈ ts, v ∈ u.subtreeVerts := by
-  induction ts generalizing t with
-  | nil => simp [joinTrees]
-  | cons u us ih =>
-    simp only [joinTrees, subtreeVerts, Finset.mem_union, ih (t := u), List.mem_cons,
-      exists_eq_or_imp]
+  fun_induction joinTrees t ts <;> simp_all [subtreeVerts]
 
 private theorem maxBagCard_joinTrees_le (t : NiceTree V) (ts : List (NiceTree V))
     (hbags : ∀ u ∈ ts, u.bag = t.bag) :

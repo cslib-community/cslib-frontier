@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Probabilistic.PPT
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Finite
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Oracle
 public import CslibFrontier.Computability.Probabilistic.Realization.OpenOracleSimulation
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Languages.Probabilistic.Simulation
 
 /-!
@@ -77,15 +78,12 @@ theorem step_eq_run_interpret (machine : MultiTapePTM k Bool Control Operation)
   cases hstate : pair.1.tapes.state with
   | none => simp [step, MultiTapeMachine.finiteStep, hstate]
   | some control =>
-    simp only [step, MultiTapeMachine.finiteStep, hstate, bind_pure_comp,
-      OracleComp.interpret_bind, StateT.run_bind,
-      ProbOracleComp.interpret_sample, OracleComp.run_interpret_lift,
+    simp only [step, MultiTapeMachine.finiteStep, hstate, bind_pure_comp, interp_norm,
       bind_map_left]
     congr 1 with coin : 1
     cases machine.tr control pair.1.tapes.inputSymbol pair.1.tapes.workTapeSymbols
         pair.1.answerSymbols coin <;>
-      simp only [OracleComp.interpret_map, OracleComp.interpret_pure,
-        ProbOracleComp.interpret_query, StateT.run_map, StateT.run_pure]
+      simp only [interp_norm]
     rfl
 
 /-- A sampled step is the open interpreter's step with the sampled handler. -/

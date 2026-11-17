@@ -710,25 +710,7 @@ theorem charge_extractMin_le_tExt (n : ℕ) (s : IndexedMinPQ.State n) :
     Nat.log_mono_right hcard
   omega
 
-/-! ## Exact-ALU step rules, footprint framing, and `RawState.ofData` update lemmas -/
-
-theorem execWithin_exactAdd {w r : ℕ} {x : Data r} {d i j : Fin r}
-    (hfit : Fits w (x.regs i + x.regs j)) :
-    ExecWithin (B := .exact) w (.op (.exactBin .add d i j)) x
-      (x.set d (x.regs i + x.regs j)) 1 :=
-  ExecWithin.op (by
-    rw [Op.eval_exactBin]
-    simp only [BinOp.evalExact, Option.bind_some]
-    exact Data.put_of_fits hfit)
-
-theorem execWithin_exactSub {w r : ℕ} {x : Data r} {d i j : Fin r}
-    (hle : x.regs j ≤ x.regs i) (hfit : Fits w (x.regs i - x.regs j)) :
-    ExecWithin (B := .exact) w (.op (.exactBin .sub d i j)) x
-      (x.set d (x.regs i - x.regs j)) 1 :=
-  ExecWithin.op (by
-    rw [Op.eval_exactBin]
-    simp only [BinOp.evalExact, hle, ↓reduceIte, Option.bind_some]
-    exact Data.put_of_fits hfit)
+/-! ## Footprint framing and `RawState.ofData` update lemmas -/
 
 theorem modifies_block_trans {b : Block} {m₁ m₂ m₃ : ℕ → ℕ}
     (h₁ : Modifies b.footprint m₁ m₂) (h₂ : Modifies b.footprint m₂ m₃) :
@@ -791,23 +773,6 @@ theorem BaseRegs.write_iff {n base : ℕ} {x : Data rFib} (a v : ℕ) :
     BaseRegs n base (x.write a v) ↔ BaseRegs n base x :=
   ⟨fun ⟨h0, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12⟩ =>
     ⟨h0, h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12⟩, fun h => h.write_eq a v⟩
-
-theorem BaseRegs.preserved {n base w T : ℕ} {c : Code .exact rFib} {x y : Data rFib}
-    (he : ExecWithin w c x y T) (hbr : BaseRegs n base x)
-    (hp0 : c.Preserves nReg) (hp1 : c.Preserves frontierReg) (hp2 : c.Preserves baseReg)
-    (hp3 : c.Preserves parBase) (hp4 : c.Preserves childBase) (hp5 : c.Preserves leftBase)
-    (hp6 : c.Preserves rightBase) (hp7 : c.Preserves degBase) (hp8 : c.Preserves markBase)
-    (hp9 : c.Preserves inBase) (hp10 : c.Preserves consBase) (hp11 : c.Preserves zeroP)
-    (hp12 : c.Preserves oneP) : BaseRegs n base y :=
-  ⟨(he.regs_eq hp0).trans hbr.regs_nReg, (he.regs_eq hp1).trans hbr.regs_frontierReg,
-    (he.regs_eq hp2).trans hbr.regs_baseReg, (he.regs_eq hp3).trans hbr.regs_parBase,
-    (he.regs_eq hp4).trans hbr.regs_childBase, (he.regs_eq hp5).trans hbr.regs_leftBase,
-    (he.regs_eq hp6).trans hbr.regs_rightBase, (he.regs_eq hp7).trans hbr.regs_degBase,
-    (he.regs_eq hp8).trans hbr.regs_markBase,
-    (he.regs_eq hp9).trans hbr.regs_inBase,
-    (he.regs_eq hp10).trans hbr.regs_consBase,
-    (he.regs_eq hp11).trans hbr.regs_zeroP,
-    (he.regs_eq hp12).trans hbr.regs_oneP⟩
 
 theorem ofData_set_scratch {n base : ℕ} (x : Data rFib) {d : Fin rFib} (hd : 17 ≤ d.val)
     (v : ℕ) : RawState.ofData n base (x.set d v) = RawState.ofData n base x := by
