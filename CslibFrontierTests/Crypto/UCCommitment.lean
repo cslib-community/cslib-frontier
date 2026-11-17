@@ -232,12 +232,13 @@ private theorem handle_otpIdeal_readCommit (κ : ℕ) (b : Bool) (recDel : Bool)
     (corruptRouter (∅ : Finset (Fin 2)) (fcom.toProtocol κ ∅)).runFrom
       (liftNet (((oneTimePadEmptySim κ ∅).handle (.inr .readCommit)).run none))
       (.committed b recDel) = _
-  dsimp only [oneTimePadEmptySim, StateT.run]
-  erw [liftNet_bind, liftNet_query, Machine.runFrom_bind, Machine.runFrom_query]
+  dsimp only [oneTimePadEmptySim, StateT.run, liftNet]
+  erw [Machine.liftRightProgram_bind, Machine.liftRightProgram_query, Machine.runFrom_bind,
+    Machine.runFrom_query]
   change Equiv.prodAssoc _ _ _ <$>
     (pure (Sum.inr (some CommitmentOutput.receipt), CommitmentState.committed b recDel) >>= _) = _
-  erw [pure_bind, liftNet_bind, liftNet_sample, Machine.runFrom_bind, Machine.runFrom_sample,
-    bind_map_left]
+  erw [pure_bind, Machine.liftRightProgram_bind, Machine.liftRightProgram_sample,
+    Machine.runFrom_bind, Machine.runFrom_sample, bind_map_left]
   rfl
 
 private theorem handle_otpIdeal_deliverCommit (κ : ℕ) (st : Option Bool) (b : Bool)

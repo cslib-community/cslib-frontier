@@ -181,6 +181,62 @@ variable {β : Type}
     closeProgram (ProbOracleComp.sample program) = program := by
   rw [closeProgram, ProbOracleComp.interpret_sample, ProbComp.interpret_unifFin]
 
+/-- Close an empty-spec probabilistic computation and return its `PMF`. -/
+@[expose] noncomputable def closeEval (program : ProbOracleComp OracleSpec.empty α) : PMF α :=
+  ProbComp.eval (closeProgram program)
+
+/-- Closing a `pure` program yields `PMF.pure`. -/
+@[simp] theorem closeEval_pure (a : α) : closeEval (pure a) = PMF.pure a := rfl
+
+/-- Closing a bind distributes over `PMF.bind`. -/
+@[simp] theorem closeEval_bind (p : ProbOracleComp OracleSpec.empty α)
+    (next : α → ProbOracleComp OracleSpec.empty β) :
+    closeEval (p >>= next) = (closeEval p).bind fun a => closeEval (next a) := by
+  simp only [closeEval, closeProgram_bind, ProbComp.eval_bind]
+
+/-- Closing a mapped program maps the `PMF`. -/
+@[simp] theorem closeEval_map (f : α → β) (p : ProbOracleComp OracleSpec.empty α) :
+    closeEval (f <$> p) = (closeEval p).map f := by
+  simp only [closeEval, closeProgram_map, ProbComp.eval_map]
+
+/-- Closing a sampled `ProbComp` evaluates it directly. -/
+@[simp] theorem closeEval_sample (p : ProbComp α) :
+    closeEval (ProbOracleComp.sample p) = p.eval := by
+  simp only [closeEval, closeProgram_sample]
+
+/-- Support invariant for `closeEval (M.runFrom prog s)` under a reflexive, transitive state
+relation preserved by every allowed machine query. -/
+theorem mem_support_closeEval_runFrom_invariant
+    (M : Machine OracleSpec.empty E) (Inv : ιE → Prop) (R : M.State → M.State → Prop)
+    (hR_refl : ∀ s, R s s) (hR_trans : ∀ {a b c}, R a b → R b c → R a c)
+    (prog : ProbOracleComp E α)
+    (hinv : OracleComp.QueriesSatisfy (Sum.elim (fun _ => True) Inv) prog)
+    (s : M.State) {x : α × M.State}
+    (hx : x ∈ (closeEval (M.runFrom prog s)).support)
+    (hstep : ∀ (q : ιE) (s' : M.State) {y : E q × M.State},
+      Inv q → y ∈ (closeEval ((M.handle q).run s')).support → R s' y.2) :
+    R s x.2 := by
+  induction prog using OracleComp.induction generalizing s with
+  | pure a =>
+    erw [runFrom_pure, closeEval_pure, PMF.mem_support_pure_iff] at hx
+    rcases hx with rfl
+    exact hR_refl s
+  | query_bind q cont ih =>
+    simp only [PFunctor.FreeM.bind_eq_bind] at hinv hx
+    rcases q with k | q
+    · have hcall : M.runFrom (OracleComp.query (.inl k)) s =
+          (fun a => (a, s)) <$> ProbOracleComp.sample (ProbComp.unifFin k) := by
+        rw [runFrom, OracleComp.run_interpret_query, handler, sumHandler]
+        change (StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k))).run s = _
+        rw [StateT.run_lift, bind_pure_comp]
+      erw [runFrom_bind, hcall, bind_map_left, closeEval_bind, PMF.mem_support_bind_iff] at hx
+      rcases hx with ⟨a, _, hx'⟩
+      exact ih a ((OracleComp.QueriesSatisfy.liftBind_iff.mp hinv).2 a) s hx'
+    · have hq := OracleComp.QueriesSatisfy.liftBind_iff.mp hinv
+      erw [runFrom_bind, runFrom_query, closeEval_bind, PMF.mem_support_bind_iff] at hx
+      rcases hx with ⟨y, hy, hx'⟩
+      exact hR_trans (hstep q s hq.1 hy) (ih y.1 (hq.2 y.1) y.2 hx')
+
 end RunFrom
 
 /-! ### State-intertwining for `runFrom` -/
