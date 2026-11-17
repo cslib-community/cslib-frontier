@@ -271,12 +271,6 @@ theorem referenceRow_valid {f : OccurrenceLabeling F Bool} (hf : ValidLabeling s
   · simpa only [localTuple, List.length_ofFn] using
       sem_contract_reference (canContract_constraint hf vs i)
 
-/-- Reference rows have exactly the constructor's scope widths. -/
-theorem referenceRow_length (f : OccurrenceLabeling F Bool) (vs : List ℕ)
-    (i : Fin F.length) :
-    ((referenceRows f vs).getD i.val []).length = (constraint f vs i).scope.length :=
-  transportRow_length f f vs (fun _ => false) (listSingle (connectors F vs).length 0) i
-
 /-- The constructed initial labeling satisfies all constraints. A nonempty touched set is
 necessary: exactly-one on zero connectors rejects every row. -/
 theorem valid_reference {f : OccurrenceLabeling F Bool} (hf : ValidLabeling sem f)

@@ -13,11 +13,12 @@ import CslibFrontier.Logics.Propositional.CSP.Table.ContractionRows
 import Mathlib.Data.List.GetD
 
 /-!
-# Positional transport of the contracted reference labeling
+# Positional transport and the contracted reference labeling
 
-Surviving old ports retain their labels. The old-constraint end of every fresh connector is
-zero, and the new central end is the actual one-hot reference from Section 5.3 of
-[KazdaKolmogorovRolinek2018], arXiv:1602.03124v6, printed p. 12.
+This module defines the general positional `transport` labeling (projecting outside ports of `g`,
+appending per-constraint `bits`, and setting the central row to `central`) together with its port
+and defect rules, and derives the corresponding facts for the zero-connector, one-hot `reference`
+specialization from Section 5.3 of [KazdaKolmogorovRolinek2018], arXiv:1602.03124v6, printed p. 12.
 All port constructors search finite actual position lists and use binary names only as data.
 -/
 
@@ -100,16 +101,6 @@ theorem transportRows_project (g : OccurrenceLabeling F Bool) (vs : List ℕ)
       project, List.append_nil]
     rw [← hl, List.map_getD_range]
   · rfl
-
-/-- The old reference buffer is the ordered outside projection, followed by a zero precisely
-at touched constraints. Untouched constraints need no extra connector bit. -/
-theorem referenceRows_project (f : OccurrenceLabeling F Bool) (vs : List ℕ)
-    (i : Fin F.length) :
-    (referenceRows f vs).getD i.val [] =
-      project (localTuple f i)
-          (outsidePositions F[i.val].scope.length (positions vs F[i.val].scope)) ++
-        if (positions vs F[i.val].scope).isEmpty then [] else [false] :=
-  transportRows_project f vs (fun _ => false) (listSingle (connectors F vs).length 0) i
 
 /-- Arbitrarily changed outside values survive the actual positional transport. -/
 theorem transport_oldPort (f g : OccurrenceLabeling F Bool) (vs : List ℕ)
@@ -274,15 +265,6 @@ theorem inconsistent_transport_connector (hF : EdgeInstance F)
       rw [(edge_contract hF f vs).inconsistent_iff,
         ← centralPort_eq_partner_connectorPort hF f vs k]
     _ ↔ _ := by rw [transport_connectorPort, transport_centralPort]
-
-/-- The connector at central scope position `k` is defective exactly when `k = 0`. -/
-theorem inconsistent_reference_connector (hF : EdgeInstance F) (f : OccurrenceLabeling F Bool)
-    (vs : List ℕ) (k : Fin (touched F vs).length) :
-    Inconsistent (reference f vs) (connector F (touched F vs)[k.val]) ↔ k.val = 0 := by
-  refine (inconsistent_transport_connector hF f f vs (fun _ => false)
-    (listSingle (connectors F vs).length 0) k).trans ?_
-  rw [List.getD_eq_getElem _ _ (by simp [listSingle])]
-  simp [listSingle, eq_comm]
 
 /-- The first connector is the unique new defect of the honest contracted reference. -/
 @[expose] def baseConnector (F : CSP Table ℕ) (vs : List ℕ) (hne : touched F vs ≠ []) : ℕ :=

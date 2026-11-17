@@ -16,10 +16,12 @@ import CslibFrontier.Foundations.Data.List.Blocks
 /-!
 # Transporting changed outside labels through whole contraction
 
-The row projection in Section 5.3 of [KazdaKolmogorovRolinek2018], arXiv:1602.03124v6,
-printed pp. 12–13, applies to actual original occurrence labels. Connector zero fixes the
-internal reference bits but places no restriction on outside changes. Connector one records
-one actual changed internal port. All constructors retain the original positional interface.
+Building on `transport` and its port and defect rules in `Reference.lean` (alongside the
+zero-connector `reference` specialization), this module proves constraint validity and
+zero-connector expansion agreement for transported labelings in Section 5.3 of
+[KazdaKolmogorovRolinek2018], arXiv:1602.03124v6, printed pp. 12–13. Connector zero fixes the
+internal reference bits without restricting outside changes, connector one records one changed
+internal port, and contracted occurrences are classified into outside and connector ports.
 -/
 
 public section
