@@ -89,7 +89,7 @@ theorem exec_constructor {w L m t D AA BB A B : ℕ} (x : Data registers)
   · regs_frame
   · regs_frame
   · regs_frame
-  · exact (yregs _ (by decide)).trans vV'
+  · regs_frame
   · regs_frame
   · regs_frame
   · regs_frame

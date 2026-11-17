@@ -37,8 +37,9 @@ the code `c` does not write. It then rewrites every read in the goal: a read wit
 the value; a read of `x.set r v` or `x.write a v` is reduced (`WP.Exec.reduceRegsStep`); a read of
 a state with a frame whose premises hold at the register becomes the read of the earlier state; a
 read of a state introduced by `let` becomes the read of its definition. The premises of a frame are
-proved by evaluation when they have no free variables, in the kernel for `c.Preserves a`, and
-otherwise by a hypothesis. The goal is proved when both sides of the equation agree.
+proved by evaluation when they have no free variables, in the kernel for `c.Preserves a` and after
+unfolding a predicate introduced by `let`, and otherwise by a hypothesis. The goal is proved when
+both sides of the equation agree.
 -/
 
 public section
@@ -156,7 +157,8 @@ private meta def decideKernel? (p : Expr) : MetaM (Option Expr) := do
     return none
 
 /-- Prove the premise `p` of a frame: by evaluation if it has no free variables, in the kernel for
-`c.Preserves i`, and otherwise by a hypothesis. -/
+`c.Preserves i`, also after unfolding a predicate introduced by `let`, and otherwise by a
+hypothesis. -/
 private meta def discharge (p : Expr) : MetaM (Option Expr) := do
   let p ← instantiateMVars p
   if p.hasExprMVar then return none
@@ -164,6 +166,9 @@ private meta def discharge (p : Expr) : MetaM (Option Expr) := do
     if let some h ← decideKernel? p then return some h
   else if let some r ← WP.Exec.decideClosed? p then
     return r
+  else
+    let q ← Core.betaReduce (← zetaReduce p)
+    if let some (some h) ← WP.Exec.decideClosed? q then return some (← mkExpectedTypeHint h p)
   WP.Exec.assumption? p
 
 /-- Apply the frame `f` to the read `e`, `s'.regs i`: the read `s.regs i` it equals and the proof,
@@ -280,7 +285,8 @@ the sequence.
 It follows each read `z.regs a` in the goal back to a hypothesis that states the value:
 
 * through a frame among the hypotheses, `yf : ∀ i, i ≠ r → … → z.regs i = y.regs i`, whose
-  premises hold at `a`: by evaluation when they have no free variables, otherwise by a hypothesis;
+  premises hold at `a`: by evaluation when they have no free variables (a predicate introduced by
+  `let` is unfolded first), otherwise by a hypothesis;
 * through an execution `he : ExecWithin w c y z T` (or `Exec`, or any `J` with a lemma
   `J.regs_eq`), when the code `c` does not write `a`, which the kernel decides;
 * through `Data.set` and `Data.write`, and through the definition of a state introduced by `let`;

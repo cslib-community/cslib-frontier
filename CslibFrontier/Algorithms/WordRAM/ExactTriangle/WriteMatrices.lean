@@ -299,7 +299,7 @@ private theorem exec_body {w q : ℕ} (side : Bool) (A : Args) (R : ℕ → ℕ)
         (by simpa only [hbm] using hinput) hsrc hmod hrho
       let wanted := if side then (A.p - R (row * A.n + A.first + v)) % A.p
         else (R (row * A.n + A.first + v) + A.rho) % A.p
-      have hcl : c.regs label = σ := (hcr label (by decide) (by decide)).trans hbb
+      have hcl : c.regs label = σ := by regs_frame
       have hci : c.regs idx = q := by regs_frame
       have hco : c.regs one = 1 := by regs_frame
       have hcz : c.regs zero = 0 := by regs_frame

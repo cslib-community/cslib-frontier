@@ -268,7 +268,7 @@ private theorem forest_body_exec {a : Traversal.Arena} {w U : ℕ} {l : Frontend
       change z.regs Traversal.heap + (l.count - (s.index + 1)) * _ ≤ _
       rw [zreg _ (by decide)]
       omega
-    · exact (zreg _ (by decide)).trans hy.count
+    · regs_frame
     · have ht : out.length ≤ s.nodes.length + Traversal.Math.work a.fuel := by
         simpa only [rootArena, Traversal.Cursor.work, List.map_nil,
           Traversal.Math.potential, List.sum_nil, Nat.add_zero] using hy.tableBudget

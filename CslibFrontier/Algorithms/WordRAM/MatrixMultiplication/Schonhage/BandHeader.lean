@@ -136,13 +136,8 @@ theorem exec_headerPowers {w L m N : ℕ} (hm : m ≤ L) (x : Data 96)
   · apply (h1.seq (hsub.seq (h3.seq (h4.seq (h5.seq h6))))).mono
     omega
   · have hD2 : x2.regs columns = 4 ^ m := by simpa [x2, temporary, columns] using hD
-    exact (hf6 columns (by decide) (by decide) (by decide)).trans
-      ((hf5 columns (by decide) (by decide) (by decide)).trans
-        ((hf4 columns (by decide) (by decide) (by decide)).trans
-          ((hf3 columns (by decide) (by decide) (by decide)).trans hD2)))
-  · exact (hf6 outerSize (by decide) (by decide) (by decide)).trans
-      ((hf5 outerSize (by decide) (by decide) (by decide)).trans
-        ((hf4 outerSize (by decide) (by decide) (by decide)).trans hN0))
+    regs_frame
+  · regs_frame
   · regs_frame
   · regs_frame
   · exact hm6.trans (hm5.trans (hm4.trans (hm3.trans hm1)))

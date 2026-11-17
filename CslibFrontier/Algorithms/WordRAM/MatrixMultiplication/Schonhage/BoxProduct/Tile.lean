@@ -224,10 +224,8 @@ theorem exec_tileStep {w L m t N A j : ℕ} (hw : 0 < w) (hm : m ≤ L) (ht : t 
   have vp : QueriedProduct.Parameters L m N qs.length v := up.reframe (fun i hi => vr i (by omega))
   have vb : Parameters L m t N qs.length v := ub.extend q
   have vd : v.regs QueriedProduct.Reg.destination =
-      QueriedProduct.groupedBase L m N qs.length + a :=
-    (vr _ (by decide)).trans ((ur _ (by decide)).trans ard)
-  have vl : v.regs QueriedProduct.Reg.length = b - a :=
-    (vr _ (by decide)).trans ((ur _ (by decide)).trans arlen)
+      QueriedProduct.groupedBase L m N qs.length + a := by regs_frame
+  have vl : v.regs QueriedProduct.Reg.length = b - a := by regs_frame
   let c := v.set QueriedProduct.Reg.source O
   have hc : ExecWithin (B := .standard) (w + 2)
       (ram[QueriedProduct.Reg.source ← Reg.results]) v c 1 := by

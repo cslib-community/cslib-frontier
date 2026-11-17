@@ -50,6 +50,13 @@ example (x y : Data 4) (n : ℕ) (r : Fin 4) (hr : r ≠ b) (hx : x.regs r = n)
     (yf : ∀ i, i ≠ b → y.regs i = x.regs i) : y.regs r = n := by
   regs_frame
 
+/-- A frame stated with a predicate introduced by `let`, as a loop invariant states it. -/
+example (x y : Data 4) (n : ℕ) (hx : x.regs d = n) :
+    let P (i : Fin 4) : Prop := i.val = 0 ∨ 2 ≤ i.val
+    (∀ i, P i → y.regs i = x.regs i) → y.regs d = n := by
+  intro P yf
+  regs_frame
+
 /-- An equation between the registers of two states, and a fact about a single register that
 relates two states. -/
 example (x y z : Data 4) (yb : y.regs b = x.regs b)

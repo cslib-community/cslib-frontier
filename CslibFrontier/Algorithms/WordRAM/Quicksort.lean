@@ -1198,10 +1198,7 @@ theorem partitionAndPush_spec {w : ℕ} {input : List ℕ} {vlo vhi : ℕ} {S₀
       hmod₀ a (by simp [Finset.mem_Ico]; omega)]
   refine ⟨y, t, he_all, ht_le, ?_, hread_final⟩
   refine ⟨hw,
-    by regs_frame, by regs_frame, by regs_frame,
-    (he_all.regs_eq (by decide)).trans hlen,
-    (he_all.regs_eq (by decide)).trans hsLo,
-    (he_all.regs_eq (by decide)).trans hsHi,
+    by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
     hread_final ▸ (hS₂_eq ▸ hVS₂),
     hread_final ▸ hno_inv_y,
     hperm_y,
