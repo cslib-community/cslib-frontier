@@ -166,8 +166,8 @@ import CslibFrontier.Computability.QueryComplexity.Quantum.NayakWuConsequences
 import CslibFrontier.Computability.QueryComplexity.Quantum.PermutationInversion
 import CslibFrontier.Computability.QueryComplexity.Quantum.SpectralAdversary
 import CslibFrontier.Computability.QueryComplexity.Quantum.WeightedAdversary
-import CslibFrontier.Crypto.Computational.Encryption.CTRMode
-import CslibFrontier.Crypto.Computational.Encryption.OFBMode
+import CslibFrontier.Crypto.Computational.Encryption.CTRMode.Uniform
+import CslibFrontier.Crypto.Computational.Encryption.OFBMode.Uniform
 import CslibFrontier.Crypto.Computational.GoldreichLevin.HardCore
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.OneWay
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.TargetCollision
@@ -5570,36 +5570,52 @@ register_result "ctr-mode-cpa" where
   title := "CTR mode is CPA-secure for a pseudorandom function"
   topic := "cryptography"
   sources := [
-    { paper := KatzLindell2020, theorem := "Theorem 3.33", locator := "Section 3.6.3, p. 93" }
+    { paper := BonehShoup2023, theorem := "Theorem 5.3", locator := "Section 5.4.2, p. 191" }
   ]
   theorems := [
-    Cslib.Crypto.advantage_ctrCpaGame_le,
-    Cslib.Crypto.advantage_ctrCpaGame_ctrModCounter_le
+    Cslib.Crypto.PseudorandomFunction.indcpa_ctrWordEncrypt
   ]
-  scope := "Left-or-right multiple-encryption CPA (Definition 3.22) for CTR mode on n-bit blocks, \
-    with a finite key set and a keyed function F : Key → BitString n → BitString n, against \
-    block-mode oracle adversaries asking at most K blocks in total and at most ℓ per query. For \
-    any counter schedule that is distinct within a query and injective in the IV at each \
-    offset, and in particular for the modular counter iv + i mod 2^n when ℓ ≤ 2^n, the \
-    advantage is at most the PRF advantages of the two explicit reductions plus 2 K² / 2^n. \
-    Concrete bound; no running time is charged and no asymptotic form is stated."
+  scope := "Randomized counter mode (ctrWordEncrypt: a uniform n-bit initial value x, then \
+    counter blocks x + j mod 2^n) from a PseudorandomFunction with n-bit keys, inputs and \
+    outputs, where the security parameter n is the block length and the key is a uniform n-bit \
+    word: the source's PRF over (K, X, Y) with X = {0, ..., N - 1} and Y = {0,1}^n, taken with \
+    N = 2^n. The notion is many-query left-or-right CPA security (SymmetricINDCPAOn, Attack \
+    Game 5.2 and Definition 5.2) against uniform strict oracle-PPT adversaries, in the standard \
+    model, on equal-length pairs of whole n-bit blocks. The source caps the number of blocks at a \
+    poly-bounded ℓ; here any number is admitted, which implies the capped statement. The PRF \
+    reductions ctrToPrfDistinguisher are certified oracle PPT. Concrete bounds: \
+    advantage_ctrWordCPAGame_le, in the same module, bounds the advantage by the PRF advantages \
+    of the two fixed-bit reductions plus 2 (Q L)² / 2^n for Q requests of at most L ≤ 2^n bits, \
+    a cruder collision term than the source's (5.14). advantage_ctrCpaGame_le and \
+    advantage_ctrCpaGame_ctrModCounter_le, in CTRMode.lean, give the typed bound of two PRF \
+    advantages plus 2 K² / 2^n for block-mode adversaries asking at most K blocks, over a finite \
+    key set, for any counter schedule that is distinct within a query and injective in the IV; \
+    they charge no running time."
 
 register_result "ofb-mode-cpa" where
   title := "OFB mode is CPA-secure for a pseudorandom function"
   topic := "cryptography"
   sources := [
-    { paper := KatzLindell2020, theorem := "unnumbered statement that OFB mode is CPA-secure",
-      locator := "Section 3.6.3, p. 92" }
+    { paper := BonehShoup2023, theorem := "Exercise 5.15(b)", locator := "Section 5.8, p. 212" }
   ]
   theorems := [
-    Cslib.Crypto.advantage_ofbCpaGame_le
+    Cslib.Crypto.PseudorandomFunction.indcpa_ofbWordEncrypt
   ]
-  scope := "Left-or-right multiple-encryption CPA (Definition 3.22) for OFB mode on n-bit blocks, \
-    with a finite key set and a keyed function F : Key → BitString n → BitString n, against \
-    block-mode oracle adversaries asking at most K blocks in total and at most ℓ per query: the \
-    advantage is at most the PRF advantages of the two explicit reductions plus \
-    2 K (K + ℓ) / 2^n. The source states OFB security without a numbered theorem or proof; the \
-    proof follows its Theorem 3.33 template. Concrete bound; no running time is charged."
+  scope := "OFB mode (ofbWordEncrypt: a uniform n-bit initial value x₀, chain values \
+    xᵢ = F(k, xᵢ₋₁) truncated to n bits, and the ciphertext x₀ followed by the blocks mᵢ ⊕ xᵢ) \
+    from a PseudorandomFunction with n-bit keys, inputs and outputs, where the security \
+    parameter n is the block length and the key is a uniform n-bit word. The notion is \
+    many-query left-or-right CPA security (SymmetricINDCPAOn, Attack Game 5.2 and \
+    Definition 5.2) against uniform strict oracle-PPT adversaries, in the standard model, on \
+    equal-length pairs of whole n-bit blocks. The exercise fixes a poly-bounded number ℓ of \
+    blocks; here any number is admitted, which implies the statement for every ℓ. The PRF \
+    reductions ofbToPrfDistinguisher are certified oracle PPT. Concrete bounds: \
+    advantage_ofbWordCPAGame_le, in the same module, bounds the advantage by the PRF advantages \
+    of the two fixed-bit reductions plus 2 (Q L) (Q L + L) / 2^n for Q requests of at most L \
+    bits; the exercise states no bound. advantage_ofbCpaGame_le, in OFBMode.lean, gives the \
+    typed bound of two PRF advantages plus 2 K (K + ℓ) / 2^n for block-mode adversaries asking \
+    at most K blocks in total and at most ℓ per query, over a finite key set; it charges no \
+    running time."
 
 register_result "clique-eth-lower-bound" where
   title := "No f(k) n^o(k) or FPT algorithm for Clique under ETH"
