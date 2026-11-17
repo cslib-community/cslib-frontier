@@ -114,11 +114,6 @@ theorem initCfg_eq_wordsCfg (input : List Symbol) :
     tm.initCfg input = wordsCfg input (some tm.q₀) (fun _ => []) [] :=
   Cfg.init_eq_wordsCfg _ _
 
-/-- A path of a deterministic machine ends where the run from its head does. -/
-theorem runPath_last_eq_runFrom {input : List Symbol} (p : tm.RunPath input) :
-    p.last = tm.runFrom p.head p.time :=
-  runPath_apply_eq_runFrom p (Fin.last _)
-
 /-- A path of a deterministic machine to a halted configuration gives the run from its head at
 any later step. -/
 theorem runFrom_eq_of_runPath {input : List Symbol} {p : tm.RunPath input} (hp : p.last.Halted)
