@@ -25,27 +25,31 @@ ordinary `module` client (no `import all`, zero gap-assumption premises) across 
 
 1. **Unconditional unique-decoding (`ZMod 257`, `d = 3, m = 2, kFinal = 1, q = 6, e = 2`).**
    Directly instantiates `weightedLineGapBound_of_unique`, `friIOP_rbrSound_of_unique`,
-   `friBCS_romSoundness_bound_of_unique` (`< 1 / 3` at `t_FS = 2, Q_MT = 4, σ = 16`), and
-   `friBCS_romSoundness_bound_of_prover_verifier_of_unique` (`< 1 / 2` at `t_MT = 2, t_FS = 2,
-   L_path = 3, σ = 20`), with zero hand-rolled proximity-gap proof.
+   `friBCS_romSoundness_bound_of_unique` (`< 1 / 3` at feasible whole-game budget `t_FS = 2,
+   Q_MT = 1000, σ = 32`, instantiated on an explicit accepting-shaped client of whole-game cost
+   `198 ≤ 1000`), and `friBCS_romSoundness_bound_of_prover_verifier_of_unique` (`< 1 / 2` at
+   `t_MT = 2, t_FS = 2, L_path = 3, σ = 20`), with zero hand-rolled proximity-gap proof.
 2. **Beyond-unique-decoding 3-round FRI (`ZMod 65537`, `d = 4, m = 3, kFinal = 1, q = 7, e = 5`).**
    Certifies `2 * 5 + 8 > 16` (strictly beyond unique decoding), exhibits a far word `X ^ 8` outside
    `params65537.proximityLang 5`, discharges `weightedLineGapBound_of_johnson_discrete` with exact
    `johnsonCurveBound` budgets `(2610, 2204, 85)`, and proves adaptive BCS-FRI ROM soundness
-   strictly `< 1 / 4` (`t_FS = 2, Q_MT = 4, σ = 16`).
+   strictly `< 1 / 4` (`t_FS = 2, Q_MT = 1000, σ = 32`, instantiated on an explicit
+   accepting-shaped client of whole-game cost `392 ≤ 1000`).
 3. **Beyond-Sudan (`m = 2` required) 2-round FRI (`ZMod 998244353`, `d = 4, m = 2, kFinal = 1,
    q = 6, e = 8`).** Certifies `δ = 1 / 2 = 1 - √(1 / 4)` strictly beyond both unique decoding and
    Sudan `m = 1` in round 1, exhibits a far word `X ^ 4` outside `params998.proximityLang 8`,
    discharges `weightedLineGapBound_of_johnson_discrete` with `(mRound, DRound) = [(1, 3), (2, 3)]`
    and exact `johnsonCurveBound` budgets `(21270, 16065)`, and proves adaptive BCS-FRI ROM
-   soundness strictly `< 1 / 25` (`t_FS = 2, Q_MT = 4, σ = 16`).
+   soundness strictly `< 1 / 25` (`t_FS = 2, Q_MT = 1000, σ = 32`, instantiated on an explicit
+   accepting-shaped client of whole-game cost `247 ≤ 1000`).
 4. **Closed-form asymptotic Johnson FRI over the Goldilocks field (`ZMod (2 ^ 64 - 2 ^ 32 + 1)`,
    `d = 5, m = 2, kFinal = 1, q = 6, e = 17, mJ = 2`).** Certifies `2 * 17 + 4 > 32` and
    `17 / 32 ≤ 1 - √(1 / 8) - √(1 / 8) / 4`, exhibits a far word `X ^ 4` outside
    `paramsGoldilocks.proximityLang 17` alongside honest completeness, and directly exercises
    `weightedLineGapBound_of_johnson`, `friIOP_rbrSound_of_johnson`,
-   `friBCS_romSoundness_bound_of_johnson` (`< 1 / 25` at `t_FS = 2, Q_MT = 4, σ = 16`), and
-   `friBCS_romSoundness_bound_of_prover_verifier_of_johnson` on an explicit adaptive out-of-order
+   `friBCS_romSoundness_bound_of_johnson` (`< 1 / 25` at `t_FS = 2, Q_MT = 1000, σ = 32`,
+   instantiated on `friCheaterGoldilocks` of whole-game cost `296 ≤ 1000`), and
+   `friBCS_romSoundness_bound_of_prover_verifier_of_johnson` on the explicit adaptive out-of-order
    cheating prover `friCheaterGoldilocks` (`< 1 / 3` at `t_MT = 2, t_FS = 2, L_path = 5, σ = 20`).
 -/
 
@@ -142,27 +146,20 @@ private theorem zmod_pow_chunks16 {p a b16 b32 b48 e : ℕ}
 private theorem isPrimitiveRoot_two_pow_of_neg_one {F : Type*} [Field F]
     {ω : F} {d : ℕ} (hd : 1 ≤ d) (h2 : (2 : F) ≠ 0) (hneg : ω ^ (2 ^ (d - 1)) = -1) :
     IsPrimitiveRoot ω (2 ^ d) := by
+  have : Fact (Nat.Prime 2) := ⟨Nat.prime_two⟩
+  have hsub : d - 1 + 1 = d := Nat.sub_add_cancel hd
   have hpow : ω ^ (2 ^ d) = 1 := by
-    have hsplit : 2 ^ d = 2 ^ (d - 1) * 2 := by
-      rw [← pow_succ, Nat.sub_add_cancel hd]
-    rw [hsplit, pow_mul, hneg, neg_one_sq]
-  have hdvd : orderOf ω ∣ 2 ^ d := orderOf_dvd_of_pow_eq_one hpow
-  obtain ⟨k, hk_le, hk_eq⟩ := (Nat.dvd_prime_pow Nat.prime_two).mp hdvd
-  have hk_eq_d : k = d := by
-    by_contra hne
-    have hk_le' : k ≤ d - 1 := by omega
-    have hdiv : orderOf ω ∣ 2 ^ (d - 1) := by
-      rw [hk_eq]
-      exact Nat.pow_dvd_pow 2 hk_le'
-    have h1 : ω ^ (2 ^ (d - 1)) = 1 := orderOf_dvd_iff_pow_eq_one.mp hdiv
-    rw [hneg] at h1
-    have h2zero : (2 : F) = 0 := by
-      have : (1 : F) + 1 = 0 := by
-        calc (1 : F) + 1 = 1 + (-1) := congrArg (1 + ·) h1.symm
-          _ = 0 := add_neg_cancel 1
-      simpa only [one_add_one_eq_two] using this
-    exact h2 h2zero
-  have hord : orderOf ω = 2 ^ d := by rw [hk_eq, hk_eq_d]
+    rw [← hsub, pow_succ, pow_mul, hneg, neg_one_sq]
+  have hnot : ¬ ω ^ (2 ^ (d - 1)) = 1 := by
+    rw [hneg]
+    intro h1
+    apply h2
+    have hzero : (1 : F) + 1 = 0 := by
+      calc (1 : F) + 1 = 1 + (-1) := congrArg (1 + ·) h1.symm
+        _ = 0 := add_neg_cancel 1
+    simpa only [one_add_one_eq_two] using hzero
+  have hord : orderOf ω = 2 ^ d := by
+    simpa only [hsub] using orderOf_eq_prime_pow (p := 2) (n := d - 1) hnot (by rwa [hsub])
   refine IsPrimitiveRoot.mk hpow fun l hl => ?_
   rw [← hord]
   exact orderOf_dvd_of_pow_eq_one hl
@@ -239,6 +236,83 @@ private theorem zero_mem_initialCode {F : Type} [Field F] (params : FRIParams F)
   · ext _
     exact eval_zero
 
+/-- Parametric adaptive out-of-order accepting-shaped cheating prover (`t_FS = 2`, `t_MT = 2`,
+`params.proofOracleQueries` depth-`params.d` openings) for any `FRIParams F`. -/
+private def mkAcceptingCheater {F : Type} [Field F] [DecidableEq F] (params : FRIParams F)
+    (farWord : OracleTable params.d F) :
+    OracleComp (BCSROMSpec (OracleTable params.d F) (FRIChal F params.d params.q))
+      (OracleTable params.d F × BCSProof (params.m + 1) F) := do
+  let zeroChal : FRIChal F params.d params.q := ⟨0, fun _ => ⟨0, Nat.two_pow_pos _⟩⟩
+  let d₀ ← query
+    (spec := BCSROMSpec (OracleTable params.d F) (FRIChal F params.d params.q))
+    (.inl [false])
+  let c₁ ← query
+    (spec := BCSROMSpec (OracleTable params.d F) (FRIChal F params.d params.q))
+    (.inr (farWord, [d₀, d₀], [zeroChal]))
+  let c₀ ← query
+    (spec := BCSROMSpec (OracleTable params.d F) (FRIChal F params.d params.q))
+    (.inr (farWord, [d₀], []))
+  let sib ← query
+    (spec := BCSROMSpec (OracleTable params.d F) (FRIChal F params.d params.q))
+    (.inl [decide (c₀.foldScalar = c₁.foldScalar)])
+  return (farWord,
+    { roots := fun _ => d₀
+      openings := List.replicate params.proofOracleQueries ⟨0, List.replicate params.d sib⟩ })
+
+private theorem isCostBounded_FS_mkAcceptingCheater {F : Type} [Field F] [DecidableEq F]
+    (params : FRIParams F) (farWord : OracleTable params.d F) :
+    IsCostBounded bcsFSCost (mkAcceptingCheater params farWord) 2 :=
+  IsCostBounded.liftBind (cost := bcsFSCost) (Sum.inl [false]) _ 2 fun d₀ =>
+    IsCostBounded.liftBind (cost := bcsFSCost)
+        (Sum.inr (farWord, [d₀, d₀],
+          [(⟨0, fun _ => ⟨0, Nat.two_pow_pos _⟩⟩ : FRIChal F params.d params.q)])) _ 1
+        fun (c₁ : FRIChal F params.d params.q) =>
+      IsCostBounded.liftBind (cost := bcsFSCost)
+          (Sum.inr (farWord, [d₀], [])) _ 0
+          fun (c₀ : FRIChal F params.d params.q) =>
+        IsCostBounded.liftBind (cost := bcsFSCost)
+            (Sum.inl [decide (c₀.foldScalar = c₁.foldScalar)]) _ 0 fun _ =>
+          IsCostBounded.pure (cost := bcsFSCost) _ 0
+
+private theorem isCostBounded_MT_mkAcceptingCheater {F : Type} [Field F] [DecidableEq F]
+    (params : FRIParams F) (farWord : OracleTable params.d F) :
+    IsCostBounded bcsMTCost (mkAcceptingCheater params farWord) 2 :=
+  IsCostBounded.liftBind (cost := bcsMTCost) (Sum.inl [false]) _ 1 fun d₀ =>
+    IsCostBounded.liftBind (cost := bcsMTCost)
+        (Sum.inr (farWord, [d₀, d₀],
+          [(⟨0, fun _ => ⟨0, Nat.two_pow_pos _⟩⟩ : FRIChal F params.d params.q)])) _ 1
+        fun (c₁ : FRIChal F params.d params.q) =>
+      IsCostBounded.liftBind (cost := bcsMTCost)
+          (Sum.inr (farWord, [d₀], [])) _ 1
+          fun (c₀ : FRIChal F params.d params.q) =>
+        IsCostBounded.liftBind (cost := bcsMTCost)
+            (Sum.inl [decide (c₀.foldScalar = c₁.foldScalar)]) _ 0 fun _ =>
+          IsCostBounded.pure (cost := bcsMTCost) _ 0
+
+private theorem mkAcceptingCheater_openings_le {F : Type} [Field F] [DecidableEq F]
+    (params : FRIParams F) (farWord : OracleTable params.d F)
+    (x : OracleTable params.d F) (prf : BCSProof (params.m + 1) F)
+    (hmem : (x, prf) ∈ (mkAcceptingCheater params farWord).support) :
+    ∀ op ∈ prf.openings, op.path.length ≤ params.d := by
+  simp only [mkAcceptingCheater, mem_supportWith_bind_iff, supportWith_query, Set.mem_univ,
+    true_and, supportWith_pure, Set.mem_singleton_iff] at hmem
+  obtain ⟨d₀, c₁, c₀, sib, h⟩ := hmem
+  cases h
+  intro op hop
+  rw [(List.mem_replicate.mp hop).2, List.length_replicate]
+
+private theorem isCostBounded_soundnessProg_mkAcceptingCheater {F : Type} [Field F] [DecidableEq F]
+    (params : FRIParams F) (encSym : F → List Bool) (e : ℕ)
+    (farWord : OracleTable params.d F) {Q_MT : ℕ}
+    (hQ : 2 + params.proofOracleQueries * (params.d + 1) ≤ Q_MT) :
+    IsCostBounded bcsMTCost
+      (bcsSoundnessProg (friIOP params) encSym (params.proximityLang e)
+        (mkAcceptingCheater params farWord)) Q_MT :=
+  (isCostBounded_bcsMTCost_bcsSoundnessProg (friIOP params) encSym (params.proximityLang e)
+    (isCostBounded_MT_mkAcceptingCheater params farWord) fun x prf hmem =>
+      isCostBounded_bcsMTCost_friVerifyROM params encSym x prf
+        (mkAcceptingCheater_openings_le params farWord x prf hmem)).mono hQ
+
 end Helpers
 
 /-! ### Suite 1: Unconditional Unique-Decoding FRI & BCS-FRI ROM Soundness (`ZMod 257`) -/
@@ -307,21 +381,25 @@ private theorem card_friChal257 :
   norm_num [params257]
 
 /-- **Unconditional unique-decoding BCS-FRI ROM soundness (`< 1 / 3`)** over `ZMod 257`, directly
-via `friBCS_romSoundness_bound_of_unique` with zero hand-rolled gap proof. -/
+via `friBCS_romSoundness_bound_of_unique` with zero hand-rolled gap proof (`t_FS = 2, Q_MT = 1000,
+σ = 32`, strictly exceeding the `49 * 4 = 196` verifier Merkle hash queries of depth-3 openings and
+leaving `804` prover Merkle queries). -/
 theorem fri257_unique_romSoundness_lt_one_third
     (P : OracleComp (BCSROMSpec (OracleTable 3 (ZMod 257)) (FRIChal (ZMod 257) 3 6))
       (OracleTable 3 (ZMod 257) × BCSProof 3 (ZMod 257)))
     (hFS : IsCostBounded bcsFSCost P 2)
     (hMT : IsCostBounded bcsMTCost
-      (bcsSoundnessProg (friIOP params257) (encZMod (p := 257)) (params257.proximityLang 2) P) 4) :
-    bcsSoundnessGame (friIOP params257) (encZMod (p := 257)) (params257.proximityLang 2) P 16
+      (bcsSoundnessProg (friIOP params257) (encZMod (p := 257)) (params257.proximityLang 2) P)
+        1000) :
+    bcsSoundnessGame (friIOP params257) (encZMod (p := 257)) (params257.proximityLang 2) P 32
       true < 1 / 3 := by
   refine lt_of_le_of_lt
     (friBCS_romSoundness_bound_of_unique params257 (by decide)
-      (leftInverse_decZMod_encZMod 257) 16 hFS hMT) ?_
+      (leftInverse_decZMod_encZMod 257) 32 hFS hMT) ?_
   rw [fri257_rbrError_eq, card_friChal257]
   have hnn :
-      (5 * (15625 / 262144 + 5 * (1 / 67371008)) + 4 * (27 * (1 / 65536)) : ℝ≥0) < 1 / 3 := by
+      (5 * (15625 / 262144 + 5 * (1 / 67371008)) +
+        1000 * (3015 * (1 / 4294967296)) : ℝ≥0) < 1 / 3 := by
     rw [← NNReal.coe_lt_coe]
     push_cast
     norm_num
@@ -329,13 +407,29 @@ theorem fri257_unique_romSoundness_lt_one_third
   simp only [ENNReal.coe_add, ENNReal.coe_mul, ENNReal.coe_ofNat, ENNReal.coe_one,
     ENNReal.coe_div (by norm_num : (262144 : ℝ≥0) ≠ 0),
     ENNReal.coe_div (by norm_num : (67371008 : ℝ≥0) ≠ 0),
-    ENNReal.coe_div (by norm_num : (65536 : ℝ≥0) ≠ 0),
+    ENNReal.coe_div (by norm_num : (4294967296 : ℝ≥0) ≠ 0),
     ENNReal.coe_div (by norm_num : (3 : ℝ≥0) ≠ 0)] at hcast
   simpa only [params257,
     (by norm_num : ((2 + (2 + 1) : ℕ) : ℝ≥0∞) = 5),
-    (by norm_num : ((4 : ℕ) : ℝ≥0∞) = 4),
-    (by norm_num : ((3 * 4 + (2 + 1) * (2 + (2 + 1)) : ℕ) : ℝ≥0∞) = 27),
-    (by norm_num : (2 : ℝ≥0∞) ^ 16 = 65536)] using hcast
+    (by norm_num : ((1000 : ℕ) : ℝ≥0∞) = 1000),
+    (by norm_num : ((3 * 1000 + (2 + 1) * (2 + (2 + 1)) : ℕ) : ℝ≥0∞) = 3015),
+    (by norm_num : (2 : ℝ≥0∞) ^ 32 = 4294967296)] using hcast
+
+-- Nonvacuity: `X ^ 4` lies outside `params257.proximityLang 2` (Hamming distance ≥ 4 > 2).
+theorem farWord257_not_mem :
+    (fun idx : Fin 8 => (params257.eval 0 idx) ^ 4) ∉ params257.proximityLang 2 :=
+  monomial_far_not_mem_proximityLang params257 (by decide)
+
+-- Direct instantiation of `fri257_unique_romSoundness_lt_one_third` on an explicit feasible
+-- accepting-shaped client (`2 + 49 * 4 = 198 ≤ 1000` whole-game Merkle queries).
+example :
+    bcsSoundnessGame (friIOP params257) (encZMod (p := 257)) (params257.proximityLang 2)
+      (mkAcceptingCheater params257 (fun idx => (params257.eval 0 idx) ^ 4)) 32 true < 1 / 3 :=
+  fri257_unique_romSoundness_lt_one_third
+    (mkAcceptingCheater params257 (fun idx => (params257.eval 0 idx) ^ 4))
+    (isCostBounded_FS_mkAcceptingCheater params257 _)
+    (isCostBounded_soundnessProg_mkAcceptingCheater params257 (encZMod (p := 257)) 2 _
+      (by decide : 2 + params257.proofOracleQueries * (params257.d + 1) ≤ 1000))
 
 /-- **Unconditional unique-decoding prover/verifier-split BCS-FRI ROM soundness (`< 1 / 2`)** over
 `ZMod 257`, directly via `friBCS_romSoundness_bound_of_prover_verifier_of_unique`. -/
@@ -362,12 +456,22 @@ theorem fri257_unique_prover_verifier_lt_half
     ENNReal.coe_div (by norm_num : (67371008 : ℝ≥0) ≠ 0),
     ENNReal.coe_div (by norm_num : (1048576 : ℝ≥0) ≠ 0),
     ENNReal.coe_div (by norm_num : (2 : ℝ≥0) ≠ 0)] at hcast
-  simpa only [params257, FRIParams.queryCount,
+  simpa only [params257, FRIParams.proofOracleQueries,
     (by norm_num : ((2 + (2 + 1) : ℕ) : ℝ≥0∞) = 5),
     (by norm_num : ((2 + (1 + 6 * (3 * 2 + 2)) * (3 + 1) : ℕ) : ℝ≥0∞) = 198),
     (by norm_num :
       ((3 * (2 + (1 + 6 * (3 * 2 + 2)) * (3 + 1)) + (2 + 1) * (2 + (2 + 1)) : ℕ) : ℝ≥0∞) = 609),
     (by norm_num : (2 : ℝ≥0∞) ^ 20 = 1048576)] using hcast
+
+-- Direct instantiation of `fri257_unique_prover_verifier_lt_half` on the accepting-shaped client.
+example :
+    bcsSoundnessGame (friIOP params257) (encZMod (p := 257)) (params257.proximityLang 2)
+      (mkAcceptingCheater params257 (fun idx => (params257.eval 0 idx) ^ 4)) 20 true < 1 / 2 :=
+  fri257_unique_prover_verifier_lt_half
+    (mkAcceptingCheater params257 (fun idx => (params257.eval 0 idx) ^ 4))
+    (isCostBounded_MT_mkAcceptingCheater params257 _)
+    (isCostBounded_FS_mkAcceptingCheater params257 _)
+    (mkAcceptingCheater_openings_le params257 _)
 
 end Unique257
 
@@ -473,22 +577,25 @@ private theorem card_friChal65537 :
   norm_num [params65537]
 
 /-- **Unconditional beyond-unique-decoding 3-round BCS-FRI ROM soundness (`< 1 / 4`)** over
-`ZMod 65537` at radius `e = 5 > e_uniq = 4` (`t_FS = 2, Q_MT = 4, σ = 16`). -/
+`ZMod 65537` at radius `e = 5 > e_uniq = 4` (`t_FS = 2, Q_MT = 1000, σ = 32`, strictly exceeding
+the `78 * 5 = 390` verifier Merkle hash queries of depth-4 openings and leaving `610` prover Merkle
+queries). -/
 theorem fri65537_johnson_romSoundness_lt_quarter
     (P : OracleComp (BCSROMSpec (OracleTable 4 (ZMod 65537)) (FRIChal (ZMod 65537) 4 7))
       (OracleTable 4 (ZMod 65537) × BCSProof 4 (ZMod 65537)))
     (hFS : IsCostBounded bcsFSCost P 2)
     (hMT : IsCostBounded bcsMTCost
       (bcsSoundnessProg (friIOP params65537) (encZMod (p := 65537))
-        (params65537.proximityLang 5) P) 4) :
+        (params65537.proximityLang 5) P) 1000) :
     bcsSoundnessGame (friIOP params65537) (encZMod (p := 65537)) (params65537.proximityLang 5)
-      P 16 true < 1 / 4 := by
+      P 32 true < 1 / 4 := by
   refine lt_of_le_of_lt
     (friBCS_romSoundness_bound_of_weightedLineGap params65537 weightedLineGapBound_65537
-      (leftInverse_decZMod_encZMod 65537) 16 hFS hMT) ?_
+      (leftInverse_decZMod_encZMod 65537) 32 hFS hMT) ?_
   rw [fri65537_rbrError_eq, card_friChal65537]
   have hnn :
-      (6 * (2610 / 65537 + 6 * (1 / 17592454479872)) + 4 * (36 * (1 / 65536)) : ℝ≥0) < 1 / 4 := by
+      (6 * (2610 / 65537 + 6 * (1 / 17592454479872)) +
+        1000 * (3024 * (1 / 4294967296)) : ℝ≥0) < 1 / 4 := by
     rw [← NNReal.coe_lt_coe]
     push_cast
     norm_num
@@ -496,13 +603,24 @@ theorem fri65537_johnson_romSoundness_lt_quarter
   simp only [ENNReal.coe_add, ENNReal.coe_mul, ENNReal.coe_ofNat, ENNReal.coe_one,
     ENNReal.coe_div (by norm_num : (65537 : ℝ≥0) ≠ 0),
     ENNReal.coe_div (by norm_num : (17592454479872 : ℝ≥0) ≠ 0),
-    ENNReal.coe_div (by norm_num : (65536 : ℝ≥0) ≠ 0),
+    ENNReal.coe_div (by norm_num : (4294967296 : ℝ≥0) ≠ 0),
     ENNReal.coe_div (by norm_num : (4 : ℝ≥0) ≠ 0)] at hcast
   simpa only [params65537,
     (by norm_num : ((2 + (3 + 1) : ℕ) : ℝ≥0∞) = 6),
-    (by norm_num : ((4 : ℕ) : ℝ≥0∞) = 4),
-    (by norm_num : ((3 * 4 + (3 + 1) * (2 + (3 + 1)) : ℕ) : ℝ≥0∞) = 36),
-    (by norm_num : (2 : ℝ≥0∞) ^ 16 = 65536)] using hcast
+    (by norm_num : ((1000 : ℕ) : ℝ≥0∞) = 1000),
+    (by norm_num : ((3 * 1000 + (3 + 1) * (2 + (3 + 1)) : ℕ) : ℝ≥0∞) = 3024),
+    (by norm_num : (2 : ℝ≥0∞) ^ 32 = 4294967296)] using hcast
+
+-- Direct instantiation of `fri65537_johnson_romSoundness_lt_quarter` on an explicit feasible
+-- accepting-shaped client (`2 + 78 * 5 = 392 ≤ 1000` whole-game Merkle queries).
+example :
+    bcsSoundnessGame (friIOP params65537) (encZMod (p := 65537)) (params65537.proximityLang 5)
+      (mkAcceptingCheater params65537 (fun idx => (params65537.eval 0 idx) ^ 8)) 32 true < 1 / 4 :=
+  fri65537_johnson_romSoundness_lt_quarter
+    (mkAcceptingCheater params65537 (fun idx => (params65537.eval 0 idx) ^ 8))
+    (isCostBounded_FS_mkAcceptingCheater params65537 _)
+    (isCostBounded_soundnessProg_mkAcceptingCheater params65537 (encZMod (p := 65537)) 5 _
+      (by decide : 2 + params65537.proofOracleQueries * (params65537.d + 1) ≤ 1000))
 
 end Johnson65537
 
@@ -625,23 +743,25 @@ private theorem card_friChal998 :
   norm_num [params998]
 
 /-- **Unconditional beyond-Sudan (`m = 2`) 2-round BCS-FRI ROM soundness (`< 1 / 25`)** over
-`ZMod 998244353` at radius `e = 8` (`δ = 1 / 2 = 1 - √(1 / 4)`, `t_FS = 2, Q_MT = 4, σ = 16`). -/
+`ZMod 998244353` at radius `e = 8` (`δ = 1 / 2 = 1 - √(1 / 4)`, `t_FS = 2, Q_MT = 1000, σ = 32`,
+strictly exceeding the `49 * 5 = 245` verifier Merkle hash queries of depth-4 openings and leaving
+`755` prover Merkle queries). -/
 theorem fri998_johnson_romSoundness_lt_one_25th
     (P : OracleComp (BCSROMSpec (OracleTable 4 (ZMod 998244353)) (FRIChal (ZMod 998244353) 4 6))
       (OracleTable 4 (ZMod 998244353) × BCSProof 3 (ZMod 998244353)))
     (hFS : IsCostBounded bcsFSCost P 2)
     (hMT : IsCostBounded bcsMTCost
       (bcsSoundnessProg (friIOP params998) (encZMod (p := 998244353))
-        (params998.proximityLang 8) P) 4) :
+        (params998.proximityLang 8) P) 1000) :
     bcsSoundnessGame (friIOP params998) (encZMod (p := 998244353)) (params998.proximityLang 8)
-      P 16 true < 1 / 25 := by
+      P 32 true < 1 / 25 := by
   refine lt_of_le_of_lt
     (friBCS_romSoundness_bound_of_weightedLineGap params998 weightedLineGapBound_998
-      (leftInverse_decZMod_encZMod 998244353) 16 hFS hMT) ?_
+      (leftInverse_decZMod_encZMod 998244353) 32 hFS hMT) ?_
   rw [fri998_rbrError_eq, card_friChal998]
   have hnn :
       (5 * (117649 / 16777216 + 5 * (1 / 16747761131061248)) +
-        4 * (27 * (1 / 65536)) : ℝ≥0) < 1 / 25 := by
+        1000 * (3015 * (1 / 4294967296)) : ℝ≥0) < 1 / 25 := by
     rw [← NNReal.coe_lt_coe]
     push_cast
     norm_num
@@ -649,13 +769,24 @@ theorem fri998_johnson_romSoundness_lt_one_25th
   simp only [ENNReal.coe_add, ENNReal.coe_mul, ENNReal.coe_ofNat, ENNReal.coe_one,
     ENNReal.coe_div (by norm_num : (16777216 : ℝ≥0) ≠ 0),
     ENNReal.coe_div (by norm_num : (16747761131061248 : ℝ≥0) ≠ 0),
-    ENNReal.coe_div (by norm_num : (65536 : ℝ≥0) ≠ 0),
+    ENNReal.coe_div (by norm_num : (4294967296 : ℝ≥0) ≠ 0),
     ENNReal.coe_div (by norm_num : (25 : ℝ≥0) ≠ 0)] at hcast
   simpa only [params998,
     (by norm_num : ((2 + (2 + 1) : ℕ) : ℝ≥0∞) = 5),
-    (by norm_num : ((4 : ℕ) : ℝ≥0∞) = 4),
-    (by norm_num : ((3 * 4 + (2 + 1) * (2 + (2 + 1)) : ℕ) : ℝ≥0∞) = 27),
-    (by norm_num : (2 : ℝ≥0∞) ^ 16 = 65536)] using hcast
+    (by norm_num : ((1000 : ℕ) : ℝ≥0∞) = 1000),
+    (by norm_num : ((3 * 1000 + (2 + 1) * (2 + (2 + 1)) : ℕ) : ℝ≥0∞) = 3015),
+    (by norm_num : (2 : ℝ≥0∞) ^ 32 = 4294967296)] using hcast
+
+-- Direct instantiation of `fri998_johnson_romSoundness_lt_one_25th` on an explicit feasible
+-- accepting-shaped client (`2 + 49 * 5 = 247 ≤ 1000` whole-game Merkle queries).
+example :
+    bcsSoundnessGame (friIOP params998) (encZMod (p := 998244353)) (params998.proximityLang 8)
+      (mkAcceptingCheater params998 (fun idx => (params998.eval 0 idx) ^ 4)) 32 true < 1 / 25 :=
+  fri998_johnson_romSoundness_lt_one_25th
+    (mkAcceptingCheater params998 (fun idx => (params998.eval 0 idx) ^ 4))
+    (isCostBounded_FS_mkAcceptingCheater params998 _)
+    (isCostBounded_soundnessProg_mkAcceptingCheater params998 (encZMod (p := 998244353)) 8 _
+      (by decide : 2 + params998.proofOracleQueries * (params998.d + 1) ≤ 1000))
 
 end Johnson998244353
 
@@ -827,8 +958,9 @@ private theorem card_friChalGoldilocks :
   norm_num [paramsGoldilocks, goldilocksP]
 
 /-- **Unconditional closed-form Johnson-bound BCS-FRI ROM soundness (`< 1 / 25`)** over Goldilocks
-at radius `e = 17 > e_uniq = 14` (`mJ = 2, t_FS = 2, Q_MT = 4, σ = 16`), directly via
-`friBCS_romSoundness_bound_of_johnson`. -/
+at radius `e = 17 > e_uniq = 14` (`mJ = 2, t_FS = 2, Q_MT = 1000, σ = 32`, strictly exceeding the
+`49 * 6 = 294` verifier Merkle hash queries of depth-5 openings and leaving `706` prover Merkle
+queries), directly via `friBCS_romSoundness_bound_of_johnson`. -/
 theorem friGoldilocks_johnson_romSoundness_lt_one_25th
     (P : OracleComp
       (BCSROMSpec (OracleTable 5 (ZMod goldilocksP)) (FRIChal (ZMod goldilocksP) 5 6))
@@ -836,16 +968,16 @@ theorem friGoldilocks_johnson_romSoundness_lt_one_25th
     (hFS : IsCostBounded bcsFSCost P 2)
     (hMT : IsCostBounded bcsMTCost
       (bcsSoundnessProg (friIOP paramsGoldilocks) (encZMod (p := goldilocksP))
-        (paramsGoldilocks.proximityLang 17) P) 4) :
+        (paramsGoldilocks.proximityLang 17) P) 1000) :
     bcsSoundnessGame (friIOP paramsGoldilocks) (encZMod (p := goldilocksP))
-      (paramsGoldilocks.proximityLang 17) P 16 true < 1 / 25 := by
+      (paramsGoldilocks.proximityLang 17) P 32 true < 1 / 25 := by
   refine lt_of_le_of_lt
     (friBCS_romSoundness_bound_of_johnson paramsGoldilocks (by omega) goldilocks_johnson_slack
-      (leftInverse_decZMod_encZMod goldilocksP) 16 hFS hMT) ?_
+      (leftInverse_decZMod_encZMod goldilocksP) 32 hFS hMT) ?_
   rw [friGoldilocks_rbrError_eq, card_friChalGoldilocks]
   have hnn :
       (5 * (117649 / 16777216 + 5 * (1 / 19807040623954398381032341504)) +
-        4 * (27 * (1 / 65536)) : ℝ≥0) < 1 / 25 := by
+        1000 * (3015 * (1 / 4294967296)) : ℝ≥0) < 1 / 25 := by
     rw [← NNReal.coe_lt_coe]
     push_cast
     norm_num
@@ -853,13 +985,13 @@ theorem friGoldilocks_johnson_romSoundness_lt_one_25th
   simp only [ENNReal.coe_add, ENNReal.coe_mul, ENNReal.coe_ofNat, ENNReal.coe_one,
     ENNReal.coe_div (by norm_num : (16777216 : ℝ≥0) ≠ 0),
     ENNReal.coe_div (by norm_num : (19807040623954398381032341504 : ℝ≥0) ≠ 0),
-    ENNReal.coe_div (by norm_num : (65536 : ℝ≥0) ≠ 0),
+    ENNReal.coe_div (by norm_num : (4294967296 : ℝ≥0) ≠ 0),
     ENNReal.coe_div (by norm_num : (25 : ℝ≥0) ≠ 0)] at hcast
   simpa only [paramsGoldilocks,
     (by norm_num : ((2 + (2 + 1) : ℕ) : ℝ≥0∞) = 5),
-    (by norm_num : ((4 : ℕ) : ℝ≥0∞) = 4),
-    (by norm_num : ((3 * 4 + (2 + 1) * (2 + (2 + 1)) : ℕ) : ℝ≥0∞) = 27),
-    (by norm_num : (2 : ℝ≥0∞) ^ 16 = 65536)] using hcast
+    (by norm_num : ((1000 : ℕ) : ℝ≥0∞) = 1000),
+    (by norm_num : ((3 * 1000 + (2 + 1) * (2 + (2 + 1)) : ℕ) : ℝ≥0∞) = 3015),
+    (by norm_num : (2 : ℝ≥0∞) ^ 32 = 4294967296)] using hcast
 
 private def zeroChalGoldilocks : FRIChal (ZMod goldilocksP) 5 6 :=
   ⟨0, fun _ => ⟨0, by decide⟩⟩
@@ -884,7 +1016,8 @@ def friCheaterGoldilocks :
     (.inl [decide (c₀.foldScalar = c₁.foldScalar)])
   return (farWordGoldilocks,
     { roots := fun _ => d₀
-      openings := List.replicate paramsGoldilocks.queryCount ⟨0, [sib, sib, sib, sib, sib]⟩ })
+      openings :=
+        List.replicate paramsGoldilocks.proofOracleQueries ⟨0, [sib, sib, sib, sib, sib]⟩ })
 
 theorem isCostBounded_FS_friCheaterGoldilocks :
     IsCostBounded bcsFSCost friCheaterGoldilocks 2 :=
@@ -924,6 +1057,20 @@ theorem friCheaterGoldilocks_openings_le
   rw [(List.mem_replicate.mp hop).2]
   simp only [List.length_cons, List.length_nil, le_refl]
 
+-- Direct instantiation of `friGoldilocks_johnson_romSoundness_lt_one_25th` on the explicit
+-- accepting-shaped adaptive client `friCheaterGoldilocks` (`2 + 49 * 6 = 296 ≤ 1000`).
+example :
+    bcsSoundnessGame (friIOP paramsGoldilocks) (encZMod (p := goldilocksP))
+      (paramsGoldilocks.proximityLang 17) friCheaterGoldilocks 32 true < 1 / 25 :=
+  friGoldilocks_johnson_romSoundness_lt_one_25th friCheaterGoldilocks
+    isCostBounded_FS_friCheaterGoldilocks
+    ((isCostBounded_bcsMTCost_bcsSoundnessProg (friIOP paramsGoldilocks)
+      (encZMod (p := goldilocksP)) (paramsGoldilocks.proximityLang 17)
+      isCostBounded_MT_friCheaterGoldilocks fun x prf hmem =>
+        isCostBounded_bcsMTCost_friVerifyROM paramsGoldilocks (encZMod (p := goldilocksP)) x prf
+          (friCheaterGoldilocks_openings_le x prf hmem)).mono
+      (by decide : 2 + paramsGoldilocks.proofOracleQueries * (5 + 1) ≤ 1000))
+
 /-- **End-to-end unconditional closed-form Johnson-bound BCS-FRI ROM soundness (`< 1 / 3`)** for
 the explicit adaptive out-of-order cheating prover `friCheaterGoldilocks` at digest length
 `σ = 20`, via `friBCS_romSoundness_bound_of_prover_verifier_of_johnson`. -/
@@ -948,7 +1095,7 @@ theorem friCheaterGoldilocks_romSoundness_lt_one_third :
     ENNReal.coe_div (by norm_num : (19807040623954398381032341504 : ℝ≥0) ≠ 0),
     ENNReal.coe_div (by norm_num : (1048576 : ℝ≥0) ≠ 0),
     ENNReal.coe_div (by norm_num : (3 : ℝ≥0) ≠ 0)] at hcast
-  simpa only [paramsGoldilocks, FRIParams.queryCount,
+  simpa only [paramsGoldilocks, FRIParams.proofOracleQueries,
     (by norm_num : ((2 + (2 + 1) : ℕ) : ℝ≥0∞) = 5),
     (by norm_num : ((2 + (1 + 6 * (3 * 2 + 2)) * (5 + 1) : ℕ) : ℝ≥0∞) = 296),
     (by norm_num :
