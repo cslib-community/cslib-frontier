@@ -583,7 +583,10 @@ theorem initialPilotCorrection_accuracy
   refine ⟨L, Lq, Lg, hL, hq, hg, ?_⟩
   intro P J inst D hD R H bin ks kt hks hkt ss st cutoff h C hkh η hη hρη hK hC hC1
     hcover π hπ hY ε hε payment tolerance detectorPayment rawSteps detectorSteps
-  have hp0 : 0 ≤ payment := by positivity
+  have hp0 : 0 ≤ payment := mul_nonneg (by norm_num)
+    (add_nonneg (pow_nonneg (div_nonneg
+      (mul_nonneg (Real.rpow_nonneg (rate_pos kt).le _) hq) (rate_pos kt).le) 4)
+      (pow_nonneg (mul_nonneg (Real.rpow_nonneg (rate_pos kt).le _) hg) 4))
   have hden : 0 < 1 + payment := by linarith
   have ht : 0 < tolerance := div_pos hε hden
   obtain ⟨hrs, hr⟩ := initialPilotRaw_allocated HP D R bin ks kt kt ss st cutoff h C ht
@@ -598,9 +601,17 @@ theorem initialPilotCorrection_accuracy
   obtain ⟨hds, he⟩ := hd P J D hD R H bin ks kt hkt ss st cutoff h C hkh η hη hρη hK
     hC hC1 hcover π hπ hY tolerance ht
   refine ⟨hrs, hds, (hc P J D R bin ks kt kt ss st cutoff h C rawSteps detectorSteps).trans ?_⟩
-  grw [hr, he]
-  exact (by dsimp only [payment]; ring : _ = payment * tolerance ^ 4).trans_le
-    (calibrated_fourth_moment hp0 hε)
+  have hb : _ ≤ payment * tolerance ^ 4 := mul_le_mul_of_nonneg_left
+    (add_le_add (mul_le_mul_of_nonneg_left hr
+        (pow_nonneg (div_nonneg
+          (mul_nonneg (Real.rpow_nonneg (rate_pos kt).le _) hq)
+          (rate_pos kt).le) 4))
+      (mul_le_mul_of_nonneg_left he
+        (pow_nonneg (mul_nonneg (Real.rpow_nonneg (rate_pos kt).le _) hg) 4)))
+    (by norm_num : (0:ℝ) ≤ 64)
+    |>.trans_eq (by dsimp only [payment]; ring)
+  apply hb.trans
+  exact calibrated_fourth_moment hp0 hε
 
 set_option backward.isDefEq.respectTransparency false in
 /-- Allocated root accuracy for the genuine normalized child. Positive RAW/detector
