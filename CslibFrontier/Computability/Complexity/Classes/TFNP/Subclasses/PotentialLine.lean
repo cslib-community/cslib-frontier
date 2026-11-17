@@ -936,10 +936,7 @@ private theorem computableInPolyTime_onPotentialLine
     (hS : ComputableInPolyTime S (encPair enc encBits) encBits)
     (hV : ComputableInPolyTime V (encPair enc encBits) encNat) :
     ComputableInPolyTime (onPotentialLine n P S V) (encPair enc encBits) encBool := by
-  unfold onPotentialLine
-  exact bool_or.comp ((ComputableInPolyTime.decide_eq' (snd enc encBits)
-    (computableInPolyTime_zeroVertex_comp (hn.comp (fst enc encBits)))).prod
-    (computableInPolyTime_hasPotentialIn hn hP hS hV))
+  fun_prop [onPotentialLine]
 
 /-- **`SOPL ⊆ PLS`** [Göös et al.][GoosEtAl2022]: follow the pruned successor along potential
 lines, with cost `B - V` below a polynomial-time potential bound `B`, and send every vertex off the

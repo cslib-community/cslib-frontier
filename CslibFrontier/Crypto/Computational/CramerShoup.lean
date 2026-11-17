@@ -49,8 +49,9 @@ We first prove the concrete and asymptotic 1CCA bounds for the **ideal exact-uni
 `cramerShoupCCA2Game`), in which key and challenge exponents are drawn from
 `PMF.uniformOfFintype (ZMod (F.order d))` and the `42 / 2 ^ n` dyadic loss arises solely from the
 `sampleModNat` exponent draws inside the strict-PPT DDH and CRHF reductions. These
-ideal-sampling results, the concrete bounds (`advantage_cramerShoupMsgCCA2Game_le_of_honest_bounds`,
-`advantage_cramerShoupMsgCCA2Game_le` and its four specializations) and the asymptotic
+ideal-sampling results, the concrete bounds
+(`advantage_cramerShoupMsgCCA2Game_le_ideal_of_honest_bounds`,
+`advantage_cramerShoupMsgCCA2Game_le_ideal` and its four specializations) and the asymptotic
 `DDH.cramerShoupMsgIdealINDCCA2` with its two group-element specializations, are steps, not the
 cited result. We then bridge these ideal games to the
 library's **native strict-PPT PKE 1CCA notions** (`Encryption.cca2ADGameOn`,
@@ -143,8 +144,8 @@ Verbatim from [BonehShoup2023], Exercise 12.27 (printed pp. 521–522):
   `cramerShoupGroupCCA2Game`, `cramerShoupGroupIdealINDCCA2`, `cramerShoupADCCA2Game` and
   `cramerShoupCCA2Game` are **ideal exact-uniform PMF** 1CCA experiments and security definitions,
   in which the challenger samples exponents from `PMF.uniformOfFintype (ZMod (F.order d))`. In
-  `advantage_cramerShoupADGroupCCA2Game_le` and
-  `advantage_cramerShoupGroupCCA2Game_le` (original quantitative adaptations of `(12.19)` to
+  `advantage_cramerShoupADGroupCCA2Game_le_ideal` and
+  `advantage_cramerShoupGroupCCA2Game_le_ideal` (original quantitative adaptations of `(12.19)` to
   $\mathcal{E}_{\mathrm{MCS}}$ in the ideal games, with uniform strict-PPT reductions; steps, not
   the cited result), the two fixed-bit DDH
   distinguishers and two fixed-bit collision finders contribute `42 / 2 ^ n` from their internal
@@ -765,7 +766,7 @@ whose key and challenge exponents are drawn exactly uniformly at the `PMF` level
 `cramerShoupCCA2Bound`, combining the Game 0 $\to$ Game 5 bounds for `bit = false` and
 `bit = true` via `cramerShoupGame5_false_eq_true` (where `42 / 2 ^ n` is the reduction loss from
 the `sampleModNat` exponent draws inside the reductions). -/
-theorem advantage_cramerShoupMsgCCA2Game_le_of_honest_bounds
+theorem advantage_cramerShoupMsgCCA2Game_le_ideal_of_honest_bounds
     (hasAD : Bool) {Msg AD : Type} (encodeMsg : F.Desc × Msg → List Bool)
     (encodeAD : F.Desc × AD → List Bool) (setup : ℕ → PMF F.Desc)
     (H : F.Desc × List Bool → List Bool) (isElem : F.Desc × List Bool → Bool)
@@ -800,7 +801,7 @@ probabilities of `cramerShoupMsgToCollisionFinder` (`false` and `true`), plus
 `(2 * Q₁ n + 2 * Q₂ n + 2) / m + 42 / 2 ^ n`. The cited result for the strict-PPT scheme with
 group-element messages is `DDH.indcca2ADOn_cramerShoup` (with associated data) and
 `DDH.indcca2On_cramerShoup`. -/
-theorem advantage_cramerShoupMsgCCA2Game_le
+theorem advantage_cramerShoupMsgCCA2Game_le_ideal
     (hasAD : Bool) {Msg AD : Type} (encodeMsg : F.Desc × Msg → List Bool)
     (encodeAD : F.Desc × AD → List Bool)
     (setup : ℕ → PMF F.Desc)
@@ -815,8 +816,8 @@ theorem advantage_cramerShoupMsgCCA2Game_le
       (F.cramerShoupMsgCCA2Game hasAD encodeMsg encodeAD setup H isElem adversary true n) ≤
       F.cramerShoupCCA2Bound hasAD encodeMsg encodeAD setup H isElem adversary
         n (Q₁ n) (Q₂ n) m :=
-  F.advantage_cramerShoupMsgCCA2Game_le_of_honest_bounds hasAD encodeMsg encodeAD setup H isElem
-    hmem adversary n (Q₁ n) (Q₂ n) m hm0 hm
+  F.advantage_cramerShoupMsgCCA2Game_le_ideal_of_honest_bounds hasAD encodeMsg encodeAD setup H
+    isElem hmem adversary n (Q₁ n) (Q₂ n) m hm0 hm
     (fun _ _ _ _ _ _ => hQ.1 n _)
     (fun _ _ _ _ _ _ _ _ _ _ _ _ _ => hQ.2 n _ _)
 
@@ -829,7 +830,7 @@ messages, in the two-run single-bit reduction style (with `42 / 2 ^ n` from the 
 `sampleModNat` exponent draws in the reductions). The cited result for the strict-PPT scheme is
 `DDH.indcca2ADOn_cramerShoup`, which reaches this game through
 `advantage_cca2ADGameOn_cramerShoupADGroupCCA2Game_le`. -/
-theorem advantage_cramerShoupADGroupCCA2Game_le
+theorem advantage_cramerShoupADGroupCCA2Game_le_ideal
     {AD : Type} (encAD : AD ↪ List Bool)
     (setup : ℕ → PMF F.Desc)
     (H : F.Desc × List Bool → List Bool)
@@ -843,7 +844,7 @@ theorem advantage_cramerShoupADGroupCCA2Game_le
       (F.cramerShoupADGroupCCA2Game encAD setup H isElem adversary true n) ≤
       F.cramerShoupCCA2Bound true Prod.snd (fun p => encAD p.2) setup H isElem adversary
         n (Q₁ n) (Q₂ n) m :=
-  F.advantage_cramerShoupMsgCCA2Game_le true Prod.snd (fun p => encAD p.2) setup H isElem
+  F.advantage_cramerShoupMsgCCA2Game_le_ideal true Prod.snd (fun p => encAD p.2) setup H isElem
     hmem adversary Q₁ Q₂ hQ n m hm0 hm
 
 /-- Ideal-sampling step toward [BonehShoup2023], Theorem 12.9 and Exercise 12.27, not the cited
@@ -854,7 +855,7 @@ $\mathcal{E}_{\mathrm{MCS}}$ with group-element messages, in the two-run single-
 (with `42 / 2 ^ n` from the approximate `sampleModNat` exponent draws in the reductions). The cited
 result for the strict-PPT scheme is `DDH.indcca2On_cramerShoup`, which reaches this game through
 `advantage_cca2GameOn_cramerShoupGroupCCA2Game_le`. -/
-theorem advantage_cramerShoupGroupCCA2Game_le
+theorem advantage_cramerShoupGroupCCA2Game_le_ideal
     (setup : ℕ → PMF F.Desc)
     (H : F.Desc × List Bool → List Bool)
     (isElem : F.Desc × List Bool → Bool)
@@ -867,13 +868,13 @@ theorem advantage_cramerShoupGroupCCA2Game_le
       (F.cramerShoupGroupCCA2Game setup H isElem adversary true n) ≤
       F.cramerShoupCCA2Bound false Prod.snd (fun _ => []) setup H isElem adversary.toADUnit
         n (Q₁ n) (Q₂ n) m :=
-  F.advantage_cramerShoupMsgCCA2Game_le false Prod.snd (fun _ => []) setup H isElem hmem
+  F.advantage_cramerShoupMsgCCA2Game_le_ideal false Prod.snd (fun _ => []) setup H isElem hmem
     adversary.toADUnit Q₁ Q₂ hQ.toADUnit n m hm0 hm
 
 /-- Ideal-sampling step toward [BonehShoup2023], Theorem 12.9 and Exercise 12.27, not the cited
-result: the bound of `advantage_cramerShoupMsgCCA2Game_le` for single-bit messages with associated
-data, in the ideal exact-uniform PMF game `cramerShoupADCCA2Game`. -/
-theorem advantage_cramerShoupADCCA2Game_le
+result: the bound of `advantage_cramerShoupMsgCCA2Game_le_ideal` for single-bit messages with
+associated data, in the ideal exact-uniform PMF game `cramerShoupADCCA2Game`. -/
+theorem advantage_cramerShoupADCCA2Game_le_ideal
     {AD : Type} (encAD : AD ↪ List Bool)
     (setup : ℕ → PMF F.Desc)
     (H : F.Desc × List Bool → List Bool)
@@ -887,13 +888,13 @@ theorem advantage_cramerShoupADCCA2Game_le
       (F.cramerShoupADCCA2Game encAD setup H isElem adversary true n) ≤
       F.cramerShoupCCA2Bound true (fun p => F.encodeBit p.1 p.2) (fun p => encAD p.2) setup H
         isElem adversary n (Q₁ n) (Q₂ n) m :=
-  F.advantage_cramerShoupMsgCCA2Game_le true (fun p => F.encodeBit p.1 p.2) (fun p => encAD p.2)
-    setup H isElem hmem adversary Q₁ Q₂ hQ n m hm0 hm
+  F.advantage_cramerShoupMsgCCA2Game_le_ideal true (fun p => F.encodeBit p.1 p.2)
+    (fun p => encAD p.2) setup H isElem hmem adversary Q₁ Q₂ hQ n m hm0 hm
 
 /-- Ideal-sampling step toward [BonehShoup2023], Theorem 12.9 and Exercise 12.27, not the cited
-result: the bound of `advantage_cramerShoupMsgCCA2Game_le` for single-bit messages, in the ideal
-exact-uniform PMF game `cramerShoupCCA2Game`. -/
-theorem advantage_cramerShoupCCA2Game_le
+result: the bound of `advantage_cramerShoupMsgCCA2Game_le_ideal` for single-bit messages, in the
+ideal exact-uniform PMF game `cramerShoupCCA2Game`. -/
+theorem advantage_cramerShoupCCA2Game_le_ideal
     (setup : ℕ → PMF F.Desc)
     (H : F.Desc × List Bool → List Bool)
     (isElem : F.Desc × List Bool → Bool)
@@ -906,8 +907,8 @@ theorem advantage_cramerShoupCCA2Game_le
       (F.cramerShoupCCA2Game setup H isElem adversary true n) ≤
       F.cramerShoupCCA2Bound false (fun p => F.encodeBit p.1 p.2) (fun _ => []) setup H
         isElem adversary.toADUnit n (Q₁ n) (Q₂ n) m :=
-  F.advantage_cramerShoupMsgCCA2Game_le false (fun p => F.encodeBit p.1 p.2) (fun _ => []) setup H
-    isElem hmem adversary.toADUnit Q₁ Q₂ hQ.toADUnit n m hm0 hm
+  F.advantage_cramerShoupMsgCCA2Game_le_ideal false (fun p => F.encodeBit p.1 p.2) (fun _ => [])
+    setup H isElem hmem adversary.toADUnit Q₁ Q₂ hQ.toADUnit n m hm0 hm
 
 /-! ### Polynomial length bounds and asymptotic 1CCA security -/
 
@@ -1020,8 +1021,8 @@ theorem DDH.cramerShoupMsgIdealINDCCA2
         (F.skNatOfZMod d δ 0 δ₁ 0 δ₂ 0)).length ≤ Lpk n :=
     fun hd α _ _ _ => (F.length_encodeCramerShoupPublicKey_le (hB_le hd) α _).trans
       (by have := hdesc_le n _ hd; dsimp only [Lpk]; gcongr)
-  refine F.advantage_cramerShoupMsgCCA2Game_le_of_honest_bounds hasAD encodeMsg encodeAD setup H
-    isElem hmem adversary n (Q₁ n) (Q₂ n) (m n) (hm0 n) (hm n)
+  refine F.advantage_cramerShoupMsgCCA2Game_le_ideal_of_honest_bounds hasAD encodeMsg encodeAD
+    setup H isElem hmem adversary n (Q₁ n) (Q₂ n) (m n) (hm0 n) (hm n)
     (fun d hd α δ δ₁ δ₂ => by
       refine (hQ₁_raw n _).mono ?_
       have := hpk_le hd α δ δ₁ δ₂; dsimp only [Q₁]; gcongr)

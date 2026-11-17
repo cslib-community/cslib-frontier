@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Protocols.MPC.OTCommitment.Serial
 public import CslibFrontier.Crypto.Protocols.MPC.OTCommitment.Program
 import CslibFrontier.Languages.Probabilistic.Norm
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
 /-!
 # Honest sender and corrupted receiver in the serial world
@@ -93,11 +94,11 @@ private theorem run_exchange (k : ℕ) (s : Store) (values : Fin 4 → Bool) (in
           session := { s.session with tables := s.session.tables ++ [values] }
           pending := none
           receipts := s.receipts ++ [(index, values index)] }) := by
-  simp only [pmf_norm, Nat.reduceAdd, world, handler, OracleComp.sumHandler, Store.send,
-    Session.advance, Bool.or_eq_true, ot14World, Fin.isValue, bind_pure_comp, map_pure, ot14Answer,
-    exchange, Interactive.liftProver, ProbOracleComp.interpret_query, Interactive.liftVerifier,
-    ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query, hstop, Bool.false_eq_true, ite_false,
-    hseal, hpending, hlen, ite_true, ProbOracleComp.runWith_map, or_self, Prod.map_apply, id_eq]
+  simp only [interp_norm, pmf_norm, Nat.reduceAdd, world, handler, Store.send, Session.advance,
+    Bool.or_eq_true, ot14World, Fin.isValue, bind_pure_comp, map_pure, ot14Answer, exchange,
+    Interactive.liftProver, Interactive.liftVerifier, ProbOracleComp.runWith_bind,
+    ProbOracleComp.runWith_query, hstop, Bool.false_eq_true, ite_false, hseal, hpending, hlen,
+    ite_true, ProbOracleComp.runWith_map, or_self, Prod.map_apply, id_eq]
   rfl
 
 private def extendStore {n : ℕ} (s : Store) (b : Bool) (masks : Fin n → Bool)
@@ -213,10 +214,9 @@ theorem eval_receiverAdapter {State Later Output : Type}
       some b := by
     rw [openPairs_decodeOpening, decodeOpening_openingWord]
     simp [openResult, ha]
-  simp only [pmf_norm, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_pure,
-    Interactive.liftProver, Interactive.liftVerifier, ProbOracleComp.interpret_query,
-    ProbOracleComp.runWith_query, ProbOracleComp.runWith_sample, world, handler,
-    OracleComp.sumHandler]
+  simp only [interp_norm, pmf_norm, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_pure,
+    Interactive.liftProver, Interactive.liftVerifier, ProbOracleComp.runWith_query,
+    ProbOracleComp.runWith_sample, world, handler]
   simp only [extendStore, Session.initial, List.nil_append, Store.send, Session.advance,
     Bool.false_eq_true, ite_false, ite_true, List.length_ofFn,
     Store.observations, Session.receipt, Session.observation]

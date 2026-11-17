@@ -38,7 +38,7 @@ table returning the corresponding bit of `y`, and pairs this circuit with `0^n`.
 shape `(n, m, q)` and `y`, `mSize` wires every gate to the first two input wires `A(g) = 1`,
 `B(g) = 2` (which is well-formed because `2 ≤ n` and `m ≤ q` for every valid circuit) and applies
 `mTopo`. These are the inverters of the proof of Proposition 1; the proposition says they run in
-linear time, and no running-time bound for them is proved here.
+linear time, and no running-time bound for them is proved here (#5293).
 
 Combining these inverters with the reductions of
 `CslibFrontier.Crypto.Primitives.Garbling.Foundations` gives, at a fixed security parameter, the
@@ -48,7 +48,8 @@ equality between sets of garbling schemes that are secure against every polynomi
 with a polynomial-time simulator for the simulation notions (Section 3.7). The library has no
 asymptotic `prv.ind`, `obv.ind` or `obv.sim` notion (only `Scheme.PrvSimSecure`), and it proves
 neither that the reductions `prvIndToSim`, `prvSimToInd`, `obvIndToSim` and `obvSimToInd` run in
-polynomial time nor that the simulators built from the inverters do.
+polynomial time nor that the simulators built from the inverters do. The corollaries stay open
+(#5293); the reductions' missing certificates are entries of the reduction-witness baseline.
 
 ## Main definitions
 
@@ -71,7 +72,7 @@ polynomial time nor that the simulators built from the inverters do.
 * `Cslib.Crypto.Garbling.phiTopo_isEvInverter`, `Cslib.Crypto.Garbling.phiSize_isEvInverter`,
   `Cslib.Crypto.Garbling.phiTopo_isInverter`, `Cslib.Crypto.Garbling.phiSize_isInverter`,
   `Cslib.Crypto.Garbling.phiCirc_isInverter`: the inverters of the proof of Proposition 1 of
-  [BellareHoangRogaway2012] are correct (their running time is not bounded).
+  [BellareHoangRogaway2012] are correct (their running time is not bounded, #5293).
 
 ## Steps toward Corollaries 1 and 2
 
@@ -346,11 +347,11 @@ def mSizeInv (s : ValidShape) : ValidCircuit := (mSize s (List.replicate s.m fal
     phiSize.phi (mSize s y).fn = s := rfl
 
 /-- `mTopoInv` is a `Φ_topo`-inverter (proof of [BellareHoangRogaway2012], Section 4.1,
-Proposition 1; its running time is not bounded here). -/
+Proposition 1; its running time is not bounded here, #5293). -/
 theorem phiTopo_isInverter : phiTopo.IsInverter mTopoInv := fun _ => rfl
 
 /-- `mSizeInv` is a `Φ_size`-inverter (proof of [BellareHoangRogaway2012], Section 4.1,
-Proposition 1; its running time is not bounded here). -/
+Proposition 1; its running time is not bounded here, #5293). -/
 theorem phiSize_isInverter : phiSize.IsInverter mSizeInv := fun _ => rfl
 
 /-- The identity is a `Φ_circ`-inverter (proof of [BellareHoangRogaway2012], Section 4.1,
@@ -401,7 +402,7 @@ theorem evalCirc_ofTopo_mTopoGates (t : Topo) (hm : t.m ≤ t.q) (y : List Bool)
   evalCirc_ofTopo_mTopoGates_any t hm y (List.replicate t.n false) hy List.length_replicate
 
 /-- `mTopo` is a `(Φ_topo, ev)`-inverter for every circuit garbling scheme (proof of
-[BellareHoangRogaway2012], Section 4.1, Proposition 1; its running time is not bounded here). -/
+[BellareHoangRogaway2012], Section 4.1, Proposition 1; its running time is not bounded, #5293). -/
 theorem phiTopo_isEvInverter {G : Scheme ValidCircuit} (hG : G.IsCircuitScheme) :
     phiTopo.IsEvInverter G mTopo := by
   intro f x _
@@ -413,7 +414,7 @@ theorem phiTopo_isEvInverter {G : Scheme ValidCircuit} (hG : G.IsCircuitScheme) 
       (f.1.length_evalCirc x f.2.m_le_q)
 
 /-- `mSize` is a `(Φ_size, ev)`-inverter for every circuit garbling scheme (proof of
-[BellareHoangRogaway2012], Section 4.1, Proposition 1; its running time is not bounded here). -/
+[BellareHoangRogaway2012], Section 4.1, Proposition 1; its running time is not bounded, #5293). -/
 theorem phiSize_isEvInverter {G : Scheme ValidCircuit} (hG : G.IsCircuitScheme) :
     phiSize.IsEvInverter G mSize := by
   intro f x _
@@ -431,96 +432,96 @@ section Corollaries
 variable {σ : Type} {G : Scheme ValidCircuit} (hG : G.IsCircuitScheme)
 include hG
 
-/-- Step toward Corollary 1 of [BellareHoangRogaway2012], Section 4.2, not the cited result
-(`Φ_topo`, simulation to indistinguishability): at a fixed security parameter, for any circuit
-garbling scheme, the `prv.ind` advantage under `phiTopo` is twice the `prv.sim` advantage of
+/-- Step toward Corollary 1 of [BellareHoangRogaway2012], Section 4.2 (open, #5293), not the cited
+result (`Φ_topo`, simulation to indistinguishability): at a fixed security parameter, for any
+circuit garbling scheme, the `prv.ind` advantage under `phiTopo` is twice the `prv.sim` advantage of
 `prvIndToSim` against any simulator. No running-time bound for `prvIndToSim` is proved. -/
 theorem prvIndAdvantage_phiTopo_eq_two_mul_prvSimAdvantage (k : ℕ) (S : PrvSimulator ValidTopo)
     (A : PrvIndAdversary ValidCircuit σ) :
     prvIndAdvantage G phiTopo k A = 2 * prvSimAdvantage G phiTopo k S (prvIndToSim G phiTopo A) :=
   prvIndAdvantage_eq_two_mul_prvSimAdvantage_prvIndToSim G phiTopo (phiTopo_compatible hG) k S A
 
-/-- Step toward Corollary 1 of [BellareHoangRogaway2012], Section 4.2, not the cited result
-(`Φ_topo`, indistinguishability to simulation): at a fixed security parameter, for any circuit
-garbling scheme, the `prv.sim` advantage against the `mTopo` inverter simulator equals the `prv.ind`
-advantage of `prvSimToInd`. No running-time bound for the simulator or for `prvSimToInd` is
-proved. -/
+/-- Step toward Corollary 1 of [BellareHoangRogaway2012], Section 4.2 (open, #5293), not the cited
+result (`Φ_topo`, indistinguishability to simulation): at a fixed security parameter, for any
+circuit garbling scheme, the `prv.sim` advantage against the `mTopo` inverter simulator equals the
+`prv.ind` advantage of `prvSimToInd`. No running-time bound for the simulator or for `prvSimToInd`
+is proved. -/
 theorem prvSimAdvantage_phiTopo_mTopo_eq (k : ℕ) (B : PrvSimAdversary ValidCircuit σ) :
     prvSimAdvantage G phiTopo k (prvSimFromInverter G k mTopo) B =
       prvIndAdvantage G phiTopo k (prvSimToInd G phiTopo mTopo B) :=
   prvSimAdvantage_prvSimFromInverter_eq G phiTopo (phiTopo_compatible hG)
     (phiTopo_isEvInverter hG) k B
 
-/-- Step toward Corollary 1 of [BellareHoangRogaway2012], Section 4.2, not the cited result
-(`Φ_size`, simulation to indistinguishability): at a fixed security parameter, for any circuit
-garbling scheme, the `prv.ind` advantage under `phiSize` is twice the `prv.sim` advantage of
+/-- Step toward Corollary 1 of [BellareHoangRogaway2012], Section 4.2 (open, #5293), not the cited
+result (`Φ_size`, simulation to indistinguishability): at a fixed security parameter, for any
+circuit garbling scheme, the `prv.ind` advantage under `phiSize` is twice the `prv.sim` advantage of
 `prvIndToSim` against any simulator. No running-time bound for `prvIndToSim` is proved. -/
 theorem prvIndAdvantage_phiSize_eq_two_mul_prvSimAdvantage (k : ℕ) (S : PrvSimulator ValidShape)
     (A : PrvIndAdversary ValidCircuit σ) :
     prvIndAdvantage G phiSize k A = 2 * prvSimAdvantage G phiSize k S (prvIndToSim G phiSize A) :=
   prvIndAdvantage_eq_two_mul_prvSimAdvantage_prvIndToSim G phiSize (phiSize_compatible hG) k S A
 
-/-- Step toward Corollary 1 of [BellareHoangRogaway2012], Section 4.2, not the cited result
-(`Φ_size`, indistinguishability to simulation): at a fixed security parameter, for any circuit
-garbling scheme, the `prv.sim` advantage against the `mSize` inverter simulator equals the `prv.ind`
-advantage of `prvSimToInd`. No running-time bound for the simulator or for `prvSimToInd` is
-proved. -/
+/-- Step toward Corollary 1 of [BellareHoangRogaway2012], Section 4.2 (open, #5293), not the cited
+result (`Φ_size`, indistinguishability to simulation): at a fixed security parameter, for any
+circuit garbling scheme, the `prv.sim` advantage against the `mSize` inverter simulator equals the
+`prv.ind` advantage of `prvSimToInd`. No running-time bound for the simulator or for `prvSimToInd`
+is proved. -/
 theorem prvSimAdvantage_phiSize_mSize_eq (k : ℕ) (B : PrvSimAdversary ValidCircuit σ) :
     prvSimAdvantage G phiSize k (prvSimFromInverter G k mSize) B =
       prvIndAdvantage G phiSize k (prvSimToInd G phiSize mSize B) :=
   prvSimAdvantage_prvSimFromInverter_eq G phiSize (phiSize_compatible hG)
     (phiSize_isEvInverter hG) k B
 
-/-- Step toward Corollary 2 of [BellareHoangRogaway2012], Section 4.3, not the cited result
-(`Φ_topo`, simulation to indistinguishability): at a fixed security parameter, for any circuit
-garbling scheme, the `obv.ind` advantage under `phiTopo` is twice the `obv.sim` advantage of
+/-- Step toward Corollary 2 of [BellareHoangRogaway2012], Section 4.3 (open, #5293), not the cited
+result (`Φ_topo`, simulation to indistinguishability): at a fixed security parameter, for any
+circuit garbling scheme, the `obv.ind` advantage under `phiTopo` is twice the `obv.sim` advantage of
 `obvIndToSim` against any simulator. No running-time bound for `obvIndToSim` is proved. -/
 theorem obvIndAdvantage_phiTopo_eq_two_mul_obvSimAdvantage (k : ℕ) (S : ObvSimulator ValidTopo)
     (A : ObvIndAdversary ValidCircuit σ) :
     obvIndAdvantage G phiTopo k A = 2 * obvSimAdvantage G phiTopo k S (obvIndToSim G phiTopo A) :=
   obvIndAdvantage_eq_two_mul_obvSimAdvantage_obvIndToSim G phiTopo (phiTopo_compatible hG) k S A
 
-/-- Step toward Corollary 2 of [BellareHoangRogaway2012], Section 4.3, not the cited result
-(`Φ_topo`, indistinguishability to simulation): at a fixed security parameter, for any circuit
-garbling scheme, the `obv.sim` advantage against the `mTopoInv` inverter simulator equals the
-`obv.ind` advantage of `obvSimToInd`. No running-time bound for the simulator or for `obvSimToInd`
-is proved. -/
+/-- Step toward Corollary 2 of [BellareHoangRogaway2012], Section 4.3 (open, #5293), not the cited
+result (`Φ_topo`, indistinguishability to simulation): at a fixed security parameter, for any
+circuit garbling scheme, the `obv.sim` advantage against the `mTopoInv` inverter simulator equals
+the `obv.ind` advantage of `obvSimToInd`. No running-time bound for the simulator or for
+`obvSimToInd` is proved. -/
 theorem obvSimAdvantage_phiTopo_mTopoInv_eq (k : ℕ) (B : ObvSimAdversary ValidCircuit σ) :
     obvSimAdvantage G phiTopo k (obvSimFromInverter G k mTopoInv) B =
       obvIndAdvantage G phiTopo k (obvSimToInd G phiTopo mTopoInv B) :=
   obvSimAdvantage_obvSimFromInverter_eq G phiTopo (phiTopo_compatible hG) phiTopo_isInverter k B
 
-/-- Step toward Corollary 2 of [BellareHoangRogaway2012], Section 4.3, not the cited result
-(`Φ_size`, simulation to indistinguishability): at a fixed security parameter, for any circuit
-garbling scheme, the `obv.ind` advantage under `phiSize` is twice the `obv.sim` advantage of
+/-- Step toward Corollary 2 of [BellareHoangRogaway2012], Section 4.3 (open, #5293), not the cited
+result (`Φ_size`, simulation to indistinguishability): at a fixed security parameter, for any
+circuit garbling scheme, the `obv.ind` advantage under `phiSize` is twice the `obv.sim` advantage of
 `obvIndToSim` against any simulator. No running-time bound for `obvIndToSim` is proved. -/
 theorem obvIndAdvantage_phiSize_eq_two_mul_obvSimAdvantage (k : ℕ) (S : ObvSimulator ValidShape)
     (A : ObvIndAdversary ValidCircuit σ) :
     obvIndAdvantage G phiSize k A = 2 * obvSimAdvantage G phiSize k S (obvIndToSim G phiSize A) :=
   obvIndAdvantage_eq_two_mul_obvSimAdvantage_obvIndToSim G phiSize (phiSize_compatible hG) k S A
 
-/-- Step toward Corollary 2 of [BellareHoangRogaway2012], Section 4.3, not the cited result
-(`Φ_size`, indistinguishability to simulation): at a fixed security parameter, for any circuit
-garbling scheme, the `obv.sim` advantage against the `mSizeInv` inverter simulator equals the
-`obv.ind` advantage of `obvSimToInd`. No running-time bound for the simulator or for `obvSimToInd`
-is proved. -/
+/-- Step toward Corollary 2 of [BellareHoangRogaway2012], Section 4.3 (open, #5293), not the cited
+result (`Φ_size`, indistinguishability to simulation): at a fixed security parameter, for any
+circuit garbling scheme, the `obv.sim` advantage against the `mSizeInv` inverter simulator equals
+the `obv.ind` advantage of `obvSimToInd`. No running-time bound for the simulator or for
+`obvSimToInd` is proved. -/
 theorem obvSimAdvantage_phiSize_mSizeInv_eq (k : ℕ) (B : ObvSimAdversary ValidCircuit σ) :
     obvSimAdvantage G phiSize k (obvSimFromInverter G k mSizeInv) B =
       obvIndAdvantage G phiSize k (obvSimToInd G phiSize mSizeInv B) :=
   obvSimAdvantage_obvSimFromInverter_eq G phiSize (phiSize_compatible hG) phiSize_isInverter k B
 
-/-- Step toward Corollary 2 of [BellareHoangRogaway2012], Section 4.3, not the cited result
-(`Φ_circ`, simulation to indistinguishability): at a fixed security parameter, for any circuit
-garbling scheme, the `obv.ind` advantage under `phiCirc` is twice the `obv.sim` advantage of
+/-- Step toward Corollary 2 of [BellareHoangRogaway2012], Section 4.3 (open, #5293), not the cited
+result (`Φ_circ`, simulation to indistinguishability): at a fixed security parameter, for any
+circuit garbling scheme, the `obv.ind` advantage under `phiCirc` is twice the `obv.sim` advantage of
 `obvIndToSim` against any simulator. No running-time bound for `obvIndToSim` is proved. -/
 theorem obvIndAdvantage_phiCirc_eq_two_mul_obvSimAdvantage (k : ℕ) (S : ObvSimulator ValidCircuit)
     (A : ObvIndAdversary ValidCircuit σ) :
     obvIndAdvantage G phiCirc k A = 2 * obvSimAdvantage G phiCirc k S (obvIndToSim G phiCirc A) :=
   obvIndAdvantage_eq_two_mul_obvSimAdvantage_obvIndToSim G phiCirc (phiCirc_compatible hG) k S A
 
-/-- Step toward Corollary 2 of [BellareHoangRogaway2012], Section 4.3, not the cited result
-(`Φ_circ`, indistinguishability to simulation): at a fixed security parameter, for any circuit
-garbling scheme, the `obv.sim` advantage against the identity inverter simulator equals the
+/-- Step toward Corollary 2 of [BellareHoangRogaway2012], Section 4.3 (open, #5293), not the cited
+result (`Φ_circ`, indistinguishability to simulation): at a fixed security parameter, for any
+circuit garbling scheme, the `obv.sim` advantage against the identity inverter simulator equals the
 `obv.ind` advantage of `obvSimToInd`. No running-time bound for the simulator or for `obvSimToInd`
 is proved. -/
 theorem obvSimAdvantage_phiCirc_id_eq (k : ℕ) (B : ObvSimAdversary ValidCircuit σ) :

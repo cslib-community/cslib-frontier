@@ -76,12 +76,7 @@ private theorem computableInPolyTime_elemGuard {F : PrimeOrderGroupFamily}
       (fun p : ℕ × F.Desc × List Bool × List Bool × List Bool =>
         isElem (p.2.1, p.2.2.2.1) && isElem (p.2.1, p.2.2.2.2))
       (F.encElGamalMsgGuardInput encBits) encBool := by
-  have hp := ComputableInPolyTime.id' (encIn := F.encElGamalMsgGuardInput encBits)
-  have hd := hp.snd'.fst'
-  have hm₀ := hp.snd'.snd'.snd'.fst'
-  have hm₁ := hp.snd'.snd'.snd'.snd'
-  exact ComputableInPolyTime.bool_and.comp
-    ((hisElem.comp (hd.prod hm₀)).prod (hisElem.comp (hd.prod hm₁)))
+  fun_prop
 
 private theorem computableInPolyTime_groupValidHelper {F : PrimeOrderGroupFamily}
     {isElem : F.Desc × List Bool → Bool} {d : ℕ → F.Desc}
@@ -90,12 +85,7 @@ private theorem computableInPolyTime_groupValidHelper {F : PrimeOrderGroupFamily
     ComputableInPolyTime
       (fun ⟨n, _pk, m₀, m₁⟩ => isElem (d n, m₀) && isElem (d n, m₁))
       (encChallengePairInput encBits) encBool := by
-  have hp := ComputableInPolyTime.id' (encIn := encChallengePairInput encBits)
-  have hdn := hd.comp hp.fst'
-  have hm₀ := hp.snd'.snd'.fst'
-  have hm₁ := hp.snd'.snd'.snd'
-  exact ComputableInPolyTime.bool_and.comp
-    ((hisElem.comp (hdn.prod hm₀)).prod (hisElem.comp (hdn.prod hm₁)))
+  fun_prop
 
 namespace DecodablePrimeOrderGroupFamily
 
@@ -138,8 +128,8 @@ theorem advantage_elGamalGroupCPAGame_le (setup : ℕ → PMF F.Desc)
       Game.advantage
         (F.ddhRealGame setup (F.elGamalGroupToDDHDistinguisher adversary true) n)
         (F.ddhRandomGame setup (F.elGamalGroupToDDHDistinguisher adversary true) n) :=
-  F.toPrimeOrderGroupFamily.advantage_elGamalMsgCPAGameWith_le _ (fun _ m => m) setup adversary n
-    fun d _ _ m₀ m₁ hv => F.elemGuard_sound d m₀ m₁ hv
+  F.toPrimeOrderGroupFamily.advantage_elGamalMsgCPAGameWith_le_ideal _ (fun _ m => m) setup
+    adversary n fun d _ _ m₀ m₁ hv => F.elemGuard_sound d m₀ m₁ hv
 
 /-- Ideal-sampling step toward `DDH.indcpaOn_elGamalGroupEncryptProb`, not the cited result: under
 DDH for any setup law, every uniform strict PPT `Encryption.WordAdversary` has negligible advantage

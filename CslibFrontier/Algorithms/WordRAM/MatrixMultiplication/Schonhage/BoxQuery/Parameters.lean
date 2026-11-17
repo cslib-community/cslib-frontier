@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxQuery.Program
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Persistent actual query parameters
@@ -67,14 +68,7 @@ private theorem Parameters.of_frame {L t Q AA BB D V K F : ℕ} {x y : Data regi
     (hx : Parameters L t Q AA BB D V K F x)
     (hf : ∀ i ∈ parameterRegisters, y.regs i = x.regs i) :
     Parameters L t Q AA BB D V K F y := by
-  exact ⟨(hf _ (by decide)).trans hx.levels, (hf _ (by decide)).trans hx.threshold,
-    (hf _ (by decide)).trans hx.span, (hf _ (by decide)).trans hx.query,
-    (hf _ (by decide)).trans hx.arrayA, (hf _ (by decide)).trans hx.arrayB,
-    (hf _ (by decide)).trans hx.directory, (hf _ (by decide)).trans hx.values,
-    (hf _ (by decide)).trans hx.count, (hf _ (by decide)).trans hx.stack,
-    (hf _ (by decide)).trans hx.five, (hf _ (by decide)).trans hx.one,
-    (hf _ (by decide)).trans hx.ten, (hf _ (by decide)).trans hx.nine,
-    (hf _ (by decide)).trans hx.nil⟩
+  regs_frame
 
 /-- One actual controller step preserves the complete original argument bank. -/
 theorem Parameters.after_body {w T L t Q AA BB D V K F : ℕ} {x y : Data registers}

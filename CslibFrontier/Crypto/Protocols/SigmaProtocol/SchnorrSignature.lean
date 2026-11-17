@@ -24,13 +24,14 @@ at most `Qs` signing calls and `Qro` hash calls by
 `Qs · (Qs + Qro) / q + (Qro + 1) / N + √((Qro + 1) · ε')`,
 
 where `N` is the number of challenges and `ε'` the probability that the forking reduction computes
-a discrete logarithm of the public key (`schnorr_succProbability_eufCmaGame_le`). This is a step
-toward [BonehShoup2023], Theorem 19.7, not the cited result: it is the bound (19.21) of
-Theorem 19.16 at `δ = 1 / q`, with `Qs · (Qs + Qro) / q` in place of the slightly larger
-`Qs · (Qs + Qro + 1) / q`, for one group, the uniform key law `schnorrKeyGen g` and one forger. It
-does not prove the forking reduction efficient. Security of the native scheme under the
-discrete-logarithm assumption is `PrimeOrderGroupFamily.DiscreteLog.eufCma_schnorrNativeROMScheme`
-in `CslibFrontier.Crypto.Computational.SchnorrSignature.Security`.
+a discrete logarithm of the public key (`schnorr_succProbability_eufCmaGame_le_ideal`). This is
+an ideal-sampling step toward [BonehShoup2023], Theorem 19.7, not the cited result: it is the
+bound (19.21) of Theorem 19.16 at `δ = 1 / q`, with `Qs · (Qs + Qro) / q` in place of the slightly
+larger `Qs · (Qs + Qro + 1) / q`, for one group, the key drawn at the `PMF` level by
+`schnorrKeyGen g`, and one forger. It does not prove the forking reduction efficient. Security of
+the native scheme under the discrete-logarithm assumption is
+`PrimeOrderGroupFamily.DiscreteLog.eufCma_schnorrNativeROMScheme` in
+`CslibFrontier.Crypto.Computational.SchnorrSignature.Security`.
 
 ## Main definitions
 
@@ -43,10 +44,10 @@ in `CslibFrontier.Crypto.Computational.SchnorrSignature.Security`.
 * `Cslib.Crypto.Protocols.SigmaProtocol.schnorr_commit_map_fst_le`: Schnorr commitments are
   `1 / q`-unpredictable.
 
-## Step toward Theorem 19.7
+## Ideal-sampling step toward Theorem 19.7
 
-* `Cslib.Crypto.Protocols.SigmaProtocol.schnorr_succProbability_eufCmaGame_le`: the concrete
-  random-oracle bound for Schnorr signatures at one group.
+* `Cslib.Crypto.Protocols.SigmaProtocol.schnorr_succProbability_eufCmaGame_le_ideal`: the
+  concrete random-oracle bound for Schnorr signatures at one group.
 
 ## References
 
@@ -106,9 +107,9 @@ theorem schnorrROMScheme_correct (ι : C ↪ ZMod q) (g : G) :
 
 variable [DecidableEq C]
 
-/-- Step toward [BonehShoup2023], Theorem 19.7, not the cited result: at a fixed group with a
-nonzero base and the uniform key law `schnorrKeyGen g`, a forger making at most `Qs` signing calls
-and `Qro` hash calls succeeds with probability at most
+/-- Ideal-sampling step toward [BonehShoup2023], Theorem 19.7, not the cited result: at a fixed
+group with a nonzero base, with the key drawn at the `PMF` level by `schnorrKeyGen g`, a forger
+making at most `Qs` signing calls and `Qro` hash calls succeeds with probability at most
 `Qs · (Qs + Qro) / q + (Qro + 1) / N + √((Qro + 1) · ε')`, where `N` is the number of challenges
 and `ε'` the probability that the forking reduction computes a discrete logarithm of the public
 key, returning zero on a failed fork. This is the bound (19.21) of Theorem 19.16 at `δ = 1 / q`,
@@ -116,7 +117,7 @@ with `Qs · (Qs + Qro) / q` in place of the slightly larger `Qs · (Qs + Qro + 1
 the efficiency of the forking reduction and the asymptotic statement; for the native scheme they
 are `PrimeOrderGroupFamily.isPPTOn_schnorrForkingAdversary` and
 `PrimeOrderGroupFamily.DiscreteLog.eufCma_schnorrNativeROMScheme`. -/
-theorem schnorr_succProbability_eufCmaGame_le (hg : g ≠ 0)
+theorem schnorr_succProbability_eufCmaGame_le_ideal (hg : g ≠ 0)
     (A : Forger G M (G × ZMod q) (M × G) C) {Qs Qro : ℕ} (hA : A.CallBounded Qs Qro) :
     (Game.succProbability (eufCmaGame (fiatShamir (Function.Embedding.refl _) (schnorr ι g)
       (schnorrKeyGen g)) A) : ℝ) ≤

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.WordRAM.Multiword.Bank
 public import CslibFrontier.Computability.WordRAM.Multiword.Bitwise
 public import CslibFrontier.Computability.WordRAM.Multiword.Transfer
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Checked operations on multiword register banks
@@ -128,9 +129,7 @@ private theorem mem_allRegs (j : Fin n) {i : Fin (capacity n + 4)} (hi : i ∈ r
   have hh := mem_regs hi
   apply List.mem_ofFn.mpr
   refine ⟨⟨i.val - 44, by dsimp [capacity]; omega⟩, ?_⟩
-  apply Fin.ext
-  dsimp
-  omega
+  fin_index
 
 /-- Initialize every bank digit, charging one constant instruction per digit. -/
 def clear (n : ℕ) : Code .standard (capacity n + 4) :=
@@ -148,11 +147,7 @@ theorem exec_clear {w : ℕ} (hw : 2 ≤ w) (x : Data (capacity n + 4)) :
       y.mem = x.mem ∧ y.regs inputReg = x.regs inputReg := by
   have hnd : (allRegs n).Nodup := by
     apply List.nodup_ofFn_ofInjective
-    intro a b hab
-    apply Fin.ext
-    have := congrArg Fin.val hab
-    dsimp at this
-    omega
+    fin_index
   obtain ⟨y, he, hm, hf, hp⟩ := Transfer.exec_constants (w := w) (allRegs n)
     (List.replicate (18 * n) 0)
     (by simp only [allRegs, registers, List.length_ofFn, List.length_replicate]) hnd
@@ -172,10 +167,7 @@ theorem exec_clear {w : ℕ} (hw : 2 ≤ w) (x : Data (capacity n + 4)) :
     · exact value_eq_zero_of_forall (hzero j)
   · intro hi
     obtain ⟨i, heq⟩ := List.mem_ofFn.mp hi
-    have hh := congrArg Fin.val heq
-    dsimp only [inputReg] at hh
-    dsimp at hh
-    omega
+    fin_index
 
 /-- Load the sole input from the usual RAM input memory, then split it into a bank entry.
 The input memory contains its length at address zero and its value at address one. -/
@@ -198,10 +190,7 @@ theorem exec_input {w z : ℕ} (hw : 2 ≤ w) (hz : Fits w z) (d : Fin n) :
     ram_eval [u, fits_one (by omega : w ≠ 0), Data.init, inputReg]
   have hzero (i : Fin (capacity n + 4)) (hi : 44 ≤ i.val) : u.regs i = 0 := by
     have hine : i ≠ inputReg := by
-      intro h
-      have := congrArg Fin.val h
-      dsimp only [inputReg] at this
-      omega
+      fin_index
     simp only [u, Data.set_regs, Function.update_of_ne hine, Data.init_regs]
   have hu : Encodes w u (fun _ => 0) := by
     intro j
