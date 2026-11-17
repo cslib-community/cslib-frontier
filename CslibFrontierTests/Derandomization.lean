@@ -6,11 +6,16 @@ Authors: Samuel Schlesinger
 
 import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization
 import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.Generator
+import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.CircuitPRG
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Foundations.Data.BitString.WordCount
 import CslibFrontier.Computability.Circuit.Boolean.Hierarchy
 
 /-! Derandomizing `BPP` with the Nisan–Wigderson generator: average-case hardness on concrete
 functions, both satisfied and violated; greedy designs, their size bound and their generator on
-concrete masks; and the decider on a verifier that ignores its random string. -/
+concrete masks; the seed-enumeration decider on concrete verifiers; and the hypothesis record of
+derandomization from circuit-secure generators on a concrete generator: its efficiency and length
+fields hold, and its security field fails, so the record is neither vacuous nor trivially true. -/
 
 namespace CslibFrontierTests.Derandomization
 
@@ -98,13 +103,66 @@ example (z : Fin 4 → Bool) :
 /-! ### The decider -/
 
 /-- On a verifier that ignores its random string, the decider returns the verifier's answer,
-here on a constant verifier with seeds of two bits. -/
-example : Complexity.nwDecider (fun _ : Unit × List Bool => true) (fun _ => false)
-    (fun _ => 2) (fun _ => 1) (fun _ => 0) (fun _ => 2) () = true := by
+here on a constant verifier and the Nisan–Wigderson generator with seeds of two bits. -/
+example : Complexity.seedDecider (fun _ : Unit × List Bool => true)
+    (fun _ => listGenerator (fun _ => false) 1 ((greedyMasks 2 1 0).take 2)) (fun _ => 2) () =
+      true := by
   decide
 
-example : Complexity.nwDecider (fun _ : Unit × List Bool => false) (fun _ => false)
-    (fun _ => 2) (fun _ => 1) (fun _ => 0) (fun _ => 2) () = false := by
+example : Complexity.seedDecider (fun _ : Unit × List Bool => false)
+    (fun _ => listGenerator (fun _ => false) 1 ((greedyMasks 2 1 0).take 2)) (fun _ => 2) () =
+      false := by
   decide
+
+/-- The vote is a strict majority: with seeds of one bit, a verifier accepting exactly the seed
+`[true]` ties and is rejected. -/
+example : Complexity.seedDecider (fun p : Unit × List Bool => p.2 == [true]) (fun _ z => z)
+    (fun _ => 1) () = false := by
+  decide
+
+/-! ### Circuit-secure generators -/
+
+open Cslib.Crypto.PRG Filter Turing.MultiTapeTM in
+/-- Prepending a `true` bit stretches every seed by one bit in polynomial time, so the efficiency,
+length and stretch fields of `Complexity.CircuitSecurePRG` hold for it. -/
+example : ComputableInPolyTime (fun z : List Bool => true :: z) encBits encBits ∧
+    (∀ z : List Bool, (true :: z).length = z.length + 1) ∧ ∀ k : ℕ, k < k + 1 :=
+  ⟨by fun_prop, fun _ => rfl, fun k => Nat.lt_succ_self k⟩
+
+open Cslib.Crypto.PRG Filter in
+/-- The generator prepending a `true` bit is not secure, even against circuits without gates: the
+projection on the first bit accepts all of its outputs and half of the uniform strings, an
+advantage of `1 / 2 > 1 / k`. -/
+example : ¬ Complexity.CircuitSecurePRG (fun z => true :: z) (· + 1) fun _ => 0 := by
+  intro h
+  obtain ⟨k, hsec, hk⟩ := ((h.secure 1).and (eventually_ge_atTop 3)).exists
+  have htest : IsCircuitTest 0 fun y : BitString (k + 1) => PMF.pure (y 0) :=
+    ⟨fun y => y 0, by simp, rfl⟩
+  have hadv := hsec _ htest
+  rw [Generator.advantage_pure_eq] at hadv
+  have hseeds : #{z : BitString k |
+      wordFamily (fun z => true :: z) (· + 1) k z 0 = true} = 2 ^ k := by
+    have hall (z : BitString k) :
+        wordFamily (fun z => true :: z) (· + 1) k z 0 = true := rfl
+    simp [hall, BitString]
+  have hstrings : #{y : BitString (k + 1) | y 0 = true} = 2 ^ k := by
+    have hcount := BitString.card_filter_take (k := 1) (K := k + 1) (by omega)
+      fun w => w = [true]
+    have hone : #{r : Fin 1 → Bool | List.ofFn r = [true]} = 1 := by decide
+    rw [hone, Nat.add_sub_cancel, mul_one] at hcount
+    rw [← hcount]
+    refine congrArg _ (filter_congr fun y _ => ?_)
+    simp [List.ofFn_succ]
+  rw [hseeds, hstrings] at hadv
+  have hk' : ((((k : NNReal) ^ 1)⁻¹ : NNReal) : ℝ) ≤ 1 / 3 := by
+    have : (3 : ℝ) ≤ k := by exact_mod_cast hk
+    simp only [pow_one, NNReal.coe_inv, NNReal.coe_natCast, one_div]
+    exact inv_anti₀ (by norm_num) this
+  have h2 : ((2 : ℝ) ^ k / 2 ^ k - 2 ^ k / 2 ^ (k + 1)) = 1 / 2 := by
+    rw [pow_succ]; field_simp; ring
+  push_cast at hadv
+  rw [h2, abs_of_pos (by norm_num)] at hadv
+  have := hadv.trans hk'
+  norm_num at this
 
 end CslibFrontierTests.Derandomization

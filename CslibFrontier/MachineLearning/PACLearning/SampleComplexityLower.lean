@@ -208,8 +208,8 @@ private lemma error_map_eq_hypothesisError_set_finite_supp
   ext x
   -- vendored: `sup_eq_union` is ambiguous with `Finset.sup_eq_union` under the pinned Mathlib,
   -- which also deprecates `Set.mem_setOf_eq` and `Set.mem_diff`.
-  simp only [Set.mem_preimage, Set.mem_ofPred_eq, symmDiff_def, Set.sup_eq_union,
-    Set.mem_union, Set.mem_sdiff, Set.mem_singleton_iff]
+  simp only [Set.mem_preimage, Set.mem_ofPred_eq, symmDiff_def, Set.mem_union, Set.mem_sdiff,
+    Set.mem_singleton_iff]
   cases hhx : h x <;> cases hcx : c x <;> simp
 
 open Classical in

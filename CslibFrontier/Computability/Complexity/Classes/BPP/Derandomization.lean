@@ -15,6 +15,7 @@ public import CslibFrontier.Computability.Languages.Slice
 import CslibFrontier.Computability.Circuit.Boolean.PolynomialTime
 import CslibFrontier.Computability.Circuit.Boolean.Substitution
 import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.Generator
+import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.SeedEnumeration
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Log
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
@@ -33,13 +34,15 @@ bound produced by Yao's XOR lemma, and the conclusion is uniform: every problem 
 gives the hypothesis for every natural `c ≥ 1 / ε`, by
 `Cslib.Circuits.Boolean.IsAverageCaseHard.mono`.
 
-The deterministic algorithm is `Cslib.Complexity.nwDecider`. On an instance of length `N` it sets
+The deterministic algorithm is the seed-enumeration decider `Cslib.Complexity.seedDecider` over
+the Nisan–Wigderson generator. On an instance of length `N` it sets
 `t = t₀ + e (⌊log₂ N⌋ + 1)` for constants `t₀` and `e`, and runs the verifier on the output of the
 Nisan–Wigderson generator for all `2 ^ ℓ` seeds of `ℓ = (2 ^ (8 c + 1) + 1) t` bits, taking the
 majority. The generator uses the greedy design (`Cslib.Crypto.PRG.NisanWigderson.Design.greedy`)
 with blocks of `n = 4 c t` positions sharing at most `t - 1` of them, and the hard function on `n`
 bits, evaluated in time `2 ^ O(n)`. Both `2 ^ ℓ` and `2 ^ O(n)` are polynomial in `N`, so the
-algorithm runs in polynomial time (`Cslib.Complexity.computableInPolyTime_nwDecider`).
+algorithm runs in polynomial time (`Cslib.Complexity.computableInPolyTime_seedDecider`,
+`Cslib.Complexity.computableInPolyTime_listGenerator_greedyMasks`).
 
 For correctness, the verifier with the instance fixed is a circuit of polynomial size in its
 random string (`Cslib.Circuits.Boolean.PPoly.exists_of_polyTime`), and `t` is chosen so that
@@ -48,7 +51,8 @@ greedy design then has at least `m` blocks (`Cslib.Crypto.PRG.NisanWigderson.le_
 and the hardness `2 ^ (n / c) = 2 ^ (4 t)` exceeds the size of the reconstructed circuits and `6 m`.
 By `Cslib.Crypto.PRG.NisanWigderson.abs_card_div_sub_card_div_lt`, the fraction of seeds on which
 the verifier accepts is within `1 / 6` of the fraction of random strings on which it accepts, which
-is at least `2 / 3` on members and at most `1 / 3` on other instances.
+is at least `2 / 3` on members and at most `1 / 3` on other instances, so the majority is correct
+(`Cslib.Complexity.seedDecider_eq_true_iff`).
 
 ## Main results
 
@@ -73,51 +77,16 @@ namespace Cslib.Complexity
 open Cslib.Circuits Cslib.Circuits.Boolean Cslib.Crypto.PRG.NisanWigderson Turing.MultiTapeTM
   Finset Filter
 
-/-! ### Hardwiring a prefix -/
-
-/-- The substitution feeding a function of `u.length + P` variables with `u ++ r`, from the
-variables `r`. -/
-private def prefixWiring (u : List Bool) (P : ℕ) (j : Fin (u.length + P)) : Fin P ⊕ Bool :=
-  if h : (j : ℕ) < u.length then .inr u[j] else .inl ⟨j - u.length, by omega⟩
-
-private theorem ofFn_substitute_prefixWiring (u : List Bool) {P : ℕ} (r : Fin P → Bool) :
-    List.ofFn (substitute (prefixWiring u P) r) = u ++ List.ofFn r := by
-  refine List.ext_getElem (by simp) fun j h₁ h₂ => ?_
-  simp only [List.length_ofFn] at h₁
-  rw [List.getElem_ofFn]
-  by_cases hj : j < u.length
-  · rw [List.getElem_append_left hj]
-    simp [substitute, prefixWiring, hj]
-  · rw [List.getElem_append_right (by omega)]
-    simp [substitute, prefixWiring, hj]
-
-/-- A circuit for `L` on words of length `u.length + P` gives a circuit of at most two more gates
-for a function `f` testing `u ++ r ∈ L`, as a function of `r`. -/
-private theorem complexity_le_of_append (L : Language Bool) (u : List Bool) {P : ℕ}
-    {f : BooleanFunction P} (hf : ∀ r, f r = true ↔ u ++ List.ofFn r ∈ L) :
-    complexity interpretation (single f) ≤
-      complexity interpretation (single (L.slice (u.length + P))) + 2 := by
-  have h : f = fun r => L.slice (u.length + P) (substitute (prefixWiring u P) r) := by
-    funext r
-    rw [Bool.eq_iff_iff, Language.slice_eq_true_iff, ofFn_substitute_prefixWiring, hf]
-  rw [h]
-  exact complexity_substitute_le _ _
-
-/-! ### Counting votes -/
-
-/-- The strict majority of the votes over all seeds of `ℓ` bits compares the number of seeds voting
-`true` with half of `2 ^ ℓ`. -/
-private theorem listStrictMajority_map_enumList (ℓ : ℕ) (vote : List Bool → Bool) :
-    BitString.listStrictMajority ((BitString.enumList ℓ).map vote) =
-      decide (2 ^ ℓ / 2 < #{z : Fin ℓ → Bool | vote (List.ofFn z) = true}) := by
-  rw [BitString.enumList, List.map_map, BitString.listStrictMajority_map _ (BitString.nodup_enum ℓ),
-    BitString.strictMajorityOn]
-  have huniv : (BitString.enum ℓ).toFinset = univ := by ext; simp
-  simp only [huniv, card_univ, BitString.card, Function.comp_apply]
-
 /-! ### The main theorem -/
 
-private theorem computableInPolyTime_nwDecider_of_params {α : Type} (enc : α ↪ List Bool)
+/-- The seed map of the Nisan–Wigderson derandomization: on an instance `x` and a seed, the
+generator of the hard function `g` with blocks of `block x` positions and the first `out x` masks
+of the greedy design with seeds of `seed x` bits and overlaps at most `overlap x`. -/
+private abbrev nwGen {α : Type} (g : List Bool → Bool) (seed block overlap out : α → ℕ) (x : α) :
+    List Bool → List Bool :=
+  listGenerator g (block x) ((greedyMasks (seed x) (block x) (overlap x)).take (out x))
+
+private theorem computableInPolyTime_seedDecider_nwGen {α : Type} (enc : α ↪ List Bool)
     {V : α × List Bool → Bool} (hV : ComputableInPolyTime V (encPair enc encBits) encBool)
     {g : List Bool → Bool} {k : ℕ}
     (hg : ComputableInO g encBits encBool (fun y => 2 ^ (k * y.length))
@@ -126,8 +95,9 @@ private theorem computableInPolyTime_nwDecider_of_params {α : Type} (enc : α �
     let t := fun N => n₀ + 3 + e * (Nat.log 2 N + 1)
     let b := 2 ^ (8 * c + 1)
     ComputableInPolyTime
-      (nwDecider V g (fun x => (b + 1) * t (enc x).length) (fun x => c * (4 * t (enc x).length))
-        (fun x => t (enc x).length - 1) (fun x => p.eval (enc x).length))
+      (seedDecider V (nwGen g (fun x => (b + 1) * t (enc x).length)
+        (fun x => c * (4 * t (enc x).length)) (fun x => t (enc x).length - 1)
+        (fun x => p.eval (enc x).length)) fun x => (b + 1) * t (enc x).length)
       enc encBool := by
   intro t b
   have hlog2 : ComputableInPolyTime (fun x => Nat.log 2 (enc x).length) enc encUnary :=
@@ -150,10 +120,10 @@ private theorem computableInPolyTime_nwDecider_of_params {α : Type} (enc : α �
     fun_prop
   have houtO : ComputableInPolyTime (fun x => p.eval (enc x).length) enc encUnary := by
     fun_prop
-  refine (computableInPolyTime_nwDecider hV
+  refine computableInPolyTime_seedDecider hV (computableInPolyTime_listGenerator_greedyMasks
     (fun _ _ h => Nat.pow_le_pow_right two_pos (Nat.mul_le_mul_left k h)) hg hseedO
     hblockO hoverlapO houtO
-    (hbudget (b + 1)) ((hbudget (k * (c * 4))).mono fun x => le_of_eq ?_))
+    (hbudget (b + 1)) ((hbudget (k * (c * 4))).mono fun x => le_of_eq ?_)) hseedO (hbudget (b + 1))
   ring_nf
 
 private theorem nw_design_and_size_bounds {c m Tc τ : ℕ} (hc : 0 < c) (hτ3 : 3 ≤ τ)
@@ -192,55 +162,6 @@ private theorem nw_design_and_size_bounds {c m Tc τ : ℕ} (hc : 0 < c) (hτ3 :
   have h6m' : (6 * m : ℝ) < ((2 ^ (4 * τ) : ℕ) : ℝ) := by exact_mod_cast h6m
   linarith
 
-private theorem majority_iff_of_abs_sub_lt {m ℓ Z : ℕ} {test : BooleanFunction m} {P : Prop}
-    (hNW : |((Z : ℝ) / 2 ^ ℓ - (#{r | test r = true} : ℝ) / 2 ^ m)| < 1 / 6)
-    (hdec : (P → 2 * 2 ^ m ≤ 3 * #{r | test r = true}) ∧
-      (¬P → 2 * 2 ^ m ≤ 3 * #{r | test r = false})) :
-    P ↔ 2 ^ ℓ / 2 < Z := by
-  set R := #{r | test r = true}
-  have hRF : #{r : Fin m → Bool | test r = false} = 2 ^ m - R := by
-    have h := card_filter_add_card_filter_not (s := univ) (fun r : Fin m → Bool => test r = true)
-    simp only [Bool.not_eq_true, card_univ, Fintype.card_fun, Fintype.card_bool,
-      Fintype.card_fin] at h
-    have h' : R + #{r : Fin m → Bool | test r = false} = 2 ^ m := by convert h
-    omega
-  have h2ℓ : (0 : ℝ) < 2 ^ ℓ := by positivity
-  have h2m : (0 : ℝ) < 2 ^ m := by positivity
-  rw [abs_sub_lt_iff] at hNW
-  constructor
-  · intro hP
-    have hR' : (2 : ℝ) * 2 ^ m ≤ 3 * R := by exact_mod_cast hdec.1 hP
-    have hZ' : (2 : ℝ) ^ ℓ < 2 * Z := by
-      have := hNW.2
-      rw [div_sub_div _ _ h2m.ne' h2ℓ.ne', div_lt_iff₀ (by positivity)] at this
-      nlinarith
-    have hZ'' : 2 ^ ℓ < 2 * Z := by exact_mod_cast hZ'
-    exact (Nat.div_lt_iff_lt_mul two_pos).2 (by omega)
-  · intro hlt
-    by_contra hP
-    have hRF' : 2 * 2 ^ m ≤ 3 * (2 ^ m - R) := hRF ▸ hdec.2 hP
-    have hRm : R ≤ 2 ^ m := (card_filter_le _ _).trans (by simp)
-    have hR' : (3 : ℝ) * R ≤ 2 ^ m := by exact_mod_cast (show 3 * R ≤ 2 ^ m by omega)
-    have hZ' : (2 : ℝ) * Z < 2 ^ ℓ := by
-      have := hNW.1
-      rw [div_sub_div _ _ h2ℓ.ne' h2m.ne', div_lt_iff₀ (by positivity)] at this
-      nlinarith
-    have hZ'' : 2 * Z < 2 ^ ℓ := by exact_mod_cast hZ'
-    have := (Nat.div_lt_iff_lt_mul two_pos).1 hlt
-    omega
-
-private theorem nwDecider_eq_decide {α : Type} {V : α × List Bool → Bool} {g : List Bool → Bool}
-    {L : Language Bool} (hslice : ∀ n, (fun y : Fin n → Bool => g (List.ofFn y)) = L.slice n)
-    (seed block overlap out : α → ℕ) (x : α)
-    (hlen : out x ≤ (greedyMasks (seed x) (block x) (overlap x)).length) :
-    nwDecider V g seed block overlap out x = decide (2 ^ seed x / 2 <
-      #{z | V (x, List.ofFn (generator
-        (Design.greedy (seed x) (block x) (overlap x) (out x) hlen)
-        (L.slice (block x)) z)) = true}) := by
-  rw [nwDecider, listStrictMajority_map_enumList]
-  congr 3; refine filter_congr fun z _ => ?_
-  rw [← hslice, listGenerator_take_greedyMasks hlen]
-
 /-- **Hardness versus randomness: average-case hardness in `E` derandomizes `BPP`**
 [NisanWigderson1994], [Arora and Barak, Chapter 20][AroraBarak09]. Let `L` be a problem on words
 in `E`, decidable in time `O(2 ^ (k n))` for some `k`, and let `c > 0`. If for all large `n` the
@@ -250,7 +171,8 @@ De Morgan circuit complexity at most `2 ^ (n / c)` agrees with it on at most a
 in `P enc`, for every encoding `enc` of instances.
 
 The hardness is nonuniform and non-strict (`Cslib.Circuits.Boolean.IsAverageCaseHard`); the
-conclusion is uniform, with the deterministic decider `Cslib.Complexity.nwDecider`. -/
+conclusion is uniform, with the deterministic decider `Cslib.Complexity.seedDecider` over the
+Nisan–Wigderson generator. -/
 theorem BPP_subset_P_of_isAverageCaseHard {L : Language Bool} {c : ℕ}
     (hL : (L : Set (List Bool)) ∈ E encBits) (hc : 0 < c)
     (hard : ∀ᶠ n in atTop, IsAverageCaseHard (L.slice n) (2 ^ (n / c)))
@@ -271,10 +193,10 @@ theorem BPP_subset_P_of_isAverageCaseHard {L : Language Bool} {c : ℕ}
   obtain ⟨n₀, hn₀⟩ := eventually_atTop.1 hard
   set t : ℕ → ℕ := fun N => n₀ + 3 + e * (Nat.log 2 N + 1) with ht
   set b := 2 ^ (8 * c + 1)
-  refine ⟨nwDecider V g (fun x => (b + 1) * t (enc x).length)
+  refine ⟨seedDecider V (nwGen g (fun x => (b + 1) * t (enc x).length)
     (fun x => c * (4 * t (enc x).length)) (fun x => t (enc x).length - 1)
-    (fun x => p.eval (enc x).length),
-    (computableInPolyTime_nwDecider_of_params enc hV hg n₀ e c p), fun x => ?_⟩
+    (fun x => p.eval (enc x).length)) fun x => (b + 1) * t (enc x).length,
+    (computableInPolyTime_seedDecider_nwGen enc hV hg n₀ e c p), fun x => ?_⟩
   set N := (enc x).length
   set τ := t N with hτ
   set m := p.eval N
@@ -289,11 +211,21 @@ theorem BPP_subset_P_of_isAverageCaseHard {L : Language Bool} {c : ℕ}
     rwa [Nat.mul_div_cancel_left _ hc] at h
   set test : BooleanFunction m := fun r => V (x, List.ofFn r) with htest_def
   have htest : complexity interpretation (single test) ≤ Tc N + 2 := by
-    have h := complexity_le_of_append L' (frame (enc x)) (f := test) fun r => by
-      rw [htest_def, hVL', encPair_apply, encBits_apply]
+    have h := complexity_le_of_append_take L' (frame (enc x)) le_rfl (f := test) fun r => by
+      rw [htest_def, List.take_of_length_le (by simp), hVL', encPair_apply, encBits_apply]
     rwa [length_frame] at h
-  rw [nwDecider_eq_decide hslice _ _ _ _ x hlen, decide_eq_true_iff]
-  exact majority_iff_of_abs_sub_lt (abs_card_div_sub_card_div_lt _ hhard hs hεs test htest) (hdec x)
+  have hgap := abs_card_div_sub_card_div_lt (Design.greedy _ _ _ _ hlen) hhard hs hεs test htest
+  refine (seedDecider_eq_true_iff hdec _ _ ?_).symm
+  have hseeds : #{z : Fin ((b + 1) * τ) → Bool |
+      V (x, nwGen g (fun x => (b + 1) * t (enc x).length) (fun x => c * (4 * t (enc x).length))
+        (fun x => t (enc x).length - 1) (fun x => p.eval (enc x).length) x (List.ofFn z)) =
+          true} =
+      #{z | test (generator (Design.greedy ((b + 1) * τ) (c * (4 * τ)) (τ - 1) m hlen)
+        (L.slice (c * (4 * τ))) z) = true} := by
+    refine congrArg _ (filter_congr fun z _ => ?_)
+    rw [htest_def, nwGen, listGenerator_take_greedyMasks hlen, hslice]
+  rw [hseeds]
+  exact hgap
 
 /-- **Hardness versus randomness: `P = BPP` from average-case hardness in `E`**
 [NisanWigderson1994], [Arora and Barak, Chapter 20][AroraBarak09]. If some problem in `E` has

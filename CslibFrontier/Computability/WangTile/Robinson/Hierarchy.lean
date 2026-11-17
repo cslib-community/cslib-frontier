@@ -204,16 +204,10 @@ noncomputable def tower (base : Plane) : Tower base where
   zero := rfl
   children n := (chooseParent (parentPlane base n)).children
 
-private def bit (code : ℕ) : Fin 2 := ⟨code % 2, Nat.mod_lt _ (by decide)⟩
-
-private def expansion : ℕ → Index → ℕ → ℕ → Index
-  | 0, p, _, _ => p
-  | n + 1, p, x, y => childBlock (expansion n p (x / 2) (y / 2)) (bit x) (bit y)
-
 private theorem expansion_occurs {base : Plane} (t : Tower base) :
     ∀ (depth level : ℕ) (x y : ℤ) (i j : ℕ), ∃ u v : ℤ,
       (t.plane level).index u v =
-        expansion depth ((t.plane (level + depth)).index x y) i j := by
+        iterateRefine depth (fun _ _ => (t.plane (level + depth)).index x y) i j := by
   intro depth
   induction depth with
   | zero => intro level x y i j; exact ⟨x, y, rfl⟩
@@ -221,12 +215,15 @@ private theorem expansion_occurs {base : Plane} (t : Tower base) :
     intro level x y i j
     obtain ⟨u, v, huv⟩ := ih (level + 1) x y (i / 2) (j / 2)
     rw [Nat.add_right_comm] at huv
-    exact ⟨_, _, by rw [← t.children level u v (bit i) (bit j), huv]; rfl⟩
+    exact ⟨_, _, by rw [← t.children level u v ⟨i % 2, Nat.mod_lt _ (by decide)⟩
+        ⟨j % 2, Nat.mod_lt _ (by decide)⟩, huv]; rfl⟩
 
-private theorem zero_descends : ∀ p : Index, ∃ i j : Fin 8, expansion 3 p i j = 0 := by
+private theorem zero_descends :
+    ∀ p : Index, ∃ i j : Fin 8, iterateRefine 3 (fun _ _ => p) i j = 0 := by
   decide +kernel
 
-private theorem descends_zero : ∀ p : Index, ∃ i j : Fin 32, expansion 5 0 i j = p := by
+private theorem descends_zero :
+    ∀ p : Index, ∃ i j : Fin 32, iterateRefine 5 (fun _ _ => 0) i j = p := by
   decide +kernel
 
 /-- Every corrected tile type occurs at every level of every parent tower. -/
@@ -238,49 +235,39 @@ theorem Tower.every_tile {base : Plane} (t : Tower base) (level : ℕ) (target :
   obtain ⟨u, v, huv⟩ := expansion_occurs t 5 level x y i' j'
   exact ⟨u, v, by rw [huv, hxy, hij, hij']⟩
 
-private theorem bit_step (x : ℕ) :
-    (bit x = 0 ∧ bit (x + 1) = 1 ∧ (x + 1) / 2 = x / 2) ∨
-      (bit x = 1 ∧ bit (x + 1) = 0 ∧ (x + 1) / 2 = x / 2 + 1) := by
-  have hm := Nat.mod_lt x (by decide : 0 < 2)
-  by_cases h : x % 2 = 0
-  · left
-    refine ⟨?_, ?_, ?_⟩
-    · apply Fin.ext; exact h
-    · apply Fin.ext; change (x + 1) % 2 = 1; omega
-    · omega
-  · right
-    refine ⟨?_, ?_, ?_⟩
-    · apply Fin.ext; change x % 2 = 1; omega
-    · apply Fin.ext; change (x + 1) % 2 = 0; omega
-    · omega
+private theorem parity_step (x : ℕ) :
+    (x % 2 = 0 ∧ (x + 1) % 2 = 1 ∧ (x + 1) / 2 = x / 2) ∨
+      (x % 2 = 1 ∧ (x + 1) % 2 = 0 ∧ (x + 1) / 2 = x / 2 + 1) := by
+  omega
 
 private theorem expansion_horizontal (n : ℕ) (p : Index) (x y : ℕ)
     (hx : x + 1 < 2 ^ n) :
-    (tile (components (expansion n p x y))).right =
-      (tile (components (expansion n p (x + 1) y))).left := by
+    (tile (components (iterateRefine n (fun _ _ => p) x y))).right =
+      (tile (components (iterateRefine n (fun _ _ => p) (x + 1) y))).left := by
   induction n generalizing x y with
   | zero => simp only [pow_zero] at hx; omega
   | succ n ih =>
-    rcases bit_step x with h | h
-    · simp only [expansion, h.1, h.2.1, h.2.2]
+    rcases parity_step x with h | h
+    · simp only [iterateRefine, refineIndexGrid, h.1, h.2.1, h.2.2]
       exact child_horizontal _ _
-    · simp only [expansion, h.1, h.2.1, h.2.2]
-      apply (horizontal_iff_children _ _).mp (ih (x / 2) (y / 2) ?_) (bit y)
+    · simp only [iterateRefine, refineIndexGrid, h.1, h.2.1, h.2.2]
+      apply (horizontal_iff_children _ _).mp (ih (x / 2) (y / 2) ?_)
+        ⟨y % 2, Nat.mod_lt _ (by decide)⟩
       rw [pow_succ] at hx
       omega
 
 private theorem expansion_vertical (n : ℕ) (p : Index) (x y : ℕ)
     (hy : y + 1 < 2 ^ n) :
-    (tile (components (expansion n p x y))).top =
-      (tile (components (expansion n p x (y + 1)))).bottom := by
+    (tile (components (iterateRefine n (fun _ _ => p) x y))).top =
+      (tile (components (iterateRefine n (fun _ _ => p) x (y + 1)))).bottom := by
   induction n generalizing x y with
   | zero => simp only [pow_zero] at hy; omega
   | succ n ih =>
-    rcases bit_step y with h | h
-    · simp only [expansion, h.1, h.2.1, h.2.2]
+    rcases parity_step y with h | h
+    · simp only [iterateRefine, refineIndexGrid, h.1, h.2.1, h.2.2]
       exact child_vertical _ _
-    · simp only [expansion, h.1, h.2.1, h.2.2]
-      apply (vertical_iff_children _ _).mp (ih (x / 2) (y / 2) ?_) (bit x)
+    · simp only [iterateRefine, refineIndexGrid, h.1, h.2.1, h.2.2]
+      apply (vertical_iff_children _ _).mp (ih (x / 2) (y / 2) ?_) ⟨x % 2, Nat.mod_lt _ (by decide)⟩
       rw [pow_succ] at hy
       omega
 
@@ -288,7 +275,7 @@ private theorem square_bound {n x : ℕ} (h : x < n + 1) : x < 2 ^ n :=
   lt_of_lt_of_le h (Nat.succ_le_of_lt (show n < 2 ^ n from Nat.lt_two_pow_self))
 
 private def square (n : ℕ) : Rectangle tileSet (n + 1) (n + 1) where
-  tile i j := tile (components (expansion n 0 i.val j.val))
+  tile i j := tile (components (iterateRefine n (fun _ _ => 0) i.val j.val))
   mem _i _j := tile_components_mem _
   horizontal i j hi := expansion_horizontal n 0 i.val j.val (square_bound hi)
   vertical i j hj := expansion_vertical n 0 i.val j.val (square_bound hj)

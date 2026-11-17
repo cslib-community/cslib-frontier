@@ -84,7 +84,7 @@ theorem one_sub_mul_exp_add_mul_exp_le {p : ℝ} (hp₀ : 0 ≤ p) (hp₁ : p �
     (MeasureTheory.ae_of_all _ fun b => by cases b <;> norm_num [X])
   have hmgf := h.mgf_le s
   rw [ProbabilityTheory.mgf, ProbabilityTheory.integral_bernoulliMeasure] at hmgf
-  simp only [hmean, X, ↓reduceIte, smul_eq_mul, sub_zero, nnnorm_one,
+  simp only [hmean, X, ↓reduceIte, smul_eq_mul, sub_zero, nnNorm_one,
     NNReal.coe_pow, NNReal.coe_div, NNReal.coe_one, NNReal.coe_ofNat] at hmgf
   change p * exp (s * (1 - p)) + (1 - p) * exp (s * (0 - p)) ≤
     exp (((1 : ℝ) / 2) ^ 2 * s ^ 2 / 2) at hmgf

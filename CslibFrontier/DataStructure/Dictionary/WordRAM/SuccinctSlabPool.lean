@@ -146,7 +146,7 @@ theorem memoryCost_gmPushSlabProg_le (U V w n_max h_space : ℕ) (d : ℕ × ℕ
     p_gmSlabMetaBase_mk, p_dirSlabs_mk, p_gmSlabDirBase_mk]
   simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind,
     memoryCost_readGMProg, memoryCost_writeGMProg]
-  split_ifs <;> (try simp only [memoryCost_writeGMProg, memoryCost_pure]) <;> omega
+  split_ifs <;> (simp only [memoryCost_writeGMProg, memoryCost_pure]) <;> omega
 
 /-- Precondition for `gmPushSlabProg`. -/
 @[expose]
@@ -565,10 +565,10 @@ theorem gmRelinkMovedSlab_preserves_meta {n_max : ℕ} (gmA : ℕ → ℕ) {p_de
   refine ⟨?_, ?_, ?_⟩
   · split_ifs
     all_goals repeat rw [Function.update_of_ne (by omega)]
-    all_goals rfl
+    rfl
   · split_ifs
     all_goals repeat rw [Function.update_of_ne (by omega)]
-    all_goals rfl
+    rfl
   · intro idx hidx
     split_ifs with h1 h2 h2
     · rw [Function.update_of_ne (by omega), Function.update_of_ne (by have := hdir h2; omega)]
@@ -632,7 +632,7 @@ theorem memoryCost_gmRelinkMovedSlabProg_le (U V w n_max h_space : ℕ) (d : (�
   simp only [readGMGenProg_mk, writeGMGenProg_mk,
     p_gmSlabMetaBase_mk, p_dirSlabs_mk, p_gmSlabDirBase_mk]
   simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind, memoryCost_readGMProg]
-  split_ifs <;> (try simp only [memoryCost_writeGMProg, memoryCost_pure]) <;> omega
+  split_ifs <;> (simp only [memoryCost_writeGMProg, memoryCost_pure]) <;> omega
 
 /-- Pure bounds invariant for `gmRelinkMovedSlabProg` and `gmLinkMovedNeighborsProg`. -/
 @[expose]
@@ -818,7 +818,7 @@ theorem memoryCost_gmLinkMovedNeighborsProg_le (U V w n_max h_space : ℕ) (d : 
     writeGMGenProg_mk, p_gmSlabMetaBase_mk]
   simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind,
     memoryCost_readGMProg, memoryCost_writeGMProg]
-  split_ifs <;> (try simp only [memoryCost_writeGMProg, memoryCost_pure]) <;> omega
+  split_ifs <;> (simp only [memoryCost_writeGMProg, memoryCost_pure]) <;> omega
 
 theorem gmLinkMovedNeighborsProg_effect {U V w n_max h_space base p_del p_last : ℕ}
     (hw : 0 < w) (hb_pos : 0 < bucketBits n_max)

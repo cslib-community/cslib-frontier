@@ -23,6 +23,7 @@ matching of their boundaries. Thin-layer matching determines the parity phases o
 * `Components` and `components`: the three layers of each of the 104 tiles.
 * `tile` and `tileSet`: the edge-colour interpretation and finite palette.
 * `childBlock`: the corrected Figure 16 substitution, with west/east coordinate first.
+* `refineIndexGrid`, `iterateRefine`: simultaneous substitution of natural-coordinate grids.
 
 ## Main results
 
@@ -38,7 +39,7 @@ The tile set originates in [Ollinger2008], as presented in [JeandelVanier2020], 
 follow the corresponding steps of Proposition 8 on p. 24.
 
 Prior formalization: [lean-wang](https://github.com/edemaine/lean-wang/tree/64268a3), revision
-`64268a3`, the `Robinson.Closed104.Data`, `Figure16` and `Tiles` modules.
+`64268a3`, the `Robinson.Closed104.Data`, `Figure16`, `Tiles` and `RedBoards` modules.
 Here “corrected” identifies the transcription specified in its
 [plan, lines 94–98](https://github.com/edemaine/lean-wang/blob/64268a3/plan.md#L94-L98):
 the 104 triples of `figures/fig13-human.tsv` and the second thick-layer summand at `L2b`
@@ -363,6 +364,26 @@ The 416 entries flatten lean-wang's layer rules `phiL1Star`, `phiL2Component1`,
   | 102 => square 102 25 75 4
   | 103 => square 103 27 75 4
   | _ => square 0 22 57 4
+
+/-- Simultaneous substitution of an index grid at the quotient and parity coordinates. -/
+@[expose] def refineIndexGrid (grid : Nat → Nat → Index) (x y : Nat) : Index :=
+  childBlock (grid (x / 2) (y / 2))
+    ⟨x % 2, Nat.mod_lt _ (by decide)⟩ ⟨y % 2, Nat.mod_lt _ (by decide)⟩
+
+/-- Substitution at an arbitrary child position. -/
+@[simp] theorem refineIndexGrid_child (grid : Nat → Nat → Index) (x y : Nat)
+    (dx dy : Fin 2) :
+    refineIndexGrid grid (2 * x + dx) (2 * y + dy) = childBlock (grid x y) dx dy := by
+  have hx : (2 * x + dx) / 2 = x := by omega
+  have hy : (2 * y + dy) / 2 = y := by omega
+  have hdx : (2 * x + dx) % 2 = dx := by omega
+  have hdy : (2 * y + dy) % 2 = dy := by omega
+  simp only [refineIndexGrid, hx, hy, hdx, hdy]
+
+/-- Iterate simultaneous substitution. -/
+@[expose] def iterateRefine : Nat → (Nat → Nat → Index) → Nat → Nat → Index
+  | 0, grid => grid
+  | level + 1, grid => refineIndexGrid (iterateRefine level grid)
 
 /-- The thin-layer phase immediately east of a given phase. -/
 @[expose] def phaseEast : Thin → Thin

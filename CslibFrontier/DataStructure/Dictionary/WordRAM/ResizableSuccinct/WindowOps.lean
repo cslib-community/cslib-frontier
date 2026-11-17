@@ -104,7 +104,7 @@ theorem realizesBounded_copyCompItemGen :
   all_goals (
     rcases d with ⟨⟨cp, itemBase⟩, ⟨src, dst⟩⟩
     obtain ⟨m_items, ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hsrc, hdst⟩ := h
-    try simp only [StateTransitionSpec.clientState, runClient_state_readCompQuotGenProg,
+    simp only [StateTransitionSpec.clientState, runClient_state_readCompQuotGenProg,
       runClient_state_readCompValGenProg, runClient_state_writeCompQuotGenProg] at *)
   all_goals exact ⟨m_items, ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, by assumption⟩
 
@@ -143,7 +143,7 @@ theorem realizesBounded_clearCompItemGen :
   all_goals (
     rcases d with ⟨⟨cp, itemBase⟩, idx⟩
     obtain ⟨m_items, ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hidx⟩ := h
-    try simp only [StateTransitionSpec.clientState, runClient_state_writeCompQuotGenProg] at *)
+    simp only [StateTransitionSpec.clientState, runClient_state_writeCompQuotGenProg] at *)
   all_goals exact ⟨m_items, ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hidx⟩
 
 /-- Read `LocalMeta[c, idx]` at `metaBase` in `Memory.Prog`. -/
@@ -738,7 +738,7 @@ theorem realizesBounded_winGrowRightGen :
   all_goals try omega
   all_goals try exact lt_of_le_of_lt (by omega) hU
   all_goals try exact ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hn_lt⟩
-  all_goals exact ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, Nat.mod_lt _ hM_pos⟩
+  exact ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, Nat.mod_lt _ hM_pos⟩
 
 theorem clientState_winGrowRightGenProg (U V w N metaBase b_win n_win : ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s
@@ -782,7 +782,7 @@ theorem realizesBounded_winGrowLeftGen :
     have hM_pos : 0 < maxTailItems N := by omega)
   all_goals try omega
   all_goals try exact ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hn_lt⟩
-  all_goals exact ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, Nat.mod_lt _ hM_pos⟩
+  exact ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, Nat.mod_lt _ hM_pos⟩
 
 theorem clientState_winGrowLeftGenProg (U V w N metaBase b_win n_win : ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s
@@ -833,7 +833,7 @@ theorem realizesBounded_winShrinkRightGen :
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hn_lt, hbn_le, hdt_lt, htd_lt⟩ := h
     have hM_pos : 0 < maxTailItems N := by omega
     have hcrem_lt : (b_win + n_win) % maxTailItems N < maxTailItems N := Nat.mod_lt _ hM_pos
-    try simp only [cpMaxTail_mk, StateTransitionSpec.clientState,
+    simp only [cpMaxTail_mk, StateTransitionSpec.clientState,
       clientResult_readCompDTGenProg hcrem_lt, runClient_state_readCompDTGenProg,
       clientResult_readCompTDGenProg hn_lt, runClient_state_readCompTDGenProg,
       runClient_state_writeCompTDGenProg] at *)
@@ -880,7 +880,7 @@ theorem realizesBounded_winShrinkLeftGen :
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hn_lt, hb_le, hdt_lt, htd_lt⟩ := h
     have hM_pos : 0 < maxTailItems N := by omega
     have hcrem_lt : b_win % maxTailItems N < maxTailItems N := Nat.mod_lt _ hM_pos
-    try simp only [cpMaxTail_mk, StateTransitionSpec.clientState,
+    simp only [cpMaxTail_mk, StateTransitionSpec.clientState,
       clientResult_readCompDTGenProg hcrem_lt, runClient_state_readCompDTGenProg,
       clientResult_readCompTDGenProg hn_lt, runClient_state_readCompTDGenProg,
       runClient_state_writeCompTDGenProg] at *)

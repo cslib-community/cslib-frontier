@@ -232,7 +232,7 @@ private theorem map_uniform_perm_map_eq [Fintype D] {m₀ m₁ : List D} (h₀ :
   have hm : m₁ = m₀.map τ := by
     refine List.ext_getElem (by simp [hlen]) fun i hi₁ hi₂ => ?_
     have := congrArg (· ⟨i, by simpa using hi₂⟩) hτ
-    simpa [x, y, Function.Embedding.smul_apply] using this.symm
+    simpa [x, y, smul_apply] using this.symm
   calc (PMF.uniformOfFintype (Equiv.Perm D)).map (fun π : Equiv.Perm D => m₀.map ⇑π)
       = ((PMF.uniformOfFintype (Equiv.Perm D)).map (Equiv.mulRight τ)).map
           (fun π : Equiv.Perm D => m₀.map ⇑π) := by rw [PMF.uniformOfFintype_map_equiv]
