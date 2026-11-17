@@ -17,8 +17,9 @@ Every Boolean function `f` on `n` bits is approximated by small circuits a littl
 coin flips: for every `t` with `2 t ≤ 2 ^ n` there is a Boolean function of De Morgan circuit
 complexity at most `t (2 n + 3) + 1` that agrees with `f` on at least a `1 / 2 + t / 2 ^ n`
 fraction of the inputs (`exists_complexity_le_and_add_le_card_agree`). The circuit outputs the
-majority value of `f`, except on `t` hard-wired inputs where `f` takes the other value. For
-`t = 1` this is a circuit of size `2 n + 4` with agreement `1 / 2 + 2 ^ (-n)`.
+majority value of `f`, except on at most `t` hard-wired inputs where `f` takes the other value
+(fewer when `f` has fewer minority inputs). For `t = 1` this is a circuit of size `2 n + 4` with
+agreement `1 / 2 + 2 ^ (-n)`.
 
 This is Exercise 7.10 of Goldreich [Goldreich2007DraftR4]. The text after his Definition 7.9 cites
 it for the limit of inapproximability: no predicate is `(S, ρ)`-inapproximable, that is
@@ -44,32 +45,14 @@ open Finset
 
 variable {n : ℕ}
 
-/-- Changing the constant `b` to `!b` on a finite set `T` of inputs costs at most
-`#T (2 n + 3) + 1` gates. -/
-private theorem complexity_ite_mem_le (T : Finset (BitString n)) (b : Bool) :
-    complexity interpretation (single fun x => if x ∈ T then !b else b) ≤
-      #T * (2 * n + 3) + 1 := by
-  induction T using Finset.induction_on with
-  | empty => simpa using (complexity_const (n := n) b).le
-  | @insert a T ha ih =>
-    have e : (fun x => if x ∈ insert a T then !b else b) =
-        Function.update (fun x => if x ∈ T then !b else b) a (!b) := funext fun x => by
-      by_cases hx : x = a
-      · subst hx
-        simp
-      · simp [hx]
-    rw [e, card_insert_of_notMem ha, add_one_mul]
-    calc _ ≤ _ + (2 * n + 3) := complexity_update_le _ a (!b)
-      _ ≤ #T * (2 * n + 3) + 1 + (2 * n + 3) := Nat.add_le_add_right ih _
-      _ = _ := by ring
-
 /-- **Small circuits beat coin flips** [Goldreich, Exercise 7.10][Goldreich2007DraftR4]: for every
 `f : {0,1}ⁿ → {0,1}` and every `t` with `2 t ≤ 2 ^ n` (that is, `t ≤ 2 ^ (n - 1)`; for `n = 0`
 only `t = 0`), some Boolean function of circuit complexity at most `t (2 n + 3) + 1`, a circuit of
-size `O(t n)`, agrees with `f` on at least a `1 / 2 + t / 2 ^ n` fraction of the inputs. For
-`t = 1` and `n ≥ 1` this is the first claim of the exercise: a circuit of size `2 n + 4` with
-agreement `1 / 2 + 2 ^ (-n)`. (At `n = 0` that claim would need agreement `3 / 2`.) Sizes are
-counted as in `Cslib.Circuits.complexity`, and agreement as in `IsAverageCaseHard`. -/
+size `O(t n + 1)` (so `O(t n)` for positive `t` and `n`), agrees with `f` on at least a
+`1 / 2 + t / 2 ^ n` fraction of the inputs. It outputs the majority value of `f`, corrected on at
+most `t` inputs. For `t = 1` and `n ≥ 1` this is the first claim of the exercise: a circuit of size
+`2 n + 4` with agreement `1 / 2 + 2 ^ (-n)`. (At `n = 0` that claim would need agreement `3 / 2`.)
+Sizes are counted as in `Cslib.Circuits.complexity`, and agreement as in `IsAverageCaseHard`. -/
 theorem exists_complexity_le_and_add_le_card_agree (f : BooleanFunction n) {t : ℕ}
     (ht : 2 * t ≤ 2 ^ n) :
     ∃ g : BooleanFunction n, complexity interpretation (single g) ≤ t * (2 * n + 3) + 1 ∧
@@ -94,7 +77,8 @@ theorem exists_complexity_le_and_add_le_card_agree (f : BooleanFunction n) {t : 
       omega
   obtain ⟨T, hTD, hT⟩ := exists_subset_card_eq (min_le_right t #{x | f x ≠ b})
   refine ⟨fun x => if x ∈ T then !b else b, ?_, ?_⟩
-  · exact (complexity_ite_mem_le T b).trans (by gcongr; rw [hT]; exact min_le_left _ _)
+  · exact (complexity_ite_mem_le (fun _ => !b) T b).trans
+      (by gcongr; rw [hT]; exact min_le_left _ _)
   · -- `g` agrees with `f` where `f = b`, and on `T`, where `f = !b`
     have hagree : #{x | (if x ∈ T then !b else b) = f x} = #{x | f x = b} + #T := by
       rw [← card_union_of_disjoint]
