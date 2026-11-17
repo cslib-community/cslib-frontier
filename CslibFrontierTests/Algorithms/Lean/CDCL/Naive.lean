@@ -7,10 +7,12 @@ Authors: Matthew Doty
 module
 -- upstream: local-only (tests)
 
+import CslibFrontier.Algorithms.Lean.CDCL.Naive
+import CslibFrontier.Logics.Propositional.Pigeonhole
 public meta import CslibFrontier.Algorithms.Lean.CDCL.Naive
 public meta import CslibFrontier.Logics.Propositional.CNF.StdSat
-public meta import Std.Tactic.BVDecide.LRAT.Checker
 public meta import CslibFrontier.Logics.Propositional.Pigeonhole
+public meta import Std.Tactic.BVDecide.LRAT.Checker
 
 /-!
 # The naive CDCL solver
@@ -27,15 +29,8 @@ namespace CslibFrontierTests.Algorithms.Lean.CDCL.Naive
 
 open Cslib.Logic.PL Cslib.Algorithms.Lean Std.Tactic.BVDecide
 
-/-- Pigeon `i` sits in hole `j`. -/
-private abbrev p (i j : ℕ) : ℕ := 2 * i + j
-
-/-- PHP(3, 2): every pigeon has a hole, and no hole has two pigeons. -/
-private abbrev php : CNF ℕ :=
-  [[(p 0 0, true), (p 0 1, true)], [(p 1 0, true), (p 1 1, true)], [(p 2 0, true), (p 2 1, true)],
-    [(p 0 0, false), (p 1 0, false)], [(p 0 0, false), (p 2 0, false)],
-    [(p 1 0, false), (p 2 0, false)], [(p 0 1, false), (p 1 1, false)],
-    [(p 0 1, false), (p 2 1, false)], [(p 1 1, false), (p 2 1, false)]]
+/-- PHP(3, 2), the library's pigeonhole formula with pigeon `i` in hole `j` as `2 * i + j`. -/
+private abbrev php : CNF ℕ := (CNF.pigeonhole 3 2).relabel fun x => 2 * x.1.val + x.2.val
 
 example : (CDCL.solve php).isSat = false := by decide
 

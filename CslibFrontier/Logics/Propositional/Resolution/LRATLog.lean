@@ -45,13 +45,6 @@ namespace Cslib.Logic.PL.CNF
 
 open Std.Tactic.BVDecide (LRAT.IntAction)
 
-/-- The numbered clauses `checkLRAT` starts from: clause `i` of `φ` has the number `i + 1`. -/
-def lratDB (φ : CNF ℕ) : List (ℕ × Clause ℕ) :=
-  φ.zipIdx.map fun e => (e.2 + 1, e.1)
-
-theorem checkLRAT_eq_checkLRATAux (φ : CNF ℕ) (cert : Array LRAT.IntAction) :
-    φ.checkLRAT cert = checkLRATAux φ.lratDB cert.toList := rfl
-
 /-- **A certificate under construction** for `φ`: the steps so far, newest first, the numbered
 clauses they lead to, and the next unused number. -/
 structure LRATLog (φ : CNF ℕ) where
@@ -233,15 +226,15 @@ def delete (log : LRATLog φ) (ids : List ℕ) : LRATLog φ where
   implied σ hσ e he := log.implied σ hσ e (List.mem_filter.1 he).1
   vars_mem e he := log.vars_mem e (List.mem_filter.1 he).1
 
-/-- **Closing the log**: its steps followed by an empty-clause step hinting the clause numbered
-`i`. -/
-def finish (log : LRATLog φ) (i : ℕ) : Array LRAT.IntAction :=
+/-- **Closing the log** at the empty clause, numbered `i`: its steps followed by an empty-clause
+step hinting it. -/
+def finish (log : LRATLog φ) (i : ℕ) (_h : log.clause? i = some []) : Array LRAT.IntAction :=
   (log.steps.reverse ++ [Std.Tactic.BVDecide.LRAT.Action.addEmpty log.next #[i]]).toArray
 
 /-- **A log closed at the empty clause is accepted by the checker.** -/
 theorem checkLRAT_finish {log : LRATLog φ} {i : ℕ} (h : log.clause? i = some []) :
-    φ.checkLRAT (log.finish i) = true := by
-  rw [checkLRAT_eq_checkLRATAux, finish, List.toList_toArray, log.run]
+    φ.checkLRAT (log.finish i h) = true := by
+  rw [checkLRAT, finish, List.toList_toArray, log.run]
   simp [checkLRATAux, propagateHints, find?_of_clause? h]
 
 end LRATLog

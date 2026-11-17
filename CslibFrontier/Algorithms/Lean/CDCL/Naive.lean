@@ -16,10 +16,11 @@ public import CslibFrontier.Algorithms.Lean.DPLL
 An executable instance of abstract DPLL with learning (`Cslib.Algorithms.Lean.CDCL.Step`), which
 returns a model or an LRAT certificate (`Cslib.Algorithms.Lean.CDCL.solve`).
 
-**State.** The solver keeps a trail whose implied literals carry the number of their *reason*, a
-clause of the log (`Cslib.Algorithms.Lean.CDCL.XEntry`), the numbered clauses of its database, and
-an LRAT certificate under construction (`Cslib.Logic.PL.CNF.LRATLog`). Its invariant
-(`Cslib.Algorithms.Lean.CDCL.Exec.Inv`) is the invariant of the abstract system together with:
+**State.** The solver keeps a trail of decisions and of implied literals carrying the number of
+their *reason*, a clause of the log (`Cslib.Algorithms.Lean.CDCL.XEntry`), the numbered clauses of
+its database, and an LRAT certificate under construction (`Cslib.Logic.PL.CNF.LRATLog`). Its
+invariant (`Cslib.Algorithms.Lean.CDCL.Exec.Inv`) is the invariant of the abstract system together
+with:
 
 * every reason contains its literal, and its other literals are false further down the trail
   (`Cslib.Algorithms.Lean.CDCL.Reasons`);
@@ -29,8 +30,8 @@ an LRAT certificate under construction (`Cslib.Logic.PL.CNF.LRATLog`). Its invar
 **Moves** (`Cslib.Algorithms.Lean.CDCL.loop`):
 
 * If a clause is false and the trail has no decision, resolving it with the reasons of the trail,
-  newest first, derives the empty clause (`Cslib.Algorithms.Lean.CDCL.refute`); the closed log is
-  the certificate.
+  newest first, derives the empty clause (`Cslib.Algorithms.Lean.CDCL.refute`); the log, closed at
+  that clause, is the certificate (`Cslib.Algorithms.Lean.CDCL.Refutation.cert`).
 * If a clause is false and the trail has a decision, *first-UIP analysis*
   (`Cslib.Algorithms.Lean.CDCL.analyze`) resolves it with the reasons of the newest implied
   literals until exactly one of its literals is false at the current level. Its type guarantees an
@@ -39,7 +40,8 @@ an LRAT certificate under construction (`Cslib.Logic.PL.CNF.LRATLog`). Its invar
   decision, adds the asserting literal with the learned clause as its reason, and learns the
   clause (Backjump and Learn).
 * Otherwise it propagates a unit clause (UnitPropagate) if there is one, decides the first
-  variable of `φ` not yet assigned, `true` first (Decide), or returns the trail as a model.
+  variable of the database not yet assigned, `true` first (Decide), or returns the trail as a
+  model.
 
 Every move is a Basic DPLL step, or Backjump followed by Learn, of the abstract system, and so
 lowers its rank (`Cslib.Algorithms.Lean.CDCL.rank`); recursion is structural on a bound on the
@@ -78,13 +80,24 @@ open Cslib.Logic.PL Cslib.Logic.PL.CNF
 
 variable {φ : CNF ℕ}
 
-/-- An entry of the solver's trail: an entry of the abstract trail and, for an implied literal,
-the number of its reason clause in the log. -/
-structure XEntry where
-  /-- The entry of the abstract trail. -/
-  entry : Entry
-  /-- The number of the reason clause of an implied literal. -/
-  reason : Option ℕ
+/-- An entry of the solver's trail: a decision, or an implied literal with the number of its
+reason clause in the log. -/
+inductive XEntry
+  /-- A decision. -/
+  | decision (l : Literal ℕ)
+  /-- An implied literal and the number of its reason. -/
+  | implied (l : Literal ℕ) (reason : ℕ)
+
+/-- The entry of the abstract trail. -/
+def XEntry.entry : XEntry → Entry
+  | .decision l => ⟨l, true⟩
+  | .implied l _ => ⟨l, false⟩
+
+@[simp] theorem XEntry.entry_decision (l : Literal ℕ) : (XEntry.decision l).entry = ⟨l, true⟩ :=
+  rfl
+
+@[simp] theorem XEntry.entry_implied (l : Literal ℕ) (r : ℕ) :
+    (XEntry.implied l r).entry = ⟨l, false⟩ := rfl
 
 /-- The solver's trail, newest first. -/
 abbrev XTrail := List XEntry
@@ -104,11 +117,11 @@ def XTrail.trail (M : XTrail) : Trail := M.map XEntry.entry
 literals are false further down the trail; decisions have no reason. -/
 inductive Reasons (log : LRATLog φ) : XTrail → Prop
   | nil : Reasons log []
-  | decision {M : XTrail} (l : Literal ℕ) : Reasons log M → Reasons log (⟨⟨l, true⟩, none⟩ :: M)
+  | decision {M : XTrail} (l : Literal ℕ) : Reasons log M → Reasons log (.decision l :: M)
   | implied {M : XTrail} (l : Literal ℕ) (r : ℕ) {R : Clause ℕ} : Reasons log M →
       log.clause? r = some R → l ∈ R →
       (∀ l' ∈ R, l' ≠ l → l'.negate ∈ Trail.lits (XTrail.trail M)) →
-      Reasons log (⟨⟨l, false⟩, some r⟩ :: M)
+      Reasons log (.implied l r :: M)
 
 theorem Reasons.mono {log log' : LRATLog φ} (hext : log.Extends log') {M : XTrail}
     (h : Reasons log M) : Reasons log' M := by
@@ -123,7 +136,7 @@ theorem Reasons.tail {log : LRATLog φ} {x : XEntry} {M : XTrail} (h : Reasons l
 
 /-- The reason of an implied literal at the head of a trail. -/
 theorem Reasons.reason {log : LRATLog φ} {l : Literal ℕ} {r : ℕ} {M : XTrail} {R : Clause ℕ}
-    (h : Reasons log (⟨⟨l, false⟩, some r⟩ :: M)) (hR : log.clause? r = some R) :
+    (h : Reasons log (.implied l r :: M)) (hR : log.clause? r = some R) :
     l ∈ R ∧ ∀ l' ∈ R, l' ≠ l → l'.negate ∈ Trail.lits (XTrail.trail M) := by
   cases h with
   | implied _ _ _ hr hl hfalse =>
@@ -133,7 +146,7 @@ theorem Reasons.reason {log : LRATLog φ} {l : Literal ℕ} {r : ℕ} {M : XTrai
 
 /-- An implied literal at the head of a trail has a reason. -/
 theorem Reasons.isSome {log : LRATLog φ} {l : Literal ℕ} {r : ℕ} {M : XTrail}
-    (h : Reasons log (⟨⟨l, false⟩, some r⟩ :: M)) : (log.clause? r).isSome := by
+    (h : Reasons log (.implied l r :: M)) : (log.clause? r).isSome := by
   cases h with
   | implied _ _ _ hr => simp [hr]
 
@@ -177,30 +190,30 @@ theorem negate_inj {l l' : Literal ℕ} (h : l.negate = l'.negate) : l = l' := b
   obtain ⟨v', b'⟩ := l'
   cases b <;> cases b' <;> simp_all [Std.Sat.Literal.negate]
 
-/-- A refutation in the log: a log extending `log₀` in which the number `id` names the empty
-clause. -/
-structure Refutation (log₀ : LRATLog φ) where
+/-- A refutation in the log: a log in which the number `id` names the empty clause. -/
+structure Refutation (φ : CNF ℕ) where
   /-- The log. -/
   log : LRATLog φ
   /-- The number of the empty clause. -/
   id : ℕ
   /-- The number names the empty clause. -/
   clause?_eq : log.clause? id = some []
-  /-- The log extends `log₀`. -/
-  ext : log₀.Extends log
+
+/-- The certificate of a refutation: its log closed at the empty clause. -/
+def Refutation.cert (r : Refutation φ) : Array Std.Tactic.BVDecide.LRAT.IntAction :=
+  r.log.finish r.id r.clause?_eq
 
 /-- **Deriving the empty clause from a conflict with no decision**: resolving the clause numbered
 `i`, falsified by a trail of implied literals, with their reasons, newest first. -/
-def refute (log₀ : LRATLog φ) : (T : XTrail) → (log : LRATLog φ) → log₀.Extends log →
-    (i : ℕ) → (C : Clause ℕ) → log.clause? i = some C → Reasons log T →
-    (∀ x ∈ T, x.entry.decision = false) →
-    (∀ y ∈ C, y.negate ∈ Trail.lits (XTrail.trail T)) → Refutation log₀
-  | [], log, hext, i, C, hC, _, _, hfalse =>
+def refute : (T : XTrail) → (log : LRATLog φ) → (i : ℕ) → (C : Clause ℕ) →
+    log.clause? i = some C → Reasons log T → (∀ x ∈ T, x.entry.decision = false) →
+    (∀ y ∈ C, y.negate ∈ Trail.lits (XTrail.trail T)) → Refutation φ
+  | [], log, i, C, hC, _, _, hfalse =>
     ⟨log, i, by
       obtain rfl : C = [] := List.eq_nil_iff_forall_not_mem.2 fun y hy => by
         simpa [Trail.lits] using hfalse y hy
-      exact hC, hext⟩
-  | ⟨⟨l, false⟩, some r⟩ :: T, log, hext, i, C, hC, hreasons, hdec, hfalse =>
+      exact hC⟩
+  | .implied l r :: T, log, i, C, hC, hreasons, hdec, hfalse =>
     match hR : log.clause? r with
     | some R =>
       have hT := hreasons.tail
@@ -208,27 +221,27 @@ def refute (log₀ : LRATLog φ) : (T : XTrail) → (log : LRATLog φ) → log�
       if hmem : l.negate ∈ C then
         let log' := resolveLog log l i r C R hC hR
         have hspec := resolveLog_spec (l := l) hC hR
-        refute log₀ T log' (hext.trans hspec.2) log.next (resolveOn l C R) hspec.1
-          (hT.mono hspec.2) (fun x hx => hdec x (List.mem_cons_of_mem _ hx)) fun y hy => by
+        refute T log' log.next (resolveOn l C R) hspec.1 (hT.mono hspec.2)
+          (fun x hx => hdec x (List.mem_cons_of_mem _ hx)) fun y hy => by
             rcases mem_resolveOn hy with ⟨hy, hne⟩ | ⟨hy, hne⟩
             · have := hfalse y hy
-              simp only [XTrail.trail_cons, Trail.lits, List.map_cons, List.mem_cons] at this
+              simp only [XTrail.trail_cons, XEntry.entry_implied, Trail.lits, List.map_cons,
+                List.mem_cons] at this
               rcases this with h | h
               · exact absurd (negate_inj (by simpa [Std.Sat.Literal.negate] using h)) hne
               · exact h
             · exact hRfalse y hy hne
       else
-        refute log₀ T log hext i C hC hT (fun x hx => hdec x (List.mem_cons_of_mem _ hx))
-          fun y hy => by
-            have := hfalse y hy
-            simp only [XTrail.trail_cons, Trail.lits, List.map_cons, List.mem_cons] at this
-            rcases this with h | h
-            · exact absurd (by rw [show y = l.negate from negate_inj (by
-                simpa [Std.Sat.Literal.negate] using h)] at hy; exact hy) hmem
-            · exact h
+        refute T log i C hC hT (fun x hx => hdec x (List.mem_cons_of_mem _ hx)) fun y hy => by
+          have := hfalse y hy
+          simp only [XTrail.trail_cons, XEntry.entry_implied, Trail.lits, List.map_cons,
+            List.mem_cons] at this
+          rcases this with h | h
+          · exact absurd (by rw [show y = l.negate from negate_inj (by
+              simpa [Std.Sat.Literal.negate] using h)] at hy; exact hy) hmem
+          · exact h
     | none => absurd hreasons.isSome (by simp [hR])
-  | ⟨⟨_, false⟩, none⟩ :: _, _, _, _, _, _, hreasons, _, _ => nomatch hreasons
-  | ⟨⟨_, true⟩, _⟩ :: _, _, _, _, _, _, _, hdec, _ => absurd (hdec _ List.mem_cons_self) (by simp)
+  | .decision _ :: _, _, _, _, _, _, hdec, _ => absurd (hdec _ List.mem_cons_self) (by simp)
 
 theorem mem_resolveOn_left {l y : Literal ℕ} {C R : Clause ℕ} (hy : y ∈ C) (hne : y ≠ l.negate) :
     y ∈ resolveOn l C R := by
@@ -242,8 +255,9 @@ theorem vars_append (M N : Trail) : Trail.vars (M ++ N) = Trail.vars M ++ Trail.
   List.map_append ..
 
 /-- A learned clause: a log extending `log₀` in which the number `id` names a clause all of whose
-literals but `lit` are false in the trail `M₀`, where `lit` is undefined. -/
-structure Learned (log₀ : LRATLog φ) (M₀ : Trail) where
+literals but `lit` are false in the trail `M₀`, where `lit` is undefined; its negation is among the
+literals `A` above `M₀`. -/
+structure Learned (log₀ : LRATLog φ) (A M₀ : Trail) where
   /-- The log. -/
   log : LRATLog φ
   /-- The number of the learned clause. -/
@@ -256,6 +270,7 @@ structure Learned (log₀ : LRATLog φ) (M₀ : Trail) where
   mem : lit ∈ clause
   false_below : ∀ y ∈ clause, y ≠ lit → y.negate ∈ Trail.lits M₀
   undef : lit.1 ∉ Trail.vars M₀
+  above : lit.negate ∈ Trail.lits A
   ext : log₀.Extends log
 
 /-- **First-UIP conflict analysis.** Above the newest decision `d`, with the implied literals `N`
@@ -264,15 +279,16 @@ the current level. While it has two different literals false at the current leve
 with the reason of the newest implied literal whose negation it contains. It stops with a clause
 having exactly one literal false at the current level, its first unique implication point, which
 is reached at the latest at the decision. -/
-def analyze (log₀ : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) :
-    (N : XTrail) → (log : LRATLog φ) → log₀.Extends log → (i : ℕ) → (C : Clause ℕ) →
-    log.clause? i = some C → Reasons log (N ++ ⟨⟨d, true⟩, none⟩ :: M₀) →
+def analyze (log₀ : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) (A : Trail) :
+    (N : XTrail) → Trail.lits (XTrail.trail N ++ [⟨d, true⟩]) ⊆ Trail.lits A →
+    (log : LRATLog φ) → log₀.Extends log → (i : ℕ) → (C : Clause ℕ) →
+    log.clause? i = some C → Reasons log (N ++ XEntry.decision d :: M₀) →
     (∀ x ∈ N, x.entry.decision = false) →
-    (∀ y ∈ C, y.negate ∈ Trail.lits (XTrail.trail (N ++ ⟨⟨d, true⟩, none⟩ :: M₀))) →
+    (∀ y ∈ C, y.negate ∈ Trail.lits (XTrail.trail (N ++ XEntry.decision d :: M₀))) →
     (∃ y ∈ C, y.negate ∈ Trail.lits (XTrail.trail N ++ [⟨d, true⟩])) →
-    (Trail.vars (XTrail.trail (N ++ ⟨⟨d, true⟩, none⟩ :: M₀))).Nodup →
-    Learned log₀ (XTrail.trail M₀)
-  | N, log, hext, i, C, hC, hreasons, hdec, hfalse, hcur, hnd =>
+    (Trail.vars (XTrail.trail (N ++ XEntry.decision d :: M₀))).Nodup →
+    Learned log₀ A (XTrail.trail M₀)
+  | N, hA, log, hext, i, C, hC, hreasons, hdec, hfalse, hcur, hnd =>
     match hys : C.filter (fun y => (Trail.lits (XTrail.trail N ++ [⟨d, true⟩])).contains
         y.negate) with
     | [] => absurd hys (by
@@ -311,14 +327,15 @@ def analyze (log₀ : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) :
           undef := fun hu' => by
             have hv : u.1 ∈ Trail.vars (XTrail.trail N ++ [⟨d, true⟩]) := by
               simpa [Std.Sat.Literal.negate] using Trail.mem_vars_of_mem_lits hu.2
-            simp only [XTrail.trail_append, XTrail.trail_cons] at hnd
+            simp only [XTrail.trail_append, XTrail.trail_cons, XEntry.entry_decision] at hnd
             rw [show XTrail.trail N ++ ⟨d, true⟩ :: XTrail.trail M₀ =
               (XTrail.trail N ++ [⟨d, true⟩]) ++ XTrail.trail M₀ by simp, vars_append] at hnd
             exact List.disjoint_of_nodup_append hnd hv hu'
+          above := hA hu.2
           ext := hext }
       else
-        match N, hreasons, hdec, hfalse, hcur, hnd, hys, hu with
-        | [], _, _, _, _, _, hys, _ => absurd (List.all_eq_true.2 fun y hy => by
+        match N, hA, hreasons, hdec, hfalse, hcur, hnd, hys, hu with
+        | [], _, _, _, _, _, _, hys, _ => absurd (List.all_eq_true.2 fun y hy => by
             have hy' : y ∈ C.filter _ := hys ▸ List.mem_cons_of_mem _ hy
             have hu' : u ∈ C.filter _ := hys ▸ List.mem_cons_self
             have h₁ := (List.mem_filter.1 hy').2
@@ -327,10 +344,9 @@ def analyze (log₀ : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) :
               List.contains_eq_mem, List.mem_cons, List.not_mem_nil, or_false,
               decide_eq_true_eq] at h₁ h₂
             simpa using negate_inj (h₁.trans h₂.symm)) hall
-        | ⟨⟨l, true⟩, _⟩ :: _, _, hdec, _, _, _, _, _ =>
+        | .decision _ :: _, _, _, hdec, _, _, _, _, _ =>
           absurd (hdec _ List.mem_cons_self) (by simp)
-        | ⟨⟨l, false⟩, none⟩ :: _, hreasons, _, _, _, _, _, _ => nomatch hreasons
-        | ⟨⟨l, false⟩, some r⟩ :: N', hreasons, hdec, hfalse, hcur, hnd, hys, hu =>
+        | .implied l r :: N', hA, hreasons, hdec, hfalse, hcur, hnd, hys, hu =>
           match hR : log.clause? r with
           | none => absurd hreasons.isSome (by simp [hR])
           | some R =>
@@ -338,7 +354,10 @@ def analyze (log₀ : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) :
             have hRfalse := (hreasons.reason hR).2
             have hdec' : ∀ x ∈ N', x.entry.decision = false :=
               fun x hx => hdec x (List.mem_cons_of_mem _ hx)
-            have hnd' : (Trail.vars (XTrail.trail (N' ++ ⟨⟨d, true⟩, none⟩ :: M₀))).Nodup := by
+            have hA' : Trail.lits (XTrail.trail N' ++ [⟨d, true⟩]) ⊆ Trail.lits A :=
+              fun x hx => hA (by simp only [XTrail.trail_cons, List.cons_append, Trail.lits,
+                List.map_cons, List.mem_cons] at hx ⊢; exact .inr hx)
+            have hnd' : (Trail.vars (XTrail.trail (N' ++ XEntry.decision d :: M₀))).Nodup := by
               have := hnd
               simp only [List.cons_append, XTrail.trail_cons, Trail.vars, List.map_cons,
                 List.nodup_cons] at this
@@ -346,7 +365,7 @@ def analyze (log₀ : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) :
             -- a literal of `C` false at the current level other than the negation of `l`
             have hz : ∃ z ∈ C, z ≠ l.negate ∧
                 z.negate ∈
-                  Trail.lits (XTrail.trail (⟨⟨l, false⟩, some r⟩ :: N') ++ [⟨d, true⟩]) := by
+                  Trail.lits (XTrail.trail (XEntry.implied l r :: N') ++ [⟨d, true⟩]) := by
               obtain ⟨y, hy, hyu⟩ : ∃ y ∈ rest, y ≠ u := by
                 by_contra hne
                 push Not at hne
@@ -357,7 +376,7 @@ def analyze (log₀ : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) :
                   simpa using (List.mem_filter.1 hy').2⟩
               · exact ⟨u, hu.1, hul, hu.2⟩
             have hcur' : ∀ z, z ≠ l.negate →
-                z.negate ∈ Trail.lits (XTrail.trail (⟨⟨l, false⟩, some r⟩ :: N') ++ [⟨d, true⟩]) →
+                z.negate ∈ Trail.lits (XTrail.trail (XEntry.implied l r :: N') ++ [⟨d, true⟩]) →
                 z.negate ∈ Trail.lits (XTrail.trail N' ++ [⟨d, true⟩]) := fun z hne h => by
               simp only [XTrail.trail_cons, List.cons_append, Trail.lits, List.map_cons,
                 List.mem_cons] at h
@@ -365,7 +384,7 @@ def analyze (log₀ : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) :
               · exact absurd (negate_inj (by simpa [Std.Sat.Literal.negate] using h)) hne
               · exact h
             have hfalse' : ∀ y ∈ C, y ≠ l.negate →
-                y.negate ∈ Trail.lits (XTrail.trail (N' ++ ⟨⟨d, true⟩, none⟩ :: M₀)) :=
+                y.negate ∈ Trail.lits (XTrail.trail (N' ++ XEntry.decision d :: M₀)) :=
               fun y hy hne => by
                 have := hfalse y hy
                 simp only [List.cons_append, XTrail.trail_cons, Trail.lits, List.map_cons,
@@ -376,7 +395,7 @@ def analyze (log₀ : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) :
             if hmem : l.negate ∈ C then
               let log' := resolveLog log l i r C R hC hR
               have hspec := resolveLog_spec (l := l) hC hR
-              analyze log₀ d M₀ N' log' (hext.trans hspec.2) log.next (resolveOn l C R)
+              analyze log₀ d M₀ A N' hA' log' (hext.trans hspec.2) log.next (resolveOn l C R)
                 hspec.1 (hT.mono hspec.2) hdec'
                 (fun y hy => by
                   rcases mem_resolveOn hy with ⟨hy, hne⟩ | ⟨hy, hne⟩
@@ -387,7 +406,7 @@ def analyze (log₀ : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) :
                   exact ⟨z, mem_resolveOn_left hz hne, hcur' z hne hzc⟩)
                 hnd'
             else
-              analyze log₀ d M₀ N' log hext i C hC hT hdec'
+              analyze log₀ d M₀ A N' hA' log hext i C hC hT hdec'
                 (fun y hy => hfalse' y hy fun h => hmem (h ▸ hy))
                 (by
                   obtain ⟨z, hz, hne, hzc⟩ := hz
@@ -395,20 +414,6 @@ def analyze (log₀ : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) :
                 hnd'
 
 /-! ### The solver state -/
-
-/-- A decision of a trail reached by its reasons has no reason. -/
-theorem Reasons.reason_eq_none {log : LRATLog φ} {M : XTrail} (h : Reasons log M) {x : XEntry}
-    (hx : x ∈ M) (hdec : x.entry.decision = true) : x.reason = none := by
-  induction h with
-  | nil => simp at hx
-  | decision l _ ih =>
-    rcases List.mem_cons.1 hx with rfl | hx
-    · rfl
-    · exact ih hx
-  | implied l r _ _ _ _ ih =>
-    rcases List.mem_cons.1 hx with rfl | hx
-    · simp at hdec
-    · exact ih hx
 
 /-- A trail split at its newest decision: the implied literals above it, the decision, and the
 trail below it. -/
@@ -423,46 +428,39 @@ structure Split where
 /-- The split of a trail at its newest decision, if it has one. -/
 def XTrail.split : XTrail → Option Split
   | [] => none
-  | x :: M =>
-    if x.entry.decision then some ⟨[], x.entry.lit, M⟩
-    else (XTrail.split M).map fun s => ⟨x :: s.above, s.decision, s.below⟩
+  | .decision l :: M => some ⟨[], l, M⟩
+  | .implied l r :: M =>
+    (XTrail.split M).map fun s => ⟨.implied l r :: s.above, s.decision, s.below⟩
 
 theorem XTrail.split_eq_none {M : XTrail} (h : XTrail.split M = none) :
     ∀ x ∈ M, x.entry.decision = false := by
   induction M with
   | nil => simp
   | cons x M ih =>
-    simp only [XTrail.split] at h
-    split at h
-    · simp at h
-    · rename_i hx
+    cases x with
+    | decision l => simp [XTrail.split] at h
+    | implied l r =>
       intro y hy
       rcases List.mem_cons.1 hy with rfl | hy
-      · simpa using hx
-      · exact ih (by simpa using h) y hy
+      · rfl
+      · exact ih (by simpa [XTrail.split] using h) y hy
 
-theorem XTrail.split_eq_some {log : LRATLog φ} {M : XTrail} (hr : Reasons log M) {s : Split}
-    (h : XTrail.split M = some s) :
-    M = s.above ++ ⟨⟨s.decision, true⟩, none⟩ :: s.below ∧
-      ∀ x ∈ s.above, x.entry.decision = false := by
+theorem XTrail.split_eq_some {M : XTrail} {s : Split} (h : XTrail.split M = some s) :
+    M = s.above ++ .decision s.decision :: s.below ∧ ∀ x ∈ s.above, x.entry.decision = false := by
   induction M generalizing s with
   | nil => simp [XTrail.split] at h
   | cons x M ih =>
-    simp only [XTrail.split] at h
-    split at h
-    · rename_i hx
-      cases h
-      have := hr.reason_eq_none List.mem_cons_self hx
-      obtain ⟨⟨l, b⟩, r⟩ := x
-      simp only at hx this
-      subst hx this
+    cases x with
+    | decision l =>
+      simp only [XTrail.split, Option.some.injEq] at h
+      subst h
       exact ⟨rfl, by simp⟩
-    · rename_i hx
+    | implied l r =>
       obtain ⟨s', hs', rfl⟩ := Option.map_eq_some_iff.1 h
-      obtain ⟨hM, habove⟩ := ih hr.tail hs'
+      obtain ⟨hM, habove⟩ := ih hs'
       refine ⟨by simp [hM], fun y hy => ?_⟩
       rcases List.mem_cons.1 hy with rfl | hy
-      · simpa using hx
+      · rfl
       · exact habove y hy
 
 /-- The state of the solver: its trail, the numbered clauses of the database, and the log. -/
@@ -524,30 +522,27 @@ theorem Exec.init_inv (φ : CNF ℕ) : (Exec.init φ).Inv := by
 abbrev Exec.Next (S : Exec φ) :=
   {S' : Exec φ // S'.Inv ∧ rank φ.vars S'.state < rank φ.vars S.state}
 
-theorem Exec.Inv.split_trail {S : Exec φ} (hS : S.Inv) {sp : Split}
-    (hsp : XTrail.split S.trail = some sp) :
-    XTrail.trail S.trail =
-      XTrail.trail sp.above ++ ⟨sp.decision, true⟩ :: XTrail.trail sp.below := by
-  rw [(XTrail.split_eq_some hS.reasons hsp).1]
+theorem XTrail.trail_of_split {M : XTrail} {sp : Split} (hsp : XTrail.split M = some sp) :
+    XTrail.trail M = XTrail.trail sp.above ++ ⟨sp.decision, true⟩ :: XTrail.trail sp.below := by
+  rw [(XTrail.split_eq_some hsp).1]
   simp
 
 theorem Exec.Inv.split_reasons {S : Exec φ} (hS : S.Inv) {sp : Split}
     (hsp : XTrail.split S.trail = some sp) :
-    Reasons S.log (sp.above ++ ⟨⟨sp.decision, true⟩, none⟩ :: sp.below) := by
-  rw [← (XTrail.split_eq_some hS.reasons hsp).1]
+    Reasons S.log (sp.above ++ XEntry.decision sp.decision :: sp.below) := by
+  rw [← (XTrail.split_eq_some hsp).1]
   exact hS.reasons
 
 theorem Exec.Inv.split_nodup {S : Exec φ} (hS : S.Inv) {sp : Split}
     (hsp : XTrail.split S.trail = some sp) :
-    (Trail.vars (XTrail.trail (sp.above ++ ⟨⟨sp.decision, true⟩, none⟩ :: sp.below))).Nodup := by
-  rw [← (XTrail.split_eq_some hS.reasons hsp).1]
+    (Trail.vars (XTrail.trail (sp.above ++ XEntry.decision sp.decision :: sp.below))).Nodup := by
+  rw [← (XTrail.split_eq_some hsp).1]
   exact hS.run.nodup
 
-theorem Exec.Inv.split_conf {S : Exec φ} (hS : S.Inv) {sp : Split}
-    (hsp : XTrail.split S.trail = some sp) {c : Clause ℕ}
-    (hconf : Trail.Falsifies (XTrail.trail S.trail) c) :
-    Trail.Falsifies (XTrail.trail (sp.above ++ ⟨⟨sp.decision, true⟩, none⟩ :: sp.below)) c := by
-  rw [← (XTrail.split_eq_some hS.reasons hsp).1]
+theorem XTrail.falsifies_of_split {M : XTrail} {sp : Split} (hsp : XTrail.split M = some sp)
+    {c : Clause ℕ} (hconf : Trail.Falsifies (XTrail.trail M) c) :
+    Trail.Falsifies (XTrail.trail (sp.above ++ XEntry.decision sp.decision :: sp.below)) c := by
+  rw [← (XTrail.split_eq_some hsp).1]
   exact hconf
 
 /-- A clause false on the trail but not below its newest decision has a literal false at the
@@ -567,34 +562,50 @@ theorem Exec.Inv.split_cur {S : Exec φ} (hS : S.Inv) {sp : Split}
     (hsp : XTrail.split S.trail = some sp) {e : ℕ × Clause ℕ} (he : e ∈ S.db)
     (hconf : Trail.Falsifies (XTrail.trail S.trail) e.2) :
     ∃ y ∈ e.2, y.negate ∈ Trail.lits (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) :=
-  exists_cur (hS.split_trail hsp ▸ hconf)
-    (hS.below _ _ _ (hS.split_trail hsp) e.2 (List.mem_map.2 ⟨e, he, rfl⟩))
+  exists_cur (XTrail.trail_of_split hsp ▸ hconf)
+    (hS.below _ _ _ (XTrail.trail_of_split hsp) e.2 (List.mem_map.2 ⟨e, he, rfl⟩))
+
+/-- A clause learned at a conflict, above and below the newest decision of the split `sp`. -/
+abbrev Exec.LearnedAt (S : Exec φ) (sp : Split) : Type :=
+  Learned S.log (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) (XTrail.trail sp.below)
 
 /-- The learned clause of a conflict, and the state after Backjump and Learn. -/
-def Exec.afterConflict (S : Exec φ) (sp : Split) (L : Learned S.log (XTrail.trail sp.below)) :
+def Exec.afterConflict (S : Exec φ) (sp : Split) (L : S.LearnedAt sp) :
     Exec φ :=
-  ⟨⟨⟨L.lit, false⟩, some L.id⟩ :: sp.below, (L.id, L.clause) :: S.db, L.log⟩
+  ⟨.implied L.lit L.id :: sp.below, (L.id, L.clause) :: S.db, L.log⟩
 
 /-- Backjump and Learn keep the invariant and lower the rank. -/
 theorem Exec.afterConflict_spec {S : Exec φ} (hS : S.Inv) {e : ℕ × Clause ℕ} (he : e ∈ S.db)
     (hconf : Trail.Falsifies (XTrail.trail S.trail) e.2) {sp : Split}
-    (hsp : XTrail.split S.trail = some sp) (L : Learned S.log (XTrail.trail sp.below)) :
+    (hsp : XTrail.split S.trail = some sp) (L : S.LearnedAt sp) :
     (S.afterConflict sp L).Inv ∧
       rank φ.vars (S.afterConflict sp L).state < rank φ.vars S.state := by
-  have hsplit := hS.split_trail hsp
+  have hsplit := XTrail.trail_of_split hsp
   have hc : e.2 ∈ S.clauses := List.mem_map.2 ⟨e, he, rfl⟩
   have hentails : ∀ σ, CNF.eval σ S.clauses = true → L.clause.eval σ = true :=
     fun σ hσ => L.log.eval_of_clause? L.clause?_eq (by rw [← hS.run.models]; exact hσ)
-  have hbj : BasicStep φ.vars (.run (XTrail.trail S.trail) S.clauses)
+  have hbj : BasicStep (.run (XTrail.trail S.trail) S.clauses)
       (.run (⟨L.lit, false⟩ :: XTrail.trail sp.below) S.clauses) := by
+    -- the asserting literal is over a variable of the current level
+    have hocc : L.lit.1 ∈ Trail.vars
+        (XTrail.trail sp.above ++ ⟨sp.decision, true⟩ :: XTrail.trail sp.below) := by
+      have := Trail.mem_vars_of_mem_lits L.above
+      simp only [Std.Sat.Literal.negate, Trail.vars, List.map_append, List.mem_append,
+        List.map_cons, List.mem_cons, List.map_nil, List.not_mem_nil, or_false] at this ⊢
+      tauto
     rw [hsplit]
-    exact .backjump hc (hsplit ▸ hconf) hentails L.mem L.false_below L.undef
-      (L.log.vars_mem_of_clause? L.clause?_eq)
-  have hlearn : Learn φ.vars (.run (⟨L.lit, false⟩ :: XTrail.trail sp.below) S.clauses)
+    exact .backjump hc (hsplit ▸ hconf) hentails L.mem L.false_below L.undef (.inr hocc)
+  have hlearn : Learn (.run (⟨L.lit, false⟩ :: XTrail.trail sp.below) S.clauses)
       (.run (⟨L.lit, false⟩ :: XTrail.trail sp.below) (L.clause :: S.clauses)) :=
-    .learn hentails (L.log.vars_mem_of_clause? L.clause?_eq)
+    .learn hentails fun l hl => .inr (by
+      by_cases hne : l = L.lit
+      · subst hne; simp [Trail.vars]
+      · have := Trail.mem_vars_of_mem_lits (L.false_below l hl hne)
+        simp only [Std.Sat.Literal.negate] at this
+        simp only [Trail.vars, List.map_cons, List.mem_cons] at this ⊢
+        exact .inr this)
   have hrun₁ := Step.inv (.inl hbj) (show CDCL.Inv φ φ.vars (.run _ _) from hS.run)
-  have hrun₂ := Step.inv (.inr hlearn) hrun₁
+  have hrun₂ := Step.inv (.inr (.inl hlearn)) hrun₁
   refine ⟨⟨hrun₂, ?_, ?_, ?_⟩, ?_⟩
   · exact .implied L.lit L.id ((hS.split_reasons hsp).append_right.tail.mono L.ext)
       L.clause?_eq L.mem L.false_below
@@ -623,7 +634,7 @@ theorem Exec.afterConflict_spec {S : Exec φ} (hS : S.Inv) {e : ℕ × Clause �
         (by rw [hsplit, hN]; simp) c hc'
   · change rank φ.vars (.run (⟨L.lit, false⟩ :: XTrail.trail sp.below) (L.clause :: S.clauses)) <
       rank φ.vars (.run (XTrail.trail S.trail) S.clauses)
-    exact (hlearn.rank_eq).trans_lt (hbj.rank_lt hS.run)
+    exact (LearnOrForget.rank_eq (.inl hlearn)).trans_lt (hbj.rank_lt hS.run)
 
 /-- **Conflict, analysis, Backjump and Learn**: with the clause `e` of the database false and the
 trail split at its newest decision, learn the first-UIP clause and go back below the decision,
@@ -631,9 +642,10 @@ adding its asserting literal with the learned clause as reason. -/
 def Exec.backjump (S : Exec φ) (hS : S.Inv) (e : ℕ × Clause ℕ) (he : e ∈ S.db)
     (hconf : Trail.Falsifies (XTrail.trail S.trail) e.2) (sp : Split)
     (hsp : XTrail.split S.trail = some sp) : S.Next :=
-  let L := analyze S.log sp.decision sp.below sp.above S.log (LRATLog.Extends.refl _) e.1 e.2
-    (hS.db_log e he) (hS.split_reasons hsp) (XTrail.split_eq_some hS.reasons hsp).2
-    (hS.split_conf hsp hconf) (hS.split_cur hsp he hconf) (hS.split_nodup hsp)
+  let L := analyze S.log sp.decision sp.below (XTrail.trail sp.above ++ [⟨sp.decision, true⟩])
+    sp.above (fun _ h => h) S.log (LRATLog.Extends.refl _) e.1 e.2
+    (hS.db_log e he) (hS.split_reasons hsp) (XTrail.split_eq_some hsp).2
+    (XTrail.falsifies_of_split hsp hconf) (hS.split_cur hsp he hconf) (hS.split_nodup hsp)
   ⟨S.afterConflict sp L, Exec.afterConflict_spec hS he hconf hsp L⟩
 
 /-- A unit clause of the database: a numbered clause with every literal but one false on the trail,
@@ -654,16 +666,16 @@ theorem findUnit_spec {M : Trail} {db : List (ℕ × Clause ℕ)} {e : ℕ × Cl
 
 /-- **UnitPropagate**: add the literal of a unit clause, with that clause as its reason. -/
 def Exec.propagate (S : Exec φ) (e : ℕ × Clause ℕ) (l : Literal ℕ) : Exec φ :=
-  ⟨⟨⟨l, false⟩, some e.1⟩ :: S.trail, S.db, S.log⟩
+  ⟨.implied l e.1 :: S.trail, S.db, S.log⟩
 
 theorem Exec.propagate_spec {S : Exec φ} (hS : S.Inv) {e : ℕ × Clause ℕ} {l : Literal ℕ}
     (h : findUnit (XTrail.trail S.trail) S.db = some (e, l)) :
     (S.propagate e l).Inv ∧ rank φ.vars (S.propagate e l).state < rank φ.vars S.state := by
   obtain ⟨he, hl, hundef, hfalse⟩ := findUnit_spec h
   have hc : e.2 ∈ S.clauses := List.mem_map.2 ⟨e, he, rfl⟩
-  have hstep : BasicStep φ.vars (.run (XTrail.trail S.trail) S.clauses)
+  have hstep : BasicStep (.run (XTrail.trail S.trail) S.clauses)
       (.run (⟨l, false⟩ :: XTrail.trail S.trail) S.clauses) :=
-    .unitPropagate hc hl hfalse hundef (hS.run.db_vars _ hc l hl)
+    .unitPropagate hc hl hfalse hundef
   refine ⟨⟨Step.inv (.inl hstep) (show CDCL.Inv φ φ.vars (.run _ _) from hS.run),
     .implied l e.1 hS.reasons (hS.db_log e he) hl hfalse, hS.db_log, ?_⟩,
     hstep.rank_lt hS.run⟩
@@ -676,13 +688,13 @@ theorem Exec.propagate_spec {S : Exec φ} (hS : S.Inv) {e : ℕ × Clause ℕ} {
 
 /-- **Decide**: add the variable `x` as a decision, `true` first. -/
 def Exec.decide (S : Exec φ) (x : ℕ) : Exec φ :=
-  ⟨⟨⟨(x, true), true⟩, none⟩ :: S.trail, S.db, S.log⟩
+  ⟨.decision (x, true) :: S.trail, S.db, S.log⟩
 
 theorem Exec.decide_spec {S : Exec φ} (hS : S.Inv)
     (hnoconf : ∀ c ∈ S.clauses, ¬ Trail.Falsifies (XTrail.trail S.trail) c) {x : ℕ}
-    (hx : x ∈ φ.vars) (hundef : x ∉ Trail.vars (XTrail.trail S.trail)) :
+    (hx : x ∈ S.clauses.vars) (hundef : x ∉ Trail.vars (XTrail.trail S.trail)) :
     (S.decide x).Inv ∧ rank φ.vars (S.decide x).state < rank φ.vars S.state := by
-  have hstep : BasicStep φ.vars (.run (XTrail.trail S.trail) S.clauses)
+  have hstep : BasicStep (.run (XTrail.trail S.trail) S.clauses)
       (.run (⟨(x, true), true⟩ :: XTrail.trail S.trail) S.clauses) :=
     .decide (l := (x, true)) hundef hx
   refine ⟨⟨Step.inv (.inl hstep) (show CDCL.Inv φ φ.vars (.run _ _) from hS.run),
@@ -727,9 +739,9 @@ def loop (φ : CNF ℕ) : (fuel : ℕ) → (S : Exec φ) → S.Inv → rank φ.v
         simpa only [decide_eq_true_eq] using this
       match hsp : XTrail.split S.trail with
       | none =>
-        let r := refute S.log S.trail S.log (.refl _) e.1 e.2 (hS.db_log e he) hS.reasons
+        let r := refute S.trail S.log e.1 e.2 (hS.db_log e he) hS.reasons
           (XTrail.split_eq_none hsp) hce
-        .unsat (r.log.finish r.id) (LRATLog.checkLRAT_finish r.clause?_eq)
+        .unsat r.cert (LRATLog.checkLRAT_finish r.clause?_eq)
       | some sp =>
         let S' := S.backjump hS e he hce sp hsp
         loop φ fuel S'.1 S'.2.1 (by have := S'.2.2; omega)
@@ -743,7 +755,8 @@ def loop (φ : CNF ℕ) : (fuel : ℕ) → (S : Exec φ) → S.Inv → rank φ.v
         have hspec := Exec.propagate_spec hS hu
         loop φ fuel (S.propagate e l) hspec.1 (by have := hspec.2; omega)
       | none =>
-        match hx : φ.vars.find? (fun x => !(Trail.vars (XTrail.trail S.trail)).contains x) with
+        match hx : S.clauses.vars.find? (fun x => !(Trail.vars (XTrail.trail S.trail)).contains x)
+        with
         | some x =>
           have hspec := Exec.decide_spec hS hnoconf (List.mem_of_find?_eq_some hx)
             (by simpa using List.find?_some hx)
