@@ -21,7 +21,8 @@ parameter. These are the advantage relations (1)–(4) in the proofs of Proposit
 propositions relate the asymptotic notions, security against every polynomial-time adversary
 (Sections 3.4, 3.5 and 3.7), and need the reductions and simulators to run in polynomial time. The
 library has no asymptotic `prv.ind`, `obv.ind` or `obv.sim` notion (only `Scheme.PrvSimSecure`),
-and no running-time bound for the reductions and simulators here is proved.
+and no running-time bound for the reductions and simulators here is proved. The propositions stay
+open (#5293); the reductions' missing certificates are entries of the reduction-witness baseline.
 
 * From simulation to indistinguishability, with a factor of two: from a
   `prv.ind` adversary `A` the reduction `prvIndToSim` builds a `prv.sim` adversary that picks a
@@ -201,8 +202,8 @@ private theorem eval_prvSimExperiment_true_prvIndToSim (hCompat : Φ.Compatible 
   · by_cases hx₀ : pair.msg₀.input.length = G.inLen pair.msg₀.fn <;>
       simp [hV, hx₀, ProbComp.eval_bind, PMF.bind_const, PMF.map, Function.comp_def]
 
-/-- Step toward [BellareHoangRogaway2012], Proposition 2(1), not the cited result: at a fixed
-security parameter, the `prv.ind` advantage of `A` is twice the `prv.sim` advantage of the
+/-- Step toward [BellareHoangRogaway2012], Proposition 2(1) (open, #5293), not the cited result: at
+a fixed security parameter, the `prv.ind` advantage of `A` is twice the `prv.sim` advantage of the
 reduction `prvIndToSim` against every simulator (the bound (1) in the proof, as an equality). -/
 theorem prvIndAdvantage_eq_two_mul_prvSimAdvantage_prvIndToSim (hCompat : Φ.Compatible G) (k : ℕ)
     (S : PrvSimulator Λ) (A : PrvIndAdversary Fn σ) :
@@ -211,9 +212,9 @@ theorem prvIndAdvantage_eq_two_mul_prvSimAdvantage_prvIndToSim (hCompat : Φ.Com
     eval_prvSimExperiment_false_prvIndToSim G Φ hCompat k S A,
     eval_prvSimExperiment_true_prvIndToSim G Φ hCompat k S A, Game.advantage_comm]
 
-/-- Step toward [BellareHoangRogaway2012], Proposition 2(1), not the cited result: at a fixed
-security parameter, the `prv.ind` advantage of `A` is at most twice the `prv.sim` advantage of
-`prvIndToSim A` against every simulator (the bound (1) in the proof). -/
+/-- Step toward [BellareHoangRogaway2012], Proposition 2(1) (open, #5293), not the cited result: at
+a fixed security parameter, the `prv.ind` advantage of `A` is at most twice the `prv.sim` advantage
+of `prvIndToSim A` against every simulator (the bound (1) in the proof). -/
 theorem prvIndAdvantage_le_two_mul_prvSimAdvantage_prvIndToSim (hCompat : Φ.Compatible G) (k : ℕ)
     (S : PrvSimulator Λ) (A : PrvIndAdversary Fn σ) :
     prvIndAdvantage G Φ k A ≤ 2 * prvSimAdvantage G Φ k S (prvIndToSim G Φ A) :=
@@ -241,10 +242,10 @@ theorem eval_prvSimExperiment_prvSimFromInverter (hCompat : Φ.Compatible G)
   · cases b <;> simp [hx, hvalid_iff.mpr hx]
   · simp [hx, mt hvalid_iff.mp hx]
 
-/-- Step toward [BellareHoangRogaway2012], Proposition 2(2), not the cited result: at a fixed
-security parameter, against the simulator built from an `ev`-inverter `M`, the `prv.sim` advantage
-of `B` is the `prv.ind` advantage of the reduction `prvSimToInd` (the bound (2) in the proof, as an
-equality). -/
+/-- Step toward [BellareHoangRogaway2012], Proposition 2(2) (open, #5293), not the cited result: at
+a fixed security parameter, against the simulator built from an `ev`-inverter `M`, the `prv.sim`
+advantage of `B` is the `prv.ind` advantage of the reduction `prvSimToInd` (the bound (2) in the
+proof, as an equality). -/
 theorem prvSimAdvantage_prvSimFromInverter_eq (hCompat : Φ.Compatible G)
     {M : Λ → List Bool → Query Fn} (hInv : Φ.IsEvInverter G M) (k : ℕ)
     (B : PrvSimAdversary Fn σ) :
@@ -253,9 +254,10 @@ theorem prvSimAdvantage_prvSimFromInverter_eq (hCompat : Φ.Compatible G)
   simp only [prvSimAdvantage, prvIndAdvantage, Experiment.advantage,
     eval_prvSimExperiment_prvSimFromInverter G Φ hCompat hInv]
 
-/-- Step toward [BellareHoangRogaway2012], Proposition 2(2), not the cited result: at a fixed
-security parameter, against the simulator built from an `ev`-inverter `M`, the `prv.sim` advantage
-of `B` is at most the `prv.ind` advantage of `prvSimToInd` (the bound (2) in the proof). -/
+/-- Step toward [BellareHoangRogaway2012], Proposition 2(2) (open, #5293), not the cited result: at
+a fixed security parameter, against the simulator built from an `ev`-inverter `M`, the `prv.sim`
+advantage of `B` is at most the `prv.ind` advantage of `prvSimToInd` (the bound (2) in the
+proof). -/
 theorem prvSimAdvantage_prvSimFromInverter_le (hCompat : Φ.Compatible G)
     {M : Λ → List Bool → Query Fn} (hInv : Φ.IsEvInverter G M) (k : ℕ)
     (B : PrvSimAdversary Fn σ) :
@@ -315,8 +317,8 @@ private theorem eval_obvSimExperiment_true_obvIndToSim (hCompat : Φ.Compatible 
   · by_cases hx₀ : pair.msg₀.input.length = G.inLen pair.msg₀.fn <;>
       simp [hV, hx₀, ProbComp.eval_bind, PMF.bind_const, PMF.map, Function.comp_def]
 
-/-- Step toward [BellareHoangRogaway2012], Proposition 3(1), not the cited result: at a fixed
-security parameter, the `obv.ind` advantage of `A` is twice the `obv.sim` advantage of the
+/-- Step toward [BellareHoangRogaway2012], Proposition 3(1) (open, #5293), not the cited result: at
+a fixed security parameter, the `obv.ind` advantage of `A` is twice the `obv.sim` advantage of the
 reduction `obvIndToSim` against every simulator (the bound (3) in the proof, as an equality). -/
 theorem obvIndAdvantage_eq_two_mul_obvSimAdvantage_obvIndToSim (hCompat : Φ.Compatible G) (k : ℕ)
     (S : ObvSimulator Λ) (A : ObvIndAdversary Fn σ) :
@@ -326,9 +328,9 @@ theorem obvIndAdvantage_eq_two_mul_obvSimAdvantage_obvIndToSim (hCompat : Φ.Com
     eval_obvSimExperiment_false_obvIndToSim G Φ hCompat k S A,
     eval_obvSimExperiment_true_obvIndToSim G Φ hCompat k S A, Game.advantage_comm]
 
-/-- Step toward [BellareHoangRogaway2012], Proposition 3(1), not the cited result: at a fixed
-security parameter, the `obv.ind` advantage of `A` is at most twice the `obv.sim` advantage of
-`obvIndToSim A` against every simulator (the bound (3) in the proof). -/
+/-- Step toward [BellareHoangRogaway2012], Proposition 3(1) (open, #5293), not the cited result: at
+a fixed security parameter, the `obv.ind` advantage of `A` is at most twice the `obv.sim` advantage
+of `obvIndToSim A` against every simulator (the bound (3) in the proof). -/
 theorem obvIndAdvantage_le_two_mul_obvSimAdvantage_obvIndToSim (hCompat : Φ.Compatible G) (k : ℕ)
     (S : ObvSimulator Λ) (A : ObvIndAdversary Fn σ) :
     obvIndAdvantage G Φ k A ≤ 2 * obvSimAdvantage G Φ k S (obvIndToSim G Φ A) :=
@@ -354,10 +356,10 @@ theorem eval_obvSimExperiment_obvSimFromInverter (hCompat : Φ.Compatible G) {M 
   · cases b <;> simp [hx, hvalid_iff.mpr hx]
   · simp [hx, mt hvalid_iff.mp hx]
 
-/-- Step toward [BellareHoangRogaway2012], Proposition 3(2), not the cited result: at a fixed
-security parameter, against the simulator built from an inverter `M` of the side information, the
-`obv.sim` advantage of `B` is the `obv.ind` advantage of the reduction `obvSimToInd` (the bound (4)
-in the proof, as an equality). -/
+/-- Step toward [BellareHoangRogaway2012], Proposition 3(2) (open, #5293), not the cited result: at
+a fixed security parameter, against the simulator built from an inverter `M` of the side
+information, the `obv.sim` advantage of `B` is the `obv.ind` advantage of the reduction
+`obvSimToInd` (the bound (4) in the proof, as an equality). -/
 theorem obvSimAdvantage_obvSimFromInverter_eq (hCompat : Φ.Compatible G) {M : Λ → Fn}
     (hInv : Φ.IsInverter M) (k : ℕ) (B : ObvSimAdversary Fn σ) :
     obvSimAdvantage G Φ k (obvSimFromInverter G k M) B =
@@ -365,10 +367,10 @@ theorem obvSimAdvantage_obvSimFromInverter_eq (hCompat : Φ.Compatible G) {M : �
   simp only [obvSimAdvantage, obvIndAdvantage, Experiment.advantage,
     eval_obvSimExperiment_obvSimFromInverter G Φ hCompat hInv]
 
-/-- Step toward [BellareHoangRogaway2012], Proposition 3(2), not the cited result: at a fixed
-security parameter, against the simulator built from an inverter `M` of the side information, the
-`obv.sim` advantage of `B` is at most the `obv.ind` advantage of `obvSimToInd` (the bound (4) in
-the proof). -/
+/-- Step toward [BellareHoangRogaway2012], Proposition 3(2) (open, #5293), not the cited result: at
+a fixed security parameter, against the simulator built from an inverter `M` of the side
+information, the `obv.sim` advantage of `B` is at most the `obv.ind` advantage of `obvSimToInd` (the
+bound (4) in the proof). -/
 theorem obvSimAdvantage_obvSimFromInverter_le (hCompat : Φ.Compatible G) {M : Λ → Fn}
     (hInv : Φ.IsInverter M) (k : ℕ) (B : ObvSimAdversary Fn σ) :
     obvSimAdvantage G Φ k (obvSimFromInverter G k M) B ≤

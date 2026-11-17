@@ -128,8 +128,8 @@ theorem advantage_elGamalGroupCPAGame_le (setup : ℕ → PMF F.Desc)
       Game.advantage
         (F.ddhRealGame setup (F.elGamalGroupToDDHDistinguisher adversary true) n)
         (F.ddhRandomGame setup (F.elGamalGroupToDDHDistinguisher adversary true) n) :=
-  F.toPrimeOrderGroupFamily.advantage_elGamalMsgCPAGameWith_le _ (fun _ m => m) setup adversary n
-    fun d _ _ m₀ m₁ hv => F.elemGuard_sound d m₀ m₁ hv
+  F.toPrimeOrderGroupFamily.advantage_elGamalMsgCPAGameWith_le_ideal _ (fun _ m => m) setup
+    adversary n fun d _ _ m₀ m₁ hv => F.elemGuard_sound d m₀ m₁ hv
 
 /-- Ideal-sampling step toward `DDH.indcpaOn_elGamalGroupEncryptProb`, not the cited result: under
 DDH for any setup law, every uniform strict PPT `Encryption.WordAdversary` has negligible advantage
