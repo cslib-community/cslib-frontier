@@ -1209,6 +1209,45 @@ section UniqueDecodingUpgrade
 
 variable {F : Type} [Field F]
 
+/-- Fiber-size product identity `2 ^ (i + 1) * 2 ^ (d - (i + 1)) = 2 ^ d` for a folding round
+`i : Fin params.m`. -/
+theorem FRIParams.fiber_mul_domainSize (params : FRIParams F) (i : Fin params.m) :
+    2 ^ (i.val + 1) * 2 ^ (params.d - (i.val + 1)) = 2 ^ params.d := by
+  have hle : i.val + 1 ≤ params.d := Nat.le_trans i.isLt params.hm
+  rw [← pow_add, Nat.add_sub_of_le hle]
+
+/-- Round-dimension scaling identity `2 ^ (i + 1) * params.dim (i + 1) = params.dim 0` for a
+folding round `i : Fin params.m`. -/
+theorem FRIParams.fiber_mul_dim (params : FRIParams F) (i : Fin params.m) :
+    2 ^ (i.val + 1) * params.dim (i.val + 1) = params.dim 0 := by
+  have hle : i.val + 1 ≤ params.m := i.isLt
+  simp only [FRIParams.dim, Nat.sub_zero]
+  calc 2 ^ (i.val + 1) * (params.kFinal * 2 ^ (params.m - (i.val + 1)))
+      = params.kFinal * (2 ^ (i.val + 1) * 2 ^ (params.m - (i.val + 1))) := by ring
+    _ = params.kFinal * 2 ^ params.m := by rw [← pow_add, Nat.add_sub_of_le hle]
+
+/-- Every round Reed–Solomon dimension `params.dim r` is at least `1`. -/
+theorem FRIParams.one_le_dim (params : FRIParams F) (r : ℕ) : 1 ≤ params.dim r := by
+  simp only [FRIParams.dim]
+  exact Nat.mul_pos params.hkPos (Nat.pow_pos (by omega))
+
+/-- Transport the initial unique-decoding bound `2 * e + params.dim 0 ≤ 2 ^ params.d` to the
+scaled round-`(i + 1)` unique-decoding bound
+`2 * (e / 2 ^ (i + 1)) + params.dim (i + 1) ≤ 2 ^ (params.d - (i + 1))`. -/
+theorem FRIParams.two_mul_div_add_dim_le (params : FRIParams F) {e : ℕ}
+    (huniq : 2 * e + params.dim 0 ≤ 2 ^ params.d) (i : Fin params.m) :
+    2 * (e / 2 ^ (i.val + 1)) + params.dim (i.val + 1) ≤ 2 ^ (params.d - (i.val + 1)) := by
+  have hM_pos : 0 < 2 ^ (i.val + 1) := Nat.pow_pos (by omega)
+  refine Nat.le_of_mul_le_mul_left ?_ hM_pos
+  calc 2 ^ (i.val + 1) * (2 * (e / 2 ^ (i.val + 1)) + params.dim (i.val + 1))
+      = 2 * (2 ^ (i.val + 1) * (e / 2 ^ (i.val + 1))) +
+          2 ^ (i.val + 1) * params.dim (i.val + 1) := by ring
+    _ ≤ 2 * e + params.dim 0 := by
+        rw [params.fiber_mul_dim i]
+        exact Nat.add_le_add_right (Nat.mul_le_mul_left 2 (Nat.mul_div_le e _)) _
+    _ ≤ 2 ^ params.d := huniq
+    _ = 2 ^ (i.val + 1) * 2 ^ (params.d - (i.val + 1)) := (params.fiber_mul_domainSize i).symm
+
 /-- Unweighted line proximity-gap hypothesis across all `m` FRI folding rounds at unique-decoding
 radii `e / 2 ^ (i + 1)` (matching [BenSassonCarmonIshaiKoppartySaraf2020], Theorem 4.1). -/
 @[expose] def UniqueLineGapHypothesis [DecidableEq F] (params : FRIParams F) (e : ℕ) : Prop :=
@@ -1233,35 +1272,11 @@ theorem weightedLineGapBound_of_uniqueLineGap [DecidableEq F]
   let N := 2 ^ (params.d - (i.val + 1))
   let M := 2 ^ (i.val + 1)
   have hM_pos : 0 < M := Nat.pow_pos (by omega)
-  have hMN : M * N = 2 ^ params.d := by
-    have hadd : (i.val + 1) + (params.d - (i.val + 1)) = params.d := by
-      have := i.isLt
-      have := params.hm
-      omega
-    dsimp only [M, N]
-    rw [← pow_add, hadd]
-  have hdim_mul : M * params.dim (i.val + 1) = params.dim 0 := by
-    simp only [FRIParams.dim, M, Nat.sub_zero]
-    have hadd : (i.val + 1) + (params.m - (i.val + 1)) = params.m := by
-      have := i.isLt
-      omega
-    calc 2 ^ (i.val + 1) * (params.kFinal * 2 ^ (params.m - (i.val + 1)))
-        = params.kFinal * (2 ^ (i.val + 1) * 2 ^ (params.m - (i.val + 1))) := by ring
-      _ = params.kFinal * 2 ^ params.m := by rw [← pow_add, hadd]
-  have huniq_i : 2 * (e / M) + params.dim (i.val + 1) ≤ N := by
-    have h1 : M * (2 * (e / M) + params.dim (i.val + 1)) ≤ M * N := by
-      calc M * (2 * (e / M) + params.dim (i.val + 1))
-          = 2 * (M * (e / M)) + M * params.dim (i.val + 1) := by ring
-        _ ≤ 2 * e + params.dim 0 := by
-            rw [hdim_mul]
-            exact Nat.add_le_add_right (Nat.mul_le_mul_left 2 (Nat.mul_div_le e M)) _
-        _ ≤ 2 ^ params.d := huniq
-        _ = M * N := hMN.symm
-    exact Nat.le_of_mul_le_mul_left h1 hM_pos
+  have hMN : M * N = 2 ^ params.d := params.fiber_mul_domainSize i
+  have huniq_i : 2 * (e / M) + params.dim (i.val + 1) ≤ N :=
+    params.two_mul_div_add_dim_le huniq i
   have he_lt : e < 2 ^ params.d := by
-    have hdim_pos : 1 ≤ params.dim 0 := by
-      simp only [FRIParams.dim, Nat.sub_zero]
-      exact Nat.mul_pos params.hkPos (Nat.pow_pos (by omega))
+    have hdim_pos : 1 ≤ params.dim 0 := params.one_le_dim 0
     omega
   have hN_le : N ≤ 2 ^ (params.d - 1) :=
     Nat.pow_le_pow_right (by omega) (Nat.sub_le_sub_left (Nat.succ_le_succ (Nat.zero_le _)) _)
