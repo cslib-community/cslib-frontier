@@ -370,7 +370,7 @@ theorem nizkSimHandler_inl_congr [DecidableEq Y] [DecidableEq T] [Fintype C] [No
   let (b, _) ← (interpret (nizkSimHandler simulate valid) D).run []
   return b
 
-/-! ### Shared game-hop handlers (logging proved `(y, t)` pairs and collision flag) -/
+/-! ### Shared game-hop handlers (logging proved `(y, t)` pairs via `RandomOracle.Programming`) -/
 
 /-- State of the logged adaptive experiment: the random-oracle cache paired with the list of
 statement-commitment pairs `(y, t)` returned by valid prove queries. -/
@@ -572,11 +572,13 @@ private theorem extHandlers_bind_apply_le [DecidableEq Y] [DecidableEq T] [Finty
   rwa [PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_apply_singleton] at h
 
 /-- **Adaptive multi-theorem zero knowledge** of Fiat–Shamir NIZK proofs in the programmable
-random-oracle model ([BonehShoup2023], Section 20.3.5, Theorem 20.3 / Equation (20.9), adapted via
-`IdenticalUntilBad` to the overwrite simulator `nizkSimProve`): under `SpecialHVZK` and
-`δ`-unpredictable commitments, any adaptive distinguisher making at most `Qp` prove calls and `Qro`
-direct hash calls distinguishes `fiatShamirNIZKRealGame` from `fiatShamirNIZKSimGame` with
-acceptance-probability difference at most `Qp * (Qp + Qro) * δ`. -/
+random-oracle model ([BonehShoup2023], Section 20.3.5, Theorem 20.3 / Equation (20.9)), adapted via
+the programming hop
+`RandomOracle.closeTo_run_lazyProgramHandler_overwriteProgramHandler_of_isQueryBounded`
+to the overwrite simulator `nizkSimProve`: under `SpecialHVZK` and `δ`-unpredictable commitments,
+any adaptive distinguisher making at most `Qp` prove calls and `Qro` direct hash calls distinguishes
+`fiatShamirNIZKRealGame` from `fiatShamirNIZKSimGame` with acceptance-probability difference at most
+`Qp * (Qp + Qro) * δ`. -/
 theorem abs_sub_fiatShamirNIZKRealGame_simGame_le [DecidableEq Y] [DecidableEq T] [Fintype C]
     [Nonempty C] {P : SigmaProtocol X Y T C Z} {R : X → Y → Prop}
     {simulate : Y → C → PMF (T × Z)} {valid : X → Y → Bool} {δ : ℝ≥0}

@@ -230,7 +230,7 @@ private theorem handler_fiatShamir_eq_lazyProgramHandler (P : SigmaProtocol X Y 
     exact (PMF.bind_pure_comp _ _).symm
 
 omit [DecidableEq M] in
-/-- Under special HVZK, the unflagged overwrite signer equals the game signer of
+/-- Under special HVZK, the overwrite signer equals the game signer of
 `FiatShamir.signer` on a simulated transcript. -/
 private theorem overwriteProgramHandler_eq_gameHandler [Nonempty T] [Nonempty Z]
     {P : SigmaProtocol X Y T C Z} {R : X → Y → Prop} {simulate : Y → C → PMF (T × Z)}
