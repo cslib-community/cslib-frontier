@@ -41,13 +41,13 @@ def coinEvent (i : Fin 3) : Set (Fin 3 → Bool) := {f | f i = true}
 
 private theorem isFiniteMeasure_coinMeasure : IsFiniteMeasure coinMeasure :=
   ⟨by
-    rw [coinMeasure, Measure.smul_apply, smul_eq_mul, Measure.count_univ, ENat.card_eq_coe_natCard,
+    rw [coinMeasure, smul_apply, smul_eq_mul, Measure.count_univ, ENat.card_eq_coe_natCard,
       Nat.card_eq_fintype_card, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin]
     exact ENNReal.mul_lt_top (by simp) (by simp)⟩
 
 private theorem coinMeasure_real_coe (s : Finset (Fin 3 → Bool)) :
     coinMeasure.real (s : Set (Fin 3 → Bool)) = (s.card : ℝ) / 8 := by
-  rw [measureReal_def, coinMeasure, Measure.smul_apply, smul_eq_mul,
+  rw [measureReal_def, coinMeasure, smul_apply, smul_eq_mul,
     Measure.count_apply_finset' (Finset.measurableSet s), ENNReal.toReal_mul,
     ENNReal.toReal_natCast, one_div, ENNReal.toReal_inv]
   norm_num
@@ -152,8 +152,8 @@ theorem tendsto_shrinkingCoinMeasure_zero :
     have hp1 : 1 / ((n : ℝ) + 2) ≤ 1 := by
       rw [div_le_one (by positivity)]
       linarith [show (0 : ℝ) ≤ n from Nat.cast_nonneg n]
-    rw [shrinkingCoinMeasure, measureReal_def, Measure.add_apply, Measure.smul_apply,
-      Measure.smul_apply, smul_eq_mul, smul_eq_mul, Measure.dirac_apply_of_mem (Set.mem_univ _),
+    rw [shrinkingCoinMeasure, measureReal_def, add_apply, smul_apply,
+      smul_apply, smul_eq_mul, smul_eq_mul, Measure.dirac_apply_of_mem (Set.mem_univ _),
       Measure.dirac_apply_of_mem (Set.mem_univ _), mul_one, mul_one,
       ← ENNReal.ofReal_add hp0 (by linarith)]
     ring_nf
@@ -180,8 +180,8 @@ theorem tendsto_shrinkingCoinMeasure_zero :
           have hinter : (⋂ _ ∈ (Finset.univ : Finset (Fin 1)), ({true} : Set Bool)) = {true} := by
             ext b
             simp
-          rw [hinter, shrinkingCoinMeasure, measureReal_def, Measure.add_apply, Measure.smul_apply,
-            Measure.smul_apply, smul_eq_mul, smul_eq_mul,
+          rw [hinter, shrinkingCoinMeasure, measureReal_def, add_apply, smul_apply,
+            smul_apply, smul_eq_mul, smul_eq_mul,
             Measure.dirac_apply' _ (MeasurableSet.of_discrete),
             Measure.dirac_apply' _ (MeasurableSet.of_discrete)]
           simp only [Set.indicator_apply, Set.mem_singleton_iff, ↓reduceIte, Pi.one_apply,
