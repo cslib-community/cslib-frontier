@@ -8,9 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.PlantedClique.Algorithm
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
+public import CslibFrontier.Computability.PolyTime.Graph.Dense
 public import CslibFrontier.Computability.PolyTime.Int.Table
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Max
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Tactic.PolyTime
 
@@ -54,25 +53,26 @@ attribute [fun_prop] encRecoveryInput_vertexCount_polyTime encRecoveryInput_cliq
 
 namespace RecoveryInput
 
-/-- Symmetric, loopless lookup in the upper triangle of the raw adjacency word. -/
-@[expose] def adjacent (x : RecoveryInput) (i j : ℕ) : Bool :=
-  i != j && x.adjacencyBits.getD (min i j * x.vertexCount + max i j) false
+/-- The graph component of a planted-clique input. The original three-field encoding is kept. -/
+@[expose] def toDenseGraphInput (x : RecoveryInput) : DenseGraphInput :=
+  ⟨x.vertexCount, x.adjacencyBits⟩
 
-/-- The simple graph described by a dense input; malformed words still have a total meaning. -/
-@[expose] def graph (x : RecoveryInput) : SimpleGraph (Fin x.vertexCount) where
-  Adj i j := x.adjacent i j = true
-  symm := by
-    constructor
-    intro i j h
-    simpa only [adjacent, min_comm j.val i.val, max_comm j.val i.val,
-      bne_comm (a := j.val) (b := i.val)] using h
-  loopless := by
-    constructor
-    intro i
-    simp [adjacent]
+/-- Symmetric adjacency lookup through the common dense graph decoder. -/
+@[expose] def adjacent (x : RecoveryInput) (i j : ℕ) : Bool :=
+  x.toDenseGraphInput.adjacent i j
+
+/-- The simple graph described by the graph component of a planted-clique input. -/
+@[expose] def graph (x : RecoveryInput) : SimpleGraph (Fin x.vertexCount) :=
+  x.toDenseGraphInput.graph
 
 instance (x : RecoveryInput) : DecidableRel x.graph.Adj :=
-  fun i j => inferInstanceAs (Decidable (x.adjacent i j = true))
+  inferInstanceAs (DecidableRel x.toDenseGraphInput.graph.Adj)
+
+/-- Forgetting the target size keeps the common dense graph presentation in polynomial time. -/
+@[fun_prop] theorem computableInPolyTime_toDenseGraphInput :
+    ComputableInPolyTime toDenseGraphInput encRecoveryInput encDenseGraphInput := by
+  unfold toDenseGraphInput
+  fun_prop
 
 /-- The integer signed adjacency entry, with its diagonal set to zero. -/
 @[expose] def signedEntry (x : RecoveryInput) (i j : ℕ) : ℤ :=
@@ -125,9 +125,8 @@ theorem signedRows_eq_ofFn (x : RecoveryInput) :
     (hj : ComputableInPolyTime j encIn encUnary) :
     ComputableInPolyTime (fun a => (input a).adjacent (i a) (j a)) encIn encBool := by
   unfold adjacent
-  have hmin := ComputableInPolyTime.unary_min' hi hj
-  have hmax := ComputableInPolyTime.unary_max' hi hj
-  fun_prop
+  exact DenseGraphInput.computableInPolyTime_adjacent
+    (computableInPolyTime_toDenseGraphInput.comp hx) hi hj
 
 /-- Computing a signed entry charges the adjacency lookup and both unary indices. -/
 @[fun_prop] theorem computableInPolyTime_signedEntry {α : Type} {encIn : α ↪ List Bool}

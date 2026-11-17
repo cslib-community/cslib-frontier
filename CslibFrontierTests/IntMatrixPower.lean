@@ -6,7 +6,7 @@ Authors: Sam
 
 module
 
-import CslibFrontier.Algorithms.PlantedClique.IntegerPower
+import CslibFrontier.Algorithms.IntegerPower.Basic
 import CslibFrontier.Computability.PolyTime.Int.MatrixPower
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 
@@ -52,5 +52,5 @@ example : ComputableInPolyTime
 
 example {n : ℕ} (M : Matrix (Fin n) (Fin n) ℤ) (s : ℕ) (i : Fin n) :
     IntTable.powerColumn (List.ofFn fun j => List.ofFn (M j)) s i.val =
-      List.ofFn fun j : Fin n => (Algorithms.PlantedClique.powerColumnVector M s i)[j.1] := by
-  simp only [IntTable.powerColumn_ofFn, Algorithms.PlantedClique.getElem_powerColumnVector]
+      List.ofFn fun j : Fin n => (Algorithms.IntegerPower.powerColumnVector M s i)[j.1] := by
+  simp only [IntTable.powerColumn_ofFn, Algorithms.IntegerPower.getElem_powerColumnVector]

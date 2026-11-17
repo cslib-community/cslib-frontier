@@ -23,6 +23,10 @@ The spectral theorem turns a small residual at a candidate eigenvalue into proxi
 isolated eigenline. The error is controlled by the distance to all other eigenvalues. A second
 estimate bounds the third ordered eigenvalue from a quadratic-form bound on the common
 orthogonal complement of two vectors. These are deterministic ingredients of spectral recovery.
+
+For a positive rank-one signal, a direct Rayleigh-quotient argument bounds the leading
+eigenvector's squared error by eight times the squared relative perturbation. This estimate
+is used for community detection and does not require a separate eigenvalue-gap hypothesis.
 -/
 
 public section
@@ -79,6 +83,60 @@ theorem inner_apply_le_first_eigenvalue_mul_sq (hnpos : 0 < n) (x : E) :
   exact Finset.sum_le_sum fun i _ => mul_le_mul_of_nonneg_right
     (hT.eigenvalues_antitone hn (show (⟨0, hnpos⟩ : Fin n) ≤ i from Nat.zero_le _))
     (sq_nonneg _)
+
+/-- The first ordered eigenvector of a symmetric perturbation of a positive rank-one signal
+has squared error at most eight times the squared relative perturbation, up to sign. The
+operator error bound itself supplies the required positive leading eigenvalue. -/
+theorem exists_sign_first_eigenvector_sub_sq_le_of_rank_one
+    (hnpos : 0 < n) {v : E} (hv : ‖v‖ = 1) {k r : ℝ}
+    (hk : 0 < k) (hr : 0 ≤ r) (hsmall : 2 * r ≤ k)
+    (herror : ∀ y, ‖T y - (k * inner ℝ v y) • v‖ ≤ r * ‖y‖) :
+    ∃ s : ℝ, (s = 1 ∨ s = -1) ∧
+      ‖hT.eigenvectorBasis hn ⟨0, hnpos⟩ - s • v‖ ^ 2 ≤ 8 * (r / k) ^ 2 := by
+  let j : Fin n := ⟨0, hnpos⟩
+  let e := hT.eigenvectorBasis hn j
+  let μ := hT.eigenvalues hn j
+  have he : ‖e‖ = 1 := (hT.eigenvectorBasis hn).norm_eq_one j
+  have hvv : inner ℝ v v = 1 := by rw [real_inner_self_eq_norm_sq, hv]; norm_num
+  have hμ : k - r ≤ μ := by
+    have herr := herror v
+    have hinner := abs_real_inner_le_norm v (T v - (k * inner ℝ v v) • v)
+    rw [hv, hvv, mul_one, mul_one] at herr
+    rw [hv, one_mul, inner_sub_right, real_inner_smul_right, hvv, mul_one, mul_one]
+      at hinner
+    have hlower := (abs_le.mp (hinner.trans herr)).1
+    have hupper := hT.inner_apply_le_first_eigenvalue_mul_sq hn hnpos v
+    rw [hv, one_pow, mul_one] at hupper
+    change inner ℝ v (T v) ≤ μ at hupper
+    linarith
+  have hμpos : 0 < μ := by linarith
+  have heigen : T e = μ • e := hT.apply_eigenvectorBasis hn j
+  let a := k * inner ℝ v e / μ
+  have ha : μ * a = k * inner ℝ v e := by
+    rw [mul_comm]
+    exact div_mul_cancel₀ _ hμpos.ne'
+  have hline : μ • (e - a • v) = T e - (k * inner ℝ v e) • v := by
+    rw [smul_sub, smul_smul, ha, ← heigen]
+  have hscaled : μ * ‖e - a • v‖ ≤ r := by
+    calc
+      μ * ‖e - a • v‖ = ‖μ • (e - a • v)‖ :=
+        (norm_smul_of_nonneg hμpos.le _).symm
+      _ = ‖T e - (k * inner ℝ v e) • v‖ := congrArg norm hline
+      _ ≤ r := by simpa only [he, mul_one] using herror e
+  have hnear : ‖e - a • v‖ ≤ 2 * r / k := by
+    apply (le_div_iff₀ hk).mpr
+    calc
+      ‖e - a • v‖ * k ≤ ‖e - a • v‖ * (2 * μ) :=
+        mul_le_mul_of_nonneg_left (by linarith) (norm_nonneg _)
+      _ = 2 * (μ * ‖e - a • v‖) := by ring
+      _ ≤ 2 * r := mul_le_mul_of_nonneg_left hscaled (by norm_num)
+  obtain ⟨s, hs, hsign⟩ := exists_sign_norm_sub_sq_le he hv a
+  refine ⟨s, hs, hsign.trans ?_⟩
+  calc
+    2 * ‖e - a • v‖ ^ 2 ≤ 2 * (2 * r / k) ^ 2 :=
+      mul_le_mul_of_nonneg_left
+        ((sq_le_sq₀ (norm_nonneg _) (by positivity)).mpr hnear) (by norm_num)
+    _ = 8 * (r / k) ^ 2 := by ring
 
 /-- A quadratic-form bound on the common orthogonal complement of two vectors bounds every
 ordered eigenvalue from the third onward. This is the rank-two min-max argument. -/

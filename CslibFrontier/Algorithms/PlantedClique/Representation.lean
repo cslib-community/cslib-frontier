@@ -9,7 +9,6 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.PlantedClique.Encoding
-public import CslibFrontier.Foundations.Data.List.RowMajor
 
 /-!
 # Representing semantic planted-clique inputs and answers
@@ -36,29 +35,17 @@ open scoped Classical in
 @[expose] noncomputable def ofGraph {n : ℕ} (G : SimpleGraph (Fin n)) (k : ℕ) : RecoveryInput where
   vertexCount := n
   cliqueSize := k
-  adjacencyBits := (List.finRange n).flatMap fun i => List.ofFn fun j => decide (G.Adj i j)
+  adjacencyBits := (DenseGraphInput.ofGraph G).adjacencyBits
 
 /-- The canonical dense presentation decodes to the original graph. -/
 @[simp] theorem graph_ofGraph {n : ℕ} (G : SimpleGraph (Fin n)) (k : ℕ) :
     (ofGraph G k).graph = G := by
-  classical
-  ext i j
-  change Fin n at i j
-  change (i.val != j.val &&
-    ((List.finRange n).flatMap fun i => List.ofFn fun j => decide (G.Adj i j)).getD
-      (min i.val j.val * n + max i.val j.val) false) = true ↔ G.Adj i j
-  rcases le_total i.val j.val with h | h
-  · rw [min_eq_left h, max_eq_right h, List.getD_flatMap_ofFn]
-    simp only [Bool.and_eq_true, bne_iff_ne, decide_eq_true_eq]
-    exact ⟨And.right, fun hG => ⟨fun heq => hG.ne (Fin.ext heq), hG⟩⟩
-  · rw [min_eq_right h, max_eq_left h, List.getD_flatMap_ofFn]
-    simp only [Bool.and_eq_true, bne_iff_ne, decide_eq_true_eq]
-    exact ⟨fun hG => hG.2.symm, fun hG => ⟨fun heq => hG.ne (Fin.ext heq), hG.symm⟩⟩
+  exact DenseGraphInput.graph_ofGraph G
 
 /-- The canonical input uses `n²` raw adjacency bits and two framed unary parameters. -/
 theorem length_encRecoveryInput_ofGraph {n : ℕ} (G : SimpleGraph (Fin n)) (k : ℕ) :
     (encRecoveryInput (ofGraph G k)).length = n * n + 2 * n + 2 * k + 2 := by
-  simp [encRecoveryInput_apply, ofGraph, List.length_flatMap]
+  simp [encRecoveryInput_apply, ofGraph, DenseGraphInput.ofGraph, List.length_flatMap]
   omega
 
 end RecoveryInput

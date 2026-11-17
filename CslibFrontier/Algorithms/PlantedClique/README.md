@@ -239,7 +239,7 @@ These are exact comparisons of integer sums of squares. `growingColumn?` chooses
 successful pair; `recoveredVector` returns its $z$, or zero if none exists. `approximateSet`
 takes its $k$ largest absolute coordinates, and `recover` performs the same degree cleanup.
 
-[PowerSearch.lean](PowerSearch.lean) proves that the search succeeds in the required signal
+[IntegerPower/Search.lean](../IntegerPower/Search.lean) proves that the search succeeds in the required signal
 regime. The general argument uses traces of positive operator powers to show that some
 basis orbit must grow. [Correctness.lean](Correctness.lean) then uses the rank-one perturbation
 

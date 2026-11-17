@@ -33,7 +33,7 @@ on that line. Together these statements support integer matrix-power recovery al
 * `exists_sign_normalize_sub_sq_le_of_growth`: a growing vector with a small rank-one residual
   approximates the planted direction, up to sign.
 
-These are elementary auxiliary estimates, proved here for the planted-clique algorithm.
+These are elementary auxiliary estimates for integer matrix-power recovery algorithms.
 -/
 
 public section
@@ -153,23 +153,27 @@ theorem exists_sign_normalize_sub_sq_le_of_relative_error {z v : E}
   exact mul_le_mul_of_nonneg_left ((sq_le_sq₀ (norm_nonneg _) hε).mpr hnormalized)
     (by norm_num)
 
-/-- A vector with squared growth at least `k² / 4` and rank-one residual at most `k / 16`
-times the input norm has normalized squared distance at most `1 / 32` from one of the two
-unit directions of the rank-one part. -/
+/-- Squared growth at least `k² / 4` converts a rank-one residual bounded by `r` times
+ the input norm into normalized squared distance at most `8 (r/k)²` from one of the two
+ unit directions of the rank-one part. -/
 theorem exists_sign_normalize_sub_sq_le_of_growth {y z v : E}
-    (hv : ‖v‖ = 1) (hz : z ≠ 0) {a k : ℝ} (hk : 0 < k)
-    (herror : ‖z - a • v‖ ≤ k / 16 * ‖y‖)
+    (hv : ‖v‖ = 1) (hz : z ≠ 0) {a k r : ℝ} (hk : 0 < k) (hr : 0 ≤ r)
+    (herror : ‖z - a • v‖ ≤ r * ‖y‖)
     (hgain : k ^ 2 * ‖y‖ ^ 2 ≤ 4 * ‖z‖ ^ 2) :
     ∃ s : ℝ, (s = 1 ∨ s = -1) ∧
-      ‖‖z‖⁻¹ • z - s • v‖ ^ 2 ≤ 1 / 32 := by
+      ‖‖z‖⁻¹ • z - s • v‖ ^ 2 ≤ 8 * (r / k) ^ 2 := by
   have hnormgain : k * ‖y‖ ≤ 2 * ‖z‖ := by
     apply (sq_le_sq₀ (mul_nonneg hk.le (norm_nonneg _)) (by positivity)).mp
     nlinarith [hgain]
-  have hrelative : ‖z - a • v‖ ≤ (1 / 8 : ℝ) * ‖z‖ := by
-    nlinarith [herror]
-  obtain ⟨s, hs, hdist⟩ :=
-    exists_sign_normalize_sub_sq_le_of_relative_error hv hz (by norm_num) hrelative
-  exact ⟨s, hs, by norm_num at hdist ⊢; exact hdist⟩
+  have hrelative : ‖z - a • v‖ ≤ (2 * (r / k)) * ‖z‖ := by
+    calc ‖z - a • v‖ ≤ r * ‖y‖ := herror
+      _ = (r / k) * (k * ‖y‖) := by field_simp
+      _ ≤ (r / k) * (2 * ‖z‖) :=
+        mul_le_mul_of_nonneg_left hnormgain (div_nonneg hr hk.le)
+      _ = _ := by ring
+  obtain ⟨s, hs, hdist⟩ := exists_sign_normalize_sub_sq_le_of_relative_error hv hz
+    (by positivity : 0 ≤ 2 * (r / k)) hrelative
+  exact ⟨s, hs, by nlinarith only [hdist]⟩
 
 namespace LinearMap
 

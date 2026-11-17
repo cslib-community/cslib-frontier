@@ -1,5 +1,14 @@
 module  -- shake: keep-all --deprecated_module: ignore
 
+public import CslibFrontier.Algorithms.CommunityDetection.Algorithm
+public import CslibFrontier.Algorithms.CommunityDetection.Asymptotics
+public import CslibFrontier.Algorithms.CommunityDetection.Cleanup
+public import CslibFrontier.Algorithms.CommunityDetection.Final
+public import CslibFrontier.Algorithms.CommunityDetection.IntegerCentering
+public import CslibFrontier.Algorithms.CommunityDetection.PolyTime
+public import CslibFrontier.Algorithms.CommunityDetection.PowerAnalysis
+public import CslibFrontier.Algorithms.CommunityDetection.Program
+public import CslibFrontier.Algorithms.CommunityDetection.Spectral
 public import CslibFrontier.Algorithms.Dijkstra.Defs
 public import CslibFrontier.Algorithms.Dijkstra.Invariant
 public import CslibFrontier.Algorithms.Dijkstra.ListInstance
@@ -16,6 +25,10 @@ public import CslibFrontier.Algorithms.ExactTriangle.PieceBounds
 public import CslibFrontier.Algorithms.ExactTriangle.Splitting
 public import CslibFrontier.Algorithms.ExactTriangle.Weights
 public import CslibFrontier.Algorithms.ExactTriangle.Witnesses
+public import CslibFrontier.Algorithms.IntegerPower.Approximation
+public import CslibFrontier.Algorithms.IntegerPower.Basic
+public import CslibFrontier.Algorithms.IntegerPower.Program
+public import CslibFrontier.Algorithms.IntegerPower.Search
 public import CslibFrontier.Algorithms.Karger.FastCut
 public import CslibFrontier.Algorithms.Karger.Graph
 public import CslibFrontier.Algorithms.LatticeReduction.Babai
@@ -300,9 +313,7 @@ public import CslibFrontier.Algorithms.PlantedClique.EigenvectorFinal
 public import CslibFrontier.Algorithms.PlantedClique.Encoding
 public import CslibFrontier.Algorithms.PlantedClique.Final
 public import CslibFrontier.Algorithms.PlantedClique.Indicator
-public import CslibFrontier.Algorithms.PlantedClique.IntegerPower
 public import CslibFrontier.Algorithms.PlantedClique.PolyTime
-public import CslibFrontier.Algorithms.PlantedClique.PowerSearch
 public import CslibFrontier.Algorithms.PlantedClique.Program
 public import CslibFrontier.Algorithms.PlantedClique.RandomGraph
 public import CslibFrontier.Algorithms.PlantedClique.Representation
@@ -4088,6 +4099,7 @@ public import CslibFrontier.Computability.PolyTime.GaloisRingArithmetic
 public import CslibFrontier.Computability.PolyTime.GaloisRingInterpolation
 public import CslibFrontier.Computability.PolyTime.GaloisRingSeries
 public import CslibFrontier.Computability.PolyTime.GaloisRingUnits
+public import CslibFrontier.Computability.PolyTime.Graph.Dense
 public import CslibFrontier.Computability.PolyTime.Graph.RotationSystem
 public import CslibFrontier.Computability.PolyTime.Graph.RotationSystem.Recognition.Query
 public import CslibFrontier.Computability.PolyTime.Graph.RotationSystem.Recognition.Recovery
@@ -6203,6 +6215,7 @@ public import CslibFrontier.Foundations.Data.BitString.ShortMembers
 public import CslibFrontier.Foundations.Data.BitString.ShortWords
 public import CslibFrontier.Foundations.Data.BitString.Sign
 public import CslibFrontier.Foundations.Data.BitString.Sign.BigOperators
+public import CslibFrontier.Foundations.Data.BitString.Sign.Rounding
 public import CslibFrontier.Foundations.Data.BitString.SignWord
 public import CslibFrontier.Foundations.Data.BitString.Single
 public import CslibFrontier.Foundations.Data.BitString.Sum
@@ -7630,6 +7643,7 @@ public import CslibFrontier.Probability.Coding.PrefixFreeEntropy
 public import CslibFrontier.Probability.Coding.SetSeparator
 public import CslibFrontier.Probability.Collision
 public import CslibFrontier.Probability.Concentration
+public import CslibFrontier.Probability.Concentration.WeightedSum
 public import CslibFrontier.Probability.Conditioning
 public import CslibFrontier.Probability.CorrelatedSampling
 public import CslibFrontier.Probability.CorrelatedSampling.Embeddability
@@ -7821,6 +7835,8 @@ public import CslibFrontier.Probability.Product.Split
 public import CslibFrontier.Probability.ProductConditioning
 public import CslibFrontier.Probability.ProductConditioning.SideInformation
 public import CslibFrontier.Probability.Quantile
+public import CslibFrontier.Probability.RandomMatrix.FiniteNet
+public import CslibFrontier.Probability.RandomMatrix.Independent
 public import CslibFrontier.Probability.RankDecoder
 public import CslibFrontier.Probability.RankDecoder.Native
 public import CslibFrontier.Probability.RejectionSampling
@@ -7849,6 +7865,10 @@ public import CslibFrontier.Probability.StatisticalDistance.TotalVariation
 public import CslibFrontier.Probability.StatisticalDistance.UniformMod
 public import CslibFrontier.Probability.StatisticalDistance.XOR
 public import CslibFrontier.Probability.StatisticalDistance.XORSampling
+public import CslibFrontier.Probability.StochasticBlockModel.Concentration
+public import CslibFrontier.Probability.StochasticBlockModel.Model
+public import CslibFrontier.Probability.StochasticBlockModel.RandomMatrix
+public import CslibFrontier.Probability.StochasticBlockModel.Recovery
 public import CslibFrontier.Probability.StochasticDomination
 public import CslibFrontier.Probability.StochasticDomination.Adapted
 public import CslibFrontier.Probability.StochasticDomination.Basic

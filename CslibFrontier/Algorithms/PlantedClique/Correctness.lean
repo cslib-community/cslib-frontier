@@ -7,7 +7,8 @@ Authors: Sam
 module
 -- upstream: candidate
 
-public import CslibFrontier.Algorithms.PlantedClique.PowerSearch
+public import CslibFrontier.Algorithms.IntegerPower.Approximation
+public import CslibFrontier.Algorithms.PlantedClique.Algorithm
 public import CslibFrontier.Algorithms.PlantedClique.Indicator
 import Mathlib.Analysis.Matrix.Hermitian
 
@@ -27,7 +28,7 @@ public section
 
 namespace Cslib.Algorithms.PlantedClique
 
-open Finset Matrix
+open Finset Matrix IntegerPower
 open scoped RealInnerProductSpace
 
 variable {n : ℕ}
@@ -58,36 +59,17 @@ theorem approximateSet_overlap (M : Matrix (Fin n) (Fin n) ℤ) (S : Finset (Fin
     have hr := hresidual u
     simpa only [real_inner_self_eq_norm_sq, hu, one_pow, mul_one] using hr
   have hgain := LinearMap.half_sq_le_norm_apply_sq (T := T.toLinearMap) hu hk hsignal
-  have hsearch := growingColumn?_isSome_of_large_direction M hS.card_pos hM hu hgain
-  obtain ⟨c, _, hw, hpositive, hgrowth⟩ := recoveredVector_spec M S.card hsearch
-  let y := (T.toLinearMap ^ c.steps) (EuclideanSpace.basisFun (Fin n) ℝ c.seed)
-  let z := (T.toLinearMap ^ (c.steps + 1)) (EuclideanSpace.basisFun (Fin n) ℝ c.seed)
-  have hzT : z = T y := by
-    dsimp only [z, y]
-    rw [pow_succ']
-    rfl
-  have hznorm : ‖z‖ ^ 2 =
-      ((dotProduct (recoveredVector M S.card) (recoveredVector M S.card) : ℤ) : ℝ) := by
-    rw [hw]
-    exact norm_sq_powerVector M (c.steps + 1) c.seed
-  have hz : z ≠ 0 := by
-    have hp : (0 : ℝ) < ‖z‖ ^ 2 := by rw [hznorm]; exact_mod_cast hpositive
-    intro hz
-    simp [hz] at hp
-  have hgrowth' : (S.card : ℝ) ^ 2 * ‖y‖ ^ 2 ≤ 4 * ‖z‖ ^ 2 := by
-    rw [hznorm]
-    dsimp only [y, T, A]
-    rw [norm_sq_powerVector]
-    exact_mod_cast hgrowth
-  obtain ⟨s, hs, hclose⟩ := exists_sign_normalize_sub_sq_le_of_growth hu hz hk
-    (by rw [hzT]; exact hresidual y) hgrowth'
+  obtain ⟨s, hs, hclose⟩ := recoveredVector_alignment M hS.card_pos hM hu
+    (by positivity) hgain hresidual
+  have hratio : (S.card : ℝ) / 16 / (S.card : ℝ) = 1 / 16 := by
+    field_simp [hk.ne']
+  rw [hratio] at hclose
+  norm_num at hclose
+  let z := WithLp.toLp 2 (fun i => (recoveredVector M S.card i : ℝ))
   apply sixteen_mul_card_sdiff_le_of_signed_norm_sub_sq_le hS
     (card_approximateSet M (by simpa only [Fintype.card_fin] using Finset.card_le_univ S)).symm
     hs ?_ hclose
   intro i hi j hj
-  have hwcast : WithLp.toLp 2 (fun i => (recoveredVector M S.card i : ℝ)) = z := by
-    rw [hw]
-    exact toLp_powerVector M (c.steps + 1) c.seed
   have hweights := natAbs_le_of_notMem_approximateSet M S.card hi hj
   have hcast : |(recoveredVector M S.card i : ℝ)| ≤
       |(recoveredVector M S.card j : ℝ)| := by
@@ -96,7 +78,7 @@ theorem approximateSet_overlap (M : Matrix (Fin n) (Fin n) ℤ) (S : Finset (Fin
       exact_mod_cast hweights
     exact_mod_cast hi'
   change |‖z‖⁻¹ * z i| ≤ |‖z‖⁻¹ * z j|
-  rw [abs_mul, abs_mul, ← hwcast]
+  rw [abs_mul, abs_mul]
   exact mul_le_mul_of_nonneg_left hcast (abs_nonneg _)
 
 /-- The real signed adjacency matrix is symmetric. -/

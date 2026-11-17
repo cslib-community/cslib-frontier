@@ -7,7 +7,7 @@ Authors: Sam
 module
 -- upstream: candidate
 
-public import CslibFrontier.Algorithms.PlantedClique.Algorithm
+public import CslibFrontier.Algorithms.IntegerPower.Basic
 public import CslibFrontier.Foundations.Analysis.InnerProductSpace.RankOnePerturbation
 public import Mathlib.Analysis.CStarAlgebra.Matrix
 import Mathlib.Analysis.Matrix.Hermitian
@@ -19,13 +19,13 @@ import Mathlib.Tactic.NormNum
 
 The integer growth test agrees exactly with squared Euclidean norms after casting to the reals.
 The finite-dimensional power-growth theorem therefore guarantees that `growingColumn?` succeeds
-on a symmetric matrix with a sufficiently large signal direction. The selected vector also
-inherits the rank-one approximation estimate.
+on a symmetric matrix with a sufficiently large signal direction. The selected vector satisfies
+the exact integer growth bound used by the rank-one approximation theorem in `Approximation`.
 -/
 
 public section
 
-namespace Cslib.Algorithms.PlantedClique
+namespace Cslib.Algorithms.IntegerPower
 
 open Finset Matrix
 
@@ -100,4 +100,4 @@ theorem recoveredVector_spec (M : Matrix (Fin n) (Fin n) ℤ) (k : ℕ)
     · simpa only [recoveredVector, hc] using hg.1
     · simpa only [recoveredVector, hc] using hg.2
 
-end Cslib.Algorithms.PlantedClique
+end Cslib.Algorithms.IntegerPower

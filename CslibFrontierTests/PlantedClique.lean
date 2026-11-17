@@ -29,7 +29,7 @@ set_option linter.privateModule false
 
 namespace CslibFrontierTests.PlantedClique
 
-open Cslib.Algorithms.PlantedClique Cslib.Probability.PlantedClique
+open Cslib.Algorithms.PlantedClique Cslib.Algorithms.IntegerPower Cslib.Probability.PlantedClique
 
 -- The three full runs are executable regression checks.
 set_option linter.hashCommand false

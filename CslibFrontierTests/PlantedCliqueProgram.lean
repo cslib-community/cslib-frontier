@@ -30,7 +30,7 @@ set_option linter.privateModule false
 
 namespace CslibFrontierTests.PlantedCliqueProgram
 
-open Cslib.Algorithms.PlantedClique Turing.MultiTapeTM
+open Cslib.Algorithms.PlantedClique Cslib.Algorithms.IntegerPower Turing.MultiTapeTM
 
 private def upperOnlyClique : RecoveryInput where
   vertexCount := 8
@@ -39,6 +39,11 @@ private def upperOnlyClique : RecoveryInput where
     (List.range 8).map fun j =>
       decide (i ≤ j ∧ i ∈ ([0, 1, 3, 4, 6, 7] : List ℕ) ∧
         j ∈ ([0, 1, 3, 4, 6, 7] : List ℕ))
+
+-- Extracting the common dense graph decoder preserves every planted-clique encoded word.
+example (x : RecoveryInput) : encRecoveryInput x =
+    encPair encUnary (encPair encUnary encBits)
+      (x.vertexCount, x.cliqueSize, x.adjacencyBits) := rfl
 
 -- The decoder removes diagonal bits and reflects upper-triangle edges.
 example : (RecoveryInput.mk 2 1 [true, true, false, true]).signedRows =
@@ -56,7 +61,7 @@ set_option linter.hashCommand false
 -- The only supplied bit is diagonal, and every missing edge bit is false.
 #guard recoverInput (RecoveryInput.mk 3 2 [true]) == []
 
-#guard recoveredIntegerVector (RecoveryInput.mk 1 1 []) == [0]
+#guard recoveredIntegerVector (RecoveryInput.mk 1 1 []).signedRows 1 == [0]
 
 #guard recoverInput (RecoveryInput.mk 0 6 [true, false, true]) == []
 
