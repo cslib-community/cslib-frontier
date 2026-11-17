@@ -111,4 +111,15 @@ the accumulator, and names no cost function. -/
     (l.foldlM f b).time = (l.map fun a => (f b a).time).sum :=
   time_foldlM_eq_sum f _ (fun acc a => hf acc b a) l b
 
+/-- A fold in the time monad whose step costs at most `c` on each element of the list costs at
+most `c` per element. -/
+theorem time_foldlM_le {α β : Type*} (f : β → α → TimeM ℕ β) (l : List α) (b : β) {c : ℕ}
+    (hf : ∀ acc, ∀ a ∈ l, (f acc a).time ≤ c) : (l.foldlM f b).time ≤ l.length * c := by
+  induction l generalizing b with
+  | nil => simp only [List.foldlM_nil, time_pure, List.length_nil, zero_mul, le_refl]
+  | cons a l ih =>
+    rw [List.foldlM_cons, time_bind, List.length_cons, Nat.succ_mul, Nat.add_comm (l.length * c)]
+    exact Nat.add_le_add (hf b a List.mem_cons_self)
+      (ih _ fun acc x hx => hf acc x (List.mem_cons_of_mem a hx))
+
 end Cslib.Algorithms.Lean.TimeM
