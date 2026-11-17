@@ -814,15 +814,30 @@ end ExtensionFieldGap
 /-! ### 7. Scaling and curve/line parameter-packaging helpers -/
 
 /-- Exercises the public scaling and parameter-packaging helpers `johnsonCurveBound_mul_le`,
-`johnson_curve_params_bound`, and `johnson_line_params_bound` used by downstream M4/M5 modules. -/
+`johnson_curve_params_bound`, `johnson_line_params_bound`, and `exists_multiplicity_of_eta` used by
+downstream M4/M5 modules. -/
 example :
     johnsonCurveBound 5 2 1 5 1 16 * 5 ≤ johnsonCurveBound 5 2 1 5 1 5 * 16 ∧
+    (∃ m : ℕ, 1 ≤ m ∧
+      ((0 : ℕ) : ℝ) / ((4 : ℕ) : ℝ) ≤
+        1 - Real.sqrt (((1 : ℕ) : ℝ) / ((4 : ℕ) : ℝ)) -
+          Real.sqrt (((1 : ℕ) : ℝ) / ((4 : ℕ) : ℝ)) / (2 * (m : ℝ)) ∧
+      ((m + 1 : ℝ) ^ 6) ≤ 64 / ((1 / 4 : ℝ) ^ 6)) ∧
     (∃ D : ℕ, 5 * (2 * (2 + 1) / 2) < #(Sudan.monomials (1 - 1) D) ∧
       D < 2 * (5 - 1) ∧
       (johnsonCurveBound 5 2 (1 - 1) D 3 5 : ℝ) ≤
         1800 * ((3 : ℕ) : ℝ) * (((1 : ℕ) + 1 : ℝ) ^ 6) * (((5 : ℕ) : ℝ) ^ 2) /
           (((1 : ℕ) : ℝ) / ((5 : ℕ) : ℝ))) := by
-  refine ⟨johnsonCurveBound_mul_le (by omega), ?_⟩
+  have he_eta : ((0 : ℕ) : ℝ) / ((4 : ℕ) : ℝ) ≤
+      1 - Real.sqrt (((1 : ℕ) : ℝ) / ((4 : ℕ) : ℝ)) - (1 / 4 : ℝ) := by
+    have hsq : Real.sqrt ((1 : ℝ) / 4) = 1 / 2 := by
+      rw [Real.sqrt_eq_iff_eq_sq (by norm_num) (by norm_num)]
+      norm_num
+    push_cast
+    linarith
+  refine ⟨johnsonCurveBound_mul_le (by omega),
+    exists_multiplicity_of_eta (n := 4) (k := 1) (e := 0) (η := 1 / 4)
+      (by omega) (by omega) (by norm_num) he_eta, ?_⟩
   have he : ((1 : ℕ) : ℝ) / ((5 : ℕ) : ℝ) ≤
       1 - Real.sqrt (((1 : ℕ) : ℝ) / ((5 : ℕ) : ℝ)) -
         Real.sqrt (((1 : ℕ) : ℝ) / ((5 : ℕ) : ℝ)) / (2 * ((1 : ℕ) : ℝ)) := by
