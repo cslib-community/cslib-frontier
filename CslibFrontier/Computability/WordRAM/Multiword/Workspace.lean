@@ -29,8 +29,6 @@ Multiplication, transfers, bitwise operations and shifts share this layout.
 
 * `Workspace.exec_setup`: exact initialization at every physical width at least two.
 * `Workspace.setup_digit`: initialization leaves operand digits unchanged.
-* `Workspace.frame_set_total`, `Workspace.frame_set_carry`, `Workspace.frame_set_mem`:
-  single-register `Data.set` frames.
 
 ## References
 
