@@ -7,9 +7,11 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test driver)
 
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NativeCompiler
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NativeCompiler.Codec
 
 /-! # Checked named native compiler construction -/
+
+set_option linter.privateModule false
 
 public section
 
@@ -18,37 +20,19 @@ open Turing.MultiTapeTM Turing.MultiTapeTM.Internal Turing.MultiTapeTM.Universal
 namespace CslibFrontierTests.Internal.NativeCompilerWitness
 
 /-- A nonconstant direct compiler pipeline: preserve the input bit and attach a true tag. -/
-noncomputable def tagged :
+private def tagged :
     NativeCompiler (fun b : Bool => (b, true)) encBool (encPair encBool encBool) :=
   (NativeCompiler.identity encBool).pair (NativeCompiler.const encBool encBool true)
 
 /-- Exercise direct composition after the pair constructor. -/
-noncomputable def pipeline :
+private def pipeline :
     NativeCompiler (fun b : Bool => (b, true)) encBool (encPair encBool encBool) :=
   (NativeCompiler.identity (encPair encBool encBool)).comp tagged
 
--- Representative constructors retain actual machine terms, rather than merely existence proofs.
-example : (NativeCompiler.identity encBool).machine = tidyCopy Bool :=
-  rfl
-
-example : (NativeCompiler.const encBool encBool true).machine =
-    NativeCompiler.constantOutputTM (encBool true) :=
-  rfl
-
-example : (NativeCompiler.encodeFrame encBool).machine =
-    Encodings.frameT.toTM.seq (rewindInput Bool) :=
-  rfl
-
-example : tagged.machine =
-    appendTM
-      (((NativeCompiler.encodeFrame encBool).comp
-        (NativeCompiler.identity encBool)).machine)
-      (NativeCompiler.const encBool encBool true).machine :=
-  rfl
-
-example : pipeline.machine =
-    (NativeCompiler.identity (encPair encBool encBool)).machine.comp tagged.machine true :=
-  rfl
+/-- Decode the first frame using the total malformed-input convention, then frame that raw result.
+The composition therefore exercises an input outside the image of `encFramed encBits`. -/
+private def malformedReframe : NativeCompiler (fun word => frame (unframe word)) encBits encBits :=
+  (NativeCompiler.encodeFrame encBits).comp NativeCompiler.unframeDecoder
 
 -- State labels are composed constructively along with the machine terms.
 example : (NativeCompiler.identity encBool).stateEncoding =
@@ -128,15 +112,12 @@ example (b : Bool) : pipeline.workspace b =
         (NativeCompiler.identity (encPair encBool encBool)).tapeCount + 20) :=
   rfl
 
-example : pipeline.description =
-    @desc pipeline.tapeCount Bool pipeline.State pipeline.stateFintype inferInstance
-      pipeline.stateEncoding eBit pipeline.machine :=
-  pipeline.description_eq_desc
-
-example : pipeline.staticBits =
-    descLen (@desc pipeline.tapeCount Bool pipeline.State pipeline.stateFintype inferInstance
-      pipeline.stateEncoding eBit pipeline.machine) := by
-  rw [pipeline.staticBits_eq_descLen, pipeline.description_eq_desc]
+/-- The constructive description records every transition of a nontrivial composed compiler. -/
+example (state : pipeline.State) (input : Option Bool)
+    (work : Fin pipeline.tapeCount → Option Bool) :
+    pipeline.description.Holds (pipeline.table.toTM.map pipeline.stateEncoding eBit)
+      (pipeline.stateEncoding state) (input.map eBit) (Option.map eBit ∘ work) :=
+  pipeline.description_holds state input work
 
 example (b : Bool) : pipeline.inputBits b = (encBool b).length :=
   rfl
@@ -152,15 +133,22 @@ example (b : Bool) : pipeline.outputBits b =
   exact length_encPair (b, true)
 
 -- Both branches compute, and the checked pipeline is genuinely nonconstant.
-example : pipeline.machine.ComputesTidilyInTimeAndSpace
+example : pipeline.table.toTM.ComputesTidilyInTimeAndSpace
     (encBool false) (encPair encBool encBool (false, true))
     (pipeline.time false) (pipeline.workspace false) :=
   pipeline.computes false
 
-example : pipeline.machine.ComputesTidilyInTimeAndSpace
+example : pipeline.table.toTM.ComputesTidilyInTimeAndSpace
     (encBool true) (encPair encBool encBool (true, true))
     (pipeline.time true) (pipeline.workspace true) :=
   pipeline.computes true
+
+example : frame (unframe [true]) = [false] := by
+  decide
+
+example : malformedReframe.table.toTM.ComputesTidilyInTimeAndSpace [true] [false]
+    (malformedReframe.time [true]) (malformedReframe.workspace [true]) := by
+  simpa [unframe, frame] using malformedReframe.computes [true]
 
 -- The forward comparison keeps the existing plain calculus as the public consumer interface.
 example : ComputableInTimeAndSpace (fun b : Bool => (b, true)) encBool

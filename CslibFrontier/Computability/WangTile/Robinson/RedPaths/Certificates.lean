@@ -30,6 +30,8 @@ part of the logical interface.
   with even crossing parity.
 * `exists_boundedPath`: every live fine port is reached
   from the new cycle or an inherited live old port.
+* `odd_base_exists_boundedPath`: every live port in the depth-four odd base has a
+  bounded path from a cycle corner.
 * `Path.refine`: arbitrary red paths preserve parity through
   two substitutions.
 
@@ -40,9 +42,10 @@ The corrected construction is after [JeandelVanier2020], §§3.2–3.3, Figures 
 Prior formalization: [lean-wang](https://github.com/edemaine/lean-wang/tree/64268a3),
 revision `64268a3`, `RedShadeGraphCertificate`,
 `RedShadeGraphLocalCoverage`, `RedShadeGraphRefinement`, `RedShadeGraphPathRefinement`,
-`RedShadeGraphTranslation` and `RedShadeGraphCoarsening`.
+`RedShadeGraphTranslation`, `RedShadeGraphCoarsening` and `CanonicalOddShadeBase`.
 The predecessor compression is original; its finite input derives from that revision's
-`RedShadeGraphPathWitnesses` and keeps every port and crossing parity unchanged.
+`RedShadeGraphPathWitnesses` (including `oddNodes`) and keeps every port and crossing
+parity unchanged.
 -/
 
 public section
@@ -62,6 +65,16 @@ private instance : Fintype ExitSide :=
 /-- The grid obtained by substituting a constant parent grid twice. -/
 @[expose] def fineGrid (parent : Index) : Nat → Nat → Index :=
   iterateRefine 2 (coarseGrid parent)
+
+/-- Two substitution steps depend only on the containing parent and local block coordinates. -/
+theorem iterateRefine_two_local (grid : ℕ → ℕ → Index) (x y : ℕ) :
+    iterateRefine 2 grid x y = fineGrid (grid (x / 4) (y / 4)) (x % 4) (y % 4) := by
+  have coords (z : ℕ) : z / 2 / 2 = z / 4 ∧
+      (z % 4) / 2 = z / 2 % 2 ∧ (z % 4) % 2 = z % 2 := by omega
+  obtain ⟨hx₀, hx₁, hx₂⟩ := coords x
+  obtain ⟨hy₀, hy₁, hy₂⟩ := coords y
+  simp only [iterateRefine, refineIndexGrid, fineGrid, coarseGrid,
+    hx₀, hx₁, hx₂, hy₀, hy₁, hy₂, Nat.mod_mod]
 
 /-- A live exit of the old southwest quarter block. -/
 private def internalPort (side : ExitSide) (offset : Nat) : Port :=
@@ -88,6 +101,18 @@ private def externalPort (side : ExitSide) (offset : Nat) : Port :=
   (List.range height).flatMap fun y => (List.range width).flatMap fun x =>
     [⟨x, y, .west⟩, ⟨x, y, .east⟩, ⟨x, y, .south⟩, ⟨x, y, .north⟩]
 
+/-- A port is listed in a rectangle exactly when both its coordinates are in bounds. -/
+theorem mem_portsIn_iff {p : Port} {width height : Nat} :
+    p ∈ portsIn width height ↔ PortInBounds p width height := by
+  simp only [portsIn, List.mem_flatMap, List.mem_range, List.mem_cons,
+    List.not_mem_nil, or_false]
+  constructor
+  · rintro ⟨y, hy, x, hx, rfl | rfl | rfl | rfl⟩ <;> exact ⟨hx, hy⟩
+  · rintro ⟨hx, hy⟩
+    rcases p with ⟨px, py, side⟩
+    refine ⟨py, hy, px, hx, ?_⟩
+    cases side <;> simp
+
 /-- A strict bottom-side port of the cycle created in a depth-two block. -/
 @[expose] def cycleSource : Port := ⟨4, 3, .west⟩
 
@@ -108,12 +133,12 @@ private structure Move where
   kind : Kind
   reverse : Bool
 
-private def decodePort (code : Nat) : Port :=
-  ⟨code / 4 % 8, code / 4 / 8,
+private def decodePort (width code : Nat) : Port :=
+  ⟨code / 4 % width, code / 4 / width,
     match code % 4 with | 0 => .west | 1 => .east | 2 => .south | _ => .north⟩
 
-private def decodeMove (code : Nat) : Move :=
-  ⟨code / 2 / 9 % 8, code / 2 / 9 / 8,
+private def decodeMove (width code : Nat) : Move :=
+  ⟨code / 2 / 9 % width, code / 2 / 9 / width,
     match code / 2 % 9 with
     | 0 => .horizontalMatch | 1 => .verticalMatch | 2 => .horizontal | 3 => .vertical
     | 4 => .westNorth | 5 => .westSouth | 6 => .eastNorth | 7 => .eastSouth | _ => .crossing,
@@ -174,39 +199,57 @@ private theorem Move.link {grid : Nat → Nat → Index} (m : Move)
   · exact Link.crossing x y h.1 h.2
   · exact Link.symm (Link.crossing x y h.1 h.2)
 
+/-- One predecessor edge in a finite red-path certificate. Port codes use row-major
+coordinates with four sides in west/east/south/north order; move codes use row-major
+coordinates, then one of the nine link kinds, then the reversal bit. -/
 private structure Row where
+  /-- Encoded endpoint of this row. -/
   port : Nat
+  /-- Crossing parity of the path from the forest root. -/
   parity : Bool
+  /-- Index of an earlier row whose endpoint starts the edge. -/
   predecessor : Nat
+  /-- Encoded edge from the predecessor to this endpoint. -/
   move : Nat
 
-private structure Forest where
+/-- A predecessor forest whose encoded coordinates have the given row width. -/
+private structure Forest (width : Nat) where
+  /-- Encoded starting port common to all certified paths. -/
   root : Nat
+  /-- Rows in predecessor order. -/
   rows : List Row
 
-private def Forest.row (f : Forest) (i : Nat) : Row := f.rows.getD i ⟨0, false, 0, 0⟩
+/-- The starting port obtained by decoding the forest's root. -/
+private def Forest.rootPort {width : Nat} (f : Forest width) : Port :=
+  decodePort width f.root
+
+private def Forest.row {width : Nat} (f : Forest width) (i : Nat) : Row :=
+  f.rows.getD i ⟨0, false, 0, 0⟩
 
 private instance (p : Port) (w h : Nat) : Decidable (PortInBounds p w h) :=
   inferInstanceAs (Decidable (_ ∧ _))
 
-private def Forest.Valid (grid : Nat → Nat → Index) (f : Forest) : Prop :=
-  PortInBounds (decodePort f.root) 8 8 ∧
+/-- Each row is either the root or a valid edge from an earlier row, and all ports
+stay inside the square of the forest width. -/
+private def Forest.Valid {width : Nat} (grid : Nat → Nat → Index) (f : Forest width) : Prop :=
+  PortInBounds (decodePort width f.root) width width ∧
   ∀ i : Fin f.rows.length,
     let r := f.row i
-    PortInBounds (decodePort r.port) 8 8 ∧
+    PortInBounds (decodePort width r.port) width width ∧
     ((r.port = f.root ∧ r.parity = false) ∨
       (r.predecessor < i.val ∧
-       (decodeMove r.move).valid grid = true ∧
-       (decodeMove r.move).first = decodePort (f.row r.predecessor).port ∧
-       (decodeMove r.move).second = decodePort r.port ∧
-       r.parity = ((f.row r.predecessor).parity ^^ (decodeMove r.move).parity)))
+       (decodeMove width r.move).valid grid = true ∧
+       (decodeMove width r.move).first = decodePort width (f.row r.predecessor).port ∧
+       (decodeMove width r.move).second = decodePort width r.port ∧
+       r.parity = ((f.row r.predecessor).parity ^^ (decodeMove width r.move).parity)))
 
-private instance (grid : Nat → Nat → Index) (f : Forest) : Decidable (f.Valid grid) :=
+private instance {width : Nat} (grid : Nat → Nat → Index) (f : Forest width) :
+    Decidable (f.Valid grid) :=
   inferInstanceAs (Decidable (_ ∧ ∀ _ : Fin f.rows.length, _))
 
-private theorem Forest.sound {grid : Nat → Nat → Index} {f : Forest}
+private theorem Forest.sound {width : Nat} {grid : Nat → Nat → Index} {f : Forest width}
     (valid : f.Valid grid) (i : Nat) (hi : i < f.rows.length) :
-    BoundedPath grid 8 8 (decodePort f.root) (decodePort (f.row i).port)
+    BoundedPath grid width width (decodePort width f.root) (decodePort width (f.row i).port)
       (f.row i).parity := by
   induction i using Nat.strong_induction_on with
   | ind i ih =>
@@ -215,15 +258,15 @@ private theorem Forest.sound {grid : Nat → Nat → Index} {f : Forest}
       rw [hp, hb]
       exact BoundedPath.refl _ valid.1
     · have predecessorBounds := (valid.2 ⟨(f.row i).predecessor, lt_trans decreases hi⟩).1
-      have step := BoundedPath.ofLink ((decodeMove (f.row i).move).link edge)
+      have step := BoundedPath.ofLink ((decodeMove width (f.row i).move).link edge)
         (first.symm ▸ predecessorBounds) (second.symm ▸ bounds)
       rw [first, second] at step
       rw [parity]
       exact BoundedPath.trans (ih _ decreases (lt_trans decreases hi)) step
 
-private theorem Forest.sound_mem {grid : Nat → Nat → Index} {f : Forest}
+private theorem Forest.sound_mem {width : Nat} {grid : Nat → Nat → Index} {f : Forest width}
     (valid : f.Valid grid) {r : Row} (hr : r ∈ f.rows) :
-    BoundedPath grid 8 8 (decodePort f.root) (decodePort r.port) r.parity := by
+    BoundedPath grid width width (decodePort width f.root) (decodePort width r.port) r.parity := by
   obtain ⟨i, hi, equal⟩ := List.mem_iff_getElem.mp hr
   have rowEq : f.row i = r := by
     simp only [Forest.row, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi,
@@ -231,7 +274,7 @@ private theorem Forest.sound_mem {grid : Nat → Nat → Index} {f : Forest}
   simpa only [rowEq] using Forest.sound valid i hi
 
 -- Shared by all 104 parents: one predecessor per port, without repeated path tails.
-private def forest (id : Fin 32) : Forest :=
+private def forest (id : Fin 32) : Forest 8 :=
   match id.val with
   | 0 => ⟨37, [
       ⟨37, false, 0, 0⟩, ⟨40, false, 0, 162⟩, ⟨41, false, 1, 184⟩,
@@ -530,19 +573,20 @@ private def selected (parent : Index) : List (Fin 32) :=
   | 73 | 79 => [7, 17, 18, 30, 31]
   | 34 | 35 | 50 | 51 | 97 | _ => [7, 17, 18, 5, 2]
 
-private def reaches (f : Forest) (target : Port) : Bool :=
-  f.rows.any fun r => decide (decodePort r.port = target)
+/-- Whether one row of the forest ends at the target port. -/
+private def Forest.reaches {width : Nat} (f : Forest width) (target : Port) : Bool :=
+  f.rows.any fun r => decide (decodePort width r.port = target)
 
-private def connects (f : Forest) (start finish : Port) : Bool :=
-  decide (decodePort f.root = start) &&
-    f.rows.any fun r => decide (decodePort r.port = finish ∧ r.parity = false)
+private def connects (f : Forest 8) (start finish : Port) : Bool :=
+  decide (decodePort 8 f.root = start) &&
+    f.rows.any fun r => decide (decodePort 8 r.port = finish ∧ r.parity = false)
 
 private def Verified (parent : Index) : Prop :=
   (∀ id ∈ selected parent,
-    (forest id).Valid (fineGrid parent) ∧ decodePort (forest id).root ∈ sources parent) ∧
+    (forest id).Valid (fineGrid parent) ∧ decodePort 8 (forest id).root ∈ sources parent) ∧
   (∀ x y : Fin 8, ∀ s : Side,
     portPresent (fineGrid parent) ⟨x, y, s⟩ = true →
-    ((selected parent).any fun id => reaches (forest id) ⟨x, y, s⟩) = true) ∧
+    ((selected parent).any fun id => Forest.reaches (forest id) ⟨x, y, s⟩) = true) ∧
   (∀ exit : ExitSide, ∀ offset : Fin 2,
     portPresent (coarseGrid parent) (internalPort exit offset) = true →
     ((selected parent).any fun id =>
@@ -584,29 +628,23 @@ private theorem verified (parent : Index) : Verified parent := by
     Fin.ext (Nat.div_add_mod _ _)
   exact e ▸ h
 
-private theorem reaches_sound {grid : Nat → Nat → Index} {f : Forest}
-    (valid : f.Valid grid) {target : Port} (h : reaches f target = true) :
-    ∃ parity, BoundedPath grid 8 8 (decodePort f.root) target parity := by
+/-- A valid forest that reaches a port supplies a bounded red path with some parity. -/
+private theorem Forest.reaches_sound {width : Nat} {grid : Nat → Nat → Index} {f : Forest width}
+    (valid : f.Valid grid) {target : Port} (h : f.reaches target = true) :
+    ∃ parity, BoundedPath grid width width f.rootPort target parity := by
   obtain ⟨r, hr, eq⟩ := List.any_eq_true.mp h
-  have targetEq : decodePort r.port = target := of_decide_eq_true eq
+  have targetEq : decodePort width r.port = target := of_decide_eq_true eq
   exact ⟨r.parity, targetEq ▸ Forest.sound_mem valid hr⟩
 
-private theorem connects_sound {grid : Nat → Nat → Index} {f : Forest}
+private theorem connects_sound {grid : Nat → Nat → Index} {f : Forest 8}
     (valid : f.Valid grid) {start finish : Port} (h : connects f start finish = true) :
     BoundedPath grid 8 8 start finish false := by
   simp only [connects, Bool.and_eq_true] at h
   obtain ⟨hroot, hnode⟩ := h
-  have rootEq : decodePort f.root = start := of_decide_eq_true hroot
+  have rootEq : decodePort 8 f.root = start := of_decide_eq_true hroot
   obtain ⟨r, hr, hend⟩ := List.any_eq_true.mp hnode
   obtain ⟨targetEq, parityEq⟩ := of_decide_eq_true hend
   simpa only [rootEq, targetEq, parityEq] using Forest.sound_mem valid hr
-
-private theorem bounds_of_mem {p : Port} {width height : Nat}
-    (h : p ∈ portsIn width height) : PortInBounds p width height := by
-  simp only [portsIn, List.mem_flatMap, List.mem_range, List.mem_cons,
-    List.not_mem_nil, or_false] at h
-  obtain ⟨y, hy, x, hx, h⟩ := h
-  rcases h with rfl | rfl | rfl | rfl <;> exact ⟨hx, hy⟩
 
 end RedPathCertificate
 open RedPathCertificate
@@ -634,15 +672,15 @@ theorem exists_boundedPath (parent : Index) {target : Port}
     (present : portPresent (fineGrid parent) target = true) :
     ∃ source ∈ sources parent, ∃ parity,
       BoundedPath (fineGrid parent) 8 8 source target parity := by
-  obtain ⟨hx, hy⟩ := bounds_of_mem mem
+  obtain ⟨hx, hy⟩ := mem_portsIn_iff.mp mem
   have accepted := (verified parent).2.1 ⟨target.x, hx⟩ ⟨target.y, hy⟩ target.side
   obtain ⟨id, hid, hreach⟩ := List.any_eq_true.mp (accepted present)
   obtain ⟨valid, hsource⟩ := (verified parent).1 id hid
-  exact ⟨_, hsource, reaches_sound valid hreach⟩
+  exact ⟨_, hsource, Forest.reaches_sound valid hreach⟩
 
 private theorem baseChecked : ∀ x y : Fin 4, ∀ s : Side,
     portPresent (fineGrid 0) ⟨2 + x.val, 2 + y.val, s⟩ = true →
-    reaches (forest 2) ⟨2 + x.val, 2 + y.val, s⟩ = true := by decide
+    Forest.reaches (forest 2) ⟨2 + x.val, 2 + y.val, s⟩ = true := by decide
 
 /-- Every live port in the central `4 × 4` region of parent zero's block
 belongs to the newly created cycle component. -/
@@ -659,7 +697,82 @@ theorem base_exists_boundedPath {target : Port}
     exact ⟨hx, hy, trivial⟩
   have h := baseChecked ⟨target.x - 2, by omega⟩ ⟨target.y - 2, by omega⟩ target.side
   rw [targetEq] at h
-  exact reaches_sound ((verified 0).1 2 (by decide)).1 (h present)
+  exact Forest.reaches_sound ((verified 0).1 2 (by decide)).1 (h present)
+
+private abbrev oddGrid := iterateRefine 4 (fun _ _ => (0 : Index))
+
+private def oddForests : List (RedPathCertificate.Forest 16) := [
+  ⟨341, [
+    ⟨341, false, 0, 0⟩, ⟨344, false, 0, 1530⟩, ⟨346, true, 1, 1564⟩,
+    ⟨283, true, 2, 1263⟩, ⟨282, true, 3, 1267⟩, ⟨343, false, 0, 1542⟩,
+    ⟨345, false, 1, 1552⟩, ⟨347, true, 2, 1554⟩, ⟨348, false, 6, 1548⟩,
+    ⟨349, false, 8, 1570⟩, ⟨352, false, 9, 1566⟩, ⟨353, false, 10, 1588⟩,
+    ⟨406, false, 5, 1532⟩, ⟨404, true, 12, 1835⟩, ⟨401, true, 13, 1801⟩,
+    ⟨400, true, 14, 1805⟩, ⟨405, true, 13, 1822⟩, ⟨407, false, 12, 1824⟩,
+    ⟨410, true, 7, 1550⟩, ⟨408, true, 18, 1847⟩, ⟨470, false, 17, 1820⟩,
+    ⟨471, false, 20, 2112⟩, ⟨534, false, 21, 2108⟩, ⟨535, false, 22, 2400⟩
+  ]⟩,
+  ⟨368, [
+    ⟨368, false, 0, 0⟩, ⟨365, false, 0, 1639⟩, ⟨364, false, 1, 1643⟩,
+    ⟨366, true, 2, 1654⟩, ⟨303, true, 3, 1353⟩, ⟨302, true, 4, 1357⟩,
+    ⟨361, false, 2, 1621⟩, ⟨360, false, 6, 1625⟩, ⟨357, false, 7, 1603⟩,
+    ⟨356, false, 8, 1607⟩, ⟨367, true, 3, 1644⟩, ⟨371, false, 0, 1664⟩,
+    ⟨434, false, 11, 1658⟩, ⟨432, true, 12, 1961⟩, ⟨429, true, 13, 1927⟩,
+    ⟨430, true, 14, 1940⟩
+  ]⟩,
+  ⟨816, [
+    ⟨816, false, 0, 0⟩, ⟨818, false, 0, 3682⟩, ⟨755, false, 1, 3387⟩,
+    ⟨754, false, 2, 3391⟩, ⟨691, false, 3, 3099⟩, ⟨690, false, 4, 3103⟩,
+    ⟨627, false, 5, 2811⟩, ⟨626, false, 6, 2815⟩, ⟨624, true, 7, 2825⟩,
+    ⟨621, true, 8, 2791⟩, ⟨620, true, 9, 2795⟩, ⟨617, true, 10, 2773⟩,
+    ⟨616, true, 11, 2777⟩, ⟨613, true, 12, 2755⟩, ⟨813, false, 0, 3655⟩,
+    ⟨812, false, 14, 3659⟩, ⟨809, false, 15, 3637⟩, ⟨808, false, 16, 3641⟩,
+    ⟨805, false, 17, 3619⟩, ⟨804, false, 18, 3623⟩, ⟨806, true, 19, 3634⟩,
+    ⟨743, true, 20, 3333⟩, ⟨742, true, 21, 3337⟩, ⟨679, true, 22, 3045⟩,
+    ⟨678, true, 23, 3049⟩, ⟨615, true, 24, 2757⟩, ⟨752, true, 3, 3401⟩,
+    ⟨749, true, 26, 3367⟩, ⟨814, true, 15, 3670⟩, ⟨751, true, 28, 3369⟩
+  ]⟩,
+  ⟨789, [
+    ⟨789, false, 0, 0⟩, ⟨790, false, 0, 3560⟩, ⟨727, false, 1, 3261⟩,
+    ⟨726, false, 2, 3265⟩, ⟨663, false, 3, 2973⟩, ⟨662, false, 4, 2977⟩,
+    ⟨599, false, 5, 2685⟩, ⟨598, false, 6, 2689⟩, ⟨724, true, 3, 3275⟩,
+    ⟨721, true, 8, 3241⟩, ⟨720, true, 9, 3245⟩, ⟨792, false, 0, 3546⟩,
+    ⟨794, true, 11, 3580⟩, ⟨731, true, 12, 3279⟩, ⟨728, true, 13, 3285⟩,
+    ⟨725, true, 14, 3259⟩
+  ]⟩
+]
+
+private theorem oddChecked : ∀ forest ∈ oddForests, forest.Valid oddGrid ∧
+    forest.rootPort ∈ ([⟨5, 5, .east⟩, ⟨12, 5, .west⟩,
+      ⟨12, 12, .west⟩, ⟨5, 12, .east⟩] : List Port) := by
+  decide +kernel
+
+private theorem oddCovers : ∀ x y : Fin 8, ∀ s : Side,
+    portPresent oddGrid ⟨4 + x.val, 4 + y.val, s⟩ = true →
+      (oddForests.any fun forest => forest.reaches ⟨4 + x.val, 4 + y.val, s⟩) = true := by
+  decide +kernel
+
+/-- Every live port in the odd root's central square has a bounded path from a root corner.
+This is the finite base case of the odd-phase shade comparison, after lean-wang's
+`CanonicalOddShadeBase.exists_boundedPath` at revision `64268a3`. -/
+theorem odd_base_exists_boundedPath {target : Port}
+    (west : 4 ≤ target.x) (east : target.x < 12)
+    (south : 4 ≤ target.y) (north : target.y < 12)
+    (present : portPresent (iterateRefine 4 (fun _ _ => (0 : Index))) target = true) :
+    ∃ source parity,
+      source ∈ ([⟨5, 5, .east⟩, ⟨12, 5, .west⟩, ⟨12, 12, .west⟩, ⟨5, 12, .east⟩] : List Port) ∧
+      BoundedPath (iterateRefine 4 (fun _ _ => (0 : Index))) 16 16 source target parity := by
+  have target_eq : (⟨4 + (target.x - 4), 4 + (target.y - 4), target.side⟩ : Port) = target := by
+    cases target
+    dsimp only at *
+    simp only [Port.mk.injEq]
+    exact ⟨by omega, by omega, trivial⟩
+  have h := oddCovers ⟨target.x - 4, by omega⟩ ⟨target.y - 4, by omega⟩ target.side
+  rw [target_eq] at h
+  obtain ⟨forest, mem, reached⟩ := List.any_eq_true.mp (h present)
+  obtain ⟨valid, source⟩ := oddChecked forest mem
+  obtain ⟨parity, path⟩ := Forest.reaches_sound valid reached
+  exact ⟨forest.rootPort, parity, source, path⟩
 
 /-- The two possible origins of a local coverage path. -/
 theorem source_cases {parent : Index} {source : Port} (h : source ∈ sources parent) :
