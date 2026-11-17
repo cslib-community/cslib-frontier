@@ -417,13 +417,7 @@ theorem dens_routerRound_outside_bounds_le (hcr : P.ConcentrationReady) {ℓ : �
     have hmμ : 2 * (m_hi : ℝ) ≤ 3 * μ := by
       rw [← hu3]
       have hu1 : (1 : ℝ) ≤ u := by linarith only [h150, hm_real]
-      have hu_le : u ≤ u ^ 3 := by
-        calc u = u * 1 := (mul_one u).symm
-          _ ≤ u * u := mul_le_mul_of_nonneg_left hu1 hu_pos.le
-          _ = u ^ 2 := (sq u).symm
-          _ = u ^ 2 * 1 := (mul_one _).symm
-          _ ≤ u ^ 2 * u := mul_le_mul_of_nonneg_left hu1 (sq_nonneg u)
-          _ = u ^ 3 := (pow_succ u 2).symm
+      have hu_le : u ≤ u ^ 3 := le_self_pow₀ hu1 (by norm_num)
       linarith only [h150, hu_le]
     have hrat : 3 * (m_hi : ℝ) * μ / a ^ 2 ≤ (1 : ℝ) / 2 := by
       rw [div_le_iff₀ (pow_pos ha_pos 2)]

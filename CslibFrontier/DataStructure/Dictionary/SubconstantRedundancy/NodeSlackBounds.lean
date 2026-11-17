@@ -59,9 +59,7 @@ theorem delta_pos_of_le_depth {U V n R p_min q_min p_max q_max : ℕ}
   rw [canonicalSchedule_delta_eq h j]
   dsimp only [delta]
   rw [← canonicalSchedule_nFloor_eq h j]
-  refine (Nat.le_nthRoot_iff (by decide)).mpr ?_
-  rw [one_pow]
-  exact Nat.one_le_pow 2 _ hy1
+  exact (Nat.le_nthRoot_iff (by decide)).mpr (by nlinarith)
 
 private theorem numNodes_mul_tableCap_of_schedule (P : TreeSchedule) {ℓ : ℕ}
     (h1 : 1 ≤ ℓ) (hlt : ℓ < P.depth)

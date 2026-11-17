@@ -168,9 +168,8 @@ theorem two_le_n (h : ValidRegime U V n R p_min q_min p_max q_max) : 2 ≤ n := 
 theorem univ_le_pow (h : ValidRegime U V n R p_min q_min p_max q_max) :
     U ≤ n ^ (p_max + 1) := by
   have hexp : q_max + p_max ≤ q_max * (p_max + 1) := by
-    calc q_max + p_max ≤ q_max + q_max * p_max :=
-          Nat.add_le_add_left (Nat.le_mul_of_pos_left p_max h.q_max_pos) q_max
-      _ = q_max * (p_max + 1) := by rw [Nat.mul_add, Nat.mul_one, Nat.add_comm]
+    have := h.q_max_pos
+    nlinarith
   have hpow : U ^ q_max ≤ (n ^ (p_max + 1)) ^ q_max := by
     calc U ^ q_max ≤ n ^ (q_max + p_max) := h.univ_upper
       _ ≤ n ^ (q_max * (p_max + 1)) := Nat.pow_le_pow_right (by have := h.two_le_n; omega) hexp
@@ -209,11 +208,8 @@ theorem log_univ_bounds (h : ValidRegime U V n R p_min q_min p_max q_max) :
     calc U ≤ n ^ (p_max + 1) := h.univ_le_pow
       _ ≤ (2 ^ (L + 1)) ^ (p_max + 1) := Nat.pow_le_pow_left hn_lt.le _
       _ = 2 ^ ((L + 1) * (p_max + 1)) := (Nat.pow_mul 2 (L + 1) (p_max + 1)).symm
-      _ < 2 ^ (2 * (p_max + 1) * L + 1) := by
-          refine Nat.pow_lt_pow_right Nat.one_lt_two ?_
-          have h1 : p_max + 1 ≤ (p_max + 1) * L := Nat.le_mul_of_pos_right _ (by omega)
-          rw [Nat.add_mul, Nat.one_mul, Nat.mul_comm L, Nat.mul_assoc 2]
-          omega
+      _ < 2 ^ (2 * (p_max + 1) * L + 1) :=
+          Nat.pow_lt_pow_right Nat.one_lt_two (by nlinarith)
   exact Nat.lt_succ_iff.mp ((Nat.log_lt_iff_lt_pow Nat.one_lt_two (by omega)).mpr hU_lt)
 
 theorem four_mul_log_univ_le_sq_log (h : ValidRegime U V n R p_min q_min p_max q_max) :
