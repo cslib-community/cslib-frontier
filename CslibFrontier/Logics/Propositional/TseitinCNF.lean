@@ -31,7 +31,7 @@ when its restriction `σ ∘ Sum.inl` to the atoms satisfies `A` and `σ` gives 
 in the formula the value of its subformula, that is, `σ` agrees with the extension
 `Proposition.tseitinExtend (σ ∘ Sum.inl)` on the variables of the formula. So every model of `A`
 extends to a model of `A.tseitinCNF` (`Proposition.eval_tseitinCNF_tseitinExtend`), uniquely on
-the variables of the formula, and the two are equisatisfiable
+the variables of the formula (`Proposition.eq_of_eval_tseitinCNF`), and the two are equisatisfiable
 (`Proposition.satisfiable_tseitinCNF_iff`).
 
 The fresh variables keep the formula short: `A.tseitinCNF` has at most `3 · A.size + 1` clauses
@@ -51,6 +51,7 @@ The fresh variables keep the formula short: `A.tseitinCNF` has at most `3 · A.s
 
 * `Cslib.Logic.PL.Proposition.eval_tseitinCNF_eq_true_iff`: the models of `A.tseitinCNF`.
 * `Cslib.Logic.PL.Proposition.eval_tseitinCNF_tseitinExtend`: every model of `A` extends.
+* `Cslib.Logic.PL.Proposition.eq_of_eval_tseitinCNF`: uniquely on the variables of the formula.
 * `Cslib.Logic.PL.Proposition.satisfiable_tseitinCNF_iff`: equisatisfiability.
 * `Cslib.Logic.PL.Proposition.length_tseitinCNF_le`,
   `Cslib.Logic.PL.Proposition.length_le_three_of_mem_tseitinCNF`: linear size.
@@ -206,6 +207,15 @@ transformation under the extension of an assignment is the value of `A`. -/
 theorem eval_tseitinCNF_tseitinExtend (v : Atom → Bool) (A : Proposition Atom) :
     A.tseitinCNF.eval (tseitinExtend v) = A.eval v := by
   simp [tseitinCNF, eval_tseitinDefs_tseitinExtend]
+
+/-- **Models of the Tseitin transformation are determined by the atoms**: two models that agree
+on the atoms agree on every variable of the formula. -/
+theorem eq_of_eval_tseitinCNF {σ τ : Atom ⊕ Proposition Atom → Bool} {A : Proposition Atom}
+    (hσ : A.tseitinCNF.eval σ = true) (hτ : A.tseitinCNF.eval τ = true)
+    (hatoms : σ ∘ Sum.inl = τ ∘ Sum.inl) {y : Atom ⊕ Proposition Atom}
+    (hy : y ∈ A.tseitinCNF.vars) : σ y = τ y := by
+  rw [((eval_tseitinCNF_eq_true_iff σ A).1 hσ).2 y hy,
+    ((eval_tseitinCNF_eq_true_iff τ A).1 hτ).2 y hy, hatoms]
 
 /-- **The Tseitin transformation preserves satisfiability.** -/
 theorem satisfiable_tseitinCNF_iff (A : Proposition Atom) :

@@ -58,4 +58,12 @@ example : (Proposition.and p q).tseitinCNF.eval (tseitinExtend fun _ => true) = 
   rw [eval_tseitinCNF_tseitinExtend]
   rfl
 
+-- Two models of the transformation of `p ∧ q` that agree on the atoms agree on the variable of
+-- the conjunction.
+example {σ τ : Fin 2 ⊕ Proposition (Fin 2) → Bool} (hσ : (Proposition.and p q).tseitinCNF.eval σ)
+    (hτ : (Proposition.and p q).tseitinCNF.eval τ) (hatoms : σ ∘ Sum.inl = τ ∘ Sum.inl) :
+    σ (.inr (.and p q)) = τ (.inr (.and p q)) :=
+  eq_of_eval_tseitinCNF hσ hτ hatoms
+    (CNF.mem_vars.2 ⟨_, List.mem_cons_self, true, List.mem_singleton_self _⟩)
+
 end CslibFrontierTests.Logics.Propositional.TseitinCNF
