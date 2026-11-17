@@ -27,6 +27,7 @@ import CslibFrontier.Tactic.GameHop
 import CslibFrontier.Tactic.Negligible
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.PPT
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Encrypt-then-MAC Authenticated Encryption and PRF-Based Instantiation
@@ -428,7 +429,7 @@ theorem isOraclePPT_etmToMACForger (E : SymmetricCipher) (M : MACScheme) {tagBou
             (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
             (etmToMACHandler E caller.1.1 (tagBound caller.1.1) caller.2))
           (adversary caller.1.1 [])).run ()) := by
-    apply hadversary.run_interpret_preprocess_open'
+    apply hadversary.run_interpret_preprocess_open
       (input := ECaller)
       (handler := fun caller : (ℕ × List Bool) × List Bool =>
         etmToMACHandler E caller.1.1 (tagBound caller.1.1) caller.2)
@@ -456,8 +457,7 @@ theorem isOraclePPT_etmToMACForger (E : SymmetricCipher) (M : MACScheme) {tagBou
       have htagTake : (List.take (tagBound caller.1.1) rawTag).length ≤ tagBound caller.1.1 :=
         List.length_take_le _ _
       refine ⟨trivial, ?_, by lia⟩
-      simp only [length_encPair, encBits_apply]
-      lia
+      enc_len
     · have hresEq := OracleComp.eq_of_mem_supportWith_pure hresult
       subst hresEq
       exact ⟨trivial, by simp, by lia⟩
@@ -706,7 +706,7 @@ theorem isOraclePPT_etmToOneTimeMACForger (E : SymmetricCipher) (M : MACScheme)
             (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
             (etmToOneTimeMACHandler E caller.1.1 (tagBound caller.1.1) caller.2))
           (adversary caller.1.1 [])).run false) := by
-    apply hadversary.run_interpret_preprocess_open'
+    apply hadversary.run_interpret_preprocess_open
       (input := ECaller)
       (handler := fun caller : (ℕ × List Bool) × List Bool =>
         etmToOneTimeMACHandler E caller.1.1 (tagBound caller.1.1) caller.2)
@@ -734,8 +734,7 @@ theorem isOraclePPT_etmToOneTimeMACForger (E : SymmetricCipher) (M : MACScheme)
       have htagTake : (List.take (tagBound caller.1.1) rawTag).length ≤ tagBound caller.1.1 :=
         List.length_take_le _ _
       refine ⟨trivial, ?_, by simp [encBool_apply]⟩
-      simp only [length_encPair, encBits_apply]
-      lia
+      enc_len
     · have hresEq := OracleComp.eq_of_mem_supportWith_pure hresult
       subst hresEq
       exact ⟨trivial, by simp, by simp [encBool_apply]⟩
@@ -976,7 +975,7 @@ theorem isOraclePPT_etmToCPAAdversary (M : MACScheme) {adversary : OracleDisting
             (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
             (etmToCPAHandler M caller.1.1 caller.2))
           (adversary caller.1.1 [])).run ()) := by
-    apply hadversary.run_interpret_preprocess_open'
+    apply hadversary.run_interpret_preprocess_open
       (input := ECaller)
       (handler := fun caller : (ℕ × List Bool) × List Bool =>
         etmToCPAHandler M caller.1.1 caller.2)
@@ -1002,8 +1001,7 @@ theorem isOraclePPT_etmToCPAAdversary (M : MACScheme) {adversary : OracleDisting
       have htagBound : tag.length ≤ cs * (2 * caller.2.length + M.msgLen caller.1.1 + 2) ^ ds :=
         htagLen.trans (Nat.mul_le_mul_left cs (Nat.pow_le_pow_left (by lia) ds))
       refine ⟨trivial, ?_, by lia⟩
-      simp only [length_encPair, encBits_apply]
-      lia
+      enc_len
     · have hresEq := OracleComp.eq_of_mem_supportWith_pure hresult
       subst hresEq
       exact ⟨trivial, by simp, by lia⟩
@@ -1191,7 +1189,7 @@ theorem isOraclePPT_etmToOneTimeCPAAdversary (M : MACScheme) {adversary : Oracle
             (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
             (etmToOneTimeCPAHandler M caller.1.1 caller.2))
           (adversary caller.1.1 [])).run false) := by
-    apply hadversary.run_interpret_preprocess_open'
+    apply hadversary.run_interpret_preprocess_open
       (input := ECaller)
       (handler := fun caller : (ℕ × List Bool) × List Bool =>
         etmToOneTimeCPAHandler M caller.1.1 caller.2)
@@ -1217,8 +1215,7 @@ theorem isOraclePPT_etmToOneTimeCPAAdversary (M : MACScheme) {adversary : Oracle
       have htagBound : tag.length ≤ cs * (2 * caller.2.length + M.msgLen caller.1.1 + 2) ^ ds :=
         htagLen.trans (Nat.mul_le_mul_left cs (Nat.pow_le_pow_left (by lia) ds))
       refine ⟨trivial, ?_, by simp [encBool_apply]⟩
-      simp only [length_encPair, encBits_apply]
-      lia
+      enc_len
     · have hresEq := OracleComp.eq_of_mem_supportWith_pure hresult
       subst hresEq
       exact ⟨trivial, by simp, by simp [encBool_apply]⟩
@@ -1689,7 +1686,7 @@ theorem isOraclePPT_cpaToPrfDistinguisher {adversary : OracleDistinguisher}
             (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
             (cpaToPrfHandler caller.1 bit))
           (adversary caller.1 [])).run ()) := by
-    apply hadversary.run_interpret_preprocess_open'
+    apply hadversary.run_interpret_preprocess_open
       (input := ECaller)
       (handler := fun caller : ℕ × List Bool => cpaToPrfHandler caller.1 bit)
       (prepare := fun caller : ℕ × List Bool => (caller.1, ([] : List Bool)))
@@ -1720,7 +1717,7 @@ theorem isOraclePPT_cpaToPrfDistinguisher {adversary : OracleDistinguisher}
   unfold cpaToPrfDistinguisher
   exact (hrun.map' (ComputableInPolyTime.fst encBool (encFinEnum Unit))).isOraclePPT
 
-/-- Running `cpaToPrfDistinguisher adversary bit` in `prfRealGame family` produces the exact same
+/-- Running `cpaToPrfDistinguisher adversary bit` in `prfRealGame id family` produces the exact same
 output distribution as running `adversary` in `(prfCipher family hpoly hlen).cpaGame` at challenge
 bit `bit` ([BonehShoup2023], Section 5.4.1, Theorem 5.2, Game 0, printed pp. 184–185). -/
 theorem eval_prfRealGame_cpaToPrfDistinguisher (family : List Bool → List Bool → List Bool)
@@ -1728,10 +1725,10 @@ theorem eval_prfRealGame_cpaToPrfDistinguisher (family : List Bool → List Bool
       (encPair encBits encBits) encBits)
     (hlen : ∀ key query, query.length = key.length → (family key query).length = key.length)
     (adversary : OracleDistinguisher) (bit : Bool) (n : ℕ) :
-    ProbComp.eval (prfRealGame family (cpaToPrfDistinguisher adversary bit) n) =
+    ProbComp.eval (prfRealGame id family (cpaToPrfDistinguisher adversary bit) n) =
       ProbComp.eval ((prfCipher family hpoly hlen).cpaGame adversary bit n) := by
   have hkeyGen : (prfCipher family hpoly hlen).keyGen = BitString.sampleList := rfl
-  simp only [prfRealGame, ProbOracleComp.run, SymmetricCipher.cpaGame, cpaToPrfDistinguisher,
+  simp only [prfRealGame, id_eq, ProbOracleComp.run, SymmetricCipher.cpaGame, cpaToPrfDistinguisher,
     hkeyGen, runWith_norm, pmf_norm]
   refine PMF.bind_congr_on_support _ _ _ fun k hk => ?_
   rw [BitString.eval_sampleList] at hk
@@ -1804,7 +1801,7 @@ private noncomputable def prfCipherOTPOracle (n : ℕ) (request : Unit × List B
 
 private theorem eval_prfIdealGame_cpaToPrfDistinguisher (adversary : OracleDistinguisher)
     (bit : Bool) (n : ℕ) :
-    ProbComp.eval (prfIdealGame (cpaToPrfDistinguisher adversary bit) n) =
+    ProbComp.eval (prfIdealGame id id (cpaToPrfDistinguisher adversary bit) n) =
       ((OracleComp.interpret
         (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifOracle m))
           (prfCipherFaithfulWithBadOracle n bit))
@@ -2145,20 +2142,24 @@ private theorem bad_prfCipherForgetfulWithBadOracle_le {α : Type} (n : ℕ) (bi
 private theorem advantage_prfIdealGame_prfCipherOTPOracle_le (adversary : OracleDistinguisher)
     (bit : Bool) (n Q : ℕ) (hq : (adversary n []).IsQueryBounded Q) :
     (Game.advantage
-      (ProbComp.eval (prfIdealGame (cpaToPrfDistinguisher adversary bit) n))
+      (ProbComp.eval (prfIdealGame id id (cpaToPrfDistinguisher adversary bit) n))
       ((ProbOracleComp.runWith (prfCipherOTPOracle n) (adversary n []) ()).map Prod.fst) : ℝ) ≤
       (Q : ℝ) ^ 2 / (2 : ℝ) ^ n := by
   rw [eval_prfIdealGame_cpaToPrfDistinguisher,
     ← run_prfCipherForgetfulWithBadOracle_map_fst adversary bit n [] false]
+  rw [← ProbOracleComp.runWith_eq_run_interpret]
   have hiub := identicalUntilBad_prfCipherFaithful_forgetful n bit
   have hadv := hiub.advantage_le (adversary n []) ([], false) (fun out => PMF.pure out.1)
+  rw [hiub.bad_eq] at hadv
+  rw [← ProbOracleComp.runWith_eq_run_interpret,
+    ← ProbOracleComp.runWith_eq_run_interpret] at hadv
   change (Game.advantage
       ((ProbOracleComp.runWith (prfCipherFaithfulWithBadOracle n bit) (adversary n [])
           ([], false)).map Prod.fst)
       ((ProbOracleComp.runWith (prfCipherForgetfulWithBadOracle n bit) (adversary n [])
           ([], false)).map Prod.fst) : ℝ) ≤ _ at hadv
-  rw [hiub.bad_eq] at hadv
   have hbad := bad_prfCipherForgetfulWithBadOracle_le n bit hq []
+  rw [← ProbOracleComp.runWith_eq_run_interpret] at hbad
   simp only [List.length_nil, zero_add] at hbad
   have htop : (Q : ℝ≥0∞) * (Q : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ n) ≠ ⊤ := by
     refine ENNReal.mul_ne_top (ENNReal.mul_ne_top (ENNReal.natCast_ne_top Q)
@@ -2187,16 +2188,16 @@ theorem advantage_cpaGame_prfCipher_le (family : List Bool → List Bool → Lis
       (ProbComp.eval ((prfCipher family hpoly hlen).cpaGame adversary false n))
       (ProbComp.eval ((prfCipher family hpoly hlen).cpaGame adversary true n)) : ℝ) ≤
       (Game.advantage
-        (ProbComp.eval (prfRealGame family (cpaToPrfDistinguisher adversary false) n))
-        (ProbComp.eval (prfIdealGame (cpaToPrfDistinguisher adversary false) n)) : ℝ) +
+        (ProbComp.eval (prfRealGame id family (cpaToPrfDistinguisher adversary false) n))
+        (ProbComp.eval (prfIdealGame id id (cpaToPrfDistinguisher adversary false) n)) : ℝ) +
       (Game.advantage
-        (ProbComp.eval (prfRealGame family (cpaToPrfDistinguisher adversary true) n))
-        (ProbComp.eval (prfIdealGame (cpaToPrfDistinguisher adversary true) n)) : ℝ) +
+        (ProbComp.eval (prfRealGame id family (cpaToPrfDistinguisher adversary true) n))
+        (ProbComp.eval (prfIdealGame id id (cpaToPrfDistinguisher adversary true) n)) : ℝ) +
       2 * (Q : ℝ) ^ 2 / (2 : ℝ) ^ n := by
   rw [← eval_prfRealGame_cpaToPrfDistinguisher family hpoly hlen adversary false n,
     ← eval_prfRealGame_cpaToPrfDistinguisher family hpoly hlen adversary true n]
-  let pIdeal0 := ProbComp.eval (prfIdealGame (cpaToPrfDistinguisher adversary false) n)
-  let pIdeal1 := ProbComp.eval (prfIdealGame (cpaToPrfDistinguisher adversary true) n)
+  let pIdeal0 := ProbComp.eval (prfIdealGame id id (cpaToPrfDistinguisher adversary false) n)
+  let pIdeal1 := ProbComp.eval (prfIdealGame id id (cpaToPrfDistinguisher adversary true) n)
   let pOTP := (ProbOracleComp.runWith (prfCipherOTPOracle n) (adversary n []) ()).map Prod.fst
   game_trans [pIdeal0, pOTP, pIdeal1] using
     [le_rfl,

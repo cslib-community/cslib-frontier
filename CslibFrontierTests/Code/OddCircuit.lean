@@ -117,7 +117,7 @@ theorem exists_code_four_two_four :
   have hs1 : sinh 1 - 1 < 1 := by
     have := Real.exp_one_lt_three
     rw [sinh_eq]
-    nlinarith [exp_pos (-1)]
+    linarith [exp_pos (-1)]
   have hs0 : 0 ≤ sinh 1 - 1 := sub_nonneg.2 (self_le_sinh_iff.2 zero_le_one)
   rw [htail, hV, hτ]
   generalize (∑ y, |μ y| ^ 3) / 2 ^ Fintype.card (Fin 4) = E at hmoment ⊢

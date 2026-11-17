@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.GMW.Sequential
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Computability.Complexity.Problems.SAT.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Configuration
@@ -558,16 +559,14 @@ theorem isPPTOn_attemptWithPadsStep {α Param : Type}
   let encCfg := encFiniteConfig (k := tapes) (State := Control) (Oracle := Unit)
   let encSt := encPair encUnary encCfg
   have htotal := (computableInPolyTime_totalLen hf).comp' ha
-  have htake := (ComputableTidilyInPolyTime.takeUnary encBits).computableInPolyTime.comp'
-    (hstate.snd'.prod htotal)
+  have htake := ComputableInPolyTime.listTakeWithInput hstate.snd' htotal
   have hreal := isPPTOn_gmwRealWithPads (Vstar := VstarSession (α := α) machine) hg
     (isOraclePPTOn_VstarSession (α := α) (enc := enc) machine)
     hn hs hm (ha.prod (hlimit.prod hst)) (.const ([] : List Bool)) hw (hf.comp' ha) htake
   have hp1 := ComputableInPolyTime.fst input (encOption encSt)
   have hp2 := ComputableInPolyTime.snd input (encOption encSt)
-  have hdrop := (ComputableTidilyInPolyTime.dropUnary (encA := encBits)
-    (encL := encList encBits)).computableInPolyTime.comp'
-    ((hstate.comp' hp1).snd'.prod (htotal.comp' hp1))
+  have hdrop := ComputableInPolyTime.listDropWithInput
+    (hstate.comp' hp1).snd' (htotal.comp' hp1)
   have hpost := (computableInPolyTime_optionOr (hstate.comp' hp1).fst' hp2).prod hdrop
   have hres := hreal.map_with
     (f := fun p res => ((state p).1.or res, (state p).2.drop (totalLen (f (a p))))) hpost
@@ -881,14 +880,11 @@ private theorem eval_gmwSeqInteract_eq_machine_of_isOraclePPTOn {α : Type} {enc
     (machine : _root_.Turing.MultiTapePTM tapes Bool Control Unit) (c d : ℕ)
     (hspec : ∀ (p : ℕ × α × List Bool) (State : Type)
       (oracle : Unit × List Bool → StateT State PMF (List Bool)) st,
-      (OracleComp.interpret
-        (OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifOracle n)) oracle)
-          (encBits <$> Vstar p.1 p.2.1 p.2.2)).run st =
-      (OracleComp.interpret
-        (OracleComp.sumHandler (fun n => StateT.lift (ProbComp.unifOracle n)) oracle)
-          (machine.runOracle
-            (c * ((encInstanceAuxInput enc p).length + 1) ^ d)
-            (encInstanceAuxInput enc p))).run st)
+      ProbOracleComp.runWith oracle (encBits <$> Vstar p.1 p.2.1 p.2.2) st =
+      ProbOracleComp.runWith oracle
+        (machine.runOracle
+          (c * ((encInstanceAuxInput enc p).length + 1) ^ d)
+          (encInstanceAuxInput enc p)) st)
     (n : ℕ) (a : α) (z : List Bool) :
     ProbComp.eval (gmwSeqInteract generator s m φ w K (Vstar n a z)) =
       ProbComp.eval (gmwSeqInteract generator s m φ w K
@@ -900,8 +896,7 @@ private theorem eval_gmwSeqInteract_eq_machine_of_isOraclePPTOn {α : Type} {enc
   have h := hspec (n, a, z) (Bool × List ProverCoins)
     (fun q state => PMF.pure (seqStep (honestReply1 generator m φ) (honestReply2 s φ) q.2 state))
     (false, coinsList)
-  simpa only [encBits, Function.Embedding.coe_refl, id_map, ProbOracleComp.runWith,
-    OracleComp.runWith] using h
+  simpa only [encBits, Function.Embedding.coe_refl, id_map] using h
 
 /-- **Pointwise finite multi-session GMW view reduction** for every valid instance, witness, and
 auxiliary word. Across `k n` sequential executions, the distinguishing advantage between the real

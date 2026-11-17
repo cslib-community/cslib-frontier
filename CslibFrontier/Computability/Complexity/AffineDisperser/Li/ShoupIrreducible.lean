@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import CslibFrontier.Computability.Complexity.AffineDisperser.BinaryPolynomial
+public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryPolynomial
 public import CslibFrontier.Computability.Complexity.AffineDisperser.Coordinates
 public import CslibFrontier.Computability.Complexity.AffineDisperser.Li.Berlekamp
 public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.Basic
@@ -1482,7 +1482,7 @@ private theorem shoupPowers_entry_length {q m : ℕ} (hm1 : 1 ≤ m) (f : List B
       simp only [List.range_zero, List.foldl_nil]
       rw [List.getD_eq_getElem _ _ (by rw [List.length_map, List.length_range]; exact hi),
         List.getElem_map, List.getElem_range]
-      split_ifs <;> (simp; try omega)
+      split_ifs <;> first | (simp; omega) | simp
     | succ n ih =>
       rw [List.range_succ, List.foldl_append, List.foldl_cons, List.foldl_nil]
       dsimp only at ih ⊢

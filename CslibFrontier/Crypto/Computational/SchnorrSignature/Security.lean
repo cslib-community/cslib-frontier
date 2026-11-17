@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Computational.SchnorrSignature.ForkPass
 public import CslibFrontier.Crypto.Computational.SchnorrSignature.StatisticalROM
 public import CslibFrontier.Crypto.Computational.SchnorrEavesdrop
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Computability.Probabilistic.Repeat
 import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Tactic.PPT
@@ -74,7 +75,6 @@ the forger only the public key.
 
 * `schnorrForkingAdversary`: the native two-pass forking discrete-logarithm adversary.
 * `schnorrForkOutput`: its extraction step.
-* `schnorrSampledSimulate`: the law of the strict-PPT Schnorr simulator at a typed challenge.
 
 ## Main results
 
@@ -214,9 +214,8 @@ theorem isPPTOn_schnorrForkingAdversary {k : ℕ} {Control : Type} [Finite Contr
     fun_prop
   have hpk : ComputableInPolyTime (fun a : ℕ × F.Desc × List Bool => a.2.2) E encBits := by
     fun_prop
-  have hB : ComputableInPolyTime (fun n => savedCoinBudget c e keyC keyD n) encUnary encUnary := by
-    unfold savedCoinBudget
-    fun_prop
+  have hB : ComputableInPolyTime (fun n => savedCoinBudget c e keyC keyD n) encUnary encUnary :=
+    computableInPolyTime_savedCoinBudget c e keyC keyD
   have hbudget : ComputableInPolyTime
       (fun a : ℕ × F.Desc × List Bool => savedCoinBudget c e keyC keyD a.1) E encUnary :=
     hB.comp hn
@@ -284,12 +283,12 @@ theorem isPPTOn_schnorrForkingAdversary {k : ℕ} {Control : Type} [Finite Contr
       (fun p : (((((ℕ × F.Desc × List Bool) × List Bool) ×
         List (List Bool × List Bool × List Bool)) × List (List Bool)) × List (List Bool)) ×
           (ℕ × List Bool × List Bool) => p.1.1.2.take (p.2.1 - 1)) E₅ (encList encBits) :=
-    .of_tidy (ComputableTidilyInPolyTime.listTakeWithInput (by fun_prop) hindex.tidy)
+    ComputableInPolyTime.listTakeWithInput (by fun_prop) hindex
   have hdrop : ComputableInPolyTime
       (fun p : (((((ℕ × F.Desc × List Bool) × List Bool) ×
         List (List Bool × List Bool × List Bool)) × List (List Bool)) × List (List Bool)) ×
           (ℕ × List Bool × List Bool) => p.1.2.drop (p.2.1 - 1)) E₅ (encList encBits) :=
-    .of_tidy (ComputableTidilyInPolyTime.listDropWithInput (by fun_prop) hindex.tidy)
+    ComputableInPolyTime.listDropWithInput (by fun_prop) hindex
   have hprep₂ : ComputableInPolyTime
       (fun p : (((((ℕ × F.Desc × List Bool) × List Bool) ×
         List (List Bool × List Bool × List Bool)) × List (List Bool)) × List (List Bool)) ×
@@ -326,36 +325,6 @@ theorem isPPTOn_schnorrForkingAdversary {k : ℕ} {Control : Type} [Finite Contr
 section Law
 
 variable {F}
-
-/-- The law of the strict-PPT Schnorr simulator at a typed challenge: a sampled scalar response `z`
-and the commitment `z • g - c • u`, with the challenge read as a binary number. -/
-noncomputable def schnorrSampledSimulate (n : ℕ) (d : F.Desc) {m : ℕ} (u : F.Carrier d)
-    (c : BitString m) : PMF (List Bool × List Bool) :=
-  ((ProbComp.eval (F.sampleExp n d)).map (Nat.cast : ℕ → ZMod (F.order d))).map fun z =>
-    (F.encode d (z • F.generator d - (ofBits (List.ofFn c) : ZMod (F.order d)) • u), z.val.bits)
-
-/-- A strict-PPT simulated transcript is a typed simulated conversation, written as words. -/
-theorem eval_schnorrSimulatedTranscript_eq_map (n : ℕ) (d : F.Desc) (m : ℕ) (u : F.Carrier d) :
-    ProbComp.eval (F.schnorrSimulatedTranscript n d (F.encode d u) m) =
-      (simulateConversation (schnorrSampledSimulate n d (m := m)) u).map transcriptWords := by
-  rw [eval_schnorrSimulatedTranscript, BitString.uniformList, PMF.bind_map]
-  simp only [simulateConversation, schnorrSampledSimulate, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure, PMF.map_bind, PMF.bind_map, PMF.pure_map, Function.comp_def]
-  congr 1 with c : 1
-  rw [← PMF.bind_pure_comp, PMF.bind_map]
-  rfl
-
-/-- `k` strict-PPT simulated transcripts are `k` typed simulated conversations, written as
-words. -/
-theorem eval_replicate_schnorrSimulatedTranscript (n : ℕ) (d : F.Desc) (m k : ℕ)
-    (u : F.Carrier d) :
-    ProbComp.eval (OracleComp.replicate k (F.schnorrSimulatedTranscript n d (F.encode d u) m)) =
-      (PMF.iid (simulateConversation (schnorrSampledSimulate n d (m := m)) u) k).map
-        fun transcripts => (List.ofFn transcripts).map transcriptWords := by
-  rw [ProbComp.eval_replicate_iid, eval_schnorrSimulatedTranscript_eq_map, PMF.iid_map,
-    PMF.map_comp]
-  congr 1 with transcripts : 1
-  simp [List.map_ofFn, Function.comp_def]
 
 /-- A query named by the typed forking algorithm was answered with the forgery's challenge. -/
 private theorem forkingAlgorithm_challenge {m q : ℕ} (d : F.Desc) (hm : 2 ^ m ≤ F.order d)

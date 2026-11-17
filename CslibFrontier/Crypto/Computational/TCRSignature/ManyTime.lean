@@ -15,6 +15,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Finite
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
+import CslibFrontier.Computability.Probabilistic.Adaptive
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
@@ -31,6 +32,7 @@ import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Tactic.GameHop
 import CslibFrontier.Tactic.Negligible
 import CslibFrontier.Tactic.PPT
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Many-time fresh-key TCR hash-and-sign on arbitrary-length bit words
@@ -267,7 +269,7 @@ private theorem isOraclePPTOn_run_manyTimeHandler (H : KeyedHashFamily) {sigBoun
       (ComputableInPolyTime.fst _ _).fst'
     have htwoK := (ComputableInPolyTime.const 2).unary_mul' (hn.trans H.keyLen_polyTime)
     exact (htwoK.unary_add' (hn.trans hsigBound)).unary_add' (.const 2)
-  apply hadversary.run_interpret_preprocess_open'
+  apply hadversary.run_interpret_preprocess_open
     (handler := fun (caller : Caller) request state =>
       manyTimeHandler H sigBound caller.1 request state)
     (prepare := fun caller : Caller =>
@@ -630,23 +632,6 @@ private theorem exists_ots_of_mem_support_appendTraceStep {k : ℕ} {Control : T
     obtain ⟨ots, hots, rfl⟩ := hnext
     exact ⟨ots, rfl, Or.inr ⟨msg, hots⟩⟩
 
-private theorem isPPTOn_iterateWith_of_bounded_growth' {α State : Type}
-    {input : α ↪ List Bool} {stateEncoding : State ↪ List Bool}
-    {initial : α → State} {count : α → ℕ} {step : α → State → ProbComp State}
-    (hcount : ComputableInPolyTime count input encUnary)
-    (hinitial : ComputableInPolyTime initial input stateEncoding)
-    (hstep : IsPPTOn (encPair input stateEncoding) stateEncoding
-      (fun pair => step pair.1 pair.2))
-    {growth : α → ℕ} (hpoly : PolyBounded (fun a => (input a).length) growth)
-    (hgrowth : ∀ a state next, next ∈ (ProbComp.eval (step a state)).support →
-      (stateEncoding next).length ≤ (stateEncoding state).length + growth a) :
-    IsPPTOn input stateEncoding (fun a => OracleComp.iterate (count a) (step a) (initial a)) := by
-  have hloop := IsOraclePPTOn.iterateWith_of_bounded_growth' hcount hinitial
-    (hstep.isOraclePPTOn (Operation := Empty)) hpoly fun a state next hnext =>
-      hgrowth a state next ((ProbOracleComp.support_sample _).subset hnext)
-  apply IsOraclePPTOn.isPPTOn
-  simpa only [ProbOracleComp.sample, OracleComp.interpret_iterate] using hloop
-
 private theorem isPPTOn_iterate_sampleStep {k : ℕ} {Control α : Type} [Finite Control]
     {input : α ↪ List Bool}
     (S : SignatureScheme) (H : KeyedHashFamily)
@@ -703,7 +688,7 @@ private theorem isPPTOn_iterate_sampleStep {k : ℕ} {Control α : Type} [Finite
   have hpolyGrowth : PolyBounded (fun a => (input a).length) growth :=
     (((PolyBounded.const 4).mul (H.keyLen_polyTime.comp hn).polyBounded).add
       ((PolyBounded.const 2).mul hpolySig)).add (.const 10)
-  refine isPPTOn_iterateWith_of_bounded_growth' hcount hinit hstep hpolyGrowth ?_
+  refine IsPPTOn.iterateWith_of_bounded_growth' hcount hinit hstep hpolyGrowth ?_
   intro a tr next hnext
   simp only [sampleStep, ProbComp.eval_bind, ProbComp.eval_uniform, BitString.eval_sampleList,
     PMF.mem_support_bind_iff] at hnext
@@ -720,10 +705,7 @@ private theorem isPPTOn_iterate_sampleStep {k : ℕ} {Control α : Type} [Finite
           2 * (otsk a).length + otsParam H (n a) + 2 := by omega
       exact hs.trans (Nat.mul_le_mul_left csg (Nat.pow_le_pow_left hle dsg))
   rw [encList_append]
-  simp only [List.length_append, encList_cons, encList_nil, List.append_nil, length_frame,
-    encTraceStep_apply, length_encPair, encBool_apply, encBits_apply, List.length_singleton,
-    hkLen, growth]
-  omega
+  enc_len [List.append_nil, encTraceStep_apply, List.length_singleton, hkLen, growth]
 
 /-- Uniform polynomial upper bound on the machine clock `c * ((wordOf n otvk).length + 1) ^ d`
 across all `otvk` of length at most `ckg * (otsParam H n + 1) ^ dkg`. -/
@@ -1427,7 +1409,7 @@ theorem succProbability_wordScheme_eufCmaGame_le_of_machine {k : ℕ} {Control :
             (FiniteConfig.init machine.initial (wordOf keys.1), [])
           (msgSigDecoder.decode res.1.tapes.output, res.2) := by
     intro keys
-    rw [← ProbOracleComp.run_interpret_eq_runWith]
+    rw [ProbOracleComp.runWith_eq_run_interpret]
     have hdecode : adversary n (pkOf keys.1) =
         msgSigDecoder.decode <$> ((encPair encBits encBits) <$> adversary n (pkOf keys.1)) := by
       simp only [Functor.map_map, msgSigDecoder.decode_enc]
@@ -1529,8 +1511,7 @@ theorem succProbability_wordScheme_eufCmaGame_le_of_machine {k : ℕ} {Control :
       have hwLen : (wordOf keys.1).length + 1 ≤
           4 * n + ckg * (otsParam H n + 1) ^ dkg + 3 := by
         dsimp only [wordOf, pkOf, simWordOf, simPkOf]
-        simp only [length_encPair, encUnary_apply, List.length_replicate, encBits_apply]
-        omega
+        enc_len
       exact Nat.mul_le_mul_left c (Nat.pow_le_pow_left hwLen d)
     have hfuelLtD : fuelOf keys.1 < D :=
       Nat.lt_of_le_of_lt hfuelLe (lt_dyadicSize _)
@@ -1640,6 +1621,19 @@ theorem exists_reduction_wordScheme_eufCmaGame_le (S : SignatureScheme) (H : Key
   have hlossPoly : PolynomiallyBounded (fun n => dyadicSize (fuelUpper H ckg dkg c d n)) :=
     (ComputableInPolyTime.unary_dyadicSize.comp
       (computableInPolyTime_fuelUpper H ckg dkg c d)).polynomiallyBounded
+  have hmachineInterpret : ∀ (input : ℕ × List Bool) (State : Type)
+      (oracle : Unit × List Bool → StateT State PMF (List Bool)) s,
+      (OracleComp.interpret
+        (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifOracle m)) oracle)
+          (encPair encBits encBits <$> adversary input.1 input.2)).run s =
+      (OracleComp.interpret
+        (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifOracle m)) oracle)
+          (machine.runOracle
+            (c * ((encPair encUnary encBits input).length + 1) ^ d)
+            (encPair encUnary encBits input))).run s := by
+    intro input State oracle s
+    simpa only [← ProbOracleComp.runWith_eq_run_interpret] using
+      hmachine input State oracle s
   exact ⟨manyTimeForger H sigBound adversary,
     tcrMultiAdversary S H machine ckg dkg c d,
     fun n => dyadicSize (fuelUpper H ckg dkg c d n),
@@ -1648,7 +1642,7 @@ theorem exists_reduction_wordScheme_eufCmaGame_le (S : SignatureScheme) (H : Key
     hlossPoly,
     succProbability_wordScheme_eufCmaGame_le_of_machine S H ckg dkg
       (fun n pk sk h => hpkBoundLe n (pk, sk) h) sigBound
-      (fun n pk sk h => hsigBoundLe n (pk, sk) h) adversary machine c d hmachine⟩
+      (fun n pk sk h => hsigBoundLe n (pk, sk) h) adversary machine c d hmachineInterpret⟩
 
 end TCRSignature
 

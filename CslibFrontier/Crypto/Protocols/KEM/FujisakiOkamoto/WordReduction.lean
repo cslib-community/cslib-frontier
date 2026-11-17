@@ -23,6 +23,7 @@ import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Foundations.Control.Monad.StateT
 
 /-!
 # The certified IND-CPA reduction of the word-level Fujisaki–Okamoto family
@@ -59,7 +60,7 @@ runs `A` against the simulator from empty caches (`WordPKE.simFilterWordHit`) an
 **The certificate.** `WordPKE.IsEfficient.isPPT_romFilterCpaReductionWord` derives
 `Encryption.AdversaryOf.IsPPT` of the reduction from `IsOraclePPT encBool A`, the efficiency of
 the PKE family (`WordPKE.IsEfficient`), a polynomial-time key length and a polynomial-time filter.
-The simulator is substituted into `A` with `IsOraclePPT.run_interpret_preprocess'`. Each call is
+The simulator is substituted into `A` with `IsOraclePPT.run_interpret_preprocess`. Each call is
 strict PPT in the full state (`WordPKE.IsEfficient.isPPTOn_simFilterWordHandler`), keeps every
 cached value at most `coinLen n + keyLen n` bits long, and adds at most a polynomial in the
 request length and `n` to the encoded state.
@@ -343,14 +344,6 @@ private noncomputable def simCallExplicit (P : WordPKE) (keyLen : ℕ → ℕ)
       else pure (encOption encBits none, x.2.2)
     else pure ([], x.2.2)
 
-private theorem stateT_bind_apply {σ α β : Type} (x : StateT σ ProbComp α)
-    (f : α → StateT σ ProbComp β) (s : σ) : (x >>= f) s = x s >>= fun p => f p.1 p.2 :=
-  StateT.run_bind x f s
-
-private theorem stateT_pure_apply {σ α : Type} (a : α) (s : σ) :
-    (pure a : StateT σ ProbComp α) s = pure (a, s) :=
-  rfl
-
 private theorem simFilterWordHandler_eq_explicit (P : WordPKE) (keyLen : ℕ → ℕ)
     (d : List Bool → List (List Bool × List Bool) → List Bool → Bool)
     (x : (ℕ × List Bool × List Bool) × (CCAOp × List Bool) × WState) :
@@ -366,7 +359,7 @@ private theorem simFilterWordHandler_eq_explicit (P : WordPKE) (keyLen : ℕ →
       generalize hQueryDecoder.decode w = y
       obtain ⟨b, m, c⟩ := y
       cases b
-      · simp only [Scheme.simHashH, stateT_bind_apply, Bool.false_eq_true, ↓reduceIte, scheme,
+      · simp only [Scheme.simHashH, StateT.bind_apply, Bool.false_eq_true, ↓reduceIte, scheme,
           toExplicitCoin]
         congr 1 with p
         by_cases h : P.encDet n pk m p.1 = c <;> simp only [h, ↓reduceIte]
@@ -382,7 +375,7 @@ private theorem simFilterWordHandler_eq_explicit (P : WordPKE) (keyLen : ℕ →
       · simp only [hc, ↓reduceIte, filterDecaps]
         cases d pk st.gCache w
         · rfl
-        · simp only [Bool.cond_true, ↓reduceIte, stateT_bind_apply, stateT_pure_apply,
+        · simp only [Bool.cond_true, ↓reduceIte, StateT.bind_apply, StateT.pure_apply,
             bind_pure_comp, Functor.map_map]
           rfl
     · simp only [hl, ↓reduceIte]
@@ -723,7 +716,7 @@ theorem IsEfficient.isPPT_romFilterCpaReductionWord {P : WordPKE} (hP : P.IsEffi
           ((hstate.fst'.comp (ComputableInPolyTime.fst _ _)).prod
             (hcs.comp (ComputableInPolyTime.fst _ _)))).prod
           (ComputableInPolyTime.snd _ _))
-    have hrun := hA.run_interpret_preprocess' (operationEncoding := encFinEnum CCAOp)
+    have hrun := hA.run_interpret_preprocess (operationEncoding := encFinEnum CCAOp)
       (stateEncoding := encSimState)
       (handler := fun (c : (ℕ × List Bool × List Bool) × List Bool) request st =>
         P.simFilterWordHandler keyLen d c.1.1 (D.decode c.1.2.1).1 c.1.2.2 request st)

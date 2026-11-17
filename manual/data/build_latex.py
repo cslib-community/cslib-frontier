@@ -25,7 +25,8 @@ ORDER = [
       'algebraic-and-quantum', 'query-and-communication', 'finite-model-logic', 'sql-semantics',
       'proof-systems', 'learning-and-testing', 'metacomplexity-and-methods']),
     ('programs-crypto-and-probability', ['index', 'programs-and-realization',
-      'security-games-and-primitives', 'interactive-reductions', 'protocols-and-privacy',
+      'security-games-and-primitives', 'assumptions', 'interactive-reductions',
+      'protocols-and-privacy',
       'average-case-hardness', 'distributional-complexity', 'homomorphic-encryption']),
     ('algorithms-and-memory', ['index', 'ram-variants', 'wordram-and-bridges',
       'memory-specifications', 'online-and-streaming', 'strategic-games',
@@ -38,6 +39,18 @@ ORDER = [
       'transcripts', 'study-design']),
 ]
 FILES = ['index.md'] + [f'{section}/{name}.md' for section, names in ORDER for name in names] + ['model-map.md']
+# The reference chapters are frozen: nobody keeps them current, so nothing outside them may force an
+# edit to them. Entries are pages or directories relative to the manual root; the registries in
+# MAINTAINED stay current although they sit in a frozen directory.
+FROZEN = {'index.md', 'model-map.md', 'design-and-assurance', 'machines-and-classes',
+          'circuits-logic-and-other-models', 'programs-crypto-and-probability',
+          'algorithms-and-memory'}
+MAINTAINED = {'programs-crypto-and-probability/assumptions.md'}
+
+
+def frozen(relative):
+    """Whether the page at this path, relative to the manual root, is a frozen reference chapter."""
+    return relative not in MAINTAINED and (relative in FROZEN or relative.split('/')[0] in FROZEN)
 
 
 def run(args, **kwargs):
@@ -58,6 +71,9 @@ def tex_escape(text):
     return ''.join(special.get(c, c) for c in text)
 
 
+# Break points inside identifiers: before a capital that follows a lowercase letter or digit, and
+# before the last capital of an acronym followed by lowercase (`LWECCA|Nonvacuity`).
+CAMEL_BREAK = r'(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])'
 MATH = {'ℕ': r'\mathbb{N}', 'ℝ': r'\mathbb{R}', 'ℓ': r'\ell', '→': r'\to',
         '←': r'\leftarrow', '↔': r'\leftrightarrow', '↦': r'\mapsto', '↪': r'\hookrightarrow',
         '∀': r'\forall', '∃': r'\exists', '∈': r'\in', '∧': r'\wedge', '∩': r'\cap',
@@ -140,13 +156,17 @@ def transform(node, path, chapter_index=False, references=False):
                 return {'t': 'Link', 'c': [attr, transform(content, path, chapter_index, references), ['#doc-sources', title]]}
             if relative in FILES:
                 return {'t': 'Link', 'c': [attr, transform(content, path, chapter_index, references), ['#' + label(relative, parsed.fragment), title]]}
+            if frozen(path) and SOURCE_REVISION is not None and resolved.is_relative_to(ROOT.parent) \
+                    and resolved.relative_to(ROOT.parent).as_posix() not in SOURCE_PATHS:
+                # A frozen chapter may cite a file that has since moved or gone; print the text.
+                return {'t': 'Span', 'c': [['', [], []], transform(content, path, chapter_index, references)]}
             href = repository_link(resolved, parsed)
         return {'t': 'Link', 'c': [attr, transform(content, path, chapter_index, references), [href, title]]}
     if typ == 'Code':
         text = node['c'][1]
         # Allow breaks at semantic separators and within long opaque hashes.
         escaped = inline_tex(text)
-        escaped = re.sub(r'(?<=[a-z0-9])(?=[A-Z])', lambda _: r'\allowbreak{}', escaped)
+        escaped = re.sub(CAMEL_BREAK, lambda _: r'\allowbreak{}', escaped)
         escaped = escaped.replace(r'\_', r'\_\allowbreak{}').replace('.', r'.\allowbreak{}').replace('/', r'/\allowbreak{}').replace('-', r'-\allowbreak{}')
         escaped = escaped.replace('*', r'*\allowbreak{}').replace('+', r'+\allowbreak{}')
         if re.fullmatch(r'[0-9a-f]{32,}', text):
@@ -154,7 +174,7 @@ def transform(node, path, chapter_index=False, references=False):
         return raw('RawInline', r'{\small\ttfamily ' + escaped + '}')
     if typ == 'Str' and (any(c in MATH for c in node['c']) or '/' in node['c'] or '_' in node['c'] or re.search(r'[a-z][A-Z]', node['c'])):
         escaped = inline_tex(node['c']).replace('/', r'/\allowbreak{}').replace(r'\_', r'\_\allowbreak{}')
-        escaped = re.sub(r'(?<=[a-z0-9])(?=[A-Z])', lambda _: r'\allowbreak{}', escaped)
+        escaped = re.sub(CAMEL_BREAK, lambda _: r'\allowbreak{}', escaped)
         return raw('RawInline', escaped)
     if typ == 'Math':
         return {'t': typ, 'c': [node['c'][0], math_tex(node['c'][1])]}

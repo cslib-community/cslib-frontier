@@ -1,5 +1,7 @@
 # Circuits, logic, and information-access models
 
+> **Frozen in November 2026.** This chapter is not kept current. The Lean source, its docstrings and the API documentation are authoritative.
+
 cslib-frontier uses several kinds of computational model for different purposes. A circuit gives a finite composition of semantic operations; a decision tree or communication protocol charges access to information; a logical formula defines a query on a finite structure; a proof object measures a derivation; a learner or tester measures examples or oracle queries. These models often share functions and theorems, but their resource units are not interchangeable. This section surveys their definitions and the principal bridges at source snapshot `13e6a31951bf1c89a1a6258c44f9444aecbbefd8`. [cslib-frontier][complexitylib]
 
 The curated [Model map](../model-map.md) contains **92 entries**, separating changes in semantics or resource accounting while grouping internal proof records under the model they support. The original survey checked 189 principal declaration anchors in 125 distinct cited files. These dated counts describe the editorial selection; they are neither a declaration census of the whole library nor an assertion that there are exactly 92 mathematically distinct models.

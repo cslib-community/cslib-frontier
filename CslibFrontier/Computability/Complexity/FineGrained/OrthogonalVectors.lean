@@ -22,6 +22,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
 import Mathlib.Data.Nat.Size
 import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # The strong exponential time hypothesis implies the orthogonal vectors hypothesis
@@ -39,7 +40,7 @@ satisfy the formula. So the formula is satisfiable exactly when the instance `to
 The reduction writes its output of about `2 ^ ⌈n / 2⌉ m` bits within time `2 ^ ⌈n / 2⌉` times a
 polynomial in the length of the encoded formula
 (`Cslib.Complexity.exists_computableInO_toOV`). The vectors are streamed to the output one
-at a time (`Turing.MultiTapeTM.ComputableTidilyInTimeAndSpace.iterate_unary_stream_sum`);
+at a time (`Turing.MultiTapeTM.ComputableInTimeAndSpace.iterate_unary_stream_sum`);
 accumulating them in a list would cost time quadratic in the number of vectors. Then a decider
 for `OV` within time `N ^ (2 - ε)` times a polynomial in the dimension, on `N` vectors, decides
 `SAT` within time `2 ^ ((1 - ε / 2) n)` times a polynomial, for `0 < ε ≤ 1`
@@ -313,12 +314,12 @@ theorem exists_computableInO_stream {half : CNF ℕ → List ℕ}
   obtain ⟨dN, _, hN_deg⟩ :=
     (show ComputableInPolyTime (fun s : StreamState => (s.1, s.2 + 1)) encStreamState
       encStreamState by fun_prop).exists_degree
-  obtain ⟨tN, sN, ⟨cN, htN⟩, ⟨cN', hsN⟩, hN⟩ := Internal.NormalForm.degree hN_deg
+  obtain ⟨tN, sN, ⟨cN, htN⟩, ⟨cN', hsN⟩, hN⟩ := hN_deg.1
   obtain ⟨dE, _, hE_deg⟩ :=
     (hwrap.comp computableInPolyTime_clauseVector).exists_degree
-  obtain ⟨tE, sE, ⟨cE, htE⟩, ⟨cE', hsE⟩, hE⟩ := Internal.NormalForm.degree hE_deg
-  obtain ⟨cF, hF⟩ := Internal.NormalForm.linear
-    (ComputableInDegree.const (encIn := encStreamState) (encMid := encBits) fin)
+  obtain ⟨tE, sE, ⟨cE, htE⟩, ⟨cE', hsE⟩, hE⟩ := hE_deg.1
+  obtain ⟨cF, hF, -⟩ :=
+    (ComputableInDegree.const (encIn := encStreamState) (encMid := encBits) fin).inO_one
   set D := dN + dE + 1
   set B : StreamState × ℕ → ℕ := fun x =>
     2 * (encPair encCNF (encList encNat) x.1.1).length + 1 + (encNat (x.1.2 + x.2)).length
@@ -329,12 +330,11 @@ theorem exists_computableInO_stream {half : CNF ℕ → List ℕ}
     have : (encNat (x.1.2 + i)).length ≤ (encNat (x.1.2 + x.2)).length := by
       simpa only [encNat_apply, Nat.size_eq_bits_len] using
         Nat.size_le_size (show x.1.2 + i ≤ x.1.2 + x.2 by omega)
-    simp only [encStreamState, length_encPair, B] at this ⊢
-    omega
+    enc_len [encStreamState, B] at this ⊢
   have hpowN (x : StreamState × ℕ) (s : StreamState) (hs : (encStreamState s).length ≤ B x) :
       (encStreamState s).length + 1 ≤ (B x + 1) := by omega
   have hD (x : StreamState × ℕ) (d : ℕ) (hd : d ≤ D) : (B x + 1) ^ d ≤ (B x + 1) ^ D := by gcongr
-  obtain ⟨c, h⟩ := ComputableTidilyInTimeAndSpace.iterate_unary_stream_sum hN hE hF
+  obtain ⟨c, h⟩ := ComputableInTimeAndSpace.iterate_unary_stream_sum hN hE hF
     (R := fun x _ => (cN + cE + 3) * (B x + 1) ^ D) (Q := fun x => (cN' + cE') * (B x + 1) ^ D)
     (B := B)
     (fun x i hi => by
@@ -367,7 +367,7 @@ theorem exists_computableInO_stream {half : CNF ℕ → List ℕ}
         fin)
       (encPair encStreamState encUnary) encBits (fun x => (x.2 + 1) * (B x + 1) ^ D)
       fun x => (x.2 + 1) * (B x + 1) ^ D := by
-    refine (ComputableInO.of_bounds h.computableInTimeAndSpace
+    refine (ComputableInO.of_bounds h
       (c * (cF + cN + cE + cN' + cE' + 6)) (fun x => ?_)
       (fun x => ?_) (fun x => ?_)).of_enc_eq fun x => ?_
     · have hs := hstate x x.2 le_rfl
@@ -376,7 +376,7 @@ theorem exists_computableInO_stream {half : CNF ℕ → List ℕ}
     · have hs := hstate x x.2 le_rfl
       rw [Nat.mul_assoc]
       exact Nat.mul_le_mul_left c (stream_space_bound hs (hB1 x) (by omega))
-    · refine (h.computableInTimeAndSpace.length_le x).trans ?_
+    · refine (h.length_le x).trans ?_
       have hs := hstate x x.2 le_rfl
       rw [hsum, Nat.mul_assoc]
       exact Nat.mul_le_mul_left c (stream_bound hs (hB1 x) (by omega))
