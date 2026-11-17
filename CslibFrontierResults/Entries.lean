@@ -6227,6 +6227,7 @@ register_result "arora-barak-ma-eq-np-of-hardness" where
     (non-strict, De Morgan gates counted, inputs not) for size 2^⌊n/c⌋, some natural c > 0. \
     The draft's hypothesis (f ∈ E, strict H_avg(f)(n) ≥ 2^(εn) for every n, Definition 6.1 \
     counting all nodes) implies this for every natural c > 1/ε: a De Morgan circuit with s \
-    gates on n ≥ 1 inputs becomes a source circuit with at most n + 3s + 1 nodes (constants \
-    as x1 ∧ ¬x1 or its negation, plus an output node), which is at most 2^(εn) ≤ S for all \
+    gates on n ≥ 1 inputs becomes a source circuit with O(n + s + 1) nodes and the output as \
+    its only sink (prune unused gates, constants as x1 ∧ ¬x1 or its negation, unused inputs \
+    folded into a dummy zero ORed into the output), which is at most 2^(εn) ≤ S for all \
     large n, and 1/2 + 1/S ≤ 1/2 + 1/s. MA has two-sided error 1/3."

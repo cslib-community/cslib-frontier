@@ -142,10 +142,12 @@ for every natural `c > 1 / ε` (for instance `c > 2 / ε`). The two circuit conv
 the draft's Definition 6.1 counts all nodes (inputs, AND, OR and NOT gates of fan-in at most two,
 and output nodes, without constants), while `Cslib.Circuits.Boolean.IsAverageCaseHard` counts the
 De Morgan gates (AND, OR, NOT and constants) of a circuit, not its inputs. Translate a De Morgan
-circuit with `s` gates on `n ≥ 1` inputs into a source circuit: keep the `n` input nodes and every
-AND, OR and NOT gate, replace each constant gate by `x₁ ∧ ¬x₁` or `¬(x₁ ∧ ¬x₁)` (at most three
-nodes), and add one output node. The result has at most `n + 3 s + 1` nodes. With
-`s = 2 ^ ⌊n / c⌋ ≤ 2 ^ (n / c)` and `1 / c < ε`, eventually `n + 3 s + 1 ≤ 2 ^ (ε n) ≤ S`. So
+circuit with `s` gates on `n ≥ 1` inputs into a source circuit whose only node without outgoing
+edges is the output (Definition 6.1 counts every such node as an output): drop the gates the
+output does not depend on, replace each constant gate by `x₁ ∧ ¬x₁` or `¬(x₁ ∧ ¬x₁)`, fold every
+unused input into one dummy zero (an AND of inputs with a negation) and OR that zero into the
+output. The result has `O(n + s + 1)` nodes. With `s = 2 ^ ⌊n / c⌋ ≤ 2 ^ (n / c)` and
+`1 / c < ε`, this linear overhead is eventually at most `2 ^ (ε n) ≤ S`. So
 every Boolean function `g` of complexity at most `s` agrees with `f` on less than a
 `1 / 2 + 1 / S ≤ 1 / 2 + 1 / s` fraction of the inputs, since `s ≤ S`. That is
 `IsAverageCaseHard (f.slice n) s` for all large `n`, the hypothesis here. So the theorem holds
