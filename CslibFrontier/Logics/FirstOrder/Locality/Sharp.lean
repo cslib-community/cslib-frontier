@@ -721,26 +721,6 @@ private theorem relMap_adj_relStructure {V : Type*} (R : V → V → Prop) (t : 
   conv_lhs => rw [ht]
   rw [relMap_relStructure]
 
-private def foldSumPathGraph (m : ℕ) :
-    SimpleGraph.pathGraph m ⊕g SimpleGraph.pathGraph m →g SimpleGraph.pathGraph m where
-  toFun := Sum.elim id id
-  map_rel' {a b} hab := by cases a <;> cases b <;> simp_all
-
-private theorem edist_sum_pathGraph_inl {m : ℕ} (x y : Fin m) :
-    (SimpleGraph.pathGraph m ⊕g SimpleGraph.pathGraph m).edist (.inl x) (.inl y) =
-      (SimpleGraph.pathGraph m).edist x y :=
-  le_antisymm
-    ((SimpleGraph.Embedding.sumInl (G := SimpleGraph.pathGraph m)
-      (H := SimpleGraph.pathGraph m)).toHom.edist_le x y)
-    ((foldSumPathGraph m).edist_le (.inl x) (.inl y))
-
-private theorem edist_sum_pathGraph_inr {m : ℕ} (x y : Fin m) :
-    (SimpleGraph.pathGraph m ⊕g SimpleGraph.pathGraph m).edist (.inr x) (.inr y) =
-      (SimpleGraph.pathGraph m).edist x y :=
-  ((SimpleGraph.Iso.sumComm (G := SimpleGraph.pathGraph m)
-    (H := SimpleGraph.pathGraph m)).edist_eq (.inl x) (.inl y)).trans
-    (edist_sum_pathGraph_inl x y)
-
 /-- **Exactness of the Gaifman locality rank `2 ^ n - 1`** ([Libkin, Exercise 4.11][Libkin2004]):
 for every `n ≥ 1` and `r < 2 ^ n - 1`, two vertices of a finite `Language.graph`-structure have
 isomorphic radius-`r` neighborhoods while `loopReach n` (of quantifier rank `n`) holds of the first
@@ -762,15 +742,14 @@ theorem exists_nbhdIso_realize_loopReach {n r : ℕ} (hn : 1 ≤ n) (hr : r < 2 
   refine ⟨Fin m ⊕ Fin m, inferInstance, inferInstance, fun _ => .inl x₀, fun _ => .inr x₀,
     ?_, ?_, ?_⟩
   · -- `Sum.swap` is a radius-`r` neighborhood isomorphism (`ball (.inl 0) r` avoids `loopPt`).
+    let e := SimpleGraph.Iso.sumComm (G := P) (H := P)
     have hball : ∀ u : Fin m ⊕ Fin m,
         u ∈ ball Language.graph (fun _ : Fin 1 => (.inl x₀ : Fin m ⊕ Fin m)) r ↔
           Sum.swap u ∈ ball Language.graph (fun _ : Fin 1 => (.inr x₀ : Fin m ⊕ Fin m)) r := by
       intro u
       simp only [mem_ball_const, gaifmanGraph_loopGraphRel]
-      change G.edist (.inl x₀) u ≤ r ↔
-        G.edist ((SimpleGraph.Iso.sumComm (G := P) (H := P)) (.inl x₀))
-          ((SimpleGraph.Iso.sumComm (G := P) (H := P)) u) ≤ r
-      rw [(SimpleGraph.Iso.sumComm (G := P) (H := P)).edist_eq (.inl x₀) u]
+      change G.edist (.inl x₀) u ≤ r ↔ G.edist (e (.inl x₀)) (e u) ≤ r
+      rw [e.edist_eq]
     have hnotLoop : ∀ u ∈ ball Language.graph (fun _ : Fin 1 => (.inl x₀ : Fin m ⊕ Fin m)) r,
         u ≠ loopPt ∧ Sum.swap u ≠ loopPt := by
       intro u hu
@@ -778,7 +757,7 @@ theorem exists_nbhdIso_realize_loopReach {n r : ℕ} (hn : 1 ≤ n) (hr : r < 2 
       rcases u with j | j
       · refine ⟨fun h => ?_, Sum.inr_ne_inl⟩
         have hj : (j : ℕ) = m - 1 := congrArg Fin.val (Sum.inl.inj h)
-        rw [edist_sum_pathGraph_inl, SimpleGraph.edist_pathGraph, Nat.cast_le] at hu
+        rw [SimpleGraph.edist_sum_inl, SimpleGraph.edist_pathGraph, Nat.cast_le] at hu
         simp only [x₀] at hu
         omega
       · exact absurd hu (not_le.2 (by
@@ -803,7 +782,7 @@ theorem exists_nbhdIso_realize_loopReach {n r : ℕ} (hn : 1 ≤ n) (hr : r < 2 
       ext i; fin_cases i; rfl
     rw [hvec, realize_loopReach_loopGraphRel]
     refine ⟨loopPt, rfl, ?_⟩
-    rw [edist_sum_pathGraph_inl, SimpleGraph.edist_pathGraph, Nat.cast_le]
+    rw [SimpleGraph.edist_sum_inl, SimpleGraph.edist_pathGraph, Nat.cast_le]
     simp only [x₀, m]
     omega
   · have hvec : (fun _ : Fin 1 => (.inr x₀ : Fin m ⊕ Fin m)) = ![.inr x₀] := by
@@ -1156,19 +1135,20 @@ private theorem isNbhdIso_dirSumPathRel {m d : ℕ} {S₁ S₂ : Fin m ⊕ Fin m
       S₂ (φ u) ↔ S₁ u) :
     @IsNbhdIso Language.graph _ _ (relStructure (dirSumPathRel S₁))
       (relStructure (dirSumPathRel S₂)) 1 d (fun _ => c) (fun _ => φ c) φ := by
-  have hne : ∀ (S : Fin m ⊕ Fin m → Prop) (x y : Fin m ⊕ Fin m),
-      x ≠ y → (dirSumPathRel S x y ↔ dirSumPathRel (fun _ => False) x y) := by
-    intro S x y hxy
-    simp only [dirSumPathRel, hxy, false_and, or_false]
+  have hdecomp : ∀ (S : Fin m ⊕ Fin m → Prop) (x y : Fin m ⊕ Fin m),
+      dirSumPathRel S x y ↔ dirSumPathRel (fun _ => False) x y ∨ (x = y ∧ S x) := by
+    intro S x y
+    simp only [dirSumPathRel, and_false, or_false]
   let eG : (@gaifmanGraph Language.graph _ (relStructure (dirSumPathRel S₁))) ≃g
       (@gaifmanGraph Language.graph _ (relStructure (dirSumPathRel S₂))) :=
     { toEquiv := φ
       map_rel_iff' := fun {u v} => by
         rw [gaifmanGraph_relStructure, gaifmanGraph_relStructure, SimpleGraph.fromRel_adj,
           SimpleGraph.fromRel_adj, φ.injective.ne_iff]
-        exact and_congr_right fun hxy => by
-          rw [hne S₂ (φ u) (φ v) (φ.injective.ne hxy), hne S₂ (φ v) (φ u) (φ.injective.ne hxy.symm),
-            hne S₁ u v hxy, hne S₁ v u hxy.symm, hdir u v, hdir v u] }
+        refine and_congr_right fun hxy => ?_
+        rw [hdecomp S₂, hdecomp S₂, hdecomp S₁, hdecomp S₁]
+        simp only [hxy, hxy.symm, φ.injective.ne hxy, φ.injective.ne hxy.symm,
+          false_and, or_false, hdir u v, hdir v u] }
   have hball : ∀ u : Fin m ⊕ Fin m,
       u ∈ @ball Language.graph _ (relStructure (dirSumPathRel S₁)) 1 (fun _ => c) d ↔
         φ u ∈ @ball Language.graph _ (relStructure (dirSumPathRel S₂)) 1 (fun _ => φ c) d := by
@@ -1186,10 +1166,6 @@ private theorem isNbhdIso_dirSumPathRel {m d : ℕ} {S₁ S₂ : Fin m ⊕ Fin m
   rw [relMap_adj_relStructure (dirSumPathRel S₂) (φ ∘ t),
     relMap_adj_relStructure (dirSumPathRel S₁) t]
   dsimp only [Function.comp_apply]
-  have hdecomp : ∀ (S : Fin m ⊕ Fin m → Prop) (u v : Fin m ⊕ Fin m),
-      dirSumPathRel S u v ↔ dirSumPathRel (fun _ => False) u v ∨ (u = v ∧ S u) := by
-    intro S u v
-    simp only [dirSumPathRel, and_false, or_false]
   rw [hdecomp S₂, hdecomp S₁]
   refine or_congr (hdir (t 0) (t 1)) ?_
   rw [φ.injective.eq_iff]
@@ -1237,8 +1213,9 @@ private theorem exists_dirSumPath_hanfEquiv {k d : ℕ} (hd : d < 2 ^ (k + 1) - 
           (coord u : ℕ) ≤ (coord c : ℕ) + d ∧ (coord c : ℕ) ≤ (coord u : ℕ) + d := by
       intro u hu
       rw [@mem_ball_const, gaifmanGraph_dirSumPathRel] at hu
-      have hle := ((foldSumPathGraph m).edist_le c u).trans hu
-      rw [SimpleGraph.edist_pathGraph, Nat.cast_le] at hle
+      have hle := ((SimpleGraph.Hom.sumFold (SimpleGraph.pathGraph m)).edist_le c u).trans hu
+      rw [SimpleGraph.Hom.sumFold_apply, SimpleGraph.Hom.sumFold_apply,
+        SimpleGraph.edist_pathGraph, Nat.cast_le] at hle
       change (coord u : ℕ) - (coord c : ℕ) + ((coord c : ℕ) - (coord u : ℕ)) ≤ d at hle
       omega
     by_cases hswap : D ≤ (coord c : ℕ) + d
