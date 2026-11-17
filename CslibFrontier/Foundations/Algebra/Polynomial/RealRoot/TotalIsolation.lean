@@ -169,7 +169,7 @@ interval `[a, b] ⊆ [u, v]`. -/
     else
       refineLeftLoopTotalM t seq fuel u v vu
 
-@[simp]
+@[simp, time_simps]
 theorem refineLeftRootTotalM_ret (t : List ℚ) (seq : List (List ℚ)) (fuel : ℕ)
     (u v : ℚ) (vu : ℕ) :
     (refineLeftRootTotalM t seq fuel u v vu).ret = (refineLeftRootM t seq fuel u v vu).ret := by
@@ -228,7 +228,7 @@ and list appends (`appendM`). -/
           let right ← isolateIocTotalM t seq depthBound fuel' m v vm vv
           appendM left right
 
-@[simp]
+@[simp, time_simps]
 theorem isolateIocTotalM_ret (t : List ℚ) (seq : List (List ℚ)) (depthBound : ℕ) :
     ∀ (fuel : ℕ) (u v : ℚ) (vu vv : ℕ),
       (isolateIocTotalM t seq depthBound fuel u v vu vv).ret =
@@ -239,7 +239,7 @@ theorem isolateIocTotalM_ret (t : List ℚ) (seq : List (List ℚ)) (depthBound 
     simp only [TimeM.ret_bind]
     split_ifs with hc0 hc1
     · simp only [TimeM.ret_pure]
-    · simp only [time_simps, refineLeftRootTotalM_ret]
+    · simp only [time_simps]
     · cases fuel with
       | zero => simp only [time_simps]
       | succ fuel' =>
@@ -332,7 +332,7 @@ private theorem isolateIocTotalM_time_le {cs : List ℚ} (hsep : (ofCoeffList cs
           dsimp only [rTotal, vCost, eCost, seq, c] at hc_r
           omega
         | succ fuel' =>
-          simp only [time_simps, isolateIocTotalM_ret]
+          simp only [time_simps]
           let m := (u + v) / 2
           let vm := sturmVariationsList seq m
           have hum : u ≤ m := by dsimp only [m]; linarith
@@ -732,6 +732,7 @@ every adjacent pair in `TimeM ℕ`. -/
     TimeM.tick 1
     separateChainM t seq depth I₀.lower (I₀ :: rest)
 
+@[time_simps]
 private theorem separateChainM_length (t : List ℚ) (seq : List (List ℚ)) (depth : ℕ) :
     ∀ (L : List RootInterval) (curLower : ℚ),
       ((separateChainM t seq depth curLower L).ret).length = L.length := by
@@ -740,7 +741,7 @@ private theorem separateChainM_length (t : List ℚ) (seq : List (List ℚ)) (de
 theorem separateTouchingM_length (t : List ℚ) (seq : List (List ℚ)) (depth : ℕ)
     (L : List RootInterval) :
     ((separateTouchingM t seq depth L).ret).length = L.length := by
-  time_spec separateTouchingM [separateChainM_length]
+  time_spec separateTouchingM
 
 private theorem separateChainM_time_le (t : List ℚ) (seq : List (List ℚ)) (depth : ℕ) :
     ∀ (L : List RootInterval) (curLower : ℚ),
@@ -945,8 +946,7 @@ private theorem isolateRootsTotal_eq_separateTouching (cs : List ℚ) :
   simp only [isolateRootsTotal, isolateRootsTotalM, isolateRoots, isolateRootsM, time_simps]
   by_cases he : (trim cs).isEmpty = true
   · simp only [he, ↓reduceIte, time_simps, separateTouchingM]
-  · simp only [he, Bool.false_eq_true, ↓reduceIte, time_simps, sturmSeqListM_ret,
-      mignotteBisectionDepthM_ret, isolateIocTotalM_ret]
+  · simp only [he, Bool.false_eq_true, ↓reduceIte, time_simps]
 
 /-- `isolateRootsTotal cs` has the exact same length as `isolateRoots cs`. -/
 theorem isolateRootsTotal_length_eq (cs : List ℚ) :
@@ -1209,8 +1209,7 @@ theorem isolateRootsTotalM_time_le {cs : List ℚ} (hsep : (ofCoeffList cs).Sepa
     have hm := Nat.mul_le_mul hraw_len hp_le
     dsimp only [vC_actual, eC_actual] at hm hsep_raw
     omega
-  simp only [isolateRootsTotalM, time_simps, hte, Bool.false_eq_true, ↓reduceIte, sturmSeqListM_ret,
-    mignotteBisectionDepthM_ret, isolateIocTotalM_ret]
+  simp only [isolateRootsTotalM, time_simps, hte, Bool.false_eq_true, ↓reduceIte]
   dsimp only [seq, b, k, vL, vR, vC, eC, n, d] at *
   omega
 

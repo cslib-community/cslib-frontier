@@ -166,12 +166,33 @@ private theorem chainLabelsM_ret (e : Fin n ≃ α) (M : Finset (Fin n × Fin n)
     (fun x => vget (chainLabelsM M ps labels).ret (e.symm x)) =
       ((ps.filter (· ∈ M)).map (Prod.map e e)).foldl (mergeLabel ·)
         (fun x => vget labels (e.symm x)) := by
-  time_spec chainLabelsM [vget_mergeChainsM]
+  induction ps generalizing labels with
+  | nil => rfl
+  | cons p ps ih =>
+    by_cases hp : p ∈ M
+    · rw [List.filter_cons_of_pos (by simpa using hp), List.map_cons, List.foldl_cons]
+      simp only [chainLabelsM, hp, ite_true, TimeM.ret_bind, ih]
+      rw [vget_mergeChainsM]
+      rfl
+    · rw [List.filter_cons_of_neg (by simpa using hp)]
+      simp only [chainLabelsM, hp, ite_false, TimeM.ret_bind, TimeM.ret_pure, ih]
 
+@[time_simps]
 private theorem chainLabelsM_time (M : Finset (Fin n × Fin n)) (ps : List (Fin n × Fin n))
     (labels : Vector (Fin n) n) :
     (chainLabelsM M ps labels).time = ps.length + n * (ps.filter (· ∈ M)).length := by
-  time_spec chainLabelsM [mergeChainsM]
+  induction ps generalizing labels with
+  | nil => simp [chainLabelsM]
+  | cons p ps ih =>
+    by_cases hp : p ∈ M
+    · rw [List.filter_cons_of_pos (by simpa using hp)]
+      simp only [chainLabelsM, hp, ite_true, TimeM.time_bind, TimeM.time_tick, ih, mergeChainsM,
+        TimeM.time_pure, List.length_cons, Nat.mul_add, Nat.mul_one]
+      omega
+    · rw [List.filter_cons_of_neg (by simpa using hp)]
+      simp only [chainLabelsM, hp, ite_false, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure,
+        ih, List.length_cons]
+      omega
 
 /-- Scanning all pairs of indices visits each element of `M` exactly once. -/
 private theorem nodup_filter_pairs (M : Finset (Fin n × Fin n)) :
@@ -315,8 +336,8 @@ theorem minChainCoverM_time_le [LT α] [DecidableLT α] (e : Fin n ≃ α) :
   have hM := (hopcroftKarpDenseM_correct (enumLtGraph e)).1.1.card_le_card_left
   rw [Fintype.card_fin] at hM
   rw [min_self, show 7 * n + 3 * n = 10 * n by omega] at hhk
-  simp only [minChainCoverM, time_simps, chainLabelsM_time, length_filter_pairs,
-    List.length_product, List.length_finRange]
+  simp only [minChainCoverM, time_simps, length_filter_pairs, List.length_product,
+    List.length_finRange]
   have := Nat.mul_le_mul_left n hM
   omega
 

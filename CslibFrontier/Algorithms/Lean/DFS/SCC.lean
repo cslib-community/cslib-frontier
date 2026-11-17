@@ -159,7 +159,7 @@ theorem ret_transposeAdjM (adj : V → List V) (vs : List V) :
 
 theorem time_transposeAdjM (adj : V → List V) (vs : List V) :
     (transposeAdjM adj vs).time = vs.length + outDegreeSum adj vs := by
-  time_spec transposeAdjM [List.sum_map_add, outDegreeSum]
+  time_spec transposeAdjM [List.sum_map_add, outDegreeSum, Nat.mul_one]
 
 omit [DecidableEq V] in
 /-- Consing onto one adjacency-list entry increases the total adjacency-list length by `1`. -/

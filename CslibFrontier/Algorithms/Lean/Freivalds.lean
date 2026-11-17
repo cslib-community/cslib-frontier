@@ -98,7 +98,7 @@ def dotProductM : (k : ℕ) → (Fin k → R) → (Fin k → R) → TimeM ℕ R
     TimeM.tick 2
     pure (u 0 * v 0 + rest)
 
-@[simp] theorem ret_dotProductM (k : ℕ) (u v : Fin k → R) :
+@[simp, time_simps] theorem ret_dotProductM (k : ℕ) (u v : Fin k → R) :
     (dotProductM k u v).ret = u ⬝ᵥ v := by
   time_spec dotProductM [dotProduct, Fin.sum_univ_succ]
 
@@ -120,7 +120,7 @@ theorem ret_mulVecM {k : ℕ} (l : ℕ) (M : Matrix (Fin l) (Fin k) R) (v : Fin 
   induction l with
   | zero => funext i; exact i.elim0
   | succ l ih =>
-    simp only [mulVecM, time_simps, ih, ret_dotProductM]
+    simp only [mulVecM, time_simps, ih]
     funext i
     refine Fin.cases ?_ (fun i => ?_) i
     · rfl
@@ -129,7 +129,7 @@ theorem ret_mulVecM {k : ℕ} (l : ℕ) (M : Matrix (Fin l) (Fin k) R) (v : Fin 
 @[simp, time_simps]
 theorem time_mulVecM {k : ℕ} (l : ℕ) (M : Matrix (Fin l) (Fin k) R) (v : Fin k → R) :
     (mulVecM l M v).time = 2 * k * l := by
-  time_spec mulVecM
+  time_spec mulVecM [Nat.mul_succ]
 
 section Check
 
@@ -180,7 +180,8 @@ def checkM (A : Matrix (Fin l) (Fin m) R) (B : Matrix (Fin m) (Fin n) R)
 theorem time_checkM (A : Matrix (Fin l) (Fin m) R) (B : Matrix (Fin m) (Fin n) R)
     (C : Matrix (Fin l) (Fin n) R) (x : Fin n → R) :
     (checkM A B C x).time = 2 * (m * n + l * m + l * n) + l := by
-  time_spec checkM
+  simp only [checkM, TimeM.time_bind, time_mulVecM, time_vecEqM]
+  ring
 
 /-- Run `checkM` on each of `k` vectors and accept when every check accepts. All `k` checks are
 performed, so the cost is exact. -/
@@ -201,7 +202,7 @@ def checkAllM (A : Matrix (Fin l) (Fin m) R) (B : Matrix (Fin m) (Fin n) R)
 @[simp] theorem time_checkAllM (A : Matrix (Fin l) (Fin m) R) (B : Matrix (Fin m) (Fin n) R)
     (C : Matrix (Fin l) (Fin n) R) (k : ℕ) (xs : Fin k → Fin n → R) :
     (checkAllM A B C k xs).time = k * (2 * (m * n + l * m + l * n) + l) := by
-  time_spec checkAllM
+  time_spec checkAllM [Nat.succ_mul]
 
 /-- For square `n × n` matrices, `k` checks cost `k * (6 * n ^ 2 + n)`. -/
 theorem time_checkAllM_square (A B C : Matrix (Fin n) (Fin n) R) (k : ℕ)

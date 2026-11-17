@@ -200,6 +200,7 @@ entry of `LP`. -/
     TimeM.tick 1
     pure (⟨val % q, Nat.mod_lt val hq⟩ :: r)
 
+@[time_simps]
 theorem ret_lookupM (q : ℕ) (x : V) (L : List V) (m : ℕ) :
     (lookupM q x L m).ret = ofRadix q L m x := by
   time_spec lookupM
@@ -214,12 +215,11 @@ theorem ret_projectM {q : ℕ} (hq : 0 < q) (LB LP : List V) (t : ℕ) :
   induction LP with
   | nil => rfl
   | cons u LP ih =>
-    simp only [projectM, time_simps, ih, ret_lookupM, toRadix_cons,
-      Nat.mod_eq_of_lt (ofRadix_lt hq LB t u)]
+    simp only [projectM, time_simps, ih, toRadix_cons, Nat.mod_eq_of_lt (ofRadix_lt hq LB t u)]
 
 theorem time_projectM (q : ℕ) (LB LP : List V) (t : ℕ) :
     (projectM q LB t LP).time = LP.length * (LB.length + 1) := by
-  time_spec projectM
+  time_spec projectM [Nat.succ_mul]
 
 @[time_simps]
 theorem ret_evalScopeM {q : ℕ} (hq : 0 < q) (LB : List V) (t : ℕ) (scope : List V) :
@@ -227,13 +227,13 @@ theorem ret_evalScopeM {q : ℕ} (hq : 0 < q) (LB : List V) (t : ℕ) (scope : L
   induction scope with
   | nil => rfl
   | cons x scope ih =>
-    simp only [evalScopeM, time_simps, ih, ret_lookupM, Nat.mod_eq_of_lt (ofRadix_lt hq LB t x)]
+    simp only [evalScopeM, time_simps, ih, Nat.mod_eq_of_lt (ofRadix_lt hq LB t x)]
     rfl
 
 @[time_simps]
 theorem time_evalScopeM {q : ℕ} (hq : 0 < q) (LB : List V) (t : ℕ) (scope : List V) :
     (evalScopeM q hq LB t scope).time = scope.length * (LB.length + 1) := by
-  time_spec evalScopeM
+  time_spec evalScopeM [Nat.succ_mul]
 
 end Loops
 

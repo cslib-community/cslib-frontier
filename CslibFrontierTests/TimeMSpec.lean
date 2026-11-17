@@ -85,8 +85,22 @@ theorem time_findM_le {α : Type} (f : α → TimeM ℕ Bool) (l : List α) (c :
     (hf : ∀ a ∈ l, (f a).time ≤ c) : (findM f l).time ≤ l.length * c := by
   time_spec findM
 
-/-! Normalization. A bound that needs the bound of a called program is not closed: the goal left
-is the cost of the unfolded program, and arithmetic finishes. -/
+/-! Arithmetic that `omega` does not do is passed as a fact, here `(k + 1) * c = k * c + c`: the
+proof then ends in `rfl` or `omega`, without `grind`. -/
+
+/-- Run a program `k` times. -/
+def repeatM (p : TimeM ℕ Unit) : ℕ → TimeM ℕ Unit
+  | 0 => pure ()
+  | k + 1 => do
+    repeatM p k
+    p
+
+example (p : TimeM ℕ Unit) (k : ℕ) : (repeatM p k).time = k * p.time := by
+  time_spec repeatM [Nat.succ_mul]
+
+/-! A bound that needs the bound of a called program is not a job for `time_spec`: the simp set
+computes the cost of the unfolded program, the bounds of the called programs are stated, and
+arithmetic finishes. -/
 
 /-- Search two lists. -/
 def find₂M {α : Type} (f : α → TimeM ℕ Bool) (l₁ l₂ : List α) : TimeM ℕ Bool := do
@@ -96,15 +110,15 @@ def find₂M {α : Type} (f : α → TimeM ℕ Bool) (l₁ l₂ : List α) : Tim
 
 example {α : Type} (f : α → TimeM ℕ Bool) (l₁ l₂ : List α) (c : ℕ)
     (hf : ∀ a, (f a).time ≤ c) : (find₂M f l₁ l₂).time ≤ (l₁.length + l₂.length) * c := by
-  time_spec find₂M
+  simp only [find₂M, time_simps]
   guard_target = (findM f l₁).time + (findM f l₂).time ≤ (l₁.length + l₂.length) * c
   have h₁ := time_findM_le f l₁ c fun a _ => hf a
   have h₂ := time_findM_le f l₂ c fun a _ => hf a
   rw [Nat.add_mul]
   omega
 
-/-! A goal that cannot be closed is left as the simp step produced it: the `if` is not split, and
-the branch that was closed is gone. Here the bound is false. -/
+/-! The failure report. A goal that cannot be closed is left as the simp step produced it: the `if`
+is not split, and the branch that was closed is gone. Here the bound is false. -/
 
 /--
 error: unsolved goals

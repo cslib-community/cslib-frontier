@@ -176,7 +176,7 @@ theorem ret_scanM (c : ℕ → β) (lo hi : ℕ) :
 /-- Scanning `lo, …, hi` costs `hi - lo + 1`. -/
 @[time_simps]
 theorem time_scanM (c : ℕ → β) (lo hi : ℕ) : (scanM c lo hi).time = hi - lo + 1 := by
-  time_spec scanM
+  time_spec scanM [List.length_range']
 
 end Scan
 

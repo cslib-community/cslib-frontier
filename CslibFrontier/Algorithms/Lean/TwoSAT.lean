@@ -154,6 +154,7 @@ theorem nodup_literalList {vs : List V} (hnd : vs.Nodup) : (literalList vs).Nodu
 theorem ret_literalListM (vs : List V) : (literalListM vs).ret = literalList vs := by
   time_spec literalListM [literalList]
 
+@[time_simps]
 theorem time_literalListM (vs : List V) : (literalListM vs).time = vs.length := by
   time_spec literalListM
 
@@ -316,6 +317,7 @@ theorem sum_length_implicationAdj_le [Fintype V] (φ : CNF V) :
 theorem ret_implicationAdjM (φ : CNF V) : (implicationAdjM φ).ret = implicationAdj φ := by
   simp [implicationAdjM, implicationAdj, TimeM.ret_foldlM]
 
+@[time_simps]
 theorem time_implicationAdjM (φ : CNF V) : (implicationAdjM φ).time = φ.length := by
   time_spec implicationAdjM
 
@@ -345,6 +347,7 @@ theorem ret_extractAssignmentM (vs : List V) (compIdx : Literal V → ℕ) :
     (extractAssignmentM vs compIdx).ret = extractAssignment vs compIdx := by
   time_spec extractAssignmentM [extractAssignment, TimeM.bind]
 
+@[time_simps]
 theorem time_extractAssignmentM (vs : List V) (compIdx : Literal V → ℕ) :
     (extractAssignmentM vs compIdx).time = vs.length := by
   time_spec extractAssignmentM [TimeM.bind]
@@ -527,7 +530,7 @@ theorem time_solveM_le (hvs : ∀ v, v ∈ vs) (hnd : vs.Nodup) (φ : CNF V) :
   dsimp only [TimeM.bind]
   rw [ret_checkClausesM, time_checkClausesM]
   split_ifs with hok
-  · simp only [time_simps, time_literalListM, time_implicationAdjM, time_extractAssignmentM]
+  · simp only [time_simps]
     omega
   · simp only [TimeM.time_pure]
     omega
@@ -588,9 +591,11 @@ private theorem time_relabelClauseM {W : Type*} (f : ℕ → W) (c : Clause ℕ)
     (relabelClauseM f c).time = c.length := by
   simp [relabelClauseM]
 
+@[time_simps]
 theorem ret_toFinCNFM (φ : CNF ℕ) : (toFinCNFM φ).ret = toFinCNF φ := by
   time_spec toFinCNFM
 
+@[time_simps]
 theorem time_toFinCNFM (φ : CNF ℕ) : (toFinCNFM φ).time = φ.length + φ.vars.length := by
   time_spec toFinCNFM [CNF.length_vars, List.sum_map_add]
 
@@ -644,7 +649,7 @@ theorem time_solveNatM_le (φ : CNF ℕ) :
     (solveNatM φ).time ≤ 13 * φ.vars.length + 9 * φ.length + 13 := by
   have hfin := time_solveFinM_le (φ.vars.length + 1) (toFinCNF φ)
   have hlen : (toFinCNF φ).length = φ.length := by simp [toFinCNF, CNF.relabel]
-  simp only [solveNatM, time_simps, ret_toFinCNFM, time_toFinCNFM]
+  simp only [solveNatM, time_simps]
   omega
 
 end Cslib.Algorithms.Lean.TwoSAT

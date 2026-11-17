@@ -115,7 +115,7 @@ open Cslib.Algorithms.Lean.TimeM
     let rest ← ofFnTickM n fun i => f i.castSucc
     pure (rest.push (f (Fin.last n)))
 
-@[simp] theorem vget_ofFnTickM_ret {α : Type*} (n : ℕ) (f : Fin n → α) (i : Fin n) :
+@[simp, time_simps] theorem vget_ofFnTickM_ret {α : Type*} (n : ℕ) (f : Fin n → α) (i : Fin n) :
     vget (ofFnTickM n f).ret i = f i := by
   induction n with
   | zero => exact i.elim0
@@ -382,14 +382,17 @@ private theorem hgArgminM_some {s : HgState n} {k : Fin n} (h : (hgArgminM s).re
   obtain ⟨h1, h2⟩ := this.2 k rfl
   exact ⟨h1, fun j hj => h2 j (by simp) hj⟩
 
+@[time_simps]
 private theorem hgArgminM_time (s : HgState n) : (hgArgminM s).time = n := by
   simp [hgArgminM]
 
 /-! #### Field lemmas -/
 
+@[time_simps]
 private theorem hgDualM_mate (s : HgState n) (δ : ℤ) : (hgDualM s δ).ret.mate = s.mate := rfl
 private theorem hgDualM_used (s : HgState n) (δ : ℤ) : (hgDualM s δ).ret.used = s.used := rfl
 private theorem hgDualM_tree (s : HgState n) (δ : ℤ) : (hgDualM s δ).ret.tree = s.tree := rfl
+@[time_simps]
 private theorem hgDualM_path (s : HgState n) (δ : ℤ) : (hgDualM s δ).ret.path = s.path := rfl
 
 private theorem hgDualM_y (s : HgState n) (δ : ℤ) (i : Fin n) :
@@ -405,6 +408,7 @@ private theorem hgDualM_minv (s : HgState n) (δ : ℤ) (j : Fin n) :
       if vget s.used j = true then vget s.minv j else vget s.minv j - δ := by
   simp [hgDualM]
 
+@[time_simps]
 private theorem hgDualM_time (s : HgState n) (δ : ℤ) : (hgDualM s δ).time = 3 * n := by
   time_spec hgDualM
 
@@ -428,7 +432,7 @@ private theorem hgRelaxM_path (s : HgState n) (i j₁ j : Fin n) :
       if vget s.used j = false ∧ hgRed c s.y s.z i j < vget s.minv j then
         (i, j) :: vget s.path j₁
       else vget s.path j := by
-  simp only [hgRelaxM, time_simps, vget_ofFnTickM_ret]
+  simp only [hgRelaxM, time_simps]
   by_cases h1 : vget s.used j = false <;> by_cases h2 : hgRed c s.y s.z i j < vget s.minv j <;>
     simp [h1, h2]
 
@@ -460,6 +464,7 @@ private theorem hgInitM_path (y z : Vector ℤ n) (mate : Vector (Option (Fin n)
     vget (hgInitM c y z mate r).ret.path j = [(r, j)] := by
   simp [hgInitM]
 
+@[time_simps]
 private theorem hgInitM_time (y z : Vector ℤ n) (mate : Vector (Option (Fin n)) n) (r : Fin n) :
     (hgInitM c y z mate r).time = 4 * n := by
   time_spec hgInitM
@@ -841,6 +846,7 @@ private theorem hgExtendM_mate (s : HgState n) (j₁ i₀ : Fin n) :
 private theorem hgExtendM_used (s : HgState n) (j₁ i₀ : Fin n) :
     (hgExtendM c s j₁ i₀).ret.used = vset s.used j₁ true := rfl
 
+@[time_simps]
 private theorem hgExtendM_time (s : HgState n) (j₁ i₀ : Fin n) :
     (hgExtendM c s j₁ i₀).time = 2 * n + 1 := by
   time_spec hgExtendM
@@ -918,7 +924,7 @@ private theorem hgLoopM_spec {r : Fin n} :
       obtain ⟨hj₁, hmin⟩ := hgArgminM_some ha
       have hD := hgInv_dual h hj₁ hmin
       have hz := minv_dual_self s hj₁
-      simp only [time_simps, hgDualM_mate, hgDualM_path, hgArgminM_time, hgDualM_time]
+      simp only [time_simps]
       cases hm : vget s.mate j₁ with
       | none =>
         obtain ⟨hO, hL, hT⟩ := hgAugment hD hj₁ hz hm
@@ -936,7 +942,7 @@ private theorem hgLoopM_spec {r : Fin n} :
           rw [hcnt]
           change (mateMatching s.mate).card < fuel + (usedCount s.used + 1)
           omega)
-        simp only [time_simps, hgExtendM_time]
+        simp only [time_simps]
         refine ⟨hO, hL, ?_⟩
         have : (fuel + 1) * (6 * n + 1) = fuel * (6 * n + 1) + (6 * n + 1) := Nat.succ_mul _ _
         omega
@@ -985,7 +991,7 @@ private theorem hgPhaseM_spec {y z : Vector ℤ n} {mate : Vector (Option (Fin n
     unfold usedCount
     simp [hgInitM_used]
   obtain ⟨hO, hL, hT⟩ := hgLoopM_spec n _ hI (by rw [h0, hgInitM_mate]; omega)
-  simp only [hgPhaseM, time_simps, hgInitM_time]
+  simp only [hgPhaseM, time_simps]
   exact ⟨hO, hL, by omega⟩
 
 private theorem hgRowsM_spec :

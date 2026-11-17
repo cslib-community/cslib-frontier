@@ -420,6 +420,7 @@ theorem hkMatchedLeftM_ret (mate : Vector (Option (Fin m)) r) (u : Fin m) :
   rw [matchedLeft_foldl]
   simp
 
+@[time_simps]
 theorem hkMatchedLeftM_time (mate : Vector (Option (Fin m)) r) :
     (hkMatchedLeftM mate).time = m + r := by
   simp [hkMatchedLeftM, replicateM_time]
@@ -656,6 +657,7 @@ section BfsSpec
 
 variable {G : Fin m × Fin r → Bool} {adj : Fin m → List (Fin r)} {mate : Vector (Option (Fin m)) r}
 
+@[time_simps]
 theorem hkBfsLayerM_ret (G : Fin m × Fin r → Bool) (adj : Fin m → List (Fin r))
     (mate : Vector (Option (Fin m)) r) (j : ℕ) (us : List (Fin m)) (s : HKBfsState m) :
     (hkBfsLayerM G adj mate j us s).ret =
@@ -908,7 +910,7 @@ private theorem hkBfsLoopM_time_le (fuel j : ℕ) (dist : Vector (Option ℕ) m)
     have hpot := layerFold_potential (G := G) (mate := mate) (adj := adj) j frontier
       ⟨dist, [], false⟩
     simp only [List.map_nil, List.sum_nil, Nat.add_zero] at hpot
-    simp only [hkBfsLoopM, time_simps, hlayer, hkBfsLayerM_ret]
+    simp only [hkBfsLoopM, time_simps, hlayer]
     set s := frontier.foldl (fun s u => (adj u).foldl (hkBfsStep G mate j u) s)
       (⟨dist, [], false⟩ : HKBfsState m)
     split_ifs
@@ -926,7 +928,7 @@ private theorem sum_hkBfsCost (adj : Fin m → List (Fin r)) :
 theorem hkBfsM_time_le (G : Fin m × Fin r → Bool) (adj : Fin m → List (Fin r))
     (mate : Vector (Option (Fin m)) r) :
     (hkBfsM G adj mate).time ≤ 6 * m + r + 1 + 2 * bipAdjSteps adj := by
-  simp only [hkBfsM, time_simps, hkMatchedLeftM_time, List.length_finRange]
+  simp only [hkBfsM, time_simps, List.length_finRange]
   have hinit := bfsInit_potential (hkMatchedLeftM mate).ret (hkBfsCost adj) (List.finRange m)
     (Vector.replicate m none, [])
   set p := (List.finRange m).foldl (hkBfsInitStep (hkMatchedLeftM mate).ret)

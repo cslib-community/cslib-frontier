@@ -106,7 +106,7 @@ writing into `acc` and charging `1` tick per scanned vertex. -/
     ✓
     rehangM p s t X zs (if vget p z = t ∧ z ∈ X then vset acc z s else acc)
 
-@[simp]
+@[simp, time_simps]
 theorem rehangM_time (p : Vector (Fin n) n) (s t : Fin n) (X : Finset (Fin n)) :
     ∀ (zs : List (Fin n)) (acc : Vector (Fin n) n), (rehangM p s t X zs acc).time = zs.length := by
   time_spec rehangM
@@ -172,11 +172,13 @@ weight update from the maximum flow value (`fl[s] := val`, or on a swap `fl[s] :
   else
     pure { parent := vset (vset q t (vget p t)) s t, weight := vset fl s val }
 
+@[time_simps]
 theorem gusfieldStepM_time (W : Fin n → Fin n → ℕ) (adj : Fin n → List (Fin n))
     (p : Vector (Fin n) n) (fl : Vector ℕ n) (s : Fin n) :
     (gusfieldStepM W adj p fl s).time =
       (edmondsKarpM (Network.mk W s (vget p s)) adj).time + n + 3 := by
-  time_spec gusfieldStepM [rehangM_time]
+  simp only [gusfieldStepM, TimeM.time_bind, TimeM.time_tick, rehangM_time, List.length_finRange]
+  split_ifs <;> simp only [TimeM.time_pure] <;> omega
 
 theorem vget_gusfieldStepM_parent (W : Fin n → Fin n → ℕ) (adj : Fin n → List (Fin n))
     (p : Vector (Fin n) n) (fl : Vector ℕ n) (s : Fin n) (z : Fin n) :
@@ -369,7 +371,7 @@ theorem gomoryHuLoopM_time_le (W : Fin n → Fin n → ℕ) (adj : Fin n → Lis
       have := ih p fl
       omega
     · rw [List.filter_cons_of_pos (by simp [hsr])]
-      simp only [gomoryHuLoopM, time_simps, hsr, ↓reduceIte, gusfieldStepM_time]
+      simp only [gomoryHuLoopM, time_simps, hsr, ↓reduceIte]
       have h1 := ih (gusfieldStepM W adj p fl s).ret.parent (gusfieldStepM W adj p fl s).ret.weight
       have h2 := hB s (vget p s)
       rw [Nat.add_mul, Nat.one_mul]

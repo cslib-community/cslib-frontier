@@ -619,23 +619,27 @@ section TimeMCost
 
 variable {R V : Type}
 
+@[time_simps]
 private theorem ret_evalScopeIdxM (d : ℕ) (σ : V → ℕ) :
     ∀ vs : List V, (evalScopeIdxM d σ vs).ret = Nat.ofDigits d (vs.map σ) := by
   time_spec evalScopeIdxM
 
+@[time_simps]
 private theorem time_evalScopeIdxM (d : ℕ) (σ : V → ℕ) :
     ∀ vs : List V, (evalScopeIdxM d σ vs).time = vs.length := by
   time_spec evalScopeIdxM
 
+@[time_simps]
 private theorem ret_evalFactorProdM [Semiring R] (d : ℕ) (σ : V → ℕ) :
     ∀ fs : List (FactorTable R V),
       (evalFactorProdM d σ fs).ret = (fs.map fun f => f.evalAt d σ).prod := by
-  time_spec evalFactorProdM [ret_evalScopeIdxM]
+  time_spec evalFactorProdM
 
+@[time_simps]
 private theorem time_evalFactorProdM [Semiring R] (d : ℕ) (σ : V → ℕ) :
     ∀ fs : List (FactorTable R V),
       (evalFactorProdM d σ fs).time = fs.length + (fs.map fun f => f.scope.length).sum := by
-  time_spec evalFactorProdM [time_evalScopeIdxM]
+  time_spec evalFactorProdM
 
 private theorem ret_sumVarValuesM [Semiring R] [DecidableEq V] (d : ℕ) (x : V) (σ : V → ℕ)
     (bucket : List (FactorTable R V)) :
@@ -643,14 +647,15 @@ private theorem ret_sumVarValuesM [Semiring R] [DecidableEq V] (d : ℕ) (x : V)
       (sumVarValuesM d x σ bucket c).ret =
         ∑ a ∈ Finset.range c,
           (bucket.map fun f => f.evalAt d fun v => if v = x then a else σ v).prod := by
-  time_spec sumVarValuesM [ret_evalFactorProdM, Finset.sum_range_succ]
+  time_spec sumVarValuesM [Finset.sum_range_succ]
 
+@[time_simps]
 private theorem time_sumVarValuesM [Semiring R] [DecidableEq V] (d : ℕ) (x : V) (σ : V → ℕ)
     (bucket : List (FactorTable R V)) :
     ∀ c : ℕ,
       (sumVarValuesM d x σ bucket c).time =
         c * (1 + bucket.length + (bucket.map fun f => f.scope.length).sum) := by
-  time_spec sumVarValuesM [time_evalFactorProdM]
+  time_spec sumVarValuesM [Nat.succ_mul]
 
 private theorem ret_sumVarValuesM_eq_fin [Semiring R] [DecidableEq V] (d : ℕ) (x : V) (σ : V → ℕ)
     (bucket : List (FactorTable R V)) :
@@ -685,7 +690,7 @@ private theorem time_buildOutEntriesM [Semiring R] [DecidableEq V] (d : ℕ) (x 
       (buildOutEntriesM d x outScope bucket m).time =
         m * (outScope.length +
           d * (1 + bucket.length + (bucket.map fun f => f.scope.length).sum)) := by
-  time_spec buildOutEntriesM [time_sumVarValuesM]
+  time_spec buildOutEntriesM [Nat.succ_mul]
 
 /-- The executable `elimVarM` step computes `elimVar`. -/
 @[time_simps]

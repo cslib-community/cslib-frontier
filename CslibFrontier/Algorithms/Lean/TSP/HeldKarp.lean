@@ -114,7 +114,9 @@ variable [LinearOrder W]
 
 theorem ret_minFoldM_le_acc (g : α → W) (acc : W) (l : List α) :
     (minFoldM g acc l).ret ≤ acc := by
-  time_spec minFoldM
+  induction l generalizing acc with
+  | nil => exact le_rfl
+  | cons i l ih => exact (ih _).trans (min_le_left _ _)
 
 theorem ret_minFoldM_le (g : α → W) (acc : W) {l : List α} {i : α} (hi : i ∈ l) :
     (minFoldM g acc l).ret ≤ g i := by
@@ -449,7 +451,7 @@ theorem length_targets (S : Finset (Fin n)) : (targets S).length = 1 + (n - S.ca
 @[simp, time_simps] theorem time_fillM (d : Fin (n + 1) → Fin (n + 1) → W) (S : Finset (Fin n))
     (l : List (Fin n)) (T : Table n W) (ts : List (Fin (n + 1))) :
     (fillM d S l T ts).time = ts.length * l.length := by
-  time_spec fillM
+  time_spec fillM [Nat.succ_mul]
 
 theorem time_layerM (d : Fin (n + 1) → Fin (n + 1) → W) (T : Table n W)
     (ls : List (List (Fin n))) :

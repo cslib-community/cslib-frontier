@@ -167,6 +167,7 @@ open TimeM
 @[simp] theorem ret_nilRowM : ∀ y : List α, (D.nilRowM y).ret = D.nilRow y := by
   time_spec nilRowM
 
+@[time_simps]
 theorem time_nilRowM : ∀ y : List α, (D.nilRowM y).time = y.length + 1 := by
   time_spec nilRowM
 
@@ -174,27 +175,29 @@ theorem time_nilRowM : ∀ y : List α, (D.nilRowM y).time = y.length + 1 := by
     ∀ (y : List α) (r : List β), (D.stepRowM a y r).ret = D.stepRow a y r := by
   time_spec stepRowM
 
+@[time_simps]
 theorem time_stepRowM (a : α) :
     ∀ (y : List α) (r : List β), (D.stepRowM a y r).time = y.length + 1 := by
   time_spec stepRowM
 
-@[simp] theorem ret_rowM (y : List α) : ∀ x : List α, (D.rowM y x).ret = D.row y x
+@[simp, time_simps] theorem ret_rowM (y : List α) : ∀ x : List α, (D.rowM y x).ret = D.row y x
   | [] => ret_nilRowM D y
   | a :: x => by
     simp only [rowM, ret_bind, ret_stepRowM, ret_rowM y x]
     rfl
 
+@[time_simps]
 theorem time_rowM (y : List α) :
     ∀ x : List α, (D.rowM y x).time = (x.length + 1) * (y.length + 1) := by
-  time_spec rowM [time_nilRowM, time_stepRowM]
+  time_spec rowM [Nat.succ_mul]
 
 /-- `valueM` computes `value`. -/
 @[simp] theorem ret_valueM (x y : List α) : (D.valueM x y).ret = D.value x y := by
-  time_spec valueM [ret_rowM]
+  time_spec valueM
 
 /-- `valueM` charges one unit per table entry: `(|x| + 1) (|y| + 1)` units. -/
 theorem time_valueM (x y : List α) : (D.valueM x y).time = (x.length + 1) * (y.length + 1) := by
-  time_spec valueM [time_rowM]
+  time_spec valueM
 
 end GridDP
 

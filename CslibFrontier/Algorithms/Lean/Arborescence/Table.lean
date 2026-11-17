@@ -140,7 +140,7 @@ per scanned index (`n` ticks total). -/
 
 private theorem time_argMinFinM {β : Type*} [LinearOrder β] (n : ℕ) (pred : Fin n → Bool)
     (val : Fin n → β) : (argMinFinM n pred val).time = n := by
-  time_spec argMinFinM
+  time_spec argMinFinM [List.length_finRange]
 
 private theorem foldl_argAux_skip {α : Type*} (r : α → α → Prop) [DecidableRel r]
     (pred : α → Bool) (l : List α) (acc : Option α) :
@@ -264,7 +264,7 @@ structure CycleSearchState (n : ℕ) where
 @[time_simps]
 private theorem time_hasCycleFromM (x : Fin n) (f : ParentTable n) :
     (hasCycleFromM x f).time = n := by
-  time_spec hasCycleFromM
+  time_spec hasCycleFromM [List.length_range]
 
 private theorem ret_hasCycleFromM (x : Fin n) (f : ParentTable n) :
     (hasCycleFromM x f).ret =
@@ -613,7 +613,8 @@ private theorem ret_contractCostTableM [AddCommMonoid β] (c : CostTable β n)
           | some y => c[u.1][y.1]
           | none => c[u.1][w.1]
         else c[u.1][w.1] := by
-  time_spec contractCostTableM
+  unfold contractCostTableM
+  simp [ret_vectorOfFnM]
 
 /-- Expand a contracted parent vector `q` using the precomputed level tables (`n` ticks). -/
 @[expose] def expandParentTableM (f : ParentTable n) (inCycle : Vector Bool n)

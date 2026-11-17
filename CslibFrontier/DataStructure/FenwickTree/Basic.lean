@@ -387,6 +387,7 @@ theorem addM_time_le_log {α : Type*} [AddCommMonoid α]
   · simp only [TimeM.time_pure]
     omega
 
+@[time_simps]
 private theorem addLoopM_size {α : Type*} [AddCommMonoid α]
     (n m : ℕ) (δ : α) (tree : Array α) :
     (addLoopM n m δ tree).ret.size = tree.size := by
@@ -481,7 +482,7 @@ theorem size_add {α : Type*} [AddCommMonoid α]
     (add t pos δ).size = t.size := by
   unfold add addM size
   split_ifs with hpos
-  · simp only [time_simps, addLoopM_size]
+  · simp only [time_simps]
   · simp only [TimeM.ret_pure]
 
 theorem add_of_size_le {α : Type*} [AddCommMonoid α]

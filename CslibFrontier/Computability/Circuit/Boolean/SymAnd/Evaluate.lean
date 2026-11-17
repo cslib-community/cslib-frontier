@@ -158,7 +158,7 @@ theorem getElem_ret_multiplicityM (gates : List (Finset (Fin n))) (k : ℕ) (hk 
   time_spec multiplicityM [getElem_foldl_multiplicity]
 
 /-- Building the table of multiplicities takes `2 ^ n + s * (n + 1)` ticks. -/
-@[simp] theorem time_multiplicityM (gates : List (Finset (Fin n))) :
+@[simp, time_simps] theorem time_multiplicityM (gates : List (Finset (Fin n))) :
     (multiplicityM gates).time = 2 ^ n + gates.length * (n + 1) := by
   time_spec multiplicityM
 
@@ -209,7 +209,7 @@ theorem ret_truthTableM (C : SymAnd (Fin n)) (gates : List (Finset (Fin n)))
 theorem time_truthTableM (gates : List (Finset (Fin n))) (outM : ℕ → TimeM ℕ Bool) :
     (truthTableM gates outM).time = (n + 2) * 2 ^ n + (n + 2) * gates.length + 1 +
       ∑ j ∈ range (gates.length + 1), (outM j).time := by
-  simp only [truthTableM, time_simps, time_multiplicityM, time_zetaM]
+  simp only [truthTableM, time_simps]
   rw [Fin.sum_univ_eq_sum_range (fun j => 1 + (outM j).time), sum_add_distrib]
   simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, card_range, smul_eq_mul,
     mul_one]

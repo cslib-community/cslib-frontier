@@ -483,7 +483,7 @@ theorem time_cellM (tbl : Table G) (i l : ℕ) : (cellM G w tbl i l).time = cell
 @[time_simps]
 theorem time_levelM (tbl : Table G) (l : ℕ) :
     (levelM G w tbl l).time = (w.length + 1 - l) * cellCost G l := by
-  time_spec levelM
+  time_spec levelM [List.length_range]
 
 @[simp] theorem ret_tableM (L : ℕ) : (tableM G w L).ret = table G w L := by
   induction L with

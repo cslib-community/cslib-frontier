@@ -150,7 +150,7 @@ theorem ret_subsetListM (xs LB : List V) :
 @[time_simps]
 theorem time_subsetListM (xs LB : List V) :
     (subsetListM xs LB).time = xs.length * (LB.length + 1) := by
-  time_spec subsetListM
+  time_spec subsetListM [Nat.succ_mul]
 
 /-- Evaluate all zero-arity constraints of `F` on a constant `Fin q` assignment. -/
 @[expose] def checkNilScopeM {q : ℕ} (hq : 0 < q) (sem : Rel → List (Fin q) → Bool) :
@@ -168,7 +168,13 @@ omit [DecidableEq V] in
 theorem ret_checkNilScopeM {q : ℕ} (hq : 0 < q) (sem : Rel → List (Fin q) → Bool) (F : CSP Rel V) :
     (checkNilScopeM hq sem F).ret =
       F.all fun c => !decide (c.scope = []) || c.eval sem (fun _ => ⟨0, hq⟩) := by
-  time_spec checkNilScopeM [Constraint.eval]
+  induction F with
+  | nil => rfl
+  | cons c F ih =>
+    simp only [checkNilScopeM, TimeM.ret_bind, TimeM.ret_pure, ih, List.all_cons]
+    cases hc : c.scope with
+    | nil => simp [Constraint.eval, hc]
+    | cons _ _ => simp
 
 omit [DecidableEq V] in
 theorem time_checkNilScopeM {q : ℕ} (hq : 0 < q) (sem : Rel → List (Fin q) → Bool) (F : CSP Rel V) :
@@ -187,6 +193,7 @@ theorem time_checkNilScopeM {q : ℕ} (hq : 0 < q) (sem : Rel → List (Fin q) �
     TimeM.tick 1
     pure ((!(hsub && hv) || sem c.rel vals) && r)
 
+@[time_simps]
 theorem ret_checkIntroScopeM {q : ℕ} (hq : 0 < q) (sem : Rel → List (Fin q) → Bool)
     (v : V) (LB : List V) (m : ℕ) (F : CSP Rel V) :
     (checkIntroScopeM q hq sem v LB m F).ret =
@@ -199,7 +206,13 @@ theorem time_checkIntroScopeM (q : ℕ) (hq : 0 < q) (sem : Rel → List (Fin q)
     (v : V) (LB : List V) (m : ℕ) (F : CSP Rel V) :
     (checkIntroScopeM q hq sem v LB m F).time =
       F.length + F.vars.length * (2 * LB.length + 3) := by
-  time_spec checkIntroScopeM [CSP.vars]
+  induction F with
+  | nil => simp [checkIntroScopeM, CSP.vars]
+  | cons c F ih =>
+    simp only [checkIntroScopeM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure,
+      time_subsetListM, time_memM, time_evalScopeM, ih, List.length_cons, CSP.vars,
+      List.flatMap_cons, List.length_append]
+    ring
 
 /-- Encode `Function.update (ofRadix q LB m) v d` along `LP`. -/
 @[expose] def projectUpdateM (q : ℕ) (v : V) (d : ℕ) (LB : List V) (m : ℕ) :
@@ -218,7 +231,7 @@ theorem ret_projectUpdateM {q : ℕ} (hq : 0 < q) (v : V) (d : ℕ) (LB LP : Lis
   | cons u LP ih =>
     by_cases huv : u = v
     · simp only [projectUpdateM, huv, ite_true, time_simps, ih, toRadix_cons, Function.update_self]
-    · simp only [projectUpdateM, huv, ite_false, time_simps, ret_lookupM, ih, toRadix_cons,
+    · simp only [projectUpdateM, huv, ite_false, time_simps, ih, toRadix_cons,
         Function.update_of_ne huv, Nat.mod_eq_of_lt (ofRadix_lt hq LB m u)]
 
 theorem time_projectUpdateM_le (q : ℕ) (v : V) (d : ℕ) (LB LP : List V) (m : ℕ) :
@@ -747,7 +760,7 @@ private theorem getD_dpTreeM {β : Type} (A : DPAlg β) (q : ℕ) (hq : 0 < q)
       exact ofRadix_cons_ne huv (bagList child) m
     simp only [dpTreeM, bagList, TimeM.ret_bind]
     rw [getD_tableLoopM _ (by simpa [bagList] using hm) A.zero]
-    simp only [time_simps, ret_checkIntroScopeM, hbagT, dpSpec]
+    simp only [time_simps, hbagT, dpSpec]
     rw [ih, dpSpec_congr A q hq sem F F.vars.toFinset hval.2 fun u hu => (hcongr u hu).symm]
   | .forget v child, hval, m, hm => by
     have hbagC : (bagList child).toFinset = child.bag := toFinset_bagList hval.2

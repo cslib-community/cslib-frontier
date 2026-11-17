@@ -345,9 +345,10 @@ private def credit (labels : List α) (g : Graph (α → α)) (S : State α) : �
   S.wpot (weight labels g) + pass labels * S.comp.length
 
 /-- `visitAllM` costs three passes per edge. -/
+@[time_simps]
 theorem visitAllM_time (labels : List α) (l : List (Edge (α → α))) (S : State α) :
     (visitAllM labels S l).time = 3 * pass labels * l.length := by
-  time_spec visitAllM [visitM]
+  time_spec visitAllM [visitM, Nat.mul_succ]
 
 private theorem scanM_time (labels : List α) {g : Graph (α → α)}
     {bs : List (List (Edge (α → α)))} (hbs : ∀ u, bs.getD u [] = adj g u) {S : State α}
@@ -357,7 +358,7 @@ private theorem scanM_time (labels : List α) {g : Graph (α → α)}
   cases hst : S.stack with
   | nil => simp [scan_nil labels g hst]
   | cons u rest =>
-    simp only [time_simps, visitAllM_time, hbs]
+    simp only [time_simps, hbs]
     rw [scan_cons labels g hst]
     set S1 : State α := { S with stack := rest, comp := u :: S.comp } with hS1
     have hstep := foldl_visit_step labels (adj g u) (S := S1) (adj_bounds hlen u)
@@ -398,10 +399,11 @@ omit [DecidableEq α] in
 /-- `freezeAllM` costs one pass per slot. -/
 theorem freezeAllM_time (labels : List α) (c : α) (l : List ℕ) (t : List (Option (α → α))) :
     (freezeAllM labels c t l).time = pass labels * l.length := by
-  time_spec freezeAllM
+  time_spec freezeAllM [Nat.mul_succ]
 
 omit [DecidableEq α] in
 /-- `settleM` costs one pass plus one pass per slot of the component. -/
+@[time_simps]
 theorem settleM_time [Inhabited α] (labels : List α) (S : State α) :
     (settleM labels S).time = pass labels + pass labels * S.comp.length := by
   simp [settleM, freezeAllM_time]
@@ -433,7 +435,7 @@ private theorem stepM_time [Inhabited α] (labels : List α) {g : Graph (α → 
   cases hs : S.get e.src with
   | some _ => simp only [time_simps]; omega
   | none =>
-    simp only [time_simps, settleM_time, exploreM_ret labels hbs]
+    simp only [time_simps, exploreM_ret labels hbs]
     have hlt : e.src < S.table.length := hlen ▸ src_lt_slots he
     have h1 := exploreM_time labels hbs (slots g) (S := start S e.src)
       (by simp [start, hlen])

@@ -673,13 +673,13 @@ theorem filterFinsetM_time {α : Type*} [DecidableEq α] (p : α → Bool)
 @[expose] def extractFinsetM {n : ℕ} (p : Fin n → Bool) : TimeM ℕ (Finset (Fin n)) :=
   filterFinsetM p (List.finRange n) ∅
 
-@[simp]
+@[simp, time_simps]
 theorem extractFinsetM_ret {n : ℕ} (p : Fin n → Bool) :
     (extractFinsetM p).ret = Finset.univ.filter fun v => p v = true := by
   ext v
   simp [extractFinsetM, mem_filterFinsetM_ret, List.mem_finRange]
 
-@[simp]
+@[simp, time_simps]
 theorem extractFinsetM_time {n : ℕ} (p : Fin n → Bool) :
     (extractFinsetM p).time = n := by
   simp [extractFinsetM]
@@ -1092,7 +1092,21 @@ private theorem scanNeighborsM_time {n : ℕ} {N : Network (Fin n)} (f : N.Flow)
 private theorem expandLayerM_time_le {n : ℕ} {N : Network (Fin n)} (f : N.Flow)
     (adj : Fin n → List (Fin n)) (us : List (Fin n)) (st : BfsState f) :
     (expandLayerM f adj us st).time ≤ (us.map fun u => 1 + (adj u).length).sum := by
-  time_spec expandLayerM
+  induction us generalizing st with
+  | nil => simp [expandLayerM]
+  | cons u us' ih =>
+    simp only [List.map_cons, List.sum_cons]
+    rw [expandLayerM, TimeM.time_bind, TimeM.time_tick]
+    dsimp only
+    split
+    · simp only [TimeM.time_bind, TimeM.ret_pure, TimeM.time_pure]
+      have hrec := ih st
+      omega
+    · rename_i rp_u hget
+      simp only [TimeM.time_bind, scanNeighborsM_time]
+      have hrec := ih (scanNeighborsM f u rp_u (st.tblValid.walk u rp_u hget) (adj u) st
+        (st.tblValid.mem_isSome u rp_u hget)).ret
+      omega
 
 private theorem scanNeighborsM_preserves {n : ℕ} {N : Network (Fin n)} {f : N.Flow} {d : ℕ}
     {baseTbl : Vector (Option (List (Fin n))) n}
@@ -1522,7 +1536,7 @@ theorem initFlowMatrixM_toFlow {n : ℕ} (N : Network (Fin n)) :
   ext u v
   simp [initFlowMatrixM, fget]
 
-@[simp]
+@[simp, time_simps]
 theorem initFlowMatrixM_time {n : ℕ} (N : Network (Fin n)) :
     (initFlowMatrixM N).time = 2 * n := by
   time_spec initFlowMatrixM
@@ -1628,7 +1642,7 @@ theorem augmentFlowMatrixM_toFlow {n : ℕ} {N : Network (Fin n)} (M : FlowMatri
     (fun e he => ne_of_mem_pathArcs hp.nodup he)
     (fun a b hab => not_swap_mem_pathArcs hp.nodup hab) M.mat u v
 
-@[simp]
+@[simp, time_simps]
 theorem augmentFlowMatrixM_time {n : ℕ} {N : Network (Fin n)} (M : FlowMatrix N)
     (p : List (Fin n)) (hp : M.toFlow.IsAugmentingPath p) :
     (augmentFlowMatrixM M p hp).time = 2 * (pathArcs p).length := by
@@ -1757,7 +1771,7 @@ private theorem edmondsKarpLoopM_spec {n : ℕ} {N : Network (Fin n)}
       simpa [TimeM.ret_pure, TimeM.time_pure] using
         edmondsKarpLoopM_stop hadj hst hseq haug
     · rename_i p haug
-      simp only [time_simps, augmentFlowMatrixM_time]
+      simp only [time_simps]
       obtain ⟨hshort, hplen⟩ := hbfs.1 p haug
       have hp : M.toFlow.IsAugmentingPath p := (bfsM N adj M.toFlow).ret.augPath_valid p haug
       have hshort' : (flows k).IsShortestAugmentingPath p := hfk ▸ hshort
@@ -1842,7 +1856,7 @@ theorem edmondsKarpM_time_le {n : ℕ} {N : Network (Fin n)} {adj : Fin n → Li
     (edmondsKarpM N adj).time ≤ (N.symArcs.card * (n / 2) + 2) * (adjSteps adj + 5 * n) := by
   have hn : 0 < n := Nat.zero_lt_of_lt N.s.isLt
   unfold edmondsKarpM
-  simp only [time_simps, initFlowMatrixM_time]
+  simp only [time_simps]
   by_cases hst : N.s = N.t
   · simp only [hst, ↓reduceIte, TimeM.time_pure]
     have hbase : 2 * n + (1 + 0) ≤ 2 * (adjSteps adj + 5 * n) := by omega

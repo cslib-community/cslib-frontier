@@ -39,8 +39,8 @@ by arithmetic.
 ## The tactic
 
 `time_spec p` proves a specification of the program `p`, and `time_spec p [h₁, h₂]` passes more
-simp lemmas, such as the definition of the pure function that `p` computes. See its docstring for
-the steps and for the goals it leaves.
+simp lemmas, such as the definition of the pure function that `p` computes. It is the whole proof.
+See its docstring for the steps and for what it reports when it cannot close a goal.
 
 ## Main definitions
 
@@ -68,30 +68,44 @@ It runs three steps.
 
 1. Introduce the variables of a statement `∀ x, …`, then open `p` by `fun_induction p` or, when
    that does not apply, by `fun_cases p`. A recursive program gives one goal for each branch, with
-   the induction hypotheses for its recursive calls. Write `time_spec (p x y)` to choose among
-   several calls of `p` in the goal.
+   the induction hypotheses for its recursive calls.
 2. On each goal, `simp only [time_simps, h₁, h₂]`, with `true_and`, `and_true` and `and_self` for
    a statement that is a conjunction. After `fun_induction` the hypotheses are rewrite rules too
    (`simp only [time_simps, h₁, h₂, *]`): this is how an induction hypothesis that is an equation
    is used. The `*` also takes the hypotheses of the theorem; after `fun_cases` there is no `*`.
-3. Close each goal by the first of `rfl`, `omega` and `grind` that succeeds. If none does, `split`
-   the first `if` or `match` in the goal, repeat step 2 and close every case in the same way.
+3. Close each goal by `rfl` or `omega`. If neither does, `split` the first `if` or `match` in the
+   goal, repeat step 2 and close every case by `rfl` or `omega`. If that fails too, try `grind` on
+   the goal, and last on its cases after the same `split`.
 
-A goal that step 3 cannot close is left as step 2 produced it, without the split, so `time_spec p`
-followed by more tactics is a proof by normalization: for a bound that needs the bounds of the
-programs `p` calls, state those with `have` and finish with `omega`. The tactic fails only when
-neither `fun_induction p` nor `fun_cases p` applies, for instance when the goal has no call of `p`
-or `p` is applied to terms that are not variables.
+`grind` is the last resort. When the goal is arithmetic that `omega` does not do, pass the fact in
+the list and `omega` closes it: `time_spec p [Nat.succ_mul]` for `(k + 1) * c = k * c + c`,
+`time_spec p [List.length_finRange]` for a loop over `List.finRange n`.
+
+The proof may depend on the axioms `propext`, `Quot.sound` and `Classical.choice`. `grind` proves by
+contradiction, so it brings `Classical.choice`. A rewrite with a tagged specification brings the
+axioms of that specification's proof, and a statement about the cost of `p` is rewritten with the
+specifications of the values that `p` computes on the way. Check with `#print axioms` when a result
+must avoid one of them.
+
+`time_spec p` is meant to be the whole proof. A goal that step 3 cannot close is left as step 2
+produced it, without the split, so the error is `unsolved goals` on the normalized goal, which shows
+what is missing: usually the specification of a program that `p` calls, or a definition to pass in
+the list. The tactic itself fails only when neither `fun_induction p` nor `fun_cases p` applies, for
+instance when the goal has no call of `p` or `p` is applied to terms that are not variables.
+
+For a statement that needs more than this, such as a bound that uses the bounds of the programs `p`
+calls, do not continue after `time_spec`: write `simp only [p, time_simps]`, state those bounds with
+`have`, and finish with `omega`.
 
 The specifications of the programs that `p` calls must be in `time_simps` or among `h₁`, `h₂`, and
 so must the definition of a pure function that the statement compares `p` with.
 -/
-syntax (name := timeSpec) "time_spec" (ppSpace colGt term:max)
+syntax (name := timeSpec) "time_spec" (ppSpace colGt ident)
   (" [" Lean.Parser.Tactic.simpLemma,* "]")? : tactic
 
 open Lean in
 macro_rules
-  | `(tactic| time_spec $f:term $[[$extra,*]]?) => do
+  | `(tactic| time_spec $f:ident $[[$extra,*]]?) => do
     let lemmas : Array (TSyntax ``Parser.Tactic.simpLemma) :=
       extra.map (·.getElems) |>.getD #[]
     -- An unhygienic reference: the simp set is found by its name.
@@ -105,9 +119,17 @@ macro_rules
         `(tactic| try simp only [$set:ident, true_and, and_true, and_self, *])
       else
         `(tactic| try simp only [$set:ident, true_and, and_true, and_self, $lemmas,*, *])
+    -- `grind` is the last resort: it runs on a goal only after `rfl` and `omega` have failed on it
+    -- and on its cases.
+    let arith ← `(tactic| first | rfl | omega)
     let close ← `(tactic| first | rfl | omega | grind)
     let finish (simpStep : TSyntax `tactic) : MacroM (TSyntax `tactic) :=
-      `(tactic| first | $close:tactic | (split <;> ($simpStep:tactic) <;> $close:tactic) | skip)
+      `(tactic| first
+        | $arith:tactic
+        | (split <;> ($simpStep:tactic) <;> $arith:tactic)
+        | grind
+        | (split <;> ($simpStep:tactic) <;> $close:tactic)
+        | skip)
     let finishInd ← finish simpInd
     let finishCases ← finish simpCases
     `(tactic| intros; first

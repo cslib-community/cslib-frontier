@@ -779,7 +779,31 @@ private theorem mem_extractMatchingRowM_ret {m r : ℕ} {G : Fin m × Fin r → 
     (acc : Finset (Fin m × Fin r)) (e : Fin m × Fin r) :
     e ∈ (extractMatchingRowM f u vs acc).ret ↔
       e ∈ acc ∨ (e.1 = u ∧ e.2 ∈ vs ∧ 0 < f (.left u) (.right e.2)) := by
-  time_spec extractMatchingRowM
+  induction vs generalizing acc with
+  | nil => simp [extractMatchingRowM]
+  | cons v vs' ih =>
+    simp only [extractMatchingRowM, TimeM.ret_bind, ih, List.mem_cons]
+    rcases e with ⟨u', v'⟩
+    by_cases hpos : 0 < f (.left u) (.right v)
+    · simp only [hpos, ↓reduceIte, Finset.mem_insert, Prod.mk.injEq]
+      constructor
+      · rintro ((⟨rfl, rfl⟩ | hacc) | ⟨rfl, hvs, hp⟩)
+        · exact .inr ⟨rfl, .inl rfl, hpos⟩
+        · exact .inl hacc
+        · exact .inr ⟨rfl, .inr hvs, hp⟩
+      · rintro (hacc | ⟨rfl, rfl | hvs, hp⟩)
+        · exact .inl (.inr hacc)
+        · exact .inl (.inl ⟨rfl, rfl⟩)
+        · exact .inr ⟨rfl, hvs, hp⟩
+    · simp only [hpos, ↓reduceIte]
+      constructor
+      · rintro (hacc | ⟨rfl, hvs, hp⟩)
+        · exact .inl hacc
+        · exact .inr ⟨rfl, .inr hvs, hp⟩
+      · rintro (hacc | ⟨rfl, rfl | hvs, hp⟩)
+        · exact .inl hacc
+        · exact absurd hp hpos
+        · exact .inr ⟨rfl, hvs, hp⟩
 
 @[time_simps]
 private theorem extractMatchingRowM_time {m r : ℕ} {G : Fin m × Fin r → Bool}
@@ -803,26 +827,39 @@ private theorem mem_extractMatchingLoopM_ret {m r : ℕ} {G : Fin m × Fin r →
     (acc : Finset (Fin m × Fin r)) (e : Fin m × Fin r) :
     e ∈ (extractMatchingLoopM f us acc).ret ↔
       e ∈ acc ∨ (e.1 ∈ us ∧ 0 < f (.left e.1) (.right e.2)) := by
-  time_spec extractMatchingLoopM [mem_extractMatchingRowM_ret]
+  induction us generalizing acc with
+  | nil => simp [extractMatchingLoopM]
+  | cons u us' ih =>
+    simp only [extractMatchingLoopM, TimeM.ret_bind, ih, mem_extractMatchingRowM_ret,
+      List.mem_finRange, true_and, List.mem_cons]
+    constructor
+    · rintro ((hacc | ⟨he1, hp⟩) | ⟨hus, hp⟩)
+      · exact .inl hacc
+      · exact .inr ⟨.inl he1, he1 ▸ hp⟩
+      · exact .inr ⟨.inr hus, hp⟩
+    · rintro (hacc | ⟨he1 | hus, hp⟩)
+      · exact .inl (.inl hacc)
+      · exact .inl (.inr ⟨he1, he1 ▸ hp⟩)
+      · exact .inr ⟨hus, hp⟩
 
 private theorem extractMatchingLoopM_time {m r : ℕ} {G : Fin m × Fin r → Bool}
     (f : (bipartiteNetwork G).Flow) (us : List (Fin m)) (acc : Finset (Fin m × Fin r)) :
     (extractMatchingLoopM f us acc).time = us.length * (r + 1) := by
-  time_spec extractMatchingLoopM
+  time_spec extractMatchingLoopM [List.length_finRange, Nat.succ_mul]
 
 /-- Extract `flowToMatching f` in `m * (r + 1)` charged `TimeM` ticks. -/
 @[expose] def extractMatchingM {m r : ℕ} {G : Fin m × Fin r → Bool}
     (f : (bipartiteNetwork G).Flow) : TimeM ℕ (Finset (Fin m × Fin r)) :=
   extractMatchingLoopM f (List.finRange m) ∅
 
-@[simp]
+@[simp, time_simps]
 theorem extractMatchingM_ret {m r : ℕ} {G : Fin m × Fin r → Bool}
     (f : (bipartiteNetwork G).Flow) :
     (extractMatchingM f).ret = flowToMatching f := by
   ext e
   simp [extractMatchingM, mem_extractMatchingLoopM_ret, List.mem_finRange, flowToMatching]
 
-@[simp]
+@[simp, time_simps]
 theorem extractMatchingM_time {m r : ℕ} {G : Fin m × Fin r → Bool}
     (f : (bipartiteNetwork G).Flow) :
     (extractMatchingM f).time = m * (r + 1) := by
@@ -844,7 +881,23 @@ private theorem hasUncoveredRightM_ret {m r : ℕ} (G : Fin m × Fin r → Bool)
     (cut : Finset (Fin (2 + (m + r)))) (u : Fin m) (vs : List (Fin r)) :
     (hasUncoveredRightM G cut u vs).ret = true ↔
       ∃ v ∈ vs, G (u, v) = true ∧ bipartiteFinEquiv m r (.right v) ∉ cut := by
-  time_spec hasUncoveredRightM
+  induction vs with
+  | nil => simp [hasUncoveredRightM]
+  | cons v vs' ih =>
+    simp only [hasUncoveredRightM, TimeM.ret_bind, List.mem_cons]
+    by_cases h : (G (u, v) && decide (bipartiteFinEquiv m r (.right v) ∉ cut)) = true
+    · simp only [h, ↓reduceIte, TimeM.ret_pure, true_iff]
+      obtain ⟨hG, hnot⟩ := Bool.and_eq_true_iff.mp h
+      exact ⟨v, .inl rfl, hG, of_decide_eq_true hnot⟩
+    · simp only [h, Bool.false_eq_true, ↓reduceIte, ih]
+      constructor
+      · rintro ⟨w, hw, hGw, hnw⟩
+        exact ⟨w, .inr hw, hGw, hnw⟩
+      · rintro ⟨w, rfl | hw, hGw, hnw⟩
+        · exfalso
+          apply h
+          exact Bool.and_eq_true_iff.mpr ⟨hGw, decide_eq_true hnw⟩
+        · exact ⟨w, hw, hGw, hnw⟩
 
 private theorem hasUncoveredRightM_time_le {m r : ℕ} (G : Fin m × Fin r → Bool)
     (cut : Finset (Fin (2 + (m + r)))) (u : Fin m) (vs : List (Fin r)) :
@@ -912,12 +965,12 @@ private theorem extractCoverLeftLoopM_time_le {m r : ℕ} (G : Fin m × Fin r �
   let right ← extractFinsetM fun v : Fin r => decide (bipartiteFinEquiv m r (.right v) ∈ cut)
   pure ⟨left, right⟩
 
-@[simp]
+@[simp, time_simps]
 theorem extractCoverM_ret {m r : ℕ} (G : Fin m × Fin r → Bool)
     (cut : Finset (Fin (2 + (m + r)))) :
     (extractCoverM G cut).ret =
       cutToVertexCover G (Network.cutOfReindex (bipartiteFinEquiv m r) cut) := by
-  simp only [extractCoverM, time_simps, extractFinsetM_ret]
+  simp only [extractCoverM, time_simps]
   unfold cutToVertexCover
   congr 1
   · ext u
@@ -928,7 +981,7 @@ theorem extractCoverM_ret {m r : ℕ} (G : Fin m × Fin r → Bool)
 theorem extractCoverM_time_le {m r : ℕ} (G : Fin m × Fin r → Bool)
     (cut : Finset (Fin (2 + (m + r)))) :
     (extractCoverM G cut).time ≤ m * (r + 1) + r := by
-  simp only [extractCoverM, time_simps, extractFinsetM_time]
+  simp only [extractCoverM, time_simps]
   have hL := extractCoverLeftLoopM_time_le G cut (List.finRange m) ∅
   simp only [List.length_finRange] at hL
   omega
@@ -967,7 +1020,7 @@ theorem bipartiteMatchingM_correct {m r : ℕ} (G : Fin m × Fin r → Bool) :
     edmondsKarpDenseM_correct hst
   let f := out.flow.ofReindex (bipartiteFinEquiv m r)
   let S := Network.cutOfReindex (bipartiteFinEquiv m r) out.cut
-  simp only [bipartiteMatchingM, time_simps, extractMatchingM_ret, extractCoverM_ret]
+  simp only [bipartiteMatchingM, time_simps]
   change IsMaxMatching G (flowToMatching f) ∧
     IsMinVertexCover G (cutToVertexCover G S) ∧
     (flowToMatching f).card = (cutToVertexCover G S).size
@@ -1000,7 +1053,7 @@ theorem bipartiteMatchingM_time_le {m r : ℕ} (G : Fin m × Fin r → Bool) :
     let N_v := 2 + (m + r)
     (bipartiteMatchingM G).time ≤ (N_v * N_v * (N_v / 2) + 4) * (N_v * N_v + 5 * N_v) := by
   intro N_v
-  simp only [bipartiteMatchingM, time_simps, extractMatchingM_time]
+  simp only [bipartiteMatchingM, time_simps]
   have hek : (edmondsKarpDenseM (bipartiteFinNetwork G)).time ≤
       (N_v * N_v * (N_v / 2) + 2) * (N_v * N_v + 5 * N_v) :=
     edmondsKarpDenseM_time_le (bipartiteFinNetwork G)

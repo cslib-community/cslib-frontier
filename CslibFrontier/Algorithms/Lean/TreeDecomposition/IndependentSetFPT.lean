@@ -221,7 +221,7 @@ theorem getD_childPassM (w : V → ℕ) {LB : List V} (hLB : LB.Nodup) (LP : Lis
   induction c with
   | zero => simp [childPassM]
   | succ c ih =>
-    simp only [childPassM, time_simps, ret_keyM, ret_forgetWeightM w LP hLB]
+    simp only [childPassM, time_simps, ret_forgetWeightM w LP hLB]
     rw [Finset.range_add_one, Finset.filter_insert]
     by_cases hok : (indepM G LB c).ret = true
     · have hind := (ret_indepM G LB c).1 hok
@@ -317,7 +317,7 @@ theorem getD_processM (R : G.RootedTreeDecomposition n) (w : V → ℕ) {L : Fin
     (hg : ∀ i, ∀ s < 2 ^ (L i).length, st[i].getD s 0 = g i (ofMask (L i) s)) (j i : Fin (n + 1))
     {s : ℕ} (hs : s < 2 ^ (L i).length) :
     (processM R w L st j).ret[i].getD s 0 = step R w g j i (ofMask (L i) s) := by
-  simp only [processM, time_simps, ret_zerosM]
+  simp only [processM, time_simps]
   unfold step
   by_cases hi : i = R.parent j
   · subst hi
@@ -392,17 +392,17 @@ variable {V : Type*} [DecidableEq V] (G : SimpleGraph V) [DecidableRel G.Adj]
 theorem time_childPassM (w : V → ℕ) (LB LP : List V) (f init : Array ℕ) (c : ℕ) :
     (childPassM G w LB LP f init c).time = c * (indepCost LB.length +
       LP.length * (LB.length + 1) + LB.length * (LP.length + 1) + 4) := by
-  time_spec childPassM
+  time_spec childPassM [Nat.succ_mul]
 
 omit [DecidableRel G.Adj] in
 @[time_simps]
 theorem time_parentPassM (LB LP : List V) (old best : Array ℕ) (c : ℕ) :
     (parentPassM LB LP old best c).time = c * (LP.length * (LB.length + 1) + 3) := by
-  time_spec parentPassM
+  time_spec parentPassM [Nat.succ_mul]
 
 theorem time_rootPassM (w : V → ℕ) (L : List V) (tbl : Array ℕ) (c : ℕ) :
     (rootPassM G w L tbl c).time = c * (indepCost L.length + L.length + 3) := by
-  time_spec rootPassM
+  time_spec rootPassM [Nat.succ_mul]
 
 variable {G} {n : ℕ}
 

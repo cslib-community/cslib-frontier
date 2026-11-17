@@ -551,21 +551,25 @@ private theorem time_scanM (adj : V → List (V × W)) (d : V → WithTop W) (u 
     (scanM adj d u).time = 1 + (adj u).length := by
   time_spec scanM [relaxM]
 
+@[time_simps]
 theorem ret_roundM (adj : V → List (V × W)) (vs : List V) (d : V → WithTop W) :
     (roundM adj vs d).ret = round adj vs d := by
   time_spec roundM [round]
 
+@[time_simps]
 theorem time_roundM (adj : V → List (V × W)) (vs : List V) (d : V → WithTop W) :
     (roundM adj vs d).time = vs.length + (vs.map fun u => (adj u).length).sum := by
   time_spec roundM [List.sum_map_add]
 
+@[time_simps]
 theorem ret_roundsM (adj : V → List (V × W)) (vs : List V) (k : ℕ) (d : V → WithTop W) :
     (roundsM adj vs k d).ret = (round adj vs)^[k] d := by
-  time_spec roundsM [ret_roundM, Function.iterate_succ_apply']
+  time_spec roundsM [Function.iterate_succ_apply']
 
+@[time_simps]
 theorem time_roundsM (adj : V → List (V × W)) (vs : List V) (k : ℕ) (d : V → WithTop W) :
     (roundsM adj vs k d).time = k * (vs.length + (vs.map fun u => (adj u).length).sum) := by
-  time_spec roundsM [time_roundM]
+  time_spec roundsM [Nat.succ_mul]
 
 omit [DecidableEq V] [AddCommMonoid W] [LinearOrder W] in
 private theorem foldl_cond {α γ : Type*} (q : α → Bool) :
@@ -592,11 +596,13 @@ private theorem time_checkScanM (adj : V → List (V × W)) (d : V → WithTop W
   time_spec checkScanM [testM]
 
 omit [DecidableEq V] in
+@[time_simps]
 theorem ret_checkM (adj : V → List (V × W)) (vs : List V) (d : V → WithTop W) :
     (checkM adj vs d).ret = if check adj vs d then some d else none := by
   time_spec checkM [foldl_cond, check]
 
 omit [DecidableEq V] in
+@[time_simps]
 theorem time_checkM (adj : V → List (V × W)) (vs : List V) (d : V → WithTop W) :
     (checkM adj vs d).time = vs.length + (vs.map fun u => (adj u).length).sum := by
   time_spec checkM [List.sum_map_add]
@@ -604,14 +610,14 @@ theorem time_checkM (adj : V → List (V × W)) (vs : List V) (d : V → WithTop
 /-- `bellmanFordM` computes `bellmanFord`. -/
 theorem ret_bellmanFordM (adj : V → List (V × W)) (vs : List V) (s : V) :
     (bellmanFordM adj vs s).ret = bellmanFord adj vs s := by
-  time_spec bellmanFordM [initM, ret_roundsM, ret_checkM, bellmanFord, distances]
+  time_spec bellmanFordM [initM, bellmanFord, distances]
 
 /-- **Cost of Bellman–Ford**: `n + n (n + m)` units for `n = |vs|` vertices and `m` adjacency-list
 entries, that is, `O(V E)` for a graph with at least as many edges as vertices. -/
 theorem time_bellmanFordM (adj : V → List (V × W)) (vs : List V) (s : V) :
     (bellmanFordM adj vs s).time =
       vs.length + vs.length * (vs.length + (vs.map fun u => (adj u).length).sum) := by
-  simp only [bellmanFordM, initM, time_simps, time_roundsM, time_checkM]
+  simp only [bellmanFordM, initM, time_simps]
   cases vs with
   | nil => simp
   | cons a l =>
