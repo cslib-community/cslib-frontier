@@ -66,7 +66,7 @@ variable (hash : List Bool → List Bool → List Bool)
 /-! ### Lengths of labels -/
 
 /-- A defaulted lookup in words of at most `k + 2` bits has at most `k + 2` bits. -/
-private theorem length_getD_le {k : ℕ} {ws : List (List Bool)}
+theorem length_getD_le {k : ℕ} {ws : List (List Bool)}
     (hws : ∀ w ∈ ws, w.length ≤ k + 2) (i : ℕ) : (ws.getD i []).length ≤ k + 2 := by
   rw [List.getD_eq_getElem?_getD]
   cases h : ws[i]? with
@@ -353,7 +353,7 @@ private theorem zeroStep_polyTime :
   polytime [zeroStep, zeroGate]
 
 /-- A label read at a wire number written in binary, capped by the number of labels. -/
-private theorem labelAt_polyTime {γ : Type} {encIn : γ ↪ List Bool}
+theorem labelAt_polyTime {γ : Type} {encIn : γ ↪ List Bool}
     {labels : γ → List (List Bool)} {u : γ → List Bool}
     (hlabels : ComputableInPolyTime labels encIn (encList encBits))
     (hu : ComputableInPolyTime u encIn encBits) :
@@ -362,7 +362,7 @@ private theorem labelAt_polyTime {γ : Type} {encIn : γ ↪ List Bool}
   polytime
 
 /-- The sum of two words, cut to `k + 2` bits. -/
-private theorem xorCut_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k : γ → ℕ}
+theorem xorCut_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k : γ → ℕ}
     {a b : γ → List Bool} (hk : ComputableInPolyTime k encIn encUnary)
     (ha : ComputableInPolyTime a encIn encBits) (hb : ComputableInPolyTime b encIn encBits) :
     ComputableInPolyTime (fun x => (List.zipWith xor (a x) (b x)).take (k x + 2)) encIn
