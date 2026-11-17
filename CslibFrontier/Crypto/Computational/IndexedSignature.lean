@@ -7,15 +7,13 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Crypto.Computational.Signature
 public import CslibFrontier.Crypto.Encoding
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
-import CslibFrontier.Computability.Probabilistic.Oracle.Tidy
-import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
-import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.PPT
 import CslibFrontier.Tactic.EncLen
@@ -61,6 +59,8 @@ every word with the total decoder `requestDecoder`.
 
 ## Main results
 
+* `Cslib.Crypto.IndexedSignatureScheme.exists_sign_length_bound`: a plain polynomial-time bound on
+  signature lengths in the security parameter and the message length.
 * `Cslib.Crypto.IndexedSignatureScheme.isPPTOn_run_indexedSigningOracle`,
   `Cslib.Crypto.IndexedSignatureScheme.isPPTOn_indexedEufCmaGame`: strict PPT certificates for
   running an oracle-PPT forger against the signing oracle, and for the whole game.
@@ -131,6 +131,25 @@ namespace IndexedSignatureScheme
 
 attribute [program_certificate] capacity_polyTime keyGen_ppt sign_ppt verify_polyTime
 
+/-- Signatures have polynomially bounded length: some plain polynomial-time `bound n L` bounds
+every signature at an index below the capacity on a message of length `L`, under a key pair sampled
+at parameter `n`. -/
+theorem exists_sign_length_bound (S : IndexedSignatureScheme) :
+    ∃ bound : ℕ → ℕ → ℕ,
+      ComputableInPolyTime (fun p : ℕ × ℕ => bound p.1 p.2) (encPair encUnary encUnary) encUnary ∧
+      ∀ n, ∀ keys ∈ (ProbComp.eval (S.keyGen n)).support, ∀ j < S.capacity n, ∀ msg sig,
+        sig ∈ (ProbComp.eval (S.sign keys.2 j msg)).support → sig.length ≤ bound n msg.length := by
+  obtain ⟨ck, dk, hlenk⟩ := S.keyGen_ppt.length_le
+  obtain ⟨cs, ds, hlens⟩ := S.sign_ppt.length_le
+  have hcap := S.capacity_polyTime
+  refine ⟨fun n L => cs * (2 * (ck * (n + 1) ^ dk) + 2 * S.capacity n + L + 3) ^ ds,
+    by fun_prop, fun n keys hkeys j hj msg sig hsig => ?_⟩
+  have hkeyLen := hlenk n keys hkeys
+  simp only [encUnary_apply, List.length_replicate, length_encPair, encBits_apply] at hkeyLen
+  have hsigLen := hlens (keys.2, j, msg) sig hsig
+  simp only [length_encPair, encBits_apply, encUnary_apply, List.length_replicate] at hsigLen
+  exact hsigLen.trans (Nat.mul_le_mul_left cs (Nat.pow_le_pow_left (by lia) ds))
+
 /-- The index and message of a request word: `encPair encUnary encBits (u, msg)` decodes to
 `(u, msg)`, and every other word decodes to some pair. -/
 def requestDecoder : Decoder (encPair encUnary encBits) := Decoder.unary.pair Decoder.bits
@@ -192,7 +211,7 @@ theorem isPPTOn_run_indexedSigningOracle (S : IndexedSignatureScheme) {adversary
       · apply ComputableInPolyTime.isPPTOn
         polytime
     · ppt
-  apply hadversary.run_interpret_preprocess'
+  apply hadversary.run_interpret_preprocess
     (prepare := fun caller : ℕ × (List Bool × List Bool) => (caller.1, caller.2.1))
     (initial := fun _ => ([] : List (ℕ × List Bool)))
     (resources := fun caller query =>
@@ -220,7 +239,7 @@ theorem isPPTOn_run_indexedSigningOracle (S : IndexedSignatureScheme) {adversary
         Nat.mul_le_mul_left c (Nat.pow_le_pow_left (by omega) d)
       dsimp only
       omega
-    · enc_len [encList_cons, encPair_apply]
+    · enc_len
   · simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hresult
     subst hresult
     exact ⟨trivial, by simp, by lia⟩

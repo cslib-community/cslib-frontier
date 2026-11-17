@@ -45,10 +45,12 @@ agree when the cover is *balanced*, `k (m + 1) = 2 ^ d`
 server emulates `m` distinct neighbours and no word is produced twice. The count is then the bound
 `k + (2 ^ d + (d - 1) k) ℓ` of Theorem 1. Balance is a property of the cover; the source's
 "balancing" (end of Section 3.2, Section 3.4) refers instead to the split of communication between
-the user and the servers. Variable-length answers are not formalized, so Theorem 1 is covered for
-balanced covers only. Every radius-`1` covering code gives a cover with `M = D`, emulating all
-neighbours (`PIR.RadiusOneCover.ofHammingDist`), with `k (2 d ℓ + 1)` bits; this is the bound of
-Theorem 1 exactly when the code is perfect.
+the user and the servers. Variable-length per-server answers and radius-`r` covers are formalized
+in `PIR.Indexed` and `PIR.GeneralCover` (`PIR.hasIndexedScheme_of_hammingDist` proves Theorem 1 for
+arbitrary injective radius-`1` covering codes); in the uniform fixed-length model here, Theorem 1 is
+covered for balanced covers only. Every radius-`1` covering code gives a cover with `M = D`,
+emulating all neighbours (`PIR.RadiusOneCover.ofHammingDist`), with `k (2 d ℓ + 1)` bits; this is
+the bound of Theorem 1 exactly when the code is perfect.
 
 A new cover of a concrete cube `Fin d → Bool` can be supplied by discharging `coveredWord_cover`
 with `decide`, as for `PIR.RadiusOneCover.cubeThree` and `PIR.RadiusOneCover.cubeFour`.
@@ -152,7 +154,7 @@ variable [Fintype D] {ι : Type} [Fintype ι] [DecidableEq ι]
 /-- The answer of the `2 ^ d`-server scheme that the user reads for the word produced by the
 server `s` and the optional direction `r`: the answer bit of `s` itself, or the emulated answer
 for the position `j` of the flipped coordinate. -/
-private def readAnswer (j : D → ι) : S × Option M → (S → Bool × (M → ι → Bool)) → Bool
+@[expose] def readAnswer (j : D → ι) : S × Option M → (S → Bool × (M → ι → Bool)) → Bool
   | (s, none), a => (a s).1
   | (s, some r), a => (a s).2 r (j (K.dir s r))
 
@@ -175,6 +177,10 @@ variable {ι}
 
 theorem query_scheme (i : D → ι) :
     (K.scheme ι).query i = (fun rq => (rq.1, fun s => rq.2 (K.code s))) <$> (cube D ι).query i := by
+  rfl
+
+theorem reconstruct_scheme (i : D → ι) (r : Unit) (a : S → Bool × (M → ι → Bool)) :
+    (K.scheme ι).reconstruct i r a = ∑ w : D → Bool, K.readAnswer i (K.cover w) a := by
   rfl
 
 /-- The server `s` of the covering-code scheme receives the query of the server `code s` of
@@ -251,13 +257,9 @@ theorem hasScheme [Fintype S] [Fintype M] {n ℓ : ℕ} (h : n ≤ ℓ ^ Fintype
     HasScheme (Fin n) (Fintype.card S)
       (Fintype.card S * ((Fintype.card D + Fintype.card M) * ℓ + 1)) := by
   classical
-  have hcard : Fintype.card (D → Fin ℓ) = ℓ ^ Fintype.card D := by
-    rw [Fintype.card_fun, Fintype.card_fin]
-  let e : Fin n ↪ (D → Fin ℓ) :=
-    (Fin.castLEEmb (h.trans_eq hcard.symm)).trans (Fintype.equivFin (D → Fin ℓ)).symm.toEmbedding
-  have hP := (K.isCorrect_scheme (ι := Fin ℓ)).comap e |>.hasScheme
-    ((K.isPrivate_scheme (ι := Fin ℓ)).comap e)
-  rwa [communication_scheme, Fintype.card_fin] at hP
+  have hP := (K.isCorrect_scheme (ι := Fin ℓ)).hasScheme (K.isPrivate_scheme (ι := Fin ℓ))
+  rw [communication_scheme, Fintype.card_fin] at hP
+  exact hP.fin_of_le_card (by simpa using h)
 
 end Scheme
 
@@ -306,7 +308,7 @@ end HammingDist
 /-- The repetition code `{000, 111}` covers the cube `Fin 3 → Bool` with radius `1`
 [CGKS, Section 3.3][ChorGoldreichKushilevitzSudan1998]. Each codeword emulates its three
 neighbours, so the cover is balanced: `2 (3 + 1) = 2 ^ 3`. -/
-def cubeThree : RadiusOneCover Bool (Fin 3) (Fin 3) where
+@[expose] def cubeThree : RadiusOneCover Bool (Fin 3) (Fin 3) where
   code b _ := b
   dir _ l := l
   cover w :=
@@ -319,7 +321,7 @@ def cubeThree : RadiusOneCover Bool (Fin 3) (Fin 3) where
 [CGKS, Section 3.3][ChorGoldreichKushilevitzSudan1998]. The codeword of `(a, b)` is `a b b b`, and
 each codeword emulates its neighbours in the last three coordinates, so the cover is balanced:
 `4 (3 + 1) = 2 ^ 4`. -/
-def cubeFour : RadiusOneCover (Bool × Bool) (Fin 4) (Fin 3) where
+@[expose] def cubeFour : RadiusOneCover (Bool × Bool) (Fin 4) (Fin 3) where
   code ab l := if l = 0 then ab.1 else ab.2
   dir _ r := r.succ
   cover w :=

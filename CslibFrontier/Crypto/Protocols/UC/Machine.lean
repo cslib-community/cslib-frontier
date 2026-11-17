@@ -52,6 +52,11 @@ running time: pure computation between calls, message sizes and state growth are
 * `Cslib.Crypto.Protocols.UC.Machine.IsBounded.mono`: budgets are monotone.
 * `Cslib.Crypto.Protocols.UC.Machine.isBounded_id`: the forwarding machine makes one call per
   activation.
+* `Cslib.Crypto.Protocols.UC.Machine.isQueryBounded_closeProgram`: closing a program with no
+  imports preserves its call budget.
+* `Cslib.Crypto.Protocols.UC.Machine.runFrom_interpret_intertwine`,
+  `Cslib.Crypto.Protocols.UC.Machine.runFrom_intertwine`: state-intertwining laws for
+  `Machine.runFrom`.
 
 ## References
 
@@ -174,10 +179,95 @@ variable {β : Type}
 /-- An embedded closed program is unchanged by closing. -/
 @[simp] theorem closeProgram_sample (program : ProbComp α) :
     closeProgram (ProbOracleComp.sample program) = program := by
-  rw [closeProgram, ProbOracleComp.interpret_sample]
-  exact OracleComp.interpret_query_eq_self program
+  rw [closeProgram, ProbOracleComp.interpret_sample, ProbComp.interpret_unifFin]
 
 end RunFrom
+
+/-! ### State-intertwining for `runFrom` -/
+
+section Intertwining
+
+variable {ι₁ ι₂ ι β : Type} {E₁ : ι₁ → Type} {E₂ : ι₂ → Type} {O : ι → Type}
+
+/-- Two machines `M₁` and `M₂` sharing an imported interface `I`, a state invariant `R`, and a
+query invariant `Inv` produce related post-run continuations when translating an `O`-program via
+`h₁` and `h₂` preserves `R` at each `Inv`-satisfying query. -/
+theorem runFrom_interpret_intertwine
+    (M₁ : Machine I E₁) (M₂ : Machine I E₂)
+    (h₁ : (q : ι) → ProbOracleComp E₁ (O q))
+    (h₂ : (q : ι) → ProbOracleComp E₂ (O q))
+    (Inv : ι → Prop) (R : M₁.State → M₂.State → Prop)
+    (prog : ProbOracleComp O α)
+    (hinv : OracleComp.QueriesSatisfy (Sum.elim (fun _ => True) Inv) prog)
+    (s₁ : M₁.State) (s₂ : M₂.State) (hR : R s₁ s₂)
+    (f : α × M₁.State → ProbOracleComp I β)
+    (g : α × M₂.State → ProbOracleComp I β)
+    (hfg : ∀ a s₁' s₂', R s₁' s₂' → f (a, s₁') = g (a, s₂'))
+    (hstep : ∀ (q : ι) (s₁' : M₁.State) (s₂' : M₂.State)
+      (k₁ : O q × M₁.State → ProbOracleComp I β)
+      (k₂ : O q × M₂.State → ProbOracleComp I β),
+      Inv q → R s₁' s₂' →
+      (∀ r s₁'' s₂'', R s₁'' s₂'' → k₁ (r, s₁'') = k₂ (r, s₂'')) →
+      (M₁.runFrom (h₁ q) s₁' >>= k₁) = (M₂.runFrom (h₂ q) s₂' >>= k₂)) :
+    (M₁.runFrom (OracleComp.interpret
+        (sumHandler (fun k => OracleComp.query (spec := probOracleSpec E₁) (.inl k)) h₁) prog)
+        s₁ >>= f) =
+      (M₂.runFrom (OracleComp.interpret
+        (sumHandler (fun k => OracleComp.query (spec := probOracleSpec E₂) (.inl k)) h₂) prog)
+        s₂ >>= g) := by
+  induction prog using OracleComp.induction generalizing s₁ s₂ with
+  | pure a => exact hfg a s₁ s₂ hR
+  | query_bind q _ ih =>
+    simp only [PFunctor.FreeM.bind_eq_bind] at hinv ⊢
+    rcases q with k | q
+    · rw [OracleComp.interpret_bind, OracleComp.interpret_bind,
+        OracleComp.interpret_query, OracleComp.interpret_query]
+      dsimp only [sumHandler]
+      have hcall {ιE : Type} {E : ιE → Type} (M : Machine I E) (s : M.State) :
+          M.runFrom (OracleComp.query (.inl k)) s =
+            (StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k))).run s :=
+        OracleComp.run_interpret_query M.handler (.inl k) s
+      erw [runFrom_bind, runFrom_bind, hcall M₁ s₁, hcall M₂ s₂]
+      rw [StateT.run_lift, StateT.run_lift, bind_pure_comp, bind_pure_comp,
+        bind_map_left, bind_map_left, bind_assoc, bind_assoc]
+      exact bind_congr fun a =>
+        ih a ((OracleComp.QueriesSatisfy.liftBind_iff.mp hinv).2 a) s₁ s₂ hR
+    · have hq := OracleComp.QueriesSatisfy.liftBind_iff.mp hinv
+      rw [OracleComp.interpret_bind, OracleComp.interpret_bind,
+        OracleComp.interpret_query, OracleComp.interpret_query]
+      dsimp only [sumHandler]
+      erw [runFrom_bind, runFrom_bind, bind_assoc, bind_assoc]
+      exact hstep q s₁ s₂ _ _ hq.1 hR fun r s₁'' s₂'' hR' => ih r (hq.2 r) s₁'' s₂'' hR'
+
+/-- Direct (uninterpreted) state-intertwining specialization of
+`Machine.runFrom_interpret_intertwine` for two machines sharing an exported interface `E`. -/
+theorem runFrom_intertwine
+    (M₁ M₂ : Machine I E) (Inv : ιE → Prop) (R : M₁.State → M₂.State → Prop)
+    (prog : ProbOracleComp E α)
+    (hinv : OracleComp.QueriesSatisfy (Sum.elim (fun _ => True) Inv) prog)
+    (s₁ : M₁.State) (s₂ : M₂.State) (hR : R s₁ s₂)
+    (f : α × M₁.State → ProbOracleComp I β)
+    (g : α × M₂.State → ProbOracleComp I β)
+    (hfg : ∀ a s₁' s₂', R s₁' s₂' → f (a, s₁') = g (a, s₂'))
+    (hstep : ∀ (q : ιE) (s₁' : M₁.State) (s₂' : M₂.State)
+      (k₁ : E q × M₁.State → ProbOracleComp I β)
+      (k₂ : E q × M₂.State → ProbOracleComp I β),
+      Inv q → R s₁' s₂' →
+      (∀ r s₁'' s₂'', R s₁'' s₂'' → k₁ (r, s₁'') = k₂ (r, s₂'')) →
+      ((M₁.handle q).run s₁' >>= k₁) = ((M₂.handle q).run s₂' >>= k₂)) :
+    (M₁.runFrom prog s₁ >>= f) = (M₂.runFrom prog s₂ >>= g) := by
+  have h := runFrom_interpret_intertwine M₁ M₂
+    (fun q => ProbOracleComp.query (spec := E) q) (fun q => ProbOracleComp.query (spec := E) q)
+    Inv R prog hinv s₁ s₂ hR f g hfg fun q s₁' s₂' k₁ k₂ hq hR' hcont => by
+      erw [runFrom_query, runFrom_query]
+      exact hstep q s₁' s₂' k₁ k₂ hq hR' hcont
+  have hid :
+      (sumHandler (fun k => OracleComp.query (spec := probOracleSpec E) (.inl k))
+        (fun q => ProbOracleComp.query (spec := E) q)) = OracleComp.query :=
+    funext fun q => by cases q <;> rfl
+  simpa only [hid, OracleComp.interpret_query_eq_self] using h
+
+end Intertwining
 
 /-- The per-activation call budget `t`: the initial sampler and every activation, from every state,
 make at most `t` calls on every path. Private samples and imported calls both count. -/
@@ -194,6 +284,12 @@ theorem isBounded_id (E : ιE → Type) : (Machine.id E).IsBounded 1 := by
   refine ⟨OracleComp.IsCostBounded.pure _ 1, fun q s => ?_⟩
   change ((fun a => (a, s)) <$> ProbOracleComp.query (spec := E) q).IsQueryBounded 1
   exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (OracleComp.IsCostBounded.query _)
+
+/-- Closing a program with no external imports preserves its query budget. -/
+theorem isQueryBounded_closeProgram {program : ProbOracleComp OracleSpec.empty α} {n : ℕ}
+    (h : program.IsQueryBounded n) : (closeProgram program).IsQueryBounded n :=
+  OracleComp.IsCostBounded.interpret
+    (fun q => q.casesOn (fun k => OracleComp.IsCostBounded.query k) fun e => e.elim) h
 
 end Machine
 

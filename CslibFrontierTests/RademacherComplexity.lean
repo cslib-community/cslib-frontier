@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+import CslibFrontier.Foundations.Analysis.SpecialFunctions.LogTwoPow
 import CslibFrontier.MachineLearning.Rademacher.Classification
 import CslibFrontier.MachineLearning.Rademacher.Generalization
 import CslibFrontier.MachineLearning.Rademacher.GrowthFunction
@@ -92,14 +93,20 @@ theorem mem_Icc_of_mem_two {f : Bool → ℝ} (hf : f ∈ two) (z : Bool) : f z 
 private theorem sqrt_le_of_le_sq {x y : ℝ} (hy : 0 ≤ y) (h : x ≤ y ^ 2) : √x ≤ y :=
   (Real.sqrt_le_sqrt h).trans_eq (Real.sqrt_sq hy)
 
+/-- An event `∃ f, p f ∧ a f < b f` grows when `a` decreases. The functions `a` and `b` are
+variables, so that the strict inequality between sample means is never a hypothesis in the tests
+below. -/
+private theorem exists_lt_of_le {α : Type*} {p : α → Prop} {a a' b : α → ℝ}
+    (h : ∀ f, p f → a' f ≤ a f) : (∃ f, p f ∧ a f < b f) → ∃ f, p f ∧ a' f < b f :=
+  fun ⟨f, hf, hlt⟩ => ⟨f, hf, (h f hf).trans_lt hlt⟩
+
 /-- With `100` samples, the probability that some function of `two` has population mean more than
 `0.61` above its empirical mean is at most `1 / 20`. The range of the functions is `1`, so the
 guarantee is nontrivial. -/
 example (D : PMF Bool) :
     ((Cslib.Probability.PMF.pi fun _ : Fin 100 => D).toOuterMeasure
       {S | ∃ f ∈ two, 𝔼 i, f (S i) + 61 / 100 < ∑ z, (D z).toReal * f z}).toReal ≤ 1 / 20 := by
-  have hlog2 : Real.log 2 ≤ 1 := by
-    linarith [Real.log_le_sub_one_of_pos (by norm_num : (0 : ℝ) < 2)]
+  have hlog2 : Real.log 2 ≤ 1 := Real.log_two_lt_one.le
   have hlog20 : Real.log (1 / (1 / 20)) ≤ 19 := by
     rw [one_div_one_div]
     linarith [Real.log_le_sub_one_of_pos (by norm_num : (0 : ℝ) < 20)]
@@ -112,11 +119,10 @@ example (D : PMF Bool) :
     refine sqrt_le_of_le_sq (by norm_num) ?_
     push_cast
     nlinarith
-  refine le_trans (Cslib.Probability.PMF.toOuterMeasure_toReal_mono _ ?_)
+  refine le_trans (Cslib.Probability.PMF.toOuterMeasure_toReal_mono _ fun S => ?_)
     (rademacher_generalization_bound_of_finset D (by norm_num) (fun f hf => mem_Icc_of_mem_two hf)
       (by norm_num : (0 : ℝ) < 1 / 20))
-  rintro S ⟨f, hf, hlt⟩
-  exact ⟨f, hf, by linarith⟩
+  exact exists_lt_of_le fun f _ => by linarith
 
 /-- The data-dependent bound [MohriRostamizadehTalwalkar2018, Theorem 3.3, (3.4)] with `10000`
 samples: the probability that some function of `two` has population mean more than `0.2` above its
@@ -125,8 +131,7 @@ through Massart's lemma. -/
 example (D : PMF Bool) :
     ((Cslib.Probability.PMF.pi fun _ : Fin 10000 => D).toOuterMeasure
       {S | ∃ f ∈ two, 𝔼 i, f (S i) + 1 / 5 < ∑ z, (D z).toReal * f z}).toReal ≤ 1 / 20 := by
-  have hlog2 : Real.log 2 ≤ 1 := by
-    linarith [Real.log_le_sub_one_of_pos (by norm_num : (0 : ℝ) < 2)]
+  have hlog2 : Real.log 2 ≤ 1 := Real.log_two_lt_one.le
   have hlog40 : Real.log (2 / (1 / 20)) ≤ 39 := by
     norm_num only
     linarith [Real.log_le_sub_one_of_pos (by norm_num : (0 : ℝ) < 40)]
@@ -142,12 +147,11 @@ example (D : PMF Bool) :
     refine sqrt_le_of_le_sq (by norm_num) ?_
     push_cast
     nlinarith
-  refine le_trans (Cslib.Probability.PMF.toOuterMeasure_toReal_mono _ ?_)
+  refine le_trans (Cslib.Probability.PMF.toOuterMeasure_toReal_mono _ fun S => ?_)
     (empiricalRademacherComplexity_generalization_bound D (by norm_num) zero_lt_one
       (F := (two : Set (Bool → ℝ))) (fun f hf => mem_Icc_of_mem_two hf)
       (by norm_num : (0 : ℝ) < 1 / 20))
-  rintro S ⟨f, hf, hlt⟩
-  refine ⟨f, hf, ?_⟩
+  refine exists_lt_of_le fun f _ => ?_
   rw [sub_zero, one_mul]
   linarith [hR S]
 
@@ -231,8 +235,7 @@ example (D : PMF (Bool × Bool)) (c : Bool → Bool) {m : ℕ} (hm : 0 < m) {δ 
 /-- `√(2 (2 log (e m / 2)) / m) ≤ 1 / 32` for `m = 65536`. -/
 theorem vc_term_le :
     √(2 * ((2 : ℕ) * Real.log (Real.exp 1 * (65536 : ℕ) / (2 : ℕ))) / (65536 : ℕ)) ≤ 1 / 32 := by
-  have hlog2 : Real.log 2 ≤ 1 := by
-    linarith [Real.log_le_sub_one_of_pos (by norm_num : (0 : ℝ) < 2)]
+  have hlog2 : Real.log 2 ≤ 1 := Real.log_two_lt_one.le
   have hlog : Real.log (Real.exp 1 * (65536 : ℕ) / (2 : ℕ)) ≤ 16 := by
     rw [show Real.exp 1 * (65536 : ℕ) / (2 : ℕ) = Real.exp 1 * 2 ^ 15 by push_cast; ring,
       Real.log_mul (Real.exp_pos 1).ne' (by norm_num), Real.log_exp, Real.log_pow]

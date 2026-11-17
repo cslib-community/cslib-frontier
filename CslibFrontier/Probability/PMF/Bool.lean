@@ -13,11 +13,13 @@ public import CslibFrontier.Probability.PMF
 # Boolean distributions and Boolean predicates
 
 The masses of `true` and `false` under a Boolean distribution sum to one
-(`apply_true_add_apply_false`, and `toReal_true_add_toReal_false` in real-valued units). Pushing
-a distribution forward along Boolean predicates (`PMF.map`), the `true`-mass is monotone under
-pointwise implication on the support (`map_true_mono`), satisfies union bounds
-(`map_true_le_add`, `map_any_range_true_le_sum`), and is complemented by negation
-(`map_not_true`).
+(`apply_true_add_apply_false`, and `toReal_true_add_toReal_false` in real-valued units), so its
+`true`-mass determines the law (`ext_bool`). Pushing a distribution forward along Boolean
+predicates (`PMF.map`), the `true`-mass is monotone under pointwise implication on the support
+(`map_true_mono`), satisfies union bounds
+(`map_true_le_add`, and `map_true_le_sum` over a finite index set with its `List.range` instance
+`map_any_range_true_le_sum`), is the expectation of the predicate's indicator (`map_apply_true`),
+and is complemented by negation (`map_not_true`).
 
 ## Main results
 
@@ -25,10 +27,12 @@ pointwise implication on the support (`map_true_mono`), satisfies union bounds
   `Cslib.Probability.PMF.toReal_true_add_toReal_false`,
   `Cslib.Probability.PMF.toReal_false_eq_one_sub`,
   `Cslib.Probability.PMF.toReal_true_eq_one_sub`: Boolean outcome masses.
+* `Cslib.Probability.PMF.ext_bool`: a Boolean law is determined by its `true`-mass.
 * `Cslib.Probability.PMF.map_true_mono`, `Cslib.Probability.PMF.map_true_le_add`,
-  `Cslib.Probability.PMF.map_any_range_true_le_sum`, `Cslib.Probability.PMF.map_not_true`:
-  monotonicity, union bounds, and complementation for Boolean predicates pushed forward along
-  `PMF.map`.
+  `Cslib.Probability.PMF.map_true_le_sum`, `Cslib.Probability.PMF.map_any_range_true_le_sum`,
+  `Cslib.Probability.PMF.map_apply_true`, `Cslib.Probability.PMF.map_not_true`: monotonicity,
+  union bounds, indicator expectations and complementation for Boolean predicates pushed forward
+  along `PMF.map`.
 -/
 
 public section
@@ -60,6 +64,15 @@ theorem toReal_true_eq_one_sub (p : PMF Bool) :
     (p true).toReal = 1 - (p false).toReal :=
   eq_sub_of_add_eq (toReal_true_add_toReal_false p)
 
+/-- A Boolean probability mass function is determined by its mass at `true`. -/
+theorem ext_bool {p q : PMF Bool} (h : p true = q true) : p = q := by
+  apply PMF.ext
+  intro b
+  cases b
+  · apply (ENNReal.toReal_eq_toReal_iff' (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _)).mp
+    rw [toReal_false_eq_one_sub, toReal_false_eq_one_sub, h]
+  · exact h
+
 /-- Pointwise implication on the support makes the mapped `true`-mass monotone. -/
 theorem map_true_mono (p : PMF α) {E F : α → Bool}
     (h : ∀ a ∈ p.support, E a = true → F a = true) :
@@ -86,21 +99,43 @@ theorem map_true_le_add (p : PMF α) {E A B : α → Bool}
     · simp [hE]
   · simp [(PMF.apply_eq_zero_iff p a).mpr ha]
 
-/-- Union bound for `List.any` over `List.range K` pushed forward along `p.map`. -/
+/-- Union bound over a finite family of Boolean predicates pushed forward along `p.map`: if every
+possible outcome satisfying `E` satisfies some `F i` with `i ∈ s`, the `true`-mass of `E` is at most
+the sum of the `true`-masses of the `F i`. -/
+theorem map_true_le_sum {ι : Type*} (p : PMF α) (s : Finset ι) {E : α → Bool} {F : ι → α → Bool}
+    (h : ∀ a ∈ p.support, E a = true → ∃ i ∈ s, F i a = true) :
+    (p.map E) true ≤ ∑ i ∈ s, (p.map (F i)) true := by
+  classical
+  induction s using Finset.induction_on generalizing E with
+  | empty =>
+    refine (map_true_mono p (F := fun _ => false) fun a ha hE => ?_).trans (by simp [PMF.map_apply])
+    obtain ⟨i, hi, -⟩ := h a ha hE
+    exact absurd hi (Finset.notMem_empty i)
+  | insert j s hj ih =>
+    rw [Finset.sum_insert hj]
+    refine (map_true_le_add p (A := F j) (B := fun a => decide (∃ i ∈ s, F i a = true))
+      fun a ha hE => ?_).trans
+      (add_le_add le_rfl (ih (E := fun a => decide (∃ i ∈ s, F i a = true)) fun a _ hs => by
+        simpa using hs))
+    obtain ⟨i, hi, hF⟩ := h a ha hE
+    rcases Finset.mem_insert.mp hi with rfl | hi
+    · exact Or.inl hF
+    · exact Or.inr (decide_eq_true ⟨i, hi, hF⟩)
+
+/-- Union bound for `List.any` over `List.range K` pushed forward along `p.map`: the
+`List.range` instance of `map_true_le_sum`. -/
 theorem map_any_range_true_le_sum (p : PMF α) (K : ℕ) (F : ℕ → α → Bool) :
     (p.map (fun a => (List.range K).any (fun j => F j a))) true ≤
-      ∑ j ∈ Finset.range K, (p.map (F j)) true := by
-  induction K with
-  | zero =>
-    simp [PMF.map_apply]
-  | succ K ih =>
-    have hsplit : ∀ a ∈ p.support, ((List.range (K + 1)).any (fun j => F j a)) = true →
-        ((List.range K).any (fun j => F j a)) = true ∨ F K a = true := by
-      intro a _ ha
-      rw [List.range_succ, List.any_append, Bool.or_eq_true] at ha
-      simpa using ha
-    rw [Finset.sum_range_succ]
-    exact (map_true_le_add p hsplit).trans (add_le_add_left ih _)
+      ∑ j ∈ Finset.range K, (p.map (F j)) true :=
+  map_true_le_sum p _ fun a _ ha => by simpa using ha
+
+/-- The `true`-mass of a Boolean predicate pushed forward along `p.map` is the expectation of its
+indicator. -/
+theorem map_apply_true (p : PMF α) (E : α → Bool) :
+    (p.map E) true = ∑' a, p a * (if E a then 1 else 0) := by
+  rw [PMF.map_apply]
+  refine tsum_congr fun a => ?_
+  cases E a <;> simp
 
 /-- Negating a Boolean predicate complements its `true`-mass in `ℝ≥0∞`. -/
 theorem map_not_true (p : PMF α) (E : α → Bool) :

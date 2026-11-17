@@ -16,8 +16,10 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.IntBinary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Int.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.PolyTime.Int.DotProduct
+import CslibFrontier.Foundations.Algebra.BigOperators.Fin
 import CslibFrontier.Foundations.Data.List.Blocks
 import CslibFrontier.Foundations.Data.List.DotProduct
+import CslibFrontier.Foundations.Data.List.GetD
 import CslibFrontier.Foundations.Data.List.Lookup
 import Mathlib.Data.List.GetD
 
@@ -95,13 +97,6 @@ abbrev encSystem : List (List ℤ × ℤ) ↪ List Bool :=
 /-- The right-hand side of `C`. -/
 @[expose] def rhs (C : List (List ℤ × ℤ)) : Fin C.length → ℤ := fun i => (C[i.1]).2
 
-/-- A sum over `Fin n` of a function vanishing from `k` on is a sum over `range k`. -/
-private theorem sum_fin_eq_sum_range {M : Type*} [AddCommMonoid M] {n k : ℕ} (hk : k ≤ n)
-    (f : ℕ → M) (hf : ∀ j, k ≤ j → f j = 0) :
-    ∑ j : Fin n, f j = ∑ j ∈ range k, f j := by
-  rw [Fin.sum_univ_eq_sum_range f n, ← Finset.sum_range_add_sum_Ico _ hk]
-  rw [Finset.sum_eq_zero (s := Ico k n) fun j hj => hf j (Finset.mem_Ico.1 hj).1, add_zero]
-
 /-- **The matrix form.** When every row has at most `n` coefficients, `C` is feasible iff
 `matrix C n *ᵥ x ≤ rhs C` has a rational solution. -/
 theorem mem_iff_exists_mulVec_le {C : List (List ℤ × ℤ)} {n : ℕ} (hn : ∀ c ∈ C, c.1.length ≤ n) :
@@ -112,7 +107,7 @@ theorem mem_iff_exists_mulVec_le {C : List (List ℤ × ℤ)} {n : ℕ} (hn : �
     refine ⟨fun j => x j, fun i => ?_⟩
     have h := hx _ (List.getElem_mem i.2)
     simp only [mulVec, dotProduct, map_apply, matrix, of_apply, rhs]
-    rw [sum_fin_eq_sum_range (hn _ (List.getElem_mem i.2))
+    rw [Fin.sum_eq_sum_range_of_eq_zero (hn _ (List.getElem_mem i.2))
       (fun j => ((C[i.1].1.getD j 0 : ℤ) : ℚ) * x j)
       fun j hj => by rw [List.getD_eq_default _ _ hj, Int.cast_zero, zero_mul]]
     exact h
@@ -124,7 +119,7 @@ theorem mem_iff_exists_mulVec_le {C : List (List ℤ × ℤ)} {n : ℕ} (hn : �
     have h' : ∑ j : Fin n, ((C[i].1.getD j 0 : ℤ) : ℚ) *
         (if h : (j : ℕ) < n then x ⟨j, h⟩ else 0) ≤ C[i].2 := by
       simpa only [Fin.is_lt, dite_true, Fin.eta] using h
-    rwa [sum_fin_eq_sum_range (hn _ hc) (fun j => ((C[i].1.getD j 0 : ℤ) : ℚ) *
+    rwa [Fin.sum_eq_sum_range_of_eq_zero (hn _ hc) (fun j => ((C[i].1.getD j 0 : ℤ) : ℚ) *
       if h : j < n then x ⟨j, h⟩ else 0)
       fun j hj => by rw [List.getD_eq_default _ _ hj, Int.cast_zero, zero_mul]] at h'
 
@@ -215,8 +210,7 @@ private theorem abs_matrix_le (C : List (List ℤ × ℤ)) (n : ℕ) (i : Fin C.
       ((2 ^ (encSystem C).length : ℕ) : ℤ) := by
   simp only [matrix, of_apply]
   by_cases hj : (j : ℕ) < C[i.1].1.length
-  · rw [List.getD_eq_getElem _ _ hj]
-    exact abs_le_two_pow (List.getElem_mem i.2) (Or.inl (List.getElem_mem hj))
+  · exact abs_le_two_pow (List.getElem_mem i.2) (Or.inl (List.getD_mem 0 hj))
   · rw [List.getD_eq_default _ _ (not_lt.1 hj), abs_zero]
     positivity
 
@@ -276,7 +270,8 @@ private theorem exists_check_of_mem {C : List (List ℤ × ℤ)} (hC : C ∈ LPF
     rw [dotProduct_eq_sum_range]
     have h' : ∑ j : Fin L, C[i].1.getD (j : ℕ) 0 * (List.ofFn p).getD (j : ℕ) 0 ≤ d * C[i].2 := by
       simpa only [List.getD_ofFn] using h
-    rwa [sum_fin_eq_sum_range (hrow _ hc) (fun j => C[i].1.getD j 0 * (List.ofFn p).getD j 0)
+    rwa [Fin.sum_eq_sum_range_of_eq_zero (hrow _ hc)
+      (fun j => C[i].1.getD j 0 * (List.ofFn p).getD j 0)
       fun j hj => by rw [List.getD_eq_default _ _ hj, zero_mul]] at h'
   · rw [length_encPair, eval_witnessPoly]
     dsimp only
@@ -335,8 +330,7 @@ theorem notMem_of_certCheck {C : List (List ℤ × ℤ)} {q : List ℤ}
   · intro i
     have : 0 ≤ q.getD i 0 := by
       by_cases hi : (i : ℕ) < q.length
-      · rw [List.getD_eq_getElem _ _ hi]
-        exact hq _ (List.getElem_mem hi)
+      · exact hq _ (List.getD_mem 0 hi)
       · rw [List.getD_eq_default _ _ (not_lt.1 hi)]
     simp only [Pi.zero_apply]
     exact_mod_cast this
@@ -416,10 +410,7 @@ attribute [local fun_prop] listDotProduct_polyTime
 theorem computableInPolyTime_check : ComputableInPolyTime check
     (encPair (encSystem)
       (encPair encIntBin (encList encIntBin))) encBool := by
-  unfold check
-  apply bool_and' (by fun_prop)
-  apply allWithInput (by fun_prop)
-  fun_prop
+  fun_prop [check]
 
 /-- The `coNP` check is polynomial-time. -/
 theorem computableInPolyTime_certCheck : ComputableInPolyTime certCheck
@@ -431,19 +422,6 @@ theorem computableInPolyTime_certCheck : ComputableInPolyTime certCheck
   · apply allWithInput (by fun_prop)
     apply allWithInput (by fun_prop)
     fun_prop
-
-/-- Membership in `NP` from a sound and complete polynomial-time check with short witnesses. -/
-private theorem mem_NP_of_check {α β : Type} {enc : α ↪ List Bool} {encW : β ↪ List Bool}
-    (D : Decoder encW) {A : Set α} {chk : α × β → Bool} {p : Polynomial ℕ}
-    (hchk : ComputableInPolyTime chk (encPair enc encW) encBool)
-    (hsound : ∀ a b, chk (a, b) = true → a ∈ A)
-    (hcomplete : ∀ a ∈ A, ∃ b, chk (a, b) = true ∧ (encW b).length ≤ p.eval (enc a).length) :
-    A ∈ NP enc := by
-  have hA : A = {a | ∃ b, chk (a, b) = true} := by
-    ext a
-    exact ⟨fun ha => (hcomplete a ha).imp fun _ hb => hb.1, fun ⟨b, hb⟩ => hsound a b hb⟩
-  rw [hA]
-  exact mem_NP_of_witness D hchk (fun _ _ => Iff.rfl) fun a b hb => hcomplete a (hsound a b hb)
 
 /-- **Rational LP feasibility is in `NP`.** -/
 theorem mem_NP : LPFeasibility ∈ NP (encSystem) :=

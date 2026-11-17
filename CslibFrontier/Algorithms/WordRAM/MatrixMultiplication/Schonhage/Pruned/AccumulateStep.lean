@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Add
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.ScanStep
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Actual native selection and accumulation of one query
@@ -54,24 +55,12 @@ theorem exec_accumulateDispatch {w : ℕ} {a b : ℤ}
       (∀ i, ¬AccumulateDispatchLocal i → y.regs i = x.regs i) := by
   by_cases hsel : selected true (x.regs term) q
   · obtain ⟨y, hy, hmem, _⟩ := exec_addValue ha hb x q hq h10 (hleft hsel) (hright hsel) hp hc
-    have hchoice : q % 10 = 9 ∨ q % 10 = x.regs term := hsel
-    have he : ExecWithin (w + 2) accumulateDispatch x y 25 := by
-      by_cases hfirst : q % 10 = 9
-      · exact (ExecWithin.branch_pos (by
-          simpa only [Cond.holds_eq, hd, h9] using hfirst) hy).mono (by decide)
-      · have hsecond := hchoice.resolve_left hfirst
-        exact (ExecWithin.branch_neg (by
-          simpa only [Cond.holds_eq, hd, h9] using hfirst)
-          (ExecWithin.branch_pos (by simpa only [Cond.holds_eq, hd] using hsecond) hy)).mono
-            (by decide)
+    have he : ExecWithin (w + 2) accumulateDispatch x y 25 :=
+      (exec_selectDigit hd h9 hsel hy).mono (by decide)
     exact ⟨y, he, by simpa only [hsel, ↓reduceIte] using hmem,
       fun i hi => he.regs_eq (accumulateDispatch_preserves i hi)⟩
-  · have hfirst : q % 10 ≠ 9 := fun h => hsel (Or.inl h)
-    have hsecond : q % 10 ≠ x.regs term := fun h => hsel (Or.inr h)
-    let y := x.set temporary (x.regs temporary)
-    have he : ExecWithin (w + 2) accumulateDispatch x y 5 :=
-      ExecWithin.branch_neg (by simpa only [Cond.holds_eq, hd, h9] using hfirst)
-        (ExecWithin.branch_neg (by simpa only [Cond.holds_eq, hd] using hsecond) ExecWithin.copy)
+  · let y := x.set temporary (x.regs temporary)
+    have he : ExecWithin (w + 2) accumulateDispatch x y 5 := exec_selectDigit_skip hd h9 hsel
     exact ⟨y, he.mono (by decide), by simp [hsel, y],
       fun i hi => he.regs_eq (accumulateDispatch_preserves i hi)⟩
 
@@ -111,20 +100,15 @@ theorem exec_accumulateStep {w : ℕ} {a b : ℤ}
   have hload : ExecWithin (w + 2) scanLoad x z 3 := by
     ram_eval [scanLoad, z, hq, h10, hr, hmod, address, listBase, index, query, digit, ten,
       Fin.mk.injEq]
-  have hzreg (i : Fin registers) (ha : i ≠ address) (hq' : i ≠ query) (hd : i ≠ digit) :
-      z.regs i = x.regs i := by simp [z, ha, hq', hd]
   obtain ⟨u, hu, hm, hf⟩ := exec_accumulateDispatch ha hb z q
     (by simp [z, query, digit]) (by simp [z])
-    ((hzreg nine (by decide) (by decide) (by decide)).trans h9)
-    ((hzreg ten (by decide) (by decide) (by decide)).trans h10)
+    (by regs_frame) (by regs_frame)
     (by simpa +decide [z, term, address, query, digit, valueBase] using hleft)
     (by simpa +decide [z, term, address, query, digit, childValues] using hright)
     (by simpa +decide [z, address, query, digit, valueBase] using hp)
     (by simpa +decide [z, address, query, digit, childValues] using hc)
-  have hui : u.regs index = x.regs index :=
-    (hf index (by decide)).trans (hzreg index (by decide) (by decide) (by decide))
-  have huo : u.regs one = 1 :=
-    (hf one (by decide)).trans ((hzreg one (by decide) (by decide) (by decide)).trans h1)
+  have hui : u.regs index = x.regs index := by regs_frame
+  have huo : u.regs one = 1 := by regs_frame
   let y := u.set index (x.regs index + 1)
   have hinc : ExecWithin (w + 2) (ram[ index ← index + one ]) u y 1 := by
     ram_eval [y, hui, huo, hi]

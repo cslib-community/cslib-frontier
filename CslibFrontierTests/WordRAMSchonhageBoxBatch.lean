@@ -5,6 +5,8 @@ Authors: Erik Demaine
 -/
 
 import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxBatch
+-- Compiled `Code.eval` runs below use the fast interpreter.
+import CslibFrontier.Computability.WordRAM.Structured.FastEval
 
 /-!
 Actual complete batch executions: empty and repeated wanted arrays, distinct output

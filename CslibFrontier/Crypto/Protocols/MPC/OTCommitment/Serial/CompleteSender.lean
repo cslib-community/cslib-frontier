@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Protocols.MPC.OTCommitment.Serial
 public import CslibFrontier.Crypto.Protocols.MPC.OTCommitment.CompleteSender
 import CslibFrontier.Languages.Probabilistic.Norm
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
 /-!
 # Complete senders in the common serial world
@@ -100,14 +101,13 @@ private theorem scheduledHandler_step (k : ℕ) (choices : List Bool)
   rcases request with ⟨op, word⟩
   cases ht : s.stopped <;> cases hc : s.sealed <;> cases op <;>
     simp only [scheduledHandler, senderSchedule, StateT.run, Interactive.liftProver,
-      Interactive.liftVerifier, ProbOracleComp.interpret_query,
-      ProbOracleComp.runWith_bind, ProbOracleComp.runWith_pure, ProbOracleComp.runWith_query,
-      world, handler, Store.send, senderStore, Session.advance, OracleComp.sumHandler,
-      ht, hc, Bool.true_or, Bool.false_or, Bool.false_eq_true, ite_false, ite_true,
-      ProbComp.eval_pure, PMF.pure_bind, PMF.pure_map, Option.isSome_none]
+      Interactive.liftVerifier, interp_norm, ProbOracleComp.runWith_bind,
+      ProbOracleComp.runWith_pure, ProbOracleComp.runWith_query, world, handler, Store.send,
+      senderStore, Session.advance, ht, hc, Bool.true_or, Bool.false_or, Bool.false_eq_true,
+      ite_false, ite_true, ProbComp.eval_pure, PMF.pure_bind, PMF.pure_map, Option.isSome_none]
   all_goals try rfl
   all_goals split <;> simp_all [ot14World, ot14Answer, senderReceipts_append]
-  all_goals rfl
+  rfl
 
 private theorem senderStore_observations (k : ℕ) (choices : List Bool)
     (hchoices : choices.length = k) (s : Session)
@@ -163,10 +163,9 @@ private theorem run_senderTail {Output : Type} (k : ℕ) (choices : List Bool)
       (ProbComp.eval (sessionProgram k program)).map (fun (out, s) =>
         (s.receipt, s.observation k choices (selectedBits s.tables choices), out)) := by
   rw [ProbOracleComp.runWith_bind, run_senderSchedule k choices hchoices]
-  simp only [PMF.bind_map, Interactive.liftVerifier, ProbOracleComp.interpret_query,
-    ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure,
-    world, handler, OracleComp.sumHandler, ProbComp.eval_pure, PMF.pure_bind,
-    PMF.map_bind]
+  simp only [PMF.bind_map, Interactive.liftVerifier, interp_norm, ProbOracleComp.runWith_bind,
+    ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure, world, handler, ProbComp.eval_pure,
+    PMF.pure_bind, PMF.map_bind]
   apply PMF.bind_congr_on_support
   rintro ⟨out, s⟩ hs
   dsimp only [Function.comp_def]

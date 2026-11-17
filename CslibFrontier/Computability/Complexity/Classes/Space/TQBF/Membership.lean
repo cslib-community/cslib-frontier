@@ -18,13 +18,14 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Finite
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # `TQBF` is in polynomial space
 
-The evaluator of `Cslib.Computability.Complexity.Classes.Space.TQBF.Evaluation` runs its stack
-machine for `2 ^ L` steps on a formula whose encoding has length `L`. This file bounds its time
-and space in the quantitative calculus of plain computability
+The evaluator of `CslibFrontier.Computability.Complexity.Classes.Space.TQBF.Evaluation` runs its
+stack machine for `2 ^ L` steps on a formula whose encoding has length `L`. This file bounds its
+time and space in the quantitative calculus of plain computability
 (`Turing.MultiTapeTM.ComputableInO`), charging every stored frame, the input, the counter of
 the rounds and every copy.
 
@@ -310,8 +311,7 @@ private theorem length_encFrame_le {φ : QBF ℕ} {f : Frame} (h : f.token :: f.
   have hfirst : (encOption encBool f.first).length ≤ 2 := by cases f.first <;> simp [encOption]
   change (encFrameFields f.fields).length ≤ _
   rw [encQBF_apply]
-  simp only [Frame.fields, length_encPair, encList_cons, List.length_append, length_frame] at hs ⊢
-  omega
+  enc_len [Frame.fields] at hs ⊢
 
 /-- **The states of a run are of quadratic size**: a state satisfying the invariant on `φ` has an
 encoding of length at most `16 * ((encQBF φ).length + 1) ^ 2`. -/
@@ -412,8 +412,7 @@ open Turing.MultiTapeTM
 space polynomial in the length of the encoded formula. -/
 theorem TQBF_mem_PSPACE : TQBF ∈ PSPACE encQBF := by
   obtain ⟨e, c, h, -⟩ := TQBF.exists_computableInO_evaluate
-  refine ⟨TQBF.evaluate, ⟨_, _, ?_, h⟩,
-    fun φ => TQBF.evaluate_eq_true_iff.symm⟩
+  refine mem_PSPACE_of_computableInTimeAndSpace ?_ h fun φ => TQBF.evaluate_eq_true_iff.symm
   refine PolyBounded.of_forall_le (2 * c) e fun φ => ?_
   have := Nat.one_le_pow e ((encQBF φ).length + 1) (by omega)
   nlinarith

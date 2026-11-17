@@ -15,8 +15,9 @@ import CslibFrontier.Crypto.Computational.MerkleDamgard
 import CslibFrontier.Crypto.Computational.Rompel
 import CslibFrontier.Crypto.Negligible
 import CslibFrontier.Crypto.Negligible.Basic
-import CslibFrontier.Probability.Guessing.Leakage
+import CslibFrontier.Probability.Guessing.UniformList
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Probability.PMF.UniformPoint
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.PPT
 import CslibFrontier.Probability.PMF.Finiteness
@@ -143,17 +144,8 @@ theorem isCollision_or_eq_of_keyDigest_eq {H : List Bool → List Bool → List 
 distribution gives that word. -/
 private theorem bind_pure_beq_apply (P : PMF (List Bool)) (φ : List Bool → List Bool)
     (x : List Bool) : (P.bind fun c => PMF.pure (φ c == x)) true = (P.map φ) x := by
-  rw [PMF.bind_apply, PMF.map_apply]
-  refine tsum_congr fun c => ?_
-  by_cases h : φ c = x
-  · simp [h]
-  · simp [h, Ne.symm h]
-
-/-- Every word of length `n` is the list of some function `Fin n → Bool`. -/
-private theorem mem_image_ofFn {n : ℕ} {word : List Bool} (h : word.length = n) :
-    word ∈ (Finset.univ : Finset (Fin n → Bool)).image List.ofFn := by
-  subst h
-  exact Finset.mem_image.2 ⟨word.get, Finset.mem_univ _, List.ofFn_get word⟩
+  simp only [Bool.beq_eq_decide_eq, ← PMF.bind_pure_decide_eq_apply_true' (P.map φ), PMF.bind_map,
+    Function.comp_def]
 
 /-- `2 ^ n` guesses at a `(2 n + r)`-bit word succeed with probability at most `(1 / 2) ^ n`. -/
 private theorem two_pow_mul_one_div_two_pow_le (n r : ℕ) :
@@ -190,22 +182,17 @@ theorem succProbability_inversionGame_le {H : List Bool → List Bool → List B
     have hklen := BitString.length_of_mem_support_uniformList hkey
     rw [PMF.bind_apply]
     simp only [bind_pure_beq_apply]
-    refine (PMF.tsum_mul_apply_le_card_mul _ (BitString.uniformList_apply_le _) (H key)
-      ((Finset.univ : Finset (Fin n → Bool)).image List.ofFn)
-      (fun message => mem_image_ofFn ((hlen key message).trans hklen))
+    exact (PMF.tsum_uniformList_mul_apply_le (H key)
+      (fun message _ => (hlen key message).trans hklen)
       (fun digest => (ProbComp.eval (adversary (3 * n + r) (key ++ digest))).map
-        fun candidate => candidate.drop (candidate.length / 3))).trans ?_
-    refine le_trans ?_ (two_pow_mul_one_div_two_pow_le n r)
-    gcongr
-    have hcard : ((Finset.univ : Finset (Fin n → Bool)).image List.ofFn).card ≤ 2 ^ n :=
-      Finset.card_image_le.trans (by simp)
-    exact_mod_cast hcard
+        fun candidate => candidate.drop (candidate.length / 3))).trans
+      (two_pow_mul_one_div_two_pow_le n r)
   have key : ProbComp.eval (inversionGame (keyDigest H) adversary (3 * n + r)) true ≤
       ProbComp.eval (collisionGame H (fun _ _ => true) (finder H adversary r) n) true +
         ((1 / 2 : ℝ≥0) ^ n : ℝ≥0) := by
-    simp only [inversionGame, collisionGame, finder, ProbComp.eval_bind, ProbComp.eval_pure,
-      BitString.eval_sampleList, hsplit, PMF.bind_bind, PMF.bind_map, PMF.pure_bind,
-      Function.comp_def]
+    simp only [inversionGame, inversionExperiment, collisionGame, finder, ProbComp.eval_bind,
+      ProbComp.eval_pure, BitString.eval_sampleList, hsplit, PMF.bind_bind, PMF.bind_map,
+      PMF.pure_bind, Function.comp_def]
     refine (PMF.bind_apply_le_add_on_support _ true fun key hkey => ?_).trans
       (add_le_add le_rfl (PMF.bind_apply_le_on_support _ hguess))
     refine PMF.bind_apply_le_add_on_support _ true fun message hmessage => ?_

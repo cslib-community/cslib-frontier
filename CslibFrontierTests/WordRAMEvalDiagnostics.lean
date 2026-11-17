@@ -129,8 +129,9 @@ failing attempts change no goal, which the unused-tactic linter would report. -/
 set_option linter.unusedTactic false in
 example (x : Data 2) : ∃ y, ExecWithin 8 two x y 2 := by
   apply Exists.intro
-  try ram_eval
-  ram_eval [two]
+  case h =>
+    try ram_eval
+    ram_eval [two]
 
 set_option linter.unusedTactic false in
 example : 1 = 1 := by

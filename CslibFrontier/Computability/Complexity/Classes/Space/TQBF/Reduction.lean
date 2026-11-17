@@ -24,7 +24,7 @@ quantified Boolean formula [Sipser, Theorem 8.9][Sipser2013]
 (`Cslib.Complexity.TQBF.savitchFormula`) on the codes, of width `w = 2 * W + 2` for the width `W`
 of the codes, at depth `w`. Each of its `w` levels has `O(w)` tokens, so it has `O(w ^ 2)` tokens
 besides those of its formula of level `0`; it is computed in polynomial time in
-`Cslib.Computability.Complexity.Classes.Space.TQBF.PolyTime`.
+`CslibFrontier.Computability.Complexity.Classes.Space.TQBF.PolyTime`.
 
 Its formula of level `0` must express one step or none between the words held by two blocks. The
 step test of codes is polynomial-time (`Cslib.Complexity.TQBF.computableInPolyTime_edgeTest`),
@@ -41,6 +41,7 @@ existentially (`Cslib.Complexity.TQBF.eval_baseFormula`); its free variables are
 ## Main definitions
 
 * `Cslib.Complexity.TQBF.tabVar`: the numbering of the tableau variables by odd numbers.
+* `Cslib.Complexity.TQBF.baseMatrix`: the shared quantifier-free tableau matrix.
 * `Cslib.Complexity.TQBF.baseFormula`: a tableau as a formula on the blocks of level `0`.
 * `Cslib.Complexity.TQBF.edgeTest`: the test of one step or none between codes.
 * `Cslib.Complexity.TQBF.reduce`: the reduction.
@@ -108,11 +109,16 @@ noncomputable def certLinks (k : ℕ) (State : Type) [Fintype State] (w : ℕ) :
   QBF.conj ((List.range (2 * w)).map fun j =>
     QBF.iff (.var (tabVar (CookLevin.Var.cert (k := k) (State := State) j))) (.var (certVar w j)))
 
+/-- The quantifier-free matrix linking the certificate variables to the source and target
+blocks and asserting the tableau. The auxiliary variables are quantified by `baseFormula`. -/
+noncomputable def baseMatrix (tab : CNF (CookLevin.Var k State)) (w : ℕ) : QBF ℕ :=
+  .and (certLinks k State w) (QBF.ofCNF (tab.relabel tabVar))
+
 /-- **A tableau as the formula of level `0`**: its variables numbered by odd numbers, its first
 `2 * w` certificate variables linked to the source and target blocks of level `0`, and all of them
 quantified existentially. -/
 noncomputable def baseFormula (tab : CNF (CookLevin.Var k State)) (w : ℕ) : QBF ℕ :=
-  QBF.exs (baseVars tab w) (.and (certLinks k State w) (QBF.ofCNF (tab.relabel tabVar)))
+  QBF.exs (baseVars tab w) (baseMatrix tab w)
 
 /-- Block variables are not quantified in the formula of level `0`. -/
 private theorem certVar_notMem_baseVars (tab : CNF (CookLevin.Var k State)) (w j : ℕ) :
@@ -128,7 +134,7 @@ theorem eval_baseFormula (tab : CNF (CookLevin.Var k State)) (w : ℕ) (σ : ℕ
     (baseFormula tab w).eval σ = true ↔ ∃ τ : CookLevin.Var k State → Bool,
       CookLevin.certWord τ (2 * w) = block σ w 0 0 ++ block σ w 1 0 ∧ tab.eval τ = true := by
   classical
-  rw [baseFormula, QBF.eval_exs_eq_true_iff]
+  rw [baseFormula, baseMatrix, QBF.eval_exs_eq_true_iff]
   constructor
   · rintro ⟨σ', hσ', h⟩
     simp only [QBF.eval_and, Bool.and_eq_true, certLinks, QBF.eval_conj, List.all_map,
@@ -167,7 +173,8 @@ level `0`. -/
 theorem mem_freeVars_baseFormula (tab : CNF (CookLevin.Var k State)) (w : ℕ) :
     ∀ x ∈ (baseFormula tab w).freeVars, x ∈ blockVars w 0 0 ∨ x ∈ blockVars w 1 0 := by
   intro x hx
-  simp only [baseFormula, QBF.freeVars_exs, QBF.freeVars_and, Finset.mem_sdiff, Finset.mem_union,
+  simp only [baseFormula, baseMatrix, QBF.freeVars_exs, QBF.freeVars_and,
+    Finset.mem_sdiff, Finset.mem_union,
     List.mem_toFinset] at hx
   obtain ⟨hx, hbase⟩ := hx
   rcases hx with hx | hx

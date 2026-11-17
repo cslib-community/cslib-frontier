@@ -5,6 +5,7 @@ Authors: Samuel Schlesinger
 -/
 
 import CslibFrontier.Crypto.Computational.Pseudoentropy.Learning
+import CslibFrontier.Crypto.Computational.Pseudoentropy.RepeatedExtraction
 import CslibFrontier.Crypto.Computational.Pseudoentropy.Boosting.Training
 import CslibFrontier.Tactic.PPT
 
@@ -136,8 +137,7 @@ example (joint : PMF (Bool × Bool)) :
 example {Observation Label Seed : Type} (source : ProbComp (Observation × Label))
     (seed : ProbComp Seed) (count : ℕ) (test : List Observation × Seed × Unit → Game) :
     Game.advantage
-      ((ProbComp.eval (OracleComp.replicate count source >>=
-        extractLabels seed (fun _ _ => ()))).bind test)
+      ((ProbComp.eval (extractLabelsReal source count seed (fun _ _ => ()))).bind test)
       ((extractLabelsIdeal (Output := Unit) (Prod.fst <$> source) count seed).bind test) = 0 := by
   rw [eval_extractLabels_of_subsingleton, Game.advantage_self]
 

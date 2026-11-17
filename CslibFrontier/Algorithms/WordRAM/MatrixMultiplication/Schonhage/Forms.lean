@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Encoding
 public import CslibFrontier.Foundations.Algebra.FiniteMagnitude
 import Mathlib.Tactic.Ring
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Native execution of the encoding forms
@@ -66,7 +67,6 @@ theorem exec_summand {w : ℕ} (x : Data 32) (s : Fin 7) (c a v : ℤ) (base n :
       intro i _ _ hi _
       simp only [Data.set_regs, Function.update_of_ne hi]
   all_goals
-    have hs : Fits (w + 2) s.val := hseven.of_le (by omega)
     have hmul : Fits (w + 2) (s.val * n) := haddr.of_le (by nlinarith [s.isLt])
     have hsum : Fits (w + 2) (base + s.val * n) := haddr.of_le (by nlinarith [s.isLt])
     let z := ((((x.set temporary s.val).set address (s.val * n)).set address
@@ -74,7 +74,7 @@ theorem exec_summand {w : ℕ} (x : Data 32) (s : Fin 7) (c a v : ℤ) (base n :
     have hz : ExecWithin (w + 2)
         (ram[ temporary ← #s.val; address ← temporary * stride;
           address ← group + address; right ← *address; left ← accumulator ]) x z 5 := by
-      ram_eval [z, hs, hmul, hsum, hn, hbase, hacc, hmem,
+      ram_eval [z, hmul, hsum, hn, hbase, hacc, hmem,
         temporary, address, group, stride, right, left, accumulator, Fin.mk.injEq]
     have hza : z.regs left = encode a := by simp [z]
     have hzv : z.regs right = encode v := by
@@ -178,8 +178,7 @@ theorem exec_form {w : ℕ} (hw : 0 < w) (side : Bool) (t : Fin 10)
     (List.ofFn fun s => (s, coefficients side t s)) z 0 B base n v
     (by intro sc hsc; obtain ⟨s, rfl⟩ := List.mem_ofFn.mp hsc; exact coefficients_values side t s)
     (by simp [z, encode])
-    ((hz.2 group (by decide) (by decide) (by decide) (by decide)).trans hbase)
-    ((hz.2 stride (by decide) (by decide) (by decide) (by decide)).trans hn)
+    (by regs_frame) (by regs_frame)
     (by simpa only [z, Data.set_mem] using hmem) hB hv (by linarith)
     (by simpa using hfit) haddr hseven
   refine ⟨y, ?_, ?_, hz.trans hf⟩

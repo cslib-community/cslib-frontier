@@ -16,6 +16,7 @@ public import CslibFrontier.Algorithms.WordRAM.NatSqrt
 public import CslibFrontier.Computability.WordRAM.Compile
 public import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
 public import CslibFrontier.Foundations.NumberTheory.AKS.IntegerVariant
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 import CslibFrontier.Foundations.NumberTheory.AKS.SmallR
 
 /-!
@@ -234,11 +235,22 @@ private theorem fits_exp {w s v : ℕ} (hw : 8 * (s + 1) ≤ w) (hv : v < 2 ^ (2
     Fits w v :=
   fits_iff.mpr (hv.trans_le (Nat.pow_le_pow_right (by norm_num) (by omega)))
 
-/-- A subroutine on the low registers preserves the registers of the top level. -/
-private theorem preserves_low {k : ℕ} (hk : k ≤ 29) (c : Code .standard k) (j : Fin 36)
-    (hj : 29 ≤ j.val) : (c.rename (low hk)).Preserves j :=
-  c.preserves_rename_of_offset (offset := 0) (low hk)
-    (fun j => (Nat.zero_add j.val).symm) j (Or.inr (by omega))
+/-- For `N < 2^s` with `s ≥ 2`, `N² + 2 N + 2` fits the width `8 (s + 1)`. -/
+private theorem fits_sq {w s N : ℕ} (hs : 2 ≤ s) (hw : 8 * (s + 1) ≤ w) (hN : N < 2 ^ s) :
+    Fits w (N * N + 2 * N + 2) := by
+  refine fits_exp hw ?_
+  have : (N + 1) * (N + 1) ≤ 2 ^ s * 2 ^ s := Nat.mul_le_mul hN hN
+  have h2 : 2 ^ (2 * s + 1) = 2 ^ s * 2 ^ s * 2 := by ring
+  have h4 : 2 ≤ 2 ^ s := Nat.le_self_pow (by omega) 2
+  rw [h2]
+  nlinarith
+
+/-- A register above the subroutine bank `[0, k)` is outside `low hk`. -/
+private theorem low_ne {k : ℕ} (hk : k ≤ 29) {j : Fin 36} (hj : 29 ≤ j.val) (i : Fin k) :
+    low hk i ≠ j := fun h => by
+  have := congrArg Fin.val h
+  dsimp [low] at this
+  omega
 
 /-! ### Correctness -/
 
@@ -257,17 +269,12 @@ private theorem congruenceSteps_exec {w s : ℕ} (x : Data 36) {N R L : ℕ} (hn
   have hNs : N < 2 ^ s := hsN ▸ Nat.lt_size_self N
   have h5 : s ^ 5 ≤ s ^ 10 := Nat.pow_le_pow_right (by omega) (by norm_num)
   have h7 : s ^ 7 ≤ s ^ 10 := Nat.pow_le_pow_right (by omega) (by norm_num)
+  unfold congruenceSteps
   by_cases hRN : R < N
   swap
-  · -- Step 4: `n ≤ r`.
-    have hrun : ExecWithin (B := .standard) w (ram[ ans ← #1 ]) x (x.set ans 1) 1 := by
-      ram_eval [fits_poly hs hw (by omega : 1 ≤ 64 * s ^ 10)]
-    refine ⟨x.set ans 1, (ExecWithin.branch_neg (by simpa [Cond.holds_lt, hr, hn] using hRN)
-      hrun).mono (by omega), ?_, ?_⟩
-    · simp
-    · simp only [Data.set_regs, Function.update_self, true_iff]
-      exact Or.inl (by omega)
-  -- The square root.
+  · wram_exec [hr, hn, hRN, fits_poly hs hw (by omega : 1 ≤ 64 * s ^ 10)]
+    wram_simp
+    exact ⟨fun _ => Or.inl (by omega), fun _ => trivial⟩
   set Φ := Nat.totient R
   have hΦR : Φ ≤ R := Nat.totient_le R
   have hΦL : Φ * L ≤ 4 * s ^ 7 := by
@@ -281,74 +288,52 @@ private theorem congruenceSteps_exec {w s : ℕ} (x : Data 36) {N R L : ℕ} (hn
             _ = (2 * s ^ 4) ^ 2 := by ring)
       _ = 2 * s ^ 4 := Nat.sqrt_eq' _
   have h4 : s ^ 4 ≤ s ^ 10 := Nat.pow_le_pow_right (by omega) (by norm_num)
-  let x₁ := x.set sqArg (Φ * L)
-  have hrun₁ : ExecWithin (B := .standard) w (ram[ sqArg ← phv * lv ]) x x₁ 1 := by
-    ram_eval [x₁, hph, hl, fits_poly hs hw (by omega : Φ * L ≤ 64 * s ^ 10)]
-  obtain ⟨y₂, hrun₂, hroot, -, -, -⟩ := NatSqrt.exec_rename (low (by norm_num)) (low_injective _)
-    x₁ (by
-      have : x₁.regs (low (by norm_num) NatSqrt.arg) = Φ * L := by simp +decide [x₁, low]
-      rw [this]
-      exact fits_poly hs hw (by omega))
-  have hx₁a : x₁.regs (low (by norm_num) NatSqrt.arg) = Φ * L := by simp +decide [x₁, low]
-  rw [hx₁a] at hrun₂ hroot
-  have hy₂ (j : Fin 36) (hj : 29 ≤ j.val) : y₂.regs j = x₁.regs j :=
-    hrun₂.regs_eq (preserves_low _ _ j hj)
-  have hy₂n : y₂.regs nv = N := by rw [hy₂ nv (by decide)]; simp +decide [x₁, hn]
-  have hy₂r : y₂.regs rv = R := by rw [hy₂ rv (by decide)]; simp +decide [x₁, hr]
-  -- The blocks.
-  let x₃ := (((((y₂.set clA A).set clR 0).set clB R).set clT (R + R)).set clRr R).set clNn N
-  have hrun₃ : ExecWithin (B := .standard) w
-      (ram[ clA ← sqRoot; clR ← #0; clB ← rv; clT ← rv + rv; clRr ← rv; clNn ← nv ])
-      y₂ x₃ 6 := by
-    have hroot' : y₂.regs sqRoot = A := hroot
-    ram_eval [x₃, hroot', hy₂r, hy₂n, fits_zero, fits_poly hs hw (by omega : R + R ≤ 64 * s ^ 10)]
-  -- Step 5.
-  have hxR : x₃.regs clR = 0 := by simp +decide [x₃]
-  have hxB : x₃.regs clB = R := by simp +decide [x₃]
-  have hxT : x₃.regs clT = R + R := by simp +decide [x₃]
-  have hxr : x₃.regs clRr = R := by simp +decide [x₃]
-  have hxn : x₃.regs clNn = N := by simp +decide [x₃]
-  have hxA : x₃.regs clA = A := by simp +decide [x₃]
-  obtain ⟨y₄, hrun₄, hok, hokiff, -⟩ := CongruenceLoop.exec (x₃.comap (low le_rfl))
-    hxR hxB hxT hxr hxn hxA
+  unfold sqrt congruences
+  wram_exec [hr, hn, hRN, hph, hl, fits_poly hs hw (by omega : Φ * L ≤ 64 * s ^ 10)]
+  refine WP.name fun x₁ hx₁ => ?_
+  have hx₁a : x₁.regs sqArg = Φ * L := by subst hx₁; wram_simp
+  wram_call (NatSqrt.exec (x₁.comap (low (k := 6) (by norm_num)))
+    (by change Fits w (4 * x₁.regs sqArg + 4); rw [hx₁a]; exact fits_poly hs hw (by omega)))
+    renamed (low_injective _) with y₂ ⟨⟨hroot, -, -, -⟩, hout₂⟩
+  have hroot' : y₂.regs sqRoot = A := by
+    change y₂.regs sqRoot = Nat.sqrt (x₁.regs sqArg) at hroot
+    rwa [hx₁a] at hroot
+  have hy₂n : y₂.regs nv = N :=
+    (hout₂ nv (low_ne _ (by decide))).trans (by subst hx₁; wram_simp [hn])
+  have hy₂r : y₂.regs rv = R :=
+    (hout₂ rv (low_ne _ (by decide))).trans (by subst hx₁; wram_simp [hr])
+  wram_exec [hroot', hy₂r, hy₂n, fits_poly hs hw (by omega : R + R ≤ 64 * s ^ 10)]
+  refine WP.name fun x₃ hx₃ => ?_
+  wram_call (CongruenceLoop.exec (x₃.comap (low (k := 29) le_rfl))
+    (a := 0) (b := R) (t := R + R) (r := R) (n := N) (A₀ := A)
+    (by change x₃.regs clR = 0; subst hx₃; wram_simp)
+    (by change x₃.regs clB = R; subst hx₃; wram_simp)
+    (by change x₃.regs clT = R + R; subst hx₃; wram_simp)
+    (by change x₃.regs clRr = R; subst hx₃; wram_simp)
+    (by change x₃.regs clNn = N; subst hx₃; wram_simp)
+    (by change x₃.regs clA = A; subst hx₃; wram_simp)
     (by omega) (by omega) (by omega) (by omega) (by omega)
     (fits_poly hs hw (by omega)) (fits_poly hs hw (by omega)) (fits_poly hs hw (by omega))
-    (fits_poly hs hw (by omega))
-    (fits_exp hw (by
-      have : (N + 1) * (N + 1) ≤ 2 ^ s * 2 ^ s := Nat.mul_le_mul hNs hNs
-      have h2 : 2 ^ (2 * s + 1) = 2 ^ s * 2 ^ s * 2 := by ring
-      rw [h2]
-      nlinarith))
-    (fits_poly hs hw (by omega))
-  have hrun₄' := hrun₄.rename (low_injective (by norm_num : 29 ≤ 29))
-  have hy₄ok : (y₄.extend (low (by norm_num : 29 ≤ 29)) x₃).regs clOk = y₄.regs CongruenceLoop.ok :=
-    (low_injective _).extend_apply _ _ CongruenceLoop.ok
-  -- The answer.
-  let z := (y₄.extend (low (by norm_num : 29 ≤ 29)) x₃).set ans (y₄.regs CongruenceLoop.ok)
-  have hrun₅ : ExecWithin (B := .standard) w (ram[ ans ← clOk ])
-      (y₄.extend (low (by norm_num : 29 ≤ 29)) x₃) z 1 := by
-    ram_eval [z, hy₄ok]
-  refine ⟨z, (ExecWithin.branch_pos (by simpa [Cond.holds_lt, hr, hn] using hRN)
-    (hrun₁.seq (hrun₂.seq (hrun₃.seq (hrun₄'.seq hrun₅))))).mono ?_, ?_, ?_⟩
-  · have hmul : PolyPow.mulTime R ≤ PolyPow.mulTime (4 * s ^ 5) := by
-      unfold PolyPow.mulTime; gcongr
-    have hin : Nat.size N * (2 * PolyPow.mulTime R + 6) + 4 + 26 * R + 57 + 6 ≤
-        s * (2 * PolyPow.mulTime (4 * s ^ 5) + 6) + 104 * s ^ 5 + 67 := by
-      rw [hsN]
-      have := Nat.mul_le_mul_left s
-        (show 2 * PolyPow.mulTime R + 6 ≤ 2 * PolyPow.mulTime (4 * s ^ 5) + 6 by omega)
-      omega
-    have := Nat.mul_le_mul hA hin
-    unfold CongruenceLoop.time Congruence.time PolyPow.time
+    (fits_poly hs hw (by omega)) ((fits_sq hs hw hNs).of_le (by omega))
+    (fits_poly hs hw (by omega)))
+    renamed (low_injective _) with y₄ ⟨⟨hok, hokiff, -⟩, _⟩
+  change y₄.regs clOk ≤ 1 at hok
+  change y₄.regs clOk = 1 ↔ _ at hokiff
+  wram_exec
+  wram_simp [hok, hokiff]
+  refine ⟨?_, Or.inr, fun h => h.resolve_left (by omega)⟩
+  rw [show low (k := 6) (by norm_num) NatSqrt.arg = sqArg from rfl, hx₁a]
+  have hmul : PolyPow.mulTime R ≤ PolyPow.mulTime (4 * s ^ 5) := by
+    unfold PolyPow.mulTime; gcongr
+  have hin : Nat.size N * (2 * PolyPow.mulTime R + 6) + 4 + 26 * R + 57 + 6 ≤
+      s * (2 * PolyPow.mulTime (4 * s ^ 5) + 6) + 104 * s ^ 5 + 67 := by
+    rw [hsN]
+    have := Nat.mul_le_mul_left s
+      (show 2 * PolyPow.mulTime R + 6 ≤ 2 * PolyPow.mulTime (4 * s ^ 5) + 6 by omega)
     omega
-  · simpa [z] using hok
-  · simp only [z, Data.set_regs, Function.update_self]
-    rw [hokiff]
-    constructor
-    · exact fun h => Or.inr h
-    · rintro (h | h)
-      · omega
-      · exact h
+  have := Nat.mul_le_mul hA hin
+  unfold CongruenceLoop.time Congruence.time PolyPow.time
+  omega
 
 /-- `n ≥ 2` has at least two bits. -/
 private theorem two_le_size {N : ℕ} (hN : 2 ≤ N) : 2 ≤ Nat.size N := by
@@ -374,34 +359,28 @@ private theorem searchSteps_exec {w s : ℕ} (x : Data 36) {N : ℕ} (hn : x.reg
   have h1s : s ≤ s ^ 2 := by nlinarith
   have h2s : s ^ 2 ≤ s ^ 10 := Nat.pow_le_pow_right (by omega) (by norm_num)
   have h5s : s ^ 5 ≤ s ^ 10 := Nat.pow_le_pow_right (by omega) (by norm_num)
-  have hF1 : Fits w 1 := fits_poly hs hw (by omega)
   have hF2 : Fits w 2 := fits_poly hs hw (by omega)
   have hFN : Fits w N := fits_exp hw (hNs.trans (Nat.pow_lt_pow_right (by norm_num) (by omega)))
   have hFN1 : Fits w (N + 1) :=
     fits_exp hw (lt_of_le_of_lt hNs (Nat.pow_lt_pow_right (by norm_num) (by omega)))
-  -- The logarithm `c = ⌈log₂ n⌉`.
-  let x₁ := x.set logArg N
-  have hrun₁ : ExecWithin (B := .standard) w (ram[ logArg ← nv ]) x x₁ 1 := by
-    ram_eval [x₁, hn]
-  have hx₁a : x₁.regs logArg = N := by simp [x₁]
-  obtain ⟨y₂, hrun₂, hres, -, -, -⟩ := NatClog.exec_rename (low (k := 4) (by norm_num))
-    (low_injective _) x₁ hF2 (by change Fits w (x₁.regs logArg + 1); rw [hx₁a]; exact hFN1)
+  unfold searchSteps clog orderSearch gcdTotient
+  wram_exec [hn]
+  refine WP.name fun x₁ hx₁ => ?_
+  have hx₁a : x₁.regs logArg = N := by subst hx₁; wram_simp
+  wram_call (NatClog.exec (x₁.comap (low (k := 4) (by norm_num))) hF2
+    (by change Fits w (x₁.regs logArg + 1); exact hx₁a ▸ hFN1)
     (by change Fits w (Nat.clog 2 (x₁.regs logArg) + 1); rw [hx₁a, hcdef]
-        exact fits_poly hs hw (by omega))
-  have hrun₂' : ExecWithin w clog x₁ y₂ (5 * c + 5) := by
-    rw [← hcdef, ← hx₁a]; exact hrun₂
-  have hres' : y₂.regs logRes = c := by rw [← hcdef, ← hx₁a]; exact hres
-  have hy₂ (j : Fin 36) (hj : 29 ≤ j.val) : y₂.regs j = x₁.regs j :=
-    hrun₂.regs_eq (preserves_low _ _ j hj)
-  have hy₂n : y₂.regs nv = N := by rw [hy₂ nv (by decide)]; simp +decide [x₁, hn]
-  have hy₂1 : y₂.regs one = 1 := by rw [hy₂ one (by decide)]; simp +decide [x₁, h1]
-  -- Step 2: the search for `r`, with `L = c²`.
-  let x₃ := ((y₂.set lv (c * c)).set osN N).set osL (c * c)
-  have hrun₃ : ExecWithin (B := .standard) w (ram[ lv ← logRes * logRes; osN ← nv; osL ← lv ])
-      y₂ x₃ 3 := by
-    ram_eval [x₃, hres', hy₂n, fits_poly hs hw (by omega : c * c ≤ 64 * s ^ 10)]
-  have hx₃n : x₃.regs osN = N := by simp +decide [x₃]
-  have hx₃L : x₃.regs osL = c * c := by simp +decide [x₃]
+        exact fits_poly hs hw (by omega)))
+    renamed (low_injective _) with y₂ ⟨⟨hres, -, -, -⟩, hout₂⟩
+  have hres' : y₂.regs logRes = c := by
+    change y₂.regs logRes = Nat.clog 2 (x₁.regs logArg) at hres
+    rwa [hx₁a, hcdef] at hres
+  have hy₂n : y₂.regs nv = N :=
+    (hout₂ nv (low_ne _ (by decide))).trans (by subst hx₁; wram_simp [hn])
+  have hy₂1 : y₂.regs one = 1 :=
+    (hout₂ one (low_ne _ (by decide))).trans (by subst hx₁; wram_simp [h1])
+  wram_exec [hres', hy₂n, fits_poly hs hw (by omega : c * c ≤ 64 * s ^ 10)]
+  refine WP.name fun x₃ hx₃ => ?_
   obtain ⟨r₀, hr₀2, hr₀s, hr₀ord⟩ := exists_lt_orderOf hN
   rw [hcdef] at hr₀s hr₀ord
   have hr₀s' : r₀ ≤ 4 * s ^ 5 := hr₀s.trans (Nat.mul_le_mul_left 4 (Nat.pow_le_pow_left hc 5))
@@ -410,44 +389,40 @@ private theorem searchSteps_exec {w s : ℕ} (x : Data 36) {N : ℕ} (hn : x.reg
     calc r₀ * r₀ ≤ (4 * s ^ 5) * (4 * s ^ 5) := Nat.mul_le_mul hr₀s' hr₀s'
       _ = 16 * s ^ 10 := by ring
       _ ≤ 64 * s ^ 10 := by omega)
-  obtain ⟨y₄, hrun₄, hR2, hRr₀, hRgood, -, -⟩ := OrderSearch.exec
-    (x₃.comap (low (k := 13) (by norm_num))) (N := N) (L₀ := c * c) (by exact hx₃n)
-    (by exact hx₃L) hr₀2 hgood hFN hFr₀ (fits_poly hs hw (by omega))
-  obtain ⟨R, hRdef⟩ : ∃ R, y₄.regs OrderSearch.r = R := ⟨_, rfl⟩
+  wram_call (OrderSearch.exec (x₃.comap (low (k := 13) (by norm_num))) (N := N) (L₀ := c * c)
+    (r₀ := r₀) (by change x₃.regs osN = N; subst hx₃; wram_simp)
+    (by change x₃.regs osL = c * c; subst hx₃; wram_simp)
+    hr₀2 hgood hFN hFr₀ (fits_poly hs hw (by omega)))
+    renamed (low_injective _) with y₄ ⟨⟨hR2, hRr₀, hRgood, -, -⟩, hout₄⟩
+  obtain ⟨R, hRdef⟩ : ∃ R, y₄.regs osR = R := ⟨_, rfl⟩
+  change 2 ≤ y₄.regs osR at hR2
+  change y₄.regs osR ≤ r₀ at hRr₀
+  change OrderSearch.Good N (c * c) (y₄.regs osR) at hRgood
   rw [hRdef] at hR2 hRr₀ hRgood
   have hRs : R ≤ 4 * s ^ 5 := hRr₀.trans hr₀s'
-  have hrun₄' := hrun₄.rename (low_injective (by norm_num : 13 ≤ 29))
-  set y₄' := y₄.extend (low (by norm_num : 13 ≤ 29)) x₃
-  have hy₄R : y₄'.regs osR = R := by
-    rw [← hRdef]; exact (low_injective _).extend_apply _ _ OrderSearch.r
-  have hy₄ (j : Fin 36) (hj : 29 ≤ j.val) : y₄'.regs j = x₃.regs j :=
-    hrun₄'.regs_eq (preserves_low _ _ j hj)
-  have hy₄n : y₄'.regs nv = N := by rw [hy₄ nv (by decide)]; simp +decide [x₃, hy₂n]
-  -- Step 3 and the totient.
-  let x₅ := ((y₄'.set rv R).set gtN N).set gtR R
-  have hrun₅ : ExecWithin (B := .standard) w (ram[ rv ← osR; gtN ← nv; gtR ← rv ]) y₄' x₅ 3 := by
-    ram_eval [x₅, hy₄R, hy₄n]
-  have hx₅n : x₅.regs gtN = N := by simp +decide [x₅]
-  have hx₅r : x₅.regs gtR = R := by simp +decide [x₅]
-  obtain ⟨y₆, hrun₆, hok, hokiff, hphi, -, -⟩ := GcdTotient.exec
-    (x₅.comap (low (k := 11) (by norm_num))) (N := N) (R := R) (by exact hx₅n) (by exact hx₅r)
-    hR2 hFN (fits_poly hs hw (by omega))
-  have hrun₆' := hrun₆.rename (low_injective (by norm_num : 11 ≤ 29))
-  set y₆' := y₆.extend (low (by norm_num : 11 ≤ 29)) x₅
-  have hy₆ok : y₆'.regs gtOk = y₆.regs GcdTotient.ok :=
-    (low_injective _).extend_apply _ _ GcdTotient.ok
-  have hy₆phi : y₆'.regs gtPhi = Nat.totient R := by
-    rw [← hphi]; exact (low_injective _).extend_apply _ _ GcdTotient.phi
-  have hy₆ (j : Fin 36) (hj : 29 ≤ j.val) : y₆'.regs j = x₅.regs j :=
-    hrun₆'.regs_eq (preserves_low _ _ j hj)
-  have hy₆n : y₆'.regs nv = N := by rw [hy₆ nv (by decide)]; simp +decide [x₅, hy₄n]
-  have hy₆r : y₆'.regs rv = R := by rw [hy₆ rv (by decide)]; simp +decide [x₅]
-  have hy₆l : y₆'.regs lv = c * c := by
-    rw [hy₆ lv (by decide)]; simp +decide only [x₅, Data.set_regs, Function.update_apply,
-      ↓reduceIte]; rw [hy₄ lv (by decide)]; simp +decide [x₃]
-  have hy₆1 : y₆'.regs one = 1 := by
-    rw [hy₆ one (by decide)]; simp +decide only [x₅, Data.set_regs, Function.update_apply,
-      ↓reduceIte]; rw [hy₄ one (by decide)]; simp +decide [x₃, hy₂1]
+  have hy₄n : y₄.regs nv = N :=
+    (hout₄ nv (low_ne _ (by decide))).trans (by subst hx₃; wram_simp [hy₂n])
+  have hy₄l : y₄.regs lv = c * c :=
+    (hout₄ lv (low_ne _ (by decide))).trans (by subst hx₃; wram_simp)
+  have hy₄1 : y₄.regs one = 1 :=
+    (hout₄ one (low_ne _ (by decide))).trans (by subst hx₃; wram_simp [hy₂1])
+  wram_exec [hRdef, hy₄n]
+  refine WP.name fun x₅ hx₅ => ?_
+  wram_call (GcdTotient.exec (x₅.comap (low (k := 11) (by norm_num))) (N := N) (R := R)
+    (by change x₅.regs gtN = N; subst hx₅; wram_simp)
+    (by change x₅.regs gtR = R; subst hx₅; wram_simp)
+    hR2 hFN (fits_poly hs hw (by omega)))
+    renamed (low_injective _) with y₆ ⟨⟨hok, hokiff, hphi, -, -⟩, hout₆⟩
+  change y₆.regs gtOk = 1 ↔ _ at hokiff
+  change y₆.regs gtPhi = Nat.totient R at hphi
+  have hy₆n : y₆.regs nv = N :=
+    (hout₆ nv (low_ne _ (by decide))).trans (by subst hx₅; wram_simp [hy₄n])
+  have hy₆r : y₆.regs rv = R :=
+    (hout₆ rv (low_ne _ (by decide))).trans (by subst hx₅; wram_simp)
+  have hy₆l : y₆.regs lv = c * c :=
+    (hout₆ lv (low_ne _ (by decide))).trans (by subst hx₅; wram_simp [hy₄l])
+  have hy₆1 : y₆.regs one = 1 :=
+    (hout₆ one (low_ne _ (by decide))).trans (by subst hx₅; wram_simp [hy₄1])
   have hord : Nat.clog 2 N ^ 2 < orderOf (N : ZMod R) := by
     rw [hcdef, sq]; exact (lt_orderOf_iff hR2).mpr hRgood
   have hprime := prime_iff_passesUpTo_numTestsNat hN hord
@@ -455,34 +430,21 @@ private theorem searchSteps_exec {w s : ℕ} (x : Data 36) {N : ℕ} (hn : x.reg
     unfold OrderSearch.time; gcongr
   have hGT : GcdTotient.time R ≤ GcdTotient.time (4 * s ^ 5) := by
     unfold GcdTotient.time; gcongr
-  by_cases h3 : y₆.regs GcdTotient.ok = 1
-  · -- Steps 4 and 5.
-    let x₇ := y₆'.set phv (Nat.totient R)
-    have hrun₇ : ExecWithin (B := .standard) w (ram[ phv ← gtPhi ]) y₆' x₇ 1 := by
-      ram_eval [x₇, hy₆phi]
-    obtain ⟨z, hrunz, hz1, hziff⟩ := congruenceSteps_exec (w := w) x₇ (N := N) (R := R)
-      (L := c * c) (by simp +decide [x₇, hy₆n]) (by simp +decide [x₇, hy₆r])
-      (by simp +decide [x₇, hy₆l]) (by simp +decide [x₇]) hsN hs hw hR2 hRs hcc
-    have hbr := ExecWithin.branch_pos (cond := .eq gtOk one) (neg := ram[ ans ← #0 ]) (by
-      simp only [Cond.holds_eq, hy₆ok, hy₆1, h3]) (hrun₇.seq hrunz)
-    refine ⟨z, (hrun₁.seq (hrun₂'.seq (hrun₃.seq (hrun₄'.seq (hrun₅.seq
-      (hrun₆'.seq hbr)))))).mono ?_, hz1, ?_⟩
-    · omega
+  by_cases h3 : y₆.regs gtOk = 1
+  · wram_exec [h3, hy₆1, hphi]
+    refine WP.name fun x₇ hx₇ => ?_
+    wram_call (congruenceSteps_exec (w := w) x₇ (N := N) (R := R) (L := c * c)
+      (by subst hx₇; wram_simp [hy₆n]) (by subst hx₇; wram_simp [hy₆r])
+      (by subst hx₇; wram_simp [hy₆l]) (by subst hx₇; wram_simp) hsN hs hw hR2 hRs hcc)
+      with z ⟨hz1, hziff⟩
+    refine ⟨?_, hz1, ?_⟩
+    · rw [show low (k := 4) (by norm_num) NatClog.arg = logArg from rfl, hx₁a, hcdef]; omega
     · rw [hziff, hprime, PassesUpTo, numTestsNat, hcdef, sq]
       exact ⟨fun h => ⟨hpp, hokiff.mp h3, h⟩, fun h => h.2.2⟩
-  · -- Step 3 fails.
-    let z := y₆'.set ans 0
-    have hrunz : ExecWithin (B := .standard) w (ram[ ans ← #0 ]) y₆' z 1 := by
-      ram_eval [z, fits_zero]
-    have hbr := ExecWithin.branch_neg (cond := .eq gtOk one)
-      (pos := .seq (ram[ phv ← gtPhi ]) congruenceSteps) (by
-      simp only [Cond.holds_eq, hy₆ok, hy₆1, h3, not_false_eq_true]) hrunz
-    refine ⟨z, (hrun₁.seq (hrun₂'.seq (hrun₃.seq (hrun₄'.seq (hrun₅.seq
-      (hrun₆'.seq hbr)))))).mono ?_, ?_, ?_⟩
-    · omega
-    · simp [z]
-    · simp only [z, Data.set_regs, Function.update_self, zero_ne_one, false_iff]
-      exact fun hp => h3 (hokiff.mpr (passesUpTo_of_prime hp R 0).2.1)
+  · wram_exec [h3, hy₆1]
+    wram_simp
+    refine ⟨?_, nofun, fun hp => h3 (hokiff.mpr (passesUpTo_of_prime hp R 0).2.1)⟩
+    rw [show low (k := 4) (by norm_num) NatClog.arg = logArg from rfl, hx₁a, hcdef]; omega
 
 /-- **The AKS algorithm is correct.** At a word size of at least `8 (size n + 1)`, the program
 leaves `1` in `ans` if `n` is prime and `0` otherwise, within `time (size n)` instructions. -/
@@ -495,72 +457,44 @@ theorem answers {w : ℕ} (N : ℕ) (hw : 8 * (Nat.size N + 1) ≤ w) :
   have hF1 : Fits w 1 := fits_iff.mpr (by omega)
   have hF2 : Fits w 2 := fits_iff.mpr (by omega)
   have hmem : (Data.init [N] : Data 36).mem 1 = N := rfl
-  let x₁ := (((Data.init [N] : Data 36).set one 1).set two 2).set nv N
-  have hrun₁ : ExecWithin (B := .standard) w (ram[ one ← #1; two ← #2; nv ← *one ])
-      (.init [N]) x₁ 3 := by
-    ram_eval [x₁, hmem, hF1, hF2]
-  have hx₁n : x₁.regs nv = N := by simp +decide [x₁]
-  have hx₁1 : x₁.regs one = 1 := by simp +decide [x₁]
-  have hx₁2 : x₁.regs two = 2 := by simp +decide [x₁]
+  unfold Code.Answers program perfectPower
   by_cases hN : N < 2
-  · -- `n < 2`.
-    let z := x₁.set ans 0
-    have hrunz : ExecWithin (B := .standard) w (ram[ ans ← #0 ]) x₁ z 1 := by
-      ram_eval [z, fits_zero]
-    refine ⟨z, (hrun₁.seq (ExecWithin.branch_pos (by simp only [Cond.holds_lt, hx₁n, hx₁2, hN])
-      hrunz)).mono ?_, by simp [z], ?_⟩
-    · unfold time; omega
-    · simp only [z, Data.set_regs, Function.update_self, zero_ne_one, false_iff]
-      exact fun hp => absurd hp.two_le (by omega)
+  · wram_exec [hmem, hF1, hF2, hN]
+    wram_simp
+    exact ⟨by unfold time; omega, nofun, fun hp => absurd hp.two_le (by omega)⟩
   have hN2 : 2 ≤ N := by omega
   have hs : 2 ≤ s := hsN ▸ two_le_size hN2
-  -- Step 1: the perfect-power test.
-  let x₂ := x₁.set ppN N
-  have hrun₂ : ExecWithin (B := .standard) w (ram[ ppN ← nv ]) x₁ x₂ 1 := by
-    ram_eval [x₂, hx₁n]
-  have hx₂ : x₂.regs ppN = N := by simp [x₂]
-  obtain ⟨y₃, hrun₃, hflag, -, -⟩ := PerfectPower.exec_rename (low (k := 14) (by norm_num))
-    (low_injective _) x₂ (by change 2 ≤ x₂.regs ppN; rw [hx₂]; exact hN2)
-    (by
-      change Fits w (x₂.regs ppN * x₂.regs ppN + 2 * x₂.regs ppN + 2)
-      rw [hx₂]
-      refine fits_exp hw ?_
-      have : (N + 1) * (N + 1) ≤ 2 ^ s * 2 ^ s := Nat.mul_le_mul hNs hNs
-      have h2 : 2 ^ (2 * s + 1) = 2 ^ s * 2 ^ s * 2 := by ring
-      have h4 : 2 ≤ 2 ^ s := by
-        calc 2 = 2 ^ 1 := by norm_num
-          _ ≤ 2 ^ s := Nat.pow_le_pow_right (by norm_num) (by omega)
-      rw [h2]
-      nlinarith)
-  have hrun₃' : ExecWithin w perfectPower x₂ y₃ (PerfectPower.time N) := by
-    rw [← hx₂]; exact hrun₃
-  have hflag' : y₃.regs ppFlag = if IsPerfectPower N then 1 else 0 := by
-    rw [← hx₂]; exact hflag
-  have hy₃ (j : Fin 36) (hj : 29 ≤ j.val) : y₃.regs j = x₂.regs j :=
-    hrun₃.regs_eq (preserves_low _ _ j hj)
-  have hy₃n : y₃.regs nv = N := by rw [hy₃ nv (by decide)]; simp +decide [x₂, hx₁n]
-  have hy₃1 : y₃.regs one = 1 := by rw [hy₃ one (by decide)]; simp +decide [x₂, hx₁1]
+  wram_exec [hmem, hF1, hF2, hN]
+  refine WP.name fun x₂ hx₂ => ?_
+  have hx₂n : x₂.regs ppN = N := by subst hx₂; wram_simp
+  wram_call (PerfectPower.exec (x₂.comap (low (k := 14) (by norm_num)))
+    (by change 2 ≤ x₂.regs ppN; exact hx₂n ▸ hN2)
+    (by change Fits w (x₂.regs ppN * x₂.regs ppN + 2 * x₂.regs ppN + 2)
+        exact hx₂n ▸ fits_sq hs hw hNs))
+    renamed (low_injective _) with y₃ ⟨⟨hflag, -, -⟩, hout₃⟩
+  have hpp_eq : IsPerfectPower (x₂.regs (low (k := 14) (by norm_num) PerfectPower.n)) ↔
+      IsPerfectPower N := by
+    rw [show low (k := 14) (by norm_num) PerfectPower.n = ppN from rfl, hx₂n]
+  have hy₃n : y₃.regs nv = N :=
+    (hout₃ nv (low_ne _ (by decide))).trans (by subst hx₂; wram_simp)
+  have hy₃1 : y₃.regs one = 1 :=
+    (hout₃ one (low_ne _ (by decide))).trans (by subst hx₂; wram_simp)
   have hPP : PerfectPower.time N ≤ (s + 1) * (s * (6 * s + 13) + 6 * s + 22) + 4 * s + 11 := by
     have hlog : Nat.log 2 N ≤ s := (Nat.log_lt_of_lt_pow (by omega) hNs).le
     have hclog : Nat.clog 2 (N + 1) ≤ s := Nat.clog_le_of_le_pow hNs
     unfold PerfectPower.time; gcongr
-  have hbr : ¬ (Cond.lt nv two).Holds x₁ := by simp only [Cond.holds_lt, hx₁n, hx₁2]; omega
   by_cases hpp : IsPerfectPower N
-  · -- A perfect power.
-    let z := y₃.set ans 0
-    have hrunz : ExecWithin (B := .standard) w (ram[ ans ← #0 ]) y₃ z 1 := by
-      ram_eval [z, fits_zero]
-    refine ⟨z, (hrun₁.seq (ExecWithin.branch_neg hbr (hrun₂.seq (hrun₃'.seq
-      (ExecWithin.branch_pos (by simp only [Cond.holds_eq, hflag', hpp, hy₃1, ↓reduceIte])
-        hrunz))))).mono ?_, by simp [z], ?_⟩
-    · unfold time; omega
-    · simp only [z, Data.set_regs, Function.update_self, zero_ne_one, false_iff]
-      exact fun hp => not_isPerfectPower_of_prime hp hpp
-  · -- Steps 2 to 5.
-    obtain ⟨z, hrunz, hz1, hziff⟩ := searchSteps_exec y₃ hy₃n hy₃1 hN2 hpp hsN hw
-    refine ⟨z, (hrun₁.seq (ExecWithin.branch_neg hbr (hrun₂.seq (hrun₃'.seq
-      (ExecWithin.branch_neg (by simp only [Cond.holds_eq, hflag', hpp, hy₃1, ↓reduceIte]; decide)
-        hrunz))))).mono ?_, hz1, hziff⟩
+  · have hflag1 : y₃.regs ppFlag = 1 := hflag.trans (ite_eq_left (hpp_eq.mpr hpp))
+    wram_exec [hflag1, hy₃1]
+    wram_simp
+    refine ⟨?_, nofun, fun hp => not_isPerfectPower_of_prime hp hpp⟩
+    rw [show low (k := 14) (by norm_num) PerfectPower.n = ppN from rfl, hx₂n]
+    unfold time; omega
+  · have hflag0 : y₃.regs ppFlag = 0 := hflag.trans (ite_eq_right (mt hpp_eq.mp hpp))
+    wram_exec [hflag0, hy₃1]
+    wram_call (searchSteps_exec y₃ hy₃n hy₃1 hN2 hpp hsN hw) with z ⟨hz1, hziff⟩
+    refine ⟨?_, hz1, hziff⟩
+    rw [show low (k := 14) (by norm_num) PerfectPower.n = ppN from rfl, hx₂n]
     unfold time; omega
 
 /-- **The AKS algorithm decides the primes.** Its compiled program, given `n` as one word at a word

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.LocallyDecodable.Basic
+import CslibFrontier.Tactic.ENNRealToReal
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 
@@ -188,9 +189,9 @@ theorem card_heavyPositions_le {program : ProbOracleComp (fun _ : P => Γ) α} {
   set n : ℝ := (Fintype.card P : ℝ)
   set w : P → ℝ := fun j => (expectedReads program z j).toReal
   have hsum : ∑ j, w j ≤ q := by
-    have h := sum_expectedReads_le hq z
-    have h' := ENNReal.toReal_mono (ENNReal.natCast_ne_top q) h
-    rwa [ENNReal.toReal_sum fun j _ => expectedReads_ne_top hq z j, ENNReal.toReal_natCast] at h'
+    -- `ennreal_to_real` finds the summands finite by `hfin`.
+    have hfin := expectedReads_ne_top hq z
+    ennreal_to_real using sum_expectedReads_le hq z
   have hsumH : ∑ j ∈ H, w j ≤ q :=
     (Finset.sum_le_sum_of_subset_of_nonneg (Finset.subset_univ H)
       fun _ _ _ => ENNReal.toReal_nonneg).trans hsum
@@ -282,6 +283,7 @@ theorem decodeLaw_eq_of_isQueryBounded_zero {program : ProbOracleComp (fun _ : P
   induction program using OracleComp.induction with
   | pure a => rw [decodeLaw_pure, decodeLaw_pure]
   | query_bind q' cont ih =>
+    rw [PFunctor.FreeM.bind_eq_bind]
     obtain ⟨hle, hcont⟩ := IsCostBounded.liftBind_iff.mp hq
     cases q' with
     | inl n =>
@@ -301,6 +303,7 @@ theorem hasObliviousReads_of_isQueryBounded_one {program : ProbOracleComp (fun _
   induction program using OracleComp.induction generalizing n with
   | pure a => rw [expectedReads_pure, expectedReads_pure]
   | query_bind q' cont ih =>
+    rw [PFunctor.FreeM.bind_eq_bind]
     obtain ⟨hle, hcont⟩ := IsCostBounded.liftBind_iff.mp hqn
     rw [expectedReads_query_bind, expectedReads_query_bind]
     cases q' with

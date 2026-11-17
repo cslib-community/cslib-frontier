@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.Lean.Dijkstra.Native.Fibonacci.Memory
-import CslibFrontier.Algorithms.WordRAM.Dijkstra.Invariant
+import CslibFrontier.Algorithms.Dijkstra.Invariant
 import CslibFrontier.Algorithms.WordRAM.Dijkstra.ListEncode
 
 /-!
@@ -31,7 +31,8 @@ namespace Cslib.Algorithms.Lean.Dijkstra.Native.Fibonacci
 
 open Cslib.WordRAM Cslib.DataStructure Cslib.DataStructure.Memory
 open Cslib.DataStructure.PriorityQueue
-open Cslib.Algorithms.WordRAM.Dijkstra (ListInstance encodeDist)
+open Cslib.Algorithms.Dijkstra (ListInstance)
+open Cslib.Algorithms.WordRAM.Dijkstra (encodeDist)
 
 private def rate (n : ℕ) : OpKind → ℕ
   | .insert => 43
@@ -152,9 +153,7 @@ theorem run_spec (G : ListInstance) {w : ℕ}
       (fun _ s' => ∀ v : Fin G.n, s'.mem (G.outAddr v) = encodeDist (G.dist G.source v)) := by
     have hn1 : s₀.mem 1 = G.n := rfl
     have hsrc : s₀.mem 2 = G.source := rfl
-    have hm : s₀.mem (G.n + 3) = G.m := by
-      rw [← G.offset_n]
-      exact G.init_offset (r := 0) le_rfl
+    have hm : s₀.mem (G.n + 3) = G.m := Memory.init_mem_edgeCount G
     unfold run
     refine Triple.read_bind (by dsimp only [s₀]; rw [hf]; omega) <|
       Triple.read_bind (by dsimp only [s₀]; rw [hf]; omega) ?_

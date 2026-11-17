@@ -14,11 +14,13 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.P
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString.Dot
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Fold
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Iteration
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Max
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.PowMod
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Prime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
@@ -49,136 +51,121 @@ public section
 namespace Cslib.AffineDisperser.Li
 
 open Turing.MultiTapeTM
+open Cslib.BitString (listDot)
 
-attribute [local irreducible] ComputableInPolyTime ComputableTidilyInPolyTime
+attribute [local irreducible] ComputableInPolyTime
 
 /-! ### Unary parameter selection (`fifthRoot`, `primeThresholdBound`, `primeDeg`) -/
 
-private theorem tidy_fifthRoot :
-    ComputableTidilyInPolyTime fifthRoot encUnary encUnary := by
+/-- `fifthRoot` is computable in polynomial time on unary naturals. -/
+@[fun_prop]
+theorem computableInPolyTime_fifthRoot :
+    ComputableInPolyTime fifthRoot encUnary encUnary := by
   unfold fifthRoot
-  have h5 : ComputableTidilyInPolyTime (fun k : ℕ => (k + 1) ^ 5) encUnary encUnary := by
+  have h5 : ComputableInPolyTime (fun k : ℕ => (k + 1) ^ 5) encUnary encUnary := by
     have heq : (fun k : ℕ => (k + 1) ^ 5) =
         fun k : ℕ => (k + 1) * (k + 1) * (k + 1) * (k + 1) * (k + 1) := by
       funext k; ring
     rw [heq]
     fun_prop
-  refine ComputableTidilyInPolyTime.countPWithInput (encA := encUnary)
-    ComputableTidilyInPolyTime.range ?_
-  exact ComputableTidilyInPolyTime.unary_le'
-    (h5.comp (ComputableTidilyInPolyTime.snd encUnary encUnary))
-    (ComputableTidilyInPolyTime.fst encUnary encUnary)
-
-/-- `fifthRoot` is computable in polynomial time on unary naturals. -/
-@[fun_prop]
-theorem computableInPolyTime_fifthRoot :
-    ComputableInPolyTime fifthRoot encUnary encUnary :=
-  .of_tidy tidy_fifthRoot
-
-private theorem tidy_primeThresholdBound :
-    ComputableTidilyInPolyTime primeThresholdBound encUnary encUnary := by
-  unfold primeThresholdBound
-  have := tidy_fifthRoot
-  fun_prop
+  refine ComputableInPolyTime.countPWithInput (encA := encUnary)
+    ComputableInPolyTime.range ?_
+  exact ComputableInPolyTime.unary_le'
+    (h5.comp (ComputableInPolyTime.snd encUnary encUnary))
+    (ComputableInPolyTime.fst encUnary encUnary)
 
 /-- `primeThresholdBound` is computable in polynomial time on unary naturals. -/
 @[fun_prop]
 theorem computableInPolyTime_primeThresholdBound :
-    ComputableInPolyTime primeThresholdBound encUnary encUnary :=
-  .of_tidy tidy_primeThresholdBound
-
-private theorem tidy_primeDeg :
-    ComputableTidilyInPolyTime primeDeg encUnary encUnary := by
-  have hl : ComputableTidilyInPolyTime
-      (fun N : ℕ =>
-        (List.range (primeThresholdBound N)).map fun i => primeThresholdBound N + 1 + i)
-      encUnary (encList encUnary) := by
-    refine ComputableTidilyInPolyTime.mapWithInput
-      (ComputableTidilyInPolyTime.range.comp tidy_primeThresholdBound) ?_
-    have := tidy_primeThresholdBound
-    fun_prop
-  have hprimePlain : ComputableInPolyTime (fun b : ℕ => decide b.Prime) encUnary encBool := by
-    fun_prop
-  have hprime : ComputableTidilyInPolyTime (fun p : ℕ × ℕ => decide p.2.Prime)
-      (encPair encUnary encUnary) encBool :=
-    hprimePlain.tidy.comp (ComputableTidilyInPolyTime.snd encUnary encUnary)
-  have hf : ComputableTidilyInPolyTime
-      (fun N : ℕ =>
-        ((List.range (primeThresholdBound N)).map fun i => primeThresholdBound N + 1 + i).find?
-          fun b => decide b.Prime)
-      encUnary (encOption encUnary) :=
-    ComputableTidilyInPolyTime.findWithInput hl hprime
-  refine ComputableTidilyInPolyTime.optionGetDWithInput hf ?_
-  have := tidy_primeThresholdBound
+    ComputableInPolyTime primeThresholdBound encUnary encUnary := by
+  unfold primeThresholdBound
+  have := computableInPolyTime_fifthRoot
   fun_prop
 
 /-- `primeDeg` is computable in polynomial time on unary naturals. -/
 @[fun_prop]
 theorem computableInPolyTime_primeDeg :
-    ComputableInPolyTime primeDeg encUnary encUnary :=
-  .of_tidy tidy_primeDeg
+    ComputableInPolyTime primeDeg encUnary encUnary := by
+  have hl : ComputableInPolyTime
+      (fun N : ℕ =>
+        (List.range (primeThresholdBound N)).map fun i => primeThresholdBound N + 1 + i)
+      encUnary (encList encUnary) := by
+    refine ComputableInPolyTime.mapWithInput
+      (ComputableInPolyTime.range.comp computableInPolyTime_primeThresholdBound) ?_
+    have := computableInPolyTime_primeThresholdBound
+    fun_prop
+  have hprimePlain : ComputableInPolyTime (fun b : ℕ => decide b.Prime) encUnary encBool := by
+    fun_prop
+  have hprime : ComputableInPolyTime (fun p : ℕ × ℕ => decide p.2.Prime)
+      (encPair encUnary encUnary) encBool :=
+    hprimePlain.comp (ComputableInPolyTime.snd encUnary encUnary)
+  have hf : ComputableInPolyTime
+      (fun N : ℕ =>
+        ((List.range (primeThresholdBound N)).map fun i => primeThresholdBound N + 1 + i).find?
+          fun b => decide b.Prime)
+      encUnary (encOption encUnary) :=
+    ComputableInPolyTime.findWithInput hl hprime
+  refine ComputableInPolyTime.optionGetDWithInput hf ?_
+  have := computableInPolyTime_primeThresholdBound
+  fun_prop
 
 private def ordSomeAdd1 (_ x : ℕ) : ℕ := x + 1
 
-private theorem tidy_ordTwoMod :
-    ComputableTidilyInPolyTime ordTwoMod encUnary encUnary := by
-  have hu2b : ComputableTidilyInPolyTime (fun n : ℕ => n) encUnary encNat := by fun_prop
-  have htwoPow : ComputableTidilyInPolyTime (fun p : ℕ × ℕ => 2 ^ (p.2 + 1))
+/-- `ordTwoMod` is computable in polynomial time on unary naturals. -/
+theorem computableInPolyTime_ordTwoMod :
+    ComputableInPolyTime ordTwoMod encUnary encUnary := by
+  have hu2b : ComputableInPolyTime (fun n : ℕ => n) encUnary encNat := by fun_prop
+  have htwoPow : ComputableInPolyTime (fun p : ℕ × ℕ => 2 ^ (p.2 + 1))
       (encPair encUnary encUnary) encNat :=
-    ComputableTidilyInPolyTime.binary_two_pow.comp
-      (by fun_prop : ComputableTidilyInPolyTime (fun p : ℕ × ℕ => p.2 + 1)
+    ComputableInPolyTime.binary_two_pow.comp
+      (by fun_prop : ComputableInPolyTime (fun p : ℕ × ℕ => p.2 + 1)
         (encPair encUnary encUnary) encUnary)
-  have hmod : ComputableTidilyInPolyTime (fun p : ℕ × ℕ => 2 ^ (p.2 + 1) % p.1)
+  have hmod : ComputableInPolyTime (fun p : ℕ × ℕ => 2 ^ (p.2 + 1) % p.1)
       (encPair encUnary encUnary) encNat :=
-    ComputableTidilyInPolyTime.binary_mod' htwoPow
-      (hu2b.comp (ComputableTidilyInPolyTime.fst encUnary encUnary))
+    ComputableInPolyTime.binary_mod' htwoPow
+      (hu2b.comp (ComputableInPolyTime.fst encUnary encUnary))
   have hpred := hmod.beq (.const 1)
-  have hf : ComputableTidilyInPolyTime
+  have hf : ComputableInPolyTime
       (fun q : ℕ => (List.range (q - 1)).find? fun i => 2 ^ (i + 1) % q == 1)
       encUnary (encOption encUnary) :=
-    ComputableTidilyInPolyTime.findWithInput (test := fun q i => 2 ^ (i + 1) % q == 1)
-      (ComputableTidilyInPolyTime.range.comp (by fun_prop :
-        ComputableTidilyInPolyTime (fun q : ℕ => q - 1) encUnary encUnary))
+    ComputableInPolyTime.findWithInput (test := fun q i => 2 ^ (i + 1) % q == 1)
+      (ComputableInPolyTime.range.comp (by fun_prop :
+        ComputableInPolyTime (fun q : ℕ => q - 1) encUnary encUnary))
       hpred
-  have hsome : ComputableTidilyInPolyTime (fun p : ℕ × ℕ => ordSomeAdd1 p.1 p.2)
+  have hsome : ComputableInPolyTime (fun p : ℕ × ℕ => ordSomeAdd1 p.1 p.2)
       (encPair encUnary encUnary) encUnary := by
     unfold ordSomeAdd1
     fun_prop
-  have helim := ComputableTidilyInPolyTime.optionElimWithInput hf
-    (ComputableTidilyInPolyTime.const 0) hsome
+  have helim := ComputableInPolyTime.optionElimWithInput hf
+    (ComputableInPolyTime.const 0) hsome
   convert helim using 1
   funext q
   unfold ordTwoMod ordSomeAdd1
   cases (List.find? (fun i => 2 ^ (i + 1) % q == 1) (List.range (q - 1))) <;> rfl
 
-/-- `ordTwoMod` is computable in polynomial time on unary naturals. -/
-theorem computableInPolyTime_ordTwoMod :
-    ComputableInPolyTime ordTwoMod encUnary encUnary :=
-  .of_tidy tidy_ordTwoMod
-
-private theorem tidy_qAdicValTwoPowSubOne :
-    ComputableTidilyInPolyTime (fun p : ℕ × ℕ => qAdicValTwoPowSubOne p.1 p.2)
+/-- `qAdicValTwoPowSubOne` is computable in polynomial time on unary naturals. -/
+theorem computableInPolyTime_qAdicValTwoPowSubOne :
+    ComputableInPolyTime (fun p : ℕ × ℕ => qAdicValTwoPowSubOne p.1 p.2)
       (encPair encUnary encUnary) encUnary := by
-  have hu2b : ComputableTidilyInPolyTime (fun n : ℕ => n) encUnary encNat := by fun_prop
-  have htwoPow : ComputableTidilyInPolyTime
+  have htwoPow : ComputableInPolyTime
       (fun p : (ℕ × ℕ) × ℕ => 2 ^ p.1.2)
       (encPair (encPair encUnary encUnary) encUnary) encNat :=
-    ComputableTidilyInPolyTime.binary_two_pow.comp
-      (by fun_prop : ComputableTidilyInPolyTime (fun p : (ℕ × ℕ) × ℕ => p.1.2)
+    ComputableInPolyTime.binary_two_pow.comp
+      (by fun_prop : ComputableInPolyTime (fun p : (ℕ × ℕ) × ℕ => p.1.2)
         (encPair (encPair encUnary encUnary) encUnary) encUnary)
-  have hpow : ComputableTidilyInPolyTime
+  have hpow : ComputableInPolyTime
       (fun p : (ℕ × ℕ) × ℕ => p.1.1 ^ (p.2 + 1))
       (encPair (encPair encUnary encUnary) encUnary) encNat := by
-    have hbase : ComputableTidilyInPolyTime (fun p : (ℕ × ℕ) × ℕ => p.1.1)
+    have hbase : ComputableInPolyTime (fun p : (ℕ × ℕ) × ℕ => p.1.1)
         (encPair (encPair encUnary encUnary) encUnary) encNat := by fun_prop
-    have hexp : ComputableTidilyInPolyTime (fun p : (ℕ × ℕ) × ℕ => p.2 + 1)
+    have hexp : ComputableInPolyTime (fun p : (ℕ × ℕ) × ℕ => p.2 + 1)
         (encPair (encPair encUnary encUnary) encUnary) encUnary := by fun_prop
-    exact ComputableTidilyInPolyTime.binary_pow' hbase hexp
-  have hmod : ComputableTidilyInPolyTime
+    exact ComputableInPolyTime.binary_pow' hbase hexp
+  have hmod : ComputableInPolyTime
       (fun p : (ℕ × ℕ) × ℕ => 2 ^ p.1.2 % p.1.1 ^ (p.2 + 1))
       (encPair (encPair encUnary encUnary) encUnary) encNat :=
-    ComputableTidilyInPolyTime.binary_mod' htwoPow hpow
-  have hpred : ComputableTidilyInPolyTime
+    ComputableInPolyTime.binary_mod' htwoPow hpow
+  have hpred : ComputableInPolyTime
       (fun p : (ℕ × ℕ) × ℕ => decide ((2 ^ p.1.2 % p.1.1 ^ (p.2 + 1) == 1) = true))
       (encPair (encPair encUnary encUnary) encUnary) encBool := by
     have hbeq := hmod.beq (.const 1)
@@ -189,15 +176,9 @@ private theorem tidy_qAdicValTwoPowSubOne :
       cases h : (2 ^ p.1.2 % p.1.1 ^ (p.2 + 1) == 1) <;> simp_all
     rw [heq]
     exact hbeq
-  exact ComputableTidilyInPolyTime.countPWithInput (encA := encUnary)
-    (ComputableTidilyInPolyTime.range.comp (ComputableTidilyInPolyTime.fst encUnary encUnary))
+  exact ComputableInPolyTime.countPWithInput (encA := encUnary)
+    (ComputableInPolyTime.range.comp (ComputableInPolyTime.fst encUnary encUnary))
     hpred
-
-/-- `qAdicValTwoPowSubOne` is computable in polynomial time on unary naturals. -/
-theorem computableInPolyTime_qAdicValTwoPowSubOne :
-    ComputableInPolyTime (fun p : ℕ × ℕ => qAdicValTwoPowSubOne p.1 p.2)
-      (encPair encUnary encUnary) encUnary :=
-  .of_tidy tidy_qAdicValTwoPowSubOne
 
 /-! ### Binary polynomial arithmetic (`polyTrim`, `polyAdd`, `polyMul`, `polyDivMod`, `polyGcd`) -/
 
@@ -259,7 +240,8 @@ private theorem length_encPair_mono {α β : Type} (encA : α ↪ List Bool) (en
   dsimp only
   omega
 
-private theorem tidy_polyTrim : ComputableTidilyInPolyTime polyTrim encBits encBits := by
+/-- `polyTrim` is computable in polynomial time on bit lists. -/
+theorem computableInPolyTime_polyTrim : ComputableInPolyTime polyTrim encBits encBits := by
   have hstepPlain : ComputableInPolyTime
       (fun p : (ℕ × ℕ) × Bool => trimStep p.1 p.2)
       (encPair (encPair encUnary encUnary) encBool) (encPair encUnary encUnary) := by
@@ -273,19 +255,19 @@ private theorem tidy_polyTrim : ComputableTidilyInPolyTime polyTrim encBits encB
         (ComputableInPolyTime.snd (encPair encUnary encUnary) encBool)
         (by fun_prop) (by fun_prop)
     exact ComputableInPolyTime.pair hfst hsnd
-  have hlenPair : ComputableTidilyInPolyTime (fun p : List Bool => (p.length, p.length))
+  have hlenPair : ComputableInPolyTime (fun p : List Bool => (p.length, p.length))
       encBits (encPair encUnary encUnary) := by
-    have hlen : ComputableTidilyInPolyTime List.length encBits encUnary :=
-      ComputableTidilyInPolyTime.length_bits
+    have hlen : ComputableInPolyTime List.length encBits encUnary :=
+      ComputableInPolyTime.length_bits
     exact hlen.prod hlen
-  have hfold : ComputableTidilyInPolyTime
+  have hfold : ComputableInPolyTime
       (fun p : List Bool => p.foldl trimStep (0, 0))
       encBits (encPair encUnary encUnary) := by
-    refine ComputableTidilyInPolyTime.foldl' (encA := encBool) (encL := encBits)
+    refine ComputableInPolyTime.foldl' (encA := encBool) (encL := encBits)
       (encB := encPair encUnary encUnary)
-      ComputableTidilyInPolyTime.id'
-      (ComputableTidilyInPolyTime.const (0, 0))
-      hstepPlain.tidy
+      ComputableInPolyTime.id'
+      (ComputableInPolyTime.const (0, 0))
+      hstepPlain
       (B := fun p : List Bool => (encPair encUnary encUnary (p.length, p.length)).length)
       hlenPair.polyBounded_length ?_
     intro p i hi
@@ -298,61 +280,52 @@ private theorem tidy_polyTrim : ComputableTidilyInPolyTime polyTrim encBits encB
       exact this.trans (Nat.min_le_right _ _)
     exact length_encPair_mono encUnary encUnary
       (length_encUnary_le_iff hle1) (length_encUnary_le_iff hle2)
-  have htake : ComputableTidilyInPolyTime
+  have htake : ComputableInPolyTime
       (fun p : List Bool => p.take (p.foldl trimStep (0, 0)).2)
       encBits encBits :=
-    ComputableTidilyInPolyTime.bitsTakeWithInput
-      ComputableTidilyInPolyTime.id'
-      (ComputableTidilyInPolyTime.snd encUnary encUnary |>.comp hfold)
+    ComputableInPolyTime.bitsTakeWithInput
+      ComputableInPolyTime.id'
+      (ComputableInPolyTime.snd encUnary encUnary |>.comp hfold)
   convert htake using 1
   funext p
   exact polyTrim_eq_take p
 
-/-- `polyTrim` is computable in polynomial time on bit lists. -/
-theorem computableInPolyTime_polyTrim : ComputableInPolyTime polyTrim encBits encBits :=
-  .of_tidy tidy_polyTrim
-
-private theorem tidy_polyAdd :
-    ComputableTidilyInPolyTime (fun p : List Bool × List Bool => polyAdd p.1 p.2)
+/-- `polyAdd` is computable in polynomial time. -/
+theorem computableInPolyTime_polyAdd :
+    ComputableInPolyTime (fun p : List Bool × List Bool => polyAdd p.1 p.2)
       (encPair encBits encBits) encBits := by
-  have hmax : ComputableTidilyInPolyTime
+  have hmax : ComputableInPolyTime
       (fun p : List Bool × List Bool => max p.1.length p.2.length)
       (encPair encBits encBits) encUnary :=
-    ComputableTidilyInPolyTime.unary_max.comp
-      ((ComputableTidilyInPolyTime.length_bits.comp
-        (ComputableTidilyInPolyTime.fst encBits encBits)).prod
-        (ComputableTidilyInPolyTime.length_bits.comp
-          (ComputableTidilyInPolyTime.snd encBits encBits)))
-  have hbit : ComputableTidilyInPolyTime
+    ComputableInPolyTime.unary_max.comp
+      ((ComputableInPolyTime.length_bits.comp
+        (ComputableInPolyTime.fst encBits encBits)).prod
+        (ComputableInPolyTime.length_bits.comp
+          (ComputableInPolyTime.snd encBits encBits)))
+  have hbit : ComputableInPolyTime
       (fun x : (List Bool × List Bool) × ℕ =>
         x.1.1.getD x.2 false ^^ x.1.2.getD x.2 false)
       (encPair (encPair encBits encBits) encUnary) encBool := by
-    have h1 := ComputableTidilyInPolyTime.bitsGetDWithInput
-      ((ComputableTidilyInPolyTime.fst encBits encBits).comp
-        (ComputableTidilyInPolyTime.fst (encPair encBits encBits) encUnary))
-      (ComputableTidilyInPolyTime.snd (encPair encBits encBits) encUnary)
+    have h1 := ComputableInPolyTime.bitsGetDWithInput
+      ((ComputableInPolyTime.fst encBits encBits).comp
+        (ComputableInPolyTime.fst (encPair encBits encBits) encUnary))
+      (ComputableInPolyTime.snd (encPair encBits encBits) encUnary)
       false
-    have h2 := ComputableTidilyInPolyTime.bitsGetDWithInput
-      ((ComputableTidilyInPolyTime.snd encBits encBits).comp
-        (ComputableTidilyInPolyTime.fst (encPair encBits encBits) encUnary))
-      (ComputableTidilyInPolyTime.snd (encPair encBits encBits) encUnary)
+    have h2 := ComputableInPolyTime.bitsGetDWithInput
+      ((ComputableInPolyTime.snd encBits encBits).comp
+        (ComputableInPolyTime.fst (encPair encBits encBits) encUnary))
+      (ComputableInPolyTime.snd (encPair encBits encBits) encUnary)
       false
-    exact (ComputableTidilyInPolyTime.of_finite (fun b : Bool × Bool => b.1 ^^ b.2)
-      (encA := encPair encBool encBool) (encB := encBool)).comp (h1.prod h2)
-  have hmap : ComputableTidilyInPolyTime
+    exact (ComputableInPolyTime.of_finite (fun b : Bool × Bool => b.1 ^^ b.2)
+      (encIn := encPair encBool encBool) (encOut := encBool)).comp (h1.prod h2)
+  have hmap : ComputableInPolyTime
       (fun p : List Bool × List Bool =>
         (List.range (max p.1.length p.2.length)).map fun i =>
           p.1.getD i false ^^ p.2.getD i false)
       (encPair encBits encBits) (encList encBool) :=
-    ComputableTidilyInPolyTime.mapWithInput
-      (ComputableTidilyInPolyTime.range.comp hmax) hbit
-  exact tidy_polyTrim.comp (ComputableTidilyInPolyTime.listToBits.comp hmap)
-
-/-- `polyAdd` is computable in polynomial time. -/
-theorem computableInPolyTime_polyAdd :
-    ComputableInPolyTime (fun p : List Bool × List Bool => polyAdd p.1 p.2)
-      (encPair encBits encBits) encBits :=
-  .of_tidy tidy_polyAdd
+    ComputableInPolyTime.mapWithInput
+      (ComputableInPolyTime.range.comp hmax) hbit
+  exact computableInPolyTime_polyTrim.comp (ComputableInPolyTime.listToBits.comp hmap)
 
 private theorem polyBounded_encBool_const :
     ∀ b : Bool, (encBool b).length ≤ max (encBool false).length (encBool true).length := by
@@ -361,91 +334,86 @@ private theorem polyBounded_encBool_const :
   · exact le_max_left _ _
   · exact le_max_right _ _
 
-private theorem tidy_polyMul :
-    ComputableTidilyInPolyTime (fun p : List Bool × List Bool => polyMul p.1 p.2)
+/-- `polyMul` is computable in polynomial time. -/
+theorem computableInPolyTime_polyMul :
+    ComputableInPolyTime (fun p : List Bool × List Bool => polyMul p.1 p.2)
       (encPair encBits encBits) encBits := by
-  have hcond : ComputableTidilyInPolyTime
+  have hcond : ComputableInPolyTime
       (fun p : List Bool × List Bool => p.1.isEmpty || p.2.isEmpty)
       (encPair encBits encBits) encBool :=
-    (ComputableTidilyInPolyTime.of_finite (fun b : Bool × Bool => b.1 || b.2)
-      (encA := encPair encBool encBool) (encB := encBool)).comp
-      ((ComputableTidilyInPolyTime.bitsIsEmpty.comp
-        (ComputableTidilyInPolyTime.fst encBits encBits)).prod
-        (ComputableTidilyInPolyTime.bitsIsEmpty.comp
-          (ComputableTidilyInPolyTime.snd encBits encBits)))
-  have hsum : ComputableTidilyInPolyTime
+    (ComputableInPolyTime.of_finite (fun b : Bool × Bool => b.1 || b.2)
+      (encIn := encPair encBool encBool) (encOut := encBool)).comp
+      ((ComputableInPolyTime.bitsIsEmpty.comp
+        (ComputableInPolyTime.fst encBits encBits)).prod
+        (ComputableInPolyTime.bitsIsEmpty.comp
+          (ComputableInPolyTime.snd encBits encBits)))
+  have hsum : ComputableInPolyTime
       (fun p : List Bool × List Bool => p.1.length + p.2.length)
       (encPair encBits encBits) encUnary :=
-    ComputableTidilyInPolyTime.unary_add.comp
-      ((ComputableTidilyInPolyTime.length_bits.comp
-        (ComputableTidilyInPolyTime.fst encBits encBits)).prod
-        (ComputableTidilyInPolyTime.length_bits.comp
-          (ComputableTidilyInPolyTime.snd encBits encBits)))
-  have hcoeffStep : ComputableTidilyInPolyTime
+    ComputableInPolyTime.unary_add.comp
+      ((ComputableInPolyTime.length_bits.comp
+        (ComputableInPolyTime.fst encBits encBits)).prod
+        (ComputableInPolyTime.length_bits.comp
+          (ComputableInPolyTime.snd encBits encBits)))
+  have hcoeffStep : ComputableInPolyTime
       (fun x : (((List Bool × List Bool) × ℕ) × Bool) × ℕ =>
         x.1.2 ^^ (x.1.1.1.1.getD x.2 false && x.1.1.1.2.getD (x.1.1.2 - x.2) false))
       (encPair (encPair (encPair (encPair encBits encBits) encUnary) encBool) encUnary)
       encBool := by
-    have hfront := ComputableTidilyInPolyTime.fst
+    have hfront := ComputableInPolyTime.fst
       (encPair (encPair (encPair encBits encBits) encUnary) encBool) encUnary
-    have hpar := (ComputableTidilyInPolyTime.fst
+    have hpar := (ComputableInPolyTime.fst
       (encPair (encPair encBits encBits) encUnary) encBool).comp hfront
-    have hacc := (ComputableTidilyInPolyTime.snd
+    have hacc := (ComputableInPolyTime.snd
       (encPair (encPair encBits encBits) encUnary) encBool).comp hfront
-    have hi := ComputableTidilyInPolyTime.snd
+    have hi := ComputableInPolyTime.snd
       (encPair (encPair (encPair encBits encBits) encUnary) encBool) encUnary
-    have hp := (ComputableTidilyInPolyTime.fst (encPair encBits encBits) encUnary).comp hpar
-    have hk := (ComputableTidilyInPolyTime.snd (encPair encBits encBits) encUnary).comp hpar
-    have hp1 := (ComputableTidilyInPolyTime.fst encBits encBits).comp hp
-    have hp2 := (ComputableTidilyInPolyTime.snd encBits encBits).comp hp
-    have hb1 := ComputableTidilyInPolyTime.bitsGetDWithInput hp1 hi false
-    have hsub := ComputableTidilyInPolyTime.unary_sub.comp (hk.prod hi)
-    have hb2 := ComputableTidilyInPolyTime.bitsGetDWithInput hp2 hsub false
-    exact (ComputableTidilyInPolyTime.of_finite
+    have hp := (ComputableInPolyTime.fst (encPair encBits encBits) encUnary).comp hpar
+    have hk := (ComputableInPolyTime.snd (encPair encBits encBits) encUnary).comp hpar
+    have hp1 := (ComputableInPolyTime.fst encBits encBits).comp hp
+    have hp2 := (ComputableInPolyTime.snd encBits encBits).comp hp
+    have hb1 := ComputableInPolyTime.bitsGetDWithInput hp1 hi false
+    have hsub := ComputableInPolyTime.unary_sub.comp (hk.prod hi)
+    have hb2 := ComputableInPolyTime.bitsGetDWithInput hp2 hsub false
+    exact (ComputableInPolyTime.of_finite
       (fun b : Bool × Bool × Bool => b.1 ^^ (b.2.1 && b.2.2))
-      (encA := encPair encBool (encPair encBool encBool)) (encB := encBool)).comp
+      (encIn := encPair encBool (encPair encBool encBool)) (encOut := encBool)).comp
       (hacc.prod (hb1.prod hb2))
-  have hcoeff : ComputableTidilyInPolyTime
+  have hcoeff : ComputableInPolyTime
       (fun x : (List Bool × List Bool) × ℕ =>
         (List.range (x.2 + 1)).foldl
           (fun acc i => acc ^^ (x.1.1.getD i false && x.1.2.getD (x.2 - i) false)) false)
       (encPair (encPair encBits encBits) encUnary) encBool := by
-    refine ComputableTidilyInPolyTime.foldlWith (encA := encUnary)
+    refine ComputableInPolyTime.foldlWith (encA := encUnary)
       (encL := encList encUnary) (encB := encBool)
       (par := id)
       (list := fun x : (List Bool × List Bool) × ℕ => List.range (x.2 + 1))
       (step := fun (x : (List Bool × List Bool) × ℕ) (acc : Bool) (i : ℕ) =>
         acc ^^ (x.1.1.getD i false && x.1.2.getD (x.2 - i) false))
-      ComputableTidilyInPolyTime.id'
-      (ComputableTidilyInPolyTime.range.comp (by fun_prop :
-        ComputableTidilyInPolyTime (fun x : (List Bool × List Bool) × ℕ => x.2 + 1)
+      ComputableInPolyTime.id'
+      (ComputableInPolyTime.range.comp (by fun_prop :
+        ComputableInPolyTime (fun x : (List Bool × List Bool) × ℕ => x.2 + 1)
           (encPair (encPair encBits encBits) encUnary) encUnary))
-      (ComputableTidilyInPolyTime.const false)
+      (ComputableInPolyTime.const false)
       hcoeffStep
       (B := fun _ => max (encBool false).length (encBool true).length)
       (PolyBounded.const _) ?_
     intro _ _ _
     exact polyBounded_encBool_const _
-  have hmap : ComputableTidilyInPolyTime
+  have hmap : ComputableInPolyTime
       (fun p : List Bool × List Bool =>
         (List.range (p.1.length + p.2.length)).map fun k =>
           (List.range (k + 1)).foldl
             (fun acc i => acc ^^ (p.1.getD i false && p.2.getD (k - i) false)) false)
       (encPair encBits encBits) (encList encBool) :=
-    ComputableTidilyInPolyTime.mapWithInput
-      (ComputableTidilyInPolyTime.range.comp hsum) hcoeff
-  have hres := tidy_polyTrim.comp (ComputableTidilyInPolyTime.listToBits.comp hmap)
-  have hplain := ComputableInPolyTime.ite' hcond.computableInPolyTime
-    (ComputableInPolyTime.const ([] : List Bool)) hres.computableInPolyTime
-  convert hplain.tidy using 1
+    ComputableInPolyTime.mapWithInput
+      (ComputableInPolyTime.range.comp hsum) hcoeff
+  have hres := computableInPolyTime_polyTrim.comp (ComputableInPolyTime.listToBits.comp hmap)
+  have hplain := ComputableInPolyTime.ite' hcond
+    (ComputableInPolyTime.const ([] : List Bool)) hres
+  convert hplain using 1
   funext p
   rfl
-
-/-- `polyMul` is computable in polynomial time. -/
-theorem computableInPolyTime_polyMul :
-    ComputableInPolyTime (fun p : List Bool × List Bool => polyMul p.1 p.2)
-      (encPair encBits encBits) encBits :=
-  .of_tidy tidy_polyMul
 
 private theorem length_polyDivModStep_le (bt q r : List Bool) {n : ℕ}
     (hq : q.length ≤ n) (hr : r.length ≤ n) :
@@ -473,88 +441,77 @@ private theorem length_polyDivModStep_le (bt q r : List Bool) {n : ℕ}
     exact ⟨(length_polyAdd_le _ _).trans (max_le hq hd1),
       (length_polyAdd_le _ _).trans (max_le hr' hdb)⟩
 
-private theorem tidy_replicateFalse :
-    ComputableTidilyInPolyTime (fun d : ℕ => List.replicate d false) encUnary encBits := by
-  have hmap : ComputableTidilyInPolyTime
-      (fun d : ℕ => (List.range d).map fun _ => false)
-      encUnary (encList encBool) :=
-    ComputableTidilyInPolyTime.mapWithInput ComputableTidilyInPolyTime.range
-      (ComputableTidilyInPolyTime.const false)
-  have hres := ComputableTidilyInPolyTime.listToBits.comp hmap
-  convert hres using 1
-  funext d
-  simp [List.map_const']
-
-private theorem tidy_polyDivModStep :
-    ComputableTidilyInPolyTime
+private theorem polyTime_polyDivModStep :
+    ComputableInPolyTime
       (fun p : List Bool × List Bool × List Bool => polyDivModStep p.1 p.2)
       (encPair encBits (encPair encBits encBits)) (encPair encBits encBits) := by
-  have hbt := ComputableTidilyInPolyTime.fst encBits (encPair encBits encBits)
-  have hst := ComputableTidilyInPolyTime.snd encBits (encPair encBits encBits)
-  have hq := (ComputableTidilyInPolyTime.fst encBits encBits).comp hst
-  have hr := tidy_polyTrim.comp ((ComputableTidilyInPolyTime.snd encBits encBits).comp hst)
-  have hlenR := ComputableTidilyInPolyTime.length_bits.comp hr
-  have hlenBt := ComputableTidilyInPolyTime.length_bits.comp hbt
-  have hcond : ComputableTidilyInPolyTime
+  have hbt := ComputableInPolyTime.fst encBits (encPair encBits encBits)
+  have hst := ComputableInPolyTime.snd encBits (encPair encBits encBits)
+  have hq := (ComputableInPolyTime.fst encBits encBits).comp hst
+  have hr := computableInPolyTime_polyTrim.comp
+    ((ComputableInPolyTime.snd encBits encBits).comp hst)
+  have hlenR := ComputableInPolyTime.length_bits.comp hr
+  have hlenBt := ComputableInPolyTime.length_bits.comp hbt
+  have hcond : ComputableInPolyTime
       (fun p : List Bool × List Bool × List Bool =>
         decide ((polyTrim p.2.2).length < p.1.length) || p.1.isEmpty)
       (encPair encBits (encPair encBits encBits)) encBool :=
-    (ComputableTidilyInPolyTime.of_finite (fun b : Bool × Bool => b.1 || b.2)
-      (encA := encPair encBool encBool) (encB := encBool)).comp
-      ((ComputableTidilyInPolyTime.unary_lt' hlenR hlenBt).prod
-        (ComputableTidilyInPolyTime.bitsIsEmpty.comp hbt))
-  have hbase : ComputableTidilyInPolyTime
+    (ComputableInPolyTime.of_finite (fun b : Bool × Bool => b.1 || b.2)
+      (encIn := encPair encBool encBool) (encOut := encBool)).comp
+      ((ComputableInPolyTime.unary_lt' hlenR hlenBt).prod
+        (ComputableInPolyTime.bitsIsEmpty.comp hbt))
+  have hbase : ComputableInPolyTime
       (fun p : List Bool × List Bool × List Bool => (polyTrim p.2.1, polyTrim p.2.2))
       (encPair encBits (encPair encBits encBits)) (encPair encBits encBits) :=
-    (tidy_polyTrim.comp hq).prod hr
-  have hd : ComputableTidilyInPolyTime
+    (computableInPolyTime_polyTrim.comp hq).prod hr
+  have hd : ComputableInPolyTime
       (fun p : List Bool × List Bool × List Bool =>
         (polyTrim p.2.2).length - p.1.length)
       (encPair encBits (encPair encBits encBits)) encUnary :=
-    ComputableTidilyInPolyTime.unary_sub.comp (hlenR.prod hlenBt)
-  have hrep : ComputableTidilyInPolyTime
+    ComputableInPolyTime.unary_sub.comp (hlenR.prod hlenBt)
+  have hrep : ComputableInPolyTime
       (fun p : List Bool × List Bool × List Bool =>
         List.replicate ((polyTrim p.2.2).length - p.1.length) false)
       (encPair encBits (encPair encBits encBits)) encBits :=
-    tidy_replicateFalse.comp hd
-  have hstep1 : ComputableTidilyInPolyTime
+    (ComputableInPolyTime.bitsReplicate false).comp hd
+  have hstep1 : ComputableInPolyTime
       (fun p : List Bool × List Bool × List Bool =>
         polyAdd p.2.1 (List.replicate ((polyTrim p.2.2).length - p.1.length) false ++ [true]))
       (encPair encBits (encPair encBits encBits)) encBits :=
-    tidy_polyAdd.comp (hq.prod
-      (ComputableTidilyInPolyTime.bitsAppend hrep (.const [true])))
-  have hstep2 : ComputableTidilyInPolyTime
+    computableInPolyTime_polyAdd.comp (hq.prod
+      (ComputableInPolyTime.bitsAppend hrep (.const [true])))
+  have hstep2 : ComputableInPolyTime
       (fun p : List Bool × List Bool × List Bool =>
         polyAdd (polyTrim p.2.2)
           (List.replicate ((polyTrim p.2.2).length - p.1.length) false ++ p.1))
       (encPair encBits (encPair encBits encBits)) encBits :=
-    tidy_polyAdd.comp (hr.prod
-      (ComputableTidilyInPolyTime.bitsAppend hrep hbt))
-  have hplain := ComputableInPolyTime.ite' hcond.computableInPolyTime
-    hbase.computableInPolyTime (hstep1.prod hstep2).computableInPolyTime
-  exact hplain.tidy
+    computableInPolyTime_polyAdd.comp (hr.prod
+      (ComputableInPolyTime.bitsAppend hrep hbt))
+  have hplain := ComputableInPolyTime.ite' hcond
+    hbase (hstep1.prod hstep2)
+  exact hplain
 
-private theorem tidy_polyDivMod :
-    ComputableTidilyInPolyTime (fun p : List Bool × List Bool => polyDivMod p.1 p.2)
+private theorem polyTime_polyDivMod :
+    ComputableInPolyTime (fun p : List Bool × List Bool => polyDivMod p.1 p.2)
       (encPair encBits encBits) (encPair encBits encBits) := by
-  have hpar : ComputableTidilyInPolyTime (fun p : List Bool × List Bool => polyTrim p.2)
+  have hpar : ComputableInPolyTime (fun p : List Bool × List Bool => polyTrim p.2)
       (encPair encBits encBits) encBits :=
-    tidy_polyTrim.comp (ComputableTidilyInPolyTime.snd encBits encBits)
-  have hcnt : ComputableTidilyInPolyTime (fun p : List Bool × List Bool => p.1.length)
+    computableInPolyTime_polyTrim.comp (ComputableInPolyTime.snd encBits encBits)
+  have hcnt : ComputableInPolyTime (fun p : List Bool × List Bool => p.1.length)
       (encPair encBits encBits) encUnary :=
-    ComputableTidilyInPolyTime.length_bits.comp (ComputableTidilyInPolyTime.fst encBits encBits)
-  have hinit : ComputableTidilyInPolyTime
+    ComputableInPolyTime.length_bits.comp (ComputableInPolyTime.fst encBits encBits)
+  have hinit : ComputableInPolyTime
       (fun p : List Bool × List Bool => (([] : List Bool), polyTrim p.1))
       (encPair encBits encBits) (encPair encBits encBits) :=
-    (ComputableTidilyInPolyTime.const ([] : List Bool)).prod
-      (tidy_polyTrim.comp (ComputableTidilyInPolyTime.fst encBits encBits))
+    (ComputableInPolyTime.const ([] : List Bool)).prod
+      (computableInPolyTime_polyTrim.comp (ComputableInPolyTime.fst encBits encBits))
   have hbound : PolyBounded (fun p : List Bool × List Bool => (encPair encBits encBits p).length)
       (fun p : List Bool × List Bool => 3 * p.1.length + 1) :=
     ((PolyBounded.const 3).mul
-      (ComputableTidilyInPolyTime.polyBounded hcnt)).add (PolyBounded.const 1)
-  exact (ComputableTidilyInPolyTime.iterateWith_spec
+      (ComputableInPolyTime.polyBounded hcnt)).add (PolyBounded.const 1)
+  exact (ComputableInPolyTime.iterateWith_spec
     (invariant := fun p _ st => st.1.length ≤ p.1.length ∧ st.2.length ≤ p.1.length)
-    hpar hcnt hinit tidy_polyDivModStep
+    hpar hcnt hinit polyTime_polyDivModStep
     (fun p => ⟨by simp, length_polyTrim_le p.1⟩)
     (fun p _ _ _ hst => length_polyDivModStep_le _ _ _ hst.1 hst.2)
     hbound fun p _ st _ hst => by
@@ -562,28 +519,23 @@ private theorem tidy_polyDivMod :
       simp only [encBits_apply]
       omega).1
 
-private theorem tidy_polyMod :
-    ComputableTidilyInPolyTime (fun p : List Bool × List Bool => polyMod p.1 p.2)
-      (encPair encBits encBits) encBits :=
-  (ComputableTidilyInPolyTime.snd encBits encBits).comp tidy_polyDivMod
-
 /-- `polyMod` is computable in polynomial time. -/
 theorem computableInPolyTime_polyMod :
     ComputableInPolyTime (fun p : List Bool × List Bool => polyMod p.1 p.2)
       (encPair encBits encBits) encBits :=
-  .of_tidy tidy_polyMod
+  (ComputableInPolyTime.snd encBits encBits).comp polyTime_polyDivMod
 
-private theorem tidy_polyGcdStep :
-    ComputableTidilyInPolyTime (fun p : List Bool × List Bool => polyGcdStep p)
+private theorem polyTime_polyGcdStep :
+    ComputableInPolyTime (fun p : List Bool × List Bool => polyGcdStep p)
       (encPair encBits encBits) (encPair encBits encBits) := by
-  have hcond := ComputableTidilyInPolyTime.bitsIsEmpty.comp
-    (ComputableTidilyInPolyTime.snd encBits encBits)
-  have hres : ComputableTidilyInPolyTime
+  have hcond := ComputableInPolyTime.bitsIsEmpty.comp
+    (ComputableInPolyTime.snd encBits encBits)
+  have hres : ComputableInPolyTime
       (fun p : List Bool × List Bool => (p.2, polyMod p.1 p.2))
       (encPair encBits encBits) (encPair encBits encBits) :=
-    (ComputableTidilyInPolyTime.snd encBits encBits).prod tidy_polyMod
-  exact (ComputableInPolyTime.ite' hcond.computableInPolyTime
-    ComputableInPolyTime.id' hres.computableInPolyTime).tidy
+    (ComputableInPolyTime.snd encBits encBits).prod computableInPolyTime_polyMod
+  exact (ComputableInPolyTime.ite' hcond
+    ComputableInPolyTime.id' hres)
 
 private theorem length_polyGcdStep_le (a b : List Bool) {n : ℕ}
     (ha : a.length ≤ n) (hb : b.length ≤ n) :
@@ -594,45 +546,46 @@ private theorem length_polyGcdStep_le (a b : List Bool) {n : ℕ}
   · exact ⟨ha, hb⟩
   · exact ⟨hb, (polyDivMod_iterate_bounds a (polyTrim b) a.length).2.1.trans ha⟩
 
-private theorem tidy_polyGcd :
-    ComputableTidilyInPolyTime (fun p : List Bool × List Bool => polyGcd p.1 p.2)
+/-- `polyGcd` is computable in polynomial time. -/
+theorem computableInPolyTime_polyGcd :
+    ComputableInPolyTime (fun p : List Bool × List Bool => polyGcd p.1 p.2)
       (encPair encBits encBits) encBits := by
-  have hpar : ComputableTidilyInPolyTime (fun _ : List Bool × List Bool => true)
+  have hpar : ComputableInPolyTime (fun _ : List Bool × List Bool => true)
       (encPair encBits encBits) encBool := .const true
-  have hcnt : ComputableTidilyInPolyTime
+  have hcnt : ComputableInPolyTime
       (fun p : List Bool × List Bool => p.1.length + p.2.length + 1)
       (encPair encBits encBits) encUnary := by
-    have h1 := ComputableTidilyInPolyTime.length_bits.comp
-      (ComputableTidilyInPolyTime.fst encBits encBits)
-    have h2 := ComputableTidilyInPolyTime.length_bits.comp
-      (ComputableTidilyInPolyTime.snd encBits encBits)
+    have h1 := ComputableInPolyTime.length_bits.comp
+      (ComputableInPolyTime.fst encBits encBits)
+    have h2 := ComputableInPolyTime.length_bits.comp
+      (ComputableInPolyTime.snd encBits encBits)
     fun_prop
-  have hinit : ComputableTidilyInPolyTime
+  have hinit : ComputableInPolyTime
       (fun p : List Bool × List Bool => (polyTrim p.1, polyTrim p.2))
       (encPair encBits encBits) (encPair encBits encBits) :=
-    (tidy_polyTrim.comp (ComputableTidilyInPolyTime.fst encBits encBits)).prod
-      (tidy_polyTrim.comp (ComputableTidilyInPolyTime.snd encBits encBits))
-  have hstep : ComputableTidilyInPolyTime
+    (computableInPolyTime_polyTrim.comp (ComputableInPolyTime.fst encBits encBits)).prod
+      (computableInPolyTime_polyTrim.comp (ComputableInPolyTime.snd encBits encBits))
+  have hstep : ComputableInPolyTime
       (fun x : Bool × List Bool × List Bool => polyGcdStep x.2)
       (encPair encBool (encPair encBits encBits)) (encPair encBits encBits) :=
-    tidy_polyGcdStep.comp (ComputableTidilyInPolyTime.snd encBool (encPair encBits encBits))
-  have hmax : ComputableTidilyInPolyTime
+    polyTime_polyGcdStep.comp (ComputableInPolyTime.snd encBool (encPair encBits encBits))
+  have hmax : ComputableInPolyTime
       (fun p : List Bool × List Bool => max p.1.length p.2.length)
       (encPair encBits encBits) encUnary :=
-    ComputableTidilyInPolyTime.unary_max.comp
-      ((ComputableTidilyInPolyTime.length_bits.comp
-        (ComputableTidilyInPolyTime.fst encBits encBits)).prod
-        (ComputableTidilyInPolyTime.length_bits.comp
-          (ComputableTidilyInPolyTime.snd encBits encBits)))
+    ComputableInPolyTime.unary_max.comp
+      ((ComputableInPolyTime.length_bits.comp
+        (ComputableInPolyTime.fst encBits encBits)).prod
+        (ComputableInPolyTime.length_bits.comp
+          (ComputableInPolyTime.snd encBits encBits)))
   have hbound : PolyBounded (fun p : List Bool × List Bool => (encPair encBits encBits p).length)
       (fun p : List Bool × List Bool => 3 * max p.1.length p.2.length + 1) :=
     ((PolyBounded.const 3).mul
-      (ComputableTidilyInPolyTime.polyBounded hmax)).add (PolyBounded.const 1)
-  have hiter : ComputableTidilyInPolyTime
+      (ComputableInPolyTime.polyBounded hmax)).add (PolyBounded.const 1)
+  have hiter : ComputableInPolyTime
       (fun p : List Bool × List Bool =>
         (polyGcdStep)^[p.1.length + p.2.length + 1] (polyTrim p.1, polyTrim p.2))
       (encPair encBits encBits) (encPair encBits encBits) :=
-    (ComputableTidilyInPolyTime.iterateWith_spec
+    (ComputableInPolyTime.iterateWith_spec
       (step := fun (_ : Bool) x => polyGcdStep x)
       (invariant := fun p _ st =>
         st.1.length ≤ max p.1.length p.2.length ∧ st.2.length ≤ max p.1.length p.2.length)
@@ -644,187 +597,157 @@ private theorem tidy_polyGcd :
         rw [length_encPair]
         simp only [encBits_apply]
         omega).1
-  exact (ComputableTidilyInPolyTime.fst encBits encBits).comp hiter
-
-/-- `polyGcd` is computable in polynomial time. -/
-theorem computableInPolyTime_polyGcd :
-    ComputableInPolyTime (fun p : List Bool × List Bool => polyGcd p.1 p.2)
-      (encPair encBits encBits) encBits :=
-  .of_tidy tidy_polyGcd
-
-private theorem tidy_bitsFoldBool (op : Bool → Bool → Bool) (init : Bool) :
-    ComputableTidilyInPolyTime (fun w : List Bool => w.foldl op init) encBits encBool :=
-  ComputableTidilyInPolyTime.foldl' (encA := encBool) (encL := encBits) (encB := encBool)
-    ComputableTidilyInPolyTime.id'
-    (ComputableTidilyInPolyTime.const init)
-    (ComputableTidilyInPolyTime.of_finite (fun b : Bool × Bool => op b.1 b.2)
-      (encA := encPair encBool encBool) (encB := encBool))
-    (B := fun _ => max (encBool false).length (encBool true).length)
-    (PolyBounded.const _) (fun _ _ _ => polyBounded_encBool_const _)
-
-private theorem tidy_bitsAnyId :
-    ComputableTidilyInPolyTime (fun w : List Bool => w.any id) encBits encBool := by
-  have heq : (fun w : List Bool => w.any id) = fun w => w.foldl or false := by
-    funext w
-    induction w using List.reverseRecOn with
-    | nil => rfl
-    | append_singleton w b ih => simp [List.any_append, ih]
-  rw [heq]
-  exact tidy_bitsFoldBool or false
-
-private theorem tidy_polyComposePow :
-    ComputableTidilyInPolyTime (fun p : ℕ × List Bool => polyComposePow p.1 p.2)
-      (encPair encUnary encBits) encBits := by
-  have hq0 : ComputableTidilyInPolyTime (fun p : ℕ × List Bool => decide (p.1 = 0))
-      (encPair encUnary encBits) encBool := by
-    have hle := ComputableTidilyInPolyTime.unary_le'
-      (ComputableTidilyInPolyTime.fst encUnary encBits) (.const 0)
-    convert hle using 1
-    funext p
-    simp
-  have hsum : ComputableTidilyInPolyTime
-      (fun p : ℕ × List Bool => polyTrim [p.2.foldl xor false])
-      (encPair encUnary encBits) encBits := by
-    have hfold := tidy_bitsFoldBool xor false
-    have hsing : ComputableTidilyInPolyTime (fun b : Bool => [b]) encBool encBits :=
-      ComputableTidilyInPolyTime.of_finite (fun b : Bool => [b])
-    exact tidy_polyTrim.comp
-      (hsing.comp (hfold.comp (ComputableTidilyInPolyTime.snd encUnary encBits)))
-  have hlen : ComputableTidilyInPolyTime (fun p : ℕ × List Bool => p.1 * p.2.length)
-      (encPair encUnary encBits) encUnary :=
-    ComputableTidilyInPolyTime.unary_mul.comp
-      ((ComputableTidilyInPolyTime.fst encUnary encBits).prod
-        (ComputableTidilyInPolyTime.length_bits.comp
-          (ComputableTidilyInPolyTime.snd encUnary encBits)))
-  have hcoeff : ComputableTidilyInPolyTime
-      (fun x : (ℕ × List Bool) × ℕ =>
-        if x.2 % x.1.1 == 0 then x.1.2.getD (x.2 / x.1.1) false else false)
-      (encPair (encPair encUnary encBits) encUnary) encBool := by
-    have hxq := (ComputableTidilyInPolyTime.fst encUnary encBits).comp
-      (ComputableTidilyInPolyTime.fst (encPair encUnary encBits) encUnary)
-    have hxp := (ComputableTidilyInPolyTime.snd encUnary encBits).comp
-      (ComputableTidilyInPolyTime.fst (encPair encUnary encBits) encUnary)
-    have hxj := ComputableTidilyInPolyTime.snd (encPair encUnary encBits) encUnary
-    have hdm := ComputableTidilyInPolyTime.unary_divMod.comp (hxj.prod hxq)
-    have hmod0 : ComputableTidilyInPolyTime
-        (fun x : (ℕ × List Bool) × ℕ => x.2 % x.1.1 == 0)
-        (encPair (encPair encUnary encBits) encUnary) encBool :=
-      ((ComputableTidilyInPolyTime.snd encUnary encUnary).comp hdm).beq (.const 0)
-    have hdiv := (ComputableTidilyInPolyTime.fst encUnary encUnary).comp hdm
-    have hget := ComputableTidilyInPolyTime.bitsGetDWithInput hxp hdiv false
-    exact (ComputableInPolyTime.ite' hmod0.computableInPolyTime
-      hget.computableInPolyTime (ComputableInPolyTime.const false)).tidy
-  have hmap : ComputableTidilyInPolyTime
-      (fun p : ℕ × List Bool =>
-        (List.range (p.1 * p.2.length)).map fun j =>
-          if j % p.1 == 0 then p.2.getD (j / p.1) false else false)
-      (encPair encUnary encBits) (encList encBool) :=
-    ComputableTidilyInPolyTime.mapWithInput
-      (f := fun p j => if j % p.1 == 0 then p.2.getD (j / p.1) false else false)
-      (ComputableTidilyInPolyTime.range.comp hlen) hcoeff
-  have hnz := tidy_polyTrim.comp (ComputableTidilyInPolyTime.listToBits.comp hmap)
-  have hplain := ComputableInPolyTime.ite' hq0.computableInPolyTime
-    hsum.computableInPolyTime hnz.computableInPolyTime
-  convert hplain.tidy using 1
-  funext p
-  unfold polyComposePow
-  simp
+  exact (ComputableInPolyTime.fst encBits encBits).comp hiter
 
 /-- `polyComposePow` is computable in polynomial time. -/
 theorem computableInPolyTime_polyComposePow :
     ComputableInPolyTime (fun p : ℕ × List Bool => polyComposePow p.1 p.2)
-      (encPair encUnary encBits) encBits :=
-  .of_tidy tidy_polyComposePow
+      (encPair encUnary encBits) encBits := by
+  have hq0 : ComputableInPolyTime (fun p : ℕ × List Bool => decide (p.1 = 0))
+      (encPair encUnary encBits) encBool := by
+    have hle := ComputableInPolyTime.unary_le'
+      (ComputableInPolyTime.fst encUnary encBits) (.const 0)
+    convert hle using 1
+    funext p
+    simp
+  have hsum : ComputableInPolyTime
+      (fun p : ℕ × List Bool => polyTrim [p.2.foldl xor false])
+      (encPair encUnary encBits) encBits := by
+    have hfold := ComputableInPolyTime.bitsFoldlWithInput (input := encBits) xor
+      ComputableInPolyTime.id' (.const false)
+    have hsing : ComputableInPolyTime (fun b : Bool => [b]) encBool encBits :=
+      ComputableInPolyTime.of_finite (fun b : Bool => [b])
+    exact computableInPolyTime_polyTrim.comp
+      (hsing.comp (hfold.comp (ComputableInPolyTime.snd encUnary encBits)))
+  have hlen : ComputableInPolyTime (fun p : ℕ × List Bool => p.1 * p.2.length)
+      (encPair encUnary encBits) encUnary :=
+    ComputableInPolyTime.unary_mul.comp
+      ((ComputableInPolyTime.fst encUnary encBits).prod
+        (ComputableInPolyTime.length_bits.comp
+          (ComputableInPolyTime.snd encUnary encBits)))
+  have hcoeff : ComputableInPolyTime
+      (fun x : (ℕ × List Bool) × ℕ =>
+        if x.2 % x.1.1 == 0 then x.1.2.getD (x.2 / x.1.1) false else false)
+      (encPair (encPair encUnary encBits) encUnary) encBool := by
+    have hxq := (ComputableInPolyTime.fst encUnary encBits).comp
+      (ComputableInPolyTime.fst (encPair encUnary encBits) encUnary)
+    have hxp := (ComputableInPolyTime.snd encUnary encBits).comp
+      (ComputableInPolyTime.fst (encPair encUnary encBits) encUnary)
+    have hxj := ComputableInPolyTime.snd (encPair encUnary encBits) encUnary
+    have hdm := ComputableInPolyTime.unary_divMod.comp (hxj.prod hxq)
+    have hmod0 : ComputableInPolyTime
+        (fun x : (ℕ × List Bool) × ℕ => x.2 % x.1.1 == 0)
+        (encPair (encPair encUnary encBits) encUnary) encBool :=
+      ((ComputableInPolyTime.snd encUnary encUnary).comp hdm).beq (.const 0)
+    have hdiv := (ComputableInPolyTime.fst encUnary encUnary).comp hdm
+    have hget := ComputableInPolyTime.bitsGetDWithInput hxp hdiv false
+    exact (ComputableInPolyTime.ite' hmod0
+      hget (ComputableInPolyTime.const false))
+  have hmap : ComputableInPolyTime
+      (fun p : ℕ × List Bool =>
+        (List.range (p.1 * p.2.length)).map fun j =>
+          if j % p.1 == 0 then p.2.getD (j / p.1) false else false)
+      (encPair encUnary encBits) (encList encBool) :=
+    ComputableInPolyTime.mapWithInput
+      (f := fun p j => if j % p.1 == 0 then p.2.getD (j / p.1) false else false)
+      (ComputableInPolyTime.range.comp hlen) hcoeff
+  have hnz := computableInPolyTime_polyTrim.comp (ComputableInPolyTime.listToBits.comp hmap)
+  have hplain := ComputableInPolyTime.ite' hq0
+    hsum hnz
+  convert hplain using 1
+  funext p
+  unfold polyComposePow
+  simp
 
 /-! ### Gaussian elimination and Berlekamp factoring -/
 
-private theorem tidy_dotBool :
-    ComputableTidilyInPolyTime (fun p : List Bool × List Bool => dotBool p.1 p.2)
-      (encPair encBits encBits) encBool :=
-  (tidy_bitsFoldBool xor false).comp (ComputableTidilyInPolyTime.bitsZipWith and)
-
 private def kernelDot (p : List (List Bool) × List Bool) (v : List Bool) : Bool :=
-  dotBool p.2 v
+  listDot p.2 v
 
 private def kernelRowStep (par : List (List Bool) × List Bool) (v : List Bool) : List Bool :=
-  if dotBool par.2 v then
-    List.zipWith xor v (par.1.getD ((par.1.map (dotBool par.2)).idxOf true) [])
+  if listDot par.2 v then
+    List.zipWith xor v (par.1.getD ((par.1.map (listDot par.2)).idxOf true) [])
   else v
 
-private theorem tidy_kernelStepBits :
-    ComputableTidilyInPolyTime
+private theorem polyTime_kernelStepBits :
+    ComputableInPolyTime
       (fun p : List (List Bool) × List Bool => kernelStepBits p.2 p.1)
       (encPair (encList encBits) encBits) (encList encBits) := by
-  have hN := ComputableTidilyInPolyTime.fst (encList encBits) encBits
-  have ha := ComputableTidilyInPolyTime.snd (encList encBits) encBits
-  have hdotEl : ComputableTidilyInPolyTime
+  have hN := ComputableInPolyTime.fst (encList encBits) encBits
+  have ha := ComputableInPolyTime.snd (encList encBits) encBits
+  have hdotEl : ComputableInPolyTime
       (fun x : (List (List Bool) × List Bool) × List Bool => kernelDot x.1 x.2)
       (encPair (encPair (encList encBits) encBits) encBits) encBool :=
-    tidy_dotBool.comp ((ha.comp (ComputableTidilyInPolyTime.fst (encPair (encList encBits) encBits)
-      encBits)).prod (ComputableTidilyInPolyTime.snd (encPair (encList encBits) encBits) encBits))
-  have hvals : ComputableTidilyInPolyTime
-      (fun p : List (List Bool) × List Bool => p.1.map (dotBool p.2))
+    (ComputableInPolyTime.bitsListDot
+      (ComputableInPolyTime.fst encBits encBits)
+      (ComputableInPolyTime.snd encBits encBits)).comp
+      ((ha.comp (ComputableInPolyTime.fst (encPair (encList encBits) encBits) encBits)).prod
+        (ComputableInPolyTime.snd (encPair (encList encBits) encBits) encBits))
+  have hvals : ComputableInPolyTime
+      (fun p : List (List Bool) × List Bool => p.1.map (listDot p.2))
       (encPair (encList encBits) encBits) (encList encBool) :=
-    ComputableTidilyInPolyTime.mapWithInput (f := kernelDot) hN hdotEl
-  have hpIdx : ComputableTidilyInPolyTime
-      (fun p : List (List Bool) × List Bool => (p.1.map (dotBool p.2)).idxOf true)
+    ComputableInPolyTime.mapWithInput (f := kernelDot) hN hdotEl
+  have hpIdx : ComputableInPolyTime
+      (fun p : List (List Bool) × List Bool => (p.1.map (listDot p.2)).idxOf true)
       (encPair (encList encBits) encBits) encUnary :=
-    ComputableTidilyInPolyTime.idxOfWithInput (encA := encBool) hvals (.const true)
+    ComputableInPolyTime.idxOfWithInput (encA := encBool) hvals (.const true)
   have hlenNPlain : ComputableInPolyTime (fun l : List (List Bool) => l.length)
       (encList encBits) encUnary := by fun_prop
-  have hlenN : ComputableTidilyInPolyTime
+  have hlenN : ComputableInPolyTime
       (fun p : List (List Bool) × List Bool => p.1.length)
       (encPair (encList encBits) encBits) encUnary :=
-    hlenNPlain.tidy.comp hN
-  have hcond := ComputableTidilyInPolyTime.unary_lt' hpIdx hlenN
-  have hpiv : ComputableTidilyInPolyTime
-      (fun p : List (List Bool) × List Bool => p.1.getD ((p.1.map (dotBool p.2)).idxOf true) [])
+    hlenNPlain.comp hN
+  have hcond := ComputableInPolyTime.unary_lt' hpIdx hlenN
+  have hpiv : ComputableInPolyTime
+      (fun p : List (List Bool) × List Bool => p.1.getD ((p.1.map (listDot p.2)).idxOf true) [])
       (encPair (encList encBits) encBits) encBits := by
     have hget : ComputableInPolyTime (fun p : List (List Bool) × ℕ => p.1.getD p.2 [])
         (encPair (encList encBits) encUnary) encBits := by fun_prop
-    exact hget.tidy.comp (hN.prod hpIdx)
-  have hrowStep : ComputableTidilyInPolyTime
+    exact hget.comp (hN.prod hpIdx)
+  have hrowStep : ComputableInPolyTime
       (fun x : (List (List Bool) × List Bool) × List Bool => kernelRowStep x.1 x.2)
       (encPair (encPair (encList encBits) encBits) encBits) encBits := by
-    have hxpar := ComputableTidilyInPolyTime.fst (encPair (encList encBits) encBits) encBits
-    have hxv := ComputableTidilyInPolyTime.snd (encPair (encList encBits) encBits) encBits
+    have hxpar := ComputableInPolyTime.fst (encPair (encList encBits) encBits) encBits
+    have hxv := ComputableInPolyTime.snd (encPair (encList encBits) encBits) encBits
     have hxa := ha.comp hxpar
-    have hdot := tidy_dotBool.comp (hxa.prod hxv)
+    have hdot := (ComputableInPolyTime.bitsListDot
+      (ComputableInPolyTime.fst encBits encBits)
+      (ComputableInPolyTime.snd encBits encBits)).comp (hxa.prod hxv)
     have hxpiv := hpiv.comp hxpar
-    have hxor := (ComputableTidilyInPolyTime.bitsZipWith xor).comp (hxv.prod hxpiv)
-    exact (ComputableInPolyTime.ite' hdot.computableInPolyTime
-      hxor.computableInPolyTime hxv.computableInPolyTime).tidy
-  have hmapped := ComputableTidilyInPolyTime.mapWithInput (f := kernelRowStep) hN hrowStep
-  convert (ComputableInPolyTime.ite' hcond.computableInPolyTime
-    hmapped.computableInPolyTime hN.computableInPolyTime).tidy using 1
+    have hxor := (ComputableInPolyTime.bitsZipWith xor).comp (hxv.prod hxpiv)
+    exact (ComputableInPolyTime.ite' hdot
+      hxor hxv)
+  have hmapped := ComputableInPolyTime.mapWithInput (f := kernelRowStep) hN hrowStep
+  convert (ComputableInPolyTime.ite' hcond
+    hmapped hN) using 1
   funext p
   unfold kernelStepBits kernelRowStep
   simp only [decide_eq_true_eq]
 
-private theorem tidy_kernelBasisBits :
-    ComputableTidilyInPolyTime
+private theorem polyTime_kernelBasisBits :
+    ComputableInPolyTime
       (fun p : ℕ × List (List Bool) => kernelBasisBits p.1 p.2)
       (encPair encUnary (encList encBits)) (encList encBits) := by
-  have hboundFn : ComputableTidilyInPolyTime
+  have hboundFn : ComputableInPolyTime
       (fun p : ℕ × List (List Bool) => p.1 * (2 * p.1 + 1))
       (encPair encUnary (encList encBits)) encUnary := by
-    have := ComputableTidilyInPolyTime.fst encUnary (encList encBits)
+    have := ComputableInPolyTime.fst encUnary (encList encBits)
     fun_prop
-  refine ComputableTidilyInPolyTime.foldlWith (encA := encBits) (encL := encList encBits)
+  refine ComputableInPolyTime.foldlWith (encA := encBits) (encL := encList encBits)
     (encB := encList encBits)
     (par := fun _ => true)
     (list := fun p : ℕ × List (List Bool) => p.2)
     (step := fun _ N a => kernelStepBits a N)
     (.const true)
-    (ComputableTidilyInPolyTime.snd encUnary (encList encBits))
-    (ComputableTidilyInPolyTime.bitsSingles.comp
-      (ComputableTidilyInPolyTime.fst encUnary (encList encBits)))
-    (tidy_kernelStepBits.comp
-      (((ComputableTidilyInPolyTime.snd encBool (encList encBits)).comp
-        (ComputableTidilyInPolyTime.fst (encPair encBool (encList encBits)) encBits)).prod
-        (ComputableTidilyInPolyTime.snd (encPair encBool (encList encBits)) encBits)))
+    (ComputableInPolyTime.snd encUnary (encList encBits))
+    (ComputableInPolyTime.bitsSingles.comp
+      (ComputableInPolyTime.fst encUnary (encList encBits)))
+    (polyTime_kernelStepBits.comp
+      (((ComputableInPolyTime.snd encBool (encList encBits)).comp
+        (ComputableInPolyTime.fst (encPair encBool (encList encBits)) encBits)).prod
+        (ComputableInPolyTime.snd (encPair encBool (encList encBits)) encBits)))
     (B := fun p : ℕ × List (List Bool) => p.1 * (2 * p.1 + 1))
-    (ComputableTidilyInPolyTime.polyBounded hboundFn) ?_
+    (ComputableInPolyTime.polyBounded hboundFn) ?_
   intro p i hi
   obtain ⟨hlen, hrows⟩ := length_kernelBasisBits p.1 (p.2.take i)
   unfold kernelBasisBits at hlen hrows
@@ -832,28 +755,25 @@ private theorem tidy_kernelBasisBits :
     (fun v hv => by simp [encBits_apply, hrows v hv])).trans ?_
   rw [hlen]
 
-private theorem tidy_kernelVecBits :
-    ComputableTidilyInPolyTime
-      (fun p : ℕ × List (List Bool) => kernelVecBits p.1 p.2)
-      (encPair encUnary (encList encBits)) encBits := by
-  have hany : ComputableTidilyInPolyTime
-      (fun x : (ℕ × List (List Bool)) × List Bool => x.2.any id)
-      (encPair (encPair encUnary (encList encBits)) encBits) encBool :=
-    tidy_bitsAnyId.comp
-      (ComputableTidilyInPolyTime.snd (encPair encUnary (encList encBits)) encBits)
-  have hfind := ComputableTidilyInPolyTime.findWithInput
-    (test := fun (_ : ℕ × List (List Bool)) (v : List Bool) => v.any id)
-    tidy_kernelBasisBits hany
-  exact ComputableTidilyInPolyTime.optionGetDWithInput hfind
-    (tidy_replicateFalse.comp (ComputableTidilyInPolyTime.fst encUnary (encList encBits)))
-
 /-- `kernelVecBits` is computable in polynomial time. -/
 @[fun_prop]
 theorem computableInPolyTime_kernelVecBits :
     ComputableInPolyTime
       (fun p : ℕ × List (List Bool) => kernelVecBits p.1 p.2)
-      (encPair encUnary (encList encBits)) encBits :=
-  .of_tidy tidy_kernelVecBits
+      (encPair encUnary (encList encBits)) encBits := by
+  have hany : ComputableInPolyTime
+      (fun x : (ℕ × List (List Bool)) × List Bool => x.2.any id)
+      (encPair (encPair encUnary (encList encBits)) encBits) encBool :=
+    (ComputableInPolyTime.bitsAnyWithInput (test := fun _ b => b)
+      ComputableInPolyTime.id'
+      (ComputableInPolyTime.snd encBits encBool)).comp
+      (ComputableInPolyTime.snd (encPair encUnary (encList encBits)) encBits)
+  have hfind := ComputableInPolyTime.findWithInput
+    (test := fun (_ : ℕ × List (List Bool)) (v : List Bool) => v.any id)
+    polyTime_kernelBasisBits hany
+  exact ComputableInPolyTime.optionGetDWithInput hfind
+    ((ComputableInPolyTime.bitsReplicate false).comp
+      (ComputableInPolyTime.fst encUnary (encList encBits)))
 
 private def berlekampCell (x : List Bool × ℕ) (k : ℕ) : Bool :=
   ((powerTable x.1).getD (2 * (k + 1)) []).getD x.2 false ^^ decide ((x.2 == k + 1) = true)
@@ -861,84 +781,86 @@ private def berlekampCell (x : List Bool × ℕ) (k : ℕ) : Bool :=
 private def berlekampRow (g : List Bool) (i : ℕ) : List Bool :=
   (List.range ((g.length - 1) - 1)).map (berlekampCell (g, i))
 
-private theorem tidy_berlekampMatrix :
-    ComputableTidilyInPolyTime berlekampMatrix encBits (encList encBits) := by
-  have htab : ComputableTidilyInPolyTime powerTable encBits (encList encBits) := by
+private theorem polyTime_berlekampMatrix :
+    ComputableInPolyTime berlekampMatrix encBits (encList encBits) := by
+  have htab : ComputableInPolyTime powerTable encBits (encList encBits) := by
     have hp : ComputableInPolyTime powerTable encBits (encList encBits) := by fun_prop
-    exact hp.tidy
-  have hd : ComputableTidilyInPolyTime (fun g : List Bool => g.length - 1) encBits encUnary :=
-    ComputableTidilyInPolyTime.unary_sub.comp
-      (ComputableTidilyInPolyTime.length_bits.prod (.const 1))
-  have hcell : ComputableTidilyInPolyTime
+    exact hp
+  have hd : ComputableInPolyTime (fun g : List Bool => g.length - 1) encBits encUnary :=
+    ComputableInPolyTime.unary_sub.comp
+      (ComputableInPolyTime.length_bits.prod (.const 1))
+  have hcell : ComputableInPolyTime
       (fun x : (List Bool × ℕ) × ℕ => berlekampCell x.1 x.2)
       (encPair (encPair encBits encUnary) encUnary) encBool := by
     unfold berlekampCell
-    have hxg := (ComputableTidilyInPolyTime.fst encBits encUnary).comp
-      (ComputableTidilyInPolyTime.fst (encPair encBits encUnary) encUnary)
-    have hxi := (ComputableTidilyInPolyTime.snd encBits encUnary).comp
-      (ComputableTidilyInPolyTime.fst (encPair encBits encUnary) encUnary)
-    have hxk := ComputableTidilyInPolyTime.snd (encPair encBits encUnary) encUnary
+    have hxg := (ComputableInPolyTime.fst encBits encUnary).comp
+      (ComputableInPolyTime.fst (encPair encBits encUnary) encUnary)
+    have hxi := (ComputableInPolyTime.snd encBits encUnary).comp
+      (ComputableInPolyTime.fst (encPair encBits encUnary) encUnary)
+    have hxk := ComputableInPolyTime.snd (encPair encBits encUnary) encUnary
     have htabx := htab.comp hxg
-    have hj : ComputableTidilyInPolyTime
+    have hj : ComputableInPolyTime
         (fun x : (List Bool × ℕ) × ℕ => x.2 + 1)
         (encPair (encPair encBits encUnary) encUnary) encUnary :=
-      ComputableTidilyInPolyTime.unary_add.comp (hxk.prod (.const 1))
-    have h2j : ComputableTidilyInPolyTime
+      ComputableInPolyTime.unary_add.comp (hxk.prod (.const 1))
+    have h2j : ComputableInPolyTime
         (fun x : (List Bool × ℕ) × ℕ => 2 * (x.2 + 1))
         (encPair (encPair encBits encUnary) encUnary) encUnary :=
-      ComputableTidilyInPolyTime.unary_mul.comp
-        ((ComputableTidilyInPolyTime.const 2).prod hj)
+      ComputableInPolyTime.unary_mul.comp
+        ((ComputableInPolyTime.const 2).prod hj)
     have hget : ComputableInPolyTime (fun p : List (List Bool) × ℕ => p.1.getD p.2 [])
         (encPair (encList encBits) encUnary) encBits := by fun_prop
-    have hrow := hget.tidy.comp (htabx.prod h2j)
-    have hbit := ComputableTidilyInPolyTime.bitsGetDWithInput hrow hxi false
-    have hdiag : ComputableTidilyInPolyTime
+    have hrow := hget.comp (htabx.prod h2j)
+    have hbit := ComputableInPolyTime.bitsGetDWithInput hrow hxi false
+    have hdiag : ComputableInPolyTime
         (fun x : (List Bool × ℕ) × ℕ => decide ((x.1.2 == x.2 + 1) = true))
         (encPair (encPair encBits encUnary) encUnary) encBool := by
       convert hxi.beq hj using 1
       funext x
       rw [Bool.eq_iff_iff]
       simp
-    exact (ComputableTidilyInPolyTime.of_finite (fun b : Bool × Bool => b.1 ^^ b.2)
-      (encA := encPair encBool encBool) (encB := encBool)).comp (hbit.prod hdiag)
-  have hrow : ComputableTidilyInPolyTime
+    exact (ComputableInPolyTime.of_finite (fun b : Bool × Bool => b.1 ^^ b.2)
+      (encIn := encPair encBool encBool) (encOut := encBool)).comp (hbit.prod hdiag)
+  have hrow : ComputableInPolyTime
       (fun x : List Bool × ℕ => berlekampRow x.1 x.2)
       (encPair encBits encUnary) encBits := by
-    have hdr := ComputableTidilyInPolyTime.range.comp
-      (ComputableTidilyInPolyTime.unary_sub.comp
-        ((hd.comp (ComputableTidilyInPolyTime.fst encBits encUnary)).prod (.const 1)))
-    exact ComputableTidilyInPolyTime.listToBits.comp
-      (ComputableTidilyInPolyTime.mapWithInput (f := berlekampCell) hdr hcell)
-  have hres := ComputableTidilyInPolyTime.mapWithInput (f := berlekampRow)
-    (ComputableTidilyInPolyTime.range.comp hd) hrow
+    have hdr := ComputableInPolyTime.range.comp
+      (ComputableInPolyTime.unary_sub.comp
+        ((hd.comp (ComputableInPolyTime.fst encBits encUnary)).prod (.const 1)))
+    exact ComputableInPolyTime.listToBits.comp
+      (ComputableInPolyTime.mapWithInput (f := berlekampCell) hdr hcell)
+  have hres := ComputableInPolyTime.mapWithInput (f := berlekampRow)
+    (ComputableInPolyTime.range.comp hd) hrow
   convert hres using 1
   funext g
   unfold berlekampMatrix berlekampRow berlekampCell
   rfl
 
-private theorem tidy_berlekampStep :
-    ComputableTidilyInPolyTime berlekampStep encBits encBits := by
-  have hgt := tidy_polyTrim
-  have hlen := ComputableTidilyInPolyTime.length_bits.comp hgt
-  have hle2 := ComputableTidilyInPolyTime.unary_le' hlen (.const 2)
-  have hd2 : ComputableTidilyInPolyTime (fun g : List Bool => (polyTrim g).length - 2)
+private theorem polyTime_berlekampStep :
+    ComputableInPolyTime berlekampStep encBits encBits := by
+  have hgt := computableInPolyTime_polyTrim
+  have hlen := ComputableInPolyTime.length_bits.comp hgt
+  have hle2 := ComputableInPolyTime.unary_le' hlen (.const 2)
+  have hd2 : ComputableInPolyTime (fun g : List Bool => (polyTrim g).length - 2)
       encBits encUnary :=
-    ComputableTidilyInPolyTime.unary_sub.comp (hlen.prod (.const 2))
-  have hvec : ComputableTidilyInPolyTime
+    ComputableInPolyTime.unary_sub.comp (hlen.prod (.const 2))
+  have hvec : ComputableInPolyTime
       (fun g : List Bool => kernelVecBits ((polyTrim g).length - 2) (berlekampMatrix (polyTrim g)))
       encBits encBits :=
-    tidy_kernelVecBits.comp (hd2.prod (tidy_berlekampMatrix.comp hgt))
-  have hany : ComputableTidilyInPolyTime
+    computableInPolyTime_kernelVecBits.comp (hd2.prod (polyTime_berlekampMatrix.comp hgt))
+  have hany : ComputableInPolyTime
       (fun g : List Bool =>
         (kernelVecBits ((polyTrim g).length - 2) (berlekampMatrix (polyTrim g))).any id)
       encBits encBool :=
-    tidy_bitsAnyId.comp hvec
-  have hgcd := tidy_polyGcd.comp
-    (hgt.prod (ComputableTidilyInPolyTime.bitsCons (.const false) hvec))
-  have hinner := (ComputableInPolyTime.ite' hany.computableInPolyTime
-    hgcd.computableInPolyTime hgt.computableInPolyTime).tidy
-  convert (ComputableInPolyTime.ite' hle2.computableInPolyTime
-    hgt.computableInPolyTime hinner.computableInPolyTime).tidy using 1
+    (ComputableInPolyTime.bitsAnyWithInput (test := fun _ b => b)
+      ComputableInPolyTime.id'
+      (ComputableInPolyTime.snd encBits encBool)).comp hvec
+  have hgcd := computableInPolyTime_polyGcd.comp
+    (hgt.prod (ComputableInPolyTime.bitsCons (.const false) hvec))
+  have hinner := (ComputableInPolyTime.ite' hany
+    hgcd hgt)
+  convert (ComputableInPolyTime.ite' hle2
+    hgt hinner) using 1
   funext g
   unfold berlekampStep
   simp only [Function.comp_def, decide_eq_true_eq]
@@ -960,16 +882,16 @@ private theorem length_berlekampStep_le (g : List Bool) :
     omega
   · exact hgt
 
-private theorem tidy_berlekampIrreducibleFactor :
-    ComputableTidilyInPolyTime berlekampIrreducibleFactor encBits encBits := by
-  have hpar : ComputableTidilyInPolyTime (fun _ : List Bool => true) encBits encBool := .const true
-  have hcnt := ComputableTidilyInPolyTime.length_bits
-  have hinit := tidy_polyTrim
-  have hstep : ComputableTidilyInPolyTime
+private theorem polyTime_berlekampIrreducibleFactor :
+    ComputableInPolyTime berlekampIrreducibleFactor encBits encBits := by
+  have hpar : ComputableInPolyTime (fun _ : List Bool => true) encBits encBool := .const true
+  have hcnt := ComputableInPolyTime.length_bits
+  have hinit := computableInPolyTime_polyTrim
+  have hstep : ComputableInPolyTime
       (fun x : Bool × List Bool => berlekampStep x.2)
       (encPair encBool encBits) encBits :=
-    tidy_berlekampStep.comp (ComputableTidilyInPolyTime.snd encBool encBits)
-  exact (ComputableTidilyInPolyTime.iterateWith_spec
+    polyTime_berlekampStep.comp (ComputableInPolyTime.snd encBool encBits)
+  exact (ComputableInPolyTime.iterateWith_spec
     (step := fun (_ : Bool) f => berlekampStep f)
     (invariant := fun g _ f => f.length ≤ g.length)
     hpar hcnt hinit hstep
@@ -1003,62 +925,50 @@ private theorem length_polyMul_le' (a b : List Bool) :
   · simp
   · exact (length_polyTrim_le _).trans (by simp)
 
-private theorem tidy_replicateTrue :
-    ComputableTidilyInPolyTime (fun d : ℕ => List.replicate d true) encUnary encBits := by
-  have hmap : ComputableTidilyInPolyTime
-      (fun d : ℕ => (List.range d).map fun _ => true)
-      encUnary (encList encBool) :=
-    ComputableTidilyInPolyTime.mapWithInput ComputableTidilyInPolyTime.range
-      (ComputableTidilyInPolyTime.const true)
-  have hres := ComputableTidilyInPolyTime.listToBits.comp hmap
-  convert hres using 1
-  funext d
-  simp [List.map_const']
-
-private theorem tidy_primeGeThree :
-    ComputableTidilyInPolyTime (fun q : ℕ => decide (q.Prime ∧ 3 ≤ q)) encUnary encBool := by
+private theorem polyTime_primeGeThree :
+    ComputableInPolyTime (fun q : ℕ => decide (q.Prime ∧ 3 ≤ q)) encUnary encBool := by
   have hprimePlain : ComputableInPolyTime (fun q : ℕ => decide q.Prime) encUnary encBool := by
     fun_prop
-  have hge3 := ComputableTidilyInPolyTime.unary_le' (.const 3) ComputableTidilyInPolyTime.id'
-  have hand := (ComputableTidilyInPolyTime.of_finite (fun b : Bool × Bool => b.1 && b.2)
-    (encA := encPair encBool encBool) (encB := encBool)).comp (hprimePlain.tidy.prod hge3)
+  have hge3 := ComputableInPolyTime.unary_le' (.const 3) ComputableInPolyTime.id'
+  have hand := (ComputableInPolyTime.of_finite (fun b : Bool × Bool => b.1 && b.2)
+    (encIn := encPair encBool encBool) (encOut := encBool)).comp (hprimePlain.prod hge3)
   convert hand using 1
   funext q
   simp
 
-private theorem tidy_shoupCyclicFactorBounded :
-    ComputableTidilyInPolyTime
+private theorem polyTime_shoupCyclicFactorBounded :
+    ComputableInPolyTime
       (fun q : ℕ =>
         (fun f => berlekampIrreducibleFactor (polyComposePow q f))^[
           if q.Prime ∧ 3 ≤ q then qAdicValTwoPowSubOne q (ordTwoMod q) - 1 else 0]
           (berlekampIrreducibleFactor (List.replicate q true)))
       encUnary encBits := by
-  have hcond := tidy_primeGeThree
-  have hk := tidy_qAdicValTwoPowSubOne.comp
-    (ComputableTidilyInPolyTime.id'.prod tidy_ordTwoMod)
-  have hcntTrue := ComputableTidilyInPolyTime.unary_sub.comp (hk.prod (.const 1))
-  have hcnt : ComputableTidilyInPolyTime
+  have hcond := polyTime_primeGeThree
+  have hk := computableInPolyTime_qAdicValTwoPowSubOne.comp
+    (ComputableInPolyTime.id'.prod computableInPolyTime_ordTwoMod)
+  have hcntTrue := ComputableInPolyTime.unary_sub.comp (hk.prod (.const 1))
+  have hcnt : ComputableInPolyTime
       (fun q : ℕ => if q.Prime ∧ 3 ≤ q then qAdicValTwoPowSubOne q (ordTwoMod q) - 1 else 0)
       encUnary encUnary := by
-    have hite := (ComputableInPolyTime.ite' hcond.computableInPolyTime
-      hcntTrue.computableInPolyTime (ComputableInPolyTime.const (0 : ℕ))).tidy
+    have hite := (ComputableInPolyTime.ite' hcond
+      hcntTrue (ComputableInPolyTime.const (0 : ℕ)))
     convert hite using 1
     funext q
     by_cases h : q.Prime ∧ 3 ≤ q <;> simp [h]
-  have hinit : ComputableTidilyInPolyTime
+  have hinit : ComputableInPolyTime
       (fun q : ℕ => berlekampIrreducibleFactor (List.replicate q true)) encUnary encBits :=
-    tidy_berlekampIrreducibleFactor.comp tidy_replicateTrue
-  have hstep : ComputableTidilyInPolyTime
+    polyTime_berlekampIrreducibleFactor.comp (ComputableInPolyTime.bitsReplicate true)
+  have hstep : ComputableInPolyTime
       (fun x : ℕ × List Bool => berlekampIrreducibleFactor (polyComposePow x.1 x.2))
       (encPair encUnary encBits) encBits :=
-    tidy_berlekampIrreducibleFactor.comp tidy_polyComposePow
+    polyTime_berlekampIrreducibleFactor.comp computableInPolyTime_polyComposePow
   have hbound : PolyBounded (fun q : ℕ => (encUnary q).length) (fun q : ℕ => q) :=
-    ComputableTidilyInPolyTime.polyBounded ComputableTidilyInPolyTime.id'
-  refine (ComputableTidilyInPolyTime.iterateWith_spec
+    ComputableInPolyTime.polyBounded ComputableInPolyTime.id'
+  refine (ComputableInPolyTime.iterateWith_spec
     (invariant := fun q k g =>
       g = (fun f => berlekampIrreducibleFactor (polyComposePow q f))^[k]
         (berlekampIrreducibleFactor (List.replicate q true)))
-    ComputableTidilyInPolyTime.id' hcnt hinit hstep
+    ComputableInPolyTime.id' hcnt hinit hstep
     (fun _ => rfl)
     (fun q k g _ hg => by rw [hg, Function.iterate_succ_apply'])
     hbound ?_).1
@@ -1080,30 +990,31 @@ private theorem tidy_shoupCyclicFactorBounded :
       | succ s ih => rw [Function.iterate_succ_apply']; exact (length_berlekampStep_le _).trans ih
     simpa only [List.length_replicate] using hinv q
 
-private theorem tidy_shoupLAdd :
-    ComputableTidilyInPolyTime
+private theorem polyTime_shoupLAdd :
+    ComputableInPolyTime
       (fun p : ℕ × List (List Bool) × List (List Bool) => shoupLAdd p.1 p.2.1 p.2.2)
       (encPair encUnary (encPair (encList encBits) (encList encBits))) (encList encBits) := by
   have hget : ComputableInPolyTime (fun p : List (List Bool) × ℕ => p.1.getD p.2 [])
       (encPair (encList encBits) encUnary) encBits := by fun_prop
-  have hcell : ComputableTidilyInPolyTime
+  have hcell : ComputableInPolyTime
       (fun x : (ℕ × List (List Bool) × List (List Bool)) × ℕ =>
         polyAdd (x.1.2.1.getD x.2 []) (x.1.2.2.getD x.2 []))
       (encPair (encPair encUnary (encPair (encList encBits) (encList encBits))) encUnary)
       encBits := by
-    have hxpar := ComputableTidilyInPolyTime.fst
+    have hxpar := ComputableInPolyTime.fst
       (encPair encUnary (encPair (encList encBits) (encList encBits))) encUnary
-    have hxi := ComputableTidilyInPolyTime.snd
+    have hxi := ComputableInPolyTime.snd
       (encPair encUnary (encPair (encList encBits) (encList encBits))) encUnary
-    have hxs := (ComputableTidilyInPolyTime.snd encUnary
+    have hxs := (ComputableInPolyTime.snd encUnary
       (encPair (encList encBits) (encList encBits))).comp hxpar
-    have hxa := (ComputableTidilyInPolyTime.fst (encList encBits) (encList encBits)).comp hxs
-    have hxb := (ComputableTidilyInPolyTime.snd (encList encBits) (encList encBits)).comp hxs
-    exact tidy_polyAdd.comp ((hget.tidy.comp (hxa.prod hxi)).prod (hget.tidy.comp (hxb.prod hxi)))
-  have hres := ComputableTidilyInPolyTime.mapWithInput
+    have hxa := (ComputableInPolyTime.fst (encList encBits) (encList encBits)).comp hxs
+    have hxb := (ComputableInPolyTime.snd (encList encBits) (encList encBits)).comp hxs
+    exact computableInPolyTime_polyAdd.comp
+      ((hget.comp (hxa.prod hxi)).prod (hget.comp (hxb.prod hxi)))
+  have hres := ComputableInPolyTime.mapWithInput
     (f := fun p i => polyAdd (p.2.1.getD i []) (p.2.2.getD i []))
-    (ComputableTidilyInPolyTime.range.comp
-      (ComputableTidilyInPolyTime.fst encUnary (encPair (encList encBits) (encList encBits))))
+    (ComputableInPolyTime.range.comp
+      (ComputableInPolyTime.fst encUnary (encPair (encList encBits) (encList encBits))))
     hcell
   exact hres
 
@@ -1130,8 +1041,8 @@ private theorem length_foldl_shoupLMulSum_le (a b : List (List Bool)) (off1 off2
       exact Nat.add_le_add (getD_length_le_encList_bits a _) (getD_length_le_encList_bits b _)
   exact hstep_gen [] (by simp)
 
-private theorem tidy_shoupLMulSum :
-    ComputableTidilyInPolyTime
+private theorem polyTime_shoupLMulSum :
+    ComputableInPolyTime
       (fun p : (List (List Bool) × List (List Bool)) × (ℕ × ℕ × ℕ) =>
         shoupLMulSum p.1.1 p.1.2 p.2.1 p.2.2.1 p.2.2.2)
       (encPair (encPair (encList encBits) (encList encBits))
@@ -1139,7 +1050,7 @@ private theorem tidy_shoupLMulSum :
       encBits := by
   have hget : ComputableInPolyTime (fun p : List (List Bool) × ℕ => p.1.getD p.2 [])
       (encPair (encList encBits) encUnary) encBits := by fun_prop
-  have hstep : ComputableTidilyInPolyTime
+  have hstep : ComputableInPolyTime
       (fun x : (((List (List Bool) × List (List Bool)) × (ℕ × ℕ)) × List Bool) × ℕ =>
         polyAdd x.1.2
           (polyMul (x.1.1.1.1.getD (x.1.1.2.1 + x.2) [])
@@ -1147,66 +1058,67 @@ private theorem tidy_shoupLMulSum :
       (encPair (encPair (encPair (encPair (encList encBits) (encList encBits))
         (encPair encUnary encUnary)) encBits) encUnary)
       encBits := by
-    have hfront := ComputableTidilyInPolyTime.fst
+    have hfront := ComputableInPolyTime.fst
       (encPair (encPair (encPair (encList encBits) (encList encBits)) (encPair encUnary encUnary))
         encBits) encUnary
-    have hpar := (ComputableTidilyInPolyTime.fst
+    have hpar := (ComputableInPolyTime.fst
       (encPair (encPair (encList encBits) (encList encBits)) (encPair encUnary encUnary))
       encBits).comp hfront
-    have hacc := (ComputableTidilyInPolyTime.snd
+    have hacc := (ComputableInPolyTime.snd
       (encPair (encPair (encList encBits) (encList encBits)) (encPair encUnary encUnary))
       encBits).comp hfront
-    have ht := ComputableTidilyInPolyTime.snd
+    have ht := ComputableInPolyTime.snd
       (encPair (encPair (encPair (encList encBits) (encList encBits)) (encPair encUnary encUnary))
         encBits) encUnary
-    have hab := (ComputableTidilyInPolyTime.fst
+    have hab := (ComputableInPolyTime.fst
       (encPair (encList encBits) (encList encBits)) (encPair encUnary encUnary)).comp hpar
-    have hoffs := (ComputableTidilyInPolyTime.snd
+    have hoffs := (ComputableInPolyTime.snd
       (encPair (encList encBits) (encList encBits)) (encPair encUnary encUnary)).comp hpar
-    have ha := (ComputableTidilyInPolyTime.fst (encList encBits) (encList encBits)).comp hab
-    have hb := (ComputableTidilyInPolyTime.snd (encList encBits) (encList encBits)).comp hab
-    have ho1 := (ComputableTidilyInPolyTime.fst encUnary encUnary).comp hoffs
-    have ho2 := (ComputableTidilyInPolyTime.snd encUnary encUnary).comp hoffs
-    have hidx1 := ComputableTidilyInPolyTime.unary_add.comp (ho1.prod ht)
-    have hidx2 := ComputableTidilyInPolyTime.unary_sub.comp (ho2.prod ht)
-    have haGet := hget.tidy.comp (ha.prod hidx1)
-    have hbGet := hget.tidy.comp (hb.prod hidx2)
-    exact tidy_polyAdd.comp (hacc.prod (tidy_polyMul.comp (haGet.prod hbGet)))
-  have hparFn : ComputableTidilyInPolyTime
+    have ha := (ComputableInPolyTime.fst (encList encBits) (encList encBits)).comp hab
+    have hb := (ComputableInPolyTime.snd (encList encBits) (encList encBits)).comp hab
+    have ho1 := (ComputableInPolyTime.fst encUnary encUnary).comp hoffs
+    have ho2 := (ComputableInPolyTime.snd encUnary encUnary).comp hoffs
+    have hidx1 := ComputableInPolyTime.unary_add.comp (ho1.prod ht)
+    have hidx2 := ComputableInPolyTime.unary_sub.comp (ho2.prod ht)
+    have haGet := hget.comp (ha.prod hidx1)
+    have hbGet := hget.comp (hb.prod hidx2)
+    exact computableInPolyTime_polyAdd.comp
+      (hacc.prod (computableInPolyTime_polyMul.comp (haGet.prod hbGet)))
+  have hparFn : ComputableInPolyTime
       (fun p : (List (List Bool) × List (List Bool)) × (ℕ × ℕ × ℕ) => (p.1, p.2.2))
       (encPair (encPair (encList encBits) (encList encBits))
         (encPair encUnary (encPair encUnary encUnary)))
       (encPair (encPair (encList encBits) (encList encBits)) (encPair encUnary encUnary)) :=
-    (ComputableTidilyInPolyTime.fst (encPair (encList encBits) (encList encBits))
+    (ComputableInPolyTime.fst (encPair (encList encBits) (encList encBits))
       (encPair encUnary (encPair encUnary encUnary))).prod
-      ((ComputableTidilyInPolyTime.snd encUnary (encPair encUnary encUnary)).comp
-        (ComputableTidilyInPolyTime.snd (encPair (encList encBits) (encList encBits))
+      ((ComputableInPolyTime.snd encUnary (encPair encUnary encUnary)).comp
+        (ComputableInPolyTime.snd (encPair (encList encBits) (encList encBits))
           (encPair encUnary (encPair encUnary encUnary))))
-  have hlistFn : ComputableTidilyInPolyTime
+  have hlistFn : ComputableInPolyTime
       (fun p : (List (List Bool) × List (List Bool)) × (ℕ × ℕ × ℕ) => List.range p.2.1)
       (encPair (encPair (encList encBits) (encList encBits))
         (encPair encUnary (encPair encUnary encUnary)))
       (encList encUnary) :=
-    ComputableTidilyInPolyTime.range.comp
-      ((ComputableTidilyInPolyTime.fst encUnary (encPair encUnary encUnary)).comp
-        (ComputableTidilyInPolyTime.snd (encPair (encList encBits) (encList encBits))
+    ComputableInPolyTime.range.comp
+      ((ComputableInPolyTime.fst encUnary (encPair encUnary encUnary)).comp
+        (ComputableInPolyTime.snd (encPair (encList encBits) (encList encBits))
           (encPair encUnary (encPair encUnary encUnary))))
   have hbound : PolyBounded
       (fun p : (List (List Bool) × List (List Bool)) × (ℕ × ℕ × ℕ) =>
         (encPair (encPair (encList encBits) (encList encBits))
           (encPair encUnary (encPair encUnary encUnary)) p).length)
       (fun p => (encList encBits p.1.1).length + (encList encBits p.1.2).length) := by
-    have hab := ComputableTidilyInPolyTime.fst (encPair (encList encBits) (encList encBits))
+    have hab := ComputableInPolyTime.fst (encPair (encList encBits) (encList encBits))
       (encPair encUnary (encPair encUnary encUnary))
-    have ha := ComputableTidilyInPolyTime.length_bits.comp
-      ((ComputableTidilyInPolyTime.encode (encList encBits)).comp
-        ((ComputableTidilyInPolyTime.fst (encList encBits) (encList encBits)).comp hab))
-    have hb := ComputableTidilyInPolyTime.length_bits.comp
-      ((ComputableTidilyInPolyTime.encode (encList encBits)).comp
-        ((ComputableTidilyInPolyTime.snd (encList encBits) (encList encBits)).comp hab))
-    exact ComputableTidilyInPolyTime.polyBounded
-      (ComputableTidilyInPolyTime.unary_add.comp (ha.prod hb))
-  exact ComputableTidilyInPolyTime.foldlWith
+    have ha := ComputableInPolyTime.length_bits.comp
+      (ComputableInPolyTime.encoding_comp
+        ((ComputableInPolyTime.fst (encList encBits) (encList encBits)).comp hab))
+    have hb := ComputableInPolyTime.length_bits.comp
+      (ComputableInPolyTime.encoding_comp
+        ((ComputableInPolyTime.snd (encList encBits) (encList encBits)).comp hab))
+    exact ComputableInPolyTime.polyBounded
+      (ComputableInPolyTime.unary_add.comp (ha.prod hb))
+  exact ComputableInPolyTime.foldlWith
     (encA := encUnary) (encL := encList encUnary) (encB := encBits)
     (par := fun p : (List (List Bool) × List (List Bool)) × (ℕ × ℕ × ℕ) => (p.1, p.2.2))
     (list := fun p => List.range p.2.1)
@@ -1222,48 +1134,48 @@ private def shoupLMulCell
   let high := shoupLMulSum p.2.1 p.2.2 (p.1.1 - 1 - k) (k + 1) (p.1.1 - 1)
   polyMod (polyAdd low (false :: high)) p.1.2
 
-private theorem tidy_shoupLMul :
-    ComputableTidilyInPolyTime
+private theorem polyTime_shoupLMul :
+    ComputableInPolyTime
       (fun p : (ℕ × List Bool) × (List (List Bool) × List (List Bool)) =>
         shoupLMul p.1.1 p.1.2 p.2.1 p.2.2)
       (encPair (encPair encUnary encBits) (encPair (encList encBits) (encList encBits)))
       (encList encBits) := by
   let encCtx := encPair
     (encPair (encPair encUnary encBits) (encPair (encList encBits) (encList encBits))) encUnary
-  have hcell : ComputableTidilyInPolyTime
+  have hcell : ComputableInPolyTime
       (fun x : ((ℕ × List Bool) × (List (List Bool) × List (List Bool))) × ℕ =>
         shoupLMulCell x.1 x.2)
       encCtx encBits := by
-    have hxpar := ComputableTidilyInPolyTime.fst
+    have hxpar := ComputableInPolyTime.fst
       (encPair (encPair encUnary encBits) (encPair (encList encBits) (encList encBits))) encUnary
-    have hxk := ComputableTidilyInPolyTime.snd
+    have hxk := ComputableInPolyTime.snd
       (encPair (encPair encUnary encBits) (encPair (encList encBits) (encList encBits))) encUnary
-    have hqf := (ComputableTidilyInPolyTime.fst (encPair encUnary encBits)
+    have hqf := (ComputableInPolyTime.fst (encPair encUnary encBits)
       (encPair (encList encBits) (encList encBits))).comp hxpar
-    have hab := (ComputableTidilyInPolyTime.snd (encPair encUnary encBits)
+    have hab := (ComputableInPolyTime.snd (encPair encUnary encBits)
       (encPair (encList encBits) (encList encBits))).comp hxpar
-    have hq := (ComputableTidilyInPolyTime.fst encUnary encBits).comp hqf
-    have hf := (ComputableTidilyInPolyTime.snd encUnary encBits).comp hqf
-    have h1 : ComputableTidilyInPolyTime
+    have hq := (ComputableInPolyTime.fst encUnary encBits).comp hqf
+    have hf := (ComputableInPolyTime.snd encUnary encBits).comp hqf
+    have h1 : ComputableInPolyTime
         (fun _ : ((ℕ × List Bool) × (List (List Bool) × List (List Bool))) × ℕ => (1 : ℕ))
         encCtx encUnary :=
-      ComputableTidilyInPolyTime.const (1 : ℕ)
-    have h0 : ComputableTidilyInPolyTime
+      ComputableInPolyTime.const (1 : ℕ)
+    have h0 : ComputableInPolyTime
         (fun _ : ((ℕ × List Bool) × (List (List Bool) × List (List Bool))) × ℕ => (0 : ℕ))
         encCtx encUnary :=
-      ComputableTidilyInPolyTime.const (0 : ℕ)
-    have hk1 := ComputableTidilyInPolyTime.unary_add.comp (hxk.prod h1)
-    have hq1 := ComputableTidilyInPolyTime.unary_sub.comp (hq.prod h1)
-    have hcntH := ComputableTidilyInPolyTime.unary_sub.comp (hq1.prod hxk)
-    have hlow := tidy_shoupLMulSum.comp (hab.prod (hk1.prod (h0.prod hxk)))
-    have hhigh := tidy_shoupLMulSum.comp (hab.prod (hcntH.prod (hk1.prod hq1)))
-    have hsum := tidy_polyAdd.comp
-      (hlow.prod (ComputableTidilyInPolyTime.bitsCons (.const false) hhigh))
-    exact tidy_polyMod.comp (hsum.prod hf)
-  have hres := ComputableTidilyInPolyTime.mapWithInput (f := shoupLMulCell)
-    (ComputableTidilyInPolyTime.range.comp
-      ((ComputableTidilyInPolyTime.fst encUnary encBits).comp
-        (ComputableTidilyInPolyTime.fst (encPair encUnary encBits)
+      ComputableInPolyTime.const (0 : ℕ)
+    have hk1 := ComputableInPolyTime.unary_add.comp (hxk.prod h1)
+    have hq1 := ComputableInPolyTime.unary_sub.comp (hq.prod h1)
+    have hcntH := ComputableInPolyTime.unary_sub.comp (hq1.prod hxk)
+    have hlow := polyTime_shoupLMulSum.comp (hab.prod (hk1.prod (h0.prod hxk)))
+    have hhigh := polyTime_shoupLMulSum.comp (hab.prod (hcntH.prod (hk1.prod hq1)))
+    have hsum := computableInPolyTime_polyAdd.comp
+      (hlow.prod (ComputableInPolyTime.bitsCons (.const false) hhigh))
+    exact computableInPolyTime_polyMod.comp (hsum.prod hf)
+  have hres := ComputableInPolyTime.mapWithInput (f := shoupLMulCell)
+    (ComputableInPolyTime.range.comp
+      ((ComputableInPolyTime.fst encUnary encBits).comp
+        (ComputableInPolyTime.fst (encPair encUnary encBits)
           (encPair (encList encBits) (encList encBits)))))
     hcell
   convert hres using 1
@@ -1300,25 +1212,25 @@ private theorem shoupLFrobQBounded_eq {q : ℕ} {f : List Bool} (a : List (List 
 section ShoupFrobSection
 attribute [local irreducible] shoupLMul shoupFrobStep polyTrim
 
-private theorem tidy_shoupLFrobQBounded :
-    ComputableTidilyInPolyTime
+private theorem polyTime_shoupLFrobQBounded :
+    ComputableInPolyTime
       (fun p : (ℕ × List Bool) × List (List Bool) => shoupLFrobQBounded p.1.1 p.1.2 p.2)
       (encPair (encPair encUnary encBits) (encList encBits)) (encList encBits) := by
-  have hpar := ComputableTidilyInPolyTime.fst (encPair encUnary encBits) (encList encBits)
-  have ha := ComputableTidilyInPolyTime.snd (encPair encUnary encBits) (encList encBits)
-  have hq := (ComputableTidilyInPolyTime.fst encUnary encBits).comp hpar
-  have hf := (ComputableTidilyInPolyTime.snd encUnary encBits).comp hpar
-  have hcond := ComputableTidilyInPolyTime.bitsIsEmpty.comp (tidy_polyTrim.comp hf)
-  have hcnt : ComputableTidilyInPolyTime
+  have hpar := ComputableInPolyTime.fst (encPair encUnary encBits) (encList encBits)
+  have ha := ComputableInPolyTime.snd (encPair encUnary encBits) (encList encBits)
+  have hq := (ComputableInPolyTime.fst encUnary encBits).comp hpar
+  have hf := (ComputableInPolyTime.snd encUnary encBits).comp hpar
+  have hcond := ComputableInPolyTime.bitsIsEmpty.comp (computableInPolyTime_polyTrim.comp hf)
+  have hcnt : ComputableInPolyTime
       (fun p : (ℕ × List Bool) × List (List Bool) => if (polyTrim p.1.2).isEmpty then 0 else p.1.1)
       (encPair (encPair encUnary encBits) (encList encBits)) encUnary :=
-    (ComputableInPolyTime.ite' hcond.computableInPolyTime
-      (ComputableInPolyTime.const (0 : ℕ)) hq.computableInPolyTime).tidy
-  have hstep := tidy_shoupLMul.comp ((ComputableTidilyInPolyTime.fst (encPair encUnary encBits)
-    (encList encBits)).prod ((ComputableTidilyInPolyTime.snd (encPair encUnary encBits)
-      (encList encBits)).prod (ComputableTidilyInPolyTime.snd (encPair encUnary encBits)
+    (ComputableInPolyTime.ite' hcond
+      (ComputableInPolyTime.const (0 : ℕ)) hq)
+  have hstep := polyTime_shoupLMul.comp ((ComputableInPolyTime.fst (encPair encUnary encBits)
+    (encList encBits)).prod ((ComputableInPolyTime.snd (encPair encUnary encBits)
+      (encList encBits)).prod (ComputableInPolyTime.snd (encPair encUnary encBits)
         (encList encBits))))
-  have hstep' : ComputableTidilyInPolyTime
+  have hstep' : ComputableInPolyTime
       (fun x : (ℕ × List Bool) × List (List Bool) => shoupFrobStep x.1 x.2)
       (encPair (encPair encUnary encBits) (encList encBits)) (encList encBits) := by
     convert hstep using 1
@@ -1327,11 +1239,11 @@ private theorem tidy_shoupLFrobQBounded :
     rfl
   have haLenPlain : ComputableInPolyTime (fun l : List (List Bool) => l.length)
       (encList encBits) encUnary := by fun_prop
-  have haLen := haLenPlain.tidy.comp ha
-  have haBits := ComputableTidilyInPolyTime.length_bits.comp
-    ((ComputableTidilyInPolyTime.encode (encList encBits)).comp ha)
-  have hfLen := ComputableTidilyInPolyTime.length_bits.comp hf
-  have hsizeFn : ComputableTidilyInPolyTime
+  have haLen := haLenPlain.comp ha
+  have haBits := ComputableInPolyTime.length_bits.comp
+    (ComputableInPolyTime.encoding_comp ha)
+  have hfLen := ComputableInPolyTime.length_bits.comp hf
+  have hsizeFn : ComputableInPolyTime
       (fun p : (ℕ × List Bool) × List (List Bool) =>
         (p.1.1 + p.2.length) * (2 * (p.1.2.length + (encList encBits p.2).length) + 1))
       (encPair (encPair encUnary encBits) (encList encBits)) encUnary := by
@@ -1339,14 +1251,14 @@ private theorem tidy_shoupLFrobQBounded :
     have ha' := haLen
     have hf' := hfLen
     have hab' := haBits
-    have hsum1 := ComputableTidilyInPolyTime.unary_add.comp (hq'.prod ha')
-    have hsum2 := ComputableTidilyInPolyTime.unary_add.comp (hf'.prod hab')
-    have hmul2 := ComputableTidilyInPolyTime.unary_mul.comp
-      ((ComputableTidilyInPolyTime.const 2).prod hsum2)
-    have hadd1 := ComputableTidilyInPolyTime.unary_add.comp
-      (hmul2.prod (ComputableTidilyInPolyTime.const 1))
-    exact ComputableTidilyInPolyTime.unary_mul.comp (hsum1.prod hadd1)
-  have hiter := (ComputableTidilyInPolyTime.iterateWith_spec
+    have hsum1 := ComputableInPolyTime.unary_add.comp (hq'.prod ha')
+    have hsum2 := ComputableInPolyTime.unary_add.comp (hf'.prod hab')
+    have hmul2 := ComputableInPolyTime.unary_mul.comp
+      ((ComputableInPolyTime.const 2).prod hsum2)
+    have hadd1 := ComputableInPolyTime.unary_add.comp
+      (hmul2.prod (ComputableInPolyTime.const 1))
+    exact ComputableInPolyTime.unary_mul.comp (hsum1.prod hadd1)
+  have hiter := (ComputableInPolyTime.iterateWith_spec
     (step := shoupFrobStep)
     (invariant := fun p _ x =>
       x.length ≤ p.1.1 + p.2.length ∧
@@ -1364,7 +1276,7 @@ private theorem tidy_shoupLFrobQBounded :
       unfold shoupFrobStep
       obtain ⟨hl, hrows⟩ := length_shoupLMul p.1.1 p.1.2 x x hf_ne
       exact ⟨by omega, fun v hv => (hrows v hv).trans (Nat.le_add_right _ _)⟩)
-    (ComputableTidilyInPolyTime.polyBounded hsizeFn) fun p _ x _ hx => by
+    (ComputableInPolyTime.polyBounded hsizeFn) fun p _ x _ hx => by
       refine (length_encList_le encBits x (b := p.1.2.length + (encList encBits p.2).length)
         (fun v hv => by simp [encBits_apply, hx.2 v hv])).trans ?_
       exact Nat.mul_le_mul_right _ hx.1).1
@@ -1404,87 +1316,69 @@ private theorem shoupBetaBounded_eq {q : ℕ} {f : List Bool} (hf : (polyTrim f)
 section ShoupBetaSection
 attribute [local irreducible] shoupLAdd shoupLFrobQBounded shoupBetaStep polyTrim
 
-private theorem tidy_shoupBetaBounded :
-    ComputableTidilyInPolyTime
+private theorem polyTime_shoupBetaBounded :
+    ComputableInPolyTime
       (fun p : ℕ × List Bool => shoupBetaBounded p.1 p.2)
       (encPair encUnary encBits) (encList encBits) := by
-  have hq := ComputableTidilyInPolyTime.fst encUnary encBits
-  have hf := ComputableTidilyInPolyTime.snd encUnary encBits
-  have hfne := ComputableTidilyInPolyTime.bitsIsEmpty.comp (tidy_polyTrim.comp hf)
-  have hcntTrue := ComputableTidilyInPolyTime.unary_sub.comp
-    ((ComputableTidilyInPolyTime.length_bits.comp hf).prod (.const 1))
-  have hcnt : ComputableTidilyInPolyTime
+  have hq := ComputableInPolyTime.fst encUnary encBits
+  have hf := ComputableInPolyTime.snd encUnary encBits
+  have hfne := ComputableInPolyTime.bitsIsEmpty.comp (computableInPolyTime_polyTrim.comp hf)
+  have hcntTrue := ComputableInPolyTime.unary_sub.comp
+    ((ComputableInPolyTime.length_bits.comp hf).prod (.const 1))
+  have hcnt : ComputableInPolyTime
       (fun p : ℕ × List Bool => if (polyTrim p.2).isEmpty then 0 else p.2.length - 1)
       (encPair encUnary encBits) encUnary :=
-    (ComputableInPolyTime.ite' hfne.computableInPolyTime
-      (ComputableInPolyTime.const (0 : ℕ)) hcntTrue.computableInPolyTime).tidy
-  have hinitY : ComputableTidilyInPolyTime
+    (ComputableInPolyTime.ite' hfne
+      (ComputableInPolyTime.const (0 : ℕ)) hcntTrue)
+  have hinitY : ComputableInPolyTime
       (fun q : ℕ => (List.range q).map (shoupBetaInitYCell q))
       encUnary (encList encBits) := by
-    have hbit : ComputableTidilyInPolyTime
+    have hbit : ComputableInPolyTime
         (fun x : ℕ × ℕ => shoupBetaInitYCell x.1 x.2)
         (encPair encUnary encUnary) encBits := by
-      have hi := ComputableTidilyInPolyTime.snd encUnary encUnary
-      have hcond : ComputableTidilyInPolyTime (fun x : ℕ × ℕ => x.2 == 1)
+      have hi := ComputableInPolyTime.snd encUnary encUnary
+      have hcond : ComputableInPolyTime (fun x : ℕ × ℕ => x.2 == 1)
           (encPair encUnary encUnary) encBool :=
         hi.beq (.const 1)
-      exact (ComputableInPolyTime.ite' hcond.computableInPolyTime
-        (ComputableInPolyTime.const [true]) (ComputableInPolyTime.const ([] : List Bool))).tidy
-    exact ComputableTidilyInPolyTime.mapWithInput (f := shoupBetaInitYCell)
-      ComputableTidilyInPolyTime.range hbit
-  have hinit1 : ComputableTidilyInPolyTime
+      exact (ComputableInPolyTime.ite' hcond
+        (ComputableInPolyTime.const [true]) (ComputableInPolyTime.const ([] : List Bool)))
+    exact ComputableInPolyTime.mapWithInput (f := shoupBetaInitYCell)
+      ComputableInPolyTime.range hbit
+  have hinit1 : ComputableInPolyTime
       (fun p : ℕ × List Bool => List.replicate p.1 ([] : List Bool))
-      (encPair encUnary encBits) (encList encBits) := by
-    let repEmpty : ℕ → ℕ → List Bool := fun _ _ => []
-    have hconst : ComputableTidilyInPolyTime (fun x : ℕ × ℕ => repEmpty x.1 x.2)
-        (encPair encUnary encUnary) encBits :=
-      ComputableTidilyInPolyTime.const ([] : List Bool)
-    have hmap := ComputableTidilyInPolyTime.mapWithInput (f := repEmpty)
-      ComputableTidilyInPolyTime.range hconst
-    have hres := hmap.comp hq
-    have hrep : ∀ n m : ℕ,
-        List.replicate n ([] : List Bool) = (List.range n).map (repEmpty m) := by
-      intro n m
-      induction n with
-      | zero => rfl
-      | succ k ih =>
-        rw [List.replicate_succ', List.range_succ, List.map_append]
-        exact congrArg (· ++ [[]]) ih
-    convert hres using 1
-    funext p
-    simp only [Function.comp_def]
-    exact hrep p.1 p.1
+      (encPair encUnary encBits) (encList encBits) :=
+    ComputableInPolyTime.replicate hq (ComputableInPolyTime.const ([] : List Bool))
   have hinit := hinit1.prod (hinitY.comp hq)
-  have hstep : ComputableTidilyInPolyTime
+  have hstep : ComputableInPolyTime
       (fun x : (ℕ × List Bool) × (List (List Bool) × List (List Bool)) =>
         shoupBetaStep x.1 x.2)
       (encPair (encPair encUnary encBits) (encPair (encList encBits) (encList encBits)))
       (encPair (encList encBits) (encList encBits)) := by
-    have hxpar := ComputableTidilyInPolyTime.fst (encPair encUnary encBits)
+    have hxpar := ComputableInPolyTime.fst (encPair encUnary encBits)
       (encPair (encList encBits) (encList encBits))
-    have hxst := ComputableTidilyInPolyTime.snd (encPair encUnary encBits)
+    have hxst := ComputableInPolyTime.snd (encPair encUnary encBits)
       (encPair (encList encBits) (encList encBits))
-    have hxq := (ComputableTidilyInPolyTime.fst encUnary encBits).comp hxpar
-    have hx2 := (ComputableTidilyInPolyTime.snd (encList encBits) (encList encBits)).comp hxst
-    have hpair := (tidy_shoupLAdd.comp (hxq.prod hxst)).prod
-      (tidy_shoupLFrobQBounded.comp (hxpar.prod hx2))
+    have hxq := (ComputableInPolyTime.fst encUnary encBits).comp hxpar
+    have hx2 := (ComputableInPolyTime.snd (encList encBits) (encList encBits)).comp hxst
+    have hpair := (polyTime_shoupLAdd.comp (hxq.prod hxst)).prod
+      (polyTime_shoupLFrobQBounded.comp (hxpar.prod hx2))
     convert hpair using 1
     funext x
     unfold shoupBetaStep
     rfl
-  have hboundFn : ComputableTidilyInPolyTime
+  have hboundFn : ComputableInPolyTime
       (fun p : ℕ × List Bool => 3 * (p.1 * (2 * (p.2.length + 1) + 1)) + 1)
       (encPair encUnary encBits) encUnary := by
     have hq' := hq
-    have hf1 := ComputableTidilyInPolyTime.unary_add.comp
-      ((ComputableTidilyInPolyTime.length_bits.comp hf).prod (.const 1))
-    have h2f := ComputableTidilyInPolyTime.unary_mul.comp
-      ((ComputableTidilyInPolyTime.const 2).prod hf1)
-    have h2f1 := ComputableTidilyInPolyTime.unary_add.comp (h2f.prod (.const 1))
-    have hqmul := ComputableTidilyInPolyTime.unary_mul.comp (hq'.prod h2f1)
-    have h3q := ComputableTidilyInPolyTime.unary_mul.comp
-      ((ComputableTidilyInPolyTime.const 3).prod hqmul)
-    exact ComputableTidilyInPolyTime.unary_add.comp (h3q.prod (.const 1))
+    have hf1 := ComputableInPolyTime.unary_add.comp
+      ((ComputableInPolyTime.length_bits.comp hf).prod (.const 1))
+    have h2f := ComputableInPolyTime.unary_mul.comp
+      ((ComputableInPolyTime.const 2).prod hf1)
+    have h2f1 := ComputableInPolyTime.unary_add.comp (h2f.prod (.const 1))
+    have hqmul := ComputableInPolyTime.unary_mul.comp (hq'.prod h2f1)
+    have h3q := ComputableInPolyTime.unary_mul.comp
+      ((ComputableInPolyTime.const 3).prod hqmul)
+    exact ComputableInPolyTime.unary_add.comp (h3q.prod (.const 1))
   have hgetD_le : ∀ (L : List (List Bool)) (m : ℕ),
       (∀ v ∈ L, v.length ≤ m) → ∀ i, (L.getD i []).length ≤ m := by
     intro L m hL i
@@ -1492,11 +1386,11 @@ private theorem tidy_shoupBetaBounded :
     cases hopt : L[i]? with
     | none => simp
     | some u => simp only [Option.getD_some]; exact hL u (List.mem_of_getElem? hopt)
-  have hiter := (ComputableTidilyInPolyTime.iterateWith_spec
+  have hiter := (ComputableInPolyTime.iterateWith_spec
     (invariant := fun p _ st =>
       st.1.length ≤ p.1 ∧ st.2.length ≤ p.1 ∧
         (∀ v ∈ st.1, v.length ≤ p.2.length + 1) ∧ ∀ v ∈ st.2, v.length ≤ p.2.length + 1)
-    ComputableTidilyInPolyTime.id' hcnt hinit hstep
+    ComputableInPolyTime.id' hcnt hinit hstep
     (fun p => by
       refine ⟨by simp, by simp, fun v hv => ?_, fun v hv => ?_⟩
       · simp only [List.mem_replicate] at hv
@@ -1538,7 +1432,7 @@ private theorem tidy_shoupBetaBounded :
           exact ⟨hl.le, fun v hv => (hrows v hv).trans (Nat.le_succ _)⟩
       unfold shoupBetaStep
       exact ⟨h1, h2.1, h1_rows, h2.2⟩)
-    (ComputableTidilyInPolyTime.polyBounded hboundFn)
+    (ComputableInPolyTime.polyBounded hboundFn)
     (fun p _ st _ hinv => by
       rw [length_encPair]
       have hl1 := length_encList_le encBits st.1 (b := p.2.length + 1)
@@ -1548,7 +1442,7 @@ private theorem tidy_shoupBetaBounded :
       have hm1 := hl1.trans (Nat.mul_le_mul_right _ hinv.1)
       have hm2 := hl2.trans (Nat.mul_le_mul_right _ hinv.2.1)
       omega)).1
-  exact (ComputableTidilyInPolyTime.fst (encList encBits) (encList encBits)).comp hiter
+  exact (ComputableInPolyTime.fst (encList encBits) (encList encBits)).comp hiter
 
 end ShoupBetaSection
 
@@ -1576,99 +1470,99 @@ private theorem shoupPowersBounded_eq {q : ℕ} {f : List Bool} (β : List (List
 section ShoupPowersSection
 attribute [local irreducible] shoupLMul shoupPowersStep polyTrim
 
-private theorem tidy_shoupPowersBounded :
-    ComputableTidilyInPolyTime
+private theorem polyTime_shoupPowersBounded :
+    ComputableInPolyTime
       (fun p : (ℕ × List Bool) × List (List Bool) => shoupPowersBounded p.1.1 p.1.2 p.2)
       (encPair (encPair encUnary encBits) (encList encBits))
       (encList (encList encBits)) := by
-  have hpar := ComputableTidilyInPolyTime.fst (encPair encUnary encBits) (encList encBits)
-  have hβ := ComputableTidilyInPolyTime.snd (encPair encUnary encBits) (encList encBits)
-  have hq := (ComputableTidilyInPolyTime.fst encUnary encBits).comp hpar
-  have hf := (ComputableTidilyInPolyTime.snd encUnary encBits).comp hpar
-  have hfne := ComputableTidilyInPolyTime.bitsIsEmpty.comp (tidy_polyTrim.comp hf)
-  have hq1 := ComputableTidilyInPolyTime.unary_add.comp (hq.prod (.const 1))
-  have hcnt : ComputableTidilyInPolyTime
+  have hpar := ComputableInPolyTime.fst (encPair encUnary encBits) (encList encBits)
+  have hβ := ComputableInPolyTime.snd (encPair encUnary encBits) (encList encBits)
+  have hq := (ComputableInPolyTime.fst encUnary encBits).comp hpar
+  have hf := (ComputableInPolyTime.snd encUnary encBits).comp hpar
+  have hfne := ComputableInPolyTime.bitsIsEmpty.comp (computableInPolyTime_polyTrim.comp hf)
+  have hq1 := ComputableInPolyTime.unary_add.comp (hq.prod (.const 1))
+  have hcnt : ComputableInPolyTime
       (fun p : (ℕ × List Bool) × List (List Bool) =>
         if (polyTrim p.1.2).isEmpty then 0 else p.1.1 + 1)
       (encPair (encPair encUnary encBits) (encList encBits)) encUnary :=
-    (ComputableInPolyTime.ite' hfne.computableInPolyTime
-      (ComputableInPolyTime.const (0 : ℕ)) hq1.computableInPolyTime).tidy
-  have hinitOne : ComputableTidilyInPolyTime
+    (ComputableInPolyTime.ite' hfne
+      (ComputableInPolyTime.const (0 : ℕ)) hq1)
+  have hinitOne : ComputableInPolyTime
       (fun q : ℕ => (List.range q).map (shoupPowersOneCell q))
       encUnary (encList encBits) := by
-    have hbit : ComputableTidilyInPolyTime
+    have hbit : ComputableInPolyTime
         (fun x : ℕ × ℕ => shoupPowersOneCell x.1 x.2)
         (encPair encUnary encUnary) encBits := by
-      have hi := ComputableTidilyInPolyTime.snd encUnary encUnary
-      have hcond : ComputableTidilyInPolyTime (fun x : ℕ × ℕ => x.2 == 0)
+      have hi := ComputableInPolyTime.snd encUnary encUnary
+      have hcond : ComputableInPolyTime (fun x : ℕ × ℕ => x.2 == 0)
           (encPair encUnary encUnary) encBool :=
         hi.beq (.const 0)
-      exact (ComputableInPolyTime.ite' hcond.computableInPolyTime
-        (ComputableInPolyTime.const [true]) (ComputableInPolyTime.const ([] : List Bool))).tidy
-    exact ComputableTidilyInPolyTime.mapWithInput (f := shoupPowersOneCell)
-      ComputableTidilyInPolyTime.range hbit
+      exact (ComputableInPolyTime.ite' hcond
+        (ComputableInPolyTime.const [true]) (ComputableInPolyTime.const ([] : List Bool)))
+    exact ComputableInPolyTime.mapWithInput (f := shoupPowersOneCell)
+      ComputableInPolyTime.range hbit
   let encIn := encPair (encPair encUnary encBits) (encList encBits)
-  have hnil : ComputableTidilyInPolyTime
+  have hnil : ComputableInPolyTime
       (fun _ : (ℕ × List Bool) × List (List Bool) => ([] : List (List (List Bool))))
       encIn (encList (encList encBits)) :=
-    ComputableTidilyInPolyTime.const ([] : List (List (List Bool)))
-  have hinit : ComputableTidilyInPolyTime
+    ComputableInPolyTime.const ([] : List (List (List Bool)))
+  have hinit : ComputableInPolyTime
       (fun p : (ℕ × List Bool) × List (List Bool) =>
         (([] : List (List (List Bool))), (List.range p.1.1).map (shoupPowersOneCell p.1.1)))
       encIn (encPair (encList (encList encBits)) (encList encBits)) :=
     hnil.prod (hinitOne.comp hq)
-  have hsnoc : ComputableTidilyInPolyTime
+  have hsnoc : ComputableInPolyTime
       (fun p : List (List (List Bool)) × List (List Bool) => p.1 ++ [p.2])
       (encPair (encList (encList encBits)) (encList encBits)) (encList (encList encBits)) :=
-    (ComputableTidilyInDegree.snoc (encList encBits)).computableTidilyInPolyTime
-  have hstep : ComputableTidilyInPolyTime
+    ComputableInPolyTime.snoc (encList encBits)
+  have hstep : ComputableInPolyTime
       (fun x : ((ℕ × List Bool) × List (List Bool)) ×
           (List (List (List Bool)) × List (List Bool)) =>
         shoupPowersStep x.1 x.2)
       (encPair encIn (encPair (encList (encList encBits)) (encList encBits)))
       (encPair (encList (encList encBits)) (encList encBits)) := by
-    have hxInput := ComputableTidilyInPolyTime.fst
+    have hxInput := ComputableInPolyTime.fst
       encIn (encPair (encList (encList encBits)) (encList encBits))
-    have hxst := ComputableTidilyInPolyTime.snd
+    have hxst := ComputableInPolyTime.snd
       encIn (encPair (encList (encList encBits)) (encList encBits))
-    have hxqf := (ComputableTidilyInPolyTime.fst (encPair encUnary encBits) (encList encBits)).comp
+    have hxqf := (ComputableInPolyTime.fst (encPair encUnary encBits) (encList encBits)).comp
       hxInput
-    have hxβ := (ComputableTidilyInPolyTime.snd (encPair encUnary encBits) (encList encBits)).comp
+    have hxβ := (ComputableInPolyTime.snd (encPair encUnary encBits) (encList encBits)).comp
       hxInput
     have hxcur :=
-      (ComputableTidilyInPolyTime.snd (encList (encList encBits)) (encList encBits)).comp hxst
-    have hpair := (hsnoc.comp hxst).prod (tidy_shoupLMul.comp (hxqf.prod (hxcur.prod hxβ)))
+      (ComputableInPolyTime.snd (encList (encList encBits)) (encList encBits)).comp hxst
+    have hpair := (hsnoc.comp hxst).prod (polyTime_shoupLMul.comp (hxqf.prod (hxcur.prod hxβ)))
     convert hpair using 1
     funext x
     unfold shoupPowersStep
     rfl
-  have hboundFn : ComputableTidilyInPolyTime
+  have hboundFn : ComputableInPolyTime
       (fun p : (ℕ × List Bool) × List (List Bool) =>
         let rowB := p.1.1 * (2 * (p.1.2.length + 1) + 1)
         2 * ((p.1.1 + 1) * (2 * rowB + 1)) + 1 + rowB)
       (encPair (encPair encUnary encBits) (encList encBits)) encUnary := by
     have hq' := hq
     have hq1' := hq1
-    have hf1 := ComputableTidilyInPolyTime.unary_add.comp
-      ((ComputableTidilyInPolyTime.length_bits.comp hf).prod (.const 1))
-    have h2f := ComputableTidilyInPolyTime.unary_mul.comp
-      ((ComputableTidilyInPolyTime.const 2).prod hf1)
-    have h2f1 := ComputableTidilyInPolyTime.unary_add.comp (h2f.prod (.const 1))
-    have hrowB := ComputableTidilyInPolyTime.unary_mul.comp (hq'.prod h2f1)
-    have h2r := ComputableTidilyInPolyTime.unary_mul.comp
-      ((ComputableTidilyInPolyTime.const 2).prod hrowB)
-    have h2r1 := ComputableTidilyInPolyTime.unary_add.comp (h2r.prod (.const 1))
-    have houter := ComputableTidilyInPolyTime.unary_mul.comp (hq1'.prod h2r1)
-    have h2out := ComputableTidilyInPolyTime.unary_mul.comp
-      ((ComputableTidilyInPolyTime.const 2).prod houter)
-    have h2out1 := ComputableTidilyInPolyTime.unary_add.comp (h2out.prod (.const 1))
-    exact ComputableTidilyInPolyTime.unary_add.comp (h2out1.prod hrowB)
-  have hiter := ComputableTidilyInPolyTime.iterateWith_spec
+    have hf1 := ComputableInPolyTime.unary_add.comp
+      ((ComputableInPolyTime.length_bits.comp hf).prod (.const 1))
+    have h2f := ComputableInPolyTime.unary_mul.comp
+      ((ComputableInPolyTime.const 2).prod hf1)
+    have h2f1 := ComputableInPolyTime.unary_add.comp (h2f.prod (.const 1))
+    have hrowB := ComputableInPolyTime.unary_mul.comp (hq'.prod h2f1)
+    have h2r := ComputableInPolyTime.unary_mul.comp
+      ((ComputableInPolyTime.const 2).prod hrowB)
+    have h2r1 := ComputableInPolyTime.unary_add.comp (h2r.prod (.const 1))
+    have houter := ComputableInPolyTime.unary_mul.comp (hq1'.prod h2r1)
+    have h2out := ComputableInPolyTime.unary_mul.comp
+      ((ComputableInPolyTime.const 2).prod houter)
+    have h2out1 := ComputableInPolyTime.unary_add.comp (h2out.prod (.const 1))
+    exact ComputableInPolyTime.unary_add.comp (h2out1.prod hrowB)
+  have hiter := ComputableInPolyTime.iterateWith_spec
     (invariant := fun p k st =>
       st.1.length = k ∧ st.2.length ≤ p.1.1 ∧
         (∀ u ∈ st.1, u.length ≤ p.1.1 ∧ ∀ v ∈ u, v.length ≤ p.1.2.length + 1) ∧
         ∀ v ∈ st.2, v.length ≤ p.1.2.length + 1)
-    ComputableTidilyInPolyTime.id' hcnt hinit hstep
+    ComputableInPolyTime.id' hcnt hinit hstep
     (fun p => by
       refine ⟨by simp, by simp, by simp, fun v hv => ?_⟩
       rw [List.mem_map] at hv
@@ -1689,7 +1583,7 @@ private theorem tidy_shoupPowersBounded :
       rcases hu with hu | rfl
       · exact hinv.2.2.1 u hu
       · exact ⟨hinv.2.1, hinv.2.2.2⟩)
-    (ComputableTidilyInPolyTime.polyBounded hboundFn)
+    (ComputableInPolyTime.polyBounded hboundFn)
     (fun p k st hk hinv => by
       have hk_le : k ≤ p.1.1 + 1 := by
         split_ifs at hk <;> omega
@@ -1710,7 +1604,7 @@ private theorem tidy_shoupPowersBounded :
       rw [length_encPair]
       dsimp only
       omega)
-  exact (ComputableTidilyInPolyTime.fst (encList (encList encBits)) (encList encBits)).comp hiter.1
+  exact (ComputableInPolyTime.fst (encList (encList encBits)) (encList encBits)).comp hiter.1
 
 end ShoupPowersSection
 
@@ -1724,56 +1618,56 @@ private def shoupMinPolyBit (x : ((ℕ × ℕ) × List (List (List Bool))) × �
     Bool :=
   (v.getD (x.2 / x.1.1.2) []).getD (x.2 % x.1.1.2) false
 
-private theorem tidy_shoupMinPolyMatrix :
-    ComputableTidilyInPolyTime
+private theorem polyTime_shoupMinPolyMatrix :
+    ComputableInPolyTime
       (fun p : (ℕ × ℕ) × List (List (List Bool)) => shoupMinPolyMatrix p.1.1 p.1.2 p.2)
       (encPair (encPair encUnary encUnary) (encList (encList encBits)))
       (encList encBits) := by
   have hget : ComputableInPolyTime (fun p : List (List Bool) × ℕ => p.1.getD p.2 [])
       (encPair (encList encBits) encUnary) encBits := by fun_prop
-  have hbit : ComputableTidilyInPolyTime
+  have hbit : ComputableInPolyTime
       (fun y : (((ℕ × ℕ) × List (List (List Bool))) × ℕ) × List (List Bool) =>
         shoupMinPolyBit y.1 y.2)
       (encPair (encPair (encPair (encPair encUnary encUnary) (encList (encList encBits))) encUnary)
         (encList encBits))
       encBool := by
-    have hyx := ComputableTidilyInPolyTime.fst
+    have hyx := ComputableInPolyTime.fst
       (encPair (encPair (encPair encUnary encUnary) (encList (encList encBits))) encUnary)
       (encList encBits)
-    have hyv := ComputableTidilyInPolyTime.snd
+    have hyv := ComputableInPolyTime.snd
       (encPair (encPair (encPair encUnary encUnary) (encList (encList encBits))) encUnary)
       (encList encBits)
-    have hyp := (ComputableTidilyInPolyTime.fst (encPair encUnary encUnary)
+    have hyp := (ComputableInPolyTime.fst (encPair encUnary encUnary)
       (encList (encList encBits))).comp
-      ((ComputableTidilyInPolyTime.fst (encPair (encPair encUnary encUnary)
+      ((ComputableInPolyTime.fst (encPair (encPair encUnary encUnary)
         (encList (encList encBits))) encUnary).comp hyx)
-    have hym := (ComputableTidilyInPolyTime.snd encUnary encUnary).comp hyp
-    have hyidx := (ComputableTidilyInPolyTime.snd
+    have hym := (ComputableInPolyTime.snd encUnary encUnary).comp hyp
+    have hyidx := (ComputableInPolyTime.snd
       (encPair (encPair encUnary encUnary) (encList (encList encBits))) encUnary).comp hyx
-    have hdm := ComputableTidilyInPolyTime.unary_divMod.comp (hyidx.prod hym)
-    have hi := (ComputableTidilyInPolyTime.fst encUnary encUnary).comp hdm
-    have hj := (ComputableTidilyInPolyTime.snd encUnary encUnary).comp hdm
-    exact ComputableTidilyInPolyTime.bitsGetDWithInput (hget.tidy.comp (hyv.prod hi)) hj false
-  have hrow : ComputableTidilyInPolyTime
+    have hdm := ComputableInPolyTime.unary_divMod.comp (hyidx.prod hym)
+    have hi := (ComputableInPolyTime.fst encUnary encUnary).comp hdm
+    have hj := (ComputableInPolyTime.snd encUnary encUnary).comp hdm
+    exact ComputableInPolyTime.bitsGetDWithInput (hget.comp (hyv.prod hi)) hj false
+  have hrow : ComputableInPolyTime
       (fun x : ((ℕ × ℕ) × List (List (List Bool))) × ℕ => shoupMinPolyRow x.1 x.2)
       (encPair (encPair (encPair encUnary encUnary) (encList (encList encBits))) encUnary)
       encBits := by
-    have hpows := (ComputableTidilyInPolyTime.snd (encPair encUnary encUnary)
+    have hpows := (ComputableInPolyTime.snd (encPair encUnary encUnary)
       (encList (encList encBits))).comp
-      (ComputableTidilyInPolyTime.fst
+      (ComputableInPolyTime.fst
         (encPair (encPair encUnary encUnary) (encList (encList encBits))) encUnary)
-    have hmap := ComputableTidilyInPolyTime.mapWithInput (f := shoupMinPolyBit) hpows hbit
-    exact ComputableTidilyInPolyTime.listToBits.comp hmap
-  have hlen : ComputableTidilyInPolyTime
+    have hmap := ComputableInPolyTime.mapWithInput (f := shoupMinPolyBit) hpows hbit
+    exact ComputableInPolyTime.listToBits.comp hmap
+  have hlen : ComputableInPolyTime
       (fun p : (ℕ × ℕ) × List (List (List Bool)) => p.1.1 * p.1.2)
       (encPair (encPair encUnary encUnary) (encList (encList encBits))) encUnary := by
-    have hqm := ComputableTidilyInPolyTime.fst (encPair encUnary encUnary)
+    have hqm := ComputableInPolyTime.fst (encPair encUnary encUnary)
       (encList (encList encBits))
-    exact ComputableTidilyInPolyTime.unary_mul.comp
-      (((ComputableTidilyInPolyTime.fst encUnary encUnary).comp hqm).prod
-        ((ComputableTidilyInPolyTime.snd encUnary encUnary).comp hqm))
-  have hres := ComputableTidilyInPolyTime.mapWithInput (f := shoupMinPolyRow)
-    (ComputableTidilyInPolyTime.range.comp hlen) hrow
+    exact ComputableInPolyTime.unary_mul.comp
+      (((ComputableInPolyTime.fst encUnary encUnary).comp hqm).prod
+        ((ComputableInPolyTime.snd encUnary encUnary).comp hqm))
+  have hres := ComputableInPolyTime.mapWithInput (f := shoupMinPolyRow)
+    (ComputableInPolyTime.range.comp hlen) hrow
   convert hres using 1
   funext p
   unfold shoupMinPolyMatrix shoupMinPolyRow
@@ -1783,19 +1677,21 @@ section ShoupIrreducibleSection
 attribute [local irreducible] shoupCyclicFactor shoupBetaBounded shoupPowersBounded
   shoupMinPolyMatrix kernelVecBits ordTwoMod qAdicValTwoPowSubOne
 
-private theorem tidy_shoupIrreducibleBits :
-    ComputableTidilyInPolyTime shoupIrreducibleBits encUnary encBits := by
-  have hcond := tidy_primeGeThree
-  have hm := tidy_ordTwoMod
-  have hf := tidy_shoupCyclicFactorBounded
-  have hβ := tidy_shoupBetaBounded.comp (ComputableTidilyInPolyTime.id'.prod hf)
-  have hpows := tidy_shoupPowersBounded.comp ((ComputableTidilyInPolyTime.id'.prod hf).prod hβ)
-  have hmat := tidy_shoupMinPolyMatrix.comp ((ComputableTidilyInPolyTime.id'.prod hm).prod hpows)
-  have hq1 := ComputableTidilyInPolyTime.unary_add.comp
-    (ComputableTidilyInPolyTime.id'.prod (.const 1))
-  have hvec := tidy_kernelVecBits.comp (hq1.prod hmat)
-  have hite := (ComputableInPolyTime.ite' hcond.computableInPolyTime
-    hvec.computableInPolyTime (ComputableInPolyTime.const ([] : List Bool))).tidy
+/-- `shoupIrreducibleBits` is computable in polynomial time. -/
+@[fun_prop]
+theorem computableInPolyTime_shoupIrreducibleBits :
+    ComputableInPolyTime shoupIrreducibleBits encUnary encBits := by
+  have hcond := polyTime_primeGeThree
+  have hm := computableInPolyTime_ordTwoMod
+  have hf := polyTime_shoupCyclicFactorBounded
+  have hβ := polyTime_shoupBetaBounded.comp (ComputableInPolyTime.id'.prod hf)
+  have hpows := polyTime_shoupPowersBounded.comp ((ComputableInPolyTime.id'.prod hf).prod hβ)
+  have hmat := polyTime_shoupMinPolyMatrix.comp ((ComputableInPolyTime.id'.prod hm).prod hpows)
+  have hq1 := ComputableInPolyTime.unary_add.comp
+    (ComputableInPolyTime.id'.prod (.const 1))
+  have hvec := computableInPolyTime_kernelVecBits.comp (hq1.prod hmat)
+  have hite := (ComputableInPolyTime.ite' hcond
+    hvec (ComputableInPolyTime.const ([] : List Bool)))
   convert hite using 1
   funext q
   unfold shoupIrreducibleBits
@@ -1823,11 +1719,5 @@ private theorem tidy_shoupIrreducibleBits :
   · simp [h]
 
 end ShoupIrreducibleSection
-
-/-- `shoupIrreducibleBits` is computable in polynomial time. -/
-@[fun_prop]
-theorem computableInPolyTime_shoupIrreducibleBits :
-    ComputableInPolyTime shoupIrreducibleBits encUnary encBits :=
-  .of_tidy tidy_shoupIrreducibleBits
 
 end Cslib.AffineDisperser.Li

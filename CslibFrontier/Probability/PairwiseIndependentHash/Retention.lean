@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Probability.PairwiseIndependentHash
-import CslibFrontier.Foundations.Data.Finset.Expect
+import CslibFrontier.Foundations.Data.Finset.Expect.Chebyshev
 import Mathlib.Algebra.Order.BigOperators.Expect
 
 /-!
@@ -30,6 +30,12 @@ inequality bounds its deviations. In particular fewer than half of the expected 
 are retained with probability at most `4 / (#S p)`. For a single target, `B = {y}`, these are the
 cell-size moments of `CslibFrontier.Probability.PairwiseIndependentHash`.
 
+Conversely, by inclusion–exclusion some point of `S` is retained with probability at least
+`min (#S p) 1 / 2`, and at least `3 #S p / 4` when `2 #S p ≤ 1`. When `h` is a pairwise independence
+generator `G : {0,1}^{2n} → ({0,1}^n)^n` (seeds `ι = {0,1}^{2n}`, points `X = Fin n`), this says
+that one of the `n` outputs lands in a set of density `p`: Exercise 7.23 of
+[Goldreich][Goldreich2007DraftR4], used there in the proof of Lemma 7.22.
+
 ## Main results
 
 * `Cslib.Probability.IsPairwiseIndependentHash.expect_boole_apply_mem`,
@@ -46,10 +52,19 @@ cell-size moments of `CslibFrontier.Probability.PairwiseIndependentHash`.
   Chebyshev's inequality for it.
 * `Cslib.Probability.IsPairwiseIndependentHash.dens_two_mul_card_filter_apply_mem_lt_le`: fewer
   than half of the expected number of points are retained with probability at most `4 / (#S p)`.
+* `Cslib.Probability.IsPairwiseIndependentHash.sub_le_dens_filter_exists_apply_mem`: by
+  inclusion–exclusion, some point of `S` is retained with probability at least
+  `#S p - #S (#S - 1) p ^ 2 / 2`.
+* `Cslib.Probability.IsPairwiseIndependentHash.min_mul_div_two_le_dens_filter_exists_apply_mem`,
+  `Cslib.Probability.IsPairwiseIndependentHash.three_quarters_mul_le_dens_filter_exists_apply_mem`:
+  hence with probability at least `min (#S p) 1 / 2`, and at least `3 #S p / 4` when
+  `2 #S p ≤ 1`. For a pairwise independence generator this is Goldreich's Exercise 7.23.
 
 ## References
 
 * [B. Chor, O. Goldreich, *On the power of two-point based sampling*][ChorGoldreich1989]
+* [O. Goldreich, *Computational Complexity: A Conceptual Perspective*, draft `r4.pdf` (March
+  2007)][Goldreich2007DraftR4], Lemma 7.22 and Exercise 7.23
 * [J. L. Carter, M. N. Wegman, *Universal classes of hash functions*][CarterWegman1979]
 * [M. N. Wegman, J. L. Carter, *New hash functions and their use in authentication and set
   equality*][WegmanCarter1981]
@@ -172,12 +187,9 @@ theorem dens_le_abs_card_filter_apply_mem_sub_le [Field 𝕜] [LinearOrder 𝕜]
     {ε : 𝕜} (hε : 0 < ε) :
     (dens {i | ε ≤ |(#{x ∈ S | h i x ∈ B} : 𝕜) - #S * (#B / Fintype.card Y)|} : 𝕜) ≤
       #S * (#B / Fintype.card Y) / ε ^ 2 := by
-  have hmarkov := Fintype.mul_dens_filter_le_expect
-    (f := fun i ↦ ((#{x ∈ S | h i x ∈ B} : 𝕜) - #S * (#B / Fintype.card Y)) ^ 2)
-    (fun _ ↦ sq_nonneg _) (ε ^ 2)
-  simp only [sq_le_sq, abs_of_pos hε] at hmarkov
-  rw [le_div_iff₀ (by positivity), mul_comm]
-  refine hmarkov.trans ?_
+  refine (Fintype.dens_le_abs_le_expect_sq_div_sq
+    (fun i => (#{x ∈ S | h i x ∈ B} : 𝕜) - #S * (#B / Fintype.card Y)) hε).trans ?_
+  apply div_le_div_of_nonneg_right _ (sq_nonneg ε)
   rw [hh.expect_card_filter_apply_mem_sub_sq]
   have hp : (#B : 𝕜) / Fintype.card Y ≥ 0 := by positivity
   exact mul_le_of_le_one_right (by positivity) (sub_le_self _ hp)
@@ -203,5 +215,85 @@ theorem dens_two_mul_card_filter_apply_mem_lt_le [Field 𝕜] [LinearOrder 𝕜]
     _ = 4 / μ := by
         field_simp
         ring
+
+/-- **Inclusion–exclusion for retention**: some point of `S` is retained with probability at
+least `#S p - #S (#S - 1) p ^ 2 / 2`, where `p = #B / |Y|`. -/
+theorem sub_le_dens_filter_exists_apply_mem [Field 𝕜] [LinearOrder 𝕜] [IsStrictOrderedRing 𝕜]
+    (hh : IsPairwiseIndependentHash h) (S : Finset X) (B : Finset Y) :
+    (#S : 𝕜) * (#B / Fintype.card Y) - #S * (#S - 1) * (#B / Fintype.card Y) ^ 2 / 2 ≤
+      (dens {i | ∃ x ∈ S, h i x ∈ B} : 𝕜) := by
+  calc (#S : 𝕜) * (#B / Fintype.card Y) - #S * (#S - 1) * (#B / Fintype.card Y) ^ 2 / 2
+      = 𝔼 i, ((#{x ∈ S | h i x ∈ B} : 𝕜) -
+          #{x ∈ S | h i x ∈ B} * (#{x ∈ S | h i x ∈ B} - 1) / 2) := by
+        rw [expect_sub_distrib, ← expect_div, hh.expect_card_filter_apply_mem,
+          hh.expect_card_filter_apply_mem_mul_sub_one]
+    _ ≤ 𝔼 i, (if ∃ x ∈ S, h i x ∈ B then 1 else 0 : 𝕜) := by
+        refine expect_le_expect fun i _ => ?_
+        have hpos : (∃ x ∈ S, h i x ∈ B) ↔ 0 < #{x ∈ S | h i x ∈ B} := by
+          rw [card_pos, filter_nonempty_iff]
+        simp only [hpos]
+        exact natCast_sub_mul_sub_one_div_two_le _
+    _ = _ := Fintype.expect_boole _
+
+/-- **A pairwise independent generator hits a dense set** [Goldreich, Exercise 7.23, first
+claim][Goldreich2007DraftR4]: some point of `S` is sent into a set `B` of density
+`p = #B / |Y|` with probability at least `min (#S p) 1 / 2`. Goldreich states it for a pairwise
+independence generator `G : {0,1}^{2n} → ({0,1}^n)^n` as in his Lemma 7.22: the case
+`ι = {0,1}^{2n}`, `X = Fin n`, `S = univ` and `Y = {0,1}^n`. As in the guideline, the bound follows
+from inclusion–exclusion on `min #S ⌈1 / p⌉` points of `S`. -/
+theorem min_mul_div_two_le_dens_filter_exists_apply_mem (hh : IsPairwiseIndependentHash h)
+    (S : Finset X) (B : Finset Y) :
+    min (#S * dens B) 1 / 2 ≤ dens {i | ∃ x ∈ S, h i x ∈ B} := by
+  rcases B.eq_empty_or_nonempty with rfl | hB
+  · simp
+  have : Nonempty Y := hB.to_subtype.map Subtype.val
+  set p : ℚ := #B / Fintype.card Y with hp_def
+  have hp : 0 < p := div_pos (Nat.cast_pos.2 hB.card_pos) (Nat.cast_pos.2 Fintype.card_pos)
+  have hdB : ((dens B : ℚ≥0) : ℚ) = p := by
+    rw [hp_def, dens_eq_card_div_card, NNRat.cast_div, NNRat.cast_natCast, NNRat.cast_natCast]
+  set k := min #S ⌈1 / p⌉₊ with hk_def
+  obtain ⟨S', hS'S, hS'⟩ := exists_subset_card_eq (min_le_left #S ⌈1 / p⌉₊)
+  have hmono : dens {i | ∃ x ∈ S', h i x ∈ B} ≤ dens {i | ∃ x ∈ S, h i x ∈ B} :=
+    dens_le_dens fun i hi => by
+      simp only [mem_filter, mem_univ, true_and] at hi ⊢
+      obtain ⟨x, hx, hxB⟩ := hi
+      exact ⟨x, hS'S hx, hxB⟩
+  rw [← NNRat.cast_le (K := ℚ)]
+  refine le_trans ?_ ((NNRat.cast_le.2 hmono).trans' (hh.sub_le_dens_filter_exists_apply_mem S' B))
+  push_cast [hdB]
+  rw [hS', ← hp_def]
+  have hkp : ((k : ℚ) - 1) * p ≤ 1 := by
+    have hlt : (k : ℚ) < 1 / p + 1 := (Nat.cast_le.2 (min_le_right _ _)).trans_lt
+      (Nat.ceil_lt_add_one (by positivity))
+    have := mul_lt_mul_of_pos_right (sub_lt_iff_lt_add.2 hlt) hp
+    rw [one_div_mul_cancel hp.ne'] at this
+    exact this.le
+  have hmin : min ((#S : ℚ) * p) 1 ≤ k * p := by
+    rcases min_choice #S ⌈1 / p⌉₊ with hk | hk
+    · rw [hk_def, hk]; exact min_le_left _ _
+    · refine (min_le_right _ _).trans ?_
+      rw [hk_def, hk]
+      calc (1 : ℚ) = 1 / p * p := (one_div_mul_cancel hp.ne').symm
+        _ ≤ ⌈1 / p⌉₊ * p := mul_le_mul_of_nonneg_right (Nat.le_ceil _) hp.le
+  have hk0 : (0 : ℚ) ≤ k * p := by positivity
+  nlinarith [mul_le_mul_of_nonneg_left hkp hk0]
+
+/-- **A pairwise independent generator hits a sparse set** [Goldreich, Exercise 7.23, second
+claim][Goldreich2007DraftR4]: if the set `B` has density `p = #B / |Y|` with `p ≤ 1 / (2 #S)`, then
+some point of `S` is sent into `B` with probability at least `0.75 #S p`. The case of Goldreich's
+generator is as in `min_mul_div_two_le_dens_filter_exists_apply_mem`. -/
+theorem three_quarters_mul_le_dens_filter_exists_apply_mem (hh : IsPairwiseIndependentHash h)
+    {S : Finset X} {B : Finset Y} (hSB : 2 * #S * dens B ≤ 1) :
+    3 / 4 * (#S * dens B) ≤ dens {i | ∃ x ∈ S, h i x ∈ B} := by
+  set p : ℚ := #B / Fintype.card Y with hp_def
+  have hp : 0 ≤ p := by positivity
+  have hdB : ((dens B : ℚ≥0) : ℚ) = p := by
+    rw [hp_def, dens_eq_card_div_card, NNRat.cast_div, NNRat.cast_natCast, NNRat.cast_natCast]
+  rw [← NNRat.cast_le (K := ℚ)] at hSB ⊢
+  refine le_trans ?_ (hh.sub_le_dens_filter_exists_apply_mem S B)
+  push_cast [hdB] at hSB ⊢
+  rw [← hp_def]
+  have hsp : 0 ≤ (#S : ℚ) * p := by positivity
+  nlinarith [mul_nonneg hsp hp, mul_nonneg hsp (sub_nonneg.2 hSB)]
 
 end Cslib.Probability.IsPairwiseIndependentHash

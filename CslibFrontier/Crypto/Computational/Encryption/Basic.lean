@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Computability.Probabilistic.Parameter
 public import CslibFrontier.Crypto.Game
+public import CslibFrontier.Crypto.Computational.Encryption.Scheme
+import CslibFrontier.Computability.Probabilistic.PPT.Composition
 import CslibFrontier.Languages.Probabilistic.Norm
 
 /-!
@@ -51,6 +53,8 @@ properties.
   advantage for every admissible adversary, fixed before the security parameter.
 * `Cslib.Crypto.Encryption.AdversaryOf.restrict`: the adversary that plays `gameOn valid` inside
   the unrestricted `game`, by recording validity in its saved state.
+* `Cslib.Crypto.Encryption.AdversaryOf.toTwoStage`: the two-stage adversary of the typed
+  experiment `Cslib.Crypto.PKE.cpaExperiment` played at one parameter.
 
 ## Main results
 
@@ -58,6 +62,11 @@ properties.
   depend only on the public-key marginal.
 * `Cslib.Crypto.Encryption.eval_game_restrict`: `game` on `adversary.restrict valid` has the same
   output distribution as `gameOn valid` on `adversary`.
+* `Cslib.Crypto.Encryption.gameOn_eq_cpaExperiment`,
+  `Cslib.Crypto.Encryption.advantage_gameOn_eq_cpaExperiment`,
+  `Cslib.Crypto.Encryption.AdversaryOf.isPPT_toTwoStage`: at each parameter, `gameOn` and its
+  advantage are those of the typed chosen-plaintext experiment of the scheme with the same
+  algorithms, and a PPT word-level adversary is a PPT two-stage family.
 * `Cslib.Crypto.Encryption.INDCPAOn.congr`, `Cslib.Crypto.Encryption.INDCPAOf.congr`,
   `Cslib.Crypto.Encryption.INDCPA.congr`: distributionally equal honest algorithms have the same
   security guarantee.
@@ -186,7 +195,12 @@ noncomputable abbrev advantage (experiment : Bool → ℕ → ProbComp Bool) (n 
 
 /-- Single-challenge IND-CPA for encryption over message encoding `encMsg` with challenge-pair
 admissibility predicate `valid`, against every uniform strict PPT adversary. The negligible bound
-may depend on the adversary, which is fixed before the parameter. -/
+may depend on the adversary, which is fixed before the parameter. This is semantic security,
+[BonehShoup2023], Attack Game 11.1 and Definition 11.2 (pp. 436–437), with the source's rule that
+the two messages have the same length replaced by `valid`: a pair that `valid` rejects makes both
+experiments output `false`. With the equal-length rule it is the source's notion (`WordINDCPA`).
+Efficiency and correctness of `keyGen` and `encrypt`, which the source's scheme has, are separate
+properties. -/
 def INDCPAOn {Msg : Type} (valid : ℕ → List Bool → Msg → Msg → Bool) (encMsg : Msg ↪ List Bool)
     (keyGen : ℕ → ProbComp (List Bool × List Bool))
     (encrypt : ℕ → List Bool → Msg → ProbComp (List Bool)) : Prop :=
@@ -195,15 +209,20 @@ def INDCPAOn {Msg : Type} (valid : ℕ → List Bool → Msg → Msg → Bool) (
     (fun adversary n => ProbComp.eval (gameOn valid keyGen encrypt adversary true n))
     (AdversaryOf.IsPPT encMsg)
 
-/-- Single-challenge IND-CPA with every challenge pair admissible. For message types whose
-messages all have one length, such as `Bool`, this is the textbook notion; for `List Bool` it is
-stronger than the textbook notion, which `WordINDCPA` states. -/
+/-- Single-challenge IND-CPA with every challenge pair admissible: [BonehShoup2023], Attack
+Game 11.1 and Definition 11.2 (pp. 436–437), with every pair of messages admitted as a challenge in
+place of the source's rule that the two messages have the same length. The notion is generic in the
+message type `Msg`. It is exactly the source's notion when all messages of `Msg` have one length,
+as for `Bool`. At `List Bool` it is strictly stronger, so it is not the source's notion there;
+`WordINDCPA` is. -/
 abbrev INDCPAOf {Msg : Type} (encMsg : Msg ↪ List Bool)
     (keyGen : ℕ → ProbComp (List Bool × List Bool))
     (encrypt : ℕ → List Bool → Msg → ProbComp (List Bool)) : Prop :=
   INDCPAOn (fun _ _ _ _ => true) encMsg keyGen encrypt
 
-/-- Single-challenge IND-CPA for bit encryption against every uniform strict PPT adversary. -/
+/-- Single-challenge IND-CPA for bit encryption against every uniform strict PPT adversary:
+semantic security, [BonehShoup2023], Attack Game 11.1 and Definition 11.2 (pp. 436–437), for the
+message space of single bits. -/
 abbrev INDCPA (keyGen : ℕ → ProbComp (List Bool × List Bool))
     (encrypt : ℕ → List Bool → Bool → ProbComp (List Bool)) : Prop :=
   INDCPAOf encBool keyGen encrypt
@@ -308,5 +327,54 @@ theorem eval_game_restrict {Msg : Type} (valid : ℕ → List Bool → Msg → M
   congr 1 with choice : 1
   cases valid n keys.1 choice.1.1 choice.1.2 <;>
     simp [PMF.bind_const]
+
+/-! ### Word-level algorithms as a typed scheme -/
+
+/-- The two-stage adversary that `adversary` plays at parameter `n`: message selection returns
+the chosen pair as a `MessagePair`, and the saved state word is the two-stage state. -/
+def AdversaryOf.toTwoStage {Msg : Type} (adversary : AdversaryOf Msg) (n : ℕ) :
+    TwoStage (List Bool) (MessagePair Msg) (List Bool) Bool (List Bool) where
+  choose pk := (fun choice : ChoiceOut Msg =>
+    (⟨ChoiceOut.msg₀ choice, ChoiceOut.msg₁ choice⟩, ChoiceOut.state choice)) <$>
+      adversary.choose n pk
+  guess := adversary.guess n
+
+/-- A uniform strict PPT word-level adversary is a uniform strict PPT two-stage family over the
+same encodings of the public key, challenge pair, ciphertext and state. -/
+theorem AdversaryOf.isPPT_toTwoStage {Msg : Type} {encMsg : Msg ↪ List Bool}
+    {adversary : AdversaryOf Msg} (h : adversary.IsPPT encMsg) :
+    TwoStage.IsPPT encBits (encMessagePair encMsg) encBits encBool encBits
+      adversary.toTwoStage where
+  choose := IsPPTOn.map h.choose.on (ComputableInPolyTime.of_eq fun _ => rfl)
+  guess := h.guess
+
+/-- At each parameter `n`, the word-level experiment `gameOn` is the chosen-plaintext experiment
+of the scheme with key generation `keyGen n` and encryption `encrypt n`, played by
+`adversary.toTwoStage n`. The experiment never decrypts, so `decrypt` is arbitrary. -/
+theorem gameOn_eq_cpaExperiment {Msg : Type} (valid : ℕ → List Bool → Msg → Msg → Bool)
+    (keyGen : ℕ → ProbComp (List Bool × List Bool))
+    (encrypt : ℕ → List Bool → Msg → ProbComp (List Bool))
+    (decrypt : List Bool → List Bool → Option Msg) (adversary : AdversaryOf Msg) (bit : Bool)
+    (n : ℕ) :
+    gameOn valid keyGen encrypt adversary bit n =
+      (PKE.mk (keyGen n) (encrypt n) decrypt).cpaExperiment (valid n)
+        (adversary.toTwoStage n) bit := by
+  cases bit <;>
+    simp only [gameOn, PKE.cpaExperiment, lrExperiment, AdversaryOf.toTwoStage, bind_map_left,
+      MessagePair.select_false, MessagePair.select_true, Bool.false_eq_true, ↓reduceIte]
+
+/-- The word-level advantage of `gameOn` at parameter `n` is the advantage between the two sides of
+the typed chosen-plaintext experiment, so a bound on one fixed scheme transfers to `INDCPAOn`. -/
+theorem advantage_gameOn_eq_cpaExperiment {Msg : Type}
+    (valid : ℕ → List Bool → Msg → Msg → Bool) (keyGen : ℕ → ProbComp (List Bool × List Bool))
+    (encrypt : ℕ → List Bool → Msg → ProbComp (List Bool))
+    (decrypt : List Bool → List Bool → Option Msg) (adversary : AdversaryOf Msg) (n : ℕ) :
+    advantage (gameOn valid keyGen encrypt adversary) n =
+      Experiment.advantage
+        ((PKE.mk (keyGen n) (encrypt n) decrypt).cpaExperiment (valid n)
+          (adversary.toTwoStage n) false)
+        ((PKE.mk (keyGen n) (encrypt n) decrypt).cpaExperiment (valid n)
+          (adversary.toTwoStage n) true) := by
+  simp only [advantage, Experiment.advantage, gameOn_eq_cpaExperiment valid keyGen encrypt decrypt]
 
 end Cslib.Crypto.Encryption

@@ -5,6 +5,7 @@ Authors: Karn Seth
 -/
 
 import CslibFrontier.Crypto.Protocols.UC.Composition
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
 /-!
 # Tests for subroutine replacement and the UC composition theorem
@@ -67,17 +68,17 @@ theorem askParty_polyBounded {AdvQ AdvR : Type} :
 /-- With no corruptions, the environment sees the subroutine's bit through `relay`, whatever the
 adversary. -/
 theorem eval_exec_compose_relay (b : Bool) {AdvQ AdvR : Type}
-    (S : Adversary 1 AdvQ AdvR (RoutedNetQ 1 Unit (Unit ⊕ RoutedNetQ 1 Unit Unit))
-      (RoutedNetR Bool (Unit ⊕ RoutedNetR Bool Unit))) (κ : ℕ) (z : List Bool) :
+    (S : ExecAdversary 1 Unit Bool (Unit ⊕ RoutedNetQ 1 Unit Unit) (Unit ⊕ RoutedNetR Bool Unit)
+      AdvQ AdvR) (κ : ℕ) (z : List Bool) :
     (exec (compose relay (bitFunc b).toProtocol) S ∅ askParty κ z).eval = PMF.pure b := by
   simp only [exec, Machine.run, Machine.link, askParty, execMachine, Machine.comp,
     Machine.closeProgram_bind, Machine.closeProgram_map, Machine.closeProgram_sample,
     Machine.runFrom_bind, Machine.runFrom_query, Machine.runFrom_pure]
   simp only [liftAdversary, StateT.run, compose, Machine.comp, corruptRouter, hybridWrap, relay,
-    bitFunc, IdealFunctionality.toProtocol, StateT.run_pure, ProbOracleComp.sample_pure,
+    bitFunc, IdealFunctionality.toProtocol, interp_norm, ProbOracleComp.sample_pure,
     Finset.notMem_empty, ↓reduceIte, bind_pure_comp, map_pure, Fin.isValue, StateT.lift,
     Machine.runFrom_map, Machine.runFrom_query, Prod.map_apply, id_eq, Machine.closeProgram_pure,
-    ProbComp.eval_map, liftParty, OracleComp.interpret_map, ProbOracleComp.interpret_query]
+    ProbComp.eval_map, liftParty]
   calc _ = PMF.map (Function.const _ b) _ := by congr 1 with a : 1; cases b <;> rfl
     _ = PMF.pure b := PMF.map_const _ _
 

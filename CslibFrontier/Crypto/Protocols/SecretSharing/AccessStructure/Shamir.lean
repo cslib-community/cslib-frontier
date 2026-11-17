@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Basic
 public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Privacy
 public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Designs
+public import CslibFrontier.Crypto.Protocols.SecretSharing.AccessStructure.Sources
 public import CslibFrontier.Crypto.Protocols.SecretSharing.Shamir.Linear
 import CslibFrontier.Probability.PMF.Map
 
@@ -26,12 +27,13 @@ secret sharing over a field `F`, using the linear reconstruction lemma
 It provides:
 
 1. `shamirAccessStructure`: the `(params.threshold + 1)`-threshold access structure.
-2. `shamirSources`, `shamirAccessScheme`: Shamir sharing over the class of all
-   translation-invariant tail-coefficient distributions. Note that when `F` is finite,
-   `shamirSources` consists solely of the uniform distribution (`{uniformOfFintype}`), whereas
-   when `F` is infinite and `params.threshold ≥ 1`, no translation-invariant `PMF` on
-   `Fin params.threshold → F` exists (`shamirSources = ∅`), so `shamirAccessScheme` has vacuous
-   privacy over infinite fields (while universal correctness still holds for all keys).
+2. `shamirAccessScheme`: Shamir sharing over the class of all translation-invariant
+   tail-coefficient distributions `SourceClass.translationInvariant (Shamir.Randomness params)`.
+   When `F` is finite, this source class consists solely of `{uniformOfFintype}`, whereas when `F`
+   is infinite and `params.threshold ≥ 1`, no translation-invariant `PMF` on `Fin params.threshold →
+   F` exists (`SourceClass.translationInvariant (Shamir.Randomness params) = ∅`), so
+   `shamirAccessScheme` has vacuous privacy over infinite fields (while universal correctness still
+   holds for all keys).
 3. `shamirUniformAccessScheme`: canonical finite-field Shamir sharing over the uniform tail
    distribution, together with `shamirUniform_viewDist_eq` (marginal uniformity) and
    `shamirUniform_mutualInfo_eq_zero` (vanishing mutual information).
@@ -46,8 +48,6 @@ It provides:
 
 * `Cslib.Crypto.Protocols.SecretSharing.shamirAccessStructure`: `(params.threshold + 1)`-threshold
   access structure for Shamir parameters.
-* `Cslib.Crypto.Protocols.SecretSharing.shamirSources`: class of translation-invariant tail
-  distributions (`{uniform}` for finite `F`; `∅` for infinite `F` with `params.threshold ≥ 1`).
 * `Cslib.Crypto.Protocols.SecretSharing.shamirAccessSchemeOf`,
   `Cslib.Crypto.Protocols.SecretSharing.shamirAccessScheme`,
   `Cslib.Crypto.Protocols.SecretSharing.shamirUniformAccessScheme`: Shamir `AccessScheme`
@@ -60,8 +60,6 @@ It provides:
 
 ## Main results
 
-* `Cslib.Crypto.Protocols.SecretSharing.uniformOfFintype_mem_shamirSources`: uniform tail
-  coefficients belong to `shamirSources`.
 * `Cslib.Crypto.Protocols.SecretSharing.shamirUniform_viewDist_eq`: unauthorized coalitions have
   uniform view distributions under uniform Shamir randomness.
 * `Cslib.Crypto.Protocols.SecretSharing.shamirUniform_mutualInfo_eq_zero`: unauthorized coalitions
@@ -101,23 +99,10 @@ theorem shamirAccessStructure_authorized_iff (params : Shamir.Params F Party)
     (shamirAccessStructure params).authorized s ↔ Shamir.authorized params s :=
   Iff.rfl
 
-/-- The source class of translation-invariant distributions on Shamir tail coefficients. When `F`
-is finite, this is `{uniformOfFintype}`; when `F` is infinite and `params.threshold ≥ 1`, no
-translation-invariant `PMF` exists (`shamirSources = ∅`), so privacy over it is vacuous. -/
-@[expose] def shamirSources (params : Shamir.Params F Party) :
-    SourceClass (Shamir.Randomness params) :=
-  { P | ∀ δ : Shamir.Randomness params, P.map (· + δ) = P }
-
-/-- Uniform tail coefficients belong to `shamirSources`. -/
-theorem uniformOfFintype_mem_shamirSources [Fintype F] [Nonempty F]
-    (params : Shamir.Params F Party) :
-    uniformOfFintype (Shamir.Randomness params) ∈ shamirSources params :=
-  (Shamir.uniformTailSampler params).map_add_eq_self
-
 /-- Shamir threshold secret sharing over any subclass of translation-invariant tail samplers. -/
 @[expose] noncomputable def shamirAccessSchemeOf (params : Shamir.Params F Party)
     (sources : SourceClass (Shamir.Randomness params))
-    (hsources : sources ⊆ shamirSources params) :
+    (hsources : sources ⊆ SourceClass.translationInvariant (Shamir.Randomness params)) :
     AccessScheme F (Shamir.Randomness params) Party (fun _ => F) where
   access := shamirAccessStructure params
   sources := sources
@@ -130,16 +115,18 @@ theorem uniformOfFintype_mem_shamirSources [Fintype F] [Nonempty F]
 @[simp]
 theorem shamirAccessSchemeOf_access (params : Shamir.Params F Party)
     (sources : SourceClass (Shamir.Randomness params))
-    (hsources : sources ⊆ shamirSources params) :
+    (hsources : sources ⊆ SourceClass.translationInvariant (Shamir.Randomness params)) :
     (shamirAccessSchemeOf params sources hsources).access = shamirAccessStructure params :=
   rfl
 
-/-- Shamir secret sharing over `shamirSources`. Note that for infinite fields `F` with
-`params.threshold ≥ 1`, `shamirSources params = ∅`, so privacy is vacuous and only universal
-correctness is nontrivial; use `shamirUniformAccessScheme` for finite fields. -/
+/-- Shamir secret sharing over `SourceClass.translationInvariant (Shamir.Randomness params)`. Note
+that for infinite fields `F` with `params.threshold ≥ 1`, this source class is empty, so privacy is
+vacuous and only universal correctness is nontrivial; use `shamirUniformAccessScheme` for finite
+fields. -/
 @[expose] noncomputable def shamirAccessScheme (params : Shamir.Params F Party) :
     AccessScheme F (Shamir.Randomness params) Party (fun _ => F) :=
-  shamirAccessSchemeOf params (shamirSources params) Set.Subset.rfl
+  shamirAccessSchemeOf params (SourceClass.translationInvariant (Shamir.Randomness params))
+    Set.Subset.rfl
 
 @[simp]
 theorem shamirAccessScheme_access (params : Shamir.Params F Party) :
@@ -152,7 +139,7 @@ theorem shamirAccessScheme_access (params : Shamir.Params F Party) :
     AccessScheme F (Shamir.Randomness params) Party (fun _ => F) :=
   shamirAccessSchemeOf params
     (SourceClass.singleton (uniformOfFintype (Shamir.Randomness params)))
-    (Set.singleton_subset_iff.mpr (uniformOfFintype_mem_shamirSources params))
+    (Set.singleton_subset_iff.mpr (SourceClass.uniformOfFintype_mem_translationInvariant _))
 
 @[simp]
 theorem shamirUniformAccessScheme_access (params : Shamir.Params F Party)
@@ -189,12 +176,13 @@ marginal `P.map Prod.fst` is translation-invariant (uniform when `F` is finite),
 unused auxiliary material `aux` that the scheme ignores. -/
 @[expose] noncomputable def shamirPaddedSources (params : Shamir.Params F Party) (Aux : Type*) :
     SourceClass (Shamir.Randomness params × Aux) :=
-  { P | P.map Prod.fst ∈ shamirSources params }
+  { P | P.map Prod.fst ∈ SourceClass.translationInvariant (Shamir.Randomness params) }
 
 /-- Any correlated auxiliary distribution paired with a translation-invariant tail source lies in
 `shamirPaddedSources`. -/
 theorem bind_mem_shamirPaddedSources {params : Shamir.Params F Party} {Aux : Type*}
-    {P : PMF (Shamir.Randomness params)} (hP : P ∈ shamirSources params)
+    {P : PMF (Shamir.Randomness params)}
+    (hP : P ∈ SourceClass.translationInvariant (Shamir.Randomness params))
     (Q : Shamir.Randomness params → PMF Aux) :
     (P.bind fun r => (Q r).map (r, ·)) ∈ shamirPaddedSources params Aux := by
   simpa only [shamirPaddedSources, Set.mem_ofPred_eq, map_fst_bind_pair] using hP

@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Kolmogorov.MINKTStar.Generator
-import CslibFrontier.Computability.Kolmogorov.AverageCase
+import CslibFrontier.Computability.Kolmogorov.TimeBounded.PolyTime
 import CslibFrontier.Computability.MCSP.PartialHardness.EvaluatorPolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
@@ -59,7 +59,7 @@ size bound, this makes the `MINKT*` instance of the CMMSA table a yes-instance
 ## References
 
 The generator and its analysis are the library's own. They give the yes case of the library's
-proof of the `MINKT*` clause of [Hirahara2022, Theorem I.2], which issue #4447 tracks.
+proof of the `MINKT*` clause of [Hirahara2022, Theorem I.2], `MINKTStar.rpHard` in `Hardness.lean`.
 
 * [S. Hirahara, *NP-Hardness of Learning Programs and Partial MCSP*][Hirahara2022]
 -/
@@ -101,13 +101,7 @@ theorem GenWitness.computableInPolyTime_sizeBound (Δ : ℕ) {I : α → CMMSAIn
     (hI : ComputableInPolyTime I input CMMSAInstance.encoding)
     (hlam : ComputableInPolyTime lam input encUnary) :
     ComputableInPolyTime (fun a => GenWitness.sizeBound Δ (I a) (lam a)) input encUnary := by
-  unfold GenWitness.sizeBound
-  exact ComputableInPolyTime.unary_add' (ComputableInPolyTime.unary_add'
-    (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const _)
-      ((ComputableInPolyTime.encoding_length _).comp hI)) (ComputableInPolyTime.const 3))
-    (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.unary_add'
-      (ComputableInPolyTime.unary_mul' (ComputableInPolyTime.const 4)
-        (CMMSAInstance.isPolyTime_threshold hI)) (ComputableInPolyTime.const 2)) hlam)
+  fun_prop [GenWitness.sizeBound]
 
 /-- **The `MINKT*` instance of the CMMSA table** for the functions `f`: the partial truth table of
 the CMMSA construction, in the order of `BitString.equivFin`, with step budget `t` and size

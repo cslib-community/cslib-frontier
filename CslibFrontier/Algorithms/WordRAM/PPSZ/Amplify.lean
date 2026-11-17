@@ -7,11 +7,11 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.WordRAM.PPSZ.Round
 public import CslibFrontier.Algorithms.WordRAM.PPZ.Amplify
 public import CslibFrontier.Computability.Complexity.FineGrained.PPSZ.General
-import CslibFrontier.Foundations.Data.Nat.CeilDiv
 
 /-!
 # The PPSZ algorithm on the randomized word RAM
@@ -150,23 +150,14 @@ theorem ofDigits_ppszDigits (a b n c : ℕ) :
     Nat.ofDigits 2 (ppszDigits a b n c) = ppszRounds a b n c :=
   PPZ.ofDigits_countDigits _ _
 
-/-- `ppszExp a b n` is the ceiling division `a · n ⌈/⌉ b` by definition, so it is the ceiling of
-`(a / b) · n`. -/
-private theorem ppszExp_eq_ceil {a b : ℕ} (hb : 0 < b) (n : ℕ) :
-    ppszExp a b n = ⌈(a : ℝ) / b * n⌉₊ := by
-  rw [div_mul_eq_mul_div, ← Nat.cast_mul]
-  exact (Nat.ceil_div_eq_ceilDiv _ hb).symm
-
 /-- The exponent is at least `(a / b) n`. -/
-theorem le_ppszExp {a b : ℕ} (hb : 0 < b) (n : ℕ) : (a : ℝ) / b * n ≤ ppszExp a b n := by
-  rw [ppszExp_eq_ceil hb]
-  exact Nat.le_ceil _
+theorem le_ppszExp {a b : ℕ} (hb : 0 < b) (n : ℕ) : (a : ℝ) / b * n ≤ ppszExp a b n :=
+  PPZ.div_mul_le_add_pred_div hb n
 
 /-- The exponent is at most `(a / b) n + 1`. -/
 theorem ppszExp_le_add_one {a b : ℕ} (hb : 0 < b) (n : ℕ) :
-    (ppszExp a b n : ℝ) ≤ (a : ℝ) / b * n + 1 := by
-  rw [ppszExp_eq_ceil hb]
-  exact (Nat.ceil_lt_add_one (by positivity)).le
+    (ppszExp a b n : ℝ) ≤ (a : ℝ) / b * n + 1 :=
+  PPZ.add_pred_div_le_div_mul_add_one hb n
 
 /-! ### The setup -/
 
@@ -211,25 +202,19 @@ theorem ampSetup_exec (s a b c : ℕ) (φ : CNF (Fin n)) {w : ℕ}
       RoundFrame φ 6 ((s :: a :: b :: c :: encode φ).length + 1) (ampSetupData s a b c φ).mem
         (ampSetupData s a b c φ) := by
   have hL : 5 ≤ (s :: a :: b :: c :: encode φ).length := by simp [encode]
-  have hf1 : Fits w 1 := hw.of_le (by omega)
-  have hf2 : Fits w 2 := hw.of_le (by omega)
-  have hf3 : Fits w 3 := hw.of_le (by omega)
-  have hf4 : Fits w 4 := hw.of_le (by omega)
-  have hf5 : Fits w 5 := hw.of_le (by omega)
-  have hf6 : Fits w 6 := hw.of_le (by omega)
-  have hf7 : Fits w ((s :: a :: b :: c :: encode φ).length + 1) := hw.of_le (by omega)
-  have hf8 : Fits w ((s :: a :: b :: c :: encode φ).length + 1 + n) := hw.of_le (by omega)
-  have hf9 : Fits w ((s :: a :: b :: c :: encode φ).length + 1 + n + n) := hw.of_le (by omega)
-  have hf10 : Fits w ((s :: a :: b :: c :: encode φ).length + 1 + n + n + 1) :=
+  have : Fits w 2 := hw.of_le (by omega)
+  have : Fits w 3 := hw.of_le (by omega)
+  have : Fits w 4 := hw.of_le (by omega)
+  have : Fits w 5 := hw.of_le (by omega)
+  have : Fits w 6 := hw.of_le (by omega)
+  have : Fits w ((s :: a :: b :: c :: encode φ).length + 1 + n) := hw.of_le (by omega)
+  have : Fits w ((s :: a :: b :: c :: encode φ).length + 1 + n + n) := hw.of_le (by omega)
+  have : Fits w ((s :: a :: b :: c :: encode φ).length + 1 + n + n + 1) := hw.of_le (by omega)
+  have : Fits w ((s :: a :: b :: c :: encode φ).length + 1 + n + n + 1 + s) := hw.of_le (by omega)
+  have : Fits w ((s :: a :: b :: c :: encode φ).length + 1 + n + n + 1 + s + s) :=
     hw.of_le (by omega)
-  have hf11 : Fits w ((s :: a :: b :: c :: encode φ).length + 1 + n + n + 1 + s) :=
-    hw.of_le (by omega)
-  have hf12 : Fits w ((s :: a :: b :: c :: encode φ).length + 1 + n + n + 1 + s + s) :=
-    hw.of_le (by omega)
-  have hf13 : Fits w (a * n) := hw.of_le (by omega)
-  have hf14 : Fits w (a * n + b) := hw.of_le (by omega)
-  have hf15 : Fits w (a * n + b - 1) := hw.of_le (by omega)
-  have hf16 : Fits w ((a * n + b - 1) / b) := hw.of_le (by
+  have : Fits w (a * n + b) := hw.of_le (by omega)
+  have : Fits w ((a * n + b - 1) / b) := hw.of_le (by
     have := Nat.div_le_self (a * n + b - 1) b; omega)
   have hm0 : (Data.init (s :: a :: b :: c :: encode φ) : Data 32).mem 0 =
       (s :: a :: b :: c :: encode φ).length := rfl
@@ -238,22 +223,19 @@ theorem ampSetup_exec (s a b c : ℕ) (φ : CNF (Fin n)) {w : ℕ}
   have hm3 : (Data.init (s :: a :: b :: c :: encode φ) : Data 32).mem 3 = b := rfl
   have hm4 : (Data.init (s :: a :: b :: c :: encode φ) : Data 32).mem 4 = c := rfl
   have hm5 : (Data.init (s :: a :: b :: c :: encode φ) : Data 32).mem 5 = n := rfl
-  refine ⟨?run, ?frame⟩
-  case run =>
-    ram_eval [ampSetup, ampSetupData, ppszExp, Data.init_regs, hm0, hm1, hm2, hm3, hm4, hm5, hf1,
-      hf2, hf3, hf4, hf5, hf6, hf7, hf8, hf9, hf10, hf11, hf12, hf13, hf14, hf15, hf16]
-  case frame =>
-    refine ⟨by simp +decide [ampSetupData], by simp +decide [ampSetupData],
-      by simp +decide [ampSetupData], by simp +decide [ampSetupData],
-      by simp +decide [ampSetupData], by simp +decide [ampSetupData],
-      by simp +decide [ampSetupData], by simp +decide [ampSetupData], ?_, ?_, fun _ _ => rfl⟩
-    · intro i
-      have hi : i.val < (encodeClauses φ).length := i.isLt
-      change (ampSetupData s a b c φ).mem (6 + i.val) = (encodeClauses φ)[i.val]
-      rw [ampSetupData_mem, ite_eq_right_iff.mpr (fun h => by simp [length_encode] at h; omega),
-        show 6 + i.val = (5 + i.val) + 1 by omega, Data.init_mem_succ]
-      simp [encode, show 5 + i.val = (i.val + 1) + 1 + 1 + 1 + 1 by omega]
-    · simp [length_encode]; omega
+  refine ⟨WP.execWithin (by
+      unfold ampSetup ampSetupData ppszExp
+      wram_exec [Data.init_regs, hm0, hm1, hm2, hm3, hm4, hm5]; rfl),
+    ⟨by wram_simp [ampSetupData, Data.init_regs], by wram_simp [ampSetupData],
+      by wram_simp [ampSetupData], by wram_simp [ampSetupData], by wram_simp [ampSetupData],
+      by wram_simp [ampSetupData], by wram_simp [ampSetupData], by wram_simp [ampSetupData], ?_,
+      by simp [length_encode]; omega, fun _ _ => rfl⟩⟩
+  intro i
+  have hi : i.val < (encodeClauses φ).length := i.isLt
+  change (ampSetupData s a b c φ).mem (6 + i.val) = (encodeClauses φ)[i.val]
+  rw [ampSetupData_mem, ite_eq_right_iff.mpr (fun h => by simp [length_encode] at h; omega),
+    show 6 + i.val = (5 + i.val) + 1 by omega, Data.init_mem_succ]
+  simp [encode, show 5 + i.val = (i.val + 1) + 1 + 1 + 1 + 1 by omega]
 
 /-! ### The algorithm -/
 
@@ -312,8 +294,8 @@ theorem ampProgram_spec (s a b c : ℕ) (φ : CNF (Fin n)) {w : ℕ}
     hfr₀.one_eq hDb hDe hDc (hw.of_le (by simp only [ppszCounterLen, ← he]; omega))
   have hfr₁ : RoundFrame φ 6 (L + 1) y₁.mem y₁ :=
     hfr₀.of_exec_mem_lt (by decide) hy₁ fun x hx => hm₁ x (by omega)
-  have hfl : ExecWithin w (ram[ flag ← one ] : Code .standard 32) y₁ (y₁.set flag 1) 1 := by
-    ram_eval [hfr₁.one_eq]
+  have hfl : ExecWithin w (ram[ flag ← one ] : Code .standard 32) y₁ (y₁.set flag 1) 1 :=
+    WP.execWithin (by wram_exec [hfr₁.one_eq]; rfl)
   have hpar : HoldsList (L + 1 + 2 * n) (s :: List.replicate (2 * s) 0) y₁.mem := by
     rintro ⟨i, hi⟩
     simp only [List.length_cons, List.length_replicate] at hi
@@ -401,9 +383,8 @@ theorem ampProgram_failure_le_exp {k h s a b c : ℕ} (hk : 3 ≤ k) (hb : 0 < b
     ((evalRand w ampProgram (ampTime s a b c n (s :: a :: b :: c :: encode φ).length)
       (.init (s :: a :: b :: c :: encode φ))).map Schoening.cfgSuccess false).toReal ≤
       Real.exp (-c) :=
-  ampProgram_failure_le_exp_of_le hb (le_trans (Real.rpow_le_rpow_of_exponent_le one_le_two
-    (neg_le_neg (mul_le_mul_of_nonneg_right hab (Nat.cast_nonneg n))))
-    (roundSuccessProb_ge hk hφ hlen hs)) hw
+  ampProgram_failure_le_exp_of_le hb
+    ((two_rpow_neg_mul_le n hab).trans (roundSuccessProb_ge hk hφ hlen hs)) hw
 
 /-- **PPSZ for k-SAT on the randomized word RAM, `ε`-form**
 [Paturi, Pudlák, Saks, Zane][PaturiPudlakSaksZane2005], [Hertli][Hertli2011]. Let `k ≥ 3` and
@@ -422,8 +403,7 @@ theorem ampProgram_failure_le_exp_limit {k : ℕ} (hk : 3 ≤ k) {ε : ℝ} (hε
           Real.exp (-c) := by
   obtain ⟨s, hs⟩ := round_success_limit hk ε hε
   refine ⟨s, fun hb hab n φ hφ hlen w hw => ampProgram_failure_le_exp_of_le hb ?_ hw⟩
-  exact le_trans (Real.rpow_le_rpow_of_exponent_le one_le_two
-    (neg_le_neg (mul_le_mul_of_nonneg_right hab (Nat.cast_nonneg n))))
+  exact (two_rpow_neg_mul_le n hab).trans
     ((hs n φ hφ hlen).trans (PPZ.sum_le_roundSuccessProbWith _ φ))
 
 /-- **PPSZ for 3-SAT on the randomized word RAM.** With `s = 3` and the bound `39 / 70` on the
@@ -446,16 +426,13 @@ theorem ampTime_le {s a b : ℕ} (hb : 0 < b) (c n L : ℕ) :
     (ampTime s a b c n L : ℝ) ≤
       600 * ((s + 1) ^ 2 : ℕ) * ((n + L + 1 : ℕ) : ℝ) ^ (2 * s + 1) *
         (2 : ℝ) ^ ((a : ℝ) / b * n) * (c + 1) := by
-  set X := (2 : ℝ) ^ ((a : ℝ) / b * n) with hX
+  set X := (2 : ℝ) ^ ((a : ℝ) / b * n)
   set e := ppszExp a b n with he
   obtain ⟨N, hN⟩ : ∃ N, n + L + 1 = N := ⟨_, rfl⟩
   rw [hN]
   have hX1 : 1 ≤ X := Real.one_le_rpow one_le_two (by positivity)
   -- the number of rounds
-  have h2e : (2 : ℝ) ^ e ≤ 2 * X := by
-    rw [← Real.rpow_natCast, hX, show 2 * (2 : ℝ) ^ ((a : ℝ) / b * n) =
-      (2 : ℝ) ^ ((a : ℝ) / b * n + 1) by rw [Real.rpow_add two_pos, Real.rpow_one]; ring]
-    exact Real.rpow_le_rpow_of_exponent_le one_le_two (ppszExp_le_add_one hb n)
+  have h2e : (2 : ℝ) ^ e ≤ 2 * X := PPZ.two_pow_le_two_mul_rpow (ppszExp_le_add_one hb n)
   -- one round
   set K := (s + 1) ^ 2 * N ^ (2 * s + 1) with hK
   have hP : n * (impliedTime s L + 25) + 12 * L + 41 ≤ 181 * K := by

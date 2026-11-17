@@ -10,7 +10,8 @@ module
 public import CslibFrontier.Computability.Complexity.Classes.Ladner.PolyTime
 public import CslibFrontier.Computability.Complexity.Classes.RecursivelyPresentable
 public import CslibFrontier.Computability.Complexity.Reduction
-import CslibFrontier.Computability.Complexity.Classes.Immune
+import CslibFrontier.Computability.Complexity.Classes.P.Closure
+import CslibFrontier.Computability.Complexity.Classes.P.Finite
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.TwoPow
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
@@ -141,13 +142,7 @@ def pIndexedCap : (ℕ × List Bool) × ℕ → Bool
 /-- `pIndexedCap` is computable in polynomial time when the cap is given in unary. -/
 theorem computableInPolyTime_pIndexedCap :
     ComputableInPolyTime pIndexedCap (encPair (encPair encUnary encBits) encUnary) encBool := by
-  have heq : pIndexedCap = fun p =>
-      decide (runIndexed p.1.1 p.1.2 (Ladner.capPow (2 * p.1.2.length + 2) p.1.1 p.2) =
-        ([eBit true], true)) := by
-    funext ⟨⟨_, _⟩, _⟩
-    rfl
-  rw [heq]
-  fun_prop
+  fun_prop [pIndexedCap]
 
 /-- Once the cap `c` is at least `clock i |w|`, `pIndexedCap` agrees with `pIndexed`. -/
 theorem pIndexedCap_eq_pIndexed_of_le {i : ℕ} {w : List Bool} {c : ℕ}
