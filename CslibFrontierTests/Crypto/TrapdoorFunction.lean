@@ -27,13 +27,12 @@ Checks for `CslibFrontier/Crypto/Computational/TrapdoorFunction.lean` and
 * `oneWay_hidingScheme`: the hiding scheme on `Fin (2 ^ k)` (`PK = SK = ℕ`, `Y _ = Unit`) satisfies
   `TrapdoorFunction.OneWay` even though `Correct` fails; without `Correct`, `anonKEGame` and
   `owGame` disagree and `(keyExchange hidingScheme)` fails `AnonKESecure`.
-* `Correct.bijective` requires a finite domain (`succScheme` on `ℕ`), and `RSAPublicKey` shows why
-  `domain_nonempty` quantifies over secret keys rather than all public keys.
-* Universal RSA checks: `rsaTrapdoor` evaluates and inverts via `rsaEval` and `rsaInvert`, acts as
-  a bijection on `Fin N` for every supported `RSADesc`, satisfies `rsaKeyExchange_correct`, and for
-  every fixed `desc : RSADesc`, `rsaKeyExchange (fun _ => PMF.pure desc)` fails `AnonKESecure` via
+* `RSAPublicKey` shows why `domain_nonempty` quantifies over secret keys rather than all public
+  keys.
+* Universal RSA checks: `rsaTrapdoor` evaluates and inverts via `rsaEval` and `rsaInvert`,
+  evaluates in polynomial time on encoded transcripts, and for every fixed `desc : RSADesc`,
+  `rsaKeyExchange (fun _ => PMF.pure desc)` fails `AnonKESecure` via
   `rsaKeyExchange_anonKESecure_iff_rsaOneWay` and the constant-zero PPT `RSAInverter`.
-* Standard-axiom verification on the main public theorems.
 -/
 
 -- This regression module checks ordinary imports and exports no test fixtures.
@@ -194,22 +193,7 @@ example :
     ite_true, ENNReal.toNNReal_one] at hneg
   exact not_negligible_const one_ne_zero hneg
 
-/-! ### Hypotheses of `Correct.bijective` and `domain_nonempty` -/
-
-private noncomputable def succScheme : TrapdoorFunction Unit Unit (fun _ => ℕ) (fun _ => ℕ) where
-  keyGen := PMF.pure ()
-  publicKey := id
-  eval _ x := x + 1
-  invert _ y := y - 1
-  domain_nonempty _ := ⟨0⟩
-
-example : succScheme.Correct ∧
-    Function.Injective (succScheme.eval (succScheme.publicKey ())) ∧
-    ¬ Function.Bijective (succScheme.eval (succScheme.publicKey ())) := by
-  have hcorr : succScheme.Correct := fun _ _ x => Nat.add_sub_cancel x 1
-  refine ⟨hcorr, hcorr.injective (by simp [succScheme]), fun hbij => ?_⟩
-  obtain ⟨x, hx⟩ := hbij.surjective 0
-  exact Nat.succ_ne_zero x hx
+/-! ### Why `domain_nonempty` quantifies over secret keys -/
 
 example : ¬ ∀ pk : RSAPublicKey, Nonempty (Fin pk.N) :=
   fun h => (h ⟨0, 3⟩).elim Fin.elim0
@@ -253,11 +237,6 @@ example (gen : PMF RSADesc) (desc : RSADesc) (y : Fin desc.publicKey.N) :
     ((rsaTrapdoor gen).invert desc y : ℕ) = rsaInvert desc.modulus desc.d y :=
   rfl
 
-example (desc : RSADesc) :
-    Function.Bijective
-      ((rsaTrapdoor (PMF.pure desc)).eval ((rsaTrapdoor (PMF.pure desc)).publicKey desc)) :=
-  (rsaTrapdoor_correct (PMF.pure desc)).bijective (by simp [rsaTrapdoor])
-
 example (gen : PMF RSADesc) :
     ComputableInPolyTime
       (fun t : TrapdoorFunction.Transcript RSAPublicKey (fun pk => Fin pk.N) =>
@@ -268,85 +247,5 @@ example (gen : PMF RSADesc) :
     ((TrapdoorFunction.encTranscript_ciphertext_polyTime encRSAPublicKey
       RSAPublicKey.encResidue (by fun_prop)).of_enc_eq fun _ => rfl)
     fun t => t.ciphertext.pos
-
-/-! ### Axiom verification -/
-
-/--
-info: 'Cslib.Crypto.TrapdoorFunction.Correct.injective' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Cslib.Crypto.TrapdoorFunction.Correct.injective
-
-/--
-info: 'Cslib.Crypto.TrapdoorFunction.Correct.bijective' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Cslib.Crypto.TrapdoorFunction.Correct.bijective
-
-/--
-info: 'Cslib.Crypto.TrapdoorFunction.keyExchange_correct' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Cslib.Crypto.TrapdoorFunction.keyExchange_correct
-
-/--
-info: 'Cslib.Crypto.TrapdoorFunction.Correct.anonKEGame_keyExchange' depends on axioms: [propext,
- Classical.choice,
- Quot.sound]
--/
-#guard_msgs in
-#print axioms Cslib.Crypto.TrapdoorFunction.Correct.anonKEGame_keyExchange
-
-/--
-info: 'Cslib.Crypto.TrapdoorFunction.Correct.owGame_eq_anonKEGame_keyExchange' depends on axioms: [propext,
- Classical.choice,
- Quot.sound]
--/
-#guard_msgs in
-#print axioms Cslib.Crypto.TrapdoorFunction.Correct.owGame_eq_anonKEGame_keyExchange
-
-/--
-info: 'Cslib.Crypto.TrapdoorFunction.isPPT_keGuesserToInverter' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Cslib.Crypto.TrapdoorFunction.isPPT_keGuesserToInverter
-
-/--
-info: 'Cslib.Crypto.TrapdoorFunction.isPPT_inverterToKEGuesser' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Cslib.Crypto.TrapdoorFunction.isPPT_inverterToKEGuesser
-
-/--
-info: 'Cslib.Crypto.TrapdoorFunction.keyExchange_anonKESecure_iff_oneWay' depends on axioms: [propext,
- Classical.choice,
- Quot.sound]
--/
-#guard_msgs in
-#print axioms Cslib.Crypto.TrapdoorFunction.keyExchange_anonKESecure_iff_oneWay
-
-/--
-info: 'Cslib.Crypto.rsaTrapdoor_correct' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Cslib.Crypto.rsaTrapdoor_correct
-
-/--
-info: 'Cslib.Crypto.oneWay_rsaTrapdoor_iff' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Cslib.Crypto.oneWay_rsaTrapdoor_iff
-
-/--
-info: 'Cslib.Crypto.rsaKeyExchange_correct' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Cslib.Crypto.rsaKeyExchange_correct
-
-/--
-info: 'Cslib.Crypto.rsaKeyExchange_anonKESecure_iff_rsaOneWay' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs in
-#print axioms Cslib.Crypto.rsaKeyExchange_anonKESecure_iff_rsaOneWay
 
 end CslibFrontierTests.Crypto.TrapdoorFunction

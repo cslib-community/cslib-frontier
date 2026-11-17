@@ -20,8 +20,12 @@ notion (Attack Game 10.2 and Definition 10.3, p. 401; asymptotic form in Definit
 pp. 402–403). Section 10.2.1 and Figure 10.1 (pp. 401–402) construct an anonymous two-party
 key-exchange protocol from any trapdoor function scheme: Alice samples `(pk, sk) ← G()` and sends
 `pk`; Bob samples `x ← X` uniformly, sends `y ← F(pk, x)` and outputs `x`; Alice outputs
-`I(sk, y)`. For a correct scheme, key-guessing security (`KeyExchange.AnonKESecure`) is equivalent
-to one-wayness (`TrapdoorFunction.OneWay`). The RSA instantiation (§10.3 and §10.3.1) is in
+`I(sk, y)`. Section 10.2.1 (p. 402) shows that for a correct scheme, one-wayness
+(`TrapdoorFunction.OneWay`) implies key-guessing security (`KeyExchange.AnonKESecure`), since any
+key-guessing adversary directly breaks one-wayness with the exact same advantage; we also prove the
+converse direction, which is original here and immediate because the two adversary conversions are
+mutually inverse, giving the equivalence `keyExchange_anonKESecure_iff_oneWay`. The RSA
+instantiation (§10.3 and §10.3.1) is in
 `CslibFrontier/Crypto/Computational/TrapdoorFunction/RSA.lean`.
 
 ## Main definitions
@@ -46,17 +50,15 @@ to one-wayness (`TrapdoorFunction.OneWay`). The RSA instantiation (§10.3 and §
 
 ## Main results
 
-* `Cslib.Crypto.TrapdoorFunction.Correct.injective`,
-  `Cslib.Crypto.TrapdoorFunction.Correct.bijective`: for a `Correct` scheme, `F(pk, ·)` is
-  injective on supported keys, and bijective when `X = Y` is finite ([BonehShoup2023], p. 401).
 * `Cslib.Crypto.TrapdoorFunction.keyExchange_correct`: `keyExchange T` is `KeyExchange.Correct`
-  when every `T n` is `Correct`.
-* `Cslib.Crypto.TrapdoorFunction.Correct.anonKEGame_keyExchange`,
-  `Cslib.Crypto.TrapdoorFunction.Correct.owGame_eq_anonKEGame_keyExchange`: for a `Correct`
-  scheme, `anonKEGame` on `keyExchange T` and `owGame` on `T n` coincide.
+  when every `T n` is `Correct` ([BonehShoup2023], Section 10.2.1, p. 402).
+* `Cslib.Crypto.TrapdoorFunction.Correct.anonKEGame_keyExchange`: for a `Correct` scheme,
+  `anonKEGame` on `keyExchange T` with `adversary` equals `owGame` on `T n` with
+  `keGuesserToInverter adversary n` ([BonehShoup2023], Section 10.2.1, p. 402).
 * `Cslib.Crypto.TrapdoorFunction.keyExchange_anonKESecure_iff_oneWay`: for a `Correct` family `T`,
-  `keyExchange T` satisfies `AnonKESecure` if and only if `T` satisfies `OneWay`
-  ([BonehShoup2023], Section 10.2.1, pp. 401–402).
+  `keyExchange T` satisfies `AnonKESecure` if and only if `T` satisfies `OneWay` (the
+  `OneWay → AnonKESecure` direction is [BonehShoup2023], Section 10.2.1, p. 402; the converse is
+  original here via `inverterToKEGuesser`).
 
 ## Implementation notes
 
@@ -124,14 +126,6 @@ theorem Correct.injective {PK SK : Type} {X Y : PK → Type} {T : TrapdoorFuncti
     Function.Injective (T.eval (T.publicKey sk)) :=
   Function.LeftInverse.injective (h sk hsk)
 
-/-- In a `Correct` trapdoor permutation scheme (`X = Y`) with finite domain, `F(pk, ·)` is a
-bijection on `X (T.publicKey sk)` for every `sk` in the support of `keyGen` ([BonehShoup2023],
-Section 10.2, p. 401). -/
-theorem Correct.bijective {PK SK : Type} {X : PK → Type} {T : TrapdoorFunction PK SK X X}
-    (h : T.Correct) {sk : SK} [Finite (X (T.publicKey sk))] (hsk : sk ∈ T.keyGen.support) :
-    Function.Bijective (T.eval (T.publicKey sk)) :=
-  Finite.injective_iff_bijective.mp (h.injective hsk)
-
 end Correctness
 
 /-- The public pair `(pk, y)` seen by an inverter in Attack Game 10.2 and by a passive
@@ -173,7 +167,7 @@ def Inverter.IsPPT (encPK : PK ↪ List Bool) (encX : (pk : PK) → X pk ↪ Lis
     encX input.2.publicKey <$> inverter input.1 input.2.publicKey input.2.ciphertext
 
 /-- View a key-guessing adversary against trapdoor-function key exchange as an `Inverter` in
-Attack Game 10.2 ([BonehShoup2023], Section 10.2.1, pp. 401–402). -/
+Attack Game 10.2 ([BonehShoup2023], Section 10.2.1, p. 402). -/
 @[expose]
 def keGuesserToInverter
     (adversary : KeyExchange.KeyGuesser (Transcript PK Y) (fun t => X t.publicKey)) :
@@ -181,7 +175,8 @@ def keGuesserToInverter
   fun n pk y => adversary n ⟨pk, y⟩
 
 /-- View an `Inverter` in Attack Game 10.2 as a key-guessing adversary against trapdoor-function
-key exchange ([BonehShoup2023], Section 10.2.1, pp. 401–402). -/
+key exchange (the inverse of `keGuesserToInverter`, added here for the converse direction of
+`keyExchange_anonKESecure_iff_oneWay`). -/
 @[expose]
 def inverterToKEGuesser (inverter : Inverter PK X Y) :
     KeyExchange.KeyGuesser (Transcript PK Y) (fun t => X t.publicKey) :=
@@ -264,7 +259,7 @@ noncomputable def keyExchange [∀ pk, Fintype (X pk)]
   ⟨fun n => (T n).keyExchangeExecution⟩
 
 /-- When every `T n` is `Correct`, Alice's inverted key `I(sk, F(pk, x))` equals Bob's chosen `x`
-([BonehShoup2023], Section 10.2.1, p. 401). -/
+([BonehShoup2023], Section 10.2.1, p. 402). -/
 theorem keyExchange_correct [∀ pk, Fintype (X pk)] {T : ℕ → TrapdoorFunction PK SK X Y}
     (hcorr : ∀ n, (T n).Correct) : (keyExchange T).Correct := by
   intro n outcome h
@@ -275,7 +270,7 @@ theorem keyExchange_correct [∀ pk, Fintype (X pk)] {T : ℕ → TrapdoorFuncti
 
 /-- For a scheme family `T` that is `Correct` at parameter `n`, running `anonKEGame` on
 `keyExchange T` with `adversary` gives the exact same game as running `(T n).owGame` with
-`keGuesserToInverter adversary n` ([BonehShoup2023], Section 10.2.1, pp. 401–402). -/
+`keGuesserToInverter adversary n` ([BonehShoup2023], Section 10.2.1, p. 402). -/
 theorem Correct.anonKEGame_keyExchange [∀ pk, Fintype (X pk)] [∀ pk, DecidableEq (X pk)]
     {T : ℕ → TrapdoorFunction PK SK X Y} {n : ℕ} (hcorr : (T n).Correct)
     (adversary : KeyExchange.KeyGuesser (Transcript PK Y) (fun t => X t.publicKey)) :
@@ -288,18 +283,14 @@ theorem Correct.anonKEGame_keyExchange [∀ pk, Fintype (X pk)] [∀ pk, Decidab
   funext x
   rw [hcorr sk hsk x]
 
-/-- For a scheme family `T` that is `Correct` at parameter `n`, running `(T n).owGame` with
-`inverter n` gives the exact same game as running `anonKEGame` on `keyExchange T` with
-`inverterToKEGuesser inverter` ([BonehShoup2023], Section 10.2.1, pp. 401–402). -/
-theorem Correct.owGame_eq_anonKEGame_keyExchange [∀ pk, Fintype (X pk)]
-    [∀ pk, DecidableEq (X pk)] {T : ℕ → TrapdoorFunction PK SK X Y} {n : ℕ}
-    (hcorr : (T n).Correct) (inverter : Inverter PK X Y) :
-    (T n).owGame (inverter n) =
-      (keyExchange T).anonKEGame (inverterToKEGuesser inverter) n :=
-  (hcorr.anonKEGame_keyExchange (inverterToKEGuesser inverter)).symm
+/-- **Anonymous key exchange from a correct trapdoor function scheme is key-guessing secure if
+and only if the scheme is one-way.**
 
-/-- **Anonymous key exchange from a correct trapdoor function scheme is key-guessing secure iff
-the scheme is one-way** ([BonehShoup2023], Section 10.2.1, pp. 401–402). -/
+[BonehShoup2023], Section 10.2.1 (p. 402), proves the `OneWay → AnonKESecure` direction (`mpr`),
+observing that any adversary guessing `x` from `(pk, y)` breaks Attack Game 10.2 with the exact
+same advantage (`Correct.anonKEGame_keyExchange`). The converse direction (`mp`), and hence the
+equivalence, is original here and follows immediately because `keGuesserToInverter` and
+`inverterToKEGuesser` are mutually inverse. -/
 theorem keyExchange_anonKESecure_iff_oneWay [∀ pk, Fintype (X pk)] [∀ pk, DecidableEq (X pk)]
     {T : ℕ → TrapdoorFunction PK SK X Y} (hcorr : ∀ n, (T n).Correct)
     (encPK : PK ↪ List Bool) (encX : (pk : PK) → X pk ↪ List Bool)
@@ -308,8 +299,10 @@ theorem keyExchange_anonKESecure_iff_oneWay [∀ pk, Fintype (X pk)] [∀ pk, De
       OneWay T encPK encX encY := by
   constructor
   · intro h inverter hPPT
-    simpa only [fun n => (hcorr n).owGame_eq_anonKEGame_keyExchange inverter] using
-      h (inverterToKEGuesser inverter) (isPPT_inverterToKEGuesser hPPT)
+    have hgame (n : ℕ) : (T n).owGame (inverter n) =
+        (keyExchange T).anonKEGame (inverterToKEGuesser inverter) n :=
+      ((hcorr n).anonKEGame_keyExchange (inverterToKEGuesser inverter)).symm
+    simpa only [hgame] using h (inverterToKEGuesser inverter) (isPPT_inverterToKEGuesser hPPT)
   · intro h adversary hPPT
     simpa only [fun n => (hcorr n).anonKEGame_keyExchange adversary] using
       h (keGuesserToInverter adversary) (isPPT_keGuesserToInverter hPPT)

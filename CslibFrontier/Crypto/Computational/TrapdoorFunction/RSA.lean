@@ -16,10 +16,12 @@ import CslibFrontier.Computability.Probabilistic.PPT.Composition
 # The RSA trapdoor permutation scheme and RSA key exchange
 
 [BonehShoup2023], Section 10.3 (p. 403), defines the RSA trapdoor permutation scheme `T_RSA` and
-observes (pp. 404–405) that its one-wayness is the RSA assumption (`RSAOneWay`). Section 10.3.1
-(p. 405) instantiates the generic trapdoor-function key-exchange protocol of Section 10.2.1 with
-`T_RSA` and concludes that it is key-guessing secure (`KeyExchange.AnonKESecure`) if and only if
-the RSA assumption holds.
+states its one-wayness as the RSA assumption (`RSAOneWay`, Attack Game 10.3 and Definition 10.5,
+pp. 404–405). Section 10.3.1 (p. 405) instantiates the trapdoor-function key-exchange protocol of
+Section 10.2.1 with `T_RSA` and concludes that under the RSA assumption it is key-guessing secure
+(`KeyExchange.AnonKESecure`); combining this with the converse direction from
+`TrapdoorFunction.keyExchange_anonKESecure_iff_oneWay` (original here) yields the equivalence
+`rsaKeyExchange_anonKESecure_iff_rsaOneWay`.
 
 ## Main definitions
 
@@ -30,25 +32,25 @@ the RSA assumption holds.
 
 ## Main results
 
-* `Cslib.Crypto.rsaTrapdoor_correct`: `rsaTrapdoor gen` satisfies `TrapdoorFunction.Correct`
-  ([BonehShoup2023], Section 10.3, p. 404).
 * `Cslib.Crypto.oneWay_rsaTrapdoor_iff`: `rsaTrapdoor` is `TrapdoorFunction.OneWay` if and only if
   `RSAOneWay` holds ([BonehShoup2023], Section 10.3, pp. 404–405).
-* `Cslib.Crypto.rsaKeyExchange_correct`: `rsaKeyExchange gen` satisfies `KeyExchange.Correct`.
+* `Cslib.Crypto.rsaKeyExchange_correct`: `rsaKeyExchange gen` satisfies `KeyExchange.Correct`
+  ([BonehShoup2023], Section 10.3.1, p. 405).
 * `Cslib.Crypto.rsaKeyExchange_anonKESecure_iff_rsaOneWay`: `rsaKeyExchange gen` satisfies
-  `KeyExchange.AnonKESecure` if and only if `RSAOneWay gen` holds ([BonehShoup2023],
-  Section 10.3.1, p. 405).
+  `KeyExchange.AnonKESecure` if and only if `RSAOneWay gen` holds (the `RSAOneWay → AnonKESecure`
+  direction is [BonehShoup2023], Section 10.3.1, p. 405; the converse is original here via
+  `TrapdoorFunction.keyExchange_anonKESecure_iff_oneWay`).
 
 ## Implementation notes
 
 * **Key distribution and secret key:** `gen : RSAGen` (`ℕ → PMF RSADesc`) is an arbitrary key
   distribution over valid RSA parameter tuples `RSADesc`, in place of Boneh–Shoup's concrete
-  prime-pair generator `RSAGen(ℓ, e)`; efficient key generation and Definition 10.4 items 1–5 are
-  not bundled (#5657). The secret key is the full `RSADesc`, while inversion uses only
-  `desc.modulus` and `desc.d`.
+  prime-pair generator `RSAGen(ℓ, e)` (p. 403); efficient key generation and Definition 10.4
+  items 1–5 are not bundled (#5657). The secret key is the full `RSADesc`, while inversion uses
+  only `desc.modulus` and `desc.d`.
 * **Uniform domain `Fin N`:** Both `TrapdoorFunction.owGame` at `rsaTrapdoor` and
   `rsaInversionGame` sample `x` uniformly from `Fin N`, matching Boneh–Shoup's `x ← Z_n` in
-  Attack Game 10.3 (p. 404).
+  Attack Game 10.3 (pp. 404–405).
 
 ## References
 
@@ -133,8 +135,12 @@ noncomputable def rsaKeyExchange (gen : RSAGen) :
 theorem rsaKeyExchange_correct (gen : RSAGen) : (rsaKeyExchange gen).Correct :=
   TrapdoorFunction.keyExchange_correct fun n => rsaTrapdoor_correct (gen n)
 
-/-- **RSA anonymous key exchange is key-guessing secure if and only if `RSAOneWay` holds**
-([BonehShoup2023], Section 10.3.1, p. 405). -/
+/-- **RSA anonymous key exchange is key-guessing secure if and only if `RSAOneWay` holds.**
+
+[BonehShoup2023], Section 10.3.1 (p. 405), states the `RSAOneWay → AnonKESecure` direction (`mpr`):
+"Under the RSA assumption, this is a secure anonymous key exchange protocol." The converse
+direction (`mp`), and hence the equivalence, is original here and follows from the converse of
+`TrapdoorFunction.keyExchange_anonKESecure_iff_oneWay` together with `oneWay_rsaTrapdoor_iff`. -/
 theorem rsaKeyExchange_anonKESecure_iff_rsaOneWay (gen : RSAGen) :
     (rsaKeyExchange gen).AnonKESecure
       (TrapdoorFunction.encTranscript encRSAPublicKey RSAPublicKey.encResidue)
