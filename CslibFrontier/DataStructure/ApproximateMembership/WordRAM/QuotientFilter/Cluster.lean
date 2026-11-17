@@ -1252,7 +1252,7 @@ theorem realizes_scanCluster :
     | exact hcs
     | exact ho
     | exact ⟨hcs, ho, ha, hℓ, by dsimp only at h_occ ⊢; omega, by dsimp only at h_occ ⊢; omega⟩
-    | (try dsimp only at h_occ ⊢; first | fits | omega)
+    | (dsimp only at h_occ ⊢; first | fits | omega)
   }
 
 theorem clientResult_scanCluster_bounds (s : Memory.State)
@@ -1544,7 +1544,7 @@ theorem realizes_deleteHasMore :
             (readRunStartProg (d0, o + cLt * (s₀ + 1))))
         have hmul2 := Nat.mul_le_mul hcLt hnotRun
         dsimp only [cLt] at hmul1 hnotRun hmul2
-        try dsimp only at *
+        dsimp only at *
         fits
       }
   }
