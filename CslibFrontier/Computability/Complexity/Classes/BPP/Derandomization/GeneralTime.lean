@@ -75,7 +75,7 @@ constant factor, which holds in every regime the books use (polynomial, `2 ^ (â„
   r4][Goldreich2007DraftR4], Section 8.3.1
 -/
 
-@[expose] public section
+public section
 
 open Turing Turing.MultiTapeTM Filter
 
