@@ -144,16 +144,35 @@ private abbrev encExitArgs := encPair EdgeForest.encInput
 private theorem poly_exitsAt : ComputableInPolyTime
     (fun p : EdgeForest.Input × WalkCode × WalkCode × ℕ => exitsAt p.1 p.2.1 p.2.2.1 p.2.2.2)
     encExitArgs (encList (encPair encNat encNat)) := by
-  unfold exitsAt
   have hb := EdgeForest.encInput_body_deg.computableInPolyTime
   have hl := EdgeForest.encInput_labels_deg.computableInPolyTime
+  have hfront : ComputableInPolyTime
+      (fun p : EdgeForest.Input × WalkCode × WalkCode × ℕ => NativeWalk.take p.2.2.1 p.2.2.2)
+      encExitArgs encWalkCode := by fun_prop
+  have hused : ComputableInPolyTime
+      (fun p : EdgeForest.Input × WalkCode × WalkCode × ℕ =>
+        NativeWalk.edges (NativeWalk.take p.2.2.1 p.2.2.2))
+      encExitArgs (encList encNat) := by fun_prop
+  have hcurrent : ComputableInPolyTime
+      (fun p : EdgeForest.Input × WalkCode × WalkCode × ℕ =>
+        NativeWalk.flip p.1.labels (NativeWalk.edges (NativeWalk.take p.2.2.1 p.2.2.2)))
+      encExitArgs (encList encBool) := by fun_prop
+  have hrecords : ComputableInPolyTime
+      (fun p : EdgeForest.Input × WalkCode × WalkCode × ℕ => CSP.occurrences p.1.body)
+      encExitArgs (encList encRecord) := by fun_prop
   have hindex : ComputableInPolyTime
       (fun p : (EdgeForest.Input × WalkCode × WalkCode × ℕ) × Record =>
         (CSP.occurrences p.1.1.body).idxOf p.2) (encPair encExitArgs encRecord) encNat :=
     ComputableInPolyTime.unary_to_binary.comp
       (EdgeAugmenting.poly_idxOf (by fun_prop) (by fun_prop))
-  simp only [List.contains_eq_mem]
-  fun_prop
+  unfold exitsAt
+  apply ComputableInPolyTime.flatMapWithInput hrecords
+  apply ComputableInPolyTime.mapWithInput
+  · apply ComputableInPolyTime.filterWithInput
+    · exact NativeWalk.computableInPolyTime_edgesWith (by fun_prop)
+    · simp only [List.contains_eq_mem]
+      fun_prop
+  · fun_prop
 
 private theorem poly_exitsWith {α : Type} {e : α ↪ List Bool}
     {input : α → EdgeForest.Input} {w r : α → WalkCode} {n : α → ℕ}

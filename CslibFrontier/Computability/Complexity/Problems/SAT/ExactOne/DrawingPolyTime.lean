@@ -337,6 +337,9 @@ private theorem blockVariable (v : CNF.PositiveExactOneCompile.Variable ℕ) :
       CNF.FromSAT.encVariable encBlockInput
     fun_prop
   · have ho := blockSignedOffset
+    have hoffset : ComputableInPolyTime (fun p : BlockInput =>
+        CNF.PositiveExactOneCompile.signedOffset p.1.1 p.2.1 + i)
+        encBlockInput encUnary := by fun_prop
     unfold profileVariableMap encRawVariable DrawingFinitePolyTime.encRawVariable
       CNF.PositiveExactOneCompile.encVariable CNF.PositiveExactOne.encVariable
       CNF.FromSAT.encVariable

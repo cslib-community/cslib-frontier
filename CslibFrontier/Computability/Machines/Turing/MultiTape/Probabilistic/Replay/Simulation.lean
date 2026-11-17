@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Configuration
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Finite
@@ -440,7 +439,7 @@ theorem computableInPolyTime_answerStep {g : List Bool → Bool}
   have h : ComputableInPolyTime (fun cfg => if (machine.pendingQuery cfg).isSome then
       machine.receiveBit (cfg, g (machine.pendingRequest cfg)) else machine.localStep cfg)
       encFiniteConfig encFiniteConfig :=
-    ComputableInPolyTime.ite
+    ComputableInPolyTime.ite (encC := encBool)
       ((ComputableInPolyTime.of_finite Option.isSome).comp machine.pendingQuery_pt)
       (machine.receiveBit_pt.comp
         (ComputableInPolyTime.id'.prod (hg.comp machine.pendingRequest_pt)))
