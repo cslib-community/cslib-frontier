@@ -12,6 +12,7 @@ public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
 import CslibFrontier.Crypto.Game.Hybrid
 import CslibFrontier.Foundations.Control.Monad.Memoize
 import CslibFrontier.Languages.Probabilistic.Memoize
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.RunWith
 import CslibFrontier.Languages.Probabilistic.QueryCount
@@ -201,10 +202,7 @@ private theorem interpret_multiKeyReduction (F : Key → D → R) (j : ℕ)
         ((OracleComp.interpret
           (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k))
             (semanticHandler F j keys ext)) A).run []).map Prod.fst := by
-  simp only [multiKeyReduction, OracleComp.interpret_bind, ProbOracleComp.interpret_sample,
-    OracleComp.interpret_map]
-  rw [show OracleComp.interpret ProbComp.unifOracle (ProbComp.uniform (Fin t → Key)) =
-    ProbComp.eval (ProbComp.uniform (Fin t → Key)) from rfl, ProbComp.eval_uniform,
+  simp only [multiKeyReduction, interp_norm, ProbComp.eval_uniform,
     Probability.PMF.monad_bind_eq_bind]
   congr 1 with keys : 1
   rw [← OracleComp.evalWith_eq_interpret,

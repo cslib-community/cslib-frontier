@@ -5,6 +5,7 @@ Authors: Karn Seth
 -/
 
 import CslibFrontier.Crypto.Protocols.UC.Composition
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
 /-!
 # Tests for subroutine replacement and the UC composition theorem
@@ -74,10 +75,10 @@ theorem eval_exec_compose_relay (b : Bool) {AdvQ AdvR : Type}
     Machine.closeProgram_bind, Machine.closeProgram_map, Machine.closeProgram_sample,
     Machine.runFrom_bind, Machine.runFrom_query, Machine.runFrom_pure]
   simp only [liftAdversary, StateT.run, compose, Machine.comp, corruptRouter, hybridWrap, relay,
-    bitFunc, IdealFunctionality.toProtocol, StateT.run_pure, ProbOracleComp.sample_pure,
+    bitFunc, IdealFunctionality.toProtocol, interp_norm, ProbOracleComp.sample_pure,
     Finset.notMem_empty, ↓reduceIte, bind_pure_comp, map_pure, Fin.isValue, StateT.lift,
     Machine.runFrom_map, Machine.runFrom_query, Prod.map_apply, id_eq, Machine.closeProgram_pure,
-    ProbComp.eval_map, liftParty, OracleComp.interpret_map, ProbOracleComp.interpret_query]
+    ProbComp.eval_map, liftParty]
   calc _ = PMF.map (Function.const _ b) _ := by congr 1 with a : 1; cases b <;> rfl
     _ = PMF.pure b := PMF.map_const _ _
 
