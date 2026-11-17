@@ -37,7 +37,8 @@ empty (`Cslib.Logic.PL.QBF.isClosed_tokens`), and closedness is decided in polyn
 
 * `Cslib.Logic.PL.QBF.mem_freeVarList`: the list has the free variables as elements.
 * `Cslib.Logic.PL.QBF.isClosed_tokens`: the scan decides closedness.
-* `Cslib.Complexity.TQBF.computableInPolyTime_decide_closed`: in polynomial time.
+* `Cslib.Complexity.TQBF.computableInPolyTime_freeVarList`,
+  `Cslib.Complexity.TQBF.computableInPolyTime_decide_closed`: in polynomial time.
 -/
 
 @[expose] public section
@@ -156,24 +157,39 @@ private theorem length_freeVarStep_le (stack : List (List ℕ)) (t : QBF.Kind ×
       simp only [QBF.freeVarStep, QBF.freeVarStepAt, List.headD_cons, List.tail_cons]
       enc_len
 
+/-- The scan of the tokens is polynomial-time. -/
+private theorem computableInPolyTime_foldl_freeVarStep :
+    ComputableInPolyTime (fun φ : QBF ℕ => φ.tokens.reverse.foldl QBF.freeVarStep [])
+      encQBF (encList (encList encNat)) := by
+  refine foldlWith_of_bounded_growth (encA := encToken) (encL := encList encToken)
+    (encP := encBool)
+    (step := fun (_ : Bool) => QBF.freeVarStep)
+    (par := fun _ => false) (const false) (by fun_prop) (const []) ?_
+    (growth := fun φ => 4 * (encQBF φ).length + 3)
+    (by growth_poly) ?_
+  · exact freeVarStep_pt.comp ((fst (encPair encBool _) encToken).snd'.prod (snd _ _))
+  · intro φ stack t ht
+    have := length_freeVarStep_le stack t
+    have := length_le_encList_of_mem encToken (List.mem_reverse.mp ht)
+    enc_len [encQBF_apply]
+
+/-- **The free variables are listed in polynomial time**, with multiplicity. -/
+@[fun_prop]
+theorem computableInPolyTime_freeVarList :
+    ComputableInPolyTime QBF.freeVarList encQBF (encList encNat) := by
+  have h : QBF.freeVarList = fun φ => (φ.tokens.reverse.foldl QBF.freeVarStep []).headD [] := by
+    funext φ
+    rw [QBF.foldl_freeVarStep_tokens, List.headD_cons]
+  rw [h]
+  have := computableInPolyTime_foldl_freeVarStep
+  fun_prop
+
 /-- **Closedness is decided in polynomial time.** -/
 theorem computableInPolyTime_decide_closed :
     Turing.MultiTapeTM.ComputableInPolyTime (fun φ : QBF ℕ => decide φ.Closed) encQBF encBool := by
   simp only [← QBF.isClosed_tokens]
   unfold QBF.isClosed
-  have hfold : ComputableInPolyTime (fun φ : QBF ℕ =>
-      φ.tokens.reverse.foldl QBF.freeVarStep []) encQBF (encList (encList encNat)) := by
-    refine foldlWith_of_bounded_growth (encA := encToken) (encL := encList encToken)
-      (encP := encBool)
-      (step := fun (_ : Bool) => QBF.freeVarStep)
-      (par := fun _ => false) (const false) (by fun_prop) (const []) ?_
-      (growth := fun φ => 4 * (encQBF φ).length + 3)
-      (by growth_poly) ?_
-    · exact freeVarStep_pt.comp ((fst (encPair encBool _) encToken).snd'.prod (snd _ _))
-    · intro φ stack t ht
-      have := length_freeVarStep_le stack t
-      have := length_le_encList_of_mem encToken (List.mem_reverse.mp ht)
-      enc_len [encQBF_apply]
+  have := computableInPolyTime_foldl_freeVarStep
   fun_prop
 
 end Cslib.Complexity.TQBF

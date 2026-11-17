@@ -168,6 +168,11 @@ These results concern the games of this module, which draw exponents exactly uni
 `DDH.wordINDCPA_hybrid_hashedElGamal`), not the cited results. They hold for an arbitrary setup
 law, while the native theorems fix the group description at each security parameter.
 
+* `Cslib.Crypto.PrimeOrderGroupFamily.advantage_elGamalMsgCPAGameWith_le`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.isPPT_elGamalMsgToDDHDistinguisherWith`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.DDH.negligible_elGamalMsgCPAGameWith_ideal`: the reduction
+  for a guard that also sees the group description, shared with the decodable-group game of
+  `CslibFrontier/Crypto/Computational/ElGamal/Decodable.lean`.
 * `Cslib.Crypto.PrimeOrderGroupFamily.advantage_elGamalMsgCPAGameOn_le`,
   `Cslib.Crypto.PrimeOrderGroupFamily.isPPT_elGamalMsgToDDHDistinguisher`,
   `Cslib.Crypto.PrimeOrderGroupFamily.DDH.negligible_elGamalMsgCPAGameOn_ideal`: shared
@@ -549,8 +554,13 @@ theorem isPPT_elGamalMsgToDDHDistinguisherWith {Msg : Type} {encMsg : Msg ↪ Li
       hpk)).bind_with ?_
   exact IsPPTOn.cond hguardStep hguessStep (ComputableTidilyInPolyTime.const false).isPPTOn
 
-/-- Asymptotic DDH reduction for `elGamalMsgCPAGameWith`. -/
-theorem DDH.negligible_elGamalMsgCPAGameWith {F : PrimeOrderGroupFamily} {setup : ℕ → PMF F.Desc}
+/-- Ideal-sampling step toward `DDH.indcpaOn_elGamalEncryptProb`, not the cited result: under DDH
+for any setup law, when `guard` is computable in polynomial time and admits only group elements
+under `encodeMsg` on the supported groups, every uniform strict PPT adversary has negligible
+advantage in `elGamalMsgCPAGameWith guard encodeMsg`, whose key and challenge exponents are drawn
+exactly uniformly at the `PMF` level. -/
+theorem DDH.negligible_elGamalMsgCPAGameWith_ideal {F : PrimeOrderGroupFamily}
+    {setup : ℕ → PMF F.Desc}
     {Msg : Type} {encMsg : Msg ↪ List Bool}
     {guard : ℕ → F.Desc → List Bool → Msg → Msg → Bool}
     {encodeMsg : F.Desc → Msg → List Bool}
@@ -712,7 +722,8 @@ theorem DDH.negligible_elGamalMsgCPAGameOn_ideal {F : PrimeOrderGroupFamily}
     Negligible fun n =>
       Game.advantage (F.elGamalMsgCPAGameOn valid encodeMsg setup adversary false n)
         (F.elGamalMsgCPAGameOn valid encodeMsg setup adversary true n) :=
-  hDDH.negligible_elGamalMsgCPAGameWith (F.computableInPolyTime_liftValid hvalid) hsound hencMsg hA
+  hDDH.negligible_elGamalMsgCPAGameWith_ideal (F.computableInPolyTime_liftValid hvalid) hsound
+    hencMsg hA
 
 /-! ### Bit encryption and IND-CPA security under DDH -/
 
