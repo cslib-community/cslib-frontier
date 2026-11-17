@@ -89,8 +89,8 @@ theorem exec_node_return {w L f a0 b0 d N k : ℕ} (x : Data registers)
     (hw.of_le (by rw [hvt]; omega)) (hw.of_le (by rw [hvf]; nlinarith only [hL, hdL]))
   have hacc : ExecWithin (w + 2) accumulate u y (31 * N + 8) := (hv.seq hy).mono (by omega)
   have hum : u.regs mode = 2 := by regs_frame
-  have hu0 := (fixed nil (by decide)).trans hregs.nil_eq
-  have hu1 := (fixed one (by decide)).trans hregs.one_eq
+  have hu0 : u.regs nil = 0 := by regs_frame
+  have hu1 : u.regs one = 1 := by regs_frame
   have hbranch : ExecWithin (w + 2)
       (ram[ if mode = nil then [ ⟪enter⟫ ] else [
         if mode = one then [ ⟪dispatch⟫ ] else [ ⟪accumulate⟫ ] ] ]) u y (31 * N + 12) :=

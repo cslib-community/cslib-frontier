@@ -177,12 +177,12 @@ theorem exec {w : ℕ} (x : Data 15)
       exact (he.seq htail).mono (by omega)
     case inv =>
       refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-      · simpa +decide [Function.update_apply] using (hzr limit (by decide)).trans hl
-      · simpa +decide [Function.update_apply] using hzb
-      · simpa +decide [Function.update_apply] using (hzr stop (by decide)).trans hs
-      · simpa +decide [Function.update_apply] using hzo
-      · simpa +decide [Function.update_apply] using (hzr zero (by decide)).trans hz
-      · simpa +decide [Function.update_apply] using (hzr two (by decide)).trans ht
+      · regs_frame
+      · regs_frame
+      · regs_frame
+      · regs_frame
+      · regs_frame
+      · regs_frame
       · change z.regs count + z.regs flag = Nat.primeCounting' (y.regs cursor + 1)
         rw [hzc, hzf]
         simp only [Nat.primeCounting', Nat.count_succ]

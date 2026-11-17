@@ -299,6 +299,10 @@ It follows each read `z.regs a` in the goal back to a hypothesis that states the
 * to the value given by `h : x.regs a = v`, or by a component of a conjunction or a field of a
   hypothesis `hx : Parameters L H x`.
 
+When several frames of a state hold at `a`, the tactic follows the latest hypothesis among them and
+does not return to the others. A value stated only at an intermediate state that this frame skips
+is therefore not found, and the tactic fails with the error described below.
+
 No hypothesis is named, and a value the goal leaves open is filled in, so that the facts a
 specification asks for can be given as `exec_callee y (by regs_frame) (by regs_frame)`. When a
 read cannot be followed to the stated value, the error shows the equation that is left and, for

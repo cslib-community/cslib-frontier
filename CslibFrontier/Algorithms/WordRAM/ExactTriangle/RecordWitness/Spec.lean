@@ -61,20 +61,6 @@ theorem Fixed.of_frame {n first length out queries count : ℕ} {x y : Data 400}
     (hx : Fixed n first length out queries count x)
     (he : ∀ i : Fin 400, i.val < 326 ∨ i = Reg.one ∨ i = Reg.zero ∨
       (345 ≤ i.val ∧ i.val ≤ 348) ∨ (351 ≤ i.val ∧ i.val ≤ 352) →
-      y.regs i = x.regs i) : Fixed n first length out queries count y where
-  output := by regs_frame
-  queries := by regs_frame
-  count := by regs_frame
-  size := by regs_frame
-  first := by regs_frame
-  length := by regs_frame
-  one := by regs_frame
-  zero := by regs_frame
-  ab := by regs_frame
-  bc := by regs_frame
-  ac := by regs_frame
-  scanSize := by regs_frame
-  scanFirst := by regs_frame
-  scanLength := by regs_frame
+      y.regs i = x.regs i) : Fixed n first length out queries count y := by regs_frame
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.RecordWitness

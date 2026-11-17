@@ -212,21 +212,7 @@ theorem exec_header {W n D g i records heap out : ℕ} (x : Data 400) (v : Fin 6
     exec_finishHeader b bS bn bg bk b1 hfirst (hfit.of_le (by omega))
   refine ⟨y, (ha.seq (hb.seq hy)).mono (by omega), ?_, ym.trans (bm.trans am),
     by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame, ?_⟩
-  · exact
-      { output := by regs_frame
-        queries := by regs_frame
-        count := by regs_frame
-        size := by regs_frame
-        first := yf
-        length := yl
-        one := by regs_frame
-        zero := by regs_frame
-        ab := yab
-        bc := ybc
-        ac := yac
-        scanSize := yn
-        scanFirst := yfirst
-        scanLength := ylength }
+  · regs_frame
   · intro j hj
     exact (yr j (Or.inl (by omega))).trans ((br j (Or.inl (by omega))).trans (ar j hj))
 

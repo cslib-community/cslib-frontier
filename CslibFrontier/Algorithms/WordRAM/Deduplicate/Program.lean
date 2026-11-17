@@ -140,32 +140,13 @@ theorem exec {w s base : ℕ} (xs : List ℕ) (x : Data 16)
       hstop (by simpa only [y₀, Data.set_mem] using hrun)
       (by simpa only [y₀, Data.set_mem] using hnext) (hfit.of_le (by omega))
     have huc' : u.regs count = c := by simpa using huc
-    have hur (j : Fin 16) (hj : Count.code.Preserves j) : u.regs j = y₀.regs j := hu.regs_eq hj
-    have hun : u.regs len = n := by
-      simpa +decide [y₀]
-        using (hur len (by decide)).trans
-          (by simpa +decide [y₀] using hyn)
-    have hus : u.regs src = s := by
-      simpa +decide [y₀]
-        using (hur src (by decide)).trans
-          (by simpa +decide [y₀] using hys)
-    have huk : u.regs keys = base := by
-      simpa +decide [y₀]
-        using (hur keys (by decide)).trans
-          (by simpa +decide [y₀] using hyk)
-    have hucb : u.regs counts = base + n := by
-      simpa +decide [y₀]
-        using (hur counts (by decide)).trans
-          (by simpa +decide [y₀] using hyc)
-    have huo : u.regs one = 1 := by
-      simpa +decide [y₀]
-        using (hur one (by decide)).trans
-          (by simpa +decide [y₀] using hyo)
-    have huout : u.regs out = rs.length := by
-      simpa +decide [y₀]
-        using (hur out (by decide)).trans
-          (by simpa +decide [y₀] using hyout)
-    have hukey : u.regs key = xs[y.regs idx] := by simpa +decide [y₀] using hur key (by decide)
+    have hun : u.regs len = n := by regs_frame
+    have hus : u.regs src = s := by regs_frame
+    have huk : u.regs keys = base := by regs_frame
+    have hucb : u.regs counts = base + n := by regs_frame
+    have huo : u.regs one = 1 := by regs_frame
+    have huout : u.regs out = rs.length := by regs_frame
+    have hukey : u.regs key = xs[y.regs idx] := by regs_frame
     have hrl : rs.length ≤ y.regs idx := by
       have hh := length_le_expand hrs.positive
       rw [hrs.reconstruct, List.length_take_of_le hiy] at hh

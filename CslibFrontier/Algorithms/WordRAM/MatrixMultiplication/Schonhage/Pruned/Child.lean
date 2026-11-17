@@ -103,8 +103,8 @@ theorem exec_loadScanChild {w L f a0 b0 d N k : ℕ} (x : Data registers)
       (hv.seq htail).branch_pos
         (by simpa only [Cond.holds_lt, hut', (fixed ten (by decide)).trans hregs.ten_eq] using hk)
     have hum : u.regs mode = 1 := by regs_frame
-    have hu0 := (fixed nil (by decide)).trans hregs.nil_eq
-    have hu1 := (fixed one (by decide)).trans hregs.one_eq
+    have hu0 : u.regs nil = 0 := by regs_frame
+    have hu1 : u.regs one = 1 := by regs_frame
     have hbranch : ExecWithin w
         (ram[ if mode = nil then [ ⟪enter⟫ ] else [
           if mode = one then [ ⟪dispatch⟫ ] else [ ⟪accumulate⟫ ] ] ]) u y (20 * N + 5 + T + 4) :=

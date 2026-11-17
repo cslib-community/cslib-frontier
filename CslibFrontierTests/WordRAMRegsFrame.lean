@@ -16,7 +16,8 @@ of an execution, the registers its code does not write; reads after `Data.set` a
 introduced by `let` reduce; values come from the fields of a bundle or the components of a
 conjunction, and a bundle or a conjunction is proved field by field; a value left open is
 inferred; the frame of two calls follows from their frames. A read that cannot be followed to the
-stated value fails with the equation that is left and the premise that does not hold.
+stated value fails with the equation that is left and the premise that does not hold; of several
+frames of a state only the latest is followed.
 -/
 
 namespace CslibFrontierTests.WordRAMRegsFrame
@@ -172,6 +173,29 @@ No hypothesis gives `x.regs d` or a frame of its state. -/
 #guard_msgs (whitespace := lax) in
 example (x y : Data 4) (n m : ℕ) (hx : x.regs a = n)
     (yf : ∀ i, i ≠ b → y.regs i = x.regs i) : y.regs a = n ∧ y.regs d = m := by
+  regs_frame
+
+/-! ## Several frames of one state
+
+Of the frames of a state that hold at the register, the latest hypothesis is followed, and the
+tactic does not return to the others. -/
+
+/-- The latest frame `zf` leads to `y`, where the value is stated. The frame `_zx` of both calls,
+stated earlier, is not followed. -/
+example (x y z : Data 4) (n : ℕ) (hy : y.regs a = n)
+    (_zx : ∀ i, i ≠ b → i ≠ c → z.regs i = x.regs i) (zf : ∀ i, i ≠ c → z.regs i = y.regs i) :
+    z.regs a = n := by
+  regs_frame
+
+/-- error: regs_frame: could not prove
+  z.regs a = n
+Following the frames leaves
+  x.regs a = n
+No hypothesis gives `x.regs a` or a frame of its state. -/
+#guard_msgs (whitespace := lax) in
+example (x y z : Data 4) (n : ℕ) (hy : y.regs a = n)
+    (zf : ∀ i, i ≠ c → z.regs i = y.regs i) (zx : ∀ i, i ≠ b → i ≠ c → z.regs i = x.regs i) :
+    z.regs a = n := by
   regs_frame
 
 /-! ## Nothing is left behind

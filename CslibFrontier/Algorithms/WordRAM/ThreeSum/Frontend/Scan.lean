@@ -85,15 +85,10 @@ theorem step {w : ℕ} (x : Data 48)
     (by simpa +decide [a] using h4) (by simpa +decide [a] using h5)
     hkey (by simpa +decide [a, p] using habs) (by simpa +decide [a] using hfit)
     hdouble hsmall
-  have hui : u.regs idx = x.regs idx := by
-    simpa +decide [a] using hu.regs_eq (i := idx) (by decide)
-  have huo : u.regs out = x.regs out := by
-    simpa +decide [a] using hu.regs_eq (i := out) (by decide)
-  have hud : u.regs dst = x.regs dst := by
-    simpa +decide [a] using hu.regs_eq (i := dst) (by decide)
-  have hu1 : u.regs one = 1 := by
-    simpa +decide [a] using (hu.regs_eq (i := one) (by decide)).trans
-      (show a.regs one = 1 by simpa +decide [a] using h1)
+  have hui : u.regs idx = x.regs idx := by regs_frame
+  have huo : u.regs out = x.regs out := by regs_frame
+  have hud : u.regs dst = x.regs dst := by regs_frame
+  have hu1 : u.regs one = 1 := by regs_frame
   simp +decide only [a, Data.set_regs, Function.update_apply, ↓reduceIte] at hut huk hum
   let k := Math.keep (x.regs magnitude) (x.regs beta) (x.regs beta')
     (x.regs digit) (x.regs mode) p

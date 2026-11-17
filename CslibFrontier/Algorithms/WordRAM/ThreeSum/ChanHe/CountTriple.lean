@@ -114,10 +114,6 @@ theorem exec {w M : ℕ} (x : Data 64) (values : Fin 3 → ℕ → ℤ) (hM : 0 
   obtain ⟨c, hc, hRc, hvc, hfc⟩ := hcall 2 b hRb
   refine ⟨c, (ha.seq (hb.seq hc)).mono (by omega), ?_, hRc⟩
   intro j
-  fin_cases j
-  · exact (hfc (CountCall.result 0) (by decide) (by decide)).trans
-      ((hfb (CountCall.result 0) (by decide) (by decide)).trans hva)
-  · exact (hfc (CountCall.result 1) (by decide) (by decide)).trans hvb
-  · exact hvc
+  fin_cases j <;> regs_frame
 
 end Cslib.Algorithms.WordRAM.ThreeSum.ChanHe.CountTriple

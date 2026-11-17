@@ -88,21 +88,7 @@ theorem exec_scan {w U n first length out queries count a b : ℕ}
     exact he.regs_eq (Code.preserves_rename_of_offset _ _ (fun _ => rfl) i hi)
   obtain ⟨sab, sbc, sac, sn, sa', sb', sfirst, slength⟩ := sa
   refine ⟨y, he, ?_, sm, sa', sb', ?_, ?_, ?_, frame⟩
-  · exact
-      { output := by regs_frame
-        queries := by regs_frame
-        count := by regs_frame
-        size := by regs_frame
-        first := by regs_frame
-        length := by regs_frame
-        one := by regs_frame
-        zero := by regs_frame
-        ab := sab
-        bc := sbc
-        ac := sac
-        scanSize := sn
-        scanFirst := sfirst
-        scanLength := slength }
+  · regs_frame
   · exact sf
   · exact si
   · exact sw

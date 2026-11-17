@@ -113,8 +113,7 @@ theorem exec_of_count {w D T : ℕ} (counter : Code .standard 128) (score : ℕ 
           (by simpa only [hmeta Reg.cursor (by decide)] using hwindow)
         exact ⟨b, hb, by simpa only [hmeta Reg.cursor (by decide)] using hbscore, hbSource⟩)
     have hvk : v.regs Reg.cursor = y.regs Reg.cursor := by regs_frame
-    have hvone : v.regs Reg.one = 1 :=
-      (hvr Reg.one (by decide)).trans (by simpa +decide [u, Reg.one, Reg.fourSquare] using ho)
+    have hvone : v.regs Reg.one = 1 := by regs_frame
     obtain ⟨z, hzrun, hzk, hzsq, hzm, hzr⟩ := exec_advance v hvone
       (by simpa only [hvk] using hnewFit)
     have hzk' : z.regs Reg.cursor = y.regs Reg.cursor + 1 := by simpa only [hvk] using hzk

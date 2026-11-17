@@ -1119,15 +1119,12 @@ theorem partitionAndPush_spec {w : ℕ} {input : List ℕ} {vlo vhi : ℕ} {S₀
   have hread₆ : readStack n x₆ = S₀ := by
     rw [← hread]
     refine readStack_congr ?_ fun a ha => hPart₆.modifies a (by simp [Finset.mem_Ico]; omega)
-    exact (e_loop.regs_eq (by decide)).trans (by simp [x₅, x₄, x₃, x₂, x₁])
+    regs_frame
   -- 3. `pushIfNonTrivial lo lt` (`≤ 8` steps)
   have hpres₆_one : x₆.regs one = 1 := hPart₆.one_eq
-  have hpres₆_two : x₆.regs two = 2 :=
-    (e_loop.regs_eq (by decide)).trans (by simp [x₅, x₄, x₃, x₂, x₁, htwo])
-  have hpres₆_sLo : x₆.regs stackLo = n + 1 :=
-    (e_loop.regs_eq (by decide)).trans (by simp [x₅, x₄, x₃, x₂, x₁, hsLo])
-  have hpres₆_sHi : x₆.regs stackHi = 2 * n + 1 :=
-    (e_loop.regs_eq (by decide)).trans (by simp [x₅, x₄, x₃, x₂, x₁, hsHi])
+  have hpres₆_two : x₆.regs two = 2 := by regs_frame
+  have hpres₆_sLo : x₆.regs stackLo = n + 1 := by regs_frame
+  have hpres₆_sHi : x₆.regs stackHi = 2 * n + 1 := by regs_frame
   obtain ⟨x₇, e_push₁, hread₇, hmod₇⟩ := pushIfNonTrivial_spec (w := w) (n := n)
     (a := lo) (b := lt) (x := x₆) (by decide) (by decide)
     hpres₆_one hpres₆_two hpres₆_sLo hpres₆_sHi hfit_all
@@ -1688,12 +1685,7 @@ theorem setup_spec {w : ℕ} {input : List ℕ} (hw : logWidth 3 input.length �
     exact absurd ⟨hi1, hjn⟩ (hno (1, n + 1) (List.mem_singleton_self _))
   refine ⟨x_init, t_s, he_setup, hts_le, ?_, hstack_final⟩
   exact ⟨hw,
-    (e_push.regs_eq (by decide)).trans (by simp [s₉, s₈, s₇, s₆, hs₅_zero]),
-    (e_push.regs_eq (by decide)).trans (by simp [s₉, s₈, s₇, s₆, hs₅_one]),
-    (e_push.regs_eq (by decide)).trans (by simp [s₉, s₈, s₇, s₆]),
-    (e_push.regs_eq (by decide)).trans (by simp [s₉, s₈, s₇, s₆, hs₅_len, n]),
-    (e_push.regs_eq (by decide)).trans (by simp [s₉, s₈, s₇, s₆, hs₅_sLo, n]),
-    (e_push.regs_eq (by decide)).trans (by simp [s₉, s₈, s₇, s₆, hs₅_sHi, n]),
+    by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
     hVS_init, hno_inv_init, by rw [hslice_init], hmod_init⟩
 
 /-- **In-place randomized quicksort: correctness, worst-case bounds, `rand`-call bound, and

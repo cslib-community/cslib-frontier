@@ -138,8 +138,8 @@ theorem exec_clearRequested {w N capacity : ℕ} (x : Data registers) (input : �
     obtain ⟨hm, hf⟩ := hy
     have hb := hf listBase (by decide)
     have hv := hf valueBase (by decide)
-    have hnil := (hf nil (by decide)).trans h0
-    have hone := (hf one (by decide)).trans h1
+    have hnil : y.regs nil = 0 := by regs_frame
+    have hone : y.regs one = 1 := by regs_frame
     have hq := hcode (y.regs index) hk
     obtain ⟨z, hz, hi, hmem, hregs⟩ := exec_clearValueStep y (input (y.regs index))
       (by rw [hb]; exact hread (y.regs index) y hk.le ⟨hm, hf⟩ _ hk) hnil hone

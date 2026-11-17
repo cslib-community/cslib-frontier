@@ -43,9 +43,9 @@ theorem exec_node_finish {w L f a0 b0 d : ℕ} (x : Data registers)
   have fixed (i : Fin registers) (hi : ¬LoadFrameLocal i) : u.regs i = x.regs i :=
     hureg i hi
   have hut' : u.regs term = 10 := hut.trans hterm
-  have hu0 := (fixed nil (by decide)).trans hregs.nil_eq
-  have hu1 := (fixed one (by decide)).trans hregs.one_eq
-  have hu10 := (fixed ten (by decide)).trans hregs.ten_eq
+  have hu0 : u.regs nil = 0 := by regs_frame
+  have hu1 : u.regs one = 1 := by regs_frame
+  have hu10 : u.regs ten = 10 := by regs_frame
   have hum : u.regs mode = 1 := by regs_frame
   have hud : u.regs level = d := by regs_frame
   obtain ⟨y, hy, hymem, hyl, hym, hya, _⟩ := exec_pop u hu0 hu1
