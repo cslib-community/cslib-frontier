@@ -7,7 +7,6 @@ Authors: Christian Reitwiessner
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Complexity.Problems.StronglyConnected
 public import CslibFrontier.Computability.Complexity.Problems.USTCON
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Matrix
 public import Mathlib.Combinatorics.SimpleGraph.Bipartite
@@ -17,10 +16,8 @@ public import Mathlib.Combinatorics.SimpleGraph.Coloring.Constructions
 # Bipartite graphs and odd cycles as undirected connectivity
 
 An undirected graph instance (`Cslib.Complexity.UGraphInstance`) is a simple graph on `Fin n`,
-given by a symmetric adjacency matrix with zero diagonal. It is encoded
-(`Cslib.Complexity.encUGraph`) as its digraph (`Cslib.Complexity.encDigraph`): the unary header
-`1^n 0` followed by the adjacency matrix row by row. It belongs to `Cslib.Complexity.Bipartite`
-when its graph is 2-colourable (`SimpleGraph.IsBipartite`).
+given by a symmetric adjacency matrix with zero diagonal. It belongs to
+`Cslib.Complexity.Bipartite` when its graph is 2-colourable (`SimpleGraph.IsBipartite`).
 
 Non-bipartiteness becomes undirected `s`–`t` connectivity through the double cover `G′` of
 [Goldreich, Exercise 5.16][Goldreich2008], whose vertices are the pairs `(v, b)` of a vertex and a
@@ -38,17 +35,12 @@ is `0`, the target `1`, and the vertex `(v, b)` of copy `x` is
 
 ## Main definitions
 
-* `Cslib.Complexity.UGraphInstance`: shared terminal-free matrix graphs, imported from
-  `Foundations/Combinatorics/SimpleGraph/Matrix`.
-* `Cslib.Complexity.UGraphInstance.graph`: the simple graph of an instance.
-* `Cslib.Complexity.encUGraph`: the encoding of instances.
 * `Cslib.Complexity.Bipartite`: the bipartite instances.
 * `Cslib.Complexity.Bipartite.oddCycleInstance`: the copies of the double cover, as an instance
   of undirected connectivity.
 
 ## Main results
 
-* `Cslib.Complexity.UGraphInstance.encode_injective`: the encoding is injective.
 * `Cslib.Complexity.Bipartite.oddCycleInstance_mem_iff`: the source reaches the target exactly
   when the graph is not bipartite.
 
@@ -60,39 +52,6 @@ is `0`, the target `1`, and the vertex `(v, b)` of copy `x` is
 @[expose] public section
 
 namespace Cslib.Complexity
-
-namespace UGraphInstance
-
-variable (G : UGraphInstance)
-
-/-- The digraph of an instance, with an arc in each direction for every edge. -/
-def toDigraph : DigraphInstance := ⟨G.n, G.adj⟩
-
-theorem toDigraph_injective : Function.Injective toDigraph := by
-  rintro ⟨n, adj, symm, loopless⟩ ⟨n', adj', symm', loopless'⟩ h
-  simp only [toDigraph, DigraphInstance.mk.injEq] at h
-  obtain ⟨rfl, h⟩ := h
-  simp only [heq_eq_eq] at h
-  subst h
-  rfl
-
-/-- The encoding of an instance, that of its digraph (`Cslib.Complexity.encDigraph`): the unary
-header `1^n 0`, then the adjacency matrix row by row. -/
-def encode : List Bool := G.toDigraph.encode
-
-/-- **The encoding is injective.** -/
-theorem encode_injective : Function.Injective encode :=
-  DigraphInstance.encode_injective.comp toDigraph_injective
-
-end UGraphInstance
-
-/-- The encoding of undirected graphs: the unary header `1^n 0`, then the adjacency matrix row by
-row. -/
-def encUGraph : UGraphInstance ↪ List Bool :=
-  ⟨UGraphInstance.encode, UGraphInstance.encode_injective⟩
-
-@[simp]
-theorem encUGraph_apply (G : UGraphInstance) : encUGraph G = G.encode := rfl
 
 /-- **Bipartite graphs**: the instances whose graph is 2-colourable. -/
 def Bipartite : Set UGraphInstance :=
