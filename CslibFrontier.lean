@@ -6810,6 +6810,7 @@ public import CslibFrontier.Foundations.Quantum.Algebra.FamApprox
 public import CslibFrontier.Foundations.Quantum.Algebra.FourierMeasurement
 public import CslibFrontier.Foundations.Quantum.Algebra.Involution
 public import CslibFrontier.Foundations.Quantum.Algebra.JointMeasurement
+public import CslibFrontier.Foundations.Quantum.Algebra.LinearityTest
 public import CslibFrontier.Foundations.Quantum.Algebra.MaxEntangled
 public import CslibFrontier.Foundations.Quantum.Algebra.Measurement
 public import CslibFrontier.Foundations.Quantum.Algebra.Orthogonalization
@@ -6825,6 +6826,7 @@ public import CslibFrontier.Foundations.Quantum.DensityMatrix.Pure
 public import CslibFrontier.Foundations.Quantum.Fourier
 public import CslibFrontier.Foundations.Quantum.HadamardTransform
 public import CslibFrontier.Foundations.Quantum.LinearityRounding
+public import CslibFrontier.Foundations.Quantum.LinearityTest
 public import CslibFrontier.Foundations.Quantum.LocalOrthogonalization
 public import CslibFrontier.Foundations.Quantum.Measurement
 public import CslibFrontier.Foundations.Quantum.Measurement.Basis
