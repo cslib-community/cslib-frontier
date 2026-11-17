@@ -242,7 +242,7 @@ example : Realizes .exact bounce pushWords (Equiv.funUnique (Fin 1) ℕ).symm.to
       hL.count_not_owns (he ▸ Block.owns_add (i := 0) (by rw [hL.items_length]; omega))
     have hlt : Fits w d.1.items.base := hmem.fits_of_lt_frontier (by
       simpa using hI.item_lt (i := 0) (by rw [hL.items_length]; omega))
-    try simp only [popWord, ← PFunctor.FreeM.bind_eq_bind, StateTransitionSpec.runClient_bind,
+    simp only [popWord, ← PFunctor.FreeM.bind_eq_bind, StateTransitionSpec.runClient_bind,
       StateTransitionSpec.clientState, StateTransitionSpec.clientResult,
       StateTransitionSpec.runClient_pure', Stack.Memory.runClient_push,
       Stack.Memory.runClient_pop_of_pos, h0, Nat.add_zero, Nat.zero_add, Nat.sub_self, ne_eq,

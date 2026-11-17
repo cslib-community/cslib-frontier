@@ -16,8 +16,8 @@ public import Mathlib.Computability.Primrec.List
 A Wang tile is an oriented unit square with natural-number edge colours. A finite palette is
 a list; repetitions do not affect tiling. We distinguish tilings of the integer plane, tilings
 of the natural-number quadrant with a prescribed southwest tile, and plane tilings with a
-prescribed tile at the origin. These definitions alone do not establish undecidability of any
-of the three problems; in particular, the unseeded plane problem remains a separate objective.
+prescribed tile at the origin. These definitions alone do not establish undecidability;
+the unseeded plane theorem is proved in the separate `WangTile.Undecidable` module.
 
 ## Main definitions
 

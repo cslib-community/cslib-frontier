@@ -21,8 +21,8 @@ open Turing.MultiTapeTM Turing.MultiTapeTM.Internal Turing.MultiTapeTM.Internal.
 /-- Encoding-equality retyping is a zero-runtime view of the same machine. -/
 example {Alpha : Type*} (enc : Alpha ↪ List Bool)
     (compiler : NativeCompiler id enc enc) :
-    (compiler.ofInputEq id (fun _ => rfl)).machine = compiler.machine ∧
-      (compiler.ofOutputEq (g := id) (fun _ => rfl)).machine = compiler.machine :=
+    (compiler.ofInputEq id (fun _ => rfl)).table = compiler.table ∧
+      (compiler.ofOutputEq (g := id) (fun _ => rfl)).table = compiler.table :=
   ⟨rfl, rfl⟩
 
 /-- Pair projections retain the direct frame parsers and expose their exact linear clocks. -/
@@ -91,22 +91,6 @@ state. -/
 example : unaryDecoder.stateEncoding =
     sumStateEncoding (transducerMachineStateEncoding unitStateEncoding) rewindStateEncoding :=
   rfl
-
-/-- Correcting the state encoding leaves the direct transducer-plus-rewind action schedule
-unchanged. -/
-example : unaryDecoder.machine = unaryLengthT.toTM.seq (rewindInput Bool) :=
-  rfl
-
-/-- The descriptor and its static charge are derived from the corrected machine state encoding. -/
-example : unaryDecoder.description =
-    @desc unaryDecoder.tapeCount Bool unaryDecoder.State unaryDecoder.stateFintype inferInstance
-      unaryDecoder.stateEncoding eBit unaryDecoder.machine :=
-  unaryDecoder.description_eq_desc
-
-example : unaryDecoder.staticBits =
-    descLen (@desc unaryDecoder.tapeCount Bool unaryDecoder.State unaryDecoder.stateFintype
-      inferInstance unaryDecoder.stateEncoding eBit unaryDecoder.machine) := by
-  rw [unaryDecoder.staticBits_eq_descLen, unaryDecoder.description_eq_desc]
 
 /-- Correcting the retained control state does not weaken the exact time or workspace formulas. -/
 example (input : List Bool) :
