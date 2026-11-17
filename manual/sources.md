@@ -839,6 +839,11 @@ Venkatesan Guruswami, Atri Rudra and Madhu Sudan. *Essential Coding Theory*. Dra
 
 The draft does not name Wolfowitz. The manual's attribution of the strong converse for discrete memoryless channels to him is standard background and was not checked against his paper.
 
+<a id="guruswamisudan99"></a>
+## guruswamisudan99
+
+Venkatesan Guruswami and Madhu Sudan. "Improved Decoding of Reed–Solomon and Algebraic-Geometry Codes." *IEEE Transactions on Information Theory* 45(6), 1757–1767, 1999; preliminary version FOCS 1998. https://doi.org/10.1109/18.782097 . The library's key is `GuruswamiSudan1999`. Formalized for Reed–Solomon codes over arbitrary fields of arbitrary characteristic via bivariate Hasse derivatives (`Cslib.Code.GuruswamiSudan.VanishesToOrder`, `Cslib.Code.GuruswamiSudan.IsInterpolant`, `Cslib.Code.GuruswamiSudan.IsWeightedInterpolant`, `Cslib.Code.guruswamiSudan`, and the Johnson-radius list-decoding characterizations `Cslib.Code.mem_guruswamiSudan_johnson_iff` / `Cslib.Code.exists_guruswamiSudan_of_eps`) in [GuruswamiSudan.lean](../CslibFrontier/Foundations/Data/Code/GuruswamiSudan.lean). Bibliographic metadata checked against `references.bib`; theorem-level correspondence with Reed–Solomon list decoding up to `1 - √ρ` is attributed from the standard formulation and verified directly in Lean without claiming publisher PDF pagination beyond `references.bib`.
+
 <a id="gusfield90"></a>
 ## gusfield90
 
