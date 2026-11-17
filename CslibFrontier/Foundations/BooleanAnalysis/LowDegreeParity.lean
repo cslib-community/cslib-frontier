@@ -21,8 +21,6 @@ coordinates (`BitString.card_agree_parityOn_univ_le`) [Smolensky1987]. This is t
 
 ## Main results
 
-* `Cslib.BitString.lowDegree_eq_span_chi`: the functions of degree at most `D` are the linear
-  combinations of the `±1` characters of at most `D` coordinates.
 * `Cslib.BitString.exists_agree_of_parity`: if `Q` of degree `D` agrees with the full character on
   `G`, every function on `G` agrees with one of degree at most `|ι| / 2 + D` (Arora and Barak,
   Lemma 13.6).
@@ -31,7 +29,8 @@ coordinates (`BitString.card_agree_parityOn_univ_le`) [Smolensky1987]. This is t
 
 ## References
 
-* [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*, Section 13.2][AroraBarak09]
+* [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*, web draft dated 2007-01-08,
+  Section 13.2][AroraBarak07]
 * [R. Smolensky, *Algebraic methods in the theory of lower bounds for Boolean circuit
   complexity*][Smolensky1987]
 -/
@@ -44,31 +43,20 @@ open Finset
 
 variable {F : Type*} [Field F] {ι : Type*} [Fintype ι]
 
-omit [Fintype ι] in
-/-- When `2` is invertible, `-1 ≠ 1`. -/
-private theorem neg_one_ne_one_of_invertible [Invertible (2 : F)] : (-1 : F) ≠ 1 := fun h =>
-  Invertible.ne_zero (2 : F) (by
-    calc (2 : F) = 1 - (-1 : F) := by ring
-      _ = 1 - 1 := by rw [h]
-      _ = 0 := sub_self 1)
-
-omit [Fintype ι] in
-/-- **Degree in the `±1` basis.** When `2` is invertible, the functions of degree at most `D` are
-the linear combinations of the characters `chi F S = ∏ i ∈ S, (-1) ^ xᵢ` with `#S ≤ D`. -/
-theorem lowDegree_eq_span_chi [Invertible (2 : F)] (D : ℕ) :
-    lowDegree F ι D = Submodule.span F (chi F '' {S | #S ≤ D}) :=
-  lowDegree_eq_span_phaseChar neg_one_ne_one_of_invertible D
-
-/-- **Arora–Barak Lemma 13.6** [Arora and Barak, Lemma 13.6][AroraBarak09], [Smolensky1987]: if `Q`
-has degree at most `D` and agrees with the character of all coordinates on `G`, every function
-agrees on `G` with a function of degree at most `|ι| / 2 + D`. By `lowDegree_eq_span_chi`, such a
-function is a sum of `±1` monomials `a_S ∏ i ∈ S, (-1) ^ xᵢ` with `#S ≤ |ι| / 2 + D`; the source
-takes `F = GF(3)` and `D = √n`. -/
+/-- **Arora–Barak Lemma 13.6** [Arora and Barak, Lemma 13.6, printed p. 241 / PDF
+p. 257][AroraBarak07], [Smolensky1987]: if `Q` has degree at most `D` and agrees with the
+character of all coordinates on `G`, every function agrees on `G` with a function of degree at most
+`|ι| / 2 + D`. By `lowDegree_eq_signSpan`, such a function is a sum of `±1` monomials
+`a_S ∏ i ∈ S, (-1) ^ xᵢ` with `#S ≤ |ι| / 2 + D`; the source takes `F = GF(3)` and `D = √n`. -/
 theorem exists_agree_of_parity [Invertible (2 : F)] {D : ℕ} {Q : (ι → Bool) → F}
     (hQ : Q ∈ lowDegree F ι D) (G : Finset (ι → Bool))
     (hG : ∀ x ∈ G, Q x = chi F univ x) (f : (ι → Bool) → F) :
     ∃ p ∈ lowDegree F ι (Fintype.card ι / 2 + D), ∀ x ∈ G, p x = f x :=
-  exists_agree_of_phaseChar (ω := -1) (neg_ne_zero.2 one_ne_zero) neg_one_ne_one_of_invertible
+  exists_agree_of_phaseChar (ω := -1) (neg_ne_zero.2 one_ne_zero)
+    (fun h => Invertible.ne_zero (2 : F) (by
+      calc (2 : F) = 1 - (-1 : F) := by ring
+        _ = 1 - 1 := by rw [h]
+        _ = 0 := sub_self 1))
     hQ G hG f
 
 /-- **Parity is far from low-degree functions.** A function of degree at most `D` agrees with the

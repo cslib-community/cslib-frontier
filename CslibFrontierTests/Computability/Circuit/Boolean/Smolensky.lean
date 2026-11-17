@@ -18,7 +18,7 @@ import Mathlib.Data.ZMod.Defs
 
 Checked concrete evaluations and instantiations of `BitString.phaseChar`,
 `BitString.card_agree_phaseChar_le`, Arora–Barak Lemma 13.6 (`BitString.exists_agree_of_parity`
-with `BitString.lowDegree_eq_span_chi`), `Smolensky.two_mul_two_pow_le_size_of_computes_modGate`,
+with `BitString.lowDegree_eq_signSpan`), `Smolensky.two_mul_two_pow_le_size_of_computes_modGate`,
 `Smolensky.modGate_notMem_AC0Mod`, and `Smolensky.compl_modGate_notMem_AC0Mod`.
 -/
 
@@ -55,9 +55,11 @@ theorem lemma_13_6 {n : ℕ} {g : BitString n → ZMod 3}
     (f : BitString n → ZMod 3) :
     ∃ p ∈ Submodule.span (ZMod 3) (chi (ZMod 3) '' {S : Finset (Fin n) | #S ≤ n / 2 + Nat.sqrt n}),
       ∀ x ∈ G, p x = f x := by
-  rw [← lowDegree_eq_span_chi] at hg
-  obtain ⟨p, hp, h⟩ := exists_agree_of_parity hg G hG f
-  rw [lowDegree_eq_span_chi, Fintype.card_fin] at hp
+  have hg' : g ∈ lowDegree (ZMod 3) (Fin n) (Nat.sqrt n) := by
+    rw [lowDegree_eq_signSpan]
+    exact hg
+  obtain ⟨p, hp, h⟩ := exists_agree_of_parity hg' G hG f
+  rw [lowDegree_eq_signSpan, Fintype.card_fin] at hp
   exact ⟨p, hp, h⟩
 
 -- The hypotheses hold for one coordinate, with `g` the character itself and `G` the whole cube.

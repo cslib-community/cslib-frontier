@@ -35,8 +35,6 @@ bounding `#G` by the dimension bound `card_le_of_forall_exists_agree`
 
 ## Main results
 
-* `Cslib.BitString.lowDegree_eq_span_phaseChar`: for `ω ≠ 1`, the functions of degree at most `D`
-  are the linear combinations of `phaseChar ω S` with `#S ≤ D`.
 * `Cslib.BitString.card_le_of_forall_exists_agree`: a set on which every function agrees with a
   degree-`H` function has size at most the number of sets of at most `H` coordinates.
 * `Cslib.BitString.exists_agree_of_phaseChar`: if `Q` of degree `D` agrees with `phaseChar ω univ`
@@ -135,10 +133,10 @@ section
 
 variable {F : Type*} [Field F] {ι : Type*}
 
-/-- When `ω ≠ 1`, every monomial of `S` expands as a linear combination of `phaseChar ω T` over
-the subsets `T` of `S`. -/
+/-- When `ω ≠ 1`, every monomial expands as a linear combination of `phaseChar ω T` over subsets
+`T`. -/
 private theorem monomial_mem_span_phaseChar {ω : F} (hω1 : ω ≠ 1) (S : Finset ι) :
-    monomial F S ∈ Submodule.span F (phaseChar ω '' {T | #T ≤ #S}) := by
+    monomial F S ∈ Submodule.span F (Set.range (phaseChar ω (ι := ι))) := by
   classical
   have hne : ω - 1 ≠ 0 := sub_ne_zero.2 hω1
   have hfun : monomial F S = ∑ T ∈ S.powerset,
@@ -154,21 +152,7 @@ private theorem monomial_mem_span_phaseChar {ω : F} (hω1 : ω ≠ 1) (S : Fins
     rw [prod_const]
     ring
   rw [hfun]
-  exact Submodule.sum_mem _ fun T hT => Submodule.smul_mem _ _
-    (Submodule.subset_span ⟨T, card_le_card (mem_powerset.1 hT), rfl⟩)
-
-/-- **Degree in a multiplicative basis.** For `ω ≠ 1`, the functions of degree at most `D` are the
-linear combinations of the characters `phaseChar ω S` with `#S ≤ D`. -/
-theorem lowDegree_eq_span_phaseChar {ω : F} (hω1 : ω ≠ 1) (D : ℕ) :
-    lowDegree F ι D = Submodule.span F (phaseChar ω '' {S | #S ≤ D}) := by
-  refine le_antisymm ?_ ?_
-  · rw [lowDegree, Submodule.span_le]
-    rintro _ ⟨S, hS, rfl⟩
-    exact Submodule.span_mono (Set.image_mono fun _ hT => Set.mem_ofPred.2 (le_trans hT hS))
-      (monomial_mem_span_phaseChar hω1 S)
-  · rw [Submodule.span_le]
-    rintro _ ⟨S, hS, rfl⟩
-    exact lowDegree_mono hS (phaseChar_mem_lowDegree ω S)
+  exact Submodule.sum_mem _ fun T _ => Submodule.smul_mem _ _ (Submodule.subset_span ⟨T, rfl⟩)
 
 end
 
@@ -185,7 +169,7 @@ theorem exists_agree_of_phaseChar {ω : F} (hω0 : ω ≠ 0) (hω1 : ω ≠ 1) {
         Submodule.span F (Set.range (phaseChar ω (ι := ι))) := by
       rw [lowDegree, Submodule.span_le]
       rintro _ ⟨S, _, rfl⟩
-      exact Submodule.span_mono (Set.image_subset_range _ _) (monomial_mem_span_phaseChar hω1 S)
+      exact monomial_mem_span_phaseChar hω1 S
     exact hle (mem_lowDegree_self f)
   -- degree-1 inverse factor for `ω ^ (x i).toNat`
   let invFactor (i : ι) (x : ι → Bool) : F := ω⁻¹ * (1 + ω - ω ^ (x i).toNat)
