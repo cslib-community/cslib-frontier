@@ -8,14 +8,15 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Algebra.Polynomial.Bivariate
-public import CslibFrontier.Foundations.Data.Code.GuruswamiSudan
 public import CslibFrontier.Foundations.Data.Code.ReedSolomon
 public import CslibFrontier.Foundations.Data.Code.SudanInterpolant
 public import Mathlib.Analysis.Real.Sqrt
+import CslibFrontier.Foundations.Data.Code.GuruswamiSudan
 import CslibFrontier.Foundations.Data.Hamming
 import Mathlib.Algebra.CharP.Algebra
 import Mathlib.Algebra.CharP.Frobenius
 import Mathlib.Algebra.Polynomial.Expand
+import Mathlib.Algebra.Polynomial.OfFn
 import Mathlib.FieldTheory.IsAlgClosed.AlgebraicClosure
 import Mathlib.LinearAlgebra.Dimension.Finrank
 import Mathlib.LinearAlgebra.FiniteDimensional.Lemmas
@@ -51,14 +52,16 @@ July 2020 ePrint 2020/654 version concerns FRI soundness).
   paper's displayed finite thresholds directly from the source hypotheses, as well as
   normalized/rational-valued weights and affine-space extensions, are left open outside this file.
 * `Cslib.Code.proximityGap_line_johnson` and `Cslib.Code.proximityGap_line_johnson_of_eta` are
-  **original explicit-constant variants** of [BenSassonCarmonIshaiKoppartySaraf2020, Theorem 1.4]
-  (accepted JACM 2023 manuscript) with exceptional fraction
-  `1800 * (m + 1) ^ 6 * n ^ 2 / (ρ * |F|)` (respectively `115200 * n ^ 2 / (ρ * η ^ 6 * |F|)`).
-  While the exponents `(m + 1) ^ 6 / ρ` are asymptotically smaller in `m` and `1 / ρ` than the
-  paper's displayed `(m + 1 / 2) ^ 7 / (3 * ρ ^ (3 / 2))`, the bound is not uniformly smaller at
-  small finite `m` (e.g., at `m = 3`, `ρ = 1 / 4`, the coefficients are `29,491,200` vs.
-  approximately `17,157`), so these bounds do not imply the paper's displayed finite constant for
-  all finite `m`.
+  **original explicit-constant variants** in the setting of
+  [BenSassonCarmonIshaiKoppartySaraf2020, Theorem 1.4] (accepted JACM 2023 manuscript) with
+  exceptional fraction `1800 * (m + 1) ^ 6 * n ^ 2 / (ρ * |F|)` (respectively
+  `115200 * n ^ 2 / (ρ * η ^ 6 * |F|)`). While the exponents `(m + 1) ^ 6 / ρ` are asymptotically
+  smaller in `m` and `1 / ρ` than the displayed `(m + 1 / 2) ^ 7 / (3 * ρ ^ (3 / 2))` coefficient
+  of [BenSassonCarmonIshaiKoppartySaraf2020, Theorem 5.1, p. 17] (accepted NSF/JACM manuscript;
+  Theorem 1.4 instead references Theorem 1.2's `η`-dependent expression), the bound is not
+  uniformly smaller at small finite `m` (e.g., at `m = 3`, `ρ = 1 / 4`, the coefficients are
+  `29,491,200` vs. approximately `17,157`), so these bounds do not imply the paper's displayed
+  finite constant for all finite `m`.
 
 ## Main definitions
 
@@ -77,9 +80,11 @@ July 2020 ePrint 2020/654 version concerns FRI soundness).
 * `Cslib.Code.ProximityGap.johnsonCurveBound_mul_le`: linear weight scaling of `johnsonCurveBound`
   from `n` to `W_tot ≥ n`.
 * `Cslib.Code.ProximityGap.johnson_curve_params_bound`,
-  `Cslib.Code.ProximityGap.johnson_line_params_bound`: quantitative Guruswami–Sudan parameter
+  `Cslib.Code.ProximityGap.johnson_line_params_bound`,
+  `Cslib.Code.ProximityGap.exists_multiplicity_of_eta`: quantitative Guruswami–Sudan parameter
   packaging up to `1 - √ρ - √ρ / (2 * m)` yielding
-  `johnsonCurveBound n (m + 1) (k - 1) D r n ≤ 1800 * r * (m + 1) ^ 6 * n ^ 2 / ρ`.
+  `johnsonCurveBound n (m + 1) (k - 1) D r n ≤ 1800 * r * (m + 1) ^ 6 * n ^ 2 / ρ`, together
+  with multiplicity selection for any gap `η > 0` below `1 - √ρ`.
 * `Cslib.Code.exists_weighted_correlatedAgreement_curve_johnson`: explicit-parameter
   integer-weighted correlated-agreement step on degree-`r` curves over arbitrary fields of
   arbitrary characteristic (toward [BenSassonCarmonIshaiKoppartySaraf2020, Theorems 5.1, 6.2,
@@ -393,33 +398,17 @@ section Step1Siegel
 
 variable {F : Type*} [Field F]
 
-/-- Curve polynomial `w_i(Z) = ∑_j u_j(i) Z^j ∈ F[Z]`. -/
-private noncomputable def curveWord {ι : Type*} {r : ℕ} (u : Fin (r + 1) → (ι → F)) (i : ι) :
-    F[X] :=
-  ∑ j : Fin (r + 1), C (u j i) * X ^ (j : ℕ)
+/-- Curve polynomial `w_i(Z) = ∑_j u_j(i) Z^j ∈ F[Z]`, built via `Polynomial.ofFn`. -/
+private noncomputable abbrev curveWord [DecidableEq F] {ι : Type*} {r : ℕ}
+    (u : Fin (r + 1) → (ι → F)) (i : ι) : F[X] :=
+  Polynomial.ofFn (r + 1) (fun j => u j i)
 
-private theorem natDegree_curveWord_le {ι : Type*} {r : ℕ} (u : Fin (r + 1) → (ι → F)) (i : ι) :
-    (curveWord u i).natDegree ≤ r := by
-  refine (natDegree_sum_le _ _).trans (Finset.sup_le fun j _ => ?_)
-  refine natDegree_mul_le.trans ?_
-  rw [natDegree_C, zero_add, natDegree_X_pow]
-  omega
-
-private theorem eval_curveWord {ι : Type*} {r : ℕ} (u : Fin (r + 1) → (ι → F)) (i : ι) (z : F) :
+private theorem eval_curveWord [DecidableEq F] {ι : Type*} {r : ℕ}
+    (u : Fin (r + 1) → (ι → F)) (i : ι) (z : F) :
     (curveWord u i).eval z = ∑ j : Fin (r + 1), z ^ (j : ℕ) * u j i := by
-  rw [curveWord, eval_finsetSum]
+  rw [curveWord, Polynomial.ofFn_eq_sum_monomial, eval_finsetSum]
   refine Finset.sum_congr rfl fun j _ => ?_
-  rw [eval_mul, eval_C, eval_pow, eval_X, mul_comm]
-
-private theorem coeff_curveWord {ι : Type*} {r : ℕ} (u : Fin (r + 1) → (ι → F)) (i : ι)
-    (j : Fin (r + 1)) :
-    (curveWord u i).coeff (j : ℕ) = u j i := by
-  rw [curveWord, finsetSum_coeff, Finset.sum_eq_single j]
-  · rw [coeff_C_mul, coeff_X_pow_self, mul_one]
-  · intro j' _ hne
-    rw [coeff_C_mul, coeff_X_pow, ite_eq_right (fun h => absurd (Fin.ext h.symm) hne), mul_zero]
-  · intro h
-    exact absurd (mem_univ j) h
+  rw [eval_monomial, mul_comm]
 
 /-- Polynomial `Q_c ∈ F[Z][X][Y]` constructed from coefficient table `c : (M × Fin (B + 1)) → F`. -/
 private noncomputable def polyOfTable (M : Finset (ℕ × ℕ)) (B : ℕ)
@@ -563,8 +552,8 @@ private theorem natDegree_coeff_shift_polyOfTable_le {d D B r : ℕ}
 
 /-- Step 1 (Siegel interpolation in `F[Z][X][Y]`): zero-denominator multiplicity-`m` interpolant
 with explicit `Z`-degree bound `siegelZDeg n m d D r`. -/
-private theorem exists_siegel_interpolant {ι : Type*} [Fintype ι] (α : ι → F) {r m d D : ℕ}
-    (u : Fin (r + 1) → (ι → F))
+private theorem exists_siegel_interpolant [DecidableEq F] {ι : Type*} [Fintype ι] (α : ι → F)
+    {r m d D : ℕ} (u : Fin (r + 1) → (ι → F))
     (hinterp : Fintype.card ι * (m * (m + 1) / 2) < #(Sudan.monomials d D)) :
     ∃ Q : F[X][X][X],
       Q ≠ 0 ∧
@@ -653,7 +642,7 @@ private theorem exists_siegel_interpolant {ι : Type*} [Fintype ι] (α : ι →
     have hdeg : (((shift (C (α i)) (curveWord u i) (polyOfTable M B c)).coeff v₀).coeff
         u₀).natDegree ≤ B + r * D_Y :=
       natDegree_coeff_shift_polyOfTable_le c (α i) (curveWord u i)
-        (natDegree_curveWord_le u i) u₀ v₀
+        (Nat.le_of_lt_succ (Polynomial.ofFn_natDegree_lt (Nat.succ_pos r) _)) u₀ v₀
     omega
 
 end Step1Siegel
@@ -2702,7 +2691,8 @@ private theorem exists_lifted_poly_and_mismatch_bound {ι : Type*} [Fintype ι] 
     exact (Polynomial.resultant_eq_zero_iff.1 hmap_res).2 hcop
   have hres_deg : res_i.natDegree ≤ 4 * D * D_Y * B_Z + r * D_Y ^ 2 := by
     have hEi_degZ := degZ₂_evalMismatchPoly_le (x₀ := x₀) (s := s) (μ := μ) (d := d) hS_degZ
-      (α i) (natDegree_curveWord_le u i)
+      (α i) (w := curveWord u i)
+      (Nat.le_of_lt_succ (Polynomial.ofFn_natDegree_lt (Nat.succ_pos r) _))
     have hEi_degY := natDegree_evalMismatchPoly_le (x₀ := x₀) (μ := μ) (d := d) hS_deg le_rfl
       (α i) (curveWord u i)
     have hres := degree_resultant_le (R := F[X]) Polynomial.natDegree
@@ -2934,11 +2924,12 @@ private theorem exists_correlatedAgreement_of_lifted_poly {ι : Type*} [Fintype 
   let P_L : L[X] := P_FZ.map j_L
   have hP_FZ_eval : ∀ i : ι, P_FZ.eval (C (α i)) = curveWord v i := by
     intro i
-    simp only [P_FZ, curveWord, eval_finsetSum, eval_mul, eval_C, v]
+    rw [curveWord, Polynomial.ofFn_eq_sum_monomial]
+    simp only [P_FZ, eval_finsetSum, eval_mul, eval_C, v]
     refine Finset.sum_congr rfl fun j _ => ?_
     have hhom := (Polynomial.hom_eval₂ (Pj j) (RingHom.id F) Polynomial.C (α i)).symm
     rw [RingHom.comp_id, Polynomial.eval₂_id] at hhom
-    rw [Polynomial.eval_map, hhom]
+    rw [Polynomial.eval_map, hhom, Polynomial.C_mul_X_pow_eq_monomial]
   have hP_L_eval : ∀ i : ι, P_L.eval (j_L (C (α i))) = j_L (curveWord v i) := by
     intro i
     have hhom := (Polynomial.hom_eval₂ P_FZ (RingHom.id F[X]) j_L (C (α i))).symm
@@ -2972,10 +2963,8 @@ private theorem exists_correlatedAgreement_of_lifted_poly {ι : Type*} [Fintype 
       obtain ⟨i, hiJ, rfl⟩ := mem_image.1 hx
       rw [Multiset.mem_toFinset, mem_roots hne, IsRoot, eval_sub]
       rw [hIstar_agree i (hJ_sub hiJ), hP_L_eval i]
-      have hcw : curveWord u i = curveWord v i := by
-        simp only [curveWord]
-        refine Finset.sum_congr rfl fun j _ => ?_
-        rw [show v j i = u j i from hPj_eval_J j i hiJ]
+      have hcw : curveWord u i = curveWord v i :=
+        congrArg (Polynomial.ofFn (r + 1)) (funext fun j => (hPj_eval_J j i hiJ).symm)
       rw [hcw, sub_self]
     have hcard_le : k ≤ (Pstar - P_L).natDegree := by
       calc k = #J := hJ_card.symm
@@ -2989,8 +2978,7 @@ private theorem exists_correlatedAgreement_of_lifted_poly {ι : Type*} [Fintype 
   rw [hPstar_eq, hP_L_eval i] at hev
   have hcw : curveWord v i = curveWord u i := hj_L_inj hev
   have hc := congrArg (fun p : F[X] => p.coeff (j : ℕ)) hcw
-  rw [coeff_curveWord, coeff_curveWord] at hc
-  exact hc.symm
+  simpa only [curveWord, Polynomial.ofFn_coeff_eq_val_of_lt _ j.2] using hc.symm
 
 end Step7DoubleCountAndLagrange
 
@@ -3495,6 +3483,77 @@ theorem johnson_line_params_bound {n k e m : ℕ}
   simpa only [Nat.cast_one, mul_one] using
     johnson_curve_params_bound (r := 1) hk hkn hm le_rfl he
 
+/-- Multiplicity selection for an arbitrary gap `η > 0` below the Johnson bound `1 - √ρ`: given
+`1 ≤ k ≤ n`, `0 < η`, and `(e : ℝ) / n ≤ 1 - √(k / n) - η`, choosing
+`m = ⌈√ρ / (2 * min η (√ρ / 2))⌉₊` yields `1 ≤ m`,
+`(e : ℝ) / n ≤ 1 - √(k / n) - √(k / n) / (2 * m)`, and `(m + 1 : ℝ) ^ 6 ≤ 64 / η ^ 6`. -/
+theorem exists_multiplicity_of_eta {n k e : ℕ} {η : ℝ}
+    (hk : 1 ≤ k) (hkn : k ≤ n) (hη : 0 < η)
+    (he : (e : ℝ) / (n : ℝ) ≤ 1 - Real.sqrt ((k : ℝ) / (n : ℝ)) - η) :
+    ∃ m : ℕ, 1 ≤ m ∧
+      (e : ℝ) / (n : ℝ) ≤
+        1 - Real.sqrt ((k : ℝ) / (n : ℝ)) -
+          Real.sqrt ((k : ℝ) / (n : ℝ)) / (2 * (m : ℝ)) ∧
+      ((m + 1 : ℝ) ^ 6) ≤ 64 / (η ^ 6) := by
+  set ρ : ℝ := (k : ℝ) / (n : ℝ)
+  have hn : 1 ≤ n := hk.trans hkn
+  have hnR : (0 : ℝ) < (n : ℝ) := by positivity
+  have hkR : (0 : ℝ) < (k : ℝ) := by positivity
+  have hρ_pos : 0 < ρ := by positivity
+  have hρ_le_one : ρ ≤ 1 := by
+    rw [div_le_one hnR]
+    exact_mod_cast hkn
+  have hsqρ_pos : 0 < Real.sqrt ρ := Real.sqrt_pos.2 hρ_pos
+  have hsqρ_le_one : Real.sqrt ρ ≤ 1 := Real.sqrt_le_one.2 hρ_le_one
+  have hη_lt_one : η < 1 := by
+    have he_nn : (0 : ℝ) ≤ (e : ℝ) / (n : ℝ) := by positivity
+    linarith
+  set η' : ℝ := min η (Real.sqrt ρ / 2)
+  have hη'_pos : 0 < η' := lt_min hη (by positivity)
+  have hη'_le_η : η' ≤ η := min_le_left _ _
+  have hη'_le_half : η' ≤ Real.sqrt ρ / 2 := min_le_right _ _
+  set m : ℕ := ⌈Real.sqrt ρ / (2 * η')⌉₊
+  have hx_ge_one : (1 : ℝ) ≤ Real.sqrt ρ / (2 * η') := by
+    rw [one_le_div (by positivity)]
+    linarith
+  have hm : 1 ≤ m := by
+    exact_mod_cast hx_ge_one.trans (Nat.le_ceil _)
+  have hmR : (0 : ℝ) < (m : ℝ) := by positivity
+  have hfrac_le_η : Real.sqrt ρ / (2 * (m : ℝ)) ≤ η := by
+    have hceil : Real.sqrt ρ / (2 * η') ≤ (m : ℝ) := Nat.le_ceil _
+    have h1 : Real.sqrt ρ / (2 * (m : ℝ)) ≤ η' := by
+      rw [div_le_iff₀ (by positivity)] at hceil ⊢
+      linarith
+    exact h1.trans hη'_le_η
+  have he' : (e : ℝ) / (n : ℝ) ≤ 1 - Real.sqrt ρ - Real.sqrt ρ / (2 * (m : ℝ)) := by linarith
+  have hm1_le : (m : ℝ) + 1 ≤ 2 / η := by
+    by_cases hle : η ≤ Real.sqrt ρ / 2
+    · have hη'_eq : η' = η := min_eq_left hle
+      have hlt : (m : ℝ) < Real.sqrt ρ / (2 * η) + 1 := by
+        have h0 := Nat.ceil_lt_add_one (a := Real.sqrt ρ / (2 * η')) (by positivity)
+        change (m : ℝ) < _ at h0
+        rwa [hη'_eq] at h0
+      have hx1 : (1 : ℝ) ≤ Real.sqrt ρ / (2 * η) := by rwa [hη'_eq] at hx_ge_one
+      have hm_lt : (m : ℝ) + 1 < 3 * (Real.sqrt ρ / (2 * η)) := by linarith
+      have h32 : 3 * (Real.sqrt ρ / (2 * η)) ≤ 2 / η := by
+        rw [show 3 * (Real.sqrt ρ / (2 * η)) = (3 / 2 * Real.sqrt ρ) / η by ring]
+        exact div_le_div_of_nonneg_right (by linarith) hη.le
+      exact hm_lt.le.trans h32
+    · have hη'_eq : η' = Real.sqrt ρ / 2 := min_eq_right (le_of_not_ge hle)
+      have hx1 : Real.sqrt ρ / (2 * η') = 1 := by
+        rw [hη'_eq]
+        field_simp
+      have hm1 : m = 1 := by
+        dsimp only [m]
+        rw [hx1]
+        norm_num
+      rw [hm1, Nat.cast_one, show (1 : ℝ) + 1 = 2 by norm_num, le_div_iff₀ hη]
+      linarith
+  have hpow : ((m + 1 : ℝ) ^ 6) ≤ 64 / (η ^ 6) := by
+    calc ((m + 1 : ℝ) ^ 6) ≤ (2 / η) ^ 6 := pow_le_pow_left₀ (by positivity) hm1_le 6
+      _ = 64 / (η ^ 6) := by rw [div_pow]; norm_num
+  exact ⟨m, hm, he', hpow⟩
+
 /-- **Positive-characteristic-safe separable contraction in `F[Z][X][Y]`.**
 
 Given an irreducible polynomial `R ∈ F[Z][X][Y]` of positive `Y`-degree over an arbitrary field `F`,
@@ -3736,11 +3795,12 @@ every point `u₀ + z • u₁` on the affine line lies within Hamming distance 
 `1800 * (m + 1) ^ 6 * n ^ 2 / (ρ * |F|)`.
 
 Compared to the displayed finite-threshold bound `(m + 1 / 2) ^ 7 / (3 * ρ ^ (3 / 2)) * n ^ 2 / |F|`
-of [BenSassonCarmonIshaiKoppartySaraf2020, Theorem 1.4], this variant has smaller asymptotic
-exponents in `m` and `1 / ρ` (`(m + 1) ^ 6 / ρ`) but is **not** uniformly smaller at small finite
-`m` (for example, at `m = 3` and `ρ = 1 / 4`, the coefficients are `29,491,200` versus
-approximately `17,157`). Thus it does not imply the paper's displayed finite constant for all
-finite `m`; matching that exact finite constant remains open. -/
+of [BenSassonCarmonIshaiKoppartySaraf2020, Theorem 5.1, p. 17] (accepted NSF/JACM manuscript;
+Theorem 1.4 instead references Theorem 1.2's `η`-dependent expression), this variant has smaller
+asymptotic exponents in `m` and `1 / ρ` (`(m + 1) ^ 6 / ρ`) but is **not** uniformly smaller at
+small finite `m` (for example, at `m = 3` and `ρ = 1 / 4`, the coefficients are `29,491,200`
+versus approximately `17,157`). Thus it does not imply the paper's displayed finite constant for
+all finite `m`; matching that exact finite constant remains open. -/
 theorem proximityGap_line_johnson {F ι : Type*} [Field F] [Fintype F] [Fintype ι] [DecidableEq F]
     {α : ι → F} {e k m : ℕ}
     (hα : Function.Injective α) (hk : 1 ≤ k) (hkn : k ≤ Fintype.card ι) (hm : 1 ≤ m)
@@ -3800,81 +3860,23 @@ theorem proximityGap_line_johnson_of_eta {F ι : Type*} [Field F] [Fintype F] [F
         (Fintype.card F : ℝ)) ≤
         115200 * ((Fintype.card ι : ℝ) ^ 2) /
           (((k : ℝ) / (Fintype.card ι : ℝ)) * (η ^ 6) * (Fintype.card F : ℝ)) := by
-  set n : ℕ := Fintype.card ι
-  set ρ : ℝ := (k : ℝ) / (n : ℝ)
-  have hn : 1 ≤ n := hk.trans hkn
-  have hnR : (0 : ℝ) < (n : ℝ) := by positivity
-  have hkR : (0 : ℝ) < (k : ℝ) := by positivity
-  have hρ_pos : 0 < ρ := by positivity
-  have hρ_le_one : ρ ≤ 1 := by
-    rw [div_le_one hnR]
-    exact_mod_cast hkn
-  have hsqρ_pos : 0 < Real.sqrt ρ := Real.sqrt_pos.2 hρ_pos
-  have hsqρ_le_one : Real.sqrt ρ ≤ 1 := by
-    rw [Real.sqrt_le_one]
-    exact hρ_le_one
-  have hη_lt_one : η < 1 := by
-    have he_nn : (0 : ℝ) ≤ (e : ℝ) / (n : ℝ) := by positivity
-    linarith
-  set η' : ℝ := min η (Real.sqrt ρ / 2)
-  have hη'_pos : 0 < η' := lt_min hη (by positivity)
-  have hη'_le_η : η' ≤ η := min_le_left _ _
-  have hη'_le_half : η' ≤ Real.sqrt ρ / 2 := min_le_right _ _
-  set m : ℕ := ⌈Real.sqrt ρ / (2 * η')⌉₊
-  have hx_ge_one : (1 : ℝ) ≤ Real.sqrt ρ / (2 * η') := by
-    rw [one_le_div (by positivity)]
-    linarith
-  have hm : 1 ≤ m := by
-    have h1 : (1 : ℝ) ≤ (m : ℝ) := hx_ge_one.trans (Nat.le_ceil _)
-    exact_mod_cast h1
-  have hmR : (0 : ℝ) < (m : ℝ) := by positivity
-  have hfrac_le_η : Real.sqrt ρ / (2 * (m : ℝ)) ≤ η := by
-    have hceil : Real.sqrt ρ / (2 * η') ≤ (m : ℝ) := Nat.le_ceil _
-    have h1 : Real.sqrt ρ / (2 * (m : ℝ)) ≤ η' := by
-      rw [div_le_iff₀ (by positivity)] at hceil ⊢
-      linarith
-    exact h1.trans hη'_le_η
-  have he' : (e : ℝ) / (n : ℝ) ≤ 1 - Real.sqrt ρ - Real.sqrt ρ / (2 * (m : ℝ)) := by linarith
+  obtain ⟨m, hm, he', hpow⟩ := exists_multiplicity_of_eta hk hkn hη he
   rcases proximityGap_line_johnson hα hk hkn hm he' u₀ u₁ with hall | hbound
   · exact Or.inl hall
   · right
-    have hm1_le : (m : ℝ) + 1 ≤ 2 / η := by
-      by_cases hle : η ≤ Real.sqrt ρ / 2
-      · have hη'_eq : η' = η := min_eq_left hle
-        have hlt : (m : ℝ) < Real.sqrt ρ / (2 * η) + 1 := by
-          have h0 := Nat.ceil_lt_add_one (a := Real.sqrt ρ / (2 * η')) (by positivity)
-          change (m : ℝ) < _ at h0
-          rwa [hη'_eq] at h0
-        have hx1 : (1 : ℝ) ≤ Real.sqrt ρ / (2 * η) := by rwa [hη'_eq] at hx_ge_one
-        have hm_lt : (m : ℝ) + 1 < 3 * (Real.sqrt ρ / (2 * η)) := by linarith
-        have h32 : 3 * (Real.sqrt ρ / (2 * η)) ≤ 2 / η := by
-          rw [show 3 * (Real.sqrt ρ / (2 * η)) = (3 / 2 * Real.sqrt ρ) / η by ring]
-          exact div_le_div_of_nonneg_right (by linarith) hη.le
-        exact hm_lt.le.trans h32
-      · have hη'_eq : η' = Real.sqrt ρ / 2 := min_eq_right (le_of_not_ge hle)
-        have hx1 : Real.sqrt ρ / (2 * η') = 1 := by
-          rw [hη'_eq]
-          field_simp
-        have hm1 : m = 1 := by
-          dsimp only [m]
-          rw [hx1]
-          norm_num
-        rw [hm1, Nat.cast_one, show (1 : ℝ) + 1 = 2 by norm_num]
-        rw [le_div_iff₀ hη]
-        linarith
-    have hpow : ((m + 1 : ℝ) ^ 6) ≤ (2 / η) ^ 6 := pow_le_pow_left₀ (by positivity) hm1_le 6
+    set n : ℕ := Fintype.card ι
+    set ρ : ℝ := (k : ℝ) / (n : ℝ)
+    have hn : 1 ≤ n := hk.trans hkn
+    have hρ_pos : 0 < ρ := by positivity
     have hFpos : (0 : ℝ) < (Fintype.card F : ℝ) := by
       exact_mod_cast Fintype.card_pos (α := F)
     have hstep :
         1800 * ((m + 1 : ℝ) ^ 6) * ((n : ℝ) ^ 2) / (ρ * (Fintype.card F : ℝ)) ≤
-          1800 * ((2 / η) ^ 6) * ((n : ℝ) ^ 2) / (ρ * (Fintype.card F : ℝ)) := by
+          1800 * (64 / (η ^ 6)) * ((n : ℝ) ^ 2) / (ρ * (Fintype.card F : ℝ)) := by
       gcongr
     have hsimp :
-        1800 * ((2 / η) ^ 6) * ((n : ℝ) ^ 2) / (ρ * (Fintype.card F : ℝ)) =
+        1800 * (64 / (η ^ 6)) * ((n : ℝ) ^ 2) / (ρ * (Fintype.card F : ℝ)) =
           115200 * ((n : ℝ) ^ 2) / (ρ * (η ^ 6) * (Fintype.card F : ℝ)) := by
-      rw [div_pow]
-      have h26 : (2 : ℝ) ^ 6 = 64 := by norm_num
-      rw [h26]
       field_simp
       ring
     exact hbound.trans (hstep.trans_eq hsimp)
