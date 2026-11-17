@@ -103,54 +103,15 @@ end
 
 section SwapAndDegZ
 
-private theorem coeff_finset_sum {R ι : Type*} [Semiring R] (s : Finset ι) (f : ι → R[X])
-    (n : ℕ) : (∑ i ∈ s, f i).coeff n = ∑ i ∈ s, (f i).coeff n :=
-  map_sum (Polynomial.lcoeff R n) f s
-
-private theorem eval_finset_sum' {R ι : Type*} [CommSemiring R] (s : Finset ι) (f : ι → R[X])
-    (z : R) : (∑ i ∈ s, f i).eval z = ∑ i ∈ s, (f i).eval z :=
-  map_sum (Polynomial.evalRingHom z) f s
-
-/-- Ring homomorphism swapping the inner and outer indeterminates of `R[X][X]`. -/
-private noncomputable def swapPolyHom (R : Type*) [CommSemiring R] : R[X][X] →+* R[X][X] :=
-  Polynomial.eval₂RingHom (Polynomial.mapRingHom Polynomial.C) (Polynomial.C Polynomial.X)
-
-private theorem swapPolyHom_C (R : Type*) [CommSemiring R] (p : R[X]) :
-    swapPolyHom R (C p) = p.map C := by
-  simp [swapPolyHom]
-
-private theorem swapPolyHom_X (R : Type*) [CommSemiring R] :
-    swapPolyHom R X = C X := by
-  simp [swapPolyHom]
-
-private theorem swapPolyHom_comp_self (R : Type*) [CommSemiring R] :
-    (swapPolyHom R).comp (swapPolyHom R) = RingHom.id R[X][X] := by
-  apply Polynomial.ringHom_ext'
-  · apply Polynomial.ringHom_ext'
-    · ext r
-      simp [swapPolyHom]
-    · simp [swapPolyHom]
-  · simp [swapPolyHom]
-
-/-- Self-inverse ring equivalence swapping the two indeterminates of `R[X][X]`. -/
-private noncomputable def swapPolyRingEquiv (R : Type*) [CommSemiring R] : R[X][X] ≃+* R[X][X] :=
-  { swapPolyHom R with
-    invFun := swapPolyHom R
-    left_inv := fun p => RingHom.congr_fun (swapPolyHom_comp_self R) p
-    right_inv := fun p => RingHom.congr_fun (swapPolyHom_comp_self R) p }
-
-private theorem coeff_coeff_swapPolyRingEquiv {R : Type*} [CommSemiring R] (p : R[X][X])
+private theorem coeff_coeff_swap {R : Type*} [CommSemiring R] (p : R[X][X])
     (a b : ℕ) :
-    (((swapPolyRingEquiv R) p).coeff a).coeff b = (p.coeff b).coeff a := by
+    ((Bivariate.swap p).coeff a).coeff b = (p.coeff b).coeff a := by
   induction p using Polynomial.induction_on' with
   | add p q hp hq =>
     simp [map_add, hp, hq]
   | monomial n c =>
-    change (((swapPolyHom R) (monomial n c)).coeff a).coeff b =
-      ((monomial n c).coeff b).coeff a
-    rw [← C_mul_X_pow_eq_monomial, map_mul, map_pow, swapPolyHom_C, swapPolyHom_X, ← C_pow,
-      mul_comm (c.map C), coeff_C_mul, coeff_map, mul_comm (X ^ n), coeff_C_mul, coeff_X_pow,
-      coeff_C_mul, coeff_X_pow]
+    rw [Bivariate.swap_monomial, mul_comm (c.map C), coeff_C_mul, coeff_map,
+      mul_comm (X ^ n), coeff_C_mul, coeff_X_pow, coeff_monomial]
     by_cases hbn : n = b
     · subst hbn
       simp
@@ -159,36 +120,20 @@ private theorem coeff_coeff_swapPolyRingEquiv {R : Type*} [CommSemiring R] (p : 
 /-- Ring equivalence moving the innermost variable `Z` of `R[Z][X][Y]` to the outermost position
 `(R[X][Y])[Z]`. -/
 private noncomputable def toOuterZ (R : Type*) [CommSemiring R] : R[X][X][X] ≃+* R[X][X][X] :=
-  let mapSwap : R[X][X][X] ≃+* R[X][X][X] :=
-    { Polynomial.mapRingHom (swapPolyRingEquiv R).toRingHom with
-      invFun := Polynomial.map (swapPolyRingEquiv R).toRingHom
-      left_inv := fun Q => by
-        change Polynomial.map (swapPolyRingEquiv R).toRingHom
-          (Polynomial.map (swapPolyRingEquiv R).toRingHom Q) = Q
-        rw [Polynomial.map_map]
-        have h : (swapPolyRingEquiv R).toRingHom.comp (swapPolyRingEquiv R).toRingHom =
-            RingHom.id R[X][X] := swapPolyHom_comp_self R
-        rw [h, Polynomial.map_id]
-      right_inv := fun Q => by
-        change Polynomial.map (swapPolyRingEquiv R).toRingHom
-          (Polynomial.map (swapPolyRingEquiv R).toRingHom Q) = Q
-        rw [Polynomial.map_map]
-        have h : (swapPolyRingEquiv R).toRingHom.comp (swapPolyRingEquiv R).toRingHom =
-            RingHom.id R[X][X] := swapPolyHom_comp_self R
-        rw [h, Polynomial.map_id] }
-  mapSwap.trans (swapPolyRingEquiv R[X])
+  (Polynomial.mapEquiv (Bivariate.swap (R := R)).toRingEquiv).trans
+    (Bivariate.swap (R := R[X])).toRingEquiv
 
 private theorem coeff_coeff_coeff_toOuterZ {R : Type*} [CommSemiring R] (Q : R[X][X][X])
     (t a b : ℕ) :
     ((((toOuterZ R Q).coeff t).coeff b).coeff a) = ((Q.coeff b).coeff a).coeff t := by
-  change ((((swapPolyRingEquiv R[X])
-    (Q.map (swapPolyRingEquiv R).toRingHom)).coeff t).coeff b).coeff a = _
-  rw [coeff_coeff_swapPolyRingEquiv, coeff_map]
-  exact coeff_coeff_swapPolyRingEquiv (Q.coeff b) t a
+  change (((Bivariate.swap (Q.map (Bivariate.swap (R := R)).toRingEquiv.toRingHom)).coeff t).coeff
+    b).coeff a = _
+  rw [coeff_coeff_swap, coeff_map]
+  exact coeff_coeff_swap (Q.coeff b) t a
 
 /-- `Z`-degree of `f ∈ R[Z][X]`. -/
 private noncomputable def degZ₂ {R : Type*} [CommSemiring R] (f : R[X][X]) : ℕ :=
-  (swapPolyRingEquiv R f).natDegree
+  (Bivariate.swap f).natDegree
 
 private theorem degZ₂_zero {R : Type*} [CommSemiring R] : degZ₂ (0 : R[X][X]) = 0 := by
   simp [degZ₂]
@@ -198,18 +143,17 @@ private theorem degZ₂_neg {R : Type*} [CommRing R] (f : R[X][X]) : degZ₂ (-f
 
 private theorem degZ₂_add_le {R : Type*} [CommSemiring R] (f g : R[X][X]) :
     degZ₂ (f + g) ≤ max (degZ₂ f) (degZ₂ g) := by
-  simpa [degZ₂, map_add] using natDegree_add_le (swapPolyRingEquiv R f) (swapPolyRingEquiv R g)
+  simpa [degZ₂, map_add] using natDegree_add_le (Bivariate.swap f) (Bivariate.swap g)
 
 private theorem degZ₂_mul_le {R : Type*} [CommSemiring R] (f g : R[X][X]) :
     degZ₂ (f * g) ≤ degZ₂ f + degZ₂ g := by
-  simpa [degZ₂, map_mul] using natDegree_mul_le (p := swapPolyRingEquiv R f)
-    (q := swapPolyRingEquiv R g)
+  simpa [degZ₂, map_mul] using natDegree_mul_le (p := Bivariate.swap f) (q := Bivariate.swap g)
 
 private theorem degZ₂_mul {R : Type*} [CommRing R] [IsDomain R] {f g : R[X][X]}
     (hf : f ≠ 0) (hg : g ≠ 0) :
     degZ₂ (f * g) = degZ₂ f + degZ₂ g := by
-  rw [degZ₂, map_mul, natDegree_mul ((map_ne_zero_iff _ (swapPolyRingEquiv R).injective).2 hf)
-    ((map_ne_zero_iff _ (swapPolyRingEquiv R).injective).2 hg)]
+  rw [degZ₂, map_mul, natDegree_mul ((map_ne_zero_iff _ Bivariate.swap.injective).2 hf)
+    ((map_ne_zero_iff _ Bivariate.swap.injective).2 hg)]
   rfl
 
 private theorem degZ₂_le_iff {R : Type*} [CommSemiring R] {f : R[X][X]} {B : ℕ} :
@@ -221,10 +165,10 @@ private theorem degZ₂_le_iff {R : Type*} [CommSemiring R] {f : R[X][X]} {B : �
     intro t ht
     have ht0 := h t ht
     have hcoeff := congrArg (fun p : R[X] => p.coeff a) ht0
-    simpa [coeff_coeff_swapPolyRingEquiv] using hcoeff
+    simpa [coeff_coeff_swap] using hcoeff
   · intro h t ht
     ext a
-    rw [coeff_coeff_swapPolyRingEquiv, coeff_zero]
+    rw [coeff_coeff_swap, coeff_zero]
     exact coeff_eq_zero_of_natDegree_lt ((h a).trans_lt ht)
 
 private theorem degZ₂_C {R : Type*} [CommSemiring R] (p : R[X]) :
@@ -433,14 +377,14 @@ private theorem natDegree_curveWord_le {ι : Type*} {r : ℕ} (u : Fin (r + 1) �
 
 private theorem eval_curveWord {ι : Type*} {r : ℕ} (u : Fin (r + 1) → (ι → F)) (i : ι) (z : F) :
     (curveWord u i).eval z = ∑ j : Fin (r + 1), z ^ (j : ℕ) * u j i := by
-  rw [curveWord, eval_finset_sum']
+  rw [curveWord, eval_finsetSum]
   refine Finset.sum_congr rfl fun j _ => ?_
   rw [eval_mul, eval_C, eval_pow, eval_X, mul_comm]
 
 private theorem coeff_curveWord {ι : Type*} {r : ℕ} (u : Fin (r + 1) → (ι → F)) (i : ι)
     (j : Fin (r + 1)) :
     (curveWord u i).coeff (j : ℕ) = u j i := by
-  rw [curveWord, coeff_finset_sum, Finset.sum_eq_single j]
+  rw [curveWord, finsetSum_coeff, Finset.sum_eq_single j]
   · rw [coeff_C_mul, coeff_X_pow_self, mul_one]
   · intro j' _ hne
     rw [coeff_C_mul, coeff_X_pow, ite_eq_right (fun h => absurd (Fin.ext h.symm) hne), mul_zero]
@@ -459,10 +403,10 @@ private theorem coeff_coeff_coeff_polyOfTable (M : Finset (ℕ × ℕ)) (B : ℕ
       if h : (a, b) ∈ M then
         if ht : t < B + 1 then c (⟨(a, b), h⟩, ⟨t, ht⟩) else 0
       else 0 := by
-  rw [polyOfTable, coeff_finset_sum, coeff_finset_sum, coeff_finset_sum]
+  rw [polyOfTable, finsetSum_coeff, finsetSum_coeff, finsetSum_coeff]
   by_cases hab : (a, b) ∈ M
   · rw [dite_eq_left hab, Finset.sum_eq_single ⟨(a, b), hab⟩]
-    · simp only [coeff_C_mul, coeff_X_pow_self, mul_one, coeff_finset_sum]
+    · simp only [coeff_C_mul, coeff_X_pow_self, mul_one, finsetSum_coeff]
       by_cases ht : t < B + 1
       · rw [dite_eq_left ht, Finset.sum_eq_single ⟨t, ht⟩]
         · rw [coeff_X_pow_self, mul_one]
@@ -557,7 +501,7 @@ private theorem natDegree_coeff_shift_polyOfTable_le {d D B r : ℕ}
     (u v : ℕ) :
     (((shift (C x) w (polyOfTable (Sudan.monomials d D) B c)).coeff v).coeff u).natDegree ≤
       B + r * maxYDeg d D := by
-  rw [polyOfTable, map_sum, coeff_finset_sum, coeff_finset_sum]
+  rw [polyOfTable, map_sum, finsetSum_coeff, finsetSum_coeff]
   refine (natDegree_sum_le _ _).trans (Finset.sup_le fun p _ => ?_)
   dsimp only [Function.comp_apply]
   set cz : F[X] := ∑ t : Fin (B + 1), C (c (p, t)) * X ^ (t : ℕ)
@@ -623,7 +567,7 @@ private theorem exists_siegel_interpolant {ι : Type*} [Fintype ι] (α : ι →
         eq.2.1.1.1).coeff (eq.2.2 : ℕ) := by
     intro c eq
     change ∑ pt : M × Fin (B + 1), c pt * entry pt eq = _
-    rw [polyOfTable, map_sum, coeff_finset_sum, coeff_finset_sum, coeff_finset_sum,
+    rw [polyOfTable, map_sum, finsetSum_coeff, finsetSum_coeff, finsetSum_coeff,
       Fintype.sum_prod_type]
     have hattach : ∀ f : M → F, ∑ p : M, f p = ∑ p ∈ M.attach, f p := fun _ => rfl
     rw [hattach]
@@ -635,7 +579,7 @@ private theorem exists_siegel_interpolant {ι : Type*} [Fintype ι] (α : ι →
       rw [map_sum, Finset.sum_mul, map_sum, Finset.sum_mul]
       refine Finset.sum_congr rfl fun t _ => ?_
       simp only [map_mul, mul_assoc]
-    rw [hsplit, map_sum, coeff_finset_sum, coeff_finset_sum, coeff_finset_sum]
+    rw [hsplit, map_sum, finsetSum_coeff, finsetSum_coeff, finsetSum_coeff]
     refine Finset.sum_congr rfl fun t _ => ?_
     have hshiftC : shift (C (α eq.1)) (curveWord u eq.1) (C (C (C (c (p, t))))) =
         C (C (C (c (p, t)))) := by
@@ -1210,18 +1154,18 @@ private theorem exists_good_shift_and_factor
   have hH_ne : H ≠ 0 := mul_ne_zero (leadingCoeff_ne_zero.2 hS0) hΔ_ne
   -- Pick `x₀ ∈ T_R` with `H.eval (C x₀) ≠ 0`.
   have hx₀ : ∃ x₀ ∈ T_R, H.eval (C x₀) ≠ 0 := by
-    have hswap_ne : swapPolyRingEquiv F H ≠ 0 :=
-      (map_ne_zero_iff _ (swapPolyRingEquiv F).injective).2 hH_ne
-    have hex_j : ∃ j, (swapPolyRingEquiv F H).coeff j ≠ 0 := by
+    have hswap_ne : Bivariate.swap H ≠ 0 :=
+      (map_ne_zero_iff _ Bivariate.swap.injective).2 hH_ne
+    have hex_j : ∃ j, (Bivariate.swap H).coeff j ≠ 0 := by
       by_contra hall
       push Not at hall
       exact hswap_ne (by ext j : 2; simpa using hall j)
     rcases hex_j with ⟨j, hj_ne⟩
-    set hj : F[X] := (swapPolyRingEquiv F H).coeff j
+    set hj : F[X] := (Bivariate.swap H).coeff j
     have hdeg_hj : hj.natDegree ≤ 2 * s * D := by
       rw [natDegree_le_iff_coeff_eq_zero]
       intro a ha
-      rw [coeff_coeff_swapPolyRingEquiv]
+      rw [coeff_coeff_swap]
       have hH0 : H.coeff a = 0 := coeff_eq_zero_of_natDegree_lt (hH_degX.trans_lt ha)
       rw [hH0, coeff_zero]
     have hroots_lt : #(hj.roots.toFinset) < #T_R := by
@@ -1235,16 +1179,16 @@ private theorem exists_good_shift_and_factor
     refine ⟨x₀, hx₀_TR, fun hH0 => hx₀_not ?_⟩
     rw [Multiset.mem_toFinset, mem_roots hj_ne, IsRoot]
     have hc := congrArg (fun p : F[X] => p.coeff j) hH0
-    rw [eval_eq_sum_range, coeff_finset_sum, coeff_zero] at hc
+    rw [eval_eq_sum_range, finsetSum_coeff, coeff_zero] at hc
     have hhj_le : hj.natDegree ≤ H.natDegree := by
       rw [natDegree_le_iff_coeff_eq_zero]
       intro a ha
-      rw [coeff_coeff_swapPolyRingEquiv, coeff_eq_zero_of_natDegree_lt ha, coeff_zero]
+      rw [coeff_coeff_swap, coeff_eq_zero_of_natDegree_lt ha, coeff_zero]
     have heval_eq : hj.eval x₀ =
         ∑ a ∈ range (H.natDegree + 1), (H.coeff a * (C x₀) ^ a).coeff j := by
       rw [eval_eq_sum_range' (Nat.lt_succ_of_le hhj_le)]
       refine Finset.sum_congr rfl fun a _ => ?_
-      rw [← C_pow, mul_comm (H.coeff a), coeff_C_mul, coeff_coeff_swapPolyRingEquiv, mul_comm]
+      rw [← C_pow, mul_comm (H.coeff a), coeff_C_mul, coeff_coeff_swap, mul_comm]
     rw [heval_eq, hc]
   obtain ⟨x₀, _, hHx₀_ne⟩ := hx₀
   have hlc_x₀_ne : S.leadingCoeff.eval (C x₀) ≠ 0 := by
@@ -1491,12 +1435,6 @@ private theorem eval₂_add_eq_sum_hasseDeriv {R A : Type*} [CommRing R] [CommRi
   refine Finset.sum_congr rfl fun j _ => ?_
   rw [taylor_coeff, hasseDeriv_map, Polynomial.eval_map]
 
-private theorem natDegree_hasseDeriv_le {R : Type*} [CommSemiring R] (j : ℕ) (p : R[X]) :
-    (hasseDeriv j p).natDegree ≤ p.natDegree := by
-  rw [natDegree_le_iff_coeff_eq_zero]
-  intro k hk
-  rw [hasseDeriv_coeff, coeff_eq_zero_of_natDegree_lt (by omega), mul_zero]
-
 private theorem coeff_pow_eq_zero_of_lt_of_coeff_zero {R : Type*} [CommSemiring R] {p : R[X]}
     (hp0 : p.coeff 0 = 0) : ∀ j k, k < j → (p ^ j).coeff k = 0 := by
   intro j
@@ -1541,11 +1479,11 @@ private theorem coeff_pow_eq_of_coeff_eq_of_coeff_zero {R : Type*} [CommSemiring
 
 /-- Coefficient `S̃_a(Z, Y) ∈ F[Z][Y]` of `(X - x₀)^a` in `S(Z, X + x₀, Y)`. -/
 private noncomputable def shiftedCoeff (S : F[X][X][X]) (x₀ : F) (a : ℕ) : F[X][X] :=
-  (swapPolyRingEquiv F[X] (S.map (Polynomial.taylorAlgHom (C x₀)).toRingHom)).coeff a
+  (Bivariate.swap (S.map (Polynomial.taylorAlgHom (C x₀)).toRingHom)).coeff a
 
 private theorem coeff_shiftedCoeff (S : F[X][X][X]) (x₀ : F) (a b : ℕ) :
     (shiftedCoeff S x₀ a).coeff b = (taylor (C x₀) (S.coeff b)).coeff a := by
-  rw [shiftedCoeff, coeff_coeff_swapPolyRingEquiv, coeff_map]
+  rw [shiftedCoeff, coeff_coeff_swap, coeff_map]
   rfl
 
 private theorem shiftedCoeff_zero (S : F[X][X][X]) (x₀ : F) :
@@ -1701,13 +1639,13 @@ private noncomputable def recU (S : F[X][X][X]) (x₀ : F) (s M : ℕ) : (F[X][X
 
 private theorem coeff_recU_zero (S : F[X][X][X]) (x₀ : F) (s M : ℕ) :
     (recU S x₀ s M).coeff 0 = 0 := by
-  rw [recU, coeff_finset_sum]
+  rw [recU, finsetSum_coeff]
   refine Finset.sum_eq_zero fun k _ => ?_
   rw [coeff_C_mul, coeff_X_pow, ite_eq_right (by omega), mul_zero]
 
 private theorem coeff_recU (S : F[X][X][X]) (x₀ : F) (s M k : ℕ) :
     (recU S x₀ s M).coeff k = if 1 ≤ k ∧ k ≤ M then recPoly S x₀ s k else 0 := by
-  rw [recU, coeff_finset_sum]
+  rw [recU, finsetSum_coeff]
   by_cases hk : 1 ≤ k ∧ k ≤ M
   · rw [ite_eq_left hk, Finset.sum_eq_single ⟨k - 1, by omega⟩]
     · have hsub : k - 1 + 1 = k := by omega
@@ -1877,7 +1815,8 @@ private theorem natDegree_recPoly_le {S : F[X][X][X]} {x₀ : F} {s : ℕ}
   refine deg_recPoly_le Polynomial.natDegree natDegree_zero natDegree_one natDegree_neg
     natDegree_add_le (fun _ _ => natDegree_mul_le) (B := s) ?_ ?_
   · intro a j
-    exact (natDegree_hasseDeriv_le j _).trans ((natDegree_shiftedCoeff_le S x₀ a).trans hS_deg)
+    exact (Polynomial.natDegree_hasseDeriv_le _ j).trans
+      ((Nat.sub_le _ _).trans ((natDegree_shiftedCoeff_le S x₀ a).trans hS_deg))
   · refine (Polynomial.natDegree_derivative_le _).trans ?_
     have h1 : (S.map (Polynomial.evalRingHom (C x₀))).natDegree ≤ s :=
       Polynomial.natDegree_map_le.trans hS_deg
@@ -1904,12 +1843,12 @@ private theorem coeff_eq_map_recPoly {A : Type*} [CommRing A] [IsDomain A]
   set U_W : A[X] := ∑ k : Fin W.natDegree, C (g ^ (2 * (k.1 + 1) - 1) * W.coeff (k.1 + 1)) *
     X ^ (k.1 + 1)
   have hU_W_zero : U_W.coeff 0 = 0 := by
-    rw [coeff_finset_sum]
+    rw [finsetSum_coeff]
     refine Finset.sum_eq_zero fun k _ => ?_
     rw [coeff_C_mul, coeff_X_pow, ite_eq_right (by omega), mul_zero]
   have hU_W_coeff : ∀ k, 1 ≤ k → U_W.coeff k = g ^ (2 * k - 1) * W.coeff k := by
     intro k hk1
-    rw [coeff_finset_sum]
+    rw [finsetSum_coeff]
     by_cases hk : k ≤ W.natDegree
     · rw [Finset.sum_eq_single ⟨k - 1, by omega⟩]
       · have hsub : k - 1 + 1 = k := by omega
@@ -1924,7 +1863,7 @@ private theorem coeff_eq_map_recPoly {A : Type*} [CommRing A] [IsDomain A]
   have hW_comp : W.comp (C (g ^ 2) * X) = C (φ X) + C g * U_W := by
     ext k
     have hlhs : (W.comp (C (g ^ 2) * X)).coeff k = W.coeff k * (g ^ 2) ^ k := by
-      rw [Polynomial.comp, Polynomial.eval₂_eq_sum_range, coeff_finset_sum]
+      rw [Polynomial.comp, Polynomial.eval₂_eq_sum_range, finsetSum_coeff]
       by_cases hk : k < W.natDegree + 1
       · rw [Finset.sum_eq_single k]
         · rw [mul_pow, ← C_pow, mul_comm (C ((g ^ 2) ^ k)), ← mul_assoc, coeff_mul_C,
@@ -1980,7 +1919,7 @@ private theorem coeff_eq_map_recPoly {A : Type*} [CommRing A] [IsDomain A]
     | zero => omega
     | succ m =>
       have hc0 := congrArg (fun p : A[X] => p.coeff (m + 1)) hcomp0
-      rw [coeff_zero, coeff_finset_sum] at hc0
+      rw [coeff_zero, finsetSum_coeff] at hc0
       have hterm : ∀ a,
           (((shiftedCoeff S x₀ a).eval₂ (C.comp (φ.comp C)) (C (φ X) + C g * U_W)) *
             (C (g ^ 2) * X) ^ a).coeff (m + 1) =
@@ -1995,7 +1934,7 @@ private theorem coeff_eq_map_recPoly {A : Type*} [CommRing A] [IsDomain A]
         · have ha_deg : (shiftedCoeff S x₀ a).natDegree ≤ s :=
             (natDegree_shiftedCoeff_le S x₀ a).trans hS_deg
           rw [eval₂_add_eq_sum_hasseDeriv (C.comp (φ.comp C)) (shiftedCoeff S x₀ a) ha_deg
-            (C (φ X)) (C g * U_W), Finset.sum_mul, coeff_finset_sum]
+            (C (φ X)) (C g * U_W), Finset.sum_mul, finsetSum_coeff]
           refine Finset.sum_congr rfl fun j _ => ?_
           have hev : (hasseDeriv j (shiftedCoeff S x₀ a)).eval₂ (C.comp (φ.comp C)) (C (φ X)) =
               C (φ (hasseDeriv j (shiftedCoeff S x₀ a))) := by
@@ -2598,7 +2537,7 @@ private theorem exists_lifted_poly_and_mismatch_bound {ι : Type*} [Fintype ι] 
       rw [natDegree_C, zero_add, natDegree_X_pow]
       exact (mem_Icc.1 hk).2
   have hΨ_coeff0 : Ψ_trunc.coeff 0 = ystar := by
-    rw [coeff_add, coeff_C_zero, coeff_finset_sum]
+    rw [coeff_add, coeff_C_zero, finsetSum_coeff]
     have h0 : ∑ k ∈ Icc 1 (μ * d),
         (C (φstar (recPoly S x₀ s k) / gstar ^ (2 * k - 1)) * X ^ k).coeff 0 = 0 := by
       refine Finset.sum_eq_zero fun k hk => ?_
@@ -2609,7 +2548,7 @@ private theorem exists_lifted_poly_and_mismatch_bound {ι : Type*} [Fintype ι] 
       Ψ_trunc.coeff k =
         if k ≤ μ * d then φstar (recPoly S x₀ s k) / gstar ^ (2 * k - 1) else 0 := by
     intro k hk1
-    rw [coeff_add, coeff_C, ite_eq_right (by omega), zero_add, coeff_finset_sum]
+    rw [coeff_add, coeff_C, ite_eq_right (by omega), zero_add, finsetSum_coeff]
     by_cases hkle : k ≤ μ * d
     · rw [ite_eq_left hkle, Finset.sum_eq_single k]
       · rw [coeff_C_mul, coeff_X_pow_self, mul_one]
@@ -2659,7 +2598,7 @@ private theorem exists_lifted_poly_and_mismatch_bound {ι : Type*} [Fintype ι] 
           exact hm
         rw [hsum_pow]
         ext k
-        rw [coeff_finset_sum]
+        rw [finsetSum_coeff]
         by_cases hdiv : μ ∣ k
         · rcases hdiv with ⟨m, rfl⟩
           by_cases hm : m < d + 1
@@ -2980,7 +2919,7 @@ private theorem exists_correlatedAgreement_of_lifted_poly {ι : Type*} [Fintype 
   have hv_rs : ∀ j, v j ∈ reedSolomon α k := fun j => mem_reedSolomon.2 ⟨Pj j, hPj_deg j, rfl⟩
   have hPj_eval_J : ∀ j, ∀ i ∈ J, (Pj j).eval (α i) = u j i := by
     intro j i hi
-    simp only [Pj, eval_finset_sum', eval_mul, eval_C]
+    simp only [Pj, eval_finsetSum, eval_mul, eval_C]
     rw [Finset.sum_eq_single i]
     · rw [Lagrange.eval_basis_self (hα.injOn) hi, mul_one]
     · intro i' _ hne
@@ -2992,7 +2931,7 @@ private theorem exists_correlatedAgreement_of_lifted_poly {ι : Type*} [Fintype 
   let P_L : L[X] := P_FZ.map j_L
   have hP_FZ_eval : ∀ i : ι, P_FZ.eval (C (α i)) = curveWord v i := by
     intro i
-    simp only [P_FZ, curveWord, eval_finset_sum', eval_mul, eval_C, v]
+    simp only [P_FZ, curveWord, eval_finsetSum, eval_mul, eval_C, v]
     refine Finset.sum_congr rfl fun j _ => ?_
     have hhom := (Polynomial.hom_eval₂ (Pj j) (RingHom.id F) Polynomial.C (α i)).symm
     rw [RingHom.comp_id, Polynomial.eval₂_id] at hhom
