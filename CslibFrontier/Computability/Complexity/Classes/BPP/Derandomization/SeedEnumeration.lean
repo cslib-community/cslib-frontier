@@ -37,14 +37,17 @@ properties.
 * *Running time.* The decider is polynomial-time when the generator is and `2 ^ k` is polynomially
   bounded (`Cslib.Complexity.computableInPolyTime_seedDecider`). For any seed length `k(x)`
   computable in unary in polynomial time, it runs within time and space `2 ^ O(k(x))` times a
-  polynomial in the length of `x` (`Cslib.Complexity.exists_computableInO_seedDecider`): it is
-  polynomial-time on the instance padded by `2 ^ k(x)`
+  polynomial in the length of `x` (`Cslib.Complexity.exists_computableInO_seedDecider`) when the
+  generator is polynomial-time on the instance padded by `2 ^ k(x)`, as a generator running in time
+  `2 ^ O(k)` is: the decider is then polynomial-time on the padded instance
   (`Turing.MultiTapeTM.ComputableInPolyTime.exists_computableInO_pad`).
 
 Its instances are the Nisan–Wigderson derandomization
-(`Cslib.Complexity.BPP_subset_P_of_isAverageCaseHard`) and the derandomization from circuit-secure
+(`Cslib.Complexity.BPP_subset_P_of_isAverageCaseHard`), the derandomization from circuit-secure
 generators of polynomial stretch
-(`Cslib.Complexity.BPP_subset_DTIME_two_pow_rpow_of_polyStretch_circuitSecurePRG`).
+(`Cslib.Complexity.BPP_subset_DTIME_two_pow_rpow_of_polyStretch_circuitSecurePRG`) and from
+generators running in time exponential in the seed
+(`Cslib.Complexity.CanonicalDerandomizer.exists_mem_DTIME_of_mem_BPTIME`).
 
 ## Main definitions
 
@@ -124,19 +127,19 @@ private theorem majority_iff_of_abs_sub_lt {m ℓ Z R : ℕ} {P : Prop}
     omega
 
 /-- **Seed enumeration is correct when the generator fools the verifier on the instance.** Let `V`
-decide `A` with bounded error, reading `m = p(|x|)` random bits. If the fraction of the seeds `z`
-of `seed x` bits on which `V` accepts `gen x z` is within `1 / 6` of the fraction of the random
+answer whether `x ∈ A` with bounded error on random strings of `m` bits: it accepts at least two
+thirds of them if `x ∈ A`, and at most one third otherwise. If the fraction of the seeds `z` of
+`seed x` bits on which `V` accepts `gen x z` is within `1 / 6` of the fraction of the random
 strings of `m` bits that `V` accepts, then `seedDecider V gen seed` answers correctly on `x`. -/
-theorem seedDecider_eq_true_iff {A : Set α} {p : Polynomial ℕ} {V : α × List Bool → Bool}
-    (hA : DecidesWithBoundedError enc p V A) (gen : α → List Bool → List Bool) (seed : α → ℕ)
-    {x : α}
+theorem seedDecider_eq_true_iff {A : Set α} {V : α × List Bool → Bool} {x : α} {m : ℕ}
+    (hyes : x ∈ A → 2 * 2 ^ m ≤ 3 * acceptCount V x m)
+    (hno : x ∉ A → 3 * acceptCount V x m ≤ 2 ^ m)
+    (gen : α → List Bool → List Bool) (seed : α → ℕ)
     (hgap : |(#{z : Fin (seed x) → Bool | V (x, gen x (List.ofFn z)) = true} : ℝ) / 2 ^ seed x -
-      #{r : Fin (p.eval (enc x).length) → Bool | V (x, List.ofFn r) = true} /
-        2 ^ p.eval (enc x).length| < 1 / 6) :
+      acceptCount V x m / 2 ^ m| < 1 / 6) :
     seedDecider V gen seed x = true ↔ x ∈ A := by
   rw [seedDecider, listStrictMajority_map_enumList, decide_eq_true_iff]
-  refine (majority_iff_of_abs_sub_lt hgap ⟨fun hx => (hA x).1 hx, fun hx => ?_⟩).symm
-  exact boundedErrorAt_false_iff.1 ((hA x).2 hx)
+  exact (majority_iff_of_abs_sub_lt hgap ⟨hyes, hno⟩).symm
 
 /-! ### Running time -/
 
@@ -157,15 +160,19 @@ theorem computableInPolyTime_seedDecider {V : α × List Bool → Bool}
   exact bitsStrictMajorityWithInput (mapToBitsWithInput (f := fun x z => V (x, gen x z))
     (bitsEnumList_of_polyBounded hseed hbudget) hvote)
 
-/-- **Seed enumeration in time `2 ^ O(k)`.** Let `V` and the generator be polynomial-time, and the
-seed length `seed x` be computable in unary in polynomial time. Then `seedDecider V gen seed` is
-computable within time and space `C 2 ^ (D seed x) (|x| + 1) ^ D` for some constants `C` and `D`:
-on the instance padded by `2 ^ seed x` it is polynomial-time. -/
+/-- **Seed enumeration in time `2 ^ O(k)`.** Let `V` be polynomial-time, and the seed length
+`seed x` be computable in unary in polynomial time. Let the generator be polynomial-time on
+instances padded to `(x, N)` with `N = 2 ^ seed x` in unary: `gen'` is polynomial-time on
+`((x, N), z)` and agrees with `gen x` on seeds of `seed x` bits when `N = 2 ^ seed x`. A generator
+running in time `2 ^ O(k)` on seeds of `k` bits has such a padded form. Then
+`seedDecider V gen seed` is computable within time and space `C 2 ^ (D seed x) (|x| + 1) ^ D` for
+some constants `C` and `D`: on the padded instance it is polynomial-time. -/
 theorem exists_computableInO_seedDecider {V : α × List Bool → Bool}
-    {gen : α → List Bool → List Bool} {seed : α → ℕ}
+    {gen : α → List Bool → List Bool} {seed : α → ℕ} (gen' : α × ℕ → List Bool → List Bool)
     (hV : ComputableInPolyTime V (encPair enc encBits) encBool)
-    (hgen : ComputableInPolyTime (fun p : α × List Bool => gen p.1 p.2) (encPair enc encBits)
-      encBits)
+    (hgen : ComputableInPolyTime (fun q : (α × ℕ) × List Bool => gen' q.1 q.2)
+      (encPair (encPair enc encUnary) encBits) encBits)
+    (hgen' : ∀ x z, z.length = seed x → gen' (x, 2 ^ seed x) z = gen x z)
     (hseed : ComputableInPolyTime seed enc encUnary) :
     ∃ C D : ℕ, ComputableInO (seedDecider V gen seed) enc encBool
       (fun x => C * 2 ^ (D * seed x) * ((enc x).length + 1) ^ D)
@@ -176,8 +183,6 @@ theorem exists_computableInO_seedDecider {V : α × List Bool → Bool}
       (encPair encP encBits) enc := (fst enc encUnary).comp (fst encP encBits)
   have hV' : ComputableInPolyTime (fun p : (α × ℕ) × List Bool => V (p.1.1, p.2))
       (encPair encP encBits) encBool := hV.comp (hfst.prod (snd encP encBits))
-  have hgen' : ComputableInPolyTime (fun p : (α × ℕ) × List Bool => gen p.1.1 p.2)
-      (encPair encP encBits) encBits := hgen.comp (hfst.prod (snd encP encBits))
   have hlog : ComputableInPolyTime (fun q : α × ℕ => Nat.log 2 q.2) encP encUnary :=
     binary_log_two.comp (unary_to_binary.comp (snd enc encUnary))
   have hbudget : PolyBounded (fun q : α × ℕ => (encP q).length) fun q => 2 ^ Nat.log 2 q.2 :=
@@ -188,11 +193,13 @@ theorem exists_computableInO_seedDecider {V : α × List Bool → Bool}
       · simp [h0]
       · exact (Nat.pow_log_le_self 2 h0.ne').trans (hN.trans (Nat.le_succ _))
   obtain ⟨C, D, h⟩ := ComputableInPolyTime.exists_computableInO_pad
-    (computableInPolyTime_seedDecider (gen := fun q => gen q.1) hV' hgen' hlog hbudget) hseed
+    (computableInPolyTime_seedDecider hV' hgen hlog hbudget) hseed
   have heq : (fun x => seedDecider (fun p : (α × ℕ) × List Bool => V (p.1.1, p.2))
-      (fun q => gen q.1) (fun q => Nat.log 2 q.2) (x, 2 ^ seed x)) = seedDecider V gen seed := by
+      gen' (fun q => Nat.log 2 q.2) (x, 2 ^ seed x)) = seedDecider V gen seed := by
     funext x
     simp only [seedDecider, Nat.log_pow Nat.one_lt_two]
+    exact congrArg _ (List.map_congr_left fun z hz =>
+      congrArg (fun w => V (x, w)) (hgen' x z (BitString.length_of_mem_enumList hz)))
   exact ⟨C, D, heq ▸ h⟩
 
 end Cslib.Complexity

@@ -87,15 +87,7 @@ theorem computableInPolyTime_parallelGenerator {Param : Type} {input : Param ↪
     (hseed : ComputableInPolyTime seed input encBits) :
     ComputableInPolyTime
       (fun a => parallelGenerator generator (count a) (width a) (seed a)) input encBits := by
-  unfold parallelGenerator
-  have hrows : ComputableInPolyTime (fun a => BitString.listRows (count a) (width a) (seed a))
-      input (encList encBits) :=
-    ComputableInPolyTime.bitsRowsWithInput hcount hwidth hseed
-  have hmap : ComputableInPolyTime
-      (fun a => (BitString.listRows (count a) (width a) (seed a)).map generator)
-      input (encList encBits) :=
-    ComputableInPolyTime.mapWithInput hrows (hgenerator.comp (.snd _ _))
-  exact ComputableInPolyTime.bitsFlatten hmap
+  fun_prop [parallelGenerator]
 
 /-- Exact output length of `parallelGenerator` when each row output has length `length width`. -/
 theorem length_parallelGenerator {generator : List Bool → List Bool} {length : ℕ → ℕ}

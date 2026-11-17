@@ -13,6 +13,7 @@ public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Bo
 import Mathlib.Algebra.BigOperators.Fin
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Complete native compact box-value table
@@ -135,8 +136,6 @@ theorem exec_tileValue {w L H D V AA BB A B s : ℕ} (x : Data registers)
     have hf0 : Fits (w + 2) 0 := hfit.of_le (Nat.zero_le _)
     have hstart : ExecWithin (w + 2) childrenStart x u 2 := by
       ram_eval [childrenStart, u, hf0, Reg.accumulator, Reg.term, Fin.mk.injEq]
-    have uf (i : Fin registers) (hi : i ≠ Reg.accumulator) (ht : i ≠ Reg.term) :
-        u.regs i = x.regs i := by simp [u, hi, ht]
     have hrange (d : ℕ) (hd : d < 10) : rank d ≤ (H + 1) * 10 ^ L := by
       have hslt : childSlot L s ⟨d % 10, Nat.mod_lt _ (by decide)⟩ < (H + 1) * 10 ^ L := by
         have hh := eligible_childSlot hv hepos ⟨d % 10, Nat.mod_lt _ (by decide)⟩
@@ -148,13 +147,10 @@ theorem exec_tileValue {w L H D V AA BB A B s : ℕ} (x : Data registers)
         omega
       exact (Nat.count_le _).trans hslt.le
     obtain ⟨y, hy, hyd, hya, hym, _⟩ := exec_childLoop (R := (H + 1) * 10 ^ L) (C := C) u val rank
-      ((uf _ (by decide) (by decide)).trans hD) ((uf _ (by decide) (by decide)).trans hV)
-      ((uf _ (by decide) (by decide)).trans hc) ((uf _ (by decide) (by decide)).trans he)
-      ((uf _ (by decide) (by decide)).trans hT) hTpos
-      ((uf _ (by decide) (by decide)).trans hp) (by simp [u])
+      (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame) hTpos
+      (by regs_frame) (by simp [u])
       (by simp [u, Reg.accumulator, Reg.term])
-      ((uf _ (by decide) (by decide)).trans h9) ((uf _ (by decide) (by decide)).trans h1)
-      ((uf _ (by decide) (by decide)).trans h10)
+      (by regs_frame) (by regs_frame) (by regs_frame)
       (fun d hd => by
         simpa only [u, Data.set_mem, childSlot, childCode, rank, Nat.mod_eq_of_lt hd]
           using hrank hepos ⟨d, hd⟩)
@@ -218,21 +214,16 @@ theorem exec_tileStep {w L H D R V AA BB A B s : ℕ} (x : Data registers)
     (by simpa only [Nat.mul_comm] using hstars)
     (by simpa only [Nat.mul_comm] using hstride) (hfit.of_le (by omega))
   obtain ⟨v, hvexec, vacc, vm, vf⟩ := exec_tileValue u a b hv ha hb
-    ((uf _ (by decide)).trans hx.directory) ((uf _ (by decide)).trans hV)
-    ((uf _ (by decide)).trans hAA) ((uf _ (by decide)).trans hBB)
-    uc ue ((uf _ (by decide)).trans hx.span) up
-    ((uf _ (by decide)).trans hx.nil) ((uf _ (by decide)).trans hx.nine)
-    ((uf _ (by decide)).trans hx.one) ((uf _ (by decide)).trans hx.ten)
+    (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)
+    uc ue (by regs_frame) up
+    (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)
     (by simpa only [um] using hleft) (by simpa only [um] using hright)
     (fun he d => by simpa only [um] using hrank he d)
     (fun he d => by simpa only [um] using hvalue he d)
     (hfit.of_le (by omega)) hsigned
-  have vV : v.regs Reg.values = V :=
-    (vf _ (by decide)).trans ((uf _ (by decide)).trans hV)
-  have vj : v.regs Reg.current = Nat.count (Eligible L H) s :=
-    (vf _ (by decide)).trans ((uf _ (by decide)).trans hj)
-  have v1 : v.regs Reg.one = 1 :=
-    (vf _ (by decide)).trans ((uf _ (by decide)).trans hx.one)
+  have vV : v.regs Reg.values = V := by regs_frame
+  have vj : v.regs Reg.current = Nat.count (Eligible L H) s := by regs_frame
+  have v1 : v.regs Reg.one = 1 := by regs_frame
   have haddr : Fits (w + 2) (V + Nat.count (Eligible L H) s) := hfit.of_le (by omega)
   have hinc : Fits (w + 2) (Nat.count (Eligible L H) s + 1) := hfit.of_le (by omega)
   let y := ((v.set Reg.address (V + Nat.count (Eligible L H) s)).write
@@ -303,24 +294,9 @@ theorem exec_tileLoop {w L H D R V AA BB A B : ℕ} {μ : ℕ → ℕ} (x : Data
       (fun he d => yvalues _ ((childSlot_lt hvs he d).trans hs)
         (eligible_childSlot hvs he d) ((child_rank_lt hvs he d).trans_eq hsj))
       hfit hsigned
-    have zregs (i : Fin registers) (h : tileStep.Preserves i) : z.regs i = y.regs i :=
-      hz.regs_eq h
-    have zp : CatalogueParameters L H D R z := by
-      constructor
-      · exact (zregs _ (by decide)).trans yp.levels
-      · exact (zregs _ (by decide)).trans yp.height
-      · exact (zregs _ (by decide)).trans yp.span
-      · exact (zregs _ (by decide)).trans yp.directory
-      · exact (zregs _ (by decide)).trans yp.records
-      · exact (zregs _ (by decide)).trans yp.slots
-      · exact (zregs _ (by decide)).trans yp.one
-      · exact (zregs _ (by decide)).trans yp.ten
-      · exact (zregs _ (by decide)).trans yp.nine
-      · exact (zregs _ (by decide)).trans yp.three
-      · exact (zregs _ (by decide)).trans yp.nil
-    refine ⟨z, hz, ⟨zp, (zregs _ (by decide)).trans yV,
-      (zregs _ (by decide)).trans yA, (zregs _ (by decide)).trans yB,
-      (zregs _ (by decide)).trans yK, ?_, ?_⟩, by omega⟩
+    have zp : CatalogueParameters L H D R z := by regs_frame
+    refine ⟨z, hz, ⟨zp, by regs_frame, by regs_frame, by regs_frame,
+      by regs_frame, ?_, ?_⟩, by omega⟩
     · intro i hi hvi hji
       rw [hzm]
       by_cases hij : Nat.count (Eligible L H) i = Nat.count (Eligible L H) s
@@ -370,37 +346,10 @@ theorem exec_tile {w L H D R V AA BB A B : ℕ} {μ : ℕ → ℕ} (x : Data reg
   let v := u.set Reg.current 0
   have hv : ExecWithin (B := .standard) (w + 2) (ram[ Reg.current ← #0 ]) u v 1 := by
     ram_eval [v, hf0]
-  have vf0 (i : Fin registers) (hi : i ≠ Reg.current) : v.regs i = u.regs i := by
-    simp only [v, Data.set_regs, Function.update_of_ne hi]
-  have vp : CatalogueParameters L H D R v := by
-    constructor
-    · exact (vf0 _ (by decide)).trans
-        ((uf _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans hx.levels)
-    · exact (vf0 _ (by decide)).trans
-        ((uf _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans hx.height)
-    · exact (vf0 _ (by decide)).trans
-        ((uf _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans hx.span)
-    · exact (vf0 _ (by decide)).trans
-        ((uf _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans hx.directory)
-    · exact (vf0 _ (by decide)).trans
-        ((uf _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans hx.records)
-    · exact (vf0 _ (by decide)).trans
-        ((uf _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans hx.slots)
-    · exact (vf0 _ (by decide)).trans u1
-    · exact (vf0 _ (by decide)).trans u10
-    · exact (vf0 _ (by decide)).trans u9
-    · exact (vf0 _ (by decide)).trans u3
-    · exact (vf0 _ (by decide)).trans u0
-  have vf (i : Fin registers) (hi : i ≠ Reg.current) (h0 : i ≠ Reg.nil)
-      (h1 : i ≠ Reg.one) (h10 : i ≠ Reg.ten) (h9 : i ≠ Reg.nine) (h3 : i ≠ Reg.three) :
-      v.regs i = x.regs i := by
-    simpa only [v, Data.set_regs, Function.update_of_ne hi] using uf i h0 h1 h10 h9 h3
+  have vp : CatalogueParameters L H D R v := by regs_frame
   have vm : v.mem = x.mem := um
   obtain ⟨y, hy, hvalues, hframe⟩ := exec_tileLoop v a b ha hb vp
-    ((vf _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)).trans hV)
-    ((vf _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)).trans hAA)
-    ((vf _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)).trans hBB)
-    ((vf _ (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)).trans hcount)
+    (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)
     (by simp [v]) (by simpa only [vm] using hcat) hDR hRV hAV hBV
     (fun c => by simpa only [vm] using hleft c)
     (fun c => by simpa only [vm] using hright c) hfit hsigned

@@ -512,20 +512,11 @@ attribute [local fun_prop] computableInPolyTime_variableEdge
 @[fun_prop]
 theorem computableInPolyTime_formulaEdges :
     ComputableInPolyTime formulaEdges encCNF encEdgeList := by
-  have h0 := EUThreeSAT.computableInPolyTime_literalAt 0
-  have h1 := EUThreeSAT.computableInPolyTime_literalAt 1
-  have h2 := EUThreeSAT.computableInPolyTime_literalAt 2
-  unfold formulaEdges clauseEdges encCNF
-  fun_prop
+  fun_prop [formulaEdges, clauseEdges]
 
 private theorem computableInPolyTime_subdivisionEdges :
     ComputableInPolyTime subdivisionEdges encEdgeList encEdgeList := by
-  have hget : ComputableInPolyTime (fun p : List (ℕ × ℕ) × ℕ => p.1.getD p.2 (0, 0))
-      (encPair encEdgeList encUnary) (encPair encNat encNat) :=
-    ComputableInPolyTime.listGetDWithInput (ComputableInPolyTime.fst _ _)
-      (ComputableInPolyTime.snd _ _) (0, 0)
-  unfold subdivisionEdges pathEdges
-  fun_prop
+  fun_prop [subdivisionEdges, pathEdges]
 
 attribute [local fun_prop] computableInPolyTime_subdivisionEdges
 

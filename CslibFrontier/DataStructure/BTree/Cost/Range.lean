@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.DataStructure.BTree.Cost.Query
 public import CslibFrontier.DataStructure.BTree.Range
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # Node-visit cost of B-tree closed-interval queries
@@ -54,6 +55,8 @@ open Cslib.Algorithms.Lean.TimeM (tick)
 
 namespace Cslib.DataStructure.BTree
 
+open Cslib.SortedAssoc (leI)
+
 section NodeVisits
 
 variable {α β : Type} [LinearOrder α] {t : ℕ} {tr : BTree α β}
@@ -67,7 +70,7 @@ theorem rangeT_def (lo hi : α) : rangeT lo hi tr = rangeM leT (tick 1) lo hi tr
 
 /-- The value of `rangeT` is `range`. -/
 @[simp] theorem ret_rangeT (lo hi : α) : (rangeT lo hi tr).ret = range lo hi tr := by
-  simpa only [range_def, rangeT, leI, Id.run_pure, TimeM.ret_pure, TimeM.ret_tick] using
+  simpa only [range_def, rangeT, leI, Id.run_pure, time_simps] using
     Id.ext_iff.1 (TimeM.isMonadHom_pure_ret.map_rangeM leT (tick 1) lo hi tr)
 
 /-- The empty tree is not visited. -/

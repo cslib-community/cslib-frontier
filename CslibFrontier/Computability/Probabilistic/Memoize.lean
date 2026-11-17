@@ -13,6 +13,7 @@ public import CslibFrontier.Languages.Probabilistic.Oracle.Interaction
 public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
 
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
+import CslibFrontier.Foundations.Data.List.Lookup
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
@@ -52,12 +53,6 @@ namespace Cslib.Probability
 
 open Turing.MultiTapeTM
 
-private theorem lookup_eq_map_find {K V : Type} [BEq K] (key : K) (cache : List (K × V)) :
-    cache.lookup key = (cache.find? (fun entry => key == entry.1)).map Prod.snd := by
-  simp only [List.lookup_eq_findSome?, List.find?_eq_findSome?_guard, List.map_findSome?]
-  congr 1 with entry : 1
-  cases h : key == entry.1 <;> simp [Option.guard, h]
-
 /-- Encoding of a memoization cache, an association list of key/value entries: the framed list
 (`encList`) of entries, each the key (`keyEncoding`, framed) followed by its value
 (`valueEncoding`). `IsOraclePPTOn.memoize` spells out the same encoding because its module does
@@ -92,7 +87,7 @@ theorem IsPPTOn.memoize {α Key Value : Type} [BEq Key] [LawfulBEq Key] {input :
     fun_prop
   refine (hcompute.map_with (f := finish) hpost).congr ?_
   intro a
-  rw [Cslib.memoize, lookup_eq_map_find]
+  rw [Cslib.memoize, List.lookup_eq_map_find?]
   cases h : (cache a).find? (fun entry => query a == entry.1) <;>
     simp [finish, found, h, ProbComp.eval_map, PMF.map, Function.comp_def]
 

@@ -404,10 +404,7 @@ theorem computableInPolyTime_psmul {p : α → ℕ} {fl c : α → List ℕ} {P 
     (hc : ComputableInPolyTime c encIn (encList encNat))
     (hP : ComputableInPolyTime P encIn encPoly) :
     ComputableInPolyTime (fun x => psmul (p x) (fl x) (c x) (P x)) encIn encPoly := by
-  have h1 := ComputableInPolyTime.fst encIn (encList encNat)
-  have h2 := ComputableInPolyTime.snd encIn (encList encNat)
-  exact ComputableInPolyTime.mapWithInput hP
-    (computableInPolyTime_mul (hp.comp h1) (hfl.comp h1) (hc.comp h1) h2)
+  fun_prop [psmul]
 
 /-- **Multiplication by `z - v` is polynomial-time**, with the precision in unary. -/
 @[fun_prop]

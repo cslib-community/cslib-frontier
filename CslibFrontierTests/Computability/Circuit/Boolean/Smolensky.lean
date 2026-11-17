@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Boolean.Smolensky
 public import CslibFrontier.Computability.Circuit.Boolean.ACC0.Basic
+import CslibFrontier.Foundations.BooleanAnalysis.LowDegreeParity
 import CslibFrontier.Foundations.BooleanAnalysis.Symmetrization
 import Mathlib.Data.ZMod.Defs
 
@@ -16,7 +17,8 @@ import Mathlib.Data.ZMod.Defs
 # Tests for Razborov–Smolensky lower bounds and multiplicative characters
 
 Checked concrete evaluations and instantiations of `BitString.phaseChar`,
-`BitString.card_agree_phaseChar_le`, `Smolensky.two_mul_two_pow_le_size_of_computes_modGate`,
+`BitString.card_agree_phaseChar_le`, Arora–Barak Lemma 13.6 (`BitString.exists_agree_of_parity`
+with `BitString.lowDegree_eq_signSpan`), `Smolensky.two_mul_two_pow_le_size_of_computes_modGate`,
 `Smolensky.modGate_notMem_AC0Mod`, and `Smolensky.compl_modGate_notMem_AC0Mod`.
 -/
 
@@ -38,6 +40,33 @@ example : phaseChar (2 : ZMod 3) ({0, 1} : Finset (Fin 2)) ![true, false] = 2 :=
 example : #{x : BitString 2 | (1 : ZMod 3) = (2 : ZMod 3) ^ weight x} ≤
     #{S : Finset (Fin 2) | #S ≤ 2 / 2 + 0} :=
   card_agree_phaseChar_le (ω := (2 : ZMod 3)) (by decide) (by decide) (one_mem_lowDegree 0)
+
+/-! ### Arora–Barak Lemma 13.6 -/
+
+instance : Invertible (2 : ZMod 3) := ⟨2, by decide, by decide⟩
+
+/-- Arora–Barak Lemma 13.6 in the source's form, over `GF(3)` in the `±1` monomials
+`∏ i ∈ S, (-1) ^ xᵢ`: if a sum `g` of monomials of at most `√n` coordinates agrees with the product
+of all `n` coordinates on `G`, every function on `G` agrees there with a sum of monomials of at most
+`n / 2 + √n` coordinates. -/
+theorem lemma_13_6 {n : ℕ} {g : BitString n → ZMod 3}
+    (hg : g ∈ Submodule.span (ZMod 3) (chi (ZMod 3) '' {S : Finset (Fin n) | #S ≤ Nat.sqrt n}))
+    (G : Finset (BitString n)) (hG : ∀ x ∈ G, g x = chi (ZMod 3) univ x)
+    (f : BitString n → ZMod 3) :
+    ∃ p ∈ Submodule.span (ZMod 3) (chi (ZMod 3) '' {S : Finset (Fin n) | #S ≤ n / 2 + Nat.sqrt n}),
+      ∀ x ∈ G, p x = f x := by
+  have hg' : g ∈ lowDegree (ZMod 3) (Fin n) (Nat.sqrt n) := by
+    rw [lowDegree_eq_signSpan]
+    exact hg
+  obtain ⟨p, hp, h⟩ := exists_agree_of_parity hg' G hG f
+  rw [lowDegree_eq_signSpan, Fintype.card_fin] at hp
+  exact ⟨p, hp, h⟩
+
+-- The hypotheses hold for one coordinate, with `g` the character itself and `G` the whole cube.
+example (f : BitString 1 → ZMod 3) :
+    ∃ p ∈ Submodule.span (ZMod 3) (chi (ZMod 3) '' {S : Finset (Fin 1) | #S ≤ 1 / 2 + Nat.sqrt 1}),
+      ∀ x ∈ univ, p x = f x :=
+  lemma_13_6 (Submodule.subset_span ⟨univ, by simp, rfl⟩) univ (fun _ _ => rfl) f
 
 example :
     (fun x : BitString 2 =>

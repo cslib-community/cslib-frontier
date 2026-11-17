@@ -94,7 +94,7 @@ This module formalizes:
    (`maskedOneTimeGame`, `padDistinguisher`, `maskedOneTimeGame_toReal_le`,
    `maskedOneTimeGame_toReal_le_add_advantage`, `prfPadDist`, `prfOneTimeGame`,
    `prfOneTimeStrongGame`, `prfPadDistinguisher`, `prfOneTimeGame_le`,
-   `prfOneTimeStrongGame_le`, `prfOneTimeGame_ofProbComp_le`, `isOraclePPT_prfPadDistinguisher`,
+   `prfOneTimeGame_ofProbComp_le`, `isOraclePPT_prfPadDistinguisher`,
    `wordProbPadTest`, `isPPTOn_wordProbPadTest`,
    `isOraclePPT_prfPadDistinguisher_wordProbPadTest`)**: replacing the uniform
    pad `r ← PMF.uniformOfFintype Y` with any pad distribution `padDist : PMF Y` bounds the real
@@ -107,29 +107,10 @@ This module formalizes:
    strict oracle-PPT (`IsOraclePPT encBool`) whenever the pad test is uniformly strict PPT; for a
    two-stage strict-PPT word-level forger, `wordProbPadTest` builds that test and
    `isPPTOn_wordProbPadTest` certifies it. These are concrete bounds and certificates only. The
-   pad `F(k, 0ⁿ)` is the first pad of the counter MAC of item 7, so the asymptotic statement for
+   pad `F(k, 0ⁿ)` is the first pad of the counter MAC of item 6, so the asymptotic statement for
    this one-query variant is the one-query case of
    `PseudorandomFunction.counterSufCma_carterWegmanNonceMAC`.
-6. **Multi-query fresh-nonce PRF-masked Carter–Wegman MAC (`counterSeqHandler`,
-   `maskedCounterSlotGame`, `maskedCounterGame`, `maskedCounterStrongGame`,
-   `counterPadSeqDistinguisher`, `prfPadSeqDist`, `prfCounterSlotGame`, `prfCounterGame`,
-   `prfCounterStrongGame`, `prfMultiPadDistinguisher`, `prfCounterSlotGame_le`,
-   `prfCounterGame_le`, `prfCounterStrongGame_le`, `isOraclePPT_prfMultiPadDistinguisher`)**: when
-   the `i`-th signing query uses a PRF pad `BitString.ofList n (prfOracle family n key (nonce n i))`
-   at pairwise distinct `n`-bit nonces `nonce n 0, ..., nonce n (Q n - 1)`, any `Q n`-query-bounded
-   adaptive `CounterForger` has forgery probability at most `ε.toReal` plus the concrete `Q n`-query
-   PRF distinguishing advantage of `prfMultiPadDistinguisher Q nonce test`, for a pad-sequence test
-   `test` that the caller supplies together with the equation that it realizes the forger's
-   pad-sequence distinguisher (after [BonehShoup2023], Section 7.5, Theorem 7.10). These are
-   concrete bounds only; no asymptotic statement is made for the typed counter games. The
-   word-level counter MAC is item 7's `PseudorandomFunction.counterSufCma_carterWegmanNonceMAC`.
-   The typed games here model
-   the nonce-based Carter–Wegman construction under two restrictions compared to Boneh–Shoup
-   Attack Game 7.4: (a) the signer's counter schedule `nonce n i` fixes the nonces rather than
-   letting the adversary choose distinct nonces, and (b) `checkCounterSlot` / `checkCounterEUF` /
-   `checkCounterSUF` accept forgeries only at issued counter slots (`pads[idx]? = some r`) and
-   reject unissued `idx`, which removes the `1 / |T|` unissued-nonce guessing term.
-7. **Full nonce-based Carter–Wegman MAC (`NonceForger`, `nonceFnHandler`, `nonceSimHandler`,
+6. **Full nonce-based Carter–Wegman MAC (`NonceForger`, `nonceFnHandler`, `nonceSimHandler`,
    `reconstructPadFn`, `checkNonceSUF`, `checkNonceEUF`, `nonceStrongGame`, `nonceGame`,
    `nonceStrongGame_le_max`, `nonceStrongGame_le`, `nonceGame_le_max`, `nonceGame_le`,
    `maskedNonceStrongGame`, `maskedNonceGame`, `carterWegmanNonceMAC`, `cwNonceLogHandler`,
@@ -151,7 +132,7 @@ This module formalizes:
    and hash evaluation. With the nonce implemented as an `n`-bit counter by a stateful signer
    (Section 7.5 and the remark after Theorem 7.10), `NonceMACScheme.SUFCMA.counterSufCma` gives
    `NonceMACScheme.CounterSUFCMA`.
-8. **Randomized Carter–Wegman MAC (`RandomNonceForger`, `randomNonceFnHandler`,
+7. **Randomized Carter–Wegman MAC (`RandomNonceForger`, `randomNonceFnHandler`,
    `randomNonceSimHandler`, `checkRandomNonceSUF`, `checkRandomNonceEUF`,
    `randomNonceStrongGame`, `randomNonceGame`, `randomNonceStrongGame_le`, `randomNonceGame_le`,
    `maskedRandomNonceStrongGame`, `maskedRandomNonceGame`, `carterWegmanRandomMAC`,
@@ -172,7 +153,7 @@ This module formalizes:
    reduction `prfRandomNonceToPrfDistinguisher` for the word-level scheme `carterWegmanRandomMAC`,
    and proving asymptotic `MACScheme.SUFCMA`, `MACScheme.EUFCMA`, and `MACScheme.OneTimeEUFCMA`
    security for every oracle-PPT forger under `PseudorandomFunction family` and `Negligible ε`.
-9. **Concrete instantiations** for Carter–Wegman polynomial hashing (`xpolyHash`, bound
+8. **Concrete instantiations** for Carter–Wegman polynomial hashing (`xpolyHash`, bound
    `(ℓ + 1) / |F|`), Boolean-matrix linear hashing (`BitString.LinearHash.hash` and computational
    `linearHashNonceMAC` / `linearHashRandomMAC` via `BitString.LinearHash.wordHash`, bound `2⁻ᵐ`),
    subset-sum hashing (`BitString.SubsetSum.hash`, bound `1 / |G|`), and pairwise independent
@@ -197,25 +178,13 @@ This module formalizes:
   `Cslib.Crypto.Protocols.CarterWegman.probPadTest`,
   `Cslib.Crypto.Protocols.CarterWegman.wordProbPadTest`: arbitrary-pad one-time Carter–Wegman
   experiment and its induced `PMF` and `ProbComp` pad distinguishers.
-* `Cslib.Crypto.Protocols.CarterWegman.encForgeInput`,
-  `Cslib.Crypto.Protocols.CarterWegman.encPadsInput`: the encodings of the forgery program's input
-  and of the pad-list test's input.
+* `Cslib.Crypto.Protocols.CarterWegman.encForgeInput`: the encoding of the forgery program's
+  input.
 * `Cslib.Crypto.Protocols.CarterWegman.prfPadDist`,
   `Cslib.Crypto.Protocols.CarterWegman.prfOneTimeGame`,
   `Cslib.Crypto.Protocols.CarterWegman.prfOneTimeStrongGame`,
   `Cslib.Crypto.Protocols.CarterWegman.prfPadDistinguisher`: one-query, fixed-nonce PRF-masked
   Carter–Wegman experiments and the single-query `OracleDistinguisher` adapter.
-* `Cslib.Crypto.Protocols.CarterWegman.counterSeqHandler`,
-  `Cslib.Crypto.Protocols.CarterWegman.maskedCounterSlotGame`,
-  `Cslib.Crypto.Protocols.CarterWegman.maskedCounterGame`,
-  `Cslib.Crypto.Protocols.CarterWegman.maskedCounterStrongGame`,
-  `Cslib.Crypto.Protocols.CarterWegman.counterPadSeqDistinguisher`,
-  `Cslib.Crypto.Protocols.CarterWegman.prfPadSeqDist`,
-  `Cslib.Crypto.Protocols.CarterWegman.prfCounterSlotGame`,
-  `Cslib.Crypto.Protocols.CarterWegman.prfCounterGame`,
-  `Cslib.Crypto.Protocols.CarterWegman.prfCounterStrongGame`,
-  `Cslib.Crypto.Protocols.CarterWegman.prfMultiPadDistinguisher`: multi-query fresh-nonce
-  PRF-masked Carter–Wegman experiments and the `Q`-query `OracleDistinguisher` adapter.
 * `Cslib.Crypto.Protocols.CarterWegman.NonceForger`,
   `Cslib.Crypto.Protocols.CarterWegman.nonceFnHandler`,
   `Cslib.Crypto.Protocols.CarterWegman.nonceSimHandler`,
@@ -269,22 +238,12 @@ This module formalizes:
 * `Cslib.Crypto.Protocols.CarterWegman.eval_prfRealGame_prfPadDistinguisher`,
   `Cslib.Crypto.Protocols.CarterWegman.eval_prfIdealGame_prfPadDistinguisher`,
   `Cslib.Crypto.Protocols.CarterWegman.prfOneTimeGame_le`,
-  `Cslib.Crypto.Protocols.CarterWegman.prfOneTimeStrongGame_le`,
   `Cslib.Crypto.Protocols.CarterWegman.prfOneTimeGame_ofProbComp_le`,
   `Cslib.Crypto.Protocols.CarterWegman.isOraclePPT_prfPadDistinguisher`,
   `Cslib.Crypto.Protocols.CarterWegman.isPPTOn_wordProbPadTest`,
   `Cslib.Crypto.Protocols.CarterWegman.isOraclePPT_prfPadDistinguisher_wordProbPadTest`:
   concrete single-query PRF-pad bounds and `IsOraclePPT` admissibility of the reduction (after
   Boneh–Shoup Section 7.4).
-* `Cslib.Crypto.Protocols.CarterWegman.uniform_bind_run_interpret_counterSeqHandler`,
-  `Cslib.Crypto.Protocols.CarterWegman.eval_prfRealGame_prfMultiPadDistinguisher`,
-  `Cslib.Crypto.Protocols.CarterWegman.eval_prfIdealGame_prfMultiPadDistinguisher`,
-  `Cslib.Crypto.Protocols.CarterWegman.prfCounterSlotGame_le`,
-  `Cslib.Crypto.Protocols.CarterWegman.prfCounterGame_le`,
-  `Cslib.Crypto.Protocols.CarterWegman.prfCounterStrongGame_le`,
-  `Cslib.Crypto.Protocols.CarterWegman.isOraclePPT_prfMultiPadDistinguisher`: concrete
-  multi-query fresh-nonce PRF-masked Carter–Wegman bounds and `IsOraclePPT` admissibility of the
-  pad-collecting reduction (after Boneh–Shoup Section 7.5, Theorem 7.10).
 * `Cslib.Crypto.Protocols.CarterWegman.uniform_bind_run_interpret_nonceFnHandler`,
   `Cslib.Crypto.Protocols.CarterWegman.probOracleComp_uniform_bind_run_interpret_nonceFnHandler`,
   `Cslib.Crypto.Protocols.CarterWegman.seed_uniform_checkNonceSUF_le`,
@@ -326,7 +285,6 @@ This module formalizes:
   `Cslib.Crypto.Protocols.CarterWegman.counterGame_linearHash_le`,
   `Cslib.Crypto.Protocols.CarterWegman.nonceStrongGame_linearHash_le`,
   `Cslib.Crypto.Protocols.CarterWegman.randomNonceStrongGame_linearHash_le`,
-  `Cslib.Crypto.Protocols.CarterWegman.prfOneTimeGame_linearHash_le`,
   `Cslib.Crypto.Protocols.CarterWegman.isDeltaUniversalHash_linearHashWordHash`,
   `Cslib.Crypto.Protocols.CarterWegman.sufCmaGame_linearHashNonceMAC_toReal_le`,
   `Cslib.Crypto.PseudorandomFunction.sufCma_linearHashNonceMAC`,
@@ -1075,23 +1033,6 @@ theorem prfOneTimeGame_le {n : ℕ} {seed : PMF K} {hash : K → M → BitString
   rw [eval_prfRealGame_prfPadDistinguisher, eval_prfIdealGame_prfPadDistinguisher, ← hpad]
   exact maskedOneTimeGame_toReal_le_add_advantage hh hε (prfPadDist family n) forger
 
-/-- **Exact single-query PRF-pad reduction for `prfOneTimeStrongGame`** in the one-query,
-fixed-nonce case (after [BonehShoup2023], Section 7.4); admissibility (`IsOraclePPT encBool`) and
-the asymptotic `PseudorandomFunction` corollary are not asserted here. -/
-theorem prfOneTimeStrongGame_le {n : ℕ} {seed : PMF K} {hash : K → M → BitString n} {ε : ℝ≥0∞}
-    (hh : IsDeltaUniversalHash seed hash ε) (hε : ε ≠ ⊤)
-    (family : List Bool → List Bool → List Bool)
-    (forger : OneTimeForger M (BitString n))
-    (test : (k : ℕ) → BitString k → ProbComp Bool)
-    (htest : ∀ r, padDistinguisher seed hash forger r = ProbComp.eval (test n r)) :
-    (prfOneTimeStrongGame seed family n hash forger true).toReal ≤
-      ε.toReal +
-        (Game.advantage
-          (ProbComp.eval (prfRealGame id family (prfPadDistinguisher test) n))
-          (ProbComp.eval (prfIdealGame id id (prfPadDistinguisher test) n)) : ℝ) := by
-  rw [prfOneTimeStrongGame_eq_prfOneTimeGame]
-  exact prfOneTimeGame_le hh hε family forger test htest
-
 /-- **Exact single-query PRF-pad reduction for `ProbComp` samplers and forgers** in the one-query,
 fixed-nonce case (after [BonehShoup2023], Section 7.4): at parameter `n`, any `ProbComp` hash-key
 sampler `seed`, query program `query`, and forgery program `forge` induce the single-query PRF
@@ -1247,492 +1188,6 @@ theorem isOraclePPT_prfPadDistinguisher_wordProbPadTest
   isOraclePPT_prfPadDistinguisher (isPPTOn_wordProbPadTest hseed hhash hquery hforge)
 
 end PRFPad
-
-/-! ### Multi-query fresh-nonce PRF-masked Carter–Wegman MAC (after Boneh–Shoup Section 7.5) -/
-
-section PRFCounter
-
-variable {K M Y : Type} [AddGroup Y]
-
-/-- Counter Carter–Wegman signing handler driven by a deterministic pad sequence `padSeq : ℕ → Y`:
-on the `i`-th query `m` (`i = pads.length`), it uses the pad `r = padSeq pads.length`, appends
-`(m, r)` to the pad log, and returns `sign hash k r m`. -/
-noncomputable def counterSeqHandler (hash : K → M → Y) (k : K) (padSeq : ℕ → Y) (m : M) :
-    StateT (List (M × Y)) PMF Y := fun pads =>
-  let r := padSeq pads.length
-  PMF.pure (sign hash k r m, pads ++ [(m, r)])
-
-@[simp]
-theorem run_counterSeqHandler (hash : K → M → Y) (k : K) (padSeq : ℕ → Y) (m : M)
-    (pads : List (M × Y)) :
-    (counterSeqHandler hash k padSeq m).run pads =
-      PMF.pure (sign hash k (padSeq pads.length) m, pads ++ [(m, padSeq pads.length)]) := rfl
-
-@[simp]
-theorem run_counterRealHandler [Fintype Y] [Nonempty Y] (hash : K → M → Y) (k : K) (m : M)
-    (pads : List (M × Y)) :
-    (counterRealHandler hash k m).run pads =
-      (PMF.uniformOfFintype Y).bind fun r => PMF.pure (sign hash k r m, pads ++ [(m, r)]) := rfl
-
-/-- If `prog` makes at most `Q` queries, then running `prog` against `counterSeqHandler` from `pads`
-depends only on the pads `padSeq i` for `i ∈ [pads.length, pads.length + Q)`. -/
-theorem run_interpret_counterSeqHandler_congr {α : Type} (hash : K → M → Y) (k : K)
-    {padSeq₁ padSeq₂ : ℕ → Y} {prog : OracleComp (fun _ : M => Y) α} {Q : ℕ}
-    (hprog : prog.IsQueryBounded Q) (pads : List (M × Y))
-    (hpad : ∀ i, pads.length ≤ i → i < pads.length + Q → padSeq₁ i = padSeq₂ i) :
-    (OracleComp.interpret (counterSeqHandler hash k padSeq₁) prog).run pads =
-      (OracleComp.interpret (counterSeqHandler hash k padSeq₂) prog).run pads := by
-  induction hprog generalizing pads with
-  | pure a Q => rfl
-  | liftBind m cont Q hcont ih =>
-    simp only [OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind,
-      PMF.monad_bind_eq_bind, run_counterSeqHandler, PMF.pure_bind]
-    have h0 : padSeq₁ pads.length = padSeq₂ pads.length :=
-      hpad pads.length (le_refl _) (by omega)
-    rw [h0]
-    exact ih (sign hash k (padSeq₂ pads.length) m) (pads ++ [(m, padSeq₂ pads.length)])
-      fun i hlo hhi => by
-        simp only [List.length_append, List.length_singleton] at hlo hhi
-        exact hpad i (by omega) (by omega)
-
-/-- When `table ← PMF.uniformOfFintype (ι → Y)` is a uniformly random function and `nonce : ℕ → ι`
-is injective on `[pads.length, pads.length + Q)`, running any `Q`-query-bounded program `prog`
-against `counterSeqHandler hash k (fun i => table (nonce i))` from `pads` has the exact same
-distribution as running `prog` against `counterRealHandler hash k` from `pads`. -/
-theorem uniform_bind_run_interpret_counterSeqHandler
-    {ι α : Type} [DecidableEq ι] [Fintype ι] [Fintype Y] [Nonempty Y]
-    (hash : K → M → Y) (k : K) (nonce : ℕ → ι)
-    {prog : OracleComp (fun _ : M => Y) α} {Q : ℕ}
-    (hprog : prog.IsQueryBounded Q) (pads : List (M × Y))
-    (hinj : ∀ i, pads.length ≤ i → i < pads.length + Q →
-      ∀ j, pads.length ≤ j → j < pads.length + Q → nonce i = nonce j → i = j) :
-    ((PMF.uniformOfFintype (ι → Y)).bind fun table =>
-      (OracleComp.interpret (counterSeqHandler hash k (fun i => table (nonce i))) prog).run pads) =
-      (OracleComp.interpret (counterRealHandler hash k) prog).run pads := by
-  induction hprog generalizing pads with
-  | pure a Q =>
-    simp [PMF.monad_pure_eq_pure]
-  | liftBind m cont Q hcont ih =>
-    rw [← PMF.uniformOfFintype_update (γ := Y) (nonce pads.length), PMF.bind_bind]
-    simp only [pmf_norm, OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind,
-      run_counterSeqHandler, run_counterRealHandler, Function.update_self]
-    congr 1
-    funext r
-    have hcongr (table : ι → Y) :
-        (OracleComp.interpret
-          (counterSeqHandler hash k fun i => Function.update table (nonce pads.length) r (nonce i))
-          (cont (sign hash k r m))).run (pads ++ [(m, r)]) =
-        (OracleComp.interpret
-          (counterSeqHandler hash k fun i => table (nonce i))
-          (cont (sign hash k r m))).run (pads ++ [(m, r)]) := by
-      refine run_interpret_counterSeqHandler_congr hash k (hcont (sign hash k r m))
-        (pads ++ [(m, r)]) fun i hlo hhi => ?_
-      simp only [List.length_append, List.length_singleton] at hlo hhi
-      have hne : nonce i ≠ nonce pads.length := fun heq => by
-        have := hinj i (by omega) (by omega) pads.length (le_refl _) (by omega) heq
-        omega
-      exact Function.update_of_ne hne r table
-    simp only [hcongr]
-    exact ih (sign hash k r m) (pads ++ [(m, r)]) fun i hi₁ hi₂ j hj₁ hj₂ heq => by
-      simp only [List.length_append, List.length_singleton] at hi₁ hi₂ hj₁ hj₂
-      exact hinj i (by omega) (by omega) j (by omega) (by omega) heq
-
-variable [DecidableEq M] [DecidableEq Y]
-
-/-- The issued-slot EUF-CMA experiment for the counter Carter–Wegman MAC under an arbitrary
-pad-sequence distribution `padSeqDist : PMF (ℕ → Y)`. -/
-noncomputable def maskedCounterSlotGame (seed : PMF K) (padSeqDist : PMF (ℕ → Y))
-    (hash : K → M → Y) (forger : CounterForger M Y) : PMF Bool := do
-  let k ← seed
-  let padSeq ← padSeqDist
-  let s ← forger.coins
-  let res ← (OracleComp.interpret (counterSeqHandler hash k padSeq) (forger.forge s)).run []
-  return checkCounterSlot hash k res.2 res.1
-
-/-- The issued-counter global-message-freshness EUF-CMA experiment under an arbitrary
-pad-sequence distribution `padSeqDist : PMF (ℕ → Y)`. -/
-noncomputable def maskedCounterGame (seed : PMF K) (padSeqDist : PMF (ℕ → Y))
-    (hash : K → M → Y) (forger : CounterForger M Y) : PMF Bool := do
-  let k ← seed
-  let padSeq ← padSeqDist
-  let s ← forger.coins
-  let res ← (OracleComp.interpret (counterSeqHandler hash k padSeq) (forger.forge s)).run []
-  return checkCounterEUF hash k res.2 res.1
-
-/-- The issued-slot strong SUF-CMA experiment under an arbitrary pad-sequence distribution
-`padSeqDist : PMF (ℕ → Y)`. -/
-noncomputable def maskedCounterStrongGame (seed : PMF K) (padSeqDist : PMF (ℕ → Y))
-    (hash : K → M → Y) (forger : CounterForger M Y) : PMF Bool := do
-  let k ← seed
-  let padSeq ← padSeqDist
-  let s ← forger.coins
-  let res ← (OracleComp.interpret (counterSeqHandler hash k padSeq) (forger.forge s)).run []
-  return checkCounterSUF hash k res.2 res.1
-
-theorem maskedCounterStrongGame_eq_maskedCounterSlotGame (seed : PMF K)
-    (padSeqDist : PMF (ℕ → Y)) (hash : K → M → Y) (forger : CounterForger M Y) :
-    maskedCounterStrongGame seed padSeqDist hash forger =
-      maskedCounterSlotGame seed padSeqDist hash forger := by
-  dsimp only [maskedCounterStrongGame, maskedCounterSlotGame, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure]
-  congr 1 with k : 1; congr 1 with padSeq : 1; congr 1 with s : 1; congr 1 with res : 1
-  rw [checkCounterSUF_eq_checkCounterSlot]
-
-theorem maskedCounterGame_le_maskedCounterSlotGame (seed : PMF K) (padSeqDist : PMF (ℕ → Y))
-    (hash : K → M → Y) (forger : CounterForger M Y) :
-    maskedCounterGame seed padSeqDist hash forger true ≤
-      maskedCounterSlotGame seed padSeqDist hash forger true := by
-  dsimp only [maskedCounterGame, maskedCounterSlotGame, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure]
-  refine bind_apply_mono_on_support seed true fun k _ => ?_
-  refine bind_apply_mono_on_support padSeqDist true fun padSeq _ => ?_
-  refine bind_apply_mono_on_support forger.coins true fun s _ => ?_
-  refine bind_apply_mono_on_support
-    ((OracleComp.interpret (counterSeqHandler hash k padSeq) (forger.forge s)).run []) true
-    fun res _ => ?_
-  by_cases h : checkCounterEUF hash k res.2 res.1 = true
-  · rw [h, checkCounterEUF_imp_checkCounterSlot hash k res.2 res.1 h]
-  · simp [Bool.eq_false_iff.mpr h]
-
-/-- The induced multi-query pad-sequence distinguisher `(ℕ → Y) → PMF Bool` that samples `k ← seed`
-and `s ← forger.coins`, simulates `forger.forge s` using `counterSeqHandler hash k padSeq`, and
-evaluates `checkCounterSlot hash k`. -/
-noncomputable def counterPadSeqDistinguisher (seed : PMF K) (hash : K → M → Y)
-    (forger : CounterForger M Y) (padSeq : ℕ → Y) : PMF Bool := do
-  let k ← seed
-  let s ← forger.coins
-  let res ← (OracleComp.interpret (counterSeqHandler hash k padSeq) (forger.forge s)).run []
-  return checkCounterSlot hash k res.2 res.1
-
-theorem maskedCounterSlotGame_eq_bind_counterPadSeqDistinguisher (seed : PMF K)
-    (padSeqDist : PMF (ℕ → Y)) (hash : K → M → Y) (forger : CounterForger M Y) :
-    maskedCounterSlotGame seed padSeqDist hash forger =
-      padSeqDist.bind (counterPadSeqDistinguisher seed hash forger) :=
-  PMF.bind_comm seed padSeqDist _
-
-/-- If `forger` makes at most `Q` signing queries, then `counterPadSeqDistinguisher` depends only on
-the first `Q` pads `padSeq 0, ..., padSeq (Q - 1)`. -/
-theorem counterPadSeqDistinguisher_congr (seed : PMF K) (hash : K → M → Y)
-    {forger : CounterForger M Y} {Q : ℕ} (hforger : ∀ s, (forger.forge s).IsQueryBounded Q)
-    {padSeq₁ padSeq₂ : ℕ → Y} (hpad : ∀ i < Q, padSeq₁ i = padSeq₂ i) :
-    counterPadSeqDistinguisher seed hash forger padSeq₁ =
-      counterPadSeqDistinguisher seed hash forger padSeq₂ := by
-  dsimp only [counterPadSeqDistinguisher, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure]
-  congr 1 with k : 1; congr 1 with s : 1
-  rw [run_interpret_counterSeqHandler_congr hash k (hforger s) []
-    (fun i _ hi => hpad i (by simpa using hi))]
-
-/-- When `table ← PMF.uniformOfFintype (ι → Y)` and `nonce : ℕ → ι` is injective on
-`{0, ..., Q - 1}`, sampling `table` and running `counterPadSeqDistinguisher` on
-`fun i => table (nonce i)` has the exact same distribution as `counterSlotGame seed hash forger`. -/
-theorem uniform_bind_counterPadSeqDistinguisher
-    {ι : Type} [DecidableEq ι] [Fintype ι] [Fintype Y] [Nonempty Y]
-    (seed : PMF K) (hash : K → M → Y) (nonce : ℕ → ι)
-    {forger : CounterForger M Y} {Q : ℕ} (hforger : ∀ s, (forger.forge s).IsQueryBounded Q)
-    (hinj : ∀ i < Q, ∀ j < Q, nonce i = nonce j → i = j) :
-    ((PMF.uniformOfFintype (ι → Y)).bind fun table =>
-      counterPadSeqDistinguisher seed hash forger (fun i => table (nonce i))) =
-      counterSlotGame seed hash forger := by
-  dsimp only [counterPadSeqDistinguisher, counterSlotGame, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure]
-  pmf_swap with k s
-  rw [← PMF.bind_bind,
-    uniform_bind_run_interpret_counterSeqHandler hash k nonce (hforger s) []
-      (fun i _ hi j _ hj heq => hinj i (by simpa using hi) j (by simpa using hj) heq)]
-
-/-- The multi-query pad-sequence distribution on `ℕ → BitString n` obtained by sampling a uniform
-`n`-bit PRF key `key ← BitString.uniformList n` and evaluating `prfOracle family n key (nonce i)` at
-each counter index `i`. -/
-noncomputable def prfPadSeqDist (family : List Bool → List Bool → List Bool) (n : ℕ)
-    (nonce : ℕ → List Bool) : PMF (ℕ → BitString n) :=
-  (BitString.uniformList n).map fun key i =>
-    BitString.ofList n (prfOracle family n key (nonce i))
-
-/-- The multi-query fresh-nonce PRF-masked Carter–Wegman issued-slot EUF-CMA experiment
-(after [BonehShoup2023], Section 7.5, Theorem 7.10), where the signer's counter schedule `nonce`
-fixes the nonces and `checkCounterSlot` accepts only issued counter indices (`pads[idx]? = some r`),
-rejecting unissued `idx`. -/
-noncomputable def prfCounterSlotGame (seed : PMF K) (family : List Bool → List Bool → List Bool)
-    (n : ℕ) (nonce : ℕ → List Bool) (hash : K → M → BitString n)
-    (forger : CounterForger M (BitString n)) : PMF Bool :=
-  maskedCounterSlotGame seed (prfPadSeqDist family n nonce) hash forger
-
-/-- The multi-query fresh-nonce PRF-masked Carter–Wegman issued-counter EUF-CMA experiment
-(after [BonehShoup2023], Section 7.5, Theorem 7.10), where the signer's counter schedule `nonce`
-fixes the nonces and `checkCounterEUF` accepts only issued counter indices
-(`pads[idx]? = some r`), rejecting unissued `idx`. -/
-noncomputable def prfCounterGame (seed : PMF K) (family : List Bool → List Bool → List Bool)
-    (n : ℕ) (nonce : ℕ → List Bool) (hash : K → M → BitString n)
-    (forger : CounterForger M (BitString n)) : PMF Bool :=
-  maskedCounterGame seed (prfPadSeqDist family n nonce) hash forger
-
-/-- The multi-query fresh-nonce PRF-masked Carter–Wegman issued-slot strong SUF-CMA experiment
-(after [BonehShoup2023], Section 7.5, Theorem 7.10), where the signer's counter schedule `nonce`
-fixes the nonces and `checkCounterSUF` accepts only issued counter indices
-(`pads[idx]? = some r`), rejecting unissued `idx`. -/
-noncomputable def prfCounterStrongGame (seed : PMF K) (family : List Bool → List Bool → List Bool)
-    (n : ℕ) (nonce : ℕ → List Bool) (hash : K → M → BitString n)
-    (forger : CounterForger M (BitString n)) : PMF Bool :=
-  maskedCounterStrongGame seed (prfPadSeqDist family n nonce) hash forger
-
-theorem prfCounterStrongGame_eq_prfCounterSlotGame (seed : PMF K)
-    (family : List Bool → List Bool → List Bool) (n : ℕ) (nonce : ℕ → List Bool)
-    (hash : K → M → BitString n) (forger : CounterForger M (BitString n)) :
-    prfCounterStrongGame seed family n nonce hash forger =
-      prfCounterSlotGame seed family n nonce hash forger :=
-  maskedCounterStrongGame_eq_maskedCounterSlotGame seed (prfPadSeqDist family n nonce) hash forger
-
-theorem prfCounterGame_le_prfCounterSlotGame (seed : PMF K)
-    (family : List Bool → List Bool → List Bool) (n : ℕ) (nonce : ℕ → List Bool)
-    (hash : K → M → BitString n) (forger : CounterForger M (BitString n)) :
-    prfCounterGame seed family n nonce hash forger true ≤
-      prfCounterSlotGame seed family n nonce hash forger true :=
-  maskedCounterGame_le_maskedCounterSlotGame seed (prfPadSeqDist family n nonce) hash forger
-
-/-- One step of multi-pad collection at security parameter `n` under nonce schedule `nonce`:
-query the external oracle at `nonce n pads.length`, take at most `n` reply bits, and append the
-reply to `pads`. -/
-def prfPadCollectStep (n : ℕ) (nonce : ℕ → ℕ → List Bool) (pads : List (List Bool)) :
-    WordOracleComp Unit (List (List Bool)) :=
-  (fun reply => pads ++ [reply]) <$>
-    (List.take n <$> ProbOracleComp.query ((), nonce n pads.length))
-
-/-- Input `(1ⁿ, pads)` of the pad-list test of `prfMultiPadDistinguisher`: the security parameter
-`n` in unary, framed, then the collected pad words, each framed. -/
-abbrev encPadsInput : ℕ × List (List Bool) ↪ List Bool :=
-  encPair encUnary (encList encBits)
-
-/-- Multi-query PRF `OracleDistinguisher` for a query budget `Q : ℕ → ℕ`, nonce schedule
-`nonce : ℕ → ℕ → List Bool`, and pad-sequence test
-`test : (k : ℕ) → (ℕ → BitString k) → ProbComp Bool`: at security parameter `n`, collect `Q n`
-oracle replies at `nonce n 0, ..., nonce n (Q n - 1)` and run `test n` on the `n`-bit views of the
-collected replies. -/
-def prfMultiPadDistinguisher (Q : ℕ → ℕ) (nonce : ℕ → ℕ → List Bool)
-    (test : (k : ℕ) → (ℕ → BitString k) → ProbComp Bool) : OracleDistinguisher :=
-  fun n _ => do
-    let replies ← OracleComp.iterate (Q n) (prfPadCollectStep n nonce) []
-    ProbOracleComp.sample (test n (fun i => BitString.ofList n (replies.getD i [])))
-
-private theorem interpret_iterate_prfPadCollectStep (n : ℕ) (nonce : ℕ → ℕ → List Bool)
-    (f : List Bool → List Bool) (q : ℕ) (init : List (List Bool)) :
-    OracleComp.interpret
-      (OracleComp.sumHandler ProbComp.unifFin (fun request => pure (f request.2)))
-      (OracleComp.iterate q (prfPadCollectStep n nonce) init) =
-      pure (init ++ (List.range q).map (fun i => (f (nonce n (init.length + i))).take n)) := by
-  induction q generalizing init with
-  | zero =>
-    simp [OracleComp.iterate]
-  | succ q ih =>
-    simp only [OracleComp.iterate_succ, prfPadCollectStep, OracleComp.interpret_bind,
-      OracleComp.interpret_map, ProbOracleComp.interpret_query, pure_bind, Functor.map_map,
-      map_pure, ih, List.length_append, List.length_map, List.length_range, List.range_succ,
-      List.map_append, List.map_singleton, List.append_assoc]
-
-private theorem ofList_getD_map_range_take (n q : ℕ) (g : ℕ → List Bool) {i : ℕ} (hi : i < q) :
-    BitString.ofList n (((List.range q).map (fun j => (g j).take n)).getD i []) =
-      BitString.ofList n (g i) := by
-  rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (by simp [hi]), Option.getD_some,
-    List.getElem_map, List.getElem_range, BitString.ofList_take]
-
-/-- In `prfRealGame`, when `forger` makes at most `Q n` signing queries and `test n` realizes
-`counterPadSeqDistinguisher seed hash forger`, `prfMultiPadDistinguisher Q nonce test` has the exact
-outcome distribution of `prfCounterSlotGame seed family n (nonce n) hash forger`. -/
-theorem eval_prfRealGame_prfMultiPadDistinguisher {n : ℕ} (seed : PMF K)
-    (family : List Bool → List Bool → List Bool) (Q : ℕ → ℕ) (nonce : ℕ → ℕ → List Bool)
-    (hash : K → M → BitString n) {forger : CounterForger M (BitString n)}
-    (hforger : ∀ s, (forger.forge s).IsQueryBounded (Q n))
-    (test : (k : ℕ) → (ℕ → BitString k) → ProbComp Bool)
-    (htest : ∀ padSeq, counterPadSeqDistinguisher seed hash forger padSeq =
-      ProbComp.eval (test n padSeq)) :
-    ProbComp.eval (prfRealGame id family (prfMultiPadDistinguisher Q nonce test) n) =
-      prfCounterSlotGame seed family n (nonce n) hash forger := by
-  rw [prfCounterSlotGame, maskedCounterSlotGame_eq_bind_counterPadSeqDistinguisher]
-  simp only [pmf_norm, prfRealGame, id_eq, ProbOracleComp.run, prfMultiPadDistinguisher,
-    prfPadSeqDist, OracleComp.interpret_bind, interpret_iterate_prfPadCollectStep, List.nil_append,
-    List.length_nil, Nat.zero_add, pure_bind, ProbOracleComp.interpret_sample,
-    BitString.eval_sampleList]
-  simp only [ProbComp.interpret_unifFin]
-  congr 1 with key : 1
-  rw [← htest]
-  exact counterPadSeqDistinguisher_congr seed hash hforger fun i hi =>
-    ofList_getD_map_range_take n (Q n) (fun j => prfOracle family n key (nonce n j)) hi
-
-/-- In `prfIdealGame`, when `forger` makes at most `Q n` signing queries, each `nonce n i`
-(`i < Q n`) has length `n`, the `Q n` nonces are pairwise distinct on `{0, ..., Q n - 1}`, and
-`test n` realizes `counterPadSeqDistinguisher seed hash forger`,
-`prfMultiPadDistinguisher Q nonce test` has the exact outcome distribution of the ideal
-`counterSlotGame seed hash forger`. -/
-theorem eval_prfIdealGame_prfMultiPadDistinguisher {n : ℕ} (seed : PMF K)
-    (Q : ℕ → ℕ) (nonce : ℕ → ℕ → List Bool) (hash : K → M → BitString n)
-    {forger : CounterForger M (BitString n)}
-    (hforger : ∀ s, (forger.forge s).IsQueryBounded (Q n))
-    (hnonce_len : ∀ i < Q n, (nonce n i).length = n)
-    (hnonce_inj : ∀ i < Q n, ∀ j < Q n, nonce n i = nonce n j → i = j)
-    (test : (k : ℕ) → (ℕ → BitString k) → ProbComp Bool)
-    (htest : ∀ padSeq, counterPadSeqDistinguisher seed hash forger padSeq =
-      ProbComp.eval (test n padSeq)) :
-    ProbComp.eval (prfIdealGame id id (prfMultiPadDistinguisher Q nonce test) n) =
-      counterSlotGame seed hash forger := by
-  simp only [prfIdealGame, id_eq, ProbOracleComp.run, prfMultiPadDistinguisher,
-    OracleComp.interpret_bind, interpret_iterate_prfPadCollectStep, List.nil_append,
-    List.length_nil, Nat.zero_add, pure_bind, ProbOracleComp.interpret_sample,
-    ProbComp.eval_bind, ProbComp.eval_uniform]
-  simp only [ProbComp.interpret_unifFin]
-  have htable (table : BitString n → BitString n) :
-      ProbComp.eval
-        (test n fun i =>
-          BitString.ofList n
-            (((List.range (Q n)).map fun j =>
-              (randomFunctionOracle n table (nonce n j)).take n).getD i [])) =
-      counterPadSeqDistinguisher seed hash forger
-        (fun i => table (BitString.ofList n (nonce n i))) := by
-    rw [← htest]
-    refine counterPadSeqDistinguisher_congr seed hash hforger fun i hi => ?_
-    rw [ofList_getD_map_range_take n (Q n) (fun j => randomFunctionOracle n table (nonce n j)) hi]
-    simp [randomFunctionOracle, hnonce_len i hi]
-  simp only [htable]
-  refine uniform_bind_counterPadSeqDistinguisher seed hash
-    (fun i => BitString.ofList n (nonce n i)) hforger fun i hi j hj heq => ?_
-  apply hnonce_inj i hi j hj
-  rw [← BitString.ofFn_ofList (hnonce_len i hi), ← BitString.ofFn_ofList (hnonce_len j hj), heq]
-
-/-- **Multi-query fresh-nonce PRF-masked Carter–Wegman issued-slot reduction**
-(after [BonehShoup2023], Section 7.5, Theorem 7.10): when `hash` is `ε`-almost-Δ-universal
-(`ε ≠ ⊤`), `forger` makes at most `Q n` signing queries, and `nonce n 0, ..., nonce n (Q n - 1)`
-are pairwise distinct `n`-bit nonces fixed by the signer's counter schedule, the real-valued
-issued-slot forgery probability in `prfCounterSlotGame` is at most `ε.toReal` plus the concrete PRF
-distinguishing advantage of `prfMultiPadDistinguisher Q nonce test` at parameter `n` (with
-unissued counter indices rejected by `checkCounterSlot`). This is a concrete lemma: the caller
-supplies the pad-sequence test together with the equation `htest` that it realizes
-`counterPadSeqDistinguisher seed hash forger`, and no asymptotic statement is made for this typed
-game. The asymptotic counter MAC theorem is
-`PseudorandomFunction.counterSufCma_carterWegmanNonceMAC`. -/
-theorem prfCounterSlotGame_le {n : ℕ} {seed : PMF K} {hash : K → M → BitString n} {ε : ℝ≥0∞}
-    (hh : IsDeltaUniversalHash seed hash ε) (hε : ε ≠ ⊤)
-    (family : List Bool → List Bool → List Bool)
-    (Q : ℕ → ℕ) (nonce : ℕ → ℕ → List Bool)
-    {forger : CounterForger M (BitString n)}
-    (hforger : ∀ s, (forger.forge s).IsQueryBounded (Q n))
-    (hnonce_len : ∀ i < Q n, (nonce n i).length = n)
-    (hnonce_inj : ∀ i < Q n, ∀ j < Q n, nonce n i = nonce n j → i = j)
-    (test : (k : ℕ) → (ℕ → BitString k) → ProbComp Bool)
-    (htest : ∀ padSeq, counterPadSeqDistinguisher seed hash forger padSeq =
-      ProbComp.eval (test n padSeq)) :
-    (prfCounterSlotGame seed family n (nonce n) hash forger true).toReal ≤
-      ε.toReal +
-        (Game.advantage
-          (ProbComp.eval (prfRealGame id family (prfMultiPadDistinguisher Q nonce test) n))
-          (ProbComp.eval (prfIdealGame id id (prfMultiPadDistinguisher Q nonce test) n)) : ℝ) := by
-  rw [eval_prfRealGame_prfMultiPadDistinguisher seed family Q nonce hash hforger test htest,
-    eval_prfIdealGame_prfMultiPadDistinguisher seed Q nonce hash hforger hnonce_len hnonce_inj
-      test htest,
-    Game.coe_advantage, Game.coe_succProbability, Game.coe_succProbability]
-  have hle : (counterSlotGame seed hash forger true).toReal ≤ ε.toReal :=
-    ENNReal.toReal_mono hε (counterSlotGame_le hh forger)
-  linarith [le_abs_self ((prfCounterSlotGame seed family n (nonce n) hash forger true).toReal -
-    (counterSlotGame seed hash forger true).toReal)]
-
-/-- **Multi-query fresh-nonce PRF-masked Carter–Wegman issued-counter EUF-CMA reduction**
-(after [BonehShoup2023], Section 7.5, Theorem 7.10). -/
-theorem prfCounterGame_le {n : ℕ} {seed : PMF K} {hash : K → M → BitString n} {ε : ℝ≥0∞}
-    (hh : IsDeltaUniversalHash seed hash ε) (hε : ε ≠ ⊤)
-    (family : List Bool → List Bool → List Bool)
-    (Q : ℕ → ℕ) (nonce : ℕ → ℕ → List Bool)
-    {forger : CounterForger M (BitString n)}
-    (hforger : ∀ s, (forger.forge s).IsQueryBounded (Q n))
-    (hnonce_len : ∀ i < Q n, (nonce n i).length = n)
-    (hnonce_inj : ∀ i < Q n, ∀ j < Q n, nonce n i = nonce n j → i = j)
-    (test : (k : ℕ) → (ℕ → BitString k) → ProbComp Bool)
-    (htest : ∀ padSeq, counterPadSeqDistinguisher seed hash forger padSeq =
-      ProbComp.eval (test n padSeq)) :
-    (prfCounterGame seed family n (nonce n) hash forger true).toReal ≤
-      ε.toReal +
-        (Game.advantage
-          (ProbComp.eval (prfRealGame id family (prfMultiPadDistinguisher Q nonce test) n))
-          (ProbComp.eval (prfIdealGame id id (prfMultiPadDistinguisher Q nonce test) n)) : ℝ) := by
-  have hmono : (prfCounterGame seed family n (nonce n) hash forger true).toReal ≤
-      (prfCounterSlotGame seed family n (nonce n) hash forger true).toReal :=
-    ENNReal.toReal_mono (PMF.apply_ne_top _ _)
-      (prfCounterGame_le_prfCounterSlotGame seed family n (nonce n) hash forger)
-  exact hmono.trans
-    (prfCounterSlotGame_le hh hε family Q nonce hforger hnonce_len hnonce_inj test htest)
-
-/-- **Multi-query fresh-nonce PRF-masked Carter–Wegman issued-slot SUF-CMA reduction**
-(after [BonehShoup2023], Section 7.5, Theorem 7.10). -/
-theorem prfCounterStrongGame_le {n : ℕ} {seed : PMF K} {hash : K → M → BitString n} {ε : ℝ≥0∞}
-    (hh : IsDeltaUniversalHash seed hash ε) (hε : ε ≠ ⊤)
-    (family : List Bool → List Bool → List Bool)
-    (Q : ℕ → ℕ) (nonce : ℕ → ℕ → List Bool)
-    {forger : CounterForger M (BitString n)}
-    (hforger : ∀ s, (forger.forge s).IsQueryBounded (Q n))
-    (hnonce_len : ∀ i < Q n, (nonce n i).length = n)
-    (hnonce_inj : ∀ i < Q n, ∀ j < Q n, nonce n i = nonce n j → i = j)
-    (test : (k : ℕ) → (ℕ → BitString k) → ProbComp Bool)
-    (htest : ∀ padSeq, counterPadSeqDistinguisher seed hash forger padSeq =
-      ProbComp.eval (test n padSeq)) :
-    (prfCounterStrongGame seed family n (nonce n) hash forger true).toReal ≤
-      ε.toReal +
-        (Game.advantage
-          (ProbComp.eval (prfRealGame id family (prfMultiPadDistinguisher Q nonce test) n))
-          (ProbComp.eval (prfIdealGame id id (prfMultiPadDistinguisher Q nonce test) n)) : ℝ) := by
-  rw [prfCounterStrongGame_eq_prfCounterSlotGame]
-  exact prfCounterSlotGame_le hh hε family Q nonce hforger hnonce_len hnonce_inj test htest
-
-/-- `prfMultiPadDistinguisher Q nonce test` is uniformly strict oracle-PPT (`IsOraclePPT encBool`)
-whenever the query budget `Q`, the nonce schedule `nonce`, and the pad-list test `test` are
-uniformly polynomial-time / strict PPT. -/
-theorem isOraclePPT_prfMultiPadDistinguisher
-    {Q : ℕ → ℕ} {nonce : ℕ → ℕ → List Bool}
-    {test : (k : ℕ) → (ℕ → BitString k) → ProbComp Bool}
-    (hQ : ComputableInPolyTime Q encUnary encUnary)
-    (hnonce : ComputableInPolyTime (fun p : ℕ × ℕ => nonce p.1 p.2)
-      (encPair encUnary encUnary) encBits)
-    (htest : IsPPTOn encPadsInput encBool
-      (fun p : ℕ × List (List Bool) =>
-        test p.1 (fun i => BitString.ofList p.1 (p.2.getD i [])))) :
-    IsOraclePPT encBool (prfMultiPadDistinguisher Q nonce test) := by
-  have hq : IsOraclePPTOn
-      (encPair (encPair encUnary encBits) (encList encBits))
-      encBits
-      (fun p : (ℕ × List Bool) × List (List Bool) =>
-        List.take p.1.1 <$> ProbOracleComp.query ((), nonce p.1.1 p.2.length)) :=
-    IsOraclePPTOn.query_take' ()
-      (hnonce.comp (g := fun p : (ℕ × List Bool) × List (List Bool) => (p.1.1, p.2.length))
-        (by fun_prop))
-      (by fun_prop)
-  have hstep : IsOraclePPTOn
-      (encPair (encPair encUnary encBits) (encList encBits))
-      (encList encBits)
-      (fun p : (ℕ × List Bool) × List (List Bool) =>
-        prfPadCollectStep p.1.1 nonce p.2) := by
-    unfold prfPadCollectStep
-    exact hq.map_with'
-      (f := fun (p : (ℕ × List Bool) × List (List Bool)) reply => p.2 ++ [reply])
-      (by fun_prop)
-  have hpoly : PolyBounded (fun p : ℕ × List Bool => (encPair encUnary encBits p).length)
-      (fun p : ℕ × List Bool => 2 * p.1 + 2) := by
-    have h1 : ComputableInPolyTime (fun p : ℕ × List Bool => 2 * p.1 + 2)
-        (encPair encUnary encBits) encUnary := by fun_prop
-    simpa only [encUnary_apply, List.length_replicate] using h1.polyBounded_length
-  have hiter : IsOraclePPTOn (encPair encUnary encBits) (encList encBits)
-      (fun p : ℕ × List Bool =>
-        OracleComp.iterate (Q p.1) (prfPadCollectStep p.1 nonce) []) := by
-    refine IsOraclePPTOn.iterateWith_of_bounded_growth'
-      (initial := fun _ : ℕ × List Bool => ([] : List (List Bool)))
-      (count := fun p : ℕ × List Bool => Q p.1)
-      (step := fun (p : ℕ × List Bool) pads => prfPadCollectStep p.1 nonce pads)
-      (by fun_prop) (by fun_prop) hstep hpoly ?_
-    intro p pads next hnext
-    supp_cases hnext [prfPadCollectStep, Functor.map_map] with ⟨rawReply, -, rfl⟩
-    have hlen : (rawReply.take p.1).length ≤ p.1 := List.length_take_le _ _
-    enc_len [encList_append]
-  unfold prfMultiPadDistinguisher
-  apply IsOraclePPTOn.isOraclePPT
-  exact hiter.bind_with ((htest.preprocess
-    (prepare := fun p : (ℕ × List Bool) × List (List Bool) => (p.1.1, p.2))
-    (by fun_prop)).isOraclePPTOn)
-
-end PRFCounter
 
 private theorem bind_bool_mono_of_imp {α β γ δ : Type}
     (pa : PMF α) (pb : PMF β) (pc : PMF γ) (pd : α → β → γ → PMF δ)
@@ -4200,33 +3655,6 @@ theorem counterStrongGame_linearHash_le (n m : ℕ)
       BitString.LinearHash.hash forger true ≤ ((2 : ℝ≥0∞) ^ m)⁻¹ := by
   simpa only [BitString.card, Nat.cast_pow, Nat.cast_ofNat] using
     counterStrongGame_le (BitString.LinearHash.isDeltaUniversalHash n m) forger
-
-/-- **Exact single-query PRF-pad reduction for Boolean-matrix Carter–Wegman
-(`BitString.LinearHash.hash`)** in the one-query, fixed-nonce case (after [BonehShoup2023],
-Section 7.4): hashing `n`-bit messages to `m`-bit tags with a uniform Boolean matrix and masking by
-a fixed-nonce PRF evaluation at security parameter `m` has real-valued one-time forgery probability
-at most `(2 ^ m)⁻¹` plus the concrete PRF distinguishing advantage of `prfPadDistinguisher test` at
-parameter `m` (without asserting `IsOraclePPT encBool` admissibility or an asymptotic
-`PseudorandomFunction` corollary). -/
-theorem prfOneTimeGame_linearHash_le (n m : ℕ)
-    (family : List Bool → List Bool → List Bool)
-    (forger : OneTimeForger (BitString n) (BitString m))
-    (test : (k : ℕ) → BitString k → ProbComp Bool)
-    (htest : ∀ r,
-      padDistinguisher (PMF.uniformOfFintype (Fin m → BitString n))
-        BitString.LinearHash.hash forger r = ProbComp.eval (test m r)) :
-    (prfOneTimeGame (PMF.uniformOfFintype (Fin m → BitString n)) family m
-      BitString.LinearHash.hash forger true).toReal ≤
-      ((2 : ℝ) ^ m)⁻¹ +
-        (Game.advantage
-          (ProbComp.eval (prfRealGame id family (prfPadDistinguisher test) m))
-          (ProbComp.eval (prfIdealGame id id (prfPadDistinguisher test) m)) : ℝ) := by
-  have hε : ((Fintype.card (BitString m) : ℝ≥0∞))⁻¹ ≠ ⊤ := by
-    simp
-  have h := prfOneTimeGame_le (BitString.LinearHash.isDeltaUniversalHash n m) hε family forger
-    test htest
-  simpa only [BitString.card, Nat.cast_pow, Nat.cast_ofNat, ENNReal.toReal_inv,
-    ENNReal.toReal_pow, ENNReal.toReal_ofNat] using h
 
 /-- **Subset-sum Carter–Wegman one-time MAC (`BitString.LinearHash` / `BitString.SubsetSum.hash`)**:
 hashing binary words `ι → Bool` into a finite additive abelian group `G` via uniform subset-sum

@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Complexity.Classes.QMA.NP
 public import CslibFrontier.Computability.Circuit.Quantum.HadamardLayer
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # `MA ⊆ QMA` and `BPP ⊆ BQP`
@@ -156,10 +157,7 @@ theorem acceptProb_ofMA (F : UniformCircuitFamily) (q p : Polynomial ℕ) (x : L
     subst hr
     have hy : y = y' := by
       funext i
-      have hne : ∀ j, blockEmb _ hp j ≠ blockEmb _ hq i := fun j hj => by
-        have := congrArg Fin.val hj
-        simp only [blockEmb_apply_val] at this
-        omega
+      have hne : ∀ j, blockEmb _ hp j ≠ blockEmb _ hq i := by fin_index [blockEmb_apply_val]
       have := congrFun h (blockEmb _ hq i)
       rwa [glue_of_not _ _ _ hne, glue_of_not _ _ _ hne, glue_apply_emb, glue_apply_emb] at this
     rw [hy]
