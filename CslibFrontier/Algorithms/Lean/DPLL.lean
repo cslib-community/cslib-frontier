@@ -8,14 +8,16 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Logics.Propositional.Resolution.LRAT
+public import CslibFrontier.Logics.Propositional.CNF.UnitPropagation
 
 /-! # A DPLL solver with LRAT certificates
 
-The procedure of Davis, Logemann and Loveland [DavisLogemannLoveland1962] decides satisfiability
-of a formula in conjunctive normal form by searching over partial assignments. Here a partial
-assignment is a list `π` of literals assumed true, and the search
-(`Cslib.Algorithms.Lean.DPLL.search`) returns one of two outcomes
-(`Cslib.Algorithms.Lean.DPLL.Outcome`):
+The procedure of Davis, Logemann and Loveland [DavisLogemannLoveland1962, pp. 394–395] decides
+satisfiability of a formula in conjunctive normal form by splitting on variables and propagating
+unit clauses. This is a variant: it keeps the splitting and the unit rule, but not the pure-literal
+rule, and it does not rewrite the formula as the search assigns variables. Here a partial assignment
+is a list `π` of literals assumed true, and the search (`Cslib.Algorithms.Lean.DPLL.search`) returns
+one of two outcomes (`Cslib.Algorithms.Lean.DPLL.Outcome`):
 
 * a model of the formula, with a proof that it is one; or
 * a tree-like resolution derivation (`Cslib.Logic.PL.CNF.Derivation`) of a clause that `π`
@@ -25,12 +27,14 @@ If `π` falsifies a clause of the formula, that clause is the derivation. If `π
 clause, it gives the model. Otherwise the search branches on a variable that `π` leaves open: the
 variable of a *unit* clause, one with a single literal not falsified by `π`, trying that literal
 first, or else the next open variable, trying `true` first. Trying the literal of a unit clause
-first is unit propagation, since the other branch falsifies the unit clause at once. When both
-branches return derivations and both clauses contain the branch variable, their resolvent on it
+first is unit propagation, since the other branch falsifies the unit clause at once. The search
+keeps the open variables in a list without repetitions (`Cslib.Algorithms.Lean.DPLL.OpenVars`), so
+it never branches on a variable already assigned (`Cslib.Algorithms.Lean.DPLL.OpenVars.fresh`). When
+both branches return derivations and both clauses contain the branch variable, their resolvent on it
 is falsified by `π`; when one does not, that clause is already falsified by `π`. Recursion is
-structural on a bound on the number of open variables, which provably never runs out, so the
-search always ends with an outcome; there is no `partial`. The kernel can run it, so `decide`
-evaluates the solver on small formulas.
+structural on a bound on the number of open variables, which provably never runs out, so the search
+always ends with an outcome; there is no `partial`. The kernel can run it, so `decide` evaluates the
+solver on small formulas.
 
 From the empty partial assignment, a derivation is a refutation, which compiles to an LRAT
 certificate (`Cslib.Logic.PL.CNF.Derivation.toLRAT`). `Cslib.Algorithms.Lean.DPLL.solve` returns a
@@ -53,6 +57,7 @@ can be exponentially longer than what clause learning needs.
 * `Cslib.Algorithms.Lean.DPLL.solve_sat`, `Cslib.Algorithms.Lean.DPLL.solve_unsat`: both answers
   are correct.
 * `Cslib.Algorithms.Lean.DPLL.isSat_solve_iff`: the solver decides satisfiability.
+* `Cslib.Algorithms.Lean.DPLL.OpenVars.fresh`: the search branches only on unassigned variables.
 * `Cslib.Algorithms.Lean.DPLL.exists_checkLRAT_iff`: the checker is complete.
 
 ## References
@@ -73,19 +78,19 @@ open Std.Tactic.BVDecide (LRAT.IntAction)
 /-- A partial assignment, as a list of literals assumed true, falsifies a clause if it contains the
 negation of every literal of the clause. -/
 def Falsifies (π : List (Literal ℕ)) (c : Clause ℕ) : Bool :=
-  c.all fun l => π.contains (l.1, !l.2)
+  c.all fun l => π.contains l.negate
 
 /-- A literal holds under a partial assignment if the assignment contains it and not its
 negation. -/
 def Holds (π : List (Literal ℕ)) (l : Literal ℕ) : Bool :=
-  π.contains l && !π.contains (l.1, !l.2)
+  π.contains l && !π.contains l.negate
 
 /-- The total assignment of a partial assignment: a variable is true if it is assumed true. -/
 def assignment (π : List (Literal ℕ)) (x : ℕ) : Bool :=
   π.contains (x, true)
 
 theorem falsifies_iff {π : List (Literal ℕ)} {c : Clause ℕ} :
-    Falsifies π c = true ↔ ∀ l ∈ c, (l.1, !l.2) ∈ π := by
+    Falsifies π c = true ↔ ∀ l ∈ c, l.negate ∈ π := by
   simp [Falsifies]
 
 /-- A literal that holds under a partial assignment holds under its total assignment. -/
@@ -93,7 +98,7 @@ theorem eval_assignment_of_holds {π : List (Literal ℕ)} {l : Literal ℕ}
     (h : Holds π l = true) : Literal.eval (assignment π) l = true := by
   obtain ⟨v, b⟩ := l
   simp only [Holds, Bool.and_eq_true, List.contains_iff_mem, Bool.not_eq_true'] at h
-  cases b <;> simp_all [assignment, Literal.eval]
+  cases b <;> simp_all [assignment, Literal.eval, Std.Sat.Literal.negate]
 
 /-- If every clause has a literal that holds, the total assignment is a model. -/
 theorem eval_assignment {φ : CNF ℕ} {π : List (Literal ℕ)}
@@ -112,22 +117,14 @@ theorem all_any_holds {φ : CNF ℕ} {π : List (Literal ℕ)}
   refine List.all_eq_true.2 fun c hc => ?_
   have hnf : Falsifies π c = false := by
     simpa using List.find?_eq_none.1 hnone c hc
-  obtain ⟨l, hl, hopen⟩ : ∃ l ∈ c, (l.1, !l.2) ∉ π := by
+  obtain ⟨l, hl, hopen⟩ : ∃ l ∈ c, l.negate ∉ π := by
     by_contra hne
     push Not at hne
     simp [falsifies_iff.2 hne] at hnf
   refine List.any_eq_true.2 ⟨l, hl, ?_⟩
   have hv := hassigned l.1 (CNF.mem_vars.2 ⟨c, hc, l.2, hl⟩)
   obtain ⟨v, b⟩ := l
-  cases b <;> simp_all [Holds]
-
-/-- A literal of a clause falsified by `(u, s) :: π`, other than `(u, !s)`, is falsified by `π`. -/
-theorem mem_of_mem_cons_of_ne {π : List (Literal ℕ)} {u : ℕ} {s : Bool} {c : Clause ℕ}
-    (h : ∀ l ∈ c, (l.1, !l.2) ∈ (u, s) :: π) {l : Literal ℕ} (hl : l ∈ c) (hne : l ≠ (u, !s)) :
-    (l.1, !l.2) ∈ π := by
-  rcases List.mem_cons.1 (h l hl) with heq | hmem
-  · exact absurd (by obtain ⟨v, b⟩ := l; simp_all) hne
-  · exact hmem
+  cases b <;> simp_all [Holds, Std.Sat.Literal.negate]
 
 /-! ### The search -/
 
@@ -137,15 +134,15 @@ inductive Outcome (φ : CNF ℕ) (π : List (Literal ℕ)) : Type
   /-- A model of the formula. -/
   | sat (σ : ℕ → Bool) (h : φ.eval σ = true)
   /-- A derivation of a clause that `π` falsifies. -/
-  | unsat (c : Clause ℕ) (d : φ.Derivation c) (h : ∀ l ∈ c, (l.1, !l.2) ∈ π)
+  | unsat (c : Clause ℕ) (d : φ.Derivation c) (h : ∀ l ∈ c, l.negate ∈ π)
 
 /-- The literal of a clause that has exactly one literal not falsified by `π`, if that literal is
 not already assumed. -/
 def unitLiteral? (φ : CNF ℕ) (π : List (Literal ℕ)) : Option (Literal ℕ) :=
   φ.findSome? fun c =>
-    match c.filter (fun l => !π.contains (l.1, !l.2)) with
-    | [l] => if π.contains l then none else some l
-    | _ => none
+    match Clause.unit? (c.filter fun l => !π.contains l.negate) with
+    | some l => if π.contains l then none else some l
+    | none => none
 
 /-- The literal to branch on: the literal of a unit clause if its variable is open, and otherwise
 the first open variable, `true` first. -/
@@ -159,36 +156,54 @@ def branchLiteral (φ : CNF ℕ) (π : List (Literal ℕ)) (x : ℕ) (xs : List 
 clauses on `v`, which `π` falsifies. -/
 def resolveBranches {φ : CNF ℕ} {π : List (Literal ℕ)} (v : ℕ) :
     (b : Bool) → {c₁ c₂ : Clause ℕ} → φ.Derivation c₁ → (v, !b) ∈ c₁ →
-      (∀ l ∈ c₁, (l.1, !l.2) ∈ (v, b) :: π) → φ.Derivation c₂ → (v, b) ∈ c₂ →
-      (∀ l ∈ c₂, (l.1, !l.2) ∈ (v, !b) :: π) → Outcome φ π
+      (∀ l ∈ c₁, l.negate ∈ (v, b) :: π) → φ.Derivation c₂ → (v, b) ∈ c₂ →
+      (∀ l ∈ c₂, l.negate ∈ (v, !b) :: π) → Outcome φ π
   | true, c₁, c₂, d₁, hc₁, h₁, d₂, hc₂, h₂ =>
     .unsat (c₂.resolvent c₁ v) (.resolvent v d₂ d₁ hc₂ hc₁) fun l hl => by
       rcases Clause.mem_resolvent.1 hl with ⟨hl, hne⟩ | ⟨hl, hne⟩
-      · exact mem_of_mem_cons_of_ne h₂ hl hne
-      · exact mem_of_mem_cons_of_ne h₁ hl hne
+      · exact Literal.negate_mem_of_mem_cons (h₂ l hl) hne
+      · exact Literal.negate_mem_of_mem_cons (h₁ l hl) hne
   | false, c₁, c₂, d₁, hc₁, h₁, d₂, hc₂, h₂ =>
     .unsat (c₁.resolvent c₂ v) (.resolvent v d₁ d₂ hc₁ hc₂) fun l hl => by
       rcases Clause.mem_resolvent.1 hl with ⟨hl, hne⟩ | ⟨hl, hne⟩
-      · exact mem_of_mem_cons_of_ne h₁ hl hne
-      · exact mem_of_mem_cons_of_ne h₂ hl hne
+      · exact Literal.negate_mem_of_mem_cons (h₁ l hl) hne
+      · exact Literal.negate_mem_of_mem_cons (h₂ l hl) hne
 
-/-- Assigning the variable `v` keeps every variable of the formula open in `vs.erase v` or
-assigned. -/
-theorem assigned_erase {φ : CNF ℕ} {π : List (Literal ℕ)} {vs : List ℕ}
-    (hvs : ∀ x ∈ φ.vars, x ∈ vs ∨ (x, true) ∈ π ∨ (x, false) ∈ π) (v : ℕ) (b : Bool) :
-    ∀ x ∈ φ.vars, x ∈ vs.erase v ∨ (x, true) ∈ (v, b) :: π ∨ (x, false) ∈ (v, b) :: π := by
-  intro x hx
-  by_cases hxv : x = v
-  · subst hxv
-    cases b <;> simp
-  · rcases hvs x hx with h | h
-    · exact .inl ((List.mem_erase_of_ne hxv).2 h)
-    · simp_all
+/-- The open variables of a partial assignment: a list without repetitions of variables that `π`
+does not assign, containing every variable of the formula that `π` does not assign. -/
+structure OpenVars (φ : CNF ℕ) (π : List (Literal ℕ)) (vs : List ℕ) : Prop where
+  /-- Every variable of the formula is open or assigned. -/
+  covers : ∀ x ∈ φ.vars, x ∈ vs ∨ (x, true) ∈ π ∨ (x, false) ∈ π
+  /-- No open variable is assigned. -/
+  unassigned : ∀ x ∈ vs, (x, true) ∉ π ∧ (x, false) ∉ π
+  /-- No open variable is listed twice. -/
+  nodup : vs.Nodup
 
-/-- **The DPLL search** from the partial assignment `π`, with every variable of the formula open
-in `vs` or assigned by `π`, and at most `fuel` open variables. -/
+/-- Assigning an open variable removes it from the open variables. -/
+theorem OpenVars.erase {φ : CNF ℕ} {π : List (Literal ℕ)} {vs : List ℕ}
+    (h : OpenVars φ π vs) (v : ℕ) (b : Bool) : OpenVars φ ((v, b) :: π) (vs.erase v) := by
+  refine ⟨fun x hx => ?_, fun x hx => ?_, h.nodup.erase v⟩
+  · by_cases hxv : x = v
+    · subst hxv
+      cases b <;> simp
+    · rcases h.covers x hx with h | h
+      · exact .inl ((List.mem_erase_of_ne hxv).2 h)
+      · simp_all
+  · obtain ⟨hxv, hx⟩ := (h.nodup.mem_erase_iff).1 hx
+    simpa [hxv] using h.unassigned x hx
+
+/-- **The variable the search branches on is not yet assigned.** -/
+theorem OpenVars.fresh {φ : CNF ℕ} {π : List (Literal ℕ)} {x : ℕ} {xs : List ℕ}
+    (h : OpenVars φ π (x :: xs)) {v : ℕ} {b : Bool} (hl : (branchLiteral φ π x xs).val = (v, b)) :
+    (v, true) ∉ π ∧ (v, false) ∉ π := by
+  have := (branchLiteral φ π x xs).2
+  rw [hl] at this
+  exact h.unassigned v this
+
+/-- **The DPLL search** from the partial assignment `π`, with the open variables `vs` and at most
+`fuel` of them. -/
 def search (φ : CNF ℕ) : (fuel : ℕ) → (π : List (Literal ℕ)) → (vs : List ℕ) →
-    (∀ x ∈ φ.vars, x ∈ vs ∨ (x, true) ∈ π ∨ (x, false) ∈ π) → vs.length ≤ fuel → Outcome φ π
+    OpenVars φ π vs → vs.length ≤ fuel → Outcome φ π
   | fuel, π, vs, hvs, hfuel =>
     match hfind : φ.find? (Falsifies π) with
     | some c => .unsat c (.mem (List.mem_of_find?_eq_some hfind))
@@ -198,7 +213,7 @@ def search (φ : CNF ℕ) : (fuel : ℕ) → (π : List (Literal ℕ)) → (vs :
         .sat (assignment π) (eval_assignment hsat)
       else
         match vs, fuel, hvs, hfuel with
-        | [], _, hvs, _ => absurd (all_any_holds hfind fun x hx => (hvs x hx).resolve_left
+        | [], _, hvs, _ => absurd (all_any_holds hfind fun x hx => (hvs.covers x hx).resolve_left
             List.not_mem_nil) hsat
         | _ :: _, 0, _, hfuel => absurd hfuel (by simp)
         | x :: xs, fuel + 1, hvs, hfuel =>
@@ -208,24 +223,25 @@ def search (φ : CNF ℕ) : (fuel : ℕ) → (π : List (Literal ℕ)) → (vs :
               rw [List.length_erase_of_mem hv]
               simp only [List.length_cons] at hfuel ⊢
               omega
-            match search φ fuel ((v, b) :: π) ((x :: xs).erase v) (assigned_erase hvs v b) hlen with
+            match search φ fuel ((v, b) :: π) ((x :: xs).erase v) (hvs.erase v b) hlen with
             | .sat σ h => .sat σ h
             | .unsat c₁ d₁ h₁ =>
               if hc₁ : (v, !b) ∈ c₁ then
-                match search φ fuel ((v, !b) :: π) ((x :: xs).erase v) (assigned_erase hvs v !b)
-                  hlen with
+                match search φ fuel ((v, !b) :: π) ((x :: xs).erase v) (hvs.erase v !b) hlen with
                 | .sat σ h => .sat σ h
                 | .unsat c₂ d₂ h₂ =>
                   if hc₂ : (v, b) ∈ c₂ then
                     resolveBranches v b d₁ hc₁ h₁ d₂ hc₂ (by simpa using h₂)
                   else .unsat c₂ d₂ fun l hl =>
-                    mem_of_mem_cons_of_ne h₂ hl (by rintro rfl; exact hc₂ (by simpa using hl))
+                    Literal.negate_mem_of_mem_cons (h₂ l hl)
+                      (by rintro rfl; exact hc₂ (by simpa using hl))
               else .unsat c₁ d₁ fun l hl =>
-                mem_of_mem_cons_of_ne h₁ hl (by rintro rfl; exact hc₁ hl)
+                Literal.negate_mem_of_mem_cons (h₁ l hl) (by rintro rfl; exact hc₁ hl)
 
-/-- The search from the empty partial assignment. -/
+/-- The search from the empty partial assignment, with the variables of the formula open. -/
 def dpll (φ : CNF ℕ) : Outcome φ [] :=
-  search φ φ.vars.length [] φ.vars (fun _ hx => .inl hx) le_rfl
+  search φ φ.vars.dedup.length [] φ.vars.dedup
+    ⟨fun _ hx => .inl (List.mem_dedup.2 hx), by simp, List.nodup_dedup _⟩ le_rfl
 
 /-! ### The solver -/
 

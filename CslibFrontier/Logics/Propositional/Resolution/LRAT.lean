@@ -105,24 +105,26 @@ end Derivation
 /-- Unit propagation from the negation of a resolvent, hinting its two premises, succeeds. -/
 theorem propagateHints_resolvent {db : List (ℕ × Clause ℕ)} {i₁ i₂ v : ℕ} {c₁ c₂ : Clause ℕ}
     (h₁ : db.find? (·.1 == i₁) = some (i₁, c₁)) (h₂ : db.find? (·.1 == i₂) = some (i₂, c₂)) :
-    propagateHints db ((c₁.resolvent c₂ v).map fun l => (l.1, !l.2)) [i₁, i₂] = true := by
-  set T := (c₁.resolvent c₂ v).map fun l : Literal ℕ => (l.1, !l.2)
-  have hT : ∀ l, l ∈ c₁.resolvent c₂ v → (l.1, !l.2) ∈ T := fun l hl =>
+    propagateHints db ((c₁.resolvent c₂ v).map Std.Sat.Literal.negate) [i₁, i₂] = true := by
+  set T := (c₁.resolvent c₂ v).map Std.Sat.Literal.negate
+  have hT : ∀ l, l ∈ c₁.resolvent c₂ v → Std.Sat.Literal.negate l ∈ T := fun l hl =>
     List.mem_map.2 ⟨l, hl, rfl⟩
   -- the literals of `c₁` that the negated resolvent leaves open are all `(v, true)`
-  have hopen : ∀ l ∈ c₁.filter (fun l => !T.contains (l.1, !l.2)), l = (v, true) := by
+  have hopen : ∀ l ∈ c₁.filter (fun l => !T.contains (Std.Sat.Literal.negate l)),
+      l = (v, true) := by
     intro l hl
     obtain ⟨hl, hT'⟩ := List.mem_filter.1 hl
     by_contra hne
     have := hT l (Clause.mem_resolvent.2 (.inl ⟨hl, hne⟩))
     simp [this] at hT'
   -- every literal of `c₂` is false once `v` holds
-  have hclosed : c₂.filter (fun l => !((v, true) :: T).contains (l.1, !l.2)) = [] := by
+  have hclosed :
+      c₂.filter (fun l => !((v, true) :: T).contains (Std.Sat.Literal.negate l)) = [] := by
     refine List.filter_eq_nil_iff.2 fun l hl => ?_
     simp only [Bool.not_eq_true', Bool.not_eq_false]
     by_cases hlv : l = (v, false)
     · subst hlv
-      simp
+      simp [Std.Sat.Literal.negate]
     · simp [hT l (Clause.mem_resolvent.2 (.inr ⟨hl, hlv⟩))]
   simp only [propagateHints, h₁]
   split
@@ -136,12 +138,12 @@ theorem propagateHints_resolvent {db : List (ℕ × Clause ℕ)} {i₁ i₂ v : 
 
 /-- A database that numbers every clause of the formula as `checkLRAT` does, and every other
 entry below `k`. -/
-def LRATGood (φ : CNF ℕ) (k : ℕ) (db : List (ℕ × Clause ℕ)) : Prop :=
+private def LRATGood (φ : CNF ℕ) (k : ℕ) (db : List (ℕ × Clause ℕ)) : Prop :=
   (∀ e ∈ db, e.1 < k) ∧ ∀ c ∈ φ, db.find? (·.1 == φ.idxOf c + 1) = some (φ.idxOf c + 1, c)
 
 /-- The steps of a tree-like derivation pass the checker, adding its conclusion to the database
 under its number and keeping the entries below `k`. -/
-theorem Derivation.checkLRATAux_lratSteps {c : Clause ℕ} (d : φ.Derivation c) :
+private theorem Derivation.checkLRATAux_lratSteps {c : Clause ℕ} (d : φ.Derivation c) :
     ∀ (k : ℕ) (db : List (ℕ × Clause ℕ)), φ.length < k → LRATGood φ k db →
       ∃ db', (∀ rest, checkLRATAux db ((d.lratSteps k).actions ++ rest) = checkLRATAux db' rest) ∧
         db'.find? (·.1 == (d.lratSteps k).id) = some ((d.lratSteps k).id, c) ∧
@@ -186,7 +188,7 @@ theorem Derivation.checkLRATAux_lratSteps {c : Clause ℕ} (d : φ.Derivation c)
 
 /-- The numbering of the clauses of a formula by `checkLRAT`, from `n + 1` on, finds every clause
 under the number of its first occurrence. -/
-theorem find?_zipIdx_idxOf {c : Clause ℕ} :
+private theorem find?_zipIdx_idxOf {c : Clause ℕ} :
     ∀ (φ : CNF ℕ) (n : ℕ), c ∈ φ →
       ((φ.zipIdx n).map fun e => (e.2 + 1, e.1)).find? (·.1 == φ.idxOf c + n + 1) =
         some (φ.idxOf c + n + 1, c)
