@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Quantum.Algebra.Orthogonalization
 public import CslibFrontier.Foundations.Quantum.Algebra.FamApprox
+public import CslibFrontier.Foundations.Quantum.Algebra.CharacterFamily
 import CslibFrontier.Foundations.Algebra.BigOperators.Selection
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.Polar
 
@@ -50,6 +51,8 @@ The proof follows §3 of the paper, with its two lemmas made explicit in finite 
   `Cslib.Quantum.Measurement.exists_isProjective_sum_norm_sub_sq_le_of_le`: orthogonalization.
 * `Cslib.Quantum.Measurement.exists_isProjective_famApprox`: orthogonalization of families, in
   the family relation `≈ᶠ`.
+* `Cslib.Quantum.Measurement.exists_isProjective_charObs`: unitary, exactly linear character
+  observables close to those of a measurement.
 
 ## References
 
@@ -59,7 +62,7 @@ The proof follows §3 of the paper, with its two lemmas made explicit in finite 
 @[expose] public section
 
 open Matrix Finset
-open scoped MatrixOrder ComplexOrder
+open scoped MatrixOrder ComplexOrder BigOperators
 
 namespace Cslib.Quantum
 
@@ -312,5 +315,22 @@ theorem exists_isProjective_famApprox {Q : Type*} [Fintype Q] (μ : PMF Q)
       effects M ≈ᶠ[μ, φ; √(9 * ε)] effects P := by
   choose P hP hMP using fun q => exists_isProjective_sum_norm_sub_sq_le_of_le φ (M q) (hε q)
   exact ⟨P, hP, famApprox_of_forall hMP⟩
+
+open scoped Matrix.Norms.L2Operator in
+/-- **Unitary, exactly linear observables from a measurement.** A measurement `M` with bit-string
+outcomes and `φ(∑_x M_x²) ≥ 1 - ε` has a projective measurement `P` whose character observables
+`χ_P(a)` are unitary and exactly linear, and close on average to those of `M`:
+`E_a ‖χ_M(a) - χ_P(a)‖²_φ ≤ 9ε`. -/
+theorem exists_isProjective_charObs {n : Type*} [Fintype n] [DecidableEq n]
+    (φ : AlgState (Matrix ι ι ℂ)) (M : Measurement (n → Bool) (Matrix ι ι ℂ)) {ε : ℝ}
+    (hε : 1 - ε ≤ ∑ x, (φ (M.effect x * M.effect x)).re) :
+    ∃ P : Measurement (n → Bool) (Matrix ι ι ℂ), P.IsProjective ∧
+      (∀ a, P.charObs a ∈ unitary (Matrix ι ι ℂ)) ∧
+      (∀ a a', P.charObs a * P.charObs a' = P.charObs (a + a')) ∧
+      𝔼 a, φ.norm (M.charObs a - P.charObs a) ^ 2 ≤ 9 * ε := by
+  obtain ⟨P, hP, h⟩ := exists_isProjective_sum_norm_sub_sq_le_of_le φ M hε
+  refine ⟨P, hP, hP.charObs_mem_unitary, hP.charObs_mul, ?_⟩
+  simp only [charObs, walshSum_sub, expect_norm_walshSum_sq]
+  exact h
 
 end Cslib.Quantum.Measurement

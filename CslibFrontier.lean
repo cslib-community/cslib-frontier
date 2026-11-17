@@ -6803,6 +6803,7 @@ public import CslibFrontier.Foundations.Quantum.Algebra.AlgState
 public import CslibFrontier.Foundations.Quantum.Algebra.Approx
 public import CslibFrontier.Foundations.Quantum.Algebra.CHSHRigidity
 public import CslibFrontier.Foundations.Quantum.Algebra.CStar
+public import CslibFrontier.Foundations.Quantum.Algebra.CharacterFamily
 public import CslibFrontier.Foundations.Quantum.Algebra.Consistency
 public import CslibFrontier.Foundations.Quantum.Algebra.Expect
 public import CslibFrontier.Foundations.Quantum.Algebra.FamApprox
