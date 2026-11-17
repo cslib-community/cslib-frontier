@@ -10,6 +10,8 @@ module
 public import CslibFrontier.Logics.Propositional.CNF
 public import Mathlib.Algebra.BigOperators.Group.List.Basic
 public import Mathlib.Algebra.Ring.BooleanRing
+public import Mathlib.Algebra.BigOperators.Fin
+import Mathlib.Algebra.CharP.Two
 
 /-!
 # Quadratic equations over `𝔽₂`
@@ -37,6 +39,8 @@ when the formula is (`CNF.satisfiable_toQuadSystem`).
   `Cslib.Logic.PL.QuadSystem.Satisfiable`: semantics.
 * `Cslib.Logic.PL.QuadEquation.vars`: the variables in order of occurrence.
 * `Cslib.Logic.PL.QuadEquation.relabel`: rename the variables.
+* `Cslib.Logic.PL.QuadSystem.linearCombination`: the sum of the equations a mask selects.
+* `Cslib.Logic.PL.QuadSystem.countViolated`: the number of equations an assignment violates.
 * `Cslib.Logic.PL.CNF.toQuadSystem`: the quadratic system of a formula.
 
 ## Main results
@@ -45,6 +49,8 @@ when the formula is (`CNF.satisfiable_toQuadSystem`).
   variables.
 * `Cslib.Logic.PL.QuadSystem.satisfiable_relabel`: injective relabelling preserves
   satisfiability.
+* `Cslib.Logic.PL.QuadSystem.holds_linearCombination_iff`: a linear combination holds exactly
+  when it selects an even number of violated equations.
 * `Cslib.Logic.PL.CNF.satisfiable_toQuadSystem`: a formula is satisfiable exactly when its
   quadratic system is.
 
@@ -144,6 +150,73 @@ theorem satisfiable_relabel {f : V → W} (hf : Function.Injective f) (F : QuadS
   refine ⟨Function.extend f a fun _ => false, (holds_relabel f F _).2 ?_⟩
   rwa [show (Function.extend f a fun _ => false) ∘ f = a from
     funext fun v => hf.extend_apply a _ v]
+
+end QuadSystem
+
+/-! ### Linear combinations of equations -/
+
+/-- Whether an equation holds is decided by comparing two bits. -/
+instance (e : QuadEquation V) (a : V → Bool) : Decidable (e.Holds a) :=
+  inferInstanceAs (Decidable (_ = _))
+
+namespace QuadSystem
+
+open scoped Finset
+
+/-- The **linear combination** of the equations of `F` selected by the mask `r`: the sum over
+`𝔽₂` of the equations `F[i]` with `r[i] = true`, obtained by concatenating their monomials and
+adding their right-hand sides. Positions beyond the end of `r` are not selected. -/
+@[expose] def linearCombination (F : QuadSystem V) (r : List Bool) : QuadEquation V :=
+  let G := ((r.zip F).filter (·.1)).map (·.2)
+  ⟨G.flatMap (·.terms), (G.map (·.rhs)).sum⟩
+
+/-- The number of equations of `F`, counted with multiplicity, that the assignment `a`
+violates. -/
+@[expose] def countViolated (F : QuadSystem V) (a : V → Bool) : ℕ := F.countP fun e => ¬e.Holds a
+
+/-- A sum over the entries selected by a mask is the masked sum over the positions. -/
+private theorem sum_map_filter_zip {β M : Type*} [AddCommMonoid M] (f : β → M) :
+    ∀ (l : List β) (r : List Bool),
+    ((((r.zip l).filter (·.1)).map (·.2)).map f).sum =
+      ∑ i : Fin l.length, if r.getD i false then f l[i] else 0
+  | [], _ => by simp
+  | e :: l, [] => by simp
+  | e :: l, b :: r => by
+    have ih := sum_map_filter_zip f l r
+    simp only [List.map_map, List.getD_eq_getElem?_getD] at ih
+    -- `Fin (e :: l).length` is `Fin (l.length + 1)` only up to unfolding.
+    erw [Fin.sum_univ_succ]
+    cases b <;> simp [ih]
+
+/-- **A linear combination holds exactly when it selects an even number of violated
+equations**: over `𝔽₂`, the combination's two sides differ by the sum of the selected
+equations' defects. -/
+theorem holds_linearCombination_iff (F : QuadSystem V) (r : List Bool) (a : V → Bool) :
+    (F.linearCombination r).Holds a ↔
+      Even #{i : Fin F.length | ¬F[i].Holds a ∧ r.getD i false = true} := by
+  have hlhs : ((F.linearCombination r).terms.map fun p => a p.1 * a p.2).sum =
+      ∑ i : Fin F.length, if r.getD i false then (F[i].terms.map fun p => a p.1 * a p.2).sum
+        else 0 := by
+    rw [← sum_map_filter_zip (fun e : QuadEquation V => (e.terms.map fun p => a p.1 * a p.2).sum)]
+    simp only [linearCombination, List.flatMap, List.map_flatten, List.sum_flatten, List.map_map]
+    rfl
+  have hrhs : (F.linearCombination r).rhs =
+      ∑ i : Fin F.length, if r.getD i false then F[i].rhs else 0 := by
+    rw [← sum_map_filter_zip QuadEquation.rhs F r]
+    rfl
+  have hterm (i : Fin F.length) :
+      ((if r.getD i false then (F[i].terms.map fun p => a p.1 * a p.2).sum else 0) +
+        if r.getD i false then F[i].rhs else 0) =
+        if ¬F[i].Holds a ∧ r.getD i false = true then 1 else 0 := by
+    have key : ∀ b x y : Bool,
+        ((if b then x else 0) + if b then y else 0) = if ¬x = y ∧ b = true then 1 else 0 := by
+      decide
+    exact key _ _ _
+  have hiff : ∀ x y : Bool, x = y ↔ x + y = 0 := by decide
+  let : CharP Bool 2 := CharTwo.of_one_ne_zero_of_two_eq_zero (by decide) (by decide)
+  rw [QuadEquation.Holds, hlhs, hrhs, hiff, ← Finset.sum_add_distrib, Finset.sum_congr rfl
+    fun i _ => hterm i, Finset.sum_boole, CharTwo.natCast_eq_ite]
+  simp
 
 end QuadSystem
 

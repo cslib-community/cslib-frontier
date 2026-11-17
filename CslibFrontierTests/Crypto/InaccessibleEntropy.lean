@@ -27,8 +27,8 @@ Checks concrete unconditional instances of:
 4. Parallel repetition (`repHashFin`, `repAccessibleSet`, `repEscapeInverter`), two-universal
    input/output entropy reduction (`shrunkHashOutLen_add_one`, `card_image_inputHashFin_le`,
    `shrunkHashFin_false_positive_le`, `shrunkHash_randomCollision_le`), and the Theorem 4.5 /
-   candidate-grid endpoints (`OneWay.exists_rompelBase_logGap`,
-   `OneWay.exists_inaccessibleEntropyFamily_logGap`, `OneWay.exists_inaccessibleEntropyFamily`,
+   candidate-grid endpoints (`OneWay.rompelBase_logGap`, `OneWay.exists_rompelBase_logGap`,
+   `OneWay.exists_inaccessibleEntropyFamily`,
    `InaccessibleEntropyFamily.exists_shrinkingCollisionGrid`,
    `OneWay.exists_shrinkingCollisionGrid`).
 -/
@@ -336,10 +336,25 @@ example {f : List Bool → List Bool} (hf : OneWay f) :
     ⟨accSet₁, N₁, fun n hn => by simpa only [one_mul] using hN₁ n hn⟩,
     ⟨accSet₂, N₂, hN₂⟩⟩
 
-example {f : List Bool → List Bool} (hf : OneWay f) :
-    ∃ F : InaccessibleEntropyFamily,
-      ∀ᶠ n : ℕ in Filter.atTop, 3 * Real.logb 2 n / n ≤ 1 / (F.denom n : ℝ) :=
-  hf.exists_inaccessibleEntropyFamily_logGap (by norm_num)
+/-- The input width of `F₀`: the `n`-bit preimage, the `n * m + n`-bit affine seed and the
+`(Nat.log 2 n + 1)`-bit prefix field. -/
+example (n m : ℕ) : rompelBaseInLen n m = n + (n * m + n) + (Nat.log 2 n + 1) := rfl
+
+/-- Client check of `OneWay.rompelBase_logGap` at `d = 3` on the concrete family: the
+accessible-set family at threshold exponent `Nat.ceil (256 * 3) + 1` has an eventual
+`3 * log₂ n / n` entropy gap on `rompelBaseInLen n (outLen n)`-bit inputs. -/
+example {g : List Bool → List Bool} {outLen : ℕ → ℕ} (hg : OneWay g)
+    (hlen : ∀ w : List Bool, (g w).length = outLen w.length)
+    (houtLen : ComputableInPolyTime outLen encUnary encUnary) :
+    ∃ N₀ : ℕ, ∀ n, N₀ ≤ n →
+      accessibleSetExpectation
+          (rompelAccessibleSet (Nat.ceil (256 * (3 : ℝ)) + 1) g outLen n) ≤
+        PMF.conditionalEntropy
+          ((PMF.uniformOfFintype (BitString (rompelBaseInLen n (outLen n)))).map fun b =>
+            (wordToFinMap (rompelBaseInLen n (outLen n)) (rompelBaseOutLen n (outLen n))
+              (rompelBaseEvalWord g outLen n) b, b)) -
+          3 * Real.logb 2 n / n :=
+  (hg.rompelBase_logGap hlen houtLen (by norm_num : (0 : ℝ) < 3)).1
 
 /-! ### 5. Definition 3.9: word sanitization and adversary-dependent accessible sets -/
 
