@@ -137,9 +137,14 @@ for a pseudorandom generator `generator` of stretch `k + 1` and a stretch functi
 outputs the last bits `σ₁ ⋯ σ_ℓ(|s|)` of `ℓ(|s|)` successive expansions of the seed `s`
 (`take_forwardIterate_eq_flatten_emitBit`), is a pseudorandom generator of stretch `ℓ`.
 
-`PseudorandomGenerator` is Definition 8.1: one deterministic polynomial-time machine, exact output
-length `ℓ(|s|)`, and indistinguishability from uniform for uniform probabilistic polynomial-time
-tests. The source's "polynomially bounded" stretch follows from computing `ℓ` in unary in
+`PseudorandomGenerator` asks for one deterministic polynomial-time machine, exact output length
+`ℓ(|s|)`, and indistinguishability from uniform for uniform probabilistic polynomial-time tests.
+Its tests (`prgRealGame`, `prgIdealGame`) also receive the seed length `n` in unary, while the
+tests of Definition 8.1 (Eq. (8.2)) see only the challenge word. This does not change the
+implication: on the premise, a challenge-only test recovers `n = |word| - 1` from the one-bit
+stretch and can simulate a test that receives `n`; on the conclusion, a test that receives `n`
+may ignore it. So the source implication follows even when `ℓ` does not determine the seed
+length. The source's "polynomially bounded" stretch follows from computing `ℓ` in unary in
 polynomial time. -/
 theorem pseudorandomGenerator_take_forwardIterate {generator : List Bool → List Bool}
     (hgenerator : PseudorandomGenerator generator (fun n => n + 1)) {ℓ : ℕ → ℕ}
@@ -153,9 +158,8 @@ theorem pseudorandomGenerator_take_forwardIterate {generator : List Bool → Lis
     (fun seed => length_take_forwardIterate hgenerator.length_eq seed _) hstretch ?_
   convert indistinguishable_take_forwardIterate hgenerator hℓ using 1
   funext n
-  simp only [generatorEnsemble]
-  apply PMF.map_congr_on_support
-  intro seed hseed
-  rw [length_of_mem_support_uniformList hseed]
+  exact (generatorEnsemble_postprocess id
+    (fun n seed => (forwardIterate generator (ℓ n) seed).take (ℓ n)) n).trans
+    (by rw [generatorEnsemble, PMF.map_id])
 
 end Cslib.Crypto.PRGStretch
