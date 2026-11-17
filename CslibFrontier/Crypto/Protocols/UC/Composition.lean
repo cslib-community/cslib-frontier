@@ -10,9 +10,14 @@ module
 public import CslibFrontier.Crypto.Protocols.UC.DummyAdversary
 
 /-!
-# Subroutine replacement and the UC composition theorem
+# Subroutine replacement and statistical call-bounded UC composition
 
-A *hybrid protocol* `ρ : UC.HybridProtocol n In Out NetQ NetR SubIn SubOut` is an `n`-party
+This module proves composition for this library's novel call-bounded port-model emulation notions,
+in which environments, adversaries, and simulators are query-bounded with unbounded local
+computation: statistical, single-subroutine, static-corruption composition, a step toward Canetti's
+computational UC composition theorem ([Canetti2020], Section 2.3, Theorem 3 and
+Corollaries (a)–(b)) but not that theorem (#6043). A *hybrid protocol*
+`ρ : UC.HybridProtocol n In Out NetQ NetR SubIn SubOut` is an `n`-party
 protocol whose machines also call the party port of a subroutine with inputs `SubIn` and outputs
 `SubOut`. Subroutine replacement `UC.compose ρ σ` (written `ρ^σ` below) answers those calls with the
 protocol `σ : UC.Protocol n SubIn SubOut NQ NR`, run for the same parties, security parameter and
@@ -21,11 +26,12 @@ corrupted parties `C` behind the static-corruption router `UC.corruptRouter C`. 
 schedules `σ`'s network and plays the corrupted parties of `σ`. With `σ = F.toProtocol` this is the
 `F`-hybrid protocol `ρ^F`; with `σ = π` it is the protocol in which `ρ` calls `π` instead.
 
-The universal composition theorem (`UC.Emulates.compose`) says that subroutine replacement preserves
-UC emulation: if `π` UC-emulates `φ`, then `ρ^π` UC-emulates `ρ^φ` for every hybrid protocol `ρ`
-with a polynomial call budget. In particular, if `π` UC-realizes `F` then `ρ^π` UC-emulates `ρ^F`
-(`UC.Realizes.compose`), and if moreover `ρ^F` UC-realizes `G` then `ρ^π` UC-realizes `G`
-(`UC.Realizes.compose_trans`). The concrete versions keep track of budgets and errors:
+The statistical, call-bounded composition theorem (`UC.Emulates.compose`, #6043) says that
+single-subroutine replacement preserves `UC.Emulates`: if `π` emulates `φ`, then `ρ^π` emulates
+`ρ^φ` for every hybrid protocol `ρ` with a polynomial call budget. In particular, if `π` realizes
+`F` in the sense of `UC.Realizes` then `ρ^π` emulates `ρ^F` (`UC.Realizes.compose`), and if
+moreover `ρ^F` realizes `G` then `ρ^π` realizes `G` (`UC.Realizes.compose_trans`). The concrete
+versions keep track of budgets and errors:
 `UC.EmulatesDummyWithin.compose` turns a simulator `S` with budget `pD` for the dummy adversary of
 `π` into the simulator `UC.hybridSim S` with budget `pD + 1` for the dummy adversary of `ρ^π`, with
 the error evaluated at the environment budget `UC.absorbPoly pZ pρ`, and `UC.EmulatesWithin.compose`
@@ -59,10 +65,10 @@ adapt the corollaries (a) and (b) stated after that theorem. The adaptation is t
 one subroutine instance fixed in advance, and statistical security against participants whose
 calls, not running times, are polynomially bounded. The general theorem of the paper is Theorem 22
 of Section 6.1, with Corollaries 23 and 24. Its setting of probabilistic polynomial-time interactive
-Turing machines (running-time bounds, computational indistinguishability) is not modeled here, and
-neither are its dynamic-session premises (a compliant calling protocol, subroutine-respecting and
-subroutine-exposing protocols, identity-bounded environments) or its operation that replaces many
-sessions in one step.
+Turing machines (running-time bounds, computational indistinguishability) is not modeled here
+(#6043), and neither are its dynamic-session premises (a compliant calling protocol,
+subroutine-respecting and subroutine-exposing protocols, identity-bounded environments) or its
+operation that replaces many sessions in one step.
 
 ## Main definitions
 
@@ -88,9 +94,9 @@ sessions in one step.
   `Cslib.Crypto.Protocols.UC.compose_polyBounded`: budgets.
 * `Cslib.Crypto.Protocols.UC.EmulatesDummyWithin.compose`,
   `Cslib.Crypto.Protocols.UC.EmulatesWithin.compose`, `Cslib.Crypto.Protocols.UC.Emulates.compose`:
-  the UC composition theorem.
+  statistical, call-bounded single-subroutine static-corruption composition (#6043).
 * `Cslib.Crypto.Protocols.UC.Realizes.compose`, `Cslib.Crypto.Protocols.UC.Realizes.compose_trans`:
-  replacing an ideal functionality by a protocol that realizes it.
+  statistical, call-bounded single-subroutine ideal-functionality replacement (#6043).
 
 ## References
 
@@ -235,7 +241,7 @@ theorem exec_compose_dummy (ρ : HybridProtocol n In Out NetQ NetR SubIn SubOut)
       (RoutedNetR Out (NetR ⊕ RoutedNetR SubOut NR))) (κ : ℕ) (z : List Bool) :
     exec (compose ρ π) (dummyAdversary n _ _) C Z κ z =
       exec π (dummyAdversary n _ _) C (absorbHybrid C ρ Z) κ z := by
-  simp only [exec, execMachine, dummyAdversary, liftAdversary_id, Machine.run_comp,
+  simp only [exec, execMachine, dummyAdversary, Machine.liftRight_id, Machine.run_comp,
     Machine.link_id, compose, corruptRouter_comp, absorbHybrid]
 
 /-! ### The composed simulator -/
@@ -344,7 +350,7 @@ private theorem liftAdversary_handle_inl {AdvQ AdvR : Type}
 private theorem liftAdversary_handle_inr {AdvQ AdvR : Type}
     (A : Machine (netSpec NetQ NetR) (netSpec AdvQ AdvR)) (q : AdvQ) (s : A.State) :
     ((liftAdversary (n := n) (In := In) (Out := Out) A).handle (.inr q)).run s =
-      liftNet ((A.handle q).run s) := rfl
+      Machine.liftRightProgram (partySpec n In Out) ((A.handle q).run s) := rfl
 
 private theorem routeCorrupt_handle_inl {ιI : Type} {I : ιI → Type} (C : Finset (Fin n))
     (P : Machine I (protocolSpec n In Out NetQ NetR)) (i : Fin n) (x : In) (s : P.State) :
@@ -468,7 +474,9 @@ private theorem runFrom_routeCorrupt_liftNet_liftSubNet
         (hybridWrap (NQ := RoutedNetQ n SubIn NQ) (NR := RoutedNetR SubOut NR) M)).runFrom
         (liftNet (liftSubNet program)) s =
       (fun a => (a, s)) <$> liftNet program := by
-  rw [liftNet, liftSubNet, OracleComp.interpret_interpret, liftNet]
+  dsimp only [liftNet]
+  rw [Machine.liftRightProgram, liftSubNet, OracleComp.interpret_interpret,
+    Machine.liftRightProgram]
   refine Machine.runFrom_interpret_of_forward (routeCorrupt C (hybridWrap M)) _ _
     (fun q s => ?_) program s
   cases q with
@@ -514,9 +522,9 @@ private theorem handle_swap
       erw [hybridWrap_handle_inl, hybridWrap_handle_inl, runFrom_liftAdversary_liftParty]
       repeat erw [Functor.map_map]
       rfl
-  · erw [liftAdversary_handle_inr, hybridSimMachine_handle_inl, liftNet_map, liftNet_query,
-      Machine.runFrom_map, Machine.runFrom_query, routeCorrupt_handle_inr_inl,
-      routeCorrupt_handle_inr_inl]
+  · erw [liftAdversary_handle_inr, hybridSimMachine_handle_inl, Machine.liftRightProgram_map,
+      Machine.liftRightProgram_query, Machine.runFrom_map, Machine.runFrom_query,
+      routeCorrupt_handle_inr_inl, routeCorrupt_handle_inr_inl]
     by_cases hi : i ∈ C
     · simp only [hi, ↓reduceIte]
       erw [hybridWrap_handle_inl, hybridWrap_handle_inl, Machine.runFrom_map,
@@ -525,14 +533,15 @@ private theorem handle_swap
       rfl
     · simp only [hi, ↓reduceIte]
       rfl
-  · erw [liftAdversary_handle_inr, hybridSimMachine_handle_inr_inl, liftNet_map, liftNet_query,
-      Machine.runFrom_map, Machine.runFrom_query, routeCorrupt_handle_inr_inr,
-      routeCorrupt_handle_inr_inr, hybridWrap_handle_inr_inl, hybridWrap_handle_inr_inl]
+  · erw [liftAdversary_handle_inr, hybridSimMachine_handle_inr_inl, Machine.liftRightProgram_map,
+      Machine.liftRightProgram_query, Machine.runFrom_map, Machine.runFrom_query,
+      routeCorrupt_handle_inr_inr, routeCorrupt_handle_inr_inr, hybridWrap_handle_inr_inl,
+      hybridWrap_handle_inr_inl]
     repeat erw [Functor.map_map]
     erw [Machine.runFrom_map, runFrom_liftAdversary_liftParty]
     repeat erw [Functor.map_map]
     rfl
-  · erw [liftAdversary_handle_inr, hybridSimMachine_handle_inr_inr, liftNet_map,
+  · erw [liftAdversary_handle_inr, hybridSimMachine_handle_inr_inr, Machine.liftRightProgram_map,
       Machine.runFrom_map, runFrom_routeCorrupt_liftNet_liftSubNet, routeCorrupt_handle_inr_inr,
       hybridWrap_handle_inr_inr]
     repeat erw [Functor.map_map]

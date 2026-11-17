@@ -144,6 +144,13 @@ theorem Approx.mul_left (h : a ≈[φ; δ] b) {u : A} (hu : star u * u ≤ 1) :
   rw [Approx, ← mul_sub]
   exact (φ.norm_mul_le_of_star_mul_self_le_one hu _).trans h
 
+/-- Left multiplication by an operator that stretches the state norm by at most `k` turns
+`δ`-closeness into `kδ`-closeness. -/
+theorem Approx.mul_left_of_norm_mul_le (h : a ≈[φ; δ] b) {u : A} {k : ℝ} (hk : 0 ≤ k)
+    (hu : ∀ y, φ.norm (u * y) ≤ k * φ.norm y) : u * a ≈[φ; k * δ] u * b := by
+  rw [Approx, ← mul_sub]
+  exact (hu _).trans (mul_le_mul_of_nonneg_left h hk)
+
 /-- The expectation of an operator is bounded by its state norm. -/
 theorem norm_apply_le_norm (φ : AlgState A) (a : A) : ‖φ a‖ ≤ φ.norm a := by
   simpa using φ.norm_apply_star_mul_le 1 a
