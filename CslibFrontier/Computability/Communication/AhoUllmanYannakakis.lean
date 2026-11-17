@@ -23,8 +23,8 @@ to Aho, Ullman and Yannakakis).
 The players search for the piece of the partition that contains their input pair. They keep a set
 `S` of candidate pieces that still contains it. Two distinct pieces of a partition cannot share
 both a row and a column, so the piece `k` containing the input meets at most `|S| + 1` members
-of `S` (itself counted twice) in rows or in columns. Hence either `k` meets at most `(|S| + 1) / 2`
-members of `S` in rows, or it does so in columns. In each phase Alice announces a piece
+of `S` in rows and in columns together (itself counted twice). Hence `k` meets at most `⌈|S| / 2⌉`
+members of `S` in rows, or at most `⌈|S| / 2⌉` in columns. In each phase Alice announces a piece
 containing her row with this property, if there is one, and otherwise Bob announces one
 containing his column. The candidates shrink to the pieces sharing a row (or a column) with the
 announced one, which still contain `k`. After `⌈log₂ t⌉` phases one candidate is left and
@@ -114,9 +114,6 @@ private theorem exists_protocol_of_card_le_two_pow [Nonempty Z] (r : ℕ) (S : F
       exact ⟨q, by omega, fun _ => hrun⟩
     · exact ⟨.output (Classical.arbitrary Z), by simp, fun h => absurd (by simpa using h) hS⟩
   | succ r ih =>
-    by_cases hS1 : #S ≤ 1
-    · obtain ⟨q, hq, hrun⟩ := p.exists_protocol_of_card_le_one hS1
-      exact ⟨q, by omega, fun _ => hrun⟩
     choose! next hnext hnext_run using ih
     -- A piece is a good announcement for Alice (rows) or Bob (columns).
     let goodA (x : X) (i : Fin p.size) : Prop :=
@@ -175,8 +172,9 @@ private theorem exists_protocol_of_card_le_two_pow [Nonempty Z] (r : ℕ) (S : F
 
 /-- **Aho–Ullman–Yannakakis, explicit form.** The function computed by a rectangle partition with
 `t` pieces has a deterministic protocol with at most `2 ⌈log₂ t⌉ ⌈log₂ (t + 1)⌉` bits: in each of
-`⌈log₂ t⌉` phases, Alice or Bob names a piece that shares a row or a column with at most half
-of the remaining candidates, including the piece containing the input. The output type must be
+`⌈log₂ t⌉` phases, Alice or Bob names a piece that shares a row or a column with at most
+`⌈|S| / 2⌉` of the `|S|` remaining candidates, and these candidates still include the piece
+containing the input. The output type must be
 nonempty, since there is no protocol at all with an empty output type. -/
 theorem ecomplexityFun_run_le [Nonempty Z] :
     Protocol.ecomplexityFun p.run ≤

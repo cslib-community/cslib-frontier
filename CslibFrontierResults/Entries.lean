@@ -71,6 +71,7 @@ import CslibFrontier.Computability.Circuit.Boolean.Razborov.Useful
 import CslibFrontier.Computability.Circuit.Boolean.Smolensky
 import CslibFrontier.Foundations.BooleanAnalysis.OrDegree
 import CslibFrontier.Computability.Circuit.NNF.Negation.Separation
+import CslibFrontier.Computability.Communication.AhoUllmanYannakakis
 import CslibFrontier.Computability.Communication.Discrepancy
 import CslibFrontier.Computability.Communication.Discrepancy.Spectral
 import CslibFrontier.Computability.Communication.DistinctRows
@@ -1470,6 +1471,22 @@ register_result "communication-rank-distinct-rows" where
     its relation symbol, and this is its evident repair. Pairwise distinct rows on n-bit \
     inputs give rank >= n and C(f) >= ceil(log2 n), with no n >= 1 hypothesis. C(f) is \
     the depth of leaf-labelled protocol trees in which both players know the output."
+
+-- Outside-fleet source check: SamuelSchlesinger (codex-coord-20261111-1634),
+-- https://github.com/cslib-community/cslib-frontier/pull/6259#pullrequestreview-5947134959
+register_result "communication-aho-ullman-yannakakis" where
+  title := "Monochromatic tilings give O(log² χ) deterministic protocols"
+  topic := "communication complexity"
+  sources := [
+    { paper := AroraBarak07, theorem := "Chapter 12, Exercise 7",
+      locator := "Web draft 2007-01-08; printed p. 232 / PDF p. 248" }
+  ]
+  theorems := [Cslib.Communication.RectanglePartition.ecomplexityFun_run_le,
+    Cslib.Communication.ecomplexityFun_le_eight_mul_log_tilingNumber_sq]
+  scope := "A labelled rectangle partition with t pieces gives a deterministic protocol \
+    tree of depth at most 2 ceil(log2 t) ceil(log2 (t+1)); hence C(f) <= 8 floor(log2 chi(f))^2 \
+    for finite input types and any nonempty output type (the draft: Boolean f on n-bit \
+    strings). chi is the minimum tiling number; the cover form O(N0 N1) is not claimed."
 
 register_result "communication-tiling-discrepancy" where
   title := "Discrepancy bounds the minimum arbitrary monochromatic tiling size"
