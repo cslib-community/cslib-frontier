@@ -4,6 +4,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Matthew Doty
 -/
 
+module
+-- upstream: local-only (tests)
+
 import CslibFrontier.Logics.Propositional.TseitinCNF
 import Mathlib.Data.Fintype.Pi
 
@@ -16,6 +19,8 @@ tautology, so the transformation of its negation is unsatisfiable; `p → q` is 
 transformation of its negation is satisfiable. Both are decided through
 `satisfiable_tseitinCNF_iff` by enumerating the four valuations of two atoms.
 -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.Logics.Propositional.TseitinCNF
 

@@ -21,7 +21,8 @@ propositional logic and Boolean algebras those of classical logic.
 
 Truth tables are the instance `α = Bool`, whose equations are the `Bool` simp lemmas below.
 Mathlib's `Prop` is another instance: a Heyting algebra constructively and a Boolean algebra
-classically.
+classically. The soundness of Frege proofs (`Cslib.Logic.PL.Frege.IsProof.eval`) and the Tseitin
+transformation (`Cslib.Logic.PL.Proposition.tseitinCNF`) are stated with the `Bool` instance.
 
 ## Main definitions
 
@@ -51,6 +52,8 @@ variable (v : Atom → Bool) (A B : Proposition Atom)
 @[simp] theorem eval_atom_bool (x : Atom) : (atom x).eval v = v x := rfl
 
 @[simp] theorem eval_falsum_bool : (falsum : Proposition Atom).eval v = false := rfl
+
+@[simp] theorem eval_bot_bool : (⊥ : Proposition Atom).eval v = false := rfl
 
 @[simp] theorem eval_and_bool : (and A B).eval v = (A.eval v && B.eval v) := rfl
 

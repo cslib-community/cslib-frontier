@@ -34,6 +34,14 @@ extends to a model of `A.tseitinCNF` (`Proposition.eval_tseitinCNF_tseitinExtend
 the variables of the formula (`Proposition.eq_of_eval_tseitinCNF`), and the two are equisatisfiable
 (`Proposition.satisfiable_tseitinCNF_iff`).
 
+**Source and conventions.** Tseitin [Tseitin1983, §1, p. 467] gives the three clauses defining
+the variable of a conjunction, a disjunction and an implication, and tests whether a formula is a
+tautology by adding the unit clause of the *negated* variable of the whole formula. Here the
+variable of the formula is asserted positively instead, so that the transformation is satisfiable
+exactly when the formula is; a tautology test applies it to `¬A`. CSLib's propositions have no
+negation connective, `¬A` being `A → ⊥`, so negation goes through the implication clauses, and `⊥`
+gets the unit clause making its variable false.
+
 The fresh variables keep the formula short: `A.tseitinCNF` has at most `3 · A.size + 1` clauses
 (`Proposition.length_tseitinCNF_le`), each with at most three literals
 (`Proposition.length_le_three_of_mem_tseitinCNF`).
@@ -58,7 +66,8 @@ The fresh variables keep the formula short: `A.tseitinCNF` has at most `3 · A.s
 
 ## References
 
-* [G. S. Tseitin, *On the complexity of derivation in propositional calculus*][Tseitin1983]
+* [G. S. Tseitin, *On the complexity of derivation in propositional calculus*][Tseitin1983],
+  §1, p. 467 of the 1983 reprint
 -/
 
 @[expose] public section
