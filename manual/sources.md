@@ -159,6 +159,11 @@ Saugata Basu, Richard Pollack and Marie-Françoise Roy. *Algorithms in Real Alge
 
 Eric T. Bax. “Inclusion and Exclusion Algorithm for the Hamiltonian Path Problem.” *Information Processing Letters* 47(4), 203–207, 1993. https://doi.org/10.1016/0020-0190(93)90033-6 . Bibliographic metadata checked via DOI/DBLP on 2026-11-11; the article body (paywalled) was not inspected, so the manual cites it for the inclusion–exclusion walk-counting algorithm without a theorem or page locator.
 
+<a id="bbhr18"></a>
+## bbhr18
+
+Eli Ben-Sasson, Iddo Bentov, Yinon Horesh and Michael Riabzev. "Fast Reed–Solomon Interactive Oracle Proofs of Proximity." *45th International Colloquium on Automata, Languages, and Programming (ICALP 2018)*, LIPIcs 107, 14:1–14:17, Schloss Dagstuhl, 2018. https://doi.org/10.4230/LIPIcs.ICALP.2018.14 . The library's key is `BenSassonBentovHoreshRiabzev2018`. Bibliographic metadata checked against `references.bib`. Formalized for multi-round 2-to-1 coset folding over arbitrary fields of characteristic `≠ 2` as a `PublicCoinIOP` with completeness, query complexity `kFinal + q * (3 * m + 2)`, round-by-round soundness, unconditional unique-decoding and Johnson-bound soundness, and two-channel BCS random-oracle compilation in [Folding.lean](../CslibFrontier/Crypto/Protocols/FRI/Folding.lean), [Protocol.lean](../CslibFrontier/Crypto/Protocols/FRI/Protocol.lean), [Soundness.lean](../CslibFrontier/Crypto/Protocols/FRI/Soundness.lean), and [JohnsonSoundness.lean](../CslibFrontier/Crypto/Protocols/FRI/JohnsonSoundness.lean) (paired with [bcs16](#bcs16) and [bciks20](#bciks20)).
+
 <a id="bcgl92"></a>
 ## bcgl92
 
@@ -167,7 +172,11 @@ Shai Ben-David, Benny Chor, Oded Goldreich and Michael Luby. *On the Theory of A
 <a id="bciks20"></a>
 ## bciks20
 
-Eli Ben-Sasson, Dan Carmon, Yuval Ishai, Swastik Kopparty and Shubhangi Saraf. "Proximity Gaps for Reed–Solomon Codes." *Journal of the ACM* 70(5), 31:1–31:57, 2023; preliminary version FOCS 2020; IACR Cryptology ePrint Archive 2020/654, https://eprint.iacr.org/2020/654 . https://doi.org/10.1145/3614423 . The library's key is `BenSassonCarmonIshaiKoppartySaraf2020`. Bibliographic metadata checked against `references.bib`; section and theorem locators follow ePrint 2020/654 (Sections 1, 5, 6 and 7). Johnson-bound correlated agreement and proximity gaps for Reed–Solomon lines and weighted parameterized curves over arbitrary fields of arbitrary characteristic (Theorems 1.4, 5.1, 6.2 and 7.2) are formalized in [Johnson.lean](../CslibFrontier/Foundations/Data/Code/ProximityGap/Johnson.lean) (follow-up milestones for unique decoding, affine spaces, and FRI soundness are tracked in #5968).
+Eli Ben-Sasson, Dan Carmon, Yuval Ishai, Swastik Kopparty and Shubhangi Saraf. "Proximity Gaps for Reed–Solomon Codes." *Journal of the ACM* 70(5), 31:1–31:57, 2023; preliminary version FOCS 2020; IACR Cryptology ePrint Archive 2020/654, https://eprint.iacr.org/2020/654 . https://doi.org/10.1145/3614423 . The library's key is `BenSassonCarmonIshaiKoppartySaraf2020`. Bibliographic metadata checked against `references.bib`; section and theorem locators follow ePrint 2020/654 (Sections 1, 4, 5, 6, 7 and 8). Formalized across:
+
+- unique-decoding correlated agreement and proximity gaps for lines and parameterized curves (Theorems 1.2, 4.1 and 6.1) in [Unique.lean](../CslibFrontier/Foundations/Data/Code/ProximityGap/Unique.lean);
+- Johnson-bound correlated agreement and proximity gaps for lines and weighted parameterized curves over arbitrary fields of arbitrary characteristic (Theorems 1.4, 5.1, 6.2 and 7.2) in [Johnson.lean](../CslibFrontier/Foundations/Data/Code/ProximityGap/Johnson.lean);
+- batched FRI commit-phase and query-phase soundness, unconditional unique-decoding and Johnson-bound FRI IOP soundness, and two-channel BCS random-oracle compilation (Section 8) in [Folding.lean](../CslibFrontier/Crypto/Protocols/FRI/Folding.lean), [Protocol.lean](../CslibFrontier/Crypto/Protocols/FRI/Protocol.lean), [Soundness.lean](../CslibFrontier/Crypto/Protocols/FRI/Soundness.lean), and [JohnsonSoundness.lean](../CslibFrontier/Crypto/Protocols/FRI/JohnsonSoundness.lean).
 
 <a id="bcs16"></a>
 ## bcs16
