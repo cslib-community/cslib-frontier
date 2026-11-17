@@ -45,6 +45,7 @@ meet the Singleton bound `Cslib.Code.finrank_add_le_card_add_one` with equality.
 * `Cslib.Code.le_hammingNorm_of_mem_reedSolomon`, `Cslib.Code.le_minDist_reedSolomon`: nonzero
   codewords have weight at least `n - k + 1`.
 * `Cslib.Code.minDist_reedSolomon`: the minimum distance is `n - k + 1`.
+* `Cslib.Code.eq_of_hammingDist_le_reedSolomon`: unique decoding within radius `2 * e + k ≤ n`.
 * `Cslib.Code.finrank_reedSolomon`: with distinct points and `k ≤ n`, the dimension is `k`.
 
 ## References
@@ -160,6 +161,19 @@ theorem minDist_reedSolomon (hα : Function.Injective α) (hk : 1 ≤ k)
       ≤ hammingDist (fun i => (Lagrange.nodal S α).eval (α i)) 0 :=
         minDist_le_hammingDist hw (Submodule.zero_mem _) hw0
     _ = (Fintype.card ι - k + 1 : ℕ) := by rw [hammingDist_zero_right, hnorm]
+
+/-- **Unique decoding for Reed–Solomon codes.** With distinct points, inside the unique-decoding
+radius `2 * e + k ≤ n`, a word is within Hamming distance `e` of at most one codeword. -/
+theorem eq_of_hammingDist_le_reedSolomon (hα : Function.Injective α) {e : ℕ}
+    (huniq : 2 * e + k ≤ Fintype.card ι) {f c₁ c₂ : ι → F}
+    (hc₁ : c₁ ∈ reedSolomon α k) (hc₂ : c₂ ∈ reedSolomon α k)
+    (hd₁ : hammingDist f c₁ ≤ e) (hd₂ : hammingDist f c₂ ≤ e) :
+    c₁ = c₂ := by
+  have hlt : 2 * (e : ℕ∞) < minDist (reedSolomon α k : Set (ι → F)) := by
+    refine lt_of_lt_of_le ?_ (le_minDist_reedSolomon hα k)
+    exact_mod_cast (by omega : 2 * e < Fintype.card ι - k + 1)
+  exact eq_of_hammingDist_le_of_two_mul_lt_minDist hlt hc₁ hc₂
+    (by rwa [hammingDist_comm]) (by rwa [hammingDist_comm])
 
 omit [DecidableEq F] in
 /-- With distinct points, the Reed–Solomon code with degree bound `k ≤ n` has dimension `k`. -/

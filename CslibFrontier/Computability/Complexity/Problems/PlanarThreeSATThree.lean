@@ -124,13 +124,7 @@ private theorem rejection_drawing : Graph.IsPlanarOrthogonalDrawing
 @[fun_prop]
 theorem computableInPolyTime_toDrawnPlanarThreeSATThree :
     ComputableInPolyTime toDrawnPlanarThreeSATThree encCNF encDrawnPlanarThreeSATThree := by
-  have hdraw : ComputableInPolyTime
-      (fun φ => (SAT.ParsimoniousPlanar.positions φ, SAT.ParsimoniousPlanar.routes φ))
-      encCNF Graph.encOrthogonalDrawing := by
-    unfold Graph.encOrthogonalDrawing
-    fun_prop
-  unfold toDrawnPlanarThreeSATThree
-  fun_prop
+  fun_prop [toDrawnPlanarThreeSATThree]
 
 /-- Dropping the computed drawing gives a native polynomial-time formula compiler. -/
 @[fun_prop]

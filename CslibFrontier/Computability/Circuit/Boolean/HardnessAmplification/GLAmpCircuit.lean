@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.ACC0.Gadgets
 public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.GLAmp
 public import CslibFrontier.Computability.Circuit.Replication
 import CslibFrontier.Computability.Circuit.ReplicationDepth
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # A circuit for the Goldreich–Levin amplification
@@ -76,8 +77,7 @@ variable (φ : extSignature.Hom σ) [φ.Preserves (extInterpretation (modGate 2)
 /-- `glAmpCircuit φ C k` computes the amplification of the function that `C` computes. -/
 theorem eval_glAmpCircuit (C : Circuit σ n 1) (k : ℕ) (y : BitString (k * n + k)) (o : Fin 1) :
     (glAmpCircuit φ C k).eval I y o = glAmp (fun x => C.eval I x 0) k y := by
-  rw [glAmpCircuit, Circuit.eval_comp, Circuit.eval_mapOp (I := extInterpretation (modGate 2)),
-    Circuit.eval_append, Circuit.eval_comp, Circuit.eval_wiring, Circuit.eval_wiring,
+  simp only [circuit_simps, glAmpCircuit, Circuit.eval_mapOp (I := extInterpretation (modGate 2)),
     Circuit.eval_replicateScalar, eval_innerProductCircuit]
   rfl
 
@@ -94,19 +94,13 @@ theorem _root_.Cslib.Circuits.Circuit.Computes.glAmpCircuit {C : Circuit σ n 1}
 /-- `glAmpCircuit φ C k` has `k * C.size + k + 1` gates. -/
 @[simp] theorem size_glAmpCircuit (C : Circuit σ n 1) (k : ℕ) :
     (glAmpCircuit φ C k).size = k * C.size + k + 1 := by
-  simp only [glAmpCircuit, Circuit.size_comp, Circuit.size_append, Circuit.size_wiring,
-    Circuit.size_replicateScalar, Circuit.size_mapOp, size_innerProductCircuit]
+  simp only [circuit_simps, glAmpCircuit, Circuit.size_replicateScalar, size_innerProductCircuit]
   omega
 
 /-- `glAmpCircuit φ C k` is at most two deeper than `C`. -/
+@[circuit_bound]
 theorem depth_glAmpCircuit_le (C : Circuit σ n 1) (k : ℕ) :
     (glAmpCircuit φ C k).depth ≤ C.depth + 2 := by
-  refine (Circuit.depth_comp_le _ _).trans ?_
-  rw [Circuit.depth_mapOp, add_comm]
-  refine Nat.add_le_add ((Circuit.depth_append_le _ _).trans (max_le ?_ (by simp)))
-    (depth_innerProductCircuit_le k)
-  refine (Circuit.depth_comp_le _ _).trans ?_
-  rw [Circuit.depth_wiring, add_zero]
-  exact Circuit.depth_replicateScalar_le C k
+  circuit_bound [glAmpCircuit]
 
 end Cslib.Circuits.Boolean

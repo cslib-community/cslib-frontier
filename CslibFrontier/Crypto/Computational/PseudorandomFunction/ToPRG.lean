@@ -13,10 +13,11 @@ public import CslibFrontier.Crypto.Primitives.PRF.ToPRG
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
+import CslibFrontier.Computability.Probabilistic.Oracle.Traverse
+import CslibFrontier.Foundations.Control.Monad.MapM
 import CslibFrontier.Foundations.Data.BitString.List
 import CslibFrontier.Languages.Probabilistic.Oracle.Substitution
 import CslibFrontier.Probability.BitString.List
-import CslibFrontier.Tactic.EncLen
 
 /-!
 # Pseudorandom generator from a word-level pseudorandom function
@@ -121,110 +122,43 @@ oracle at `x n 0, ..., x n (ℓ n - 1)`, truncating/padding each reply to `outLe
       (PRF.prgReduction (x n) fun y =>
         A n (List.ofFn fun i => List.ofFn (y i)).flatten)
 
-private def prgQueryStep (outLen : ℕ → ℕ) (n : ℕ) (state : List (List Bool) × List Bool) :
-    WordOracleComp Unit (List (List Bool) × List Bool) :=
-  if state.1.isEmpty then pure state
-  else do
-    let reply ← List.take (outLen n) <$>
-      ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool) ((), state.1.headD [])
-    return (state.1.tail, state.2 ++ (reply ++ List.replicate (outLen n) false).take (outLen n))
-
-private def prgFromPRFReductionLoop (ℓ inLen outLen : ℕ → ℕ)
+/-- `prgFromPRFReduction` as a word program: the points are sent to the oracle in one list
+traversal, each reply is cut to `outLen n` bits, padded back to `outLen n` bits, and the
+concatenation is given to `A n`. -/
+private def prgFromPRFReductionWord (ℓ inLen outLen : ℕ → ℕ)
     (x : ∀ n, Fin (ℓ n) ↪ BitString (inLen n)) (A : Distinguisher) : OracleDistinguisher :=
   fun n _ => do
-    let bits ← Prod.snd <$>
-      OracleComp.iterate (ℓ n) (prgQueryStep outLen n)
-        (List.ofFn fun i : Fin (ℓ n) => List.ofFn (x n i), [])
-    ProbOracleComp.sample (A n bits)
+    let replies ← (List.ofFn fun i : Fin (ℓ n) => List.ofFn (x n i)).mapM fun q =>
+      List.take (outLen n) <$>
+        ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool) ((), q)
+    ProbOracleComp.sample (A n (replies.flatMap fun r =>
+      (r ++ List.replicate (outLen n) false).take (outLen n)))
 
-private theorem iterate_prgQueryStep {k a w : ℕ} (f : Fin k → BitString a) (acc : List Bool) :
-    (Prod.snd <$> OracleComp.iterate k (prgQueryStep (fun _ => w) 0)
-      (List.ofFn (fun i => List.ofFn (f i)), acc)) =
-      ((fun y : Fin k → BitString w =>
-        acc ++ (List.ofFn fun i => List.ofFn (y i)).flatten) <$>
-        OracleComp.pi fun i : Fin k =>
-          BitString.ofList w <$>
-            ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool)
-              ((), List.ofFn (f i))) := by
-  induction k generalizing acc with
-  | zero =>
-    change (Prod.snd <$> pure ([], acc)) =
-      ((fun _ => acc ++ [].flatten) <$> pure Fin.elim0)
-    simp
-  | succ k ih =>
-    rw [OracleComp.iterate_succ_bind, OracleComp.pi_succ, List.ofFn_succ, map_bind]
-    have hstep : prgQueryStep (fun _ => w) 0
-        (List.ofFn (f 0) :: List.ofFn (fun j => List.ofFn (f j.succ)), acc) =
-        ((fun y0 : BitString w =>
-          (List.ofFn (fun j : Fin k => List.ofFn (f j.succ)), acc ++ List.ofFn y0)) <$>
-          (BitString.ofList w <$>
-            ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool)
-              ((), List.ofFn (f 0)))) := by
-      simp only [prgQueryStep, List.isEmpty_cons, Bool.false_eq_true, ite_false,
-        List.headD_cons, List.tail_cons, Functor.map_map, bind_pure_comp]
-      congr 1
-      funext reply
-      rw [← BitString.ofFn_ofList_eq_take, BitString.ofList_take]
-    rw [hstep, bind_map_left, map_bind]
+private theorem prgFromPRFReductionWord_eq (ℓ inLen outLen : ℕ → ℕ)
+    (x : ∀ n, Fin (ℓ n) ↪ BitString (inLen n)) (A : Distinguisher) :
+    prgFromPRFReductionWord ℓ inLen outLen x A = prgFromPRFReduction ℓ inLen outLen x A := by
+  funext n input
+  have hflat (y : Fin (ℓ n) → BitString (outLen n)) :
+      (List.ofFn fun i => List.ofFn (y i)).flatten = (List.ofFn y).flatMap List.ofFn := by
+    rw [List.flatMap, List.map_ofFn, Function.comp_def]
+  have hreplies : ((List.finRange (ℓ n)).mapM fun i => BitString.ofList (outLen n) <$>
+        ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool)
+          ((), List.ofFn (x n i))) =
+      List.map (BitString.ofList (outLen n)) <$> (List.finRange (ℓ n)).mapM fun i =>
+        List.take (outLen n) <$>
+          ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool)
+            ((), List.ofFn (x n i)) := by
+    rw [List.map_mapM]
     congr 1
-    funext y0
-    have hrec : (Prod.snd <$> OracleComp.iterate k (prgQueryStep (fun _ => w) 0)
-        (List.ofFn (fun j => List.ofFn (f j.succ)), acc ++ List.ofFn y0)) =
-        ((fun rest : Fin k → BitString w =>
-          acc ++ List.ofFn y0 ++ (List.ofFn fun j => List.ofFn (rest j)).flatten) <$>
-          OracleComp.pi fun j : Fin k =>
-            BitString.ofList w <$>
-              ProbOracleComp.query (spec := fun _ : Unit × List Bool => List Bool)
-                ((), List.ofFn (f j.succ))) :=
-      ih (fun j => f j.succ) (acc ++ List.ofFn y0)
+    funext i
     rw [Functor.map_map]
-    simpa only [Functor.map_map, List.ofFn_succ, Fin.cons_zero, Fin.cons_succ, List.flatten_cons,
-      List.append_assoc] using hrec
-
-private theorem prgFromPRFReductionLoop_eq (ℓ inLen outLen : ℕ → ℕ)
-    (x : ∀ n, Fin (ℓ n) ↪ BitString (inLen n)) (A : Distinguisher) (n : ℕ) (input : List Bool) :
-    prgFromPRFReductionLoop ℓ inLen outLen x A n input =
-      prgFromPRFReduction ℓ inLen outLen x A n input := by
-  simp only [prgFromPRFReductionLoop, prgFromPRFReduction, PRF.prgReduction, PRF.queryPoints,
+    exact congrArg (· <$> _) (funext fun r => (BitString.ofList_take _ r).symm)
+  simp only [prgFromPRFReductionWord, prgFromPRFReduction, PRF.prgReduction, PRF.queryPoints,
     ProbOracleComp.simulate_bind, ProbOracleComp.simulate_pi, ProbOracleComp.simulate_query,
-    ProbOracleComp.simulate_sample]
-  have hstep : prgQueryStep outLen n = prgQueryStep (fun _ => outLen n) 0 := rfl
-  rw [hstep, iterate_prgQueryStep (x n) [], bind_map_left]
-  simp only [List.nil_append]
-
-private theorem isOraclePPTOn_prgQueryStep {outLen : ℕ → ℕ}
-    (hout : ComputableInPolyTime outLen encUnary encUnary) :
-    IsOraclePPTOn (encPair encUnary (encPair (encList encBits) encBits))
-      (encPair (encList encBits) encBits)
-      (fun pair : ℕ × (List (List Bool) × List Bool) => prgQueryStep outLen pair.1 pair.2) := by
-  let inp : (ℕ × (List (List Bool) × List Bool)) ↪ List Bool :=
-    encPair encUnary (encPair (encList encBits) encBits)
-  let hfst := ComputableInPolyTime.fst encUnary (encPair (encList encBits) encBits)
-  let hsnd := ComputableInPolyTime.snd encUnary (encPair (encList encBits) encBits)
-  let hwords := hsnd.fst'
-  let hacc0 := hsnd.snd'
-  let hquery : ComputableInPolyTime
-      (fun p : ℕ × (List (List Bool) × List Bool) => p.2.1.headD []) inp encBits :=
-    (ComputableInPolyTime.headD []).comp hwords
-  let hw0 : ComputableInPolyTime (fun p : ℕ × (List (List Bool) × List Bool) => outLen p.1)
-      inp encUnary :=
-    hout.comp hfst
-  unfold prgQueryStep
-  refine IsOraclePPTOn.cond' (by fun_prop) hsnd.isOraclePPTOn ?_
-  refine (IsOraclePPTOn.query_take' () hquery hw0).map_with'
-    (f := fun pair reply =>
-      (pair.2.1.tail, pair.2.2 ++ (reply ++ List.replicate (outLen pair.1) false).take
-        (outLen pair.1))) ?_
-  let p1 := ComputableInPolyTime.fst inp encBits
-  let p2 := ComputableInPolyTime.snd inp encBits
-  have htail : ComputableInPolyTime
-      (fun p : (ℕ × (List (List Bool) × List Bool)) × List Bool => p.1.2.1.tail)
-      (encPair inp encBits) (encList encBits) := by
-    fun_prop
-  let hw := hw0.comp p1
-  let hacc := hacc0.comp p1
-  let hrep := (ComputableInPolyTime.bitsReplicate false).comp hw
-  exact htail.prod (hacc.bitsAppend ((p2.bitsAppend hrep).bitsTakeWithInput hw))
+    ProbOracleComp.simulate_sample, hflat]
+  rw [← bind_map_left List.ofFn _ fun ys => ProbOracleComp.sample (A n (ys.flatMap List.ofFn)),
+    OracleComp.map_ofFn_pi, hreplies, bind_map_left, List.ofFn_eq_map, List.mapM_map]
+  simp only [List.flatMap_map, BitString.ofFn_ofList_eq_take, Function.comp_def]
 
 /-- **Efficiency of the word PRF-to-PRG reduction.** For every uniform strict PPT distinguisher `A`,
 `prgFromPRFReduction` is uniform strict oracle PPT whenever the query list and output widths are
@@ -236,60 +170,25 @@ theorem isOraclePPT_prgFromPRFReduction {ℓ inLen outLen : ℕ → ℕ}
     (hout : ComputableInPolyTime outLen encUnary encUnary)
     (hA : IsPPT encBool A) :
     IsOraclePPT encBool (prgFromPRFReduction ℓ inLen outLen x A) := by
-  have heq :
-      prgFromPRFReductionLoop ℓ inLen outLen x A = prgFromPRFReduction ℓ inLen outLen x A := by
-    funext n input
-    exact prgFromPRFReductionLoop_eq ℓ inLen outLen x A n input
-  rw [← heq]
-  have hℓ : ComputableInPolyTime ℓ encUnary encUnary := by
-    simpa only [Function.comp_def, List.length_ofFn] using
-      (ComputableInPolyTime.length_list encBits).comp hx
-  have hinit : ComputableInPolyTime
-      (fun n => (List.ofFn fun i : Fin (ℓ n) => List.ofFn (x n i), ([] : List Bool)))
-      encUnary (encPair (encList encBits) encBits) :=
-    hx.prod (.const [])
-  have hpolyOut : PolyBounded (fun n => (encUnary n).length) outLen := by
-    simpa only [encUnary_apply, List.length_replicate] using hout.polyBounded_length
-  have hgrowth : ∀ n (state next : List (List Bool) × List Bool),
-      next ∈ OracleComp.support (prgQueryStep outLen n state) →
-      (encPair (encList encBits) encBits next).length ≤
-        (encPair (encList encBits) encBits state).length + outLen n := by
-    intro n state next hnext
-    obtain ⟨words, acc⟩ := state
-    cases words with
-    | nil =>
-      simp only [prgQueryStep, List.isEmpty_nil, ite_true] at hnext
-      rw [OracleComp.eq_of_mem_supportWith_pure hnext]
-      omega
-    | cons word words =>
-      simp only [prgQueryStep, List.isEmpty_cons, Bool.false_eq_true, ite_false] at hnext
-      obtain ⟨reply, -, hreply⟩ := OracleComp.mem_supportWith_bind_iff.mp hnext
-      rcases OracleComp.eq_of_mem_supportWith_pure hreply with rfl
-      enc_len [List.tail_cons, List.length_append, List.length_take]
-  have hiter : IsOraclePPTOn encUnary (encPair (encList encBits) encBits)
-      (fun n => OracleComp.iterate (ℓ n) (prgQueryStep outLen n)
-        (List.ofFn fun i : Fin (ℓ n) => List.ofFn (x n i), [])) :=
-    IsOraclePPTOn.iterateWith_of_bounded_growth' hℓ hinit
-      (isOraclePPTOn_prgQueryStep hout) hpolyOut hgrowth
-  have hbits : IsOraclePPTOn encUnary encBits
-      (fun n => Prod.snd <$> OracleComp.iterate (ℓ n) (prgQueryStep outLen n)
-        (List.ofFn fun i : Fin (ℓ n) => List.ofFn (x n i), [])) :=
-    IsOraclePPTOn.map' hiter (by fun_prop)
-  have hpaired : IsOraclePPTOn encUnary (encPair encUnary encBits)
-      (fun n => (fun bits => (n, bits)) <$>
-        (Prod.snd <$> OracleComp.iterate (ℓ n) (prgQueryStep outLen n)
-          (List.ofFn fun i : Fin (ℓ n) => List.ofFn (x n i), []))) :=
-    hbits.keep_input
-  have hsample : IsOraclePPTOn (Operation := Unit) (encPair encUnary encBits) encBool
-      (fun p : ℕ × List Bool => ProbOracleComp.sample (A p.1 p.2)) :=
-    hA.on.isOraclePPTOn
-  have hfull : IsOraclePPTOn encUnary encBool
-      (fun n => do
-        let bits ← Prod.snd <$> OracleComp.iterate (ℓ n) (prgQueryStep outLen n)
-          (List.ofFn fun i : Fin (ℓ n) => List.ofFn (x n i), [])
-        ProbOracleComp.sample (A n bits)) := by
-    simpa only [bind_map_left] using hpaired.bind hsample
-  exact (hfull.preprocess' (ComputableInPolyTime.fst encUnary encBits)).isOraclePPT
+  rw [← prgFromPRFReductionWord_eq]
+  have hreplies := IsOraclePPTOn.mapM_query_take () hx hout
+  have hw := hout.comp (ComputableInPolyTime.fst encUnary (encList encBits))
+  have hw' := hw.comp (ComputableInPolyTime.fst (encPair encUnary (encList encBits)) encBits)
+  have hpad : ComputableInPolyTime
+      (fun p : ℕ × List (List Bool) => p.2.flatMap fun r =>
+        (r ++ List.replicate (outLen p.1) false).take (outLen p.1))
+      (encPair encUnary (encList encBits)) encBits :=
+    ComputableInPolyTime.flatMapToBitsWithInput (ComputableInPolyTime.snd _ _)
+      (((ComputableInPolyTime.snd _ _).bitsAppend
+        ((ComputableInPolyTime.bitsReplicate false).comp hw')).bitsTakeWithInput hw')
+  have hsample : IsOraclePPTOn (Operation := Unit) (encPair encUnary (encList encBits)) encBool
+      (fun p : ℕ × List (List Bool) => ProbOracleComp.sample (A p.1 (p.2.flatMap fun r =>
+        (r ++ List.replicate (outLen p.1) false).take (outLen p.1)))) :=
+    hA.on.isOraclePPTOn.preprocess' ((ComputableInPolyTime.fst _ _).prod hpad)
+  unfold prgFromPRFReductionWord
+  have hbody := hreplies.bind_with hsample (second := fun n replies => ProbOracleComp.sample
+    (A n (replies.flatMap fun r => (r ++ List.replicate (outLen n) false).take (outLen n))))
+  exact (hbody.preprocess' (ComputableInPolyTime.fst encUnary encBits)).isOraclePPT
 
 end Reduction
 

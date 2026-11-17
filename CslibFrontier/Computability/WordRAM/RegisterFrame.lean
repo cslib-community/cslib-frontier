@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.WordRAM.Structured
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Register frames for renamed native programs
@@ -76,9 +77,7 @@ theorem Data.extend_castLE_regs_of_le {r s : ℕ} {hrs : r ≤ s}
     (y : Data r) (x : Data s) (i : Fin s) (hi : r ≤ i.val) :
     (y.extend (Fin.castLE hrs) x).regs i = x.regs i :=
   Data.extend_regs_of_forall_ne y x i fun j hj => by
-    have hv := congrArg Fin.val hj
-    change j.val = i.val at hv
-    omega
+    fin_index
 
 /-- Extending registers retains the actual returned memory, including callee writes. -/
 @[simp]
@@ -99,10 +98,6 @@ theorem Code.preserves_rename_of_offset {B : Basis} {r s offset : ℕ}
     (i : Fin s) (hi : i.val < offset ∨ offset + r ≤ i.val) :
     (c.rename f).Preserves i := by
   apply c.preserves_rename_of_forall_ne
-  intro j he
-  have hv := congrArg Fin.val he
-  rw [hf] at hv
-  have hj := j.isLt
-  omega
+  fin_index [hf]
 
 end Cslib.WordRAM

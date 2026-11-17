@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.TreeDecomposition.Rooted
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Subtrees of rooted tree decompositions
@@ -108,7 +109,7 @@ private theorem parent_iterate_val (j : Fin (n + 1)) (a : ℕ) :
 theorem isDescendant_zero (j : Fin (n + 1)) : R.IsDescendant j 0 := by
   refine ⟨j.val, ?_⟩
   rcases R.parent_iterate_val j j.val with h | h
-  · exact Fin.ext (by simp only [Fin.val_zero]; omega)
+  · fin_index
   · exact h
 
 /-! ### Children -/
