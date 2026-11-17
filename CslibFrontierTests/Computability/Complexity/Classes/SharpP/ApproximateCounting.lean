@@ -12,8 +12,9 @@ import CslibFrontier.Computability.Complexity.Classes.SharpP.ApproximateCounting
 
 Checked instances of the hypotheses of `FNP.exists_approxCount_SAT` (Goldreich, Theorem 6.27)
 and its `#P` step `SharpP.exists_approxCount_SAT`, of the sieve query of Goldreich's Exercise
-6.34, and the factor-`1 / 2` form of Arora–Barak's Exercise 9 §6(a) as the case `ε = 1 / 2` of
-`SharpP.exists_approx_of_NP_subset_P`.
+6.34, the factor-`1 / 2` form of Arora–Barak's Exercise 9 §6(a) as the case `ε = 1 / 2` of
+`SharpP.exists_approx_of_NP_subset_P`, and its deterministic form, Exercise 9 §6(c), from
+`SharpP.exists_deterministic_approx_of_NP_subset_P`.
 -/
 
 set_option linter.privateModule false
@@ -62,3 +63,23 @@ example (h : ∀ {β : Type} (encB : β ↪ List Bool), NP encB ⊆ P encB) {f :
   refine ⟨ℓ, A, hA, fun a => (hdens a).trans (dens_le_dens fun r hr => ?_)⟩
   simp only [mem_filter, mem_univ, true_and] at hr ⊢
   constructor <;> linarith [hr.1, hr.2]
+
+-- Arora–Barak, Exercise 9 §6(c): under `NP ⊆ P`, deterministic approximation within the factor
+-- `1 / 2`, for every instance.
+example (h : ∀ {β : Type} (encB : β ↪ List Bool), NP encB ⊆ P encB) {f : α → ℕ}
+    (hf : f ∈ SharpP enc) :
+    ∃ A : α → ℕ, ComputableInPolyTime A enc encNat ∧
+      ∀ a, (f a : ℚ) / 2 ≤ A a ∧ (A a : ℚ) ≤ 2 * f a := by
+  obtain ⟨A, hA, hAf⟩ :=
+    SharpP.exists_deterministic_approx_of_NP_subset_P h hf (ε := 1 / 2) (by norm_num)
+  exact ⟨A, hA, fun a => by constructor <;> linarith [hAf a]⟩
+
+-- Deterministic approximation within relative error `1 / (n + 1)`, `n` the encoded length.
+example (h : ∀ {β : Type} (encB : β ↪ List Bool), NP encB ⊆ P encB) {f : α → ℕ}
+    (hf : f ∈ SharpP enc) :
+    ∃ A : α → ℕ, ComputableInPolyTime A enc encNat ∧
+      ∀ a, f a ≤ A a ∧ ((enc a).length + 1) * A a ≤ ((enc a).length + 1 + 1) * f a := by
+  obtain ⟨A, hA, hAf⟩ :=
+    SharpP.exists_deterministic_approxCount_of_NP_subset_P h hf (Polynomial.X + 1) fun _ => by simp
+  refine ⟨A, hA, fun a => ?_⟩
+  simpa only [Polynomial.eval_add, Polynomial.eval_X, Polynomial.eval_one] using hAf a
