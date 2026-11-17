@@ -59,8 +59,9 @@ theorem eval_cons {f : BinOp} (hf : Supported f) {k a b : ℕ}
   rw [Nat.add_comm a, Nat.add_comm b, Nat.add_comm (f.eval a b)]
   apply Nat.eq_of_testBit_eq
   intro j
-  rcases hf with rfl | rfl | rfl <;>
-  · simp only [BinOp.eval] at hlt ⊢
+  rcases hf with rfl | rfl | rfl
+  all_goals
+    simp only [BinOp.eval] at hlt ⊢
     simp only [Nat.testBit_two_pow_mul_add _ ha, Nat.testBit_two_pow_mul_add _ hb,
       Nat.testBit_two_pow_mul_add _ hlt,
       Nat.testBit_and, Nat.testBit_or, Nat.testBit_xor]

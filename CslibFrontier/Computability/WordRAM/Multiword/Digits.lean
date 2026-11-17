@@ -22,7 +22,6 @@ workspace layout. They apply to any register count, including an empty register 
 
 ## Main results
 
-* `Cslib.WordRAM.Multiword.value_cons`: prepending a register adjoins its digit as the low digit.
 * `Cslib.WordRAM.Multiword.value_congr`: the value depends only on the listed registers.
 * `Cslib.WordRAM.Multiword.value_eq_zero_of_forall`: listed registers that are all zero have
   value zero.
