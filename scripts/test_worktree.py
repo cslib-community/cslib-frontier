@@ -243,6 +243,26 @@ class WorktreeCreateTests(unittest.TestCase):
             self.assertEqual((wt / ".lake/packages/cslib/.lake").exists(), expected == "seeded")
             self.assertTrue((wt / ".lake/build/bootstrap-artifact").is_file())
 
+    def test_compatible_root_cache_omits_a_dirty_guide_only_package(self) -> None:
+        cslib = self.primary_caches()
+        verso = self.work / ".lake/packages/verso"
+        git(self.work, "clone", "-q", str(cslib), str(verso))
+        (verso / "Source.lean").write_text("local guide edit")
+        pin = git(cslib, "rev-parse", "HEAD")
+        for names in (["cslib"], []):
+            manifest = {"packages": [{"name": name, "type": "git", "rev": pin} for name in names]}
+            (self.work / "lake-manifest.json").write_text(json.dumps(manifest))
+            git(self.work, "add", "lake-manifest.json")
+            git(self.work, "commit", "-qm", "record root pins")
+            name = f"root-{len(names)}"
+            result = self.create(f"test/{name}", name, "HEAD", "--copy-packages")
+            self.assertEqual(result.returncode, 0, result.stderr)
+            lake = self.work / ".worktrees" / name / ".lake"
+            self.assertTrue((lake / "build/root-output").is_file())
+            self.assertFalse((lake / "packages/verso").exists())
+            self.assertEqual((lake / "packages/cslib/.lake/build/dependency-output").is_file(),
+                             bool(names))
+
     def test_mixed_pins_seed_only_clean_matching_package_sources(self) -> None:
         cslib = self.primary_caches()
         other = self.work / ".lake/packages/other"

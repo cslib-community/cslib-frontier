@@ -328,7 +328,9 @@ or `index`, and dereferences any package symlink whose target is absolute or esc
 directory. Pass `--copy-cslib` or `--copy-packages` when package sources must change.
 
 Before copying, the helper compares both checkouts’ toolchains and manifests and verifies the
-primary dependency checkouts against the requested Git revisions. It checks for staged, unstaged
+primary dependency checkouts against the requested Git revisions. Only packages listed in the
+destination root manifest are seeded, even if the primary checkout also contains Guide or API
+documentation dependencies. The helper checks for staged, unstaged
 and nonignored untracked changes outside each dependency's `.lake`. When a pin or toolchain
 differs, it seeds only the matching clean packages' sources and private Git controls. Lake
 bootstraps the missing packages and build outputs. An unreadable destination manifest skips the

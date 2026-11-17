@@ -215,7 +215,8 @@ elif [ "$(uname -s)" = Darwin ]; then
   cache_copy=(/bin/cp -acL)
 fi
 
-# Print "*" for a compatible bundle; otherwise list only reusable source checkouts.
+# Print the copy mode followed by the verified package names. A pair of manifest-free
+# checkouts uses the legacy directory scan; a manifest-backed seed never scans for extra packages.
 # A different dependency or toolchain can invalidate even the matching packages' build outputs.
 seed_plan() {
   python3 - "$ROOT" "$1" <<'PYTHON'
@@ -230,7 +231,7 @@ def same_input(name):
     source, dest = primary / name, target / name
     if source.is_file() and dest.is_file():
         return source.read_bytes() == dest.read_bytes()
-    return not source.exists() and not dest.exists()
+    return not (source.exists() or source.is_symlink() or dest.exists() or dest.is_symlink())
 
 def pinned_source(pkg, revision):
     if not (pkg / ".git").exists():
@@ -263,12 +264,14 @@ try:
             else:
                 compatible = False
     if compatible:
-        print("*")
+        print("verified" if manifest.is_file() else "legacy")
     else:
         print(f"Skipping incompatible build outputs; reusing {len(matched)} pinned source checkouts.",
               file=sys.stderr)
-        for name in matched:
-            print(name)
+        if matched:
+            print("sources")
+    for name in matched:
+        print(name)
 except (OSError, ValueError, KeyError, TypeError) as error:
     print(f"Skipping initial cache copies: could not verify the seed inputs ({error}).", file=sys.stderr)
 PYTHON
@@ -431,20 +434,22 @@ prepare_lake() {
     bootstrap_worktree_cache "$wt_path"
     return 0
   fi
-  local -a packages
-  if [ "$plan" = "*" ]; then
-    copy_outputs=true
-    packages=("$ROOT"/.lake/packages/*)
-  else
-    packages=()
+  local mode
+  local -a packages=()
+  {
+    IFS= read -r mode
     while IFS= read -r name; do
       packages+=("$ROOT/.lake/packages/$name")
-    done <<< "$plan"
+    done
+  } <<< "$plan"
+  if [ "$mode" = "legacy" ]; then
+    packages=("$ROOT"/.lake/packages/*)
   fi
+  if [ "$mode" != "sources" ]; then copy_outputs=true; fi
   mkdir -p "$wt_path/.lake"
   if [ -d "$ROOT/.lake/packages" ] && [ ! -d "$wt_path/.lake/packages" ]; then
     mkdir -p "$wt_path/.lake/packages"
-    for pkg in "${packages[@]}"; do
+    for pkg in ${packages[@]+"${packages[@]}"}; do
       [ -d "$pkg" ] || continue
       name="$(basename "$pkg")"
       copy_sources="false"
