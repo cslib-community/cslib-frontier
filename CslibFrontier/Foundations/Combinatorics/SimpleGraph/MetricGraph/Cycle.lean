@@ -587,11 +587,6 @@ theorem circleMap_zero {v₀ : V} {c : W.graph.Walk v₀ v₀} (hc : c.IsCycle) 
   rw [circleMap_eq_walkPoint hc le_rfl (walkLength_nonneg W.weight W.weight_nonneg c),
     walkPoint_nonpos c le_rfl]
 
-private lemma fract_mul_add_floor_mul {L : ℝ} (hL : L ≠ 0) (s : ℝ) :
-    s = Int.fract (s / L) * L + (⌊s / L⌋ : ℝ) * L := by
-  rw [Int.fract, sub_mul, div_mul_cancel₀ _ hL]
-  ring
-
 theorem circleMap_dist_le [Finite V] {v₀ : V} {c : W.graph.Walk v₀ v₀} (hc : c.IsCycle)
     (s t : ℝ) :
     Dist.dist (circleMap hc s) (circleMap hc t) ≤ |s - t| := by
@@ -621,7 +616,8 @@ theorem circleMap_dist_le [Finite V] {v₀ : V} {c : W.graph.Walk v₀ v₀} (hc
   let r := Int.fract (s / L) * L
   have hr0 : 0 ≤ r := mul_nonneg (Int.fract_nonneg _) hL.le
   have hrl : r < L := (mul_lt_iff_lt_one_left hL).mpr (Int.fract_lt_one _)
-  have hs_shift : s = r + (⌊s / L⌋ : ℝ) * L := fract_mul_add_floor_mul hL.ne' s
+  have hs_shift : s = r + (⌊s / L⌋ : ℝ) * L := by
+    simpa only [zsmul_eq_mul] using (Int.fract_div_mul_self_add_zsmul_eq L s hL.ne').symm
   have hsm : circleMap hc s = walkPoint c r := rfl
   by_cases hsum : r + (t' - s) ≤ L
   · have ht'_eq : t' = (r + (t' - s)) + (⌊s / L⌋ : ℝ) * L := by linarith
@@ -1140,7 +1136,8 @@ theorem circleMap_dist_eq_circleDist [Finite V] {v₀ : V} {c : W.graph.Walk v�
       have : d.snd ∈ (Walk.cons hadj q₂).support :=
         List.mem_cons_of_mem _ (Walk.start_mem_support _)
       exact hc_eq ▸ Walk.support_subset_support_append_right _ _ this
-    have hs_r : s = r + (⌊s / L⌋ : ℝ) * L := fract_mul_add_floor_mul hL.ne' s
+    have hs_r : s = r + (⌊s / L⌋ : ℝ) * L := by
+      simpa only [zsmul_eq_mul] using (Int.fract_div_mul_self_add_zsmul_eq L s hL.ne').symm
     have hcd_s : circleDist L s (walkLength W.weight q₁ + (t : ℝ) * W.weight d.edge) = 0 := by
       rw [← hr_eq, hs_r, circleDist_add_int_left hL, circleDist_self hL]
     have hcd_fst : circleDist L (walkLength W.weight q₁) (cycCoord c d.fst) = 0 := by
@@ -1429,7 +1426,8 @@ private lemma circleMap_rotate_eq [DecidableEq V] {v₀ v : V} {c : W.graph.Walk
   let q := Int.fract (r / L) * L
   have hq0 : 0 ≤ q := mul_nonneg (Int.fract_nonneg _) hL.le
   have hqL : q < L := (mul_lt_iff_lt_one_left hL).mpr (Int.fract_lt_one _)
-  have hr_eq : r = q + (⌊r / L⌋ : ℝ) * L := fract_mul_add_floor_mul hL.ne' r
+  have hr_eq : r = q + (⌊r / L⌋ : ℝ) * L := by
+    simpa only [zsmul_eq_mul] using (Int.fract_div_mul_self_add_zsmul_eq L r hL.ne').symm
   have hr_lhs : circleMap hc (cycCoord c v + r) = circleMap hc (cycCoord c v + q) := by
     rw [hr_eq, ← add_assoc, circleMap_add_int_mul hc _ ⌊r / L⌋]
   have hr_rhs : circleMap hc_v r = circleMap hc_v q := by
@@ -1464,7 +1462,8 @@ theorem circleMap_local_dichotomy {v₀ : V} {c : W.graph.Walk v₀ v₀} (hc : 
   obtain ⟨d, q₁, q₂, hadj, t, hd, hc_eq, hpt, hr_eq⟩ :=
     walkPoint_dart_decomp c hc.not_nil hr₀0 hr₀L.le
   have hwpos : 0 < W.weight d.edge := W.dart_weight_pos d
-  have hs_r₀ : s = r₀ + (⌊s / L⌋ : ℝ) * L := fract_mul_add_floor_mul hL.ne' s
+  have hs_r₀ : s = r₀ + (⌊s / L⌋ : ℝ) * L := by
+    simpa only [zsmul_eq_mul] using (Int.fract_div_mul_self_add_zsmul_eq L s hL.ne').symm
   have vertex_case : ∀ (v : V) (hv : v ∈ c.support) (k : ℤ), s = cycCoord c v + (k : ℝ) * L →
       ∃ (v' : V) (d₁ d₂ : W.graph.Dart) (δ : ℝ),
         v' ∈ c.support ∧ d₁.fst = v' ∧ d₂.fst = v' ∧ d₁.edge ≠ d₂.edge ∧
