@@ -60,7 +60,7 @@ The size labels describe prerequisite breadth, not staffing or calendar estimate
   The upper bound needs a polynomial-space matrix multiplicative-weights argument with controlled precision; quantum circuit simulation alone does not provide it.
 - **MIP\* = RE — optional, large integration project; exceptional if rebuilt from scratch**: Prove the characterization of RE in [Ji–Natarajan–Vidick–Wright–Yuen, v4](https://arxiv.org/abs/2001.04383v4) as a native class equality, with finite-dimensional tensor-product strategies, their supremum over unbounded finite dimensions and a uniform polynomial-time verifier.
   Distinguish classical MIP from commuting-operator models.
-  Start by auditing reuse of the Apache-2.0 [MIPRE formalization](https://github.com/vidick/MIPRE-formalization) rather than duplicating its compression proof.
+  Start by auditing reuse of the Apache-2.0 [MIPRE formalization](https://github.com/vidick/MIPRE-formalization) rather than duplicating its compression proof; the audit and integration plan are in [#6105](https://github.com/cslib-community/cslib-frontier/issues/6105).
 
 ## Areas
 

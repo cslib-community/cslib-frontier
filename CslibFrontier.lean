@@ -2127,6 +2127,7 @@ public import CslibFrontier.Computability.Complexity.Classes.MIP
 public import CslibFrontier.Computability.Complexity.Classes.MIP.Defs
 public import CslibFrontier.Computability.Complexity.Classes.MIP.NEXP
 public import CslibFrontier.Computability.Complexity.Classes.MIP.OptimalProver
+public import CslibFrontier.Computability.Complexity.Classes.MIPStar.Defs
 public import CslibFrontier.Computability.Complexity.Classes.Measure.Basic
 public import CslibFrontier.Computability.Complexity.Classes.Measure.Conservation
 public import CslibFrontier.Computability.Complexity.Classes.Measure.DTIME
@@ -3603,6 +3604,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Coun
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Hardwire
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Partialize
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Partrec
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.RE
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Reduction
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Rice
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.SMN
