@@ -17,10 +17,11 @@ public import Mathlib.Analysis.CStarAlgebra.Matrix
 The **commuting-operator value** `ω_qc(G)` of a two-prover game
 (`Cslib.PCP.TwoProverGame.commutingValue`) is the supremum of the winning probability of
 commuting-operator strategies (`Cslib.PCP.CommutingStrategy`) over all C⋆-algebras
-(`Cslib.Quantum.CStarAlg`, a C⋆-algebra in `Type` with its order). By the GNS construction, which
-is not used here, this is the value of the commuting-operator model of Tsirelson: commuting
-measurements of the two provers on one Hilbert space
-[Ji, Natarajan, Vidick, Wright and Yuen][JNVWY2020].
+(`Cslib.Quantum.CStarAlg`, a C⋆-algebra in `Type` with its order). The commuting-operator model
+of [Ji, Natarajan, Vidick, Wright and Yuen, §1.3, equations (8)–(9)][JNVWY2020] (arXiv v4,
+p. 13) has the provers measure with commuting POVMs on one Hilbert space in a normalized state;
+the formulation here, with a state on an abstract C⋆-algebra, is equivalent to it by the GNS
+construction, which is background and not formalized here.
 
 Every finite-dimensional tensor-product strategy is a commuting-operator strategy in the C⋆-algebra
 of matrices (`Cslib.PCP.QuantumStrategy.toCommuting`), so the values are ordered,
@@ -29,7 +30,8 @@ of matrices (`Cslib.PCP.QuantumStrategy.toCommuting`), so the values are ordered
 
 (`Cslib.PCP.TwoProverGame.value_le_quantumValue`,
 `Cslib.PCP.TwoProverGame.quantumValue_le_commutingValue`). Whether the second inequality can be
-strict for some game is Tsirelson's problem, answered positively through `MIP* = RE`; for CHSH and
+strict for some game is Tsirelson's problem, answered positively through `MIP* = RE`
+([Ji, Natarajan, Vidick, Wright and Yuen, §12.3, Theorem 12.10][JNVWY2020]); for CHSH and
 the magic square both values agree: Tsirelson's bound holds in the commuting-operator model, so
 `ω_qc(CHSH) = cos²(π/8)` (`Cslib.PCP.TwoProverGame.commutingValue_chsh`), and
 `ω_qc(magic square) = 1` (`Cslib.PCP.TwoProverGame.commutingValue_magicSquare`).
@@ -97,7 +99,7 @@ theorem commutingValue_le_one : G.commutingValue ≤ 1 :=
 
 /-- Every commuting-operator strategy in a C⋆-algebra wins with probability at most the
 commuting-operator value. -/
-theorem commutingWinProb_le_commutingValue (𝒜 : Type) [CStarAlgebra 𝒜] [PartialOrder 𝒜]
+theorem commutingWinProb_le_commutingValue {𝒜 : Type} [CStarAlgebra 𝒜] [PartialOrder 𝒜]
     [StarOrderedRing 𝒜] (S : CommutingStrategy X Y A B 𝒜) :
     G.commutingWinProb S ≤ G.commutingValue := by
   have hb : ∀ 𝒜 : CStarAlg, BddAbove
@@ -116,7 +118,7 @@ theorem quantumWinProb_le_commutingValue {ι κ : Type} [Fintype ι] [DecidableE
     [DecidableEq κ] (S : QuantumStrategy X Y A B ι κ) :
     G.quantumWinProb S ≤ G.commutingValue := by
   rw [← commutingWinProb_toCommuting]
-  exact G.commutingWinProb_le_commutingValue (Matrix (ι × κ) (ι × κ) ℂ) S.toCommuting
+  exact G.commutingWinProb_le_commutingValue (𝒜 := Matrix (ι × κ) (ι × κ) ℂ) S.toCommuting
 
 /-- **The entangled value is at most the commuting-operator value**: `ω* ≤ ω_qc`. -/
 theorem quantumValue_le_commutingValue : G.quantumValue ≤ G.commutingValue :=

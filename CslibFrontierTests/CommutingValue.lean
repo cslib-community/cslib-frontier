@@ -4,6 +4,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Christian Reitwiessner
 -/
 
+module
+-- upstream: local-only (tests)
+
 import CslibFrontier.Computability.PCP.TwoProverGame.CommutingValue
 
 /-! # The commuting-operator value
@@ -12,6 +15,8 @@ Checked clients of `Cslib.PCP.TwoProverGame.commutingValue`: the chain of values
 `ω ≤ ω* ≤ ω_qc ≤ 1`, a strategy in an arbitrary C⋆-algebra bounded by the value, and the values of
 CHSH and the magic square, which agree with their entangled values.
 -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.CommutingValue
 
@@ -27,7 +32,7 @@ example {X Y A B : Type} [Finite X] [Finite Y] [Fintype A] [Fintype B] [Nonempty
 /-- A strategy in any C⋆-algebra is bounded by the commuting-operator value. -/
 example {𝒜 : Type} [CStarAlgebra 𝒜] [PartialOrder 𝒜] [StarOrderedRing 𝒜]
     (S : CommutingStrategy Bool Bool Bool Bool 𝒜) : chsh.commutingWinProb S ≤ chsh.commutingValue :=
-  chsh.commutingWinProb_le_commutingValue 𝒜 S
+  chsh.commutingWinProb_le_commutingValue S
 
 /-- Tsirelson's bound is the commuting-operator value of CHSH, which equals its entangled value. -/
 example : chsh.commutingValue = chsh.quantumValue := by
