@@ -63,7 +63,7 @@ and Chapter 10 rows to the open Chapter 10 audit PR
 |---|---|---|---|---|---|
 | 2 | 36 | 22 | 15 | 0 | — |
 | 5 | 30 | 27 | 6 | 0 | 5.12: [#4224](https://github.com/cslib-community/cslib-frontier/issues/4224) (objective B3) |
-| 6 | 39 | 31 | 14 | 1 | 6.15: [#2084](https://github.com/cslib-community/cslib-frontier/issues/2084); 6.26: [#5147](https://github.com/cslib-community/cslib-frontier/issues/5147) |
+| 6 | 39 | 30 | 15 | 1 | 6.15: [#2084](https://github.com/cslib-community/cslib-frontier/issues/2084); 6.26: [#5147](https://github.com/cslib-community/cslib-frontier/issues/5147) |
 | 7 | 24 | 21 | 5 | 1 | — |
 | 8 | 44 | 30 | 13 | 1 | — |
 | 9 | 29 | 21 | 9 | 1 | — |
@@ -74,6 +74,9 @@ covers 6.22 and both parts of 6.36 (part (a) with the padded SAT relation of 6.3
 now C; 10.6 is unchanged. Chapter 6 totals are recounted from its current rows.
 
 The 2026-11-17 integer-programming update moves 2.23 from T to C.
+
+The 2026-11-17 modular square-root update moves 6.16(1–3) from T to C; the Chapter 6 totals are
+recounted from its rows.
 
 The 2026-11-17 pairwise-independent hitting bound moves 7.23 from T to C; the Chapter 7 totals
 are recounted from its rows.
@@ -233,7 +236,7 @@ the open equalities P = BPP, P = RP and P = ZPP, respectively; their corrected t
 | 6.13 | 256 / 54 | **T** | BPP ⊆ ZPP^NP for decision problems (zero-error randomized reduction of BPP to NP via random shifts). Not located: `PH/SipserLautemann.lean` proves only `BPP_subset_SigmaP_two`/`PiP_two`; no ZPP-with-oracle class found. |
 | 6.14 | 256 / 54 | **T** | The promise problem (circuits accepting ≥ 2/3 of inputs, circuits rejecting ≥ 2/3 of inputs) is promise-BPP-complete under deterministic log-space Karp reductions. Not located (searched CAPP / circuit-acceptance / PromiseBPP-complete). |
 | 6.15 | 256–257 / 54–55 | **T** | Promise-BPtime hierarchy analogous to Theorem 4.3 / Corollary 4.4, via delayed diagonalization (guideline by van Melkebeek). Not in library (`Promise/Time.lean` defines `PromiseBPTIME`, no separation). Owned by open issue #2084 (PromiseBPTIME hierarchy by delayed diagonalization). |
-| 6.16(1–3) | 257 / 55 | **T** | A PPT algorithm that on input a prime P and quadratic residue s mod P outputs r with r² ≡ s (mod P): (1) P ≡ 3 (mod 4) ⇒ s^{(P+1)/4} is a root; (2) if s^e t^{e′} ≡ 1 with e odd, e′ even then (s^{(e+1)/2} t^{e′/2})² ≡ s; (3) given a non-residue t and P ≡ 1 (mod 4), such e, e′ are found deterministically (footnote 23 descent). Checked on rendered PDF 55. Not located in repo (`Crypto/Computational/QuadraticResiduosity.lean` has only `blumSqrt` for Blum composites); Mathlib prerequisite `ZMod.euler_criterion`, `ZMod.pow_div_two_eq_neg_one_or_one`. |
+| 6.16(1–3) | 257 / 55 | **C** | A PPT algorithm that on input a prime P and quadratic residue s mod P outputs r with r² ≡ s (mod P): (1) P ≡ 3 (mod 4) ⇒ s^{(P+1)/4} is a root; (2) if s^e t^{e′} ≡ 1 with e odd, e′ even then (s^{(e+1)/2} t^{e′/2})² ≡ s; (3) given a non-residue t and P ≡ 1 (mod 4), such e, e′ are found deterministically (footnote 23 descent). Checked on rendered PDF 55. Items 1–3 covered in [ModularSquareRoot](../CslibFrontier/Computability/Complexity/Problems/ModularSquareRoot.lean): (1) `Cslib.Complexity.ModularSquareRoot.pow_add_one_div_four_sq_modEq` (formerly private in `Crypto/Computational/RabinFactoring.lean`, now shared); (2) `sq_eq_of_pow_mul_pow_eq_one` (any commutative monoid); (3) `descentExponents_spec` (odd `e`, even `e′`, `s^e t^{e′} = 1` in `ZMod P` for a non-zero residue `s` and `t^{P/2} = -1`) and `computableInPolyTime_descentExponents` (native polynomial time on binary naturals, `Nat.size P` descent rounds). `sqrtMod_sq` and `computableInPolyTime_sqrtMod` assemble the deterministic root algorithm given a non-residue; for P ≡ 3 (mod 4) it needs none and returns item 1's root. Not formalized: the randomized search for a non-residue that turns this into the exercise's PPT algorithm (it uses item 4, row 6.16(4)). [Checked clients](../CslibFrontierTests/ModularSquareRoot.lean). |
 | 6.16(4) | 257 / 55 | **S** | As stated, t uniform in {1,…,P} satisfies t^{(P−1)/2} ≡ −1 with probability (P−1)/(2P), not 1/2 (t = P gives 0). Corrected endpoint: for t uniform in {1,…,P−1}, the probability is exactly 1/2 (P odd prime). |
 | 6.17 | 257 / 55 | **T** | Arithmetic-circuit identity testing for depth-d circuits over a field with > 2^{d+1} elements is in coRP (degree ≤ 2^d plus Schwartz–Zippel). Partial: `MvPolynomial.schwartz_zippel_totalDegree_fintype` in [SchwartzZippel](../CslibFrontier/Foundations/Data/MvPolynomial/SchwartzZippel.lean) gives the probability bound. Remaining: depth-d degree bound for the arithmetic-circuit model, field-arithmetic encoding/time, coRP membership; not located under `Computability/Circuit/Arithmetic`. |
 | 6.18 | 257–258 / 55–56 | **T** | Randomized step counter: on input n, uses O(1)+log₂ n space, issues an expected 2^n signals, and with probability ≥ 1 − 2^{−k+1} the number of signals lies in [2^{n−k}, 2^{n+k}]. Not located (StepCounter combinators in `Machines/Turing/MultiTape/Combinators/StepCounter` are deterministic). |
