@@ -311,8 +311,8 @@ This statement differs from the source in these ways.
 * The source takes `n` as the security parameter and requires `n log q < m ≤ q / (2 n⁴)` and
   `q = O(n^c)` (Section 2.2, p. 3). Here the security parameter is `κ`, and `P` is any family with
   `P.m` computable in polynomial time and `P.β ≥ 1`. The reduction uses no relation between the
-  parameters; the source needs them for the worst-case hardness of its Problem (A2) (Theorem 1)
-  and for compression, and this theorem claims neither.
+  parameters. The source needs them for its Theorem 1, which reduces worst-case lattice problems
+  to Problem (A2), and for compression (Section 3.1, p. 5); this theorem claims neither.
 * The assumption is `SIS P`, with `ℓ_∞` bound `P.β κ`. At `P.β = 1` it is the source's Problem
   (A2) (Section 2.3, p. 4), whose solutions are the nonzero `x ∈ {-1, 0, 1}^m` with `Mx ≡ 0`
   `(mod q)`. A larger bound makes the assumption stronger. With bound `0`, `SIS P` holds vacuously,
