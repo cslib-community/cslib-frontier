@@ -226,8 +226,8 @@ theorem coeff_coeff_bivariateOf (M : Finset (ℕ × ℕ)) (c : ℕ × ℕ → F)
       by_cases ha : a' = a
       · subst ha
         simp
-      · simp [coeff_monomial, ha, Ne.symm ha]
-    · simp [hb, Ne.symm hb]
+      · simp [coeff_monomial, Ne.symm ha]
+    · simp [Ne.symm hb]
 
 /-- The value of `bivariateOf M c` at `(x, y)` is `∑ m ∈ M, c m * x ^ m.1 * y ^ m.2`. -/
 theorem evalEval_bivariateOf (M : Finset (ℕ × ℕ)) (c : ℕ × ℕ → F) (x y : F) :
@@ -417,11 +417,11 @@ private theorem kernelVecUpTo_ne_zero {α w : ι → F} {d D : ℕ} (hd : 1 ≤ 
   · obtain ⟨b, hb⟩ : ∃ b, Q.coeff b ≠ 0 := by
       by_contra h
       push Not at h
-      exact hQ.ne_zero (Polynomial.ext fun b => by rw [h b, coeff_zero])
+      exact hQ.ne_zero (by ext b : 2; rw [h b, coeff_zero])
     obtain ⟨a, ha⟩ : ∃ a, (Q.coeff b).coeff a ≠ 0 := by
       by_contra h
       push Not at h
-      exact hb (Polynomial.ext fun a => by rw [h a, coeff_zero])
+      exact hb (by ext a; rw [h a, coeff_zero])
     intro h0
     have := congrFun h0 ((monomialsUpTo d D j).equivFin ⟨(a, b), hsupp a b ha⟩)
     simp only [Equiv.symm_apply_apply, Pi.zero_apply] at this

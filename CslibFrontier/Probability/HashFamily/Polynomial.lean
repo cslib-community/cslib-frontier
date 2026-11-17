@@ -280,7 +280,7 @@ private theorem toPoly_injective : Function.Injective (toPoly : List F → F[X])
     rw [List.concat_eq_append] at h ⊢
     rw [toPoly_append_singleton, toPoly_append_singleton] at h
     have ha : a = a' := by
-      simpa using congrArg (coeff · 0) h
+      simpa using congrArg (·.coeff 0) h
     subst ha
     rw [ih (mul_right_cancel₀ X_ne_zero (add_right_cancel h))]
 
