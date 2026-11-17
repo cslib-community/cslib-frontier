@@ -81,12 +81,10 @@ reductions, then `coNP ⊆ AM` for every encoding. -/
 theorem coNP_subset_AM_of_bpReducible_compl_ThreeSAT
     (h : BPReducible encCNF encCNF ThreeSATᶜ ThreeSAT) {β : Type} (encB : β ↪ List Bool) :
     coNP encB ⊆ AM encB := by
-  intro L hL
-  obtain ⟨g, hg, hgL⟩ := ThreeSAT_npHard _ _ (mem_coNP.1 hL)
   have hAM : ThreeSATᶜ ∈ AM encCNF := by
     rw [← AMk_two, AMk_two_eq_setOf_bpReducible_ThreeSAT]
     exact h
-  exact PolyTimeReducible.mem_AM ⟨g, hg, fun x => by simpa using (hgL x).not⟩ hAM
+  exact fun L hL => (NPHard.compl ThreeSAT_npHard encB L hL).mem_AM hAM
 
 /-- **Arora–Barak, Exercise 7.6** [AroraBarak07]: if the complement of 3SAT is in `BP·NP`
 (Definition 7.20), then the polynomial hierarchy collapses to `Σ₃`. The proof gives the stronger
