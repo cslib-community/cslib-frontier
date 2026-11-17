@@ -38,11 +38,11 @@ variable {n : ℕ} {In Out NetQ NetR View AdvQ AdvR : Type}
 variable {NetQ₁ NetR₁ View₁ NetQ₂ NetR₂ View₂ : Type}
 
 private theorem liftAdaptiveNet_unifFin {Q R : Type} (k : ℕ) :
-    liftAdaptiveNet (n := n) (In := In) (Out := Out) (Q := Q) (R := R)
+    Machine.liftRightProgram (adaptivePartySpec n In Out)
         (OracleComp.query (spec := probOracleSpec (netSpec Q R)) (Sum.inl k)) =
       ProbOracleComp.sample (ProbComp.unifFin k) := by
-  simp only [liftAdaptiveNet, ProbOracleComp.sample, ProbComp.unifFin, OracleComp.interpret_query,
-    sumHandler, OracleComp.substitute_query]
+  simp only [Machine.liftRightProgram, ProbOracleComp.sample, ProbComp.unifFin,
+    OracleComp.interpret_query, sumHandler, OracleComp.substitute_query]
 
 /-- Rewrite an adaptive network program to drop `.corrupt i` queries for `i ∉ C₀` (returning
 `pure (.corrupt none)`), matching `.static` router behavior. -/
@@ -124,7 +124,8 @@ private theorem runFrom_adaptiveRouter_clampNetProgram_static {α β : Type}
     ((adaptiveRouter .static P κ C₀).runFrom (liftAdaptiveNet (clampNetProgram C₀ netProg)) rs >>=
         f) =
       ((adaptiveRouter .static P κ C₀).runFrom (liftAdaptiveNet netProg) rs >>= g) := by
-  rw [liftAdaptiveNet, clampNetProgram,
+  dsimp only [liftAdaptiveNet]
+  rw [Machine.liftRightProgram, clampNetProgram,
     OracleComp.interpret_interpret, OracleComp.interpret_sumHandler]
   have hleft :
       (fun k => OracleComp.interpret
@@ -327,14 +328,15 @@ private theorem queriesSatisfy_liftAdaptiveNet {C₀ : Finset (Fin n)} {α : Typ
   | query_bind q _ ih =>
     simp only [PFunctor.FreeM.bind_eq_bind] at hno ⊢
     have hq := OracleComp.QueriesSatisfy.liftBind_iff.mp hno
+    dsimp only [liftAdaptiveNet]
     rcases q with k | (⟨i, x⟩ | i | nq)
-    · rw [liftAdaptiveNet_bind, liftAdaptiveNet_unifFin]
+    · rw [Machine.liftRightProgram_bind, liftAdaptiveNet_unifFin]
       exact .bind (.query trivial) fun a => ih a (hq.2 a)
-    · rw [liftAdaptiveNet_bind]; erw [liftAdaptiveNet_query]
+    · rw [Machine.liftRightProgram_bind]; erw [Machine.liftRightProgram_query]
       exact .bind (.query trivial) fun a => ih a (hq.2 a)
-    · rw [liftAdaptiveNet_bind]; erw [liftAdaptiveNet_query]
+    · rw [Machine.liftRightProgram_bind]; erw [Machine.liftRightProgram_query]
       exact .bind (.query hq.1) fun a => ih a (hq.2 a)
-    · rw [liftAdaptiveNet_bind]; erw [liftAdaptiveNet_query]
+    · rw [Machine.liftRightProgram_bind]; erw [Machine.liftRightProgram_query]
       exact .bind (.query trivial) fun a => ih a (hq.2 a)
 
 private theorem corrupted_rel_of_mem_support_router {α : Type}
@@ -418,21 +420,6 @@ private theorem corrupted_rel_of_mem_support_execMachine {α : Type}
     exact corrupted_rel_of_mem_support_router P κ (A.initial κ) _ InvC R hR_refl hR_trans
       (hadv a sA') hcor rs' (x := ((r, sA''), rs'')) hz
 
-private theorem queriesSatisfy_liftAdaptiveNet_true {α : Type}
-    (netProg : ProbOracleComp (netSpec (AdaptiveNetQ n In NetQ) (AdaptiveNetR Out NetR View)) α) :
-    OracleComp.QueriesSatisfy
-      (Sum.elim (fun _ => True) fun q => match q with | .inr (.corrupt _) => True | _ => True)
-      (liftAdaptiveNet (n := n) (In := In) (Out := Out) netProg) := by
-  induction netProg using OracleComp.induction with
-  | pure _ => exact .pure _
-  | query_bind q _ ih =>
-    simp only [PFunctor.FreeM.bind_eq_bind]
-    rcases q with k | (⟨i, x⟩ | i | nq)
-    · rw [liftAdaptiveNet_bind, liftAdaptiveNet_unifFin]; exact .bind (.query trivial) ih
-    · rw [liftAdaptiveNet_bind]; erw [liftAdaptiveNet_query]; exact .bind (.query trivial) ih
-    · rw [liftAdaptiveNet_bind]; erw [liftAdaptiveNet_query]; exact .bind (.query trivial) ih
-    · rw [liftAdaptiveNet_bind]; erw [liftAdaptiveNet_query]; exact .bind (.query trivial) ih
-
 private theorem corrupted_subset_of_mem_support_router {α : Type}
     (P : AdaptiveProtocol n In Out NetQ NetR View) (κ : ℕ) (C₀ : Finset (Fin n))
     (netProg : ProbOracleComp (netSpec (AdaptiveNetQ n In NetQ) (AdaptiveNetR Out NetR View)) α)
@@ -442,7 +429,8 @@ private theorem corrupted_subset_of_mem_support_router {α : Type}
       (liftAdaptiveNet netProg) rs)).support) :
     rs.corrupted ⊆ x.2.corrupted :=
   corrupted_rel_of_mem_support_router P κ C₀ netProg (fun _ => True) (· ⊆ ·)
-    (fun _ => Finset.Subset.rfl) Finset.Subset.trans (queriesSatisfy_liftAdaptiveNet_true _)
+    (fun _ => Finset.Subset.rfl) Finset.Subset.trans
+    (OracleComp.QueriesSatisfy.of_forall (fun q => by rcases q with _ | (_ | _ | _) <;> trivial) _)
     (fun C i _ => by split_ifs <;> simp [Finset.subset_insert]) rs hx
 
 private theorem corrupted_subset_of_mem_support_execMachine {α : Type}
@@ -456,7 +444,8 @@ private theorem corrupted_subset_of_mem_support_execMachine {α : Type}
     rs.corrupted ⊆ x.2.2.corrupted :=
   corrupted_rel_of_mem_support_execMachine P A κ program (fun _ => True) (· ⊆ ·)
     (fun _ => Finset.Subset.rfl) Finset.Subset.trans
-    (fun _ _ => queriesSatisfy_liftAdaptiveNet_true _)
+    (fun _ _ => OracleComp.QueriesSatisfy.of_forall
+      (fun q => by rcases q with _ | (_ | _ | _) <;> trivial) _)
     (fun C i _ => by split_ifs <;> simp [Finset.subset_insert]) sA rs hx
 
 private theorem corrupted_eq_of_mem_support_execState_noNewCorrupt
@@ -500,14 +489,13 @@ private theorem closeEval_router_adaptive_le_clamp {α β : Type}
     simp only [PFunctor.FreeM.bind_eq_bind]
     rcases q with k | q
     · have hcall :
-          liftAdaptiveNet (n := n) (In := In) (Out := Out)
-              (Q := AdaptiveNetQ n In NetQ) (R := AdaptiveNetR Out NetR View)
+          Machine.liftRightProgram (adaptivePartySpec n In Out)
               (OracleComp.query (spec := probOracleSpec
                 (netSpec (AdaptiveNetQ n In NetQ) (AdaptiveNetR Out NetR View))) (Sum.inl k)) =
             OracleComp.query (Sum.inl k) := rfl
       rw [clampNetProgram, OracleComp.interpret_bind, OracleComp.interpret_query]
-      dsimp only [sumHandler]
-      erw [liftAdaptiveNet_bind, liftAdaptiveNet_bind, hcall,
+      dsimp only [sumHandler, liftAdaptiveNet]
+      erw [Machine.liftRightProgram_bind, Machine.liftRightProgram_bind, hcall,
         Machine.runFrom_bind, Machine.runFrom_bind, Machine.runFrom_call, StateT.run_lift]
       erw [bind_assoc]; conv_rhs => erw [bind_assoc]
       erw [bind_assoc]; conv_rhs => erw [bind_assoc]
@@ -518,9 +506,11 @@ private theorem closeEval_router_adaptive_le_clamp {α β : Type}
       exact mul_le_mul_of_nonneg_left (ih a rs hrs) zero_le
     · cases q with
       | party i u =>
+        dsimp only [liftAdaptiveNet]
         rw [clampNetProgram, OracleComp.interpret_bind, OracleComp.interpret_query,
-          liftAdaptiveNet_bind, liftAdaptiveNet_bind, liftAdaptiveNet_query]
-        erw [liftAdaptiveNet_query, Machine.runFrom_bind, Machine.runFrom_bind,
+          Machine.liftRightProgram_bind, Machine.liftRightProgram_bind,
+          Machine.liftRightProgram_query]
+        erw [Machine.liftRightProgram_query, Machine.runFrom_bind, Machine.runFrom_bind,
           Machine.runFrom_query]
         erw [bind_assoc, bind_assoc]
         dsimp only [adaptiveRouter, StateT.run]
@@ -538,9 +528,11 @@ private theorem closeEval_router_adaptive_le_clamp {α β : Type}
           erw [pure_bind, pure_bind]
           exact ih (.party none) rs hrs
       | net nq =>
+        dsimp only [liftAdaptiveNet]
         rw [clampNetProgram, OracleComp.interpret_bind, OracleComp.interpret_query,
-          liftAdaptiveNet_bind, liftAdaptiveNet_bind, liftAdaptiveNet_query]
-        erw [liftAdaptiveNet_query, Machine.runFrom_bind, Machine.runFrom_bind,
+          Machine.liftRightProgram_bind, Machine.liftRightProgram_bind,
+          Machine.liftRightProgram_query]
+        erw [Machine.liftRightProgram_query, Machine.runFrom_bind, Machine.runFrom_bind,
           Machine.runFrom_query]
         erw [bind_assoc, bind_assoc]
         dsimp only [adaptiveRouter, StateT.run]
@@ -551,11 +543,12 @@ private theorem closeEval_router_adaptive_le_clamp {α β : Type}
         exact mul_le_mul_of_nonneg_left
           (ih (.net r) (P.recordSnapshot κ s' rs.corrupted rs.trace) hrs) zero_le
       | corrupt i =>
+        dsimp only [liftAdaptiveNet]
         rw [clampNetProgram, OracleComp.interpret_bind, OracleComp.interpret_query]
         by_cases hi : i ∈ C₀
-        · simp only [sumHandler, hi, ↓reduceIte, liftAdaptiveNet_bind]
-          rw [liftAdaptiveNet_query]
-          erw [liftAdaptiveNet_query, Machine.runFrom_bind, Machine.runFrom_bind,
+        · simp only [sumHandler, hi, ↓reduceIte, Machine.liftRightProgram_bind]
+          rw [Machine.liftRightProgram_query]
+          erw [Machine.liftRightProgram_query, Machine.runFrom_bind, Machine.runFrom_bind,
             Machine.runFrom_query]
           erw [bind_assoc, bind_assoc]
           dsimp only [adaptiveRouter, StateT.run]
@@ -563,8 +556,8 @@ private theorem closeEval_router_adaptive_le_clamp {α β : Type}
           simp only [hi', ↓reduceIte]
           erw [pure_bind, pure_bind]
           exact ih (.corrupt (some (P.corruptionReport κ i rs))) rs hrs
-        · simp only [sumHandler, hi, ↓reduceIte, pure_bind, liftAdaptiveNet_bind]
-          erw [liftAdaptiveNet_query, Machine.runFrom_bind, Machine.runFrom_query]
+        · simp only [sumHandler, hi, ↓reduceIte, pure_bind, Machine.liftRightProgram_bind]
+          erw [Machine.liftRightProgram_query, Machine.runFrom_bind, Machine.runFrom_query]
           erw [bind_assoc]
           let rs₁ : AdaptiveRouterState (P.machine κ).State View n :=
             { inner := P.onCorrupt κ i rs.inner
