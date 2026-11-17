@@ -206,7 +206,8 @@ public theorem computableInO_universal :
       show (eRun (round^[k] (((i.1, i.2.1), init i.1), []))).length ≤ _
       exact length_eRun_le i.1 i.2.1 hk))
   have hhalted := (ComputableInDegree.of_finite (encIn := encBool) (encMid := encBool)
-    (fun b : Bool => !b)).inO_one.comp_linear ((ComputableInDegree.isSome encUnary).inO_one
+    (fun b : Bool => !b)).inO_one.comp_linear
+      ((ComputableInDegree.isSome encUnary).inO_one
       -- bridge for #862: tidy client of the plain `state_inO`
       |>.comp_linear (state_inO.comp_linear hiter.fst'.snd'))
   refine ((hiter.snd'.prod hhalted).mono 16 (fun i => ?_) fun i => ?_).of_enc_eq fun i => ?_

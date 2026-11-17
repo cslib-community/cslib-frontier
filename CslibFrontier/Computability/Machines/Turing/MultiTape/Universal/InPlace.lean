@@ -521,7 +521,8 @@ public lemma foldCont_inO : ComputableInO foldCont eSt encBool
     (fun s => ((eSt s).length + 1) ^ 3) fun s => (eSt s).length + 1 := by
   have hr := (snd (encPair eDesc eCfg) (encPair encNat (encPair encNat encUnary))).fst'
   refine (((ComputableInDegree.of_finite (encIn := encBool) (encMid := encBool)
-    fun b : Bool => !b).inO_one.comp_linear (ComputableInO.natIsZero.comp_linear hr)).of_enc_eq
+    fun b : Bool => !b).inO_one.comp_linear
+      (ComputableInO.natIsZero.comp_linear hr)).of_enc_eq
     (g := foldCont) fun s => by simp [foldCont]).mono 1 (fun s => ?_) fun s => ?_ <;>
   · have hL : (eSt s).length + 1 ≤ ((eSt s).length + 1) ^ 3 := Nat.le_self_pow (by norm_num) _
     have : (encNat s.2.1).length ≤ (eSt s).length := by simp only [length_encPair]; omega

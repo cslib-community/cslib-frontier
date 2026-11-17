@@ -558,7 +558,8 @@ public lemma cEmit_inO : ComputableInO (fun s : CSt => gEmit s.1) eCSt encBits
   have hz : ComputableInO (fun n => decide (n ≠ 0)) encUnary encBool
       (fun n => (encUnary n).length) fun n => (encUnary n).length :=
     ((ComputableInDegree.of_finite (encIn := encBool) (encMid := encBool)
-      fun b : Bool => !b).inO_one.comp_linear (of_linear (.of_isEmpty (f := fun n => decide (n = 0))
+      fun b : Bool => !b).inO_one.comp_linear
+        (of_linear (.of_isEmpty (f := fun n => decide (n = 0))
         fun n => by cases n <;> simp))).of_enc_eq fun n => by simp
   have hb := (hz.comp_linear hn).of_enc_eq (encOut := encBits) (g := fun s : CSt =>
       [decide ((stepWith s.1.1.1.1 s.1.1.1.2 (gSym s.1)).2.getD 0 ≠ 0)]) fun _ => rfl
