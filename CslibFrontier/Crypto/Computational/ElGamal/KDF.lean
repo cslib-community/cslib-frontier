@@ -529,11 +529,11 @@ theorem exists_secureKDF_withSeed (setup : ℕ → PMF F.Desc) (k : ℕ) {qMin :
     fun ds w => F.length_linearHashKDF (fun _ => k) bound (ds, w),
     F.secureKDF_linearHashKDF_const setup bound k hq0 (fun _ d _ x => hce d x) hq hneg⟩
 
-/-- **Hashed ElGamal with `linearHashKDF` is IND-CPA secure under `F.DDH setup` alone**
-([BonehShoup2023], Section 8.10.4, Theorem 8.11, p. 334, and Section 11.5.2, Theorem 11.5,
-pp. 449–451): combining `DDH.withSeed`, `secureKDF_linearHashKDF`, and
-`DDH.negligible_hashedElGamalCPAGame`, no computational hypothesis on the key-derivation hash is
-needed under `LinearHashKDFConditions`. -/
+/-- **Hashed ElGamal with `linearHashKDF` is IND-CPA secure under `F.DDH setup` alone, in the
+ideal-sampling game `hashedElGamalCPAGame`** ([BonehShoup2023], Section 8.10.4, Theorem 8.11,
+p. 334, and Section 11.5.2, Theorem 11.5, pp. 449–451): combining `DDH.withSeed`,
+`secureKDF_linearHashKDF`, and `DDH.negligible_hashedElGamalCPAGame_ideal`, no computational
+hypothesis on the key-derivation hash is needed under `LinearHashKDFConditions`. -/
 theorem DDH.negligible_hashedElGamalCPAGame_linearHashKDF {F : PrimeOrderGroupFamily}
     {setup : ℕ → PMF F.Desc} {keyLen bound : F.Desc → ℕ} {msgLen qMin : ℕ → ℕ}
     (hDDH : F.DDH setup) (hKDF : F.LinearHashKDFConditions setup keyLen bound msgLen qMin)
@@ -550,7 +550,7 @@ theorem DDH.negligible_hashedElGamalCPAGame_linearHashKDF {F : PrimeOrderGroupFa
           (F.seededSetup setup (F.linearHashSeedLen msgLen bound))
           (F.linearHashKDF keyLen bound) adversary true n) :=
   (hDDH.withSeed (F.computableInPolyTime_linearHashSeedLen hmsg_poly hbound_poly))
-    |>.negligible_hashedElGamalCPAGame (F.secureKDF_linearHashKDF hKDF)
+    |>.negligible_hashedElGamalCPAGame_ideal (F.secureKDF_linearHashKDF hKDF)
       (F.computableInPolyTime_linearHashKDF hkey_poly hbound_poly) hA
 
 end Cslib.Crypto.PrimeOrderGroupFamily

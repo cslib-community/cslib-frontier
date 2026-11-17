@@ -548,7 +548,7 @@ theorem DDH.indcpaOn_elGamalEncryptProb_on {F : PrimeOrderGroupFamily}
       (encPair F.encDesc encMsg) encBits) :
     INDCPAOn valid encMsg (F.elGamalKeyGenProb d) (F.elGamalEncryptProb encodeMsg d) := by
   intro adversary hA
-  have hmid := hDDH.negligible_elGamalMsgCPAGameOn_on hvalid hsound hencMsg hA
+  have hmid := hDDH.negligible_elGamalMsgCPAGameOn_ideal hvalid hsound hencMsg hA
   have h2 : Negligible fun n => (2 : ℝ≥0) / 2 ^ n := negligible_const_div_two_pow 2
   refine negligible_of_le ((h2.add hmid).add h2) fun n => ?_
   dsimp only [Pi.add_apply]
