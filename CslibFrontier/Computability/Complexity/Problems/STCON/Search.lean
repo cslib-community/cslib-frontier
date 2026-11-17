@@ -464,20 +464,6 @@ local macro (name := searchHead) "search_head" b:term : tactic => `(tactic| (
   refine Branches.head (by simp [CounterProgram.halted, instr, searchProgram, Instr.halts]) $b ?_;
   search_step))
 
-/-- An upward counter loop reaches `target` from every `j ≤ bound` when `cfg bound` reaches `target`
-and each `cfg j` (`j < bound`) branches to `cfg (j + 1)`. -/
-private theorem branches_loop {bound : ℕ} (cfg : ℕ → Config) {target : Config}
-    (hdone : Branches (P := searchProgram) (w := I.encode) (cfg bound) target)
-    (hstep : ∀ j < bound, Branches (P := searchProgram) (w := I.encode) (cfg j) (cfg (j + 1))) :
-    ∀ j ≤ bound, Branches (P := searchProgram) (w := I.encode) (cfg j) target := by
-  intro j hj
-  induction h : bound - j generalizing j with
-  | zero =>
-    obtain rfl : j = bound := by omega
-    exact hdone
-  | succ _ ih =>
-    exact (hstep j (by omega)).trans (ih (j + 1) (by omega) (by omega))
-
 /-- One unary header-counting phase `(l, regs 0) →* (l + 2, regs bound)`. -/
 private theorem branches_count {l bound : ℕ} (regs : ℕ → List ℕ)
     (hread : ∀ j ≤ bound, Branches (P := searchProgram) (w := I.encode) (l, regs j)
@@ -485,11 +471,11 @@ private theorem branches_count {l bound : ℕ} (regs : ℕ → List ℕ)
     (hinc : ∀ j < bound, Branches (P := searchProgram) (w := I.encode)
       (l + 1, regs j) (l, regs (j + 1))) :
     Branches (P := searchProgram) (w := I.encode) (l, regs 0) (l + 2, regs bound) :=
-  branches_loop I (fun j => (l, regs j))
-    (by simpa only [lt_irrefl, decide_false, readLabel] using hread bound le_rfl)
-    (fun j hj => Branches.trans (by simpa only [hj, decide_true, readLabel] using hread j hj.le)
-      (hinc j hj))
-    0 (Nat.zero_le _)
+  Nat.decreasingInduction (motive := fun j _ => Branches (P := searchProgram) (w := I.encode)
+      (l, regs j) (l + 2, regs bound))
+    (fun j hj ih => (Branches.trans (by simpa only [hj, decide_true, readLabel] using hread j hj.le)
+      (hinc j hj)).trans ih)
+    (by simpa only [lt_irrefl, decide_false, readLabel] using hread bound le_rfl) (Nat.zero_le _)
 
 /-- The header is read, and the walk starts at the source. -/
 private theorem branches_header : Branches (P := searchProgram) (w := I.encode) searchProgram.init
@@ -510,19 +496,19 @@ private theorem branches_header : Branches (P := searchProgram) (w := I.encode) 
 private theorem branches_guess (cur steps target : ℕ) (ht : target < I.n) :
     ∀ j ≤ target, Branches (P := searchProgram) (w := I.encode)
       (11, [(decide (j < target)).toNat, I.n, I.s, I.t, cur, steps, j])
-      (14, [0, I.n, I.s, I.t, cur, steps, target]) :=
-  branches_loop I (fun j => (11, [(decide (j < target)).toNat, I.n, I.s, I.t, cur, steps, j]))
-    (by
-      search_head false
-      simp only [lt_irrefl, decide_false, Bool.toNat_false, Nat.lt_one_iff, ↓reduceIte]
-      exact Branches.refl _)
-    (fun j hj => by
+      (14, [0, I.n, I.s, I.t, cur, steps, target]) := fun _ hj =>
+  Nat.decreasingInduction
+    (fun j hj ih => .trans (by
       search_head false
       simp only [hj, decide_true, Bool.toNat_true, lt_irrefl, ↓reduceIte]
       search_head false
       search_head (decide (j + 1 < target))
       simp only [show j + 1 < I.n by omega, ↓reduceIte]
-      exact Branches.refl _)
+      exact Branches.refl _) ih)
+    (by
+      search_head false
+      simp only [lt_irrefl, decide_false, Bool.toNat_false, Nat.lt_one_iff, ↓reduceIte]
+      exact Branches.refl _) hj
 
 /-- Accepting in two steps from label `7` when the current vertex is the target. -/
 private theorem branches_at_target (steps c v : ℕ) :
