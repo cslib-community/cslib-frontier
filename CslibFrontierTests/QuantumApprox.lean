@@ -4,6 +4,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Christian Reitwiessner
 -/
 
+module
+-- upstream: local-only (tests)
+
 import CslibFrontier.Foundations.Quantum.Algebra.Approx
 import CslibFrontier.Foundations.Analysis.Asymptotics.PolyErr
 import CslibFrontier.Foundations.Quantum.Algebra.Consistency
@@ -16,6 +19,8 @@ Checked clients of `Cslib.Quantum.AlgState.Approx` and `Cslib.PolyErr`: chains o
 the product algebra (instantiated on matrices), consistent provers have close effects, and
 `fun_prop` proves that the error functions of typical robustness statements are polynomial.
 -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.QuantumApprox
 

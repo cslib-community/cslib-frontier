@@ -24,7 +24,7 @@ measurements, not only projective ones. The reason is that an effect `0 ≤ E �
 `E² ≤ E` (`Cslib.Quantum.Measurement.effect_mul_self_le`), so
 `‖P_a - Q_a‖² = φ(P_a²) + φ(Q_a²) - 2 φ(P_a Q_a) ≤ φ(P_a) + φ(Q_a) - 2 φ(P_a Q_a)`, and summing
 over `a` gives `2 - 2(1 - ε)`. This is the step "consistency implies closeness" of rigidity
-arguments [Ji, Natarajan, Vidick, Wright and Yuen, §4][JNVWY2020].
+arguments [Ji, Natarajan, Vidick, Wright and Yuen, §5.2, Fact 5.18(1)][JNVWY2020].
 
 ## Main definitions
 

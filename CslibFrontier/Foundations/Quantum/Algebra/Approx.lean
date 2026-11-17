@@ -16,8 +16,11 @@ public import CslibFrontier.Probability.PMF
 
 Rigidity and self-testing arguments for nonlocal games are long chains of approximations
 `A ≈_δ B`: two operators are close *in the state* `φ`, `‖A - B‖_φ ≤ δ`, where `‖·‖_φ` is the
-state-dependent norm `√(Re φ(a⋆a))` [Ji, Natarajan, Vidick, Wright and Yuen, §4][JNVWY2020]. The
-relation `a ≈[φ; δ] b` (`Cslib.Quantum.AlgState.Approx`) is that statement. Its errors add along
+state-dependent norm `√(Re φ(a⋆a))`
+[Ji, Natarajan, Vidick, Wright and Yuen, §5.2, Definition 5.16][JNVWY2020]. The relation
+`a ≈[φ; δ] b` (`Cslib.Quantum.AlgState.Approx`) is that statement. Definition 5.16 bounds the
+squared distance, averaged over questions, by `O(δ)`; here the distance itself is bounded by `δ`,
+so `a ≈[φ; √δ] b` is the paper's `≈_δ` up to the constant. Its errors add along
 chains: there is a `Trans` instance, so
 
 ```
@@ -74,7 +77,7 @@ variable {A : Type*} [Ring A] [StarRing A] [PartialOrder A] [StarOrderedRing A] 
 def Approx (φ : AlgState A) (δ : ℝ) (a b : A) : Prop :=
   φ.norm (a - b) ≤ δ
 
-@[inherit_doc] scoped notation:50 a " ≈[" φ "; " δ "] " b:50 =>
+@[inherit_doc] scoped[Cslib.Quantum] notation:50 a " ≈[" φ "; " δ "] " b:50 =>
   Cslib.Quantum.AlgState.Approx φ δ a b
 
 variable {φ : AlgState A} {a b c a' b' : A} {δ δ' : ℝ}

@@ -16,12 +16,14 @@ public import Mathlib.Analysis.SpecialFunctions.Sqrt
 
 Robustness theorems for nonlocal games, low-degree tests and property testing are stated with an
 error function: a strategy that wins with probability `1 - ε` is `δ(ε)`-close to an ideal one,
-where `δ(ε) = poly(ε)` [Ji, Natarajan, Vidick, Wright and Yuen, §2][JNVWY2020]. The papers never
-track the polynomial; they only use that such functions are closed under the operations their
-proofs perform. `Cslib.PolyErr δ` is that notion: `|δ x| ≤ C (|x|^lo + |x|^hi)` for some
-constant `C` and exponents `0 < lo ≤ hi`. The lower exponent makes `δ` small near `0`, the upper
-exponent keeps it polynomially bounded for large arguments, which is what makes the class closed
-under composition.
+where `δ(ε) = poly(ε)`; the convention `poly(a) ≤ C a^C` is fixed in
+[Ji, Natarajan, Vidick, Wright and Yuen, §3, p. 25][JNVWY2020]. The papers never track the
+polynomial; they only use that such functions are closed under the operations their proofs
+perform. `Cslib.PolyErr δ` is that notion: `|δ x| ≤ C (|x|^lo + |x|^hi)` for some constant `C` and
+exponents `0 < lo ≤ hi`. The lower exponent makes `δ` small near `0`, the upper exponent keeps it
+polynomially bounded for large arguments, which is what makes the class closed under composition
+across fractional powers. This two-exponent formulation is introduced here; it is not taken from
+the source.
 
 `PolyErr` is a `fun_prop` predicate. The identity, `√`, `|·|` and positive powers are polynomial
 errors, and the class is closed under sums, differences, products, scalar multiples, negation,
@@ -53,7 +55,7 @@ namespace Cslib
 open Real
 
 /-- `t^a ≤ t^lo + t^hi` for exponents `0 < lo ≤ a ≤ hi` and `t ≥ 0`. -/
-theorem rpow_le_rpow_add_rpow {t a lo hi : ℝ} (ht : 0 ≤ t) (hlo : 0 < lo) (h₁ : lo ≤ a)
+private theorem rpow_le_rpow_add_rpow {t a lo hi : ℝ} (ht : 0 ≤ t) (hlo : 0 < lo) (h₁ : lo ≤ a)
     (h₂ : a ≤ hi) : t ^ a ≤ t ^ lo + t ^ hi := by
   rcases ht.eq_or_lt with rfl | ht
   · rw [zero_rpow (by linarith)]
@@ -63,7 +65,7 @@ theorem rpow_le_rpow_add_rpow {t a lo hi : ℝ} (ht : 0 ≤ t) (hlo : 0 < lo) (h
   · linarith [rpow_le_rpow_of_exponent_le h h₂, rpow_nonneg ht.le lo]
 
 /-- `(p + q)^a ≤ 2^a (p^a + q^a)` for `p, q ≥ 0` and `a ≥ 0`. -/
-theorem add_rpow_le_two_rpow_mul {p q a : ℝ} (hp : 0 ≤ p) (hq : 0 ≤ q) (ha : 0 ≤ a) :
+private theorem add_rpow_le_two_rpow_mul {p q a : ℝ} (hp : 0 ≤ p) (hq : 0 ≤ q) (ha : 0 ≤ a) :
     (p + q) ^ a ≤ 2 ^ a * (p ^ a + q ^ a) := by
   have hpa := rpow_nonneg hp a
   have hqa := rpow_nonneg hq a
