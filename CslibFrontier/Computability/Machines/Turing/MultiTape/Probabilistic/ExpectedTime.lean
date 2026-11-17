@@ -75,7 +75,7 @@ private theorem toOuterMeasure_le_one {β : Type} (p : PMF β) (s : Set β) :
     ((tsum_le_tsum fun x => Set.indicator_le_self s p x).trans_eq p.tsum_coe)
 
 /-- Running `t + m` steps runs `t` steps and then `m` more. -/
-private theorem eval_runClosedConfigFrom_add (t m : ℕ) (cfg : Config k Symbol State Empty input) :
+theorem eval_runClosedConfigFrom_add (t m : ℕ) (cfg : Config k Symbol State Empty input) :
     ProbComp.eval (machine.runClosedConfigFrom (t + m) cfg) =
       (ProbComp.eval (machine.runClosedConfigFrom t cfg)).bind
         fun mid => ProbComp.eval (machine.runClosedConfigFrom m mid) := by
@@ -83,7 +83,7 @@ private theorem eval_runClosedConfigFrom_add (t m : ℕ) (cfg : Config k Symbol 
   exact congrArg ProbComp.eval (MultiTapeMachine.runConfigFrom_add machine _ _ t m cfg)
 
 /-- A halted configuration stays where it is. -/
-private theorem eval_runClosedConfigFrom_of_halted (m : ℕ)
+theorem eval_runClosedConfigFrom_of_halted (m : ℕ)
     (cfg : Config k Symbol State Empty input) (h : cfg.tapes.state = none) :
     ProbComp.eval (machine.runClosedConfigFrom m cfg) = PMF.pure cfg := by
   rw [show machine.runClosedConfigFrom m cfg = pure cfg from
