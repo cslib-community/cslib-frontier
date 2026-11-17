@@ -743,12 +743,13 @@ example :
     schnorrGroups.withSeed.decodeHashedElGamalCipher H xorCipher (dSeed, 3, ct.1, ct.2) = m := by
   decide
 
-/-- Positive-side instantiation of `DDH.negligible_hashedElGamalCipherCPAGameOn_linearHashKDF`
-with a consistent polynomial description-dependent encoding bound
-`bound d := (schnorrGroups.encDesc d).length`, super-polynomial group order `2 ^ (2 * n) ≤ order d`,
-and the one-time pad symmetric word cipher `Encryption.otpWordEncrypt`
-(`Encryption.demOneTimeWordINDCPA_otpWordEncrypt`): IND-CPA security holds under `schnorrGroups.DDH`
-alone with no separate KDF or Game 2 assumption. -/
+/-- Positive-side instantiation of the ideal-sampling step
+`DDH.negligible_hashedElGamalCipherCPAGameOn_ideal_linearHashKDF` with a consistent polynomial
+description-dependent encoding bound `bound d := (schnorrGroups.encDesc d).length`,
+super-polynomial group order `2 ^ (2 * n) ≤ order d`, and the one-time pad symmetric word cipher
+`Encryption.otpWordEncrypt` (`Encryption.demOneTimeWordINDCPA_otpWordEncrypt`): IND-CPA security
+of the ideal-sampling game holds under `schnorrGroups.DDH` alone with no separate KDF or Game 2
+assumption. -/
 example (setupProb : ℕ → ProbComp schnorrGroups.Desc)
     (hsetup : IsPPTOn encUnary schnorrGroups.encDesc setupProb)
     (hDDH : schnorrGroups.DDH (fun n => ProbComp.eval (setupProb n)))
@@ -771,7 +772,7 @@ example (setupProb : ℕ → ProbComp schnorrGroups.Desc)
               (fun d => (schnorrGroups.encDesc d).length)))
           (schnorrGroups.linearHashKDF keyLen (fun d => (schnorrGroups.encDesc d).length))
           Encryption.otpWordEncrypt hashedWordAdversary true n) := by
-  refine hDDH.negligible_hashedElGamalCipherCPAGameOn_linearHashKDF
+  refine hDDH.negligible_hashedElGamalCipherCPAGameOn_ideal_linearHashKDF
     Encryption.demOneTimeWordINDCPA_otpWordEncrypt hsetup
     ⟨fun _ => Nat.two_pow_pos _, hkey, fun _ d _ x => schnorrGroups_encode_length_le d x, hsize, ?_⟩
     hkey_poly (ComputableInPolyTime.encoding_length schnorrGroups.encDesc)
@@ -836,12 +837,12 @@ theorem advantage_hashedElGamalCipherCPAGameOn_identitySym
   rw [h0, h1, Game.advantage, Game.succProbability, Game.succProbability]
   simp
 
-/-- Positive-side non-`n` key-length instantiation (`outLen := fun _ => 4`) of
-`DDH.negligible_hashedElGamalCipherCPAGameOn_linearHashKDF_of_demOneTimeKeyINDCPAOn` with a
-4-bit one-time pad symmetric cipher `Encryption.otpKeyWordEncrypt (fun _ => 4)`
-(`Encryption.demOneTimeKeyWordINDCPA_otpKeyWordEncrypt (fun _ => 4)`): IND-CPA security holds
-under `schnorrGroups.DDH` and `2 ^ n ≤ schnorrGroups.order d` at constant 4-bit symmetric key
-length. -/
+/-- Positive-side non-`n` key-length instantiation (`outLen := fun _ => 4`) of the ideal-sampling
+step `DDH.negligible_hashedElGamalCipherCPAGameOn_ideal_linearHashKDF_of_demOneTimeKeyINDCPAOn`
+with a 4-bit one-time pad symmetric cipher `Encryption.otpKeyWordEncrypt (fun _ => 4)`
+(`Encryption.demOneTimeKeyWordINDCPA_otpKeyWordEncrypt (fun _ => 4)`): IND-CPA security of the
+ideal-sampling game holds under `schnorrGroups.DDH` and `2 ^ n ≤ schnorrGroups.order d` at
+constant 4-bit symmetric key length. -/
 example (setupProb : ℕ → ProbComp schnorrGroups.Desc)
     (hsetup : IsPPTOn encUnary schnorrGroups.encDesc setupProb)
     (hDDH : schnorrGroups.DDH (fun n => ProbComp.eval (setupProb n)))
@@ -866,7 +867,7 @@ example (setupProb : ℕ → ProbComp schnorrGroups.Desc)
           (Encryption.otpKeyWordEncrypt (fun _ => 4)) hashedWordAdversary true n) := by
   have hout_poly : ComputableInPolyTime (fun _ : ℕ => 4) encUnary encUnary :=
     ComputableInPolyTime.const 4
-  refine hDDH.negligible_hashedElGamalCipherCPAGameOn_linearHashKDF_of_demOneTimeKeyINDCPAOn
+  refine hDDH.negligible_hashedElGamalCipherCPAGameOn_ideal_linearHashKDF_of_demOneTimeKeyINDCPAOn
     (Encryption.demOneTimeKeyWordINDCPA_otpKeyWordEncrypt (fun _ => 4)) hsetup
     ⟨fun _ => Nat.two_pow_pos _, hkey, fun _ d _ x => schnorrGroups_encode_length_le d x, hsize, ?_⟩
     hout_poly hkey_poly (ComputableInPolyTime.encoding_length schnorrGroups.encDesc)
