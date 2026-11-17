@@ -47,8 +47,9 @@ when the intermediate statement type is empty.
 * `Interactive.Reduction.Complete.append`, `Interactive.Verifier.Sound.append`,
   `Interactive.Verifier.KnowledgeSound.append`, `Interactive.Verifier.RbrSound.append`.
 * `Interactive.Reduction.Complete.iterate`, `Interactive.Verifier.RbrSound.iterate`.
-* `Interactive.plainLaw_run_append`, `Interactive.plainLaw_run_split`: execution laws of composed
-  and split strategies.
+* `Interactive.plainLaw_run_append`, `Interactive.plainLaw_run_split`,
+  `Interactive.plainLaw_run_reductionAppend`, `Interactive.plainLaw_run_verifierAppend`: execution
+  laws of composed and split strategies, reductions, and verifiers.
 -/
 
 @[expose] public section
@@ -597,14 +598,15 @@ section Compose
 
 /-- The honest run of a composed reduction runs the first reduction, then the second on the
 first prover's output. -/
-private theorem plainLaw_run_reductionAppend
+theorem plainLaw_run_reductionAppend
     (R₁ : Reduction OracleSpec.empty OracleSpec.empty s₁ S₁ W₁ S₂ W₂)
     (R₂ : Reduction OracleSpec.empty OracleSpec.empty s₂ S₂ W₂ S₃ W₃) (x : S₁) (w : W₁) :
     plainLaw ((R₁.append R₂).prover x w >>=
         runStrategy (s₁ ++ s₂) (R₁.append R₂).verifier.samplers) =
-      (plainLaw (R₁.prover x w >>= runStrategy s₁ R₁.verifier.samplers)).bind fun r₁ =>
-        (plainLaw (R₂.prover r₁.2.1 r₁.2.2 >>= runStrategy s₂ R₂.verifier.samplers)).map
-          fun r₂ => (Transcript.append s₁ s₂ r₁.1 r₂.1, r₂.2) := by
+      (plainLaw (R₁.prover x w >>= runStrategy s₁ R₁.verifier.samplers)).bind
+        fun (τ₁, x₂, w₂) =>
+          (plainLaw (R₂.prover x₂ w₂ >>= runStrategy s₂ R₂.verifier.samplers)).map
+            fun (τ₂, yw) => (Transcript.append s₁ s₂ τ₁ τ₂, yw) := by
   simp only [Reduction.append, Verifier.append, bind_assoc, plainLaw_bind, PMF.bind_bind]
   congr 1
   funext st
@@ -621,22 +623,22 @@ theorem Reduction.Complete.append {R₁ : Reduction OracleSpec.empty OracleSpec.
   have hl₁ := h₁ x w hxw
   rw [Reduction.run, World.plain_eval_execute, PMF.toOuterMeasure_map_apply] at hl₁ ⊢
   rw [plainLaw_run_reductionAppend]
-  refine le_trans (Probability.PMF.toOuterMeasure_bind_le_add _ _ _ _ _ fun r₁ _ hr₁ => ?_)
-    (add_le_add hl₁ le_rfl)
+  refine le_trans (Probability.PMF.toOuterMeasure_bind_le_add _ _ _ _ _
+    fun ⟨τ₁, x₂, w₂⟩ _ hr₁ => ?_) (add_le_add hl₁ le_rfl)
   simp only [Set.mem_preimage, Set.mem_ofPred_eq, not_not, Execution.output, Execution.result]
     at hr₁
   obtain ⟨hout, hrel⟩ := hr₁
-  have hl₂ := h₂ r₁.2.1 r₁.2.2 hrel
+  have hl₂ := h₂ x₂ w₂ hrel
   rw [Reduction.run, World.plain_eval_execute, PMF.toOuterMeasure_map_apply] at hl₂
   rw [PMF.toOuterMeasure_map_apply]
   convert hl₂ using 2
-  ext r₂
+  ext ⟨τ₂, yw⟩
   simp [Reduction.append, outputOn_append, Spec.Transcript.split_append, hout]
 
 
 /-- A run against a composed verifier is a run of the split strategy against the first, then
 of its continuation against the second. -/
-private theorem plainLaw_run_verifierAppend (V₁ : Verifier OracleSpec.empty s₁ S₁ S₂)
+theorem plainLaw_run_verifierAppend (V₁ : Verifier OracleSpec.empty s₁ S₁ S₂)
     (V₂ : Verifier OracleSpec.empty s₂ S₂ S₃) {α : Type}
     (P : ProbOracleComp OracleSpec.empty
       (ProverStrategy (ProbOracleComp OracleSpec.empty) (s₁ ++ s₂) α)) :
