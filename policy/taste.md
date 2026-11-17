@@ -61,9 +61,13 @@ until then. Efficiency certificates follow the same rule: a certificate for an e
 theorem consumes is not needed.
 
 Public is a decision, not the default. A declaration is public when another module uses it, when
-the module documentation names it as a result, or when it is a cited result; a helper that only
-its own file uses is `private`. A reader should be able to take a file's public names as the
-things it offers.
+the module documentation names it as something the file offers, when it is a cited result, or when
+it is part of the interface of a public definition that a user of that definition would expect
+(its characterizations, bounds and `simp` equations:
+[What stays public](../CONTRIBUTING.md#public-surface-under-the-module-system)). A proof step or sub-program that only its
+own file uses is `private`. A test is not a caller, so a result that only its test names is listed
+in the module documentation. Reference counts are evidence, not the criterion: the aim is that a
+reader can take a file's public names as the things it offers.
 
 ## Replace, do not accumulate
 
