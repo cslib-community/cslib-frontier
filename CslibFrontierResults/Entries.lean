@@ -15,6 +15,7 @@ import CslibFrontier.Foundations.Combinatorics.Expander.HittingProduct
 import CslibFrontier.Foundations.Combinatorics.Expander.VisitCount
 import CslibFrontier.Computability.Complexity.Classes.Padding.Tally
 import CslibFrontier.Computability.Complexity.Problems.Bipartite.LogSpace
+import CslibFrontier.Computability.Complexity.Problems.UCONN
 import CslibFrontier.Computability.Complexity.Problems.Permanent.Valiant
 import CslibFrontier.Computability.Complexity.Problems.ThreeSAT.Collapse
 import CslibFrontier.Computability.Complexity.Problems.ThreeSAT.Tautology
@@ -282,6 +283,7 @@ import CslibFrontier.Probability.Extractor.LeftoverHash
 import CslibFrontier.Probability.Extractor.TwoSource
 import CslibFrontier.Probability.LocalitySensitiveHash.PStable
 import CslibFrontier.Probability.LocalitySensitiveHash.SimHash
+import CslibFrontier.Foundations.Data.Code.LowDegreeExtension
 import CslibFrontier.Computability.Complexity.Problems.ModularSquareRoot
 
 /-!
@@ -593,6 +595,25 @@ register_result "bipartite-in-logspace" where
     reduction through USTCON ∈ L rather than the guideline's edge augmentation. Bipartiteness \
     ∈ L follows from Reingold's USTCON ∈ L and closure of L under complement."
 
+
+register_result "uconn-in-logspace" where
+  title := "Undirected connectivity of a whole graph is in L"
+  topic := "space complexity"
+  sources := [
+    { paper := Goldreich2007DraftR2, theorem := "Theorem 5.6",
+      locator := "January 2007 r2.pdf, printed p. 170; PDF p. 54" }
+  ]
+  theorems := [
+    Cslib.Complexity.UCONN.logSpaceReducible_USTCON,
+    Cslib.Complexity.UCONN_mem_L
+  ]
+  scope := "Undirected graphs as symmetric loopless adjacency matrices on Fin n, encoded by \
+    encUGraph (a unary header 1^n 0 and the row-major matrix). Connected means a path between \
+    every pair of vertices (Appendix G.1), formalized as SimpleGraph.Preconnected, so the graph \
+    with no vertices is connected. Native visited-cell L. The proof is a logspace many-one \
+    reduction to USTCON (n copies of the graph in series, one query) and Reingold's USTCON ∈ L, \
+    not the draft's direct expander transformation (Claims 5.7, 5.9 and Lemma 5.10 are \
+    separate)."
 
 register_result "strongly-connected-nl-complete" where
   title := "Strongly connected digraphs are NL-complete"
@@ -1329,6 +1350,20 @@ register_result "goldreich-levin-hard-core" where
     to the padded function, which is then a length-preserving permutation, and its Theorem 7.7 \
     predicate. Asymptotic security; the source's explicit runtime and advantage trade-off is not \
     stated."
+
+register_result "goldreich-low-degree-extension-individual-degree" where
+  title := "Low-degree extensions of individual degree |H| - 1"
+  topic := "codes"
+  sources := [
+    { paper := Goldreich2007DraftR4, theorem := "Exercise 7.12",
+      locator := "March 2007 draft r4.pdf, PDF p. 43; printed p. 307" }
+  ]
+  theorems := [Cslib.Code.exists_degreeOf_le_eval_eq_lowDegreeExtension]
+  scope := "Any field F (the source's F is the finite field of its Theorem 7.12 construction) \
+    and any finite H embedded in F. For every f : H^m → F there is an m-variate polynomial of \
+    degree at most |H| - 1 in each variable that agrees with f on H^m; it is the Lagrange-basis \
+    extension of the guideline. Uniqueness and the running time of footnote 12 are not \
+    formalized."
 
 register_result "goldreich-circuit-agreement-limit" where
   title := "Small circuits agree with every function on 1/2 + t/2^n of the inputs"
