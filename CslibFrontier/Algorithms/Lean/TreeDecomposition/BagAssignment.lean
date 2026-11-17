@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import Cslib.Algorithms.Lean.TimeM
 public import Mathlib.Data.Finset.Basic
 public import Mathlib.Data.List.Nodup
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # Bag assignments indexed in radix `q`
@@ -199,55 +200,39 @@ entry of `LP`. -/
     TimeM.tick 1
     pure (⟨val % q, Nat.mod_lt val hq⟩ :: r)
 
+@[time_simps]
 theorem ret_lookupM (q : ℕ) (x : V) (L : List V) (m : ℕ) :
     (lookupM q x L m).ret = ofRadix q L m x := by
-  induction L generalizing m with
-  | nil => rfl
-  | cons u L ih =>
-    simp only [lookupM, TimeM.ret_bind, TimeM.ret_pure, ih, ofRadix]
+  time_spec lookupM
 
+@[time_simps]
 theorem time_lookupM (q : ℕ) (x : V) (L : List V) (m : ℕ) :
     (lookupM q x L m).time = L.length := by
-  induction L generalizing m with
-  | nil => rfl
-  | cons u L ih =>
-    simp only [lookupM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih, List.length_cons]
-    omega
+  time_spec lookupM
 
 theorem ret_projectM {q : ℕ} (hq : 0 < q) (LB LP : List V) (t : ℕ) :
     (projectM q LB t LP).ret = toRadix q LP (ofRadix q LB t) := by
   induction LP with
   | nil => rfl
   | cons u LP ih =>
-    simp only [projectM, TimeM.ret_bind, TimeM.ret_pure, ih, ret_lookupM,
-      toRadix_cons, Nat.mod_eq_of_lt (ofRadix_lt hq LB t u)]
+    simp only [projectM, time_simps, ih, toRadix_cons, Nat.mod_eq_of_lt (ofRadix_lt hq LB t u)]
 
 theorem time_projectM (q : ℕ) (LB LP : List V) (t : ℕ) :
     (projectM q LB t LP).time = LP.length * (LB.length + 1) := by
-  induction LP with
-  | nil => simp [projectM]
-  | cons u LP ih =>
-    simp only [projectM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih, time_lookupM,
-      List.length_cons, Nat.add_mul, Nat.one_mul]
-    omega
+  time_spec projectM [Nat.succ_mul]
 
+@[time_simps]
 theorem ret_evalScopeM {q : ℕ} (hq : 0 < q) (LB : List V) (t : ℕ) (scope : List V) :
     (evalScopeM q hq LB t scope).ret = scope.map (ofRadixFin q hq LB t) := by
   induction scope with
   | nil => rfl
   | cons x scope ih =>
-    simp only [evalScopeM, TimeM.ret_bind, TimeM.ret_pure, ih, ret_lookupM,
-      List.map_cons, Nat.mod_eq_of_lt (ofRadix_lt hq LB t x)]
+    simp only [evalScopeM, time_simps, ih, Nat.mod_eq_of_lt (ofRadix_lt hq LB t x)]
     rfl
 
 theorem time_evalScopeM {q : ℕ} (hq : 0 < q) (LB : List V) (t : ℕ) (scope : List V) :
     (evalScopeM q hq LB t scope).time = scope.length * (LB.length + 1) := by
-  induction scope with
-  | nil => simp [evalScopeM]
-  | cons x scope ih =>
-    simp only [evalScopeM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih, time_lookupM,
-      List.length_cons, Nat.add_mul, Nat.one_mul]
-    omega
+  time_spec evalScopeM [Nat.succ_mul]
 
 end Loops
 

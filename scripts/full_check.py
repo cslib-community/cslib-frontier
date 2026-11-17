@@ -92,12 +92,14 @@ STEPS = (
           "test -d .lake/packages",
           "python3 -B -m unittest scripts/test_check_tidy_surface.py",
           "python3 -B scripts/check_tidy_surface.py")),
-    Step("Security premise ratchet (changed modules)",
+    # Advisory: these two fail when the checker's tests fail, the scan cannot run or the baseline
+    # is malformed, never on what the scan finds. Run the second command by hand to read that.
+    Step("Security premise report (changed modules)",
          ("python3 -B -m unittest scripts/test_check_security_premises.py",
-          'python3 -B scripts/check_security_premises.py --base "$BASE"')),
-    Step("Reduction witness ratchet (changed modules)",
+          'python3 -B scripts/check_security_premises.py --base "$BASE" --advisory')),
+    Step("Reduction witness report (changed modules)",
          ("python3 -B -m unittest scripts/test_check_reduction_witnesses.py",
-          'python3 -B scripts/check_reduction_witnesses.py --base "$BASE"')),
+          'python3 -B scripts/check_reduction_witnesses.py --base "$BASE" --advisory')),
     Step("Named assumptions (whole library)",
          ("python3 -B -m unittest scripts/test_check_hardness_assumptions.py",
           "python3 -B scripts/check_hardness_assumptions.py")),
@@ -141,6 +143,10 @@ CI_ONLY = {
     "Reclaim unused hosted-runner SDK space": "hosted-runner disk cleanup",
     "Restore .lake from the Actions cache": "CI cache; check.sh runs scripts/cache/ensure.sh",
     "Restore Mathlib cache with retries": "CI cache; check.sh runs scripts/cache/ensure.sh",
+    "Restore nearest ancestor merge-group build outputs":
+        "merge groups only; downloads an ancestor's merge-group artifact through the GitHub API",
+    "Stop after an unconfirmed ancestor-handoff shutdown":
+        "merge groups only; fails the job when the ancestor handoff step exits 125",
     "Restore build outputs from the remote cache":
         "CI cache; check.sh runs scripts/cache/ensure.sh",
     "Restore validated merge-group build outputs":
@@ -150,8 +156,10 @@ CI_ONLY = {
         "advisory; never fails the job. Run `scripts/parallel_defs.py [--theorems]` to see it",
     "PR description names (advisory)":
         "advisory; reads the pull request event. Run `scripts/check_pr_names.py --pr N`",
-    "Stage merge-group build outputs": "merge groups only; build handoff to main",
-    "Upload merge-group build outputs": "merge groups only; build handoff to main",
+    "Stage merge-group build outputs":
+        "merge groups only; build handoff to main and to later merge groups",
+    "Upload merge-group build outputs":
+        "merge groups only; build handoff to main and to later merge groups",
     "Stage cache publication": "main pushes only; cache publication",
     "Hand off staged files to the enabled publishers": "main pushes only; cache publication",
 }

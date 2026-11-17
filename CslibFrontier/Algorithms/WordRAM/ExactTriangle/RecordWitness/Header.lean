@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordWitness.Spec
 import CslibFrontier.Computability.WordRAM.RegisterFrame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Actual record and interval-header execution
@@ -202,35 +203,16 @@ theorem exec_header {W n D g i records heap out : ℕ} (x : Data 400) (v : Fin 6
   obtain ⟨a, ha, am, aD, an, ag, ao, ak, aq, aQ, af, aa, ab, ac, as, ai, a1, a0, ar⟩ :=
     exec_readRecord x v hD hg hn hi hrecords hout hrec hv (hfit.of_le (by omega))
   obtain ⟨b, hb, bS, bm, br⟩ := exec_squareRoot a aD (hfit.of_le (by omega))
-  have bn : b.regs Reg.size = n := (br _ (by decide)).trans an
-  have bg : b.regs Reg.divisor = g := (br _ (by decide)).trans ag
-  have bk : b.regs Reg.piece = v 1 := (br _ (by decide)).trans ak
-  have b1 : b.regs Reg.one = 1 := (br _ (by decide)).trans a1
+  have bn : b.regs Reg.size = n := by regs_frame
+  have bg : b.regs Reg.divisor = g := by regs_frame
+  have bk : b.regs Reg.piece = v 1 := by regs_frame
+  have b1 : b.regs Reg.one = 1 := by regs_frame
   have hsqrt := Nat.sqrt_le_self D
   obtain ⟨y, hy, ym, yB, yf, yl, yab, ybc, yac, yn, yfirst, ylength, yr⟩ :=
     exec_finishHeader b bS bn bg bk b1 hfirst (hfit.of_le (by omega))
   refine ⟨y, (ha.seq (hb.seq hy)).mono (by omega), ?_, ym.trans (bm.trans am),
-    (yr _ (by decide)).trans ((br _ (by decide)).trans af),
-    (yr _ (by decide)).trans ((br _ (by decide)).trans aa),
-    (yr _ (by decide)).trans ((br _ (by decide)).trans ab),
-    (yr _ (by decide)).trans ((br _ (by decide)).trans ac),
-    (yr _ (by decide)).trans ((br _ (by decide)).trans as),
-    (yr _ (by decide)).trans ((br _ (by decide)).trans ai), ?_⟩
-  · exact
-      { output := (yr _ (by decide)).trans ((br _ (by decide)).trans ao)
-        queries := (yr _ (by decide)).trans ((br _ (by decide)).trans aq)
-        count := (yr _ (by decide)).trans ((br _ (by decide)).trans aQ)
-        size := (yr _ (by decide)).trans bn
-        first := yf
-        length := yl
-        one := (yr _ (by decide)).trans b1
-        zero := (yr _ (by decide)).trans ((br _ (by decide)).trans a0)
-        ab := yab
-        bc := ybc
-        ac := yac
-        scanSize := yn
-        scanFirst := yfirst
-        scanLength := ylength }
+    by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame, ?_⟩
+  · regs_frame
   · intro j hj
     exact (yr j (Or.inl (by omega))).trans ((br j (Or.inl (by omega))).trans (ar j hj))
 

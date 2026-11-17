@@ -171,7 +171,7 @@ theorem advantage_cca2GameOn_incrementAdversary (gen : ℕ → ProbComp Desc) (n
         incrementAdversary true n)) = 1 := by
   unfold incrementAdversary
   exact advantage_cca2GameOn_maulAdversary (fun _ hkeys => validMessages_keyGen hkeys)
-    fun bit _ hkeys _ hct => increment_conditions bit hkeys hct
+    fun bit _ hkeys _ hct => (increment_conditions bit hkeys hct).imp_left (ne_of_apply_ne _)
 
 /-- **Paillier encryption is not 1CCA secure** ([BonehShoup2023], Section 12.2.1, pp. 469–470,
 applied to the additive homomorphism of Paillier encryption): for every modulus generator `gen`,
@@ -185,7 +185,8 @@ theorem not_indcca2On_paillier (gen : ℕ → ProbComp Desc) :
     (target := fun _ pk => encOption encBits (some (encNat (2 % ofBits pk))))
     (.const 0) (.const 1) (computableInPolyTime_incrementCiphertext.comp (by fun_prop))
     computableInPolyTime_incrementTarget (fun _ _ hkeys => validMessages_keyGen hkeys)
-    fun _ bit _ hkeys _ hct => increment_conditions bit hkeys hct
+    fun _ bit _ hkeys _ hct =>
+      (increment_conditions bit hkeys hct).imp_left (ne_of_apply_ne _)
 
 /-- **Paillier encryption is not CCA secure** in the interleaved multi-challenge sense of
 [BonehShoup2023], Attack Game 12.1 and Definition 12.1 (pp. 467–468), by

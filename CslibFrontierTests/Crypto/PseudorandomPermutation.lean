@@ -4,11 +4,18 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+
 import CslibFrontier.Crypto.Computational.PseudorandomPermutation
+import CslibFrontier.Crypto.Computational.PseudorandomPermutation.StrongSwitching
+import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Crypto.Primitives.PRP.Finite
+import CslibFrontier.Crypto.Primitives.PRP.StrongSwitching
 import CslibFrontier.Foundations.Data.BitString.List.Operations
 import CslibFrontier.Languages.Probabilistic.Oracle.CoinFixing
+import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Tactic.PolyTime
+import Mathlib.Data.Nat.Choose.Cast
 
 /-!
 # Tests for block ciphers and pseudorandom permutations
@@ -25,7 +32,18 @@ For the finite experiments, a one-query adversary run against a deterministic or
 oracle's reply. The switching lemma gives it no advantage between a uniform permutation and a
 uniform function, so its PRF and PRP advantages coincide up to zero. Lifted to the bidirectional
 interface it asks the forward direction.
+
+At `D = Bool`, the adversary that asks the permutation at `false` and at `true` and accepts when
+the replies differ always accepts against a uniform permutation, and accepts with probability
+`1 / 2` against the forgetful sampler, which answers both fresh queries independently. Its advantage
+`1 / 2` attains the bidirectional switching bound for two queries and exceeds the bound for one. The
+forgetful sampler answers an inverse query that was never asked from a recorded pair, so the round
+trip `.forward x ↦ y`, `.inverse y ↦ x` closes against it with probability `1`. The codec
+`strongBitStringCodec` answers a request of the wrong length with `[]` and reads a request of the
+block length as the typed query on the same channel.
 -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.Crypto.PseudorandomPermutation
 
@@ -120,11 +138,376 @@ example (E : Bool → Equiv.Perm Bool) :
     (PRF.advantage (fun key => ⇑(E key)) queryFalse : ℝ) ≤ PRP.advantage E queryFalse := by
   simpa using PRP.prfAdvantage_le_advantage_add E isQueryBounded_queryFalse
 
+-- The two-sided finite switching bound also gives equality of advantages on one query.
+example (E : Bool → Equiv.Perm Bool) :
+    |(PRP.advantage E queryFalse : ℝ) - PRF.advantage (fun key => ⇑(E key)) queryFalse| = 0 := by
+  have h := PRP.abs_advantage_sub_prfAdvantage_le E isQueryBounded_queryFalse
+  rw [show Nat.choose 1 2 = 0 by decide, Nat.cast_zero, zero_div] at h
+  exact le_antisymm h (abs_nonneg _)
+
+-- Theorem 4.4's `Q ^ 2 / (2 * |D|)` bound follows from `PRP.abs_advantage_sub_prfAdvantage_le`.
+example {Key D : Type} [Fintype Key] [Nonempty Key] [Fintype D] [DecidableEq D] [Nonempty D]
+    (E : Key → Equiv.Perm D) {A : PRF.Adversary D D} {Q : ℕ} (hQ : A.IsQueryBounded Q) :
+    |(PRP.advantage E A : ℝ) - PRF.advantage (fun key => ⇑(E key)) A| ≤
+      (Q : ℝ) ^ 2 / (2 * Fintype.card D) := by
+  refine (PRP.abs_advantage_sub_prfAdvantage_le E hQ).trans ?_
+  have hc : (Q.choose 2 : ℝ) ≤ (Q : ℝ) ^ 2 / 2 := by
+    rw [Nat.cast_choose_two]
+    have := Nat.cast_nonneg (α := ℝ) Q
+    nlinarith
+  calc (Q.choose 2 : ℝ) / Fintype.card D ≤ ((Q : ℝ) ^ 2 / 2) / Fintype.card D := by gcongr
+    _ = (Q : ℝ) ^ 2 / (2 * Fintype.card D) := by ring
+
+-- Length-preserving Corollary 4.5 follows from `BlockCipher.prp_iff_pseudorandomFunctionOver`.
+example {E : BlockCipher} (hkey : E.keyLen = id) (hblock : E.blockLen = id) :
+    E.PRP ↔ PseudorandomFunction (fun key query => E.encrypt key.length key query) := by
+  have hiff := BlockCipher.prp_iff_pseudorandomFunctionOver hkey
+    (by rw [hblock]; exact negligible_inv_two_pow)
+  rw [hblock] at hiff
+  exact hiff
+
 -- The lifted adversary asks the forward direction of the bidirectional oracle.
 example (π : Equiv.Perm Bool) :
     (PRP.StrongAdversary.ofForward queryFalse).run
       (fun q => pure (RandomPermutation.evalPerm π q)) = pure (π false) := by
   simp only [PRP.StrongAdversary.run_ofForward, RandomPermutation.evalPerm_forward, queryFalse,
     ProbOracleComp.run_query]
+
+/-! ### Necessity of super-polynomial block size in Corollary 4.5 -/
+
+section OneBitCipher
+
+open Cslib.Probability
+
+private noncomputable def oneBitCipher : BlockCipher where
+  keyLen := id
+  blockLen := fun _ => 1
+  keyLen_polyTime := ComputableInPolyTime.id'
+  blockLen_polyTime := ComputableInPolyTime.const 1
+  encrypt _ key block := List.zipWith Bool.xor (key ++ [false]) block
+  decrypt _ key block := List.zipWith Bool.xor (key ++ [false]) block
+  encrypt_polyTime := by polytime
+  decrypt_polyTime := by polytime
+  length_encrypt _ key block _ hblock := by
+    simp [List.length_zipWith, hblock]
+  length_decrypt _ key block _ hblock := by
+    simp [List.length_zipWith, hblock]
+  decrypt_encrypt _ key block _ hblock := by
+    rcases block with _ | ⟨b, bs⟩
+    · simp at hblock
+    · have hbs : bs = [] := by simpa using hblock
+      subst hbs
+      rcases key with _ | ⟨k, ks⟩ <;> cases b <;> simp [List.zipWith]
+  encrypt_decrypt _ key block _ hblock := by
+    rcases block with _ | ⟨b, bs⟩
+    · simp at hblock
+    · have hbs : bs = [] := by simpa using hblock
+      subst hbs
+      rcases key with _ | ⟨k, ks⟩ <;> cases b <;> simp [List.zipWith]
+
+private lemma oneBitCipher_encrypt_eq_take_one (n : ℕ) (key block : List Bool)
+    (hk : 1 ≤ key.length) (hb : block.length = 1) :
+    oneBitCipher.encrypt n key block = List.zipWith Bool.xor (key.take 1) block := by
+  rcases key with _ | ⟨k, ks⟩
+  · simp at hk
+  · rcases block with _ | ⟨b, bs⟩
+    · simp at hb
+    · have hbs : bs = [] := by simpa using hb
+      subst hbs
+      simp [oneBitCipher, List.zipWith]
+
+private def permEquivBitStringOne : BitString 1 ≃ Equiv.Perm (BitString 1) where
+  toFun k :=
+    { toFun := fun x i => Bool.xor (k i) (x i)
+      invFun := fun x i => Bool.xor (k i) (x i)
+      left_inv := fun x => by ext i; cases hk : k i <;> cases hx : x i <;> simp [hk, hx]
+      right_inv := fun x => by ext i; cases hk : k i <;> cases hx : x i <;> simp [hk, hx] }
+  invFun π := fun _ => Bool.xor (π (fun _ => false) 0) false
+  left_inv k := by
+    ext i
+    rw [Fin.eq_zero i]
+    cases h : k 0 <;> simp [h]
+  right_inv π := by
+    ext x i
+    rw [Fin.eq_zero i]
+    have hx : x = (fun _ => false) ∨ x = (fun _ => true) := by
+      by_cases h0 : x 0
+      · right; ext j; rw [Fin.eq_zero j]; exact h0
+      · left; ext j; rw [Fin.eq_zero j]; simp [h0]
+    have hinj : π (fun _ => false) ≠ π (fun _ => true) :=
+      π.injective.ne (fun h => Bool.false_ne_true (congr_fun h 0))
+    have hneq : π (fun _ => false) 0 ≠ π (fun _ => true) 0 := by
+      intro heq
+      apply hinj
+      ext j
+      rw [Fin.eq_zero j]
+      exact heq
+    rcases hx with rfl | rfl
+    · simp
+    · cases h0 : π (fun _ => false) 0 <;> cases h1 : π (fun _ => true) 0 <;> simp_all
+
+private theorem oneBitCipher_prp : oneBitCipher.PRP := by
+  intro adversary _
+  have heq : ∀ n, ProbComp.eval (oneBitCipher.prpRealGame adversary (n + 1)) =
+      ProbComp.eval (prpIdealGame (fun _ => 1) adversary (n + 1)) := by
+    intro n
+    simp only [BlockCipher.prpRealGame, prpIdealGame, ProbComp.eval_bind,
+      BitString.eval_sampleList, ProbComp.eval_uniform]
+    have htake : (BitString.uniformList (oneBitCipher.keyLen (n + 1))).bind
+        (fun key => (ProbOracleComp.run (adversary (n + 1) [])
+          (fun request => pure (oneBitCipher.prpOracle (n + 1) key request.2))).eval) =
+        (BitString.uniformList 1).bind
+          (fun key₁ => (ProbOracleComp.run (adversary (n + 1) [])
+            (fun request => pure (if request.2.length = 1 then
+              List.zipWith Bool.xor key₁ request.2 else []))).eval) := by
+      change (BitString.uniformList (n + 1)).bind _ = _
+      rw [← BitString.uniformList_take (k := 1) (n := n + 1) (by omega), PMF.bind_map]
+      refine Probability.PMF.bind_congr_on_support (BitString.uniformList (n + 1)) _ _
+        fun key hk => ?_
+      have hlen : key.length = n + 1 := BitString.length_of_mem_support_uniformList hk
+      congr 2
+      funext request
+      change pure (if request.2.length = 1 then
+        oneBitCipher.encrypt (n + 1) key request.2 else []) = _
+      split_ifs with hreq
+      · exact congrArg pure (oneBitCipher_encrypt_eq_take_one (n + 1) key request.2 (by omega) hreq)
+      · rfl
+    rw [htake]
+    have hbit : BitString.uniformList 1 =
+        (PMF.uniformOfFintype (BitString 1)).map List.ofFn := rfl
+    rw [hbit, PMF.bind_map, ← Probability.PMF.uniformOfFintype_map_equiv permEquivBitStringOne,
+      PMF.bind_map]
+    refine Probability.PMF.bind_congr_on_support (PMF.uniformOfFintype (BitString 1)) _ _
+      fun k _ => ?_
+    refine congrArg (fun oracle => (ProbOracleComp.run (adversary (n + 1) []) oracle).eval) ?_
+    funext request
+    simp only [randomPermOracle, randomFunctionOracle]
+    split_ifs with hreq
+    · rcases request with ⟨_, q⟩
+      rcases q with _ | ⟨b, bs⟩
+      · simp at hreq
+      · have hbs : bs = [] := by simpa using hreq
+        subst hbs
+        simp only [permEquivBitStringOne, Equiv.coe_fn_mk, List.ofFn_succ,
+          Fin.isValue, List.ofFn_zero, List.zipWith_cons_cons,
+          List.zipWith_nil_right]
+        congr 2
+    · rfl
+  intro c
+  refine (negligible_zero c).congr' ?_
+  filter_upwards [Filter.eventually_ge_atTop 1] with n hn
+  obtain ⟨m, rfl⟩ : ∃ m, n = m + 1 := ⟨n - 1, by omega⟩
+  have h1 : (oneBitCipher.blockLen : ℕ → ℕ) = fun _ => 1 := rfl
+  simp only [h1]
+  rw [heq m]
+  simp [Game.advantage]
+
+private noncomputable def distinctOneBitQuery : OracleDistinguisher := fun _ _ => do
+  let y₀ ← List.take 1 <$> ProbOracleComp.query ((), [false])
+  let y₁ ← List.take 1 <$> ProbOracleComp.query ((), [true])
+  return (decide (y₀ = y₁))
+
+private theorem distinctOneBitQuery_isOraclePPT : IsOraclePPT encBool distinctOneBitQuery := by
+  have hq₀ : ComputableInPolyTime (fun _ : ℕ × List Bool => [false])
+      (encPair encUnary encBits) encBits := by polytime
+  have hq₁ : ComputableInPolyTime (fun _ : (ℕ × List Bool) × List Bool => [true])
+      (encPair (encPair encUnary encBits) encBits) encBits := by polytime
+  have hlim₀ : ComputableInPolyTime (fun _ : ℕ × List Bool => (1 : ℕ))
+      (encPair encUnary encBits) encUnary := by polytime
+  have hlim₁ : ComputableInPolyTime (fun _ : (ℕ × List Bool) × List Bool => (1 : ℕ))
+      (encPair (encPair encUnary encBits) encBits) encUnary := by polytime
+  have hout : ComputableInPolyTime
+      (fun p : ((ℕ × List Bool) × List Bool) × List Bool => decide (p.1.2 = p.2))
+      (encPair (encPair (encPair encUnary encBits) encBits) encBits) encBool := by
+    polytime
+  unfold distinctOneBitQuery
+  exact ((IsOraclePPTOn.query_take' () hq₀ hlim₀).bind_with
+    ((IsOraclePPTOn.query_take' () hq₁ hlim₁).bind_with hout.isOraclePPTOn)).isOraclePPT
+
+private def funOneBitEquiv : (BitString 1 → BitString 1) ≃ Bool × Bool where
+  toFun t := (t (BitString.ofList 1 [false]) 0, t (BitString.ofList 1 [true]) 0)
+  invFun p x _ := if x 0 = false then p.1 else p.2
+  left_inv t := by
+    ext x i
+    rw [Fin.eq_zero i]
+    by_cases hx : x 0 = false
+    · have hxf : BitString.ofList 1 [false] = x := by
+        ext j; rw [Fin.eq_zero j]; simpa [BitString.ofList] using hx.symm
+      simp [hx, hxf]
+    · have hxt : BitString.ofList 1 [true] = x := by
+        ext j; rw [Fin.eq_zero j]
+        cases h0 : x 0
+        · exact False.elim (hx h0)
+        · rfl
+      simp [hx, hxt]
+  right_inv p := by ext <;> simp [BitString.ofList]
+
+private theorem not_pseudorandomFunctionOver_oneBitCipher :
+    ¬ PseudorandomFunctionOver (fun _ => 1) (fun _ => 1)
+      (fun key query => oneBitCipher.encrypt key.length key query) := by
+  intro h
+  have hneg := h.secure distinctOneBitQuery distinctOneBitQuery_isOraclePPT
+  have hreal : ∀ n, ProbComp.eval
+      (prfRealGame (fun _ => 1) (fun key query => oneBitCipher.encrypt key.length key query)
+        distinctOneBitQuery (n + 1)) = PMF.pure false := by
+    intro n
+    simp only [prfRealGame, ProbOracleComp.run, distinctOneBitQuery, oneBitCipher, prfOracle,
+      List.length_singleton, ↓reduceIte, bind_pure_comp, Functor.map_map,
+      OracleComp.interpret_bind, OracleComp.interpret_map,
+      ProbOracleComp.interpret_query, map_pure, ProbComp.eval_map, BitString.eval_sampleList]
+    have hconst : ∀ key ∈ (BitString.uniformList (n + 1)).support,
+        decide (List.take 1 (List.zipWith Bool.xor (key ++ [false]) [false]) =
+          List.take 1 (List.zipWith Bool.xor (key ++ [false]) [true])) = false := by
+      intro key hk
+      have hlen : key.length = n + 1 := BitString.length_of_mem_support_uniformList hk
+      rcases key with _ | ⟨k, ks⟩
+      · simp at hlen
+      · cases k <;> simp
+    rw [Probability.PMF.map_congr_on_support (BitString.uniformList (n + 1)) _ (fun _ => false)
+      hconst]
+    exact PMF.map_const (BitString.uniformList (n + 1)) false
+  have hideal : ∀ n, ProbComp.eval
+      (prfIdealGame (fun _ => 1) (fun _ => 1) distinctOneBitQuery (n + 1)) =
+      PMF.uniformOfFintype Bool := by
+    intro n
+    simp only [prfIdealGame, ProbOracleComp.run, distinctOneBitQuery, randomFunctionOracle,
+      List.length_singleton, ↓reduceIte, bind_pure_comp, Functor.map_map,
+      OracleComp.interpret_bind, OracleComp.interpret_map,
+      ProbOracleComp.interpret_query, map_pure, ProbComp.eval_map, ProbComp.eval_uniform]
+    rw [← Probability.PMF.uniformOfFintype_map_equiv funOneBitEquiv.symm, PMF.map_comp]
+    ext b
+    simp only [PMF.map_apply, PMF.uniformOfFintype_apply, tsum_fintype, Fintype.sum_prod_type]
+    have hne : BitString.ofList 1 [false] 0 ≠ BitString.ofList 1 [true] 0 := by decide
+    have hsum : (4 : ENNReal)⁻¹ + (4 : ENNReal)⁻¹ = 2⁻¹ := by
+      rw [show (4 : ENNReal)⁻¹ + (4 : ENNReal)⁻¹ = 2 * (4 : ENNReal)⁻¹ from (two_mul _).symm,
+        show (4 : ENNReal) = 2 * 2 by norm_num,
+        ENNReal.mul_inv (Or.inl (by norm_num)) (Or.inl (by norm_num)),
+        ← mul_assoc, ENNReal.mul_inv_cancel (by norm_num) (by norm_num), one_mul]
+    cases b <;>
+      simpa [funOneBitEquiv, List.ofFn_succ, hne] using hsum
+  have hshift := hneg.shift 1
+  simp only [hreal, hideal] at hshift
+  refine not_negligible_const ?_ hshift
+  norm_num [Game.advantage, Game.succProbability, PMF.uniformOfFintype_apply,
+    ENNReal.toNNReal_ofNat]
+
+-- `oneBitCipher` satisfies `PRP` without being a `PseudorandomFunctionOver` on 1-bit blocks.
+example :
+    ¬ (oneBitCipher.PRP ↔
+      PseudorandomFunctionOver oneBitCipher.blockLen oneBitCipher.blockLen
+        (fun key query => oneBitCipher.encrypt key.length key query)) := by
+  intro hiff
+  exact not_pseudorandomFunctionOver_oneBitCipher (hiff.mp oneBitCipher_prp)
+
+end OneBitCipher
+
+/-! ### The switching lemmas -/
+
+section Switching
+
+open Probability RandomPermutation
+
+/-- Ask the permutation of `Bool` at `false` and at `true`, and accept when the replies differ. -/
+private noncomputable def twoForward : ProbOracleComp (PermOracleSpec Bool) Bool := do
+  let y₀ ← ProbOracleComp.query (spec := PermOracleSpec Bool) (.forward false)
+  let y₁ ← ProbOracleComp.query (spec := PermOracleSpec Bool) (.forward true)
+  return y₀ != y₁
+
+private theorem twoForward_isQueryBounded : twoForward.IsQueryBounded 2 := by
+  unfold twoForward
+  exact (ProbOracleComp.IsQueryBounded.query _).bind fun _ =>
+    (ProbOracleComp.IsQueryBounded.query _).bind fun _ => .pure _ 0
+
+/-- A permutation never repeats a reply, so `twoForward` accepts against every permutation. -/
+private theorem eval_strongIdealExperiment_twoForward :
+    ProbComp.eval (PRP.strongIdealExperiment twoForward) = PMF.pure true := by
+  have hne (π : Equiv.Perm Bool) : (π false != π true) = true := by
+    simp
+  rw [PRP.eval_strongIdealExperiment]
+  simp [twoForward, hne]
+
+/-- The forgetful sampler answers the two fresh queries with independent uniform points, so
+`twoForward` accepts with probability `1 / 2`. -/
+private theorem forgetful_twoForward :
+    (ProbOracleComp.runWith forgetfulAnswer twoForward []).map Prod.fst =
+      PMF.uniformOfFintype Bool := by
+  have hsecond (y₀ : Bool) :=
+    forgetfulAnswer_forward_of_none (x := true) (cache := [(false, y₀)]) rfl
+  have hmask (y₀ : Bool) :
+      ((PMF.uniformOfFintype Bool).bind fun y₁ => PMF.pure (y₀ != y₁)) =
+        PMF.uniformOfFintype Bool :=
+    (PMF.bind_pure_comp (bne y₀) _).trans <| PMF.uniformOfFintype_map_equiv
+      (Function.Involutive.toPerm (bne y₀) fun y => by cases y₀ <;> cases y <;> rfl)
+  unfold twoForward
+  simp only [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query,
+    ProbOracleComp.runWith_pure]
+  rw [forgetfulAnswer_forward_of_none rfl]
+  simp only [hsecond, PMF.bind_map, Function.comp_def, PMF.map_bind, PMF.pure_map, hmask,
+    PMF.bind_const]
+
+private theorem advantage_twoForward :
+    (Game.advantage (ProbComp.eval (PRP.strongIdealExperiment twoForward))
+      ((ProbOracleComp.runWith forgetfulAnswer twoForward []).map Prod.fst) : ℝ) = 1 / 2 := by
+  rw [eval_strongIdealExperiment_twoForward, forgetful_twoForward,
+    Game.coe_advantage_pure_true_left, PMF.uniformOfFintype_apply]
+  norm_num
+
+-- `twoForward` makes two queries and attains the bound `(2).choose 2 / |Bool|`.
+example :
+    (Game.advantage (ProbComp.eval (PRP.strongIdealExperiment twoForward))
+      ((ProbOracleComp.runWith forgetfulAnswer twoForward []).map Prod.fst) : ℝ) =
+      (Nat.choose 2 2 : ℝ) / Fintype.card Bool :=
+  le_antisymm (PRP.advantage_strongIdealExperiment_forgetful_le twoForward_isQueryBounded)
+    (by rw [advantage_twoForward]; norm_num)
+
+-- The bound for one query fails for `twoForward`, so the query bound is needed.
+example :
+    ¬ (Game.advantage (ProbComp.eval (PRP.strongIdealExperiment twoForward))
+      ((ProbOracleComp.runWith forgetfulAnswer twoForward []).map Prod.fst) : ℝ) ≤
+      (Nat.choose 1 2 : ℝ) / Fintype.card Bool := by
+  rw [advantage_twoForward]
+  norm_num
+
+/-- Ask the permutation of `Bool` at `false`, then its inverse at the reply, and accept when that
+returns `false`. -/
+private noncomputable def roundTrip : ProbOracleComp (PermOracleSpec Bool) Bool := do
+  let y ← ProbOracleComp.query (spec := PermOracleSpec Bool) (.forward false)
+  let x ← ProbOracleComp.query (spec := PermOracleSpec Bool) (.inverse y)
+  return x == false
+
+-- The forgetful sampler answers the inverse query, never asked, from the pair recorded for the
+-- forward one, so the round trip always closes.
+example :
+    (ProbOracleComp.runWith forgetfulAnswer roundTrip []).map Prod.fst = PMF.pure true := by
+  have hinverse (y : Bool) :=
+    forgetfulAnswer_inverse_of_some (y := y) (x := false) (cache := [(false, y)]) (by
+      simp [invLookup_cons])
+  unfold roundTrip
+  simp only [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query,
+    ProbOracleComp.runWith_pure]
+  rw [forgetfulAnswer_forward_of_none rfl]
+  simp only [hinverse, PMF.bind_map, Function.comp_def, PMF.pure_bind, PMF.map_bind, PMF.pure_map,
+    BEq.rfl, PMF.bind_const]
+
+-- A request of the wrong length is answered `[]` without a typed query.
+example (oracle : (q : PermQuery (BitString 2)) → PMF (BitString 2)) :
+    (strongBitStringCodec 2).wordOracle oracle (true, [true]) = pure [] :=
+  strongBitStringCodec_wordOracle_of_length_ne oracle true (by decide)
+
+-- A request of the block length asks the typed query on the same channel.
+example (oracle : (q : PermQuery (BitString 2)) → PMF (BitString 2)) :
+    (strongBitStringCodec 2).wordOracle oracle (true, [true, false]) =
+      (List.ofFn : BitString 2 → List Bool) <$>
+        oracle (.inverse (BitString.ofList 2 [true, false])) :=
+  strongBitStringCodec_wordOracle_of_length oracle true rfl
+
+-- On channel `false` it asks the forward query.
+example (oracle : (q : PermQuery (BitString 2)) → PMF (BitString 2)) :
+    (strongBitStringCodec 2).wordOracle oracle (false, [true, false]) =
+      (List.ofFn : BitString 2 → List Bool) <$>
+        oracle (.forward (BitString.ofList 2 [true, false])) :=
+  strongBitStringCodec_wordOracle_of_length oracle false rfl
+
+end Switching
 
 end CslibFrontierTests.Crypto.PseudorandomPermutation

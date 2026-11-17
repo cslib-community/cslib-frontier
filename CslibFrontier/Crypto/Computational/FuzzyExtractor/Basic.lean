@@ -299,7 +299,11 @@ noncomputable abbrev securityAdvantage [Fintype Key] [Nonempty Key]
 
 /-- Concrete computational security of a fuzzy extractor for a source family `sources` against
 a distinguisher class `Admissible` with advantage bound `ε`
-([FullerMengReyzin2020], Definition 2.2, item 4). -/
+([FullerMengReyzin2020], Definition 2.2, item 4, p. 6 of the ePrint revision of June 23, 2020).
+The caller supplies the distinguisher class, where the source fixes `D_{s_sec}`, the randomized
+circuits of size at most `s_sec` (p. 5), so this is the source's notion only for an instance that
+supplies that class. Distinguishers are probabilistic programs reading the key and the helper, and
+the ideal key is uniform on the finite type `Key` rather than on `{0,1}^ℓ`. -/
 def ComputationallySecureFor [Fintype Key] [Nonempty Key]
     (fe : FuzzyExtractor M Key Helper) (sources : Set (PMF M))
     (Admissible : (Key → Helper → Experiment) → Prop) (ε : ℝ≥0) : Prop :=
@@ -343,8 +347,9 @@ variable {M Key Helper : ℕ → Type} [∀ κ, Fintype (Key κ)] [∀ κ, Nonem
 
 /-- Asymptotic computational security of a family of fuzzy extractors `fe κ`, indexed by the
 security parameter `κ`, for a set `sources` of source ensembles and a class `Admissible` of
-distinguisher families: for every ensemble `source ∈ sources`, the real and ideal games of
-`fe κ` on `source κ` are indistinguishable to admissible distinguishers. Equivalently, every
+distinguisher families ([FullerMengReyzin2020], Definition 2.2, item 4, in asymptotic form):
+for every ensemble `source ∈ sources`, the real and ideal games of `fe κ` on `source κ` are
+indistinguishable to admissible distinguishers. Equivalently, every
 admissible `D` has negligible advantage `(fe κ).securityAdvantage (source κ) (D κ)`
 (`computationallySecure_iff`). This is the asymptotic form of `ComputationallySecureFor`, with the
 concrete bound `ε` replaced by negligibility in `κ`; each construction fixes its distinguisher

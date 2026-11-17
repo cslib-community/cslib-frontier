@@ -15,7 +15,7 @@ import CslibFrontier.Crypto.Computational.MerkleDamgard
 import CslibFrontier.Crypto.Computational.Rompel
 import CslibFrontier.Crypto.Negligible
 import CslibFrontier.Crypto.Negligible.Basic
-import CslibFrontier.Probability.Guessing.Leakage
+import CslibFrontier.Probability.Guessing.UniformList
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.UniformPoint
 import CslibFrontier.Tactic.PolyTime
@@ -147,12 +147,6 @@ private theorem bind_pure_beq_apply (P : PMF (List Bool)) (φ : List Bool → Li
   simp only [Bool.beq_eq_decide_eq, ← PMF.bind_pure_decide_eq_apply_true' (P.map φ), PMF.bind_map,
     Function.comp_def]
 
-/-- Every word of length `n` is the list of some function `Fin n → Bool`. -/
-private theorem mem_image_ofFn {n : ℕ} {word : List Bool} (h : word.length = n) :
-    word ∈ (Finset.univ : Finset (Fin n → Bool)).image List.ofFn := by
-  subst h
-  exact Finset.mem_image.2 ⟨word.get, Finset.mem_univ _, List.ofFn_get word⟩
-
 /-- `2 ^ n` guesses at a `(2 n + r)`-bit word succeed with probability at most `(1 / 2) ^ n`. -/
 private theorem two_pow_mul_one_div_two_pow_le (n r : ℕ) :
     (2 : ℝ≥0∞) ^ n * (1 / 2 ^ (2 * n + r)) ≤ ((1 / 2 : ℝ≥0) ^ n : ℝ≥0) := by
@@ -188,16 +182,11 @@ theorem succProbability_inversionGame_le {H : List Bool → List Bool → List B
     have hklen := BitString.length_of_mem_support_uniformList hkey
     rw [PMF.bind_apply]
     simp only [bind_pure_beq_apply]
-    refine (PMF.tsum_mul_apply_le_card_mul _ (BitString.uniformList_apply_le _) (H key)
-      ((Finset.univ : Finset (Fin n → Bool)).image List.ofFn)
-      (fun message => mem_image_ofFn ((hlen key message).trans hklen))
+    exact (PMF.tsum_uniformList_mul_apply_le (H key)
+      (fun message _ => (hlen key message).trans hklen)
       (fun digest => (ProbComp.eval (adversary (3 * n + r) (key ++ digest))).map
-        fun candidate => candidate.drop (candidate.length / 3))).trans ?_
-    refine le_trans ?_ (two_pow_mul_one_div_two_pow_le n r)
-    gcongr
-    have hcard : ((Finset.univ : Finset (Fin n → Bool)).image List.ofFn).card ≤ 2 ^ n :=
-      Finset.card_image_le.trans (by simp)
-    exact_mod_cast hcard
+        fun candidate => candidate.drop (candidate.length / 3))).trans
+      (two_pow_mul_one_div_two_pow_le n r)
   have key : ProbComp.eval (inversionGame (keyDigest H) adversary (3 * n + r)) true ≤
       ProbComp.eval (collisionGame H (fun _ _ => true) (finder H adversary r) n) true +
         ((1 / 2 : ℝ≥0) ^ n : ℝ≥0) := by

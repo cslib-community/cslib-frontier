@@ -13,6 +13,7 @@ public import CslibFrontier.Foundations.Data.ZMod.DotProduct
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Lyubashevsky
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Lyubashevsky.NativeExtract
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Efficient
+public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Efficient.Verifier
 public import CslibFrontier.Crypto.Game.CloseTo.IntBox
 public import CslibFrontier.Computability.Probabilistic.IntBox
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Int.BinaryDiv
@@ -47,10 +48,10 @@ and `encBitString`.
 1. **Efficient special soundness** (`efficientSpecialSoundness_lyubashevsky`): connects
    `lyubashevskyExtractWord` to `SigmaProtocol.EfficientSpecialSoundness` over the indexed protocol
    family `lyubashevskyFamily`.
-2. **Efficient verification** (`VerifierRealizedBy`, `EfficientVerifier`,
-   `efficientVerifier_lyubashevsky`): a uniform polynomial-time word verifier
-   `lyubashevskyVerifyWord` checks inner-box membership `z ∈ [-(γ - β), γ - β]^m` and the linear
-   relation `A z = w + T ĉ` modulo `q`.
+2. **Efficient verification** (`efficientVerifier_lyubashevsky`): a uniform polynomial-time word
+   verifier `lyubashevskyVerifyWord` checks inner-box membership `z ∈ [-(γ - β), γ - β]^m` and the
+   linear relation `A z = w + T ĉ` modulo `q` (`EfficientVerifier`, from
+   `CslibFrontier/Crypto/Protocols/SigmaProtocol/Efficient/Verifier.lean`).
 3. **Strict-PPT non-abort special HVZK simulator** (`NonAbortSimulator`,
    `EfficientNonAbortSpecialHVZK`, `lyubashevskySimulator`,
    `efficientNonAbortSpecialHVZK_lyubashevsky`): the typed simulator `lyubashevskySimulator`
@@ -61,9 +62,6 @@ and `encBitString`.
 
 ## Main definitions
 
-* `Cslib.Crypto.Protocols.SigmaProtocol.VerifierRealizedBy`,
-  `Cslib.Crypto.Protocols.SigmaProtocol.EfficientVerifier`: polynomial-time verifier certificates
-  for indexed Sigma protocol families.
 * `Cslib.Crypto.Protocols.SigmaProtocol.NonAbortSimulator`,
   `Cslib.Crypto.Protocols.SigmaProtocol.NonAbortSimulator.IsPPT`,
   `Cslib.Crypto.Protocols.SigmaProtocol.EfficientNonAbortSpecialHVZK`: typed simulators that may
@@ -113,26 +111,9 @@ open Mathlib.Tactic.Matrix
 open Probability Probability.PMF Interactive Turing.MultiTapeTM
 open scoped ENNReal _root_.Matrix
 
-/-! ### Efficient verifier and non-abort simulator interfaces -/
+/-! ### Non-abort simulator interfaces -/
 
 variable {I : Type} {X Y T C Z : I → Type}
-
-/-- The word function `f` computes the verifier of the protocol family `P` on encodings: from the
-index and the encoded statement, commitment, challenge and response, it returns `(P i).verify`. -/
-def VerifierRealizedBy (P : ∀ i, SigmaProtocol (X i) (Y i) (T i) (C i) (Z i))
-    (enc : Encoding I Y T C Z)
-    (f : I × List Bool × List Bool × List Bool × List Bool → Bool) : Prop :=
-  ∀ i y t c z,
-    f (i, enc.statement i y, enc.commitment i t, enc.challenge i c, enc.response i z) =
-      (P i).verify y t c z
-
-/-- **Efficient verification** for an indexed family of Sigma protocols: one deterministic
-polynomial-time function of the index and words computes `(P i).verify` on encodings. -/
-def EfficientVerifier (P : ∀ i, SigmaProtocol (X i) (Y i) (T i) (C i) (Z i))
-    (enc : Encoding I Y T C Z) : Prop :=
-  ∃ f, ComputableInPolyTime f
-      (encPair enc.index (encPair encBits (encPair encBits (encPair encBits encBits)))) encBool ∧
-    VerifierRealizedBy P enc f
 
 /-- Output of a word program that may abort, such as a non-abort simulator or a signing attempt:
 `some (t, z)`, a commitment and a response as bit words, or `none` on an abort. `encOption`

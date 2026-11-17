@@ -7,8 +7,10 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: candidate
 
+import Cslib.Computability.Machines.Turing.MultiTape.Combinators.AlmostConstant
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.NondeterministicQueryMachine
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.SpaceNormalForm
+import CslibFrontier.Foundations.Data.Fin.Embedding
 import Mathlib.Data.List.GetD
 
 /-!
@@ -34,13 +36,6 @@ selected transition, and writes the continuation flag. Only the finalizer emits.
 namespace Turing.NondeterministicQueryMachine
 
 open MultiTapeTM QueryMachine.Simulation
-
-open ComputableTidilyInLinearTimeAndSpace in
-private theorem linearFlag : ComputableTidilyInLinearTimeAndSpace flagWord encBool encBits := by
-  convert (of_eq (f := id) (encIn := encBool) (encMid := encBool) fun _ => rfl).ite
-    ((const [true]).restrict _) ((const []).restrict _) using 1
-  funext c
-  cases c <;> rfl
 
 private theorem le_of_add_le8 {a₁ a₂ a₃ a₄ a₅ a₆ a₇ : ℕ} {m : ℕ}
     (h : a₁ + a₂ + a₃ + a₄ + a₅ + a₆ + a₇ ≤ m) :
@@ -145,11 +140,11 @@ theorem exists_routines {α σ : Type} {enc : α ↪ List Bool} {encS : σ ↪ L
   choose TPN cPN hPN hlenPN using hpns
   obtain ⟨TC, cC, hC, -⟩ := Internal.NormalForm.space (passCont_inSpace hhalted false)
   obtain ⟨TF, cF, hF, -⟩ := Internal.NormalForm.space (passFinish_inSpace haccept false)
-  obtain ⟨cfr, hfr⟩ := ComputableTidilyInLinearTimeAndSpace.of_frame (f := id)
-    (encIn := encPass encS) (encOut := encFramed (encPass encS)) fun _ => rfl
-  obtain ⟨cuf, huf⟩ := ComputableTidilyInLinearTimeAndSpace.of_unframe (f := id)
-    (encIn := encFramed (encPass encS)) (encOut := encPass encS) fun s => by simp
-  obtain ⟨cfl, hfl⟩ := linearFlag
+  obtain ⟨cfr, hfr⟩ := Internal.NormalForm.linear <| ComputableInDegree.of_frame (f := id)
+    (encIn := encPass encS) (encMid := encFramed (encPass encS)) fun _ => rfl
+  obtain ⟨cuf, huf⟩ := Internal.NormalForm.linear <| ComputableInDegree.of_unframe (f := id)
+    (encIn := encFramed (encPass encS)) (encMid := encPass encS) fun s => by simp
+  obtain ⟨cfl, hfl⟩ := Internal.NormalForm.linear linear_flagWord
   obtain ⟨cI', hI'⟩ := ComputableTidilyInTimeAndSpace.comp_linear hfr hI
   obtain ⟨cN', hN'⟩ := ComputableTidilyInTimeAndSpace.comp_linear hfr hN
   obtain ⟨cF', hF'⟩ := ComputableTidilyInTimeAndSpace.comp_linear hF huf
@@ -178,23 +173,23 @@ theorem exists_routines {α σ : Type} {enc : α ↪ List Bool} {encS : σ ↪ L
   have hVW : V ≠ W := by simp [V, W, Fin.ext_iff]
   have hNW : N ≠ W := by simp [N, W, Fin.ext_iff]
   have hVC : V ≠ C := by simp [V, C, Fin.ext_iff]
-  obtain ⟨eI, heI⟩ := exists_embedding_eq (K := m + 4) (by omega) (Fin.last kI) V
-  obtain ⟨eE, heE⟩ := exists_embedding_eq (K := m + 4) (by omega)
+  obtain ⟨eI, heI⟩ := Fin.exists_embedding_eq (K := m + 4) (by omega) (Fin.last kI) V
+  obtain ⟨eE, heE⟩ := Fin.exists_embedding_eq (K := m + 4) (by omega)
     (Fin.natAdd kE (0 : Fin 2)) V
-  obtain ⟨eN, heN, heN'⟩ := exists_embedding_eq₂ (K := m + 4) (by omega)
+  obtain ⟨eN, heN, heN'⟩ := Fin.exists_embedding_eq₂ (K := m + 4) (by omega)
     (i := Fin.natAdd (kN + 1) (0 : Fin 2)) (o := (Fin.last kN).castAdd 2)
     (by simp [Fin.ext_iff]) hVN
-  obtain ⟨eF, heF⟩ := exists_embedding_eq (K := m + 4) (by omega)
+  obtain ⟨eF, heF⟩ := Fin.exists_embedding_eq (K := m + 4) (by omega)
     (Fin.natAdd kF (0 : Fin 2)) V
-  obtain ⟨ePE, hePE⟩ := exists_embedding_eq (K := m + 4) (by omega)
+  obtain ⟨ePE, hePE⟩ := Fin.exists_embedding_eq (K := m + 4) (by omega)
     (Fin.natAdd kPE (0 : Fin 2)) V
   have hepn (b : Bool) : ∃ e : Fin (kPN b + 1 + 2) ↪ Fin (m + 4),
       e (Fin.natAdd (kPN b + 1) (0 : Fin 2)) = V ∧
       e ((Fin.last (kPN b)).castAdd 2) = N := by
-    apply exists_embedding_eq₂ (by cases b <;> omega)
+    apply Fin.exists_embedding_eq₂ (by cases b <;> omega)
       (by simp [Fin.ext_iff]) hVN
   choose ePN hePN hePN' using hepn
-  obtain ⟨eC, heC, heC'⟩ := exists_embedding_eq₂ (K := m + 4) (by omega)
+  obtain ⟨eC, heC, heC'⟩ := Fin.exists_embedding_eq₂ (K := m + 4) (by omega)
     (i := Fin.natAdd (kC + 1) (0 : Fin 2)) (o := (Fin.last kC).castAdd 2)
     (by simp [Fin.ext_iff]) hVC
   have hk (b : Bool) :=

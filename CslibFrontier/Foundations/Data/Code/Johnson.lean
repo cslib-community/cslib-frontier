@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Data.Code.Basic
 public import CslibFrontier.Foundations.Data.Code.ListDecoding
+import CslibFrontier.Foundations.Combinatorics.SetFamily.PairwiseIntersection
 import CslibFrontier.Foundations.Data.Code.Plotkin
 import CslibFrontier.Foundations.Data.Hamming
 import Mathlib.Algebra.Order.Chebyshev
@@ -79,23 +80,6 @@ private theorem card_mul_sq_le {κ : Type*} [DecidableEq ι] (L : Finset κ)
     (hinter : ∀ c ∈ L, ∀ c' ∈ L, c ≠ c' → #(B c ∩ B c') ≤ t) :
     #L * a ^ 2 ≤ Fintype.card ι * (a + (#L - 1) * t) := by
   classical
-  -- `m i` codewords agree with the word at the coordinate `i`
-  let m : ι → ℕ := fun i => #{c ∈ L | i ∈ B c}
-  have hsum : ∑ i, m i = #L * a := by
-    simp only [m, card_filter]
-    rw [sum_comm]
-    simp only [← card_filter, filter_mem_eq_inter, univ_inter]
-    rw [sum_congr rfl hB, sum_const, smul_eq_mul]
-  have hsq : ∑ i, m i ^ 2 = ∑ c ∈ L, ∑ c' ∈ L, #(B c ∩ B c') := by
-    simp only [m, card_filter, sq, sum_mul_sum]
-    rw [sum_comm]
-    refine sum_congr rfl fun c _ => ?_
-    rw [sum_comm]
-    refine sum_congr rfl fun c' _ => ?_
-    simp only [ite_zero_mul_ite_zero, mul_one, ← card_filter]
-    congr 1
-    ext i
-    simp
   have hrow : ∀ c ∈ L, ∑ c' ∈ L, #(B c ∩ B c') ≤ a + (#L - 1) * t := by
     intro c hc
     rw [← add_sum_erase L _ hc, inter_self, hB c hc]
@@ -103,8 +87,8 @@ private theorem card_mul_sq_le {κ : Type*} [DecidableEq ι] (L : Finset κ)
     calc ∑ c' ∈ L.erase c, #(B c ∩ B c') ≤ ∑ _c' ∈ L.erase c, t :=
           sum_le_sum fun c' hc' => hinter c hc c' (mem_of_mem_erase hc') (ne_of_mem_erase hc').symm
       _ = (#L - 1) * t := by rw [sum_const, card_erase_of_mem hc, smul_eq_mul]
-  have hcs := sq_sum_le_card_mul_sum_sq (s := (univ : Finset ι)) (f := m)
-  rw [hsum, hsq, card_univ] at hcs
+  have hcs := sq_sum_card_le_card_mul_sum_sum_card_inter L B (U := univ) fun _ _ => subset_univ _
+  rw [sum_congr rfl hB, sum_const, smul_eq_mul, card_univ] at hcs
   rcases L.eq_empty_or_nonempty with rfl | hL
   · simp
   have hL0 : 0 < #L := hL.card_pos

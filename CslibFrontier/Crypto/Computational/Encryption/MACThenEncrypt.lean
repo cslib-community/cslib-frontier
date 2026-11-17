@@ -12,19 +12,13 @@ public import CslibFrontier.Crypto.Computational.GeneratorReindex
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair.Projections
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
-import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
-import CslibFrontier.Computability.Probabilistic.Oracle.Tidy
-import CslibFrontier.Crypto.Game.Hybrid
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Languages.Probabilistic.Oracle.Interaction
-import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
-import CslibFrontier.Probability.BitString.List
+import CslibFrontier.Languages.Probabilistic.Oracle.Simulation.Handler
 import CslibFrontier.Probability.PMF.Bind
-import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.PPT
@@ -735,17 +729,12 @@ theorem eval_cpaOneTimeGame_extendOneTimeCPAAdversary (E : SymmetricCipher) (ctB
   simp only [ProbOracleComp.eval_run_interpret_eq_runWith]
   rw [ProbOracleComp.runWith_bind]
   simp only [ProbOracleComp.runWith_pure, PMF.bind_bind, PMF.pure_bind]
-  rw [ProbOracleComp.runWith_run_interpret]
-  have hsim := ProbOracleComp.runWith_map_state
+  rw [ProbOracleComp.runWith_run_interpret_map (extendOneTimeCPAHandler n (ctBound n))
+    (fun q s => ProbComp.eval (E.oneTimeCPAEncryptionOracle n k bit q s))
     (fun request alreadyQueried =>
       ProbComp.eval ((SymmetricCipher.extendCipher E).oneTimeCPAEncryptionOracle
         n k bit request alreadyQueried))
-    (fun request state =>
-      (ProbOracleComp.runWith
-          (fun q s => ProbComp.eval (E.oneTimeCPAEncryptionOracle n k bit q s))
-          ((extendOneTimeCPAHandler n (ctBound n) request).run state.1) state.2).map
-        (fun result => (result.1.1, result.1.2, result.2)))
-    (fun alreadyQueried : Bool => (alreadyQueried, alreadyQueried))
+    (fun alreadyQueried => alreadyQueried) (fun alreadyQueried => alreadyQueried)
     (fun request alreadyQueried => by
       change (ProbComp.eval ((SymmetricCipher.extendCipher E).oneTimeCPAEncryptionOracle
           n k bit request alreadyQueried)).map (fun x => (x.1, x.2, x.2)) =
@@ -768,8 +757,7 @@ theorem eval_cpaOneTimeGame_extendOneTimeCPAAdversary (E : SymmetricCipher) (ctB
         rw [List.take_of_length_le (hctBound k hk _ hmbLen c hc)]
       · simp only [hcond, Bool.false_eq_true, ↓reduceIte, ProbComp.eval_pure,
           ProbOracleComp.runWith_pure, PMF.pure_map])
-    (adversary n []) false
-  rw [← hsim]
+    (adversary n []) false]
   simp only [PMF.bind_map, Function.comp_def]
 
 /-- Appending and ignoring a constant trailing bit preserves `OneTimeINDCPA`. -/

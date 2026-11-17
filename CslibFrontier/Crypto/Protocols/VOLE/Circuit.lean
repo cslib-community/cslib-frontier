@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Circuit.Arithmetic
 public import CslibFrontier.Computability.Circuit.Program
 public import Mathlib.Data.Matrix.Mul
 import CslibFrontier.Languages.Probabilistic.Norm
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Probability.PMF.Bind
 
 /-!
@@ -329,14 +330,13 @@ theorem circuitCheck_complete :
             (fun i => circuitMulInput C i 1) (circuitMulOutput C)
             (circuitTrace C x w) c.u c.v r, ()))), some (), ((), ()))) := by
     simp only [World.eval, Reduction.run, Verifier.execute, circuitCheck_output]
-    simp only [pmf_norm, circuitCheck, liftProver, runStrategy, circuitCheckSpec,
-      threeMoveSpec, ProbOracleComp.interpret_sample, ProbOracleComp.interpret_query,
-      OracleComp.interpret_bind, OracleComp.interpret_pure, voleWorld, ProbOracleComp.runWith_bind,
-      ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure, pure_bind,
-      VOLECorrelation.senderView]
+    simp only [interp_norm, pmf_norm, circuitCheck, liftProver, runStrategy, circuitCheckSpec,
+      threeMoveSpec, voleWorld, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query,
+      ProbOracleComp.runWith_pure, pure_bind, VOLECorrelation.senderView]
     apply PMF.bind_congr_on_support
     intro c hc
-    rw [← ProbOracleComp.sample]
+    rw [← OracleComp.substitute_eq_interpret]
+    change (ProbOracleComp.runWith _ (ProbOracleComp.sample _) (some c)).bind _ = _
     simp only [pmf_norm, ProbOracleComp.runWith_sample, ProbComp.eval_uniform]
     congr 1 with r : 1
     simp only [circuitVerify_correct C x w y hy c (valid_of_mem_support_voleIdealDist hc) r,

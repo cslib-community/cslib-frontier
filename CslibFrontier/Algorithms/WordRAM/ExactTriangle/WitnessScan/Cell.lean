@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.WitnessScan.Program
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Charged original-weight zero-sum test
@@ -53,8 +54,8 @@ theorem exec_testVertex {w rb ra c : ℕ} {ab bc ac : ℤ} (x : Data 32)
   have bmeta (i : Fin 32) (hi : 9 ≤ i.val) (hne : i ≠ Reg.address) :
       b.regs i = x.regs i :=
     (bframe.2 i (Or.inr hi)).trans (hloadB.regs_eq (loads_preserve i hi hne).1)
-  have bra : b.regs Reg.rowA = ra := (bmeta _ (by decide) (by decide)).trans hrowA
-  have bindex : b.regs Reg.index = c := (bmeta _ (by decide) (by decide)).trans hindex
+  have bra : b.regs Reg.rowA = ra := by regs_frame
+  have bindex : b.regs Reg.index = c := by regs_frame
   have bmem : b.mem = x.mem := bframe.1
   let d := b.set Signed.left (Signed.encode (ab + bc)) |>.set Reg.address (ra + c)
     |>.set Signed.right (Signed.encode ac)

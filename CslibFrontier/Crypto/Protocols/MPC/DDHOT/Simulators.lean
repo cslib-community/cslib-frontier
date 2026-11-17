@@ -28,18 +28,19 @@ no bounded-time fair-coin machine can do for an odd prime order. This module giv
 families that run the same algorithms (`ddhOTSenderSimWithCoins`, `ddhOTReceiverSimWithCoins`)
 on six exponents drawn with `sampleExp n d`, the technique of [BonehShoup2023], Remark 23.5
 (p. 1059), proves them PPT for `ddhOTEncoding`, and proves that they are statistically within
-`6 / 2 ^ n` of the exact-sampling simulators. Under `F.DDH setup`, DDH oblivious transfer is
-therefore semi-honest secure against the corruption of either party
-(`DDH.ddhOTSemiHonestSecure`), in the sense of
+`6 / 2 ^ n` of the exact-sampling simulators. The honest parties of the protocol still draw exact
+uniform exponents (`ProbComp.uniform`). Under `F.DDH setup`, DDH oblivious transfer with these
+ideal coins is therefore semi-honest secure against the corruption of either party
+(`DDH.ddhOTIdealCoinsSemiHonestSecure`), in the sense of
 `Cslib.Crypto.Protocols.MPC.ProtocolFamily.SemiHonestSecure`. Against a corrupted sender the
 security is statistical: every environment, efficient or not, has advantage at most `6 / 2 ^ n`
 (`advantage_ddhOTSenderGame_le`).
 
 ## Comparison with [BonehShoup2023], Theorem 23.7
 
-`DDH.ddhOTSemiHonestSecure` is a step towards [BonehShoup2023], Theorem 23.7 (p. 1058), not the
-cited result. Its simulators are efficient, as Definition 23.5 (p. 1044) and Section 23.5.2.2
-(p. 1043) require, but it differs from the theorem:
+`DDH.ddhOTIdealCoinsSemiHonestSecure` is a step towards [BonehShoup2023], Theorem 23.7 (p. 1058),
+not the cited result. Its simulators are efficient, as Definition 23.5 (p. 1044) and
+Section 23.5.2.2 (p. 1043) require, but it differs from the theorem:
 
 * the notion is stand-alone: the environment chooses the inputs and sees the corrupted party's
   view and both outputs after the run, whereas the theorem is stated in the restricted execution
@@ -60,8 +61,8 @@ probability.
 ## Comparison with [Lindell2017], Definition 4.1
 
 For two parties, [Lindell2017], Section 4.2, Definition 4.1 (p. 7) corresponds to the requirement
-of `SemiHonestSecure` for each corrupted party, so `DDH.ddhOTSemiHonestSecure` has the shape of
-that definition, up to the differences of the notion listed in
+of `SemiHonestSecure` for each corrupted party, so `DDH.ddhOTIdealCoinsSemiHonestSecure` has the
+shape of that definition, up to the differences of the notion listed in
 `CslibFrontier/Crypto/Protocols/MPC/Asymptotic.lean` (uniform environments that choose the inputs
 after seeing the group parameters, a public setup law). It is still not that definition for DDH
 oblivious transfer: in the source the parties run in polynomial time (p. 3) and a party's view
@@ -83,11 +84,17 @@ algorithms, as the comparison with Theorem 23.7 above also notes.
 * `Cslib.Crypto.PrimeOrderGroupFamily.advantage_bind_ddhOTSenderSimSampleExp_le`,
   `Cslib.Crypto.PrimeOrderGroupFamily.advantage_bind_ddhOTReceiverSimSampleExp_le`: on every input,
   they are within statistical distance `6 / 2 ^ n` of the exact-sampling simulators.
+
+## Ideal-coins step
+
+The honest parties of `ddhOTFamily` draw exact uniform exponents, so the security results about
+its real game are steps towards [BonehShoup2023], Theorem 23.7, not the cited result.
+
 * `Cslib.Crypto.PrimeOrderGroupFamily.advantage_ddhOTSenderGame_le`: against a corrupted sender,
   every environment, efficient or not, has advantage at most `6 / 2 ^ n`.
-* `Cslib.Crypto.PrimeOrderGroupFamily.DDH.ddhOTSemiHonestSecure`: a step towards
-  [BonehShoup2023], Theorem 23.7, not the cited result: `F.DDH setup` implies that DDH oblivious
-  transfer is semi-honest secure against the corruption of either party.
+* `Cslib.Crypto.PrimeOrderGroupFamily.DDH.ddhOTIdealCoinsSemiHonestSecure`: `F.DDH setup` implies
+  that DDH oblivious transfer with ideal honest coins is semi-honest secure against the corruption
+  of either party.
 
 ## References
 
@@ -233,13 +240,10 @@ theorem isPPT_ddhOTSenderSimSampleExp : F.ddhOTSenderSimSampleExp.IsPPT F.ddhOTE
     fun {γ encγ x _ _ _ _ _ _} hx ha hr₀ hs₀ hr₁ hs₁ hb => ?_).congr fun x => ?_)
   · have hd : ComputableInPolyTime (fun c => (x c).desc) encγ F.encDesc :=
       encSimInput_desc_polyTime F.ddhOTEncoding hx
-    have hinputs : ComputableInPolyTime (fun c => fun i : ({0} : Finset (Fin 2)) =>
-        F.ddhOTEncoding.input.rep (x c).secParam (x c).desc i ((x c).inputs i)) encγ
-        (encDPi fun i : ({0} : Finset (Fin 2)) => F.ddhOTEncoding.input.enc i) :=
-      (encSimInput_inputs_polyTime F.ddhOTEncoding hx).of_enc_eq fun _ => rfl
     have hm : ComputableInPolyTime (fun c => (F.encode (x c).desc ((x c).inputs sender).1,
         F.encode (x c).desc ((x c).inputs sender).2)) encγ (encPair encBits encBits) :=
-      (ComputableInPolyTime.dpi_apply _ sender).comp hinputs
+      F.ddhOTEncoding.input.encCoalition_apply_polyTime
+        (encSimInput_inputs_polyTime F.ddhOTEncoding hx) sender
     have hq := F.computableInPolyTime_order.comp hd
     have hg := computableInPolyTime_encode_generator hd
     exact (ComputableInPolyTime.pi fun _ => (encDDHOTSenderViewWords_mk_polyTime hm.fst' hm.snd'
@@ -298,19 +302,13 @@ theorem isPPT_ddhOTReceiverSimSampleExp : F.ddhOTReceiverSimSampleExp.IsPPT F.dd
     fun {γ encγ x _ _ _ _ _ _} hx ha hb hr hs hk hc => ?_).congr fun x => ?_)
   · have hd : ComputableInPolyTime (fun c => (x c).desc) encγ F.encDesc :=
       encSimInput_desc_polyTime F.ddhOTEncoding hx
-    have hinputs : ComputableInPolyTime (fun c => fun i : ({1} : Finset (Fin 2)) =>
-        F.ddhOTEncoding.input.rep (x c).secParam (x c).desc i ((x c).inputs i)) encγ
-        (encDPi fun i : ({1} : Finset (Fin 2)) => F.ddhOTEncoding.input.enc i) :=
-      (encSimInput_inputs_polyTime F.ddhOTEncoding hx).of_enc_eq fun _ => rfl
-    have houtputs : ComputableInPolyTime (fun c => fun i : ({1} : Finset (Fin 2)) =>
-        F.ddhOTEncoding.output.rep (x c).secParam (x c).desc i ((x c).outputs i)) encγ
-        (encDPi fun i : ({1} : Finset (Fin 2)) => F.ddhOTEncoding.output.enc i) :=
-      (encSimInput_outputs_polyTime F.ddhOTEncoding hx).of_enc_eq fun _ => rfl
     have hσ : ComputableInPolyTime (fun c => ((x c).inputs receiver : Bool)) encγ encBool :=
-      (ComputableInPolyTime.dpi_apply _ receiver).comp hinputs
+      F.ddhOTEncoding.input.encCoalition_apply_polyTime
+        (encSimInput_inputs_polyTime F.ddhOTEncoding hx) receiver
     have hm : ComputableInPolyTime (fun c => F.encode (x c).desc ((x c).outputs receiver)) encγ
         encBits :=
-      (ComputableInPolyTime.dpi_apply _ receiver).comp houtputs
+      F.ddhOTEncoding.output.encCoalition_apply_polyTime
+        (encSimInput_outputs_polyTime F.ddhOTEncoding hx) receiver
     have hg := computableInPolyTime_encode_generator hd
     have hu := computableInPolyTime_encode_natCast_smul hd ha hg
     have he := computableInPolyTime_encode_add hd
@@ -362,16 +360,17 @@ theorem advantage_ddhOTSenderGame_le (setup : ℕ → PMF F.Desc) (Z : Environme
     (fun _ d => idealJoint_ddhOT_sender _ _)]
   exact ProtocolFamily.advantage_idealGame_le (F.advantage_bind_ddhOTSenderSimSampleExp_le n) Z
 
-/-- A step towards [BonehShoup2023], Theorem 23.7, not the cited result: `F.DDH setup` implies
-that DDH oblivious transfer is semi-honest secure against a corrupted sender (`{0}`) and against a
+/-- Ideal-coins step towards [BonehShoup2023], Theorem 23.7, not the cited result: the honest
+parties of `ddhOTFamily` draw exact uniform exponents (`ProbComp.uniform`), and `F.DDH setup`
+implies that this protocol is semi-honest secure against a corrupted sender (`{0}`) and against a
 corrupted receiver (`{1}`), for the encoding `ddhOTEncoding` (`ProtocolFamily.SemiHonestSecure`).
 The simulators are `ddhOTSenderSimSampleExp` and `ddhOTReceiverSimSampleExp`, certified by
-`isPPT_ddhOTSenderSimSampleExp` and `isPPT_ddhOTReceiverSimSampleExp`. The theorem is stated in
+`isPPT_ddhOTSenderSimSampleExp` and `isPPT_ddhOTReceiverSimSampleExp`. Theorem 23.7 is stated in
 the restricted execution framework of Section 23.5.6, covers every set of corrupted parties, and
 has the parties derive their exponents from random bit strings; the module documentation lists
 these and the other differences. The only premise is `F.DDH setup`; the reduction is certified by
 `isPPT_ddhOTReceiverToDDHDistinguisher`. -/
-theorem DDH.ddhOTSemiHonestSecure {F : PrimeOrderGroupFamily} {setup : ℕ → PMF F.Desc}
+theorem DDH.ddhOTIdealCoinsSemiHonestSecure {F : PrimeOrderGroupFamily} {setup : ℕ → PMF F.Desc}
     (hDDH : F.DDH setup) :
     F.ddhOTFamily.SemiHonestSecure setup {0} F.ddhOTEncoding ∧
       F.ddhOTFamily.SemiHonestSecure setup {1} F.ddhOTEncoding := by

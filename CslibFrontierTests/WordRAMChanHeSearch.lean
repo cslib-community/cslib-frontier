@@ -101,7 +101,7 @@ example : ∃ y, ExecWithin 8 Search.program laterInput y 1049 ∧ y.regs Search
   obtain ⟨y, he, _, _, ha⟩ := Search.exec (w := 6) laterInput laterValues
     (by decide) (by decide) (by decide) (by decide) (by decide)
     (by intro q hq; change q ≤ 3 at hq; interval_cases q <;> decide)
-    (by intro j i _; unfold laterValues; split; split <;> decide; decide)
+    (by intro j i _; unfold laterValues; split <;> [(split <;> decide); decide])
     (by intro j; fin_cases j <;> decide) (by intro j; fin_cases j <;> decide)
     (by decide) (by intro j; fin_cases j <;> decide) (by intro j; fin_cases j <;> decide)
     (by intro j; fin_cases j <;> decide) (by intro j; fin_cases j <;> decide)

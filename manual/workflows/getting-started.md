@@ -145,7 +145,7 @@ before drawing conclusions about the tactic.
 
 **Finish:** from that worktree run `git diff --check` and `git status --short`. After
 restoring the experiment, the test file should have no diff. For a real change, include
-its complete client, the manual-impact assessment and the actual validation result in
+its complete client and the actual validation result in
 the [review handoff](contributing.md#make-the-handoff-reviewable). Never report the
 intentional failing build as a successful check.
 

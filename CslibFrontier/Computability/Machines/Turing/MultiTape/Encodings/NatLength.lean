@@ -27,6 +27,8 @@ the input are stored in logarithmic space.
   digits.
 * `Turing.MultiTapeTM.length_encNat_le_log2`: numbers at most `N` have at most `log₂ N + 1`
   digits.
+* `Turing.MultiTapeTM.log2_succ_le_length_encNat`: conversely, `m + 1` has at least `log₂ m + 1`
+  digits.
 * `Turing.MultiTapeTM.length_encNat_le_log2_add_two`: numbers at most `N + 1` have at most
   `log₂ N + 2` digits.
 * `Turing.MultiTapeTM.length_encNat_le_of_le_pow`: numbers at most `(N + 1) ^ d` have at most
@@ -54,6 +56,13 @@ theorem length_encNat_le_of_lt_two_pow {a p : ℕ} (h : a < 2 ^ p) : (encNat a).
 theorem length_encNat_le_log2 {j N : ℕ} (h : j ≤ N) : (encNat j).length ≤ Nat.log2 N + 1 := by
   rw [encNat_apply, Nat.size_eq_bits_len, Nat.size_le]
   exact lt_of_le_of_lt h Nat.lt_log2_self
+
+/-- The binary length of `m + 1` is at least `log₂ m + 1`. -/
+theorem log2_succ_le_length_encNat (m : ℕ) : Nat.log2 m + 1 ≤ (encNat (m + 1)).length := by
+  rw [encNat_apply, Nat.size_eq_bits_len, Nat.succ_le_iff, Nat.lt_size]
+  rcases Nat.eq_zero_or_pos m with rfl | hm
+  · simp
+  · exact (Nat.log2_self_le hm.ne').trans (Nat.le_succ m)
 
 /-- The binary length of a number at most `N + 1` is at most `log₂ N + 2`. -/
 theorem length_encNat_le_log2_add_two {j N : ℕ} (h : j ≤ N + 1) :

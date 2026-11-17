@@ -100,7 +100,7 @@ private noncomputable def gradedDegSubring (n' : ℕ) :
     exact hsum_deg _ fun _ hab => Finset.HasAntidiagonal.mem_antidiagonal.mp hab
   one_mem' j := by
     by_cases hj : j = 0
-    · subst hj; simp only [Polynomial.coeff_one_zero, MvPolynomial.totalDegree_one, le_rfl]
+    · subst hj; simp only [AddMonoidAlgebra.coeff_one_zero, MvPolynomial.totalDegree_one, le_rfl]
     · simp only [Polynomial.coeff_one, hj, ↓reduceIte, MvPolynomial.totalDegree_zero, Nat.zero_le]
   add_mem' {P Q} hP hQ j := by
     rw [Polynomial.coeff_add]

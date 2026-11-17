@@ -10,8 +10,6 @@ Containments, separations, closure properties, complete problems and reductions 
 
 ### Structure, time and space
 
-- **Counting-hierarchy arithmetic** ([#5619](https://github.com/cslib-community/cslib-frontier/issues/5619)): reusable decision/function levels, uniform short-index counting and summation, finite-field products, and integer signs from bounded modular-residue access.
-  Prove uniform bit-cost certificates and the proposed level bounds, separating algebraic identities from computational realization; real feasibility belongs to the downstream lean-canny project.
 - **Planar Boolean CSP dichotomy** ([#3091](https://github.com/cslib-community/cslib-frontier/issues/3091)): extend the native Boolean classification to ordered planar instances of arbitrary fixed relation arity, preserving individual incidence occurrences and cyclic argument order.
   The endpoint must prove the embedding and recognition interface, the cyclic-difference reduction, the even delta-matroid edge-CSP algorithm and planar hardness transfer internally, including the additional self-complementary tractable family.
   Supplied-embedding or matching-realizable-only milestones leave it open.
@@ -53,6 +51,7 @@ Containments, separations, closure properties, complete problems and reductions 
 - **Time–space lower bounds for nondeterministic linear time** ([#2896](https://github.com/cslib-community/cslib-frontier/issues/2896)): the Arora–Barak bound `NTIME(n) ⊄ TISP(n^1.2, n^0.2)` by virtual padding and the Lipton–Viglas `n^(√2 − ε)` form, from the speedup and slowdown lemmas for `TISP` and `Σ₂TIME`.
   Beyond these: the textbook `√(t·s)` speedup, the golden-ratio deterministic bound of Fortnow, Lipton, van Melkebeek and Viglas, and the transfer to SAT through a quasi-linear-size Cook–Levin reduction.
 - **Alternating classes** ([#4086](https://github.com/cslib-community/cslib-frontier/issues/4086)): the remaining Chandra–Kozen–Stockmeyer bridges `ATIME t ⊆ DSPACE t`, `NSPACE s ⊆ ATIME (s ^ 2)` and `DTIME (2 ^ O(s)) ⊆ ASPACE s` (`ATIME`, `ASPACE` and `ASPACE s ⊆ DTIME (2 ^ O(s))` are done), and bounded-alternation characterizations of PH; sharp bounds for sublinear space, distinct from polynomial-space simulation.
+- **Relativized polynomial hierarchy** ([#5451](https://github.com/cslib-community/cslib-frontier/issues/5451)): define the hierarchy using alternating polynomial-time oracle verifiers and prove `P^A = NP^A` implies `PH^A = P^A` for every oracle (Arora–Barak Exercise 5 §9).
 - **Fast alternating counting simulation** ([#4728](https://github.com/cslib-community/cslib-frontier/issues/4728)): clocked bitwise accepting-path counting through tensor contraction in alternating time `O(n + t / sqrt(log(t+2)))`. Remaining work includes locally accessible contraction expressions, certified index and arithmetic costs, and the count-preserving machine reduction. Input access and clock computation must be charged explicitly.
 - **Alternating logspace, `P ⊆ AL`** ([#2873](https://github.com/cslib-community/cslib-frontier/issues/2873)): play the circuit-value game on the tableau of a polynomial-time machine in logarithmic space.
   This needs a word game machine whose round reads the input from the input tape and keeps only the `O(log n)`-bit wire claim on its work tape.
@@ -91,7 +90,7 @@ Containments, separations, closure properties, complete problems and reductions 
 
 - **Another Solution Problem (ASP) framework:** ASP reductions with certified polynomial-time forward and inverse witness maps, starting from the parsimonious reductions to positive exact-one SAT and its planar three-occurrence variants.
   Exact count preservation alone does not supply the ASP runtime certificates.
-- **Counting reductions and hierarchies:** counting reductions and further oracle results preserving exact multiplicities; modular and counting hierarchies; the oracle-algorithm form of Stockmeyer's approximate counting.
+- **Counting reductions and hierarchies:** further counting reductions and oracle results; modular and counting hierarchies.
 - **Exact counting by determinants** ([#3081](https://github.com/cslib-community/cslib-frontier/issues/3081)): Kasteleyn's Pfaffian method for counting perfect matchings of planar graphs in polynomial time, in contrast with permanent #P-completeness (polynomial-time counting for unweighted and weighted spanning trees, simple and multi-digraph arborescences, and BEST Eulerian circuits, along with root independence for balanced graphs, are formalized).
 - **Target-relativized counting classes:** `LWPP^A`, `WPP^A` and `SBP^A` with `FP^A` targets; adaptive WPP closure and UP-oracle containment.
 - **Native oracle counting machines:** efficient encoded oracle checking, response-access costs and oracle-machine characterizations, with resource bounds uniform over admissible oracles.
@@ -114,7 +113,7 @@ In dependency order:
 - **Restricted-domain numeric certificates:** numeric certificates for further restricted-domain families; canonical BIT on a restricted domain need not be first-order definable.
 - **Order-free reductions:** SAT-to-3SAT, graph-property hardness, and bridges to the separately encoded problems.
 - **Synthesis rules and regular-language quantifiers:** extend the synthesis rules to nested operator bodies and give regular-language quantifiers their ordered characteristic-word semantics.
-- **Native NL closure facts:** the closure properties that the in-compiler inductive counting of FO(TC) ⊆ NL bypasses: intersection, union, logspace reductions and NL^NL = NL.
+- **Native NL closure facts:** NL^NL = NL.
 - **Further logical characterizations:** on ordered structures, DLOGTIME-uniform AC⁰ = FO(≤, BIT) (Barrington–Immerman–Straubing); then order-invariant and fixed-point queries and uniform translations between syntax, structures and algorithms.
 - **Witness-carrying reductions:** a witness-carrying reduction structure once a client needs one, for example size bounds for Cook–Levin.
 - **Logical lower-bound methods** ([locality track](https://github.com/cslib-community/cslib-frontier/issues/3015)): Ehrenfeucht–Fraïssé games (also with constants), Hanf and Gaifman locality with Gaifman's normal form and the exact locality ranks `2 ^ (n - 1) - 1` and `2 ^ n - 1` (Libkin, Exercises 4.10 and 4.11), and counting and fixed-point expressiveness with Cai–Fürer–Immerman separations, linked to the ordered capture theorems, where FO(≤, BIT) defines EVEN.

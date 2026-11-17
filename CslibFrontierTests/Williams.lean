@@ -8,6 +8,7 @@ module
 -- upstream: local-only (tests of Williams simulation and quantitative bounds)
 
 public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.Williams
+import Cslib.Computability.Machines.Turing.MultiTape.Combinators.AlmostConstant
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Streaming
 
 /-!

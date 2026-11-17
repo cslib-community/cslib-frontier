@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Crypto.Computational.GGM.Evaluation
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.RandomOracle
 import CslibFrontier.Computability.Probabilistic.Memoize
@@ -100,11 +101,11 @@ theorem hybridGame_zero (generator : List Bool → List Bool) (adversary : Oracl
   have houtput := congrArg (PMF.map Prod.fst) h
   simpa [hybridGame, prfRealGame, ProbOracleComp.run, ProbOracleComp.eval_run_interpret_eq_runWith,
     ProbOracleComp.eval_interpret, BitString.eval_sampleList, root, PMF.map,
-    Function.comp_def, OracleComp.evalWith] using houtput
+    Function.comp_def, OracleComp.evalWith_eq_interpret] using houtput
 
 /-- The final level caches full query answers directly. There is no suffix left to evaluate. -/
 theorem frontierOracle_self (generator : List Bool → List Bool) (n : ℕ) :
-    frontierOracle generator n n = cachedRandomFunctionOracle n := by
+    frontierOracle generator n n = cachedRandomFunctionOracle n n := by
   funext query cache
   by_cases h : query.length = n
   · simp [frontierOracle, cachedRandomFunctionOracle, ← h]
