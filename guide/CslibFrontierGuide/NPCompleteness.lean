@@ -21,7 +21,9 @@ import CslibFrontier.Computability.Complexity.Problems.IntegerProgramming
 import CslibFrontier.Computability.Complexity.Problems.JobSequencing
 import CslibFrontier.Computability.Complexity.Problems.Knapsack
 import CslibFrontier.Computability.Complexity.Problems.MaxCut
+import CslibFrontier.Computability.Complexity.Problems.MaxCut.Simple
 import CslibFrontier.Computability.Complexity.Problems.MaxTwoSAT
+import CslibFrontier.Computability.Complexity.Problems.OneInThreeSAT.Signed
 import CslibFrontier.Computability.Complexity.Problems.Partition
 import CslibFrontier.Computability.Complexity.Problems.PlanarPositiveOneInThreeSAT
 import CslibFrontier.Computability.Complexity.Problems.PlanarThreeSATThree
@@ -360,6 +362,15 @@ Here is the tree, with the reduction for each edge and the completeness theorem 
   variables ({name}`oneModelCount_toPositiveOneInExactThreeSATThree`). For `m` source clauses
   and `ℓ` literal occurrences, it produces at most `169*(m + ℓ)` clauses and `507*(m + ℓ)`
   occurrences ({name}`size_toPositiveOneInExactThreeSATThree`).
+* Exactly One 3SAT, the signed width-at-most-three language of Arora–Barak Exercise 2.16, is
+  NP-complete ({name}`OneInThreeSAT_npComplete`). Literals of either polarity are allowed, and
+  exactly one literal occurrence must be true in each clause, so a repeated literal counts twice.
+  Membership guards the unrestricted exact-one verifier ({name}`OneSAT.mem_NP`) by the width
+  check. Hardness is the guarded identity reduction
+  {name}`polyTimeReducible_PositiveOneInThreeSAT_OneInThreeSAT`: positive width-three inputs are
+  kept and all others map to the single empty clause. Use this pattern
+  ({name}`PolyTimeReducible.of_guard`) whenever a source language is a syntactic slice of the
+  target.
 * Planar positive 1-in-E3SAT-3 is NP-hard both with an existential drawing
   ({name}`PlanarPositiveOneInExactThreeSATThree_npHard`) and with its actual drawing supplied
   ({name}`DrawnPlanarPositiveOneInExactThreeSATThree_npHard`). The width-at-most-three planar
@@ -388,7 +399,11 @@ Here is the tree, with the reduction for each edge and the completeness theorem 
   with deadlines and penalties ({name}`polyTimeReducible_SubsetSum_JobSequencing`,
   {name}`JobSequencing_npComplete`). Partition reduces to weighted maximum cut through Karp's
   complete graph weighted by products ({name}`polyTimeReducible_Partition_MaxCut`,
-  {name}`MaxCut_npComplete`).
+  {name}`MaxCut_npComplete`). Expanding binary weights into unit edges is exponential, so
+  unweighted maximum cut on simple graphs, with the bound `K` in binary, is proved separately.
+  NAE EU3SAT reduces to it through a triangle per clause plus an edge between `x` and `¬x` per
+  literal, with every edge then subdivided into a path of three edges
+  ({name}`polyTimeReducible_NAEEUThreeSAT_SimpleMaxCut`, {name}`SimpleMaxCut_npComplete`).
 * SAT reduces to independent set ({name}`polyTimeReducible_SAT_IndependentSet`,
   {name}`IndependentSet_npComplete`), which reduces to clique
   ({name}`polyTimeReducible_IndependentSet_Clique`, {name}`Clique_npComplete`) and vertex cover

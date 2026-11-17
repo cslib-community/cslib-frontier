@@ -370,6 +370,78 @@ private theorem dist_third_dart_signed {V : Type*} (W : WeightedGraph V) [Finite
     rw [hcm2, dist_edgePoint_ray_of_edge_ne W hd₂_fst hd_fst hd₂_ne hwmin hδ16
       (by linarith [hs.2]) (by linarith) h20 h21 hd0 hd1, abs_of_pos hs_pos]
 
+/-- Near `circleMap hs.1 s₀`, two-agent strategy-proofness and unanimity keep the outcome at the
+reports `circleMap hs.1 (s₀ + sa)` and `circleMap hs.1 (s₀ + sb)` within `|sa - sb|` of both
+reports, and so within `3 * δ` of `circleMap hs.1 s₀` when `|sa|, |sb| ≤ δ`. -/
+private theorem dist_outcome_le_circle {V : Type*} (W : WeightedGraph V) [Finite V]
+    [MeasurableSpace (MetricGraph W)] [OpensMeasurableSpace (MetricGraph W)]
+    {v₀ : V} {c : W.graph.Walk v₀ v₀} (hs : IsShortestCycle W c)
+    {f : (Fin 2 → MetricGraph W) → MetricGraph W}
+    (hf_sp : (Mechanism.deterministic f).IsStrategyProof)
+    (hf_unam : ∀ p ∈ Set.range (circleMap hs.1), f (fun _ => p) = p)
+    {s₀ δ sa sb : ℝ} (hδL : δ ≤ walkLength W.weight c / 16)
+    (hsa : sa ∈ Set.Icc (-δ) δ) (hsb : sb ∈ Set.Icc (-δ) δ) :
+    dist (circleMap hs.1 (s₀ + sa))
+        (f ![circleMap hs.1 (s₀ + sa), circleMap hs.1 (s₀ + sb)]) ≤ |sa - sb| ∧
+      dist (circleMap hs.1 (s₀ + sb))
+        (f ![circleMap hs.1 (s₀ + sa), circleMap hs.1 (s₀ + sb)]) ≤ |sa - sb| ∧
+      dist (circleMap hs.1 s₀)
+        (f ![circleMap hs.1 (s₀ + sa), circleMap hs.1 (s₀ + sb)]) ≤ 3 * δ := by
+  have hsp := (Mechanism.isStrategyProof_deterministic_iff f).mp hf_sp
+  set a := circleMap hs.1 (s₀ + sa)
+  set b := circleMap hs.1 (s₀ + sb)
+  have hda_y : dist a (f ![a, b]) ≤ dist a b := by
+    have h := hsp ![a, b] 0 b
+    rw [show Function.update ![a, b] 0 b = ![b, b] by ext i; fin_cases i <;> rfl,
+      show ![b, b] = fun _ => b by ext i; fin_cases i <;> rfl, hf_unam b ⟨s₀ + sb, rfl⟩] at h
+    simpa only [Matrix.cons_val_zero] using h
+  have hdb_y : dist b (f ![a, b]) ≤ dist b a := by
+    have h := hsp ![a, b] 1 a
+    rw [show Function.update ![a, b] 1 a = ![a, a] by ext i; fin_cases i <;> rfl,
+      show ![a, a] = fun _ => a by ext i; fin_cases i <;> rfl, hf_unam a ⟨s₀ + sa, rfl⟩] at h
+    exact h
+  have h1 := abs_le.mpr hsa
+  have h2 := abs_le.mpr hsb
+  have hdab : dist a b = |sa - sb| := by
+    have hle_ab : |(s₀ + sa) - (s₀ + sb)| ≤ walkLength W.weight c / 2 := by
+      linarith [show |(s₀ + sa) - (s₀ + sb)| = |sa - sb| by ring_nf, abs_sub sa sb,
+        abs_nonneg sa]
+    rw [circleMap_dist_eq_of_le hs hle_ab, show s₀ + sa - (s₀ + sb) = sa - sb by ring]
+  have hdsa : dist (circleMap hs.1 s₀) a = |sa| := by
+    refine (circleMap_dist_eq_of_le hs ?_).trans (by ring_nf; rw [abs_neg])
+    linarith [show |s₀ - (s₀ + sa)| = |sa| by rw [sub_add_cancel_left, abs_neg], abs_nonneg sa]
+  refine ⟨hdab ▸ hda_y, by rwa [_root_.dist_comm b a, hdab] at hdb_y, ?_⟩
+  calc dist (circleMap hs.1 s₀) (f ![a, b]) ≤ dist (circleMap hs.1 s₀) a + dist a (f ![a, b]) :=
+        dist_triangle _ _ _
+    _ ≤ |sa| + |sa - sb| := add_le_add hdsa.le (hdab ▸ hda_y)
+    _ ≤ 3 * δ := by linarith [abs_sub sa sb]
+
+/-- A point `circleMap hs.1 (s₀ + r)` with `|r| ≤ 3 * δ` that is within `|sa - sb|` of both
+`circleMap hs.1 (s₀ + sa)` and `circleMap hs.1 (s₀ + sb)` lies on the arc between them, inside the
+image of `[-δ, δ]`. -/
+private theorem mem_image_Icc_of_dist_le_circle {V : Type*} (W : WeightedGraph V) [Finite V]
+    {v₀ : V} {c : W.graph.Walk v₀ v₀} (hs : IsShortestCycle W c)
+    {s₀ δ sa sb r : ℝ} (hδL : δ ≤ walkLength W.weight c / 16)
+    (hsa : sa ∈ Set.Icc (-δ) δ) (hsb : sb ∈ Set.Icc (-δ) δ) (hr : |r| ≤ 3 * δ)
+    (hay : dist (circleMap hs.1 (s₀ + sa)) (circleMap hs.1 (s₀ + r)) ≤ |sa - sb|)
+    (hby : dist (circleMap hs.1 (s₀ + sb)) (circleMap hs.1 (s₀ + r)) ≤ |sa - sb|) :
+    circleMap hs.1 (s₀ + r) ∈ (fun r => circleMap hs.1 (s₀ + r)) '' Set.Icc (-δ) δ := by
+  have hdist (s : ℝ) (hs' : s ∈ Set.Icc (-δ) δ) :
+      dist (circleMap hs.1 (s₀ + s)) (circleMap hs.1 (s₀ + r)) = |r - s| := by
+    refine (circleMap_dist_eq_of_le hs ?_).trans ?_
+    · linarith [abs_le.mpr hs', abs_sub s r, abs_nonneg s,
+        show |(s₀ + s) - (s₀ + r)| = |s - r| by ring_nf]
+    · rw [show s₀ + s - (s₀ + r) = -(r - s) by ring, abs_neg]
+  rw [hdist sa hsa] at hay
+  rw [hdist sb hsb] at hby
+  refine ⟨r, ?_, rfl⟩
+  rw [abs_le] at hay hby
+  rcases le_total sa sb with hab | hba
+  · rw [abs_of_nonpos (sub_nonpos.mpr hab)] at hay hby
+    exact ⟨by linarith [hsa.1], by linarith [hsb.2]⟩
+  · rw [abs_of_nonneg (sub_nonneg.mpr hba)] at hay hby
+    exact ⟨by linarith [hsb.1], by linarith [hsa.2]⟩
+
 private theorem local_invariance_circle {V : Type*} (W : WeightedGraph V) [Finite V]
     [MeasurableSpace (MetricGraph W)] [OpensMeasurableSpace (MetricGraph W)]
     {v₀ : V} {c : W.graph.Walk v₀ v₀} (hs : IsShortestCycle W c)
@@ -383,20 +455,8 @@ private theorem local_invariance_circle {V : Type*} (W : WeightedGraph V) [Finit
           (fun r => circleMap hs.1 (s₀ + r)) '' Set.Icc (-δ) δ := by
   let L := walkLength W.weight c
   have hL : 0 < L := walkLength_pos_of_not_nil hs.1.not_nil
-  have hsp := (Mechanism.isStrategyProof_deterministic_iff f).mp hf_sp
   obtain ⟨wmin, hwmin_pos, hwmin⟩ := exists_min_dart_weight (c.firstDart hs.1.not_nil)
   obtain ⟨vmin, hvmin_pos, hvmin⟩ := exists_pos_le_dist_vertex (W := W)
-  have between_of_abs_le : ∀ {sa sb r δ : ℝ}, sa ∈ Set.Icc (-δ) δ → sb ∈ Set.Icc (-δ) δ →
-      |r - sa| ≤ |sb - sa| → |r - sb| ≤ |sa - sb| → r ∈ Set.Icc (-δ) δ := by
-    intro sa sb r δ hsa hsb h1 h2
-    rw [abs_le] at h1 h2
-    rcases le_total sa sb with hab | hba
-    · rw [abs_of_nonneg (sub_nonneg.mpr hab)] at h1
-      rw [abs_sub_comm sa sb, abs_of_nonneg (sub_nonneg.mpr hab)] at h2
-      exact ⟨by linarith [hsa.1], by linarith [hsb.2]⟩
-    · rw [abs_sub_comm sb sa, abs_of_nonneg (sub_nonneg.mpr hba)] at h1
-      rw [abs_of_nonneg (sub_nonneg.mpr hba)] at h2
-      exact ⟨by linarith [hsb.1], by linarith [hsa.2]⟩
   rcases circleMap_local_dichotomy hs.1 s₀ with
     ⟨d, t, δ₁, _, ht0, ht1, hδ₁, hmap⟩ |
     ⟨v, d₁, d₂, δ₁, _, hd₁_fst, hd₂_fst, hd₁₂, _, _, hs₀_v, hδ₁, hmap⟩
@@ -417,34 +477,9 @@ private theorem local_invariance_circle {V : Type*} (W : WeightedGraph V) [Finit
     let a := circleMap hs.1 (s₀ + sa)
     let b := circleMap hs.1 (s₀ + sb)
     let y := f ![a, b]
-    have hda_y : dist a y ≤ dist a b := by
-      have h := hsp ![a, b] 0 b
-      rw [show Function.update ![a, b] 0 b = ![b, b] by ext i; fin_cases i <;> rfl,
-        show ![b, b] = fun _ => b by ext i; fin_cases i <;> rfl, hf_unam b ⟨s₀ + sb, rfl⟩] at h
-      simpa only [Matrix.cons_val_zero] using h
-    have hdb_y : dist b y ≤ dist b a := by
-      have h := hsp ![a, b] 1 a
-      rw [show Function.update ![a, b] 1 a = ![a, a] by ext i; fin_cases i <;> rfl,
-        show ![a, a] = fun _ => a by ext i; fin_cases i <;> rfl, hf_unam a ⟨s₀ + sa, rfl⟩] at h
-      exact h
-    have hdab : dist a b = |sa - sb| := by
-      have hle_ab : |(s₀ + sa) - (s₀ + sb)| ≤ walkLength W.weight c / 2 := by
-        have h1 : |sa| ≤ δ := abs_le.mpr hsa
-        have h2 : |sb| ≤ δ := abs_le.mpr hsb
-        have hsub := abs_sub (s₀ + sa) (s₀ + sb)
-        dsimp only [L] at hδL
-        linarith [show |(s₀ + sa) - (s₀ + sb)| = |sa - sb| by ring_nf, abs_sub sa sb]
-      rw [circleMap_dist_eq_of_le hs hle_ab, show s₀ + sa - (s₀ + sb) = sa - sb by ring]
-    have hdsa : dist (circleMap hs.1 s₀) a = |sa| := by
-      refine (circleMap_dist_eq_of_le hs ?_).trans (by ring_nf; rw [abs_neg])
-      have : |sa| ≤ δ := abs_le.mpr hsa
-      dsimp only [L] at hδL
-      linarith [show |s₀ - (s₀ + sa)| = |sa| by rw [sub_add_cancel_left, abs_neg]]
-    have hdy_3 : dist (circleMap hs.1 s₀) y ≤ 3 * δ := by
-      calc dist (circleMap hs.1 s₀) y ≤ dist (circleMap hs.1 s₀) a + dist a y := dist_triangle _ _ _
-        _ ≤ |sa| + |sa - sb| := add_le_add hdsa.le (hdab ▸ hda_y)
-        _ ≤ δ + (|sa| + |sb|) := by linarith [abs_le.mpr hsa, abs_sub sa sb]
-        _ ≤ 3 * δ := by linarith [abs_le.mpr hsa, abs_le.mpr hsb]
+    obtain ⟨hda_y, hdb_y, hdy_3⟩ : dist a y ≤ |sa - sb| ∧ dist b y ≤ |sa - sb| ∧
+        dist (circleMap hs.1 s₀) y ≤ 3 * δ :=
+      dist_outcome_le_circle W hs hf_sp hf_unam hδL hsa hsb
     have h0 := hmap 0 ⟨by linarith, hδ₁.le⟩
     obtain ⟨_, _, h0a, h0b, hcm0⟩ := h0
     have hcm0' : circleMap hs.1 s₀ = edgePoint d ⟨t, ht0.le, ht1.le⟩ := by
@@ -522,25 +557,9 @@ private theorem local_invariance_circle {V : Type*} (W : WeightedGraph V) [Finit
         field_simp [hw.ne']
         ring
     obtain ⟨r_y, _, hy_eq, habs_ry⟩ := hy_on
-    have hday_abs : dist a y = |r_y - sa| := by
-      rw [hy_eq]
-      refine (circleMap_dist_eq_of_le hs ?_).trans ?_
-      · have h1 := abs_le.mpr hsa
-        have h2 := abs_sub sa r_y
-        dsimp only [L] at hδL
-        linarith [show |(s₀ + sa) - (s₀ + r_y)| = |sa - r_y| by ring_nf]
-      · rw [show s₀ + sa - (s₀ + r_y) = -(r_y - sa) by ring, abs_neg]
-    have hdby_abs : dist b y = |r_y - sb| := by
-      rw [hy_eq]
-      refine (circleMap_dist_eq_of_le hs ?_).trans ?_
-      · have h1 := abs_le.mpr hsb
-        have h2 := abs_sub sb r_y
-        dsimp only [L] at hδL
-        linarith [show |(s₀ + sb) - (s₀ + r_y)| = |sb - r_y| by ring_nf]
-      · rw [show s₀ + sb - (s₀ + r_y) = -(r_y - sb) by ring, abs_neg]
-    rw [hday_abs, hdab, abs_sub_comm sa sb] at hda_y
-    rw [hdby_abs, _root_.dist_comm b a, hdab] at hdb_y
-    exact ⟨r_y, between_of_abs_le hsa hsb hda_y hdb_y, hy_eq.symm⟩
+    change y ∈ _
+    rw [hy_eq] at hda_y hdb_y ⊢
+    exact mem_image_Icc_of_dist_le_circle W hs hδL hsa hsb habs_ry hda_y hdb_y
   · let δ := min (L / 16) (min (δ₁ / 4) (min (wmin / 16) (vmin / 16)))
     have hδ_pos : 0 < δ := by positivity
     have hδL : δ ≤ L / 16 := min_le_left _ _
@@ -561,35 +580,10 @@ private theorem local_invariance_circle {V : Type*} (W : WeightedGraph V) [Finit
     let a := circleMap hs.1 (s₀ + sa)
     let b := circleMap hs.1 (s₀ + sb)
     let y := f ![a, b]
-    have hda_y : dist a y ≤ dist a b := by
-      have h := hsp ![a, b] 0 b
-      rw [show Function.update ![a, b] 0 b = ![b, b] by ext i; fin_cases i <;> rfl,
-        show ![b, b] = fun _ => b by ext i; fin_cases i <;> rfl, hf_unam b ⟨s₀ + sb, rfl⟩] at h
-      simpa only [Matrix.cons_val_zero] using h
-    have hdb_y : dist b y ≤ dist b a := by
-      have h := hsp ![a, b] 1 a
-      rw [show Function.update ![a, b] 1 a = ![a, a] by ext i; fin_cases i <;> rfl,
-        show ![a, a] = fun _ => a by ext i; fin_cases i <;> rfl, hf_unam a ⟨s₀ + sa, rfl⟩] at h
-      exact h
-    have hdab : dist a b = |sa - sb| := by
-      have hle_ab : |(s₀ + sa) - (s₀ + sb)| ≤ walkLength W.weight c / 2 := by
-        have h1 := abs_le.mpr hsa
-        have h2 := abs_le.mpr hsb
-        have h3 := abs_sub sa sb
-        dsimp only [L] at hδL
-        linarith [show |(s₀ + sa) - (s₀ + sb)| = |sa - sb| by ring_nf]
-      rw [circleMap_dist_eq_of_le hs hle_ab, show s₀ + sa - (s₀ + sb) = sa - sb by ring]
-    have hdsa : dist (vertex v : MetricGraph W) a = |sa| := by
+    obtain ⟨hda_y, hdb_y, hvy_3⟩ : dist a y ≤ |sa - sb| ∧ dist b y ≤ |sa - sb| ∧
+        dist (vertex v : MetricGraph W) y ≤ 3 * δ := by
       rw [← hs₀_v]
-      refine (circleMap_dist_eq_of_le hs ?_).trans (by ring_nf; rw [abs_neg])
-      have : |sa| ≤ δ := abs_le.mpr hsa
-      dsimp only [L] at hδL
-      linarith [show |s₀ - (s₀ + sa)| = |sa| by rw [sub_add_cancel_left, abs_neg]]
-    have hvy_3 : dist (vertex v : MetricGraph W) y ≤ 3 * δ := by
-      calc dist (vertex v : MetricGraph W) y ≤ dist (vertex v : MetricGraph W) a + dist a y :=
-            dist_triangle _ _ _
-        _ ≤ |sa| + |sa - sb| := add_le_add hdsa.le (hdab ▸ hda_y)
-        _ ≤ 3 * δ := by linarith [abs_le.mpr hsa, abs_le.mpr hsb, abs_sub sa sb]
+      exact dist_outcome_le_circle W hs hf_sp hf_unam hδL hsa hsb
     rcases eq_vertex_or_edgePoint_of_dist_vertex_lt (v := v) (p := y)
         (fun u hu => by linarith [hvmin v u hu.symm]) with
       hv_eq | ⟨d, t, hd_fst, ht0, ht1, hy_eq, hvy_eq⟩
@@ -637,8 +631,8 @@ private theorem local_invariance_circle {V : Type*} (W : WeightedGraph V) [Finit
               rw [hy_eq]
               exact dist_third_dart_signed W hs.1 hd₁_fst hd₂_fst hd_fst (Ne.symm h1) (Ne.symm h2)
                 hwmin (by linarith) hδ16 hs₀_v hmap hsb hry_pos hry_3 htd0 htd1
-            rw [hday_eq, hdab] at hda_y
-            rw [hdby_eq, _root_.dist_comm b a, hdab] at hdb_y
+            rw [hday_eq] at hda_y
+            rw [hdby_eq] at hdb_y
             have hops : (sa < 0 ∧ 0 < sb) ∨ (sb < 0 ∧ 0 < sa) := by
               rcases le_or_gt 0 sa with hsa0 | hsa0 <;> rcases le_or_gt 0 sb with hsb0 | hsb0
               · rw [abs_of_nonneg hsa0] at hda_y; rw [abs_of_nonneg hsb0] at hdb_y
@@ -791,27 +785,9 @@ private theorem local_invariance_circle {V : Type*} (W : WeightedGraph V) [Finit
               rw [_root_.dist_comm] at hb2'
               linarith
       obtain ⟨r_y', habs_ry', hy_cm⟩ := hy_on_circle
-      have hday_abs : dist a y = |r_y' - sa| := by
-        rw [hy_cm]
-        refine (circleMap_dist_eq_of_le hs ?_).trans ?_
-        · have h1 := abs_le.mpr hsa
-          have h2 := abs_sub sa r_y'
-          rw [habs_ry'] at h2
-          dsimp only [L] at hδL
-          linarith [show |(s₀ + sa) - (s₀ + r_y')| = |sa - r_y'| by ring_nf]
-        · rw [show s₀ + sa - (s₀ + r_y') = -(r_y' - sa) by ring, abs_neg]
-      have hdby_abs : dist b y = |r_y' - sb| := by
-        rw [hy_cm]
-        refine (circleMap_dist_eq_of_le hs ?_).trans ?_
-        · have h1 := abs_le.mpr hsb
-          have h2 := abs_sub sb r_y'
-          rw [habs_ry'] at h2
-          dsimp only [L] at hδL
-          linarith [show |(s₀ + sb) - (s₀ + r_y')| = |sb - r_y'| by ring_nf]
-        · rw [show s₀ + sb - (s₀ + r_y') = -(r_y' - sb) by ring, abs_neg]
-      rw [hday_abs, hdab, abs_sub_comm sa sb] at hda_y
-      rw [hdby_abs, _root_.dist_comm b a, hdab] at hdb_y
-      exact ⟨r_y', between_of_abs_le hsa hsb hda_y hdb_y, hy_cm.symm⟩
+      change y ∈ _
+      rw [hy_cm] at hda_y hdb_y ⊢
+      exact mem_image_Icc_of_dist_le_circle W hs hδL hsa hsb (habs_ry' ▸ hry_3) hda_y hdb_y
 
 private theorem local_moulin_circle {V : Type*} (W : WeightedGraph V) [Finite V]
     [MeasurableSpace (MetricGraph W)] [OpensMeasurableSpace (MetricGraph W)]

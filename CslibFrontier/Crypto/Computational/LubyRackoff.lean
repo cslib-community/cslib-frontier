@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.MultiKey
 public import CslibFrontier.Crypto.Computational.PseudorandomPermutation
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
@@ -15,7 +16,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
 import CslibFrontier.Crypto.Game.Concrete
 import CslibFrontier.Crypto.Negligible.Basic
-import CslibFrontier.Crypto.Protocols.Cipher.LubyRackoff
+public import CslibFrontier.Crypto.Protocols.Cipher.LubyRackoff
 import CslibFrontier.Foundations.Data.BitString.List.Operations
 import CslibFrontier.Foundations.Data.BitString.Neg
 import CslibFrontier.Languages.Probabilistic.Norm
@@ -72,10 +73,17 @@ and the finite-group bound
   `Cslib.Crypto.lubyRackoff4Cipher`: the four-round cipher.
 * `Cslib.Crypto.strongLubyRackoffQuery`, `Cslib.Crypto.strongLubyRackoffAdversary`: the
   bidirectional reduction to the four-key PRF games.
+* `Cslib.Crypto.pairCodec`, `Cslib.Crypto.strongPermCodec`: block queries on pairs of `n`-bit
+  halves, forward and in both directions, on the word channels.
 
 ## Main results
 
 * `Cslib.Crypto.isOraclePPT_lubyRackoffAdversary`: the reduction is oracle PPT.
+* `Cslib.Crypto.interpret_prfMultiReduction_lubyRackoffAdversary`,
+  `Cslib.Crypto.interpret_prfMultiReduction_strongLubyRackoffAdversary`: against every table, the
+  word hybrid reductions of the two adapters are the finite reductions
+  `Cslib.Crypto.LubyRackoff.feistel3Reduction` and
+  `Cslib.Crypto.LubyRackoff.feistel4StrongReduction` of the adapted adversary.
 * `Cslib.Crypto.eval_prpRealGame_lubyRackoffCipher`: the real chosen-plaintext experiment is the
   real three-key experiment of the reduction.
 * `Cslib.Crypto.advantage_lubyRackoffRandomRounds_prpIdealGame_le`: with random rounds, a
@@ -633,8 +641,9 @@ private theorem randomPermOracle_eq_blockOracle (n : ℕ) (π : Equiv.Perm (BitS
       joinBlock_splitBlock hblock, joinBlock_splitBlock List.length_ofFn]
   · rfl
 
-/-- Pairs of `n`-bit halves as their `2 * n`-bit blocks on the single word channel. -/
-private def pairCodec (n : ℕ) :
+/-- Pairs of `n`-bit halves as their `2 * n`-bit blocks on the single word channel: the pair
+`(u, v)` travels as the block `u ++ v`, and a request of another length carries no query. -/
+def pairCodec (n : ℕ) :
     OracleCodec Unit (BitString n × BitString n) fun _ => BitString n × BitString n :=
   (OracleCodec.bitString (2 * n)).comap (blockEquiv n).symm
     fun _ => (blockEquiv n).symm.toEmbedding
@@ -651,6 +660,26 @@ private theorem pairCodec_wordOracle (n : ℕ)
       blockEquiv, BitString.ofFn_ofList, length_joinBlock, PMF.monad_map_eq_map]
   · simp [pairCodec, OracleCodec.wordOracle, OracleCodec.comap, OracleCodec.bitString, hblock]
 
+/-- Table replies, cut at `n` bits, represent the table. -/
+private theorem represents_randomFunctionOracle_take {n : ℕ} (f : BitString n → BitString n) :
+    Represents (fun query => (randomFunctionOracle n f query).take n) f := fun x => by
+  simp only [randomFunctionOracle, List.length_ofFn, ↓reduceIte, BitString.ofList_ofFn]
+  exact List.take_of_length_le List.length_ofFn.le
+
+/-- Word Feistel rounds that read the tables `f` on `n`-bit channels compute the three-round
+network of the tables on `2 * n`-bit blocks. -/
+private theorem feistel3Word_randomFunctionOracle {n : ℕ} (f : Fin 3 → BitString n → BitString n)
+    (block : List Bool) :
+    (if block.length = 2 * n then
+        feistelNetworkWord
+          ([0, 1, 2].map fun i query => (randomFunctionOracle n (f i) query).take n) n block
+      else []) = blockOracle n (LubyRackoff.feistel3 (f 0) (f 1) (f 2)) block := by
+  unfold blockOracle; split_ifs with hblock
+  · conv_lhs => rw [← joinBlock_splitBlock hblock]
+    have hT (i : Fin 3) := represents_randomFunctionOracle_take (f i)
+    exact feistelNetworkWord_joinBlock (.cons (hT 0) (.cons (hT 1) (.cons (hT 2) .nil))) _
+  · rfl
+
 /-- With random round functions, the adapter runs the block-cipher adversary against the Feistel
 network of three independent uniform random functions. -/
 private theorem eval_prfMultiIdealGame_lubyRackoffAdversary (adversary : OracleDistinguisher)
@@ -664,25 +693,64 @@ private theorem eval_prfMultiIdealGame_lubyRackoffAdversary (adversary : OracleD
     ProbOracleComp.eval_run, ProbComp.eval_pure, OracleCodec.interpret_adapt,
     pairCodec_wordOracle]
   congr 1; funext tables; rw [interpret_lubyRackoffAdversary]; congr 2; funext request; congr 1
-  unfold blockOracle; split_ifs with hblock
-  · conv_lhs => rw [← joinBlock_splitBlock hblock]
-    have hT (i : Fin 3) : Represents (fun q => (randomFunctionOracle n (tables i) q).take n)
-        (tables i) := fun x => by
-      simp only [randomFunctionOracle, List.length_ofFn, ↓reduceIte, BitString.ofList_ofFn]
-      exact List.take_of_length_le List.length_ofFn.le
-    exact feistelNetworkWord_joinBlock (.cons (hT 0) (.cons (hT 1) (.cons (hT 2) .nil))) _
-  · rfl
+  exact feistel3Word_randomFunctionOracle tables request.2
 
-/-- Three independent uniform draws are the coordinates of a uniform triple. -/
-private theorem bind_uniformOfFintype_fin_three {X β : Type} [Fintype X] [Nonempty X]
-    (F : X → X → X → PMF β) :
-    (PMF.uniformOfFintype (Fin 3 → X)).bind (fun f => F (f 0) (f 1) (f 2)) =
-      (PMF.uniformOfFintype X).bind fun a => (PMF.uniformOfFintype X).bind fun b =>
-        (PMF.uniformOfFintype X).bind fun c => F a b c := by
-  rw [← Probability.PMF.iid_uniformOfFintype]
-  simp only [Probability.PMF.iid, Probability.PMF.monad_bind_eq_bind, PMF.bind_bind,
-    PMF.bind_map, PMF.pure_bind, Function.comp_def]
-  rfl
+/-- The channel tables `f` present `randomFunctionOracle n (f i)` on word channel `i`. -/
+private theorem wordOracle_withOp_bitString {t n : ℕ} (f : Fin t → BitString n → BitString n) :
+    (OracleCodec.withOp (Fin t) (OracleCodec.bitString n)).wordOracle
+        (fun q => PMF.pure (f q.1 q.2)) =
+      fun request => PMF.pure (randomFunctionOracle n (f request.1) request.2) := by
+  funext ⟨i, query⟩
+  rw [OracleCodec.wordOracle_withOp]
+  exact congrFun (wordOracle_bitString n (f i)) ((), query)
+
+/-- Against deterministic channel tables `f`, the word three-key adapter read on `n`-bit channels
+has the law of the finite three-key adapter of the adversary read on pairs of halves. -/
+private theorem interpret_adapt_lubyRackoffAdversary (adversary : OracleDistinguisher) (n : ℕ)
+    (f : Fin 3 → BitString n → BitString n) :
+    OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
+        fun q => PMF.pure (f q.1 q.2))
+        ((OracleCodec.withOp (Fin 3) (OracleCodec.bitString n)).adapt
+          (lubyRackoffAdversary adversary n [])) =
+      OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
+        fun q => PMF.pure (f q.1 q.2))
+        (LubyRackoff.feistel3MultiKeyAdversary ((pairCodec n).adapt (adversary n []))) := by
+  have hrun (program : PRF.MultiKeyAdversary 3 (BitString n) (BitString n)) :
+      OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
+        fun q => PMF.pure (f q.1 q.2)) program =
+        ProbComp.eval (program.run fun q => pure (f q.1 q.2)) :=
+    (ProbOracleComp.eval_run program fun q => pure (f q.1 q.2)).symm
+  rw [OracleCodec.interpret_adapt, wordOracle_withOp_bitString, interpret_lubyRackoffAdversary,
+    hrun, LubyRackoff.feistel3MultiKeyAdversary, ProbOracleComp.run_simulate]
+  simp only [LubyRackoff.run_feistel3ChannelQuery, ProbOracleComp.eval_run, ProbComp.eval_pure,
+    OracleCodec.interpret_adapt, pairCodec_wordOracle]
+  congr 2; funext request; congr 1
+  exact feistel3Word_randomFunctionOracle f request.2
+
+/-- **The word reduction for three rounds is the finite one.** For a length-preserving family
+and every table `T` on `n`-bit strings, presented on the word channel as
+`randomFunctionOracle n T`, the `j`-th hybrid reduction of the three-key adapter
+`lubyRackoffAdversary adversary` has the law of the finite reduction
+`LubyRackoff.feistel3Reduction` of `PRF.atLevel family n` on the adversary adapted along
+`pairCodec n`, run against `T`. As for `interpret_prfMultiReduction_eq_multiKeyReduction`, both
+PRF games run the word reduction against such a table: `prfIdealGame` against a uniform one,
+`prfRealGame` against `PRF.atLevel family n key` for a uniform key. -/
+theorem interpret_prfMultiReduction_lubyRackoffAdversary
+    {family : List Bool → List Bool → List Bool}
+    (hlength : ∀ key query, query.length = key.length → (family key query).length = key.length)
+    (j n : ℕ) (adversary : OracleDistinguisher) (T : BitString n → BitString n) :
+    OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
+        (fun request : Unit × List Bool => PMF.pure (randomFunctionOracle n T request.2)))
+        (prfMultiReduction family 3 j (lubyRackoffAdversary adversary) n []) =
+      OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle fun x => PMF.pure (T x))
+        (LubyRackoff.feistel3Reduction (PRF.atLevel family n) j
+          ((pairCodec n).adapt (adversary n []))) := by
+  rw [interpret_prfMultiReduction_eq_multiKeyReduction hlength, LubyRackoff.feistel3Reduction,
+    PRF.interpret_multiKeyReduction_eq_bind, PRF.interpret_multiKeyReduction_eq_bind]
+  congr 1 with keys : 1
+  congr 1 with tables : 1
+  exact interpret_adapt_lubyRackoffAdversary adversary n fun i x =>
+    if i.val < j then tables i x else if i.val = j then T x else PRF.atLevel family n (keys i) x
 
 /-- **Three random Feistel rounds against a random permutation**, for randomized word-oracle
 adversaries ([BonehShoup2023], proof of Theorem 4.9): with independent uniform random round
@@ -705,23 +773,11 @@ theorem advantage_lubyRackoffRandomRounds_prpIdealGame_le (adversary : OracleDis
     rw [← PMF.uniformOfFintype_map_equiv (blockEquiv n).permCongr, PMF.bind_map]
     congr 1; funext π; simp only [Function.comp_apply, randomPermOracle_eq_blockOracle]
   rw [eval_prfMultiIdealGame_lubyRackoffAdversary, hperm,
-    ProbOracleComp.table_bind_interpret_eq_coinLaw_bind
-      (PMF.uniformOfFintype (Fin 3 → BitString n → BitString n))
-      (fun tables p => LubyRackoff.feistel3 (tables 0) (tables 1) (tables 2) p)
-      ((pairCodec n).adapt (adversary n [])),
-    ProbOracleComp.table_bind_interpret_eq_coinLaw_bind
-      (PMF.uniformOfFintype (Equiv.Perm (BitString n × BitString n))) (fun σ p => σ p)
-      ((pairCodec n).adapt (adversary n []))]
-  peel_binds ω
-  have h := LubyRackoff.advantage_feistel3RandomRoundsGame_idealPermGame_le
-    (ProbOracleComp.isQueryBounded_fixCoins hadaptedQ ω)
-  rw [bind_uniformOfFintype_fin_three (fun f₁ f₂ f₃ => OracleComp.interpret
-    (fun p => PMF.pure (LubyRackoff.feistel3 f₁ f₂ f₃ p))
-    (ProbOracleComp.fixCoins ((pairCodec n).adapt (adversary n [])) ω))]
-  simpa only [LubyRackoff.feistel3RandomRoundsGame, LubyRackoff.feistel3FixedGame,
-    LubyRackoff.idealPermGame, Probability.PMF.monad_bind_eq_bind, Fintype.card_pi,
-    Fintype.card_fin, Fintype.card_bool, Finset.prod_const, Finset.card_univ, Nat.cast_pow,
-    Nat.cast_ofNat] using h
+    ← LubyRackoff.eval_multiKeyIdealExperiment_feistel3MultiKeyAdversary,
+    ← PRP.eval_idealExperiment]
+  simpa only [Fintype.card_pi, Fintype.card_fin, Fintype.card_bool, Finset.prod_const,
+    Finset.card_univ, Nat.cast_pow, Nat.cast_ofNat] using
+    LubyRackoff.advantage_feistel3RandomRounds_prpIdealExperiment_le hadaptedQ
 
 /-- **The Luby–Rackoff theorem** ([BonehShoup2023], Theorem 4.9; [LubyRackoff1988]): the
 three-round Luby–Rackoff cipher built from a pseudorandom function is a pseudorandom permutation
@@ -1001,6 +1057,34 @@ private theorem strongPairCodec_wordOracle (n : ℕ) (σ : Equiv.Perm (BitString
   unfold blockOracle strongBlockOracle strongTable
   cases inverse <;> rfl
 
+/-- Word Feistel rounds that read the tables `f` on `n`-bit channels compute the four-round
+network of the tables on `2 * n`-bit blocks, in both directions. -/
+private theorem feistel4Word_randomFunctionOracle {n : ℕ} (f : Fin 4 → BitString n → BitString n)
+    (request : Bool × List Bool) :
+    (if request.2.length = 2 * n then
+        (if request.1 then
+          feistelNetworkWordInv
+            ([0, 1, 2, 3].map fun i query => (randomFunctionOracle n (f i) query).take n) n
+            request.2
+        else
+          feistelNetworkWord
+            ([0, 1, 2, 3].map fun i query => (randomFunctionOracle n (f i) query).take n) n
+            request.2)
+      else []) = strongBlockOracle n (LubyRackoff.feistel4 (f 0) (f 1) (f 2) (f 3)) request := by
+  obtain ⟨inverse, block⟩ := request
+  have hT (i : Fin 4) := represents_randomFunctionOracle_take (f i)
+  have hrounds := List.Forall₂.cons (hT 0) (.cons (hT 1) (.cons (hT 2) (.cons (hT 3) .nil)))
+  unfold strongBlockOracle; dsimp only
+  by_cases hblock : block.length = 2 * n
+  · simp only [hblock, ↓reduceIte]
+    conv_lhs => rw [← joinBlock_splitBlock hblock]
+    cases inverse
+    · simp only [Bool.false_eq_true, ↓reduceIte]
+      exact feistelNetworkWord_joinBlock hrounds _
+    · simp only [↓reduceIte]
+      exact feistelNetworkWordInv_joinBlock hrounds _
+  · simp only [hblock, ↓reduceIte]
+
 /-- With random round functions, the bidirectional adapter runs the adversary against the
 four-round Feistel network of independent uniform random functions, in both directions. -/
 private theorem eval_prfMultiIdealGame_strongLubyRackoffAdversary
@@ -1014,34 +1098,80 @@ private theorem eval_prfMultiIdealGame_strongLubyRackoffAdversary
     ProbOracleComp.eval_run, ProbComp.eval_pure, OracleCodec.interpret_adapt,
     strongPairCodec_wordOracle]
   congr 1; funext tables; rw [interpret_strongLubyRackoffAdversary]; congr 2
-  funext ⟨inverse, block⟩; congr 1
-  have hT (i : Fin 4) : Represents (fun q => (randomFunctionOracle n (tables i) q).take n)
-      (tables i) := fun x => by
-    simp only [randomFunctionOracle, List.length_ofFn, ↓reduceIte, BitString.ofList_ofFn]
-    exact List.take_of_length_le List.length_ofFn.le
-  have hrounds := List.Forall₂.cons (hT 0) (.cons (hT 1) (.cons (hT 2) (.cons (hT 3) .nil)))
-  unfold strongBlockOracle; dsimp only
-  by_cases hblock : block.length = 2 * n
-  · simp only [hblock, ↓reduceIte]
-    conv_lhs => rw [← joinBlock_splitBlock hblock]
-    cases inverse
-    · simp only [Bool.false_eq_true, ↓reduceIte]
-      exact feistelNetworkWord_joinBlock hrounds _
-    · simp only [↓reduceIte]
-      exact feistelNetworkWordInv_joinBlock hrounds _
-  · simp only [hblock, ↓reduceIte]
+  funext request; congr 1
+  exact feistel4Word_randomFunctionOracle tables request
 
-/-- Four independent uniform draws are the coordinates of a uniform quadruple. -/
-private theorem bind_uniformOfFintype_fin_four {X β : Type} [Fintype X] [Nonempty X]
-    (F : X → X → X → X → PMF β) :
-    (PMF.uniformOfFintype (Fin 4 → X)).bind (fun f => F (f 0) (f 1) (f 2) (f 3)) =
-      (PMF.uniformOfFintype X).bind fun a => (PMF.uniformOfFintype X).bind fun b =>
-        (PMF.uniformOfFintype X).bind fun c => (PMF.uniformOfFintype X).bind fun d =>
-          F a b c d := by
-  rw [← Probability.PMF.iid_uniformOfFintype]
-  simp only [Probability.PMF.iid, Probability.PMF.monad_bind_eq_bind, PMF.bind_bind,
-    PMF.bind_map, PMF.pure_bind, Function.comp_def]
-  rfl
+/-- Bidirectional queries on pairs of `n`-bit halves on the word channels: a forward query `(u, v)`
+travels on channel `false` and an inverse query on channel `true`, each as the block `u ++ v`. -/
+def strongPermCodec (n : ℕ) :
+    OracleCodec Bool (RandomPermutation.PermQuery (BitString n × BitString n))
+      fun _ => BitString n × BitString n :=
+  (strongPairCodec n).comap (RandomPermutation.PermQuery.equivBoolProd _)
+    fun _ => Function.Embedding.refl _
+
+/-- A bidirectional permutation of pairs of halves presents `strongBlockOracle` on the word
+channels of `strongPermCodec`. -/
+private theorem strongPermCodec_wordOracle (n : ℕ)
+    (σ : Equiv.Perm (BitString n × BitString n)) :
+    (strongPermCodec n).wordOracle (fun q => PMF.pure (RandomPermutation.evalPerm σ q)) =
+      fun request => PMF.pure (strongBlockOracle n σ request) := by
+  rw [← strongPairCodec_wordOracle]
+  funext request
+  unfold strongPermCodec OracleCodec.wordOracle OracleCodec.comap
+  cases h : (strongPairCodec n).decodeQuery request with
+  | none => simp [h]
+  | some q => obtain ⟨_ | _, p⟩ := q <;> simp [h, strongTable]
+
+/-- Against deterministic channel tables `f`, the word four-key adapter read on `n`-bit channels
+has the law of the finite four-key adapter of the adversary read along `strongPermCodec`. -/
+private theorem interpret_adapt_strongLubyRackoffAdversary (adversary : StrongPRPDistinguisher)
+    (n : ℕ) (f : Fin 4 → BitString n → BitString n) :
+    OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
+        fun q => PMF.pure (f q.1 q.2))
+        ((OracleCodec.withOp (Fin 4) (OracleCodec.bitString n)).adapt
+          (strongLubyRackoffAdversary adversary n [])) =
+      OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
+        fun q => PMF.pure (f q.1 q.2))
+        (LubyRackoff.feistel4StrongMultiKeyAdversary
+          ((strongPermCodec n).adapt (adversary n []))) := by
+  have hrun (program : PRF.MultiKeyAdversary 4 (BitString n) (BitString n)) :
+      OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
+        fun q => PMF.pure (f q.1 q.2)) program =
+        ProbComp.eval (program.run fun q => pure (f q.1 q.2)) :=
+    (ProbOracleComp.eval_run program fun q => pure (f q.1 q.2)).symm
+  rw [OracleCodec.interpret_adapt, wordOracle_withOp_bitString,
+    interpret_strongLubyRackoffAdversary, hrun, LubyRackoff.feistel4StrongMultiKeyAdversary,
+    ProbOracleComp.run_simulate]
+  simp only [LubyRackoff.run_feistel4StrongChannelQuery, ProbOracleComp.eval_run,
+    ProbComp.eval_pure, OracleCodec.interpret_adapt, strongPermCodec_wordOracle]
+  congr 2; funext request; congr 1
+  exact feistel4Word_randomFunctionOracle f request
+
+/-- **The word reduction for four rounds is the finite one.** For a length-preserving family
+and every table `T` on `n`-bit strings, presented on the word channel as
+`randomFunctionOracle n T`, the `j`-th hybrid reduction of the bidirectional adapter
+`strongLubyRackoffAdversary adversary` has the law of the finite reduction
+`LubyRackoff.feistel4StrongReduction` of `PRF.atLevel family n` on the adversary adapted along
+`strongPermCodec n`, run against `T`. As for `interpret_prfMultiReduction_eq_multiKeyReduction`,
+both PRF games run the word reduction against such a table: `prfIdealGame` against a uniform one,
+`prfRealGame` against `PRF.atLevel family n key` for a uniform key. -/
+theorem interpret_prfMultiReduction_strongLubyRackoffAdversary
+    {family : List Bool → List Bool → List Bool}
+    (hlength : ∀ key query, query.length = key.length → (family key query).length = key.length)
+    (j n : ℕ) (adversary : StrongPRPDistinguisher) (T : BitString n → BitString n) :
+    OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle
+        (fun request : Unit × List Bool => PMF.pure (randomFunctionOracle n T request.2)))
+        (prfMultiReduction family 4 j (strongLubyRackoffAdversary adversary) n []) =
+      OracleComp.interpret (OracleComp.sumHandler ProbComp.unifOracle fun x => PMF.pure (T x))
+        (LubyRackoff.feistel4StrongReduction (PRF.atLevel family n) j
+          ((strongPermCodec n).adapt (adversary n []))) := by
+  rw [interpret_prfMultiReduction_eq_multiKeyReduction hlength,
+    LubyRackoff.feistel4StrongReduction, PRF.interpret_multiKeyReduction_eq_bind,
+    PRF.interpret_multiKeyReduction_eq_bind]
+  congr 1 with keys : 1
+  congr 1 with tables : 1
+  exact interpret_adapt_strongLubyRackoffAdversary adversary n fun i x =>
+    if i.val < j then tables i x else if i.val = j then T x else PRF.atLevel family n (keys i) x
 
 /-- **Four random Feistel rounds against a random permutation, in both directions**
 ([LubyRackoff1988]), for randomized bidirectional word-oracle adversaries: with independent
@@ -1078,7 +1208,7 @@ theorem advantage_lubyRackoff4RandomRounds_strongPRPIdealGame_le
   peel_binds ω
   have h := LubyRackoff.advantage_feistel4StrongRandomRoundsGame_idealStrongGame_le
     (ProbOracleComp.isQueryBounded_fixCoins hadaptedQ ω)
-  rw [bind_uniformOfFintype_fin_four (fun f₁ f₂ f₃ f₄ => OracleComp.interpret
+  rw [PMF.bind_uniformOfFintype_fin_four (fun f₁ f₂ f₃ f₄ => OracleComp.interpret
     (fun request => PMF.pure (strongTable (LubyRackoff.feistel4 f₁ f₂ f₃ f₄) request))
     (ProbOracleComp.fixCoins ((strongPairCodec n).adapt (adversary n [])) ω))]
   simpa only [LubyRackoff.feistel4StrongRandomRoundsGame, LubyRackoff.idealStrongGame,

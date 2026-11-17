@@ -189,6 +189,12 @@ theorem totient_gt_one (desc : RSADesc) : 1 < desc.totient := by
     have hb : 0 < b := by omega
     nlinarith
 
+/-- The public exponent is positive, since `0` is not coprime to `φ(N) > 1`. -/
+theorem e_pos (desc : RSADesc) : 0 < desc.e := by
+  refine Nat.pos_of_ne_zero fun h => desc.totient_gt_one.ne' ?_
+  have := desc.he
+  rwa [h, Nat.coprime_zero_left] at this
+
 /-- The public key `(N, e)`. -/
 abbrev publicKey (desc : RSADesc) : RSAPublicKey :=
   ⟨desc.modulus, desc.e⟩
@@ -249,6 +255,15 @@ theorem rsaEval_rsaInvert (desc : RSADesc) {y : ℕ} (hy : y < desc.modulus) :
   have hmod := rsa_pow_mul_modEq desc y
   rw [Nat.ModEq, Nat.mod_eq_of_lt hy] at hmod
   exact hmod
+
+/-- RSA evaluation undoes trapdoor inversion modulo `N`, for every natural number `y`. -/
+theorem rsaEval_rsaInvert_mod (desc : RSADesc) (y : ℕ) :
+    rsaEval desc.modulus desc.e (rsaInvert desc.modulus desc.d y) = y % desc.modulus := by
+  have h : rsaInvert desc.modulus desc.d y = rsaInvert desc.modulus desc.d (y % desc.modulus) := by
+    unfold rsaInvert
+    exact Nat.pow_mod y desc.d desc.modulus
+  rw [h]
+  exact rsaEval_rsaInvert desc (Nat.mod_lt _ desc.modulus_pos)
 
 /-- RSA evaluation is a bijection on `Fin N`. -/
 theorem rsaEval_bijective_fin (desc : RSADesc) : Function.Bijective desc.publicKey.eval := by

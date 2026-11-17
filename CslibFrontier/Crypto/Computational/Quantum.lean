@@ -21,8 +21,9 @@ that test.
 
 `ComputationallyIndistinguishable` requires negligible advantage for every such native family.
 Generation is polynomial in the security parameter and challenge length. When both ensembles have
-a common polynomial support-length bound, `ComputationallyIndistinguishable.of_within` converts a
-concrete qubit/gate/query bound into this asymptotic statement using the existing game theorem.
+a common polynomial support-length bound, `ComputationallyIndistinguishable.of_within` converts
+concrete qubit/gate/query/exact-description bounds into this asymptotic statement using the
+existing game theorem.
 
 This is a no-advice, no-useful-oracle native submodel of the quantum attackers described in
 [Boneh et al.][BonehEtAl2012], §2.1, p. 7. The exact generated gate set, zero initialization and
@@ -42,6 +43,8 @@ The packaging and resource bridge are original formalization infrastructure.
 
 ## Main results
 
+* `Cslib.Crypto.NativeQuantum.computationallyIndistinguishable_iff`: characterize the native
+  assumption by negligible advantage for every uniform circuit family.
 * `Cslib.Crypto.NativeQuantum.ComputationallyIndistinguishable.of_within`: concrete-to-asymptotic
   transfer for polynomially bounded challenge lengths and native circuit resources.
 
@@ -96,7 +99,8 @@ def SupportsLength (X : ℕ → PMF (List Bool)) (L : ℕ → ℕ) : Prop :=
   ∀ n, SupportsLengthAt X L n
 
 /-- At parameter `n`, both ensembles fit the declared input-length cap and every circuit generated
-for a shorter input fits the separate qubit, elementary-gate and query budgets. -/
+for a shorter input fits the separate qubit, elementary-gate, query and exact encoded-description
+budgets. -/
 @[expose]
 def Within (X Y : ℕ → PMF (List Bool)) (L : ℕ → ℕ) (n : ℕ)
     (budget : OracleCircuit.Resources) (family : UniformOracleCircuitFamily) : Prop :=
@@ -115,6 +119,14 @@ unary security parameter and the challenge length; no polynomial challenge-lengt
 into this definition. -/
 def ComputationallyIndistinguishable (X Y : ℕ → PMF (List Bool)) : Prop :=
   Game.Indistinguishable (distinguishingGame X) (distinguishingGame Y) (fun _ => True)
+
+/-- Native quantum indistinguishability tests every uniform circuit family with the same
+ensemble sampling and terminal decision convention. -/
+theorem computationallyIndistinguishable_iff {X Y : ℕ → PMF (List Bool)} :
+    ComputationallyIndistinguishable X Y ↔
+      ∀ family, Negligible (fun n =>
+        Game.advantage (distinguishingGame X family n) (distinguishingGame Y family n)) := by
+  simp [ComputationallyIndistinguishable, Game.Indistinguishable]
 
 /-- An ensemble is native-quantum computationally indistinguishable from itself. -/
 theorem ComputationallyIndistinguishable.refl (X : ℕ → PMF (List Bool)) :
@@ -141,9 +153,10 @@ theorem ComputationallyIndistinguishable.of_within
     {ε : ℕ → OracleCircuit.Resources → ℝ≥0}
     (h : IndistinguishableWithin X Y L ε) (hX : SupportsLength X L)
     (hY : SupportsLength Y L) (hL : PolynomiallyBounded L)
-    (hneg : ∀ qubits gates queries : ℕ → ℕ,
+    (hneg : ∀ qubits gates queries descriptionBits : ℕ → ℕ,
       PolynomiallyBounded qubits → PolynomiallyBounded gates → PolynomiallyBounded queries →
-      Negligible (fun n => ε n ⟨qubits n, gates n, queries n⟩)) :
+      PolynomiallyBounded descriptionBits →
+      Negligible (fun n => ε n ⟨qubits n, gates n, queries n, descriptionBits n⟩)) :
     ComputationallyIndistinguishable X Y := by
   apply Game.Indistinguishable.of_uniformOracleCircuits hL _ hneg
   intro n budget family hfamily

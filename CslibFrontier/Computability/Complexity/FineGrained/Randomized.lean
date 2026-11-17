@@ -32,6 +32,7 @@ import CslibFrontier.Foundations.Data.BitString.WordCount
 import CslibFrontier.Foundations.Data.List.OfFn
 import CslibFrontier.Foundations.Data.Nat.Power
 import CslibFrontier.Probability.MajorityVote
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Parameterized randomized runtime rates, error models, `rETH`, and `rSETH`
@@ -807,8 +808,7 @@ theorem exists_solvesWithErrorInTimeO_poly_iff {Q : PromiseProblem α} {E : Erro
         (t := polyClock) (by dsimp only [polyClock]; fun_prop)
       set N : ℕ := (encPair enc encBits q).length
       have ha_le : (enc q.1).length ≤ N := by
-        simp only [N, length_encPair]
-        omega
+        enc_len [N]
       have hpow : ((enc q.1).length + 1) ^ d ≤ (N + 1) ^ d :=
         Nat.pow_le_pow_left (Nat.add_le_add_right ha_le 1) d
       have hta := ht q.1 (padTake ℓ q) (length_padTake ℓ q)
@@ -1267,7 +1267,7 @@ theorem SolvesWithErrorInTimeO.amplify_twoSided {Q : PromiseProblem α} {T : α 
       rw [acceptCount]
       refine Finset.card_equiv BitString.blocksEquiv fun x => ?_
       simp only [Finset.mem_filter, Finset.mem_univ, true_and, V_maj,
-        collectVotesConst_ofFn, List.countP_ofFn, Finset.card_filter, id_eq,
+        collectVotesConst_ofFn, List.countP_ofFn, id_eq,
         Bool.not_eq_true', decide_eq_false_iff_not, not_lt, BitString.blocksEquiv_apply, G]
     rw [hbad_eq]
     exact hmaj a G hG
@@ -1287,7 +1287,7 @@ theorem SolvesWithErrorInTimeO.amplify_twoSided {Q : PromiseProblem α} {T : α 
       refine Finset.card_le_card fun ω hω => ?_
       obtain ⟨x, hx, rfl⟩ := Finset.mem_map.mp hω
       simp only [Finset.mem_filter, Finset.mem_univ, true_and, V_maj,
-        collectVotesConst_ofFn, List.countP_ofFn, ← Finset.card_filter, id_eq,
+        collectVotesConst_ofFn, List.countP_ofFn, id_eq,
         decide_eq_true_eq] at hx
       refine Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_⟩
       have hpart := Finset.card_filter_add_card_filter_not

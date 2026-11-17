@@ -23,6 +23,8 @@ coordinates but one in coordinate-wise averaging arguments.
 * `Cslib.Probability.PMF.pi_update_pure`: fixing a coordinate is overwriting it.
 * `Cslib.Probability.PMF.sum_pi_mul_update`: an average over a product equals the average with one
   coordinate redrawn independently.
+* `Cslib.Probability.PMF.bind_pi_function_update`: drawing a coordinate from `q` and updating an
+  independent product draw equals binding over `pi (Function.update p i q)`.
 -/
 
 public section
@@ -62,5 +64,17 @@ theorem sum_pi_mul_update [∀ i, Fintype (α i)] (p : ∀ i, PMF (α i)) (i : �
   simp only [pi_update_pure, sum_map_mul, Finset.mul_sum]
   rw [Finset.sum_comm]
   exact Finset.sum_congr rfl fun _ _ => Finset.sum_congr rfl fun _ _ => mul_left_comm _ _ _
+
+/-- Drawing coordinate `i` from `q` and overwriting `i` in a draw from `pi p` is the same as
+drawing from `pi (Function.update p i q)`. -/
+theorem bind_pi_function_update [∀ i, Finite (α i)] {γ : Type*}
+    (p : ∀ j, PMF (α j)) (i : ι) (q : PMF (α i)) (F : (∀ j, α j) → PMF γ) :
+    q.bind (fun r => (pi p).bind fun rest => F (Function.update rest i r)) =
+      (pi (Function.update p i q)).bind F := by
+  rw [← pi_bind_update (Function.update p i q) i, PMF.bind_bind, Function.update_self]
+  congr 1 with r : 1
+  simp only [Function.update_idem]
+  rw [pi_update_pure, PMF.bind_map]
+  rfl
 
 end Cslib.Probability.PMF

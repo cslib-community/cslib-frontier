@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Padding
 public import CslibFrontier.Crypto.Computational.DiffieHellman.EncodingBounds
+public import CslibFrontier.Crypto.Computational.DiscreteLog.Decodable
 public import CslibFrontier.Crypto.Computational.ElGamal
 public import CslibFrontier.Languages.Probabilistic.LinearHash
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
@@ -191,8 +192,8 @@ noncomputable def seededDDHDistinguisher (seedLen : ℕ → F.Desc → ℕ)
     (seedLen : ℕ → F.Desc → ℕ) (distinguisher : F.withSeed.DDHDistinguisher) (n : ℕ) :
     F.ddhRealGame setup (F.seededDDHDistinguisher seedLen distinguisher) n =
       F.withSeed.ddhRealGame (F.seededSetup setup seedLen) distinguisher n := by
-  simp only [pmf_norm, ddhRealGame, eval_ddhRealExperiment, seededDDHDistinguisher, seededSetup,
-    withSeed, Cslib.BitString.eval_sampleList]
+  simp only [pmf_norm, ddhRealGame, Game.withSetup, eval_ddhRealExperiment,
+    seededDDHDistinguisher, seededSetup, withSeed, Cslib.BitString.eval_sampleList]
   pmf_swap
 
 /-- In `ddhRandomGame`, `seededDDHDistinguisher` simulates `F.withSeed.ddhRandomGame` under
@@ -201,8 +202,8 @@ noncomputable def seededDDHDistinguisher (seedLen : ℕ → F.Desc → ℕ)
     (seedLen : ℕ → F.Desc → ℕ) (distinguisher : F.withSeed.DDHDistinguisher) (n : ℕ) :
     F.ddhRandomGame setup (F.seededDDHDistinguisher seedLen distinguisher) n =
       F.withSeed.ddhRandomGame (F.seededSetup setup seedLen) distinguisher n := by
-  simp only [pmf_norm, ddhRandomGame, eval_ddhRandomExperiment, seededDDHDistinguisher,
-    seededSetup, withSeed, Cslib.BitString.eval_sampleList]
+  simp only [pmf_norm, ddhRandomGame, Game.withSetup, eval_ddhRandomExperiment,
+    seededDDHDistinguisher, seededSetup, withSeed, Cslib.BitString.eval_sampleList]
   pmf_swap
 
 /-- `seededDDHDistinguisher` is uniform strict PPT whenever `seedLen` is polynomial-time computable
@@ -553,3 +554,27 @@ theorem DDH.negligible_hashedElGamalCPAGame_linearHashKDF {F : PrimeOrderGroupFa
       (F.computableInPolyTime_linearHashKDF hkey_poly hbound_poly) hA
 
 end Cslib.Crypto.PrimeOrderGroupFamily
+
+namespace Cslib.Crypto.DecodablePrimeOrderGroupFamily
+
+open Turing.MultiTapeTM
+
+/-- Augment a `DecodablePrimeOrderGroupFamily` with a public bit-string seed in its description
+(`Desc := F.Desc × List Bool`), mirroring `PrimeOrderGroupFamily.withSeed`. Decoding and
+membership testing delegate to the underlying family description `d.1 : F.Desc`. -/
+abbrev withSeed (F : DecodablePrimeOrderGroupFamily) : DecodablePrimeOrderGroupFamily where
+  toPrimeOrderGroupFamily := F.toPrimeOrderGroupFamily.withSeed
+  decode d w := F.decode d.1 w
+  decode_encode d x := F.decode_encode d.1 x
+  encode_eq_of_decode_eq_some h := F.encode_eq_of_decode_eq_some h
+  computableInPolyTime_isElem :=
+    (F.computableInPolyTime_isElem.comp
+      (((ComputableInPolyTime.fst F.encDesc encBits).comp
+        (ComputableInPolyTime.fst (encPair F.encDesc encBits) encBits)).prod
+        (ComputableInPolyTime.snd (encPair F.encDesc encBits) encBits))).of_enc_eq
+      fun _ => rfl
+
+@[simp] theorem isElem_withSeed (F : DecodablePrimeOrderGroupFamily) (d : F.Desc)
+    (s w : List Bool) : F.withSeed.isElem ((d, s), w) = F.isElem (d, w) := rfl
+
+end Cslib.Crypto.DecodablePrimeOrderGroupFamily

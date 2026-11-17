@@ -17,7 +17,8 @@ import Mathlib.Tactic.Positivity
 
 Cauchy–Schwarz bounds the mean square root by the square root of an upper bound on the mean
 (`Finset.sum_sqrt_le_card_mul_sqrt`), and `Real.sqrt_mul_div_self` rescales square-root regret
-bounds to time averages.
+bounds to time averages. `Real.natCeil_sqrt_eq` writes `⌈√m⌉₊` with the integer square root, the
+ceiling counterpart of Mathlib's `Real.nat_floor_real_sqrt_eq_nat_sqrt`.
 -/
 
 public section
@@ -45,3 +46,17 @@ theorem Real.sqrt_mul_div_self {T L : ℝ} (hT : 0 < T) : √(T * L) / T = √(L
   have hs0 : 0 < √T := Real.sqrt_pos.mpr hT
   rw [Real.sqrt_mul hT.le, Real.sqrt_div' L hT.le, div_eq_div_iff hT.ne' hs0.ne']
   linear_combination √L * hs
+
+/-- The ceiling of `√m` as an integer square root: `⌈√m⌉₊ = Nat.sqrt (m - 1) + 1` for `m ≠ 0`. -/
+theorem Real.natCeil_sqrt_eq (m : ℕ) :
+    ⌈Real.sqrt (m : ℝ)⌉₊ = if m = 0 then 0 else Nat.sqrt (m - 1) + 1 := by
+  rcases Nat.eq_zero_or_pos m with rfl | hm
+  · simp
+  simp only [hm.ne', ↓reduceIte]
+  rw [Nat.ceil_eq_iff (Nat.succ_ne_zero _), Nat.succ_sub_one,
+    Real.lt_sqrt (Nat.cast_nonneg _), Real.sqrt_le_iff]
+  have hlt : m - 1 < ((m - 1).sqrt + 1) ^ 2 := by
+    have h := Nat.lt_succ_sqrt (m - 1)
+    rwa [← sq] at h
+  exact ⟨by exact_mod_cast (Nat.sqrt_le' (m - 1)).trans_lt (Nat.sub_lt hm one_pos),
+    ⟨by positivity, by exact_mod_cast (by omega : m ≤ ((m - 1).sqrt + 1) ^ 2)⟩⟩

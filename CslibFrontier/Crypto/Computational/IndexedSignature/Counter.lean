@@ -7,18 +7,17 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Crypto.Computational.IndexedSignature
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Computability.Probabilistic.Oracle.Composition
-import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
-import CslibFrontier.Languages.Probabilistic.Oracle.Support
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Tactic.PolyTime.Init
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Counter-stateful signatures from indexed signatures
@@ -203,8 +202,8 @@ theorem isPPTOn_run_counterSigningOracle {adversary : Forger}
     (resources := fun caller query =>
       c * (2 * caller.2.2.length + 2 * S.capacity caller.1 + query.length + 3) ^ d +
         2 * S.capacity caller.1 + 2 * query.length + 4)
-    (ComputableInPolyTime.tidy (by fun_prop)) hhandler (ComputableTidilyInPolyTime.const (0, []))
-    (fun _ _ => True) (fun _ => trivial) (ComputableInPolyTime.tidy (by fun_prop))
+    (by fun_prop) hhandler (ComputableInPolyTime.const (0, []))
+    (fun _ _ => True) (fun _ => trivial) (by fun_prop)
   intro caller request state _ result hresult
   obtain ⟨j, signed⟩ := state
   unfold counterSigningOracle at hresult
@@ -219,11 +218,8 @@ theorem isPPTOn_run_counterSigningOracle {adversary : Forger}
         c * (2 * caller.2.2.length + 2 * S.capacity caller.1 + request.2.length + 3) ^ d :=
       Nat.mul_le_mul_left c (Nat.pow_le_pow_left (by omega) d)
     refine ⟨trivial, ?_, ?_⟩
-    · simp only [length_encPair, encUnary_apply, encBits_apply, List.length_replicate]
-      omega
-    · simp only [length_encPair, encUnary_apply, encList_cons, List.length_append, length_frame,
-        encBits_apply, List.length_replicate]
-      omega
+    · enc_len
+    · enc_len
   · simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hresult
     subst hresult
     exact ⟨trivial, by simp, by lia⟩
@@ -485,12 +481,10 @@ private theorem counterHandler_bound {bound : ℕ → ℕ → ℕ} (c : ℕ × L
   · obtain ⟨sig, hsig, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hresult
     obtain ⟨raw, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hsig
     have htake := List.length_take_le (bound c.1 request.2.length) raw
-    simp only [length_encPair, encUnary_apply, encBits_apply, List.length_replicate]
-    omega
+    enc_len
   · have h := OracleComp.eq_of_mem_supportWith_pure hresult
     subst h
-    simp only [List.length_nil, encUnary_apply, List.length_replicate]
-    omega
+    enc_len
 
 /-- The counter forger's reduction is uniformly strict oracle PPT for every oracle-PPT forger and
 every polynomial-time truncation bound. -/
@@ -503,7 +497,7 @@ theorem isOraclePPT_counterForger {bound : ℕ → ℕ → ℕ}
     (encIn := encPair (encPair encUnary encBits) encBits)
     (u := fun pair => pair.1.1) (v := fun pair => pair.2.length)
     hboundPoly (by fun_prop) (by fun_prop)
-  refine ((hadversary.run_interpret_preprocess_open' (prepare := fun c => c)
+  refine ((hadversary.run_interpret_preprocess_open (prepare := fun c => c)
       (initial := fun _ => (0 : ℕ))
       (resources := fun c w => bound c.1 w.length + 2 * S.capacity c.1 + 1)
       ComputableInPolyTime.id' (isOraclePPTOn_counterHandler hboundPoly)

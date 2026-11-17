@@ -20,6 +20,7 @@ Runtime certificates belong to the interpretation-specific modules.
 
 ## Main definitions
 
+* `evalCodeStep`: one total gate-list evaluation step.
 * `evalCode`: total evaluation of a gate list.
 
 ## Main results
@@ -40,13 +41,21 @@ universe u v
 
 variable {σ : Signature.{v}} {U : Type u} {n k m : ℕ}
 
+/-- Evaluate one encoded gate from the values computed so far, appending its output. A missing
+argument or out-of-range wire reads the supplied default. -/
+def evalCodeStep (I : Interpretation σ U) (d : U)
+    (input : List U × (σ.Op × List ℕ)) : List U :=
+  match input with
+  | (values, op, args) =>
+      values ++ [I op fun a => args[a.val]?.elim d (values.getD · d)]
+
 /-- Evaluate the list of gates `gates` on the input values `x`: start from `x` and append the value
 of each gate in turn, reading wire `i` at position `i` of the values computed so far. An argument
 missing from a gate, or a wire not yet computed, reads `d`; on the code of a program neither
 happens (`Program.evalCode_code`). -/
 def evalCode (I : Interpretation σ U) (d : U) (x : List U) (gates : List (σ.Op × List ℕ)) :
     List U :=
-  gates.foldl (fun values g => values ++ [I g.1 fun a => g.2[a.val]?.elim d (values.getD · d)]) x
+  gates.foldl (fun values gate => evalCodeStep I d (values, gate)) x
 
 /-- Evaluating an empty gate list returns the initial wire values unchanged. -/
 @[simp] theorem evalCode_nil (I : Interpretation σ U) (d : U) (x : List U) :
@@ -59,7 +68,7 @@ theorem evalCode_append_singleton (I : Interpretation σ U) (d : U) (x : List U)
     evalCode I d x (gates ++ [g]) =
       evalCode I d x gates ++
         [I g.1 fun a => g.2[a.val]?.elim d ((evalCode I d x gates).getD · d)] := by
-  simp [evalCode, List.foldl_append]
+  simp [evalCode, evalCodeStep, List.foldl_append]
 
 /-- Evaluating a concatenation of gate lists evaluates the second list starting from the wire
 values produced by the first. -/

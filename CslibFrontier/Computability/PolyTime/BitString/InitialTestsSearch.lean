@@ -23,6 +23,7 @@ import CslibFrontier.Probability.SmallBias.Random
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Log
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Max
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString.Dot
@@ -178,7 +179,9 @@ variable {α : Type} {e : α ↪ List Bool} {m B : α → ℕ}
   (hm : ComputableInPolyTime m e encUnary) (hB : ComputableInPolyTime B e encUnary)
 include hm
 private theorem mu_polyTime : ComputableInPolyTime (fun a => Nat.log 2 (m a) + 1) e encUnary :=
-  .unary_add' ((of_tidy ComputableTidilyInPolyTime.unary_log_two).comp hm) (.const 1)
+  .unary_add'
+    ((ComputableInPolyTime.binary_log_two.comp ComputableInPolyTime.unary_to_binary).comp hm)
+    (.const 1)
 include hB
 @[fun_prop] theorem greedyRowListLength_polyTime :
     ComputableInPolyTime (fun a => greedyRowListLength (B a) (m a)) e encUnary :=
@@ -189,8 +192,7 @@ include hB
   .unary_mul' (.unary_mul' (.const 320000) ((unary_pow 2).comp hB))
     ((unary_pow 3).comp (mu_polyTime hm))
 @[fun_prop] theorem dG_polyTime : ComputableInPolyTime (fun a => dG (m a) (B a)) e encUnary :=
-  (of_tidy ComputableTidilyInPolyTime.unary_min).comp
-    (hm.prod (initialRowWeightBound_polyTime hm hB))
+  unary_min' hm (initialRowWeightBound_polyTime hm hB)
 @[fun_prop] theorem ellG_polyTime : ComputableInPolyTime (fun a => ellG (m a) (B a)) e encUnary :=
   have hd := dG_polyTime hm hB
   (unary_clog_const 2).comp (unary_div.comp ((unary_sub' (.unary_add' hm hd) (.const 1)).prod hd))
@@ -558,7 +560,7 @@ theorem checkSmallBiasShifts_eq_true_iff {ell d maxBiasNum maxBiasDen : ℕ} [Ne
       (b : BitString ell) : shifts.countP (fun row => listDot row (List.ofFn b)) =
         #{j : Fin d | parityOn {i : Fin ell | b i = true} (s j) = true} := by
     nth_rw 1 [list_eq_ofFn_ofList hlen hrows]
-    rw [List.countP_ofFn, ← card_filter]; congr 1; ext j
+    rw [List.countP_ofFn]; congr 1; ext j
     simp only [mem_filter, mem_univ, true_and]; rw [listDot_ofFn, dotProduct_eq_parityOn]
   have hbias_iff (S : Finset (Fin ell)) :
       ((d - 2 * #{j : Fin d | parityOn S (s j) = true}) +

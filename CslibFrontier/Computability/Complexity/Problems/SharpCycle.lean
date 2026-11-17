@@ -35,10 +35,12 @@ replaces every arc `(u, v)` by a gadget of `m` layers of two nodes, complete bet
 layers, from `u` to `v`. It has `2 ^ m` paths from `u` to `v`. A simple cycle of the gadget graph
 is a simple cycle of `G` with a path chosen through the gadget of each of its arcs, so a cycle of
 length `k` of `G` gives `2 ^ (m * k)` cycles. With `n` distinct vertices and
-`m = n * n + n + 1`, `G` has fewer than `2 ^ m` simple cycles, so a Hamiltonian cycle alone gives
+`m = n * n + n + 3`, `G` has fewer than `2 ^ m` simple cycles, so a Hamiltonian cycle alone gives
 `2 ^ (m * n)` cycles and without one the total stays below `2 ^ (m * n)`
 (`Cslib.Complexity.SharpCycle.mem_DirHamCycle_iff`). The draft takes `m = n log n + 1`; any
-polynomial `m` with `2 ^ m` above the number of cycles of `G` works.
+polynomial `m` with `2 ^ m` above the number of cycles of `G` works. The extra two layers
+give a factor-four gap, which also rules out a polynomial-time factor-two approximation
+(Chapter 9, Exercise 5, printed p. 185 / PDF p. 201).
 
 The original vertex `v` becomes `2 * v` (`Cslib.Complexity.SharpCycle.origNode`) and the gadget
 nodes are odd (`Cslib.Complexity.SharpCycle.gadgetNode`), so the two kinds never collide. Every
@@ -56,14 +58,15 @@ choice of bits gives a simple cycle of the gadget graph, and different bits give
 * `Cslib.Complexity.Graph.IsSimpleCycle`: simple directed cycles.
 * `Cslib.Complexity.SharpCycle`: the number of simple directed cycles.
 * `Cslib.Complexity.SharpCycle.gadgetGraph`, `Cslib.Complexity.SharpCycle.layers`,
-  `Cslib.Complexity.SharpCycle.reduce`: the gadget graph with `n * n + n + 1` layers.
+  `Cslib.Complexity.SharpCycle.reduce`: the gadget graph with `n * n + n + 3` layers.
 
 ## Main results
 
 * `Cslib.Complexity.SharpCycle.finite_setOf_isSimpleCycle`: a graph has finitely many simple
   cycles.
 * `Cslib.Complexity.SharpCycle.two_pow_le_of_mem_DirHamCycle`,
-  `Cslib.Complexity.SharpCycle.lt_two_pow_of_notMem_DirHamCycle`: the counting inequalities.
+  `Cslib.Complexity.SharpCycle.four_mul_lt_two_pow_of_notMem_DirHamCycle`: the counting
+  inequalities.
 * `Cslib.Complexity.SharpCycle.mem_DirHamCycle_iff`:
   `G ∈ DirHamCycle ↔ 2 ^ (m * n) ≤ SharpCycle (reduce G)`.
 * `Cslib.Complexity.SharpCycle.computableInPolyTime_reduce`: the gadget graph is computable in
@@ -72,6 +75,8 @@ choice of bits gives a simple cycle of the gadget graph, and different bits give
   time with binary output, then `DirHamCycle ∈ P encGraph`.
 * `Cslib.Complexity.P_eq_NP_of_computableInPolyTime_SharpCycle`: **Theorem 9.4**, if `SharpCycle`
   is computable in polynomial time with binary output (`#CYCLE ∈ FP`), then `P = NP`.
+* `Cslib.Complexity.P_eq_NP_of_polyTime_approx_SharpCycle`: **Chapter 9, Exercise 5**,
+  a polynomial-time factor-two approximation also implies `P = NP`.
 
 ## References
 
@@ -164,9 +169,9 @@ def gadgetGraph (m : ℕ) (G : Graph) : Graph :=
   ⟨G.vertices.map origNode ++ G.edges.flatMap (gadgetVertices m),
     G.edges.flatMap (gadgetArcs m)⟩
 
-/-- The number of layers of the reduction, for `n` distinct vertices: `n * n + n + 1`. -/
+/-- The number of layers of the reduction, for `n` distinct vertices: `n * n + n + 3`. -/
 def layers (G : Graph) : ℕ := G.distinctVertices.length * G.distinctVertices.length +
-  G.distinctVertices.length + 1
+  G.distinctVertices.length + 3
 
 /-- The reduction from `DirHamCycle` to `#CYCLE` [Arora and Barak, Theorem 9.4][AroraBarak07]. -/
 def reduce (G : Graph) : Graph := gadgetGraph (layers G) G
@@ -823,22 +828,24 @@ theorem two_pow_le_of_mem_DirHamCycle (hm : 0 < m) (h : G ∈ DirHamCycle) :
 
 /-- A graph with `n` distinct vertices has at most `2 ^ n * n !` lists of distinct vertices. -/
 private theorem length_nodupLists_lt (G : Graph) :
-    (nodupLists G.distinctVertices).length < 2 ^ layers G := by
+    4 * (nodupLists G.distinctVertices).length < 2 ^ layers G := by
   set n := G.distinctVertices.length
-  calc (nodupLists G.distinctVertices).length ≤ 2 ^ n * n.factorial := length_nodupLists_le _
-    _ ≤ 2 ^ n * 2 ^ (n * n) := by
-        gcongr
-        calc n.factorial ≤ n ^ n := Nat.factorial_le_pow n
-          _ ≤ (2 ^ n) ^ n := Nat.pow_le_pow_left (Nat.lt_two_pow_self).le n
-          _ = 2 ^ (n * n) := (pow_mul 2 n n).symm
-    _ < 2 ^ (n * n + n + 1) := by
-        rw [← pow_add]
-        exact Nat.pow_lt_pow_right (by norm_num) (by omega)
-    _ = 2 ^ layers G := rfl
+  have h : (nodupLists G.distinctVertices).length < 2 ^ (n * n + n + 1) := by
+    calc (nodupLists G.distinctVertices).length ≤ 2 ^ n * n.factorial := length_nodupLists_le _
+      _ ≤ 2 ^ n * 2 ^ (n * n) := by
+          gcongr
+          calc n.factorial ≤ n ^ n := Nat.factorial_le_pow n
+            _ ≤ (2 ^ n) ^ n := Nat.pow_le_pow_left (Nat.lt_two_pow_self).le n
+            _ = 2 ^ (n * n) := (pow_mul 2 n n).symm
+      _ < 2 ^ (n * n + n + 1) := by
+          rw [← pow_add]
+          exact Nat.pow_lt_pow_right (by norm_num) (by omega)
+  calc 4 * (nodupLists G.distinctVertices).length < 4 * 2 ^ (n * n + n + 1) := by omega
+    _ = 2 ^ layers G := by change _ = 2 ^ (n * n + n + 3); ring
 
-/-- Without a Hamiltonian cycle, the gadget graph has fewer than `2 ^ (m * n)` cycles. -/
-theorem lt_two_pow_of_notMem_DirHamCycle (h : G ∉ DirHamCycle) :
-    SharpCycle (reduce G) < 2 ^ (layers G * G.distinctVertices.length) := by
+/-- Without a Hamiltonian cycle, four times the gadget cycle count is below `2 ^ (m * n)`. -/
+theorem four_mul_lt_two_pow_of_notMem_DirHamCycle (h : G ∉ DirHamCycle) :
+    4 * SharpCycle (reduce G) < 2 ^ (layers G * G.distinctVertices.length) := by
   set n := G.distinctVertices.length
   set m := layers G
   have hm : 0 < m := by simp [m, layers]
@@ -874,18 +881,21 @@ theorem lt_two_pow_of_notMem_DirHamCycle (h : G ∉ DirHamCycle) :
       congr 1
       refine cycleWalk_congr fun i hi j hj => ?_
       simp [extend, show i < n - 1 by omega, hj]
-  calc SharpCycle (reduce G) ≤ (T.image F).card := by
-        rw [SharpCycle, ← Set.ncard_coe_finset]
-        exact Set.ncard_le_ncard hsub (Finset.finite_toSet _)
-    _ ≤ T.card := Finset.card_image_le
-    _ < 2 ^ (m * n) := by
+  have hcount : SharpCycle (reduce G) ≤ T.card := by
+    calc SharpCycle (reduce G) ≤ (T.image F).card := by
+          rw [SharpCycle, ← Set.ncard_coe_finset]
+          exact Set.ncard_le_ncard hsub (Finset.finite_toSet _)
+      _ ≤ T.card := Finset.card_image_le
+  calc 4 * SharpCycle (reduce G) ≤ 4 * T.card := by omega
+       _ < 2 ^ (m * n) := by
         rcases Nat.eq_zero_or_pos n with hn | hn
         · have : T = ∅ := by
             simp [T, hn]
           simp [this]
         · simp only [T, Finset.card_product, Finset.card_univ, Fintype.card_fun, Fintype.card_fin,
             Fintype.card_bool]
-          calc _ ≤ (nodupLists G.distinctVertices).length * (2 ^ m) ^ (n - 1) := by
+          rw [← mul_assoc]
+          calc _ ≤ (4 * (nodupLists G.distinctVertices).length) * (2 ^ m) ^ (n - 1) := by
                 gcongr
                 exact (Finset.card_filter_le _ _).trans (List.toFinset_card_le _)
             _ < 2 ^ m * (2 ^ m) ^ (n - 1) := by
@@ -895,12 +905,15 @@ theorem lt_two_pow_of_notMem_DirHamCycle (h : G ∉ DirHamCycle) :
                 rw [← pow_succ', ← pow_mul, Nat.sub_add_cancel hn]
 
 /-- **Theorem 9.4, the reduction** [Arora and Barak, Theorem 9.4][AroraBarak07]: with `n`
-distinct vertices and `m = n * n + n + 1` layers, `G` has a Hamiltonian cycle exactly when the
+distinct vertices and `m = n * n + n + 3` layers, `G` has a Hamiltonian cycle exactly when the
 gadget graph has at least `2 ^ (m * n)` simple cycles. -/
 theorem mem_DirHamCycle_iff (G : Graph) :
     G ∈ DirHamCycle ↔ 2 ^ (layers G * G.distinctVertices.length) ≤ SharpCycle (reduce G) :=
   ⟨two_pow_le_of_mem_DirHamCycle (by simp [layers]),
-    fun h => by_contra fun hG => (lt_two_pow_of_notMem_DirHamCycle hG).not_ge h⟩
+    fun h => by
+      by_contra hG
+      have := four_mul_lt_two_pow_of_notMem_DirHamCycle hG
+      omega⟩
 
 /-! ### Polynomial time -/
 
@@ -947,16 +960,35 @@ theorem computableInPolyTime_reduce : ComputableInPolyTime reduce encGraph encGr
     fun_prop
   exact encGraph_mk_polyTime hv he
 
+/-- A factor-two estimate of the cycle count decides Hamiltonicity using the factor-four gap.
+The inequalities avoid division: `#CYCLE ≤ 2A` and `A ≤ 2#CYCLE`. -/
+theorem DirHamCycle_mem_P_of_approx {A : Graph → ℕ}
+    (hA : ComputableInPolyTime A encGraph encNat)
+    (hlo : ∀ G, SharpCycle G ≤ 2 * A G) (hhi : ∀ G, A G ≤ 2 * SharpCycle G) :
+    DirHamCycle ∈ P encGraph := by
+  have hiff : ∀ G, G ∈ DirHamCycle ↔
+      2 ^ (layers G * G.distinctVertices.length) ≤ 2 * A (reduce G) := by
+    intro G
+    constructor
+    · intro hG
+      exact (two_pow_le_of_mem_DirHamCycle (by simp [layers]) hG).trans (hlo _)
+    · intro hG
+      by_contra hn
+      have := four_mul_lt_two_pow_of_notMem_DirHamCycle hn
+      have := hhi (reduce G)
+      omega
+  refine ⟨fun G => !decide (2 * A (reduce G) <
+    2 ^ (layers G * G.distinctVertices.length)), ?_, fun G => by simp [hiff]⟩
+  have := hA.comp computableInPolyTime_reduce
+  have := (length_list encNat).comp Graph.computableInPolyTime_distinctVertices
+  have := computableInPolyTime_layers
+  fun_prop
+
 /-- **Theorem 9.4, decision** [Arora and Barak, Theorem 9.4][AroraBarak07]: if the number of
 simple cycles is computable in polynomial time with binary output, then `DirHamCycle ∈ P`. -/
 theorem DirHamCycle_mem_P (h : ComputableInPolyTime SharpCycle encGraph encNat) :
-    DirHamCycle ∈ P encGraph := by
-  refine ⟨fun G => !decide (SharpCycle (reduce G) < 2 ^ (layers G * G.distinctVertices.length)),
-    ?_, fun G => by simp [mem_DirHamCycle_iff]⟩
-  have hc := h.comp computableInPolyTime_reduce
-  have hn := (length_list encNat).comp Graph.computableInPolyTime_distinctVertices
-  have hm := computableInPolyTime_layers
-  fun_prop
+    DirHamCycle ∈ P encGraph :=
+  DirHamCycle_mem_P_of_approx h (fun _ => by omega) (fun _ => by omega)
 
 end PolyTime
 
@@ -969,5 +1001,14 @@ theorem P_eq_NP_of_computableInPolyTime_SharpCycle
     (h : Turing.MultiTapeTM.ComputableInPolyTime SharpCycle encGraph Turing.MultiTapeTM.encNat)
     {α : Type} (enc : α ↪ List Bool) : P enc = NP enc :=
   DirHamCycle_npComplete.P_eq_NP_of_mem_P (SharpCycle.DirHamCycle_mem_P h) enc
+
+/-- **Arora–Barak, Chapter 9, Exercise 5** (2007-01-08 draft, printed p. 185 / PDF p. 201):
+a deterministic polynomial-time factor-`1/2` approximation to `#CYCLE` implies `P = NP`.
+For binary natural output the guarantee `#CYCLE/2 ≤ A ≤ 2#CYCLE` is written without division. -/
+theorem P_eq_NP_of_polyTime_approx_SharpCycle {A : Graph → ℕ}
+    (hA : Turing.MultiTapeTM.ComputableInPolyTime A encGraph Turing.MultiTapeTM.encNat)
+    (hlo : ∀ G, SharpCycle G ≤ 2 * A G) (hhi : ∀ G, A G ≤ 2 * SharpCycle G)
+    {α : Type} (enc : α ↪ List Bool) : P enc = NP enc :=
+  DirHamCycle_npComplete.P_eq_NP_of_mem_P (SharpCycle.DirHamCycle_mem_P_of_approx hA hlo hhi) enc
 
 end Cslib.Complexity

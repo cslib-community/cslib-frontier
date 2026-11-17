@@ -8,13 +8,14 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.Schedule
-public import CslibFrontier.Computability.Complexity.AffineDisperser.BinaryPolynomial
+public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryPolynomial
 public import CslibFrontier.Computability.Complexity.AffineDisperser.Coordinates
 public import CslibFrontier.Foundations.Data.BitString.Block
 public import CslibFrontier.Foundations.Data.BitString.Enumeration
 import Mathlib.Algebra.CharP.Two
 import Mathlib.Data.List.GetD
 import CslibFrontier.Foundations.Data.List.Lookup
+import CslibFrontier.Foundations.Data.Polynomial.LagrangeEval
 import CslibFrontier.Foundations.FieldTheory.Finite.Basic
 
 /-!
@@ -25,7 +26,7 @@ program on bit lists (`Cslib.HardnessEncoding.encodedProgram`) that makes `2 ^ (
 decider of `L` and otherwise only does arithmetic in the explicit binary field `Cslib.BinaryField`
 of degree `w = 4 b`, in coordinates:
 
-* the modulus is found by trial division (`Cslib.AffineDisperser.leastIrreducibleCode`), and the
+* the modulus is found by trial division (`Cslib.leastIrreducibleCode`), and the
   multiplication table of the power basis lists the remainders of `X ^ (u + v)`
   (`Cslib.HardnessEncoding.fieldTable`, `Cslib.HardnessEncoding.isMulTable_fieldTable`);
 * sums are `Cslib.BitString.listXor`, products `Cslib.AffineDisperser.fieldMul`, and inverses the
@@ -266,10 +267,7 @@ theorem fieldOfBits_lagrangeVal (hw : 2 ≤ w) {b : ℕ} (hbw : b ≤ w) (a : Bi
   have hw0 : w ≠ 0 := by omega
   rw [lagrangeVal, fieldOfBits_fieldMul (isMulTable_fieldTable hw0), fieldOfBits_fieldInv hw,
     fieldOfBits_lagrangeNum hw0 hbw, fieldOfBits_lagrangeNum hw0 hbw,
-    ← embed_eq_fieldOfBits hw0 hbw, Lagrange.basis, eval_prod, ← prod_inv_distrib,
-    ← prod_mul_distrib]
-  refine Finset.prod_congr rfl fun a' _ => ?_
-  rw [Lagrange.basisDivisor, eval_mul, eval_C, eval_sub, eval_X, eval_C, mul_comm]
+    ← embed_eq_fieldOfBits hw0 hbw, Lagrange.eval_basis, prod_div_distrib, div_eq_mul_inv]
 
 /-- **A term of the extension**: `termVal` computes the product over the blocks of `z` of the
 Lagrange basis polynomials at the coordinates of the point. -/

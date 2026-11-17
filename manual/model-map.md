@@ -1,6 +1,8 @@
 # Model map
 
-This maintained map contains **265 curated entries** from the November 2 survey across four areas. Entries include models, behavior-changing variants, resource predicates and semantic interfaces; they are not asserted to be mathematically independent models. Follow each entry to the chapter explaining its semantics, resources, declarations, results and limitations. The optional [index script](data/coverage.py) exports these table rows; it does not discover models or reconstruct semantic judgments.
+> **Frozen in November 2026.** This page is not kept current. The Lean source, its docstrings and the API documentation are authoritative.
+
+This map contains **265 curated entries** from the November 2 survey across four areas, with subsequent additions identified by their linked chapters. Entries include models, behavior-changing variants, resource predicates and semantic interfaces; they are not asserted to be mathematically independent models. Follow each entry to the chapter explaining its semantics, resources, declarations, results and limitations. The optional [index script](data/coverage.py) exports these table rows; it does not discover models or reconstruct semantic judgments.
 
 The [module census script](data/census.py) can enumerate every tracked Lean source file at the fixed snapshot. Its broad ownership assignment is an indexing aid, not a claim that every line was reviewed. Model-family completeness remains a semantic judgment; generated inventories are optional and untracked.
 
@@ -216,6 +218,9 @@ The [module census script](data/census.py) can enumerate every tracked Lean sour
 | `ordered-structure` | [Canonical ordered finite structures with BIT](circuits-logic-and-other-models/index.md) | finite-logic |
 | `ordered-domain` | [Ordered restricted-domain interpretations with numeric certificates](circuits-logic-and-other-models/index.md) | finite-logic |
 | `fulltuple` | [Positive-dimensional full-tuple ordered interpretations](circuits-logic-and-other-models/index.md) | finite-logic |
+| `sql-scalar` | [SQL values with `NULL`, three-valued logic and strict scalar operators](circuits-logic-and-other-models/sql-semantics.md) | query-language |
+| `sql-expr` | [Resolved SQL expressions over positional rows, with typing, safety and equivalence](circuits-logic-and-other-models/sql-semantics.md#expressions) | query-language |
+| `sql-query` | [Bag-semantics SQL queries over database schemas, with typing, safety and ordered, bag and set equivalence](circuits-logic-and-other-models/sql-semantics.md#queries) | query-language |
 | `cnf` | [Literal lists, CNF and assignment counting](circuits-logic-and-other-models/index.md) | propositional-models |
 | `clause-set` | [Finite-set CNF for sparsification](circuits-logic-and-other-models/index.md) | propositional-models |
 | `csp` | [Relation-alphabet constraint satisfaction problems](circuits-logic-and-other-models/index.md) | propositional-models |
@@ -297,6 +302,7 @@ The [module census script](data/census.py) can enumerate every tracked Lean sour
 | `generic-ram` | [Generic partial-operation RAM](algorithms-and-memory/ram-variants.md) | generic-ram |
 | `algebraic-real-ram` | [Tagged exact real RAM](algorithms-and-memory/ram-variants.md) | generic-ram |
 | `algebraic-prime-field-ram` | [Tagged prime-field RAM](algorithms-and-memory/ram-variants.md) | generic-ram |
+| `allocating-pointer-machine` | [Tarjan-style allocating pointer machine](algorithms-and-memory/ram-variants.md#allocating-pointer-machine-foundation) | pointer-machine |
 | `wordram-fixed` | [Fixed-program bounded Word-RAM](algorithms-and-memory/wordram-and-bridges.md) | word-ram |
 | `wordram-width-family` | [Width-selected Word-RAM programs](algorithms-and-memory/wordram-and-bridges.md) | word-ram |
 | `wordram-list-output` | [Memory-array list outputs](algorithms-and-memory/wordram-and-bridges.md) | word-ram |

@@ -26,6 +26,9 @@ example : rsaInvert 33 7 8 = 2 := by decide
 
 example : rsaInvert 33 7 (rsaEval 33 3 5) = 5 := by decide
 
+/-- On a number that is not below the modulus the round trip reduces it: `40 % 33 = 7`. -/
+example : rsaEval 33 3 (rsaInvert 33 7 40) = 7 := rsaEval_rsaInvert_mod rsa33 40
+
 /-! ### Typed evaluation and encodings -/
 
 example : NeZero rsa33.publicKey.N := inferInstance

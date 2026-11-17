@@ -4,14 +4,24 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Karn Seth
 -/
 
+module
+
 import CslibFrontier.Crypto.Primitives.Garbling.BMR16
+import CslibFrontier.Probability.PMF.Uniform
+import CslibFrontier.Probability.Product
 
 /-! # BMR16 garbling of mixed-modulus circuits: checked instances
 
-A two-gate circuit with a projection `ℤ₂ → ℤ₃` followed by an addition modulo `3`, evaluated by
-computation; the number of ciphertexts of a projection gate; correctness, simulator correctness,
-legality of the reduction and the privacy theorem instantiated with injective tweaks; and the
-mixed-modulus CCR games on an adversary that makes no query. -/
+Clients of the BMR16 API under module encapsulation, with ordinary imports. A two-gate circuit
+with a projection `ℤ₂ → ℤ₃` followed by an addition modulo `3`, evaluated by computation; the
+number of ciphertexts of a projection gate; correctness, simulator correctness, legality of the
+reduction, the privacy equality instantiated with injective tweaks and the algebraic helper
+`advantage_realGame_simGame_le_of_mixedModulusCCR_of_reduction_mem` applied to it; the
+mixed-modulus CCR games on an adversary that makes no query; and a legal one-query adversary
+showing that the constant zero hash is not mixed-modulus CCR for any bound below `1 / 2`. -/
+
+-- This regression module checks ordinary imports and exports no test fixtures.
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.GarblingBMR16
 
@@ -106,6 +116,14 @@ example (x : Env (Residue μ) [0, 1]) (D : View ℓ crossC → ProbComp Bool) :
       ccrAdvantage toyH (reduction toyH tw crossC x D) :=
   advantage_realGame_simGame toyH tw crossC x D tw_injOn
 
+-- The algebraic helper: for every hash, a `MixedModulusCCR` bound `ε` against a class containing
+-- the reduction bounds the advantage of the distinguisher by `ε`.
+example (H : MixedModulusHash (Fin 2) μ ℓ) (x : Env (Residue μ) [0, 1])
+    (D : View ℓ crossC → ProbComp Bool) {𝒟 : Set (CCRAdversary (Fin 2) μ ℓ)} {ε : NNReal}
+    (hH : MixedModulusCCR H 𝒟 ε) (hD : reduction H tw crossC x D ∈ 𝒟) :
+    Game.advantage (realGame H tw crossC x D) (simGame H tw crossC x D) ≤ ε :=
+  advantage_realGame_simGame_le_of_mixedModulusCCR_of_reduction_mem H tw crossC x D tw_injOn hH hD
+
 -- An adversary that makes no query is legal and has advantage zero, so `MixedModulusCCR` with
 -- bound `0` is satisfiable for that class.
 example (b : Bool) : CCRAdversary.IsLegal (pure b : CCRAdversary (Fin 2) μ ℓ) := by
@@ -149,5 +167,69 @@ example : ¬ twoCoins.IsLegal := by
   have heq := (h _ _ hrun).2 (0, ⟨0, 0, 0, 1, 0⟩) (by simp) (0, ⟨0, 0, 0, 1, 1⟩) (by simp) rfl
   revert heq
   decide
+
+/-! ### The zero hash is not mixed-modulus CCR
+
+The real oracle answers `(g, X, a, b)` with `H(g, X + a Δ_i) + b Δ_j`. For the zero hash and
+`b = 0` this is `0`, whatever the offsets, while the ideal oracle's answer has a uniform colour. -/
+
+/-- The hash that ignores its tweak and label and returns the zero label. -/
+def zeroH : MixedModulusHash (Fin 2) μ ℓ := fun _ _ _ _ => 0
+
+/-- The query `(g, X, a, b) = (0, 0, 1, 0)` from sort `0` to sort `0`. -/
+private abbrev colourQuery : Fin 2 × CCRInput μ ℓ := (0, ⟨0, 0, 0, 1, 0⟩)
+
+/-- Ask `colourQuery` once and accept when the colour of the reply is `0`. -/
+def colourTest : CCRAdversary (Fin 2) μ ℓ := do
+  let reply ← ProbOracleComp.query (spec := ccrSpec (Fin 2) μ ℓ) colourQuery
+  pure (decide (reply.2 = 0))
+
+/-- One query with `a = 1` is legal. -/
+private theorem colourTest_isLegal : colourTest.IsLegal := by
+  rintro requests b ⟨r, rest, rfl, rfl, -⟩
+  exact ⟨by decide, by simp⟩
+
+/-- Against the zero hash the real reply is `0`, so `colourTest` always accepts. -/
+private theorem ccrRealGame_zeroH_colourTest :
+    ccrRealGame zeroH colourTest = PMF.pure true := by
+  simp only [ccrRealGame, ccrOracle, zeroH, CCRInput.b, zero_add, colourTest, Fin.isValue,
+    bind_pure_comp, OracleComp.interpret_map, ProbOracleComp.interpret_query, zero_smul, map_pure,
+    Prod.snd_zero, decide_true, ProbComp.eval_map, ProbComp.eval_uniform]
+  exact PMF.map_const _ _
+
+/-- The ideal reply is uniform, so its colour is `0` with probability `1 / 2`. -/
+private theorem ccrIdealGame_colourTest :
+    ccrIdealGame colourTest = Probability.PMF.uniformOfFintype Bool := by
+  simp only [ccrIdealGame, colourTest, Fin.isValue, bind_pure_comp, OracleComp.interpret_map,
+    ProbOracleComp.interpret_query, map_pure, ProbComp.eval_map, ProbComp.eval_uniform]
+  have h0 : (Probability.PMF.uniformOfFintype (Fin 2 → CCRTable μ ℓ)).map (fun f => f 0) =
+      Probability.PMF.uniformOfFintype (CCRTable μ ℓ) := by
+    rw [← @Probability.PMF.pi_uniformOfFintype (Fin 2) _ (fun _ => CCRTable μ ℓ) _ _
+      (fun _ => inferInstance) _]
+    exact Probability.PMF.pi_map_eval _ _
+  have h1 : (Probability.PMF.uniformOfFintype (CCRTable μ ℓ)).map (fun t => t colourQuery.2) =
+      Probability.PMF.uniformOfFintype (Label μ ℓ 0) := by
+    rw [← Probability.PMF.pi_uniformOfFintype (α := fun r : CCRInput μ ℓ => Label μ ℓ r.target)]
+    exact Probability.PMF.pi_map_eval _ _
+  have h2 : (Probability.PMF.uniformOfFintype (ZMod (μ 0))).map (fun c => decide (c = 0)) =
+      Probability.PMF.uniformOfFintype Bool :=
+    Probability.PMF.uniformOfFintype_map_equiv
+      (⟨fun c => decide (c = 0), fun b => if b then 0 else 1, fun c => by revert c; decide,
+        fun b => by revert b; decide⟩ : ZMod (μ 0) ≃ Bool)
+  rw [show (fun f : Fin 2 → CCRTable μ ℓ => decide ((f 0 colourQuery.2).2 = 0)) =
+      (fun c => decide (c = 0)) ∘ Prod.snd ∘ (fun t : CCRTable μ ℓ => t colourQuery.2) ∘
+        (fun f => f 0) from rfl, ← PMF.map_comp, ← PMF.map_comp, ← PMF.map_comp, h0, h1,
+    Probability.PMF.uniformOfFintype_prod_map_snd, h2]
+
+/-- **`MixedModulusCCR` is not vacuous**: the zero hash is not mixed-modulus CCR with any bound
+below `1 / 2` for a class containing the legal one-query adversary `colourTest`. -/
+theorem not_mixedModulusCCR_zeroH {𝒟 : Set (CCRAdversary (Fin 2) μ ℓ)} (hD : colourTest ∈ 𝒟)
+    {ε : NNReal} (hε : ε < 2⁻¹) : ¬ MixedModulusCCR zeroH 𝒟 ε := by
+  intro h
+  have hadv := h colourTest hD colourTest_isLegal
+  rw [ccrAdvantage, ccrRealGame_zeroH_colourTest, ccrIdealGame_colourTest,
+    Game.advantage_pure_true_left] at hadv
+  refine hε.not_ge (le_of_eq_of_le ?_ hadv)
+  simp [Game.failProbability, Probability.PMF.uniformOfFintype_apply, ENNReal.toNNReal_ofNat]
 
 end CslibFrontierTests.GarblingBMR16
