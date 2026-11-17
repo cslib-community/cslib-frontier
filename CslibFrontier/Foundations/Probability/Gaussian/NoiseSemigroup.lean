@@ -114,18 +114,18 @@ private theorem tendsto_eLpNorm_gaussianNoiseOp_sub_of_bcf (g : (ι → ℝ) →
     exact h
   have h := tendsto_lintegral_filter_of_dominated_convergence' (μ := γ)
     (F := fun ρ z => ‖gaussianNoiseOp ρ g z - g z‖ₑ) (f := 0) (fun _ => 2 * ‖g‖ₑ)
-    (hρ.mono fun ρ h => ((hg.gaussianNoiseOp h).sub hg).aemeasurable.enorm)
+    (hρ.mono fun ρ h => ((hg.gaussianNoiseOp h).sub hg).aemeasurable.eNorm)
     (.of_forall fun ρ => ae_of_all _ fun z => ?_) (by simp [lintegral_const, ENNReal.mul_eq_top])
-    (ae_of_all _ fun z => by simpa using ((hpt z).sub_const (g z)).enorm)
+    (ae_of_all _ fun z => by simpa using ((hpt z).sub_const (g z)).eNorm)
   · simp only [Pi.zero_apply, lintegral_zero] at h
     refine h.congr' (hρ.mono fun ρ h => ?_)
-    exact (eLpNorm_one_eq_lintegral_enorm ((hg.gaussianNoiseOp h).sub hg)).symm
-  · refine (enorm_sub_le).trans ?_
+    exact (eLpNorm_one_eq_lintegral_eNorm ((hg.gaussianNoiseOp h).sub hg)).symm
+  · refine (eNorm_sub_le).trans ?_
     rw [two_mul]
     gcongr
-    · exact enorm_le_iff_norm_le.2 <| (norm_integral_le_of_norm_le_const (C := ‖g‖)
+    · exact eNorm_le_iff_norm_le.2 <| (norm_integral_le_of_norm_le_const (C := ‖g‖)
         (ae_of_all _ fun y => g.norm_coe_le_norm _)).trans (by simp)
-    · exact enorm_le_iff_norm_le.2 (g.norm_coe_le_norm z)
+    · exact eNorm_le_iff_norm_le.2 (g.norm_coe_le_norm z)
 
 /-- **Continuity of the noise operator at `ρ = 1`** [O'Donnell, Proposition 11.17][ODonnell2014]
 (Exercise 11.6(a)): for `f ∈ L¹(γⁿ)`, `‖U_ρ f - f‖₁ → 0` as `ρ → 1⁻`. -/

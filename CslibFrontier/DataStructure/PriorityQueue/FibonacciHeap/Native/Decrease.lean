@@ -90,7 +90,7 @@ private theorem realizes_decreasePrefix : Realizes .exact decreasePrefix (.refl 
     ext d
     simp only [decreasePrefix]
   realize
-  all_goals try first
+  all_goals first
     | exact h.1.of_le (by have := h.2.1; omega)
     | exact h.1.of_le (by have := h.2.2.1 (by assumption); omega)
     | exact h.2.2.2 (by assumption) (by unfold IndexedMinPQ.RawPrioLT; omega)

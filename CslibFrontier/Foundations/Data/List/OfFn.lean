@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import Mathlib.Algebra.BigOperators.Fin
 public import Mathlib.Data.List.OfFn
 public import Mathlib.Data.Finset.Card
+public import Mathlib.Data.Fintype.Fin
 public import Mathlib.Order.Interval.Finset.Fin
 import Mathlib.Data.List.FinRange
 
@@ -55,25 +56,17 @@ theorem List.Perm.exists_ofFn_iff {α : Type*} {m n : ℕ} {f : Fin m → α} {g
     exists_congr fun _ => and_congr_left fun _ => perm.mem_iff
   simpa [List.mem_ofFn] using h
 
-/-- Count satisfying array entries by summing their Boolean indicators. -/
-theorem List.countP_ofFn {α : Type*} {n : ℕ} (f : Fin n → α) (p : α → Bool) :
-    (List.ofFn f).countP p = ∑ i, if p (f i) then 1 else 0 := by
-  induction n with
-  | zero => simp
-  | succ n ih =>
-    rw [List.ofFn_succ, List.countP_cons, Fin.sum_univ_succ, ih, Nat.add_comm]
-
 /-- The numbers below `n` that pass a test are as many as the elements of `Fin n` that pass it. -/
 theorem List.countP_range_eq_card_filter (n : ℕ) (p : ℕ → Bool) :
     (List.range n).countP p = #{j : Fin n | p j = true} := by
-  rw [← List.map_coe_finRange_eq_range, ← List.ofFn_eq_map, List.countP_ofFn, card_filter]
+  rw [← List.map_coe_finRange_eq_range, ← List.ofFn_eq_map, List.countP_ofFn]
 
 /-- Elements of `xs` satisfying `p` are counted by the indices in `Fin xs.length` where `p`
 holds. -/
 theorem List.countP_eq_card_filter_getElem {α : Type*} (xs : List α) (p : α → Bool) :
     xs.countP p = #{i : Fin xs.length | p xs[i] = true} := by
   conv_lhs => rw [← List.ofFn_getElem (xs := xs)]
-  rw [List.countP_ofFn, card_filter]
+  rw [List.countP_ofFn]
   rfl
 
 /-- A sum over `List.range n` is a sum over `Fin n`. -/
@@ -116,7 +109,7 @@ theorem List.Perm.card_filter_ofFn_eq {α : Type*} {n : ℕ} {f g : Fin n → α
     (perm : (List.ofFn f).Perm (List.ofFn g)) (p : α → Prop) [DecidablePred p] :
     #{i | p (f i)} = #{i | p (g i)} := by
   have h := perm.countP_eq (fun x => decide (p x))
-  simpa only [List.countP_ofFn, decide_eq_true_eq, Finset.card_filter] using h
+  simpa only [List.countP_ofFn, decide_eq_true_eq] using h
 
 /-- Permuting a finite array preserves unique occurrence of a predicate. -/
 theorem List.Perm.existsUnique_ofFn_iff {α : Type*} {n : ℕ} {f g : Fin n → α}
