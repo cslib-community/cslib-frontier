@@ -282,7 +282,6 @@ This module formalizes:
   `Cslib.Crypto.Protocols.CarterWegman.counterGame_linearHash_le`,
   `Cslib.Crypto.Protocols.CarterWegman.nonceStrongGame_linearHash_le`,
   `Cslib.Crypto.Protocols.CarterWegman.randomNonceStrongGame_linearHash_le`,
-  `Cslib.Crypto.Protocols.CarterWegman.prfOneTimeGame_linearHash_le`,
   `Cslib.Crypto.Protocols.CarterWegman.isDeltaUniversalHash_linearHashWordHash`,
   `Cslib.Crypto.Protocols.CarterWegman.sufCmaGame_linearHashNonceMAC_toReal_le`,
   `Cslib.Crypto.PseudorandomFunction.sufCma_linearHashNonceMAC`,
@@ -1110,8 +1109,8 @@ theorem prfOneTimeStrongGame_ofProbComp_le {n : ℕ} {seed : ProbComp K}
           (ProbComp.eval (prfIdealGame id id
             (prfPadDistinguisher fun _ r =>
               probPadTest seed hash query forge (BitString.ofList n (List.ofFn r))) n)) : ℝ) := by
-  rw [prfOneTimeStrongGame_eq_prfOneTimeGame]
-  exact prfOneTimeGame_ofProbComp_le hh hε family query forge
+  refine prfOneTimeStrongGame_le hh hε family (OneTimeForger.ofProbComp query forge) _ fun r => ?_
+  simp
 
 /-- `prfPadDistinguisher test` is uniformly strict oracle-PPT (`IsOraclePPT encBool`) whenever
 running `test n` on the `n`-bit view of a raw pad word is uniformly strict PPT in `(n, word)`. -/
@@ -3886,33 +3885,6 @@ theorem counterStrongGame_linearHash_le (n m : ℕ)
       BitString.LinearHash.hash forger true ≤ ((2 : ℝ≥0∞) ^ m)⁻¹ := by
   simpa only [BitString.card, Nat.cast_pow, Nat.cast_ofNat] using
     counterStrongGame_le (BitString.LinearHash.isDeltaUniversalHash n m) forger
-
-/-- **Exact single-query PRF-pad reduction for Boolean-matrix Carter–Wegman
-(`BitString.LinearHash.hash`)** in the one-query, fixed-nonce case (after [BonehShoup2023],
-Section 7.4): hashing `n`-bit messages to `m`-bit tags with a uniform Boolean matrix and masking by
-a fixed-nonce PRF evaluation at security parameter `m` has real-valued one-time forgery probability
-at most `(2 ^ m)⁻¹` plus the concrete PRF distinguishing advantage of `prfPadDistinguisher test` at
-parameter `m` (without asserting `IsOraclePPT encBool` admissibility or an asymptotic
-`PseudorandomFunction` corollary). -/
-theorem prfOneTimeGame_linearHash_le (n m : ℕ)
-    (family : List Bool → List Bool → List Bool)
-    (forger : OneTimeForger (BitString n) (BitString m))
-    (test : (k : ℕ) → BitString k → ProbComp Bool)
-    (htest : ∀ r,
-      padDistinguisher (PMF.uniformOfFintype (Fin m → BitString n))
-        BitString.LinearHash.hash forger r = ProbComp.eval (test m r)) :
-    (prfOneTimeGame (PMF.uniformOfFintype (Fin m → BitString n)) family m
-      BitString.LinearHash.hash forger true).toReal ≤
-      ((2 : ℝ) ^ m)⁻¹ +
-        (Game.advantage
-          (ProbComp.eval (prfRealGame id family (prfPadDistinguisher test) m))
-          (ProbComp.eval (prfIdealGame id id (prfPadDistinguisher test) m)) : ℝ) := by
-  have hε : ((Fintype.card (BitString m) : ℝ≥0∞))⁻¹ ≠ ⊤ := by
-    simp
-  have h := prfOneTimeGame_le (BitString.LinearHash.isDeltaUniversalHash n m) hε family forger
-    test htest
-  simpa only [BitString.card, Nat.cast_pow, Nat.cast_ofNat, ENNReal.toReal_inv,
-    ENNReal.toReal_pow, ENNReal.toReal_ofNat] using h
 
 /-- **Subset-sum Carter–Wegman one-time MAC (`BitString.LinearHash` / `BitString.SubsetSum.hash`)**:
 hashing binary words `ι → Bool` into a finite additive abelian group `G` via uniform subset-sum

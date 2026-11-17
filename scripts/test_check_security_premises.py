@@ -97,6 +97,19 @@ class CompareTests(unittest.TestCase):
         problems = c.compare(self.hits, baseline, {SCHNORR_PATH})
         self.assertEqual(problems.unjustified, [SCHNORR])
 
+    def test_discharged_by_must_hold(self) -> None:
+        named = "Cslib.Crypto.Schnorr.headline"
+        baseline = {SCHNORR: entry(SCHNORR_PATH, ["hDL"]) | {c.DISCHARGED: named}}
+        self.assertEqual(c.requests(baseline), [f"discharged\t{SCHNORR}\t{named}"])
+        self.assertFalse(c.compare(self.hits, baseline, {SCHNORR_PATH}, {SCHNORR: (named, [])}))
+        problems = c.compare(self.hits, baseline, {SCHNORR_PATH},
+                             {SCHNORR: (named, ["does not use it"])})
+        self.assertEqual(problems.undischarged, [(SCHNORR, named, ["does not use it"])])
+        self.assertIn("does not use it", c.report(problems))
+        # An entry the reader gave no verdict on fails too, and only in its module.
+        self.assertTrue(c.compare(self.hits, baseline, {SCHNORR_PATH}).undischarged)
+        self.assertFalse(c.compare(self.hits, baseline, {HELPER_PATH}, {}).undischarged)
+
 
 class BaselineTests(unittest.TestCase):
     def test_text_round_trips_one_entry_per_line(self) -> None:
@@ -107,6 +120,23 @@ class BaselineTests(unittest.TestCase):
         # Grouped by module: Garbling before Schnorr.
         self.assertLess(text.index(HELPER), text.index(SCHNORR))
         self.assertEqual(c.baseline_text({}), "{\n}\n")
+
+    def test_discharged_by_round_trips_and_survives_an_update(self) -> None:
+        named = "Cslib.Crypto.Schnorr.headline"
+        baseline = {SCHNORR: entry(SCHNORR_PATH, ["hDL"]) | {c.DISCHARGED: named}}
+        text = c.baseline_text(baseline)
+        self.assertEqual(json.loads(text), baseline)
+        hits, _ = c.parse(OUTPUT)
+        self.assertEqual(c.update(hits, baseline, {SCHNORR_PATH})[SCHNORR][c.DISCHARGED], named)
+        path = pathlib.Path(tempfile.mkdtemp()) / "baseline.json"
+        self.addCleanup(path.unlink)
+        path.write_text(text)
+        self.assertEqual(c.load_baseline(path), baseline)
+
+    def test_parse_reads_discharge_verdicts(self) -> None:
+        verdict = json.dumps({"d": SCHNORR, "by": "X", "p": ["no use"]})
+        _, summary = c.parse(verdict + "\n" + OUTPUT)
+        self.assertEqual(summary["discharged"], {SCHNORR: ("X", ["no use"])})
 
     def test_update_keeps_justifications_and_drops_stale_entries(self) -> None:
         hits, _ = c.parse(OUTPUT)
@@ -136,7 +166,7 @@ class MainTests(unittest.TestCase):
         self.baseline = pathlib.Path(tmp.name) / "baseline.json"
         hits, _ = c.parse(OUTPUT)
         self.checker_changed = mock.patch.object(c, "checker_changed", return_value=False)
-        for patcher in (mock.patch.object(c, "scan", return_value=hits),
+        for patcher in (mock.patch.object(c, "scan", return_value=(hits, {})),
                         mock.patch.object(c.cer, "touched_modules", return_value={SCHNORR_PATH}),
                         self.checker_changed):
             patcher.start()
@@ -320,6 +350,25 @@ theorem bothCertifiedVariables (A D : Adversary) (_hA : A.IsPPT) (_hD : D.IsPPT)
 theorem uncertifiedEquation (A D : Adversary) (_h : D = reduction A) : True := trivial
 theorem inequalityRealization (A D : Adversary) (_hD : D.IsPPT)
     (_h : ∀ n, forgeExperiment D n ≤ forgeExperiment (reduction A) n) : True := trivial
+
+/-- The law of a pad test that the proof builds from `A`, and a reduction built from a test. -/
+def padLaw (_A : Adversary) (_b : Bool) : PMF Bool := ⟨fun _ => 0⟩
+def testReduction (_test : Bool → PMF Bool) : Adversary := ⟨fun _ => true⟩
+/-- The caller supplies the program `test` with no certificate, and an equation that it computes
+the constructed `padLaw A`; the conclusion bounds by the advantage of a reduction built from it. -/
+theorem callerTestBound (A : Adversary) (test : Bool → PMF Bool) (_h : ∀ b, padLaw A b = test b) :
+    advantage A 0 ≤ advantage (testReduction test) 0 := Nat.le_refl _
+/-- The same equation, but no advantage bound is built from `test`. -/
+theorem callerTestEquation (A : Adversary) (test : Bool → PMF Bool)
+    (_h : ∀ b, padLaw A b = test b) : padLaw A true = test true := _h true
+/-- Discharges `callerTestBound` by supplying the test. -/
+theorem dischargesCallerTest (A : Adversary) :
+    advantage A 0 ≤ advantage (testReduction (padLaw A)) 0 :=
+  callerTestBound A (padLaw A) fun _ => rfl
+/-- Uses `callerTestBound` but passes its premise on. -/
+theorem passesCallerTestOn (A : Adversary) (test : Bool → PMF Bool)
+    (_h : ∀ b, padLaw A b = test b) : advantage A 0 ≤ advantage (testReduction test) 0 :=
+  callerTestBound A test _h
 private theorem privatePremise (A : Adversary) (_h : Negligible (advantage (reduction A))) :
     True := trivial
 
@@ -333,6 +382,11 @@ end Cslib.Crypto
 class CompiledFixtureTests(unittest.TestCase):
     """What `scripts/SecurityPremises.lean` flags in a compiled module."""
 
+    # `discharged_by` requests, one per flagged theorem: `(theorem, named theorem)`.
+    DISCHARGES = (("callerTestBound", "dischargesCallerTest"),
+                  ("realizationPremise", "negligiblePremise"),
+                  ("memberRealization", "memberRealization"))
+
     @classmethod
     def setUpClass(cls) -> None:
         tmp = tempfile.TemporaryDirectory()
@@ -343,12 +397,18 @@ class CompiledFixtureTests(unittest.TestCase):
         source.parent.mkdir(parents=True)
         olean.parent.mkdir(parents=True)
         source.write_text(FIXTURE)
+        cls.build = root / "build"
         subprocess.run(["lake", "env", "lean", f"--root={root / 'src'}", "-o", str(olean),
                         str(source)], cwd=c.ROOT, check=True, capture_output=True)
+        asks = "".join(f"discharged\tCslib.Crypto.Fixture.{name}\tCslib.Crypto.Fixture.{by}\n"
+                       for name, by in cls.DISCHARGES)
         out = subprocess.run(["lake", "env", "lean", "--run", c.TOOL, str(root / "build")],
-                             cwd=c.ROOT, input="CslibFrontier.Crypto.Fixture\n",
+                             cwd=c.ROOT, input="CslibFrontier.Crypto.Fixture\n" + asks,
                              capture_output=True, text=True, check=True).stdout
         hits, cls.summary = c.parse(out)
+        cls.discharged = {name.removeprefix("Cslib.Crypto.Fixture."):
+                          (named.removeprefix("Cslib.Crypto.Fixture."), problems)
+                          for name, (named, problems) in cls.summary["discharged"].items()}
         cls.flagged = {name.removeprefix("Cslib.Crypto.Fixture."): hit.premises
                        for name, hit in hits.items()}
 
@@ -397,6 +457,39 @@ class CompiledFixtureTests(unittest.TestCase):
         # Two certified variables equated, with no constructed constant, are not a realization.
         self.assertNotIn("bothCertifiedVariables", self.flagged)
 
+    def test_realizations_by_uncertified_programs_are_flagged(self) -> None:
+        # No premise certifies `test`, but the conclusion bounds by the advantage of a reduction
+        # built from it, so the equation takes that reduction's correctness from the caller.
+        self.assertEqual(self.flagged["callerTestBound"],
+                         {"_h": (("uncertified realization",), ("Cslib.Crypto.Fixture.padLaw",))})
+        self.assertEqual(self.kinds("passesCallerTestOn"), ("uncertified realization",))
+        # Without such a bound, an uncertified equation is not flagged.
+        for name in ("callerTestEquation", "uncertifiedEquation", "dischargesCallerTest"):
+            self.assertNotIn(name, self.flagged)
+
+    def test_discharges_are_verified(self) -> None:
+        # The named theorem uses the flagged one and does not carry its premise.
+        self.assertEqual(self.discharged["callerTestBound"], ("dischargesCallerTest", []))
+        # A named theorem that does not use the flagged one fails, as finding 3's did.
+        named, problems = self.discharged["realizationPremise"]
+        self.assertEqual(named, "negligiblePremise")
+        self.assertEqual(len(problems), 1)
+        self.assertIn("does not use", problems[0])
+        problems = self.discharged["memberRealization"][1]
+        self.assertIn("the flagged theorem itself", problems[0])
+
+    def test_a_theorem_passing_the_premise_on_does_not_discharge_it(self) -> None:
+        out = subprocess.run(
+            ["lake", "env", "lean", "--run", c.TOOL, str(self.build)], cwd=c.ROOT,
+            input="CslibFrontier.Crypto.Fixture\ndischarged\tCslib.Crypto.Fixture.callerTestBound"
+                  "\tCslib.Crypto.Fixture.passesCallerTestOn\n",
+            capture_output=True, text=True, check=True).stdout
+        named, problems = c.parse(out)[1]["discharged"]["Cslib.Crypto.Fixture.callerTestBound"]
+        self.assertEqual(named, "Cslib.Crypto.Fixture.passesCallerTestOn")
+        self.assertEqual(len(problems), 1)
+        self.assertIn("carries the flagged premise itself (realization about "
+                      "`Cslib.Crypto.Fixture.padLaw`)", problems[0])
+
     def test_named_assumptions_at_library_objects_are_flagged(self) -> None:
         # Allowed by the rule, so such a premise needs a baseline entry with its justification.
         self.assertEqual(self.kinds("instantiatedAssumption"), ("unfolded negligible",))
@@ -425,7 +518,7 @@ class CompiledFixtureTests(unittest.TestCase):
         self.assertNotIn("inequalityRealization", self.flagged)
 
     def test_exactly_the_expected_theorems(self) -> None:
-        self.assertEqual(len(self.flagged), 19)
+        self.assertEqual(len(self.flagged), 21)
         self.assertEqual(self.summary["missing"], [])
 
 

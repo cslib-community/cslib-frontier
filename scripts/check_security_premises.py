@@ -27,10 +27,15 @@ not uniform. And it flags a *realization*: an equation saying that a variable th
 makes efficient or admissible (`hD : IsOraclePPT encBool D`) computes a constructed object applied
 to another variable (`hreal : eval (prfRealGame family D n) = … nonceFnDistinguisher … (forger
 n)`, from the Carter–Wegman theorems that #5347 deleted), so that the theorem takes the reduction
-from the caller. The Lean file's docstring gives the exact rules and the known gaps.
+from the caller. A realization by a program that no premise certifies is flagged too, as
+`uncertified realization`, when the conclusion bounds an advantage by that of a constructed object
+built from the program (`htest : ∀ padSeq, counterPadSeqDistinguisher … forger padSeq = eval (test n
+padSeq)` beside a bound by `prfMultiPadDistinguisher Q nonce test`, from the Carter–Wegman lemmas
+that #6016 deleted). The Lean file's docstring gives the exact rules and the known gaps.
 
 `scripts/security_premises_baseline.json` records the flagged theorems that are allowed, one per
-line, as `{theorem: {"module": source path, "premises": [binder names], "why": justification}}`.
+line, as `{theorem: {"module": source path, "premises": [binder names], "why": justification}}`,
+with an optional `"discharged_by": theorem` (below).
 The conclusion counts as the premise `⊢`, and a premise without an accessible name, such as one
 written with an arrow, as `#i` for the theorem's `i`-th binder. An entry is a deliberately
 conditional lemma, named and documented as such (an *algebraic helper*, such as a concrete bound
@@ -39,6 +44,11 @@ a premise that the rule allows but the checker cannot tell apart (a named assump
 component the scheme uses, such as circular security or collision resistance of its hash, or the
 hypothesis of a cited generic theorem), or a misformalization being fixed under #5293. Every entry
 needs a one-line justification.
+
+An entry whose premise a named theorem discharges says so with `discharged_by`, and the reader
+verifies it: the named theorem must use the flagged theorem in its statement or proof (directly or
+through other declarations of the library) and must not carry the flagged premise itself. An entry
+whose `discharged_by` fails these checks fails in the enforced modules.
 
 In a module that the change touches (adds, modifies or deletes, against the merge base of
 `--base`, default `origin/main`, and the working tree, as `scripts/check_changed_files.py`
@@ -91,6 +101,8 @@ CHECKER_FILES = frozenset({TOOL, "scripts/check_security_premises.py",
 UPDATE = "python3 scripts/check_security_premises.py --update-baseline"
 RULE = "AGENTS.md, Security theorems"
 CONCLUSION = "⊢"
+FIELDS = {"module", "premises", "why"}
+DISCHARGED = "discharged_by"
 
 
 @dataclass(frozen=True)
@@ -114,10 +126,15 @@ def library_modules(root: Path) -> list[str]:
 
 
 def parse(output: str) -> tuple[dict[str, Hit], dict]:
-    """The hits and the summary line of `scripts/SecurityPremises.lean`'s output."""
-    hits, summary = {}, {}
+    """The hits and the summary line of `scripts/SecurityPremises.lean`'s output. The verdicts on
+    `discharged_by` requests are in the summary, as `summary["discharged"]`: `{theorem: (named
+    theorem, [problems])}`."""
+    hits, summary, discharged = {}, {}, {}
     for line in output.splitlines():
         row = json.loads(line)
+        if "d" in row:
+            discharged[row["d"]] = (row["by"], list(row["p"]))
+            continue
         if "n" not in row:
             summary = row
             continue
@@ -127,43 +144,57 @@ def parse(output: str) -> tuple[dict[str, Hit], dict]:
             premises[h["b"]] = (tuple(dict.fromkeys(kinds + tuple(h["k"]))),
                                 tuple(dict.fromkeys(consts + tuple(h["c"]))))
         hits[row["n"]] = Hit(row["n"], module_path(row["m"]), row["l"], premises)
+    summary["discharged"] = discharged
     return hits, summary
 
 
-def scan(root: Path, build_dir: Path) -> dict[str, Hit]:
-    """Run the Lean reader over every library module."""
+def requests(baseline: dict[str, dict]) -> list[str]:
+    """The reader's input lines that ask it to verify the baseline's `discharged_by` entries."""
+    return [f"discharged\t{name}\t{entry[DISCHARGED]}"
+            for name, entry in sorted(baseline.items()) if DISCHARGED in entry]
+
+
+def scan(root: Path, build_dir: Path, asks: list[str] = ()) -> tuple[dict[str, Hit], dict]:
+    """Run the Lean reader over every library module, with the requests `asks`; the hits and the
+    verdicts on the requests (`parse`)."""
     modules = library_modules(root)
     out = subprocess.run(["lake", "env", "lean", "--run", TOOL, str(build_dir)], cwd=root,
-                         input="\n".join(modules) + "\n", capture_output=True, text=True)
+                         input="\n".join(modules + list(asks)) + "\n", capture_output=True,
+                         text=True)
     if out.returncode:
         sys.exit(f"{TOOL} failed:\n{out.stderr or out.stdout}")
     hits, summary = parse(out.stdout)
     if summary.get("missing"):
         sys.exit(f"build outputs are missing for {len(summary['missing'])} module(s), e.g. "
                  f"{summary['missing'][0]}; run `lake build CslibFrontier` first")
-    return hits
+    return hits, summary["discharged"]
 
 
 def load_baseline(path: Path) -> dict[str, dict]:
     data = json.loads(path.read_text(encoding="utf-8"))
     ok = isinstance(data, dict) and all(
-        isinstance(v, dict) and set(v) == {"module", "premises", "why"}
+        isinstance(v, dict) and set(v) - {DISCHARGED} == FIELDS
         and isinstance(v["module"], str) and isinstance(v["why"], str)
         and isinstance(v["premises"], list) and all(isinstance(p, str) for p in v["premises"])
+        and (isinstance(v.get(DISCHARGED, "x"), str) and v.get(DISCHARGED, "x") != "")
         for v in data.values())
     if not ok:
         sys.exit(f"{path}: expected a JSON object from theorem names to "
-                 '{"module": path, "premises": [binders], "why": justification}')
+                 '{"module": path, "premises": [binders], "why": justification}, with an optional '
+                 '"discharged_by": theorem')
     return data
 
 
 def baseline_text(entries: dict[str, dict]) -> str:
     """One entry per line, grouped by module, so concurrent edits rarely touch the same lines."""
     order = sorted(entries, key=lambda n: (entries[n]["module"], n))
+    def fields(entry: dict) -> dict:
+        out = {"module": entry["module"], "premises": sorted(entry["premises"])}
+        if DISCHARGED in entry:
+            out[DISCHARGED] = entry[DISCHARGED]
+        return out | {"why": entry["why"]}
     lines = [f" {json.dumps(n, ensure_ascii=False)}: "
-             + json.dumps({"module": entries[n]["module"],
-                           "premises": sorted(entries[n]["premises"]),
-                           "why": entries[n]["why"]}, ensure_ascii=False)
+             + json.dumps(fields(entries[n]), ensure_ascii=False)
              for n in order]
     return "{\n" + ",\n".join(lines) + ("\n" if lines else "") + "}\n"
 
@@ -171,21 +202,25 @@ def baseline_text(entries: dict[str, dict]) -> str:
 @dataclass(frozen=True)
 class Problems:
     """Differences from the baseline: unrecorded flagged premises as `(hit, binders)`, entries
-    that no longer match as `(theorem, entry, stale binders)`, and entries without a
-    justification."""
+    that no longer match as `(theorem, entry, stale binders)`, entries without a justification,
+    and entries whose `discharged_by` does not hold as `(theorem, named theorem, problems)`."""
     new: list[tuple[Hit, list[str]]]
     stale: list[tuple[str, dict, list[str]]]
     unjustified: list[str]
+    undischarged: list[tuple[str, str, list[str]]] = ()
 
     def __bool__(self) -> bool:
-        return bool(self.new or self.stale or self.unjustified)
+        return bool(self.new or self.stale or self.unjustified or self.undischarged)
 
 
-def compare(hits: dict[str, Hit], baseline: dict[str, dict], paths: set[str] | None) -> Problems:
-    """The differences in the modules `paths` (every module when `None`)."""
+def compare(hits: dict[str, Hit], baseline: dict[str, dict], paths: set[str] | None,
+            discharged: dict[str, tuple[str, list[str]]] | None = None) -> Problems:
+    """The differences in the modules `paths` (every module when `None`), with the reader's
+    verdicts on the `discharged_by` entries (`discharged`)."""
     def scoped(path: str) -> bool:
         return paths is None or path in paths
-    new, stale, unjustified = [], [], []
+    discharged = discharged or {}
+    new, stale, unjustified, undischarged = [], [], [], []
     for name, hit in sorted(hits.items(), key=lambda i: (i[1].path, i[1].line, i[0])):
         if not scoped(hit.path):
             continue
@@ -202,14 +237,21 @@ def compare(hits: dict[str, Hit], baseline: dict[str, dict], paths: set[str] | N
             stale.append((name, entry, gone))
         if not entry["why"].strip():
             unjustified.append(name)
-    return Problems(new, stale, unjustified)
+        if DISCHARGED in entry:
+            named, problems = discharged.get(name, (entry[DISCHARGED], ["not verified"]))
+            if named != entry[DISCHARGED]:
+                problems = ["not verified"]
+            if problems:
+                undischarged.append((name, entry[DISCHARGED], problems))
+    return Problems(new, stale, unjustified, undischarged)
 
 
 def outside(everywhere: Problems, here: Problems) -> Problems:
     """The differences of `everywhere` that are not in `here`."""
     return Problems([p for p in everywhere.new if p not in here.new],
                     [p for p in everywhere.stale if p not in here.stale],
-                    [p for p in everywhere.unjustified if p not in here.unjustified])
+                    [p for p in everywhere.unjustified if p not in here.unjustified],
+                    [p for p in everywhere.undischarged if p not in here.undischarged])
 
 
 def checker_changed(root: Path, ref: str) -> bool:
@@ -250,6 +292,13 @@ def report(problems: Problems) -> str:
     if problems.unjustified:
         out += ([""] if out else []) + ["Baseline entries without a justification (`why`):"]
         out += [f"  {name}" for name in problems.unjustified]
+    if problems.undischarged:
+        out += ([""] if out else []) + [
+            "Baseline entries whose `discharged_by` theorem does not discharge the premise: it "
+            "must use the flagged theorem and must not carry the premise itself. Name the theorem "
+            "that does, or justify the entry without `discharged_by`:"]
+        for name, named, why in problems.undischarged:
+            out.append(f"  {name}: {named}: {'; '.join(why)}")
     return "\n".join(out)
 
 
@@ -273,6 +322,8 @@ def update(hits: dict[str, Hit], baseline: dict[str, dict], paths: set[str] | No
             old = baseline.get(name, {})
             updated[name] = {"module": hit.path, "premises": sorted(hit.premises),
                              "why": old.get("why", "")}
+            if DISCHARGED in old:
+                updated[name][DISCHARGED] = old[DISCHARGED]
     return updated
 
 
@@ -300,11 +351,11 @@ def main(argv: list[str] | None = None) -> int:
     if not args.no_build_check and not lo.lake_outputs_current(("CslibFrontier",)):
         sys.exit("build outputs are missing or stale; run `lake build CslibFrontier` "
                  "(or pass --no-build-check)")
-    hits = scan(ROOT, lo.DEFAULT_BUILD_DIR)
+    baseline = load_baseline(args.baseline) if args.baseline.exists() else {}
+    hits, discharged = scan(ROOT, lo.DEFAULT_BUILD_DIR, requests(baseline))
     if args.list is not None:
         print(listing(hits, args.list))
         return 0
-    baseline = load_baseline(args.baseline) if args.baseline.exists() else {}
     whole = args.all or args.report
     if not whole and checker_changed(ROOT, args.base):
         whole = True
@@ -319,7 +370,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Wrote {args.baseline} for {scope_text}."
               + (f" Fill in `why` for: {', '.join(empty)}." if empty else ""))
         return 0
-    problems = compare(hits, baseline, paths)
+    problems = compare(hits, baseline, paths, discharged)
     status = (f"{len(hits)} flagged theorem(s), {len(baseline)} baseline entries, "
               f"checking {scope_text}")
     if args.report:
@@ -327,14 +378,16 @@ def main(argv: list[str] | None = None) -> int:
             print(report(problems) + "\n")
         print(f"{status}; report only, nothing is enforced.")
         return 0
-    elsewhere = outside(compare(hits, baseline, None), problems) if paths is not None else None
+    elsewhere = (outside(compare(hits, baseline, None, discharged), problems)
+                 if paths is not None else None)
     if elsewhere:
         print("Not enforced: differences from the baseline in modules this change does not touch. "
               "They fail the next change to those modules. A change can cause them without "
               "touching those modules, for example by changing a definition that a flagged "
               "premise unfolds; if this one did, fix them here.\n\n" + report(elsewhere) + "\n")
         if os.environ.get("GITHUB_ACTIONS") == "true":
-            count = len(elsewhere.new) + len(elsewhere.stale) + len(elsewhere.unjustified)
+            count = (len(elsewhere.new) + len(elsewhere.stale) + len(elsewhere.unjustified)
+                     + len(elsewhere.undischarged))
             print(f"::notice title=Security premises::{count} difference(s) from the baseline in "
                   "modules this change does not touch; see the step log.")
     if problems:

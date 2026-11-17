@@ -75,7 +75,9 @@ pins each one.
   proof of knowledge) is a bound variable, so it never counts.
 * A realization (below) stated other than as an equation, such as an inequality, a predicate of
   the library or a bundled certified program, or whose constructed side applies the constructed
-  constant to no other variable of the theorem, is not seen.
+  constant to no other variable of the theorem, is not seen. Nor is one by a program that no
+  premise certifies when the theorem concludes no advantage bound built from that program, such
+  as a lemma that only identifies the law of a reduction.
 
 Conversely, a named assumption instantiated at an object of the library, such as `DDH G` for a
 group family `G` that the library defines, is flagged through its unfolding. Such a premise is
@@ -99,10 +101,32 @@ that variable too. For example, the Carter–Wegman theorems that #5347 deleted 
 (forger n))` beside `hD`, which is flagged with the constant `nonceFnDistinguisher`. An equation
 between variables only, such as a word program computing a caller's typed simulator, is not.
 
+**Realizations by an uncertified program.** The same equation is flagged, with the kind
+`uncertified realization`, for a variable `x` that no premise certifies, when `x` is a *program
+variable* (`programVariable`, as for `--reductions` below) and the conclusion builds a constructed
+object from it (`buildsFrom`): `x` occurs inside a constructed constant on a side of an advantage
+atom of the conclusion. The theorem then bounds an advantage by that of a reduction assembled from
+the caller's program, and takes the program's correctness from the caller. The Carter–Wegman
+counter lemmas that #6016 deleted had this shape: `htest : ∀ padSeq, counterPadSeqDistinguisher seed
+hash forger padSeq = ProbComp.eval (test n padSeq)` beside a bound by the advantage of
+`prfMultiPadDistinguisher Q nonce test`. Without the condition on the conclusion an uncertified
+equation is not flagged, since simulation and bridge lemmas state many equations about programs
+from which they build no reduction.
+
 It prints one JSON line per theorem with a flagged premise or conclusion,
 `{"n": theorem, "m": module, "l": line, "h": [{"b": binder, "k": [kinds], "c": [constructed
 constants]}]}`, and finally `{"theorems": scanned, "modules": read, "missing": [modules without
 build outputs]}`.
+
+**Discharged premises.** An input line `discharged\t<theorem>\t<discharging theorem>` asks the
+scan to verify a `discharged_by` baseline entry (`checkDischarge`): a conditional lemma whose
+flagged premise a named theorem discharges. The discharging theorem must be a theorem other than
+the flagged one whose statement or proof uses the flagged theorem, directly or through other
+declarations of the scanned modules (`proofPath`), and it must not carry the flagged premise
+itself: none of its flagged premises has the same kind (without `unfolded ` or `uncertified `)
+about one of the same constructed constants. For each request it prints `{"d": theorem, "by":
+discharging theorem, "p": [problems]}` before the summary line. A use is a syntactic test: the
+checks do not judge which instance the discharging theorem uses.
 
 **Reductions.** With `--reductions` (`lake env lean --run scripts/SecurityPremises.lean
 <lib-dir> --reductions`), for `scripts/check_reduction_witnesses.py`, it reports the explicit
@@ -658,7 +682,9 @@ unsafe def reducibles (entries : Array (Name × Array EnvExtensionEntry)) : Arra
 /-- Read the modules listed on standard input, one per line. A line `<dir>\t<module>` reads a
 *context* module from another build directory, such as CSLib's: its constants are in the
 environment, so definitions can be followed into it, but its theorems are not scanned. A line
-that starts with `via\t` is a request of the `--reductions` mode (`checkVia`), not a module.
+that starts with `via\t` is a request of the `--reductions` mode (`checkVia`), and one that starts
+with `discharged\t` a request of the premise scan (`checkDischarge`), kept with its tag; neither is
+a module.
 Returns the environment, the scanned modules, the compacted regions (to keep reachable while their
 expressions are used), the modules without build outputs and the requests. -/
 unsafe def load (libDir : System.FilePath) :
@@ -677,6 +703,9 @@ unsafe def load (libDir : System.FilePath) :
     if raw.isEmpty then continue
     if let "via" :: fields := raw.splitOn "\t" then
       requests := requests.push fields.toArray
+      continue
+    if let "discharged" :: fields := raw.splitOn "\t" then
+      requests := requests.push (#["discharged"] ++ fields.toArray)
       continue
     let (dir, mod, scan) := match raw.splitOn "\t" with
       | [dir, mod] => ((dir : System.FilePath), mod, false)
@@ -706,61 +735,6 @@ unsafe def load (libDir : System.FilePath) :
     for (n, r) in declRanges data.entries do
       env := { env with lines := env.lines.insert n r.selectionRange.pos.line }
   return (env, mods, regions, missing, requests)
-
-unsafe def run (libDir : System.FilePath) : IO Unit := do
-  let stdout ← IO.getStdout
-  let (env, mods, regions, missing, _) ← load libDir
-  let mut scanned := 0
-  for (m, data) in mods do
-    let ranges := declRanges data.entries
-    for c in data.constants do
-      let .thmInfo v := c | continue
-      if isPrivateName c.name || isGenerated c.name || env.skip.contains c.name then continue
-      unless inScope m c.name do continue
-      scanned := scanned + 1
-      let mut hyps : Array Json := #[]
-      let mut t := v.type
-      let mut index := 0
-      -- The theorem's variables, and its premises as `(binder label, type)`.
-      let mut vars : Array FVarId := #[]
-      let mut premises : Array (String × Expr) := #[]
-      repeat
-        match t with
-        | .mdata _ b => t := b
-        | .forallE n ty b bi =>
-          index := index + 1
-          unless bi.isInstImplicit do
-            premises := premises.push (binderLabel n index, ty)
-            let fs := findings env 3 none ty
-            unless fs.isEmpty do
-              let kinds := (fs.map (·.1)).toList.eraseDups
-              let cs := (fs.foldl (fun acc (_, cs) => acc ++ cs) #[]).toList.eraseDups
-              hyps := hyps.push <| Json.mkObj [("b", toJson (binderLabel n index)),
-                ("k", toJson kinds), ("c", toJson (cs.map (privateToUserName · |>.toString)))]
-          let x : FVarId := ⟨.num `_binder index⟩
-          vars := vars.push x
-          t := b.instantiate1 (.fvar x)
-        | _ => break
-      let certified := premises.foldl (fun acc (_, ty) => acc ++ certifiedBy env vars ty) #[]
-      unless certified.isEmpty do
-        for (label, ty) in premises do
-          let cs := (realizations env certified vars ty).toList.eraseDups
-          unless cs.isEmpty do
-            hyps := hyps.push <| Json.mkObj [("b", toJson label), ("k", toJson ["realization"]),
-              ("c", toJson (cs.map (privateToUserName · |>.toString)))]
-      let cs := (existentialFindings env #[] 0 t).toList.eraseDups
-      unless cs.isEmpty do
-        hyps := hyps.push <| Json.mkObj [("b", toJson "⊢"),
-          ("k", toJson ["exists advantage"]),
-          ("c", toJson (cs.map (privateToUserName · |>.toString)))]
-      unless hyps.isEmpty do
-        let line := ((ranges.find? c.name).map (·.selectionRange.pos.line)).getD 0
-        stdout.putStrLn <| Json.compress <| Json.mkObj [("n", toJson c.name.toString),
-          ("m", toJson m.toString), ("l", toJson line), ("h", Json.arr hyps)]
-  stdout.putStrLn <| Json.compress <| Json.mkObj [("theorems", toJson scanned),
-    ("modules", toJson mods.size), ("missing", toJson missing)]
-  -- Keep the regions reachable until every expression has been used.
-  if regions.isEmpty then stdout.flush
 
 /-- The `--assumptions` mode (see the module docstring): every named assumption of the
 environment with its module, line and docstring, and every scanned theorem whose premises it
@@ -1016,6 +990,122 @@ def proofPath (env : Env) (scanned : NameSet) (h : Name) : NameSet := Id.run do
       seen := seen.insert u
       stack := stack.push u
   return seen
+
+/-! ### The premise scan, for `scripts/check_security_premises.py` -/
+
+/-- Whether the conclusion `t` builds a constructed object from the variable `x`: `x` occurs inside
+a constructed constant on a side of an advantage atom of `t`, as `test` does in
+`… ≤ ε + advantage (prfRealGame … (prfPadDistinguisher test)) …`. -/
+def buildsFrom (env : Env) (t : Expr) (x : FVarId) : Bool :=
+  (atoms t).any fun a =>
+    match classify env a with
+    | some ("advantage", sides) =>
+      sides.any fun side => !(((constructedWith env #[x] side).run {}).2.isEmpty)
+    | _ => false
+
+/-- A kind without its `unfolded ` or `uncertified ` qualifier. -/
+def baseKind (k : String) : String := (k.splitOn " ").getLastD k
+
+/-- Check a request `#[theorem, discharging theorem]` for a `discharged_by` baseline entry (see the
+module docstring). `marks` gives the scanned theorems' flagged premises as `(base kind, constructed
+constant)` pairs. -/
+def checkDischarge (env : Env) (scanned : NameSet)
+    (marks : Std.HashMap Name (Array (String × Name))) (st sx : String) : Array String := Id.run do
+  let t := st.toName
+  let x := sx.toName
+  let mut problems : Array String := #[]
+  unless env.consts.contains t do problems := problems.push s!"`{st}` does not exist"
+  match env.consts[x]? with
+  | some (.thmInfo _) =>
+    if x == t then
+      problems := problems.push s!"`{sx}` is the flagged theorem itself"
+    else unless (proofPath env scanned x).contains t do
+      problems := problems.push s!"`{sx}` does not use `{st}`: neither its statement nor its \
+        proof reaches it, directly or through other declarations of the scanned modules"
+    let own := marks.getD t #[]
+    let shared := (marks.getD x #[]).filter own.contains
+    unless shared.isEmpty do
+      let what := ", ".intercalate (shared.map fun (k, c) => s!"{k} about `{c}`").toList
+      problems := problems.push s!"`{sx}` carries the flagged premise itself ({what})"
+  | some _ => problems := problems.push s!"`{sx}` is not a theorem"
+  | none => problems := problems.push s!"`{sx}` does not exist"
+  return problems
+
+unsafe def run (libDir : System.FilePath) : IO Unit := do
+  let stdout ← IO.getStdout
+  let (env, mods, regions, missing, requests) ← load libDir
+  let mut scanned := 0
+  -- Each flagged theorem's premises as `(base kind, constructed constant)` pairs.
+  let mut marks : Std.HashMap Name (Array (String × Name)) := {}
+  for (m, data) in mods do
+    let ranges := declRanges data.entries
+    for c in data.constants do
+      let .thmInfo v := c | continue
+      if isPrivateName c.name || isGenerated c.name || env.skip.contains c.name then continue
+      unless inScope m c.name do continue
+      scanned := scanned + 1
+      let mut hyps : Array Json := #[]
+      let mut mark : Array (String × Name) := #[]
+      let mut t := v.type
+      let mut index := 0
+      -- The theorem's variables, and its premises as `(binder label, type)`.
+      let mut vars : Array FVarId := #[]
+      let mut types : Array Expr := #[]
+      let mut premises : Array (String × Expr) := #[]
+      repeat
+        match t with
+        | .mdata _ b => t := b
+        | .forallE n ty b bi =>
+          index := index + 1
+          unless bi.isInstImplicit do
+            premises := premises.push (binderLabel n index, ty)
+            let fs := findings env 3 none ty
+            unless fs.isEmpty do
+              let kinds := (fs.map (·.1)).toList.eraseDups
+              let cs := (fs.foldl (fun acc (_, cs) => acc ++ cs) #[]).toList.eraseDups
+              hyps := hyps.push <| Json.mkObj [("b", toJson (binderLabel n index)),
+                ("k", toJson kinds), ("c", toJson (cs.map (privateToUserName · |>.toString)))]
+              for (k, ks) in fs do
+                for c' in ks do mark := mark.push (baseKind k, c')
+          let x : FVarId := ⟨.num `_binder index⟩
+          vars := vars.push x
+          types := types.push ty
+          t := b.instantiate1 (.fvar x)
+        | _ => break
+      let certified := premises.foldl (fun acc (_, ty) => acc ++ certifiedBy env vars ty) #[]
+      -- The caller's programs that no premise certifies but that the conclusion builds a
+      -- constructed object from.
+      let callers := ((vars.zip types).filter fun (x, ty) =>
+        !certified.contains x && programVariable env ty && buildsFrom env t x).map (·.1)
+      let passes := [(certified, "realization"), (callers, "uncertified realization")]
+      for (candidates, kind) in passes do
+        if candidates.isEmpty then continue
+        for (label, ty) in premises do
+          let cs := (realizations env candidates vars ty).toList.eraseDups
+          unless cs.isEmpty do
+            hyps := hyps.push <| Json.mkObj [("b", toJson label), ("k", toJson [kind]),
+              ("c", toJson (cs.map (privateToUserName · |>.toString)))]
+            for c' in cs do mark := mark.push (baseKind kind, c')
+      let cs := (existentialFindings env #[] 0 t).toList.eraseDups
+      unless cs.isEmpty do
+        hyps := hyps.push <| Json.mkObj [("b", toJson "⊢"),
+          ("k", toJson ["exists advantage"]),
+          ("c", toJson (cs.map (privateToUserName · |>.toString)))]
+        for c' in cs do mark := mark.push ("advantage", c')
+      unless mark.isEmpty do marks := marks.insert c.name mark
+      unless hyps.isEmpty do
+        let line := ((ranges.find? c.name).map (·.selectionRange.pos.line)).getD 0
+        stdout.putStrLn <| Json.compress <| Json.mkObj [("n", toJson c.name.toString),
+          ("m", toJson m.toString), ("l", toJson line), ("h", Json.arr hyps)]
+  let scannedModules : NameSet := mods.foldl (fun s (m, _) => s.insert m) {}
+  for fields in requests do
+    let #["discharged", st, sx] := fields | continue
+    stdout.putStrLn <| Json.compress <| Json.mkObj [("d", toJson st), ("by", toJson sx),
+      ("p", toJson (checkDischarge env scannedModules marks st sx))]
+  stdout.putStrLn <| Json.compress <| Json.mkObj [("theorems", toJson scanned),
+    ("modules", toJson mods.size), ("missing", toJson missing)]
+  -- Keep the regions reachable until every expression has been used.
+  if regions.isEmpty then stdout.flush
 
 /-- Why a theorem type is not *concrete*, or nothing when it is: a premise whose claim atoms are
 headed by a named assumption (`assumptionHeads`, which sees through the Prop-valued definitions of
@@ -1324,6 +1414,7 @@ unsafe def runReductions (libDir : System.FilePath) : IO Unit := do
     for (c, _) in env.consts do
       if isPrivateName c then privateNames := privateNames.insert (privateToUserName c)
   for fields in requests do
+    if fields[0]? == some "discharged" then continue
     stdout.putStrLn <| Json.compress <| checkVia env privateNames mods witnessed fields
   stdout.putStrLn <| Json.compress <| Json.mkObj [("theorems", toJson scanned),
     ("modules", toJson mods.size), ("missing", toJson missing)]
