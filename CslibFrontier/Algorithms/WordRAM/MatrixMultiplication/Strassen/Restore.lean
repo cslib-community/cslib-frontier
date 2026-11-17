@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.State
 import Mathlib.Tactic.FinCases
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Actual parent-frame restoration after a Strassen child
@@ -74,15 +75,15 @@ theorem exec_restore_parent {w p k a b out scratch frames frame : ℕ}
     scratch_eq := by simpa [field, hp.scratch_eq] using hfields 3
     depth_eq := by simpa [field, hp.depth_eq] using hfields 4
     size_eq := by simpa [field, hp.size_eq] using hfields 5
-    modulus_eq := (regs Reg.modulus (by decide)).trans hchild.modulus_eq
-    frames_eq := (regs Reg.frames (by decide)).trans hchild.frames_eq
-    frame_eq := (regs Reg.frame (by decide)).trans hreturn
+    modulus_eq := by regs_frame
+    frames_eq := by regs_frame
+    frame_eq := by regs_frame
     active_eq := (regs Reg.active (by decide)).trans (by
       simpa only [hlt, ite_true] using hchild.active_eq)
-    zero_eq := (regs Reg.zero (by decide)).trans hchild.zero_eq
-    one_eq := (regs Reg.one (by decide)).trans hchild.one_eq
-    four_eq := (regs Reg.four (by decide)).trans hchild.four_eq
-    frameWidth_eq := (regs Reg.frameWidth (by decide)).trans hchild.frameWidth_eq }
+    zero_eq := by regs_frame
+    one_eq := by regs_frame
+    four_eq := by regs_frame
+    frameWidth_eq := by regs_frame }
   refine ⟨y, hy, hm, hyheader, hyphase, ?_, regs⟩
   intro j
   rw [hm, ← hreturn, fields j]

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Initialize
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Bounds
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Internal explicit-stack Strassen invariants
@@ -133,42 +134,14 @@ structure NodeHeader (p k a b out scratch frames frame : ℕ) (x : Data 64) : Pr
 theorem NodeHeader.of_regs_eq {p k a b out scratch frames frame : ℕ} {x y : Data 64}
     (h : NodeHeader p k a b out scratch frames frame x)
     (hr : ∀ i, 32 ≤ i.val → i.val < 50 → y.regs i = x.regs i) :
-    NodeHeader p k a b out scratch frames frame y :=
-  ⟨(hr _ (by decide) (by decide)).trans h.inputA_eq,
-    (hr _ (by decide) (by decide)).trans h.inputB_eq,
-    (hr _ (by decide) (by decide)).trans h.output_eq,
-    (hr _ (by decide) (by decide)).trans h.scratch_eq,
-    (hr _ (by decide) (by decide)).trans h.modulus_eq,
-    (hr _ (by decide) (by decide)).trans h.depth_eq,
-    (hr _ (by decide) (by decide)).trans h.size_eq,
-    (hr _ (by decide) (by decide)).trans h.frames_eq,
-    (hr _ (by decide) (by decide)).trans h.frame_eq,
-    (hr _ (by decide) (by decide)).trans h.active_eq,
-    (hr _ (by decide) (by decide)).trans h.zero_eq,
-    (hr _ (by decide) (by decide)).trans h.one_eq,
-    (hr _ (by decide) (by decide)).trans h.four_eq,
-    (hr _ (by decide) (by decide)).trans h.frameWidth_eq⟩
+    NodeHeader p k a b out scratch frames frame y := by regs_frame
 
 /-- Frame loads and output clearing may change the two cursors, which are not parameters
 of the current node. All actual header fields are preserved. -/
 theorem NodeHeader.of_regs_eq_cursors {p k a b out scratch frames frame : ℕ} {x y : Data 64}
     (h : NodeHeader p k a b out scratch frames frame x)
     (hr : ∀ i, i ≠ Reg.address → i ≠ Reg.index → y.regs i = x.regs i) :
-    NodeHeader p k a b out scratch frames frame y :=
-  ⟨(hr _ (by decide) (by decide)).trans h.inputA_eq,
-    (hr _ (by decide) (by decide)).trans h.inputB_eq,
-    (hr _ (by decide) (by decide)).trans h.output_eq,
-    (hr _ (by decide) (by decide)).trans h.scratch_eq,
-    (hr _ (by decide) (by decide)).trans h.modulus_eq,
-    (hr _ (by decide) (by decide)).trans h.depth_eq,
-    (hr _ (by decide) (by decide)).trans h.size_eq,
-    (hr _ (by decide) (by decide)).trans h.frames_eq,
-    (hr _ (by decide) (by decide)).trans h.frame_eq,
-    (hr _ (by decide) (by decide)).trans h.active_eq,
-    (hr _ (by decide) (by decide)).trans h.zero_eq,
-    (hr _ (by decide) (by decide)).trans h.one_eq,
-    (hr _ (by decide) (by decide)).trans h.four_eq,
-    (hr _ (by decide) (by decide)).trans h.frameWidth_eq⟩
+    NodeHeader p k a b out scratch frames frame y := by regs_frame
 
 /-- Actual current fields and frame words at a newly entered root or pushed child. -/
 structure NodeReady (p k a b out scratch frames frame : ℕ) (x : Data 64) : Prop

@@ -208,10 +208,7 @@ private theorem satisfies_ofInteger_iff (P : IntegerProgram) (x : Fin P.numVars 
 
 open scoped IntegerProgram in
 private theorem poly_ofInteger : ComputableInPolyTime ofInteger IntegerProgram.enc enc := by
-  unfold ofInteger
-  apply enc_mk_polyTime (by fun_prop)
-  apply mapWithInput (by fun_prop)
-  fun_prop
+  fun_prop [ofInteger]
 
 private theorem ofZeroOne_mem_iff (C : List ZeroOneIP.Equation) :
     ofInteger (IntegerProgram.ofZeroOne C) ∈ Feasible ↔ C ∈ ZeroOneIP := by

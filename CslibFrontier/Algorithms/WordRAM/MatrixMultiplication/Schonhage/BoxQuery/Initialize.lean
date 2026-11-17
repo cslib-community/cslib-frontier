@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxQuery.StackMemory
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxQuery.Parameters
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Actual root-task initialization
@@ -37,10 +38,8 @@ theorem exec_setup {w L t Q AA BB D V K : ℕ} (x : Data registers) (η : OutStr
       y.mem = writeTask (V + K) 0 0 0 0 0 1 x.mem := by
   obtain ⟨u, hu, u0, u1, u10, u9, _, um, uf⟩ := BoxTable.exec_constants x
     (hfit.of_le ((by decide : 10 ≤ 20).trans (Nat.le_add_left _ _)))
-  have uV : u.regs BoxTable.Reg.values = V :=
-    (uf _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans hV
-  have uK : u.regs BoxTable.Reg.count = K :=
-    (uf _ (by decide) (by decide) (by decide) (by decide) (by decide)).trans hK
+  have uV : u.regs BoxTable.Reg.values = V := by regs_frame
+  have uK : u.regs BoxTable.Reg.count = K := by regs_frame
   have hf0 : Fits w 0 := hfit.of_le (Nat.zero_le _)
   have hfF : Fits w (V + K) := hfit.of_le (by omega)
   let v0 := ((u.set Reg.five 5).set Reg.answer 0).set Reg.stack (V + K)
@@ -51,13 +50,6 @@ theorem exec_setup {w L t Q AA BB D V K : ℕ} (x : Data registers) (η : OutStr
       Reg.five, Reg.answer, Reg.stack, Reg.top, Reg.depth, Reg.childCode,
       Reg.childUsed, Reg.childStars, Reg.childPower, BoxTable.Reg.values,
       BoxTable.Reg.count, Fin.mk.injEq]
-  have vframe (i : Fin registers) (hi : setupScalars.Preserves i) : v.regs i = u.regs i :=
-    hv.regs_eq hi
-  have vu (i : Fin registers) (hi : setupScalars.Preserves i)
-      (h0 : i ≠ BoxTable.Reg.nil) (h1 : i ≠ BoxTable.Reg.one)
-      (h10 : i ≠ BoxTable.Reg.ten) (h9 : i ≠ BoxTable.Reg.nine)
-      (h3 : i ≠ BoxTable.Reg.three) : v.regs i = x.regs i :=
-    (vframe i hi).trans (uf i h0 h1 h10 h9 h3)
   obtain ⟨y, hy, hyt, hym, hyf⟩ :=
     exec_push (F := V + K) (n := 0) (k := 0) (c := 0) (u := 0) (e := 0) (p := 1) v
     (by simp [v, v1, v0, Reg.stack, Reg.top, Reg.depth, Reg.childCode,
@@ -70,43 +62,29 @@ theorem exec_setup {w L t Q AA BB D V K : ℕ} (x : Data registers) (η : OutStr
     (by simp [v, Reg.childStars, Reg.childPower]) (by simp [v])
     (by simp [v, v1, v0, Reg.five, Reg.answer, Reg.stack, Reg.top, Reg.depth,
       Reg.childCode, Reg.childUsed, Reg.childStars, Reg.childPower])
-    ((vframe _ (by decide)).trans u1) (hfit.of_le (by omega))
+    (by regs_frame) (hfit.of_le (by omega))
   have he : ExecWithin w setup x y 26 := hu.seq (hv.seq hy)
-  have yp (i : Fin registers) (hi : ¬PushLocal i) (hi' : setupScalars.Preserves i)
-      (h0 : i ≠ BoxTable.Reg.nil) (h1 : i ≠ BoxTable.Reg.one)
-      (h10 : i ≠ BoxTable.Reg.ten) (h9 : i ≠ BoxTable.Reg.nine)
-      (h3 : i ≠ BoxTable.Reg.three) : y.regs i = x.regs i :=
-    (hyf i hi).trans (vu i hi' h0 h1 h10 h9 h3)
   refine ⟨y, he, ?_, hyt, ?_, ?_, ?_⟩
   · constructor
-    · exact (yp _ (by decide) (by decide) (by decide) (by decide)
-        (by decide) (by decide) (by decide)).trans hL
-    · exact (yp _ (by decide) (by decide) (by decide) (by decide)
-        (by decide) (by decide) (by decide)).trans ht
-    · exact (yp _ (by decide) (by decide) (by decide) (by decide)
-        (by decide) (by decide) (by decide)).trans hT
-    · exact (yp _ (by decide) (by decide) (by decide) (by decide)
-        (by decide) (by decide) (by decide)).trans hQ
-    · exact (yp _ (by decide) (by decide) (by decide) (by decide)
-        (by decide) (by decide) (by decide)).trans hA
-    · exact (yp _ (by decide) (by decide) (by decide) (by decide)
-        (by decide) (by decide) (by decide)).trans hB
-    · exact (yp _ (by decide) (by decide) (by decide) (by decide)
-        (by decide) (by decide) (by decide)).trans hD
-    · exact (yp _ (by decide) (by decide) (by decide) (by decide)
-        (by decide) (by decide) (by decide)).trans hV
-    · exact (yp _ (by decide) (by decide) (by decide) (by decide)
-        (by decide) (by decide) (by decide)).trans hK
+    · regs_frame
+    · regs_frame
+    · regs_frame
+    · regs_frame
+    · regs_frame
+    · regs_frame
+    · regs_frame
+    · regs_frame
+    · regs_frame
     · rw [hyf _ (by decide)]
       simp [v, v1, v0, Reg.stack, Reg.top, Reg.depth, Reg.childCode,
         Reg.childUsed, Reg.childStars, Reg.childPower, Reg.five, Reg.answer]
     · rw [hyf _ (by decide)]
       simp [v, v1, v0, Reg.five, Reg.answer, Reg.stack, Reg.top, Reg.depth,
         Reg.childCode, Reg.childUsed, Reg.childStars, Reg.childPower]
-    · exact (hyf _ (by decide)).trans ((vframe _ (by decide)).trans u1)
-    · exact (hyf _ (by decide)).trans ((vframe _ (by decide)).trans u10)
-    · exact (hyf _ (by decide)).trans ((vframe _ (by decide)).trans u9)
-    · exact (hyf _ (by decide)).trans ((vframe _ (by decide)).trans u0)
+    · regs_frame
+    · regs_frame
+    · regs_frame
+    · regs_frame
   · rw [hyf _ (by decide)]
     simp [v, v1, v0, Reg.answer, Reg.stack, Reg.five, Reg.top, Reg.depth,
       Reg.childCode, Reg.childUsed, Reg.childStars, Reg.childPower, Signed.encode]
