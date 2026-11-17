@@ -12,7 +12,6 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Pi
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.EqualityPrimitives
 import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Tactic.EncLen
@@ -131,15 +130,6 @@ private theorem freeVarStep_pt :
   finite_cases (tagEncoding := encKind) (tag := fun p : List (List ℕ) × (QBF.Kind × ℕ) => p.2.1)
     (branch := fun k p => QBF.freeVarStepAt k p.2.2 p.1) (by fun_prop) freeVarStepAt_pt
 
-/-- Keeping some elements of a list does not lengthen its encoding. -/
-private theorem length_encList_filter_le {α : Type} (enc : α ↪ List Bool) (l : List α)
-    (f : α → Bool) : (encList enc (l.filter f)).length ≤ (encList enc l).length := by
-  induction l with
-  | nil => simp
-  | cons a l ih =>
-    rw [List.filter_cons]
-    split_ifs <;> enc_len
-
 /-- One step of the scan adds at most the encoding of its token, up to a constant. -/
 private theorem length_freeVarStep_le (stack : List (List ℕ)) (t : QBF.Kind × ℕ) :
     (encList (encList encNat) (QBF.freeVarStep stack t)).length ≤
@@ -161,7 +151,8 @@ private theorem length_freeVarStep_le (stack : List (List ℕ)) (t : QBF.Kind ×
   | ex | all =>
     rcases stack with _ | ⟨a, stack⟩
     · simp [QBF.freeVarStep, QBF.freeVarStepAt]
-    · have := length_encList_filter_le encNat a (fun x => !decide (x = v))
+    · have := length_encList_sublist encNat
+        (List.filter_sublist (l := a) (p := fun x => !decide (x = v)))
       simp only [QBF.freeVarStep, QBF.freeVarStepAt, List.headD_cons, List.tail_cons]
       enc_len
 
@@ -180,12 +171,9 @@ theorem computableInPolyTime_decide_closed :
       (by growth_poly) ?_
     · exact freeVarStep_pt.comp ((fst (encPair encBool _) encToken).snd'.prod (snd _ _))
     · intro φ stack t ht
-      refine (length_freeVarStep_le stack t).trans (Nat.add_le_add_right
-        (Nat.add_le_add_left (Nat.mul_le_mul_left 4 ?_) _) 3)
-      rw [List.mem_reverse] at ht
-      rw [encQBF_apply, length_encList]
-      exact (Nat.le_succ_of_le (Nat.le_mul_of_pos_left _ two_pos)).trans
-        (List.le_sum_of_mem (List.mem_map_of_mem ht))
+      have := length_freeVarStep_le stack t
+      have := length_le_encList_of_mem encToken (List.mem_reverse.mp ht)
+      enc_len [encQBF_apply]
   fun_prop
 
 end Cslib.Complexity.TQBF
