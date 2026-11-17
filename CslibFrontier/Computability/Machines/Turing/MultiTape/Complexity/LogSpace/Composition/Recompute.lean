@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Composition.SmallSpace
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
 import Mathlib.Data.Nat.Size
 
 /-!
@@ -42,13 +43,6 @@ namespace Turing.MultiTapeTM
 
 variable {α β γ : Type} {encIn : α ↪ List Bool} {encMid : β ↪ List Bool}
   {encOut : γ ↪ List Bool}
-
-/-- The binary length of `m + 1` is at least `log₂ m + 1`. -/
-private theorem log2_succ_le_length_encNat (m : ℕ) : Nat.log2 m + 1 ≤ (encNat (m + 1)).length := by
-  rw [encNat_apply, Nat.size_eq_bits_len, Nat.succ_le_iff, Nat.lt_size]
-  rcases Nat.eq_zero_or_pos m with rfl | hm
-  · simp
-  · exact (Nat.log2_self_le hm.ne').trans (Nat.le_succ m)
 
 /-- The binary length of `m + 1` is logarithmic in `n` when `m` is polynomial in `n`. -/
 private theorem length_encNat_succ_le {m n C d : ℕ} (h : m ≤ C * (n + 1) ^ d) :

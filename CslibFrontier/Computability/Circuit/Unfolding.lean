@@ -17,8 +17,8 @@ Every wire of a program carries the function of a formula: unfold the gates belo
 copying a gate once for each time it is read (`Program.wireFormula`). The formula of an output of a
 circuit (`Circuit.toFormula`) computes that output (`Circuit.eval_toFormula`) and has exactly its
 depth, whatever each operation costs (`Circuit.depthWith_toFormula`). Copying gates can make the
-formula exponentially larger than the circuit, but no larger than its depth allows: over a basis
-of fan-in at most `r ≥ 2`, the formula of an output of a circuit of depth `d` has fewer than
+formula exponentially larger than the circuit, but no larger than its depth allows: if every gate
+has fan-in at most `r ≥ 2`, the formula of an output of a circuit of depth `d` has fewer than
 `r ^ d` operation nodes (`Circuit.size_toFormula_lt`). So circuits of fan-in two and logarithmic
 depth are formulas of logarithmic depth and polynomial size [Jukna, Chapter 6][Jukna2012].
 
@@ -34,8 +34,9 @@ depth are formulas of logarithmic depth and polynomial size [Jukna, Chapter 6][J
   of an output computes it.
 * `Cslib.Circuits.Circuit.depthWith_toFormula`, `Cslib.Circuits.Circuit.depth_toFormula_le`: it is
   as deep as the output, so no deeper than the circuit.
-* `Cslib.Circuits.Circuit.size_toFormula_lt`: under bounded fan-in, its size is at most exponential
-  in the depth of the circuit.
+* `Cslib.Circuits.Circuit.fanInAtMost_toFormula`, `Cslib.Circuits.Circuit.size_toFormula_lt`: it
+  keeps the fan-in of the circuit, so under bounded fan-in its size is at most exponential in the
+  depth of the circuit.
 * `Cslib.Circuits.Program.gateFormula_eq_gate`,
   `Cslib.Circuits.Program.exists_wireFormula_eq_of_eq_gate`: the formula of a gate is its operation
   applied to the formulas of the wires it reads, so the formulas of the wires are closed under
@@ -207,11 +208,34 @@ theorem Circuit.depthWith_toFormula_le (cost : σ.Op → ℕ) :
 theorem Circuit.depth_toFormula_le : (C.toFormula j).depth ≤ C.depth :=
   (C.depth_toFormula j).trans_le (C.outputDepths_le_depth j)
 
-/-- Over a basis of fan-in at most `r`, where `2 ≤ r`, the formula of an output of a circuit of
-depth `d` has fewer than `r ^ d` operation nodes. -/
-theorem Circuit.size_toFormula_lt {r : ℕ} (hr : ∀ op, σ.Arity op ≤ r) (hr₂ : 2 ≤ r) :
+/-- In a circuit whose gates have fan-in at most `r`, the formula of an output has fan-in at
+most `r`. -/
+theorem Circuit.fanInAtMost_toFormula {r : ℕ} (hC : C.FanInAtMost r) :
+    (C.toFormula j).FanInAtMost r := by
+  suffices h : ∀ {g : ℕ} (p : Program σ n g), p.FanInAtMost r →
+      ∀ k, (p.gateFormula k).FanInAtMost r by
+    unfold Circuit.toFormula Program.wireFormula
+    cases C.outputs j with
+    | input i => trivial
+    | gate k => exact h _ hC k
+  intro g p hp
+  induction p with
+  | empty => exact fun k => k.elim0
+  | gate p line ih =>
+    obtain ⟨hp, hline⟩ := hp
+    refine Fin.lastCases ?_ fun k => by rw [Program.gateFormula_gate_castSucc]; exact ih hp k
+    rw [Program.gateFormula_gate_last]
+    refine ⟨hline, fun a => ?_⟩
+    change (p.wireFormula (line.wires a)).FanInAtMost r
+    cases line.wires a with
+    | input i => exact trivial
+    | gate k => exact ih hp k
+
+/-- In a circuit of depth `d` whose gates have fan-in at most `r`, where `2 ≤ r`, the formula of
+an output has fewer than `r ^ d` operation nodes. -/
+theorem Circuit.size_toFormula_lt {r : ℕ} (hC : C.FanInAtMost r) (hr₂ : 2 ≤ r) :
     (C.toFormula j).size < r ^ C.depth :=
-  ((C.toFormula j).size_lt_pow_depth hr hr₂).trans_le
+  (Formula.size_lt_pow_depth (C.fanInAtMost_toFormula j hC) hr₂).trans_le
     (Nat.pow_le_pow_right (by omega) (C.depth_toFormula_le j))
 
 end Circuit

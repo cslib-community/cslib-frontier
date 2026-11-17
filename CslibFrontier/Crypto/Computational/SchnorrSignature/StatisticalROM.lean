@@ -71,7 +71,8 @@ theorem closeTo_runWith_schnorrEncodedROMScheme
   cases q with
   | inl msg =>
     simpa only [signingCost, Nat.cast_one, one_mul, handler, schnorrEncodedROMScheme,
-      PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, runWith] using
+      PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
+      OracleComp.runWith_eq_run_interpret] using
       (F.closeTo_uniform_sampleExp n d).symm.bind_left (fun r => do
         let signed ← runWith (oracle (BitString m))
           ((F.schnorrEncodedROMScheme d m keyLaw
@@ -118,7 +119,8 @@ theorem closeTo_eufCmaGame_schnorrNativeROMScheme (hm : 2 ^ m ≤ F.order d)
                 keys.1 forged.1.1 forged.1.2) forged.2.1
           return verified.1 && !(forged.2.2.contains forged.1.1))))
   simpa only [schnorrEncodedROMScheme, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
-    Nat.cast_add, Nat.cast_one, add_mul, one_mul, add_comm, runWith] using hgame
+    Nat.cast_add, Nat.cast_one, add_mul, one_mul, add_comm,
+    OracleComp.runWith_eq_run_interpret] using hgame
 
 /-- An actual native forger gets one efficient replay and one parameter-only polynomial query
 budget from actual key-generation support. Descriptions here are a fixed deterministic family whose

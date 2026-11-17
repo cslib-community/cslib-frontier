@@ -157,10 +157,10 @@ theorem stdGaussian_map_inner_prod_eq_correlatedGaussian {u v : E} (hu : ‖u‖
     ring_nf
   have h1 : ‖u‖₊ ^ 2 = 1 := by
     ext
-    simp only [NNReal.coe_pow, coe_nnnorm, hu, one_pow, NNReal.coe_one]
+    simp only [NNReal.coe_pow, coe_nnNorm, hu, one_pow, NNReal.coe_one]
   have h2 : ‖w‖₊ ^ 2 = .mk (√(1 - ρ ^ 2) ^ 2) (sq_nonneg _) := by
     ext
-    simp only [NNReal.coe_pow, coe_nnnorm, NNReal.coe_mk]
+    simp only [NNReal.coe_pow, coe_nnNorm, NNReal.coe_mk]
     rw [sq_sqrt (by nlinarith [sq_nonneg ‖w‖]), hww]
   rw [hpair, ← Measure.map_map (by fun_prop) (by fun_prop), stdGaussian_map_inner_prod huw, h1,
     h2, correlatedGaussian, gaussianReal_prod_map_affine]
@@ -191,7 +191,7 @@ theorem correlatedGaussian_map_snd {ρ : ℝ} (hρ : |ρ| ≤ 1) :
   refine (stdGaussian_map_inner v).trans ?_
   congr
   ext
-  simp only [NNReal.coe_pow, coe_nnnorm, hv, one_pow, NNReal.coe_one]
+  simp only [NNReal.coe_pow, coe_nnNorm, hv, one_pow, NNReal.coe_one]
 
 /-- A `ρ`-correlated pair is symmetric: `(z', z)` has the same law as `(z, z')`. -/
 theorem correlatedGaussian_map_swap {ρ : ℝ} (hρ : |ρ| ≤ 1) :

@@ -50,7 +50,11 @@ instantiated on the canonical modular counter schedule `ctrModCounter` when `ℓ
    (`advantage_ctrCpaGame_le`, and `advantage_ctrCpaGame_ctrModCounter_le` for `ctrModCounter`).
 
 The PRF experiments are the concrete ones of `Cslib.Crypto.PRF` ([BonehShoup2023], Chapter 4). The
-reduction is concrete (`ProbOracleComp`); no native multitape PPT statement is made.
+reductions here are typed `ProbOracleComp` programs without an efficiency certificate. The uniform
+statement, with a certified word-level reduction and the asymptotic theorem
+`PseudorandomFunction.indcpa_ctrWordEncrypt`, is in
+`CslibFrontier/Crypto/Computational/Encryption/CTRMode/Uniform.lean`, which reuses
+`advantage_idealExperiment_ctrReduction_le`.
 
 ## Main definitions
 
@@ -433,7 +437,8 @@ private theorem toOuterMeasure_bad_fresh_le
         (ProbOracleComp.runWith freshStep (ctrReduction counter ℓ b adversary) ([], false))
         {x | x.2.2 = true} ≤
       ((K * K : ℕ) : ℝ≥0∞) * ((2 : ℝ≥0∞) ^ n)⁻¹ := by
-  rw [ctrReduction, blockModeReduction, ProbOracleComp.runWith_simulate]
+  rw [ctrReduction, blockModeReduction, ProbOracleComp.runWith_simulate,
+    ProbOracleComp.runWith_eq_run_interpret]
   refine (OracleComp.toOuterMeasure_bad_le_two_budgets
     (handler := sumHandler (fun i => StateT.lift (ProbComp.unifOracle i))
       fun q => ProbOracleComp.runWith freshStep (ctrQueryProgram counter ℓ b q))

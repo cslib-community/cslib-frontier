@@ -167,8 +167,8 @@ import CslibFrontier.Computability.QueryComplexity.Quantum.NayakWuConsequences
 import CslibFrontier.Computability.QueryComplexity.Quantum.PermutationInversion
 import CslibFrontier.Computability.QueryComplexity.Quantum.SpectralAdversary
 import CslibFrontier.Computability.QueryComplexity.Quantum.WeightedAdversary
-import CslibFrontier.Crypto.Computational.Encryption.CTRMode
-import CslibFrontier.Crypto.Computational.Encryption.OFBMode
+import CslibFrontier.Crypto.Computational.Encryption.CTRMode.Uniform
+import CslibFrontier.Crypto.Computational.Encryption.OFBMode.Uniform
 import CslibFrontier.Crypto.Computational.GoldreichLevin.HardCore
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.OneWay
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.TargetCollision
@@ -182,6 +182,7 @@ import CslibFrontier.Crypto.Computational.OneWayToPRG
 import CslibFrontier.Crypto.Computational.SIS.Ajtai
 import CslibFrontier.Crypto.Primitives.PRP.Finite
 import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Bot
+import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.WordSecurity
 import CslibFrontier.Crypto.Protocols.PIR.Block
 import CslibFrontier.Crypto.Protocols.PIR.Collusion
 import CslibFrontier.Crypto.Protocols.PIR.GeneralCover
@@ -696,7 +697,7 @@ register_result "sharp-cycle-fp-p-eq-np" where
   scope := "#CYCLE counts the simple directed cycles (Cycle values: nonempty, no repeated \
     vertex, declared vertices, arcs of the edge list; a self-loop is a cycle of length one) of \
     a graph under encGraph. FP is native polynomial-time computability with binary output \
-    encNat. The gadget reduction uses n*n+n+1 layers and threshold 2^(m*n) instead of the \
+    encNat. The gadget reduction uses n*n+n+3 layers and threshold 2^(m*n) instead of the \
     draft's n log n + 1 and n^(n^2). P = NP holds for every injective encoding."
 
 register_result "bqp-pp" where
@@ -5260,6 +5261,42 @@ register_result "fujisaki-okamoto-bot-ind-cca" where
     challenge key from the arbitrary sampler S.sampleKey (uniform sampleKey recovers the \
     standard uniform-ideal-key experiment of HHK17 §2.2 Def. 2.4 / Fig. 4)."
 
+register_result "fujisaki-okamoto-notbot-word-rom-ind-cca" where
+  title := "ROM IND-CCA security of the word-level FO-notbot KEM from IND-CPA of the PKE family"
+  topic := "cryptography"
+  sources := [
+    { paper := HofheinzHoevelmannsKiltz2017, theorem := "Theorems 3.2 and 3.4",
+      locator := "§3.1 (Theorem 3.2, p. 12; remark closing its proof, p. 13), §3.2.2 \
+        (Theorem 3.4, p. 16), §1.1.2 table (p. 6) and KEM-notbot row of the §3.3 bounds table \
+        (p. 22) (IACR ePrint 2017/604, version of 2 November 2021)" }
+  ]
+  theorems := [
+    Cslib.Crypto.Protocols.FujisakiOkamoto.WordPKE.INDCPA.romINDCCA
+  ]
+  scope := "Asymptotic, random oracle model; implicit-rejection FO-notbot = U-notbot ∘ T only. \
+    Let P be a word-level PKE family (at parameter n: messages of length msgLen n, uniform coins \
+    of length coinLen n, ciphertext space the words of length at most ctLen n) that is \
+    efficient (uniform strict PPT key generation; polynomial-time encryption, decryption and \
+    lengths), whose ciphertexts lie in its ciphertext space (CiphertextFits), and that is \
+    δ-correct (HHK17 §2.1) with δ negligible and 2^{-msgLen n} negligible; let keyLen be \
+    polynomial-time. If P is IND-CPA secure against uniform strict PPT adversaries \
+    (single-challenge two-stage game of HHK17 Def. 2.2, both challenge messages of length \
+    msgLen n), its FO-notbot KEM with keys of length keyLen n is IND-CCA secure (HHK17 Def. 2.4 \
+    / Fig. 4) against uniform strict oracle PPT adversaries with oracles G, H and \
+    decapsulation; no premise bounds the number of decapsulation queries. G and H are lazily \
+    sampled random oracles on word domains, and a request outside a domain gets the empty word. \
+    H is domain-separated (H(false, m, c) for keys, H(true, s, c) for implicit rejection) in \
+    place of HHK17's untagged H(m, c) and H(s, c). Decapsulation refuses the challenge \
+    ciphertext, rejects words longer than ctLen n with ⊥, and treats decryption results of the \
+    wrong length as ⊥. The advantage is the two-world difference between b = 0 and b = 1, twice \
+    HHK17's |Pr[b' = b] - 1/2|. As in the source, no γ-spreadness is assumed (§1.1.2 table, \
+    p. 6; KEM-notbot row of the §3.3 table, p. 22): the composition uses Theorem 3.2 in its \
+    OW-PCA form (remark closing its proof, p. 13). The proof composes the T and U-notbot hops \
+    directly instead of through standalone OW-PCA, and applies IND-CPA to the explicit reduction \
+    romCpaReductionWord, certified uniform strict PPT (IsEfficient.isPPT_romCpaReductionWord); \
+    it gives no concrete runtime map. FO^⊥ has no word-level theorem; its fixed-scheme concrete \
+    bound is fujisaki-okamoto-bot-ind-cca."
+
 register_result "cgks-pir-coalition-lower-bound" where
   title := "Chor–Goldreich–Kushilevitz–Sudan: coalition t-privacy and full-coalition \
     communication lower bound"
@@ -5529,7 +5566,9 @@ register_result "mldsa-key-only-forgery" where
     probability is at most the advantage of forgeryDistinguisher between honest and uniform \
     keys plus the success probability of selfTargetReduction against a uniform [A | t]. \
     Hardness of self-target MSIS is the assumption, not reduced to Module-SIS; the honest-key \
-    term is not routed through the uniform-secret DecisionModuleLWE. Chosen-message security \
+    term is the Module-LWE advantage for the short laws, the quantity of the short-secret \
+    assumption DecisionModuleLWEWith rather than the uniform-secret DecisionModuleLWE. \
+    Chosen-message security \
     (signing-oracle simulation in the random-oracle model) and asymptotic packaging are not \
     formalized; no running time is charged."
 
@@ -5537,36 +5576,52 @@ register_result "ctr-mode-cpa" where
   title := "CTR mode is CPA-secure for a pseudorandom function"
   topic := "cryptography"
   sources := [
-    { paper := KatzLindell2020, theorem := "Theorem 3.33", locator := "Section 3.6.3, p. 93" }
+    { paper := BonehShoup2023, theorem := "Theorem 5.3", locator := "Section 5.4.2, p. 191" }
   ]
   theorems := [
-    Cslib.Crypto.advantage_ctrCpaGame_le,
-    Cslib.Crypto.advantage_ctrCpaGame_ctrModCounter_le
+    Cslib.Crypto.PseudorandomFunction.indcpa_ctrWordEncrypt
   ]
-  scope := "Left-or-right multiple-encryption CPA (Definition 3.22) for CTR mode on n-bit blocks, \
-    with a finite key set and a keyed function F : Key → BitString n → BitString n, against \
-    block-mode oracle adversaries asking at most K blocks in total and at most ℓ per query. For \
-    any counter schedule that is distinct within a query and injective in the IV at each \
-    offset, and in particular for the modular counter iv + i mod 2^n when ℓ ≤ 2^n, the \
-    advantage is at most the PRF advantages of the two explicit reductions plus 2 K² / 2^n. \
-    Concrete bound; no running time is charged and no asymptotic form is stated."
+  scope := "Randomized counter mode (ctrWordEncrypt: a uniform n-bit initial value x, then \
+    counter blocks x + j mod 2^n) from a PseudorandomFunction with n-bit keys, inputs and \
+    outputs, where the security parameter n is the block length and the key is a uniform n-bit \
+    word: the source's PRF over (K, X, Y) with X = {0, ..., N - 1} and Y = {0,1}^n, taken with \
+    N = 2^n. The notion is many-query left-or-right CPA security (SymmetricINDCPAOn, Attack \
+    Game 5.2 and Definition 5.2) against uniform strict oracle-PPT adversaries, in the standard \
+    model, on equal-length pairs of whole n-bit blocks. The source caps the number of blocks at a \
+    poly-bounded ℓ; here any number is admitted, which implies the capped statement. The PRF \
+    reductions ctrToPrfDistinguisher are certified oracle PPT. Concrete bounds: \
+    advantage_ctrWordCPAGame_le, in the same module, bounds the advantage by the PRF advantages \
+    of the two fixed-bit reductions plus 2 (Q L)² / 2^n for Q requests of at most L ≤ 2^n bits, \
+    a cruder collision term than the source's (5.14). advantage_ctrCpaGame_le and \
+    advantage_ctrCpaGame_ctrModCounter_le, in CTRMode.lean, give the typed bound of two PRF \
+    advantages plus 2 K² / 2^n for block-mode adversaries asking at most K blocks, over a finite \
+    key set, for any counter schedule that is distinct within a query and injective in the IV; \
+    they charge no running time."
 
 register_result "ofb-mode-cpa" where
   title := "OFB mode is CPA-secure for a pseudorandom function"
   topic := "cryptography"
   sources := [
-    { paper := KatzLindell2020, theorem := "unnumbered statement that OFB mode is CPA-secure",
-      locator := "Section 3.6.3, p. 92" }
+    { paper := BonehShoup2023, theorem := "Exercise 5.15(b)", locator := "Section 5.8, p. 212" }
   ]
   theorems := [
-    Cslib.Crypto.advantage_ofbCpaGame_le
+    Cslib.Crypto.PseudorandomFunction.indcpa_ofbWordEncrypt
   ]
-  scope := "Left-or-right multiple-encryption CPA (Definition 3.22) for OFB mode on n-bit blocks, \
-    with a finite key set and a keyed function F : Key → BitString n → BitString n, against \
-    block-mode oracle adversaries asking at most K blocks in total and at most ℓ per query: the \
-    advantage is at most the PRF advantages of the two explicit reductions plus \
-    2 K (K + ℓ) / 2^n. The source states OFB security without a numbered theorem or proof; the \
-    proof follows its Theorem 3.33 template. Concrete bound; no running time is charged."
+  scope := "OFB mode (ofbWordEncrypt: a uniform n-bit initial value x₀, chain values \
+    xᵢ = F(k, xᵢ₋₁) truncated to n bits, and the ciphertext x₀ followed by the blocks mᵢ ⊕ xᵢ) \
+    from a PseudorandomFunction with n-bit keys, inputs and outputs, where the security \
+    parameter n is the block length and the key is a uniform n-bit word. The notion is \
+    many-query left-or-right CPA security (SymmetricINDCPAOn, Attack Game 5.2 and \
+    Definition 5.2) against uniform strict oracle-PPT adversaries, in the standard model, on \
+    equal-length pairs of whole n-bit blocks. The exercise fixes a poly-bounded number ℓ of \
+    blocks; here any number is admitted, which implies the statement for every ℓ. The PRF \
+    reductions ofbToPrfDistinguisher are certified oracle PPT. Concrete bounds: \
+    advantage_ofbWordCPAGame_le, in the same module, bounds the advantage by the PRF advantages \
+    of the two fixed-bit reductions plus 2 (Q L) (Q L + L) / 2^n for Q requests of at most L \
+    bits; the exercise states no bound. advantage_ofbCpaGame_le, in OFBMode.lean, gives the \
+    typed bound of two PRF advantages plus 2 K (K + ℓ) / 2^n for block-mode adversaries asking \
+    at most K blocks in total and at most ℓ per query, over a finite key set; it charges no \
+    running time."
 
 register_result "clique-eth-lower-bound" where
   title := "No f(k) n^o(k) or FPT algorithm for Clique under ETH"

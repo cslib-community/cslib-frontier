@@ -228,6 +228,105 @@ parameters), a bound without an advantage-named constant, a caller-supplied obje
 the theorem should prove, and a realization stated other than as an equation (an inequality, a
 predicate of the library or a bundled program).
 
+**Reduction witnesses** ([#5293](https://github.com/cslib-community/cslib-frontier/issues/5293)).
+Each explicit reduction has an efficiency witness ([AGENTS.md](AGENTS.md#security-theorems)). After
+a build, `python3 scripts/check_reduction_witnesses.py` finds the *reductions*: the Crypto
+definitions that yield a program (a `ProbComp`, `OracleComp` or `PMF`, or a structure of these) and
+that a public theorem uses on the bounding side of an advantage bound, applied to a program variable
+of the bounded side, as `B` in `Adv(scheme, A) ≤ Adv(problem, B A)`. A reduction is certified when a
+theorem concludes an efficiency certificate that mentions it (`IsPPT…`, `IsOraclePPT…`,
+`ComputableIn…` and similar; a query bound does not count), when it is an `abbrev` of certified
+reductions, or when a certified definition such as its word-level program applies it.
+`scripts/reduction_witnesses_baseline.json` records the uncertified ones, one per line: a `gap`
+names the issue that tracks the missing witness, and an `exempt` entry says why none is needed (an
+information-theoretic bound, or a definition that is not a reduction, such as a scheme built from a
+component). A `via_certified_program` entry records a typed reduction that a certified program runs:
+it names the program, the program's efficiency witness, a theorem whose conclusion is an equation
+between the program's law and the reduction's (a bound, or an equation for one world only, does not
+count) with the file that holds it, and the asymptotic headline that applies the hardness assumption
+to the program: a theorem other than the witness and the equality that concludes a negligibility or
+advantage claim and mentions the program or its witness in its statement or proof. All but the
+equality must be public; a private equality is named without its prefix and looked up in its
+recorded file. The conditions under which the equality holds are for the reviewer to read; the `why`
+states them by hand. The checker verifies these declarations in Lean, so a renamed one fails, and
+`--report` prints where each headline uses the program; it does not judge them, and review still
+does. When the equality holds only at the instance of a generic reduction that the headline uses,
+the entry adds `"scope": "instance"` and `"consumers"`, an object from each *referrer* of the
+reduction outside its module to a tag, and its `why` says that the equality is instance-scoped and
+names the instance. The baseline is keyed on the reduction, so the pinned list is what keeps a later
+theorem from applying an assumption through it at another instance unseen. A referrer is a public
+declaration whose statement or proof names the reduction directly, through the declarations Lean
+generates under a name, or through private declarations; only the reduction's module and the modules
+that import it, directly or through others, are read. The tags are `headline`, a theorem on the
+headline's proof path (the headline, or a library constant that its statement and proof use,
+transitively); `concrete`, a theorem off that path, an exact bound that applies no assumption; and
+`reduction`, a definition that uses the reduction. The check fails when the pinned list differs from
+the referrers, so a new referrer must be tagged or the entry made a `gap`; when a tag does not hold;
+when a referring theorem other than the headline, in the reduction's module or outside it, is not
+concrete, because a premise (instance arguments included) is headed by a named assumption
+(recognized as for the named-assumption check below) or a premise or the conclusion makes a
+negligibility claim, directly or through Prop-valued definitions unfolded at most five times (as for
+the headline; an alias for the whole statement is unfolded too); and when a referring definition has
+neither an efficiency witness of its own nor a baseline entry. That entry is a `gap` or `exempt`
+entry, kept even when no theorem states a bound with the definition. Here, unlike for a reduction,
+being mentioned in a certified definition's body is not a witness, so a generic wrapper run inside
+one certified program still needs its entry. So the baseline accounts for every definition that uses
+the reduction, but this does not establish that every headline downstream of such a definition has
+its own certificate or via entry: a referrer is found by name, and a public declaration stops the
+search, so a theorem that reaches the reduction only through another public declaration (one that
+consumes the headline, or one about a wrapping definition) is not a referrer. The recognizers also
+miss a premise that assumes a bound without `Negligible` or a named assumption (`Adv ≤ ε`, say) or
+reaches one only after more than five unfoldings; whether a `headline` consumer uses the reduction
+at the equality's instance is for review. The summary counts these entries apart from the other via
+entries. CI treats it as it treats the premise check: a pull request fails when a changed module has
+an unrecorded uncertified reduction or a baseline entry that no longer matches, so the baseline only
+shrinks; merge groups only report. `--list` shows every reduction with its certificate, and
+`--update-baseline` adds entries whose `why` you then fill in. The check does not see a reduction
+written inline in a bound, a bound without an advantage-named constant, a simulator or extractor on
+the bounded side, or an attack, and it does not judge whether a witness assumes only the adversary's
+certificate; review covers these.
+
+**Named assumptions** ([#5578](https://github.com/cslib-community/cslib-frontier/issues/5578)). Each
+named assumption that a Crypto theorem takes belongs in the
+[assumptions inventory](manual/programs-crypto-and-probability/assumptions.md) as *standard* (its
+docstring cites the source definition with a checked locator and names every deviation), *novel*
+(its docstring says "novel to this library" and how it relates to standard assumptions) or
+*vocabulary* (a generic notion parameterized by the objects whose security it states, never a
+primitive's own security notion) ([AGENTS.md](AGENTS.md#security-theorems)). After a build,
+`python3 scripts/check_hardness_assumptions.py` finds every premise of a public Crypto theorem
+headed by a Prop-valued declaration whose definition mentions negligibility, an advantage or
+indistinguishability, whatever the declaration's own name, and checks it against the inventory. It
+fails on an unlisted assumption, a malformed or duplicate row, a standard row without a
+`references.bib` key, and a missing nonvacuity test that a row links. It also fails on a standard
+assumption whose docstring cites none of its row's keys, a novel one whose docstring does not say
+"novel to this library", a row of any status whose locator is "not verified", a theorem resting on a
+novel assumption whose name does not mention it or whose docstring presents a cited result (cites a
+key, or says "theorem" or opens with a bold title in its first sentence) without its first sentence
+saying "step" or "helper", and a results-inventory entry that lists such a theorem. The existing
+gaps of these kinds are recorded, each with a justification, in
+`scripts/hardness_assumptions_baseline.json`, which only shrinks: an entry that no longer matches
+fails as well. The check covers the whole library, so pull requests and merge groups both enforce
+it, and a merge group in which two pull requests conflict only in meaning (say, both register the
+same assumption) ejects the later one instead of landing it; pushes to `main` only report. To
+register a new assumption, add its row, cite its source in its docstring, and link a nonvacuity test
+where one is easy; `--list` prints the theorems that rest on each assumption. A row drops "locator
+not verified" only in a pull request whose body records the source check, confirmed by its reviewer.
+The check does not judge whether a definition matches its source, whether a locator is right, or
+whether a theorem that claims a cited result rests on the source's assumption with the source's
+instance; review does. Nor does it see a cited result named without a bibliography key, the word
+"theorem" or a bold title in the docstring's first sentence, or one claimed only by a theorem's
+name. Conversely, an original result on a novel assumption, which the rule allows, is flagged when
+its docstring cites a key, or says "theorem" or opens with a bold title in its first sentence; it
+then passes only through a justified baseline entry. The inventory is not complete, because the
+reader misses two kinds of assumption: a premise written inline (a hypothesis
+`∀ A, Negligible (advantage A)`), and an assumption whose definition reaches no security atom
+through Prop-valued declarations within five levels, such as a bound on a quantity not named like
+an advantage or an advantage behind a helper that is not Prop-valued. A row for one fails, so these
+are not listed. The known cases are `MildlyHardOnAverage` and `MildlyHardOnAverageENat` (the
+Liu–Pass converse), `Pseudoentropy.SamplablePair.HasGap` and `HasGapWithAdvice`, and
+`Circuits.Boolean.IsAverageCaseHard` (Nisan–Wigderson); the inventory page names them in full
+(#5578 finding 9).
+
 ### Algorithms are programs
 
 Probabilistic algorithms, such as key generation, signing, provers, verifiers, simulators,
@@ -420,7 +519,8 @@ findings without requiring a duplicate local run.
 
 Keep each fact in one maintained location. The README explains the purpose and points to useful
 entry points; module docstrings explain the mathematics and API; checked Lean examples show usage.
-ROADMAP lists accepted directions only, grouped by area.
+ROADMAP lists accepted directions only: `ROADMAP.md` holds the programs and an index, and each area
+has its own file under `roadmap/`, so that changes in different areas do not conflict.
 Each entry states one direction's scope in a few sentences, one sentence per line, with its issue
 linked inline as `[#N](https://github.com/cslib-community/cslib-frontier/issues/N)`.
 Status and progress live on issues and PRs, so a PR edits ROADMAP only when it opens or closes a
@@ -457,31 +557,35 @@ run the documentation checks and builds.
 
 ### Maintaining the manuals
 
-Every change must assess its effect on both manuals. Changes to a model,
-encoding, theorem hypothesis or bound, public API, import, tactic, dependency, build command or
-development procedure must update the affected instructions and reference material in the same
-change. Changes to agent roles, delegation, review, coordination or human direction must update
-the affected Agent Operator's Manual instructions too. If no edit is needed for one or both
-manuals, give a short, concrete reason in the PR's Manual impact
-section, or in the commit description when there is no PR. This assessment is required; needless
-text changes are not. Update the assessment when the scope changes, and keep its evidence in one
-place.
+The manuals' pages fall into three groups.
 
-Write the Operator's Manual as a user manual in the ordinary sense: a human with basic Lean,
-editor and terminal skills
-should be able to set up the library, complete a first example, choose an appropriate model,
-apply its API, diagnose a failed attempt, validate a change and prepare it for review. Assume no
-agent tools or prior conversation. Each procedure should state its prerequisites and starting
-point, give the necessary commands or code with their context, describe the expected result,
-and explain how to check it and recover from likely failures. Include the model, encoding and
-resource conventions that affect the user's choice, and explain particular proof considerations
-where they teach a reusable method or a model boundary. Agents should be able to consult this
-maintained account without repeating the investigation or relying on earlier conversations.
-Keep the Agent Operator's Manual short and directed at the person driving the agents; put
-participant procedures in the Operator's Manual and historical evidence in its supplement.
-Place a new section where its topic belongs in a chapter rather than at the end: sections that
-concurrent PRs append at the same place conflict in the merge queue. Put a new algorithm endpoint
-on the matching topic page listed under `manual/algorithms-and-memory/index.md`, in topic order.
+- **Registries** are kept current: the
+  [assumptions inventory](manual/programs-crypto-and-probability/assumptions.md), checked by
+  `scripts/check_hardness_assumptions.py`; the
+  [bibliography and pinned revisions](manual/sources.md); and the
+  [results inventory](results/README.md). A PR that changes a fact a registry records updates
+  the registry in the same change.
+- **Procedure pages** are updated only when a procedure or role changes: `manual/workflows/` and
+  `README.md`, `BUILD.md`, `COMMANDS.md`, `MAINTAINING.md` and `AGENT_OPERATORS.md` in `manual/`.
+  A PR that changes a build or validation command, a development or review procedure, or an agent
+  role, delegation or handoff rule updates the page that describes it in the same change.
+- **Reference chapters** are frozen: `manual/index.md`, `manual/model-map.md` and every other page
+  of `manual/design-and-assurance/`, `manual/machines-and-classes/`,
+  `manual/circuits-logic-and-other-models/`, `manual/programs-crypto-and-probability/` and
+  `manual/algorithms-and-memory/`. PRs do not update or review them and nobody keeps them current;
+  the Lean source, its docstrings and the API documentation are authoritative. `manual/history/`
+  is a dated record.
+
+A change explains itself in the docstring's mapping from statement to source and in the PR
+description ([policy/statements.md](policy/statements.md),
+[policy/workflow.md](policy/workflow.md#writing-in-issues-and-prs)), not in the manual.
+
+Write a procedure so that a human with basic Lean, editor and terminal skills can follow it
+without agent tools or prior conversation: state its prerequisites and starting point, give the
+commands or code with their context, describe the expected result, and explain how to check it
+and recover from likely failures. Keep the Agent Operator's Manual short and directed at the
+person driving the agents; put participant procedures in the Operator's Manual. Review of a
+changed procedure page follows it from its documented starting point.
 
 Keep executable Lean examples in `CslibFrontierTests/` or the checked Verso guide and link their
 complete source, including imports and local context. Use checked excerpts rather than a second
@@ -489,24 +593,14 @@ independently maintained copy. Check new or changed examples with Lean; source c
 does not establish that an example elaborates. The live checker and its controls are required
 in CI and in both full and quick `scripts/check.sh` runs. For documentation-only validation, run
 `python3 scripts/check_operator_manual.py` and `python3 scripts/test_operator_manual.py`
-directly; they use only Python and need no generated data or publishing tools. See the manual's
-build instructions for PDF generation; inspect affected rendered pages when changing its content
-or rendering. The **Operator's Manual PDFs** workflow builds both books for pull requests that
-change the manual or its scripts, so rendered pages can be inspected without local TeX tools.
+directly; they use only Python and need no generated data or publishing tools. The checker does
+not check a frozen chapter's links to Lean source or to maintained pages, so no edit elsewhere
+forces a change to one. See the manual's build instructions for PDF generation; inspect rendered
+pages when changing the converter or layout. The **Operator's Manual PDFs** workflow builds both
+books for pull requests that change the manual or its scripts.
 Generated LaTeX, PDFs and research exports stay untracked; retain their scripts and
 maintained source inputs. Keep historical measurements and transcript evidence explicitly dated;
 do not present their frozen counts as current library state.
-
-Impact on both manuals is a mandatory part of independent review before integration, and
-coordinators are responsible for ensuring that this review happens. The reviewer checks
-the assessment against the final revision, including the reason for no edit when applicable.
-For an affected procedure, follow the documented starting point, inspect or run the example and
-its validation as appropriate, and check that a human can understand the outcome and next step.
-Check relevant API names, imports, assumptions, resource bounds, source credit and recovery
-instructions, as well as affected role, delegation and handoff guidance. Record the verdict with
-the existing code review; an additional reviewer is needed
-only for an uncovered question. Compilation, excerpt checks and a completed PR field do not by
-themselves establish that the manual is usable or correct.
 
 ## Upstreaming
 

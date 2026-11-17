@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import CslibFrontier.Computability.Complexity.AffineDisperser.BinaryPolynomial
+public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryPolynomial
 public import CslibFrontier.Foundations.Data.BitString.List.Dot
 public import CslibFrontier.Foundations.Data.BitString.List.Operations
 public import CslibFrontier.Foundations.LinearAlgebra.KernelVector
@@ -29,7 +29,7 @@ import Mathlib.RingTheory.AdjoinRoot
 
 This module implements explicit coefficient-list arithmetic over `𝔽₂[X]`, Boolean Gaussian
 elimination (`kernelVecBits`), and deterministic Berlekamp factorization
-(`berlekampIrreducibleFactor`) matching the specifications of `Cslib.AffineDisperser.polyOfBits`
+(`berlekampIrreducibleFactor`) matching the specifications of `Cslib.polyOfBits`
 and `Cslib.LinearAlgebra.kernelVec`.
 
 ## Main definitions
@@ -176,7 +176,7 @@ theorem length_polyTrim_le (p : List Bool) : (polyTrim p).length ≤ p.length :=
   | nil => simp [polyTrim_nil]
   | cons b p ih =>
     rw [polyTrim_cons]
-    split_ifs <;> (simp; try omega)
+    split_ifs <;> first | (simp; omega) | simp
 
 /-- Trimming preserves polynomial semantics. -/
 @[simp]
@@ -1558,8 +1558,8 @@ private theorem berlekampStep_invariant (g : List Bool)
       have hp1_ne : hp - 1 ≠ 0 := by
         intro h1
         have hsub : hp = 1 := sub_eq_zero.mp h1
-        have := congrArg (coeff · 0) hsub
-        simp only [hh0, coeff_one_zero] at this
+        have := congrArg (·.coeff 0) hsub
+        simp only [hh0, AddMonoidAlgebra.coeff_one_zero] at this
         exact zero_ne_one this
       have hp1_deg_lt : (hp - 1).natDegree < l.length := by
         calc (hp - 1).natDegree
