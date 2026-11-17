@@ -43,10 +43,11 @@ The noised string is `x + P`, the coordinatewise exclusive or of `x` with a rand
 `Bool`. The coordinates of the mask are independent:
 the average of a product of functions of the separate coordinates factorizes
 (`BitString.bernoulliAverage_prod`), so the character of `S` averages to `(1 - 2 p) ^ |S|`
-over a mask of rate `p` (`BitString.bernoulliAverage_chi`). In particular, for `0 ≤ δ ≤ 1` the parity of `k`
-independent bits that are `1` with probability `1 - δ` is `1` with probability
-`1/2 - (2δ - 1)^k / 2` (`BitString.bernoulliAverage_parityOn`, Arora–Barak, Exercise 17.1,
-corrected). For other real `δ` the same formula holds as an identity of signed-weight averages.
+over a mask of rate `p` (`BitString.bernoulliAverage_chi`). In particular, for `0 ≤ δ ≤ 1`
+the parity of `k` independent bits that are `1` with probability `1 - δ` is `1` with
+probability `1/2 - (2δ - 1)^k / 2` (`BitString.bernoulliAverage_parityOn`, Arora–Barak,
+Exercise 17.1, corrected). For other real `δ` the same formula holds as an identity of
+signed-weight averages.
 
 ## Main definitions
 
