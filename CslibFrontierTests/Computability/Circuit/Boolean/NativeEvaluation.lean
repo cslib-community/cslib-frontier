@@ -21,7 +21,7 @@ open Turing.MultiTapeTM Turing.MultiTapeTM.Internal.NativeCompiler
 
 /-- The fixed evaluator really runs the nonconstant 13-input population-count circuit. -/
 example (input : BitString 13) :
-    (evalCircuitCompiler (populationCountCircuit 13)).machine.ComputesTidilyInTimeAndSpace
+    (evalCircuitCompiler (populationCountCircuit 13)).table.toTM.ComputesTidilyInTimeAndSpace
       (encBitString 13 input)
       (encBitString (Nat.clog 2 (13 + 1) + 1)
         ((populationCountCircuit 13).eval interpretation input))

@@ -77,7 +77,7 @@ public lemma inCfg_wordsCfg (mark : Symbol) {w : List Symbol} (q : Option State)
   | right i => match i with | 0 | 1 => simp [inCfg, wordsCfg]
 
 /-- Updating the flag tape of an appended family of tapes only changes the flag entry. -/
-private lemma update_append_flag {α : Type*} (ws₀ : Fin k → α) (a b c : α) :
+public lemma update_append_flag {α : Type*} (ws₀ : Fin k → α) (a b c : α) :
     Function.update (Fin.append ws₀ ![a, b]) (Fin.natAdd k 1) c = Fin.append ws₀ ![a, c] := by
   rw [← Fin.append_update_right]
   congr 1
