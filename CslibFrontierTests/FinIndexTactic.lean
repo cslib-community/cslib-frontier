@@ -29,6 +29,10 @@ namespace FinIndexTest
 /-- A definition that branches on its index. -/
 @[expose] def skip (i : Fin 5) : Fin 9 := if i.val = 0 then ⟨7, by omega⟩ else ⟨i.val, by omega⟩
 
+/-- A definition that branches with a dependent `if`: the bound proof uses the condition. -/
+@[expose] def wrap (n : ℕ) (i : Fin (n + 1)) : Fin (n + 1) :=
+  if h : i.val = n then ⟨0, by omega⟩ else ⟨i.val + 1, by omega⟩
+
 /-- A size that is the bound of a `Fin` type. -/
 @[expose] def width (n : ℕ) : ℕ := 3 * n + 1
 
@@ -63,6 +67,16 @@ example (n : ℕ) : Function.Injective (Fin.castSucc : Fin n → Fin (n + 1)) :=
 example (i : Fin 9) (h : 4 ≤ i.val) : i ≠ ⟨0, by omega⟩ ∧ i ≠ ⟨3, by omega⟩ := by
   fin_index
 
+example (m n : ℕ) (h : m = n) (i j : Fin m) (hij : i < j) : Fin.cast h i < Fin.cast h j := by
+  fin_index
+
+example (m n : ℕ) (h : m + 1 ≤ n) (i : Fin m) :
+    Fin.castLE h i.castSucc ≠ Fin.castLE h (Fin.last m) := by
+  fin_index
+
+example (n : ℕ) (i : Fin (n + 1)) : i.succ ≠ 0 ∧ (i.succ = 1 → i = 0) := by
+  constructor <;> fin_index
+
 /-! Definitions are named at the call, as are local `let` variables. -/
 
 example (i : Fin 162) : ∃ q r, slot q r = i :=
@@ -95,7 +109,8 @@ example {r : ℕ} {f : Fin r → Fin 16} (hf : ∀ i, (f i).val = i.val + 7) :
     Function.Injective f := by
   fin_index [hf]
 
-/-! The value lemma of a general operation can join the simp set instead. -/
+/-! A lemma tagged `fin_index_simps` is used without being listed. The tag here is local to the
+test; the docstring of `fin_index_simps` says which lemmas belong in the set. -/
 
 section
 attribute [local fin_index_simps] val_twice
@@ -111,6 +126,11 @@ example {a b : ℕ} (i j : Fin b) (h : right (a := a) i = right j) (hne : i ≠ 
   fin_index [right]
 
 example (n : ℕ) (i j : Fin n) (h : ¬ i ≤ j) : j < i := by
+  fin_index
+
+/-! The hypotheses of the goal are introduced by the tactic. -/
+
+example (n : ℕ) : ∀ i j : Fin n, i.castSucc = j.castSucc → i = j := by
   fin_index
 
 /-! A hypothesis that another one depends on is used too: here `h1`, inside the bound proof of
@@ -133,6 +153,12 @@ example (n : ℕ) (i j : Fin n) (h : (i.castSucc, j.succ) = (j.castSucc, i.succ)
 
 example : Function.Injective skip := by
   fin_index [skip]
+
+example (n : ℕ) : Function.Injective (wrap n) := by
+  fin_index [wrap]
+
+/-! A branch whose comparison is between two numerals: the split simplifies `7 = 0` away and
+leaves the goal `¬False`, which is closed too. -/
 
 example (i : Fin 5) : skip i ≠ ⟨0, by omega⟩ := by
   fin_index [skip]

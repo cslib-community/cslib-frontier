@@ -171,14 +171,7 @@ theorem embedCompact_ne {m : ℕ} (v : Fin (m + 1)) (i : Fin m) :
 
 theorem embedCompact_injective {m : ℕ} (v : Fin (m + 1)) :
     Function.Injective (embedCompact v) := by
-  intro i j hij
-  unfold embedCompact at hij
-  by_cases hi : i.val = v.val <;> by_cases hj : j.val = v.val
-  · exact Fin.ext (hi.trans hj.symm)
-  · fin_index
-  · fin_index
-  · simp only [hi, hj, ↓reduceIte, Fin.castSucc_inj] at hij
-    exact hij
+  fin_index [embedCompact]
 
 /-- Inverse of `embedCompact v` on `{a : Fin (m + 1) // a ≠ v}`. -/
 def compactIdx {m : ℕ} (v : Fin (m + 1)) (a : Fin (m + 1)) (ha : a ≠ v) : Fin m :=

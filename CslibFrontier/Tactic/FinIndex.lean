@@ -9,7 +9,6 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Tactic.FinIndex.Init
-public import Mathlib.Logic.Function.Defs
 public import Mathlib.Tactic.SplitIfs
 public meta import Lean.Elab.Command
 public meta import Lean.Elab.Tactic.Simp
@@ -58,8 +57,9 @@ goal; keep it that way.
 * `fin_index`: prove an equality, disequality or order fact between `Fin` values from the
   numbers.
 * `fin_index_simps`: the simp set that `fin_index` rewrites with, declared in
-  `CslibFrontier.Tactic.FinIndex.Init` and filled here. Tag the value lemma of a further general
-  operation on `Fin`; definitions of one development go in the list of the call.
+  `CslibFrontier.Tactic.FinIndex.Init` and filled here. It holds value lemmas of core and Mathlib
+  `Fin` constructors and casts whose value is linear and unbranched (its docstring has the rule);
+  a lemma that branches and the definitions of one development go in the list of the call.
 -/
 
 public section
@@ -93,22 +93,17 @@ numerals `0` and `1`, and `if` (the simp set `fin_index_simps`), and calls `omeg
   The list is a `simp only` list: definitions, local `let` variables, lemmas such as
   `(hf : ∀ i, (f i).val = i.val + 7)`, and `Prod.mk.injEq` for index pairs all go there.
 * If `omega` fails and an `if` remains, every `if` in the goal and the context is split and
-  `omega` runs on each case. This is a second attempt; its cost doubles with each `if`.
+  `omega` runs on each case. This is a second attempt; its cost doubles with each `if`. The
+  split simplifies a branch that compares two numerals, such as `7 = 0`; a case left as `¬False`
+  is closed too.
 
 `fin_index` closes the goal or fails; it never leaves a rewritten goal behind. On failure the
 error of `omega` ends with a note showing the rewritten goal: a term in its `where` list such as
 `↑(f i)` names a definition missing from the list. An entry that is never used is reported under
 `linter.unusedSimpArgs`. Without constructors, casts or definitions, use `omega`. -/
-syntax (name := finIndex) "fin_index" (" [" (simpErase <|> simpLemma),* "]")? : tactic
+syntax (name := finIndex) "fin_index" (" [" simpLemma,* "]")? : tactic
 
 meta section
-
-/-- For one run of a `fin_index` call, which of its list entries the rewriting step used. The
-linter below combines the runs of a call, since `t <;> fin_index [f, g]` may need `f` in one goal
-and `g` in another. -/
-private structure ListUse where
-  mask : Array Bool
-deriving TypeName
 
 /-- The use mask that `simp` recorded for its argument list, if this info tree holds one. -/
 private partial def simpArgsMask? : InfoTree → Option (Array Bool)
@@ -120,20 +115,36 @@ private partial def simpArgsMask? : InfoTree → Option (Array Bool)
     here <|> ts.findSome? simpArgsMask?
   | .hole _ => none
 
-/-- Reports the entries of a `fin_index` list that no run of that call used. -/
+/-- The runs of `fin_index` calls in an info tree: the syntax of the call, and the use mask of its
+rewriting step, which is the first `simp` call inside the info node of the tactic. -/
+private partial def callRuns (runs : Array (Syntax × Array Bool)) :
+    InfoTree → Array (Syntax × Array Bool)
+  | .context _ t => callRuns runs t
+  | .node i ts =>
+    let runs := match i with
+      | .ofTacticInfo ti =>
+        if ti.stx.isOfKind ``finIndex then
+          (ts.findSome? simpArgsMask?).elim runs fun mask => runs.push (ti.stx, mask)
+        else runs
+      | _ => runs
+    ts.foldl callRuns runs
+  | .hole _ => runs
+
+/-- Reports the entries of a `fin_index` list that no run of that call used. The runs of a call
+are combined, since `t <;> fin_index [f, g]` may need `f` in one goal and `g` in another. -/
 private def unusedListEntries : Linter where
   run _ := do
     unless Linter.getLinterValue linter.unusedSimpArgs (← Linter.getLinterOptions) do return
     let mut uses : Std.HashMap Syntax.Range (Syntax × Array Bool) := {}
     for tree in (← get).infoState.trees do
-      uses := tree.foldInfo (init := uses) fun _ info uses => Id.run do
-        let .ofCustomInfo ci := info | return uses
-        let some { mask } := ci.value.get? ListUse | return uses
-        let some range := info.range? | return uses
+      for (stx, mask) in callRuns #[] tree do
+        let some range := stx.getRange? | continue
+        -- The entries of the list are the last arguments of the `simp` call.
+        let mask := mask.extract (mask.size - stx[1][1].getSepArgs.size)
         let mask := match uses[range]? with
           | some (_, seen) => Array.zipWith (· || ·) mask seen
           | none => mask
-        return uses.insert range (ci.stx, mask)
+        uses := uses.insert range (stx, mask)
     for (_, stx, mask) in uses.toArray.qsort (·.1.start < ·.1.start) do
       for entry in stx[1][1].getSepArgs, used in mask do
         unless used do
@@ -164,13 +175,8 @@ elab_rules : tactic
         return acc.push { userName := d.userName, type := d.type, value := d.toExpr }
     let (_, g) ← g.assertHypotheses copies
     replaceMainGoal [g]
-    let seen := (← getInfoState).trees.size
     withoutRecover <| evalTactic
       (← `(tactic| simp -failIfUnchanged only [fin_index_simps, $args,*] at *))
-    -- The entries of the list are the last arguments of that `simp` call.
-    if let some mask := ((← getInfoState).trees.toArray.extract seen).findSome? simpArgsMask? then
-      pushInfoLeaf <| .ofCustomInfo
-        { stx := ← getRef, value := .mk (ListUse.mk (mask.extract (mask.size - args.size))) }
     if (← getUnsolvedGoals).isEmpty then return
     let goal ← getMainGoal
     -- Keep the error of `omega` and append what `fin_index` did and what it needs.
@@ -182,7 +188,9 @@ elab_rules : tactic
         evalTactic (← `(tactic| omega))
       catch ex =>
         try
-          evalTactic (← `(tactic| split_ifs at * <;> first | omega | trivial | contradiction))
+          -- `split_ifs` simplifies a comparison of two numerals in a branch, such as `7 = 0`, and
+          -- can leave the goal `¬False`, which `omega` does not read.
+          evalTactic (← `(tactic| split_ifs at * <;> first | omega | exact not_false))
         catch _ => throw ex
 
 end Cslib.Tactic.FinIndex

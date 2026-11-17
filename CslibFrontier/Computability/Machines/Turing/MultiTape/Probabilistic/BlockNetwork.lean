@@ -754,8 +754,7 @@ private theorem edgeTarget_eq_inl {e : BlockEdge k q} {i : Fin q}
   · simp only [edgeTarget] at h
     split_ifs at h with hi
     · cases h
-      simp only [Sum.elim_inl, id_eq, Fin.lt_def]
-      omega
+      fin_index [Sum.elim_inl, id_eq]
   · simp only [edgeTarget] at h
     cases hf : firstAfter (InWindow σ hd (portBlock σ i' hd d)) i' with
     | none => simp [hf] at h

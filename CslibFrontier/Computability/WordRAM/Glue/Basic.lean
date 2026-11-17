@@ -346,10 +346,7 @@ theorem comp_many {m : ℕ} {Q : (Fin m → ℕ) → Prop} {h b : (Fin m → ℕ
   have hsep (i j : Fin m) (p : Fin (ns i + 1)) (q : Fin (ns j + 1))
       (he : inner i p = inner j q) : i = j := congrArg Sigma.fst (hindex he)
   have hout : Function.Injective outer := by
-    intro p q he
-    apply Fin.ext
-    have hv := congrArg (fun j : Fin (N + a + 1) => j.val) he
-    exact hv
+    fin_index [outer]
   have hio (i : Fin m) (p : Fin (ns i + 1)) (q : Fin (a + 1)) :
       inner i p ≠ outer q := by
     fin_index [inner, outer]

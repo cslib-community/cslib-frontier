@@ -213,16 +213,14 @@ theorem tmp_injective (i : ι) : Function.Injective (tmp C i) := by
 /-- Source coordinates at the same position agree across tags. -/
 theorem src_eq_of_val_eq (i i' : ι) {a : Fin (C i).k} {b : Fin (C i').k}
     (h : a.val = b.val) : src C i a = src C i' b := by
-  apply Fin.ext
-  simp only [src, h]
+  fin_index [src]
 
 /-- Result/scratch coordinates at the same position agree across tags. -/
 theorem tmp_eq_of_val_eq (i i' : ι)
     {a : Fin ((C i).l + (C i).realizes.scratchSize + 1)}
     {b : Fin ((C i').l + (C i').realizes.scratchSize + 1)}
     (h : a.val = b.val) : tmp C i a = tmp C i' b := by
-  apply Fin.ext
-  simp only [tmp, h]
+  fin_index [tmp]
 
 /-- No tag's argument register is used by any tag's result/scratch bank. -/
 theorem src_ne_tmp (i i' : ι) (a : Fin (C i).k)

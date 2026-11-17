@@ -10,7 +10,6 @@ module
 public import CslibFrontier.Computability.WordRAM.Multiword.Bank
 public import CslibFrontier.Computability.WordRAM.Multiword.Transfer
 public import CslibFrontier.Computability.WordRAM.Multiword.Shift
-import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Scalar operations and variable shifts on multiword banks
@@ -78,7 +77,7 @@ theorem exec_scalar {w : ℕ} (hw : 2 ≤ w) (f : BinOp) (a b d : Fin n)
   obtain ⟨u, heu, hua, huf, hup⟩ := Transfer.exec_assemble hw (regs a) scalarLeft
     (digit_regs a) x (by rwa [(hx a).2])
   have hup' (i : Fin (capacity n + 4)) (hi : 44 ≤ i.val) : u.regs i = x.regs i :=
-    hup i (by dsimp [IsDigit]; omega) (by fin_index)
+    hup i (by dsimp [IsDigit]; omega) (by intro h; have := congrArg Fin.val h; dsimp at this; omega)
   have hub : value (radix w) u (regs b) = v b :=
     (value_preserved b hup').trans (hx b).2
   obtain ⟨t, het, htb, htf, htp⟩ := Transfer.exec_assemble hw (regs b) scalarRight
@@ -98,9 +97,9 @@ theorem exec_scalar {w : ℕ} (hw : 2 ≤ w) (f : BinOp) (a b d : Fin n)
   · simpa only [scalar, length_regs] using heu.seq (het.seq (hez.seq hey))
   · intro i hi hid
     have hd : IsDigit i := by dsimp [IsDigit]; omega
-    have hl : i ≠ scalarLeft := by fin_index
-    have hr : i ≠ scalarRight := by fin_index
-    have hs : i ≠ scalarResult := by fin_index
+    have hl : i ≠ scalarLeft := by intro h; have := congrArg Fin.val h; dsimp at this; omega
+    have hr : i ≠ scalarRight := by intro h; have := congrArg Fin.val h; dsimp at this; omega
+    have hs : i ≠ scalarResult := by intro h; have := congrArg Fin.val h; dsimp at this; omega
     rw [hyp i hd hid, show z.regs i = t.regs i from Function.update_of_ne hs _ _,
       htp i hd hr, hup i hd hl]
   · exact hyf.1.trans (htf.1.trans huf.1)
@@ -124,7 +123,7 @@ theorem exec_shift {w : ℕ} (hw : 2 ≤ w) (a b d : Fin n) (hda : d ≠ a)
   obtain ⟨u, heu, hub, huf, hup⟩ := Transfer.exec_assemble hw (regs b) scalarLeft
     (digit_regs b) x (by rwa [(hx b).2])
   have hup' (i : Fin (capacity n + 4)) (hi : 44 ≤ i.val) : u.regs i = x.regs i :=
-    hup i (by dsimp [IsDigit]; omega) (by fin_index)
+    hup i (by dsimp [IsDigit]; omega) (by intro h; have := congrArg Fin.val h; dsimp at this; omega)
   have hua : Bounded (radix w) u (regs a) := by
     intro i hi
     rw [hup' i (by have := mem_regs hi; omega)]
