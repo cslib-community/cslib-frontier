@@ -125,7 +125,7 @@ theorem isDeltaUniversalHash_of_polynomial [Fintype F] {X : Type*}
   classical
   refine IsDeltaUniversalHash.of_card_le fun x x' hx d => ?_
   have hD : P x - P x' - C d ≠ 0 := fun h0 => by
-    have hc := congrArg (coeff · 0) h0
+    have hc := congrArg (·.coeff 0) h0
     simp only [coeff_sub, coeff_C_zero, hcoeff, sub_zero, zero_sub, coeff_zero, neg_eq_zero] at hc
     subst hc
     exact sub_ne_zero.mpr (hinj.ne hx) (by simpa using h0)
@@ -201,7 +201,7 @@ private theorem ascendingPoly_inj {cs cs' : List F} (hlen : cs.length = cs'.leng
     · simp at hlen
     have hsum := mul_left_cancel₀ X_ne_zero h
     have hc : c = c' := by
-      simpa [coeff_zero_ascendingPoly] using congrArg (coeff · 0) hsum
+      simpa [coeff_zero_ascendingPoly] using congrArg (·.coeff 0) hsum
     subst hc
     rw [ih (by simpa using hlen) (add_left_cancel hsum)]
 
@@ -242,7 +242,7 @@ theorem isDeltaUniversalHash_ascendingEval [Fintype F] {X : Type*} (coeffs : X �
       (ℓ / Fintype.card F) := by
   have h := isDeltaUniversalHash_of_polynomial (fun x => ascendingPoly (coeffs x))
     (fun x x' hxx' => hinj (ascendingPoly_inj
-      (hhead x x' (by simpa only [coeff_one_ascendingPoly] using congrArg (coeff · 1) hxx')) hxx'))
+      (hhead x x' (by simpa only [coeff_one_ascendingPoly] using congrArg (·.coeff 1) hxx')) hxx'))
     (fun x => coeff_zero_ascendingPoly _)
     (fun x => (natDegree_ascendingPoly_le _).trans (hlen x))
   simpa only [eval_ascendingPoly] using h
@@ -308,7 +308,7 @@ private theorem fixedTopPoly_ne_of_lt {encodeLength : Fin ℓ → F}
     (hpos : ∀ d : Fin ℓ, d.val ≠ 0 → encodeLength d ≠ 0) {m m' : Message F ℓ}
     (hlt : m.1.length < m'.1.length) : fixedTopPoly encodeLength m ≠ fixedTopPoly encodeLength m' :=
   fun h => by
-    have hc := congrArg (coeff · (ℓ - m'.1.length)) h
+    have hc := congrArg (·.coeff (ℓ - m'.1.length)) h
     have hm' := m'.2
     simp only [coeff_fixedTopPoly_length,
       coeff_fixedTopPoly encodeLength m (ℓ - m'.1.length) (by omega)] at hc
@@ -410,7 +410,7 @@ private theorem ascendingHashPoly_ne_of_lt {encodeLength : Fin ℓ → F}
     (hpos : ∀ d : Fin ℓ, d.val ≠ 0 → encodeLength d ≠ 0) {m m' : Message F ℓ}
     (hlt : m.1.length < m'.1.length) :
     ascendingHashPoly encodeLength m ≠ ascendingHashPoly encodeLength m' := fun h => by
-  have hc := congrArg (coeff · (m'.1.length + 1)) h
+  have hc := congrArg (·.coeff (m'.1.length + 1)) h
   simp only [coeff_ascendingHashPoly_of_lt encodeLength m (j := m'.1.length + 1) (by omega),
     coeff_ascendingHashPoly_length] at hc
   exact hpos _ (by simp only; omega) hc.symm

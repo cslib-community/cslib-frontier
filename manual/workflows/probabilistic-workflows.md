@@ -298,6 +298,14 @@ into `StateT` (`snd_eq_of_mem_support_lift`, `toOuterMeasure_lift_eq_zero`) keep
 the support. The [checked examples](../../CslibFrontierTests/PMFSupport.lean) cover each direction;
 run `scripts/build.sh CslibFrontierTests.PMFSupport`.
 
+Lean's `StateT.run_bind`, `StateT.run_map` and `StateT.run_pure` are stated with `.run`, so they
+do not rewrite a handler applied directly to its state, such as `(x >>= f) s`. Import
+[Foundations/Control/Monad/StateT.lean](../../CslibFrontier/Foundations/Control/Monad/StateT.lean)
+and rewrite with `StateT.bind_apply`, `StateT.map_apply` and `StateT.pure_apply` instead of
+restating the instance with `have … := StateT.run_bind _ _ _`. The decapsulation proofs of
+[Salted/Correctness.lean](../../CslibFrontier/Crypto/Protocols/KEM/FujisakiOkamoto/Salted/Correctness.lean)
+use them this way.
+
 For a guessing bound, import
 [PMF/UniformPoint.lean](../../CslibFrontier/Probability/PMF/UniformPoint.lean) instead of summing
 over the uniform law by hand. For an arbitrary decidable predicate `P`,
