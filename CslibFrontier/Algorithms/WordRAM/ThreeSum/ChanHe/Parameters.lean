@@ -203,20 +203,20 @@ private theorem exec_power {w : ℕ} (κ : ℕ) (x : Data 24) (hb : 1 ≤ x.regs
     (hfit : Fits w (x.regs base ^ κ)) :
     ExecWithin w (power κ) x (x.set magnitude (x.regs base ^ κ)) (κ + 1) := by
   induction κ with
-  | zero => simpa only [power, Nat.pow_zero] using ExecWithin.const hfit
+  | zero => simpa only [power, pow_zero] using ExecWithin.const hfit
   | succ κ ih =>
     have hprev : Fits w (x.regs base ^ κ) :=
-      hfit.of_le (Nat.pow_le_pow_right hb (Nat.le_succ κ))
+      hfit.of_le (Nat.pow_le_pow_right hb (by omega))
     have he := ih hprev
     have hm : ExecWithin w (ram[ magnitude ← magnitude * base ])
         (x.set magnitude (x.regs base ^ κ))
         (x.set magnitude (x.regs base ^ (κ + 1))) 1 := by
       have hp : Fits w (x.regs base ^ κ * x.regs base) := by
-        simpa only [Nat.pow_succ] using hfit
+        simpa only [pow_succ] using hfit
       apply ExecWithin.of_eval (fuel := 0) (n := 1) ?_ (by decide)
       simp +decide [Code.eval, Op.eval_bin, Data.put,
-        BinOp.eval, hp, magnitude, base, Nat.pow_succ, Data.set, Function.update_idem]
-    exact (he.seq hm).mono (Nat.le_refl _)
+        BinOp.eval, hp, magnitude, base, pow_succ, Data.set, Function.update_idem]
+    exact (he.seq hm).mono (by omega)
 
 /-- An explicit charged bound, including all header reads, copies and setup. Halt adds one. -/
 def time (κ n U : ℕ) : ℕ := κ + 64 + 5 * Nat.sqrt n + 4 * Nat.log 2 (4 * U) +
@@ -227,7 +227,8 @@ private theorem time_zero (n U : ℕ) : time 0 n U - 20 = 44 + 5 * Nat.sqrt n +
     4 * Nat.log 2 (4 * U) +
     4 * Nat.log 2 (Cslib.Algorithms.ThreeSum.ChanHe.wPar n (2 * U) + 1) +
     4 * Nat.log 2 n + 5 * Cslib.Algorithms.ThreeSum.ChanHe.height n := by
-  simp only [time, Nat.zero_add, Nat.add_assoc, Nat.sub_add_comm (by decide : 20 ≤ 64)]
+  dsimp [time]
+  omega
 
 private theorem exec_calculate_tail {w n U : ℕ} (k : Data 24)
     (k_len : k.regs len = n) (k_magnitude : k.regs magnitude = U)
@@ -256,39 +257,32 @@ private theorem exec_calculate_tail {w n U : ℕ} (k : Data 24)
   have eh : Cslib.Algorithms.ThreeSum.ChanHe.fuel n = 3 * h - 2 := rfl
   have hh : h ≤ Nat.log 2 n + 2 := Math.height_le n
   have hl := Nat.log_le_self 2 n
-  have hlogn4 : Nat.log 2 n ≤ 4 * n := Nat.le_trans hl (Nat.le_mul_of_pos_left n (by decide))
   have fitn (v : ℕ) (hv : v ≤ 4 * n + 64) : Fits w v :=
     hfit.of_le (Nat.le_trans hv (Math.four_n_le_budget n U))
-  have f2 : Fits w 2 := fitn 2 (Nat.le_trans (by decide : 2 ≤ 64) (Nat.le_add_left 64 _))
-  have flog2 : Fits w (Nat.log 2 n + 2) := fitn _ (Nat.add_le_add hlogn4 (by decide))
-  have flog3 : Fits w (Nat.log 2 n + 2 + 1) :=
-    fitn _ ((Nat.add_assoc _ 2 1).symm ▸ Nat.add_le_add hlogn4 (by decide : 3 ≤ 64))
-  have fh : Fits w (h + 1) := flog3.of_le (Nat.add_le_add_right hh 1)
-  have f3h : Fits w (3 * h) := fitn _ (Nat.le_trans (Nat.mul_le_mul_left 3 hh)
-    (Nat.mul_add 3 (Nat.log 2 n) 2 ▸ Nat.add_le_add
-      (Nat.le_trans (Nat.mul_le_mul_left 3 hl) (Nat.mul_le_mul_right n (by decide : 3 ≤ 4)))
-      (by decide : 6 ≤ 64)))
-  have ffuel : Fits w (Cslib.Algorithms.ThreeSum.ChanHe.fuel n) := f3h.of_le (Nat.sub_le _ _)
+  have f2 : Fits w 2 := fitn _ (by omega)
+  have flog2 : Fits w (Nat.log 2 n + 2) := fitn _ (by omega)
+  have flog3 : Fits w (Nat.log 2 n + 2 + 1) := fitn _ (by omega)
+  have fh : Fits w (h + 1) := fitn _ (by omega)
+  have f3h : Fits w (3 * h) := fitn _ (by omega)
+  have ffuel : Fits w (Cslib.Algorithms.ThreeSum.ChanHe.fuel n) :=
+    fitn _ (by dsimp [Cslib.Algorithms.ThreeSum.ChanHe.fuel]; omega)
   have fN : Fits w (8 * m ^ 2) := hfit.of_le (Math.mPar_sq_le_budget n U)
-  have fNm : Fits w (8 * (m * m)) := by simpa only [Nat.pow_two] using fN
-  have fm2 : Fits w (m * m) := fNm.of_le (Nat.le_mul_of_pos_left _ (by decide : 0 < 8))
+  have fNm : Fits w (8 * (m * m)) := by simpa only [pow_two] using fN
+  have fm2 : Fits w (m * m) := fNm.of_le (Nat.le_mul_of_pos_left _ (by decide))
   wram_exec [k_logLen, k_two, flog2]
   wram_call (NatClog.exec _ f2
-    (by simp only [wram_simps, NatClog.arg, logRegisters, flog3])
-    (by simp only [wram_simps, NatClog.arg, logRegisters]; exact fh)) canonical
+    (by wram_simp [NatClog.arg, logRegisters, flog3])
+    (by wram_simp [NatClog.arg, logRegisters, h,
+      Cslib.Algorithms.ThreeSum.ChanHe.height]; exact fh)) canonical
     (by decide : (logRegisters height).Injective) with o ⟨oh, om, oo, ot⟩
   wram_exec [logRegisters, NatClog.result, NatClog.one, NatClog.two, oh, oo, ot,
     k_three, k_primeBound, k_eight, ← eh, f3h, ffuel, fm2, fNm,
     show Nat.clog 2 (Nat.log 2 n + 2) = h from rfl]
   refine ⟨?_, ?_⟩
-  · refine ⟨by simp only [wram_simps, k_len], by simp only [wram_simps, k_magnitude],
-      by simp only [wram_simps, k_digits, Λ],
-      by simp only [wram_simps, oh, Cslib.Algorithms.ThreeSum.ChanHe.height],
-      by simp only [wram_simps],
-      by simp only [wram_simps, k_want, wp], by simp only [wram_simps, k_primeBound, m],
-      by simp only [wram_simps, Nat.pow_two, m],
-      by simp only [wram_simps, k_padding]⟩
-  · simp only [wram_simps, om]
+  · constructor <;> wram_simp [logRegisters, NatClog.result, oh, k_len, k_magnitude,
+      k_digits, k_want, k_primeBound, k_padding, ← eh, pow_two, Λ, wp, m, h,
+      Cslib.Algorithms.ThreeSum.ChanHe.height, Cslib.Algorithms.ThreeSum.ChanHe.fuel]
+  · wram_simp [om]
 
 private theorem exec_calculate_suffix {w n U : ℕ} (f : Data 24)
     (f_len : f.regs len = n) (f_magnitude : f.regs magnitude = U)
@@ -325,29 +319,27 @@ private theorem exec_calculate_suffix {w n U : ℕ} (f : Data 24)
   have fitm (v : ℕ) (hv : v ≤ m) : Fits w v := hml.of_le hv
   have fitn (v : ℕ) (hv : v ≤ 4 * n + 64) : Fits w v :=
     hfit.of_le (Nat.le_trans hv (Math.four_n_le_budget n U))
-  have f2 : Fits w 2 := fitn 2 (Nat.le_trans (by decide : 2 ≤ 64) (Nat.le_add_left 64 _))
-  have f2log : Fits w (2 * Nat.log 2 (wp + 1)) := fitm _ (Nat.le_trans (Nat.le_add_right _ 4) hf)
+  have f2 : Fits w 2 := fitn _ (by omega)
+  have f2log : Fits w (2 * Nat.log 2 (wp + 1)) := fitm _ (by omega)
   have ff : Fits w (2 * Nat.log 2 (wp + 1) + 4) := fitm _ hf
-  have fn : Fits w n :=
-    fitn n (Nat.le_trans (Nat.le_mul_of_pos_left n (by decide)) (Nat.le_add_right _ 64))
-  have flogn : Fits w (Nat.log 2 n + 1) :=
-    fitn _ (Nat.add_le_add (Nat.le_trans hl (Nat.le_mul_of_pos_left n (by decide))) (by decide))
+  have fn : Fits w n := fitn _ (by omega)
+  have flogn : Fits w (Nat.log 2 n + 1) := fitn _ (by omega)
   wram_exec [f_two, f_temp, f_four, f_wantSucc, ← em, f2log, ff, hml, f_len]
   wram_call (NatLog.exec _ f2
-    (by simp only [wram_simps, NatLog.arg, logRegisters, fn])
-    (by simp only [wram_simps, NatLog.arg, logRegisters, flogn])) canonical
+    (by wram_simp [NatLog.arg, logRegisters, f_len, fn])
+    (by wram_simp [NatLog.arg, logRegisters, f_len, flogn])) canonical
     (by decide : (logRegisters logLen).Injective) with k ⟨kl, km, _, kt⟩
   wram_call (exec_calculate_tail _
-    (by simp only [wram_simps, f_len]) (by simp only [wram_simps, f_magnitude])
-    (by simp only [wram_simps, f_digits, Λ]) (by simp only [wram_simps, f_padding])
-    (by simp only [wram_simps, f_want, wp]) (by simp only [wram_simps, m])
-    (by simp only [wram_simps, kl])
-    (by simp only [wram_simps, kt])
-    (by simp only [wram_simps, f_three]) (by simp only [wram_simps, f_eight]) hfit) with p ⟨hp, hm⟩
+    (by wram_simp [f_len]) (by wram_simp [f_magnitude])
+    (by wram_simp [f_digits, Λ]) (by wram_simp [f_padding])
+    (by wram_simp [f_want, wp]) (by wram_simp [m])
+    (by wram_simp [logRegisters, NatLog.result, kl, f_len])
+    (by wram_simp [logRegisters, NatLog.two, kt])
+    (by wram_simp [f_three]) (by wram_simp [f_eight]) hfit) with p ⟨hp, hm⟩
   refine ⟨?_, hp, ?_⟩
-  · simp only [wram_simps]
+  · wram_simp [logRegisters, NatLog.arg, f_len]
     omega
-  · simp only [wram_simps, hm, km]
+  · wram_simp [hm, km]
 
 private theorem exec_calculate {w n U : ℕ} (x : Data 24)
     (hlen : x.regs len = n) (hU : x.regs magnitude = U)
@@ -360,8 +352,9 @@ private theorem exec_calculate {w n U : ℕ} (x : Data 24)
   let wp := Cslib.Algorithms.ThreeSum.ChanHe.wPar n (2 * U)
   let m := Cslib.Algorithms.ThreeSum.ChanHe.mPar n (2 * U)
   have eΛ : Λ = Nat.log 2 (4 * U) + 1 := by
-    dsimp only [Λ, Cslib.Algorithms.ThreeSum.labelBits]
-    rw [← Nat.mul_assoc]
+    dsimp [Λ, Cslib.Algorithms.ThreeSum.labelBits]
+    congr 2
+    omega
   have ew : wp = 5 * Λ * (Nat.sqrt n + 1) := rfl
   have hd : 5 * Λ ≤ wp := Math.digits_le n U
   have hw : wp + 1 ≤ m := Math.want_le n U
@@ -373,48 +366,46 @@ private theorem exec_calculate {w n U : ℕ} (x : Data 24)
     hfit.of_le (Nat.le_trans hv (Math.eight_U_le_budget n U))
   have fitn (v : ℕ) (hv : v ≤ 4 * n + 64) : Fits w v :=
     hfit.of_le (Nat.le_trans hv (Math.four_n_le_budget n U))
-  have f2 : Fits w 2 := fitu 2 (Nat.le_trans (by decide : 2 ≤ 64) (Nat.le_add_left 64 _))
-  have h4U8 : 4 * U ≤ 8 * U := Nat.mul_le_mul_right U (by decide)
-  have f4U : Fits w (4 * U) := fitu _ (Nat.le_trans h4U8 (Nat.le_add_right _ 64))
-  have fpad : Fits w (4 * U + 1) := fitu _ (Nat.add_le_add h4U8 (by decide))
-  have fwp : Fits w wp := fitm _ (Nat.le_trans (Nat.le_add_right wp 1) hw)
-  have f5Λ : Fits w (5 * Λ) := fwp.of_le hd
-  have fΛ : Fits w Λ := f5Λ.of_le (Nat.le_mul_of_pos_left Λ (by decide))
-  have flogU : Fits w (Nat.log 2 (4 * U) + 1) := eΛ ▸ fΛ
-  have fsqrt : Fits w (4 * n + 4) := fitn _ (Nat.add_le_add_left (by decide) _)
-  have fr : Fits w (Nat.sqrt n + 1) :=
-    fitn _ (Nat.add_le_add (Nat.le_trans hroot (Nat.le_mul_of_pos_left n (by decide))) (by decide))
+  have f2 : Fits w 2 := fitu _ (by omega)
+  have f4U : Fits w (4 * U) := fitu _ (by omega)
+  have fpad : Fits w (4 * U + 1) := fitu _ (by omega)
+  have fΛ : Fits w Λ := fitm _ (by omega)
+  have flogU : Fits w (Nat.log 2 (4 * U) + 1) :=
+    fitu _ (by have := Nat.log_le_self 2 (4 * U); omega)
+  have fsqrt : Fits w (4 * n + 4) := fitn _ (by omega)
+  have fr : Fits w (Nat.sqrt n + 1) := fitn _ (by omega)
+  have f5Λ : Fits w (5 * Λ) := fitm _ (by omega)
+  have fwp : Fits w wp := fitm _ (by omega)
   have fwps : Fits w (wp + 1) := fitm _ hw
-  have flogwp : Fits w (Nat.log 2 (wp + 1) + 1) :=
-    fitm _ (Nat.le_trans (Nat.add_le_add (Nat.le_mul_of_pos_left _ (by decide)) (by decide)) hf)
+  have flogwp : Fits w (Nat.log 2 (wp + 1) + 1) := fitm _ (by omega)
   unfold calculate
   wram_exec [h4, hU, h1, f4U, fpad]
   wram_call (NatLog.exec _ f2
-    (by simp only [wram_simps, NatLog.arg, logRegisters, f4U])
-    (by simp only [wram_simps, NatLog.arg, logRegisters, flogU])) canonical
+    (by wram_simp [NatLog.arg, logRegisters, f4U])
+    (by wram_simp [NatLog.arg, logRegisters, flogU])) canonical
     (by decide : (logRegisters digits).Injective) with b ⟨bd, bm, bo, bt⟩
   wram_exec [logRegisters, NatLog.result, NatLog.one, bd, bo, ← eΛ, fΛ]
   wram_call (NatSqrt.exec _
-    (by simp only [wram_simps, sqrtRegisters, NatSqrt.arg, hlen, fsqrt])) canonical
+    (by wram_simp [sqrtRegisters, NatSqrt.arg, hlen, fsqrt])) canonical
     sqrt_injective with d ⟨dr, dl, dm, done⟩
   wram_exec [sqrtRegisters, NatSqrt.root, NatSqrt.one, dr, done, hlen,
     logRegisters, h5, ← ew, fr, f5Λ, fwp, fwps, ← eΛ]
   wram_call (NatLog.exec _ f2
-    (by simp only [wram_simps, NatLog.arg, logRegisters, fwps])
-    (by simp only [wram_simps, NatLog.arg, logRegisters, flogwp])) canonical
+    (by wram_simp [NatLog.arg, logRegisters, fwps])
+    (by wram_simp [NatLog.arg, logRegisters, flogwp])) canonical
     (by decide : (logRegisters temp).Injective) with f ⟨ft, fm, _, ftt⟩
   wram_call (exec_calculate_suffix _
-    (by simp only [wram_simps, sqrtRegisters, NatSqrt.arg, dl, hlen])
-    (by simp only [wram_simps, hU]) (by simp only [wram_simps, Λ])
-    (by simp only [wram_simps]) (by simp only [wram_simps, wp]) (by simp only [wram_simps, wp])
-    (by simp only [wram_simps, ft, wp])
-    (by simp only [wram_simps, ftt])
-    (by simp only [wram_simps, h3]) (by simp only [wram_simps, h4])
-    (by simp only [wram_simps, h8]) hfit) with p ⟨hp, hm⟩
+    (by wram_simp [sqrtRegisters, NatSqrt.arg, dl, hlen])
+    (by wram_simp [hU]) (by wram_simp [← eΛ, Λ]) (by wram_simp)
+    (by wram_simp [wp]) (by wram_simp [wp])
+    (by wram_simp [logRegisters, NatLog.result, ft, wp])
+    (by wram_simp [logRegisters, NatLog.two, ftt])
+    (by wram_simp [h3]) (by wram_simp [h4]) (by wram_simp [h8]) hfit) with p ⟨hp, hm⟩
   refine ⟨?_, hp, ?_⟩
-  · simp only [wram_simps, time_zero, sqrtRegisters, NatSqrt.arg, hlen, wp]
+  · wram_simp [time_zero, logRegisters, NatLog.arg, sqrtRegisters, NatSqrt.arg,
+      hlen, wp, h]
     omega
-  · simp only [wram_simps, hm, fm, dm, bm]
+  · wram_simp [hm, fm, dm, bm]
 
 private theorem time_exec_le (κ n U : ℕ) :
     (time 0 n U - 20) + (κ + 1) + 9 ≤ time κ n U := by
@@ -435,35 +426,26 @@ theorem exec {w : ℕ} (κ : ℕ) (x : Data 24)
   let U := (n + 2) ^ κ
   have fit (v : ℕ) (hv : v ≤ 8 * U + 4 * n + 64) : Fits w v :=
     hfit.of_le (Nat.le_trans hv (Math.linear_le_budget n U))
-  have fit64 (v : ℕ) (hv : v ≤ 64) : Fits w v := fit v (Nat.le_trans hv (Nat.le_add_left 64 _))
-  have f0 : Fits w 0 := fit64 0 (by decide)
-  have f1 : Fits w 1 := fit64 1 (by decide)
-  have f2 : Fits w 2 := fit64 2 (by decide)
-  have f3 : Fits w 3 := fit64 3 (by decide)
-  have f4 : Fits w 4 := fit64 4 (by decide)
-  have f5 : Fits w 5 := fit64 5 (by decide)
-  have f8 : Fits w 8 := fit64 8 (by decide)
-  have fb : Fits w (n + 2) :=
-    hfit.of_le (Nat.le_trans
-      (Nat.add_le_add (Nat.le_mul_of_pos_left n (by decide)) (by decide))
-      (Math.four_n_le_budget n U))
+  have f0 : Fits w 0 := fit _ (by omega)
+  have f1 : Fits w 1 := fit _ (by omega)
+  have f2 : Fits w 2 := fit _ (by omega)
+  have f3 : Fits w 3 := fit _ (by omega)
+  have f4 : Fits w 4 := fit _ (by omega)
+  have f5 : Fits w 5 := fit _ (by omega)
+  have f8 : Fits w 8 := fit _ (by omega)
+  have fb : Fits w (n + 2) := fit _ (by omega)
   have fn : Fits w n := fb.of_le (Nat.le_add_right n 2)
-  have fU : Fits w U :=
-    hfit.of_le (Nat.le_trans
-      (Nat.le_trans (Nat.le_mul_of_pos_left U (by decide)) (Nat.le_add_right _ 64))
-      (Math.eight_U_le_budget n U))
+  have fU : Fits w U := fit _ (by omega)
   unfold program setup
   wram_exec [f0, fn, f1, f2, f3, f4, f5, f8, fb]
   refine WP.of_execWithin
-    (exec_power κ _ (by simp only [wram_simps]; exact Nat.succ_pos _)
-      (by simp only [wram_simps, fU, U, n])) ?_
+    (exec_power κ _ (by wram_simp) (by wram_simp [fU, U, n])) ?_
   wram_call (exec_calculate _
-    (by simp only [wram_simps]) (by simp only [wram_simps]) (by simp only [wram_simps])
-    (by simp only [wram_simps]) (by simp only [wram_simps]) (by simp only [wram_simps])
-    (by simp only [wram_simps]) hfit) with y ⟨hout, hm⟩
+    (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp)
+    (by wram_simp) (by wram_simp) (by wram_simp) hfit) with y ⟨hout, hm⟩
   refine ⟨?_, hout, ?_⟩
   · exact time_exec_le κ n U
-  · simp only [wram_simps, hm]
+  · wram_simp [hm]
 
 namespace Math
 
@@ -475,16 +457,16 @@ def scale (n U : ℕ) : ℕ := 16 * (n + 2) * (U + 1)
 private theorem scale_bounds (n U : ℕ) :
     16 ≤ scale n U ∧ n + 2 ≤ scale n U ∧ 4 * U + 2 ≤ scale n U := by
   have h16 : 16 ≤ scale n U :=
-    Nat.le_trans (Nat.le_mul_of_pos_right 16 (Nat.succ_pos _))
+    (Nat.le_mul_of_pos_right 16 (Nat.succ_pos _)).trans
       (Nat.le_mul_of_pos_right _ (Nat.succ_pos _))
   have hn : n + 2 ≤ scale n U :=
-    Nat.le_trans (Nat.le_mul_of_pos_left (n + 2) (by decide : 0 < 16))
+    (Nat.le_mul_of_pos_left (n + 2) (by decide : 0 < 16)).trans
       (Nat.le_mul_of_pos_right _ (Nat.succ_pos _))
-  have hU : 4 * U + 2 ≤ scale n U :=
-    Nat.le_trans
-      (Nat.mul_succ 4 U ▸ Nat.add_le_add_left (by decide : 2 ≤ 4) (4 * U))
-      (Nat.mul_le_mul_right (U + 1)
-        (Nat.le_trans (by decide : 4 ≤ 16) (Nat.le_mul_of_pos_right 16 (Nat.succ_pos _))))
+  have hU : 4 * U + 2 ≤ scale n U := by
+    have h4 : 4 * (U + 1) ≤ 16 * (n + 2) * (U + 1) :=
+      Nat.mul_le_mul_right (U + 1) (by omega)
+    dsimp only [scale]
+    omega
   exact ⟨h16, hn, hU⟩
 
 private theorem scale_pow_mono {b : ℕ} (hb : 1 ≤ b) {i j : ℕ} (hij : i ≤ j) :
@@ -492,83 +474,80 @@ private theorem scale_pow_mono {b : ℕ} (hb : 1 ≤ b) {i j : ℕ} (hij : i ≤
 
 /-- A coarse polynomial bound; it also covers final unsuccessful root/log iterations. -/
 theorem budget_le_scale (n U : ℕ) : budget n U ≤ scale n U ^ 20 := by
+  let b := scale n U
   obtain ⟨hb, hn, hU⟩ := scale_bounds n U
-  generalize scale n U = b at hb hn hU ⊢
-  have hsmall : 8 * U + 4 * n + 64 ≤ 16 * b := by omega
-  have hb1 : 1 ≤ b := Nat.le_trans (by decide : 1 ≤ 16) hb
+  change 16 ≤ b at hb
+  change n + 2 ≤ b at hn
+  change 4 * U + 2 ≤ b at hU
+  have hb1 : 1 ≤ b := by omega
   have hΛ : labelBits (2 * U) ≤ b := by
-    have hl : Nat.log 2 (4 * U) ≤ 4 * U := Nat.log_le_self 2 (4 * U)
-    dsimp only [labelBits]
-    rw [← Nat.mul_assoc]
-    exact Nat.le_trans (Nat.add_le_add hl (by decide : 1 ≤ 2)) hU
-  have hr : Nat.sqrt n + 1 ≤ b :=
-    Nat.le_trans (Nat.add_le_add (Nat.sqrt_le_self n) (by decide : 1 ≤ 2)) hn
+    have hl := Nat.log_le_self 2 (4 * U)
+    dsimp [labelBits]
+    have he : 2 * (2 * U) = 4 * U := by omega
+    rw [he]
+    omega
+  have hr : Nat.sqrt n + 1 ≤ b := by have := Nat.sqrt_le_self n; omega
   have hw : ChanHe.wPar n (2 * U) ≤ b ^ 3 := by
-    have h1 : ChanHe.wPar n (2 * U) ≤ b * b * b :=
-      Nat.mul_le_mul (Nat.mul_le_mul (Nat.le_trans (by decide : 5 ≤ 16) hb) hΛ) hr
-    rwa [← Nat.pow_two, ← Nat.pow_succ] at h1
+    calc
+      _ ≤ b * b * b := by
+        dsimp [ChanHe.wPar]
+        exact Nat.mul_le_mul (Nat.mul_le_mul (by omega) hΛ) hr
+      _ = b ^ 3 := by rw [← Nat.pow_two, ← Nat.pow_succ]
   have hws : ChanHe.wPar n (2 * U) + 1 ≤ b ^ 4 := by
-    have h1 : ChanHe.wPar n (2 * U) + 1 ≤ 2 * b ^ 3 := by
-      rw [Nat.two_mul (b ^ 3)]
-      exact Nat.add_le_add hw (Nat.one_le_pow _ _ hb1)
-    have h2 : 2 * b ^ 3 ≤ b * b ^ 3 :=
-      Nat.mul_le_mul_right _ (Nat.le_trans (by decide : 2 ≤ 16) hb)
-    rw [← Nat.pow_succ'] at h2
-    exact Nat.le_trans h1 h2
+    have hp : 1 ≤ b ^ 3 := Nat.one_le_pow _ _ hb1
+    calc
+      _ ≤ 2 * b ^ 3 := by omega
+      _ ≤ b * b ^ 3 := Nat.mul_le_mul_right _ (by omega)
+      _ = b ^ 4 := by rw [← Nat.pow_succ']
   have hfac : 2 * Nat.log 2 (ChanHe.wPar n (2 * U) + 1) + 4 ≤ b ^ 5 := by
-    have hl : Nat.log 2 (ChanHe.wPar n (2 * U) + 1) ≤ b ^ 4 :=
-      Nat.le_trans (Nat.log_le_self 2 _) hws
-    have h1 : 2 * Nat.log 2 (ChanHe.wPar n (2 * U) + 1) + 4 ≤ 6 * b ^ 4 := by
-      have h2 := Nat.add_le_add (Nat.mul_le_mul_left 2 hl)
-        (Nat.mul_le_mul_left 4 (Nat.one_le_pow 4 b hb1))
-      rwa [← Nat.add_mul] at h2
-    have h3 : 6 * b ^ 4 ≤ b * b ^ 4 :=
-      Nat.mul_le_mul_right _ (Nat.le_trans (by decide : 6 ≤ 16) hb)
-    rw [← Nat.pow_succ'] at h3
-    exact Nat.le_trans h1 h3
+    have hl := Nat.log_le_self 2 (ChanHe.wPar n (2 * U) + 1)
+    have hp : 1 ≤ b ^ 4 := Nat.one_le_pow _ _ hb1
+    calc
+      _ ≤ 6 * b ^ 4 := by omega
+      _ ≤ b * b ^ 4 := Nat.mul_le_mul_right _ (by omega)
+      _ = b ^ 5 := by rw [← Nat.pow_succ']
   have hm : ChanHe.mPar n (2 * U) ≤ b ^ 9 := by
-    have h1 := Nat.mul_le_mul hws hfac
-    rwa [← Nat.pow_add] at h1
+    calc
+      _ ≤ b ^ 4 * b ^ 5 := Nat.mul_le_mul hws hfac
+      _ = b ^ 9 := by rw [← Nat.pow_add]
   have hms : ChanHe.mPar n (2 * U) + 1 ≤ 2 * b ^ 9 := by
-    rw [Nat.two_mul (b ^ 9)]
-    exact Nat.add_le_add hm (Nat.one_le_pow _ _ hb1)
+    have hp : 1 ≤ b ^ 9 := Nat.one_le_pow _ _ hb1
+    omega
   have hsq : (ChanHe.mPar n (2 * U) + 1) ^ 2 ≤ 4 * b ^ 18 := by
-    have h1 := Nat.pow_le_pow_left hms 2
-    rwa [Nat.mul_pow, ← Nat.pow_mul] at h1
+    calc
+      _ ≤ (2 * b ^ 9) ^ 2 := Nat.pow_le_pow_left hms 2
+      _ = 4 * b ^ 18 := by rw [Nat.mul_pow, ← Nat.pow_mul]
+  have hsmall : 8 * U + 4 * n + 64 ≤ 16 * b := by omega
   have hp18 : b ≤ b ^ 18 := by
     simpa only [Nat.pow_one] using scale_pow_mono hb1 (show 1 ≤ 18 by decide)
   have hbudget : budget n U ≤ 48 * b ^ 18 := by
-    have h8 : 8 * (ChanHe.mPar n (2 * U) + 1) ^ 2 ≤ 32 * b ^ 18 := by
-      have h1 := Nat.mul_le_mul_left 8 hsq
-      rwa [← Nat.mul_assoc] at h1
-    have h16 : 8 * U + 4 * n + 64 ≤ 16 * b ^ 18 :=
-      Nat.le_trans hsmall (Nat.mul_le_mul_left 16 hp18)
-    have hsum := Nat.add_le_add h8 h16
-    rw [← Nat.add_mul] at hsum
     dsimp only [budget]
-    rwa [Nat.add_assoc, Nat.add_assoc, ← Nat.add_assoc (8 * U)]
+    omega
   have h48 : 48 ≤ b ^ 2 :=
-    Nat.le_trans (by decide : 48 ≤ 16 ^ 2) (Nat.pow_le_pow_left hb 2)
-  have hfin := Nat.le_trans hbudget (Nat.mul_le_mul_right _ h48)
-  rwa [← Nat.pow_add] at hfin
+    (by decide : 48 ≤ 16 ^ 2).trans (Nat.pow_le_pow_left hb 2)
+  calc
+    _ ≤ 48 * b ^ 18 := hbudget
+    _ ≤ b ^ 2 * b ^ 18 := Nat.mul_le_mul_right _ h48
+    _ = b ^ 20 := by rw [← Nat.pow_add]
 
 /-- A single polynomial bound, with exponent affine in the fixed magnitude exponent. -/
 theorem budget_polynomial (κ n : ℕ) : budget n ((n + 2) ^ κ) ≤ (n + 2) ^ (20 * κ + 120) := by
   let a := n + 2
-  have ha : 2 ≤ a := Nat.le_add_left 2 n
-  have hpow : 1 ≤ a ^ κ := Nat.one_le_pow _ _ (Nat.le_trans (by decide : 1 ≤ 2) ha)
-  have h32 : 32 ≤ a ^ 5 :=
-    Nat.le_trans (by decide : 32 ≤ 2 ^ 5) (Nat.pow_le_pow_left ha 5)
+  have ha : 2 ≤ a := by dsimp [a]; omega
+  have hpow : 1 ≤ a ^ κ := Nat.one_le_pow _ _ (by omega)
   have hs : scale n (a ^ κ) ≤ a ^ (κ + 6) := by
-    have h1 : scale n (a ^ κ) ≤ 16 * a * (2 * a ^ κ) :=
-      Nat.mul_le_mul_left (16 * a) (by rw [Nat.two_mul]; exact Nat.add_le_add_left hpow _)
-    rw [← Nat.mul_assoc, Nat.mul_right_comm 16 a 2] at h1
-    have h2 : 32 * a * a ^ κ ≤ a ^ 5 * a * a ^ κ :=
-      Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ h32)
-    rw [← Nat.pow_succ, ← Nat.pow_add, Nat.add_comm] at h2
-    exact Nat.le_trans h1 h2
-  have hfin := Nat.le_trans (budget_le_scale n (a ^ κ)) (Nat.pow_le_pow_left hs 20)
-  rwa [← Nat.pow_mul, Nat.mul_comm, Nat.mul_add] at hfin
+    have h32 : 32 ≤ a ^ 5 :=
+      (by decide : 32 ≤ 2 ^ 5).trans (Nat.pow_le_pow_left ha 5)
+    calc
+      _ = 16 * a * (a ^ κ + 1) := rfl
+      _ ≤ 16 * a * (2 * a ^ κ) := Nat.mul_le_mul_left _ (by omega)
+      _ = 32 * a * a ^ κ := by rw [← Nat.mul_assoc, Nat.mul_right_comm 16 a 2]
+      _ ≤ a ^ 5 * a * a ^ κ := Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ h32)
+      _ = a ^ (κ + 6) := by rw [← Nat.pow_succ, ← Nat.pow_add, Nat.add_comm]
+  calc
+    _ ≤ scale n (a ^ κ) ^ 20 := budget_le_scale n (a ^ κ)
+    _ ≤ (a ^ (κ + 6)) ^ 20 := Nat.pow_le_pow_left hs 20
+    _ = a ^ (20 * κ + 120) := by rw [← Nat.pow_mul, Nat.mul_comm, Nat.mul_add]
 
 end Math
 /-- Positive logarithmic word-width threshold for the complete parameter computation. -/
@@ -576,23 +555,24 @@ def width (κ n : ℕ) : ℕ := (20 * κ + 121) * Nat.clog 2 (n + 2)
 
 /-- The width requirement is satisfiable even at empty input and exponent zero. -/
 theorem width_pos (κ n : ℕ) : 0 < width κ n :=
-  Nat.mul_pos (Nat.succ_pos _)
-    (Nat.clog_pos (b := 2) (by decide) (Nat.succ_lt_succ (Nat.succ_pos n)))
+  Nat.mul_pos (by omega) (Nat.clog_pos (b := 2) (by decide) (show 1 < n + 2 by omega))
 
 private theorem budget_le_two_pow (κ n : ℕ) :
     Math.budget n ((n + 2) ^ κ) ≤ 2 ^ ((20 * κ + 120) * Nat.clog 2 (n + 2)) := by
-  have h := Nat.le_trans (Math.budget_polynomial κ n)
-    (Nat.pow_le_pow_left (Nat.le_pow_clog (by decide : 1 < 2) (n + 2)) _)
-  rwa [← Nat.pow_mul, Nat.mul_comm] at h
+  calc
+    _ ≤ (n + 2) ^ (20 * κ + 120) := Math.budget_polynomial κ n
+    _ ≤ (2 ^ Nat.clog 2 (n + 2)) ^ (20 * κ + 120) :=
+      Nat.pow_le_pow_left (Nat.le_pow_clog (by decide) _) _
+    _ = _ := by rw [← Nat.pow_mul, Nat.mul_comm]
 
 /-- Every local fit premise follows from the positive logarithmic width. -/
 theorem budget_fits {κ n w : ℕ} (hw : width κ n ≤ w) :
     Fits w (Math.budget n ((n + 2) ^ κ)) := by
-  have hl := Nat.clog_pos (b := 2) (by decide) (Nat.succ_lt_succ (Nat.succ_pos n))
+  have hl := Nat.clog_pos (b := 2) (by decide) (show 1 < n + 2 by omega)
   apply Fits.mono (w := width κ n) _ hw
-  apply Nat.lt_of_le_of_lt (budget_le_two_pow κ n)
+  apply (budget_le_two_pow κ n).trans_lt
   apply Nat.pow_lt_pow_right (by decide)
-  exact Nat.mul_lt_mul_of_pos_right (Nat.lt_succ_self _) hl
+  exact Nat.mul_lt_mul_of_pos_right (by omega) hl
 
 /-- Signed-encoded inputs and the unsigned length header fit at the same width. -/
 theorem inputFits {κ w : ℕ} (input : List ℤ) (hw : width κ input.length ≤ w)
@@ -600,26 +580,19 @@ theorem inputFits {κ w : ℕ} (input : List ℤ) (hw : width κ input.length �
     InputFits w (input.map Signed.encode) := by
   have hf := budget_fits hw
   refine ⟨?_, ?_⟩
-  · rw [List.length_map]
-    exact hf.of_le (Nat.le_trans
-      (Nat.le_trans (Nat.le_mul_of_pos_left _ (by decide)) (Nat.le_add_right _ 64))
-      (Math.four_n_le_budget _ _))
+  · simp only [List.length_map]
+    apply hf.of_le
+    dsimp [Math.budget]
+    omega
   · intro v hv
     obtain ⟨z, hz, rfl⟩ := List.mem_map.mp hv
-    have habs : z.natAbs ≤ (input.length + 2) ^ κ :=
-      Int.ofNat_le.mp (by simpa only [Int.natCast_natAbs] using hvalues z hz)
-    have hbit : (if z < 0 then 1 else 0) ≤ 64 := by split <;> decide
-    have henc : Signed.encode z ≤ 8 * (input.length + 2) ^ κ + 64 :=
-      Nat.add_le_add
-        (Nat.le_trans (Nat.mul_le_mul_left 2 habs) (Nat.mul_le_mul_right _ (by decide : 2 ≤ 8)))
-        hbit
-    exact hf.of_le (Nat.le_trans henc (Math.eight_U_le_budget _ _))
-
-private theorem time_bound_arith {κ a b c d S EL L : ℕ}
-    (ha : a ≤ EL) (hb : b ≤ EL) (hc : c ≤ EL) (hd : d ≤ c + 2)
-    (h1 : κ + 74 ≤ (κ + 74) * L) (h2 : 17 * EL + (κ + 74) * L ≤ (400 * κ + 3000) * L) :
-    κ + 64 + S + 4 * a + 4 * b + 4 * c + 5 * d ≤ S + (400 * κ + 3000) * L := by
-  omega
+    have habs : z.natAbs ≤ (input.length + 2) ^ κ := by
+      have hc : (z.natAbs : ℤ) ≤ ((input.length + 2) ^ κ : ℕ) := by
+        simpa only [Int.natCast_natAbs] using hvalues z hz
+      exact_mod_cast hc
+    apply hf.of_le
+    dsimp [Math.budget, Signed.encode]
+    split_ifs <;> omega
 
 /-- Explicit `Oκ(√n + log(n+2))` instruction bound, valid also at `n = 0,1,2`. -/
 theorem time_bound (κ n : ℕ) :
@@ -628,30 +601,25 @@ theorem time_bound (κ n : ℕ) :
   let U := (n + 2) ^ κ
   let L := Nat.clog 2 (n + 2)
   let E := 20 * κ + 120
-  have hL : 1 ≤ L := Nat.clog_pos (by decide) (Nat.succ_lt_succ (Nat.succ_pos n))
+  have hL : 1 ≤ L := Nat.clog_pos (by decide) (show 1 < n + 2 by omega)
   have hB : Nat.log 2 (Math.budget n U) ≤ E * L := by
-    have h := Nat.log_mono_right (b := 2) (budget_le_two_pow κ n)
-    rwa [Nat.log_pow (by decide)] at h
+    calc
+      _ ≤ Nat.log 2 (2 ^ (E * L)) := Nat.log_mono_right (budget_le_two_pow κ n)
+      _ = _ := Nat.log_pow (by decide) _
   have hlogU : Nat.log 2 (4 * U) ≤ E * L :=
-    Nat.le_trans (Nat.log_mono_right (Nat.le_trans
-      (Nat.le_trans (Nat.mul_le_mul_right U (by decide : 4 ≤ 8)) (Nat.le_add_right _ 64))
-      (Math.eight_U_le_budget n U))) hB
+    (Nat.log_mono_right (show 4 * U ≤ Math.budget n U by dsimp [Math.budget]; omega)).trans hB
   have hlogw : Nat.log 2 (Cslib.Algorithms.ThreeSum.ChanHe.wPar n (2 * U) + 1) ≤ E * L :=
-    Nat.le_trans (Nat.log_mono_right (Nat.le_trans (Math.want_le n U) (Math.mPar_le_budget n U))) hB
+    (Nat.log_mono_right ((Math.want_le n U).trans (Math.mPar_le_budget n U))).trans hB
   have hlogn : Nat.log 2 n ≤ E * L :=
-    Nat.le_trans (Nat.log_mono_right (Nat.le_trans
-      (Nat.le_trans (Nat.le_mul_of_pos_left n (by decide : 0 < 4)) (Nat.le_add_right _ 64))
-      (Math.four_n_le_budget n U))) hB
+    (Nat.log_mono_right (show n ≤ Math.budget n U by dsimp [Math.budget]; omega)).trans hB
   have hh := Math.height_le n
   have hκ : κ + 74 ≤ (κ + 74) * L := Nat.le_mul_of_pos_right _ hL
   have hcoeff : 17 * (E * L) + (κ + 74) * L ≤ (400 * κ + 3000) * L := by
     rw [← Nat.mul_assoc, ← Nat.add_mul]
-    apply Nat.mul_le_mul_right L
-    dsimp only [E]
-    rw [Nat.mul_add, ← Nat.mul_assoc, Nat.add_assoc (340 * κ), Nat.add_left_comm 2040 κ,
-      ← Nat.add_assoc, ← Nat.succ_mul]
-    exact Nat.add_le_add (Nat.mul_le_mul_right κ (by decide)) (by decide)
-  exact time_bound_arith hlogU hlogw hlogn hh hκ hcoeff
+    exact Nat.mul_le_mul_right L (by dsimp only [E]; omega)
+  change time κ n U ≤ 5 * Nat.sqrt n + (400 * κ + 3000) * L
+  dsimp only [time]
+  omega
 
 /-- Native run from actual signed input initialization. No parameters or arithmetic routines
 are supplied as advice. The returned state identifies all outputs and keeps *all* input memory.
@@ -697,18 +665,19 @@ theorem not_readsWidth (κ : ℕ) : ¬(program κ).ReadsWidth := by
       change ¬((power κ).ReadsWidth ∨
         (Code.op (Op.bin BinOp.mul magnitude magnitude base) : Code .standard 24).ReadsWidth)
       exact not_or.mpr ⟨ih, by decide⟩
-  exact fun h => h.elim hs fun h => h.elim hp hc
+  simpa only [program, Code.ReadsWidth, not_or] using And.intro hs (And.intro hp hc)
 
 /-- A word at the canonical width has polynomial magnitude. -/
 theorem two_pow_width_le (κ n : ℕ) : 2 ^ width κ n ≤ (n + 2) ^ (40 * κ + 242) := by
-  have hpow := Nat.pow_clog_le_mul (by decide : 1 < 2) (Nat.succ_ne_zero (n + 1))
+  have hpow := Nat.pow_clog_le_mul (by decide : 1 < 2) (by omega : n + 2 ≠ 0)
   have hsq : 2 * (n + 2) ≤ (n + 2) ^ 2 := by
     rw [Nat.pow_two]
-    exact Nat.mul_le_mul_right (n + 2) (Nat.le_add_left 2 n)
-  have h := Nat.pow_le_pow_left (Nat.le_trans hpow hsq) (20 * κ + 121)
-  rw [← Nat.pow_mul, Nat.mul_comm (Nat.clog 2 (n + 2)),
-    ← Nat.pow_mul, Nat.mul_add, ← Nat.mul_assoc] at h
-  exact h
+    exact Nat.mul_le_mul_right (n + 2) (by omega)
+  calc
+    2 ^ width κ n = (2 ^ Nat.clog 2 (n + 2)) ^ (20 * κ + 121) := by
+      rw [width, ← Nat.pow_mul, Nat.mul_comm]
+    _ ≤ ((n + 2) ^ 2) ^ (20 * κ + 121) := Nat.pow_le_pow_left (hpow.trans hsq) _
+    _ = _ := by rw [← Nat.pow_mul]; congr 1; omega
 
 /-- Canonical-width executions use only polynomially bounded integers, including memory
 addresses, loop counters, and final unsuccessful tests. -/
