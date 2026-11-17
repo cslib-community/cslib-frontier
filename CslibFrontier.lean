@@ -2533,6 +2533,7 @@ public import CslibFrontier.Computability.Complexity.Problems.CSP.Schaefer
 public import CslibFrontier.Computability.Complexity.Problems.CSP.SelfDualThreeSAT
 public import CslibFrontier.Computability.Complexity.Problems.ChromaticNumber
 public import CslibFrontier.Computability.Complexity.Problems.CircuitSAT
+public import CslibFrontier.Computability.Complexity.Problems.CircuitSAT.Levin
 public import CslibFrontier.Computability.Complexity.Problems.CircuitValue
 public import CslibFrontier.Computability.Complexity.Problems.CircuitValue.Compilation
 public import CslibFrontier.Computability.Complexity.Problems.CircuitValue.Completeness
