@@ -1273,7 +1273,7 @@ theorem realizationMap_injective [Finite V] (W : WeightedGraph V) :
               ((u₂ : ℝ) * W.weight e₁.1 - edgeLegHeight W e₁) / edgeChordDist W e₁ := by
             linarith
           have hm : (u₁ : ℝ) * W.weight e₁.1 = (u₂ : ℝ) * W.weight e₁.1 := by
-            have := (div_left_inj' hd0).mp hdiv
+            have := (div_left_inj₀ hd0).mp hdiv
             linarith
           exact mul_right_cancel₀ hw₁.ne' hm
         · have h1w := h_snd_weight u₁ (hx02.symm.trans (hz0.symm.trans hx01))

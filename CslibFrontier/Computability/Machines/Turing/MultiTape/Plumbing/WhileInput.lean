@@ -88,7 +88,7 @@ lemma step_check (p : Fin (input.length + 2)) (ws : Fin k → List Symbol) (out 
       wordsCfgAt input p ((inputSymbolAt input p).map fun _ => .inl tm.q₀) ws out := by
   rw [step_of_state rfl, inputSymbol_eq_inputSymbolAt]
   refine Cfg.ext ?_ ?_ ?_ ?_ ?_ <;>
-    (try simp [whileInput, combine, adaptedTr, inputTest, Action.apply, moveInputPos_zero]) <;>
+    (simp [whileInput, combine, adaptedTr, inputTest, Action.apply, moveInputPos_zero]) <;>
     rfl
 
 /-- One round: from the test with the input head on a symbol, the loop runs `tm` once and is back

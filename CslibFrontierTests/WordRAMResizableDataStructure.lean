@@ -463,9 +463,9 @@ theorem pushDeltaProg_realizesBounded :
     unfold Fits at *
     try simp only [StateTransitionSpec.clientResult, StateTransitionSpec.clientState,
       runClient_packedWordsProg _ hw]
-    try
-      have hstep := packedWords_succ_sub_le_one (n := s.mem d) hw hbw
-      omega
+    first
+      | done
+      | (have hstep := packedWords_succ_sub_le_one (n := s.mem d) hw hbw; omega)
 
 /-- Append `val` at packed index `n = s.mem base` and increment `s.mem base`, taking
 `(base, val)`. -/
@@ -489,8 +489,9 @@ theorem pushCommitProg_realizesBounded :
   all_goals
     rcases h with ⟨hw_eq, hw, hbw, hfit_n, hfit⟩
     unfold Fits at *
-    try exact ⟨s.mem d.1 + 1, hw_eq, hw, hbw, Nat.lt_succ_self _, hfit⟩
-    try omega
+    first
+      | exact ⟨s.mem d.1 + 1, hw_eq, hw, hbw, Nat.lt_succ_self _, hfit⟩
+      | omega
 
 /-- Prepare `pop`: if `n = 0` return `((0, 0), 0)`; else read `last = readPacked ... (n - 1)`,
 decrement `mem[base]` to `n - 1`, and return
@@ -533,8 +534,10 @@ theorem popPrepProg_realizesBounded :
       exact Nat.add_le_add_right (Nat.div_le_div_right (by omega)) 2
     try simp only [StateTransitionSpec.clientResult, StateTransitionSpec.clientState,
       runClient_readPackedMemProg, runClient_packedWordsProg _ hw]
-    try refine ⟨s.mem d, trivial, hw, hbw, by omega, hfit⟩
-    try omega
+    first
+      | done
+      | exact ⟨s.mem d, trivial, hw, hbw, by omega, hfit⟩
+      | omega
 
 /-- Execute non-resizing `get` (`tag = 2`), `set` (`tag = 3`), or `length` (`tag = 4`), taking
 `((base, tag), (arg1, arg2))`. -/
@@ -565,9 +568,10 @@ theorem getSetLenProg_realizesBounded :
   all_goals
     rcases h with ⟨hw_eq, hw, hbw, hfit, hidx_cond⟩
     unfold Fits at *
-    try exact ⟨s.mem d.1.1, hw_eq, hw, hbw, hidx_cond (Or.inl hc), hfit⟩
-    try exact ⟨s.mem d.1.1, hw_eq, hw, hbw, hidx_cond (Or.inr hc), hfit⟩
-    try omega
+    first
+      | exact ⟨s.mem d.1.1, hw_eq, hw, hbw, hidx_cond (Or.inl hc), hfit⟩
+      | exact ⟨s.mem d.1.1, hw_eq, hw, hbw, hidx_cond (Or.inr hc), hfit⟩
+      | omega
 
 /-! ## 3. Generic `RealizesBounded` → `RCode` leaf lifter (`emitLeafCode`) -/
 

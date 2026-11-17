@@ -914,11 +914,10 @@ theorem realizes_resolveIndexedSlotGen :
   realizeDict using [realizes_readGMGen]
   all_goals
     obtain ⟨hdict, hinv, hb, hj_bc, hj_cap⟩ := h
-    try
-      have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero ‹¬bucketBits n_max = 0›
-      have hq : 4 + 3 * d.1.2 < globalMetaLen n_max := gmQIdx_lt hb_pos hb
-      have hdir := resolveIndexedSlot_dir_lt hb_pos hb hj_cap
-      try with_reducible have htail := resolveIndexedSlot_tailIdx_lt hb_pos d s hinv hb hj_bc hc
+    have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero ‹¬bucketBits n_max = 0›
+    have hq : 4 + 3 * d.1.2 < globalMetaLen n_max := gmQIdx_lt hb_pos hb
+    have hdir := resolveIndexedSlot_dir_lt hb_pos hb hj_cap
+    try with_reducible have htail := resolveIndexedSlot_tailIdx_lt hb_pos d s hinv hb hj_bc hc
   all_goals try dictSide
   · rw [clientResult_readGMProg _ hq]
     have hbc := bCount_le_n_max hinv d.1.2
