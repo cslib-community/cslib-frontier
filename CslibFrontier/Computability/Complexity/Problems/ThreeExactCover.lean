@@ -303,9 +303,7 @@ private theorem vars_cons (c : Clause ℕ) (φ : CNF ℕ) :
   simp [CNF.vars]
 
 private theorem mem_vars {φ : CNF ℕ} {v : ℕ} : v ∈ φ.vars ↔ ∃ c ∈ φ, v ∈ c.map Prod.fst := by
-  induction φ with
-  | nil => simp [CNF.vars]
-  | cons c φ ih => simp [vars_cons, ih]
+  simp [CNF.mem_vars]
 
 /-- A variable occurs in at most as many clauses as it has occurrences. -/
 private theorem length_occ_le_count (φ : CNF ℕ) (v : ℕ) : (occ φ v).length ≤ φ.vars.count v := by
