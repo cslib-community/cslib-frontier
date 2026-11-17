@@ -95,8 +95,7 @@ $\mathcal{E}_s$.
   approximate-sampling (`sampleExp`, adding `4 / 2 ^ n`) bridge to standalone
   symmetric-cipher security at arbitrary (`Encryption.demKeyGameOn`) and normalized (`n`-bit,
   `Encryption.demGameOn`) key lengths.
-* `Cslib.Crypto.PrimeOrderGroupFamily.DDH.negligible_hashedElGamalCipherCPAGameOn`,
-  `PrimeOrderGroupFamily.negligible_hashedElGamalCipherUniformKeyGameOn_of_demOneTimeKeyINDCPAOn`,
+* `PrimeOrderGroupFamily.negligible_hashedElGamalCipherUniformKeyGameOn_of_demOneTimeKeyINDCPAOn`,
   `PrimeOrderGroupFamily.DDH.negligible_hashedElGamalCipherCPAGameOn_of_demOneTimeKeyINDCPAOn`,
   `DDH.negligible_hashedElGamalCipherCPAGameOn_linearHashKDF_of_demOneTimeKeyINDCPAOn`,
   and their normalized `n`-bit-key specializations
@@ -725,41 +724,6 @@ theorem advantage_hashedElGamalCipherCPAGameOn_le_two_mul {Msg : Type}
     (fun bit => F.hashedElGamalCipherUniformKeyGame setup keyLen encryptSym A' bit n)
   exact (h1.trans (add_le_add le_rfl h2)).trans_eq (by ring)
 
-/-- **General-cipher Hashed ElGamal IND-CPA security from DDH, `SecureKDF`, and Game 2
-indistinguishability** ([BonehShoup2023], Section 11.5.2, Theorem 11.5, pp. 449–451): whenever `H`
-and `valid` are polynomial-time computable, `encryptSym` is uniform strict PPT, and every uniform
-strict PPT adversary has negligible advantage in Game 2 (`hashedElGamalCipherUniformKeyGameOn`),
-every uniform strict PPT adversary has negligible advantage in
-`hashedElGamalCipherCPAGameOn valid`. -/
-theorem DDH.negligible_hashedElGamalCipherCPAGameOn {F : PrimeOrderGroupFamily}
-    {Msg : Type} {encMsg : Msg ↪ List Bool}
-    {valid : ℕ → List Bool → Msg → Msg → Bool}
-    {setup : ℕ → PMF F.Desc} {H : F.Desc × List Bool → List Bool} {keyLen : ℕ → ℕ}
-    {encryptSym : ℕ → List Bool → Msg → ProbComp (List Bool)}
-    (hDDH : F.DDH setup) (hKDF : F.SecureKDF setup H keyLen)
-    (hvalid : ComputableInPolyTime
-      (fun ⟨n, pk, m₀, m₁⟩ => valid n pk m₀ m₁)
-      (encChallengePairInput encMsg) encBool)
-    (hH : ComputableInPolyTime H (encPair F.encDesc encBits) encBits)
-    (hencryptSym : IsPPTOn (encKeyedInput encMsg) encBits
-      (fun ⟨n, k, m⟩ => encryptSym n k m))
-    {adversary : Encryption.AdversaryOf Msg}
-    (hA : Encryption.AdversaryOf.IsPPT encMsg adversary)
-    (hSym : Negligible fun n =>
-      Game.advantage
-        (F.hashedElGamalCipherUniformKeyGameOn valid setup keyLen encryptSym adversary false n)
-        (F.hashedElGamalCipherUniformKeyGameOn valid setup keyLen encryptSym adversary true n)) :
-    Negligible fun n =>
-      Game.advantage
-        (F.hashedElGamalCipherCPAGameOn valid setup H encryptSym adversary false n)
-        (F.hashedElGamalCipherCPAGameOn valid setup H encryptSym adversary true n) := by
-  have hA' := hA.restrict hvalid
-  have hkdfPPT := F.isPPT_hashedElGamalCipherToKDFHiddenBitDistinguisher hencryptSym hA'
-  have hddh := hDDH _ (F.isPPT_kdfToDDHDistinguisher hH hkdfPPT)
-  have hkdf := hKDF _ hkdfPPT
-  negligible using
-    F.advantage_hashedElGamalCipherCPAGameOn_le_two_mul valid setup H keyLen encryptSym adversary
-
 /-! ### Reduction from Game 2 (`hashedElGamalCipherUniformKeyGameOn`) to `DEMOneTimeINDCPAOn` -/
 
 /-- One-time symmetric-cipher reduction adversary $\mathcal{B}_s$ for general-cipher Hashed ElGamal
@@ -1220,10 +1184,16 @@ theorem DDH.negligible_hashedElGamalCipherCPAGameOn_of_demOneTimeKeyINDCPAOn
         (F.hashedElGamalCipherCPAGameOn valid (fun n => ProbComp.eval (setupProb n))
           H encryptSym adversary false n)
         (F.hashedElGamalCipherCPAGameOn valid (fun n => ProbComp.eval (setupProb n))
-          H encryptSym adversary true n) :=
-  hDDH.negligible_hashedElGamalCipherCPAGameOn hKDF hvalid hH hencryptSym hA
-    (F.negligible_hashedElGamalCipherUniformKeyGameOn_of_demOneTimeKeyINDCPAOn
-      hDEM hsetup hvalid hvalid_imp hA)
+          H encryptSym adversary true n) := by
+  have hA' := hA.restrict hvalid
+  have hkdfPPT := F.isPPT_hashedElGamalCipherToKDFHiddenBitDistinguisher hencryptSym hA'
+  have hddh := hDDH _ (F.isPPT_kdfToDDHDistinguisher hH hkdfPPT)
+  have hkdf := hKDF _ hkdfPPT
+  have hsym := F.negligible_hashedElGamalCipherUniformKeyGameOn_of_demOneTimeKeyINDCPAOn
+    hDEM hsetup hvalid hvalid_imp hA
+  negligible using
+    F.advantage_hashedElGamalCipherCPAGameOn_le_two_mul valid
+      (fun n => ProbComp.eval (setupProb n)) H keyLen encryptSym adversary
 
 /-- **Boneh–Shoup Theorem 11.5 from DDH, `SecureKDF`, and `Encryption.DEMOneTimeINDCPAOn`**
 ([BonehShoup2023], Section 11.5.2, Theorem 11.5, pp. 449–451): for any efficiently samplable setup
