@@ -7793,6 +7793,8 @@ public import CslibFrontier.Probability.UniformOrder
 public import CslibFrontier.Probability.UniversalHash
 public import CslibFrontier.Probability.UniversalHash.MultiSample
 public import CslibFrontier.Tactic.Degree
+public import CslibFrontier.Tactic.ENNRealToReal
+public import CslibFrontier.Tactic.ENNRealToReal.Init
 public import CslibFrontier.Tactic.EncLen
 public import CslibFrontier.Tactic.FOOperator
 public import CslibFrontier.Tactic.FOOperator.Init

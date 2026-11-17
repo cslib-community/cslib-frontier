@@ -30,6 +30,7 @@ import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.PMF.UniformPoint
 import CslibFrontier.Probability.Uniform
+import CslibFrontier.Tactic.ENNRealToReal
 import CslibFrontier.Tactic.GameHop
 import CslibFrontier.Tactic.PMFSwap
 import CslibFrontier.Tactic.SuppCases
@@ -1369,9 +1370,8 @@ theorem le_advantage_feistel3CCAAttack_idealStrongGame (f₁ f₂ f₃ : G → G
           (feistel3CCAAttack l₀ l₁ r₀))
         (idealStrongGame (feistel3CCAAttack l₀ l₁ r₀)) : ℝ) := by
   set g := idealStrongGame (feistel3CCAAttack l₀ l₁ r₀)
-  have hfail := ENNReal.toReal_mono (PMF.apply_ne_top g false)
-    (le_idealStrongGame_feistel3CCAAttack_false h01 h02 h12)
-  rw [ENNReal.toReal_inv, ENNReal.toReal_natCast] at hfail
+  have hfail := le_idealStrongGame_feistel3CCAAttack_false (r₀ := r₀) h01 h02 h12
+  ennreal_to_real at hfail
   rwa [eval_feistel3_feistel3CCAAttack, Game.advantage_pure_true_left, Game.coe_failProbability]
 
 /-- When `l₀, l₁, l₂ : G` are pairwise distinct (`|G| ≥ 3`), `feistel3CCAAttack l₀ l₁ r₀` has
@@ -1605,16 +1605,9 @@ theorem le_advantage_feistel3CCAAttack_idealStrongGame_of_ne (f₁ f₂ f₃ : G
         (OracleComp.interpret (feistelStrongOracle (feistel3 f₁ f₂ f₃))
           (feistel3CCAAttack l₀ l₁ r₀))
         (idealStrongGame (feistel3CCAAttack l₀ l₁ r₀)) : ℝ) := by
-  have hcardG : (Fintype.card G : ℝ≥0∞) ≠ 0 := by exact_mod_cast Fintype.card_ne_zero
-  have hcardGG : (Fintype.card (G × G) : ℝ≥0∞) ≠ 0 := by exact_mod_cast Fintype.card_ne_zero
-  have h1_top : (Fintype.card G : ℝ≥0∞)⁻¹ ≠ ⊤ := ENNReal.inv_ne_top.mpr hcardG
-  have h2_top : 4 * (Fintype.card (G × G) : ℝ≥0∞)⁻¹ ≠ ⊤ :=
-    ENNReal.mul_ne_top ENNReal.ofNat_ne_top (ENNReal.inv_ne_top.mpr hcardGG)
-  have htrue := ENNReal.toReal_mono (ENNReal.add_ne_top.mpr ⟨h1_top, h2_top⟩)
-    (idealStrongGame_feistel3CCAAttack_true_le r₀ h01)
-  rw [ENNReal.toReal_add h1_top h2_top, ENNReal.toReal_mul, ENNReal.toReal_ofNat,
-    ENNReal.toReal_inv, ENNReal.toReal_inv, ENNReal.toReal_natCast, ENNReal.toReal_natCast,
-    Fintype.card_prod, Nat.cast_mul, mul_inv, ← sq] at htrue
+  have htrue := idealStrongGame_feistel3CCAAttack_true_le r₀ h01
+  ennreal_to_real at htrue
+  rw [Fintype.card_prod, Nat.cast_mul, mul_inv, ← sq] at htrue
   rw [Game.coe_advantage, eval_feistel3_feistel3CCAAttack]
   simp only [Game.succProbability, ENNReal.coe_toNNReal_eq_toReal, PMF.pure_apply_self,
     ENNReal.toReal_one]
