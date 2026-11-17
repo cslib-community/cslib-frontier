@@ -69,7 +69,6 @@ theorem sampleCode_apply (G : σ → ι → Bool) (v : ι → Bool) (s : σ) :
 
 /-- Bit `s` of the codeword of the `i`-th unit vector is bit `i` of the sample `G s`
 [Goldreich, guideline to Exercise 8.41][Goldreich2007DraftR4]. -/
-@[simp]
 theorem sampleCode_single [DecidableEq ι] (G : σ → ι → Bool) (i : ι) (s : σ) :
     sampleCode G (Pi.single i true) s = G s i := by
   rw [sampleCode_apply, single_dotProduct]
