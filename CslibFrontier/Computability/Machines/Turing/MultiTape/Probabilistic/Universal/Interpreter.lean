@@ -14,7 +14,10 @@ public import CslibFrontier.Computability.Probabilistic.Oracle.Time
 public import CslibFrontier.Languages.Probabilistic.Oracle.Codec
 public import CslibFrontier.Languages.Probabilistic.Iteration
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Bound
+import CslibFrontier.Foundations.Data.List.Lookup
 import CslibFrontier.Languages.Probabilistic.QueryCount.Support
+import CslibFrontier.Probability.PMF.Bind
+import Init.Data.List.Nat.Modify
 
 /-!
 # Fixed-channel oracle interpretation and traffic accounting
@@ -177,9 +180,10 @@ private theorem Channel.requestBound_step {D : ℕ} {channel : Channel}
   · exact hwrite symbol hsymbol
 
 /-- Installing a reply clears the pending request. -/
-private theorem Channel.requestBound_receive {D : ℕ} (channel : Channel) (reply : List ℕ) :
-    ∀ symbol ∈ (channel.receive reply).query, symbol ≤ D := by
-  simp [Channel.receive]
+private theorem Channel.requestBound_receive {D : ℕ} (reply : List ℕ) :
+    ∀ symbol ∈ (Channel.receive reply).query, symbol ≤ D := by
+  intro symbol
+  simp only [Channel.receive, List.not_mem_nil, false_implies]
 
 /-- One local instruction grows a channel request by at most one source symbol. -/
 private theorem Channel.requestLength_step {steps : ℕ} {channel : Channel}
@@ -189,9 +193,9 @@ private theorem Channel.requestLength_step {steps : ℕ} {channel : Channel}
     Option.toList_some, List.length_nil, List.length_singleton] <;> omega
 
 /-- Installing a reply leaves an empty pending request. -/
-private theorem Channel.requestLength_receive (channel : Channel) (reply : List ℕ) (steps : ℕ) :
-    (channel.receive reply).query.length ≤ steps := by
-  simp [Channel.receive]
+private theorem Channel.requestLength_receive (reply : List ℕ) (steps : ℕ) :
+    (Channel.receive reply).query.length ≤ steps := by
+  simp only [Channel.receive, List.length_nil, Nat.zero_le]
 
 /-- Every natural-number symbol accumulated in a request buffer comes from the supplied
 description, and is therefore bounded by its encoded length. -/
@@ -204,12 +208,20 @@ private def ICfg.RequestLengthBound (steps : ℕ) (cfg : ICfg) : Prop :=
 
 /-- Blank interpreter channels contain no request symbols. -/
 private theorem ICfg.requestBound_init (d : Desc) : (ICfg.init d).RequestBound d := by
-  simp [ICfg.RequestBound, ICfg.init, Channel.blank]
+  rw [ICfg.RequestBound, List.forall_iff_forall_mem]
+  intro channel hchannel
+  simp only [ICfg.init] at hchannel
+  rw [List.eq_of_mem_replicate hchannel]
+  exact Channel.requestBound_receive []
 
 /-- Blank interpreter channels have zero-length pending requests. -/
 private theorem ICfg.requestLengthBound_init (d : Desc) :
     (ICfg.init d).RequestLengthBound 0 := by
-  simp [ICfg.RequestLengthBound, ICfg.init, Channel.blank]
+  rw [ICfg.RequestLengthBound, List.forall_iff_forall_mem]
+  intro channel hchannel
+  simp only [ICfg.init] at hchannel
+  rw [List.eq_of_mem_replicate hchannel]
+  exact Channel.requestLength_receive [] 0
 
 /-- Either branch selected from a stored table entry is encoded within the complete supplied
 description. -/
@@ -240,21 +252,35 @@ private theorem querySymbol_le_descLen {d : Desc} {entry : Key × Branches} {coi
   have hvalueLength := Turing.MultiTapeTM.Universal.getD_le_length_eSym symbol
   have hactionLength := length_selectedAct_le hentry coin
   rw [haction] at hactionLength
-  simp only [eAct_apply, length_encPair, encSum_inl, List.length_cons] at hactionLength
-  omega
+  have hquery := length_le_encPair_left
+    (encList Turing.MultiTapeTM.Universal.eSym) (encList encSign)
+    (querySymbols, answerMoves)
+  have hright := length_le_encPair_right Turing.MultiTapeTM.Universal.eAct
+    (encPair (encList Turing.MultiTapeTM.Universal.eSym) (encList encSign))
+    (ordinary, querySymbols, answerMoves)
+  have hsum :
+      (encPair Turing.MultiTapeTM.Universal.eAct
+        (encPair (encList Turing.MultiTapeTM.Universal.eSym) (encList encSign))
+        (ordinary, querySymbols, answerMoves)).length ≤
+        (eAct (.step ordinary querySymbols answerMoves)).length := by
+    rw [eAct_apply]
+    simp only [eActPayload, eAct_toSum, encSum_inl, List.length_cons]
+    omega
+  exact hvalueLength.trans (hsymbolLength.trans (hquery.trans
+    (hright.trans (hsum.trans hactionLength))))
 
 private theorem List.forall_modify_of {α : Type*} {p : α → Prop} {values : List α}
     (hvalues : values.Forall p) (index : ℕ) (f : α → α)
     (hf : ∀ value, p value → p (f value)) : (values.modify index f).Forall p := by
   induction values generalizing index with
-  | nil => simp
+  | nil => simpa only [List.modify_nil] using hvalues
   | cons value values ih =>
     cases index with
     | zero =>
-      simp only [List.modify, List.forall_cons] at hvalues ⊢
+      simp only [List.modify_zero_cons, List.forall_cons] at hvalues ⊢
       exact ⟨hf value hvalues.1, hvalues.2⟩
     | succ index =>
-      simp only [List.modify, List.forall_cons] at hvalues ⊢
+      simp only [List.modify_succ_cons, List.forall_cons] at hvalues ⊢
       exact ⟨hvalues.1, ih hvalues.2 index⟩
 
 /-- Local halting leaves every pending request unchanged. -/
@@ -268,7 +294,7 @@ private theorem ICfg.RequestBound.receive {d : Desc} {cfg : ICfg} {r : ℕ}
   unfold ICfg.RequestBound at h ⊢
   simp only [ICfg.receive]
   exact List.forall_modify_of h operation.val (fun _ => Channel.receive reply)
-    (fun channel _ => Channel.requestBound_receive channel reply)
+    (fun _ _ => Channel.requestBound_receive reply)
 
 /-- A local source step preserves the request-symbol bound when each stored write symbol is
 bounded by the supplied description. -/
@@ -311,7 +337,7 @@ private theorem ICfg.RequestLengthBound.receive {steps : ℕ} {cfg : ICfg} {r : 
   simp only [ICfg.receive]
   exact List.forall_modify_of (List.Forall.imp (fun channel hchannel =>
       hchannel.trans (Nat.le_succ steps)) h) operation.val (fun _ => Channel.receive reply)
-    (fun channel _ => Channel.requestLength_receive channel reply (steps + 1))
+    (fun _ _ => Channel.requestLength_receive reply (steps + 1))
 
 /-- Every local instruction grows every pending request by at most one symbol. -/
 private theorem ICfg.RequestLengthBound.step {d : Desc} {input : List ℕ} {cfg : ICfg}
@@ -328,14 +354,14 @@ private theorem ICfg.RequestLengthBound.step {d : Desc} {input : List ℕ} {cfg 
 
 /-- A decoded command preserves bounded request storage; an exposed query additionally carries
 only symbols bounded by the supplied description. -/
-private def Command.RequestBound (d : Desc) : Command r → Prop
+private def Command.RequestBound {r : ℕ} (d : Desc) : Command r → Prop
   | .local next => next.RequestBound d
   | .query _ request _ pending =>
       pending.RequestBound d ∧ ∀ symbol ∈ request, symbol ≤ descLen d
 
 /-- A decoded command at loop index `steps` either produces storage bounded at `steps + 1`, or
 exposes a request already bounded at `steps`. -/
-private def Command.RequestLengthBound (steps : ℕ) : Command r → Prop
+private def Command.RequestLengthBound {r : ℕ} (steps : ℕ) : Command r → Prop
   | .local next => next.RequestLengthBound (steps + 1)
   | .query _ request _ pending =>
       pending.RequestLengthBound steps ∧ request.length ≤ steps
@@ -378,20 +404,24 @@ private theorem ICfg.commandAt_requestBound {d : Desc} {input : List ℕ} {cfg :
         have hentry : entry ∈ d.table := List.mem_of_find?_eq_some hfind
         cases haction : entry.2.get coin with
         | step ordinary querySymbols answerMoves =>
-          simp only [hfind, haction, ICfg.command, Command.RequestBound]
+          simp only [haction, ICfg.command, Command.RequestBound]
           exact h.step ordinary querySymbols answerMoves
             (querySymbol_le_descLen hentry haction)
         | query operation next =>
-          simp only [hfind, haction, ICfg.command, Command.RequestBound]
-          split
-          next hcount =>
-            split
-            next hop =>
-              split
-              next hnext => exact ⟨h, h.getD operation⟩
-              next hnext => exact h.halt
-            next hop => exact h.halt
-          next hcount => exact h.halt
+          simp only [haction, ICfg.command]
+          by_cases hcount : d.operations = r
+          · simp only [hcount, ↓reduceDIte]
+            by_cases hop : operation < r
+            · simp only [hop, ↓reduceDIte]
+              by_cases hnext : next < d.states
+              · simp only [hnext, ↓reduceDIte, Command.RequestBound]
+                exact ⟨h, h.getD operation⟩
+              · simp only [hnext, ↓reduceDIte, Command.RequestBound]
+                exact h.halt
+            · simp only [hop, ↓reduceDIte, Command.RequestBound]
+              exact h.halt
+          · simp only [hcount, ↓reduceDIte, Command.RequestBound]
+            exact h.halt
 
 /-- A decoded command selected at loop index `steps` has the matching request-length bound. -/
 private theorem ICfg.commandAt_requestLengthBound {d : Desc} {input : List ℕ} {cfg : ICfg}
@@ -411,19 +441,23 @@ private theorem ICfg.commandAt_requestLengthBound {d : Desc} {input : List ℕ} 
       | some entry =>
         cases haction : entry.2.get coin with
         | step ordinary querySymbols answerMoves =>
-          simp only [hfind, haction, ICfg.command, Command.RequestLengthBound]
+          simp only [haction, ICfg.command, Command.RequestLengthBound]
           exact h.step ordinary querySymbols answerMoves
         | query operation next =>
-          simp only [hfind, haction, ICfg.command, Command.RequestLengthBound]
-          split
-          next hcount =>
-            split
-            next hop =>
-              split
-              next hnext => exact ⟨h, h.getD operation⟩
-              next hnext => exact h.halt
-            next hop => exact h.halt
-          next hcount => exact h.halt
+          simp only [haction, ICfg.command]
+          by_cases hcount : d.operations = r
+          · simp only [hcount, ↓reduceDIte]
+            by_cases hop : operation < r
+            · simp only [hop, ↓reduceDIte]
+              by_cases hnext : next < d.states
+              · simp only [hnext, ↓reduceDIte, Command.RequestLengthBound]
+                exact ⟨h, h.getD operation⟩
+              · simp only [hnext, ↓reduceDIte, Command.RequestLengthBound]
+                exact h.halt
+            · simp only [hop, ↓reduceDIte, Command.RequestLengthBound]
+              exact h.halt
+          · simp only [hcount, ↓reduceDIte, Command.RequestLengthBound]
+            exact h.halt
 
 /-- Proof relation between a decoded first-order command and the selected native action. -/
 private inductive CommandCorresponds (d : Desc) (input : List ℕ) (cfg : ICfg) :
@@ -501,7 +535,7 @@ private theorem runCommand_requestBound {d : Desc} {r fuel : ℕ} {command : Com
     ∀ next ∈ (runCommand fuel command).support, next.RequestBound d := by
   intro result hresult
   cases command with
-  | local next =>
+  | «local» next =>
     exact (OracleComp.eq_of_mem_supportWith_pure hresult) ▸ h
   | query operation request next pending =>
     obtain ⟨reply, -, hresult⟩ := OracleComp.mem_supportWith_bind_iff.mp hresult
@@ -515,7 +549,7 @@ private theorem runCommand_requestLengthBound {r fuel steps : ℕ} {command : Co
     ∀ next ∈ (runCommand fuel command).support, next.RequestLengthBound (steps + 1) := by
   intro result hresult
   cases command with
-  | local next =>
+  | «local» next =>
     exact (OracleComp.eq_of_mem_supportWith_pure hresult) ▸ h
   | query operation request next pending =>
     obtain ⟨reply, -, hresult⟩ := OracleComp.mem_supportWith_bind_iff.mp hresult
@@ -766,6 +800,7 @@ theorem sourceRun_eq_runOracle (d : Desc) (fuel : ℕ) (input : List ℕ) :
   have hrun := (ICfg.init d).sourceIterate_toConfig (ICfg.valid_init d input) fuel fuel
   have hout := congrArg
     (fun program => (fun final => final.tapes.output) <$> program) hrun
+  rw [ICfg.toConfig_init d input] at hout
   have htruncated : sourceRun d fuel input =
       d.toMachine.run (ProbOracleComp.sample (ProbComp.uniform Bool))
         (fun operation request => List.take fuel <$>
@@ -783,7 +818,7 @@ private theorem frames_encList_append {α : Type} (enc : α ↪ List Bool)
     (values : List α) (suffix : List Bool) :
     frames (encList enc values ++ suffix) = values.map enc ++ frames suffix := by
   induction values with
-  | nil => simp only [encList_nil, List.nil_append, List.map_nil, frames_nil]
+  | nil => simp only [encList_nil, List.nil_append, List.map_nil]
   | cons value values ih =>
     rw [encList_cons, List.append_assoc, frames_frame_append, ih, List.map_cons,
       List.cons_append]
@@ -809,7 +844,12 @@ theorem unaryListDecoder_take_encList (reply : List ℕ) (fuel replyBits : ℕ)
       (fun word => word.length)).take fuel = reply.take fuel
     rw [henc, List.take_append, List.take_of_length_le hfit, frames_encList_append,
       List.map_append, List.map_map]
-    simp only [Function.comp_apply, encUnary_apply, List.length_replicate]
+    have hmap : (fun word : ℕ => (encUnary word).length) = id := by
+      funext word
+      simp only [encUnary_apply, List.length_replicate, id_eq]
+    rw [show ((fun word => word.length) ∘ encUnary) = id by
+      funext word
+      exact congrFun hmap word, List.map_id]
     simpa only [hprefixLength] using
       (List.take_append_length (l₁ := reply.take fuel)
         (l₂ := (frames
@@ -855,24 +895,17 @@ private theorem ICfg.wordStep_requestBound {r : ℕ} {d : Desc} {input : List �
       simpa only [wordStep, hcontrol] using hresult
     exact (OracleComp.eq_of_mem_supportWith_pure hpure) ▸ h
   | some control =>
-    have hbind : result ∈ (ProbOracleComp.sample (ProbComp.uniform Bool) >>= fun coin =>
-        match cfg.commandAt r d input coin with
-        | .local next => pure next
-        | .query operation request next pending => do
-            let reply ← ProbOracleComp.query (operation, encList encUnary request)
-            let decoded := unaryListDecoder.decode (reply.take replyBits)
-            pure (pending.receive operation next (decoded.take fuel))).support := by
-      simpa only [wordStep, hcontrol] using hresult
-    obtain ⟨coin, -, hresult⟩ := OracleComp.mem_supportWith_bind_iff.mp hbind
-    have hcommand := cfg.commandAt_requestBound h r coin
+    simp only [wordStep, hcontrol] at hresult
+    obtain ⟨coin, -, hresult⟩ := OracleComp.mem_supportWith_bind_iff.mp hresult
+    have hcommand := cfg.commandAt_requestBound (input := input) h r coin
     cases heq : cfg.commandAt r d input coin with
-    | local next =>
+    | «local» next =>
       have hpure : result ∈ (pure next : WordOracleComp (Fin r) ICfg).support := by
         simpa only [heq] using hresult
-      simpa only [heq, Command.RequestBound] at hcommand
+      simp only [heq, Command.RequestBound] at hcommand
       exact (OracleComp.eq_of_mem_supportWith_pure hpure) ▸ hcommand
     | query operation request next pending =>
-      simpa only [heq, Command.RequestBound] at hcommand
+      simp only [heq, Command.RequestBound] at hcommand
       obtain ⟨reply, -, hpure⟩ := OracleComp.mem_supportWith_bind_iff.mp (by
         simpa only [heq] using hresult)
       exact (OracleComp.eq_of_mem_supportWith_pure hpure) ▸
@@ -892,24 +925,17 @@ private theorem ICfg.wordStep_requestLengthBound {r : ℕ} {d : Desc} {input : L
       simpa only [wordStep, hcontrol] using hresult
     exact (OracleComp.eq_of_mem_supportWith_pure hpure) ▸ h.mono (Nat.le_succ steps)
   | some control =>
-    have hbind : result ∈ (ProbOracleComp.sample (ProbComp.uniform Bool) >>= fun coin =>
-        match cfg.commandAt r d input coin with
-        | .local next => pure next
-        | .query operation request next pending => do
-            let reply ← ProbOracleComp.query (operation, encList encUnary request)
-            let decoded := unaryListDecoder.decode (reply.take replyBits)
-            pure (pending.receive operation next (decoded.take fuel))).support := by
-      simpa only [wordStep, hcontrol] using hresult
-    obtain ⟨coin, -, hresult⟩ := OracleComp.mem_supportWith_bind_iff.mp hbind
-    have hcommand := cfg.commandAt_requestLengthBound h r coin
+    simp only [wordStep, hcontrol] at hresult
+    obtain ⟨coin, -, hresult⟩ := OracleComp.mem_supportWith_bind_iff.mp hresult
+    have hcommand := cfg.commandAt_requestLengthBound (d := d) (input := input) h r coin
     cases heq : cfg.commandAt r d input coin with
-    | local next =>
+    | «local» next =>
       have hpure : result ∈ (pure next : WordOracleComp (Fin r) ICfg).support := by
         simpa only [heq] using hresult
-      simpa only [heq, Command.RequestLengthBound] at hcommand
+      simp only [heq, Command.RequestLengthBound] at hcommand
       exact (OracleComp.eq_of_mem_supportWith_pure hpure) ▸ hcommand
     | query operation request next pending =>
-      simpa only [heq, Command.RequestLengthBound] at hcommand
+      simp only [heq, Command.RequestLengthBound] at hcommand
       obtain ⟨reply, -, hpure⟩ := OracleComp.mem_supportWith_bind_iff.mp (by
         simpa only [heq] using hresult)
       exact (OracleComp.eq_of_mem_supportWith_pure hpure) ▸
@@ -921,19 +947,22 @@ private theorem ICfg.wordStep_requestLengthBound {r : ℕ} {d : Desc} {input : L
 private theorem wordStep_requestBounds {r : ℕ} {d : Desc} {input : List ℕ}
     {fuel replyBits steps : ℕ} {cfg : ICfg} (hsymbol : cfg.RequestBound d)
     (hlength : cfg.RequestLengthBound steps) (hsteps : steps ≤ fuel) :
-    (wordStep r d input fuel replyBits cfg).QueriesSatisfy fun request =>
+    ProbOracleComp.QueriesSatisfy (fun request =>
       ∃ source, request.2 = encList encUnary source ∧ source.length ≤ fuel ∧
-        request.2.length ≤ fuel * (2 * descLen d + 1) := by
+        request.2.length ≤ fuel * (2 * descLen d + 1))
+      (wordStep r d input fuel replyBits cfg) := by
   cases hcontrol : cfg.control with
   | none =>
+    simp only [wordStep, hcontrol]
     exact OracleComp.QueriesSatisfy.pure cfg
   | some control =>
     simp only [wordStep, hcontrol]
     refine (ProbOracleComp.QueriesSatisfy.sample (ProbComp.uniform Bool)).bind fun coin => ?_
-    have hsymbolCommand := cfg.commandAt_requestBound hsymbol r coin
-    have hlengthCommand := cfg.commandAt_requestLengthBound hlength r coin
+    have hsymbolCommand := cfg.commandAt_requestBound (input := input) hsymbol r coin
+    have hlengthCommand := cfg.commandAt_requestLengthBound (d := d) (input := input)
+      hlength r coin
     cases heq : cfg.commandAt r d input coin with
-    | local next =>
+    | «local» next =>
       exact OracleComp.QueriesSatisfy.pure next
     | query operation request next pending =>
       simp only [heq, Command.RequestBound] at hsymbolCommand
@@ -951,19 +980,19 @@ private theorem wordIterate_requestBounds {r : ℕ} {d : Desc} {input : List ℕ
     {fuel replyBits steps count : ℕ} {cfg : ICfg}
     (hsymbol : cfg.RequestBound d) (hlength : cfg.RequestLengthBound steps)
     (hcount : steps + count ≤ fuel) :
-    (OracleComp.iterate count (wordStep r d input fuel replyBits) cfg).QueriesSatisfy
-      fun request => ∃ source, request.2 = encList encUnary source ∧ source.length ≤ fuel ∧
-        request.2.length ≤ fuel * (2 * descLen d + 1) := by
+    ProbOracleComp.QueriesSatisfy
+      (fun request => ∃ source, request.2 = encList encUnary source ∧ source.length ≤ fuel ∧
+        request.2.length ≤ fuel * (2 * descLen d + 1))
+      (OracleComp.iterate count (wordStep r d input fuel replyBits) cfg) := by
   induction count generalizing steps cfg with
   | zero => exact OracleComp.QueriesSatisfy.pure cfg
   | succ count ih =>
     rw [OracleComp.iterate_succ_bind]
     have hstep : steps ≤ fuel := by omega
-    refine OracleComp.IsCostBounded.bind_on_support
-      (wordStep_requestBounds hsymbol hlength hstep) ?_
-    intro next hnext
-    exact ih (cfg.wordStep_requestBound hsymbol next hnext)
-      (cfg.wordStep_requestLengthBound hlength next hnext) (by omega)
+    exact OracleComp.IsCostBounded.bind_on_support
+      (n := 0) (m := 0) (wordStep_requestBounds hsymbol hlength hstep)
+      (fun next hnext => ih (cfg.wordStep_requestBound hsymbol next hnext)
+        (cfg.wordStep_requestLengthBound hlength next hnext) (by omega))
 
 /-- Fixed-channel Boolean interpreter word program. A channel-count mismatch is rejected before
 sampling a coin or making a call. `Universal.NativeInterpreter.artifact` realizes this program and
@@ -983,18 +1012,19 @@ def RequestFits {r : ℕ} (i : RunInput) (request : Fin r × List Bool) : Prop :
 /-- Every Boolean request submitted by the word program fits both the source-symbol and encoded-bit
 traffic coordinates. This structural theorem does not charge native marshalling time. -/
 theorem queriesSatisfy_run_requestBounds (r : ℕ) (i : RunInput) :
-    (run r i).QueriesSatisfy (RequestFits i) := by
+    ProbOracleComp.QueriesSatisfy (RequestFits i) (run r i) := by
   by_cases hcount : i.desc.operations = r
-  · simp only [run, hcount, ↓reduceIte, OracleComp.queriesSatisfy_map_iff,
-      RequestFits, sourceRequestBound, encodedRequestBound, suppliedDescSize]
-    exact wordIterate_requestBounds (ICfg.requestBound_init i.desc)
-      (ICfg.requestLengthBound_init i.desc) (by omega)
+  · simp only [run, hcount, ↓reduceIte, OracleComp.queriesSatisfy_map_iff]
+    exact wordIterate_requestBounds (r := r) (fuel := i.fuel)
+      (replyBits := i.replyBits) (steps := 0) (count := i.fuel)
+      (ICfg.requestBound_init i.desc) (ICfg.requestLengthBound_init i.desc) (by omega)
   · simp only [run, hcount, ↓reduceIte]
     exact OracleComp.QueriesSatisfy.pure []
 
 /-- In particular, every physical request fits the encoded-bit request coordinate. -/
 theorem queriesSatisfy_run_encodedRequestBound (r : ℕ) (i : RunInput) :
-    (run r i).QueriesSatisfy fun request => request.2.length ≤ encodedRequestBound i :=
+    ProbOracleComp.QueriesSatisfy
+      (fun request => request.2.length ≤ encodedRequestBound i) (run r i) :=
   (queriesSatisfy_run_requestBounds r i).mono fun _ h => by
     rcases h with ⟨source, hcode, hsource, hbits⟩
     exact hbits
@@ -1004,7 +1034,7 @@ private theorem sample_uniform_bool_privateCoinBound {r : ℕ} :
     OracleComp.IsCostBounded (Sum.elim (fun _ => 1) (fun _ : Fin r × List Bool => 0))
       (ProbOracleComp.sample (spec := fun _ : Fin r × List Bool => List Bool)
         (ProbComp.uniform Bool)) 1 := by
-  rw [ProbComp.uniform, ProbOracleComp.sample_map,
+  rw [ProbComp.uniform, ProbOracleComp.sample_freeMMap, PFunctor.FreeM.map_eq_map,
     OracleComp.isCostBounded_map_iff, ProbOracleComp.sample_unifFin]
   exact OracleComp.IsCostBounded.query _
 
@@ -1016,38 +1046,55 @@ private theorem wordStep_privateCoinBound (r : ℕ) (d : Desc) (input : List ℕ
       (wordStep r d input fuel replyBits cfg) 1 := by
   cases hcontrol : cfg.control with
   | none =>
-    exact OracleComp.IsCostBounded.pure cfg 1
+    simpa only [wordStep, hcontrol] using
+      (OracleComp.IsCostBounded.pure cfg 1 :
+        OracleComp.IsCostBounded
+          (Sum.elim (fun _ => 1) (fun _ : Fin r × List Bool => 0)) (pure cfg) 1)
   | some control =>
     simp only [wordStep, hcontrol]
-    refine sample_uniform_bool_privateCoinBound.bind fun coin => ?_
-    cases hcommand : cfg.commandAt r d input coin with
-    | local next =>
-      exact OracleComp.IsCostBounded.pure next 0
-    | query operation request next pending =>
-      exact (ProbOracleComp.isCostBounded_query (fun _ => 0)
-        (operation, encList encUnary request)).bind fun reply =>
-          OracleComp.IsCostBounded.pure
-            (pending.receive operation next
-              ((unaryListDecoder.decode (reply.take replyBits)).take fuel)) 0
+    simpa only [Nat.add_zero] using OracleComp.IsCostBounded.bind
+      (n := 1) (m := 0) sample_uniform_bool_privateCoinBound (fun coin => by
+        cases hcommand : cfg.commandAt r d input coin with
+        | «local» next =>
+          exact OracleComp.IsCostBounded.pure next 0
+        | query operation request next pending =>
+          change OracleComp.IsCostBounded
+            (Sum.elim (fun _ => 1) (fun _ : Fin r × List Bool => 0))
+            (OracleComp.query
+                (spec := probOracleSpec (fun _ : Fin r × List Bool => List Bool))
+                (Sum.inr (operation, encList encUnary request)) >>= fun reply =>
+              pure (pending.receive operation next
+                ((unaryListDecoder.decode (reply.take replyBits)).take fuel))) 0
+          exact OracleComp.IsCostBounded.liftBind _ _ 0 fun reply =>
+            OracleComp.IsCostBounded.pure
+              (pending.receive operation next
+                ((unaryListDecoder.decode (reply.take replyBits)).take fuel)) 0)
 
 /-- One interpreter instruction makes at most one external call. Private sampling is free in this
 coordinate. -/
 private theorem wordStep_queryBound (r : ℕ) (d : Desc) (input : List ℕ)
     (fuel replyBits : ℕ) (cfg : ICfg) :
-    (wordStep r d input fuel replyBits cfg).IsQueryBounded 1 := by
+    ProbOracleComp.IsQueryBounded (wordStep r d input fuel replyBits cfg) 1 := by
   cases hcontrol : cfg.control with
-  | none => exact OracleComp.IsCostBounded.pure cfg 1
+  | none =>
+    simpa only [wordStep, hcontrol] using
+      (OracleComp.IsCostBounded.pure cfg 1 :
+        ProbOracleComp.IsQueryBounded (pure cfg : WordOracleComp (Fin r) ICfg) 1)
   | some control =>
     simp only [wordStep, hcontrol]
-    refine (ProbOracleComp.IsQueryBounded.sample (ProbComp.uniform Bool)).bind fun coin => ?_
-    cases hcommand : cfg.commandAt r d input coin with
-    | local next => exact OracleComp.IsCostBounded.pure next 1
-    | query operation request next pending =>
-      exact (ProbOracleComp.IsQueryBounded.query
-        (operation, encList encUnary request)).bind fun reply =>
-          OracleComp.IsCostBounded.pure
-            (pending.receive operation next
-              ((unaryListDecoder.decode (reply.take replyBits)).take fuel)) 0
+    simpa only [Nat.zero_add] using OracleComp.IsCostBounded.bind
+      (n := 0) (m := 1)
+      (ProbOracleComp.IsQueryBounded.sample (ProbComp.uniform Bool)) (fun coin => by
+        cases hcommand : cfg.commandAt r d input coin with
+        | «local» next => exact OracleComp.IsCostBounded.pure next 1
+        | query operation request next pending =>
+          simpa only [Nat.add_zero] using
+            (ProbOracleComp.IsQueryBounded.query
+              (spec := fun _ : Fin r × List Bool => List Bool)
+              (operation, encList encUnary request)).bind fun reply =>
+                OracleComp.IsCostBounded.pure
+                  (pending.receive operation next
+                    ((unaryListDecoder.decode (reply.take replyBits)).take fuel)) 0)
 
 /-- A bounded interpreter loop consumes at most one private fair coin per source instruction. -/
 theorem isCostBounded_run_privateCoins (r : ℕ) (i : RunInput) :
@@ -1073,13 +1120,14 @@ theorem isCostBounded_run_privateCoins (r : ℕ) (i : RunInput) :
 
 /-- The fixed-channel interpreter makes at most one external call per source instruction. -/
 theorem isQueryBounded_run (r : ℕ) (i : RunInput) :
-    (run r i).IsQueryBounded (queryBound i) := by
+    ProbOracleComp.IsQueryBounded (run r i) (queryBound i) := by
   by_cases hcount : i.desc.operations = r
   · simp only [run, hcount, ↓reduceIte, queryBound,
       OracleComp.isCostBounded_map_iff]
     have loopBound (count : ℕ) (cfg : ICfg) :
-        (OracleComp.iterate count
-          (wordStep r i.desc i.input i.fuel i.replyBits) cfg).IsQueryBounded count := by
+        ProbOracleComp.IsQueryBounded
+          (OracleComp.iterate count
+            (wordStep r i.desc i.input i.fuel i.replyBits) cfg) count := by
       induction count generalizing cfg with
       | zero => exact OracleComp.IsCostBounded.pure cfg 0
       | succ count ih =>
@@ -1177,9 +1225,15 @@ private theorem runWith_wordQuery_eq_sourceQuery {r : ℕ} {State : Type}
   rw [show (operation, encList encUnary request) =
     (wordCodec r).encodeQuery (operation, request) from rfl,
     OracleCodec.wordOracle_encodeQuery]
-  simp only [StateT.run_map, PMF.bind_map, Function.comp_apply]
+  change ((handler (operation, request) state).map
+      (fun replyState => (encList encUnary replyState.1, replyState.2))).bind
+      (fun replyState => PMF.pure
+        (pending.receive operation next
+          ((unaryListDecoder.decode (replyState.1.take replyBits)).take fuel), replyState.2)) = _
+  rw [PMF.bind_map]
   apply PMF.bind_congr_on_support
   rintro ⟨reply, nextState⟩ hreply
+  simp only [Function.comp_apply]
   rw [unaryListDecoder_take_encList reply fuel replyBits
     (hfit (operation, request) state reply nextState hreply)]
 
@@ -1202,8 +1256,8 @@ theorem runWith_wordStep_eq_sourceStep {State : Type}
     apply PMF.bind_congr_on_support
     intro coin _
     cases hcommand : cfg.commandAt d.operations d input coin with
-    | local next =>
-      simp only [hcommand, runCommand, ProbOracleComp.runWith_pure]
+    | «local» next =>
+      simp only [runCommand, ProbOracleComp.runWith_pure]
     | query operation request next pending =>
       simpa only [hcommand, runCommand] using
         runWith_wordQuery_eq_sourceQuery handler hfit operation request next pending state
@@ -1244,7 +1298,16 @@ theorem runWith_eq_runOracle {State : Type}
     ProbOracleComp.runWith ((wordCodec d.operations).wordOracle handler)
         (run d.operations ⟨d, fuel, input, replyBits⟩) state =
       ProbOracleComp.runWith handler (sourceRun d fuel input) state := by
-        simp only [run, ↓reduceIte, ProbOracleComp.runWith_map, sourceRun]
+        simp only [run, ↓reduceIte, sourceRun, ProbOracleComp.runWith_map,
+          ProbOracleComp.runWith_bind, ProbOracleComp.runWith_pure]
+        change PMF.map (Prod.map (fun cfg => cfg.output) id)
+            (ProbOracleComp.runWith ((wordCodec d.operations).wordOracle handler)
+              (OracleComp.iterate fuel (wordStep d.operations d input fuel replyBits)
+                (ICfg.init d)) state) =
+          (ProbOracleComp.runWith handler
+            (OracleComp.iterate fuel (sourceStep d input fuel) (ICfg.init d)) state).bind
+              (PMF.pure ∘ Prod.map (fun cfg => cfg.output) id)
+        rw [PMF.bind_pure_comp]
         rw [runWith_wordIterate_eq_sourceIterate d handler hfit input fuel (ICfg.init d) state]
     _ = ProbOracleComp.runWith handler (d.runOracle fuel input) state :=
       congrArg (fun program => ProbOracleComp.runWith handler program state)

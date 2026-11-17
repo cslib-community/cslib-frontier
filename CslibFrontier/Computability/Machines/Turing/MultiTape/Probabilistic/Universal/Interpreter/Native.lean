@@ -693,7 +693,7 @@ noncomputable def commandExecutorSucc (r : ℕ) :
   apply castProgram assembled
   funext input
   cases input.2 with
-  | local cfg => simp [executeCommand, operationTest, queryFallback]
+  | «local» cfg => simp [executeCommand, operationTest, queryFallback]
   | query operation request next cfg =>
       simp only [executeCommand, commandIsQueryCompiler, commandSumInputCompiler,
         commandValueCompiler, commandSumCompiler, Command.equivSum, encTest_apply,
@@ -709,7 +709,7 @@ noncomputable def commandExecutorZero :
   apply castProgram local
   funext input
   cases input.2 with
-  | local cfg => rfl
+  | «local» cfg => rfl
   | query operation request next cfg => exact Fin.elim0 operation
 
 /-- Complete validated-command executor, including the empty fixed-channel boundary. -/
@@ -1012,7 +1012,7 @@ private theorem support_mem_successors (r : ℕ) (current next : BodyInput)
             (PMF.mem_support_bind_iff _ _ _).mp hnext
           have hcoinValue : coin = false ∨ coin = true := by cases coin <;> simp
           cases hcmd : current.cfg.commandAt r current.desc current.input coin with
-          | local cfg =>
+          | «local» cfg =>
               simp only [hcmd, ProbOracleComp.runWith_pure, PMF.mem_support_pure_iff,
                 Prod.mk.injEq] at hcommand
               rcases hcommand with ⟨rfl, rfl⟩
@@ -1128,7 +1128,7 @@ private theorem progress_successor {r : ℕ} {initial current next : BodyInput} 
             obtain ⟨⟨coin, coinState⟩, hcoin, hcommand⟩ :=
               (PMF.mem_support_bind_iff _ _ _).mp hnext
             cases hcmd : second.cfg.commandAt r second.desc second.input coin with
-            | local cfg =>
+            | «local» cfg =>
                 simp only [hcmd, ProbOracleComp.runWith_pure, PMF.mem_support_pure_iff,
                   Prod.mk.injEq] at hcommand
                 exact ⟨cfg, hcommand.1⟩
