@@ -290,12 +290,12 @@ private theorem mem_of_reachable {V : Type*} {H : SimpleGraph V} {S : Set V}
 
 /-- **The source reaches the target exactly when the graph is not bipartite.** -/
 theorem oddCycleInstance_mem_iff : oddCycleInstance G ∈ USTCON ↔ G ∉ Bipartite := by
-  rw [mem_Bipartite, SimpleGraph.IsBipartite, SimpleGraph.two_colorable_iff_forall_loop_even]
+  rw [mem_Bipartite, SimpleGraph.isBipartite_iff_forall_walk_even_length]
   constructor
   · -- a 2-colouring `col` is respected by the copies: in the copy `x`, the side of `(v, b)` is
     -- `b` exactly when `v` has the colour of `x`
     rintro hst hall
-    rw [← SimpleGraph.two_colorable_iff_forall_loop_even] at hall
+    rw [← SimpleGraph.isBipartite_iff_forall_walk_even_length] at hall
     obtain ⟨col⟩ := hall
     let S : Set (Fin (oddCycleInstance G).n) := {a |
       a.val = 0 ∨ ∃ (_ : 2 ≤ a.val) (hx : copy G.n a.val < G.n) (hv : vert G.n a.val < G.n),

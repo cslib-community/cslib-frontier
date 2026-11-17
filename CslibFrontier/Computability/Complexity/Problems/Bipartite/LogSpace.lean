@@ -346,7 +346,7 @@ theorem mem_L : Bipartite ∈ L encUGraph :=
   loopless _ := rfl
 
 theorem triangle_notMem : triangle ∉ Bipartite := by
-  rw [mem_Bipartite, SimpleGraph.IsBipartite, SimpleGraph.two_colorable_iff_forall_loop_even]
+  rw [mem_Bipartite, SimpleGraph.isBipartite_iff_forall_walk_even_length]
   intro h
   have hadj : ∀ a b : Fin 3, a ≠ b → triangle.graph.Adj a b := fun a b hab => by
     simpa [triangle] using hab
