@@ -4879,6 +4879,8 @@ public import CslibFrontier.Crypto.Computational.RSATrapdoor
 public import CslibFrontier.Crypto.Computational.RSAUnitInversion
 public import CslibFrontier.Crypto.Computational.RSAUnitInversion.Converse
 public import CslibFrontier.Crypto.Computational.RabinFactoring
+public import CslibFrontier.Crypto.Computational.RainbowTable
+public import CslibFrontier.Crypto.Computational.RainbowTable.RunCost
 public import CslibFrontier.Crypto.Computational.Rompel
 public import CslibFrontier.Crypto.Computational.SIS.Ajtai
 public import CslibFrontier.Crypto.Computational.SIS.Basic
@@ -5282,8 +5284,6 @@ public import CslibFrontier.Crypto.Protocols.VOLE.RingMAC
 public import CslibFrontier.Crypto.Protocols.VOLE.RingMulCheck
 public import CslibFrontier.Crypto.Protocols.VOLE.ScalarMulCheck
 public import CslibFrontier.Crypto.Protocols.VOLE.World
-public import CslibFrontier.Crypto.RainbowTable
-public import CslibFrontier.Crypto.RainbowTable.RunCost
 public import CslibFrontier.DataStructure.AVLTree.Basic
 public import CslibFrontier.DataStructure.AVLTree.Erase
 public import CslibFrontier.DataStructure.AVLTree.Impl
