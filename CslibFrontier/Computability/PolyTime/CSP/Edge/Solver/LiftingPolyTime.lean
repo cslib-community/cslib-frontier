@@ -39,7 +39,7 @@ attribute [local fun_prop] NativeWalk.computableInPolyTime_portWith
   NativeWalk.computableInPolyTime_mk NativeWalk.computableInPolyTime_takeWith
   Contraction.computableInPolyTime_positionsWith Contraction.computableInPolyTime_outsideWith
   Contraction.computableInPolyTime_nameReadWith EdgeAugmenting.poly_zipIdx
-  EdgeForest.poly_binaryIndex NativeWalk.computableInPolyTime_findIdxWith
+  EdgeForest.poly_binaryIndex ComputableInPolyTime.findIdxWithInput
 
 private theorem poly_scope : ComputableInPolyTime
     (fun p : CSP Table ℕ × Record => scope p.1 p.2)
@@ -177,7 +177,7 @@ private theorem poly_firstExit : ComputableInPolyTime
     (List.range (p.2.2.steps.length + 1)).findIdx
       (fun n => !(exitsAt p.1 p.2.1 p.2.2 n).isEmpty)
   have hn : ComputableInPolyTime n encPrefixArgs encUnary :=
-    NativeWalk.computableInPolyTime_findIdxWith (by fun_prop) (by fun_prop)
+    ComputableInPolyTime.findIdxWithInput (by fun_prop) (by fun_prop)
   have hc : ComputableInPolyTime
       (fun p : EdgeForest.Input × WalkCode × WalkCode => p.2.2.steps.length + 1)
       encPrefixArgs encUnary := by fun_prop

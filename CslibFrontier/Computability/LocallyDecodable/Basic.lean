@@ -224,7 +224,7 @@ variable (y : P → Γ)
 @[simp] theorem decodeLaw_query (j : P) :
     decodeLaw (ProbOracleComp.query (spec := fun _ : P => Γ) j) y = PMF.pure (y j) := by
   rw [decodeLaw_eq]
-  exact ProbOracleComp.interpret_query _ _ _
+  exact OracleComp.evalWith_query _ _
 
 /-- A private coin of `n` bits is uniform. A rewrite lemma, used with `rw`: `simp` does not match
 the call `OracleComp.query (.inl n)` at the index type of `probOracleSpec`. -/
@@ -244,8 +244,9 @@ theorem decodeLaw_query_inr (j : P) :
 
 @[simp] theorem decodeLaw_sample (program : ProbComp α) :
     decodeLaw (sample (spec := fun _ : P => Γ) program) y = ProbComp.eval program := by
-  rw [decodeLaw_eq]
-  exact ProbOracleComp.interpret_sample _ _ _
+  rw [decodeLaw_eq, ProbOracleComp.sample, OracleComp.evalWith_substitute,
+    ProbComp.eval_eq_evalWith]
+  simp only [OracleComp.evalWith_query]
 
 /-- The probabilities of the two outputs of a decoder add up to one. -/
 theorem toReal_decodeLaw_add_not (program : ProbOracleComp (fun _ : P => Γ) Bool) (b : Bool) :

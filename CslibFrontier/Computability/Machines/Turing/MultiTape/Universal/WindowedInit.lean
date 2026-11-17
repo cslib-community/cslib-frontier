@@ -109,8 +109,9 @@ private lemma toUnary_inO : ComputableTidilyInO (fun t : ℕ => t) encNat encUna
     (fun t => (t + 1) * ((encNat t).length + 1)) fun t => (t + 1) * ((encNat t).length + 1) := by
   have hrev : ComputableTidilyInO (fun t : ℕ => (encNat t).reverse) encNat encBits
       (fun t => (encNat t).length) fun t => (encNat t).length :=
-    of_linear ⟨4, (computableTidilyInTimeAndSpace_reverse fun _ => rfl).mono
-      (fun _ => by omega) fun _ => Nat.zero_le _⟩
+    ComputableTidilyInO.of_bounds (computableTidilyInTimeAndSpace_reverse fun _ => rfl) 4
+      (fun _ => by omega) (fun _ => Nat.zero_le _)
+      (fun _ => by simp only [encBits_apply, List.length_reverse]; omega)
   refine ((foldl (encA := encBool) (encL := encBits) (list := fun t : ℕ => (encNat t).reverse)
     (init := fun _ => 0) (step := dbl) hrev (const 0) dbl_deg.inO_one
     (R := fun t => 2 * t + 2) (Q := fun t => 2 * t + 2) (B := fun t => t)
@@ -170,14 +171,6 @@ private lemma ins_replicate (n : ℕ) :
     rw [ih]
     rfl
 
-private lemma frame_replicate_true (n : ℕ) :
-    frame (List.replicate n true) = List.replicate (2 * n) true ++ [false] := by
-  induction n with
-  | zero => rfl
-  | succ n ih =>
-    rw [List.replicate_succ, frame_cons, ih, show 2 * (n + 1) = 2 * n + 1 + 1 by omega]
-    rfl
-
 /-- Four rewrites turn the encoded input into the encoded coded input cells. -/
 private lemma ins_four (x : List ℕ) : ins (ins (ins (ins (encList encUnary x)))) =
     encList eSym (x.map fun a => some (a + 1)) := by
@@ -208,10 +201,10 @@ private lemma recode_inO : ComputableTidilyInO (fun x : List ℕ => x.map fun a 
     (encList encUnary) (encList eSym) (fun x => (encList encUnary x).length)
     fun x => (encList encUnary x).length := by
   have hins : ComputableTidilyInDegree ins encBits encBits 1 1 :=
-    .of_linear (insT.computableTidilyInLinearTimeAndSpace fun w => (insT_run w).symm)
+    .of_linear (ComputableInDegree.of_transducer insT fun w => (insT_run w).symm)
   have h₁ : ComputableTidilyInDegree (fun x : List ℕ => ins (encList encUnary x))
       (encList encUnary) encBits 1 1 :=
-    .of_linear (insT.computableTidilyInLinearTimeAndSpace fun x => (insT_run _).symm)
+    .of_linear (ComputableInDegree.of_transducer insT fun x => (insT_run _).symm)
   exact ((hins.comp (hins.comp (hins.comp h₁))).mono (d' := 1) (e' := 1)).inO_one.of_enc_eq
     fun x => (ins_four x).symm
 

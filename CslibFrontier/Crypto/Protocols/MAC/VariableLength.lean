@@ -7,6 +7,7 @@ Authors: Karn Seth
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder
 public import CslibFrontier.Crypto.Computational.MAC
 public import CslibFrontier.Crypto.Negligible.Dyadic
@@ -26,19 +27,21 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.Oracle.Parameter
 import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
+import CslibFrontier.Computability.Probabilistic.Oracle.Traverse
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.Sampling
+import CslibFrontier.Crypto.Negligible.InversePolynomial
 import CslibFrontier.Computability.Probabilistic.Traverse
 import CslibFrontier.Foundations.Data.BitString.List.LowBits
 import CslibFrontier.Foundations.Data.Nat.Power
-import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
+import CslibFrontier.Languages.Probabilistic.Oracle.Simulation.Handler
 import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.RunWith
 import CslibFrontier.Languages.Probabilistic.Oracle.Support
 import CslibFrontier.Languages.Probabilistic.Traverse.SupportWith
 import CslibFrontier.Probability.BitString
 import CslibFrontier.Probability.PMF.Bind
-import CslibFrontier.Tactic.Negligible
 import CslibFrontier.Tactic.PolyTime.Init
+import Mathlib.Tactic.Positivity
 import CslibFrontier.Tactic.SuppCases
 
 /-!
@@ -869,21 +872,15 @@ private theorem runWith_blockwiseSimulator (A : BlockwiseMACAdversary) (n : ℕ)
         (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
         (M.blockwiseSimulator E n)) (A n)).run []) [] =
       (M.blockwiseRun E A n sk).map fun out => (out, authenticatedInputs E (M.msgLen n) out.2) := by
-  rw [ProbOracleComp.runWith_run_interpret]
-  have hsim := ProbOracleComp.runWith_map_state
-    (oracle := fun q s => ProbComp.eval (M.blockwiseSigningOracle E n sk q s))
-    (oracle' := fun q (state : List (List Bool × Tag) × List (List Bool)) =>
-      (ProbOracleComp.runWith (fun q s => ProbComp.eval (M.signingOracle sk q s))
-        ((M.blockwiseSimulator E n q).run state.1) state.2).map fun x => (x.1.1, x.1.2, x.2))
-    (represent := fun log => (log, authenticatedInputs E (M.msgLen n) log))
-    (step := by
-      intro m log
+  exact ProbOracleComp.runWith_run_interpret_map (M.blockwiseSimulator E n)
+    (fun q s => ProbComp.eval (M.signingOracle sk q s))
+    (fun q s => ProbComp.eval (M.blockwiseSigningOracle E n sk q s)) (fun log => log)
+    (authenticatedInputs E (M.msgLen n)) (fun m log => by
       simp only [eval_blockwiseSigningOracle, StateT.run, blockwiseSimulator,
         ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample, ProbOracleComp.runWith_pure,
         runWith_mapM_query, BitString.eval_sampleList, PMF.map_bind, PMF.bind_map, PMF.pure_map,
         Function.comp_def, authenticatedInputs, List.flatMap_cons])
     (A n) []
-  exact (congrArg (PMF.map _) hsim.symm).trans (by rw [PMF.map_comp]; rfl)
 
 private theorem eval_eufCmaGame_blockwiseReduction (A : BlockwiseMACAdversary) (n : ℕ) :
     ProbComp.eval (M.eufCmaGame (M.blockwiseReduction E A) n) =
@@ -1266,6 +1263,8 @@ theorem isPPTOn_blockwiseWordSigningOracle (hE : IsPolyTimeEncoder E) :
       (encPair encBits encLog)
       (fun call : (ℕ × List Bool) × (Unit × List Bool) × List (List Bool × Tag) =>
         M.blockwiseWordSigningOracle E call.1.1 call.1.2 call.2.1 call.2.2) := by
+  have hencode : ComputableInPolyTime encTag encTag encBits :=
+    ComputableInPolyTime.of_eq (fun _ => rfl)
   have hsign := (M.isPPTOn_blockwiseSign hE).preprocess
     (input := encPair (encPair encUnary encBits)
       (encPair (encPair (encFinEnum Unit) encBits) encLog))
@@ -1310,7 +1309,7 @@ theorem isPPTOn_blockwiseGame (hE : IsPolyTimeEncoder E) {F : BlockwiseMACForger
         (OracleComp.interpret
           (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
             (M.blockwiseWordSigningOracle E c.1 c.2)) (F c.1 [])).run []) := by
-    refine hF.run_interpret_preprocess'
+    refine hF.run_interpret_preprocess
       (input := encPair encUnary encBits)
       (prepare := fun c : ℕ × List Bool => (c.1, ([] : List Bool)))
       (initial := fun _ : ℕ × List Bool => ([] : List (List Bool × Tag)))
@@ -1354,69 +1353,6 @@ theorem isPPT_blockwiseGame (hE : IsPolyTimeEncoder E) {F : BlockwiseMACForger}
   ((M.isPPTOn_blockwiseGame hE hF).preprocess (ComputableInPolyTime.fst _ _)).isPPT
 
 /-! ### Truncated oracle-PPT simulator and reduction -/
-
-private def mapQueryTakeStep (limit : ℕ) (state : List (List Bool) × List (List Bool)) :
-    WordOracleComp Unit (List (List Bool) × List (List Bool)) :=
-  (fun tag => (state.1.tail, state.2 ++ [tag])) <$>
-    (List.take limit <$>
-      (ProbOracleComp.query ((), state.1.headD []) : WordOracleComp Unit (List Bool)))
-
-private theorem iterate_mapQueryTakeStep (limit : ℕ) (xs acc : List (List Bool)) :
-    Prod.snd <$> OracleComp.iterate xs.length (mapQueryTakeStep limit) (xs, acc) =
-      (acc ++ ·) <$> xs.mapM (fun x =>
-        List.take limit <$>
-          (ProbOracleComp.query ((), x) : WordOracleComp Unit (List Bool))) := by
-  induction xs generalizing acc with
-  | nil => simp
-  | cons x xs ih =>
-    simp only [List.length_cons, OracleComp.iterate_succ_bind, mapQueryTakeStep,
-      List.headD_cons, List.tail_cons, List.mapM_cons, map_bind, bind_map_left, ih,
-      List.append_assoc, List.singleton_append]
-    simp only [map_pure, bind_pure_comp]
-
-private theorem isOraclePPTOn_mapM_query_take {α : Type} {input : α ↪ List Bool}
-    {list : α → List (List Bool)} {limit : α → ℕ}
-    (hlist : ComputableInPolyTime list input (encList encBits))
-    (hlimit : ComputableInPolyTime limit input encUnary) :
-    IsOraclePPTOn input (encList encBits) (fun a =>
-      (list a).mapM fun x =>
-        List.take (limit a) <$>
-          (ProbOracleComp.query ((), x) : WordOracleComp Unit (List Bool))) := by
-  let stateEncoding : List (List Bool) × List (List Bool) ↪ List Bool :=
-    encPair (encList encBits) (encList encBits)
-  have hcount : ComputableInPolyTime (fun a => (list a).length) input encUnary :=
-    (ComputableInPolyTime.length_list encBits).comp hlist
-  have hinitial : ComputableInPolyTime (fun a => (list a, ([] : List (List Bool))))
-      input stateEncoding :=
-    hlist.prod (ComputableInPolyTime.const [])
-  have htail : ComputableInPolyTime
-      (fun p : α × List (List Bool) × List (List Bool) => p.2.1.tail)
-      (encPair input stateEncoding) (encList encBits) := by fun_prop
-  have hstep : IsOraclePPTOn (encPair input stateEncoding) stateEncoding
-      (fun p : α × List (List Bool) × List (List Bool) => mapQueryTakeStep (limit p.1) p.2) := by
-    unfold mapQueryTakeStep
-    exact (IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop)).map_with'
-      (f := fun (p : α × List (List Bool) × List (List Bool)) tag =>
-        (p.2.1.tail, p.2.2 ++ [tag]))
-      (by fun_prop)
-  have hpoly : PolyBounded (fun a => (input a).length) (fun a => 2 * limit a + 2) := by
-    have h1 : ComputableInPolyTime (fun a => 2 * limit a + 2) input encUnary := by fun_prop
-    simpa only [encUnary_apply, List.length_replicate] using h1.polyBounded_length
-  have hloop : IsOraclePPTOn input stateEncoding
-      (fun a => OracleComp.iterate (list a).length (mapQueryTakeStep (limit a)) (list a, [])) := by
-    refine IsOraclePPTOn.iterateWith_of_bounded_growth' hcount hinitial hstep hpoly ?_
-    intro a state next hnext
-    unfold mapQueryTakeStep at hnext
-    obtain ⟨tag, htag, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hnext
-    obtain ⟨raw, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp htag
-    have htailLen : (encList encBits state.1.tail).length ≤ (encList encBits state.1).length :=
-      ((List.tail_sublist state.1).flatMap (frame ∘ encBits)).length_le
-    have htake : (raw.take (limit a)).length ≤ limit a := List.length_take_le _ _
-    simp only [stateEncoding, length_encPair, encList_append, encList_cons, encList_nil,
-      List.append_nil, List.length_append, length_frame, encBits_apply]
-    omega
-  simpa only [iterate_mapQueryTakeStep, List.nil_append, id_map'] using
-    hloop.map' (ComputableInPolyTime.snd (encList encBits) (encList encBits))
 
 private theorem length_encList_of_mem_support_mapM_query_take (k : ℕ) (xs : List (List Bool))
     {tags : List (List Bool)}
@@ -1470,6 +1406,8 @@ theorem isOraclePPTOn_blockwiseBoundedSimulator (hE : IsPolyTimeEncoder E)
       (encPair encBits encLog)
       (fun call : (ℕ × List Bool) × (Unit × List Bool) × List (List Bool × Tag) =>
         M.blockwiseBoundedSimulator E tagBound call.1.1 call.2.1 call.2.2) := by
+  have hencode : ComputableInPolyTime encTag encTag encBits :=
+    ComputableInPolyTime.of_eq (fun _ => rfl)
   let encCall :=
     encPair (encPair encUnary encBits) (encPair (encPair (encFinEnum Unit) encBits) encLog)
   have hmsgLen := M.msgLen_polyTime
@@ -1482,7 +1420,7 @@ theorem isOraclePPTOn_blockwiseBoundedSimulator (hE : IsPolyTimeEncoder E)
         (blockInputs E (M.msgLen p.1.1.1) p.2 p.1.2.1.2).mapM fun x =>
           List.take (tagBound p.1.1.1) <$>
             (ProbOracleComp.query ((), x) : WordOracleComp Unit (List Bool))) :=
-    isOraclePPTOn_mapM_query_take (by fun_prop) (by fun_prop)
+    IsOraclePPTOn.mapM_query_take () (by fun_prop) (by fun_prop)
   unfold blockwiseBoundedSimulator
   simpa only [bind_pure_comp] using
     hsample.bind_with
@@ -1538,7 +1476,7 @@ theorem isOraclePPT_blockwiseBoundedReduction (hE : IsPolyTimeEncoder E)
     funext n aux
     simp only [blockwiseBoundedReduction, bind_pure_comp]
   rw [heq]
-  refine ((hF.run_interpret_preprocess_open'
+  refine ((hF.run_interpret_preprocess_open
       (input := encPair encUnary encBits)
       (prepare := fun c : ℕ × List Bool => (c.1, ([] : List Bool)))
       (initial := fun _ : ℕ × List Bool => ([] : List (List Bool × Tag)))
@@ -1695,7 +1633,7 @@ theorem EUFCMA.blockwiseEUFCMA (h : M.EUFCMA)
   have hw : PolynomiallyLowerBounded (fun n => fieldWidth (M.msgLen n)) :=
     hmsgLen.div_const (by decide)
   have hpow : Negligible (fun n => ((2 : ℝ≥0) ^ fieldWidth (M.msgLen n))⁻¹) :=
-    negligible_inv_two_pow.comp_polynomiallyLowerBounded hw
+    negligible_inv_two_pow_of_polynomiallyLowerBounded hw
   have hcol : Negligible (fun n =>
       ((∑ i ∈ Finset.range (Q n), i : ℕ) : ℝ≥0) / 2 ^ fieldWidth (M.msgLen n)) := by
     refine negligible_of_le (Negligible.polynomiallyBounded_div (hQpoly.mul hQpoly) hpow)
@@ -1846,11 +1784,6 @@ theorem isOraclePPT_toForger_mixBlocksAdversary {replyBound : ℕ → ℕ → �
               List.replicate (fieldWidth (M.msgLen q.1.1)) true)) :=
     IsOraclePPTOn.query_take' () (by fun_prop) (by fun_prop)
   exact (hq1.bind_with (hq2.map_with' (by fun_prop))).isOraclePPT
-
-private theorem not_negligible_of_eventually_eq_one {f : ℕ → ℝ≥0}
-    (hf : ∀ᶠ n in Filter.atTop, f n = 1) : ¬ Negligible f := fun hneg =>
-  not_negligible_const one_ne_zero
-    (negligible_of_eventually_le hneg (hf.mono fun _ hn => hn.symm.le))
 
 /-- Without the block index (`noIndexEncoder`), the blockwise construction is not
 `BlockwiseEUFCMA`-secure whenever `3 ≤ fieldWidth (M.msgLen n)` eventually. -/

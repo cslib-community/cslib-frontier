@@ -10,7 +10,7 @@ module
 public import CslibFrontier.Computability.Circuit.Boolean.PolynomialTime
 public import CslibFrontier.Computability.MCSP.Basic
 public import CslibFrontier.Crypto.Primitives.PRG.Circuit
-import CslibFrontier.Computability.MCSP.Shannon
+import CslibFrontier.Computability.Circuit.Boolean.CountingBound
 import CslibFrontier.Crypto.Primitives.PRG.NisanWigderson.Sampling
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Exponential
 
@@ -369,18 +369,19 @@ theorem not_isUseful_PPoly_of_isNatural {F : ∀ n, Key n → BooleanFunction n}
 /-! ### Hard functions -/
 
 /-- For `n ≥ 16`, at least half of the functions on `n` inputs need more than `2 ^ n / (5 n)`
-gates, by counting circuits (`MCSP.ncard_setOf_mem_le`). -/
+gates, by counting circuits (`card_computableFunctions_two_pow_div_five_mul_le`). -/
 theorem two_pow_two_pow_le_two_mul_ncard_setOf_lt_complexity (hn : 16 ≤ n) :
     2 ^ 2 ^ n ≤ 2 * {f : BooleanFunction n |
       2 ^ n / (5 * n) < complexity interpretation (single f)}.ncard := by
   set s := 2 ^ n / (5 * n)
-  have hyes : {T : BitString (2 ^ n) | ⟨n, T, s⟩ ∈ MCSP} =
-      truthTable n '' {f | complexity interpretation (single f) ≤ s} := by
-    ext T
-    obtain ⟨f, rfl⟩ := (truthTable n).surjective T
-    simp only [Set.mem_ofPred_eq, mk_truthTable_mem_iff, (truthTable n).injective.mem_set_image]
-  have hle := ncard_setOf_mem_le (n := n) hn
-  rw [hyes, Set.ncard_image_of_injective _ (truthTable n).injective] at hle
+  have hle : {f : BooleanFunction n | complexity interpretation (single f) ≤ s}.ncard ≤
+      2 ^ (2 ^ n / 4) := by
+    have h : {f : BooleanFunction n | complexity interpretation (single f) ≤ s} =
+        (computableFunctions n s : Set (BooleanFunction n)) := by
+      ext f
+      simp only [Set.mem_ofPred_eq, Finset.mem_coe, mem_computableFunctions_iff_complexity_le]
+    rw [h, Set.ncard_coe_finset]
+    exact card_computableFunctions_two_pow_div_five_mul_le hn
   have hsum := Set.ncard_add_ncard_compl {f : BooleanFunction n |
     complexity interpretation (single f) ≤ s}
   have hcompl : {f : BooleanFunction n | complexity interpretation (single f) ≤ s}ᶜ =

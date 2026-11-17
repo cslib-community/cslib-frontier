@@ -107,7 +107,7 @@ private theorem scheduledHandler_step (k : ℕ) (choices : List Bool)
       ProbComp.eval_pure, PMF.pure_bind, PMF.pure_map, Option.isSome_none]
   all_goals try rfl
   all_goals split <;> simp_all [ot14World, ot14Answer, senderReceipts_append]
-  all_goals rfl
+  rfl
 
 private theorem senderStore_observations (k : ℕ) (choices : List Bool)
     (hchoices : choices.length = k) (s : Session)

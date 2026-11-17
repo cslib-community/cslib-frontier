@@ -336,7 +336,8 @@ theorem circuitCheck_complete :
       VOLECorrelation.senderView]
     apply PMF.bind_congr_on_support
     intro c hc
-    rw [← ProbOracleComp.sample]
+    rw [← OracleComp.substitute_eq_interpret]
+    change (ProbOracleComp.runWith _ (ProbOracleComp.sample _) (some c)).bind _ = _
     simp only [pmf_norm, ProbOracleComp.runWith_sample, ProbComp.eval_uniform]
     congr 1 with r : 1
     simp only [circuitVerify_correct C x w y hy c (valid_of_mem_support_voleIdealDist hc) r,

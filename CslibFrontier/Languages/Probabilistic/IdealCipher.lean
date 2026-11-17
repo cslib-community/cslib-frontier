@@ -14,6 +14,7 @@ public import CslibFrontier.Probability.Product
 public import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF.Uniform
+import CslibFrontier.Tactic.SuppCases
 
 /-!
 # Ideal Cipher Model
@@ -78,6 +79,7 @@ noncomputable def forgetfulAnswer (q : Query Key Block) :
 
 /-- Generates a complete tuple of independent random permutations extending the given cache
 function. -/
+@[expose]
 noncomputable def complete (st : Key → Cache Block) : PMF (Key → Equiv.Perm Block) :=
   PMF.pi (fun k => RandomPermutation.complete (st k))
 
@@ -136,15 +138,12 @@ omit [Fintype Key] in
 theorem answer_preserve_isPartialBijection (q : Query Key Block) (st : Key → Cache Block)
     (hst : ∀ k, IsPartialBijection (st k)) (a : Block) (st' : Key → Cache Block)
     (hmem : (a, st') ∈ (answer q st).support) (k : Key) : IsPartialBijection (st' k) := by
-  simp only [answer, PMF.mem_support_map_iff] at hmem
-  obtain ⟨⟨b, c'⟩, hmem, heq⟩ := hmem
-  cases heq
-  change IsPartialBijection (Function.update st q.1 c' k)
+  supp_cases hmem [answer] with ⟨⟨b, c'⟩, hmem, rfl, rfl⟩
   by_cases h : k = q.1
   · subst h
-    simp only [Function.update, dite_eq_left]
+    simp only [Function.update_self]
     exact RandomPermutation.answer_preserve_isPartialBijection q.2 (st q.1) (hst q.1) b c' hmem
-  · simp only [Function.update, dite_eq_right h]
+  · simp only [Function.update_of_ne h]
     exact hst k
 
 theorem answer_complete (q : Query Key Block) (st : Key → Cache Block)
@@ -248,21 +247,17 @@ theorem identicalUntilBad_exactWithBad_forgetfulWithBad :
     IdenticalUntilBad (spec := Spec Key Block) exactWithBad forgetfulWithBad
       (fun st : (Key → Cache Block) × Bool => st.2 = true) where
   absorb_first a st h_bad st' hmem := by
-    obtain ⟨st_map, bad⟩ := st
-    have hmem2 : st' ∈ ((RandomPermutation.exactWithBad a.2 (st_map a.1, bad)).map
-        fun x => (x.1, Function.update st_map a.1 x.2.1, x.2.2)).support := hmem
-    simp only [PMF.mem_support_map_iff] at hmem2
-    obtain ⟨⟨b, ⟨c, bad_new⟩⟩, hmem3, rfl⟩ := hmem2
+    rcases st with ⟨st_map, bad⟩
+    rcases st' with ⟨_, _, _⟩
+    supp_cases hmem [exactWithBad] with ⟨⟨b, c, bad_new⟩, hmem3, rfl, rfl, rfl⟩
     exact RandomPermutation.identicalUntilBad_exactWithBad_forgetfulWithBad.absorb_first
-        a.2 (st_map a.1, bad) h_bad (b, (c, bad_new)) hmem3
+      a.2 (st_map a.1, bad) h_bad (b, (c, bad_new)) hmem3
   absorb_second a st h_bad st' hmem := by
-    obtain ⟨st_map, bad⟩ := st
-    have hmem2 : st' ∈ ((RandomPermutation.forgetfulWithBad a.2 (st_map a.1, bad)).map
-        fun x => (x.1, Function.update st_map a.1 x.2.1, x.2.2)).support := hmem
-    simp only [PMF.mem_support_map_iff] at hmem2
-    obtain ⟨⟨b, ⟨c, bad_new⟩⟩, hmem3, rfl⟩ := hmem2
+    rcases st with ⟨st_map, bad⟩
+    rcases st' with ⟨_, _, _⟩
+    supp_cases hmem [forgetfulWithBad] with ⟨⟨b, c, bad_new⟩, hmem3, rfl, rfl, rfl⟩
     exact RandomPermutation.identicalUntilBad_exactWithBad_forgetfulWithBad.absorb_second
-        a.2 (st_map a.1, bad) h_bad (b, (c, bad_new)) hmem3
+      a.2 (st_map a.1, bad) h_bad (b, (c, bad_new)) hmem3
   agree a st hst b st' hst' := by
     obtain ⟨st_map, bad⟩ := st
     obtain ⟨st'_map, bad'⟩ := st'
@@ -321,45 +316,20 @@ theorem toOuterMeasure_bad_forgetfulWithBad_le {β : Type}
       gcongr
       exact (Nat.cast_le.mpr hcard).trans (Nat.cast_le.mpr (Finset.single_le_sum
           (fun (k : Key) _ => Nat.zero_le (List.length (c k))) (Finset.mem_univ q.1)))
-  · intro q ⟨c, b⟩ _ p hp hp_bad
-    cases hq : cachedAnswer (c q.1) q.2 with
-    | some a =>
-      simp only [forgetfulWithBad, PMF.mem_support_map_iff] at hp
-      obtain ⟨x, hx, rfl⟩ := hp
-      simp only [RandomPermutation.forgetfulWithBad, hq, PMF.mem_support_pure_iff] at hx
-      cases hx
-      have h_update : Function.update c q.1 (c q.1) = c := Function.update_eq_self q.1 c
-      simp only [h_update]
-      omega
-    | none =>
-      simp only [forgetfulWithBad, PMF.mem_support_map_iff] at hp
-      obtain ⟨x, hx, rfl⟩ := hp
-      simp only [RandomPermutation.forgetfulWithBad, hq, PMF.mem_support_map_iff] at hx
-      obtain ⟨a, ha, rfl⟩ := hx
-      dsimp
-      have h_sum1 : ∑ k, List.length (Function.update c q.1
-          (PermQuery.toCacheEntry ⟨q.2, a⟩ :: c q.1) k) =
-          (List.length (c q.1) + 1) + ∑ k ∈ Finset.univ.erase q.1, List.length (c k) := by
-        calc ∑ k, List.length (Function.update c q.1 (PermQuery.toCacheEntry ⟨q.2, a⟩ :: c q.1) k)
-          _ = List.length (Function.update c q.1 (PermQuery.toCacheEntry ⟨q.2, a⟩ :: c q.1) q.1) +
-            ∑ k ∈ Finset.univ.erase q.1, List.length (Function.update c q.1
-              (PermQuery.toCacheEntry ⟨q.2, a⟩ :: c q.1) k) :=
-            (Finset.add_sum_erase Finset.univ
-            (fun k => List.length (Function.update c q.1
-              (PermQuery.toCacheEntry ⟨q.2, a⟩ :: c q.1) k)) (Finset.mem_univ q.1)).symm
-          _ = (List.length (c q.1) + 1) + ∑ k ∈ Finset.univ.erase q.1,
-            List.length (Function.update c q.1
-              (PermQuery.toCacheEntry ⟨q.2, a⟩ :: c q.1) k) := by simp
-          _ = (List.length (c q.1) + 1) + ∑ k ∈ Finset.univ.erase q.1, List.length (c k) := by
-            congr 1
-            apply Finset.sum_congr rfl
-            intro k hk
-            have hk' : k ≠ q.1 := (Finset.mem_erase.mp hk).1
-            simp [hk']
-      have h_sum2 : ∑ k, List.length (c k) = List.length (c q.1) +
-          ∑ k ∈ Finset.univ.erase q.1, List.length (c k) :=
-          (Finset.add_sum_erase Finset.univ (fun k => List.length (c k)) (Finset.mem_univ q.1)).symm
-      rw [h_sum1, h_sum2]
+  · rintro q ⟨c, b⟩ _ ⟨a, c', b'⟩ hp _
+    supp_cases hp [forgetfulWithBad] with ⟨⟨a₀, c₀, b₀⟩, hx, rfl, rfl, rfl⟩
+    rcases RandomPermutation.mem_support_forgetfulWithBad hx with ⟨_, rfl, _⟩ | ⟨_, rfl, _⟩
+    · simp [Function.update_eq_self]
+    · have h1 := Finset.add_sum_erase Finset.univ
+        (fun k => (Function.update c q.1
+          (PermQuery.toCacheEntry ⟨q.2, a₀⟩ :: c q.1) k).length) (Finset.mem_univ q.1)
+      have h2 := Finset.add_sum_erase Finset.univ (fun k => (c k).length) (Finset.mem_univ q.1)
+      have heq : ∑ k ∈ Finset.univ.erase q.1,
+          (Function.update c q.1 (PermQuery.toCacheEntry ⟨q.2, a₀⟩ :: c q.1) k).length =
+          ∑ k ∈ Finset.univ.erase q.1, (c k).length :=
+        Finset.sum_congr rfl fun k hk => by simp [(Finset.mem_erase.mp hk).1]
+      simp only [Function.update_self, List.length_cons] at h1
+      dsimp only
       omega
 
 omit [Fintype Key] in
@@ -367,14 +337,13 @@ theorem exactWithBad_preserve_isPartialBijection (q : Query Key Block)
     (st : (Key → Cache Block) × Bool) (hst : ∀ k, IsPartialBijection (st.1 k)) (a : Block)
     (st' : (Key → Cache Block) × Bool)
     (hmem : (a, st') ∈ (exactWithBad q st).support) (k : Key) : IsPartialBijection (st'.1 k) := by
-  simp only [exactWithBad, PMF.mem_support_map_iff] at hmem
-  obtain ⟨⟨b, ⟨c', bad'⟩⟩, hmem, h_eq⟩ := hmem
-  cases h_eq
+  rcases st' with ⟨_, _⟩
+  supp_cases hmem [exactWithBad] with ⟨⟨b, c', bad'⟩, hmem, rfl, rfl, rfl⟩
   by_cases h : k = q.1
   · subst h
     simp only [Function.update_self]
     exact RandomPermutation.exactWithBad_preserve_isPartialBijection q.2 (st.1 q.1, st.2)
-        (hst q.1) b (c', bad') hmem
+      (hst q.1) b (c', bad') hmem
   · simp only [Function.update_of_ne h]
     exact hst k
 

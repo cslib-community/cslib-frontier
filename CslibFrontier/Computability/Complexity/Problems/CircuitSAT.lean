@@ -53,7 +53,8 @@ clause and the conjunction of the finished clauses at fixed offsets from the end
 * `Cslib.Complexity.CircuitSAT.mem_NP`: circuit satisfiability is in `NP`.
 * `Cslib.Complexity.SAT.toCircuit_mem_CircuitSAT_iff`: the circuit of a formula is satisfiable
   exactly when the formula is.
-* `Cslib.Complexity.SAT.polyTimeReducible_CircuitSAT`: `SAT` reduces to `CircuitSAT` in
+* `Cslib.Complexity.SAT.computableInPolyTime_toCircuit`,
+  `Cslib.Complexity.SAT.polyTimeReducible_CircuitSAT`: `SAT` reduces to `CircuitSAT` in
   polynomial time.
 * `Cslib.Complexity.CircuitSAT_npHard`, `Cslib.Complexity.CircuitSAT_npComplete`: circuit
   satisfiability is `NP`-hard and `NP`-complete.
@@ -262,9 +263,9 @@ private theorem evalCode_circuitBlock (V : List Bool) (p i : ℕ) (b e : Bool)
   cases e
   · have hi := hi rfl
     cases b <;>
-    simp [circuitBlock, evalCode, interpretation, hV, show i < p + 3 by omega,
+    simp [circuitBlock, evalCode, evalCodeStep, interpretation, hV, show i < p + 3 by omega,
       show p + 1 < p + 3 by omega, show p + 2 < p + 3 by omega]
-  · simp [circuitBlock, evalCode, interpretation, hV]
+  · simp [circuitBlock, evalCode, evalCodeStep, interpretation, hV]
 
 /-- The blocks of instructions `k, k + 1, …` keep the state of `circuitState`: after them, the
 last gate holds the conjunction computed from the state before them. -/
@@ -338,7 +339,7 @@ theorem eval_toCircuit (φ : CNF ℕ) (x : BitString (toCircuit φ).1) :
   have hinit : evalCode interpretation false (List.ofFn x)
       [(Op.const false, []), (Op.const false, []), (Op.const true, [])] =
       List.ofFn x ++ [false, false, true] := by
-    simp [evalCode, interpretation]
+    simp [evalCode, evalCodeStep, interpretation]
   rw [hinit]
   have hn : (List.ofFn x).length = φ.vars.length := List.length_ofFn
   have := evalCode_flatMap φ (List.ofFn x) hn (circuitSteps φ)
@@ -424,7 +425,7 @@ private theorem computableInPolyTime_circuitGates :
 
 /-- Building the circuit of a formula is polynomial-time, from the encoding `encCNF` of formulas
 to the binary encoding `encCircuit 1` of circuits. -/
-private theorem computableInPolyTime_toCircuit :
+theorem computableInPolyTime_toCircuit :
     ComputableInPolyTime toCircuit encCNF (encCircuit 1) := by
   have hg := computableInPolyTime_circuitGates
   have hvars := SAT.computableInPolyTime_vars

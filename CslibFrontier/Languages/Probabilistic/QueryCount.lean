@@ -49,7 +49,7 @@ A budget says nothing about running time.
 
 namespace Cslib.OracleComp
 
-universe u v
+universe u v x
 
 variable {ι : Type u} {spec : OracleSpec.{u, v} ι} {α β : Type v}
 
@@ -137,7 +137,7 @@ theorem add {cost' : ι → ℕ} {program : OracleComp spec α} {n n' : ℕ}
 
 /-- A program whose calls are replaced by programs over another interface, each call `q` costing
 at most `cost q` there, costs at most `n` there when its own calls cost at most `n`. -/
-theorem interpret {κ : Type u} {target : OracleSpec.{u, v} κ} {cost' : κ → ℕ}
+theorem interpret {κ : Type x} {target : OracleSpec.{x, v} κ} {cost' : κ → ℕ}
     {handler : (q : ι) → OracleComp target (spec q)}
     (hhandler : ∀ q, IsCostBounded cost' (handler q) (cost q)) {program : OracleComp spec α}
     {n : ℕ} (h : IsCostBounded cost program n) :

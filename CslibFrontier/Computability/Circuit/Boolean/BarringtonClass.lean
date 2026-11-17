@@ -114,7 +114,8 @@ theorem mem_NC_one_iff_formulaDepth_le :
     have hd' : F.depth ≤ (c + 1) * (Nat.log 2 n + 1) := by grind
     refine ⟨F.toCircuit, hF.toCircuit, F.depth_toCircuit_le.trans hd', ?_⟩
     rw [F.size_toCircuit]
-    exact (F.size_lt_pow_depth Boolean.arity_le_two le_rfl).le.trans
+    exact (Formula.size_lt_pow_depth (Formula.fanInAtMost_of_arity_le Boolean.arity_le_two F)
+      le_rfl).le.trans
       (Nat.pow_le_pow_right two_pos hd')
 
 /-- The formula depth of a Boolean function is at most `4 ⌈log₂ L(f)⌉`, where `L(f)` is its
@@ -183,7 +184,7 @@ alternating group `A₅` of length at most `s n` `σ`-computes the slice of the 
 theorem exists_monoidProgram_alternatingGroup_computes_of_mem_NC_one (hL : L ∈ NC 1) :
     ∃ s : ℕ → ℕ, PolynomiallyBounded s ∧ ∀ (n : ℕ) [NeZero n] (σ : alternatingGroup (Fin 5)),
       IsFiveCycle (σ : Perm (Fin 5)) → ∃ P : MonoidProgram (Fin n) Bool (alternatingGroup (Fin 5)),
-        P.length ≤ s n ∧ P.Computes σ (L.slice n) := by
+        P.toList.length ≤ s n ∧ P.Computes σ (L.slice n) := by
   obtain ⟨s, hs, hle⟩ := exists_four_pow_formulaDepth_le_of_mem_NC_one hL
   refine ⟨s, hs, fun n _ σ hσ => ?_⟩
   obtain ⟨P, hlen, hP⟩ :=
@@ -196,7 +197,7 @@ of width `5` and length at most `s n` `σ`-computes the slice of the language at
 theorem exists_monoidProgram_computes_of_mem_NC_one (hL : L ∈ NC 1) :
     ∃ s : ℕ → ℕ, PolynomiallyBounded s ∧ ∀ (n : ℕ) [NeZero n] (σ : Perm (Fin 5)), IsFiveCycle σ →
       ∃ P : MonoidProgram (Fin n) Bool (Perm (Fin 5)),
-        P.length ≤ s n ∧ P.Computes σ (L.slice n) := by
+        P.toList.length ≤ s n ∧ P.Computes σ (L.slice n) := by
   obtain ⟨s, hs, h⟩ := exists_monoidProgram_alternatingGroup_computes_of_mem_NC_one hL
   refine ⟨s, hs, fun n _ σ hσ => ?_⟩
   obtain ⟨P, hlen, hP⟩ := h n ⟨σ, hσ.mem_alternatingGroup⟩ hσ
@@ -249,7 +250,7 @@ theorem polyLength_subset_NC_one (M : Type*) [Monoid M] [Finite M] : PolyLength 
     rw [hF x, Bool.eq_iff_iff, decide_eq_true_iff, hPS x]
     simp [leftMulEnd_apply]
   calc formulaDepth (L.slice n) ≤ F.depthWith binaryCost := formulaDepth_le hFc
-    _ ≤ (Nat.clog 2 k + 1) * Nat.clog 2 P.length + Nat.clog 2 k := by
+    _ ≤ (Nat.clog 2 k + 1) * Nat.clog 2 P.toList.length + Nat.clog 2 k := by
         simpa only [MonoidProgram.length_map] using hd
     _ ≤ (Nat.clog 2 k + 1) * (a * (Nat.log 2 n + 1)) + Nat.clog 2 k * (Nat.log 2 n + 1) :=
         Nat.add_le_add (Nat.mul_le_mul_left _ ((Nat.clog_mono_right 2 hlen).trans (ha n)))

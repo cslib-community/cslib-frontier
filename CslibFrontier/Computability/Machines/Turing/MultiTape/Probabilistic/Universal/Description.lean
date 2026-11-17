@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilisti
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Encoding
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Inductive
 public import CslibFrontier.Foundations.Data.Fin.Decode
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Finite descriptions of fair-coin oracle machines
@@ -39,10 +40,9 @@ therefore a rigorous unary model-code length, not an implementation byte count. 
 declared control and operation counts, every control and operation tag, and the complete transition
 table.
 
-`Desc.runOracle` is the open denotational semantics. Its equality with the common
-`MultiTapePTM.runOracle` interpreter holds as a program, before any external handler is chosen;
-`Desc.runWith_toMachine` records the consequent equality for an arbitrary shared stateful handler.
-The handler's own computation remains external to the machine clock.
+`Desc.runOracle` is the open denotational semantics, definitionally the common
+`MultiTapePTM.runOracle` interpreter applied to `Desc.toMachine`. The handler's own computation
+remains external to the machine clock.
 
 ## Main definitions
 
@@ -54,10 +54,9 @@ The handler's own computation remains external to the machine clock.
 
 ## Main results
 
-* `Turing.MultiTapePTM.Universal.Desc.runOracle_eq_toMachine`: denotation agrees as an open
-  oracle program.
-* `Turing.MultiTapePTM.Universal.Desc.runWith_toMachine`: the complete output/private-state law
-  agrees for every shared stateful handler.
+* `Turing.MultiTapePTM.Universal.Desc.tapes_le_descLen`, `.states_le_descLen`,
+  `.operations_le_descLen`, `.q₀_le_descLen`, `.table_length_le_descLen`: description components
+  are bounded by the encoded length.
 
 This module supplies syntax and denotation only. It does not claim the resource bounds of a fixed
 universal interpreter or charge the cost of an implementation of the external handler. In
@@ -248,16 +247,17 @@ theorem Desc.toMachine_tr (d : Desc) (state : Option (Fin d.states))
 
 /-! ### Injective description encoding -/
 
-/-- Transition keys retain the deterministic key layout and append the framed answer-symbol
-vector. -/
+/-- Transition keys retain the deterministic key layout as a framed prefix, then append the
+answer-symbol list as the unframed outer tail. The answer symbols are still individually framed. -/
 enc_structure eKey : Key flattened toKey : Turing.MultiTapeTM.Universal.eKey where
   state : encUnary, input : Turing.MultiTapeTM.Universal.eSym,
   work : (encList Turing.MultiTapeTM.Universal.eSym),
   answers : (encList Turing.MultiTapeTM.Universal.eSym)
 
 /-- Actions use an `encSum` constructor tag. The ordinary-step payload contains the existing
-ordinary action, then framed query-write and answer-move vectors; the query payload contains unary
-operation and state tags. -/
+ordinary action, then query-write and answer-move lists; the first two fields are framed and the
+answer-move list is the unframed product tail. The query payload frames the operation tag before
+the unframed successor-state tag. -/
 enc_inductive eAct : Act where
   | step : Turing.MultiTapeTM.Universal.eAct,
       (encList Turing.MultiTapeTM.Universal.eSym), (encList encSign)
@@ -270,23 +270,35 @@ attribute [nolint defsWithUnderscore] eAct_toSum eAct_elim
 enc_structure eBranches : Branches where falseBranch : eAct, trueBranch : eAct
 
 /-- Description encoding as a right-associated tuple in declaration order: unary tape count,
-unary user-state count, unary operation count, unary initial-state tag, then the framed list of
-framed key/branch pairs. -/
+unary user-state count, unary operation count, unary initial-state tag, then the unframed outer
+tail containing the transition list. The list itself consists of framed key/branch pairs. -/
 enc_structure eDesc : Desc where
   tapes : encUnary, states : encUnary, operations : encUnary, q₀ : encUnary,
   table : (encList (encPair eKey eBranches))
 
-/-- The transition-key encoding is injective. -/
-theorem eKey_injective : Function.Injective eKey := eKey.injective
-
-/-- The tagged action encoding is injective. -/
-theorem eAct_injective : Function.Injective eAct := eAct.injective
-
-/-- The complete description encoding is injective. -/
-theorem eDesc_injective : Function.Injective eDesc := eDesc.injective
-
 /-- Bit length of the injective first-order description encoding. -/
 def descLen (d : Desc) : ℕ := (eDesc d).length
+
+/-- The declared work-tape count is bounded by the encoded description length. -/
+theorem Desc.tapes_le_descLen (d : Desc) : d.tapes ≤ descLen d := by
+  enc_len [descLen, eDesc_apply]
+
+/-- The declared user-state count is bounded by the encoded description length. -/
+theorem Desc.states_le_descLen (d : Desc) : d.states ≤ descLen d := by
+  enc_len [descLen, eDesc_apply]
+
+/-- The declared operation count is bounded by the encoded description length. -/
+theorem Desc.operations_le_descLen (d : Desc) : d.operations ≤ descLen d := by
+  enc_len [descLen, eDesc_apply]
+
+/-- The initial-state tag is bounded by the encoded description length. -/
+theorem Desc.q₀_le_descLen (d : Desc) : d.q₀ ≤ descLen d := by
+  enc_len [descLen, eDesc_apply]
+
+/-- The number of transition-table entries is bounded by the encoded description length. -/
+theorem Desc.table_length_le_descLen (d : Desc) : d.table.length ≤ descLen d := by
+  have := length_le_length_encList (encPair eKey eBranches) d.table
+  enc_len [descLen, eDesc_apply]
 
 /-! ### Exact open semantics -/
 
@@ -294,20 +306,6 @@ def descLen (d : Desc) : ℕ := (eDesc d).length
 noncomputable def Desc.runOracle (d : Desc) (fuel : ℕ) (input : List ℕ) :
     ProbOracleComp (fun _ : Fin d.operations × List ℕ => List ℕ) (List ℕ) :=
   d.toMachine.runOracle fuel input
-
-/-- Description execution is exactly its common-machine denotation, as an open oracle program and
-before choosing or interpreting any external handler. -/
-theorem Desc.runOracle_eq_toMachine (d : Desc) (fuel : ℕ) (input : List ℕ) :
-    d.runOracle fuel input = d.toMachine.runOracle fuel input := rfl
-
-/-- Exact open-run semantics for every shared stateful handler, including its final private
-state. This is equality of full probability laws; no statelessness or channel independence is
-assumed. -/
-theorem Desc.runWith_toMachine {OracleState : Type} (d : Desc)
-    (handler : Fin d.operations × List ℕ → StateT OracleState PMF (List ℕ))
-    (fuel : ℕ) (input : List ℕ) (state : OracleState) :
-    ProbOracleComp.runWith handler (d.runOracle fuel input) state =
-      ProbOracleComp.runWith handler (d.toMachine.runOracle fuel input) state := rfl
 
 @[simp] theorem Desc.runOracle_zero (d : Desc) (input : List ℕ) :
     d.runOracle 0 input = pure [] := rfl
@@ -342,27 +340,5 @@ theorem Desc.action_cons_hit (tapes states operations q₀ : ℕ)
       (some state) input work answers coin =
       (branches.get coin).toAction tapes states operations := by
   simp [Desc.action]
-
-theorem Desc.action_cons_hit_false (tapes states operations q₀ : ℕ)
-    (state : Fin states) (input : Option ℕ) (work : Fin tapes → Option ℕ)
-    (answers : Fin operations → Option ℕ) (branches : Branches)
-    (table : List (Key × Branches)) :
-    ({ tapes := tapes, states := states, operations := operations, q₀ := q₀,
-        table := (key state.val input work answers, branches) :: table } : Desc).action
-      (some state) input work answers false =
-      branches.falseBranch.toAction tapes states operations := by
-  simpa only [Branches.get_false] using
-    Desc.action_cons_hit tapes states operations q₀ state input work answers branches table false
-
-theorem Desc.action_cons_hit_true (tapes states operations q₀ : ℕ)
-    (state : Fin states) (input : Option ℕ) (work : Fin tapes → Option ℕ)
-    (answers : Fin operations → Option ℕ) (branches : Branches)
-    (table : List (Key × Branches)) :
-    ({ tapes := tapes, states := states, operations := operations, q₀ := q₀,
-        table := (key state.val input work answers, branches) :: table } : Desc).action
-      (some state) input work answers true =
-      branches.trueBranch.toAction tapes states operations := by
-  simpa only [Branches.get_true] using
-    Desc.action_cons_hit tapes states operations q₀ state input work answers branches table true
 
 end Turing.MultiTapePTM.Universal
