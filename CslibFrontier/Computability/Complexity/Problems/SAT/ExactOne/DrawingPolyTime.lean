@@ -340,10 +340,9 @@ private theorem blockVariable (v : CNF.PositiveExactOneCompile.Variable ℕ) :
     have hoffset : ComputableInPolyTime (fun p : BlockInput =>
         CNF.PositiveExactOneCompile.signedOffset p.1.1 p.2.1 + i)
         encBlockInput encUnary := by fun_prop
-    unfold profileVariableMap encRawVariable DrawingFinitePolyTime.encRawVariable
-      CNF.PositiveExactOneCompile.encVariable CNF.PositiveExactOne.encVariable
-      CNF.FromSAT.encVariable
-    fun_prop
+    exact (ComputableInPolyTime.sumInr
+      (CNF.FromSAT.encVariable encNat) (encPair (encPair encUnary encUnary) encUnary)).comp
+        ((hoffset.prod (ComputableInPolyTime.const j)).prod (ComputableInPolyTime.const k))
 
 private def incidenceFor (profile : ClauseProfile) (e : LocalIncidence) (p : BlockInput) : Route :=
   let stem := translate (ExactOne.positiveBoxOrigin p.1.1 p.1.2 p.2.1) e.2.2

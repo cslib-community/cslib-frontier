@@ -135,7 +135,12 @@ theorem computableInPolyTime_literal :
       (fun p : (CNF ℕ × List Bool) × Literal ℕ => Literal.eval (assignment p.1.1 p.1.2) p.2)
       (encPair (encPair encCNF encBits) (encPair encNat encBool)) encBool := by
   apply Literal.computableInPolyTime_eval (encV := encNat) (by fun_prop)
-  exact computableInPolyTime_assignment.comp (by fun_prop)
+  have hinput : ComputableInPolyTime
+      (fun p : ((CNF ℕ × List Bool) × Literal ℕ) × ℕ => (p.1.1, p.2))
+      (encPair (encPair (encPair encCNF encBits) (encPair encNat encBool)) encNat)
+      (encPair (encPair encCNF encBits) encNat) := by fun_prop
+  exact computableInPolyTime_assignment.comp
+    (encIn := encPair (encPair (encPair encCNF encBits) (encPair encNat encBool)) encNat) hinput
 
 /-- Evaluating a clause with the certificate assignment is polynomial-time. -/
 @[fun_prop]
@@ -144,7 +149,13 @@ theorem computableInPolyTime_clause :
       (fun p : (CNF ℕ × List Bool) × Clause ℕ => Clause.eval (assignment p.1.1 p.1.2) p.2)
       (encPair (encPair encCNF encBits) (encList (encPair encNat encBool))) encBool := by
   apply Clause.computableInPolyTime_eval (encV := encNat) (by fun_prop)
-  exact computableInPolyTime_assignment.comp (by fun_prop)
+  have hinput : ComputableInPolyTime
+      (fun p : ((CNF ℕ × List Bool) × Clause ℕ) × ℕ => (p.1.1, p.2))
+      (encPair (encPair (encPair encCNF encBits) (encList (encPair encNat encBool))) encNat)
+      (encPair (encPair encCNF encBits) encNat) := by fun_prop
+  exact computableInPolyTime_assignment.comp
+    (encIn := encPair (encPair (encPair encCNF encBits)
+      (encList (encPair encNat encBool))) encNat) hinput
 
 /-- The SAT verifier is polynomial-time, including on certificates of arbitrary length. -/
 @[fun_prop]
