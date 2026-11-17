@@ -859,6 +859,17 @@ Venkatesan Guruswami, Atri Rudra and Madhu Sudan. *Essential Coding Theory*. Dra
 
 The draft does not name Wolfowitz. The manual's attribution of the strong converse for discrete memoryless channels to him is standard background and was not checked against his paper.
 
+Multiplicity list decoding of Reed–Solomon codes (the Guruswami–Sudan algorithm) appears in Chapter 12 of this 26 August 2025 draft (checked correspondence, printed pp. 253–259):
+
+- §§12.2.3–12.2.4: adding multiplicities to Sudan's algorithm, with Definitions 12.2.8–9 (multiplicity vanishing via shifted polynomials and Hasse derivatives, formalized in [Bivariate.lean](../CslibFrontier/Foundations/Algebra/Polynomial/Bivariate.lean) as `Polynomial.Bivariate.shift`, `Polynomial.Bivariate.hasseDerivBiv`, and `Polynomial.Bivariate.VanishesToOrder`);
+- Algorithm 12.2.3 and Lemmas 12.2.10–11: multiplicity interpolation and root-divisibility (formalized in [GuruswamiSudan.lean](../CslibFrontier/Foundations/Data/Code/GuruswamiSudan.lean) as `Cslib.Code.GuruswamiSudan.IsWeightedInterpolant`, `Cslib.Code.GuruswamiSudan.IsInterpolant`, `Cslib.Code.GuruswamiSudan.weightedInterpolant`, `Cslib.Code.GuruswamiSudan.interpolant`, `Cslib.Code.GuruswamiSudan.IsInterpolant.X_sub_C_dvd`, and `Cslib.Code.guruswamiSudan`);
+- Theorem 12.2.12: list decoding of Reed–Solomon codes up to the Johnson radius `1 - √ρ` (formalized as `Cslib.Code.mem_guruswamiSudan_johnson_iff` and `Cslib.Code.exists_guruswamiSudan_of_eps`).
+
+<a id="guruswamisudan99"></a>
+## guruswamisudan99
+
+Venkatesan Guruswami and Madhu Sudan. "Improved Decoding of Reed–Solomon and Algebraic-Geometry Codes." *IEEE Transactions on Information Theory* 45(6), 1757–1767, 1999; preliminary version FOCS 1998. https://doi.org/10.1109/18.782097 . The library's key is `GuruswamiSudan1999`. Bibliographic metadata checked against `references.bib`; the paywalled IEEE article body was not inspected directly, so no journal theorem or page locator is claimed. The formalized exposition follows [Essential Coding Theory](#guruswamirudrasudan25), §§12.2.3–12.2.4, Definitions 12.2.8–9, Algorithm 12.2.3, Lemmas 12.2.10–11, and Theorem 12.2.12 (pp. 253–259), with characteristic-independent bivariate polynomial algebra (`Polynomial.Bivariate.VanishesToOrder`, `Polynomial.Bivariate.weightedDegree`) in [Bivariate.lean](../CslibFrontier/Foundations/Algebra/Polynomial/Bivariate.lean) and Reed–Solomon multiplicity interpolation and Johnson-radius decoding (`Cslib.Code.GuruswamiSudan.IsWeightedInterpolant`, `Cslib.Code.GuruswamiSudan.IsInterpolant`, `Cslib.Code.guruswamiSudan`, `Cslib.Code.mem_guruswamiSudan_johnson_iff`, `Cslib.Code.exists_guruswamiSudan_of_eps`) in [GuruswamiSudan.lean](../CslibFrontier/Foundations/Data/Code/GuruswamiSudan.lean).
+
 <a id="gusfield90"></a>
 ## gusfield90
 

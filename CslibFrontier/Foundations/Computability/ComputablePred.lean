@@ -38,6 +38,7 @@ agrees with `p` on a domain `D`, and find the point in `D`.
 * `ComputablePred.comp`: substitution of a computable function.
 * `ComputablePred.nat_le`, `ComputablePred.nat_lt`: comparisons of computable functions.
 * `ComputablePred.forall_lt`, `ComputablePred.exists_lt`: bounded quantification.
+* `ComputablePred.exists_mem_list`: existential quantification over a computable list.
 * `ComputablePred.rePred_exists`: unbounded existential quantification gives an r.e. predicate.
 * `REPred.comp`: substitution of a computable function into an r.e. predicate.
 * `REPred.exists_not_of_not_rePred`, `REPred.exists_not_of_not_exists_rePred_iff`: an r.e.
@@ -129,6 +130,26 @@ theorem exists_lt {p : α → ℕ → Prop} (hp : ComputablePred (Function.uncur
     (hf : Computable f) : ComputablePred fun a => ∃ i < f a, p a i :=
   ((forall_lt (p := fun a i => ¬p a i) hp.not hf).not).of_eq fun _ => by
     simp only [not_forall, not_not, exists_prop]
+
+/-- Existential quantification over the members of a list preserves computability: if `p a b` is
+computable in `(a, b)` and the list `f a` is computable, then `∃ b ∈ f a, p a b` is computable.
+This is the computable analogue of Mathlib's `PrimrecRel.exists_mem_list`. -/
+theorem exists_mem_list {p : α → β → Prop} (hp : ComputablePred (Function.uncurry p))
+    {f : α → List β} (hf : Computable f) : ComputablePred fun a => ∃ b ∈ f a, p a b := by
+  obtain ⟨g, hg, hpg⟩ := computable_iff.1 hp
+  -- whether the entry of `f a` at position `i`, if there is one, satisfies `p a`
+  have hq : ComputablePred (Function.uncurry fun a i => ∃ b ∈ (f a)[i]?, p a b) :=
+    computable_iff.2 ⟨_, Computable.option_casesOn
+      (Computable.list_getElem?.comp (hf.comp Computable.fst) Computable.snd)
+      (Computable.const false)
+      (hg.comp ((Computable.fst.comp Computable.fst).pair Computable.snd)).to₂,
+      funext fun x => by
+        cases h : (f x.1)[x.2]? <;>
+          simp [Function.uncurry, h, show p x.1 _ = _ from congrFun hpg (x.1, _)]⟩
+  exact (exists_lt hq (Computable.list_length.comp hf)).of_eq fun a =>
+    ⟨fun ⟨i, _, b, hb, h⟩ => ⟨b, List.mem_of_getElem? hb, h⟩, fun ⟨b, hb, h⟩ =>
+      let ⟨i, hi, hib⟩ := List.getElem_of_mem hb
+      ⟨i, hi, b, by simp [hi, hib], h⟩⟩
 
 /-- Unbounded existential quantification of a computable predicate is r.e.: search for a witness
 by `Nat.rfind` over the codes of `β`. -/

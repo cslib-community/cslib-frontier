@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Complexity.Classes.ZPP
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.ExpectedTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.EqualityPrimitives
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.ReplayInput
+import CslibFrontier.Probability.PMF.Event
 
 /-!
 # Zero-error expected time
@@ -91,20 +92,6 @@ def DecidesWithZeroErrorInExpectedTime (machine : MultiTapePTM k Bool State) (en
       (machine.initialConfig (enc a)))).toOuterMeasure
         {final | final.tapes.state = none ∧ final.tapes.output = [MultiTapeTM.indicator A a]} = 1
 
-/-- An event and a point outside it have total probability at most one. -/
-private theorem toOuterMeasure_add_apply_le_one {β : Type} (Q : PMF β) {G : Set β} {x : β}
-    (hx : x ∉ G) : Q.toOuterMeasure G + Q x ≤ 1 := by
-  classical
-  calc Q.toOuterMeasure G + Q x = (∑' c, if c = x then 0 else G.indicator Q c) + Q x := by
-        rw [PMF.toOuterMeasure_apply, tsum_eq_add_tsum_ite (f := fun c => G.indicator Q c) x,
-          Set.indicator_of_notMem hx, zero_add]
-    _ ≤ (∑' c, if c = x then 0 else Q c) + Q x := by
-        refine add_le_add (tsum_le_tsum (α := ℝ≥0∞) fun c => ?_) le_rfl
-        split_ifs
-        · exact le_rfl
-        · exact Set.indicator_le_self G Q c
-    _ = 1 := by rw [add_comm, ← tsum_eq_add_tsum_ite (f := fun c => Q c) x, Q.tsum_coe]
-
 namespace DecidesWithZeroErrorInExpectedTime
 
 variable {machine : MultiTapePTM k Bool State} {enc : α ↪ List Bool} {A : Set α} {t : α → ℕ}
@@ -118,8 +105,7 @@ theorem of_halted {T : α → ℕ}
     machine.DecidesWithZeroErrorInExpectedTime enc A T := fun a =>
   ⟨machine.expectedTime_le_of_halted fun final hfinal => (h a final hfinal).1,
     le_antisymm
-      (iSup_le fun _ => (PMF.toOuterMeasure _).mono (Set.subset_univ _) |>.trans_eq
-        ((PMF.toOuterMeasure_apply_eq_one_iff _ _).mpr (Set.subset_univ _)))
+      (iSup_le fun _ => Cslib.Probability.PMF.toOuterMeasure_le_one _ _)
       (le_iSup_of_le (T a) ((PMF.toOuterMeasure_apply_eq_one_iff _ _).mpr
         fun final hfinal => h a final hfinal).ge)⟩
 
@@ -147,8 +133,12 @@ theorem output_eq_of_halted (h : machine.DecidesWithZeroErrorInExpectedTime enc 
     have h₂ := machine.toOuterMeasure_halted_monotone (machine.initialConfig (enc a))
       (S := {final}) (by rintro c rfl; exact hhalt) (le_max_right s' s)
     simp only [PMF.toOuterMeasure_apply_singleton] at h₁ h₂
-    exact (add_le_add h₁ h₂).trans
-      (toOuterMeasure_add_apply_le_one _ fun hG => hwrong hG.2)
+    -- the wrong halted run lies in the complement of the event of a right halted run
+    have h₃ := h₂.trans ((PMF.toOuterMeasure_apply_singleton _ final).symm.trans_le
+      ((PMF.toOuterMeasure _).mono (Set.singleton_subset_iff.mpr
+        (show final ∈ Gᶜ from fun hG => hwrong hG.2))))
+    exact (add_le_add h₁ h₃).trans_eq
+      (Cslib.Probability.PMF.toOuterMeasure_add_compl_ennreal _ G)
   have hsup : (⨆ s', (ProbComp.eval (machine.runClosedConfigFrom s'
       (machine.initialConfig (enc a)))).toOuterMeasure G) +
       ProbComp.eval (machine.runClosedConfigFrom s (machine.initialConfig (enc a))) final ≤

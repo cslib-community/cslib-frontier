@@ -15,6 +15,7 @@ import CslibFrontier.Languages.Probabilistic.UntilBad.ChooseTwo
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.PMF.UniformSubset
+import CslibFrontier.Tactic.SuppCases
 import Mathlib.Data.Finset.Card
 import Mathlib.Data.Nat.Choose.Basic
 import Mathlib.Tactic.Linarith
@@ -587,9 +588,7 @@ private theorem bidirDedupStep_transcript_inv {β σ : Type}
       ∀ q ∈ transcript.map Sigma.fst, cachedAnswer cache q = none := by
   induction program using OracleComp.induction generalizing cache s transcript with
   | pure a =>
-    simp only [OracleComp.run_interpret_pure, Probability.PMF.monad_pure_eq_pure,
-      PMF.mem_support_pure_iff, Prod.mk.injEq] at hmem
-    rcases hmem with ⟨⟨_, rfl⟩, _, rfl⟩
+    supp_cases hmem [OracleComp.run_interpret_pure]
     exact ⟨rfl, List.nodup_nil, fun _ h => False.elim (List.not_mem_nil h)⟩
   | query_bind q cont ih =>
     rw [PFunctor.FreeM.bind_eq_bind] at hmem
@@ -607,16 +606,12 @@ private theorem bidirDedupStep_transcript_inv {β σ : Type}
       exact ih a hmem
     | none =>
       rw [bidirDedupStep_of_cachedAnswer_eq_none hq] at hmem
-      simp only [pmf_norm, OracleComp.interpret_bind, OracleComp.interpret_query,
-        OracleComp.interpret_pure, StateT.run_bind, StateT.run_pure,
-        PMF.mem_support_bind_iff] at hmem
-      obtain ⟨⟨a, s₁, tr₁⟩, hfirst, hrest⟩ := hmem
-      simp only [StateT.run, OracleComp.withTranscript, PMF.mem_support_map_iff] at hfirst
-      obtain ⟨⟨a', s₁'⟩, -, heq⟩ := hfirst
-      cases heq
-      rw [OracleComp.run_interpret_withTranscript_append, PMF.mem_support_map_iff] at hrest
-      obtain ⟨⟨⟨res', c'⟩, s₂', fresh⟩, hfresh, heq'⟩ := hrest
-      cases heq'
+      supp_cases hmem [pmf_norm, OracleComp.interpret_bind, OracleComp.interpret_query,
+        OracleComp.interpret_pure, StateT.run_bind, StateT.run_pure] with
+        ⟨⟨a, s₁, tr₁⟩, hfirst, hrest⟩
+      supp_cases hfirst [StateT.run, OracleComp.withTranscript] with ⟨⟨a', _⟩, -, rfl, rfl, rfl⟩
+      rw [OracleComp.run_interpret_withTranscript_append] at hrest
+      supp_cases hrest with ⟨⟨⟨_, _⟩, _, fresh⟩, hfresh, ⟨rfl, rfl⟩, rfl, rfl⟩
       obtain ⟨hceq, hnodup, hmiss⟩ := ih a' hfresh
       have hold (q' : PermQuery α) (hq' : q' ∈ fresh.map Sigma.fst) :
           q' ≠ q ∧ cachedAnswer cache q' = none := by
@@ -707,10 +702,8 @@ theorem length_cache_le_of_mem_support_run_bidirDedupStep {β σ : Type}
         ((OracleComp.interpret bidirDedupStep program).run cache)).run s).support) :
     cache'.length ≤ cache.length + Q := by
   rw [← OracleComp.run_interpret_withTranscript oracle
-    ((OracleComp.interpret bidirDedupStep program).run cache) s [],
-    PMF.mem_support_map_iff] at hmem
-  obtain ⟨⟨⟨res', c'⟩, s'', transcript⟩, htr, heq⟩ := hmem
-  cases heq
+    ((OracleComp.interpret bidirDedupStep program).run cache) s []] at hmem
+  supp_cases hmem with ⟨⟨⟨_, _⟩, _, transcript⟩, htr, ⟨rfl, rfl⟩, rfl⟩
   have hceq := cache_eq_of_mem_support_withTranscript_bidirDedupStep oracle program htr
   have hlen := (isQueryBounded_run_bidirDedupStep hQ cache).length_transcript_le oracle htr
   rw [hceq, List.length_append, List.length_map, Nat.add_comm]
@@ -743,9 +736,7 @@ theorem agreesWith_and_pairwise_of_mem_support_run_bidirDedupStep {β : Type} (�
       cache'.Pairwise (fun a b => a.2 ≠ b.2) := by
   induction program using OracleComp.induction generalizing cache with
   | pure a =>
-    simp only [OracleComp.interpret_pure, StateT.run_pure,
-      Probability.PMF.monad_pure_eq_pure, PMF.mem_support_pure_iff, Prod.mk.injEq] at hmem
-    rcases hmem with ⟨_, rfl⟩
+    supp_cases hmem [OracleComp.interpret_pure, StateT.run_pure]
     exact ⟨hπ, hp1, hπ.pairwise_snd_of_pairwise_fst hp1⟩
   | query_bind q cont ih =>
     rw [PFunctor.FreeM.bind_eq_bind] at hmem
@@ -1012,15 +1003,12 @@ theorem answer_preserve_isPartialBijection (q : PermQuery α) (cache : Cache α)
     IsPartialBijection cache' := by
   cases hq : cachedAnswer cache q with
   | some b =>
-    rw [answer_of_cachedAnswer_eq_some hq, PMF.mem_support_pure_iff] at hmem
-    exact (Prod.mk.inj hmem).2 ▸ hcache
+    supp_cases hmem [answer_of_cachedAnswer_eq_some hq]
+    exact hcache
   | none =>
-    rw [answer_of_cachedAnswer_eq_none hq (hcache.freshAnswers_nonempty hq),
-      PMF.mem_support_map_iff] at hmem
-    obtain ⟨b, hb, heq⟩ := hmem
-    rw [PMF.mem_support_uniformOfFinset_iff] at hb
-    obtain ⟨_, rfl⟩ := Prod.mk.inj heq
-    exact hcache.cons_toCacheEntry hq hb
+    supp_cases hmem [answer_of_cachedAnswer_eq_none hq (hcache.freshAnswers_nonempty hq),
+      PMF.mem_support_uniformOfFinset_iff]
+    exact hcache.cons_toCacheEntry hq ‹_›
 
 private theorem map_pair_apply {β γ : Type*} [DecidableEq β]
     (p : PMF γ) (f : γ → β) (b : β) (c : γ) :
@@ -1193,12 +1181,10 @@ theorem mem_support_forgetfulAnswer {q : PermQuery α} {cache : Cache α} {r : �
       (cachedAnswer cache q = none ∧ r.2 = PermQuery.toCacheEntry ⟨q, r.1⟩ :: cache) := by
   cases hc : cachedAnswer cache q with
   | some a =>
-    rw [forgetfulAnswer_of_cachedAnswer_eq_some hc, PMF.mem_support_pure_iff] at h
-    subst h
+    supp_cases h [forgetfulAnswer_of_cachedAnswer_eq_some hc]
     exact Or.inl ⟨rfl, rfl⟩
   | none =>
-    rw [forgetfulAnswer_of_cachedAnswer_eq_none hc, PMF.mem_support_map_iff] at h
-    obtain ⟨a, -, rfl⟩ := h
+    supp_cases h [forgetfulAnswer_of_cachedAnswer_eq_none hc]
     exact Or.inr ⟨rfl, rfl⟩
 
 /-- Interpreting a `bidirDedupStep`-wrapped program against i.i.d. uniform answers from `α` produces
@@ -1295,27 +1281,45 @@ private theorem run_interpret_forgetfulWithBad_map_fst {β : Type}
   OracleComp.run_interpret_map_state forgetfulWithBad forgetfulAnswer Prod.fst
     forgetfulWithBad_map_fst program (cache, bad)
 
+/-- A supported `forgetfulWithBad` step either answers from `c` without modifying `(c, b)`, or
+misses, prepends the fresh answer entry, and updates `b` with whether `a ∉ freshAnswers c q`. -/
+theorem mem_support_forgetfulWithBad {q : PermQuery α} {c c' : Cache α}
+    {b b' : Bool} {a : α} (h : (a, (c', b')) ∈ (forgetfulWithBad q (c, b)).support) :
+    (cachedAnswer c q = some a ∧ c' = c ∧ b' = b) ∨
+      (cachedAnswer c q = none ∧ c' = PermQuery.toCacheEntry ⟨q, a⟩ :: c ∧
+        b' = (b || decide (a ∉ freshAnswers c q))) := by
+  cases hq : cachedAnswer c q <;> supp_cases h [forgetfulWithBad, hq]
+  · exact Or.inr ⟨rfl, rfl, rfl⟩
+  · exact Or.inl ⟨rfl, rfl, rfl⟩
+
+/-- A supported `exactWithBad` step either answers from `c` without modifying `(c, b)`, draws a
+fresh answer in `freshAnswers c q` and prepends it while keeping `b`, or resamples via `answer`
+and sets `b' = true`. -/
+theorem mem_support_exactWithBad {q : PermQuery α} {c c' : Cache α}
+    {b b' : Bool} {a : α} (h : (a, (c', b')) ∈ (exactWithBad q (c, b)).support) :
+    (cachedAnswer c q = some a ∧ c' = c ∧ b' = b) ∨
+      (cachedAnswer c q = none ∧ a ∈ freshAnswers c q ∧
+        c' = PermQuery.toCacheEntry ⟨q, a⟩ :: c ∧ b' = b) ∨
+      (cachedAnswer c q = none ∧ (a, c') ∈ (answer q c).support ∧ b' = true) := by
+  cases hq : cachedAnswer c q
+  · supp_cases h [exactWithBad, hq] with
+      ⟨a₀, ⟨hfresh, rfl, rfl, rfl⟩ | ⟨_, ⟨a₁, c₁⟩, hans, rfl, rfl, rfl⟩⟩
+    · exact Or.inr (Or.inl ⟨rfl, hfresh, rfl, rfl⟩)
+    · exact Or.inr (Or.inr ⟨rfl, hans, rfl⟩)
+  · supp_cases h [exactWithBad, hq] with ⟨rfl, rfl, rfl⟩
+    exact Or.inl ⟨rfl, rfl, rfl⟩
+
 theorem exactWithBad_preserve_isPartialBijection (q : PermQuery α) (st : Cache α × Bool)
     (hst : IsPartialBijection st.1) (a : α) (st' : Cache α × Bool)
     (hmem : (a, st') ∈ (exactWithBad q st).support) :
     IsPartialBijection st'.1 := by
   rcases st with ⟨cache, bad⟩
-  cases hq : cachedAnswer cache q with
-  | some b =>
-    simp only [exactWithBad, hq, PMF.mem_support_pure_iff] at hmem
-    exact (Prod.mk.inj hmem).2 ▸ hst
-  | none =>
-    simp only [exactWithBad, hq, Probability.PMF.monad_bind_eq_bind,
-      PMF.mem_support_bind_iff] at hmem
-    obtain ⟨a₀, -, ha₀⟩ := hmem
-    by_cases hfresh : a₀ ∈ freshAnswers cache q
-    · rw [ite_eq_left hfresh, PMF.mem_support_pure_iff] at ha₀
-      obtain ⟨_, rfl⟩ := Prod.mk.inj ha₀
-      exact hst.cons_toCacheEntry hq hfresh
-    · rw [ite_eq_right hfresh, PMF.mem_support_map_iff] at ha₀
-      obtain ⟨⟨b, cache'⟩, hmem', heq⟩ := ha₀
-      obtain ⟨_, rfl⟩ := Prod.mk.inj heq
-      exact answer_preserve_isPartialBijection q cache hst b cache' hmem'
+  rcases st' with ⟨cache', bad'⟩
+  rcases mem_support_exactWithBad hmem with
+    ⟨_, rfl, _⟩ | ⟨hq, hfresh, rfl, _⟩ | ⟨_, hmem', _⟩
+  · exact hst
+  · exact hst.cons_toCacheEntry hq hfresh
+  · exact answer_preserve_isPartialBijection q cache hst a cache' hmem'
 
 theorem exactWithBad_map_fst (q : PermQuery α) (st : Cache α × Bool)
     (hst : IsPartialBijection st.1) :
@@ -1366,41 +1370,23 @@ theorem identicalUntilBad_exactWithBad_forgetfulWithBad :
       · rw [ite_eq_left ha₀, PMF.pure_apply]
         simp [ha₀]
       · have h0 : ((answer q cache).map fun p => (p.1, p.2, true)) (a, cache', false) = 0 := by
-          rw [PMF.apply_eq_zero_iff, PMF.mem_support_map_iff]
-          rintro ⟨p, -, hp⟩
-          exact Bool.noConfusion (Prod.mk.inj (Prod.mk.inj hp).2).2
+          rw [PMF.apply_eq_zero_iff]
+          intro h
+          supp_cases h
         rw [ite_eq_right ha₀, h0]
         simp [ha₀]
   absorb_first q st hst p hp := by
     rcases st with ⟨cache, bad⟩
+    rcases p with ⟨a, cache', bad'⟩
     dsimp at hst
     subst hst
-    cases hq : cachedAnswer cache q with
-    | some b =>
-      simp only [exactWithBad, hq, PMF.mem_support_pure_iff] at hp
-      rw [hp]
-    | none =>
-      simp only [exactWithBad, hq, Probability.PMF.monad_bind_eq_bind,
-        PMF.mem_support_bind_iff] at hp
-      obtain ⟨a₀, -, ha₀⟩ := hp
-      by_cases hfresh : a₀ ∈ freshAnswers cache q
-      · rw [ite_eq_left hfresh, PMF.mem_support_pure_iff] at ha₀
-        rw [ha₀]
-      · rw [ite_eq_right hfresh, PMF.mem_support_map_iff] at ha₀
-        obtain ⟨_, -, rfl⟩ := ha₀
-        rfl
+    rcases mem_support_exactWithBad hp with ⟨_, _, rfl⟩ | ⟨_, _, _, rfl⟩ | ⟨_, _, rfl⟩ <;> rfl
   absorb_second q st hst p hp := by
     rcases st with ⟨cache, bad⟩
+    rcases p with ⟨a, cache', bad'⟩
     dsimp at hst
     subst hst
-    cases hq : cachedAnswer cache q with
-    | some b =>
-      simp only [forgetfulWithBad, hq, PMF.mem_support_pure_iff] at hp
-      rw [hp]
-    | none =>
-      simp only [forgetfulWithBad, hq, PMF.mem_support_map_iff] at hp
-      obtain ⟨a₀, -, rfl⟩ := hp
-      simp
+    rcases mem_support_forgetfulWithBad hp with ⟨_, _, rfl⟩ | ⟨_, _, rfl⟩ <;> simp
 
 /-! ### Quadratic union bound for linearly growing collision sets -/
 
@@ -1440,16 +1426,8 @@ theorem toOuterMeasure_bad_forgetfulWithBad_le {β : Type}
       rw [PMF.toOuterMeasure_map_apply, hpre, PMF.toOuterMeasure_uniformOfFintype]
       gcongr
       exact Nat.cast_le.mpr hcard
-  · intro q ⟨c, b⟩ _ p hp _
-    cases hq : cachedAnswer c q with
-    | some a =>
-      simp only [forgetfulWithBad, hq, PMF.mem_support_pure_iff] at hp
-      rw [hp]
-      exact Nat.le_succ _
-    | none =>
-      simp only [forgetfulWithBad, hq, PMF.mem_support_map_iff] at hp
-      obtain ⟨a₀, -, rfl⟩ := hp
-      simp
+  · rintro q ⟨c, b⟩ _ ⟨a, c', b'⟩ hp _
+    rcases mem_support_forgetfulWithBad hp with ⟨_, rfl, _⟩ | ⟨_, rfl, _⟩ <;> simp
 
 /-- **Bidirectional random-permutation switching inequality (`ℝ≥0∞`, one-sided)**: for any
 `Q`-query adaptive program, evaluating against a uniform permutation accepts within
@@ -1499,18 +1477,9 @@ private theorem forgetfulWithBad_step_good (q : PermQuery α) (c c' : Cache α) 
     (hp1 : c.Pairwise (fun x y => x.1 ≠ y.1)) (hp2 : c.Pairwise (fun x y => x.2 ≠ y.2)) :
     c'.Pairwise (fun x y => x.1 ≠ y.1) ∧ c'.Pairwise (fun x y => x.2 ≠ y.2) ∧
       c'.length ≤ c.length + 1 := by
-  cases hq : cachedAnswer c q with
-  | some b =>
-    simp only [forgetfulWithBad, hq, PMF.mem_support_pure_iff] at hmem
-    obtain ⟨_, heq⟩ := Prod.mk.inj hmem
-    obtain ⟨rfl, _⟩ := Prod.mk.inj heq
-    exact ⟨hp1, hp2, Nat.le_succ _⟩
-  | none =>
-    simp only [forgetfulWithBad, hq, PMF.mem_support_map_iff] at hmem
-    obtain ⟨a₀, -, heq⟩ := hmem
-    obtain ⟨rfl, heq'⟩ := Prod.mk.inj heq
-    obtain ⟨rfl, hbad⟩ := Prod.mk.inj heq'
-    have hfresh : a₀ ∈ freshAnswers c q := by simpa using hbad
+  rcases mem_support_forgetfulWithBad hmem with ⟨_, rfl, _⟩ | ⟨hq, rfl, hbad⟩
+  · exact ⟨hp1, hp2, Nat.le_succ _⟩
+  · have hfresh : a ∈ freshAnswers c q := by simpa using hbad.symm
     obtain ⟨h1, h2⟩ := lookup_and_invLookup_toCacheEntry_eq_none hq hfresh
     exact ⟨List.pairwise_cons.mpr ⟨fun e he => (lookup_eq_none_iff.mp h1 e he).symm, hp1⟩,
       List.pairwise_cons.mpr ⟨fun e he => (invLookup_eq_none_iff.mp h2 e he).symm, hp2⟩,
@@ -1527,23 +1496,17 @@ private theorem forgetfulWithBad_pairwise_and_length_le {β : Type}
   induction hn generalizing c with
   | pure b n =>
     change (a, (c', false)) ∈ (PMF.pure (b, (c, false))).support at hmem
-    rw [PMF.mem_support_pure_iff] at hmem
-    obtain ⟨_, heq⟩ := Prod.mk.inj hmem
-    obtain ⟨rfl, _⟩ := Prod.mk.inj heq
+    supp_cases hmem
     exact ⟨hp1, hp2, Nat.le_add_right _ _⟩
   | liftBind q cont n _ ih =>
     change (a, (c', false)) ∈
       ((forgetfulWithBad q (c, false)).bind fun y =>
         (OracleComp.interpret forgetfulWithBad (cont y.1)).run y.2).support at hmem
-    rw [PMF.mem_support_bind_iff] at hmem
-    obtain ⟨⟨r, c₁, b₁⟩, hstep, hcont⟩ := hmem
-    cases b₁ with
-    | false =>
-      obtain ⟨hp1', hp2', hlen₁⟩ := forgetfulWithBad_step_good q c c₁ r hstep hp1 hp2
+    supp_cases hmem with ⟨⟨r, c₁, false | true⟩, hstep, hcont⟩
+    · obtain ⟨hp1', hp2', hlen₁⟩ := forgetfulWithBad_step_good q c c₁ r hstep hp1 hp2
       obtain ⟨hp1'', hp2'', hlen₂⟩ := ih r hp1' hp2' hcont
       exact ⟨hp1'', hp2'', by omega⟩
-    | true =>
-      have hbad := bad_of_mem_support_run
+    · have hbad := bad_of_mem_support_run
         identicalUntilBad_exactWithBad_forgetfulWithBad.absorb_second (cont r) rfl _ hcont
       exact Bool.noConfusion hbad
 
