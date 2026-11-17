@@ -10,7 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.FineGrained.CountingNativeModelCount
 public import CslibFrontier.Computability.Complexity.FineGrained.CountingEndpoint
 public import CslibFrontier.Computability.PolyTime.CSP.ToCNF
-public import CslibFrontier.Computability.PolyTime.CSP.Vars
+public import CslibFrontier.Computability.PolyTime.CSP.DistinctVars
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
@@ -83,20 +83,6 @@ namespace CSP
 variable {Rel V : Type}
 
 open Cslib.Logic.PL.CSP ComputableInPolyTime
-
-/-- Listing the distinct occurring variables `CSP.distinctVars` in order of first occurrence is
-computable in polynomial time. -/
-@[fun_prop]
-theorem computableInPolyTime_distinctVars [DecidableEq V] (encRel : Rel ↪ List Bool)
-    (encV : V ↪ List Bool) :
-    ComputableInPolyTime (CSP.distinctVars (Rel := Rel) (V := V))
-      (encCSP encRel encV) (encList encV) := by
-  have heq : (CSP.distinctVars (Rel := Rel) (V := V)) = fun F => F.varCNF.distinctVars := by
-    funext F
-    exact (distinctVars_varCNF F).symm
-  rw [heq]
-  exact (CNF.computableInPolyTime_distinctVars encV).comp
-    (computableInPolyTime_varCNF encRel encV)
 
 /-- Computing the number of distinct occurring variables `CSP.numVars` in unary is computable in
 polynomial time. -/

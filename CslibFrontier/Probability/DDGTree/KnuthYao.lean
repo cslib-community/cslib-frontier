@@ -11,6 +11,7 @@ public import CslibFrontier.Probability.DDGTree
 public import CslibFrontier.Probability.Entropy
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.Logb
 import CslibFrontier.Probability.PMF.ToReal
+import CslibFrontier.Tactic.ENNRealToReal
 import Mathlib.Analysis.SpecificLimits.Basic
 
 /-!
@@ -362,10 +363,8 @@ theorem run_knuthYao_none_le {T : DDGTree α} {p : PMF α} (hT : T.Generates p) 
     rw [run_knuthYao_some]
     gcongr
     apply Nat.le_floor
-    have hp' := ENNReal.toReal_mono (p.apply_ne_top a) hp
-    rw [ENNReal.toReal_div] at hp'
-    simp only [ENNReal.toReal_natCast, ENNReal.toReal_pow, ENNReal.toReal_ofNat] at hp'
-    rw [div_le_iff₀ (by positivity)] at hp'
+    ennreal_to_real at hp
+    rw [div_le_iff₀ (by positivity)] at hp
     linarith
   have hT1 := T.run_none_add_sum n
   have hK1 := (knuthYao p).run_none_add_sum n

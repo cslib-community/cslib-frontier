@@ -213,10 +213,9 @@ private theorem maskedMulCheckReceiverView_eq (left right output : ι → Fin n)
   dsimp only [voleWorld]
   simp only [pmf_norm]
   congr 1 with c : 1
-  simp [OracleComp.interpret_bind, OracleComp.interpret_pure, interpret_liftVerifier, receiverLaw,
-    maskedMulCheck, liftProver, ProbOracleComp.query, OracleComp.sumHandler,
-    runAgainst, ProverStrategy.hoist, VerifierStrategy.hoist, maskedMulCheckSpec,
-    threeMoveSpec, VOLECorrelation.senderView, PMF.map, Function.comp_def]
+  simp [interpret_liftVerifier, receiverLaw, maskedMulCheck, liftProver, ProbOracleComp.query,
+    OracleComp.sumHandler, runAgainst, ProverStrategy.hoist, VerifierStrategy.hoist,
+    maskedMulCheckSpec, threeMoveSpec, VOLECorrelation.senderView, PMF.map, Function.comp_def]
 
 omit [DecidableEq F] [DecidableEq ι] in
 private theorem maskedMulCheckReceiverSimulate_eq (left right output : ι → Fin n)

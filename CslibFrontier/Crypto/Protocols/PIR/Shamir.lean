@@ -143,6 +143,19 @@ noncomputable def shamirCube (D ι : Type) [Fintype D] [DecidableEq D] [Fintype 
   reconstruct _ _ ans :=
     open scoped Classical in decide (Shamir.Polynomial.reconstruct params.point ans = 1)
 
+theorem reconstruct_shamir {ι : Type} [Fintype ι] [DecidableEq ι]
+    (params : Shamir.Params F S) (i : ι) (r : Unit) (ans : S → F) :
+    (shamir ι params).reconstruct i r ans =
+      open scoped Classical in decide (Shamir.Polynomial.reconstruct params.point ans = 1) := by
+  rfl
+
+theorem reconstruct_shamirCube {D ι : Type} [Fintype D] [DecidableEq D]
+    [Fintype ι] [DecidableEq ι] (params : Shamir.Params F S) (i : D → ι) (r : Unit)
+    (ans : S → F) :
+    (shamirCube D ι params).reconstruct i r ans =
+      open scoped Classical in decide (Shamir.Polynomial.reconstruct params.point ans = 1) := by
+  rfl
+
 /-- Any coalition `T` of at most `params.threshold` servers in `PIR.shamir` sees a uniform family
 of query vectors, independent of the queried index. -/
 theorem eval_coalitionQuery_shamir {ι : Type} [Fintype ι] [DecidableEq ι] [DecidableEq S]
@@ -161,13 +174,13 @@ theorem isTPrivate_shamir {ι : Type} [Fintype ι] [DecidableEq ι] (params : Sh
   intro T hT i i'
   rw [eval_coalitionQuery_shamir params T hT i, eval_coalitionQuery_shamir params T hT i']
 
-/-- **Linear Shamir PIR is perfectly correct**: Lagrange reconstruction at `0` recovers `1` when
-`x i = true` and `0` when `x i = false`. -/
-theorem isCorrect_shamir {ι : Type} [Fintype ι] [DecidableEq ι] (params : Shamir.Params F S) :
-    (shamir ι params).IsCorrect := by
-  classical
-  rw [Scheme.isCorrect_iff]
-  intro x i _ q hrq
+/-- On every supported query draw of `PIR.shamir`, Lagrange interpolation at `0` of the honest
+server answers equals `1` if `x i = true` and `0` if `x i = false`. -/
+theorem reconstruct_answer_shamir {ι : Type} [Fintype ι] [DecidableEq ι]
+    (params : Shamir.Params F S) (x : ι → Bool) (i : ι) {r : Unit} {q : S → ι → F}
+    (hrq : (r, q) ∈ (ProbComp.eval ((shamir ι params).query i)).support) :
+    Shamir.Polynomial.reconstruct params.point
+      (fun s => (shamir ι params).answer s x (q s)) = if x i then 1 else 0 := by
   simp only [shamir, ProbComp.mem_support_eval_uniform_bind_pure, Prod.mk.injEq] at hrq
   obtain ⟨r, -, rfl⟩ := hrq
   let sec : ι → F := fun j => if x j then (if j = i then 1 else 0) else 0
@@ -182,15 +195,22 @@ theorem isCorrect_shamir {ι : Type} [Fintype ι] [DecidableEq ι] (params : Sha
     by_cases hxj : x j <;> simp [coeff, sec, hxj]
   dsimp only [shamir]
   rw [hans, Shamir.Polynomial.reconstruct_share_eq_secret params]
-  have hsum : ∑ j : ι, sec j = if x i then 1 else 0 := by
-    simp only [sec]
-    rw [Finset.sum_eq_single i]
-    · simp
-    · intro j _ hji
-      simp [hji]
-    · intro hi
-      exact (hi (Finset.mem_univ i)).elim
-  rw [hsum]
+  simp only [sec]
+  rw [Finset.sum_eq_single i]
+  · simp
+  · intro j _ hji
+    simp [hji]
+  · intro hi
+    exact (hi (Finset.mem_univ i)).elim
+
+/-- **Linear Shamir PIR is perfectly correct**: Lagrange reconstruction at `0` recovers `1` when
+`x i = true` and `0` when `x i = false`. -/
+theorem isCorrect_shamir {ι : Type} [Fintype ι] [DecidableEq ι] (params : Shamir.Params F S) :
+    (shamir ι params).IsCorrect := by
+  classical
+  rw [Scheme.isCorrect_iff]
+  intro x i r q hrq
+  rw [reconstruct_shamir, reconstruct_answer_shamir params x i hrq]
   cases x i <;> simp
 
 /-- **Sharpness of the collusion threshold**: `(params.threshold + 1)` servers are authorized in
@@ -273,15 +293,16 @@ theorem not_isTPrivate_succ_shamirCube {D ι : Type} [Fintype D] [DecidableEq D]
   exact Probability.PMF.ne_of_map_eq_pure (hrec fun _ => u₀) (hrec fun _ => u₁) (by simp [hne])
     (hpriv.eval_coalitionQuery_eq T hcard.le (fun _ => u₀) (fun _ => u₁))
 
-/-- **Degree-`d` polynomial PIR is perfectly correct** whenever `|D| * params.threshold < |S|`:
-each server evaluates a polynomial of degree at most `|D| * t` whose constant term is `1` if `x i`
-and `0` otherwise. -/
-theorem isCorrect_shamirCube {D ι : Type} [Fintype D] [DecidableEq D] [Fintype ι] [DecidableEq ι]
-    (params : Shamir.Params F S) (hdeg : Fintype.card D * params.threshold < Fintype.card S) :
-    (shamirCube D ι params).IsCorrect := by
-  classical
-  rw [Scheme.isCorrect_iff]
-  intro x i _ q hrq
+/-- On every supported query draw of `PIR.shamirCube`, when `|D| * params.threshold < |S|`,
+Lagrange interpolation at `0` of the honest server answers equals `1` if `x i = true` and `0` if
+`x i = false`. -/
+theorem reconstruct_answer_shamirCube {D ι : Type} [Fintype D] [DecidableEq D]
+    [Fintype ι] [DecidableEq ι] (params : Shamir.Params F S)
+    (hdeg : Fintype.card D * params.threshold < Fintype.card S)
+    (x : (D → ι) → Bool) (i : D → ι) {r : Unit} {q : S → D → ι → F}
+    (hrq : (r, q) ∈ (ProbComp.eval ((shamirCube D ι params).query i)).support) :
+    Shamir.Polynomial.reconstruct params.point
+      (fun s => (shamirCube D ι params).answer s x (q s)) = if x i then 1 else 0 := by
   simp only [shamirCube, ProbComp.mem_support_eval_uniform_bind_pure, Prod.mk.injEq] at hrq
   obtain ⟨r, -, rfl⟩ := hrq
   let factor (l : D) (u : ι) : _root_.Polynomial F :=
@@ -344,6 +365,17 @@ theorem isCorrect_shamirCube {D ι : Type} [Fintype D] [DecidableEq D] [Fintype 
   rw [hans,
     Shamir.Polynomial.reconstruct_eq_constantCoeff_of_eval_eq params.point_injective hpoly_deg,
     hconst]
+
+/-- **Degree-`d` polynomial PIR is perfectly correct** whenever `|D| * params.threshold < |S|`:
+each server evaluates a polynomial of degree at most `|D| * t` whose constant term is `1` if `x i`
+and `0` otherwise. -/
+theorem isCorrect_shamirCube {D ι : Type} [Fintype D] [DecidableEq D] [Fintype ι] [DecidableEq ι]
+    (params : Shamir.Params F S) (hdeg : Fintype.card D * params.threshold < Fintype.card S) :
+    (shamirCube D ι params).IsCorrect := by
+  classical
+  rw [Scheme.isCorrect_iff]
+  intro x i r q hrq
+  rw [reconstruct_shamirCube, reconstruct_answer_shamirCube params hdeg x i hrq]
   cases x i <;> simp
 
 end ShamirPIR

@@ -329,7 +329,11 @@ carry a pointwise sum identity between continuations over to the experiments,
 `PMF.bind_apply_le_add_of_ne` bounds continuations that are close away from one first-stage result,
 and `PMF.bind_apply_eq_of_good` equates stateful experiments that agree until a bad state. The
 one-sided comparisons on the support are in
-[PMF/Bind.lean](../../CslibFrontier/Probability/PMF/Bind.lean).
+[PMF/Bind.lean](../../CslibFrontier/Probability/PMF/Bind.lean); for general `ℝ≥0∞`-valued
+integrands `∑' a, p a * f a`, import
+[PMF/SupportTsum.lean](../../CslibFrontier/Probability/PMF/SupportTsum.lean) for
+`PMF.tsum_mul_congr_support`, `PMF.tsum_mul_mono_support`, `PMF.tsum_mul_add_of_support` and
+`PMF.tsum_mul_le_of_support`.
 
 Moving a bound between `ℝ≥0∞` and `ℝ` or `ℝ≥0` (`ENNReal.toReal_mono`, `ENNReal.toReal_add`,
 `ENNReal.toNNReal_mono`, `ENNReal.toReal_sum`) needs every term to be finite. Import
@@ -343,7 +347,18 @@ the `x < _` case working alongside its sum rule. A factor with no such reason, s
 `x : ℝ≥0∞`, makes it fail, often only after Aesop's rule-application limit; add a hypothesis
 `x ≠ ∞` or prove that factor separately. Each successful call costs roughly 100 to 800 heartbeats
 of Aesop search and positivity, so where the explicit term is
-a single `PMF.apply_ne_top _ _` keep the term. To compare success probabilities, import
+a single `PMF.apply_ne_top _ _` keep the term. When the transfer takes several such steps (a
+bridge lemma, its finiteness facts and a chain of `toReal` rewrites), import
+[Tactic/ENNRealToReal.lean](../../CslibFrontier/Tactic/ENNRealToReal.lean) and call
+`ennreal_to_real` instead: on a goal or, with `at h`, a hypothesis `a R b` in `ℝ≥0∞` it proves the
+sides finite, replaces the statement by `a.toReal R b.toReal` and pushes `toReal` through the
+arithmetic, and `ennreal_to_real using h` closes a real goal from the `ℝ≥0∞` fact `h`. Each call
+runs `finiteness` once per transferred side and once per side condition of a rewrite, up to a few
+tenths of a second of CPU per call, so for a single side condition keep the in-place
+`by finiteness` or the explicit term. Its
+[checked examples](../../CslibFrontierTests/ENNRealToReal.lean) cover the three forms, the
+subterms it leaves in place and its failure messages. To compare success
+probabilities, import
 [Game/Order.lean](../../CslibFrontier/Crypto/Game/Order.lean):
 `apply Game.succProbability_mono` leaves the goal `g₁ true ≤ g₂ true`, without unfolding
 `Game.succProbability`, and `Game.succProbability_le_add_of_advantage_le` turns a bound on
@@ -2008,7 +2023,7 @@ When two stateful oracle handlers agree until an internal collision or guessing 
 - **A lazily sampled function called through a map.** When each query `m : M` of a program is answered by a lazily sampled function on `Y` at `φ m`, import [RandomOracle/Through.lean](../../CslibFrontier/Languages/Probabilistic/RandomOracle/Through.lean). For `φ : M → Y` with decidable equality on `M` and `Y`, one distribution `dist : PMF Z` for every fresh answer, and `program : ProbOracleComp (fun _ : M => Z) α`, `RandomOracle.closeTo_runWith_memoize_simulate_query` bounds the statistical distance between the result of `program` against `memoize fun _ : M => dist` and the result of `ProbOracleComp.simulate (fun m => ProbOracleComp.query (φ m)) program` against `RandomOracle.answer fun _ : Y => dist`, both from an empty cache. The error is the probability that the final cache of the first run holds two distinct queries with the same image (`RandomOracle.HasImageCollision φ`; `RandomOracle.hasImageCollision_iff` restates it on the list of queries). The statement compares results, not final caches. Use it when a collision has no per-call probability, for example when `φ` is a keyed hash and the bound comes from averaging over the key afterwards; when each call has its own bound, use the `choose 2` lemma above. Checked examples, including a constant map for which the error cannot be dropped: [RandomOracleThrough.lean](../../CslibFrontierTests/RandomOracleThrough.lean).
 - **Random-oracle min-entropy programming and birthday collisions.** Import [RandomOracle/Programming.lean](../../CslibFrontier/Languages/Probabilistic/RandomOracle/Programming.lean) (and [CloseTo/RandomOracle.lean](../../CslibFrontier/Crypto/Game/CloseTo/RandomOracle.lean) for `Game.advantage` wrappers):
   - `RandomOracle.toOuterMeasure_exists_mem_fst_eq_le` bounds `μ.toOuterMeasure {a | ∃ e ∈ cache, e.1 = f a}` by `cache.length * δ` whenever `∀ q, (μ.map f) q ≤ δ`, and `RandomOracle.map_comp_apply_le_of_injective` transports that guessing bound through an injective key embedding.
-  - `RandomOracle.lazyProgramHandler` and `RandomOracle.overwriteProgramHandler` (with flagged counterparts `flaggedLazyProgramHandler` and `flaggedOverwriteProgramHandler` used in [FiatShamir.lean](../../CslibFrontier/Crypto/Protocols/SigmaProtocol/FiatShamir.lean) and [FiatShamirNIZK.lean](../../CslibFrontier/Crypto/Protocols/SigmaProtocol/FiatShamirNIZK.lean)) model a two-channel experiment (`Req ⊕ Query`) whose active `.inl req` calls sample `ts ← samplePre req` with guessing bound `δ` at `point req ts` and either query `memoize (fun _ => dist)` lazily or overwrite `(point req ts, c)` with a fresh `c ← dist`. `closeTo_run_lazyProgramHandler_overwriteProgramHandler_choose_two` and `closeTo_runWith_lazyProgramHandler_overwriteProgramHandler_choose_two` (plus `advantage_runWith_lazyProgramHandler_overwriteProgramHandler_choose_two_le`) bound the programming-collision error by `(q_S * cache.length + q_S * q_H + q_S.choose 2) * δ`, with rectangular corollaries `q_S * (cache.length + q_S + q_H) * δ`.
+  - `RandomOracle.lazyProgramHandler` and `RandomOracle.overwriteProgramHandler` (used with `closeTo_run_lazyProgramHandler_overwriteProgramHandler_of_isQueryBounded` in [FiatShamir.lean](../../CslibFrontier/Crypto/Protocols/SigmaProtocol/FiatShamir.lean) and [FiatShamirNIZK.lean](../../CslibFrontier/Crypto/Protocols/SigmaProtocol/FiatShamirNIZK.lean), backed by flagged counterparts `flaggedLazyProgramHandler` and `flaggedOverwriteProgramHandler`) model a two-channel experiment (`Req ⊕ Query`) whose active `.inl req` calls sample `ts ← samplePre req` with guessing bound `δ` at `point req ts` and either query `memoize (fun _ => dist)` lazily or overwrite `(point req ts, c)` with a fresh `c ← dist`. `closeTo_run_lazyProgramHandler_overwriteProgramHandler_choose_two` and `closeTo_runWith_lazyProgramHandler_overwriteProgramHandler_choose_two` (plus `advantage_runWith_lazyProgramHandler_overwriteProgramHandler_choose_two_le`) bound the programming-collision error by `(q_S * cache.length + q_S * q_H + q_S.choose 2) * δ` with rectangular corollaries `q_S * (cache.length + q_S + q_H) * δ`, and `closeTo_run_lazyProgramHandler_overwriteProgramHandler_of_isQueryBounded` gives the total-query bound `q_S * (cache.length + Q) * δ` from `IsQueryBounded program Q`.
   - For native word execution, import
     [Computability/Probabilistic/RandomOracle/Programming.lean](../../CslibFrontier/Computability/Probabilistic/RandomOracle/Programming.lean).
     `lazyProgramWordHandler` and `overwriteProgramWordHandler` use one encoded `ProgrammingState`

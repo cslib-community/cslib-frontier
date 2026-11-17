@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct.Front
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Product.Transfer
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Actual restoration of the original matrix, coordinate and threshold words
@@ -34,7 +35,7 @@ theorem exec_restoreInput {W L m t N Q : ℕ} (x : Data 160)
         (ArrayCopy.copyPrefix x.mem (QueriedProduct.snapshotBase L m N Q) 0
           (QueriedProduct.inputEnd m N Q)) (QueriedProduct.inputEnd m N Q) t := by
   obtain ⟨u, hu, up, um⟩ := QueriedProduct.exec_restoreInput x hp (old_fits hfit)
-  have ut : u.regs Reg.threshold = t := (hu.regs_eq (by decide)).trans ht
+  have ut : u.regs Reg.threshold = t := by regs_frame
   let y := (u.set QueriedProduct.Reg.address (QueriedProduct.inputEnd m N Q)).write
     (QueriedProduct.inputEnd m N Q) t
   have hy : ExecWithin W restoreThreshold u y 2 := by

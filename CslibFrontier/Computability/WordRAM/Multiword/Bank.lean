@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.WordRAM.Multiword.Mul
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Fixed banks of multiword registers
@@ -68,11 +69,7 @@ theorem digit_regs (j : Fin n) : ∀ i ∈ regs j, IsDigit i := by
 /-- The register list `regs j` of a bank entry has no duplicates. -/
 theorem nodup_regs (j : Fin n) : (regs j).Nodup := by
   apply List.nodup_ofFn_ofInjective
-  intro a b hab
-  apply Fin.ext
-  have := congrArg Fin.val hab
-  dsimp at this
-  omega
+  fin_index
 
 /-- Distinct bank entries occupy disjoint lists of physical registers. -/
 theorem disjoint_regs {j k : Fin n} (hjk : j ≠ k) : List.Disjoint (regs j) (regs k) := by
