@@ -660,19 +660,12 @@ theorem hkBfsLayerM_ret (G : Fin m × Fin r → Bool) (adj : Fin m → List (Fin
     (mate : Vector (Option (Fin m)) r) (j : ℕ) (us : List (Fin m)) (s : HKBfsState m) :
     (hkBfsLayerM G adj mate j us s).ret =
       us.foldl (fun s u => (adj u).foldl (hkBfsStep G mate j u) s) s := by
-  induction us generalizing s with
-  | nil => rfl
-  | cons u us ih => simp [hkBfsLayerM, ih]
+  time_spec hkBfsLayerM
 
 theorem hkBfsLayerM_time (G : Fin m × Fin r → Bool) (adj : Fin m → List (Fin r))
     (mate : Vector (Option (Fin m)) r) (j : ℕ) (us : List (Fin m)) (s : HKBfsState m) :
     (hkBfsLayerM G adj mate j us s).time = (us.map fun u => (adj u).length + 1).sum := by
-  induction us generalizing s with
-  | nil => rfl
-  | cons u us ih =>
-    simp only [hkBfsLayerM, TimeM.time_bind, TimeM.time_tick, foldlTickM_time, ih,
-      List.map_cons, List.sum_cons]
-    omega
+  time_spec hkBfsLayerM
 
 private theorem layerFold_inv {j : ℕ} (us : List (Fin m))
     (hus : ∀ u ∈ us, u ∈ altLeft G (mateMatching mate) j) {s : HKBfsState m}

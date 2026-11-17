@@ -353,22 +353,7 @@ theorem ret_forgetWeightM (w : V → ℕ) (LP : List V) {LB : List V} (hLB : LB.
 
 theorem ret_noAdjM (G : SimpleGraph V) [DecidableRel G.Adj] (x : V) (L : List V) (m : ℕ) :
     (noAdjM G x L m).ret = true ↔ ∀ y ∈ ofMask L m, ¬G.Adj x y := by
-  induction L generalizing m with
-  | nil => simp [noAdjM, ofMask]
-  | cons u L ih =>
-    simp only [noAdjM, TimeM.ret_bind, TimeM.ret_pure, Bool.and_eq_true, ih,
-      Bool.not_eq_true', Bool.and_eq_false_iff, decide_eq_false_iff_not, mem_ofMask_cons]
-    constructor
-    · rintro ⟨h, h'⟩ y (⟨hm, rfl⟩ | hy)
-      · rcases h' with h' | h'
-        · exact absurd hm h'
-        · exact h'
-      · exact h y hy
-    · intro h
-      refine ⟨fun y hy => h y (.inr hy), ?_⟩
-      by_cases hm : m % 2 = 1
-      · exact .inr (h u (.inl ⟨hm, rfl⟩))
-      · exact .inl hm
+  time_spec noAdjM [ofMask]
 
 theorem ret_indepM (G : SimpleGraph V) [DecidableRel G.Adj] (L : List V) (m : ℕ) :
     (indepM G L m).ret = true ↔ G.IsIndepSet (↑(ofMask L m) : Set V) := by

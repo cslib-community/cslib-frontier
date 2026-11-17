@@ -171,13 +171,11 @@ private theorem scanInv_foldl (c : ℕ → β) (lo : ℕ) : ∀ m,
 
 theorem ret_scanM (c : ℕ → β) (lo hi : ℕ) :
     (scanM c lo hi).ret = (List.range' (lo + 1) (hi - lo)).foldl (bestStep c) ⟨c lo, lo⟩ := by
-  simp only [scanM, ret_bind, ret_foldlM]
-  rfl
+  time_spec scanM
 
 /-- Scanning `lo, …, hi` costs `hi - lo + 1`. -/
 theorem time_scanM (c : ℕ → β) (lo hi : ℕ) : (scanM c lo hi).time = hi - lo + 1 := by
-  rw [scanM, time_bind, time_tick, time_foldlM_eq_sum _ (fun _ => 1) (fun _ _ => rfl),
-    List.map_const', List.sum_replicate, List.length_range', smul_eq_mul, mul_one, add_comm]
+  time_spec scanM
 
 end Scan
 
@@ -235,7 +233,7 @@ def Window.Valid (W : Window β) (w : ℕ → ℕ → β) (n : ℕ) : Prop :=
 
 theorem time_cellM (w : ℕ → ℕ → β) (T : Table β) (i j lo hi : ℕ) :
     (cellM w T i j lo hi).time = hi - lo + 1 := by
-  rw [cellM, time_bind, time_scanM, time_pure, add_zero]
+  time_spec cellM [time_scanM]
 
 /-- A scan over a window containing the largest optimal root computes the correct entry. -/
 theorem ret_cellM {w : ℕ → ℕ → β} {n d : ℕ} {T : Table β} (hT : Agrees w n d T) {i lo hi : ℕ}
@@ -275,16 +273,13 @@ theorem ret_cellM {w : ℕ → ℕ → β} {n d : ℕ} {T : Table β} (hT : Agre
 theorem ret_diagM (w : ℕ → ℕ → β) (W : Window β) (n d : ℕ) (T : Table β) :
     (diagM w W n d T).ret = (List.range (n + 1 - d)).foldl (fun U i => setCell d U i
       (cellM w T i (i + d) (W.lo T i (i + d)) (W.hi T i (i + d))).ret) T := by
-  rw [diagM, ret_foldlM]
-  rfl
+  time_spec diagM
 
 /-- Filling diagonal `d` costs the sum of its window lengths. -/
 theorem time_diagM (w : ℕ → ℕ → β) (W : Window β) (n d : ℕ) (T : Table β) :
     (diagM w W n d T).time =
       ∑ i ∈ range (n + 1 - d), (W.hi T i (i + d) - W.lo T i (i + d) + 1) := by
-  rw [diagM, time_foldlM_eq_sum _ (fun i => W.hi T i (i + d) - W.lo T i (i + d) + 1)
-    (fun U i => by rw [time_bind, time_cellM, time_pure, add_zero])]
-  rfl
+  time_spec diagM [time_cellM]
 
 theorem agrees_diagM {w : ℕ → ℕ → β} {W : Window β} {n d : ℕ} (hW : W.Valid w n) {T : Table β}
     (hT : Agrees w n d T) : Agrees w n (d + 1) (diagM w W n (d + 1) T).ret := by
@@ -324,7 +319,7 @@ theorem ret_solveM {w : ℕ → ℕ → β} {W : Window β} {n : ℕ} (hW : W.Va
 
 theorem time_solveM (w : ℕ → ℕ → β) (W : Window β) (n : ℕ) :
     (solveM w W n).time = (tableM w W n n).time := by
-  rw [solveM, time_bind, time_pure, add_zero]
+  time_spec solveM
 
 /-- **Correctness of the cubic dynamic program**, for every weight: it returns the optimal cost and
 the tree read off the largest optimal roots. -/

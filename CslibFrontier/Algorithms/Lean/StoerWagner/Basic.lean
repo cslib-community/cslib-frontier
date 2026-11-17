@@ -12,6 +12,7 @@ public import CslibFrontier.Foundations.Combinatorics.WeightedCut.MAOrdering
 public import Cslib.Algorithms.Lean.TimeM
 public import Mathlib.Algebra.GroupWithZero.Nat
 import Mathlib.Tactic.Linarith
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # The Stoer–Wagner minimum cut algorithm
@@ -297,13 +298,8 @@ def maSearchM (W : V → V → ℕ) : ℕ → (V → ℕ) → List V → TimeM �
 
 /-- `maSearchM` computes `maSearch`. -/
 theorem ret_maSearchM (W : V → V → ℕ) :
-    ∀ fuel key R, (maSearchM W fuel key R).ret = maSearch W fuel key R
-  | 0, _, _ => rfl
-  | fuel + 1, key, R => by
-    rw [maSearchM, maSearch]
-    rcases R.argmax key with _ | v
-    · rfl
-    · simp only [TimeM.ret_bind, TimeM.ret_pure, ret_maSearchM W fuel]
+    ∀ fuel key R, (maSearchM W fuel key R).ret = maSearch W fuel key R := by
+  time_spec maSearchM [maSearch]
 
 /-- Maximum adjacency search over `r` candidates costs at most `r ^ 2`. -/
 theorem time_maSearchM_le (W : V → V → ℕ) :

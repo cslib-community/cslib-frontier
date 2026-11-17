@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Languages.Probabilistic.Basic
 public import CslibFrontier.Probability.Freivalds
 public import Cslib.Algorithms.Lean.TimeM
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # Freivalds' Matrix-Product Verification
@@ -99,19 +100,11 @@ def dotProductM : (k : ℕ) → (Fin k → R) → (Fin k → R) → TimeM ℕ R
 
 @[simp] theorem ret_dotProductM (k : ℕ) (u v : Fin k → R) :
     (dotProductM k u v).ret = u ⬝ᵥ v := by
-  induction k with
-  | zero => simp [dotProductM, dotProduct]
-  | succ k ih =>
-    simp only [dotProductM, TimeM.ret_bind, TimeM.ret_pure, ih, dotProduct, Fin.sum_univ_succ]
-    rfl
+  time_spec dotProductM [dotProduct, Fin.sum_univ_succ]
 
 @[simp] theorem time_dotProductM (k : ℕ) (u v : Fin k → R) :
     (dotProductM k u v).time = 2 * k := by
-  induction k with
-  | zero => rfl
-  | succ k ih =>
-    simp only [dotProductM, TimeM.time_bind, TimeM.time_pure, TimeM.time_tick, ih]
-    ring
+  time_spec dotProductM
 
 /-- Matrix-vector multiplication, one dot product per row. -/
 def mulVecM {k : ℕ} : (l : ℕ) → Matrix (Fin l) (Fin k) R → (Fin k → R) → TimeM ℕ (Fin l → R)
@@ -134,11 +127,7 @@ def mulVecM {k : ℕ} : (l : ℕ) → Matrix (Fin l) (Fin k) R → (Fin k → R)
 
 @[simp] theorem time_mulVecM {k : ℕ} (l : ℕ) (M : Matrix (Fin l) (Fin k) R) (v : Fin k → R) :
     (mulVecM l M v).time = 2 * k * l := by
-  induction l with
-  | zero => rfl
-  | succ l ih =>
-    simp only [mulVecM, TimeM.time_bind, TimeM.time_pure, ih, time_dotProductM]
-    ring
+  time_spec mulVecM [time_dotProductM]
 
 section Check
 
@@ -166,10 +155,7 @@ omit [Ring R] in
 
 omit [Ring R] in
 @[simp] theorem time_vecEqM (l : ℕ) (u v : Fin l → R) : (vecEqM l u v).time = l := by
-  induction l with
-  | zero => rfl
-  | succ l ih =>
-    simp only [vecEqM, TimeM.time_bind, TimeM.time_pure, TimeM.time_tick, ih, add_zero]
+  time_spec vecEqM
 
 variable {l m n : ℕ}
 
@@ -185,14 +171,13 @@ def checkM (A : Matrix (Fin l) (Fin m) R) (B : Matrix (Fin m) (Fin n) R)
 @[simp] theorem ret_checkM (A : Matrix (Fin l) (Fin m) R) (B : Matrix (Fin m) (Fin n) R)
     (C : Matrix (Fin l) (Fin n) R) (x : Fin n → R) :
     (checkM A B C x).ret = decide ((A * B) *ᵥ x = C *ᵥ x) := by
-  simp only [checkM, TimeM.ret_bind, ret_mulVecM, ret_vecEqM, Matrix.mulVec_mulVec]
+  time_spec checkM [ret_mulVecM, ret_vecEqM, Matrix.mulVec_mulVec]
 
 /-- One check costs `2 * (m * n + l * m + l * n) + l`, independently of the vector. -/
 @[simp] theorem time_checkM (A : Matrix (Fin l) (Fin m) R) (B : Matrix (Fin m) (Fin n) R)
     (C : Matrix (Fin l) (Fin n) R) (x : Fin n → R) :
     (checkM A B C x).time = 2 * (m * n + l * m + l * n) + l := by
-  simp only [checkM, TimeM.time_bind, time_mulVecM, time_vecEqM]
-  ring
+  time_spec checkM [time_mulVecM, time_vecEqM]
 
 /-- Run `checkM` on each of `k` vectors and accept when every check accepts. All `k` checks are
 performed, so the cost is exact. -/
@@ -207,22 +192,13 @@ def checkAllM (A : Matrix (Fin l) (Fin m) R) (B : Matrix (Fin m) (Fin n) R)
 @[simp] theorem ret_checkAllM (A : Matrix (Fin l) (Fin m) R) (B : Matrix (Fin m) (Fin n) R)
     (C : Matrix (Fin l) (Fin n) R) (k : ℕ) (xs : Fin k → Fin n → R) :
     (checkAllM A B C k xs).ret = decide (∀ t, (A * B) *ᵥ xs t = C *ᵥ xs t) := by
-  induction k with
-  | zero => simp [checkAllM]
-  | succ k ih =>
-    simp only [checkAllM, TimeM.ret_bind, TimeM.ret_pure, ret_checkM, ih, ← Bool.decide_and,
-      Fin.forall_fin_succ]
-    rfl
+  time_spec checkAllM [ret_checkM, Fin.forall_fin_succ]
 
 /-- `k` checks cost `k * (2 * (m * n + l * m + l * n) + l)`. -/
 @[simp] theorem time_checkAllM (A : Matrix (Fin l) (Fin m) R) (B : Matrix (Fin m) (Fin n) R)
     (C : Matrix (Fin l) (Fin n) R) (k : ℕ) (xs : Fin k → Fin n → R) :
     (checkAllM A B C k xs).time = k * (2 * (m * n + l * m + l * n) + l) := by
-  induction k with
-  | zero => simp only [checkAllM, TimeM.time_pure, zero_mul]
-  | succ k ih =>
-    simp only [checkAllM, TimeM.time_bind, TimeM.time_pure, time_checkM, ih]
-    ring
+  time_spec checkAllM [time_checkM]
 
 /-- For square `n × n` matrices, `k` checks cost `k * (6 * n ^ 2 + n)`. -/
 theorem time_checkAllM_square (A B C : Matrix (Fin n) (Fin n) R) (k : ℕ)

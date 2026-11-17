@@ -12,6 +12,7 @@ public import Cslib.Algorithms.Lean.TimeM
 import all CslibFrontier.Computability.PCP.Approximation.UniqueGames.Propagation
 import CslibFrontier.Foundations.Data.List.Lookup
 import Mathlib.Data.List.GetD
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # The cost of label propagation for unique games
@@ -254,35 +255,24 @@ that endpoint is unvisited, reset the candidate table and write the identity tab
 omit [DecidableEq α] in
 /-- `bucketsM` builds `buckets`. -/
 theorem bucketsM_ret (n : ℕ) (l : List (Edge (α → α))) : (bucketsM n l).ret = buckets n l := by
-  induction l with
-  | nil => rfl
-  | cons e l ih => simp only [bucketsM, TimeM.ret_bind, ih]; rfl
+  time_spec bucketsM
 
 omit [DecidableEq α] in
 /-- `bucketsM` costs `n` plus two per edge. -/
 theorem bucketsM_time (n : ℕ) (l : List (Edge (α → α))) :
     (bucketsM n l).time = n + 2 * l.length := by
-  induction l with
-  | nil => simp [bucketsM]
-  | cons e l ih =>
-    simp only [bucketsM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih, List.length_cons]
-    ring
+  time_spec bucketsM
 
 /-- `visitAllM` visits the edges in order. -/
 theorem visitAllM_ret (labels : List α) (l : List (Edge (α → α))) (S : State α) :
     (visitAllM labels S l).ret = l.foldl (visit labels) S := by
-  induction l generalizing S with
-  | nil => rfl
-  | cons e l ih => simp only [visitAllM, visitM, TimeM.ret_bind, ih]; rfl
+  time_spec visitAllM
 
 /-- `scanM` computes `scan`, given the incidence lists. -/
 theorem scanM_ret (labels : List α) {g : Graph (α → α)} {bs : List (List (Edge (α → α)))}
     (hbs : ∀ u, bs.getD u [] = adj g u) (S : State α) :
     (scanM labels bs S).ret = scan labels g S := by
-  unfold scanM scan
-  cases S.stack with
-  | nil => rfl
-  | cons u rest => simp only [TimeM.ret_bind, visitAllM_ret, hbs]
+  time_spec scanM [visitAllM_ret, scan]
 
 /-- `exploreM` computes the iterated `scan`, given the incidence lists. -/
 theorem exploreM_ret (labels : List α) {g : Graph (α → α)} {bs : List (List (Edge (α → α)))}
@@ -303,15 +293,13 @@ omit [DecidableEq α] in
 theorem freezeAllM_ret (labels : List α) (c : α) (l : List ℕ) (t : List (Option (α → α))) :
     (freezeAllM labels c t l).ret =
       l.foldl (fun t v => t.set v (freeze c (t.getD v none))) t := by
-  induction l generalizing t with
-  | nil => rfl
-  | cons v l ih => simp only [freezeAllM, TimeM.ret_bind, ih]; rfl
+  time_spec freezeAllM
 
 omit [DecidableEq α] in
 /-- `settleM` computes `settle`. -/
 theorem settleM_ret [Inhabited α] (labels : List α) (S : State α) :
     (settleM labels S).ret = settle labels S := by
-  simp only [settleM, TimeM.ret_bind, freezeAllM_ret]; rfl
+  time_spec settleM [freezeAllM_ret]
 
 /-- `stepM` computes `step`, given the incidence lists. -/
 theorem stepM_ret [Inhabited α] (labels : List α) {g : Graph (α → α)}
@@ -334,13 +322,7 @@ theorem stepsM_ret [Inhabited α] (labels : List α) {g : Graph (α → α)}
 /-- `checkAllM` checks every edge. -/
 theorem checkAllM_ret (σ : ℕ → α) (l : List (Edge (α → α))) :
     (checkAllM σ l).ret = l.all fun e => decide (e.constraint (σ e.src) = σ e.dst) := by
-  induction l with
-  | nil => rfl
-  | cons e l ih =>
-    simp only [checkAllM, TimeM.ret_bind, List.all_cons]
-    split_ifs with h
-    · simp [h, ih]
-    · simp [h]
+  time_spec checkAllM
 
 /-- The costed algorithm returns `solve`. -/
 theorem solveM_ret [Inhabited α] (labels : List α) (g : Graph (α → α)) :
@@ -363,12 +345,7 @@ private def credit (labels : List α) (g : Graph (α → α)) (S : State α) : �
 /-- `visitAllM` costs three passes per edge. -/
 theorem visitAllM_time (labels : List α) (l : List (Edge (α → α))) (S : State α) :
     (visitAllM labels S l).time = 3 * pass labels * l.length := by
-  induction l generalizing S with
-  | nil => rfl
-  | cons e l ih =>
-    simp only [visitAllM, visitM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure,
-      TimeM.ret_bind, TimeM.ret_pure, ih, List.length_cons]
-    ring
+  time_spec visitAllM [visitM]
 
 private theorem scanM_time (labels : List α) {g : Graph (α → α)}
     {bs : List (List (Edge (α → α)))} (hbs : ∀ u, bs.getD u [] = adj g u) {S : State α}
@@ -419,11 +396,7 @@ omit [DecidableEq α] in
 /-- `freezeAllM` costs one pass per slot. -/
 theorem freezeAllM_time (labels : List α) (c : α) (l : List ℕ) (t : List (Option (α → α))) :
     (freezeAllM labels c t l).time = pass labels * l.length := by
-  induction l generalizing t with
-  | nil => rfl
-  | cons v l ih =>
-    simp only [freezeAllM, TimeM.time_bind, TimeM.time_tick, ih, List.length_cons]
-    ring
+  time_spec freezeAllM
 
 omit [DecidableEq α] in
 /-- `settleM` costs one pass plus one pass per slot of the component. -/
@@ -528,13 +501,7 @@ private theorem credit_init (labels : List α) (g : Graph (α → α)) :
 /-- `checkAllM` costs at most three steps per edge. -/
 theorem checkAllM_time (σ : ℕ → α) (l : List (Edge (α → α))) :
     (checkAllM σ l).time ≤ 3 * l.length := by
-  induction l with
-  | nil => simp [checkAllM]
-  | cons e l ih =>
-    simp only [checkAllM, TimeM.time_bind, TimeM.time_tick, List.length_cons]
-    split_ifs
-    · omega
-    · simp only [TimeM.time_pure]; omega
+  time_spec checkAllM
 
 /-- **The step bound**: label propagation on `slots g` slots and `|E|` edges, with `L` labels,
 is charged `O(L · (slots g + |E|))` steps in the cost model of this module. Khot observes that

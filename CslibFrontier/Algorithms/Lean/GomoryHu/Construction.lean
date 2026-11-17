@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.Lean.GomoryHu.Gusfield
 public import CslibFrontier.Algorithms.Lean.GomoryHu.WeightedCut
 public import CslibFrontier.Algorithms.Lean.MaxFlow.EdmondsKarp
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # Gomory–Hu trees with `n - 1` maximum flow computations
@@ -107,12 +108,8 @@ writing into `acc` and charging `1` tick per scanned vertex. -/
 
 @[simp]
 theorem rehangM_time (p : Vector (Fin n) n) (s t : Fin n) (X : Finset (Fin n)) :
-    ∀ (zs : List (Fin n)) (acc : Vector (Fin n) n), (rehangM p s t X zs acc).time = zs.length
-  | [], _ => rfl
-  | z :: zs, acc => by
-    simp only [rehangM, TimeM.time_bind, TimeM.time_tick, rehangM_time p s t X zs,
-      List.length_cons]
-    omega
+    ∀ (zs : List (Fin n)) (acc : Vector (Fin n) n), (rehangM p s t X zs acc).time = zs.length := by
+  time_spec rehangM
 
 theorem vget_rehangM (p : Vector (Fin n) n) (s t : Fin n) (X : Finset (Fin n)) :
     ∀ (zs : List (Fin n)) (acc : Vector (Fin n) n) (z : Fin n),
@@ -179,8 +176,7 @@ theorem gusfieldStepM_time (W : Fin n → Fin n → ℕ) (adj : Fin n → List (
     (p : Vector (Fin n) n) (fl : Vector ℕ n) (s : Fin n) :
     (gusfieldStepM W adj p fl s).time =
       (edmondsKarpM (Network.mk W s (vget p s)) adj).time + n + 3 := by
-  simp only [gusfieldStepM, TimeM.time_bind, TimeM.time_tick, rehangM_time, List.length_finRange]
-  split_ifs <;> simp only [TimeM.time_pure] <;> omega
+  time_spec gusfieldStepM [rehangM_time]
 
 theorem vget_gusfieldStepM_parent (W : Fin n → Fin n → ℕ) (adj : Fin n → List (Fin n))
     (p : Vector (Fin n) n) (fl : Vector ℕ n) (s : Fin n) (z : Fin n) :

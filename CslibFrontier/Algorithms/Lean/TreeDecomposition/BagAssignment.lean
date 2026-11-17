@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import Cslib.Algorithms.Lean.TimeM
 public import Mathlib.Data.Finset.Basic
 public import Mathlib.Data.List.Nodup
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # Bag assignments indexed in radix `q`
@@ -201,18 +202,11 @@ entry of `LP`. -/
 
 theorem ret_lookupM (q : ℕ) (x : V) (L : List V) (m : ℕ) :
     (lookupM q x L m).ret = ofRadix q L m x := by
-  induction L generalizing m with
-  | nil => rfl
-  | cons u L ih =>
-    simp only [lookupM, TimeM.ret_bind, TimeM.ret_pure, ih, ofRadix]
+  time_spec lookupM
 
 theorem time_lookupM (q : ℕ) (x : V) (L : List V) (m : ℕ) :
     (lookupM q x L m).time = L.length := by
-  induction L generalizing m with
-  | nil => rfl
-  | cons u L ih =>
-    simp only [lookupM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih, List.length_cons]
-    omega
+  time_spec lookupM
 
 theorem ret_projectM {q : ℕ} (hq : 0 < q) (LB LP : List V) (t : ℕ) :
     (projectM q LB t LP).ret = toRadix q LP (ofRadix q LB t) := by
@@ -224,12 +218,7 @@ theorem ret_projectM {q : ℕ} (hq : 0 < q) (LB LP : List V) (t : ℕ) :
 
 theorem time_projectM (q : ℕ) (LB LP : List V) (t : ℕ) :
     (projectM q LB t LP).time = LP.length * (LB.length + 1) := by
-  induction LP with
-  | nil => simp [projectM]
-  | cons u LP ih =>
-    simp only [projectM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih, time_lookupM,
-      List.length_cons, Nat.add_mul, Nat.one_mul]
-    omega
+  time_spec projectM [time_lookupM]
 
 theorem ret_evalScopeM {q : ℕ} (hq : 0 < q) (LB : List V) (t : ℕ) (scope : List V) :
     (evalScopeM q hq LB t scope).ret = scope.map (ofRadixFin q hq LB t) := by
@@ -242,12 +231,7 @@ theorem ret_evalScopeM {q : ℕ} (hq : 0 < q) (LB : List V) (t : ℕ) (scope : L
 
 theorem time_evalScopeM {q : ℕ} (hq : 0 < q) (LB : List V) (t : ℕ) (scope : List V) :
     (evalScopeM q hq LB t scope).time = scope.length * (LB.length + 1) := by
-  induction scope with
-  | nil => simp [evalScopeM]
-  | cons x scope ih =>
-    simp only [evalScopeM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih, time_lookupM,
-      List.length_cons, Nat.add_mul, Nat.one_mul]
-    omega
+  time_spec evalScopeM [time_lookupM]
 
 end Loops
 

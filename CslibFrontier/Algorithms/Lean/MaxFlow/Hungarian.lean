@@ -12,6 +12,7 @@ public import CslibFrontier.Algorithms.Lean.MaxFlow.WeightedMatching
 public import Mathlib.Algebra.Order.Group.Defs
 public import Mathlib.Algebra.Order.Group.Int
 import Mathlib.Tactic.Ring
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # The Hungarian Method for the Assignment Problem
@@ -129,11 +130,7 @@ open Cslib.Algorithms.Lean.TimeM
 
 @[simp] theorem ofFnTickM_time {α : Type*} (n : ℕ) (f : Fin n → α) :
     (ofFnTickM n f).time = n := by
-  induction n with
-  | zero => rfl
-  | succ n ih =>
-    simp only [ofFnTickM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, ih]
-    omega
+  time_spec ofFnTickM
 
 /-- Build a vector by running a charged program for each entry, in index order. -/
 @[expose] def ofFnM {α : Type*} : (n : ℕ) → (Fin n → TimeM ℕ α) → TimeM ℕ (Vector α n)
@@ -158,14 +155,7 @@ open Cslib.Algorithms.Lean.TimeM
 
 theorem ofFnM_time_le {α : Type*} (n : ℕ) (f : Fin n → TimeM ℕ α) {t : ℕ}
     (h : ∀ i, (f i).time ≤ t) : (ofFnM n f).time ≤ n * t := by
-  induction n with
-  | zero => simp [ofFnM]
-  | succ n ih =>
-    simp only [ofFnM, TimeM.time_bind, TimeM.time_pure]
-    have h1 := ih (fun i => f i.castSucc) (fun i => h _)
-    have h2 := h (Fin.last n)
-    rw [Nat.succ_mul]
-    omega
+  time_spec ofFnM
 
 /-! ### Algorithm -/
 
@@ -416,8 +406,7 @@ private theorem hgDualM_minv (s : HgState n) (δ : ℤ) (j : Fin n) :
   simp [hgDualM]
 
 private theorem hgDualM_time (s : HgState n) (δ : ℤ) : (hgDualM s δ).time = 3 * n := by
-  simp only [hgDualM, TimeM.time_bind, ofFnTickM_time, TimeM.time_pure]
-  omega
+  time_spec hgDualM [ofFnTickM_time]
 
 private theorem hgRelaxM_y (s : HgState n) (i j₁ : Fin n) : (hgRelaxM s c i j₁).ret.y = s.y := rfl
 private theorem hgRelaxM_z (s : HgState n) (i j₁ : Fin n) : (hgRelaxM s c i j₁).ret.z = s.z := rfl
@@ -445,8 +434,7 @@ private theorem hgRelaxM_path (s : HgState n) (i j₁ j : Fin n) :
 
 private theorem hgRelaxM_time (s : HgState n) (i j₁ : Fin n) :
     (hgRelaxM s c i j₁).time = 2 * n := by
-  simp only [hgRelaxM, TimeM.time_bind, ofFnTickM_time, TimeM.time_pure]
-  omega
+  time_spec hgRelaxM [ofFnTickM_time]
 
 private theorem hgInitM_y (y z : Vector ℤ n) (mate : Vector (Option (Fin n)) n) (r : Fin n) :
     (hgInitM c y z mate r).ret.y = y := rfl
@@ -473,8 +461,7 @@ private theorem hgInitM_path (y z : Vector ℤ n) (mate : Vector (Option (Fin n)
 
 private theorem hgInitM_time (y z : Vector ℤ n) (mate : Vector (Option (Fin n)) n) (r : Fin n) :
     (hgInitM c y z mate r).time = 4 * n := by
-  simp only [hgInitM, TimeM.time_bind, ofFnTickM_time, TimeM.time_pure]
-  omega
+  time_spec hgInitM [ofFnTickM_time]
 
 /-! #### Invariants -/
 

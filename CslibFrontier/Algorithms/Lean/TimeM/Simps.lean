@@ -10,7 +10,6 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.Lean.TimeM.Simps.Init
 public import Cslib.Algorithms.Lean.TimeM
-public import Mathlib.Tactic.Ring.Basic
 
 /-!
 # Return values and costs of programs in the time monad
@@ -74,7 +73,7 @@ It runs three steps.
 2. On each goal, `simp only [time_simps, h₁, h₂, *]`, with `true_and`, `and_true` and `and_self`
    for a statement that is a conjunction. The `*` supplies the induction hypotheses and the
    conditions of the branch; it also uses the hypotheses of the theorem.
-3. Close what remains by the first of `rfl`, `omega`, `ring1` and `grind` that succeeds. If none
+3. Close what remains by the first of `rfl`, `omega` and `grind` that succeeds. If none
    does, `split` the first `if` or `match` in the goal, repeat step 2 and try to close each case;
    this is done at most twice.
 
@@ -99,7 +98,7 @@ macro_rules
         `(tactic| try simp only [$set:ident, true_and, and_true, and_self, *])
       else
         `(tactic| try simp only [$set:ident, true_and, and_true, and_self, $lemmas,*, *])
-    let close ← `(tactic| first | rfl | omega | ring1 | grind)
+    let close ← `(tactic| first | rfl | omega | grind)
     let finish ← `(tactic| first
       | $close:tactic
       | (split <;> ($simpStep:tactic) <;> $close:tactic)

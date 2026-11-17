@@ -13,6 +13,7 @@ public import Cslib.Algorithms.Lean.Sort.Merge
 public import Mathlib.Data.Nat.Log
 
 import CslibFrontier.Algorithms.Lean.MergeSort.Comparator
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # Linear-Time Two-Queue Huffman Construction
@@ -321,16 +322,13 @@ def huffman {α β : Type} [Add β] [LE β] [DecidableRel (· ≤ · : β → β
 private theorem popMinM_time_le_one {α β : Type u} [LE β] [DecidableRel (· ≤ · : β → β → Prop)]
     (q₁ : List (WeightedTree α β)) (q₂ : FifoQueue (WeightedTree α β)) :
     (popMinM q₁ q₂).time ≤ 1 := by
-  unfold popMinM
-  rcases q₁ with _ | ⟨x, xs⟩ <;> cases q₂.front <;> simp
-  split_ifs <;> simp
+  time_spec popMinM
 
 private theorem popMinM_time_eq_zero_of_front_nil {α β : Type u} [LE β]
     [DecidableRel (· ≤ · : β → β → Prop)]
     (q₁ : List (WeightedTree α β)) {q₂ : FifoQueue (WeightedTree α β)} (hf : q₂.front = []) :
     (popMinM q₁ q₂).time = 0 := by
-  unfold popMinM
-  cases q₁ <;> simp [hf]
+  time_spec popMinM
 
 private theorem popMinM_time_eq_zero_of_size_le_one {α β : Type u} [LE β]
     [DecidableRel (· ≤ · : β → β → Prop)]

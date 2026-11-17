@@ -16,6 +16,7 @@ import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Data.Finset.Image
 import Mathlib.Data.Fintype.BigOperators
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # Maximum Bipartite Matching and König's Theorem via Network Flows
@@ -778,41 +779,13 @@ private theorem mem_extractMatchingRowM_ret {m r : ℕ} {G : Fin m × Fin r → 
     (acc : Finset (Fin m × Fin r)) (e : Fin m × Fin r) :
     e ∈ (extractMatchingRowM f u vs acc).ret ↔
       e ∈ acc ∨ (e.1 = u ∧ e.2 ∈ vs ∧ 0 < f (.left u) (.right e.2)) := by
-  induction vs generalizing acc with
-  | nil => simp [extractMatchingRowM]
-  | cons v vs' ih =>
-    simp only [extractMatchingRowM, TimeM.ret_bind, ih, List.mem_cons]
-    rcases e with ⟨u', v'⟩
-    by_cases hpos : 0 < f (.left u) (.right v)
-    · simp only [hpos, ↓reduceIte, Finset.mem_insert, Prod.mk.injEq]
-      constructor
-      · rintro ((⟨rfl, rfl⟩ | hacc) | ⟨rfl, hvs, hp⟩)
-        · exact .inr ⟨rfl, .inl rfl, hpos⟩
-        · exact .inl hacc
-        · exact .inr ⟨rfl, .inr hvs, hp⟩
-      · rintro (hacc | ⟨rfl, rfl | hvs, hp⟩)
-        · exact .inl (.inr hacc)
-        · exact .inl (.inl ⟨rfl, rfl⟩)
-        · exact .inr ⟨rfl, hvs, hp⟩
-    · simp only [hpos, ↓reduceIte]
-      constructor
-      · rintro (hacc | ⟨rfl, hvs, hp⟩)
-        · exact .inl hacc
-        · exact .inr ⟨rfl, .inr hvs, hp⟩
-      · rintro (hacc | ⟨rfl, rfl | hvs, hp⟩)
-        · exact .inl hacc
-        · exact absurd hp hpos
-        · exact .inr ⟨rfl, hvs, hp⟩
+  time_spec extractMatchingRowM
 
 private theorem extractMatchingRowM_time {m r : ℕ} {G : Fin m × Fin r → Bool}
     (f : (bipartiteNetwork G).Flow) (u : Fin m) (vs : List (Fin r))
     (acc : Finset (Fin m × Fin r)) :
     (extractMatchingRowM f u vs acc).time = vs.length := by
-  induction vs generalizing acc with
-  | nil => rfl
-  | cons _ vs' ih =>
-    simp only [extractMatchingRowM, TimeM.time_bind, TimeM.time_tick, ih, List.length_cons]
-    omega
+  time_spec extractMatchingRowM
 
 /-- Scan left vertices `us` and all right vertices `Fin r` to extract `flowToMatching f`. -/
 @[expose] def extractMatchingLoopM {m r : ℕ} {G : Fin m × Fin r → Bool}
@@ -829,31 +802,12 @@ private theorem mem_extractMatchingLoopM_ret {m r : ℕ} {G : Fin m × Fin r →
     (acc : Finset (Fin m × Fin r)) (e : Fin m × Fin r) :
     e ∈ (extractMatchingLoopM f us acc).ret ↔
       e ∈ acc ∨ (e.1 ∈ us ∧ 0 < f (.left e.1) (.right e.2)) := by
-  induction us generalizing acc with
-  | nil => simp [extractMatchingLoopM]
-  | cons u us' ih =>
-    simp only [extractMatchingLoopM, TimeM.ret_bind, ih, mem_extractMatchingRowM_ret,
-      List.mem_finRange, true_and, List.mem_cons]
-    constructor
-    · rintro ((hacc | ⟨he1, hp⟩) | ⟨hus, hp⟩)
-      · exact .inl hacc
-      · exact .inr ⟨.inl he1, he1 ▸ hp⟩
-      · exact .inr ⟨.inr hus, hp⟩
-    · rintro (hacc | ⟨he1 | hus, hp⟩)
-      · exact .inl (.inl hacc)
-      · exact .inl (.inr ⟨he1, he1 ▸ hp⟩)
-      · exact .inr ⟨hus, hp⟩
+  time_spec extractMatchingLoopM [mem_extractMatchingRowM_ret]
 
 private theorem extractMatchingLoopM_time {m r : ℕ} {G : Fin m × Fin r → Bool}
     (f : (bipartiteNetwork G).Flow) (us : List (Fin m)) (acc : Finset (Fin m × Fin r)) :
     (extractMatchingLoopM f us acc).time = us.length * (r + 1) := by
-  induction us generalizing acc with
-  | nil => simp [extractMatchingLoopM]
-  | cons u us' ih =>
-    simp only [extractMatchingLoopM, TimeM.time_bind, TimeM.time_tick, extractMatchingRowM_time,
-      List.length_finRange, ih, List.length_cons]
-    rw [Nat.add_one_mul]
-    omega
+  time_spec extractMatchingLoopM [extractMatchingRowM_time]
 
 /-- Extract `flowToMatching f` in `m * (r + 1)` charged `TimeM` ticks. -/
 @[expose] def extractMatchingM {m r : ℕ} {G : Fin m × Fin r → Bool}
@@ -889,35 +843,12 @@ private theorem hasUncoveredRightM_ret {m r : ℕ} (G : Fin m × Fin r → Bool)
     (cut : Finset (Fin (2 + (m + r)))) (u : Fin m) (vs : List (Fin r)) :
     (hasUncoveredRightM G cut u vs).ret = true ↔
       ∃ v ∈ vs, G (u, v) = true ∧ bipartiteFinEquiv m r (.right v) ∉ cut := by
-  induction vs with
-  | nil => simp [hasUncoveredRightM]
-  | cons v vs' ih =>
-    simp only [hasUncoveredRightM, TimeM.ret_bind, List.mem_cons]
-    by_cases h : (G (u, v) && decide (bipartiteFinEquiv m r (.right v) ∉ cut)) = true
-    · simp only [h, ↓reduceIte, TimeM.ret_pure, true_iff]
-      obtain ⟨hG, hnot⟩ := Bool.and_eq_true_iff.mp h
-      exact ⟨v, .inl rfl, hG, of_decide_eq_true hnot⟩
-    · simp only [h, Bool.false_eq_true, ↓reduceIte, ih]
-      constructor
-      · rintro ⟨w, hw, hGw, hnw⟩
-        exact ⟨w, .inr hw, hGw, hnw⟩
-      · rintro ⟨w, rfl | hw, hGw, hnw⟩
-        · exfalso
-          apply h
-          exact Bool.and_eq_true_iff.mpr ⟨hGw, decide_eq_true hnw⟩
-        · exact ⟨w, hw, hGw, hnw⟩
+  time_spec hasUncoveredRightM
 
 private theorem hasUncoveredRightM_time_le {m r : ℕ} (G : Fin m × Fin r → Bool)
     (cut : Finset (Fin (2 + (m + r)))) (u : Fin m) (vs : List (Fin r)) :
     (hasUncoveredRightM G cut u vs).time ≤ vs.length := by
-  induction vs with
-  | nil => simp [hasUncoveredRightM]
-  | cons _ vs' ih =>
-    simp only [hasUncoveredRightM, TimeM.time_bind, TimeM.time_tick, List.length_cons]
-    split_ifs
-    · simp only [TimeM.time_pure]
-      omega
-    · omega
+  time_spec hasUncoveredRightM
 
 /-- Scan left vertices `us` to build `(cutToVertexCover G S).left` in `TimeM ℕ`. -/
 @[expose] def extractCoverLeftLoopM {m r : ℕ} (G : Fin m × Fin r → Bool)

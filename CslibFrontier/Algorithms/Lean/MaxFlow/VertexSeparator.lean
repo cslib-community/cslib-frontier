@@ -13,6 +13,7 @@ public import Mathlib.Data.Fintype.Sum
 public import Mathlib.Tactic.DeriveFintype
 import Mathlib.Algebra.BigOperators.Group.Finset.Sigma
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # Minimum vertex separators by vertex splitting
@@ -206,14 +207,12 @@ private theorem ret_sep : (minSeparatorM G Z A B).ret.sep = (List.finRange n).fi
 
 private theorem vget_ret_side (v : Fin n) :
     vget (minSeparatorM G Z A B).ret.side v = decide (SplitNode.outV v ∈ minCut G Z A B) := by
-  simp only [minSeparatorM, TimeM.ret_bind, TimeM.ret_pure, vget, Vector.getElem_ofFn]
-  rfl
+  time_spec minSeparatorM [vget, Vector.getElem_ofFn]
 
 private theorem mem_sep_iff {v : Fin n} : v ∈ (minSeparatorM G Z A B).ret.sep ↔
     vget Z v = false ∧ SplitNode.inV v ∈ minCut G Z A B ∧ SplitNode.outV v ∉ minCut G Z A B := by
-  rw [ret_sep, List.mem_filter]
-  simp only [List.mem_finRange, true_and, Bool.and_eq_true, Bool.not_eq_true', decide_eq_true_eq,
-    decide_eq_false_iff_not, and_assoc]
+  time_spec minSeparatorM [List.mem_filter, List.mem_finRange, Bool.and_eq_true, Bool.not_eq_true',
+    decide_eq_true_eq, decide_eq_false_iff_not, and_assoc]
 
 private theorem reindex_s_ne_t :
     ((vertexSplitNetwork G Z A B).reindex (SplitNode.equivFin n)).s ≠

@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import Cslib.Algorithms.Lean.TimeM
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.RatPoly
 public import Mathlib.FieldTheory.Perfect
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # Certified Real-Root Isolation via Sturm Bisection
@@ -108,24 +109,24 @@ coefficient evaluations across all Sturm polynomials plus scanning the resulting
 /-- Pure value returned by `evalListM t x`. -/
 @[simp]
 theorem evalListM_ret (t : List ℚ) (x : ℚ) : (evalListM t x).ret = evalCoeffList x t := by
-  simp only [evalListM, TimeM.ret_bind, TimeM.ret_pure]
+  time_spec evalListM
 
 /-- Time cost charged by `evalListM t x`: `t.length`. -/
 @[simp]
 theorem evalListM_time (t : List ℚ) (x : ℚ) : (evalListM t x).time = t.length := by
-  simp only [evalListM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, add_zero]
+  time_spec evalListM
 
 /-- Pure value returned by `sturmVariationsM seq x`. -/
 @[simp]
 theorem sturmVariationsM_ret (seq : List (List ℚ)) (x : ℚ) :
     (sturmVariationsM seq x).ret = sturmVariationsList seq x := by
-  simp only [sturmVariationsM, TimeM.ret_bind, TimeM.ret_pure]
+  time_spec sturmVariationsM
 
 /-- Time cost charged by `sturmVariationsM seq x`: `sturmSeqOpCost seq`. -/
 @[simp]
 theorem sturmVariationsM_time (seq : List (List ℚ)) (x : ℚ) :
     (sturmVariationsM seq x).time = sturmSeqOpCost seq := by
-  simp only [sturmVariationsM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, add_zero]
+  time_spec sturmVariationsM
 
 /-- Upper bound on `sturmSeqOpCost (sturmSeqList cs)` in terms of `natDegree (ofCoeffList cs)`. -/
 theorem sturmSeqOpCost_le (cs : List ℚ) :
@@ -239,23 +240,7 @@ theorem isolateRootsM_ret (cs : List ℚ) : (isolateRootsM cs).ret = isolateRoot
 private theorem refineLeftLoopM_time_le (t : List ℚ) (seq : List (List ℚ)) (fuel : ℕ)
     (u v : ℚ) (vu : ℕ) :
     (refineLeftLoopM t seq fuel u v vu).time ≤ fuel * (sturmSeqOpCost seq + t.length) := by
-  induction fuel generalizing u v vu with
-  | zero => simp only [refineLeftLoopM, TimeM.time_pure, zero_mul, le_refl]
-  | succ fuel ih =>
-    simp only [refineLeftLoopM, TimeM.time_bind, sturmVariationsM_time, sturmVariationsM_ret]
-    by_cases hvm : sturmVariationsList seq ((u + v) / 2) = vu
-    · simp only [hvm, ↓reduceIte, TimeM.time_pure, add_zero]
-      rw [Nat.succ_mul]
-      omega
-    · simp only [hvm, ↓reduceIte, TimeM.time_bind, evalListM_time, evalListM_ret]
-      by_cases hem : evalCoeffList ((u + v) / 2) t = 0
-      · simp only [hem, ↓reduceIte, TimeM.time_pure, add_zero]
-        rw [Nat.succ_mul]
-        omega
-      · simp only [hem, ↓reduceIte]
-        have hrec := ih u ((u + v) / 2) vu
-        rw [Nat.succ_mul]
-        omega
+  time_spec refineLeftLoopM [sturmVariationsM_time, evalListM_time]
 
 private theorem refineLeftRootM_time_le (t : List ℚ) (seq : List (List ℚ)) (fuel : ℕ)
     (u v : ℚ) (vu : ℕ) :

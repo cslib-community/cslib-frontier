@@ -105,8 +105,7 @@ theorem ret_checkClausesM (φ : CNF V) : (checkClausesM φ).ret = checkClauses �
   simp [checkClausesM, checkClauses, TimeM.ret_foldlM]
 
 theorem time_checkClausesM (φ : CNF V) : (checkClausesM φ).time = φ.length := by
-  simpa [checkClausesM] using TimeM.time_foldlM_of_time_eq
-    (fun ok c => do ✓ return (ok && isValidTwoClause c)) φ true (c := 1) (fun _ _ => rfl)
+  time_spec checkClausesM
 
 /-- Enumerate both polarities `(v, false)` and `(v, true)` for each `v ∈ vs`. -/
 def literalList : List V → List (Literal V)
@@ -315,9 +314,7 @@ theorem ret_implicationAdjM (φ : CNF V) : (implicationAdjM φ).ret = implicatio
   simp [implicationAdjM, implicationAdj, TimeM.ret_foldlM]
 
 theorem time_implicationAdjM (φ : CNF V) : (implicationAdjM φ).time = φ.length := by
-  simpa [implicationAdjM] using TimeM.time_foldlM_of_time_eq
-    (fun (adj : Literal V → List (Literal V)) c => do ✓ return addClauseEdges adj c)
-    φ (fun _ => []) (c := 1) (fun _ _ => rfl)
+  time_spec implicationAdjM
 
 end ImplicationGraph
 
@@ -342,15 +339,11 @@ def extractAssignmentM (vs : List V) (compIdx : Literal V → ℕ) : TimeM ℕ (
 
 theorem ret_extractAssignmentM (vs : List V) (compIdx : Literal V → ℕ) :
     (extractAssignmentM vs compIdx).ret = extractAssignment vs compIdx := by
-  dsimp only [extractAssignmentM, extractAssignment, TimeM.bind]
-  simp only [TimeM.ret_foldlM, TimeM.ret_bind, TimeM.ret_pure]
-  split_ifs <;> rfl
+  time_spec extractAssignmentM [extractAssignment, TimeM.bind]
 
 theorem time_extractAssignmentM (vs : List V) (compIdx : Literal V → ℕ) :
     (extractAssignmentM vs compIdx).time = vs.length := by
-  dsimp only [extractAssignmentM, TimeM.bind]
-  rw [TimeM.time_foldlM_of_time_eq _ vs true (c := 1) (fun _ _ => rfl)]
-  split_ifs <;> simp
+  time_spec extractAssignmentM [TimeM.bind]
 
 /-! ### Linear-time 2-SAT solver -/
 
@@ -384,13 +377,8 @@ section SolveCorrectness
 variable [DecidableEq V] {vs : List V} {φ : CNF V}
 
 theorem ret_solveM (vs : List V) (φ : CNF V) : (solveM vs φ).ret = solve vs φ := by
-  simp only [solveM, solve, TimeM.ret_bind]
-  dsimp only [TimeM.bind]
-  rw [ret_checkClausesM]
-  split_ifs with hok
-  · simp [ret_literalListM, ret_implicationAdjM, ret_sccsM, ret_indexComponentsM,
-      ret_extractAssignmentM]
-  · rfl
+  time_spec solveM [solve, TimeM.bind, ret_checkClausesM, ret_literalListM, ret_implicationAdjM,
+    ret_sccsM, ret_indexComponentsM, ret_extractAssignmentM]
 
 omit [DecidableEq V] in
 private theorem literal_false_lt {compIdx : Literal V → ℕ}
@@ -591,21 +579,17 @@ def toFinCNFM (φ : CNF ℕ) : TimeM ℕ (CNF (Fin (φ.vars.length + 1))) :=
 
 private theorem ret_relabelClauseM {W : Type*} (f : ℕ → W) (c : Clause ℕ) :
     (relabelClauseM f c).ret = Clause.relabel f c := by
-  simp only [relabelClauseM, TimeM.ret_listMapM, TimeM.ret_bind, TimeM.ret_pure, Clause.relabel]
-  rfl
+  time_spec relabelClauseM
 
 private theorem time_relabelClauseM {W : Type*} (f : ℕ → W) (c : Clause ℕ) :
     (relabelClauseM f c).time = c.length := by
   simp [relabelClauseM]
 
 theorem ret_toFinCNFM (φ : CNF ℕ) : (toFinCNFM φ).ret = toFinCNF φ := by
-  simp only [toFinCNFM, TimeM.ret_listMapM, TimeM.ret_bind, ret_relabelClauseM]
-  rfl
+  time_spec toFinCNFM [ret_relabelClauseM]
 
 theorem time_toFinCNFM (φ : CNF ℕ) : (toFinCNFM φ).time = φ.length + φ.vars.length := by
-  simp only [toFinCNFM, TimeM.time_listMapM, TimeM.time_bind, TimeM.time_tick,
-    time_relabelClauseM, CNF.length_vars, List.sum_map_add, List.map_const', List.sum_replicate,
-    smul_eq_mul, mul_one]
+  time_spec toFinCNFM [time_relabelClauseM, CNF.length_vars, List.sum_map_add]
 
 /-- Solve a `CNF ℕ` instance of `Cslib.Complexity.TwoSAT`, returning `some σ` when `φ ∈ TwoSAT` and
 `none` otherwise. -/

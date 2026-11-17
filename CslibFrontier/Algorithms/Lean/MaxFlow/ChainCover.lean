@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.Lean.MaxFlow.Dilworth
 public import CslibFrontier.Algorithms.Lean.MaxFlow.HopcroftKarp
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # Minimum chain cover by Hopcroft–Karp
@@ -165,32 +166,12 @@ private theorem chainLabelsM_ret (e : Fin n ≃ α) (M : Finset (Fin n × Fin n)
     (fun x => vget (chainLabelsM M ps labels).ret (e.symm x)) =
       ((ps.filter (· ∈ M)).map (Prod.map e e)).foldl (mergeLabel ·)
         (fun x => vget labels (e.symm x)) := by
-  induction ps generalizing labels with
-  | nil => rfl
-  | cons p ps ih =>
-    by_cases hp : p ∈ M
-    · rw [List.filter_cons_of_pos (by simpa using hp), List.map_cons, List.foldl_cons]
-      simp only [chainLabelsM, hp, ite_true, TimeM.ret_bind, ih]
-      rw [vget_mergeChainsM]
-      rfl
-    · rw [List.filter_cons_of_neg (by simpa using hp)]
-      simp only [chainLabelsM, hp, ite_false, TimeM.ret_bind, TimeM.ret_pure, ih]
+  time_spec chainLabelsM [vget_mergeChainsM]
 
 private theorem chainLabelsM_time (M : Finset (Fin n × Fin n)) (ps : List (Fin n × Fin n))
     (labels : Vector (Fin n) n) :
     (chainLabelsM M ps labels).time = ps.length + n * (ps.filter (· ∈ M)).length := by
-  induction ps generalizing labels with
-  | nil => simp [chainLabelsM]
-  | cons p ps ih =>
-    by_cases hp : p ∈ M
-    · rw [List.filter_cons_of_pos (by simpa using hp)]
-      simp only [chainLabelsM, hp, ite_true, TimeM.time_bind, TimeM.time_tick, ih, mergeChainsM,
-        TimeM.time_pure, List.length_cons, Nat.mul_add, Nat.mul_one]
-      omega
-    · rw [List.filter_cons_of_neg (by simpa using hp)]
-      simp only [chainLabelsM, hp, ite_false, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure,
-        ih, List.length_cons]
-      omega
+  time_spec chainLabelsM [mergeChainsM]
 
 /-- Scanning all pairs of indices visits each element of `M` exactly once. -/
 private theorem nodup_filter_pairs (M : Finset (Fin n × Fin n)) :
@@ -215,7 +196,7 @@ private theorem ret_minChainCoverM [LT α] [DecidableLT α] (e : Fin n ≃ α) :
           (List.finRange n ×ˢ List.finRange n) (Vector.ofFn id)).ret,
         (hopcroftKarpDenseM (enumLtGraph e)).ret.cover.uncovered,
         (hopcroftKarpDenseM (enumLtGraph e)).ret.matching⟩ := by
-  simp only [minChainCoverM, TimeM.ret_bind, TimeM.ret_pure, foldlTickM_ret, foldl_uncoveredStep]
+  time_spec minChainCoverM [foldl_uncoveredStep]
 
 variable [PartialOrder α] [DecidableLT α]
 

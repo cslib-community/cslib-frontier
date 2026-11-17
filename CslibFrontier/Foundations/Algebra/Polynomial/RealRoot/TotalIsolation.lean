@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.TotalRatPoly
+import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
 /-!
 # End-to-End `TimeM`-Charged Real-Root Isolation with Disjoint Isolating Intervals
@@ -114,18 +115,9 @@ open Polynomial Cslib.Algorithms.Lean
 @[simp]
 theorem refineLeftLoopTotalM_ret (t : List ℚ) (seq : List (List ℚ)) :
     ∀ (fuel : ℕ) (u v : ℚ) (vu : ℕ),
-      (refineLeftLoopTotalM t seq fuel u v vu).ret = (refineLeftLoopM t seq fuel u v vu).ret
-  | 0, u, v, _ => by
-    simp only [refineLeftLoopTotalM, refineLeftLoopM, TimeM.ret_bind, TimeM.ret_pure]
-  | fuel + 1, u, v, vu => by
-    simp only [refineLeftLoopTotalM, refineLeftLoopM, TimeM.ret_bind, sturmVariationsListM_ret,
-      sturmVariationsM_ret]
-    split_ifs with hvm
-    · simp only [TimeM.ret_pure]
-    · simp only [TimeM.ret_bind, evalCoeffListM_ret, evalListM_ret]
-      split_ifs with hem
-      · simp only [TimeM.ret_pure]
-      · exact refineLeftLoopTotalM_ret t seq fuel u ((u + v) / 2) vu
+      (refineLeftLoopTotalM t seq fuel u v vu).ret = (refineLeftLoopM t seq fuel u v vu).ret := by
+  time_spec refineLeftLoopTotalM [refineLeftLoopM, sturmVariationsListM_ret, sturmVariationsM_ret,
+    evalCoeffListM_ret, evalListM_ret]
 
 theorem refineLeftLoopTotalM_time_le (t : List ℚ) (seq : List (List ℚ)) :
     ∀ (fuel : ℕ) (u v : ℚ) (vu : ℕ),
@@ -748,21 +740,13 @@ every adjacent pair in `TimeM ℕ`. -/
 
 private theorem separateChainM_length (t : List ℚ) (seq : List (List ℚ)) (depth : ℕ) :
     ∀ (L : List RootInterval) (curLower : ℚ),
-      ((separateChainM t seq depth curLower L).ret).length = L.length
-  | [], _ => by simp only [separateChainM, TimeM.ret_bind, TimeM.ret_pure, List.length_nil]
-  | [_], _ => by simp only [separateChainM, TimeM.ret_bind, TimeM.ret_pure, List.length_singleton]
-  | I₁ :: I₂ :: rest, curLower => by
-    simp only [separateChainM, TimeM.ret_bind, TimeM.ret_pure, List.length_cons]
-    rw [separateChainM_length t seq depth (I₂ :: rest)]
-    simp only [List.length_cons]
+      ((separateChainM t seq depth curLower L).ret).length = L.length := by
+  time_spec separateChainM
 
 theorem separateTouchingM_length (t : List ℚ) (seq : List (List ℚ)) (depth : ℕ)
     (L : List RootInterval) :
     ((separateTouchingM t seq depth L).ret).length = L.length := by
-  cases L with
-  | nil => simp only [separateTouchingM, TimeM.ret_bind, TimeM.ret_pure, List.length_nil]
-  | cons I₀ rest =>
-    simp only [separateTouchingM, TimeM.ret_bind, separateChainM_length]
+  time_spec separateTouchingM [separateChainM_length]
 
 private theorem separateChainM_time_le (t : List ℚ) (seq : List (List ℚ)) (depth : ℕ) :
     ∀ (L : List RootInterval) (curLower : ℚ),
