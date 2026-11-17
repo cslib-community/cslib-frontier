@@ -52,7 +52,7 @@ theorem bounded_reachable {W m n g p A k : ℕ} (values : List ℤ)
     (hv : ∀ z ∈ values, z.natAbs ≤ A) (hW : admissionWidth n (D m) g p A ≤ W)
     {s : State 320} (hr : Runs W (entryProgram.program Reg.result)
       (State.init (PreparationInput.input n (D m) g p values)) s k) : s.data.Bounded W :=
-  backend.bounded_reachable values hlen hD hg hp hN hv hW hr
+  hr.bounded_init (RecordBoxProduct.exec_input values hlen hD hg hp hN hv hW).1
 
 /-- Every wider prefix of `entryProgram.program Reg.result` has the same input-derived word and
 support envelope. This derives from its actual initialized halting run, without a supplied execution

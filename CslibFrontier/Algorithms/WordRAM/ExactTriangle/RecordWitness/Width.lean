@@ -43,23 +43,11 @@ theorem admissionWidth_pos (n D g p A : ℕ) : 0 < admissionWidth n D g p A := b
   unfold admissionWidth
   omega
 
-/-- For any tensor level `L`, the queried product's output slice lies within its word budget. -/
-theorem outputBase_le_wordBudget (L m n Q : ℕ) :
-    QueriedProduct.outputBase L m n Q ≤ QueriedProduct.wordBudget L m n Q := by
-  have hout : QueriedProduct.outputBase L m n Q ≤ QueriedProduct.memoryEnd L m n Q := by
-    unfold QueriedProduct.memoryEnd QueriedProduct.stampBase QueriedProduct.scratchBase
-    have hten := Nat.zero_le (10 ^ L)
-    have hframes := Nat.zero_le (2 * (L + 1) * 10 ^ L)
-    omega
-  have hword : QueriedProduct.memoryEnd L m n Q ≤ QueriedProduct.wordBudget L m n Q := by
-    unfold QueriedProduct.wordBudget
-    omega
-  exact hout.trans hword
-
 /-- The existing product's output slice precedes its admitted virtual-window boundary. -/
 theorem outputBase_lt_window {m n Q : ℕ} (hN : D m ^ 18 ≤ n) :
     QueriedProduct.outputBase (19 * m) m n Q < CallableProduct.windowSize n Q :=
-  (outputBase_le_wordBudget (19 * m) m n Q).trans_lt (CallableProduct.source_admission hN).2.2
+  (QueriedProduct.outputBase_le_wordBudget (19 * m) m n Q).trans_lt
+    (CallableProduct.source_admission hN).2.2
 
 /-- Every pointer and temporary of a per-record caller fits from the original producer word
 bound and the actual chunk count, once the caller's output slice `out` precedes the product

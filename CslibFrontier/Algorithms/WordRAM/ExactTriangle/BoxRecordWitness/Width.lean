@@ -35,7 +35,7 @@ theorem outputBase_lt_window {m n Q : ℕ} (hN : D m ^ 18 ≤ n) :
       BoxProduct.wordBudget (21 * m) m (m / 9) n Q := by
     unfold BoxProduct.wordBudget
     omega
-  exact ((outputBase_le_wordBudget (21 * m) m n Q).trans hbox).trans_lt
+  exact ((QueriedProduct.outputBase_le_wordBudget (21 * m) m n Q).trans hbox).trans_lt
     (CallableBoxProduct.source_admission (Nat.div_le_self m 9) hN).2.2
 
 /-- Every pointer and temporary of the actual per-record caller fits from the original

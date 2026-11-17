@@ -78,15 +78,6 @@ theorem RecordBackend.runs_input (B : RecordBackend) {W m n g p A : ℕ} (values
       (p := B.entryProgram.program Reg.result) (Program.Contains.self _).append_left
   · simpa only [yr, State.init] using he.executes Reg.result
 
-/-- Generic physical word-boundedness on every reachable prefix of `B.entryProgram`. -/
-theorem RecordBackend.bounded_reachable (B : RecordBackend) {W m n g p A k : ℕ} (values : List ℤ)
-    (hlen : values.length = 3 * (n * n)) (hD : 16 ≤ D m)
-    (hg : 1 ≤ g) (hp : 0 < p) (hN : D m ^ 18 ≤ n)
-    (hv : ∀ z ∈ values, z.natAbs ≤ A) (hW : admissionWidth n (D m) g p A ≤ W)
-    {s : State 320} (hr : Runs W (B.entryProgram.program Reg.result)
-      (State.init (PreparationInput.input n (D m) g p values)) s k) : s.data.Bounded W :=
-  hr.bounded_init (B.exec_input values hlen hD hg hp hN hv hW).1
-
 /-- Generic width-independent word and support envelope on every prefix of `B.entryProgram`. -/
 theorem RecordBackend.bounded_reachable_original (B : RecordBackend) {W m n g p A k : ℕ}
     (values : List ℤ) (hlen : values.length = 3 * (n * n)) (hD : 16 ≤ D m)
@@ -125,6 +116,6 @@ theorem bounded_reachable {W m n g p A k : ℕ} (values : List ℤ)
     (hv : ∀ z ∈ values, z.natAbs ≤ A) (hW : admissionWidth n (D m) g p A ≤ W)
     {s : State 320} (hr : Runs W (entryProgram.program Reg.result)
       (State.init (PreparationInput.input n (D m) g p values)) s k) : s.data.Bounded W :=
-  backend.bounded_reachable values hlen hD hg hp hN hv hW hr
+  hr.bounded_init (exec_input values hlen hD hg hp hN hv hW).1
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.RecordProduct
