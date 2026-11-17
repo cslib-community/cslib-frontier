@@ -28,8 +28,7 @@ exports from `GapCDH.Assumption` and `GapCDH.WordKEM`) through ordinary `import`
 * Word-level DH-KEM encapsulation/decapsulation round-trip (`dhKEMDecapsWord_encapsWord`) and
   canonical subgroup validation (`dhKEMDecapsWord_of_not_isElem`).
 * Certified uniform strict oracle-PPT KEM CCA distinguisher instantiation with
-  `isOraclePPTOn_dhKEMToGapCDHWord`, `advantage_dhKEMCCAWordGame_le`, `GapCDH.dhKEMROMINDCCA`, and
-  `GapCDH.dhKEMROMINDCCA_id`.
+  `isOraclePPTOn_dhKEMToGapCDHWord`, `advantage_dhKEMCCAWordGame_le`, and `GapCDH.dhKEMROMINDCCA`.
 -/
 
 -- Regression client module exercising ordinary imports; exports no test fixtures.

@@ -50,8 +50,8 @@ satisfying `queryDDHWord cStar z`. Its oracle-PPT certificate uses only `IsOracl
 
 * `Cslib.Crypto.DHKEMOp`, `Cslib.Crypto.DHKEMChallenge`, `Cslib.Crypto.encDHKEMChallenge`: oracle
   operations and encoded challenge input `(d, h, c⋆, k̂)` of a word-level ROM IND-CCA adversary.
-* `Cslib.Crypto.DHKEMSimEntry`, `Cslib.Crypto.encDHKEMSimEntry`, `Cslib.Crypto.findFirstWord`:
-  query-table entry record and short-circuiting list scan of the word reduction.
+* `Cslib.Crypto.DHKEMSimEntry`, `Cslib.Crypto.encDHKEMSimEntry`: query-table entry record and
+  encoding for the word reduction's `List.findSomeM?` scans.
 * `Cslib.Crypto.DecodablePrimeOrderGroupFamily.dhKEMEncapsWord`,
   `Cslib.Crypto.DecodablePrimeOrderGroupFamily.dhKEMDecapsWord`: word-level encapsulation and
   membership-validating decapsulation of Construction 12.19.
@@ -131,18 +131,6 @@ structure DHKEMSimEntry where
 enc_structure encDHKEMSimEntry : DHKEMSimEntry where
   isDecaps : encBool, elem : encBits, key : encBits
 
-/-- Scan a list of simulation entries in order, returning the first `some v` produced by `select`
-and short-circuiting all subsequent entries. Uses a dedicated bounded-iteration wrapper instead of
-`IsOraclePPTOn.foldlM_of_bounded_growth`, because `foldlM_of_bounded_growth` requires constant
-step growth whereas the `Option (List Bool)` accumulator can grow by up to `keyLen n` bits. -/
-def findFirstWord (select : DHKEMSimEntry → WordOracleComp Unit (Option (List Bool))) :
-    List DHKEMSimEntry → WordOracleComp Unit (Option (List Bool))
-  | [] => pure none
-  | entry :: rest => do
-    match ← select entry with
-    | some v => return some v
-    | none => findFirstWord select rest
-
 /-- Match a table entry against a hash query `z`: hash entries compare `e.elem == z`, while
 decapsulation entries ask the external DDH oracle whether `z = x • e.elem`. -/
 def hashSelectWord (z : List Bool) (e : DHKEMSimEntry) :
@@ -167,7 +155,7 @@ noncomputable def simLookupWord (m : ℕ)
     (select : DHKEMSimEntry → WordOracleComp Unit (Option (List Bool)))
     (isDecaps : Bool) (elem : List Bool) (table : List DHKEMSimEntry) :
     WordOracleComp Unit (List Bool × List DHKEMSimEntry) := do
-  match ← findFirstWord select table with
+  match ← table.findSomeM? select with
   | some key => return (key, table)
   | none =>
     let key ← ProbOracleComp.sample (BitString.sampleList m)
@@ -305,7 +293,7 @@ noncomputable def simWordHandler (keyLen : ℕ → ℕ) (n : ℕ) (d : F.Desc) (
 `F.encode d 0` when none matches. -/
 def extractDHWord (d : F.Desc) (cStar : List Bool) (table : List DHKEMSimEntry) :
     WordOracleComp Unit (List Bool) :=
-  (fun r => r.getD (F.encode d 0)) <$> findFirstWord (extractSelectWord cStar) table
+  (fun r => r.getD (F.encode d 0)) <$> table.findSomeM? (extractSelectWord cStar)
 
 /-- **Word-level Gap-CDH reduction** of [KatzLindell2020], Theorem 12.22 (p. 435), mirroring
 `PrimeOrderGroupFamily.dhKEMToGapCDH`: on `input = ⟨n, d, cStar, h⟩`, outputs `F.encode d 0` when
@@ -348,17 +336,17 @@ private def searchStep {α : Type}
     let e := s.remaining.headD ⟨false, [], []⟩
     (fun r => if r.isSome then SearchState.mk [] r else ⟨s.remaining.tail, none⟩) <$> select a e
 
-private theorem iterate_searchStep_eq_findFirstWord {α : Type}
+private theorem iterate_searchStep_eq_findSomeM? {α : Type}
     (select : α → DHKEMSimEntry → WordOracleComp Unit (Option (List Bool))) (a : α)
     (t : List DHKEMSimEntry) :
     SearchState.found <$> OracleComp.iterate t.length (searchStep select a) ⟨t, none⟩ =
-      findFirstWord (select a) t := by
+      t.findSomeM? (select a) := by
   induction t with
-  | nil => rfl
+  | nil => simp [List.findSomeM?_nil]
   | cons e rest ih =>
     rw [List.length_cons, OracleComp.iterate_succ_bind]
     simp only [searchStep, Option.isSome_none, List.isEmpty_cons, Bool.or_false, Bool.false_eq_true,
-      ↓reduceIte, List.headD_cons, List.tail_cons, findFirstWord, map_bind, bind_map_left]
+      ↓reduceIte, List.headD_cons, List.tail_cons, List.findSomeM?_cons, map_bind, bind_map_left]
     refine congrArg (Bind.bind (select a e)) (funext fun r => ?_)
     cases r with
     | none => simpa using ih
@@ -366,7 +354,9 @@ private theorem iterate_searchStep_eq_findFirstWord {α : Type}
       have hpure : searchStep select a ⟨[], some v⟩ = pure ⟨[], some v⟩ := by simp [searchStep]
       simp [OracleComp.iterate_eq_pure rest.length _ _ hpure]
 
-private theorem isOraclePPTOn_findFirstWord {α : Type} {input : α ↪ List Bool}
+-- Dedicated bounded-iteration certificate rather than `IsOraclePPTOn.foldlM_of_bounded_growth`,
+-- which requires constant step growth whereas `Option (List Bool)` grows by up to `keyLen n` bits.
+private theorem isOraclePPTOn_findSomeM? {α : Type} {input : α ↪ List Bool}
     {table : α → List DHKEMSimEntry}
     {select : α → DHKEMSimEntry → WordOracleComp Unit (Option (List Bool))}
     (htable : ComputableInPolyTime table input (encList encDHKEMSimEntry))
@@ -375,7 +365,7 @@ private theorem isOraclePPTOn_findFirstWord {α : Type} {input : α ↪ List Boo
     (hval : ∀ a e v, some v ∈ OracleComp.support (select a e) →
       v.length ≤ e.elem.length + e.key.length) :
     IsOraclePPTOn input (encOption encBits)
-      (fun a => findFirstWord (select a) (table a)) := by
+      (fun a => (table a).findSomeM? (select a)) := by
   have hisEmpty : ComputableInPolyTime
       (fun p : α × SearchState => p.2.remaining.isEmpty)
       (encPair input encSearchState) encBool :=
@@ -436,17 +426,17 @@ private theorem isOraclePPTOn_findFirstWord {α : Type} {input : α ↪ List Boo
           enc_len [encSearchState_apply, encDHKEMSimEntry_apply, hrem, hf]
   refine (hloop.map' (f := SearchState.found)
       (encSearchState_found_polyTime ComputableInPolyTime.id')).congr fun a State oracle s => ?_
-  rw [iterate_searchStep_eq_findFirstWord]
+  rw [iterate_searchStep_eq_findSomeM?]
 
-theorem mem_support_findFirstWord
+theorem mem_support_findSomeM?
     {select : DHKEMSimEntry → WordOracleComp Unit (Option (List Bool))}
     {table : List DHKEMSimEntry} {v : List Bool}
-    (h : some v ∈ OracleComp.support (findFirstWord select table)) :
+    (h : some v ∈ OracleComp.support (table.findSomeM? select)) :
     ∃ e ∈ table, some v ∈ OracleComp.support (select e) := by
   induction table with
-  | nil => simp [findFirstWord, OracleComp.support] at h
+  | nil => simp [List.findSomeM?_nil, OracleComp.support] at h
   | cons e rest ih =>
-    simp only [findFirstWord, OracleComp.support, OracleComp.mem_supportWith_bind_iff] at h
+    simp only [List.findSomeM?_cons, OracleComp.support, OracleComp.mem_supportWith_bind_iff] at h
     obtain ⟨r, hr, h'⟩ := h
     cases r with
     | some w =>
@@ -489,7 +479,7 @@ private theorem isOraclePPTOn_simLookup {select : SimCall F.toPrimeOrderGroupFam
       (encPair encBits (encList encDHKEMSimEntry))
       (fun c => simLookupWord (keyLen c.caller.input.secParam) (select c) isDecaps c.word c.table)
     := by
-  have hfind := isOraclePPTOn_findFirstWord (table := SimCall.table) (by polytime) hselect hval
+  have hfind := isOraclePPTOn_findSomeM? (table := SimCall.table) (by polytime) hselect hval
   have hm : ComputableInPolyTime
       (fun p : SimCall F.toPrimeOrderGroupFamily × Option (List Bool) =>
         keyLen p.1.caller.input.secParam)
@@ -614,7 +604,7 @@ private theorem simWordHandler_preserve (keyLen : ℕ → ℕ)
       | some key =>
         simp only [OracleComp.supportWith_pure, Set.mem_singleton_iff] at hmem
         subst hmem; dsimp only
-        obtain ⟨e, he, hse⟩ := mem_support_findFirstWord hfound
+        obtain ⟨e, he, hse⟩ := mem_support_findSomeM? hfound
         have hk : key = e.key := by
           by_cases hd : e.isDecaps
           · simp only [hashSelectWord, hd, ↓reduceIte, OracleComp.support,
@@ -656,7 +646,7 @@ private theorem simWordHandler_preserve (keyLen : ℕ → ℕ)
       | some k =>
         simp only [OracleComp.supportWith_pure, Set.mem_singleton_iff, Prod.mk.injEq] at hmem
         obtain ⟨rfl, rfl⟩ := hmem; dsimp only
-        obtain ⟨e, he, hse⟩ := mem_support_findFirstWord hfound
+        obtain ⟨e, he, hse⟩ := mem_support_findSomeM? hfound
         have hk : key = e.key := by
           by_cases hd : e.isDecaps
           · simp only [decapsSelectWord, hd, ↓reduceIte, OracleComp.support,
@@ -700,7 +690,7 @@ private theorem isOraclePPTOn_extractDHWord :
     refine IsOraclePPTOn.cond' (by polytime)
       (ComputableInPolyTime.isOraclePPTOn (Operation := Unit) (by polytime)) ?_
     exact (isOraclePPTOn_queryDDHWord hcs (by polytime)).map_with' (by polytime)
-  have hextFind := isOraclePPTOn_findFirstWord
+  have hextFind := isOraclePPTOn_findSomeM?
     (select := fun p e => extractSelectWord p.1.input.leftPublic e)
     (table := fun p : ReductionCaller F.toPrimeOrderGroupFamily × Bool × List DHKEMSimEntry =>
       p.2.2) (by polytime) hextSel fun _ e v hv => by

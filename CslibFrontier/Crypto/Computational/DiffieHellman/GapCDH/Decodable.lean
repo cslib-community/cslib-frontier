@@ -160,18 +160,19 @@ def tableRep (d : F.Desc) {m : ℕ}
 
 /-! ### Query-by-query and table simulation -/
 
-private theorem eval_run_findFirstWord_eq_find? (d : F.Desc) (y : ZMod (F.order d))
+private theorem eval_run_findSomeM?_eq_find? (d : F.Desc) (y : ZMod (F.order d))
     (select : DHKEMSimEntry → WordOracleComp Unit (Option (List Bool)))
     (pred : DHKEMSimEntry → Bool) (extract : DHKEMSimEntry → List Bool)
     (hsel : ∀ e, ProbComp.eval ((select e).run fun req => pure (F.ddhWordOracle d y req.2)) =
       PMF.pure (if pred e then some (extract e) else none))
     (t : List DHKEMSimEntry) :
-    ProbComp.eval ((findFirstWord select t).run fun req => pure (F.ddhWordOracle d y req.2)) =
+    ProbComp.eval ((t.findSomeM? select).run fun req => pure (F.ddhWordOracle d y req.2)) =
       PMF.pure ((t.find? pred).map extract) := by
   induction t with
-  | nil => rfl
+  | nil => simp [List.findSomeM?_nil]
   | cons e rest ih =>
-    simp only [findFirstWord, ProbOracleComp.run_bind, ProbComp.eval_bind, hsel e, PMF.pure_bind]
+    simp only [List.findSomeM?_cons, ProbOracleComp.run_bind, ProbComp.eval_bind, hsel e,
+      PMF.pure_bind]
     cases h : pred e <;> simp [h, ih]
 
 private theorem interpret_routeToTypedQuery_dhKEMAnswer (d : F.Desc) {m : ℕ}
@@ -355,7 +356,7 @@ private theorem simWordHandler_step (keyLen : ℕ → ℕ) (n : ℕ) (d : F.Desc
           PMF.pure (if (if e.isDecaps then F.ddhOraclePred d y e.elem (F.encode d z)
             else e.elem == F.encode d z) then some e.key else none) := by
         intro e; by_cases hd : e.isDecaps <;> simp [hashSelectWord, hd]
-      rw [F.eval_run_findFirstWord_eq_find? d y _ _ DHKEMSimEntry.key hsel,
+      rw [F.eval_run_findSomeM?_eq_find? d y _ _ DHKEMSimEntry.key hsel,
         F.find?_tableRep_hash d y z table, PMF.pure_bind]
       cases hfind : (table.find? fun e =>
           F.toPrimeOrderGroupFamily.hashMatches d y z e.1).map Prod.snd with
@@ -387,7 +388,7 @@ private theorem simWordHandler_step (keyLen : ℕ → ℕ) (n : ℕ) (d : F.Desc
             PMF.pure (if (if e.isDecaps then e.elem == F.encode d C
               else F.ddhOraclePred d y (F.encode d C) e.elem) then some e.key else none) := by
           intro e; by_cases hd : e.isDecaps <;> simp [decapsSelectWord, hd]
-        rw [F.eval_run_findFirstWord_eq_find? d y _ _ DHKEMSimEntry.key hsel,
+        rw [F.eval_run_findSomeM?_eq_find? d y _ _ DHKEMSimEntry.key hsel,
           F.find?_tableRep_decaps d y C table, PMF.pure_bind]
         cases hfind : (table.find? fun e =>
             F.toPrimeOrderGroupFamily.decapsMatches d y C e.1).map Prod.snd with
@@ -403,16 +404,16 @@ private theorem eval_run_extractDHWord (d : F.Desc) {m : ℕ} (y : ZMod (F.order
       (F.toPrimeOrderGroupFamily.runDDH d y
         (F.toPrimeOrderGroupFamily.extractDH d cStar table)).map (F.encode d) := by
   induction table with
-  | nil => simp [extractDHWord, findFirstWord, tableRep]
+  | nil => simp [extractDHWord, List.findSomeM?_nil, tableRep]
   | cons e rest ih =>
     obtain ⟨l, k⟩ := e
     cases l with
     | inl z =>
       by_cases hz : z = y • cStar <;>
-        simp [extractDHWord, findFirstWord, extractSelectWord, tableRep, ddhOraclePred_encode,
-          hz, ProbComp.eval_map, ← ih]
+        simp [extractDHWord, List.findSomeM?_cons, extractSelectWord, tableRep,
+          ddhOraclePred_encode, hz, ProbComp.eval_map, ← ih]
     | inr c =>
-      simpa [extractDHWord, findFirstWord, extractSelectWord, tableRep] using ih
+      simpa [extractDHWord, List.findSomeM?_cons, extractSelectWord, tableRep] using ih
 
 /-! ### Saved-coin replay equalities and Theorem 12.22 -/
 
@@ -462,17 +463,6 @@ private theorem replay_runWith_eq (keyLen : ℕ → ℕ)
     ← F.run_runCoins_routeToTypedQuery d rep handler' handler hstep machine _ _ s, PMF.map_comp]
   rfl
 
-private theorem run_interpret_lift_pure {Query α σ : Type} {spec : Query → Type}
-    (f : (q : Query) → spec q) (program : OracleComp spec α) (s : σ) :
-    ((OracleComp.interpret (fun q => StateT.lift (PMF.pure (f q))) program).run s) =
-      (OracleComp.interpret (fun q => PMF.pure (f q)) program).map (·, s) := by
-  induction program using OracleComp.induction generalizing s with
-  | pure a => simp [Probability.PMF.monad_pure_eq_pure]
-  | query_bind q cont ih =>
-    rw [PFunctor.FreeM.bind_eq_bind, OracleComp.run_interpret_bind, OracleComp.interpret_bind,
-      OracleComp.run_interpret_query, OracleComp.interpret_query]
-    simp [StateT.lift, Probability.PMF.monad_bind_eq_bind, Probability.PMF.monad_pure_eq_pure, ih]
-
 private theorem dhKEMCCAWordGameAt_eq_savedCoin (keyLen : ℕ → ℕ)
     {adversary : ℕ → List Bool → WordOracleComp DHKEMOp Bool}
     {k : ℕ} {Control : Type} (machine : _root_.Turing.MultiTapePTM k Bool Control DHKEMOp)
@@ -516,12 +506,12 @@ private theorem dhKEMCCAWordGameAt_eq_savedCoin (keyLen : ℕ → ℕ)
         (PMF.pure (F.toPrimeOrderGroupFamily.dhKEMAnswer d H x (y • F.generator d) q)))
       (fun req st => PMF.pure (F.dhKEMCCAWordAnswer d H x (F.encode d (y • F.generator d)) req, st))
       (fun op w s => by
-        rw [run_interpret_lift_pure, F.interpret_routeToTypedQuery_dhKEMAnswer d H x y op w,
-          PMF.pure_map, PMF.pure_map]
+        rw [OracleComp.run_interpret_lift, PMF.monad_map_eq_map,
+          F.interpret_routeToTypedQuery_dhKEMAnswer d H x y op w, PMF.pure_map, PMF.pure_map]
         rfl) ()
     rw [hrep, PMF.map_bind]
     refine congrArg (PMF.bind _) (funext fun coins => ?_)
-    rw [run_interpret_lift_pure, PMF.map_comp, PMF.map_comp]
+    rw [OracleComp.run_interpret_lift, PMF.monad_map_eq_map, PMF.map_comp, PMF.map_comp]
     have hid : ((Prod.fst ∘ fun p : Bool × Unit => (p.1, id p.2)) ∘ fun b : Bool => (b, ())) =
         id := rfl
     rw [hid, PMF.map_id]

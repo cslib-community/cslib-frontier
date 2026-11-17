@@ -890,7 +890,8 @@ private theorem ccaAt_bound (sampleKey : ProbComp K) (adversary : F.DHKEMAdversa
   exact ⟨h1.trans (add_le_add le_rfl hbad), h2.trans (add_le_add le_rfl hbad)⟩
 
 /-- Concrete per-group step of [KatzLindell2020], Theorem 12.22 (p. 435); the asymptotic theorem
-is `Cslib.Crypto.DecodablePrimeOrderGroupFamily.GapCDH.dhKEMROMINDCCA` (`GapCDH/Decodable.lean`).
+is `Cslib.Crypto.DecodablePrimeOrderGroupFamily.GapCDH.dhKEMROMINDCCA`
+(`CslibFrontier/Crypto/Computational/DiffieHellman/GapCDH/Decodable.lean`).
 The CCA advantage of every adversary against the random-oracle Diffie–Hellman KEM
 (Construction 12.19) is at most the success probability of the gap-CDH adversary `dhKEMToGapCDH`
 built from it. -/
