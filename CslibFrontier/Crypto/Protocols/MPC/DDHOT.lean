@@ -722,6 +722,14 @@ When `g` generates `G`, `k • g` and `c • g` are uniform elements of `G`, as 
     let c ← ProbComp.uniform (ZMod q)
     return ddhOTReceiverSimWithCoins g a b r s k c xI yI
 
+/-- Moving two outer binds over `p` inside three inner binds over `p`. -/
+private theorem bind_two_three_comm {α β : Type} (p : PMF α) (f : α → α → α → α → α → PMF β) :
+    p.bind (fun x₁ => p.bind (fun x₂ => p.bind (fun y₁ => p.bind (fun y₂ => p.bind (fun y₃ =>
+      f x₁ x₂ y₁ y₂ y₃))))) =
+    p.bind (fun y₁ => p.bind (fun y₂ => p.bind (fun y₃ => p.bind (fun x₁ => p.bind (fun x₂ =>
+      f x₁ x₂ y₁ y₂ y₃))))) := by
+  pmf_swap
+
 omit [DecidableEq G] in
 /-- When `g` generates `G`, the ideal execution for a corrupted receiver is the random DDH world
 `Cslib.Crypto.ddhRandomExperiment q g` run on `ddhOTReduction`. -/
@@ -733,42 +741,24 @@ theorem ideal_receiver_eq_ddhRandomExperiment (g : G) (q : ℕ) [NeZero q] [Modu
       ((i : Fin 2) → OTOut G i) → ProbComp Bool) :
     ProbComp.eval (idealJoint (otFunctionality G) {1} (ddhOTReceiverSim g q) x >>= D) =
       ProbComp.eval (ddhRandomExperiment q g (ddhOTReduction g q x D)) := by
-  simp only [pmf_norm, idealJoint, otFunctionality, Functionality.ofDeterministic, ddhOTReceiverSim,
+  simp only [idealJoint, otFunctionality, Functionality.ofDeterministic, ddhOTReceiverSim,
     ddhOTReceiverSimWithCoins, ddhRandomExperiment, ddhOTReduction, ddhOTReductionWithCoins,
-    ProbComp.eval_uniform]
-  dsimp only [Finset.restrict]
-  congr 1 with a : 1
+    ProbComp.eval_bind, ProbComp.eval_pure, ProbComp.eval_uniform, PMF.pure_bind, PMF.bind_bind]
+  refine congrArg (PMF.bind _) (funext fun a => ?_)
+  conv_rhs => rw [bind_two_three_comm]
+  refine congrArg (PMF.bind _) (funext fun b =>
+    congrArg (PMF.bind _) (funext fun r =>
+      congrArg (PMF.bind _) (funext fun s =>
+        congrArg (PMF.bind _) (funext fun k => ?_))))
+  have hshift : ∀ (c : ZMod q) (m : G), c • g - b • k • g + m = c • g + (m - b • k • g) :=
+    fun c m => by abel
+  simp_rw [hshift]
   let σ : Bool := x 1
-  let m : G × G := x 0
-  let body (b r s k c : ZMod q) : PMF Bool :=
-    ProbComp.eval (D (singletonView (ddhOTReceiverView σ b (a • g)
-      (if σ then ((k • g, c • g - b • k • g + if σ then m.1 else m.2),
-        (r • g + s • (a • g), b • (r • g + s • (a • g)) + if σ then m.2 else m.1))
-       else ((r • g + s • (a • g), b • (r • g + s • (a • g)) + if σ then m.2 else m.1),
-        (k • g, c • g - b • k • g + if σ then m.1 else m.2)))),
-      otOutputs x))
-  trans (PMF.uniformOfFintype (ZMod q)).bind fun b =>
-    (PMF.uniformOfFintype (ZMod q)).bind fun r =>
-      (PMF.uniformOfFintype (ZMod q)).bind fun s =>
-        (PMF.uniformOfFintype (ZMod q)).bind fun k =>
-          (PMF.uniformOfFintype (ZMod q)).bind fun c => body b r s k c
-  · congr 1 with b : 1; congr 1 with r : 1; congr 1 with s : 1; congr 1 with k : 1
-    dsimp only [body]
-    have hshift (c : ZMod q) (y : G) : c • g - b • k • g + y = c • g + (y - b • k • g) := by abel
-    simp_rw [hshift]
-    exact (uniformOfFintype_bind_smul_add hgen ((if σ then m.1 else m.2) - b • k • g) fun w =>
-      ProbComp.eval (D (singletonView (ddhOTReceiverView σ b (a • g)
-        (if σ then ((k • g, w), (r • g + s • (a • g),
-          b • (r • g + s • (a • g)) + if σ then m.2 else m.1))
-         else ((r • g + s • (a • g),
-          b • (r • g + s • (a • g)) + if σ then m.2 else m.1), (k • g, w)))),
-        otOutputs x))).symm
-  · change _ = (PMF.uniformOfFintype (ZMod q)).bind fun k =>
-      (PMF.uniformOfFintype (ZMod q)).bind fun c =>
-        (PMF.uniformOfFintype (ZMod q)).bind fun b =>
-          (PMF.uniformOfFintype (ZMod q)).bind fun r =>
-            (PMF.uniformOfFintype (ZMod q)).bind fun s => body b r s k c
-    pmf_swap
+  let e_σ := r • g + s • (a • g)
+  let c_σ := b • e_σ + if σ then (x 0).2 else (x 0).1
+  exact (uniformOfFintype_bind_smul_add hgen ((if σ then (x 0).1 else (x 0).2) - b • k • g)
+    fun w => ProbComp.eval (D (singletonView (ddhOTReceiverView σ b (a • g)
+      (if σ then ((k • g, w), (e_σ, c_σ)) else ((e_σ, c_σ), (k • g, w)))), otOutputs x))).symm
 
 /-- **Privacy against a corrupted receiver, as a per-instance equality**: for a fixed group, input
 and distinguisher, the distinguisher's advantage between the ideal joint distribution with

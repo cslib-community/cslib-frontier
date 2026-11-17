@@ -471,6 +471,8 @@ theorem map_sign_eq_uniform [Fintype Y] [Nonempty Y] (hash : K → M → Y) (k :
     (PMF.uniformOfFintype Y).map (sign hash k · m) = PMF.uniformOfFintype Y :=
   PMF.uniformOfFintype_map_add_left (hash k m)
 
+/-- Under a uniform pad `r ← PMF.uniformOfFintype Y`, any fixed `(m, t)` verifies with probability
+`(Fintype.card Y : ℝ≥0∞)⁻¹`. -/
 private theorem uniform_bind_verify_apply_true [Fintype Y] [Nonempty Y] [DecidableEq Y]
     (hash : K → M → Y) (k : K) (m : M) (t : Y) :
     ((PMF.uniformOfFintype Y).bind fun r => PMF.pure (verify hash k r m t)) true =
