@@ -378,7 +378,7 @@ theorem test_seedRep_one :
     unfold epochHdrWords
     omega
   unfold testOneMem
-  split_ifs with h1 h2 h3 h4 h4_2 h5 <;> try omega
+  split_ifs with h1 h2 h3 h4 h4_2 h5 <;> omega
 
 theorem test_hashRep_one :
     ReducedKWise.Rep (0 + epochHdrWords) 64 (qBits 2 1) (hashB 1) (totalMicroBits 1) 3

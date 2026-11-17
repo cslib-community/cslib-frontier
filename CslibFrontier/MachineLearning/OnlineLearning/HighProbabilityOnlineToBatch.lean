@@ -93,7 +93,7 @@ theorem hasSubgaussianMGF_sum_integral_sub {f : Fin T → (Fin T → Z) → Z �
       rw [integral_sub (integrable_const _) (hint t S)]
       simp)
     (fun t S => ⟨∫ z, f t S z ∂D - b, fun z => by
-      simp only [hfresh t t le_rfl, Function.update_self, coe_nnnorm, Real.norm_eq_abs]
+      simp only [hfresh t t le_rfl, Function.update_self, coe_nnNorm, Real.norm_eq_abs]
       constructor
       · linarith [(hab t S z).2]
       · linarith [(hab t S z).1, le_abs_self (b - a)]⟩)

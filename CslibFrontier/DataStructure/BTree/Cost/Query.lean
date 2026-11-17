@@ -60,6 +60,8 @@ open Cslib.Algorithms.Lean.TimeM (tick)
 
 namespace Cslib.DataStructure.BTree
 
+open Cslib.SortedAssoc (leI)
+
 section NodeVisits
 
 variable {α β : Type} {tr : BTree α β}
