@@ -46,12 +46,13 @@ Remark 12.3, printed pp. 488–493][BonehShoup2023].
 We first prove the concrete and asymptotic 1CCA bounds for the **ideal exact-uniform PMF** games
 (`cramerShoupMsgCCA2Game`, `cramerShoupADGroupCCA2Game`, `cramerShoupADGroupIdealINDCCA2`,
 `cramerShoupGroupCCA2Game`, `cramerShoupGroupIdealINDCCA2`, `cramerShoupADCCA2Game`,
-`cramerShoupADIdealINDCCA2`, `cramerShoupCCA2Game`), in which key and challenge exponents are
-drawn from `PMF.uniformOfFintype (ZMod (F.order d))` and the `42 / 2 ^ n` dyadic loss arises solely
-from the `sampleModNat` exponent draws inside the strict-PPT DDH and CRHF reductions. These
-ideal-sampling results (`DDH.cramerShoupMsgIdealINDCCA2` and its three specializations) are steps,
-not the cited result. We then bridge these ideal games to the library's **native strict-PPT PKE
-1CCA notions** (`Encryption.cca2ADGameOn`, `Encryption.INDCCA2ADOn`, `Encryption.cca2GameOn`, and
+`cramerShoupCCA2Game`), in which key and challenge exponents are drawn from
+`PMF.uniformOfFintype (ZMod (F.order d))` and the `42 / 2 ^ n` dyadic loss arises solely from the
+`sampleModNat` exponent draws inside the strict-PPT DDH and CRHF reductions. These
+ideal-sampling results (`DDH.cramerShoupMsgIdealINDCCA2` and its two group-element
+specializations) are steps, not the cited result. We then bridge these ideal games to the
+library's **native strict-PPT PKE 1CCA notions** (`Encryption.cca2ADGameOn`,
+`Encryption.INDCCA2ADOn`, `Encryption.cca2GameOn`, and
 `Encryption.INDCCA2On`) via `advantage_cca2ADGameOn_cramerShoupADGroupCCA2Game_le` and
 `advantage_cca2GameOn_cramerShoupGroupCCA2Game_le` (which account for the additional `8 / 2 ^ n`
 per-bit `sampleModNat` approximation loss of `cramerShoupKeyGenProb`, `cramerShoupADEncryptProb`,
@@ -137,10 +138,10 @@ Verbatim from [BonehShoup2023], Exercise 12.27 (printed pp. 521–522):
   full challenge pair $((\hat{v}, \hat{w}, \hat{e}, \hat{z}'), \hat{d}) = ((v, w, e, z'), d)$).
 * **Ideal exact-uniform PMF games vs. native `Encryption.INDCCA2ADOn` / `Encryption.INDCCA2On`**:
   `cramerShoupMsgCCA2Game`, `cramerShoupADGroupCCA2Game`, `cramerShoupADGroupIdealINDCCA2`,
-  `cramerShoupGroupCCA2Game`, `cramerShoupGroupIdealINDCCA2`, `cramerShoupADCCA2Game`,
-  `cramerShoupADIdealINDCCA2` and `cramerShoupCCA2Game` are **ideal exact-uniform PMF** 1CCA
-  experiments and security definitions, in which the challenger samples exponents from
-  `PMF.uniformOfFintype (ZMod (F.order d))`. In `advantage_cramerShoupADGroupCCA2Game_le` and
+  `cramerShoupGroupCCA2Game`, `cramerShoupGroupIdealINDCCA2`, `cramerShoupADCCA2Game` and
+  `cramerShoupCCA2Game` are **ideal exact-uniform PMF** 1CCA experiments and security definitions,
+  in which the challenger samples exponents from `PMF.uniformOfFintype (ZMod (F.order d))`. In
+  `advantage_cramerShoupADGroupCCA2Game_le` and
   `advantage_cramerShoupGroupCCA2Game_le` (original quantitative adaptations of `(12.19)` to
   $\mathcal{E}_{\mathrm{MCS}}$ in the uniform strict-PPT model), the two fixed-bit DDH
   distinguishers and two fixed-bit collision finders contribute `42 / 2 ^ n` from their internal
@@ -292,17 +293,6 @@ noncomputable abbrev cramerShoupADCCA2Game
     (bit : Bool) (n : ℕ) : Game :=
   F.cramerShoupMsgCCA2Game true (fun p => F.encodeBit p.1 p.2) (fun p => encAD p.2)
     setup H isElem adversary bit n
-
-/-- Ideal exact-uniform PMF single-challenge 1CCA security with associated data of Multiplicative
-Cramer–Shoup over single-bit messages (`ADCCA2Adversary AD`). -/
-def cramerShoupADIdealINDCCA2
-    {AD : Type} (encAD : AD ↪ List Bool)
-    (setup : ℕ → PMF F.Desc) (H : F.Desc × List Bool → List Bool)
-    (isElem : F.Desc × List Bool → Bool) : Prop :=
-  Game.Indistinguishable
-    (fun adversary n => F.cramerShoupADCCA2Game encAD setup H isElem adversary false n)
-    (fun adversary n => F.cramerShoupADCCA2Game encAD setup H isElem adversary true n)
-    (ADCCA2Adversary.IsPPT encAD)
 
 /-- The **ideal exact-uniform PMF** single-challenge 1CCA experiment for Multiplicative Cramer–Shoup
 over single-bit messages (`Msg = Bool`, embedded into `F.Carrier d` via `F.encodeBit`,
@@ -1092,37 +1082,6 @@ theorem DDH.cramerShoupGroupIdealINDCCA2
     hH hisElem hmem hCR hm0 hm hinv hdesc
   intro adversary hA
   exact h adversary.toADUnit hA.toADUnit
-
-/-- Ideal-sampling result for single-bit messages with associated data, not the cited result:
-Multiplicative Cramer–Shoup with bit embedding `encodeBit` satisfies the ideal exact-uniform PMF
-1CCA notion `cramerShoupADIdealINDCCA2` under DDH, collision resistance of `cramerShoupHashMod H`,
-a positive group-order lower bound `m n > 0` with `1 / m n` negligible, and polynomially bounded
-group description bit-length, for an arbitrary setup law. No native strict-PPT bit-message theorem
-is proved; the native theorems take group-element messages. -/
-theorem DDH.cramerShoupADIdealINDCCA2
-    {F : PrimeOrderGroupFamily}
-    {AD : Type} (encAD : AD ↪ List Bool)
-    {setup : ℕ → PMF F.Desc}
-    {H : F.Desc × List Bool → List Bool}
-    {isElem : F.Desc × List Bool → Bool}
-    (hH : ComputableInPolyTime H (encPair F.encDesc encBits) encBits)
-    (hisElem : ComputableInPolyTime isElem (encPair F.encDesc encBits) encBool)
-    (hmem : ∀ d x, isElem (d, x) = true ↔ x ∈ Set.range (F.encode d))
-    (hDDH : F.DDH setup)
-    (hCR : CollisionResistantFor F.encDesc setup (F.cramerShoupHashMod H))
-    {m : ℕ → ℕ} (hm0 : ∀ n, 0 < m n)
-    (hm : ∀ n, ∀ d ∈ (setup n).support, m n ≤ F.order d)
-    (hinv : Negligible fun n => (1 / m n : ℝ≥0))
-    (hdesc : ∃ c k : ℕ, ∀ n, ∀ d ∈ (setup n).support,
-      (F.encDesc d).length ≤ c * (n + 1) ^ k) :
-    F.cramerShoupADIdealINDCCA2 encAD setup H isElem := by
-  have h := hDDH.cramerShoupMsgIdealINDCCA2 true (encodeAD := fun p => encAD p.2)
-    F.computableInPolyTime_encodeBit
-    (.of_tidy ((ComputableTidilyInPolyTime.encode encAD).comp
-      (ComputableTidilyInPolyTime.snd F.encDesc encAD)))
-    hH hisElem hmem hCR hm0 hm hinv hdesc
-  exact h
-
 
 /-! ### `Encryption.cca2ADGameOn`, `Encryption.INDCCA2ADOn`, `Encryption.cca2GameOn`, and
 `Encryption.INDCCA2On` instantiations -/
