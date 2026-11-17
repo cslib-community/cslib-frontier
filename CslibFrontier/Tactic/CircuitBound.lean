@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Tactic.CircuitBound.Init
 public import Mathlib.Algebra.Order.BigOperators.Group.Finset
+public meta import Lean.Elab.Tactic.Simp
 
 /-!
 # Bounding a quantity by the structure of a term
@@ -324,9 +325,13 @@ the bound with `b` by `omega`.
 
 When it fails, the error shows the comparison `omega` could not prove, the sub-terms for which a
 bound was expected but none is registered or assumed, and the families whose bound depends on the
-index. `set_option trace.circuit_bound true` shows the bounds it used. A product of two variables
-in the bound is beyond `omega`: state the structural bound as a `have` and finish by hand. For an
-equation `m = b` use `simp only [circuit_simps, …]`. -/
+index. `set_option trace.circuit_bound true` shows the bounds it used.
+
+Use `grw [Circuit.depth_comp_le, h]` instead when one step is wanted inside a larger inequality,
+when the goal is not of the form `m ≤ b`, or when the arithmetic that remains is not linear (a
+product of two variables is beyond `omega`); a structural bound stated as a `have` and proved by
+`circuit_bound` also serves the last case. For an equation `m = b` use
+`simp only [circuit_simps, …]`. -/
 syntax (name := circuitBound) "circuit_bound" (" [" Parser.Tactic.simpLemma,* "]")? : tactic
 
 /-- Elaborate `circuit_bound`: bound the left-hand side, then compare with `omega`. -/

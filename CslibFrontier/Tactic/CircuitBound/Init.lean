@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public meta import Lean.Elab.Tactic
+public meta import Lean.Meta.Tactic.Simp.RegisterCommand
 
 /-!
 # The attribute `circuit_bound`
