@@ -2,6 +2,7 @@
 
 import contextlib
 import copy
+import gzip
 import io
 import json
 import os
@@ -184,6 +185,29 @@ class HandoffTests(unittest.TestCase):
         (self.root / "lean-toolchain").write_text("changed")
         with self.assertRaises(handoff.Rejected):
             self.pack()
+        self.assertFalse((self.base / "outputs").exists())
+
+    @unittest.skipUnless(shutil.which("pigz"), "parallel gzip is optional")
+    def test_parallel_and_fallback_compression_write_the_same_tar(self):
+        with patch.object(handoff.shutil, "which", return_value=None):
+            self.pack()
+        with gzip.open(self.output / "build.tar.gz", "rb") as archive:
+            expected = archive.read()
+        self.output = self.base / "parallel"
+        self.pack()
+        with gzip.open(self.output / "build.tar.gz", "rb") as archive:
+            self.assertEqual(archive.read(), expected)
+        self.restore()
+
+    def test_failed_compressor_never_advertises_partial_output(self):
+        compressor = self.base / "bad-compressor"
+        compressor.write_text("#!/bin/sh\ncat >/dev/null\nexit 23\n")
+        compressor.chmod(0o755)
+        with patch.object(handoff.shutil, "which", return_value=str(compressor)), \
+                self.assertRaises(subprocess.CalledProcessError) as failed:
+            self.pack()
+        self.assertEqual(failed.exception.returncode, 23)
+        self.assertFalse(self.output.exists())
         self.assertFalse((self.base / "outputs").exists())
 
     def test_kill_switch_disables_restore_before_contacting_api(self):

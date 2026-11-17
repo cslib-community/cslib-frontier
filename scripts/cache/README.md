@@ -170,7 +170,8 @@ A missing artifact, a rerun
 still in progress, a changed commit or incompatible metadata leaves the normal build in place.
 It never waits for another run to finish and does not reuse artifacts from pull-request runs.
 
-`scripts/cache_handoff.py` creates a compressed archive with its digest and provenance, validates
+`scripts/cache_handoff.py` writes a gzip-compressed tar archive with four pigz workers when
+available and Python gzip otherwise. It records the archive digest and provenance, validates
 the complete archive before restoration, and swaps the root build directory without modifying
 existing hard-linked cache objects. Merge groups do not publish to GCS: the normal successful
 `main` run remains the only public-cache writer. This makes its outputs available sooner to

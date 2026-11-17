@@ -17,6 +17,7 @@ Lake's transient module setup inputs are omitted; compilation recreates them whe
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
 import hashlib
 import json
 import os
@@ -208,6 +209,27 @@ def module_setup_input(path: Path) -> bool:
             and path.name.endswith((".setup.json", ".irsetup.json")))
 
 
+@contextmanager
+def gzip_bundle(archive: Path):
+    """Stream the existing tar format through up to four compression workers where available."""
+    pigz = shutil.which("pigz")
+    if not pigz:
+        print("Handoff compression: Python gzip, level 1", flush=True)
+        with tarfile.open(archive, "w:gz", compresslevel=1) as bundle:
+            yield bundle
+        return
+    print("Handoff compression: pigz, level 1, four workers", flush=True)
+    with archive.open("wb") as output, subprocess.Popen(
+            [pigz, "-n", "-1", "-p", "4", "-c"], stdin=subprocess.PIPE, stdout=output,
+            env={**os.environ, "PIGZ": "", "GZIP": ""}) as compressor:
+        with compressor.stdin as stream:
+            with tarfile.open(fileobj=stream, mode="w|", bufsize=128 * 1024) as bundle:
+                yield bundle
+        status = compressor.wait()
+        if status:
+            raise subprocess.CalledProcessError(status, compressor.args)
+
+
 def pack(root: Path, output: Path, env: dict) -> str:
     context = source_context(root, env, "merge_group")
     run_id, attempt = (int(env.get(key, "0")) for key in ("GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT"))
@@ -241,7 +263,7 @@ def pack(root: Path, output: Path, env: dict) -> str:
     with tempfile.TemporaryDirectory(prefix="lean-handoff-pack-", dir=output.parent) as temp:
         stage = Path(temp)
         archive = stage / "build.tar.gz"
-        with tarfile.open(archive, "w:gz", compresslevel=1) as bundle:
+        with gzip_bundle(archive) as bundle:
             for path, info in files:
                 # Write every regular file's bytes, including hardlinks to Lake's artifact
                 # cache. The archive must not contain links into another checkout/cache.
