@@ -1423,8 +1423,8 @@ theorem exists_correlatedAgreement_curve_unique {α : ι → F} {e k d : ℕ}
       have hu_eq : u j = ∑ z ∈ T, ((Lagrange.basis T id z).coeff (j : ℕ)) •
           (∑ j' : Fin (d + 1), z ^ (j' : ℕ) • u j') := by
         ext i
-        let qi : F[X] := ∑ z ∈ T, C ((∑ j' : Fin (d + 1), z ^ (j' : ℕ) • u j') i) *
-          Lagrange.basis T id z
+        let qi : F[X] :=
+          Lagrange.interpolate T id (fun z => (∑ j' : Fin (d + 1), z ^ (j' : ℕ) • u j') i)
         have hpq : curveCoordPoly u i = qi := by
           refine sub_eq_zero.1 (eq_zero_of_degree_lt_of_eval_finset_eq_zero T ?_ ?_)
           · refine (degree_sub_le _ _).trans_lt (max_lt ?_ ?_)
@@ -1432,30 +1432,15 @@ theorem exists_correlatedAgreement_curve_unique {α : ι → F} {e k d : ℕ}
               · rw [hp0, degree_zero]; exact WithBot.bot_lt_coe _
               · rw [degree_eq_natDegree hp0, hT_card, Nat.cast_lt]
                 exact Nat.lt_succ_of_le (natDegree_curveCoordPoly_le u i)
-            · refine (degree_sum_le _ _).trans_lt ?_
-              rw [Finset.sup_lt_iff (WithBot.bot_lt_coe _)]
-              intro z hz
-              refine (degree_mul_le _ _).trans_lt ?_
-              refine (add_le_add degree_C_le le_rfl).trans_lt ?_
-              rw [zero_add, Lagrange.degree_basis (Function.injective_id.injOn) hz, hT_card]
-              exact Nat.cast_lt.2 (by omega)
+            · exact Lagrange.degree_interpolate_lt _ Function.injective_id.injOn
           · intro z hz
             rw [eval_sub, eval_curveCoordPoly]
-            have hqi : qi.eval z = (∑ j' : Fin (d + 1), z ^ (j' : ℕ) • u j') i := by
-              simp only [qi, eval_finsetSum, eval_mul, eval_C]
-              rw [Finset.sum_eq_single z]
-              · have hb : (Lagrange.basis T id z).eval z = 1 :=
-                  Lagrange.eval_basis_self (Function.injective_id.injOn) hz
-                rw [hb, mul_one]
-              · intro z' _ hne
-                have hb : (Lagrange.basis T id z').eval z = 0 :=
-                  Lagrange.eval_basis_of_ne (v := id) hne hz
-                rw [hb, mul_zero]
-              · intro hnz; exact absurd hz hnz
+            have hqi : qi.eval z = (∑ j' : Fin (d + 1), z ^ (j' : ℕ) • u j') i :=
+              Lagrange.eval_interpolate_at_node _ Function.injective_id.injOn hz
             rw [hqi, sub_self]
         have hcoeff := congrArg (fun p : F[X] => p.coeff (j : ℕ)) hpq
         rw [coeff_curveCoordPoly] at hcoeff
-        simp only [qi, finsetSum_coeff, coeff_C_mul] at hcoeff
+        simp only [qi, Lagrange.interpolate_apply, finsetSum_coeff, coeff_C_mul] at hcoeff
         simp only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul] at hcoeff ⊢
         rw [hcoeff]
         exact Finset.sum_congr rfl fun z _ => mul_comm _ _
