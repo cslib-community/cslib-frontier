@@ -37,7 +37,10 @@ noncomputable def argumentOrbitPositiveEquiv (F : CSP Rel V) :
   toFun := Quotient.lift (fun o => ⟨o.1, Nat.zero_lt_of_lt o.2.isLt⟩)
     (fun _ _ h => Subtype.ext ((sameCycle_argumentPermutation _ _).mp h))
   invFun i := Quotient.mk _ ⟨i.val, ⟨0, i.property⟩⟩
-  left_inv := Quotient.ind fun _ => Quotient.sound ((sameCycle_argumentPermutation _ _).mpr rfl)
+  left_inv := by
+    intro z
+    induction z using Quotient.inductionOn with
+    | h o => exact Quotient.sound ((sameCycle_argumentPermutation _ _).mpr rfl)
   right_inv _ := rfl
 
 /-- Complete face decomposition, with no positivity premise on the original CSP. -/
@@ -66,15 +69,6 @@ theorem polygonFacePositiveEquiv_white (r : Graph.RotationSystem (incidenceGraph
   rw [polygonFaceOrbitEquiv_white]
   exact congrArg Sum.inr
     ((Equiv.symm_apply_eq _).mpr (incidenceFaceOrbitEquiv_mk_false r hOrder o).symm)
-
-/-- An edge always separates a black face from a distinct white face, regardless of nullaries. -/
-theorem polygon_edge_faces_distinct_of_occurrence
-    (r : Graph.RotationSystem (incidenceGraph F)) (hOrder : RespectsArgumentOrder r)
-    (o : F.Occurrence) :
-    (Quotient.mk _ (polygonDart o false) : (polygonRotation r).Face) ≠
-      Quotient.mk _ (polygonDart o true) := by
-  have _ := hOrder
-  exact polygonFaceOrbit_edge_distinct r o
 
 private theorem positive_of_sameComponent (root : ℕ) (hr : root < F.numVars)
     (i : Fin F.length) (hi : SameComponent (incidenceGraph F) root (F.numVars + i.val)) :

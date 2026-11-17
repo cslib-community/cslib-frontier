@@ -146,19 +146,6 @@ theorem polygonFaceOrbitEquiv_white (r : Graph.RotationSystem (incidenceGraph F)
       .inr (Quotient.mk _ o) :=
   (polygonFaceOrbitEquiv r).eq_symm_apply.mp rfl
 
-/-- Each edge separates two distinct polygon faces, even for a listed loop and without
-positivity or argument-order hypotheses. -/
-theorem polygonFaceOrbit_edge_distinct (r : Graph.RotationSystem (incidenceGraph F))
-    (o : F.Occurrence) :
-    (Quotient.mk _ (polygonDart o false) : (polygonRotation r).Face) ≠
-      Quotient.mk _ (polygonDart o true) := by
-  have hw := polygonFaceOrbitEquiv_white r (argumentPermutation F o)
-  rw [Equiv.symm_apply_apply] at hw
-  intro h
-  have he := congrArg (polygonFaceOrbitEquiv r) h
-  rw [polygonFaceOrbitEquiv_black, hw] at he
-  cases he
-
 /-- Every positive constraint position, including duplicate constraint records, has exactly
 one scope orbit. Nullary constraints are explicitly excluded by the hypothesis. -/
 noncomputable def argumentOrbitEquiv (F : CSP Rel V)
@@ -166,7 +153,10 @@ noncomputable def argumentOrbitEquiv (F : CSP Rel V)
     Quotient (Equiv.Perm.SameCycle.setoid (argumentPermutation F)) ≃ Fin F.length where
   toFun := Quotient.lift Sigma.fst (fun _ _ h => sameCycle_argumentPermutation _ _ |>.mp h)
   invFun i := Quotient.mk _ ⟨i, ⟨0, hPos i⟩⟩
-  left_inv := Quotient.ind fun _ => Quotient.sound ((sameCycle_argumentPermutation _ _).mpr rfl)
+  left_inv := by
+    intro z
+    induction z using Quotient.inductionOn with
+    | h o => exact Quotient.sound ((sameCycle_argumentPermutation _ _).mpr rfl)
   right_inv _ := rfl
 
 /-- Full face decomposition of the actual constructed rotation: one black face per indexed
@@ -210,13 +200,15 @@ theorem polygonFaceEquiv_white (r : Graph.RotationSystem (incidenceGraph F))
 
 /-- Each edge has distinct black and white incident faces, even for a listed loop. -/
 theorem polygon_edge_faces_distinct (r : Graph.RotationSystem (incidenceGraph F))
-    (hOrder : RespectsArgumentOrder r)
-    (hPos : ∀ i : Fin F.length, 0 < F[i.val].scope.length) (o : F.Occurrence) :
+    (o : F.Occurrence) :
     (Quotient.mk _ (polygonDart o false) : (polygonRotation r).Face) ≠
       Quotient.mk _ (polygonDart o true) := by
-  have _ := hOrder
-  have _ := hPos
-  exact polygonFaceOrbit_edge_distinct r o
+  have hw := polygonFaceOrbitEquiv_white r (argumentPermutation F o)
+  rw [Equiv.symm_apply_apply] at hw
+  intro h
+  have he := congrArg (polygonFaceOrbitEquiv r) h
+  rw [polygonFaceOrbitEquiv_black, hw] at he
+  cases he
 
 /-- The black face at an actual constraint position. Positive scopes provide its darts. -/
 @[expose] noncomputable def blackFace (r : Graph.RotationSystem (incidenceGraph F))
