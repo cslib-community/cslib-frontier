@@ -1940,6 +1940,7 @@ public import CslibFrontier.Computability.Complexity.Classes.BPP.Collapse
 public import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization
 public import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.CanonicalDerandomizer
 public import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.CircuitPRG
+public import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.GeneralTime
 public import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.Generator
 public import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.SeedEnumeration
 public import CslibFrontier.Computability.Complexity.Classes.BPP.KarpLipton
@@ -2509,6 +2510,8 @@ public import CslibFrontier.Computability.Complexity.Problems.CSP.Hardness
 public import CslibFrontier.Computability.Complexity.Problems.CSP.Horn
 public import CslibFrontier.Computability.Complexity.Problems.CSP.Incidence
 public import CslibFrontier.Computability.Complexity.Problems.CSP.Majority
+public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSAT
+public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSAT.Tractable
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.AdjacentIdentification
 public import CslibFrontier.Computability.Complexity.Problems.CSP.RotationSystem.AppendScope
@@ -2831,6 +2834,7 @@ public import CslibFrontier.Computability.Complexity.Problems.TSP
 public import CslibFrontier.Computability.Complexity.Problems.TSP.Approximation
 public import CslibFrontier.Computability.Complexity.Problems.TSP.Christofides
 public import CslibFrontier.Computability.Complexity.Problems.TSP.HeldKarp
+public import CslibFrontier.Computability.Complexity.Problems.TSP.Symmetric
 public import CslibFrontier.Computability.Complexity.Problems.Tautology
 public import CslibFrontier.Computability.Complexity.Problems.ThreeSAT
 public import CslibFrontier.Computability.Complexity.Problems.ThreeSAT.Collapse
@@ -4624,6 +4628,7 @@ public import CslibFrontier.Crypto.Computational.Falcon.BerExp
 public import CslibFrontier.Crypto.Computational.Falcon.BerExpLazy
 public import CslibFrontier.Crypto.Computational.Falcon.Verification
 public import CslibFrontier.Crypto.Computational.Falcon.VerificationFrontend
+public import CslibFrontier.Crypto.Computational.FarIndistinguishable
 public import CslibFrontier.Crypto.Computational.FlipHeadBit
 public import CslibFrontier.Crypto.Computational.ForgerBridge
 public import CslibFrontier.Crypto.Computational.FuzzyExtractor.Basic
