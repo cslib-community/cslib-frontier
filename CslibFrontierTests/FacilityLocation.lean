@@ -111,8 +111,8 @@ private theorem upperMedian_vec4 :
   rw [Fintype.upperMedian_def]
   exact orderStatistic_fin_eq (n := 3) 2 (by norm_num) (by decide)
     (sLt := {0, 1}) (sLe := {0, 1, 2})
-    (fun j => by fin_cases j <;> (simp; try norm_num))
-    (fun j => by fin_cases j <;> (simp; try norm_num))
+    (fun j => by fin_cases j <;> norm_num)
+    (fun j => by fin_cases j <;> norm_num)
     (by decide) (by decide)
 
 example :
@@ -159,8 +159,8 @@ theorem not_isStrategyProof_midpointMedian4 : ¬ midpointMedian4.IsStrategyProof
       (by decide) (by decide)
   have hx2 : Fintype.orderStatistic x 2 = 2 :=
     orderStatistic_fin_eq (n := 3) 2 rfl (by decide) (sLt := {0, 1}) (sLe := {0, 1, 2})
-      (fun j => by fin_cases j <;> (simp [x]; try norm_num))
-      (fun j => by fin_cases j <;> (simp [x]; try norm_num))
+      (fun j => by fin_cases j <;> norm_num [x])
+      (fun j => by fin_cases j <;> norm_num [x])
       (by decide) (by decide)
   let x' : Fin 4 → ℝ := Function.update x 1 0
   have hx'1 : Fintype.orderStatistic x' 1 = 0 :=
@@ -170,8 +170,8 @@ theorem not_isStrategyProof_midpointMedian4 : ¬ midpointMedian4.IsStrategyProof
   have hx'2 : Fintype.orderStatistic x' 2 = 2 :=
     orderStatistic_fin_eq (n := 3) 2 (by simp [x', x]) (by decide)
       (sLt := {0, 1}) (sLe := {0, 1, 2})
-      (fun j => by fin_cases j <;> (simp [x', x]; try norm_num))
-      (fun j => by fin_cases j <;> (simp [x', x]; try norm_num))
+      (fun j => by fin_cases j <;> norm_num [x', x])
+      (fun j => by fin_cases j <;> norm_num [x', x])
       (by decide) (by decide)
   have hle := hsp x 1 0
   change dist (x 1) ((Fintype.orderStatistic x 1 + Fintype.orderStatistic x 2) / 2) ≤

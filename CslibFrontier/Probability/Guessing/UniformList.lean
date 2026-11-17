@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Probability.BitString
+import CslibFrontier.Foundations.Data.BitString.WordsOfLength
 import CslibFrontier.Probability.Guessing.Leakage
 
 /-!
@@ -28,12 +29,6 @@ namespace Cslib.Probability.PMF
 
 open scoped ENNReal
 
-/-- Every word of length `n` is the list of some function `Fin n → Bool`. -/
-private theorem mem_image_ofFn {n : ℕ} {word : List Bool} (h : word.length = n) :
-    word ∈ (Finset.univ : Finset (Fin n → Bool)).image List.ofFn := by
-  subst h
-  exact Finset.mem_image.2 ⟨word.get, Finset.mem_univ _, List.ofFn_get word⟩
-
 /-- Guessing a uniform `n`-bit word `w` from a `d`-bit hint `hint w` succeeds with probability at
 most `2 ^ d / 2 ^ n` in `ℝ≥0∞`. -/
 theorem tsum_uniformList_mul_apply_le {n d : ℕ} (hint : List Bool → List Bool)
@@ -51,16 +46,13 @@ theorem tsum_uniformList_mul_apply_le {n d : ℕ} (hint : List Bool → List Boo
       simp only [hint', BitString.length_of_mem_support_uniformList hmem, ↓reduceIte]
   rw [hsum]
   refine (PMF.tsum_mul_apply_le_card_mul (BitString.uniformList n)
-    (BitString.uniformList_apply_le n) hint'
-    ((Finset.univ : Finset (Fin d → Bool)).image List.ofFn)
-    (fun w => ?_) guess).trans ?_
+    (BitString.uniformList_apply_le n) hint' (BitString.wordsOfLength d) (fun w => ?_)
+    guess).trans ?_
   · dsimp only [hint']
     split_ifs with hw
-    · exact mem_image_ofFn (hhint w hw)
-    · exact mem_image_ofFn List.length_replicate
-  · have hcard : ((Finset.univ : Finset (Fin d → Bool)).image List.ofFn).card ≤ 2 ^ d :=
-      Finset.card_image_le.trans (by simp)
-    gcongr
-    exact_mod_cast hcard
+    · exact BitString.mem_wordsOfLength.mpr (hhint w hw)
+    · exact BitString.mem_wordsOfLength.mpr List.length_replicate
+  · gcongr
+    exact_mod_cast (BitString.card_wordsOfLength d).le
 
 end Cslib.Probability.PMF

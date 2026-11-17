@@ -39,6 +39,18 @@ ORDER = [
       'transcripts', 'study-design']),
 ]
 FILES = ['index.md'] + [f'{section}/{name}.md' for section, names in ORDER for name in names] + ['model-map.md']
+# The reference chapters are frozen: nobody keeps them current, so nothing outside them may force an
+# edit to them. Entries are pages or directories relative to the manual root; the registries in
+# MAINTAINED stay current although they sit in a frozen directory.
+FROZEN = {'index.md', 'model-map.md', 'design-and-assurance', 'machines-and-classes',
+          'circuits-logic-and-other-models', 'programs-crypto-and-probability',
+          'algorithms-and-memory'}
+MAINTAINED = {'programs-crypto-and-probability/assumptions.md'}
+
+
+def frozen(relative):
+    """Whether the page at this path, relative to the manual root, is a frozen reference chapter."""
+    return relative not in MAINTAINED and (relative in FROZEN or relative.split('/')[0] in FROZEN)
 
 
 def run(args, **kwargs):
@@ -144,6 +156,10 @@ def transform(node, path, chapter_index=False, references=False):
                 return {'t': 'Link', 'c': [attr, transform(content, path, chapter_index, references), ['#doc-sources', title]]}
             if relative in FILES:
                 return {'t': 'Link', 'c': [attr, transform(content, path, chapter_index, references), ['#' + label(relative, parsed.fragment), title]]}
+            if frozen(path) and SOURCE_REVISION is not None and resolved.is_relative_to(ROOT.parent) \
+                    and resolved.relative_to(ROOT.parent).as_posix() not in SOURCE_PATHS:
+                # A frozen chapter may cite a file that has since moved or gone; print the text.
+                return {'t': 'Span', 'c': [['', [], []], transform(content, path, chapter_index, references)]}
             href = repository_link(resolved, parsed)
         return {'t': 'Link', 'c': [attr, transform(content, path, chapter_index, references), [href, title]]}
     if typ == 'Code':

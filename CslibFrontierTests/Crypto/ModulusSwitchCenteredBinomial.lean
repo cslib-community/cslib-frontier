@@ -152,11 +152,10 @@ private theorem witness_support :
   refine ⟨![![1]], hspos, ?_⟩
   refine ⟨![8], he, ?_⟩
   refine ⟨![![8]], ?_, rfl⟩
-  all_goals
-    rw [PMF.mem_support_pi_iff]
-    intro j
-    fin_cases j
-    exact he
+  rw [PMF.mem_support_pi_iff]
+  intro j
+  fin_cases j
+  exact he
 
 /-- The smallest family member has positive actual failure; negligibility is asymptotic. -/
 example : 0 < ((sampledView 8).toOuterMeasure failure).toReal := by

@@ -110,6 +110,14 @@ example (h : PolyTimeReducible encCNF encGraphIsomorphism SAT GraphIsomorphism) 
     ⟨GraphIsomorphism.mem_NP, CookLevin.SAT_npHard.trans h⟩ ▸
     PiP_subset_PH 2 (AM_subset_PiP_two GraphNonIsomorphism.mem_AM)
 
+/-- The draft's form of the collapse: under the same hypothesis, `GraphNonIsomorphism`, which is in
+`Π₂`, is also in `Σ₂` by the level-two equality. -/
+example (h : PolyTimeReducible encCNF encGraphIsomorphism SAT GraphIsomorphism) :
+    GraphNonIsomorphism ∈ SigmaP 2 encGraphIsomorphism :=
+  SigmaP_two_eq_PiP_two_of_npComplete_GraphIsomorphism
+    ⟨GraphIsomorphism.mem_NP, CookLevin.SAT_npHard.trans h⟩ ▸
+    AM_subset_PiP_two GraphNonIsomorphism.mem_AM
+
 /-- `IsArthurMerlinVerifier` and `IsArthurMerlinVerifierWithErrorExponent` reduce to `BPP`'s
 bounded-error and error-exponent predicates on `arthurMerlinSlice`. -/
 example : ∃ (p q : Polynomial ℕ) (V : _ × List Bool → Bool),

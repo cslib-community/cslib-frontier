@@ -170,20 +170,7 @@ private theorem poly_nodesWith {α : Type} {e : α ↪ List Bool}
     ComputableInPolyTime (fun a => nodes (F a) (p a)) e (encList encNodeCode) := by
   simpa only [Function.comp_def] using poly_nodes.comp (hF.prod hp)
 
-private theorem poly_takeWhileWith {α β : Type} {e : α ↪ List Bool}
-    {eb : β ↪ List Bool} {xs : α → List β} {pred : α → β → Bool}
-    (hx : ComputableInPolyTime xs e (encList eb))
-    (hp : ComputableInPolyTime (fun p : α × β => pred p.1 p.2) (encPair e eb) encBool) :
-    ComputableInPolyTime (fun a => (xs a).takeWhile (pred a)) e (encList eb) := by
-  have hn := NativeWalk.computableInPolyTime_findIdxWith (pred := fun a b => !(pred a b)) hx
-    (show ComputableInPolyTime (fun p : α × β => !(pred p.1 p.2))
-      (encPair e eb) encBool from by fun_prop)
-  simpa only [List.takeWhile_eq_take_findIdx_not] using
-    (show ComputableInPolyTime
-      (fun a => (xs a).take ((xs a).findIdx (fun b => !(pred a b)))) e (encList eb)
-      from by fun_prop)
-
-attribute [local fun_prop] poly_ancestryWith poly_nodesWith poly_takeWhileWith
+attribute [local fun_prop] poly_ancestryWith poly_nodesWith
 
 /-- Body and left ancestry are framed, followed by the right ancestry with unary timestamps. -/
 private abbrev encCommonArgs := encPair (encCSP encTable encNat)

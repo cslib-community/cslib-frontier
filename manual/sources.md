@@ -635,7 +635,7 @@ National Institute of Standards and Technology. *Secure Hash Standard*, Federal 
 <a id="fips202"></a>
 ## fips202
 
-National Institute of Standards and Technology. *SHA-3 Standard: Permutation-Based Hash and Extendable-Output Functions*, Federal Information Processing Standards Publication 202, 2015. https://doi.org/10.6028/NIST.FIPS.202 . Checked on 2026-11-13 against the published August 2015 PDF (SHA-256 `1592607831ff0908cc590632ce371c6c95e94025bb1a0c8ae90a4d0ec1ed025e`): Sections 3.1.2--3.1.3 give the bit-string/state correspondence, Sections 3.2--3.3 and Algorithms 1--7 give the five round maps and round function, Section 4 and Algorithm 8 give the permutation-backed sponge construction, Section 5.1 and Algorithm 9 give `pad10*1`, and Section 6.2 defines SHAKE128 as `KECCAK[256](M || 1111, d)` and SHAKE256 as `KECCAK[512](M || 1111, d)`. The official NIST [SHAKE128 0-bit](https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Standards-and-Guidelines/documents/examples/SHAKE128_Msg0.pdf), [SHAKE128 1600-bit](https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Standards-and-Guidelines/documents/examples/SHAKE128_Msg1600.pdf), [SHAKE256 0-bit](https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Standards-and-Guidelines/documents/examples/SHAKE256_Msg0.pdf) and [SHAKE256 1600-bit](https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Standards-and-Guidelines/documents/examples/SHAKE256_Msg1600.pdf) examples were checked with SHA-256 hashes `3013d904e0f6cebc8dad6393cbf3eed4d1a537b3b3dc5e7b48552ff597942974`, `437f905d9790ce7a18625b396ba57c6118bb46d1542ec3cf1d46faac23c261ef`, `d736c1a93eb6440e1e6b640402e31ea5258281b2b9237f84ea0ba4186518fc59` and `f4226f5c72914e5d2b331812c5973d8d685c8af1ccb97c2a3a2fd1c02fd173d1`. `CslibFrontier.Crypto.Primitives.Hash.Keccak` and `CslibFrontier.Crypto.Primitives.Hash.Keccak.SHAKE128` implement the byte-aligned executable functions and do not claim cryptographic security, constant-time execution, FIPS validation or a future FIPS 206 definition.
+National Institute of Standards and Technology. *SHA-3 Standard: Permutation-Based Hash and Extendable-Output Functions*, Federal Information Processing Standards Publication 202, 2015. https://doi.org/10.6028/NIST.FIPS.202 . Checked on 2026-11-13 against the published August 2015 PDF (SHA-256 `1592607831ff0908cc590632ce371c6c95e94025bb1a0c8ae90a4d0ec1ed025e`): Sections 3.1.2--3.1.3 give the bit-string/state correspondence, Sections 3.2--3.3 and Algorithms 1--7 give the five round maps and round function, Section 4 and Algorithm 8 give the permutation-backed sponge construction, Section 5.1 and Algorithm 9 give `pad10*1`, Section 6.1 defines SHA3-512 as `KECCAK[1024](M || 01, 512)`, and Section 6.2 defines SHAKE128 as `KECCAK[256](M || 1111, d)` and SHAKE256 as `KECCAK[512](M || 1111, d)`. The official NIST [SHA3-512 0-bit](https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Standards-and-Guidelines/documents/examples/SHA3-512_Msg0.pdf) and [SHA3-512 1600-bit](https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Standards-and-Guidelines/documents/examples/SHA3-512_1600.pdf) examples were checked on 2026-11-16 with SHA-256 hashes `6d0a6fecea7babaffe9f3b09058fdb1590576e52b9dbfe0a637705db6f7de248` and `2f5f6ca71c3bd7bf3e99d142f7c4035b1e3fea95d7fc7e7a79a38ce995388211`. The official NIST [SHAKE128 0-bit](https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Standards-and-Guidelines/documents/examples/SHAKE128_Msg0.pdf), [SHAKE128 1600-bit](https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Standards-and-Guidelines/documents/examples/SHAKE128_Msg1600.pdf), [SHAKE256 0-bit](https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Standards-and-Guidelines/documents/examples/SHAKE256_Msg0.pdf) and [SHAKE256 1600-bit](https://csrc.nist.gov/CSRC/media/Projects/Cryptographic-Standards-and-Guidelines/documents/examples/SHAKE256_Msg1600.pdf) examples were checked with SHA-256 hashes `3013d904e0f6cebc8dad6393cbf3eed4d1a537b3b3dc5e7b48552ff597942974`, `437f905d9790ce7a18625b396ba57c6118bb46d1542ec3cf1d46faac23c261ef`, `d736c1a93eb6440e1e6b640402e31ea5258281b2b9237f84ea0ba4186518fc59` and `f4226f5c72914e5d2b331812c5973d8d685c8af1ccb97c2a3a2fd1c02fd173d1`. `CslibFrontier.Crypto.Primitives.Hash.Keccak`, `.Keccak.Circuit`, `.Keccak.Efficient`, and `.Keccak.SHAKE128` implement the byte-aligned executable functions and their stated exact-permutation or asymptotic machine certificates; they do not claim cryptographic security, constant-time execution, a concrete whole-sponge cost, FIPS validation or a future FIPS 206 definition.
 
 <a id="fips203"></a>
 ## fips203
@@ -944,6 +944,11 @@ Thomas Holenstein. “Pseudorandom Generators from One-Way Functions: A Simple C
 
 Thomas Holenstein. “Parallel Repetition: Simplifications and the No-Signaling Case.” *Theory of Computing* 5(8), 141–172, 2009. https://doi.org/10.4086/toc.2009.v005a008 . Journal PDF inspected (Definition 2.4 and Theorem 2.5, p. 146; Definition 5.1, p. 151; Lemma 5.4 and (5.5), p. 153; Claims 6.2 and 6.3, p. 154; Lemma 6.4 and (6.3)–(6.7) of its proof, p. 155; (6.8)–(6.16), p. 156; the first stage of the embedding, from (6.15) and (6.16) by Corollary 5.3, (6.17)–(6.19) and the second stage, and Lemma 6.5, (6.20) and its proof, p. 157; Lemma 7.1, p. 158; the proof of Theorem 2.5, (7.6) and (7.7), p. 159).
 
+<a id="hooverpersianoyeo26"></a>
+## hooverpersianoyeo26
+
+Alexander Hoover, Giuseppe Persiano and Kevin Yeo. "Lower Bounds for PIR with Preprocessing from Blackbox Cryptography." FOCS 2026 (the arXiv listing says "To appear in FOCS 2026"). Full version: arXiv:2607.06451v3, 10 September 2026, https://arxiv.org/abs/2607.06451v3 ; also Cryptology ePrint Archive, Paper 2026/1384, https://eprint.iacr.org/2026/1384 . Locators are the printed page numbers of arXiv:2607.06451v3, checked against its PDF on 2026-11-15. Definition 6.1, pp. 50–51: `Query` is a two-party protocol with client messages `τu` and server messages `τd`; `ε`-correctness is a success probability ("Pr[Query(st, Q; D, R) = (D[Q]; ⊥) : R ←$ {0,1}^r; (st; ⊥ | τoff) ←$ Setup(1^λ; 1^λ, D, R)] ≥ ε", p. 50, where the sampling of `R` and the `Setup` run is written under `Pr`); `δ`-privacy and `γ`-data privacy are defined against efficient adversaries, and "perfectly correct, private, and data private" means `ε = 1`, `δ = 0` and `γ = 0` (p. 51). Theorem 6.2 and its proof, p. 52: "Let s < k ≤ n and ε > 2^{s−k}. In the random oracle model, there does not exist a k-batch SPIR scheme with s-bit client storage that is ε-correct, perfectly private, and perfectly data private." The first version, arXiv:2607.06451v1, states the threshold as "ε > 1 − 2^{s−k}" (p. 46). Section 6.3, pp. 54–55 (the first toy, under the heading "n-bit client storage, O(k log n)-bit communication", p. 54). The library does not formalize Theorem 6.2. It proves an original information-theoretic bound in a restricted model (plain model, one online round, deterministic online client, perfect notions as identical view laws) by the counting argument in the proof of Theorem 6.2 (`Scheme.correct_le_card_div_two_pow`; `Scheme.correct_le_two_pow_sub` gives `ε ≤ 2 ^ (s - k)`, matching the v3 threshold; `Scheme.batchSPIR_limitation` uses the v1 threshold; all with a `2 ≤ n` guard that the zero-storage scheme at `n = k = 1, s = 0` shows is needed), using the transcript-independence step of that proof (`Scheme.eval_onlineTranscript_eq`). It also has an online-randomized variant with an explicit `Fintype.card Ω` factor (`RandomizedScheme.correct_le_card_mul_card_div_two_pow`, not in the source), the first Section 6.3 toy with an ideal setup (`toyScheme`: `2 ^ n * n!` client states, perfect correctness and data privacy, privacy on injective batches only, and the repeated-query counterexample for `2 ≤ k` and `2 ≤ n`), and a coordinate-wise variant `parallelToyScheme`, not in the source, which shows the hypotheses are jointly satisfiable for every `n` and `k`. Not formalized: Theorem 6.2 itself, Lemma 6.3, Theorem 6.4, the PRF inner-product toy and Sections 6.4–6.5 (Theorem 6.5).
+
 <a id="hoyerleespalek07"></a>
 ## hoyerleespalek07
 
@@ -1033,6 +1038,34 @@ Sandy Irani. "Two Results on the List Update Problem." *Information Processing L
 ## jansonluczakrucinski2000
 
 Svante Janson, Tomasz Łuczak and Andrzej Ruciński. *Random Graphs*. Wiley-Interscience Series in Discrete Mathematics and Optimization, Wiley, 2000. https://doi.org/10.1002/9781118032718 . Bibliographic data from secondary records of the DOI. The chapter locator (Chapter 3, small subgraphs and the threshold `n ^ (-1 / m(H))`) was taken from secondary descriptions; the book was not inspected in this pass, and no theorem number is claimed.
+
+<a id="jeandelvanier2020"></a>
+## jeandelvanier2020
+
+Emmanuel Jeandel and Pascal Vanier. *The Undecidability of the Domino Problem*. In Shigeki
+Akiyama and Pierre Arnoux (eds.), *Substitution and Tiling Dynamics*, Lecture Notes in Mathematics
+2273, 293–357, Springer, 2020. [Publisher record](https://doi.org/10.1007/978-3-030-57666-0_6);
+[authors' manuscript](https://www.lacl.fr/pvanier/rech/cirm.pdf). Read on 2026-11-16 by the
+authoring Codex workers: §3.2 (beginning on manuscript p. 22), Definition 10 and Theorem 9
+(p. 23), Proposition 8 (p. 24), and Figures 13–16 (pp. 25–26). The tile set is attributed to
+[Ollinger](#ollinger2008) on p. 24. The Robinson modules use
+[lean-wang](https://github.com/edemaine/lean-wang/tree/64268a3aaaef3eac65559352ef94f62ab9c00482)
+at that revision, retaining its authors and Apache-2.0 credit. “Corrected” identifies its
+Figure 13 component transcription and the second thick-layer summand at `L2b` in Figure 16(c),
+whose southeast extension uses `R1` rather than `R3`
+([plan, lines 94–98](https://github.com/edemaine/lean-wang/blob/64268a3/plan.md#L94-L98)).
+Both thick-layer boundary lanes are retained. This records lean-wang's correction, not a
+verified erratum to the printed figures; historical correction: locator not verified.
+Full agreement with those figures is not checked in Lean. The formalized endpoint is matching
+substitution, local recognition, parent towers, recurrence and nonempty plane tilings;
+it does not include Proposition 8's aperiodicity conclusion or domino undecidability.
+The red-path and shading modules are after §3.3, Figures 17–18, manuscript
+pp. 24, 26–28, read directly on 2026-11-16: light red wires cross dark ones, and squares
+emit signals on their exterior borders. The exact opposite-shade crossing rule (also
+forbidding dark–dark crossings), quarter-port connectivity, and nearest outward-facing
+light-boundary invariant come from lean-wang's red-graph and oriented-light modules at
+the same pinned revision; the discrete-height argument is not attributed to the manuscript. These are scaffold ingredients, not Theorem 10's endpoint.
+This source check is authoring evidence, not independent review.
 
 <a id="johnsonlindenstrauss84"></a>
 ## johnsonlindenstrauss84
@@ -1494,6 +1527,20 @@ Igor Carboni Oliveira and Rahul Santhanam. *Conspiracies Between Learning Algori
 
 Igor Carboni Oliveira and Rahul Santhanam. *Hardness Magnification for Natural Problems*. FOCS 2018, 65–76. https://doi.org/10.1109/FOCS.2018.00016 . Full version ECCC TR18-139. Bibliographic data comes from the repository bibliography; the paper was not inspected for this chapter. The Lean module documentation quotes Theorems 1, 5, 17 and 27 and Lemma 16 from the ECCC full version with page locators.
 
+<a id="ollinger2008"></a>
+## ollinger2008
+
+Nicolas Ollinger. *Two-by-Two Substitution Systems and the Undecidability of the
+Domino Problem*. In Arnold Beckmann, Costas Dimitracopoulos and Benedikt Löwe
+(eds.), *Logic and Theory of Algorithms*, Lecture Notes in Computer Science 5028,
+476–485, Springer, 2008. [Publisher record](https://doi.org/10.1007/978-3-540-69407-6_51).
+Bibliographic metadata checked at the publisher on 2026-11-16 by an authoring Codex
+agent. Cited as the origin of the tile set attributed to Ollinger in
+[Jeandel–Vanier](#jeandelvanier2020), manuscript p. 24 and Figure 13 on p. 25.
+The paper's full text was not available in this pass: internal theorem/figure
+locator not verified. The concrete formalization follows the pinned lean-wang
+transcription described in that registry entry.
+
 <a id="openaich26"></a>
 ## openaich26
 
@@ -1875,6 +1922,11 @@ Robert A. Wagner and Michael J. Fischer. "The String-to-String Correction Proble
 ## wang81
 
 Paul S. Wang. "A p-adic Algorithm for Univariate Partial Fractions." *Proceedings of the 1981 ACM Symposium on Symbolic and Algebraic Computation (SYMSAC '81)*, 212–217, ACM, 1981. https://doi.org/10.1145/800206.806398 . Bibliographic metadata checked from the ACM Digital Library record; the article text was not inspected, and no theorem or algorithm numbers are claimed.
+
+<a id="wangren25"></a>
+## wangren25
+
+Zhikun Wang and Ling Ren. "Single-Server Client Preprocessing PIR with Tight Space-Time Trade-off." *Advances in Cryptology – EUROCRYPT 2025*, Lecture Notes in Computer Science, 94–122, Springer, 2025. https://doi.org/10.1007/978-3-031-91095-1_4 ; full version: Cryptology ePrint Archive, Paper 2024/1845 (version of 2024-11-10, 29 pp.), https://eprint.iacr.org/2024/1845 . Checked against the ePrint 2024/1845 version of 2024-11-10 on 2026-11-15 (locators follow the ePrint pagination; the typeset LNCS pages were not consulted directly): Definition 2.1 (p. 10), Section 3.1 (pp. 12–13, operations `Init`/`Access`/`Locate`/`Relocate`, correctness and perfect security, Experiments 3.1 and 3.2 on p. 13), Theorem 3.3 (p. 13), Constructions 3.4 and 3.5 (p. 14), Definition 3.6, Facts 3.7–3.8, Lemma 3.9, Corollary 3.10, Facts 3.11–3.12, and Lemmas 3.13–3.15 (pp. 15–16), and Lemma 3.16 (pp. 16–17). In [PIR/Preprocessing/Relocation.lean](../CslibFrontier/Crypto/Protocols/PIR/Preprocessing/Relocation.lean), Experiment 3.1's initial output is `(locate s₀ 0, …, locate s₀ (m - 1))` (correcting the p. 13 pseudocode typo "Output (DS.Access(0), DS.Access(1), . . . , DS.Access(m − 1))." to match Experiment 3.2, "Output the position of each element in [m] in A.", and the proof of Lemma 3.16 on p. 16), Experiment 3.2's output is read from the queried cell before the update (correcting the p. 13 pseudocode "Update A[c′] ← A[ci] and A[ci] ← ∅." followed by "If A[c′] ≠ ⊥, output c′.", which outputs `c′` when an empty queried cell selects itself, to match the proof of Lemma 3.16 on p. 16, "For the t-th position ct , no element resides in position ct , then the output of both Experiments 3.1 and 3.2 will be ⊥."), the relocation sequence `c : Fin Q → Fin m'` is fixed and injective with `Q ≤ m' - m` as required in Section 3.1 (p. 12), and the history is 0-indexed as in Definition 3.6 (`C[t] → P(m + t)`). The permutation is ideal (uniformly random), security is perfect (exact equality of output laws), and adaptively chosen positions are not modelled. The expected/amortized running-time bounds of Theorem 3.3 and Appendix A, the small-domain PRP instantiation (Section 2.2), the PIR scheme (Section 4, Theorem 4.1 and Construction 4.2), and the `ST = Ω(nw)` lower-bound sketches (Appendix B, Theorems B.1–B.2) are not formalized.
 
 <a id="wattenhofer16"></a>
 ## wattenhofer16
