@@ -1940,6 +1940,7 @@ public import CslibFrontier.Computability.Complexity.Classes.BPP.Collapse
 public import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization
 public import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.CanonicalDerandomizer
 public import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.CircuitPRG
+public import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.GeneralTime
 public import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.Generator
 public import CslibFrontier.Computability.Complexity.Classes.BPP.Derandomization.SeedEnumeration
 public import CslibFrontier.Computability.Complexity.Classes.BPP.KarpLipton
@@ -2253,6 +2254,7 @@ public import CslibFrontier.Computability.Complexity.Classes.Selective.Selman
 public import CslibFrontier.Computability.Complexity.Classes.SharpP
 public import CslibFrontier.Computability.Complexity.Classes.SharpP.AdditiveApproximation
 public import CslibFrontier.Computability.Complexity.Classes.SharpP.Aggregation
+public import CslibFrontier.Computability.Complexity.Classes.SharpP.ApproximateCounting
 public import CslibFrontier.Computability.Complexity.Classes.SharpP.Characterization
 public import CslibFrontier.Computability.Complexity.Classes.SharpP.Choose
 public import CslibFrontier.Computability.Complexity.Classes.SharpP.Closure
@@ -2495,6 +2497,9 @@ public import CslibFrontier.Computability.Complexity.Problems.BipartitePerfectMa
 public import CslibFrontier.Computability.Complexity.Problems.BipartitePerfectMatching.Membership
 public import CslibFrontier.Computability.Complexity.Problems.BoundedComputation
 public import CslibFrontier.Computability.Complexity.Problems.BoundedHalting
+public import CslibFrontier.Computability.Complexity.Problems.BoundedSTCON
+public import CslibFrontier.Computability.Complexity.Problems.BoundedSTCON.LogSpace
+public import CslibFrontier.Computability.Complexity.Problems.BoundedSTCON.Membership
 public import CslibFrontier.Computability.Complexity.Problems.BoundedTermination
 public import CslibFrontier.Computability.Complexity.Problems.CMMSA
 public import CslibFrontier.Computability.Complexity.Problems.CMMSA.Size
@@ -2534,6 +2539,7 @@ public import CslibFrontier.Computability.Complexity.Problems.CSP.Schaefer
 public import CslibFrontier.Computability.Complexity.Problems.CSP.SelfDualThreeSAT
 public import CslibFrontier.Computability.Complexity.Problems.ChromaticNumber
 public import CslibFrontier.Computability.Complexity.Problems.CircuitSAT
+public import CslibFrontier.Computability.Complexity.Problems.CircuitSAT.Levin
 public import CslibFrontier.Computability.Complexity.Problems.CircuitValue
 public import CslibFrontier.Computability.Complexity.Problems.CircuitValue.Compilation
 public import CslibFrontier.Computability.Complexity.Problems.CircuitValue.Completeness
@@ -3483,6 +3489,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.P
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.ListProd
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Log
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Max
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.NthRoot
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Pair
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.PowMod
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Prime
@@ -3889,6 +3896,7 @@ public import CslibFrontier.Computability.PCP.Approximation.LabelCover.SmallSoun
 public import CslibFrontier.Computability.PCP.Approximation.MaxCSP
 public import CslibFrontier.Computability.PCP.Approximation.MaxExactThreeSAT
 public import CslibFrontier.Computability.PCP.Approximation.MaxThreeSAT
+public import CslibFrontier.Computability.PCP.Approximation.MaxThreeSAT.Approx
 public import CslibFrontier.Computability.PCP.Approximation.ParitySearch
 public import CslibFrontier.Computability.PCP.Approximation.SetCover.ApproxReduction
 public import CslibFrontier.Computability.PCP.Approximation.SetCover.LundYannakakis
@@ -6404,6 +6412,7 @@ public import CslibFrontier.Foundations.Data.Nat.LogStar
 public import CslibFrontier.Foundations.Data.Nat.LogTwoRpow
 public import CslibFrontier.Foundations.Data.Nat.MasterTheorem
 public import CslibFrontier.Foundations.Data.Nat.MasterTheoremAsymptotics
+public import CslibFrontier.Foundations.Data.Nat.Min
 public import CslibFrontier.Foundations.Data.Nat.Morton
 public import CslibFrontier.Foundations.Data.Nat.MultiplyHigh
 public import CslibFrontier.Foundations.Data.Nat.OddMulMod

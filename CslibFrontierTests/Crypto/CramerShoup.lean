@@ -20,8 +20,8 @@ roundtrips (`decodeCramerShoupSK_encCramerShoupSK`), challenge admissibility (`c
 a keyed native roundtrip showing that the hash key travels from the public key to encryption and
 from the secret key to decryption, and concrete `example` instantiations of the polynomial-time
 certificates, Games 3–5 transition theorems, and end-to-end IND-CCA2 theorems
-(`advantage_cramerShoupGroupCCA2Game_le`, `DDH.cramerShoupGroupINDCCA2`,
-`DDH.indcca2On_cramerShoup`, `DDH.indcca2MultiOn_cramerShoup`).
+(`advantage_cramerShoupGroupCCA2Game_le`, `DDH.indcca2On_cramerShoup`,
+`DDH.indcca2MultiOn_cramerShoup`).
 -/
 
 namespace CslibFrontierTests.Crypto.CramerShoup
