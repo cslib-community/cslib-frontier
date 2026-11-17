@@ -29,7 +29,8 @@ dummy simulator `S_D` obtained for `C₀ := A.initial` yields `UC.compAdaptiveSi
 
 Budgets count oracle calls per activation (`Cslib.Crypto.Protocols.UC.Machine.IsBounded`), not
 running time; these theorems are call-bounded statistical adaptations of Claim 11 (p. 28:43) of
-[Canetti2020] to the adaptive execution model of Section 7.1.1 (p. 28:71).
+[Canetti2020] to the snapshot adaptive-corruption model of `UC.Adaptive` (inspired by Section
+7.1.1, p. 28:71; §7.1.1's write-once storage restriction remains open).
 
 ## Main definitions
 
@@ -58,7 +59,8 @@ running time; these theorems are call-bounded statistical adaptations of Claim 1
 ## References
 
 * [R. Canetti, *Universally Composable Security*][Canetti2020], Section 4.3 (Claim 11, p. 28:43,
-  dummy-adversary completeness) and Section 7.1.1 (p. 28:71, adaptive corruptions).
+  dummy-adversary completeness) and Section 7.1.1 (p. 28:71, inspiration for the snapshot
+  adaptive-corruption model).
 -/
 
 public section
@@ -304,11 +306,12 @@ theorem absorbAdaptiveAdversary_polyBounded
 
 /-! ### Completeness of the adaptive dummy adversary -/
 
-/-- Concrete emulation of the adaptive dummy adversary under `mode` (statistical, call-bounded
-adaptation of [Canetti2020], Definition 10 and Claim 11, p. 28:43): for every initial corruption
-schedule `C₀`, there exists a simulator `S_D` with call budget `pD` such that every environment `Z`
-with budget `pZ` has advantage at most `ε pZ κ`. Quantifying `C₀` outside `S_D` lets `S_D.initial`
-match `C₀`, which `.status` makes observable. -/
+/-- Concrete emulation of the adaptive dummy adversary under `mode` in the snapshot
+adaptive-corruption model of `UC.Adaptive` (statistical, call-bounded adaptation of [Canetti2020],
+Definition 10 and Claim 11, p. 28:43; §7.1.1 write-once storage remains open): for every initial
+corruption schedule `C₀`, there exists a simulator `S_D` with call budget `pD` such that every
+environment `Z` with budget `pZ` has advantage at most `ε pZ κ`. Quantifying `C₀` outside `S_D`
+lets `S_D.initial` match `C₀`, which `.status` makes observable. -/
 @[expose] def AdaptiveEmulatesDummyWithin (mode : CorruptionMode)
     (P : AdaptiveProtocol n In Out NetQ₁ NetR₁ View₁)
     (Q : AdaptiveProtocol n In Out NetQ₂ NetR₂ View₂)
@@ -354,8 +357,9 @@ theorem AdaptiveEmulatesWithin.emulatesDummyWithin {mode : CorruptionMode}
   simpa only [Polynomial.eval_comp, Polynomial.eval_add, Polynomial.eval_X, Polynomial.eval_one]
     using hSg κ
 
-/-- Negligible-error emulation of the adaptive dummy adversary under `mode` (statistical,
-call-bounded adaptation of [Canetti2020], Claim 11, p. 28:43). -/
+/-- Negligible-error emulation of the adaptive dummy adversary under `mode` in the snapshot
+adaptive-corruption model of `UC.Adaptive` (statistical, call-bounded adaptation of [Canetti2020],
+Claim 11, p. 28:43; §7.1.1 write-once storage remains open). -/
 @[expose] def AdaptiveEmulatesDummy (mode : CorruptionMode)
     (P : AdaptiveProtocol n In Out NetQ₁ NetR₁ View₁)
     (Q : AdaptiveProtocol n In Out NetQ₂ NetR₂ View₂) : Prop :=
@@ -370,9 +374,9 @@ call-bounded adaptation of [Canetti2020], Claim 11, p. 28:43). -/
               adaptiveAdvantage mode P Q
                 (adaptiveDummyAdversary C₀ NetQ₁ NetR₁) S_D Z κ z ≤ ν κ
 
-/-- Completeness of the adaptive dummy adversary (negligible error): adaptive UC emulation is
-equivalent to simulating the adaptive dummy adversary (call-bounded adaptation of [Canetti2020],
-Claim 11, p. 28:43). -/
+/-- Completeness of the adaptive dummy adversary (negligible error) in the snapshot
+adaptive-corruption model of `UC.Adaptive`: adaptive UC emulation is equivalent to simulating the
+adaptive dummy adversary (call-bounded adaptation of [Canetti2020], Claim 11, p. 28:43). -/
 theorem adaptiveEmulates_iff_adaptiveEmulatesDummy (mode : CorruptionMode)
     (P : AdaptiveProtocol n In Out NetQ₁ NetR₁ View₁)
     (Q : AdaptiveProtocol n In Out NetQ₂ NetR₂ View₂) :
