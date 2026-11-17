@@ -1,7 +1,7 @@
 name = "cslib-frontier"
 version = "0.2.0"
 defaultTargets = ["CslibFrontier", "CslibFrontierResults"]
-testDriver = "CslibFrontierTests"
+testDriver = "CslibFrontierTestDriver"
 lintDriver = "batteries/runLinter"
 # Share build outputs between local checkouts (worktrees, agent sandboxes) through Lake's
 # content-addressed artifact cache, so a module built in one checkout is reused by every other
@@ -51,6 +51,12 @@ leanOptions = {weak.linter.style.header = false}
 # The test files do not use the module system, but they import Mathlib, whose package sets
 # `requiresModuleSystem`.
 allowNonModules = true
+
+[[lean_exe]]
+name = "CslibFrontierTestDriver"
+root = "CslibFrontierTestDriver"
+needs = ["CslibFrontierTests"]
+platformIndependent = false
 
 [[lean_exe]]
 name = "mk_all"
