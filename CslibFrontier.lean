@@ -2549,6 +2549,8 @@ public import CslibFrontier.Computability.Complexity.Problems.ElementDistinctnes
 public import CslibFrontier.Computability.Complexity.Problems.ExactThreeSAT
 public import CslibFrontier.Computability.Complexity.Problems.FeedbackArcSet
 public import CslibFrontier.Computability.Complexity.Problems.FeedbackVertexSet
+public import CslibFrontier.Computability.Complexity.Problems.GeneralIntegerProgramming
+public import CslibFrontier.Computability.Complexity.Problems.GeneralIntegerProgramming.Hardness
 public import CslibFrontier.Computability.Complexity.Problems.GeneralizedGeography
 public import CslibFrontier.Computability.Complexity.Problems.Graph
 public import CslibFrontier.Computability.Complexity.Problems.Graph.Arborescences
@@ -5615,6 +5617,7 @@ public import CslibFrontier.DataStructure.WordRAM.Resizable.Randomized.Oblivious
 public import CslibFrontier.DataStructure.WordRAM.Resizable.Randomized.StateTransition
 public import CslibFrontier.DataStructure.WordRAM.Resizable.StateTransition
 public import CslibFrontier.DataStructure.WordRAM.StateTransition
+public import CslibFrontier.Foundations.Algebra.BigOperators.Fin
 public import CslibFrontier.Foundations.Algebra.DFT
 public import CslibFrontier.Foundations.Algebra.FiniteMagnitude
 public import CslibFrontier.Foundations.Algebra.GeometricTail
@@ -6546,6 +6549,7 @@ public import CslibFrontier.Foundations.LinearAlgebra.Matrix.HessianDeterminant
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.HessianPermanent
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Hyperplane
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.IntegerKernel
+public import CslibFrontier.Foundations.LinearAlgebra.Matrix.IntegerSolution
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.IsotropicPosition
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Kronecker
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.KroneckerRank
@@ -6557,6 +6561,7 @@ public import CslibFrontier.Foundations.LinearAlgebra.Matrix.ListProd
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Moore
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.NonnegMulVec
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.NonnegRank
+public import CslibFrontier.Foundations.LinearAlgebra.Matrix.NonnegativeForm
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.PairedPorts
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.PartialDerivatives
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.PosDef
