@@ -12,11 +12,11 @@ public import CslibFrontier.Crypto.Protocols.UC.DummyAdversary
 /-!
 # Subroutine replacement and statistical call-bounded UC composition
 
-This module proves statistical, call-bounded single-subroutine static-corruption composition for
-this library's novel call-bounded port-model emulation notions, a step toward Canetti's
-computational UC composition theorem ([Canetti2020], Section 2.3, Theorem 3 and Corollaries (a)–(b);
-#6043) where environments, adversaries, and simulators are only query-bounded with unbounded local
-computation rather than polynomial-time machines. A *hybrid protocol*
+This module proves composition for this library's novel call-bounded port-model emulation notions,
+in which environments, adversaries, and simulators are query-bounded with unbounded local
+computation: statistical, single-subroutine, static-corruption composition, a step toward Canetti's
+computational UC composition theorem ([Canetti2020], Section 2.3, Theorem 3 and
+Corollaries (a)–(b)) but not that theorem (#6043). A *hybrid protocol*
 `ρ : UC.HybridProtocol n In Out NetQ NetR SubIn SubOut` is an `n`-party
 protocol whose machines also call the party port of a subroutine with inputs `SubIn` and outputs
 `SubOut`. Subroutine replacement `UC.compose ρ σ` (written `ρ^σ` below) answers those calls with the
