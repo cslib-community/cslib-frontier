@@ -264,12 +264,12 @@ private lemma isPolytopeFace_halfSpace_inter (ℓ : E →ᵃ[ℝ] ℝ) {R₁ R�
     ext x; simp only [mem_ofPred_eq, mem_singleton_iff, forall_eq]
   have hG : {x | 0 ≤ ℓ x} = {x | ∀ m ∈ ({-ℓ} : Set _), m x ≤ 0} := by
     ext x
-    simp only [mem_ofPred_eq, mem_singleton_iff, forall_eq, AffineMap.coe_neg, Pi.neg_apply,
+    simp only [mem_ofPred_eq, mem_singleton_iff, forall_eq, FunLike.coe_neg, Pi.neg_apply,
       neg_nonpos]
   have hZ : {x | ℓ x = 0} = {x | ∀ m ∈ ({ℓ, -ℓ} : Set _), m x ≤ 0} := by
     ext x
     simp only [mem_ofPred_eq, Set.mem_insert_iff, mem_singleton_iff, forall_eq_or_imp, forall_eq,
-      AffineMap.coe_neg, Pi.neg_apply, neg_nonpos, le_antisymm_iff]
+      FunLike.coe_neg, Pi.neg_apply, neg_nonpos, le_antisymm_iff]
   have hface_le : IsPolytopeFace {x | ℓ x ≤ 0} {x | ℓ x = 0} := by
     have h := isPolytopeFace_of_eq_zero (LR := {ℓ}) (finite_singleton ℓ)
       hL (hL ▸ convex_setOf_forall_le {ℓ}) (Subset.refl {ℓ})
@@ -283,7 +283,7 @@ private lemma isPolytopeFace_halfSpace_inter (ℓ : E →ᵃ[ℝ] ℝ) {R₁ R�
       hG (hG ▸ convex_setOf_forall_le {-ℓ}) (Subset.refl {-ℓ})
     have heq : {x ∈ {x | 0 ≤ ℓ x} | ∀ m ∈ ({-ℓ} : Set _), m x = 0} = {x | ℓ x = 0} := by
       ext x
-      simp only [mem_ofPred_eq, mem_singleton_iff, forall_eq, AffineMap.coe_neg, Pi.neg_apply,
+      simp only [mem_ofPred_eq, mem_singleton_iff, forall_eq, FunLike.coe_neg, Pi.neg_apply,
         neg_eq_zero, and_iff_right_iff_imp]
       exact fun h0 => le_of_eq h0.symm
     rwa [heq] at h
@@ -338,7 +338,7 @@ omit [FiniteDimensional ℝ E] in
 private lemma halfSpaceSet_eq (ℓ : E →ᵃ[ℝ] ℝ) (k : Fin 3) :
     halfSpaceSet ℓ k = {x | ∀ m ∈ halfSpaceLR ℓ k, m x ≤ 0} := by
   fin_cases k <;> ext x <;>
-    simp [halfSpaceSet, halfSpaceLR, AffineMap.coe_neg, Pi.neg_apply, le_antisymm_iff]
+    simp [halfSpaceSet, halfSpaceLR, le_antisymm_iff]
 
 /-- Cells obtained by slicing every cell of `C` with the hyperplane `{x | ℓ x = 0}` and its
 two closed half-spaces. -/
@@ -394,12 +394,12 @@ def PolytopalComplex.splitComplex (C : PolytopalComplex E) (ℓ : E →ᵃ[ℝ] 
         constructor
         · intro h
           have : (-ℓ) x = 0 := h.2 (-ℓ) hm
-          simpa [AffineMap.coe_neg] using this
+          simpa [FunLike.coe_neg] using this
         · intro h
           refine ⟨le_of_eq h.symm, fun n hn => ?_⟩
           have hn' : n = -ℓ := hL₀ hn
           subst hn'
-          simp [AffineMap.coe_neg, h]
+          simp [h]
     · refine ⟨P', hP'mem, 2, ?_, hFne⟩
       rw [hFeq]; ext x
       simp only [halfSpaceSet, mem_inter_iff, mem_ofPred_eq, and_congr_right_iff]
@@ -407,7 +407,7 @@ def PolytopalComplex.splitComplex (C : PolytopalComplex E) (ℓ : E →ᵃ[ℝ] 
       refine ⟨fun h => h.1, fun h => ⟨h, fun n hn => ?_⟩⟩
       rcases hL₀ hn with rfl | rfl
       · exact h
-      · simp [AffineMap.coe_neg, h]
+      · simp [h]
   inter_face := by
     rintro Q₁ Q₂ ⟨P₁, hP₁, k₁, rfl, _⟩ ⟨P₂, hP₂, k₂, rfl, _⟩
     rw [inter_inter_inter_comm]
@@ -508,12 +508,12 @@ private lemma isHRepIn_ofPolytope {P : Set E} {LP : Set (E →ᵃ[ℝ] ℝ)} (hL
     constructor
     · rintro ⟨hxP, hx0⟩ ℓ (hℓ | ⟨m, hm, rfl⟩)
       · exact hxP ℓ hℓ
-      · simp [AffineMap.coe_neg, hx0 m hm]
+      · simp [hx0 m hm]
     · intro h
       refine ⟨fun ℓ hℓ => h ℓ (.inl hℓ), fun m hm => ?_⟩
       have h1 : m x ≤ 0 := h m (.inl (hL₀ hm))
       have h2 : (-m) x ≤ 0 := h (-m) (.inr ⟨m, hm, rfl⟩)
-      simp only [AffineMap.coe_neg, Pi.neg_apply, neg_nonpos] at h2
+      simp only [FunLike.coe_neg, Pi.neg_apply, neg_nonpos] at h2
       exact le_antisymm h1 h2
 
 private lemma isHRepIn_splitComplex {C : PolytopalComplex E} {M : Set (E →ᵃ[ℝ] ℝ)}
@@ -566,7 +566,7 @@ private lemma inter_face_of_split_hRep {Q₁ Q₂ : Set E} {M : Set (E →ᵃ[�
     intro m hm y hy
     rcases hsplit m (hL₂M hm.1) with hle | hge
     · exact False.elim (hm.2 hle)
-    · simpa [AffineMap.coe_neg] using hge y hy
+    · simpa [FunLike.coe_neg] using hge y hy
   let L₁' := L₁ ∪ Neg.neg '' B
   have hL₁'fin : L₁'.Finite := hL₁.union ((hL₂fin.subset fun _ (h : _ ∈ B) => h.1).image _)
   have hQ₁eq' : Q₁ = {x | ∀ ℓ ∈ L₁', ℓ x ≤ 0} := by
@@ -590,7 +590,7 @@ private lemma inter_face_of_split_hRep {Q₁ Q₂ : Set E} {M : Set (E →ᵃ[�
     have hle : m x ≤ 0 := (hQ₂eq ▸ hx2) m hm2
     rcases hsplit m (hL₂M hm2) with h_abs | hge
     · exact False.elim (hnle h_abs)
-    · simp only [AffineMap.coe_neg, Pi.neg_apply, neg_eq_zero]
+    · simp only [FunLike.coe_neg, Pi.neg_apply, neg_eq_zero]
       exact le_antisymm hle (hge x hx1)
   · rintro ⟨hx1, hx0⟩
     refine ⟨hx1, ?_⟩
@@ -599,7 +599,7 @@ private lemma inter_face_of_split_hRep {Q₁ Q₂ : Set E} {M : Set (E →ᵃ[�
     by_cases hle : ∀ y ∈ Q₁, m y ≤ 0
     · exact hle x hx1
     · have h0 := hx0 (-m) ⟨m, ⟨hm2, hle⟩, rfl⟩
-      simp only [AffineMap.coe_neg, Pi.neg_apply, neg_eq_zero] at h0
+      simp only [FunLike.coe_neg, Pi.neg_apply, neg_eq_zero] at h0
       exact le_of_eq h0
 
 private lemma split_subset_of_vertexCentroid_mem {Q P : Set E} (hQ : IsPolytope Q)
@@ -614,10 +614,10 @@ private lemma split_subset_of_vertexCentroid_mem {Q P : Set E} (hQ : IsPolytope 
   · by_contra! hpos
     have hb_le : ℓ (vertexCentroid Q) ≤ 0 := (hPeq ▸ hbP) ℓ hℓ
     have hneg_le : ∀ z ∈ Q, (-ℓ) z ≤ 0 := fun z hz => by
-      simpa [AffineMap.coe_neg] using hge z hz
-    have hneg_lt : (-ℓ) x < 0 := by simpa [AffineMap.coe_neg] using hpos
+      simpa [FunLike.coe_neg] using hge z hz
+    have hneg_lt : (-ℓ) x < 0 := by simpa [FunLike.coe_neg] using hpos
     have hblt := hQ.apply_vertexCentroid_lt hQne hneg_le hxQ hneg_lt
-    simp only [AffineMap.coe_neg, Pi.neg_apply, neg_lt_zero] at hblt
+    simp only [FunLike.coe_neg, Pi.neg_apply, neg_lt_zero] at hblt
     linarith
 
 private noncomputable def allHyperplanes {ℱ : Set (Set E)} (hℱ : ℱ.Finite) :
@@ -700,8 +700,8 @@ noncomputable def PolytopalComplex.ofFinitePolytopes {ℱ : Set (Set E)} (hℱ :
             (Finset.mem_toList.2 (Finset.mem_coe.1 hm)) hQ₁p
         · rcases PolytopalComplex.splitList_signs _ ls
               (Finset.mem_toList.2 (Finset.mem_coe.1 hℓ)) hQ₁p with hle | hge
-          · right; intro x hx; simpa [AffineMap.coe_neg] using hle x hx
-          · left; intro x hx; simpa [AffineMap.coe_neg] using hge x hx
+          · right; intro x hx; simpa [FunLike.coe_neg] using hle x hx
+          · left; intro x hx; simpa [FunLike.coe_neg] using hge x hx
       exact inter_face_of_split_hRep ((pieces P₁).isPolytope_of_mem hQ₁P) hQ₂M hsplitM }
 
 theorem PolytopalComplex.space_ofFinitePolytopes {ℱ : Set (Set E)} (hℱ : ℱ.Finite)

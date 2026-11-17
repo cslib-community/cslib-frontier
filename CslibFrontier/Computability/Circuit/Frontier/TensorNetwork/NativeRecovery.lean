@@ -134,13 +134,13 @@ and `0` for `d = 0`. It is `v₂ d` when `d < 2 ^ b` (`NativeRecovery.twoVal_eq`
 def twoVal (b d : ℕ) : ℕ :=
   if d = 0 then 0 else ((List.range b).filter fun i => d % 2 ^ (i + 1) = 0).length
 
-theorem twoVal_eq {b d : ℕ} (hd : d < 2 ^ b) : twoVal b d = padicValNat 2 d := by
+theorem twoVal_eq {b d : ℕ} (hd : d < 2 ^ b) : twoVal b d = multiplicity 2 d := by
   rw [twoVal]
   split_ifs with h0
   · simp [h0]
-  set v := padicValNat 2 d
+  set v := multiplicity 2 d
   have hvb : v < b := by
-    have : 2 ^ v ≤ d := Nat.le_of_dvd (Nat.pos_of_ne_zero h0) pow_padicValNat_dvd
+    have : 2 ^ v ≤ d := Nat.le_of_dvd (Nat.pos_of_ne_zero h0) (pow_multiplicity_dvd _ _)
     exact (Nat.pow_lt_pow_iff_right (by norm_num)).mp (this.trans_lt hd)
   have key (m : ℕ) : ((List.range m).filter fun i => d % 2 ^ (i + 1) = 0).length = min m v := by
     induction m with
@@ -149,7 +149,7 @@ theorem twoVal_eq {b d : ℕ} (hd : d < 2 ^ b) : twoVal b d = padicValNat 2 d :=
       rw [List.range_succ, List.filter_append, List.length_append, ih]
       have hiff : d % 2 ^ (m + 1) = 0 ↔ m + 1 ≤ v := by
         rw [← Nat.dvd_iff_mod_eq_zero]
-        exact padicValNat_dvd_iff_le h0
+        exact multiplicity_dvd_iff_le h0
       rw [List.filter_singleton]
       by_cases hm : m + 1 ≤ v
       · rw [decide_eq_true (hiff.mpr hm), Bool.cond_true, List.length_singleton]
@@ -315,21 +315,21 @@ theorem val_slopeConst (hirr : Irreducible ((monicOf fl).map (Int.castRingHom (Z
       ρ (slope a (node_mem_cauchyGrid hk) (node_mem_cauchyGrid hk')
         (fun h => hne (node_injective a h))) := by
   set d := k - k' + (k' - k)
-  set v := padicValNat 2 d
+  set v := multiplicity 2 d
   set o := d / 2 ^ v
   have hd0 : d ≠ 0 := by omega
   have hdlt : d < 2 ^ (a + 1) := by omega
-  have hdv : d = 2 ^ v * o := (Nat.mul_div_cancel' pow_padicValNat_dvd).symm
+  have hdv : d = 2 ^ v * o := (Nat.mul_div_cancel' (pow_multiplicity_dvd _ _)).symm
   have hodd : Odd o := by
     rw [Nat.odd_iff, ← Nat.two_dvd_ne_zero]
     intro h2
-    have hnd : ¬ 2 ^ (v + 1) ∣ d := pow_succ_padicValNat_not_dvd hd0
+    have hnd : ¬ 2 ^ (v + 1) ∣ d := pow_succ_multiplicity_not_dvd hd0
     refine hnd ?_
     have h' : 2 ^ (v + 1) ∣ 2 ^ v * o := by
       rw [pow_succ]; exact Nat.mul_dvd_mul_left _ h2
     rwa [← hdv] at h'
   have hva : v ≤ a + 1 := by
-    have : 2 ^ v ≤ d := Nat.le_of_dvd (Nat.pos_of_ne_zero hd0) pow_padicValNat_dvd
+    have : 2 ^ v ≤ d := Nat.le_of_dvd (Nat.pos_of_ne_zero hd0) (pow_multiplicity_dvd _ _)
     have : v < a + 1 := (Nat.pow_lt_pow_iff_right (by norm_num)).mp (this.trans_lt hdlt)
     omega
   have hunit := isUnit_natCast_of_odd (p := N) (fl := fl) hodd

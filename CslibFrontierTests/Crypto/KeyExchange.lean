@@ -92,7 +92,7 @@ private theorem isPPT_ofWords
         F.encode input.2.transcript.groupParameters input.2.key)
       (KeyExchange.encEavInput F.encDHTranscript F.encDHKey) encBits :=
     KeyExchange.encView_key_polyTime _ _ (.snd _ _)
-  exact IsPPTOn.preprocess hA (prepare := fun input : ℕ × KeyExchange.View F.DHTranscript F.DHKey =>
+  exact hA.preprocess (prepare := fun input : ℕ × KeyExchange.View F.DHTranscript F.DHKey =>
     (input.1, ((input.2.transcript.groupParameters, F.encode _ input.2.transcript.aliceShare,
       F.encode _ input.2.transcript.bobShare), F.encode _ input.2.key))) (by fun_prop)
 
