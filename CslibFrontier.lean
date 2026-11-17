@@ -1800,6 +1800,7 @@ public import CslibFrontier.Computability.Circuit.Unfolding
 public import CslibFrontier.Computability.Circuit.Weft
 public import CslibFrontier.Computability.Circuit.WireNumber
 public import CslibFrontier.Computability.Circuit.Wiring
+public import CslibFrontier.Computability.Communication.AhoUllmanYannakakis
 public import CslibFrontier.Computability.Communication.Amplification
 public import CslibFrontier.Computability.Communication.Announce
 public import CslibFrontier.Computability.Communication.BinarySearch
