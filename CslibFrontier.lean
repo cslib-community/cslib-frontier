@@ -1350,6 +1350,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.PopulationCount
 public import CslibFrontier.Computability.Circuit.Boolean.PopulationCount.PolyTime
 public import CslibFrontier.Computability.Circuit.Boolean.PopulationCount.ThresholdPolyTime
 public import CslibFrontier.Computability.Circuit.Boolean.Propagation
+public import CslibFrontier.Computability.Circuit.Boolean.PropositionTseitin
 public import CslibFrontier.Computability.Circuit.Boolean.Razborov.LearningParams
 public import CslibFrontier.Computability.Circuit.Boolean.Razborov.MiddleSlice
 public import CslibFrontier.Computability.Circuit.Boolean.Razborov.MiddleSlice.P
@@ -7335,8 +7336,10 @@ public import CslibFrontier.Logics.Propositional.Resolution.TseitinExpander
 public import CslibFrontier.Logics.Propositional.Resolution.TseitinSpace
 public import CslibFrontier.Logics.Propositional.Resolution.WidePigeonholeSpace
 public import CslibFrontier.Logics.Propositional.SemanticDerivation
+public import CslibFrontier.Logics.Propositional.Semantics
 public import CslibFrontier.Logics.Propositional.SigmaThree
 public import CslibFrontier.Logics.Propositional.Tseitin
+public import CslibFrontier.Logics.Propositional.TseitinCNF
 public import CslibFrontier.Logics.SecondOrder.Coloring
 public import CslibFrontier.Logics.SecondOrder.Encoding
 public import CslibFrontier.Logics.SecondOrder.Existential
