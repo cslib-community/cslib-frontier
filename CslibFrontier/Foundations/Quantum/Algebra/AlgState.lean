@@ -45,6 +45,8 @@ need no C⋆-norm.
   real and nonnegative on nonnegative elements.
 * `Cslib.Quantum.AlgState.norm_apply_star_mul_le`: Cauchy–Schwarz for states.
 * `Cslib.Quantum.AlgState.norm_le_one`: a contraction, `a⋆a ≤ 1`, has state norm at most `1`.
+* `Cslib.Quantum.AlgState.comap`, `Cslib.Quantum.AlgState.norm_comap`: pulling a state back along
+  a monotone star-algebra homomorphism, `‖a‖_{φ ∘ f} = ‖f a‖_φ`.
 -/
 
 @[expose] public section
@@ -197,6 +199,28 @@ theorem norm_sq_le_of_star_mul_le (φ : AlgState A) {x y : A} (h : star x * x �
 theorem norm_le_one (φ : AlgState A) {a : A} (h : star a * a ≤ 1) : φ.norm a ≤ 1 := by
   rw [norm_eq_sqrt, Real.sqrt_le_one]
   exact φ.re_apply_le_one h
+
+omit [StarModule ℂ A] [SelfAdjointDecompose A] in
+/-- The **pullback** `φ ∘ f` of a state along a monotone star-algebra homomorphism `f`. -/
+noncomputable def comap {B : Type*} [Ring B] [StarRing B] [PartialOrder B] [Algebra ℂ B]
+    (φ : AlgState B) (f : A →⋆ₐ[ℂ] B) (hf : Monotone f) : AlgState A where
+  toFun a := φ (f a)
+  map_add' a b := by simp [map_add]
+  map_smul' z a := by simp [map_smul]
+  monotone' _ _ h := φ.apply_mono (hf h)
+  map_one' := by simp [φ.map_one]
+
+omit [StarOrderedRing A] [StarModule ℂ A] [SelfAdjointDecompose A] in
+theorem comap_apply {B : Type*} [Ring B] [StarRing B] [PartialOrder B] [Algebra ℂ B]
+    (φ : AlgState B) (f : A →⋆ₐ[ℂ] B) (hf : Monotone f) (a : A) :
+    φ.comap f hf a = φ (f a) :=
+  rfl
+
+/-- The state norm of a pullback is the state norm of the image: `‖a‖_{φ ∘ f} = ‖f a‖_φ`. -/
+theorem norm_comap {B : Type*} [Ring B] [StarRing B] [PartialOrder B] [StarOrderedRing B]
+    [Algebra ℂ B] [StarModule ℂ B] [SelfAdjointDecompose B] (φ : AlgState B) (f : A →⋆ₐ[ℂ] B)
+    (hf : Monotone f) (a : A) : (φ.comap f hf).norm a = φ.norm (f a) := by
+  rw [norm_eq_sqrt, norm_eq_sqrt, comap_apply, map_mul, map_star]
 
 end Star
 
