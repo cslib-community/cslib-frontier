@@ -123,19 +123,19 @@ set_option maxRecDepth 16384
 
 /-- Actual host execution sees the zero singleton solution. -/
 example : ((Host.body 0 probe).eval 252 10 (.init [encode 0])).map
-    (fun yn => yn.1.regs (Host.hostRegisters Host.found)) = some 1 := by decide
+    (fun yn => yn.1.regs (Host.hostRegisters Host.found)) = some 1 := by decide +kernel
 
 /-- Actual host execution rejects a positive singleton. -/
 example : ((Host.body 0 probe).eval 252 10 (.init [encode 1])).map
-    (fun yn => yn.1.regs (Host.hostRegisters Host.found)) = some 0 := by decide
+    (fun yn => yn.1.regs (Host.hostRegisters Host.found)) = some 0 := by decide +kernel
 
 /-- Actual host execution rejects a negative singleton. -/
 example : ((Host.body 0 probe).eval 252 10 (.init [encode (-1)])).map
-    (fun yn => yn.1.regs (Host.hostRegisters Host.found)) = some 0 := by decide
+    (fun yn => yn.1.regs (Host.hostRegisters Host.found)) = some 0 := by decide +kernel
 
 /-- Empty input constructs only filler matrices and returns false. -/
 example : ((Host.body 0 probe).eval 127 10 (.init [])).map
-    (fun yn => yn.1.regs (Host.hostRegisters Host.found)) = some 0 := by decide
+    (fun yn => yn.1.regs (Host.hostRegisters Host.found)) = some 0 := by decide +kernel
 
 end Interpreter
 
