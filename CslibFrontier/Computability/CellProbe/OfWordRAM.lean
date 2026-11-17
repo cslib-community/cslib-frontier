@@ -17,6 +17,7 @@ import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Map
+import CslibFrontier.Tactic.FinIndex
 import Mathlib.Data.Finset.Sort
 
 /-!
@@ -642,7 +643,7 @@ def standardLayout {r : ℕ} (input : Fin r → Bool) (base S w : ℕ) :
       omega
   nextMem_spill_reg y m c _ hc := by
     let k : Fin (persCount input) := ⟨c.1 - S, by omega⟩
-    have hc_eq : c = Fin.natAdd S k := Fin.ext (by simp [k]; omega)
+    have hc_eq : c = Fin.natAdd S k := by fin_index [k]
     have hinj : Function.Injective (fun j : Fin (persCount input) => Fin.natAdd S j) :=
       fun a b h => Fin.ext (by simpa using congrArg Fin.val h)
     rw [hc_eq, nextMem_writeFin_apply hinj]
@@ -761,14 +762,14 @@ def wideLayout {r : ℕ} (input : Fin r → Bool) (base S w : ℕ) :
         omega
       exact Function.update_of_ne hne _ m
   nextMem_spill_reg y m c hzero hc := by
-    have hc_eq : c = Fin.last S := Fin.ext (by simp; omega)
+    have hc_eq : c = Fin.last S := by fin_index
     subst hc_eq
     by_cases h0 : persCount input = 0
     · simp only [h0, ↓reduceDIte, ProbeTree.run_pure]
       exact hzero h0 (Fin.last S) hc
     · simp [h0, packMemWide]
   validMem_reg_zero hm h0 y d hd := by
-    have hd_eq : d = Fin.last S := Fin.ext (by simp; omega)
+    have hd_eq : d = Fin.last S := by fin_index
     subst hd_eq
     refine Fin.ext ?_
     simp [hm.2 h0, packMemWide, packDigits_eq_zero_of_zero h0]

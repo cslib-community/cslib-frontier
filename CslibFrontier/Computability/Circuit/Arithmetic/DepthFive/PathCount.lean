@@ -252,14 +252,12 @@ private theorem sum_nbrN_le (p : Params)
     dsimp only at heq
     have key : (t : ℕ) = t' ∧ (i : ℕ) = i' := by
       split_ifs at heq with h₁ h₂ h₂
-      · have := congrArg Fin.val heq
-        omega
+      · omega
       · have := congrArg Fin.val heq
         exact (hadj t' t (by omega) (hS t' ht').1 (hS t ht).1).elim
       · have := congrArg Fin.val heq
         exact (hadj t t' (by omega) (hS t ht).1 (hS t' ht').1).elim
-      · have := congrArg Fin.val heq
-        omega
+      · omega
     obtain rfl : t = t' := Fin.ext key.1
     obtain rfl : i = i' := Fin.ext key.2
     rfl

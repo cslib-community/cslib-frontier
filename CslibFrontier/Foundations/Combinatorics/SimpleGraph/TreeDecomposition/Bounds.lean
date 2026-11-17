@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.TreeDecomposition.Rooted
 public import Mathlib.Combinatorics.SimpleGraph.CycleGraph
 public import Mathlib.Combinatorics.SimpleGraph.Finite
+import CslibFrontier.Tactic.FinIndex
 import Mathlib.Combinatorics.SimpleGraph.Connectivity.Subgraph
 
 /-!
@@ -198,9 +199,7 @@ private def cycleGraphDecomposition (n : ℕ) : (cycleGraph (n + 3)).RootedTreeD
   parent_zero := Fin.ext (by simp)
   parent_lt i hi := by
     have : i.val ≠ 0 := fun h => hi (Fin.ext h)
-    rw [Fin.lt_def]
-    dsimp only
-    omega
+    fin_index
   bag := cycleGraphBag n
   exists_mem_bag v := by
     refine ⟨⟨min (v.val - 1) n, by omega⟩, ?_⟩

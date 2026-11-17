@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.ThreeSAT.Gadget
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.ThreeSAT.Tracks
 public import CslibFrontier.Logics.Propositional.CNF.ModelCount
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # The permanent of the 3CNF matrix
@@ -207,7 +208,7 @@ theorem mem_gadget (u : Fin (size φ)) :
     rw [gadgetEmb_val]
     omega
   · intro h
-    exact ⟨⟨(u.val - numAux φ) % 8, by omega⟩, Fin.ext (by rw [gadgetEmb_val]; simp only; omega)⟩
+    exact ⟨⟨(u.val - numAux φ) % 8, by omega⟩, by fin_index [gadgetEmb_val]⟩
 
 theorem mem_gadgetExits (Q : Finset (Fin 3)) (u : Fin (size φ)) :
     u ∈ (Q.map exitE).map (gadgetEmb φ k hk) ↔ ∃ p ∈ Q, u.val = exitIdx φ (3 * k + p.val) := by

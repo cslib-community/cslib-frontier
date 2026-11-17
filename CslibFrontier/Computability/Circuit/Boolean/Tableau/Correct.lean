@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.Tableau.Basic
 public import CslibFrontier.Computability.Circuit.Boolean.EvaluationTime
 import CslibFrontier.Computability.Circuit.Boolean.OpValue
 import CslibFrontier.Foundations.Data.List.Lookup
+import CslibFrontier.Tactic.FinIndex
 import Mathlib.Data.List.GetD
 
 /-!
@@ -263,7 +264,7 @@ private theorem iff_exists_le_of_or_chain {n : ℕ} {v p : Fin (n + 1) → Prop}
     · rintro ⟨j', hj', h⟩
       rcases Nat.lt_or_ge j'.val (j.val + 1) with h' | h'
       · exact Or.inl ⟨j', by omega, h⟩
-      · obtain rfl : j' = j.succ := Fin.ext (by simp only [Fin.val_succ]; omega)
+      · obtain rfl : j' = j.succ := by fin_index
         exact Or.inr h
 
 section Step

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.WordRAM.Realization.Witness
 public import CslibFrontier.DataStructure.StateTransition.Refinement
 public import CslibFrontier.DataStructure.StateTransition.Resource
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Native implementations of refinements, one realized body per operation constructor
@@ -203,19 +204,11 @@ variable [Fintype ι] (C : ι → Certificate B)
 
 /-- Distinct argument coordinates use distinct source registers. -/
 theorem src_injective (i : ι) : Function.Injective (src C i) := by
-  intro a b h
-  apply Fin.ext
-  have := congrArg Fin.val h
-  simp only [src] at this
-  omega
+  fin_index [src]
 
 /-- Distinct result/scratch coordinates use distinct registers. -/
 theorem tmp_injective (i : ι) : Function.Injective (tmp C i) := by
-  intro a b h
-  apply Fin.ext
-  have := congrArg Fin.val h
-  simp only [tmp] at this
-  omega
+  fin_index [tmp]
 
 /-- Source coordinates at the same position agree across tags. -/
 theorem src_eq_of_val_eq (i i' : ι) {a : Fin (C i).k} {b : Fin (C i').k}
@@ -234,27 +227,17 @@ theorem tmp_eq_of_val_eq (i i' : ι)
 /-- No tag's argument register is used by any tag's result/scratch bank. -/
 theorem src_ne_tmp (i i' : ι) (a : Fin (C i).k)
     (b : Fin ((C i').l + (C i').realizes.scratchSize + 1)) : src C i a ≠ tmp C i' b := by
-  intro h
   have hk := Finset.le_sup (f := fun i => (C i).k) (Finset.mem_univ i)
-  have ha := a.isLt
-  have := congrArg Fin.val h
-  simp only [src, tmp, argWords] at this
-  omega
+  fin_index [src, tmp, argWords]
 
 /-- Argument installation never uses the frontier register. -/
 theorem src_ne_frontier (i : ι) (a : Fin (C i).k) : src C i a ≠ frontier C := by
-  intro h
-  have := congrArg Fin.val h
-  simp only [src, frontier] at this
-  omega
+  fin_index [src, frontier]
 
 /-- Native result/scratch writes never use the frontier register. -/
 theorem tmp_ne_frontier (i : ι) (a : Fin ((C i).l + (C i).realizes.scratchSize + 1)) :
     tmp C i a ≠ frontier C := by
-  intro h
-  have := congrArg Fin.val h
-  simp only [tmp, frontier] at this
-  omega
+  fin_index [tmp, frontier]
 
 /-- The static body of tag `i`. -/
 @[expose] noncomputable def code (i : ι) : Code B (registers C) :=
@@ -321,9 +304,7 @@ theorem install_eq_self (i : ι) (d : (C i).Arg) (x : Data (registers C))
     by_cases hj : 0 < j.val ∧ j.val ≤ (C i).k
     · let a : Fin (C i).k := ⟨j.val - 1, by omega⟩
       have hsrc : src C i a = j := by
-        apply Fin.ext
-        simp only [src, a]
-        omega
+        fin_index [src, a]
       change (if h : 0 < j.val ∧ j.val ≤ (C i).k then
         (C i).input d ⟨j.val - 1, by omega⟩ else x.regs j) = _
       rw [dite_eq_left hj]

@@ -468,7 +468,7 @@ private theorem realize_layoutInRaw_iff (a : EncodedStructure) {B : ℕ}
   refine ⟨fun ⟨y, hy, hjy⟩ => ?_, fun hj => ⟨![⟨(encStructure a).length, hrawB⟩],
     (hbase_last _).2 rfl, by simpa [Fin.lt_def] using hj⟩⟩
   have hy' := (hbase_last (y 0)).1 hy
-  rw [Fin.lt_def] at hjy; omega
+  omega
 
 private theorem realize_layoutMatrix_sound {a : EncodedStructure} (ha : v.WellFormed a) {B : ℕ}
     (hB : (frame (encStructure a)).length < B)

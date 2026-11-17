@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Combinatorics.WeightedCut
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Contracting two supervertices
@@ -174,10 +175,8 @@ theorem embedCompact_injective {m : ℕ} (v : Fin (m + 1)) :
   unfold embedCompact at hij
   by_cases hi : i.val = v.val <;> by_cases hj : j.val = v.val
   · exact Fin.ext (hi.trans hj.symm)
-  · simp only [hi, hj, ↓reduceIte, Fin.ext_iff, Fin.val_last, Fin.val_castSucc] at hij
-    omega
-  · simp only [hi, hj, ↓reduceIte, Fin.ext_iff, Fin.val_last, Fin.val_castSucc] at hij
-    omega
+  · fin_index
+  · fin_index
   · simp only [hi, hj, ↓reduceIte, Fin.castSucc_inj] at hij
     exact hij
 

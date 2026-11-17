@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.IntervalTensor
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork
+import CslibFrontier.Tactic.FinIndex
 import Mathlib.Algebra.BigOperators.GroupWithZero.Finset
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Data.Fintype.Sum
@@ -613,7 +614,7 @@ private theorem prod_sinks (hq : 0 < q) (x : BlockEdge k q → BlockLetter k Sta
     rw [ite_eq_left (by omega)]
   · intro i _ hi
     change (if i.val + 1 = q then _ else 1) = 1
-    rw [ite_eq_right fun h => hi (Fin.ext (by simp only; omega))]
+    rw [ite_eq_right fun h => hi (by fin_index)]
   · exact fun h => absurd (Finset.mem_univ _) h
 
 omit [NeZero b] in

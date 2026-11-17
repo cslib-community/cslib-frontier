@@ -18,6 +18,7 @@ import Mathlib.Data.Fintype.CardEmbedding
 import Mathlib.Data.Fintype.Perm
 import Mathlib.Logic.Equiv.List
 import Mathlib.Probability.ProbabilityMassFunction.Monad
+import CslibFrontier.Tactic.FinIndex
 
 /-! # Wang–Ren Relocation Data Structure for Client-Preprocessing PIR
 
@@ -709,10 +710,8 @@ theorem locate_relocate_self_eq {m m' : ℕ} {s : RelocationState m m'} (hv : s.
     locate (relocate s c) e hm = endOfChain s (s.perm ⟨m + s.history.length, hlen⟩) := by
   refine endOfChain_relocate_of_eq hv hc hlen (inEdge?_perm_castLE_eq_none s e hm) ?_ heq
   intro h
-  have := Fin.ext_iff.mp (s.perm.injective h)
-  simp only [Fin.val_castLE] at this
-  have := e.isLt
-  omega
+  have := s.perm.injective h
+  fin_index
 
 /-- Combined one-step equation for `locate (relocate s c) e hm` ([WangRen2025], Lemma 3.15,
 p. 16). -/
