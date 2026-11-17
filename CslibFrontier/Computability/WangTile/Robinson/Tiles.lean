@@ -385,6 +385,28 @@ The 416 entries flatten lean-wang's layer rules `phiL1Star`, `phiL2Component1`,
   | 0, grid => grid
   | level + 1, grid => refineIndexGrid (iterateRefine level grid)
 
+/-- Refining in two successive stages adds their depths. -/
+theorem iterateRefine_add (m n : ℕ) (g : ℕ → ℕ → Index) :
+    iterateRefine m (iterateRefine n g) = iterateRefine (m + n) g := by
+  induction m with
+  | zero => simp only [iterateRefine, Nat.zero_add]
+  | succ m ih => simp only [iterateRefine, Nat.succ_add, ih]
+
+/-- The substituted block below the origin depends only on the root tile. -/
+theorem iterateRefine_eq_of_root_eq {g h : ℕ → ℕ → Index} (eq : g 0 0 = h 0 0) (depth : ℕ) :
+    ∀ x y, x < 2 ^ depth → y < 2 ^ depth →
+      iterateRefine depth g x y = iterateRefine depth h x y := by
+  induction depth with
+  | zero =>
+    intro x y hx hy
+    have : x = 0 ∧ y = 0 := by simpa only [pow_zero, Nat.lt_one_iff] using And.intro hx hy
+    simpa only [iterateRefine, this.1, this.2] using eq
+  | succ depth ih =>
+    intro x y hx hy
+    simp only [pow_succ] at hx hy
+    simp only [iterateRefine, refineIndexGrid]
+    rw [ih (x / 2) (y / 2) (by omega) (by omega)]
+
 /-- The thin-layer phase immediately east of a given phase. -/
 @[expose] def phaseEast : Thin → Thin
   | .a => .c | .b => .d | .c => .a | .d => .b

@@ -66,10 +66,11 @@ To formalize this over an arbitrary `PrimeOrderGroupFamily`:
    `advantage_kdfGame_linearHashKDF_le` bounds the distinguishing advantage between `kdfRealGame`
    and `kdfIdealGame` for *every* (even computationally unbounded) distinguisher by
    `NNReal.sqrt ((2 : ℝ≥0) ^ (msgLen n) / (qMin : ℝ≥0)) / 2`. Consequently,
-   `secureKDF_linearHashKDF`, `secureKDF_linearHashKDF_const`, `exists_secureKDF_withSeed`, and
-   `DDH.negligible_hashedElGamalCPAGame_linearHashKDF` yield non-degenerate `SecureKDF` and Hashed
-   ElGamal instantiations for arbitrary positive key lengths `msgLen n > 0` whenever
-   `2 ^ (msgLen n) / q` is negligible.
+   `secureKDF_linearHashKDF`, `secureKDF_linearHashKDF_const` and `exists_secureKDF_withSeed`
+   yield non-degenerate `SecureKDF` instantiations for arbitrary positive key lengths
+   `msgLen n > 0` whenever `2 ^ (msgLen n) / q` is negligible, and
+   `DDH.negligible_hashedElGamalCPAGame_ideal_linearHashKDF` applies them to the ideal-sampling
+   Hashed ElGamal game.
 
 ## Main definitions
 
@@ -97,9 +98,15 @@ To formalize this over an arbitrary `PrimeOrderGroupFamily`:
   ([BonehShoup2023], Section 8.10.4, Theorem 8.11, p. 334, and Section 11.5.2, p. 449).
 * `Cslib.Crypto.PrimeOrderGroupFamily.secureKDF_linearHashKDF`,
   `Cslib.Crypto.PrimeOrderGroupFamily.secureKDF_linearHashKDF_const`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.exists_secureKDF_withSeed`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.DDH.negligible_hashedElGamalCPAGame_linearHashKDF`:
-  non-degenerate `SecureKDF` and Hashed ElGamal IND-CPA instantiations via `linearHashKDF`.
+  `Cslib.Crypto.PrimeOrderGroupFamily.exists_secureKDF_withSeed`: non-degenerate `SecureKDF`
+  instantiations via `linearHashKDF`.
+
+## Ideal-sampling step
+
+* `Cslib.Crypto.PrimeOrderGroupFamily.DDH.negligible_hashedElGamalCPAGame_ideal_linearHashKDF`:
+  `DDH.negligible_hashedElGamalCPAGame_ideal` with `linearHashKDF`, so that `F.DDH setup` is the
+  only assumption. Its game `hashedElGamalCPAGame` draws exponents exactly uniformly at the `PMF`
+  level, so it is a step and not the cited result.
 
 ## References
 
@@ -529,12 +536,14 @@ theorem exists_secureKDF_withSeed (setup : ℕ → PMF F.Desc) (k : ℕ) {qMin :
     fun ds w => F.length_linearHashKDF (fun _ => k) bound (ds, w),
     F.secureKDF_linearHashKDF_const setup bound k hq0 (fun _ d _ x => hce d x) hq hneg⟩
 
-/-- **Hashed ElGamal with `linearHashKDF` is IND-CPA secure under `F.DDH setup` alone**
-([BonehShoup2023], Section 8.10.4, Theorem 8.11, p. 334, and Section 11.5.2, Theorem 11.5,
-pp. 449–451): combining `DDH.withSeed`, `secureKDF_linearHashKDF`, and
-`DDH.negligible_hashedElGamalCPAGame`, no computational hypothesis on the key-derivation hash is
-needed under `LinearHashKDFConditions`. -/
-theorem DDH.negligible_hashedElGamalCPAGame_linearHashKDF {F : PrimeOrderGroupFamily}
+/-- Ideal-sampling step, not the cited result: under `F.DDH setup` alone, every uniform strict PPT
+`Encryption.WordAdversary` has negligible advantage in the one-time-pad Hashed ElGamal game
+`hashedElGamalCPAGame` with `linearHashKDF`, whose exponents are drawn exactly uniformly at the
+`PMF` level (after [BonehShoup2023], Section 8.10.4, Theorem 8.11, p. 334, and Section 11.5.2,
+Theorem 11.5, pp. 449–451). Combining `DDH.withSeed`, `secureKDF_linearHashKDF`, and
+`DDH.negligible_hashedElGamalCPAGame_ideal`, no computational hypothesis on the key-derivation hash
+is needed under `LinearHashKDFConditions`. -/
+theorem DDH.negligible_hashedElGamalCPAGame_ideal_linearHashKDF {F : PrimeOrderGroupFamily}
     {setup : ℕ → PMF F.Desc} {keyLen bound : F.Desc → ℕ} {msgLen qMin : ℕ → ℕ}
     (hDDH : F.DDH setup) (hKDF : F.LinearHashKDFConditions setup keyLen bound msgLen qMin)
     (hkey_poly : ComputableInPolyTime keyLen F.encDesc encUnary)
@@ -550,7 +559,7 @@ theorem DDH.negligible_hashedElGamalCPAGame_linearHashKDF {F : PrimeOrderGroupFa
           (F.seededSetup setup (F.linearHashSeedLen msgLen bound))
           (F.linearHashKDF keyLen bound) adversary true n) :=
   (hDDH.withSeed (F.computableInPolyTime_linearHashSeedLen hmsg_poly hbound_poly))
-    |>.negligible_hashedElGamalCPAGame (F.secureKDF_linearHashKDF hKDF)
+    |>.negligible_hashedElGamalCPAGame_ideal (F.secureKDF_linearHashKDF hKDF)
       (F.computableInPolyTime_linearHashKDF hkey_poly hbound_poly) hA
 
 end Cslib.Crypto.PrimeOrderGroupFamily

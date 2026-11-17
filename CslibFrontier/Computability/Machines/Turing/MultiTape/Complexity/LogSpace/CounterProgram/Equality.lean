@@ -8,8 +8,9 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Words
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.CounterProgram
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.CounterProgram.Step
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Equality in logarithmic space
@@ -57,16 +58,13 @@ private theorem equality_run (u v : List Bool) {B : ℕ}
     intro i hi
     induction h : u.length - i generalizing i with
     | zero =>
-      have : i = u.length := by omega
-      subst i
-      apply Reaches.read (by rfl) (bounded (by omega) (by omega))
-      simpa [getElem?_frame_append_length, readLabel] using Reaches.refl (2, [u.length, 0])
+      obtain rfl : i = u.length := by omega
+      cp_step [getElem?_frame_append_length]
     | succ n ih =>
-      apply Reaches.read (by rfl) (bounded (by omega) (by omega))
-      simp only [eval_mul, eval_const, eval_reg, List.getD_cons_zero,
-        (getElem?_frame_append u v (show i < u.length by omega)).1, readLabel]
-      apply Reaches.assign (by rfl) (bounded (by omega) (by omega))
-      simpa using ih (i + 1) (by omega) (by omega)
+      have hiu : i < u.length := by omega
+      cp_step [(getElem?_frame_append u v hiu).1]
+      cp_step
+      exact ih (i + 1) (by omega) (by omega)
   have loop : ∀ i ≤ u.length, ∃ s,
       equalityProgram.Reaches (frame u ++ v) (equalityProgram.Running B)
         (2, [u.length, i]) s ∧
@@ -75,30 +73,19 @@ private theorem equality_run (u v : List Bool) {B : ℕ}
     intro i hi
     induction h : u.length - i generalizing i with
     | zero =>
-      have heq : i = u.length := by omega
-      subst i
+      obtain rfl : i = u.length := by omega
       have hregs := bounded (B := B) (a := u.length) (b := u.length) (by omega) (by omega)
       by_cases hv : u.length < v.length
       · refine ⟨(9, [u.length, u.length]), ?_, ?_, hregs⟩
-        · apply Reaches.read (by rfl) hregs
-          simp only [eval_mul, eval_const, eval_reg, List.getD_cons_succ, List.getD_cons_zero,
-            getElem?_frame_append_length, readLabel]
-          apply Reaches.read (by rfl) hregs
-          simp only [eval_add, eval_mul, eval_const, eval_reg, List.getD_cons_zero,
-            List.getD_cons_succ, getElem?_frame_append_boundary]
-          rw [List.getElem?_eq_getElem hv]
-          cases v[u.length] <;> exact Reaches.refl _
+        · cp_step [getElem?_frame_append_length]
+          cases hb : v[u.length] <;>
+            cp_step [getElem?_frame_append_boundary, List.getElem?_eq_getElem hv, hb]
         · have : v.drop u.length ≠ [] := by simp [List.drop_eq_nil_iff, hv.not_ge]
           simp [List.drop_length, this, equalityProgram, instr, Instr.reject, encBool_apply]
       · refine ⟨(8, [u.length, u.length]), ?_, ?_, hregs⟩
-        · apply Reaches.read (by rfl) hregs
-          simp only [eval_mul, eval_const, eval_reg, List.getD_cons_succ, List.getD_cons_zero,
-            getElem?_frame_append_length, readLabel]
-          apply Reaches.read (by rfl) hregs
-          simpa [getElem?_frame_append_boundary,
-            List.getElem?_eq_none (by omega : v.length ≤ u.length), readLabel]
-            using (Reaches.refl (P := equalityProgram) (w := frame u ++ v)
-              (Q := equalityProgram.Running B) (8, [u.length, u.length]))
+        · cp_step [getElem?_frame_append_length]
+          cp_step [getElem?_frame_append_boundary,
+            List.getElem?_eq_none (by omega : v.length ≤ u.length)]
         · simp [List.drop_eq_nil_iff.mpr (by omega : v.length ≤ u.length), equalityProgram,
             instr, Instr.accept, encBool_apply]
     | succ n ih =>
@@ -107,57 +94,35 @@ private theorem equality_run (u v : List Bool) {B : ℕ}
       have hstep : equalityProgram.Reaches (frame u ++ v) (equalityProgram.Running B)
           (2, [u.length, i])
           (if u[i] then 4 else 5, [u.length, i]) := by
-        apply Reaches.read (by rfl) hregs
-        simp only [eval_mul, eval_const, eval_reg, List.getD_cons_succ, List.getD_cons_zero,
-          (getElem?_frame_append u v hiu).1, readLabel]
-        apply Reaches.read (by rfl) hregs
-        simp only [eval_add, eval_mul, eval_const, eval_reg, List.getD_cons_succ,
-          List.getD_cons_zero, (getElem?_frame_append u v hiu).2]
-        cases u[i] <;> exact Reaches.refl _
+        cp_step [(getElem?_frame_append u v hiu).1]
+        cases hu : u[i] <;> simp only [Bool.false_eq_true, ↓reduceIte] <;>
+          cp_step [(getElem?_frame_append u v hiu).2, hu]
       by_cases hv : i < v.length
       · by_cases heq : u[i] = v[i]
         · obtain ⟨s, hs, hout, hb⟩ := ih (i + 1) (by omega) (by omega)
           refine ⟨s, hstep.trans ?_, ?_, hb⟩
-          · have hnext : equalityProgram.Reaches (frame u ++ v) (equalityProgram.Running B)
-                (7, [u.length, i]) s := by
-              apply Reaches.assign (by rfl) hregs
-              simpa using hs
-            cases hu : u[i] <;> simp only [Bool.false_eq_true, ↓reduceIte]
-            all_goals
-              apply Reaches.read (by rfl) hregs
-              simpa [getElem?_frame_append_boundary, List.getElem?_eq_getElem hv, ← heq, hu,
-                readLabel] using hnext
+          · cases hu : u[i] <;> simp only [Bool.false_eq_true, ↓reduceIte] <;>
+              (cp_step [getElem?_frame_append_boundary, List.getElem?_eq_getElem hv, ← heq, hu]
+               cp_step)
           · have hd : u.drop i = v.drop i ↔ u.drop (i + 1) = v.drop (i + 1) := by
               rw [← List.cons_getElem_drop_succ (l := u) (n := i) (h := hiu),
-                ← List.cons_getElem_drop_succ (l := v) (n := i) (h := hv)]
-              rw [List.cons.injEq]
+                ← List.cons_getElem_drop_succ (l := v) (n := i) (h := hv), List.cons.injEq]
               exact and_iff_right heq
             simpa only [hd] using hout
         · refine ⟨(9, [u.length, i]), hstep.trans ?_, ?_, hregs⟩
-          · cases hu : u[i] <;> simp only [Bool.false_eq_true, ↓reduceIte]
-            all_goals
-              apply Reaches.read (by rfl) hregs
-              have hvb : v[i] = !u[i] := by
-                apply Bool.eq_not_iff.mpr
-                exact Ne.symm heq
-              simpa [getElem?_frame_append_boundary, List.getElem?_eq_getElem hv, hvb, hu,
-                readLabel]
-                using (Reaches.refl (P := equalityProgram) (w := frame u ++ v)
-                  (Q := equalityProgram.Running B) (9, [u.length, i]))
+          · have hvb : v[i] = !u[i] := Bool.eq_not_iff.mpr (Ne.symm heq)
+            cases hu : u[i] <;> simp only [Bool.false_eq_true, ↓reduceIte] <;>
+              cp_step [getElem?_frame_append_boundary, List.getElem?_eq_getElem hv, hvb, hu,
+                Bool.not_false, Bool.not_true]
           · have hd : u.drop i ≠ v.drop i := by
               rw [← List.cons_getElem_drop_succ (l := u) (n := i) (h := hiu),
                 ← List.cons_getElem_drop_succ (l := v) (n := i) (h := hv)]
-              intro hdrop
-              exact heq (List.cons.inj hdrop).1
+              exact fun hdrop => heq (List.cons.inj hdrop).1
             simp [hd, equalityProgram, instr, Instr.reject, encBool_apply]
       · refine ⟨(9, [u.length, i]), hstep.trans ?_, ?_, hregs⟩
-        · cases hu : u[i] <;> simp only [Bool.false_eq_true, ↓reduceIte]
-          all_goals
-            apply Reaches.read (by rfl) hregs
-            simpa [getElem?_frame_append_boundary,
-              List.getElem?_eq_none (by omega : v.length ≤ i), readLabel]
-              using (Reaches.refl (P := equalityProgram) (w := frame u ++ v)
-                (Q := equalityProgram.Running B) (9, [u.length, i]))
+        · cases hu : u[i] <;> simp only [Bool.false_eq_true, ↓reduceIte] <;>
+            cp_step [getElem?_frame_append_boundary,
+              List.getElem?_eq_none (by omega : v.length ≤ i)]
         · have hd : u.drop i ≠ v.drop i := by
             rw [List.drop_eq_nil_iff.mpr (by omega : v.length ≤ i)]
             simp [List.drop_eq_nil_iff, hiu.not_ge]
@@ -171,10 +136,7 @@ private theorem equality_logspace :
   apply equalityProgram.computableInLogSpace_of_reaches 1
   intro p
   apply equality_run p.1 p.2
-  rw [pow_one, encPair_apply]
-  change p.1.length + 1 ≤ (frame p.1 ++ p.2).length + 1
-  rw [List.length_append, length_frame]
-  omega
+  enc_len [pow_one]
 
 end Turing.CounterProgram
 
