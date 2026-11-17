@@ -22,6 +22,7 @@ workspace layout. They apply to any register count, including an empty register 
 
 ## Main results
 
+* `Cslib.WordRAM.Multiword.value_cons`: prepending a register adjoins its digit as the low digit.
 * `Cslib.WordRAM.Multiword.value_congr`: the value depends only on the listed registers.
 * `Cslib.WordRAM.Multiword.value_eq_zero_of_forall`: listed registers that are all zero have
   value zero.
@@ -36,6 +37,10 @@ variable {r : ℕ}
 /-- The value of a little-endian register list. -/
 def value (β : ℕ) (x : Data r) (ds : List (Fin r)) : ℕ :=
   Nat.ofDigits β (ds.map x.regs)
+
+/-- Prepending a register adjoins its digit as the low digit. -/
+theorem value_cons (β : ℕ) (x : Data r) (d : Fin r) (ds : List (Fin r)) :
+    value β x (d :: ds) = x.regs d + β * value β x ds := rfl
 
 /-- The value of a digit list depends only on the registers it lists. -/
 theorem value_congr {β : ℕ} {x y : Data r} {ds : List (Fin r)}
