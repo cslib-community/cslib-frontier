@@ -14,7 +14,10 @@ public import CslibFrontier.Computability.WordRAM.Realization.Witness
 public import CslibFrontier.Computability.WordRAM.Realization.WordEncoding.Equiv
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 import CslibFrontier.Foundations.Data.List.Sort
+import CslibFrontier.Tactic.Fits
 import CslibFrontier.Tactic.Realize
+import CslibFrontier.Tactic.SuppCases
+import Mathlib.Data.Nat.Bitwise
 
 /-!
 # Memory-Program Realization of Quotient-Filter Cluster Operations
@@ -250,34 +253,22 @@ theorem clusterSafe_mkClusterInput {base w w₀ n k : ℕ}
 theorem encode_lt_of_clusterSafe {w : ℕ} {d : ClusterInput} (hcs : ClusterSafe w d)
     (i : Fin (WordEncoding.width ClusterInput)) :
     WordEncoding.encode d i < 2 ^ w := by
-  have h1 := hcs.one_lt_two_pow
-  have h2 := hcs.q_lt
-  have h3 := hcs.r_le
-  have h4 := hcs.op_lt
-  have h5 := hcs.two_cap_lt
-  have h6 := hcs.mask_lt
-  have h11 := hcs.pBit_lt.trans Nat.lt_two_pow_self
-  have h12 := hcs.pBitMask_lt.trans Nat.lt_two_pow_self
-  have h13 := hcs.pRem_lt.trans Nat.lt_two_pow_self
-  have h14 := hcs.pRemMask_lt
-  have h15 := hcs.f_lt.trans Nat.lt_two_pow_self
-  have h16 := hcs.fMask_lt
+  obtain ⟨_, _, _, _, _, _, _, _, h5, h6, h7, h8', hp9, hp10, hp11, _, hf13, _, _, _⟩ := hcs
+  have := Nat.lt_of_le_of_lt (Nat.le_add_right _ _) h5
+  have := Nat.lt_of_le_of_lt (Nat.le_add_right _ _) h6
+  have := Nat.lt_of_le_of_lt (Nat.le_add_right _ _) h7
+  have := Nat.lt_of_le_of_lt (Nat.le_add_right _ _) h8'
+  have := hp9.trans Nat.lt_two_pow_self
+  have := hp10.trans Nat.lt_two_pow_self
+  have := hp11.trans Nat.lt_two_pow_self
+  have := hf13.trans Nat.lt_two_pow_self
+  obtain ⟨h0, h1, h2, h3, h4, h5', h6', h7', h8'', h9, h10, h11, h12, h13, h14⟩ :
+      d 0 < 2 ^ w ∧ d 1 < 2 ^ w ∧ d 2 < 2 ^ w ∧ d 3 < 2 ^ w ∧ d 4 < 2 ^ w ∧
+      d 5 < 2 ^ w ∧ d 6 < 2 ^ w ∧ d 7 < 2 ^ w ∧ d 8 < 2 ^ w ∧ d 9 < 2 ^ w ∧
+      d 10 < 2 ^ w ∧ d 11 < 2 ^ w ∧ d 12 < 2 ^ w ∧ d 13 < 2 ^ w ∧ d 14 < 2 ^ w := by
+    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> fits
   fin_cases i
-  · exact h2.trans (by omega)
-  · exact h3.trans_lt h16
-  · exact h4.trans (by omega)
-  · change d 3 < 2 ^ w; omega
-  · change d 4 < 2 ^ w; omega
-  · exact Nat.lt_of_le_of_lt (Nat.le_add_right _ _) hcs.full_lt
-  · exact Nat.lt_of_le_of_lt (Nat.le_add_right _ _) hcs.occ_lt
-  · exact Nat.lt_of_le_of_lt (Nat.le_add_right _ _) hcs.run_lt
-  · exact Nat.lt_of_le_of_lt (Nat.le_add_right _ _) hcs.rem_lt
-  · exact h11
-  · exact h12
-  · exact h13
-  · exact h14
-  · exact h15
-  · exact h16
+  exacts [h0, h1, h2, h3, h4, h5', h6', h7', h8'', h9, h10, h11, h12, h13, h14]
 
 theorem encode_mkClusterInput_lt {base w w₀ n k : ℕ}
     (hw₀ : 0 < w₀) (hw : 2 * w₀ ≤ w)
@@ -390,10 +381,9 @@ theorem clientState_selectPos (s : Memory.State) (x : ℕ × (ℕ × ℕ)) :
   dsimp only [selectPosProg]
   split_ifs <;> rfl
 
-private theorem fits_masked_addr {w base idx mask sh : ℕ}
-    (hcap : base + (mask >>> sh) < 2 ^ w) :
-    Fits w (base + ((idx &&& mask) >>> sh)) := by
-  change base + ((idx &&& mask) >>> sh) < 2 ^ w
+private theorem masked_addr_lt {base idx mask sh bound : ℕ}
+    (h : base + (mask >>> sh) < bound) :
+    base + ((idx &&& mask) >>> sh) < bound := by
   have h1 : (idx &&& mask) >>> sh ≤ mask >>> sh := by
     simp only [Nat.shiftRight_eq_div_pow]
     exact Nat.div_le_div_right Nat.and_le_right
@@ -401,17 +391,9 @@ private theorem fits_masked_addr {w base idx mask sh : ℕ}
 
 private theorem fits_writeBit_diff_sh {w word sh val : ℕ} (hsh : sh < w)
     (hval : val < 2) :
-    Fits w (((word >>> sh &&& 1) ^^^ val) <<< sh) := by
-  change ((word >>> sh &&& 1) ^^^ val) <<< sh < 2 ^ w
-  rw [Nat.shiftLeft_eq]
-  have h1 : (word >>> sh &&& 1) < 2 ^ 1 := Nat.and_lt_two_pow _ (by decide)
-  have h2 : ((word >>> sh &&& 1) ^^^ val) < 2 ^ 1 := Nat.xor_lt_two_pow h1 hval
-  have h3 : 2 * 2 ^ sh ≤ 2 ^ w := by
-    rw [← pow_succ']
-    exact Nat.pow_le_pow_right two_pos hsh
-  have h4 : ((word >>> sh &&& 1) ^^^ val) * 2 ^ sh < 2 * 2 ^ sh :=
-    Nat.mul_lt_mul_of_pos_right h2 (Nat.two_pow_pos sh)
-  omega
+    Fits w (((word >>> sh &&& 1) ^^^ val) <<< sh) :=
+  Fits.mono (Nat.shiftLeft_lt (n := 1)
+    (Nat.xor_lt_two_pow (Nat.and_lt_two_pow _ (by decide)) hval)) (by omega)
 
 private theorem fits_writeBit_newWord {w word sh val : ℕ} (hw : word < 2 ^ w)
     (hsh : sh < w) (hval : val < 2) :
@@ -428,7 +410,7 @@ theorem realizes_readFull :
     Realizes .exact readFullProg WordEncoding.encode WordEncoding.encode
       (fun w x _ => ClusterSafe w x.1) (fun _ _ => 0) := by
   realize
-  · exact fits_masked_addr h.full_lt
+  · exact masked_addr_lt h.full_lt
   · exact h.one_lt_two_pow
 
 /-- Read `isOcc` at slot index `x.2 &&& d 4`. -/
@@ -441,7 +423,7 @@ theorem realizes_readOcc :
     Realizes .exact readOccProg WordEncoding.encode WordEncoding.encode
       (fun w x _ => ClusterSafe w x.1) (fun _ _ => 0) := by
   realize
-  · exact fits_masked_addr h.occ_lt
+  · exact masked_addr_lt h.occ_lt
   · exact h.one_lt_two_pow
 
 /-- Read `isRunStart` at slot index `x.2 &&& d 4`. -/
@@ -454,7 +436,7 @@ theorem realizes_readRunStart :
     Realizes .exact readRunStartProg WordEncoding.encode WordEncoding.encode
       (fun w x _ => ClusterSafe w x.1) (fun _ _ => 0) := by
   realize
-  · exact fits_masked_addr h.run_lt
+  · exact masked_addr_lt h.run_lt
   · exact h.one_lt_two_pow
 
 /-- Write `isFull` at slot index `x.2.1 &&& d 4` with bit `x.2.2`. -/
@@ -470,11 +452,9 @@ theorem realizes_readRunStart :
 theorem realizes_writeFull :
     Realizes .exact writeFullProg WordEncoding.encode WordEncoding.encode
       (fun w x _ => ClusterSafe w x.1 ∧ x.2.2 < 2) (fun _ _ => 0) := by
-  realize
-  · exact fits_masked_addr h.1.full_lt
-  · exact fits_writeBit_newWord (hmem.2 _) ((Nat.and_le_right).trans_lt h.1.pBitMask_lt) h.2
-  · exact fits_writeBit_diff_sh ((Nat.and_le_right).trans_lt h.1.pBitMask_lt) h.2
-  · exact h.1.one_lt_two_pow
+  realize; exacts [masked_addr_lt h.1.full_lt,
+    fits_writeBit_newWord (hmem.2 _) (Nat.and_le_right.trans_lt h.1.pBitMask_lt) h.2,
+    fits_writeBit_diff_sh (Nat.and_le_right.trans_lt h.1.pBitMask_lt) h.2, h.1.one_lt_two_pow]
 
 /-- Write `isOcc` at slot index `x.2.1 &&& d 4` with bit `x.2.2`. -/
 @[expose] def writeOccProg (x : ClusterInput × (ℕ × ℕ)) : Memory.Prog Unit := do
@@ -489,11 +469,9 @@ theorem realizes_writeFull :
 theorem realizes_writeOcc :
     Realizes .exact writeOccProg WordEncoding.encode WordEncoding.encode
       (fun w x _ => ClusterSafe w x.1 ∧ x.2.2 < 2) (fun _ _ => 0) := by
-  realize
-  · exact fits_masked_addr h.1.occ_lt
-  · exact fits_writeBit_newWord (hmem.2 _) ((Nat.and_le_right).trans_lt h.1.pBitMask_lt) h.2
-  · exact fits_writeBit_diff_sh ((Nat.and_le_right).trans_lt h.1.pBitMask_lt) h.2
-  · exact h.1.one_lt_two_pow
+  realize; exacts [masked_addr_lt h.1.occ_lt,
+    fits_writeBit_newWord (hmem.2 _) (Nat.and_le_right.trans_lt h.1.pBitMask_lt) h.2,
+    fits_writeBit_diff_sh (Nat.and_le_right.trans_lt h.1.pBitMask_lt) h.2, h.1.one_lt_two_pow]
 
 /-- Write `isRunStart` at slot index `x.2.1 &&& d 4` with bit `x.2.2`. -/
 @[expose] def writeRunStartProg (x : ClusterInput × (ℕ × ℕ)) : Memory.Prog Unit := do
@@ -508,11 +486,9 @@ theorem realizes_writeOcc :
 theorem realizes_writeRunStart :
     Realizes .exact writeRunStartProg WordEncoding.encode WordEncoding.encode
       (fun w x _ => ClusterSafe w x.1 ∧ x.2.2 < 2) (fun _ _ => 0) := by
-  realize
-  · exact fits_masked_addr h.1.run_lt
-  · exact fits_writeBit_newWord (hmem.2 _) ((Nat.and_le_right).trans_lt h.1.pBitMask_lt) h.2
-  · exact fits_writeBit_diff_sh ((Nat.and_le_right).trans_lt h.1.pBitMask_lt) h.2
-  · exact h.1.one_lt_two_pow
+  realize; exacts [masked_addr_lt h.1.run_lt,
+    fits_writeBit_newWord (hmem.2 _) (Nat.and_le_right.trans_lt h.1.pBitMask_lt) h.2,
+    fits_writeBit_diff_sh (Nat.and_le_right.trans_lt h.1.pBitMask_lt) h.2, h.1.one_lt_two_pow]
 
 private theorem fits_rem_sh {w idx mask f : ℕ} (hf : f < w) (hm : (mask + 1) * f ≤ w) :
     (idx &&& mask) * f < w := by
@@ -525,26 +501,12 @@ private theorem fits_rem_sh {w idx mask f : ℕ} (hf : f < w) (hm : (mask + 1) *
 
 private theorem fits_writeRem_diff_sh {w word idx mask f fMask val : ℕ}
     (hm : (mask + 1) * f ≤ w) (hfMask : fMask < 2 ^ f) (hval : val ≤ fMask) :
-    Fits w (((word >>> ((idx &&& mask) * f) &&& fMask) ^^^ val) <<< ((idx &&& mask) * f)) := by
-  change ((word >>> ((idx &&& mask) * f) &&& fMask) ^^^ val) <<< ((idx &&& mask) * f) < 2 ^ w
-  rw [Nat.shiftLeft_eq]
-  have hsub : idx &&& mask ≤ mask := Nat.and_le_right
-  have h1 : (word >>> ((idx &&& mask) * f) &&& fMask) < 2 ^ f :=
-    Nat.and_le_right.trans_lt hfMask
-  have h2 : ((word >>> ((idx &&& mask) * f) &&& fMask) ^^^ val) < 2 ^ f :=
-    Nat.xor_lt_two_pow h1 (hval.trans_lt hfMask)
-  have h3 : 2 ^ f * 2 ^ ((idx &&& mask) * f) ≤ 2 ^ w := by
-    rw [← pow_add]
-    have hle : f + (idx &&& mask) * f ≤ w := by
-      have : f + (idx &&& mask) * f ≤ (mask + 1) * f := by
-        have := Nat.mul_le_mul_right f hsub
-        linarith
-      exact this.trans hm
-    exact Nat.pow_le_pow_right two_pos hle
-  have h4 : ((word >>> ((idx &&& mask) * f) &&& fMask) ^^^ val) * 2 ^ ((idx &&& mask) * f) <
-      2 ^ f * 2 ^ ((idx &&& mask) * f) :=
-    Nat.mul_lt_mul_of_pos_right h2 (Nat.two_pow_pos _)
-  omega
+    Fits w (((word >>> ((idx &&& mask) * f) &&& fMask) ^^^ val) <<< ((idx &&& mask) * f)) :=
+  Fits.mono (Nat.shiftLeft_lt
+    (Nat.xor_lt_two_pow (Nat.and_le_right.trans_lt hfMask) (hval.trans_lt hfMask)))
+    (by
+      have := Nat.mul_le_mul_right f (Nat.and_le_right (n := idx) (m := mask))
+      linarith)
 
 /-- Read an `f`-bit remainder entry from `remBase` (`d 8`) at slot index `x.2 &&& d 4`. -/
 @[expose] def readRemProg (x : ClusterInput × ℕ) : Memory.Prog ℕ := do
@@ -556,7 +518,7 @@ theorem realizes_readRem :
     Realizes .exact readRemProg WordEncoding.encode WordEncoding.encode
       (fun w x _ => ClusterSafe w x.1) (fun _ _ => 0) := by
   realize
-  · exact fits_masked_addr h.rem_lt
+  · exact masked_addr_lt h.rem_lt
   · exact (fits_rem_sh h.f_lt h.remPack_le).trans Nat.lt_two_pow_self
 
 /-- Write an `f`-bit remainder entry `val ≤ d 14` into `remBase` (`d 8`) at `x.2.1 &&& d 4`. -/
@@ -573,7 +535,7 @@ theorem realizes_writeRem :
     Realizes .exact writeRemProg WordEncoding.encode WordEncoding.encode
       (fun w x _ => ClusterSafe w x.1 ∧ x.2.2 ≤ x.1 14) (fun _ _ => 0) := by
   realize
-  · exact fits_masked_addr h.1.rem_lt
+  · exact masked_addr_lt h.1.rem_lt
   · exact Nat.xor_lt_two_pow (hmem.2 _)
       (fits_writeRem_diff_sh h.1.remPack_le h.1.fMask_lt_f h.2)
   · exact fits_writeRem_diff_sh h.1.remPack_le h.1.fMask_lt_f h.2
@@ -703,9 +665,9 @@ theorem realizes_backLen :
   rintro ⟨cnt, rem⟩ t hinv hg _
   have h2w := h.two_cap_lt
   have hd0 := h.q_lt
-  refine ⟨⟨⟨by dsimp only; omega, by dsimp only [Fits]; omega⟩, h, ?_⟩, ?_, ?_⟩
+  refine ⟨⟨⟨by dsimp only; omega, by fits⟩, h, ?_⟩, ?_, ?_⟩
   · split_ifs
-    refine ⟨by dsimp only at *; omega, by dsimp only [Fits] at *; omega⟩
+    refine ⟨by dsimp only at *; omega, by dsimp only at *; fits⟩
   · rw [clientResult_backLenStep]
     dsimp only
     split_ifs <;> omega
@@ -774,9 +736,9 @@ theorem realizes_fwdLen :
     have h2w := h.1.two_cap_lt
     have hd0 := h.1.q_lt
     have ha := h.2
-    refine ⟨⟨by dsimp only [Fits]; omega, h.1, ?_⟩, ?_, ?_⟩
+    refine ⟨⟨by dsimp only; fits, h.1, ?_⟩, ?_, ?_⟩
     · split_ifs
-      refine ⟨by dsimp only at *; omega, by dsimp only [Fits] at *; omega⟩
+      refine ⟨by dsimp only at *; omega, by dsimp only at *; fits⟩
     · rw [clientResult_fwdLenStep]
       dsimp only
       split_ifs <;> omega
@@ -809,6 +771,16 @@ theorem clientState_fwdLen (s : Memory.State) (x : ClusterInput × ℕ) :
   let fwdRes ← fwdLenProg (d, backRes.1)
   pure ((d 0 + d 3 - backRes.1) &&& d 4, (backRes.1, backRes.1 + fwdRes.1))
 
+private theorem backLen_add_fwdLen_le (s : Memory.State) (d : ClusterInput) :
+    ((Memory.spec 0).clientResult s (backLenProg d)).1 +
+      ((Memory.spec 0).clientResult ((Memory.spec 0).clientState s (backLenProg d))
+        (fwdLenProg (d, ((Memory.spec 0).clientResult s (backLenProg d)).1))).1 ≤ d 3 := by
+  have ha := clientResult_backLen_fst_le s d
+  have ht := clientResult_fwdLen_fst_le ((Memory.spec 0).clientState s (backLenProg d))
+    (d, ((Memory.spec 0).clientResult s (backLenProg d)).1)
+  dsimp only at ht
+  omega
+
 theorem realizes_findCluster :
     Realizes .exact findClusterProg WordEncoding.encode WordEncoding.encode
       (fun w d _ => ClusterSafe w d) (fun _ _ => 0) := by
@@ -817,21 +789,10 @@ theorem realizes_findCluster :
   realize
   · exact h
   · exact clientResult_backLen_fst_le s d
-  · have ha := clientResult_backLen_fst_le s d
-    have hq := h.q_lt
-    have h2w := h.two_cap_lt
-    omega
-  · have hq := h.q_lt
-    have h2w := h.two_cap_lt
-    dsimp only [Fits]
-    omega
-  · have ha := clientResult_backLen_fst_le s d
-    have ht := clientResult_fwdLen_fst_le ((Memory.spec 0).clientState s (backLenProg d))
-      (d, ((Memory.spec 0).clientResult s (backLenProg d)).1)
-    have h2w := h.two_cap_lt
-    dsimp only at ht
-    dsimp only [Fits]
-    omega
+  · have := clientResult_backLen_fst_le s d
+    have := h.q_lt; have := h.two_cap_lt; omega
+  · fits [h.q_lt, h.two_cap_le]
+  · fits [backLen_add_fwdLen_le s d, h.two_cap_le]
 
 theorem clientResult_findCluster_bounds {w : ℕ} (s : Memory.State) (d : ClusterInput)
     (h : ClusterSafe w d) :
@@ -842,14 +803,7 @@ theorem clientResult_findCluster_bounds {w : ℕ} (s : Memory.State) (d : Cluste
   rw [StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_bind,
     clientResult_pure]
   dsimp only
-  have ha := clientResult_backLen_fst_le s d
-  have ht := clientResult_fwdLen_fst_le ((Memory.spec 0).clientState s (backLenProg d))
-    (d, ((Memory.spec 0).clientResult s (backLenProg d)).1)
-  dsimp only at ht
-  have hand : (d 0 + d 3 - ((Memory.spec 0).clientResult s (backLenProg d)).1) &&& d 4 ≤ d 4 :=
-    Nat.and_le_right
-  have hm := h.mask_lt
-  exact ⟨by omega, by omega, by omega⟩
+  exact ⟨Nat.and_le_right.trans_lt h.mask_lt, Nat.le_add_right _ _, backLen_add_fwdLen_le s d⟩
 
 theorem clientState_findCluster (s : Memory.State) (d : ClusterInput) :
     (Memory.spec 0).clientState s (findClusterProg d) = s := by
@@ -895,8 +849,7 @@ theorem realizes_occBefore :
   have ho := h.2.1
   have ha := h.2.2
   have hb := clientResult_readOcc_le t (d.1, d.2.1 + m)
-  refine ⟨⟨by dsimp only [Fits]; omega, h.1,
-    by dsimp only [Fits]; omega, by dsimp only [Fits]; omega⟩, ?_⟩
+  refine ⟨⟨by dsimp only; fits, h.1, by dsimp only; fits, by dsimp only; fits⟩, ?_⟩
   rw [clientResult_occBeforeStep]
   dsimp only
   omega
@@ -1079,10 +1032,7 @@ theorem realizes_scanStepTarget :
     Realizes .exact scanStepTargetProg WordEncoding.encode WordEncoding.encode
       (fun w c _ => c.st.s₀ + 1 < 2 ^ w ∧ c.st.s + 1 < 2 ^ w)
       (fun _ _ => 0) := by
-  realize <;> {
-    dsimp only [Fits] at h ⊢
-    omega
-  }
+  realize <;> fits [h.1, h.2]
 
 theorem clientResult_scanStepTarget (t : Memory.State) (c : ScanStepCtx) :
     (Memory.spec 0).clientResult t (scanStepTargetProg c) =
@@ -1175,8 +1125,8 @@ theorem realizes_scanLoopStep :
         have hb_occ := clientResult_readOcc_le s (d.1.d, d.1.o + d.2.i)
         have hb_run := clientResult_readRunStart_le s (d.1.d, d.1.o + d.2.i)
         try rw [clientResult_scanStepReads]
-        dsimp only [Fits] at *
-        omega
+        try dsimp only at *
+        fits
       }
   }
 
@@ -1302,7 +1252,7 @@ theorem realizes_scanCluster :
     | exact hcs
     | exact ho
     | exact ⟨hcs, ho, ha, hℓ, by dsimp only at h_occ ⊢; omega, by dsimp only at h_occ ⊢; omega⟩
-    | (dsimp only [Fits] at h_occ ⊢; omega)
+    | (dsimp only at h_occ ⊢; first | fits | omega)
   }
 
 theorem clientResult_scanCluster_bounds (s : Memory.State)
@@ -1362,8 +1312,8 @@ theorem realizes_shiftRightStep :
         have hb_rem := clientResult_readRem_le
           ((Memory.spec 0).clientState s (readRunStartProg (d.1.1, d.1.2 + (d.2 - 1))))
           (d.1.1, d.1.2 + (d.2 - 1))
-        dsimp only [Fits] at *
-        omega
+        dsimp only at *
+        first | fits [hcs.fMask_lt] | omega
       }
   }
 
@@ -1419,7 +1369,7 @@ theorem realizes_insertClearOld :
     | exact hcs
     | exact hlt
     | exact h1w
-    | { dsimp only [ClusterInput, Fits] at *; omega }
+    | { dsimp only [ClusterInput] at *; omega }
   }
 
 /-- Write the newly inserted slot at `o + s`, set `isOcc` at `q`, and set `isFull` at `o + ℓ`. -/
@@ -1454,10 +1404,9 @@ theorem realizes_insertWriteNew :
     | exact hcs
     | exact h1w
     | {
-        try rw [clientResult_cmpEq]
-        dsimp only [Fits] at *
-        cases decide (s_idx = s₀) <;>
-          (try simp only [Bool.toNat_false, Bool.toNat_true] at *) <;> omega
+        have hb_eq := clientResult_cmpEq_le s (s_idx, s₀)
+        dsimp only [ClusterInput] at *
+        first | fits [hcs.fMask_lt] | omega
       }
   }
 
@@ -1486,7 +1435,7 @@ theorem realizes_insertAfterScan :
     | exact ho
     | exact hs
     | exact hℓ
-    | { dsimp only [Fits] at *; omega }
+    | { dsimp only at *; first | fits | omega }
   }
 
 /-! ## Section 6: Left-Shift Loop and `deleteAfterScanProg` -/
@@ -1520,8 +1469,8 @@ theorem realizes_shiftLeftStep :
         have hb_rem := clientResult_readRem_le
           ((Memory.spec 0).clientState s (readRunStartProg (d.1.1, d.1.2 + (d.2 + 1))))
           (d.1.1, d.1.2 + (d.2 + 1))
-        dsimp only [ClusterInput, Fits] at *
-        omega
+        dsimp only [ClusterInput] at *
+        first | fits [hcs.fMask_lt] | omega
       }
   }
 
@@ -1574,26 +1523,29 @@ theorem realizes_deleteHasMore :
   realize <;> {
     rcases d with ⟨⟨d0, o⟩, s₀, e⟩
     rcases h with ⟨hcs, ho, hs₀, he⟩
+    dsimp only at ho hs₀ he
     have h2w := hcs.two_cap_lt
     have h1w := hcs.one_lt_two_pow
     first
     | exact hcs
     | exact h1w
     | {
-        try rw [clientState_cmpLt]
-        try rw [clientState_readRunStart]
-        try rw [clientResult_cmpLt]
-        try rw [clientResult_cmpZero]
-        dsimp only [Fits] at *
-        by_cases hlt : s₀ + 1 < e <;>
-          (try simp only [hlt, decide_true, decide_false, Bool.toNat_false, Bool.toNat_true,
-            zero_mul, one_mul, add_zero]) <;>
-          cases decide
-            ((Memory.spec 0).clientResult s (readRunStartProg (d0, o + (s₀ + 1))) = 0) <;>
-          cases decide
-            ((Memory.spec 0).clientResult s (readRunStartProg (d0, o)) = 0) <;>
-          (try simp only [Bool.toNat_false, Bool.toNat_true]) <;>
-          omega
+        let cLt := (Memory.spec 0).clientResult s (cmpLtProg (s₀ + 1, e))
+        have hcLt := clientResult_cmpLt_le s (s₀ + 1, e)
+        have hmul1 : cLt * (s₀ + 1) ≤ d0 3 := by
+          dsimp only [cLt]; rw [clientResult_cmpLt]
+          by_cases hlt : s₀ + 1 < e
+          · simp only [hlt, decide_true, Bool.toNat_true, one_mul]; omega
+          · simp only [hlt, decide_false, Bool.toNat_false, zero_mul, zero_le]
+        have hnotRun := clientResult_cmpZero_le
+          ((Memory.spec 0).clientState ((Memory.spec 0).clientState s (cmpLtProg (s₀ + 1, e)))
+            (readRunStartProg (d0, o + cLt * (s₀ + 1))))
+          ((Memory.spec 0).clientResult ((Memory.spec 0).clientState s (cmpLtProg (s₀ + 1, e)))
+            (readRunStartProg (d0, o + cLt * (s₀ + 1))))
+        have hmul2 := Nat.mul_le_mul hcLt hnotRun
+        dsimp only [cLt] at hmul1 hnotRun hmul2
+        dsimp only at *
+        fits
       }
   }
 
@@ -1622,7 +1574,7 @@ theorem realizes_deleteUpdateRun :
     | exact hcs
     | exact hlt
     | exact h1w
-    | { dsimp only [ClusterInput, Fits] at *; omega }
+    | { dsimp only [ClusterInput] at *; omega }
   }
 
 /-- Clear `(isFull, isRunStart, remAt)` at `o + (e - 1)`. -/
@@ -1645,7 +1597,7 @@ theorem realizes_deleteClearEnd :
     have h2w := hcs.two_cap_lt
     first
     | exact hcs
-    | { dsimp only [ClusterInput, Fits] at *; omega }
+    | { dsimp only [ClusterInput] at *; first | fits | omega }
   }
 
 /-- Post-scan phase of `deleteCluster`: compute `hasMore`, left-shift `[s + 1 .. e)`, update
@@ -1678,7 +1630,7 @@ theorem realizes_deleteAfterScan :
     | exact ho
     | exact hs₀
     | exact he
-    | { dsimp only [Fits] at *; omega }
+    | { dsimp only at *; first | fits | omega }
   }
 
 /-! ## Section 7: Unified Cluster Operation `clusterOpProg` -/
@@ -1710,7 +1662,7 @@ theorem realizes_clusterDispatch :
     | exact hs₀
     | exact hs
     | exact hℓ
-    | { dsimp only [ClusterInput, Fits] at *; nlinarith }
+    | { have := Nat.mul_le_mul hoccQ hqFound; dsimp only [ClusterInput] at *; first | fits | omega }
   }
 
 /-- Unified deterministic cluster operation (`0 = insert`, `1 = delete`, `2 = query`). -/
@@ -1840,59 +1792,51 @@ theorem validHistory_scanStepQuery (w : ℕ) (s : Memory.State) (x : ScanStepCtx
     (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (scanStepQueryProg x)) := by
   unfold scanStepQueryProg; split_ifs <;> trivial
 
-private theorem masked_addr_lt_frontier {base idx mask sh frontier : ℕ}
-    (h : base + (mask >>> sh) < frontier) :
-    base + ((idx &&& mask) >>> sh) < frontier := by
-  have h1 : (idx &&& mask) >>> sh ≤ mask >>> sh := by
-    simp only [Nat.shiftRight_eq_div_pow]
-    exact Nat.div_le_div_right Nat.and_le_right
-  omega
-
 theorem validHistory_readFull {w : ℕ} {s : Memory.State} {x : ClusterInput × ℕ}
     (hms : ClusterMemSafe w x.1 s) :
     (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (readFullProg x)) :=
-  ⟨masked_addr_lt_frontier hms.2.1, trivial⟩
+  ⟨masked_addr_lt hms.2.1, trivial⟩
 
 theorem validHistory_readOcc {w : ℕ} {s : Memory.State} {x : ClusterInput × ℕ}
     (hms : ClusterMemSafe w x.1 s) :
     (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (readOccProg x)) :=
-  ⟨masked_addr_lt_frontier hms.2.2.1, trivial⟩
+  ⟨masked_addr_lt hms.2.2.1, trivial⟩
 
 theorem validHistory_readRunStart {w : ℕ} {s : Memory.State} {x : ClusterInput × ℕ}
     (hms : ClusterMemSafe w x.1 s) :
     (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (readRunStartProg x)) :=
-  ⟨masked_addr_lt_frontier hms.2.2.2.1, trivial⟩
+  ⟨masked_addr_lt hms.2.2.2.1, trivial⟩
 
 theorem validHistory_readRem {w : ℕ} {s : Memory.State} {x : ClusterInput × ℕ}
     (hms : ClusterMemSafe w x.1 s) :
     (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (readRemProg x)) :=
-  ⟨masked_addr_lt_frontier hms.2.2.2.2, trivial⟩
+  ⟨masked_addr_lt hms.2.2.2.2, trivial⟩
 
 theorem validHistory_writeFull {w : ℕ} {s : Memory.State} {x : ClusterInput × (ℕ × ℕ)}
     (hcs : ClusterSafe w x.1) (hms : ClusterMemSafe w x.1 s) (hbit : x.2.2 < 2) :
     (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (writeFullProg x)) := by
-  have hlt := masked_addr_lt_frontier (idx := x.2.1) hms.2.1
+  have hlt := masked_addr_lt (idx := x.2.1) hms.2.1
   refine ⟨hlt, ⟨hlt, ?_⟩, trivial⟩
   exact fits_writeBit_newWord (hms.1.2 _) ((Nat.and_le_right).trans_lt hcs.pBitMask_lt) hbit
 
 theorem validHistory_writeOcc {w : ℕ} {s : Memory.State} {x : ClusterInput × (ℕ × ℕ)}
     (hcs : ClusterSafe w x.1) (hms : ClusterMemSafe w x.1 s) (hbit : x.2.2 < 2) :
     (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (writeOccProg x)) := by
-  have hlt := masked_addr_lt_frontier (idx := x.2.1) hms.2.2.1
+  have hlt := masked_addr_lt (idx := x.2.1) hms.2.2.1
   refine ⟨hlt, ⟨hlt, ?_⟩, trivial⟩
   exact fits_writeBit_newWord (hms.1.2 _) ((Nat.and_le_right).trans_lt hcs.pBitMask_lt) hbit
 
 theorem validHistory_writeRunStart {w : ℕ} {s : Memory.State} {x : ClusterInput × (ℕ × ℕ)}
     (hcs : ClusterSafe w x.1) (hms : ClusterMemSafe w x.1 s) (hbit : x.2.2 < 2) :
     (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (writeRunStartProg x)) := by
-  have hlt := masked_addr_lt_frontier (idx := x.2.1) hms.2.2.2.1
+  have hlt := masked_addr_lt (idx := x.2.1) hms.2.2.2.1
   refine ⟨hlt, ⟨hlt, ?_⟩, trivial⟩
   exact fits_writeBit_newWord (hms.1.2 _) ((Nat.and_le_right).trans_lt hcs.pBitMask_lt) hbit
 
 theorem validHistory_writeRem {w : ℕ} {s : Memory.State} {x : ClusterInput × (ℕ × ℕ)}
     (hcs : ClusterSafe w x.1) (hms : ClusterMemSafe w x.1 s) (hval : x.2.2 ≤ x.1 14) :
     (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (writeRemProg x)) := by
-  have hlt := masked_addr_lt_frontier (idx := x.2.1) hms.2.2.2.2
+  have hlt := masked_addr_lt (idx := x.2.1) hms.2.2.2.2
   refine ⟨hlt, ⟨hlt, ?_⟩, trivial⟩
   exact Nat.xor_lt_two_pow (hms.1.2 _)
     (fits_writeRem_diff_sh hcs.remPack_le hcs.fMask_lt_f hval)
@@ -2147,61 +2091,58 @@ private theorem boundedWhile_snd_zero {δ : Type}
     boundedWhile (fun _ (st : ℕ × ℕ) => 0 < st.2) body d n (cnt, 0) = pure (cnt, 0) := by
   cases n <;> simp [boundedWhile]
 
-theorem memoryCost_backLen_loop (d : ClusterInput) (n cnt rem : ℕ) (s : Memory.State) :
-    memoryCost (boundedWhile (fun _ (st : ℕ × ℕ) => 0 < st.2) backLenStep d n (cnt, rem)) s + cnt ≤
+private theorem memoryCost_countWhile {δ : Type}
+    (body : δ × (ℕ × ℕ) → Memory.Prog (ℕ × ℕ)) (d : δ) (s : Memory.State) (stop : ℕ → Prop)
+    [DecidablePred stop]
+    (hstate : ∀ x, (Memory.spec 0).clientState s (body (d, x)) = s)
+    (hcost : ∀ x, memoryCost (body (d, x)) s = 1)
+    (hresult : ∀ cnt rem, (Memory.spec 0).clientResult s (body (d, (cnt, rem))) =
+      if stop cnt then (cnt, 0) else (cnt + 1, rem - 1)) (n cnt rem : ℕ) :
+    memoryCost (boundedWhile (fun _ (st : ℕ × ℕ) => 0 < st.2) body d n (cnt, rem)) s + cnt ≤
       ((Memory.spec 0).clientResult s
-        (boundedWhile (fun _ (st : ℕ × ℕ) => 0 < st.2) backLenStep d n (cnt, rem))).1 + 1 := by
-  induction n generalizing cnt rem s with
+        (boundedWhile (fun _ (st : ℕ × ℕ) => 0 < st.2) body d n (cnt, rem))).1 + 1 := by
+  induction n generalizing cnt rem with
   | zero =>
     change 0 + cnt ≤ cnt + 1
     omega
   | succ n ih =>
     by_cases hg : 0 < rem
-    · simp only [boundedWhile, hg, ↓reduceIte]
-      rw [memoryCost_bind', StateTransitionSpec.clientResult_bind, clientState_backLenStep]
-      have hcost : memoryCost (backLenStep (d, (cnt, rem))) s = 1 := by
-        change memoryCost ((readFullProg (d, d 0 + d 3 - (cnt + 1))).bind
-          (fun f' => if f' = 0 then pure (cnt, 0) else pure (cnt + 1, rem - 1))) s = 1
-        rw [memoryCost_bind, memoryCost_readFull]
-        split_ifs <;> rfl
-      rw [hcost, clientResult_backLenStep]
-      dsimp only
-      split_ifs with hf
+    · simp only [boundedWhile, hg, ↓reduceIte, memoryCost_bind',
+        StateTransitionSpec.clientResult_bind, hstate, hcost, hresult]
+      split_ifs
       · rw [boundedWhile_snd_zero, memoryCost_pure, clientResult_pure]
         dsimp only
         omega
-      · have hih := ih (cnt + 1) (rem - 1) s
+      · have hih := ih (cnt + 1) (rem - 1)
         omega
     · simp only [boundedWhile, hg, ↓reduceIte, memoryCost_pure, clientResult_pure]
       omega
 
+theorem memoryCost_backLen_loop (d : ClusterInput) (n cnt rem : ℕ) (s : Memory.State) :
+    memoryCost (boundedWhile (fun _ (st : ℕ × ℕ) => 0 < st.2) backLenStep d n (cnt, rem)) s + cnt ≤
+      ((Memory.spec 0).clientResult s
+        (boundedWhile (fun _ (st : ℕ × ℕ) => 0 < st.2) backLenStep d n (cnt, rem))).1 + 1 :=
+  memoryCost_countWhile backLenStep d s
+    (fun c => (Memory.spec 0).clientResult s (readFullProg (d, d 0 + d 3 - (c + 1))) = 0)
+    (fun _ => clientState_backLenStep _ _)
+    (fun ⟨c, r⟩ => by
+      change memoryCost ((readFullProg (d, d 0 + d 3 - (c + 1))).bind _) s = 1
+      rw [memoryCost_bind, memoryCost_readFull]
+      split_ifs <;> rfl)
+    (fun c r => clientResult_backLenStep s (d, (c, r))) n cnt rem
+
 theorem memoryCost_fwdLen_loop (d : ClusterInput) (n cnt rem : ℕ) (s : Memory.State) :
     memoryCost (boundedWhile (fun _ (st : ℕ × ℕ) => 0 < st.2) fwdLenStep d n (cnt, rem)) s + cnt ≤
       ((Memory.spec 0).clientResult s
-        (boundedWhile (fun _ (st : ℕ × ℕ) => 0 < st.2) fwdLenStep d n (cnt, rem))).1 + 1 := by
-  induction n generalizing cnt rem s with
-  | zero =>
-    change 0 + cnt ≤ cnt + 1
-    omega
-  | succ n ih =>
-    by_cases hg : 0 < rem
-    · simp only [boundedWhile, hg, ↓reduceIte]
-      rw [memoryCost_bind', StateTransitionSpec.clientResult_bind, clientState_fwdLenStep]
-      have hcost : memoryCost (fwdLenStep (d, (cnt, rem))) s = 1 := by
-        change memoryCost ((readFullProg (d, d 0 + cnt)).bind
-          (fun f' => if f' = 0 then pure (cnt, 0) else pure (cnt + 1, rem - 1))) s = 1
-        rw [memoryCost_bind, memoryCost_readFull]
-        split_ifs <;> rfl
-      rw [hcost, clientResult_fwdLenStep]
-      dsimp only
-      split_ifs with hf
-      · rw [boundedWhile_snd_zero, memoryCost_pure, clientResult_pure]
-        dsimp only
-        omega
-      · have hih := ih (cnt + 1) (rem - 1) s
-        omega
-    · simp only [boundedWhile, hg, ↓reduceIte, memoryCost_pure, clientResult_pure]
-      omega
+        (boundedWhile (fun _ (st : ℕ × ℕ) => 0 < st.2) fwdLenStep d n (cnt, rem))).1 + 1 :=
+  memoryCost_countWhile fwdLenStep d s
+    (fun c => (Memory.spec 0).clientResult s (readFullProg (d, d 0 + c)) = 0)
+    (fun _ => clientState_fwdLenStep _ _)
+    (fun ⟨c, r⟩ => by
+      change memoryCost ((readFullProg (d, d 0 + c)).bind _) s = 1
+      rw [memoryCost_bind, memoryCost_readFull]
+      split_ifs <;> rfl)
+    (fun c r => clientResult_fwdLenStep s (d, (c, r))) n cnt rem
 
 theorem memoryCost_findCluster_le (d : ClusterInput) (s : Memory.State) :
     memoryCost (findClusterProg d) s ≤
@@ -2525,22 +2466,27 @@ theorem extractFilterState_writeRem_mk (base w w₀ n k : ℕ)
         (maskedSlot (quotBits w₀ n) idx) r' := by
   rw [mem_clientState_writeRem_mk, extractFilterState_writeRem]
 
+private theorem slotFrame_of_writePackedMem {base w w₀ n k : ℕ}
+    (arrBase d : ℕ) (q : Fin (2 ^ quotBits w₀ n)) (val : ℕ) {s s' : Memory.State}
+    (hf : s'.frontier = s.frontier)
+    (hm : s'.mem = writePackedMem arrBase (quotBits w₀ n) d w s.mem q val)
+    (hlo : fullBase base w w₀ n ≤ arrBase)
+    (hhi : arrBase + packedWords (quotBits w₀ n) d w ≤ base + space w w₀ n k) :
+    SlotFrame base w w₀ n k s s' :=
+  ⟨hf, fun a ha => hm ▸ writePackedMem_outside _ _ _ _ _ _ _ (by omega)⟩
+
 theorem slotFrame_writeFull_mk (base w w₀ n k : ℕ)
     (q : Fin (2 ^ quotBits w₀ n)) (r : Fin (2 ^ remBits w₀ k)) (opTag : ℕ)
     (s : Memory.State) (idx val : ℕ) :
     SlotFrame base w w₀ n k s
       ((Memory.spec 0).clientState s
         (writeFullProg (mkClusterInput base w w₀ n k q r opTag, (idx, val)))) := by
-  refine ⟨rfl, fun a ha => ?_⟩
-  have hlt := shiftRight_lt_packedWords (quotBits w₀ n) 1 w (maskedSlot (quotBits w₀ n) idx)
-  have hsp : remBase base w w₀ n + packedWords (quotBits w₀ n) (remBits w₀ k) w =
-      base + space w w₀ n k := remBase_add_packedWords_eq base w w₀ n k
+  have hsp := remBase_add_packedWords_eq base w w₀ n k
   dsimp only [remBase, runBase, occBase] at hsp
-  change Function.update s.mem (fullBase base w w₀ n +
-    ((maskedSlot (quotBits w₀ n) idx).val >>> slotPackShift (quotBits w₀ n) 1 w)) _ a = s.mem a
-  generalize (maskedSlot (quotBits w₀ n) idx).val >>> slotPackShift (quotBits w₀ n) 1 w = wIdx
-    at hlt ⊢
-  rw [Function.update_of_ne (by omega)]
+  exact slotFrame_of_writePackedMem (fullBase base w w₀ n) 1 (maskedSlot (quotBits w₀ n) idx) val
+    rfl (by dsimp only [writeFullProg, mkClusterInput, writePackedMem, maskedSlot]
+            simp only [mul_one]; rfl)
+    le_rfl (by omega)
 
 theorem slotFrame_writeOcc_mk (base w w₀ n k : ℕ)
     (q : Fin (2 ^ quotBits w₀ n)) (r : Fin (2 ^ remBits w₀ k)) (opTag : ℕ)
@@ -2548,16 +2494,12 @@ theorem slotFrame_writeOcc_mk (base w w₀ n k : ℕ)
     SlotFrame base w w₀ n k s
       ((Memory.spec 0).clientState s
         (writeOccProg (mkClusterInput base w w₀ n k q r opTag, (idx, val)))) := by
-  refine ⟨rfl, fun a ha => ?_⟩
-  have hlt := shiftRight_lt_packedWords (quotBits w₀ n) 1 w (maskedSlot (quotBits w₀ n) idx)
-  have hsp : remBase base w w₀ n + packedWords (quotBits w₀ n) (remBits w₀ k) w =
-      base + space w w₀ n k := remBase_add_packedWords_eq base w w₀ n k
-  dsimp only [remBase, runBase, occBase] at hsp ⊢
-  change Function.update s.mem (fullBase base w w₀ n + packedWords (quotBits w₀ n) 1 w +
-    ((maskedSlot (quotBits w₀ n) idx).val >>> slotPackShift (quotBits w₀ n) 1 w)) _ a = s.mem a
-  generalize (maskedSlot (quotBits w₀ n) idx).val >>> slotPackShift (quotBits w₀ n) 1 w = wIdx
-    at hlt ⊢
-  rw [Function.update_of_ne (by omega)]
+  have hsp := remBase_add_packedWords_eq base w w₀ n k
+  dsimp only [remBase, runBase, occBase] at hsp
+  exact slotFrame_of_writePackedMem (occBase base w w₀ n) 1 (maskedSlot (quotBits w₀ n) idx) val
+    rfl (by dsimp only [writeOccProg, mkClusterInput, writePackedMem, maskedSlot]
+            simp only [mul_one]; rfl)
+    (by dsimp only [occBase]; omega) (by dsimp only [occBase]; omega)
 
 theorem slotFrame_writeRunStart_mk (base w w₀ n k : ℕ)
     (q : Fin (2 ^ quotBits w₀ n)) (r : Fin (2 ^ remBits w₀ k)) (opTag : ℕ)
@@ -2565,37 +2507,23 @@ theorem slotFrame_writeRunStart_mk (base w w₀ n k : ℕ)
     SlotFrame base w w₀ n k s
       ((Memory.spec 0).clientState s
         (writeRunStartProg (mkClusterInput base w w₀ n k q r opTag, (idx, val)))) := by
-  refine ⟨rfl, fun a ha => ?_⟩
-  have hlt := shiftRight_lt_packedWords (quotBits w₀ n) 1 w (maskedSlot (quotBits w₀ n) idx)
-  have hsp : remBase base w w₀ n + packedWords (quotBits w₀ n) (remBits w₀ k) w =
-      base + space w w₀ n k := remBase_add_packedWords_eq base w w₀ n k
-  dsimp only [remBase, runBase, occBase] at hsp ⊢
-  change Function.update s.mem (fullBase base w w₀ n + packedWords (quotBits w₀ n) 1 w +
-    packedWords (quotBits w₀ n) 1 w +
-    ((maskedSlot (quotBits w₀ n) idx).val >>> slotPackShift (quotBits w₀ n) 1 w)) _ a = s.mem a
-  generalize (maskedSlot (quotBits w₀ n) idx).val >>> slotPackShift (quotBits w₀ n) 1 w = wIdx
-    at hlt ⊢
-  rw [Function.update_of_ne (by omega)]
+  have hsp := remBase_add_packedWords_eq base w w₀ n k
+  dsimp only [remBase, runBase, occBase] at hsp
+  exact slotFrame_of_writePackedMem (runBase base w w₀ n) 1 (maskedSlot (quotBits w₀ n) idx) val
+    rfl (by dsimp only [writeRunStartProg, mkClusterInput, writePackedMem, maskedSlot]
+            simp only [mul_one]; rfl)
+    (by dsimp only [runBase, occBase]; omega) (by dsimp only [runBase, occBase]; omega)
 
 theorem slotFrame_writeRem_mk (base w w₀ n k : ℕ)
     (q : Fin (2 ^ quotBits w₀ n)) (r : Fin (2 ^ remBits w₀ k)) (opTag : ℕ)
     (s : Memory.State) (idx val : ℕ) :
     SlotFrame base w w₀ n k s
       ((Memory.spec 0).clientState s
-        (writeRemProg (mkClusterInput base w w₀ n k q r opTag, (idx, val)))) := by
-  refine ⟨rfl, fun a ha => ?_⟩
-  have hlt := shiftRight_lt_packedWords (quotBits w₀ n) (remBits w₀ k) w
-    (maskedSlot (quotBits w₀ n) idx)
-  have hsp : remBase base w w₀ n + packedWords (quotBits w₀ n) (remBits w₀ k) w =
-      base + space w w₀ n k := remBase_add_packedWords_eq base w w₀ n k
-  dsimp only [remBase, runBase, occBase] at hsp ⊢
-  change Function.update s.mem (fullBase base w w₀ n + packedWords (quotBits w₀ n) 1 w +
-    packedWords (quotBits w₀ n) 1 w + packedWords (quotBits w₀ n) 1 w +
-    ((maskedSlot (quotBits w₀ n) idx).val >>>
-      slotPackShift (quotBits w₀ n) (remBits w₀ k) w)) _ a = s.mem a
-  generalize (maskedSlot (quotBits w₀ n) idx).val >>>
-    slotPackShift (quotBits w₀ n) (remBits w₀ k) w = wIdx at hlt ⊢
-  rw [Function.update_of_ne (by omega)]
+        (writeRemProg (mkClusterInput base w w₀ n k q r opTag, (idx, val)))) :=
+  slotFrame_of_writePackedMem (remBase base w w₀ n) (remBits w₀ k) (maskedSlot (quotBits w₀ n) idx)
+    val rfl (mem_clientState_writeRem_mk base w w₀ n k q r opTag s idx val)
+    (by dsimp only [remBase, runBase, occBase]; omega)
+    (remBase_add_packedWords_eq base w w₀ n k).le
 
 theorem clientResult_boundedWhile_zero_snd {δ : Type}
     (body : δ × (ℕ × ℕ) → Memory.Prog (ℕ × ℕ)) (d : δ) (fuel c : ℕ) (s : Memory.State) :
@@ -3435,6 +3363,39 @@ theorem FilterInv.calcTargetSlot_lt_calcDeleteStop_of_mem {U b f n : ℕ}
     exact runOffset_mono S quot rem o (by omega)
   omega
 
+private theorem clusterOpProg_mk_eq {U : ℕ} {S : Finset (Fin U)} (base w w₀ n k : ℕ)
+    {quot : Fin U → Fin (2 ^ quotBits w₀ n)} {rem : Fin U → Fin (2 ^ remBits w₀ k)}
+    (u : Fin U) (opTag : ℕ) (s : Memory.State)
+    (hinv : FilterInv n S quot rem (extractFilterState base w w₀ n k s.mem))
+    (hS_lt : #S < 2 ^ quotBits w₀ n) :
+    let d := mkClusterInput base w w₀ n k (quot u) (rem u) opTag
+    let st := extractFilterState base w w₀ n k s.mem
+    let o := hinv.clusterStart hS_lt (quot u)
+    let a := hinv.backLen hS_lt (quot u)
+    let ℓ := hinv.clusterLen hS_lt (quot u)
+    let scan : ScanResult := ⟨(st.isOcc (quot u)).toNat, calcRunStart st o a ℓ,
+      calcTargetSlot st o a ℓ (rem u), calcDeleteStop st o a ℓ,
+      (queryAnyPrefix st o a ℓ (rem u)).toNat⟩
+    probeSlot (quotBits w₀ n) o a = quot u ∧
+    (Memory.spec 0).clientResult s (clusterOpProg d) =
+      (Memory.spec 0).clientResult s (clusterDispatchProg ((d, (o.val, (a, ℓ))), scan)) ∧
+    (Memory.spec 0).clientState s (clusterOpProg d) =
+      (Memory.spec 0).clientState s (clusterDispatchProg ((d, (o.val, (a, ℓ))), scan)) := by
+  intro d st o a ℓ scan
+  have hq : probeSlot (quotBits w₀ n) o a = quot u := by
+    dsimp only [o, FilterInv.clusterStart]
+    simpa using probeSlot_backSlot_add (quot u) a 0
+  unfold clusterOpProg
+  rw [StateTransitionSpec.clientResult_bind, clientState_findCluster,
+    clientResult_findCluster_mk _ _ _ _ _ _ _ _ _ hinv hS_lt,
+    StateTransitionSpec.clientResult_bind, clientState_scanCluster,
+    clientResult_scanCluster_mk _ _ _ _ _ _ _ _ _ _ _ _ hq,
+    StateTransitionSpec.clientState_bind, clientState_findCluster,
+    clientResult_findCluster_mk _ _ _ _ _ _ _ _ _ hinv hS_lt,
+    StateTransitionSpec.clientState_bind, clientState_scanCluster,
+    clientResult_scanCluster_mk _ _ _ _ _ _ _ _ _ _ _ _ hq]
+  exact ⟨hq, rfl, rfl⟩
+
 theorem clusterOpProg_mk_insert {U : ℕ} {S : Finset (Fin U)} (base w w₀ n k : ℕ)
     {quot : Fin U → Fin (2 ^ quotBits w₀ n)} {rem : Fin U → Fin (2 ^ remBits w₀ k)}
     (u : Fin U) (s : Memory.State)
@@ -3445,27 +3406,14 @@ theorem clusterOpProg_mk_insert {U : ℕ} {S : Finset (Fin U)} (base w w₀ n k 
     extractFilterState base w w₀ n k ((Memory.spec 0).clientState s (clusterOpProg d)).mem =
       hinv.insertState hS_lt u ∧
     SlotFrame base w w₀ n k s ((Memory.spec 0).clientState s (clusterOpProg d)) := by
-  intro d
-  let q := quot u
-  let r := rem u
-  let o := hinv.clusterStart hS_lt q
-  let a := hinv.backLen hS_lt q
-  let ℓ := hinv.clusterLen hS_lt q
-  have hq : probeSlot (quotBits w₀ n) o a = q := by
-    dsimp only [o, FilterInv.clusterStart]
-    simpa using probeSlot_backSlot_add q a 0
-  unfold clusterOpProg
-  rw [StateTransitionSpec.clientResult_bind, clientState_findCluster,
-    clientResult_findCluster_mk _ _ _ _ _ _ _ _ _ hinv hS_lt,
-    StateTransitionSpec.clientResult_bind, clientState_scanCluster,
-    clientResult_scanCluster_mk _ _ _ _ _ _ _ _ _ _ _ _ hq,
-    StateTransitionSpec.clientState_bind, clientState_findCluster,
-    clientResult_findCluster_mk _ _ _ _ _ _ _ _ _ hinv hS_lt,
-    StateTransitionSpec.clientState_bind, clientState_scanCluster,
-    clientResult_scanCluster_mk _ _ _ _ _ _ _ _ _ _ _ _ hq]
+  intro _
+  obtain ⟨hq, hres, hst⟩ := clusterOpProg_mk_eq base w w₀ n k u 0 s hinv hS_lt
+  rw [hres, hst]
   unfold clusterDispatchProg
-  simp only [d, mkClusterInput_2, ↓reduceIte]
-  exact extractFilterState_insertAfterScan_mk base w w₀ n k q o r 0 s a ℓ hq
+  simp only [mkClusterInput_2, ↓reduceIte]
+  exact extractFilterState_insertAfterScan_mk base w w₀ n k (quot u)
+    (hinv.clusterStart hS_lt (quot u)) (rem u) 0 s
+    (hinv.backLen hS_lt (quot u)) (hinv.clusterLen hS_lt (quot u)) hq
 
 theorem clusterOpProg_mk_delete {U : ℕ} {S : Finset (Fin U)} (base w w₀ n k : ℕ)
     {quot : Fin U → Fin (2 ^ quotBits w₀ n)} {rem : Fin U → Fin (2 ^ remBits w₀ k)}
@@ -3477,28 +3425,15 @@ theorem clusterOpProg_mk_delete {U : ℕ} {S : Finset (Fin U)} (base w w₀ n k 
     extractFilterState base w w₀ n k ((Memory.spec 0).clientState s (clusterOpProg d)).mem =
       hinv.deleteState hS_lt u ∧
     SlotFrame base w w₀ n k s ((Memory.spec 0).clientState s (clusterOpProg d)) := by
-  intro d
-  let q := quot u
-  let r := rem u
-  let o := hinv.clusterStart hS_lt q
-  let a := hinv.backLen hS_lt q
-  let ℓ := hinv.clusterLen hS_lt q
-  have hq : probeSlot (quotBits w₀ n) o a = q := by
-    dsimp only [o, FilterInv.clusterStart]
-    simpa using probeSlot_backSlot_add q a 0
-  have hs_lt_e := hinv.calcTargetSlot_lt_calcDeleteStop_of_mem hS_lt hu
-  unfold clusterOpProg
-  rw [StateTransitionSpec.clientResult_bind, clientState_findCluster,
-    clientResult_findCluster_mk _ _ _ _ _ _ _ _ _ hinv hS_lt,
-    StateTransitionSpec.clientResult_bind, clientState_scanCluster,
-    clientResult_scanCluster_mk _ _ _ _ _ _ _ _ _ _ _ _ hq,
-    StateTransitionSpec.clientState_bind, clientState_findCluster,
-    clientResult_findCluster_mk _ _ _ _ _ _ _ _ _ hinv hS_lt,
-    StateTransitionSpec.clientState_bind, clientState_scanCluster,
-    clientResult_scanCluster_mk _ _ _ _ _ _ _ _ _ _ _ _ hq]
+  intro _
+  obtain ⟨hq, hres, hst⟩ := clusterOpProg_mk_eq base w w₀ n k u 1 s hinv hS_lt
+  rw [hres, hst]
   unfold clusterDispatchProg
-  simp only [d, mkClusterInput_2, one_ne_zero, ↓reduceIte]
-  exact extractFilterState_deleteAfterScan_mk base w w₀ n k q o r 1 s a ℓ hq hs_lt_e
+  simp only [mkClusterInput_2, one_ne_zero, ↓reduceIte]
+  exact extractFilterState_deleteAfterScan_mk base w w₀ n k (quot u)
+    (hinv.clusterStart hS_lt (quot u)) (rem u) 1 s
+    (hinv.backLen hS_lt (quot u)) (hinv.clusterLen hS_lt (quot u)) hq
+    (hinv.calcTargetSlot_lt_calcDeleteStop_of_mem hS_lt hu)
 
 theorem clusterOpProg_mk_query {U : ℕ} {S : Finset (Fin U)} (base w w₀ n k : ℕ)
     {quot : Fin U → Fin (2 ^ quotBits w₀ n)} {rem : Fin U → Fin (2 ^ remBits w₀ k)}
@@ -3509,26 +3444,16 @@ theorem clusterOpProg_mk_query {U : ℕ} {S : Finset (Fin U)} (base w w₀ n k :
     (Memory.spec 0).clientResult s (clusterOpProg d) =
       (decide (rem u ∈ bucketRun S quot rem (quot u))).toNat ∧
     (Memory.spec 0).clientState s (clusterOpProg d) = s := by
-  intro d
+  intro _
   let q := quot u
   let r := rem u
   let o := hinv.clusterStart hS_lt q
   let a := hinv.backLen hS_lt q
   let ℓ := hinv.clusterLen hS_lt q
-  have hq : probeSlot (quotBits w₀ n) o a = q := by
-    dsimp only [o, FilterInv.clusterStart]
-    simpa using probeSlot_backSlot_add q a 0
-  unfold clusterOpProg
-  rw [StateTransitionSpec.clientResult_bind, clientState_findCluster,
-    clientResult_findCluster_mk _ _ _ _ _ _ _ _ _ hinv hS_lt,
-    StateTransitionSpec.clientResult_bind, clientState_scanCluster,
-    clientResult_scanCluster_mk _ _ _ _ _ _ _ _ _ _ _ _ hq,
-    StateTransitionSpec.clientState_bind, clientState_findCluster,
-    clientResult_findCluster_mk _ _ _ _ _ _ _ _ _ hinv hS_lt,
-    StateTransitionSpec.clientState_bind, clientState_scanCluster,
-    clientResult_scanCluster_mk _ _ _ _ _ _ _ _ _ _ _ _ hq]
+  obtain ⟨hq, hres, hst⟩ := clusterOpProg_mk_eq base w w₀ n k u 2 s hinv hS_lt
+  rw [hres, hst]
   unfold clusterDispatchProg
-  simp only [d, mkClusterInput_2, OfNat.ofNat_ne_zero, Nat.reduceEqDiff, ↓reduceIte]
+  simp only [mkClusterInput_2, OfNat.ofNat_ne_zero, Nat.reduceEqDiff, ↓reduceIte]
   refine ⟨?_, rfl⟩
   change (((extractFilterState base w w₀ n k s.mem).isOcc q).toNat *
       (queryAnyPrefix (extractFilterState base w w₀ n k s.mem) o a ℓ r).toNat) =
@@ -3593,13 +3518,6 @@ theorem extend_kwiseMap_regs {y : Data 240} {x : Data rQF} {j : Fin rQF} (hj : 2
   dsimp only [kwiseMap, Fin.val_castLE] at hj
   omega
 
-private theorem exec_exactBin {w : ℕ} {op : BinOp} {d s1 s2 : Fin rQF} {x : Data rQF} {v : ℕ}
-    (hev : op.evalExact (x.regs s1) (x.regs s2) = some v) (hfit : Fits w v) :
-    Exec w (.op (.exactBin op d s1 s2) : Code .exact rQF) x (x.set d v) 1 := by
-  apply Exec.op
-  rw [Op.eval_exactBin, hev]
-  exact Data.put_of_fits hfit
-
 /-- Sample the remainder seed `γ : RemSeed w₀` uniformly and store it at `remSeedAddr base w w₀ n`
 using `5` instructions (`1` `rand` call). -/
 @[expose] noncomputable def remInitCode (w w₀ n : ℕ) : Code .exact rQF :=
@@ -3624,21 +3542,20 @@ theorem remInitCode_execRand {base w w₀ n k : ℕ} (hw₀ : w₀ ≤ w)
     (hfit_space : Fits w (base + space w w₀ n k))
     {x : Data rQF} (h0 : x.regs (qfReg 0) = base) :
     ExecRand w (remInitCode w w₀ n) x (remInitComp base w w₀ n x) := by
-  have hfit_off : Fits w (remSeedOff w w₀ n) :=
-    hfit_space.of_le (by dsimp only [remSeedOff, space]; omega)
-  have hfit_addr : Fits w (remSeedAddr base w w₀ n) :=
-    hfit_space.of_le (by dsimp only [remSeedAddr, space]; omega)
+  have hfit_addr : Fits w (base + remSeedOff w w₀ n) := by
+    have : remSeedOff w w₀ n ≤ space w w₀ n k := by dsimp only [remSeedOff, space]; omega
+    fits [this]
+  have hfit_addr' : Fits w (remSeedAddr base w w₀ n) := hfit_addr
   have hfit_bound : Fits w (2 ^ (w₀ - 1) - 1) := by
-    have h1 : 2 ^ (w₀ - 1) - 1 < 2 ^ (w₀ - 1) := Nat.sub_lt (by positivity) one_pos
-    have h2 : 2 ^ (w₀ - 1) ≤ 2 ^ w := Nat.pow_le_pow_right two_pos (by omega)
-    exact h1.trans_le h2
+    have : 2 ^ (w₀ - 1) ≤ 2 ^ w := Nat.pow_le_pow_right two_pos (by omega)
+    fits [this]
   set s1 := x.set (qfReg 30) (remSeedOff w w₀ n)
   have e1 : Exec w (.op (.const (qfReg 30) (remSeedOff w w₀ n)) : Code .exact rQF) x s1 1 :=
-    Exec.const hfit_off
+    Exec.const (by fits)
   set s2 := s1.set (qfReg 30) (remSeedAddr base w w₀ n)
   have e2 : Exec w (.op (.exactBin .add (qfReg 30) (qfReg 0) (qfReg 30)) : Code .exact rQF)
-      s1 s2 1 :=
-    exec_exactBin (by simp +decide [s1, h0, remSeedAddr, remSeedOff]) hfit_addr
+      s1 s2 1 := by
+    wram_exec [s1, h0, base_add_remSeedOff]
   set s3 := s2.set (qfReg 31) (2 ^ (w₀ - 1) - 1)
   have e3 : Exec w (.op (.const (qfReg 31) (2 ^ (w₀ - 1) - 1)) : Code .exact rQF) s2 s3 1 :=
     Exec.const hfit_bound
@@ -3650,8 +3567,7 @@ theorem remInitCode_execRand {base w w₀ n k : ℕ} (hw₀ : w₀ ≤ w)
   have e45 := ExecRand.seq
     (m₂ := fun d : Data rQF => pure (d.write (remSeedAddr base w w₀ n) (d.regs (qfReg 32)), 1))
     e4 (fun z hz => by
-      obtain ⟨γ, -, hγ⟩ := OracleComp.mem_supportWith_bind_iff.mp hz
-      cases OracleComp.eq_of_mem_supportWith_pure hγ
+      supp_cases hz with ⟨γ, rfl⟩
       have h1 := Exec.store (B := .exact) (w := w) (a := qfReg 30) (s := qfReg 32)
         (x := s3.set (qfReg 32) γ.val)
       have h30 : (s3.set (qfReg 32) γ.val).regs (qfReg 30) = remSeedAddr base w w₀ n := by
@@ -3711,25 +3627,19 @@ theorem remEvalCode_exec {base w U w₀ n k : ℕ}
       y.regs (qfReg 0) = base ∧
       y.regs (qfReg 3) = (remHash U w₀ k γ u).val ∧
       ∀ j : Fin rQF, 240 ≤ j.val → y.regs j = x.regs j := by
-  have hfit_base : Fits w base :=
-    hfit_space.of_le (by dsimp only [space]; omega)
-  have hfit_off : Fits w (remSeedOff w w₀ n) :=
-    hfit_space.of_le (by dsimp only [remSeedOff, space]; omega)
-  have hfit_addr : Fits w (remSeedAddr base w w₀ n) :=
-    hfit_space.of_le (by dsimp only [remSeedAddr, space]; omega)
+  have hfit_addr : Fits w (base + remSeedOff w w₀ n) := by
+    have : remSeedOff w w₀ n ≤ space w w₀ n k := by dsimp only [remSeedOff, space]; omega
+    fits [this]
+  have hfit_addr' : Fits w (remSeedAddr base w w₀ n) := hfit_addr
   have hfit_sh : Fits w (w₀ - remBits w₀ k) := by
-    have : w₀ - remBits w₀ k ≤ w := (Nat.sub_le _ _).trans hw₀
-    exact this.trans_lt Nat.lt_two_pow_self
+    fits [hw₀, @Nat.lt_two_pow_self w]
   have hrem_eq : oddMulModWord w₀ γ.val u.val >>> (w₀ - remBits w₀ k) =
       (remHash U w₀ k γ u).val := by
     have hsh : w₀ - remBits w₀ k = w₀ - (k + 1) := by dsimp only [remBits]; omega
     rw [hsh]
     exact oddMulModWord_shiftRight_eq_multiplyShiftReduced (R := k + 1) hw₀_pos γ u
   have hfit_rem : Fits w (remHash U w₀ k γ u).val := by
-    have hlt := (remHash U w₀ k γ u).isLt
-    have hpow : 2 ^ remBits w₀ k ≤ 2 ^ w :=
-      Nat.pow_le_pow_right two_pos ((remBits_le_w₀ w₀ k).trans hw₀)
-    exact hlt.trans_le hpow
+    fits [(remHash U w₀ k γ u).isLt, Nat.pow_le_pow_right two_pos ((remBits_le_w₀ w₀ k).trans hw₀)]
   have hmin : min w₀ (3 * w₀) = w₀ := min_eq_left (by omega)
   have hle : remSeedOff w w₀ n ≤ remSeedAddr base w w₀ n := by simp [remSeedAddr, remSeedOff]
   have hsub : remSeedAddr base w w₀ n - remSeedOff w w₀ n = base := by
