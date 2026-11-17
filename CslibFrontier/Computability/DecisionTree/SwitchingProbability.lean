@@ -12,6 +12,8 @@ public import Mathlib.Analysis.SpecialFunctions.Pow.Real
 import CslibFrontier.Computability.DecisionTree.NormalForm
 import CslibFrontier.Computability.DecisionTree.Restrict
 import CslibFrontier.Foundations.Data.BitString.Agree
+import CslibFrontier.Foundations.Combinatorics.Hypergeometric.Superset
+import CslibFrontier.Logics.Propositional.DNF.ModelCount
 import CslibFrontier.Foundations.Data.Nat.Choose
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Positivity
@@ -42,14 +44,14 @@ ratio `#R(ℓ - s) / #R(ℓ)` is bounded directly with `Nat.choose_sub_mul_pow_l
 
 **The case `k = 1`.** Here the counting bound has the factor `8 ^ s`, which `k ^ 10 = 1` does not
 absorb, and the draft's proof (an encoding into `{0, 1, ⋆}^{2ks}`) does not give the bound
-either. A direct argument does. A bad restriction of a formula whose terms have at most one literal
-fixes every literal of the formula to false (otherwise the restricted function is `true`) and
-leaves more than `s` of its variables free (otherwise a decision tree on them gives an `s`-CNF).
+either. A direct argument does. Under a bad restriction of a formula whose terms have at most one
+literal, every fixed literal of the formula is false (otherwise the restricted function is `true`),
+and more than `s` of its variables stay free (otherwise a decision tree on them gives an `s`-CNF).
 Drawing the restriction as a free set `J` of size `u = n - t` and a word, the word is forced on the
 fixed variables of the formula. Weighting `J` by `y ^ (#(J ∩ V) - s - 1) ≥ 1` with
 `y = (n + u) / (2u)` and expanding `(2y) ^ #(J ∩ V)` over the subsets of the variables `V` of the
-formula bounds the probability by `(2u / (n + u)) ^ (s + 1)` (`sum_ite_half_pow_le`), and
-`2u / (n + u) ≤ √(u / n)`.
+formula bounds the probability by `(2u / (n + u)) ^ (s + 1)`
+(`Cslib.sum_powersetCard_ite_half_pow_le`), and `2u / (n + u) ≤ √(u / n)`.
 
 ## Main results
 
@@ -121,147 +123,6 @@ private theorem complexity_fill_le_card_free (ρ : PartialAssignment ι) (f : (�
 
 /-! ### Terms of one literal -/
 
-omit [Fintype ι] in
-/-- A formula in disjunctive normal form reads only the variables of its literals. -/
-private theorem eval_congr {F : DNF ι} {σ σ' : ι → Bool}
-    (h : ∀ T ∈ F, ∀ l ∈ T, σ l.1 = σ' l.1) : DNF.eval σ F = DNF.eval σ' F := by
-  rw [Bool.eq_iff_iff, DNF.eval_eq_true_iff, DNF.eval_eq_true_iff]
-  refine exists_congr fun T => and_congr_right fun hT => ?_
-  rw [Term.eval_eq_true_iff, Term.eval_eq_true_iff]
-  exact forall₂_congr fun l hl => by rw [h T hT l hl]
-
-/-- The `u`-subsets of an `n`-set containing a fixed set `T` number at most
-`C(n, u) (u / n) ^ #T`. -/
-private theorem card_filter_subset_le {n u : ℕ} (hun : u ≤ n) (T : Finset (Fin n)) :
-    (#{J ∈ (univ : Finset (Fin n)).powersetCard u | T ⊆ J} : ℝ) ≤
-      n.choose u * ((u : ℝ) / n) ^ #T := by
-  rcases lt_or_ge u #T with htu | htu
-  · have h0 : {J ∈ (univ : Finset (Fin n)).powersetCard u | T ⊆ J} = ∅ := by
-      refine filter_false_of_mem fun J hJ hTJ => ?_
-      have := card_le_card hTJ
-      rw [(mem_powersetCard.1 hJ).2] at this
-      omega
-    rw [h0, card_empty, Nat.cast_zero]
-    positivity
-  have hT : #T ≤ n := by simpa using card_le_univ T
-  have hcard : #{J ∈ (univ : Finset (Fin n)).powersetCard u | T ⊆ J} =
-      (n - #T).choose (u - #T) := by
-    rw [show n - #T = #Tᶜ by rw [card_compl, Fintype.card_fin], ← card_powersetCard]
-    refine card_nbij' (fun J => J \ T) (fun K => K ∪ T) (fun J hJ => ?_) (fun K hK => ?_)
-      (fun J hJ => ?_) (fun K hK => ?_)
-    · obtain ⟨hJ, hTJ⟩ := mem_filter.1 hJ
-      refine mem_powersetCard.2 ⟨fun i hi => mem_compl.2 (mem_sdiff.1 hi).2, ?_⟩
-      rw [card_sdiff_of_subset hTJ, (mem_powersetCard.1 hJ).2]
-    · obtain ⟨hKT, hK⟩ := mem_powersetCard.1 hK
-      have hdis : Disjoint K T := disjoint_left.2 fun i hi => mem_compl.1 (hKT hi)
-      refine mem_filter.2 ⟨mem_powersetCard.2 ⟨subset_univ _, ?_⟩, subset_union_right⟩
-      rw [card_union_of_disjoint hdis, hK]
-      omega
-    · exact sdiff_union_of_subset (mem_filter.1 hJ).2
-    · have hdis : Disjoint K T :=
-        disjoint_left.2 fun i hi => mem_compl.1 ((mem_powersetCard.1 hK).1 hi)
-      change (K ∪ T) \ T = K
-      rw [union_sdiff_right, sdiff_eq_self_of_disjoint hdis]
-  rw [hcard]
-  rcases Nat.eq_zero_or_pos n with rfl | hn
-  · obtain rfl : u = 0 := by omega
-    have hT0 : #T = 0 := by omega
-    simp [hT0]
-  -- `C(n - t, u - t) n ^ t ≤ C(n, u) u ^ t`, from `C(n, u) C(u, t) = C(n, t) C(n - t, u - t)`
-  have hmul : n.choose u * u.choose #T = n.choose #T * (n - #T).choose (u - #T) :=
-    Nat.choose_mul htu
-  have hle := Nat.choose_mul_pow_le hun #T
-  have hpos : 0 < n.choose #T := Nat.choose_pos hT
-  have key : (n - #T).choose (u - #T) * n ^ #T ≤ n.choose u * u ^ #T := by
-    refine Nat.le_of_mul_le_mul_left ?_ hpos
-    calc n.choose #T * ((n - #T).choose (u - #T) * n ^ #T)
-        = n.choose u * (u.choose #T * n ^ #T) := by rw [← mul_assoc, ← hmul]; ring
-      _ ≤ n.choose u * (n.choose #T * u ^ #T) := Nat.mul_le_mul_left _ hle
-      _ = n.choose #T * (n.choose u * u ^ #T) := by ring
-  have hn' : (0 : ℝ) < n := by exact_mod_cast hn
-  rw [div_pow, ← mul_div_assoc, le_div_iff₀ (by positivity)]
-  exact_mod_cast key
-
-/-- **The counting core of the case `k = 1`.** Summing `(1/2) ^ #(V \ J)` over the `u`-subsets `J`
-of an `n`-set that contain at least `r` points of `V` gives at most `C(n, u) (2u / (n + u)) ^ r`.
-Weight each `J` by `y ^ (#(J ∩ V) - r) ≥ 1` with `y = (n + u) / (2u)` and expand
-`(2y) ^ #(J ∩ V)` binomially: the subsets `T ⊆ V` contribute `(n / u) ^ #T` times the number of
-`J ⊇ T`, at most `C(n, u) (u / n) ^ #T`. -/
-private theorem sum_ite_half_pow_le {n u r : ℕ} (hu : 0 < u) (hun : u ≤ n) (V : Finset (Fin n)) :
-    ∑ J ∈ (univ : Finset (Fin n)).powersetCard u,
-        (if r ≤ #(J ∩ V) then ((1 : ℝ) / 2) ^ #(V \ J) else 0) ≤
-      n.choose u * (2 * u / (n + u) : ℝ) ^ r := by
-  have hn : (0 : ℝ) < n := by exact_mod_cast (show 0 < n by omega)
-  have hu' : (0 : ℝ) < u := by exact_mod_cast hu
-  have hun' : (u : ℝ) ≤ n := by exact_mod_cast hun
-  set y : ℝ := (n + u) / (2 * u) with hy
-  have hy0 : 0 < y := by positivity
-  have hy1 : 1 ≤ y := by rw [hy, le_div_iff₀ (by positivity)]; linarith
-  have hyinv : (2 * u / (n + u) : ℝ) = y⁻¹ := by rw [hy, inv_div]
-  have h2y : (2 * y - 1) * ((u : ℝ) / n) = 1 := by
-    rw [hy]; field_simp; ring
-  -- each term is at most `y ^ (-r) (1/2) ^ #V (2y) ^ #(J ∩ V)`
-  have hterm (J : Finset (Fin n)) :
-      (if r ≤ #(J ∩ V) then ((1 : ℝ) / 2) ^ #(V \ J) else 0) ≤
-        (y ^ r)⁻¹ * ((1 : ℝ) / 2) ^ #V * (2 * y) ^ #(J ∩ V) := by
-    have hsplit : #(V \ J) + #(J ∩ V) = #V := by
-      rw [inter_comm]; exact card_sdiff_add_card_inter V J
-    split_ifs with hr
-    · have hyj : y ^ r ≤ y ^ #(J ∩ V) := pow_le_pow_right₀ hy1 hr
-      have he : (y ^ r)⁻¹ * ((1 : ℝ) / 2) ^ #V * (2 * y) ^ #(J ∩ V) =
-          ((1 : ℝ) / 2) ^ #(V \ J) * (y ^ #(J ∩ V) / y ^ r) := by
-        rw [← hsplit, mul_pow, pow_add]
-        field_simp
-        rw [← mul_pow]
-        norm_num
-      rw [he]
-      exact le_mul_of_one_le_right (by positivity) ((one_le_div (by positivity)).2 hyj)
-    · positivity
-  -- the binomial expansion of `(2y) ^ #(J ∩ V)`, regrouped by `T ⊆ V`
-  have hexp (J : Finset (Fin n)) : (2 * y) ^ #(J ∩ V) =
-      ∑ T ∈ V.powerset, if T ⊆ J then (2 * y - 1) ^ #T else 0 := by
-    have h := sum_pow_mul_eq_add_pow (2 * y - 1) 1 (J ∩ V)
-    simp only [one_pow, mul_one, sub_add_cancel] at h
-    rw [← h, ← sum_filter]
-    refine sum_congr (ext fun T => ?_) fun _ _ => rfl
-    simp only [mem_powerset, mem_filter, subset_inter_iff]
-    tauto
-  have hsum : ∑ J ∈ (univ : Finset (Fin n)).powersetCard u, (2 * y) ^ #(J ∩ V) ≤
-      n.choose u * 2 ^ #V := by
-    simp only [hexp]
-    rw [sum_comm]
-    calc ∑ T ∈ V.powerset, ∑ J ∈ (univ : Finset (Fin n)).powersetCard u,
-          (if T ⊆ J then (2 * y - 1) ^ #T else 0)
-        = ∑ T ∈ V.powerset,
-            (#{J ∈ (univ : Finset (Fin n)).powersetCard u | T ⊆ J} : ℝ) * (2 * y - 1) ^ #T := by
-          refine sum_congr rfl fun T _ => ?_
-          rw [← sum_filter, sum_const, nsmul_eq_mul]
-      _ ≤ ∑ T ∈ V.powerset, (n.choose u * ((u : ℝ) / n) ^ #T) * (2 * y - 1) ^ #T :=
-          sum_le_sum fun T _ => mul_le_mul_of_nonneg_right (card_filter_subset_le hun T)
-            (pow_nonneg (by linarith) _)
-      _ = n.choose u * ∑ T ∈ V.powerset, ((2 * y - 1) * ((u : ℝ) / n)) ^ #T * 1 ^ (#V - #T) := by
-          rw [mul_sum]
-          refine sum_congr rfl fun T _ => ?_
-          rw [one_pow, mul_one, mul_pow]
-          ring
-      _ = n.choose u * 2 ^ #V := by
-          rw [sum_pow_mul_eq_add_pow, h2y]
-          norm_num
-  calc ∑ J ∈ (univ : Finset (Fin n)).powersetCard u,
-        (if r ≤ #(J ∩ V) then ((1 : ℝ) / 2) ^ #(V \ J) else 0)
-      ≤ ∑ J ∈ (univ : Finset (Fin n)).powersetCard u,
-          (y ^ r)⁻¹ * ((1 : ℝ) / 2) ^ #V * (2 * y) ^ #(J ∩ V) := sum_le_sum fun J _ => hterm J
-    _ = (y ^ r)⁻¹ * ((1 : ℝ) / 2) ^ #V *
-          ∑ J ∈ (univ : Finset (Fin n)).powersetCard u, (2 * y) ^ #(J ∩ V) := by
-        rw [mul_sum]
-    _ ≤ (y ^ r)⁻¹ * ((1 : ℝ) / 2) ^ #V * (n.choose u * 2 ^ #V) :=
-        mul_le_mul_of_nonneg_left hsum (by positivity)
-    _ = (y ^ r)⁻¹ * n.choose u * (((1 : ℝ) / 2) ^ #V * 2 ^ #V) := by ring
-    _ = n.choose u * (2 * u / (n + u) : ℝ) ^ r := by
-        rw [← mul_pow, hyinv, inv_pow]
-        norm_num
-        ring
-
 open Classical in
 /-- **Lemma 13.2 for `k = 1`.** A function given by a formula in disjunctive normal form whose
 terms have at most one literal fails to restrict to an `s`-CNF with probability at most
@@ -269,12 +130,12 @@ terms have at most one literal fails to restrict to an `s`-CNF with probability 
 
 If a fixed literal is true, the restricted function is the constant `true`; otherwise it reads
 only the free variables of the formula, and a decision tree querying them gives a CNF with clauses
-of at most that many literals. So a bad restriction fixes every literal of the formula to false
-and leaves more than `s` of its variables free. Drawing the restriction as a free set `J` and a
+of at most that many literals. So under a bad restriction every fixed literal of the formula is
+false, and more than `s` of its variables stay free. Drawing the restriction as a free set `J` and a
 word (`PartialAssignment.sum_card_filter_outside`), the word is forced on the fixed variables of
-the formula, and `sum_ite_half_pow_le` bounds the probability by `(2u / (n + u)) ^ (s + 1)` with
-`u = n - t`. Since `2u / (n + u) ≤ √(u / n)` and `2u / (n + u) ≤ 1`, this is at most
-`(u / n) ^ (s / 2)`. -/
+the formula, and `Cslib.sum_powersetCard_ite_half_pow_le` bounds the probability by
+`(2u / (n + u)) ^ (s + 1)` with `u = n - t`. Since `2u / (n + u) ≤ √(u / n)` and
+`2u / (n + u) ≤ 1`, this is at most `(u / n) ^ (s / 2)`. -/
 private theorem card_filter_not_cnf_div_card_le_of_length_le_one {n s t : ℕ}
     {f : (Fin n → Bool) → Bool}
     (hf : ∃ F : DNF (Fin n), (∀ T ∈ F, T.length ≤ 1) ∧ ∀ x, DNF.eval x F = f x) :
@@ -316,10 +177,11 @@ private theorem card_filter_not_cnf_div_card_le_of_length_le_one {n s t : ℕ}
         fun c hc => (length_le_depth_of_mem_toCNF hc).trans
           ((depth_queryAll_le _ _ _).trans (by rw [length_toList]; exact hle)), fun x => ?_⟩
       rw [eval_toCNF, eval_queryAll, ← hF, ← hF]
-      refine eval_congr fun T hT l hl => ?_
-      rcases hρl : ρ l.1 with _ | c
-      · have hA : l.1 ∈ A := mem_inter.2 ⟨PartialAssignment.mem_free.2 hρl,
-          mem_image.2 ⟨l, hmemL hT hl, rfl⟩⟩
+      refine DNF.eval_congr fun v hv => ?_
+      obtain ⟨T, hT, b, hl⟩ := CNF.mem_vars.1 hv
+      rcases hρl : ρ v with _ | c
+      · have hA : v ∈ A := mem_inter.2 ⟨PartialAssignment.mem_free.2 hρl,
+          mem_image.2 ⟨(v, b), hmemL hT hl, rfl⟩⟩
         rw [PartialAssignment.fill_of_eq_none hρl, PartialAssignment.fill_of_eq_none hρl]
         simp only [mem_toList.2 hA, ↓reduceIte]
       · simp [PartialAssignment.fill_of_eq_some hρl]
@@ -381,7 +243,7 @@ private theorem card_filter_not_cnf_div_card_le_of_length_le_one {n s t : ℕ}
       rw [div_pow, one_pow, ← div_eq_mul_one_div, pow_sub₀ _ (by norm_num) hVJ, div_eq_mul_inv]
     · have hs' : ¬ s + 1 ≤ #(J ∩ V) := hs
       simp only [hs, hs', ↓reduceIte, mul_zero]
-  have hcore := sum_ite_half_pow_le (r := s + 1) hupos hun V
+  have hcore := Cslib.sum_powersetCard_ite_half_pow_le (r := s + 1) hupos hun V
   -- the probability is at most `g ^ (s + 1)` with `g = 2u / (n + u)`
   set g : ℝ := 2 * u / (n + u)
   have hg0 : 0 ≤ g := by positivity
