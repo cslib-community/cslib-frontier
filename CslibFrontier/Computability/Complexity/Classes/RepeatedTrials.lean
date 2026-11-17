@@ -115,7 +115,7 @@ theorem repeatMajority_ofFn {r p : Polynomial ℕ} {V : α × List Bool → Bool
     (x : BitString (2 * r.eval (enc a).length * p.eval (enc a).length)) :
     repeatMajority enc r p V (a, List.ofFn x) = decide (r.eval (enc a).length <
       (univ.filter fun i => V (a, List.ofFn (BitString.block x i)) = true).card) := by
-  rw [repeatMajority, repeatVotes_ofFn, List.countP_ofFn, card_filter]
+  rw [repeatMajority, repeatVotes_ofFn, List.countP_ofFn]
   rfl
 
 /-- The disjunction of `q(n)` runs of `V`, where `n` is the length of the encoded instance: the
