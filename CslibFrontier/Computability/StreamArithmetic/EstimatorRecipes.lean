@@ -76,12 +76,6 @@ universe u u' v
 
 section FixedRecipeCombinators
 
-/-- Equality of the four resource-bound coefficients of two `UniformStreamRecipe`s. -/
-@[expose] def sameCoeffs {Op₁ : Type u} {Op₂ : Type u'} {Struct : Type v}
-    (R₁ : UniformStreamRecipe Op₁ Struct) (R₂ : UniformStreamRecipe Op₂ Struct) : Prop :=
-  R₁.coeffA = R₂.coeffA ∧ R₁.coeffB = R₂.coeffB ∧
-    R₁.coeffC = R₂.coeffC ∧ R₁.intrinsicCoeff = R₂.intrinsicCoeff
-
 /-- Quadruple of allowance and intrinsic-storage coefficients of a certified stream recipe. -/
 private structure RecipeCoeffs where
   coeffA : ℕ
