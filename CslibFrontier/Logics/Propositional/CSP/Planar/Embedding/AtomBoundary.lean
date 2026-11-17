@@ -13,6 +13,7 @@ import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.Restriction
 import CslibFrontier.Foundations.Data.List.IdxOfInjective
 import Mathlib.Data.List.Enum
 import Mathlib.Data.List.GetD
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # The full ordered free-port boundary of an arbitrary-arity atom
@@ -130,10 +131,7 @@ private theorem getD_atomBoundary_odd {n : ℕ} (b : Bool) (i : Fin n) :
     (atomBoundaryCertificate n).successor.getD (2 * ((if b then n else 0) + i.val) + 1) 0 =
       2 * ((if b then n else 0) + (finRotate n i).val) + 1 := by
   have hi : ((finRotate n).symm i.rev).rev = finRotate n i := by
-    apply Fin.ext
-    simp only [Fin.val_rev, val_finRotate_symm, val_finRotate]
-    have hlt := i.isLt
-    split_ifs <;> omega
+    fin_index [val_finRotate_symm, val_finRotate]
   cases b
   · have h := Graph.RotationCertificate.getD_ofRotation (doubleStarRotation n)
       (doubleStarDartEquiv n ((i, false), true))

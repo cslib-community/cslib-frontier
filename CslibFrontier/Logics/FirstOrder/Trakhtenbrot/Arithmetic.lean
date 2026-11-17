@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Logics.FirstOrder.Raw.Basic
+import CslibFrontier.Tactic.FinIndex
 import Mathlib.Data.Fintype.EquivFin
 import Mathlib.Data.Set.Card
 import Mathlib.Tactic.Ring
@@ -310,7 +311,7 @@ theorem arithModel_of_std {N : ℕ} {I : ℕ → List (Fin N) → Prop}
   have hnext : ∀ a' b' a b : Fin N, NextSem I a' b' a b ↔ NextNat a' b' a b :=
     fun a' b' a b => nextSem_iff (Equiv.refl _) h0 h1 h2
   refine ⟨fun a => by simp [h0], fun a b c => by simp only [h0]; omega,
-    fun a b => by simp only [h0, Fin.ext_iff]; omega, fun a => ?_, fun a b => ?_, fun a b p => ?_⟩
+    fun a b => by fin_index [h0], fun a => ?_, fun a b => ?_, fun a b p => ?_⟩
   · rw [h1]
     simp only [h0]
     constructor

@@ -410,10 +410,7 @@ attribute [local fun_prop] listDotProduct_polyTime
 theorem computableInPolyTime_check : ComputableInPolyTime check
     (encPair (encSystem)
       (encPair encIntBin (encList encIntBin))) encBool := by
-  unfold check
-  apply bool_and' (by fun_prop)
-  apply allWithInput (by fun_prop)
-  fun_prop
+  fun_prop [check]
 
 /-- The `coNP` check is polynomial-time. -/
 theorem computableInPolyTime_certCheck : ComputableInPolyTime certCheck

@@ -89,7 +89,6 @@ private theorem polygon_sameComponent_incidence_vertex (o p : F.Occurrence) (b c
   · omega
   · omega
   · apply polygon_sameComponent_constraint
-    apply Fin.ext
     omega
 
 private theorem incidence_adj_occurrence {u v : ℕ}

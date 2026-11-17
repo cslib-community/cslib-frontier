@@ -12,6 +12,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.StepCou
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.OutputToTape
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Sequential
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Exact native step counters from binary input
@@ -143,9 +144,6 @@ theorem exists_stepCounter : Nonempty StepCounter := by
         exact ⟨i.val, i.isLt, rfl⟩
     rw [hset, Set.ncard_range_of_injective]
     · simp
-    · intro i j hij
-      apply Fin.ext
-      change u + 2 * i.val + 1 = u + 2 * j.val + 1 at hij
-      omega
+    · fin_index
 
 end Turing.MultiTapeTM

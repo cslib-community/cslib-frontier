@@ -32,7 +32,14 @@ original input are certified here. General loop invariants use `IsPPTOn.iterate_
 
 Strict oracle PPT goals (`IsOraclePPTOn`, `IsOraclePPT`) search with the `OraclePPT`, `PPT` and
 `PolyTime` Aesop rule sets while keeping `simp` disabled on oracle goals so charged reply prefixes
-(`List.take _ <$> ProbOracleComp.query _`) are never fused into surrounding maps or binds. Local
+(`List.take _ <$> ProbOracleComp.query _`) are never fused into surrounding maps or binds. Closed
+PPT goals (`IsPPTOn`, `IsPPT`) likewise disable Aesop's built-in `norm simp`, while `PolyTime`'s
+`simp_all` rules turn `dsimp`, `proj`, `iota`, and `zeta` back on for closed PPT goals (only
+`zetaDelta` stays off, whereas all five were off before — needed so `CslibFrontierTests.MemoizePPT`
+does not time out at `whnf`) and erase the monad-map fusion lemmas (`bind_map_left`,
+`LawfulMonad.bind_pure_comp`, `Functor.map_map`, `LawfulMonad.map_map`, `map_bind`,
+`PFunctor.FreeM.bind_pure_comp`, `PFunctor.FreeM.map_bind`) so encoded samplers
+(`enc _ <$> sample _`) stay intact. Local
 and structure-field oracle routine calls prepare tuple arguments with `IsOraclePPTOn.preprocess'`;
 `pure`, `ProbOracleComp.sample` and `query_take'` bridge to deterministic `PolyTime`, closed `PPT`
 and plain request/limit bounds; sequencing, captured maps, plain conditionals and bounded-growth
@@ -477,7 +484,8 @@ syntax (name := pptTactic) "ppt" (" [" ident,* "]")? : tactic
 
 /-- Elaborate `ppt`: prepare the goal and unfold `IsOraclePPT` before and after exposing structure
 fields, then search with `[OraclePPT, PPT, PolyTime]` (preserving query syntax) on oracle goals or
-`[PPT, PolyTime]` on closed goals. -/
+`[PPT, PolyTime]` on closed goals (with built-in `norm simp` disabled so monad-map fusion does not
+rewrite encoded samplers). -/
 @[tactic pptTactic] meta def evalPPT : Tactic := fun stx => do
   let hints := match stx with
     | `(tactic| ppt [$hints,*]) => hints.getElems
@@ -502,7 +510,11 @@ fields, then search with `[OraclePPT, PPT, PolyTime]` (preserving query syntax) 
     else
       withEnv env do
         evalTactic (← `(tactic| solve |
-          aesop (config := { terminal := true, assumptionTransparency := .reducible })
+          aesop
+            (config :=
+              { terminal := true
+                enableSimp := false
+                assumptionTransparency := .reducible })
             (rule_sets := [PPT, PolyTime])))
 
 end Cslib.Tactic.PPT

@@ -15,6 +15,7 @@ public import CslibFrontier.Computability.Circuit.Wiring
 import CslibFrontier.Algorithms.Lean.Sort.Bitonic.Correctness
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.Ring
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Batcher sorting circuits
@@ -239,8 +240,7 @@ private theorem cost_collect {input a b n m r : ℕ}
     (left : Circuit signature input (a * 2 + n * r))
     (right : Circuit signature input (b * 2 + m * r)) (cost : signature.Op → ℕ) :
     (collect left right).program.cost cost = left.program.cost cost + right.program.cost cost := by
-  simp only [collect, Circuit.cost_program_comp, Circuit.cost_program_append,
-    Circuit.cost_program_wiringOn, Nat.add_zero]
+  simp only [circuit_simps, collect, Nat.add_zero]
 
 /-- Preserve the first controls while executing the second circuit on its payload. -/
 def chain {input a b n m r : ℕ}
@@ -281,8 +281,7 @@ private theorem cost_chain {input a b n m r : ℕ}
     (second : Circuit signature (n * r) (b * 2 + m * r)) (cost : signature.Op → ℕ) :
     (chain first second).program.cost cost =
       first.program.cost cost + second.program.cost cost := by
-  simp only [chain, Circuit.cost_program_comp, Circuit.cost_program_parallel, Circuit.id,
-    Circuit.cost_program_wiringOn, Circuit.cost_program_wiring, Nat.zero_add, Nat.add_zero]
+  simp only [circuit_simps, chain, Circuit.cost_program_parallel, Nat.zero_add, Nat.add_zero]
 
 private theorem eval_collect {input a b n m r : ℕ}
     (left : Circuit signature input (a * 2 + n * r))
@@ -385,10 +384,9 @@ private theorem eval_layer {k r : ℕ} (key : Fin k → Fin r) (n : ℕ) (ascend
   apply ext
   · rw [controls_pack]
     funext j bit
-    simp only [controls, layer, BitString.block, Circuit.eval_comp,
-      Circuit.eval_wiring, Function.comp_apply, Fin.addCases_left,
+    simp only [circuit_simps, controls, layer, BitString.block, Fin.addCases_left,
       Equiv.symm_apply_apply, Circuit.eval_replicate_apply, bitonicLayerCircuit.gather_pair,
-      eval_pair, Fin.append_left, flag_eq_decide, pairs, BitonicSort.layerFlags]
+      eval_pair, flag_eq_decide, pairs, BitonicSort.layerFlags]
     cases ascending <;>
       simp only [Bool.false_eq_true, ↓reduceIte, decide_not, Bool.not_not] <;>
       congr 2 <;> first
@@ -397,10 +395,9 @@ private theorem eval_layer {k r : ℕ} (key : Fin k → Fin r) (n : ℕ) (ascend
   · rw [records_pack]
     funext j bit
     cases j using Fin.addCases <;>
-      simp only [records, layer, BitString.block, Circuit.eval_comp,
-        Circuit.eval_wiring, Function.comp_apply, Fin.addCases_right, Fin.addCases_left,
-        Equiv.symm_apply_apply, Circuit.eval_replicate_apply, bitonicLayerCircuit.gather_pair,
-        eval_pair, Fin.append_right, flag_eq_decide, BitonicSort.compareLayer,
+      simp only [circuit_simps, records, layer, BitString.block, Fin.addCases_right,
+        Fin.addCases_left, Equiv.symm_apply_apply, Circuit.eval_replicate_apply,
+        bitonicLayerCircuit.gather_pair, eval_pair, flag_eq_decide, BitonicSort.compareLayer,
         BitonicSort.compareLayer.source]
     all_goals
       cases ascending <;>
@@ -416,8 +413,8 @@ private theorem cost_layer {k r : ℕ} (key : Fin k → Fin r) (n : ℕ) (ascend
       (compareSwapCircuit.record
         (Formula.lexLt (Fin.natAdd r ∘ key) (Fin.castAdd r ∘ key)).toCircuit).program.cost
           cost := by
-  simp only [layer, Circuit.cost_program_comp, Circuit.cost_program_wiring,
-    Circuit.cost_program_replicate, cost_pair, Nat.zero_add, Nat.add_zero]
+  simp only [circuit_simps, layer, Circuit.cost_program_replicate, cost_pair, Nat.zero_add,
+    Nat.add_zero]
 
 /-- Run one traced circuit on each half of a record array. -/
 def halves {a b n r : ℕ} (left : Circuit signature (n * r) (a * 2 + n * r))
@@ -435,13 +432,12 @@ private theorem eval_halves {a b n r : ℕ} (left : Circuit signature (n * r) (a
         (Fin.append
           (records (left.eval interpretation (x ∘ bitonicMergeCircuit.firstHalf n r)))
           (records (right.eval interpretation (x ∘ bitonicMergeCircuit.secondHalf n r)))) := by
-  simp only [halves, eval_collect, Circuit.eval_comp, Circuit.eval_wiring]
+  simp only [circuit_simps, halves, eval_collect]
 
 private theorem cost_halves {a b n r : ℕ} (left : Circuit signature (n * r) (a * 2 + n * r))
     (right : Circuit signature (n * r) (b * 2 + n * r)) (cost : signature.Op → ℕ) :
     (halves left right).program.cost cost = left.program.cost cost + right.program.cost cost := by
-  simp only [halves, cost_collect, Circuit.cost_program_comp, Circuit.cost_program_wiring,
-    Nat.zero_add]
+  simp only [circuit_simps, halves, cost_collect, Nat.zero_add]
 
 end bitonicSortTraceCircuit
 

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.WordRAM.Realization.Glue
 public import CslibFrontier.Computability.WordRAM.Realization.Witness
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Certified finite-result word glue
@@ -176,10 +177,8 @@ def Witness.glueVectorOfScalars (input : δ ↪ (Fin k → ℕ)) (output : α �
         exact congrArg (fun a : Fin (l + N + 1) => a.val) (hi hij)
       have hauxi (i : Fin l) : Function.Injective (aux i) := by
         intro a b hab
-        apply Fin.ext
-        have h := congrArg (fun a : Fin (l + N + 1) => a.val) (hi hab)
-        dsimp only [aux] at h
-        omega
+        have := hi hab
+        fin_index
       have had (i : Fin l) (j : Fin k) (a : Fin (n i + 1)) : src j ≠ aux i a := hd _ _
       have hauxDst (i : Fin l) (j : Fin l) : ∀ a, aux i a ≠ dst j := by
         intro a h
@@ -378,10 +377,8 @@ theorem glueVector (input : δ ↪ (Fin k → ℕ)) (output : α ↪ (Fin l → 
     fun j => tmp ⟨l + j.val, by have := hn i; omega⟩
   have hauxi (i : Fin l) : Function.Injective (aux i) := by
     intro a b hab
-    apply Fin.ext
-    have hh := congrArg Fin.val (hi hab)
-    dsimp only [aux] at hh
-    omega
+    have := hi hab
+    fin_index
   have hcglue (i : Fin l) :
       (Code.seq ((scalars i).code src (aux i))
         (.op (.copy (tmp (Fin.castAdd (W.scratchSize + 1) i)) (tmp ⟨l, by omega⟩)))).IsGlue :=

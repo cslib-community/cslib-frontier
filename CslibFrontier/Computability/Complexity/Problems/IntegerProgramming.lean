@@ -114,10 +114,7 @@ theorem isVerifier :
 @[fun_prop]
 theorem computableInPolyTime_verifier :
     ComputableInPolyTime verifier (encPair encZeroOneIP encBits) encBool := by
-  have hmask := computableInPolyTime_maskSelect encNat
-  unfold verifier
-  apply allWithInput (by fun_prop)
-  fun_prop
+  fun_prop [verifier]
 
 /-- `ZeroOneIP` belongs to `NP`. -/
 theorem mem_NP : ZeroOneIP ∈ NP encZeroOneIP :=

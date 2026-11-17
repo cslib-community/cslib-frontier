@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Ca
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.CallableBox.Pointer.Readback
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct.Exec
 import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.CallableBox.Exec
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Pointer-gather product core
@@ -110,12 +111,11 @@ theorem exec_core {W b m t N s r q : ℕ}
   have hS : 5 ≤ QueriedProduct.snapshotBase (21 * m) m N qs.length := by
     unfold QueriedProduct.snapshotBase QueriedProduct.inputEnd; omega
   obtain ⟨g, hg, gm, gf⟩ := exec_gather u ub up.snapshot up.matrixWords up.queryCount
-    up.two up.five ((uf _ (by decide)).trans hs) ((uf _ (by decide)).trans hr)
-    ((uf _ (by decide)).trans hq) hS hsb hrb hqb (hfit.of_le (by
+    up.two up.five (by regs_frame) (by regs_frame) (by regs_frame) hS hsb hrb hqb (hfit.of_le (by
       unfold QueriedProduct.inputEnd at hspan; omega))
-  have gb : g.regs Reg.base = b := (gf _ (by decide)).trans ub
-  have gM : g.regs (callableBank CallableProduct.Reg.modulus) = windowSize N qs.length :=
-    (gf _ (by decide)).trans uM
+  have gb : g.regs Reg.base = b := by regs_frame
+  have gM : g.regs (callableBank CallableProduct.Reg.modulus) = windowSize N qs.length := by
+    regs_frame
   have gvbound : (view (sourceWidth N qs.length) b g).Bounded (sourceWidth N qs.length) := by
     constructor
     · intro i

@@ -72,30 +72,7 @@ theorem computableInPolyTime_nandEntry {left right : α → List Bool}
     (hj : ComputableInPolyTime j input encUnary) :
     ComputableInPolyTime
       (fun a => nandEntry (n a) (w a) (left a) (right a) (i a) (k a) (j a)) input encNat := by
-  have hterm : ComputableInPolyTime
-      (fun p : α × ℕ =>
-        if (left p.1).getD ((i p.1 * w p.1 + k p.1) * ((n p.1 + 1) * w p.1) + p.2) false
-        then Matrix.binaryEntry (n p.1 + 1) (w p.1) (right p.1) p.2 (j p.1) else 0)
-      (encPair input encUnary) encNat := by
-    apply ((bitsGetD false).comp ((hleft.comp (fst input encUnary)).prod (by fun_prop))).ite'
-    · exact matrixBinaryEntry (by fun_prop) (by fun_prop) (by fun_prop)
-        (snd input encUnary) (by fun_prop)
-    · exact const 0
-  have hsum := (show ComputableInPolyTime List.sum (encList encNat) encNat by fun_prop).comp
-    (mapWithInput
-      (f := fun a r => if (left a).getD ((i a * w a + k a) * ((n a + 1) * w a) + r) false
-        then Matrix.binaryEntry (n a + 1) (w a) (right a) r (j a) else 0)
-      (range.comp (show ComputableInPolyTime (fun a => (n a + 1) * w a)
-        input encUnary by fun_prop)) hterm)
-  have hgadget : ComputableInPolyTime
-      (fun a => if i a = j a then 2 ^ k a else 0) input encNat := by
-    simpa only [beq_iff_eq] using
-      (beq hi hj).ite' (binary_pow' (const 2) hk) (const 0)
-  unfold nandEntry
-  simpa only [Function.comp_apply, Nat.cast_pow, Nat.cast_ofNat] using
-    intBin_emodNat'
-      (intBin_sub.comp ((intBin_natCast.comp hgadget).prod (intBin_natCast.comp hsum)))
-      (binary_pow' (const 2) hw)
+  fun_prop [nandEntry]
 
 /-- Compute the full square ciphertext with a single uniform native polynomial clock. -/
 @[fun_prop]
