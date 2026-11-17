@@ -189,6 +189,7 @@ theorem card_heavyPositions_le {program : ProbOracleComp (fun _ : P => Γ) α} {
   set n : ℝ := (Fintype.card P : ℝ)
   set w : P → ℝ := fun j => (expectedReads program z j).toReal
   have hsum : ∑ j, w j ≤ q := by
+    -- `ennreal_to_real` finds the summands finite by `hfin`.
     have hfin := expectedReads_ne_top hq z
     ennreal_to_real using sum_expectedReads_le hq z
   have hsumH : ∑ j ∈ H, w j ≤ q :=

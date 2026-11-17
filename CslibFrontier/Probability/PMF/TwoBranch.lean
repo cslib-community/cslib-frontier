@@ -40,6 +40,7 @@ open scoped ENNReal
 `(2 * s - 1) * (s + 1) = 2 * s ^ 2 + s - 1 ≥ 2 * s ^ 2`. -/
 theorem one_sub_sq_one_sub_inv_ge {s : ℕ} (hs : 1 ≤ s) :
     (2 : ℝ≥0∞) / ((s + 1 : ℕ) : ℝ≥0∞) ≤ 1 - (1 - (1 : ℝ≥0∞) / (s : ℝ≥0∞)) ^ 2 := by
+  -- `ennreal_to_real` splits the two truncated subtractions with `h₁` and `h₂`.
   have h₁ : (1 : ℝ≥0∞) / s ≤ 1 := by
     rw [ENNReal.div_le_iff (by positivity) (by finiteness), one_mul]
     exact_mod_cast hs

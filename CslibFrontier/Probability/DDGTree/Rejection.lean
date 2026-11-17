@@ -364,6 +364,7 @@ theorem dist_runCapped_eq [Fintype α] {spec : BlockRejectionSpec α} {target : 
       (spec.rejectProb ^ t).toReal * (1 - (target fallback).toReal) := by
   classical
   set r := spec.rejectProb ^ t with hr
+  -- `ennreal_to_real` splits `(1 - r).toReal` with `hr1`.
   have hr1 : r ≤ 1 := pow_le_one₀ zero_le spec.rejectProb_le_one
   have hval (a : α) : (spec.runCapped fallback t a).toReal =
       (1 - r.toReal) * (target a).toReal + if a = fallback then r.toReal else 0 := by
