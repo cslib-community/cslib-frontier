@@ -9,7 +9,6 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Equivalence
 public import CslibFrontier.Languages.Probabilistic.Basic
-import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 
 /-!
 # Clocked machine execution as a typed program
@@ -165,18 +164,18 @@ theorem length_output_runConfigFrom_le {OracleState : Type}
     final.tapes.output.length ≤ cfg.tapes.output.length + fuel := by
   induction fuel generalizing cfg s with
   | zero =>
-    simp only [runConfigFrom_zero, interp_norm, Probability.PMF.monad_pure_eq_pure,
-      PMF.mem_support_pure_iff, Prod.mk.injEq] at h
+    simp only [runConfigFrom_zero, OracleComp.interpret_pure, StateT.run_pure,
+      Probability.PMF.monad_pure_eq_pure, PMF.mem_support_pure_iff, Prod.mk.injEq] at h
     simp [h.1]
   | succ fuel ih =>
     cases hs : cfg.tapes.state with
     | none =>
-      simp only [runConfigFrom, hs, interp_norm, Probability.PMF.monad_pure_eq_pure,
-        PMF.mem_support_pure_iff, Prod.mk.injEq] at h
+      simp only [runConfigFrom, hs, OracleComp.interpret_pure, StateT.run_pure,
+        Probability.PMF.monad_pure_eq_pure, PMF.mem_support_pure_iff, Prod.mk.injEq] at h
       simp [h.1]
     | some state =>
-      simp only [runConfigFrom, hs, interp_norm, Probability.PMF.monad_bind_eq_bind,
-        PMF.mem_support_bind_iff] at h
+      simp only [runConfigFrom, hs, OracleComp.interpret_bind, StateT.run_bind,
+        Probability.PMF.monad_bind_eq_bind, PMF.mem_support_bind_iff] at h
       obtain ⟨⟨action, nextState⟩, _, h⟩ := h
       cases action with
       | step action symbol move =>
@@ -187,7 +186,8 @@ theorem length_output_runConfigFrom_le {OracleState : Type}
           exact Nat.add_le_add_left action.output.length_toList_le _
         lia
       | query op next =>
-        simp only [interp_norm, Probability.PMF.monad_bind_eq_bind, PMF.mem_support_bind_iff] at h
+        simp only [OracleComp.interpret_bind, StateT.run_bind,
+          Probability.PMF.monad_bind_eq_bind, PMF.mem_support_bind_iff] at h
         obtain ⟨⟨answer, nextState⟩, _, h⟩ := h
         have hout := ih (cfg.receive op next answer) nextState h
         simp only [Config.receive] at hout
@@ -200,7 +200,8 @@ theorem length_output_runFrom_le {OracleState : Type}
     (h : (output, s') ∈
       ((OracleComp.interpret oracle (machine.runFrom choose query fuel cfg)).run s).support) :
     output.length ≤ cfg.tapes.output.length + fuel := by
-  simp only [runFrom, interp_norm, PMF.monad_map_eq_map, PMF.mem_support_map_iff] at h
+  simp only [runFrom, OracleComp.interpret_map, StateT.run_map, PMF.monad_map_eq_map,
+    PMF.mem_support_map_iff] at h
   obtain ⟨⟨final, finalState⟩, hfinal, heq⟩ := h
   rw [← (Prod.mk.inj heq).1]
   exact machine.length_output_runConfigFrom_le choose query oracle fuel cfg final s finalState

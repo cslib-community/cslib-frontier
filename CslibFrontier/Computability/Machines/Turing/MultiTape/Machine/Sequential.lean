@@ -10,7 +10,6 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Halting
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.Sequential
 
-import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Simulation
 
@@ -244,13 +243,15 @@ theorem run_interpret_runConfigFrom_seq {OracleState : Type}
   induction firstTime generalizing cfg s with
   | zero =>
     have hhalt := hfirst (cfg, s) (by simp)
-    simp only [Nat.zero_add, runConfigFrom_zero, interp_norm, pmf_norm]
+    simp only [Nat.zero_add, runConfigFrom_zero, OracleComp.interpret_pure, StateT.run_pure,
+      Probability.PMF.monad_pure_eq_pure, PMF.pure_bind]
     rw [left_halted second cfg hhalt, Sequential.runConfigFrom_right first second choose hchoose,
       OracleComp.interpret_map, StateT.run_map, PMF.monad_map_eq_map]
   | succ firstTime ih =>
     by_cases hhalt : cfg.tapes.state = none
     · have hsecond' := hsecond (cfg, s) (by simp [hhalt])
-      simp only [runConfigFrom_halted first choose query _ cfg hhalt, interp_norm, pmf_norm]
+      simp only [runConfigFrom_halted first choose query _ cfg hhalt, OracleComp.interpret_pure,
+        StateT.run_pure, Probability.PMF.monad_pure_eq_pure, PMF.pure_bind]
       rw [left_halted second cfg hhalt, Sequential.runConfigFrom_right first second choose hchoose,
         OracleComp.interpret_map, StateT.run_map, PMF.monad_map_eq_map,
         Nat.add_comm (firstTime + 1) secondTime,
@@ -321,6 +322,7 @@ theorem run_interpret_runFrom_seq {OracleState : Type}
   have h := congrArg (PMF.map (fun result => (result.1.tapes.output, result.2)))
     (run_interpret_runConfigFrom_seq first second choose hchoose query oracle cfg firstTime
       secondTime s hfirst hsecond)
-  simpa [runFrom, interp_norm, pmf_norm, right] using h
+  simpa [runFrom, OracleComp.interpret_map, StateT.run_map, PMF.map_bind, PMF.map_comp,
+    Function.comp_def, right] using h
 
 end Turing.MultiTapeMachine

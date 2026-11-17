@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Program
-import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Probability.PMF.Bind
 
 /-!
@@ -132,6 +131,7 @@ theorem HaltsWithin.run_interpret_run_eq {fuel : ℕ} {input : List Symbol}
     (larger : ℕ) (s : OracleState) (hle : fuel ≤ larger) :
     (OracleComp.interpret oracle (machine.run choose query larger input)).run s =
       (OracleComp.interpret oracle (machine.run choose query fuel input)).run s := by
-  simp only [run, runFrom, interp_norm, h.run_interpret_runConfigFrom_eq oracle larger s hle]
+  simp only [run, runFrom, OracleComp.interpret_map, StateT.run_map,
+    h.run_interpret_runConfigFrom_eq oracle larger s hle]
 
 end Turing.MultiTapeMachine
