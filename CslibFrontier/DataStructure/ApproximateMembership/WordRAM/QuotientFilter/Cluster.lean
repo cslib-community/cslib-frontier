@@ -17,6 +17,7 @@ import CslibFrontier.Foundations.Data.List.Sort
 import CslibFrontier.Tactic.Fits
 import CslibFrontier.Tactic.Realize
 import CslibFrontier.Tactic.SuppCases
+import Mathlib.Data.Nat.Bitwise
 
 /-!
 # Memory-Program Realization of Quotient-Filter Cluster Operations
@@ -388,18 +389,11 @@ private theorem masked_addr_lt {base idx mask sh bound : ℕ}
     exact Nat.div_le_div_right Nat.and_le_right
   omega
 
-private theorem fits_shiftLeft {w v d sh : ℕ} (hv : v < 2 ^ d) (hle : d + sh ≤ w) :
-    Fits w (v <<< sh) := by
-  unfold Fits
-  rw [Nat.shiftLeft_eq]
-  calc v * 2 ^ sh < 2 ^ d * 2 ^ sh := Nat.mul_lt_mul_of_pos_right hv (Nat.two_pow_pos sh)
-    _ = 2 ^ (d + sh) := (pow_add 2 d sh).symm
-    _ ≤ 2 ^ w := Nat.pow_le_pow_right two_pos hle
-
 private theorem fits_writeBit_diff_sh {w word sh val : ℕ} (hsh : sh < w)
     (hval : val < 2) :
     Fits w (((word >>> sh &&& 1) ^^^ val) <<< sh) :=
-  fits_shiftLeft (d := 1) (Nat.xor_lt_two_pow (Nat.and_lt_two_pow _ (by decide)) hval) (by omega)
+  Fits.mono (Nat.shiftLeft_lt (n := 1)
+    (Nat.xor_lt_two_pow (Nat.and_lt_two_pow _ (by decide)) hval)) (by omega)
 
 private theorem fits_writeBit_newWord {w word sh val : ℕ} (hw : word < 2 ^ w)
     (hsh : sh < w) (hval : val < 2) :
@@ -508,8 +502,8 @@ private theorem fits_rem_sh {w idx mask f : ℕ} (hf : f < w) (hm : (mask + 1) *
 private theorem fits_writeRem_diff_sh {w word idx mask f fMask val : ℕ}
     (hm : (mask + 1) * f ≤ w) (hfMask : fMask < 2 ^ f) (hval : val ≤ fMask) :
     Fits w (((word >>> ((idx &&& mask) * f) &&& fMask) ^^^ val) <<< ((idx &&& mask) * f)) :=
-  fits_shiftLeft
-    (Nat.xor_lt_two_pow (Nat.and_le_right.trans_lt hfMask) (hval.trans_lt hfMask))
+  Fits.mono (Nat.shiftLeft_lt
+    (Nat.xor_lt_two_pow (Nat.and_le_right.trans_lt hfMask) (hval.trans_lt hfMask)))
     (by
       have := Nat.mul_le_mul_right f (Nat.and_le_right (n := idx) (m := mask))
       linarith)

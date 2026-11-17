@@ -867,6 +867,15 @@ theorem opCode_execWithin {U base w w₀ n k : ℕ}
   input := inputReg
   output := qfReg 1
 
+private theorem encode_fits {U w w₀ : ℕ} (hw₀_pos : 0 < w₀) (hw : 2 * w₀ ≤ w) (hU : U ≤ 2 ^ w₀)
+    (o : Op U) (i : Fin rQF) : Fits w (encode o i) := by
+  unfold encode
+  split_ifs
+  · fits [(opKey o).isLt.trans_le hU, Nat.pow_le_pow_right two_pos (by omega : w₀ ≤ w)]
+  · fits [show opTag o ≤ 2 by cases o <;> simp [opTag],
+      Nat.pow_le_pow_right two_pos (by omega : 2 ≤ w)]
+  · exact fits_zero w
+
 theorem prepare_rep {U base w w₀ n k : ℕ}
     (hw₀_pos : 0 < w₀) (hw : 2 * w₀ ≤ w) (hU : U ≤ 2 ^ w₀)
     {p : FilterSeed w₀ n} {S : Finset (Fin U)} (o : Op U) {x : Data rQF}
@@ -877,15 +886,8 @@ theorem prepare_rep {U base w w₀ n k : ℕ}
     x_prep.regs (qfReg 247) = opTag o ∧
     (∀ i, (subroutineCode w w₀ n k).input i = true → Fits w (encode o i)) := by
   intro x_prep
-  have hfit_args : ∀ i, (subroutineCode w w₀ n k).input i = true → Fits w (encode o i) := by
-    intro i hi
-    change decide (i = qfReg 1 ∨ i = qfReg 247) = true at hi
-    rcases of_decide_eq_true hi with rfl | rfl
-    · simp only [encode, ↓reduceIte]
-      fits [(opKey o).isLt.trans_le hU, Nat.pow_le_pow_right two_pos (by omega : w₀ ≤ w)]
-    · rw [show encode o (qfReg 247) = opTag o by simp +decide [encode]]
-      fits [show opTag o ≤ 2 by cases o <;> simp [opTag],
-        Nat.pow_le_pow_right two_pos (by omega : 2 ≤ w)]
+  have hfit_args : ∀ i, (subroutineCode w w₀ n k).input i = true → Fits w (encode o i) :=
+    fun i _ => encode_fits hw₀_pos hw hU o i
   have hbdd_prep : x_prep.Bounded w :=
     (subroutineCode w w₀ n k).prepare_bounded encode hrep.1 hfit_args
   have h0_prep : x_prep.regs (qfReg 0) = base := by
@@ -1089,14 +1091,7 @@ private theorem steps_exec_aux {U base w w₀ n k : ℕ}
   encode := encode
   decode := decode
   bounded hinv t ht := (hinv.2 t ht).1
-  arguments_fit o _ i hi := by
-    change decide (i = qfReg 1 ∨ i = qfReg 247) = true at hi
-    rcases of_decide_eq_true hi with rfl | rfl
-    · simp only [encode, ↓reduceIte]
-      fits [(opKey o).isLt.trans_le hU, Nat.pow_le_pow_right two_pos (by omega : w₀ ≤ w)]
-    · rw [show encode o (qfReg 247) = opTag o by simp +decide [encode]]
-      fits [show opTag o ≤ 2 by cases o <;> simp [opTag],
-        Nat.pow_le_pow_right two_pos (by omega : 2 ≤ w)]
+  arguments_fit o _ i _ := by exact encode_fits hw₀_pos hw hU o i
   clear_nodup := by simp +decide [subroutineCode]
   params_not_clear j := Fin.elim0 j
   incCur_eval {x} h1 hfit := by
