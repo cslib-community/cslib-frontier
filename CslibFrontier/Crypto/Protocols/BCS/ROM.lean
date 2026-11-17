@@ -39,7 +39,7 @@ import Mathlib.Data.List.OfFn
 This module lifts the multi-round Ben-Sasson–Chiesa–Spooner (BCS) transformation
 (`CslibFrontier/Crypto/Protocols/BCS/Basic.lean`) to an explicit two-channel random-oracle model
 ([BenSassonChiesaSpooner2016]; compare [ChiesaYogev2024], Construction 25.1.1, Remark 25.1.3, and
-Theorem 25.2.1, printed pp. 274–278, Theorem 26.1.1 and Construction 26.1.3, printed pp. 288–290,
+Theorem 25.2.1, printed pp. 274–278, Theorem 26.1.1 and Construction 26.1.3, printed pp. 288–291,
 Chapter 31, Definitions 31.1.1–31.1.2, Definition 31.1.6, Construction 31.1.8, Theorem 31.2.1, and
 Theorem 31.3.1, composed with Merkle trace extraction from Chapter 18, Construction 18.5.3 and
 Lemma 18.5.7, printed pp. 199 and 204–207), proving adaptive round-by-round ROM soundness and
@@ -2373,7 +2373,7 @@ private theorem bcsKnowledgeSoundnessGame_eq_sticky [BEq Stmt] [BEq Chal]
 
 /-- **Adaptive straight-line BCS ROM knowledge soundness theorem** (compare state-restoration
 knowledge soundness and direct extraction in [BenSassonChiesaSpooner2016] and [ChiesaYogev2024],
-Theorem 26.1.1 and Construction 26.1.3, printed pp. 288–290, and the round-by-round reduction in
+Theorem 26.1.1 and Construction 26.1.3, printed pp. 288–291, and the round-by-round reduction in
 [ChiesaYogev2024], Chapter 31, Definition 31.1.6 and Theorem 31.3.1): under
 `IOPRoundByRoundKnowledgeSoundness iop rel iopExtract doomed goodStep` with per-round challenge
 escape probability `≤ ε_rbr`, for any adaptive cheating prover `P` making at most `t_FS`
